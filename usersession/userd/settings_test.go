@@ -52,11 +52,20 @@ func (s *settingsSuite) SetUpTest(c *C) {
 	s.mockXdgSettings = testutil.MockCommand(c, "xdg-settings", `
 if [ "$1" = "get" ] && [ "$2" = "default-web-browser" ];  then
   echo "some-snap_foo.desktop"
+elif [ "$1" = "get" ] && [ "$2" = "default-url-scheme-handler" ] && [ "$3" = "irc" ];  then
+  echo "some-snap_ircclient.desktop"
 elif [ "$1" = "check" ] && [ "$2" = "default-web-browser" ] && [ "$3" = "some-snap_foo.desktop" ];  then
+  echo yes
+elif [ "$1" = "check" ] && [ "$2" = "default-url-scheme-handler" ] && [ "$3" = "irc" ] && [ "$4" = "some-snap_ircclient.desktop" ];  then
   echo yes
 elif [ "$1" = "check" ] && [ "$2" = "default-web-browser" ];  then
   echo no
+elif [ "$1" = "check" ] && [ "$2" = "default-url-scheme-handler" ];  then
+  echo no
 elif [ "$1" = "set" ] && [ "$2" = "default-web-browser" ]; then
+  # nothing to do
+  exit 0
+elif [ "$1" = "set" ] && [ "$2" = "default-url-scheme-handler" ]; then
   # nothing to do
   exit 0
 else
@@ -105,6 +114,15 @@ func (s *settingsSuite) TestGetHappy(c *C) {
 	})
 }
 
+func (s *settingsSuite) TestGetHappyUrlScheme(c *C) {
+	defaultSchemeHandler, err := s.settings.GetSub("default-url-scheme-handler", "irc", ":some-dbus-sender")
+	c.Assert(err, IsNil)
+	c.Check(defaultSchemeHandler, Equals, "ircclient.desktop")
+	c.Check(s.mockXdgSettings.Calls(), DeepEquals, [][]string{
+		{"xdg-settings", "get", "default-url-scheme-handler", "irc"},
+	})
+}
+
 func (s *settingsSuite) TestCheckInvalidSetting(c *C) {
 	_, err := s.settings.Check("random-setting", "foo.desktop", ":some-dbus-sender")
 	c.Assert(err, ErrorMatches, `cannot use setting "random-setting": not allowed`)
@@ -120,12 +138,30 @@ func (s *settingsSuite) TestCheckIsDefault(c *C) {
 	})
 }
 
+func (s *settingsSuite) TestCheckIsDefaultUrlScheme(c *C) {
+	isDefault, err := s.settings.CheckSub("default-url-scheme-handler", "irc", "ircclient.desktop", ":some-dbus-sender")
+	c.Assert(err, IsNil)
+	c.Check(isDefault, Equals, "yes")
+	c.Check(s.mockXdgSettings.Calls(), DeepEquals, [][]string{
+		{"xdg-settings", "check", "default-url-scheme-handler", "irc", "some-snap_ircclient.desktop"},
+	})
+}
+
 func (s *settingsSuite) TestCheckNoDefault(c *C) {
 	isDefault, err := s.settings.Check("default-web-browser", "bar.desktop", ":some-dbus-sender")
 	c.Assert(err, IsNil)
 	c.Check(isDefault, Equals, "no")
 	c.Check(s.mockXdgSettings.Calls(), DeepEquals, [][]string{
 		{"xdg-settings", "check", "default-web-browser", "some-snap_bar.desktop"},
+	})
+}
+
+func (s *settingsSuite) TestCheckNoDefaultUrlScheme(c *C) {
+	isDefault, err := s.settings.CheckSub("default-url-scheme-handler", "irc", "bar.desktop", ":some-dbus-sender")
+	c.Assert(err, IsNil)
+	c.Check(isDefault, Equals, "no")
+	c.Check(s.mockXdgSettings.Calls(), DeepEquals, [][]string{
+		{"xdg-settings", "check", "default-url-scheme-handler", "irc", "some-snap_bar.desktop"},
 	})
 }
 
@@ -197,6 +233,20 @@ func (s *settingsSuite) testSetUserAccepts(c *C) {
 	*/
 }
 
+func (s *settingsSuite) testSetUserAcceptsURLScheme(c *C) {
+	df := filepath.Join(dirs.SnapDesktopFilesDir, "some-snap_ircclient.desktop")
+	err := os.MkdirAll(filepath.Dir(df), 0755)
+	c.Assert(err, IsNil)
+	err = ioutil.WriteFile(df, nil, 0644)
+	c.Assert(err, IsNil)
+
+	err = s.settings.SetSub("default-url-scheme-handler", "irc", "ircclient.desktop", ":some-dbus-sender")
+	c.Assert(err, IsNil)
+	c.Check(s.mockXdgSettings.Calls(), DeepEquals, [][]string{
+		{"xdg-settings", "set", "default-url-scheme-handler", "irc", "some-snap_ircclient.desktop"},
+	})
+}
+
 func (s *settingsSuite) TestSetUserAcceptsZenity(c *C) {
 	// force kdialog exec missing
 	restoreKDialog := ui.MockHasKDialogExecutable(func() bool { return false })
@@ -209,6 +259,18 @@ func (s *settingsSuite) TestSetUserAcceptsZenity(c *C) {
 	s.testSetUserAccepts(c)
 }
 
+func (s *settingsSuite) TestSetUserAcceptsZenityUrlScheme(c *C) {
+	// force kdialog exec missing
+	restoreKDialog := ui.MockHasKDialogExecutable(func() bool { return false })
+	restoreCmds := mockUIcommands(c, "true")
+	defer func() {
+		restoreKDialog()
+		restoreCmds()
+	}()
+
+	s.testSetUserAcceptsURLScheme(c)
+}
+
 func (s *settingsSuite) TestSetUserAcceptsKDialog(c *C) {
 	// force zenity exec missing
 	restoreZenity := ui.MockHasZenityExecutable(func() bool { return false })
@@ -219,4 +281,16 @@ func (s *settingsSuite) TestSetUserAcceptsKDialog(c *C) {
 	}()
 
 	s.testSetUserAccepts(c)
+}
+
+func (s *settingsSuite) TestSetUserAcceptsKDialogUrlScheme(c *C) {
+	// force zenity exec missing
+	restoreZenity := ui.MockHasZenityExecutable(func() bool { return false })
+	restoreCmds := mockUIcommands(c, "true")
+	defer func() {
+		restoreZenity()
+		restoreCmds()
+	}()
+
+	s.testSetUserAcceptsURLScheme(c)
 }
