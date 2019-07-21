@@ -220,6 +220,13 @@ version: 1.0
 type: gadget
 `
 
+const packageClassicGadget18 = `
+name: classic-gadget18
+version: 1.0
+type: gadget
+base: core18
+`
+
 const packageKernel = `
 name: pc-kernel
 version: 4.4-1
@@ -267,6 +274,12 @@ confinement: classic
 const requiredSnap1 = `
 name: required-snap1
 version: 1.0
+`
+
+const requiredSnap18 = `
+name: required-snap18
+version: 1.0
+base: core18
 `
 
 const snapReqOtherBase = `
@@ -578,6 +591,12 @@ func (s *imageSuite) setupSnaps(c *C, gadgetUnpackDir string, publishers map[str
 		s.addSystemSnapAssertions(c, "classic-gadget", publishers["classic-gadget"])
 	}
 
+	if _, ok := publishers["classic-gadget18"]; ok {
+		s.downloadedSnaps["classic-gadget18"] = snaptest.MakeTestSnapWithFiles(c, packageClassicGadget18, [][]string{{"some-file", "Some file"}})
+		s.storeSnapInfo["classic-gadget18"] = infoFromSnapYaml(c, packageClassicGadget18, snap.R(5))
+		s.addSystemSnapAssertions(c, "classic-gadget18", publishers["classic-gadget18"])
+	}
+
 	if _, ok := publishers["pc-kernel"]; ok {
 		s.downloadedSnaps["pc-kernel"] = snaptest.MakeTestSnapWithFiles(c, packageKernel, nil)
 		s.storeSnapInfo["pc-kernel"] = infoFromSnapYaml(c, packageKernel, snap.R(2))
@@ -608,6 +627,11 @@ func (s *imageSuite) setupSnaps(c *C, gadgetUnpackDir string, publishers map[str
 	s.storeSnapInfo["required-snap1"] = infoFromSnapYaml(c, requiredSnap1, snap.R(3))
 	s.storeSnapInfo["required-snap1"].Contact = "foo@example.com"
 	s.addSystemSnapAssertions(c, "required-snap1", "other")
+
+	s.downloadedSnaps["required-snap18"] = snaptest.MakeTestSnapWithFiles(c, requiredSnap18, nil)
+	s.storeSnapInfo["required-snap18"] = infoFromSnapYaml(c, requiredSnap18, snap.R(6))
+	s.storeSnapInfo["required-snap18"].Contact = "foo@example.com"
+	s.addSystemSnapAssertions(c, "required-snap18", "other")
 
 	s.downloadedSnaps["snap-req-other-base"] = snaptest.MakeTestSnapWithFiles(c, snapReqOtherBase, nil)
 	s.storeSnapInfo["snap-req-other-base"] = infoFromSnapYaml(c, snapReqOtherBase, snap.R(5))
@@ -2072,6 +2096,76 @@ func (s *imageSuite) TestSetupSeedClassicWithClassicSnap(c *C) {
 		"snap_core":   "",
 		"snap_kernel": "",
 	})
+}
+
+func (s *imageSuite) TestSetupSeedClassicSnapdOnly(c *C) {
+	restore := image.MockTrusted(s.storeSigning.Trusted)
+	defer restore()
+
+	// classic model with gadget etc
+	model := s.brands.Model("my-brand", "my-model", map[string]interface{}{
+		"classic":        "true",
+		"architecture":   "amd64",
+		"gadget":         "classic-gadget18",
+		"required-snaps": []interface{}{"core18", "required-snap18"},
+	})
+
+	rootdir := filepath.Join(c.MkDir(), "classic-image-root")
+	s.setupSnaps(c, "", map[string]string{
+		"classic-gadget18": "my-brand",
+	})
+
+	opts := &image.Options{
+		Classic: true,
+		RootDir: rootdir,
+	}
+	local, err := image.LocalSnaps(s.tsto, opts)
+	c.Assert(err, IsNil)
+
+	err = image.SetupSeed(s.tsto, model, opts, local)
+	c.Assert(err, IsNil)
+
+	// check seed yaml
+	seed, err := snap.ReadSeedYaml(filepath.Join(rootdir, "var/lib/snapd/seed/seed.yaml"))
+	c.Assert(err, IsNil)
+
+	c.Check(seed.Snaps, HasLen, 4)
+
+	// check the files are in place
+	for i, name := range []string{"snapd", "core18", "classic-gadget18", "required-snap18"} {
+		unasserted := false
+		info := s.storeSnapInfo[name]
+
+		fn := filepath.Base(info.MountFile())
+		p := filepath.Join(rootdir, "var/lib/snapd/seed/snaps", fn)
+		c.Check(osutil.FileExists(p), Equals, true)
+
+		c.Check(seed.Snaps[i], DeepEquals, &snap.SeedSnap{
+			Name:       info.InstanceName(),
+			SnapID:     info.SnapID,
+			File:       fn,
+			Contact:    info.Contact,
+			Unasserted: unasserted,
+		})
+	}
+
+	l, err := ioutil.ReadDir(filepath.Join(rootdir, "var/lib/snapd/seed/snaps"))
+	c.Assert(err, IsNil)
+	c.Check(l, HasLen, 4)
+
+	// check that the  bootloader is unset
+	m, err := s.bootloader.GetBootVars("snap_kernel", "snap_core")
+	c.Assert(err, IsNil)
+	c.Check(m, DeepEquals, map[string]string{
+		"snap_core":   "",
+		"snap_kernel": "",
+	})
+
+	c.Check(s.stderr.String(), Matches, `WARNING: ensure that the contents under .*/var/lib/snapd/seed are owned by root:root in the \(final\) image`)
+
+	// no blob dir created
+	blobdir := filepath.Join(rootdir, "var/lib/snapd/snaps")
+	c.Check(osutil.FileExists(blobdir), Equals, false)
 }
 
 func (s *imageSuite) TestSetupSeedClassicNoSnaps(c *C) {

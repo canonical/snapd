@@ -410,29 +410,6 @@ func neededDefaultProviders(info *snap.Info) (cps []string) {
 	return cps
 }
 
-// hasBase checks if the given snap has a base in the given localInfos and
-// snaps. If not an error is returned.
-func hasBase(snap *snap.Info, local *localInfos, snaps []string) error {
-	// snap needs no base (or it simply needs core which is never listed explicitly): nothing to do
-	if snap.Base == "" {
-		return nil
-	}
-
-	// snap explicitly listed as not needing a base snap (e.g. a content-only snap)
-	if snap.Base == "none" {
-		return nil
-	}
-
-	// core provides everything that core16 needs
-	if snap.Base == "core16" && local.hasName(snaps, "core") {
-		return nil
-	}
-	if local.hasName(snaps, snap.Base) {
-		return nil
-	}
-	return fmt.Errorf("cannot add snap %q without also adding its base %q explicitly", snap.InstanceName(), snap.Base)
-}
-
 func setupSeed(tsto *ToolingStore, model *asserts.Model, opts *Options, local *localInfos) error {
 	if model.Classic() != opts.Classic {
 		return fmt.Errorf("internal error: classic model but classic mode not set")
@@ -527,11 +504,7 @@ func setupSeed(tsto *ToolingStore, model *asserts.Model, opts *Options, local *l
 		snaps = append(snaps, model.Kernel())
 		snaps = append(snaps, model.Gadget())
 	} else {
-		// classic image case: first core as needed and gadget
-		if classicHasSnaps(model, opts) {
-			// TODO: later use snapd+core16 or core18 if specified
-			snaps = append(snaps, "core")
-		}
+		// classic image case
 		if model.Gadget() != "" {
 			snaps = append(snaps, model.Gadget())
 		}
@@ -543,6 +516,19 @@ func setupSeed(tsto *ToolingStore, model *asserts.Model, opts *Options, local *l
 
 	for _, snapName := range snaps {
 		if err := seed.add(snapName); err != nil {
+			return err
+		}
+	}
+
+	// provide snapd
+	if seed.needsCore {
+		// one of the snaps requires core as base
+		// which used to be implicit, add it
+		if err := seed.add("core"); err != nil {
+			return err
+		}
+	} else if opts.Classic && len(seed.seen) != 0 {
+		if err := seed.add("snapd"); err != nil {
 			return err
 		}
 	}
@@ -650,6 +636,8 @@ type seed struct {
 	seen                             map[string]bool
 	locals                           []string
 	downloadedSnapsInfoForBootConfig map[string]*snap.Info
+
+	needsCore bool
 }
 
 func (s *seed) add(snapName string) error {
@@ -683,13 +671,7 @@ func (s *seed) add(snapName string) error {
 		return err
 	}
 
-	// Sanity check, note that we could support this case
-	// if we have a use-case but it requires changes in the
-	// devicestate/firstboot.go ordering code.
-	if info.GetType() == snap.TypeGadget && info.Base != model.Base() {
-		return fmt.Errorf("cannot use gadget snap because its base %q is different from model base %q", info.Base, model.Base())
-	}
-	if err := hasBase(info, local, s.basesAndApps); err != nil {
+	if err := s.checkBase(info); err != nil {
 		return err
 	}
 	// warn about missing default providers
@@ -767,6 +749,41 @@ func (s *seed) add(snapName string) error {
 	})
 
 	return nil
+}
+
+// checkBase checks if the given snap has a base in the given localInfos and
+// snaps. If not an error is returned.
+func (s *seed) checkBase(info *snap.Info) error {
+	// Sanity check, note that we could support this case
+	// if we have a use-case but it requires changes in the
+	// devicestate/firstboot.go ordering code.
+	if info.GetType() == snap.TypeGadget && !s.opts.Classic && info.Base != s.model.Base() {
+		return fmt.Errorf("cannot use gadget snap because its base %q is different from model base %q", info.Base, s.model.Base())
+	}
+
+	// snap needs no base (or it simply needs core which is never listed explicitly): nothing to do
+	if info.Base == "" {
+		if info.GetType() == snap.TypeGadget || info.GetType() == snap.TypeApp {
+			// remember to make sure we have core installed
+			s.needsCore = true
+		}
+		return nil
+	}
+
+	// snap explicitly listed as not needing a base snap (e.g. a content-only snap)
+	if info.Base == "none" {
+		return nil
+	}
+
+	if s.local.hasName(s.basesAndApps, info.Base) {
+		return nil
+	}
+	// core provides everything that core16 needs
+	if info.Base == "core16" && s.local.hasName(s.basesAndApps, "core") {
+		return nil
+	}
+
+	return fmt.Errorf("cannot add snap %q without also adding its base %q explicitly", info.InstanceName(), info.Base)
 }
 
 func (s *seed) seedYaml() *snap.Seed {
