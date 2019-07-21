@@ -61,11 +61,20 @@ execute: |
         export DBUS_SESSION_BUS_ADDRESS=$DBUS_SESSION_BUS_ADDRESS
 
         # run xdg-settings from inside the snap
-        test-snapd-xdg-settings.set-default-web-browser browser.desktop
+        test-snapd-xdg-settings.xdg-settings-wrapper "$@"
+
+        if [[ $# -eq 3 ]]
+        then
+            # rewrite final param to include snap name
+            test_output="$1 $2 test-snapd-xdg-settings_$3"
+        else
+            # rewrite final param to include snap name
+            test_output="$1 $2 $3 test-snapd-xdg-settings_$4"
+        fi
 
         # verify that the command was transmitted corrected via dbus
         test -e /tmp/xdg-settings-output
-        test "$(cat /tmp/xdg-settings-output)" = "set default-web-browser test-snapd-xdg-settings_browser.desktop"
+        test "$(cat /tmp/xdg-settings-output)" = "$test_output"
     }
 
     # ensure zenity answers "yes"
@@ -85,6 +94,8 @@ execute: |
 
     ensure_xdg_settings_output "set" "default-web-browser" "browser.desktop"
 
+    ensure_xdg_settings_output "set" "default-url-scheme-handler" "irc" "browser.desktop"
+
     # Ensure settings whitelist for settings and values works
     rm /tmp/xdg-settings-output
     not $SNAP_MOUNT_DIR/core/current/usr/bin/xdg-settings set random-settting something
@@ -98,7 +109,7 @@ execute: |
     mount --bind /bin/false /usr/bin/zenity
 
     rm -f /tmp/xdg-settings-output
-    if test-snapd-xdg-settings.set-default-web-browser browser.desktop; then
+    if test-snapd-xdg-settings.xdg-settings-wrapper set default-web-browser browser.desktop; then
         echo "setting the browser should fails if zenity returns false"
         echo "test broken"
         exit 1
