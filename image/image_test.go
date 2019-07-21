@@ -964,7 +964,7 @@ func (s *imageSuite) TestSetupSeedWithBase(c *C) {
 	c.Check(seed.Snaps, HasLen, 5)
 
 	// check the files are in place
-	for i, name := range []string{"snapd", "core18_18.snap", "pc-kernel", "pc18", "other-base"} {
+	for i, name := range []string{"snapd", "pc-kernel", "core18_18.snap", "other-base", "pc18"} {
 		unasserted := false
 		info := s.storeSnapInfo[name]
 		if info == nil {
@@ -1596,14 +1596,14 @@ func (s *imageSuite) TestSetupSeedWithBaseAndLocalLegacyCoreOrdering(c *C) {
 		File:       "core_x1.snap",
 	})
 	c.Check(seed.Snaps[2], DeepEquals, &snap.SeedSnap{
-		Name:   "core18",
-		SnapID: "core18-Id",
-		File:   "core18_18.snap",
-	})
-	c.Check(seed.Snaps[3], DeepEquals, &snap.SeedSnap{
 		Name:   "pc-kernel",
 		SnapID: "pc-kernel-Id",
 		File:   "pc-kernel_2.snap",
+	})
+	c.Check(seed.Snaps[3], DeepEquals, &snap.SeedSnap{
+		Name:   "core18",
+		SnapID: "core18-Id",
+		File:   "core18_18.snap",
 	})
 	c.Check(seed.Snaps[4], DeepEquals, &snap.SeedSnap{
 		Name:   "pc18",
@@ -1666,14 +1666,14 @@ func (s *imageSuite) TestSetupSeedWithBaseAndLegacyCoreOrdering(c *C) {
 		File:   "core_3.snap",
 	})
 	c.Check(seed.Snaps[2], DeepEquals, &snap.SeedSnap{
-		Name:   "core18",
-		SnapID: "core18-Id",
-		File:   "core18_18.snap",
-	})
-	c.Check(seed.Snaps[3], DeepEquals, &snap.SeedSnap{
 		Name:   "pc-kernel",
 		SnapID: "pc-kernel-Id",
 		File:   "pc-kernel_2.snap",
+	})
+	c.Check(seed.Snaps[3], DeepEquals, &snap.SeedSnap{
+		Name:   "core18",
+		SnapID: "core18-Id",
+		File:   "core18_18.snap",
 	})
 	c.Check(seed.Snaps[4], DeepEquals, &snap.SeedSnap{
 		Name:   "pc18",

@@ -26,6 +26,7 @@ import (
 	"io/ioutil"
 	"os"
 	"path/filepath"
+	"sort"
 	"strings"
 	"syscall"
 
@@ -485,20 +486,39 @@ func setupSeed(tsto *ToolingStore, model *asserts.Model, opts *Options, local *l
 		baseName = model.Base()
 	}
 
+	if !opts.Classic {
+		if err := os.MkdirAll(dirs.SnapBlobDir, 0755); err != nil {
+			return err
+		}
+	}
+
+	basesAndApps := []string{}
+	basesAndApps = append(basesAndApps, baseName)
+	basesAndApps = append(basesAndApps, model.RequiredSnaps()...)
+	basesAndApps = append(basesAndApps, opts.Snaps...)
+	// TODO: required snaps should get their base from required
+	// snaps (mentioned in the model); additional snaps could
+	// fetch their base, providers instead if not already present
+	// Be careful about core vs core16
+
+	seed := &seed{
+		model:        model,
+		baseName:     baseName,
+		opts:         opts,
+		local:        local,
+		tsto:         tsto,
+		basesAndApps: basesAndApps,
+		snapSeedDir:  snapSeedDir,
+		f:            f,
+		db:           db,
+		seen:         make(map[string]bool),
+		downloadedSnapsInfoForBootConfig: make(map[string]*snap.Info),
+	}
+
 	snaps := []string{}
 	// always add an implicit snapd first when a base is used
 	if model.Base() != "" {
 		snaps = append(snaps, "snapd")
-		// TODO: once we order snaps by what they need this
-		//       can go aways
-		// Here we ensure that "core" is seeded very early
-		// when bases are in use. This fixes the issue
-		// that when people use model assertions with
-		// required snaps like bluez which at this point
-		// still requires core will hang forever in seeding.
-		if strutil.ListContains(model.RequiredSnaps(), "core") || local.hasName(opts.Snaps, "core") {
-			snaps = append(snaps, "core")
-		}
 	}
 
 	if !opts.Classic {
@@ -521,126 +541,14 @@ func setupSeed(tsto *ToolingStore, model *asserts.Model, opts *Options, local *l
 	snaps = append(snaps, model.RequiredSnaps()...)
 	snaps = append(snaps, opts.Snaps...)
 
-	if !opts.Classic {
-		if err := os.MkdirAll(dirs.SnapBlobDir, 0755); err != nil {
-			return err
-		}
-	}
-
-	seen := make(map[string]bool)
-	var locals []string
-	downloadedSnapsInfoForBootConfig := map[string]*snap.Info{}
-	var seedYaml snap.Seed
 	for _, snapName := range snaps {
-		name := local.Name(snapName)
-		if seen[name] {
-			fmt.Fprintf(Stdout, "%s already prepared, skipping\n", name)
-			continue
-		}
-
-		if local.IsLocal(name) {
-			fmt.Fprintf(Stdout, "Copying %q (%s)\n", local.Path(name), name)
-		} else {
-			fmt.Fprintf(Stdout, "Fetching %s\n", name)
-		}
-
-		snapChannel, err := snapChannel(name, model, opts, local)
-		if err != nil {
+		if err := seed.add(snapName); err != nil {
 			return err
 		}
-
-		dlOpts := &DownloadOptions{
-			TargetDir: snapSeedDir,
-			Channel:   snapChannel,
-		}
-		fn, info, err := acquireSnap(tsto, name, dlOpts, local)
-		if err != nil {
-			return err
-		}
-
-		// Sanity check, note that we could support this case
-		// if we have a use-case but it requires changes in the
-		// devicestate/firstboot.go ordering code.
-		if info.GetType() == snap.TypeGadget && info.Base != model.Base() {
-			return fmt.Errorf("cannot use gadget snap because its base %q is different from model base %q", info.Base, model.Base())
-		}
-		if err := hasBase(info, local, snaps); err != nil {
-			return err
-		}
-		// warn about missing default providers
-		for _, dp := range neededDefaultProviders(info) {
-			if !local.hasName(snaps, dp) {
-				// TODO: have a way to ignore this issue on a snap by snap basis?
-				return fmt.Errorf("cannot use snap %q without its default content provider %q being added explicitly", info.InstanceName(), dp)
-			}
-		}
-
-		seen[name] = true
-		typ := info.GetType()
-
-		needsClassic := info.NeedsClassic()
-		if needsClassic && !opts.Classic {
-			return fmt.Errorf("cannot use classic snap %q in a core system", info.InstanceName())
-		}
-
-		// if it comes from the store fetch the snap assertions too
-		if info.SnapID != "" {
-			snapDecl, err := FetchAndCheckSnapAssertions(fn, info, f, db)
-			if err != nil {
-				return err
-			}
-			var kind string
-			switch typ {
-			case snap.TypeKernel:
-				kind = "kernel"
-			case snap.TypeGadget:
-				kind = "gadget"
-			}
-			if kind != "" { // kernel or gadget
-				// TODO: share helpers with devicestate if the policy becomes much more complicated
-				publisher := snapDecl.PublisherID()
-				if publisher != model.BrandID() && publisher != "canonical" {
-					return fmt.Errorf("cannot use %s %q published by %q for model by %q", kind, name, publisher, model.BrandID())
-				}
-			}
-		} else {
-			locals = append(locals, name)
-			// local snaps have no channel
-			snapChannel = ""
-		}
-
-		// kernel/os/model.base are required for booting on core
-		if !opts.Classic && (typ == snap.TypeKernel || name == baseName) {
-			dst := filepath.Join(dirs.SnapBlobDir, filepath.Base(fn))
-			// construct a relative symlink from the blob dir
-			// to the seed file
-			relSymlink, err := filepath.Rel(dirs.SnapBlobDir, fn)
-			if err != nil {
-				return fmt.Errorf("cannot build symlink: %v", err)
-			}
-			if err := os.Symlink(relSymlink, dst); err != nil {
-				return err
-			}
-			// store the snap.Info for kernel/os/base so
-			// that the bootload can DTRT
-			downloadedSnapsInfoForBootConfig[dst] = info
-		}
-
-		// set seed.yaml
-		seedYaml.Snaps = append(seedYaml.Snaps, &snap.SeedSnap{
-			Name:    info.InstanceName(),
-			SnapID:  info.SnapID, // cross-ref
-			Channel: snapChannel,
-			File:    filepath.Base(fn),
-			DevMode: info.NeedsDevMode(),
-			Classic: needsClassic,
-			Contact: info.Contact,
-			// no assertions for this snap were put in the seed
-			Unasserted: info.SnapID == "",
-		})
 	}
-	if len(locals) > 0 {
-		fmt.Fprintf(Stderr, "WARNING: %s were installed from local snaps disconnected from a store and cannot be refreshed subsequently!\n", strutil.Quoted(locals))
+
+	if len(seed.locals) > 0 {
+		fmt.Fprintf(Stderr, "WARNING: %s were installed from local snaps disconnected from a store and cannot be refreshed subsequently!\n", strutil.Quoted(seed.locals))
 	}
 
 	// fetch device store assertion (and prereqs) if available
@@ -671,8 +579,7 @@ func setupSeed(tsto *ToolingStore, model *asserts.Model, opts *Options, local *l
 		}
 	}
 
-	// TODO: add the refs as an assertions list of maps section to seed.yaml
-
+	seedYaml := seed.seedYaml()
 	seedFn := filepath.Join(dirs.SnapSeedDir, "seed.yaml")
 	if err := seedYaml.Write(seedFn); err != nil {
 		return fmt.Errorf("cannot write seed.yaml: %s", err)
@@ -697,7 +604,7 @@ func setupSeed(tsto *ToolingStore, model *asserts.Model, opts *Options, local *l
 			return err
 		}
 
-		if err := setBootvars(downloadedSnapsInfoForBootConfig, model); err != nil {
+		if err := setBootvars(seed.downloadedSnapsInfoForBootConfig, model); err != nil {
 			return err
 		}
 
@@ -708,6 +615,171 @@ func setupSeed(tsto *ToolingStore, model *asserts.Model, opts *Options, local *l
 	}
 
 	return nil
+}
+
+type seedEntry struct {
+	snap     *snap.SeedSnap
+	snapType snap.Type
+}
+
+type seedEntriesByType []seedEntry
+
+func (e seedEntriesByType) Len() int      { return len(e) }
+func (e seedEntriesByType) Swap(i, j int) { e[i], e[j] = e[j], e[i] }
+func (e seedEntriesByType) Less(i, j int) bool {
+	return e[i].snapType.SortsBefore(e[j].snapType)
+}
+
+type seed struct {
+	model    *asserts.Model
+	baseName string
+
+	opts  *Options
+	local *localInfos
+
+	tsto *ToolingStore
+
+	basesAndApps []string
+
+	snapSeedDir string
+	f           asserts.Fetcher
+	db          *asserts.Database
+
+	entries seedEntriesByType
+
+	seen                             map[string]bool
+	locals                           []string
+	downloadedSnapsInfoForBootConfig map[string]*snap.Info
+}
+
+func (s *seed) add(snapName string) error {
+	model := s.model
+	opts := s.opts
+	local := s.local
+
+	name := local.Name(snapName)
+	if s.seen[name] {
+		fmt.Fprintf(Stdout, "%s already prepared, skipping\n", name)
+		return nil
+	}
+
+	if local.IsLocal(name) {
+		fmt.Fprintf(Stdout, "Copying %q (%s)\n", local.Path(name), name)
+	} else {
+		fmt.Fprintf(Stdout, "Fetching %s\n", name)
+	}
+
+	snapChannel, err := snapChannel(name, model, opts, local)
+	if err != nil {
+		return err
+	}
+
+	dlOpts := &DownloadOptions{
+		TargetDir: s.snapSeedDir,
+		Channel:   snapChannel,
+	}
+	fn, info, err := acquireSnap(s.tsto, name, dlOpts, local)
+	if err != nil {
+		return err
+	}
+
+	// Sanity check, note that we could support this case
+	// if we have a use-case but it requires changes in the
+	// devicestate/firstboot.go ordering code.
+	if info.GetType() == snap.TypeGadget && info.Base != model.Base() {
+		return fmt.Errorf("cannot use gadget snap because its base %q is different from model base %q", info.Base, model.Base())
+	}
+	if err := hasBase(info, local, s.basesAndApps); err != nil {
+		return err
+	}
+	// warn about missing default providers
+	for _, dp := range neededDefaultProviders(info) {
+		if !local.hasName(s.basesAndApps, dp) {
+			// TODO: have a way to ignore this issue on a snap by snap basis?
+			return fmt.Errorf("cannot use snap %q without its default content provider %q being added explicitly", info.InstanceName(), dp)
+		}
+	}
+
+	s.seen[name] = true
+	typ := info.GetType()
+
+	needsClassic := info.NeedsClassic()
+	if needsClassic && !opts.Classic {
+		return fmt.Errorf("cannot use classic snap %q in a core system", info.InstanceName())
+	}
+
+	// if it comes from the store fetch the snap assertions too
+	if info.SnapID != "" {
+		snapDecl, err := FetchAndCheckSnapAssertions(fn, info, s.f, s.db)
+		if err != nil {
+			return err
+		}
+		var kind string
+		switch typ {
+		case snap.TypeKernel:
+			kind = "kernel"
+		case snap.TypeGadget:
+			kind = "gadget"
+		}
+		if kind != "" { // kernel or gadget
+			// TODO: share helpers with devicestate if the policy becomes much more complicated
+			publisher := snapDecl.PublisherID()
+			if publisher != model.BrandID() && publisher != "canonical" {
+				return fmt.Errorf("cannot use %s %q published by %q for model by %q", kind, name, publisher, model.BrandID())
+			}
+		}
+	} else {
+		s.locals = append(s.locals, name)
+		// local snaps have no channel
+		snapChannel = ""
+	}
+
+	// kernel/os/model.base are required for booting on core
+	if !opts.Classic && (typ == snap.TypeKernel || name == s.baseName) {
+		dst := filepath.Join(dirs.SnapBlobDir, filepath.Base(fn))
+		// construct a relative symlink from the blob dir
+		// to the seed file
+		relSymlink, err := filepath.Rel(dirs.SnapBlobDir, fn)
+		if err != nil {
+			return fmt.Errorf("cannot build symlink: %v", err)
+		}
+		if err := os.Symlink(relSymlink, dst); err != nil {
+			return err
+		}
+		// store the snap.Info for kernel/os/base so
+		// that the bootload can DTRT
+		s.downloadedSnapsInfoForBootConfig[dst] = info
+	}
+
+	s.entries = append(s.entries, seedEntry{
+		snap: &snap.SeedSnap{
+			Name:    info.InstanceName(),
+			SnapID:  info.SnapID, // cross-ref
+			Channel: snapChannel,
+			File:    filepath.Base(fn),
+			DevMode: info.NeedsDevMode(),
+			Classic: needsClassic,
+			Contact: info.Contact,
+			// no assertions for this snap were put in the seed
+			Unasserted: info.SnapID == "",
+		},
+		snapType: typ,
+	})
+
+	return nil
+}
+
+func (s *seed) seedYaml() *snap.Seed {
+	var seedYaml snap.Seed
+
+	sort.Stable(s.entries)
+
+	seedYaml.Snaps = make([]*snap.SeedSnap, len(s.entries))
+	for i, e := range s.entries {
+		seedYaml.Snaps[i] = e.snap
+	}
+
+	return &seedYaml
 }
 
 func setBootvars(downloadedSnapsInfoForBootConfig map[string]*snap.Info, model *asserts.Model) error {
