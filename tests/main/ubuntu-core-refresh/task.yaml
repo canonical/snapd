@@ -40,7 +40,9 @@ execute: |
 
         REBOOT
     elif [ "$SPREAD_REBOOT" = 1 ]; then
-        while ! snap changes | grep -q "Done.*Install \"${TARGET_SNAP_NAME}\" snap from file.*; do sleep 1; done
+        while ! snap changes | MATCH "Done.*Install \"${TARGET_SNAP_NAME}\" snap from file.*"; do
+            sleep 1
+        done
 
         # Check the current revision has changed
         currRev=$(snap list | awk "/^${TARGET_SNAP_NAME} / {print(\$3)}") 
