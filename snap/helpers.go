@@ -17,34 +17,28 @@
  *
  */
 
-package main
+package snap
 
 import (
-	"github.com/jessevdk/go-flags"
-
-	"github.com/snapcore/snapd/image"
+	"github.com/snapcore/snapd/strutil"
 )
 
-type cmdValidateSeed struct {
-	Positionals struct {
-		SeedYamlPath string `positional-arg-name:"<seed-yaml-path>"`
-	} `positional-args:"true"`
+var snapIDsSnapd = []string{
+	// production
+	"PMrrV4ml8uWuEUDBT8dSGnKUYbevVhc4",
+	// TODO: when snapd snap is uploaded to staging, replace this with
+	// the real snap-id.
+	"todo-staging-snapd-id",
 }
 
-func init() {
-	cmd := addDebugCommand("validate-seed",
-		"(internal) validate seed.yaml",
-		"(internal) validate seed.yaml",
-		func() flags.Commander {
-			return &cmdValidateSeed{}
-		}, nil, nil)
-	cmd.hidden = true
+func IsSnapd(snapID string) bool {
+	return strutil.ListContains(snapIDsSnapd, snapID)
 }
 
-func (x *cmdValidateSeed) Execute(args []string) error {
-	if len(args) > 0 {
-		return ErrExtraArgs
+func MockSnapdSnapID(snapID string) (restore func()) {
+	old := snapIDsSnapd
+	snapIDsSnapd = append(snapIDsSnapd, snapID)
+	return func() {
+		snapIDsSnapd = old
 	}
-
-	return image.ValidateSeed(x.Positionals.SeedYamlPath)
 }

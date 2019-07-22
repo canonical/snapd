@@ -104,7 +104,7 @@ func (s *FirstBootTestSuite) SetUpTest(c *C) {
 
 	s.restoreBackends = ifacestate.MockSecurityBackends(nil)
 
-	ovld, err := overlord.New()
+	ovld, err := overlord.New(nil)
 	c.Assert(err, IsNil)
 	ovld.InterfaceManager().DisableUDevMonitor()
 	s.overlord = ovld
@@ -180,7 +180,7 @@ func (s *FirstBootTestSuite) TestPopulateFromSeedOnClassicNoSeedYaml(c *C) {
 	restore := release.MockOnClassic(true)
 	defer restore()
 
-	ovld, err := overlord.New()
+	ovld, err := overlord.New(nil)
 	c.Assert(err, IsNil)
 	st := ovld.State()
 
@@ -212,7 +212,7 @@ func (s *FirstBootTestSuite) TestPopulateFromSeedOnClassicEmptySeedYaml(c *C) {
 	restore := release.MockOnClassic(true)
 	defer restore()
 
-	ovld, err := overlord.New()
+	ovld, err := overlord.New(nil)
 	c.Assert(err, IsNil)
 	st := ovld.State()
 
@@ -1107,7 +1107,7 @@ func (s *FirstBootTestSuite) TestImportAssertionsFromSeedClassicModelMismatch(c 
 	restore := release.MockOnClassic(true)
 	defer restore()
 
-	ovld, err := overlord.New()
+	ovld, err := overlord.New(nil)
 	c.Assert(err, IsNil)
 	st := ovld.State()
 
@@ -1128,7 +1128,7 @@ func (s *FirstBootTestSuite) TestImportAssertionsFromSeedClassicModelMismatch(c 
 }
 
 func (s *FirstBootTestSuite) TestImportAssertionsFromSeedAllSnapsModelMismatch(c *C) {
-	ovld, err := overlord.New()
+	ovld, err := overlord.New(nil)
 	c.Assert(err, IsNil)
 	st := ovld.State()
 
@@ -1149,7 +1149,7 @@ func (s *FirstBootTestSuite) TestImportAssertionsFromSeedAllSnapsModelMismatch(c
 }
 
 func (s *FirstBootTestSuite) TestImportAssertionsFromSeedHappy(c *C) {
-	ovld, err := overlord.New()
+	ovld, err := overlord.New(nil)
 	c.Assert(err, IsNil)
 	st := ovld.State()
 

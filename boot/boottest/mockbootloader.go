@@ -63,10 +63,6 @@ func (b *MockBootloader) GetBootVars(keys ...string) (map[string]string, error) 
 	return out, b.GetErr
 }
 
-func (b *MockBootloader) Dir() string {
-	return b.bootdir
-}
-
 func (b *MockBootloader) Name() string {
 	return b.name
 }

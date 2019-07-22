@@ -200,7 +200,7 @@ func StartServices(apps []*snap.AppInfo, inter interacter, tm timings.Measurer) 
 
 // AddSnapServices adds service units for the applications from the snap which are services.
 func AddSnapServices(s *snap.Info, inter interacter) (err error) {
-	if s.SnapName() == "snapd" {
+	if s.GetType() == snap.TypeSnapd {
 		return writeSnapdServicesOnCore(s, inter)
 	}
 
