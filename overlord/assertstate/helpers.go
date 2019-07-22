@@ -39,14 +39,13 @@ func userFromUserID(st *state.State, userID int) (*auth.UserState, error) {
 }
 
 type fetcher struct {
-	db *asserts.Database
 	asserts.Fetcher
 	fetched []asserts.Assertion
 }
 
 // newFetches creates a fetcher used to retrieve assertions and later commit them to the system database in one go.
 func newFetcher(db *asserts.Database, retrieve func(*asserts.Ref) (asserts.Assertion, error)) *fetcher {
-	f := &fetcher{db: db}
+	f := &fetcher{}
 
 	save := func(a asserts.Assertion) error {
 		f.fetched = append(f.fetched, a)
