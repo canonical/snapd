@@ -38,14 +38,14 @@ func userFromUserID(st *state.State, userID int) (*auth.UserState, error) {
 	return auth.User(st, userID)
 }
 
-type fetcher struct {
+type accumFetcher struct {
 	asserts.Fetcher
 	fetched []asserts.Assertion
 }
 
-// newFetches creates a fetcher used to retrieve assertions and later commit them to the system database in one go.
-func newFetcher(db *asserts.Database, retrieve func(*asserts.Ref) (asserts.Assertion, error)) *fetcher {
-	f := &fetcher{}
+// newAccumFetcher creates an accumFetcher used to retrieve assertions and later commit them to the system database in one go.
+func newAccumFetcher(db *asserts.Database, retrieve func(*asserts.Ref) (asserts.Assertion, error)) *accumFetcher {
+	f := &accumFetcher{}
 
 	save := func(a asserts.Assertion) error {
 		f.fetched = append(f.fetched, a)
@@ -109,7 +109,7 @@ func doFetch(s *state.State, userID int, deviceCtx snapstate.DeviceContext, fetc
 	}
 
 	db := cachedDB(s)
-	f := newFetcher(db, retrieve)
+	f := newAccumFetcher(db, retrieve)
 
 	s.Unlock()
 	err = fetching(f)
