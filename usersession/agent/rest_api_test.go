@@ -17,7 +17,7 @@
  *
  */
 
-package agent
+package agent_test
 
 import (
 	"encoding/json"
@@ -28,6 +28,7 @@ import (
 	. "gopkg.in/check.v1"
 
 	"github.com/snapcore/snapd/dirs"
+	"github.com/snapcore/snapd/usersession/agent"
 )
 
 type restSuite struct{}
@@ -45,26 +46,26 @@ func (s *restSuite) TearDownTest(c *C) {
 }
 
 func (s *restSuite) TestSessionInfo(c *C) {
-	// the sessionInfo end point only supports GET requests
-	c.Check(sessionInfoCmd.PUT, IsNil)
-	c.Check(sessionInfoCmd.POST, IsNil)
-	c.Check(sessionInfoCmd.DELETE, IsNil)
-	c.Assert(sessionInfoCmd.GET, NotNil)
+	// the agent.SessionInfo end point only supports GET requests
+	c.Check(agent.SessionInfoCmd.PUT, IsNil)
+	c.Check(agent.SessionInfoCmd.POST, IsNil)
+	c.Check(agent.SessionInfoCmd.DELETE, IsNil)
+	c.Assert(agent.SessionInfoCmd.GET, NotNil)
 
-	c.Check(sessionInfoCmd.Path, Equals, "/v1/session-info")
+	c.Check(agent.SessionInfoCmd.Path, Equals, "/v1/session-info")
 
-	agent, err := New()
+	a, err := agent.New()
 	c.Assert(err, IsNil)
-	agent.Version = "42b1"
+	a.Version = "42b1"
 	rec := httptest.NewRecorder()
-	sessionInfoCmd.GET(sessionInfoCmd, nil).ServeHTTP(rec, nil)
+	agent.SessionInfoCmd.GET(agent.SessionInfoCmd, nil).ServeHTTP(rec, nil)
 	c.Check(rec.Code, Equals, 200)
 	c.Check(rec.HeaderMap.Get("Content-Type"), Equals, "application/json")
 
-	var rsp resp
+	var rsp agent.Resp
 	c.Assert(json.Unmarshal(rec.Body.Bytes(), &rsp), IsNil)
 	c.Check(rsp.Status, Equals, 200)
-	c.Check(rsp.Type, Equals, ResponseTypeSync)
+	c.Check(rsp.Type, Equals, agent.ResponseTypeSync)
 	c.Check(rsp.Result, DeepEquals, map[string]interface{}{
 		"version": "42b1",
 	})
