@@ -22,6 +22,7 @@ package ctlcmd_test
 import (
 	. "gopkg.in/check.v1"
 
+	"github.com/jessevdk/go-flags"
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/overlord"
 	"github.com/snapcore/snapd/overlord/cmdstate"
@@ -171,4 +172,14 @@ func (s *netplanApplyCtlSuite) TestNoNetplanApply(c *C) {
 	_, _, err := ctlcmd.Run(s.noMockContext, []string{"netplan-apply"}, 0)
 	c.Assert(err, ErrorMatches, `cannot use netplan apply - must have network-setup-control interface connected with netplan-apply attribute specified as true`)
 	c.Check(s.mockNetplan.Calls(), HasLen, 0)
+}
+
+func (s *netplanApplyCtlSuite) TestHiddenCommand(c *C) {
+	_, _, err := ctlcmd.Run(s.yesMockContext, []string{"--help"}, 0)
+	// help message output is returned as *flags.Error with
+	// Type as flags.ErrHelp
+	c.Assert(err, FitsTypeOf, &flags.Error{})
+	c.Check(err.(*flags.Error).Type, Equals, flags.ErrHelp)
+	// netplan-apply is not in the help message
+	c.Check(err.Error(), Not(testutil.Contains), "  netplan-apply  The netplan-apply command applies network configuration via netplan.\n")
 }

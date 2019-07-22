@@ -37,9 +37,12 @@ var shortNetplanApplyHelp = i18n.G("The netplan-apply command applies network co
 var longNetplanApplyHelp = i18n.G("TODO")
 
 func init() {
-	addCommand("netplan-apply", shortNetplanApplyHelp, longNetplanApplyHelp, func() command {
+	cmd := addCommand("netplan-apply", shortNetplanApplyHelp, longNetplanApplyHelp, func() command {
 		return &netplanApplyCommand{}
 	})
+
+	// netplan-apply is a hidden command for now
+	cmd.hidden = true
 }
 
 type netplanApplyCommand struct {
