@@ -12,7 +12,7 @@ execute: |
 
     echo "The packagekit-control plug is disconnected by default"
     snap connections test-snapd-packagekit | MATCH "packagekit-control +test-snapd-packagekit:packagekit-control +- +-"
-    if [ "$(snap debuf confinement)" = strict ]; then
+    if [ "$(snap debug confinement)" = strict ]; then
         echo "Access to PackageKit is blocked without"
         test-snapd-packagekit.pkcon backend-details | MATCH "Failed to contact PackageKit"
     fi
