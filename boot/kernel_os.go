@@ -20,8 +20,10 @@
 package boot
 
 import (
+	"errors"
 	"fmt"
 	"path/filepath"
+	"strings"
 
 	"github.com/snapcore/snapd/bootloader"
 	"github.com/snapcore/snapd/logger"
@@ -173,4 +175,50 @@ func InUse(name string, rev snap.Revision) bool {
 	}
 
 	return false
+}
+
+var ErrBootNameAndRevisionAgain = errors.New("boot revision not yet established")
+
+func GetCurrentBoot() (kernel, core *snap.Info, err error) {
+	loader, err := bootloader.Find()
+	if err != nil {
+		return nil, nil, fmt.Errorf("cannot get boot settings: %s", err)
+	}
+
+	m, err := loader.GetBootVars("snap_kernel", "snap_core", "snap_mode")
+	if err != nil {
+		return nil, nil, fmt.Errorf("cannot get boot variables: %s", err)
+	}
+
+	if m["snap_mode"] == "trying" {
+		return nil, nil, ErrBootNameAndRevisionAgain
+	}
+
+	core, err = nameAndRevnoFromSnap(m["snap_core"])
+	if err != nil {
+		return nil, nil, fmt.Errorf("cannot get name and revision of boot snap: %v", err)
+	}
+	kernel, err = nameAndRevnoFromSnap(m["snap_kernel"])
+	if err != nil {
+		return nil, nil, fmt.Errorf("cannot get name and revision of boot kernel: %v", err)
+	}
+
+	return kernel, core, nil
+}
+
+func nameAndRevnoFromSnap(sn string) (*snap.Info, error) {
+	if sn == "" {
+		return nil, fmt.Errorf("unset")
+	}
+	l := strings.Split(sn, "_")
+	if len(l) < 2 {
+		return nil, fmt.Errorf("input %q has invalid format (not enough '_')", sn)
+	}
+	name := l[0]
+	revnoNSuffix := l[1]
+	rev, err := snap.ParseRevision(strings.Split(revnoNSuffix, ".snap")[0])
+	if err != nil {
+		return nil, err
+	}
+	return &snap.Info{SideInfo: snap.SideInfo{RealName: name, Revision: rev}}, nil
 }

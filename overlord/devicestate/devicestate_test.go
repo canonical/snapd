@@ -1717,6 +1717,7 @@ func (s *deviceMgrSuite) TestDeviceManagerEnsureBootOkUpdateBootRevisionsHappy(c
 	// simulate that we have a new core_2, tried to boot it but that failed
 	s.bootloader.SetBootVars(map[string]string{
 		"snap_mode":     "",
+		"snap_kernel":   "kernel_1.snap",
 		"snap_try_core": "core_2.snap",
 		"snap_core":     "core_1.snap",
 	})

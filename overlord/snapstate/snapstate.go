@@ -437,7 +437,7 @@ func WaitRestart(task *state.Task, snapsup *SnapSetup) (err error) {
 		}
 
 		name, rev, err := CurrentBootNameAndRevision(typ)
-		if err == ErrBootNameAndRevisionAgain {
+		if err == boot.ErrBootNameAndRevisionAgain {
 			return &state.Retry{After: 5 * time.Second}
 		}
 		if err != nil {

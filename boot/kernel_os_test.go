@@ -240,6 +240,18 @@ func (s *kernelOSSuite) TestInUse(c *C) {
 	}
 }
 
+func (s *kernelOSSuite) TestNameAndRevnoFromSnapValid(c *C) {
+	info, err := boot.NameAndRevnoFromSnap("foo_2.snap")
+	c.Assert(err, IsNil)
+	c.Assert(info.InstanceName(), Equals, "foo")
+	c.Assert(info.Revision, Equals, snap.R(2))
+}
+
+func (s *kernelOSSuite) TestNameAndRevnoFromSnapInvalidFormat(c *C) {
+	_, err := boot.NameAndRevnoFromSnap("invalid")
+	c.Assert(err, ErrorMatches, `input "invalid" has invalid format \(not enough '_'\)`)
+}
+
 // ubootKernelOSSuite tests the uboot specific code in the bootloader handling
 type ubootKernelOSSuite struct {
 	baseKernelOSSuite
