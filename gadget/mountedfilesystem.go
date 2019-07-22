@@ -352,7 +352,7 @@ func (f *MountedFilesystemUpdater) sourceDirectoryEntries(source string) ([]os.F
 		return nil, err
 	}
 
-	// TODO: enable support for symlnks when needed
+	// TODO: enable support for symlinks when needed
 	if osutil.IsSymlink(srcPath) {
 		return nil, fmt.Errorf("source is a symbolic link")
 	}
@@ -410,7 +410,7 @@ func (f *MountedFilesystemUpdater) updateOrSkipFile(dstRoot, source, target stri
 	srcPath := f.entrySourcePath(source)
 	dstPath, backupPath := f.entryDestPaths(dstRoot, source, target, backupDir)
 
-	// TODO: enable support for symlnks when needed
+	// TODO: enable support for symlinks when needed
 	if osutil.IsSymlink(srcPath) {
 		return fmt.Errorf("cannot update file %s: symbolic links are not supported", source)
 	}
@@ -541,7 +541,7 @@ func (f *MountedFilesystemUpdater) checkpointPrefix(dstRoot, target string, back
 	for prefix := filepath.Dir(target); prefix != "." && prefix != "/"; prefix = filepath.Dir(prefix) {
 		prefixDst, prefixBackupBase := f.entryDestPaths(dstRoot, "", prefix, backupDir)
 
-		// TODO: enable support for symlnks when needed
+		// TODO: enable support for symlinks when needed
 		if osutil.IsSymlink(prefixDst) {
 			return fmt.Errorf("cannot create a checkpoint for directory %v: symbolic links are not supported", prefix)
 		}
@@ -573,7 +573,7 @@ func (f *MountedFilesystemUpdater) backupOrCheckpointFile(dstRoot, source, targe
 	sameStamp := backupPath + ".same"
 	preserveStamp := backupPath + ".preserve"
 
-	// TODO: enable support for symlnks when needed
+	// TODO: enable support for symlinks when needed
 	if osutil.IsSymlink(dstPath) {
 		return fmt.Errorf("cannot backup file %s: symbolic links are not supported", target)
 	}
