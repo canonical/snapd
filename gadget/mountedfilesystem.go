@@ -144,7 +144,7 @@ func writeDirectory(src, dst string, preserveInDst []string) error {
 		pSrc := filepath.Join(src, fi.Name())
 		pDst := filepath.Join(dst, fi.Name())
 
-		write := writeFile
+		write := writeFileOrSymlink
 		if fi.IsDir() {
 			if err := os.MkdirAll(pDst, 0755); err != nil {
 				return fmt.Errorf("cannot create directory prefix: %v", err)
@@ -161,12 +161,12 @@ func writeDirectory(src, dst string, preserveInDst []string) error {
 	return nil
 }
 
-// writeFile copies the source file at given location or under given directory.
-// Follows rsync like semantics, that is:
+// writeFileOrSymlink writes the source file or a symlink at given location or
+// under given directory. Follows rsync like semantics, that is:
 //   /foo -> /bar/ - writes foo as /bar/foo
 //   /foo  -> /bar - writes foo as /bar
 // The destination location is overwritten.
-func writeFile(src, dst string, preserveInDst []string) error {
+func writeFileOrSymlink(src, dst string, preserveInDst []string) error {
 	if strings.HasSuffix(dst, "/") {
 		// write to directory
 		dst = filepath.Join(dst, filepath.Base(src))
@@ -182,23 +182,23 @@ func writeFile(src, dst string, preserveInDst []string) error {
 	}
 
 	if osutil.IsSymlink(src) {
+		// recreate the symlinks as they are
 		to, err := os.Readlink(src)
 		if err != nil {
 			return fmt.Errorf("cannot read symlink: %v", err)
 		}
 		if err := os.Symlink(to, dst); err != nil {
-			return fmt.Errorf("cannot deploy a symlink: %v", err)
+			return fmt.Errorf("cannot write a symlink: %v", err)
 		}
-		return nil
-	}
+	} else {
+		// overwrite & sync by default
+		copyFlags := osutil.CopyFlagOverwrite | osutil.CopyFlagSync
 
-	// overwrite & sync by default
-	copyFlags := osutil.CopyFlagOverwrite | osutil.CopyFlagSync
-
-	// TODO use osutil.AtomicFile
-	// TODO try to preserve ownership and permission bits
-	if err := osutil.CopyFile(src, dst, copyFlags); err != nil {
-		return fmt.Errorf("cannot copy %s: %v", src, err)
+		// TODO use osutil.AtomicFile
+		// TODO try to preserve ownership and permission bits
+		if err := osutil.CopyFile(src, dst, copyFlags); err != nil {
+			return fmt.Errorf("cannot copy %s: %v", src, err)
+		}
 	}
 	return nil
 }
@@ -223,7 +223,7 @@ func (m *MountedFilesystemWriter) writeVolumeContent(volumeRoot string, content 
 		return writeDirectory(realSource, realTarget, preserveInDst)
 	} else {
 		// write a file
-		return writeFile(realSource, realTarget, preserveInDst)
+		return writeFileOrSymlink(realSource, realTarget, preserveInDst)
 	}
 }
 
@@ -421,7 +421,7 @@ func (f *MountedFilesystemUpdater) updateOrSkipFile(dstRoot, source, target stri
 		}
 	}
 
-	return writeFile(srcPath, dstPath, preserveInDst)
+	return writeFileOrSymlink(srcPath, dstPath, preserveInDst)
 }
 
 func (f *MountedFilesystemUpdater) updateVolumeContent(volumeRoot string, content *VolumeContent, preserveInDst []string, backupDir string) error {
