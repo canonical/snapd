@@ -1166,6 +1166,79 @@ func (s *mountedfilesystemTestSuite) TestMountedUpdaterBackupFunnyNamesOk(c *C) 
 	})
 }
 
+func (s *mountedfilesystemTestSuite) TestMountedUpdaterBackupErrorOnSymlinkFile(c *C) {
+	gd := []gadgetData{
+		{name: "bar/data", target: "bar/data", content: "some data"},
+		{name: "bar/foo", target: "bar/foo", content: "data"},
+	}
+	makeGadgetData(c, s.dir, gd)
+
+	outDir := filepath.Join(c.MkDir(), "out-dir")
+
+	existing := []gadgetData{
+		{target: "bar/data", content: "some data"},
+		{target: "bar/foo", symlinkTo: "data"},
+	}
+	makeExistingData(c, outDir, existing)
+
+	ps := &gadget.PositionedStructure{
+		VolumeStructure: &gadget.VolumeStructure{
+			Size:       2048,
+			Filesystem: "ext4",
+			Content: []gadget.VolumeContent{
+				{Source: "/", Target: "/"},
+			},
+		},
+	}
+
+	rw, err := gadget.NewMountedFilesystemUpdater(s.dir, ps, s.backup, func(to *gadget.PositionedStructure) (string, error) {
+		c.Check(to, DeepEquals, ps)
+		return outDir, nil
+	})
+	c.Assert(err, IsNil)
+	c.Assert(rw, NotNil)
+
+	err = rw.Backup()
+	c.Assert(err, ErrorMatches, "cannot backup content: cannot backup file /bar/foo: symbolic links are not supported")
+}
+
+func (s *mountedfilesystemTestSuite) TestMountedUpdaterBackupErrorOnSymlinkInPrefixDir(c *C) {
+	gd := []gadgetData{
+		{name: "bar/nested/data", target: "bar/data", content: "some data"},
+		{name: "baz/foo", target: "baz/foo", content: "data"},
+	}
+	makeGadgetData(c, s.dir, gd)
+
+	outDir := filepath.Join(c.MkDir(), "out-dir")
+
+	existing := []gadgetData{
+		{target: "bar/nested-target/data", content: "some data"},
+	}
+	makeExistingData(c, outDir, existing)
+	// bar/nested-target -> nested
+	os.Symlink("nested-target", filepath.Join(outDir, "bar/nested"))
+
+	ps := &gadget.PositionedStructure{
+		VolumeStructure: &gadget.VolumeStructure{
+			Size:       2048,
+			Filesystem: "ext4",
+			Content: []gadget.VolumeContent{
+				{Source: "/", Target: "/"},
+			},
+		},
+	}
+
+	rw, err := gadget.NewMountedFilesystemUpdater(s.dir, ps, s.backup, func(to *gadget.PositionedStructure) (string, error) {
+		c.Check(to, DeepEquals, ps)
+		return outDir, nil
+	})
+	c.Assert(err, IsNil)
+	c.Assert(rw, NotNil)
+
+	err = rw.Backup()
+	c.Assert(err, ErrorMatches, "cannot backup content: cannot create a checkpoint for directory /bar/nested: symbolic links are not supported")
+}
+
 func (s *mountedfilesystemTestSuite) TestMountedUpdaterUpdate(c *C) {
 	// some data for the gadget
 	gdWritten := []gadgetData{
@@ -1570,6 +1643,83 @@ func (s *mountedfilesystemTestSuite) TestMountedUpdaterLonePrefix(c *C) {
 	err = rw.Update()
 	c.Assert(err, IsNil)
 	verifyWrittenGadgetData(c, outDir, gd)
+}
+
+func (s *mountedfilesystemTestSuite) TestMountedUpdaterUpdateErrorOnSymlinkToFile(c *C) {
+	gdWritten := []gadgetData{
+		{name: "data", target: "data", content: "some data"},
+		{name: "foo", symlinkTo: "data"},
+	}
+	makeGadgetData(c, s.dir, gdWritten)
+
+	outDir := filepath.Join(c.MkDir(), "out-dir")
+
+	existing := []gadgetData{
+		{target: "data", content: "some data"},
+	}
+	makeExistingData(c, outDir, existing)
+
+	ps := &gadget.PositionedStructure{
+		VolumeStructure: &gadget.VolumeStructure{
+			Size:       2048,
+			Filesystem: "ext4",
+			Content: []gadget.VolumeContent{
+				{Source: "/", Target: "/"},
+			},
+		},
+	}
+
+	rw, err := gadget.NewMountedFilesystemUpdater(s.dir, ps, s.backup, func(to *gadget.PositionedStructure) (string, error) {
+		c.Check(to, DeepEquals, ps)
+		return outDir, nil
+	})
+	c.Assert(err, IsNil)
+	c.Assert(rw, NotNil)
+
+	// create a mock backup of first file
+	makeSizedFile(c, filepath.Join(s.backup, "struct-0/data.backup"), 0, nil)
+
+	err = rw.Update()
+	c.Assert(err, ErrorMatches, "cannot update content: cannot update file /foo: symbolic links are not supported")
+}
+
+func (s *mountedfilesystemTestSuite) TestMountedUpdaterBackupErrorOnSymlinkToDir(c *C) {
+	gd := []gadgetData{
+		{name: "bar/data", target: "bar/data", content: "some data"},
+		{name: "baz", symlinkTo: "bar"},
+	}
+	makeGadgetData(c, s.dir, gd)
+
+	outDir := filepath.Join(c.MkDir(), "out-dir")
+
+	existing := []gadgetData{
+		{target: "bar/data", content: "some data"},
+	}
+	makeExistingData(c, outDir, existing)
+
+	ps := &gadget.PositionedStructure{
+		VolumeStructure: &gadget.VolumeStructure{
+			Size:       2048,
+			Filesystem: "ext4",
+			Content: []gadget.VolumeContent{
+				{Source: "/", Target: "/"},
+			},
+		},
+	}
+
+	rw, err := gadget.NewMountedFilesystemUpdater(s.dir, ps, s.backup, func(to *gadget.PositionedStructure) (string, error) {
+		c.Check(to, DeepEquals, ps)
+		return outDir, nil
+	})
+	c.Assert(err, IsNil)
+	c.Assert(rw, NotNil)
+
+	// create a mock backup of first file
+	makeSizedFile(c, filepath.Join(s.backup, "struct-0/bar/data.backup"), 0, nil)
+	makeSizedFile(c, filepath.Join(s.backup, "struct-0/bar.backup"), 0, nil)
+
+	err = rw.Update()
+	c.Assert(err, ErrorMatches, "cannot update content: cannot update file /baz: symbolic links are not supported")
 }
 
 func (s *mountedfilesystemTestSuite) TestMountedUpdaterRollbackFromBackup(c *C) {
