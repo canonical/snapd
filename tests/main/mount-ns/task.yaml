@@ -1,5 +1,5 @@
 summary: The shape of the mount namespace on classic systems for non-classic snaps
-systems: [ubuntu-16.04-64, ubuntu-18.04-64, ubuntu-core-16-64, ubuntu-core-18-64]
+systems: [ubuntu-14.04-64, ubuntu-16.04-64, ubuntu-18.04-64, ubuntu-core-16-64, ubuntu-core-18-64]
 # The test is sensitive to backend type, which designates the used image.
 # Backends are enabled one-by-one along with the matching data set.
 backends: [google]
