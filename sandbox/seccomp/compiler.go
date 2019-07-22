@@ -81,8 +81,7 @@ func (c *Compiler) VersionInfo() (string, error) {
 // VersionInfo represents information about the seccomp compilter
 type VersionInfo string
 
-// LibseccompVersion parses VersionInfo and provides the
-// libseccomp version
+// LibseccompVersion parses VersionInfo and provides the libseccomp version
 func (vi VersionInfo) LibseccompVersion() (string, error) {
 	if match := validVersionInfo.Match([]byte(vi)); !match {
 		return "", fmt.Errorf("invalid format of version-info: %q", vi)

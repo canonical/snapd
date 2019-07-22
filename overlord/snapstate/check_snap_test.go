@@ -31,6 +31,7 @@ import (
 	"github.com/snapcore/snapd/arch"
 	"github.com/snapcore/snapd/cmd"
 	"github.com/snapcore/snapd/dirs"
+	"github.com/snapcore/snapd/interfaces"
 	"github.com/snapcore/snapd/overlord/state"
 	"github.com/snapcore/snapd/release"
 	"github.com/snapcore/snapd/snap"
@@ -928,81 +929,128 @@ var systemUsernamesTests = []struct {
 	classic bool
 	noGroup bool
 	noUser  bool
+	scVer   string
 	error   string
 }{{
 	sysIDs: "snap_daemon: shared",
+	scVer:  "dead 2.4.1 deadbeef bpf-actlog",
 }, {
 	sysIDs: "snap_daemon:\n    scope: shared",
+	scVer:  "dead 2.4.1 deadbeef bpf-actlog",
 }, {
 	sysIDs: "snap_daemon:\n    scope: private",
+	scVer:  "dead 2.4.1 deadbeef bpf-actlog",
 	error:  `Unsupported user scope "private" for this version of snapd`,
 }, {
 	sysIDs: "snap_daemon:\n    scope: external",
+	scVer:  "dead 2.4.1 deadbeef bpf-actlog",
 	error:  `Unsupported user scope "external" for this version of snapd`,
 }, {
 	sysIDs: "snap_daemon:\n    scope: other",
+	scVer:  "dead 2.4.1 deadbeef bpf-actlog",
 	error:  `Unsupported user scope "other"`,
 }, {
 	sysIDs:  "snap_daemon: shared",
+	scVer:   "dead 2.4.1 deadbeef bpf-actlog",
 	classic: true,
 }, {
 	sysIDs:  "snap_daemon:\n    scope: shared",
+	scVer:   "dead 2.4.1 deadbeef bpf-actlog",
 	classic: true,
 }, {
 	sysIDs:  "snap_daemon:\n    scope: private",
+	scVer:   "dead 2.4.1 deadbeef bpf-actlog",
 	classic: true,
 	error:   `Unsupported user scope "private" for this version of snapd`,
 }, {
 	sysIDs:  "snap_daemon:\n    scope: external",
+	scVer:   "dead 2.4.1 deadbeef bpf-actlog",
 	classic: true,
 	error:   `Unsupported user scope "external" for this version of snapd`,
 }, {
 	sysIDs:  "snap_daemon:\n    scope: other",
+	scVer:   "dead 2.4.1 deadbeef bpf-actlog",
 	classic: true,
 	error:   `Unsupported user scope "other"`,
 }, {
 	sysIDs: "snap_daemon: shared\n  allowed-not: shared",
+	scVer:  "dead 2.4.1 deadbeef bpf-actlog",
 	error:  `Unsupported system username "allowed-not"`,
 }, {
 	sysIDs:  "allowed-not: shared\n  snap_daemon: shared",
+	scVer:   "dead 2.4.1 deadbeef bpf-actlog",
 	classic: true,
 	error:   `Unsupported system username "allowed-not"`,
 }, {
 	sysIDs: "inv@lid: shared",
+	scVer:  "dead 2.4.1 deadbeef bpf-actlog",
 	error:  `Invalid system username "inv@lid"`,
 }, {
 	sysIDs:  "inv@lid: shared",
+	scVer:   "dead 2.4.1 deadbeef bpf-actlog",
 	classic: true,
 	error:   `Invalid system username "inv@lid"`,
 }, {
 	sysIDs:  "snap_daemon: shared",
 	noGroup: true,
+	scVer:   "dead 2.4.1 deadbeef bpf-actlog",
 	error:   `This snap requires that the \"snap_daemon\" system user and group are present on the system.`,
 }, {
 	sysIDs:  "snap_daemon: shared",
 	classic: true,
 	noGroup: true,
+	scVer:   "dead 2.4.1 deadbeef bpf-actlog",
 	error:   `This snap requires that the \"snap_daemon\" system user and group are present on the system.`,
 }, {
 	sysIDs: "snap_daemon: shared",
 	noUser: true,
+	scVer:  "dead 2.4.1 deadbeef bpf-actlog",
 	error:  `This snap requires that the \"snap_daemon\" system user and group are present on the system.`,
 }, {
 	sysIDs:  "snap_daemon: shared",
 	classic: true,
 	noUser:  true,
+	scVer:   "dead 2.4.1 deadbeef bpf-actlog",
 	error:   `This snap requires that the \"snap_daemon\" system user and group are present on the system.`,
 }, {
 	sysIDs:  "snap_daemon: shared",
 	noUser:  true,
 	noGroup: true,
+	scVer:   "dead 2.4.1 deadbeef bpf-actlog",
 	error:   `This snap requires that the \"snap_daemon\" system user and group are present on the system.`,
 }, {
 	sysIDs:  "snap_daemon: shared",
 	classic: true,
 	noUser:  true,
 	noGroup: true,
+	scVer:   "dead 2.4.1 deadbeef bpf-actlog",
 	error:   `This snap requires that the \"snap_daemon\" system user and group are present on the system.`,
+}, {
+	sysIDs: "snap_daemon: shared",
+	scVer:  "dead 2.3.3 deadbeef bpf-actlog",
+	error:  `This snap requires that snapd be compiled against libseccomp >= 2.4.`,
+}, {
+	sysIDs:  "snap_daemon: shared",
+	classic: true,
+	scVer:   "dead 2.3.3 deadbeef bpf-actlog",
+	error:   `This snap requires that snapd be compiled against libseccomp >= 2.4.`,
+}, {
+	sysIDs:  "snap_daemon: shared",
+	classic: true,
+	scVer:   "dead 3.0.0 deadbeef bpf-actlog",
+}, {
+	sysIDs:  "snap_daemon: shared",
+	classic: true,
+	scVer:   "dead 3.0.0 deadbeef bpf-actlog",
+}, {
+	sysIDs: "snap_daemon: shared",
+	scVer:  "dead 2.4.1 deadbeef -",
+	error:  `This snap requires that snapd be compiled against golang-seccomp >= 0.9.1`,
+}, {
+	sysIDs:  "snap_daemon: shared",
+	classic: true,
+	scVer:   "dead 2.4.1 deadbeef -",
+	error:   `This snap requires that snapd be compiled against golang-seccomp >= 0.9.1`,
 }}
 
 func (s *checkSnapSuite) TestCheckSnapSystemUsernames(c *C) {
@@ -1010,6 +1058,11 @@ func (s *checkSnapSuite) TestCheckSnapSystemUsernames(c *C) {
 	defer restore()
 
 	for _, test := range systemUsernamesTests {
+		restore = interfaces.MockSeccompCompilerVersionInfo(func(_ string) (string, error) {
+			return test.scVer, nil
+		})
+		defer restore()
+
 		release.OnClassic = test.classic
 		if test.noGroup {
 			restore = snapstate.MockFindGid(func(name string) (uint64, error) {
