@@ -7,6 +7,11 @@ details: |
 
 systems: [ubuntu-core-1*]
 
+debug: |
+    snap changes || true
+    systemctl status snapd || true
+    dmesg || true
+
 execute: |
     #shellcheck source=tests/lib/journalctl.sh
     . "$TESTSLIB"/journalctl.sh
