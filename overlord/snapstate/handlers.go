@@ -20,6 +20,7 @@
 package snapstate
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	"os"
@@ -207,7 +208,7 @@ func (m *SnapManager) doPrerequisites(t *state.Task, _ *tomb.Tomb) error {
 		return nil
 	}
 	// snapd is special and has no prereqs
-	if snapsup.InstanceName() == "snapd" {
+	if snapsup.Type == snap.TypeSnapd {
 		return nil
 	}
 
@@ -253,7 +254,7 @@ func (m *SnapManager) installOneBaseOrRequired(st *state.State, snapName string,
 	}
 
 	// not installed, nor queued for install -> install it
-	ts, err := Install(st, snapName, &RevisionOptions{Channel: channel}, userID, Flags{RequireTypeBase: requireTypeBase})
+	ts, err := Install(context.TODO(), st, snapName, &RevisionOptions{Channel: channel}, userID, Flags{RequireTypeBase: requireTypeBase})
 
 	// something might have triggered an explicit install while
 	// the state was unlocked -> deal with that here by simply
@@ -469,7 +470,7 @@ func installInfoUnlocked(st *state.State, snapsup *SnapSetup, deviceCtx DeviceCo
 	st.Lock()
 	defer st.Unlock()
 	opts := &RevisionOptions{Channel: snapsup.Channel, CohortKey: snapsup.CohortKey, Revision: snapsup.Revision()}
-	return installInfo(st, snapsup.InstanceName(), opts, snapsup.UserID, deviceCtx)
+	return installInfo(context.TODO(), st, snapsup.InstanceName(), opts, snapsup.UserID, deviceCtx)
 }
 
 // autoRefreshRateLimited returns the rate limit of auto-refreshes or 0 if
@@ -1151,7 +1152,7 @@ func maybeRestart(t *state.Task, info *snap.Info) {
 		// ignore error here as we have no way to return to caller
 		snapdSnapInstalled, _ := isInstalled(st, "snapd")
 		if (info.GetType() == snap.TypeOS && !snapdSnapInstalled) ||
-			info.InstanceName() == "snapd" {
+			info.GetType() == snap.TypeSnapd {
 			t.Logf("Requested daemon restart.")
 			st.RequestRestart(state.RestartDaemon)
 		}
@@ -1173,7 +1174,7 @@ func maybeRestart(t *state.Task, info *snap.Info) {
 		logger.Noticef("cannot get model assertion: %v", model)
 		return
 	}
-	if model.Base() != "" && info.InstanceName() == "snapd" {
+	if model.Base() != "" && info.GetType() == snap.TypeSnapd {
 		t.Logf("Requested daemon restart (snapd snap).")
 		st.RequestRestart(state.RestartDaemon)
 	}
