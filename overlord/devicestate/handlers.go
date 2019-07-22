@@ -929,7 +929,7 @@ var (
 	gadgetUpdate = nopGadgetOp
 )
 
-func nopGadgetOp(current, update gadget.UpdateData, rollbackRootDir string) error {
+func nopGadgetOp(current, update gadget.GadgetData, rollbackRootDir string) error {
 	return nil
 }
 
