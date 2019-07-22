@@ -42,6 +42,7 @@ const processControlConnectedPlugAppArmor = `
 capability sys_resource,
 capability sys_nice,
 
+capability kill,
 signal (send),
 /{,usr/}bin/kill ixr,
 /{,usr/}bin/pkill ixr,
