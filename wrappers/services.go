@@ -32,6 +32,7 @@ import (
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/osutil"
+	"github.com/snapcore/snapd/osutil/sys"
 	"github.com/snapcore/snapd/snap"
 	"github.com/snapcore/snapd/systemd"
 	"github.com/snapcore/snapd/timeout"
@@ -102,7 +103,7 @@ func stopService(sysd systemd.Systemd, app *snap.AppInfo, inter interacter) erro
 // are services. Service units will be started in the order provided by the
 // caller.
 func StartServices(apps []*snap.AppInfo, inter interacter, tm timings.Measurer) (err error) {
-	sysd := systemd.New(dirs.GlobalRootDir, inter)
+	sysd := systemd.New(dirs.GlobalRootDir, systemd.SystemMode, inter)
 
 	services := make([]string, 0, len(apps))
 	for _, app := range apps {
@@ -199,11 +200,11 @@ func StartServices(apps []*snap.AppInfo, inter interacter, tm timings.Measurer) 
 
 // AddSnapServices adds service units for the applications from the snap which are services.
 func AddSnapServices(s *snap.Info, inter interacter) (err error) {
-	if s.SnapName() == "snapd" {
+	if s.GetType() == snap.TypeSnapd {
 		return writeSnapdServicesOnCore(s, inter)
 	}
 
-	sysd := systemd.New(dirs.GlobalRootDir, inter)
+	sysd := systemd.New(dirs.GlobalRootDir, systemd.SystemMode, inter)
 	var written []string
 	var enabled []string
 	defer func() {
@@ -293,7 +294,7 @@ func AddSnapServices(s *snap.Info, inter interacter) (err error) {
 
 // StopServices stops service units for the applications from the snap which are services.
 func StopServices(apps []*snap.AppInfo, reason snap.ServiceStopReason, inter interacter, tm timings.Measurer) error {
-	sysd := systemd.New(dirs.GlobalRootDir, inter)
+	sysd := systemd.New(dirs.GlobalRootDir, systemd.SystemMode, inter)
 
 	logger.Debugf("StopServices called for %q, reason: %v", apps, reason)
 	for _, app := range apps {
@@ -339,7 +340,7 @@ func StopServices(apps []*snap.AppInfo, reason snap.ServiceStopReason, inter int
 
 // RemoveSnapServices disables and removes service units for the applications from the snap which are services.
 func RemoveSnapServices(s *snap.Info, inter interacter) error {
-	sysd := systemd.New(dirs.GlobalRootDir, inter)
+	sysd := systemd.New(dirs.GlobalRootDir, systemd.SystemMode, inter)
 	nservices := 0
 
 	for _, app := range s.Apps {
@@ -600,6 +601,11 @@ func generateSnapSocketFiles(app *snap.AppInfo) (*map[string][]byte, error) {
 func renderListenStream(socket *snap.SocketInfo) string {
 	snap := socket.App.Snap
 	listenStream := strings.Replace(socket.ListenStream, "$SNAP_DATA", snap.DataDir(), -1)
+	// TODO: when we support User/Group in the generated systemd unit,
+	// adjust this accordingly
+	serviceUserUid := sys.UserID(0)
+	runtimeDir := snap.UserXdgRuntimeDir(serviceUserUid)
+	listenStream = strings.Replace(listenStream, "$XDG_RUNTIME_DIR", runtimeDir, -1)
 	return strings.Replace(listenStream, "$SNAP_COMMON", snap.CommonDataDir(), -1)
 }
 

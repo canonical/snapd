@@ -176,6 +176,13 @@ type VolumeContent struct {
 	Unpack bool `yaml:"unpack"`
 }
 
+func (vc VolumeContent) String() string {
+	if vc.Image != "" {
+		return fmt.Sprintf("image:%s", vc.Image)
+	}
+	return fmt.Sprintf("source:%s", vc.Source)
+}
+
 type VolumeUpdate struct {
 	Edition  editionNumber `yaml:"edition"`
 	Preserve []string      `yaml:"preserve"`

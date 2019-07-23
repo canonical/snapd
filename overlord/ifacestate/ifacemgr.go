@@ -20,6 +20,7 @@
 package ifacestate
 
 import (
+	"sync"
 	"time"
 
 	"github.com/snapcore/snapd/interfaces"
@@ -45,6 +46,7 @@ type InterfaceManager struct {
 	state *state.State
 	repo  *interfaces.Repository
 
+	udevMonMu           sync.Mutex
 	udevMon             udevmonitor.Interface
 	udevRetryTimeout    time.Time
 	udevMonitorDisabled bool
@@ -134,7 +136,13 @@ func Manager(s *state.State, hookManager *hookstate.HookManager, runner *state.T
 
 // Ensure implements StateManager.Ensure.
 func (m *InterfaceManager) Ensure() error {
-	if m.udevMon != nil || m.udevMonitorDisabled {
+	if m.udevMonitorDisabled {
+		return nil
+	}
+	m.udevMonMu.Lock()
+	udevMon := m.udevMon
+	m.udevMonMu.Unlock()
+	if udevMon != nil {
 		return nil
 	}
 
@@ -156,15 +164,21 @@ func (m *InterfaceManager) Ensure() error {
 	return nil
 }
 
-// Stop implements StateWaiterStopper.Stop. It stops
-// the udev monitor, if running.
+// Stop implements StateStopper. It stops the udev monitor,
+// if running.
 func (m *InterfaceManager) Stop() {
-	if m.udevMon == nil {
+	m.udevMonMu.Lock()
+	udevMon := m.udevMon
+	m.udevMonMu.Unlock()
+	if udevMon == nil {
 		return
 	}
-	if err := m.udevMon.Stop(); err != nil {
+	if err := udevMon.Stop(); err != nil {
 		logger.Noticef("Cannot stop udev monitor: %s", err)
 	}
+	m.udevMonMu.Lock()
+	defer m.udevMonMu.Unlock()
+	m.udevMon = nil
 }
 
 // Repository returns the interface repository used internally by the manager.
@@ -248,6 +262,9 @@ func (m *InterfaceManager) initUDevMonitor() error {
 		mon.Disconnect()
 		return err
 	}
+
+	m.udevMonMu.Lock()
+	defer m.udevMonMu.Unlock()
 	m.udevMon = mon
 	return nil
 }

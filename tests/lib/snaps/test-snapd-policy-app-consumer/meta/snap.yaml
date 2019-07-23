@@ -155,6 +155,9 @@ apps:
   io-ports-control:
     command: bin/run
     plugs: [ io-ports-control ]
+  jack1:
+    command: bin/run
+    plugs: [ jack1 ]
   joystick:
     command: bin/run
     plugs: [ joystick ]
@@ -269,6 +272,9 @@ apps:
   optical-drive:
     command: bin/run
     plugs: [ optical-drive ]
+  packagekit-control:
+    command: bin/run
+    plugs: [ packagekit-control ]
   password-manager-service:
     command: bin/run
     plugs: [ password-manager-service ]

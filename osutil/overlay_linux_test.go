@@ -87,6 +87,10 @@ func (s *overlaySuite) TestIsRootWritableOverlay(c *C) {
 		// The special cased version for 18.10 server release
 		mountinfo: "28 0 0:24 / / rw,realtime shared:1 - overlay overlayroot rw,lowerdir=/media/root-ro,upperdir=/media/root-rw/overlay,workdir=/media/root-rw/overlay-workdir/_",
 		overlay:   "/overlay",
+	}, {
+		// The special cased version for Manjaro live CD,
+		mountinfo: "37 1 0:24 / / rw,realtime shared:1 - overlay overlay rw,lowerdir=/run/miso/sfs/livefs:/run/miso/sfs/mhwdfs:/run/miso/sfs/desktopfs:/run/miso/sfs/rootfs,upperdir=/run/miso/overlay_root/upper,workdir=/run/miso/overlay_root/work,index=off",
+		overlay:   "/upper",
 	}}
 	for _, tc := range cases {
 		restore := osutil.MockMountInfo(tc.mountinfo)

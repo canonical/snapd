@@ -21,6 +21,7 @@ package ctlcmd
 
 import (
 	"fmt"
+
 	"github.com/snapcore/snapd/overlord/hookstate"
 	"github.com/snapcore/snapd/overlord/servicestate"
 	"github.com/snapcore/snapd/overlord/state"
@@ -36,8 +37,17 @@ func MockServicestateControlFunc(f func(*state.State, []*snap.AppInfo, *services
 }
 
 func AddMockCommand(name string) *MockCommand {
+	return addMockCmd(name, false)
+}
+
+func AddHiddenMockCommand(name string) *MockCommand {
+	return addMockCmd(name, true)
+}
+
+func addMockCmd(name string, hidden bool) *MockCommand {
 	mockCommand := NewMockCommand()
-	addCommand(name, "", "", func() command { return mockCommand })
+	cmd := addCommand(name, "", "", func() command { return mockCommand })
+	cmd.hidden = hidden
 	return mockCommand
 }
 

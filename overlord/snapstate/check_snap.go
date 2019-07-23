@@ -26,6 +26,7 @@ import (
 	"strings"
 
 	"github.com/snapcore/snapd/arch"
+	"github.com/snapcore/snapd/asserts"
 	"github.com/snapcore/snapd/cmd"
 	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/overlord/snapstate/backend"
@@ -263,8 +264,20 @@ func MockCheckSnapCallbacks(checks []CheckSnapCallback) (restore func()) {
 	}
 }
 
+func checkSnapdName(st *state.State, snapInfo, curInfo *snap.Info, flags Flags, deviceCtx DeviceContext) error {
+	if snapInfo.GetType() != snap.TypeSnapd {
+		// not a relevant check
+		return nil
+	}
+	if snapInfo.InstanceName() != "snapd" {
+		return fmt.Errorf(`cannot install snap %q of type "snapd" with a name other than "snapd"`, snapInfo.InstanceName())
+	}
+
+	return nil
+}
+
 func checkCoreName(st *state.State, snapInfo, curInfo *snap.Info, flags Flags, deviceCtx DeviceContext) error {
-	if snapInfo.Type != snap.TypeOS {
+	if snapInfo.GetType() != snap.TypeOS {
 		// not a relevant check
 		return nil
 	}
@@ -272,7 +285,7 @@ func checkCoreName(st *state.State, snapInfo, curInfo *snap.Info, flags Flags, d
 		// already one of these installed
 		return nil
 	}
-	core, err := CoreInfo(st)
+	core, err := coreInfo(st)
 	if err == state.ErrNoState {
 		return nil
 	}
@@ -300,25 +313,35 @@ func checkCoreName(st *state.State, snapInfo, curInfo *snap.Info, flags Flags, d
 }
 
 func checkGadgetOrKernel(st *state.State, snapInfo, curInfo *snap.Info, flags Flags, deviceCtx DeviceContext) error {
+	typ := snapInfo.GetType()
 	kind := ""
-	var currentInfo func(*state.State) (*snap.Info, error)
-	switch snapInfo.Type {
+	var whichName func(*asserts.Model) string
+	switch typ {
 	case snap.TypeGadget:
 		kind = "gadget"
-		currentInfo = GadgetInfo
+		whichName = (*asserts.Model).Gadget
 	case snap.TypeKernel:
 		kind = "kernel"
-		currentInfo = KernelInfo
+		whichName = (*asserts.Model).Kernel
 	default:
 		// not a relevant check
 		return nil
 	}
 
-	currentSnap, err := currentInfo(st)
+	ok, err := HasSnapOfType(st, typ)
+	if err != nil {
+		return fmt.Errorf("cannot detect original %s snap: %v", kind, err)
+	}
 	// in firstboot we have no gadget/kernel yet - that is ok
 	// first install rules are in devicestate!
-	if err == state.ErrNoState {
+	if !ok {
 		return nil
+	}
+
+	currentSnap, err := infoForDeviceSnap(st, deviceCtx, kind, whichName)
+	if err == state.ErrNoState {
+		// TODO: remodeling logic
+		return fmt.Errorf("internal error: cannot remodel kernel/gadget yet")
 	}
 	if err != nil {
 		return fmt.Errorf("cannot find original %s snap: %v", kind, err)
@@ -345,7 +368,7 @@ func checkGadgetOrKernel(st *state.State, snapInfo, curInfo *snap.Info, flags Fl
 
 func checkBases(st *state.State, snapInfo, curInfo *snap.Info, flags Flags, deviceCtx DeviceContext) error {
 	// check if this is relevant
-	if snapInfo.Type != snap.TypeApp && snapInfo.Type != snap.TypeGadget {
+	if snapInfo.GetType() != snap.TypeApp && snapInfo.GetType() != snap.TypeGadget {
 		return nil
 	}
 	if snapInfo.Base == "" {
@@ -412,6 +435,7 @@ func earlyEpochCheck(info *snap.Info, snapst *SnapState) error {
 
 func init() {
 	AddCheckSnapCallback(checkCoreName)
+	AddCheckSnapCallback(checkSnapdName)
 	AddCheckSnapCallback(checkGadgetOrKernel)
 	AddCheckSnapCallback(checkBases)
 	AddCheckSnapCallback(checkEpochs)

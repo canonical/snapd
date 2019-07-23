@@ -81,6 +81,6 @@ func (x *cmdRemodel) Execute(args []string) error {
 		}
 		return err
 	}
-	fmt.Fprintf(Stdout, i18n.G("New model %s set"), newModelFile)
+	fmt.Fprintf(Stdout, i18n.G("New model %s set\n"), newModelFile)
 	return nil
 }
