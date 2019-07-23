@@ -53,24 +53,26 @@ func UpdateBootRevisions(st *state.State) error {
 		return nil
 	}
 
-	kernel, core, err := boot.GetCurrentBoot()
+	kernel, err := boot.GetCurrentBoot(snap.TypeKernel)
+	if err != nil {
+		return fmt.Errorf(errorPrefix+"%s", err)
+	}
+	base, err := boot.GetCurrentBoot(snap.TypeBase)
 	if err != nil {
 		return fmt.Errorf(errorPrefix+"%s", err)
 	}
 
 	var tsAll []*state.TaskSet
-	for _, actual := range []*snap.Info{kernel, core} {
-		name := actual.InstanceName()
-		rev := actual.Revision
-		info, err := CurrentInfo(st, name)
+	for _, actual := range []*boot.NameAndRevision{kernel, base} {
+		info, err := CurrentInfo(st, actual.Name)
 		if err != nil {
-			logger.Noticef("cannot get info for %q: %s", name, err)
+			logger.Noticef("cannot get info for %q: %s", actual.Name, err)
 			continue
 		}
-		if rev != info.SideInfo.Revision {
+		if actual.Revision != info.SideInfo.Revision {
 			// FIXME: check that there is no task
 			//        for this already in progress
-			ts, err := RevertToRevision(st, name, rev, Flags{})
+			ts, err := RevertToRevision(st, actual.Name, actual.Revision, Flags{})
 			if err != nil {
 				return err
 			}
@@ -90,25 +92,4 @@ func UpdateBootRevisions(st *state.State) error {
 	st.EnsureBefore(0)
 
 	return nil
-}
-
-// CurrentBootNameAndRevision returns the currently set name and
-// revision for boot for the given type of snap, which can be core or
-// kernel. Returns ErrBootNameAndRevisionAgain if the values are
-// temporarily not established.
-func CurrentBootNameAndRevision(typ snap.Type) (name string, revision snap.Revision, err error) {
-
-	kernel, core, err := boot.GetCurrentBoot()
-	if err != nil {
-		return "", snap.Revision{}, err
-	}
-
-	switch typ {
-	case snap.TypeKernel:
-		return kernel.InstanceName(), kernel.Revision, nil
-	case snap.TypeOS, snap.TypeBase:
-		return core.InstanceName(), core.Revision, nil
-	default:
-		return "", snap.Revision{}, fmt.Errorf("cannot find boot revision for anything but core and kernel")
-	}
 }

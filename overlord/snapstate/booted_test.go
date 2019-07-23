@@ -28,7 +28,6 @@ import (
 
 	. "gopkg.in/check.v1"
 
-	"github.com/snapcore/snapd/boot"
 	"github.com/snapcore/snapd/boot/boottest"
 	"github.com/snapcore/snapd/bootloader"
 	"github.com/snapcore/snapd/dirs"
@@ -258,37 +257,6 @@ func (bs *bootedSuite) TestUpdateBootRevisionsOSErrorsLate(c *C) {
 	c.Assert(chg.Kind(), Equals, "update-revisions")
 	c.Assert(chg.IsReady(), Equals, true)
 	c.Assert(chg.Err(), ErrorMatches, `(?ms).*Make snap "core" \(1\) available to the system \(fail\).*`)
-}
-
-func (bs *bootedSuite) TestCurrentBootNameAndRevision(c *C) {
-	name, revision, err := snapstate.CurrentBootNameAndRevision(snap.TypeOS)
-	c.Check(err, IsNil)
-	c.Check(name, Equals, "core")
-	c.Check(revision, Equals, snap.R(2))
-
-	name, revision, err = snapstate.CurrentBootNameAndRevision(snap.TypeKernel)
-	c.Check(err, IsNil)
-	c.Check(name, Equals, "canonical-pc-linux")
-	c.Check(revision, Equals, snap.R(2))
-
-	bs.bootloader.BootVars["snap_mode"] = "trying"
-	_, _, err = snapstate.CurrentBootNameAndRevision(snap.TypeKernel)
-	c.Check(err, Equals, boot.ErrBootNameAndRevisionAgain)
-}
-
-func (bs *bootedSuite) TestCurrentBootNameAndRevisionUnhappy(c *C) {
-	delete(bs.bootloader.BootVars, "snap_kernel")
-	_, _, err := snapstate.CurrentBootNameAndRevision(snap.TypeKernel)
-	c.Check(err, ErrorMatches, "cannot get name and revision of boot kernel: unset")
-
-	delete(bs.bootloader.BootVars, "snap_core")
-	_, _, err = snapstate.CurrentBootNameAndRevision(snap.TypeOS)
-	c.Check(err, ErrorMatches, "cannot get name and revision of boot snap: unset")
-
-	delete(bs.bootloader.BootVars, "snap_core")
-	_, _, err = snapstate.CurrentBootNameAndRevision(snap.TypeBase)
-	c.Check(err, ErrorMatches, "cannot get name and revision of boot snap: unset")
-
 }
 
 func (bs *bootedSuite) TestWaitRestartCore(c *C) {

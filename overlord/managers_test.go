@@ -3395,6 +3395,10 @@ type: base`
 
 func (s *mgrsSuite) TestRemodelSwitchKernelTrack(c *C) {
 	loader := boottest.NewMockBootloader("mock", c.MkDir())
+	loader.SetBootVars(map[string]string{
+		"snap_kernel": "pc-kernel_1.snap",
+		"snap_core":   "core_1.snap",
+	})
 	bootloader.Force(loader)
 	defer bootloader.Force(nil)
 
