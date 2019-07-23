@@ -72,7 +72,7 @@ static const char *cgroup_dir = "/sys/fs/cgroup";
 
 // from statfs(2)
 #ifndef CGRUOP2_SUPER_MAGIC
-#define CGROUP2_SUPER_MAGIC =  0x63677270;
+#define CGROUP2_SUPER_MAGIC 0x63677270
 #endif
 
 // Detect if we are running in cgroup v2 unified mode (as opposed to
