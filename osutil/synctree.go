@@ -157,8 +157,9 @@ func EnsureTreeState(baseDir string, globs []string, content map[string]map[stri
 		}
 	}
 	// As with EnsureDirState, if an error occurred we want to
-	// delete all matching files.  This means reprocessing
-	// subdirectories that were successfully synchronised.
+	// delete all matching files under the whole baseDir
+	// hierarchy.  This also means emptying subdirectories that
+	// were successfully synchronised.
 	if firstErr != nil {
 		// changed paths will be deleted by this next step
 		changed = nil
