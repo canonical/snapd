@@ -53,6 +53,9 @@ Nested values may be modified via a dotted path:
 
     $ snapctl set author.name=frank
 
+Configuration option may be unset with exclamation mark:
+    $ snap set author!
+
 Plug and slot attributes may be set in the respective prepare and connect hooks by
 naming the respective plug or slot:
 
@@ -99,6 +102,11 @@ func (s *setCommand) setConfigSetting(context *hookstate.Context) error {
 
 	for _, patchValue := range s.Positional.ConfValues {
 		parts := strings.SplitN(patchValue, "=", 2)
+		if len(parts) == 1 && strings.HasSuffix(patchValue, "!") {
+			key := strings.TrimSuffix(patchValue, "!")
+			tr.Set(s.context().InstanceName(), key, nil)
+			continue
+		}
 		if len(parts) != 2 {
 			return fmt.Errorf(i18n.G("invalid parameter: %q (want key=value)"), patchValue)
 		}

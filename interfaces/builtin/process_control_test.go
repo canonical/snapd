@@ -53,7 +53,7 @@ var _ = Suite(&ProcessControlInterfaceSuite{
 
 func (s *ProcessControlInterfaceSuite) SetUpTest(c *C) {
 	s.slotInfo = &snap.SlotInfo{
-		Snap:      &snap.Info{SuggestedName: "core", Type: snap.TypeOS},
+		Snap:      &snap.Info{SuggestedName: "core", SnapType: snap.TypeOS},
 		Name:      "process-control",
 		Interface: "process-control",
 	}

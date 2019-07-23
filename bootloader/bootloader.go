@@ -26,6 +26,7 @@ import (
 	"path/filepath"
 
 	"github.com/snapcore/snapd/osutil"
+	"github.com/snapcore/snapd/snap"
 )
 
 const (
@@ -54,14 +55,17 @@ type Bootloader interface {
 	// Set the value of the specified bootloader variable
 	SetBootVars(values map[string]string) error
 
-	// Dir returns the bootloader directory
-	Dir() string
-
 	// Name returns the bootloader name
 	Name() string
 
 	// ConfigFile returns the name of the config file
 	ConfigFile() string
+
+	// ExtractKernelAssets extracts kernel assets from the given kernel snap
+	ExtractKernelAssets(s *snap.Info, snapf snap.Container) error
+
+	// RemoveKernelAssets removes the assets for the given kernel snap.
+	RemoveKernelAssets(s snap.PlaceInfo) error
 }
 
 // InstallBootConfig installs the bootloader config from the gadget
@@ -163,4 +167,43 @@ func MarkBootSuccessful(bootloader Bootloader) error {
 	m["snap_mode"] = modeSuccess
 
 	return bootloader.SetBootVars(m)
+}
+
+func extractKernelAssetsToBootDir(bootDir string, s *snap.Info, snapf snap.Container) error {
+	// now do the kernel specific bits
+	blobName := filepath.Base(s.MountFile())
+	dstDir := filepath.Join(bootDir, blobName)
+	if err := os.MkdirAll(dstDir, 0755); err != nil {
+		return err
+	}
+	dir, err := os.Open(dstDir)
+	if err != nil {
+		return err
+	}
+	defer dir.Close()
+
+	for _, src := range []string{"kernel.img", "initrd.img"} {
+		if err := snapf.Unpack(src, dstDir); err != nil {
+			return err
+		}
+		if err := dir.Sync(); err != nil {
+			return err
+		}
+	}
+	if err := snapf.Unpack("dtbs/*", dstDir); err != nil {
+		return err
+	}
+
+	return dir.Sync()
+}
+
+func removeKernelAssetsFromBootDir(bootDir string, s snap.PlaceInfo) error {
+	// remove the kernel blob
+	blobName := filepath.Base(s.MountFile())
+	dstDir := filepath.Join(bootDir, blobName)
+	if err := os.RemoveAll(dstDir); err != nil {
+		return err
+	}
+
+	return nil
 }

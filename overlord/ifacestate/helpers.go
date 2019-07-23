@@ -86,7 +86,7 @@ func (m *InterfaceManager) initialize(extraInterfaces []interfaces.Interface, ex
 
 func (m *InterfaceManager) selectInterfaceMapper(snaps []*snap.Info) {
 	for _, snapInfo := range snaps {
-		if snapInfo.SnapName() == "snapd" {
+		if snapInfo.GetType() == snap.TypeSnapd {
 			mapper = &CoreSnapdSystemMapper{}
 			break
 		}

@@ -52,7 +52,7 @@ func (l *sysdLogger) Notify(status string) {
 // switchDisableSSHService handles the special case of disabling/enabling ssh
 // service on core devices.
 func switchDisableSSHService(serviceName, value string) error {
-	sysd := systemd.New(dirs.GlobalRootDir, &sysdLogger{})
+	sysd := systemd.New(dirs.GlobalRootDir, systemd.SystemMode, &sysdLogger{})
 	sshCanary := filepath.Join(dirs.GlobalRootDir, "/etc/ssh/sshd_not_to_be_run")
 
 	switch value {
@@ -84,7 +84,7 @@ func switchDisableService(serviceName, value string) error {
 		return switchDisableSSHService(serviceName, value)
 	}
 
-	sysd := systemd.New(dirs.GlobalRootDir, &sysdLogger{})
+	sysd := systemd.New(dirs.GlobalRootDir, systemd.SystemMode, &sysdLogger{})
 
 	switch value {
 	case "true":

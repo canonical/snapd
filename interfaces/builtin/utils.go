@@ -25,6 +25,7 @@ import (
 	"sort"
 
 	"github.com/snapcore/snapd/interfaces"
+	"github.com/snapcore/snapd/release"
 	"github.com/snapcore/snapd/snap"
 )
 
@@ -71,4 +72,27 @@ func slotAppLabelExpr(slot *interfaces.ConnectedSlot) string {
 
 func plugAppLabelExpr(plug *interfaces.ConnectedPlug) string {
 	return appLabelExpr(plug.Apps(), plug.Snap())
+}
+
+// determine if permanent slot side is provided by the system
+// on classic system some implicit slots can be provided by system or by
+// application snap e.g. avahi (it can be installed as deb or snap)
+// - slot owned by the system (core,snapd snap)  usually requires no action
+// - slot owned by application snap typically requires rules update
+func implicitSystemPermanentSlot(slot *snap.SlotInfo) bool {
+	if release.OnClassic &&
+		(slot.Snap.GetType() == snap.TypeOS || slot.Snap.GetType() == snap.TypeSnapd) {
+		return true
+	}
+	return false
+}
+
+// determine if connected slot side is provided by the system
+// as for isPermanentSlotSystemSlot() slot can be owned by app or system
+func implicitSystemConnectedSlot(slot *interfaces.ConnectedSlot) bool {
+	if release.OnClassic &&
+		(slot.Snap().GetType() == snap.TypeOS || slot.Snap().GetType() == snap.TypeSnapd) {
+		return true
+	}
+	return false
 }

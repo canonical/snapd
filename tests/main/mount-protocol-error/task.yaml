@@ -12,7 +12,7 @@ description: |
 backends: [-autopkgtest]
 
 # only run on a subset of systems because this test takes a long time to run
-systems: [ubuntu-18.04-64, ubuntu-18.10-64, arch-linux-64]
+systems: [ubuntu-18.04-64, arch-linux-64]
 
 execute: |
     snap set system experimental.parallel-instances=true

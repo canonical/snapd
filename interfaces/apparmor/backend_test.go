@@ -723,6 +723,7 @@ type: os
 
 const snapdYaml = `name: snapd
 version: 1
+type: snapd
 `
 
 func (s *backendSuite) writeVanillaSnapConfineProfile(c *C, coreOrSnapdInfo *snap.Info) {

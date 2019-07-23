@@ -32,20 +32,38 @@ import (
 )
 
 type utilsSuite struct {
-	iface      interfaces.Interface
-	slotOS     *snap.SlotInfo
-	slotApp    *snap.SlotInfo
-	slotSnapd  *snap.SlotInfo
-	slotGadget *snap.SlotInfo
+	iface        interfaces.Interface
+	slotOS       *snap.SlotInfo
+	slotApp      *snap.SlotInfo
+	slotSnapd    *snap.SlotInfo
+	slotGadget   *snap.SlotInfo
+	conSlotOS    *interfaces.ConnectedSlot
+	conSlotSnapd *interfaces.ConnectedSlot
+	conSlotApp   *interfaces.ConnectedSlot
 }
 
 var _ = Suite(&utilsSuite{
-	iface:      &ifacetest.TestInterface{InterfaceName: "iface"},
-	slotOS:     &snap.SlotInfo{Snap: &snap.Info{Type: snap.TypeOS}},
-	slotApp:    &snap.SlotInfo{Snap: &snap.Info{Type: snap.TypeApp}},
-	slotSnapd:  &snap.SlotInfo{Snap: &snap.Info{Type: snap.TypeApp, SuggestedName: "snapd"}},
-	slotGadget: &snap.SlotInfo{Snap: &snap.Info{Type: snap.TypeGadget}},
+	iface:        &ifacetest.TestInterface{InterfaceName: "iface"},
+	slotOS:       &snap.SlotInfo{Snap: &snap.Info{SnapType: snap.TypeOS}},
+	slotApp:      &snap.SlotInfo{Snap: &snap.Info{SnapType: snap.TypeApp}},
+	slotSnapd:    &snap.SlotInfo{Snap: &snap.Info{SnapType: snap.TypeSnapd, SuggestedName: "snapd"}},
+	slotGadget:   &snap.SlotInfo{Snap: &snap.Info{SnapType: snap.TypeGadget}},
+	conSlotOS:    interfaces.NewConnectedSlot(&snap.SlotInfo{Snap: &snap.Info{SnapType: snap.TypeOS}}, nil, nil),
+	conSlotSnapd: interfaces.NewConnectedSlot(&snap.SlotInfo{Snap: &snap.Info{SnapType: snap.TypeSnapd}}, nil, nil),
+	conSlotApp:   interfaces.NewConnectedSlot(&snap.SlotInfo{Snap: &snap.Info{SnapType: snap.TypeApp}}, nil, nil),
 })
+
+func (s *utilsSuite) TestIsSlotSystemSlot(c *C) {
+	c.Assert(builtin.ImplicitSystemPermanentSlot(s.slotApp), Equals, false)
+	c.Assert(builtin.ImplicitSystemPermanentSlot(s.slotOS), Equals, true)
+	c.Assert(builtin.ImplicitSystemPermanentSlot(s.slotSnapd), Equals, true)
+}
+
+func (s *utilsSuite) TestImplicitSystemConnectedSlot(c *C) {
+	c.Assert(builtin.ImplicitSystemConnectedSlot(s.conSlotApp), Equals, false)
+	c.Assert(builtin.ImplicitSystemConnectedSlot(s.conSlotOS), Equals, true)
+	c.Assert(builtin.ImplicitSystemConnectedSlot(s.conSlotSnapd), Equals, true)
+}
 
 func MockPlug(c *C, yaml string, si *snap.SideInfo, plugName string) *snap.PlugInfo {
 	return builtin.MockPlug(c, yaml, si, plugName)

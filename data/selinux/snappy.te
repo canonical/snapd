@@ -17,7 +17,7 @@
 # Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA.
 
 
-policy_module(snappy,0.0.14)
+policy_module(snappy,0.1.0)
 
 ########################################
 #
@@ -29,7 +29,9 @@ attribute_role snappy_roles;
 # snapd
 type snappy_t;
 type snappy_exec_t;
+# allow init domain to transition to snappy_t by executing snappy_exec_t
 init_daemon_domain(snappy_t, snappy_exec_t)
+
 role snappy_roles types snappy_t;
 
 type snappy_config_t;
@@ -60,7 +62,12 @@ files_tmp_file(snappy_tmp_t)
 
 # actual snap
 type snappy_snap_t;
+# XXX: snappy_snap_t should be declared a filesystem, but due to how modules are
+# handled we cannot generate required contexts with genfscon outside of core
+# policy
+# fs_type(snappy_snap_t)
 files_type(snappy_snap_t)
+files_mountpoint(snappy_snap_t)
 
 # CLI tools: snap, snapctl
 type snappy_cli_t;
@@ -191,6 +198,10 @@ getattr_files_pattern(snappy_t, snappy_var_run_t, snappy_var_run_t)
 
 gen_require(` type user_tmp_t; ')
 allow snappy_t user_tmp_t:dir { read };
+
+# Allow snapd to clean up /run/user sockets
+userdom_manage_tmp_dirs(snappy_t)
+userdom_manage_tmp_sockets(snappy_t)
 
 gen_require(` type systemd_unit_file_t; ')
 allow snappy_t systemd_unit_file_t:dir { rmdir };
@@ -447,6 +458,7 @@ gen_require(`
   type modules_object_t;
   type ifconfig_var_run_t;
   type var_log_t;
+  type lib_t;
 ')
 allow snappy_confine_t admin_home_t:dir mounton;
 allow snappy_confine_t bin_t:dir mounton;
@@ -457,6 +469,7 @@ allow snappy_confine_t etc_t:file mounton;
 allow snappy_confine_t home_root_t:dir mounton;
 allow snappy_confine_t ifconfig_var_run_t:dir mounton;
 allow snappy_confine_t modules_object_t:dir mounton;
+allow snappy_confine_t lib_t:dir mounton;
 allow snappy_confine_t ptmx_t:chr_file { getattr mounton };
 allow snappy_confine_t snappy_snap_t:dir { mounton read };
 allow snappy_confine_t snappy_snap_t:file mounton;
@@ -484,6 +497,9 @@ term_mount_pty_fs(snappy_confine_t)
 # device group
 fs_manage_cgroup_dirs(snappy_confine_t)
 fs_manage_cgroup_files(snappy_confine_t)
+# snap-update-ns and snap-confine use tmpfs when setting up the namespace,
+# things may end up keeping tmpfs_t label
+fs_read_tmpfs_symlinks(snappy_confine_t)
 
 # restoring file contexts
 seutil_read_file_contexts(snappy_confine_t)
@@ -496,6 +512,13 @@ read_files_pattern(snappy_confine_t, snappy_snap_t, snappy_snap_t)
 allow snappy_confine_t snappy_unconfined_snap_t:process { noatsecure rlimitinh siginh transition dyntransition };
 gen_require(` type unconfined_service_t; ')
 allow snappy_confine_t unconfined_service_t:process { noatsecure rlimitinh siginh transition dyntransition };
+
+# for classic snaps, snap-confine executes snap-exec from the host (labeled as
+# snappy_exec_t)
+can_exec(snappy_confine_t, snappy_exec_t)
+# allow snappy_exec_t to be an entrypoint to unconfined_service_t, only
+# snap-confine is allowed to transition this way
+domain_entry_file(unconfined_service_t, snappy_exec_t)
 
 ########################################
 #
@@ -615,3 +638,8 @@ allow init_t snappy_var_t:dir manage_dir_perms;
 allow init_t snappy_var_t:sock_file manage_sock_file_perms;
 # the snap is started via `snap run ..`
 allow init_t snappy_cli_t:unix_stream_socket create_stream_socket_perms;
+# init_t will try to remount snap mount directory when starting services that
+# use Private* directives, while init_t is allowed to remount all fs, we cannot
+# declare fs_type(snappy_snap_t) outside of core policy, add explicit permission
+# instead
+allow init_t snappy_snap_t:filesystem remount;

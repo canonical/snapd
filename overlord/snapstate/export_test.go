@@ -73,6 +73,7 @@ func MockPrerequisitesRetryTimeout(d time.Duration) (restore func()) {
 }
 
 var (
+	CoreInfoInternal       = coreInfo
 	CheckSnap              = checkSnap
 	CanRemove              = canRemove
 	CanDisable             = canDisable
@@ -100,6 +101,7 @@ var (
 	RefreshAliases        = refreshAliases
 	CheckAliasesConflicts = checkAliasesConflicts
 	DisableAliases        = disableAliases
+	SwitchSummary         = switchSummary
 )
 
 // readme files

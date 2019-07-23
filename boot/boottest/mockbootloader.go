@@ -20,6 +20,7 @@
 package boottest
 
 import (
+	"github.com/snapcore/snapd/snap"
 	"path/filepath"
 )
 
@@ -32,6 +33,9 @@ type MockBootloader struct {
 
 	name    string
 	bootdir string
+
+	ExtractKernelAssetsCalls []*snap.Info
+	RemoveKernelAssetsCalls  []snap.PlaceInfo
 }
 
 func NewMockBootloader(name, bootdir string) *MockBootloader {
@@ -59,14 +63,20 @@ func (b *MockBootloader) GetBootVars(keys ...string) (map[string]string, error) 
 	return out, b.GetErr
 }
 
-func (b *MockBootloader) Dir() string {
-	return b.bootdir
-}
-
 func (b *MockBootloader) Name() string {
 	return b.name
 }
 
 func (b *MockBootloader) ConfigFile() string {
 	return filepath.Join(b.bootdir, "mockboot/mockboot.cfg")
+}
+
+func (b *MockBootloader) ExtractKernelAssets(s *snap.Info, snapf snap.Container) error {
+	b.ExtractKernelAssetsCalls = append(b.ExtractKernelAssetsCalls, s)
+	return nil
+}
+
+func (b *MockBootloader) RemoveKernelAssets(s snap.PlaceInfo) error {
+	b.RemoveKernelAssetsCalls = append(b.RemoveKernelAssetsCalls, s)
+	return nil
 }

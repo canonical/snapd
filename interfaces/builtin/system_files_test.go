@@ -57,7 +57,7 @@ apps:
   plugs: [system-files]
 `
 	s.slotInfo = &snap.SlotInfo{
-		Snap:      &snap.Info{SuggestedName: "core", Type: snap.TypeOS},
+		Snap:      &snap.Info{SuggestedName: "core", SnapType: snap.TypeOS},
 		Name:      "system-files",
 		Interface: "system-files",
 	}
@@ -156,7 +156,7 @@ apps:
   plugs: [system-files]
 `
 	s.slotInfo = &snap.SlotInfo{
-		Snap:      &snap.Info{SuggestedName: "core", Type: snap.TypeOS},
+		Snap:      &snap.Info{SuggestedName: "core", SnapType: snap.TypeOS},
 		Name:      "system-files",
 		Interface: "system-files",
 	}

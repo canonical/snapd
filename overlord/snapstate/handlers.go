@@ -20,6 +20,7 @@
 package snapstate
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	"os"
@@ -207,7 +208,7 @@ func (m *SnapManager) doPrerequisites(t *state.Task, _ *tomb.Tomb) error {
 		return nil
 	}
 	// snapd is special and has no prereqs
-	if snapsup.InstanceName() == "snapd" {
+	if snapsup.Type == snap.TypeSnapd {
 		return nil
 	}
 
@@ -225,7 +226,7 @@ func (m *SnapManager) doPrerequisites(t *state.Task, _ *tomb.Tomb) error {
 	return nil
 }
 
-func (m *SnapManager) installOneBaseOrRequired(st *state.State, snapName, channel string, onInFlight error, userID int) (*state.TaskSet, error) {
+func (m *SnapManager) installOneBaseOrRequired(st *state.State, snapName string, requireTypeBase bool, channel string, onInFlight error, userID int) (*state.TaskSet, error) {
 	// The core snap provides everything we need for core16.
 	coreInstalled, err := isInstalled(st, "core")
 	if err != nil {
@@ -253,7 +254,8 @@ func (m *SnapManager) installOneBaseOrRequired(st *state.State, snapName, channe
 	}
 
 	// not installed, nor queued for install -> install it
-	ts, err := Install(st, snapName, channel, snap.R(0), userID, Flags{})
+	ts, err := Install(context.TODO(), st, snapName, &RevisionOptions{Channel: channel}, userID, Flags{RequireTypeBase: requireTypeBase})
+
 	// something might have triggered an explicit install while
 	// the state was unlocked -> deal with that here by simply
 	// retrying the operation.
@@ -275,7 +277,8 @@ func (m *SnapManager) installPrereqs(t *state.Task, base string, prereq []string
 		var err error
 		var ts *state.TaskSet
 		timings.Run(tm, "install-prereq", fmt.Sprintf("install %q", prereqName), func(timings.Measurer) {
-			ts, err = m.installOneBaseOrRequired(st, prereqName, defaultPrereqSnapsChannel(), onInFlightErr, userID)
+			noTypeBaseCheck := false
+			ts, err = m.installOneBaseOrRequired(st, prereqName, noTypeBaseCheck, defaultPrereqSnapsChannel(), onInFlightErr, userID)
 		})
 		if err != nil {
 			return err
@@ -292,11 +295,14 @@ func (m *SnapManager) installPrereqs(t *state.Task, base string, prereq []string
 
 	var tsBase *state.TaskSet
 	var err error
-	timings.Run(tm, "install-prereq", fmt.Sprintf("install base %q", base), func(timings.Measurer) {
-		tsBase, err = m.installOneBaseOrRequired(st, base, defaultBaseSnapsChannel(), onInFlightErr, userID)
-	})
-	if err != nil {
-		return err
+	if base != "none" {
+		timings.Run(tm, "install-prereq", fmt.Sprintf("install base %q", base), func(timings.Measurer) {
+			requireTypeBase := true
+			tsBase, err = m.installOneBaseOrRequired(st, base, requireTypeBase, defaultBaseSnapsChannel(), onInFlightErr, userID)
+		})
+		if err != nil {
+			return err
+		}
 	}
 
 	// on systems without core or snapd need to install snapd to
@@ -312,7 +318,8 @@ func (m *SnapManager) installPrereqs(t *state.Task, base string, prereq []string
 	}
 	if base != "core" && !snapdSnapInstalled && !coreSnapInstalled {
 		timings.Run(tm, "install-prereq", "install snapd", func(timings.Measurer) {
-			tsSnapd, err = m.installOneBaseOrRequired(st, "snapd", defaultSnapdSnapsChannel(), onInFlightErr, userID)
+			noTypeBaseCheck := false
+			tsSnapd, err = m.installOneBaseOrRequired(st, "snapd", noTypeBaseCheck, defaultSnapdSnapsChannel(), onInFlightErr, userID)
 		})
 		if err != nil {
 			return err
@@ -462,7 +469,8 @@ func (m *SnapManager) undoPrepareSnap(t *state.Task, _ *tomb.Tomb) error {
 func installInfoUnlocked(st *state.State, snapsup *SnapSetup, deviceCtx DeviceContext) (*snap.Info, error) {
 	st.Lock()
 	defer st.Unlock()
-	return installInfo(st, snapsup.InstanceName(), snapsup.Channel, snapsup.CohortKey, snapsup.Revision(), snapsup.UserID, deviceCtx)
+	opts := &RevisionOptions{Channel: snapsup.Channel, CohortKey: snapsup.CohortKey, Revision: snapsup.Revision()}
+	return installInfo(context.TODO(), st, snapsup.InstanceName(), opts, snapsup.UserID, deviceCtx)
 }
 
 // autoRefreshRateLimited returns the rate limit of auto-refreshes or 0 if
@@ -1032,7 +1040,7 @@ func (m *SnapManager) doLinkSnap(t *state.Task, _ *tomb.Tomb) (err error) {
 	}
 
 	// record type
-	snapst.SetType(newInfo.Type)
+	snapst.SetType(newInfo.GetType())
 
 	// XXX: this block is slightly ugly, find a pattern when we have more examples
 	model, _ := ModelFromTask(t)
@@ -1102,7 +1110,7 @@ func (m *SnapManager) doLinkSnap(t *state.Task, _ *tomb.Tomb) (err error) {
 
 	// Compatibility with old snapd: check if we have auto-connect task and
 	// if not, inject it after self (link-snap) for snaps that are not core
-	if newInfo.Type != snap.TypeOS {
+	if newInfo.GetType() != snap.TypeOS {
 		var hasAutoConnect, hasSetupProfiles bool
 		for _, other := range t.Change().Tasks() {
 			// Check if this is auto-connect task for same snap and we it's part of the change with setup-profiles task
@@ -1143,8 +1151,8 @@ func maybeRestart(t *state.Task, info *snap.Info) {
 	if release.OnClassic {
 		// ignore error here as we have no way to return to caller
 		snapdSnapInstalled, _ := isInstalled(st, "snapd")
-		if (info.Type == snap.TypeOS && !snapdSnapInstalled) ||
-			info.InstanceName() == "snapd" {
+		if (info.GetType() == snap.TypeOS && !snapdSnapInstalled) ||
+			info.GetType() == snap.TypeSnapd {
 			t.Logf("Requested daemon restart.")
 			st.RequestRestart(state.RestartDaemon)
 		}
@@ -1166,7 +1174,7 @@ func maybeRestart(t *state.Task, info *snap.Info) {
 		logger.Noticef("cannot get model assertion: %v", model)
 		return
 	}
-	if model.Base() != "" && info.InstanceName() == "snapd" {
+	if model.Base() != "" && info.GetType() == snap.TypeSnapd {
 		t.Logf("Requested daemon restart (snapd snap).")
 		st.RequestRestart(state.RestartDaemon)
 	}
@@ -1307,14 +1315,30 @@ func (m *SnapManager) undoLinkSnap(t *state.Task, _ *tomb.Tomb) error {
 	// snap. We need to undo that restart here. Instead of in
 	// doUnlinkCurrentSnap() like we usually do when going from
 	// core snap -> next core snap
-	if release.OnClassic && newInfo.Type == snap.TypeOS && oldCurrent.Unset() {
+	if release.OnClassic && newInfo.GetType() == snap.TypeOS && oldCurrent.Unset() {
 		t.Logf("Requested daemon restart (undo classic initial core install)")
 		st.RequestRestart(state.RestartDaemon)
 	}
 	return nil
 }
 
+type doSwitchFlags struct {
+	switchCurrentChannel bool
+}
+
+// doSwitchSnapChannel switches the snap's tracking channel and/or cohort. It
+// also switches the current channel if appropriate. For use from 'Update'.
 func (m *SnapManager) doSwitchSnapChannel(t *state.Task, _ *tomb.Tomb) error {
+	return m.genericDoSwitchSnap(t, doSwitchFlags{switchCurrentChannel: true})
+}
+
+// doSwitchSnap switches the snap's tracking channel and/or cohort, *without*
+// switching the current snap channel. For use from 'Switch'.
+func (m *SnapManager) doSwitchSnap(t *state.Task, _ *tomb.Tomb) error {
+	return m.genericDoSwitchSnap(t, doSwitchFlags{})
+}
+
+func (m *SnapManager) genericDoSwitchSnap(t *state.Task, flags doSwitchFlags) error {
 	st := t.State()
 	st.Lock()
 	defer st.Unlock()
@@ -1326,27 +1350,15 @@ func (m *SnapManager) doSwitchSnapChannel(t *state.Task, _ *tomb.Tomb) error {
 
 	// switched the tracked channel
 	snapst.Channel = snapsup.Channel
-	// optionally support switching the current snap channel too, e.g.
-	// if a snap is in both stable and candidate with the same revision
-	// we can update it here and it will be displayed correctly in the UI
-	if snapsup.SideInfo.Channel != "" {
-		snapst.CurrentSideInfo().Channel = snapsup.Channel
+	snapst.CohortKey = snapsup.CohortKey
+	if flags.switchCurrentChannel {
+		// optionally support switching the current snap channel too, e.g.
+		// if a snap is in both stable and candidate with the same revision
+		// we can update it here and it will be displayed correctly in the UI
+		if snapsup.SideInfo.Channel != "" {
+			snapst.CurrentSideInfo().Channel = snapsup.Channel
+		}
 	}
-
-	Set(st, snapsup.InstanceName(), snapst)
-	return nil
-}
-
-func (m *SnapManager) doSwitchSnap(t *state.Task, _ *tomb.Tomb) error {
-	st := t.State()
-	st.Lock()
-	defer st.Unlock()
-
-	snapsup, snapst, err := snapSetupAndState(t)
-	if err != nil {
-		return err
-	}
-	snapst.Channel = snapsup.Channel
 
 	Set(st, snapsup.InstanceName(), snapst)
 	return nil

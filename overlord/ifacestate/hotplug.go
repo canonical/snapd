@@ -126,7 +126,13 @@ func (m *InterfaceManager) hotplugDeviceAdded(devinfo *hotplug.HotplugDeviceInfo
 		return
 	}
 
-	gadget, err := snapstate.GadgetInfo(st)
+	deviceCtx, err := snapstate.DeviceCtxFromState(st, nil)
+	if err != nil {
+		logger.Noticef("internal error: cannot get global device context: %v", err)
+		return
+	}
+
+	gadget, err := snapstate.GadgetInfo(st, deviceCtx)
 	if err != nil && err != state.ErrNoState {
 		logger.Noticef("internal error: cannot get gadget information: %v", err)
 	}
