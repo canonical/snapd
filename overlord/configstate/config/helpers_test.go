@@ -280,3 +280,36 @@ func (s *configHelpersSuite) TestPurgeNulls(c *C) {
 		},
 	})
 }
+
+func (s *configHelpersSuite) TestPurgeNullsTopLevelNull(c *C) {
+	cfgJSON := `{
+  "experimental": {
+    "parallel-instances": true,
+    "snapd-snap": true
+  },
+  "proxy": null,
+  "seed": {
+    "loaded": true
+  }
+}`
+	var cfg map[string]*json.RawMessage
+	err := jsonutil.DecodeWithNumber(bytes.NewReader([]byte(cfgJSON)), &cfg)
+	c.Assert(err, IsNil)
+
+	config.PurgeNulls(cfg)
+
+	cfgJSON2, err := json.Marshal(cfg)
+	c.Assert(err, IsNil)
+
+	var out interface{}
+	jsonutil.DecodeWithNumber(bytes.NewReader(cfgJSON2), &out)
+	c.Check(out, DeepEquals, map[string]interface{}{
+		"experimental": map[string]interface{}{
+			"parallel-instances": true,
+			"snapd-snap":         true,
+		},
+		"seed": map[string]interface{}{
+			"loaded": true,
+		},
+	})
+}
