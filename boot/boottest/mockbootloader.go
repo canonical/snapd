@@ -20,8 +20,10 @@
 package boottest
 
 import (
-	"github.com/snapcore/snapd/snap"
 	"path/filepath"
+
+	"github.com/snapcore/snapd/bootloader"
+	"github.com/snapcore/snapd/snap"
 )
 
 // MockBootloader mocks the bootloader interface and records all
@@ -45,6 +47,14 @@ func NewMockBootloader(name, bootdir string) *MockBootloader {
 
 		BootVars: make(map[string]string),
 	}
+}
+
+func SetBootKernel(kernel string, b bootloader.Bootloader) {
+	b.SetBootVars(map[string]string{"snap_kernel": kernel})
+}
+
+func SetBootBase(base string, b bootloader.Bootloader) {
+	b.SetBootVars(map[string]string{"snap_core": base})
 }
 
 func (b *MockBootloader) SetBootVars(values map[string]string) error {

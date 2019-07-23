@@ -1582,7 +1582,7 @@ type: os
 	// simulate successful restart happened
 	state.MockRestarting(st, state.RestartUnset)
 	loader.BootVars["snap_mode"] = ""
-	loader.BootVars["snap_core"] = "core_x1.snap"
+	boottest.SetBootBase("core_x1.snap", loader)
 
 	st.Unlock()
 	err = s.o.Settle(settleTimeout)
@@ -3395,10 +3395,8 @@ type: base`
 
 func (s *mgrsSuite) TestRemodelSwitchKernelTrack(c *C) {
 	loader := boottest.NewMockBootloader("mock", c.MkDir())
-	loader.SetBootVars(map[string]string{
-		"snap_kernel": "pc-kernel_1.snap",
-		"snap_core":   "core_1.snap",
-	})
+	boottest.SetBootKernel("pc-kernel_1.snap", loader)
+	boottest.SetBootBase("core_1.snap", loader)
 	bootloader.Force(loader)
 	defer bootloader.Force(nil)
 
