@@ -526,6 +526,11 @@ prepare: |
         fi
     fi
 
+    if [[ "$SPREAD_SYSTEM" == ubuntu-* ]] && [[ "$SPREAD_SYSTEM" != ubuntu-core-* ]]; then
+        apt-get remove --purge -y lxd lxcfs || true
+        apt-get autoremove --purge -y
+    fi
+
     if [[ "$SPREAD_SYSTEM" == debian-* ]]; then
         apt-get update && apt-get install -y eatmydata
     fi
@@ -597,6 +602,7 @@ prepare: |
     "$TESTSLIB"/prepare-restore.sh --prepare-project
 prepare-each: |
     "$TESTSLIB"/prepare-restore.sh --prepare-project-each
+    grep -v /var/lib/lxcfs /proc/self/mountinfo
 restore: |
     "$TESTSLIB"/prepare-restore.sh --restore-project
 restore-each: |
@@ -614,7 +620,7 @@ restore-each: |
             find /var/snap -printf '%Z\t%H/%P\n' | grep -c -v snappy_var_t  | MATCH "0"
             ;;
     esac
-
+    grep -v /var/lib/lxcfs /proc/self/mountinfo
 suites:
     # The essential tests designed to run inside the autopkgtest
     # environment on each platform. On autopkgtest we cannot run all tests
