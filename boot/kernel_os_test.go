@@ -295,7 +295,7 @@ func (s *kernelOSSuite) TestCurrentBootNameAndRevisionUnhappy(c *C) {
 	c.Check(err, ErrorMatches, "cannot get name and revision of boot snap: unset")
 
 	_, err = boot.GetCurrentBoot(snap.TypeApp)
-	c.Check(err, Equals, boot.ErrUnsupportedSnapType)
+	c.Check(err, ErrorMatches, "internal error: cannot find boot revision for snap type \"app\"")
 }
 
 // ubootKernelOSSuite tests the uboot specific code in the bootloader handling

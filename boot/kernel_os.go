@@ -179,8 +179,12 @@ func InUse(name string, rev snap.Revision) bool {
 
 var (
 	ErrBootNameAndRevisionAgain = errors.New("boot revision not yet established")
-	ErrUnsupportedSnapType      = errors.New("cannot find boot revision for anything but core (or base) and kernel")
 )
+
+type NameAndRevision struct {
+	Name     string
+	Revision snap.Revision
+}
 
 // GetCurrentBoot returns the currently set name and revision for boot for
 // the given type of snap, which can be core, base, or kernel; returns
@@ -196,7 +200,7 @@ func GetCurrentBoot(t snap.Type) (*NameAndRevision, error) {
 		bootVar = "snap_core"
 		errName = "snap"
 	default:
-		return nil, ErrUnsupportedSnapType
+		return nil, fmt.Errorf("internal error: cannot find boot revision for snap type %q", t)
 	}
 
 	loader, err := bootloader.Find()
@@ -219,11 +223,6 @@ func GetCurrentBoot(t snap.Type) (*NameAndRevision, error) {
 	}
 
 	return nameAndRevno, nil
-}
-
-type NameAndRevision struct {
-	Name     string
-	Revision snap.Revision
 }
 
 func nameAndRevnoFromSnap(sn string) (*NameAndRevision, error) {
