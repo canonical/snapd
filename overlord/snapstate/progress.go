@@ -53,16 +53,16 @@ func (t *taskProgressAdapter) Start(label string, total float64) {
 	t.Set(0.0)
 }
 
-// minimalProgress before we lock the state and set the task progress
-const minProgress = 0.2
-
 // Set sets the current progress
 func (t *taskProgressAdapter) Set(current float64) {
 	t.current = current
+
 	// check if we made at least "minProgress" before we lock the state
-	if current != 0.0 && (t.current/t.total)*100.0-(t.lastReported/t.total)*100.0 < minProgress {
+	const minProgress = 0.2 / 100.0
+	if current != 0.0 && (t.current-t.lastReported)/t.total < minProgress {
 		return
 	}
+
 	t.lastReported = t.current
 	// set progress in task
 	if t.unlocked {
