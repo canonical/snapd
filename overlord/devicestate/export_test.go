@@ -161,7 +161,7 @@ var (
 	GadgetCurrentAndUpdate = gadgetCurrentAndUpdate
 )
 
-func MockGadgetUpdate(mock func(current, update *gadget.Info, path string) error) (restore func()) {
+func MockGadgetUpdate(mock func(current, update gadget.GadgetData, path string) error) (restore func()) {
 	old := gadgetUpdate
 	gadgetUpdate = mock
 	return func() {
