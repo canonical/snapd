@@ -30,7 +30,7 @@ import (
 )
 
 type snapSetSuite struct {
-	SnapSuite
+	BaseSnapSuite
 
 	setConfApiCalls int
 }
@@ -38,7 +38,7 @@ type snapSetSuite struct {
 var _ = check.Suite(&snapSetSuite{})
 
 func (s *snapSetSuite) SetUpTest(c *check.C) {
-	s.SnapSuite.SetUpTest(c)
+	s.BaseSnapSuite.SetUpTest(c)
 	s.setConfApiCalls = 0
 }
 
