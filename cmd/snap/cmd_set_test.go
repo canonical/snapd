@@ -117,6 +117,7 @@ func (s *snapSetSuite) mockSetConfigServer(c *check.C, expectedValue interface{}
 			c.Check(DecodedRequestBody(c, r), check.DeepEquals, map[string]interface{}{
 				"key": expectedValue,
 			})
+			w.WriteHeader(202)
 			fmt.Fprintln(w, `{"type":"async", "status-code": 202, "change": "zzz"}`)
 			s.setConfApiCalls += 1
 		case "/v2/changes/zzz":

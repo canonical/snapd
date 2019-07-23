@@ -318,12 +318,14 @@ func (cs *clientSuite) TestSnapClientIntegration(c *C) {
 }
 
 func (cs *clientSuite) TestClientReportsOpError(c *C) {
-	cs.rsp = `{"type": "error", "status": "potatoes"}`
+	cs.status = 502
+	cs.rsp = `{"type": "error"}`
 	_, err := cs.cli.SysInfo()
-	c.Check(err, ErrorMatches, `.*server error: "potatoes"`)
+	c.Check(err, ErrorMatches, `.*server error: "Bad Gateway"`)
 }
 
 func (cs *clientSuite) TestClientReportsOpErrorStr(c *C) {
+	cs.status = 400
 	cs.rsp = `{
 		"result": {},
 		"status": "Bad Request",
@@ -368,6 +370,7 @@ func (cs *clientSuite) TestClientMaintenance(c *C) {
 }
 
 func (cs *clientSuite) TestClientAsyncOpMaintenance(c *C) {
+	cs.status = 202
 	cs.rsp = `{"type":"async", "status-code": 202, "change": "42", "maintenance": {"kind": "system-restart", "message": "system is restarting"}}`
 	_, err := cs.cli.Install("foo", nil)
 	c.Assert(err, IsNil)
