@@ -265,4 +265,18 @@ func (s *configHelpersSuite) TestPurgeNulls(c *C) {
 		},
 		"baz": map[string]interface{}{},
 	})
+
+	sub := json.RawMessage(`{"foo":"bar"}`)
+	cfg5 := map[string]interface{}{
+		"core": map[string]*json.RawMessage{
+			"proxy": nil,
+			"sub":   &sub,
+		},
+	}
+	config.PurgeNulls(cfg5)
+	c.Check(cfg5, DeepEquals, map[string]interface{}{
+		"core": map[string]*json.RawMessage{
+			"sub": &sub,
+		},
+	})
 }
