@@ -186,10 +186,9 @@ type NameAndRevision struct {
 	Revision snap.Revision
 }
 
-// GetCurrentBoot returns the currently set name and revision for boot for
-// the given type of snap, which can be core, base, or kernel; returns
-// ErrUnsupportedSnapType if a different type is passed in. Returns
-// ErrBootNameAndRevisionAgain if the values are temporarily not established.
+// GetCurrentBoot returns the currently set name and revision for boot for the given
+// type of snap, which can be snap.TypeBase (or snap.TypeOS), or snap.TypeKernel.
+// Returns ErrBootNameAndRevisionAgain if the values are temporarily not established.
 func GetCurrentBoot(t snap.Type) (*NameAndRevision, error) {
 	var bootVar, errName string
 	switch t {
