@@ -79,7 +79,6 @@ var (
 	CanDisable             = canDisable
 	CachedStore            = cachedStore
 	DefaultRefreshSchedule = defaultRefreshSchedule
-	NameAndRevnoFromSnap   = nameAndRevnoFromSnap
 	DoInstall              = doInstall
 	UserFromUserID         = userFromUserID
 	ValidateFeatureFlags   = validateFeatureFlags
