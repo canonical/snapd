@@ -1,6 +1,12 @@
 snapd (2.40-1) unstable; urgency=medium
 
+  [ Michael Vogt ]
   * New upstream release.
+
+  [ Jamie Strandboge ]
+  * debian/control: Depends on apparmor >= 2.10.95-5 instead of
+    2.10.95-0ubuntu2.2 since 2.10.95-5 in Debian is the first version to have
+    all the patches that 2.10.95-0ubuntu2.2 in Ubuntu brought.
 
  -- Michael Vogt <michael.vogt@ubuntu.com>  Fri, 12 Jul 2019 10:40:08 +0200
 
