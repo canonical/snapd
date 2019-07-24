@@ -1,0 +1,69 @@
+#!/bin/sh -ex
+# This script is meant to monitor the state of the device under test.  It is a
+# convenient place to add detectors for leaky tests. Things that fit into this
+# category are:
+# - leftover mount points (now sporadically captured by tests/main/mount-ns)
+# - leftover processes (especially FUSE things or dbus-daemon)
+# - leftover packages
+# - altered kernel control knobs.
+
+D_mountinfo=/run/spread/mountinfo
+
+measure_mountinfo() {
+    D="$D_mountinfo"
+    if [ "${1:-}" = "--once" ] && [ -e "$D/baseline.raw.txt" ]; then
+        exit
+    fi
+    mkdir -p "$D"
+    cat /proc/self/mountinfo >"$D"/baseline.raw.txt
+}
+
+postprocess_mountinfo() {
+	# Rewrite mountinfo table using specific ordering to avoid some pitfalls:
+	# The tuple (mount_point, mount_source) nullifies unpredictability of
+	# concurrent mount operations in hierarchies such as /snap and
+	# /sys/fs/cgroup. The fs_type aids in ordering of automatic mount points
+	# that overlap, for example binfmt_misc.
+    mountinfo-tool \
+        --renumber \
+        --rename \
+        --rewrite-order mount_point \
+        --rewrite-order mount_source \
+        --rewrite-order fs_type \
+        --display-order mount_point \
+        --display-order mount_source \
+        --display-order fs_type \
+        "$@"
+}
+
+compare_mountinfo() {
+    D="$D_mountinfo"
+    if [ ! -e "$D"/baseline.raw.txt ]; then
+        echo "baseline state not available" >&2
+        exit 1
+    fi
+    cat /proc/self/mountinfo >"$D"/current.raw.txt
+	postprocess_mountinfo -f "$D"/baseline.raw.txt >"$D"/baseline.deterministic.txt
+	postprocess_mountinfo -f "$D"/current.raw.txt  >"$D"/current.deterministic.txt
+    if ! diff --minimal -u "$D"/baseline.deterministic.txt "$D"/current.deterministic.txt; then
+        echo "mount table deviation detected, test affected the host"
+        exit 1
+    fi
+}
+
+case "${1:-}" in
+    set-baseline)
+        shift
+        measure_mountinfo "$@"
+        ;;
+    compare)
+        compare_mountinfo "$@"
+        ;;
+    *)
+        echo "Usage: testbed-tool COMMAND"
+        echo
+        echo "Available commands:"
+        echo "  set-baseline         sets baseline state of the system"
+        echo "  compare-to-baseline  checks for deviations from baseline"
+        ;;
+esac

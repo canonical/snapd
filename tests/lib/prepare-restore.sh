@@ -512,6 +512,13 @@ prepare_suite_each() {
     echo -n "$SPREAD_JOB " >> "$RUNTIME_STATE_PATH/runs"
     # shellcheck source=tests/lib/reset.sh
     "$TESTSLIB"/reset.sh --reuse-core
+    # Set a baseline (once) and compare the state of the system to it. We do it
+    # in prepare, oddly, because this is where we restore the state around each
+    # test. Prepare restores which is non-obvious but hard to change due to
+    # fragile tests. We also compare in resture_suite, since this is where you
+    # will restore the state after execution of a single test.
+    testbed-tool set-baseline --once
+    testbed-tool compare
     # Reset systemd journal cursor.
     start_new_journalctl_log
 
@@ -565,6 +572,13 @@ restore_suite_each() {
 
 restore_suite() {
     # shellcheck source=tests/lib/reset.sh
+    # Reset in a way test case restore would run and compare the state of the
+    # testbed after suite restore.  See the comment in prepare_suite_each() for
+    # more details.
+    "$TESTSLIB"/reset.sh --reuse-core
+    testbed-tool compare
+
+    # Reset again, this time in a way the suite restore would run.
     "$TESTSLIB"/reset.sh --store
     if is_classic_system; then
         # shellcheck source=tests/lib/pkgdb.sh
