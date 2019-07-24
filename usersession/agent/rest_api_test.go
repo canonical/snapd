@@ -45,6 +45,11 @@ func (s *restSuite) TearDownTest(c *C) {
 	dirs.SetRootDir("")
 }
 
+type resp struct {
+	Type   agent.ResponseType `json:"type"`
+	Result interface{}        `json:"result"`
+}
+
 func (s *restSuite) TestSessionInfo(c *C) {
 	// the agent.SessionInfo end point only supports GET requests
 	c.Check(agent.SessionInfoCmd.PUT, IsNil)
@@ -62,9 +67,8 @@ func (s *restSuite) TestSessionInfo(c *C) {
 	c.Check(rec.Code, Equals, 200)
 	c.Check(rec.HeaderMap.Get("Content-Type"), Equals, "application/json")
 
-	var rsp agent.Resp
+	var rsp resp
 	c.Assert(json.Unmarshal(rec.Body.Bytes(), &rsp), IsNil)
-	c.Check(rsp.Status, Equals, 200)
 	c.Check(rsp.Type, Equals, agent.ResponseTypeSync)
 	c.Check(rsp.Result, DeepEquals, map[string]interface{}{
 		"version": "42b1",

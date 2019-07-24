@@ -19,8 +19,6 @@
 
 package agent
 
-type Resp = resp
-
 var (
 	SessionInfoCmd = sessionInfoCmd
 )

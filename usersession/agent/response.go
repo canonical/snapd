@@ -27,6 +27,9 @@ import (
 	"github.com/snapcore/snapd/logger"
 )
 
+// TODO: clean up unused code further after we have progressed enough
+// to have a clear sense of what is untested and uneeded here
+
 // ResponseType is the response type
 type ResponseType string
 
@@ -45,24 +48,20 @@ type Response interface {
 }
 
 type resp struct {
-	Status int          `json:"status-code"`
-	Type   ResponseType `json:"type"`
-	Result interface{}  `json:"result,omitempty"`
+	Status int // HTTP status code
+	Type   ResponseType
+	Result interface{}
 }
 
 type respJSON struct {
-	Type       ResponseType `json:"type"`
-	Status     int          `json:"status-code"`
-	StatusText string       `json:"status"`
-	Result     interface{}  `json:"result"`
+	Type   ResponseType `json:"type"`
+	Result interface{}  `json:"result"`
 }
 
 func (r *resp) MarshalJSON() ([]byte, error) {
 	return json.Marshal(respJSON{
-		Type:       r.Type,
-		Status:     r.Status,
-		StatusText: http.StatusText(r.Status),
-		Result:     r.Result,
+		Type:   r.Type,
+		Result: r.Result,
 	})
 }
 
