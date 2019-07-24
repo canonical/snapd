@@ -33,6 +33,7 @@ var (
 	// desktop
 	SanitizeDesktopFile    = sanitizeDesktopFile
 	RewriteExecLine        = rewriteExecLine
+	RewriteIconLine        = rewriteIconLine
 	IsValidDesktopFileLine = isValidDesktopFileLine
 
 	// timers
