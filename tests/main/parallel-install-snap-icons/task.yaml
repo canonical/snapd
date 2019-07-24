@@ -21,6 +21,12 @@ execute: |
     [ -f "$icondir/snap.test-snapd-icon-theme_longname.foo.svg" ]
     [ -f "$icondir/snap.test-snapd-icon-theme_foo.foo.svg" ]
 
+    echo "Each instance's desktop file references its own icon"
+    desktopdir=/var/lib/snapd/desktop/applications
+    MATCH '^Icon=snap.test-snapd-icon-theme.foo$' < "$desktopdir/test-snapd-icon-theme_echo.desktop"
+    MATCH '^Icon=snap.test-snapd-icon-theme_longname.foo$' < "$desktopdir/test-snapd-icon-theme+longname_echo.desktop"
+    MATCH '^Icon=snap.test-snapd-icon-theme_foo.foo$' < "$desktopdir/test-snapd-icon-theme+foo_echo.desktop"
+
     echo "Removing once instance does not remove the other instances' icons"
     snap remove test-snapd-icon-theme_foo
     [ -f "$icondir/snap.test-snapd-icon-theme.foo.svg" ]

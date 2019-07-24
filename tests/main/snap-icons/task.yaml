@@ -12,6 +12,10 @@ execute: |
     [ -f "$iconfile" ]
     MATCH "icon from test-snapd-icon-theme" < "$iconfile"
 
+    echo "Desktop files can reference installed icons"
+    desktopfile=/var/lib/snapd/desktop/applications/test-snapd-icon-theme_echo.desktop
+    MATCH '^Icon=snap.test-snapd-icon-theme.foo$' < "$desktopfile"
+
     echo "Remove the snap"
     snap remove test-snapd-icon-theme
 
