@@ -18,15 +18,7 @@ prepare: |
     . "$TESTSLIB"/snaps.sh
     install_local test-snapd-sh
 
-restore: |
-    rm -f /usr/share/metainfo/test1.metainfo.xml
-    rm -f /usr/share/appdata/test2.metainfo.xml
-    rm -f /usr/share/app-info/xmls/test1.xml
-    rm -f /var/cache/app-info/xmls/test2.xml
-    rm -f /var/lib/app-info/yaml/test3.yml.gz
-    rm -f /var/lib/apt/lists/test3.yml.gz
-
-execute: |
+    # Set up some dummy Appstream metadata on the host system
     mkdir -p /usr/share/metainfo
     echo "Appstream metainfo 1" > /usr/share/metainfo/test1.metainfo.xml
     mkdir -p /usr/share/appdata
@@ -42,6 +34,15 @@ execute: |
     mkdir -p /var/lib/app-info/yaml
     ln -s /var/lib/apt/lists/test3.yml.gz /var/lib/app-info/yaml
 
+restore: |
+    rm -f /usr/share/metainfo/test1.metainfo.xml
+    rm -f /usr/share/appdata/test2.metainfo.xml
+    rm -f /usr/share/app-info/xmls/test1.xml
+    rm -f /var/cache/app-info/xmls/test2.xml
+    rm -f /var/lib/app-info/yaml/test3.yml.gz
+    rm -f /var/lib/apt/lists/test3.yml.gz
+
+execute: |
     echo "The plug is disconnected by default"
     snap connections test-snapd-sh | MATCH "appstream-metadata +test-snapd-sh:appstream-metadata +- +-"
 
