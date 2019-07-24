@@ -94,6 +94,7 @@ func (cs *clientSuite) TestClientSnapshotSets(c *check.C) {
 }
 
 func (cs *clientSuite) testClientSnapshotActionFull(c *check.C, action string, users []string, f func() (string, error)) {
+	cs.status = 202
 	cs.rsp = `{
 		"status-code": 202,
 		"type": "async",

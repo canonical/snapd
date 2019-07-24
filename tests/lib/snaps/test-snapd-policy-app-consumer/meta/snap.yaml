@@ -272,6 +272,9 @@ apps:
   optical-drive:
     command: bin/run
     plugs: [ optical-drive ]
+  packagekit-control:
+    command: bin/run
+    plugs: [ packagekit-control ]
   password-manager-service:
     command: bin/run
     plugs: [ password-manager-service ]
