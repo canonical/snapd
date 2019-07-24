@@ -52,6 +52,7 @@ func (s *SnapSuite) TestPrefer(c *C) {
 				"action": "prefer",
 				"snap":   "some-snap",
 			})
+			w.WriteHeader(202)
 			fmt.Fprintln(w, `{"type":"async", "status-code": 202, "change": "zzz"}`)
 		case "/v2/changes/zzz":
 			c.Check(r.Method, Equals, "GET")
