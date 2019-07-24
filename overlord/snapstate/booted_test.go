@@ -82,6 +82,8 @@ func (bs *bootedSuite) SetUpTest(c *C) {
 	bs.o.AddManager(bs.snapmgr)
 	bs.o.AddManager(bs.o.TaskRunner())
 
+	c.Assert(bs.o.StartUp(), IsNil)
+
 	snapstate.SetSnapManagerBackend(bs.snapmgr, bs.fakeBackend)
 	snapstate.AutoAliases = func(*state.State, *snap.Info) (map[string]string, error) {
 		return nil, nil
