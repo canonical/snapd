@@ -29,14 +29,24 @@ install_local() {
     fi
     SNAP_FILE=$(make_snap "$SNAP_NAME" "$SNAP_DIR")
 
+    set +e
     snap install --dangerous "$@" "$SNAP_FILE"
+    ret=$?
+    testbed-tool log-event "installed locally-built snap $SNAP_FILE"
+    set -e
+    return $ret
 }
 
 install_local_as() {
     local snap="$1"
     local name="$2"
     shift 2
+    set +e
     install_local "$snap" --name "$name" "$@"
+    ret=$?
+    testbed-tool log-event "installed locally-built snap $SNAP_FILE as instance $name"
+    set -e
+    return $ret
 }
 
 install_local_devmode() {

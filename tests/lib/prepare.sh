@@ -58,11 +58,14 @@ ensure_jq() {
     if is_core18_system; then
         snap install --devmode jq-core18
         snap alias jq-core18.jq jq
+        testbed-tool log-event "installed snap jq-core18"
     elif is_core20_system; then
         snap install --devmode --edge jq-core20
         snap alias jq-core20.jq jq
+        testbed-tool log-event "installed snap jq-core20"
     else
         snap install --devmode jq
+        testbed-tool log-event "installed snap jq"
     fi
 }
 
@@ -298,6 +301,7 @@ prepare_classic() {
         # of a fixed one and close to stable in order to detect defects
         # earlier
         snap install --"$CORE_CHANNEL" core
+        testbed-tool log-event "installed snap core from channel $CORE_CHANNEL"
         snap list | grep core
 
         systemctl stop snapd.{service,socket}
@@ -661,6 +665,7 @@ setup_reflash_magic() {
         core_name="core20"
     fi
     snap install "--channel=${CORE_CHANNEL}" "$core_name"
+    testbed-tool log-event "installed snap $core_name from channel $CORE_CHANNEL"
     if is_core16_system || is_core18_system; then
         UNPACK_DIR="/tmp/$core_name-snap"
         unsquashfs -no-progress -d "$UNPACK_DIR" /var/lib/snapd/snaps/${core_name}_*.snap
@@ -668,6 +673,7 @@ setup_reflash_magic() {
 
     # install ubuntu-image
     snap install --classic --edge ubuntu-image
+    testbed-tool log-event "installed snap ubuntu-image from channel edge"
 
     # needs to be under /home because ubuntu-device-flash
     # uses snap-confine and that will hide parts of the hostfs
@@ -832,6 +838,9 @@ EOF
           -f /mnt/run-mode-overlay-data.tar.gz \
           /home/gopath /root/test-etc /var/lib/extrausers
     fi
+    # Copy spread state from the classic location to the snap location.
+    testbed-tool log-event "carried over event log from classic to core"
+    rsync -a /var/lib/testbed-tool/ /mnt/system-data/var/lib/testbed-tool
 
     # now modify the image writable partition - only possible on uc16 / uc18
     if is_core16_system || is_core18_system; then
@@ -904,6 +913,7 @@ prepare_ubuntu_core() {
     if [ "$SPREAD_BACKEND" != "external" ]; then
         for i in $(seq 120); do
             if [ "$(command -v snap)" = "/usr/bin/snap" ] && snap version | grep -q 'snapd +1337.*'; then
+				testbed-tool log-event "snap command is now operational"
                 break
             fi
             sleep 1
@@ -912,6 +922,7 @@ prepare_ubuntu_core() {
 
     # Wait for seeding to finish.
     snap wait system seed.loaded
+    testbed-tool log-event "system has seeded"
 
     echo "Ensure fundamental snaps are still present"
     # shellcheck source=tests/lib/names.sh

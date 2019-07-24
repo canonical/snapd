@@ -83,6 +83,7 @@ save_snapd_state() {
 
     # Save the snapd active units
     systemd_get_active_snapd_units > "$SNAPD_ACTIVE_UNITS"
+    testbed-tool log-event "saved snapd state"
 }
 
 restore_snapd_state() {
@@ -113,6 +114,7 @@ restore_snapd_state() {
             systemctl start "$unit"
         fi
     done  < "$SNAPD_ACTIVE_UNITS"
+    testbed-tool log-event "restored snapd state"
 }
 
 restore_snapd_lib() {

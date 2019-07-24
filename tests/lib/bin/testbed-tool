@@ -1,0 +1,138 @@
+#!/bin/sh -e
+# This script is meant to monitor the state of the device under test.  It is a
+# convenient place to add detectors for leaky tests. Things that fit into this
+# category are:
+# - leftover mount points (now sporadically captured by tests/main/mount-ns)
+# - leftover processes (especially FUSE things or dbus-daemon)
+# - leftover packages
+# - altered kernel control knobs.
+
+D_mountinfo=/var/tmp/testbed-tool/mountinfo
+
+cmd_has_mountinfo() {
+    D="$D_mountinfo"
+    test -e "$D/baseline.raw.txt"
+}
+
+cmd_measure_mountinfo() {
+    D="$D_mountinfo"
+    if [ "${1:-}" = "--once" ] && [ -e "$D/baseline.raw.txt" ]; then
+        exit
+    fi
+    mkdir -p "$D"
+    cat /proc/self/mountinfo >"$D"/baseline.raw.txt
+}
+
+postprocess_mountinfo() {
+    # Rewrite mountinfo table using specific ordering to avoid some pitfalls:
+    # The tuple (mount_point, mount_source) nullifies unpredictability of
+    # concurrent mount operations in hierarchies such as /snap and
+    # /sys/fs/cgroup. The fs_type aids in ordering of automatic mount points
+    # that overlap, for example binfmt_misc.
+    mountinfo-tool \
+        --renumber \
+        --rename \
+        --rewrite-order mount_point \
+        --rewrite-order mount_source \
+        --rewrite-order fs_type \
+        --display-order mount_point \
+        --display-order mount_source \
+        --display-order fs_type \
+        "$@"
+}
+
+cmd_compare_mountinfo() {
+    D="$D_mountinfo"
+    if [ ! -e "$D"/baseline.raw.txt ]; then
+        echo "baseline state not available" >&2
+        exit 1
+    fi
+    # Capture the current state of the mount table
+    cat /proc/self/mountinfo >"$D"/current.raw.txt
+    # Compute two sets of deterministic profiles: full and basic.
+    #
+    # The basic one has fewer attributes so it can certainly miss actual
+    # changes but it doesn't have the .mount_id and .parent_id which tend to
+    # produce very verbose diff output.
+    postprocess_mountinfo -f "$D"/baseline.raw.txt .mount_source .mount_point .fs_type .mount_opts .sb_opts >"$D"/baseline.deterministic.basic.txt
+    postprocess_mountinfo -f "$D"/current.raw.txt  .mount_source .mount_point .fs_type .mount_opts .sb_opts >"$D"/current.deterministic.basic.txt
+    postprocess_mountinfo -f "$D"/baseline.raw.txt >"$D"/baseline.deterministic.txt
+    postprocess_mountinfo -f "$D"/current.raw.txt  >"$D"/current.deterministic.txt
+    if ! cmp --quiet "$D"/baseline.deterministic.txt "$D"/current.deterministic.txt; then
+        echo "The test has modified the mount table"
+        # If --basic is used then show the shorter diff from the basic variant.
+        if [ "${1:-}" = "--basic" ]; then
+            diff -u --minimal "$D"/baseline.deterministic.basic.txt "$D"/current.deterministic.basic.txt || true
+            echo "WARNING: --basic shows a subset of the mount table attributes,"
+            echo "run 'testbed-tool compare' for the full diff."
+        else
+            diff -u "$D"/baseline.deterministic.txt "$D"/current.deterministic.txt || true
+        fi
+        return 1
+    fi
+}
+
+if [ -d /writable ]; then
+    TOOL_STATE_DIR=/writable/system-data/var/lib/testbed-tool
+else
+    TOOL_STATE_DIR=/var/lib/testbed-tool
+fi
+
+cmd_log_event() {
+    mkdir -p "$TOOL_STATE_DIR"
+        if [ "$SPREAD_REBOOT" -gt 0 ]; then
+            echo "$(date -Iseconds) $* (for job $SPREAD_JOB), reboot $SPREAD_REBOOT" >> "$TOOL_STATE_DIR/event.log"
+        else
+            echo "$(date -Iseconds) $* (for job $SPREAD_JOB)" >> "$TOOL_STATE_DIR/event.log"
+        fi
+}
+
+cmd_show_events() {
+    if [ -e "$TOOL_STATE_DIR/event.log" ]; then
+        cat "$TOOL_STATE_DIR/event.log"
+    fi
+}
+
+case "${1:-}" in
+    has-baseline)
+        shift
+        cmd_has_mountinfo "$@"
+        ;;
+    set-baseline)
+        shift
+        cmd_measure_mountinfo "$@"
+        ;;
+    compare)
+        shift
+        failed=0
+        if ! cmd_compare_mountinfo "$@"; then
+            failed=1
+        fi
+        exit $failed
+        ;;
+    log-event)
+        shift
+        cmd_log_event "$@"
+        ;;
+    show-events)
+        shift
+        cmd_show_events "$@"
+        ;;
+    *)
+        echo "Usage: testbed-tool COMMAND"
+        echo
+        echo "Measured testbed properties:"
+        echo "  mountinfo            mount table of the current process"
+        echo
+        echo "Available commands:"
+        echo "  set-baseline         sets baseline state of the system"
+        echo "  has-baseline         checks if baseline is present system"
+        echo "  compare-to-baseline  checks for deviations from baseline"
+        echo "  log-event            log a test system activity"
+        echo "  show-events          show a log of all activities"
+        echo
+        echo "Command options:"
+        echo "  set-baseline --once  don't set the baseline if one exists"
+        echo "  compare --basic      produce shorter diff, at a cost of some detail"
+        ;;
+esac

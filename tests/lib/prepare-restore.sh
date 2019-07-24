@@ -475,6 +475,19 @@ prepare_suite() {
     else
         prepare_classic
     fi
+
+    # Reset the state, this actually does more than just reset, it prepares the
+    # initial state. Hence, make it happen here so that we can compute the
+    # correct baseline that should not change from test to test anymore.
+
+    # shellcheck source=tests/lib/reset.sh
+    "$TESTSLIB"/reset.sh --reuse-core
+
+    # Measure the state of the system and set it as baseline. We do this once
+    # per suite, even if multiple suites ran, as some suites have different
+    # configuration, resulting in different initial state.
+    testbed-tool set-baseline
+    testbed-tool log-event "stored testbed baseline"
 }
 
 install_snap_profiler(){
@@ -507,6 +520,12 @@ prepare_suite_each() {
         echo "Failed to restart systemd-journald.service, exiting..."
         exit 1
     fi
+
+    # FIXME: Core tests leaks some loopback devices. This needs to be
+    # investigated and fixed ahead of using this code there.
+    testbed-tool compare --basic
+
+    # Reset systemd journal cursor.
     start_new_journalctl_log
 
     echo "Install the snaps profiler snap"
@@ -564,6 +583,13 @@ restore_suite_each() {
         fi
         sleep 1
     done
+
+    # shellcheck source=tests/lib/reset.sh
+    "$TESTSLIB"/reset.sh --reuse-core
+
+    if testbed-tool has-baseline; then
+        testbed-tool compare --basic
+    fi
 }
 
 restore_suite() {
@@ -665,6 +691,8 @@ restore_project() {
     rm -rf /etc/systemd/journald.conf.d/no-rate-limit.conf
     rmdir /etc/systemd/journald.conf.d || true
 }
+
+testbed-tool log-event "called prepare-restore.sh $1"
 
 case "$1" in
     --prepare-project)

@@ -83,10 +83,12 @@ reset_classic() {
         systemctl daemon-reload # Workaround for http://paste.ubuntu.com/17735820/
         for unit in $mounts $services; do
             systemctl start "$unit"
+            testbed-tool log-event "started systemd unit: $unit"
         done
 
         # force all profiles to be re-generated
         rm -f /var/lib/snapd/system-key
+        testbed-tool log-event "removed system-key"
     fi
 
     if [ "$1" != "--keep-stopped" ]; then
@@ -100,6 +102,7 @@ reset_classic() {
                 ;;
         esac
         while ! printf 'GET / HTTP/1.0\r\n\r\n' | nc -U $EXTRA_NC_ARGS /run/snapd.socket; do sleep 0.5; done
+        testbed-tool log-event "started systemd unit: snapd.socket"
     fi
 }
 
@@ -122,6 +125,11 @@ reset_all_snap() {
             "bin" | "$gadget_name" | "$kernel_name" | "$core_name" | "snapd" |README)
                 ;;
             *)
+                # make sure snapd is running before we attempt to remove snaps, in case a test stopped it
+                if ! systemctl status snapd.service snapd.socket >/dev/null; then
+                    systemctl start snapd.service snapd.socket
+                    testbed-tool log-event "started systemd unit: snapd.service, snapd.socket"
+                fi
                 # Check if a snap should be kept, there's a list of those in spread.yaml.
                 keep=0
                 for precious_snap in $SKIP_REMOVE_SNAPS; do
@@ -137,9 +145,13 @@ reset_all_snap() {
                         else
                             remove_bases="$remove_bases $snap"
                         fi
+                        testbed-tool log-event "not removed snap $snap, base snaps (including core) are removed in the 2nd phase"
                     else
                         snap remove --purge "$snap"
+                        testbed-tool log-event "removed snap: $snap"
                     fi
+                else
+                    testbed-tool log-event "not removed snap $snap, part of SKIP_REMOVE_SNAPS"
                 fi
                 ;;
         esac
@@ -148,6 +160,7 @@ reset_all_snap() {
     if [ -n "$remove_bases" ]; then
         for base in $remove_bases; do
             snap remove --purge "$base"
+            testbed-tool log-event "removed snap: $snap (2nd phase of removal, base snaps only)"
             if [ -d "$SNAP_MOUNT_DIR/$base" ]; then
                 echo "Error: removing base $base has unexpected leftover dir $SNAP_MOUNT_DIR/$base"
                 ls -al "$SNAP_MOUNT_DIR"
@@ -164,6 +177,7 @@ reset_all_snap() {
     rm -rf /tmp/snap.*
     if [ "$1" != "--keep-stopped" ]; then
         systemctl start snapd.service snapd.socket
+        testbed-tool log-event "started systemd service: snapd.service, snapd.socket"
     fi
 
     # Exit in case there is a snap in broken state after restoring the snapd state
