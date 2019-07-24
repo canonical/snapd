@@ -506,7 +506,7 @@ version: 1.0
 	c.Check(err, IsNil)
 	c.Check(newl, Equals, "Icon=snap.snap_bar.icon")
 
-	newl, err = wrappers.RewriteIconLine(snap, "Icon=snap.othersnap.icon")
+	_, err = wrappers.RewriteIconLine(snap, "Icon=snap.othersnap.icon")
 	c.Check(err, ErrorMatches, `invalid icon name: "snap.othersnap.icon"`)
 }
 
