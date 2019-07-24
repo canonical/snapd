@@ -127,6 +127,7 @@ func (s *snapmgrTestSuite) SetUpTest(c *C) {
 	s.o.AddManager(s.snapmgr)
 	s.o.AddManager(s.o.TaskRunner())
 	s.se = s.o.StateEngine()
+	c.Assert(s.o.StartUp(), IsNil)
 
 	s.BaseTest.AddCleanup(snapstate.MockSnapReadInfo(s.fakeBackend.ReadInfo))
 	s.BaseTest.AddCleanup(snapstate.MockOpenSnapFile(s.fakeBackend.OpenSnapFile))

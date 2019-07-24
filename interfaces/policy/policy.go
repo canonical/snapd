@@ -256,3 +256,48 @@ func (connc *ConnectCandidate) Check() error {
 func (connc *ConnectCandidate) CheckAutoConnect() error {
 	return connc.check("auto-connection")
 }
+
+// InstallCandidateMinimalCheck represents a candidate snap installed with --dangerous flag that should pass minimum checks
+// against snap type (if present). It doesn't check interface attributes.
+type InstallCandidateMinimalCheck struct {
+	Snap            *snap.Info
+	BaseDeclaration *asserts.BaseDeclaration
+	Model           *asserts.Model
+	Store           *asserts.Store
+}
+
+func (ic *InstallCandidateMinimalCheck) checkSlotRule(slot *snap.SlotInfo, rule *asserts.SlotRule) error {
+	if hasConstraints, err := checkMinimalSlotInstallationConstraints(ic, slot, rule.DenyInstallation); hasConstraints && err == nil {
+		return fmt.Errorf("installation denied by %q slot rule of interface %q", slot.Name, slot.Interface)
+	}
+
+	// TODO check that the snap is an app or gadget if allow-installation had no slot-snap-type constraints
+	if _, err := checkMinimalSlotInstallationConstraints(ic, slot, rule.AllowInstallation); err != nil {
+		return fmt.Errorf("installation not allowed by %q slot rule of interface %q", slot.Name, slot.Interface)
+	}
+	return nil
+}
+
+func (ic *InstallCandidateMinimalCheck) checkSlot(slot *snap.SlotInfo) error {
+	iface := slot.Interface
+	if rule := ic.BaseDeclaration.SlotRule(iface); rule != nil {
+		return ic.checkSlotRule(slot, rule)
+	}
+	return nil
+}
+
+// Check checks whether the installation is allowed.
+func (ic *InstallCandidateMinimalCheck) Check() error {
+	if ic.BaseDeclaration == nil {
+		return fmt.Errorf("internal error: improperly initialized InstallCandidateMinimalCheck")
+	}
+
+	for _, slot := range ic.Snap.Slots {
+		err := ic.checkSlot(slot)
+		if err != nil {
+			return err
+		}
+	}
+
+	return nil
+}

@@ -108,6 +108,7 @@ func (s *FirstBootTestSuite) SetUpTest(c *C) {
 	c.Assert(err, IsNil)
 	ovld.InterfaceManager().DisableUDevMonitor()
 	s.overlord = ovld
+	c.Assert(ovld.StartUp(), IsNil)
 
 	// don't actually try to talk to the store on snapstate.Ensure
 	// needs doing after the call to devicestate.Manager (which happens in overlord.New)
@@ -623,6 +624,8 @@ func (s *FirstBootTestSuite) TestPopulateFromSeedMissingBootloader(c *C) {
 	ifacemgr, err := ifacestate.Manager(st, nil, o.TaskRunner(), nil, nil)
 	c.Assert(err, IsNil)
 	o.AddManager(ifacemgr)
+	c.Assert(o.StartUp(), IsNil)
+
 	st.Lock()
 	assertstate.ReplaceDB(st, db.(*asserts.Database))
 	st.Unlock()
