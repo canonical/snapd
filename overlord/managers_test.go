@@ -202,6 +202,8 @@ func (s *mgrsSuite) SetUpTest(c *C) {
 
 	o, err := overlord.New(nil)
 	c.Assert(err, IsNil)
+	err = o.StartUp()
+	c.Assert(err, IsNil)
 	o.InterfaceManager().DisableUDevMonitor()
 	s.o = o
 	st := s.o.State()
