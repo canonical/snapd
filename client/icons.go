@@ -37,7 +37,7 @@ var contentDispositionMatcher = regexp.MustCompile(`attachment; filename=(.+)`).
 func (c *Client) Icon(pkgID string) (*Icon, error) {
 	const errPrefix = "cannot retrieve icon"
 
-	response, err := c.raw("GET", fmt.Sprintf("/v2/icons/%s/icon", pkgID), nil, nil, nil)
+	response, err := c.raw("GET", fmt.Sprintf("/v2/icons/%s/icon", pkgID), nil, nil, nil, doTimeout)
 	if err != nil {
 		return nil, fmt.Errorf("%s: failed to communicate with server: %s", errPrefix, err)
 	}

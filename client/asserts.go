@@ -66,7 +66,7 @@ func (client *Client) Known(assertTypeName string, headers map[string]string) ([
 		}
 	}
 
-	response, err := client.raw("GET", path, q, nil, nil)
+	response, err := client.raw("GET", path, q, nil, nil, doTimeout)
 	if err != nil {
 		return nil, fmt.Errorf("failed to query assertions: %v", err)
 	}

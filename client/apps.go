@@ -119,7 +119,7 @@ func (client *Client) Logs(names []string, opts LogOptions) (<-chan Log, error) 
 		query.Set("follow", strconv.FormatBool(opts.Follow))
 	}
 
-	rsp, err := client.raw("GET", "/v2/logs", query, nil, nil)
+	rsp, err := client.raw("GET", "/v2/logs", query, nil, nil, 0)
 	if err != nil {
 		return nil, err
 	}

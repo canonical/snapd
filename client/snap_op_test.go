@@ -140,6 +140,9 @@ func (cs *clientSuite) TestClientOpSnap(c *check.C) {
 
 		c.Assert(cs.req.Header.Get("Content-Type"), check.Equals, "application/json", check.Commentf(s.action))
 
+		_, ok := cs.req.Context().Deadline()
+		c.Check(ok, check.Equals, true)
+
 		body, err := ioutil.ReadAll(cs.req.Body)
 		c.Assert(err, check.IsNil, check.Commentf(s.action))
 		jsonBody := make(map[string]string)

@@ -21,6 +21,7 @@ package client
 
 import (
 	"bytes"
+	"context"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -105,7 +106,7 @@ func New(config *Config) *Client {
 				Scheme: "http",
 				Host:   "localhost",
 			},
-			doer:        &http.Client{Timeout: doTimeout, Transport: transport},
+			doer:        &http.Client{Transport: transport},
 			disableAuth: config.DisableAuth,
 			interactive: config.Interactive,
 			userAgent:   config.UserAgent,
@@ -118,7 +119,7 @@ func New(config *Config) *Client {
 	}
 	return &Client{
 		baseURL:     *baseURL,
-		doer:        &http.Client{Timeout: doTimeout, Transport: &http.Transport{DisableKeepAlives: config.DisableKeepAlive}},
+		doer:        &http.Client{Transport: &http.Transport{DisableKeepAlives: config.DisableKeepAlive}},
 		disableAuth: config.DisableAuth,
 		interactive: config.Interactive,
 		userAgent:   config.UserAgent,
@@ -192,7 +193,7 @@ const AllowInteractionHeader = "X-Allow-Interaction"
 // raw performs a request and returns the resulting http.Response and
 // error you usually only need to call this directly if you expect the
 // response to not be JSON, otherwise you'd call Do(...) instead.
-func (client *Client) raw(method, urlpath string, query url.Values, headers map[string]string, body io.Reader) (*http.Response, error) {
+func (client *Client) raw(method, urlpath string, query url.Values, headers map[string]string, body io.Reader, timeout time.Duration) (*http.Response, error) {
 	// fake a url to keep http.Client happy
 	u := client.baseURL
 	u.Path = path.Join(client.baseURL.Path, urlpath)
@@ -219,6 +220,12 @@ func (client *Client) raw(method, urlpath string, query url.Values, headers map[
 
 	if client.interactive {
 		req.Header.Set(AllowInteractionHeader, "true")
+	}
+
+	if timeout > 0 {
+		ctx, cancel := context.WithTimeout(req.Context(), timeout)
+		defer cancel()
+		req = req.WithContext(ctx)
 	}
 
 	rsp, err := client.doer.Do(req)
@@ -268,7 +275,7 @@ func (client *Client) do(method, path string, query url.Values, headers map[stri
 	timeout := time.After(doTimeout)
 	var rsp *http.Response
 	for {
-		rsp, err = client.raw(method, path, query, headers, body)
+		rsp, err = client.raw(method, path, query, headers, body, doTimeout)
 		if err == nil || method != "GET" {
 			break
 		}
