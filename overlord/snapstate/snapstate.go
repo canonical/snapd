@@ -436,15 +436,15 @@ func WaitRestart(task *state.Task, snapsup *SnapSetup) (err error) {
 			return nil
 		}
 
-		name, rev, err := CurrentBootNameAndRevision(typ)
-		if err == ErrBootNameAndRevisionAgain {
+		current, err := boot.GetCurrentBoot(typ)
+		if err == boot.ErrBootNameAndRevisionAgain {
 			return &state.Retry{After: 5 * time.Second}
 		}
 		if err != nil {
 			return err
 		}
 
-		if snapsup.InstanceName() != name || snapInfo.Revision != rev {
+		if snapsup.InstanceName() != current.Name || snapInfo.Revision != current.Revision {
 			// TODO: make sure this revision gets ignored for
 			//       automatic refreshes
 			return fmt.Errorf("cannot finish %s installation, there was a rollback across reboot", snapsup.InstanceName())

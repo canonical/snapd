@@ -15,3 +15,11 @@ execute: |
     echo "Ensure the dbus service file got created"
     test -f /usr/share/dbus-1/services/io.snapcraft.Launcher.service
     diff -u /usr/share/dbus-1/services/io.snapcraft.Launcher.service.orig /usr/share/dbus-1/services/io.snapcraft.Launcher.service
+restore: |
+    #shellcheck source=tests/lib/dirs.sh
+    . "$TESTSLIB"/dirs.sh
+    # Remove the locale revision of core, if we installed one.
+    if [ "$(readlink "$SNAP_MOUNT_DIR/core/current")" = x1 ]; then
+        snap revert core
+        snap remove --revision=x1 core
+    fi

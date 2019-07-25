@@ -27,7 +27,7 @@ import (
 	. "gopkg.in/check.v1"
 
 	"github.com/snapcore/snapd/dirs"
-	"github.com/snapcore/snapd/userd"
+	"github.com/snapcore/snapd/usersession/userd"
 )
 
 type helpersSuite struct{}

@@ -17,7 +17,7 @@
  *
  */
 
-package userd
+package autostart
 
 import (
 	"bufio"
