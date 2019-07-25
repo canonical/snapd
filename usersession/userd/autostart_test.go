@@ -33,7 +33,7 @@ import (
 	"github.com/snapcore/snapd/snap"
 	"github.com/snapcore/snapd/snap/snaptest"
 	"github.com/snapcore/snapd/testutil"
-	"github.com/snapcore/snapd/userd"
+	"github.com/snapcore/snapd/usersession/userd"
 )
 
 type autostartSuite struct {

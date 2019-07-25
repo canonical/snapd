@@ -29,8 +29,8 @@ import (
 
 	"github.com/snapcore/snapd/cmd"
 	"github.com/snapcore/snapd/i18n"
-	"github.com/snapcore/snapd/userd"
 	"github.com/snapcore/snapd/usersession/agent"
+	"github.com/snapcore/snapd/usersession/userd"
 )
 
 type cmdUserd struct {
