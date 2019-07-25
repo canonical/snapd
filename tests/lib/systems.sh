@@ -28,6 +28,7 @@ is_classic_system(){
     return 1
 }
 
+
 is_ubuntu_14_system(){
     if [[ "$SPREAD_SYSTEM" == ubuntu-14.04-* ]]; then
         return 0
@@ -39,23 +40,29 @@ get_snap_for_system(){
     snap=$1
     system=${2:-$SPREAD_SYSTEM}
 
-    if [[ "$system" == ubuntu-core-18-* ]]; then
-        echo "${snap}-core18"
-    elif [[ "$system" == ubuntu-core-20-* ]]; then
-        echo "${snap}-core20"
-    else
-        echo "$snap"
-    fi
+    case "$system" in
+        ubuntu-core-18-*)
+            echo "${snap}-core18"
+            ;;
+        ubuntu-core-20-*)
+            echo "${snap}-core20"
+            ;;
+        *)
+            echo "$snap"
+    esac
 }
 
 get_core_for_system(){
     system=${1:-$SPREAD_SYSTEM}
 
-    if [[ "$system" == ubuntu-core-18-* ]]; then
-        echo "core18"
-    elif [[ "$system" == ubuntu-core-20-* ]]; then
-        echo "core20"
-    else
-        echo "core"
-    fi
+    case "$system" in
+        ubuntu-core-18-*)
+            echo "core18"
+            ;;
+        ubuntu-core-20-*)
+            echo "core20"
+            ;;
+        *)
+            echo "core"
+    esac
 }
