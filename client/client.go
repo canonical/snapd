@@ -105,7 +105,7 @@ func New(config *Config) *Client {
 				Scheme: "http",
 				Host:   "localhost",
 			},
-			doer:        &http.Client{Transport: transport},
+			doer:        &http.Client{Timeout: doTimeout, Transport: transport},
 			disableAuth: config.DisableAuth,
 			interactive: config.Interactive,
 			userAgent:   config.UserAgent,
@@ -118,7 +118,7 @@ func New(config *Config) *Client {
 	}
 	return &Client{
 		baseURL:     *baseURL,
-		doer:        &http.Client{Transport: &http.Transport{DisableKeepAlives: config.DisableKeepAlive}},
+		doer:        &http.Client{Timeout: doTimeout, Transport: &http.Transport{DisableKeepAlives: config.DisableKeepAlive}},
 		disableAuth: config.DisableAuth,
 		interactive: config.Interactive,
 		userAgent:   config.UserAgent,

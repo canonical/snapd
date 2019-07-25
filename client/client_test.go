@@ -582,3 +582,21 @@ func (cs *clientSuite) TestDebugGet(c *C) {
 	c.Check(cs.reqs[0].URL.Path, Equals, "/v2/debug")
 	c.Check(cs.reqs[0].URL.Query(), DeepEquals, url.Values{"aspect": []string{"do-something"}, "foo": []string{"bar"}})
 }
+
+type integrationSuite struct{}
+
+var _ = Suite(&integrationSuite{})
+
+func (cs *integrationSuite) TestClientTimeoutLP1837804(c *C) {
+	restore := client.MockDoRetry(time.Millisecond, 5*time.Millisecond)
+	defer restore()
+
+	testServer := httptest.NewServer(http.HandlerFunc(func(res http.ResponseWriter, req *http.Request) {
+		time.Sleep(25 * time.Millisecond)
+	}))
+	defer func() { testServer.Close() }()
+
+	cli := client.New(&client.Config{BaseURL: testServer.URL})
+	err := cli.Do("GET", "/", nil, nil, nil)
+	c.Assert(err, ErrorMatches, `.*\(Client.Timeout exceeded while awaiting headers\)`)
+}
