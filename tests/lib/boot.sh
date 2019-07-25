@@ -21,7 +21,7 @@ bootenv() {
         if command -v "$GRUB_EDITENV" >/dev/null; then
             "$GRUB_EDITENV" list | grep "^$1"
         elif [ -s "$GRUBENV_FILE" ]; then
-            cat "$GRUBENV_FILE" | grep "^$1"
+            grep "^$1" "$GRUBENV_FILE"
         else
             fw_printenv "$1"
         fi | sed "s/^${1}=//"
