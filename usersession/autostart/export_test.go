@@ -17,28 +17,16 @@
  *
  */
 
-package userd
+package autostart
 
 import (
 	"os/user"
-
-	"github.com/godbus/dbus"
 )
 
 var (
-	SnapFromPid = snapFromPid
-
 	LoadAutostartDesktopFile = loadAutostartDesktopFile
 	AutostartCmd             = autostartCmd
 )
-
-func MockSnapFromSender(f func(*dbus.Conn, dbus.Sender) (string, error)) func() {
-	origSnapFromSender := snapFromSender
-	snapFromSender = f
-	return func() {
-		snapFromSender = origSnapFromSender
-	}
-}
 
 func MockUserCurrent(f func() (*user.User, error)) func() {
 	origUserCurrent := userCurrent

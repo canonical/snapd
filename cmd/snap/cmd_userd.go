@@ -29,8 +29,9 @@ import (
 
 	"github.com/snapcore/snapd/cmd"
 	"github.com/snapcore/snapd/i18n"
-	"github.com/snapcore/snapd/userd"
 	"github.com/snapcore/snapd/usersession/agent"
+	"github.com/snapcore/snapd/usersession/autostart"
+	"github.com/snapcore/snapd/usersession/userd"
 )
 
 type cmdUserd struct {
@@ -114,7 +115,7 @@ func (x *cmdUserd) runAgent() error {
 }
 
 func (x *cmdUserd) runAutostart() error {
-	if err := userd.AutostartSessionApps(); err != nil {
+	if err := autostart.AutostartSessionApps(); err != nil {
 		return fmt.Errorf("autostart failed for the following apps:\n%v", err)
 	}
 	return nil
