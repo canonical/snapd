@@ -75,6 +75,7 @@ func (s *cmdSuite) SetUpTest(c *check.C) {
 	s.manager = cmdstate.Manager(s.state, runner)
 	s.se.AddManager(s.manager)
 	s.se.AddManager(runner)
+	c.Assert(s.se.StartUp(), check.IsNil)
 	s.restore = cmdstate.MockDefaultExecTimeout(time.Second / 10)
 }
 

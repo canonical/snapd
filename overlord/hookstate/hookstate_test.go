@@ -75,6 +75,7 @@ func (s *baseHookManagerSuite) commonSetUpTest(c *C) {
 	s.se = s.o.StateEngine()
 	s.o.AddManager(s.manager)
 	s.o.AddManager(s.o.TaskRunner())
+	c.Assert(s.o.StartUp(), IsNil)
 
 	s.AddCleanup(snap.MockSanitizePlugsSlots(func(snapInfo *snap.Info) {}))
 

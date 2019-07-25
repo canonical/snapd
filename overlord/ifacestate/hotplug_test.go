@@ -181,6 +181,13 @@ func (s *hotplugSuite) SetUpTest(c *C) {
 	s.mgr, err = ifacestate.Manager(s.state, hookMgr, s.o.TaskRunner(), nil, nil)
 	c.Assert(err, IsNil)
 
+	s.o.AddManager(s.mgr)
+	s.o.AddManager(s.o.TaskRunner())
+
+	// startup
+	err = s.o.StartUp()
+	c.Assert(err, IsNil)
+
 	autoConnectNo := func(*snap.PlugInfo, *snap.SlotInfo) bool {
 		return false
 	}
@@ -252,9 +259,6 @@ func (s *hotplugSuite) SetUpTest(c *C) {
 		c.Assert(s.mgr.Repository().AddInterface(iface), IsNil)
 		s.AddCleanup(builtin.MockInterface(iface))
 	}
-
-	s.o.AddManager(s.mgr)
-	s.o.AddManager(s.o.TaskRunner())
 
 	// single Ensure to have udev monitor created and wired up by interface manager
 	c.Assert(s.mgr.Ensure(), IsNil)
