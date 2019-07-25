@@ -60,6 +60,7 @@ func (s *baseHandlerSuite) setup(c *C, b state.Backend) {
 	s.se = overlord.NewStateEngine(s.state)
 	s.se.AddManager(s.snapmgr)
 	s.se.AddManager(s.runner)
+	c.Assert(s.se.StartUp(), IsNil)
 
 	AddForeignTaskHandlers(s.runner, s.fakeBackend)
 

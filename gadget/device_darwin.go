@@ -28,6 +28,10 @@ func FindDeviceForStructure(ps *PositionedStructure) (string, error) {
 	return "", errNotImplemented
 }
 
+func FindDeviceForStructureWithFallback(ps *PositionedStructure) (string, Size, error) {
+	return "", 0, errNotImplemented
+}
+
 func FindMountPointForStructure(ps *PositionedStructure) (string, error) {
 	return "", errNotImplemented
 }

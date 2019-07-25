@@ -77,21 +77,23 @@ func (cs *clientSuite) TestClientMultiOpSnapServerError(c *check.C) {
 }
 
 func (cs *clientSuite) TestClientOpSnapResponseError(c *check.C) {
-	cs.rsp = `{"type": "error", "status": "potatoes"}`
+	cs.status = 400
+	cs.rsp = `{"type": "error"}`
 	for _, s := range ops {
 		_, err := s.op(cs.cli, pkgName, nil)
-		c.Check(err, check.ErrorMatches, `.*server error: "potatoes"`, check.Commentf(s.action))
+		c.Check(err, check.ErrorMatches, `.*server error: "Bad Request"`, check.Commentf(s.action))
 	}
 }
 
 func (cs *clientSuite) TestClientMultiOpSnapResponseError(c *check.C) {
-	cs.rsp = `{"type": "error", "status": "potatoes"}`
+	cs.status = 500
+	cs.rsp = `{"type": "error"}`
 	for _, s := range multiOps {
 		_, err := s.op(cs.cli, nil, nil)
-		c.Check(err, check.ErrorMatches, `.*server error: "potatoes"`, check.Commentf(s.action))
+		c.Check(err, check.ErrorMatches, `.*server error: "Internal Server Error"`, check.Commentf(s.action))
 	}
 	_, _, err := cs.cli.SnapshotMany(nil, nil)
-	c.Check(err, check.ErrorMatches, `.*server error: "potatoes"`)
+	c.Check(err, check.ErrorMatches, `.*server error: "Internal Server Error"`)
 }
 
 func (cs *clientSuite) TestClientOpSnapBadType(c *check.C) {
@@ -114,6 +116,7 @@ func (cs *clientSuite) TestClientOpSnapNotAccepted(c *check.C) {
 }
 
 func (cs *clientSuite) TestClientOpSnapNoChange(c *check.C) {
+	cs.status = 202
 	cs.rsp = `{
 		"status-code": 202,
 		"type": "async"
@@ -125,6 +128,7 @@ func (cs *clientSuite) TestClientOpSnapNoChange(c *check.C) {
 }
 
 func (cs *clientSuite) TestClientOpSnap(c *check.C) {
+	cs.status = 202
 	cs.rsp = `{
 		"change": "d728",
 		"status-code": 202,
@@ -151,6 +155,7 @@ func (cs *clientSuite) TestClientOpSnap(c *check.C) {
 }
 
 func (cs *clientSuite) TestClientMultiOpSnap(c *check.C) {
+	cs.status = 202
 	cs.rsp = `{
 		"change": "d728",
 		"status-code": 202,
@@ -179,6 +184,7 @@ func (cs *clientSuite) TestClientMultiOpSnap(c *check.C) {
 
 func (cs *clientSuite) TestClientMultiSnapshot(c *check.C) {
 	// Note body is essentially the same as TestClientMultiOpSnap; keep in sync
+	cs.status = 202
 	cs.rsp = `{
                 "result": {"set-id": 42},
 		"change": "d728",
@@ -203,6 +209,7 @@ func (cs *clientSuite) TestClientMultiSnapshot(c *check.C) {
 }
 
 func (cs *clientSuite) TestClientOpInstallPath(c *check.C) {
+	cs.status = 202
 	cs.rsp = `{
 		"change": "66b3",
 		"status-code": 202,
@@ -230,6 +237,7 @@ func (cs *clientSuite) TestClientOpInstallPath(c *check.C) {
 }
 
 func (cs *clientSuite) TestClientOpInstallPathInstance(c *check.C) {
+	cs.status = 202
 	cs.rsp = `{
 		"change": "66b3",
 		"status-code": 202,
@@ -258,6 +266,7 @@ func (cs *clientSuite) TestClientOpInstallPathInstance(c *check.C) {
 }
 
 func (cs *clientSuite) TestClientOpInstallDangerous(c *check.C) {
+	cs.status = 202
 	cs.rsp = `{
 		"change": "66b3",
 		"status-code": 202,
@@ -294,6 +303,7 @@ func (cs *clientSuite) TestClientOpInstallDangerous(c *check.C) {
 }
 
 func (cs *clientSuite) TestClientOpInstallUnaliased(c *check.C) {
+	cs.status = 202
 	cs.rsp = `{
 		"change": "66b3",
 		"status-code": 202,
@@ -344,6 +354,7 @@ func formToMap(c *check.C, mr *multipart.Reader) map[string]string {
 }
 
 func (cs *clientSuite) TestClientOpTryMode(c *check.C) {
+	cs.status = 202
 	cs.rsp = `{
 		"change": "66b3",
 		"status-code": 202,

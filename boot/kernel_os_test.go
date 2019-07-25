@@ -240,6 +240,64 @@ func (s *kernelOSSuite) TestInUse(c *C) {
 	}
 }
 
+func (s *kernelOSSuite) TestNameAndRevnoFromSnapValid(c *C) {
+	info, err := boot.NameAndRevnoFromSnap("foo_2.snap")
+	c.Assert(err, IsNil)
+	c.Assert(info.Name, Equals, "foo")
+	c.Assert(info.Revision, Equals, snap.R(2))
+}
+
+func (s *kernelOSSuite) TestNameAndRevnoFromSnapInvalidFormat(c *C) {
+	_, err := boot.NameAndRevnoFromSnap("invalid")
+	c.Assert(err, ErrorMatches, `input "invalid" has invalid format \(not enough '_'\)`)
+}
+
+func BenchmarkNameAndRevno(b *testing.B) {
+	for n := 0; n < b.N; n++ {
+		for _, sn := range []string{
+			"core_21.snap",
+			"kernel_41.snap",
+			"some-long-kernel-name-kernel_82.snap",
+			"what-is-this-core_111.snap",
+		} {
+			boot.NameAndRevnoFromSnap(sn)
+		}
+	}
+}
+
+func (s *kernelOSSuite) TestCurrentBootNameAndRevision(c *C) {
+	s.loader.BootVars["snap_core"] = "core_2.snap"
+	s.loader.BootVars["snap_kernel"] = "canonical-pc-linux_2.snap"
+
+	current, err := boot.GetCurrentBoot(snap.TypeOS)
+	c.Check(err, IsNil)
+	c.Check(current.Name, Equals, "core")
+	c.Check(current.Revision, Equals, snap.R(2))
+
+	current, err = boot.GetCurrentBoot(snap.TypeKernel)
+	c.Check(err, IsNil)
+	c.Check(current.Name, Equals, "canonical-pc-linux")
+	c.Check(current.Revision, Equals, snap.R(2))
+
+	s.loader.BootVars["snap_mode"] = "trying"
+	_, err = boot.GetCurrentBoot(snap.TypeKernel)
+	c.Check(err, Equals, boot.ErrBootNameAndRevisionAgain)
+}
+
+func (s *kernelOSSuite) TestCurrentBootNameAndRevisionUnhappy(c *C) {
+	_, err := boot.GetCurrentBoot(snap.TypeKernel)
+	c.Check(err, ErrorMatches, "cannot get name and revision of boot kernel: unset")
+
+	_, err = boot.GetCurrentBoot(snap.TypeOS)
+	c.Check(err, ErrorMatches, "cannot get name and revision of boot snap: unset")
+
+	_, err = boot.GetCurrentBoot(snap.TypeBase)
+	c.Check(err, ErrorMatches, "cannot get name and revision of boot snap: unset")
+
+	_, err = boot.GetCurrentBoot(snap.TypeApp)
+	c.Check(err, ErrorMatches, "internal error: cannot find boot revision for snap type \"app\"")
+}
+
 // ubootKernelOSSuite tests the uboot specific code in the bootloader handling
 type ubootKernelOSSuite struct {
 	baseKernelOSSuite
