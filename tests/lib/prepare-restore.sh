@@ -512,6 +512,16 @@ prepare_suite_each() {
     echo -n "$SPREAD_JOB " >> "$RUNTIME_STATE_PATH/runs"
     # shellcheck source=tests/lib/reset.sh
     "$TESTSLIB"/reset.sh --reuse-core
+
+    # If core18 was not installed at this stage then drop a marker that it
+    # should be removed at the end of the test, if present. This is a bit
+    # crufty and ideally we'd have a method of removing unused bases
+    # automatically.
+    if ! snap list core18 2>/dev/null >/dev/null; then
+        mkdir -p /run/spread
+        touch /run/spread/please-remove-core18
+    fi
+
     # Reset systemd journal cursor.
     start_new_journalctl_log
 
@@ -541,6 +551,13 @@ restore_suite_each() {
         rm -rf "$PWD"
         tar -C/ -xf "${PWD}.tar"
         rm -rf "${PWD}.tar"
+    fi
+
+    # The core18 snap may have been automatically installed by the test.
+    # If it was not present before the test then it should be removed.
+    if systemctl is-active snapd.service && test -e /run/spread/please-remove-core18; then
+        snap remove core18
+        rm -f /run/spread/please-remove-core18
     fi
 
     if [ "$PROFILE_SNAPS" = 1 ]; then
