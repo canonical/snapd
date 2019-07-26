@@ -31,11 +31,11 @@ import (
 	"github.com/snapcore/snapd/snap"
 )
 
-func findIconFiles(s *snap.Info, rootDir string) (icons []string, err error) {
+func findIconFiles(snapName string, rootDir string) (icons []string, err error) {
 	if !osutil.IsDirectory(rootDir) {
 		return nil, nil
 	}
-	iconGlob := fmt.Sprintf("snap.%s.*", s.SnapName())
+	iconGlob := fmt.Sprintf("snap.%s.*", snapName)
 	forbiddenDirGlob := "snap.*"
 	err = filepath.Walk(rootDir, func(path string, info os.FileInfo, err error) error {
 		if err != nil {
@@ -66,10 +66,10 @@ func findIconFiles(s *snap.Info, rootDir string) (icons []string, err error) {
 	return icons, err
 }
 
-func deriveIconContent(s *snap.Info, rootDir string, icons []string) (content map[string]map[string]*osutil.FileState, err error) {
+func deriveIconContent(instanceName string, rootDir string, icons []string) (content map[string]map[string]*osutil.FileState, err error) {
 	content = make(map[string]map[string]*osutil.FileState)
-	snapPrefix := fmt.Sprintf("snap.%s.", s.SnapName())
-	instancePrefix := fmt.Sprintf("snap.%s.", s.InstanceName())
+	snapPrefix := fmt.Sprintf("snap.%s.", snap.InstanceSnap(instanceName))
+	instancePrefix := fmt.Sprintf("snap.%s.", instanceName)
 
 	for _, iconFile := range icons {
 		dir := filepath.Dir(iconFile)
@@ -83,10 +83,11 @@ func deriveIconContent(s *snap.Info, rootDir string, icons []string) (content ma
 		if err != nil {
 			return nil, err
 		}
-		// rename icons to match snap instance name
-		if strings.HasPrefix(base, snapPrefix) {
-			base = instancePrefix + base[len(snapPrefix):]
+		if !strings.HasPrefix(base, snapPrefix) {
+			return nil, fmt.Errorf("Icon file %q does not begin with %q", iconFile, snapPrefix)
 		}
+		// rename icons to match snap instance name
+		base = instancePrefix + base[len(snapPrefix):]
 		dirContent[base] = &osutil.FileState{
 			Content: data,
 			Mode:    0644,
@@ -101,12 +102,12 @@ func AddSnapIcons(s *snap.Info) error {
 	}
 
 	rootDir := filepath.Join(s.MountDir(), "meta", "gui", "icons")
-	icons, err := findIconFiles(s, rootDir)
+	icons, err := findIconFiles(s.SnapName(), rootDir)
 	if err != nil {
 		return err
 	}
 
-	content, err := deriveIconContent(s, rootDir, icons)
+	content, err := deriveIconContent(s.InstanceName(), rootDir, icons)
 	if err != nil {
 		return err
 	}
