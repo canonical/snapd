@@ -83,6 +83,10 @@ unix (bind,listen) type=seqpacket addr="@cuda-uvmfd-[0-9a-f]*",
 /dev/nvhost-* rw,
 /dev/nvmap rw,
 
+# Tegra display driver
+/dev/tegra_dc_ctrl rw,
+/dev/tegra_dc_[0-9]* rw,
+
 # OpenCL ICD files
 /etc/OpenCL/vendors/ r,
 /etc/OpenCL/vendors/** r,
@@ -122,6 +126,8 @@ var openglConnectedPlugUDev = []string{
 	`KERNEL=="renderD[0-9]*"`,
 	`KERNEL=="nvhost-*"`,
 	`KERNEL=="nvmap"`,
+	`KERNEL=="tegra_dc_ctrl"`,
+	`KERNEL=="tegra_dc_[0-9]*"`,
 }
 
 func init() {
