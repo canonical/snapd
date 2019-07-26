@@ -71,6 +71,9 @@ unix (bind, listen, accept)
 unix (bind, listen, accept)
      type=stream
      addr="@/tmp/.ICE-unix/[0-9]*",
+unix (bind, listen, accept)
+     type=dgram
+     addr="@nvidia[0-9a-f]*",
 
 # For Xorg to detect screens
 /sys/devices/pci**/boot_vga r,
