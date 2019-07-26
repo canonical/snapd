@@ -9,18 +9,15 @@ environment:
 systems: [ubuntu-core-*]
 
 prepare: |
-    if ! test -d /snap/pc; then
-        if [[ "$SPREAD_BACKEND" != "external" ]]; then
-            echo "The test must run on a non-external backend"
-            exit 1
-        fi
-        echo "This test needs a host using 'pc' gadget snap"
-        exit 0
-    fi
-
+    # external backends do not enable test keys
     if [ "$TRUST_TEST_KEYS" = "false" ]; then
         echo "This test needs test keys to be trusted"
         exit
+    fi
+
+    if ! test -d /snap/pc; then
+        echo "This test needs a host using 'pc' gadget snap"
+        exit 1
     fi
 
     snap ack "$TESTSLIB/assertions/testrootorg-store.account-key"
@@ -76,15 +73,17 @@ prepare: |
     snap install pc_x1.snap
 
 restore: |
-    if ! test -d /snap/pc; then
-        echo "This test needs a host using 'pc' gadget snap"
-        exit 0
-    fi
-
+    # external backends do not enable test keys
     if [ "$TRUST_TEST_KEYS" = "false" ]; then
         echo "This test needs test keys to be trusted"
         exit
     fi
+
+    if ! test -d /snap/pc; then
+        echo "This test needs a host using 'pc' gadget snap"
+        exit 1
+    fi
+
     #shellcheck source=tests/lib/store.sh
     . "$TESTSLIB"/store.sh
     teardown_fake_store "$BLOB_DIR"
@@ -93,14 +92,15 @@ restore: |
     snap install gadget.snap
 
 execute: |
-    if ! test -d /snap/pc; then
-        echo "This test needs a host using 'pc' gadget snap"
-        exit 0
-    fi
-
+    # external backends do not enable test keys
     if [ "$TRUST_TEST_KEYS" = "false" ]; then
         echo "This test needs test keys to be trusted"
         exit
+    fi
+
+    if ! test -d /snap/pc; then
+        echo "This test needs a host using 'pc' gadget snap"
+        exit 1
     fi
 
     #shellcheck source=tests/lib/store.sh
