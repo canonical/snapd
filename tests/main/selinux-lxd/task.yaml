@@ -18,6 +18,9 @@ restore: |
     setenforce "$(cat enforcing.mode)"
     rm -f stamp enforcing.mode
 
+    # LXD alters the configuration of the cpuset cgroup. Restore the original state.
+    echo 0 > /sys/fs/cgroup/cpuset/cgroup.clone_children
+
 execute: |
     snap install lxd
     ausearch -i --checkpoint stamp --start checkpoint -m AVC 2>&1 | MATCH 'no matches'

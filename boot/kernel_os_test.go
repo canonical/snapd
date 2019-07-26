@@ -49,6 +49,8 @@ vendor: Someone
 // baseKernelOSSuite is used to setup the common test environment
 type baseKernelOSSuite struct {
 	testutil.BaseTest
+
+	bootdir string
 }
 
 func (s *baseKernelOSSuite) SetUpTest(c *C) {
@@ -60,6 +62,8 @@ func (s *baseKernelOSSuite) SetUpTest(c *C) {
 	s.AddCleanup(restore)
 	restore = release.MockOnClassic(false)
 	s.AddCleanup(restore)
+
+	s.bootdir = filepath.Join(dirs.GlobalRootDir, "boot")
 }
 
 // kernelOSSuite tests the abstract bootloader behaviour including
@@ -236,6 +240,64 @@ func (s *kernelOSSuite) TestInUse(c *C) {
 	}
 }
 
+func (s *kernelOSSuite) TestNameAndRevnoFromSnapValid(c *C) {
+	info, err := boot.NameAndRevnoFromSnap("foo_2.snap")
+	c.Assert(err, IsNil)
+	c.Assert(info.Name, Equals, "foo")
+	c.Assert(info.Revision, Equals, snap.R(2))
+}
+
+func (s *kernelOSSuite) TestNameAndRevnoFromSnapInvalidFormat(c *C) {
+	_, err := boot.NameAndRevnoFromSnap("invalid")
+	c.Assert(err, ErrorMatches, `input "invalid" has invalid format \(not enough '_'\)`)
+}
+
+func BenchmarkNameAndRevno(b *testing.B) {
+	for n := 0; n < b.N; n++ {
+		for _, sn := range []string{
+			"core_21.snap",
+			"kernel_41.snap",
+			"some-long-kernel-name-kernel_82.snap",
+			"what-is-this-core_111.snap",
+		} {
+			boot.NameAndRevnoFromSnap(sn)
+		}
+	}
+}
+
+func (s *kernelOSSuite) TestCurrentBootNameAndRevision(c *C) {
+	s.loader.BootVars["snap_core"] = "core_2.snap"
+	s.loader.BootVars["snap_kernel"] = "canonical-pc-linux_2.snap"
+
+	current, err := boot.GetCurrentBoot(snap.TypeOS)
+	c.Check(err, IsNil)
+	c.Check(current.Name, Equals, "core")
+	c.Check(current.Revision, Equals, snap.R(2))
+
+	current, err = boot.GetCurrentBoot(snap.TypeKernel)
+	c.Check(err, IsNil)
+	c.Check(current.Name, Equals, "canonical-pc-linux")
+	c.Check(current.Revision, Equals, snap.R(2))
+
+	s.loader.BootVars["snap_mode"] = "trying"
+	_, err = boot.GetCurrentBoot(snap.TypeKernel)
+	c.Check(err, Equals, boot.ErrBootNameAndRevisionAgain)
+}
+
+func (s *kernelOSSuite) TestCurrentBootNameAndRevisionUnhappy(c *C) {
+	_, err := boot.GetCurrentBoot(snap.TypeKernel)
+	c.Check(err, ErrorMatches, "cannot get name and revision of boot kernel: unset")
+
+	_, err = boot.GetCurrentBoot(snap.TypeOS)
+	c.Check(err, ErrorMatches, "cannot get name and revision of boot snap: unset")
+
+	_, err = boot.GetCurrentBoot(snap.TypeBase)
+	c.Check(err, ErrorMatches, "cannot get name and revision of boot snap: unset")
+
+	_, err = boot.GetCurrentBoot(snap.TypeApp)
+	c.Check(err, ErrorMatches, "internal error: cannot find boot revision for snap type \"app\"")
+}
+
 // ubootKernelOSSuite tests the uboot specific code in the bootloader handling
 type ubootKernelOSSuite struct {
 	baseKernelOSSuite
@@ -256,7 +318,7 @@ func (s *ubootKernelOSSuite) forceUbootBootloader(c *C) bootloader.Bootloader {
 	bootloader.Force(loader)
 	s.AddCleanup(func() { bootloader.Force(nil) })
 
-	fn := filepath.Join(dirs.GlobalRootDir, "/boot/uboot/uboot.env")
+	fn := filepath.Join(s.bootdir, "/uboot/uboot.env")
 	c.Assert(osutil.FileExists(fn), Equals, true)
 	return loader
 }
@@ -289,8 +351,7 @@ func (s *ubootKernelOSSuite) TestExtractKernelAssetsAndRemoveOnUboot(c *C) {
 	c.Assert(err, IsNil)
 
 	// this is where the kernel/initrd is unpacked
-	bootdir := loader.Dir()
-	kernelAssetsDir := filepath.Join(bootdir, "ubuntu-kernel_42.snap")
+	kernelAssetsDir := filepath.Join(s.bootdir, "/uboot/ubuntu-kernel_42.snap")
 	for _, def := range files {
 		if def[0] == "meta/kernel.yaml" {
 			break
@@ -339,13 +400,13 @@ func (s *grubKernelOSSuite) forceGrubBootloader(c *C) bootloader.Bootloader {
 	bootloader.Force(loader)
 	s.AddCleanup(func() { bootloader.Force(nil) })
 
-	fn := filepath.Join(dirs.GlobalRootDir, "/boot/grub/grub.cfg")
+	fn := filepath.Join(s.bootdir, "/grub/grub.cfg")
 	c.Assert(osutil.FileExists(fn), Equals, true)
 	return loader
 }
 
 func (s *grubKernelOSSuite) TestExtractKernelAssetsNoUnpacksKernelForGrub(c *C) {
-	loader := s.forceGrubBootloader(c)
+	s.forceGrubBootloader(c)
 
 	files := [][]string{
 		{"kernel.img", "I'm a kernel"},
@@ -367,7 +428,7 @@ func (s *grubKernelOSSuite) TestExtractKernelAssetsNoUnpacksKernelForGrub(c *C) 
 	c.Assert(err, IsNil)
 
 	// kernel is *not* here
-	kernimg := filepath.Join(loader.Dir(), "ubuntu-kernel_42.snap", "kernel.img")
+	kernimg := filepath.Join(s.bootdir, "grub", "ubuntu-kernel_42.snap", "kernel.img")
 	c.Assert(osutil.FileExists(kernimg), Equals, false)
 
 	// it's idempotent
@@ -376,7 +437,7 @@ func (s *grubKernelOSSuite) TestExtractKernelAssetsNoUnpacksKernelForGrub(c *C) 
 }
 
 func (s *grubKernelOSSuite) TestExtractKernelForceWorks(c *C) {
-	loader := s.forceGrubBootloader(c)
+	s.forceGrubBootloader(c)
 
 	files := [][]string{
 		{"kernel.img", "I'm a kernel"},
@@ -399,10 +460,10 @@ func (s *grubKernelOSSuite) TestExtractKernelForceWorks(c *C) {
 	c.Assert(err, IsNil)
 
 	// kernel is extracted
-	kernimg := filepath.Join(loader.Dir(), "ubuntu-kernel_42.snap", "kernel.img")
+	kernimg := filepath.Join(s.bootdir, "/grub/ubuntu-kernel_42.snap/kernel.img")
 	c.Assert(osutil.FileExists(kernimg), Equals, true)
 	// initrd
-	initrdimg := filepath.Join(loader.Dir(), "ubuntu-kernel_42.snap", "initrd.img")
+	initrdimg := filepath.Join(s.bootdir, "/grub/ubuntu-kernel_42.snap/initrd.img")
 	c.Assert(osutil.FileExists(initrdimg), Equals, true)
 
 	// it's idempotent

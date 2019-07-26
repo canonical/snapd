@@ -108,6 +108,7 @@ func (s *FirstBootTestSuite) SetUpTest(c *C) {
 	c.Assert(err, IsNil)
 	ovld.InterfaceManager().DisableUDevMonitor()
 	s.overlord = ovld
+	c.Assert(ovld.StartUp(), IsNil)
 
 	// don't actually try to talk to the store on snapstate.Ensure
 	// needs doing after the call to devicestate.Manager (which happens in overlord.New)
@@ -525,10 +526,8 @@ func (s *FirstBootTestSuite) TestPopulateFromSeedHappy(c *C) {
 	loader := boottest.NewMockBootloader("mock", c.MkDir())
 	bootloader.Force(loader)
 	defer bootloader.Force(nil)
-	loader.SetBootVars(map[string]string{
-		"snap_core":   "core_1.snap",
-		"snap_kernel": "pc-kernel_1.snap",
-	})
+	boottest.SetBootKernel("pc-kernel_1.snap", loader)
+	boottest.SetBootBase("core_1.snap", loader)
 
 	st := s.overlord.State()
 	chg := s.makeBecomeOperationalChange(c, st)
@@ -625,6 +624,8 @@ func (s *FirstBootTestSuite) TestPopulateFromSeedMissingBootloader(c *C) {
 	ifacemgr, err := ifacestate.Manager(st, nil, o.TaskRunner(), nil, nil)
 	c.Assert(err, IsNil)
 	o.AddManager(ifacemgr)
+	c.Assert(o.StartUp(), IsNil)
+
 	st.Lock()
 	assertstate.ReplaceDB(st, db.(*asserts.Database))
 	st.Unlock()
@@ -666,10 +667,8 @@ func (s *FirstBootTestSuite) TestPopulateFromSeedHappyMultiAssertsFiles(c *C) {
 	loader := boottest.NewMockBootloader("mock", c.MkDir())
 	bootloader.Force(loader)
 	defer bootloader.Force(nil)
-	loader.SetBootVars(map[string]string{
-		"snap_core":   "core_1.snap",
-		"snap_kernel": "pc-kernel_1.snap",
-	})
+	boottest.SetBootKernel("pc-kernel_1.snap", loader)
+	boottest.SetBootBase("core_1.snap", loader)
 
 	coreFname, kernelFname, gadgetFname := s.makeCoreSnaps(c, "")
 
@@ -808,10 +807,8 @@ func (s *FirstBootTestSuite) TestPopulateFromSeedConfigureHappy(c *C) {
 	loader := boottest.NewMockBootloader("mock", c.MkDir())
 	bootloader.Force(loader)
 	defer bootloader.Force(nil)
-	loader.SetBootVars(map[string]string{
-		"snap_core":   "core_1.snap",
-		"snap_kernel": "pc-kernel_1.snap",
-	})
+	boottest.SetBootKernel("pc-kernel_1.snap", loader)
+	boottest.SetBootBase("core_1.snap", loader)
 
 	const defaultsYaml = `
 defaults:
@@ -980,10 +977,8 @@ func (s *FirstBootTestSuite) TestPopulateFromSeedGadgetConnectHappy(c *C) {
 	loader := boottest.NewMockBootloader("mock", c.MkDir())
 	bootloader.Force(loader)
 	defer bootloader.Force(nil)
-	loader.SetBootVars(map[string]string{
-		"snap_core":   "core_1.snap",
-		"snap_kernel": "pc-kernel_1.snap",
-	})
+	boottest.SetBootKernel("pc-kernel_1.snap", loader)
+	boottest.SetBootBase("core_1.snap", loader)
 
 	const connectionsYaml = `
 connections:
@@ -1305,10 +1300,8 @@ func (s *FirstBootTestSuite) TestPopulateFromSeedWithBaseHappy(c *C) {
 	loader := boottest.NewMockBootloader("mock", c.MkDir())
 	bootloader.Force(loader)
 	defer bootloader.Force(nil)
-	loader.SetBootVars(map[string]string{
-		"snap_core":   "core18_1.snap",
-		"snap_kernel": "pc-kernel_1.snap",
-	})
+	boottest.SetBootKernel("pc-kernel_1.snap", loader)
+	boottest.SetBootBase("core18_1.snap", loader)
 
 	core18Fname, snapdFname, kernelFname, gadgetFname := s.makeCore18Snaps(c)
 
@@ -1572,10 +1565,8 @@ func (s *FirstBootTestSuite) TestPopulateFromSeedWrongContentProviderOrder(c *C)
 	loader := boottest.NewMockBootloader("mock", c.MkDir())
 	bootloader.Force(loader)
 	defer bootloader.Force(nil)
-	loader.SetBootVars(map[string]string{
-		"snap_core":   "core_1.snap",
-		"snap_kernel": "pc-kernel_1.snap",
-	})
+	boottest.SetBootKernel("pc-kernel_1.snap", loader)
+	boottest.SetBootBase("core_1.snap", loader)
 
 	coreFname, kernelFname, gadgetFname := s.makeCoreSnaps(c, "")
 

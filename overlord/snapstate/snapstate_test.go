@@ -127,6 +127,7 @@ func (s *snapmgrTestSuite) SetUpTest(c *C) {
 	s.o.AddManager(s.snapmgr)
 	s.o.AddManager(s.o.TaskRunner())
 	s.se = s.o.StateEngine()
+	c.Assert(s.o.StartUp(), IsNil)
 
 	s.BaseTest.AddCleanup(snapstate.MockSnapReadInfo(s.fakeBackend.ReadInfo))
 	s.BaseTest.AddCleanup(snapstate.MockOpenSnapFile(s.fakeBackend.OpenSnapFile))
@@ -11014,9 +11015,7 @@ func (s *canRemoveSuite) TestKernelBootInUseIsKept(c *C) {
 	}
 	kernel.RealName = "kernel"
 
-	s.bs.SetBootVars(map[string]string{
-		"snap_kernel": fmt.Sprintf("%s_%s.snap", kernel.RealName, kernel.SideInfo.Revision),
-	})
+	boottest.SetBootKernel(fmt.Sprintf("%s_%s.snap", kernel.RealName, kernel.SideInfo.Revision), s.bs)
 
 	removeAll := false
 	c.Check(snapstate.CanRemove(s.st, kernel, &snapstate.SnapState{}, removeAll, s.deviceCtx), Equals, false)
@@ -11031,9 +11030,7 @@ func (s *canRemoveSuite) TestOstInUseIsKept(c *C) {
 	}
 	base.RealName = "core18"
 
-	s.bs.SetBootVars(map[string]string{
-		"snap_core": fmt.Sprintf("%s_%s.snap", base.RealName, base.SideInfo.Revision),
-	})
+	boottest.SetBootBase(fmt.Sprintf("%s_%s.snap", base.RealName, base.SideInfo.Revision), s.bs)
 
 	removeAll := false
 	c.Check(snapstate.CanRemove(s.st, base, &snapstate.SnapState{}, removeAll, s.deviceCtx), Equals, false)
@@ -11057,9 +11054,7 @@ func (s *canRemoveSuite) TestRemoveNonModelKernelStillInUseNotOk(c *C) {
 	}
 	kernel.RealName = "other-non-model-kernel"
 
-	s.bs.SetBootVars(map[string]string{
-		"snap_kernel": fmt.Sprintf("%s_%s.snap", kernel.RealName, kernel.SideInfo.Revision),
-	})
+	boottest.SetBootKernel(fmt.Sprintf("%s_%s.snap", kernel.RealName, kernel.SideInfo.Revision), s.bs)
 
 	c.Check(snapstate.CanRemove(s.st, kernel, &snapstate.SnapState{}, true, s.deviceCtx), Equals, false)
 }

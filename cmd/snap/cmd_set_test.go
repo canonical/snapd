@@ -30,7 +30,7 @@ import (
 )
 
 type snapSetSuite struct {
-	SnapSuite
+	BaseSnapSuite
 
 	setConfApiCalls int
 }
@@ -38,7 +38,7 @@ type snapSetSuite struct {
 var _ = check.Suite(&snapSetSuite{})
 
 func (s *snapSetSuite) SetUpTest(c *check.C) {
-	s.SnapSuite.SetUpTest(c)
+	s.BaseSnapSuite.SetUpTest(c)
 	s.setConfApiCalls = 0
 }
 
@@ -117,6 +117,7 @@ func (s *snapSetSuite) mockSetConfigServer(c *check.C, expectedValue interface{}
 			c.Check(DecodedRequestBody(c, r), check.DeepEquals, map[string]interface{}{
 				"key": expectedValue,
 			})
+			w.WriteHeader(202)
 			fmt.Fprintln(w, `{"type":"async", "status-code": 202, "change": "zzz"}`)
 			s.setConfApiCalls += 1
 		case "/v2/changes/zzz":

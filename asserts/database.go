@@ -195,10 +195,15 @@ type Checker func(assert Assertion, signingKey *AccountKey, roDB RODatabase, che
 type Database struct {
 	bs         Backstore
 	keypairMgr KeypairManager
+
 	trusted    Backstore
 	predefined Backstore
+	// all backstores to consider for find
 	backstores []Backstore
-	checkers   []Checker
+	// backstores of dbs this was built on by stacking
+	stackedOn []Backstore
+
+	checkers []Checker
 }
 
 // OpenDatabase opens the assertion database based on the configuration.
@@ -270,15 +275,20 @@ func OpenDatabase(cfg *DatabaseConfig) (*Database, error) {
 // This is useful to cross-check a set of assertions without adding
 // them to the database.
 func (db *Database) WithStackedBackstore(backstore Backstore) *Database {
+	// original bs goes in front of stacked-on ones
+	stackedOn := []Backstore{db.bs}
+	stackedOn = append(stackedOn, db.stackedOn...)
+	// find order: trusted, predefined, new backstore, stacked-on ones
 	backstores := []Backstore{db.trusted, db.predefined}
 	backstores = append(backstores, backstore)
-	backstores = append(backstores, db.backstores[2:]...)
+	backstores = append(backstores, stackedOn...)
 	return &Database{
 		bs:         backstore,
 		keypairMgr: db.keypairMgr,
 		trusted:    db.trusted,
 		predefined: db.predefined,
 		backstores: backstores,
+		stackedOn:  stackedOn,
 		checkers:   db.checkers,
 	}
 }
@@ -428,13 +438,12 @@ func (db *Database) Add(assert Assertion) error {
 	}
 
 	// this is non empty only in the stacked case
-	stackedOn := db.backstores[3:]
-	if len(stackedOn) != 0 {
+	if len(db.stackedOn) != 0 {
 		headers, err := HeadersFromPrimaryKey(ref.Type, ref.PrimaryKey)
 		if err != nil {
 			return fmt.Errorf("internal error: HeadersFromPrimaryKey for %q failed on prechecked data: %s", ref.Type.Name, ref.PrimaryKey)
 		}
-		cur, err := find(stackedOn, ref.Type, headers, -1)
+		cur, err := find(db.stackedOn, ref.Type, headers, -1)
 		if err == nil {
 			curRev := cur.Revision()
 			rev := assert.Revision()

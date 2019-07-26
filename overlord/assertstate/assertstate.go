@@ -145,8 +145,8 @@ func (b *Batch) linearize(db *asserts.Database) error {
 		return a, nil
 	}
 
-	// linearize using fetcher
-	f := newFetcher(db, retrieve)
+	// linearize using accumFetcher
+	f := newAccumFetcher(db, retrieve)
 	for _, ref := range b.refs {
 		if err := f.Fetch(ref); err != nil {
 			return err

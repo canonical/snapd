@@ -130,7 +130,7 @@ func (client *Client) Logs(names []string, opts LogOptions) (<-chan Log, error) 
 		if err := decodeInto(rsp.Body, &r); err != nil {
 			return nil, err
 		}
-		return nil, r.err(client)
+		return nil, r.err(client, rsp.StatusCode)
 	}
 
 	ch := make(chan Log, 20)
