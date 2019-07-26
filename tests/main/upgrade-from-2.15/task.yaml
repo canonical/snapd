@@ -3,14 +3,18 @@ summary: Ensure upgrades from snapd 2.15 work
 systems: [ubuntu-16.04-64]
 
 prepare: |
-    dpkg --purge snapd
+    #shellcheck source=tests/lib/pkgdb.sh
+    . "$TESTSLIB/pkgdb.sh"
+    distro_purge_package snapd
 
 restore: |
-    # Just remove when it was installed
+    #shellcheck source=tests/lib/pkgdb.sh
+    . "$TESTSLIB/pkgdb.sh"
     if [ -e old_install_done ]; then
-        dpkg --purge snapd ubuntu-core-launcher snap-confine
+        echo "Ensure core is gone and we have ubuntu-core instead"
+        distro_purge_package snapd
     fi
-    apt install -y "${GOHOME}"/snapd_*.deb
+    distro_install_build_snapd
 
 execute: |
     #shellcheck source=tests/lib/systemd.sh
