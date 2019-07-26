@@ -1175,3 +1175,23 @@ func (s *gadgetTestSuite) TestEffectiveRole(c *C) {
 	vs = gadget.VolumeStructure{Role: "", Label: gadget.SystemData}
 	c.Check(vs.EffectiveRole(), Equals, "")
 }
+
+func (s *gadgetTestSuite) TestEffectiveFilesystemLabel(c *C) {
+	// no label, and no role set
+	vs := gadget.VolumeStructure{Role: ""}
+	c.Check(vs.EffectiveFilesystemLabel(), Equals, "")
+
+	// explicitly set label
+	vs = gadget.VolumeStructure{Label: "my-label"}
+	c.Check(vs.EffectiveFilesystemLabel(), Equals, "my-label")
+
+	// inferred based on role
+	vs = gadget.VolumeStructure{Role: gadget.SystemData, Label: "unused-label"}
+	c.Check(vs.EffectiveFilesystemLabel(), Equals, gadget.ImplicitSystemDataLabel)
+	vs = gadget.VolumeStructure{Role: gadget.SystemData}
+	c.Check(vs.EffectiveFilesystemLabel(), Equals, gadget.ImplicitSystemDataLabel)
+
+	// only system-data role is special
+	vs = gadget.VolumeStructure{Role: gadget.SystemBoot}
+	c.Check(vs.EffectiveFilesystemLabel(), Equals, "")
+}
