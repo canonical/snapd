@@ -222,8 +222,11 @@ func connect(st *state.State, plugSnap, plugName, slotSnap, slotName string, fla
 	// wait for prepare-plug- anyway, and a simple one-to-one wait dependency makes testing easier.
 	addTask(connectInterface)
 	prev = connectInterface
-	// mark as the last task in connect prepare
-	tasks.MarkEdge(connectInterface, ConnectTaskEdge)
+
+	if flags.DelaySetupProfiles {
+		// mark as the last task in connect prepare
+		tasks.MarkEdge(connectInterface, ConnectTaskEdge)
+	}
 
 	connectSlotHookName := fmt.Sprintf("connect-slot-%s", slotName)
 	if slotSnapInfo.Hooks[connectSlotHookName] != nil {
@@ -243,7 +246,9 @@ func connect(st *state.State, plugSnap, plugName, slotSnap, slotName string, fla
 		connectSlotConnection := hookstate.HookTaskWithUndo(st, summary, connectSlotHookSetup, undoConnectSlotHookSetup, initialContext)
 		addTask(connectSlotConnection)
 		prev = connectSlotConnection
-		tasks.MarkEdge(connectSlotConnection, AfterConnectHooksEdge)
+		if flags.DelaySetupProfiles {
+			tasks.MarkEdge(connectSlotConnection, AfterConnectHooksEdge)
+		}
 	}
 
 	connectPlugHookName := fmt.Sprintf("connect-plug-%s", plugName)
@@ -263,9 +268,12 @@ func connect(st *state.State, plugSnap, plugName, slotSnap, slotName string, fla
 		summary := fmt.Sprintf(i18n.G("Run hook %s of snap %q"), connectPlugHookSetup.Hook, connectPlugHookSetup.Snap)
 		connectPlugConnection := hookstate.HookTaskWithUndo(st, summary, connectPlugHookSetup, undoConnectPlugHookSetup, initialContext)
 		addTask(connectPlugConnection)
-		// only mark AfterConnectHooksEdge if not already set on connect-slot- hook task
-		if edge, _ := tasks.Edge(AfterConnectHooksEdge); edge == nil {
-			tasks.MarkEdge(connectPlugConnection, AfterConnectHooksEdge)
+
+		if flags.DelaySetupProfiles {
+			// only mark AfterConnectHooksEdge if not already set on connect-slot- hook task
+			if edge, _ := tasks.Edge(AfterConnectHooksEdge); edge == nil {
+				tasks.MarkEdge(connectPlugConnection, AfterConnectHooksEdge)
+			}
 		}
 		prev = connectPlugConnection
 	}

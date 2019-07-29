@@ -56,7 +56,7 @@ var (
 	AddHotplugSeqWaitTask        = addHotplugSeqWaitTask
 	AddHotplugSlot               = addHotplugSlot
 
-	CreateConnectTasksForSetupProfiles = createConnectTasksForSetupProfiles
+	BatchConnectTasks = batchConnectTasks
 )
 
 func NewConnectOptsWithAutoSet() connectOpts {

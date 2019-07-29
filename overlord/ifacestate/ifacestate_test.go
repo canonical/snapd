@@ -330,10 +330,9 @@ func (s *interfaceManagerSuite) TestConnectTask(c *C) {
 	c.Assert(slot.Snap, Equals, "producer")
 	c.Assert(slot.Name, Equals, "slot")
 
-	// "connect" task edge is present
-	connectTaskEdge, err := ts.Edge(ifacestate.ConnectTaskEdge)
-	c.Assert(err, IsNil)
-	c.Assert(connectTaskEdge.ID(), Equals, task.ID())
+	// "connect" task edge is not present
+	_, err = ts.Edge(ifacestate.ConnectTaskEdge)
+	c.Assert(err, ErrorMatches, `internal error: missing .* edge in task set`)
 
 	var autoconnect bool
 	err = task.Get("auto", &autoconnect)
@@ -357,7 +356,6 @@ func (s *interfaceManagerSuite) TestConnectTask(c *C) {
 
 	i++
 	task = ts.Tasks()[i]
-	connectSlotSlotID := task.ID()
 	c.Check(task.Kind(), Equals, "run-hook")
 	c.Assert(task.Get("hook-setup", &hs), IsNil)
 	c.Assert(hs, Equals, hookstate.HookSetup{Snap: "producer", Hook: "connect-slot-slot", Optional: true})
@@ -371,13 +369,12 @@ func (s *interfaceManagerSuite) TestConnectTask(c *C) {
 	c.Assert(task.Get("undo-hook-setup", &undoHookSetup), IsNil)
 	c.Assert(undoHookSetup, Equals, hookstate.HookSetup{Snap: "consumer", Hook: "disconnect-plug-plug", Optional: true, IgnoreError: true})
 
-	// task edge for the first hook after "connect" task is present
-	afterConnectTaskEdge, err := ts.Edge(ifacestate.AfterConnectHooksEdge)
-	c.Assert(err, IsNil)
-	c.Assert(afterConnectTaskEdge.ID(), Equals, connectSlotSlotID)
+	// after-connect-hooks task	 edge is not present
+	_, err = ts.Edge(ifacestate.AfterConnectHooksEdge)
+	c.Assert(err, ErrorMatches, `internal error: missing .* edge in task set`)
 }
 
-func (s *interfaceManagerSuite) TestConnectTasksSkipProfilesFlag(c *C) {
+func (s *interfaceManagerSuite) TestConnectTasksDelayProfilesFlag(c *C) {
 	s.mockSnap(c, consumerYaml)
 	s.mockSnap(c, producerYaml)
 
@@ -394,7 +391,7 @@ func (s *interfaceManagerSuite) TestConnectTasksSkipProfilesFlag(c *C) {
 	c.Assert(delaySetupProfiles, Equals, true)
 }
 
-func (s *interfaceManagerSuite) TestCreateConnectTasksForSetupProfiles(c *C) {
+func (s *interfaceManagerSuite) TestBatchConnectTasks(c *C) {
 	s.mockIfaces(c, &ifacetest.TestInterface{InterfaceName: "test"}, &ifacetest.TestInterface{InterfaceName: "test2"})
 	s.mockSnap(c, consumerYaml)
 	s.mockSnap(c, consumer2Yaml)
@@ -410,7 +407,7 @@ func (s *interfaceManagerSuite) TestCreateConnectTasksForSetupProfiles(c *C) {
 
 	// no connections
 	autoconnect := true
-	ts, err := ifacestate.CreateConnectTasksForSetupProfiles(s.state, setupProfiles, conns, autoconnect)
+	ts, err := ifacestate.BatchConnectTasks(s.state, setupProfiles, conns, autoconnect)
 	c.Assert(err, IsNil)
 	c.Check(ts.Tasks(), HasLen, 0)
 
@@ -420,7 +417,7 @@ func (s *interfaceManagerSuite) TestCreateConnectTasksForSetupProfiles(c *C) {
 	conns[cref1.ID()] = &cref1
 	conns[cref2.ID()] = &cref2
 
-	ts, err = ifacestate.CreateConnectTasksForSetupProfiles(s.state, setupProfiles, conns, true)
+	ts, err = ifacestate.BatchConnectTasks(s.state, setupProfiles, conns, true)
 	c.Assert(err, IsNil)
 	c.Check(ts.Tasks(), HasLen, 9)
 
@@ -487,41 +484,41 @@ func testInterfaceHooksTasks(c *C, tasks []*state.Task, waitChain []string, undo
 
 }
 
-func (s *interfaceManagerSuite) TestConnectTaskHooksConditionals(c *C) {
+var connectHooksTests = []interfaceHooksTestData{{
+	consumer:  []string{"prepare-plug-plug"},
+	producer:  []string{"prepare-slot-slot"},
+	waitChain: []string{"hook:prepare-plug-plug", "hook:prepare-slot-slot", "task:connect"},
+}, {
+	consumer:  []string{"prepare-plug-plug"},
+	producer:  []string{"prepare-slot-slot", "connect-slot-slot"},
+	waitChain: []string{"hook:prepare-plug-plug", "hook:prepare-slot-slot", "task:connect", "hook:connect-slot-slot"},
+}, {
+	consumer:  []string{"prepare-plug-plug"},
+	producer:  []string{"connect-slot-slot"},
+	waitChain: []string{"hook:prepare-plug-plug", "task:connect", "hook:connect-slot-slot"},
+}, {
+	consumer:  []string{"connect-plug-plug"},
+	producer:  []string{"prepare-slot-slot", "connect-slot-slot"},
+	waitChain: []string{"hook:prepare-slot-slot", "task:connect", "hook:connect-slot-slot", "hook:connect-plug-plug"},
+}, {
+	consumer:  []string{"connect-plug-plug"},
+	producer:  []string{"connect-slot-slot"},
+	waitChain: []string{"task:connect", "hook:connect-slot-slot", "hook:connect-plug-plug"},
+}, {
+	consumer:  []string{"prepare-plug-plug", "connect-plug-plug"},
+	producer:  []string{"prepare-slot-slot"},
+	waitChain: []string{"hook:prepare-plug-plug", "hook:prepare-slot-slot", "task:connect", "hook:connect-plug-plug"},
+}, {
+	consumer:  []string{"prepare-plug-plug", "connect-plug-plug"},
+	producer:  []string{"prepare-slot-slot", "connect-slot-slot"},
+	waitChain: []string{"hook:prepare-plug-plug", "hook:prepare-slot-slot", "task:connect", "hook:connect-slot-slot", "hook:connect-plug-plug"},
+}}
+
+func (s *interfaceManagerSuite) TestConnectTaskHookdEdges(c *C) {
 	s.mockIfaces(c, &ifacetest.TestInterface{InterfaceName: "test"})
 
-	hooksTests := []interfaceHooksTestData{{
-		consumer:  []string{"prepare-plug-plug"},
-		producer:  []string{"prepare-slot-slot"},
-		waitChain: []string{"hook:prepare-plug-plug", "hook:prepare-slot-slot", "task:connect"},
-	}, {
-		consumer:  []string{"prepare-plug-plug"},
-		producer:  []string{"prepare-slot-slot", "connect-slot-slot"},
-		waitChain: []string{"hook:prepare-plug-plug", "hook:prepare-slot-slot", "task:connect", "hook:connect-slot-slot"},
-	}, {
-		consumer:  []string{"prepare-plug-plug"},
-		producer:  []string{"connect-slot-slot"},
-		waitChain: []string{"hook:prepare-plug-plug", "task:connect", "hook:connect-slot-slot"},
-	}, {
-		consumer:  []string{"connect-plug-plug"},
-		producer:  []string{"prepare-slot-slot", "connect-slot-slot"},
-		waitChain: []string{"hook:prepare-slot-slot", "task:connect", "hook:connect-slot-slot", "hook:connect-plug-plug"},
-	}, {
-		consumer:  []string{"connect-plug-plug"},
-		producer:  []string{"connect-slot-slot"},
-		waitChain: []string{"task:connect", "hook:connect-slot-slot", "hook:connect-plug-plug"},
-	}, {
-		consumer:  []string{"prepare-plug-plug", "connect-plug-plug"},
-		producer:  []string{"prepare-slot-slot"},
-		waitChain: []string{"hook:prepare-plug-plug", "hook:prepare-slot-slot", "task:connect", "hook:connect-plug-plug"},
-	}, {
-		consumer:  []string{"prepare-plug-plug", "connect-plug-plug"},
-		producer:  []string{"prepare-slot-slot", "connect-slot-slot"},
-		waitChain: []string{"hook:prepare-plug-plug", "hook:prepare-slot-slot", "task:connect", "hook:connect-slot-slot", "hook:connect-plug-plug"},
-	}}
-
 	_ = s.manager(c)
-	for _, hooks := range hooksTests {
+	for _, hooks := range connectHooksTests {
 		var hooksYaml string
 		for _, name := range hooks.consumer {
 			hooksYaml = fmt.Sprintf("%s %s:\n", hooksYaml, name)
@@ -539,10 +536,8 @@ func (s *interfaceManagerSuite) TestConnectTaskHooksConditionals(c *C) {
 
 		s.state.Lock()
 
-		ts, err := ifacestate.Connect(s.state, "consumer", "plug", "producer", "slot")
+		ts, err := ifacestate.ConnectPriv(s.state, "consumer", "plug", "producer", "slot", ifacestate.NewConnectOptsWithDelayProfilesSet())
 		c.Assert(err, IsNil)
-		c.Assert(ts.Tasks(), HasLen, len(hooks.producer)+len(hooks.consumer)+1)
-		c.Assert(ts.Tasks(), HasLen, len(hooks.waitChain))
 
 		// check task edges
 		edge, err := ts.Edge(ifacestate.ConnectTaskEdge)
@@ -571,6 +566,37 @@ func (s *interfaceManagerSuite) TestConnectTaskHooksConditionals(c *C) {
 		} else {
 			c.Assert(err, ErrorMatches, `internal error: missing .* edge in task set`)
 		}
+
+		s.state.Unlock()
+	}
+}
+
+func (s *interfaceManagerSuite) TestConnectTaskHooksConditionals(c *C) {
+	s.mockIfaces(c, &ifacetest.TestInterface{InterfaceName: "test"})
+
+	_ = s.manager(c)
+	for _, hooks := range connectHooksTests {
+		var hooksYaml string
+		for _, name := range hooks.consumer {
+			hooksYaml = fmt.Sprintf("%s %s:\n", hooksYaml, name)
+		}
+		consumer := fmt.Sprintf(consumerYaml3, hooksYaml)
+
+		hooksYaml = ""
+		for _, name := range hooks.producer {
+			hooksYaml = fmt.Sprintf("%s %s:\n", hooksYaml, name)
+		}
+		producer := fmt.Sprintf(producerYaml3, hooksYaml)
+
+		s.mockSnap(c, consumer)
+		s.mockSnap(c, producer)
+
+		s.state.Lock()
+
+		ts, err := ifacestate.Connect(s.state, "consumer", "plug", "producer", "slot")
+		c.Assert(err, IsNil)
+		c.Assert(ts.Tasks(), HasLen, len(hooks.producer)+len(hooks.consumer)+1)
+		c.Assert(ts.Tasks(), HasLen, len(hooks.waitChain))
 
 		undoHooks := map[string]string{
 			"prepare-plug-plug": "unprepare-plug-plug",
