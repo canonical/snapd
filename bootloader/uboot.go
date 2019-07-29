@@ -94,7 +94,7 @@ func (u *uboot) GetBootVars(names ...string) (map[string]string, error) {
 	return out, nil
 }
 
-func (u *uboot) ExtractKernelAssets(s *snap.Info, snapf snap.Container) error {
+func (u *uboot) ExtractKernelAssets(s snap.PlaceInfo, snapf snap.Container) error {
 	return extractKernelAssetsToBootDir(u.dir(), s, snapf)
 }
 

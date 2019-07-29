@@ -62,7 +62,7 @@ type Bootloader interface {
 	ConfigFile() string
 
 	// ExtractKernelAssets extracts kernel assets from the given kernel snap
-	ExtractKernelAssets(s *snap.Info, snapf snap.Container) error
+	ExtractKernelAssets(s snap.PlaceInfo, snapf snap.Container) error
 
 	// RemoveKernelAssets removes the assets for the given kernel snap.
 	RemoveKernelAssets(s snap.PlaceInfo) error
@@ -88,13 +88,16 @@ func InstallBootConfig(gadgetDir string) error {
 	return fmt.Errorf("cannot find boot config in %q", gadgetDir)
 }
 
-var forcedBootloader Bootloader
+var (
+	forcedBootloader Bootloader
+	forcedError      error
+)
 
 // Find returns the bootloader for the given system
 // or an error if no bootloader is found
 func Find() (Bootloader, error) {
-	if forcedBootloader != nil {
-		return forcedBootloader, nil
+	if forcedBootloader != nil || forcedError != nil {
+		return forcedBootloader, forcedError
 	}
 
 	// try uboot
@@ -117,9 +120,17 @@ func Find() (Bootloader, error) {
 }
 
 // Force can be used to force setting a booloader to that Find will not use the
-// usual lookup process, use nil to reset to normal lookup.
+// usual lookup process; use nil to reset to normal lookup.
 func Force(booloader Bootloader) {
 	forcedBootloader = booloader
+	forcedError = nil
+}
+
+// Force can be used to force Find to return an error; use nil to
+// reset to normal lookup.
+func ForceError(err error) {
+	forcedBootloader = nil
+	forcedError = err
 }
 
 // MarkBootSuccessful marks the current boot as successful. This means
@@ -169,7 +180,7 @@ func MarkBootSuccessful(bootloader Bootloader) error {
 	return bootloader.SetBootVars(m)
 }
 
-func extractKernelAssetsToBootDir(bootDir string, s *snap.Info, snapf snap.Container) error {
+func extractKernelAssetsToBootDir(bootDir string, s snap.PlaceInfo, snapf snap.Container) error {
 	// now do the kernel specific bits
 	blobName := filepath.Base(s.MountFile())
 	dstDir := filepath.Join(bootDir, blobName)

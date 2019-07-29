@@ -778,10 +778,12 @@ func extractKernelAssets(snapPath string, info *snap.Info) error {
 		return err
 	}
 
-	if err := boot.ExtractKernelAssets(info, snapf); err != nil {
+	// image always runs in not-on-classic mode
+	bs, err := boot.Lookup(info, info.GetType(), false)
+	if err != nil {
 		return err
 	}
-	return nil
+	return bs.ExtractKernelAssets(snapf)
 }
 
 func copyLocalSnapFile(snapPath, targetDir string, info *snap.Info) (dstPath string, err error) {

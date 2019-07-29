@@ -19,6 +19,18 @@
 
 package boot
 
+import (
+	"github.com/snapcore/snapd/snap"
+)
+
 var (
 	NameAndRevnoFromSnap = nameAndRevnoFromSnap
 )
+
+func NewCoreBootSet(s snap.PlaceInfo, t snap.Type) *coreBootSet {
+	return &coreBootSet{s: s, t: t}
+}
+
+func NewClassicBootSet() classicBootSet {
+	return classicBootSet{}
+}

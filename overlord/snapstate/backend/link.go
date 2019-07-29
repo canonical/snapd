@@ -122,7 +122,11 @@ func (b Backend) LinkSnap(info *snap.Info, model *asserts.Model, tm timings.Meas
 		switch info.InstanceName() {
 		case model.Kernel(), bootBase:
 			// XXX: This *needs* to clean up if updateCurrentSymlinks fails
-			if err := boot.SetNextBoot(info); err != nil {
+			bs, err := boot.Lookup(info, info.GetType(), release.OnClassic)
+			if err != nil {
+				return err
+			}
+			if err := bs.SetNextBoot(); err != nil {
 				return err
 			}
 		}

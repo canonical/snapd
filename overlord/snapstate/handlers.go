@@ -1159,9 +1159,15 @@ func maybeRestart(t *state.Task, info *snap.Info) {
 		return
 	}
 
+	bs, err := boot.Lookup(info, info.GetType(), release.OnClassic)
+	if err != nil {
+		logger.Noticef("%v", err) // boot adds enough info to the error
+		return
+	}
+
 	// On a core system we may need a full reboot if
 	// core/base or the kernel changes.
-	if boot.ChangeRequiresReboot(info) {
+	if bs.ChangeRequiresReboot() {
 		t.Logf("Requested system restart.")
 		st.RequestRestart(state.RestartSystem)
 		return
