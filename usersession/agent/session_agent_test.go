@@ -103,3 +103,16 @@ func (s *sessionAgentSuite) TestDying(c *C) {
 		c.Error("agent.Dying() channel was not closed when agent stopped")
 	}
 }
+
+func (s *sessionAgentSuite) TestExitOnIdle(c *C) {
+	agent, err := agent.New()
+	c.Assert(err, IsNil)
+	agent.IdleTimeout = 100 * time.Millisecond
+	agent.Start()
+	defer agent.Stop()
+	select {
+	case <-agent.Dying():
+	case <-time.After(2 * time.Second):
+		c.Error("agent did not exit after idle timeout expired")
+	}
+}
