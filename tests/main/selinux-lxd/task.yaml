@@ -30,7 +30,7 @@ restore: |
     lxd-tool undo-lxd-mount-changes
 
 execute: |
-    snap install lxd
+    snap install lxd --edge
     ausearch -i --checkpoint stamp --start checkpoint -m AVC 2>&1 | MATCH 'no matches'
 
     echo "Create a trivial container using the lxd snap"
