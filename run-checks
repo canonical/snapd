@@ -247,7 +247,7 @@ if [ "$UNIT" = 1 ]; then
     echo Running tests from "$PWD"
     if [ "$short" = 1 ]; then
             # shellcheck disable=SC2046
-            GOTRACEBACK=1 $goctest -short -v $(go list ./... | grep -v '/vendor/' )
+            GOTRACEBACK=1 $goctest -short -test.timeout 5m -v $(go list ./... | grep -v '/vendor/' )
     else
         # Prepare the coverage output profile.
         rm -rf .coverage
