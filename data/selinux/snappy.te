@@ -421,6 +421,7 @@ allow snappy_mount_t snappy_confine_t:file { open read getattr };
 kernel_read_system_state(snappy_mount_t)
 kernel_read_net_sysctls(snappy_mount_t)
 kernel_search_network_sysctl(snappy_mount_t)
+dev_read_sysfs(snappy_mount_t)
 
 ########################################
 #
@@ -601,6 +602,7 @@ allow snappy_cli_t self:capability { dac_override };
 init_ioctl_stream_sockets(snappy_cli_t)
 kernel_read_net_sysctls(snappy_cli_t)
 kernel_search_network_sysctl(snappy_cli_t)
+dev_read_sysfs(snappy_cli_t)
 
 # talk to snapd
 snappy_stream_connect(snappy_cli_t)
