@@ -15,7 +15,7 @@ execute: |
         TARGET_SNAP=test-snapd-tools-core18
     fi
 
-    echo "Given a core snap is installed"
+    echo "Given a base snap, $BASE_SNAP, is installed"
     install_local "$TARGET_SNAP"
 
     echo "Ensure the important snaps can not be removed"

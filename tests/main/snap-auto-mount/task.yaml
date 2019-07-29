@@ -24,7 +24,8 @@ prepare: |
     . "$TESTSLIB/ramdisk.sh"
     setup_ramdisk
 
-    #We use different filesystems to cover both: fat and ext
+    # We use different filesystems to cover both: fat and ext. fat is the most
+    # common fs used and we also use ext3 because fat is not available on ubuntu core 18
     if is_core18_system; then
         mkfs.ext3 /dev/ram0
     else
