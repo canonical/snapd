@@ -910,7 +910,10 @@ func waitChainSearch(startT, searchT *state.Task) bool {
 //  - connect-plug-, connect-slot- are all executed after setup-profiles.
 // The "delay-setup-profiles" flag is set on the connect tasks to indicate that doConnect handler should not set security backends up because this will be
 // done later by the setup-profiles task.
-func batchConnectTasks(st *state.State, setupProfiles *state.Task, conns map[string]*interfaces.ConnRef, autoconnect bool) (*state.TaskSet, error) {
+func batchConnectTasks(st *state.State, snapsup *snapstate.SnapSetup, conns map[string]*interfaces.ConnRef, autoconnect bool) (*state.TaskSet, error) {
+	setupProfiles := st.NewTask("setup-profiles", fmt.Sprintf(i18n.G("Setup snap %q (%s) security profiles for auto-connect"), snapsup.InstanceName(), snapsup.Revision()))
+	setupProfiles.Set("snap-setup", snapsup)
+
 	ts := state.NewTaskSet()
 	for _, conn := range conns {
 		connectTs, err := connect(st, conn.PlugRef.Snap, conn.PlugRef.Name, conn.SlotRef.Snap, conn.SlotRef.Name, connectOpts{AutoConnect: autoconnect, DelaySetupProfiles: true})
@@ -1110,11 +1113,8 @@ func (m *InterfaceManager) doAutoConnect(task *state.Task, _ *tomb.Tomb) error {
 		}
 	}
 
-	setupProfiles := st.NewTask("setup-profiles", fmt.Sprintf(i18n.G("Setup snap %q (%s) security profiles"), snapsup.InstanceName(), snapsup.Revision()))
-	setupProfiles.Set("snap-setup", snapsup)
-
 	autoconnect := true
-	autots, err := batchConnectTasks(st, setupProfiles, newconns, autoconnect)
+	autots, err := batchConnectTasks(st, snapsup, newconns, autoconnect)
 	if err != nil {
 		return err
 	}

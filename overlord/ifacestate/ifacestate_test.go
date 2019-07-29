@@ -401,13 +401,12 @@ func (s *interfaceManagerSuite) TestBatchConnectTasks(c *C) {
 	s.state.Lock()
 	defer s.state.Unlock()
 
-	// no snap setup on setup-profiles task, not needed for this test
-	setupProfiles := s.state.NewTask("setup-profiles", "setup profiles of the producer snap")
+	snapsup := &snapstate.SnapSetup{SideInfo: &snap.SideInfo{RealName: "snap"}}
 	conns := make(map[string]*interfaces.ConnRef)
 
 	// no connections
 	autoconnect := true
-	ts, err := ifacestate.BatchConnectTasks(s.state, setupProfiles, conns, autoconnect)
+	ts, err := ifacestate.BatchConnectTasks(s.state, snapsup, conns, autoconnect)
 	c.Assert(err, IsNil)
 	c.Check(ts.Tasks(), HasLen, 0)
 
@@ -417,11 +416,14 @@ func (s *interfaceManagerSuite) TestBatchConnectTasks(c *C) {
 	conns[cref1.ID()] = &cref1
 	conns[cref2.ID()] = &cref2
 
-	ts, err = ifacestate.BatchConnectTasks(s.state, setupProfiles, conns, true)
+	ts, err = ifacestate.BatchConnectTasks(s.state, snapsup, conns, autoconnect)
 	c.Assert(err, IsNil)
 	c.Check(ts.Tasks(), HasLen, 9)
 
 	// "setup-profiles" task waits for "connect" tasks of both connections
+	setupProfiles := ts.Tasks()[len(ts.Tasks())-1]
+	c.Assert(setupProfiles.Kind(), Equals, "setup-profiles")
+
 	wt := setupProfiles.WaitTasks()
 	c.Assert(wt, HasLen, 2)
 	for i := 0; i < 2; i++ {
