@@ -145,7 +145,7 @@ func (s *setupSuite) TestSetupDoUndoInstance(c *C) {
 }
 
 func (s *setupSuite) TestSetupDoUndoKernel(c *C) {
-	// kernel snaps only hapen on non-classic
+	// kernel snaps only happen on non-classic
 	defer release.MockOnClassic(false)()
 	loader := boottest.NewMockBootloader("mock", c.MkDir())
 	bootloader.Force(loader)
@@ -191,7 +191,7 @@ func (s *setupSuite) TestSetupDoIdempotent(c *C) {
 
 	// this cannot check systemd own behavior though around mounts!
 
-	// kernel snaps only hapen on non-classic
+	// kernel snaps only happen on non-classic
 	defer release.MockOnClassic(false)()
 	loader := boottest.NewMockBootloader("mock", c.MkDir())
 	bootloader.Force(loader)
@@ -242,7 +242,7 @@ func (s *setupSuite) TestSetupUndoIdempotent(c *C) {
 
 	// this cannot check systemd own behavior though around mounts!
 
-	// kernel snaps only hapen on non-classic
+	// kernel snaps only happen on non-classic
 	defer release.MockOnClassic(false)()
 	loader := boottest.NewMockBootloader("mock", c.MkDir())
 	bootloader.Force(loader)
