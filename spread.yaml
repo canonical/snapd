@@ -89,7 +89,10 @@ backends:
                 manual: true
             - fedora-30-64:
                 workers: 6
-            - fedora-31-rawhide-64:
+            - fedora-30-64-unified:
+                image: fedora-30-unified
+                workers: 6
+            - fedora-31-rawhide-64-unified:
                 image: test-fedora-rawhide-64-base
                 workers: 6
             - opensuse-15.0-64:
@@ -216,7 +219,11 @@ backends:
             - fedora-29-64:
                 username: fedora
                 password: fedora
-            - fedora-31-rawhide-64:
+            - fedora-30-64-unified:
+                image: fedora-30-unified
+                username: fedora
+                password: fedora
+            - fedora-31-rawhide-64-unified:
                 image: test-fedora-rawhide-64-base
                 username: fedora
                 password: fedora
