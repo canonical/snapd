@@ -28,7 +28,7 @@ import (
 	"github.com/jessevdk/go-flags"
 
 	"github.com/snapcore/snapd/i18n"
-	"github.com/snapcore/snapd/userd/ui"
+	"github.com/snapcore/snapd/usersession/userd/ui"
 )
 
 type cmdHandleLink struct {

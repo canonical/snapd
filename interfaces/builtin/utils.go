@@ -76,7 +76,7 @@ func plugAppLabelExpr(plug *interfaces.ConnectedPlug) string {
 
 // sanitizeSlotReservedForOS checks if slot is of type os.
 func sanitizeSlotReservedForOS(iface interfaces.Interface, slot *snap.SlotInfo) error {
-	if slot.Snap.GetType() != snap.TypeOS && slot.Snap.InstanceName() != "snapd" {
+	if slot.Snap.GetType() != snap.TypeOS && slot.Snap.GetType() != snap.TypeSnapd {
 		return fmt.Errorf("%s slots are reserved for the core snap", iface.Name())
 	}
 	return nil
@@ -84,7 +84,7 @@ func sanitizeSlotReservedForOS(iface interfaces.Interface, slot *snap.SlotInfo) 
 
 // sanitizeSlotReservedForOSOrGadget checks if the slot is of type os or gadget.
 func sanitizeSlotReservedForOSOrGadget(iface interfaces.Interface, slot *snap.SlotInfo) error {
-	if slot.Snap.GetType() != snap.TypeOS && slot.Snap.GetType() != snap.TypeGadget && slot.Snap.InstanceName() != "snapd" {
+	if t := slot.Snap.GetType(); t != snap.TypeOS && t != snap.TypeGadget && t != snap.TypeSnapd {
 		return fmt.Errorf("%s slots are reserved for the core and gadget snaps", iface.Name())
 	}
 	return nil

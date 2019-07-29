@@ -248,6 +248,8 @@ func (s *interfaceManagerSuite) manager(c *C) *ifacestate.InterfaceManager {
 
 		s.o.AddManager(s.o.TaskRunner())
 
+		c.Assert(s.o.StartUp(), IsNil)
+
 		// ensure the re-generation of security profiles did not
 		// confuse the tests
 		s.secBackend.SetupCalls = nil
@@ -5187,6 +5189,7 @@ volumes:
 	err := ioutil.WriteFile(filepath.Join(gadgetInfo.MountDir(), "meta", "gadget.yaml"), gadgetYaml, 0644)
 	c.Assert(err, IsNil)
 
+	s.MockModel(c, nil)
 }
 
 func (s *interfaceManagerSuite) TestGadgetConnect(c *C) {
@@ -5321,6 +5324,8 @@ func (s *interfaceManagerSuite) TestGadgetConnectSkipUnknown(c *C) {
 	s.mockSnap(c, consumerYaml)
 	s.MockSnapDecl(c, "producer", "publisher2", nil)
 	s.mockSnap(c, producerYaml)
+
+	s.MockModel(c, nil)
 
 	s.manager(c)
 
@@ -5529,6 +5534,7 @@ func (s *interfaceManagerSuite) TestUDevMonitorInit(c *C) {
 	mgr, err := ifacestate.Manager(s.state, nil, s.o.TaskRunner(), nil, nil)
 	c.Assert(err, IsNil)
 	s.o.AddManager(mgr)
+	c.Assert(s.o.StartUp(), IsNil)
 
 	// succesfull initialization should result in exactly 1 connect and run call
 	for i := 0; i < 5; i++ {
@@ -5568,6 +5574,7 @@ func (s *interfaceManagerSuite) TestUDevMonitorInitErrors(c *C) {
 	mgr, err := ifacestate.Manager(s.state, nil, s.o.TaskRunner(), nil, nil)
 	c.Assert(err, IsNil)
 	s.o.AddManager(mgr)
+	c.Assert(s.o.StartUp(), IsNil)
 
 	c.Assert(s.se.Ensure(), ErrorMatches, ".*Connect failed.*")
 	c.Assert(u.ConnectCalls, Equals, 1)
@@ -5604,6 +5611,7 @@ func (s *interfaceManagerSuite) TestUDevMonitorInitWaitsForCore(c *C) {
 	mgr, err := ifacestate.Manager(s.state, nil, s.o.TaskRunner(), nil, nil)
 	c.Assert(err, IsNil)
 	s.o.AddManager(mgr)
+	c.Assert(s.o.StartUp(), IsNil)
 
 	for i := 0; i < 5; i++ {
 		c.Assert(s.se.Ensure(), IsNil)

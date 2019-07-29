@@ -20,6 +20,7 @@
 package healthstate
 
 import (
+	"encoding/json"
 	"fmt"
 	"os"
 	"regexp"
@@ -192,4 +193,34 @@ func SetFromHookContext(ctx *hookstate.Context) error {
 		return err
 	}
 	return appendHealth(ctx, &health)
+}
+
+func All(st *state.State) (map[string]*HealthState, error) {
+	var hs map[string]*HealthState
+	if err := st.Get("health", &hs); err != nil && err != state.ErrNoState {
+		return nil, err
+	}
+	return hs, nil
+}
+
+func Get(st *state.State, snap string) (*HealthState, error) {
+	var hs map[string]json.RawMessage
+	if err := st.Get("health", &hs); err != nil {
+		if err != state.ErrNoState {
+			return nil, err
+		}
+		return nil, nil
+	}
+
+	buf := hs[snap]
+	if len(buf) == 0 {
+		return nil, nil
+	}
+
+	var health HealthState
+	if err := json.Unmarshal(buf, &health); err != nil {
+		return nil, err
+	}
+
+	return &health, nil
 }

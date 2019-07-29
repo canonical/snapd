@@ -26,6 +26,7 @@ cmd/snap-confine/unit-tests
 cmd/snap-discard-ns/snap-discard-ns
 cmd/snap-gdb-shim/snap-gdb-shim
 cmd/snap-mgmt/snap-mgmt
+cmd/snap-seccomp/snap-seccomp
 cmd/snap-update-ns/snap-update-ns
 cmd/snap-update-ns/unit-tests
 cmd/snapd-env-generator/snapd-env-generator

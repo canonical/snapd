@@ -8,6 +8,7 @@ prepare: |
 restore: |
     rm -f /etc/systemd/system/snapd.service.d/override.conf
     ip netns delete testns || true
+    umount /run/netns || true
 
 debug: |
     systemctl cat snapd.service

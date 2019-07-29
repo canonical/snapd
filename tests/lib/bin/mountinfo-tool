@@ -284,6 +284,14 @@ def renumber_snap_revision(entry, seen):
         # type: (List[Text], int) -> List[Text]
         return parts[:10] + ["{}".format(n)] + parts[11:]
 
+    def compose_writable(parts, n):
+        # type: (List[Text], int) -> List[Text]
+        return parts[:5] + ["{}".format(n)] + parts[6:]
+
+    def compose_hostfs_writable(parts, n):
+        # type: (List[Text], int) -> List[Text]
+        return parts[:9] + ["{}".format(n)] + parts[10:]
+
     def alloc_n(snap_name, snap_rev):
         # type: (Text, Text) -> int
         key = (snap_name, snap_rev)
@@ -303,6 +311,10 @@ def renumber_snap_revision(entry, seen):
         snap_name = parts[5]
         snap_rev = parts[6]
         compose = compose_alternate
+    elif len(parts) >= 6 and parts[:4] == ["", "writable", "system-data", "snap"]:
+        snap_name = parts[4]
+        snap_rev = parts[5]
+        compose = compose_writable
     elif len(parts) >= 8 and parts[:6] == ["", "var", "lib", "snapd", "hostfs", "snap"]:
         snap_name = parts[6]
         snap_rev = parts[7]
@@ -321,14 +333,27 @@ def renumber_snap_revision(entry, seen):
         snap_name = parts[9]
         snap_rev = parts[10]
         compose = compose_hostfs_alternate
+    elif len(parts) >= 10 and parts[:8] == [
+        "",  # 0
+        "var",  # 1
+        "lib",  # 2
+        "snapd",  # 3
+        "hostfs",  # 4
+        "writable",  # 5
+        "system-data",  # 6
+        "snap",  # 7
+    ]:
+        snap_name = parts[8]
+        snap_rev = parts[9]
+        compose = compose_hostfs_writable
     else:
         return
     n = alloc_n(snap_name, snap_rev)
     entry.mount_point = "/".join(compose(parts, n))
 
 
-def renumber_opt_fields(entry, seen):
-    # type: (MountInfoEntry, Dict[int, int]) -> None
+def renumber_opt_fields(entry, seen, base_n):
+    # type: (MountInfoEntry, Dict[int, int], int) -> None
     """renumber_opt_fields re-numbers peer group in optional fields."""
 
     def alloc_n(peer_group):
@@ -337,7 +362,11 @@ def renumber_opt_fields(entry, seen):
         try:
             return seen[key]
         except KeyError:
-            n = len(seen) + 1
+            n = (
+                len({orig for orig, renumbered in seen.items() if renumbered >= base_n})
+                + base_n
+                + 1
+            )
             seen[key] = n
             return n
 
@@ -369,8 +398,8 @@ def renumber_loop_devices(entry, seen):
     entry.mount_source = re.sub("loop(\\d+)", fn, entry.mount_source)
 
 
-def renumber_mount_ids(entry, seen):
-    # type: (MountInfoEntry, Dict[int, int]) -> None
+def renumber_mount_ids(entry, seen, base_n):
+    # type: (MountInfoEntry, Dict[int, int], int) -> None
     """renumber_mount_ids re-numbers mount and parent mount IDs."""
 
     def alloc_n(mount_id):
@@ -379,7 +408,10 @@ def renumber_mount_ids(entry, seen):
         try:
             return seen[key]
         except KeyError:
-            n = len(seen)
+            n = (
+                len({orig for orig, renumbered in seen.items() if renumbered >= base_n})
+                + base_n
+            )
             seen[key] = n
             return n
 
@@ -453,7 +485,13 @@ def renumber_mount_option(opt, seen):
         try:
             return seen[key]
         except KeyError:
-            n = len(seen)
+            n = len(
+                {
+                    opt_value
+                    for opt_key, opt_value in seen.keys()
+                    if opt_key == mount_opt_key
+                }
+            )
             seen[key] = n
             return n
 
@@ -461,7 +499,9 @@ def renumber_mount_option(opt, seen):
         mount_opt_key, mount_opt_value = opt.split("=", 1)
         # size, nr_inode: used by tmpfs
         # fd, pipe_ino: used by binfmtmisc
-        if mount_opt_key in {"size", "nr_inodes", "fd", "pipe_ino"}:
+        if mount_opt_key == "size":
+            return "size=VARIABLE"
+        if mount_opt_key in {"nr_inodes", "fd", "pipe_ino"}:
             return "{}={}".format(
                 mount_opt_key, alloc_n(mount_opt_key, mount_opt_value)
             )
@@ -496,24 +536,26 @@ class RewriteState(object):
         self.seen_mount_opts = {}  # type: Dict[Tuple[Text, Text], int]
 
 
-def rewrite_renumber(entries, rs):
-    # type: (List[MountInfoEntry], RewriteState) -> None
-    """rewrite_renumber applies all re-numbering helpers."""
-    for entry in entries:
-        renumber_mount_ids(entry, rs.seen_mount_ids)
+def rewrite_renumber(entries, order, rs, base_n=0):
+    # type: (List[MountInfoEntry], List[int], RewriteState, int) -> None
+    """rewrite_renumber applies all re-numbering helpers to a single entry."""
+    for i in range(len(entries)):
+        entry = entries[order[i]]
+        renumber_mount_ids(entry, rs.seen_mount_ids, base_n)
         renumber_devices(entry, rs.seen_devices)
         renumber_snap_revision(entry, rs.seen_snap_revs)
-        renumber_opt_fields(entry, rs.seen_opt_fields)
+        renumber_opt_fields(entry, rs.seen_opt_fields, base_n)
         renumber_loop_devices(entry, rs.seen_loops)
         renumber_ns(entry, rs.seen_ns)
         renumber_mount_opts(entry, rs.seen_mount_opts)
 
 
-def rewrite_rename(entries, rs):
-    # type: (List[MountInfoEntry], RewriteState) -> None
-    """rewrite_rename applies all re-naming helpers."""
+def rewrite_rename(entries, order, rs):
+    # type: (List[MountInfoEntry], List[int], RewriteState) -> None
+    """rewrite_rename applies all re-naming helpers to a single entry."""
     # TODO: allocate devices like everything else above.
-    for entry in entries:
+    for i in range(len(entries)):
+        entry = entries[order[i]]
         entry.mount_source = re.sub(
             "/dev/[sv]d([a-z])", "/dev/sd\\1", entry.mount_source
         )
@@ -595,7 +637,30 @@ Known attributes, applicable for both filtering and display.
         help="refer to another table while rewriting, makes output comparable across namespaces",
     )
     parser.add_argument(
+        "--ref-x1000",
+        dest="ref_x1000",
+        action="store_true",
+        default=False,
+        help="start mount point IDs and peer groups at multiple of 1000, once for each ref",
+    )
+    parser.add_argument(
         "--one", default=False, action="store_true", help="expect exactly one match"
+    )
+    parser.add_argument(
+        "--rewrite-order",
+        metavar="FIELD",
+        action="append",
+        default=[],
+        choices=MountInfoEntry.known_attrs.keys(),
+        help="rewrite entries in the order determined by given fields",
+    )
+    parser.add_argument(
+        "--display-order",
+        metavar="FIELD",
+        action="append",
+        default=[],
+        choices=MountInfoEntry.known_attrs.keys(),
+        help="display entries in the order determined by given fields",
     )
     parser.add_argument(
         "exprs",
@@ -619,19 +684,56 @@ Known attributes, applicable for both filtering and display.
     except ValueError as exc:
         raise SystemExit(exc)
     entries = [MountInfoEntry.parse(line) for line in opts.file]
-    entries = [e for e in entries if matches(e, filters)]
-    rs = RewriteState()
 
-    for ref in opts.refs:
+    # Build rewrite state based on reference tables. This way the entries
+    # we will display can be correlated to other tables.
+    rs = RewriteState()
+    for i, ref in enumerate(opts.refs):
         ref_entries = [MountInfoEntry.parse(line) for line in ref]
+        ref_rewrite_order = list(range(len(ref_entries)))
+        if opts.rewrite_order:
+
+            def ref_rewrite_key_fn(i):
+                # type: (int) -> Tuple[Any, ...]
+                return tuple(
+                    getattr(ref_entries[i], field) for field in opts.rewrite_order
+                )
+
+        ref_rewrite_order.sort(key=ref_rewrite_key_fn)
         if opts.renumber:
-            rewrite_renumber(ref_entries, rs)
+            rewrite_renumber(
+                ref_entries, ref_rewrite_order, rs, 1000 * i if opts.ref_x1000 else 0
+            )
         if opts.rename:
-            rewrite_rename(ref_entries, rs)
+            rewrite_rename(ref_entries, ref_rewrite_order, rs)
+
+    # Apply entry renumbering and renaming, perhaps using reordering as well.
+    rewrite_order = list(range(len(entries)))
+    if opts.rewrite_order:
+
+        def rewrite_key_fn(i):
+            # type: (int) -> Tuple[Any, ...]
+            return tuple(getattr(entries[i], field) for field in opts.rewrite_order)
+
+        rewrite_order.sort(key=rewrite_key_fn)
     if opts.renumber:
-        rewrite_renumber(entries, rs)
+        rewrite_renumber(
+            entries, rewrite_order, rs, 1000 * len(opts.refs) if opts.ref_x1000 else 0
+        )
     if opts.rename:
-        rewrite_rename(entries, rs)
+        rewrite_rename(entries, rewrite_order, rs)
+
+    # Apply entry filtering.
+    entries = [e for e in entries if matches(e, filters)]
+
+    # Apply entry reordering for display.
+    if opts.display_order:
+
+        def display_key_fn(entry):
+            # type: (MountInfoEntry) -> Tuple[Any, ...]
+            return tuple(getattr(entry, field) for field in opts.display_order)
+
+        entries.sort(key=display_key_fn)
     for e in entries:
         if attrs:
             values = []  # type: List[Any]
@@ -816,6 +918,42 @@ class RenumberSnapRevisionTests(unittest.TestCase):
 
         self.assertEqual(self.seen, {("core", "7079"): 1})
 
+    def test_writable(self):
+        # type: () -> None
+        self.entry.mount_point = "/writable/system-data/snap/core18/1055"
+        renumber_snap_revision(self.entry, self.seen)
+        self.assertEqual(self.entry.mount_point, "/writable/system-data/snap/core18/1")
+
+        self.entry.mount_point = "/writable/system-data/snap/core18/1055/subdir"
+        renumber_snap_revision(self.entry, self.seen)
+        self.assertEqual(
+            self.entry.mount_point, "/writable/system-data/snap/core18/1/subdir"
+        )
+
+        self.assertEqual(self.seen, {("core18", "1055"): 1})
+
+    def test_writable_via_hostfs(self):
+        # type: () -> None
+        self.entry.mount_point = (
+            "/var/lib/snapd/hostfs/writable/system-data/snap/core18/1055"
+        )
+        renumber_snap_revision(self.entry, self.seen)
+        self.assertEqual(
+            self.entry.mount_point,
+            "/var/lib/snapd/hostfs/writable/system-data/snap/core18/1",
+        )
+
+        self.entry.mount_point = (
+            "/var/lib/snapd/hostfs/writable/system-data/snap/core18/1055/subdir"
+        )
+        renumber_snap_revision(self.entry, self.seen)
+        self.assertEqual(
+            self.entry.mount_point,
+            "/var/lib/snapd/hostfs/writable/system-data/snap/core18/1/subdir",
+        )
+
+        self.assertEqual(self.seen, {("core18", "1055"): 1})
+
 
 class RenumberMountNsTests(unittest.TestCase):
     def setUp(self):
@@ -849,6 +987,28 @@ class RenumberMountOptionsTests(unittest.TestCase):
         # type: () -> None
         self.seen = {}  # type: Dict[Tuple[Text, Text], int]
 
+    def test_renumber_allocation(self):
+        # type: () -> None
+        """
+        numbers are allocated from subsets matching the key, this reduces delta.
+        """
+        self.assertEqual(renumber_mount_option("pipe_ino=100", self.seen), "pipe_ino=0")
+        self.assertEqual(renumber_mount_option("pipe_ino=100", self.seen), "pipe_ino=0")
+        self.assertEqual(renumber_mount_option("pipe_ino=200", self.seen), "pipe_ino=1")
+        self.assertEqual(renumber_mount_option("pipe_ino=100", self.seen), "pipe_ino=0")
+        self.assertEqual(renumber_mount_option("fd=21", self.seen), "fd=0")
+        self.assertEqual(renumber_mount_option("fd=21", self.seen), "fd=0")
+        self.assertEqual(renumber_mount_option("fd=45", self.seen), "fd=1")
+        self.assertEqual(renumber_mount_option("fd=21", self.seen), "fd=0")
+
+    def test_renumber_size_variable(self):
+        # type: () -> None
+        """
+        size is special-cased and always rewritten to the same value because it is prone to fluctuations
+        """
+        self.assertEqual(renumber_mount_option("size=100", self.seen), "size=VARIABLE")
+        self.assertEqual(renumber_mount_option("size=200", self.seen), "size=VARIABLE")
+
     def test_renumber_devtmpfs_opts(self):
         # type: () -> None
         """
@@ -856,18 +1016,20 @@ class RenumberMountOptionsTests(unittest.TestCase):
 
             23 98 0:6 / /dev rw,nosuid shared:21 - devtmpfs devtmpfs rw,size=4057388k,nr_inodes=1014347,mode=755
 
-        Here the size and nr_inodes options are not deterministic and need to be rewritten.
+        Here the size and nr_inodes options are not deterministic and need to
+        be rewritten.  The size quantity is very susceptible to free memory
+        fluctuations and is treated specially.
         """
         # Options size= and nr_inodes= are renumbered.
-        self.assertEqual(renumber_mount_option("size=4057388k", self.seen), "size=0")
         self.assertEqual(
-            renumber_mount_option("nr_inodes=1014347", self.seen), "nr_inodes=1"
+            renumber_mount_option("size=4057388k", self.seen), "size=VARIABLE"
+        )
+        self.assertEqual(
+            renumber_mount_option("nr_inodes=1014347", self.seen), "nr_inodes=0"
         )
         # Option mode= is not renumbered.
         self.assertEqual(renumber_mount_option("mode=755", self.seen), "mode=755")
-        self.assertEqual(
-            self.seen, {("size", "4057388k"): 0, ("nr_inodes", "1014347"): 1}
-        )
+        self.assertEqual(self.seen, {("nr_inodes", "1014347"): 0})
 
     def test_renumber_binfmt_misc_opts(self):
         # type: () -> None
@@ -880,9 +1042,69 @@ class RenumberMountOptionsTests(unittest.TestCase):
         """
         self.assertEqual(renumber_mount_option("fd=40", self.seen), "fd=0")
         self.assertEqual(
-            renumber_mount_option("pipe_ino=16610", self.seen), "pipe_ino=1"
+            renumber_mount_option("pipe_ino=16610", self.seen), "pipe_ino=0"
         )
-        self.assertEqual(self.seen, {("fd", "40"): 0, ("pipe_ino", "16610"): 1})
+        self.assertEqual(self.seen, {("fd", "40"): 0, ("pipe_ino", "16610"): 0})
+
+
+class RenumberMountIdsTests(unittest.TestCase):
+    def setUp(self):
+        # type: () -> None
+        self.seen = {}  # type: Dict[int, int]
+
+    def test_smoke(self):
+        # type: () -> None
+        # Renumber the first mount entry, from the "initial" mount namespace,
+        # with the initial, zero multiple.
+        entry = MountInfoEntry()
+        entry.mount_id = 12
+        entry.parent_id = 5
+        renumber_mount_ids(entry, self.seen, 0)
+        self.assertEqual(entry.parent_id, 0)
+        self.assertEqual(entry.mount_id, 1)
+
+        # Renumber another entry, now in a separate mount namespace, with a
+        # different multiplier. The parent ID stays in the < 1000 range.  NOTE:
+        # in reality mount namespaces never share mount IDs but that's fine.
+        # The test just checks the renumber logic.
+        entry = MountInfoEntry()
+        entry.mount_id = 13
+        entry.parent_id = 5
+        renumber_mount_ids(entry, self.seen, 1000)
+        self.assertEqual(entry.parent_id, 0)
+        self.assertEqual(entry.mount_id, 1000)
+
+
+class RenumberOptFieldsTests(unittest.TestCase):
+    def setUp(self):
+        # type: () -> None
+        self.seen = {}  # type: Dict[int, int]
+
+    def test_smoke(self):
+        # type: () -> None
+        # Renumber the first mount entry, from the "initial" mount namespace,
+        # with the initial, zero multiple.
+        entry = MountInfoEntry()
+        entry.opt_fields = ["shared:12"]
+        renumber_opt_fields(entry, self.seen, 0)
+        self.assertEqual(entry.opt_fields, ["shared:1"])
+
+        # Renumber the second entry, now in a separate mount namespace, with a
+        # different multiplier. Given that the peer group number was not seen
+        # before it gets allocated into the 1000-1999 range.
+        entry = MountInfoEntry()
+        entry.opt_fields = ["shared:13"]
+        renumber_opt_fields(entry, self.seen, 1000)
+        self.assertEqual(entry.opt_fields, ["shared:1001"])
+
+        # Renumber the third entry, in the same mount namespace as the second
+        # one.  Given that the peer group number was seen in the initial mount
+        # namespace it is renumbered the same was as the original was, even
+        # though the actual sharing mode is different.
+        entry = MountInfoEntry()
+        entry.opt_fields = ["master:12"]
+        renumber_opt_fields(entry, self.seen, 1000)
+        self.assertEqual(entry.opt_fields, ["master:1"])
 
 
 class RewriteTests(unittest.TestCase):
@@ -896,19 +1118,20 @@ class RewriteTests(unittest.TestCase):
                 "47 22 0:42 / /proc/sys/fs/binfmt_misc rw,relatime shared:28 - autofs systemd-1 rw,fd=40,pgrp=1,timeout=0,minproto=5,maxproto=5,direct,pipe_ino=16610",
             )
         ]
+        self.order = list(range(len(self.entries)))
         self.rs = RewriteState()
 
     def test_rewrite_renumber(self):
         # type: () -> None
-        rewrite_renumber(self.entries, self.rs)
+        rewrite_renumber(self.entries, self.order, self.rs)
         self.assertEqual(
             self.entries,
             [
                 MountInfoEntry.parse(line)
                 for line in (
                     "1 0 0:0 mnt:[0] /run/snapd/ns/test-snapd-mountinfo.mnt rw - nsfs nsfs rw",
-                    "3 2 0:1 / /dev rw,nosuid shared:1 - devtmpfs devtmpfs rw,size=0,nr_inodes=1,mode=755",
-                    "5 4 0:2 / /proc/sys/fs/binfmt_misc rw,relatime shared:2 - autofs systemd-1 rw,fd=2,pgrp=1,timeout=0,minproto=5,maxproto=5,direct,pipe_ino=3",
+                    "3 2 0:1 / /dev rw,nosuid shared:1 - devtmpfs devtmpfs rw,size=VARIABLE,nr_inodes=0,mode=755",
+                    "5 4 0:2 / /proc/sys/fs/binfmt_misc rw,relatime shared:2 - autofs systemd-1 rw,fd=0,pgrp=1,timeout=0,minproto=5,maxproto=5,direct,pipe_ino=0",
                 )
             ],
         )

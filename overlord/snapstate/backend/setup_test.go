@@ -279,8 +279,9 @@ type: kernel
 
 	c.Assert(osutil.FileExists(minInfo.MountFile()), Equals, false)
 
-	l, _ = filepath.Glob(filepath.Join(loader.Dir(), "*"))
-	c.Assert(l, HasLen, 0)
+	// assets got extracted and then removed again
+	c.Assert(loader.ExtractKernelAssetsCalls, HasLen, 1)
+	c.Assert(loader.RemoveKernelAssetsCalls, HasLen, 1)
 }
 
 func (s *setupSuite) TestSetupCleanupAfterFail(c *C) {

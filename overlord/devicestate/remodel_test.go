@@ -796,7 +796,7 @@ func (s *remodelLogicSuite) TestReregRemodelContextAsRegistrationContext(c *C) {
 
 	serial, err := s.mgr.Serial()
 	c.Assert(err, IsNil)
-	c.Check(regCtx.SerialRequestAncillaryAssertions(), DeepEquals, []asserts.Assertion{oldModel, serial})
+	c.Check(regCtx.SerialRequestAncillaryAssertions(), DeepEquals, []asserts.Assertion{newModel, serial})
 }
 
 func (s *remodelLogicSuite) TestReregRemodelContextNewSerial(c *C) {

@@ -163,6 +163,7 @@ func (cs *clientSuite) TestClientConnectCallsEndpoint(c *check.C) {
 }
 
 func (cs *clientSuite) TestClientConnect(c *check.C) {
+	cs.status = 202
 	cs.rsp = `{
 		"type": "async",
                 "status-code": 202,
@@ -200,6 +201,7 @@ func (cs *clientSuite) TestClientDisconnectCallsEndpoint(c *check.C) {
 }
 
 func (cs *clientSuite) TestClientDisconnect(c *check.C) {
+	cs.status = 202
 	cs.rsp = `{
 		"type": "async",
                 "status-code": 202,
