@@ -1,9 +1,10 @@
 #!/bin/bash
 
 download_file(){
-    url=$1
-    output_name=${2:-""}
-    other_options=${3:-""}
+    local url=$1
+    local output_name=${2:-""}
+    local other_options=${3:-""}
+    local options
 
     if [ -n "$output_name" ]; then
         options="-o $output_name"
