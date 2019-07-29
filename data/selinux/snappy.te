@@ -444,6 +444,7 @@ fs_manage_cgroup_dirs(snappy_confine_t)
 fs_write_cgroup_files(snappy_confine_t)
 kernel_getattr_debugfs(snappy_confine_t)
 kernel_getattr_proc(snappy_confine_t)
+fs_read_nsfs_files(snappy_confine_t)
 term_getattr_pty_fs(snappy_confine_t)
 # term_getattr_generic_ptys() is not supported by core policy in RHEL7
 allow snappy_confine_t devpts_t:chr_file getattr;
