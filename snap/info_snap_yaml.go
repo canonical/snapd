@@ -239,6 +239,10 @@ func infoSkeletonFromSnapYaml(y snapYaml) *Info {
 	if y.Type != "" {
 		typ = y.Type
 	}
+	// TODO: once we have epochs transition to the snapd type for real
+	if y.Name == "snapd" {
+		typ = TypeSnapd
+	}
 
 	if len(y.Epoch.Read) == 0 {
 		// normalize
