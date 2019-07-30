@@ -84,6 +84,8 @@ func (x *cmdUserd) runUserd() error {
 
 	ch := make(chan os.Signal, 3)
 	signal.Notify(ch, syscall.SIGINT, syscall.SIGTERM, syscall.SIGUSR1)
+	defer signal.Stop(ch)
+
 	select {
 	case sig := <-ch:
 		fmt.Fprintf(Stdout, "Exiting on %s.\n", sig)
@@ -104,6 +106,8 @@ func (x *cmdUserd) runAgent() error {
 
 	ch := make(chan os.Signal, 3)
 	signal.Notify(ch, syscall.SIGINT, syscall.SIGTERM, syscall.SIGUSR1)
+	defer signal.Stop(ch)
+
 	select {
 	case sig := <-ch:
 		fmt.Fprintf(Stdout, "Exiting on %s.\n", sig)
