@@ -90,6 +90,8 @@ type idleTracker struct {
 	change chan struct{}
 }
 
+var sysGetsockoptUcred = sys.GetsockoptUcred
+
 func getUcred(conn net.Conn) (*sys.Ucred, error) {
 	if uconn, ok := conn.(*net.UnixConn); ok {
 		f, err := uconn.File()
@@ -97,7 +99,7 @@ func getUcred(conn net.Conn) (*sys.Ucred, error) {
 			return nil, err
 		}
 		defer f.Close()
-		return sys.GetsockoptUcred(int(f.Fd()), sys.SOL_SOCKET, sys.SO_PEERCRED)
+		return sysGetsockoptUcred(int(f.Fd()), sys.SOL_SOCKET, sys.SO_PEERCRED)
 	}
 	return nil, fmt.Errorf("cannot get peer credentials for connection %v", conn)
 }
@@ -106,7 +108,7 @@ func (it *idleTracker) trackConn(conn net.Conn, state http.ConnState) {
 	// Perform peer credentials check
 	if state == http.StateNew {
 		ucred, err := getUcred(conn)
-		uid := uint32(sys.Getuid())
+		uid := uint32(sys.Geteuid())
 		if err != nil || (ucred.Uid != 0 && ucred.Uid != uid) {
 			conn.Close()
 		}

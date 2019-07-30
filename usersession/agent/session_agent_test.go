@@ -25,6 +25,7 @@ import (
 	"net"
 	"net/http"
 	"os"
+	sys "syscall"
 	"testing"
 	"time"
 
@@ -115,4 +116,32 @@ func (s *sessionAgentSuite) TestExitOnIdle(c *C) {
 	case <-time.After(2 * time.Second):
 		c.Error("agent did not exit after idle timeout expired")
 	}
+}
+
+func (s *sessionAgentSuite) TestPeerCredentialsCheck(c *C) {
+	sa, err := agent.New()
+	c.Assert(err, IsNil)
+	sa.Start()
+	defer sa.Stop()
+
+	// Connections from other users are dropped.
+	uid := uint32(sys.Geteuid())
+	restore := agent.MockUcred(&sys.Ucred{Uid: uid + 1}, nil)
+	defer restore()
+	_, err = s.client.Get("http://localhost/v1/session-info")
+	c.Assert(err, ErrorMatches, "Get http://localhost/v1/session-info: EOF")
+
+	// However, connections from root are accepted.
+	restore = agent.MockUcred(&sys.Ucred{Uid: 0}, nil)
+	defer restore()
+	response, err := s.client.Get("http://localhost/v1/session-info")
+	c.Assert(err, IsNil)
+	defer response.Body.Close()
+	c.Check(response.StatusCode, Equals, 200)
+
+	// Connections are dropped if peer credential lookup fails.
+	restore = agent.MockUcred(nil, fmt.Errorf("SO_PEERCRED failed"))
+	defer restore()
+	_, err = s.client.Get("http://localhost/v1/session-info")
+	c.Assert(err, ErrorMatches, "Get http://localhost/v1/session-info: EOF")
 }
