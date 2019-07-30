@@ -90,10 +90,10 @@ backends:
             - fedora-30-64:
                 workers: 6
             - fedora-30-64-unified:
-                image: test-fedora-1
+                image: test-fedora-2
                 workers: 6
             - fedora-31-rawhide-64-unified:
-                image: test-fedora-rawhide-64-base
+                image: test-fedora-1
                 workers: 6
             - opensuse-15.0-64:
                 workers: 6
