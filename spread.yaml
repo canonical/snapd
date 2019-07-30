@@ -90,7 +90,7 @@ backends:
             - fedora-30-64:
                 workers: 6
             - fedora-30-64-unified:
-                image: fedora-30-unified
+                image: test-fedora-1
                 workers: 6
             - fedora-31-rawhide-64-unified:
                 image: test-fedora-rawhide-64-base
