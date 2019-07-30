@@ -140,6 +140,7 @@ func (s *userdSuite) TestSessionAgentSocket(c *C) {
 		client := s.makeAgentClient()
 		response, err := client.Get("http://localhost/v1/session-info")
 		c.Assert(err, IsNil)
+		defer response.Body.Close()
 		c.Check(response.StatusCode, Equals, 200)
 	}()
 
