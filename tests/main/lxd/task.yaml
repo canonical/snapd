@@ -24,15 +24,18 @@ prepare: |
     fi
 
 restore: |
-    if  [[ "$(find "$GOHOME" -name 'snapd_*.deb' | wc -l || echo 0)" -eq 0 ]]; then
-        exit
+    if [[ "$SPREAD_REBOOT" == 0 ]]; then
+        if  [[ "$(find "$GOHOME" -name 'snapd_*.deb' | wc -l || echo 0)" -eq 0 ]]; then
+            exit
+        fi
+
+        lxd.lxc stop my-ubuntu --force
+        lxd.lxc delete my-ubuntu
+
+        snap remove lxd
+
+        REBOOT
     fi
-
-    lxd.lxc stop my-ubuntu --force
-    lxd.lxc delete my-ubuntu
-
-    # LXD alters the configuration of the cpuset cgroup. Restore the original state.
-    echo 0 > /sys/fs/cgroup/cpuset/cgroup.clone_children
 
 debug: |
     # shellcheck source=tests/lib/journalctl.sh

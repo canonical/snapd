@@ -15,11 +15,10 @@ prepare: |
     ausearch --checkpoint stamp -m AVC || true
 
 restore: |
-    setenforce "$(cat enforcing.mode)"
-    rm -f stamp enforcing.mode
-
-    # LXD alters the configuration of the cpuset cgroup. Restore the original state.
-    echo 0 > /sys/fs/cgroup/cpuset/cgroup.clone_children
+    if [[ "$SPREAD_REBOOT" == 0 ]]; then
+        rm -f stamp enforcing.mode
+        REBOOT
+    fi
 
 execute: |
     snap install lxd
