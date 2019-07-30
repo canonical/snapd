@@ -190,13 +190,14 @@ func (s *SessionAgent) Start() {
 func (s *SessionAgent) exitOnIdle() error {
 	timer := time.NewTimer(s.IdleTimeout)
 	idle := true
+Loop:
 	for {
 		select {
 		case <-s.tomb.Dying():
-			return nil
+			break Loop
 		case <-timer.C:
 			s.tomb.Kill(nil)
-			return nil
+			break Loop
 		case <-s.idle.change:
 			newIdle := s.idle.isIdle()
 			if newIdle == idle {
