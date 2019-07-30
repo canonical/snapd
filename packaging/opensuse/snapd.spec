@@ -261,6 +261,8 @@ popd
 		LIBEXECDIR=%{_libexecdir} \
 		SYSTEMDSYSTEMUNITDIR=%{_unitdir} \
 		SNAP_MOUNT_DIR=%{snap_mount_dir}
+# Don't package the sockets.target.wants symlink
+rm -f %{buildroot}%{_userunitdir}/sockets.target.wants/snapd.session-agent.socket
 # Install all the C executables.
 %make_install -C %{indigo_srcdir}/cmd
 # Use the common packaging helper for bulk of installation.

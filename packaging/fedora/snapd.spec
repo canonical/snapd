@@ -601,6 +601,8 @@ pushd ./data
               SYSTEMDSYSTEMUNITDIR="%{_unitdir}" \
               SNAP_MOUNT_DIR="%{_sharedstatedir}/snapd/snap" \
               SNAPD_ENVIRONMENT_FILE="%{_sysconfdir}/sysconfig/snapd"
+# Don't package the sockets.target.wants symlink
+rm -f %{buildroot}%{_userunitdir}/sockets.target.wants/snapd.session-agent.socket
 popd
 
 
@@ -803,7 +805,9 @@ popd
 %sysctl_apply 99-snap.conf
 %endif
 %systemd_post %{snappy_svcs}
+%if !(0%{?rhel} && 0%{?rhel} < 8)
 %systemd_user_post %{snappy_user_svcs}
+%endif
 # If install, test if snapd socket and timer are enabled.
 # If enabled, then attempt to start them. This will silently fail
 # in chroots or other environments where services aren't expected
@@ -816,7 +820,9 @@ fi
 
 %preun
 %systemd_preun %{snappy_svcs}
+%if !(0%{?rhel} && 0%{?rhel} < 8)
 %systemd_user_preun %{snappy_user_svcs}
+%endif
 
 # Remove all Snappy content if snapd is being fully uninstalled
 if [ $1 -eq 0 ]; then
@@ -825,7 +831,9 @@ fi
 
 %postun
 %systemd_postun_with_restart %{snappy_svcs}
+%if !(0%{?rhel} && 0%{?rhel} < 8)
 %systemd_user_postun %{snappy_user_svcs}
+%endif
 
 %if 0%{?with_selinux}
 %triggerun -- snapd < 2.39
