@@ -125,7 +125,8 @@ func (s *userdSuite) TestSessionAgentSocket(c *C) {
 		defer func() {
 			me, err := os.FindProcess(myPid)
 			c.Assert(err, IsNil)
-			me.Signal(syscall.SIGUSR1)
+			err = me.Signal(syscall.SIGUSR1)
+			c.Assert(err, IsNil)
 		}()
 
 		// Wait for command to create socket file
