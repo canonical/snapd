@@ -9,18 +9,18 @@ priority: 100
 restore: |
     cd "$PROJECT_PATH"
     echo "Cleanup build artifacts"
-    not command -v snapcraft >/dev/null || snapcraft clean
+    rm -rf parts
     echo "Cleanup the installed snapcraft"
-    apt autoremove -y snapcraft
+    snap remove --purge snapcraft
     echo "Cleanup the build snapd snap"
     rm -f snapd_*.snap
 
 execute: |
-    echo "Installing snapscraft"
-    apt install -y snapcraft
+    echo "Installing snapcraft"
+    snap install --classic --edge snapcraft
     # shellcheck disable=SC2164
     cd "$PROJECT_PATH"
-    snapcraft
+    snapcraft --destructive-mode
 
     echo "Ensure we have the fc-cache binaries"
     unsquashfs -ll snapd_*.snap | MATCH bin/fc-cache-v6
