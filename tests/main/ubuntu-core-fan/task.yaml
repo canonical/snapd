@@ -1,5 +1,6 @@
 summary: Test ubuntu-fan
 
+# Ubuntu fan not available on ubuntu-core-18
 systems: [ubuntu-core-16-*]
 
 prepare: |

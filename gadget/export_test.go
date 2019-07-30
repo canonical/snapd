@@ -35,6 +35,8 @@ var (
 	WriteDirectory = writeDirectory
 
 	RawContentBackupPath = rawContentBackupPath
+
+	UpdaterForStructure = updaterForStructure
 )
 
 func MockUpdaterForStructure(mock func(ps *PositionedStructure, rootDir, rollbackDir string) (Updater, error)) (restore func()) {

@@ -398,7 +398,7 @@ func (s *servicectlSuite) TestQueuedCommandsUpdateMany(c *C) {
 	s.st.Lock()
 
 	chg := s.st.NewChange("update many change", "update change")
-	installed, tts, err := snapstate.UpdateMany(context.TODO(), s.st, []string{"test-snap", "other-snap"}, 0, nil)
+	installed, tts, err := snapstate.UpdateMany(context.Background(), s.st, []string{"test-snap", "other-snap"}, 0, nil)
 	c.Assert(err, IsNil)
 	sort.Strings(installed)
 	c.Check(installed, DeepEquals, []string{"other-snap", "test-snap"})
@@ -447,7 +447,7 @@ func (s *servicectlSuite) TestQueuedCommandsSingleLane(c *C) {
 	s.st.Lock()
 
 	chg := s.st.NewChange("install change", "install change")
-	ts, err := snapstate.Install(s.st, "one", &snapstate.RevisionOptions{Revision: snap.R(1)}, 0, snapstate.Flags{})
+	ts, err := snapstate.Install(context.Background(), s.st, "one", &snapstate.RevisionOptions{Revision: snap.R(1)}, 0, snapstate.Flags{})
 	c.Assert(err, IsNil)
 	c.Assert(taskKinds(ts.Tasks()), DeepEquals, installTaskKinds)
 	chg.AddAll(ts)

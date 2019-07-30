@@ -181,6 +181,13 @@ func (s *hotplugSuite) SetUpTest(c *C) {
 	s.mgr, err = ifacestate.Manager(s.state, hookMgr, s.o.TaskRunner(), nil, nil)
 	c.Assert(err, IsNil)
 
+	s.o.AddManager(s.mgr)
+	s.o.AddManager(s.o.TaskRunner())
+
+	// startup
+	err = s.o.StartUp()
+	c.Assert(err, IsNil)
+
 	autoConnectNo := func(*snap.PlugInfo, *snap.SlotInfo) bool {
 		return false
 	}
@@ -252,9 +259,6 @@ func (s *hotplugSuite) SetUpTest(c *C) {
 		c.Assert(s.mgr.Repository().AddInterface(iface), IsNil)
 		s.AddCleanup(builtin.MockInterface(iface))
 	}
-
-	s.o.AddManager(s.mgr)
-	s.o.AddManager(s.o.TaskRunner())
 
 	// single Ensure to have udev monitor created and wired up by interface manager
 	c.Assert(s.mgr.Ensure(), IsNil)
@@ -334,7 +338,9 @@ func (s *hotplugSuite) TestHotplugAddBasic(c *C) {
 }
 
 func (s *hotplugSuite) TestHotplugConnectWithGadgetSlot(c *C) {
-	s.MockModel(c, nil)
+	s.MockModel(c, map[string]interface{}{
+		"gadget": "the-gadget",
+	})
 
 	st := s.state
 	st.Lock()
@@ -522,7 +528,7 @@ func (s *hotplugSuite) TestHotplugRemove(c *C) {
 		SnapType: "app",
 	})
 
-	core, err := snapstate.CoreInfo(s.state)
+	core, err := snapstate.CurrentInfo(s.state, "core")
 	c.Assert(err, IsNil)
 	c.Assert(repo.AddSlot(&snap.SlotInfo{
 		Interface:  "test-a",
@@ -606,7 +612,7 @@ func (s *hotplugSuite) TestHotplugEnumerationDone(c *C) {
 		Current:  snap.R(1),
 		SnapType: "app"})
 
-	core, err := snapstate.CoreInfo(s.state)
+	core, err := snapstate.CurrentInfo(s.state, "core")
 	c.Assert(err, IsNil)
 	c.Assert(repo.AddSlot(&snap.SlotInfo{
 		Interface:  "test-a",
@@ -708,7 +714,7 @@ func (s *hotplugSuite) TestHotplugDeviceUpdate(c *C) {
 		Current:  snap.R(1),
 		SnapType: "app"})
 
-	core, err := snapstate.CoreInfo(s.state)
+	core, err := snapstate.CurrentInfo(s.state, "core")
 	c.Assert(err, IsNil)
 	c.Assert(repo.AddSlot(&snap.SlotInfo{
 		Interface:  "test-a",

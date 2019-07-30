@@ -206,7 +206,7 @@ func (s *tasksetsSuite) TestConfigureDenySnapd(c *C) {
 		},
 		Current:  snap.R(1),
 		Active:   true,
-		SnapType: "app",
+		SnapType: "snapd",
 	})
 
 	_, err := configstate.ConfigureInstalled(s.state, "snapd", patch, 0)

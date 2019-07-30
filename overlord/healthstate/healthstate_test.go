@@ -70,6 +70,8 @@ func (s *healthSuite) SetUpTest(c *check.C) {
 
 	healthstate.Init(s.hookMgr)
 
+	c.Assert(s.o.StartUp(), check.IsNil)
+
 	s.state.Lock()
 	defer s.state.Unlock()
 
@@ -155,11 +157,15 @@ func (s *healthSuite) testHealth(c *check.C, cond healthHookTestCondition) {
 	s.se.Ensure()
 	s.se.Wait()
 	tf := time.Now()
-	var healths map[string]healthstate.HealthState
+	var healths map[string]*healthstate.HealthState
+	var health *healthstate.HealthState
+	var err2 error
 	s.state.Lock()
 	status := change.Status()
 	err = s.state.Get("health", &healths)
+	health, err2 = healthstate.Get(s.state, "test-snap")
 	s.state.Unlock()
+	c.Assert(err2, check.IsNil)
 
 	switch cond {
 	case badHook:
@@ -171,7 +177,7 @@ func (s *healthSuite) testHealth(c *check.C, cond healthHookTestCondition) {
 		c.Assert(err, check.IsNil)
 		c.Assert(healths, check.HasLen, 1)
 		c.Assert(healths["test-snap"], check.NotNil)
-		health := healths["test-snap"]
+		c.Check(health, check.DeepEquals, healths["test-snap"])
 		c.Check(health.Revision, check.Equals, snap.R(42))
 		c.Check(health.Status, check.Equals, healthstate.UnknownStatus)
 		if cond == badHook {
@@ -188,6 +194,7 @@ func (s *healthSuite) testHealth(c *check.C, cond healthHookTestCondition) {
 		// no script -> no health
 		c.Assert(err, check.Equals, state.ErrNoState)
 		c.Check(healths, check.IsNil)
+		c.Check(health, check.IsNil)
 		c.Check(cmd.Calls(), check.HasLen, 0)
 	}
 }
@@ -215,7 +222,7 @@ func (s *healthSuite) TestSetFromHookContext(c *check.C) {
 	ctx.Lock()
 	defer ctx.Unlock()
 
-	var hs map[string]healthstate.HealthState
+	var hs map[string]*healthstate.HealthState
 	c.Check(s.state.Get("health", &hs), check.Equals, state.ErrNoState)
 
 	ctx.Set("health", &healthstate.HealthState{Status: 42})
@@ -223,9 +230,9 @@ func (s *healthSuite) TestSetFromHookContext(c *check.C) {
 	err = healthstate.SetFromHookContext(ctx)
 	c.Assert(err, check.IsNil)
 
-	err = s.state.Get("health", &hs)
+	hs, err = healthstate.All(s.state)
 	c.Check(err, check.IsNil)
-	c.Check(hs, check.DeepEquals, map[string]healthstate.HealthState{
+	c.Check(hs, check.DeepEquals, map[string]*healthstate.HealthState{
 		"foo": {Status: 42},
 	})
 }
