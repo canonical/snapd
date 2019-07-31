@@ -245,7 +245,7 @@ if [ "$STATIC" = 1 ]; then
 fi
 
 if [ "$UNIT" = 1 ]; then
-    ./get-deps.sh
+    ./get-deps.sh --skip-unused-check
 
     echo Building
     go build -v github.com/snapcore/snapd/...

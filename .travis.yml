@@ -11,7 +11,7 @@ matrix:
         - sudo apt --quiet -o Dpkg::Progress-Fancy=false update
       install:
         - sudo apt --quiet -o Dpkg::Progress-Fancy=false build-dep snapd
-        - ./get-deps.sh
+        - ./get-deps.sh --skip-unused-check
       script:
         - set -e
         - ./run-checks --static
@@ -24,7 +24,7 @@ matrix:
         homebrew:
           packages: [squashfs]
       install:
-        - ./get-deps.sh
+        - ./get-deps.sh --skip-unused-check
         # extra dependency on darwin:
         - go get golang.org/x/sys/unix
       before_script:
