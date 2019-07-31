@@ -1204,7 +1204,7 @@ func resolveChannel(st *state.State, snapName, newChannel string, deviceCtx Devi
 		if err != nil && err != state.ErrNoState {
 			return "", err
 		}
-		if snapst.IsInstalled() {
+		if snapst.IsInstalled() && snapst.Channel != "" {
 			ch, err := snap.ParseChannel(snapst.Channel, "")
 			if err != nil {
 				return "", err
