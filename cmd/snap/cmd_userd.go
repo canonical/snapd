@@ -75,6 +75,8 @@ func (x *cmdUserd) Execute(args []string) error {
 	return x.runUserd()
 }
 
+var signalNotify = signalNotifyImpl
+
 func (x *cmdUserd) runUserd() error {
 	var userd userd.Userd
 	if err := userd.Init(); err != nil {
@@ -82,9 +84,8 @@ func (x *cmdUserd) runUserd() error {
 	}
 	userd.Start()
 
-	ch := make(chan os.Signal, 3)
-	signal.Notify(ch, syscall.SIGINT, syscall.SIGTERM, syscall.SIGUSR1)
-	defer signal.Stop(ch)
+	ch, stop := signalNotify(syscall.SIGINT, syscall.SIGTERM)
+	defer stop()
 
 	select {
 	case sig := <-ch:
@@ -104,9 +105,8 @@ func (x *cmdUserd) runAgent() error {
 	agent.Version = cmd.Version
 	agent.Start()
 
-	ch := make(chan os.Signal, 3)
-	signal.Notify(ch, syscall.SIGINT, syscall.SIGTERM, syscall.SIGUSR1)
-	defer signal.Stop(ch)
+	ch, stop := signalNotify(syscall.SIGINT, syscall.SIGTERM)
+	defer stop()
 
 	select {
 	case sig := <-ch:
@@ -123,4 +123,11 @@ func (x *cmdUserd) runAutostart() error {
 		return fmt.Errorf("autostart failed for the following apps:\n%v", err)
 	}
 	return nil
+}
+
+func signalNotifyImpl(sig ...os.Signal) (ch chan os.Signal, stop func()) {
+	ch = make(chan os.Signal, len(sig))
+	signal.Notify(ch, sig...)
+	stop = func() { signal.Stop(ch) }
+	return ch, stop
 }
