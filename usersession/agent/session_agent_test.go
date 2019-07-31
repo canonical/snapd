@@ -129,7 +129,8 @@ func (s *sessionAgentSuite) TestPeerCredentialsCheck(c *C) {
 	restore := agent.MockUcred(&sys.Ucred{Uid: uid + 1}, nil)
 	defer restore()
 	_, err = s.client.Get("http://localhost/v1/session-info")
-	c.Assert(err, ErrorMatches, "Get http://localhost/v1/session-info: EOF")
+	// This could be an EOF error or a failed read, depending on timing
+	c.Assert(err, ErrorMatches, "Get http://localhost/v1/session-info: .*")
 
 	// However, connections from root are accepted.
 	restore = agent.MockUcred(&sys.Ucred{Uid: 0}, nil)
@@ -143,5 +144,5 @@ func (s *sessionAgentSuite) TestPeerCredentialsCheck(c *C) {
 	restore = agent.MockUcred(nil, fmt.Errorf("SO_PEERCRED failed"))
 	defer restore()
 	_, err = s.client.Get("http://localhost/v1/session-info")
-	c.Assert(err, ErrorMatches, "Get http://localhost/v1/session-info: EOF")
+	c.Assert(err, ErrorMatches, "Get http://localhost/v1/session-info: .*")
 }
