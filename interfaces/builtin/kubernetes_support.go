@@ -178,10 +178,6 @@ type kubernetesSupportInterface struct {
 	commonInterface
 }
 
-func (iface *kubernetesSupportInterface) BeforePrepareSlot(slot *snap.SlotInfo) error {
-	return iface.commonInterface.BeforePrepareSlot(slot)
-}
-
 func k8sFlavor(plug *interfaces.ConnectedPlug) string {
 	var flavor string
 	_ = plug.Attr("flavor", &flavor)
