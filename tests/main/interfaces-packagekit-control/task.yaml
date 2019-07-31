@@ -24,3 +24,6 @@ execute: |
     echo "With the plug connected it is possible to communicate with packagekit"
     test-snapd-packagekit.pkcon backend-details | MATCH "Name:"
     test-snapd-packagekit.pkcon resolve snapd | MATCH "Installed[[:space:]]+snapd"
+
+restore: |
+    snap remove test-snapd-packagekit
