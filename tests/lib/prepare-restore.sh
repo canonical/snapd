@@ -513,6 +513,7 @@ prepare_suite_each() {
     # shellcheck source=tests/lib/reset.sh
     "$TESTSLIB"/reset.sh --reuse-core
     # Reset systemd journal cursor.
+    sync_journalctl_log
     start_new_journalctl_log
 
     echo "Install the snaps profiler snap"
