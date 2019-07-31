@@ -428,7 +428,7 @@ func CheckInterfaces(st *state.State, snapInfo *snap.Info, deviceCtx snapstate.D
 	}
 
 	if snapInfo.SnapID == "" {
-		// no SnapID means --dangerous was given, so skip interface checks
+		// no SnapID means --dangerous was given, perform a minimal check about the compatibility of the snap type and the interface
 		ic := policy.InstallCandidateMinimalCheck{
 			Snap:            snapInfo,
 			BaseDeclaration: baseDecl,
