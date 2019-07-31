@@ -20,9 +20,23 @@
 package boottest
 
 import (
-	"github.com/snapcore/snapd/snap"
 	"path/filepath"
+
+	"github.com/snapcore/snapd/bootloader"
+	"github.com/snapcore/snapd/snap"
 )
+
+// SetBootKernel sets the current boot kernel string. Should be
+// something like "pc-kernel_1234.snap".
+func SetBootKernel(kernel string, b bootloader.Bootloader) {
+	b.SetBootVars(map[string]string{"snap_kernel": kernel})
+}
+
+// SetBootBase sets the current boot base string. Should be something
+// like "core_1234.snap".
+func SetBootBase(base string, b bootloader.Bootloader) {
+	b.SetBootVars(map[string]string{"snap_core": base})
+}
 
 // MockBootloader mocks the bootloader interface and records all
 // set/get calls.

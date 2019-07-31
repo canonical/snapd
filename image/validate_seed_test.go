@@ -31,10 +31,12 @@ import (
 	"github.com/snapcore/snapd/snap"
 	"github.com/snapcore/snapd/snap/snaptest"
 	"github.com/snapcore/snapd/snap/squashfs"
+	"github.com/snapcore/snapd/testutil"
 )
 
 type validateSuite struct {
-	imageSuite
+	testutil.BaseTest
+	root string
 }
 
 var _ = Suite(&validateSuite{})
@@ -48,7 +50,10 @@ version: 1.0
 type: snapd`
 
 func (s *validateSuite) SetUpTest(c *C) {
-	s.imageSuite.SetUpTest(c)
+	s.BaseTest.SetUpTest(c)
+	s.BaseTest.AddCleanup(snap.MockSanitizePlugsSlots(func(snapInfo *snap.Info) {}))
+
+	s.root = c.MkDir()
 
 	err := os.MkdirAll(filepath.Join(s.root, "snaps"), 0755)
 	c.Assert(err, IsNil)

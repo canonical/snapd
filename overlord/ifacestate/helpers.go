@@ -43,47 +43,6 @@ import (
 	"github.com/snapcore/snapd/timings"
 )
 
-func (m *InterfaceManager) initialize(extraInterfaces []interfaces.Interface, extraBackends []interfaces.SecurityBackend, tm timings.Measurer) error {
-	m.state.Lock()
-	defer m.state.Unlock()
-
-	snaps, err := snapsWithSecurityProfiles(m.state)
-	if err != nil {
-		return err
-	}
-	// Before deciding about adding implicit slots to any snap we need to scan
-	// the set of snaps we know about. If any of those is "snapd" then for the
-	// duration of this process always add implicit slots to snapd and not to
-	// any other type: os snap and use a mapper to use names core-snapd-system
-	// on state, in memory and in API responses, respectively.
-	m.selectInterfaceMapper(snaps)
-
-	if err := m.addInterfaces(extraInterfaces); err != nil {
-		return err
-	}
-	if err := m.addBackends(extraBackends); err != nil {
-		return err
-	}
-	if err := m.addSnaps(snaps); err != nil {
-		return err
-	}
-	if err := m.renameCorePlugConnection(); err != nil {
-		return err
-	}
-	if err := removeStaleConnections(m.state); err != nil {
-		return err
-	}
-	if _, err := m.reloadConnections(""); err != nil {
-		return err
-	}
-	if profilesNeedRegeneration() {
-		if err := m.regenerateAllSecurityProfiles(tm); err != nil {
-			return err
-		}
-	}
-	return nil
-}
-
 func (m *InterfaceManager) selectInterfaceMapper(snaps []*snap.Info) {
 	for _, snapInfo := range snaps {
 		if snapInfo.GetType() == snap.TypeSnapd {

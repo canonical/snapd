@@ -24,6 +24,7 @@ restore: |
     for f in /var/lib/extrausers/*; do
         sed -i '/^alice:/d' "$f"
     done
+    snap remove "$TSNAP"
 
 execute: |
     #shellcheck source=tests/lib/dirs.sh

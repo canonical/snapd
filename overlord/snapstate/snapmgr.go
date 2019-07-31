@@ -415,9 +415,19 @@ func Manager(st *state.State, runner *state.TaskRunner) (*SnapManager, error) {
 	// control serialisation
 	runner.AddBlocked(m.blockedTask)
 
+	return m, nil
+}
+
+// StartUp implements StateStarterUp.Startup.
+func (m *SnapManager) StartUp() error {
 	writeSnapReadme()
 
-	return m, nil
+	m.state.Lock()
+	defer m.state.Unlock()
+	if err := m.SyncCookies(m.state); err != nil {
+		return fmt.Errorf("failed to generate cookies: %q", err)
+	}
+	return nil
 }
 
 func (m *SnapManager) CanStandby() bool {
