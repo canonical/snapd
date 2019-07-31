@@ -82,7 +82,7 @@ func refreshOptions(st *state.State, origOpts *store.RefreshOptions) (*store.Ref
 	return &opts, nil
 }
 
-func installInfo(st *state.State, name, channel, cohort string, revision snap.Revision, userID int, deviceCtx DeviceContext) (*snap.Info, error) {
+func installInfo(ctx context.Context, st *state.State, name string, revOpts *RevisionOptions, userID int, deviceCtx DeviceContext) (*snap.Info, error) {
 	// TODO: support ignore-validation?
 
 	curSnaps, err := currentSnaps(st)
@@ -95,11 +95,6 @@ func installInfo(st *state.State, name, channel, cohort string, revision snap.Re
 		return nil, err
 	}
 
-	// cannot specify both with the API
-	if !revision.Unset() {
-		channel = ""
-	}
-
 	opts, err := refreshOptions(st, nil)
 	if err != nil {
 		return nil, err
@@ -108,16 +103,22 @@ func installInfo(st *state.State, name, channel, cohort string, revision snap.Re
 	action := &store.SnapAction{
 		Action:       "install",
 		InstanceName: name,
+	}
+
+	// cannot specify both with the API
+	if revOpts.Revision.Unset() {
 		// the desired channel
-		Channel: channel,
+		action.Channel = revOpts.Channel
+		// the desired cohort key
+		action.CohortKey = revOpts.CohortKey
+	} else {
 		// the desired revision
-		Revision:  revision,
-		CohortKey: cohort,
+		action.Revision = revOpts.Revision
 	}
 
 	theStore := Store(st, deviceCtx)
 	st.Unlock() // calls to the store should be done without holding the state lock
-	res, err := theStore.SnapAction(context.TODO(), curSnaps, []*store.SnapAction{action}, user, opts)
+	res, err := theStore.SnapAction(ctx, curSnaps, []*store.SnapAction{action}, user, opts)
 	st.Lock()
 
 	return singleActionResult(name, action.Action, res, err)
@@ -151,8 +152,9 @@ func updateInfo(st *state.State, snapst *SnapState, opts *RevisionOptions, userI
 		InstanceName: curInfo.InstanceName(),
 		SnapID:       curInfo.SnapID,
 		// the desired channel
-		Channel: opts.Channel,
-		Flags:   storeFlags,
+		Channel:   opts.Channel,
+		CohortKey: opts.CohortKey,
+		Flags:     storeFlags,
 	}
 
 	if curInfo.SnapID == "" { // amend

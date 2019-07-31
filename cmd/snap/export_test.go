@@ -20,6 +20,7 @@
 package main
 
 import (
+	"os"
 	"os/user"
 	"time"
 
@@ -77,6 +78,8 @@ var (
 	FixupArg = fixupArg
 
 	InterfacesDeprecationNotice = interfacesDeprecationNotice
+
+	SignalNotify = signalNotify
 )
 
 func NewInfoWriter(w writeflusher) *infoWriter {
@@ -108,6 +111,8 @@ var (
 	MaybePrintBase              = (*infoWriter).maybePrintBase
 	MaybePrintPath              = (*infoWriter).maybePrintPath
 	MaybePrintSum               = (*infoWriter).maybePrintSum
+	MaybePrintCohortKey         = (*infoWriter).maybePrintCohortKey
+	MaybePrintHealth            = (*infoWriter).maybePrintHealth
 )
 
 func MockPollTime(d time.Duration) (restore func()) {
@@ -290,6 +295,14 @@ func MockImagePrepare(newImagePrepare func(*image.Options) error) (restore func(
 	imagePrepare = newImagePrepare
 	return func() {
 		imagePrepare = old
+	}
+}
+
+func MockSignalNotify(newSignalNotify func(sig ...os.Signal) (chan os.Signal, func())) (restore func()) {
+	old := signalNotify
+	signalNotify = newSignalNotify
+	return func() {
+		signalNotify = old
 	}
 }
 

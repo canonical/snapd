@@ -37,7 +37,7 @@ import (
 type StoreService interface {
 	EnsureDeviceSession() (*auth.DeviceState, error)
 
-	SnapInfo(spec store.SnapSpec, user *auth.UserState) (*snap.Info, error)
+	SnapInfo(ctx context.Context, spec store.SnapSpec, user *auth.UserState) (*snap.Info, error)
 	Find(ctx context.Context, search *store.Search, user *auth.UserState) ([]*snap.Info, error)
 
 	SnapAction(ctx context.Context, currentSnaps []*store.CurrentSnap, actions []*store.SnapAction, user *auth.UserState, opts *store.RefreshOptions) ([]*snap.Info, error)
@@ -46,6 +46,7 @@ type StoreService interface {
 	WriteCatalogs(ctx context.Context, names io.Writer, adder store.SnapAdder) error
 
 	Download(context.Context, string, string, *snap.DownloadInfo, progress.Meter, *auth.UserState, *store.DownloadOptions) error
+	DownloadStream(context.Context, string, *snap.DownloadInfo, *auth.UserState) (io.ReadCloser, error)
 
 	Assertion(assertType *asserts.AssertionType, primaryKey []string, user *auth.UserState) (asserts.Assertion, error)
 

@@ -45,7 +45,7 @@ func (Store) EnsureDeviceSession() (*auth.DeviceState, error) {
 	panic("Store.EnsureDeviceSession not expected")
 }
 
-func (Store) SnapInfo(store.SnapSpec, *auth.UserState) (*snap.Info, error) {
+func (Store) SnapInfo(context.Context, store.SnapSpec, *auth.UserState) (*snap.Info, error) {
 	panic("Store.SnapInfo not expected")
 }
 
@@ -59,6 +59,10 @@ func (Store) SnapAction(context.Context, []*store.CurrentSnap, []*store.SnapActi
 
 func (Store) Download(context.Context, string, string, *snap.DownloadInfo, progress.Meter, *auth.UserState, *store.DownloadOptions) error {
 	panic("Store.Download not expected")
+}
+
+func (Store) DownloadStream(ctx context.Context, name string, downloadInfo *snap.DownloadInfo, user *auth.UserState) (io.ReadCloser, error) {
+	panic("Store.DownloadStream not expected")
 }
 
 func (Store) SuggestedCurrency() string {

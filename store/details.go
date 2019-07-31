@@ -71,7 +71,7 @@ type snapDetails struct {
 func infoFromRemote(d *snapDetails) *snap.Info {
 	info := &snap.Info{}
 	info.Architectures = d.Architectures
-	info.Type = d.Type
+	info.SnapType = d.Type
 	info.Version = d.Version
 	info.RealName = d.Name
 	info.SnapID = d.SnapID

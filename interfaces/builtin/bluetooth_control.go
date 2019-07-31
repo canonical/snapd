@@ -50,6 +50,9 @@ const bluetoothControlConnectedPlugAppArmor = `
 
   # Requires CONFIG_BT_VHCI to be loaded
   /dev/vhci                       rw,
+
+  # Device nodes for MTK combo driver
+  /dev/stpbt                      rw,
 `
 
 const bluetoothControlConnectedPlugSecComp = `

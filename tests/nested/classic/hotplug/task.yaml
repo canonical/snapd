@@ -3,7 +3,6 @@ summary: Create ubuntu classic image, install snapd and test hotplug feature
 prepare: |
     #shellcheck source=tests/lib/nested.sh
     . "$TESTSLIB/nested.sh"
-    create_nested_classic_vm
 
     copy_remote "${GOHOME}"/snapd_*.deb
     execute_remote "sudo apt update"
@@ -19,9 +18,6 @@ prepare: |
     execute_remote "sudo snap install --devmode jq"
 
 restore: |
-    #shellcheck source=tests/lib/nested.sh
-    . "$TESTSLIB/nested.sh"
-    destroy_nested_vm
     rm -f /tmp/serialport{0,1}
 
 debug: |

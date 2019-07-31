@@ -20,6 +20,7 @@
 package ifacestate
 
 import (
+	"sync"
 	"time"
 
 	"github.com/snapcore/snapd/interfaces"
@@ -45,6 +46,7 @@ type InterfaceManager struct {
 	state *state.State
 	repo  *interfaces.Repository
 
+	udevMonMu           sync.Mutex
 	udevMon             udevmonitor.Interface
 	udevRetryTimeout    time.Time
 	udevMonitorDisabled bool
@@ -53,14 +55,16 @@ type InterfaceManager struct {
 	enumerationDone      bool
 	// maps sysfs path -> [(interface name, device key)...]
 	hotplugDevicePaths map[string][]deviceData
+
+	// extras
+	extraInterfaces []interfaces.Interface
+	extraBackends   []interfaces.SecurityBackend
 }
 
 // Manager returns a new InterfaceManager.
 // Extra interfaces can be provided for testing.
 func Manager(s *state.State, hookManager *hookstate.HookManager, runner *state.TaskRunner, extraInterfaces []interfaces.Interface, extraBackends []interfaces.SecurityBackend) (*InterfaceManager, error) {
 	delayedCrossMgrInit()
-
-	perfTimings := timings.New(map[string]string{"startup": "ifacemgr"})
 
 	// NOTE: hookManager is nil only when testing.
 	if hookManager != nil {
@@ -74,15 +78,10 @@ func Manager(s *state.State, hookManager *hookstate.HookManager, runner *state.T
 		// note: enumeratedDeviceKeys is reset to nil when enumeration is done
 		enumeratedDeviceKeys: make(map[string]map[snap.HotplugKey]bool),
 		hotplugDevicePaths:   make(map[string][]deviceData),
+		// extras
+		extraInterfaces: extraInterfaces,
+		extraBackends:   extraBackends,
 	}
-
-	if err := m.initialize(extraInterfaces, extraBackends, perfTimings); err != nil {
-		return nil, err
-	}
-
-	s.Lock()
-	ifacerepo.Replace(s, m.repo)
-	s.Unlock()
 
 	taskKinds := map[string]bool{}
 	addHandler := func(kind string, do, undo state.HandlerFunc) {
@@ -125,16 +124,68 @@ func Manager(s *state.State, hookManager *hookstate.HookManager, runner *state.T
 		return false
 	})
 
-	s.Lock()
-	perfTimings.Save(s)
-	s.Unlock()
-
 	return m, nil
+}
+
+// StartUp implements StateStarterUp.Startup.
+func (m *InterfaceManager) StartUp() error {
+	s := m.state
+	perfTimings := timings.New(map[string]string{"startup": "ifacemgr"})
+
+	s.Lock()
+	defer s.Unlock()
+
+	snaps, err := snapsWithSecurityProfiles(m.state)
+	if err != nil {
+		return err
+	}
+	// Before deciding about adding implicit slots to any snap we need to scan
+	// the set of snaps we know about. If any of those is "snapd" then for the
+	// duration of this process always add implicit slots to snapd and not to
+	// any other type: os snap and use a mapper to use names core-snapd-system
+	// on state, in memory and in API responses, respectively.
+	m.selectInterfaceMapper(snaps)
+
+	if err := m.addInterfaces(m.extraInterfaces); err != nil {
+		return err
+	}
+	if err := m.addBackends(m.extraBackends); err != nil {
+		return err
+	}
+	if err := m.addSnaps(snaps); err != nil {
+		return err
+	}
+	if err := m.renameCorePlugConnection(); err != nil {
+		return err
+	}
+	if err := removeStaleConnections(m.state); err != nil {
+		return err
+	}
+	if _, err := m.reloadConnections(""); err != nil {
+		return err
+	}
+	if profilesNeedRegeneration() {
+		if err := m.regenerateAllSecurityProfiles(perfTimings); err != nil {
+			return err
+		}
+	}
+
+	ifacerepo.Replace(s, m.repo)
+
+	perfTimings.Save(s)
+
+	return nil
 }
 
 // Ensure implements StateManager.Ensure.
 func (m *InterfaceManager) Ensure() error {
-	if m.udevMon != nil || m.udevMonitorDisabled {
+	if m.udevMonitorDisabled {
+		return nil
+	}
+	m.udevMonMu.Lock()
+	udevMon := m.udevMon
+	m.udevMonMu.Unlock()
+	if udevMon != nil {
 		return nil
 	}
 
@@ -156,15 +207,21 @@ func (m *InterfaceManager) Ensure() error {
 	return nil
 }
 
-// Stop implements StateWaiterStopper.Stop. It stops
-// the udev monitor, if running.
+// Stop implements StateStopper. It stops the udev monitor,
+// if running.
 func (m *InterfaceManager) Stop() {
-	if m.udevMon == nil {
+	m.udevMonMu.Lock()
+	udevMon := m.udevMon
+	m.udevMonMu.Unlock()
+	if udevMon == nil {
 		return
 	}
-	if err := m.udevMon.Stop(); err != nil {
+	if err := udevMon.Stop(); err != nil {
 		logger.Noticef("Cannot stop udev monitor: %s", err)
 	}
+	m.udevMonMu.Lock()
+	defer m.udevMonMu.Unlock()
+	m.udevMon = nil
 }
 
 // Repository returns the interface repository used internally by the manager.
@@ -248,6 +305,9 @@ func (m *InterfaceManager) initUDevMonitor() error {
 		mon.Disconnect()
 		return err
 	}
+
+	m.udevMonMu.Lock()
+	defer m.udevMonMu.Unlock()
 	m.udevMon = mon
 	return nil
 }

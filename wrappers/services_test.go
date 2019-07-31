@@ -115,6 +115,7 @@ func (s *servicesTestSuite) TestAddSnapServicesAndRemove(c *C) {
 
 var snapdYaml = `name: snapd
 version: 1.0
+type: snapd
 `
 
 func (s *servicesTestSuite) TestRemoveSnapWithSocketsRemovesSocketsService(c *C) {
@@ -245,7 +246,7 @@ func (s *servicesTestSuite) TestNoStartDisabledServices(c *C) {
 	if [ "$1" = "--root" ]; then
 	    shift 2
 	fi
-	
+
 	case "$1" in
 	    is-enabled)
 	        if [ "$2" = "snap.hello-snap.svc1.service" ]; then
@@ -421,10 +422,14 @@ func (s *servicesTestSuite) TestAddSnapSocketFiles(c *C) {
       socket-mode: 0666
     sock2:
       listen-stream: $SNAP_DATA/sock2.socket
+    sock3:
+      listen-stream: $XDG_RUNTIME_DIR/sock3.socket
+
 `, &snap.SideInfo{Revision: snap.R(12)})
 
 	sock1File := filepath.Join(s.tempdir, "/etc/systemd/system/snap.hello-snap.svc1.sock1.socket")
 	sock2File := filepath.Join(s.tempdir, "/etc/systemd/system/snap.hello-snap.svc1.sock2.socket")
+	sock3File := filepath.Join(s.tempdir, "/etc/systemd/system/snap.hello-snap.svc1.sock3.socket")
 
 	err := wrappers.AddSnapServices(info, nil)
 	c.Assert(err, IsNil)
@@ -447,6 +452,15 @@ ListenStream=%s
 
 `, filepath.Join(s.tempdir, "/var/snap/hello-snap/12/sock2.socket"))
 	c.Check(sock2File, testutil.FileContains, expected)
+
+	expected = fmt.Sprintf(
+		`[Socket]
+Service=snap.hello-snap.svc1.service
+FileDescriptorName=sock3
+ListenStream=%s
+
+`, filepath.Join(s.tempdir, "/run/user/0/snap.hello-snap/sock3.socket"))
+	c.Check(sock3File, testutil.FileContains, expected)
 }
 
 func (s *servicesTestSuite) TestStartSnapMultiServicesFailStartCleanup(c *C) {

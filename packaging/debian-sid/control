@@ -41,7 +41,7 @@ Build-Depends: autoconf,
                golang-gopkg-retry.v1-dev,
                golang-gopkg-tylerb-graceful.v1-dev,
                golang-github-gosexy-gettext-dev,
-               golang-any (>=2:1.6) | golang-1.6,
+               golang-go (>=2:1.10),
                indent,
                libcap-dev,
                libapparmor-dev,
@@ -83,7 +83,7 @@ Description: snappy development go packages.
 Package: snapd
 Architecture: any
 Depends: adduser,
-         apparmor (>= 2.10.95-0ubuntu2.2),
+         apparmor (>= 2.10.95-5),
          ca-certificates,
          gnupg1 | gnupg,
          openssh-client,

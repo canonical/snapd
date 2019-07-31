@@ -320,9 +320,13 @@ func (s *userSuite) TestPostCreateUserFromAssertion(c *check.C) {
 	c.Check(users, check.HasLen, 1)
 }
 
-func (s *userSuite) TestPostCreateUserFromAssertionWithForcePasswordChnage(c *check.C) {
-	lusers := []map[string]interface{}{goodUser}
-	lusers[0]["force-password-change"] = "true"
+func (s *userSuite) TestPostCreateUserFromAssertionWithForcePasswordChange(c *check.C) {
+	user := make(map[string]interface{})
+	for k, v := range goodUser {
+		user[k] = v
+	}
+	user["force-password-change"] = "true"
+	lusers := []map[string]interface{}{user}
 	s.makeSystemUsers(c, lusers)
 
 	// mock the calls that create the user

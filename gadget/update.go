@@ -21,11 +21,82 @@ package gadget
 import (
 	"errors"
 	"fmt"
+
+	"github.com/snapcore/snapd/logger"
 )
 
 var (
-	ErrNoUpdate = errors.New("no update needed")
+	ErrNoUpdate = errors.New("nothing to update")
 )
+
+var (
+	// default positioning constraints that match ubuntu-image
+	defaultConstraints = PositioningConstraints{
+		NonMBRStartOffset: 1 * SizeMiB,
+		SectorSize:        512,
+	}
+)
+
+// GadgetData holds references to a gadget revision metadata and its data directory.
+type GadgetData struct {
+	// Info is the gadget metadata
+	Info *Info
+	// RootDir is the root directory of gadget snap data
+	RootDir string
+}
+
+// Update applies the gadget update given the gadget information and data from
+// old and new revisions. It errors out when the update is not possible or
+// illegal, or a failure occurs at any of the steps. When there is no update, a
+// special error ErrNoUpdate is returned.
+//
+// Updates are opt-in, and are only applied to structures with a higher value of
+// Edition field in the new gadget definition.
+//
+// Data that would be modified during the update is first backed up inside the
+// rollback directory. Should the apply step fail, the modified data is
+// recovered.
+func Update(old, new GadgetData, rollbackDirPath string) error {
+	oldVol, newVol, err := resolveVolume(old.Info, new.Info)
+	if err != nil {
+		return err
+	}
+
+	// layout old
+	pOld, err := PositionVolume(old.RootDir, oldVol, defaultConstraints)
+	if err != nil {
+		return fmt.Errorf("cannot lay out the old volume: %v", err)
+	}
+
+	// layout new
+	pNew, err := PositionVolume(new.RootDir, newVol, defaultConstraints)
+	if err != nil {
+		return fmt.Errorf("cannot lay out the new volume: %v", err)
+	}
+
+	if err := canUpdateVolume(pOld, pNew); err != nil {
+		return fmt.Errorf("cannot apply update to volume: %v", err)
+	}
+
+	// now we know which structure is which, find which ones need an update
+	updates, err := resolveUpdate(pOld, pNew)
+	if err != nil {
+		return err
+	}
+	if len(updates) == 0 {
+		// nothing to update
+		return ErrNoUpdate
+	}
+
+	// can update old layout to new layout
+	for _, update := range updates {
+		if err := canUpdateStructure(update.from, update.to); err != nil {
+			return fmt.Errorf("cannot update volume structure %v: %v", update.to, err)
+		}
+	}
+
+	return applyUpdates(new, updates, rollbackDirPath)
+}
 
 func resolveVolume(old *Info, new *Info) (oldVol, newVol *Volume, err error) {
 	// support only one volume
@@ -131,4 +202,97 @@ func canUpdateVolume(from *PositionedVolume, to *PositionedVolume) error {
 		return fmt.Errorf("cannot change the number of structures within volume from %v to %v", len(from.PositionedStructure), len(to.PositionedStructure))
 	}
 	return nil
+}
+
+type updatePair struct {
+	from *PositionedStructure
+	to   *PositionedStructure
+}
+
+func resolveUpdate(oldVol *PositionedVolume, newVol *PositionedVolume) (updates []updatePair, err error) {
+	if len(oldVol.PositionedStructure) != len(newVol.PositionedStructure) {
+		return nil, errors.New("internal error: the number of structures in new and old volume definitions is different")
+	}
+	for j, oldStruct := range oldVol.PositionedStructure {
+		newStruct := newVol.PositionedStructure[j]
+		// update only when new edition is higher than the old one; boot
+		// assets are assumed to be backwards compatible, once deployed
+		// are not rolled back or replaced unless a higher edition is
+		// available
+		if newStruct.Update.Edition > oldStruct.Update.Edition {
+			updates = append(updates, updatePair{
+				from: &oldVol.PositionedStructure[j],
+				to:   &newVol.PositionedStructure[j],
+			})
+		}
+	}
+	return updates, nil
+}
+
+type Updater interface {
+	// Update applies the update or errors out on failures
+	Update() error
+	// Backup prepares a backup copy of data that will be modified by
+	// Update()
+	Backup() error
+	// Rollback restores data modified by update
+	Rollback() error
+}
+
+func applyUpdates(new GadgetData, updates []updatePair, rollbackDir string) error {
+	updaters := make([]Updater, len(updates))
+
+	for i, one := range updates {
+		up, err := updaterForStructure(one.to, new.RootDir, rollbackDir)
+		if err != nil {
+			return fmt.Errorf("cannot prepare update for volume structure %v: %v", one.to, err)
+		}
+		updaters[i] = up
+	}
+
+	for i, one := range updaters {
+		if err := one.Backup(); err != nil {
+			return fmt.Errorf("cannot backup volume structure %v: %v", updates[i].to, err)
+		}
+	}
+
+	var updateErr error
+	var updateLastAttempted int
+	for i, one := range updaters {
+		updateLastAttempted = i
+		if err := one.Update(); err != nil {
+			updateErr = fmt.Errorf("cannot update volume structure %v: %v", updates[i].to, err)
+			break
+		}
+	}
+
+	if updateErr == nil {
+		// all good, updates applied successfully
+		return nil
+	}
+
+	logger.Noticef("cannot update gadget: %v", updateErr)
+	// not so good, rollback ones that got applied
+	for i := 0; i <= updateLastAttempted; i++ {
+		one := updaters[i]
+		if err := one.Rollback(); err != nil {
+			// TODO: log errors to oplog
+			logger.Noticef("cannot rollback volume structure %v update: %v", updates[i].to, err)
+		}
+	}
+
+	return updateErr
+}
+
+var updaterForStructure = updaterForStructureImpl
+
+func updaterForStructureImpl(ps *PositionedStructure, newRootDir, rollbackDir string) (Updater, error) {
+	var updater Updater
+	var err error
+	if ps.IsBare() {
+		updater, err = NewRawStructureUpdater(newRootDir, ps, rollbackDir, FindDeviceForStructureWithFallback)
+	} else {
+		updater, err = NewMountedFilesystemUpdater(newRootDir, ps, rollbackDir, FindMountPointForStructure)
+	}
+	return updater, err
 }

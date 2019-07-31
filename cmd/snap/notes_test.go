@@ -88,6 +88,12 @@ func (notesSuite) TestNotesIgnoreValidation(c *check.C) {
 	}).String(), check.Equals, "ignore-validation")
 }
 
+func (notesSuite) TestNotesInCohort(c *check.C) {
+	c.Check((&snap.Notes{
+		InCohort: true,
+	}).String(), check.Equals, "in-cohort")
+}
+
 func (notesSuite) TestNotesNothing(c *check.C) {
 	c.Check((&snap.Notes{}).String(), check.Equals, "-")
 }
@@ -104,4 +110,8 @@ func (notesSuite) TestNotesFromLocal(c *check.C) {
 	c.Check(snap.NotesFromLocal(&client.Snap{DevMode: true}).DevMode, check.Equals, true)
 	c.Check(snap.NotesFromLocal(&client.Snap{Confinement: client.DevModeConfinement}).DevMode, check.Equals, false)
 	c.Check(snap.NotesFromLocal(&client.Snap{IgnoreValidation: true}).IgnoreValidation, check.Equals, true)
+	// check that a cohort key in a snap sets the InCohort note flag
+	c.Check(snap.NotesFromLocal(&client.Snap{CohortKey: ""}).InCohort, check.Equals, false)
+	c.Check(snap.NotesFromLocal(&client.Snap{CohortKey: "123"}).InCohort, check.Equals, true)
+	c.Check(snap.NotesFromLocal(&client.Snap{Health: &client.SnapHealth{Status: "blocked"}}).Health, check.Equals, "blocked")
 }

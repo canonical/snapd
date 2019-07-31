@@ -4,9 +4,9 @@ git:
 jobs:
   include:
     - stage: quick
-      name: go 1.10/xenial static and unit test suites
+      name: go 1.9/xenial static and unit test suites
       dist: xenial
-      go: "1.10.x"
+      go: "1.9.x"
       before_install:
         - sudo apt --quiet -o Dpkg::Progress-Fancy=false update
       install:
@@ -33,7 +33,9 @@ jobs:
       script:
         - /tmp/snp download hello
         - /tmp/snp version
-        - /tmp/snp pack tests/lib/snaps/test-snapd-tools/ /tmp
+        # TODO: homebrew appears to be broken, brew install of squashfs fails
+        # and goes unnoticed by travis
+        - if command -v mksquashfs; then /tmp/snp pack tests/lib/snaps/test-snapd-tools/ /tmp ; fi
     - stage: quick
       name: CLA check
       dist: xenial

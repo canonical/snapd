@@ -23,7 +23,6 @@ import (
 	"fmt"
 	"os"
 	"os/signal"
-	"runtime"
 	"syscall"
 	"time"
 
@@ -53,24 +52,6 @@ func init() {
 
 func main() {
 	cmd.ExecInSnapdOrCoreSnap()
-
-	// The Go scheduler by default has a single operating system
-	// thread per processor core, and does its own goroutine
-	// scheduling inside of that thread.  For I/O operations that
-	// the Go runtime knows about, it has mechanisms to reschedule
-	// goroutines so the system thread isn't blocked waiting for
-	// I/O.  If a goroutine performs a blocking system call which
-	// the go runtime doesn't have special optimizations for, the
-	// system thread can become blocked waiting for the syscall.
-	// This can dramatically reduce runtime performance, and the
-	// problem is much worse on single processor systems because
-	// there is normally only a single system thread.
-	//
-	// We workaround by increasing the number of procs to a
-	// minimum of two.
-	if runtime.GOMAXPROCS(-1) == 1 {
-		runtime.GOMAXPROCS(2)
-	}
 
 	ch := make(chan os.Signal, 2)
 	signal.Notify(ch, syscall.SIGINT, syscall.SIGTERM)
@@ -147,7 +128,9 @@ func run(ch chan os.Signal) error {
 
 	d.Version = cmd.Version
 
-	d.Start()
+	if err := d.Start(); err != nil {
+		return err
+	}
 
 	watchdog, err := runWatchdog(d)
 	if err != nil {
