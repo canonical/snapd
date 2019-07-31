@@ -601,7 +601,8 @@ pushd ./data
               SYSTEMDSYSTEMUNITDIR="%{_unitdir}" \
               SNAP_MOUNT_DIR="%{_sharedstatedir}/snapd/snap" \
               SNAPD_ENVIRONMENT_FILE="%{_sysconfdir}/sysconfig/snapd"
-# Don't package the sockets.target.wants symlink
+# Don't package the sockets.target.wants symlink: it will be set up in
+# the post-install script.
 rm -f %{buildroot}%{_userunitdir}/sockets.target.wants/snapd.session-agent.socket
 popd
 
