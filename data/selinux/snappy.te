@@ -323,7 +323,8 @@ libs_manage_lib_files(snappy_t)
 fs_getattr_xattr_fs(snappy_t)
 # snapd checks whether <snap>.mnt exists before running the mount namespace
 # helper tool
-fs_getattr_nsfs_files(snappy_t)
+# fs_getattr_nsfs_files() is not available in selinux devel on CentOS 7.x
+getattr_files_pattern(snappy_t, nsfs_t, nsfs_t)
 
 # snapd attempts to read /run/cloud-init/instance-data.json
 sysnet_read_config(snappy_t)
