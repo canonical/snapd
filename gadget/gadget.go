@@ -389,7 +389,7 @@ func validateVolume(name string, vol *Volume) error {
 		}
 		if s.Label != "" {
 			if seen := knownFsLabels[s.Label]; seen {
-				return fmt.Errorf("structure filesystem label %q is not unique", s.Label)
+				return fmt.Errorf("filesystem label %q is not unique", s.Label)
 			}
 			knownFsLabels[s.Label] = true
 		}

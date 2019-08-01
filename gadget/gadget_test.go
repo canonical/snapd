@@ -842,7 +842,7 @@ func (s *gadgetYamlTestSuite) TestValidateVolumeDuplicateFsLabel(c *C) {
 			{Label: "foo", Type: "21686148-6449-6E6F-744E-656564454649", Size: gadget.SizeMiB},
 		},
 	})
-	c.Assert(err, ErrorMatches, `structure filesystem label "foo" is not unique`)
+	c.Assert(err, ErrorMatches, `filesystem label "foo" is not unique`)
 
 	// writable isn't special
 	err = gadget.ValidateVolume("name", &gadget.Volume{
@@ -860,7 +860,7 @@ func (s *gadgetYamlTestSuite) TestValidateVolumeDuplicateFsLabel(c *C) {
 			Size:  gadget.SizeMiB,
 		}},
 	})
-	c.Assert(err, ErrorMatches, `structure filesystem label "writable" is not unique`)
+	c.Assert(err, ErrorMatches, `filesystem label "writable" is not unique`)
 
 	// nor is system-boot
 	err = gadget.ValidateVolume("name", &gadget.Volume{
@@ -876,7 +876,7 @@ func (s *gadgetYamlTestSuite) TestValidateVolumeDuplicateFsLabel(c *C) {
 			Size:  gadget.SizeMiB,
 		}},
 	})
-	c.Assert(err, ErrorMatches, `structure filesystem label "system-boot" is not unique`)
+	c.Assert(err, ErrorMatches, `filesystem label "system-boot" is not unique`)
 }
 
 func (s *gadgetYamlTestSuite) TestValidateVolumeErrorsWrapped(c *C) {
