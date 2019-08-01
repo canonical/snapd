@@ -11,8 +11,6 @@ restore: |
 execute: |
     #shellcheck source=tests/lib/systemd.sh
     . "$TESTSLIB"/systemd.sh
-    #shellcheck source=tests/lib/remote.sh
-    . "$TESTSLIB"/remote.sh
 
     echo "download snapd 2.15.2ubuntu1 and the matching ubuntu-core-launcher"
     download-file https://launchpad.net/ubuntu/+source/snap-confine/1.0.38-0ubuntu0.16.04.8/+build/10606388/+files/ubuntu-core-launcher_1.0.38-0ubuntu0.16.04.8_amd64.deb
