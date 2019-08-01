@@ -67,23 +67,23 @@
 			"revisionTime": "2018-03-08T15:25:21Z"
 		},
 		{
-			"checksumSHA1": "lG6diF/yE9cGgQIKRAlsaeYAjO4=",
-			"path": "github.com/ojii/gettext.go",
-			"revision": "95289a7e0ac17c76737a5ceca3c9471c0adf70c7",
-			"revisionTime": "2016-07-14T06:47:45Z"
-		},
-		{
-			"checksumSHA1": "j5FytTwC2nAqSrDR7V7O7E4cHKM=",
-			"path": "github.com/ojii/gettext.go/pluralforms",
-			"revision": "95289a7e0ac17c76737a5ceca3c9471c0adf70c7",
-			"revisionTime": "2016-07-14T06:47:45Z"
-		},
-		{
 			"checksumSHA1": "XEtWdIrRbRSFBR9q+SOATOuy7vM=",
 			"comment": "fork of boltdb/bolt to fix build failure on ppc. upstream: https://github.com/boltdb/bolt/pull/740 and https://github.com/coreos/bbolt/pull/73",
 			"path": "github.com/snapcore/bolt",
 			"revision": "9eca199504ee1299394669820724322b5bfc070a",
 			"revisionTime": "2018-01-18T17:01:45Z"
+		},
+		{
+			"checksumSHA1": "CSPV27Mm4+WBlyGFT/lKz1la/VI=",
+			"path": "github.com/snapcore/go-gettext",
+			"revision": "6598fb28bb07cb32298324b4958677c2f00cacd9",
+			"revisionTime": "2017-09-28T14:21:59Z"
+		},
+		{
+			"checksumSHA1": "ZHYmaLRlCMJfx0+Ppr8dZ/+KtAc=",
+			"path": "github.com/snapcore/go-gettext/pluralforms",
+			"revision": "6598fb28bb07cb32298324b4958677c2f00cacd9",
+			"revisionTime": "2017-09-28T14:21:59Z"
 		},
 		{
 			"checksumSHA1": "3AmEm18mKj8XxBuru/ix4OOpRkE=",
