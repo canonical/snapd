@@ -36,11 +36,9 @@ execute: |
     . "$TESTSLIB/pkgdb.sh"
     #shellcheck source=tests/lib/dirs.sh
     . "$TESTSLIB/dirs.sh"
-    #shellcheck source=tests/lib/remote.sh
-    . "$TESTSLIB/remote.sh"
 
     # download from LP, it is not available in the archive anymore
-    download_file https://launchpad.net/ubuntu/+source/snapd-xdg-open/0.0.0~16.04/+build/10503735/+files/snapd-xdg-open_0.0.0~16.04_amd64.deb
+    download-file https://launchpad.net/ubuntu/+source/snapd-xdg-open/0.0.0~16.04/+build/10503735/+files/snapd-xdg-open_0.0.0~16.04_amd64.deb
     # snapd breaks older version of snapd-xdg-open so we cannot
     # install them together. force things to work!
     dpkg -i --force-all snapd-xdg-open_*.deb

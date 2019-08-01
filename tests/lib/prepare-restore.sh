@@ -28,9 +28,6 @@ set -e
 # shellcheck source=tests/lib/state.sh
 . "$TESTSLIB/state.sh"
 
-# shellcheck source=tests/lib/remote.sh
-. "$TESTSLIB/remote.sh"
-
 # shellcheck source=tests/lib/systems.sh
 . "$TESTSLIB/systems.sh"
 
@@ -200,7 +197,7 @@ build_arch_pkg() {
 download_from_published(){
     local published_version="$1"
 
-    download_file "https://launchpad.net/ubuntu/+source/snapd/$published_version" "pkg_page"
+    download-file "https://launchpad.net/ubuntu/+source/snapd/$published_version" -o "pkg_page"
 
     arch=$(dpkg --print-architecture)
     build_id=$(sed -n 's|<a href="/ubuntu/+source/snapd/'"$published_version"'/+build/\(.*\)">'"$arch"'</a>|\1|p' pkg_page | sed -e 's/^[[:space:]]*//')
@@ -208,7 +205,7 @@ download_from_published(){
     # we need to download snap-confine and ubuntu-core-launcher for versions < 2.23
     for pkg in snapd snap-confine ubuntu-core-launcher; do
         file="${pkg}_${published_version}_${arch}.deb"
-        download_file "https://launchpad.net/ubuntu/+source/snapd/${published_version}/+build/${build_id}/+files/${file}" "$GOHOME/$file" "follow-redirects"
+        download-file "https://launchpad.net/ubuntu/+source/snapd/${published_version}/+build/${build_id}/+files/${file}" -o "$file" -d "$GOHOME"
     done
 }
 

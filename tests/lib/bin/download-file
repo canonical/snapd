@@ -1,0 +1,76 @@
+#!/usr/bin/env any-python
+
+from argparse import ArgumentParser
+import requests
+import os
+try:
+    from urlparse import urlsplit
+except ImportError:
+    from urllib.parse import urlsplit
+
+
+MAX_ATTEMPTS = 5
+CONNECTION_TIMEOUT = 10
+READ_TIMEOUT = 5
+
+
+def get_url_filename(url):
+    return os.path.basename(urlsplit(url)[2])
+
+
+def download_file(url, print_file=False, output_name='', output_dir=''):
+    attempt = 1
+
+    if not output_dir:
+        output_dir = os.getcwd()
+
+    if not output_name:
+        output_name = get_url_filename(url)
+
+    while attempt <= MAX_ATTEMPTS:
+        try:
+            if not print_file:
+                print('Downloading file from {}, attempt {}/{}'.format(
+                    url, attempt, MAX_ATTEMPTS))
+
+            response = requests.get(
+                url=url,
+                timeout=(CONNECTION_TIMEOUT, READ_TIMEOUT),
+                verify=True,
+                allow_redirects=True)
+            response.raise_for_status()
+
+            if print_file:
+                print(response.content.decode())
+            else:
+                filepath = os.path.join(output_dir, output_name)
+                with open(filepath, 'wb') as oFile:
+                    oFile.write(response.content)
+                    print('File downloaded: {}'.format(filepath))
+
+            return
+
+        except Exception as e:
+            if not print_file:
+                print('Error downloading file: {}'.format(e))
+
+        attempt = attempt + 1
+
+    print('Failed to download file from {} after {} attempts'.format(
+        url, MAX_ATTEMPTS))
+    exit(1)
+
+
+if __name__ == '__main__':
+    args_parser = ArgumentParser("Parse input parameters")
+    args_parser.add_argument('url')
+    args_parser.add_argument('-p', '--print-file', action='store_true')
+    args_parser.add_argument('-o', '--output-name', type=str)
+    args_parser.add_argument('-d', '--output-dir', type=str)
+    args = args_parser.parse_args()
+
+    download_file(
+        args.url,
+        print_file=args.print_file,
+        output_name=args.output_name,
+        output_dir=args.output_dir)
