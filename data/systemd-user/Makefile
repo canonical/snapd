@@ -30,10 +30,6 @@ install:: $(SYSTEMD_UNITS)
 	install -d -m 0755 $(DESTDIR)/$(SYSTEMDUSERUNITDIR)
 	install -m 0644 -t $(DESTDIR)/$(SYSTEMDUSERUNITDIR) $^
 
-install::
-	install -d -m 0755 $(DESTDIR)/$(SYSTEMDUSERUNITDIR)/sockets.target.wants
-	ln -sf ../snapd.session-agent.socket $(DESTDIR)/$(SYSTEMDUSERUNITDIR)/sockets.target.wants/snapd.session-agent.socket
-
 .PHONY: clean
 clean:
 	rm -f $(SYSTEMD_UNITS_GENERATED:.in=)
