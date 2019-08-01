@@ -108,8 +108,8 @@ Contributions are always welcome! Please make sure that you sign the
 Canonical contributor license agreement at
 http://www.ubuntu.com/legal/contributors
 
-Snapd can be found on Github, so in order to fork the source and contribute,
-go to https://github.com/snapcore/snapd. Check out [Github's help
+Snapd can be found on GitHub, so in order to fork the source and contribute,
+go to https://github.com/snapcore/snapd. Check out [GitHub's help
 pages](https://help.github.com/) to find out how to set up your local branch,
 commit changes and create pull requests.
 
