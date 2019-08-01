@@ -294,6 +294,11 @@ func (m *InterfaceManager) undoSetupProfiles(task *state.Task, tomb *tomb.Tomb) 
 			return err
 		}
 		opts := confinementOptions(snapst.Flags)
+		if err := m.setupProfilesForSnap(task, tomb, snapInfo, opts, perfTimings); err != nil {
+			opts.FailSafeMode = true
+			logger.Debugf("cannot setup snap security: %s (trying again in failsafe mode)", err)
+			task.Logf("Cannot apply security profiles, retrying in fail-safe mode")
+		}
 		return m.setupProfilesForSnap(task, tomb, snapInfo, opts, perfTimings)
 	}
 }

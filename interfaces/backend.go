@@ -63,6 +63,10 @@ type ConfinementOptions struct {
 	JailMode bool
 	// Classic flag switches the core snap "chroot" off.
 	Classic bool
+	// FailSafeMode flag switches the security backend to failsafe mode.
+	// In failsafe mode some extra things happen. For instance the mount
+	// backend will discard the mount namespace and construct them anew.
+	FailSafeMode bool
 }
 
 // SecurityBackendOptions carries extra flags that affect initialization of the
