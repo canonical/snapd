@@ -349,6 +349,8 @@ func showDone(cli *client.Client, names []string, op string, opts *client.SnapOp
 			switchCohort := opts.CohortKey != ""
 			switchChannel := opts.Channel != ""
 			var msg string
+			// we have three boolean things to check, meaning 2³=8 possibilities,
+			// minus 3 error cases which are handled before the call to showDone.
 			switch {
 			case switchCohort && !opts.LeaveCohort && !switchChannel:
 				// TRANSLATORS: the first %q will be the (quoted) snap name, the second an ellipted cohort string
@@ -365,7 +367,7 @@ func showDone(cli *client.Client, names []string, op string, opts *client.SnapOp
 			case !switchCohort && opts.LeaveCohort && !switchChannel:
 				// TRANSLATORS: %q will be the (quoted) snap name
 				msg = fmt.Sprintf(i18n.G("%q left the cohort"), snap.Name)
-			} // and that's the 8 \o/
+			}
 			fmt.Fprintln(Stdout, msg)
 		default:
 			fmt.Fprintf(Stdout, "internal error: unknown op %q", op)
@@ -1004,9 +1006,9 @@ func (x cmdSwitch) Execute(args []string) error {
 	switchCohort := x.Cohort != ""
 	switchChannel := x.Channel != ""
 
-	// some duplication between this and the two other switch-summarisers...
-	// in this one, we have three boolean things to check, meaning 2³=8 possibilities
-	// of which 3 are errors (which is why we look at this before running it)
+	// we have three boolean things to check, meaning 2³=8 possibilities
+	// of which 3 are errors (which is why we look at the errors first).
+	// the remaining 5 cases are handled by showDone.
 	if switchCohort && x.LeaveCohort {
 		// this one counts as two (no channel filter)
 		return fmt.Errorf(i18n.G("cannot specify both --cohort and --leave-cohort"))
