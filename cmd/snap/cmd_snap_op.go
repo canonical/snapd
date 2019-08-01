@@ -1008,7 +1008,7 @@ func (x cmdSwitch) Execute(args []string) error {
 
 	// we have three boolean things to check, meaning 2³=8 possibilities
 	// of which 3 are errors (which is why we look at the errors first).
-	// the remaining 5 cases are handled by showDone.
+	// the 5 valid cases are handled by showDone.
 	if switchCohort && x.LeaveCohort {
 		// this one counts as two (no channel filter)
 		return fmt.Errorf(i18n.G("cannot specify both --cohort and --leave-cohort"))
