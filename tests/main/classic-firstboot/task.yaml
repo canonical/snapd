@@ -12,6 +12,7 @@ prepare: |
     fi
 
     snap pack "$TESTSLIB/snaps/basic"
+    snap pack "$TESTSLIB/snaps/test-snapd-service"
     snap download "--$CORE_CHANNEL" core
 
     "$TESTSLIB/reset.sh" --keep-stopped
@@ -25,6 +26,9 @@ prepare: |
       - name: basic
         unasserted: true
         file: basic.snap
+      - name: test-snapd-service
+        unasserted: true
+        file: test-snapd-service.snap
     EOF
 
     echo Copy the needed assertions to /var/lib/snapd/
@@ -36,6 +40,7 @@ prepare: |
     echo "Copy the needed snaps to $SEED_DIR/snaps"
     cp ./core_*.snap "$SEED_DIR/snaps/core.snap"
     cp ./basic_1.0_all.snap "$SEED_DIR/snaps/basic.snap"
+    cp ./test-snapd-service_1.0_all.snap "$SEED_DIR/snaps/test-snapd-service.snap"
 
 restore: |
     if [ "$TRUST_TEST_KEYS" = "false" ]; then
@@ -77,4 +82,17 @@ execute: |
     fi
 
     snap list | MATCH "^basic"
+    snap list | MATCH "^test-snapd-service"
     test -f "$SEED_DIR/snaps/basic.snap"
+    test -f "$SEED_DIR/snaps/test-snapd-service.snap"
+
+    echo "Checking that service restart happened before mark-seeded"
+    # number the lines of snap change output with nl for int comparison
+    SERVICE_COMMAND_TASK=$(snap change 1 | nl | grep "restart of .*test-snapd-service.test-snapd-other-service" | awk '{print $1}')
+    MARK_SEEDED_TASK=$(snap change 1 | nl | grep "Mark system seeded" | awk '{print $1}')
+    if ! test "$SERVICE_COMMAND_TASK" -lt "$MARK_SEEDED_TASK"; then
+        echo "Expected mark-seeded task after service command, but it was:"
+        snap change 1
+        exit 1
+    fi
+
