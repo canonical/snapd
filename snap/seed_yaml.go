@@ -70,6 +70,8 @@ func ReadSeedYaml(fn string) (*Seed, error) {
 		return nil, fmt.Errorf("%s: cannot unmarshal %q: %s", errPrefix, yamlData, err)
 	}
 
+	seenNames := make(map[string]bool, len(seed.Snaps))
+	seenFiles := make(map[string]bool, len(seed.Snaps))
 	// validate
 	for _, sn := range seed.Snaps {
 		if sn == nil {
@@ -89,6 +91,16 @@ func ReadSeedYaml(fn string) (*Seed, error) {
 		if strings.Contains(sn.File, "/") {
 			return nil, fmt.Errorf("%s: %q must be a filename, not a path", errPrefix, sn.File)
 		}
+
+		// make sure names and file names are unique
+		if seenNames[sn.Name] {
+			return nil, fmt.Errorf("%s: snap name %q not unique", errPrefix, sn.Name)
+		}
+		seenNames[sn.Name] = true
+		if seenFiles[sn.File] {
+			return nil, fmt.Errorf("%s: snap file %q for snap %q not unique", errPrefix, sn.File, sn.Name)
+		}
+		seenFiles[sn.File] = true
 	}
 
 	return &seed, nil
