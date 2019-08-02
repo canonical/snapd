@@ -28,14 +28,19 @@ import (
 	"github.com/snapcore/snapd/snap"
 )
 
-type coreBootSet struct {
+type coreBootParticipant struct {
 	s snap.PlaceInfo
 	t snap.Type
 }
 
-var _ DeviceBootSet = (*coreBootSet)(nil)
+type coreKernel struct {
+	s snap.PlaceInfo
+}
 
-func (bs *coreBootSet) RemoveKernelAssets() error {
+var _ BootParticipant = (*coreBootParticipant)(nil)
+var _ BootParticipant = (*coreKernel)(nil)
+
+func (k *coreKernel) RemoveKernelAssets() error {
 	// XXX: shouldn't we check the snap type?
 	bootloader, err := bootloader.Find()
 	if err != nil {
@@ -43,24 +48,27 @@ func (bs *coreBootSet) RemoveKernelAssets() error {
 	}
 
 	// ask bootloader to remove the kernel assets if needed
-	return bootloader.RemoveKernelAssets(bs.s)
+	return bootloader.RemoveKernelAssets(k.s)
 }
 
-func (bs *coreBootSet) ExtractKernelAssets(snapf snap.Container) error {
-	if bs.t != snap.TypeKernel {
-		return fmt.Errorf("cannot extract kernel assets from snap type %q", bs.t)
-	}
-
+func (k *coreKernel) ExtractKernelAssets(snapf snap.Container) error {
 	bootloader, err := bootloader.Find()
 	if err != nil {
 		return fmt.Errorf("cannot extract kernel assets: %s", err)
 	}
 
 	// ask bootloader to extract the kernel assets if needed
-	return bootloader.ExtractKernelAssets(bs.s, snapf)
+	return bootloader.ExtractKernelAssets(k.s, snapf)
 }
 
-func (bs *coreBootSet) SetNextBoot() error {
+func (k *coreKernel) SetNextBoot() error {
+	return (&coreBootParticipant{s: k.s, t: snap.TypeKernel}).SetNextBoot()
+}
+func (k *coreKernel) ChangeRequiresReboot() bool {
+	return (&coreBootParticipant{s: k.s, t: snap.TypeKernel}).ChangeRequiresReboot()
+}
+
+func (bs *coreBootParticipant) SetNextBoot() error {
 	bootloader, err := bootloader.Find()
 	if err != nil {
 		return fmt.Errorf("cannot set next boot: %s", err)
@@ -104,7 +112,15 @@ func (bs *coreBootSet) SetNextBoot() error {
 	})
 }
 
-func (bs *coreBootSet) ChangeRequiresReboot() bool {
+func (bs *coreBootParticipant) ChangeRequiresReboot() bool {
+	// XXX: at some point ChangeRequiresReboot might be in its own
+	// interface, at which point it'd make sense to have an ad-hoc
+	// implementation for snapd because it's really a different
+	// animal
+	if bs.t == snap.TypeSnapd {
+		return true
+	}
+
 	bootloader, err := bootloader.Find()
 	if err != nil {
 		logger.Noticef("cannot get boot settings: %s", err)

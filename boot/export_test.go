@@ -27,10 +27,10 @@ var (
 	NameAndRevnoFromSnap = nameAndRevnoFromSnap
 )
 
-func NewCoreBootSet(s snap.PlaceInfo, t snap.Type) *coreBootSet {
-	return &coreBootSet{s: s, t: t}
+func NewCoreBootParticipant(s snap.PlaceInfo, t snap.Type) *coreBootParticipant {
+	return &coreBootParticipant{s: s, t: t}
 }
 
-func NewClassicBootSet() classicBootSet {
-	return classicBootSet{}
+func NewCoreKernel(s snap.PlaceInfo) *coreKernel {
+	return &coreKernel{s: s}
 }

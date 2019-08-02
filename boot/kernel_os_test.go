@@ -62,44 +62,41 @@ func (s *coreBootSetSuite) SetUpTest(c *C) {
 }
 
 func (s *coreBootSetSuite) TestExtractKernelAssetsError(c *C) {
-	err := boot.NewCoreBootSet(&snap.Info{}, snap.TypeApp).ExtractKernelAssets(nil)
-	c.Assert(err, ErrorMatches, `cannot extract kernel assets from snap type "app"`)
-
 	bootloader.ForceError(errors.New("brkn"))
-	err = boot.NewCoreBootSet(&snap.Info{}, snap.TypeKernel).ExtractKernelAssets(nil)
+	err := boot.NewCoreKernel(&snap.Info{}).ExtractKernelAssets(nil)
 	c.Check(err, ErrorMatches, `cannot extract kernel assets: brkn`)
 }
 
 func (s *coreBootSetSuite) TestRemoveKernelAssetsError(c *C) {
 	bootloader.ForceError(errors.New("brkn"))
-	err := boot.NewCoreBootSet(&snap.Info{}, snap.TypeKernel).RemoveKernelAssets()
+	err := boot.NewCoreKernel(&snap.Info{}).RemoveKernelAssets()
 	c.Check(err, ErrorMatches, `cannot remove kernel assets: brkn`)
 }
 
 func (s *coreBootSetSuite) TestChangeRequiresRebootError(c *C) {
 	logbuf, restore := logger.MockLogger()
 	defer restore()
-	bs := boot.NewCoreBootSet(&snap.Info{}, snap.TypeKernel)
+	bp := boot.NewCoreBootParticipant(&snap.Info{}, snap.TypeBase)
 
 	s.loader.GetErr = errors.New("zap")
 
-	c.Check(bs.ChangeRequiresReboot(), Equals, false)
+	c.Check(bp.ChangeRequiresReboot(), Equals, false)
 	c.Check(logbuf.String(), testutil.Contains, `cannot get boot variables: zap`)
 	s.loader.GetErr = nil
 	logbuf.Reset()
 
 	bootloader.ForceError(errors.New("brkn"))
-	c.Check(bs.ChangeRequiresReboot(), Equals, false)
+	c.Check(bp.ChangeRequiresReboot(), Equals, false)
 	c.Check(logbuf.String(), testutil.Contains, `cannot get boot settings: brkn`)
 }
 
 func (s *coreBootSetSuite) TestSetNextBootError(c *C) {
 	s.loader.GetErr = errors.New("zap")
-	err := boot.NewCoreBootSet(&snap.Info{}, snap.TypeApp).SetNextBoot()
+	err := boot.NewCoreBootParticipant(&snap.Info{}, snap.TypeApp).SetNextBoot()
 	c.Check(err, ErrorMatches, `cannot set next boot: zap`)
 
 	bootloader.ForceError(errors.New("brkn"))
-	err = boot.NewCoreBootSet(&snap.Info{}, snap.TypeApp).SetNextBoot()
+	err = boot.NewCoreBootParticipant(&snap.Info{}, snap.TypeApp).SetNextBoot()
 	c.Check(err, ErrorMatches, `cannot set next boot: brkn`)
 }
 
@@ -109,7 +106,7 @@ func (s *coreBootSetSuite) TestSetNextBootForCore(c *C) {
 	info.RealName = "core"
 	info.Revision = snap.R(100)
 
-	bs := boot.NewCoreBootSet(info, info.GetType())
+	bs := boot.NewCoreBootParticipant(info, info.GetType())
 	err := bs.SetNextBoot()
 	c.Assert(err, IsNil)
 
@@ -129,7 +126,7 @@ func (s *coreBootSetSuite) TestSetNextBootWithBaseForCore(c *C) {
 	info.RealName = "core18"
 	info.Revision = snap.R(1818)
 
-	bs := boot.NewCoreBootSet(info, info.GetType())
+	bs := boot.NewCoreBootParticipant(info, info.GetType())
 	err := bs.SetNextBoot()
 	c.Assert(err, IsNil)
 
@@ -149,8 +146,8 @@ func (s *coreBootSetSuite) TestSetNextBootForKernel(c *C) {
 	info.RealName = "krnl"
 	info.Revision = snap.R(42)
 
-	bs := boot.NewCoreBootSet(info, info.GetType())
-	err := bs.SetNextBoot()
+	bp := boot.NewCoreKernel(info)
+	err := bp.SetNextBoot()
 	c.Assert(err, IsNil)
 
 	v, err := s.loader.GetBootVars("snap_try_kernel", "snap_mode")
@@ -164,12 +161,12 @@ func (s *coreBootSetSuite) TestSetNextBootForKernel(c *C) {
 		"snap_kernel":     "krnl_40.snap",
 		"snap_try_kernel": "krnl_42.snap"}
 	s.loader.SetBootVars(bootVars)
-	c.Check(bs.ChangeRequiresReboot(), Equals, true)
+	c.Check(bp.ChangeRequiresReboot(), Equals, true)
 
 	// simulate good boot
 	bootVars = map[string]string{"snap_kernel": "krnl_42.snap"}
 	s.loader.SetBootVars(bootVars)
-	c.Check(bs.ChangeRequiresReboot(), Equals, false)
+	c.Check(bp.ChangeRequiresReboot(), Equals, false)
 }
 
 func (s *coreBootSetSuite) TestSetNextBootForKernelForTheSameKernel(c *C) {
@@ -181,7 +178,7 @@ func (s *coreBootSetSuite) TestSetNextBootForKernelForTheSameKernel(c *C) {
 	bootVars := map[string]string{"snap_kernel": "krnl_40.snap"}
 	s.loader.SetBootVars(bootVars)
 
-	err := boot.NewCoreBootSet(info, info.GetType()).SetNextBoot()
+	err := boot.NewCoreKernel(info).SetNextBoot()
 	c.Assert(err, IsNil)
 
 	v, err := s.loader.GetBootVars("snap_kernel")
@@ -203,7 +200,7 @@ func (s *coreBootSetSuite) TestSetNextBootForKernelForTheSameKernelTryMode(c *C)
 		"snap_mode":       "try"}
 	s.loader.SetBootVars(bootVars)
 
-	err := boot.NewCoreBootSet(info, info.GetType()).SetNextBoot()
+	err := boot.NewCoreKernel(info).SetNextBoot()
 	c.Assert(err, IsNil)
 
 	v, err := s.loader.GetBootVars("snap_kernel", "snap_try_kernel", "snap_mode")
@@ -264,8 +261,8 @@ func (s *ubootBootSetSuite) TestExtractKernelAssetsAndRemoveOnUboot(c *C) {
 	info, err := snap.ReadInfoFromSnapFile(snapf, si)
 	c.Assert(err, IsNil)
 
-	bs := boot.NewCoreBootSet(info, info.GetType())
-	err = bs.ExtractKernelAssets(snapf)
+	bp := boot.NewCoreKernel(info)
+	err = bp.ExtractKernelAssets(snapf)
 	c.Assert(err, IsNil)
 
 	// this is where the kernel/initrd is unpacked
@@ -280,16 +277,16 @@ func (s *ubootBootSetSuite) TestExtractKernelAssetsAndRemoveOnUboot(c *C) {
 	}
 
 	// it's idempotent
-	err = bs.ExtractKernelAssets(snapf)
+	err = bp.ExtractKernelAssets(snapf)
 	c.Assert(err, IsNil)
 
 	// remove
-	err = bs.RemoveKernelAssets()
+	err = bp.RemoveKernelAssets()
 	c.Assert(err, IsNil)
 	c.Check(osutil.FileExists(kernelAssetsDir), Equals, false)
 
 	// it's idempotent
-	err = bs.RemoveKernelAssets()
+	err = bp.RemoveKernelAssets()
 	c.Assert(err, IsNil)
 }
 
@@ -342,8 +339,8 @@ func (s *grubBootSetSuite) TestExtractKernelAssetsNoUnpacksKernelForGrub(c *C) {
 	info, err := snap.ReadInfoFromSnapFile(snapf, si)
 	c.Assert(err, IsNil)
 
-	bs := boot.NewCoreBootSet(info, info.GetType())
-	err = bs.ExtractKernelAssets(snapf)
+	bp := boot.NewCoreKernel(info)
+	err = bp.ExtractKernelAssets(snapf)
 	c.Assert(err, IsNil)
 
 	// kernel is *not* here
@@ -351,7 +348,7 @@ func (s *grubBootSetSuite) TestExtractKernelAssetsNoUnpacksKernelForGrub(c *C) {
 	c.Assert(osutil.FileExists(kernimg), Equals, false)
 
 	// it's idempotent
-	err = bs.ExtractKernelAssets(snapf)
+	err = bp.ExtractKernelAssets(snapf)
 	c.Assert(err, IsNil)
 }
 
@@ -375,8 +372,8 @@ func (s *grubBootSetSuite) TestExtractKernelForceWorks(c *C) {
 	info, err := snap.ReadInfoFromSnapFile(snapf, si)
 	c.Assert(err, IsNil)
 
-	bs := boot.NewCoreBootSet(info, info.GetType())
-	err = bs.ExtractKernelAssets(snapf)
+	bp := boot.NewCoreKernel(info)
+	err = bp.ExtractKernelAssets(snapf)
 	c.Assert(err, IsNil)
 
 	// kernel is extracted
@@ -387,17 +384,17 @@ func (s *grubBootSetSuite) TestExtractKernelForceWorks(c *C) {
 	c.Assert(osutil.FileExists(initrdimg), Equals, true)
 
 	// it's idempotent
-	err = bs.ExtractKernelAssets(snapf)
+	err = bp.ExtractKernelAssets(snapf)
 	c.Assert(err, IsNil)
 
 	// ensure that removal of assets also works
-	err = bs.RemoveKernelAssets()
+	err = bp.RemoveKernelAssets()
 	c.Assert(err, IsNil)
 	exists, _, err := osutil.DirExists(filepath.Dir(kernimg))
 	c.Assert(err, IsNil)
 	c.Check(exists, Equals, false)
 
 	// it's idempotent
-	err = bs.RemoveKernelAssets()
+	err = bp.RemoveKernelAssets()
 	c.Assert(err, IsNil)
 }

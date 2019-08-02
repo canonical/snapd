@@ -31,7 +31,6 @@ import (
 	"github.com/snapcore/snapd/bootloader"
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/logger"
-	"github.com/snapcore/snapd/release"
 	"github.com/snapcore/snapd/snap"
 	"github.com/snapcore/snapd/testutil"
 )
@@ -203,8 +202,9 @@ func (s *bootSetSuite) TestLookup(c *C) {
 	info := &snap.Info{}
 	info.RealName = "some-snap"
 
-	_, err := boot.Lookup(info, snap.TypeApp, true)
-	c.Check(err, ErrorMatches, `cannot lookup boot set with snap "some-snap" of type "app"`)
+	bp, applicable := boot.Lookup(info, snap.TypeApp, nil, false)
+	c.Check(bp, IsNil)
+	c.Check(applicable, Equals, false)
 
 	for _, typ := range []snap.Type{
 		snap.TypeKernel,
@@ -213,26 +213,98 @@ func (s *bootSetSuite) TestLookup(c *C) {
 		snap.TypeBase,
 		snap.TypeSnapd,
 	} {
-		bs, err := boot.Lookup(info, typ, true)
-		c.Check(err, IsNil)
-		c.Check(bs, DeepEquals, boot.NewClassicBootSet())
+		bp, applicable = boot.Lookup(info, typ, nil, true)
+		c.Check(bp, IsNil)
+		c.Check(applicable, Equals, false)
 
-		bs, err = boot.Lookup(info, typ, false)
-		c.Check(err, IsNil)
-		c.Check(bs, DeepEquals, boot.NewCoreBootSet(info, typ))
+		bp, applicable = boot.Lookup(info, typ, nil, false)
+		c.Check(applicable, Equals, true)
+
+		if typ == snap.TypeKernel {
+			c.Check(bp, DeepEquals, boot.NewCoreKernel(info))
+		} else {
+			c.Check(bp, DeepEquals, boot.NewCoreBootParticipant(info, typ))
+		}
 	}
 }
 
-// these are tests for the concrete classic boot set, but not worth
-// having their own suite:
-func (s *bootSetSuite) TestClassic(c *C) {
-	defer release.MockOnClassic(true)()
+type mockModel string
 
-	bs := boot.NewClassicBootSet()
+func (s mockModel) Kernel() string { return string(s) }
+func (s mockModel) Base() string   { return string(s) }
 
-	c.Check(bs.RemoveKernelAssets(), ErrorMatches, "cannot remove kernel assets on classic systems")
-	c.Check(bs.ExtractKernelAssets(nil), ErrorMatches, "cannot extract kernel assets on classic systems")
-	c.Check(bs.ChangeRequiresReboot(), Equals, false)
-	// SetNextBoot should do nothing on classic LP: #1580403 (yay trivial regression test)
-	c.Check(bs.SetNextBoot(), ErrorMatches, "cannot set next boot on classic systems")
+func (s *bootSetSuite) TestLookupBaseWithModel(c *C) {
+	info := &snap.Info{}
+	info.RealName = "core"
+	expectedbp := boot.NewCoreBootParticipant(info, snap.TypeBase)
+
+	type tableT struct {
+		model      mockModel
+		applicable bool
+		bp         boot.BootParticipant
+	}
+
+	table := []tableT{
+		{
+			model:      "core18",
+			applicable: false,
+			bp:         nil,
+		}, {
+			model:      "core",
+			applicable: true,
+			bp:         expectedbp,
+		}, {
+			model:      "",
+			applicable: true,
+			bp:         expectedbp,
+		},
+	}
+
+	for _, t := range table {
+		bp, applicable := boot.Lookup(info, snap.TypeBase, t.model, true)
+		c.Check(applicable, Equals, false)
+		c.Check(bp, IsNil)
+
+		bp, applicable = boot.Lookup(info, snap.TypeBase, t.model, false)
+		c.Check(applicable, Equals, t.applicable)
+		c.Check(bp, DeepEquals, t.bp)
+	}
+}
+
+func (s *bootSetSuite) TestLookupKernelWithModel(c *C) {
+	info := &snap.Info{}
+	info.RealName = "kernel"
+	expectedbp := boot.NewCoreKernel(info)
+
+	type tableT struct {
+		model      mockModel
+		applicable bool
+		bp         boot.BootParticipant
+	}
+
+	table := []tableT{
+		{
+			model:      "other-kernel",
+			applicable: false,
+			bp:         nil,
+		}, {
+			model:      "kernel",
+			applicable: true,
+			bp:         expectedbp,
+		}, {
+			model:      "",
+			applicable: false,
+			bp:         nil,
+		},
+	}
+
+	for _, t := range table {
+		bp, applicable := boot.Lookup(info, snap.TypeKernel, t.model, true)
+		c.Check(applicable, Equals, false)
+		c.Check(bp, IsNil)
+
+		bp, applicable = boot.Lookup(info, snap.TypeKernel, t.model, false)
+		c.Check(applicable, Equals, t.applicable)
+		c.Check(bp, DeepEquals, t.bp)
+	}
 }

@@ -30,9 +30,21 @@ import (
 	"github.com/snapcore/snapd/snap"
 )
 
-// A Device Boot Set is a collection of snaps that are involved in a
-// device's boot process.
-type DeviceBootSet interface {
+// A BootParticipant is a snap that is involved in a device's boot
+// process.
+type BootParticipant interface {
+	// SetNextBoot will schedule the snap to be used in the next boot. For
+	// base snaps it is up to the caller to select the right bootable base
+	// (from the model assertion).
+	SetNextBoot() error
+	// ChangeRequiresReboot returns whether a reboot is required to switch
+	// to the snap.
+	ChangeRequiresReboot() bool
+}
+
+// A Kernel is a snap.TypeKernel BootParticipant
+type Kernel interface {
+	BootParticipant
 	// RemoveKernelAssets removes the unpacked kernel/initrd for the given
 	// kernel snap.
 	RemoveKernelAssets() error
@@ -40,46 +52,53 @@ type DeviceBootSet interface {
 	// kernel snap, if required, to a versioned bootloader directory so
 	// that the bootloader can use it.
 	ExtractKernelAssets(snap.Container) error
-	// SetNextBoot will schedule the given OS or base or kernel snap to be
-	// used in the next boot. For base snaps it up to the caller to select
-	// the right bootable base (from the model assertion).
-	SetNextBoot() error
-	// ChangeRequiresReboot returns whether a reboot is required to switch
-	// to the given OS, base or kernel snap.
-	ChangeRequiresReboot() bool
 }
 
-// Lookup figures out what the right boot set is for the given
-// arguments, and returns it.
-func Lookup(s snap.PlaceInfo, t snap.Type, onClassic bool) (DeviceBootSet, error) {
-	if t != snap.TypeOS && t != snap.TypeKernel && t != snap.TypeBase && t != snap.TypeSnapd {
-		return nil, fmt.Errorf("cannot lookup boot set with snap %q of type %q", s.SnapName(), t)
-	}
+type Model interface {
+	Kernel() string
+	Base() string
+}
 
+// Lookup figures out what the boot participant is for the given arguments, and
+// returns it. The second return value indicates whether no boot participant
+// exists, and if false the first return value will be nil.
+func Lookup(s snap.PlaceInfo, t snap.Type, model Model, onClassic bool) (bp BootParticipant, applicable bool) {
 	if onClassic {
-		return classicBootSet{}, nil
+		return nil, false
+	}
+	if t != snap.TypeOS && t != snap.TypeKernel && t != snap.TypeBase && t != snap.TypeSnapd {
+		return nil, false
 	}
 
-	return &coreBootSet{s: s, t: t}, nil
+	if model != nil {
+		switch t {
+		case snap.TypeKernel:
+			if s.InstanceName() != model.Kernel() {
+				return nil, false
+			}
+		case snap.TypeBase:
+			base := model.Base()
+			if base == "" {
+				base = "core"
+			}
+			if s.InstanceName() != base {
+				return nil, false
+			}
+		case snap.TypeSnapd:
+			base := model.Base()
+			if base == "" || base == "core" {
+				return nil, false
+			}
+
+		}
+	}
+
+	if t == snap.TypeKernel {
+		return &coreKernel{s: s}, true
+	}
+
+	return &coreBootParticipant{s: s, t: t}, true
 }
-
-type classicBootSet struct{}
-
-func (classicBootSet) RemoveKernelAssets() error {
-	return fmt.Errorf("cannot remove kernel assets on classic systems")
-}
-
-func (classicBootSet) ExtractKernelAssets(snap.Container) error {
-	return fmt.Errorf("cannot extract kernel assets on classic systems")
-}
-
-func (classicBootSet) SetNextBoot() error {
-	return fmt.Errorf("cannot set next boot on classic systems")
-}
-
-func (classicBootSet) ChangeRequiresReboot() bool { return false }
-
-var _ DeviceBootSet = classicBootSet{}
 
 // InUse checks if the given name/revision is used in the
 // boot environment
