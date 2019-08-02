@@ -26,7 +26,9 @@ import (
 	"errors"
 	"fmt"
 	"os"
+	"reflect"
 	"sort"
+	"strconv"
 	"strings"
 	"time"
 
@@ -2184,32 +2186,31 @@ func CurrentInfo(st *state.State, name string) (*snap.Info, error) {
 	return info, err
 }
 
+var typeOfSnapState = reflect.TypeOf(&SnapState{})
+
 // Get retrieves the SnapState of the given snap.
 func Get(st *state.State, name string, snapst *SnapState) error {
 	if snapst == nil {
 		return fmt.Errorf("internal error: snapst is nil")
 	}
-	// SnapState is (un-)marshalled from/to JSON, fields having omitempty
-	// tag will not appear in the output (if empty) and subsequently will
-	// not be unmarshalled to (or cleared); if the caller reuses the same
-	// struct though subsequent calls, it is possible that they end up with
-	// garbage inside, clear the destination struct so that we always
-	// unmarshal to a clean state
-	*snapst = SnapState{}
 
-	var snaps map[string]*json.RawMessage
-	err := st.Get("snaps", &snaps)
+	t := reflect.StructOf([]reflect.StructField{{
+		Name: "Field",
+		Tag:  reflect.StructTag("json:" + strconv.Quote(name)),
+		Type: typeOfSnapState,
+	}})
+	v := reflect.New(t)
+
+	err := st.Get("snaps", v.Interface())
 	if err != nil {
 		return err
 	}
-	raw, ok := snaps[name]
-	if !ok {
+	found := v.Elem().Field(0).Interface().(*SnapState)
+	if found == nil {
 		return state.ErrNoState
 	}
-	err = json.Unmarshal([]byte(*raw), &snapst)
-	if err != nil {
-		return fmt.Errorf("cannot unmarshal snap state: %v", err)
-	}
+	*snapst = *found
+
 	return nil
 }
 
