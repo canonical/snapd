@@ -27,8 +27,8 @@ import (
 
 type cmdValidateSeed struct {
 	Positionals struct {
-		SeedYamlPath string `positional-arg-name:"<seed-yaml-path>"`
-	} `positional-args:"true"`
+		SeedYamlPath flags.Filename `positional-arg-name:"<seed-yaml-path>"`
+	} `positional-args:"true" required:"true"`
 }
 
 func init() {
@@ -46,5 +46,5 @@ func (x *cmdValidateSeed) Execute(args []string) error {
 		return ErrExtraArgs
 	}
 
-	return image.ValidateSeed(x.Positionals.SeedYamlPath)
+	return image.ValidateSeed(string(x.Positionals.SeedYamlPath))
 }
