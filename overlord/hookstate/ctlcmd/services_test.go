@@ -388,6 +388,54 @@ func (s *servicectlSuite) TestQueuedCommands(c *C) {
 	}
 }
 
+func (s *servicectlSuite) TestQueuedCommandsRunBeforeMarkSeeded(c *C) {
+	s.st.Lock()
+
+	chg := s.st.NewChange("seeding change", "seeding change")
+	markSeeded := s.st.NewTask("mark-seeded", "")
+	chg.AddTask(markSeeded)
+	configure := s.st.NewTask("run-hook", "")
+	chg.AddTask(configure)
+
+	s.st.Unlock()
+
+	setup := &hookstate.HookSetup{Snap: "test-snap", Revision: snap.R(1), Hook: "configure"}
+	context, err := hookstate.NewContext(configure, configure.State(), setup, s.mockHandler, "")
+	c.Assert(err, IsNil)
+
+	_, _, err = ctlcmd.Run(context, []string{"stop", "test-snap.test-service"}, 0)
+	c.Check(err, IsNil)
+	_, _, err = ctlcmd.Run(context, []string{"start", "test-snap.test-service"}, 0)
+	c.Check(err, IsNil)
+
+	s.st.Lock()
+	defer s.st.Unlock()
+
+	markSeededWt := markSeeded.WaitTasks()
+	c.Assert(markSeededWt, HasLen, 2)
+
+	for _, t := range markSeededWt {
+		// mark-seeded tasks should wait for both exec-command tasks
+		c.Check(t.Kind(), Equals, "exec-command")
+		var argv []string
+		c.Assert(t.Get("argv", &argv), IsNil)
+		c.Check(argv, HasLen, 3)
+
+		commandWt := make(map[string]bool)
+		for _, wt := range t.WaitTasks() {
+			commandWt[wt.Kind()] = true
+		}
+		// exec-command for "stop" should wait for configure hook task, "start" should wait for "stop" and "configure" hook task.
+		if argv[1] == "stop" {
+			c.Check(commandWt, DeepEquals, map[string]bool{"run-hook": true})
+		} else {
+			c.Check(argv[1], Equals, "start")
+			c.Check(commandWt, DeepEquals, map[string]bool{"run-hook": true, "exec-command": true})
+		}
+	}
+	c.Check(markSeeded.HaltTasks(), HasLen, 0)
+}
+
 func (s *servicectlSuite) TestQueuedCommandsUpdateMany(c *C) {
 	oldAutoAliases := snapstate.AutoAliases
 	snapstate.AutoAliases = func(*state.State, *snap.Info) (map[string]string, error) {

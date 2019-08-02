@@ -103,7 +103,14 @@ func queueCommand(context *hookstate.Context, tts []*state.TaskSet) error {
 	}
 
 	for _, ts := range tts {
-		ts.WaitAll(state.NewTaskSet(tasks...))
+		for _, t := range tasks {
+			// queue service command after all tasks, except for mark-seeded which must come after service commands
+			if t.Kind() == "mark-seeded" {
+				t.WaitAll(ts)
+			} else {
+				ts.WaitFor(t)
+			}
+		}
 		change.AddAll(ts)
 	}
 	// As this can be run from what was originally the last task of a change,
