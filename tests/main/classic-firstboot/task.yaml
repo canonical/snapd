@@ -87,12 +87,18 @@ execute: |
     test -f "$SEED_DIR/snaps/test-snapd-service.snap"
 
     echo "Checking that service restart happened before mark-seeded"
-    # number the lines of snap change output with nl for int comparison
-    SERVICE_COMMAND_TASK=$(snap change 1 | nl | grep "restart of .*test-snapd-service.test-snapd-other-service" | awk '{print $1}')
-    MARK_SEEDED_TASK=$(snap change 1 | nl | grep "Mark system seeded" | awk '{print $1}')
-    if ! test "$SERVICE_COMMAND_TASK" -lt "$MARK_SEEDED_TASK"; then
-        echo "Expected mark-seeded task after service command, but it was:"
-        snap change 1
+    # sanity check
+    snap change 1 | MATCH "Mark system seeded"
+    snap change 1 | MATCH "restart of .*test-snapd-service.test-snapd-other-service"
+    # extract task ids from state
+    # XXX: snap change output cannot be used for that; ideally we would have some sort of 'snap debug ..' command.
+    MARKSEEDED_WAIT=$(jq -r '.tasks[] | select (.kind == "mark-seeded") | ."wait-tasks"' /var/lib/snapd/state.json)
+    SERVICECMD_TASK=$(jq -r '.tasks[] | select (.kind == "exec-command") | .id' /var/lib/snapd/state.json)
+    if test -z "$SERVICECMD_TASK" ; then
+        echo "Could not find exec-command task"
         exit 1
     fi
-
+    if ! echo "$MARKSEEDED_WAIT" | MATCH "$SERVICECMD_TASK" ; then
+        echo "Expected mark-seeded task to wait for exec-command"
+        exit 1
+    fi
