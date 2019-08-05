@@ -68,13 +68,29 @@ func (s *userdSuite) TestUserdBadCommandline(c *C) {
 	c.Assert(err, ErrorMatches, "too many arguments for command")
 }
 
+type mockSignal struct{}
+
+func (m *mockSignal) String() string {
+	return "<test signal>"
+}
+
+func (m *mockSignal) Signal() {}
+
 func (s *userdSuite) TestUserdDBus(c *C) {
+	sigCh := make(chan os.Signal, 1)
+	sigStopCalls := 0
+
+	restore := snap.MockSignalNotify(func(sig ...os.Signal) (chan os.Signal, func()) {
+		c.Assert(sig, DeepEquals, []os.Signal{syscall.SIGINT, syscall.SIGTERM})
+		return sigCh, func() { sigStopCalls++ }
+	})
+	defer restore()
+
 	go func() {
 		myPid := os.Getpid()
+
 		defer func() {
-			me, err := os.FindProcess(myPid)
-			c.Assert(err, IsNil)
-			me.Signal(syscall.SIGUSR1)
+			sigCh <- &mockSignal{}
 		}()
 
 		names := map[string]bool{
@@ -106,7 +122,8 @@ func (s *userdSuite) TestUserdDBus(c *C) {
 	rest, err := snap.Parser(snap.Client()).ParseArgs([]string{"userd"})
 	c.Assert(err, IsNil)
 	c.Check(rest, DeepEquals, []string{})
-	c.Check(strings.ToLower(s.Stdout()), Equals, "exiting on user defined signal 1.\n")
+	c.Check(strings.ToLower(s.Stdout()), Equals, "exiting on <test signal>.\n")
+	c.Check(sigStopCalls, Equals, 1)
 }
 
 func (s *userdSuite) makeAgentClient() *http.Client {
@@ -120,12 +137,18 @@ func (s *userdSuite) makeAgentClient() *http.Client {
 }
 
 func (s *userdSuite) TestSessionAgentSocket(c *C) {
+	sigCh := make(chan os.Signal, 1)
+	sigStopCalls := 0
+
+	restore := snap.MockSignalNotify(func(sig ...os.Signal) (chan os.Signal, func()) {
+		c.Assert(sig, DeepEquals, []os.Signal{syscall.SIGINT, syscall.SIGTERM})
+		return sigCh, func() { sigStopCalls++ }
+	})
+	defer restore()
+
 	go func() {
-		myPid := os.Getpid()
 		defer func() {
-			me, err := os.FindProcess(myPid)
-			c.Assert(err, IsNil)
-			me.Signal(syscall.SIGUSR1)
+			sigCh <- &mockSignal{}
 		}()
 
 		// Wait for command to create socket file
@@ -140,11 +163,31 @@ func (s *userdSuite) TestSessionAgentSocket(c *C) {
 		client := s.makeAgentClient()
 		response, err := client.Get("http://localhost/v1/session-info")
 		c.Assert(err, IsNil)
+		defer response.Body.Close()
 		c.Check(response.StatusCode, Equals, 200)
 	}()
 
 	rest, err := snap.Parser(snap.Client()).ParseArgs([]string{"userd", "--agent"})
 	c.Assert(err, IsNil)
 	c.Check(rest, DeepEquals, []string{})
-	c.Check(strings.ToLower(s.Stdout()), Equals, "exiting on user defined signal 1.\n")
+	c.Check(strings.ToLower(s.Stdout()), Equals, "exiting on <test signal>.\n")
+	c.Check(sigStopCalls, Equals, 1)
+}
+
+func (s *userdSuite) TestSignalNotify(c *C) {
+	ch, stop := snap.SignalNotify(syscall.SIGUSR1)
+	defer stop()
+	go func() {
+		myPid := os.Getpid()
+		me, err := os.FindProcess(myPid)
+		c.Assert(err, IsNil)
+		err = me.Signal(syscall.SIGUSR1)
+		c.Assert(err, IsNil)
+	}()
+	select {
+	case sig := <-ch:
+		c.Assert(sig, Equals, syscall.SIGUSR1)
+	case <-time.After(5 * time.Second):
+		c.Fatal("signal not received within 5s")
+	}
 }
