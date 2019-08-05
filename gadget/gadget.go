@@ -138,6 +138,10 @@ func (vs *VolumeStructure) EffectiveRole() string {
 	if vs.Role == "" && vs.Type == MBR {
 		return MBR
 	}
+	if vs.Label == SystemBoot {
+		// for gadgets that only specify a filesystem-label, eg. pc
+		return SystemBoot
+	}
 	return ""
 }
 
