@@ -625,7 +625,7 @@ func (iface *dockerSupportInterface) AppArmorConnectedPlug(spec *apparmor.Specif
 	if !release.OnClassic {
 		spec.AddSnippet(dockerSupportConnectedPlugAppArmorCore)
 	}
-	spec.UsesPtraceTrace()
+	spec.SetUsesPtraceTrace()
 	return nil
 }
 

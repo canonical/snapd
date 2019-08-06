@@ -203,14 +203,14 @@ func (iface *kubernetesSupportInterface) AppArmorConnectedPlug(spec *apparmor.Sp
 	case "kubelet":
 		systemd_run_extra = kubernetesSupportConnectedPlugAppArmorKubeletSystemdRun
 		snippet += kubernetesSupportConnectedPlugAppArmorKubelet
-		spec.UsesPtraceTrace()
+		spec.SetUsesPtraceTrace()
 	case "kubeproxy":
 		snippet += kubernetesSupportConnectedPlugAppArmorKubeproxy
 	default:
 		systemd_run_extra = kubernetesSupportConnectedPlugAppArmorKubeletSystemdRun
 		snippet += kubernetesSupportConnectedPlugAppArmorKubelet
 		snippet += kubernetesSupportConnectedPlugAppArmorKubeproxy
-		spec.UsesPtraceTrace()
+		spec.SetUsesPtraceTrace()
 	}
 
 	old := "###KUBERNETES_SUPPORT_SYSTEMD_RUN###"
