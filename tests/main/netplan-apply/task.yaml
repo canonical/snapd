@@ -10,9 +10,6 @@ systems:
     - ubuntu-19*
     - ubuntu-20*
 
-debug: |
-
-
 prepare: |
     #shellcheck source=tests/lib/snaps.sh
     . "$TESTSLIB"/snaps.sh
