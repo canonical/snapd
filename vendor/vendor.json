@@ -7,6 +7,12 @@
 			"revision": ""
 		},
 		{
+			"checksumSHA1": "QjfZTxVIeh62KZwmaNMxXIrr+4c=",
+			"path": "github.com/chrisccoulson/go-tpm2",
+			"revision": "cf8f59140d4d1a775c1ae5ac71022e0febe40018",
+			"revisionTime": "2019-08-06T19:23:27Z"
+		},
+		{
 			"checksumSHA1": "MugammZcGwVR+gV6L1uaJczpoe0=",
 			"path": "github.com/chrisccoulson/ubuntu-core-fde-utils",
 			"revision": "2579bd98602394ece0a1e32f124c108e7fa50fe4",
