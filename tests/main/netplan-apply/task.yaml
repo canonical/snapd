@@ -1,0 +1,73 @@
+summary: Ensure that netplan apply works with network-setup-control
+
+details: |
+    Netplan apply is used to apply network configuration to the system
+
+# run on all classic ubuntu LTS and current dev systems 16.04+
+systems: 
+    - ubuntu-16*
+    - ubuntu-18*
+    - ubuntu-19*
+    - ubuntu-20*
+
+debug: |
+
+
+prepare: |
+    #shellcheck source=tests/lib/snaps.sh
+    . "$TESTSLIB"/snaps.sh
+    snap install test-snapd-netplan-apply --edge
+
+    echo "temporarily installing netplan D-Bus service until SRU is done..."
+    # for now, until netplan's D-Bus has been SRU'd to the netplan.io debian 
+    # package, we will just manually install the netplan D-Bus service units
+    # into the machine from the snap and install netplan.io from the archive
+    apt update
+
+    # the netplan package was renamed nplan -> netplan.io in bionic
+    case "$SPREAD_SYSTEM" in
+        ubuntu-16*)
+            NETPLAN_APT_PKG=nplan;;
+        *)
+            NETPLAN_APT_PKG=netplan.io;;
+    esac
+
+    apt install -y $NETPLAN_APT_PKG
+
+    NETPLAN_SNAP=/snap/test-snapd-netplan-apply/current
+
+    mkdir -p /lib/netplan
+    cp $NETPLAN_SNAP/lib/netplan/netplan-dbus \
+        /lib/netplan/netplan-dbus
+    chmod +x /lib/netplan/netplan-dbus
+    mkdir -p /usr/share/dbus-1/system-services
+    cp $NETPLAN_SNAP/share/dbus-1/system-services/io.netplan.Netplan.service \
+        /usr/share/dbus-1/system-services/io.netplan.Netplan.service
+    mkdir -p /usr/share/dbus-1/system.d
+    cp $NETPLAN_SNAP/share/dbus-1/system.d/io.netplan.Netplan.conf \
+        /usr/share/dbus-1/system.d/io.netplan.Netplan.conf
+
+restore: |
+    echo "uninstalling netplan D-Bus service"
+    rm -f /usr/lib/netplan/netplan-dbus
+    rm -f /usr/share/dbus-1/system-services/io.netplan.Netplan.service
+    rm -f /usr/share/dbus-1/system.d/io.netplan.Netplan.conf
+
+execute: |
+    echo "The interface is disconnected by default"
+    snap interfaces -i network-setup-control | MATCH -- '^- +test-snapd-netplan-apply:network-setup-control'
+
+    echo "Running netplan apply without network-setup-control fails"
+    if test-snapd-netplan-apply.netplan apply; then
+        echo "Expected access denied error for netplan apply"
+        exit 1
+    fi
+
+    echo "When the interface is connected"
+    snap connect test-snapd-netplan-apply:network-setup-control
+
+    echo "Running netplan apply now works"
+    if ! test-snapd-netplan-apply.netplan apply; then
+        echo "Unexpected error running netplan apply"
+        exit 1
+    fi
