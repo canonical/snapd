@@ -45,6 +45,18 @@ const networkSetupControlConnectedPlugAppArmor = `
 
 /run/udev/rules.d/ rw,                 # needed for cloud-init
 /run/udev/rules.d/[0-9]*-netplan-* rw,
+
+capability net_admin,
+
+#include <abstractions/dbus-session-strict>
+
+# Allow use of NetPlan Apply API, used to apply network configuration
+dbus (send)
+    bus=system
+    interface=io.netplan.Netplan
+	path=/io/netplan/Netplan
+	member=Apply,
+
 `
 
 func init() {
