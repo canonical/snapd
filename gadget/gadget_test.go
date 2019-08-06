@@ -1147,3 +1147,51 @@ volumes:
 	_, err = gadget.ReadInfo(s.dir, false)
 	c.Check(err, ErrorMatches, `invalid volume "pc": structure #1 \("mbr"\) has "mbr" role and must start at offset 0`)
 }
+
+type gadgetTestSuite struct{}
+
+var _ = Suite(&gadgetTestSuite{})
+
+func (s *gadgetTestSuite) TestEffectiveRole(c *C) {
+	// no role set
+	vs := gadget.VolumeStructure{Role: ""}
+	c.Check(vs.EffectiveRole(), Equals, "")
+
+	// explicitly set role trumps all
+	vs = gadget.VolumeStructure{Role: "foobar", Type: gadget.MBR, Label: gadget.SystemBoot}
+
+	c.Check(vs.EffectiveRole(), Equals, "foobar")
+
+	vs = gadget.VolumeStructure{Role: gadget.MBR}
+	c.Check(vs.EffectiveRole(), Equals, gadget.MBR)
+
+	// legacy fallback
+	vs = gadget.VolumeStructure{Role: "", Type: gadget.MBR}
+	c.Check(vs.EffectiveRole(), Equals, gadget.MBR)
+
+	// fallback role based on fs label applies only to system-boot
+	vs = gadget.VolumeStructure{Role: "", Label: gadget.SystemBoot}
+	c.Check(vs.EffectiveRole(), Equals, gadget.SystemBoot)
+	vs = gadget.VolumeStructure{Role: "", Label: gadget.SystemData}
+	c.Check(vs.EffectiveRole(), Equals, "")
+}
+
+func (s *gadgetTestSuite) TestEffectiveFilesystemLabel(c *C) {
+	// no label, and no role set
+	vs := gadget.VolumeStructure{Role: ""}
+	c.Check(vs.EffectiveFilesystemLabel(), Equals, "")
+
+	// explicitly set label
+	vs = gadget.VolumeStructure{Label: "my-label"}
+	c.Check(vs.EffectiveFilesystemLabel(), Equals, "my-label")
+
+	// inferred based on role
+	vs = gadget.VolumeStructure{Role: gadget.SystemData, Label: "unused-label"}
+	c.Check(vs.EffectiveFilesystemLabel(), Equals, gadget.ImplicitSystemDataLabel)
+	vs = gadget.VolumeStructure{Role: gadget.SystemData}
+	c.Check(vs.EffectiveFilesystemLabel(), Equals, gadget.ImplicitSystemDataLabel)
+
+	// only system-data role is special
+	vs = gadget.VolumeStructure{Role: gadget.SystemBoot}
+	c.Check(vs.EffectiveFilesystemLabel(), Equals, "")
+}
