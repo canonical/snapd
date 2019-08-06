@@ -54,8 +54,8 @@ capability net_admin,
 dbus (send)
     bus=system
     interface=io.netplan.Netplan
-	path=/io/netplan/Netplan
-	member=Apply,
+    path=/io/netplan/Netplan
+    member=Apply,
 
 `
 
