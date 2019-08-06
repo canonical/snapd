@@ -43,10 +43,6 @@ type DockerSupportInterfaceSuite struct {
 	networkCtrlSlot          *interfaces.ConnectedSlot
 	networkCtrlPlugInfo      *snap.PlugInfo
 	networkCtrlPlug          *interfaces.ConnectedPlug
-	ctrlCgroupPlugInfo       *snap.PlugInfo
-	ctrlCgroupPlug           *interfaces.ConnectedPlug
-	noCtrlCgroupPlugInfo     *snap.PlugInfo
-	noCtrlCgroupPlug         *interfaces.ConnectedPlug
 	privContainersPlugInfo   *snap.PlugInfo
 	privContainersPlug       *interfaces.ConnectedPlug
 	noPrivContainersPlugInfo *snap.PlugInfo
@@ -71,40 +67,11 @@ apps:
    - network-control
 `
 
-const dockerSupportDeviceCgroupTrueMockPlugSnapInfoYaml = `name: docker
-version: 1.0
-plugs:
- controls-device-cgroup:
-  interface: docker-support
-  controls-device-cgroup: true
-apps:
- app:
-  command: foo
-  plugs:
-   - device-cgroup
-   - network-control
-`
-
-const dockerSupportDeviceCgroupFalseMockPlugSnapInfoYaml = `name: docker
-version: 1.0
-plugs:
- controls-device-cgroup:
-  interface: docker-support
-  controls-device-cgroup: false
-apps:
- app:
-  command: foo
-  plugs:
-   - controls-device-cgroup
-   - network-control
-`
-
 const dockerSupportPrivilegedContainersFalseMockPlugSnapInfoYaml = `name: docker
 version: 1.0
 plugs:
  privileged:
   interface: docker-support
-  privileged-containers: false
 apps:
  app:
   command: foo
@@ -134,8 +101,6 @@ func (s *DockerSupportInterfaceSuite) SetUpTest(c *C) {
 	s.slot, s.slotInfo = MockConnectedSlot(c, coreDockerSlotYaml, nil, "docker-support")
 	s.networkCtrlPlug, s.networkCtrlPlugInfo = MockConnectedPlug(c, dockerSupportMockPlugSnapInfoYaml, nil, "network-control")
 	s.networkCtrlSlot, s.networkCtrlSlotInfo = MockConnectedSlot(c, coreDockerSlotYaml, nil, "network-control")
-	s.ctrlCgroupPlug, s.ctrlCgroupPlugInfo = MockConnectedPlug(c, dockerSupportDeviceCgroupTrueMockPlugSnapInfoYaml, nil, "controls-device-cgroup")
-	s.noCtrlCgroupPlug, s.noCtrlCgroupPlugInfo = MockConnectedPlug(c, dockerSupportDeviceCgroupFalseMockPlugSnapInfoYaml, nil, "controls-device-cgroup")
 	s.privContainersPlug, s.privContainersPlugInfo = MockConnectedPlug(c, dockerSupportPrivilegedContainersTrueMockPlugSnapInfoYaml, nil, "privileged")
 	s.noPrivContainersPlug, s.noPrivContainersPlugInfo = MockConnectedPlug(c, dockerSupportPrivilegedContainersFalseMockPlugSnapInfoYaml, nil, "privileged")
 }
@@ -265,9 +230,8 @@ func (s *DockerSupportInterfaceSuite) TestUdevTaggingDisablingRemoveLast(c *C) {
 	c.Assert(spec.AddConnectedPlug(builtin.MustInterface("network-control"), s.networkCtrlPlug, s.networkCtrlSlot), IsNil)
 	c.Assert(spec.Snippets(), HasLen, 3)
 
-	// connect docker-support interface plug which specifies
-	// controls-device-cgroup as true and ensure that the udev spec is now nil
-	c.Assert(spec.AddConnectedPlug(s.iface, s.ctrlCgroupPlug, s.slot), IsNil)
+	// connect docker-support interface plug and ensure that the udev spec is now nil
+	c.Assert(spec.AddConnectedPlug(s.iface, s.plug, s.slot), IsNil)
 	c.Check(spec.Snippets(), HasLen, 0)
 }
 
@@ -275,34 +239,10 @@ func (s *DockerSupportInterfaceSuite) TestUdevTaggingDisablingRemoveFirst(c *C) 
 	spec := &udev.Specification{}
 	// connect docker-support interface plug which specifies
 	// controls-device-cgroup as true and ensure that the udev spec is now nil
-	c.Assert(spec.AddConnectedPlug(s.iface, s.ctrlCgroupPlug, s.slot), IsNil)
+	c.Assert(spec.AddConnectedPlug(s.iface, s.plug, s.slot), IsNil)
 	c.Check(spec.Snippets(), HasLen, 0)
 
 	// add network-control and ensure the spec is still nil
 	c.Assert(spec.AddConnectedPlug(builtin.MustInterface("network-control"), s.networkCtrlPlug, s.networkCtrlSlot), IsNil)
 	c.Assert(spec.Snippets(), HasLen, 0)
-}
-
-func (s *DockerSupportInterfaceSuite) TestNoUdevTaggingDisablingRemoveLast(c *C) {
-	// make a spec with network-control that has udev tagging
-	spec := &udev.Specification{}
-	c.Assert(spec.AddConnectedPlug(builtin.MustInterface("network-control"), s.networkCtrlPlug, s.networkCtrlSlot), IsNil)
-	c.Assert(spec.Snippets(), HasLen, 3)
-
-	// connect docker-support interface plug which specifies
-	// controls-device-cgroup as false and ensure that the udev spec is now nil
-	c.Assert(spec.AddConnectedPlug(s.iface, s.noCtrlCgroupPlug, s.slot), IsNil)
-	c.Check(spec.Snippets(), HasLen, 3)
-}
-
-func (s *DockerSupportInterfaceSuite) TestNoUdevTaggingDisablingRemoveFirst(c *C) {
-	spec := &udev.Specification{}
-	// connect docker-support interface plug which specifies
-	// controls-device-cgroup as false and ensure that the udev spec is now nil
-	c.Assert(spec.AddConnectedPlug(s.iface, s.noCtrlCgroupPlug, s.slot), IsNil)
-	c.Check(spec.Snippets(), HasLen, 0)
-
-	// add network-control and ensure the spec is still nil
-	c.Assert(spec.AddConnectedPlug(builtin.MustInterface("network-control"), s.networkCtrlPlug, s.networkCtrlSlot), IsNil)
-	c.Assert(spec.Snippets(), HasLen, 3)
 }

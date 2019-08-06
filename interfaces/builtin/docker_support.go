@@ -596,11 +596,7 @@ var (
 )
 
 func (iface *dockerSupportInterface) UDevConnectedPlug(spec *udev.Specification, plug *interfaces.ConnectedPlug, slot *interfaces.ConnectedSlot) error {
-	var controlsDeviceCgroup bool
-	_ = plug.Attr("controls-device-cgroup", &controlsDeviceCgroup)
-	if controlsDeviceCgroup {
-		spec.SetControlsDeviceCgroup()
-	}
+	spec.SetControlsDeviceCgroup()
 
 	return nil
 }
