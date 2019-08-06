@@ -1,0 +1,8 @@
+summary: measuring basic properties of device cgroup
+# Ubuntu 14.04 uses a custom build of an older systemd that does not
+# seem to use device cgroups for services. The test is invalid there.
+systems: [-ubuntu-14.04-*]
+execute: ./task.sh
+restore: |
+    rm -f test-snapd-service_1.0_all.snap
+    snap remove test-snapd-service
