@@ -84,7 +84,7 @@ func checkSeedBases(snaps []*snap.Info) error {
 		}
 	}
 	for _, info := range snaps {
-		if info.GetType() != snap.TypeBase {
+		if info.GetType() != snap.TypeBase && info.Base != "" {
 			if !bases[info.Base] {
 				return fmt.Errorf("base %q missing for snap %q", info.Base, info.InstanceName())
 			}
