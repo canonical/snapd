@@ -76,6 +76,24 @@ func installSeedSnap(st *state.State, sn *snap.SeedSnap, flags snapstate.Flags, 
 	return snapstate.InstallPath(st, &sideInfo, path, "", sn.Channel, flags)
 }
 
+func checkSeedBases(snaps []*snap.Info) error {
+	bases := make(map[string]bool)
+	for _, info := range snaps {
+		if info.GetType() == snap.TypeBase {
+			bases[info.InstanceName()] = true
+		}
+	}
+	for _, info := range snaps {
+		if info.GetType() != snap.TypeBase {
+			if !bases[info.Base] {
+				return fmt.Errorf("base %q missing for snap %q", info.Base, info.InstanceName())
+			}
+		}
+	}
+
+	return nil
+}
+
 func trivialSeeding(st *state.State, markSeeded *state.Task) []*state.TaskSet {
 	// give the internal core config a chance to run (even if core is
 	// not used at all we put system configuration there)
@@ -238,6 +256,10 @@ func populateStateFromSeedImpl(st *state.State, tm timings.Measurer) ([]*state.T
 		}
 		infos = append(infos, info)
 		infoToTs[info] = ts
+	}
+
+	if err := checkSeedBases(infos); err != nil {
+		return nil, err
 	}
 
 	// now add/chain the tasksets in the right order, note that we
