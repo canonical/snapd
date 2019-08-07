@@ -835,6 +835,50 @@ func (s *gadgetYamlTestSuite) TestValidateVolumeDuplicateStructures(c *C) {
 	c.Assert(err, ErrorMatches, `structure name "duplicate" is not unique`)
 }
 
+func (s *gadgetYamlTestSuite) TestValidateVolumeDuplicateFsLabel(c *C) {
+	err := gadget.ValidateVolume("name", &gadget.Volume{
+		Structure: []gadget.VolumeStructure{
+			{Label: "foo", Type: "21686148-6449-6E6F-744E-656564454123", Size: gadget.SizeMiB},
+			{Label: "foo", Type: "21686148-6449-6E6F-744E-656564454649", Size: gadget.SizeMiB},
+		},
+	})
+	c.Assert(err, ErrorMatches, `filesystem label "foo" is not unique`)
+
+	// writable isn't special
+	err = gadget.ValidateVolume("name", &gadget.Volume{
+		Structure: []gadget.VolumeStructure{{
+			Name:  "data1",
+			Role:  gadget.SystemData,
+			Label: "writable",
+			Type:  "21686148-6449-6E6F-744E-656564454123",
+			Size:  gadget.SizeMiB,
+		}, {
+			Name:  "data2",
+			Role:  gadget.SystemData,
+			Label: "writable",
+			Type:  "21686148-6449-6E6F-744E-656564454649",
+			Size:  gadget.SizeMiB,
+		}},
+	})
+	c.Assert(err, ErrorMatches, `filesystem label "writable" is not unique`)
+
+	// nor is system-boot
+	err = gadget.ValidateVolume("name", &gadget.Volume{
+		Structure: []gadget.VolumeStructure{{
+			Name:  "boot1",
+			Label: "system-boot",
+			Type:  "EF,C12A7328-F81F-11D2-BA4B-00A0C93EC93B",
+			Size:  gadget.SizeMiB,
+		}, {
+			Name:  "boot2",
+			Label: "system-boot",
+			Type:  "EF,C12A7328-F81F-11D2-BA4B-00A0C93EC93B",
+			Size:  gadget.SizeMiB,
+		}},
+	})
+	c.Assert(err, ErrorMatches, `filesystem label "system-boot" is not unique`)
+}
+
 func (s *gadgetYamlTestSuite) TestValidateVolumeErrorsWrapped(c *C) {
 	err := gadget.ValidateVolume("name", &gadget.Volume{
 		Structure: []gadget.VolumeStructure{
