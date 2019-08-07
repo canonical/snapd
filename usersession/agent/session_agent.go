@@ -120,9 +120,11 @@ var (
 	shutdownTimeout = 5 * time.Second
 )
 
+// Stop performs a graceful shutdown of the session agent and waits up to 5
+// seconds for it to complete.
 func (s *SessionAgent) Stop() error {
 	systemd.SdNotify("STOPPING=1")
-	ctx, cancel := context.WithTimeout(s.tomb.Context(nil), shutdownTimeout)
+	ctx, cancel := context.WithTimeout(context.Background(), shutdownTimeout)
 	defer cancel()
 	s.tomb.Kill(s.serve.Shutdown(ctx))
 	return s.tomb.Wait()
