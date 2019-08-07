@@ -21,3 +21,6 @@ execute: |
     snap list | MATCH ^snapd
     snap list | MATCH ^core18
     snap list | MATCH ^test-snapd-tools
+
+restore: |
+    snap remove test-snapd-tools-core18
