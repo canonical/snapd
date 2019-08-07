@@ -122,13 +122,12 @@ void sc_die_on_error(sc_error * error)
 {
 	if (error != NULL) {
 		if (strcmp(sc_error_domain(error), SC_ERRNO_DOMAIN) == 0) {
-			// Set errno just before the call to die() as it is used internally
-			errno = sc_error_code(error);
-			die("%s", sc_error_msg(error));
+			fprintf(stderr, "%s: %s\n", sc_error_msg(error), strerror(sc_error_code(error)));
 		} else {
-			errno = 0;
-			die("%s", sc_error_msg(error));
+			fprintf(stderr, "%s\n", sc_error_msg(error));
 		}
+		sc_error_free(error);
+		exit(1);
 	}
 }
 
