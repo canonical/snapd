@@ -26,20 +26,10 @@
 #include <stdio.h>
 #include <string.h>
 
-struct sc_error {
-	// Error domain defines a scope for particular error codes.
-	const char *domain;
-	// Code differentiates particular errors for the programmer.
-	// The code may be zero if the particular meaning is not relevant.
-	int code;
-	// Message carries a formatted description of the problem.
-	char *msg;
-};
-
-static struct sc_error *sc_error_initv(const char *domain, int code,
-				       const char *msgfmt, va_list ap)
+static sc_error *sc_error_initv(const char *domain, int code,
+				const char *msgfmt, va_list ap)
 {
-	struct sc_error *err = calloc(1, sizeof *err);
+	sc_error *err = calloc(1, sizeof *err);
 	if (err == NULL) {
 		die("cannot allocate memory for error object");
 	}
@@ -51,28 +41,45 @@ static struct sc_error *sc_error_initv(const char *domain, int code,
 	return err;
 }
 
-struct sc_error *sc_error_init(const char *domain, int code, const char *msgfmt,
-			       ...)
+sc_error *sc_error_init(const char *domain, int code, const char *msgfmt, ...)
 {
 	va_list ap;
 	va_start(ap, msgfmt);
-	struct sc_error *err = sc_error_initv(domain, code, msgfmt, ap);
+	sc_error *err = sc_error_initv(domain, code, msgfmt, ap);
 	va_end(ap);
 	return err;
 }
 
-struct sc_error *sc_error_init_from_errno(int errno_copy, const char *msgfmt,
-					  ...)
+sc_error *sc_error_init_from_errno(int errno_copy, const char *msgfmt, ...)
 {
 	va_list ap;
 	va_start(ap, msgfmt);
-	struct sc_error *err =
-	    sc_error_initv(SC_ERRNO_DOMAIN, errno_copy, msgfmt, ap);
+	sc_error *err = sc_error_initv(SC_ERRNO_DOMAIN, errno_copy, msgfmt, ap);
 	va_end(ap);
 	return err;
 }
 
-const char *sc_error_domain(struct sc_error *err)
+sc_error *sc_error_init_simple(const char *msgfmt, ...)
+{
+	va_list ap;
+	va_start(ap, msgfmt);
+	sc_error *err = sc_error_initv(SC_LIBSNAP_DOMAIN,
+				       SC_UNSPECIFIED_ERROR, msgfmt, ap);
+	va_end(ap);
+	return err;
+}
+
+sc_error *sc_error_init_api_misuse(const char *msgfmt, ...)
+{
+	va_list ap;
+	va_start(ap, msgfmt);
+	sc_error *err = sc_error_initv(SC_LIBSNAP_DOMAIN,
+				       SC_API_MISUSE, msgfmt, ap);
+	va_end(ap);
+	return err;
+}
+
+const char *sc_error_domain(sc_error * err)
 {
 	if (err == NULL) {
 		die("cannot obtain error domain from NULL error");
@@ -80,7 +87,7 @@ const char *sc_error_domain(struct sc_error *err)
 	return err->domain;
 }
 
-int sc_error_code(struct sc_error *err)
+int sc_error_code(sc_error * err)
 {
 	if (err == NULL) {
 		die("cannot obtain error code from NULL error");
@@ -88,7 +95,7 @@ int sc_error_code(struct sc_error *err)
 	return err->code;
 }
 
-const char *sc_error_msg(struct sc_error *err)
+const char *sc_error_msg(sc_error * err)
 {
 	if (err == NULL) {
 		die("cannot obtain error message from NULL error");
@@ -96,7 +103,7 @@ const char *sc_error_msg(struct sc_error *err)
 	return err->msg;
 }
 
-void sc_error_free(struct sc_error *err)
+void sc_error_free(sc_error * err)
 {
 	if (err != NULL) {
 		free(err->msg);
@@ -105,13 +112,13 @@ void sc_error_free(struct sc_error *err)
 	}
 }
 
-void sc_cleanup_error(struct sc_error **ptr)
+void sc_cleanup_error(sc_error ** ptr)
 {
 	sc_error_free(*ptr);
 	*ptr = NULL;
 }
 
-void sc_die_on_error(struct sc_error *error)
+void sc_die_on_error(sc_error * error)
 {
 	if (error != NULL) {
 		if (strcmp(sc_error_domain(error), SC_ERRNO_DOMAIN) == 0) {
@@ -125,16 +132,17 @@ void sc_die_on_error(struct sc_error *error)
 	}
 }
 
-void sc_error_forward(struct sc_error **recipient, struct sc_error *error)
+int sc_error_forward(sc_error ** recipient, sc_error * error)
 {
 	if (recipient != NULL) {
 		*recipient = error;
 	} else {
 		sc_die_on_error(error);
 	}
+	return error != NULL ? -1 : 0;
 }
 
-bool sc_error_match(struct sc_error *error, const char *domain, int code)
+bool sc_error_match(sc_error * error, const char *domain, int code)
 {
 	if (domain == NULL) {
 		die("cannot match error to a NULL domain");

@@ -85,7 +85,7 @@ func (s *IntelMEISuite) TestAppArmorSpec(c *C) {
 	spec := &apparmor.Specification{}
 	c.Assert(spec.AddConnectedPlug(s.iface, s.plug, s.slot), IsNil)
 	c.Assert(spec.SecurityTags(), DeepEquals, []string{"snap.consumer.app"})
-	c.Assert(spec.SnippetForTag("snap.consumer.app"), testutil.Contains, `/dev/mei[0-9]+ rw,`)
+	c.Assert(spec.SnippetForTag("snap.consumer.app"), testutil.Contains, `/dev/mei[0-9]* rw,`)
 }
 
 func (s *IntelMEISuite) TestUDevSpec(c *C) {

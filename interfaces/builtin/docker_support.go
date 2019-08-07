@@ -45,6 +45,16 @@ const dockerSupportBaseDeclarationSlots = `
     deny-auto-connection: true
 `
 
+const dockerSupportConnectedPlugAppArmorCore = `
+# these accesses are necessary for Ubuntu Core 16 and 18, likely due to the version 
+# of apparmor or the kernel which doesn't resolve the upper layer of an 
+# overlayfs mount correctly
+# the accesses show up as runc trying to read from
+# /system-data/var/snap/docker/common/var-lib-docker/overlay2/$SHA/diff/
+/system-data/var/snap/{@{SNAP_NAME},@{SNAP_INSTANCE_NAME}}/common/{,**/} rwl,
+/system-data/var/snap/{@{SNAP_NAME},@{SNAP_INSTANCE_NAME}}/@{SNAP_REVISION}/{,**/} rwl,
+`
+
 const dockerSupportConnectedPlugAppArmor = `
 # Description: allow operating as the Docker daemon. This policy is
 # intentionally not restrictive and is here to help guard against programming
@@ -139,6 +149,15 @@ ptrace (read, trace) peer=docker-default,
 
 #cf bug 1502785
 / r,
+
+# recent versions of docker make a symlink from /dev/ptmx to /dev/pts/ptmx
+# and so to allow allocating a new shell we need this
+/dev/pts/ptmx rw,
+
+# needed by runc for mitigation of CVE-2019-5736
+# For details see https://bugs.launchpad.net/apparmor/+bug/1820344
+/ ix,
+/bin/runc rix,
 `
 
 const dockerSupportConnectedPlugSecComp = `
@@ -586,6 +605,9 @@ func (iface *dockerSupportInterface) AppArmorConnectedPlug(spec *apparmor.Specif
 	spec.AddSnippet(dockerSupportConnectedPlugAppArmor)
 	if privileged {
 		spec.AddSnippet(dockerSupportPrivilegedAppArmor)
+	}
+	if !release.OnClassic {
+		spec.AddSnippet(dockerSupportConnectedPlugAppArmorCore)
 	}
 	spec.UsesPtraceTrace()
 	return nil

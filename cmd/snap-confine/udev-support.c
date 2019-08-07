@@ -73,6 +73,10 @@ _run_snappy_app_dev_add_majmin(struct snappy_udev *udev_s,
 			execle("/usr/lib/snapd/snap-device-helper",
 			       "/usr/lib/snapd/snap-device-helper", "add",
 			       udev_s->tagname, path, buf, NULL, env);
+		else if (access("/usr/libexec/snapd/snap-device-helper", X_OK) == 0)
+			execle("/usr/libexec/snapd/snap-device-helper",
+			       "/usr/libexec/snapd/snap-device-helper", "add",
+			       udev_s->tagname, path, buf, NULL, env);
 		else
 			execle("/lib/udev/snappy-app-dev",
 			       "/lib/udev/snappy-app-dev", "add",
@@ -108,7 +112,8 @@ void run_snappy_app_dev_add(struct snappy_udev *udev_s, const char *path)
 	dev_t devnum = udev_device_get_devnum(d);
 	udev_device_unref(d);
 
-	_run_snappy_app_dev_add_majmin(udev_s, path, major(devnum), minor(devnum));
+	_run_snappy_app_dev_add_majmin(udev_s, path, major(devnum),
+				       minor(devnum));
 }
 
 /*

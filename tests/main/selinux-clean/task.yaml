@@ -1,0 +1,65 @@
+summary: Check that basic snap management does not raise any SELinux denials
+
+description: |
+    On systems where SELinux is supported, make sure that starting snapd and
+    performing basic install/remove tasks does not cause SELinux denials. Even
+    though we do not support SELinux for enforcing confinement of snaps, we do
+    not want to cause unnecessary warnings when users are performing basic
+    management tasks on snaps.
+
+systems: [fedora-*, centos-*]
+prepare: |
+    #shellcheck source=tests/lib/pkgdb.sh
+    . "$TESTSLIB"/pkgdb.sh
+
+    # Install some fonts so that the fc-cache helpers have something to work with
+    distro_install_package fontconfig dejavu-sans-fonts
+
+    getenforce > enforcing.mode
+
+    # Enable enforcing mode, our policy is already marked as permissive, so we
+    # will get audit entries but the program will not be stopped by SELinux
+    setenforce 1
+    ausearch --checkpoint stamp -m AVC || true
+
+restore: |
+    setenforce "$(cat enforcing.mode)"
+    rm -f stamp enforcing.mode
+
+execute: |
+    snap install test-snapd-tools
+    test-snapd-tools.cmd echo 'hello world'
+    su -c 'test-snapd-tools.cmd echo hello world' test
+    snap remove test-snapd-tools
+    ausearch -i --checkpoint stamp --start checkpoint -m AVC 2>&1 | MATCH 'no matches'
+
+    #shellcheck source=tests/lib/snaps.sh
+    . "$TESTSLIB/snaps.sh"
+
+    install_local test-snapd-service
+    snap stop test-snapd-service
+    snap start test-snapd-service
+    # TODO: enable once there is a workaround for denials caused by journalctl
+    # snap logs test-snapd-service
+    snap remove test-snapd-service
+    ausearch -i --checkpoint stamp --start checkpoint -m AVC 2>&1 | MATCH 'no matches'
+
+    install_local test-snapd-layout
+    test-snapd-layout.sh -c 'ls /'
+    su -c "test-snapd-layout.sh -c 'ls /'" test
+    snap remove test-snapd-layout
+    ausearch -i --checkpoint stamp --start checkpoint -m AVC 2>&1 | MATCH 'no matches'
+
+    install_local socket-activation
+    [ -S /var/snap/socket-activation/common/socket ]
+    snap remove socket-activation
+    ausearch -i --checkpoint stamp --start checkpoint -m AVC 2>&1 | MATCH 'no matches'
+
+    # snaps with bases are special in the way that $(libexecdir)/snapd form host
+    # is bind mounted into the mount namespace of a snap, thus the SELinux
+    # contexts from the host appear inside, and the policy needs to allow
+    # proper transitions with these labels
+    install_local test-snapd-snapctl-core18
+    snap restart test-snapd-snapctl-core18
+    snap remove test-snapd-snapctl-core18
+    ausearch -i --checkpoint stamp --start checkpoint -m AVC 2>&1 | MATCH 'no matches'

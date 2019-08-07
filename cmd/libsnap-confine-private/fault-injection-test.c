@@ -57,7 +57,7 @@ static void test_fault_injection(void)
 	sc_reset_faults();
 }
 
-static void __attribute__ ((constructor)) init(void)
+static void __attribute__((constructor)) init(void)
 {
 	g_test_add_func("/fault-injection", test_fault_injection);
 }

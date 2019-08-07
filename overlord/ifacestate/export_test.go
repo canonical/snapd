@@ -77,6 +77,12 @@ func MockContentLinkRetryTimeout(d time.Duration) (restore func()) {
 	return func() { contentLinkRetryTimeout = old }
 }
 
+func MockHotplugRetryTimeout(d time.Duration) (restore func()) {
+	old := hotplugRetryTimeout
+	hotplugRetryTimeout = d
+	return func() { hotplugRetryTimeout = old }
+}
+
 func MockCreateUDevMonitor(new func(udevmonitor.DeviceAddedFunc, udevmonitor.DeviceRemovedFunc, udevmonitor.EnumerationDoneFunc) udevmonitor.Interface) (restore func()) {
 	old := createUDevMonitor
 	createUDevMonitor = new

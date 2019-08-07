@@ -30,6 +30,7 @@ import (
 	"regexp"
 	"time"
 
+	"github.com/snapcore/snapd/cmd/cmdutil"
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/strutil"
@@ -54,7 +55,7 @@ func New(snapPath string) *Snap {
 }
 
 var osLink = os.Link
-var osutilCommandFromCore = osutil.CommandFromCore
+var cmdutilCommandFromSystemSnap = cmdutil.CommandFromSystemSnap
 
 func (s *Snap) Install(targetPath, mountDir string) error {
 
@@ -305,7 +306,7 @@ func (s *Snap) Build(sourceDir, snapType string, excludeFiles ...string) error {
 	if err != nil {
 		return err
 	}
-	cmd, err := osutilCommandFromCore(dirs.SnapMountDir, "/usr/bin/mksquashfs")
+	cmd, err := cmdutilCommandFromSystemSnap("/usr/bin/mksquashfs")
 	if err != nil {
 		cmd = exec.Command("mksquashfs")
 	}

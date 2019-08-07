@@ -20,15 +20,60 @@
 package testutil
 
 import (
+	"bytes"
 	"fmt"
+	"io"
 	"io/ioutil"
 	"os"
+	"os/exec"
 	"path"
 	"path/filepath"
 	"strings"
+	"sync"
 
 	"gopkg.in/check.v1"
 )
+
+var shellcheckPath string
+
+func init() {
+	if p, err := exec.LookPath("shellcheck"); err == nil {
+		shellcheckPath = p
+	}
+}
+
+var (
+	shellchecked   = make(map[string]bool, 16)
+	shellcheckedMu sync.Mutex
+)
+
+func shellcheckSeenAlready(script string) bool {
+	shellcheckedMu.Lock()
+	defer shellcheckedMu.Unlock()
+	if shellchecked[script] {
+		return true
+	}
+	shellchecked[script] = true
+	return false
+}
+
+func maybeShellcheck(c *check.C, script string, wholeScript io.Reader) {
+	// MockCommand is used sometimes in SetUptTest, so it adds up
+	// even for the empty script, don't recheck the essentially same
+	// thing again and again!
+	if shellcheckSeenAlready(script) {
+		return
+	}
+	c.Logf("using shellcheck: %q", shellcheckPath)
+	if shellcheckPath == "" {
+		// no shellcheck, nothing to do
+		return
+	}
+	cmd := exec.Command(shellcheckPath, "-s", "bash", "-")
+	cmd.Stdin = wholeScript
+	out, err := cmd.CombinedOutput()
+	c.Check(err, check.IsNil, check.Commentf("shellcheck failed:\n%s", string(out)))
+}
 
 // MockCmd allows mocking commands for testing.
 type MockCmd struct {
@@ -45,14 +90,14 @@ type MockCmd struct {
 // - generate \0\0 to separate commands
 var scriptTpl = `#!/bin/bash
 printf "%%s" "$(basename "$0")" >> %[1]q
-printf "\0" >> %[1]q
+printf '\0' >> %[1]q
 
 for arg in "$@"; do
      printf "%%s" "$arg" >> %[1]q
-     printf "\0"  >> %[1]q
+     printf '\0'  >> %[1]q
 done
 
-printf "\0" >> %[1]q
+printf '\0' >> %[1]q
 %s
 `
 
@@ -65,6 +110,7 @@ printf "\0" >> %[1]q
 // script behaves (exit code and any extra behavior). If script is empty then
 // the command exits successfully without any other side-effect.
 func MockCommand(c *check.C, basename, script string) *MockCmd {
+	var wholeScript bytes.Buffer
 	var binDir, exeFile, logFile string
 	if filepath.IsAbs(basename) {
 		binDir = filepath.Dir(basename)
@@ -76,10 +122,13 @@ func MockCommand(c *check.C, basename, script string) *MockCmd {
 		logFile = path.Join(binDir, basename+".log")
 		os.Setenv("PATH", binDir+":"+os.Getenv("PATH"))
 	}
-	err := ioutil.WriteFile(exeFile, []byte(fmt.Sprintf(scriptTpl, logFile, script)), 0700)
+	fmt.Fprintf(&wholeScript, scriptTpl, logFile, script)
+	err := ioutil.WriteFile(exeFile, wholeScript.Bytes(), 0700)
 	if err != nil {
 		panic(err)
 	}
+
+	maybeShellcheck(c, script, &wholeScript)
 
 	return &MockCmd{binDir: binDir, exeFile: exeFile, logFile: logFile}
 }

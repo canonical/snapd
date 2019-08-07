@@ -67,7 +67,7 @@ const openglConnectedPlugAppArmor = `
 /dev/nvidia* rw,
 unix (send, receive) type=dgram peer=(addr="@nvidia[0-9a-f]*"),
 
-# eglfs
+# VideoCore/EGL (shared device with VideoCore camera)
 /dev/vchiq rw,
 
 # va-api
@@ -77,8 +77,11 @@ unix (send, receive) type=dgram peer=(addr="@nvidia[0-9a-f]*"),
 @{PROC}/sys/vm/mmap_min_addr r,
 @{PROC}/devices r,
 /sys/devices/system/memory/block_size_bytes r,
+/sys/module/tegra_fuse/parameters/tegra_* r,
 unix (bind,listen) type=seqpacket addr="@cuda-uvmfd-[0-9a-f]*",
 /{dev,run}/shm/cuda.* rw,
+/dev/nvhost-* rw,
+/dev/nvmap rw,
 
 # OpenCL ICD files
 /etc/OpenCL/vendors/ r,
@@ -110,12 +113,14 @@ unix (bind,listen) type=seqpacket addr="@cuda-uvmfd-[0-9a-f]*",
 /run/udev/data/c226:[0-9]* r,  # 226 drm
 `
 
-// The nvidia modules don't use sysfs (therefore they can't be udev tagged) and
+// Some nvidia modules don't use sysfs (therefore they can't be udev tagged) and
 // will be added by snap-confine.
 var openglConnectedPlugUDev = []string{
 	`SUBSYSTEM=="drm", KERNEL=="card[0-9]*"`,
 	`KERNEL=="vchiq"`,
 	`KERNEL=="renderD[0-9]*"`,
+	`KERNEL=="nvhost-*"`,
+	`KERNEL=="nvmap"`,
 }
 
 func init() {

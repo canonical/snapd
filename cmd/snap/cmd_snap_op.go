@@ -36,6 +36,7 @@ import (
 	"github.com/snapcore/snapd/i18n"
 	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/snap"
+	"github.com/snapcore/snapd/strutil"
 )
 
 var (
@@ -113,6 +114,7 @@ type cmdRemove struct {
 	waitMixin
 
 	Revision   string `long:"revision"`
+	Purge      bool   `long:"purge"`
 	Positional struct {
 		Snaps []installedSnapName `positional-arg-name:"<snap>" required:"1"`
 	} `positional-args:"yes" required:"yes"`
@@ -184,7 +186,7 @@ func (x *cmdRemove) removeMany(opts *client.SnapOptions) error {
 }
 
 func (x *cmdRemove) Execute([]string) error {
-	opts := &client.SnapOptions{Revision: x.Revision}
+	opts := &client.SnapOptions{Revision: x.Revision, Purge: x.Purge}
 	if len(x.Positional.Snaps) == 1 {
 		return x.removeOne(opts)
 	}
@@ -412,6 +414,7 @@ type cmdInstall struct {
 
 	Name string `long:"name"`
 
+	Cohort     string `long:"cohort"`
 	Positional struct {
 		Snaps []remoteSnapName `positional-arg-name:"<snap>"`
 	} `positional-args:"yes" required:"yes"`
@@ -457,6 +460,7 @@ func (x *cmdInstall) installOne(nameOrPath, desiredName string, opts *client.Sna
 		}
 	}
 
+	// TODO: mention details of the install (e.g. like switch does)
 	return showDone(x.client, []string{snapName}, "install", opts, x.getEscapes())
 }
 
@@ -531,6 +535,7 @@ func (x *cmdInstall) Execute([]string) error {
 		Revision:  x.Revision,
 		Dangerous: dangerous,
 		Unaliased: x.Unaliased,
+		CohortKey: x.Cohort,
 	}
 	x.setModes(opts)
 
@@ -567,6 +572,8 @@ type cmdRefresh struct {
 
 	Amend            bool   `long:"amend"`
 	Revision         string `long:"revision"`
+	Cohort           string `long:"cohort"`
+	LeaveCohort      bool   `long:"leave-cohort"`
 	List             bool   `long:"list"`
 	Time             bool   `long:"time"`
 	IgnoreValidation bool   `long:"ignore-validation"`
@@ -621,6 +628,8 @@ func (x *cmdRefresh) refreshOne(name string, opts *client.SnapOptions) error {
 		return err
 	}
 
+	// TODO: this doesn't really tell about all the things you
+	// could set while refreshing (something switch does)
 	return showDone(x.client, []string{name}, "refresh", opts, x.getEscapes())
 }
 
@@ -734,6 +743,8 @@ func (x *cmdRefresh) Execute([]string) error {
 			Channel:          x.Channel,
 			IgnoreValidation: x.IgnoreValidation,
 			Revision:         x.Revision,
+			CohortKey:        x.Cohort,
+			LeaveCohort:      x.LeaveCohort,
 		}
 		x.setModes(opts)
 		return x.refreshOne(names[0], opts)
@@ -952,6 +963,9 @@ type cmdSwitch struct {
 	waitMixin
 	channelMixin
 
+	Cohort      string `long:"cohort"`
+	LeaveCohort bool   `long:"leave-cohort"`
+
 	Positional struct {
 		Snap installedSnapName `positional-arg-name:"<snap>" required:"1"`
 	} `positional-args:"yes" required:"yes"`
@@ -961,14 +975,43 @@ func (x cmdSwitch) Execute(args []string) error {
 	if err := x.setChannelFromCommandline(); err != nil {
 		return err
 	}
-	if x.Channel == "" {
-		return fmt.Errorf("missing --channel=<channel-name> parameter")
-	}
 
 	name := string(x.Positional.Snap)
 	channel := string(x.Channel)
+
+	var msg string
+	// some duplication between this and the two other switch-summarisers...
+	// in this one, we have three boolean things to check, meaning 2³=8 possibilities
+	// of which 3 are errors (which is why we look at this before running it)
+	switchCohort := x.Cohort != ""
+	switchChannel := x.Channel != ""
+	switch {
+	case switchCohort && x.LeaveCohort:
+		// this one counts as two (no channel filter)
+		return fmt.Errorf(i18n.G("cannot specify both --cohort and --leave-cohort"))
+	case switchCohort && !x.LeaveCohort && !switchChannel:
+		// TRANSLATORS: the first %q will be the (quoted) snap name, the second an ellipted cohort string
+		msg = fmt.Sprintf(i18n.G("%q switched to the %q cohort\n"), name, strutil.ElliptLeft(x.Cohort, 10))
+	case switchCohort && !x.LeaveCohort && switchChannel:
+		// TRANSLATORS: the first %q will be the (quoted) snap name, the second a channel, the third an ellipted cohort string
+		msg = fmt.Sprintf(i18n.G("%q switched to the %q channel and the %q cohort\n"), name, channel, strutil.ElliptLeft(x.Cohort, 10))
+	case !switchCohort && !x.LeaveCohort && switchChannel:
+		// TRANSLATORS: the first %q will be the (quoted) snap name, the second a channel
+		msg = fmt.Sprintf(i18n.G("%q switched to the %q channel\n"), name, channel)
+	case !switchCohort && x.LeaveCohort && switchChannel:
+		// TRANSLATORS: the first %q will be the (quoted) snap name, the second a channel
+		msg = fmt.Sprintf(i18n.G("%q left the cohort, and switched to the %q channel"), name, channel)
+	case !switchCohort && x.LeaveCohort && !switchChannel:
+		// TRANSLATORS: %q will be the (quoted) snap name
+		msg = fmt.Sprintf(i18n.G("%q left the cohort"), name)
+	case !switchCohort && !x.LeaveCohort && !switchChannel:
+		return fmt.Errorf(i18n.G("nothing to switch; specify --channel (and/or one of --cohort/--leave-cohort)"))
+	} // and that's the 8 \o/
+
 	opts := &client.SnapOptions{
-		Channel: channel,
+		Channel:     channel,
+		CohortKey:   x.Cohort,
+		LeaveCohort: x.LeaveCohort,
 	}
 	changeID, err := x.client.Switch(name, opts)
 	if err != nil {
@@ -982,7 +1025,7 @@ func (x cmdSwitch) Execute(args []string) error {
 		return err
 	}
 
-	fmt.Fprintf(Stdout, i18n.G("%q switched to the %q channel\n"), name, channel)
+	fmt.Fprintln(Stdout, msg)
 	return nil
 }
 
@@ -991,6 +1034,8 @@ func init() {
 		waitDescs.also(map[string]string{
 			// TRANSLATORS: This should not start with a lowercase letter.
 			"revision": i18n.G("Remove only the given revision"),
+			// TRANSLATORS: This should not start with a lowercase letter.
+			"purge": i18n.G("Remove the snap without saving a snapshot of its data"),
 		}), nil)
 	addCommand("install", shortInstallHelp, longInstallHelp, func() flags.Commander { return &cmdInstall{} },
 		colorDescs.also(waitDescs).also(channelDescs).also(modeDescs).also(map[string]string{
@@ -1004,6 +1049,8 @@ func init() {
 			"unaliased": i18n.G("Install the given snap without enabling its automatic aliases"),
 			// TRANSLATORS: This should not start with a lowercase letter.
 			"name": i18n.G("Install the snap file under the given instance name"),
+			// TRANSLATORS: This should not start with a lowercase letter.
+			"cohort": i18n.G("Install the snap in the given cohort"),
 		}), nil)
 	addCommand("refresh", shortRefreshHelp, longRefreshHelp, func() flags.Commander { return &cmdRefresh{} },
 		colorDescs.also(waitDescs).also(channelDescs).also(modeDescs).also(timeDescs).also(map[string]string{
@@ -1017,6 +1064,10 @@ func init() {
 			"time": i18n.G("Show auto refresh information but do not perform a refresh"),
 			// TRANSLATORS: This should not start with a lowercase letter.
 			"ignore-validation": i18n.G("Ignore validation by other snaps blocking the refresh"),
+			// TRANSLATORS: This should not start with a lowercase letter.
+			"cohort": i18n.G("Refresh the snap into the given cohort"),
+			// TRANSLATORS: This should not start with a lowercase letter.
+			"leave-cohort": i18n.G("Refresh the snap out of its cohort"),
 		}), nil)
 	addCommand("try", shortTryHelp, longTryHelp, func() flags.Commander { return &cmdTry{} }, waitDescs.also(modeDescs), nil)
 	addCommand("enable", shortEnableHelp, longEnableHelp, func() flags.Commander { return &cmdEnable{} }, waitDescs, nil)
@@ -1025,5 +1076,10 @@ func init() {
 		// TRANSLATORS: This should not start with a lowercase letter.
 		"revision": i18n.G("Revert to the given revision"),
 	}), nil)
-	addCommand("switch", shortSwitchHelp, longSwitchHelp, func() flags.Commander { return &cmdSwitch{} }, waitDescs.also(channelDescs), nil)
+	addCommand("switch", shortSwitchHelp, longSwitchHelp, func() flags.Commander { return &cmdSwitch{} }, waitDescs.also(channelDescs).also(map[string]string{
+		// TRANSLATORS: This should not start with a lowercase letter.
+		"cohort": i18n.G("Switch the snap into the given cohort"),
+		// TRANSLATORS: This should not start with a lowercase letter.
+		"leave-cohort": i18n.G("Switch the snap out of its cohort"),
+	}), nil)
 }

@@ -2,6 +2,10 @@
 
 set -e
 
+# "powerpc" is not supported unfortunately, do nothing here# 
+if [ "$DPKG_MAINTSCRIPT_ARCH" = powerpc ]; then
+    exit 0
+fi
 
 case "$1" in
     configure)
@@ -44,6 +48,9 @@ case "$1" in
         if test "$(md5sum /etc/apparmor.d/usr.lib.snapd.snap-confine | cut -f1 -d' ' 2>/dev/null)" = "2a38d40fe662f46fedd0aefbe78f23e9"; then
             rm -f /etc/apparmor.d/usr.lib.snapd.snap-confine
         fi
+
+        # Ensure that the void directory has correct permissions.
+        chmod 111 /var/lib/snapd/void
 esac
 
 #DEBHELPER#

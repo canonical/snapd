@@ -119,6 +119,7 @@ var adbSupportVendors = map[int]string{
 	0x2a45: "MEIZU",
 	0x2a47: "BQ",
 	0x2a49: "UNOWHY",
+	0x2a70: "OnePlus",
 	0x2ae5: "FAIRPHONE",
 	0x413c: "DELL",
 	0x8087: "INTEL", // https://twitter.com/zygoon/status/1032233406564913152
@@ -135,7 +136,10 @@ var adbSupportConnectedPlugAppArmor = `
 /run/udev/data/c189:* r,
 
 # Allow reading the serial number of all the USB devices.
-/sys/devices/**/usb*/*/serial r,
+# Note that this path encodes the physical connection topology (e.g. any USB
+# hubs you are using) and as such there are more recursive patterns than one
+# might otherwise see necessary on their own system.
+/sys/devices/**/usb*/**/serial r,
 `
 
 type adbSupportInterface struct {

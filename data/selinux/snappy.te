@@ -17,16 +17,22 @@
 # Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA.
 
 
-policy_module(snappy,0.0.14)
+policy_module(snappy,0.1.0)
 
 ########################################
 #
 # Declarations
 #
 
+attribute_role snappy_roles;
+
+# snapd
 type snappy_t;
 type snappy_exec_t;
+# allow init domain to transition to snappy_t by executing snappy_exec_t
 init_daemon_domain(snappy_t, snappy_exec_t)
+
+role snappy_roles types snappy_t;
 
 type snappy_config_t;
 files_config_file(snappy_config_t)
@@ -51,15 +57,49 @@ files_pid_file(snappy_var_run_t)
 type snappy_unit_file_t;
 systemd_unit_file(snappy_unit_file_t)
 
+type snappy_tmp_t;
+files_tmp_file(snappy_tmp_t)
+
+# actual snap
+type snappy_snap_t;
+# XXX: snappy_snap_t should be declared a filesystem, but due to how modules are
+# handled we cannot generate required contexts with genfscon outside of core
+# policy
+# fs_type(snappy_snap_t)
+files_type(snappy_snap_t)
+files_mountpoint(snappy_snap_t)
+
+# CLI tools: snap, snapctl
+type snappy_cli_t;
+type snappy_cli_exec_t;
+domain_type(snappy_cli_t)
+domain_entry_file(snappy_cli_t, snappy_cli_exec_t)
+
+# helper tools: snap-{update,discard}-ns
+type snappy_mount_t;
+type snappy_mount_exec_t;
+domain_type(snappy_mount_t)
+domain_entry_file(snappy_mount_t, snappy_mount_exec_t)
+
+# helper tool: snap-confine
+type snappy_confine_t;
+type snappy_confine_exec_t;
+domain_type(snappy_confine_t)
+domain_entry_file(snappy_confine_t, snappy_confine_exec_t)
+
+type snappy_unconfined_snap_t;
+unconfined_domain(snappy_unconfined_snap_t)
+
 ########################################
 #
-# snappy local policy
+# snappy snapd local policy
 #
 
 # For development purposes, snappy_t domain is to be marked permissive
 permissive snappy_t;
 
 # Allow transitions from init_t to snappy for sockets
+# init_named_socket_activation() is not supported by core policy in RHEL7
 gen_require(` type init_t; type var_run_t; ')
 filetrans_pattern(init_t, var_run_t, snappy_var_run_t, sock_file, "snapd.socket")
 filetrans_pattern(init_t, var_run_t, snappy_var_run_t, sock_file, "snapd-snap.socket")
@@ -67,176 +107,151 @@ filetrans_pattern(init_t, var_run_t, snappy_var_run_t, sock_file, "snapd-snap.so
 # Allow init_t to read snappy data
 allow init_t snappy_var_lib_t:dir read;
 
-# Allow snapd to read init socket
-gen_require(` type init_t; ')
-allow snappy_t init_t:file { getattr open read };
-allow snappy_t init_t:lnk_file read;
-allow snappy_t init_t:unix_stream_socket connectto;
-
-# Allow snapd to read file contexts
-gen_require(` type file_context_t; ')
-allow snappy_t file_context_t:dir search;
-allow snappy_t file_context_t:file { map getattr open read };
-
 # Allow snapd to read procfs
 gen_require(` type proc_t; ')
 allow snappy_t proc_t:file { getattr open read };
 
 # Allow snapd to read sysfs
-gen_require(` type sysfs_t; ')
-allow snappy_t sysfs_t:dir read;
-allow snappy_t sysfs_t:file { getattr setattr open read write };
-allow snappy_t sysfs_t:lnk_file { getattr read };
-
+dev_read_sysfs(snappy_t)
+dev_search_sysfs(snappy_t)
 
 # This silences a read AVC denial event on the lost+found directory.
 gen_require(` type lost_found_t; ')
 dontaudit snappy_t lost_found_t:dir read;
 
 # Allow snapd to read SSL cert store
-gen_require(` type cert_t; ')
-allow snappy_t cert_t:dir { search open read };
-allow snappy_t cert_t:file { getattr open read };
-allow snappy_t cert_t:lnk_file { getattr open read };
+miscfiles_read_all_certs(snappy_t)
 
 # Allow snapd to read config files
 read_files_pattern(snappy_t, snappy_config_t, snappy_config_t)
 
 # Allow snapd to manage snaps' homedir data
-manage_dirs_pattern(snappy_t, snappy_home_t, snappy_home_t)
-manage_files_pattern(snappy_t, snappy_home_t, snappy_home_t)
-manage_lnk_files_pattern(snappy_t, snappy_home_t, snappy_home_t)
+admin_pattern(snappy_t, snappy_home_t)
 userdom_search_user_home_dirs(snappy_t)
-userdom_user_home_dir_filetrans(snappy_t, snappy_home_t, dir, "snap")
+userdom_list_user_home_dirs(snappy_t)
 
 # Allow snapd to read DNS config
-gen_require(` type net_conf_t; ')
-allow snappy_t net_conf_t:file { getattr open read };
-allow snappy_t net_conf_t:lnk_file { read };
+sysnet_dns_name_resolve(snappy_t)
 
 # When managed by NetworkManager, DNS config is in its rundata
 gen_require(` type NetworkManager_var_run_t; ')
 allow snappy_t NetworkManager_var_run_t:dir search;
 
 # Allow snapd to read sysctl files
-gen_require(` type sysctl_net_t; ')
-allow snappy_t sysctl_net_t:dir search;
-allow snappy_t sysctl_net_t:file { open read };
+kernel_read_net_sysctls(snappy_t)
+kernel_search_network_sysctl(snappy_t)
+
+# Allow snapd to query SELinux status
+selinux_get_enforce_mode(snappy_t)
 
 # Allow snapd to manage D-Bus config files for snaps
-gen_require(` type dbusd_etc_t; ')
-allow snappy_t dbusd_etc_t:dir { getattr open read search };
-allow snappy_t dbusd_etc_t:file { getattr open read write create rename unlink };
-allow snappy_t dbusd_etc_t:lnk_file { read };
+optional_policy(`
+  dbus_read_config(snappy_t)
+  allow snappy_t dbusd_etc_t:file { write create rename unlink };
+  allow snappy_t dbusd_etc_t:lnk_file { read };
+')
 
-# Allow snapd to manage udev rules for snaps
-gen_require(` type udev_rules_t; type udev_exec_t; ')
-allow snappy_t udev_rules_t:dir { getattr open read write search add_name remove_name };
-allow snappy_t udev_rules_t:file { getattr open read write create rename unlink };
-allow snappy_t udev_exec_t:file { execute execute_no_trans getattr open read map };
-
-# Allow snapd to manipulate udev
-gen_require(` type udev_t; type udev_var_run_t; ')
-allow snappy_t udev_t:unix_stream_socket connectto;
-allow snappy_t udev_var_run_t:file { getattr open read };
-allow snappy_t udev_var_run_t:dir { read };
-allow snappy_t udev_var_run_t:sock_file { getattr open read write };
+# Allow snapd to manage udev rules for snaps and trigger events
+optional_policy(`
+  udev_manage_rules_files(snappy_t)
+	udev_manage_pid_files(snappy_t)
+  udev_exec(snappy_t)
+  udev_domtrans(snappy_t)
+  udev_create_kobject_uevent_socket(snappy_t)
+')
+allow snappy_t self:netlink_kobject_uevent_socket { create_socket_perms read };
 
 # Allow snapd to read/write systemd units and use systemctl for managing snaps
 systemd_config_all_services(snappy_t)
 systemd_manage_all_unit_files(snappy_t)
 systemd_manage_all_unit_lnk_files(snappy_t)
 systemd_exec_systemctl(snappy_t)
-
-# Allow snapd to mount snaps
-gen_require(` type mount_exec_t; ')
-allow snappy_t mount_exec_t:file { map execute execute_no_trans getattr open read };
+systemd_reload_all_services(snappy_t)
+init_reload_services(snappy_t)
+init_enable_services(snappy_t)
+init_disable_services(snappy_t)
 
 # Allow snapd to execute unsquashfs
-gen_require(` type bin_t; ')
-allow snappy_t bin_t:file { map execute execute_no_trans };
+corecmd_exec_bin(snappy_t)
 
-# Allow snappy to exec snap-seccomp
-allow snappy_t snappy_exec_t:file { execute_no_trans };
+# Allow snappy to exec helpers
+can_exec(snappy_t, snappy_exec_t)
+can_exec(snappy_t, snappy_mount_exec_t)
+can_exec(snappy_t, snappy_cli_exec_t)
+corecmd_search_bin(snappy_t)
+# allow transition to snap cli domain
+snappy_cli_domtrans(snappy_t)
+# allow transition to mount helpers domain
+snappy_mount_domtrans(snappy_t)
+# allow transition to snap-confine domain
+snappy_confine_domtrans(snappy_t)
 
 # Allow snapd to get FUSE device attributes
-gen_require(` type fuse_device_t; ')
-allow snappy_t fuse_device_t:chr_file getattr;
+storage_getattr_fuse_dev(snappy_t)
 
 # Read l10n files?
 miscfiles_read_localization(snappy_t)
 
-# Allow snapd to manage its socket files
-manage_files_pattern(snappy_t, snappy_var_run_t, snappy_var_run_t)
-
-# Allow snapd to manage mounts
-gen_require(` type fs_t; type mount_var_run_t; ')
-allow snappy_t fs_t:filesystem { mount unmount };
-allow snappy_t mount_var_run_t:dir { add_name remove_name write search };
-allow snappy_t mount_var_run_t:file { create getattr setattr open read write rename unlink lock };
+# Allow snapd to read its run files, those files are managed elsewhere
+read_files_pattern(snappy_t, snappy_var_run_t, snappy_var_run_t)
+getattr_files_pattern(snappy_t, snappy_var_run_t, snappy_var_run_t)
 
 gen_require(` type user_tmp_t; ')
 allow snappy_t user_tmp_t:dir { read };
 
+# Allow snapd to clean up /run/user sockets
+userdom_manage_tmp_dirs(snappy_t)
+userdom_manage_tmp_sockets(snappy_t)
+
 gen_require(` type systemd_unit_file_t; ')
 allow snappy_t systemd_unit_file_t:dir { rmdir };
-
-gen_require(` type fixed_disk_device_t; ')
-allow snappy_t fixed_disk_device_t:blk_file { getattr };
-
-gen_require(` type loop_control_device_t; ')
-allow snappy_t loop_control_device_t:chr_file { getattr };
-
-gen_require(` type usr_t; ')
-allow snappy_t usr_t:dir { write };
 
 gen_require(` type home_root_t; ')
 allow snappy_t home_root_t:dir { read };
 
 # Allow snapd to manage its persistent data
-manage_dirs_pattern(snappy_t, snappy_var_cache_t, snappy_var_cache_t)
-manage_files_pattern(snappy_t, snappy_var_cache_t, snappy_var_cache_t)
-manage_lnk_files_pattern(snappy_t, snappy_var_cache_t, snappy_var_cache_t)
-manage_dirs_pattern(snappy_t, snappy_var_lib_t, snappy_var_lib_t)
-manage_files_pattern(snappy_t, snappy_var_lib_t, snappy_var_lib_t)
-manage_lnk_files_pattern(snappy_t, snappy_var_lib_t, snappy_var_lib_t)
-manage_dirs_pattern(snappy_t, snappy_var_t, snappy_var_t)
-manage_files_pattern(snappy_t, snappy_var_t, snappy_var_t)
-manage_lnk_files_pattern(snappy_t, snappy_var_t, snappy_var_t)
+admin_pattern(snappy_t, snappy_var_cache_t)
+# for r/w to commands.db
+mmap_rw_files_pattern(snappy_t, snappy_var_cache_t, snappy_var_cache_t)
+admin_pattern(snappy_t, snappy_var_lib_t)
+# for r/w to errtracker.db
+mmap_rw_files_pattern(snappy_t, snappy_var_lib_t, snappy_var_lib_t)
+# snap data files
+admin_pattern(snappy_t, snappy_var_t)
+# auto transition /var/snap when created at runtime
+files_var_filetrans(snappy_t, snappy_var_t, dir, "snap")
+# some snaps may create character files, eg. lxd creates /dev/full in the
+# container's rootfs
+manage_chr_files_pattern(snappy_t, snappy_var_t, snappy_var_t)
+# And search/read mounted snaps
+allow snappy_t snappy_snap_t:dir { list_dir_perms };
+allow snappy_t snappy_snap_t:file { read_file_perms };
+allow snappy_t snappy_snap_t:lnk_file { read_lnk_file_perms };
 
 # Grant snapd access to /tmp
-gen_require(` type tmp_t; ')
-allow snappy_t tmp_t:dir { getattr setattr add_name create read remove_name rmdir write };
-allow snappy_t tmp_t:file { getattr setattr create open unlink write };
+admin_pattern(snappy_t, snappy_tmp_t)
+files_tmp_filetrans(snappy_t, snappy_tmp_t, { file dir })
 
-# Allow snappy to mmap files in /var/cache
-allow snappy_t snappy_var_cache_t:file { map };
+# snap command completions, symlinks going back to snap mount directory
+gen_require(` type usr_t; ')
+allow snappy_t usr_t:dir { write remove_name add_name };
+allow snappy_t usr_t:lnk_file { create unlink };
 
 # Allow snapd to use ssh-keygen
-gen_require(` type ssh_keygen_exec_t; ')
-allow snappy_t ssh_keygen_exec_t:file { execute execute_no_trans getattr open read map };
+ssh_exec_keygen(snappy_t)
 
 # Allow snapd to access passwd file for lookup
-auth_read_passwd(snappy_t);
+auth_read_passwd(snappy_t)
 
-# Until we can figure out how to apply the label to mounted snaps,
-# we need to grant snapd access to "unlabeled files"
-gen_require(` type unlabeled_t; ')
-allow snappy_t unlabeled_t:dir { getattr search open read };
-allow snappy_t unlabeled_t:lnk_file { getattr read };
-allow snappy_t unlabeled_t:file { getattr open read };
-
-# Until we can figure out why some things are randomly getting unconfined_t,
-# we need to grant access to "unconfined" files
+# because /run/snapd/ns/*.mnt gets a label of the process context
 gen_require(` type unconfined_t; ')
-allow snappy_t unconfined_t:dir { getattr search open read };
-allow snappy_t unconfined_t:file { getattr open read };
+allow snappy_t unconfined_t:file getattr;
+allow snappy_t snappy_confine_t:file getattr;
 
-logging_send_syslog_msg(snappy_t);
+logging_send_syslog_msg(snappy_t)
 
-allow snappy_t self:capability { sys_admin sys_chroot dac_override dac_read_search chown kill fowner fsetid mknod net_admin net_bind_service net_raw setfcap };
-allow snappy_t self:tun_socket relabelto;
-allow snappy_t self:process { getcap signal_perms setrlimit setfscreate };
+allow snappy_t self:capability { dac_read_search dac_override fowner };
+allow snappy_t self:process { setpgid };
 
 # Various socket permissions
 allow snappy_t self:fifo_file rw_fifo_file_perms;
@@ -282,3 +297,349 @@ optional_policy(`
   sssd_read_public_files(snappy_t)
   sssd_stream_connect(snappy_t)
 ')
+
+# for sanity checks
+optional_policy(`
+  mount_run(snappy_t, snappy_roles)
+')
+
+# snapd runs journalctl to fetch logs
+optional_policy(`
+  journalctl_run(snappy_t, snappy_roles)
+')
+
+# only pops up in cloud images where cloud-init.target is incorrectly labeled
+allow snappy_t init_var_run_t:lnk_file read;
+
+# snapd may need to run helpers from the snaps, eg. fontconfig helper
+can_exec(snappy_t, snappy_snap_t)
+# fontconfig cache setup
+miscfiles_manage_fonts_cache(snappy_t)
+files_var_filetrans(snappy_t, fonts_cache_t, dir, "fontconfig")
+# fontconfig cache is in /usr/lib/fontconfig/cache, but its labeling is
+# incorrect, see https://bugzilla.redhat.com/show_bug.cgi?id=1659905
+libs_manage_lib_dirs(snappy_t)
+libs_manage_lib_files(snappy_t)
+fs_getattr_xattr_fs(snappy_t)
+
+# snapd attempts to read /run/cloud-init/instance-data.json
+sysnet_read_config(snappy_t)
+# however older policy may be missing the transition rules, and
+# /run/cloud-init/instance-data.json ends up as var_run_t
+files_read_generic_pids(snappy_t)
+
+# snapd attempts to check /proc/sys/fs/may_detach_mounts during sanity testing
+kernel_read_fs_sysctls(snappy_t)
+
+# socket activated services may have their socket files created under
+# $SNAP_COMMON, but lacking auto transition, they end up labeled as var_t
+allow snappy_t var_t:sock_file unlink;
+
+# snapd picks the process start time from /proc/<pid>/stat for polkit
+allow snappy_t unconfined_t:dir search;
+allow snappy_t unconfined_t:file { open read };
+
+# snapd executes runuser to take snapshots of user's snap data
+allow snappy_t self:capability { setuid setgid };
+allow snappy_t self:process setsched;
+# runuser uses kernel keyring
+allow snappy_t self:key { search write };
+# runuser logs to audit
+logging_send_audit_msgs(snappy_t)
+
+########################################
+#
+# snap-update-ns, snap-dicsard-ns local policy
+#
+permissive snappy_mount_t;
+
+role system_r types snappy_mount_t;
+
+admin_pattern(snappy_mount_t, snappy_var_run_t)
+files_pid_filetrans(snappy_mount_t, snappy_var_run_t, {file dir})
+
+# Allow snap-{update,discard}-ns to manage mounts
+gen_require(` type fs_t; type mount_var_run_t; ')
+allow snappy_mount_t fs_t:filesystem { mount unmount };
+allow snappy_mount_t mount_var_run_t:dir { add_name remove_name write search };
+allow snappy_mount_t mount_var_run_t:file { create getattr setattr open read write rename unlink lock };
+# for discard-ns, because a preserved mount ns is a bind-mounted /proc/<pid>/ns/mnt
+gen_require(` type proc_t; ')
+allow snappy_mount_t proc_t:filesystem { getattr unmount };
+
+allow snappy_mount_t self:capability { sys_chroot sys_admin };
+
+manage_files_pattern(snappy_mount_t, snappy_snap_t, snappy_snap_t)
+manage_dirs_pattern(snappy_mount_t, snappy_snap_t, snappy_snap_t)
+
+read_files_pattern(snappy_mount_t, snappy_var_lib_t, snappy_var_lib_t)
+getattr_files_pattern(snappy_mount_t, snappy_var_lib_t, snappy_var_lib_t)
+read_lnk_files_pattern(snappy_mount_t, snappy_var_lib_t, snappy_var_lib_t)
+
+fs_getattr_all_fs(snappy_mount_t)
+fs_getattr_tmpfs(snappy_mount_t)
+fs_getattr_xattr_fs(snappy_mount_t)
+# freezer
+fs_manage_cgroup_dirs(snappy_mount_t)
+fs_manage_cgroup_files(snappy_mount_t)
+# TODO: further tweaks may be needed for layouts
+# reading tmpfs symlinks, eg. /etc/os-release
+fs_read_tmpfs_symlinks(snappy_mount_t)
+
+# because /run/snapd/ns/*.mnt gets a label of the process context
+gen_require(` type unconfined_t; ')
+allow snappy_mount_t unconfined_t:file { open read getattr };
+allow snappy_mount_t snappy_confine_t:file { open read getattr };
+
+# Go runtime artifacts
+kernel_read_system_state(snappy_mount_t)
+kernel_read_net_sysctls(snappy_mount_t)
+kernel_search_network_sysctl(snappy_mount_t)
+
+########################################
+#
+# snap-confine local policy
+#
+permissive snappy_confine_t;
+
+role system_r types snappy_confine_t;
+snappy_mount_domtrans(snappy_confine_t)
+allow snappy_confine_t snappy_mount_t:process2 nosuid_transition;
+
+admin_pattern(snappy_confine_t, snappy_var_run_t)
+
+allow snappy_confine_t snappy_var_lib_t:dir { list_dir_perms };
+allow snappy_confine_t snappy_var_lib_t:file { read_file_perms };
+allow snappy_confine_t snappy_var_lib_t:lnk_file { read_lnk_file_perms };
+
+files_pid_filetrans(snappy_confine_t, snappy_var_run_t, {file dir})
+
+allow snappy_confine_t snappy_home_t:dir { create_dir_perms list_dir_perms add_entry_dir_perms };
+allow snappy_confine_t snappy_home_t:file { read_file_perms };
+allow snappy_confine_t snappy_home_t:lnk_file { manage_lnk_file_perms };
+userdom_user_home_dir_filetrans(snappy_confine_t, snappy_home_t, dir, "snap")
+userdom_admin_home_dir_filetrans(snappy_confine_t, snappy_home_t, dir, "snap")
+
+allow snappy_confine_t snappy_snap_t:process transition;
+
+allow snappy_confine_t self:process { setexec };
+allow snappy_confine_t self:capability { setgid setuid sys_admin sys_chroot dac_read_search dac_override };
+
+init_read_state(snappy_confine_t)
+
+# libudev
+udev_manage_pid_dirs(snappy_confine_t)
+
+# basic access to system info in /proc
+kernel_read_system_state(snappy_confine_t)
+
+fs_getattr_all_fs(snappy_confine_t)
+dev_getattr_fs(snappy_confine_t)
+dev_getattr_sysfs_fs(snappy_confine_t)
+fs_getattr_cgroup(snappy_confine_t)
+fs_getattr_hugetlbfs(snappy_confine_t)
+fs_getattr_tmpfs(snappy_confine_t)
+fs_getattr_xattr_fs(snappy_confine_t)
+fs_manage_cgroup_dirs(snappy_confine_t)
+fs_write_cgroup_files(snappy_confine_t)
+kernel_getattr_debugfs(snappy_confine_t)
+kernel_getattr_proc(snappy_confine_t)
+term_getattr_pty_fs(snappy_confine_t)
+# term_getattr_generic_ptys() is not supported by core policy in RHEL7
+allow snappy_confine_t devpts_t:chr_file getattr;
+term_search_ptys(snappy_confine_t)
+
+# because /run/snapd/ns/*.mnt gets a label of the process context
+allow snappy_confine_t unconfined_t:file getattr;
+
+# mount ns setup
+gen_require(`
+  type ptmx_t;
+  type modules_object_t;
+  type ifconfig_var_run_t;
+  type var_log_t;
+  type lib_t;
+')
+allow snappy_confine_t admin_home_t:dir mounton;
+allow snappy_confine_t bin_t:dir mounton;
+allow snappy_confine_t cert_t:dir { getattr mounton };
+allow snappy_confine_t device_t:filesystem unmount;
+allow snappy_confine_t devpts_t:dir mounton;
+allow snappy_confine_t etc_t:file mounton;
+allow snappy_confine_t home_root_t:dir mounton;
+allow snappy_confine_t ifconfig_var_run_t:dir mounton;
+allow snappy_confine_t modules_object_t:dir mounton;
+allow snappy_confine_t lib_t:dir mounton;
+allow snappy_confine_t ptmx_t:chr_file { getattr mounton };
+allow snappy_confine_t snappy_snap_t:dir { mounton read };
+allow snappy_confine_t snappy_snap_t:file mounton;
+allow snappy_confine_t snappy_snap_t:lnk_file read;
+allow snappy_confine_t snappy_var_lib_t:dir mounton;
+allow snappy_confine_t snappy_var_run_t:dir mounton;
+allow snappy_confine_t snappy_var_run_t:file mounton;
+allow snappy_confine_t snappy_var_t:dir { getattr mounton search };
+allow snappy_confine_t tmp_t:dir { add_name create mounton remove_name rmdir setattr write read };
+allow snappy_confine_t usr_t:dir mounton;
+allow snappy_confine_t var_log_t:dir mounton;
+allow snappy_confine_t var_run_t:dir mounton;
+dev_mounton(snappy_confine_t)
+dev_mounton_sysfs(snappy_confine_t)
+dev_unmount_sysfs_fs(snappy_confine_t)
+files_mounton_etc(snappy_confine_t)
+files_mounton_mnt(snappy_confine_t)
+files_mounton_rootfs(snappy_confine_t)
+fs_unmount_xattr_fs(snappy_confine_t)
+kernel_mounton_proc(snappy_confine_t)
+kernel_unmount_proc(snappy_confine_t)
+seutil_read_file_contexts(snappy_confine_t)
+term_mount_pty_fs(snappy_confine_t)
+
+# device group
+fs_manage_cgroup_dirs(snappy_confine_t)
+fs_manage_cgroup_files(snappy_confine_t)
+# snap-update-ns and snap-confine use tmpfs when setting up the namespace,
+# things may end up keeping tmpfs_t label
+fs_read_tmpfs_symlinks(snappy_confine_t)
+
+# restoring file contexts
+seutil_read_file_contexts(snappy_confine_t)
+seutil_read_default_contexts(snappy_confine_t)
+seutil_read_config(snappy_confine_t)
+
+can_exec(snappy_confine_t, snappy_snap_t)
+read_files_pattern(snappy_confine_t, snappy_snap_t, snappy_snap_t)
+# and allow transition by snap-confine
+allow snappy_confine_t snappy_unconfined_snap_t:process { noatsecure rlimitinh siginh transition dyntransition };
+gen_require(` type unconfined_service_t; ')
+allow snappy_confine_t unconfined_service_t:process { noatsecure rlimitinh siginh transition dyntransition };
+
+# for classic snaps, snap-confine executes snap-exec from the host (labeled as
+# snappy_exec_t)
+can_exec(snappy_confine_t, snappy_exec_t)
+# allow snappy_exec_t to be an entrypoint to unconfined_service_t, only
+# snap-confine is allowed to transition this way
+domain_entry_file(unconfined_service_t, snappy_exec_t)
+
+########################################
+#
+# snap, snapctl local policy
+#
+permissive snappy_cli_t;
+
+role system_r types snappy_cli_t;
+snappy_confine_domtrans(snappy_cli_t)
+# services are started through 'snap run ...' wrapper
+snappy_cli_domtrans(init_t)
+
+relabel_dirs_pattern(snappy_cli_t, user_home_t, snappy_home_t)
+relabel_files_pattern(snappy_cli_t, user_home_t, snappy_home_t)
+relabel_dirs_pattern(snappy_cli_t, admin_home_t, snappy_home_t)
+relabel_files_pattern(snappy_cli_t, admin_home_t, snappy_home_t)
+
+manage_files_pattern(snappy_cli_t, snappy_home_t, snappy_home_t)
+manage_lnk_files_pattern(snappy_cli_t, snappy_home_t, snappy_home_t)
+manage_dirs_pattern(snappy_cli_t, snappy_home_t, snappy_home_t)
+userdom_user_home_dir_filetrans(snappy_cli_t, snappy_home_t, dir, "snap")
+userdom_admin_home_dir_filetrans(snappy_cli_t, snappy_home_t, dir, "snap")
+
+allow snappy_cli_t snappy_snap_t:dir {list_dir_perms };
+allow snappy_cli_t snappy_snap_t:file { read_file_perms };
+allow snappy_cli_t snappy_snap_t:lnk_file { read_lnk_file_perms };
+
+allow snappy_cli_t snappy_var_lib_t:dir { list_dir_perms };
+allow snappy_cli_t snappy_var_lib_t:file { read_file_perms };
+allow snappy_cli_t snappy_var_lib_t:lnk_file { read_lnk_file_perms };
+
+# allow reading passwd
+auth_read_passwd(snappy_cli_t)
+# allow reading sssd files
+optional_policy(`
+  sssd_read_public_files(snappy_cli_t)
+  sssd_stream_connect(snappy_cli_t)
+')
+
+# restorecon, matchpathcon
+seutil_domtrans_setfiles(snappy_cli_t)
+seutil_read_file_contexts(snappy_cli_t)
+seutil_read_default_contexts(snappy_cli_t)
+seutil_read_config(snappy_cli_t)
+selinux_load_policy(snappy_cli_t)
+selinux_validate_context(snappy_cli_t)
+corecmd_exec_bin(snappy_cli_t)
+
+allow snappy_cli_t proc_t:file { getattr open read };
+allow snappy_cli_t snappy_exec_t:file { read_file_perms };
+allow snappy_cli_t self:capability { dac_override };
+
+# go runtime poking at things
+init_ioctl_stream_sockets(snappy_cli_t)
+kernel_read_net_sysctls(snappy_cli_t)
+kernel_search_network_sysctl(snappy_cli_t)
+
+# talk to snapd
+snappy_stream_connect(snappy_cli_t)
+
+# check stuff in /run/user
+userdom_search_user_tmp_dirs(snappy_cli_t)
+
+# execute snapd internal tools
+# needed to grab a version information from snap-seccomp
+can_exec(snappy_cli_t, snappy_exec_t)
+
+########################################
+#
+# snappy (unconfined snap) local policy
+#
+permissive snappy_unconfined_snap_t;
+
+# allow unconfined snap service to run as a system service
+role system_r types snappy_unconfined_snap_t;
+can_exec(snappy_unconfined_snap_t, snappy_snap_t)
+domain_entry_file(snappy_unconfined_snap_t, snappy_snap_t)
+domain_entry_file(unconfined_service_t, snappy_snap_t)
+
+# for journald
+gen_require(` type syslogd_t; ')
+allow syslogd_t snappy_unconfined_snap_t:dir search_dir_perms;
+
+allow snappy_unconfined_snap_t self:process { fork getsched };
+
+# allow snappy_unconfined_snap_t snappy_snap_t:dir { list_dir_perms };
+# allow snappy_unconfined_snap_t snappy_snap_t:file { read_file_perms };
+# allow snappy_unconfined_snap_t snappy_snap_t:lnk_file { read_lnk_file_perms };
+
+# snap can carry services, which are then started by systemd, need to allow
+# systemd to manage them
+allow init_t snappy_unconfined_snap_t:dir search_dir_perms;
+allow init_t snappy_unconfined_snap_t:file { read_file_perms };
+allow init_t snappy_unconfined_snap_t:lnk_file { read_lnk_file_perms };
+allow init_t snappy_unconfined_snap_t:process { sigkill signull signal };
+
+########################################
+#
+# file/dir transitions for unconfined_t
+#
+
+# snap tools can be invoked by the regular user, make sure that things get
+# proper labels
+gen_require(` type unconfined_t; ')
+userdom_user_home_dir_filetrans(unconfined_t, snappy_home_t, dir, "snap")
+userdom_admin_home_dir_filetrans(unconfined_t, snappy_home_t, dir, "snap")
+files_pid_filetrans(unconfined_t, snappy_var_run_t, dir, "snapd")
+
+########################################
+#
+# extra policy for init_t
+#
+
+# support socket activation of snap services, for such snaps the socket file can
+# only be located under $SNAP_DATA or $SNAP_COMMON, both labeled as snappy_var_t;
+allow init_t snappy_var_t:dir manage_dir_perms;
+allow init_t snappy_var_t:sock_file manage_sock_file_perms;
+# the snap is started via `snap run ..`
+allow init_t snappy_cli_t:unix_stream_socket create_stream_socket_perms;
+# init_t will try to remount snap mount directory when starting services that
+# use Private* directives, while init_t is allowed to remount all fs, we cannot
+# declare fs_type(snappy_snap_t) outside of core policy, add explicit permission
+# instead
+allow init_t snappy_snap_t:filesystem remount;

@@ -34,6 +34,8 @@ import (
 	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/osutil/squashfs"
+	"github.com/snapcore/snapd/release"
+	"github.com/snapcore/snapd/selinux"
 )
 
 func init() {
@@ -96,7 +98,14 @@ func checkSquashfsMount() error {
 	if err != nil {
 		return err
 	}
-	cmd := exec.Command("mount", "-t", fstype, tmpSquashfsFile.Name(), tmpMountDir)
+	options := []string{"-t", fstype}
+	if release.SELinuxLevel() != release.NoSELinux {
+		if ctx := selinux.SnapMountContext(); ctx != "" {
+			options = append(options, "-o", "context="+ctx)
+		}
+	}
+	options = append(options, tmpSquashfsFile.Name(), tmpMountDir)
+	cmd := exec.Command("mount", options...)
 	output, err := cmd.CombinedOutput()
 	if err != nil {
 		return fmt.Errorf("cannot mount squashfs image using %q: %v", fstype, osutil.OutputErr(output, err))

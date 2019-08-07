@@ -17,8 +17,6 @@ export DH_GOLANG_EXCLUDES=tests
 export DH_GOLANG_GO_GENERATE=1
 
 export PATH:=${PATH}:${CURDIR}
-# make sure that correct go version is found on trusty
-export PATH:=/usr/lib/go-1.6/bin:${PATH}
 
 include /etc/os-release
 
@@ -260,7 +258,10 @@ override_dh_auto_install: snap.8
 	dh_auto_install -O--buildsystem=golang
 
 snap.8:
-	$(CURDIR)/_build/bin/snap help --man > $@
+	# fix reproducible builds as reported by:
+	#   https://tests.reproducible-builds.org/debian/rb-pkg/unstable/amd64/snapd.html
+	# once golang-go-flags is fixed we can remove the "sed" expression
+	$(CURDIR)/_build/bin/snap help --man | sed '1 s/^.*/.TH snap 8 "$(shell date --reference=debian/changelog +"%d %B %Y")"/' > $@
 
 override_dh_auto_clean:
 	dh_auto_clean -O--buildsystem=golang

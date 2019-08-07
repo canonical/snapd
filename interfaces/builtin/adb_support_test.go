@@ -131,11 +131,16 @@ func (s *adbSupportSuite) TestUDevSpec(c *C) {
 
 	spec = &udev.Specification{}
 	c.Assert(spec.AddConnectedPlug(s.iface, s.plug, s.slot), IsNil)
-	c.Assert(spec.Snippets(), HasLen, 81)
+	c.Assert(spec.Snippets(), HasLen, 82)
 	c.Assert(spec.Snippets(), testutil.Contains, `# adb-support
 SUBSYSTEM=="usb", ATTR{idVendor}=="0502", TAG+="snap_consumer_app"`)
 	c.Assert(spec.Snippets(), testutil.Contains, `# adb-support
 SUBSYSTEM=="usb", ATTR{idVendor}=="19d2", TAG+="snap_consumer_app"`)
+
+	// One-plus devices are included.
+	// https://bugs.launchpad.net/snapd/+bug/1821474
+	c.Assert(spec.Snippets(), testutil.Contains, `# adb-support
+SUBSYSTEM=="usb", ATTR{idVendor}=="2a70", TAG+="snap_consumer_app"`)
 
 	spec = &udev.Specification{}
 	c.Assert(spec.AddConnectedSlot(s.iface, s.plug, s.slot), IsNil)

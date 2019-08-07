@@ -26,6 +26,7 @@ import (
 	"github.com/snapcore/snapd/interfaces/apparmor"
 	"github.com/snapcore/snapd/interfaces/builtin"
 	"github.com/snapcore/snapd/interfaces/seccomp"
+	"github.com/snapcore/snapd/release"
 	"github.com/snapcore/snapd/snap"
 	"github.com/snapcore/snapd/snap/snaptest"
 	"github.com/snapcore/snapd/testutil"
@@ -38,6 +39,13 @@ type DockerSupportInterfaceSuite struct {
 	plugInfo *snap.PlugInfo
 	plug     *interfaces.ConnectedPlug
 }
+
+const coreDockerSlotYaml = `name: core
+version: 0
+type: os
+slots:
+  docker-support:
+`
 
 const dockerSupportMockPlugSnapInfoYaml = `name: docker
 version: 1.0
@@ -52,17 +60,8 @@ var _ = Suite(&DockerSupportInterfaceSuite{
 })
 
 func (s *DockerSupportInterfaceSuite) SetUpTest(c *C) {
-	s.slotInfo = &snap.SlotInfo{
-		Snap: &snap.Info{
-			SuggestedName: "core",
-			Type:          snap.TypeOS},
-		Name:      "docker-support",
-		Interface: "docker-support",
-	}
-	s.slot = interfaces.NewConnectedSlot(s.slotInfo, nil, nil)
-	plugSnap := snaptest.MockInfo(c, dockerSupportMockPlugSnapInfoYaml, nil)
-	s.plugInfo = plugSnap.Plugs["docker-support"]
-	s.plug = interfaces.NewConnectedPlug(s.plugInfo, nil, nil)
+	s.plug, s.plugInfo = MockConnectedPlug(c, dockerSupportMockPlugSnapInfoYaml, nil, "docker-support")
+	s.slot, s.slotInfo = MockConnectedSlot(c, coreDockerSlotYaml, nil, "docker-support")
 }
 
 func (s *DockerSupportInterfaceSuite) TestName(c *C) {
@@ -72,29 +71,13 @@ func (s *DockerSupportInterfaceSuite) TestName(c *C) {
 func (s *DockerSupportInterfaceSuite) TestUsedSecuritySystems(c *C) {
 	// connected plugs have a non-nil security snippet for apparmor
 	apparmorSpec := &apparmor.Specification{}
-	err := apparmorSpec.AddConnectedPlug(s.iface, s.plug, s.slot)
-	c.Assert(err, IsNil)
+	c.Assert(apparmorSpec.AddConnectedPlug(s.iface, s.plug, s.slot), IsNil)
 	c.Assert(apparmorSpec.SecurityTags(), HasLen, 1)
 
 	// connected plugs have a non-nil security snippet for seccomp
 	seccompSpec := &seccomp.Specification{}
-	err = seccompSpec.AddConnectedPlug(s.iface, s.plug, s.slot)
-	c.Assert(err, IsNil)
+	c.Assert(seccompSpec.AddConnectedPlug(s.iface, s.plug, s.slot), IsNil)
 	c.Assert(seccompSpec.Snippets(), HasLen, 1)
-}
-
-func (s *DockerSupportInterfaceSuite) TestConnectedPlugSnippet(c *C) {
-	apparmorSpec := &apparmor.Specification{}
-	err := apparmorSpec.AddConnectedPlug(s.iface, s.plug, s.slot)
-	c.Assert(err, IsNil)
-	c.Assert(apparmorSpec.SecurityTags(), DeepEquals, []string{"snap.docker.app"})
-	c.Assert(apparmorSpec.SnippetForTag("snap.docker.app"), testutil.Contains, `pivot_root`)
-
-	seccompSpec := &seccomp.Specification{}
-	err = seccompSpec.AddConnectedPlug(s.iface, s.plug, s.slot)
-	c.Assert(err, IsNil)
-	c.Assert(seccompSpec.SecurityTags(), DeepEquals, []string{"snap.docker.app"})
-	c.Check(seccompSpec.SnippetForTag("snap.docker.app"), testutil.Contains, "pivot_root\n")
 }
 
 func (s *DockerSupportInterfaceSuite) TestSanitizeSlot(c *C) {
@@ -188,4 +171,43 @@ plugs:
 
 func (s *DockerSupportInterfaceSuite) TestInterfaces(c *C) {
 	c.Check(builtin.Interfaces(), testutil.DeepContains, s.iface)
+}
+
+func (s *DockerSupportInterfaceSuite) TestAppArmorSpec(c *C) {
+	spec := &apparmor.Specification{}
+	c.Assert(spec.AddConnectedPlug(s.iface, s.plug, s.slot), IsNil)
+	c.Assert(spec.SecurityTags(), DeepEquals, []string{"snap.docker.app"})
+	c.Check(spec.SnippetForTag("snap.docker.app"), testutil.Contains, "/sys/fs/cgroup/*/docker/   rw,\n")
+}
+
+func (s *DockerSupportInterfaceSuite) TestSecCompSpec(c *C) {
+	spec := &seccomp.Specification{}
+	c.Assert(spec.AddConnectedPlug(s.iface, s.plug, s.slot), IsNil)
+	c.Check(spec.SnippetForTag("snap.docker.app"), testutil.Contains, "# Calls the Docker daemon itself requires\n")
+}
+
+func (s *DockerSupportInterfaceSuite) TestPermanentSlotAppArmorSessionNative(c *C) {
+	restore := release.MockOnClassic(false)
+	defer restore()
+
+	apparmorSpec := &apparmor.Specification{}
+	err := apparmorSpec.AddConnectedPlug(s.iface, s.plug, s.slot)
+	c.Assert(err, IsNil)
+	c.Assert(apparmorSpec.SecurityTags(), DeepEquals, []string{"snap.docker.app"})
+
+	// verify core rule present
+	c.Check(apparmorSpec.SnippetForTag("snap.docker.app"), testutil.Contains, "# /system-data/var/snap/docker/common/var-lib-docker/overlay2/$SHA/diff/\n")
+}
+
+func (s *DockerSupportInterfaceSuite) TestPermanentSlotAppArmorSessionClassic(c *C) {
+	restore := release.MockOnClassic(true)
+	defer restore()
+
+	apparmorSpec := &apparmor.Specification{}
+	err := apparmorSpec.AddConnectedPlug(s.iface, s.plug, s.slot)
+	c.Assert(err, IsNil)
+	c.Assert(apparmorSpec.SecurityTags(), DeepEquals, []string{"snap.docker.app"})
+
+	// verify core rule not present
+	c.Check(apparmorSpec.SnippetForTag("snap.docker.app"), Not(testutil.Contains), "# /system-data/var/snap/docker/common/var-lib-docker/overlay2/$SHA/diff/\n")
 }

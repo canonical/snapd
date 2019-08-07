@@ -98,10 +98,10 @@ static int run_sdh(gchar * action,
 
 struct sdh_test_data {
 	char *action;
-        // snap.foo.bar
+	// snap.foo.bar
 	char *app;
-        // snap_foo_bar
-        char *mangled_appname;
+	// snap_foo_bar
+	char *mangled_appname;
 	char *file_with_data;
 	char *file_with_no_data;
 };
@@ -144,7 +144,9 @@ static void test_sdh_action(gconstpointer test_data)
 
 	g_assert_false(g_file_get_contents(without_data, &data, NULL, NULL));
 
-	ret = run_sdh(td->action, td->mangled_appname, "/devices/foo/tty/ttyS0", "4:64");
+	ret =
+	    run_sdh(td->action, td->mangled_appname, "/devices/foo/tty/ttyS0",
+		    "4:64");
 	g_assert_cmpint(ret, ==, 0);
 	g_assert_true(g_file_get_contents(with_data, &data, NULL, NULL));
 	g_assert_cmpstr(data, ==, "c 4:64 rwm\n");
@@ -193,23 +195,46 @@ static void test_sdh_err(void)
 static struct sdh_test_data add_data =
     { "add", "snap.foo.bar", "snap_foo_bar", "devices.allow", "devices.deny" };
 static struct sdh_test_data change_data =
-    { "change", "snap.foo.bar", "snap_foo_bar", "devices.allow", "devices.deny" };
-static struct sdh_test_data remove_data =
-    { "remove", "snap.foo.bar", "snap_foo_bar", "devices.deny", "devices.allow" };
-static struct sdh_test_data instance_add_data =
-    { "add", "snap.foo_bar.baz", "snap_foo_bar_baz", "devices.allow", "devices.deny" };
-static struct sdh_test_data instance_change_data =
-    { "change", "snap.foo_bar.baz", "snap_foo_bar_baz", "devices.allow", "devices.deny" };
-static struct sdh_test_data instance_remove_data =
-    { "remove", "snap.foo_bar.baz", "snap_foo_bar_baz", "devices.deny", "devices.allow" };
-static struct sdh_test_data add_hook_data =
-    { "add", "snap.foo.hook.configure", "snap_foo_hook_configure", "devices.allow", "devices.deny" };
-static struct sdh_test_data instance_add_hook_data =
-    { "add", "snap.foo_bar.hook.configure", "snap_foo_bar_hook_configure", "devices.allow", "devices.deny" };
-static struct sdh_test_data instance_add_instance_name_is_hook_data =
-    { "add", "snap.foo_hook.hook.configure", "snap_foo_hook_hook_configure", "devices.allow", "devices.deny" };
+    { "change", "snap.foo.bar", "snap_foo_bar", "devices.allow",
+	"devices.deny"
+};
 
-static void __attribute__ ((constructor)) init(void)
+static struct sdh_test_data remove_data =
+    { "remove", "snap.foo.bar", "snap_foo_bar", "devices.deny",
+	"devices.allow"
+};
+
+static struct sdh_test_data instance_add_data =
+    { "add", "snap.foo_bar.baz", "snap_foo_bar_baz", "devices.allow",
+	"devices.deny"
+};
+
+static struct sdh_test_data instance_change_data =
+    { "change", "snap.foo_bar.baz", "snap_foo_bar_baz", "devices.allow",
+	"devices.deny"
+};
+
+static struct sdh_test_data instance_remove_data =
+    { "remove", "snap.foo_bar.baz", "snap_foo_bar_baz", "devices.deny",
+	"devices.allow"
+};
+
+static struct sdh_test_data add_hook_data =
+    { "add", "snap.foo.hook.configure", "snap_foo_hook_configure",
+	"devices.allow", "devices.deny"
+};
+
+static struct sdh_test_data instance_add_hook_data =
+    { "add", "snap.foo_bar.hook.configure", "snap_foo_bar_hook_configure",
+	"devices.allow", "devices.deny"
+};
+
+static struct sdh_test_data instance_add_instance_name_is_hook_data =
+    { "add", "snap.foo_hook.hook.configure", "snap_foo_hook_hook_configure",
+	"devices.allow", "devices.deny"
+};
+
+static void __attribute__((constructor)) init(void)
 {
 
 	g_test_add_data_func("/snap-device-helper/add",
@@ -225,11 +250,12 @@ static void __attribute__ ((constructor)) init(void)
 			     &instance_change_data, test_sdh_action);
 	g_test_add_data_func("/snap-device-helper/parallel/remove",
 			     &instance_remove_data, test_sdh_action);
-        // hooks
+	// hooks
 	g_test_add_data_func("/snap-device-helper/hook/add",
 			     &add_hook_data, test_sdh_action);
 	g_test_add_data_func("/snap-device-helper/hook/parallel/add",
 			     &instance_add_hook_data, test_sdh_action);
 	g_test_add_data_func("/snap-device-helper/hook-name-hook/parallel/add",
-			     &instance_add_instance_name_is_hook_data, test_sdh_action);
+			     &instance_add_instance_name_is_hook_data,
+			     test_sdh_action);
 }

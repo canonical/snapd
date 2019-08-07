@@ -26,18 +26,18 @@ execute: |
     echo "Ensure the apparmor sandbox for snaps works for root"
     for p in "/root/foo" "/home/foo" "/home/test/foo"; do
         # no writing
-        ! test-snapd-sh -c "touch $p" 2>stderr.log
+        not test-snapd-sh -c "touch $p" 2>stderr.log
         MATCH <stderr.log 'touch: .* Permission denied'
 
         # no reading
         touch "$p"
-        ! test-snapd-sh -c "cat $p" 2>stderr.log
+        not test-snapd-sh -c "cat $p" 2>stderr.log
         MATCH <stderr.log 'cat: .* Permission denied'
         rm -f "$p"
     done
 
     echo "Ensure the apparmor sandbox for snaps works for users"
-    ! su -l -c 'test-snapd-sh -c "touch /home/test/foo"' test 2>stderr.log
+    not su -l -c 'test-snapd-sh -c "touch /home/test/foo"' test 2>stderr.log
     MATCH <stderr.log '.* Permission denied'
 
     echo "But with the right plug the user can put files into home"

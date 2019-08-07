@@ -1,0 +1,78 @@
+summary: Check that SELinux file context transitions work
+
+description: |
+    Verify that automatic file context transitions work and cover typical use cases
+
+# Only distros that support SELinux
+systems: [fedora-*, centos-*]
+
+prepare: |
+    rm -rf /root/snap
+    rm -rf /home/test/snap
+
+restore: |
+    rm -rf ./*-labels
+
+execute: |
+    # verify that we're actually running on a SELinux system
+    selinuxenabled
+
+    snap install test-snapd-tools
+
+    test-snapd-tools.cmd id -Z | MATCH ':unconfined_t:'
+    test-snapd-tools.cmd sh -c "mkdir -p \$SNAP_USER_DATA/foo && echo hello world > \$SNAP_USER_DATA/foo/bar"
+
+    su -c 'test-snapd-tools.cmd id -Z' test | MATCH ':unconfined_t:'
+    su -c "test-snapd-tools.cmd sh -c 'mkdir -p \$SNAP_USER_DATA/foo && echo hello world > \$SNAP_USER_DATA/foo/bar'" test
+
+    ls -Zd /root/snap /root/snap/test-snapd-tools/current/foo /root/snap/test-snapd-tools/current/foo/bar > root-labels
+    MATCH '^.*:snappy_home_t:.*/root/snap$'                                  < root-labels
+    MATCH '^.*:snappy_home_t:.*/root/snap/test-snapd-tools/current/foo$'     < root-labels
+    MATCH '^.*:snappy_home_t:.*/root/snap/test-snapd-tools/current/foo/bar$' < root-labels
+
+    ls -Zd /home/test/snap /home/test/snap/test-snapd-tools/current/foo /home/test/snap/test-snapd-tools/current/foo/bar > test-labels
+    MATCH '^.*:snappy_home_t:.*/home/test/snap$'                                  < test-labels
+    MATCH '^.*:snappy_home_t:.*/home/test/snap/test-snapd-tools/current/foo$'     < test-labels
+    MATCH '^.*:snappy_home_t:.*/home/test/snap/test-snapd-tools/current/foo/bar$' < test-labels
+
+    #shellcheck disable=SC2012
+    ls -Zd /run/snapd | MATCH ':snappy_var_run_t:'
+
+    #shellcheck source=tests/lib/snaps.sh
+    . "$TESTSLIB"/snaps.sh
+
+    # install a snap that does some file manipulation
+    install_local test-snapd-service-writer
+
+    ls -Zd /var/snap/test-snapd-service-writer/common \
+           /var/snap/test-snapd-service-writer/common/by-hook \
+           /var/snap/test-snapd-service-writer/common/by-hook/foo \
+           /var/snap/test-snapd-service-writer/current \
+           /var/snap/test-snapd-service-writer/current/by-hook \
+           /var/snap/test-snapd-service-writer/current/by-hook/foo > hook-labels
+
+    MATCH '^.*system_u:object_r:snappy_var_t:s0 /var/snap/test-snapd-service-writer/common$'              < hook-labels
+    MATCH '^.*system_u:object_r:snappy_var_t:s0 /var/snap/test-snapd-service-writer/common/by-hook$'      < hook-labels
+    MATCH '^.*system_u:object_r:snappy_var_t:s0 /var/snap/test-snapd-service-writer/common/by-hook/foo$'  < hook-labels
+    MATCH '^.*system_u:object_r:snappy_var_t:s0 /var/snap/test-snapd-service-writer/current( -> x1)?$'    < hook-labels
+    MATCH '^.*system_u:object_r:snappy_var_t:s0 /var/snap/test-snapd-service-writer/current/by-hook$'     < hook-labels
+    MATCH '^.*system_u:object_r:snappy_var_t:s0 /var/snap/test-snapd-service-writer/current/by-hook/foo$' < hook-labels
+
+    ls -Zd /var/snap/test-snapd-service-writer/common \
+           /var/snap/test-snapd-service-writer/common/foo \
+           /var/snap/test-snapd-service-writer/common/foo/bar \
+           /var/snap/test-snapd-service-writer/current \
+           /var/snap/test-snapd-service-writer/current/foo \
+           /var/snap/test-snapd-service-writer/current/foo/bar > service-labels
+
+    MATCH '^.*system_u:object_r:snappy_var_t:s0 /var/snap/test-snapd-service-writer/common$'           < service-labels
+    MATCH '^.*system_u:object_r:snappy_var_t:s0 /var/snap/test-snapd-service-writer/common/foo$'       < service-labels
+    MATCH '^.*system_u:object_r:snappy_var_t:s0 /var/snap/test-snapd-service-writer/common/foo/bar$'   < service-labels
+    MATCH '^.*system_u:object_r:snappy_var_t:s0 /var/snap/test-snapd-service-writer/current( -> x1)?$' < service-labels
+    MATCH '^.*system_u:object_r:snappy_var_t:s0 /var/snap/test-snapd-service-writer/current/foo$'      < service-labels
+    MATCH '^.*system_u:object_r:snappy_var_t:s0 /var/snap/test-snapd-service-writer/current/foo/bar$'  < service-labels
+
+    install_local socket-activation
+    [ -S /var/snap/socket-activation/common/socket ]
+    #shellcheck disable=SC2012
+    ls -Zd /var/snap/socket-activation/common/socket | MATCH ':snappy_var_t:'

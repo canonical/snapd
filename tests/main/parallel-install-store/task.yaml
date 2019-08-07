@@ -1,7 +1,7 @@
 summary: Checks for parallel installation of snaps from the store
 
 execute: |
-    ! snap install test-snapd-tools_foo 2> run.err
+    not snap install test-snapd-tools_foo 2> run.err
     MATCH 'experimental feature disabled' < run.err
 
     snap set system experimental.parallel-instances=true

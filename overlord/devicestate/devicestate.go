@@ -1,7 +1,7 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
 
 /*
- * Copyright (C) 2016-2018 Canonical Ltd
+ * Copyright (C) 2016-2019 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -22,6 +22,7 @@
 package devicestate
 
 import (
+	"context"
 	"fmt"
 	"sync"
 
@@ -32,6 +33,7 @@ import (
 	"github.com/snapcore/snapd/overlord/assertstate"
 	"github.com/snapcore/snapd/overlord/auth"
 	"github.com/snapcore/snapd/overlord/configstate/config"
+	"github.com/snapcore/snapd/overlord/devicestate/internal"
 	"github.com/snapcore/snapd/overlord/ifacestate/ifacerepo"
 	"github.com/snapcore/snapd/overlord/snapstate"
 	"github.com/snapcore/snapd/overlord/state"
@@ -40,13 +42,13 @@ import (
 )
 
 var (
-	snapstateInstall = snapstate.Install
-	snapstateUpdate  = snapstate.Update
+	snapstateInstallWithDeviceContext = snapstate.InstallWithDeviceContext
+	snapstateUpdateWithDeviceContext  = snapstate.UpdateWithDeviceContext
 )
 
-// Model returns the device model assertion.
-func Model(st *state.State) (*asserts.Model, error) {
-	device, err := auth.Device(st)
+// findModel returns the device model assertion.
+func findModel(st *state.State) (*asserts.Model, error) {
+	device, err := internal.Device(st)
 	if err != nil {
 		return nil, err
 	}
@@ -70,11 +72,14 @@ func Model(st *state.State) (*asserts.Model, error) {
 	return a.(*asserts.Model), nil
 }
 
-// Serial returns the device serial assertion.
-func Serial(st *state.State) (*asserts.Serial, error) {
-	device, err := auth.Device(st)
-	if err != nil {
-		return nil, err
+// findSerial returns the device serial assertion. device is optional and used instead of the global state if provided.
+func findSerial(st *state.State, device *auth.DeviceState) (*asserts.Serial, error) {
+	if device == nil {
+		var err error
+		device, err = internal.Device(st)
+		if err != nil {
+			return nil, err
+		}
 	}
 
 	if device.Serial == "" {
@@ -114,7 +119,7 @@ func canAutoRefresh(st *state.State) (bool, error) {
 
 	// Check model exists, for sanity. We always have a model, either
 	// seeded or a generic one that ships with snapd.
-	_, err := Model(st)
+	_, err := findModel(st)
 	if err == state.ErrNoState {
 		return false, nil
 	}
@@ -122,7 +127,7 @@ func canAutoRefresh(st *state.State) (bool, error) {
 		return false, err
 	}
 
-	_, err = Serial(st)
+	_, err = findSerial(st, nil)
 	if err == state.ErrNoState {
 		return false, nil
 	}
@@ -133,14 +138,14 @@ func canAutoRefresh(st *state.State) (bool, error) {
 	return true, nil
 }
 
-func checkGadgetOrKernel(st *state.State, snapInfo, curInfo *snap.Info, flags snapstate.Flags) error {
+func checkGadgetOrKernel(st *state.State, snapInfo, curInfo *snap.Info, flags snapstate.Flags, deviceCtx snapstate.DeviceContext) error {
 	kind := ""
-	var currentInfo func(*state.State) (*snap.Info, error)
+	var snapType snap.Type
 	var getName func(*asserts.Model) string
-	switch snapInfo.Type {
+	switch snapInfo.GetType() {
 	case snap.TypeGadget:
 		kind = "gadget"
-		currentInfo = snapstate.GadgetInfo
+		snapType = snap.TypeGadget
 		getName = (*asserts.Model).Gadget
 	case snap.TypeKernel:
 		if release.OnClassic {
@@ -148,20 +153,14 @@ func checkGadgetOrKernel(st *state.State, snapInfo, curInfo *snap.Info, flags sn
 		}
 
 		kind = "kernel"
-		currentInfo = snapstate.KernelInfo
+		snapType = snap.TypeKernel
 		getName = (*asserts.Model).Kernel
 	default:
 		// not a relevant check
 		return nil
 	}
 
-	model, err := Model(st)
-	if err == state.ErrNoState {
-		return fmt.Errorf("cannot install %s without model assertion", kind)
-	}
-	if err != nil {
-		return err
-	}
+	model := deviceCtx.Model()
 
 	if snapInfo.SnapID != "" {
 		snapDecl, err := assertstate.SnapDeclaration(st, snapInfo.SnapID)
@@ -176,11 +175,11 @@ func checkGadgetOrKernel(st *state.State, snapInfo, curInfo *snap.Info, flags sn
 		logger.Noticef("installing unasserted %s %q", kind, snapInfo.InstanceName())
 	}
 
-	currentSnap, err := currentInfo(st)
-	if err != nil && err != state.ErrNoState {
-		return fmt.Errorf("cannot find original %s snap: %v", kind, err)
+	found, err := snapstate.HasSnapOfType(st, snapType)
+	if err != nil {
+		return fmt.Errorf("cannot detect original %s snap: %v", kind, err)
 	}
-	if currentSnap != nil {
+	if found {
 		// already installed, snapstate takes care
 		return nil
 	}
@@ -211,14 +210,11 @@ func delayedCrossMgrInit() {
 	snapstate.CanAutoRefresh = canAutoRefresh
 	snapstate.CanManageRefreshes = CanManageRefreshes
 	snapstate.IsOnMeteredConnection = netutil.IsOnMeteredConnection
-	snapstate.Model = Model
+	snapstate.DeviceCtx = DeviceCtx
+	snapstate.Remodeling = Remodeling
 }
 
-// ProxyStore returns the store assertion for the proxy store if one is set.
-func ProxyStore(st *state.State) (*asserts.Store, error) {
-	return proxyStore(st, config.NewTransaction(st))
-}
-
+// proxyStore returns the store assertion for the proxy store if one is set.
 func proxyStore(st *state.State, tr *config.Transaction) (*asserts.Store, error) {
 	var proxyStore string
 	err := tr.GetMaybe("core", "proxy.store", &proxyStore)
@@ -293,6 +289,148 @@ func CanManageRefreshes(st *state.State) bool {
 	return false
 }
 
+func getAllRequiredSnapsForModel(model *asserts.Model) map[string]bool {
+	reqSnaps := model.RequiredSnaps()
+	// +4 for (snapd, base, gadget, kernel)
+	required := make(map[string]bool, len(reqSnaps)+4)
+	for _, snap := range reqSnaps {
+		required[snap] = true
+	}
+	if model.Base() != "" {
+		required["snapd"] = true
+		required[model.Base()] = true
+	} else {
+		required["core"] = true
+	}
+	if model.Kernel() != "" {
+		required[model.Kernel()] = true
+	}
+	if model.Gadget() != "" {
+		required[model.Gadget()] = true
+	}
+	return required
+}
+
+// extractDownloadInstallEdgesFromTs extracts the first, last download
+// phase and install phase tasks from a TaskSet
+func extractDownloadInstallEdgesFromTs(ts *state.TaskSet) (firstDl, lastDl, firstInst, lastInst *state.Task, err error) {
+	edgeTask, err := ts.Edge(snapstate.DownloadAndChecksDoneEdge)
+	if err != nil {
+		return nil, nil, nil, nil, err
+	}
+	tasks := ts.Tasks()
+	// we know we always start with downloads
+	firstDl = tasks[0]
+	// and always end with installs
+	lastInst = tasks[len(tasks)-1]
+
+	var edgeTaskIndex int
+	for i, task := range tasks {
+		if task == edgeTask {
+			edgeTaskIndex = i
+			break
+		}
+	}
+	return firstDl, tasks[edgeTaskIndex], tasks[edgeTaskIndex+1], lastInst, nil
+}
+
+func remodelTasks(ctx context.Context, st *state.State, current, new *asserts.Model, deviceCtx snapstate.DeviceContext, fromChange string) ([]*state.TaskSet, error) {
+	userID := 0
+
+	// adjust kernel track
+	var tss []*state.TaskSet
+	if current.KernelTrack() != new.KernelTrack() {
+		ts, err := snapstateUpdateWithDeviceContext(st, new.Kernel(), &snapstate.RevisionOptions{Channel: new.KernelTrack()}, userID, snapstate.Flags{NoReRefresh: true}, deviceCtx, fromChange)
+		if err != nil {
+			return nil, err
+		}
+		tss = append(tss, ts)
+	}
+	// add new required-snaps, no longer required snaps will be cleaned
+	// in "set-model"
+	for _, snapName := range new.RequiredSnaps() {
+		_, err := snapstate.CurrentInfo(st, snapName)
+		// If the snap is not installed we need to install it now.
+		if _, ok := err.(*snap.NotInstalledError); ok {
+			ts, err := snapstateInstallWithDeviceContext(ctx, st, snapName, nil, userID, snapstate.Flags{Required: true}, deviceCtx, fromChange)
+			if err != nil {
+				return nil, err
+			}
+			tss = append(tss, ts)
+		} else if err != nil {
+			return nil, err
+		}
+	}
+	// TODO: Validate that all bases and default-providers are part
+	//       of the install tasksets and error if not. If the
+	//       prereq task handler check starts adding installs into
+	//       our remodel change our carefully constructed wait chain
+	//       breaks down.
+
+	// Ensure all download/check tasks are run *before* the install
+	// tasks. During a remodel the network may not be available so
+	// we need to ensure we have everything local.
+	var lastDownloadInChain, firstInstallInChain *state.Task
+	var prevDownload, prevInstall *state.Task
+	for _, ts := range tss {
+		// make sure all things happen sequentially
+		// Terminology
+		// A <- B means B waits for A
+		// "download,verify" are part of the "Download" phase
+		// "link,start" is part of "Install" phase
+		//
+		// - all tasks inside ts{Download,Install} already wait for
+		//   each other so the chains look something like this:
+		//     download1 <- verify1 <- install1
+		//     download2 <- verify2 <- install2
+		//     download3 <- verify3 <- install3
+		// - add wait of each first ts{Download,Install} task for
+		//   the last previous ts{Download,Install} task
+		//   Our chains now looks like:
+		//     download1 <- verify1 <- install1 (as before)
+		//     download2 <- verify2 <- install2 (as before)
+		//     download3 <- verify3 <- install3 (as before)
+		//     verify1 <- download2 (added)
+		//     verify2 <- download3 (added)
+		//     install1  <- install2 (added)
+		//     install2  <- install3 (added)
+		downloadStart, downloadLast, installFirst, installLast, err := extractDownloadInstallEdgesFromTs(ts)
+		if err != nil {
+			return nil, fmt.Errorf("cannot remodel: %v", err)
+		}
+		if prevDownload != nil {
+			// XXX: we don't strictly need to serialize the download
+			downloadStart.WaitFor(prevDownload)
+		}
+		if prevInstall != nil {
+			installFirst.WaitFor(prevInstall)
+		}
+		prevDownload = downloadLast
+		prevInstall = installLast
+		// update global state
+		lastDownloadInChain = downloadLast
+		if firstInstallInChain == nil {
+			firstInstallInChain = installFirst
+		}
+	}
+	// Make sure the first install waits for the last download. With this
+	// our (simplified) wait chain looks like:
+	// download1 <- verify1 <- download2 <- verify2 <- download3 <- verify3 <- install1 <- install2 <- install3
+	if firstInstallInChain != nil && lastDownloadInChain != nil {
+		firstInstallInChain.WaitFor(lastDownloadInChain)
+	}
+
+	// Set the new model assertion - this *must* be the last thing done
+	// by the change.
+	setModel := st.NewTask("set-model", i18n.G("Set new model assertion"))
+	for _, tsPrev := range tss {
+		setModel.WaitAll(tsPrev)
+	}
+	tss = append(tss, state.NewTaskSet(setModel))
+
+	return tss, nil
+}
+
 // Remodel takes a new model assertion and generates a change that
 // takes the device from the old to the new model or an error if the
 // transition is not possible.
@@ -300,34 +438,35 @@ func CanManageRefreshes(st *state.State) bool {
 // TODO:
 // - Check estimated disk size delta
 // - Reapply gadget connections as needed
-// - Need new session/serial if changing store or model
 // - Check all relevant snaps exist in new store
 //   (need to check that even unchanged snaps are accessible)
-// - Download everything in a first phase of the change and "pin" cache
-//   files (also get assertions), which means also dealing with new bases
-//   and content providers
-func Remodel(st *state.State, new *asserts.Model) ([]*state.TaskSet, error) {
-	current, err := Model(st)
+func Remodel(st *state.State, new *asserts.Model) (*state.Change, error) {
+	var seeded bool
+	err := st.Get("seeded", &seeded)
+	if err != nil && err != state.ErrNoState {
+		return nil, err
+	}
+	if !seeded {
+		return nil, fmt.Errorf("cannot remodel until fully seeded")
+	}
+
+	current, err := findModel(st)
 	if err != nil {
 		return nil, err
 	}
 	if current.Series() != new.Series() {
 		return nil, fmt.Errorf("cannot remodel to different series yet")
 	}
-	// FIXME: we need language in the model assertion to declare what
-	// transitions are ok before we allow remodel like this.
+
+	// TODO: we need dedicated assertion language to permit for
+	// model transitions before we allow that cross vault
+	// transitions.
 	//
 	// Right now we only allow "remodel" to a different revision of
 	// the same model.
-	if current.BrandID() != new.BrandID() {
-		return nil, fmt.Errorf("cannot remodel to different brands yet")
-	}
-	if current.Model() != new.Model() {
-		return nil, fmt.Errorf("cannot remodel to different models yet")
-	}
-	if current.Store() != new.Store() {
-		return nil, fmt.Errorf("cannot remodel to different stores yet")
-	}
+
+	remodelKind := ClassifyRemodel(current, new)
+
 	// TODO: should we restrict remodel from one arch to another?
 	// There are valid use-cases here though, i.e. amd64 machine that
 	// remodels itself to/from i386 (if the HW can do both 32/64 bit)
@@ -348,46 +487,73 @@ func Remodel(st *state.State, new *asserts.Model) ([]*state.TaskSet, error) {
 	if current.Gadget() != new.Gadget() {
 		return nil, fmt.Errorf("cannot remodel to different gadgets yet")
 	}
-	userID := 0
+
+	// TODO: should we run a remodel only while no other change is
+	// running?  do we add a task upfront that waits for that to be
+	// true? Do we do this only for the more complicated cases
+	// (anything more than adding required-snaps really)?
+
+	remodCtx, err := remodelCtx(st, current, new)
+	if err != nil {
+		return nil, err
+	}
 
 	var tss []*state.TaskSet
-	addTss := func(ts *state.TaskSet) {
-		if len(tss) > 0 {
-			ts.WaitAll(tss[len(tss)-1])
+	switch remodelKind {
+	case ReregRemodel:
+		requestSerial := st.NewTask("request-serial", i18n.G("Request new device serial"))
+
+		prepare := st.NewTask("prepare-remodeling", i18n.G("Prepare remodeling"))
+		prepare.WaitFor(requestSerial)
+		ts := state.NewTaskSet(requestSerial, prepare)
+		tss = []*state.TaskSet{ts}
+	case StoreSwitchRemodel:
+		sto := remodCtx.Store()
+		if sto == nil {
+			return nil, fmt.Errorf("internal error: a store switch remodeling should have built a store")
 		}
-		tss = append(tss, ts)
-	}
-	// adjust tracks
-	if current.KernelTrack() != new.KernelTrack() {
-		ts, err := snapstateUpdate(st, new.Kernel(), new.KernelTrack(), snap.R(0), userID, snapstate.Flags{})
+		// ensure a new session accounting for the new brand store
+		st.Unlock()
+		_, err := sto.EnsureDeviceSession()
+		st.Lock()
+		if err != nil {
+			return nil, fmt.Errorf("cannot get a store session based on the new model assertion: %v", err)
+		}
+		fallthrough
+	case UpdateRemodel:
+		var err error
+		tss, err = remodelTasks(context.TODO(), st, current, new, remodCtx, "")
 		if err != nil {
 			return nil, err
 		}
-		addTss(ts)
 	}
-	// adjust snaps
-	for _, snapName := range new.RequiredSnaps() {
-		_, err := snapstate.CurrentInfo(st, snapName)
-		// if the snap is not installed we need to install it now
-		if _, ok := err.(*snap.NotInstalledError); ok {
-			ts, err := snapstateInstall(st, snapName, "", snap.R(0), userID, snapstate.Flags{})
-			if err != nil {
-				return nil, err
-			}
-			addTss(ts)
-		} else if err != nil {
-			return nil, err
+
+	// TODO: we released the lock a couple of times here:
+	// make sure the current model is essentially the same
+	// make sure no remodeling is in progress
+
+	var msg string
+	if current.BrandID() == new.BrandID() && current.Model() == new.Model() {
+		msg = fmt.Sprintf(i18n.G("Refresh model assertion from revision %v to %v"), current.Revision(), new.Revision())
+	} else {
+		msg = fmt.Sprintf(i18n.G("Remodel device to %v/%v (%v)"), new.BrandID(), new.Model(), new.Revision())
+	}
+
+	chg := st.NewChange("remodel", msg)
+	remodCtx.Init(chg)
+	for _, ts := range tss {
+		chg.AddAll(ts)
+	}
+
+	return chg, nil
+}
+
+// Remodeling returns true whether there's a remodeling in progress
+func Remodeling(st *state.State) bool {
+	for _, chg := range st.Changes() {
+		if !chg.IsReady() && chg.Kind() == "remodel" {
+			return true
 		}
 	}
-
-	// Set the new model assertion - this *must* be the last thing done
-	// by the change.
-	setModel := st.NewTask("set-model", i18n.G("Set new model assertion"))
-	setModel.Set("new-model", asserts.Encode(new))
-	for _, tsPrev := range tss {
-		setModel.WaitAll(tsPrev)
-	}
-	tss = append(tss, state.NewTaskSet(setModel))
-
-	return tss, nil
+	return false
 }

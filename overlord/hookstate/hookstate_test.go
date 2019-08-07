@@ -75,6 +75,7 @@ func (s *baseHookManagerSuite) commonSetUpTest(c *C) {
 	s.se = s.o.StateEngine()
 	s.o.AddManager(s.manager)
 	s.o.AddManager(s.o.TaskRunner())
+	c.Assert(s.o.StartUp(), IsNil)
 
 	s.AddCleanup(snap.MockSanitizePlugsSlots(func(snapInfo *snap.Info) {}))
 
@@ -767,6 +768,40 @@ func (s *hookManagerSuite) TestHookWithoutHookOptional(c *C) {
 		Snap:     "test-snap",
 		Hook:     "missing-hook",
 		Optional: true,
+	}
+	s.state.Lock()
+	s.task.Set("hook-setup", hooksup)
+	s.state.Unlock()
+
+	s.se.Ensure()
+	s.se.Wait()
+
+	c.Check(s.mockHandler.BeforeCalled, Equals, false)
+	c.Check(s.mockHandler.DoneCalled, Equals, false)
+	c.Check(s.mockHandler.ErrorCalled, Equals, false)
+
+	c.Check(s.command.Calls(), IsNil)
+
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	c.Check(s.task.Kind(), Equals, "run-hook")
+	c.Check(s.task.Status(), Equals, state.DoneStatus)
+	c.Check(s.change.Status(), Equals, state.DoneStatus)
+
+	c.Logf("Task log:\n%s\n", s.task.Log())
+}
+
+func (s *hookManagerSuite) TestHookWithoutHookAlways(c *C) {
+	s.manager.Register(regexp.MustCompile("missing-hook"), func(context *hookstate.Context) hookstate.Handler {
+		return s.mockHandler
+	})
+
+	hooksup := &hookstate.HookSetup{
+		Snap:     "test-snap",
+		Hook:     "missing-hook",
+		Optional: true,
+		Always:   true,
 	}
 	s.state.Lock()
 	s.task.Set("hook-setup", hooksup)

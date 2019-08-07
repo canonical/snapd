@@ -30,6 +30,7 @@ import (
 	"github.com/snapcore/snapd/progress"
 	"github.com/snapcore/snapd/release"
 	"github.com/snapcore/snapd/snap"
+	"github.com/snapcore/snapd/timings"
 	"github.com/snapcore/snapd/wrappers"
 )
 
@@ -71,26 +72,32 @@ func updateCurrentSymlinks(info *snap.Info) (e error) {
 }
 
 func hasFontConfigCache(info *snap.Info) bool {
-	if info.InstanceName() == "core" || info.InstanceName() == "snapd" {
+	if info.GetType() == snap.TypeOS || info.GetType() == snap.TypeSnapd {
 		return true
 	}
 	return false
 }
 
 // LinkSnap makes the snap available by generating wrappers and setting the current symlinks.
-func (b Backend) LinkSnap(info *snap.Info, model *asserts.Model) (e error) {
+func (b Backend) LinkSnap(info *snap.Info, model *asserts.Model, tm timings.Measurer) (e error) {
 	if info.Revision.Unset() {
 		return fmt.Errorf("cannot link snap %q with unset revision", info.InstanceName())
 	}
 
-	if err := generateWrappers(info); err != nil {
+	var err error
+	timings.Run(tm, "generate-wrappers", fmt.Sprintf("generate wrappers for snap %s", info.InstanceName()), func(timings.Measurer) {
+		err = generateWrappers(info)
+	})
+	if err != nil {
 		return err
 	}
 	defer func() {
 		if e == nil {
 			return
 		}
-		removeGeneratedWrappers(info, progress.Null)
+		timings.Run(tm, "remove-wrappers", fmt.Sprintf("remove wrappers of snap %s", info.InstanceName()), func(timings.Measurer) {
+			removeGeneratedWrappers(info, progress.Null)
+		})
 	}()
 
 	// fontconfig is only relevant on classic and is carried by 'core' or
@@ -98,10 +105,12 @@ func (b Backend) LinkSnap(info *snap.Info, model *asserts.Model) (e error) {
 	// for non-core snaps, fontconfig cache needs to be updated before the
 	// snap applications are runnable
 	if release.OnClassic && !hasFontConfigCache(info) {
-		// XXX: does this need cleaning up? (afaict no)
-		if err := updateFontconfigCaches(); err != nil {
-			logger.Noticef("cannot update fontconfig cache: %v", err)
-		}
+		timings.Run(tm, "update-fc-cache", "update font config caches", func(timings.Measurer) {
+			// XXX: does this need cleaning up? (afaict no)
+			if err := updateFontconfigCaches(); err != nil {
+				logger.Noticef("cannot update fontconfig cache: %v", err)
+			}
+		})
 	}
 
 	// XXX/TODO: this needs to be a task with proper undo and tests!
@@ -128,19 +137,21 @@ func (b Backend) LinkSnap(info *snap.Info, model *asserts.Model) (e error) {
 	// for core snap, fontconfig cache can be updated after the snap has
 	// been made available
 	if release.OnClassic && hasFontConfigCache(info) {
-		if err := updateFontconfigCaches(); err != nil {
-			logger.Noticef("cannot update fontconfig cache: %v", err)
-		}
+		timings.Run(tm, "update-fc-cache", "update font config caches", func(timings.Measurer) {
+			if err := updateFontconfigCaches(); err != nil {
+				logger.Noticef("cannot update fontconfig cache: %v", err)
+			}
+		})
 	}
 	return nil
 }
 
-func (b Backend) StartServices(apps []*snap.AppInfo, meter progress.Meter) error {
-	return wrappers.StartServices(apps, meter)
+func (b Backend) StartServices(apps []*snap.AppInfo, meter progress.Meter, tm timings.Measurer) error {
+	return wrappers.StartServices(apps, meter, tm)
 }
 
-func (b Backend) StopServices(apps []*snap.AppInfo, reason snap.ServiceStopReason, meter progress.Meter) error {
-	return wrappers.StopServices(apps, reason, meter)
+func (b Backend) StopServices(apps []*snap.AppInfo, reason snap.ServiceStopReason, meter progress.Meter, tm timings.Measurer) error {
+	return wrappers.StopServices(apps, reason, meter, tm)
 }
 
 func generateWrappers(s *snap.Info) error {

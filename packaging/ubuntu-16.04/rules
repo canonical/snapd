@@ -40,14 +40,12 @@ SYSTEMD_UNITS_DESTDIR="lib/systemd/system/"
 # work around that by constructing the appropriate -I flag by hand.
 GCCGO := $(shell go tool dist env > /dev/null 2>&1 && echo no || echo yes)
 
-# Disable -buildmode=pie mode on i386 as can panics in spectacular
-# ways (LP: #1711052).
-# See also https://forum.snapcraft.io/t/artful-i386-panics/
-# Note while the panic is only on artful, that's because artful
-# detects it; the issue potentially there on older things.
 BUILDFLAGS:=-pkgdir=$(CURDIR)/_build/std
-ifneq ($(shell dpkg-architecture -qDEB_HOST_ARCH),i386)
-BUILDFLAGS+= -buildmode=pie
+# Disable -buildmode=pie mode on all our 32bit platforms
+# (i386 and armhf). For i386 because of LP: #1711052 and for
+# armhf because of LP: #1822738
+ifeq ($(shell dpkg-architecture -qDEB_HOST_ARCH_BITS),64)
+ BUILDFLAGS+= -buildmode=pie
 endif
 
 GCCGOFLAGS=
@@ -100,7 +98,24 @@ endif
 BUILT_USING=$(shell dpkg-query -f '$${source:Package} (= $${source:Version}), ' -W $(BUILT_USING_PACKAGES))
 
 %:
+ifneq ($(shell dpkg-architecture -qDEB_HOST_ARCH),powerpc)
 	dh $@ --buildsystem=golang --with=golang --fail-missing --with systemd --builddirectory=_build
+else
+	# "powerpc" is not supported unfortunately, do nothing here
+	# See https://github.com/tianon/debian-runc/compare/70957b315f82170dc2ab7085d39c23835c0fa996...xenial for a more elaborate version of this idea.
+	# Note that snapd never really worked on powerpc (we never had a core
+	# snap there) so we don't need to show anything to the user
+	if [ "$@" = "clean" ]; then \
+		rm -rf debian/snapd; \
+	fi; \
+	if [ "$@" = "binary" ] || [ "$@" = "binary-arch" ]; then \
+		install -m755 -d debian/snapd/usr/share/doc/snapd/; \
+		cp debian/README.powerpc debian/snapd/usr/share/doc/snapd/; \
+		dh_installdeb; \
+		dh_gencontrol; \
+		dh_builddeb; \
+	fi;
+endif
 
 override_dh_fixperms:
 	dh_fixperms -Xusr/lib/snapd/snap-confine
@@ -150,8 +165,6 @@ override_dh_auto_build:
 	# this is the main go build
 	SNAPD_VANILLA_GO=$$(which go) PATH="$$(pwd)/packaging/build-tools/:$$PATH" dh_auto_build -- $(BUILDFLAGS) $(TAGS) $(GCCGOFLAGS)
 
-	# (static linking on powerpc with cgo is broken)
-ifneq ($(shell dpkg-architecture -qDEB_HOST_ARCH),powerpc)
 	# Generate static snap-exec, snapctl and snap-update-ns - it somehow includes CGO so
 	# we must force a static build here. We need a static snap-{exec,update-ns}/snapctl
 	# inside the core snap because not all bases will have a libc
@@ -163,12 +176,9 @@ ifneq ($(shell dpkg-architecture -qDEB_HOST_ARCH),powerpc)
 	$(shell	if ldd _build/bin/snap-exec; then false "need static build"; fi)
 	$(shell	if ldd _build/bin/snap-update-ns; then false "need static build"; fi)
 	$(shell	if ldd _build/bin/snapctl; then false "need static build"; fi)
-endif
 
 	# ensure snap-seccomp is build with a static libseccomp on Ubuntu
 ifeq ($(shell dpkg-vendor --query Vendor),Ubuntu)
-	# (static linking on powerpc with cgo is broken)
- ifneq ($(shell dpkg-architecture -qDEB_HOST_ARCH),powerpc)
 	sed -i "s|#cgo LDFLAGS:|#cgo LDFLAGS: /usr/lib/$(shell dpkg-architecture -qDEB_TARGET_MULTIARCH)/libseccomp.a|" _build/src/$(DH_GOPKG)/cmd/snap-seccomp/main.go
 	(cd _build/bin && GOPATH=$$(pwd)/.. CGO_LDFLAGS_ALLOW="/.*/libseccomp.a" go build $(GCCGOFLAGS) $(DH_GOPKG)/cmd/snap-seccomp)
 	# ensure that libseccomp is not dynamically linked
@@ -176,7 +186,6 @@ ifeq ($(shell dpkg-vendor --query Vendor),Ubuntu)
 	test "$$(ldd _build/bin/snap-seccomp | grep libseccomp)" = ""
 	# revert again so that the subsequent tests work
 	sed -i "s|#cgo LDFLAGS: /usr/lib/$(shell dpkg-architecture -qDEB_TARGET_MULTIARCH)/libseccomp.a|#cgo LDFLAGS:|" _build/src/$(DH_GOPKG)/cmd/snap-seccomp/main.go
- endif
 endif
 
 	# Build C bits, sadly manually
@@ -256,7 +265,10 @@ override_dh_auto_install: snap.8
 	dh_auto_install -O--buildsystem=golang
 
 snap.8:
-	$(CURDIR)/_build/bin/snap help --man > $@
+	# fix reproducible builds as reported by:
+	#   https://tests.reproducible-builds.org/debian/rb-pkg/unstable/amd64/snapd.html
+	# once golang-go-flags is fixed we can remove the "sed" expression
+	$(CURDIR)/_build/bin/snap help --man | sed '1 s/^.*/.TH snap 8 "$(shell date --reference=debian/changelog +"%d %B %Y")"/' > $@
 
 override_dh_auto_clean:
 	dh_auto_clean -O--buildsystem=golang

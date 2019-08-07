@@ -184,43 +184,6 @@ interface(`snappy_dontaudit_manage_user_home_files',`
 
 ########################################
 ## <summary>
-## Execute snappy home directory content.
-## </summary>
-## <param name="domain">
-## <summary>
-## Domain allowed access.
-## </summary>
-## </param>
-#
-interface(`snappy_exec_user_home_files',`
-	gen_require(`
-		type snappy_home_t;
-		')
-
-		can_exec($1, snappy_home_t)
-')
-
-########################################
-## <summary>
-## Execmod snappy home directory content.
-## </summary>
-## <param name="domain">
-## <summary>
-## Domain allowed access.
-## </summary>
-## </param>
-#
-interface(`snappy_execmod_user_home_files',`
-	gen_require(`
-		type snappy_home_t;
-		')
-
-		allow $1 snappy_home_t:file execmod;
-')
-
-
-########################################
-## <summary>
 ## Connect to snapd over a unix stream socket.
 ## </summary>
 ## <param name="domain">
@@ -255,7 +218,6 @@ interface(`snappy_stream_connect',`
 ## </param>
 ## <rolecap/>
 #
-
 interface(`snappy_admin',`
 	gen_require(`
 		type snappy_t, snappy_config_t;
@@ -270,4 +232,61 @@ interface(`snappy_admin',`
 
 	files_list_pids($1, snappy_var_run_t);
 	admin_pattern($1, snappy_var_run_t);
+')
+
+########################################
+## <summary>
+##	Execute snappy CLI in the snappy_cli_t domain.
+## </summary>
+## <param name="domain">
+##	<summary>
+##	Domain allowed to transition.
+##	</summary>
+## </param>
+#
+interface(`snappy_cli_domtrans',`
+	gen_require(`
+		type snappy_cli_t, snappy_cli_exec_t;
+	')
+
+	corecmd_search_bin($1)
+	domtrans_pattern($1, snappy_cli_exec_t, snappy_cli_t)
+')
+
+########################################
+## <summary>
+##	Execute snap-confine in the snappy_confine_t domain.
+## </summary>
+## <param name="domain">
+##	<summary>
+##	Domain allowed to transition.
+##	</summary>
+## </param>
+#
+interface(`snappy_confine_domtrans',`
+	gen_require(`
+		type snappy_confine_t, snappy_confine_exec_t;
+	')
+
+	corecmd_search_bin($1)
+	domtrans_pattern($1, snappy_confine_exec_t, snappy_confine_t)
+')
+
+########################################
+## <summary>
+##	Execute snap-update-ns, snap-discard-ns in the snappy_mount_t domain.
+## </summary>
+## <param name="domain">
+##	<summary>
+##	Domain allowed to transition.
+##	</summary>
+## </param>
+#
+interface(`snappy_mount_domtrans',`
+	gen_require(`
+		type snappy_mount_t, snappy_mount_exec_t;
+	')
+
+	corecmd_search_bin($1)
+	domtrans_pattern($1, snappy_mount_exec_t, snappy_mount_t)
 ')

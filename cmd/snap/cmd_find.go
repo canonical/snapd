@@ -224,9 +224,9 @@ func (x *cmdFind) Execute(args []string) error {
 	}
 
 	opts := &client.FindOptions{
-		Private: x.Private,
-		Section: string(x.Section),
 		Query:   x.Positional.Query,
+		Section: string(x.Section),
+		Private: x.Private,
 	}
 
 	if !x.Narrow {

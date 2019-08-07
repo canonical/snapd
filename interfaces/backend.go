@@ -21,6 +21,7 @@ package interfaces
 
 import (
 	"github.com/snapcore/snapd/snap"
+	"github.com/snapcore/snapd/timings"
 )
 
 // ConfinementOptions describe confinement configuration.
@@ -82,7 +83,7 @@ type SecurityBackend interface {
 	//
 	// This method should be called after changing plug, slots, connections
 	// between them or application present in the snap.
-	Setup(snapInfo *snap.Info, opts ConfinementOptions, repo *Repository) error
+	Setup(snapInfo *snap.Info, opts ConfinementOptions, repo *Repository, tm timings.Measurer) error
 
 	// Remove removes and unloads security artefacts of a given snap.
 	//

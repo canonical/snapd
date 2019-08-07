@@ -22,6 +22,7 @@ package main
 import (
 	"fmt"
 	"strconv"
+	"strings"
 
 	"github.com/jessevdk/go-flags"
 
@@ -107,9 +108,13 @@ type savedCmd struct {
 }
 
 func (x *savedCmd) Execute([]string) error {
-	setID, err := x.ID.ToUint()
-	if err != nil {
-		return err
+	var setID uint64
+	var err error
+	if x.ID != "" {
+		setID, err = x.ID.ToUint()
+		if err != nil {
+			return err
+		}
 	}
 	snaps := installedSnapNames(x.Positional.Snaps)
 	list, err := x.client.SnapshotSets(setID, snaps)
@@ -137,9 +142,16 @@ func (x *savedCmd) Execute([]string) error {
 		i18n.G("Notes"))
 	for _, sg := range list {
 		for _, sh := range sg.Snapshots {
-			note := "-"
+			notes := []string{}
+			if sh.Auto {
+				notes = append(notes, "auto")
+			}
 			if sh.Broken != "" {
-				note = "broken: " + sh.Broken
+				notes = append(notes, "broken: "+sh.Broken)
+			}
+			note := "-"
+			if len(notes) > 0 {
+				note = strings.Join(notes, ", ")
 			}
 			size := fmtSize(sh.Size)
 			age := x.fmtDuration(sh.Time)

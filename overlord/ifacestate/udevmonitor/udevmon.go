@@ -194,7 +194,7 @@ func (m *Monitor) removeDevice(kobj string, env map[string]string) {
 	}
 	devPath := dev.DevicePath()
 	if !m.seen[devPath] {
-		logger.Debugf("udev monitor observed remove event for unknown device %q", dev.DevicePath())
+		logger.Debugf("udev monitor observed remove event for unknown device %s", dev)
 		return
 	}
 	delete(m.seen, devPath)

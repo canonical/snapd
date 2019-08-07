@@ -1,7 +1,7 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
 
 /*
- * Copyright (C) 2014-2015 Canonical Ltd
+ * Copyright (C) 2014-2019 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -26,7 +26,6 @@ import (
 	"strconv"
 	"strings"
 	"time"
-	"unicode"
 	"unicode/utf8"
 )
 
@@ -114,26 +113,35 @@ func TruncateOutput(data []byte, maxLines, maxBytes int) []byte {
 	return data
 }
 
-// splitUnit takes a string of the form "123unit" and splits
+// SplitUnit takes a string of the form "123unit" and splits
 // it into the number and non-number parts (123,"unit").
-func splitUnit(inp string) (number int64, unit string, err error) {
+func SplitUnit(inp string) (number int64, unit string, err error) {
 	// go after the number first, break on first non-digit
-	var nonDigit int
+	nonDigit := -1
 	for i, c := range inp {
-		if !unicode.IsDigit(c) {
-			number, err = strconv.ParseInt(inp[0:i], 10, 64)
-			if err != nil {
-				return 0, "", err
-			}
+		// ASCII digits and - only
+		if (c < '0' || c > '9') && c != '-' {
 			nonDigit = i
 			break
 		}
 	}
-	if nonDigit == 0 {
-		return 0, "", fmt.Errorf("need a number with a unit as input")
+	var prefix string
+	switch {
+	case nonDigit == 0:
+		return 0, "", fmt.Errorf("no numerical prefix")
+	case nonDigit == -1:
+		// no unit
+		prefix = inp
+	default:
+		unit = inp[nonDigit:]
+		prefix = inp[:nonDigit]
+	}
+	number, err = strconv.ParseInt(prefix, 10, 64)
+	if err != nil {
+		return 0, "", fmt.Errorf("%q is not a number", prefix)
 	}
 
-	return number, inp[nonDigit:], nil
+	return number, unit, nil
 }
 
 // ParseByteSize parses a value like 500kB and returns the number
@@ -152,12 +160,15 @@ func ParseByteSize(inp string) (int64, error) {
 
 	errPrefix := fmt.Sprintf("cannot parse %q: ", inp)
 
-	val, unit, err := splitUnit(inp)
+	val, unit, err := SplitUnit(inp)
 	if err != nil {
 		return 0, fmt.Errorf(errPrefix+"%s", err)
 	}
 	if unit == "" {
 		return 0, fmt.Errorf(errPrefix + "need a number with a unit as input")
+	}
+	if val < 0 {
+		return 0, fmt.Errorf(errPrefix + "size cannot be negative")
 	}
 
 	mul, ok := unitMultiplier[strings.ToUpper(unit)]
@@ -197,4 +208,20 @@ func ElliptRight(str string, n int) string {
 
 	// this is expensive; look into a cheaper way maybe sometime
 	return string([]rune(str)[:n-1]) + "…"
+}
+
+// ElliptLeft returns a string that is at most n runes long,
+// replacing the first rune with an ellipsis if necessary. If N is less
+// than 1 it's treated as a 1.
+func ElliptLeft(str string, n int) string {
+	if n < 1 {
+		n = 1
+	}
+	// this is expensive; look into a cheaper way maybe sometime
+	rstr := []rune(str)
+	if len(rstr) <= n {
+		return str
+	}
+
+	return "…" + string(rstr[len(rstr)-n+1:])
 }

@@ -126,6 +126,22 @@ func formatMountFlags(flags int) string {
 		flags ^= syscall.MS_RDONLY
 		fl = append(fl, "MS_RDONLY")
 	}
+	if flags&syscall.MS_SHARED == syscall.MS_SHARED {
+		flags ^= syscall.MS_SHARED
+		fl = append(fl, "MS_SHARED")
+	}
+	if flags&syscall.MS_SLAVE == syscall.MS_SLAVE {
+		flags ^= syscall.MS_SLAVE
+		fl = append(fl, "MS_SLAVE")
+	}
+	if flags&syscall.MS_PRIVATE == syscall.MS_PRIVATE {
+		flags ^= syscall.MS_PRIVATE
+		fl = append(fl, "MS_PRIVATE")
+	}
+	if flags&syscall.MS_UNBINDABLE == syscall.MS_UNBINDABLE {
+		flags ^= syscall.MS_UNBINDABLE
+		fl = append(fl, "MS_UNBINDABLE")
+	}
 	if flags != 0 {
 		panic(fmt.Errorf("unrecognized mount flags %d", flags))
 	}

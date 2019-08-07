@@ -56,7 +56,7 @@ build_debian_or_ubuntu_package() {
     git clone -b "$distro_packaging_git_branch" "$distro_packaging_git" distro-packaging
 
     # Install all the build dependencies declared by the package.
-    apt-get install --quiet -y gdebi-core
+    eatmydata apt-get install --quiet -y gdebi-core
     gdebi --quiet --apt-line ./distro-packaging/debian/control | xargs -r apt-get install --quiet -y
 
     # Generate a new upstream tarball from the current state of the tree

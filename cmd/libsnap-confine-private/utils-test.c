@@ -191,7 +191,7 @@ static void test_sc_nonfatal_mkpath__absolute(void)
 	_test_sc_nonfatal_mkpath(dirname, subdirname);
 }
 
-static void __attribute__ ((constructor)) init(void)
+static void __attribute__((constructor)) init(void)
 {
 	g_test_add_func("/utils/parse_bool", test_parse_bool);
 	g_test_add_func("/utils/die", test_die);

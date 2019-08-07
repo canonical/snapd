@@ -19,9 +19,6 @@ systems:
     # Ships xdg-desktop-portal 0.11
     - ubuntu-18.04-*
 
-    # Ships xdg-desktop-portal 1.0.3
-    - ubuntu-18.10-*
-
     # Ships xdg-desktop-portal 1.2.0
     - ubuntu-19.04-*
 
@@ -53,6 +50,14 @@ execute: |
 
     echo "The confined application can write files via the portal"
     [ ! -f /tmp/file-to-write.txt ]
+    # The python code does open(path, 'w'), which attempts to truncate the
+    # file if it exists. Then in fuse handlers inside document-portal, the
+    # code path for when the inode exists and the caller requested O_TRUNC,
+    # returns -ENOSYS, resulting in OSError:
+    # [Errno 38] Function not implemented on the Python side
+    # To avoid the issue described we are creating manually the file.
+    touch /tmp/file-to-write.txt
+    chown test:test /tmp/file-to-write.txt
     as_user test-snapd-portal-client save-file "from-sandbox"
     [ -f /tmp/file-to-write.txt ]
     MATCH "from-sandbox" < /tmp/file-to-write.txt

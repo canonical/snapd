@@ -18,4 +18,4 @@ execute: |
     test -e /var/lib/snapd/desktop/applications/basic-desktop_io.snapcraft.echoecho.desktop
     echo "Removing a snap with a desktop file removes the desktop file again"
     snap remove  basic-desktop
-    ! test -e /var/lib/snapd/desktop/applications/basic-desktop_io.snapcraft.echoecho.desktop
+    not test -e /var/lib/snapd/desktop/applications/basic-desktop_io.snapcraft.echoecho.desktop

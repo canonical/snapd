@@ -34,7 +34,7 @@
 #include "../libsnap-confine-private/mountinfo.h"
 #include "../libsnap-confine-private/string-utils.h"
 
-__attribute__ ((format(printf, 1, 2)))
+__attribute__((format(printf, 1, 2)))
 void kmsg(const char *fmt, ...)
 {
 	static FILE *kmsg = NULL;
@@ -53,7 +53,7 @@ void kmsg(const char *fmt, ...)
 	va_end(va);
 }
 
-__attribute__ ((noreturn))
+__attribute__((noreturn))
 void die(const char *msg)
 {
 	if (errno == 0) {
@@ -111,13 +111,12 @@ bool umount_all(void)
 	bool had_writable = false;
 
 	for (int i = 0; i < 10 && did_umount; i++) {
-		struct sc_mountinfo *mounts = sc_parse_mountinfo(NULL);
+		sc_mountinfo *mounts = sc_parse_mountinfo(NULL);
 		if (!mounts) {
 			// oh dear
 			die("unable to get mount info; giving up");
 		}
-		struct sc_mountinfo_entry *cur =
-		    sc_first_mountinfo_entry(mounts);
+		sc_mountinfo_entry *cur = sc_first_mountinfo_entry(mounts);
 
 		had_writable = false;
 		did_umount = false;

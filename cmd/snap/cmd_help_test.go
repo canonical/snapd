@@ -41,6 +41,7 @@ func (s *SnapSuite) TestHelpPrintsHelp(c *check.C) {
 		{"snap", "help"},
 		{"snap", "--help"},
 		{"snap", "-h"},
+		{"snap", "--help", "install"},
 	} {
 		s.ResetStdStreams()
 
@@ -191,15 +192,6 @@ func (s *SnapSuite) TestBadSub(c *check.C) {
 	origArgs := os.Args
 	defer func() { os.Args = origArgs }()
 	os.Args = []string{"snap", "debug", "brotato"}
-
-	err := snap.RunMain()
-	c.Assert(err, check.ErrorMatches, `unknown command "brotato", see 'snap help debug'.`)
-}
-
-func (s *SnapSuite) TestWorseSub(c *check.C) {
-	origArgs := os.Args
-	defer func() { os.Args = origArgs }()
-	os.Args = []string{"snap", "-h", "debug", "brotato"}
 
 	err := snap.RunMain()
 	c.Assert(err, check.ErrorMatches, `unknown command "brotato", see 'snap help debug'.`)

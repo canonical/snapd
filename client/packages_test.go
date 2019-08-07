@@ -45,7 +45,7 @@ func (cs *clientSuite) TestClientFindRefreshSetsQuery(c *check.C) {
 	c.Check(cs.req.Method, check.Equals, "GET")
 	c.Check(cs.req.URL.Path, check.Equals, "/v2/find")
 	c.Check(cs.req.URL.Query(), check.DeepEquals, url.Values{
-		"q": []string{""}, "select": []string{"refresh"},
+		"select": []string{"refresh"},
 	})
 }
 
@@ -57,7 +57,7 @@ func (cs *clientSuite) TestClientFindRefreshSetsQueryWithSec(c *check.C) {
 	c.Check(cs.req.Method, check.Equals, "GET")
 	c.Check(cs.req.URL.Path, check.Equals, "/v2/find")
 	c.Check(cs.req.URL.Query(), check.DeepEquals, url.Values{
-		"q": []string{""}, "section": []string{"mysection"}, "select": []string{"refresh"},
+		"section": []string{"mysection"}, "select": []string{"refresh"},
 	})
 }
 
@@ -68,7 +68,7 @@ func (cs *clientSuite) TestClientFindWithSectionSetsQuery(c *check.C) {
 	c.Check(cs.req.Method, check.Equals, "GET")
 	c.Check(cs.req.URL.Path, check.Equals, "/v2/find")
 	c.Check(cs.req.URL.Query(), check.DeepEquals, url.Values{
-		"q": []string{""}, "section": []string{"mysection"},
+		"section": []string{"mysection"},
 	})
 }
 
@@ -89,7 +89,7 @@ func (cs *clientSuite) TestClientFindWithScopeSetsQuery(c *check.C) {
 	c.Check(cs.req.Method, check.Equals, "GET")
 	c.Check(cs.req.URL.Path, check.Equals, "/v2/find")
 	c.Check(cs.req.URL.Query(), check.DeepEquals, url.Values{
-		"q": []string{""}, "scope": []string{"mouthwash"},
+		"scope": []string{"mouthwash"},
 	})
 }
 
@@ -115,6 +115,10 @@ func (cs *clientSuite) TestClientNoSnaps(c *check.C) {
 }
 
 func (cs *clientSuite) TestClientSnaps(c *check.C) {
+	healthTimestamp, err := time.Parse(time.RFC3339Nano, "2019-05-13T16:27:01.475851677+01:00")
+	c.Assert(err, check.IsNil)
+
+	// TODO: update this JSON as it's ancient
 	cs.rsp = `{
 		"type": "sync",
 		"result": [{
@@ -123,6 +127,11 @@ func (cs *clientSuite) TestClientSnaps(c *check.C) {
 			"summary": "salutation snap",
 			"description": "hello-world",
 			"download-size": 22212,
+                        "health": {
+				"revision": "29",
+				"timestamp": "2019-05-13T16:27:01.475851677+01:00",
+				"status": "okay"
+                        },
 			"icon": "https://myapps.developer.ubuntu.com/site_media/appmedia/2015/03/hello.svg_NZLfWbh.png",
 			"installed-size": -1,
 			"license": "GPL-3.0",
@@ -147,12 +156,17 @@ func (cs *clientSuite) TestClientSnaps(c *check.C) {
 	applications, err := cs.cli.List(nil, nil)
 	c.Check(err, check.IsNil)
 	c.Check(applications, check.DeepEquals, []*client.Snap{{
-		ID:            "funky-snap-id",
-		Title:         "Title",
-		Summary:       "salutation snap",
-		Description:   "hello-world",
-		DownloadSize:  22212,
-		Icon:          "https://myapps.developer.ubuntu.com/site_media/appmedia/2015/03/hello.svg_NZLfWbh.png",
+		ID:           "funky-snap-id",
+		Title:        "Title",
+		Summary:      "salutation snap",
+		Description:  "hello-world",
+		DownloadSize: 22212,
+		Icon:         "https://myapps.developer.ubuntu.com/site_media/appmedia/2015/03/hello.svg_NZLfWbh.png",
+		Health: &client.SnapHealth{
+			Revision:  snap.R(29),
+			Timestamp: healthTimestamp,
+			Status:    "okay",
+		},
 		InstalledSize: -1,
 		License:       "GPL-3.0",
 		Name:          "hello-world",
@@ -185,6 +199,12 @@ func (cs *clientSuite) TestClientFindPrefix(c *check.C) {
 	c.Check(cs.req.URL.RawQuery, check.Equals, "name=foo%2A") // 2A is `*`
 }
 
+func (cs *clientSuite) TestClientFindCommonID(c *check.C) {
+	_, _, _ = cs.cli.Find(&client.FindOptions{CommonID: "org.kde.ktuberling.desktop"})
+	c.Check(cs.req.URL.Path, check.Equals, "/v2/find")
+	c.Check(cs.req.URL.RawQuery, check.Equals, "common-id=org.kde.ktuberling.desktop")
+}
+
 func (cs *clientSuite) TestClientFindOne(c *check.C) {
 	_, _, _ = cs.cli.FindOne("foo")
 	c.Check(cs.req.URL.Path, check.Equals, "/v2/find")
@@ -198,6 +218,7 @@ const (
 func (cs *clientSuite) TestClientSnap(c *check.C) {
 	// example data obtained via
 	// printf "GET /v2/find?name=test-snapd-tools HTTP/1.0\r\n\r\n" | nc -U -q 1 /run/snapd.socket|grep '{'|python3 -m json.tool
+	// XXX: update / sync with what daemon is actually putting out
 	cs.rsp = `{
 		"type": "sync",
 		"result": {
@@ -236,6 +257,7 @@ func (cs *clientSuite) TestClientSnap(c *check.C) {
                             {"type": "screenshot", "url":"http://example.com/shot1.png", "width":640, "height":480},
                             {"type": "screenshot", "url":"http://example.com/shot2.png"}
                         ],
+                        "cohort-key": "some-long-cohort-key",
                         "common-ids": ["org.funky.snap"]
 		}
 	}`
@@ -279,6 +301,7 @@ func (cs *clientSuite) TestClientSnap(c *check.C) {
 			{Type: "screenshot", URL: "http://example.com/shot2.png"},
 		},
 		CommonIDs: []string{"org.funky.snap"},
+		CohortKey: "some-long-cohort-key",
 	})
 }
 

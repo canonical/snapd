@@ -1,15 +1,18 @@
 summary: Ensure create-user functionality
 
-# Disabled for Fedora, openSUSE, Arch, AMZN2 as none have all options for add user
-# the `snap create-user` command requires. Needs code rework.
-systems: [-ubuntu-core-*, -fedora-*, -opensuse-*, -arch-*, -amazon-*, -centos-*]
+# FIXME: enable on ubuntu-core-18-* as well once the shadow SRU
+#        https://launchpad.net/ubuntu/+source/shadow/1:4.5-1ubuntu2
+#        is available on -updates
+systems: [ubuntu-core-1*]
 
 environment:
     USER_EMAIL: mvo@ubuntu.com
     USER_NAME: mvo
 
 restore: |
-    userdel -r "$USER_NAME" || true
+    # FIXME: use "snap delete-user" once
+    # https://github.com/snapcore/snapd/pull/6679 lands
+    userdel --extrausers -r "$USER_NAME" || true
     rm -rf "/etc/sudoers.d/create-user-$USER_NAME"
 
 execute: |
@@ -20,13 +23,23 @@ execute: |
     fi
     [[ "$obtained" =~ $expected ]]
 
+    if [ "$(snap managed)" = "true" ]; then
+        echo "snap create-user -- not success when run as non-root user with sudo on managed device"
+        if su - test /bin/sh -c "sudo snap create-user --sudoer $USER_EMAIL" 2>create.error; then
+            echo "Did not get expected error creating user in managed device"
+            exit 1
+        fi
+        MATCH "cannot create user: device already managed" < create.error
+        exit 0
+    fi
+
     echo "snap create-user -- ensure success when run as non-root user with sudo"
     expected="created user \"$USER_NAME\""
-    obtained=$(su - test /bin/sh -c "sudo snap create-user --force-managed --sudoer $USER_EMAIL 2>&1")
+    obtained=$(su - test /bin/sh -c "sudo snap create-user --sudoer $USER_EMAIL 2>&1")
     [[ "$obtained" =~ $expected ]]
 
     echo "ensure user exists in /etc/passwd"
-    MATCH "^$USER_NAME:x:[0-9]+:[0-9]+:$USER_EMAIL" < /etc/passwd
+    MATCH "^$USER_NAME:x:[0-9]+:[0-9]+:$USER_EMAIL" < /var/lib/extrausers/passwd
 
     echo "ensure proper sudoers.d file"
     MATCH "$USER_NAME ALL=\\(ALL\\) NOPASSWD:ALL" < "/etc/sudoers.d/create-user-$USER_NAME"

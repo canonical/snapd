@@ -25,6 +25,7 @@ import (
 	"github.com/snapcore/snapd/interfaces"
 	"github.com/snapcore/snapd/interfaces/apparmor"
 	"github.com/snapcore/snapd/interfaces/builtin"
+	"github.com/snapcore/snapd/interfaces/hotplug"
 	"github.com/snapcore/snapd/interfaces/udev"
 	"github.com/snapcore/snapd/snap"
 	"github.com/snapcore/snapd/snap/snaptest"
@@ -549,6 +550,56 @@ IMPORT{builtin}="usb_id"
 SUBSYSTEM=="tty", SUBSYSTEMS=="usb", ATTRS{idVendor}=="ffff", ATTRS{idProduct}=="ffff", TAG+="snap_client-snap_app-accessing-3rd-port"`
 	expectedExtraSnippet10 := `TAG=="snap_client-snap_app-accessing-3rd-port", RUN+="/usr/lib/snapd/snap-device-helper $env{ACTION} snap_client-snap_app-accessing-3rd-port $devpath $major:$minor"`
 	checkConnectedPlugSnippet(s.testPlugPort3, s.testUDev2, expectedSnippet10, expectedExtraSnippet10)
+}
+
+func (s *SerialPortInterfaceSuite) TestHotplugDeviceDetected(c *C) {
+	hotplugIface := s.iface.(hotplug.Definer)
+	di, err := hotplug.NewHotplugDeviceInfo(map[string]string{"DEVPATH": "/sys/foo/bar", "DEVNAME": "/dev/ttyUSB0", "ID_VENDOR_ID": "1234", "ID_MODEL_ID": "5678", "ACTION": "add", "SUBSYSTEM": "tty", "ID_BUS": "usb"})
+	c.Assert(err, IsNil)
+	proposedSlot, err := hotplugIface.HotplugDeviceDetected(di)
+	c.Assert(err, IsNil)
+	c.Assert(proposedSlot, DeepEquals, &hotplug.ProposedSlot{Attrs: map[string]interface{}{"path": "/dev/ttyUSB0", "usb-vendor": "1234", "usb-product": "5678"}})
+}
+
+func (s *SerialPortInterfaceSuite) TestHotplugDeviceDetectedNotSerialPort(c *C) {
+	hotplugIface := s.iface.(hotplug.Definer)
+	di, err := hotplug.NewHotplugDeviceInfo(map[string]string{"DEVPATH": "/sys/foo/bar", "DEVNAME": "/dev/other", "ID_VENDOR_ID": "1234", "ID_MODEL_ID": "5678", "ACTION": "add", "SUBSYSTEM": "tty", "ID_BUS": "usb"})
+	c.Assert(err, IsNil)
+	proposedSlot, err := hotplugIface.HotplugDeviceDetected(di)
+	c.Assert(err, IsNil)
+	c.Assert(proposedSlot, IsNil)
+}
+
+func (s *SerialPortInterfaceSuite) TestHotplugHandledByGadget(c *C) {
+	byGadgetPred := s.iface.(hotplug.HandledByGadgetPredicate)
+	di, err := hotplug.NewHotplugDeviceInfo(map[string]string{"DEVPATH": "/sys/foo/bar", "DEVNAME": "/dev/ttyXRUSB0", "ACTION": "add", "SUBSYSTEM": "tty", "ID_BUS": "usb"})
+	c.Assert(err, IsNil)
+
+	c.Assert(byGadgetPred.HandledByGadget(di, s.testSlot5Info), Equals, false)
+	// matching path /dev/ttyXRUSB0
+	c.Assert(byGadgetPred.HandledByGadget(di, s.testSlot7Info), Equals, true)
+
+	// matching on vendor, model, usb interface num
+	di, err = hotplug.NewHotplugDeviceInfo(map[string]string{"DEVPATH": "/sys/foo/bar", "DEVNAME": "/dev/path", "ID_VENDOR_ID": "abcd", "ID_MODEL_ID": "1234", "ID_USB_INTERFACE_NUM": "00", "ACTION": "add", "SUBSYSTEM": "tty", "ID_BUS": "usb"})
+	c.Assert(err, IsNil)
+	c.Assert(byGadgetPred.HandledByGadget(di, s.testUDev3Info), Equals, true)
+	// model doesn't match, everything else matches
+	di, err = hotplug.NewHotplugDeviceInfo(map[string]string{"DEVPATH": "/sys/foo/bar", "DEVNAME": "/dev/path", "ID_VENDOR_ID": "abcd", "ID_MODEL_ID": "ffff", "ID_USB_INTERFACE_NUM": "00", "ACTION": "add", "SUBSYSTEM": "tty", "ID_BUS": "usb"})
+	c.Assert(err, IsNil)
+	c.Assert(byGadgetPred.HandledByGadget(di, s.testUDev3Info), Equals, false)
+	// vendor doesn't match, everything else matches
+	di, err = hotplug.NewHotplugDeviceInfo(map[string]string{"DEVPATH": "/sys/foo/bar", "DEVNAME": "/dev/path", "ID_VENDOR_ID": "eeee", "ID_MODEL_ID": "1234", "ID_USB_INTERFACE_NUM": "00", "ACTION": "add", "SUBSYSTEM": "tty", "ID_BUS": "usb"})
+	c.Assert(err, IsNil)
+	c.Assert(byGadgetPred.HandledByGadget(di, s.testUDev3Info), Equals, false)
+	// usb interface doesn't match, everything else matches
+	di, err = hotplug.NewHotplugDeviceInfo(map[string]string{"DEVPATH": "/sys/foo/bar", "DEVNAME": "/dev/path", "ID_VENDOR_ID": "abcd", "ID_MODEL_ID": "1234", "ID_USB_INTERFACE_NUM": "ff", "ACTION": "add", "SUBSYSTEM": "tty", "ID_BUS": "usb"})
+	c.Assert(err, IsNil)
+	c.Assert(byGadgetPred.HandledByGadget(di, s.testUDev3Info), Equals, false)
+
+	// usb interface num is optional, match on vendor/model
+	di, err = hotplug.NewHotplugDeviceInfo(map[string]string{"DEVPATH": "/sys/foo/bar", "DEVNAME": "/dev/path", "ID_VENDOR_ID": "ffff", "ID_MODEL_ID": "ffff", "ACTION": "add", "SUBSYSTEM": "tty", "ID_BUS": "usb"})
+	c.Assert(err, IsNil)
+	c.Assert(byGadgetPred.HandledByGadget(di, s.testUDev2Info), Equals, true)
 }
 
 func (s *SerialPortInterfaceSuite) TestInterfaces(c *C) {

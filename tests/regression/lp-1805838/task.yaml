@@ -6,11 +6,29 @@ details: |
 prepare: |
     #shellcheck source=tests/lib/dirs.sh
     . "$TESTSLIB"/dirs.sh
-    mount --bind /bin/false "$LIBEXECDIR/snapd/snap-seccomp"
-    test -d "$SNAP_MOUNT_DIR/core" && mount --bind /bin/false "$SNAP_MOUNT_DIR/core/current/usr/lib/snapd/snap-seccomp"
-    test -d "$SNAP_MOUNT_DIR/snapd" && mount --bind /bin/false "$SNAP_MOUNT_DIR/snapd/current/usr/lib/snapd/snap-seccomp"
+    #shellcheck source=tests/lib/snaps.sh
+    . "$TESTSLIB"/snaps.sh
+    install_local network-consumer
+
+    version_info="$(sed -n '2 s/# //p' < /var/lib/snapd/seccomp/bpf/snap.network-consumer.network-consumer.src)"
+    test -n "$version_info"
+    cat <<EOF > bad-snap-seccomp
+    #!/bin/sh
+    if [ "\$1" = "version-info" ]; then
+       echo "$version_info"
+       exit 0
+    fi
+    exit 1
+    EOF
+    chmod +x bad-snap-seccomp
+
+    mount --bind "$PWD/bad-snap-seccomp" "$LIBEXECDIR/snapd/snap-seccomp"
+    test -d "$SNAP_MOUNT_DIR/core" && mount --bind "$PWD/bad-snap-seccomp" "$SNAP_MOUNT_DIR/core/current/usr/lib/snapd/snap-seccomp"
+    test -d "$SNAP_MOUNT_DIR/snapd" && mount --bind "$PWD/bad-snap-seccomp" "$SNAP_MOUNT_DIR/snapd/current/usr/lib/snapd/snap-seccomp"
     mv /var/lib/snapd/system-key /var/lib/snapd/system-key.orig
+    echo '# trigger rebuild' >> /var/lib/snapd/seccomp/bpf/snap.network-consumer.network-consumer.src
     echo '{}' > /var/lib/snapd/system-key
+
 restore: |
     #shellcheck source=tests/lib/dirs.sh
     . "$TESTSLIB"/dirs.sh
@@ -18,9 +36,11 @@ restore: |
     test -d "$SNAP_MOUNT_DIR/core" && ( umount "$SNAP_MOUNT_DIR/core/current/usr/lib/snapd/snap-seccomp" || true )
     test -d "$SNAP_MOUNT_DIR/snapd" && ( umount "$SNAP_MOUNT_DIR/snapd/current/usr/lib/snapd/snap-seccomp" || true )
     mv /var/lib/snapd/system-key.orig /var/lib/snapd/system-key || true
+    rm -f bad-snap-seccomp
+
 execute: |
     systemctl stop snapd.socket snapd.service
     systemctl start snapd.socket snapd.service
-    journalctl -u snapd | MATCH 'cannot regenerate seccomp profile for snap "(core|snapd|test-snapd-rsync-core18)"'
+    journalctl -u snapd | MATCH 'cannot regenerate seccomp profile for snap "network-consumer"'
     snap list | MATCH "(core|snapd)"
     test ! -e /var/lib/snapd/system-key

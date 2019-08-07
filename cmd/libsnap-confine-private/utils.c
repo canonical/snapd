@@ -42,16 +42,6 @@ void die(const char *msg, ...)
 	exit(1);
 }
 
-bool error(const char *msg, ...)
-{
-	va_list va;
-	va_start(va, msg);
-	vfprintf(stderr, msg, va);
-	va_end(va);
-
-	return false;
-}
-
 struct sc_bool_name {
 	const char *text;
 	bool value;
@@ -74,7 +64,7 @@ static const struct sc_bool_name sc_bool_names[] = {
  *
  * If the text cannot be recognized, the default value is used.
  **/
-static int parse_bool(const char *text, bool * value, bool default_value)
+static int parse_bool(const char *text, bool *value, bool default_value)
 {
 	if (value == NULL) {
 		errno = EFAULT;

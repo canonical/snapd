@@ -57,7 +57,7 @@ apps:
   plugs: [personal-files]
 `
 	s.slotInfo = &snap.SlotInfo{
-		Snap:      &snap.Info{SuggestedName: "core", Type: snap.TypeOS},
+		Snap:      &snap.Info{SuggestedName: "core", SnapType: snap.TypeOS},
 		Name:      "personal-files",
 		Interface: "personal-files",
 	}

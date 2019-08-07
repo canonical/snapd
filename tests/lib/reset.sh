@@ -7,7 +7,6 @@ set -e -x
 # shellcheck source=tests/lib/state.sh
 . "$TESTSLIB/state.sh"
 
-
 # shellcheck source=tests/lib/systemd.sh
 . "$TESTSLIB/systemd.sh"
 
@@ -125,7 +124,11 @@ reset_all_snap() {
                 fi
                 if ! echo "$SKIP_REMOVE_SNAPS" | grep -w "$snap"; then
                     if snap info "$snap" | grep -E '^type: +(base|core)'; then
-                        remove_bases="$remove_bases $snap"
+                        if [ -z "$remove_bases" ]; then
+                            remove_bases="$snap"
+                        else
+                            remove_bases="$remove_bases $snap"
+                        fi
                     else
                         snap remove "$snap"
                     fi
@@ -135,7 +138,15 @@ reset_all_snap() {
     done
     # remove all base/os snaps at the end
     if [ -n "$remove_bases" ]; then
-        snap remove "$remove_bases"
+        for base in $remove_bases; do
+            snap remove "$base"
+            if [ -d "$SNAP_MOUNT_DIR/$base" ]; then
+                echo "Error: removing base $base has unexpected leftover dir $SNAP_MOUNT_DIR/$base"
+                ls -al "$SNAP_MOUNT_DIR"
+                ls -al "$SNAP_MOUNT_DIR/$base"
+                exit 1
+            fi
+        done
     fi
 
     # ensure we have the same state as initially
@@ -145,9 +156,19 @@ reset_all_snap() {
     if [ "$1" != "--keep-stopped" ]; then
         systemctl start snapd.service snapd.socket
     fi
+
+    # Exit in case there is a snap in broken state after restoring the snapd state
+    if snap list | grep -E "broken$"; then
+        echo "snap in broken state"
+        exit 1
+    fi
+
 }
 
-if is_core_system; then
+# When the variable REUSE_SNAPD is set to 1, we don't remove and purge snapd.
+# In that case we just cleanup the environment by removing installed snaps as
+# it is done for core systems.
+if is_core_system || [ "$REUSE_SNAPD" = 1 ]; then
     reset_all_snap "$@"
 else
     reset_classic "$@"
@@ -161,7 +182,7 @@ if [ -d /run/snapd/ns ]; then
         umount -l "$mnt" || true
         rm -f "$mnt"
     done
-    find /run/snapd/ns/ \( -name '*.fstab' -o -name '*.user-fstab' \) -delete
+    find /run/snapd/ns/ \( -name '*.fstab' -o -name '*.user-fstab' -o -name '*.info' \) -delete
 fi
 
 if [ "$REMOTE_STORE" = staging ] && [ "$1" = "--store" ]; then

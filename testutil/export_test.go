@@ -26,3 +26,11 @@ import (
 func UnexpectedIntChecker(relation string) *intChecker {
 	return &intChecker{CheckerInfo: &check.CheckerInfo{Name: "unexpected", Params: []string{"a", "b"}}, rel: relation}
 }
+
+func MockShellcheckPath(p string) (restore func()) {
+	old := shellcheckPath
+	shellcheckPath = p
+	return func() {
+		shellcheckPath = old
+	}
+}

@@ -333,7 +333,8 @@ int validate_instance_name(const char *instance_name)
 }
 
 // parse the -u argument, returns -1 on failure or 0 on success.
-static int parse_arg_u(int argc, char * const *argv, int *optind, unsigned long *uid_out)
+static int parse_arg_u(int argc, char *const *argv, int *optind,
+		       unsigned long *uid_out)
 {
 	if (*optind + 1 == argc || argv[*optind + 1] == NULL) {
 		bootstrap_msg = "-u requires an argument";
@@ -347,18 +348,19 @@ static int parse_arg_u(int argc, char * const *argv, int *optind, unsigned long 
 	int saved_errno = errno;
 	char c = *uid_text;
 	if (
-			/* Reject overflow in parsed representation */
-			(parsed_uid == ULONG_MAX && errno != 0)
-			/* Reject leading whitespace allowed by strtoul. */
-			/* NOTE: We are reimplementing isspace() here.
-			 * For context see
-			 * https://github.com/golang/go/issues/29689 */
-			|| c == ' ' || c == '\t' || c == '\v' || c == '\r' || c == '\n'
-			/* Reject empty string. */
-			|| (*uid_text == '\0')
-			/* Reject partially parsed strings. */
-			|| (*uid_text != '\0' && uid_text_end != NULL
-				&& *uid_text_end != '\0')) {
+		   /* Reject overflow in parsed representation */
+		   (parsed_uid == ULONG_MAX && errno != 0)
+		   /* Reject leading whitespace allowed by strtoul. */
+		   /* NOTE: We are reimplementing isspace() here.
+		    * For context see
+		    * https://github.com/golang/go/issues/29689 */
+		   || c == ' ' || c == '\t' || c == '\v' || c == '\r'
+		   || c == '\n'
+		   /* Reject empty string. */
+		   || (*uid_text == '\0')
+		   /* Reject partially parsed strings. */
+		   || (*uid_text != '\0' && uid_text_end != NULL
+		       && *uid_text_end != '\0')) {
 		bootstrap_msg = "cannot parse user id";
 		bootstrap_errno = saved_errno;
 		return -1;
@@ -371,14 +373,15 @@ static int parse_arg_u(int argc, char * const *argv, int *optind, unsigned long 
 	if (uid_out != NULL) {
 		*uid_out = parsed_uid;
 	}
-	*optind += 1; // Account for the argument to -u.
+	*optind += 1;		// Account for the argument to -u.
 	return 0;
 }
 
 // process_arguments parses given a command line
 // argc and argv are defined as for the main() function
 void process_arguments(int argc, char *const *argv, const char **snap_name_out,
-		       bool * should_setns_out, bool * process_user_fstab, unsigned long * uid_out)
+		       bool *should_setns_out, bool *process_user_fstab,
+		       unsigned long *uid_out)
 {
 	// Find the name of the called program. If it is ending with ".test" then do nothing.
 	// NOTE: This lets us use cgo/go to write tests without running the bulk

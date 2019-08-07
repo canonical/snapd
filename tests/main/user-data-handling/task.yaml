@@ -5,9 +5,10 @@ execute: |
     snap install test-snapd-tools
     rev=$(snap list test-snapd-tools|tail -n1|tr -s ' '|cut -f3 -d' ')
 
-    homes=(/root/ /home/*/)
+    homes=(/root/ /home/test/)
     echo "That has some user data"
     for h in "${homes[@]}"; do
+        test -d "$h"
         d="${h}snap/test-snapd-tools/$rev"
         mkdir -p "$d"
         touch "$d/mock-data"

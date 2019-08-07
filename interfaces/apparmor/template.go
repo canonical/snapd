@@ -108,10 +108,14 @@ var defaultTemplate = `
   /{,usr/}bin/bash ixr,
   /{,usr/}bin/dash ixr,
   /etc/bash.bashrc r,
+
+  # user/group/seat lookups
   /etc/{passwd,group,nsswitch.conf} r,  # very common
-  /etc/default/nss r,
-  /etc/libnl-3/{classid,pktloc} r,      # apps that use libnl
   /var/lib/extrausers/{passwd,group} r,
+  /run/systemd/users/[0-9]* r,
+  /etc/default/nss r,
+
+  /etc/libnl-3/{classid,pktloc} r,      # apps that use libnl
   /etc/profile r,
   /etc/environment r,
   /usr/share/terminfo/** r,
@@ -183,6 +187,7 @@ var defaultTemplate = `
   /{,usr/}bin/mv ixr,
   /{,usr/}bin/nice ixr,
   /{,usr/}bin/nohup ixr,
+  /{,usr/}bin/od ixr,
   /{,usr/}bin/openssl ixr, # may cause harmless capability block_suspend denial
   /{,usr/}bin/pgrep ixr,
   /{,usr/}bin/printenv ixr,
@@ -295,7 +300,7 @@ var defaultTemplate = `
   # NOTE: this leaks running process but java seems to want it (even though it
   # seems to operate ok without it) and SDL apps crash without it. Allow owner
   # match until AppArmor kernel var is available to solve this properly (see
-  # LP: #1546825 for details)
+  # LP: #1546825 for details). comm is a subset of cmdline, so allow it too.
   owner @{PROC}/@{pid}/cmdline r,
   owner @{PROC}/@{pid}/comm r,
 
@@ -336,6 +341,7 @@ var defaultTemplate = `
   @{PROC}/@{pid}/task/[0-9]*/stat r,
   @{PROC}/@{pid}/task/[0-9]*/statm r,
   @{PROC}/@{pid}/task/[0-9]*/status r,
+  @{PROC}/sys/fs/pipe-max-size r,
   @{PROC}/sys/kernel/hostname r,
   @{PROC}/sys/kernel/osrelease r,
   @{PROC}/sys/kernel/ostype r,
@@ -435,6 +441,10 @@ var defaultTemplate = `
   # Note: this does not grant access to the DBus sockets of well known buses
   # (will still need to use an appropriate interface for that).
   dbus (receive, send) peer=(label=snap.@{SNAP_INSTANCE_NAME}.*),
+  # In addition to the above, dbus-run-session attempts reading these files
+  # from the snap base runtime.
+  /usr/share/dbus-1/services/{,*} r,
+  /usr/share/dbus-1/system-services/{,*} r,
 
   # Allow apps from the same package to signal each other via signals
   signal peer=snap.@{SNAP_INSTANCE_NAME}.*,
@@ -585,6 +595,7 @@ var ptraceTraceDenySnippet = `
 # silence noisy denials/avoid confusion and accidentally giving away this
 # dangerous access frivolously.
 deny ptrace (trace),
+deny capability sys_ptrace,
 `
 
 // updateNSTemplate defines the apparmor profile for per-snap snap-update-ns.

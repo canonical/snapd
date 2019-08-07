@@ -46,7 +46,7 @@ func (x *cmdConnectivityCheck) Execute(args []string) error {
 	var status struct {
 		Unreachable []string
 	}
-	if err := x.client.DebugGet("connectivity", &status); err != nil {
+	if err := x.client.DebugGet("connectivity", &status, nil); err != nil {
 		return err
 	}
 

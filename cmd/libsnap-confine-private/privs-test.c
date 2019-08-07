@@ -61,7 +61,7 @@ static void test_sc_privs_drop(void)
 	g_test_trap_assert_passed();
 }
 
-static void __attribute__ ((constructor)) init(void)
+static void __attribute__((constructor)) init(void)
 {
 	g_test_add_func("/privs/sc_privs_drop", test_sc_privs_drop);
 }

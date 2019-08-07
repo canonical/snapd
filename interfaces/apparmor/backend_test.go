@@ -33,16 +33,21 @@ import (
 	"github.com/snapcore/snapd/interfaces/apparmor"
 	"github.com/snapcore/snapd/interfaces/ifacetest"
 	"github.com/snapcore/snapd/osutil"
+	"github.com/snapcore/snapd/overlord/state"
 	"github.com/snapcore/snapd/release"
 	"github.com/snapcore/snapd/snap"
 	"github.com/snapcore/snapd/snap/snaptest"
 	"github.com/snapcore/snapd/testutil"
+	"github.com/snapcore/snapd/timings"
 )
 
 type backendSuite struct {
 	ifacetest.BackendSuite
 
 	parserCmd *testutil.MockCmd
+
+	perf *timings.Timings
+	meas *timings.Span
 }
 
 var _ = Suite(&backendSuite{})
@@ -90,6 +95,9 @@ func (s *backendSuite) SetUpTest(c *C) {
 	s.Backend = &apparmor.Backend{}
 	s.BackendSuite.SetUpTest(c)
 	c.Assert(s.Repo.AddBackend(s.Backend), IsNil)
+
+	s.perf = timings.New(nil)
+	s.meas = s.perf.StartSpan("", "")
 
 	err := os.MkdirAll(dirs.AppArmorCacheDir, 0700)
 	c.Assert(err, IsNil)
@@ -175,11 +183,47 @@ func (s *backendSuite) TestInstallingSnapWithoutAppsOrHooksDoesntAddProfiles(c *
 	c.Check(s.parserCmd.Calls(), HasLen, 0)
 }
 
+func (s *backendSuite) TestTimings(c *C) {
+	oldDurationThreshold := timings.DurationThreshold
+	defer func() {
+		timings.DurationThreshold = oldDurationThreshold
+	}()
+	timings.DurationThreshold = 0
+
+	for _, opts := range testedConfinementOpts {
+		perf := timings.New(nil)
+		meas := perf.StartSpan("", "")
+
+		snapInfo := s.InstallSnap(c, opts, "", ifacetest.SambaYamlV1, 1)
+		c.Assert(s.Backend.Setup(snapInfo, opts, s.Repo, meas), IsNil)
+
+		st := state.New(nil)
+		st.Lock()
+		defer st.Unlock()
+		perf.Save(st)
+
+		var allTimings []map[string]interface{}
+		c.Assert(st.Get("timings", &allTimings), IsNil)
+		c.Assert(allTimings, HasLen, 1)
+
+		timings, ok := allTimings[0]["timings"]
+		c.Assert(ok, Equals, true)
+
+		c.Assert(timings, HasLen, 2)
+		timingsList, ok := timings.([]interface{})
+		c.Assert(ok, Equals, true)
+		tm := timingsList[0].(map[string]interface{})
+		c.Check(tm["label"], Equals, "load-profiles[changed]")
+
+		s.RemoveSnap(c, snapInfo)
+	}
+}
+
 func (s *backendSuite) TestProfilesAreAlwaysLoaded(c *C) {
 	for _, opts := range testedConfinementOpts {
 		snapInfo := s.InstallSnap(c, opts, "", ifacetest.SambaYamlV1, 1)
 		s.parserCmd.ForgetCalls()
-		err := s.Backend.Setup(snapInfo, opts, s.Repo)
+		err := s.Backend.Setup(snapInfo, opts, s.Repo, s.meas)
 		c.Assert(err, IsNil)
 		updateNSProfile := filepath.Join(dirs.SnapAppArmorDir, "snap-update-ns.samba")
 		profile := filepath.Join(dirs.SnapAppArmorDir, "snap.samba.smbd")
@@ -388,7 +432,7 @@ func (s *backendSuite) TestRealDefaultTemplateIsNormallyUsed(c *C) {
 
 	snapInfo := snaptest.MockInfo(c, ifacetest.SambaYamlV1, nil)
 	// NOTE: we don't call apparmor.MockTemplate()
-	err := s.Backend.Setup(snapInfo, interfaces.ConfinementOptions{}, s.Repo)
+	err := s.Backend.Setup(snapInfo, interfaces.ConfinementOptions{}, s.Repo, s.meas)
 	c.Assert(err, IsNil)
 	profile := filepath.Join(dirs.SnapAppArmorDir, "snap.samba.smbd")
 	data, err := ioutil.ReadFile(profile)
@@ -679,10 +723,11 @@ type: os
 
 const snapdYaml = `name: snapd
 version: 1
+type: snapd
 `
 
-func (s *backendSuite) writeVanillaSnapConfineProfile(c *C, coreInfo *snap.Info) {
-	vanillaProfilePath := filepath.Join(coreInfo.MountDir(), "/etc/apparmor.d/usr.lib.snapd.snap-confine.real")
+func (s *backendSuite) writeVanillaSnapConfineProfile(c *C, coreOrSnapdInfo *snap.Info) {
+	vanillaProfilePath := filepath.Join(coreOrSnapdInfo.MountDir(), "/etc/apparmor.d/usr.lib.snapd.snap-confine.real")
 	vanillaProfileText := []byte(`#include <tunables/global>
 /usr/lib/snapd/snap-confine (attach_disconnected) {
     # We run privileged, so be fanatical about what we include and don't use
@@ -832,6 +877,18 @@ func (s *backendSuite) TestSetupHostSnapConfineApparmorForReexecWritesNew(c *C) 
 }
 
 func (s *backendSuite) TestCoreOnCoreCleansApparmorCache(c *C) {
+	coreInfo := snaptest.MockInfo(c, coreYaml, &snap.SideInfo{Revision: snap.R(111)})
+	s.writeVanillaSnapConfineProfile(c, coreInfo)
+	s.testCoreOrSnapdOnCoreCleansApparmorCache(c, coreYaml)
+}
+
+func (s *backendSuite) TestSnapdOnCoreCleansApparmorCache(c *C) {
+	snapdInfo := snaptest.MockInfo(c, snapdYaml, &snap.SideInfo{Revision: snap.R(111)})
+	s.writeVanillaSnapConfineProfile(c, snapdInfo)
+	s.testCoreOrSnapdOnCoreCleansApparmorCache(c, snapdYaml)
+}
+
+func (s *backendSuite) testCoreOrSnapdOnCoreCleansApparmorCache(c *C, coreOrSnapdYaml string) {
 	restorer := release.MockOnClassic(false)
 	defer restorer()
 
@@ -849,6 +906,9 @@ func (s *backendSuite) TestCoreOnCoreCleansApparmorCache(c *C) {
 	err = ioutil.WriteFile(scCanaryPath, nil, 0644)
 	c.Assert(err, IsNil)
 	scCanaryPath = filepath.Join(dirs.SystemApparmorCacheDir, "snap-confine.core.6405")
+	err = ioutil.WriteFile(scCanaryPath, nil, 0644)
+	c.Assert(err, IsNil)
+	scCanaryPath = filepath.Join(dirs.SystemApparmorCacheDir, "snap-confine.snapd.6405")
 	err = ioutil.WriteFile(scCanaryPath, nil, 0644)
 	c.Assert(err, IsNil)
 	scCanaryPath = filepath.Join(dirs.SystemApparmorCacheDir, "snap.core.4938.usr.lib.snapd.snap-confine")
@@ -878,7 +938,7 @@ func (s *backendSuite) TestCoreOnCoreCleansApparmorCache(c *C) {
 
 	// install the new core snap on classic triggers a new snap-confine
 	// for this snap-confine on core
-	s.InstallSnap(c, interfaces.ConfinementOptions{}, "", coreYaml, 111)
+	s.InstallSnap(c, interfaces.ConfinementOptions{}, "", coreOrSnapdYaml, 111)
 
 	l, err := filepath.Glob(filepath.Join(dirs.SystemApparmorCacheDir, "*"))
 	c.Assert(err, IsNil)
@@ -1669,7 +1729,7 @@ func (s *backendSuite) TestPtraceTraceRule(c *C) {
 		snapInfo := s.InstallSnap(c, tc.opts, "", ifacetest.SambaYamlV1, 1)
 		s.parserCmd.ForgetCalls()
 
-		err := s.Backend.Setup(snapInfo, tc.opts, s.Repo)
+		err := s.Backend.Setup(snapInfo, tc.opts, s.Repo, s.meas)
 		c.Assert(err, IsNil)
 
 		profile := filepath.Join(dirs.SnapAppArmorDir, "snap.samba.smbd")

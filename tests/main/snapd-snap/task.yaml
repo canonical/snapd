@@ -7,7 +7,13 @@ systems: [ubuntu-16.04-64]
 priority: 100
 
 restore: |
+    cd "$PROJECT_PATH"
+    echo "Cleanup build artifacts"
+    not command -v snapcraft >/dev/null || snapcraft clean
+    echo "Cleanup the installed snapcraft"
     apt autoremove -y snapcraft
+    echo "Cleanup the build snapd snap"
+    rm -f snapd_*.snap
 
 execute: |
     echo "Installing snapscraft"
@@ -15,3 +21,19 @@ execute: |
     # shellcheck disable=SC2164
     cd "$PROJECT_PATH"
     snapcraft
+
+    echo "Ensure we have the fc-cache binaries"
+    unsquashfs -ll snapd_*.snap | MATCH bin/fc-cache-v6
+    unsquashfs -ll snapd_*.snap | MATCH bin/fc-cache-v7
+
+    echo "Ensure we have xdelta3"
+    unsquashfs -ll snapd_*.snap | MATCH bin/xdelta3
+
+    echo "Ensure we have mksquashfs (and the dependencies)"
+    unsquashfs -ll snapd_*.snap | MATCH bin/mksquashfs
+    unsquashfs -ll snapd_*.snap | MATCH liblzma.so.5
+
+    echo "Ensure we have ld.so.conf"
+    unsquashfs -ll snapd_*.snap | MATCH etc/ld.so.conf
+    echo "Ensure we have libc"
+    unsquashfs -ll snapd_*.snap | MATCH libc.so

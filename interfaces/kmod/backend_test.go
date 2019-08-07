@@ -32,6 +32,7 @@ import (
 	"github.com/snapcore/snapd/interfaces/kmod"
 	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/snap"
+	"github.com/snapcore/snapd/timings"
 )
 
 func Test(t *testing.T) {
@@ -41,6 +42,7 @@ func Test(t *testing.T) {
 type backendSuite struct {
 	ifacetest.BackendSuite
 	modprobeCmd *testutil.MockCmd
+	meas        *timings.Span
 }
 
 var _ = Suite(&backendSuite{})
@@ -57,6 +59,9 @@ func (s *backendSuite) SetUpTest(c *C) {
 	s.BackendSuite.SetUpTest(c)
 	c.Assert(s.Repo.AddBackend(s.Backend), IsNil)
 	s.modprobeCmd = testutil.MockCommand(c, "modprobe", "")
+
+	perf := timings.New(nil)
+	s.meas = perf.StartSpan("", "")
 }
 
 func (s *backendSuite) TearDownTest(c *C) {
@@ -124,7 +129,7 @@ func (s *backendSuite) TestSecurityIsStable(c *C) {
 	for _, opts := range testedConfinementOpts {
 		snapInfo := s.InstallSnap(c, opts, "", ifacetest.SambaYamlV1, 0)
 		s.modprobeCmd.ForgetCalls()
-		err := s.Backend.Setup(snapInfo, opts, s.Repo)
+		err := s.Backend.Setup(snapInfo, opts, s.Repo, s.meas)
 		c.Assert(err, IsNil)
 		// modules conf is not re-loaded when nothing changes
 		c.Check(s.modprobeCmd.Calls(), HasLen, 0)

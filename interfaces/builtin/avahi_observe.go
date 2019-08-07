@@ -25,7 +25,6 @@ import (
 	"github.com/snapcore/snapd/interfaces"
 	"github.com/snapcore/snapd/interfaces/apparmor"
 	"github.com/snapcore/snapd/interfaces/dbus"
-	"github.com/snapcore/snapd/release"
 	"github.com/snapcore/snapd/snap"
 )
 
@@ -430,10 +429,12 @@ func (iface *avahiObserveInterface) StaticInfo() interfaces.StaticInfo {
 func (iface *avahiObserveInterface) AppArmorConnectedPlug(spec *apparmor.Specification, plug *interfaces.ConnectedPlug, slot *interfaces.ConnectedSlot) error {
 	old := "###SLOT_SECURITY_TAGS###"
 	var new string
-	if release.OnClassic {
-		// If we're running on classic Avahi will be part
-		// of the OS snap and will run unconfined.
-		new = "unconfined"
+	// If we're running on classic, Avahi may be installed either as a snap of
+	// as part of the OS. If it is part of the OS, it will not have a security
+	// label like it would when installed as a snap.
+	if implicitSystemConnectedSlot(slot) {
+		// avahi from the OS is typically unconfined but known to sometimes be confined
+		new = "\"{unconfined,/usr/sbin/avahi-daemon}\""
 	} else {
 		new = slotAppLabelExpr(slot)
 	}
@@ -443,14 +444,18 @@ func (iface *avahiObserveInterface) AppArmorConnectedPlug(spec *apparmor.Specifi
 }
 
 func (iface *avahiObserveInterface) AppArmorPermanentSlot(spec *apparmor.Specification, slot *snap.SlotInfo) error {
-	if !release.OnClassic {
+	// Only apply slot snippet when running as application snap
+	// on classic, slot side can be system or application
+	if !implicitSystemPermanentSlot(slot) {
 		spec.AddSnippet(avahiObservePermanentSlotAppArmor)
 	}
 	return nil
 }
 
 func (iface *avahiObserveInterface) AppArmorConnectedSlot(spec *apparmor.Specification, plug *interfaces.ConnectedPlug, slot *interfaces.ConnectedSlot) error {
-	if !release.OnClassic {
+	// Only apply slot snippet when running as application snap
+	// on classic, slot side can be system or application
+	if !implicitSystemConnectedSlot(slot) {
 		old := "###PLUG_SECURITY_TAGS###"
 		new := plugAppLabelExpr(plug)
 		snippet := strings.Replace(avahiObserveConnectedSlotAppArmor, old, new, -1)
@@ -460,7 +465,9 @@ func (iface *avahiObserveInterface) AppArmorConnectedSlot(spec *apparmor.Specifi
 }
 
 func (iface *avahiObserveInterface) DBusPermanentSlot(spec *dbus.Specification, slot *snap.SlotInfo) error {
-	if !release.OnClassic {
+	// Only apply slot snippet when running as application snap
+	// on classic, slot side can be system or application
+	if !implicitSystemPermanentSlot(slot) {
 		spec.AddSnippet(avahiObservePermanentSlotDBus)
 	}
 	return nil

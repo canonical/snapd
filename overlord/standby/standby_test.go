@@ -120,7 +120,7 @@ func (f opine) CanStandby() bool {
 
 func (s *standbySuite) TestStartChecks(c *C) {
 	n := 0
-	ch1 := make(chan struct{})
+	ch1 := make(chan bool, 1)
 	ch2 := make(chan struct{})
 
 	defer standby.MockStandbyWait(time.Millisecond)()
@@ -130,21 +130,19 @@ func (s *standbySuite) TestStartChecks(c *C) {
 		<-ch2
 	})()
 
-	opinion := false
 	m := standby.New(s.state)
 	m.AddOpinion(opine(func() bool {
-		<-ch1
+		opinion := <-ch1
 		return opinion
 	}))
 
 	m.Start()
-	ch1 <- struct{}{}
+	ch1 <- false
 	c.Check(n, Equals, 0)
-	ch1 <- struct{}{}
+	ch1 <- false
 	c.Check(n, Equals, 0)
 
-	opinion = true
-	ch1 <- struct{}{}
+	ch1 <- true
 	ch2 <- struct{}{}
 	c.Check(n, Equals, 1)
 

@@ -21,6 +21,7 @@ package image
 
 import (
 	"github.com/snapcore/snapd/overlord/auth"
+	"github.com/snapcore/snapd/store"
 )
 
 func MockToolingStore(sto Store) *ToolingStore {
@@ -44,6 +45,15 @@ func (ls *localInfos) NameToPath() map[string]string {
 	return ls.nameToPath
 }
 
-func ToolingAuthContext() auth.AuthContext {
-	return toolingAuthContext{}
+func ToolingStoreContext() store.DeviceAndAuthContext {
+	return toolingStoreContext{}
 }
+
+func (opts *DownloadOptions) Validate() error {
+	return opts.validate()
+}
+
+var (
+	ErrRevisionAndCohort = errRevisionAndCohort
+	ErrPathInBase        = errPathInBase
+)

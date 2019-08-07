@@ -319,7 +319,7 @@ static void test_sc_do_optional_mount_failure(gconstpointer snap_debug)
 	}
 }
 
-static void __attribute__ ((constructor)) init(void)
+static void __attribute__((constructor)) init(void)
 {
 	g_test_add_func("/mount/sc_mount_opt2str", test_sc_mount_opt2str);
 	g_test_add_func("/mount/sc_mount_cmd", test_sc_mount_cmd);

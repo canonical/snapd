@@ -49,6 +49,7 @@ func (s *timingsSuite) SetUpTest(c *C) {
 	s.duration = 0
 
 	s.mockTimeNow(c)
+	s.mockDurationThreshold(0)
 }
 
 func (s *timingsSuite) TearDownTest(c *C) {
@@ -62,6 +63,15 @@ func (s *timingsSuite) mockDuration(c *C) {
 		s.duration += time.Millisecond
 		return s.duration
 	}))
+}
+
+func (s *timingsSuite) mockDurationThreshold(threshold time.Duration) {
+	oldDurationThreshold := timings.DurationThreshold
+	timings.DurationThreshold = threshold
+	restore := func() {
+		timings.DurationThreshold = oldDurationThreshold
+	}
+	s.AddCleanup(restore)
 }
 
 func (s *timingsSuite) mockTimeNow(c *C) {
@@ -83,11 +93,15 @@ func (s *timingsSuite) TestSave(c *C) {
 
 	// two timings, with 2 nested measures
 	for i := 0; i < 2; i++ {
-		timing := timings.New(map[string]string{"task": "3", "change": "12"})
+		timing := timings.New(map[string]string{"task": "3"})
+		timing.AddTag("change", "12")
 		meas := timing.StartSpan(fmt.Sprintf("doing something-%d", i), "...")
 		nested := meas.StartSpan("nested measurement", "...")
-		nestedMore := nested.StartSpan("nested more", "...")
-		nestedMore.Stop()
+		var called bool
+		timings.Run(nested, "nested more", "...", func(span timings.Measurer) {
+			called = true
+		})
+		c.Check(called, Equals, true)
 		nested.Stop()
 		meas.Stop()
 		timing.Save(s.st)
@@ -141,6 +155,42 @@ func (s *timingsSuite) TestSave(c *C) {
 			}}})
 }
 
+func (s *timingsSuite) TestSaveNoTimings(c *C) {
+	s.mockDuration(c)
+
+	s.st.Lock()
+	defer s.st.Unlock()
+
+	timing := timings.New(nil)
+	timing.Save(s.st)
+
+	var stateTimings []interface{}
+	c.Assert(s.st.Get("timings", &stateTimings), Equals, state.ErrNoState)
+}
+
+func (s *timingsSuite) TestSaveNoTimingsWithChangeID(c *C) {
+	s.st.Lock()
+	defer s.st.Unlock()
+
+	chg := s.st.NewChange("change", "...")
+	task := s.st.NewTask("kind", "...")
+	task.SetStatus(state.DoingStatus)
+	chg.AddTask(task)
+
+	timing := timings.New(nil)
+	timing.LinkChange(chg)
+	timing.Save(s.st)
+
+	var stateTimings []interface{}
+	c.Assert(s.st.Get("timings", &stateTimings), IsNil)
+	c.Assert(stateTimings, DeepEquals, []interface{}{
+		map[string]interface{}{
+			"tags":       map[string]interface{}{"change-id": chg.ID()},
+			"start-time": "0001-01-01T00:00:00Z",
+			"stop-time":  "0001-01-01T00:00:00Z",
+		}})
+}
+
 func (s *timingsSuite) TestDuration(c *C) {
 	s.st.Lock()
 	defer s.st.Unlock()
@@ -182,6 +232,96 @@ func (s *timingsSuite) TestDuration(c *C) {
 			}}})
 }
 
+func (s *timingsSuite) testDurationThreshold(c *C, threshold time.Duration, expected interface{}) {
+	s.mockDurationThreshold(threshold)
+
+	s.st.Lock()
+	defer s.st.Unlock()
+
+	timing := timings.New(nil)
+	meas := timing.StartSpan("main", "...")
+	nested := meas.StartSpan("nested", "...")
+	nestedMore := nested.StartSpan("nested more", "...")
+	nestedMore.Stop()
+	nested.Stop()
+
+	meas.Stop()
+	timing.Save(s.st)
+
+	var stateTimings []interface{}
+	if expected == nil {
+		c.Assert(s.st.Get("timings", &stateTimings), Equals, state.ErrNoState)
+		c.Assert(stateTimings, IsNil)
+		return
+	}
+	c.Assert(s.st.Get("timings", &stateTimings), IsNil)
+	c.Check(stateTimings, DeepEquals, expected)
+}
+
+func (s *timingsSuite) TestDurationThresholdAll(c *C) {
+	s.testDurationThreshold(c, 0, []interface{}{
+		map[string]interface{}{
+			"start-time": "2019-03-11T09:01:00.001Z",
+			"stop-time":  "2019-03-11T09:01:00.006Z",
+			"timings": []interface{}{
+				map[string]interface{}{
+					"label":    "main",
+					"summary":  "...",
+					"duration": float64(5000000),
+				},
+				map[string]interface{}{
+					"level":    float64(1),
+					"label":    "nested",
+					"summary":  "...",
+					"duration": float64(3000000),
+				},
+				map[string]interface{}{
+					"level":    float64(2),
+					"label":    "nested more",
+					"summary":  "...",
+					"duration": float64(1000000),
+				},
+			}}})
+}
+
+func (s *timingsSuite) TestDurationThreshold(c *C) {
+	s.testDurationThreshold(c, 3000000, []interface{}{
+		map[string]interface{}{
+			"start-time": "2019-03-11T09:01:00.001Z",
+			"stop-time":  "2019-03-11T09:01:00.006Z",
+			"timings": []interface{}{
+				map[string]interface{}{
+					"label":    "main",
+					"summary":  "...",
+					"duration": float64(5000000),
+				},
+				map[string]interface{}{
+					"level":    float64(1),
+					"label":    "nested",
+					"summary":  "...",
+					"duration": float64(3000000),
+				},
+			}}})
+}
+
+func (s *timingsSuite) TestDurationThresholdRootOnly(c *C) {
+	s.testDurationThreshold(c, 4000000, []interface{}{
+		map[string]interface{}{
+			"start-time": "2019-03-11T09:01:00.001Z",
+			"stop-time":  "2019-03-11T09:01:00.006Z",
+			"timings": []interface{}{
+				map[string]interface{}{
+					"label":    "main",
+					"summary":  "...",
+					"duration": float64(5000000),
+				},
+			}}})
+}
+
+func (s *timingsSuite) TestDurationThresholdNone(c *C) {
+	s.testDurationThreshold(c, time.Hour, nil)
+}
+
 func (s *timingsSuite) TestPurgeOnSave(c *C) {
 	oldMaxTimings := timings.MaxTimings
 	timings.MaxTimings = 3
@@ -208,4 +348,90 @@ func (s *timingsSuite) TestPurgeOnSave(c *C) {
 	c.Check(stateTimings[0].(map[string]interface{})["tags"], DeepEquals, map[string]interface{}{"number": "7"})
 	c.Check(stateTimings[1].(map[string]interface{})["tags"], DeepEquals, map[string]interface{}{"number": "8"})
 	c.Check(stateTimings[2].(map[string]interface{})["tags"], DeepEquals, map[string]interface{}{"number": "9"})
+}
+
+func (s *timingsSuite) TestNewForTask(c *C) {
+	s.st.Lock()
+	defer s.st.Unlock()
+
+	task := s.st.NewTask("kind", "...")
+	task.SetStatus(state.DoingStatus)
+	chg := s.st.NewChange("change", "...")
+	chg.AddTask(task)
+
+	troot := timings.NewForTask(task)
+	span := troot.StartSpan("foo", "bar")
+	span.Stop()
+	troot.Save(s.st)
+
+	var stateTimings []interface{}
+	c.Assert(s.st.Get("timings", &stateTimings), IsNil)
+	c.Assert(stateTimings, DeepEquals, []interface{}{
+		map[string]interface{}{
+			"tags":       map[string]interface{}{"change-id": chg.ID(), "task-id": task.ID(), "task-kind": "kind", "task-status": "Doing"},
+			"start-time": "2019-03-11T09:01:00.001Z",
+			"stop-time":  "2019-03-11T09:01:00.002Z",
+			"timings": []interface{}{
+				map[string]interface{}{
+					"label":    "foo",
+					"summary":  "bar",
+					"duration": float64(1000000),
+				},
+			}}})
+}
+
+func (s *timingsSuite) TestGet(c *C) {
+	s.st.Lock()
+	defer s.st.Unlock()
+
+	// three timings, with 2 nested measures
+	for i := 0; i < 3; i++ {
+		timing := timings.New(map[string]string{"foo": fmt.Sprintf("%d", i)})
+		meas := timing.StartSpan(fmt.Sprintf("doing something-%d", i), "...")
+		nested := meas.StartSpan("nested measurement", "...")
+		nested.Stop()
+		meas.Stop()
+		timing.Save(s.st)
+	}
+
+	none, err := timings.Get(s.st, 999, func(tags map[string]string) bool { return false })
+	c.Assert(err, IsNil)
+	c.Check(none, HasLen, 0)
+
+	tm, err := timings.Get(s.st, -1, func(tags map[string]string) bool {
+		return tags["foo"] == "1"
+	})
+	c.Assert(err, IsNil)
+	c.Check(tm, DeepEquals, []*timings.TimingsInfo{
+		{
+			Tags: map[string]string{"foo": "1"},
+			NestedTimings: []*timings.TimingJSON{
+				{Level: 0, Label: "doing something-1", Summary: "...", Duration: 3000000},
+				{Level: 1, Label: "nested measurement", Summary: "...", Duration: 1000000},
+			},
+		},
+	})
+
+	tmOnlyLevel0, err := timings.Get(s.st, 0, func(tags map[string]string) bool { return true })
+	c.Assert(err, IsNil)
+	c.Check(tmOnlyLevel0, DeepEquals, []*timings.TimingsInfo{
+		{
+			Tags: map[string]string{"foo": "0"},
+			NestedTimings: []*timings.TimingJSON{
+				{Level: 0, Label: "doing something-0", Summary: "...", Duration: 3000000},
+			},
+		},
+		{
+			Tags: map[string]string{"foo": "1"},
+			NestedTimings: []*timings.TimingJSON{
+				{Level: 0, Label: "doing something-1", Summary: "...", Duration: 3000000},
+			},
+		},
+		{
+			Tags: map[string]string{"foo": "2"},
+			NestedTimings: []*timings.TimingJSON{
+				{Level: 0, Label: "doing something-2", Summary: "...", Duration: 3000000},
+			},
+		},
+	})
 }

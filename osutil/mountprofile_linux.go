@@ -53,6 +53,15 @@ func LoadMountProfileText(fstab string) (*MountProfile, error) {
 	return ReadMountProfile(strings.NewReader(fstab))
 }
 
+func SaveMountProfileText(p *MountProfile) (string, error) {
+	var buf bytes.Buffer
+	_, err := p.WriteTo(&buf)
+	if err != nil {
+		return "", err
+	}
+	return buf.String(), nil
+}
+
 // Save saves a mount profile (fstab-like) to a given file.
 // The profile is saved with an atomic write+rename+sync operation.
 func (p *MountProfile) Save(fname string) error {

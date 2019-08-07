@@ -29,6 +29,7 @@ import (
 
 	"github.com/snapcore/snapd/asserts"
 	"github.com/snapcore/snapd/asserts/snapasserts"
+	"github.com/snapcore/snapd/httputil"
 	"github.com/snapcore/snapd/overlord/snapstate"
 	"github.com/snapcore/snapd/overlord/state"
 	"github.com/snapcore/snapd/release"
@@ -138,10 +139,11 @@ func findError(format string, ref *asserts.Ref, err error) error {
 
 // RefreshSnapDeclarations refetches all the current snap declarations and their prerequisites.
 func RefreshSnapDeclarations(s *state.State, userID int) error {
-	modelAs, err := snapstate.ModelPastSeeding(s)
+	deviceCtx, err := snapstate.DevicePastSeeding(s, nil)
 	if err != nil {
 		return err
 	}
+	modelAs := deviceCtx.Model()
 
 	snapStates, err := snapstate.All(s)
 	if err != nil {
@@ -157,6 +159,9 @@ func RefreshSnapDeclarations(s *state.State, userID int) error {
 				continue
 			}
 			if err := snapasserts.FetchSnapDeclaration(f, info.SnapID); err != nil {
+				if notRetried, ok := err.(*httputil.PerstistentNetworkError); ok {
+					return notRetried
+				}
 				return fmt.Errorf("cannot refresh snap-declaration for %q: %v", info.InstanceName(), err)
 			}
 		}
@@ -171,7 +176,7 @@ func RefreshSnapDeclarations(s *state.State, userID int) error {
 
 		return nil
 	}
-	return doFetch(s, userID, fetching)
+	return doFetch(s, userID, deviceCtx, fetching)
 }
 
 type refreshControlError struct {
@@ -194,7 +199,7 @@ func (e *refreshControlError) Error() string {
 // it returns a validated subset in validated and a summary error if not all
 // candidates validated. ignoreValidation is a set of snap-instance-names that
 // should not be gated.
-func ValidateRefreshes(s *state.State, snapInfos []*snap.Info, ignoreValidation map[string]bool, userID int) (validated []*snap.Info, err error) {
+func ValidateRefreshes(s *state.State, snapInfos []*snap.Info, ignoreValidation map[string]bool, userID int, deviceCtx snapstate.DeviceContext) (validated []*snap.Info, err error) {
 	// maps gated snap-ids to gating snap-ids
 	controlled := make(map[string][]string)
 	// maps gating snap-ids to their snap names
@@ -267,7 +272,7 @@ func ValidateRefreshes(s *state.State, snapInfos []*snap.Info, ignoreValidation 
 			}
 			return nil
 		}
-		err := doFetch(s, userID, fetching)
+		err := doFetch(s, userID, deviceCtx, fetching)
 		if err != nil {
 			errs = append(errs, fmt.Errorf("cannot refresh %q to revision %s: %v", candInfo.InstanceName(), candInfo.Revision, err))
 			continue

@@ -73,7 +73,7 @@ func downloadAssertion(typeName string, headers map[string]string) ([]asserts.As
 	var user *auth.UserState
 
 	// FIXME: set auth context
-	var authContext auth.AuthContext
+	var storeCtx store.DeviceAndAuthContext
 
 	at := asserts.Type(typeName)
 	if at == nil {
@@ -84,7 +84,7 @@ func downloadAssertion(typeName string, headers map[string]string) ([]asserts.As
 		return nil, fmt.Errorf("cannot query remote assertion: %v", err)
 	}
 
-	sto := storeNew(nil, authContext)
+	sto := storeNew(nil, storeCtx)
 	as, err := sto.Assertion(at, primaryKeys, user)
 	if err != nil {
 		return nil, err

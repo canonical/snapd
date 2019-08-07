@@ -105,7 +105,7 @@ void sc_call_snap_update_ns_as_user(int snap_update_ns_fd,
 			 snap_name);
 
 	const char *xdg_runtime_dir = getenv("XDG_RUNTIME_DIR");
-	char xdg_runtime_dir_env[PATH_MAX+strlen("XDG_RUNTIME_DIR=")];
+	char xdg_runtime_dir_env[PATH_MAX + strlen("XDG_RUNTIME_DIR=")];
 	if (xdg_runtime_dir != NULL) {
 		sc_must_snprintf(xdg_runtime_dir_env,
 				 sizeof(xdg_runtime_dir_env),

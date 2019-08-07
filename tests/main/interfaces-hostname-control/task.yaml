@@ -3,9 +3,6 @@ summary: Ensure that the hostname-control interface works
 details: |
     The hostname-control interface allows to configure the system hostname
 
-# ubuntu-core-18 is skipped until hostnamectl is fixed
-systems: [-ubuntu-core-18-*]
-
 prepare: |
     echo "Install test hostname-control snap"
     #shellcheck source=tests/lib/snaps.sh

@@ -93,7 +93,7 @@ static void test_cookie_get_from_snapd__nofile(void)
 	g_assert_null(cookie);
 }
 
-static void __attribute__ ((constructor)) init(void)
+static void __attribute__((constructor)) init(void)
 {
 	g_test_add_func("/snap-cookie/cookie_get_from_snapd/successful",
 			test_cookie_get_from_snapd__successful);

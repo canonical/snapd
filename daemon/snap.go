@@ -31,6 +31,7 @@ import (
 	"github.com/snapcore/snapd/cmd"
 	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/overlord/assertstate"
+	"github.com/snapcore/snapd/overlord/healthstate"
 	"github.com/snapcore/snapd/overlord/snapstate"
 	"github.com/snapcore/snapd/overlord/state"
 	"github.com/snapcore/snapd/snap"
@@ -68,6 +69,20 @@ func publisherAccount(st *state.State, snapID string) (snap.StoreAccount, error)
 type aboutSnap struct {
 	info   *snap.Info
 	snapst *snapstate.SnapState
+	health *client.SnapHealth
+}
+
+func clientHealthFromHealthstate(h *healthstate.HealthState) *client.SnapHealth {
+	if h == nil {
+		return nil
+	}
+	return &client.SnapHealth{
+		Revision:  h.Revision,
+		Timestamp: h.Timestamp,
+		Status:    h.Status.String(),
+		Message:   h.Message,
+		Code:      h.Code,
+	}
 }
 
 // localSnapInfo returns the information about the current snap for the given name plus the SnapState with the active flag and other snap revisions.
@@ -94,9 +109,15 @@ func localSnapInfo(st *state.State, name string) (aboutSnap, error) {
 		return aboutSnap{}, err
 	}
 
+	health, err := healthstate.Get(st, name)
+	if err != nil {
+		return aboutSnap{}, err
+	}
+
 	return aboutSnap{
 		info:   info,
 		snapst: &snapst,
+		health: clientHealthFromHealthstate(health),
 	}, nil
 }
 
@@ -111,11 +132,17 @@ func allLocalSnapInfos(st *state.State, all bool, wanted map[string]bool) ([]abo
 	}
 	about := make([]aboutSnap, 0, len(snapStates))
 
+	healths, err := healthstate.All(st)
+	if err != nil {
+		return nil, err
+	}
+
 	var firstErr error
 	for name, snapst := range snapStates {
 		if len(wanted) > 0 && !wanted[name] {
 			continue
 		}
+		health := clientHealthFromHealthstate(healths[name])
 		var aboutThis []aboutSnap
 		var info *snap.Info
 		var err error
@@ -137,13 +164,13 @@ func allLocalSnapInfos(st *state.State, all bool, wanted map[string]bool) ([]abo
 				if err != nil && firstErr == nil {
 					firstErr = err
 				}
-				aboutThis = append(aboutThis, aboutSnap{info, snapst})
+				aboutThis = append(aboutThis, aboutSnap{info, snapst, health})
 			}
 		} else {
 			info, err = snapst.CurrentInfo()
 			if err == nil {
 				info.Publisher, err = publisherAccount(st, info.SnapID)
-				aboutThis = append(aboutThis, aboutSnap{info, snapst})
+				aboutThis = append(aboutThis, aboutSnap{info, snapst, health})
 			}
 		}
 
@@ -278,6 +305,7 @@ func mapLocal(about aboutSnap) *client.Snap {
 
 	result.TrackingChannel = snapst.Channel
 	result.IgnoreValidation = snapst.IgnoreValidation
+	result.CohortKey = snapst.CohortKey
 	result.DevMode = snapst.DevMode
 	result.TryMode = snapst.TryMode
 	result.JailMode = snapst.JailMode
@@ -289,6 +317,7 @@ func mapLocal(about aboutSnap) *client.Snap {
 		// prime dir)
 		result.MountedFrom, _ = os.Readlink(result.MountedFrom)
 	}
+	result.Health = about.health
 
 	return result
 }

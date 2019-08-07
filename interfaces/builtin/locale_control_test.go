@@ -54,7 +54,7 @@ apps:
 	s.plugInfo = snapInfo.Plugs["locale-control"]
 	s.plug = interfaces.NewConnectedPlug(s.plugInfo, nil, nil)
 	s.slotInfo = &snap.SlotInfo{
-		Snap:      &snap.Info{SuggestedName: "core", Type: snap.TypeOS},
+		Snap:      &snap.Info{SuggestedName: "core", SnapType: snap.TypeOS},
 		Name:      "locale-control",
 		Interface: "locale-control",
 	}

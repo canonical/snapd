@@ -63,6 +63,7 @@ type Snap struct {
 	License          string        `json:"license,omitempty"`
 	CommonIDs        []string      `json:"common-ids,omitempty"`
 	MountedFrom      string        `json:"mounted-from,omitempty"`
+	CohortKey        string        `json:"cohort-key,omitempty"`
 
 	Prices      map[string]float64    `json:"prices,omitempty"`
 	Screenshots []snap.ScreenshotInfo `json:"screenshots,omitempty"`
@@ -73,6 +74,16 @@ type Snap struct {
 
 	// The ordered list of tracks that contains channels
 	Tracks []string `json:"tracks,omitempty"`
+
+	Health *SnapHealth `json:"health,omitempty"`
+}
+
+type SnapHealth struct {
+	Revision  snap.Revision `json:"revision"`
+	Timestamp time.Time     `json:"timestamp"`
+	Status    string        `json:"status"`
+	Message   string        `json:"message,omitempty"`
+	Code      string        `json:"code,omitempty"`
 }
 
 func (s *Snap) MarshalJSON() ([]byte, error) {
@@ -117,12 +128,17 @@ type ResultInfo struct {
 // - Private: return snaps that are private
 // - Query: only return snaps that match the query string
 type FindOptions struct {
-	Refresh bool
-	Private bool
-	Prefix  bool
-	Query   string
+	// Query is a term to search by or a prefix (if Prefix is true)
+	Query  string
+	Prefix bool
+
+	CommonID string
+
 	Section string
+	Private bool
 	Scope   string
+
+	Refresh bool
 }
 
 var ErrNoSnapsInstalled = errors.New("no snaps installed")
@@ -179,8 +195,14 @@ func (client *Client) Find(opts *FindOptions) ([]*Snap, *ResultInfo, error) {
 	if opts.Prefix {
 		q.Set("name", opts.Query+"*")
 	} else {
-		q.Set("q", opts.Query)
+		if opts.CommonID != "" {
+			q.Set("common-id", opts.CommonID)
+		}
+		if opts.Query != "" {
+			q.Set("q", opts.Query)
+		}
 	}
+
 	switch {
 	case opts.Refresh && opts.Private:
 		return nil, nil, fmt.Errorf("cannot specify refresh and private together")

@@ -1,7 +1,7 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
 
 /*
- * Copyright (C) 2017-2018 Canonical Ltd
+ * Copyright (C) 2017-2019 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -176,7 +176,6 @@ import (
 	"fmt"
 	"io/ioutil"
 	"os"
-	"regexp"
 	"strconv"
 	"strings"
 	"syscall"
@@ -466,13 +465,65 @@ func (sc *SeccompData) SetArgs(args [6]uint64) {
 	}
 }
 
-func readNumber(token string) (uint64, error) {
+// Only support negative args for syscalls where we understand the glibc/kernel
+// prototypes and behavior. This lists all the syscalls that support negative
+// arguments where we want to ignore the high 32 bits (ie, we'll mask it since
+// the arg is known to be 32 bit (uid_t/gid_t) and the kernel accepts one
+// or both of uint32(-1) and uint64(-1) and does its own masking).
+var syscallsWithNegArgsMaskHi32 = map[string]bool{
+	"chown":       true,
+	"chown32":     true,
+	"fchown":      true,
+	"fchown32":    true,
+	"fchownat":    true,
+	"lchown":      true,
+	"lchown32":    true,
+	"setgid":      true,
+	"setgid32":    true,
+	"setregid":    true,
+	"setregid32":  true,
+	"setresgid":   true,
+	"setresgid32": true,
+	"setreuid":    true,
+	"setreuid32":  true,
+	"setresuid":   true,
+	"setresuid32": true,
+	"setuid":      true,
+	"setuid32":    true,
+}
+
+// The kernel uses uint32 for all syscall arguments, but seccomp takes a
+// uint64. For unsigned ints in our policy, just read straight into uint32
+// since we don't need to worry about sign extending.
+//
+// For negative signed ints in our policy, we first read in as int32, convert
+// to uint32 and then again uint64 to avoid sign extension woes (see
+// https://github.com/seccomp/libseccomp/issues/69). For syscalls that take
+// a 64bit arg that we want to express in our policy, we can add an exception
+// for reading into a uint64. For now there are no exceptions, so don't need to
+// do anything extra.
+func readNumber(token string, syscallName string) (uint64, error) {
 	if value, ok := seccompResolver[token]; ok {
 		return value, nil
 	}
-	// Negative numbers are not supported yet, but when they are,
-	// adjust this accordingly
-	return strconv.ParseUint(token, 10, 64)
+
+	if value, err := strconv.ParseUint(token, 10, 32); err == nil {
+		return value, nil
+	}
+
+	// Not a positive integer, see if negative is allowed for this syscall
+	if !syscallsWithNegArgsMaskHi32[syscallName] {
+		return 0, fmt.Errorf(`negative argument not supported with "%s"`, syscallName)
+	}
+
+	// It is, so try to parse as an int32
+	value, err := strconv.ParseInt(token, 10, 32)
+	if err != nil {
+		return 0, err
+	}
+
+	// convert the int32 to uint32 then to uint64 (see above)
+	return uint64(uint32(value)), nil
 }
 
 func parseLine(line string, secFilter *seccomp.ScmpFilter) error {
@@ -488,7 +539,8 @@ func parseLine(line string, secFilter *seccomp.ScmpFilter) error {
 	}
 
 	// fish out syscall
-	secSyscall, err := seccomp.GetSyscallFromName(tokens[0])
+	syscallName := tokens[0]
+	secSyscall, err := seccomp.GetSyscallFromName(syscallName)
 	if err != nil {
 		// FIXME: use structed error in libseccomp-golang when
 		//   https://github.com/seccomp/libseccomp-golang/pull/26
@@ -509,22 +561,22 @@ func parseLine(line string, secFilter *seccomp.ScmpFilter) error {
 
 		if strings.HasPrefix(arg, ">=") {
 			cmpOp = seccomp.CompareGreaterEqual
-			value, err = readNumber(arg[2:])
+			value, err = readNumber(arg[2:], syscallName)
 		} else if strings.HasPrefix(arg, "<=") {
 			cmpOp = seccomp.CompareLessOrEqual
-			value, err = readNumber(arg[2:])
+			value, err = readNumber(arg[2:], syscallName)
 		} else if strings.HasPrefix(arg, "!") {
 			cmpOp = seccomp.CompareNotEqual
-			value, err = readNumber(arg[1:])
+			value, err = readNumber(arg[1:], syscallName)
 		} else if strings.HasPrefix(arg, "<") {
 			cmpOp = seccomp.CompareLess
-			value, err = readNumber(arg[1:])
+			value, err = readNumber(arg[1:], syscallName)
 		} else if strings.HasPrefix(arg, ">") {
 			cmpOp = seccomp.CompareGreater
-			value, err = readNumber(arg[1:])
+			value, err = readNumber(arg[1:], syscallName)
 		} else if strings.HasPrefix(arg, "|") {
 			cmpOp = seccomp.CompareMaskedEqual
-			value, err = readNumber(arg[1:])
+			value, err = readNumber(arg[1:], syscallName)
 		} else if strings.HasPrefix(arg, "u:") {
 			cmpOp = seccomp.CompareEqual
 			value, err = findUid(arg[2:])
@@ -539,15 +591,26 @@ func parseLine(line string, secFilter *seccomp.ScmpFilter) error {
 			}
 		} else {
 			cmpOp = seccomp.CompareEqual
-			value, err = readNumber(arg)
+			value, err = readNumber(arg, syscallName)
 		}
 		if err != nil {
 			return fmt.Errorf("cannot parse token %q (line %q)", arg, line)
 		}
 
+		// For now only support EQ with negative args. If changing
+		// this, be sure to adjust readNumber accordingly and use
+		// libseccomp carefully.
+		if syscallsWithNegArgsMaskHi32[syscallName] {
+			if cmpOp != seccomp.CompareEqual {
+				return fmt.Errorf("cannot parse token %q (line %q): unsupported comparison", arg, line)
+			}
+		}
+
 		var scmpCond seccomp.ScmpCondition
 		if cmpOp == seccomp.CompareMaskedEqual {
 			scmpCond, err = seccomp.MakeCondition(uint(pos), cmpOp, value, value)
+		} else if syscallsWithNegArgsMaskHi32[syscallName] {
+			scmpCond, err = seccomp.MakeCondition(uint(pos), seccomp.CompareMaskedEqual, 0xFFFFFFFF, value)
 		} else {
 			scmpCond, err = seccomp.MakeCondition(uint(pos), cmpOp, value)
 		}
@@ -635,19 +698,25 @@ func preprocess(content []byte) (unrestricted, complain bool) {
 	return unrestricted, complain
 }
 
+// With golang-seccomp <= 0.9.0, seccomp.ActLog is not available so guess
+// at the ActLog value by adding one to ActAllow and then verify that the
+// string representation is what we expect for ActLog. The value and string is
+// defined in https://github.com/seccomp/libseccomp-golang/pull/29.
+//
+// Ultimately, the fix for this workaround is to be able to use the GetApi()
+// function created in the PR above. It'll tell us if the kernel, libseccomp,
+// and libseccomp-golang all support ActLog, but GetApi() is also not available
+// in golang-seccomp <= 0.9.0.
+const actLog seccomp.ScmpAction = seccomp.ActAllow + 1
+
+func actLogSupported() bool {
+	return actLog.String() == "Action: Log system call"
+}
+
 func complainAction() seccomp.ScmpAction {
 	// XXX: Work around some distributions not having a new enough
-	// libseccomp-golang that declares ActLog. Instead, we'll guess at its
-	// value by adding one to ActAllow and then verify that the string
-	// representation is what we expect for ActLog. The value and string is
-	// defined in https://github.com/seccomp/libseccomp-golang/pull/29.
-	//
-	// Ultimately, the fix for this workaround is to be able to use the
-	// GetApi() function created in the PR above. It'll tell us if the
-	// kernel, libseccomp, and libseccomp-golang all support ActLog.
-	var actLog seccomp.ScmpAction = seccomp.ActAllow + 1
-
-	if actLog.String() == "Action: Log system call" {
+	// libseccomp-golang that declares ActLog.
+	if actLogSupported() {
 		return actLog
 	}
 
@@ -725,24 +794,38 @@ func compile(content []byte, out string) error {
 	return fout.Commit()
 }
 
-// Be very strict so usernames and groups specified in policy are widely
-// compatible. From NAME_REGEX in /etc/adduser.conf
-var userGroupNamePattern = regexp.MustCompile("^[a-z][-a-z0-9_]*$")
+// caches for uid and gid lookups
+var uidCache = make(map[string]uint64)
+var gidCache = make(map[string]uint64)
 
 // findUid returns the identifier of the given UNIX user name.
 func findUid(username string) (uint64, error) {
-	if !userGroupNamePattern.MatchString(username) {
+	if uid, ok := uidCache[username]; ok {
+		return uid, nil
+	}
+	if !osutil.IsValidUsername(username) {
 		return 0, fmt.Errorf("%q must be a valid username", username)
 	}
-	return osutil.FindUid(username)
+	uid, err := osutil.FindUid(username)
+	if err == nil {
+		uidCache[username] = uid
+	}
+	return uid, err
 }
 
 // findGid returns the identifier of the given UNIX group name.
 func findGid(group string) (uint64, error) {
-	if !userGroupNamePattern.MatchString(group) {
+	if gid, ok := gidCache[group]; ok {
+		return gid, nil
+	}
+	if !osutil.IsValidUsername(group) {
 		return 0, fmt.Errorf("%q must be a valid group name", group)
 	}
-	return osutil.FindGid(group)
+	gid, err := osutil.FindGid(group)
+	if err == nil {
+		gidCache[group] = gid
+	}
+	return gid, err
 }
 
 func showSeccompLibraryVersion() error {
@@ -774,6 +857,8 @@ func main() {
 		err = compile(content, os.Args[3])
 	case "library-version":
 		err = showSeccompLibraryVersion()
+	case "version-info":
+		err = showVersionInfo()
 	default:
 		err = fmt.Errorf("unsupported argument %q", cmd)
 	}

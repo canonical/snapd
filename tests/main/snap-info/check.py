@@ -64,6 +64,9 @@ check("basic", res[0],
    ("summary", equals, "Basic snap"),
    ("path", matches, r"^basic_[0-9.]+_all\.snap$"),
    ("version", matches, verNotesRx),
+   ("license", equals, "unset"),
+   ("description", equals, "A basic buildable snap\n"),
+   ("build-date", exists),
 )
 
 check("basic-desktop", res[1],
@@ -71,6 +74,9 @@ check("basic-desktop", res[1],
    ("path", matches, "snaps/basic-desktop/$"), # note the trailing slash
    ("summary", equals, ""),
    ("version", matches, verNotesRx),
+   ("description", equals, "A basic snap with desktop apps\n"),
+   ("license", equals, "GPL-3.0"),
+   ("commands", exists),
 )
 
 check("test-snapd-tools", res[2],

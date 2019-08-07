@@ -16,8 +16,10 @@ else
 fi
 COVERMODE=${COVERMODE:-atomic}
 
-# ensure we use go-1.10 by default
-export PATH=/usr/lib/go-1.10/bin:${PATH}
+if [ -z "${TRAVIS_BUILD_ID:-}" ]; then
+    # when *not* running inside travis, ensure we use go-1.10 by default
+    export PATH=/usr/lib/go-1.10/bin:${PATH}
+fi
 
 # add workaround for https://github.com/golang/go/issues/24449
 if [ "$(uname -m)" = "s390x" ]; then
@@ -53,7 +55,13 @@ case "${1:-all}" in
         short=1
         ;;
     --spread)
-        SPREAD=1
+        SPREAD=full
+        ;;
+    --spread-ubuntu)
+        SPREAD=ubuntu-only
+        ;;
+    --spread-no-ubuntu)
+        SPREAD=no-ubuntu
         ;;
     *)
         echo "Wrong flag ${1}. To run a single suite use --static, --unit, --spread."
@@ -138,6 +146,11 @@ if [ "$STATIC" = 1 ]; then
     # Run static tests.
     echo Checking docs
     ./mdlint.py ./*.md docs/*.md
+
+    if [ -n "${TRAVIS_PULL_REQUEST:-}" ] && [ "${TRAVIS_PULL_REQUEST:-}" != "false" ]; then
+        echo Checking pull request summary
+        ./check-pr-title.py "$TRAVIS_PULL_REQUEST"
+    fi
 
     echo Checking formatting
     fmt=""
@@ -256,16 +269,33 @@ if [ "$UNIT" = 1 ]; then
             curl -s https://codecov.io/bash | bash /dev/stdin -f .coverage/coverage.out
         fi
     fi
+
+    # python unit test for mountinfo-tool
+    command -v python2 && python2 ./tests/lib/bin/mountinfo-tool --run-unit-tests
+    command -v python3 && python3 ./tests/lib/bin/mountinfo-tool --run-unit-tests
 fi
 
-if [ "$SPREAD" = 1 ]; then
+if [ -n "$SPREAD" ]; then
     TMP_SPREAD="$(mktemp -d)"
     addtrap "rm -rf \"$TMP_SPREAD\""
 
     export PATH=$TMP_SPREAD:$PATH
     ( cd "$TMP_SPREAD" && curl -s -O https://niemeyer.s3.amazonaws.com/spread-amd64.tar.gz && tar xzvf spread-amd64.tar.gz )
 
-    spread google: google-upgrade:tests/upgrade/
+    case "$SPREAD" in
+        full)
+            spread "google:"
+            ;;
+        ubuntu-only)
+            spread "google:[u]...:tests/..."
+            ;;
+        no-ubuntu)
+            spread "google:[^u]...:tests/..."
+            ;;
+        *)
+            echo "Spread parameter $SPREAD not supported"
+            exit 1
+    esac
 
     # cleanup the debian-ubuntu-14.04
     rm -rf debian-ubuntu-14.04

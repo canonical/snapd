@@ -102,28 +102,44 @@ func (s *warningSuite) TestNoFurtherWarnings(c *check.C) {
 func (s *warningSuite) TestWarnings(c *check.C) {
 	s.RedirectClientToTestServer(mkWarningsFakeHandler(c, twoWarnings))
 
-	rest, err := snap.Parser(snap.Client()).ParseArgs([]string{"warnings", "--abs-time"})
+	rest, err := snap.Parser(snap.Client()).ParseArgs([]string{"warnings", "--abs-time", "--unicode=never"})
 	c.Assert(err, check.IsNil)
 	c.Check(rest, check.HasLen, 0)
 	c.Check(s.Stderr(), check.Equals, "")
 	c.Check(s.Stdout(), check.Equals, `
-Last occurrence       Warning
-2018-09-19T12:41:18Z  hello world number one
-2018-09-19T12:44:19Z  hello world number two
+last-occurrence:  2018-09-19T12:41:18Z
+warning: |
+  hello world number one
+---
+last-occurrence:  2018-09-19T12:44:19Z
+warning: |
+  hello world number two
 `[1:])
 }
 
 func (s *warningSuite) TestVerboseWarnings(c *check.C) {
 	s.RedirectClientToTestServer(mkWarningsFakeHandler(c, twoWarnings))
 
-	rest, err := snap.Parser(snap.Client()).ParseArgs([]string{"warnings", "--abs-time", "--verbose"})
+	rest, err := snap.Parser(snap.Client()).ParseArgs([]string{"warnings", "--abs-time", "--verbose", "--unicode=never"})
 	c.Assert(err, check.IsNil)
 	c.Check(rest, check.HasLen, 0)
 	c.Check(s.Stderr(), check.Equals, "")
 	c.Check(s.Stdout(), check.Equals, `
-First occurrence      Last occurrence       Expires after  Acknowledged  Repeats after  Warning
-2018-09-19T12:41:18Z  2018-09-19T12:41:18Z  28d0h          -             1d00h          hello world number one
-2018-09-19T12:44:19Z  2018-09-19T12:44:19Z  28d0h          -             1d00h          hello world number two
+first-occurrence:  2018-09-19T12:41:18Z
+last-occurrence:   2018-09-19T12:41:18Z
+acknowledged:      --
+repeats-after:     1d00h
+expires-after:     28d0h
+warning: |
+  hello world number one
+---
+first-occurrence:  2018-09-19T12:44:19Z
+last-occurrence:   2018-09-19T12:44:19Z
+acknowledged:      --
+repeats-after:     1d00h
+expires-after:     28d0h
+warning: |
+  hello world number two
 `[1:])
 }
 
@@ -152,6 +168,13 @@ func (s *warningSuite) TestOkay(c *check.C) {
 	rest, err := snap.Parser(snap.Client()).ParseArgs([]string{"okay"})
 	c.Assert(err, check.IsNil)
 	c.Check(rest, check.HasLen, 0)
+	c.Check(s.Stderr(), check.Equals, "")
+	c.Check(s.Stdout(), check.Equals, "")
+}
+
+func (s *warningSuite) TestOkayBeforeWarnings(c *check.C) {
+	_, err := snap.Parser(snap.Client()).ParseArgs([]string{"okay"})
+	c.Assert(err, check.ErrorMatches, "you must have looked at the warnings before acknowledging them. Try 'snap warnings'.")
 	c.Check(s.Stderr(), check.Equals, "")
 	c.Check(s.Stdout(), check.Equals, "")
 }

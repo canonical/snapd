@@ -30,7 +30,9 @@ import (
 
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/overlord/auth"
+	"github.com/snapcore/snapd/overlord/configstate/config"
 	"github.com/snapcore/snapd/overlord/snapstate"
+	"github.com/snapcore/snapd/overlord/snapstate/snapstatetest"
 	"github.com/snapcore/snapd/overlord/state"
 	"github.com/snapcore/snapd/release"
 	"github.com/snapcore/snapd/snap"
@@ -64,12 +66,8 @@ func (s *linkSnapSuite) SetUpTest(c *C) {
 
 	s.setup(c, s.stateBackend)
 
-	snapstate.SetDefaultModel()
-}
-
-func (s *linkSnapSuite) TearDownTest(c *C) {
-	s.baseHandlerSuite.TearDownTest(c)
-	snapstate.Model = nil
+	s.AddCleanup(snapstatetest.MockDeviceModel(DefaultModel()))
+	s.AddCleanup(snap.MockSnapdSnapID("snapd-snap-id"))
 }
 
 func checkHasCookieForSnap(c *C, st *state.State, instanceName string) {
@@ -125,6 +123,55 @@ func (s *linkSnapSuite) TestDoLinkSnapSuccess(c *C) {
 	c.Check(snapst.Current, Equals, snap.R(33))
 	c.Check(snapst.Channel, Equals, "beta")
 	c.Check(snapst.UserID, Equals, 2)
+	c.Check(snapst.CohortKey, Equals, "")
+	c.Check(t.Status(), Equals, state.DoneStatus)
+	c.Check(s.stateBackend.restartRequested, HasLen, 0)
+
+	// we end with the auxiliary store info
+	c.Check(snapstate.AuxStoreInfoFilename("foo-id"), testutil.FilePresent)
+}
+
+func (s *linkSnapSuite) TestDoLinkSnapSuccessWithCohort(c *C) {
+	// we start without the auxiliary store info
+	c.Check(snapstate.AuxStoreInfoFilename("foo-id"), testutil.FileAbsent)
+
+	s.state.Lock()
+	t := s.state.NewTask("link-snap", "test")
+	t.Set("snap-setup", &snapstate.SnapSetup{
+		SideInfo: &snap.SideInfo{
+			RealName: "foo",
+			Revision: snap.R(33),
+			SnapID:   "foo-id",
+		},
+		Channel:   "beta",
+		UserID:    2,
+		CohortKey: "wobbling",
+	})
+	s.state.NewChange("dummy", "...").AddTask(t)
+
+	s.state.Unlock()
+
+	s.se.Ensure()
+	s.se.Wait()
+
+	s.state.Lock()
+	defer s.state.Unlock()
+	var snapst snapstate.SnapState
+	err := snapstate.Get(s.state, "foo", &snapst)
+	c.Assert(err, IsNil)
+
+	checkHasCookieForSnap(c, s.state, "foo")
+
+	typ, err := snapst.Type()
+	c.Check(err, IsNil)
+	c.Check(typ, Equals, snap.TypeApp)
+
+	c.Check(snapst.Active, Equals, true)
+	c.Check(snapst.Sequence, HasLen, 1)
+	c.Check(snapst.Current, Equals, snap.R(33))
+	c.Check(snapst.Channel, Equals, "beta")
+	c.Check(snapst.UserID, Equals, 2)
+	c.Check(snapst.CohortKey, Equals, "wobbling")
 	c.Check(t.Status(), Equals, state.DoneStatus)
 	c.Check(s.stateBackend.restartRequested, HasLen, 0)
 
@@ -397,11 +444,13 @@ func (s *linkSnapSuite) TestDoLinkSnapSuccessSnapdRestartsOnCoreWithBase(c *C) {
 	restore := release.MockOnClassic(false)
 	defer restore()
 
-	snapstate.SetModelWithBase("core18")
+	r := snapstatetest.MockDeviceModel(ModelWithBase("core18"))
+	defer r()
 
 	s.state.Lock()
 	si := &snap.SideInfo{
 		RealName: "snapd",
+		SnapID:   "snapd-snap-id",
 		Revision: snap.R(22),
 	}
 	t := s.state.NewTask("link-snap", "test")
@@ -424,7 +473,7 @@ func (s *linkSnapSuite) TestDoLinkSnapSuccessSnapdRestartsOnCoreWithBase(c *C) {
 
 	typ, err := snapst.Type()
 	c.Check(err, IsNil)
-	c.Check(typ, Equals, snap.TypeApp)
+	c.Check(typ, Equals, snap.TypeSnapd)
 
 	c.Check(t.Status(), Equals, state.DoneStatus)
 	c.Check(s.stateBackend.restartRequested, DeepEquals, []state.RestartType{state.RestartDaemon})
@@ -439,6 +488,7 @@ func (s *linkSnapSuite) TestDoLinkSnapSuccessSnapdRestartsOnClassic(c *C) {
 	s.state.Lock()
 	si := &snap.SideInfo{
 		RealName: "snapd",
+		SnapID:   "snapd-snap-id",
 		Revision: snap.R(22),
 	}
 	t := s.state.NewTask("link-snap", "test")
@@ -461,7 +511,7 @@ func (s *linkSnapSuite) TestDoLinkSnapSuccessSnapdRestartsOnClassic(c *C) {
 
 	typ, err := snapst.Type()
 	c.Check(err, IsNil)
-	c.Check(typ, Equals, snap.TypeApp)
+	c.Check(typ, Equals, snap.TypeSnapd)
 
 	c.Check(t.Status(), Equals, state.DoneStatus)
 	c.Check(s.stateBackend.restartRequested, DeepEquals, []state.RestartType{state.RestartDaemon})
@@ -793,4 +843,153 @@ func (s *linkSnapSuite) TestDoLinkSnapFailureCleansUpAux(c *C) {
 
 	// we end without the auxiliary store info
 	c.Check(snapstate.AuxStoreInfoFilename("foo-id"), testutil.FileAbsent)
+}
+
+func (s *linkSnapSuite) TestLinkSnapResetsRefreshInhibitedTime(c *C) {
+	// When a snap is linked the refresh-inhibited-time is reset to zero
+	// to indicate a successful refresh. The old value is stored in task
+	// state for task undo logic.
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	instant := time.Now()
+
+	si := &snap.SideInfo{RealName: "snap", Revision: snap.R(1)}
+	sup := &snapstate.SnapSetup{SideInfo: si}
+	snapstate.Set(s.state, "snap", &snapstate.SnapState{
+		Sequence:             []*snap.SideInfo{si},
+		Current:              si.Revision,
+		RefreshInhibitedTime: &instant,
+	})
+
+	task := s.state.NewTask("link-snap", "")
+	task.Set("snap-setup", sup)
+	chg := s.state.NewChange("test", "")
+	chg.AddTask(task)
+
+	s.state.Unlock()
+
+	for i := 0; i < 10; i++ {
+		s.se.Ensure()
+		s.se.Wait()
+	}
+
+	s.state.Lock()
+
+	c.Assert(chg.Err(), IsNil)
+	c.Assert(chg.Tasks(), HasLen, 1)
+
+	var snapst snapstate.SnapState
+	err := snapstate.Get(s.state, "snap", &snapst)
+	c.Assert(err, IsNil)
+	c.Check(snapst.RefreshInhibitedTime, IsNil)
+
+	var oldTime time.Time
+	c.Assert(task.Get("old-refresh-inhibited-time", &oldTime), IsNil)
+	c.Check(oldTime.Equal(instant), Equals, true)
+}
+
+func (s *linkSnapSuite) TestDoUndoLinkSnapRestoresRefreshInhibitedTime(c *C) {
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	instant := time.Now()
+
+	si := &snap.SideInfo{RealName: "snap", Revision: snap.R(1)}
+	sup := &snapstate.SnapSetup{SideInfo: si}
+	snapstate.Set(s.state, "snap", &snapstate.SnapState{
+		Sequence:             []*snap.SideInfo{si},
+		Current:              si.Revision,
+		RefreshInhibitedTime: &instant,
+	})
+
+	task := s.state.NewTask("link-snap", "")
+	task.Set("snap-setup", sup)
+	chg := s.state.NewChange("test", "")
+	chg.AddTask(task)
+
+	terr := s.state.NewTask("error-trigger", "provoking total undo")
+	terr.WaitFor(task)
+	chg.AddTask(terr)
+
+	s.state.Unlock()
+
+	for i := 0; i < 6; i++ {
+		s.se.Ensure()
+		s.se.Wait()
+	}
+
+	s.state.Lock()
+
+	c.Assert(chg.Err(), NotNil)
+	c.Assert(chg.Tasks(), HasLen, 2)
+	c.Check(task.Status(), Equals, state.UndoneStatus)
+
+	var snapst snapstate.SnapState
+	err := snapstate.Get(s.state, "snap", &snapst)
+	c.Assert(err, IsNil)
+	c.Check(snapst.RefreshInhibitedTime.Equal(instant), Equals, true)
+}
+
+func (s *linkSnapSuite) TestDoUnlinkSnapRefreshAwarenessHardCheck(c *C) {
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	tr := config.NewTransaction(s.state)
+	tr.Set("core", "experimental.refresh-app-awareness", true)
+	tr.Commit()
+
+	chg := s.testDoUnlinkSnapRefreshAwareness(c)
+
+	c.Check(chg.Err(), ErrorMatches, `(?ms).*^- some-change-descr \(snap "some-snap" has running apps \(some-app\)\).*`)
+}
+
+func (s *linkSnapSuite) TestDoUnlinkSnapRefreshHardCheckOff(c *C) {
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	chg := s.testDoUnlinkSnapRefreshAwareness(c)
+
+	c.Check(chg.Err(), IsNil)
+}
+
+func (s *linkSnapSuite) testDoUnlinkSnapRefreshAwareness(c *C) *state.Change {
+	restore := release.MockOnClassic(true)
+	defer restore()
+
+	// mock that "some-snap" has an app and that this app has pids running
+	writePids(c, filepath.Join(dirs.PidsCgroupDir, "snap.some-snap.some-app"), []int{1234})
+	snapstate.MockSnapReadInfo(func(name string, si *snap.SideInfo) (*snap.Info, error) {
+		info := &snap.Info{SuggestedName: name, SideInfo: *si, SnapType: snap.TypeApp}
+		info.Apps = map[string]*snap.AppInfo{
+			"some-app": {Snap: info, Name: "some-app"},
+		}
+		return info, nil
+	})
+
+	si1 := &snap.SideInfo{
+		RealName: "some-snap",
+		Revision: snap.R(1),
+	}
+	snapstate.Set(s.state, "some-snap", &snapstate.SnapState{
+		Sequence: []*snap.SideInfo{si1},
+		Current:  si1.Revision,
+		Active:   true,
+	})
+	t := s.state.NewTask("unlink-current-snap", "some-change-descr")
+	t.Set("snap-setup", &snapstate.SnapSetup{
+		SideInfo: si1,
+	})
+	chg := s.state.NewChange("dummy", "...")
+	chg.AddTask(t)
+
+	s.state.Unlock()
+	defer s.state.Lock()
+
+	for i := 0; i < 3; i++ {
+		s.se.Ensure()
+		s.se.Wait()
+	}
+
+	return chg
 }

@@ -27,4 +27,4 @@ execute: |
     snap remove modem-manager-consumer
 
     echo "Then the udev rules files are removed"
-    ! test -f /etc/udev/rules.d/70-snap.modem-manager-consumer.rules
+    not test -f /etc/udev/rules.d/70-snap.modem-manager-consumer.rules

@@ -66,9 +66,9 @@ execute: |
     s=$TESTSLIB/snaps/$n
     echo "Given a buildable snap with classic confinement:"
     echo " - you can't try it without --classic:"
-    ! snap try "$s"
-    ! snap try --jailmode "$s"
-    ! snap try --devmode "$s"
+    not snap try "$s"
+    not snap try --jailmode "$s"
+    not snap try --devmode "$s"
 
     touch /tmp/lala
 

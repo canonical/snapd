@@ -27,7 +27,7 @@
  * Create an argc + argv pair out of a NULL terminated argument list.
  **/
 static void
-    __attribute__ ((sentinel)) test_argc_argv(int *argcp, char ***argvp, ...)
+    __attribute__((sentinel)) test_argc_argv(int *argcp, char ***argvp, ...)
 {
 	int argc = 0;
 	char **argv = NULL;
@@ -77,7 +77,7 @@ static void test_test_argc_argv(void)
 static void test_sc_nonfatal_parse_args__typical(void)
 {
 	// Test that typical invocation of snap-confine is parsed correctly.
-	struct sc_error *err SC_CLEANUP(sc_cleanup_error) = NULL;
+	sc_error *err SC_CLEANUP(sc_cleanup_error) = NULL;
 	struct sc_args *args SC_CLEANUP(sc_cleanup_args) = NULL;
 
 	int argc;
@@ -110,7 +110,7 @@ static void test_sc_nonfatal_parse_args__typical(void)
 static void test_sc_cleanup_args(void)
 {
 	// Check that NULL argument parser can be cleaned up
-	struct sc_error *err SC_CLEANUP(sc_cleanup_error) = NULL;
+	sc_error *err SC_CLEANUP(sc_cleanup_error) = NULL;
 	struct sc_args *args = NULL;
 	sc_cleanup_args(&args);
 
@@ -131,7 +131,7 @@ static void test_sc_cleanup_args(void)
 static void test_sc_nonfatal_parse_args__typical_classic(void)
 {
 	// Test that typical invocation of snap-confine is parsed correctly.
-	struct sc_error *err SC_CLEANUP(sc_cleanup_error) = NULL;
+	sc_error *err SC_CLEANUP(sc_cleanup_error) = NULL;
 	struct sc_args *args SC_CLEANUP(sc_cleanup_args) = NULL;
 
 	int argc;
@@ -166,7 +166,7 @@ static void test_sc_nonfatal_parse_args__ubuntu_core_launcher(void)
 	// Test that typical legacy invocation of snap-confine via the
 	// ubuntu-core-launcher symlink, with duplicated security tag, is parsed
 	// correctly.
-	struct sc_error *err SC_CLEANUP(sc_cleanup_error) = NULL;
+	sc_error *err SC_CLEANUP(sc_cleanup_error) = NULL;
 	struct sc_args *args SC_CLEANUP(sc_cleanup_args) = NULL;
 
 	int argc;
@@ -199,7 +199,7 @@ static void test_sc_nonfatal_parse_args__ubuntu_core_launcher(void)
 static void test_sc_nonfatal_parse_args__version(void)
 {
 	// Test that snap-confine --version is detected.
-	struct sc_error *err SC_CLEANUP(sc_cleanup_error) = NULL;
+	sc_error *err SC_CLEANUP(sc_cleanup_error) = NULL;
 	struct sc_args *args SC_CLEANUP(sc_cleanup_args) = NULL;
 
 	int argc;
@@ -229,7 +229,7 @@ static void test_sc_nonfatal_parse_args__version(void)
 static void test_sc_nonfatal_parse_args__evil_input(void)
 {
 	// Check that calling without any arguments is reported as error.
-	struct sc_error *err SC_CLEANUP(sc_cleanup_error) = NULL;
+	sc_error *err SC_CLEANUP(sc_cleanup_error) = NULL;
 	struct sc_args *args SC_CLEANUP(sc_cleanup_args) = NULL;
 
 	// NULL argcp/argvp attack
@@ -269,7 +269,7 @@ static void test_sc_nonfatal_parse_args__evil_input(void)
 static void test_sc_nonfatal_parse_args__nothing_to_parse(void)
 {
 	// Check that calling without any arguments is reported as error.
-	struct sc_error *err SC_CLEANUP(sc_cleanup_error) = NULL;
+	sc_error *err SC_CLEANUP(sc_cleanup_error) = NULL;
 	struct sc_args *args SC_CLEANUP(sc_cleanup_args) = NULL;
 
 	int argc;
@@ -288,7 +288,7 @@ static void test_sc_nonfatal_parse_args__nothing_to_parse(void)
 static void test_sc_nonfatal_parse_args__no_security_tag(void)
 {
 	// Check that lack of security tag is reported as error.
-	struct sc_error *err SC_CLEANUP(sc_cleanup_error) = NULL;
+	sc_error *err SC_CLEANUP(sc_cleanup_error) = NULL;
 	struct sc_args *args SC_CLEANUP(sc_cleanup_args) = NULL;
 
 	int argc;
@@ -310,7 +310,7 @@ static void test_sc_nonfatal_parse_args__no_security_tag(void)
 static void test_sc_nonfatal_parse_args__no_executable(void)
 {
 	// Check that lack of security tag is reported as error.
-	struct sc_error *err SC_CLEANUP(sc_cleanup_error) = NULL;
+	sc_error *err SC_CLEANUP(sc_cleanup_error) = NULL;
 	struct sc_args *args SC_CLEANUP(sc_cleanup_args) = NULL;
 
 	int argc;
@@ -332,7 +332,7 @@ static void test_sc_nonfatal_parse_args__no_executable(void)
 static void test_sc_nonfatal_parse_args__unknown_option(void)
 {
 	// Check that unrecognized option switch is reported as error.
-	struct sc_error *err SC_CLEANUP(sc_cleanup_error) = NULL;
+	sc_error *err SC_CLEANUP(sc_cleanup_error) = NULL;
 	struct sc_args *args SC_CLEANUP(sc_cleanup_args) = NULL;
 
 	int argc;
@@ -379,7 +379,7 @@ static void test_sc_nonfatal_parse_args__forwards_error(void)
 static void test_sc_nonfatal_parse_args__base_snap(void)
 {
 	// Check that --base specifies the name of the base snap.
-	struct sc_error *err SC_CLEANUP(sc_cleanup_error) = NULL;
+	sc_error *err SC_CLEANUP(sc_cleanup_error) = NULL;
 	struct sc_args *args SC_CLEANUP(sc_cleanup_args) = NULL;
 
 	int argc;
@@ -407,7 +407,7 @@ static void test_sc_nonfatal_parse_args__base_snap(void)
 static void test_sc_nonfatal_parse_args__base_snap__missing_arg(void)
 {
 	// Check that --base specifies the name of the base snap.
-	struct sc_error *err SC_CLEANUP(sc_cleanup_error) = NULL;
+	sc_error *err SC_CLEANUP(sc_cleanup_error) = NULL;
 	struct sc_args *args SC_CLEANUP(sc_cleanup_args) = NULL;
 
 	int argc;
@@ -429,7 +429,7 @@ static void test_sc_nonfatal_parse_args__base_snap__missing_arg(void)
 static void test_sc_nonfatal_parse_args__base_snap__twice(void)
 {
 	// Check that --base specifies the name of the base snap.
-	struct sc_error *err SC_CLEANUP(sc_cleanup_error) = NULL;
+	sc_error *err SC_CLEANUP(sc_cleanup_error) = NULL;
 	struct sc_args *args SC_CLEANUP(sc_cleanup_args) = NULL;
 
 	int argc;
@@ -449,7 +449,7 @@ static void test_sc_nonfatal_parse_args__base_snap__twice(void)
 	g_assert_true(sc_error_match(err, SC_ARGS_DOMAIN, SC_ARGS_ERR_USAGE));
 }
 
-static void __attribute__ ((constructor)) init(void)
+static void __attribute__((constructor)) init(void)
 {
 	g_test_add_func("/args/test_argc_argv", test_test_argc_argv);
 	g_test_add_func("/args/sc_cleanup_args", test_sc_cleanup_args);

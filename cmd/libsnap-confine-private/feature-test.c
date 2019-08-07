@@ -54,14 +54,14 @@ static void test_feature_enabled__missing_dir(void)
 	char subd[PATH_MAX];
 	sc_must_snprintf(subd, sizeof subd, "%s/absent", d);
 	sc_mock_feature_flag_dir(subd);
-	g_assert(!sc_feature_enabled(SC_PER_USER_MOUNT_NAMESPACE));
+	g_assert(!sc_feature_enabled(SC_FEATURE_PER_USER_MOUNT_NAMESPACE));
 }
 
 static void test_feature_enabled__missing_file(void)
 {
 	const char *d = sc_testdir();
 	sc_mock_feature_flag_dir(d);
-	g_assert(!sc_feature_enabled(SC_PER_USER_MOUNT_NAMESPACE));
+	g_assert(!sc_feature_enabled(SC_FEATURE_PER_USER_MOUNT_NAMESPACE));
 }
 
 static void test_feature_enabled__present_file(void)
@@ -72,10 +72,10 @@ static void test_feature_enabled__present_file(void)
 	sc_must_snprintf(pname, sizeof pname, "%s/per-user-mount-namespace", d);
 	g_file_set_contents(pname, "", -1, NULL);
 
-	g_assert(sc_feature_enabled(SC_PER_USER_MOUNT_NAMESPACE));
+	g_assert(sc_feature_enabled(SC_FEATURE_PER_USER_MOUNT_NAMESPACE));
 }
 
-static void __attribute__ ((constructor)) init(void)
+static void __attribute__((constructor)) init(void)
 {
 	g_test_add_func("/feature/missing_dir",
 			test_feature_enabled__missing_dir);

@@ -89,7 +89,7 @@ func writeSnapdServicesOnCore(s *snap.Info, inter interacter) error {
 	if release.OnClassic {
 		return nil
 	}
-	sysd := systemd.New(dirs.GlobalRootDir, inter)
+	sysd := systemd.New(dirs.GlobalRootDir, systemd.SystemMode, inter)
 
 	if err := writeSnapdToolingMountUnit(sysd, s.MountDir()); err != nil {
 		return err

@@ -72,6 +72,9 @@ type Snapshot struct {
 	Size int64 `json:"size,omitempty"`
 	// if the snapshot failed to open this will be the reason why
 	Broken string `json:"broken,omitempty"`
+
+	// set if the snapshot was created automatically on snap removal
+	Auto bool `json:"auto,omitempty"`
 }
 
 // IsValid checks whether the snapshot is missing information that

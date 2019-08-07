@@ -21,18 +21,13 @@ package patch_test
 
 import (
 	"fmt"
-	"os"
-	"path/filepath"
 	"sort"
 	"testing"
-	"time"
 
-	"github.com/snapcore/snapd/dirs"
+	"github.com/snapcore/snapd/cmd"
 	"github.com/snapcore/snapd/overlord/patch"
-	"github.com/snapcore/snapd/overlord/snapstate"
 	"github.com/snapcore/snapd/overlord/state"
 	"github.com/snapcore/snapd/snap"
-	"github.com/snapcore/snapd/snap/snaptest"
 
 	. "gopkg.in/check.v1"
 )
@@ -324,73 +319,10 @@ version: 1
 type: os
 `
 
-func (s *patchSuite) TestRefreshBackFromLevel60(c *C) {
+func (s *patchSuite) testMaybeResetPatchLevel6(c *C, snapdVersion, lastVersion string, expectedPatches []int) {
 	var sequence []int
 
-	p60 := generatePatchFunc(60, &sequence)
-	p61 := generatePatchFunc(61, &sequence)
-	p62 := generatePatchFunc(62, &sequence)
-
-	currentPath := filepath.Join(dirs.SnapMountDir, "core", "current")
-	for _, coreRev := range []struct{ current, first, second int }{
-		{5500, 5142, 5500},
-		{5555, 5555, 5142},
-	} {
-		restore := patch.Mock(6, 2, map[int][]patch.PatchFunc{
-			6: {p60, p61, p62},
-		})
-		defer restore()
-
-		sequence = []int{}
-		st := state.New(nil)
-		st.Lock()
-
-		// simulate the situation where core was refreshed
-		// from a revision with patch level 6 that's not sublevel-aware back to 6.2.
-		st.Set("patch-level", 6)
-		st.Set("patch-sublevel", 2)
-
-		siCore1 := &snap.SideInfo{RealName: "core", Revision: snap.R(coreRev.first)}
-		siCore2 := &snap.SideInfo{RealName: "core", Revision: snap.R(coreRev.second)}
-		if coreRev.current == coreRev.first {
-			snaptest.MockSnapCurrent(c, coreYaml, siCore1)
-		} else {
-			snaptest.MockSnapCurrent(c, coreYaml, siCore2)
-		}
-
-		snapstate.Set(st, "core", &snapstate.SnapState{
-			SnapType: "os",
-			Active:   true,
-			Sequence: []*snap.SideInfo{siCore1, siCore2},
-			Current:  snap.R(coreRev.current),
-		})
-		pastTime := time.Now().Add(-23 * time.Hour)
-		c.Assert(os.Chtimes(currentPath, pastTime, pastTime), IsNil)
-		st.Unlock()
-
-		c.Assert(patch.Apply(st), IsNil)
-		c.Assert(sequence, DeepEquals, []int{61, 62})
-
-		// the patches shouldn't be applied again
-		sequence = []int{}
-		c.Assert(patch.Apply(st), IsNil)
-		c.Assert(sequence, HasLen, 0)
-
-		// new sublevel patch 6.3 gets implemented, and is applied
-		p63 := generatePatchFunc(63, &sequence)
-		patch.Mock(6, 3, map[int][]patch.PatchFunc{
-			6: {p60, p61, p62, p63},
-		})
-
-		c.Assert(patch.Apply(st), IsNil)
-		c.Assert(sequence, DeepEquals, []int{63})
-
-		os.Remove(currentPath)
-	}
-}
-
-func (s *patchSuite) TestRefreshBackFromLevel60ShortSequence(c *C) {
-	var sequence []int
+	cmd.MockVersion(snapdVersion)
 
 	p60 := generatePatchFunc(60, &sequence)
 	p61 := generatePatchFunc(61, &sequence)
@@ -405,31 +337,42 @@ func (s *patchSuite) TestRefreshBackFromLevel60ShortSequence(c *C) {
 	st := state.New(nil)
 	st.Lock()
 
-	// simulate the situation where core was refreshed
-	// from a revision with patch level 6 that's not sublevel-aware back to 6.2,
-	// but sequence for core is missing.
+	if lastVersion != "" {
+		st.Set("patch-sublevel-last-version", lastVersion)
+	}
 	st.Set("patch-level", 6)
 	st.Set("patch-sublevel", 2)
 
-	siCore := &snap.SideInfo{RealName: "core", Revision: snap.R(5500)}
-	snapstate.Set(st, "core", &snapstate.SnapState{
-		SnapType: "os",
-		Active:   true,
-		Sequence: []*snap.SideInfo{siCore},
-		Current:  siCore.Revision,
-	})
 	st.Unlock()
 
 	c.Assert(patch.Apply(st), IsNil)
-	c.Assert(sequence, HasLen, 0)
+	c.Assert(sequence, DeepEquals, expectedPatches)
 
 	st.Lock()
 	defer st.Unlock()
 	var level, sublevel int
+	var ver string
+	var lastRefresh interface{}
 	c.Assert(st.Get("patch-level", &level), IsNil)
 	c.Assert(st.Get("patch-sublevel", &sublevel), IsNil)
+	c.Assert(st.Get("patch-sublevel-last-version", &ver), IsNil)
+	c.Assert(st.Get("patch-sublevel-reset", &lastRefresh), Equals, state.ErrNoState)
+	c.Check(ver, Equals, "snapd-version-1")
 	c.Check(level, Equals, 6)
 	c.Check(sublevel, Equals, 2)
+}
+
+func (s *patchSuite) TestSameSnapdVersionLvl60PatchesNotApplied(c *C) {
+	// sublevel patches not applied if snapd version is same
+	s.testMaybeResetPatchLevel6(c, "snapd-version-1", "snapd-version-1", nil)
+}
+
+func (s *patchSuite) TestDifferentSnapdVersionPatchLevel6NoLastVersion(c *C) {
+	s.testMaybeResetPatchLevel6(c, "snapd-version-1", "", []int{61, 62})
+}
+
+func (s *patchSuite) TestDifferentSnapdVersionPatchLevel6(c *C) {
+	s.testMaybeResetPatchLevel6(c, "snapd-version-1", "snapd-version-2", []int{61, 62})
 }
 
 func (s *patchSuite) TestSanity(c *C) {

@@ -1,0 +1,39 @@
+summary: Ensure that we accounted for all syscalls known to libseccomp
+
+description: |
+  The snap-seccomp tool maintains a list of all syscalls supported by
+  libseccomp. The test ensures that we catch when the internal list is not in
+  sync with upstream anymore, and thus an update is needed. See
+  https://forum.snapcraft.io/t/spread-test-failing-due-to-new-syscalls/12018 for
+  more details.
+
+# one system is enough
+systems: [ubuntu-18.04-64]
+
+# Start early as it takes a long time.
+priority: 100
+
+restore: |
+    rm -rf libseccomp
+    rm -f syscalls.*
+
+execute: |
+    # build a list of syscalls known to libseccomp by using the internal test
+    # tool arch-syscall-dump
+    git clone https://github.com/seccomp/libseccomp
+    pushd libseccomp
+    ./autogen.sh
+    ./configure
+    pushd src && make arch-syscall-dump
+    for arch in x86 x86_64 s390 ppc64 aarch64 arm; do
+        ./arch-syscall-dump -a "$arch" | awk '{print $1}' >> syscalls.list
+    done
+    sort -u syscalls.list > ../../syscalls.uniq
+    cd ../..
+
+    # grab the list snap-seccomp knows about
+    go run listcalls.go > syscalls.known
+
+    # both lists should be identical, otherwise we need an update in
+    # snap-seccomp
+    diff -up syscalls.uniq syscalls.known

@@ -1,0 +1,191 @@
+summary: Create ubuntu classic image, install snapd and test hotplug feature
+
+prepare: |
+    #shellcheck source=tests/lib/nested.sh
+    . "$TESTSLIB/nested.sh"
+
+    copy_remote "${GOHOME}"/snapd_*.deb
+    execute_remote "sudo apt update"
+    execute_remote "sudo apt install -y ./snapd_*.deb"
+    #shellcheck disable=SC2016
+    execute_remote 'DEBIAN_FRONTEND=noninteractive sudo -E apt install -y "linux-(image|modules)-extra-$(uname -r)"'
+
+    snap pack "$TESTSLIB"/snaps/serial-port-hotplug
+    copy_remote serial-port-hotplug_1.0_all.snap
+    # add test user to dialout group required for ttyUSB* devices
+    execute_remote "sudo usermod -a -G dialout user1"
+
+    execute_remote "sudo snap install --devmode jq"
+
+restore: |
+    rm -f /tmp/serialport{0,1}
+
+debug: |
+    #shellcheck source=tests/lib/nested.sh
+    . "$TESTSLIB/nested.sh"
+
+    set +e
+    execute_remote "snap connections --all"
+    execute_remote "snap list"
+    execute_remote "dmesg"
+    execute_remote 'sudo jq -r ".data[\"hotplug-slots\"]" /var/lib/snapd/state.json'
+
+execute: |
+    #shellcheck source=tests/lib/nested.sh
+    . "$TESTSLIB/nested.sh"
+    #shellcheck source=tests/lib/hotplug.sh
+    . "$TESTSLIB/hotplug.sh"
+    
+    if execute_remote "udevadm info -e" | MATCH "ID_MODEL=QEMU_USB_SERIAL"; then
+        echo "USB serial already registered, exiting..."
+        exit 1
+    fi
+
+    execute_remote "sudo snap install hello-world"
+
+    echo "Enabling hotplug"
+    execute_remote "sudo snap set core experimental.hotplug=true"
+
+    echo "Plugging the device"
+    hotplug_add_dev1
+
+    # sanity checks to make sure qemu setup is correct
+    for _ in $(seq 5); do
+        if execute_remote "udevadm info -e" | MATCH "ID_MODEL=QEMU_USB_SERIAL"; then
+            break
+        fi
+        sleep 1
+    done
+
+    execute_remote "ls /dev/tty*" | MATCH "ttyUSB0"
+
+    echo "Checking that qemuusbserial hotplug slot is present"
+    check_slot_present qemuusbserial
+    check_slot_not_gone qemuusbserial
+    check_slot_device_path qemuusbserial "/dev/ttyUSB0"
+
+    echo "Unplugging the device with no connections on the slot"
+    hotplug_del_dev1
+
+    # sanity check to make sure qemu event was triggered correctly
+    for _ in $(seq 5); do
+        if execute_remote "udevadm info -e" | MATCH "ID_MODEL=QEMU_USB_SERIAL"; then
+            sleep 1
+        else
+            break
+        fi
+    done
+    if execute_remote "udevadm info -e" | MATCH "ID_MODEL=QEMU_USB_SERIAL"; then
+        echo "USB serial should not be registered anymore, exiting..."
+        exit 1
+    fi
+
+    echo "Checking that hotplug slot is no longer present"
+    check_slot_not_present qemuusbserial
+    check_slot_not_present_in_state qemuusbserial
+
+    echo "Plugging the device back"
+    hotplug_add_dev1
+
+    echo "Checking that qemuusbserial hotplug slot is present again"
+    check_slot_present qemuusbserial
+
+    echo "Installing test snap with serial port plug"
+    execute_remote "sudo snap install --dangerous serial-port-hotplug_1.0_all.snap"
+
+    echo "Connecting hotplug slot of the first device"
+    execute_remote "sudo snap connect serial-port-hotplug:serial-port :qemuusbserial"
+    check_slot_connected qemuusbserial
+
+    echo "Veryfing serial-port permissions of the snap"
+    verify_apparmor_profile "/dev/ttyUSB0"
+    execute_remote "/snap/bin/serial-port-hotplug.consumer write-1" | MATCH "Access to /dev/ttyUSB0 ok"
+    execute_remote "/snap/bin/serial-port-hotplug.consumer write-2" | MATCH "Access to /dev/ttyUSB1 failed"
+    MATCH "write-1 on /dev/ttyUSB0" < /tmp/serialport1
+
+    echo "Unplugging the device"
+    hotplug_del_dev1
+
+    echo "Checking that qemuusbserial hotplug slot is no longer present, but is remembered"
+    check_slot_not_present qemuusbserial
+    check_slot_gone qemuusbserial
+
+    echo "Plugging device back, checking that the slot and connection are restored"
+    hotplug_add_dev1
+    check_slot_connected qemuusbserial
+    check_slot_not_gone qemuusbserial
+
+    echo "Unplugging the device again"
+    hotplug_del_dev1
+
+    echo "Checking that qemuusbserial hotplug slot is not present, but is still remembered"
+    check_slot_not_present qemuusbserial
+    check_slot_gone qemuusbserial
+
+    echo "Plugging second device creates a slot with new name and it's expected on /dev/ttyUSB0"
+    hotplug_add_dev2
+    check_slot_present qemuusbserial-1
+    check_slot_not_gone qemuusbserial-1
+    check_slot_device_path qemuusbserial-1 "/dev/ttyUSB0"
+
+    echo "Plugging first device back while second device is present, checking that connection is restored"
+    hotplug_add_dev1
+    check_slot_connected qemuusbserial
+    check_slot_not_gone qemuusbserial
+
+    echo "Veryfing serial-port permissions of the snap, the first device is now expected on ttyUSB1"
+    check_slot_device_path qemuusbserial "/dev/ttyUSB1"
+    verify_apparmor_profile "/dev/ttyUSB1"
+    execute_remote "/snap/bin/serial-port-hotplug.consumer write-3" | MATCH "Access to /dev/ttyUSB0 failed"
+    execute_remote "/snap/bin/serial-port-hotplug.consumer write-4" | MATCH "Access to /dev/ttyUSB1 ok"
+    MATCH "write-3 on /dev/ttyUSB1" < /tmp/serialport1
+
+    echo "Restarting snapd should restore both hotplug slots since devices are still present"
+    execute_remote "sudo systemctl stop snapd.service snapd.socket"
+    execute_remote "sudo systemctl start snapd.service snapd.socket"
+    check_slot_connected qemuusbserial
+    check_slot_not_gone qemuusbserial
+    check_slot_present qemuusbserial-1
+    execute_remote "/snap/bin/serial-port-hotplug.consumer write-5" | MATCH "Access to /dev/ttyUSB1 ok"
+    MATCH "write-5 on /dev/ttyUSB1" < /tmp/serialport1
+
+    echo "Unplugging first device while snapd is stopped and then starting snapd remembers the slot internally due to connection"
+    execute_remote "sudo systemctl stop snapd.service snapd.socket"
+    hotplug_del_dev1
+    execute_remote "sudo systemctl start snapd.service snapd.socket"
+    check_slot_not_present qemuusbserial
+    check_slot_gone qemuusbserial
+
+    echo "Plugging first device back restores the slot and connection"
+    hotplug_add_dev1
+    check_slot_connected qemuusbserial
+    check_slot_not_gone qemuusbserial
+
+    echo "Disconnecting first slot and then unplugging the device removes the slot completely"
+    # manual snap disconnect doesn't implement retry and errors out if there are conflicting changes, so wait for hotplug changes to complete
+    wait_for_all_changes
+    execute_remote "sudo snap disconnect serial-port-hotplug:serial-port :qemuusbserial"
+    check_slot_present qemuusbserial
+    hotplug_del_dev1
+    check_slot_not_present qemuusbserial
+    check_slot_not_present_in_state qemuusbserial
+
+    echo "Unplugging second device removes the slot completely"
+    hotplug_del_dev2
+    check_slot_not_present qemuusbserial-1
+    check_slot_not_present_in_state qemuusbserial-1
+
+    echo "Plugging device back creates the slot again"
+    hotplug_add_dev1
+    check_slot_present qemuusbserial
+    check_slot_not_gone qemuusbserial
+    check_slot_device_path qemuusbserial "/dev/ttyUSB0"
+
+    echo "Connecting hotplug slot of the first device again"
+    execute_remote "sudo snap connect serial-port-hotplug:serial-port :qemuusbserial"
+    check_slot_connected qemuusbserial
+
+    echo "Hotplug slot stays after removing the snap"
+    execute_remote "sudo snap remove serial-port-hotplug"
+    check_slot_present qemuusbserial
+    check_slot_not_gone qemuusbserial

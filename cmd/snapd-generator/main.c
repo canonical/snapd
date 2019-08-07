@@ -25,10 +25,9 @@
 #include "../libsnap-confine-private/mountinfo.h"
 #include "../libsnap-confine-private/string-utils.h"
 
-static struct sc_mountinfo_entry *find_root_mountinfo(struct sc_mountinfo
-						      *mounts)
+static sc_mountinfo_entry *find_root_mountinfo(sc_mountinfo * mounts)
 {
-	struct sc_mountinfo_entry *cur, *root = NULL;
+	sc_mountinfo_entry *cur, *root = NULL;
 	for (cur = sc_first_mountinfo_entry(mounts); cur != NULL;
 	     cur = sc_next_mountinfo_entry(cur)) {
 		// Look for the mount info entry for the root file-system.
@@ -52,14 +51,14 @@ int main(int argc, char **argv)
 	// const char *late_dir = argv[3];
 
 	// Load /proc/self/mountinfo so that we can inspect the root filesystem.
-	struct sc_mountinfo *mounts SC_CLEANUP(sc_cleanup_mountinfo) = NULL;
+	sc_mountinfo *mounts SC_CLEANUP(sc_cleanup_mountinfo) = NULL;
 	mounts = sc_parse_mountinfo(NULL);
 	if (!mounts) {
 		fprintf(stderr, "cannot open or parse /proc/self/mountinfo\n");
 		return 1;
 	}
 
-	struct sc_mountinfo_entry *root = find_root_mountinfo(mounts);
+	sc_mountinfo_entry *root = find_root_mountinfo(mounts);
 	if (!root) {
 		fprintf(stderr,
 			"cannot find mountinfo entry of the root filesystem\n");

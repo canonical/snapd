@@ -39,6 +39,7 @@ import (
 	"github.com/snapcore/snapd/snap"
 	"github.com/snapcore/snapd/store"
 	"github.com/snapcore/snapd/store/storetest"
+	"github.com/snapcore/snapd/timings"
 )
 
 type fakeOp struct {
@@ -146,7 +147,7 @@ func (f *fakeStore) pokeStateLock() {
 	f.state.Unlock()
 }
 
-func (f *fakeStore) SnapInfo(spec store.SnapSpec, user *auth.UserState) (*snap.Info, error) {
+func (f *fakeStore) SnapInfo(ctx context.Context, spec store.SnapSpec, user *auth.UserState) (*snap.Info, error) {
 	f.pokeStateLock()
 
 	_, instanceKey := snap.SplitInstanceName(spec.Name)
@@ -171,13 +172,18 @@ type snapSpec struct {
 	Name     string
 	Channel  string
 	Revision snap.Revision
+	Cohort   string
 }
 
 func (f *fakeStore) snap(spec snapSpec, user *auth.UserState) (*snap.Info, error) {
 	if spec.Revision.Unset() {
-		spec.Revision = snap.R(11)
-		if spec.Channel == "channel-for-7" {
-			spec.Revision.N = 7
+		switch {
+		case spec.Cohort != "":
+			spec.Revision = snap.R(666)
+		case spec.Channel == "channel-for-7":
+			spec.Revision = snap.R(7)
+		default:
+			spec.Revision = snap.R(11)
 		}
 	}
 
@@ -186,15 +192,17 @@ func (f *fakeStore) snap(spec snapSpec, user *auth.UserState) (*snap.Info, error
 	typ := snap.TypeApp
 	epoch := snap.E("1*")
 	switch spec.Name {
-	case "core", "ubuntu-core", "some-core":
+	case "core", "core16", "ubuntu-core", "some-core":
 		typ = snap.TypeOS
-	case "some-base":
+	case "some-base", "core18":
 		typ = snap.TypeBase
 	case "some-kernel":
 		typ = snap.TypeKernel
-	case "some-gadget":
+	case "some-gadget", "brand-gadget":
 		typ = snap.TypeGadget
 	case "some-snapd":
+		typ = snap.TypeSnapd
+	case "snapd":
 		typ = snap.TypeSnapd
 	case "some-snap-now-classic":
 		confinement = "classic"
@@ -219,7 +227,7 @@ func (f *fakeStore) snap(spec snapSpec, user *auth.UserState) (*snap.Info, error
 			DownloadURL: "https://some-server.com/some/path.snap",
 		},
 		Confinement: confinement,
-		Type:        typ,
+		SnapType:    typ,
 		Epoch:       epoch,
 	}
 	switch spec.Channel {
@@ -325,7 +333,7 @@ func (f *fakeStore) lookupRefresh(cand refreshCand) (*snap.Info, error) {
 	}
 
 	info := &snap.Info{
-		Type: typ,
+		SnapType: typ,
 		SideInfo: snap.SideInfo{
 			RealName: name,
 			Channel:  cand.channel,
@@ -438,6 +446,7 @@ func (f *fakeStore) SnapAction(ctx context.Context, currentSnaps []*store.Curren
 				Name:     snapName,
 				Channel:  a.Channel,
 				Revision: a.Revision,
+				Cohort:   a.CohortKey,
 			}
 			info, err := f.snap(spec, user)
 			if err != nil {
@@ -688,7 +697,7 @@ func (f *fakeSnappyBackend) ReadInfo(name string, si *snap.SideInfo) (*snap.Info
 		SuggestedName: snapName,
 		SideInfo:      *si,
 		Architectures: []string{"all"},
-		Type:          snap.TypeApp,
+		SnapType:      snap.TypeApp,
 		Epoch:         snap.E("1*"),
 	}
 	if strings.Contains(snapName, "alias-snap") {
@@ -701,9 +710,9 @@ func (f *fakeSnappyBackend) ReadInfo(name string, si *snap.SideInfo) (*snap.Info
 	case "some-epoch-snap":
 		info.Epoch = snap.E("13")
 	case "gadget":
-		info.Type = snap.TypeGadget
+		info.SnapType = snap.TypeGadget
 	case "core":
-		info.Type = snap.TypeOS
+		info.SnapType = snap.TypeOS
 	case "services-snap":
 		var err error
 		// fix services after/before so that there is only one solution
@@ -784,7 +793,7 @@ func (f *fakeSnappyBackend) CopySnapData(newInfo, oldInfo *snap.Info, p progress
 	return nil
 }
 
-func (f *fakeSnappyBackend) LinkSnap(info *snap.Info, model *asserts.Model) error {
+func (f *fakeSnappyBackend) LinkSnap(info *snap.Info, model *asserts.Model, tm timings.Measurer) error {
 	if info.MountDir() == f.linkSnapWaitTrigger {
 		f.linkSnapWaitCh <- 1
 		<-f.linkSnapWaitCh
@@ -815,7 +824,7 @@ func svcSnapMountDir(svcs []*snap.AppInfo) string {
 	return svcs[0].Snap.MountDir()
 }
 
-func (f *fakeSnappyBackend) StartServices(svcs []*snap.AppInfo, meter progress.Meter) error {
+func (f *fakeSnappyBackend) StartServices(svcs []*snap.AppInfo, meter progress.Meter, tm timings.Measurer) error {
 	services := make([]string, 0, len(svcs))
 	for _, svc := range svcs {
 		services = append(services, svc.Name)
@@ -828,7 +837,7 @@ func (f *fakeSnappyBackend) StartServices(svcs []*snap.AppInfo, meter progress.M
 	return nil
 }
 
-func (f *fakeSnappyBackend) StopServices(svcs []*snap.AppInfo, reason snap.ServiceStopReason, meter progress.Meter) error {
+func (f *fakeSnappyBackend) StopServices(svcs []*snap.AppInfo, reason snap.ServiceStopReason, meter progress.Meter, tm timings.Measurer) error {
 	f.appendOp(&fakeOp{
 		op:   fmt.Sprintf("stop-snap-services:%s", reason),
 		path: svcSnapMountDir(svcs),

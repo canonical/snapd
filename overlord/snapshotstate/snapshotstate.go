@@ -21,13 +21,18 @@ package snapshotstate
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"sort"
+	"time"
 
 	"github.com/snapcore/snapd/client"
+	"github.com/snapcore/snapd/logger"
+	"github.com/snapcore/snapd/overlord/configstate/config"
 	"github.com/snapcore/snapd/overlord/snapshotstate/backend"
 	"github.com/snapcore/snapd/overlord/snapstate"
 	"github.com/snapcore/snapd/overlord/state"
+	"github.com/snapcore/snapd/release"
 	"github.com/snapcore/snapd/snap"
 	"github.com/snapcore/snapd/strutil"
 )
@@ -36,7 +41,14 @@ var (
 	snapstateAll                     = snapstate.All
 	snapstateCheckChangeConflictMany = snapstate.CheckChangeConflictMany
 	backendIter                      = backend.Iter
+
+	// Default expiration time for automatic snapshots, if not set by the user
+	defaultAutomaticSnapshotExpiration = time.Hour * 24 * 31
 )
+
+type snapshotState struct {
+	ExpiryTime time.Time `json:"expiry-time"`
+}
 
 func newSnapshotSetID(st *state.State) (uint64, error) {
 	var lastSetID uint64
@@ -67,6 +79,95 @@ func allActiveSnapNames(st *state.State) ([]string, error) {
 	sort.Strings(names)
 
 	return names, nil
+}
+
+func AutomaticSnapshotExpiration(st *state.State) (time.Duration, error) {
+	var expirationStr string
+	tr := config.NewTransaction(st)
+	err := tr.Get("core", "snapshots.automatic.retention", &expirationStr)
+	if err != nil && !config.IsNoOption(err) {
+		return 0, err
+	}
+	if err == nil {
+		if expirationStr == "no" {
+			return 0, nil
+		}
+		dur, err := time.ParseDuration(expirationStr)
+		if err == nil {
+			return dur, nil
+		}
+		logger.Noticef("snapshots.automatic.retention cannot be parsed: %v", err)
+	}
+	// TODO: automatic snapshots are currently disable by default
+	// on Ubuntu Core devices
+	if !release.OnClassic {
+		return 0, nil
+	}
+	return defaultAutomaticSnapshotExpiration, nil
+}
+
+// saveExpiration saves expiration date of the given snapshot set, in the state.
+// The state needs to be locked by the caller.
+func saveExpiration(st *state.State, setID uint64, expiryTime time.Time) error {
+	var snapshots map[uint64]*json.RawMessage
+	err := st.Get("snapshots", &snapshots)
+	if err != nil && err != state.ErrNoState {
+		return err
+	}
+	if snapshots == nil {
+		snapshots = make(map[uint64]*json.RawMessage)
+	}
+	data, err := json.Marshal(&snapshotState{
+		ExpiryTime: expiryTime,
+	})
+	if err != nil {
+		return err
+	}
+	raw := json.RawMessage(data)
+	snapshots[setID] = &raw
+	st.Set("snapshots", snapshots)
+	return nil
+}
+
+// removeSnapshotState removes given set IDs from the state.
+func removeSnapshotState(st *state.State, setIDs ...uint64) error {
+	var snapshots map[uint64]*json.RawMessage
+	err := st.Get("snapshots", &snapshots)
+	if err != nil {
+		if err == state.ErrNoState {
+			return nil
+		}
+		return err
+	}
+
+	for _, setID := range setIDs {
+		delete(snapshots, setID)
+	}
+
+	st.Set("snapshots", snapshots)
+	return nil
+}
+
+// expiredSnapshotSets returns expired snapshot sets from the state whose expiry-time is before the given cutoffTime.
+// The state needs to be locked by the caller.
+func expiredSnapshotSets(st *state.State, cutoffTime time.Time) (map[uint64]bool, error) {
+	var snapshots map[uint64]*snapshotState
+	err := st.Get("snapshots", &snapshots)
+	if err != nil {
+		if err != state.ErrNoState {
+			return nil, err
+		}
+		return nil, nil
+	}
+
+	expired := make(map[uint64]bool)
+	for setID, snapshotSet := range snapshots {
+		if snapshotSet.ExpiryTime.Before(cutoffTime) {
+			expired[setID] = true
+		}
+	}
+
+	return expired, nil
 }
 
 // snapshotSnapSummaries are used internally to get useful data from a
@@ -201,6 +302,33 @@ func Save(st *state.State, instanceNames []string, users []string) (setID uint64
 	}
 
 	return setID, instanceNames, ts, nil
+}
+
+func AutomaticSnapshot(st *state.State, snapName string) (ts *state.TaskSet, err error) {
+	expiration, err := AutomaticSnapshotExpiration(st)
+	if err != nil {
+		return nil, err
+	}
+	if expiration == 0 {
+		return nil, snapstate.ErrNothingToDo
+	}
+	setID, err := newSnapshotSetID(st)
+	if err != nil {
+		return nil, err
+	}
+
+	ts = state.NewTaskSet()
+	desc := fmt.Sprintf("Save data of snap %q in automatic snapshot set #%d", snapName, setID)
+	task := st.NewTask("save-snapshot", desc)
+	snapshot := snapshotSetup{
+		SetID: setID,
+		Snap:  snapName,
+		Auto:  true,
+	}
+	task.Set("snapshot-setup", &snapshot)
+	ts.AddTask(task)
+
+	return ts, nil
 }
 
 // Restore creates a taskset for restoring a snapshot's data.

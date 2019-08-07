@@ -29,9 +29,11 @@ import (
 	. "gopkg.in/check.v1"
 
 	"github.com/snapcore/snapd/dirs"
+	"github.com/snapcore/snapd/httputil"
 	"github.com/snapcore/snapd/overlord/auth"
 	"github.com/snapcore/snapd/overlord/configstate/config"
 	"github.com/snapcore/snapd/overlord/snapstate"
+	"github.com/snapcore/snapd/overlord/snapstate/snapstatetest"
 	"github.com/snapcore/snapd/overlord/state"
 	"github.com/snapcore/snapd/release"
 	"github.com/snapcore/snapd/snap"
@@ -49,6 +51,10 @@ type autoRefreshStore struct {
 }
 
 func (r *autoRefreshStore) SnapAction(ctx context.Context, currentSnaps []*store.CurrentSnap, actions []*store.SnapAction, user *auth.UserState, opts *store.RefreshOptions) ([]*snap.Info, error) {
+	if !opts.IsAutoRefresh {
+		panic("AutoRefresh snap action did not set IsAutoRefresh flag")
+	}
+
 	if ctx == nil || !auth.IsEnsureContext(ctx) {
 		panic("Ensure marked context required")
 	}
@@ -68,6 +74,8 @@ type autoRefreshTestSuite struct {
 	state *state.State
 
 	store *autoRefreshStore
+
+	restore func()
 }
 
 var _ = Suite(&autoRefreshTestSuite{})
@@ -102,13 +110,13 @@ func (s *autoRefreshTestSuite) SetUpTest(c *C) {
 	s.state.Set("seeded", true)
 	s.state.Set("seed-time", time.Now())
 	s.state.Set("refresh-privacy-key", "privacy-key")
-	snapstate.SetDefaultModel()
+	s.restore = snapstatetest.MockDeviceModel(DefaultModel())
 }
 
 func (s *autoRefreshTestSuite) TearDownTest(c *C) {
 	snapstate.CanAutoRefresh = nil
 	snapstate.AutoAliases = nil
-	snapstate.Model = nil
+	s.restore()
 	dirs.SetRootDir("")
 }
 
@@ -212,7 +220,10 @@ func (s *autoRefreshTestSuite) TestRefreshBackoff(c *C) {
 	err := af.Ensure()
 	c.Check(err, ErrorMatches, "random store error")
 	c.Check(s.store.ops, HasLen, 1)
-	c.Check(s.store.ops, DeepEquals, []string{"list-refresh"})
+
+	// override next refresh to be here already
+	now := time.Now()
+	snapstate.MockNextRefresh(af, now)
 
 	// call ensure again, our back-off will prevent the store from
 	// being hit again
@@ -220,13 +231,76 @@ func (s *autoRefreshTestSuite) TestRefreshBackoff(c *C) {
 	c.Check(err, IsNil)
 	c.Check(s.store.ops, HasLen, 1)
 
+	// nextRefresh unchanged
+	c.Check(af.NextRefresh().Equal(now), Equals, true)
+
 	// fake that the retryRefreshDelay is over
 	restore := snapstate.MockRefreshRetryDelay(1 * time.Millisecond)
 	defer restore()
 	time.Sleep(10 * time.Millisecond)
 
+	// ensure hits the store again
 	err = af.Ensure()
 	c.Check(err, ErrorMatches, "random store error")
+	c.Check(s.store.ops, HasLen, 2)
+
+	// nextRefresh now zero
+	c.Check(af.NextRefresh().IsZero(), Equals, true)
+	// set it to something in the future
+	snapstate.MockNextRefresh(af, time.Now().Add(time.Minute))
+
+	// nothing really happens yet: the previous autorefresh failed
+	// but it still counts as having tried to autorefresh
+	err = af.Ensure()
+	c.Check(err, IsNil)
+	c.Check(s.store.ops, HasLen, 2)
+
+	// pretend the time for next refresh is here
+	snapstate.MockNextRefresh(af, time.Now())
+	// including the wait for the retryRefreshDelay backoff
+	time.Sleep(10 * time.Millisecond)
+
+	// now yes it happens again
+	err = af.Ensure()
+	c.Check(err, ErrorMatches, "random store error")
+	c.Check(s.store.ops, HasLen, 3)
+	// and not *again* again
+	err = af.Ensure()
+	c.Check(err, IsNil)
+	c.Check(s.store.ops, HasLen, 3)
+
+	c.Check(s.store.ops, DeepEquals, []string{"list-refresh", "list-refresh", "list-refresh"})
+}
+
+func (s *autoRefreshTestSuite) TestRefreshPersistentError(c *C) {
+	// fake that the retryRefreshDelay is over
+	restore := snapstate.MockRefreshRetryDelay(1 * time.Millisecond)
+	defer restore()
+
+	initialLastRefresh := time.Now().Add(-12 * time.Hour)
+	s.state.Lock()
+	s.state.Set("last-refresh", initialLastRefresh)
+	s.state.Unlock()
+
+	s.store.err = &httputil.PerstistentNetworkError{Err: fmt.Errorf("error")}
+	af := snapstate.NewAutoRefresh(s.state)
+	err := af.Ensure()
+	c.Check(err, ErrorMatches, "persistent network error: error")
+	c.Check(s.store.ops, HasLen, 1)
+
+	// last-refresh time remains untouched
+	var lastRefresh time.Time
+	s.state.Lock()
+	s.state.Get("last-refresh", &lastRefresh)
+	s.state.Unlock()
+	c.Check(lastRefresh.Format(time.RFC3339), Equals, initialLastRefresh.Format(time.RFC3339))
+
+	s.store.err = nil
+	time.Sleep(10 * time.Millisecond)
+
+	// call ensure again, refresh should be attempted again
+	err = af.Ensure()
+	c.Check(err, IsNil)
 	c.Check(s.store.ops, HasLen, 2)
 }
 
@@ -302,8 +376,7 @@ func (s *autoRefreshTestSuite) TestLastRefreshRefreshHoldExpired(c *C) {
 	tr = config.NewTransaction(s.state)
 	var t1 time.Time
 	err = tr.Get("core", "refresh.hold", &t1)
-	c.Assert(err, IsNil)
-	c.Check(t1.IsZero(), Equals, true)
+	c.Assert(config.IsNoOption(err), Equals, true)
 }
 
 func (s *autoRefreshTestSuite) TestLastRefreshRefreshHoldExpiredReschedule(c *C) {
@@ -338,8 +411,7 @@ func (s *autoRefreshTestSuite) TestLastRefreshRefreshHoldExpiredReschedule(c *C)
 	tr = config.NewTransaction(s.state)
 	var t1 time.Time
 	err = tr.Get("core", "refresh.hold", &t1)
-	c.Assert(err, IsNil)
-	c.Check(t1.IsZero(), Equals, true)
+	c.Assert(config.IsNoOption(err), Equals, true)
 
 	// check next refresh
 	nextRefresh1 := af.NextRefresh()

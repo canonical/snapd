@@ -27,7 +27,6 @@ import (
 
 	"github.com/snapcore/snapd/client"
 	"github.com/snapcore/snapd/image"
-	"github.com/snapcore/snapd/overlord/auth"
 	"github.com/snapcore/snapd/selinux"
 	"github.com/snapcore/snapd/store"
 )
@@ -42,8 +41,6 @@ var (
 	CreateUserDataDirs = createUserDataDirs
 	ResolveApp         = resolveApp
 	SnapdHelperPath    = snapdHelperPath
-	MaybePrintServices = maybePrintServices
-	MaybePrintCommands = maybePrintCommands
 	SortByPath         = sortByPath
 	AdviseCommand      = adviseCommand
 	Antialias          = antialias
@@ -82,6 +79,39 @@ var (
 	InterfacesDeprecationNotice = interfacesDeprecationNotice
 )
 
+func NewInfoWriter(w writeflusher) *infoWriter {
+	return &infoWriter{
+		writeflusher: w,
+		termWidth:    20,
+		esc:          &escapes{dash: "--", tick: "*"},
+		fmtTime:      func(t time.Time) string { return t.Format(time.Kitchen) },
+	}
+}
+
+func SetVerbose(iw *infoWriter, verbose bool) {
+	iw.verbose = verbose
+}
+
+var (
+	ClientSnapFromPath          = clientSnapFromPath
+	SetupDiskSnap               = (*infoWriter).setupDiskSnap
+	SetupSnap                   = (*infoWriter).setupSnap
+	MaybePrintServices          = (*infoWriter).maybePrintServices
+	MaybePrintCommands          = (*infoWriter).maybePrintCommands
+	MaybePrintType              = (*infoWriter).maybePrintType
+	PrintSummary                = (*infoWriter).printSummary
+	MaybePrintPublisher         = (*infoWriter).maybePrintPublisher
+	MaybePrintNotes             = (*infoWriter).maybePrintNotes
+	MaybePrintStandaloneVersion = (*infoWriter).maybePrintStandaloneVersion
+	MaybePrintBuildDate         = (*infoWriter).maybePrintBuildDate
+	MaybePrintContact           = (*infoWriter).maybePrintContact
+	MaybePrintBase              = (*infoWriter).maybePrintBase
+	MaybePrintPath              = (*infoWriter).maybePrintPath
+	MaybePrintSum               = (*infoWriter).maybePrintSum
+	MaybePrintCohortKey         = (*infoWriter).maybePrintCohortKey
+	MaybePrintHealth            = (*infoWriter).maybePrintHealth
+)
+
 func MockPollTime(d time.Duration) (restore func()) {
 	d0 := pollTime
 	pollTime = d
@@ -114,7 +144,7 @@ func MockUserCurrent(f func() (*user.User, error)) (restore func()) {
 	}
 }
 
-func MockStoreNew(f func(*store.Config, auth.AuthContext) *store.Store) (restore func()) {
+func MockStoreNew(f func(*store.Config, store.DeviceAndAuthContext) *store.Store) (restore func()) {
 	storeNewOrig := storeNew
 	storeNew = f
 	return func() {
@@ -215,7 +245,10 @@ func Wait(cli *client.Client, id string) (*client.Change, error) {
 }
 
 func ColorMixin(cmode, umode string) colorMixin {
-	return colorMixin{Color: cmode, Unicode: umode}
+	return colorMixin{
+		Color:        cmode,
+		unicodeMixin: unicodeMixin{Unicode: umode},
+	}
 }
 
 func CmdAdviseSnap() *cmdAdviseSnap {

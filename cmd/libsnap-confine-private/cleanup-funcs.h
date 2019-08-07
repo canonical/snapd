@@ -34,40 +34,45 @@
 /**
  * Free a dynamically allocated string.
  *
- * This function is designed to be used with
- * __attribute__((cleanup(sc_cleanup_string))).
+ * This function is designed to be used with SC_CLEANUP() macro.
+ * The variable MUST be initialized for correct operation.
+ * The safe initialisation value is NULL.
  **/
 void sc_cleanup_string(char **ptr);
 
 /**
  * Close an open file.
  *
- * This function is designed to be used with
- * __attribute__((cleanup(sc_cleanup_file))).
+ * This function is designed to be used with SC_CLEANUP() macro.
+ * The variable MUST be initialized for correct operation.
+ * The safe initialisation value is NULL.
  **/
 void sc_cleanup_file(FILE ** ptr);
 
 /**
  * Close an open file with endmntent(3)
  *
- * This function is designed to be used with
- * __attribute__((cleanup(sc_cleanup_endmntent))).
+ * This function is designed to be used with SC_CLEANUP() macro.
+ * The variable MUST be initialized for correct operation.
+ * The safe initialisation value is NULL.
  **/
 void sc_cleanup_endmntent(FILE ** ptr);
 
 /**
  * Close an open directory with closedir(3)
  *
- * This function is designed to be used with
- * __attribute__((cleanup(sc_cleanup_closedir))).
+ * This function is designed to be used with SC_CLEANUP() macro.
+ * The variable MUST be initialized for correct operation.
+ * The safe initialisation value is NULL.
  **/
 void sc_cleanup_closedir(DIR ** ptr);
 
 /**
  * Close an open file descriptor with close(2)
  *
- * This function is designed to be used with
- * __attribute__((cleanup(sc_cleanup_close))).
+ * This function is designed to be used with SC_CLEANUP() macro.
+ * The variable MUST be initialized for correct operation.
+ * The safe initialisation value is -1.
  **/
 void sc_cleanup_close(int *ptr);
 

@@ -42,7 +42,7 @@ execute: |
     echo "The interface is initially disconnected"
     snap interfaces -i calendar-service | MATCH -- '- +test-snapd-eds:calendar-service'
     if [ "$(snap debug confinement)" = strict ]; then
-      ! test-snapd-eds.calendar list test-calendar
+      not test-snapd-eds.calendar list test-calendar
     fi
 
     echo "When the plug is connected, we can add events to calendars"

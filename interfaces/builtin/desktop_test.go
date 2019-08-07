@@ -178,7 +178,7 @@ func (s *DesktopInterfaceSuite) TestMountSpec(c *C) {
 	c.Check(entries[1].Dir, Equals, "/usr/local/share/fonts")
 	c.Check(entries[1].Options, DeepEquals, []string{"bind", "ro"})
 
-	c.Check(entries[2].Name, Equals, hostfs+dirs.SystemFontconfigCacheDir)
+	c.Check(entries[2].Name, Equals, hostfs+dirs.SystemFontconfigCacheDirs[0])
 	c.Check(entries[2].Dir, Equals, "/var/cache/fontconfig")
 	c.Check(entries[2].Options, DeepEquals, []string{"bind", "ro"})
 
@@ -186,24 +186,29 @@ func (s *DesktopInterfaceSuite) TestMountSpec(c *C) {
 	c.Assert(entries, HasLen, 1)
 	c.Check(entries[0].Dir, Equals, "$XDG_RUNTIME_DIR/doc")
 
-	// Fedora is a little special with their fontconfig cache location
+	// Fedora is a little special with their fontconfig cache location(s)
 	restore = release.MockReleaseInfo(&release.OS{ID: "fedora"})
 	defer restore()
 
 	tmpdir = c.MkDir()
 	dirs.SetRootDir(tmpdir)
-	c.Assert(dirs.SystemFontconfigCacheDir, Equals, filepath.Join(tmpdir, "/usr/lib/fontconfig/cache"))
+	c.Assert(dirs.SystemFontconfigCacheDirs, DeepEquals, []string{filepath.Join(tmpdir, "/var/cache/fontconfig"), filepath.Join(tmpdir, "/usr/lib/fontconfig/cache")})
 	c.Assert(os.MkdirAll(filepath.Join(tmpdir, "/usr/share/fonts"), 0777), IsNil)
 	c.Assert(os.MkdirAll(filepath.Join(tmpdir, "/usr/local/share/fonts"), 0777), IsNil)
 	c.Assert(os.MkdirAll(filepath.Join(tmpdir, "/usr/lib/fontconfig/cache"), 0777), IsNil)
+	c.Assert(os.MkdirAll(filepath.Join(tmpdir, "/var/cache/fontconfig"), 0777), IsNil)
 	spec = &mount.Specification{}
 	c.Assert(spec.AddConnectedPlug(s.iface, s.plug, s.coreSlot), IsNil)
 	entries = spec.MountEntries()
-	c.Assert(entries, HasLen, 3)
+	c.Assert(entries, HasLen, 4)
 
-	c.Check(entries[2].Name, Equals, hostfs+dirs.SystemFontconfigCacheDir)
-	c.Check(entries[2].Dir, Equals, "/usr/lib/fontconfig/cache")
+	c.Check(entries[2].Name, Equals, hostfs+dirs.SystemFontconfigCacheDirs[0])
+	c.Check(entries[2].Dir, Equals, "/var/cache/fontconfig")
 	c.Check(entries[2].Options, DeepEquals, []string{"bind", "ro"})
+
+	c.Check(entries[3].Name, Equals, hostfs+dirs.SystemFontconfigCacheDirs[1])
+	c.Check(entries[3].Dir, Equals, "/usr/lib/fontconfig/cache")
+	c.Check(entries[3].Options, DeepEquals, []string{"bind", "ro"})
 }
 
 func (s *DesktopInterfaceSuite) TestStaticInfo(c *C) {

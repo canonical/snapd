@@ -142,7 +142,8 @@ static void sc_populate_libgl_with_hostfs_symlinks(const char *libgl_dir,
 {
 	size_t source_dir_len = strlen(source_dir);
 	glob_t glob_res SC_CLEANUP(globfree) = {
-	.gl_pathv = NULL};
+		.gl_pathv = NULL
+	};
 	// Find all the entries matching the list of globs
 	for (size_t i = 0; i < glob_list_len; ++i) {
 		const char *glob_pattern = glob_list[i];

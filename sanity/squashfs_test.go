@@ -23,6 +23,7 @@ import (
 	. "gopkg.in/check.v1"
 
 	"github.com/snapcore/snapd/osutil/squashfs"
+	"github.com/snapcore/snapd/release"
 	"github.com/snapcore/snapd/sanity"
 	"github.com/snapcore/snapd/testutil"
 )
@@ -32,7 +33,7 @@ func (s *sanitySuite) TestCheckSquashfsMountHappy(c *C) {
 	defer restore()
 
 	// we create a canary.txt with the same prefix as the real one
-	mockMount := testutil.MockCommand(c, "mount", "echo 'This file is used to check that snapd can read a squashfs image.' > $4/canary.txt")
+	mockMount := testutil.MockCommand(c, "mount", `echo 'This file is used to check that snapd can read a squashfs image.' > "$4"/canary.txt`)
 	defer mockMount.Restore()
 
 	mockUmount := testutil.MockCommand(c, "umount", "")
@@ -81,7 +82,7 @@ func (s *sanitySuite) TestCheckSquashfsMountWrongContent(c *C) {
 	restore := squashfs.MockUseFuse(false)
 	defer restore()
 
-	mockMount := testutil.MockCommand(c, "mount", "echo 'wrong content' > $4/canary.txt")
+	mockMount := testutil.MockCommand(c, "mount", `echo 'wrong content' > "$4"/canary.txt`)
 	defer mockMount.Restore()
 
 	mockUmount := testutil.MockCommand(c, "umount", "")
@@ -92,4 +93,30 @@ func (s *sanitySuite) TestCheckSquashfsMountWrongContent(c *C) {
 
 	c.Check(mockMount.Calls(), HasLen, 1)
 	c.Check(mockUmount.Calls(), HasLen, 1)
+}
+
+func (s *sanitySuite) TestCheckSquashfsMountSELinuxContext(c *C) {
+	restore := squashfs.MockUseFuse(false)
+	defer restore()
+
+	mockMount := testutil.MockCommand(c, "mount", "echo 'mock ran'")
+	defer mockMount.Restore()
+
+	mockUmount := testutil.MockCommand(c, "umount", "")
+	defer mockUmount.Restore()
+
+	mockSELinux := release.MockSELinuxIsEnabled(func() (bool, error) { return true, nil })
+	defer mockSELinux()
+
+	err := sanity.CheckSquashfsMount()
+	c.Assert(err, ErrorMatches, `squashfs mount returned no err but canary file cannot be read`)
+
+	c.Check(mockMount.Calls(), HasLen, 1)
+	c.Check(mockUmount.Calls(), HasLen, 1)
+	squashfsFile := mockMount.Calls()[0][5]
+	mountPoint := mockMount.Calls()[0][6]
+
+	c.Check(mockMount.Calls(), DeepEquals, [][]string{
+		{"mount", "-t", "squashfs", "-o", "context=system_u:object_r:snappy_snap_t:s0", squashfsFile, mountPoint},
+	})
 }

@@ -34,6 +34,8 @@ case "$1" in
                 deb-systemd-invoke start "$unit" || true
             done
         fi
+        # Ensure that the void directory has correct permissions.
+        chmod 111 /var/lib/snapd/void
 esac
 
 #DEBHELPER#

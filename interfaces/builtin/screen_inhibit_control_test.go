@@ -51,7 +51,7 @@ apps:
   plugs: [screen-inhibit-control]
 `
 	s.slotInfo = &snap.SlotInfo{
-		Snap:      &snap.Info{SuggestedName: "core", Type: snap.TypeOS},
+		Snap:      &snap.Info{SuggestedName: "core", SnapType: snap.TypeOS},
 		Name:      "screen-inhibit-control",
 		Interface: "screen-inhibit-control",
 	}

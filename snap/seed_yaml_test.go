@@ -79,5 +79,55 @@ func (s *seedYamlTestSuite) TestNoPathAllowed(c *C) {
 	c.Assert(err, IsNil)
 
 	_, err = snap.ReadSeedYaml(fn)
-	c.Assert(err, ErrorMatches, `"foo/bar.snap" must be a filename, not a path`)
+	c.Assert(err, ErrorMatches, `cannot read seed yaml: "foo/bar.snap" must be a filename, not a path`)
+}
+
+func (s *seedYamlTestSuite) TestValidateChannelUnhappy(c *C) {
+	fn := filepath.Join(c.MkDir(), "seed.yaml")
+	err := ioutil.WriteFile(fn, []byte(`
+snaps:
+ - name: foo
+   channel: invalid/channel/
+`), 0644)
+	c.Assert(err, IsNil)
+
+	_, err = snap.ReadSeedYaml(fn)
+	c.Assert(err, ErrorMatches, `cannot read seed yaml: invalid risk in channel name: invalid/channel/`)
+}
+
+func (s *seedYamlTestSuite) TestValidateNameUnhappy(c *C) {
+	fn := filepath.Join(c.MkDir(), "seed.yaml")
+	err := ioutil.WriteFile(fn, []byte(`
+snaps:
+ - name: invalid--name
+   file: ./foo.snap
+`), 0644)
+	c.Assert(err, IsNil)
+
+	_, err = snap.ReadSeedYaml(fn)
+	c.Assert(err, ErrorMatches, `cannot read seed yaml: invalid snap name: "invalid--name"`)
+}
+
+func (s *seedYamlTestSuite) TestValidateNameMissing(c *C) {
+	fn := filepath.Join(c.MkDir(), "seed.yaml")
+	err := ioutil.WriteFile(fn, []byte(`
+snaps:
+ - file: ./foo.snap
+`), 0644)
+	c.Assert(err, IsNil)
+
+	_, err = snap.ReadSeedYaml(fn)
+	c.Assert(err, ErrorMatches, `cannot read seed yaml: invalid snap name: ""`)
+}
+
+func (s *seedYamlTestSuite) TestValidateFileMissing(c *C) {
+	fn := filepath.Join(c.MkDir(), "seed.yaml")
+	err := ioutil.WriteFile(fn, []byte(`
+snaps:
+ - name: foo
+`), 0644)
+	c.Assert(err, IsNil)
+
+	_, err = snap.ReadSeedYaml(fn)
+	c.Assert(err, ErrorMatches, `cannot read seed yaml: "file" attribute for "foo" cannot be empty`)
 }

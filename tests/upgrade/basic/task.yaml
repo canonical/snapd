@@ -1,8 +1,8 @@
 summary: Check that upgrade works
 
 # arch: there is no snapd in arch repos
-# amazon, centos: enable when snapd hits EPEL
-systems: [-debian-sid-*, -arch-*, -amazon-*, -centos-*]
+# amazon: enable once it's possible to install snapd from EPEL
+systems: [-debian-sid-*, -arch-*, -amazon-*]
 
 restore: |
     if [ "$REMOTE_STORE" = staging ]; then
@@ -10,6 +10,18 @@ restore: |
         exit 0
     fi
     rm -f /var/tmp/myevil.txt
+    rm -f ./do-classic ./prevsnapdver.out
+
+    # An older version of snapd might have been missing proper context
+    # transitions for fontconfig cache locations, attempt to restore the context
+    # to avoid breaking tests that run after this one
+    case "$SPREAD_SYSTEM" in
+        fedora-*|centos-*)
+            if [ -d /var/cache/fontconfig ]; then
+                restorecon -RvF /var/cache/fontconfig
+            fi
+            ;;
+    esac
 
 execute: |
     if [ "$REMOTE_STORE" = staging ]; then
@@ -21,75 +33,120 @@ execute: |
     #shellcheck source=tests/lib/snaps.sh
     . "$TESTSLIB/snaps.sh"
 
-    echo "Remove snapd and snap-confine"
-    distro_purge_package snapd snap-confine || true
-    if [[ "$SPREAD_SYSTEM" = fedora-* ]] ; then
-        distro_purge_package snapd-selinux || true
-    fi
+    if [[ "$SPREAD_REBOOT" == "0" ]]; then
 
-    echo "Install previous snapd version from the store"
-    distro_install_package snap-confine snapd
+        echo "Remove snapd and snap-confine"
+        distro_purge_package snapd snap-confine || true
+        case "$SPREAD_SYSTEM" in
+            fedora-*|centos-*)
+                distro_purge_package snapd-selinux || true
+                ;;
+        esac
 
-    if [[ "$SPREAD_SYSTEM" == arch-* ]]; then
-        # Services are not auto enabled or started on Arch
-        systemctl daemon-reload
-        systemctl restart snapd.socket
-        systemctl enable snapd.socket
-    fi
+        echo "Install previous snapd version from the store"
+        distro_install_package snap-confine snapd
 
-    # need to be seeded to allow snap install
-    if ! snap wait 2>&1|MATCH "unknown command" ; then
-        snap wait system seed.loaded
-    fi
+        case "$SPREAD_SYSTEM" in
+            arch-*|centos-*)
+                # Start the services on distros where that doesn't happen
+                # automatically
+                systemctl daemon-reload
+                systemctl restart snapd.socket
+                systemctl enable snapd.socket
+                ;;
+        esac
 
-    prevsnapdver=$(snap --version|grep "snapd ")
+        # Need to be seeded to allow snap install
+        if ! snap wait 2>&1|MATCH "unknown command" ; then
+            snap wait system seed.loaded
+        fi
 
-    if [[ "$SPREAD_SYSTEM" = debian-* ]] ; then
-        # For debian we install the latest core snap independently until
-        # the bug fix is on stable once 2.27 landed
-        snap install core
-    fi
+        prevsnapdver="$(snap --version|grep "snapd ")"
+        echo "$prevsnapdver" > prevsnapdver.out
 
-    echo "Install sanity check snaps with it"
-    snap install test-snapd-tools
-    snap install test-snapd-auto-aliases
-    # transitional: drop the "snap pack" check once it's released
+        if [[ "$SPREAD_SYSTEM" = debian-* ]] ; then
+            # For debian we install the latest core snap independently until
+            # the bug fix is on stable once 2.27 landed
+            snap install core
+        fi
+
+        echo "Install sanity check snaps with it"
+        snap install test-snapd-tools
+        snap install test-snapd-auto-aliases
+
+        do_classic=no
+        if is_classic_confinement_supported ; then
+            install_local_classic test-snapd-classic-confinement
+            do_classic=yes
+            # Preserve the state across reboots if necessary
+            touch do-classic
+        fi
+
+        echo "Sanity check installs"
+        test-snapd-tools.echo Hello | grep Hello
+        test-snapd-tools.env | grep SNAP_NAME=test-snapd-tools
+        test_snapd_wellknown1|MATCH "ok wellknown 1"
+        test_snapd_wellknown2|MATCH "ok wellknown 2"
+
+        context_transition=0
+        case "$SPREAD_SYSTEM" in
+            fedora-*|centos-*)
+                if ! MATCH 'Options=.*context=.' /etc/systemd/system/var-lib-snapd-snap-core-*.mount; then
+                    context_transition=1
+                fi
+                ;;
+        esac
+
+        echo "Do upgrade"
+        # allow-downgrades prevents errors when new versions hit the archive, for instance,
+        # trying to install 2.11ubuntu1 over 2.11+0.16.04
+        pkg_extension="$(distro_get_package_extension)"
+        if [[ "$SPREAD_SYSTEM" == arch-* ]]; then
+            # Arch's pacman is a bit funky here, the command that's run is:
+            #    pacman -U --noconfirm --force /home/gopath/snapd-*.pkg.tar.xz
+            # The official repo package contains snapd and snap-confine. The local test package
+            # conflicts with snap-confine, thus pacman will ask to remove snap-confine, displaying
+            # a question, but at the same time it completely ignores --noconfirm and aborts the upgrade.
+            # As a workaround, drop --noconfirm and pass 'y' to all the questions.
+            yes | pacman -U "$GOHOME"/snap*."$pkg_extension"
+        else
+            distro_install_local_package --allow-downgrades "$GOHOME"/snap*."$pkg_extension"
+            if [ "$context_transition" = "1" ]; then
+                echo "Requesting reboot to enable SELinux mount context transition"
+                # transitioning SELinux mount contexts requires a reboot
+                REBOOT
+            fi
+        fi
+
+    fi # SPREAD_REBOOT == 0
+
     do_classic=no
-    if is_classic_confinement_supported && snap pack --help >&/dev/null ; then
-        install_local_classic test-snapd-classic-confinement
+    if [ -e do-classic ]; then
         do_classic=yes
     fi
 
-    echo "Sanity check installs"
-    test-snapd-tools.echo Hello | grep Hello
-    test-snapd-tools.env | grep SNAP_NAME=test-snapd-tools
-    test_snapd_wellknown1|MATCH "ok wellknown 1"
-    test_snapd_wellknown2|MATCH "ok wellknown 2"
-
-    echo "Do upgrade"
-    # allow-downgrades prevents errors when new versions hit the archive, for instance,
-    # trying to install 2.11ubuntu1 over 2.11+0.16.04
-    pkg_extension="$(distro_get_package_extension)"
-    if [[ "$SPREAD_SYSTEM" == arch-* ]]; then
-        # Arch's pacman is a bit funky here, the command that's run is:
-        #    pacman -U --noconfirm --force /home/gopath/snapd-*.pkg.tar.xz
-        # The official repo package contains snapd and snap-confine. The local test package
-        # conflicts with snap-confine, thus pacman will ask to remove snap-confine, displaying
-        # a question, but at the same time it completely ignores --noconfirm and aborts the upgrade.
-        # As a workaround, drop --noconfirm and pass 'y' to all the questions.
-        yes | pacman -U "$GOHOME"/snap*."$pkg_extension"
-    else
-        distro_install_local_package --allow-downgrades "$GOHOME"/snap*."$pkg_extension"
-    fi
-
     snapdver=$(snap --version|grep "snapd ")
-    [ "$snapdver" != "$prevsnapdver" ]
+    [ "$snapdver" != "$(cat prevsnapdver)" ]
+
+    #shellcheck source=tests/lib/dirs.sh
+    . "$TESTSLIB"/dirs.sh
+
+    case "$SPREAD_SYSTEM" in
+        fedora-*|centos-*)
+            # All mount units should have been patched on upgrade
+            unit_prefix="$(systemd-escape -p ${SNAP_MOUNT_DIR})"
+            for unit in /etc/systemd/system/"$unit_prefix"-*.mount; do
+                MATCH 'Options=.*context=system_u:object_r:snappy_snap_t:s0' "$unit"
+            done
+            ;;
+    esac
+
 
     echo "Sanity check already installed snaps after upgrade"
     snap list | grep core
     snap list | grep test-snapd-tools
-    test-snapd-tools.echo Hello | grep Hello
-    test-snapd-tools.env | grep SNAP_NAME=test-snapd-tools
+    test-snapd-tools.echo Hello | MATCH "Hello"
+    test-snapd-tools.env | MATCH "SNAP_NAME=test-snapd-tools"
     if [ "$do_classic" = yes ]; then
         test-snapd-classic-confinement.recurse 5
     fi

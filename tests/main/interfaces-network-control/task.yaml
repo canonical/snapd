@@ -44,6 +44,7 @@ restore: |
 
     ip netns delete test-ns || true
     ip link delete veth0 || true
+    umount /run/netns || true
 
 execute: |
     #shellcheck source=tests/lib/network.sh

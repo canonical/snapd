@@ -29,11 +29,12 @@ import (
 	. "gopkg.in/check.v1"
 
 	"github.com/snapcore/snapd/boot/boottest"
+	"github.com/snapcore/snapd/bootloader"
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/overlord"
 	"github.com/snapcore/snapd/overlord/snapstate"
+	"github.com/snapcore/snapd/overlord/snapstate/snapstatetest"
 	"github.com/snapcore/snapd/overlord/state"
-	"github.com/snapcore/snapd/partition"
 	"github.com/snapcore/snapd/release"
 	"github.com/snapcore/snapd/snap"
 	"github.com/snapcore/snapd/snap/snaptest"
@@ -66,9 +67,9 @@ func (bs *bootedSuite) SetUpTest(c *C) {
 	release.MockOnClassic(false)
 
 	bs.bootloader = boottest.NewMockBootloader("mock", c.MkDir())
-	bs.bootloader.BootVars["snap_core"] = "core_2.snap"
-	bs.bootloader.BootVars["snap_kernel"] = "canonical-pc-linux_2.snap"
-	partition.ForceBootloader(bs.bootloader)
+	boottest.SetBootKernel("canonical-pc-linux_2.snap", bs.bootloader)
+	boottest.SetBootBase("core_2.snap", bs.bootloader)
+	bootloader.Force(bs.bootloader)
 
 	bs.fakeBackend = &fakeSnappyBackend{}
 	bs.o = overlord.Mock()
@@ -81,20 +82,22 @@ func (bs *bootedSuite) SetUpTest(c *C) {
 	bs.o.AddManager(bs.snapmgr)
 	bs.o.AddManager(bs.o.TaskRunner())
 
+	c.Assert(bs.o.StartUp(), IsNil)
+
 	snapstate.SetSnapManagerBackend(bs.snapmgr, bs.fakeBackend)
 	snapstate.AutoAliases = func(*state.State, *snap.Info) (map[string]string, error) {
 		return nil, nil
 	}
-	snapstate.SetDefaultModel()
+	bs.restore = snapstatetest.MockDeviceModel(DefaultModel())
 }
 
 func (bs *bootedSuite) TearDownTest(c *C) {
 	bs.BaseTest.TearDownTest(c)
 	snapstate.AutoAliases = nil
-	snapstate.Model = nil
+	bs.restore()
 	release.MockOnClassic(true)
 	dirs.SetRootDir("")
-	partition.ForceBootloader(nil)
+	bootloader.Force(nil)
 }
 
 var osSI1 = &snap.SideInfo{RealName: "core", Revision: snap.R(1)}
@@ -134,7 +137,7 @@ func (bs *bootedSuite) TestUpdateBootRevisionsOSSimple(c *C) {
 
 	bs.makeInstalledKernelOS(c, st)
 
-	bs.bootloader.BootVars["snap_core"] = "core_1.snap"
+	boottest.SetBootBase("core_1.snap", bs.bootloader)
 	err := snapstate.UpdateBootRevisions(st)
 	c.Assert(err, IsNil)
 
@@ -168,7 +171,7 @@ func (bs *bootedSuite) TestUpdateBootRevisionsKernelSimple(c *C) {
 
 	bs.makeInstalledKernelOS(c, st)
 
-	bs.bootloader.BootVars["snap_kernel"] = "canonical-pc-linux_1.snap"
+	boottest.SetBootKernel("canonical-pc-linux_1.snap", bs.bootloader)
 	err := snapstate.UpdateBootRevisions(st)
 	c.Assert(err, IsNil)
 
@@ -202,7 +205,7 @@ func (bs *bootedSuite) TestUpdateBootRevisionsKernelErrorsEarly(c *C) {
 
 	bs.makeInstalledKernelOS(c, st)
 
-	bs.bootloader.BootVars["snap_kernel"] = "canonical-pc-linux_99.snap"
+	boottest.SetBootKernel("canonical-pc-linux_99.snap", bs.bootloader)
 	err := snapstate.UpdateBootRevisions(st)
 	c.Assert(err, ErrorMatches, `cannot find revision 99 for snap "canonical-pc-linux"`)
 }
@@ -214,7 +217,7 @@ func (bs *bootedSuite) TestUpdateBootRevisionsOSErrorsEarly(c *C) {
 
 	bs.makeInstalledKernelOS(c, st)
 
-	bs.bootloader.BootVars["snap_core"] = "core_99.snap"
+	boottest.SetBootBase("core_99.snap", bs.bootloader)
 	err := snapstate.UpdateBootRevisions(st)
 	c.Assert(err, ErrorMatches, `cannot find revision 99 for snap "core"`)
 }
@@ -243,7 +246,7 @@ func (bs *bootedSuite) TestUpdateBootRevisionsOSErrorsLate(c *C) {
 	})
 	bs.fakeBackend.linkSnapFailTrigger = filepath.Join(dirs.SnapMountDir, "/core/1")
 
-	bs.bootloader.BootVars["snap_core"] = "core_1.snap"
+	boottest.SetBootBase("core_1.snap", bs.bootloader)
 	err := snapstate.UpdateBootRevisions(st)
 	c.Assert(err, IsNil)
 
@@ -256,49 +259,6 @@ func (bs *bootedSuite) TestUpdateBootRevisionsOSErrorsLate(c *C) {
 	c.Assert(chg.Kind(), Equals, "update-revisions")
 	c.Assert(chg.IsReady(), Equals, true)
 	c.Assert(chg.Err(), ErrorMatches, `(?ms).*Make snap "core" \(1\) available to the system \(fail\).*`)
-}
-
-func (bs *bootedSuite) TestNameAndRevnoFromSnapValid(c *C) {
-	name, revno, err := snapstate.NameAndRevnoFromSnap("foo_2.snap")
-	c.Assert(err, IsNil)
-	c.Assert(name, Equals, "foo")
-	c.Assert(revno, Equals, snap.R(2))
-}
-
-func (bs *bootedSuite) TestNameAndRevnoFromSnapInvalidFormat(c *C) {
-	_, _, err := snapstate.NameAndRevnoFromSnap("invalid")
-	c.Assert(err, ErrorMatches, `input "invalid" has invalid format \(not enough '_'\)`)
-}
-
-func (bs *bootedSuite) TestCurrentBootNameAndRevision(c *C) {
-	name, revision, err := snapstate.CurrentBootNameAndRevision(snap.TypeOS)
-	c.Check(err, IsNil)
-	c.Check(name, Equals, "core")
-	c.Check(revision, Equals, snap.R(2))
-
-	name, revision, err = snapstate.CurrentBootNameAndRevision(snap.TypeKernel)
-	c.Check(err, IsNil)
-	c.Check(name, Equals, "canonical-pc-linux")
-	c.Check(revision, Equals, snap.R(2))
-
-	bs.bootloader.BootVars["snap_mode"] = "trying"
-	_, _, err = snapstate.CurrentBootNameAndRevision(snap.TypeKernel)
-	c.Check(err, Equals, snapstate.ErrBootNameAndRevisionAgain)
-}
-
-func (bs *bootedSuite) TestCurrentBootNameAndRevisionUnhappy(c *C) {
-	delete(bs.bootloader.BootVars, "snap_kernel")
-	_, _, err := snapstate.CurrentBootNameAndRevision(snap.TypeKernel)
-	c.Check(err, ErrorMatches, "cannot retrieve boot revision for kernel: unset")
-
-	delete(bs.bootloader.BootVars, "snap_core")
-	_, _, err = snapstate.CurrentBootNameAndRevision(snap.TypeOS)
-	c.Check(err, ErrorMatches, "cannot retrieve boot revision for core: unset")
-
-	delete(bs.bootloader.BootVars, "snap_core")
-	_, _, err = snapstate.CurrentBootNameAndRevision(snap.TypeBase)
-	c.Check(err, ErrorMatches, "cannot retrieve boot revision for base: unset")
-
 }
 
 func (bs *bootedSuite) TestWaitRestartCore(c *C) {
@@ -339,13 +299,14 @@ func (bs *bootedSuite) TestWaitRestartCore(c *C) {
 	c.Check(err, IsNil)
 
 	// core snap, restarted, wrong core revision, rollback!
-	bs.bootloader.BootVars["snap_core"] = "core_1.snap"
+	boottest.SetBootBase("core_1.snap", bs.bootloader)
 	err = snapstate.WaitRestart(task, snapsup)
 	c.Check(err, ErrorMatches, `cannot finish core installation, there was a rollback across reboot`)
 }
 
 func (bs *bootedSuite) TestWaitRestartBootableBase(c *C) {
-	snapstate.SetModelWithBase("core18")
+	r := snapstatetest.MockDeviceModel(ModelWithBase("core18"))
+	defer r()
 
 	st := bs.state
 	st.Lock()
@@ -385,12 +346,12 @@ func (bs *bootedSuite) TestWaitRestartBootableBase(c *C) {
 
 	// core snap, restarted, right core revision, no rollback
 	bs.bootloader.BootVars["snap_mode"] = ""
-	bs.bootloader.BootVars["snap_core"] = "core18_2.snap"
+	boottest.SetBootBase("core18_2.snap", bs.bootloader)
 	err = snapstate.WaitRestart(task, snapsup)
 	c.Check(err, IsNil)
 
 	// core snap, restarted, wrong core revision, rollback!
-	bs.bootloader.BootVars["snap_core"] = "core18_1.snap"
+	boottest.SetBootBase("core18_1.snap", bs.bootloader)
 	err = snapstate.WaitRestart(task, snapsup)
 	c.Check(err, ErrorMatches, `cannot finish core18 installation, there was a rollback across reboot`)
 }
