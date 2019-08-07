@@ -426,11 +426,13 @@ func (s *servicectlSuite) TestQueuedCommandsRunBeforeMarkSeeded(c *C) {
 			commandWt[wt.Kind()] = true
 		}
 		// exec-command for "stop" should wait for configure hook task, "start" should wait for "stop" and "configure" hook task.
-		if argv[1] == "stop" {
+		switch argv[1] {
+		case "stop":
 			c.Check(commandWt, DeepEquals, map[string]bool{"run-hook": true})
-		} else {
-			c.Check(argv[1], Equals, "start")
+		case "start":
 			c.Check(commandWt, DeepEquals, map[string]bool{"run-hook": true, "exec-command": true})
+		default:
+			c.Fatalf("unexpected command: %q", argv[1])
 		}
 	}
 	c.Check(markSeeded.HaltTasks(), HasLen, 0)
