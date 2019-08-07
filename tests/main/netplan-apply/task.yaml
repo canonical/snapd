@@ -15,42 +15,33 @@ prepare: |
     . "$TESTSLIB"/snaps.sh
     snap install test-snapd-netplan-apply --edge
 
-    echo "temporarily installing netplan D-Bus service until SRU is done..."
-    # for now, until netplan's D-Bus has been SRU'd to the netplan.io debian 
-    # package, we will just manually install the netplan D-Bus service units
-    # into the machine from the snap and install netplan.io from the archive
-    apt update
-
-    # the netplan package was renamed nplan -> netplan.io in bionic
-    case "$SPREAD_SYSTEM" in
-        ubuntu-16*)
-            NETPLAN_APT_PKG=nplan;;
-        *)
-            NETPLAN_APT_PKG=netplan.io;;
-    esac
-
-    apt install -y $NETPLAN_APT_PKG
-
-    NETPLAN_SNAP=/snap/test-snapd-netplan-apply/current
-
-    mkdir -p /lib/netplan
-    cp $NETPLAN_SNAP/lib/netplan/netplan-dbus \
-        /lib/netplan/netplan-dbus
-    chmod +x /lib/netplan/netplan-dbus
-    mkdir -p /usr/share/dbus-1/system-services
-    cp $NETPLAN_SNAP/share/dbus-1/system-services/io.netplan.Netplan.service \
-        /usr/share/dbus-1/system-services/io.netplan.Netplan.service
-    mkdir -p /usr/share/dbus-1/system.d
-    cp $NETPLAN_SNAP/share/dbus-1/system.d/io.netplan.Netplan.conf \
-        /usr/share/dbus-1/system.d/io.netplan.Netplan.conf
-
-restore: |
-    echo "uninstalling netplan D-Bus service"
-    rm -f /usr/lib/netplan/netplan-dbus
+    # ensure that the service file doesn't exist before running
     rm -f /usr/share/dbus-1/system-services/io.netplan.Netplan.service
     rm -f /usr/share/dbus-1/system.d/io.netplan.Netplan.conf
 
+restore: |
+    echo "uninstalling netplan D-Bus service"
+    rm -f /usr/share/dbus-1/system-services/io.netplan.Netplan.service
+    rm -f /usr/share/dbus-1/system.d/io.netplan.Netplan.conf
+    snap remove test-snapd-netplan-apply
+
 execute: |
+    # install the dbus configuration file for our fake netplan system dbus service
+    mkdir -p /usr/share/dbus-1/system.d 
+    mkdir -p /usr/share/dbus-1/system-services
+    cp $(pwd)/io.netplan.Netplan.conf /usr/share/dbus-1/system.d/io.netplan.Netplan.conf
+
+    # install the fake netplan system dbus service
+    echo "Make the netplan service activatable"
+    cat << EOF > /usr/share/dbus-1/system-services/io.netplan.Netplan.service
+    [D-BUS Service]
+    Name=io.netplan.Netplan
+    Exec=$(pwd)/fake-netplan-apply-service.py $(pwd)/dbus-netplan-apply.log
+    User=root
+    EOF
+
+    touch dbus-netplan-apply.log
+
     echo "The interface is disconnected by default"
     snap connections test-snapd-netplan-apply | MATCH 'network-setup-control +test-snapd-netplan-apply:network-setup-control +- +-'
 
@@ -60,6 +51,9 @@ execute: |
         exit 1
     fi
 
+    echo "The D-Bus service was not activated"
+    not MATCH "Apply called" < dbus-netplan-apply.log
+
     echo "When the interface is connected"
     snap connect test-snapd-netplan-apply:network-setup-control
 
@@ -68,3 +62,6 @@ execute: |
         echo "Unexpected error running netplan apply"
         exit 1
     fi
+
+    echo "And the D-Bus service was activated"
+    MATCH "Apply called" < dbus-netplan-apply.log
