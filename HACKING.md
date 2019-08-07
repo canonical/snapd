@@ -8,7 +8,8 @@ integration test framework for the integration/system level tests.
 
 ### Supported Go versions
 
-snapd is supported on Go 1.6 onwards.
+From snapd 2.38, snapd supports Go 1.9 and onwards. For earlier snapd 
+releases, snapd supports Go 1.6.
 
 ### Setting up a GOPATH
 
@@ -108,8 +109,8 @@ Contributions are always welcome! Please make sure that you sign the
 Canonical contributor license agreement at
 http://www.ubuntu.com/legal/contributors
 
-Snapd can be found on Github, so in order to fork the source and contribute,
-go to https://github.com/snapcore/snapd. Check out [Github's help
+Snapd can be found on GitHub, so in order to fork the source and contribute,
+go to https://github.com/snapcore/snapd. Check out [GitHub's help
 pages](https://help.github.com/) to find out how to set up your local branch,
 commit changes and create pull requests.
 
@@ -126,9 +127,11 @@ To run the various tests that we have to ensure a high quality source just run:
 This will check if the source format is consistent, that it builds, all tests
 work as expected and that "go vet" has nothing to complain.
 
-The source format follows the `gofmt -s` formating. Please run this on your sources files if `run-checks` complains about the format.
+The source format follows the `gofmt -s` formating. Please run this on your 
+source files if `run-checks` complains about the format.
 
-You can run individual test for a sub-package by changing into that directory and:
+You can run an individual test for a sub-package by changing into that 
+directory and:
 
     go test -check.f $testname
 
@@ -140,33 +143,64 @@ If a test hangs, you can enable verbose mode:
 
 There is more to read about the testing framework on the [website](https://labix.org/gocheck)
 
-### Running the spread tests
+### Running spread tests
 
-To run the spread tests locally you need the latest version of spread
-from https://github.com/snapcore/spread. It can be installed via:
+To run the spread tests locally via QEMU, you need the latest version of
+[spread](https://github.com/snapcore/spread). You can get spread, QEMU, and the
+build tools to build QEMU images with:
 
-    $ sudo apt install qemu-kvm autopkgtest
-    $ sudo snap install --devmode spread
+    $ sudo apt update && sudo apt install -y qemu-kvm autopkgtest
+    $ curl https://niemeyer.s3.amazonaws.com/spread-amd64.tar.gz | tar -xz -C $GOPATH/bin
 
-Then setup the environment via:
+#### Building spread VM images
 
-    $ mkdir -p .spread/qemu
-    $ cd .spread/qemu
-    # For xenial (same works for yakkety/zesty)
-    $ adt-buildvm-ubuntu-cloud -r xenial
-    $ mv adt-xenial-amd64-cloud.img ubuntu-16.04.img
-    # For trusty
-    $ adt-buildvm-ubuntu-cloud -r trusty --post-command='sudo apt-get install -y --install-recommends linux-generic-lts-xenial && update-grub'
+To run the spread tests via QEMU you need to create VM images in the
+`~/.spread/qemu` directory:
+
+    $ mkdir -p ~/.spread/qemu
+    $ cd ~/.spread/qemu
+
+Assuming you are building on Ubuntu 18.04 LTS (Bionic Beaver) (or a later 
+development release like Ubuntu 19.04 (Disco Dingo)), run the following to 
+build a 64-bit Ubuntu 16.04 LTS (Xenial Xerus) VM to run the spread tests on:
+
+    $ autopkgtest-buildvm-ubuntu-cloud -r xenial
+    $ mv autopkgtest-xenial-amd64.img ubuntu-16.04-64.img
+
+To build an Ubuntu 14.04 (Trusty Tahr) based VM, use:
+
+    $ autopkgtest-buildvm-ubuntu-cloud -r trusty --post-command='sudo apt-get install -y --install-recommends linux-generic-lts-xenial && update-grub'
     $ mv adt-trusty-amd64-cloud.img ubuntu-14.04-64.img
 
+This is because we need at least 4.4+ kernel for snapd to run on Ubuntu 14.04 
+LTS, which is available through the `linux-generic-lts-xenial` package.
 
-And you can run the tests via:
+If you are running Ubuntu 16.04 LTS, use 
+`adt-buildvm-ubuntu-cloud` instead of `autopkgtest-buildvm-ubuntu-cloud` (the
+latter replaced the former in 18.04):
 
-    $ spread -v qemu:
+    $ adt-buildvm-ubuntu-cloud -r xenial
+    $ mv adt-xenial-amd64-cloud.img ubuntu-16.04-64.img
+
+#### Downloading spread VM images
+
+Alternatively, instead of building the QEMU images manually, you can download
+pre-built and somewhat maintained images from 
+[spread.zygoon.pl](spread.zygoon.pl). The images will need to be extracted 
+with `gunzip` and placed into `~/.spread/qemu` as above.
+
+#### Running spread with QEMU
+
+Finally, you can run the spread tests for Ubuntu 16.04 LTS 64-bit with:
+
+    $ spread -v qemu:ubuntu-16.04-64
+
+To run for a different system, replace `ubuntu-16.04-64` with a different system
+name.
 
 For quick reuse you can use:
 
-    $ spread -reuse qemu:
+    $ spread -reuse qemu:ubuntu-16.04-64
 
 It will print how to reuse the systems. Make sure to use
 `export REUSE_PROJECT=1` in your environment too.
@@ -200,7 +234,7 @@ To get started from a pristine tree you want to do this:
 ./mkversion.sh
 cd cmd/
 autoreconf -i -f
-./configure --prefix=/usr --libexecdir=/usr/lib/snapd --enable-nvidia-ubuntu
+./configure --prefix=/usr --libexecdir=/usr/lib/snapd
 ```
 
 This will drop makefiles and let you build stuff. You may find the `make hack`
