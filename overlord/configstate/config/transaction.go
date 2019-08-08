@@ -172,6 +172,8 @@ func (t *Transaction) Get(snapName, key string, result interface{}) error {
 	// commit changes onto a copy of pristine configuration, so that get has a complete view of the config.
 	config := t.copyPristine(snapName)
 	applyChanges(config, t.changes[snapName])
+
+	purgeNulls(config)
 	return getFromConfig(snapName, subkeys, 0, config, result)
 }
 
@@ -254,6 +256,7 @@ func (t *Transaction) Commit() {
 			config = make(map[string]*json.RawMessage)
 		}
 		applyChanges(config, snapChanges)
+		purgeNulls(config)
 		t.pristine[instanceName] = config
 	}
 

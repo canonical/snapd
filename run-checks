@@ -247,7 +247,7 @@ if [ "$UNIT" = 1 ]; then
     echo Running tests from "$PWD"
     if [ "$short" = 1 ]; then
             # shellcheck disable=SC2046
-            $goctest -short -v $(go list ./... | grep -v '/vendor/' )
+            $goctest -short -v -timeout 5m $(go list ./... | grep -v '/vendor/' )
     else
         # Prepare the coverage output profile.
         rm -rf .coverage
@@ -256,11 +256,11 @@ if [ "$UNIT" = 1 ]; then
 
         if dpkg --compare-versions "$(go version | awk '$3 ~ /^go[0-9]/ {print substr($3, 3)}')" ge 1.10; then
             # shellcheck disable=SC2046
-            $goctest -v -coverprofile=.coverage/coverage.out -covermode="$COVERMODE" $(go list ./... | grep -v '/vendor/' )
+            $goctest -v -timeout 5m -coverprofile=.coverage/coverage.out -covermode="$COVERMODE" $(go list ./... | grep -v '/vendor/' )
         else
             for pkg in $(go list ./... | grep -v '/vendor/' ); do
                 go test -i "$pkg"
-                $goctest -v -coverprofile=.coverage/profile.out -covermode="$COVERMODE" "$pkg"
+                $goctest -v -timeout 5m -coverprofile=.coverage/profile.out -covermode="$COVERMODE" "$pkg"
                 append_coverage .coverage/profile.out
             done
         fi
@@ -269,6 +269,10 @@ if [ "$UNIT" = 1 ]; then
             curl -s https://codecov.io/bash | bash /dev/stdin -f .coverage/coverage.out
         fi
     fi
+
+    # python unit test for mountinfo-tool
+    command -v python2 && python2 ./tests/lib/bin/mountinfo-tool --run-unit-tests
+    command -v python3 && python3 ./tests/lib/bin/mountinfo-tool --run-unit-tests
 fi
 
 if [ -n "$SPREAD" ]; then

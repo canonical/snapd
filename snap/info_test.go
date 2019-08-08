@@ -399,7 +399,7 @@ confinement: devmode`
 	c.Assert(err, IsNil)
 	c.Check(info.InstanceName(), Equals, "foo")
 	c.Check(info.Version, Equals, "1.0")
-	c.Check(info.Type, Equals, snap.TypeApp)
+	c.Check(info.GetType(), Equals, snap.TypeApp)
 	c.Check(info.Revision, Equals, snap.R(0))
 	c.Check(info.Epoch.String(), Equals, "1*")
 	c.Check(info.Confinement, Equals, snap.DevModeConfinement)
@@ -421,7 +421,7 @@ confinement: classic`
 	c.Assert(err, IsNil)
 	c.Check(info.InstanceName(), Equals, "foo")
 	c.Check(info.Version, Equals, "1.0")
-	c.Check(info.Type, Equals, snap.TypeApp)
+	c.Check(info.GetType(), Equals, snap.TypeApp)
 	c.Check(info.Revision, Equals, snap.R(0))
 	c.Check(info.Confinement, Equals, snap.ClassicConfinement)
 	c.Check(info.NeedsDevMode(), Equals, false)
@@ -441,7 +441,7 @@ type: app`
 	c.Assert(err, IsNil)
 	c.Check(info.InstanceName(), Equals, "foo")
 	c.Check(info.Version, Equals, "1.0")
-	c.Check(info.Type, Equals, snap.TypeApp)
+	c.Check(info.GetType(), Equals, snap.TypeApp)
 	c.Check(info.Revision, Equals, snap.R(0))
 	c.Check(info.Epoch.String(), Equals, "0") // Defaults to 0
 	c.Check(info.Confinement, Equals, snap.StrictConfinement)
@@ -464,7 +464,7 @@ type: app`
 	c.Assert(err, IsNil)
 	c.Check(info.InstanceName(), Equals, "baz")
 	c.Check(info.Version, Equals, "1.0")
-	c.Check(info.Type, Equals, snap.TypeApp)
+	c.Check(info.GetType(), Equals, snap.TypeApp)
 	c.Check(info.Revision, Equals, snap.R(42))
 }
 
@@ -1503,6 +1503,19 @@ func (s *infoSuite) TestIsActive(c *C) {
 	c.Check(info2.IsActive(), Equals, false)
 }
 
+func (s *infoSuite) TestGetTypeSnapdBackwardCompatibility(c *C) {
+	restore := snap.MockSnapdSnapID("snapd-id")
+	defer restore()
+
+	const snapdYaml = `
+name: snapd
+type: app
+version: 1
+`
+	snapInfo := snaptest.MockSnap(c, sampleYaml, &snap.SideInfo{Revision: snap.R(1), SnapID: "snapd-id"})
+	c.Check(snapInfo.GetType(), Equals, snap.TypeSnapd)
+}
+
 func (s *infoSuite) TestDirAndFileHelpers(c *C) {
 	dirs.SetRootDir("")
 
@@ -1529,39 +1542,39 @@ func (s *infoSuite) TestDirAndFileHelpers(c *C) {
 
 func (s *infoSuite) TestSortByType(c *C) {
 	infos := []*snap.Info{
-		{SuggestedName: "app1", Type: "app"},
-		{SuggestedName: "os1", Type: "os"},
-		{SuggestedName: "base1", Type: "base"},
-		{SuggestedName: "gadget1", Type: "gadget"},
-		{SuggestedName: "kernel1", Type: "kernel"},
-		{SuggestedName: "app2", Type: "app"},
-		{SuggestedName: "os2", Type: "os"},
-		{SuggestedName: "snapd", Type: "snapd"},
-		{SuggestedName: "base2", Type: "base"},
-		{SuggestedName: "gadget2", Type: "gadget"},
-		{SuggestedName: "kernel2", Type: "kernel"},
+		{SuggestedName: "app1", SnapType: "app"},
+		{SuggestedName: "os1", SnapType: "os"},
+		{SuggestedName: "base1", SnapType: "base"},
+		{SuggestedName: "gadget1", SnapType: "gadget"},
+		{SuggestedName: "kernel1", SnapType: "kernel"},
+		{SuggestedName: "app2", SnapType: "app"},
+		{SuggestedName: "os2", SnapType: "os"},
+		{SuggestedName: "snapd", SnapType: "snapd"},
+		{SuggestedName: "base2", SnapType: "base"},
+		{SuggestedName: "gadget2", SnapType: "gadget"},
+		{SuggestedName: "kernel2", SnapType: "kernel"},
 	}
 	sort.Stable(snap.ByType(infos))
 
 	c.Check(infos, DeepEquals, []*snap.Info{
-		{SuggestedName: "snapd", Type: "snapd"},
-		{SuggestedName: "os1", Type: "os"},
-		{SuggestedName: "os2", Type: "os"},
-		{SuggestedName: "kernel1", Type: "kernel"},
-		{SuggestedName: "kernel2", Type: "kernel"},
-		{SuggestedName: "base1", Type: "base"},
-		{SuggestedName: "base2", Type: "base"},
-		{SuggestedName: "gadget1", Type: "gadget"},
-		{SuggestedName: "gadget2", Type: "gadget"},
-		{SuggestedName: "app1", Type: "app"},
-		{SuggestedName: "app2", Type: "app"},
+		{SuggestedName: "snapd", SnapType: "snapd"},
+		{SuggestedName: "os1", SnapType: "os"},
+		{SuggestedName: "os2", SnapType: "os"},
+		{SuggestedName: "kernel1", SnapType: "kernel"},
+		{SuggestedName: "kernel2", SnapType: "kernel"},
+		{SuggestedName: "base1", SnapType: "base"},
+		{SuggestedName: "base2", SnapType: "base"},
+		{SuggestedName: "gadget1", SnapType: "gadget"},
+		{SuggestedName: "gadget2", SnapType: "gadget"},
+		{SuggestedName: "app1", SnapType: "app"},
+		{SuggestedName: "app2", SnapType: "app"},
 	})
 }
 
 func (s *infoSuite) TestSortByTypeAgain(c *C) {
-	core := &snap.Info{Type: snap.TypeOS}
-	base := &snap.Info{Type: snap.TypeBase}
-	app := &snap.Info{Type: snap.TypeApp}
+	core := &snap.Info{SnapType: snap.TypeOS}
+	base := &snap.Info{SnapType: snap.TypeBase}
+	app := &snap.Info{SnapType: snap.TypeApp}
 	snapd := &snap.Info{}
 	snapd.SideInfo = snap.SideInfo{RealName: "snapd"}
 
@@ -1581,7 +1594,8 @@ func (s *infoSuite) TestSortByTypeAgain(c *C) {
 }
 
 func (s *infoSuite) TestMedia(c *C) {
-	c.Check(snap.MediaInfos{}.Screenshots(), HasLen, 0)
+	c.Check(snap.MediaInfos{}.Screenshots(), DeepEquals,
+		[]snap.ScreenshotInfo{{Note: snap.ScreenshotsDeprecationNotice}})
 	c.Check(snap.MediaInfos{}.IconURL(), Equals, "")
 
 	media := snap.MediaInfos{
@@ -1600,17 +1614,8 @@ func (s *infoSuite) TestMedia(c *C) {
 	}
 
 	c.Check(media.IconURL(), Equals, "https://example.com/icon.png")
-	c.Check(media.Screenshots(), DeepEquals, []snap.ScreenshotInfo{
-		{
-			URL:  "https://example.com/shot1.svg",
-			Note: snap.ScreenshotsDeprecationNotice,
-		}, {
-			URL:    "https://example.com/shot2.svg",
-			Width:  42,
-			Height: 17,
-			Note:   snap.ScreenshotsDeprecationNotice,
-		},
-	})
+	c.Check(media.Screenshots(), DeepEquals,
+		[]snap.ScreenshotInfo{{Note: snap.ScreenshotsDeprecationNotice}})
 }
 
 func (s *infoSuite) TestSortApps(c *C) {

@@ -304,7 +304,7 @@ func (s *helpersSuite) TestCheckIsSystemSnapPresentWithCore(c *C) {
 		Active:      true,
 		Sequence:    []*snap.SideInfo{sideInfo},
 		Current:     sideInfo.Revision,
-		SnapType:    string(snapInfo.Type),
+		SnapType:    string(snapInfo.GetType()),
 		InstanceKey: snapInfo.InstanceKey,
 	})
 	s.st.Unlock()
@@ -334,7 +334,7 @@ func (s *helpersSuite) TestCheckIsSystemSnapPresentWithSnapd(c *C) {
 		Active:      true,
 		Sequence:    []*snap.SideInfo{sideInfo},
 		Current:     sideInfo.Revision,
-		SnapType:    string(snapInfo.Type),
+		SnapType:    string(snapInfo.GetType()),
 		InstanceKey: snapInfo.InstanceKey,
 	})
 
@@ -406,8 +406,10 @@ apps:
 	log, restore := logger.MockLogger()
 	defer restore()
 
-	// Construct the interface manager.
-	_, err = ifacestate.Manager(st, nil, ovld.TaskRunner(), nil, nil)
+	// Construct and start up the interface manager.
+	mgr, err := ifacestate.Manager(st, nil, ovld.TaskRunner(), nil, nil)
+	c.Assert(err, IsNil)
+	err = mgr.StartUp()
 	c.Assert(err, IsNil)
 
 	// Check that system key is not on disk.

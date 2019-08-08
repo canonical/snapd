@@ -233,7 +233,7 @@ func infoFromStoreSnap(d *storeSnap) (*snap.Info, error) {
 	info.Private = d.Private
 	info.Contact = d.Contact
 	info.Architectures = d.Architectures
-	info.Type = d.Type
+	info.SnapType = d.Type
 	info.Version = d.Version
 	info.Epoch = d.Epoch
 	info.Confinement = snap.ConfinementType(d.Confinement)

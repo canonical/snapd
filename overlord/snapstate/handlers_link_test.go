@@ -67,6 +67,7 @@ func (s *linkSnapSuite) SetUpTest(c *C) {
 	s.setup(c, s.stateBackend)
 
 	s.AddCleanup(snapstatetest.MockDeviceModel(DefaultModel()))
+	s.AddCleanup(snap.MockSnapdSnapID("snapd-snap-id"))
 }
 
 func checkHasCookieForSnap(c *C, st *state.State, instanceName string) {
@@ -449,6 +450,7 @@ func (s *linkSnapSuite) TestDoLinkSnapSuccessSnapdRestartsOnCoreWithBase(c *C) {
 	s.state.Lock()
 	si := &snap.SideInfo{
 		RealName: "snapd",
+		SnapID:   "snapd-snap-id",
 		Revision: snap.R(22),
 	}
 	t := s.state.NewTask("link-snap", "test")
@@ -471,7 +473,7 @@ func (s *linkSnapSuite) TestDoLinkSnapSuccessSnapdRestartsOnCoreWithBase(c *C) {
 
 	typ, err := snapst.Type()
 	c.Check(err, IsNil)
-	c.Check(typ, Equals, snap.TypeApp)
+	c.Check(typ, Equals, snap.TypeSnapd)
 
 	c.Check(t.Status(), Equals, state.DoneStatus)
 	c.Check(s.stateBackend.restartRequested, DeepEquals, []state.RestartType{state.RestartDaemon})
@@ -486,6 +488,7 @@ func (s *linkSnapSuite) TestDoLinkSnapSuccessSnapdRestartsOnClassic(c *C) {
 	s.state.Lock()
 	si := &snap.SideInfo{
 		RealName: "snapd",
+		SnapID:   "snapd-snap-id",
 		Revision: snap.R(22),
 	}
 	t := s.state.NewTask("link-snap", "test")
@@ -508,7 +511,7 @@ func (s *linkSnapSuite) TestDoLinkSnapSuccessSnapdRestartsOnClassic(c *C) {
 
 	typ, err := snapst.Type()
 	c.Check(err, IsNil)
-	c.Check(typ, Equals, snap.TypeApp)
+	c.Check(typ, Equals, snap.TypeSnapd)
 
 	c.Check(t.Status(), Equals, state.DoneStatus)
 	c.Check(s.stateBackend.restartRequested, DeepEquals, []state.RestartType{state.RestartDaemon})
@@ -957,7 +960,7 @@ func (s *linkSnapSuite) testDoUnlinkSnapRefreshAwareness(c *C) *state.Change {
 	// mock that "some-snap" has an app and that this app has pids running
 	writePids(c, filepath.Join(dirs.PidsCgroupDir, "snap.some-snap.some-app"), []int{1234})
 	snapstate.MockSnapReadInfo(func(name string, si *snap.SideInfo) (*snap.Info, error) {
-		info := &snap.Info{SuggestedName: name, SideInfo: *si, Type: snap.TypeApp}
+		info := &snap.Info{SuggestedName: name, SideInfo: *si, SnapType: snap.TypeApp}
 		info.Apps = map[string]*snap.AppInfo{
 			"some-app": {Snap: info, Name: "some-app"},
 		}

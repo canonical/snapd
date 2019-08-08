@@ -172,6 +172,7 @@ deny /sys/devices/virtual/block/dm-[0-9]*/dm/name r,
 /run/udev/data/b7:[0-9]* r,   # /dev/loop*
 /run/udev/data/b8:[0-9]* r,   # /dev/sd*
 /run/udev/data/b11:[0-9]* r,  # /dev/scd* and sr*
+/run/udev/data/b230:[0-9]* r, # /dev/zvol*
 /run/udev/data/c21:[0-9]* r,  # /dev/sg*
 /run/udev/data/+usb:[0-9]* r,
 

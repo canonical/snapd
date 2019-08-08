@@ -53,7 +53,7 @@ apps:
 
 func (s *Unity7InterfaceSuite) SetUpTest(c *C) {
 	s.slotInfo = &snap.SlotInfo{
-		Snap:      &snap.Info{SuggestedName: "core", Type: snap.TypeOS},
+		Snap:      &snap.Info{SuggestedName: "core", SnapType: snap.TypeOS},
 		Name:      "unity7",
 		Interface: "unity7",
 	}

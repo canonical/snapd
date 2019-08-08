@@ -52,7 +52,7 @@ apps:
     plugs: [dcdbas-control]
 `, nil)
 	s.slotInfo = &snap.SlotInfo{
-		Snap:      &snap.Info{SuggestedName: "core", Type: snap.TypeOS},
+		Snap:      &snap.Info{SuggestedName: "core", SnapType: snap.TypeOS},
 		Name:      "dcdbas-control",
 		Interface: "dcdbas-control",
 	}

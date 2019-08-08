@@ -74,6 +74,16 @@ type Snap struct {
 
 	// The ordered list of tracks that contains channels
 	Tracks []string `json:"tracks,omitempty"`
+
+	Health *SnapHealth `json:"health,omitempty"`
+}
+
+type SnapHealth struct {
+	Revision  snap.Revision `json:"revision"`
+	Timestamp time.Time     `json:"timestamp"`
+	Status    string        `json:"status"`
+	Message   string        `json:"message,omitempty"`
+	Code      string        `json:"code,omitempty"`
 }
 
 func (s *Snap) MarshalJSON() ([]byte, error) {

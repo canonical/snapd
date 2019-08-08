@@ -59,6 +59,26 @@ sc_error *sc_error_init_from_errno(int errno_copy, const char *msgfmt, ...)
 	return err;
 }
 
+sc_error *sc_error_init_simple(const char *msgfmt, ...)
+{
+	va_list ap;
+	va_start(ap, msgfmt);
+	sc_error *err = sc_error_initv(SC_LIBSNAP_DOMAIN,
+				       SC_UNSPECIFIED_ERROR, msgfmt, ap);
+	va_end(ap);
+	return err;
+}
+
+sc_error *sc_error_init_api_misuse(const char *msgfmt, ...)
+{
+	va_list ap;
+	va_start(ap, msgfmt);
+	sc_error *err = sc_error_initv(SC_LIBSNAP_DOMAIN,
+				       SC_API_MISUSE, msgfmt, ap);
+	va_end(ap);
+	return err;
+}
+
 const char *sc_error_domain(sc_error * err)
 {
 	if (err == NULL) {
@@ -112,13 +132,14 @@ void sc_die_on_error(sc_error * error)
 	}
 }
 
-void sc_error_forward(sc_error ** recipient, sc_error * error)
+int sc_error_forward(sc_error ** recipient, sc_error * error)
 {
 	if (recipient != NULL) {
 		*recipient = error;
 	} else {
 		sc_die_on_error(error);
 	}
+	return error != NULL ? -1 : 0;
 }
 
 bool sc_error_match(sc_error * error, const char *domain, int code)

@@ -22,7 +22,7 @@ package main
 import (
 	"github.com/jessevdk/go-flags"
 
-	"github.com/snapcore/snapd/snap"
+	"github.com/snapcore/snapd/image"
 )
 
 type cmdValidateSeed struct {
@@ -46,8 +46,5 @@ func (x *cmdValidateSeed) Execute(args []string) error {
 		return ErrExtraArgs
 	}
 
-	if _, err := snap.ReadSeedYaml(x.Positionals.SeedYamlPath); err != nil {
-		return err
-	}
-	return nil
+	return image.ValidateSeed(x.Positionals.SeedYamlPath)
 }

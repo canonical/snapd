@@ -86,8 +86,8 @@ restore: |
     rm /var/lib/snapd/seed/snaps/pc_x1.snap
 
     TEST_REVNO=$(awk "/^snap-revision: / {print \$2}" test-snapd-with-configure_*.assert)
-    if systemctl status "snap-test-snapd-with-configure-${TEST_REVNO}.mount" ; then
-       systemctl stop "snap-test-snapd-with-configure-${TEST_REVNO}.mount"
+    if systemctl status "$(systemd-escape --path /snap/test-snapd-with-configure/"$TEST_REVNO".mount)"; then
+       systemctl stop "$(systemd-escape --path /snap/test-snapd-with-configure/"$TEST_REVNO".mount)"
        rm -f "/etc/systemd/system/snap-test-snapd-with-configure-${TEST_REVNO}.mount"
        rm -f "/etc/systemd/system/multi-user.target.wants/snap-test-snapd-with-configure-${TEST_REVNO}.mount"
        rm -f /var/lib/snapd/snaps/test-snapd-with-configure_*.snap

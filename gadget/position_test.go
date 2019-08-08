@@ -306,6 +306,9 @@ volumes:
 }
 
 func makeSizedFile(c *C, path string, size gadget.Size, content []byte) {
+	err := os.MkdirAll(filepath.Dir(path), 0755)
+	c.Assert(err, IsNil)
+
 	f, err := os.Create(path)
 	c.Assert(err, IsNil)
 	defer f.Close()

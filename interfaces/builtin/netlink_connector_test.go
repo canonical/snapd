@@ -52,7 +52,7 @@ var _ = Suite(&NetlinkConnectorInterfaceSuite{
 
 func (s *NetlinkConnectorInterfaceSuite) SetUpTest(c *C) {
 	s.slotInfo = &snap.SlotInfo{
-		Snap:      &snap.Info{SuggestedName: "core", Type: snap.TypeOS},
+		Snap:      &snap.Info{SuggestedName: "core", SnapType: snap.TypeOS},
 		Name:      "netlink-connector",
 		Interface: "netlink-connector",
 	}

@@ -113,6 +113,7 @@ type State struct {
 
 	restarting RestartType
 	restartLck sync.Mutex
+	bootID     string
 }
 
 // New returns a new empty state.
@@ -255,8 +256,15 @@ func (s *State) EnsureBefore(d time.Duration) {
 }
 
 // RequestRestart asks for a restart of the managing process.
+// The state needs to be locked to request a RestartSystem.
 func (s *State) RequestRestart(t RestartType) {
 	if s.backend != nil {
+		if t == RestartSystem {
+			if s.bootID == "" {
+				panic("internal error: cannot request a system restart if current boot ID was not provided via VerifyReboot")
+			}
+			s.Set("system-restart-from-boot-id", s.bootID)
+		}
 		s.restartLck.Lock()
 		s.restarting = t
 		s.restartLck.Unlock()
@@ -269,6 +277,37 @@ func (s *State) Restarting() (bool, RestartType) {
 	s.restartLck.Lock()
 	defer s.restartLck.Unlock()
 	return s.restarting != RestartUnset, s.restarting
+}
+
+var ErrExpectedReboot = errors.New("expected reboot did not happen")
+
+// VerifyReboot checks if the state rembers that a system restart was
+// requested and whether it succeeded based on the provided current
+// boot id.  It returns ErrExpectedReboot if the expected reboot did
+// not happen yet.  It must be called early in the usage of state and
+// before an RequestRestart with RestartSystem is attempted.
+// It must be called with the state lock held.
+func (s *State) VerifyReboot(curBootID string) error {
+	var fromBootID string
+	err := s.Get("system-restart-from-boot-id", &fromBootID)
+	if err != nil && err != ErrNoState {
+		return err
+	}
+	s.bootID = curBootID
+	if fromBootID == "" {
+		return nil
+	}
+	if fromBootID == curBootID {
+		return ErrExpectedReboot
+	}
+	// we rebooted alright
+	s.ClearReboot()
+	return nil
+}
+
+// ClearReboot clears state information about tracking requested reboots.
+func (s *State) ClearReboot() {
+	s.Set("system-restart-from-boot-id", nil)
 }
 
 func MockRestarting(s *State, restarting RestartType) RestartType {

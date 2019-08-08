@@ -51,7 +51,7 @@ apps:
   plugs: [network-setup-observe]
 `
 	s.slotInfo = &snap.SlotInfo{
-		Snap:      &snap.Info{SuggestedName: "core", Type: snap.TypeOS},
+		Snap:      &snap.Info{SuggestedName: "core", SnapType: snap.TypeOS},
 		Name:      "network-setup-observe",
 		Interface: "network-setup-observe",
 	}

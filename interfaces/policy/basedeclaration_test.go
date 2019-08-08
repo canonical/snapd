@@ -140,13 +140,14 @@ func (s *baseDeclSuite) TestAutoConnection(c *C) {
 	// these have more complex or in flux policies and have their
 	// own separate tests
 	snowflakes := map[string]bool{
-		"content":           true,
-		"core-support":      true,
-		"home":              true,
-		"lxd-support":       true,
-		"multipass-support": true,
-		"snapd-control":     true,
-		"dummy":             true,
+		"content":            true,
+		"core-support":       true,
+		"home":               true,
+		"lxd-support":        true,
+		"multipass-support":  true,
+		"packagekit-control": true,
+		"snapd-control":      true,
+		"dummy":              true,
 	}
 
 	// these simply auto-connect, anything else doesn't
@@ -508,6 +509,24 @@ plugs:
 	c.Check(err, IsNil)
 }
 
+func (s *baseDeclSuite) TestAutoConnectionPackagekitControlOverride(c *C) {
+	cand := s.connectCand(c, "packagekit-control", "", "")
+	err := cand.CheckAutoConnect()
+	c.Check(err, NotNil)
+	c.Assert(err, ErrorMatches, "auto-connection denied by plug rule of interface \"packagekit-control\"")
+
+	plugsSlots := `
+plugs:
+  packagekit-control:
+    allow-auto-connection: true
+`
+
+	snapDecl := s.mockSnapDecl(c, "some-snap", "J60k4JY0HppjwOjW8dZdYc8obXKxujRu", "canonical", plugsSlots)
+	cand.PlugSnapDeclaration = snapDecl
+	err = cand.CheckAutoConnect()
+	c.Check(err, IsNil)
+}
+
 func (s *baseDeclSuite) TestAutoConnectionOverrideMultiple(c *C) {
 	plugsSlots := `
 plugs:
@@ -572,6 +591,7 @@ var (
 		"docker-support":          {"core"},
 		"fwupd":                   {"app"},
 		"gpio":                    {"core", "gadget"},
+		"gpio-control":            {"core"},
 		"greengrass-support":      {"core"},
 		"hidraw":                  {"core", "gadget"},
 		"i2c":                     {"core", "gadget"},
@@ -682,10 +702,12 @@ func (s *baseDeclSuite) TestPlugInstallation(c *C) {
 		"classic-support":       true,
 		"docker-support":        true,
 		"greengrass-support":    true,
+		"gpio-control":          true,
 		"kernel-module-control": true,
 		"kubernetes-support":    true,
 		"lxd-support":           true,
 		"multipass-support":     true,
+		"packagekit-control":    true,
 		"personal-files":        true,
 		"snapd-control":         true,
 		"system-files":          true,
@@ -811,10 +833,12 @@ func (s *baseDeclSuite) TestSanity(c *C) {
 		"core-support":          true,
 		"docker-support":        true,
 		"greengrass-support":    true,
+		"gpio-control":          true,
 		"kernel-module-control": true,
 		"kubernetes-support":    true,
 		"lxd-support":           true,
 		"multipass-support":     true,
+		"packagekit-control":    true,
 		"personal-files":        true,
 		"snapd-control":         true,
 		"system-files":          true,

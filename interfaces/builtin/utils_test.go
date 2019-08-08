@@ -44,13 +44,13 @@ type utilsSuite struct {
 
 var _ = Suite(&utilsSuite{
 	iface:        &ifacetest.TestInterface{InterfaceName: "iface"},
-	slotOS:       &snap.SlotInfo{Snap: &snap.Info{Type: snap.TypeOS}},
-	slotApp:      &snap.SlotInfo{Snap: &snap.Info{Type: snap.TypeApp}},
-	slotSnapd:    &snap.SlotInfo{Snap: &snap.Info{Type: snap.TypeSnapd, SuggestedName: "snapd"}},
-	slotGadget:   &snap.SlotInfo{Snap: &snap.Info{Type: snap.TypeGadget}},
-	conSlotOS:    interfaces.NewConnectedSlot(&snap.SlotInfo{Snap: &snap.Info{Type: snap.TypeOS}}, nil, nil),
-	conSlotSnapd: interfaces.NewConnectedSlot(&snap.SlotInfo{Snap: &snap.Info{Type: snap.TypeSnapd}}, nil, nil),
-	conSlotApp:   interfaces.NewConnectedSlot(&snap.SlotInfo{Snap: &snap.Info{Type: snap.TypeApp}}, nil, nil),
+	slotOS:       &snap.SlotInfo{Snap: &snap.Info{SnapType: snap.TypeOS}},
+	slotApp:      &snap.SlotInfo{Snap: &snap.Info{SnapType: snap.TypeApp}},
+	slotSnapd:    &snap.SlotInfo{Snap: &snap.Info{SnapType: snap.TypeSnapd, SuggestedName: "snapd"}},
+	slotGadget:   &snap.SlotInfo{Snap: &snap.Info{SnapType: snap.TypeGadget}},
+	conSlotOS:    interfaces.NewConnectedSlot(&snap.SlotInfo{Snap: &snap.Info{SnapType: snap.TypeOS}}, nil, nil),
+	conSlotSnapd: interfaces.NewConnectedSlot(&snap.SlotInfo{Snap: &snap.Info{SnapType: snap.TypeSnapd}}, nil, nil),
+	conSlotApp:   interfaces.NewConnectedSlot(&snap.SlotInfo{Snap: &snap.Info{SnapType: snap.TypeApp}}, nil, nil),
 })
 
 func (s *utilsSuite) TestSanitizeSlotReservedForOS(c *C) {

@@ -200,7 +200,7 @@ var helpCategories = []helpCategory{
 	}, {
 		Label:       i18n.G("Configuration"),
 		Description: i18n.G("system administration and configuration"),
-		Commands:    []string{"get", "set", "wait"},
+		Commands:    []string{"get", "set", "unset", "wait"},
 	}, {
 		Label:       i18n.G("Account"),
 		Description: i18n.G("authentication to snapd and the snap store"),

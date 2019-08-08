@@ -159,7 +159,7 @@ func (s *compilerSuite) TestCompilerNewUnhappy(c *C) {
 	c.Assert(func() { seccomp.New(nil) }, PanicMatches, "lookup tool func not provided")
 }
 
-func (s *compilerSuite) TestGetLibseccompVersion(c *C) {
+func (s *compilerSuite) TestLibseccompVersion(c *C) {
 	v, err := seccomp.VersionInfo("a 2.4.1 b -").LibseccompVersion()
 	c.Assert(err, IsNil)
 	c.Check(v, Equals, "2.4.1")
@@ -193,7 +193,7 @@ func (s *compilerSuite) TestGetGoSeccompFeatures(c *C) {
 	}
 }
 
-func (s *compilerSuite) TestHasGoSeccompFeature(c *C) {
+func (s *compilerSuite) TestHasFeature(c *C) {
 	for _, tc := range []struct {
 		v   string
 		f   string

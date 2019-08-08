@@ -52,7 +52,7 @@ apps:
     plugs: [snapd-control]
 `, nil)
 	s.slotInfo = &snap.SlotInfo{
-		Snap:      &snap.Info{SuggestedName: "core", Type: snap.TypeOS},
+		Snap:      &snap.Info{SuggestedName: "core", SnapType: snap.TypeOS},
 		Name:      "snapd-control",
 		Interface: "snapd-control",
 	}
