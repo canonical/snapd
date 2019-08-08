@@ -20,6 +20,9 @@ apps:
   audio-record:
     command: bin/run
     plugs: [ audio-record ]
+  appstream-metadata:
+    command: bin/run
+    plugs: [ appstream-metadata ]
   autopilot-introspection:
     command: bin/run
     plugs: [ autopilot-introspection ]
@@ -134,6 +137,9 @@ apps:
   gpio-memory-control:
     command: bin/run
     plugs: [ gpio-memory-control ]
+  gpio-control:
+    command: bin/run
+    plugs: [ gpio-control ]
   greengrass-support:
     command: bin/run
     plugs: [ greengrass-support ]

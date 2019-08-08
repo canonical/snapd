@@ -29,8 +29,8 @@ import (
 
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/testutil"
-	"github.com/snapcore/snapd/userd"
-	"github.com/snapcore/snapd/userd/ui"
+	"github.com/snapcore/snapd/usersession/userd"
+	"github.com/snapcore/snapd/usersession/userd/ui"
 )
 
 type settingsSuite struct {

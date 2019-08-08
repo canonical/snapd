@@ -35,7 +35,7 @@ import (
 	"github.com/snapcore/snapd/i18n"
 	"github.com/snapcore/snapd/osutil/sys"
 	"github.com/snapcore/snapd/strutil"
-	"github.com/snapcore/snapd/userd/ui"
+	"github.com/snapcore/snapd/usersession/userd/ui"
 )
 
 const launcherIntrospectionXML = `

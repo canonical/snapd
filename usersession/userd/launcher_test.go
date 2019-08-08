@@ -32,7 +32,7 @@ import (
 
 	"github.com/snapcore/snapd/osutil/sys"
 	"github.com/snapcore/snapd/testutil"
-	"github.com/snapcore/snapd/userd"
+	"github.com/snapcore/snapd/usersession/userd"
 )
 
 func Test(t *testing.T) { TestingT(t) }

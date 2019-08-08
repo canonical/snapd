@@ -204,5 +204,71 @@ func writeSnapdServicesOnCore(s *snap.Info, inter interacter) error {
 		return err
 	}
 
+	// Handle the user services
+	if err := writeSnapdUserServicesOnCore(s, inter); err != nil {
+		return err
+	}
+
+	return nil
+}
+
+func writeSnapdUserServicesOnCore(s *snap.Info, inter interacter) error {
+	// Ensure /etc/systemd/user exists
+	if err := os.MkdirAll(dirs.SnapUserServicesDir, 0755); err != nil {
+		return err
+	}
+
+	sysd := systemd.New(dirs.GlobalRootDir, systemd.GlobalUserMode, inter)
+
+	serviceUnits, err := filepath.Glob(filepath.Join(s.MountDir(), "usr/lib/systemd/user/*.service"))
+	if err != nil {
+		return err
+	}
+	socketUnits, err := filepath.Glob(filepath.Join(s.MountDir(), "usr/lib/systemd/user/*.socket"))
+	if err != nil {
+		return err
+	}
+	units := append(serviceUnits, socketUnits...)
+
+	snapdUnits := make(map[string]*osutil.FileState, len(units)+1)
+	for _, unit := range units {
+		st, err := os.Stat(unit)
+		if err != nil {
+			return err
+		}
+		content, err := ioutil.ReadFile(unit)
+		if err != nil {
+			return err
+		}
+		content = execStartRe.ReplaceAll(content, []byte(fmt.Sprintf(`ExecStart=%s$1`, s.MountDir())))
+
+		snapdUnits[filepath.Base(unit)] = &osutil.FileState{
+			Content: content,
+			Mode:    st.Mode(),
+		}
+	}
+	changed, removed, err := osutil.EnsureDirStateGlobs(dirs.SnapUserServicesDir, []string{"snapd.*.service", "snapd.*.socket"}, snapdUnits)
+	if err != nil {
+		// TODO: uhhhh, what do we do in this case?
+		return err
+	}
+	if (len(changed) + len(removed)) == 0 {
+		// nothing to do
+		return nil
+	}
+	// disable all removed units first
+	for _, unit := range removed {
+		if err := sysd.Disable(unit); err != nil {
+			logger.Noticef("failed to disable %q: %v", unit, err)
+		}
+	}
+
+	// enable/start all the new services
+	for _, unit := range changed {
+		if err := sysd.Enable(unit); err != nil {
+			return err
+		}
+	}
+
 	return nil
 }

@@ -25,7 +25,7 @@ import (
 	. "gopkg.in/check.v1"
 
 	"github.com/snapcore/snapd/testutil"
-	"github.com/snapcore/snapd/userd/ui"
+	"github.com/snapcore/snapd/usersession/userd/ui"
 )
 
 type kdialogSuite struct {

@@ -38,6 +38,7 @@
 # Compat macros
 %{!?make_build: %global make_build %{__make} %{?_smp_mflags}}
 %{?!_environmentdir: %global _environmentdir %{_prefix}/lib/environment.d}
+%{?!_userunitdir: %global _userunitdir %{_prefix}/lib/systemd/user}
 
 # Define the variable for systemd generators, if missing.
 %{?!_systemdgeneratordir: %global _systemdgeneratordir %{_prefix}/lib/systemd/system-generators}
@@ -366,6 +367,8 @@ fi
 %dir %{_sharedstatedir}/snapd/snaps
 %dir %{_systemd_system_env_generator_dir}
 %dir %{_systemdgeneratordir}
+%dir %{_userunitdir}
+%dir %{_userunitdir}/sockets.target.wants
 %dir %{snap_mount_dir}
 %dir %{snap_mount_dir}/bin
 
@@ -413,6 +416,9 @@ fi
 %{_unitdir}/snapd.seeded.service
 %{_unitdir}/snapd.service
 %{_unitdir}/snapd.socket
+%{_userunitdir}/snapd.session-agent.service
+%{_userunitdir}/snapd.session-agent.socket
+%{_userunitdir}/sockets.target.wants/snapd.session-agent.socket
 
 # When apparmor is enabled there are some additional entries.
 %if %{with apparmor}
