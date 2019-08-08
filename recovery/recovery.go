@@ -31,6 +31,7 @@ import (
 	"syscall"
 	"time"
 
+	"github.com/chrisccoulson/go-tpm2"
 	"github.com/chrisccoulson/ubuntu-core-fde-utils"
 
 	"github.com/snapcore/snapd/bootloader"
@@ -99,42 +100,6 @@ func Recover(version string) error {
 	return nil
 }
 
-func RecoverReboot(version string) error {
-	// different version, we need to reboot
-	logger.Noticef("Recover: must reboot to use %s", version)
-
-	mntSysRecover := "/run/ubuntu-seed"
-
-	// update recovery mode
-	logger.Noticef("update bootloader env")
-
-	env := grubenv.NewEnv(path.Join(mntSysRecover, "EFI/ubuntu/grubenv"))
-	if err := env.Load(); err != nil {
-		return fmt.Errorf("cannot load recovery boot vars: %s", err)
-	}
-
-	// set version in grubenv
-	env.Set("snap_recovery_system", version)
-
-	// set mode to recover_reboot (no chooser)
-	env.Set("snap_mode", "recover_reboot")
-
-	if err := env.Save(); err != nil {
-		return fmt.Errorf("cannot save recovery boot vars: %s", err)
-	}
-
-	if err := umount(mntSysRecover); err != nil {
-		return fmt.Errorf("cannot unmount recovery: %s", err)
-	}
-
-	// We're on tmpfs, just pull the plug
-	if err := Restart(); err != nil {
-		logger.Noticef("[sad trombone] cannot reboot: %s", err)
-	}
-
-	return fmt.Errorf("something failed")
-}
-
 func Install(version string) error {
 
 	mntWritable := "/run/ubuntu-data"
@@ -188,13 +153,20 @@ func Install(version string) error {
 	}
 
 	logger.Noticef("Provisioning the TPM")
-	if err := fdeutil.ProvisionTPM(lockoutAuth); err != nil {
+
+	tpm, err := fdeutil.ConnectToDefaultTPM()
+	if err != nil {
+		return fmt.Errorf("cannot acquire TPM context: %s", err)
+	}
+	defer tpm.Close()
+
+	if err := fdeutil.ProvisionTPM(tpm, lockoutAuth); err != nil {
 		logger.Noticef("error provisioning the TPM: %s", err)
 		return fmt.Errorf("cannot provision TPM: %s", err)
 	}
 
 	logger.Noticef("Seal and store keyfile")
-	if err := storeKeyfile(mntSystemBoot, keyBuffer); err != nil {
+	if err := storeKeyfile(tpm, mntSystemBoot, keyBuffer); err != nil {
 		return fmt.Errorf("cannot store keyfile: %s", err)
 	}
 
@@ -255,10 +227,10 @@ func mountFilesystem(label string, mountpoint string) error {
 	return nil
 }
 
-func storeKeyfile(dir string, buffer []byte) error {
+func storeKeyfile(tpm tpm2.TPMContext, dir string, buffer []byte) error {
 	// Seal keyfile
 	var k bytes.Buffer
-	if err := fdeutil.SealKeyToTPM(&k, buffer); err != nil {
+	if err := fdeutil.SealKeyToTPM(tpm, &k, buffer); err != nil {
 		logger.Noticef("sealing failed: %s", err)
 		return err
 	}
@@ -388,8 +360,6 @@ func extractKernel(kernelPath, mntSystemBoot string) error {
 }
 
 func updateBootloader(mntSysRecover, core, kernel string) error {
-	logger.Noticef("Updating bootloader")
-
 	b, err := bootloader.Find()
 	if err != nil {
 		return err
@@ -412,9 +382,12 @@ func updateBootloader(mntSysRecover, core, kernel string) error {
 		return fmt.Errorf("cannot load recovery boot vars: %s", err)
 	}
 	env.Set("snap_mode", "")
+	env.Set("snap_core", core)
+	env.Set("snap_kernel", kernel)
 	if err := env.Save(); err != nil {
 		return fmt.Errorf("cannot save recovery boot vars: %s", err)
 	}
+	syscall.Sync()
 
 	return nil
 }

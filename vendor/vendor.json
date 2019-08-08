@@ -7,10 +7,16 @@
 			"revision": ""
 		},
 		{
-			"checksumSHA1": "OwqZavm6GrNb2NsF4jJsukr2SFA=",
+			"checksumSHA1": "lIeozbKR+IUN1UnABr4VZdO7y8A=",
+			"path": "github.com/chrisccoulson/go-tpm2",
+			"revision": "bd89e9fde55680cda0016aa8aba28b558da9c760",
+			"revisionTime": "2019-08-07T10:07:39Z"
+		},
+		{
+			"checksumSHA1": "QdrT6GNvHqZhYmx8G8P8zGQ26E4=",
 			"path": "github.com/chrisccoulson/ubuntu-core-fde-utils",
-			"revision": "e5af66bace4b1f1af0b6fd445b5a894a7d6d0308",
-			"revisionTime": "2019-07-17T13:49:52Z"
+			"revision": "74b2ac214763e19a3b13bb44435266f2753d763d",
+			"revisionTime": "2019-08-07T20:13:30Z"
 		},
 		{
 			"checksumSHA1": "zg16zjZTQ9R89+UOLmEZxHgxDtM=",
@@ -29,14 +35,6 @@
 			"path": "github.com/godbus/dbus/introspect",
 			"revision": "97646858c46433e4afb3432ad28c12e968efa298",
 			"revisionTime": "2017-08-22T15:24:03Z"
-		},
-		{
-			"checksumSHA1": "CgcocRShUgwD/BXX35dGSVWG0Z0=",
-			"origin": "github.com/chrisccoulson/go-tpm",
-			"path": "github.com/google/go-tpm",
-			"revision": "9f5e4eb491faa0e349919e0ab888f9607101834c",
-			"revisionTime": "2019-07-11T10:07:55Z",
-			"tree": true
 		},
 		{
 			"checksumSHA1": "iIUYZyoanCQQTUaWsu8b+iOSPt4=",
