@@ -1,0 +1,82 @@
+summary: Ensure that the pulseaudio interface works
+
+# Only test on classic Ubuntu amd64 systems
+systems: [ ubuntu-1*-*64 ]
+
+environment:
+    PLAY_FILE: "/snap/test-snapd-pulseaudio/current/usr/share/sounds/alsa/Noise.wav"
+
+prepare: |
+    #shellcheck source=tests/lib/pkgdb.sh
+    . "$TESTSLIB"/pkgdb.sh
+    snap install --edge test-snapd-pulseaudio
+
+    apt-get update
+    apt-get install -y pulseaudio
+
+    echo "Create XDG_RUNTIME_DIR=/run/user/12345"
+    mkdir -m 700 -p /run/user/12345 || true
+    chown test:test /run/user/12345
+
+restore: |
+    snap remove test-snapd-pulseaudio
+    apt autoremove --purge -y pulseaudio
+
+execute: |
+    trap 'HOME=/home/test XDG_RUNTIME_DIR=/run/user/12345 su -p -c "pulseaudio --kill" test || true' EXIT
+
+    # we need -p so that XDG_RUNTIME_DIR is honored, but that preserves HOME,
+    # so specify it too since pulseaudio fails to start otherwise
+    echo "Start pulseaudio"
+    HOME=/home/test XDG_RUNTIME_DIR=/run/user/12345 su -p -c "pulseaudio --exit-idle-time=300" test &
+
+    echo "Then wait for the socket to show up"
+    count=0
+    while sleep 1 && [ ! -S /run/user/12345/pulse/native ]; do
+        echo $count
+        count=$((count+1))
+        if [ "$count" -gt 10 ]; then
+            echo "Could not find pulseaudio socket"
+            exit 1
+        fi
+    done
+
+    echo "Check pulseaudio"
+    count=0
+    while sleep 1 && ! HOME=/home/test XDG_RUNTIME_DIR=/run/user/12345 su -p -c "pulseaudio --check" test ; do
+        echo $count
+        count=$((count+1))
+        if [ "$count" -gt 10 ]; then
+            echo "'pulseaudio --check' never returned without error"
+            exit 1
+        fi
+    done
+
+    # XXX: eventually no
+    echo "The interface is connected by default"
+    snap interfaces -i pulseaudio | MATCH ":pulseaudio .*test-snapd-pulseaudio"
+
+    echo "When the plug is connected"
+    snap connect test-snapd-pulseaudio:pulseaudio
+
+    echo "Then the snap can play audio"
+    su -l -c "test-snapd-pulseaudio.play $PLAY_FILE" test
+
+    echo "Then the snap can record audio"
+    if ! su -l -c "test-snapd-pulseaudio.recsimple" test ; then
+        echo "Could not record audio"
+        exit 1
+    fi
+
+    if [ "$(snap debug confinement)" = "partial" ] ; then
+        exit 0
+    fi
+
+    echo "When the plug is disconnected"
+    snap disconnect test-snapd-pulseaudio:pulseaudio
+
+    echo "Then the snap command is not able to connect to the pulseaudio socket"
+    if su -l -c "test-snapd-pulseaudio.play $PLAY_FILE" test ; then
+        echo "Expected error with plug disconnected"
+        exit 1
+    fi
