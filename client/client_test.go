@@ -73,7 +73,7 @@ func (cs *clientSuite) SetUpTest(c *C) {
 
 	dirs.SetRootDir(c.MkDir())
 
-	cs.restore = client.MockDoRetry(time.Millisecond, 10*time.Millisecond)
+	cs.restore = client.MockDoTimings(time.Millisecond, 10*time.Millisecond)
 }
 
 func (cs *clientSuite) TearDownTest(c *C) {
@@ -608,7 +608,7 @@ type integrationSuite struct{}
 var _ = Suite(&integrationSuite{})
 
 func (cs *integrationSuite) TestClientTimeoutLP1837804(c *C) {
-	restore := client.MockDoRetry(time.Millisecond, 5*time.Millisecond)
+	restore := client.MockDoTimings(time.Millisecond, 5*time.Millisecond)
 	defer restore()
 
 	testServer := httptest.NewServer(http.HandlerFunc(func(res http.ResponseWriter, req *http.Request) {

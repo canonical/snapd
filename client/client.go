@@ -241,8 +241,8 @@ var (
 	doTimeout = 5 * time.Second
 )
 
-// MockDoRetry mocks the delays used by the do retry loop.
-func MockDoRetry(retry, timeout time.Duration) (restore func()) {
+// MockDoTimings mocks the delay used by the do retry loop and request timeout.
+func MockDoTimings(retry, timeout time.Duration) (restore func()) {
 	oldRetry := doRetry
 	oldTimeout := doTimeout
 	doRetry = retry
