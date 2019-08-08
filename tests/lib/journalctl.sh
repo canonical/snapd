@@ -36,7 +36,7 @@ check_journalctl_log(){
     expression=$1
     shift
     # Initial checks dont print the log in the debug output
-    for iter in $(seq 9); do
+    for _ in $(seq 9); do
         if get_journalctl_log "$@" | grep -q -E "$expression"; then
             return 0
         fi
