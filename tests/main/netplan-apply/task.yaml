@@ -15,21 +15,28 @@ prepare: |
     . "$TESTSLIB"/snaps.sh
     snap install test-snapd-netplan-apply --edge
 
-    # ensure that the service file doesn't exist before running
-    rm -f /usr/share/dbus-1/system-services/io.netplan.Netplan.service
-    rm -f /usr/share/dbus-1/system.d/io.netplan.Netplan.conf
+    # backup the dbus service file and policy config if they exist before 
+    # executing
+    for f in system-services/io.netplan.Netplan.service system.d/io.netplan.Netplan.conf; do
+        if [ -f /usr/share/dbus-1/$f ]; then
+            mv /usr/share/dbus-1/$f /usr/share/dbus-1/$f.backup
+        fi      
+    done
 
 restore: |
-    echo "uninstalling netplan D-Bus service"
-    rm -f /usr/share/dbus-1/system-services/io.netplan.Netplan.service
-    rm -f /usr/share/dbus-1/system.d/io.netplan.Netplan.conf
-    snap remove test-snapd-netplan-apply
+    # restore the dbus service file and policy config file if the backup 
+    # exists
+    for f in system-services/io.netplan.Netplan.service system.d/io.netplan.Netplan.conf; do
+        if [ -f /usr/share/dbus-1/$f.backup ]; then
+            mv /usr/share/dbus-1/$f.backup /usr/share/dbus-1/$f
+        fi      
+    done
 
 execute: |
     # install the dbus configuration file for our fake netplan system dbus service
     mkdir -p /usr/share/dbus-1/system.d 
     mkdir -p /usr/share/dbus-1/system-services
-    cp "$(pwd)/io.netplan.Netplan.conf" /usr/share/dbus-1/system.d/io.netplan.Netplan.conf
+    cp io.netplan.Netplan.conf /usr/share/dbus-1/system.d/io.netplan.Netplan.conf
 
     # install the fake netplan system dbus service
     echo "Make the netplan service activatable"
