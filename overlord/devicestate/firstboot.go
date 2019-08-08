@@ -31,6 +31,7 @@ import (
 	"github.com/snapcore/snapd/asserts/snapasserts"
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/i18n"
+	"github.com/snapcore/snapd/image"
 	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/overlord/assertstate"
 	"github.com/snapcore/snapd/overlord/devicestate/internal"
@@ -74,24 +75,6 @@ func installSeedSnap(st *state.State, sn *snap.SeedSnap, flags snapstate.Flags, 
 	}
 
 	return snapstate.InstallPath(st, &sideInfo, path, "", sn.Channel, flags)
-}
-
-func checkSeedBases(snaps []*snap.Info) error {
-	bases := make(map[string]bool)
-	for _, info := range snaps {
-		if info.GetType() == snap.TypeBase {
-			bases[info.InstanceName()] = true
-		}
-	}
-	for _, info := range snaps {
-		if info.GetType() != snap.TypeBase && info.Base != "" {
-			if !bases[info.Base] {
-				return fmt.Errorf("base %q missing for snap %q", info.Base, info.InstanceName())
-			}
-		}
-	}
-
-	return nil
 }
 
 func trivialSeeding(st *state.State, markSeeded *state.Task) []*state.TaskSet {
@@ -145,6 +128,9 @@ func populateStateFromSeedImpl(st *state.State, tm timings.Measurer) ([]*state.T
 	}
 	alreadySeeded := make(map[string]bool, 3)
 
+	// allSnapInfos are collected for cross-check validation of bases
+	allSnapInfos := make(map[string]*snap.Info, len(seed.Snaps))
+
 	tsAll := []*state.TaskSet{}
 	configTss := []*state.TaskSet{}
 
@@ -167,6 +153,7 @@ func populateStateFromSeedImpl(st *state.State, tm timings.Measurer) ([]*state.T
 		}
 		tsAll = append(tsAll, ts)
 		alreadySeeded[snapName] = true
+		allSnapInfos[snapName] = info
 		return info, nil
 	}
 
@@ -256,10 +243,14 @@ func populateStateFromSeedImpl(st *state.State, tm timings.Measurer) ([]*state.T
 		}
 		infos = append(infos, info)
 		infoToTs[info] = ts
+		allSnapInfos[info.InstanceName()] = info
 	}
 
-	if err := checkSeedBases(infos); err != nil {
-		return nil, err
+	// validate that all snaps have bases
+	errs := image.CheckBasesAndProviders(allSnapInfos)
+	if errs != nil {
+		// only report the first error encountered
+		return nil, errs[0]
 	}
 
 	// now add/chain the tasksets in the right order, note that we

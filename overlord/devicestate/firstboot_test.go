@@ -1712,5 +1712,5 @@ snaps:
 	st.Lock()
 	defer st.Unlock()
 	_, err := devicestate.PopulateStateFromSeedImpl(st, s.perfTimings)
-	c.Assert(err, ErrorMatches, `base "foo" missing for snap "local"`)
+	c.Assert(err, ErrorMatches, `cannot use snap "local": base "foo" is missing`)
 }
