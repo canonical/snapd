@@ -636,11 +636,6 @@ func (iface *dockerSupportInterface) BeforePreparePlug(plug *snap.PlugInfo) erro
 			return fmt.Errorf("docker-support plug requires bool with 'privileged-containers'")
 		}
 	}
-	if v, ok := plug.Attrs["controls-device-cgroup"]; ok {
-		if _, ok = v.(bool); !ok {
-			return fmt.Errorf("docker-support plug requires bool with 'controls-device-cgroup'")
-		}
-	}
 	return nil
 }
 
