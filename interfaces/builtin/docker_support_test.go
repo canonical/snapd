@@ -167,20 +167,6 @@ plugs:
 	c.Assert(interfaces.BeforePreparePlug(s.iface, plug), ErrorMatches, "docker-support plug requires bool with 'privileged-containers'")
 }
 
-func (s *DockerSupportInterfaceSuite) TestSanitizePlugWithDeviceCgroupBad(c *C) {
-	var mockSnapYaml = `name: docker
-version: 1.0
-plugs:
- controls-device-cgroup:
-  interface: docker-support
-  controls-device-cgroup: bad
-`
-
-	info := snaptest.MockInfo(c, mockSnapYaml, nil)
-	plug := info.Plugs["controls-device-cgroup"]
-	c.Assert(interfaces.BeforePreparePlug(s.iface, plug), ErrorMatches, "docker-support plug requires bool with 'controls-device-cgroup'")
-}
-
 func (s *DockerSupportInterfaceSuite) TestInterfaces(c *C) {
 	c.Check(builtin.Interfaces(), testutil.DeepContains, s.iface)
 }
