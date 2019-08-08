@@ -29,7 +29,7 @@ execute: |
     # install the dbus configuration file for our fake netplan system dbus service
     mkdir -p /usr/share/dbus-1/system.d 
     mkdir -p /usr/share/dbus-1/system-services
-    cp $(pwd)/io.netplan.Netplan.conf /usr/share/dbus-1/system.d/io.netplan.Netplan.conf
+    cp "$(pwd)/io.netplan.Netplan.conf" /usr/share/dbus-1/system.d/io.netplan.Netplan.conf
 
     # install the fake netplan system dbus service
     echo "Make the netplan service activatable"
