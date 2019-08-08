@@ -42,7 +42,7 @@ var _ = check.Suite(&appOpSuite{})
 func (s *appOpSuite) SetUpTest(c *check.C) {
 	s.BaseSnapSuite.SetUpTest(c)
 
-	restoreClientRetry := client.MockDoTimings(time.Millisecond, 10*time.Millisecond)
+	restoreClientRetry := client.MockDoTimings(time.Millisecond, 100*time.Millisecond)
 	restorePollTime := snap.MockPollTime(time.Millisecond)
 	s.AddCleanup(restoreClientRetry)
 	s.AddCleanup(restorePollTime)
