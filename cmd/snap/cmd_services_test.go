@@ -35,8 +35,6 @@ import (
 
 type appOpSuite struct {
 	BaseSnapSuite
-
-	restoreAll func()
 }
 
 var _ = check.Suite(&appOpSuite{})
@@ -46,14 +44,11 @@ func (s *appOpSuite) SetUpTest(c *check.C) {
 
 	restoreClientRetry := client.MockDoTimings(time.Millisecond, 10*time.Millisecond)
 	restorePollTime := snap.MockPollTime(time.Millisecond)
-	s.restoreAll = func() {
-		restoreClientRetry()
-		restorePollTime()
-	}
+	s.AddCleanup(restoreClientRetry)
+	s.AddCleanup(restorePollTime)
 }
 
 func (s *appOpSuite) TearDownTest(c *check.C) {
-	s.restoreAll()
 	s.BaseSnapSuite.TearDownTest(c)
 }
 
