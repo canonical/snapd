@@ -321,6 +321,10 @@ files_var_filetrans(snappy_t, fonts_cache_t, dir, "fontconfig")
 libs_manage_lib_dirs(snappy_t)
 libs_manage_lib_files(snappy_t)
 fs_getattr_xattr_fs(snappy_t)
+# snapd checks whether <snap>.mnt exists before running the mount namespace
+# helper tool
+# fs_getattr_nsfs_files() is not available in selinux devel on CentOS 7.x
+getattr_files_pattern(snappy_t, nsfs_t, nsfs_t)
 
 # snapd attempts to read /run/cloud-init/instance-data.json
 sysnet_read_config(snappy_t)
@@ -379,6 +383,10 @@ read_lnk_files_pattern(snappy_mount_t, snappy_var_lib_t, snappy_var_lib_t)
 fs_getattr_all_fs(snappy_mount_t)
 fs_getattr_tmpfs(snappy_mount_t)
 fs_getattr_xattr_fs(snappy_mount_t)
+# snap-discard-ns pokes, reads and unmounts the mount ns captured at <snap>.mnt
+fs_read_nsfs_files(snappy_mount_t)
+fs_unmount_nsfs(snappy_mount_t)
+
 # freezer
 fs_manage_cgroup_dirs(snappy_mount_t)
 fs_manage_cgroup_files(snappy_mount_t)
@@ -445,6 +453,7 @@ fs_manage_cgroup_dirs(snappy_confine_t)
 fs_write_cgroup_files(snappy_confine_t)
 kernel_getattr_debugfs(snappy_confine_t)
 kernel_getattr_proc(snappy_confine_t)
+fs_read_nsfs_files(snappy_confine_t)
 term_getattr_pty_fs(snappy_confine_t)
 # term_getattr_generic_ptys() is not supported by core policy in RHEL7
 allow snappy_confine_t devpts_t:chr_file getattr;
