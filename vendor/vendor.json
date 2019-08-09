@@ -183,6 +183,12 @@
 			"revisionTime": "2017-06-28T23:42:41Z"
 		},
 		{
+			"checksumSHA1": "/BPi7V0excJdy6kCtptx9y1Vr5M=",
+			"path": "golang.org/x/sys/unix",
+			"revision": "fc99dfbffb4e5ed5758a37e31dd861afe285406b",
+			"revisionTime": "2019-07-25T17:58:15Z"
+		},
+		{
 			"checksumSHA1": "9gypWnVZJEaH3jMK9KqOp4xgQD4=",
 			"path": "gopkg.in/check.v1",
 			"revision": "788fd78401277ebd861206a03c884797c6ec5541",
