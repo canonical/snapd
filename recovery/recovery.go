@@ -60,8 +60,8 @@ func Recover(version string) error {
 		return fmt.Errorf("cannot load recovery boot vars: %s", err)
 	}
 
-	if env.Get("snap_mode") != "" {
-		env.Set("snap_mode", "")
+	if env.Get("snap_recovery_mode") != "" {
+		env.Set("snap_recovery_mode", "")
 
 		if err := env.Save(); err != nil {
 			return fmt.Errorf("cannot save recovery boot vars: %s", err)
@@ -366,9 +366,9 @@ func updateBootloader(mntSysRecover, core, kernel string) error {
 	}
 
 	bootVars := map[string]string{
-		"snap_core":   core,
-		"snap_kernel": kernel,
-		"snap_mode":   "",
+		"snap_core":          core,
+		"snap_kernel":        kernel,
+		"snap_recovery_mode": "",
 	}
 
 	if err := b.SetBootVars(bootVars); err != nil {
@@ -381,7 +381,7 @@ func updateBootloader(mntSysRecover, core, kernel string) error {
 	if err := env.Load(); err != nil {
 		return fmt.Errorf("cannot load recovery boot vars: %s", err)
 	}
-	env.Set("snap_mode", "")
+	env.Set("snap_recovery_mode", "")
 	env.Set("snap_core", core)
 	env.Set("snap_kernel", kernel)
 	if err := env.Save(); err != nil {

@@ -780,7 +780,7 @@ func setRecoveryBootvars(recoverySystemName, recoveryKernelName string) error {
 		return err
 	}
 	return loader.SetBootVars(map[string]string{
-		"snap_mode":            "install",
+		"snap_recovery_mode":   "install",
 		"snap_recovery_system": recoverySystemName,
 		"snap_recovery_kernel": recoveryKernelName,
 	})
