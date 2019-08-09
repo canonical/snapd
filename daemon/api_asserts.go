@@ -20,7 +20,9 @@
 package daemon
 
 import (
+	"errors"
 	"net/http"
+	"net/url"
 
 	"github.com/snapcore/snapd/asserts"
 	"github.com/snapcore/snapd/overlord/assertstate"
@@ -42,6 +44,40 @@ var (
 		GET:    assertsFindMany,
 	}
 )
+
+// a helper type for parsing the options specified to /v2/assertions and other
+// such endpoints that can either do JSON or assertion depending on the value
+// of the the URL query parameters
+type daemonAssertFormatOptions struct {
+	jsonResult  bool
+	headersOnly bool
+	headers     map[string]string
+}
+
+// helper for parsing url query options into formatting option vars
+func parseHeadersFormatOptionsFromURL(q url.Values) (*daemonAssertFormatOptions, error) {
+	res := daemonAssertFormatOptions{}
+	res.headers = make(map[string]string)
+	for k := range q {
+		if k == "json" {
+			switch q.Get(k) {
+			case "false":
+				res.jsonResult = false
+			case "headers":
+				res.headersOnly = true
+				fallthrough
+			case "true":
+				res.jsonResult = true
+			default:
+				return nil, errors.New(`"json" query parameter when used must be set to "true" or "headers"`)
+			}
+			continue
+		}
+		res.headers[k] = q.Get(k)
+	}
+
+	return &res, nil
+}
 
 func getAssertTypeNames(c *Command, r *http.Request, user *auth.UserState) Response {
 	return SyncResponse(map[string][]string{
@@ -76,46 +112,28 @@ func assertsFindMany(c *Command, r *http.Request, user *auth.UserState) Response
 	if assertType == nil {
 		return BadRequest("invalid assert type: %q", assertTypeName)
 	}
-	jsonResult := false
-	headersOnly := false
-	headers := map[string]string{}
-	q := r.URL.Query()
-	for k := range q {
-		if k == "json" {
-			switch q.Get(k) {
-			case "false":
-				jsonResult = false
-			case "headers":
-				headersOnly = true
-				fallthrough
-			case "true":
-				jsonResult = true
-			default:
-				return BadRequest(`"json" query parameter when used must be set to "true" or "headers"`)
-			}
-			continue
-		}
-		headers[k] = q.Get(k)
+	opts, err := parseHeadersFormatOptionsFromURL(r.URL.Query())
+	if err != nil {
+		return BadRequest(err.Error())
 	}
-
 	state := c.d.overlord.State()
 	state.Lock()
 	db := assertstate.DB(state)
 	state.Unlock()
 
-	assertions, err := db.FindMany(assertType, headers)
+	assertions, err := db.FindMany(assertType, opts.headers)
 	if err != nil && !asserts.IsNotFound(err) {
 		return InternalError("searching assertions failed: %v", err)
 	}
 
-	if jsonResult {
+	if opts.jsonResult {
 		assertsJSON := make([]struct {
 			Headers map[string]interface{} `json:"headers,omitempty"`
 			Body    string                 `json:"body,omitempty"`
 		}, len(assertions))
 		for i := range assertions {
 			assertsJSON[i].Headers = assertions[i].Headers()
-			if !headersOnly {
+			if !opts.headersOnly {
 				assertsJSON[i].Body = string(assertions[i].Body())
 			}
 		}
