@@ -22,12 +22,18 @@ package client
 import (
 	"bytes"
 	"encoding/json"
+	"errors"
 	"fmt"
+	"net/url"
+
+	"github.com/snapcore/snapd/asserts"
 )
 
 type remodelData struct {
 	NewModel string `json:"new-model"`
 }
+
+const ErrorKindAssertionNotFound = "assertion not found"
 
 // Remodel tries to remodel the system with the given assertion data
 func (client *Client) Remodel(b []byte) (changeID string, err error) {
@@ -42,4 +48,62 @@ func (client *Client) Remodel(b []byte) (changeID string, err error) {
 	}
 
 	return client.doAsync("POST", "/v2/model", nil, headers, bytes.NewReader(data))
+}
+
+// CurrentModelAssertion returns the current model assertion
+func (client *Client) CurrentModelAssertion() (*asserts.Model, error) {
+	assert, err := currentAssertion(client, "/v2/model")
+	if err != nil {
+		return nil, err
+	}
+	modelAssert, ok := assert.(*asserts.Model)
+	if !ok {
+		return nil, fmt.Errorf("invalid assertion type (%T) returned", assert)
+	}
+	return modelAssert, nil
+}
+
+// CurrentSerialAssertion returns the current serial assertion
+func (client *Client) CurrentSerialAssertion() (*asserts.Serial, error) {
+	assert, err := currentAssertion(client, "/v2/model/serial")
+	if err != nil {
+		return nil, err
+	}
+	serialAssert, ok := assert.(*asserts.Serial)
+	if !ok {
+		return nil, fmt.Errorf("invalid assertion type (%T) returned", assert)
+	}
+	return serialAssert, nil
+}
+
+// helper function for getting assertions from the daemon via a REST path
+func currentAssertion(client *Client, path string) (asserts.Assertion, error) {
+	q := url.Values{}
+
+	response, err := client.raw("GET", path, q, nil, nil)
+	if err != nil {
+		return nil, fmt.Errorf("failed to query current model assertion: %v", err)
+	}
+	defer response.Body.Close()
+	if response.StatusCode != 200 {
+		err := parseError(response)
+		if respErr, ok := err.(*Error); ok {
+			if respErr.StatusCode == 404 {
+				return nil, errors.New(ErrorKindAssertionNotFound)
+			}
+		} else {
+			return nil, err
+		}
+	}
+
+	dec := asserts.NewDecoder(response.Body)
+
+	// only decode a single assertion - we can't ever get more than a single
+	// assertion through these endpoints by design
+	assert, err := dec.Decode()
+	if err != nil {
+		return nil, fmt.Errorf("failed to decode assertions: %v", err)
+	}
+
+	return assert, nil
 }
