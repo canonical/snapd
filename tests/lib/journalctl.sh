@@ -33,23 +33,15 @@ check_journalctl_ready(){
 }
 
 check_journalctl_log(){
-    expression=$1
+    expression="$1"
     shift
-    for _ in $(seq 10); do
-        log=$(get_journalctl_log "$@")
-        if echo "$log" | grep -q -E "$expression"; then
-            return 0
-        fi
-        echo "Match for \"$expression\" failed, retrying"
-        sleep 1
-    done
-    return 1
+    get_journalctl_log "$@" | grep -q -E "$expression"
 }
 
 get_journalctl_log(){
     cursor=""
     if [ -f "$JOURNALCTL_CURSOR_FILE" ]; then
-        cursor=$(tail -n1 "$JOURNALCTL_CURSOR_FILE")
+        cursor="$(tail -n1 "$JOURNALCTL_CURSOR_FILE")"
     fi
     journalctl --flush || true
     journalctl --sync || true
