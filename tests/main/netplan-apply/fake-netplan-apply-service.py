@@ -19,7 +19,7 @@ class NetplanApplyService(dbus.service.Object):
                          out_signature="b")
     def Apply(self):
         # log that we were called and always return True
-        with open(self._logfile, "a") as fp:
+        with open(self._logfile, "a+") as fp:
             fp.write("Apply called\n")
         return True
 
