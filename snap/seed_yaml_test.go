@@ -96,7 +96,7 @@ snaps:
 	c.Assert(err, IsNil)
 
 	_, err = snap.ReadSeedYaml(fn)
-	c.Assert(err, ErrorMatches, `cannot read seed yaml: snap name "foo" not unique`)
+	c.Assert(err, ErrorMatches, `cannot read seed yaml: snap name "foo" must be unique`)
 }
 
 func (s *seedYamlTestSuite) TestDuplicatedSnapFile(c *C) {
@@ -113,7 +113,7 @@ snaps:
 	c.Assert(err, IsNil)
 
 	_, err = snap.ReadSeedYaml(fn)
-	c.Assert(err, ErrorMatches, `cannot read seed yaml: snap file "foo_1.0_all.snap" for snap "bar" not unique`)
+	c.Assert(err, ErrorMatches, `cannot read seed yaml: snap file "foo_1.0_all.snap" must be unique`)
 }
 
 func (s *seedYamlTestSuite) TestValidateChannelUnhappy(c *C) {

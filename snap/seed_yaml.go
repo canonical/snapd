@@ -94,11 +94,11 @@ func ReadSeedYaml(fn string) (*Seed, error) {
 
 		// make sure names and file names are unique
 		if seenNames[sn.Name] {
-			return nil, fmt.Errorf("%s: snap name %q not unique", errPrefix, sn.Name)
+			return nil, fmt.Errorf("%s: snap name %q must be unique", errPrefix, sn.Name)
 		}
 		seenNames[sn.Name] = true
 		if seenFiles[sn.File] {
-			return nil, fmt.Errorf("%s: snap file %q for snap %q not unique", errPrefix, sn.File, sn.Name)
+			return nil, fmt.Errorf("%s: snap file %q must be unique", errPrefix, sn.File)
 		}
 		seenFiles[sn.File] = true
 	}

@@ -60,5 +60,5 @@ snaps:
 	c.Assert(err, IsNil)
 
 	_, err = snap.Parser(snap.Client()).ParseArgs([]string{"debug", "validate-seed", tmpf})
-	c.Assert(err, ErrorMatches, `cannot read seed yaml: snap name "foo" not unique`)
+	c.Assert(err, ErrorMatches, `cannot read seed yaml: snap name "foo" must be unique`)
 }
