@@ -176,6 +176,8 @@ func (l *Env) Get(key string) string {
 		return cToGoString(l.env.Snap_gadget[:])
 	case "snap_try_gadget":
 		return cToGoString(l.env.Snap_try_gadget[:])
+	case "reboot_reason":
+		return cToGoString(l.env.Reboot_reason[:])
 	}
 	return ""
 }
@@ -196,6 +198,8 @@ func (l *Env) Set(key, value string) {
 		copyString(l.env.Snap_gadget[:], value)
 	case "snap_try_gadget":
 		copyString(l.env.Snap_try_gadget[:], value)
+	case "reboot_reason":
+		copyString(l.env.Reboot_reason[:], value)
 	}
 }
 
