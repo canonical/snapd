@@ -49,11 +49,11 @@ func (l *lk) Name() string {
 	return "lk"
 }
 
-func (l *lk) Dir() string {
+func (l *lk) dir() string {
 	// we have two scenarios, image building and runtime
 	// during image building we store environment into file
 	// at runtime environment is written directly into dedicated partition
-	if dirs.GlobalRootDir == "/" {
+	if inRuntimeMode() {
 		return "/dev/disk/by-partlabel/"
 	} else {
 		return filepath.Join(dirs.GlobalRootDir, "/boot/lk/")
@@ -66,11 +66,20 @@ func (l *lk) ConfigFile() string {
 
 func (l *lk) envFile() string {
 	// as for dir, we have two scenarios, image building and runtime
-	if dirs.GlobalRootDir == "/" {
+	if inRuntimeMode() {
 		// TO-DO: this should be eventually fetched from gadget.yaml
-		return filepath.Join(l.Dir(), "snapbootsel")
+		return filepath.Join(l.dir(), "snapbootsel")
 	} else {
-		return filepath.Join(l.Dir(), "snapbootsel.bin")
+		return filepath.Join(l.dir(), "snapbootsel.bin")
+	}
+}
+
+// determine mode we are in, runtime or image build
+func inRuntimeMode() bool {
+	if dirs.GlobalRootDir == "/" {
+		return true
+	} else {
+		return false
 	}
 }
 
@@ -131,7 +140,7 @@ func (l *lk) ExtractKernelAssets(s *snap.Info, snapf snap.Container) error {
 		return err
 	}
 
-	if dirs.GlobalRootDir == "/" {
+	if inRuntimeMode() {
 		logger.Debugf("ExtractKernelAssets handling run time usecase\n")
 		// this is live system, extracted bootimg needs to be flashed to
 		// free bootimg partition and env has be updated boot slop mapping
@@ -150,7 +159,7 @@ func (l *lk) ExtractKernelAssets(s *snap.Info, snapf snap.Container) error {
 			return fmt.Errorf("Failed to open unpacked %s %v", env.GetBootImageName(), err)
 		}
 		defer bif.Close()
-		bpart := filepath.Join(l.Dir(), bootPartition)
+		bpart := filepath.Join(l.dir(), bootPartition)
 
 		bpf, err := os.OpenFile(bpart, os.O_WRONLY, 0660)
 		if err != nil {
@@ -176,7 +185,7 @@ func (l *lk) ExtractKernelAssets(s *snap.Info, snapf snap.Container) error {
 	} else {
 		// we are preparing image, just extract boot image to bootloader directory
 		logger.Debugf("ExtractKernelAssets handling image prepare\n")
-		if err := snapf.Unpack(env.GetBootImageName(), l.Dir()); err != nil {
+		if err := snapf.Unpack(env.GetBootImageName(), l.dir()); err != nil {
 			return fmt.Errorf("Failed to open unpacked %s %v", env.GetBootImageName(), err)
 		}
 	}
