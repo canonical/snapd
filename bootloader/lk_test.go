@@ -103,7 +103,7 @@ func (s *lkTestSuite) TestExtractKernelAssetsUnpacksBootimg(c *C) {
 	c.Assert(err, IsNil)
 
 	// kernel is *not* here
-	bootimg := filepath.Join(l.Dir(), "boot.img")
+	bootimg := filepath.Join(dirs.GlobalRootDir, "boot", "lk", "boot.img")
 	c.Assert(osutil.FileExists(bootimg), Equals, true)
 }
 
@@ -144,6 +144,6 @@ func (s *lkTestSuite) TestExtractKernelAssetsUnpacksCustomBootimg(c *C) {
 	c.Assert(err, IsNil)
 
 	// kernel is *not* here
-	bootimg := filepath.Join(l.Dir(), "boot-2.img")
+	bootimg := filepath.Join(dirs.GlobalRootDir, "boot", "lk", "boot-2.img")
 	c.Assert(osutil.FileExists(bootimg), Equals, true)
 }

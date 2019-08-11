@@ -76,7 +76,7 @@ func NewLk() Bootloader {
 
 func MockLkFiles(c *C) {
 	l := &lk{}
-	err := os.MkdirAll(l.Dir(), 0755)
+	err := os.MkdirAll(l.dir(), 0755)
 	c.Assert(err, IsNil)
 
 	// first create empty env file
