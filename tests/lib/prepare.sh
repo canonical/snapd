@@ -63,7 +63,9 @@ setup_systemd_snapd_overrides() {
 [Unit]
 $START_LIMIT_INTERVAL
 [Service]
-Environment=SNAPD_DEBUG_HTTP=7 SNAPD_DEBUG=1 SNAPPY_TESTING=1 SNAPD_REBOOT_DELAY=10m SNAPD_CONFIGURE_HOOK_TIMEOUT=30s SNAPPY_USE_STAGING_STORE=$SNAPPY_USE_STAGING_STORE
+# XXX: HTTP temporarily disabled, see https://github.com/snapcore/snapd/pull/7227
+# and https://forum.snapcraft.io/t/snap-download-failures-with-protocol-error/12677
+Environment=GODEBUG=http2client=0 SNAPD_DEBUG_HTTP=7 SNAPD_DEBUG=1 SNAPPY_TESTING=1 SNAPD_REBOOT_DELAY=10m SNAPD_CONFIGURE_HOOK_TIMEOUT=30s SNAPPY_USE_STAGING_STORE=$SNAPPY_USE_STAGING_STORE
 ExecStartPre=/bin/touch /dev/iio:device0
 EOF
     mkdir -p /etc/systemd/system/snapd.socket.d
