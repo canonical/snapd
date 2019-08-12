@@ -152,6 +152,7 @@ func (s *baseDeclSuite) TestAutoConnection(c *C) {
 
 	// these simply auto-connect, anything else doesn't
 	autoconnect := map[string]bool{
+		"audio-playback":          true,
 		"browser-support":         true,
 		"desktop":                 true,
 		"desktop-legacy":          true,
@@ -579,6 +580,8 @@ var (
 	slotInstallation = map[string][]string{
 		// other
 		"adb-support":             {"core"},
+		"audio-playback":          {"app", "core"},
+		"audio-record":            {"app", "core"},
 		"autopilot-introspection": {"core"},
 		"avahi-control":           {"app", "core"},
 		"avahi-observe":           {"app", "core"},
@@ -792,6 +795,7 @@ func (s *baseDeclSuite) TestConnectionOnClassic(c *C) {
 	// connecting with these interfaces needs to be allowed on
 	// case-by-case basis when not on classic
 	noconnect := map[string]bool{
+		"audio-record":    true,
 		"modem-manager":   true,
 		"network-manager": true,
 		"ofono":           true,
@@ -829,6 +833,7 @@ func (s *baseDeclSuite) TestSanity(c *C) {
 	// listed here to make sure that was a conscious decision
 	bothSides := map[string]bool{
 		"block-devices":         true,
+		"audio-playback":        true,
 		"classic-support":       true,
 		"core-support":          true,
 		"docker-support":        true,

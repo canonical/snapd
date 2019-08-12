@@ -127,6 +127,17 @@ func ShouldRetryError(attempt *retry.Attempt, err error) bool {
 		logger.Debugf("Encountered non temporary net.OpError: %#v", opErr)
 	}
 
+	// we see this from http2 downloads sometimes - it is unclear what
+	// is causing it but https://github.com/golang/go/issues/29125
+	// indicates a retry might be enough. Note that we get the
+	// PROTOCOL_ERROR *from* the remote side (fastly it seems)
+	//
+	// FIXME: find a better way to get to this error
+	if strings.Contains(err.Error(), "PROTOCOL_ERROR") {
+		logger.Debugf("Retrying because of: %s", err)
+		return true
+	}
+
 	if err == io.ErrUnexpectedEOF || err == io.EOF {
 		logger.Debugf("Retrying because of: %s", err)
 		return true

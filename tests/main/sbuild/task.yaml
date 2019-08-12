@@ -3,7 +3,9 @@ summary: Ensure snapd builds correctly in sbuild
 # takes a while
 priority: 500
 
-kill-timeout: 30m
+environment:
+    BUILD_MODE/normal: normal
+    BUILD_MODE/any: any
 
 systems: [debian-sid-*]
 
@@ -14,10 +16,13 @@ execute: |
     echo "Allow test user to run sbuild"
     sbuild-adduser test
 
-    echo "And build it normally"
-    su -c "sbuild -d sid --run-autopkgtest $SPREAD_PATH/../*.dsc" test
-    echo "..and now just 'arch: any'"
-    su -c "sbuild --arch-any -d sid --run-autopkgtest $SPREAD_PATH/../*.dsc" test
+    BUILD_PARAM=""
+    if [ "$BUILD_MODE" == "any" ]; then
+        BUILD_PARAM="--arch-any"
+    fi
+
+    echo "Build mode: $BUILD_MODE"
+    su -c "sbuild $BUILD_PARAM -d sid --run-autopkgtest $SPREAD_PATH/../*.dsc" test
 
 restore: |
     rm --recursive --one-file-system /srv/chroot/sid-amd64-sbuild
