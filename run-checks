@@ -259,7 +259,7 @@ if [ "$UNIT" = 1 ]; then
             GOTRACEBACK=1 $goctest -v -timeout 5m -coverprofile=.coverage/coverage.out -covermode="$COVERMODE" $(go list ./... | grep -v '/vendor/' )
         else
             for pkg in $(go list ./... | grep -v '/vendor/' ); do
-                GOTRACEBACK=1 go test -i "$pkg"
+                GOTRACEBACK=1 go test -timeout 5m -i "$pkg"
                 GOTRACEBACK=1 $goctest -v -timeout 5m -coverprofile=.coverage/profile.out -covermode="$COVERMODE" "$pkg"
                 append_coverage .coverage/profile.out
             done
