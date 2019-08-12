@@ -644,8 +644,10 @@ suites:
         prepare: |
             "$TESTSLIB"/prepare-restore.sh --prepare-suite
         debug: |
-            systemctl status snapd.socket || true
-            journalctl -xe
+            if [ "$SPREAD_DEBUG_EACH" = 1 ]; then
+                systemctl status snapd.socket || true
+                journalctl -xe
+            fi
         prepare-each: |
             "$TESTSLIB"/prepare-restore.sh --prepare-suite-each
         restore-each: |
