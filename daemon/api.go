@@ -2425,3 +2425,14 @@ func getWarnings(c *Command, r *http.Request, _ *auth.UserState) Response {
 
 	return SyncResponse(ws, nil)
 }
+
+// dummyGorillaMuxVersionCheck is not used and acts as a quick check against old gorilla mux.
+func dummyGorillaMuxVersionCheck() {
+	// this code will not build on older version of gorilla mux (i.e. gorilla mux revision
+	// 0eeaf8392f5b04950925b8a69fe70f110fa7cbfc; the new gorilla was introduced in snapd
+	// with commit be4fc4d117c255cadd697a93f9f94e49c708f2c3) and it is here to ensure
+	// snapd is built with refreshed vendor (i.e. new gorilla). snapd would happily build
+	// against old gorilla mux but would fail in confusing ways at runtime.
+	router := mux.NewRouter()
+	_ = router.Name("foo")
+}
