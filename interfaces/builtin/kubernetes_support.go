@@ -67,17 +67,23 @@ profile systemd_run (attach_disconnected,mediate_deleted) {
   # Common rules for kubernetes use of systemd_run
   #include <abstractions/base>
 
-  /usr/bin/systemd-run r,
+  /{,usr/}bin/systemd-run rm,
   owner @{PROC}/@{pid}/stat r,
   owner @{PROC}/@{pid}/environ r,
   @{PROC}/cmdline r,
+  @{PROC}/sys/kernel/osrelease r,
 
   # setsockopt()
   capability net_admin,
 
+  # ptrace 'trace' is coarse and not required for using the systemd private
+  # socket, and while the child profile omits 'capability sys_ptrace', skip
+  # for now since it isn't strictly required.
+  deny ptrace trace peer=unconfined,
   /run/systemd/private rw,
-  /bin/true ixr,
-  ptrace trace peer=unconfined,
+
+  /{,usr/}bin/true ixr,
+  @{INSTALL_DIR}/{@{SNAP_NAME},@{SNAP_INSTANCE_NAME}}/@{SNAP_REVISION}/{,usr/}bin/true ixr,
 ###KUBERNETES_SUPPORT_SYSTEMD_RUN###
 }
 `
@@ -197,14 +203,14 @@ func (iface *kubernetesSupportInterface) AppArmorConnectedPlug(spec *apparmor.Sp
 	case "kubelet":
 		systemd_run_extra = kubernetesSupportConnectedPlugAppArmorKubeletSystemdRun
 		snippet += kubernetesSupportConnectedPlugAppArmorKubelet
-		spec.UsesPtraceTrace()
+		spec.SetUsesPtraceTrace()
 	case "kubeproxy":
 		snippet += kubernetesSupportConnectedPlugAppArmorKubeproxy
 	default:
 		systemd_run_extra = kubernetesSupportConnectedPlugAppArmorKubeletSystemdRun
 		snippet += kubernetesSupportConnectedPlugAppArmorKubelet
 		snippet += kubernetesSupportConnectedPlugAppArmorKubeproxy
-		spec.UsesPtraceTrace()
+		spec.SetUsesPtraceTrace()
 	}
 
 	old := "###KUBERNETES_SUPPORT_SYSTEMD_RUN###"
