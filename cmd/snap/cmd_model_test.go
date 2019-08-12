@@ -40,7 +40,7 @@ kernel: pc-kernel=18
 required-snaps:
   - core
   - hello-world
-timestamp: 2019-06-25T04:40:53+00:00
+timestamp: 2017-07-27T00:00:00.0Z
 sign-key-sha3-384: 8B3Wmemeu3H6i4dEV4Q85Q4gIUCHIBCNMHq49e085QeLGHi7v27l3Cqmemer4__t
 
 AcLBcwQAAQoAHRYhBMbX+t6MbKGH5C3nnLZW7+q0g6ELBQJdTdwTAAoJELZW7+q0g6ELEvgQAI3j
@@ -96,7 +96,7 @@ func (s *SnapSuite) TestModelVerbose(c *check.C) {
 
 		n++
 	})
-	rest, err := snap.Parser(snap.Client()).ParseArgs([]string{"model", "--verbose"})
+	rest, err := snap.Parser(snap.Client()).ParseArgs([]string{"model", "--verbose", "--abs-time"})
 	c.Assert(err, check.IsNil)
 	c.Assert(rest, check.DeepEquals, []string{})
 	c.Check(s.Stdout(), check.Equals, `
@@ -107,7 +107,7 @@ architecture:    amd64
 base:            core18
 gadget:          pc=18
 kernel:          pc-kernel=18
-timestamp:       46 days ago, at 23:40 CDT
+timestamp:       2017-07-27T00:00:00Z
 required-snaps:  
   - core
   - hello-world
