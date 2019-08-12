@@ -3,6 +3,9 @@ summary: Ensure that netplan apply works with network-setup-control
 details: |
     Netplan apply is used to apply network configuration to the system
 
+environment:
+    NETPLAN: io.netplan.Netplan
+
 # run on all classic ubuntu LTS and current dev systems 16.04+
 systems: 
     - ubuntu-16*
@@ -17,22 +20,23 @@ prepare: |
 
     # backup the dbus service file and policy config if they exist before 
     # executing
-    for f in system-services/io.netplan.Netplan.service system.d/io.netplan.Netplan.conf; do
+    for f in system-services/$NETPLAN.service system.d/$NETPLAN.conf; do
         if [ -f /usr/share/dbus-1/$f ]; then
             mv /usr/share/dbus-1/$f /usr/share/dbus-1/$f.backup
         fi      
     done
 
-    # install the dbus configuration file for our fake netplan system dbus service
+    # install the dbus policy config file and service unit for our fake netplan
+    # system dbus service
+    echo "Install the netplan D-Bus activatable system service"
     mkdir -p /usr/share/dbus-1/system.d 
     mkdir -p /usr/share/dbus-1/system-services
-    cp io.netplan.Netplan.conf /usr/share/dbus-1/system.d/io.netplan.Netplan.conf
-
-    # install the fake netplan system dbus service
-    echo "Make the netplan service activatable"
-    cat << EOF > /usr/share/dbus-1/system-services/io.netplan.Netplan.service
+    cp $NETPLAN.conf /usr/share/dbus-1/system.d/$NETPLAN.conf
+    # generate the service file here so that we can referece the python file and
+    # the log file in this directory
+    cat << EOF > /usr/share/dbus-1/system-services/$NETPLAN.service
     [D-BUS Service]
-    Name=io.netplan.Netplan
+    Name=$NETPLAN
     Exec=$(pwd)/fake-netplan-apply-service.py $(pwd)/dbus-netplan-apply.log
     User=root
     EOF
@@ -40,9 +44,16 @@ prepare: |
     touch dbus-netplan-apply.log
 
 restore: |
-    # restore the dbus service file and policy config file if the backup 
-    # exists
-    for f in system-services/io.netplan.Netplan.service system.d/io.netplan.Netplan.conf; do
+    # kill the dbus service if it is running 
+    set +e
+    netplanDBusSvcPID=$(pgrep --full fake-netplan-apply-service.py)
+    set -e
+    if [ -n "$netplanDBusSvcPID" ]; then
+        kill -9 "$netplanDBusSvcPID"
+    fi
+
+    # restore the dbus service file and policy config file if the backup exists
+    for f in system-services/$NETPLAN.service system.d/$NETPLAN.conf; do
         if [ -f /usr/share/dbus-1/$f.backup ]; then
             mv /usr/share/dbus-1/$f.backup /usr/share/dbus-1/$f
         fi      
