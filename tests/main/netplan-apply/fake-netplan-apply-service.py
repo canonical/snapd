@@ -12,7 +12,7 @@ DOC_IFACE = "io.netplan.Netplan"
 
 class NetplanApplyService(dbus.service.Object):
     def __init__(self, connection, object_path, logfile):
-        super(NetplanApplyService, self).__init__(connection, object_path)
+        super().__init__(connection, object_path)
         self._logfile = logfile
 
     @dbus.service.method(dbus_interface=DOC_IFACE, in_signature="",
