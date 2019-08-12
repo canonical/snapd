@@ -31,7 +31,7 @@ import (
 	"github.com/snapcore/snapd/i18n"
 	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/snap"
-	"github.com/snapcore/snapd/userd/ui"
+	"github.com/snapcore/snapd/usersession/userd/ui"
 )
 
 // Timeout when the confirmation dialog for an xdg-setging

@@ -17,7 +17,7 @@
  *
  */
 
-package userd_test
+package autostart_test
 
 import (
 	"io/ioutil"
@@ -26,6 +26,7 @@ import (
 	"path"
 	"path/filepath"
 	"strings"
+	"testing"
 
 	. "gopkg.in/check.v1"
 
@@ -33,8 +34,10 @@ import (
 	"github.com/snapcore/snapd/snap"
 	"github.com/snapcore/snapd/snap/snaptest"
 	"github.com/snapcore/snapd/testutil"
-	"github.com/snapcore/snapd/userd"
+	"github.com/snapcore/snapd/usersession/autostart"
 )
+
+func Test(t *testing.T) { TestingT(t) }
 
 type autostartSuite struct {
 	dir                string
@@ -52,7 +55,7 @@ func (s *autostartSuite) SetUpTest(c *C) {
 
 	s.userDir = path.Join(s.dir, "home")
 	s.autostartDir = path.Join(s.userDir, ".config", "autostart")
-	s.userCurrentRestore = userd.MockUserCurrent(func() (*user.User, error) {
+	s.userCurrentRestore = autostart.MockUserCurrent(func() (*user.User, error) {
 		return &user.User{HomeDir: s.userDir}, nil
 	})
 
@@ -183,9 +186,9 @@ X-GNOME-Autostart-enabled=true
 		c.Assert(err, IsNil)
 
 		run := func() {
-			defer userd.MockCurrentDesktop(tc.current)()
+			defer autostart.MockCurrentDesktop(tc.current)()
 
-			cmd, err := userd.LoadAutostartDesktopFile(path)
+			cmd, err := autostart.LoadAutostartDesktopFile(path)
 			if tc.err != "" {
 				c.Check(cmd, Equals, "")
 				c.Check(err, ErrorMatches, tc.err)
@@ -222,7 +225,7 @@ func (s *autostartSuite) TestTryAutostartAppValid(c *C) {
 Exec=this-is-ignored -a -b --foo="a b c" -z "dev"
 `))
 
-	cmd, err := userd.AutostartCmd("snapname", fooDesktopFile)
+	cmd, err := autostart.AutostartCmd("snapname", fooDesktopFile)
 	c.Assert(err, IsNil)
 	c.Assert(cmd.Path, Equals, appWrapperPath)
 
@@ -252,7 +255,7 @@ func (s *autostartSuite) TestTryAutostartAppNoMatchingApp(c *C) {
 Exec=this-is-ignored -a -b --foo="a b c" -z "dev"
 `))
 
-	cmd, err := userd.AutostartCmd("snapname", fooDesktopFile)
+	cmd, err := autostart.AutostartCmd("snapname", fooDesktopFile)
 	c.Assert(cmd, IsNil)
 	c.Assert(err, ErrorMatches, `cannot match desktop file with snap snapname applications`)
 }
@@ -264,7 +267,7 @@ func (s *autostartSuite) TestTryAutostartAppNoSnap(c *C) {
 Exec=this-is-ignored -a -b --foo="a b c" -z "dev"
 `))
 
-	cmd, err := userd.AutostartCmd("snapname", fooDesktopFile)
+	cmd, err := autostart.AutostartCmd("snapname", fooDesktopFile)
 	c.Assert(cmd, IsNil)
 	c.Assert(err, ErrorMatches, `cannot find current revision for snap snapname.*`)
 }
@@ -278,7 +281,7 @@ func (s *autostartSuite) TestTryAutostartAppBadExec(c *C) {
 Foo=bar
 `))
 
-	cmd, err := userd.AutostartCmd("snapname", fooDesktopFile)
+	cmd, err := autostart.AutostartCmd("snapname", fooDesktopFile)
 	c.Assert(cmd, IsNil)
 	c.Assert(err, ErrorMatches, `cannot determine startup command for application foo in snap snapname: Exec not found or invalid`)
 }
@@ -316,7 +319,7 @@ Exec=no-snap
 Exec=no-snap
 `))
 
-	err := userd.AutostartSessionApps()
+	err := autostart.AutostartSessionApps()
 	c.Assert(err, NotNil)
 	c.Check(err, ErrorMatches, `- "foo-stable.desktop": cannot determine startup command for application foo in snap a-foo: Exec not found or invalid
 - "no-match.desktop": cannot match desktop file with snap b-foo applications

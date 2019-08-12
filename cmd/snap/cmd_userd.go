@@ -29,8 +29,9 @@ import (
 
 	"github.com/snapcore/snapd/cmd"
 	"github.com/snapcore/snapd/i18n"
-	"github.com/snapcore/snapd/userd"
 	"github.com/snapcore/snapd/usersession/agent"
+	"github.com/snapcore/snapd/usersession/autostart"
+	"github.com/snapcore/snapd/usersession/userd"
 )
 
 type cmdUserd struct {
@@ -74,6 +75,8 @@ func (x *cmdUserd) Execute(args []string) error {
 	return x.runUserd()
 }
 
+var signalNotify = signalNotifyImpl
+
 func (x *cmdUserd) runUserd() error {
 	var userd userd.Userd
 	if err := userd.Init(); err != nil {
@@ -81,8 +84,9 @@ func (x *cmdUserd) runUserd() error {
 	}
 	userd.Start()
 
-	ch := make(chan os.Signal, 3)
-	signal.Notify(ch, syscall.SIGINT, syscall.SIGTERM, syscall.SIGUSR1)
+	ch, stop := signalNotify(syscall.SIGINT, syscall.SIGTERM)
+	defer stop()
+
 	select {
 	case sig := <-ch:
 		fmt.Fprintf(Stdout, "Exiting on %s.\n", sig)
@@ -101,8 +105,9 @@ func (x *cmdUserd) runAgent() error {
 	agent.Version = cmd.Version
 	agent.Start()
 
-	ch := make(chan os.Signal, 3)
-	signal.Notify(ch, syscall.SIGINT, syscall.SIGTERM, syscall.SIGUSR1)
+	ch, stop := signalNotify(syscall.SIGINT, syscall.SIGTERM)
+	defer stop()
+
 	select {
 	case sig := <-ch:
 		fmt.Fprintf(Stdout, "Exiting on %s.\n", sig)
@@ -114,8 +119,15 @@ func (x *cmdUserd) runAgent() error {
 }
 
 func (x *cmdUserd) runAutostart() error {
-	if err := userd.AutostartSessionApps(); err != nil {
+	if err := autostart.AutostartSessionApps(); err != nil {
 		return fmt.Errorf("autostart failed for the following apps:\n%v", err)
 	}
 	return nil
+}
+
+func signalNotifyImpl(sig ...os.Signal) (ch chan os.Signal, stop func()) {
+	ch = make(chan os.Signal, len(sig))
+	signal.Notify(ch, sig...)
+	stop = func() { signal.Stop(ch) }
+	return ch, stop
 }
