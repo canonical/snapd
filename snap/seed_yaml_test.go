@@ -99,23 +99,6 @@ snaps:
 	c.Assert(err, ErrorMatches, `cannot read seed yaml: snap name "foo" must be unique`)
 }
 
-func (s *seedYamlTestSuite) TestDuplicatedSnapFile(c *C) {
-	fn := filepath.Join(c.MkDir(), "seed.yaml")
-	err := ioutil.WriteFile(fn, []byte(`
-snaps:
- - name: foo
-   channel: stable
-   file: foo_1.0_all.snap
- - name: bar
-   channel: edge
-   file: foo_1.0_all.snap
-`), 0644)
-	c.Assert(err, IsNil)
-
-	_, err = snap.ReadSeedYaml(fn)
-	c.Assert(err, ErrorMatches, `cannot read seed yaml: snap file "foo_1.0_all.snap" must be unique`)
-}
-
 func (s *seedYamlTestSuite) TestValidateChannelUnhappy(c *C) {
 	fn := filepath.Join(c.MkDir(), "seed.yaml")
 	err := ioutil.WriteFile(fn, []byte(`

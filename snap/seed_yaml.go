@@ -71,7 +71,6 @@ func ReadSeedYaml(fn string) (*Seed, error) {
 	}
 
 	seenNames := make(map[string]bool, len(seed.Snaps))
-	seenFiles := make(map[string]bool, len(seed.Snaps))
 	// validate
 	for _, sn := range seed.Snaps {
 		if sn == nil {
@@ -97,10 +96,6 @@ func ReadSeedYaml(fn string) (*Seed, error) {
 			return nil, fmt.Errorf("%s: snap name %q must be unique", errPrefix, sn.Name)
 		}
 		seenNames[sn.Name] = true
-		if seenFiles[sn.File] {
-			return nil, fmt.Errorf("%s: snap file %q must be unique", errPrefix, sn.File)
-		}
-		seenFiles[sn.File] = true
 	}
 
 	return &seed, nil
