@@ -71,7 +71,6 @@ func ReadSeedYaml(fn string) (*Seed, error) {
 	}
 
 	seenNames := make(map[string]bool, len(seed.Snaps))
-	seenSnapIDs := make(map[string]bool, len(seed.Snaps))
 	seenFiles := make(map[string]bool, len(seed.Snaps))
 	// validate
 	for _, sn := range seed.Snaps {
@@ -93,11 +92,7 @@ func ReadSeedYaml(fn string) (*Seed, error) {
 			return nil, fmt.Errorf("%s: %q must be a filename, not a path", errPrefix, sn.File)
 		}
 
-		// make sure names, snap IDs and file names are unique
-		if sn.SnapID != "" && seenSnapIDs[sn.SnapID] {
-			return nil, fmt.Errorf("%s: snap-id %q must be unique", errPrefix, sn.SnapID)
-		}
-		seenSnapIDs[sn.SnapID] = true
+		// make sure names and file names are unique
 		if seenNames[sn.Name] {
 			return nil, fmt.Errorf("%s: snap name %q must be unique", errPrefix, sn.Name)
 		}
