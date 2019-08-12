@@ -21,4 +21,5 @@ package agent
 
 var (
 	SessionInfoCmd = sessionInfoCmd
+	ServicesCmd    = servicesCmd
 )
