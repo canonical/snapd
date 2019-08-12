@@ -158,6 +158,12 @@ var firewallControlConnectedPlugKmod = []string{
 	"br_netfilter",
 	"ip6table_filter",
 	"iptable_filter",
+	"nf_nat_ftp",
+	"nf_nat_irc",
+	"nf_nat_sip",
+	"nf_nat_tftp",
+	"nf_nat_pptp",
+	"nf_nat_h323",
 }
 
 func init() {

@@ -103,6 +103,12 @@ func (s *FirewallControlInterfaceSuite) TestKModSpec(c *C) {
 		"br_netfilter":    true,
 		"ip6table_filter": true,
 		"iptable_filter":  true,
+		"nf_nat_ftp":      true,
+		"nf_nat_irc":      true,
+		"nf_nat_sip":      true,
+		"nf_nat_tftp":     true,
+		"nf_nat_pptp":     true,
+		"nf_nat_h323":     true,
 	})
 }
 
