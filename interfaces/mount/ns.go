@@ -21,6 +21,7 @@ package mount
 
 import (
 	"fmt"
+	"os"
 	"os/exec"
 	"path/filepath"
 
@@ -44,6 +45,10 @@ func runNamespaceTool(toolName, snapName string) ([]byte, error) {
 			return nil, err
 		}
 		cmd := exec.Command(toolPath, snapName)
+		if osutil.GetenvBool("SNAPD_DEBUG") {
+			cmd.Env = os.Environ()
+			cmd.Env = append(cmd.Env, "SNAPD_DEBUG=1")
+		}
 		output, err := cmd.CombinedOutput()
 		return output, err
 	}
