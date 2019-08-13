@@ -35,15 +35,14 @@ import (
 var (
 	shortModelHelp = i18n.G("Get the active model for this device")
 	longModelHelp  = i18n.G(`
-The model command returns only the active model assertion information for this 
+The model command returns the active model assertion information for this 
 device.	
 
-The --serial option allows printing the serial assertion instead of the model
-assertion.
+By default, only the primary keys of the headers are included in the output, but
+this can be expanded to include all of an assertion's headers non-meta headers.
 
-The --verbose option prints off more headers from the assertion.
-
-The --assertion option prints off the raw assertion.
+Similarly, the default model assertion can alternatively be replaced with the 
+serial assertion.
 `)
 
 	// this list is a "nice" "human" "readable" "ordering" of headers to print
@@ -84,8 +83,9 @@ func init() {
 			return &cmdModel{}
 		}, timeDescs.also(waitDescs.also(map[string]string{
 			"assertion": i18n.G("Print the raw assertion."),
-			"verbose":   i18n.G("Print more of the assertion fields."),
-			"serial":    i18n.G("Print the serial assertion instead of the model."),
+			"verbose":   i18n.G("Print all specific assertion fields."),
+			"serial": i18n.G(
+				"Print the serial assertion instead of the model assertion."),
 		})),
 		[]argDesc{},
 	)
