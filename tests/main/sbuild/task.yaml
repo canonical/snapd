@@ -29,6 +29,10 @@ restore: |
     rm -f /etc/schroot/chroot.d/sid-amd64-sbuild-*
 
 debug: |
+    # There there's a log file and a symbolic link pointing to it.
+    # The non-symlink has a time-stamp and we can match on the "Z" timezone
+    # marker to find it.
+    tail -n 100 *Z.build
     cat <<EOM
     Use release-tools/debian-package-builder to interactively fix build
     issues. The debug shell created there shows the true layout of the source
