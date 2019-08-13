@@ -178,6 +178,7 @@ func (s *DockerSupportInterfaceSuite) TestAppArmorSpec(c *C) {
 	c.Assert(spec.AddConnectedPlug(s.iface, s.plug, s.slot), IsNil)
 	c.Assert(spec.SecurityTags(), DeepEquals, []string{"snap.docker.app"})
 	c.Check(spec.SnippetForTag("snap.docker.app"), testutil.Contains, "/sys/fs/cgroup/*/docker/   rw,\n")
+	c.Check(spec.UsesPtraceTrace(), Equals, true)
 }
 
 func (s *DockerSupportInterfaceSuite) TestSecCompSpec(c *C) {

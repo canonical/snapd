@@ -14510,6 +14510,7 @@ func (s *snapmgrTestSuite) TestResolveChannelPinnedTrack(c *C) {
 		exp         string
 		kernelTrack string
 		gadgetTrack string
+		snapChannel string
 		err         string
 	}{
 		// neither kernel nor gadget
@@ -14547,6 +14548,13 @@ func (s *snapmgrTestSuite) TestResolveChannelPinnedTrack(c *C) {
 		// risk only defaults to pinned kernel track
 		{snap: "kernel", new: "stable", exp: "17/stable", kernelTrack: "17"},
 		{snap: "kernel", new: "edge", exp: "17/edge", kernelTrack: "17"},
+		// risk only with regular snap defaults to pinned track
+		{snap: "some-snap", new: "stable", exp: "3.0/stable", snapChannel: "3.0/edge"},
+		{snap: "some-snap", new: "4.0/stable", exp: "4.0/stable", snapChannel: "3.0/edge"},
+		{snap: "some-snap", new: "latest/stable", exp: "latest/stable", snapChannel: "3.0/edge"},
+		// risk only with kernel/gadget defaults to pinned track from channel in snap state if not pinned by model
+		{snap: "kernel", new: "stable", exp: "2.0/stable", snapChannel: "2.0/edge"},
+		{snap: "brand-gadget", new: "stable", exp: "2.0/stable", snapChannel: "2.0/edge"},
 	} {
 		c.Logf("tc: %+v", tc)
 		if tc.kernelTrack != "" && tc.gadgetTrack != "" {
@@ -14563,6 +14571,19 @@ func (s *snapmgrTestSuite) TestResolveChannelPinnedTrack(c *C) {
 		}
 		deviceCtx := &snapstatetest.TrivialDeviceContext{DeviceModel: model}
 		s.state.Lock()
+		if tc.snapChannel != "" {
+			snapstate.Set(s.state, tc.snap, &snapstate.SnapState{
+				Active:  true,
+				Channel: tc.snapChannel,
+				Sequence: []*snap.SideInfo{{
+					RealName: tc.snap,
+					Revision: snap.R(1),
+					SnapID:   "some-id",
+				}},
+				Current: snap.R(1)})
+		} else {
+			snapstate.Set(s.state, tc.snap, nil)
+		}
 		ch, err := snapstate.ResolveChannel(s.state, tc.snap, tc.new, deviceCtx)
 		s.state.Unlock()
 		if tc.err != "" {

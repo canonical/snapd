@@ -163,6 +163,7 @@ func (s *KubernetesSupportInterfaceSuite) TestAppArmorConnectedPlug(c *C) {
 	c.Check(spec.SnippetForTag("snap.kubernetes-support.default"), testutil.Contains, "# Allow running as the kubeproxy service\n")
 	c.Check(spec.SnippetForTag("snap.kubernetes-support.default"), testutil.Contains, "# Common rules for kubernetes use of systemd_run\n")
 	c.Check(spec.SnippetForTag("snap.kubernetes-support.default"), testutil.Contains, "# kubelet mount rules\n")
+	c.Check(spec.UsesPtraceTrace(), Equals, true)
 
 	// kubeproxy should have only its rules
 	spec = &apparmor.Specification{}
@@ -174,6 +175,7 @@ func (s *KubernetesSupportInterfaceSuite) TestAppArmorConnectedPlug(c *C) {
 	c.Check(spec.SnippetForTag("snap.kubernetes-support.kubeproxy"), Not(testutil.Contains), "# Allow running as the kubelet service\n")
 	c.Check(spec.SnippetForTag("snap.kubernetes-support.kubeproxy"), testutil.Contains, "# Common rules for kubernetes use of systemd_run\n")
 	c.Check(spec.SnippetForTag("snap.kubernetes-support.kubeproxy"), Not(testutil.Contains), "# kubelet mount rules\n")
+	c.Check(spec.UsesPtraceTrace(), Equals, false)
 
 	// kubelet should have only its rules
 	spec = &apparmor.Specification{}
@@ -185,6 +187,7 @@ func (s *KubernetesSupportInterfaceSuite) TestAppArmorConnectedPlug(c *C) {
 	c.Check(spec.SnippetForTag("snap.kubernetes-support.kubelet"), Not(testutil.Contains), "# Allow running as the kubeproxy service\n")
 	c.Check(spec.SnippetForTag("snap.kubernetes-support.kubelet"), testutil.Contains, "# Common rules for kubernetes use of systemd_run\n")
 	c.Check(spec.SnippetForTag("snap.kubernetes-support.kubelet"), testutil.Contains, "# kubelet mount rules\n")
+	c.Check(spec.UsesPtraceTrace(), Equals, true)
 }
 
 func (s *KubernetesSupportInterfaceSuite) TestSecCompConnectedPlug(c *C) {

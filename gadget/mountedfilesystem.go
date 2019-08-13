@@ -144,7 +144,7 @@ func writeDirectory(src, dst string, preserveInDst []string) error {
 		pSrc := filepath.Join(src, fi.Name())
 		pDst := filepath.Join(dst, fi.Name())
 
-		write := writeFile
+		write := writeFileOrSymlink
 		if fi.IsDir() {
 			if err := os.MkdirAll(pDst, 0755); err != nil {
 				return fmt.Errorf("cannot create directory prefix: %v", err)
@@ -161,12 +161,12 @@ func writeDirectory(src, dst string, preserveInDst []string) error {
 	return nil
 }
 
-// writeFile copies the source file at given location or under given directory.
-// Follows rsync like semantics, that is:
+// writeFileOrSymlink writes the source file or a symlink at given location or
+// under given directory. Follows rsync like semantics, that is:
 //   /foo -> /bar/ - writes foo as /bar/foo
 //   /foo  -> /bar - writes foo as /bar
 // The destination location is overwritten.
-func writeFile(src, dst string, preserveInDst []string) error {
+func writeFileOrSymlink(src, dst string, preserveInDst []string) error {
 	if strings.HasSuffix(dst, "/") {
 		// write to directory
 		dst = filepath.Join(dst, filepath.Base(src))
@@ -181,13 +181,24 @@ func writeFile(src, dst string, preserveInDst []string) error {
 		return fmt.Errorf("cannot create prefix directory: %v", err)
 	}
 
-	// overwrite & sync by default
-	copyFlags := osutil.CopyFlagOverwrite | osutil.CopyFlagSync
+	if osutil.IsSymlink(src) {
+		// recreate the symlinks as they are
+		to, err := os.Readlink(src)
+		if err != nil {
+			return fmt.Errorf("cannot read symlink: %v", err)
+		}
+		if err := os.Symlink(to, dst); err != nil {
+			return fmt.Errorf("cannot write a symlink: %v", err)
+		}
+	} else {
+		// overwrite & sync by default
+		copyFlags := osutil.CopyFlagOverwrite | osutil.CopyFlagSync
 
-	// TODO use osutil.AtomicFile
-	// TODO try to preserve ownership and permission bits
-	if err := osutil.CopyFile(src, dst, copyFlags); err != nil {
-		return fmt.Errorf("cannot copy %s: %v", src, err)
+		// TODO use osutil.AtomicFile
+		// TODO try to preserve ownership and permission bits
+		if err := osutil.CopyFile(src, dst, copyFlags); err != nil {
+			return fmt.Errorf("cannot copy %s: %v", src, err)
+		}
 	}
 	return nil
 }
@@ -212,7 +223,7 @@ func (m *MountedFilesystemWriter) writeVolumeContent(volumeRoot string, content 
 		return writeDirectory(realSource, realTarget, preserveInDst)
 	} else {
 		// write a file
-		return writeFile(realSource, realTarget, preserveInDst)
+		return writeFileOrSymlink(realSource, realTarget, preserveInDst)
 	}
 }
 
@@ -341,6 +352,11 @@ func (f *MountedFilesystemUpdater) sourceDirectoryEntries(source string) ([]os.F
 		return nil, err
 	}
 
+	// TODO: enable support for symlinks when needed
+	if osutil.IsSymlink(srcPath) {
+		return nil, fmt.Errorf("source is a symbolic link")
+	}
+
 	return ioutil.ReadDir(srcPath)
 }
 
@@ -394,6 +410,11 @@ func (f *MountedFilesystemUpdater) updateOrSkipFile(dstRoot, source, target stri
 	srcPath := f.entrySourcePath(source)
 	dstPath, backupPath := f.entryDestPaths(dstRoot, source, target, backupDir)
 
+	// TODO: enable support for symlinks when needed
+	if osutil.IsSymlink(srcPath) {
+		return fmt.Errorf("cannot update file %s: symbolic links are not supported", source)
+	}
+
 	if osutil.FileExists(dstPath) {
 		if strutil.SortedListContains(preserveInDst, dstPath) {
 			// file is to be preserved
@@ -410,7 +431,7 @@ func (f *MountedFilesystemUpdater) updateOrSkipFile(dstRoot, source, target stri
 		}
 	}
 
-	return writeFile(srcPath, dstPath, preserveInDst)
+	return writeFileOrSymlink(srcPath, dstPath, preserveInDst)
 }
 
 func (f *MountedFilesystemUpdater) updateVolumeContent(volumeRoot string, content *VolumeContent, preserveInDst []string, backupDir string) error {
@@ -520,6 +541,11 @@ func (f *MountedFilesystemUpdater) checkpointPrefix(dstRoot, target string, back
 	for prefix := filepath.Dir(target); prefix != "." && prefix != "/"; prefix = filepath.Dir(prefix) {
 		prefixDst, prefixBackupBase := f.entryDestPaths(dstRoot, "", prefix, backupDir)
 
+		// TODO: enable support for symlinks when needed
+		if osutil.IsSymlink(prefixDst) {
+			return fmt.Errorf("cannot create a checkpoint for directory %v: symbolic links are not supported", prefix)
+		}
+
 		prefixBackupName := prefixBackupBase + ".backup"
 		if osutil.FileExists(prefixBackupName) {
 			continue
@@ -546,6 +572,11 @@ func (f *MountedFilesystemUpdater) backupOrCheckpointFile(dstRoot, source, targe
 	backupName := backupPath + ".backup"
 	sameStamp := backupPath + ".same"
 	preserveStamp := backupPath + ".preserve"
+
+	// TODO: enable support for symlinks when needed
+	if osutil.IsSymlink(dstPath) {
+		return fmt.Errorf("cannot backup file %s: symbolic links are not supported", target)
+	}
 
 	if !osutil.FileExists(dstPath) {
 		// destination does not exist and will be created when writing
@@ -737,7 +768,7 @@ func (f *MountedFilesystemUpdater) rollbackFile(dstRoot, source, target string, 
 
 	if osutil.FileExists(backupName) {
 		// restore backup -> destination
-		return writeFile(backupName, dstPath, nil)
+		return writeFileOrSymlink(backupName, dstPath, nil)
 	}
 
 	// none of the markers exists, file is not preserved, meaning, it has
