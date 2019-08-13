@@ -123,7 +123,7 @@ reset_all_snap() {
                     systemctl start snapd.service snapd.socket
                 fi
                 if ! echo "$SKIP_REMOVE_SNAPS" | grep -w "$snap"; then
-                    if snap info "$snap" | grep -E '^type: +(base|core)'; then
+                    if snap info --verbose "$snap" | grep -E '^type: +(base|core)'; then
                         if [ -z "$remove_bases" ]; then
                             remove_bases="$snap"
                         else
