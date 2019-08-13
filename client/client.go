@@ -456,6 +456,8 @@ const (
 
 	ErrorKindSystemRestart = "system-restart"
 	ErrorKindDaemonRestart = "daemon-restart"
+
+	ErrorKindNoAssertion = "assertion-not-found"
 )
 
 // IsRetryable returns true if the given error is an error
@@ -487,6 +489,18 @@ func IsInterfacesUnchangedError(err error) bool {
 		return false
 	}
 	return e.Kind == ErrorKindInterfacesUnchanged
+}
+
+// IsAssertionNotFoundError returns whether the given error means that the
+// assertion wasn't found and thus the device isn't ready/seeded.
+func IsAssertionNotFoundError(err error) bool {
+	e, ok := err.(*Error)
+	if !ok || e == nil {
+		return false
+	}
+
+	return e.Kind == ErrorKindNoAssertion
+
 }
 
 // OSRelease contains information about the system extracted from /etc/os-release.

@@ -100,14 +100,12 @@ func (x *cmdModel) Execute(args []string) error {
 		assertion, err = x.client.CurrentModelAssertion()
 	}
 
-	if err != nil && err.Error() == client.ErrorKindAssertionNotFound {
+	if err != nil && client.IsAssertionNotFoundError(err) {
 		// device is not registered yet - print helpful message to stdout and
 		// return err to set exit code non-zero
 		fmt.Fprintln(Stdout, "device not ready - no assertion found")
 		return err
-	}
-
-	if err != nil {
+	} else if err != nil {
 		return err
 	}
 

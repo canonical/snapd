@@ -22,7 +22,6 @@ package client
 import (
 	"bytes"
 	"encoding/json"
-	"errors"
 	"fmt"
 	"net/url"
 
@@ -32,8 +31,6 @@ import (
 type remodelData struct {
 	NewModel string `json:"new-model"`
 }
-
-const ErrorKindAssertionNotFound = "assertion not found"
 
 // Remodel tries to remodel the system with the given assertion data
 func (client *Client) Remodel(b []byte) (changeID string, err error) {
@@ -86,14 +83,7 @@ func currentAssertion(client *Client, path string) (asserts.Assertion, error) {
 	}
 	defer response.Body.Close()
 	if response.StatusCode != 200 {
-		err := parseError(response)
-		if respErr, ok := err.(*Error); ok {
-			if respErr.StatusCode == 404 {
-				return nil, errors.New(ErrorKindAssertionNotFound)
-			}
-		} else {
-			return nil, err
-		}
+		return nil, parseError(response)
 	}
 
 	dec := asserts.NewDecoder(response.Body)

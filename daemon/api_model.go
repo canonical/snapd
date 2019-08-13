@@ -106,7 +106,17 @@ func getModel(c *Command, r *http.Request, _ *auth.UserState) Response {
 
 	model, err := devmgr.Model()
 	if err == state.ErrNoState {
-		return NotFound("no model assertion yet")
+		res := &errorResult{
+			Message: "no model assertion yet",
+			Kind:    errorKindAssertionsNotFound,
+			Value:   "model",
+		}
+
+		return &resp{
+			Type:   ResponseTypeError,
+			Result: res,
+			Status: http.StatusNotFound,
+		}
 	}
 	if err != nil {
 		return InternalError("accessing model failed: %v", err)
@@ -141,7 +151,17 @@ func getSerial(c *Command, r *http.Request, _ *auth.UserState) Response {
 
 	serial, err := devmgr.Serial()
 	if err == state.ErrNoState {
-		return NotFound("no serial assertion yet")
+		res := &errorResult{
+			Message: "no serial assertion yet",
+			Kind:    errorKindAssertionsNotFound,
+			Value:   "serial",
+		}
+
+		return &resp{
+			Type:   ResponseTypeError,
+			Result: res,
+			Status: http.StatusNotFound,
+		}
 	}
 	if err != nil {
 		return InternalError("accessing serial failed: %v", err)
