@@ -7,6 +7,8 @@ environment:
     BUILD_MODE/normal: normal
     BUILD_MODE/any: any
 
+manual: true
+
 systems: [debian-sid-*]
 
 execute: |
