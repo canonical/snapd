@@ -142,7 +142,7 @@ func (s *catalogRefreshTestSuite) TestCatalogRefreshTooMany(c *C) {
 	t0 := time.Now()
 
 	err := cr7.Ensure()
-	c.Check(err, Equals, store.ErrTooManyRequests)
+	c.Check(err, IsNil) // !!
 
 	// next now has a delta (next refresh is not before t0 + delta)
 	c.Check(snapstate.NextCatalogRefresh(cr7).Before(t0.Add(snapstate.CatalogRefreshDelayWithDelta)), Equals, false)

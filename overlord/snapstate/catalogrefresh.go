@@ -94,6 +94,7 @@ func (r *catalogRefresh) Ensure() error {
 		logger.Debugf("Catalog refresh succeeded.")
 	case store.ErrTooManyRequests:
 		logger.Debugf("Catalog refresh postponed.")
+		err = nil
 	default:
 		logger.Debugf("Catalog refresh failed: %v.", err)
 	}
