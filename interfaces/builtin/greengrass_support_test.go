@@ -95,6 +95,7 @@ func (s *GreengrassSupportInterfaceSuite) TestAppArmorSpec(c *C) {
 	c.Assert(spec.AddConnectedPlug(s.iface, s.plug, s.slot), IsNil)
 	c.Assert(spec.SecurityTags(), DeepEquals, []string{"snap.other.app2"})
 	c.Check(spec.SnippetForTag("snap.other.app2"), testutil.Contains, "mount options=(rw, bind) /var/snap/{@{SNAP_NAME},@{SNAP_INSTANCE_NAME}}/** -> /var/snap/{@{SNAP_NAME},@{SNAP_INSTANCE_NAME}}/** ,\n")
+	c.Check(spec.UsesPtraceTrace(), Equals, true)
 }
 
 func (s *GreengrassSupportInterfaceSuite) TestSecCompSpec(c *C) {
