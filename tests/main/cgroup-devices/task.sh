@@ -8,19 +8,30 @@ echo "Extract the PID of the main process tracked by systemd"
 pid=$(systemctl show snap.test-snapd-service.test-snapd-service.service --property=ExecMainPID | cut -d = -f 2)
 
 echo "Extract the device cgroup of the main process"
-effective_device_cgroup=$(grep devices < "/proc/$pid/cgroup" | cut -d : -f 3)
+initial_device_cgroup=$(grep devices < "/proc/$pid/cgroup" | cut -d : -f 3)
+
 # Initially, because there are no udev tags corresponding to this application,
 # snap-confine is not moving the process to a new cgroup. As such the service
-# runs in the cgroup created by systemd.
-test "$effective_device_cgroup" = /system.slice/snap.test-snapd-service.test-snapd-service.service
+# runs in the cgroup created by systemd, which varies across version of systemd.
+case "$initial_device_cgroup" in
+    /)
+        ;;
+    /system.slice)
+        ;;
+    /system.slice/snap.test-snapd-service.test-snapd-service.service)
+        ;;
+    *)
+        echo "Unexpected initial device cgroup: $initial_device_cgroup"
+        exit 1
+esac
 
 echo "Ensure that the claim of the process is consistent with the claim of the cgroup"
 # This is just a sanity check.
-MATCH "$pid" < "/sys/fs/cgroup/devices/$effective_device_cgroup/cgroup.procs"
+MATCH "$pid" < "/sys/fs/cgroup/devices/$initial_device_cgroup/cgroup.procs"
 
 echo "Verify the constraints imposed by the device cgroup made by systemd"
 # This may change over time as it is governed by systemd.
-test 'a *:* rwm' = "$(cat "/sys/fs/cgroup/devices/$effective_device_cgroup/devices.list")"
+test 'a *:* rwm' = "$(cat "/sys/fs/cgroup/devices/$initial_device_cgroup/devices.list")"
 
 echo "Connect the joystick interface"
 snap connect test-snapd-service:joystick
@@ -28,13 +39,13 @@ snap connect test-snapd-service:joystick
 echo "Refresh the value of the main pid and the effective device cgroup after snap connect"
 # NOTE: As of snapd 2.40 the PID and cgroup are expected to be the same as before.
 pid=$(systemctl show snap.test-snapd-service.test-snapd-service.service --property=ExecMainPID | cut -d = -f 2)
-effective_device_cgroup=$(grep devices < "/proc/$pid/cgroup" | cut -d : -f 3)
+updated_device_cgroup=$(grep devices < "/proc/$pid/cgroup" | cut -d : -f 3)
 
 echo "Verify that the main process is still in the systemd-made cgroup"
-test "$effective_device_cgroup" = /system.slice/snap.test-snapd-service.test-snapd-service.service
+test "$updated_device_cgroup" = "$initial_device_cgroup"
 
 echo "Verify the constraints imposed by the device cgroup made by systemd"
-test 'a *:* rwm' = "$(cat "/sys/fs/cgroup/devices/$effective_device_cgroup/devices.list")"
+test 'a *:* rwm' = "$(cat "/sys/fs/cgroup/devices/$updated_device_cgroup/devices.list")"
 
 echo "Run /bin/true via snap-confine, so that we create the device cgroup made by snapd"
 snap run --shell test-snapd-service -c /bin/true
@@ -61,7 +72,7 @@ done
 
 echo "Refresh the value of the main pid and the effective device cgroup after service restart"
 pid=$(systemctl show snap.test-snapd-service.test-snapd-service.service --property=ExecMainPID | cut -d = -f 2)
-effective_device_cgroup=$(grep devices < "/proc/$pid/cgroup" | cut -d : -f 3)
+final_device_cgroup=$(grep devices < "/proc/$pid/cgroup" | cut -d : -f 3)
 
 echo "Verify that the main process is now in the snapd-made cgroup"
-test "$effective_device_cgroup" = /snap.test-snapd-service.test-snapd-service
+test "$final_device_cgroup" = /snap.test-snapd-service.test-snapd-service
