@@ -58,7 +58,7 @@ func (client *Client) CurrentModelAssertion() (*asserts.Model, error) {
 	}
 	modelAssert, ok := assert.(*asserts.Model)
 	if !ok {
-		return nil, fmt.Errorf("invalid assertion type (%T) returned", assert)
+		return nil, fmt.Errorf("unexpected assertion type (%s) returned", assert.Type().Name)
 	}
 	return modelAssert, nil
 }
@@ -71,7 +71,7 @@ func (client *Client) CurrentSerialAssertion() (*asserts.Serial, error) {
 	}
 	serialAssert, ok := assert.(*asserts.Serial)
 	if !ok {
-		return nil, fmt.Errorf("invalid assertion type (%T) returned", assert)
+		return nil, fmt.Errorf("unexpected assertion type (%s) returned", assert.Type().Name)
 	}
 	return serialAssert, nil
 }
