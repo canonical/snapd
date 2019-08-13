@@ -1193,11 +1193,24 @@ func resolveChannel(st *state.State, snapName, newChannel string, deviceCtx Devi
 	model := deviceCtx.Model()
 
 	var pinnedTrack, which string
-	if snapName == model.Kernel() && model.KernelTrack() != "" {
+	switch {
+	case snapName == model.Kernel() && model.KernelTrack() != "":
 		pinnedTrack, which = model.KernelTrack(), "kernel"
-	}
-	if snapName == model.Gadget() && model.GadgetTrack() != "" {
+	case snapName == model.Gadget() && model.GadgetTrack() != "":
 		pinnedTrack, which = model.GadgetTrack(), "gadget"
+	default:
+		var snapst SnapState
+		err := Get(st, snapName, &snapst)
+		if err != nil && err != state.ErrNoState {
+			return "", err
+		}
+		if snapst.IsInstalled() && snapst.Channel != "" {
+			ch, err := snap.ParseChannel(snapst.Channel, "")
+			if err != nil {
+				return "", err
+			}
+			pinnedTrack = ch.Track
+		}
 	}
 
 	if pinnedTrack == "" {
@@ -1216,7 +1229,7 @@ func resolveChannel(st *state.State, snapName, newChannel string, deviceCtx Devi
 		// risk/branch) within the pinned track
 		return pinnedTrack + "/" + newChannel, nil
 	}
-	if nch.Track != "" && nch.Track != pinnedTrack {
+	if nch.Track != "" && nch.Track != pinnedTrack && which != "" {
 		// switching to a different track is not allowed
 		return "", fmt.Errorf("cannot switch from %s track %q as specified for the (device) model to %q", which, pinnedTrack, nch.Clean().String())
 
