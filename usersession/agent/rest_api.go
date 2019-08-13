@@ -65,10 +65,13 @@ type serviceInstruction struct {
 	Services []string `json:"services"`
 }
 
-var killWait = 5 * time.Second
+var (
+	stopTimeout = time.Duration(timeout.DefaultTimeout)
+	killWait    = 5 * time.Second
+)
 
 func stopOneService(service string, sysd systemd.Systemd) error {
-	err := sysd.Stop(service, time.Duration(timeout.DefaultTimeout))
+	err := sysd.Stop(service, stopTimeout)
 	if err != nil && systemd.IsTimeout(err) {
 		// ignore errors for kill; nothing we'd do differently at this point
 		sysd.Kill(service, "TERM", "")
@@ -86,7 +89,7 @@ func serviceStart(inst *serviceInstruction, sysd systemd.Systemd) Response {
 		}
 	}
 
-	var startErrors map[string]string
+	startErrors := make(map[string]string)
 	var started []string
 	for _, service := range inst.Services {
 		if err := sysd.Start(service); err != nil {
@@ -114,7 +117,7 @@ func serviceStop(inst *serviceInstruction, sysd systemd.Systemd) Response {
 		}
 	}
 
-	var stopErrors map[string]string
+	stopErrors := make(map[string]string)
 	for _, service := range inst.Services {
 		if err := stopOneService(service, sysd); err != nil {
 			stopErrors[service] = err.Error()

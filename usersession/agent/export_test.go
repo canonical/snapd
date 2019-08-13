@@ -19,7 +19,22 @@
 
 package agent
 
+import (
+	"time"
+)
+
 var (
 	SessionInfoCmd = sessionInfoCmd
 	ServicesCmd    = servicesCmd
 )
+
+func MockStopTimeouts(stop, kill time.Duration) (restore func()) {
+	oldStopTimeout := stopTimeout
+	stopTimeout = stop
+	oldKillWait := killWait
+	killWait = kill
+	return func() {
+		stopTimeout = oldStopTimeout
+		killWait = oldKillWait
+	}
+}
