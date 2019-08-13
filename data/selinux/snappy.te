@@ -654,3 +654,11 @@ allow init_t snappy_cli_t:unix_stream_socket create_stream_socket_perms;
 # declare fs_type(snappy_snap_t) outside of core policy, add explicit permission
 # instead
 allow init_t snappy_snap_t:filesystem remount;
+
+########################################
+#
+# extra policy for mandb_t
+#
+gen_require(` type mandb_t; ')
+# mandb cache update scans whe whole directory tree looking for 'man'
+allow mandb_t snappy_var_lib_t:dir search_dir_perms;
