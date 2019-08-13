@@ -7,6 +7,7 @@ systems: [ubuntu-1*, ubuntu-2*]
 
 restore: |
     rm -f /tmp/snapd_*.snap
+    snap remove test-snapd-tools-core18
 
 execute: |
     if [ "${SNAP_REEXEC:-}" = "0" ]; then
