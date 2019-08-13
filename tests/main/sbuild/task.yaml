@@ -29,7 +29,7 @@ restore: |
     rm -f /etc/schroot/chroot.d/sid-amd64-sbuild-*
 
 debug: |
-    # There there's a log file and a symbolic link pointing to it.
+    # Test that there's a log file and a symbolic link pointing to it.
     # The non-symlink has a time-stamp and we can match on the "Z" timezone
     # marker to find it.
     test "$(find . -maxdepth 1 -name '*Z.build' | wc -l)" -ge 1 &&  tail -n 100 ./*Z.build
