@@ -1449,6 +1449,8 @@ func downloadReqOpts(storeURL *url.URL, cdnHeader string, opts *DownloadOptions)
 		Method:       "GET",
 		URL:          storeURL,
 		ExtraHeaders: map[string]string{},
+		// FIXME: use the new headers? with
+		// APILevel: apiV2Endps,
 	}
 	if cdnHeader != "" {
 		reqOptions.ExtraHeaders["Snap-CDN"] = cdnHeader
