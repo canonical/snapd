@@ -22,25 +22,27 @@ package main
 import (
 	"fmt"
 
+	"github.com/jessevdk/go-flags"
 	"github.com/snapcore/snapd/i18n"
 	"github.com/snapcore/snapd/overlord/state"
 )
 
-type taskCommand struct {
-	baseCommand
+type cmdDebugTask struct {
+	baseOfflineDebugCommand
 
 	TaskID string `long:"task-id" required:"yes"`
 }
 
-var shortTaskHelp = i18n.G("The task command prints detailed information about the given task.")
+var shortDebugTaskHelp = i18n.G("The task command prints detailed information about the given task.")
+var longDebugTaskHelp = i18n.G("The task command prints detailed information about the given task.")
 
 func init() {
-	addCommand("task", shortTaskHelp, "", func() command {
-		return &taskCommand{}
-	})
+	addDebugCommand("task", shortDebugTaskHelp, longDebugTaskHelp, func() flags.Commander {
+		return &cmdDebugTask{}
+	}, map[string]string{"task-id": i18n.G("ID of the task to inspect")}, nil)
 }
 
-func (c *taskCommand) showTask(st *state.State, taskID string) error {
+func (c *cmdDebugTask) showTask(st *state.State, taskID string) error {
 	st.Lock()
 	defer st.Unlock()
 
@@ -49,25 +51,25 @@ func (c *taskCommand) showTask(st *state.State, taskID string) error {
 		return fmt.Errorf("no such task: %s", taskID)
 	}
 
-	fmt.Fprintf(c.stdOut, "id: %s\nkind: %s\nsummary: %s\nstatus: %s\n\n", taskID, task.Kind(), task.Summary(), task.Status().String())
+	fmt.Printf("id: %s\nkind: %s\nsummary: %s\nstatus: %s\n\n", taskID, task.Kind(), task.Summary(), task.Status().String())
 	log := task.Log()
 	if len(log) > 0 {
-		fmt.Fprintf(c.stdOut, "log:\n")
+		fmt.Printf("log:\n")
 		for _, msg := range log {
-			fmt.Fprintf(c.stdOut, "  %s\n", msg)
+			fmt.Printf("  %s\n", msg)
 		}
-		fmt.Fprintln(c.stdOut)
+		fmt.Println()
 	}
 
-	fmt.Fprintf(c.stdOut, "tasks waiting for %s:\n", taskID)
+	fmt.Printf("tasks waiting for %s:\n", taskID)
 	for _, ht := range task.HaltTasks() {
-		fmt.Fprintf(c.stdOut, "  %s (%s)\n", ht.Kind(), ht.ID())
+		fmt.Printf("  %s (%s)\n", ht.Kind(), ht.ID())
 	}
 
 	return nil
 }
 
-func (c *taskCommand) Execute(args []string) error {
+func (c *cmdDebugTask) Execute(args []string) error {
 	st, err := loadState(c.Positional.StateFilePath)
 	if err != nil {
 		return err

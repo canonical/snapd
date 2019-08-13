@@ -24,31 +24,39 @@ import (
 	"os"
 	"sort"
 	"strings"
+	"text/tabwriter"
 
+	"github.com/jessevdk/go-flags"
 	"github.com/snapcore/snapd/i18n"
 	"github.com/snapcore/snapd/overlord/state"
 )
 
-type tasksCommand struct {
-	baseCommand
+type cmdDebugTasks struct {
+	baseOfflineDebugCommand
 
 	ChangeID  string `long:"change-id" required:"yes"`
-	DotOutput bool   `long:"dot" description:"Dot (graphviz) output"` // XXX: mildly useful (too crowded in many cases), but let's have it just in case
+	DotOutput bool   `long:"dot"` // XXX: mildly useful (too crowded in many cases), but let's have it just in case
 
 	// When inspecting errors/undone tasks, those in Hold state are usually irrelevant, make it possible to ignore them
-	NoHoldState bool `long:"no-hold" description:"Omit tasks in 'Hold' state in the output"`
+	NoHoldState bool `long:"no-hold"`
 }
 
-var shortTasksHelp = i18n.G("The tasks command prints tasks of the given change.")
-var shortChangeHelp = i18n.G("The change command prints tasks of the given change.")
+var shortDebugTasksHelp = i18n.G("The tasks command prints tasks of the given change.")
+var longDebugTasksHelp = i18n.G("The change command prints tasks of the given change.")
 
 func init() {
-	addCommand("tasks", shortTasksHelp, "", func() command {
-		return &tasksCommand{}
-	})
-	addCommand("change", shortChangeHelp, "", func() command {
-		return &tasksCommand{}
-	})
+	descs := map[string]string{
+		"change-id": i18n.G("ID of the change to inspect"),
+		"dot":       i18n.G("Dot (graphviz) output"),
+		"no-hold":   i18n.G("Omit tasks in 'Hold' state in the output"),
+	}
+	// tasks and change commands do the same and exist for symmetry with 'snap change' / 'snap tasks'.
+	addDebugCommand("tasks", shortDebugTasksHelp, longDebugTasksHelp, func() flags.Commander {
+		return &cmdDebugTasks{}
+	}, descs, nil)
+	addDebugCommand("change", shortDebugTasksHelp, longDebugTasksHelp, func() flags.Commander {
+		return &cmdDebugTasks{}
+	}, descs, nil)
 }
 
 type byLaneAndWaitTaskChain []*state.Task
@@ -76,7 +84,7 @@ func waitChainSearch(startT, searchT *state.Task) bool {
 	return false
 }
 
-func (c *tasksCommand) writeDotOutput(st *state.State, changeID string) error {
+func (c *cmdDebugTasks) writeDotOutput(st *state.State, changeID string) error {
 	st.Lock()
 	defer st.Unlock()
 
@@ -104,7 +112,7 @@ func (c *tasksCommand) writeDotOutput(st *state.State, changeID string) error {
 	return nil
 }
 
-func (c *tasksCommand) showTasks(st *state.State, changeID string) error {
+func (c *cmdDebugTasks) showTasks(st *state.State, changeID string) error {
 	st.Lock()
 	defer st.Unlock()
 
@@ -116,7 +124,8 @@ func (c *tasksCommand) showTasks(st *state.State, changeID string) error {
 	tasks := chg.Tasks()
 	sort.Sort(byLaneAndWaitTaskChain(tasks))
 
-	fmt.Fprintf(c.columnOutput, "Lanes\tID\tStatus\tSpawn\tReady\tKind\tSummary\n")
+	w := tabwriter.NewWriter(os.Stdout, 5, 3, 2, ' ', 0)
+	fmt.Fprintf(w, "Lanes\tID\tStatus\tSpawn\tReady\tKind\tSummary\n")
 	for _, t := range tasks {
 		if c.NoHoldState && t.Status() == state.HoldStatus {
 			continue
@@ -125,18 +134,18 @@ func (c *tasksCommand) showTasks(st *state.State, changeID string) error {
 		for _, lane := range t.Lanes() {
 			lanes = append(lanes, fmt.Sprintf("%d", lane))
 		}
-		fmt.Fprintf(c.columnOutput, "%s\t%s\t%s\t%s\t%s\t%s\t%s\n", strings.Join(lanes, ","), t.ID(), t.Status().String(), formatTime(t.SpawnTime()), formatTime(t.ReadyTime()), t.Kind(), t.Summary())
+		fmt.Fprintf(w, "%s\t%s\t%s\t%s\t%s\t%s\t%s\n", strings.Join(lanes, ","), t.ID(), t.Status().String(), formatTime(t.SpawnTime()), formatTime(t.ReadyTime()), t.Kind(), t.Summary())
 	}
 
-	c.columnOutput.Flush()
+	w.Flush()
 
 	for _, t := range tasks {
 		logs := t.Log()
 		if len(logs) > 0 {
-			fmt.Fprintf(c.stdOut, "---\n")
-			fmt.Fprintf(c.stdOut, "%s %s\n", t.ID(), t.Summary())
+			fmt.Printf("---\n")
+			fmt.Printf("%s %s\n", t.ID(), t.Summary())
 			for _, log := range logs {
-				fmt.Fprintf(c.stdOut, "  %s\n", log)
+				fmt.Printf("  %s\n", log)
 			}
 		}
 	}
@@ -144,7 +153,7 @@ func (c *tasksCommand) showTasks(st *state.State, changeID string) error {
 	return nil
 }
 
-func (c *tasksCommand) Execute(args []string) error {
+func (c *cmdDebugTasks) Execute(args []string) error {
 	st, err := loadState(c.Positional.StateFilePath)
 	if err != nil {
 		return err
