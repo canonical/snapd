@@ -1,0 +1,9 @@
+name: test-snapd-mountinfo-core16
+summary: app for displaying mountinfo inside the snap mount namespace
+version: 1
+architecture: [all]
+plugs:
+    mount-observe:
+apps:
+    test-snapd-mountinfo-core16:
+        command: bin/mountinfo

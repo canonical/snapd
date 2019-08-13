@@ -72,7 +72,7 @@ func postSnapDownload(c *Command, r *http.Request, user *auth.UserState) Respons
 }
 
 func streamOneSnap(c *Command, user *auth.UserState, snapName string) Response {
-	info, err := getStore(c).SnapInfo(store.SnapSpec{Name: snapName}, user)
+	info, err := getStore(c).SnapInfo(context.TODO(), store.SnapSpec{Name: snapName}, user)
 	if err != nil {
 		return SnapNotFound(snapName, err)
 	}

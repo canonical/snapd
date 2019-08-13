@@ -75,16 +75,25 @@ test_get_nested() {
   fi
 }
 
-test_snapctl_get_foo_null() {
+test_snapctl_foo_null() {
 	  echo "Getting foo"
+	  # note, snapctl doesn't fail on non-existing keys, this check is for other unexpected errors
 	  if ! output="$(snapctl get foo)"; then
-		    echo "Expected snapctl get to be able to retrieve value just set"
+		    echo "Did not expect snapctl get to fail"
 		    exit 1
 	  fi
 
 	  expected_output=""
 	  if [ "$output" != "$expected_output" ]; then
 		    echo "Expected output to be '$expected_output', but it was '$output'"
+		    exit 1
+	  fi
+}
+
+test_snapctl_unset() {
+	  echo "Unsetting an option"
+	  if ! snapctl set root.key2! ; then
+	            echo "snapctl set unexpectedly failed when un-setting root.key2"
 		    exit 1
 	  fi
 }
@@ -110,8 +119,8 @@ case $command in
 	"test-snapctl-get-foo")
 		test_snapctl_get_foo
 		;;
-	"test-snapctl-get-foo-null")
-    test_snapctl_get_foo_null
+	"test-snapctl-foo-null")
+    test_snapctl_foo_null
     ;;
 	"test-exit-one")
 		test_exit_one
@@ -122,6 +131,9 @@ case $command in
   "test-get-nested")
     test_get_nested
     ;;
+  "test-unset")
+    test_snapctl_unset
+	;;
 	*)
 		echo "Invalid command: '$command'"
 		exit 1

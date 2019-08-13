@@ -3,7 +3,6 @@ summary: test snapshots work when core snap is refreshed and reverted
 prepare: |
     #shellcheck source=tests/lib/nested.sh
     . "$TESTSLIB/nested.sh"
-    create_nested_classic_vm
 
     # configure hosts file
     # shellcheck disable=SC2016
@@ -15,11 +14,6 @@ prepare: |
     execute_remote "sudo apt install -y ./snapd_*.deb"
     execute_remote "sudo snap install test-snapd-tools"
     execute_remote "sudo snap install test-snapd-rsync"
-
-restore: |
-    #shellcheck source=tests/lib/nested.sh
-    . "$TESTSLIB/nested.sh"
-    destroy_nested_vm
 
 execute: |
     #shellcheck source=tests/lib/nested.sh

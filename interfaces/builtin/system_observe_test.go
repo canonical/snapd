@@ -53,7 +53,7 @@ var _ = Suite(&SystemObserveInterfaceSuite{
 
 func (s *SystemObserveInterfaceSuite) SetUpTest(c *C) {
 	s.slotInfo = &snap.SlotInfo{
-		Snap:      &snap.Info{SuggestedName: "core", Type: snap.TypeOS},
+		Snap:      &snap.Info{SuggestedName: "core", SnapType: snap.TypeOS},
 		Name:      "system-observe",
 		Interface: "system-observe",
 	}

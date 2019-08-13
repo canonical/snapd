@@ -137,11 +137,18 @@ var seccompSyscallRunnerContent = []byte(`
 #include <stdlib.h>
 #include <sys/syscall.h>
 #include <unistd.h>
+#include <inttypes.h>
 int main(int argc, char** argv)
 {
-    int l[7], syscall_ret, ret = 0;
-    for (int i = 0; i < 7; i++)
-        l[i] = atoi(argv[i + 1]);
+    uint32_t l[7];
+    int syscall_ret, ret = 0;
+    for (int i = 0; i < 7; i++) {
+        errno = 0;
+        l[i] = strtoll(argv[i + 1], NULL, 10);
+	// exit '11' let's us know strtoll failed
+        if (errno != 0)
+            syscall(SYS_exit, 11, 0, 0, 0, 0, 0);
+    }
     // There might be architecture-specific requirements. see "man syscall"
     // for details.
     syscall_ret = syscall(l[0], l[1], l[2], l[3], l[4], l[5], l[6]);
@@ -303,11 +310,14 @@ restart_syscall
 		for i := range args {
 			// init with random number argument
 			syscallArg := (uint64)(rand.Uint32())
-			// override if the test specifies a specific number
-			if nr, err := strconv.ParseUint(args[i], 10, 64); err == nil {
+			// override if the test specifies a specific number;
+			// this must match main.go:readNumber()
+			if nr, ok := main.SeccompResolver[args[i]]; ok {
 				syscallArg = nr
-			} else if nr, ok := main.SeccompResolver[args[i]]; ok {
+			} else if nr, err := strconv.ParseUint(args[i], 10, 32); err == nil {
 				syscallArg = nr
+			} else if nr, err := strconv.ParseInt(args[i], 10, 32); err == nil {
+				syscallArg = uint64(uint32(nr))
 			}
 			syscallRunnerArgs[i+1] = strconv.FormatUint(syscallArg, 10)
 		}
@@ -454,6 +464,14 @@ func (s *snapSeccompSuite) TestCompile(c *C) {
 		{"fchown - u:root g:root", "fchown;native;-,99,0", Deny},
 		{"chown - u:root g:root", "chown;native;-,0,0", Allow},
 		{"chown - u:root g:root", "chown;native;-,99,0", Deny},
+
+		// u:root -1
+		{"chown - u:root -1", "chown;native;-,0,-1", Allow},
+		{"chown - u:root -1", "chown;native;-,99,-1", Deny},
+		{"chown - -1 u:root", "chown;native;-,-1,0", Allow},
+		{"chown - -1 u:root", "chown;native;-,99,0", Deny},
+		{"chown - -1 -1", "chown;native;-,-1,-1", Allow},
+		{"chown - -1 -1", "chown;native;-,99,-1", Deny},
 	} {
 		s.runBpf(c, t.seccompWhitelist, t.bpfInput, t.expected)
 	}
@@ -521,6 +539,10 @@ func (s *snapSeccompSuite) TestCompileBadInput(c *C) {
 		{"setpriority 1-", `cannot parse line: cannot parse token "1-" .*`},
 		{"setpriority 1\\ 2", `cannot parse line: cannot parse token "1\\\\" .*`},
 		{"setpriority 1\\n2", `cannot parse line: cannot parse token "1\\\\n2" .*`},
+		// 1 bigger than uint32
+		{"chown 0 4294967296", `cannot parse line: cannot parse token "4294967296" .*`},
+		// 1 smaller than int32
+		{"chown - 0 -2147483649", `cannot parse line: cannot parse token "-2147483649" .*`},
 		{"setpriority 999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999", `cannot parse line: cannot parse token "999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999" .*`},
 		{"mbind - - - - - - 7", `cannot parse line: too many arguments specified for syscall 'mbind' in line.*`},
 		{"mbind 1 2 3 4 5 6 7", `cannot parse line: too many arguments specified for syscall 'mbind' in line.*`},
@@ -787,6 +809,14 @@ func (s *snapSeccompSuite) TestCompatArchWorks(c *C) {
 		// on amd64 we add compat i386
 		{"amd64", "read", "read;i386", Allow},
 		{"amd64", "read", "read;amd64", Allow},
+		{"amd64", "chown - 0 -1", "chown;i386;-,0,-1", Allow},
+		{"amd64", "chown - 0 -1", "chown;amd64;-,0,-1", Allow},
+		{"amd64", "chown - 0 -1", "chown;i386;-,99,-1", Deny},
+		{"amd64", "chown - 0 -1", "chown;amd64;-,99,-1", Deny},
+		{"amd64", "setresuid -1 -1 -1", "setresuid;i386;-1,-1,-1", Allow},
+		{"amd64", "setresuid -1 -1 -1", "setresuid;amd64;-1,-1,-1", Allow},
+		{"amd64", "setresuid -1 -1 -1", "setresuid;i386;-1,99,-1", Deny},
+		{"amd64", "setresuid -1 -1 -1", "setresuid;amd64;-1,99,-1", Deny},
 	} {
 		// It is tricky to mock the architecture here because
 		// seccomp is always adding the native arch to the seccomp

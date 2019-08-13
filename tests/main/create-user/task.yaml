@@ -3,7 +3,7 @@ summary: Ensure create-user functionality
 # FIXME: enable on ubuntu-core-18-* as well once the shadow SRU
 #        https://launchpad.net/ubuntu/+source/shadow/1:4.5-1ubuntu2
 #        is available on -updates
-systems: [ubuntu-core-16-*]
+systems: [ubuntu-core-1*]
 
 environment:
     USER_EMAIL: mvo@ubuntu.com

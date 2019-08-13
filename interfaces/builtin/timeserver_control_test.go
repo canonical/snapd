@@ -51,7 +51,7 @@ apps:
   plugs: [timeserver-control]
 `
 	s.slotInfo = &snap.SlotInfo{
-		Snap:      &snap.Info{SuggestedName: "core", Type: snap.TypeOS},
+		Snap:      &snap.Info{SuggestedName: "core", SnapType: snap.TypeOS},
 		Name:      "timeserver-control",
 		Interface: "timeserver-control",
 	}

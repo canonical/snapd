@@ -31,7 +31,7 @@ import (
 func ReadGadgetInfo(info *Info, classic bool) (*gadget.Info, error) {
 	const errorFormat = "cannot read gadget snap details: %s"
 
-	if info.Type != TypeGadget {
+	if info.GetType() != TypeGadget {
 		return nil, fmt.Errorf(errorFormat, "not a gadget snap")
 	}
 

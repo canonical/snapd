@@ -200,7 +200,9 @@ func (s *mgrsSuite) SetUpTest(c *C) {
 
 	s.AddCleanup(ifacestate.MockSecurityBackends(nil))
 
-	o, err := overlord.New()
+	o, err := overlord.New(nil)
+	c.Assert(err, IsNil)
+	err = o.StartUp()
 	c.Assert(err, IsNil)
 	o.InterfaceManager().DisableUDevMonitor()
 	s.o = o
@@ -566,7 +568,7 @@ func (s *mgrsSuite) mockStore(c *C) *httptest.Server {
 		hit = strings.Replace(hit, "@ICON@", baseURL.String()+"/icon", -1)
 		hit = strings.Replace(hit, "@VERSION@", info.Version, -1)
 		hit = strings.Replace(hit, "@REVISION@", revno, -1)
-		hit = strings.Replace(hit, `@TYPE@`, string(info.Type), -1)
+		hit = strings.Replace(hit, `@TYPE@`, string(info.GetType()), -1)
 		hit = strings.Replace(hit, `@EPOCH@`, string(epochBuf), -1)
 		return hit
 	}
@@ -795,7 +797,7 @@ apps:
 	st.Lock()
 	defer st.Unlock()
 
-	ts, err := snapstate.Install(st, "foo", nil, 0, snapstate.Flags{})
+	ts, err := snapstate.Install(context.TODO(), st, "foo", nil, 0, snapstate.Flags{})
 	c.Assert(err, IsNil)
 	chg := st.NewChange("install-snap", "...")
 	chg.AddAll(ts)
@@ -896,7 +898,7 @@ func (s *mgrsSuite) TestHappyRemoteInstallAndUpdateWithEpochBump(c *C) {
 	st.Lock()
 	defer st.Unlock()
 
-	ts, err := snapstate.Install(st, "foo", nil, 0, snapstate.Flags{})
+	ts, err := snapstate.Install(context.TODO(), st, "foo", nil, 0, snapstate.Flags{})
 	c.Assert(err, IsNil)
 	chg := st.NewChange("install-snap", "...")
 	chg.AddAll(ts)
@@ -977,7 +979,7 @@ func (s *mgrsSuite) testHappyRemoteInstallAndUpdateWithMaybeEpochBump(c *C, doBu
 	st.Lock()
 	defer st.Unlock()
 
-	ts, err := snapstate.Install(st, "foo", nil, 0, snapstate.Flags{})
+	ts, err := snapstate.Install(context.TODO(), st, "foo", nil, 0, snapstate.Flags{})
 	c.Assert(err, IsNil)
 	chg := st.NewChange("install-snap", "...")
 	chg.AddAll(ts)
@@ -1407,7 +1409,7 @@ version: @VERSION@
 	st.Lock()
 	defer st.Unlock()
 
-	ts, err := snapstate.Install(st, "foo", nil, 0, snapstate.Flags{})
+	ts, err := snapstate.Install(context.TODO(), st, "foo", nil, 0, snapstate.Flags{})
 	c.Assert(err, IsNil)
 	chg := st.NewChange("install-snap", "...")
 	chg.AddAll(ts)
@@ -1582,7 +1584,7 @@ type: os
 	// simulate successful restart happened
 	state.MockRestarting(st, state.RestartUnset)
 	loader.BootVars["snap_mode"] = ""
-	loader.BootVars["snap_core"] = "core_x1.snap"
+	boottest.SetBootBase("core_x1.snap", loader)
 
 	st.Unlock()
 	err = s.o.Settle(settleTimeout)
@@ -1896,7 +1898,7 @@ apps:
 	st.Lock()
 	defer st.Unlock()
 
-	ts, err := snapstate.Install(st, "foo", nil, 0, snapstate.Flags{})
+	ts, err := snapstate.Install(context.TODO(), st, "foo", nil, 0, snapstate.Flags{})
 	c.Assert(err, IsNil)
 	chg := st.NewChange("install-snap", "...")
 	chg.AddAll(ts)
@@ -1956,7 +1958,7 @@ apps:
 	st.Lock()
 	defer st.Unlock()
 
-	ts, err := snapstate.Install(st, "foo", nil, 0, snapstate.Flags{})
+	ts, err := snapstate.Install(context.TODO(), st, "foo", nil, 0, snapstate.Flags{})
 	c.Assert(err, IsNil)
 	chg := st.NewChange("install-snap", "...")
 	chg.AddAll(ts)
@@ -2062,7 +2064,7 @@ apps:
 	st.Lock()
 	defer st.Unlock()
 
-	ts, err := snapstate.Install(st, "foo", nil, 0, snapstate.Flags{Unaliased: true})
+	ts, err := snapstate.Install(context.TODO(), st, "foo", nil, 0, snapstate.Flags{Unaliased: true})
 	c.Assert(err, IsNil)
 	chg := st.NewChange("install-snap", "...")
 	chg.AddAll(ts)
@@ -2175,7 +2177,7 @@ apps:
 	st.Lock()
 	defer st.Unlock()
 
-	ts, err := snapstate.Install(st, "foo", nil, 0, snapstate.Flags{})
+	ts, err := snapstate.Install(context.TODO(), st, "foo", nil, 0, snapstate.Flags{})
 	c.Assert(err, IsNil)
 	chg := st.NewChange("install-snap", "...")
 	chg.AddAll(ts)
@@ -2189,7 +2191,7 @@ apps:
 
 	c.Assert(chg.Status(), Equals, state.DoneStatus, Commentf("install-snap change failed with: %v", chg.Err()))
 
-	ts, err = snapstate.Install(st, "bar", nil, 0, snapstate.Flags{})
+	ts, err = snapstate.Install(context.TODO(), st, "bar", nil, 0, snapstate.Flags{})
 	c.Assert(err, IsNil)
 	chg = st.NewChange("install-snap", "...")
 	chg.AddAll(ts)
@@ -2322,7 +2324,7 @@ version: 1.0
 	st.Lock()
 	defer st.Unlock()
 
-	ts, err := snapstate.Install(st, "foo", nil, 0, snapstate.Flags{})
+	ts, err := snapstate.Install(context.TODO(), st, "foo", nil, 0, snapstate.Flags{})
 	c.Assert(err, IsNil)
 	chg := st.NewChange("install-snap", "...")
 	chg.AddAll(ts)
@@ -2363,7 +2365,7 @@ version: 1.0
 	st.Lock()
 	defer st.Unlock()
 
-	ts, err := snapstate.Install(st, "foo", nil, 0, snapstate.Flags{})
+	ts, err := snapstate.Install(context.TODO(), st, "foo", nil, 0, snapstate.Flags{})
 	c.Assert(err, IsNil)
 	chg := st.NewChange("install-snap", "...")
 	chg.AddAll(ts)
@@ -2434,7 +2436,7 @@ func (s *storeCtxSetupSuite) SetUpTest(c *C) {
 
 	s.restoreBackends = ifacestate.MockSecurityBackends(nil)
 
-	o, err := overlord.New()
+	o, err := overlord.New(nil)
 	c.Assert(err, IsNil)
 	o.InterfaceManager().DisableUDevMonitor()
 	s.o = o
@@ -3204,6 +3206,8 @@ func validateInstallTasks(c *C, tasks []*state.Task, name, revno string) int {
 	i++
 	c.Assert(tasks[i].Summary(), Equals, fmt.Sprintf(`Run configure hook of "%s" snap if present`, name))
 	i++
+	c.Assert(tasks[i].Summary(), Equals, fmt.Sprintf(`Run health check of "%s" snap`, name))
+	i++
 	return i
 }
 
@@ -3238,6 +3242,8 @@ func validateRefreshTasks(c *C, tasks []*state.Task, name, revno string) int {
 	c.Assert(tasks[i].Summary(), Equals, fmt.Sprintf(`Clean up "%s" (%s) install`, name, revno))
 	i++
 	c.Assert(tasks[i].Summary(), Equals, fmt.Sprintf(`Run configure hook of "%s" snap if present`, name))
+	i++
+	c.Assert(tasks[i].Summary(), Equals, fmt.Sprintf(`Run health check of "%s" snap`, name))
 	i++
 	return i
 }
@@ -3391,6 +3397,8 @@ type: base`
 
 func (s *mgrsSuite) TestRemodelSwitchKernelTrack(c *C) {
 	loader := boottest.NewMockBootloader("mock", c.MkDir())
+	boottest.SetBootKernel("pc-kernel_1.snap", loader)
+	boottest.SetBootBase("core_1.snap", loader)
 	bootloader.Force(loader)
 	defer bootloader.Force(nil)
 
@@ -3491,6 +3499,7 @@ func (s *mgrsSuite) TestRemodelStoreSwitch(c *C) {
 	snapPath, _ := s.makeStoreTestSnap(c, fmt.Sprintf("{name: %s, version: 1.0}", "foo"), "1")
 	s.serveSnap(snapPath, "1")
 
+	// track the creation of new DeviceAndAutContext (for new Store)
 	newDAC := false
 
 	mockServer := s.mockStore(c)
@@ -3690,4 +3699,150 @@ func (s *mgrsSuite) TestHappyDeviceRegistrationWithPrepareDeviceHook(c *C) {
 	})
 
 	c.Check(serial.DeviceKey().ID(), Equals, device.KeyID)
+}
+
+func (s *mgrsSuite) TestRemodelReregistration(c *C) {
+	s.prereqSnapAssertions(c, map[string]interface{}{
+		"snap-name": "foo",
+	})
+	snapPath, _ := s.makeStoreTestSnap(c, fmt.Sprintf("{name: %s, version: 1.0}", "foo"), "1")
+	s.serveSnap(snapPath, "1")
+
+	// track the creation of new DeviceAndAutContext (for new Store)
+	newDAC := false
+
+	mockServer := s.mockStore(c)
+	defer mockServer.Close()
+
+	st := s.o.State()
+	st.Lock()
+	defer st.Unlock()
+
+	s.checkDeviceAndAuthContext = func(dac store.DeviceAndAuthContext) {
+		// the DeviceAndAuthContext assumes state is unlocked
+		st.Unlock()
+		defer st.Lock()
+		c.Check(dac, NotNil)
+		stoID, err := dac.StoreID("")
+		c.Assert(err, IsNil)
+		c.Check(stoID, Equals, "my-brand-substore")
+		newDAC = true
+	}
+
+	model := s.brands.Model("my-brand", "my-model", modelDefaults, map[string]interface{}{
+		"gadget": "gadget",
+	})
+
+	// setup initial device identity
+	kpMgr, err := asserts.OpenFSKeypairManager(dirs.SnapDeviceDir)
+	c.Assert(err, IsNil)
+	err = kpMgr.Put(deviceKey)
+	c.Assert(err, IsNil)
+
+	assertstatetest.AddMany(st, s.brands.AccountsAndKeys("my-brand")...)
+	devicestatetest.SetDevice(st, &auth.DeviceState{
+		Brand:  "my-brand",
+		Model:  "my-model",
+		KeyID:  deviceKey.PublicKey().ID(),
+		Serial: "orig-serial",
+	})
+	err = assertstate.Add(st, model)
+	c.Assert(err, IsNil)
+
+	encDevKey, err := asserts.EncodePublicKey(deviceKey.PublicKey())
+	c.Assert(err, IsNil)
+	serialHeaders := map[string]interface{}{
+		"brand-id":            "my-brand",
+		"model":               "my-model",
+		"serial":              "orig-serial",
+		"device-key":          string(encDevKey),
+		"device-key-sha3-384": deviceKey.PublicKey().ID(),
+		"timestamp":           time.Now().Format(time.RFC3339),
+	}
+	serialA, err := s.brands.Signing("my-brand").Sign(asserts.SerialType, serialHeaders, nil, "")
+	c.Assert(err, IsNil)
+	serial := serialA.(*asserts.Serial)
+	err = assertstate.Add(st, serial)
+	c.Assert(err, IsNil)
+
+	signSerial := func(c *C, bhv *devicestatetest.DeviceServiceBehavior, headers map[string]interface{}, body []byte) (asserts.Assertion, error) {
+		brandID := headers["brand-id"].(string)
+		model := headers["model"].(string)
+		c.Check(brandID, Equals, "my-brand")
+		c.Check(model, Equals, "other-model")
+		headers["authority-id"] = brandID
+		return s.brands.Signing("my-brand").Sign(asserts.SerialType, headers, body, "")
+	}
+
+	bhv := &devicestatetest.DeviceServiceBehavior{
+		ReqID:            "REQID-1",
+		RequestIDURLPath: "/svc/request-id",
+		SerialURLPath:    "/svc/serial",
+		SignSerial:       signSerial,
+	}
+
+	mockDeviceService := devicestatetest.MockDeviceService(c, bhv)
+	defer mockDeviceService.Close()
+
+	r := devicestatetest.MockGadget(c, st, "gadget", snap.R(2), nil)
+	defer r()
+
+	// set registration config on gadget
+	tr := config.NewTransaction(st)
+	c.Assert(tr.Set("gadget", "device-service.url", mockDeviceService.URL+"/svc/"), IsNil)
+	c.Assert(tr.Set("gadget", "registration.proposed-serial", "orig-serial"), IsNil)
+	tr.Commit()
+
+	// run the remodel
+	// create a new model
+	newModel := s.brands.Model("my-brand", "other-model", modelDefaults, map[string]interface{}{
+		"store":          "my-brand-substore",
+		"gadget":         "gadget",
+		"required-snaps": []interface{}{"foo"},
+	})
+
+	s.expectedSerial = "orig-serial"
+	s.expectedStore = "my-brand-substore"
+	s.sessionMacaroon = "other-store-session"
+
+	chg, err := devicestate.Remodel(st, newModel)
+	c.Assert(err, IsNil)
+
+	st.Unlock()
+	err = s.o.Settle(settleTimeout)
+	st.Lock()
+	c.Assert(err, IsNil)
+
+	c.Assert(chg.Status(), Equals, state.DoneStatus, Commentf("upgrade-snap change failed with: %v", chg.Err()))
+
+	device, err := devicestatetest.Device(st)
+	c.Assert(err, IsNil)
+	c.Check(device.Brand, Equals, "my-brand")
+	c.Check(device.Model, Equals, "other-model")
+	c.Check(device.Serial, Equals, "orig-serial")
+
+	a, err := assertstate.DB(st).Find(asserts.SerialType, map[string]string{
+		"brand-id": "my-brand",
+		"model":    "other-model",
+		"serial":   "orig-serial",
+	})
+	c.Assert(err, IsNil)
+	serial = a.(*asserts.Serial)
+
+	c.Check(serial.Body(), HasLen, 0)
+	c.Check(serial.DeviceKey().ID(), Equals, device.KeyID)
+
+	// the new required-snap "foo" is installed
+	var snapst snapstate.SnapState
+	err = snapstate.Get(st, "foo", &snapst)
+	c.Assert(err, IsNil)
+
+	// and marked required
+	c.Check(snapst.Required, Equals, true)
+
+	// a new store was made
+	c.Check(newDAC, Equals, true)
+
+	// we have a session with the new store
+	c.Check(device.SessionMacaroon, Equals, "other-store-session")
 }

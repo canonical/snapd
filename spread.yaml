@@ -49,6 +49,7 @@ environment:
     SKIP_REMOVE_SNAPS: '$(HOST: echo "${SPREAD_SKIP_REMOVE_SNAPS:-}") test-snapd-rsync test-snapd-rsync-core18'
     # Use the installed snapd and reset the systems without removing snapd
     REUSE_SNAPD: "$(HOST: echo \"${SPREAD_REUSE_SNAPD:-0}\")"
+    PROFILE_SNAPS: "$(HOST: echo \"${SPREAD_PROFILE_SNAPS:-0}\")"
 
 backends:
     google:
@@ -63,9 +64,6 @@ backends:
             - ubuntu-16.04-64:
                 workers: 8
             - ubuntu-18.04-64:
-                workers: 6
-            - ubuntu-18.10-64:
-                image: ubuntu-1810
                 workers: 6
             - ubuntu-19.04-64:
                 workers: 6
@@ -113,14 +111,14 @@ backends:
         location: computeengine/us-east1-b
         halt-timeout: 2h
         systems:
-            - ubuntu-14.04-64:
-                workers: 4
             - ubuntu-16.04-64:
                 workers: 4
             - ubuntu-18.04-64:
                 workers: 4
             - ubuntu-18.10-64:
                 image: ubuntu-1810
+                workers: 4
+            - ubuntu-19.04-64:
                 workers: 4
 
     google-nested:
@@ -528,6 +526,11 @@ prepare: |
         fi
     fi
 
+    if [[ "$SPREAD_SYSTEM" == ubuntu-* ]] && [[ "$SPREAD_SYSTEM" != ubuntu-core-* ]]; then
+        apt-get remove --purge -y lxd lxcfs || true
+        apt-get autoremove --purge -y
+    fi
+
     if [[ "$SPREAD_SYSTEM" == debian-* ]]; then
         apt-get update && apt-get install -y eatmydata
     fi
@@ -599,6 +602,7 @@ prepare: |
     "$TESTSLIB"/prepare-restore.sh --prepare-project
 prepare-each: |
     "$TESTSLIB"/prepare-restore.sh --prepare-project-each
+    grep -v /var/lib/lxcfs /proc/self/mountinfo
 restore: |
     "$TESTSLIB"/prepare-restore.sh --restore-project
 restore-each: |
@@ -616,7 +620,7 @@ restore-each: |
             find /var/snap -printf '%Z\t%H/%P\n' | grep -c -v snappy_var_t  | MATCH "0"
             ;;
     esac
-
+    grep -v /var/lib/lxcfs /proc/self/mountinfo
 suites:
     # The essential tests designed to run inside the autopkgtest
     # environment on each platform. On autopkgtest we cannot run all tests
@@ -640,8 +644,10 @@ suites:
         prepare: |
             "$TESTSLIB"/prepare-restore.sh --prepare-suite
         debug: |
-            systemctl status snapd.socket || true
-            journalctl -xe
+            if [ "$SPREAD_DEBUG_EACH" = 1 ]; then
+                systemctl status snapd.socket || true
+                journalctl -xe
+            fi
         prepare-each: |
             "$TESTSLIB"/prepare-restore.sh --prepare-suite-each
         restore-each: |
@@ -796,35 +802,76 @@ suites:
         backends: [google-nested]
         systems: [ubuntu-16.04-64, ubuntu-18.04-64]
         environment:
-            NESTED_TYPE: classic
+            NESTED_TYPE: "classic"
+            # Channel used to create the nested vm
             CORE_CHANNEL: '$(HOST: echo "${SPREAD_CORE_CHANNEL:-stable}")'
+            # Channel used to refresh when testing refresh and revert
             CORE_REFRESH_CHANNEL: '$(HOST: echo "${SPREAD_CORE_REFRESH_CHANNEL:-edge}")'
+            # Channel used to update the core/snapd snaps on some tests
+            NEW_CORE_CHANNEL: '$(HOST: echo "${SPREAD_NEW_CORE_CHANNEL:-edge}")'
         manual: true
         prepare: |
             "$TESTSLIB"/prepare-restore.sh --prepare-suite
             #shellcheck source=tests/lib/pkgdb.sh
             . "$TESTSLIB"/pkgdb.sh
+            distro_update_package_db
             distro_install_package snapd qemu genisoimage sshpass qemu-kvm cloud-image-utils ubuntu-image
+
+            #shellcheck source=tests/lib/nested.sh
+            . "$TESTSLIB/nested.sh"
+            create_nested_classic_vm
         prepare-each: |
-            "$TESTSLIB"/prepare-restore.sh --prepare-suite-each
+            #shellcheck source=tests/lib/nested.sh
+            . "$TESTSLIB/nested.sh"
+            start_nested_classic_vm
+        restore-each: |
+            #shellcheck source=tests/lib/nested.sh
+            . "$TESTSLIB/nested.sh"
+            destroy_nested_vm
         restore: |
-            "$TESTSLIB"/prepare-restore.sh --restore-suite
+            #shellcheck source=tests/lib/nested.sh
+            . "$TESTSLIB/nested.sh"
+            cleanup_nested_env
+
+            #shellcheck source=tests/lib/pkgdb.sh
+            . "$TESTSLIB"/pkgdb.sh
+            distro_purge_package qemu genisoimage sshpass qemu-kvm cloud-image-utils ubuntu-image
 
     tests/nested/core/:
         summary: Tests for nested images
         backends: [google-nested]
         systems: [ubuntu-16.04-64, ubuntu-18.04-64]
         environment:
-            NESTED_TYPE: core
+            NESTED_TYPE: "core"
+            # Channel used to create the nested vm
             CORE_CHANNEL: '$(HOST: echo "${SPREAD_CORE_CHANNEL:-stable}")'
+            # Channel used to refresh when testing refresh and revert
             CORE_REFRESH_CHANNEL: '$(HOST: echo "${SPREAD_CORE_REFRESH_CHANNEL:-edge}")'
+            # Channel used to update the core/snapd snaps on some tests
+            NEW_CORE_CHANNEL: '$(HOST: echo "${SPREAD_NEW_CORE_CHANNEL:-edge}")'
         manual: true
         prepare: |
             #shellcheck source=tests/lib/pkgdb.sh
             . "$TESTSLIB"/pkgdb.sh
             distro_update_package_db
             distro_install_package snapd qemu genisoimage sshpass qemu-kvm cloud-image-utils ubuntu-image
+
+            #shellcheck source=tests/lib/nested.sh
+            . "$TESTSLIB/nested.sh"
+            create_nested_core_vm
+        prepare-each: |
+            #shellcheck source=tests/lib/nested.sh
+            . "$TESTSLIB/nested.sh"
+            start_nested_core_vm
+        restore-each: |
+            #shellcheck source=tests/lib/nested.sh
+            . "$TESTSLIB/nested.sh"
+            destroy_nested_vm
         restore: |
+            #shellcheck source=tests/lib/nested.sh
+            . "$TESTSLIB/nested.sh"
+            cleanup_nested_env
+
             #shellcheck source=tests/lib/pkgdb.sh
             . "$TESTSLIB"/pkgdb.sh
             distro_purge_package qemu genisoimage sshpass qemu-kvm cloud-image-utils ubuntu-image

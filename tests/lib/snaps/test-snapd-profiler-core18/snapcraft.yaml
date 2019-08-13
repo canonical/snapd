@@ -1,0 +1,24 @@
+name: test-snapd-profiler-core18
+version: 1.2
+summary: Basic commands profiler snap
+description: A basic snap to profile commands
+confinement: strict
+grade: stable
+base: core18
+
+apps:
+    profiler:
+        plugs: [system-observe]
+        command: bin/profiler
+        daemon: simple
+
+parts:
+    profiler:
+        plugin: python
+        stage-packages: [python3-psutil]
+    copy:
+        plugin: dump
+        source: .
+        organize:
+            profiler.py: bin/profiler
+            config.ini: etc/config.ini

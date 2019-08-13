@@ -1092,7 +1092,7 @@ type SnapSpec struct {
 }
 
 // SnapInfo returns the snap.Info for the store-hosted snap matching the given spec, or an error.
-func (s *Store) SnapInfo(snapSpec SnapSpec, user *auth.UserState) (*snap.Info, error) {
+func (s *Store) SnapInfo(ctx context.Context, snapSpec SnapSpec, user *auth.UserState) (*snap.Info, error) {
 	query := url.Values{}
 	query.Set("fields", strings.Join(s.infoFields, ","))
 	query.Set("architecture", s.architecture)
@@ -1105,7 +1105,7 @@ func (s *Store) SnapInfo(snapSpec SnapSpec, user *auth.UserState) (*snap.Info, e
 	}
 
 	var remote storeInfo
-	resp, err := s.retryRequestDecodeJSON(context.TODO(), reqOptions, user, &remote, nil)
+	resp, err := s.retryRequestDecodeJSON(ctx, reqOptions, user, &remote, nil)
 	if err != nil {
 		return nil, err
 	}
