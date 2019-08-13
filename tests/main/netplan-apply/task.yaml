@@ -46,11 +46,12 @@ prepare: |
 restore: |
     # kill the dbus service if it is running 
     set +e
-    netplanDBusSvcPID=$(pgrep --full fake-netplan-apply-service.py)
-    set -e
-    if [ -n "$netplanDBusSvcPID" ]; then
-        kill -9 "$netplanDBusSvcPID"
+    if [ -n "$(pgrep --full fake-netplan-apply-service.py)" ]; then
+        for pid in $(pgrep --full fake-netplan-apply-service.py); do
+            kill -9 "$pid"
+        done
     fi
+    set -e
 
     # restore the dbus service file and policy config file if the backup exists
     for f in system-services/$NETPLAN.service system.d/$NETPLAN.conf; do
