@@ -85,6 +85,14 @@ func (iter *PathIterator) CurrentBase() string {
 	return iter.path[:iter.left]
 }
 
+// CurrentCleanBase returns the same value as CurrentBase with the right slash trimmed.
+func (iter *PathIterator) CurrentCleanBase() string {
+	if iter.left > 0 && iter.path[iter.left-1] == '/' && iter.path[:iter.left] != "/" {
+		return iter.path[:iter.left-1]
+	}
+	return iter.path[:iter.left]
+}
+
 // Depth returns the directory depth of the current path.
 //
 // This is equal to the number of traversed directories, including that of the

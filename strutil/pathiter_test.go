@@ -43,6 +43,7 @@ func (s *pathIterSuite) TestPathIteratorFilename(c *C) {
 
 	c.Assert(iter.Next(), Equals, true)
 	c.Assert(iter.CurrentBase(), Equals, "")
+	c.Assert(iter.CurrentCleanBase(), Equals, "")
 	c.Assert(iter.CurrentPath(), Equals, "foo")
 	c.Assert(iter.CurrentName(), Equals, "foo")
 	c.Assert(iter.CurrentCleanName(), Equals, "foo")
@@ -60,6 +61,7 @@ func (s *pathIterSuite) TestPathIteratorRelative(c *C) {
 
 	c.Assert(iter.Next(), Equals, true)
 	c.Assert(iter.CurrentBase(), Equals, "")
+	c.Assert(iter.CurrentCleanBase(), Equals, "")
 	c.Assert(iter.CurrentPath(), Equals, "foo/")
 	c.Assert(iter.CurrentName(), Equals, "foo/")
 	c.Assert(iter.CurrentCleanName(), Equals, "foo")
@@ -67,6 +69,7 @@ func (s *pathIterSuite) TestPathIteratorRelative(c *C) {
 
 	c.Assert(iter.Next(), Equals, true)
 	c.Assert(iter.CurrentBase(), Equals, "foo/")
+	c.Assert(iter.CurrentCleanBase(), Equals, "foo")
 	c.Assert(iter.CurrentPath(), Equals, "foo/bar")
 	c.Assert(iter.CurrentName(), Equals, "bar")
 	c.Assert(iter.CurrentCleanName(), Equals, "bar")
@@ -84,6 +87,7 @@ func (s *pathIterSuite) TestPathIteratorAbsoluteAlmostClean(c *C) {
 
 	c.Assert(iter.Next(), Equals, true)
 	c.Assert(iter.CurrentBase(), Equals, "")
+	c.Assert(iter.CurrentCleanBase(), Equals, "")
 	c.Assert(iter.CurrentPath(), Equals, "/")
 	c.Assert(iter.CurrentName(), Equals, "/")
 	c.Assert(iter.CurrentCleanName(), Equals, "")
@@ -91,6 +95,7 @@ func (s *pathIterSuite) TestPathIteratorAbsoluteAlmostClean(c *C) {
 
 	c.Assert(iter.Next(), Equals, true)
 	c.Assert(iter.CurrentBase(), Equals, "/")
+	c.Assert(iter.CurrentCleanBase(), Equals, "/")
 	c.Assert(iter.CurrentPath(), Equals, "/foo/")
 	c.Assert(iter.CurrentName(), Equals, "foo/")
 	c.Assert(iter.CurrentCleanName(), Equals, "foo")
@@ -98,6 +103,7 @@ func (s *pathIterSuite) TestPathIteratorAbsoluteAlmostClean(c *C) {
 
 	c.Assert(iter.Next(), Equals, true)
 	c.Assert(iter.CurrentBase(), Equals, "/foo/")
+	c.Assert(iter.CurrentCleanBase(), Equals, "/foo")
 	c.Assert(iter.CurrentPath(), Equals, "/foo/bar/")
 	c.Assert(iter.CurrentName(), Equals, "bar/")
 	c.Assert(iter.CurrentCleanName(), Equals, "bar")
@@ -115,6 +121,7 @@ func (s *pathIterSuite) TestPathIteratorAbsoluteClean(c *C) {
 
 	c.Assert(iter.Next(), Equals, true)
 	c.Assert(iter.CurrentBase(), Equals, "")
+	c.Assert(iter.CurrentCleanBase(), Equals, "")
 	c.Assert(iter.CurrentPath(), Equals, "/")
 	c.Assert(iter.CurrentName(), Equals, "/")
 	c.Assert(iter.CurrentCleanName(), Equals, "")
@@ -122,6 +129,7 @@ func (s *pathIterSuite) TestPathIteratorAbsoluteClean(c *C) {
 
 	c.Assert(iter.Next(), Equals, true)
 	c.Assert(iter.CurrentBase(), Equals, "/")
+	c.Assert(iter.CurrentCleanBase(), Equals, "/")
 	c.Assert(iter.CurrentPath(), Equals, "/foo/")
 	c.Assert(iter.CurrentName(), Equals, "foo/")
 	c.Assert(iter.CurrentCleanName(), Equals, "foo")
@@ -129,6 +137,7 @@ func (s *pathIterSuite) TestPathIteratorAbsoluteClean(c *C) {
 
 	c.Assert(iter.Next(), Equals, true)
 	c.Assert(iter.CurrentBase(), Equals, "/foo/")
+	c.Assert(iter.CurrentCleanBase(), Equals, "/foo")
 	c.Assert(iter.CurrentPath(), Equals, "/foo/bar")
 	c.Assert(iter.CurrentName(), Equals, "bar")
 	c.Assert(iter.CurrentCleanName(), Equals, "bar")
@@ -146,6 +155,7 @@ func (s *pathIterSuite) TestPathIteratorRootDir(c *C) {
 
 	c.Assert(iter.Next(), Equals, true)
 	c.Assert(iter.CurrentBase(), Equals, "")
+	c.Assert(iter.CurrentCleanBase(), Equals, "")
 	c.Assert(iter.CurrentPath(), Equals, "/")
 	c.Assert(iter.CurrentName(), Equals, "/")
 	c.Assert(iter.CurrentCleanName(), Equals, "")
