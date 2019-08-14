@@ -55,43 +55,44 @@ var stateJSON = []byte(`
 		}
 	},
 	"tasks": {
-                "11": {
-                        "id": "11",
-                        "change": "1",
-                        "kind": "download-snap",
-                        "summary": "Download snap a from channel edge",
-                        "status": 4,
-                        "data": {"snap-setup": {
-                                "channel": "edge",
-                                "flags": 1
-                        }},
-                        "halt-tasks": ["12"]
-                },
-                "12": {"id": "12", "change": "1", "kind": "some-other-task"},
-                "21": {
-                        "id": "21",
-                        "change": "2",
-                        "kind": "download-snap",
-                        "summary": "Download snap b from channel beta",
-                        "status": 4,
-                        "data": {"snap-setup": {
-                                "channel": "beta",
-                                "flags": 2
-                        }},
-                        "halt-tasks": ["22"]
-                },
-                "31": {
-                        "id": "31",
-                        "change": "3",
-                        "kind": "prepare-snap",
-                        "summary": "Prepare snap c",
-                        "status": 4,
-                        "data": {"snap-setup": {
-                                "channel": "stable",
-                                "flags": 1073741828
-                        }},
-                        "halt-tasks": ["32"]
-                }
+		"11": {
+				"id": "11",
+				"change": "1",
+				"kind": "download-snap",
+				"summary": "Download snap a from channel edge",
+				"status": 4,
+				"data": {"snap-setup": {
+						"channel": "edge",
+						"flags": 1
+				}},
+				"halt-tasks": ["12"]
+		},
+		"12": {"id": "12", "change": "1", "kind": "some-other-task"},
+		"21": {
+				"id": "21",
+				"change": "2",
+				"kind": "download-snap",
+				"summary": "Download snap b from channel beta",
+				"status": 4,
+				"data": {"snap-setup": {
+						"channel": "beta",
+						"flags": 2
+				}},
+				"halt-tasks": ["12"]
+		},
+		"31": {
+				"id": "31",
+				"change": "2",
+				"kind": "prepare-snap",
+				"summary": "Prepare snap c",
+				"status": 4,
+				"data": {"snap-setup": {
+						"channel": "stable",
+						"flags": 1073741828
+				}},
+				"halt-tasks": ["12"],
+				"log": ["logline1", "logline2"]
+		}
 	}
 }
 `)

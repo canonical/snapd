@@ -51,19 +51,29 @@ func (c *cmdDebugTask) showTask(st *state.State, taskID string) error {
 		return fmt.Errorf("no such task: %s", taskID)
 	}
 
-	fmt.Printf("id: %s\nkind: %s\nsummary: %s\nstatus: %s\n\n", taskID, task.Kind(), task.Summary(), task.Status().String())
-	log := task.Log()
-	if len(log) > 0 {
-		fmt.Printf("log:\n")
-		for _, msg := range log {
-			fmt.Printf("  %s\n", msg)
-		}
-		fmt.Println()
+	termWidth, _ := termSize()
+	termWidth -= 3
+	if termWidth > 100 {
+		// any wider than this and it gets hard to read
+		termWidth = 100
 	}
 
-	fmt.Printf("tasks waiting for %s:\n", taskID)
+	// the output of 'debug task' is yaml'ish
+	fmt.Fprintf(Stdout, "id: %s\nkind: %s\nsummary: %s\nstatus: %s\n\n", taskID, task.Kind(), task.Summary(), task.Status().String())
+	log := task.Log()
+	if len(log) > 0 {
+		fmt.Fprintf(Stdout, "log:\n")
+		for _, msg := range log {
+			if err := wrapLine(Stdout, []rune(msg), "  ", termWidth); err != nil {
+				break
+			}
+		}
+		fmt.Fprintln(Stdout)
+	}
+
+	fmt.Fprintf(Stdout, "tasks waiting for %s:\n", taskID)
 	for _, ht := range task.HaltTasks() {
-		fmt.Printf("  %s (%s)\n", ht.Kind(), ht.ID())
+		fmt.Fprintf(Stdout, "  %s (%s)\n", ht.Kind(), ht.ID())
 	}
 
 	return nil

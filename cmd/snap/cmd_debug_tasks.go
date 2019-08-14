@@ -21,7 +21,6 @@ package main
 
 import (
 	"fmt"
-	"os"
 	"sort"
 	"strings"
 	"text/tabwriter"
@@ -93,21 +92,21 @@ func (c *cmdDebugTasks) writeDotOutput(st *state.State, changeID string) error {
 		return fmt.Errorf("no such change: %s", changeID)
 	}
 
-	fmt.Fprintf(os.Stdout, "digraph D{\n")
+	fmt.Fprintf(Stdout, "digraph D{\n")
 	tasks := chg.Tasks()
 	for _, t := range tasks {
 		if c.NoHoldState && t.Status() == state.HoldStatus {
 			continue
 		}
-		fmt.Fprintf(os.Stdout, "  %s [label=%q];\n", t.ID(), t.Kind())
+		fmt.Fprintf(Stdout, "  %s [label=%q];\n", t.ID(), t.Kind())
 		for _, wt := range t.WaitTasks() {
 			if c.NoHoldState && wt.Status() == state.HoldStatus {
 				continue
 			}
-			fmt.Fprintf(os.Stdout, "  %s -> %s;\n", t.ID(), wt.ID())
+			fmt.Fprintf(Stdout, "  %s -> %s;\n", t.ID(), wt.ID())
 		}
 	}
-	fmt.Fprintf(os.Stdout, "}\n")
+	fmt.Fprintf(Stdout, "}\n")
 
 	return nil
 }
@@ -124,7 +123,7 @@ func (c *cmdDebugTasks) showTasks(st *state.State, changeID string) error {
 	tasks := chg.Tasks()
 	sort.Sort(byLaneAndWaitTaskChain(tasks))
 
-	w := tabwriter.NewWriter(os.Stdout, 5, 3, 2, ' ', 0)
+	w := tabwriter.NewWriter(Stdout, 5, 3, 2, ' ', 0)
 	fmt.Fprintf(w, "Lanes\tID\tStatus\tSpawn\tReady\tKind\tSummary\n")
 	for _, t := range tasks {
 		if c.NoHoldState && t.Status() == state.HoldStatus {
@@ -142,10 +141,10 @@ func (c *cmdDebugTasks) showTasks(st *state.State, changeID string) error {
 	for _, t := range tasks {
 		logs := t.Log()
 		if len(logs) > 0 {
-			fmt.Printf("---\n")
-			fmt.Printf("%s %s\n", t.ID(), t.Summary())
+			fmt.Fprintf(Stdout, "---\n")
+			fmt.Fprintf(Stdout, "%s %s\n", t.ID(), t.Summary())
 			for _, log := range logs {
-				fmt.Printf("  %s\n", log)
+				fmt.Fprintf(Stdout, "  %s\n", log)
 			}
 		}
 	}
