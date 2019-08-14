@@ -136,6 +136,21 @@ func (s *utilsSuite) TestSecureMkdirAllLevel3(c *C) {
 	})
 }
 
+// Ensure that trespassing for prefix is matched using clean base path.
+func (s *utilsSuite) TestTrespassingMatcher(c *C) {
+	// We mounted tmpfs at "/path".
+	s.as.AddChange(&update.Change{Action: update.Mount, Entry: osutil.MountEntry{Dir: "/path", Type: "tmpfs", Name: "tmpfs"}})
+	s.sys.InsertFstatfsResult(`fstatfs 3 <ptr>`, syscall.Statfs_t{Type: update.SquashfsMagic})
+	s.sys.InsertFstatResult(`fstat 3 <ptr>`, syscall.Stat_t{})
+	s.sys.InsertFstatfsResult(`fstatfs 4 <ptr>`, syscall.Statfs_t{Type: update.TmpfsMagic})
+	s.sys.InsertFstatResult(`fstat 4 <ptr>`, syscall.Stat_t{})
+	s.sys.InsertFault(`mkdirat 3 "path" 0755`, syscall.EEXIST)
+	s.sys.InsertFault(`mkdirat 3 "to" 0755`, syscall.EEXIST)
+	rs := s.as.RestrictionsFor("/path/to/something")
+	// Trespassing detector checked "/path", not "/path/" (which would not match).
+	c.Assert(update.MkdirAll("/path/to/something", 0755, 123, 456, rs), IsNil)
+}
+
 // Ensure that writes to /etc/demo are interrupted if /etc is restricted.
 func (s *utilsSuite) TestSecureMkdirAllWithRestrictedEtc(c *C) {
 	s.sys.InsertFstatfsResult(`fstatfs 3 <ptr>`, syscall.Statfs_t{Type: update.SquashfsMagic})
