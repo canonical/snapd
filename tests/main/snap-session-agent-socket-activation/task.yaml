@@ -57,3 +57,7 @@ execute: |
     curl --unix-socket "${USER_RUNTIME_DIR}/snapd-session-agent.socket" \
         -D- http://localhost/v1/session-info | MATCH "HTTP/1.1 200 OK"
     systemctl_user is-active snapd.session-agent.service
+
+    echo "The user running the session agent can also communicate with it"
+    su -l -c "curl --unix-socket \"${USER_RUNTIME_DIR}/snapd-session-agent.socket\" \
+        -D- http://localhost/v1/session-info" test | MATCH "HTTP/1.1 200 OK"
