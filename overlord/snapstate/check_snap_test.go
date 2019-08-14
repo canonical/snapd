@@ -977,32 +977,32 @@ var systemUsernamesTests = []struct {
 }, {
 	sysIDs:  "snap_daemon: shared",
 	noGroup: true,
-	error:   `This snap requires that the \"snap_daemon\" system user and group are present on the system.`,
+	error:   `This snap requires that both the \"snap_daemon\" system user and group are present on the system.`,
 }, {
 	sysIDs:  "snap_daemon: shared",
 	classic: true,
 	noGroup: true,
-	error:   `This snap requires that the \"snap_daemon\" system user and group are present on the system.`,
+	error:   `This snap requires that both the \"snap_daemon\" system user and group are present on the system.`,
 }, {
 	sysIDs: "snap_daemon: shared",
 	noUser: true,
-	error:  `This snap requires that the \"snap_daemon\" system user and group are present on the system.`,
+	error:  `This snap requires that both the \"snap_daemon\" system user and group are present on the system.`,
 }, {
 	sysIDs:  "snap_daemon: shared",
 	classic: true,
 	noUser:  true,
-	error:   `This snap requires that the \"snap_daemon\" system user and group are present on the system.`,
+	error:   `This snap requires that both the \"snap_daemon\" system user and group are present on the system.`,
 }, {
 	sysIDs:  "snap_daemon: shared",
 	noUser:  true,
 	noGroup: true,
-	error:   `This snap requires that the \"snap_daemon\" system user and group are present on the system.`,
+	error:   `This snap requires that both the \"snap_daemon\" system user and group are present on the system.`,
 }, {
 	sysIDs:  "snap_daemon: shared",
 	classic: true,
 	noUser:  true,
 	noGroup: true,
-	error:   `This snap requires that the \"snap_daemon\" system user and group are present on the system.`,
+	error:   `This snap requires that both the \"snap_daemon\" system user and group are present on the system.`,
 }}
 
 func (s *checkSnapSuite) TestCheckSnapSystemUsernames(c *C) {

@@ -469,7 +469,7 @@ func checkSystemUsernames(si *snap.Info) error {
 			_, uidErr := findUid(user.Name)
 			_, gidErr := findGid(user.Name)
 			if uidErr != nil || gidErr != nil {
-				return fmt.Errorf(`This snap requires that the "%s" system user and group are present on the system.`, user.Name)
+				return fmt.Errorf(`This snap requires that both the "%s" system user and group are present on the system.`, user.Name)
 			}
 		case "private", "external":
 			return fmt.Errorf(`Unsupported user scope "%s" for this version of snapd`, user.Scope)
