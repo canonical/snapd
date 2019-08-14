@@ -7,6 +7,8 @@ environment:
     BUILD_MODE/normal: normal
     BUILD_MODE/any: any
 
+manual: true
+
 systems: [debian-sid-*]
 
 execute: |
@@ -29,6 +31,10 @@ restore: |
     rm -f /etc/schroot/chroot.d/sid-amd64-sbuild-*
 
 debug: |
+    # Test that there's a log file and a symbolic link pointing to it.
+    # The non-symlink has a time-stamp and we can match on the "Z" timezone
+    # marker to find it.
+    test "$(find . -maxdepth 1 -name '*Z.build' | wc -l)" -ge 1 &&  tail -n 100 ./*Z.build
     cat <<EOM
     Use release-tools/debian-package-builder to interactively fix build
     issues. The debug shell created there shows the true layout of the source
