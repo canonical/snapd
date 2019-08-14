@@ -88,7 +88,7 @@ func (c *cmdDebugChanges) showChanges(st *state.State) error {
 	changes := st.Changes()
 	sort.Sort(byChangeID(changes))
 
-	w := tabwriter.NewWriter(os.Stdout, 5, 3, 2, ' ', 0)
+	w := tabwriter.NewWriter(Stdout, 5, 3, 2, ' ', 0)
 	fmt.Fprintf(w, "ID\tStatus\tSpawn\tReady\tLabel\tSummary\n")
 	for _, chg := range changes {
 		fmt.Fprintf(w, "%s\t%s\t%s\t%s\t%s\t%s\n", chg.ID(), chg.Status().String(), formatTime(chg.SpawnTime()), formatTime(chg.ReadyTime()), chg.Kind(), chg.Summary())
