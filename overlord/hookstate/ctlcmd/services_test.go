@@ -388,12 +388,12 @@ func (s *servicectlSuite) TestQueuedCommands(c *C) {
 	}
 }
 
-func (s *servicectlSuite) TestQueuedCommandsRunBeforeMarkSeeded(c *C) {
+func (s *servicectlSuite) testQueueCommandsOrdering(c *C, finalTaskKind string) {
 	s.st.Lock()
 
 	chg := s.st.NewChange("seeding change", "seeding change")
-	markSeeded := s.st.NewTask("mark-seeded", "")
-	chg.AddTask(markSeeded)
+	finalTask := s.st.NewTask(finalTaskKind, "")
+	chg.AddTask(finalTask)
 	configure := s.st.NewTask("run-hook", "")
 	chg.AddTask(configure)
 
@@ -411,10 +411,10 @@ func (s *servicectlSuite) TestQueuedCommandsRunBeforeMarkSeeded(c *C) {
 	s.st.Lock()
 	defer s.st.Unlock()
 
-	markSeededWt := markSeeded.WaitTasks()
-	c.Assert(markSeededWt, HasLen, 2)
+	finalTaskWt := finalTask.WaitTasks()
+	c.Assert(finalTaskWt, HasLen, 2)
 
-	for _, t := range markSeededWt {
+	for _, t := range finalTaskWt {
 		// mark-seeded tasks should wait for both exec-command tasks
 		c.Check(t.Kind(), Equals, "exec-command")
 		var argv []string
@@ -435,7 +435,15 @@ func (s *servicectlSuite) TestQueuedCommandsRunBeforeMarkSeeded(c *C) {
 			c.Fatalf("unexpected command: %q", argv[1])
 		}
 	}
-	c.Check(markSeeded.HaltTasks(), HasLen, 0)
+	c.Check(finalTask.HaltTasks(), HasLen, 0)
+}
+
+func (s *servicectlSuite) TestQueuedCommandsRunBeforeMarkSeeded(c *C) {
+	s.testQueueCommandsOrdering(c, "mark-seeded")
+}
+
+func (s *servicectlSuite) TestQueuedCommandsRunBeforeSetModel(c *C) {
+	s.testQueueCommandsOrdering(c, "set-model")
 }
 
 func (s *servicectlSuite) TestQueuedCommandsUpdateMany(c *C) {

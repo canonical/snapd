@@ -105,7 +105,7 @@ func queueCommand(context *hookstate.Context, tts []*state.TaskSet) error {
 	for _, ts := range tts {
 		for _, t := range tasks {
 			// queue service command after all tasks, except for mark-seeded which must come after service commands
-			if t.Kind() == "mark-seeded" {
+			if snapstate.FinalTasks[t.Kind()] {
 				t.WaitAll(ts)
 			} else {
 				ts.WaitFor(t)
