@@ -29,6 +29,7 @@ import (
 	"gopkg.in/yaml.v2"
 
 	"github.com/snapcore/snapd/metautil"
+	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/strutil"
 	"github.com/snapcore/snapd/timeout"
 )
@@ -282,7 +283,7 @@ func infoSkeletonFromSnapYaml(y snapYaml) *Info {
 		Plugs:               make(map[string]*PlugInfo),
 		Slots:               make(map[string]*SlotInfo),
 		Environment:         y.Environment,
-		SystemUsernames:     make(map[string]*UsernameInfo),
+		SystemUsernames:     make(map[string]*SystemUsernameInfo),
 	}
 
 	sort.Strings(snap.Assumes)
@@ -507,12 +508,15 @@ func setHooksFromSnapYaml(y snapYaml, snap *Info, strk *scopedTracker) {
 
 func setSystemUsernamesFromSnapYaml(y snapYaml, snap *Info) error {
 	for user, data := range y.SystemUsernames {
+		if !osutil.IsValidUsername(user) {
+			return fmt.Errorf(`Invalid system username "%s"`, user)
+		}
 		scope, attrs, err := convertToUsernamesData(user, data)
 		if err != nil {
 			return err
 		}
 		if user != "" && scope != "" {
-			snap.SystemUsernames[user] = &UsernameInfo{
+			snap.SystemUsernames[user] = &SystemUsernameInfo{
 				Name:  user,
 				Scope: scope,
 				Attrs: attrs,
@@ -677,19 +681,17 @@ func convertToUsernamesData(user string, data interface{}) (scope string, attrs 
 					return "", nil, err
 				}
 				scope = value
+			case "":
+				return "", nil, fmt.Errorf("%q has attribute that is empty string", user)
 			default:
-				// for maximum future compatibility, we allow
-				// value to be empty, but not key
-				if key != "" {
-					if attrs == nil {
-						attrs = make(map[string]interface{})
-					}
-					value, err := metautil.NormalizeValue(valueData)
-					if err != nil {
-						return "", nil, fmt.Errorf("attribute %q of %q: %v", key, user, err)
-					}
-					attrs[key] = value
+				if attrs == nil {
+					attrs = make(map[string]interface{})
 				}
+				value, err := metautil.NormalizeValue(valueData)
+				if err != nil {
+					return "", nil, fmt.Errorf("attribute %q of %q: %v", key, user, err)
+				}
+				attrs[key] = value
 			}
 		}
 		return scope, attrs, nil

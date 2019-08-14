@@ -455,10 +455,6 @@ var (
 )
 
 func checkSystemUsernames(si *snap.Info) error {
-	if len(si.SystemUsernames) == 0 {
-		return nil
-	}
-
 	// Run /.../snap-seccomp version-info
 	path, err := cmd.InternalToolPath("snapd")
 	if err != nil {
@@ -504,10 +500,6 @@ func checkSystemUsernames(si *snap.Info) error {
 	}
 
 	for _, user := range si.SystemUsernames {
-		if !osutil.IsValidUsername(user.Name) {
-			return fmt.Errorf(`Invalid system username "%s"`, user.Name)
-		}
-
 		if !supportedSystemUsernames[user.Name] {
 			return fmt.Errorf(`Unsupported system username "%s"`, user.Name)
 		}
@@ -517,7 +509,7 @@ func checkSystemUsernames(si *snap.Info) error {
 			_, uidErr := findUid(user.Name)
 			_, gidErr := findGid(user.Name)
 			if uidErr != nil || gidErr != nil {
-				return fmt.Errorf(`This snap requires that the "%s" system user and group are present on the system.`, user.Name)
+				return fmt.Errorf(`This snap requires that both the "%s" system user and group are present on the system.`, user.Name)
 			}
 		case "private", "external":
 			return fmt.Errorf(`Unsupported user scope "%s" for this version of snapd`, user.Scope)
