@@ -81,10 +81,6 @@ var serialUDevSymlinkPattern = regexp.MustCompile("^/dev/serial-port-[a-z0-9]+$"
 
 // BeforePrepareSlot checks validity of the defined slot
 func (iface *serialPortInterface) BeforePrepareSlot(slot *snap.SlotInfo) error {
-	if err := sanitizeSlotReservedForOSOrGadget(iface, slot); err != nil {
-		return err
-	}
-
 	// Check slot has a path attribute identify serial device
 	path, ok := slot.Attrs["path"].(string)
 	if !ok || path == "" {

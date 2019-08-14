@@ -67,14 +67,6 @@ func (s *LxdSupportInterfaceSuite) TestName(c *C) {
 
 func (s *LxdSupportInterfaceSuite) TestSanitizeSlot(c *C) {
 	c.Assert(interfaces.BeforePrepareSlot(s.iface, s.slotInfo), IsNil)
-	slot := &snap.SlotInfo{
-		Snap:      &snap.Info{SuggestedName: "some-snap"},
-		Name:      "lxd-support",
-		Interface: "lxd-support",
-	}
-
-	c.Assert(interfaces.BeforePrepareSlot(s.iface, slot), ErrorMatches,
-		"lxd-support slots are reserved for the core snap")
 }
 
 func (s *LxdSupportInterfaceSuite) TestSanitizePlug(c *C) {
