@@ -36,6 +36,15 @@ import (
 	"github.com/snapcore/snapd/snap"
 )
 
+var finalTasks map[string]bool
+
+func init() {
+	finalTasks = make(map[string]bool, len(snapstate.FinalTasks))
+	for _, kind := range snapstate.FinalTasks {
+		finalTasks[kind] = true
+	}
+}
+
 func getServiceInfos(st *state.State, snapName string, serviceNames []string) ([]*snap.AppInfo, error) {
 	st.Lock()
 	defer st.Unlock()
@@ -100,11 +109,6 @@ func queueCommand(context *hookstate.Context, tts []*state.TaskSet) error {
 		for _, ts := range tts {
 			ts.JoinLane(l)
 		}
-	}
-
-	finalTasks := make(map[string]bool, len(snapstate.FinalTasks))
-	for _, kind := range snapstate.FinalTasks {
-		finalTasks[kind] = true
 	}
 
 	for _, ts := range tts {
