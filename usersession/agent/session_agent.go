@@ -85,9 +85,9 @@ func (c *Command) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 }
 
 type idleTracker struct {
-	mu     sync.Mutex
-	active map[net.Conn]struct{}
-	change chan struct{}
+	mu         sync.Mutex
+	active     map[net.Conn]struct{}
+	lastActive time.Time
 }
 
 var sysGetsockoptUcred = sys.GetsockoptUcred
@@ -116,24 +116,26 @@ func (it *idleTracker) trackConn(conn net.Conn, state http.ConnState) {
 	}
 
 	it.mu.Lock()
+	defer it.mu.Unlock()
 	oldActive := len(it.active)
 	if state == http.StateNew || state == http.StateActive {
 		it.active[conn] = struct{}{}
 	} else {
 		delete(it.active, conn)
 	}
-	newActive := len(it.active)
-	it.mu.Unlock()
-	// Signal that the active connection state has changed
-	if oldActive != newActive {
-		it.change <- struct{}{}
+	if len(it.active) == 0 && oldActive != 0 {
+		it.lastActive = time.Now()
 	}
 }
 
-func (it *idleTracker) isIdle() bool {
+// idleDuration returns the duration of time the server has been idle
+func (it *idleTracker) idleDuration() time.Duration {
 	it.mu.Lock()
 	defer it.mu.Unlock()
-	return len(it.active) == 0
+	if len(it.active) != 0 {
+		return 0
+	}
+	return time.Now().Sub(it.lastActive)
 }
 
 const (
@@ -151,8 +153,8 @@ func (s *SessionAgent) Init() error {
 		return fmt.Errorf("cannot listen on socket %s: %v", agentSocket, err)
 	}
 	s.idle = &idleTracker{
-		active: make(map[net.Conn]struct{}),
-		change: make(chan struct{}),
+		active:     make(map[net.Conn]struct{}),
+		lastActive: time.Now(),
 	}
 	s.IdleTimeout = defaultIdleTimeout
 	s.addRoutes()
@@ -189,28 +191,19 @@ func (s *SessionAgent) Start() {
 
 func (s *SessionAgent) exitOnIdle() error {
 	timer := time.NewTimer(s.IdleTimeout)
-	idle := true
 Loop:
 	for {
 		select {
 		case <-s.tomb.Dying():
 			break Loop
 		case <-timer.C:
-			s.tomb.Kill(nil)
-			break Loop
-		case <-s.idle.change:
-			newIdle := s.idle.isIdle()
-			if newIdle == idle {
-				continue
-			}
-			// The idle state has changed: stop or restart the timer
-			idle = newIdle
-			if idle {
-				timer.Reset(s.IdleTimeout)
+			// Have we been idle
+			idleDuration := s.idle.idleDuration()
+			if idleDuration >= s.IdleTimeout {
+				s.tomb.Kill(nil)
+				break Loop
 			} else {
-				if !timer.Stop() {
-					<-timer.C
-				}
+				timer.Reset(s.IdleTimeout - idleDuration)
 			}
 		}
 	}
