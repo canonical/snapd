@@ -279,7 +279,8 @@ const (
 func (client *Client) do(method, path string, query url.Values, headers map[string]string, body io.Reader, v interface{}, flags doFlags) (statusCode int, err error) {
 	retry := time.NewTicker(doRetry)
 	defer retry.Stop()
-	timeout := time.After(doTimeout)
+	timeout := time.NewTimer(doTimeout)
+	defer timeout.Stop()
 	var rsp *http.Response
 	for {
 		reqTimeout := doTimeout
@@ -293,7 +294,7 @@ func (client *Client) do(method, path string, query url.Values, headers map[stri
 		select {
 		case <-retry.C:
 			continue
-		case <-timeout:
+		case <-timeout.C:
 		}
 		break
 	}
