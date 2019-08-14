@@ -3720,7 +3720,7 @@ slots:
 	c.Check(ifacestate.CheckInterfaces(s.state, snapInfo, deviceCtx), ErrorMatches, "installation denied.*")
 }
 
-func (s *interfaceManagerSuite) TestCheckInterfacesAllowBasedOnSnapTypeNoSnapDecl(c *C) {
+func (s *interfaceManagerSuite) TestCheckInterfacesNoDenyIfNoDecl(c *C) {
 	deviceCtx := s.TrivialDeviceContext(c, nil)
 	restore := assertstest.MockBuiltinBaseDeclaration([]byte(`
 type: base-declaration
