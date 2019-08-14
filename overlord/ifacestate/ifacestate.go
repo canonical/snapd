@@ -436,11 +436,6 @@ func CheckInterfaces(st *state.State, snapInfo *snap.Info, deviceCtx snapstate.D
 		return err
 	}
 
-	if snapInfo.SnapID == "" {
-		// no SnapID means --dangerous was given, so skip interface checks
-		return nil
-	}
-
 	modelAs := deviceCtx.Model()
 
 	var storeAs *asserts.Store
@@ -455,6 +450,17 @@ func CheckInterfaces(st *state.State, snapInfo *snap.Info, deviceCtx snapstate.D
 	baseDecl, err := assertstate.BaseDeclaration(st)
 	if err != nil {
 		return fmt.Errorf("internal error: cannot find base declaration: %v", err)
+	}
+
+	if snapInfo.SnapID == "" {
+		// no SnapID means --dangerous was given, perform a minimal check about the compatibility of the snap type and the interface
+		ic := policy.InstallCandidateMinimalCheck{
+			Snap:            snapInfo,
+			BaseDeclaration: baseDecl,
+			Model:           modelAs,
+			Store:           storeAs,
+		}
+		return ic.Check()
 	}
 
 	snapDecl, err := assertstate.SnapDeclaration(st, snapInfo.SnapID)

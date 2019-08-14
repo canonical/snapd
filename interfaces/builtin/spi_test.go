@@ -196,13 +196,6 @@ func (s *spiInterfaceSuite) TestSanitizeSlot(c *C) {
 	c.Assert(err, ErrorMatches, `"/dev/spi-foo" is not a valid SPI device`)
 	err = interfaces.BeforePrepareSlot(s.iface, s.slotGadgetBad6Info)
 	c.Assert(err, ErrorMatches, `slot "gadget:bad-spi-6" must have a path attribute`)
-	slot := &snap.SlotInfo{
-		Snap:      &snap.Info{SuggestedName: "some-snap"},
-		Name:      "spi",
-		Interface: "spi",
-	}
-	c.Assert(interfaces.BeforePrepareSlot(s.iface, slot), ErrorMatches,
-		"spi slots are reserved for the core and gadget snaps")
 }
 
 func (s *spiInterfaceSuite) TestUDevSpec(c *C) {

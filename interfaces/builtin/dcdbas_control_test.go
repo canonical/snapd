@@ -67,13 +67,6 @@ func (s *DcdbasControlInterfaceSuite) TestName(c *C) {
 
 func (s *DcdbasControlInterfaceSuite) TestSanitizeSlot(c *C) {
 	c.Assert(interfaces.BeforePrepareSlot(s.iface, s.slotInfo), IsNil)
-	slot := &snap.SlotInfo{
-		Snap:      &snap.Info{SuggestedName: "some-snap"},
-		Name:      "dcdbas-control",
-		Interface: "dcdbas-control",
-	}
-	c.Assert(interfaces.BeforePrepareSlot(s.iface, slot), ErrorMatches,
-		"dcdbas-control slots are reserved for the core snap")
 }
 
 func (s *DcdbasControlInterfaceSuite) TestSanitizePlug(c *C) {

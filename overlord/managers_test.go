@@ -633,6 +633,10 @@ func (s *mgrsSuite) mockStore(c *C) *httptest.Server {
 			w.Write(asserts.Encode(a))
 			return
 		case "download":
+			if s.sessionMacaroon != "" {
+				// FIXME: download is still using the old headers!
+				c.Check(r.Header.Get("X-Device-Authorization"), Equals, fmt.Sprintf(`Macaroon root="%s"`, s.sessionMacaroon))
+			}
 			if s.failNextDownload == comps[1] {
 				s.failNextDownload = ""
 				w.WriteHeader(418)
@@ -650,7 +654,6 @@ func (s *mgrsSuite) mockStore(c *C) *httptest.Server {
 		case "v2:refresh":
 			if s.sessionMacaroon != "" {
 				c.Check(r.Header.Get("Snap-Device-Authorization"), Equals, fmt.Sprintf(`Macaroon root="%s"`, s.sessionMacaroon))
-
 			}
 			dec := json.NewDecoder(r.Body)
 			var input struct {
