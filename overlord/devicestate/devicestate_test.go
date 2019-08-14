@@ -1719,6 +1719,7 @@ func (s *deviceMgrSuite) TestDeviceManagerEnsureBootOkUpdateBootRevisionsHappy(c
 	// simulate that we have a new core_2, tried to boot it but that failed
 	s.bootloader.SetBootVars(map[string]string{
 		"snap_mode":     "",
+		"snap_kernel":   "kernel_1.snap",
 		"snap_try_core": "core_2.snap",
 		"snap_core":     "core_1.snap",
 	})
@@ -2640,8 +2641,11 @@ func (s *deviceMgrSuite) TestRemodelRequiredSnaps(c *C) {
 	// 2 snaps,
 	c.Assert(tl, HasLen, 2*3+1)
 
-	remodCtx, err := devicestate.RemodelCtxFromTask(tl[0])
+	deviceCtx, err := devicestate.DeviceCtx(s.state, tl[0], nil)
 	c.Assert(err, IsNil)
+	// deviceCtx is actually a remodelContext here
+	remodCtx, ok := deviceCtx.(devicestate.RemodelContext)
+	c.Assert(ok, Equals, true)
 	c.Check(remodCtx.ForRemodeling(), Equals, true)
 	c.Check(remodCtx.Kind(), Equals, devicestate.UpdateRemodel)
 	c.Check(remodCtx.Model(), DeepEquals, new)
@@ -2925,8 +2929,11 @@ func (s *deviceMgrSuite) TestRemodelStoreSwitch(c *C) {
 	// 1 "set-model" task at the end
 	c.Assert(tl, HasLen, 2*3+1)
 
-	remodCtx, err := devicestate.RemodelCtxFromTask(tl[0])
+	deviceCtx, err := devicestate.DeviceCtx(s.state, tl[0], nil)
 	c.Assert(err, IsNil)
+	// deviceCtx is actually a remodelContext here
+	remodCtx, ok := deviceCtx.(devicestate.RemodelContext)
+	c.Assert(ok, Equals, true)
 	c.Check(remodCtx.ForRemodeling(), Equals, true)
 	c.Check(remodCtx.Kind(), Equals, devicestate.StoreSwitchRemodel)
 	c.Check(remodCtx.Model(), DeepEquals, new)
@@ -3198,7 +3205,7 @@ func setupGadgetUpdate(c *C, st *state.State) (chg *state.Change, tsk *state.Tas
 func (s *deviceMgrSuite) TestUpdateGadgetOnCoreSimple(c *C) {
 	var updateCalled bool
 	var passedRollbackDir string
-	restore := devicestate.MockGadgetUpdate(func(current, update *gadget.Info, path string) error {
+	restore := devicestate.MockGadgetUpdate(func(current, update gadget.GadgetData, path string) error {
 		updateCalled = true
 		passedRollbackDir = path
 		st, err := os.Stat(path)
@@ -3232,7 +3239,7 @@ func (s *deviceMgrSuite) TestUpdateGadgetOnCoreSimple(c *C) {
 
 func (s *deviceMgrSuite) TestUpdateGadgetOnCoreNoUpdateNeeded(c *C) {
 	var called bool
-	restore := devicestate.MockGadgetUpdate(func(current, update *gadget.Info, path string) error {
+	restore := devicestate.MockGadgetUpdate(func(current, update gadget.GadgetData, path string) error {
 		called = true
 		return gadget.ErrNoUpdate
 	})
@@ -3259,7 +3266,7 @@ func (s *deviceMgrSuite) TestUpdateGadgetOnCoreRollbackDirCreateFailed(c *C) {
 		c.Skip("this test cannot run as root (permissions are not honored)")
 	}
 
-	restore := devicestate.MockGadgetUpdate(func(current, update *gadget.Info, path string) error {
+	restore := devicestate.MockGadgetUpdate(func(current, update gadget.GadgetData, path string) error {
 		return errors.New("unexpected call")
 	})
 	defer restore()
@@ -3285,7 +3292,7 @@ func (s *deviceMgrSuite) TestUpdateGadgetOnCoreRollbackDirCreateFailed(c *C) {
 }
 
 func (s *deviceMgrSuite) TestUpdateGadgetOnCoreUpdateFailed(c *C) {
-	restore := devicestate.MockGadgetUpdate(func(current, update *gadget.Info, path string) error {
+	restore := devicestate.MockGadgetUpdate(func(current, update gadget.GadgetData, path string) error {
 		return errors.New("gadget exploded")
 	})
 	defer restore()
@@ -3308,7 +3315,7 @@ func (s *deviceMgrSuite) TestUpdateGadgetOnCoreUpdateFailed(c *C) {
 }
 
 func (s *deviceMgrSuite) TestUpdateGadgetOnCoreNotDuringFirstboot(c *C) {
-	restore := devicestate.MockGadgetUpdate(func(current, update *gadget.Info, path string) error {
+	restore := devicestate.MockGadgetUpdate(func(current, update gadget.GadgetData, path string) error {
 		return errors.New("unexpected call")
 	})
 	defer restore()
@@ -3352,7 +3359,7 @@ func (s *deviceMgrSuite) TestUpdateGadgetOnCoreNotDuringFirstboot(c *C) {
 }
 
 func (s *deviceMgrSuite) TestUpdateGadgetOnCoreBadGadgetYaml(c *C) {
-	restore := devicestate.MockGadgetUpdate(func(current, update *gadget.Info, path string) error {
+	restore := devicestate.MockGadgetUpdate(func(current, update gadget.GadgetData, path string) error {
 		return errors.New("unexpected call")
 	})
 	defer restore()
@@ -3401,7 +3408,7 @@ func (s *deviceMgrSuite) TestUpdateGadgetOnCoreBadGadgetYaml(c *C) {
 	s.state.Lock()
 	defer s.state.Unlock()
 	c.Assert(chg.IsReady(), Equals, true)
-	c.Check(chg.Err(), ErrorMatches, `(?s).*update gadget \(cannot read gadget snap details: .*\).*`)
+	c.Check(chg.Err(), ErrorMatches, `(?s).*update gadget \(cannot read candidate gadget snap details: .*\).*`)
 	c.Check(t.Status(), Equals, state.ErrorStatus)
 	rollbackDir := filepath.Join(dirs.SnapRollbackDir, "foo-gadget")
 	c.Check(osutil.IsDirectory(rollbackDir), Equals, false)
@@ -3412,7 +3419,7 @@ func (s *deviceMgrSuite) TestUpdateGadgetOnClassicErrorsOut(c *C) {
 	restore := release.MockOnClassic(true)
 	defer restore()
 
-	restore = devicestate.MockGadgetUpdate(func(current, update *gadget.Info, path string) error {
+	restore = devicestate.MockGadgetUpdate(func(current, update gadget.GadgetData, path string) error {
 		return errors.New("unexpected call")
 	})
 	defer restore()
@@ -3484,22 +3491,23 @@ func (s *deviceMgrSuite) TestCurrentAndUpdateInfo(c *C) {
 	current, update, err = devicestate.GadgetCurrentAndUpdate(s.state, snapsup)
 	c.Assert(current, IsNil)
 	c.Assert(update, IsNil)
-	c.Assert(err, ErrorMatches, "cannot read gadget snap details: .*/meta/gadget.yaml: no such file or directory")
+	c.Assert(err, ErrorMatches, "cannot read current gadget snap details: .*/33/meta/gadget.yaml: no such file or directory")
 
 	// drop gadget.yaml for current snap
 	ioutil.WriteFile(filepath.Join(ci.MountDir(), "meta/gadget.yaml"), []byte(gadgetYaml), 0644)
 
+	// update missing snap.yaml
 	current, update, err = devicestate.GadgetCurrentAndUpdate(s.state, snapsup)
 	c.Assert(current, IsNil)
 	c.Assert(update, IsNil)
-	c.Assert(err, ErrorMatches, "cannot find installed snap \"foo-gadget\" at revision 34: .*")
+	c.Assert(err, ErrorMatches, "cannot read candidate gadget snap details: cannot find installed snap .* .*/34/meta/snap.yaml")
 
 	ui := snaptest.MockSnapWithFiles(c, snapYaml, si, nil)
 
 	current, update, err = devicestate.GadgetCurrentAndUpdate(s.state, snapsup)
 	c.Assert(current, IsNil)
 	c.Assert(update, IsNil)
-	c.Assert(err, ErrorMatches, "cannot read gadget snap details: .*")
+	c.Assert(err, ErrorMatches, "cannot read candidate gadget snap details: .*/34/meta/gadget.yaml: no such file or directory")
 
 	var updateGadgetYaml = `
 volumes:
@@ -3513,20 +3521,26 @@ volumes:
 
 	current, update, err = devicestate.GadgetCurrentAndUpdate(s.state, snapsup)
 	c.Assert(err, IsNil)
-	c.Assert(current, DeepEquals, &gadget.Info{
-		Volumes: map[string]gadget.Volume{
-			"pc": {
-				Bootloader: "grub",
+	c.Assert(current, DeepEquals, &gadget.GadgetData{
+		Info: &gadget.Info{
+			Volumes: map[string]gadget.Volume{
+				"pc": {
+					Bootloader: "grub",
+				},
 			},
 		},
+		RootDir: ci.MountDir(),
 	})
-	c.Assert(update, DeepEquals, &gadget.Info{
-		Volumes: map[string]gadget.Volume{
-			"pc": {
-				Bootloader: "grub",
-				ID:         "123",
+	c.Assert(update, DeepEquals, &gadget.GadgetData{
+		Info: &gadget.Info{
+			Volumes: map[string]gadget.Volume{
+				"pc": {
+					Bootloader: "grub",
+					ID:         "123",
+				},
 			},
 		},
+		RootDir: ui.MountDir(),
 	})
 }
 

@@ -129,7 +129,10 @@ func SetBootOkRan(m *DeviceManager, b bool) {
 	m.bootOkRan = b
 }
 
-type RegistrationContext = registrationContext
+type (
+	RegistrationContext = registrationContext
+	RemodelContext      = remodelContext
+)
 
 func RegistrationCtx(m *DeviceManager, t *state.Task) (registrationContext, error) {
 	return m.registrationCtx(t)
@@ -152,16 +155,15 @@ var (
 
 	RemodelTasks = remodelTasks
 
-	RemodelCtx         = remodelCtx
-	RemodelCtxFromTask = remodelCtxFromTask
-	CleanupRemodelCtx  = cleanupRemodelCtx
-	CachedRemodelCtx   = cachedRemodelCtx
+	RemodelCtx        = remodelCtx
+	CleanupRemodelCtx = cleanupRemodelCtx
+	CachedRemodelCtx  = cachedRemodelCtx
 
 	GadgetUpdateBlocked    = gadgetUpdateBlocked
 	GadgetCurrentAndUpdate = gadgetCurrentAndUpdate
 )
 
-func MockGadgetUpdate(mock func(current, update *gadget.Info, path string) error) (restore func()) {
+func MockGadgetUpdate(mock func(current, update gadget.GadgetData, path string) error) (restore func()) {
 	old := gadgetUpdate
 	gadgetUpdate = mock
 	return func() {

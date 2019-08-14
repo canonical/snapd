@@ -132,12 +132,43 @@ func (m *InterfaceManager) StartUp() error {
 	s := m.state
 	perfTimings := timings.New(map[string]string{"startup": "ifacemgr"})
 
-	if err := m.initialize(perfTimings); err != nil {
-		return err
-	}
-
 	s.Lock()
 	defer s.Unlock()
+
+	snaps, err := snapsWithSecurityProfiles(m.state)
+	if err != nil {
+		return err
+	}
+	// Before deciding about adding implicit slots to any snap we need to scan
+	// the set of snaps we know about. If any of those is "snapd" then for the
+	// duration of this process always add implicit slots to snapd and not to
+	// any other type: os snap and use a mapper to use names core-snapd-system
+	// on state, in memory and in API responses, respectively.
+	m.selectInterfaceMapper(snaps)
+
+	if err := m.addInterfaces(m.extraInterfaces); err != nil {
+		return err
+	}
+	if err := m.addBackends(m.extraBackends); err != nil {
+		return err
+	}
+	if err := m.addSnaps(snaps); err != nil {
+		return err
+	}
+	if err := m.renameCorePlugConnection(); err != nil {
+		return err
+	}
+	if err := removeStaleConnections(m.state); err != nil {
+		return err
+	}
+	if _, err := m.reloadConnections(""); err != nil {
+		return err
+	}
+	if profilesNeedRegeneration() {
+		if err := m.regenerateAllSecurityProfiles(perfTimings); err != nil {
+			return err
+		}
+	}
 
 	ifacerepo.Replace(s, m.repo)
 

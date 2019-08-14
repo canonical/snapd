@@ -31,7 +31,7 @@ func (client *Client) SetDoer(d doer) {
 }
 
 // Do does do.
-func (client *Client) Do(method, path string, query url.Values, body io.Reader, v interface{}) error {
+func (client *Client) Do(method, path string, query url.Values, body io.Reader, v interface{}) (statusCode int, err error) {
 	return client.do(method, path, query, nil, body, v)
 }
 

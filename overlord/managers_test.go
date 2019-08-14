@@ -633,6 +633,10 @@ func (s *mgrsSuite) mockStore(c *C) *httptest.Server {
 			w.Write(asserts.Encode(a))
 			return
 		case "download":
+			if s.sessionMacaroon != "" {
+				// FIXME: download is still using the old headers!
+				c.Check(r.Header.Get("X-Device-Authorization"), Equals, fmt.Sprintf(`Macaroon root="%s"`, s.sessionMacaroon))
+			}
 			if s.failNextDownload == comps[1] {
 				s.failNextDownload = ""
 				w.WriteHeader(418)
@@ -650,7 +654,6 @@ func (s *mgrsSuite) mockStore(c *C) *httptest.Server {
 		case "v2:refresh":
 			if s.sessionMacaroon != "" {
 				c.Check(r.Header.Get("Snap-Device-Authorization"), Equals, fmt.Sprintf(`Macaroon root="%s"`, s.sessionMacaroon))
-
 			}
 			dec := json.NewDecoder(r.Body)
 			var input struct {
@@ -1584,7 +1587,7 @@ type: os
 	// simulate successful restart happened
 	state.MockRestarting(st, state.RestartUnset)
 	loader.BootVars["snap_mode"] = ""
-	loader.BootVars["snap_core"] = "core_x1.snap"
+	boottest.SetBootBase("core_x1.snap", loader)
 
 	st.Unlock()
 	err = s.o.Settle(settleTimeout)
@@ -3397,6 +3400,8 @@ type: base`
 
 func (s *mgrsSuite) TestRemodelSwitchKernelTrack(c *C) {
 	loader := boottest.NewMockBootloader("mock", c.MkDir())
+	boottest.SetBootKernel("pc-kernel_1.snap", loader)
+	boottest.SetBootBase("core_1.snap", loader)
 	bootloader.Force(loader)
 	defer bootloader.Force(nil)
 

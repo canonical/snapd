@@ -105,7 +105,7 @@ func (cs *clientSuite) TestNewPanics(c *C) {
 
 func (cs *clientSuite) TestClientDoReportsErrors(c *C) {
 	cs.err = errors.New("ouchie")
-	err := cs.cli.Do("GET", "/", nil, nil, nil)
+	_, err := cs.cli.Do("GET", "/", nil, nil, nil)
 	c.Check(err, ErrorMatches, "cannot communicate with server: ouchie")
 	if cs.doCalls < 2 {
 		c.Fatalf("do did not retry")
@@ -116,8 +116,25 @@ func (cs *clientSuite) TestClientWorks(c *C) {
 	var v []int
 	cs.rsp = `[1,2]`
 	reqBody := ioutil.NopCloser(strings.NewReader(""))
-	err := cs.cli.Do("GET", "/this", nil, reqBody, &v)
+	statusCode, err := cs.cli.Do("GET", "/this", nil, reqBody, &v)
 	c.Check(err, IsNil)
+	c.Check(statusCode, Equals, 200)
+	c.Check(v, DeepEquals, []int{1, 2})
+	c.Assert(cs.req, NotNil)
+	c.Assert(cs.req.URL, NotNil)
+	c.Check(cs.req.Method, Equals, "GET")
+	c.Check(cs.req.Body, Equals, reqBody)
+	c.Check(cs.req.URL.Path, Equals, "/this")
+}
+
+func (cs *clientSuite) TestClientUnderstandsStatusCode(c *C) {
+	var v []int
+	cs.status = 202
+	cs.rsp = `[1,2]`
+	reqBody := ioutil.NopCloser(strings.NewReader(""))
+	statusCode, err := cs.cli.Do("GET", "/this", nil, reqBody, &v)
+	c.Check(err, IsNil)
+	c.Check(statusCode, Equals, 202)
 	c.Check(v, DeepEquals, []int{1, 2})
 	c.Assert(cs.req, NotNil)
 	c.Assert(cs.req.URL, NotNil)
@@ -131,7 +148,7 @@ func (cs *clientSuite) TestClientDefaultsToNoAuthorization(c *C) {
 	defer os.Unsetenv(client.TestAuthFileEnvKey)
 
 	var v string
-	_ = cs.cli.Do("GET", "/this", nil, nil, &v)
+	_, _ = cs.cli.Do("GET", "/this", nil, nil, &v)
 	c.Assert(cs.req, NotNil)
 	authorization := cs.req.Header.Get("Authorization")
 	c.Check(authorization, Equals, "")
@@ -149,7 +166,7 @@ func (cs *clientSuite) TestClientSetsAuthorization(c *C) {
 	c.Assert(err, IsNil)
 
 	var v string
-	_ = cs.cli.Do("GET", "/this", nil, nil, &v)
+	_, _ = cs.cli.Do("GET", "/this", nil, nil, &v)
 	authorization := cs.req.Header.Get("Authorization")
 	c.Check(authorization, Equals, `Macaroon root="macaroon", discharge="discharge"`)
 }
@@ -168,7 +185,7 @@ func (cs *clientSuite) TestClientHonorsDisableAuth(c *C) {
 	var v string
 	cli := client.New(&client.Config{DisableAuth: true})
 	cli.SetDoer(cs)
-	_ = cli.Do("GET", "/this", nil, nil, &v)
+	_, _ = cli.Do("GET", "/this", nil, nil, &v)
 	authorization := cs.req.Header.Get("Authorization")
 	c.Check(authorization, Equals, "")
 }
@@ -177,13 +194,13 @@ func (cs *clientSuite) TestClientHonorsInteractive(c *C) {
 	var v string
 	cli := client.New(&client.Config{Interactive: false})
 	cli.SetDoer(cs)
-	_ = cli.Do("GET", "/this", nil, nil, &v)
+	_, _ = cli.Do("GET", "/this", nil, nil, &v)
 	interactive := cs.req.Header.Get(client.AllowInteractionHeader)
 	c.Check(interactive, Equals, "")
 
 	cli = client.New(&client.Config{Interactive: true})
 	cli.SetDoer(cs)
-	_ = cli.Do("GET", "/this", nil, nil, &v)
+	_, _ = cli.Do("GET", "/this", nil, nil, &v)
 	interactive = cs.req.Header.Get(client.AllowInteractionHeader)
 	c.Check(interactive, Equals, "true")
 }
@@ -318,12 +335,14 @@ func (cs *clientSuite) TestSnapClientIntegration(c *C) {
 }
 
 func (cs *clientSuite) TestClientReportsOpError(c *C) {
-	cs.rsp = `{"type": "error", "status": "potatoes"}`
+	cs.status = 500
+	cs.rsp = `{"type": "error"}`
 	_, err := cs.cli.SysInfo()
-	c.Check(err, ErrorMatches, `.*server error: "potatoes"`)
+	c.Check(err, ErrorMatches, `.*server error: "Internal Server Error"`)
 }
 
 func (cs *clientSuite) TestClientReportsOpErrorStr(c *C) {
+	cs.status = 400
 	cs.rsp = `{
 		"result": {},
 		"status": "Bad Request",
@@ -368,6 +387,7 @@ func (cs *clientSuite) TestClientMaintenance(c *C) {
 }
 
 func (cs *clientSuite) TestClientAsyncOpMaintenance(c *C) {
+	cs.status = 202
 	cs.rsp = `{"type":"async", "status-code": 202, "change": "42", "maintenance": {"kind": "system-restart", "message": "system is restarting"}}`
 	_, err := cs.cli.Install("foo", nil)
 	c.Assert(err, IsNil)
@@ -463,7 +483,7 @@ func (cs *clientSuite) TestUserAgent(c *C) {
 	cli.SetDoer(cs)
 
 	var v string
-	_ = cli.Do("GET", "/", nil, nil, &v)
+	_, _ = cli.Do("GET", "/", nil, nil, &v)
 	c.Assert(cs.req, NotNil)
 	c.Check(cs.req.Header.Get("User-Agent"), Equals, "some-agent/9.87")
 }
