@@ -26,8 +26,10 @@ import (
 	"github.com/snapcore/snapd/overlord/state"
 )
 
-// FinalTasks are task kinds for final tasks in a change which means no further change work should be performed afterward, usually these are tasks that commit a full system transition.
-var FinalTasks = map[string]bool{"mark-seeded": true, "set-model": true}
+// FinalTasks are task kinds for final tasks in a change which means no further
+// change work should be performed afterward, usually these are tasks that
+// commit a full system transition.
+var FinalTasks = []string{"mark-seeded", "set-model"}
 
 // ChangeConflictError represents an error because of snap conflicts between changes.
 type ChangeConflictError struct {
