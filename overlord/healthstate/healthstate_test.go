@@ -70,6 +70,8 @@ func (s *healthSuite) SetUpTest(c *check.C) {
 
 	healthstate.Init(s.hookMgr)
 
+	c.Assert(s.o.StartUp(), check.IsNil)
+
 	s.state.Lock()
 	defer s.state.Unlock()
 

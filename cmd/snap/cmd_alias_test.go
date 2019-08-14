@@ -55,6 +55,7 @@ func (s *SnapSuite) TestAlias(c *C) {
 				"app":    "cmd1",
 				"alias":  "alias1",
 			})
+			w.WriteHeader(202)
 			fmt.Fprintln(w, `{"type":"async", "status-code": 202, "change": "zzz"}`)
 		case "/v2/changes/zzz":
 			c.Check(r.Method, Equals, "GET")

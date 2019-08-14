@@ -3,7 +3,7 @@ summary: |
    with the prepare-device gadget hook and this can set request headers,
    a proposed serial and the body of the serial assertion
 
-systems: [ubuntu-core-16-64]
+systems: [ubuntu-core-1*-64]
 
 prepare: |
     if [ "$TRUST_TEST_KEYS" = "false" ]; then
@@ -12,6 +12,9 @@ prepare: |
     fi
     #shellcheck source=tests/lib/systemd.sh
     . "$TESTSLIB"/systemd.sh
+    #shellcheck source=tests/lib/systems.sh
+    . "$TESTSLIB"/systems.sh
+
     systemctl stop snapd.service snapd.socket
     rm -rf /var/lib/snapd/assertions/*
     rm -rf /var/lib/snapd/device
@@ -27,7 +30,11 @@ prepare: |
     python3 ./manip_seed.py /var/lib/snapd/seed/seed.yaml
     cp "$TESTSLIB"/assertions/developer1.account /var/lib/snapd/seed/assertions
     cp "$TESTSLIB"/assertions/developer1.account-key /var/lib/snapd/seed/assertions
-    cp "$TESTSLIB"/assertions/developer1-pc.model /var/lib/snapd/seed/assertions
+    if is_core18_system; then
+        cp "$TESTSLIB"/assertions/developer1-pc-18.model /var/lib/snapd/seed/assertions/developer1-pc.model
+    else
+        cp "$TESTSLIB"/assertions/developer1-pc.model /var/lib/snapd/seed/assertions
+    fi
     cp "$TESTSLIB"/assertions/testrootorg-store.account-key /var/lib/snapd/seed/assertions
     # start fake device svc
     systemd_create_and_start_unit fakedevicesvc "$(command -v fakedevicesvc) localhost:11029"

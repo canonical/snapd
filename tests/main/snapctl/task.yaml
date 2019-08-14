@@ -9,6 +9,11 @@ prepare: |
         snap alias test-snapd-curl.curl curl
     fi
 
+restore: |
+    if snap list test-snapd-curl; then
+        snap remove test-snapd-curl
+    fi
+
 execute: |
     echo "Verify that snapctl -h runs without a context"
     if ! snapctl -h; then

@@ -46,8 +46,6 @@ type GpioInterfaceSuite struct {
 	gadgetBadInterfacePlug      *interfaces.ConnectedPlug
 	osGpioSlotInfo              *snap.SlotInfo
 	osGpioSlot                  *interfaces.ConnectedSlot
-	appGpioSlotInfo             *snap.SlotInfo
-	appGpioSlot                 *interfaces.ConnectedSlot
 }
 
 var _ = Suite(&GpioInterfaceSuite{
@@ -98,18 +96,6 @@ slots:
 `, nil)
 	s.osGpioSlotInfo = osInfo.Slots["my-pin"]
 	s.osGpioSlot = interfaces.NewConnectedSlot(s.osGpioSlotInfo, nil, nil)
-
-	appInfo := snaptest.MockInfo(c, `
-name: my-app
-version: 0
-slots:
-    my-pin:
-        interface: gpio
-        number: 154
-        direction: out
-`, nil)
-	s.appGpioSlotInfo = appInfo.Slots["my-pin"]
-	s.appGpioSlot = interfaces.NewConnectedSlot(s.appGpioSlotInfo, nil, nil)
 }
 
 func (s *GpioInterfaceSuite) TestName(c *C) {
@@ -132,12 +118,6 @@ func (s *GpioInterfaceSuite) TestSanitizeSlotGadgetSnap(c *C) {
 func (s *GpioInterfaceSuite) TestSanitizeSlotOsSnap(c *C) {
 	// gpio slot on OS accepeted
 	c.Assert(interfaces.BeforePrepareSlot(s.iface, s.osGpioSlotInfo), IsNil)
-}
-
-func (s *GpioInterfaceSuite) TestSanitizeSlotAppSnap(c *C) {
-	// gpio slot not accepted on app snap
-	c.Assert(interfaces.BeforePrepareSlot(s.iface, s.appGpioSlotInfo), ErrorMatches,
-		"gpio slots are reserved for the core and gadget snaps")
 }
 
 func (s *GpioInterfaceSuite) TestSanitizePlug(c *C) {
