@@ -3120,6 +3120,44 @@ func (s *deviceMgrSuite) TestRemodelClashInProgress(c *C) {
 	})
 }
 
+func (s *deviceMgrSuite) TestReregRemodelClashAnyChange(c *C) {
+	s.state.Lock()
+	defer s.state.Unlock()
+	s.state.Set("seeded", true)
+
+	// set a model assertion
+	s.makeModelAssertionInState(c, "canonical", "pc-model", map[string]interface{}{
+		"architecture": "amd64",
+		"kernel":       "pc-kernel",
+		"gadget":       "pc",
+		"base":         "core18",
+	})
+	s.makeSerialAssertionInState(c, "canonical", "pc-model", "orig-serial")
+	devicestatetest.SetDevice(s.state, &auth.DeviceState{
+		Brand:           "canonical",
+		Model:           "pc-model",
+		Serial:          "orig-serial",
+		SessionMacaroon: "old-session",
+	})
+
+	new := s.brands.Model("canonical", "pc-model-2", map[string]interface{}{
+		"architecture":   "amd64",
+		"kernel":         "pc-kernel",
+		"gadget":         "pc",
+		"base":           "core18",
+		"required-snaps": []interface{}{"new-required-snap-1", "new-required-snap-2"},
+		"revision":       "1",
+	})
+
+	// simulate any other change
+	s.state.NewChange("chg", "other change")
+
+	_, err := devicestate.Remodel(s.state, new)
+	c.Check(err, DeepEquals, &snapstate.ChangeConflictError{
+		Message: "cannot start complete remodel, other changes are in progress",
+	})
+}
+
 func (s *deviceMgrSuite) TestRemodeling(c *C) {
 	s.state.Lock()
 	defer s.state.Unlock()

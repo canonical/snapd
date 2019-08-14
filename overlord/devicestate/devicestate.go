@@ -498,6 +498,13 @@ func Remodel(st *state.State, new *asserts.Model) (*state.Change, error) {
 	var tss []*state.TaskSet
 	switch remodelKind {
 	case ReregRemodel:
+		// nothing else can be in-flight
+		for _, chg := range st.Changes() {
+			if !chg.IsReady() {
+				return nil, &snapstate.ChangeConflictError{Message: "cannot start complete remodel, other changes are in progress"}
+			}
+		}
+
 		requestSerial := st.NewTask("request-serial", i18n.G("Request new device serial"))
 
 		prepare := st.NewTask("prepare-remodeling", i18n.G("Prepare remodeling"))
