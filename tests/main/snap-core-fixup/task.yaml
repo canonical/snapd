@@ -1,6 +1,6 @@
 summary: Check that the core-fixup-sh script works
 
-systems: [ubuntu-core-16-*]
+systems: [ubuntu-core-1*]
 
 restore: |
     umount /boot/uboot
@@ -25,7 +25,8 @@ execute: |
     umount /boot/uboot
 
     echo "Now test with the real corrupted image"
-    unxz -c -d test.img.xz >test.img
+    # We use tar instead of unxz because it is available in all the core systems
+    tar zxvf test.img.tar.gz
     mount -t vfat test.img /boot/uboot
     n=$(find /boot/uboot -name uboot.env| wc -l)
     if [ "$n" != "2" ]; then

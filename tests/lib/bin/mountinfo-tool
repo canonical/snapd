@@ -613,6 +613,8 @@ Known attributes, applicable for both filtering and display.
     parent_id:      identifier of parent mount point
     dev:            major:minor numbers of the mounted device
     root_dir:       subtree of the mounted filesystem exposed at mount_point
+
+The exit code indicates if any mount point matched the query.
     """,
         formatter_class=RawTextHelpFormatter,
     )
@@ -749,7 +751,10 @@ Known attributes, applicable for both filtering and display.
         raise SystemExit(
             "--one requires exactly one match, found {}".format(len(entries))
         )
-
+	# Return with an exit code indicating if anything matched.
+	# This allows mountinfo-tool to be used in scripts.
+    if len(entries) == 0:
+        raise SystemExit(1)
 
 class MountInfoEntryTests(unittest.TestCase):
 
