@@ -75,7 +75,7 @@ func (b Backend) SetupSnap(snapFilePath, instanceName string, sideInfo *snap.Sid
 	}
 
 	t := s.GetType()
-	// XXX: maybe look into passing the model
+	// TODO: maybe look into passing the model
 	bp, _ := boot.Lookup(s, t, nil, release.OnClassic)
 	if kernel, ok := bp.(boot.Kernel); ok {
 		if err := kernel.ExtractKernelAssets(snapf); err != nil {
@@ -103,7 +103,7 @@ func (b Backend) RemoveSnapFiles(s snap.PlaceInfo, typ snap.Type, meter progress
 	snapPath := s.MountFile()
 	if _, err := os.Lstat(snapPath); err == nil {
 		// remove the kernel assets (if any)
-		// XXX: maybe look into passing the model
+		// TODO: maybe look into passing the model
 		bp, _ := boot.Lookup(s, typ, nil, release.OnClassic)
 		if kernel, ok := bp.(boot.Kernel); ok {
 			if err := kernel.RemoveKernelAssets(); err != nil {

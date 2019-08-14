@@ -33,33 +33,7 @@ type coreBootParticipant struct {
 	t snap.Type
 }
 
-type coreKernel struct {
-	*coreBootParticipant
-}
-
 var _ BootParticipant = (*coreBootParticipant)(nil)
-var _ BootParticipant = (*coreKernel)(nil)
-
-func (k *coreKernel) RemoveKernelAssets() error {
-	// XXX: shouldn't we check the snap type?
-	bootloader, err := bootloader.Find()
-	if err != nil {
-		return fmt.Errorf("cannot remove kernel assets: %s", err)
-	}
-
-	// ask bootloader to remove the kernel assets if needed
-	return bootloader.RemoveKernelAssets(k.s)
-}
-
-func (k *coreKernel) ExtractKernelAssets(snapf snap.Container) error {
-	bootloader, err := bootloader.Find()
-	if err != nil {
-		return fmt.Errorf("cannot extract kernel assets: %s", err)
-	}
-
-	// ask bootloader to extract the kernel assets if needed
-	return bootloader.ExtractKernelAssets(k.s, snapf)
-}
 
 func (bs *coreBootParticipant) SetNextBoot() error {
 	bootloader, err := bootloader.Find()
@@ -106,10 +80,10 @@ func (bs *coreBootParticipant) SetNextBoot() error {
 }
 
 func (bs *coreBootParticipant) ChangeRequiresReboot() bool {
-	// XXX: at some point ChangeRequiresReboot might be in its own
+	// TODO: at some point ChangeRequiresReboot might be in its own
 	// interface, at which point it'd make sense to have an ad-hoc
 	// implementation for snapd because it's really a different
-	// animal
+	// animal?
 	if bs.t == snap.TypeSnapd {
 		return true
 	}
@@ -142,4 +116,31 @@ func (bs *coreBootParticipant) ChangeRequiresReboot() bool {
 	}
 
 	return false
+}
+
+type coreKernel struct {
+	*coreBootParticipant
+}
+
+var _ BootParticipant = (*coreKernel)(nil)
+
+func (k *coreKernel) RemoveKernelAssets() error {
+	// XXX: shouldn't we check the snap type?
+	bootloader, err := bootloader.Find()
+	if err != nil {
+		return fmt.Errorf("cannot remove kernel assets: %s", err)
+	}
+
+	// ask bootloader to remove the kernel assets if needed
+	return bootloader.RemoveKernelAssets(k.s)
+}
+
+func (k *coreKernel) ExtractKernelAssets(snapf snap.Container) error {
+	bootloader, err := bootloader.Find()
+	if err != nil {
+		return fmt.Errorf("cannot extract kernel assets: %s", err)
+	}
+
+	// ask bootloader to extract the kernel assets if needed
+	return bootloader.ExtractKernelAssets(k.s, snapf)
 }

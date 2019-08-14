@@ -96,9 +96,10 @@ func Lookup(s snap.PlaceInfo, t snap.Type, model Model, onClassic bool) (bp Boot
 		}
 	}
 
-	bp = &coreBootParticipant{s: s, t: t}
+	cbp := &coreBootParticipant{s: s, t: t}
+	bp = cbp
 	if t == snap.TypeKernel {
-		bp = &coreKernel{bp.(*coreBootParticipant)}
+		bp = &coreKernel{cbp}
 	}
 
 	return bp, true
