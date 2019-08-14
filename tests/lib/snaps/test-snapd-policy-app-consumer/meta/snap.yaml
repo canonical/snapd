@@ -14,6 +14,15 @@ apps:
   alsa:
     command: bin/run
     plugs: [ alsa ]
+  audio-playback:
+    command: bin/run
+    plugs: [ audio-playback ]
+  audio-record:
+    command: bin/run
+    plugs: [ audio-record ]
+  appstream-metadata:
+    command: bin/run
+    plugs: [ appstream-metadata ]
   autopilot-introspection:
     command: bin/run
     plugs: [ autopilot-introspection ]
@@ -128,6 +137,9 @@ apps:
   gpio-memory-control:
     command: bin/run
     plugs: [ gpio-memory-control ]
+  gpio-control:
+    command: bin/run
+    plugs: [ gpio-control ]
   greengrass-support:
     command: bin/run
     plugs: [ greengrass-support ]
@@ -272,6 +284,9 @@ apps:
   optical-drive:
     command: bin/run
     plugs: [ optical-drive ]
+  packagekit-control:
+    command: bin/run
+    plugs: [ packagekit-control ]
   password-manager-service:
     command: bin/run
     plugs: [ password-manager-service ]

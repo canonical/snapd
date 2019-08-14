@@ -10,8 +10,10 @@ prepare: |
     install_local basic-run
     install_local test-snapd-tools
 
-debug:
-    cat stderr
+debug: |
+    if [ -f stderr ]; then
+        cat stderr
+    fi
 
 execute: |
     echo "Test that snap run use environments"

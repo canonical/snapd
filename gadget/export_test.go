@@ -31,10 +31,12 @@ var (
 
 	EncodeLabel = encodeLabel
 
-	WriteFile      = writeFile
+	WriteFile      = writeFileOrSymlink
 	WriteDirectory = writeDirectory
 
 	RawContentBackupPath = rawContentBackupPath
+
+	UpdaterForStructure = updaterForStructure
 )
 
 func MockUpdaterForStructure(mock func(ps *PositionedStructure, rootDir, rollbackDir string) (Updater, error)) (restore func()) {
