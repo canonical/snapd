@@ -183,7 +183,6 @@ BuildRequires:  libtool
 BuildRequires:  gcc
 BuildRequires:  gettext
 BuildRequires:  gnupg
-BuildRequires:  indent
 BuildRequires:  pkgconfig(glib-2.0)
 BuildRequires:  pkgconfig(libcap)
 BuildRequires:  pkgconfig(libseccomp)
