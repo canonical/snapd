@@ -31,7 +31,7 @@ restore: |
     if pid="$(pidof gvfsd-metadata)"; then
         kill -9 "$pid" || true
     fi
-    rm -rf "$XDG"
+    retry "rm -rf $XDG"
 
 execute: |
     if ! snap install --edge test-snapd-eds ; then

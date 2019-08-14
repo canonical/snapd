@@ -1,0 +1,14 @@
+#!/bin/bash
+
+COMMAND="${1:-true}"
+MAX_ATTEMPTS="${2:-20}"
+SLEEP_TIME="${3:-.5}"
+
+for _ in $(seq "$MAX_ATTEMPTS"); do
+    if $COMMAND; then
+        exit 0
+    fi
+
+    sleep "$SLEEP_TIME"
+done
+exit 1

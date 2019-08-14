@@ -35,7 +35,7 @@ restore: |
     if pid="$(pidof gvfsd-metadata)"; then
         kill -9 "$pid" || true
     fi
-    rm -rf "$XDG"
+    retry "rm -rf $XDG"
 
 execute: |
     echo "Setting up D-Bus session bus"
