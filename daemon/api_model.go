@@ -115,7 +115,7 @@ func getModel(c *Command, r *http.Request, _ *auth.UserState) Response {
 		return &resp{
 			Type:   ResponseTypeError,
 			Result: res,
-			Status: http.StatusNotFound,
+			Status: 404,
 		}
 	}
 	if err != nil {
@@ -160,7 +160,7 @@ func getSerial(c *Command, r *http.Request, _ *auth.UserState) Response {
 		return &resp{
 			Type:   ResponseTypeError,
 			Result: res,
-			Status: http.StatusNotFound,
+			Status: 404,
 		}
 	}
 	if err != nil {
