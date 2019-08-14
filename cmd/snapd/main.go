@@ -128,7 +128,9 @@ func run(ch chan os.Signal) error {
 
 	d.Version = cmd.Version
 
-	d.Start()
+	if err := d.Start(); err != nil {
+		return err
+	}
 
 	watchdog, err := runWatchdog(d)
 	if err != nil {

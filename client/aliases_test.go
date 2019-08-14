@@ -34,6 +34,7 @@ func (cs *clientSuite) TestClientAliasCallsEndpoint(c *check.C) {
 }
 
 func (cs *clientSuite) TestClientAlias(c *check.C) {
+	cs.status = 202
 	cs.rsp = `{
 		"type": "async",
                 "status-code": 202,
@@ -62,6 +63,7 @@ func (cs *clientSuite) TestClientUnaliasCallsEndpoint(c *check.C) {
 }
 
 func (cs *clientSuite) TestClientUnalias(c *check.C) {
+	cs.status = 202
 	cs.rsp = `{
 		"type": "async",
                 "status-code": 202,
@@ -89,6 +91,7 @@ func (cs *clientSuite) TestClientDisableAllAliasesCallsEndpoint(c *check.C) {
 }
 
 func (cs *clientSuite) TestClientDisableAllAliases(c *check.C) {
+	cs.status = 202
 	cs.rsp = `{
 		"type": "async",
                 "status-code": 202,
@@ -115,6 +118,7 @@ func (cs *clientSuite) TestClientRemoveManualAliasCallsEndpoint(c *check.C) {
 }
 
 func (cs *clientSuite) TestClientRemoveManualAlias(c *check.C) {
+	cs.status = 202
 	cs.rsp = `{
 		"type": "async",
                 "status-code": 202,
@@ -141,6 +145,7 @@ func (cs *clientSuite) TestClientPreferCallsEndpoint(c *check.C) {
 }
 
 func (cs *clientSuite) TestClientPrefer(c *check.C) {
+	cs.status = 202
 	cs.rsp = `{
 		"type": "async",
                 "status-code": 202,

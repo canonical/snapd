@@ -924,6 +924,7 @@ func (s *checkSnapSuite) TestCheckSnapdHappy(c *C) {
 	}
 }
 
+// Note, invalid usernames checked in snap/info_snap_yaml.go
 var systemUsernamesTests = []struct {
 	sysIDs       string
 	classic      bool
@@ -984,15 +985,6 @@ var systemUsernamesTests = []struct {
 	classic: true,
 	error:   `Unsupported system username "allowed-not"`,
 }, {
-	sysIDs: "inv@lid: shared",
-	scVer:  "dead 2.4.1 deadbeef bpf-actlog",
-	error:  `Invalid system username "inv@lid"`,
-}, {
-	sysIDs:  "inv@lid: shared",
-	scVer:   "dead 2.4.1 deadbeef bpf-actlog",
-	classic: true,
-	error:   `Invalid system username "inv@lid"`,
-}, {
 	sysIDs:  "snap_daemon: shared",
 	noGroup: true,
 	scVer:   "dead 2.4.1 deadbeef bpf-actlog",
@@ -1035,9 +1027,8 @@ var systemUsernamesTests = []struct {
 	scVer:   "dead 2.3.3 deadbeef bpf-actlog",
 	error:   `This snap requires that snapd be compiled against libseccomp >= 2.4.`,
 }, {
-	sysIDs:  "snap_daemon: shared",
-	classic: true,
-	scVer:   "dead 3.0.0 deadbeef bpf-actlog",
+	sysIDs: "snap_daemon: shared",
+	scVer:  "dead 3.0.0 deadbeef bpf-actlog",
 }, {
 	sysIDs:  "snap_daemon: shared",
 	classic: true,
@@ -1045,12 +1036,12 @@ var systemUsernamesTests = []struct {
 }, {
 	sysIDs: "snap_daemon: shared",
 	scVer:  "dead 2.4.1 deadbeef -",
-	error:  `This snap requires that snapd be compiled against golang-seccomp >= 0.9.1`,
+	error:  `This snap requires that snapd be compiled against golang-seccomp >= 0.9.1.`,
 }, {
 	sysIDs:  "snap_daemon: shared",
 	classic: true,
 	scVer:   "dead 2.4.1 deadbeef -",
-	error:   `This snap requires that snapd be compiled against golang-seccomp >= 0.9.1`,
+	error:   `This snap requires that snapd be compiled against golang-seccomp >= 0.9.1.`,
 }, {
 	sysIDs:       "snap_daemon: shared",
 	noRangeGroup: true,

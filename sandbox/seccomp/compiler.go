@@ -23,6 +23,7 @@ import (
 	"fmt"
 	"os/exec"
 	"regexp"
+	"strconv"
 	"strings"
 
 	"github.com/snapcore/snapd/osutil"
@@ -111,6 +112,48 @@ func (vi VersionInfo) HasFeature(feature string) (bool, error) {
 		}
 	}
 	return false, nil
+}
+
+// SupportsRobustArgumentFiltering parses the output of VersionInfo and
+// determines if libseccomp and golang-seccomp are new enough to support robust
+// argument filtering
+func (vi VersionInfo) SupportsRobustArgumentFiltering() error {
+	libseccompVersion, err := vi.LibseccompVersion()
+	if err != nil {
+		return err
+	}
+
+	// Parse <libseccomp version>
+	tmp := strings.Split(libseccompVersion, ".")
+	maj, err := strconv.Atoi(tmp[0])
+	if err != nil {
+		return fmt.Errorf("Could not obtain seccomp compiler information: %v", err)
+	}
+	min, err := strconv.Atoi(tmp[1])
+	if err != nil {
+		return fmt.Errorf("Could not obtain seccomp compiler information: %v", err)
+	}
+	// libseccomp < 2.4 has significant argument filtering bugs that we
+	// cannot reliably work around with this feature.
+	if maj < 2 || (maj == 2 && min < 4) {
+		return fmt.Errorf(`This snap requires that snapd be compiled against libseccomp >= 2.4.`)
+	}
+
+	// Due to https://github.com/seccomp/libseccomp-golang/issues/22,
+	// golang-seccomp <= 0.9.0 cannot create correct BPFs for this feature.
+	// The package does not contain any version information, but we know
+	// that ActLog was implemented in the library after this issue was
+	// fixed, so base the decision on that. ActLog is first available in
+	// 0.9.1.
+	res, err := vi.HasFeature("bpf-actlog")
+	if err != nil {
+		return err
+	}
+	if !res {
+		return fmt.Errorf(`This snap requires that snapd be compiled against golang-seccomp >= 0.9.1.`)
+	}
+
+	return nil
 }
 
 // Compile compiles given source profile and saves the result to the out

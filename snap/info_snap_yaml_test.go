@@ -1836,15 +1836,15 @@ system-usernames:
 	info, err := snap.InfoFromSnapYaml(y)
 	c.Assert(err, IsNil)
 	c.Check(info.SystemUsernames, HasLen, 3)
-	c.Assert(info.SystemUsernames["foo"], DeepEquals, &snap.UsernameInfo{
+	c.Assert(info.SystemUsernames["foo"], DeepEquals, &snap.SystemUsernameInfo{
 		Name:  "foo",
 		Scope: "shared",
 	})
-	c.Assert(info.SystemUsernames["bar"], DeepEquals, &snap.UsernameInfo{
+	c.Assert(info.SystemUsernames["bar"], DeepEquals, &snap.SystemUsernameInfo{
 		Name:  "bar",
 		Scope: "external",
 	})
-	c.Assert(info.SystemUsernames["baz"], DeepEquals, &snap.UsernameInfo{
+	c.Assert(info.SystemUsernames["baz"], DeepEquals, &snap.SystemUsernameInfo{
 		Name:  "baz",
 		Scope: "private",
 		Attrs: map[string]interface{}{
@@ -1885,9 +1885,31 @@ version: 1.0
 system-usernames:
   "": shared
 `)
-	info, err := snap.InfoFromSnapYaml(y)
-	c.Assert(err, IsNil)
-	c.Check(info.SystemUsernames, HasLen, 0)
+	_, err := snap.InfoFromSnapYaml(y)
+	c.Assert(err, NotNil)
+	c.Assert(err, ErrorMatches, `Invalid system username ""`)
+}
+
+func (s *YamlSuite) TestSnapYamlSystemUsernamesParsingBadKeyList(c *C) {
+	y := []byte(`name: binary
+version: 1.0
+system-usernames:
+- foo: shared
+`)
+	_, err := snap.InfoFromSnapYaml(y)
+	c.Assert(err, NotNil)
+	c.Assert(err, ErrorMatches, `(?m)cannot parse snap.yaml:.*`)
+}
+
+func (s *YamlSuite) TestSnapYamlSystemUsernamesParsingBadUsername(c *C) {
+	y := []byte(`name: binary
+version: 1.0
+system-usernames:
+  "b@d": shared
+`)
+	_, err := snap.InfoFromSnapYaml(y)
+	c.Assert(err, NotNil)
+	c.Assert(err, ErrorMatches, `Invalid system username "b@d"`)
 }
 
 func (s *YamlSuite) TestSnapYamlSystemUsernamesParsingBadValueEmpty(c *C) {
@@ -1909,11 +1931,7 @@ system-usernames:
     scope: shared
     "": bar
 `)
-	info, err := snap.InfoFromSnapYaml(y)
-	c.Assert(err, IsNil)
-	c.Check(info.SystemUsernames, HasLen, 1)
-	c.Assert(info.SystemUsernames["foo"], DeepEquals, &snap.UsernameInfo{
-		Name:  "foo",
-		Scope: "shared",
-	})
+	_, err := snap.InfoFromSnapYaml(y)
+	c.Assert(err, NotNil)
+	c.Assert(err, ErrorMatches, `"foo" has attribute that is empty string`)
 }

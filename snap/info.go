@@ -257,7 +257,7 @@ type Info struct {
 
 	// List of system users (usernames) this snap may use. The group
 	// of the same name must also exist.
-	SystemUsernames map[string]*UsernameInfo
+	SystemUsernames map[string]*SystemUsernameInfo
 }
 
 // StoreAccount holds information about a store account, for example
@@ -776,12 +776,6 @@ type MediaInfo struct {
 
 type MediaInfos []MediaInfo
 
-type UsernameInfo struct {
-	Name  string
-	Scope string
-	Attrs map[string]interface{}
-}
-
 const ScreenshotsDeprecationNotice = `'screenshots' is deprecated; use 'media' instead. More info at https://forum.snapcraft.io/t/8086`
 
 func (mis MediaInfos) Screenshots() []ScreenshotInfo {
@@ -809,6 +803,21 @@ type HookInfo struct {
 	CommandChain []string
 
 	Explicit bool
+}
+
+// SystemUsernameInfo provides information about a system username (ie, a
+// UNIX user and group with the same name). The scope defines visibility of the
+// username wrt the snap and the system. Defined scopes:
+// - shared    static, snapd-managed user/group shared between host and all
+//             snaps
+// - private   static, snapd-managed user/group private to a particular snap
+//             (currently not implemented)
+// - external  dynamic user/group shared between host and all snaps (currently
+//             not implented)
+type SystemUsernameInfo struct {
+	Name  string
+	Scope string
+	Attrs map[string]interface{}
 }
 
 // File returns the path to the *.socket file

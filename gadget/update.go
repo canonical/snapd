@@ -239,23 +239,6 @@ type Updater interface {
 	Rollback() error
 }
 
-type nopUpdater struct{}
-
-func (n *nopUpdater) Update() error {
-	return nil
-}
-
-func (n *nopUpdater) Backup() error {
-	return nil
-}
-
-func (n *nopUpdater) Rollback() error {
-	return nil
-}
-
-// TODO: replace placeholder implementation with real one
-var updaterForStructure = func(_ *PositionedStructure, rootDir, rollbackDir string) (Updater, error) { return &nopUpdater{}, nil }
-
 func applyUpdates(new GadgetData, updates []updatePair, rollbackDir string) error {
 	updaters := make([]Updater, len(updates))
 
@@ -299,4 +282,17 @@ func applyUpdates(new GadgetData, updates []updatePair, rollbackDir string) erro
 	}
 
 	return updateErr
+}
+
+var updaterForStructure = updaterForStructureImpl
+
+func updaterForStructureImpl(ps *PositionedStructure, newRootDir, rollbackDir string) (Updater, error) {
+	var updater Updater
+	var err error
+	if ps.IsBare() {
+		updater, err = NewRawStructureUpdater(newRootDir, ps, rollbackDir, FindDeviceForStructureWithFallback)
+	} else {
+		updater, err = NewMountedFilesystemUpdater(newRootDir, ps, rollbackDir, FindMountPointForStructure)
+	}
+	return updater, err
 }

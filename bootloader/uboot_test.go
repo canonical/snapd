@@ -28,6 +28,7 @@ import (
 
 	"github.com/snapcore/snapd/bootloader"
 	"github.com/snapcore/snapd/bootloader/ubootenv"
+	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/snap"
 	"github.com/snapcore/snapd/snap/snaptest"
@@ -159,9 +160,7 @@ func (s *ubootTestSuite) TestExtractKernelAssetsAndRemove(c *C) {
 	c.Assert(err, IsNil)
 
 	// this is where the kernel/initrd is unpacked
-	bootdir := u.Dir()
-
-	kernelAssetsDir := filepath.Join(bootdir, "ubuntu-kernel_42.snap")
+	kernelAssetsDir := filepath.Join(dirs.GlobalRootDir, "boot", "uboot", "ubuntu-kernel_42.snap")
 
 	for _, def := range files {
 		if def[0] == "meta/kernel.yaml" {

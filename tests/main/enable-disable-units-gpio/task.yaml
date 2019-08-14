@@ -10,7 +10,7 @@ details: |
     a reboot the systemd service tries to regenerate the gpio device node if it does not
     find it.
 
-systems: [ubuntu-core-16-64]
+systems: [ubuntu-core-1*-64]
 
 prepare: |
     # Core image that were created using spread will have a fake "gpio-pin".

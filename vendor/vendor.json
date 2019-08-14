@@ -13,10 +13,10 @@
 			"revisionTime": "2018-05-11T13:34:05Z"
 		},
 		{
-			"checksumSHA1": "h77tT8kVh8x/J5ikkZReONPUjU0=",
+			"checksumSHA1": "qwK75TRXmR/k8CiegYaeqaCDek4=",
 			"path": "github.com/godbus/dbus",
-			"revision": "97646858c46433e4afb3432ad28c12e968efa298",
-			"revisionTime": "2017-08-22T15:24:03Z"
+			"revision": "4481cbc300e2df0c0b3cecc18b6c16c6c0bb885d",
+			"revisionTime": "2019-07-26T02:52:47Z"
 		},
 		{
 			"checksumSHA1": "NrP46FPoALgKz3FY6puL3syMAAI=",

@@ -49,4 +49,7 @@ execute: |
 
 restore: |
 
+  if snap list test-snapd-core-migration; then
+    snap remove test-snapd-core-migration
+  fi
   rm -f test-snapd-core-migration_{1,2}_all.snap

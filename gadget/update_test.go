@@ -1193,3 +1193,39 @@ func (u *updateTestSuite) TestUpdateApplyBadUpdater(c *C) {
 	err := gadget.Update(oldData, newData, rollbackDir)
 	c.Assert(err, ErrorMatches, `cannot prepare update for volume structure #0 \("first"\): bad updater for structure`)
 }
+
+func (u *updateTestSuite) TestUpdaterForStructure(c *C) {
+	rootDir := c.MkDir()
+	rollbackDir := c.MkDir()
+
+	psBare := &gadget.PositionedStructure{
+		VolumeStructure: &gadget.VolumeStructure{
+			Filesystem: "none",
+			Size:       10 * gadget.SizeMiB,
+		},
+		StartOffset: 1 * gadget.SizeMiB,
+	}
+	updater, err := gadget.UpdaterForStructure(psBare, rootDir, rollbackDir)
+	c.Assert(err, IsNil)
+	c.Assert(updater, FitsTypeOf, &gadget.RawStructureUpdater{})
+
+	psFs := &gadget.PositionedStructure{
+		VolumeStructure: &gadget.VolumeStructure{
+			Filesystem: "ext4",
+			Size:       10 * gadget.SizeMiB,
+		},
+		StartOffset: 1 * gadget.SizeMiB,
+	}
+	updater, err = gadget.UpdaterForStructure(psFs, rootDir, rollbackDir)
+	c.Assert(err, IsNil)
+	c.Assert(updater, FitsTypeOf, &gadget.MountedFilesystemUpdater{})
+
+	// trigger errors
+	updater, err = gadget.UpdaterForStructure(psBare, rootDir, "")
+	c.Assert(err, ErrorMatches, "internal error: backup directory cannot be unset")
+	c.Assert(updater, IsNil)
+
+	updater, err = gadget.UpdaterForStructure(psFs, "", rollbackDir)
+	c.Assert(err, ErrorMatches, "internal error: gadget content directory cannot be unset")
+	c.Assert(updater, IsNil)
+}

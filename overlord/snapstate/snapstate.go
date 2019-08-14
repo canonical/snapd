@@ -436,15 +436,15 @@ func WaitRestart(task *state.Task, snapsup *SnapSetup) (err error) {
 			return nil
 		}
 
-		name, rev, err := CurrentBootNameAndRevision(typ)
-		if err == ErrBootNameAndRevisionAgain {
+		current, err := boot.GetCurrentBoot(typ)
+		if err == boot.ErrBootNameAndRevisionAgain {
 			return &state.Retry{After: 5 * time.Second}
 		}
 		if err != nil {
 			return err
 		}
 
-		if snapsup.InstanceName() != name || snapInfo.Revision != rev {
+		if snapsup.InstanceName() != current.Name || snapInfo.Revision != current.Revision {
 			// TODO: make sure this revision gets ignored for
 			//       automatic refreshes
 			return fmt.Errorf("cannot finish %s installation, there was a rollback across reboot", snapsup.InstanceName())
@@ -668,7 +668,7 @@ func TryPath(st *state.State, name, path string, flags Flags) (*state.TaskSet, e
 //
 // The returned TaskSet will contain a DownloadAndChecksDoneEdge.
 func Install(ctx context.Context, st *state.State, name string, opts *RevisionOptions, userID int, flags Flags) (*state.TaskSet, error) {
-	return InstallWithDeviceContext(ctx, st, name, opts, userID, flags, nil)
+	return InstallWithDeviceContext(ctx, st, name, opts, userID, flags, nil, "")
 }
 
 // InstallWithDeviceContext returns a set of tasks for installing a snap.
@@ -676,7 +676,7 @@ func Install(ctx context.Context, st *state.State, name string, opts *RevisionOp
 // Note that the state must be locked by the caller.
 //
 // The returned TaskSet will contain a DownloadAndChecksDoneEdge.
-func InstallWithDeviceContext(ctx context.Context, st *state.State, name string, opts *RevisionOptions, userID int, flags Flags, deviceCtx DeviceContext) (*state.TaskSet, error) {
+func InstallWithDeviceContext(ctx context.Context, st *state.State, name string, opts *RevisionOptions, userID int, flags Flags, deviceCtx DeviceContext, fromChange string) (*state.TaskSet, error) {
 	if opts == nil {
 		opts = &RevisionOptions{}
 	}
@@ -741,7 +741,7 @@ func InstallWithDeviceContext(ctx context.Context, st *state.State, name string,
 		CohortKey: opts.CohortKey,
 	}
 
-	return doInstall(st, &snapst, snapsup, 0, "")
+	return doInstall(st, &snapst, snapsup, 0, fromChange)
 }
 
 // InstallMany installs everything from the given list of names.
@@ -927,7 +927,7 @@ func doUpdate(ctx context.Context, st *state.State, names []string, updates []*s
 
 	if len(mustPruneAutoAliases) != 0 {
 		var err error
-		pruningAutoAliasesTs, err = applyAutoAliasesDelta(st, mustPruneAutoAliases, "prune", refreshAll, func(snapName string, _ *state.TaskSet) {
+		pruningAutoAliasesTs, err = applyAutoAliasesDelta(st, mustPruneAutoAliases, "prune", refreshAll, fromChange, func(snapName string, _ *state.TaskSet) {
 			if nameSet[snapName] {
 				reportUpdated[snapName] = true
 			}
@@ -1035,7 +1035,7 @@ func doUpdate(ctx context.Context, st *state.State, names []string, updates []*s
 	}
 
 	if len(newAutoAliases) != 0 {
-		addAutoAliasesTs, err := applyAutoAliasesDelta(st, newAutoAliases, "refresh", refreshAll, scheduleUpdate)
+		addAutoAliasesTs, err := applyAutoAliasesDelta(st, newAutoAliases, "refresh", refreshAll, fromChange, scheduleUpdate)
 		if err != nil {
 			return nil, nil, err
 		}
@@ -1062,7 +1062,7 @@ func doUpdate(ctx context.Context, st *state.State, names []string, updates []*s
 	return updated, tasksets, nil
 }
 
-func applyAutoAliasesDelta(st *state.State, delta map[string][]string, op string, refreshAll bool, linkTs func(instanceName string, ts *state.TaskSet)) (*state.TaskSet, error) {
+func applyAutoAliasesDelta(st *state.State, delta map[string][]string, op string, refreshAll bool, fromChange string, linkTs func(instanceName string, ts *state.TaskSet)) (*state.TaskSet, error) {
 	applyTs := state.NewTaskSet()
 	kind := "refresh-aliases"
 	msg := i18n.G("Refresh aliases for snap %q")
@@ -1071,7 +1071,7 @@ func applyAutoAliasesDelta(st *state.State, delta map[string][]string, op string
 		msg = i18n.G("Prune automatic aliases for snap %q")
 	}
 	for instanceName, aliases := range delta {
-		if err := CheckChangeConflict(st, instanceName, nil); err != nil {
+		if err := checkChangeConflictIgnoringOneChange(st, instanceName, nil, fromChange); err != nil {
 			if refreshAll {
 				// doing "refresh all", just skip this snap
 				logger.Noticef("cannot %s automatic aliases for snap %q: %v", op, instanceName, err)
@@ -1193,11 +1193,24 @@ func resolveChannel(st *state.State, snapName, newChannel string, deviceCtx Devi
 	model := deviceCtx.Model()
 
 	var pinnedTrack, which string
-	if snapName == model.Kernel() && model.KernelTrack() != "" {
+	switch {
+	case snapName == model.Kernel() && model.KernelTrack() != "":
 		pinnedTrack, which = model.KernelTrack(), "kernel"
-	}
-	if snapName == model.Gadget() && model.GadgetTrack() != "" {
+	case snapName == model.Gadget() && model.GadgetTrack() != "":
 		pinnedTrack, which = model.GadgetTrack(), "gadget"
+	default:
+		var snapst SnapState
+		err := Get(st, snapName, &snapst)
+		if err != nil && err != state.ErrNoState {
+			return "", err
+		}
+		if snapst.IsInstalled() && snapst.Channel != "" {
+			ch, err := snap.ParseChannel(snapst.Channel, "")
+			if err != nil {
+				return "", err
+			}
+			pinnedTrack = ch.Track
+		}
 	}
 
 	if pinnedTrack == "" {
@@ -1216,7 +1229,7 @@ func resolveChannel(st *state.State, snapName, newChannel string, deviceCtx Devi
 		// risk/branch) within the pinned track
 		return pinnedTrack + "/" + newChannel, nil
 	}
-	if nch.Track != "" && nch.Track != pinnedTrack {
+	if nch.Track != "" && nch.Track != pinnedTrack && which != "" {
 		// switching to a different track is not allowed
 		return "", fmt.Errorf("cannot switch from %s track %q as specified for the (device) model to %q", which, pinnedTrack, nch.Clean().String())
 
@@ -1356,7 +1369,7 @@ type RevisionOptions struct {
 //
 // The returned TaskSet will contain a DownloadAndChecksDoneEdge.
 func Update(st *state.State, name string, opts *RevisionOptions, userID int, flags Flags) (*state.TaskSet, error) {
-	return UpdateWithDeviceContext(st, name, opts, userID, flags, nil)
+	return UpdateWithDeviceContext(st, name, opts, userID, flags, nil, "")
 }
 
 // UpdateWithDeviceContext initiates a change updating a snap.
@@ -1364,7 +1377,7 @@ func Update(st *state.State, name string, opts *RevisionOptions, userID int, fla
 // Note that the state must be locked by the caller.
 //
 // The returned TaskSet will contain a DownloadAndChecksDoneEdge.
-func UpdateWithDeviceContext(st *state.State, name string, opts *RevisionOptions, userID int, flags Flags, deviceCtx DeviceContext) (*state.TaskSet, error) {
+func UpdateWithDeviceContext(st *state.State, name string, opts *RevisionOptions, userID int, flags Flags, deviceCtx DeviceContext, fromChange string) (*state.TaskSet, error) {
 	if opts == nil {
 		opts = &RevisionOptions{}
 	}
@@ -1432,7 +1445,7 @@ func UpdateWithDeviceContext(st *state.State, name string, opts *RevisionOptions
 		return opts, updateFlags, &snapst
 	}
 
-	_, tts, err := doUpdate(context.TODO(), st, []string{name}, updates, params, userID, &flags, deviceCtx, "")
+	_, tts, err := doUpdate(context.TODO(), st, []string{name}, updates, params, userID, &flags, deviceCtx, fromChange)
 	if err != nil {
 		return nil, err
 	}
@@ -1445,7 +1458,7 @@ func UpdateWithDeviceContext(st *state.State, name string, opts *RevisionOptions
 		// NOTE: if we are in here, len(updates) == 0
 		//       (so we're free to add tasks because there's no rerefresh)
 
-		if err := CheckChangeConflict(st, name, nil); err != nil {
+		if err := checkChangeConflictIgnoringOneChange(st, name, nil, fromChange); err != nil {
 			return nil, err
 		}
 
@@ -2392,7 +2405,7 @@ func coreInfo(st *state.State) (*snap.Info, error) {
 // If gadget is absent or the snap has no snap-id it returns
 // ErrNoState.
 func ConfigDefaults(st *state.State, deviceCtx DeviceContext, snapName string) (map[string]interface{}, error) {
-	gadget, err := GadgetInfo(st, deviceCtx)
+	info, err := GadgetInfo(st, deviceCtx)
 	if err != nil {
 		return nil, err
 	}
@@ -2412,7 +2425,7 @@ func ConfigDefaults(st *state.State, deviceCtx DeviceContext, snapName string) (
 		return nil, state.ErrNoState
 	}
 
-	gadgetInfo, err := snap.ReadGadgetInfo(gadget, release.OnClassic)
+	gadgetInfo, err := gadget.ReadInfo(info.MountDir(), release.OnClassic)
 	if err != nil {
 		return nil, err
 	}
@@ -2440,12 +2453,12 @@ func ConfigDefaults(st *state.State, deviceCtx DeviceContext, snapName string) (
 // specified in the gadget for the given device context.
 // If gadget is absent it returns ErrNoState.
 func GadgetConnections(st *state.State, deviceCtx DeviceContext) ([]gadget.Connection, error) {
-	gadget, err := GadgetInfo(st, deviceCtx)
+	info, err := GadgetInfo(st, deviceCtx)
 	if err != nil {
 		return nil, err
 	}
 
-	gadgetInfo, err := snap.ReadGadgetInfo(gadget, release.OnClassic)
+	gadgetInfo, err := gadget.ReadInfo(info.MountDir(), release.OnClassic)
 	if err != nil {
 		return nil, err
 	}

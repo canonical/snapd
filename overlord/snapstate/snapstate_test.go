@@ -127,6 +127,7 @@ func (s *snapmgrTestSuite) SetUpTest(c *C) {
 	s.o.AddManager(s.snapmgr)
 	s.o.AddManager(s.o.TaskRunner())
 	s.se = s.o.StateEngine()
+	c.Assert(s.o.StartUp(), IsNil)
 
 	s.BaseTest.AddCleanup(snapstate.MockSnapReadInfo(s.fakeBackend.ReadInfo))
 	s.BaseTest.AddCleanup(snapstate.MockOpenSnapFile(s.fakeBackend.OpenSnapFile))
@@ -677,7 +678,7 @@ func (s *snapmgrTestSuite) TestInstallWithDeviceContext(c *C) {
 	deviceCtx := &snapstatetest.TrivialDeviceContext{CtxStore: s.fakeStore}
 
 	opts := &snapstate.RevisionOptions{Channel: "some-channel"}
-	ts, err := snapstate.InstallWithDeviceContext(context.Background(), s.state, "some-snap", opts, 0, snapstate.Flags{}, deviceCtx)
+	ts, err := snapstate.InstallWithDeviceContext(context.Background(), s.state, "some-snap", opts, 0, snapstate.Flags{}, deviceCtx, "")
 	c.Assert(err, IsNil)
 
 	verifyInstallTasks(c, 0, 0, ts, s.state)
@@ -2249,7 +2250,7 @@ func (s *snapmgrTestSuite) TestUpdateWithDeviceContext(c *C) {
 	// hook it up
 	snapstate.ValidateRefreshes = happyValidateRefreshes
 
-	ts, err := snapstate.UpdateWithDeviceContext(s.state, "some-snap", &snapstate.RevisionOptions{Channel: "some-channel"}, s.user.ID, snapstate.Flags{}, deviceCtx)
+	ts, err := snapstate.UpdateWithDeviceContext(s.state, "some-snap", &snapstate.RevisionOptions{Channel: "some-channel"}, s.user.ID, snapstate.Flags{}, deviceCtx, "")
 	c.Assert(err, IsNil)
 	verifyUpdateTasks(c, unlinkBefore|cleanupAfter|doesReRefresh, 0, ts, s.state)
 	c.Assert(s.state.TaskCount(), Equals, len(ts.Tasks()))
@@ -2280,7 +2281,7 @@ func (s *snapmgrTestSuite) TestUpdateWithDeviceContextToRevision(c *C) {
 	})
 
 	opts := &snapstate.RevisionOptions{Channel: "some-channel", Revision: snap.R(11)}
-	ts, err := snapstate.UpdateWithDeviceContext(s.state, "some-snap", opts, 0, snapstate.Flags{}, deviceCtx)
+	ts, err := snapstate.UpdateWithDeviceContext(s.state, "some-snap", opts, 0, snapstate.Flags{}, deviceCtx, "")
 	c.Assert(err, IsNil)
 	verifyUpdateTasks(c, unlinkBefore|cleanupAfter|doesReRefresh, 0, ts, s.state)
 	c.Assert(s.state.TaskCount(), Equals, len(ts.Tasks()))
@@ -11014,9 +11015,7 @@ func (s *canRemoveSuite) TestKernelBootInUseIsKept(c *C) {
 	}
 	kernel.RealName = "kernel"
 
-	s.bs.SetBootVars(map[string]string{
-		"snap_kernel": fmt.Sprintf("%s_%s.snap", kernel.RealName, kernel.SideInfo.Revision),
-	})
+	boottest.SetBootKernel(fmt.Sprintf("%s_%s.snap", kernel.RealName, kernel.SideInfo.Revision), s.bs)
 
 	removeAll := false
 	c.Check(snapstate.CanRemove(s.st, kernel, &snapstate.SnapState{}, removeAll, s.deviceCtx), Equals, false)
@@ -11031,9 +11030,7 @@ func (s *canRemoveSuite) TestOstInUseIsKept(c *C) {
 	}
 	base.RealName = "core18"
 
-	s.bs.SetBootVars(map[string]string{
-		"snap_core": fmt.Sprintf("%s_%s.snap", base.RealName, base.SideInfo.Revision),
-	})
+	boottest.SetBootBase(fmt.Sprintf("%s_%s.snap", base.RealName, base.SideInfo.Revision), s.bs)
 
 	removeAll := false
 	c.Check(snapstate.CanRemove(s.st, base, &snapstate.SnapState{}, removeAll, s.deviceCtx), Equals, false)
@@ -11057,9 +11054,7 @@ func (s *canRemoveSuite) TestRemoveNonModelKernelStillInUseNotOk(c *C) {
 	}
 	kernel.RealName = "other-non-model-kernel"
 
-	s.bs.SetBootVars(map[string]string{
-		"snap_kernel": fmt.Sprintf("%s_%s.snap", kernel.RealName, kernel.SideInfo.Revision),
-	})
+	boottest.SetBootKernel(fmt.Sprintf("%s_%s.snap", kernel.RealName, kernel.SideInfo.Revision), s.bs)
 
 	c.Check(snapstate.CanRemove(s.st, kernel, &snapstate.SnapState{}, true, s.deviceCtx), Equals, false)
 }
@@ -11978,7 +11973,7 @@ volumes:
 	err := ioutil.WriteFile(filepath.Join(info.MountDir(), "meta", "gadget.yaml"), mockGadgetYaml, 0644)
 	c.Assert(err, IsNil)
 
-	gi, err := snap.ReadGadgetInfo(info, false)
+	gi, err := gadget.ReadInfo(info.MountDir(), false)
 	c.Assert(err, IsNil)
 	c.Assert(gi, NotNil)
 
@@ -14515,6 +14510,7 @@ func (s *snapmgrTestSuite) TestResolveChannelPinnedTrack(c *C) {
 		exp         string
 		kernelTrack string
 		gadgetTrack string
+		snapChannel string
 		err         string
 	}{
 		// neither kernel nor gadget
@@ -14552,6 +14548,13 @@ func (s *snapmgrTestSuite) TestResolveChannelPinnedTrack(c *C) {
 		// risk only defaults to pinned kernel track
 		{snap: "kernel", new: "stable", exp: "17/stable", kernelTrack: "17"},
 		{snap: "kernel", new: "edge", exp: "17/edge", kernelTrack: "17"},
+		// risk only with regular snap defaults to pinned track
+		{snap: "some-snap", new: "stable", exp: "3.0/stable", snapChannel: "3.0/edge"},
+		{snap: "some-snap", new: "4.0/stable", exp: "4.0/stable", snapChannel: "3.0/edge"},
+		{snap: "some-snap", new: "latest/stable", exp: "latest/stable", snapChannel: "3.0/edge"},
+		// risk only with kernel/gadget defaults to pinned track from channel in snap state if not pinned by model
+		{snap: "kernel", new: "stable", exp: "2.0/stable", snapChannel: "2.0/edge"},
+		{snap: "brand-gadget", new: "stable", exp: "2.0/stable", snapChannel: "2.0/edge"},
 	} {
 		c.Logf("tc: %+v", tc)
 		if tc.kernelTrack != "" && tc.gadgetTrack != "" {
@@ -14568,6 +14571,19 @@ func (s *snapmgrTestSuite) TestResolveChannelPinnedTrack(c *C) {
 		}
 		deviceCtx := &snapstatetest.TrivialDeviceContext{DeviceModel: model}
 		s.state.Lock()
+		if tc.snapChannel != "" {
+			snapstate.Set(s.state, tc.snap, &snapstate.SnapState{
+				Active:  true,
+				Channel: tc.snapChannel,
+				Sequence: []*snap.SideInfo{{
+					RealName: tc.snap,
+					Revision: snap.R(1),
+					SnapID:   "some-id",
+				}},
+				Current: snap.R(1)})
+		} else {
+			snapstate.Set(s.state, tc.snap, nil)
+		}
 		ch, err := snapstate.ResolveChannel(s.state, tc.snap, tc.new, deviceCtx)
 		s.state.Unlock()
 		if tc.err != "" {

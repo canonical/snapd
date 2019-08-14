@@ -23,7 +23,6 @@ import (
 	"bytes"
 	"fmt"
 	"io"
-	"io/ioutil"
 	"net/http"
 	"net/http/httptest"
 	"sync"
@@ -111,12 +110,21 @@ func MockDeviceService(c *C, bhv *DeviceServiceBehavior) *httptest.Server {
 			count++
 			mu.Unlock()
 
-			b, err := ioutil.ReadAll(r.Body)
-			c.Assert(err, IsNil)
-			a, err := asserts.Decode(b)
+			dec := asserts.NewDecoder(r.Body)
+
+			a, err := dec.Decode()
 			c.Assert(err, IsNil)
 			serialReq, ok := a.(*asserts.SerialRequest)
 			c.Assert(ok, Equals, true)
+			extra := []asserts.Assertion{}
+			for {
+				a1, err := dec.Decode()
+				if err == io.EOF {
+					break
+				}
+				c.Assert(err, IsNil)
+				extra = append(extra, a1)
+			}
 			err = asserts.SignatureCheck(serialReq, serialReq.DeviceKey())
 			c.Assert(err, IsNil)
 			brandID := serialReq.BrandID()
@@ -138,6 +146,18 @@ func MockDeviceService(c *C, bhv *DeviceServiceBehavior) *httptest.Server {
 			if serialReq.Serial() != "" {
 				// use proposed serial
 				serialStr = serialReq.Serial()
+			}
+			if serialReq.HeaderString("original-model") != "" {
+				// re-registration
+				c.Check(extra, HasLen, 2)
+				_, ok := extra[0].(*asserts.Model)
+				c.Check(ok, Equals, true)
+				origSerial, ok := extra[1].(*asserts.Serial)
+				c.Check(ok, Equals, true)
+				c.Check(origSerial.DeviceKey(), DeepEquals, serialReq.DeviceKey())
+				// TODO: more checks once we have Original* accessors
+			} else {
+				c.Check(extra, HasLen, 0)
 			}
 			serial, err := bhv.SignSerial(c, bhv, map[string]interface{}{
 				"authority-id":        "canonical",

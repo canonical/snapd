@@ -51,7 +51,7 @@ func (s *sanitySuite) TestCheckSquashfsMountHappy(c *C) {
 		{"mount", "-t", "squashfs", squashfsFile, mountPoint},
 	})
 	c.Check(mockUmount.Calls(), DeepEquals, [][]string{
-		{"umount", mountPoint},
+		{"umount", "-l", mountPoint},
 	})
 }
 

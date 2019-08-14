@@ -91,7 +91,7 @@ func MockRepeatRequestSerial(label string) (restore func()) {
 	}
 }
 
-func MockSnapstateInstallWithDeviceContext(f func(ctx context.Context, st *state.State, name string, opts *snapstate.RevisionOptions, userID int, flags snapstate.Flags, deviceCtx snapstate.DeviceContext) (*state.TaskSet, error)) (restore func()) {
+func MockSnapstateInstallWithDeviceContext(f func(ctx context.Context, st *state.State, name string, opts *snapstate.RevisionOptions, userID int, flags snapstate.Flags, deviceCtx snapstate.DeviceContext, fromChange string) (*state.TaskSet, error)) (restore func()) {
 	old := snapstateInstallWithDeviceContext
 	snapstateInstallWithDeviceContext = f
 	return func() {
@@ -99,7 +99,7 @@ func MockSnapstateInstallWithDeviceContext(f func(ctx context.Context, st *state
 	}
 }
 
-func MockSnapstateUpdateWithDeviceContext(f func(st *state.State, name string, opts *snapstate.RevisionOptions, userID int, flags snapstate.Flags, deviceCtx snapstate.DeviceContext) (*state.TaskSet, error)) (restore func()) {
+func MockSnapstateUpdateWithDeviceContext(f func(st *state.State, name string, opts *snapstate.RevisionOptions, userID int, flags snapstate.Flags, deviceCtx snapstate.DeviceContext, fromChange string) (*state.TaskSet, error)) (restore func()) {
 	old := snapstateUpdateWithDeviceContext
 	snapstateUpdateWithDeviceContext = f
 	return func() {
@@ -129,7 +129,10 @@ func SetBootOkRan(m *DeviceManager, b bool) {
 	m.bootOkRan = b
 }
 
-type RegistrationContext = registrationContext
+type (
+	RegistrationContext = registrationContext
+	RemodelContext      = remodelContext
+)
 
 func RegistrationCtx(m *DeviceManager, t *state.Task) (registrationContext, error) {
 	return m.registrationCtx(t)
@@ -152,15 +155,15 @@ var (
 
 	RemodelTasks = remodelTasks
 
-	RemodelCtx         = remodelCtx
-	RemodelCtxFromTask = remodelCtxFromTask
-	CleanupRemodelCtx  = cleanupRemodelCtx
+	RemodelCtx        = remodelCtx
+	CleanupRemodelCtx = cleanupRemodelCtx
+	CachedRemodelCtx  = cachedRemodelCtx
 
 	GadgetUpdateBlocked    = gadgetUpdateBlocked
 	GadgetCurrentAndUpdate = gadgetCurrentAndUpdate
 )
 
-func MockGadgetUpdate(mock func(current, update *gadget.Info, path string) error) (restore func()) {
+func MockGadgetUpdate(mock func(current, update gadget.GadgetData, path string) error) (restore func()) {
 	old := gadgetUpdate
 	gadgetUpdate = mock
 	return func() {
