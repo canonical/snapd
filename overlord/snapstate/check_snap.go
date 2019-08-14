@@ -455,48 +455,27 @@ var (
 )
 
 func checkSystemUsernames(si *snap.Info) error {
+	// No need to check support if no system-usernames
+	if len(si.SystemUsernames) == 0 {
+		return nil
+	}
+
 	// Run /.../snap-seccomp version-info
 	path, err := cmd.InternalToolPath("snapd")
 	if err != nil {
 		return err
 	}
+
 	vi, err := interfaces.SeccompCompilerVersionInfo(filepath.Join(filepath.Dir(path), "snap-seccomp"))
 	if err != nil {
 		return fmt.Errorf("Could not obtain seccomp compiler information: %v", err)
 	}
-	libseccompVersion, err := seccomp_compiler.VersionInfo(vi).LibseccompVersion()
+
+	// If the system doesn't support robust argument filtering then we
+	// can't support system-usernames
+	err = seccomp_compiler.VersionInfo(vi).SupportsRobustArgumentFiltering()
 	if err != nil {
 		return err
-	}
-
-	// Parse <libseccomp version>
-	tmp := strings.Split(libseccompVersion, ".")
-	maj, err := strconv.Atoi(tmp[0])
-	if err != nil {
-		return fmt.Errorf("Could not obtain seccomp compiler information: %v", err)
-	}
-	min, err := strconv.Atoi(tmp[1])
-	if err != nil {
-		return fmt.Errorf("Could not obtain seccomp compiler information: %v", err)
-	}
-	// libseccomp < 2.4 has significant argument filtering bugs that we
-	// cannot reliably work around with this feature.
-	if maj < 2 || (maj == 2 && min < 4) {
-		return fmt.Errorf(`This snap requires that snapd be compiled against libseccomp >= 2.4.`)
-	}
-
-	// Due to https://github.com/seccomp/libseccomp-golang/issues/22,
-	// golang-seccomp <= 0.9.0 cannot create correct BPFs for this feature.
-	// The package does not contain any version information, but we know
-	// that ActLog was implemented in the library after this issue was
-	// fixed, so base the decision on that. ActLog is first available in
-	// 0.9.1.
-	res, err := seccomp_compiler.VersionInfo(vi).HasFeature("bpf-actlog")
-	if err != nil {
-		return err
-	}
-	if !res {
-		return fmt.Errorf(`This snap requires that snapd be compiled against golang-seccomp >= 0.9.1`)
 	}
 
 	for _, user := range si.SystemUsernames {

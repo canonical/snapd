@@ -1036,12 +1036,12 @@ var systemUsernamesTests = []struct {
 }, {
 	sysIDs: "snap_daemon: shared",
 	scVer:  "dead 2.4.1 deadbeef -",
-	error:  `This snap requires that snapd be compiled against golang-seccomp >= 0.9.1`,
+	error:  `This snap requires that snapd be compiled against golang-seccomp >= 0.9.1.`,
 }, {
 	sysIDs:  "snap_daemon: shared",
 	classic: true,
 	scVer:   "dead 2.4.1 deadbeef -",
-	error:   `This snap requires that snapd be compiled against golang-seccomp >= 0.9.1`,
+	error:   `This snap requires that snapd be compiled against golang-seccomp >= 0.9.1.`,
 }}
 
 func (s *checkSnapSuite) TestCheckSnapSystemUsernames(c *C) {
