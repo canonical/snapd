@@ -904,12 +904,16 @@ func waitChainSearch(startT, searchT *state.Task) bool {
 	return false
 }
 
-// batchConnectTasks creates connect tasks and interface hooks for conns and sets their wait chain with regard to the setupProfiles task.
-// The tasks are chained so that:
-//  - prepare-plug-, prepare-slot- and connect tasks are all executed before setup-profiles
-//  - connect-plug-, connect-slot- are all executed after setup-profiles.
-// The "delayed-setup-profiles" flag is set on the connect tasks to indicate that doConnect handler should not set security backends up because this will be
-// done later by the setup-profiles task.
+// batchConnectTasks creates connect tasks and interface hooks for
+// conns and sets their wait chain with regard to the setupProfiles
+// task.
+//
+// The tasks are chained so that: - prepare-plug-, prepare-slot- and
+// connect tasks are all executed before setup-profiles -
+// connect-plug-, connect-slot- are all executed after setup-profiles.
+// The "delayed-setup-profiles" flag is set on the connect tasks to
+// indicate that doConnect handler should not set security backends up
+// because this will be done later by the setup-profiles task.
 func batchConnectTasks(st *state.State, snapsup *snapstate.SnapSetup, conns map[string]*interfaces.ConnRef, autoconnect bool) (*state.TaskSet, error) {
 	setupProfiles := st.NewTask("setup-profiles", fmt.Sprintf(i18n.G("Setup snap %q (%s) security profiles for auto-connections"), snapsup.InstanceName(), snapsup.Revision()))
 	setupProfiles.Set("snap-setup", snapsup)
