@@ -452,9 +452,6 @@ var (
 )
 
 func checkSystemUsernames(si *snap.Info) error {
-	if len(si.SystemUsernames) == 0 {
-		return nil
-	}
 	for _, user := range si.SystemUsernames {
 		if !supportedSystemUsernames[user.Name] {
 			return fmt.Errorf(`Unsupported system username "%s"`, user.Name)
