@@ -7,10 +7,10 @@
 			"revision": ""
 		},
 		{
-			"checksumSHA1": "lIeozbKR+IUN1UnABr4VZdO7y8A=",
+			"checksumSHA1": "IOYNZxtW/NhFmYCPNKPeafVwHJU=",
 			"path": "github.com/chrisccoulson/go-tpm2",
-			"revision": "bd89e9fde55680cda0016aa8aba28b558da9c760",
-			"revisionTime": "2019-08-07T10:07:39Z"
+			"revision": "24a62e9bb51191ee7a0ccca6d7bc01dbb413f572",
+			"revisionTime": "2019-08-14T14:54:33Z"
 		},
 		{
 			"checksumSHA1": "QdrT6GNvHqZhYmx8G8P8zGQ26E4=",
