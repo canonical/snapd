@@ -83,7 +83,7 @@ type connectOpts struct {
 	ByGadget    bool
 	AutoConnect bool
 
-	DelaySetupProfiles bool
+	DelayedSetupProfiles bool
 }
 
 // Connect returns a set of tasks for connecting an interface.
@@ -205,8 +205,8 @@ func connect(st *state.State, plugSnap, plugName, slotSnap, slotName string, fla
 	if flags.ByGadget {
 		connectInterface.Set("by-gadget", true)
 	}
-	if flags.DelaySetupProfiles {
-		connectInterface.Set("delay-setup-profiles", true)
+	if flags.DelayedSetupProfiles {
+		connectInterface.Set("delayed-setup-profiles", true)
 	}
 
 	// Expose a copy of all plug and slot attributes coming from yaml to interface hooks. The hooks will be able
@@ -223,7 +223,7 @@ func connect(st *state.State, plugSnap, plugName, slotSnap, slotName string, fla
 	addTask(connectInterface)
 	prev = connectInterface
 
-	if flags.DelaySetupProfiles {
+	if flags.DelayedSetupProfiles {
 		// mark as the last task in connect prepare
 		tasks.MarkEdge(connectInterface, ConnectTaskEdge)
 	}
@@ -246,7 +246,7 @@ func connect(st *state.State, plugSnap, plugName, slotSnap, slotName string, fla
 		connectSlotConnection := hookstate.HookTaskWithUndo(st, summary, connectSlotHookSetup, undoConnectSlotHookSetup, initialContext)
 		addTask(connectSlotConnection)
 		prev = connectSlotConnection
-		if flags.DelaySetupProfiles {
+		if flags.DelayedSetupProfiles {
 			tasks.MarkEdge(connectSlotConnection, AfterConnectHooksEdge)
 		}
 	}
@@ -269,7 +269,7 @@ func connect(st *state.State, plugSnap, plugName, slotSnap, slotName string, fla
 		connectPlugConnection := hookstate.HookTaskWithUndo(st, summary, connectPlugHookSetup, undoConnectPlugHookSetup, initialContext)
 		addTask(connectPlugConnection)
 
-		if flags.DelaySetupProfiles {
+		if flags.DelayedSetupProfiles {
 			// only mark AfterConnectHooksEdge if not already set on connect-slot- hook task
 			if edge, _ := tasks.Edge(AfterConnectHooksEdge); edge == nil {
 				tasks.MarkEdge(connectPlugConnection, AfterConnectHooksEdge)

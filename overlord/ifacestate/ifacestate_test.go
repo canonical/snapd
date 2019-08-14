@@ -319,7 +319,7 @@ func (s *interfaceManagerSuite) TestConnectTask(c *C) {
 	c.Assert(task.Kind(), Equals, "connect")
 	var flag bool
 	c.Assert(task.Get("auto", &flag), Equals, state.ErrNoState)
-	c.Assert(task.Get("delay-setup-profiles", &flag), Equals, state.ErrNoState)
+	c.Assert(task.Get("delayed-setup-profiles", &flag), Equals, state.ErrNoState)
 	c.Assert(task.Get("by-gadget", &flag), Equals, state.ErrNoState)
 	var plug interfaces.PlugRef
 	c.Assert(task.Get("plug", &plug), IsNil)
@@ -386,9 +386,9 @@ func (s *interfaceManagerSuite) TestConnectTasksDelayProfilesFlag(c *C) {
 	c.Assert(ts.Tasks(), HasLen, 5)
 	connectTask := ts.Tasks()[2]
 	c.Assert(connectTask.Kind(), Equals, "connect")
-	var delaySetupProfiles bool
-	connectTask.Get("delay-setup-profiles", &delaySetupProfiles)
-	c.Assert(delaySetupProfiles, Equals, true)
+	var delayedSetupProfiles bool
+	connectTask.Get("delayed-setup-profiles", &delayedSetupProfiles)
+	c.Assert(delayedSetupProfiles, Equals, true)
 }
 
 func (s *interfaceManagerSuite) TestBatchConnectTasks(c *C) {
@@ -431,7 +431,7 @@ func (s *interfaceManagerSuite) TestBatchConnectTasks(c *C) {
 
 		// sanity, check flags on "connect" tasks
 		var flag bool
-		c.Assert(wt[i].Get("delay-setup-profiles", &flag), IsNil)
+		c.Assert(wt[i].Get("delayed-setup-profiles", &flag), IsNil)
 		c.Check(flag, Equals, true)
 		c.Assert(wt[i].Get("auto", &flag), IsNil)
 		c.Check(flag, Equals, true)

@@ -402,8 +402,8 @@ func (m *InterfaceManager) doConnect(task *state.Task, _ *tomb.Tomb) error {
 	if err := task.Get("by-gadget", &byGadget); err != nil && err != state.ErrNoState {
 		return err
 	}
-	var delaySetupProfiles bool
-	if err := task.Get("delay-setup-profiles", &delaySetupProfiles); err != nil && err != state.ErrNoState {
+	var delayedSetupProfiles bool
+	if err := task.Get("delayed-setup-profiles", &delayedSetupProfiles); err != nil && err != state.ErrNoState {
 		return err
 	}
 
@@ -480,7 +480,7 @@ func (m *InterfaceManager) doConnect(task *state.Task, _ *tomb.Tomb) error {
 		return err
 	}
 
-	if !delaySetupProfiles {
+	if !delayedSetupProfiles {
 		slotOpts := confinementOptions(slotSnapst.Flags)
 		if err := m.setupSnapSecurity(task, slot.Snap, slotOpts, perfTimings); err != nil {
 			return err
@@ -908,15 +908,15 @@ func waitChainSearch(startT, searchT *state.Task) bool {
 // The tasks are chained so that:
 //  - prepare-plug-, prepare-slot- and connect tasks are all executed before setup-profiles
 //  - connect-plug-, connect-slot- are all executed after setup-profiles.
-// The "delay-setup-profiles" flag is set on the connect tasks to indicate that doConnect handler should not set security backends up because this will be
+// The "delayed-setup-profiles" flag is set on the connect tasks to indicate that doConnect handler should not set security backends up because this will be
 // done later by the setup-profiles task.
 func batchConnectTasks(st *state.State, snapsup *snapstate.SnapSetup, conns map[string]*interfaces.ConnRef, autoconnect bool) (*state.TaskSet, error) {
-	setupProfiles := st.NewTask("setup-profiles", fmt.Sprintf(i18n.G("Setup snap %q (%s) security profiles for auto-connect"), snapsup.InstanceName(), snapsup.Revision()))
+	setupProfiles := st.NewTask("setup-profiles", fmt.Sprintf(i18n.G("Setup snap %q (%s) security profiles for auto-connections"), snapsup.InstanceName(), snapsup.Revision()))
 	setupProfiles.Set("snap-setup", snapsup)
 
 	ts := state.NewTaskSet()
 	for _, conn := range conns {
-		connectTs, err := connect(st, conn.PlugRef.Snap, conn.PlugRef.Name, conn.SlotRef.Snap, conn.SlotRef.Name, connectOpts{AutoConnect: autoconnect, DelaySetupProfiles: true})
+		connectTs, err := connect(st, conn.PlugRef.Snap, conn.PlugRef.Name, conn.SlotRef.Snap, conn.SlotRef.Name, connectOpts{AutoConnect: autoconnect, DelayedSetupProfiles: true})
 		if err != nil {
 			return nil, fmt.Errorf("internal error: auto-connect of %q failed: %s", conn, err)
 		}

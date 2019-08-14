@@ -68,7 +68,7 @@ func NewDisconnectOptsWithByHotplugSet() disconnectOpts {
 }
 
 func NewConnectOptsWithDelayProfilesSet() connectOpts {
-	return connectOpts{AutoConnect: true, ByGadget: false, DelaySetupProfiles: true}
+	return connectOpts{AutoConnect: true, ByGadget: false, DelayedSetupProfiles: true}
 }
 
 func MockRemoveStaleConnections(f func(st *state.State) error) (restore func()) {
