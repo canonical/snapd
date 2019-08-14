@@ -88,8 +88,7 @@ func (t *taskProgressAdapter) Finished() {
 
 // Write sets the current write progress
 func (t *taskProgressAdapter) Write(p []byte) (n int, err error) {
-	t.current += float64(len(p))
-	t.Set(t.current)
+	t.Set(t.current + float64(len(p)))
 	return len(p), nil
 }
 
