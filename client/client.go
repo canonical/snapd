@@ -266,16 +266,27 @@ func (client *Client) Hijack(f func(*http.Request) (*http.Response, error)) {
 	client.doer = hijacked{f}
 }
 
+type doFlags uint
+
+const (
+	doDefaults  doFlags = 0
+	doNoTimeout doFlags = 1 << iota
+)
+
 // do performs a request and decodes the resulting json into the given
 // value. It's low-level, for testing/experimenting only; you should
 // usually use a higher level interface that builds on this.
-func (client *Client) do(method, path string, query url.Values, headers map[string]string, body io.Reader, v interface{}) (statusCode int, err error) {
+func (client *Client) do(method, path string, query url.Values, headers map[string]string, body io.Reader, v interface{}, flags doFlags) (statusCode int, err error) {
 	retry := time.NewTicker(doRetry)
 	defer retry.Stop()
 	timeout := time.After(doTimeout)
 	var rsp *http.Response
 	for {
-		rsp, err = client.raw(method, path, query, headers, body, doTimeout)
+		reqTimeout := doTimeout
+		if (flags & doNoTimeout) != 0 {
+			reqTimeout = 0
+		}
+		rsp, err = client.raw(method, path, query, headers, body, reqTimeout)
 		if err == nil || method != "GET" {
 			break
 		}
@@ -319,7 +330,7 @@ func decodeInto(reader io.Reader, v interface{}) error {
 // which produces json.Numbers instead of float64 types for numbers.
 func (client *Client) doSync(method, path string, query url.Values, headers map[string]string, body io.Reader, v interface{}) (*ResultInfo, error) {
 	var rsp response
-	statusCode, err := client.do(method, path, query, headers, body, &rsp)
+	statusCode, err := client.do(method, path, query, headers, body, &rsp, doDefaults)
 	if err != nil {
 		return nil, err
 	}
@@ -343,13 +354,18 @@ func (client *Client) doSync(method, path string, query url.Values, headers map[
 }
 
 func (client *Client) doAsync(method, path string, query url.Values, headers map[string]string, body io.Reader) (changeID string, err error) {
-	_, changeID, err = client.doAsyncFull(method, path, query, headers, body)
+	_, changeID, err = client.doAsyncFull(method, path, query, headers, body, doDefaults)
 	return
 }
 
-func (client *Client) doAsyncFull(method, path string, query url.Values, headers map[string]string, body io.Reader) (result json.RawMessage, changeID string, err error) {
+func (client *Client) doAsyncNoTimeout(method, path string, query url.Values, headers map[string]string, body io.Reader) (changeID string, err error) {
+	_, changeID, err = client.doAsyncFull(method, path, query, headers, body, doNoTimeout)
+	return
+}
+
+func (client *Client) doAsyncFull(method, path string, query url.Values, headers map[string]string, body io.Reader, flags doFlags) (result json.RawMessage, changeID string, err error) {
 	var rsp response
-	statusCode, err := client.do(method, path, query, headers, body, &rsp)
+	statusCode, err := client.do(method, path, query, headers, body, &rsp, flags)
 	if err != nil {
 		return nil, "", err
 	}

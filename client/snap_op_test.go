@@ -236,6 +236,8 @@ func (cs *clientSuite) TestClientOpInstallPath(c *check.C) {
 	c.Check(cs.req.Method, check.Equals, "POST")
 	c.Check(cs.req.URL.Path, check.Equals, fmt.Sprintf("/v2/snaps"))
 	c.Assert(cs.req.Header.Get("Content-Type"), check.Matches, "multipart/form-data; boundary=.*")
+	_, ok := cs.req.Context().Deadline()
+	c.Assert(ok, check.Equals, false)
 	c.Check(id, check.Equals, "66b3")
 }
 
