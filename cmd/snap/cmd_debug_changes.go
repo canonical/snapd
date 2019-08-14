@@ -43,8 +43,8 @@ type cmdDebugChanges struct {
 	baseOfflineDebugCommand
 }
 
-var shortDebugChangesHelp = i18n.G("The changes command prints all changes.")
-var longDebugChangesHelp = i18n.G("The timings command displays details about the time each task runs.")
+var shortDebugChangesHelp = i18n.G("Show all changes from a snapd state file.")
+var longDebugChangesHelp = i18n.G("Show all changes from a snapd state file, bypassing snapd API.")
 
 type byChangeID []*state.Change
 

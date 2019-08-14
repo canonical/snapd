@@ -16,6 +16,7 @@ execute: |
 
     echo "Tasks can be listed"
     snap debug tasks --change-id=1 /var/lib/snapd/state.json | MATCH "mark-seeded .*Mark system seeded"
+    snap debug change --change-id=1 /var/lib/snapd/state.json | MATCH "mark-seeded .*Mark system seeded"
 
     echo "Individual task can be examined"
     snap debug task --task-id=1 /var/lib/snapd/state.json | MATCH "kind: mark-seeded"

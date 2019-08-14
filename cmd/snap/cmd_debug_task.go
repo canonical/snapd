@@ -33,8 +33,8 @@ type cmdDebugTask struct {
 	TaskID string `long:"task-id" required:"yes"`
 }
 
-var shortDebugTaskHelp = i18n.G("The task command prints detailed information about the given task.")
-var longDebugTaskHelp = i18n.G("The task command prints detailed information about the given task.")
+var shortDebugTaskHelp = i18n.G("Show details of the given task from snapd state file.")
+var longDebugTaskHelp = i18n.G("Show details of the given task from snapd state file, bypassing snapd API.")
 
 func init() {
 	addDebugCommand("task", shortDebugTaskHelp, longDebugTaskHelp, func() flags.Commander {

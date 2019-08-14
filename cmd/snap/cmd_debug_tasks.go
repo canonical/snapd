@@ -40,8 +40,8 @@ type cmdDebugTasks struct {
 	NoHoldState bool `long:"no-hold"`
 }
 
-var shortDebugTasksHelp = i18n.G("The tasks command prints tasks of the given change.")
-var longDebugTasksHelp = i18n.G("The change command prints tasks of the given change.")
+var shortDebugTasksHelp = i18n.G("Show all tasks of the given change from snapd state file.")
+var longDebugTasksHelp = i18n.G("Show all tasks of the given change from snapd state file, bypassing snapd API.")
 
 func init() {
 	descs := map[string]string{
