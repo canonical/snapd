@@ -282,7 +282,7 @@ func infoSkeletonFromSnapYaml(y snapYaml) *Info {
 		Plugs:               make(map[string]*PlugInfo),
 		Slots:               make(map[string]*SlotInfo),
 		Environment:         y.Environment,
-		SystemUsernames:     make(map[string]*UsernameInfo),
+		SystemUsernames:     make(map[string]*SystemUsernameInfo),
 	}
 
 	sort.Strings(snap.Assumes)
@@ -512,7 +512,7 @@ func setSystemUsernamesFromSnapYaml(y snapYaml, snap *Info) error {
 			return err
 		}
 		if user != "" && scope != "" {
-			snap.SystemUsernames[user] = &UsernameInfo{
+			snap.SystemUsernames[user] = &SystemUsernameInfo{
 				Name:  user,
 				Scope: scope,
 				Attrs: attrs,

@@ -1836,15 +1836,15 @@ system-usernames:
 	info, err := snap.InfoFromSnapYaml(y)
 	c.Assert(err, IsNil)
 	c.Check(info.SystemUsernames, HasLen, 3)
-	c.Assert(info.SystemUsernames["foo"], DeepEquals, &snap.UsernameInfo{
+	c.Assert(info.SystemUsernames["foo"], DeepEquals, &snap.SystemUsernameInfo{
 		Name:  "foo",
 		Scope: "shared",
 	})
-	c.Assert(info.SystemUsernames["bar"], DeepEquals, &snap.UsernameInfo{
+	c.Assert(info.SystemUsernames["bar"], DeepEquals, &snap.SystemUsernameInfo{
 		Name:  "bar",
 		Scope: "external",
 	})
-	c.Assert(info.SystemUsernames["baz"], DeepEquals, &snap.UsernameInfo{
+	c.Assert(info.SystemUsernames["baz"], DeepEquals, &snap.SystemUsernameInfo{
 		Name:  "baz",
 		Scope: "private",
 		Attrs: map[string]interface{}{
@@ -1912,7 +1912,7 @@ system-usernames:
 	info, err := snap.InfoFromSnapYaml(y)
 	c.Assert(err, IsNil)
 	c.Check(info.SystemUsernames, HasLen, 1)
-	c.Assert(info.SystemUsernames["foo"], DeepEquals, &snap.UsernameInfo{
+	c.Assert(info.SystemUsernames["foo"], DeepEquals, &snap.SystemUsernameInfo{
 		Name:  "foo",
 		Scope: "shared",
 	})
