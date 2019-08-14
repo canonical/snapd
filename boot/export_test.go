@@ -32,5 +32,5 @@ func NewCoreBootParticipant(s snap.PlaceInfo, t snap.Type) *coreBootParticipant 
 }
 
 func NewCoreKernel(s snap.PlaceInfo) *coreKernel {
-	return &coreKernel{s: s}
+	return &coreKernel{NewCoreBootParticipant(s, snap.TypeKernel)}
 }

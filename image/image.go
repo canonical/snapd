@@ -779,10 +779,7 @@ func extractKernelAssets(snapPath string, info *snap.Info, model *asserts.Model)
 	}
 
 	// image always runs in not-on-classic mode
-	bp, applicable := boot.Lookup(info, info.GetType(), model, false)
-	if !applicable {
-		return nil
-	}
+	bp, _ := boot.Lookup(info, info.GetType(), model, false)
 	kernel, ok := bp.(boot.Kernel)
 	if !ok {
 		return nil

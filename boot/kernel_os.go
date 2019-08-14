@@ -34,7 +34,7 @@ type coreBootParticipant struct {
 }
 
 type coreKernel struct {
-	s snap.PlaceInfo
+	*coreBootParticipant
 }
 
 var _ BootParticipant = (*coreBootParticipant)(nil)
@@ -59,13 +59,6 @@ func (k *coreKernel) ExtractKernelAssets(snapf snap.Container) error {
 
 	// ask bootloader to extract the kernel assets if needed
 	return bootloader.ExtractKernelAssets(k.s, snapf)
-}
-
-func (k *coreKernel) SetNextBoot() error {
-	return (&coreBootParticipant{s: k.s, t: snap.TypeKernel}).SetNextBoot()
-}
-func (k *coreKernel) ChangeRequiresReboot() bool {
-	return (&coreBootParticipant{s: k.s, t: snap.TypeKernel}).ChangeRequiresReboot()
 }
 
 func (bs *coreBootParticipant) SetNextBoot() error {

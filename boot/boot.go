@@ -62,6 +62,9 @@ type Model interface {
 // Lookup figures out what the boot participant is for the given arguments, and
 // returns it. The second return value indicates whether no boot participant
 // exists, and if false the first return value will be nil.
+//
+// Currently, on classic, nothing is a boot participant (applicable
+// will always be false).
 func Lookup(s snap.PlaceInfo, t snap.Type, model Model, onClassic bool) (bp BootParticipant, applicable bool) {
 	if onClassic {
 		return nil, false
@@ -93,11 +96,12 @@ func Lookup(s snap.PlaceInfo, t snap.Type, model Model, onClassic bool) (bp Boot
 		}
 	}
 
+	bp = &coreBootParticipant{s: s, t: t}
 	if t == snap.TypeKernel {
-		return &coreKernel{s: s}, true
+		bp = &coreKernel{bp.(*coreBootParticipant)}
 	}
 
-	return &coreBootParticipant{s: s, t: t}, true
+	return bp, true
 }
 
 // InUse checks if the given name/revision is used in the
@@ -145,7 +149,7 @@ func GetCurrentBoot(t snap.Type) (*NameAndRevision, error) {
 		errName = "kernel"
 	case snap.TypeOS, snap.TypeBase:
 		bootVar = "snap_core"
-		errName = "snap"
+		errName = "base"
 	default:
 		return nil, fmt.Errorf("internal error: cannot find boot revision for snap type %q", t)
 	}
