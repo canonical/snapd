@@ -2405,7 +2405,7 @@ func coreInfo(st *state.State) (*snap.Info, error) {
 // If gadget is absent or the snap has no snap-id it returns
 // ErrNoState.
 func ConfigDefaults(st *state.State, deviceCtx DeviceContext, snapName string) (map[string]interface{}, error) {
-	gadget, err := GadgetInfo(st, deviceCtx)
+	info, err := GadgetInfo(st, deviceCtx)
 	if err != nil {
 		return nil, err
 	}
@@ -2425,7 +2425,7 @@ func ConfigDefaults(st *state.State, deviceCtx DeviceContext, snapName string) (
 		return nil, state.ErrNoState
 	}
 
-	gadgetInfo, err := snap.ReadGadgetInfo(gadget, release.OnClassic)
+	gadgetInfo, err := gadget.ReadInfo(info.MountDir(), release.OnClassic)
 	if err != nil {
 		return nil, err
 	}
@@ -2453,12 +2453,12 @@ func ConfigDefaults(st *state.State, deviceCtx DeviceContext, snapName string) (
 // specified in the gadget for the given device context.
 // If gadget is absent it returns ErrNoState.
 func GadgetConnections(st *state.State, deviceCtx DeviceContext) ([]gadget.Connection, error) {
-	gadget, err := GadgetInfo(st, deviceCtx)
+	info, err := GadgetInfo(st, deviceCtx)
 	if err != nil {
 		return nil, err
 	}
 
-	gadgetInfo, err := snap.ReadGadgetInfo(gadget, release.OnClassic)
+	gadgetInfo, err := gadget.ReadInfo(info.MountDir(), release.OnClassic)
 	if err != nil {
 		return nil, err
 	}

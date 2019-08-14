@@ -67,13 +67,6 @@ func (s *TpmInterfaceSuite) TestName(c *C) {
 
 func (s *TpmInterfaceSuite) TestSanitizeSlot(c *C) {
 	c.Assert(interfaces.BeforePrepareSlot(s.iface, s.slotInfo), IsNil)
-	slot := &snap.SlotInfo{
-		Snap:      &snap.Info{SuggestedName: "some-snap"},
-		Name:      "tpm",
-		Interface: "tpm",
-	}
-	c.Assert(interfaces.BeforePrepareSlot(s.iface, slot), ErrorMatches,
-		"tpm slots are reserved for the core snap")
 }
 
 func (s *TpmInterfaceSuite) TestSanitizePlug(c *C) {
