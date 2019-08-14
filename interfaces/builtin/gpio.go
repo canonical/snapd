@@ -63,10 +63,6 @@ func (iface *gpioInterface) StaticInfo() interfaces.StaticInfo {
 
 // BeforePrepareSlot checks the slot definition is valid
 func (iface *gpioInterface) BeforePrepareSlot(slot *snap.SlotInfo) error {
-	if err := sanitizeSlotReservedForOSOrGadget(iface, slot); err != nil {
-		return err
-	}
-
 	// Must have a GPIO number
 	number, ok := slot.Attrs["number"]
 	if !ok {

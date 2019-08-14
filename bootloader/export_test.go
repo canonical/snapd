@@ -35,7 +35,7 @@ func NewAndroidBoot() Bootloader {
 
 func MockAndroidBootFile(c *C, mode os.FileMode) {
 	f := &androidboot{}
-	err := os.MkdirAll(f.Dir(), 0755)
+	err := os.MkdirAll(f.dir(), 0755)
 	c.Assert(err, IsNil)
 	err = ioutil.WriteFile(f.ConfigFile(), nil, mode)
 	c.Assert(err, IsNil)
@@ -47,7 +47,7 @@ func NewUboot() Bootloader {
 
 func MockUbootFiles(c *C) {
 	u := &uboot{}
-	err := os.MkdirAll(u.Dir(), 0755)
+	err := os.MkdirAll(u.dir(), 0755)
 	c.Assert(err, IsNil)
 
 	// ensure that we have a valid uboot.env too
@@ -63,7 +63,7 @@ func NewGrub() Bootloader {
 
 func MockGrubFiles(c *C) {
 	g := &grub{}
-	err := os.MkdirAll(g.Dir(), 0755)
+	err := os.MkdirAll(g.dir(), 0755)
 	c.Assert(err, IsNil)
 	err = ioutil.WriteFile(g.ConfigFile(), nil, 0644)
 	c.Assert(err, IsNil)

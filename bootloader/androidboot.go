@@ -44,12 +44,12 @@ func (a *androidboot) Name() string {
 	return "androidboot"
 }
 
-func (a *androidboot) Dir() string {
+func (a *androidboot) dir() string {
 	return filepath.Join(dirs.GlobalRootDir, "/boot/androidboot")
 }
 
 func (a *androidboot) ConfigFile() string {
-	return filepath.Join(a.Dir(), "androidboot.env")
+	return filepath.Join(a.dir(), "androidboot.env")
 }
 
 func (a *androidboot) GetBootVars(names ...string) (map[string]string, error) {

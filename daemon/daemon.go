@@ -59,6 +59,7 @@ var systemdSdNotify = systemd.SdNotify
 type Daemon struct {
 	Version         string
 	overlord        *overlord.Overlord
+	state           *state.State
 	snapdListener   net.Listener
 	snapListener    net.Listener
 	connTracker     *connTracker
@@ -74,6 +75,8 @@ type Daemon struct {
 	restartSocket bool
 	// degradedErr is set when the daemon is in degraded mode
 	degradedErr error
+
+	expectedRebootDidNotHappen bool
 
 	mu sync.Mutex
 }
@@ -210,7 +213,7 @@ func (c *Command) canAccess(r *http.Request, user *auth.UserState) accessResult 
 }
 
 func (c *Command) ServeHTTP(w http.ResponseWriter, r *http.Request) {
-	st := c.d.overlord.State()
+	st := c.d.state
 	st.Lock()
 	// TODO Look at the error and fail if there's an attempt to authenticate with invalid data.
 	user, _ := UserFromRequest(st, r)
@@ -405,7 +408,7 @@ func (ct *connTracker) trackConn(conn net.Conn, state http.ConnState) {
 }
 
 func (d *Daemon) initStandbyHandling() {
-	d.standbyOpinions = standby.New(d.overlord.State())
+	d.standbyOpinions = standby.New(d.state)
 	d.standbyOpinions.AddOpinion(d.connTracker)
 	d.standbyOpinions.AddOpinion(d.overlord)
 	d.standbyOpinions.AddOpinion(d.overlord.SnapManager())
@@ -414,34 +417,22 @@ func (d *Daemon) initStandbyHandling() {
 }
 
 // Start the Daemon
-func (d *Daemon) Start() {
-	// die when asked to restart (systemd should get us back up!)
-	d.overlord.SetRestartHandler(func(t state.RestartType) {
-		switch t {
-		case state.RestartDaemon:
-			d.tomb.Kill(nil)
-		case state.RestartSystem:
-			// try to schedule a fallback slow reboot already here
-			// in case we get stuck shutting down
-			if err := reboot(rebootWaitTimeout); err != nil {
-				logger.Noticef("%s", err)
-			}
+func (d *Daemon) Start() error {
+	if d.expectedRebootDidNotHappen {
+		// we need to schedule and wait for a system restart
+		d.tomb.Kill(nil)
+		// avoid systemd killing us again while we wait
+		systemdSdNotify("READY=1")
+		return nil
+	}
+	if d.overlord == nil {
+		panic("internal error: no Overlord")
+	}
 
-			d.mu.Lock()
-			defer d.mu.Unlock()
-			// remember we need to restart the system
-			d.restartSystem = true
-			d.tomb.Kill(nil)
-		case state.RestartSocket:
-			d.mu.Lock()
-			defer d.mu.Unlock()
-			d.restartSocket = true
-			d.tomb.Kill(nil)
-		default:
-			logger.Noticef("internal error: restart handler called with unknown restart type: %v", t)
-			d.tomb.Kill(nil)
-		}
-	})
+	// now perform expensive overlord/manages initiliazation
+	if err := d.overlord.StartUp(); err != nil {
+		return err
+	}
 
 	d.connTracker = &connTracker{conns: make(map[net.Conn]struct{})}
 	d.serve = &http.Server{
@@ -475,31 +466,52 @@ func (d *Daemon) Start() {
 
 	// notify systemd that we are ready
 	systemdSdNotify("READY=1")
-}
-
-var shutdownMsg = i18n.G("reboot scheduled to update the system")
-
-func rebootImpl(rebootDelay time.Duration) error {
-	if rebootDelay < 0 {
-		rebootDelay = 0
-	}
-	mins := int64((rebootDelay + time.Minute - 1) / time.Minute)
-	cmd := exec.Command("shutdown", "-r", fmt.Sprintf("+%d", mins), shutdownMsg)
-	if out, err := cmd.CombinedOutput(); err != nil {
-		return osutil.OutputErr(out, err)
-	}
 	return nil
 }
 
-var reboot = rebootImpl
+// HandleRestart implements overlord.RestartBehavior.
+func (d *Daemon) HandleRestart(t state.RestartType) {
+	// die when asked to restart (systemd should get us back up!) etc
+	switch t {
+	case state.RestartDaemon:
+	case state.RestartSystem:
+		// try to schedule a fallback slow reboot already here
+		// in case we get stuck shutting down
+		if err := reboot(rebootWaitTimeout); err != nil {
+			logger.Noticef("%s", err)
+		}
+
+		d.mu.Lock()
+		defer d.mu.Unlock()
+		// remember we need to restart the system
+		d.restartSystem = true
+	case state.RestartSocket:
+		d.mu.Lock()
+		defer d.mu.Unlock()
+		d.restartSocket = true
+	default:
+		logger.Noticef("internal error: restart handler called with unknown restart type: %v", t)
+	}
+	d.tomb.Kill(nil)
+}
 
 var (
-	rebootNoticeWait  = 3 * time.Second
-	rebootWaitTimeout = 10 * time.Minute
+	rebootNoticeWait       = 3 * time.Second
+	rebootWaitTimeout      = 10 * time.Minute
+	rebootRetryWaitTimeout = 5 * time.Minute
+	rebootMaxTentatives    = 3
 )
 
 // Stop shuts down the Daemon
 func (d *Daemon) Stop(sigCh chan<- os.Signal) error {
+	// we need to schedule/wait for a system restart again
+	if d.expectedRebootDidNotHappen {
+		return d.doReboot(sigCh, rebootRetryWaitTimeout)
+	}
+	if d.overlord == nil {
+		return fmt.Errorf("internal error: no Overlord")
+	}
+
 	d.tomb.Kill(nil)
 
 	d.mu.Lock()
@@ -514,7 +526,7 @@ func (d *Daemon) Stop(sigCh chan<- os.Signal) error {
 		// stop running hooks first
 		// and do it more gracefully if we are restarting
 		hookMgr := d.overlord.HookManager()
-		if ok, _ := d.overlord.State().Restarting(); ok {
+		if ok, _ := d.state.Restarting(); ok {
 			logger.Noticef("gracefully waiting for running hooks")
 			hookMgr.GracefullyWaitRunningHooks()
 			logger.Noticef("done waiting for running hooks")
@@ -570,32 +582,9 @@ func (d *Daemon) Stop(sigCh chan<- os.Signal) error {
 	}
 
 	if restartSystem {
-		// ask for shutdown and wait for it to happen.
-		// if we exit snapd will be restared by systemd
-		rebootDelay := 1 * time.Minute
-		ovr := os.Getenv("SNAPD_REBOOT_DELAY") // for tests
-		if ovr != "" {
-			d, err := time.ParseDuration(ovr)
-			if err == nil {
-				rebootDelay = d
-			}
-		}
-		if err := reboot(rebootDelay); err != nil {
-			return err
-		}
-		// wait for reboot to happen
-		logger.Noticef("Waiting for system reboot")
-		if sigCh != nil {
-			signal.Stop(sigCh)
-			if len(sigCh) > 0 {
-				// a signal arrived in between
-				return nil
-			}
-			close(sigCh)
-		}
-		time.Sleep(rebootWaitTimeout)
-		return fmt.Errorf("expected reboot did not happen")
+		return d.doReboot(sigCh, rebootWaitTimeout)
 	}
+
 	if d.restartSocket {
 		return ErrRestartSocket
 	}
@@ -603,16 +592,127 @@ func (d *Daemon) Stop(sigCh chan<- os.Signal) error {
 	return nil
 }
 
+func (d *Daemon) rebootDelay() (time.Duration, error) {
+	d.state.Lock()
+	defer d.state.Unlock()
+	now := time.Now()
+	// see whether a reboot had already been scheduled
+	var rebootAt time.Time
+	err := d.state.Get("daemon-system-restart-at", &rebootAt)
+	if err != nil && err != state.ErrNoState {
+		return 0, err
+	}
+	rebootDelay := 1 * time.Minute
+	if err == nil {
+		rebootDelay = rebootAt.Sub(now)
+	} else {
+		ovr := os.Getenv("SNAPD_REBOOT_DELAY") // for tests
+		if ovr != "" {
+			d, err := time.ParseDuration(ovr)
+			if err == nil {
+				rebootDelay = d
+			}
+		}
+		rebootAt = now.Add(rebootDelay)
+		d.state.Set("daemon-system-restart-at", rebootAt)
+	}
+	return rebootDelay, nil
+}
+
+func (d *Daemon) doReboot(sigCh chan<- os.Signal, waitTimeout time.Duration) error {
+	rebootDelay, err := d.rebootDelay()
+	if err != nil {
+		return err
+	}
+	// ask for shutdown and wait for it to happen.
+	// if we exit snapd will be restared by systemd
+	if err := reboot(rebootDelay); err != nil {
+		return err
+	}
+	// wait for reboot to happen
+	logger.Noticef("Waiting for system reboot")
+	if sigCh != nil {
+		signal.Stop(sigCh)
+		if len(sigCh) > 0 {
+			// a signal arrived in between
+			return nil
+		}
+		close(sigCh)
+	}
+	time.Sleep(waitTimeout)
+	return fmt.Errorf("expected reboot did not happen")
+}
+
+var shutdownMsg = i18n.G("reboot scheduled to update the system")
+
+func rebootImpl(rebootDelay time.Duration) error {
+	if rebootDelay < 0 {
+		rebootDelay = 0
+	}
+	mins := int64(rebootDelay / time.Minute)
+	cmd := exec.Command("shutdown", "-r", fmt.Sprintf("+%d", mins), shutdownMsg)
+	if out, err := cmd.CombinedOutput(); err != nil {
+		return osutil.OutputErr(out, err)
+	}
+	return nil
+}
+
+var reboot = rebootImpl
+
 // Dying is a tomb-ish thing
 func (d *Daemon) Dying() <-chan struct{} {
 	return d.tomb.Dying()
 }
 
+func clearReboot(st *state.State) {
+	st.Set("daemon-system-restart-at", nil)
+	st.Set("daemon-system-restart-tentative", nil)
+}
+
+// RebootAsExpected implements part of overlord.RestartBehavior.
+func (d *Daemon) RebootAsExpected(st *state.State) error {
+	clearReboot(st)
+	return nil
+}
+
+// RebootDidNotHappen implements part of overlord.RestartBehavior.
+func (d *Daemon) RebootDidNotHappen(st *state.State) error {
+	var nTentative int
+	err := st.Get("daemon-system-restart-tentative", &nTentative)
+	if err != nil && err != state.ErrNoState {
+		return err
+	}
+	nTentative++
+	if nTentative > rebootMaxTentatives {
+		// giving up, proceed normally, some in-progress refresh
+		// might get rolled back!!
+		st.ClearReboot()
+		clearReboot(st)
+		logger.Noticef("snapd was restarted while a system restart was expected, snapd retried to schedule and waited again for a system restart %d times and is giving up", rebootMaxTentatives)
+		return nil
+	}
+	st.Set("daemon-system-restart-tentative", nTentative)
+	d.state = st
+	logger.Noticef("snapd was restarted while a system restart was expected, snapd will try to schedule and wait for a system restart again (tenative %d/%d)", nTentative, rebootMaxTentatives)
+	return state.ErrExpectedReboot
+}
+
 // New Daemon
 func New() (*Daemon, error) {
-	ovld, err := overlord.New()
+	d := &Daemon{}
+	ovld, err := overlord.New(d)
+	if err == state.ErrExpectedReboot {
+		// we proceed without overlord until we reach Stop
+		// where we will schedule and wait again for a system restart.
+		// ATM we cannot do that in New because we need to satisfy
+		// systemd notify mechanisms.
+		d.expectedRebootDidNotHappen = true
+		return d, nil
+	}
 	if err != nil {
 		return nil, err
 	}
-	return &Daemon{overlord: ovld}, nil
+	d.overlord = ovld
+	d.state = ovld.State()
+	return d, nil
 }

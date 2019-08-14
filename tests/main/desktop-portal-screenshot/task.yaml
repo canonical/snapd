@@ -22,7 +22,6 @@ description: |
 # Expand as needed.
 systems:
   - ubuntu-18.04-*
-  - ubuntu-18.10-*
   - ubuntu-19.04-*
 
 prepare: |

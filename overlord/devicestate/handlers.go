@@ -120,6 +120,15 @@ func (m *DeviceManager) doSetModel(t *state.Task, _ *tomb.Tomb) error {
 	return remodCtx.Finish()
 }
 
+func (m *DeviceManager) cleanupRemodel(t *state.Task, _ *tomb.Tomb) error {
+	st := t.State()
+	st.Lock()
+	defer st.Unlock()
+	// cleanup the cached remodel context
+	cleanupRemodelCtx(t.Change())
+	return nil
+}
+
 func useStaging() bool {
 	return osutil.GetenvBool("SNAPPY_USE_STAGING_STORE")
 }
@@ -313,6 +322,13 @@ func (rc *initialRegistrationContext) FinishRegistration(serial *asserts.Serial)
 
 // registrationCtx returns a registrationContext appropriate for the task and its change.
 func (m *DeviceManager) registrationCtx(t *state.Task) (registrationContext, error) {
+	remodCtx, err := remodelCtxFromTask(t)
+	if err != nil && err != state.ErrNoState {
+		return nil, err
+	}
+	if regCtx, ok := remodCtx.(registrationContext); ok {
+		return regCtx, nil
+	}
 	model, err := m.Model()
 	if err != nil {
 		return nil, err
@@ -758,30 +774,83 @@ func fetchKeys(st *state.State, keyID string) (errAcctKey error, err error) {
 	// receive a stream with any relevant assertions
 	sto := snapstate.Store(st, nil)
 	db := assertstate.DB(st)
-	for {
-		_, err := db.FindPredefined(asserts.AccountKeyType, map[string]string{
-			"public-key-sha3-384": keyID,
-		})
-		if err == nil {
-			return nil, nil
+
+	retrieveError := false
+	retrieve := func(ref *asserts.Ref) (asserts.Assertion, error) {
+		st.Unlock()
+		defer st.Lock()
+		a, err := sto.Assertion(ref.Type, ref.PrimaryKey, nil)
+		retrieveError = err != nil
+		return a, err
+	}
+
+	save := func(a asserts.Assertion) error {
+		err = assertstate.Add(st, a)
+		if err != nil && !asserts.IsUnaccceptedUpdate(err) {
+			return err
 		}
-		if !asserts.IsNotFound(err) {
+		return nil
+	}
+
+	f := asserts.NewFetcher(db, retrieve, save)
+
+	keyRef := &asserts.Ref{
+		Type:       asserts.AccountKeyType,
+		PrimaryKey: []string{keyID},
+	}
+	if err := f.Fetch(keyRef); err != nil {
+		if retrieveError {
+			return err, nil
+		} else {
 			return nil, err
 		}
-		st.Unlock()
-		a, errAcctKey := sto.Assertion(asserts.AccountKeyType, []string{keyID}, nil)
-		st.Lock()
-		if errAcctKey != nil {
-			return errAcctKey, nil
-		}
-		err = assertstate.Add(st, a)
-		if err != nil {
-			if !asserts.IsUnaccceptedUpdate(err) {
-				return nil, err
-			}
-		}
-		keyID = a.SignKeyID()
 	}
+	return nil, nil
+}
+
+func (m *DeviceManager) doPrepareRemodeling(t *state.Task, tmb *tomb.Tomb) error {
+	st := t.State()
+	st.Lock()
+	defer st.Unlock()
+
+	remodCtx, err := remodelCtxFromTask(t)
+	if err != nil {
+		return err
+	}
+	current, err := findModel(st)
+	if err != nil {
+		return err
+	}
+
+	sto := remodCtx.Store()
+	if sto == nil {
+		return fmt.Errorf("internal error: re-registration remodeling should have built a store")
+	}
+	// ensure a new session accounting for the new brand/model
+	st.Unlock()
+	_, err = sto.EnsureDeviceSession()
+	st.Lock()
+	if err != nil {
+		return fmt.Errorf("cannot get a store session based on the new model assertion: %v", err)
+	}
+
+	chgID := t.Change().ID()
+
+	tss, err := remodelTasks(tmb.Context(nil), st, current, remodCtx.Model(), remodCtx, chgID)
+	if err != nil {
+		return err
+	}
+
+	allTs := state.NewTaskSet()
+	for _, ts := range tss {
+		allTs.AddAll(ts)
+	}
+	snapstate.InjectTasks(t, allTs)
+
+	st.EnsureBefore(0)
+	t.SetStatus(state.DoneStatus)
+
+	return nil
 }
 
 func snapState(st *state.State, name string) (*snapstate.SnapState, error) {
@@ -803,65 +872,64 @@ func makeRollbackDir(name string) (string, error) {
 	return rollbackDir, nil
 }
 
-func currentGadgetInfo(snapst *snapstate.SnapState) (*gadget.Info, error) {
-	var gi *gadget.Info
-
+func currentGadgetInfo(snapst *snapstate.SnapState) (*gadget.GadgetData, error) {
 	currentInfo, err := snapst.CurrentInfo()
 	if err != nil && err != snapstate.ErrNoCurrent {
 		return nil, err
 	}
-	if currentInfo != nil {
-		const onClassic = false
-		gi, err = snap.ReadGadgetInfo(currentInfo, onClassic)
-		if err != nil {
-			return nil, err
-		}
+	if currentInfo == nil {
+		// no current yet
+		return nil, nil
 	}
-	return gi, nil
+	const onClassic = false
+	gi, err := gadget.ReadInfo(currentInfo.MountDir(), onClassic)
+	if err != nil {
+		return nil, err
+	}
+	return &gadget.GadgetData{Info: gi, RootDir: currentInfo.MountDir()}, nil
 }
 
-func pendingGadgetInfo(snapsup *snapstate.SnapSetup) (*gadget.Info, error) {
+func pendingGadgetInfo(snapsup *snapstate.SnapSetup) (*gadget.GadgetData, error) {
 	info, err := snap.ReadInfo(snapsup.InstanceName(), snapsup.SideInfo)
 	if err != nil {
 		return nil, err
 	}
 	const onClassic = false
-	update, err := snap.ReadGadgetInfo(info, onClassic)
+	update, err := gadget.ReadInfo(info.MountDir(), onClassic)
 	if err != nil {
 		return nil, err
 	}
-	return update, nil
+	return &gadget.GadgetData{Info: update, RootDir: info.MountDir()}, nil
 }
 
-func gadgetCurrentAndUpdate(st *state.State, snapsup *snapstate.SnapSetup) (current *gadget.Info, update *gadget.Info, err error) {
+func gadgetCurrentAndUpdate(st *state.State, snapsup *snapstate.SnapSetup) (current *gadget.GadgetData, update *gadget.GadgetData, err error) {
 	snapst, err := snapState(st, snapsup.InstanceName())
 	if err != nil {
 		return nil, nil, err
 	}
 
-	currentInfo, err := currentGadgetInfo(snapst)
+	currentData, err := currentGadgetInfo(snapst)
 	if err != nil {
-		return nil, nil, err
+		return nil, nil, fmt.Errorf("cannot read current gadget snap details: %v", err)
 	}
-
-	if currentInfo == nil {
+	if currentData == nil {
 		// don't bother reading update if there is no current
 		return nil, nil, nil
 	}
 
-	newInfo, err := pendingGadgetInfo(snapsup)
+	newData, err := pendingGadgetInfo(snapsup)
 	if err != nil {
-		return nil, nil, err
+		return nil, nil, fmt.Errorf("cannot read candidate gadget snap details: %v", err)
 	}
 
-	return currentInfo, newInfo, nil
+	return currentData, newData, nil
 }
 
 var (
 	gadgetUpdate = nopGadgetOp
 )
 
-func nopGadgetOp(current, update *gadget.Info, rollbackRootDir string) error {
+func nopGadgetOp(current, update gadget.GadgetData, rollbackRootDir string) error {
 	return nil
 }
 
@@ -879,11 +947,11 @@ func (m *DeviceManager) doUpdateGadgetAssets(t *state.Task, _ *tomb.Tomb) error 
 		return err
 	}
 
-	current, update, err := gadgetCurrentAndUpdate(t.State(), snapsup)
+	currentData, updateData, err := gadgetCurrentAndUpdate(t.State(), snapsup)
 	if err != nil {
 		return err
 	}
-	if current == nil {
+	if currentData == nil {
 		// no updates during first boot & seeding
 		return nil
 	}
@@ -894,7 +962,7 @@ func (m *DeviceManager) doUpdateGadgetAssets(t *state.Task, _ *tomb.Tomb) error 
 	}
 
 	st.Unlock()
-	err = gadgetUpdate(current, update, snapRollbackDir)
+	err = gadgetUpdate(*currentData, *updateData, snapRollbackDir)
 	st.Lock()
 	if err != nil {
 		if err == gadget.ErrNoUpdate {
@@ -911,6 +979,8 @@ func (m *DeviceManager) doUpdateGadgetAssets(t *state.Task, _ *tomb.Tomb) error 
 		logger.Noticef("failed to remove gadget update rollback directory %q: %v", snapRollbackDir, err)
 	}
 
+	// TODO: consider having the option to do this early via recovery in
+	// core20, have fallback code as well there
 	st.RequestRestart(state.RestartSystem)
 
 	return nil

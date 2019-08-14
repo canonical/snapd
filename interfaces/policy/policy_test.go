@@ -1493,6 +1493,106 @@ AXNpZw==`, "@plugsSlots@", strings.TrimSpace(t.plugsSlots), 1)))
 	}
 }
 
+func (s *policySuite) TestBaseDeclAllowDenyInstallationMinimalCheck(c *C) {
+	tests := []struct {
+		installYaml string
+		expected    string // "" => no error
+	}{
+		{`name: install-snap
+version: 0
+slots:
+  innocuous:
+  install-slot-coreonly:
+`, `installation not allowed by "install-slot-coreonly" slot rule of interface "install-slot-coreonly"`},
+		{`name: install-gadget
+version: 0
+type: gadget
+slots:
+  install-slot-or:
+`, `installation denied by "install-slot-or" slot rule.*`},
+		{`name: install-snap
+version: 0
+slots:
+  install-slot-or:
+`, ""},
+		{`name: install-snap
+version: 0
+plugs:
+  install-plug-gadget-only:
+`, ``}, // plug is not validated with minimal installation check
+	}
+
+	for _, t := range tests {
+		installSnap := snaptest.MockInfo(c, t.installYaml, nil)
+
+		cand := policy.InstallCandidateMinimalCheck{
+			Snap:            installSnap,
+			BaseDeclaration: s.baseDecl,
+		}
+
+		err := cand.Check()
+		if t.expected == "" {
+			c.Check(err, IsNil)
+		} else {
+			c.Check(err, ErrorMatches, t.expected)
+		}
+	}
+}
+
+func (s *policySuite) TestOnClassicMinimalInstallationCheck(c *C) {
+	r1 := release.MockOnClassic(false)
+	defer r1()
+	r2 := release.MockReleaseInfo(&release.ReleaseInfo)
+	defer r2()
+
+	tests := []struct {
+		distro      string // "" => not classic
+		installYaml string
+		err         string // "" => no error
+	}{
+		{"", `name: install-snap
+version: 0
+slots:
+  install-slot-on-classic-distros:`, `installation not allowed by "install-slot-on-classic-distros" slot rule.*`},
+		{"debian", `name: install-snap
+version: 0
+slots:
+  install-slot-on-classic-distros:`, ""},
+		{"", `name: install-snap
+version: 0
+plugs:
+  install-plug-on-classic-distros:`, ""}, // plug is not validated with minimal installation check
+		{"debian", `name: install-snap
+version: 0
+plugs:
+  install-plug-on-classic-distros:`, ""},
+	}
+
+	for _, t := range tests {
+		if t.distro == "" {
+			release.OnClassic = false
+		} else {
+			release.OnClassic = true
+			release.ReleaseInfo = release.OS{
+				ID: t.distro,
+			}
+		}
+
+		installSnap := snaptest.MockInfo(c, t.installYaml, nil)
+
+		cand := policy.InstallCandidateMinimalCheck{
+			Snap:            installSnap,
+			BaseDeclaration: s.baseDecl,
+		}
+		err := cand.Check()
+		if t.err == "" {
+			c.Check(err, IsNil)
+		} else {
+			c.Check(err, ErrorMatches, t.err)
+		}
+	}
+}
+
 func (s *policySuite) TestPlugOnClassicCheckConnection(c *C) {
 	r1 := release.MockOnClassic(false)
 	defer r1()

@@ -44,7 +44,7 @@ func (u *uboot) Name() string {
 	return "uboot"
 }
 
-func (u *uboot) Dir() string {
+func (u *uboot) dir() string {
 	return filepath.Join(dirs.GlobalRootDir, "/boot/uboot")
 }
 
@@ -53,7 +53,7 @@ func (u *uboot) ConfigFile() string {
 }
 
 func (u *uboot) envFile() string {
-	return filepath.Join(u.Dir(), "uboot.env")
+	return filepath.Join(u.dir(), "uboot.env")
 }
 
 func (u *uboot) SetBootVars(values map[string]string) error {
@@ -95,9 +95,9 @@ func (u *uboot) GetBootVars(names ...string) (map[string]string, error) {
 }
 
 func (u *uboot) ExtractKernelAssets(s *snap.Info, snapf snap.Container) error {
-	return extractKernelAssetsToBootDir(u.Dir(), s, snapf)
+	return extractKernelAssetsToBootDir(u.dir(), s, snapf)
 }
 
 func (u *uboot) RemoveKernelAssets(s snap.PlaceInfo) error {
-	return removeKernelAssetsFromBootDir(u.Dir(), s)
+	return removeKernelAssetsFromBootDir(u.dir(), s)
 }

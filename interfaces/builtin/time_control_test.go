@@ -68,13 +68,6 @@ func (s *TimeControlInterfaceSuite) TestName(c *C) {
 
 func (s *TimeControlInterfaceSuite) TestSanitizeSlot(c *C) {
 	c.Assert(interfaces.BeforePrepareSlot(s.iface, s.slotInfo), IsNil)
-	slot := &snap.SlotInfo{
-		Snap:      &snap.Info{SuggestedName: "some-snap"},
-		Name:      "time-control",
-		Interface: "time-control",
-	}
-	c.Assert(interfaces.BeforePrepareSlot(s.iface, slot), ErrorMatches,
-		"time-control slots are reserved for the core snap")
 }
 
 func (s *TimeControlInterfaceSuite) TestSanitizePlug(c *C) {
