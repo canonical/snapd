@@ -66,13 +66,6 @@ func (s *GpioControlInterfaceSuite) TestName(c *C) {
 
 func (s *GpioControlInterfaceSuite) TestSanitizeSlot(c *C) {
 	c.Assert(interfaces.BeforePrepareSlot(s.iface, s.slotInfo), IsNil)
-	slotInfo := &snap.SlotInfo{
-		Snap:      &snap.Info{SuggestedName: "some-snap"},
-		Name:      "gpio-control",
-		Interface: "gpio-control",
-	}
-	c.Assert(interfaces.BeforePrepareSlot(s.iface, slotInfo), ErrorMatches,
-		"gpio-control slots are reserved for the core snap")
 }
 
 func (s *GpioControlInterfaceSuite) TestSanitizePlug(c *C) {
