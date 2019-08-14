@@ -112,7 +112,7 @@ func checkSquashfsMount() error {
 	}
 
 	defer func() {
-		if output, err := exec.Command("umount", tmpMountDir).CombinedOutput(); err != nil {
+		if output, err := exec.Command("umount", "-l", tmpMountDir).CombinedOutput(); err != nil {
 			// os.RemoveAll(tmpMountDir) will fail here if umount fails
 			logger.Noticef("cannot unmount sanity check squashfs image: %v", osutil.OutputErr(output, err))
 		}

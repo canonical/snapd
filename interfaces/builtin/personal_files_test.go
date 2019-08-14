@@ -89,13 +89,6 @@ owner "@{HOME}/.write-file{,/,/**}" rwkl,
 
 func (s *personalFilesInterfaceSuite) TestSanitizeSlot(c *C) {
 	c.Assert(interfaces.BeforePrepareSlot(s.iface, s.slotInfo), IsNil)
-	slot := &snap.SlotInfo{
-		Snap:      &snap.Info{SuggestedName: "some-snap"},
-		Name:      "personal-files",
-		Interface: "personal-files",
-	}
-	c.Assert(interfaces.BeforePrepareSlot(s.iface, slot), ErrorMatches,
-		"personal-files slots are reserved for the core snap")
 }
 
 func (s *personalFilesInterfaceSuite) TestSanitizePlug(c *C) {
