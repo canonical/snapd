@@ -2,6 +2,12 @@ summary: Ensure `snap debug changes|tasks|task` commands work
 
 prepare: |
     snap install hello-world
+    if [[ "$SPREAD_SYSTEM" == ubuntu-* ]]; then
+        apt install -y graphviz
+    fi
+
+restore: |
+    rm -f out.png
 
 execute: |
     # The following debug commands access state.json directly, snapd should be stopped
@@ -21,3 +27,8 @@ execute: |
     echo "Individual task can be examined"
     snap debug task --task-id=1 /var/lib/snapd/state.json | MATCH "kind: mark-seeded"
     snap debug task --task-id=1 /var/lib/snapd/state.json | MATCH "summary: Mark system seeded"
+
+    # sanity check, dot shouldn't fail
+    if [[ "$SPREAD_SYSTEM" == ubuntu-1* ]]; then
+        snap debug tasks --change-id=1 --dot /var/lib/snapd/state.json | dot -Tpng > out.png
+    fi
