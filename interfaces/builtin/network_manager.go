@@ -257,6 +257,13 @@ dbus (receive, send)
     path=/org/freedesktop/NetworkManager{,/**}
     peer=(label=###PLUG_SECURITY_TAGS###),
 
+# NM implements org.freedesktop.DBus.ObjectManager too
+dbus (receive, send)
+    bus=system
+    path=/org/freedesktop
+    interface=org.freedesktop.DBus.ObjectManager
+    peer=(label=###PLUG_SECURITY_TAGS###),
+
 # Explicitly deny ptrace to silence noisy denials. These denials happen when NM
 # tries to access /proc/<peer_pid>/stat.  What apparmor prevents is showing
 # internal process addresses that live in that file, but that has no adverse
@@ -275,6 +282,13 @@ const networkManagerConnectedPlugAppArmor = `
 dbus (receive, send)
     bus=system
     path=/org/freedesktop/NetworkManager{,/**}
+    peer=(label=###SLOT_SECURITY_TAGS###),
+
+# NM implements org.freedesktop.DBus.ObjectManager too
+dbus (receive, send)
+    bus=system
+    path=/org/freedesktop
+    interface=org.freedesktop.DBus.ObjectManager
     peer=(label=###SLOT_SECURITY_TAGS###),
 `
 
