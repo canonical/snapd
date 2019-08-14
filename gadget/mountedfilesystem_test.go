@@ -45,14 +45,22 @@ func (s *mountedfilesystemTestSuite) SetUpTest(c *C) {
 }
 
 type gadgetData struct {
-	name, target, content string
+	name, target, symlinkTo, content string
 }
 
 func makeGadgetData(c *C, where string, data []gadgetData) {
 	for _, en := range data {
+		if en.name == "" {
+			continue
+		}
 		if strings.HasSuffix(en.name, "/") {
 			err := os.MkdirAll(filepath.Join(where, en.name), 0755)
 			c.Check(en.content, HasLen, 0)
+			c.Assert(err, IsNil)
+			continue
+		}
+		if en.symlinkTo != "" {
+			err := os.Symlink(en.symlinkTo, filepath.Join(where, en.name))
 			c.Assert(err, IsNil)
 			continue
 		}
@@ -62,6 +70,15 @@ func makeGadgetData(c *C, where string, data []gadgetData) {
 
 func verifyWrittenGadgetData(c *C, where string, data []gadgetData) {
 	for _, en := range data {
+		if en.target == "" {
+			continue
+		}
+		if en.symlinkTo != "" {
+			symlinkTarget, err := os.Readlink(filepath.Join(where, en.target))
+			c.Assert(err, IsNil)
+			c.Check(symlinkTarget, Equals, en.symlinkTo)
+			continue
+		}
 		target := filepath.Join(where, en.target)
 		c.Check(target, testutil.FileContains, en.content)
 	}
@@ -69,9 +86,17 @@ func verifyWrittenGadgetData(c *C, where string, data []gadgetData) {
 
 func makeExistingData(c *C, where string, data []gadgetData) {
 	for _, en := range data {
+		if en.target == "" {
+			continue
+		}
 		if strings.HasSuffix(en.target, "/") {
 			err := os.MkdirAll(filepath.Join(where, en.target), 0755)
 			c.Check(en.content, HasLen, 0)
+			c.Assert(err, IsNil)
+			continue
+		}
+		if en.symlinkTo != "" {
+			err := os.Symlink(en.symlinkTo, filepath.Join(where, en.target))
 			c.Assert(err, IsNil)
 			continue
 		}
@@ -658,6 +683,46 @@ func (s *mountedfilesystemTestSuite) TestMountedWriterTrivialValidation(c *C) {
 	c.Assert(err, ErrorMatches, "cannot write filesystem content .* target cannot be unset")
 }
 
+func (s *mountedfilesystemTestSuite) TestMountedWriterSymlinks(c *C) {
+	// some data for the gadget
+	gd := []gadgetData{
+		{name: "foo", target: "foo", content: "data"},
+		{name: "nested/foo", target: "nested/foo", content: "nested-data"},
+		{name: "link", symlinkTo: "foo"},
+		{name: "nested-link", symlinkTo: "nested"},
+	}
+	makeGadgetData(c, s.dir, gd)
+
+	outDir := filepath.Join(c.MkDir(), "out-dir")
+
+	ps := &gadget.PositionedStructure{
+		VolumeStructure: &gadget.VolumeStructure{
+			Size:       2048,
+			Filesystem: "ext4",
+			Content: []gadget.VolumeContent{
+				{Source: "/", Target: "/"},
+			},
+		},
+	}
+
+	rw, err := gadget.NewMountedFilesystemWriter(s.dir, ps)
+	c.Assert(err, IsNil)
+	c.Assert(rw, NotNil)
+
+	err = rw.Write(outDir, nil)
+	c.Assert(err, IsNil)
+
+	// everything else was written
+	verifyWrittenGadgetData(c, outDir, []gadgetData{
+		{target: "foo", content: "data"},
+		{target: "link", symlinkTo: "foo"},
+		{target: "nested/foo", content: "nested-data"},
+		{target: "nested-link", symlinkTo: "nested"},
+		// when read via symlink
+		{target: "nested-link/foo", content: "nested-data"},
+	})
+}
+
 func (s *mountedfilesystemTestSuite) TestMountedUpdaterBackupSimple(c *C) {
 	// some data for the gadget
 	gdWritten := []gadgetData{
@@ -1101,6 +1166,79 @@ func (s *mountedfilesystemTestSuite) TestMountedUpdaterBackupFunnyNamesOk(c *C) 
 	})
 }
 
+func (s *mountedfilesystemTestSuite) TestMountedUpdaterBackupErrorOnSymlinkFile(c *C) {
+	gd := []gadgetData{
+		{name: "bar/data", target: "bar/data", content: "some data"},
+		{name: "bar/foo", target: "bar/foo", content: "data"},
+	}
+	makeGadgetData(c, s.dir, gd)
+
+	outDir := filepath.Join(c.MkDir(), "out-dir")
+
+	existing := []gadgetData{
+		{target: "bar/data", content: "some data"},
+		{target: "bar/foo", symlinkTo: "data"},
+	}
+	makeExistingData(c, outDir, existing)
+
+	ps := &gadget.PositionedStructure{
+		VolumeStructure: &gadget.VolumeStructure{
+			Size:       2048,
+			Filesystem: "ext4",
+			Content: []gadget.VolumeContent{
+				{Source: "/", Target: "/"},
+			},
+		},
+	}
+
+	rw, err := gadget.NewMountedFilesystemUpdater(s.dir, ps, s.backup, func(to *gadget.PositionedStructure) (string, error) {
+		c.Check(to, DeepEquals, ps)
+		return outDir, nil
+	})
+	c.Assert(err, IsNil)
+	c.Assert(rw, NotNil)
+
+	err = rw.Backup()
+	c.Assert(err, ErrorMatches, "cannot backup content: cannot backup file /bar/foo: symbolic links are not supported")
+}
+
+func (s *mountedfilesystemTestSuite) TestMountedUpdaterBackupErrorOnSymlinkInPrefixDir(c *C) {
+	gd := []gadgetData{
+		{name: "bar/nested/data", target: "bar/data", content: "some data"},
+		{name: "baz/foo", target: "baz/foo", content: "data"},
+	}
+	makeGadgetData(c, s.dir, gd)
+
+	outDir := filepath.Join(c.MkDir(), "out-dir")
+
+	existing := []gadgetData{
+		{target: "bar/nested-target/data", content: "some data"},
+	}
+	makeExistingData(c, outDir, existing)
+	// bar/nested-target -> nested
+	os.Symlink("nested-target", filepath.Join(outDir, "bar/nested"))
+
+	ps := &gadget.PositionedStructure{
+		VolumeStructure: &gadget.VolumeStructure{
+			Size:       2048,
+			Filesystem: "ext4",
+			Content: []gadget.VolumeContent{
+				{Source: "/", Target: "/"},
+			},
+		},
+	}
+
+	rw, err := gadget.NewMountedFilesystemUpdater(s.dir, ps, s.backup, func(to *gadget.PositionedStructure) (string, error) {
+		c.Check(to, DeepEquals, ps)
+		return outDir, nil
+	})
+	c.Assert(err, IsNil)
+	c.Assert(rw, NotNil)
+
+	err = rw.Backup()
+	c.Assert(err, ErrorMatches, "cannot backup content: cannot create a checkpoint for directory /bar/nested: symbolic links are not supported")
+}
+
 func (s *mountedfilesystemTestSuite) TestMountedUpdaterUpdate(c *C) {
 	// some data for the gadget
 	gdWritten := []gadgetData{
@@ -1505,6 +1643,83 @@ func (s *mountedfilesystemTestSuite) TestMountedUpdaterLonePrefix(c *C) {
 	err = rw.Update()
 	c.Assert(err, IsNil)
 	verifyWrittenGadgetData(c, outDir, gd)
+}
+
+func (s *mountedfilesystemTestSuite) TestMountedUpdaterUpdateErrorOnSymlinkToFile(c *C) {
+	gdWritten := []gadgetData{
+		{name: "data", target: "data", content: "some data"},
+		{name: "foo", symlinkTo: "data"},
+	}
+	makeGadgetData(c, s.dir, gdWritten)
+
+	outDir := filepath.Join(c.MkDir(), "out-dir")
+
+	existing := []gadgetData{
+		{target: "data", content: "some data"},
+	}
+	makeExistingData(c, outDir, existing)
+
+	ps := &gadget.PositionedStructure{
+		VolumeStructure: &gadget.VolumeStructure{
+			Size:       2048,
+			Filesystem: "ext4",
+			Content: []gadget.VolumeContent{
+				{Source: "/", Target: "/"},
+			},
+		},
+	}
+
+	rw, err := gadget.NewMountedFilesystemUpdater(s.dir, ps, s.backup, func(to *gadget.PositionedStructure) (string, error) {
+		c.Check(to, DeepEquals, ps)
+		return outDir, nil
+	})
+	c.Assert(err, IsNil)
+	c.Assert(rw, NotNil)
+
+	// create a mock backup of first file
+	makeSizedFile(c, filepath.Join(s.backup, "struct-0/data.backup"), 0, nil)
+
+	err = rw.Update()
+	c.Assert(err, ErrorMatches, "cannot update content: cannot update file /foo: symbolic links are not supported")
+}
+
+func (s *mountedfilesystemTestSuite) TestMountedUpdaterBackupErrorOnSymlinkToDir(c *C) {
+	gd := []gadgetData{
+		{name: "bar/data", target: "bar/data", content: "some data"},
+		{name: "baz", symlinkTo: "bar"},
+	}
+	makeGadgetData(c, s.dir, gd)
+
+	outDir := filepath.Join(c.MkDir(), "out-dir")
+
+	existing := []gadgetData{
+		{target: "bar/data", content: "some data"},
+	}
+	makeExistingData(c, outDir, existing)
+
+	ps := &gadget.PositionedStructure{
+		VolumeStructure: &gadget.VolumeStructure{
+			Size:       2048,
+			Filesystem: "ext4",
+			Content: []gadget.VolumeContent{
+				{Source: "/", Target: "/"},
+			},
+		},
+	}
+
+	rw, err := gadget.NewMountedFilesystemUpdater(s.dir, ps, s.backup, func(to *gadget.PositionedStructure) (string, error) {
+		c.Check(to, DeepEquals, ps)
+		return outDir, nil
+	})
+	c.Assert(err, IsNil)
+	c.Assert(rw, NotNil)
+
+	// create a mock backup of first file
+	makeSizedFile(c, filepath.Join(s.backup, "struct-0/bar/data.backup"), 0, nil)
+	makeSizedFile(c, filepath.Join(s.backup, "struct-0/bar.backup"), 0, nil)
+
+	err = rw.Update()
+	c.Assert(err, ErrorMatches, "cannot update content: cannot update file /baz: symbolic links are not supported")
 }
 
 func (s *mountedfilesystemTestSuite) TestMountedUpdaterRollbackFromBackup(c *C) {

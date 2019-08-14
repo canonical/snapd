@@ -67,13 +67,6 @@ func (s *NetworkSetupControlInterfaceSuite) TestName(c *C) {
 
 func (s *NetworkSetupControlInterfaceSuite) TestSanitizeSlot(c *C) {
 	c.Assert(interfaces.BeforePrepareSlot(s.iface, s.slotInfo), IsNil)
-	slot := &snap.SlotInfo{
-		Snap:      &snap.Info{SuggestedName: "some-snap"},
-		Name:      "network-setup-control",
-		Interface: "network-setup-control",
-	}
-	c.Assert(interfaces.BeforePrepareSlot(s.iface, slot), ErrorMatches,
-		"network-setup-control slots are reserved for the core snap")
 }
 
 func (s *NetworkSetupControlInterfaceSuite) TestSanitizePlug(c *C) {
