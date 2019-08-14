@@ -1909,11 +1909,7 @@ system-usernames:
     scope: shared
     "": bar
 `)
-	info, err := snap.InfoFromSnapYaml(y)
-	c.Assert(err, IsNil)
-	c.Check(info.SystemUsernames, HasLen, 1)
-	c.Assert(info.SystemUsernames["foo"], DeepEquals, &snap.SystemUsernameInfo{
-		Name:  "foo",
-		Scope: "shared",
-	})
+	_, err := snap.InfoFromSnapYaml(y)
+	c.Assert(err, NotNil)
+	c.Assert(err, ErrorMatches, `"foo" has attribute that is empty string`)
 }

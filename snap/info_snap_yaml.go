@@ -677,19 +677,17 @@ func convertToUsernamesData(user string, data interface{}) (scope string, attrs 
 					return "", nil, err
 				}
 				scope = value
+			case "":
+				return "", nil, fmt.Errorf("%q has attribute that is empty string", user)
 			default:
-				// for maximum future compatibility, we allow
-				// value to be empty, but not key
-				if key != "" {
-					if attrs == nil {
-						attrs = make(map[string]interface{})
-					}
-					value, err := metautil.NormalizeValue(valueData)
-					if err != nil {
-						return "", nil, fmt.Errorf("attribute %q of %q: %v", key, user, err)
-					}
-					attrs[key] = value
+				if attrs == nil {
+					attrs = make(map[string]interface{})
 				}
+				value, err := metautil.NormalizeValue(valueData)
+				if err != nil {
+					return "", nil, fmt.Errorf("attribute %q of %q: %v", key, user, err)
+				}
+				attrs[key] = value
 			}
 		}
 		return scope, attrs, nil
