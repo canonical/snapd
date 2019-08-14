@@ -923,6 +923,7 @@ func (s *checkSnapSuite) TestCheckSnapdHappy(c *C) {
 	}
 }
 
+// Note, invalid usernames checked in snap/info_snap_yaml.go
 var systemUsernamesTests = []struct {
 	sysIDs  string
 	classic bool
@@ -967,13 +968,6 @@ var systemUsernamesTests = []struct {
 	sysIDs:  "allowed-not: shared\n  snap_daemon: shared",
 	classic: true,
 	error:   `Unsupported system username "allowed-not"`,
-}, {
-	sysIDs: "inv@lid: shared",
-	error:  `Invalid system username "inv@lid"`,
-}, {
-	sysIDs:  "inv@lid: shared",
-	classic: true,
-	error:   `Invalid system username "inv@lid"`,
 }, {
 	sysIDs:  "snap_daemon: shared",
 	noGroup: true,

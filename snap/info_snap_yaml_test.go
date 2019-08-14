@@ -1885,9 +1885,31 @@ version: 1.0
 system-usernames:
   "": shared
 `)
-	info, err := snap.InfoFromSnapYaml(y)
-	c.Assert(err, IsNil)
-	c.Check(info.SystemUsernames, HasLen, 0)
+	_, err := snap.InfoFromSnapYaml(y)
+	c.Assert(err, NotNil)
+	c.Assert(err, ErrorMatches, `Invalid system username ""`)
+}
+
+func (s *YamlSuite) TestSnapYamlSystemUsernamesParsingBadKeyList(c *C) {
+	y := []byte(`name: binary
+version: 1.0
+system-usernames:
+- foo: shared
+`)
+	_, err := snap.InfoFromSnapYaml(y)
+	c.Assert(err, NotNil)
+	c.Assert(err, ErrorMatches, `(?m)cannot parse snap.yaml:.*`)
+}
+
+func (s *YamlSuite) TestSnapYamlSystemUsernamesParsingBadUsername(c *C) {
+	y := []byte(`name: binary
+version: 1.0
+system-usernames:
+  "b@d": shared
+`)
+	_, err := snap.InfoFromSnapYaml(y)
+	c.Assert(err, NotNil)
+	c.Assert(err, ErrorMatches, `Invalid system username "b@d"`)
 }
 
 func (s *YamlSuite) TestSnapYamlSystemUsernamesParsingBadValueEmpty(c *C) {
