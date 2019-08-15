@@ -546,12 +546,6 @@ func checkInstallPreconditions(st *state.State, info *snap.Info, flags Flags, sn
 	// Check if the snapd can be installed on Ubuntu Core systems, it is
 	// always ok to install on classic
 	if info.GetType() == snap.TypeSnapd && !release.OnClassic {
-		tr := config.NewTransaction(st)
-		experimentalAllowSnapd, err := config.GetFeatureFlag(tr, features.SnapdSnap)
-		if err != nil && !config.IsNoOption(err) {
-			return err
-		}
-
 		if deviceCtx.Model().Base() == "" {
 			return fmt.Errorf("cannot install snapd snap on a model without a base snap yet")
 		}

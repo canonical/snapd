@@ -359,7 +359,6 @@ const (
 	maybeCore
 	runCoreConfigure
 	doesReRefresh
-	noConfigure
 	updatesGadget
 	noConfigure
 )
@@ -12835,13 +12834,13 @@ func (s *snapmgrTestSuite) TestTransitionSnapdSnapBlocksOtherChanges(c *C) {
 	chg.SetStatus(state.DoStatus)
 
 	// other tasks block until the transition is done
-	_, err := snapstate.Install(s.state, "some-snap", &snapstate.RevisionOptions{Channel: "stable"}, s.user.ID, snapstate.Flags{})
+	_, err := snapstate.Install(context.Background(), s.state, "some-snap", &snapstate.RevisionOptions{Channel: "stable"}, s.user.ID, snapstate.Flags{})
 	c.Check(err, FitsTypeOf, &snapstate.ChangeConflictError{})
 	c.Check(err, ErrorMatches, "transition to snapd snap in progress, no other changes allowed until this is done")
 
 	// and when the transition is done, other tasks run
 	chg.SetStatus(state.DoneStatus)
-	ts, err := snapstate.Install(s.state, "some-snap", &snapstate.RevisionOptions{Channel: "stable"}, s.user.ID, snapstate.Flags{})
+	ts, err := snapstate.Install(context.Background(), s.state, "some-snap", &snapstate.RevisionOptions{Channel: "stable"}, s.user.ID, snapstate.Flags{})
 	c.Check(err, IsNil)
 	c.Check(ts, NotNil)
 }
@@ -14491,7 +14490,7 @@ func (s *snapmgrTestSuite) TestNoSnapdSnapOnCoreWithoutBase(c *C) {
 	defer r()
 
 	// but snapd do not for install
-	_, err := snapstate.Install(s.state, "snapd", &snapstate.RevisionOptions{Channel: "some-channel"}, s.user.ID, snapstate.Flags{})
+	_, err := snapstate.Install(context.Background(), s.state, "snapd", &snapstate.RevisionOptions{Channel: "some-channel"}, s.user.ID, snapstate.Flags{})
 	c.Assert(err, ErrorMatches, "cannot install snapd snap on a model without a base snap yet")
 }
 

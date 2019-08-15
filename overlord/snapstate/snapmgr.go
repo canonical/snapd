@@ -20,6 +20,7 @@
 package snapstate
 
 import (
+	"context"
 	"errors"
 	"fmt"
 	"io"
@@ -574,12 +575,12 @@ func (m *SnapManager) ensureSnapdSnapTransition() error {
 	}
 
 	// check if the user opts into the snapd snap
-	experimentalAllowSnapd, err := optedIntoSnapdSnap(m.state)
+	optedIntoSnapdTransition, err := optedIntoSnapdSnap(m.state)
 	if err != nil {
 		return err
 	}
 	// nothing to do: the user does not want the snapd snap yet
-	if !experimentalAllowSnapd {
+	if !optedIntoSnapdTransition {
 		return nil
 	}
 
@@ -626,7 +627,7 @@ func (m *SnapManager) ensureSnapdSnapTransition() error {
 	}
 	m.state.Set("snapd-transition-retry", retryCount+1)
 
-	ts, err := Install(m.state, "snapd", &RevisionOptions{Channel: coreChannel}, userID, Flags{})
+	ts, err := Install(context.Background(), m.state, "snapd", &RevisionOptions{Channel: coreChannel}, userID, Flags{})
 	if err != nil {
 		return err
 	}
