@@ -33,6 +33,7 @@ import (
 	"gopkg.in/tomb.v2"
 
 	"github.com/snapcore/snapd/dirs"
+	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/netutil"
 	"github.com/snapcore/snapd/systemd"
 )
@@ -101,18 +102,23 @@ func getUcred(conn net.Conn) (*sys.Ucred, error) {
 		defer f.Close()
 		return sysGetsockoptUcred(int(f.Fd()), sys.SOL_SOCKET, sys.SO_PEERCRED)
 	}
-	return nil, fmt.Errorf("cannot get peer credentials for connection %v", conn)
+	return nil, fmt.Errorf("expected a net.UnixConn, but got a %T", conn)
 }
 
 func (it *idleTracker) trackConn(conn net.Conn, state http.ConnState) {
 	// Perform peer credentials check
 	if state == http.StateNew {
 		ucred, err := getUcred(conn)
-		uid := uint32(sys.Geteuid())
-		if err != nil || (ucred.Uid != 0 && ucred.Uid != uid) {
+		if err != nil {
+			logger.Noticef("Failed to retrieve peer credentials: %v", err)
 			conn.Close()
+			return
 		}
-		return
+		if ucred.Uid != 0 && ucred.Uid != uint32(sys.Geteuid()) {
+			logger.Noticef("Blocking request from user ID %v", ucred.Uid)
+			conn.Close()
+			return
+		}
 	}
 
 	it.mu.Lock()

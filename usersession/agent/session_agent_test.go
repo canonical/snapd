@@ -20,6 +20,7 @@
 package agent_test
 
 import (
+	"bytes"
 	"encoding/json"
 	"fmt"
 	"net"
@@ -32,6 +33,8 @@ import (
 	. "gopkg.in/check.v1"
 
 	"github.com/snapcore/snapd/dirs"
+	"github.com/snapcore/snapd/logger"
+	"github.com/snapcore/snapd/testutil"
 	"github.com/snapcore/snapd/usersession/agent"
 )
 
@@ -61,6 +64,7 @@ func (s *sessionAgentSuite) SetUpTest(c *C) {
 
 func (s *sessionAgentSuite) TearDownTest(c *C) {
 	dirs.SetRootDir("")
+	logger.SetLogger(logger.NullLogger)
 }
 
 func (s *sessionAgentSuite) TestStartStop(c *C) {
@@ -131,14 +135,19 @@ func (s *sessionAgentSuite) TestExitOnIdle(c *C) {
 		c.Fatal("agent did not exit after idle timeout expired")
 	}
 	elapsed := time.Now().Sub(startTime)
-	if elapsed < 125*time.Millisecond {
+	if elapsed < 125*time.Millisecond || elapsed > 175*time.Millisecond {
 		// The idle timeout should have been extended when we
 		// issued a second request after 25ms.
-		c.Errorf("Expected ellaped time to be greater than 125 ms, but got %v", elapsed)
+		c.Errorf("Expected ellaped time close to 125 ms, but got %v", elapsed)
 	}
 }
 
 func (s *sessionAgentSuite) TestPeerCredentialsCheck(c *C) {
+	var logbuf bytes.Buffer
+	log, err := logger.New(&logbuf, logger.DefaultFlags)
+	c.Assert(err, IsNil)
+	logger.SetLogger(log)
+
 	sa, err := agent.New()
 	c.Assert(err, IsNil)
 	sa.Start()
@@ -151,6 +160,8 @@ func (s *sessionAgentSuite) TestPeerCredentialsCheck(c *C) {
 	_, err = s.client.Get("http://localhost/v1/session-info")
 	// This could be an EOF error or a failed read, depending on timing
 	c.Assert(err, ErrorMatches, "Get http://localhost/v1/session-info: .*")
+	c.Check(logbuf.String(), testutil.Contains, "Blocking request from user ID")
+	logbuf.Reset()
 
 	// However, connections from root are accepted.
 	restore = agent.MockUcred(&sys.Ucred{Uid: 0}, nil)
@@ -159,10 +170,12 @@ func (s *sessionAgentSuite) TestPeerCredentialsCheck(c *C) {
 	c.Assert(err, IsNil)
 	defer response.Body.Close()
 	c.Check(response.StatusCode, Equals, 200)
+	c.Check(logbuf.String(), Equals, "")
 
 	// Connections are dropped if peer credential lookup fails.
 	restore = agent.MockUcred(nil, fmt.Errorf("SO_PEERCRED failed"))
 	defer restore()
 	_, err = s.client.Get("http://localhost/v1/session-info")
 	c.Assert(err, ErrorMatches, "Get http://localhost/v1/session-info: .*")
+	c.Check(logbuf.String(), testutil.Contains, "Failed to retrieve peer credentials: SO_PEERCRED failed")
 }
