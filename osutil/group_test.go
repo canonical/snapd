@@ -30,14 +30,26 @@ import (
 
 type findUserGroupSuite struct {
 	testutil.BaseTest
+	mockGetent *testutil.MockCmd
 }
 
 var _ = check.Suite(&findUserGroupSuite{})
+
+func (s *findUserGroupSuite) SetUpTest(c *check.C) {
+	// exit 2 is not found
+	s.mockGetent = testutil.MockCommand(c, "getent", "exit 2")
+}
+
+func (s *findUserGroupSuite) TearDownTest(c *check.C) {
+	s.mockGetent.Restore()
+}
 
 func (s *findUserGroupSuite) TestFindUid(c *check.C) {
 	uid, err := osutil.FindUid("root")
 	c.Assert(err, check.IsNil)
 	c.Assert(uid, check.Equals, uint64(0))
+	// getent shouldn't have been called with FindUid()
+	c.Check(s.mockGetent.Calls(), check.DeepEquals, [][]string(nil))
 }
 
 func (s *findUserGroupSuite) TestFindUidNonexistent(c *check.C) {
@@ -45,12 +57,46 @@ func (s *findUserGroupSuite) TestFindUidNonexistent(c *check.C) {
 	c.Assert(err, check.ErrorMatches, "user: unknown user lakatos")
 	_, ok := err.(user.UnknownUserError)
 	c.Assert(ok, check.Equals, true)
+	// getent shouldn't have been called with FindUid()
+	c.Check(s.mockGetent.Calls(), check.DeepEquals, [][]string(nil))
+}
+
+func (s *findUserGroupSuite) TestFindUidGetent(c *check.C) {
+	uid, err := osutil.FindUidGetent("root")
+	c.Assert(err, check.IsNil)
+	c.Assert(uid, check.Equals, uint64(0))
+	// getent shouldn't have been called since 'root' is in /etc/passwd
+	c.Check(s.mockGetent.Calls(), check.DeepEquals, [][]string(nil))
+}
+
+func (s *findUserGroupSuite) TestFindUidGetentNonexistent(c *check.C) {
+	_, err := osutil.FindUidGetent("lakatos")
+	c.Assert(err, check.ErrorMatches, "user: unknown user lakatos")
+	_, ok := err.(user.UnknownUserError)
+	c.Assert(ok, check.Equals, true)
+	// getent should've have been called
+	c.Check(s.mockGetent.Calls(), check.DeepEquals, [][]string{
+		{"getent", "passwd", "lakatos"},
+	})
+}
+
+func (s *findUserGroupSuite) TestFindUidGetentMocked(c *check.C) {
+	s.mockGetent = testutil.MockCommand(c, "getent", "echo lakatos:x:1234:5678:::")
+
+	uid, err := osutil.FindUidGetent("lakatos")
+	c.Assert(err, check.IsNil)
+	c.Check(uid, check.Equals, uint64(1234))
+	c.Check(s.mockGetent.Calls(), check.DeepEquals, [][]string{
+		{"getent", "passwd", "lakatos"},
+	})
 }
 
 func (s *findUserGroupSuite) TestFindGid(c *check.C) {
-	gid, err := osutil.FindGid("root")
+	uid, err := osutil.FindGid("root")
 	c.Assert(err, check.IsNil)
-	c.Assert(gid, check.Equals, uint64(0))
+	c.Assert(uid, check.Equals, uint64(0))
+	// getent shouldn't have been called with FindGid()
+	c.Check(s.mockGetent.Calls(), check.DeepEquals, [][]string(nil))
 }
 
 func (s *findUserGroupSuite) TestFindGidNonexistent(c *check.C) {
@@ -58,4 +104,36 @@ func (s *findUserGroupSuite) TestFindGidNonexistent(c *check.C) {
 	c.Assert(err, check.ErrorMatches, "group: unknown group lakatos")
 	_, ok := err.(user.UnknownGroupError)
 	c.Assert(ok, check.Equals, true)
+	// getent shouldn't have been called with FindGid()
+	c.Check(s.mockGetent.Calls(), check.DeepEquals, [][]string(nil))
+}
+
+func (s *findUserGroupSuite) TestFindGidGetent(c *check.C) {
+	uid, err := osutil.FindGidGetent("root")
+	c.Assert(err, check.IsNil)
+	c.Assert(uid, check.Equals, uint64(0))
+	// getent shouldn't have been called since 'root' is in /etc/passwd
+	c.Check(s.mockGetent.Calls(), check.DeepEquals, [][]string(nil))
+}
+
+func (s *findUserGroupSuite) TestFindGidGetentNonexistent(c *check.C) {
+	_, err := osutil.FindGidGetent("lakatos")
+	c.Assert(err, check.ErrorMatches, "group: unknown group lakatos")
+	_, ok := err.(user.UnknownGroupError)
+	c.Assert(ok, check.Equals, true)
+	// getent should've have been called
+	c.Check(s.mockGetent.Calls(), check.DeepEquals, [][]string{
+		{"getent", "group", "lakatos"},
+	})
+}
+
+func (s *findUserGroupSuite) TestFindGidGetentMocked(c *check.C) {
+	s.mockGetent = testutil.MockCommand(c, "getent", "echo lakatos:x:1234:")
+
+	uid, err := osutil.FindGidGetent("lakatos")
+	c.Assert(err, check.IsNil)
+	c.Check(uid, check.Equals, uint64(1234))
+	c.Check(s.mockGetent.Calls(), check.DeepEquals, [][]string{
+		{"getent", "group", "lakatos"},
+	})
 }
