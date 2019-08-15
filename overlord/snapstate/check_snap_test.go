@@ -936,13 +936,13 @@ var systemUsernamesTests = []struct {
 	sysIDs: "snap_daemon:\n    scope: shared",
 }, {
 	sysIDs: "snap_daemon:\n    scope: private",
-	error:  `Unsupported user scope "private" for this version of snapd`,
+	error:  `requires unsupported user scope "private" for this version of snapd`,
 }, {
 	sysIDs: "snap_daemon:\n    scope: external",
-	error:  `Unsupported user scope "external" for this version of snapd`,
+	error:  `requires unsupported user scope "external" for this version of snapd`,
 }, {
 	sysIDs: "snap_daemon:\n    scope: other",
-	error:  `Unsupported user scope "other"`,
+	error:  `requires unsupported user scope "other"`,
 }, {
 	sysIDs:  "snap_daemon: shared",
 	classic: true,
@@ -952,51 +952,51 @@ var systemUsernamesTests = []struct {
 }, {
 	sysIDs:  "snap_daemon:\n    scope: private",
 	classic: true,
-	error:   `Unsupported user scope "private" for this version of snapd`,
+	error:   `requires unsupported user scope "private" for this version of snapd`,
 }, {
 	sysIDs:  "snap_daemon:\n    scope: external",
 	classic: true,
-	error:   `Unsupported user scope "external" for this version of snapd`,
+	error:   `requires unsupported user scope "external" for this version of snapd`,
 }, {
 	sysIDs:  "snap_daemon:\n    scope: other",
 	classic: true,
-	error:   `Unsupported user scope "other"`,
+	error:   `requires unsupported user scope "other"`,
 }, {
 	sysIDs: "snap_daemon: shared\n  allowed-not: shared",
-	error:  `Unsupported system username "allowed-not"`,
+	error:  `requires unsupported system username "allowed-not"`,
 }, {
 	sysIDs:  "allowed-not: shared\n  snap_daemon: shared",
 	classic: true,
-	error:   `Unsupported system username "allowed-not"`,
+	error:   `requires unsupported system username "allowed-not"`,
 }, {
 	sysIDs:  "snap_daemon: shared",
 	noGroup: true,
-	error:   `This snap requires that both the \"snap_daemon\" system user and group are present on the system.`,
+	error:   `requires that both the \"snap_daemon\" system user and group are present on the system.`,
 }, {
 	sysIDs:  "snap_daemon: shared",
 	classic: true,
 	noGroup: true,
-	error:   `This snap requires that both the \"snap_daemon\" system user and group are present on the system.`,
+	error:   `requires that both the \"snap_daemon\" system user and group are present on the system.`,
 }, {
 	sysIDs: "snap_daemon: shared",
 	noUser: true,
-	error:  `This snap requires that both the \"snap_daemon\" system user and group are present on the system.`,
+	error:  `requires that both the \"snap_daemon\" system user and group are present on the system.`,
 }, {
 	sysIDs:  "snap_daemon: shared",
 	classic: true,
 	noUser:  true,
-	error:   `This snap requires that both the \"snap_daemon\" system user and group are present on the system.`,
+	error:   `requires that both the \"snap_daemon\" system user and group are present on the system.`,
 }, {
 	sysIDs:  "snap_daemon: shared",
 	noUser:  true,
 	noGroup: true,
-	error:   `This snap requires that both the \"snap_daemon\" system user and group are present on the system.`,
+	error:   `requires that both the \"snap_daemon\" system user and group are present on the system.`,
 }, {
 	sysIDs:  "snap_daemon: shared",
 	classic: true,
 	noUser:  true,
 	noGroup: true,
-	error:   `This snap requires that both the \"snap_daemon\" system user and group are present on the system.`,
+	error:   `requires that both the \"snap_daemon\" system user and group are present on the system.`,
 }}
 
 func (s *checkSnapSuite) TestCheckSnapSystemUsernames(c *C) {
@@ -1039,7 +1039,7 @@ func (s *checkSnapSuite) TestCheckSnapSystemUsernames(c *C) {
 		defer restore()
 		err = snapstate.CheckSnap(s.st, "snap-path", "foo", nil, nil, snapstate.Flags{}, nil)
 		if test.error != "" {
-			c.Check(err, ErrorMatches, test.error)
+			c.Check(err, ErrorMatches, `snap "foo" `+test.error)
 		} else {
 			c.Assert(err, IsNil)
 		}
