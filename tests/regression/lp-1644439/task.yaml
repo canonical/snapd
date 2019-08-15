@@ -1,5 +1,11 @@
 summary: Regression test for https://bugs.launchpad.net/snap-confine/+bug/1644439
-
+# This test fails on Ubuntu 18.04 and later because snap-confine, along all of
+# snapd is built in a distribution from the future (ubuntu 18.04 for example)
+# and the injected into a ubuntu 16.04-based chroot. This cannot work in
+# general. We discussed this in the past and we'd have to change how we do our
+# CI so that we can always build each branch against ubuntu 16.04 container and
+# only then repackage and test on a given distribution.
+systems: [ubuntu-14.04-32, ubuntu-14.04-64, ubuntu-16.04-32, ubuntu-16.04-64]
 details: |
     snap-confine uses privately-shared /run/snapd/ns to store bind-mounted
     mount namespaces of each snap. In the case that snap-confine is invoked
@@ -10,8 +16,6 @@ details: |
     another namespace in which the /run/snapd/ns directory is visible.
     The most obvious candidate is pid one, which definitely doesn't run in a
     snap-specific namespace, has a predictable PID and is long lived.
-
-manual: true  # see https://github.com/snapcore/snapd/pull/3076
 
 prepare: |
     echo "Having installed the test snap in devmode"

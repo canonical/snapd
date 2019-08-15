@@ -72,7 +72,7 @@ func updateCurrentSymlinks(info *snap.Info) (e error) {
 }
 
 func hasFontConfigCache(info *snap.Info) bool {
-	if info.InstanceName() == "core" || info.InstanceName() == "snapd" {
+	if info.GetType() == snap.TypeOS || info.GetType() == snap.TypeSnapd {
 		return true
 	}
 	return false

@@ -90,8 +90,8 @@ func (op setGetOp) fails() bool {
 
 var setGetTests = [][]setGetOp{{
 	// Basics.
-	`set n=null`,
-	`get n=null`,
+	`get foo=-`,
+	`getroot => snap "core" has no configuration`,
 	`set one=1 two=2`,
 	`set big=1234567890`,
 	`setunder three=3 big=9876543210`,
@@ -99,7 +99,6 @@ var setGetTests = [][]setGetOp{{
 	`getunder one=- two=- three=3 big=9876543210`,
 	`changes core.big core.one core.two`,
 	`commit`,
-	`get n=null`,
 	`getunder one=1 two=2 three=3`,
 	`get one=1 two=2 three=3`,
 	`set two=22 four=4 big=1234567890`,
@@ -113,6 +112,84 @@ var setGetTests = [][]setGetOp{{
 	`set doc={"one":1,"two":2}`,
 	`get doc={"one":1,"two":2}`,
 	`changes core.doc.one core.doc.two`,
+}, {
+	// Nulls via dotted path
+	`set doc={"one":1,"two":2}`,
+	`commit`,
+	`set doc.one=null`,
+	`get doc={"two":2}`,
+	`getunder doc={"one":1,"two":2}`,
+	`commit`,
+	`get doc={"two":2}`,
+	`getroot ={"doc":{"two":2}}`,
+	`getunder doc={"two":2}`, // nils are not committed to state
+}, {
+	// Nulls via dotted path, resuling in empty map
+	`set doc={"one":{"three":3},"two":2}`,
+	`set doc.one.three=null`,
+	`get doc={"one":{},"two":2}`,
+	`commit`,
+	`get doc={"one":{},"two":2}`,
+	`getunder doc={"one":{},"two":2}`, // nils are not committed to state
+}, {
+	// Nulls via dotted path in a doc
+	`set doc={"one":1,"two":2}`,
+	`set doc.three={"four":4}`,
+	`get doc={"one":1,"two":2,"three":{"four":4}}`,
+	`set doc.three={"four":null}`,
+	`get doc={"one":1,"two":2,"three":{}}`,
+	`commit`,
+	`get doc={"one":1,"two":2,"three":{}}`,
+	`getunder doc={"one":1,"two":2,"three":{}}`, // nils are not committed to state
+}, {
+	// Nulls nested in a document
+	`set doc={"one":{"three":3,"two":2}}`,
+	`changes core.doc.one.three core.doc.one.two`,
+	`set doc={"one":{"three":null,"two":2}}`,
+	`changes core.doc.one.three core.doc.one.two`,
+	`get doc={"one":{"two":2}}`,
+	`commit`,
+	`get doc={"one":{"two":2}}`,
+	`getunder doc={"one":{"two":2}}`, // nils are not committed to state
+}, {
+	// Nulls with mutating
+	`set doc={"one":{"two":2}}`,
+	`set doc.one.two=null`,
+	`set doc.one="foo"`,
+	`get doc.one="foo"`,
+	`commit`,
+	`get doc={"one":"foo"}`,
+	`getunder doc={"one":"foo"}`, // nils are not committed to state
+}, {
+	// Nulls, intermediate temporary maps get dropped
+	`set doc={"one":{"two":2}}`,
+	`commit`,
+	`set doc.one.three.four.five=null`,
+	`get doc={"one":{"two":2,"three":{"four":{}}}}`,
+	`commit`,
+	`get doc={"one":{"two":2,"three":{"four":{}}}}`,
+	`getrootunder ={"doc":{"one":{"two":2,"three":{"four":{}}}}}`, // nils are not committed to state
+}, {
+	// Nulls, same transaction, intermediate non-existing maps get dropped
+	`set doc={"one":{"two":2}}`,
+	`set doc.one.three.four.five=null`,
+	`get doc={"one":{"two":2,"three":{"four":{}}}}`,
+	`commit`,
+	`get doc={"one":{"two":2,"three":{"four":{}}}}`,
+	`getrootunder ={"doc":{"one":{"two":2,"three":{"four":{}}}}}`, // nils are not committed to state
+}, {
+	// Nulls, empty doc dropped
+	`set doc={"one":1}`,
+	`set doc.one=null`,
+	`commit`,
+	`get doc={}`,
+}, {
+	// Nulls leading to no snap configuration
+	`set doc="foo"`,
+	`set doc=null`,
+	`commit`,
+	`get doc=-`,
+	`getroot => snap "core" has no configuration`,
 }, {
 	// Root doc
 	`set doc={"one":1,"two":2}`,
@@ -297,7 +374,12 @@ func (s *transactionSuite) TestSetGet(c *C) {
 				}
 			case "getroot":
 				var obtained interface{}
-				c.Assert(t.Get(snap, "", &obtained), IsNil)
+				err := t.Get(snap, "", &obtained)
+				if op.fails() {
+					c.Assert(err, ErrorMatches, op.error())
+					continue
+				}
+				c.Assert(err, IsNil)
 				c.Assert(obtained, DeepEquals, op.args()[""])
 			case "getrootunder":
 				var config map[string]*json.RawMessage

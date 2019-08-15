@@ -218,6 +218,7 @@ func (s *ValidateSuite) TestValidateAppSocketsValidListenStreamAddresses(c *C) {
 		// socket paths using variables as prefix
 		"$SNAP_DATA/my.socket",
 		"$SNAP_COMMON/my.socket",
+		"$XDG_RUNTIME_DIR/my.socket",
 		// abstract sockets
 		"@snap.mysnap.my.socket",
 		// addresses and ports
@@ -273,7 +274,7 @@ func (s *ValidateSuite) TestValidateAppSocketsInvalidListenStreamPathPrefix(c *C
 		err := ValidateApp(app)
 		c.Assert(
 			err, ErrorMatches,
-			`invalid definition of socket "sock": invalid "listen-stream": must have a prefix of \$SNAP_DATA or \$SNAP_COMMON`)
+			`invalid definition of socket "sock": invalid "listen-stream": must have a prefix of \$SNAP_DATA, \$SNAP_COMMON or \$XDG_RUNTIME_DIR`)
 	}
 }
 
@@ -711,6 +712,8 @@ func (s *ValidateSuite) TestValidateLayout(c *C) {
 		ErrorMatches, `layout "/dev" in an off-limits area`)
 	c.Check(ValidateLayout(&Layout{Snap: si, Path: "/dev/foo", Type: "tmpfs"}, nil),
 		ErrorMatches, `layout "/dev/foo" in an off-limits area`)
+	c.Check(ValidateLayout(&Layout{Snap: si, Path: "/home", Type: "tmpfs"}, nil),
+		ErrorMatches, `layout "/home" in an off-limits area`)
 	c.Check(ValidateLayout(&Layout{Snap: si, Path: "/proc", Type: "tmpfs"}, nil),
 		ErrorMatches, `layout "/proc" in an off-limits area`)
 	c.Check(ValidateLayout(&Layout{Snap: si, Path: "/sys", Type: "tmpfs"}, nil),
@@ -733,10 +736,11 @@ func (s *ValidateSuite) TestValidateLayout(c *C) {
 		ErrorMatches, `layout "/lib/firmware" in an off-limits area`)
 	c.Check(ValidateLayout(&Layout{Snap: si, Path: "/lib/modules", Type: "tmpfs"}, nil),
 		ErrorMatches, `layout "/lib/modules" in an off-limits area`)
+	c.Check(ValidateLayout(&Layout{Snap: si, Path: "/tmp", Type: "tmpfs"}, nil),
+		ErrorMatches, `layout "/tmp" in an off-limits area`)
 
 	// Several valid layouts.
 	c.Check(ValidateLayout(&Layout{Snap: si, Path: "/foo", Type: "tmpfs", Mode: 01755}, nil), IsNil)
-	c.Check(ValidateLayout(&Layout{Snap: si, Path: "/tmp", Type: "tmpfs"}, nil), IsNil)
 	c.Check(ValidateLayout(&Layout{Snap: si, Path: "/usr", Bind: "$SNAP/usr"}, nil), IsNil)
 	c.Check(ValidateLayout(&Layout{Snap: si, Path: "/var", Bind: "$SNAP_DATA/var"}, nil), IsNil)
 	c.Check(ValidateLayout(&Layout{Snap: si, Path: "/var", Bind: "$SNAP_COMMON/var"}, nil), IsNil)
@@ -981,6 +985,21 @@ layout:
 	c.Assert(info.Layout, HasLen, 2)
 	err = ValidateLayoutAll(info)
 	c.Assert(err, IsNil)
+
+	// Layout replacing files in another snap's mount p oit
+	const yaml12 = `
+name: this-snap
+layout:
+  /snap/that-snap/current/stuff:
+    symlink: $SNAP/stuff
+`
+
+	strk = NewScopedTracker()
+	info, err = InfoFromSnapYamlWithSideInfo([]byte(yaml12), &SideInfo{Revision: R(42)}, strk)
+	c.Assert(err, IsNil)
+	c.Assert(info.Layout, HasLen, 1)
+	err = ValidateLayoutAll(info)
+	c.Assert(err, ErrorMatches, `layout "/snap/that-snap/current/stuff" defines a layout in space belonging to another snap`)
 }
 
 func (s *YamlSuite) TestValidateAppStartupOrder(c *C) {
@@ -1292,6 +1311,28 @@ base: none
 `))
 	c.Assert(err, IsNil)
 	c.Assert(Validate(info), IsNil)
+}
+
+func (s *ValidateSuite) TestValidateBaseInorrectSnapName(c *C) {
+	info, err := InfoFromSnapYaml([]byte(`name: foo
+version: 1.0
+base: aAAAA
+`))
+	c.Assert(err, IsNil)
+
+	err = Validate(info)
+	c.Check(err, ErrorMatches, `invalid base name: invalid snap name: \"aAAAA\"`)
+}
+
+func (s *ValidateSuite) TestValidateBaseSnapInstanceNameNotAllowed(c *C) {
+	info, err := InfoFromSnapYaml([]byte(`name: foo
+version: 1.0
+base: foo_abc
+`))
+	c.Assert(err, IsNil)
+
+	err = Validate(info)
+	c.Check(err, ErrorMatches, `base cannot specify a snap instance name: "foo_abc"`)
 }
 
 func (s *ValidateSuite) TestValidateBaseCannotHaveBase(c *C) {

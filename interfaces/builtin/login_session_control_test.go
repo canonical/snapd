@@ -54,7 +54,7 @@ apps:
 	s.plugInfo = consumingSnapInfo.Plugs["login-session-control"]
 	s.plug = interfaces.NewConnectedPlug(s.plugInfo, nil, nil)
 	s.slotInfo = &snap.SlotInfo{
-		Snap:      &snap.Info{SuggestedName: "core", Type: snap.TypeOS},
+		Snap:      &snap.Info{SuggestedName: "core", SnapType: snap.TypeOS},
 		Name:      "login-session-control",
 		Interface: "login-session-control",
 	}
@@ -67,13 +67,6 @@ func (s *loginSessionControlSuite) TestName(c *C) {
 
 func (s *loginSessionControlSuite) TestSanitizeSlot(c *C) {
 	c.Assert(interfaces.BeforePrepareSlot(s.iface, s.slotInfo), IsNil)
-	slot := &snap.SlotInfo{
-		Snap:      &snap.Info{SuggestedName: "some-snap"},
-		Name:      "login-session-control",
-		Interface: "login-session-control",
-	}
-	c.Assert(interfaces.BeforePrepareSlot(s.iface, slot), ErrorMatches,
-		"login-session-control slots are reserved for the core snap")
 }
 
 func (s *loginSessionControlSuite) TestSanitizePlug(c *C) {

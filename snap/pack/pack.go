@@ -183,7 +183,7 @@ func Snap(sourceDir, targetDir, snapName string) (string, error) {
 
 	snapName = snapPath(info, targetDir, snapName)
 	d := squashfs.New(snapName)
-	if err = d.Build(sourceDir, string(info.Type), excludes); err != nil {
+	if err = d.Build(sourceDir, string(info.GetType()), excludes); err != nil {
 		return "", err
 	}
 

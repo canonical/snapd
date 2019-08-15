@@ -2682,6 +2682,39 @@ func (s *storeTestSuite) TestSectionsQuery(c *C) {
 	sections, err := sto.Sections(s.ctx, s.user)
 	c.Check(err, IsNil)
 	c.Check(sections, DeepEquals, []string{"featured", "database"})
+	c.Check(n, Equals, 1)
+}
+
+func (s *storeTestSuite) TestSectionsQueryTooMany(c *C) {
+	n := 0
+	mockServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		assertRequest(c, r, "GET", sectionsPath)
+		c.Check(r.Header.Get("X-Device-Authorization"), Equals, "")
+
+		switch n {
+		case 0:
+			// All good.
+		default:
+			c.Fatalf("what? %d", n)
+		}
+
+		w.WriteHeader(429)
+		n++
+	}))
+	c.Assert(mockServer, NotNil)
+	defer mockServer.Close()
+
+	serverURL, _ := url.Parse(mockServer.URL)
+	cfg := store.Config{
+		StoreBaseURL: serverURL,
+	}
+	dauthCtx := &testDauthContext{c: c, device: s.device}
+	sto := store.New(&cfg, dauthCtx)
+
+	sections, err := sto.Sections(s.ctx, s.user)
+	c.Check(err, Equals, store.ErrTooManyRequests)
+	c.Check(sections, IsNil)
+	c.Check(n, Equals, 1)
 }
 
 func (s *storeTestSuite) TestSectionsQueryCustomStore(c *C) {
@@ -2809,6 +2842,47 @@ func (s *storeTestSuite) testSnapCommands(c *C, onClassic bool) {
 		"potato":  `[{"snap":"bar","version":"2.0"}]`,
 		"meh":     `[{"snap":"bar","version":"2.0"},{"snap":"foo","version":"1.0"}]`,
 	})
+	c.Check(n, Equals, 1)
+}
+
+func (s *storeTestSuite) TestSnapCommandsTooMany(c *C) {
+	c.Assert(os.MkdirAll(dirs.SnapCacheDir, 0755), IsNil)
+
+	n := 0
+	mockServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		c.Check(r.Header.Get("X-Device-Authorization"), Equals, "")
+
+		switch n {
+		case 0:
+			c.Check(r.URL.Path, Equals, "/api/v1/snaps/names")
+		default:
+			c.Fatalf("what? %d", n)
+		}
+
+		w.WriteHeader(429)
+		n++
+	}))
+	c.Assert(mockServer, NotNil)
+	defer mockServer.Close()
+
+	serverURL, _ := url.Parse(mockServer.URL)
+	dauthCtx := &testDauthContext{c: c, device: s.device}
+	sto := store.New(&store.Config{StoreBaseURL: serverURL}, dauthCtx)
+
+	db, err := advisor.Create()
+	c.Assert(err, IsNil)
+	defer db.Rollback()
+
+	var bufNames bytes.Buffer
+	err = sto.WriteCatalogs(s.ctx, &bufNames, db)
+	c.Assert(err, Equals, store.ErrTooManyRequests)
+	db.Commit()
+	c.Check(bufNames.String(), Equals, "")
+
+	dump, err := advisor.DumpCommands()
+	c.Assert(err, IsNil)
+	c.Check(dump, HasLen, 0)
+	c.Check(n, Equals, 1)
 }
 
 func (s *storeTestSuite) TestFind(c *C) {
@@ -5611,6 +5685,45 @@ func (s *storeTestSuite) TestSnapActionInstallAmend(c *C) {
 	c.Assert(results[0].Deltas, HasLen, 0)
 	// effective-channel
 	c.Assert(results[0].Channel, Equals, "candidate")
+}
+
+func (s *storeTestSuite) TestSnapActionWithClientUserAgent(c *C) {
+	restore := release.MockOnClassic(false)
+	defer restore()
+
+	serverCalls := 0
+	mockServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		serverCalls++
+		assertRequest(c, r, "POST", snapActionPath)
+
+		c.Check(r.Header.Get("Snap-Client-User-Agent"), Equals, "some-snap-agent/1.0")
+
+		io.WriteString(w, `{
+  "results": []
+}`)
+	}))
+
+	c.Assert(mockServer, NotNil)
+	defer mockServer.Close()
+
+	mockServerURL, _ := url.Parse(mockServer.URL)
+	cfg := store.Config{
+		StoreBaseURL: mockServerURL,
+	}
+	dauthCtx := &testDauthContext{c: c, device: s.device}
+	sto := store.New(&cfg, dauthCtx)
+
+	// to construct the client-user-agent context we need to
+	// create a req that simulates what the req that the daemon got
+	r, err := http.NewRequest("POST", "/snapd/api", nil)
+	r.Header.Set("User-Agent", "some-snap-agent/1.0")
+	c.Assert(err, IsNil)
+	ctx := store.WithClientUserAgent(s.ctx, r)
+
+	results, err := sto.SnapAction(ctx, nil, []*store.SnapAction{{Action: "install", InstanceName: "some-snap"}}, nil, nil)
+	c.Check(serverCalls, Equals, 1)
+	c.Check(results, HasLen, 0)
+	c.Check(err, DeepEquals, &store.SnapActionError{NoResults: true})
 }
 
 func (s *storeTestSuite) TestSnapActionDownloadParallelInstanceKey(c *C) {

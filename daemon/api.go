@@ -753,6 +753,7 @@ type snapInstruction struct {
 
 	// The fields below should not be unmarshalled into. Do not export them.
 	userID int
+	ctx    context.Context
 }
 
 func (inst *snapInstruction) revnoOpts() *snapstate.RevisionOptions {
@@ -949,10 +950,10 @@ func snapInstall(inst *snapInstruction, st *state.State) (string, []*state.TaskS
 	if inst.CohortKey == "" {
 		logger.Noticef("Installing snap %q revision %s", inst.Snaps[0], inst.Revision)
 	} else {
-		ckey = strutil.ElliptRight(inst.CohortKey, 10)
+		ckey = strutil.ElliptLeft(inst.CohortKey, 10)
 		logger.Noticef("Installing snap %q from cohort %q", inst.Snaps[0], ckey)
 	}
-	tset, err := snapstateInstall(st, inst.Snaps[0], inst.revnoOpts(), inst.userID, flags)
+	tset, err := snapstateInstall(inst.ctx, st, inst.Snaps[0], inst.revnoOpts(), inst.userID, flags)
 	if err != nil {
 		return "", nil, err
 	}
@@ -1098,9 +1099,9 @@ func snapSwitch(inst *snapInstruction, st *state.State) (string, []*state.TaskSe
 	case inst.CohortKey == "" && inst.Channel != "":
 		msg = fmt.Sprintf(i18n.G("Switch %q snap to channel %q"), inst.Snaps[0], inst.Channel)
 	case inst.CohortKey != "" && inst.Channel == "":
-		msg = fmt.Sprintf(i18n.G("Switch %q snap to cohort %q"), inst.Snaps[0], strutil.ElliptRight(inst.CohortKey, 10))
+		msg = fmt.Sprintf(i18n.G("Switch %q snap to cohort %q"), inst.Snaps[0], strutil.ElliptLeft(inst.CohortKey, 10))
 	default:
-		msg = fmt.Sprintf(i18n.G("Switch %q snap to channel %q and cohort %q"), inst.Snaps[0], inst.Channel, strutil.ElliptRight(inst.CohortKey, 10))
+		msg = fmt.Sprintf(i18n.G("Switch %q snap to channel %q and cohort %q"), inst.Snaps[0], inst.Channel, strutil.ElliptLeft(inst.CohortKey, 10))
 	}
 	return msg, []*state.TaskSet{ts}, nil
 }
@@ -1165,6 +1166,7 @@ func postSnap(c *Command, r *http.Request, user *auth.UserState) Response {
 	if err := decoder.Decode(&inst); err != nil {
 		return BadRequest("cannot decode request body into snap instruction: %v", err)
 	}
+	inst.ctx = r.Context()
 
 	state := c.d.overlord.State()
 	state.Lock()
@@ -2316,7 +2318,7 @@ func getLogs(c *Command, r *http.Request, user *auth.UserState) Response {
 		serviceNames[i] = appInfo.ServiceName()
 	}
 
-	sysd := systemd.New(dirs.GlobalRootDir, progress.Null)
+	sysd := systemd.New(dirs.GlobalRootDir, systemd.SystemMode, progress.Null)
 	reader, err := sysd.LogReader(serviceNames, n, follow)
 	if err != nil {
 		return InternalError("cannot get logs: %v", err)

@@ -55,7 +55,7 @@ func (iface *spiInterface) StaticInfo() interfaces.StaticInfo {
 	}
 }
 
-var spiDevPattern = regexp.MustCompile("^/dev/spidev[0-9].[0-9]+$")
+var spiDevPattern = regexp.MustCompile(`^/dev/spidev[0-9]+\.[0-9]+$`)
 
 func (iface *spiInterface) path(slotRef *interfaces.SlotRef, attrs interfaces.Attrer) (string, error) {
 	var path string
@@ -70,9 +70,6 @@ func (iface *spiInterface) path(slotRef *interfaces.SlotRef, attrs interfaces.At
 }
 
 func (iface *spiInterface) BeforePrepareSlot(slot *snap.SlotInfo) error {
-	if err := sanitizeSlotReservedForOSOrGadget(iface, slot); err != nil {
-		return err
-	}
 	_, err := iface.path(&interfaces.SlotRef{Snap: slot.Snap.InstanceName(), Name: slot.Name}, slot)
 	return err
 }

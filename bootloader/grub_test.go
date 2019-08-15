@@ -17,20 +17,37 @@
  *
  */
 
-package bootloader
+package bootloader_test
 
 import (
 	"fmt"
-	"io/ioutil"
 	"os/exec"
 	"path/filepath"
 
 	"github.com/mvo5/goconfigparser"
 	. "gopkg.in/check.v1"
 
+	"github.com/snapcore/snapd/bootloader"
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/osutil"
+	"github.com/snapcore/snapd/snap"
+	"github.com/snapcore/snapd/snap/snaptest"
 )
+
+type grubTestSuite struct {
+	baseBootenvTestSuite
+
+	bootdir string
+}
+
+var _ = Suite(&grubTestSuite{})
+
+func (s *grubTestSuite) SetUpTest(c *C) {
+	s.baseBootenvTestSuite.SetUpTest(c)
+	bootloader.MockGrubFiles(c)
+
+	s.bootdir = filepath.Join(dirs.GlobalRootDir, "boot")
+}
 
 // grubEditenvCmd finds the right grub{,2}-editenv command
 func grubEditenvCmd() string {
@@ -71,51 +88,48 @@ func grubEditenvGet(c *C, key string) string {
 	return v
 }
 
-func (s *PartitionTestSuite) makeFakeGrubEnv(c *C) {
-	g := &grub{}
-	err := ioutil.WriteFile(g.ConfigFile(), nil, 0644)
-	c.Assert(err, IsNil)
+func (s *grubTestSuite) makeFakeGrubEnv(c *C) {
 	grubEditenvSet(c, "k", "v")
 }
 
-func (s *PartitionTestSuite) TestNewGrubNoGrubReturnsNil(c *C) {
+func (s *grubTestSuite) TestNewGrubNoGrubReturnsNil(c *C) {
 	dirs.GlobalRootDir = "/something/not/there"
 
-	g := newGrub()
+	g := bootloader.NewGrub()
 	c.Assert(g, IsNil)
 }
 
-func (s *PartitionTestSuite) TestNewGrub(c *C) {
+func (s *grubTestSuite) TestNewGrub(c *C) {
 	s.makeFakeGrubEnv(c)
 
-	g := newGrub()
+	g := bootloader.NewGrub()
 	c.Assert(g, NotNil)
-	c.Assert(g, FitsTypeOf, &grub{})
+	c.Assert(g.Name(), Equals, "grub")
 }
 
-func (s *PartitionTestSuite) TestGetBootloaderWithGrub(c *C) {
+func (s *grubTestSuite) TestGetBootloaderWithGrub(c *C) {
 	s.makeFakeGrubEnv(c)
 
-	bootloader, err := Find()
+	bootloader, err := bootloader.Find()
 	c.Assert(err, IsNil)
-	c.Assert(bootloader, FitsTypeOf, &grub{})
+	c.Assert(bootloader.Name(), Equals, "grub")
 }
 
-func (s *PartitionTestSuite) TestGetBootVer(c *C) {
+func (s *grubTestSuite) TestGetBootVer(c *C) {
 	s.makeFakeGrubEnv(c)
-	grubEditenvSet(c, bootmodeVar, "regular")
+	grubEditenvSet(c, "snap_mode", "regular")
 
-	g := newGrub()
-	v, err := g.GetBootVars(bootmodeVar)
+	g := bootloader.NewGrub()
+	v, err := g.GetBootVars("snap_mode")
 	c.Assert(err, IsNil)
 	c.Check(v, HasLen, 1)
-	c.Check(v[bootmodeVar], Equals, "regular")
+	c.Check(v["snap_mode"], Equals, "regular")
 }
 
-func (s *PartitionTestSuite) TestSetBootVer(c *C) {
+func (s *grubTestSuite) TestSetBootVer(c *C) {
 	s.makeFakeGrubEnv(c)
 
-	g := newGrub()
+	g := bootloader.NewGrub()
 	err := g.SetBootVars(map[string]string{
 		"k1": "v1",
 		"k2": "v2",
@@ -124,4 +138,74 @@ func (s *PartitionTestSuite) TestSetBootVer(c *C) {
 
 	c.Check(grubEditenvGet(c, "k1"), Equals, "v1")
 	c.Check(grubEditenvGet(c, "k2"), Equals, "v2")
+}
+
+func (s *grubTestSuite) TestExtractKernelAssetsNoUnpacksKernelForGrub(c *C) {
+	s.makeFakeGrubEnv(c)
+
+	g := bootloader.NewGrub()
+
+	files := [][]string{
+		{"kernel.img", "I'm a kernel"},
+		{"initrd.img", "...and I'm an initrd"},
+		{"meta/kernel.yaml", "version: 4.2"},
+	}
+	si := &snap.SideInfo{
+		RealName: "ubuntu-kernel",
+		Revision: snap.R(42),
+	}
+	fn := snaptest.MakeTestSnapWithFiles(c, packageKernel, files)
+	snapf, err := snap.Open(fn)
+	c.Assert(err, IsNil)
+
+	info, err := snap.ReadInfoFromSnapFile(snapf, si)
+	c.Assert(err, IsNil)
+
+	err = g.ExtractKernelAssets(info, snapf)
+	c.Assert(err, IsNil)
+
+	// kernel is *not* here
+	kernimg := filepath.Join(s.bootdir, "grub", "ubuntu-kernel_42.snap", "kernel.img")
+	c.Assert(osutil.FileExists(kernimg), Equals, false)
+}
+
+func (s *grubTestSuite) TestExtractKernelForceWorks(c *C) {
+	s.makeFakeGrubEnv(c)
+
+	g := bootloader.NewGrub()
+	c.Assert(g, NotNil)
+
+	files := [][]string{
+		{"kernel.img", "I'm a kernel"},
+		{"initrd.img", "...and I'm an initrd"},
+		{"meta/force-kernel-extraction", ""},
+		{"meta/kernel.yaml", "version: 4.2"},
+	}
+	si := &snap.SideInfo{
+		RealName: "ubuntu-kernel",
+		Revision: snap.R(42),
+	}
+	fn := snaptest.MakeTestSnapWithFiles(c, packageKernel, files)
+	snapf, err := snap.Open(fn)
+	c.Assert(err, IsNil)
+
+	info, err := snap.ReadInfoFromSnapFile(snapf, si)
+	c.Assert(err, IsNil)
+
+	err = g.ExtractKernelAssets(info, snapf)
+	c.Assert(err, IsNil)
+
+	// kernel is extracted
+	kernimg := filepath.Join(s.bootdir, "grub", "ubuntu-kernel_42.snap", "kernel.img")
+	c.Assert(osutil.FileExists(kernimg), Equals, true)
+	// initrd
+	initrdimg := filepath.Join(s.bootdir, "grub", "ubuntu-kernel_42.snap", "initrd.img")
+	c.Assert(osutil.FileExists(initrdimg), Equals, true)
+
+	// ensure that removal of assets also works
+	err = g.RemoveKernelAssets(info)
+	c.Assert(err, IsNil)
+	exists, _, err := osutil.DirExists(filepath.Dir(kernimg))
+	c.Assert(err, IsNil)
+	c.Check(exists, Equals, false)
 }

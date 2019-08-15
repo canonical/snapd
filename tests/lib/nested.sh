@@ -39,6 +39,7 @@ prepare_ssh(){
 }
 
 create_assertions_disk(){
+    mkdir -p "$WORK_DIR"
     dd if=/dev/null of="$WORK_DIR/assertions.disk" bs=1M seek=1
     mkfs.ext4 -F "$WORK_DIR/assertions.disk"
     debugfs -w -R "write $TESTSLIB/assertions/auto-import.assert auto-import.assert" "$WORK_DIR/assertions.disk"

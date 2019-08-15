@@ -153,6 +153,58 @@ func (s *setSuite) TestSetConfigOptionWithColon(c *C) {
 	c.Check(value, Equals, "192.168.0.1:5555")
 }
 
+func (s *setSuite) TestUnsetConfigOptionWithInitialConfiguration(c *C) {
+	// Setup an initial configuration
+	s.mockContext.State().Lock()
+	tr := config.NewTransaction(s.mockContext.State())
+	tr.Set("test-snap", "test-key1", "test-value1")
+	tr.Set("test-snap", "test-key2", "test-value2")
+	tr.Set("test-snap", "test-key3.foo", "foo-value")
+	tr.Set("test-snap", "test-key3.bar", "bar-value")
+	tr.Commit()
+	s.mockContext.State().Unlock()
+
+	stdout, stderr, err := ctlcmd.Run(s.mockContext, []string{"set", "test-key1!", "test-key3.foo!"}, 0)
+	c.Check(err, IsNil)
+	c.Check(string(stdout), Equals, "")
+	c.Check(string(stderr), Equals, "")
+
+	// Notify the context that we're done. This should save the config.
+	s.mockContext.Lock()
+	defer s.mockContext.Unlock()
+	c.Check(s.mockContext.Done(), IsNil)
+
+	// Verify that the global config has been updated.
+	var value string
+	tr = config.NewTransaction(s.mockContext.State())
+	c.Check(tr.Get("test-snap", "test-key2", &value), IsNil)
+	c.Check(value, Equals, "test-value2")
+	c.Check(tr.Get("test-snap", "test-key1", &value), ErrorMatches, `snap "test-snap" has no "test-key1" configuration option`)
+	var value2 interface{}
+	c.Check(tr.Get("test-snap", "test-key3", &value2), IsNil)
+	c.Check(value2, DeepEquals, map[string]interface{}{"bar": "bar-value"})
+}
+
+func (s *setSuite) TestUnsetConfigOptionWithNoInitialConfiguration(c *C) {
+	stdout, stderr, err := ctlcmd.Run(s.mockContext, []string{"set", "test-key.key1=value1", "test-key.key2=value2", "test-key.key1!"}, 0)
+	c.Check(err, IsNil)
+	c.Check(string(stdout), Equals, "")
+	c.Check(string(stderr), Equals, "")
+
+	// Notify the context that we're done. This should save the config.
+	s.mockContext.Lock()
+	defer s.mockContext.Unlock()
+	c.Check(s.mockContext.Done(), IsNil)
+
+	// Verify that the global config has been updated.
+	var value interface{}
+	tr := config.NewTransaction(s.mockContext.State())
+	c.Check(tr.Get("test-snap", "test-key.key2", &value), IsNil)
+	c.Check(value, DeepEquals, "value2")
+	c.Check(tr.Get("test-snap", "test-key.key1", &value), ErrorMatches, `snap "test-snap" has no "test-key.key1" configuration option`)
+	c.Check(value, DeepEquals, "value2")
+}
+
 func (s *setSuite) TestSetNumbers(c *C) {
 	stdout, stderr, err := ctlcmd.Run(s.mockContext, []string{"set", "foo=1234567890", "bar=123456.7890"}, 0)
 	c.Check(err, IsNil)

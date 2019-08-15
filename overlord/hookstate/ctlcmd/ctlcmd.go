@@ -79,16 +79,19 @@ type commandInfo struct {
 	shortHelp string
 	longHelp  string
 	generator func() command
+	hidden    bool
 }
 
 var commands = make(map[string]*commandInfo)
 
-func addCommand(name, shortHelp, longHelp string, generator func() command) {
-	commands[name] = &commandInfo{
+func addCommand(name, shortHelp, longHelp string, generator func() command) *commandInfo {
+	cmd := &commandInfo{
 		shortHelp: shortHelp,
 		longHelp:  longHelp,
 		generator: generator,
 	}
+	commands[name] = cmd
+	return cmd
 }
 
 // ForbiddenCommandError conveys that a command cannot be invoked in some context
@@ -121,7 +124,7 @@ func Run(context *hookstate.Context, args []string, uid uint32) (stdout, stderr 
 		var data interface{}
 		// commands listed here will be allowed for regular users
 		// note: commands still need valid context and snaps can only access own config.
-		if uid == 0 || name == "get" || name == "services" {
+		if uid == 0 || name == "get" || name == "services" || name == "set-health" {
 			cmd := cmdInfo.generator()
 			cmd.setStdout(&stdoutBuffer)
 			cmd.setStderr(&stderrBuffer)
@@ -130,7 +133,8 @@ func Run(context *hookstate.Context, args []string, uid uint32) (stdout, stderr 
 		} else {
 			data = &ForbiddenCommand{Uid: uid, Name: name}
 		}
-		_, err = parser.AddCommand(name, cmdInfo.shortHelp, cmdInfo.longHelp, data)
+		theCmd, err := parser.AddCommand(name, cmdInfo.shortHelp, cmdInfo.longHelp, data)
+		theCmd.Hidden = cmdInfo.hidden
 		if err != nil {
 			logger.Panicf("cannot add command %q: %s", name, err)
 		}

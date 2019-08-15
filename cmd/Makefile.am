@@ -59,12 +59,15 @@ new_format = \
 	 libsnap-confine-private/cgroup-pids-support.h \
 	 libsnap-confine-private/cgroup-support.c \
 	 libsnap-confine-private/cgroup-support.h \
+	 libsnap-confine-private/infofile-test.c \
+	 libsnap-confine-private/infofile.c \
+	 libsnap-confine-private/infofile.h \
 	 snap-confine/seccomp-support-ext.c \
 	 snap-confine/seccomp-support-ext.h \
-	 snap-confine/snap-confine-invocation.c \
-	 snap-confine/snap-confine-invocation.h \
 	 snap-confine/selinux-support.c \
 	 snap-confine/selinux-support.h \
+	 snap-confine/snap-confine-invocation.c \
+	 snap-confine/snap-confine-invocation.h \
 	 snap-discard-ns/snap-discard-ns.c
 
 # NOTE: clang-format is using project-wide .clang-format file.
@@ -90,9 +93,9 @@ hack: snap-confine/snap-confine-debug snap-confine/snap-confine.apparmor snap-up
 
 # for the hack target also:
 snap-update-ns/snap-update-ns: snap-update-ns/*.go snap-update-ns/*.[ch]
-	cd snap-update-ns && GOPATH=$(or $(GOPATH),$(realpath $(srcdir)/../../../../..)) go build -i -v
+	cd snap-update-ns && GOPATH=$(or $(GOPATH),$(realpath $(srcdir)/../../../../..)) go build -v
 snap-seccomp/snap-seccomp: snap-seccomp/*.go
-	cd snap-seccomp && GOPATH=$(or $(GOPATH),$(realpath $(srcdir)/../../../../..)) go build -i -v
+	cd snap-seccomp && GOPATH=$(or $(GOPATH),$(realpath $(srcdir)/../../../../..)) go build -v
 
 ##
 ## libsnap-confine-private.a
@@ -119,6 +122,7 @@ libsnap_confine_private_a_SOURCES = \
 	libsnap-confine-private/fault-injection.h \
 	libsnap-confine-private/feature.c \
 	libsnap-confine-private/feature.h \
+	libsnap-confine-private/infofile.c \
 	libsnap-confine-private/locking.c \
 	libsnap-confine-private/locking.h \
 	libsnap-confine-private/mount-opt.c \
@@ -151,6 +155,7 @@ libsnap_confine_private_unit_tests_SOURCES = \
 	libsnap-confine-private/error-test.c \
 	libsnap-confine-private/fault-injection-test.c \
 	libsnap-confine-private/feature-test.c \
+	libsnap-confine-private/infofile-test.c \
 	libsnap-confine-private/locking-test.c \
 	libsnap-confine-private/mount-opt-test.c \
 	libsnap-confine-private/mountinfo-test.c \

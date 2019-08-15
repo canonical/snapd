@@ -61,7 +61,7 @@ func (s *InfoSnapYamlTestSuite) TestSimple(c *C) {
 	c.Assert(err, IsNil)
 	c.Assert(info.InstanceName(), Equals, "foo")
 	c.Assert(info.Version, Equals, "1.0")
-	c.Assert(info.Type, Equals, snap.TypeApp)
+	c.Assert(info.GetType(), Equals, snap.TypeApp)
 	c.Assert(info.Epoch, DeepEquals, snap.E("0"))
 }
 
@@ -71,7 +71,7 @@ version: 1.0`))
 	c.Assert(err, IsNil)
 	c.Assert(info.InstanceName(), Equals, "snapd")
 	c.Assert(info.Version, Equals, "1.0")
-	c.Assert(info.Type, Equals, snap.TypeSnapd)
+	c.Assert(info.GetType(), Equals, snap.TypeSnapd)
 }
 
 func (s *InfoSnapYamlTestSuite) TestFail(c *C) {
@@ -1203,7 +1203,7 @@ slots:
 	c.Assert(err, IsNil)
 	c.Check(info.InstanceName(), Equals, "foo")
 	c.Check(info.Version, Equals, "1.2")
-	c.Check(info.Type, Equals, snap.TypeApp)
+	c.Check(info.GetType(), Equals, snap.TypeApp)
 	c.Check(info.Epoch, DeepEquals, snap.E("1*"))
 	c.Check(info.Confinement, Equals, snap.DevModeConfinement)
 	c.Check(info.Title(), Equals, "Foo")
@@ -1336,7 +1336,7 @@ version: 1.0
 `)
 	info, err := snap.InfoFromSnapYaml(y)
 	c.Assert(err, IsNil)
-	c.Assert(info.Type, Equals, snap.TypeApp)
+	c.Assert(info.GetType(), Equals, snap.TypeApp)
 }
 
 func (s *YamlSuite) TestSnapYamlEpochDefault(c *C) {

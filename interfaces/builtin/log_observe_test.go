@@ -51,7 +51,7 @@ apps:
   plugs: [log-observe]
 `
 	s.slotInfo = &snap.SlotInfo{
-		Snap:      &snap.Info{SuggestedName: "core", Type: snap.TypeOS},
+		Snap:      &snap.Info{SuggestedName: "core", SnapType: snap.TypeOS},
 		Name:      "log-observe",
 		Interface: "log-observe",
 	}
@@ -67,13 +67,6 @@ func (s *LogObserveInterfaceSuite) TestName(c *C) {
 
 func (s *LogObserveInterfaceSuite) TestSanitizeSlot(c *C) {
 	c.Assert(interfaces.BeforePrepareSlot(s.iface, s.slotInfo), IsNil)
-	slot := &snap.SlotInfo{
-		Snap:      &snap.Info{SuggestedName: "some-snap"},
-		Name:      "log-observe",
-		Interface: "log-observe",
-	}
-	c.Assert(interfaces.BeforePrepareSlot(s.iface, slot), ErrorMatches,
-		"log-observe slots are reserved for the core snap")
 }
 
 func (s *LogObserveInterfaceSuite) TestSanitizePlug(c *C) {

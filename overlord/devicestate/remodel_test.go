@@ -20,6 +20,8 @@
 package devicestate_test
 
 import (
+	"time"
+
 	. "gopkg.in/check.v1"
 
 	"github.com/snapcore/snapd/asserts"
@@ -252,7 +254,8 @@ func (s *remodelLogicSuite) TestRemodelDeviceBackendNoChangeYet(c *C) {
 	remodCtx, err := devicestate.RemodelCtx(s.state, oldModel, newModel)
 	c.Assert(err, IsNil)
 
-	devBE := devicestate.RemodelDeviceBackend(remodCtx)
+	devBE := s.capturedDevBE
+	c.Check(devBE, NotNil)
 
 	device, err := devBE.Device()
 	c.Assert(err, IsNil)
@@ -312,11 +315,11 @@ func (s *remodelLogicSuite) TestRemodelDeviceBackend(c *C) {
 	remodCtx, err := devicestate.RemodelCtx(s.state, oldModel, newModel)
 	c.Assert(err, IsNil)
 
+	devBE := devicestate.RemodelDeviceBackend(remodCtx)
+
 	chg := s.state.NewChange("remodel", "...")
 
 	remodCtx.Init(chg)
-
-	devBE := devicestate.RemodelDeviceBackend(remodCtx)
 
 	device, err := devBE.Device()
 	c.Assert(err, IsNil)
@@ -562,27 +565,24 @@ func (s *remodelLogicSuite) TestNewStoreRemodelContextFinishVsGlobalUpdateDevice
 	c.Check(device1, DeepEquals, expectedGlobalDevice)
 }
 
-func (s *remodelLogicSuite) TestRemodelDeviceBackendSerial(c *C) {
+func (s *remodelLogicSuite) TestRemodelDeviceBackendKeptSerial(c *C) {
 	oldModel := fakeRemodelingModel(nil)
 	newModel := fakeRemodelingModel(map[string]interface{}{
 		"store":    "my-other-store",
 		"revision": "1",
 	})
 
-	// the logic is shared and correct also for re-reg
-	// XXX (this is really the re-reg case)
-
 	s.state.Lock()
 	defer s.state.Unlock()
 
 	// we have a device state and serial
 	devicestatetest.SetDevice(s.state, &auth.DeviceState{
-		Brand:  "canonical",
-		Model:  "base-model",
+		Brand:  "my-brand",
+		Model:  "my-model",
 		Serial: "serialserialserial1",
 	})
 
-	makeSerialAssertionInState(c, s.brands, s.state, "canonical", "base-model", "serialserialserial1")
+	makeSerialAssertionInState(c, s.brands, s.state, "my-brand", "my-model", "serialserialserial1")
 
 	serial, err := s.mgr.Serial()
 	c.Assert(err, IsNil)
@@ -604,43 +604,6 @@ func (s *remodelLogicSuite) TestRemodelDeviceBackendSerial(c *C) {
 	serial0, err = devBE.Serial()
 	c.Assert(err, IsNil)
 	c.Check(serial0.Serial(), Equals, "serialserialserial1")
-
-	err = devBE.SetDevice(&auth.DeviceState{
-		Brand: "canonical",
-		Model: "other-model",
-	})
-	c.Assert(err, IsNil)
-
-	// lookup the serial, nothing there
-	_, err = devBE.Serial()
-	c.Check(err, Equals, state.ErrNoState)
-
-	makeSerialAssertionInState(c, s.brands, s.state, "canonical", "other-model", "serialserialserial2")
-
-	// same
-	_, err = devBE.Serial()
-	c.Check(err, Equals, state.ErrNoState)
-
-	err = devBE.SetDevice(&auth.DeviceState{
-		Brand:  "canonical",
-		Model:  "other-model",
-		Serial: "serialserialserial2",
-	})
-	c.Assert(err, IsNil)
-
-	serial, err = devBE.Serial()
-	c.Check(err, IsNil)
-	c.Check(serial.Model(), Equals, "other-model")
-	c.Check(serial.Serial(), Equals, "serialserialserial2")
-
-	// finish
-	// XXX test separately
-	err = remodCtx.Finish()
-	c.Assert(err, IsNil)
-
-	serial, err = s.mgr.Serial()
-	c.Assert(err, IsNil)
-	c.Check(serial.Model(), Equals, "other-model")
 }
 
 func (s *remodelLogicSuite) TestRemodelContextForTaskAndCaching(c *C) {
@@ -673,8 +636,8 @@ func (s *remodelLogicSuite) TestRemodelContextForTaskAndCaching(c *C) {
 	t := s.state.NewTask("remodel-task-1", "...")
 	chg.AddTask(t)
 
-	// caching
-	remodCtx1, err := devicestate.RemodelCtxFromTask(t)
+	// caching, internally this use remodelCtxFromTask
+	remodCtx1, err := devicestate.DeviceCtx(s.state, t, nil)
 	c.Assert(err, IsNil)
 	c.Check(remodCtx1, Equals, remodCtx)
 
@@ -682,7 +645,7 @@ func (s *remodelLogicSuite) TestRemodelContextForTaskAndCaching(c *C) {
 	// compute a new one
 	devicestate.CleanupRemodelCtx(chg)
 
-	remodCtx2, err := devicestate.RemodelCtxFromTask(t)
+	remodCtx2, err := devicestate.DeviceCtx(s.state, t, nil)
 	c.Assert(err, IsNil)
 	c.Check(remodCtx2 != remodCtx, Equals, true)
 	c.Check(remodCtx2.Model(), DeepEquals, newModel)
@@ -692,19 +655,230 @@ func (s *remodelLogicSuite) TestRemodelContextForTaskNo(c *C) {
 	s.state.Lock()
 	defer s.state.Unlock()
 
+	// internally these use remodelCtxFromTask
+
 	// task is nil
-	remodCtx1, err := devicestate.RemodelCtxFromTask(nil)
+	remodCtx1, err := devicestate.DeviceCtx(s.state, nil, nil)
 	c.Check(err, Equals, state.ErrNoState)
 	c.Check(remodCtx1, IsNil)
 
 	// no change
 	t := s.state.NewTask("random-task", "...")
-	_, err = devicestate.RemodelCtxFromTask(t)
+	_, err = devicestate.DeviceCtx(s.state, t, nil)
 	c.Check(err, Equals, state.ErrNoState)
 
 	// not a remodel change
 	chg := s.state.NewChange("not-remodel", "...")
 	chg.AddTask(t)
-	_, err = devicestate.RemodelCtxFromTask(t)
+	_, err = devicestate.DeviceCtx(s.state, t, nil)
 	c.Check(err, Equals, state.ErrNoState)
+}
+
+func (s *remodelLogicSuite) setupForRereg(c *C) (oldModel, newModel *asserts.Model) {
+	oldModel = s.brands.Model("my-brand", "my-model", modelDefaults)
+	newModel = s.brands.Model("my-brand", "my-model", modelDefaults, map[string]interface{}{
+		"authority-id": "other-brand",
+		"brand-id":     "other-brand",
+		"model":        "other-model",
+		"store":        "other-store",
+	})
+
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	encDevKey, err := asserts.EncodePublicKey(devKey.PublicKey())
+	c.Assert(err, IsNil)
+	serial, err := s.brands.Signing("my-brand").Sign(asserts.SerialType, map[string]interface{}{
+		"authority-id":        "my-brand",
+		"brand-id":            "my-brand",
+		"model":               "my-model",
+		"serial":              "orig-serial",
+		"device-key":          string(encDevKey),
+		"device-key-sha3-384": devKey.PublicKey().ID(),
+		"timestamp":           time.Now().Format(time.RFC3339),
+	}, nil, "")
+	c.Assert(err, IsNil)
+
+	assertstatetest.AddMany(s.state, oldModel, serial)
+
+	return oldModel, newModel
+}
+
+func (s *remodelLogicSuite) TestReregRemodelContextInit(c *C) {
+	oldModel, newModel := s.setupForRereg(c)
+
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	// we have a device state
+	devicestatetest.SetDevice(s.state, &auth.DeviceState{
+		Brand:           "my-brand",
+		Model:           "my-model",
+		Serial:          "orig-serial",
+		KeyID:           "device-key-id",
+		SessionMacaroon: "prev-session",
+	})
+
+	remodCtx, err := devicestate.RemodelCtx(s.state, oldModel, newModel)
+	c.Assert(err, IsNil)
+
+	c.Check(remodCtx.ForRemodeling(), Equals, true)
+	c.Check(remodCtx.Kind(), Equals, devicestate.ReregRemodel)
+
+	chg := s.state.NewChange("remodel", "...")
+
+	remodCtx.Init(chg)
+
+	var encNewModel string
+	c.Assert(chg.Get("new-model", &encNewModel), IsNil)
+
+	c.Check(encNewModel, Equals, string(asserts.Encode(newModel)))
+
+	var device *auth.DeviceState
+	c.Assert(chg.Get("device", &device), IsNil)
+	// fresh device state before registration but with device-key
+	c.Check(device, DeepEquals, &auth.DeviceState{
+		Brand: "other-brand",
+		Model: "other-model",
+		KeyID: "device-key-id",
+	})
+
+	c.Check(remodCtx.Model(), DeepEquals, newModel)
+
+	// caching
+	t := s.state.NewTask("remodel-task-1", "...")
+	chg.AddTask(t)
+
+	remodCtx1, err := devicestate.DeviceCtx(s.state, t, nil)
+	c.Assert(err, IsNil)
+	c.Check(remodCtx1, Equals, remodCtx)
+}
+
+func (s *remodelLogicSuite) TestReregRemodelContextAsRegistrationContext(c *C) {
+	oldModel, newModel := s.setupForRereg(c)
+
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	// we have a device state
+	devicestatetest.SetDevice(s.state, &auth.DeviceState{
+		Brand:           "my-brand",
+		Model:           "my-model",
+		Serial:          "orig-serial",
+		KeyID:           "device-key-id",
+		SessionMacaroon: "prev-session",
+	})
+
+	remodCtx, err := devicestate.RemodelCtx(s.state, oldModel, newModel)
+	c.Assert(err, IsNil)
+
+	c.Check(remodCtx.Kind(), Equals, devicestate.ReregRemodel)
+
+	chg := s.state.NewChange("remodel", "...")
+
+	remodCtx.Init(chg)
+
+	regCtx := remodCtx.(devicestate.RegistrationContext)
+
+	c.Check(regCtx.ForRemodeling(), Equals, true)
+	device1, err := regCtx.Device()
+	c.Assert(err, IsNil)
+	// fresh device state before registration but with device-key
+	c.Check(device1, DeepEquals, &auth.DeviceState{
+		Brand: "other-brand",
+		Model: "other-model",
+		KeyID: "device-key-id",
+	})
+	c.Check(regCtx.GadgetForSerialRequestConfig(), Equals, "my-brand-gadget")
+	c.Check(regCtx.SerialRequestExtraHeaders(), DeepEquals, map[string]interface{}{
+		"original-brand-id": "my-brand",
+		"original-model":    "my-model",
+		"original-serial":   "orig-serial",
+	})
+
+	serial, err := s.mgr.Serial()
+	c.Assert(err, IsNil)
+	c.Check(regCtx.SerialRequestAncillaryAssertions(), DeepEquals, []asserts.Assertion{newModel, serial})
+}
+
+func (s *remodelLogicSuite) TestReregRemodelContextNewSerial(c *C) {
+	// re-registration case
+	oldModel := s.brands.Model("my-brand", "my-model", modelDefaults)
+	newModel := fakeRemodelingModel(map[string]interface{}{
+		"model": "other-model",
+	})
+
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	assertstatetest.AddMany(s.state, oldModel)
+
+	// we have a device state and serial
+	devicestatetest.SetDevice(s.state, &auth.DeviceState{
+		Brand:  "my-brand",
+		Model:  "my-model",
+		Serial: "serialserialserial1",
+	})
+
+	makeSerialAssertionInState(c, s.brands, s.state, "my-brand", "my-model", "serialserialserial1")
+
+	serial, err := s.mgr.Serial()
+	c.Assert(err, IsNil)
+	c.Check(serial.Serial(), Equals, "serialserialserial1")
+
+	remodCtx, err := devicestate.RemodelCtx(s.state, oldModel, newModel)
+	c.Assert(err, IsNil)
+
+	devBE := devicestate.RemodelDeviceBackend(remodCtx)
+
+	// no new serial yet
+	_, err = devBE.Serial()
+	c.Assert(err, Equals, state.ErrNoState)
+
+	chg := s.state.NewChange("remodel", "...")
+
+	remodCtx.Init(chg)
+
+	// sanity check
+	device1, err := devBE.Device()
+	c.Assert(err, IsNil)
+	c.Check(device1, DeepEquals, &auth.DeviceState{
+		Brand: "my-brand",
+		Model: "other-model",
+	})
+
+	// still no new serial
+	_, err = devBE.Serial()
+	c.Assert(err, Equals, state.ErrNoState)
+
+	newSerial := makeSerialAssertionInState(c, s.brands, s.state, "my-brand", "other-model", "serialserialserial2")
+
+	// same
+	_, err = devBE.Serial()
+	c.Check(err, Equals, state.ErrNoState)
+
+	// finish registration
+	regCtx := remodCtx.(devicestate.RegistrationContext)
+	err = regCtx.FinishRegistration(newSerial)
+	c.Assert(err, IsNil)
+
+	serial, err = devBE.Serial()
+	c.Check(err, IsNil)
+	c.Check(serial.Model(), Equals, "other-model")
+	c.Check(serial.Serial(), Equals, "serialserialserial2")
+
+	// not exposed yet
+	serial, err = s.mgr.Serial()
+	c.Assert(err, IsNil)
+	c.Check(serial.Model(), Equals, "my-model")
+	c.Check(serial.Serial(), Equals, "serialserialserial1")
+
+	// finish
+	err = remodCtx.Finish()
+	c.Assert(err, IsNil)
+
+	serial, err = s.mgr.Serial()
+	c.Assert(err, IsNil)
+	c.Check(serial.Model(), Equals, "other-model")
+	c.Check(serial.Serial(), Equals, "serialserialserial2")
 }

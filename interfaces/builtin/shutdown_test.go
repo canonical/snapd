@@ -54,7 +54,7 @@ apps:
 	s.plugInfo = consumingSnapInfo.Plugs["shutdown"]
 	s.plug = interfaces.NewConnectedPlug(s.plugInfo, nil, nil)
 	s.slotInfo = &snap.SlotInfo{
-		Snap:      &snap.Info{SuggestedName: "core", Type: snap.TypeOS},
+		Snap:      &snap.Info{SuggestedName: "core", SnapType: snap.TypeOS},
 		Name:      "shutdown",
 		Interface: "shutdown",
 	}
@@ -67,12 +67,6 @@ func (s *ShutdownInterfaceSuite) TestName(c *C) {
 
 func (s *ShutdownInterfaceSuite) TestSanitizeSlot(c *C) {
 	c.Assert(interfaces.BeforePrepareSlot(s.iface, s.slotInfo), IsNil)
-	slot := &snap.SlotInfo{
-		Snap:      &snap.Info{SuggestedName: "some-snap"},
-		Name:      "shutdown",
-		Interface: "shutdown",
-	}
-	c.Assert(interfaces.BeforePrepareSlot(s.iface, slot), ErrorMatches, "shutdown slots are reserved for the core snap")
 }
 
 func (s *ShutdownInterfaceSuite) TestSanitizePlug(c *C) {

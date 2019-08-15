@@ -23,6 +23,7 @@ import (
 	"context"
 	"io"
 	"os/exec"
+	"sync"
 	"sync/atomic"
 	"syscall"
 )
@@ -58,7 +59,10 @@ func RunWithContext(ctx context.Context, cmd *exec.Cmd) error {
 	}
 
 	var ctxDone uint32
+	var wg sync.WaitGroup
 	waitDone := make(chan struct{})
+
+	wg.Add(1)
 	go func() {
 		select {
 		case <-ctx.Done():
@@ -66,10 +70,13 @@ func RunWithContext(ctx context.Context, cmd *exec.Cmd) error {
 			cmd.Process.Kill()
 		case <-waitDone:
 		}
+		wg.Done()
 	}()
 
 	err := cmd.Wait()
 	close(waitDone)
+	wg.Wait()
+
 	if atomic.LoadUint32(&ctxDone) != 0 {
 		// do one last check to make sure the error from Wait is what we expect from Kill
 		if err, ok := err.(*exec.ExitError); ok {

@@ -4,9 +4,9 @@ git:
 jobs:
   include:
     - stage: quick
-      name: go 1.10/xenial static and unit test suites
+      name: go 1.9/xenial static and unit test suites
       dist: xenial
-      go: "1.10.x"
+      go: "1.9.x"
       before_install:
         - sudo apt --quiet -o Dpkg::Progress-Fancy=false update
       install:

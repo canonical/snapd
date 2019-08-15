@@ -66,14 +66,6 @@ func (s *ScreencastLegacyInterfaceSuite) TestName(c *C) {
 
 func (s *ScreencastLegacyInterfaceSuite) TestSanitizeSlot(c *C) {
 	c.Assert(interfaces.BeforePrepareSlot(s.iface, s.coreSlotInfo), IsNil)
-	// screencast-legacy slot currently only used with core
-	slot := &snap.SlotInfo{
-		Snap:      &snap.Info{SuggestedName: "some-snap"},
-		Name:      "screencast-legacy",
-		Interface: "screencast-legacy",
-	}
-	c.Assert(interfaces.BeforePrepareSlot(s.iface, slot), ErrorMatches,
-		"screencast-legacy slots are reserved for the core snap")
 }
 
 func (s *ScreencastLegacyInterfaceSuite) TestSanitizePlug(c *C) {
