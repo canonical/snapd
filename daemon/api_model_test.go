@@ -23,11 +23,14 @@ import (
 	"bytes"
 	"encoding/json"
 	"net/http"
+	"time"
 
 	"gopkg.in/check.v1"
 
 	"github.com/snapcore/snapd/asserts"
+	"github.com/snapcore/snapd/asserts/assertstest"
 	"github.com/snapcore/snapd/overlord/assertstate/assertstatetest"
+	"github.com/snapcore/snapd/overlord/auth"
 	"github.com/snapcore/snapd/overlord/devicestate"
 	"github.com/snapcore/snapd/overlord/hookstate"
 	"github.com/snapcore/snapd/overlord/state"
@@ -162,4 +165,84 @@ func (s *apiSuite) TestGetModelHasModelAssertion(c *check.C) {
 	arch := assert.Header("architecture")
 	c.Assert(arch, check.FitsTypeOf, "")
 	c.Assert(arch.(string), check.Equals, modelDefaults["architecture"])
+}
+
+func (s *apiSuite) TestGetModelNoSerialAssertion(c *check.C) {
+
+	d := s.daemonWithOverlordMock(c)
+	hookMgr, err := hookstate.Manager(d.overlord.State(), d.overlord.TaskRunner())
+	c.Assert(err, check.IsNil)
+	deviceMgr, err := devicestate.Manager(d.overlord.State(), hookMgr, d.overlord.TaskRunner(), nil)
+	c.Assert(err, check.IsNil)
+	d.overlord.AddManager(deviceMgr)
+
+	req, err := http.NewRequest("GET", "/v2/model/serial", nil)
+	response := getSerial(appsCmd, req, nil)
+	c.Assert(response, check.FitsTypeOf, &resp{})
+	rsp := response.(*resp)
+	c.Assert(rsp.Status, check.Equals, 404)
+	c.Assert(rsp.Result, check.FitsTypeOf, &errorResult{})
+	errRes := rsp.Result.(*errorResult)
+	c.Assert(errRes.Kind, check.Equals, errorKindAssertionsNotFound)
+	c.Assert(errRes.Value, check.Equals, "serial")
+	c.Assert(errRes.Message, check.Equals, "no serial assertion yet")
+}
+
+func (s *apiSuite) TestGetModelHasSerialAssertion(c *check.C) {
+	// make a model assertion
+	theModel := s.brands.Model("my-brand", "my-old-model", modelDefaults)
+
+	deviceKey, _ := assertstest.GenerateKey(752)
+
+	encDevKey, err := asserts.EncodePublicKey(deviceKey.PublicKey())
+	c.Assert(err, check.IsNil)
+
+	// model assertion setup
+	d := s.daemonWithOverlordMock(c)
+	hookMgr, err := hookstate.Manager(d.overlord.State(), d.overlord.TaskRunner())
+	c.Assert(err, check.IsNil)
+	deviceMgr, err := devicestate.Manager(d.overlord.State(), hookMgr, d.overlord.TaskRunner(), nil)
+	c.Assert(err, check.IsNil)
+	d.overlord.AddManager(deviceMgr)
+	st := d.overlord.State()
+	st.Lock()
+	assertstatetest.AddMany(st, s.storeSigning.StoreAccountKey(""))
+	assertstatetest.AddMany(st, s.brands.AccountsAndKeys("my-brand")...)
+	s.mockModel(c, st, theModel)
+
+	// in case the name of the serial ever changes, just get it state in State
+	// currently it's hard-coded to always be serialserial
+	var authStateData auth.AuthState
+	err = st.Get("auth", &authStateData)
+	serial, err := s.brands.Signing("my-brand").Sign(asserts.SerialType, map[string]interface{}{
+		"authority-id":        "my-brand",
+		"brand-id":            "my-brand",
+		"model":               "my-old-model",
+		"serial":              authStateData.Device.Serial,
+		"device-key":          string(encDevKey),
+		"device-key-sha3-384": deviceKey.PublicKey().ID(),
+		"timestamp":           time.Now().Format(time.RFC3339),
+	}, nil, "")
+	c.Assert(err, check.IsNil)
+	assertstatetest.AddMany(st, serial)
+
+	st.Unlock()
+
+	// make a new get request to the serial endpoint
+	req, err := http.NewRequest("GET", "/v2/model/serial", nil)
+	response := getSerial(appsCmd, req, nil)
+
+	// check that we get an assertion response
+	c.Assert(response, check.FitsTypeOf, &assertResponse{})
+
+	// check that there is only one assertion
+	assertions := response.(*assertResponse).assertions
+	c.Assert(assertions, check.HasLen, 1)
+
+	// check that the device key in the returned assertion matches what we
+	// created above
+	assert := assertions[0]
+	devKey := assert.Header("device-key")
+	c.Assert(devKey, check.FitsTypeOf, "")
+	c.Assert(devKey.(string), check.Equals, string(encDevKey))
 }
