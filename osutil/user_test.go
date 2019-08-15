@@ -284,8 +284,8 @@ func (s *createUserSuite) TestIsValidUsername(c *check.C) {
 	}
 }
 
-func (s *createUserSuite) TestUserGroupAddExtraUsersFalse(c *check.C) {
-	err := osutil.UserGroupAdd("lakatos", 123456, false)
+func (s *createUserSuite) TestEnsureUserGroupExtraUsersFalse(c *check.C) {
+	err := osutil.EnsureUserGroup("lakatos", 123456, false)
 	c.Assert(err, check.IsNil)
 
 	c.Check(s.mockGroupAdd.Calls(), check.DeepEquals, [][]string{
@@ -296,8 +296,8 @@ func (s *createUserSuite) TestUserGroupAddExtraUsersFalse(c *check.C) {
 	})
 }
 
-func (s *createUserSuite) TestUserGroupAddExtraUsersTrue(c *check.C) {
-	err := osutil.UserGroupAdd("lakatos", 123456, true)
+func (s *createUserSuite) TestEnsureUserGroupExtraUsersTrue(c *check.C) {
+	err := osutil.EnsureUserGroup("lakatos", 123456, true)
 	c.Assert(err, check.IsNil)
 
 	c.Check(s.mockGroupAdd.Calls(), check.DeepEquals, [][]string{
@@ -308,23 +308,23 @@ func (s *createUserSuite) TestUserGroupAddExtraUsersTrue(c *check.C) {
 	})
 }
 
-func (s *createUserSuite) TestUserGroupAddBadUser(c *check.C) {
-	err := osutil.UserGroupAdd("k!", 123456, false)
+func (s *createUserSuite) TestEnsureUserGroupBadUser(c *check.C) {
+	err := osutil.EnsureUserGroup("k!", 123456, false)
 	c.Assert(err, check.ErrorMatches, `cannot add user/group "k!": name contains invalid characters`)
 }
 
-func (s *createUserSuite) TestUserGroupAddFailedGroupadd(c *check.C) {
+func (s *createUserSuite) TestEnsureUserGroupFailedGroupadd(c *check.C) {
 	mockGroupAdd := testutil.MockCommand(c, "groupadd", "echo some error; exit 1")
 	defer mockGroupAdd.Restore()
 
-	err := osutil.UserGroupAdd("lakatos", 123456, false)
+	err := osutil.EnsureUserGroup("lakatos", 123456, false)
 	c.Assert(err, check.ErrorMatches, "groupadd failed with: some error")
 }
 
-func (s *createUserSuite) TestUserGroupAddFailedUseradd(c *check.C) {
+func (s *createUserSuite) TestEnsureUserGroupFailedUseradd(c *check.C) {
 	mockUserAdd := testutil.MockCommand(c, "useradd", "echo some error; exit 1")
 	defer mockUserAdd.Restore()
 
-	err := osutil.UserGroupAdd("lakatos", 123456, false)
+	err := osutil.EnsureUserGroup("lakatos", 123456, false)
 	c.Assert(err, check.ErrorMatches, "useradd failed with: some error")
 }

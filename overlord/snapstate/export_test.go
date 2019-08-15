@@ -72,16 +72,10 @@ func MockPrerequisitesRetryTimeout(d time.Duration) (restore func()) {
 	return func() { prerequisitesRetryTimeout = old }
 }
 
-func MockFindUid(mock func(name string) (uint64, error)) (restore func()) {
-	old := findUid
-	findUid = mock
-	return func() { findUid = old }
-}
-
-func MockFindGid(mock func(name string) (uint64, error)) (restore func()) {
-	old := findGid
-	findGid = mock
-	return func() { findGid = old }
+func MockEnsureUserGroup(mock func(name string, id uint32, extraUsers bool) error) (restore func()) {
+	old := ensureUserGroup
+	ensureUserGroup = mock
+	return func() { ensureUserGroup = old }
 }
 
 var (

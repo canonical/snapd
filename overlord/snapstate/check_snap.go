@@ -571,10 +571,7 @@ func earlyEpochCheck(info *snap.Info, snapst *SnapState) error {
 }
 
 // check that the listed system users are valid
-var (
-	findUid = osutil.FindUid
-	findGid = osutil.FindGid
-)
+var ensureUserGroup = osutil.EnsureUserGroup
 
 func checkSystemUsernames(si *snap.Info) error {
 	// No need to check support if no system-usernames
@@ -604,6 +601,7 @@ func checkSystemUsernames(si *snap.Info) error {
 		return err
 	}
 
+	extrausers := !release.OnClassic
 	for _, user := range si.SystemUsernames {
 		var id uint32
 		id, ok := supportedSystemUsernames[user.Name]
@@ -613,43 +611,24 @@ func checkSystemUsernames(si *snap.Info) error {
 
 		switch user.Scope {
 		case "shared":
-			_, uidErr := findUid(user.Name)
-			_, gidErr := findGid(user.Name)
-			if uidErr != nil && gidErr != nil {
-				// If neither exist, create the user and group
-				extrausers := !release.OnClassic
-				err := osutil.UserGroupAdd(user.Name, id, extrausers)
-				if err != nil {
-					return err
-				}
-			} else if uidErr != nil || gidErr != nil {
-				return fmt.Errorf(`snap %q requires that both the "%s" system user and group are present on the system.`, si.InstanceName(), user.Name)
+			// Create the snap-range-<base>-root user and group so
+			// systemd-nspawn can avoid our range. Our ranges will always
+			// be in 65536 chunks, so mask off the lower bits to obtain our
+			// base (see above)
+			rangeStart := id & 0xFFFF0000
+			rangeName := fmt.Sprintf("snap-range-%d-root", rangeStart)
+			if err := ensureUserGroup(rangeName, rangeStart, extrausers); err != nil {
+				return fmt.Errorf(`snap %q requires system username "%s": %v`, si.InstanceName(), user.Name, err)
+			}
+
+			// Create the requested user and group
+			if err := ensureUserGroup(user.Name, id, extrausers); err != nil {
+				return fmt.Errorf(`snap %q requires system username "%s": %v`, si.InstanceName(), user.Name, err)
 			}
 		case "private", "external":
 			return fmt.Errorf(`snap %q requires unsupported user scope "%s" for this version of snapd`, si.InstanceName(), user.Scope)
 		default:
 			return fmt.Errorf(`snap %q requires unsupported user scope "%s"`, si.InstanceName(), user.Scope)
-		}
-
-		// Create the snap-range-<base>-root user and group so
-		// systemd-nspawn can avoid our range. Our ranges will always
-		// be in 65536 chunks, so mask off the lower bits to obtain our
-		// base (see above)
-		rangeStart := id & 0xFFFF0000
-		rangeName := fmt.Sprintf("snap-range-%d-root", rangeStart)
-		_, uidErr := findUid(rangeName)
-		_, gidErr := findGid(rangeName)
-		if uidErr != nil && gidErr != nil {
-			// If neither exist, create the user and group
-			extrausers := !release.OnClassic
-			err := osutil.UserGroupAdd(rangeName, rangeStart, extrausers)
-			if err != nil {
-				return err
-			}
-		} else if uidErr != nil {
-			return fmt.Errorf(`snap %q requires id-collision-detector "%s" system user`, si.InstanceName(), rangeName)
-		} else if gidErr != nil {
-			return fmt.Errorf(`snap %q requires id-collision-detector "%s" system group`, si.InstanceName(), rangeName)
 		}
 	}
 	return nil

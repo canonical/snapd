@@ -926,14 +926,12 @@ func (s *checkSnapSuite) TestCheckSnapdHappy(c *C) {
 
 // Note, invalid usernames checked in snap/info_snap_yaml.go
 var systemUsernamesTests = []struct {
-	sysIDs       string
-	classic      bool
-	noGroup      bool
-	noUser       bool
-	noRangeUser  bool
-	noRangeGroup bool
-	scVer        string
-	error        string
+	sysIDs      string
+	classic     bool
+	noRangeUser bool
+	noUser      bool
+	scVer       string
+	error       string
 }{{
 	sysIDs: "snap_daemon: shared",
 	scVer:  "dead 2.4.1 deadbeef bpf-actlog",
@@ -985,38 +983,16 @@ var systemUsernamesTests = []struct {
 	classic: true,
 	error:   `requires unsupported system username "allowed-not"`,
 }, {
-	sysIDs:  "snap_daemon: shared",
-	noGroup: true,
-	scVer:   "dead 2.4.1 deadbeef bpf-actlog",
-	error:   `requires that both the \"snap_daemon\" system user and group are present on the system.`,
-}, {
-	sysIDs:  "snap_daemon: shared",
-	classic: true,
-	noGroup: true,
-	scVer:   "dead 2.4.1 deadbeef bpf-actlog",
-	error:   `requires that both the \"snap_daemon\" system user and group are present on the system.`,
-}, {
 	sysIDs: "snap_daemon: shared",
 	noUser: true,
 	scVer:  "dead 2.4.1 deadbeef bpf-actlog",
-	error:  `requires that both the \"snap_daemon\" system user and group are present on the system.`,
+	error:  `requires system username "snap_daemon": cannot add user/group "snap_daemon", group exists and user does not`,
 }, {
 	sysIDs:  "snap_daemon: shared",
 	classic: true,
 	noUser:  true,
 	scVer:   "dead 2.4.1 deadbeef bpf-actlog",
-	error:   `requires that both the \"snap_daemon\" system user and group are present on the system.`,
-}, { // this triggers osutil.UserGroupAdd() where we'll mock useradd/groupadd
-	sysIDs:  "snap_daemon: shared",
-	noUser:  true,
-	noGroup: true,
-	scVer:   "dead 2.4.1 deadbeef bpf-actlog",
-}, { // this triggers osutil.UserGroupAdd() where we'll mock useradd/groupadd
-	sysIDs:  "snap_daemon: shared",
-	classic: true,
-	noUser:  true,
-	noGroup: true,
-	scVer:   "dead 2.4.1 deadbeef bpf-actlog",
+	error:   `requires system username "snap_daemon": cannot add user/group "snap_daemon", group exists and user does not`,
 }, {
 	sysIDs: "snap_daemon: shared",
 	scVer:  "dead 2.3.3 deadbeef bpf-actlog",
@@ -1043,37 +1019,21 @@ var systemUsernamesTests = []struct {
 	scVer:   "dead 2.4.1 deadbeef -",
 	error:   `system usernames require a snapd built against golang-seccomp >= 0.9.1`,
 }, {
-	sysIDs:       "snap_daemon: shared",
-	noRangeGroup: true,
-	scVer:        "dead 2.4.1 deadbeef bpf-actlog",
-	error:        `requires id-collision-detector "snap-range-524288-root" system group`,
-}, {
-	sysIDs:       "snap_daemon: shared",
-	classic:      true,
-	noRangeGroup: true,
-	scVer:        "dead 2.4.1 deadbeef bpf-actlog",
-	error:        `requires id-collision-detector "snap-range-524288-root" system group`,
-}, {
 	sysIDs:      "snap_daemon: shared",
 	noRangeUser: true,
 	scVer:       "dead 2.4.1 deadbeef bpf-actlog",
-	error:       `requires id-collision-detector "snap-range-524288-root" system user`,
+	error:       `requires system username "snap_daemon": cannot add user/group "snap-range-524288-root", group exists and user does not`,
 }, {
 	sysIDs:      "snap_daemon: shared",
 	classic:     true,
 	noRangeUser: true,
 	scVer:       "dead 2.4.1 deadbeef bpf-actlog",
-	error:       `requires id-collision-detector "snap-range-524288-root" system user`,
+	error:       `requires system username "snap_daemon": cannot add user/group "snap-range-524288-root", group exists and user does not`,
 }}
 
 func (s *checkSnapSuite) TestCheckSnapSystemUsernames(c *C) {
 	restore := release.MockOnClassic(false)
 	defer restore()
-
-	mockGroupAdd := testutil.MockCommand(c, "groupadd", "exit 0")
-	defer mockGroupAdd.Restore()
-	mockUserAdd := testutil.MockCommand(c, "useradd", "exit 0")
-	defer mockUserAdd.Restore()
 
 	for _, test := range systemUsernamesTests {
 		restore = interfaces.MockSeccompCompilerVersionInfo(func(_ string) (string, error) {
@@ -1082,38 +1042,21 @@ func (s *checkSnapSuite) TestCheckSnapSystemUsernames(c *C) {
 		defer restore()
 
 		release.OnClassic = test.classic
-		if test.noGroup {
-			restore = snapstate.MockFindGid(func(name string) (uint64, error) {
-				return 0, fmt.Errorf("user: unknown group %s", name)
-			})
-		} else if test.noRangeGroup {
-			restore = snapstate.MockFindGid(func(name string) (uint64, error) {
-				if name == "snap_daemon" {
-					return 123, nil
-				}
-				return 0, fmt.Errorf("user: unknown group %s", name)
-			})
-		} else {
-			restore = snapstate.MockFindGid(func(name string) (uint64, error) {
-				return 123, nil
-			})
-		}
-		defer restore()
 
-		if test.noUser {
-			restore = snapstate.MockFindUid(func(name string) (uint64, error) {
-				return 0, fmt.Errorf("user: unknown user %s", name)
+		if test.noRangeUser {
+			restore = snapstate.MockEnsureUserGroup(func(name string, id uint32, extraUsers bool) error {
+				return fmt.Errorf(`cannot add user/group "%s", group exists and user does not`, name)
 			})
-		} else if test.noRangeUser {
-			restore = snapstate.MockFindUid(func(name string) (uint64, error) {
-				if name == "snap_daemon" {
-					return 123, nil
+		} else if test.noUser {
+			restore = snapstate.MockEnsureUserGroup(func(name string, id uint32, extraUsers bool) error {
+				if name == "snap-range-524288-root" {
+					return nil
 				}
-				return 0, fmt.Errorf("user: unknown user %s", name)
+				return fmt.Errorf(`cannot add user/group "%s", group exists and user does not`, name)
 			})
 		} else {
-			restore = snapstate.MockFindUid(func(name string) (uint64, error) {
-				return 124, nil
+			restore = snapstate.MockEnsureUserGroup(func(name string, id uint32, extraUsers bool) error {
+				return nil
 			})
 		}
 		defer restore()

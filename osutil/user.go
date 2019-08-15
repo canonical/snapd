@@ -55,7 +55,7 @@ type AddUserOptions struct {
 // allows as valid usernames
 var IsValidUsername = regexp.MustCompile(`^[a-z0-9][-a-z0-9+._]*$`).MatchString
 
-// UserGroupAdd uses the standard shadow utilities' 'useradd' and 'groupadd'
+// EnsureUserGroup uses the standard shadow utilities' 'useradd' and 'groupadd'
 // commands for creating non-login system users and groups that is portable
 // cross-distro. It will create the group with groupname 'name' and gid 'id' as
 // well as the user with username 'name' and uid 'id'. Importantly, 'useradd'
@@ -63,13 +63,50 @@ var IsValidUsername = regexp.MustCompile(`^[a-z0-9][-a-z0-9+._]*$`).MatchString
 // (so LDAP, etc are consulted), but will themselves only add to local files,
 // which is exactly what we want since we don't want snaps to be blocked on
 // LDAP, etc lookups.
-func UserGroupAdd(name string, id uint32, extraUsers bool) error {
+func EnsureUserGroup(name string, id uint32, extraUsers bool) error {
 	if !IsValidUsername(name) {
-		return fmt.Errorf("cannot add user/group %q: name contains invalid characters", name)
+		return fmt.Errorf(`cannot add user/group %q: name contains invalid characters`, name)
 	}
 
-	// useradd --user-group will choose a gid from the range defined in
-	// login.defs, so first call groupadd and use --gid with useradd.
+	uid, uidErr := FindUid(name)
+	if uidErr != nil {
+		if _, ok := uidErr.(user.UnknownUserError); !ok {
+			return uidErr
+		}
+	}
+
+	gid, gidErr := FindGid(name)
+	if gidErr != nil {
+		if _, ok := gidErr.(user.UnknownGroupError); !ok {
+			return gidErr
+		}
+	}
+
+	if uidErr == nil && gidErr == nil {
+		if uid != uint64(id) {
+			return fmt.Errorf(`found unexpected uid for user %q: %d`, name, uid)
+		} else if gid != uint64(id) {
+			return fmt.Errorf(`found unexpected gid for group %q: %d`, name, gid)
+		}
+		// found the user and group with expected values
+		return nil
+	}
+
+	// If the user and group do not exist, snapd will create both, so if
+	// the admin removed one of them, error and don't assume we can just
+	// add the missing one
+	if uidErr != nil && gidErr == nil {
+		return fmt.Errorf(`cannot add user/group %q: group exists and user does not`, name)
+	} else if uidErr == nil && gidErr != nil {
+		return fmt.Errorf(`cannot add user/group %q: user exists and group does not`, name)
+	}
+
+	// At this point, we know that the user and group don't exist, so
+	// create them.
+
+	// First create the group. useradd --user-group will choose a gid from
+	// the range defined in login.defs, so first call groupadd and use
+	// --gid with useradd.
 	groupCmdStr := []string{
 		"groupadd",
 		"--system",
@@ -109,6 +146,7 @@ func UserGroupAdd(name string, id uint32, extraUsers bool) error {
 
 	cmd = exec.Command(userCmdStr[0], userCmdStr[1:]...)
 	if output, err := cmd.CombinedOutput(); err != nil {
+		// TODO: call delgroup
 		return fmt.Errorf("useradd failed with: %s", OutputErr(output, err))
 	}
 
