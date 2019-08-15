@@ -582,6 +582,7 @@ func checkSystemUsernames(si *snap.Info) error {
 		return nil
 	}
 
+	// TODO: wrap this invocation differently in a sandbox helper
 	// Run /.../snap-seccomp version-info
 	path, err := cmd.InternalToolPath("snapd")
 	if err != nil {
@@ -590,13 +591,16 @@ func checkSystemUsernames(si *snap.Info) error {
 
 	vi, err := interfaces.SeccompCompilerVersionInfo(filepath.Join(filepath.Dir(path), "snap-seccomp"))
 	if err != nil {
-		return fmt.Errorf("Could not obtain seccomp compiler information: %v", err)
+		return fmt.Errorf("cannot obtain seccomp compiler information: %v", err)
 	}
 
 	// If the system doesn't support robust argument filtering then we
 	// can't support system-usernames
 	err = seccomp_compiler.VersionInfo(vi).SupportsRobustArgumentFiltering()
 	if err != nil {
+		if re, ok := err.(*seccomp_compiler.BuildTimeRequirementError); ok {
+			return fmt.Errorf("snap %q system usernames require a snapd built against %s", si.InstanceName(), re.RequirementsString())
+		}
 		return err
 	}
 
@@ -604,7 +608,7 @@ func checkSystemUsernames(si *snap.Info) error {
 		var id uint32
 		id, ok := supportedSystemUsernames[user.Name]
 		if !ok {
-			return fmt.Errorf(`Unsupported system username "%s"`, user.Name)
+			return fmt.Errorf(`snap %q requires unsupported system username "%s"`, si.InstanceName(), user.Name)
 		}
 
 		switch user.Scope {
@@ -619,12 +623,12 @@ func checkSystemUsernames(si *snap.Info) error {
 					return err
 				}
 			} else if uidErr != nil || gidErr != nil {
-				return fmt.Errorf(`This snap requires that both the "%s" system user and group are present on the system.`, user.Name)
+				return fmt.Errorf(`snap %q requires that both the "%s" system user and group are present on the system.`, si.InstanceName(), user.Name)
 			}
 		case "private", "external":
-			return fmt.Errorf(`Unsupported user scope "%s" for this version of snapd`, user.Scope)
+			return fmt.Errorf(`snap %q requires unsupported user scope "%s" for this version of snapd`, si.InstanceName(), user.Scope)
 		default:
-			return fmt.Errorf(`Unsupported user scope "%s"`, user.Scope)
+			return fmt.Errorf(`snap %q requires unsupported user scope "%s"`, si.InstanceName(), user.Scope)
 		}
 
 		// Create the snap-range-<base>-root user and group so
@@ -643,9 +647,9 @@ func checkSystemUsernames(si *snap.Info) error {
 				return err
 			}
 		} else if uidErr != nil {
-			return fmt.Errorf(`Missing required id-collision-detector "%s" system user.`, rangeName)
+			return fmt.Errorf(`snap %q requires id-collision-detector "%s" system user.`, si.InstanceName(), rangeName)
 		} else if gidErr != nil {
-			return fmt.Errorf(`Missing required id-collision-detector "%s" system group.`, rangeName)
+			return fmt.Errorf(`snap %q requires id-collision-detector "%s" system group.`, si.InstanceName(), rangeName)
 		}
 	}
 	return nil

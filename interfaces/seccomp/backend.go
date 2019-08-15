@@ -252,11 +252,7 @@ func (b *Backend) deriveContent(spec *Specification, opts interfaces.Confinement
 	if len(snapInfo.SystemUsernames) == 0 {
 		uidGidChownSyscalls.WriteString(barePrivDropSyscalls)
 	} else {
-		firstRun := true
 		for _, id := range snapInfo.SystemUsernames {
-			if !firstRun {
-				uidGidChownSyscalls.WriteRune('\n')
-			}
 			syscalls, err := uidGidChownSnippet(id.Name)
 			if err != nil {
 				return nil, fmt.Errorf(`cannot calculate syscalls for "%s": %s`, id, err)
