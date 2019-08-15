@@ -142,14 +142,6 @@ func (x *cmdModel) Execute(args []string) error {
 
 			// switch on which header it is to handle some special cases
 			switch headerName {
-			// scalar values
-			case "architecture", "base", "classic", "display-name", "gadget", "kernel", "revision", "store":
-				headerString, ok := headerValue.(string)
-				if !ok {
-					return fmt.Errorf("invalid type for \"%s\" header", headerName)
-				}
-				fmt.Fprintf(w, "%s:\t%s\n", headerName, headerString)
-
 			// list of scalars
 			case "required-snaps":
 				headerIfaceList, ok := headerValue.([]interface{})
@@ -219,6 +211,15 @@ func (x *cmdModel) Execute(args []string) error {
 				headerString = strings.Join(strings.Split(headerString, "\n"), "")
 				fmt.Fprintln(w, "device-key: |")
 				wrapLine(w, []rune(headerString), "  ", termWidth)
+
+			// the default is all the rest of short scalar values, which all
+			// should be strings
+			default:
+				headerString, ok := headerValue.(string)
+				if !ok {
+					return fmt.Errorf("invalid type for \"%s\" header", headerName)
+				}
+				fmt.Fprintf(w, "%s:\t%s\n", headerName, headerString)
 			}
 		}
 	}
