@@ -29,7 +29,6 @@ import (
 	"gopkg.in/yaml.v2"
 
 	"github.com/snapcore/snapd/metautil"
-	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/strutil"
 	"github.com/snapcore/snapd/timeout"
 )
@@ -508,8 +507,8 @@ func setHooksFromSnapYaml(y snapYaml, snap *Info, strk *scopedTracker) {
 
 func setSystemUsernamesFromSnapYaml(y snapYaml, snap *Info) error {
 	for user, data := range y.SystemUsernames {
-		if !osutil.IsValidUsername(user) {
-			return fmt.Errorf(`Invalid system username "%s"`, user)
+		if user == "" {
+			return fmt.Errorf("system username cannot be empty")
 		}
 		scope, attrs, err := convertToUsernamesData(user, data)
 		if err != nil {

@@ -1887,7 +1887,7 @@ system-usernames:
 `)
 	_, err := snap.InfoFromSnapYaml(y)
 	c.Assert(err, NotNil)
-	c.Assert(err, ErrorMatches, `Invalid system username ""`)
+	c.Assert(err, ErrorMatches, `system username cannot be empty`)
 }
 
 func (s *YamlSuite) TestSnapYamlSystemUsernamesParsingBadKeyList(c *C) {
@@ -1899,17 +1899,6 @@ system-usernames:
 	_, err := snap.InfoFromSnapYaml(y)
 	c.Assert(err, NotNil)
 	c.Assert(err, ErrorMatches, `(?m)cannot parse snap.yaml:.*`)
-}
-
-func (s *YamlSuite) TestSnapYamlSystemUsernamesParsingBadUsername(c *C) {
-	y := []byte(`name: binary
-version: 1.0
-system-usernames:
-  "b@d": shared
-`)
-	_, err := snap.InfoFromSnapYaml(y)
-	c.Assert(err, NotNil)
-	c.Assert(err, ErrorMatches, `Invalid system username "b@d"`)
 }
 
 func (s *YamlSuite) TestSnapYamlSystemUsernamesParsingBadValueEmpty(c *C) {
