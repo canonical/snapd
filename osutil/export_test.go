@@ -155,3 +155,15 @@ func MockUname(f func(*syscall.Utsname) error) (restore func()) {
 		syscallUname = old
 	}
 }
+
+func MockFindUid(mock func(name string) (uint64, error)) (restore func()) {
+	old := FindUid
+	FindUid = mock
+	return func() { FindUid = old }
+}
+
+func MockFindGid(mock func(name string) (uint64, error)) (restore func()) {
+	old := FindGid
+	FindGid = mock
+	return func() { FindGid = old }
+}
