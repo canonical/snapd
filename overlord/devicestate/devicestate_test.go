@@ -30,6 +30,7 @@ import (
 	"net/url"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 	"time"
 
@@ -67,6 +68,7 @@ import (
 	"github.com/snapcore/snapd/snap/snaptest"
 	"github.com/snapcore/snapd/store/storetest"
 	"github.com/snapcore/snapd/strutil"
+	"github.com/snapcore/snapd/testutil"
 	"github.com/snapcore/snapd/timings"
 )
 
@@ -3451,6 +3453,103 @@ func (s *deviceMgrSuite) TestUpdateGadgetOnClassicErrorsOut(c *C) {
 	c.Assert(chg.IsReady(), Equals, true)
 	c.Check(chg.Err(), ErrorMatches, `(?s).*update gadget \(cannot run update gadget assets task on a classic system\).*`)
 	c.Check(t.Status(), Equals, state.ErrorStatus)
+}
+
+type mockUpdater struct{}
+
+func (m *mockUpdater) Backup() error { return nil }
+
+func (m *mockUpdater) Rollback() error { return nil }
+
+func (m *mockUpdater) Update() error { return nil }
+
+func (s *deviceMgrSuite) TestUpdateGadgetCallsToGadget(c *C) {
+	siCurrent := &snap.SideInfo{
+		RealName: "foo-gadget",
+		Revision: snap.R(33),
+		SnapID:   "foo-id",
+	}
+	si := &snap.SideInfo{
+		RealName: "foo-gadget",
+		Revision: snap.R(34),
+		SnapID:   "foo-id",
+	}
+	var gadgetCurrentYaml = `
+volumes:
+  pc:
+    bootloader: grub
+    structure:
+       - name: foo
+         size: 10M
+         type: bare
+         content:
+            - image: content.img
+`
+	var gadgetUpdateYaml = `
+volumes:
+  pc:
+    bootloader: grub
+    structure:
+       - name: foo
+         size: 10M
+         type: bare
+         content:
+            - image: content.img
+         update:
+           edition: 2
+`
+	snaptest.MockSnapWithFiles(c, snapYaml, siCurrent, [][]string{
+		{"meta/gadget.yaml", gadgetCurrentYaml},
+		{"content.img", "some content"},
+	})
+	updateInfo := snaptest.MockSnapWithFiles(c, snapYaml, si, [][]string{
+		{"meta/gadget.yaml", gadgetUpdateYaml},
+		{"content.img", "updated content"},
+	})
+
+	expectedRollbackDir := filepath.Join(dirs.SnapRollbackDir, "foo-gadget_34")
+	updaterForStructureCalls := 0
+	gadget.MockUpdaterForStructure(func(ps *gadget.PositionedStructure, rootDir, rollbackDir string) (gadget.Updater, error) {
+		updaterForStructureCalls++
+
+		c.Assert(ps.Name, Equals, "foo")
+		c.Assert(rootDir, Equals, updateInfo.MountDir())
+		c.Assert(filepath.Join(rootDir, "content.img"), testutil.FileEquals, "updated content")
+		c.Assert(strings.HasPrefix(rollbackDir, expectedRollbackDir), Equals, true)
+		c.Assert(osutil.IsDirectory(rollbackDir), Equals, true)
+		return &mockUpdater{}, nil
+	})
+
+	s.state.Lock()
+
+	snapstate.Set(s.state, "foo-gadget", &snapstate.SnapState{
+		SnapType: "gadget",
+		Sequence: []*snap.SideInfo{siCurrent},
+		Current:  siCurrent.Revision,
+		Active:   true,
+	})
+
+	t := s.state.NewTask("update-gadget-assets", "update gadget")
+	t.Set("snap-setup", &snapstate.SnapSetup{
+		SideInfo: si,
+		Type:     snap.TypeGadget,
+	})
+	chg := s.state.NewChange("dummy", "...")
+	chg.AddTask(t)
+
+	s.state.Unlock()
+
+	for i := 0; i < 6; i++ {
+		s.se.Ensure()
+		s.se.Wait()
+	}
+
+	s.state.Lock()
+	defer s.state.Unlock()
+	c.Assert(chg.IsReady(), Equals, true)
+	c.Check(t.Status(), Equals, state.DoneStatus)
+	c.Check(s.restartRequests, HasLen, 1)
+	c.Check(updaterForStructureCalls, Equals, 1)
 }
 
 func (s *deviceMgrSuite) TestCurrentAndUpdateInfo(c *C) {
