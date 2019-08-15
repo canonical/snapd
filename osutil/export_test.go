@@ -167,3 +167,15 @@ func MockFindGid(mock func(name string) (uint64, error)) (restore func()) {
 	FindGid = mock
 	return func() { FindGid = old }
 }
+
+func MockFindUidGetent(mock func(name string) (uint64, error)) (restore func()) {
+	old := FindUidGetent
+	FindUidGetent = mock
+	return func() { FindUidGetent = old }
+}
+
+func MockFindGidGetent(mock func(name string) (uint64, error)) (restore func()) {
+	old := FindGidGetent
+	FindGidGetent = mock
+	return func() { FindGidGetent = old }
+}

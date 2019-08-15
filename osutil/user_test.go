@@ -20,6 +20,7 @@
 package osutil_test
 
 import (
+	"fmt"
 	"os"
 	"os/user"
 	"path/filepath"
@@ -311,6 +312,120 @@ func (s *createUserSuite) TestEnsureUserGroupExtraUsersTrue(c *check.C) {
 func (s *createUserSuite) TestEnsureUserGroupBadUser(c *check.C) {
 	err := osutil.EnsureUserGroup("k!", 123456, false)
 	c.Assert(err, check.ErrorMatches, `cannot add user/group "k!": name contains invalid characters`)
+
+	// shouldn't run these on error
+	c.Check(s.mockGroupAdd.Calls(), check.DeepEquals, [][]string(nil))
+	c.Check(s.mockUserAdd.Calls(), check.DeepEquals, [][]string(nil))
+}
+
+func (s *createUserSuite) TestEnsureUserGroupUnexpectedFindUidError(c *check.C) {
+	restore := osutil.MockFindUidGetent(func(string) (uint64, error) {
+		return 0, fmt.Errorf("some odd FindUid error")
+	})
+	defer restore()
+
+	err := osutil.EnsureUserGroup("lakatos", 1234, false)
+	c.Assert(err, check.ErrorMatches, `some odd FindUid error`)
+
+	// shouldn't run these on error
+	c.Check(s.mockGroupAdd.Calls(), check.DeepEquals, [][]string(nil))
+	c.Check(s.mockUserAdd.Calls(), check.DeepEquals, [][]string(nil))
+}
+
+func (s *createUserSuite) TestEnsureUserGroupUnexpectedFindGidError(c *check.C) {
+	restore := osutil.MockFindGidGetent(func(string) (uint64, error) {
+		return 0, fmt.Errorf("some odd FindGid error")
+	})
+	defer restore()
+
+	err := osutil.EnsureUserGroup("lakatos", 1234, false)
+	c.Assert(err, check.ErrorMatches, `some odd FindGid error`)
+
+	// shouldn't run these on error
+	c.Check(s.mockGroupAdd.Calls(), check.DeepEquals, [][]string(nil))
+	c.Check(s.mockUserAdd.Calls(), check.DeepEquals, [][]string(nil))
+}
+
+func (s *createUserSuite) TestEnsureUserGroupUnexpectedUid(c *check.C) {
+	restore := osutil.MockFindUidGetent(func(string) (uint64, error) {
+		return uint64(5432), nil
+	})
+	defer restore()
+	restore = osutil.MockFindGidGetent(func(string) (uint64, error) {
+		return uint64(1234), nil
+	})
+	defer restore()
+
+	err := osutil.EnsureUserGroup("lakatos", 1234, false)
+	c.Assert(err, check.ErrorMatches, `found unexpected uid for user "lakatos": 5432`)
+
+	// shouldn't run these on error
+	c.Check(s.mockGroupAdd.Calls(), check.DeepEquals, [][]string(nil))
+	c.Check(s.mockUserAdd.Calls(), check.DeepEquals, [][]string(nil))
+}
+
+func (s *createUserSuite) TestEnsureUserGroupUnexpectedGid(c *check.C) {
+	restore := osutil.MockFindUidGetent(func(string) (uint64, error) {
+		return uint64(1234), nil
+	})
+	defer restore()
+	restore = osutil.MockFindGidGetent(func(string) (uint64, error) {
+		return uint64(5432), nil
+	})
+	defer restore()
+
+	err := osutil.EnsureUserGroup("lakatos", 1234, false)
+	c.Assert(err, check.ErrorMatches, `found unexpected gid for group "lakatos": 5432`)
+
+	// shouldn't run these on error
+	c.Check(s.mockGroupAdd.Calls(), check.DeepEquals, [][]string(nil))
+	c.Check(s.mockUserAdd.Calls(), check.DeepEquals, [][]string(nil))
+}
+
+func (s *createUserSuite) TestEnsureUserGroupFoundBoth(c *check.C) {
+	restore := osutil.MockFindUidGetent(func(string) (uint64, error) {
+		return uint64(1234), nil
+	})
+	defer restore()
+	restore = osutil.MockFindGidGetent(func(string) (uint64, error) {
+		return uint64(1234), nil
+	})
+	defer restore()
+
+	err := osutil.EnsureUserGroup("lakatos", 1234, false)
+	c.Assert(err, check.IsNil)
+
+	// we found both with expected values, shouldn't run these
+	c.Check(s.mockGroupAdd.Calls(), check.DeepEquals, [][]string(nil))
+	c.Check(s.mockUserAdd.Calls(), check.DeepEquals, [][]string(nil))
+}
+
+func (s *createUserSuite) TestEnsureUserGroupUnexpectedGroupMissing(c *check.C) {
+	restore := osutil.MockFindUidGetent(func(string) (uint64, error) {
+		return uint64(1234), nil
+	})
+	defer restore()
+
+	err := osutil.EnsureUserGroup("lakatos", 1234, false)
+	c.Assert(err, check.ErrorMatches, `cannot add user/group "lakatos": user exists and group does not`)
+
+	// shouldn't run these on error
+	c.Check(s.mockGroupAdd.Calls(), check.DeepEquals, [][]string(nil))
+	c.Check(s.mockUserAdd.Calls(), check.DeepEquals, [][]string(nil))
+}
+
+func (s *createUserSuite) TestEnsureUserGroupUnexpectedUserMissing(c *check.C) {
+	restore := osutil.MockFindGidGetent(func(string) (uint64, error) {
+		return uint64(1234), nil
+	})
+	defer restore()
+
+	err := osutil.EnsureUserGroup("lakatos", 1234, false)
+	c.Assert(err, check.ErrorMatches, `cannot add user/group "lakatos": group exists and user does not`)
+
+	// shouldn't run these on error
+	c.Check(s.mockGroupAdd.Calls(), check.DeepEquals, [][]string(nil))
+	c.Check(s.mockUserAdd.Calls(), check.DeepEquals, [][]string(nil))
 }
 
 func (s *createUserSuite) TestEnsureUserGroupFailedGroupadd(c *check.C) {
@@ -319,12 +434,36 @@ func (s *createUserSuite) TestEnsureUserGroupFailedGroupadd(c *check.C) {
 
 	err := osutil.EnsureUserGroup("lakatos", 123456, false)
 	c.Assert(err, check.ErrorMatches, "groupadd failed with: some error")
+
+	// shouldn't run this on error
+	c.Check(s.mockUserAdd.Calls(), check.DeepEquals, [][]string(nil))
 }
 
-func (s *createUserSuite) TestEnsureUserGroupFailedUseradd(c *check.C) {
+func (s *createUserSuite) TestEnsureUserGroupFailedUseraddClassic(c *check.C) {
 	mockUserAdd := testutil.MockCommand(c, "useradd", "echo some error; exit 1")
 	defer mockUserAdd.Restore()
 
 	err := osutil.EnsureUserGroup("lakatos", 123456, false)
 	c.Assert(err, check.ErrorMatches, "useradd failed with: some error")
+
+	/* TODO: verify groupdel is run
+	...
+	c.Check(s.mockGroupAdd.Calls(), check.DeepEquals, [][]string{
+		{"groupdel", "lakatos"},
+	})
+	*/
 }
+
+/*
+func (s *createUserSuite) TestEnsureUserGroupFailedUseraddCore(c *check.C) {
+	mockUserAdd := testutil.MockCommand(c, "useradd", "echo some error; exit 1")
+	defer mockUserAdd.Restore()
+
+	err := osutil.EnsureUserGroup("lakatos", 123456, true)
+	c.Assert(err, check.ErrorMatches, "useradd failed with: some error")
+
+	c.Check(s.mockGroupAdd.Calls(), check.DeepEquals, [][]string{
+		{"groupdel", "--extrausers", "lakatos"},
+	})
+}
+*/

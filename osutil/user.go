@@ -62,20 +62,21 @@ var IsValidUsername = regexp.MustCompile(`^[a-z0-9][-a-z0-9+._]*$`).MatchString
 // and 'groupadd' will use NSS to determine if a uid/gid is already assigned
 // (so LDAP, etc are consulted), but will themselves only add to local files,
 // which is exactly what we want since we don't want snaps to be blocked on
-// LDAP, etc lookups.
+// LDAP, etc when performing lookups.
 func EnsureUserGroup(name string, id uint32, extraUsers bool) error {
 	if !IsValidUsername(name) {
 		return fmt.Errorf(`cannot add user/group %q: name contains invalid characters`, name)
 	}
 
-	uid, uidErr := FindUid(name)
+	// Perform uid and gid lookups (with extrausers support)
+	uid, uidErr := FindUidGetent(name)
 	if uidErr != nil {
 		if _, ok := uidErr.(user.UnknownUserError); !ok {
 			return uidErr
 		}
 	}
 
-	gid, gidErr := FindGid(name)
+	gid, gidErr := FindGidGetent(name)
 	if gidErr != nil {
 		if _, ok := gidErr.(user.UnknownGroupError); !ok {
 			return gidErr
