@@ -119,6 +119,7 @@ func (s *apiSuite) TestGetModelNoModelAssertion(c *check.C) {
 	d.overlord.AddManager(deviceMgr)
 
 	req, err := http.NewRequest("GET", "/v2/model", nil)
+	c.Assert(err, check.IsNil)
 	response := getModel(appsCmd, req, nil)
 	c.Assert(response, check.FitsTypeOf, &resp{})
 	rsp := response.(*resp)
@@ -150,6 +151,7 @@ func (s *apiSuite) TestGetModelHasModelAssertion(c *check.C) {
 
 	// make a new get request to the model endpoint
 	req, err := http.NewRequest("GET", "/v2/model", nil)
+	c.Assert(err, check.IsNil)
 	response := getModel(appsCmd, req, nil)
 
 	// check that we get an assertion response
@@ -177,6 +179,7 @@ func (s *apiSuite) TestGetModelNoSerialAssertion(c *check.C) {
 	d.overlord.AddManager(deviceMgr)
 
 	req, err := http.NewRequest("GET", "/v2/model/serial", nil)
+	c.Assert(err, check.IsNil)
 	response := getSerial(appsCmd, req, nil)
 	c.Assert(response, check.FitsTypeOf, &resp{})
 	rsp := response.(*resp)
@@ -214,6 +217,7 @@ func (s *apiSuite) TestGetModelHasSerialAssertion(c *check.C) {
 	// currently it's hard-coded to always be serialserial
 	var authStateData auth.AuthState
 	err = st.Get("auth", &authStateData)
+	c.Assert(err, check.IsNil)
 	serial, err := s.brands.Signing("my-brand").Sign(asserts.SerialType, map[string]interface{}{
 		"authority-id":        "my-brand",
 		"brand-id":            "my-brand",
@@ -230,6 +234,7 @@ func (s *apiSuite) TestGetModelHasSerialAssertion(c *check.C) {
 
 	// make a new get request to the serial endpoint
 	req, err := http.NewRequest("GET", "/v2/model/serial", nil)
+	c.Assert(err, check.IsNil)
 	response := getSerial(appsCmd, req, nil)
 
 	// check that we get an assertion response
