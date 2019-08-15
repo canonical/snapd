@@ -44,6 +44,7 @@ type createUserSuite struct {
 	mockPasswd   *testutil.MockCmd
 	mockUserAdd  *testutil.MockCmd
 	mockGroupAdd *testutil.MockCmd
+	mockGroupDel *testutil.MockCmd
 }
 
 var _ = check.Suite(&createUserSuite{})
@@ -66,6 +67,7 @@ func (s *createUserSuite) SetUpTest(c *check.C) {
 	s.mockPasswd = testutil.MockCommand(c, "passwd", "")
 	s.mockUserAdd = testutil.MockCommand(c, "useradd", "")
 	s.mockGroupAdd = testutil.MockCommand(c, "groupadd", "")
+	s.mockGroupDel = testutil.MockCommand(c, "groupdel", "")
 }
 
 func (s *createUserSuite) TearDownTest(c *check.C) {
@@ -75,6 +77,7 @@ func (s *createUserSuite) TearDownTest(c *check.C) {
 	s.mockPasswd.Restore()
 	s.mockUserAdd.Restore()
 	s.mockGroupAdd.Restore()
+	s.mockGroupDel.Restore()
 }
 
 func (s *createUserSuite) TestAddUserExtraUsersFalse(c *check.C) {
@@ -446,15 +449,11 @@ func (s *createUserSuite) TestEnsureUserGroupFailedUseraddClassic(c *check.C) {
 	err := osutil.EnsureUserGroup("lakatos", 123456, false)
 	c.Assert(err, check.ErrorMatches, "useradd failed with: some error")
 
-	/* TODO: verify groupdel is run
-	...
-	c.Check(s.mockGroupAdd.Calls(), check.DeepEquals, [][]string{
+	c.Check(s.mockGroupDel.Calls(), check.DeepEquals, [][]string{
 		{"groupdel", "lakatos"},
 	})
-	*/
 }
 
-/*
 func (s *createUserSuite) TestEnsureUserGroupFailedUseraddCore(c *check.C) {
 	mockUserAdd := testutil.MockCommand(c, "useradd", "echo some error; exit 1")
 	defer mockUserAdd.Restore()
@@ -462,8 +461,11 @@ func (s *createUserSuite) TestEnsureUserGroupFailedUseraddCore(c *check.C) {
 	err := osutil.EnsureUserGroup("lakatos", 123456, true)
 	c.Assert(err, check.ErrorMatches, "useradd failed with: some error")
 
-	c.Check(s.mockGroupAdd.Calls(), check.DeepEquals, [][]string{
-		{"groupdel", "--extrausers", "lakatos"},
-	})
+	// TODO: LP: #1840375
+	/*
+		c.Check(s.mockGroupDel.Calls(), check.DeepEquals, [][]string{
+			{"groupdel", "--extrausers", "lakatos"},
+		})
+	*/
+	c.Check(s.mockGroupDel.Calls(), check.DeepEquals, [][]string(nil))
 }
-*/

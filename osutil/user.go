@@ -147,8 +147,23 @@ func EnsureUserGroup(name string, id uint32, extraUsers bool) error {
 
 	cmd = exec.Command(userCmdStr[0], userCmdStr[1:]...)
 	if output, err := cmd.CombinedOutput(); err != nil {
-		// TODO: call delgroup
-		return fmt.Errorf("useradd failed with: %s", OutputErr(output, err))
+		useraddErrStr := fmt.Sprintf("useradd failed with: %s", OutputErr(output, err))
+
+		delCmdStr := []string{"groupdel"}
+		if extraUsers {
+			delCmdStr = append(delCmdStr, "--extrausers")
+		}
+
+		// TODO: groupdel doesn't currently support --extrausers, so
+		// don't try to clean up when it is specified (LP: #1840375)
+		if !extraUsers {
+			delCmdStr = append(delCmdStr, name)
+			cmd = exec.Command(delCmdStr[0], delCmdStr[1:]...)
+			if output2, err2 := cmd.CombinedOutput(); err2 != nil {
+				return fmt.Errorf("groupdel failed with: %s (after %s)", OutputErr(output2, err2), useraddErrStr)
+			}
+		}
+		return fmt.Errorf(useraddErrStr)
 	}
 
 	return nil
