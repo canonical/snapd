@@ -53,7 +53,8 @@ dbus (send)
     bus=system
     interface=io.netplan.Netplan
     path=/io/netplan/Netplan
-    member=Apply,
+	member=Apply
+	peer=(label=unconfined),
 
 `
 
