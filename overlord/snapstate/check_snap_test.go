@@ -1046,24 +1046,24 @@ var systemUsernamesTests = []struct {
 	sysIDs:       "snap_daemon: shared",
 	noRangeGroup: true,
 	scVer:        "dead 2.4.1 deadbeef bpf-actlog",
-	error:        `requires id-collision-detector "snap-range-524288-root" system group.`,
+	error:        `requires id-collision-detector "snap-range-524288-root" system group`,
 }, {
 	sysIDs:       "snap_daemon: shared",
 	classic:      true,
 	noRangeGroup: true,
 	scVer:        "dead 2.4.1 deadbeef bpf-actlog",
-	error:        `requires id-collision-detector "snap-range-524288-root" system group.`,
+	error:        `requires id-collision-detector "snap-range-524288-root" system group`,
 }, {
 	sysIDs:      "snap_daemon: shared",
 	noRangeUser: true,
 	scVer:       "dead 2.4.1 deadbeef bpf-actlog",
-	error:       `requires id-collision-detector "snap-range-524288-root" system user.`,
+	error:       `requires id-collision-detector "snap-range-524288-root" system user`,
 }, {
 	sysIDs:      "snap_daemon: shared",
 	classic:     true,
 	noRangeUser: true,
 	scVer:       "dead 2.4.1 deadbeef bpf-actlog",
-	error:       `requires id-collision-detector "snap-range-524288-root" system user.`,
+	error:       `requires id-collision-detector "snap-range-524288-root" system user`,
 }}
 
 func (s *checkSnapSuite) TestCheckSnapSystemUsernames(c *C) {

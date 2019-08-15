@@ -647,9 +647,9 @@ func checkSystemUsernames(si *snap.Info) error {
 				return err
 			}
 		} else if uidErr != nil {
-			return fmt.Errorf(`snap %q requires id-collision-detector "%s" system user.`, si.InstanceName(), rangeName)
+			return fmt.Errorf(`snap %q requires id-collision-detector "%s" system user`, si.InstanceName(), rangeName)
 		} else if gidErr != nil {
-			return fmt.Errorf(`snap %q requires id-collision-detector "%s" system group.`, si.InstanceName(), rangeName)
+			return fmt.Errorf(`snap %q requires id-collision-detector "%s" system group`, si.InstanceName(), rangeName)
 		}
 	}
 	return nil
