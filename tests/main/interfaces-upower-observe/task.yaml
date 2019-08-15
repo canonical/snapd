@@ -17,9 +17,7 @@ prepare: |
     echo "Given a snap declaring a plug on the upower-observe interface is installed"
     snap install --edge test-snapd-upower-observe-consumer
 
-    # shellcheck source=tests/lib/systems.sh
-    . "$TESTSLIB/systems.sh"
-    if is_core_system; then
+    if is-core-system; then
         echo "And a snap providing a upower-observe slot is installed"
         snap install upower
     fi

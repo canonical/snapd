@@ -15,9 +15,6 @@ prepare: |
     install_local test-snapd-daemon-notify
 
 execute: |
-    # shellcheck source=tests/lib/journalctl.sh
-    . "$TESTSLIB/journalctl.sh"
-
     echo "The interface is not connected by default"
     snap interfaces -i daemon-notify | MATCH -- "- +test-snapd-daemon-notify:daemon-notify"
 
@@ -27,11 +24,11 @@ execute: |
     echo "And the service is stopped"
     snap stop test-snapd-daemon-notify.notify
 
-    denials_before="$(get_journalctl_log -u snap.test-snapd-daemon-notify.notify.service | grep -c 'Permission denied' || true)"
+    denials_before="$(get-journalctl-log -u snap.test-snapd-daemon-notify.notify.service | grep -c 'Permission denied' || true)"
     echo "Then after we restart the service there are no denials"
     snap start test-snapd-daemon-notify.notify
     for _ in $(seq 10); do
-        denials_after="$(get_journalctl_log -u snap.test-snapd-daemon-notify.notify.service | grep -c 'Permission denied' || true)"
+        denials_after="$(get-journalctl-log -u snap.test-snapd-daemon-notify.notify.service | grep -c 'Permission denied' || true)"
         if [ "$denials_before" -ne "$denials_after" ]; then
             break
         fi
@@ -50,10 +47,10 @@ execute: |
     snap stop test-snapd-daemon-notify.notify
 
     echo "Then the snap is not able to send notification messages"
-    denials_before="$(get_journalctl_log -u snap.test-snapd-daemon-notify.notify.service | grep -c 'Permission denied' || true)"
+    denials_before="$(get-journalctl-log -u snap.test-snapd-daemon-notify.notify.service | grep -c 'Permission denied' || true)"
     snap start test-snapd-daemon-notify.notify
     for _ in $(seq 10); do
-        denials_after="$(get_journalctl_log -u snap.test-snapd-daemon-notify.notify.service | grep -c 'Permission denied' || true)"
+        denials_after="$(get-journalctl-log -u snap.test-snapd-daemon-notify.notify.service | grep -c 'Permission denied' || true)"
         if [ "$denials_before" -ne "$denials_after" ]; then
             break
         fi

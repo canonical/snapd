@@ -57,9 +57,6 @@ debug: |
     jq .data.auth.device /var/lib/snapd/state.json
 
 execute: |
-    # shellcheck source=tests/lib/journalctl.sh
-    . "$TESTSLIB/journalctl.sh"
-
     if [ "$TRUST_TEST_KEYS" = "false" ]; then
         echo "This test needs test keys to be trusted"
         exit
@@ -78,7 +75,7 @@ execute: |
 
     echo "Then the core refresh.schedule can be set to 'managed'"
     snap set core refresh.schedule=managed
-    if get_journalctl_log -u snapd |grep 'cannot parse "managed"'; then
+    if get-journalctl-log -u snapd |grep 'cannot parse "managed"'; then
         echo "refresh.schedule=managed was not accepted as it should be"
         exit 1
     fi

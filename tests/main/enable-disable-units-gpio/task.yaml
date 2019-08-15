@@ -57,13 +57,10 @@ execute: |
         exit 0
     fi
 
-    # shellcheck source=tests/lib/journalctl.sh
-    . "$TESTSLIB/journalctl.sh"
-
     echo "Then the snap service units concerning the gpio device must be run before and after a reboot"
     expected="Unit snap.core.interface.gpio-100.service has finished starting up"
     for i in $(seq 120); do
-        get_journalctl_log -xe --no-pager | MATCH "$expected"
+        get-journalctl-log -xe --no-pager | MATCH "$expected"
         sleep 0.5
     done
 

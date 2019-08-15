@@ -3,10 +3,7 @@ summary: check that os-release is correct
 systems: [ubuntu-core-1*]
 
 execute: |
-    #shellcheck source=tests/lib/systems.sh
-    . "$TESTSLIB"/systems.sh
-
-    if is_core18_system; then
+    if is-core18-system; then
         MATCH "DISTRIB_RELEASE=18" < /etc/lsb-release
     else
         MATCH "DISTRIB_RELEASE=16" < /etc/lsb-release

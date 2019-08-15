@@ -28,22 +28,14 @@ environment:
     CONSUMER_SNAP: test-snapd-policy-app-consumer
 
 debug: |
-    # shellcheck source=tests/lib/journalctl.sh
-    . "$TESTSLIB/journalctl.sh"
-
-    # get the full journal to see any out-of-memory errors
-    # shellcheck disable=SC2119
-    get_journalctl_log
+    get-journalctl-log
 
 execute: |
     #shellcheck source=tests/lib/dirs.sh
     . "$TESTSLIB"/dirs.sh
 
-    # shellcheck source=tests/lib/systems.sh
-    . "$TESTSLIB/systems.sh"
-
     PROVIDER_SNAP="test-snapd-policy-app-provider-classic"    
-    if is_core_system; then
+    if is-core-system; then
         PROVIDER_SNAP="test-snapd-policy-app-provider-core"
     fi
 
@@ -77,12 +69,9 @@ execute: |
     done
 
 restore: |
-    # shellcheck source=tests/lib/systems.sh
-    . "$TESTSLIB/systems.sh"
-    
     # Remove the snaps to avoid timeout in next test
     PROVIDER_SNAP="test-snapd-policy-app-provider-classic"    
-    if is_core_system; then
+    if is-core-system; then
         PROVIDER_SNAP="test-snapd-policy-app-provider-core"
     fi
     snap remove "$PROVIDER_SNAP"

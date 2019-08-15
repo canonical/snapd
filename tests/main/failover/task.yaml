@@ -67,8 +67,6 @@ execute: |
     . "$TESTSLIB"/names.sh
     #shellcheck source=tests/lib/boot.sh
     . "$TESTSLIB"/boot.sh
-    #shellcheck source=tests/lib/journalctl.sh
-    . "$TESTSLIB"/journalctl.sh
     #shellcheck source=tests/lib/snaps.sh
     . "$TESTSLIB"/snaps.sh
 
@@ -92,7 +90,7 @@ execute: |
         mksnap_fast "$BUILD_DIR/unpack" failing.snap
 
         # use journalctl wrapper to grep only the logs collected while the test is running
-        if get_journalctl_log | MATCH "Waiting for system reboot"; then
+        if get-journalctl-log | MATCH "Waiting for system reboot"; then
             echo "Already waiting for system reboot, exiting..."
             exit 1
         fi
@@ -103,13 +101,13 @@ execute: |
         # use journalctl wrapper to grep only the logs collected while the test is running
         # waiting up to 100s to reach waiting for reboot
         for _ in $(seq 50); do
-            if check_journalctl_log "Waiting for system reboot"; then
+            if check-journalctl-log "Waiting for system reboot"; then
                  break
             fi
             sleep 2
         done
 
-        if ! check_journalctl_log "Waiting for system reboot"; then
+        if ! check-journalctl-log "Waiting for system reboot"; then
             echo "Taking too long to reach waiting for reboot"
             exit 1
         fi

@@ -14,8 +14,6 @@ restore: |
     chmod 4755 /usr/lib/snapd/snap-confine
 
 execute: |
-    # shellcheck source=tests/lib/journalctl.sh
-    . "$TESTSLIB/journalctl.sh"
     # shellcheck source=tests/lib/systemd.sh
     . "$TESTSLIB/systemd.sh"
 
@@ -27,7 +25,7 @@ execute: |
     echo "Ensure we re-exec by default"
     snap list
 
-    check_journalctl_log "DEBUG: restarting into"
+    check-journalctl-log "DEBUG: restarting into"
 
     echo "Ensure snap-confine from the core snap is run"
     test-snapd-tools.echo hello

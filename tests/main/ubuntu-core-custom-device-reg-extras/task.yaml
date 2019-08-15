@@ -12,8 +12,6 @@ prepare: |
     fi
     #shellcheck source=tests/lib/systemd.sh
     . "$TESTSLIB"/systemd.sh
-    #shellcheck source=tests/lib/systems.sh
-    . "$TESTSLIB"/systems.sh
 
     systemctl stop snapd.service snapd.socket
     rm -rf /var/lib/snapd/assertions/*
@@ -30,7 +28,7 @@ prepare: |
     python3 ./manip_seed.py /var/lib/snapd/seed/seed.yaml
     cp "$TESTSLIB"/assertions/developer1.account /var/lib/snapd/seed/assertions
     cp "$TESTSLIB"/assertions/developer1.account-key /var/lib/snapd/seed/assertions
-    if is_core18_system; then
+    if is-core18-system; then
         cp "$TESTSLIB"/assertions/developer1-pc-18.model /var/lib/snapd/seed/assertions/developer1-pc.model
     else
         cp "$TESTSLIB"/assertions/developer1-pc.model /var/lib/snapd/seed/assertions

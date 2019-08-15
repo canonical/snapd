@@ -3,14 +3,12 @@ summary: Check remove command errors
 execute: |
     #shellcheck source=tests/lib/snaps.sh
     . "$TESTSLIB/snaps.sh"
-    #shellcheck source=tests/lib/systems.sh
-    . "$TESTSLIB"/systems.sh
     #shellcheck source=tests/lib/names.sh
     . "$TESTSLIB/names.sh"
 
     BASE_SNAP=core
     TARGET_SNAP=test-snapd-tools
-    if is_core18_system; then
+    if is-core18-system; then
         BASE_SNAP=core18
         TARGET_SNAP=test-snapd-tools-core18
     fi

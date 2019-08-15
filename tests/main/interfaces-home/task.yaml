@@ -36,10 +36,7 @@ restore: |
     rm -f "$READABLE_FILE" "$WRITABLE_FILE" "$CREATABLE_FILE" "$HIDDEN_READABLE_FILE"
 
 execute: |
-    #shellcheck source=tests/lib/systems.sh
-    . "$TESTSLIB"/systems.sh
-
-    if is_core_system; then
+    if is-core-system; then
         echo "The interface is not connected by default"
         snap interfaces -i home | MATCH '^- +home-consumer:home'
 

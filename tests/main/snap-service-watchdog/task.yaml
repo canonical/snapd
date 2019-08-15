@@ -12,8 +12,6 @@ debug: |
 execute: |
     # shellcheck source=tests/lib/snaps.sh
     . "$TESTSLIB"/snaps.sh
-    # shellcheck source=tests/lib/journalctl.sh
-    . "$TESTSLIB"/journalctl.sh
 
     echo "When the service snap  is installed"
     install_local test-snapd-service-watchdog
@@ -59,4 +57,4 @@ execute: |
     # reported differently by different systemd versions
     systemctl show -p Result snap.test-snapd-service-watchdog.$service | MATCH 'Result=(watchdog|signal|core-dump)'
 
-    check_journalctl_log "systemd.*: snap.test-snapd-service-watchdog.$service.service:? [Ww]atchdog timeout" -u snap.test-snapd-service-watchdog.$service
+    check-journalctl-log "systemd.*: snap.test-snapd-service-watchdog.$service.service:? [Ww]atchdog timeout" -u snap.test-snapd-service-watchdog.$service

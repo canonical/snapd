@@ -10,9 +10,6 @@ prepare: |
     install_local test-snapd-sh
 
 execute: |
-    #shellcheck source=tests/lib/systems.sh
-    . "$TESTSLIB/systems.sh"
-
     hostname="$(hostname)"
 
     echo "The plug is disconnected by default"
@@ -26,7 +23,7 @@ execute: |
     [ "$hostname" = "$snap_hostname" ]
 
     # On core systems /etc/hostname is not writable
-    if is_classic_system; then
+    if is-classic-system; then
         echo "And the /etc/hostname file can be written"
         test-snapd-sh.with-hostname-control-plug -c "echo $hostname > /etc/hostname"
     fi

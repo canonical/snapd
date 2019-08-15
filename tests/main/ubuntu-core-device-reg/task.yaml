@@ -5,9 +5,6 @@ summary: |
 systems: [ubuntu-core-1*]
 
 execute: |
-    #shellcheck source=tests/lib/systems.sh
-    . "$TESTSLIB"/systems.sh
-
     echo "Wait for first boot to be done"
     while ! snap changes | grep -q "Done.*Initialize system state"; do sleep 1; done
 
@@ -25,7 +22,7 @@ execute: |
     echo "Check we have a serial"
     snap known serial|MATCH "authority-id: canonical"
     snap known serial|MATCH "brand-id: canonical"
-    if is_core18_system; then
+    if is-core18-system; then
         snap known serial | MATCH "model: ubuntu-core-18-amd64"
     else
         snap known serial | MATCH "model: pc"

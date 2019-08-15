@@ -16,9 +16,6 @@ debug: |
     ip netns pids testns || true
 
 execute: |
-    # shellcheck source=tests/lib/journalctl.sh
-    . "$TESTSLIB/journalctl.sh"
-
     echo "Install a snap from stable"
     snap install test-snapd-tools
   
@@ -43,7 +40,7 @@ execute: |
 
     echo "wait for auto-refresh to happen and fail"
     for _ in $(seq 120); do
-        if get_journalctl_log | MATCH "state ensure error: persistent network error"; then
+        if get-journalctl-log | MATCH "state ensure error: persistent network error"; then
             break
         fi
         echo "Ensure refresh"
@@ -51,7 +48,7 @@ execute: |
         sleep 5
     done
 
-    get_journalctl_log | MATCH "state ensure error: persistent network error"
+    get-journalctl-log | MATCH "state ensure error: persistent network error"
 
     # restart snapd with network access back
     systemctl stop snapd.{service,socket}

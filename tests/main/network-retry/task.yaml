@@ -35,7 +35,5 @@ execute: |
         exit 1
     fi
 
-    # shellcheck source=tests/lib/journalctl.sh
-    . "$TESTSLIB/journalctl.sh"
     echo "Ensure we tried to retry this operation"
-    check_journalctl_log 'Retrying because of temporary net error'
+    check-journalctl-log 'Retrying because of temporary net error'

@@ -7,9 +7,6 @@ prepare: |
         echo "This test needs test keys to be trusted"
         exit
     fi
-    # shellcheck source=tests/lib/systems.sh
-    . "$TESTSLIB/systems.sh"
-
     echo "Install dmsetup"
     snap install --devmode --edge dmsetup
 
@@ -26,7 +23,7 @@ prepare: |
 
     # We use different filesystems to cover both: fat and ext. fat is the most
     # common fs used and we also use ext3 because fat is not available on ubuntu core 18
-    if is_core18_system; then
+    if is-core18-system; then
         mkfs.ext3 /dev/ram0
     else
         mkfs.vfat /dev/ram0

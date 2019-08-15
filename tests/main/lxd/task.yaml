@@ -35,11 +35,8 @@ restore: |
     echo 0 > /sys/fs/cgroup/cpuset/cgroup.clone_children
 
 debug: |
-    # shellcheck source=tests/lib/journalctl.sh
-    . "$TESTSLIB/journalctl.sh"
-
     # debug output from lxd
-    get_journalctl_log -u snap.lxd.daemon.service
+    get-journalctl-log -u snap.lxd.daemon.service
 
 execute: |
     if  [[ "$(find "$GOHOME" -name 'snapd_*.deb' | wc -l || echo 0)" -eq 0 ]]; then

@@ -30,9 +30,7 @@ execute: |
     snap set core experimental.snapd-snap=true
     snap install --dangerous /tmp/snapd_*.snap
     echo "Ensure we restarted into the snapd snap"
-    # shellcheck source=tests/lib/journalctl.sh
-    . "$TESTSLIB/journalctl.sh"
-    check_journalctl_log  'restarting into "/snap/snapd/'
+    check-journalctl-log  'restarting into "/snap/snapd/'
 
     echo "Now install a core18 based snap and ensure it works"
     snap install test-snapd-tools-core18

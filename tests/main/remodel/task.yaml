@@ -10,8 +10,6 @@ prepare: |
     fi
     #shellcheck source=tests/lib/systemd.sh
     . "$TESTSLIB"/systemd.sh
-    #shellcheck source=tests/lib/systems.sh
-    . "$TESTSLIB"/systems.sh
 
     systemctl stop snapd.service snapd.socket
     rm -rf /var/lib/snapd/assertions/*
@@ -20,7 +18,7 @@ prepare: |
     mv /var/lib/snapd/seed/assertions/model model.bak
     cp "$TESTSLIB"/assertions/developer1.account /var/lib/snapd/seed/assertions
     cp "$TESTSLIB"/assertions/developer1.account-key /var/lib/snapd/seed/assertions    
-    if is_core18_system; then
+    if is-core18-system; then
         cp "$TESTSLIB"/assertions/developer1-pc-18.model /var/lib/snapd/seed/assertions/developer1-pc.model
         cp "$TESTSLIB"/assertions/developer1-pc-18-revno2.model developer1-pc-revno2.model
         cp "$TESTSLIB"/assertions/developer1-pc-18-revno3.model developer1-pc-revno3.model
@@ -72,10 +70,8 @@ execute: |
         exit
     fi
 
-    #shellcheck source=tests/lib/systems.sh
-    . "$TESTSLIB"/systems.sh
     SNAP=test-snapd-tools
-    if is_core18_system; then
+    if is-core18-system; then
         SNAP=test-snapd-tools-core18
     fi
 

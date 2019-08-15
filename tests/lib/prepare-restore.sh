@@ -28,9 +28,6 @@ set -e
 # shellcheck source=tests/lib/state.sh
 . "$TESTSLIB/state.sh"
 
-# shellcheck source=tests/lib/systems.sh
-. "$TESTSLIB/systems.sh"
-
 
 ###
 ### Utility functions reused below.
@@ -228,6 +225,9 @@ prepare_project() {
         echo "Tests cannot run inside a container"
         exit 1
     fi
+
+    # Create runtime scripts for testing
+    "$TESTSLIB/scripts-generator.sh"
 
     # no need to modify anything further for autopkgtest
     # we want to run as pristine as possible
@@ -477,7 +477,7 @@ prepare_project_each() {
 prepare_suite() {
     # shellcheck source=tests/lib/prepare.sh
     . "$TESTSLIB"/prepare.sh
-    if is_core_system; then
+    if is-core-system; then
         prepare_ubuntu_core
     else
         prepare_classic
@@ -489,7 +489,7 @@ install_snap_profiler(){
 
     if [ "$PROFILE_SNAPS" = 1 ]; then
         profiler_snap=test-snapd-profiler
-        if is_core18_system; then
+        if is-core18-system; then
             profiler_snap=test-snapd-profiler-core18
         fi
 
@@ -520,7 +520,7 @@ prepare_suite_each() {
 
     # shellcheck source=tests/lib/prepare.sh
     . "$TESTSLIB"/prepare.sh
-    if is_classic_system; then
+    if is-classic-system; then
         prepare_each_classic
     fi
     # Check if journalctl is ready to run the test
@@ -551,7 +551,7 @@ restore_suite_each() {
         logs_file=$(echo "${logs_id}_${SPREAD_JOB}" | tr '/' '_' | tr ':' '__')
 
         profiler_snap=test-snapd-profiler
-        if is_core18_system; then
+        if is-core18-system; then
             profiler_snap=test-snapd-profiler-core18
         fi
 
@@ -566,7 +566,7 @@ restore_suite_each() {
 restore_suite() {
     # shellcheck source=tests/lib/reset.sh
     "$TESTSLIB"/reset.sh --store
-    if is_classic_system; then
+    if is-classic-system; then
         # shellcheck source=tests/lib/pkgdb.sh
         . "$TESTSLIB"/pkgdb.sh
         distro_purge_package snapd

@@ -12,8 +12,6 @@ set -eux
 . "$TESTSLIB/boot.sh"
 # shellcheck source=tests/lib/state.sh
 . "$TESTSLIB/state.sh"
-# shellcheck source=tests/lib/systems.sh
-. "$TESTSLIB/systems.sh"
 
 
 disable_kernel_rate_limiting() {
@@ -30,7 +28,7 @@ ensure_jq() {
         return
     fi
 
-    if is_core18_system; then
+    if is-core18-system; then
         snap install --devmode jq-core18
         snap alias jq-core18.jq jq
     else
@@ -263,7 +261,7 @@ prepare_classic() {
 
         echo "Cache the snaps profiler snap"
         if [ "$PROFILE_SNAPS" = 1 ]; then
-            if is_core18_system; then
+            if is-core18-system; then
                 cache_snaps test-snapd-profiler-core18
             else
                 cache_snaps test-snapd-profiler
@@ -335,7 +333,7 @@ setup_reflash_magic() {
 
     # we cannot use "names.sh" here because no snaps are installed yet
     core_name="core"
-    if is_core18_system; then
+    if is-core18-system; then
         snap download "--channel=${SNAPD_CHANNEL}" snapd
         core_name="core18"
     fi
@@ -356,7 +354,7 @@ setup_reflash_magic() {
     cp /usr/bin/snap "$IMAGE_HOME"
     export UBUNTU_IMAGE_SNAP_CMD="$IMAGE_HOME/snap"
 
-    if is_core18_system; then
+    if is-core18-system; then
         repack_snapd_snap_with_deb_content "$IMAGE_HOME"
 
         # FIXME: fetch directly once its in the assertion service
@@ -421,7 +419,7 @@ EOF
 
     # on core18 we need to use the modified snapd snap and on core16
     # it is the modified core that contains our freshly build snapd
-    if is_core18_system; then
+    if is-core18-system; then
         extra_snap=("$IMAGE_HOME"/snapd_*.snap)
     else
         extra_snap=("$IMAGE_HOME"/core_*.snap)
@@ -443,7 +441,7 @@ EOF
     # mount fresh image and add all our SPREAD_PROJECT data
     kpartx -avs "$IMAGE_HOME/$IMAGE"
     # FIXME: hardcoded mapper location, parse from kpartx
-    if is_core18_system; then
+    if is-core18-system; then
         mount /dev/mapper/loop3p3 /mnt
     else
         mount /dev/mapper/loop2p3 /mnt
@@ -463,7 +461,7 @@ EOF
           /home/gopath /mnt/user-data/
         
     # now modify the image
-    if is_core18_system; then
+    if is-core18-system; then
         UNPACK_DIR="/tmp/core18-snap"
         unsquashfs -no-progress -d "$UNPACK_DIR" /var/lib/snapd/snaps/core18_*.snap
     fi
@@ -631,7 +629,7 @@ prepare_ubuntu_core() {
     done
 
     echo "Ensure the snapd snap is available"
-    if is_core18_system; then
+    if is-core18-system; then
         if ! snap list snapd; then
             echo "snapd snap on core18 is missing"
             snap list
@@ -642,7 +640,7 @@ prepare_ubuntu_core() {
     echo "Ensure rsync is available"
     if ! command -v rsync; then
         rsync_snap="test-snapd-rsync"
-        if is_core18_system; then
+        if is-core18-system; then
             rsync_snap="test-snapd-rsync-core18"
         fi
         snap install --devmode "$rsync_snap"
@@ -651,7 +649,7 @@ prepare_ubuntu_core() {
 
     echo "Ensure the core snap is cached"
     # Cache snaps
-    if is_core18_system; then
+    if is-core18-system; then
         if snap list core >& /dev/null; then
             echo "core snap on core18 should not be installed yet"
             snap list

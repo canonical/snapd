@@ -21,10 +21,7 @@ restore: |
     fi
 
 execute: |
-    # shellcheck source=tests/lib/journalctl.sh
-    . "$TESTSLIB/journalctl.sh"
-
     echo "When the snap is refreshed"
     snap refresh --beta "$SNAP_NAME"
     echo "Then deltas are successfully applied"
-    check_journalctl_log "Successfully applied delta"
+    check-journalctl-log "Successfully applied delta"
