@@ -454,12 +454,21 @@ var (
 	findGid = osutil.FindGid
 )
 
+// TODO: keep this unsupported until it is complete!
+var systemUsernamesSupported = false
+
 func checkSystemUsernames(si *snap.Info) error {
+	// TODO: keep this unsupported until it is complete!
+	if !systemUsernamesSupported && len(si.SystemUsernames) > 0 {
+		return fmt.Errorf("system usernames are not yet supported")
+	}
+
 	// No need to check support if no system-usernames
 	if len(si.SystemUsernames) == 0 {
 		return nil
 	}
 
+	// TODO: wrap this invocation differently in a sandbox helper
 	// Run /.../snap-seccomp version-info
 	path, err := cmd.InternalToolPath("snapd")
 	if err != nil {
@@ -468,19 +477,22 @@ func checkSystemUsernames(si *snap.Info) error {
 
 	vi, err := interfaces.SeccompCompilerVersionInfo(filepath.Join(filepath.Dir(path), "snap-seccomp"))
 	if err != nil {
-		return fmt.Errorf("Could not obtain seccomp compiler information: %v", err)
+		return fmt.Errorf("cannot obtain seccomp compiler information: %v", err)
 	}
 
 	// If the system doesn't support robust argument filtering then we
 	// can't support system-usernames
 	err = seccomp_compiler.VersionInfo(vi).SupportsRobustArgumentFiltering()
 	if err != nil {
+		if re, ok := err.(*seccomp_compiler.BuildTimeRequirementError); ok {
+			return fmt.Errorf("snap %q system usernames require a snapd built against %s", si.InstanceName(), re.RequirementsString())
+		}
 		return err
 	}
 
 	for _, user := range si.SystemUsernames {
 		if !supportedSystemUsernames[user.Name] {
-			return fmt.Errorf(`Unsupported system username "%s"`, user.Name)
+			return fmt.Errorf(`snap %q requires unsupported system username "%s"`, si.InstanceName(), user.Name)
 		}
 
 		switch user.Scope {
@@ -488,12 +500,12 @@ func checkSystemUsernames(si *snap.Info) error {
 			_, uidErr := findUid(user.Name)
 			_, gidErr := findGid(user.Name)
 			if uidErr != nil || gidErr != nil {
-				return fmt.Errorf(`This snap requires that both the "%s" system user and group are present on the system.`, user.Name)
+				return fmt.Errorf(`snap %q requires that both the "%s" system user and group are present on the system.`, si.InstanceName(), user.Name)
 			}
 		case "private", "external":
-			return fmt.Errorf(`Unsupported user scope "%s" for this version of snapd`, user.Scope)
+			return fmt.Errorf(`snap %q requires unsupported user scope "%s" for this version of snapd`, si.InstanceName(), user.Scope)
 		default:
-			return fmt.Errorf(`Unsupported user scope "%s"`, user.Scope)
+			return fmt.Errorf(`snap %q requires unsupported user scope "%s"`, si.InstanceName(), user.Scope)
 		}
 	}
 	return nil

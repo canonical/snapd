@@ -226,11 +226,13 @@ func (s *compilerSuite) TestSupportsRobustArgumentFiltering(c *C) {
 		v   string
 		err string
 	}{
+		// libseccomp < 2.3.3 and golang-seccomp < 0.9.1
+		{"a 2.3.3 b -", "robust argument filtering requires a snapd built against libseccomp >= 2.4, golang-seccomp >= 0.9.1"},
 		// libseccomp < 2.3.3
-		{"a 2.3.3 b bpf-actlog", "This snap requires that snapd be compiled against libseccomp >= 2.4."},
+		{"a 2.3.3 b bpf-actlog", "robust argument filtering requires a snapd built against libseccomp >= 2.4"},
 		// golang-seccomp < 0.9.1
-		{"a 2.4.1 b -", "This snap requires that snapd be compiled against golang-seccomp >= 0.9.1."},
-		{"a 2.4.1 b bpf-other", "This snap requires that snapd be compiled against golang-seccomp >= 0.9.1."},
+		{"a 2.4.1 b -", "robust argument filtering requires a snapd built against golang-seccomp >= 0.9.1"},
+		{"a 2.4.1 b bpf-other", "robust argument filtering requires a snapd built against golang-seccomp >= 0.9.1"},
 		// libseccomp >= 2.4.1 and golang-seccomp >= 0.9.1
 		{"a 2.4.1 b bpf-actlog", ""},
 		{"a 3.0.0 b bpf-actlog", ""},

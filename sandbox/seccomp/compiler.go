@@ -114,6 +114,22 @@ func (vi VersionInfo) HasFeature(feature string) (bool, error) {
 	return false, nil
 }
 
+// BuildTimeRequirementError represents the error case of a feature
+// that cannot be supported because of unfulfilled build time
+// requirements.
+type BuildTimeRequirementError struct {
+	Feature      string
+	Requirements []string
+}
+
+func (e *BuildTimeRequirementError) RequirementsString() string {
+	return strings.Join(e.Requirements, ", ")
+}
+
+func (e *BuildTimeRequirementError) Error() string {
+	return fmt.Sprintf("%s requires a snapd built against %s", e.Feature, e.RequirementsString())
+}
+
 // SupportsRobustArgumentFiltering parses the output of VersionInfo and
 // determines if libseccomp and golang-seccomp are new enough to support robust
 // argument filtering
@@ -127,16 +143,19 @@ func (vi VersionInfo) SupportsRobustArgumentFiltering() error {
 	tmp := strings.Split(libseccompVersion, ".")
 	maj, err := strconv.Atoi(tmp[0])
 	if err != nil {
-		return fmt.Errorf("Could not obtain seccomp compiler information: %v", err)
+		return fmt.Errorf("cannot obtain seccomp compiler information: %v", err)
 	}
 	min, err := strconv.Atoi(tmp[1])
 	if err != nil {
-		return fmt.Errorf("Could not obtain seccomp compiler information: %v", err)
+		return fmt.Errorf("cannot obtain seccomp compiler information: %v", err)
 	}
+
+	var unfulfilledReqs []string
+
 	// libseccomp < 2.4 has significant argument filtering bugs that we
 	// cannot reliably work around with this feature.
 	if maj < 2 || (maj == 2 && min < 4) {
-		return fmt.Errorf(`This snap requires that snapd be compiled against libseccomp >= 2.4.`)
+		unfulfilledReqs = append(unfulfilledReqs, "libseccomp >= 2.4")
 	}
 
 	// Due to https://github.com/seccomp/libseccomp-golang/issues/22,
@@ -150,7 +169,14 @@ func (vi VersionInfo) SupportsRobustArgumentFiltering() error {
 		return err
 	}
 	if !res {
-		return fmt.Errorf(`This snap requires that snapd be compiled against golang-seccomp >= 0.9.1.`)
+		unfulfilledReqs = append(unfulfilledReqs, "golang-seccomp >= 0.9.1")
+	}
+
+	if len(unfulfilledReqs) != 0 {
+		return &BuildTimeRequirementError{
+			Feature:      "robust argument filtering",
+			Requirements: unfulfilledReqs,
+		}
 	}
 
 	return nil

@@ -744,6 +744,7 @@ name: app
 version: 0.1
 system-usernames:
   testid: shared
+  testid2: shared
 apps:
   cmd:
 `
@@ -756,20 +757,27 @@ apps:
 	data, err := ioutil.ReadFile(profile + ".src")
 	c.Assert(err, IsNil)
 	for _, line := range []string{
-		// NOTE: a few randomly picked lines from the real profile.  Comments
-		// and empty lines are avoided as those can be discarded in the future.
-		"# - create_module, init_module, finit_module, delete_module (kernel modules)\n",
-		"open\n",
-		"getuid\n",
-		"setgroups 0 0\n",
+		// NOTE: a few randomly picked lines from the real
+		// profile.  Comments and empty lines are avoided as
+		// those can be discarded in the future.
+		"\n# - create_module, init_module, finit_module, delete_module (kernel modules)\n",
+		"\nopen\n",
+		"\ngetuid\n",
+		"\nsetgroups 0 0\n",
 		// and a few randomly picked lines from root syscalls
-		"# allow setresgid to root\n",
-		"# allow setresuid to root\n",
-		"setresuid u:root u:root u:root\n",
+		// with extra \n checks to ensure we have the right
+		// "paragraphs" in the generated output
+		"\n\n# allow setresgid to root\n",
+		"\n# allow setresuid to root\n",
+		"\nsetresuid u:root u:root u:root\n",
 		// and a few randomly picked lines from global id syscalls
-		"# allow setresgid to testid\n",
-		"# allow setresuid to testid\n",
-		"setresuid -1 u:testid -1\n",
+		"\n\n# allow setresgid to testid\n",
+		"\n\n# allow setresuid to testid\n",
+		"\nsetresuid -1 u:testid -1\n",
+		// also for the second user
+		"\n\n# allow setresgid to testid2\n",
+		"\n# allow setresuid to testid2\n",
+		"\nsetresuid -1 u:testid2 -1\n",
 	} {
 		c.Assert(string(data), testutil.Contains, line)
 	}
