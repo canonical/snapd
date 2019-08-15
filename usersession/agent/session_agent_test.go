@@ -72,6 +72,7 @@ func (s *sessionAgentSuite) TestStartStop(c *C) {
 
 	response, err := s.client.Get("http://localhost/v1/session-info")
 	c.Assert(err, IsNil)
+	defer response.Body.Close()
 	c.Check(response.StatusCode, Equals, 200)
 
 	var rst struct {
@@ -81,6 +82,7 @@ func (s *sessionAgentSuite) TestStartStop(c *C) {
 	}
 	c.Assert(json.NewDecoder(response.Body).Decode(&rst), IsNil)
 	c.Check(rst.Result.Version, Equals, "42")
+	response.Body.Close()
 
 	c.Check(agent.Stop(), IsNil)
 }
@@ -109,12 +111,30 @@ func (s *sessionAgentSuite) TestExitOnIdle(c *C) {
 	agent, err := agent.New()
 	c.Assert(err, IsNil)
 	agent.IdleTimeout = 100 * time.Millisecond
+	startTime := time.Now()
 	agent.Start()
 	defer agent.Stop()
+
+	makeRequest := func() {
+		response, err := s.client.Get("http://localhost/v1/session-info")
+		c.Assert(err, IsNil)
+		defer response.Body.Close()
+		c.Check(response.StatusCode, Equals, 200)
+	}
+	makeRequest()
+	time.Sleep(25 * time.Millisecond)
+	makeRequest()
+
 	select {
 	case <-agent.Dying():
 	case <-time.After(2 * time.Second):
-		c.Error("agent did not exit after idle timeout expired")
+		c.Fatal("agent did not exit after idle timeout expired")
+	}
+	elapsed := time.Now().Sub(startTime)
+	if elapsed < 125*time.Millisecond {
+		// The idle timeout should have been extended when we
+		// issued a second request after 25ms.
+		c.Errorf("Expected ellaped time to be greater than 125 ms, but got %v", elapsed)
 	}
 }
 
