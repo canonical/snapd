@@ -514,12 +514,13 @@ func setSystemUsernamesFromSnapYaml(y snapYaml, snap *Info) error {
 		if err != nil {
 			return err
 		}
-		if user != "" && scope != "" {
-			snap.SystemUsernames[user] = &SystemUsernameInfo{
-				Name:  user,
-				Scope: scope,
-				Attrs: attrs,
-			}
+		if scope == "" {
+			return fmt.Errorf("system username %q does not specify a scope", user)
+		}
+		snap.SystemUsernames[user] = &SystemUsernameInfo{
+			Name:  user,
+			Scope: scope,
+			Attrs: attrs,
 		}
 	}
 
@@ -669,33 +670,33 @@ func convertToUsernamesData(user string, data interface{}) (scope string, attrs 
 		for keyData, valueData := range data.(map[interface{}]interface{}) {
 			key, ok := keyData.(string)
 			if !ok {
-				err := fmt.Errorf("%q has attribute that is not a string (found %T)", user, keyData)
+				err := fmt.Errorf("system username %q has attribute key that is not a string (found %T)", user, keyData)
 				return "", nil, err
 			}
 			switch key {
 			case "scope":
 				value, ok := valueData.(string)
 				if !ok {
-					err := fmt.Errorf("scope on %q is not a string (found %T)", user, valueData)
+					err := fmt.Errorf("scope on system username %q is not a string (found %T)", user, valueData)
 					return "", nil, err
 				}
 				scope = value
 			case "":
-				return "", nil, fmt.Errorf("%q has attribute that is empty string", user)
+				return "", nil, fmt.Errorf("system username %q has an empty attribute key", user)
 			default:
 				if attrs == nil {
 					attrs = make(map[string]interface{})
 				}
 				value, err := metautil.NormalizeValue(valueData)
 				if err != nil {
-					return "", nil, fmt.Errorf("attribute %q of %q: %v", key, user, err)
+					return "", nil, fmt.Errorf("attribute %q of system username %q: %v", key, user, err)
 				}
 				attrs[key] = value
 			}
 		}
 		return scope, attrs, nil
 	default:
-		err := fmt.Errorf("%q has malformed definition (found %T)", user, data)
+		err := fmt.Errorf("system username %q has malformed definition (found %T)", user, data)
 		return "", nil, err
 	}
 }

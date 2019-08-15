@@ -1863,7 +1863,7 @@ system-usernames:
 `)
 	info, err := snap.InfoFromSnapYaml(y)
 	c.Assert(err, NotNil)
-	c.Assert(err, ErrorMatches, `"a" has malformed definition \(found bool\)`)
+	c.Assert(err, ErrorMatches, `system username "a" has malformed definition \(found bool\)`)
 	c.Assert(info, IsNil)
 }
 
@@ -1875,7 +1875,7 @@ system-usernames:
 `)
 	info, err := snap.InfoFromSnapYaml(y)
 	c.Assert(err, NotNil)
-	c.Assert(err, ErrorMatches, `"a" has malformed definition \(found \[\]interface {}\)`)
+	c.Assert(err, ErrorMatches, `system username "a" has malformed definition \(found \[\]interface {}\)`)
 	c.Assert(info, IsNil)
 }
 
@@ -1907,9 +1907,18 @@ version: 1.0
 system-usernames:
   a: ""
 `)
-	info, err := snap.InfoFromSnapYaml(y)
-	c.Assert(err, IsNil)
-	c.Check(info.SystemUsernames, HasLen, 0)
+	_, err := snap.InfoFromSnapYaml(y)
+	c.Assert(err, ErrorMatches, `system username "a" does not specify a scope`)
+}
+
+func (s *YamlSuite) TestSnapYamlSystemUsernamesParsingBadValueNull(c *C) {
+	y := []byte(`name: binary
+version: 1.0
+system-usernames:
+  a: null
+`)
+	_, err := snap.InfoFromSnapYaml(y)
+	c.Assert(err, ErrorMatches, `system username "a" does not specify a scope`)
 }
 
 func (s *YamlSuite) TestSnapYamlSystemUsernamesParsingBadAttrKeyEmpty(c *C) {
@@ -1922,5 +1931,43 @@ system-usernames:
 `)
 	_, err := snap.InfoFromSnapYaml(y)
 	c.Assert(err, NotNil)
-	c.Assert(err, ErrorMatches, `"foo" has attribute that is empty string`)
+	c.Assert(err, ErrorMatches, `system username "foo" has an empty attribute key`)
+}
+
+func (s *YamlSuite) TestSnapYamlSystemUsernamesParsingBadAttrKeyNonString(c *C) {
+	y := []byte(`name: binary
+version: 1.0
+system-usernames:
+  foo:
+    scope: shared
+    1: bar
+`)
+	_, err := snap.InfoFromSnapYaml(y)
+	c.Assert(err, NotNil)
+	c.Assert(err, ErrorMatches, `system username "foo" has attribute key that is not a string \(found int\)`)
+}
+
+func (s *YamlSuite) TestSnapYamlSystemUsernamesParsingBadAttrValue(c *C) {
+	y := []byte(`name: binary
+version: 1.0
+system-usernames:
+  foo:
+    scope: shared
+    bar: null
+`)
+	_, err := snap.InfoFromSnapYaml(y)
+	c.Assert(err, NotNil)
+	c.Assert(err, ErrorMatches, `attribute "bar" of system username "foo": invalid scalar:.*`)
+}
+
+func (s *YamlSuite) TestSnapYamlSystemUsernamesParsingBadScopeNonString(c *C) {
+	y := []byte(`name: binary
+version: 1.0
+system-usernames:
+  foo:
+    scope: 10
+`)
+	_, err := snap.InfoFromSnapYaml(y)
+	c.Assert(err, NotNil)
+	c.Assert(err, ErrorMatches, `scope on system username "foo" is not a string \(found int\)`)
 }
