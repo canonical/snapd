@@ -15,4 +15,4 @@ execute: |
     . "$TESTSLIB"/snaps.sh
     snap_path=$(make_snap test-snapd-illegal-system-username)
     echo "Try to install a snap with an illegal user in 'system-usernames'"
-    snap install --dangerous "${snap_path}" 2>&1 | MATCH 'Unsupported system username "daemon"'
+    snap install --dangerous "${snap_path}" 2>&1 | MATCH 'requires unsupported system username "daemon"'

@@ -23,4 +23,4 @@ execute: |
     getent group snap_daemon || exit 1
 
     echo "Then the snap cannot be installed"
-    snap install --edge test-snapd-daemon-user 2>&1 | MATCH 'This snap requires that both the "snap_daemon" system user and group are present on the system'
+    snap install --edge test-snapd-daemon-user 2>&1 | MATCH 'cannot add user/group "snap_daemon": group exists and user does not'
