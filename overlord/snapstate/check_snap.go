@@ -29,6 +29,7 @@ import (
 	"github.com/snapcore/snapd/asserts"
 	"github.com/snapcore/snapd/cmd"
 	"github.com/snapcore/snapd/logger"
+	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/overlord/snapstate/backend"
 	"github.com/snapcore/snapd/overlord/state"
 	"github.com/snapcore/snapd/release"
@@ -44,6 +45,12 @@ var featureSet = map[string]bool{
 	"snap-env": true,
 	// Support for the "command-chain" feature for apps and hooks in snap.yaml
 	"command-chain": true,
+}
+
+// supportedSystemUsernames for now contains the hardcoded list of system
+// users (and implied system group of same name) that snaps may specify
+var supportedSystemUsernames = map[string]bool{
+	"snap_daemon": true,
 }
 
 func checkAssumes(si *snap.Info) error {
@@ -190,6 +197,11 @@ func validateInfoAndFlags(info *snap.Info, snapst *SnapState, flags Flags) error
 
 	// check assumes
 	if err := checkAssumes(info); err != nil {
+		return err
+	}
+
+	// check system-usernames
+	if err := checkSystemUsernames(info); err != nil {
 		return err
 	}
 
@@ -431,6 +443,42 @@ func earlyEpochCheck(info *snap.Info, snapst *SnapState) error {
 	}
 
 	return checkEpochs(nil, info, cur, Flags{}, nil)
+}
+
+// check that the listed system users are valid
+var (
+	findUid = osutil.FindUid
+	findGid = osutil.FindGid
+)
+
+// TODO: keep this unsupported until it is complete!
+var systemUsernamesSupported = false
+
+func checkSystemUsernames(si *snap.Info) error {
+	// TODO: keep this unsupported until it is complete!
+	if !systemUsernamesSupported && len(si.SystemUsernames) > 0 {
+		return fmt.Errorf("system usernames are not yet supported")
+	}
+
+	for _, user := range si.SystemUsernames {
+		if !supportedSystemUsernames[user.Name] {
+			return fmt.Errorf(`snap %q requires unsupported system username "%s"`, si.InstanceName(), user.Name)
+		}
+
+		switch user.Scope {
+		case "shared":
+			_, uidErr := findUid(user.Name)
+			_, gidErr := findGid(user.Name)
+			if uidErr != nil || gidErr != nil {
+				return fmt.Errorf(`snap %q requires that both the "%s" system user and group are present on the system.`, si.InstanceName(), user.Name)
+			}
+		case "private", "external":
+			return fmt.Errorf(`snap %q requires unsupported user scope "%s" for this version of snapd`, si.InstanceName(), user.Scope)
+		default:
+			return fmt.Errorf(`snap %q requires unsupported user scope "%s"`, si.InstanceName(), user.Scope)
+		}
+	}
+	return nil
 }
 
 func init() {

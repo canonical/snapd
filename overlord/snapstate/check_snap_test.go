@@ -922,3 +922,129 @@ func (s *checkSnapSuite) TestCheckSnapdHappy(c *C) {
 		}
 	}
 }
+
+// Note, invalid usernames checked in snap/info_snap_yaml.go
+var systemUsernamesTests = []struct {
+	sysIDs  string
+	classic bool
+	noGroup bool
+	noUser  bool
+	error   string
+}{{
+	sysIDs: "snap_daemon: shared",
+}, {
+	sysIDs: "snap_daemon:\n    scope: shared",
+}, {
+	sysIDs: "snap_daemon:\n    scope: private",
+	error:  `requires unsupported user scope "private" for this version of snapd`,
+}, {
+	sysIDs: "snap_daemon:\n    scope: external",
+	error:  `requires unsupported user scope "external" for this version of snapd`,
+}, {
+	sysIDs: "snap_daemon:\n    scope: other",
+	error:  `requires unsupported user scope "other"`,
+}, {
+	sysIDs:  "snap_daemon: shared",
+	classic: true,
+}, {
+	sysIDs:  "snap_daemon:\n    scope: shared",
+	classic: true,
+}, {
+	sysIDs:  "snap_daemon:\n    scope: private",
+	classic: true,
+	error:   `requires unsupported user scope "private" for this version of snapd`,
+}, {
+	sysIDs:  "snap_daemon:\n    scope: external",
+	classic: true,
+	error:   `requires unsupported user scope "external" for this version of snapd`,
+}, {
+	sysIDs:  "snap_daemon:\n    scope: other",
+	classic: true,
+	error:   `requires unsupported user scope "other"`,
+}, {
+	sysIDs: "snap_daemon: shared\n  allowed-not: shared",
+	error:  `requires unsupported system username "allowed-not"`,
+}, {
+	sysIDs:  "allowed-not: shared\n  snap_daemon: shared",
+	classic: true,
+	error:   `requires unsupported system username "allowed-not"`,
+}, {
+	sysIDs:  "snap_daemon: shared",
+	noGroup: true,
+	error:   `requires that both the \"snap_daemon\" system user and group are present on the system.`,
+}, {
+	sysIDs:  "snap_daemon: shared",
+	classic: true,
+	noGroup: true,
+	error:   `requires that both the \"snap_daemon\" system user and group are present on the system.`,
+}, {
+	sysIDs: "snap_daemon: shared",
+	noUser: true,
+	error:  `requires that both the \"snap_daemon\" system user and group are present on the system.`,
+}, {
+	sysIDs:  "snap_daemon: shared",
+	classic: true,
+	noUser:  true,
+	error:   `requires that both the \"snap_daemon\" system user and group are present on the system.`,
+}, {
+	sysIDs:  "snap_daemon: shared",
+	noUser:  true,
+	noGroup: true,
+	error:   `requires that both the \"snap_daemon\" system user and group are present on the system.`,
+}, {
+	sysIDs:  "snap_daemon: shared",
+	classic: true,
+	noUser:  true,
+	noGroup: true,
+	error:   `requires that both the \"snap_daemon\" system user and group are present on the system.`,
+}}
+
+func (s *checkSnapSuite) TestCheckSnapSystemUsernames(c *C) {
+	r := snapstate.EnableSystemUsernamesSupportForTest()
+	defer r()
+
+	restore := release.MockOnClassic(false)
+	defer restore()
+
+	for _, test := range systemUsernamesTests {
+		release.OnClassic = test.classic
+		if test.noGroup {
+			restore = snapstate.MockFindGid(func(name string) (uint64, error) {
+				return 0, fmt.Errorf("user: unknown group %s", name)
+			})
+		} else {
+			restore = snapstate.MockFindGid(func(name string) (uint64, error) {
+				return 123, nil
+			})
+		}
+		defer restore()
+
+		if test.noUser {
+			restore = snapstate.MockFindUid(func(name string) (uint64, error) {
+				return 0, fmt.Errorf("user: unknown user %s", name)
+			})
+		} else {
+			restore = snapstate.MockFindUid(func(name string) (uint64, error) {
+				return 124, nil
+			})
+		}
+		defer restore()
+
+		yaml := fmt.Sprintf("name: foo\nsystem-usernames:\n  %s\n", test.sysIDs)
+
+		info, err := snap.InfoFromSnapYaml([]byte(yaml))
+		c.Assert(err, IsNil)
+
+		var openSnapFile = func(path string, si *snap.SideInfo) (*snap.Info, snap.Container, error) {
+			return info, emptyContainer(c), nil
+		}
+		restore := snapstate.MockOpenSnapFile(openSnapFile)
+		defer restore()
+		err = snapstate.CheckSnap(s.st, "snap-path", "foo", nil, nil, snapstate.Flags{}, nil)
+		if test.error != "" {
+			c.Check(err, ErrorMatches, `snap "foo" `+test.error)
+		} else {
+			c.Assert(err, IsNil)
+		}
+	}
+}

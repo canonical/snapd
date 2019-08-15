@@ -1819,3 +1819,155 @@ apps:
 	c.Assert(app, NotNil)
 	c.Check(app.RestartDelay, Equals, timeout.Timeout(12*time.Second))
 }
+
+func (s *YamlSuite) TestSnapYamlSystemUsernamesParsing(c *C) {
+	y := []byte(`name: binary
+version: 1.0
+system-usernames:
+  foo: shared
+  bar:
+    scope: external
+  baz:
+    scope: private
+    attr1: norf
+    attr2: corge
+    attr3: ""
+`)
+	info, err := snap.InfoFromSnapYaml(y)
+	c.Assert(err, IsNil)
+	c.Check(info.SystemUsernames, HasLen, 3)
+	c.Assert(info.SystemUsernames["foo"], DeepEquals, &snap.SystemUsernameInfo{
+		Name:  "foo",
+		Scope: "shared",
+	})
+	c.Assert(info.SystemUsernames["bar"], DeepEquals, &snap.SystemUsernameInfo{
+		Name:  "bar",
+		Scope: "external",
+	})
+	c.Assert(info.SystemUsernames["baz"], DeepEquals, &snap.SystemUsernameInfo{
+		Name:  "baz",
+		Scope: "private",
+		Attrs: map[string]interface{}{
+			"attr1": "norf",
+			"attr2": "corge",
+			"attr3": "",
+		},
+	})
+}
+
+func (s *YamlSuite) TestSnapYamlSystemUsernamesParsingBadType(c *C) {
+	y := []byte(`name: binary
+version: 1.0
+system-usernames:
+  a: true
+`)
+	info, err := snap.InfoFromSnapYaml(y)
+	c.Assert(err, NotNil)
+	c.Assert(err, ErrorMatches, `system username "a" has malformed definition \(found bool\)`)
+	c.Assert(info, IsNil)
+}
+
+func (s *YamlSuite) TestSnapYamlSystemUsernamesParsingBadValue(c *C) {
+	y := []byte(`name: binary
+version: 1.0
+system-usernames:
+  a: [b, c]
+`)
+	info, err := snap.InfoFromSnapYaml(y)
+	c.Assert(err, NotNil)
+	c.Assert(err, ErrorMatches, `system username "a" has malformed definition \(found \[\]interface {}\)`)
+	c.Assert(info, IsNil)
+}
+
+func (s *YamlSuite) TestSnapYamlSystemUsernamesParsingBadKeyEmpty(c *C) {
+	y := []byte(`name: binary
+version: 1.0
+system-usernames:
+  "": shared
+`)
+	_, err := snap.InfoFromSnapYaml(y)
+	c.Assert(err, NotNil)
+	c.Assert(err, ErrorMatches, `system username cannot be empty`)
+}
+
+func (s *YamlSuite) TestSnapYamlSystemUsernamesParsingBadKeyList(c *C) {
+	y := []byte(`name: binary
+version: 1.0
+system-usernames:
+- foo: shared
+`)
+	_, err := snap.InfoFromSnapYaml(y)
+	c.Assert(err, NotNil)
+	c.Assert(err, ErrorMatches, `(?m)cannot parse snap.yaml:.*`)
+}
+
+func (s *YamlSuite) TestSnapYamlSystemUsernamesParsingBadValueEmpty(c *C) {
+	y := []byte(`name: binary
+version: 1.0
+system-usernames:
+  a: ""
+`)
+	_, err := snap.InfoFromSnapYaml(y)
+	c.Assert(err, ErrorMatches, `system username "a" does not specify a scope`)
+}
+
+func (s *YamlSuite) TestSnapYamlSystemUsernamesParsingBadValueNull(c *C) {
+	y := []byte(`name: binary
+version: 1.0
+system-usernames:
+  a: null
+`)
+	_, err := snap.InfoFromSnapYaml(y)
+	c.Assert(err, ErrorMatches, `system username "a" does not specify a scope`)
+}
+
+func (s *YamlSuite) TestSnapYamlSystemUsernamesParsingBadAttrKeyEmpty(c *C) {
+	y := []byte(`name: binary
+version: 1.0
+system-usernames:
+  foo:
+    scope: shared
+    "": bar
+`)
+	_, err := snap.InfoFromSnapYaml(y)
+	c.Assert(err, NotNil)
+	c.Assert(err, ErrorMatches, `system username "foo" has an empty attribute key`)
+}
+
+func (s *YamlSuite) TestSnapYamlSystemUsernamesParsingBadAttrKeyNonString(c *C) {
+	y := []byte(`name: binary
+version: 1.0
+system-usernames:
+  foo:
+    scope: shared
+    1: bar
+`)
+	_, err := snap.InfoFromSnapYaml(y)
+	c.Assert(err, NotNil)
+	c.Assert(err, ErrorMatches, `system username "foo" has attribute key that is not a string \(found int\)`)
+}
+
+func (s *YamlSuite) TestSnapYamlSystemUsernamesParsingBadAttrValue(c *C) {
+	y := []byte(`name: binary
+version: 1.0
+system-usernames:
+  foo:
+    scope: shared
+    bar: null
+`)
+	_, err := snap.InfoFromSnapYaml(y)
+	c.Assert(err, NotNil)
+	c.Assert(err, ErrorMatches, `attribute "bar" of system username "foo": invalid scalar:.*`)
+}
+
+func (s *YamlSuite) TestSnapYamlSystemUsernamesParsingBadScopeNonString(c *C) {
+	y := []byte(`name: binary
+version: 1.0
+system-usernames:
+  foo:
+    scope: 10
+`)
+	_, err := snap.InfoFromSnapYaml(y)
+	c.Assert(err, NotNil)
+	c.Assert(err, ErrorMatches, `scope on system username "foo" is not a string \(found int\)`)
+}
