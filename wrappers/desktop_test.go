@@ -508,6 +508,12 @@ version: 1.0
 
 	_, err = wrappers.RewriteIconLine(snap, "Icon=snap.othersnap.icon")
 	c.Check(err, ErrorMatches, `invalid icon name: "snap.othersnap.icon"`)
+
+	_, err = wrappers.RewriteIconLine(snap, "Icon=/etc/passwd")
+	c.Check(err, ErrorMatches, `icon path /etc/passwd is not part of the snap`)
+
+	_, err = wrappers.RewriteIconLine(snap, "Icon=${SNAP}/../outside/icon.png")
+	c.Check(err, ErrorMatches, `icon path \${SNAP}/../outside/icon.png is not canonical`)
 }
 
 func (s *sanitizeDesktopFileSuite) TestSanitizeParallelInstancesIconName(c *C) {
