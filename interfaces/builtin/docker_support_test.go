@@ -72,6 +72,7 @@ version: 1.0
 plugs:
  privileged:
   interface: docker-support
+  privileged-containers: false
 apps:
  app:
   command: foo
