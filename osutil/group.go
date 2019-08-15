@@ -24,6 +24,11 @@ import (
 	"strconv"
 )
 
+var (
+	FindUid = findUid
+	FindGid = findGid
+)
+
 // TODO: the builtin os/user functions only look at /etc/passwd and /etc/group
 // which is fine for our purposes today. In the future we may want to support
 // lookups in extrausers, which is configured via nsswitch.conf. Since snapd
@@ -33,8 +38,8 @@ import (
 //   getent passwd <user> | cut -d : -f 3
 //   getent group <group> | cut -d : -f 3
 
-// FindUid returns the identifier of the given UNIX user name.
-func FindUid(username string) (uint64, error) {
+// findUid returns the identifier of the given UNIX user name.
+func findUid(username string) (uint64, error) {
 	user, err := user.Lookup(username)
 	if err != nil {
 		return 0, err
@@ -43,8 +48,8 @@ func FindUid(username string) (uint64, error) {
 	return strconv.ParseUint(user.Uid, 10, 64)
 }
 
-// FindGid returns the identifier of the given UNIX group name.
-func FindGid(groupname string) (uint64, error) {
+// findGid returns the identifier of the given UNIX group name.
+func findGid(groupname string) (uint64, error) {
 	group, err := user.LookupGroup(groupname)
 	if err != nil {
 		return 0, err
