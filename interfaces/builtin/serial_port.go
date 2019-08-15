@@ -20,7 +20,9 @@
 package builtin
 
 import (
+	"crypto/sha256"
 	"fmt"
+	"hash"
 	"path/filepath"
 	"regexp"
 	"strconv"
@@ -204,6 +206,64 @@ SUBSYSTEM=="tty", SUBSYSTEMS=="usb", ATTRS{idVendor}=="%04x", ATTRS{idProduct}==
 func (iface *serialPortInterface) AutoConnect(*snap.PlugInfo, *snap.SlotInfo) bool {
 	// allow what declarations allowed
 	return true
+}
+
+func writeToKey(key hash.Hash, name, val string) {
+	key.Write([]byte(name))
+	key.Write([]byte{0})
+	key.Write([]byte(val))
+	key.Write([]byte{0})
+}
+
+func (iface *serialPortInterface) HotplugKey(di *hotplug.HotplugDeviceInfo) (snap.HotplugKey, error) {
+	// only define a key for pci bus
+	bus, _ := di.Attribute("ID_BUS")
+	if bus != "pci" {
+		return "", nil
+	}
+
+	attrGroup := [][]string{
+		// Name
+		{"ID_V4L_PRODUCT", "NAME", "ID_NET_NAME", "PCI_SLOT_NAME"},
+		// Vendor
+		{"ID_VENDOR_ID", "ID_VENDOR", "ID_WWN", "ID_WWN_WITH_EXTENSION", "ID_VENDOR_FROM_DATABASE", "ID_VENDOR_ENC", "ID_OUI_FROM_DATABASE"},
+		// Model
+		{"ID_MODEL_ID", "ID_MODEL_ENC"},
+		// Identifier
+		{"ID_SERIAL", "ID_SERIAL_SHORT", "ID_NET_NAME_MAC", "ID_REVISION"},
+	}
+
+	found := 0
+	key := sha256.New()
+
+	// for pci bus serial ports, we want to include DEVPATH attribute as well
+	// as the vendor and model, so first write out the value of that
+	if val, ok := di.Attribute("DEVPATH"); ok && val != "" {
+		writeToKey(key, "DEVPATH", val)
+	} else {
+		// if DEVPATH doesn't exist there's something wrong with this udev
+		// installation
+		return "", fmt.Errorf("device %s but doesn't have DEVPATH udev attr", di.DeviceName())
+	}
+
+	for _, group := range attrGroup {
+		for _, attr := range group {
+			if val, ok := di.Attribute(attr); ok && val != "" {
+				writeToKey(key, attr, val)
+				found++
+				break
+			}
+		}
+	}
+
+	// didn't find enough uniquely identifying udev attributes in addition to
+	// DEVPATH
+	if found < 2 {
+		return "", nil
+	}
+
+	// for now hard-code 0 as the key version
+	return snap.HotplugKey(fmt.Sprintf("%x%x", "0", key.Sum(nil))), nil
 }
 
 func (iface *serialPortInterface) HotplugDeviceDetected(di *hotplug.HotplugDeviceInfo) (*hotplug.ProposedSlot, error) {
