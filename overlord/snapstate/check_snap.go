@@ -451,7 +451,15 @@ var (
 	findGid = osutil.FindGid
 )
 
+// TODO: keep this unsupported until it is complete!
+var systemUsernamesSupported = false
+
 func checkSystemUsernames(si *snap.Info) error {
+	// TODO: keep this unsupported until it is complete!
+	if !systemUsernamesSupported && len(si.SystemUsernames) > 0 {
+		return fmt.Errorf("system usernames are not yet supported")
+	}
+
 	for _, user := range si.SystemUsernames {
 		if !supportedSystemUsernames[user.Name] {
 			return fmt.Errorf(`snap %q requires unsupported system username "%s"`, si.InstanceName(), user.Name)

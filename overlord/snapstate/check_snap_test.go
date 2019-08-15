@@ -1000,6 +1000,9 @@ var systemUsernamesTests = []struct {
 }}
 
 func (s *checkSnapSuite) TestCheckSnapSystemUsernames(c *C) {
+	r := snapstate.EnableSystemUsernamesSupportForTest()
+	defer r()
+
 	restore := release.MockOnClassic(false)
 	defer restore()
 

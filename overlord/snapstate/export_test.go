@@ -84,6 +84,13 @@ func MockFindGid(mock func(name string) (uint64, error)) (restore func()) {
 	return func() { findGid = old }
 }
 
+func EnableSystemUsernamesSupportForTest() (restore func()) {
+	systemUsernamesSupported = true
+	return func() {
+		systemUsernamesSupported = false
+	}
+}
+
 var (
 	CoreInfoInternal       = coreInfo
 	CheckSnap              = checkSnap
