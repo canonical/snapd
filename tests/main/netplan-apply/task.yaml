@@ -39,6 +39,7 @@ prepare: |
     Name=$NETPLAN
     Exec=$(pwd)/fake-netplan-apply-service.py $(pwd)/dbus-netplan-apply.log
     User=root
+    AssumedAppArmorLabel=unconfined
     EOF
 
     touch dbus-netplan-apply.log
