@@ -21,6 +21,7 @@ package snapstate
 
 import (
 	"fmt"
+	"path/filepath"
 	"regexp"
 	"strconv"
 	"strings"
@@ -28,11 +29,13 @@ import (
 	"github.com/snapcore/snapd/arch"
 	"github.com/snapcore/snapd/asserts"
 	"github.com/snapcore/snapd/cmd"
+	"github.com/snapcore/snapd/interfaces"
 	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/overlord/snapstate/backend"
 	"github.com/snapcore/snapd/overlord/state"
 	"github.com/snapcore/snapd/release"
+	seccomp_compiler "github.com/snapcore/snapd/sandbox/seccomp"
 	"github.com/snapcore/snapd/snap"
 )
 
@@ -458,6 +461,33 @@ func checkSystemUsernames(si *snap.Info) error {
 	// TODO: keep this unsupported until it is complete!
 	if !systemUsernamesSupported && len(si.SystemUsernames) > 0 {
 		return fmt.Errorf("system usernames are not yet supported")
+	}
+
+	// No need to check support if no system-usernames
+	if len(si.SystemUsernames) == 0 {
+		return nil
+	}
+
+	// TODO: wrap this invocation differently in a sandbox helper
+	// Run /.../snap-seccomp version-info
+	path, err := cmd.InternalToolPath("snapd")
+	if err != nil {
+		return err
+	}
+
+	vi, err := interfaces.SeccompCompilerVersionInfo(filepath.Join(filepath.Dir(path), "snap-seccomp"))
+	if err != nil {
+		return fmt.Errorf("cannot obtain seccomp compiler information: %v", err)
+	}
+
+	// If the system doesn't support robust argument filtering then we
+	// can't support system-usernames
+	err = seccomp_compiler.VersionInfo(vi).SupportsRobustArgumentFiltering()
+	if err != nil {
+		if re, ok := err.(*seccomp_compiler.BuildTimeRequirementError); ok {
+			return fmt.Errorf("snap %q system usernames require a snapd built against %s", si.InstanceName(), re.RequirementsString())
+		}
+		return err
 	}
 
 	for _, user := range si.SystemUsernames {
