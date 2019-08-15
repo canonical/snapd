@@ -691,8 +691,24 @@ static void helper_main(struct sc_mount_ns *group, struct sc_apparmor *apparmor,
 	if (kill(parent, 0) < 0) {
 		switch (errno) {
 		case ESRCH:
+			// When snap-confine executes it will fork a helper process. That
+			// process establishes an elaborate dance to ensure both itself and
+			// the parent are operating exactly as specified, so that no
+			// processes are left behind for unbound amount of time. As a part
+			// of that dance the child pings the parent to ensure it is still
+			// alive after establishing a notification signal to be sent in
+			// case the parent dies. This is a race avoidance mechanism, we set
+			// up the notification and then check if the parent is alive by the
+			// time we are done.
+			//
+			// In the case when the parent does go away we used to call
+			// abort(). On some distributions this would trigger an unclean
+			// process termination error report to be sent. One such example is
+			// the Ubuntu error tracker. Since the parent process can be
+			// legitimately interrupted and killed, this should not generate an
+			// error report. As such, perform clean exit in this specific case.
 			debug("parent process has terminated");
-			abort();
+			exit(0);
 		default:
 			die("cannot confirm that parent process is alive");
 			break;

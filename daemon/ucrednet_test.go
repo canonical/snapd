@@ -58,15 +58,15 @@ func (s *ucrednetSuite) TestAcceptConnRemoteAddrString(c *check.C) {
 
 	l, err := net.Listen("unix", sock)
 	c.Assert(err, check.IsNil)
-	defer l.Close()
+	wl := &ucrednetListener{Listener: l}
+
+	defer wl.Close()
 
 	go func() {
 		cli, err := net.Dial("unix", sock)
 		c.Assert(err, check.IsNil)
 		cli.Close()
 	}()
-
-	wl := &ucrednetListener{l}
 
 	conn, err := wl.Accept()
 	c.Assert(err, check.IsNil)
@@ -83,7 +83,9 @@ func (s *ucrednetSuite) TestAcceptConnRemoteAddrString(c *check.C) {
 func (s *ucrednetSuite) TestNonUnix(c *check.C) {
 	l, err := net.Listen("tcp", "localhost:0")
 	c.Assert(err, check.IsNil)
-	defer l.Close()
+
+	wl := &ucrednetListener{Listener: l}
+	defer wl.Close()
 
 	addr := l.Addr().String()
 
@@ -92,8 +94,6 @@ func (s *ucrednetSuite) TestNonUnix(c *check.C) {
 		c.Assert(err, check.IsNil)
 		cli.Close()
 	}()
-
-	wl := &ucrednetListener{l}
 
 	conn, err := wl.Accept()
 	c.Assert(err, check.IsNil)
@@ -116,7 +116,7 @@ func (s *ucrednetSuite) TestAcceptErrors(c *check.C) {
 	c.Assert(err, check.IsNil)
 	c.Assert(l.Close(), check.IsNil)
 
-	wl := &ucrednetListener{l}
+	wl := &ucrednetListener{Listener: l}
 
 	_, err = wl.Accept()
 	c.Assert(err, check.NotNil)
@@ -129,7 +129,9 @@ func (s *ucrednetSuite) TestUcredErrors(c *check.C) {
 
 	l, err := net.Listen("unix", sock)
 	c.Assert(err, check.IsNil)
-	defer l.Close()
+
+	wl := &ucrednetListener{Listener: l}
+	defer wl.Close()
 
 	go func() {
 		cli, err := net.Dial("unix", sock)
@@ -137,10 +139,21 @@ func (s *ucrednetSuite) TestUcredErrors(c *check.C) {
 		cli.Close()
 	}()
 
-	wl := &ucrednetListener{l}
-
 	_, err = wl.Accept()
 	c.Assert(err, check.Equals, s.err)
+}
+
+func (s *ucrednetSuite) TestIdempotentClose(c *check.C) {
+	s.ucred = &sys.Ucred{Pid: 100, Uid: 42}
+	d := c.MkDir()
+	sock := filepath.Join(d, "sock")
+
+	l, err := net.Listen("unix", sock)
+	c.Assert(err, check.IsNil)
+	wl := &ucrednetListener{Listener: l}
+
+	c.Assert(wl.Close(), check.IsNil)
+	c.Assert(wl.Close(), check.IsNil)
 }
 
 func (s *ucrednetSuite) TestGetNoUid(c *check.C) {

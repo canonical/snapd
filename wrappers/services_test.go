@@ -115,6 +115,7 @@ func (s *servicesTestSuite) TestAddSnapServicesAndRemove(c *C) {
 
 var snapdYaml = `name: snapd
 version: 1.0
+type: snapd
 `
 
 func (s *servicesTestSuite) TestRemoveSnapWithSocketsRemovesSocketsService(c *C) {

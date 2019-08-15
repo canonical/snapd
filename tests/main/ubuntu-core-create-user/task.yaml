@@ -1,6 +1,6 @@
 summary: Ensure that snap create-user works in ubuntu-core
 
-systems: [ubuntu-core-16-*]
+systems: [ubuntu-core-1*]
 
 restore: |
     # meh, deluser has no --extrausers support

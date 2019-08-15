@@ -1226,12 +1226,17 @@ func (m *InterfaceManager) doGadgetConnect(task *state.Task, _ *tomb.Tomb) error
 	st.Lock()
 	defer st.Unlock()
 
+	deviceCtx, err := snapstate.DeviceCtx(st, task, nil)
+	if err != nil {
+		return err
+	}
+
 	conns, err := getConns(st)
 	if err != nil {
 		return err
 	}
 
-	gconns, err := snapstate.GadgetConnections(st)
+	gconns, err := snapstate.GadgetConnections(st, deviceCtx)
 	if err != nil {
 		return err
 	}

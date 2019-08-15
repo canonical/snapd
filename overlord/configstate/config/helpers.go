@@ -47,6 +47,41 @@ func ParseKey(key string) (subkeys []string, err error) {
 	return subkeys, nil
 }
 
+func purgeNulls(config interface{}) interface{} {
+	switch config := config.(type) {
+	// map of json raw messages is the starting point for purgeNulls, this is the configuration we receive
+	case map[string]*json.RawMessage:
+		for k, v := range config {
+			if cfg := purgeNulls(v); cfg != nil {
+				config[k] = cfg.(*json.RawMessage)
+			} else {
+				delete(config, k)
+			}
+		}
+	case map[string]interface{}:
+		for k, v := range config {
+			if cfg := purgeNulls(v); cfg != nil {
+				config[k] = cfg
+			} else {
+				delete(config, k)
+			}
+		}
+	case *json.RawMessage:
+		if config == nil {
+			return nil
+		}
+		var configm interface{}
+		if err := jsonutil.DecodeWithNumber(bytes.NewReader(*config), &configm); err != nil {
+			panic(fmt.Errorf("internal error: cannot unmarshal configuration: %v", err))
+		}
+		if cfg := purgeNulls(configm); cfg != nil {
+			return jsonRaw(cfg)
+		}
+		return nil
+	}
+	return config
+}
+
 func PatchConfig(snapName string, subkeys []string, pos int, config interface{}, value *json.RawMessage) (interface{}, error) {
 
 	switch config := config.(type) {

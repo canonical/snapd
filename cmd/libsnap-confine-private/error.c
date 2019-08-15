@@ -59,6 +59,26 @@ sc_error *sc_error_init_from_errno(int errno_copy, const char *msgfmt, ...)
 	return err;
 }
 
+sc_error *sc_error_init_simple(const char *msgfmt, ...)
+{
+	va_list ap;
+	va_start(ap, msgfmt);
+	sc_error *err = sc_error_initv(SC_LIBSNAP_DOMAIN,
+				       SC_UNSPECIFIED_ERROR, msgfmt, ap);
+	va_end(ap);
+	return err;
+}
+
+sc_error *sc_error_init_api_misuse(const char *msgfmt, ...)
+{
+	va_list ap;
+	va_start(ap, msgfmt);
+	sc_error *err = sc_error_initv(SC_LIBSNAP_DOMAIN,
+				       SC_API_MISUSE, msgfmt, ap);
+	va_end(ap);
+	return err;
+}
+
 const char *sc_error_domain(sc_error * err)
 {
 	if (err == NULL) {
@@ -102,13 +122,12 @@ void sc_die_on_error(sc_error * error)
 {
 	if (error != NULL) {
 		if (strcmp(sc_error_domain(error), SC_ERRNO_DOMAIN) == 0) {
-			// Set errno just before the call to die() as it is used internally
-			errno = sc_error_code(error);
-			die("%s", sc_error_msg(error));
+			fprintf(stderr, "%s: %s\n", sc_error_msg(error), strerror(sc_error_code(error)));
 		} else {
-			errno = 0;
-			die("%s", sc_error_msg(error));
+			fprintf(stderr, "%s\n", sc_error_msg(error));
 		}
+		sc_error_free(error);
+		exit(1);
 	}
 }
 

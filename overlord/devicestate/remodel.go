@@ -119,7 +119,7 @@ type remodelContext interface {
 
 	// initialDevice takes the current/initial device state
 	// when setting up the remodel context
-	initialDevice(device *auth.DeviceState)
+	initialDevice(device *auth.DeviceState) error
 	// associate associates the remodel context with the change
 	// and caches it
 	associate(chg *state.Change)
@@ -137,14 +137,11 @@ func remodelCtx(st *state.State, oldModel, newModel *asserts.Model) (remodelCont
 		// simple context for the simple case
 		remodCtx = &updateRemodelContext{baseRemodelContext{newModel}}
 	case StoreSwitchRemodel:
-		storeSwitchCtx := &newStoreRemodelContext{
-			baseRemodelContext: baseRemodelContext{newModel},
-			st:                 st,
-			deviceMgr:          devMgr,
+		remodCtx = newNewStoreRemodelContext(st, devMgr, newModel)
+	case ReregRemodel:
+		remodCtx = &reregRemodelContext{
+			newStoreRemodelContext: newNewStoreRemodelContext(st, devMgr, newModel),
 		}
-		storeSwitchCtx.store = devMgr.newStore(storeSwitchCtx.deviceBackend())
-		remodCtx = storeSwitchCtx
-	// TODO: support ReregRemodel
 	default:
 		return nil, fmt.Errorf("unsupported remodel: %s", kind)
 	}
@@ -153,7 +150,9 @@ func remodelCtx(st *state.State, oldModel, newModel *asserts.Model) (remodelCont
 	if err != nil {
 		return nil, err
 	}
-	remodCtx.initialDevice(device)
+	if err := remodCtx.initialDevice(device); err != nil {
+		return nil, err
+	}
 
 	return remodCtx, nil
 }
@@ -214,8 +213,9 @@ func (rc baseRemodelContext) Model() *asserts.Model {
 	return rc.newModel
 }
 
-func (rc baseRemodelContext) initialDevice(*auth.DeviceState) {
+func (rc baseRemodelContext) initialDevice(*auth.DeviceState) error {
 	// do nothing
+	return nil
 }
 
 func (rc baseRemodelContext) cacheViaChange(chg *state.Change, remodCtx remodelContext) {
@@ -271,6 +271,15 @@ type newStoreRemodelContext struct {
 	deviceMgr *DeviceManager
 }
 
+func newNewStoreRemodelContext(st *state.State, devMgr *DeviceManager, newModel *asserts.Model) *newStoreRemodelContext {
+	rc := &newStoreRemodelContext{}
+	rc.baseRemodelContext = baseRemodelContext{newModel}
+	rc.st = st
+	rc.deviceMgr = devMgr
+	rc.store = devMgr.newStore(rc.deviceBackend())
+	return rc
+}
+
 func (rc *newStoreRemodelContext) Kind() RemodelKind {
 	return StoreSwitchRemodel
 }
@@ -280,17 +289,23 @@ func (rc *newStoreRemodelContext) associate(chg *state.Change) {
 	rc.cacheViaChange(chg, rc)
 }
 
-func (rc *newStoreRemodelContext) initialDevice(device *auth.DeviceState) {
+func (rc *newStoreRemodelContext) initialDevice(device *auth.DeviceState) error {
 	device1 := *device
 	// we will need a new one, it might embed the store as well
 	device1.SessionMacaroon = ""
 	rc.deviceState = &device1
+	return nil
+}
+
+func (rc *newStoreRemodelContext) init(chg *state.Change) {
+	rc.baseRemodelContext.init(chg)
+
+	chg.Set("device", rc.deviceState)
+	rc.deviceState = nil
 }
 
 func (rc *newStoreRemodelContext) Init(chg *state.Change) {
 	rc.init(chg)
-	chg.Set("device", rc.deviceState)
-	rc.deviceState = nil
 
 	rc.associate(chg)
 }
@@ -359,4 +374,81 @@ func (b remodelDeviceBackend) Serial() (*asserts.Serial, error) {
 		return nil, err
 	}
 	return findSerial(b.st, device)
+}
+
+// reregRemodelContext: remodel for a change of brand/model
+type reregRemodelContext struct {
+	*newStoreRemodelContext
+
+	origModel  *asserts.Model
+	origSerial *asserts.Serial
+}
+
+func (rc *reregRemodelContext) Kind() RemodelKind {
+	return ReregRemodel
+}
+
+func (rc *reregRemodelContext) associate(chg *state.Change) {
+	rc.remodelChange = chg
+	rc.cacheViaChange(chg, rc)
+}
+
+func (rc *reregRemodelContext) initialDevice(device *auth.DeviceState) error {
+	origModel, err := findModel(rc.st)
+	if err != nil {
+		return err
+	}
+	origSerial, err := findSerial(rc.st, nil)
+	if err != nil {
+		return fmt.Errorf("cannot find current serial before proceeding with re-registration: %v", err)
+	}
+	rc.origModel = origModel
+	rc.origSerial = origSerial
+
+	// starting almost from scratch with only device-key
+	rc.deviceState = &auth.DeviceState{
+		Brand: rc.newModel.BrandID(),
+		Model: rc.newModel.Model(),
+		KeyID: device.KeyID,
+	}
+	return nil
+}
+
+func (rc *reregRemodelContext) Init(chg *state.Change) {
+	rc.init(chg)
+
+	rc.associate(chg)
+}
+
+// reregRemodelContext impl of registrationContext
+
+func (rc *reregRemodelContext) Device() (*auth.DeviceState, error) {
+	return rc.device()
+}
+
+func (rc *reregRemodelContext) GadgetForSerialRequestConfig() string {
+	return rc.origModel.Gadget()
+}
+
+func (rc *reregRemodelContext) SerialRequestExtraHeaders() map[string]interface{} {
+	return map[string]interface{}{
+		"original-brand-id": rc.origSerial.BrandID(),
+		"original-model":    rc.origSerial.Model(),
+		"original-serial":   rc.origSerial.Serial(),
+	}
+}
+
+func (rc *reregRemodelContext) SerialRequestAncillaryAssertions() []asserts.Assertion {
+	return []asserts.Assertion{rc.newModel, rc.origSerial}
+}
+
+func (rc *reregRemodelContext) FinishRegistration(serial *asserts.Serial) error {
+	device, err := rc.device()
+	if err != nil {
+		return err
+	}
+
+	device.Serial = serial.Serial()
+	rc.setCtxDevice(device)
+	return nil
 }

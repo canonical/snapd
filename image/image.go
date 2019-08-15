@@ -20,6 +20,7 @@
 package image
 
 import (
+	"bytes"
 	"fmt"
 	"io"
 	"io/ioutil"
@@ -786,4 +787,68 @@ func extractKernelAssets(snapPath string, info *snap.Info) error {
 func copyLocalSnapFile(snapPath, targetDir string, info *snap.Info) (dstPath string, err error) {
 	dst := filepath.Join(targetDir, filepath.Base(info.MountFile()))
 	return dst, osutil.CopyFile(snapPath, dst, 0)
+}
+
+func ValidateSeed(seedFile string) error {
+	seed, err := snap.ReadSeedYaml(seedFile)
+	if err != nil {
+		return err
+	}
+
+	var errs []error
+	// read the snaps info
+	snapInfos := make(map[string]*snap.Info)
+	for _, seedSnap := range seed.Snaps {
+		fn := filepath.Join(filepath.Dir(seedFile), "snaps", seedSnap.File)
+		snapf, err := snap.Open(fn)
+		if err != nil {
+			errs = append(errs, err)
+		} else {
+			info, err := snap.ReadInfoFromSnapFile(snapf, nil)
+			if err != nil {
+				errs = append(errs, fmt.Errorf("cannot use snap %s: %v", fn, err))
+			} else {
+				snapInfos[info.InstanceName()] = info
+			}
+		}
+	}
+
+	// ensure we have either "core" or "snapd"
+	_, haveCore := snapInfos["core"]
+	_, haveSnapd := snapInfos["snapd"]
+	if !(haveCore || haveSnapd) {
+		errs = append(errs, fmt.Errorf("the core or snapd snap must be part of the seed"))
+	}
+
+	// check that all bases/default-providers are part of the seed
+	for _, info := range snapInfos {
+		// ensure base is available
+		if info.Base != "" && info.Base != "none" {
+			if _, ok := snapInfos[info.Base]; !ok {
+				errs = append(errs, fmt.Errorf("cannot use snap %q: base %q is missing", info.InstanceName(), info.Base))
+			}
+		}
+		// ensure core is available
+		if info.Base == "" && info.SnapType == snap.TypeApp && info.InstanceName() != "snapd" {
+			if _, ok := snapInfos["core"]; !ok {
+				errs = append(errs, fmt.Errorf(`cannot use snap %q: required snap "core" missing`, info.InstanceName()))
+			}
+		}
+		// ensure default-providers are available
+		for _, dp := range neededDefaultProviders(info) {
+			if _, ok := snapInfos[dp]; !ok {
+				errs = append(errs, fmt.Errorf("cannot use snap %q: default provider %q is missing", info.InstanceName(), dp))
+			}
+		}
+	}
+
+	if errs != nil {
+		var buf bytes.Buffer
+		for _, err := range errs {
+			fmt.Fprintf(&buf, "\n- %s", err)
+		}
+		return fmt.Errorf("cannot validate seed:%s", buf.Bytes())
+	}
+
+	return nil
 }

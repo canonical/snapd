@@ -102,7 +102,7 @@ snapd (2.40~14.04) trusty; urgency=medium
     - tests/lib/nested: fix multi argument copy_remote
     - tests/lib/nested: have mkfs.ext4 use a rootdir instead of mounting
       an image
-    - packaging: fix permissons powerpc docs dir
+    - packaging: fix permissions powerpc docs dir
     - overlord: mock store to avoid net requests
     - debian: rework how we run autopkgtests
     - interface: builtin: avahi-observe/control: allow slots

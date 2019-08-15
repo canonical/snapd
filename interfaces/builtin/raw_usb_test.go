@@ -68,13 +68,6 @@ func (s *RawUsbInterfaceSuite) TestName(c *C) {
 
 func (s *RawUsbInterfaceSuite) TestSanitizeSlot(c *C) {
 	c.Assert(interfaces.BeforePrepareSlot(s.iface, s.slotInfo), IsNil)
-	slot := &snap.SlotInfo{
-		Snap:      &snap.Info{SuggestedName: "some-snap"},
-		Name:      "raw-usb",
-		Interface: "raw-usb",
-	}
-	c.Assert(interfaces.BeforePrepareSlot(s.iface, slot), ErrorMatches,
-		"raw-usb slots are reserved for the core snap")
 }
 
 func (s *RawUsbInterfaceSuite) TestSanitizePlug(c *C) {

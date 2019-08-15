@@ -80,6 +80,8 @@ var (
 	mockedSystemKey *systemKey
 
 	seccompCompilerVersionInfo = seccompCompilerVersionInfoImpl
+
+	readBuildID = osutil.ReadBuildID
 )
 
 func seccompCompilerVersionInfoImpl(path string) (string, error) {
@@ -103,7 +105,7 @@ func generateSystemKey() (*systemKey, error) {
 	if err != nil {
 		return nil, err
 	}
-	buildID, err := osutil.ReadBuildID(snapdPath)
+	buildID, err := readBuildID(snapdPath)
 	if err != nil && !os.IsNotExist(err) {
 		return nil, err
 	}
