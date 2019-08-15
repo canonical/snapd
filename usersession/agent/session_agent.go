@@ -26,7 +26,7 @@ import (
 	"net/http"
 	"os"
 	"sync"
-	sys "syscall"
+	"syscall"
 	"time"
 
 	"github.com/gorilla/mux"
@@ -91,16 +91,16 @@ type idleTracker struct {
 	lastActive time.Time
 }
 
-var sysGetsockoptUcred = sys.GetsockoptUcred
+var sysGetsockoptUcred = syscall.GetsockoptUcred
 
-func getUcred(conn net.Conn) (*sys.Ucred, error) {
+func getUcred(conn net.Conn) (*syscall.Ucred, error) {
 	if uconn, ok := conn.(*net.UnixConn); ok {
 		f, err := uconn.File()
 		if err != nil {
 			return nil, err
 		}
 		defer f.Close()
-		return sysGetsockoptUcred(int(f.Fd()), sys.SOL_SOCKET, sys.SO_PEERCRED)
+		return sysGetsockoptUcred(int(f.Fd()), syscall.SOL_SOCKET, syscall.SO_PEERCRED)
 	}
 	return nil, fmt.Errorf("expected a net.UnixConn, but got a %T", conn)
 }
@@ -114,7 +114,7 @@ func (it *idleTracker) trackConn(conn net.Conn, state http.ConnState) {
 			conn.Close()
 			return
 		}
-		if ucred.Uid != 0 && ucred.Uid != uint32(sys.Geteuid()) {
+		if ucred.Uid != 0 && ucred.Uid != uint32(syscall.Geteuid()) {
 			logger.Noticef("Blocking request from user ID %v", ucred.Uid)
 			conn.Close()
 			return

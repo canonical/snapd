@@ -26,7 +26,7 @@ import (
 	"net"
 	"net/http"
 	"os"
-	sys "syscall"
+	"syscall"
 	"testing"
 	"time"
 
@@ -154,8 +154,8 @@ func (s *sessionAgentSuite) TestPeerCredentialsCheck(c *C) {
 	defer sa.Stop()
 
 	// Connections from other users are dropped.
-	uid := uint32(sys.Geteuid())
-	restore := agent.MockUcred(&sys.Ucred{Uid: uid + 1}, nil)
+	uid := uint32(syscall.Geteuid())
+	restore := agent.MockUcred(&syscall.Ucred{Uid: uid + 1}, nil)
 	defer restore()
 	_, err = s.client.Get("http://localhost/v1/session-info")
 	// This could be an EOF error or a failed read, depending on timing
@@ -164,7 +164,7 @@ func (s *sessionAgentSuite) TestPeerCredentialsCheck(c *C) {
 	logbuf.Reset()
 
 	// However, connections from root are accepted.
-	restore = agent.MockUcred(&sys.Ucred{Uid: 0}, nil)
+	restore = agent.MockUcred(&syscall.Ucred{Uid: 0}, nil)
 	defer restore()
 	response, err := s.client.Get("http://localhost/v1/session-info")
 	c.Assert(err, IsNil)
