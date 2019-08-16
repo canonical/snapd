@@ -322,7 +322,7 @@ func (s *createUserSuite) TestEnsureUserGroupBadUser(c *check.C) {
 }
 
 func (s *createUserSuite) TestEnsureUserGroupUnexpectedFindUidError(c *check.C) {
-	restore := osutil.MockFindUidNoFallback(func(string) (uint64, error) {
+	restore := osutil.MockFindUid(func(string) (uint64, error) {
 		return 0, fmt.Errorf("some odd FindUid error")
 	})
 	defer restore()
@@ -336,7 +336,7 @@ func (s *createUserSuite) TestEnsureUserGroupUnexpectedFindUidError(c *check.C) 
 }
 
 func (s *createUserSuite) TestEnsureUserGroupUnexpectedFindGidError(c *check.C) {
-	restore := osutil.MockFindGidNoFallback(func(string) (uint64, error) {
+	restore := osutil.MockFindGid(func(string) (uint64, error) {
 		return 0, fmt.Errorf("some odd FindGid error")
 	})
 	defer restore()
@@ -350,11 +350,11 @@ func (s *createUserSuite) TestEnsureUserGroupUnexpectedFindGidError(c *check.C) 
 }
 
 func (s *createUserSuite) TestEnsureUserGroupUnexpectedUid(c *check.C) {
-	restore := osutil.MockFindUidNoFallback(func(string) (uint64, error) {
+	restore := osutil.MockFindUid(func(string) (uint64, error) {
 		return uint64(5432), nil
 	})
 	defer restore()
-	restore = osutil.MockFindGidNoFallback(func(string) (uint64, error) {
+	restore = osutil.MockFindGid(func(string) (uint64, error) {
 		return uint64(1234), nil
 	})
 	defer restore()
@@ -368,11 +368,11 @@ func (s *createUserSuite) TestEnsureUserGroupUnexpectedUid(c *check.C) {
 }
 
 func (s *createUserSuite) TestEnsureUserGroupUnexpectedGid(c *check.C) {
-	restore := osutil.MockFindUidNoFallback(func(string) (uint64, error) {
+	restore := osutil.MockFindUid(func(string) (uint64, error) {
 		return uint64(1234), nil
 	})
 	defer restore()
-	restore = osutil.MockFindGidNoFallback(func(string) (uint64, error) {
+	restore = osutil.MockFindGid(func(string) (uint64, error) {
 		return uint64(5432), nil
 	})
 	defer restore()
@@ -386,11 +386,11 @@ func (s *createUserSuite) TestEnsureUserGroupUnexpectedGid(c *check.C) {
 }
 
 func (s *createUserSuite) TestEnsureUserGroupFoundBoth(c *check.C) {
-	restore := osutil.MockFindUidNoFallback(func(string) (uint64, error) {
+	restore := osutil.MockFindUid(func(string) (uint64, error) {
 		return uint64(1234), nil
 	})
 	defer restore()
-	restore = osutil.MockFindGidNoFallback(func(string) (uint64, error) {
+	restore = osutil.MockFindGid(func(string) (uint64, error) {
 		return uint64(1234), nil
 	})
 	defer restore()
@@ -404,7 +404,7 @@ func (s *createUserSuite) TestEnsureUserGroupFoundBoth(c *check.C) {
 }
 
 func (s *createUserSuite) TestEnsureUserGroupUnexpectedGroupMissing(c *check.C) {
-	restore := osutil.MockFindUidNoFallback(func(string) (uint64, error) {
+	restore := osutil.MockFindUid(func(string) (uint64, error) {
 		return uint64(1234), nil
 	})
 	defer restore()
@@ -418,7 +418,7 @@ func (s *createUserSuite) TestEnsureUserGroupUnexpectedGroupMissing(c *check.C) 
 }
 
 func (s *createUserSuite) TestEnsureUserGroupUnexpectedUserMissing(c *check.C) {
-	restore := osutil.MockFindGidNoFallback(func(string) (uint64, error) {
+	restore := osutil.MockFindGid(func(string) (uint64, error) {
 		return uint64(1234), nil
 	})
 	defer restore()
