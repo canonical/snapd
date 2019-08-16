@@ -64,10 +64,7 @@ backends:
             - ubuntu-16.04-64:
                 workers: 8
             - ubuntu-18.04-64:
-                workers: 6
-            - ubuntu-18.10-64:
-                image: ubuntu-1810
-                workers: 6
+                workers: 8
             - ubuntu-19.04-64:
                 workers: 6
             - ubuntu-core-16-64:
@@ -79,8 +76,10 @@ backends:
 
             - debian-9-64:
                 workers: 6
+                manual: true
             - debian-sid-64:
                 workers: 6
+                manual: true
 
             - fedora-28-64:
                 workers: 4
@@ -90,6 +89,7 @@ backends:
                 manual: true
             - fedora-30-64:
                 workers: 6
+                manual: true
             - opensuse-15.0-64:
                 workers: 6
                 manual: true
