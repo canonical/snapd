@@ -25,23 +25,6 @@ prepare: |
         chmod 640 /var/lib/extrausers/$name
         chown root:shadow /var/lib/extrausers/$name
     done
-        cat >/usr/share/pam-configs/snappy-extrausers <<EOF
-    Name: Extrausers authentication
-    Default: yes
-    Priority: 257
-    Auth-Type: Primary
-    Auth:
-      [success=end authinfo_unavail=ignore default=die] pam_extrausers.so nodelay nullok try_first_pass
-    Auth-Initial:
-      [success=end authinfo_unavail=ignore default=die] pam_extrausers.so nodelay nullok
-    Password-Type: Primary
-    Password:
-      [success=end default=ignore] pam_extrausers.so minlen=4 sha512 use_authtok try_first_pass
-    Password-Initial:
-      [success=end default=ignore] pam_extrausers.so minlen=4 sha512
-    EOF
-    pam-auth-update --enable snappy-extrausers
-
     echo "Add user"
     adduser --extrausers --disabled-login --no-create-home --gecos '' --uid 9876 --shell /bin/false extratest
 
@@ -54,10 +37,14 @@ execute: |
     su test -c 'CGO_ENABLED=1 go test github.com/snapcore/snapd/osutil'
     su test -c 'CGO_ENABLED=0 go test github.com/snapcore/snapd/osutil'
 
-    CGO_ENABLED=1 go build -o findid ./findid.go
-    test "$(./findid uid extratest)" = "9876"
-    test "$(./findid gid extratest)" = "9876"
+    CGO_ENABLED=1 go build -o findid-cgo ./findid.go
+    CGO_ENABLED=0 go build -o findid-no-cgo ./findid.go
 
-    CGO_ENABLED=0 go build -o findid ./findid.go
-    test "$(./findid uid extratest)" = "9876"
-    test "$(./findid gid extratest)" = "9876"
+    # sanity check
+    getent passwd extratest
+
+    test "$(./findid-cgo uid extratest)" = "9876"
+    test "$(./findid-cgo gid extratest)" = "9876"
+
+    test "$(./findid-no-cgo uid extratest)" = "9876"
+    test "$(./findid-no-cgo gid extratest)" = "9876"

@@ -1,6 +1,7 @@
 package main
 
 import (
+	"fmt"
 	"log"
 	"os"
 
@@ -24,5 +25,5 @@ func main() {
 	if err != nil {
 		log.Fatalf("fn failed: %q", err)
 	}
-	println(id)
+	fmt.Println(id)
 }
