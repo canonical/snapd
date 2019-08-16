@@ -76,15 +76,17 @@ func getent(name string, database string) (uint64, error) {
 	cmd := exec.Command(cmdStr[0], cmdStr[1:]...)
 	output, err := cmd.CombinedOutput()
 	if err != nil {
-		// The API doesn't support return codes for exec.Command,
-		// so assume not found (which is reasonable since 'man getent'
-		// says that the other return codes are for unknown databases
-		// and enumeration not supported. 'passwd' will always exist
-		// and we aren't enumerating).
-		if database == "passwd" {
-			return 0, user.UnknownUserError(name)
+		// according to getent(1) the exit value of "2" means:
+		//    One or more supplied key could not be found in
+		//    the database.
+		exitCode, _ := ExitCode(err)
+		if exitCode == 2 {
+			if database == "passwd" {
+				return 0, user.UnknownUserError(name)
+			}
+			return 0, user.UnknownGroupError(name)
 		}
-		return 0, user.UnknownGroupError(name)
+		return 0, fmt.Errorf("cannot run getent: %v", err)
 	}
 
 	// passwd has 7 entries and group 4. In both cases, parts[2] is the id

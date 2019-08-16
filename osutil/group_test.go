@@ -80,6 +80,18 @@ func (s *findUserGroupSuite) TestFindUidGetentNonexistent(c *check.C) {
 	})
 }
 
+func (s *findUserGroupSuite) TestFindUidGetentMockedOtherError(c *check.C) {
+	s.mockGetent = testutil.MockCommand(c, "getent", "exit 3")
+
+	uid, err := osutil.FindUidGetent("lakatos")
+	c.Assert(err, check.ErrorMatches, "cannot run getent: exit status 3")
+	c.Check(uid, check.Equals, uint64(0))
+	// getent should've have been called
+	c.Check(s.mockGetent.Calls(), check.DeepEquals, [][]string{
+		{"getent", "passwd", "lakatos"},
+	})
+}
+
 func (s *findUserGroupSuite) TestFindUidGetentMocked(c *check.C) {
 	s.mockGetent = testutil.MockCommand(c, "getent", "echo lakatos:x:1234:5678:::")
 
@@ -121,6 +133,18 @@ func (s *findUserGroupSuite) TestFindGidGetentNonexistent(c *check.C) {
 	c.Assert(err, check.ErrorMatches, "group: unknown group lakatos")
 	_, ok := err.(user.UnknownGroupError)
 	c.Assert(ok, check.Equals, true)
+	// getent should've have been called
+	c.Check(s.mockGetent.Calls(), check.DeepEquals, [][]string{
+		{"getent", "group", "lakatos"},
+	})
+}
+
+func (s *findUserGroupSuite) TestFindGidGetentMockedOtherError(c *check.C) {
+	s.mockGetent = testutil.MockCommand(c, "getent", "exit 3")
+
+	gid, err := osutil.FindGidGetent("lakatos")
+	c.Assert(err, check.ErrorMatches, "cannot run getent: exit status 3")
+	c.Check(gid, check.Equals, uint64(0))
 	// getent should've have been called
 	c.Check(s.mockGetent.Calls(), check.DeepEquals, [][]string{
 		{"getent", "group", "lakatos"},
