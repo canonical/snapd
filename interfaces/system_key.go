@@ -1,7 +1,7 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
 
 /*
- * Copyright (C) 2018 Canonical Ltd
+ * Copyright (C) 2018-2019 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -79,17 +79,11 @@ var (
 	isHomeUsingNFS  = osutil.IsHomeUsingNFS
 	mockedSystemKey *systemKey
 
-	SeccompCompilerVersionInfo = seccompCompilerVersionInfoImpl
-
 	readBuildID = osutil.ReadBuildID
 )
 
-func seccompCompilerVersionInfoImpl(path string) (string, error) {
-	compiler, err := seccomp_compiler.New(func(name string) (string, error) { return path, nil })
-	if err != nil {
-		return "", err
-	}
-	return compiler.VersionInfo()
+func seccompCompilerVersionInfo(path string) (seccomp_compiler.VersionInfo, error) {
+	return seccomp_compiler.CompilerVersionInfo(func(name string) (string, error) { return filepath.Join(path, name), nil })
 }
 
 func generateSystemKey() (*systemKey, error) {
@@ -139,12 +133,12 @@ func generateSystemKey() (*systemKey, error) {
 	// Add seccomp-features
 	sk.SecCompActions = release.SecCompActions()
 
-	versionInfo, err := SeccompCompilerVersionInfo(filepath.Join(filepath.Dir(snapdPath), "snap-seccomp"))
+	versionInfo, err := seccompCompilerVersionInfo(filepath.Dir(snapdPath))
 	if err != nil {
 		logger.Noticef("cannot determine seccomp compiler version in generateSystemKey: %v", err)
 		return nil, err
 	}
-	sk.SeccompCompilerVersion = versionInfo
+	sk.SeccompCompilerVersion = string(versionInfo)
 
 	return sk, nil
 }
@@ -255,12 +249,4 @@ func MockSystemKey(s string) func() {
 	}
 	mockedSystemKey = &sk
 	return func() { mockedSystemKey = nil }
-}
-
-func MockSeccompCompilerVersionInfo(s func(p string) (string, error)) (restore func()) {
-	old := SeccompCompilerVersionInfo
-	SeccompCompilerVersionInfo = s
-	return func() {
-		SeccompCompilerVersionInfo = old
-	}
 }
