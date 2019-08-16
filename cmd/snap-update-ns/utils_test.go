@@ -145,10 +145,29 @@ func (s *utilsSuite) TestTrespassingMatcher(c *C) {
 	s.sys.InsertFstatfsResult(`fstatfs 4 <ptr>`, syscall.Statfs_t{Type: update.TmpfsMagic})
 	s.sys.InsertFstatResult(`fstat 4 <ptr>`, syscall.Stat_t{})
 	s.sys.InsertFault(`mkdirat 3 "path" 0755`, syscall.EEXIST)
-	s.sys.InsertFault(`mkdirat 3 "to" 0755`, syscall.EEXIST)
 	rs := s.as.RestrictionsFor("/path/to/something")
 	// Trespassing detector checked "/path", not "/path/" (which would not match).
 	c.Assert(update.MkdirAll("/path/to/something", 0755, 123, 456, rs), IsNil)
+	c.Assert(s.sys.RCalls(), testutil.SyscallsEqual, []testutil.CallResultError{
+		{C: `open "/" O_NOFOLLOW|O_CLOEXEC|O_DIRECTORY 0`, R: 3},
+		{C: `fstatfs 3 <ptr>`, R: syscall.Statfs_t{Type: update.SquashfsMagic}},
+		{C: `fstat 3 <ptr>`, R: syscall.Stat_t{}},
+		{C: `mkdirat 3 "path" 0755`, E: syscall.EEXIST},
+		{C: `openat 3 "path" O_NOFOLLOW|O_CLOEXEC|O_DIRECTORY 0`, R: 4},
+		{C: `fstatfs 4 <ptr>`, R: syscall.Statfs_t{Type: update.TmpfsMagic}},
+		{C: `fstat 4 <ptr>`, R: syscall.Stat_t{}},
+
+		{C: `mkdirat 4 "to" 0755`},
+		{C: `openat 4 "to" O_NOFOLLOW|O_CLOEXEC|O_DIRECTORY 0`, R: 5},
+		{C: `fchown 5 123 456`},
+		{C: `close 4`},
+		{C: `close 3`},
+		{C: `mkdirat 5 "something" 0755`},
+		{C: `openat 5 "something" O_NOFOLLOW|O_CLOEXEC|O_DIRECTORY 0`, R: 3},
+		{C: `fchown 3 123 456`},
+		{C: `close 3`},
+		{C: `close 5`},
+	})
 }
 
 // Ensure that writes to /etc/demo are interrupted if /etc is restricted.
