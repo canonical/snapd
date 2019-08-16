@@ -1,10 +1,10 @@
 summary: Ensure our osutil.Find{Uid,Gid} code work with libnss
 
 description: |
-    The os/user code in go will behave different when compiled
-    with or without cgo. This is confused so we created a helper
-    osutil.Find{Uid,Gid} that automatically falls back to calling
-    getent(1) when build without cgo. This test ensures this is
+    The os/user code in go will behave differently when compiled with
+    or without cgo. This is confusing so we created the helpers
+    osutil.Find{Uid,Gid} that automatically fall back to calling
+    getent(1) when build without cgo. This test ensures these are
     working correctly.
 
 # only run on a well defined system where we know how to setup libnss
@@ -19,7 +19,7 @@ prepare: |
     sed -i 's/^group:.*compat/\0 extrausers/' /etc/nsswitch.conf
     sed -i 's/^passwd:.*compat/\0 extrausers/' /etc/nsswitch.conf
     sed -i 's/^shadow:.*compat/\0 extrausers/' /etc/nsswitch.conf
-    echo "Workaroudn silly bug that causes extrausers to crash when missing"
+    echo "Workaround silly bug that causes extrausers to crash when missing"
     for name in gshadow shadow; do
         touch /var/lib/extrausers/$name
         chmod 640 /var/lib/extrausers/$name
