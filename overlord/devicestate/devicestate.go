@@ -459,11 +459,8 @@ func Remodel(st *state.State, new *asserts.Model) (*state.Change, error) {
 	}
 
 	// TODO: we need dedicated assertion language to permit for
-	// model transitions before we allow that cross vault
+	// model transitions before we allow cross vault
 	// transitions.
-	//
-	// Right now we only allow "remodel" to a different revision of
-	// the same model.
 
 	remodelKind := ClassifyRemodel(current, new)
 
@@ -501,6 +498,13 @@ func Remodel(st *state.State, new *asserts.Model) (*state.Change, error) {
 	var tss []*state.TaskSet
 	switch remodelKind {
 	case ReregRemodel:
+		// nothing else can be in-flight
+		for _, chg := range st.Changes() {
+			if !chg.IsReady() {
+				return nil, &snapstate.ChangeConflictError{Message: "cannot start complete remodel, other changes are in progress"}
+			}
+		}
+
 		requestSerial := st.NewTask("request-serial", i18n.G("Request new device serial"))
 
 		prepare := st.NewTask("prepare-remodeling", i18n.G("Prepare remodeling"))
@@ -528,9 +532,20 @@ func Remodel(st *state.State, new *asserts.Model) (*state.Change, error) {
 		}
 	}
 
-	// TODO: we released the lock a couple of times here:
-	// make sure the current model is essentially the same
-	// make sure no remodeling is in progress
+	// we potentially released the lock a couple of times here:
+	// make sure the current model is essentially the same as when
+	// we started
+	current1, err := findModel(st)
+	if err != nil {
+		return nil, err
+	}
+	if current.BrandID() != current1.BrandID() || current.Model() != current1.Model() || current.Revision() != current1.Revision() {
+		return nil, &snapstate.ChangeConflictError{Message: fmt.Sprintf("cannot start remodel, clashing with concurrent remodel to %v/%v (%v)", current1.BrandID(), current1.Model(), current1.Revision())}
+	}
+	// make sure another unfinished remodel wasn't already setup either
+	if Remodeling(st) {
+		return nil, &snapstate.ChangeConflictError{Message: "cannot start remodel, clashing with concurrent one"}
+	}
 
 	var msg string
 	if current.BrandID() == new.BrandID() && current.Model() == new.Model() {
