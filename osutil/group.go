@@ -91,7 +91,7 @@ func getent(name string, database string) (uint64, error) {
 
 	// passwd has 7 entries and group 4. In both cases, parts[2] is the id
 	parts := bytes.Split(output, []byte(":"))
-	if len(parts) < 3 {
+	if len(parts) < 4 {
 		return 0, fmt.Errorf("malformed entry: %q", output)
 	}
 

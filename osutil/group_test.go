@@ -103,6 +103,13 @@ func (s *findUserGroupSuite) TestFindUidGetentMocked(c *check.C) {
 	})
 }
 
+func (s *findUserGroupSuite) TestFindUidGetentMockedMalformated(c *check.C) {
+	s.mockGetent = testutil.MockCommand(c, "getent", "printf too:few:colons")
+
+	_, err := osutil.FindUidGetent("lakatos")
+	c.Assert(err, check.ErrorMatches, `malformed entry: "too:few:colons"`)
+}
+
 func (s *findUserGroupSuite) TestFindGid(c *check.C) {
 	uid, err := osutil.FindGid("root")
 	c.Assert(err, check.IsNil)
