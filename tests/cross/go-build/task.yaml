@@ -36,7 +36,7 @@ prepare: |
 
     UBUNTU_ARCHIVE="http://gce.clouds.archive.ubuntu.com/ubuntu/"
     if [ "$SPREAD_BACKEND" = "google" ]; then
-        UBUNTU_ARCHIVE="http://gce.clouds.archive.ubuntu.com/ubuntu/"
+        UBUNTU_ARCHIVE="http://$(cloud-id -l | cut -f2).gce.archive.ubuntu.com/ubuntu/"
     fi
 
     mv /etc/apt/sources.list /etc/apt/sources.list.orig
