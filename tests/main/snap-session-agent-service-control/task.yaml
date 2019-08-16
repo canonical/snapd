@@ -1,4 +1,4 @@
-summary: Check that root can activate the session agent via socket activation
+summary: Check that root can control user instances of systemd via the session agent
 
 systems:
     # Ubuntu 14.04 does not have a complete systemd implementation
