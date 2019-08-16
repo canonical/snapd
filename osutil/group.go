@@ -27,21 +27,21 @@ import (
 	"strconv"
 )
 
-// FindUid returns the identifier of the given UNIX user name with no getent
-// fallback
+// FindUid returns the identifier of the given UNIX user name. It will
+// automatically fallback to use "getent" if needed.
 func FindUid(username string) (uint64, error) {
 	return findUid(username)
 }
 
-// FindGid returns the identifier of the given UNIX group name with no getent
-// fallback
+// FindGid returns the identifier of the given UNIX group name. It will
+// automatically fallback to use "getent" if needed.
 func FindGid(groupname string) (uint64, error) {
 	return findGid(groupname)
 }
 
 // getent returns the identifier of the given UNIX user or group name as
 // determined by the specified database
-func getent(name string, database string) (uint64, error) {
+func getent(database, name string) (uint64, error) {
 	if database != "passwd" && database != "group" {
 		return 0, fmt.Errorf(`unsupported getent database "%q"`, database)
 	}
@@ -64,7 +64,7 @@ func getent(name string, database string) (uint64, error) {
 			}
 			return 0, user.UnknownGroupError(name)
 		}
-		return 0, fmt.Errorf("cannot run getent: %v", err)
+		return 0, fmt.Errorf("getent failed with: %v", OutputErr(output, err))
 	}
 
 	// passwd has 7 entries and group 4. In both cases, parts[2] is the id
@@ -105,7 +105,7 @@ func findUidWithGetentFallback(username string) (uint64, error) {
 		return myuser, nil
 	case user.UnknownUserError:
 		// user unknown, let's try getent
-		return getent(username, "passwd")
+		return getent("passwd", username)
 	default:
 		// something weird happened with the lookup, just report it
 		return 0, err
@@ -123,7 +123,7 @@ func findGidWithGetentFallback(groupname string) (uint64, error) {
 		return group, nil
 	case user.UnknownGroupError:
 		// group unknown, let's try getent
-		return getent(groupname, "group")
+		return getent("group", groupname)
 	default:
 		// something weird happened with the lookup, just report it
 		return 0, err
