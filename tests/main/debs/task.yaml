@@ -1,8 +1,9 @@
-summary: Ensure that our debs have the "built-using" header
+summary: Ensure our debs are correctly built
 
 systems: [-ubuntu-core-*, -fedora-*, -opensuse-*, -arch-*, -amazon-*, -centos-*]
 
 execute: |
+    echo "Ensure that our debs have the 'built-using' header"
     out=$(dpkg -I "$GOHOME"/snapd_*.deb)
     if [[ "$SPREAD_SYSTEM" = ubuntu-* ]]; then
         # Apparmor & seccomp is only compiled in on Ubuntu for now.
@@ -10,3 +11,6 @@ execute: |
         echo "$out" | MATCH 'Built-Using:.*libseccomp \(='
     fi
     echo "$out" | MATCH 'Built-Using:.*libcap2 \(='
+
+    echo "Ensure that the snapd.session-agent.socket symlinks is part of the deb and that it has the right (relative) target"
+    dpkg -c "$GOHOME"/snapd_*.deb |grep -- '-> \.\./snapd.session-agent.socket'
