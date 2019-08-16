@@ -150,7 +150,7 @@ var featureSet = map[string]bool{
 // (0x00080000-0x6FFFFFFF), the number's lower 16 bits are not all zeroes so
 // systemd-nspawn won't detect this allocation and could potentially assign the
 // 65536 range starting at 0x00080000 to a container. snapd will therefore also
-// create the 'snap-range-524288-root' user and group with [ug]id 524288 to
+// create the 'snapd-range-524288-root' user and group with [ug]id 524288 to
 // work within systemd-nspawn's collision detection. This user/group will not
 // be assigned to snaps at this time.
 //
@@ -165,7 +165,7 @@ var featureSet = map[string]bool{
 // Snapd private range:     585288-589807 (0008ee48-0008ffef; 61000-65519)
 //
 // Snapd is of course free to add more ranges (eg, 589824 (0x00090000)) with
-// new snap-range-<base>-root users, or to allocate differently within its
+// new snapd-range-<base>-root users, or to allocate differently within its
 // 65536 range in the future (sequentially assigned [ug]ids are not required),
 // but for now start very regimented to avoid as many problems as possible.
 //
@@ -611,12 +611,12 @@ func checkSystemUsernames(si *snap.Info) error {
 
 		switch user.Scope {
 		case "shared":
-			// Create the snap-range-<base>-root user and group so
+			// Create the snapd-range-<base>-root user and group so
 			// systemd-nspawn can avoid our range. Our ranges will always
 			// be in 65536 chunks, so mask off the lower bits to obtain our
 			// base (see above)
 			rangeStart := id & 0xFFFF0000
-			rangeName := fmt.Sprintf("snap-range-%d-root", rangeStart)
+			rangeName := fmt.Sprintf("snapd-range-%d-root", rangeStart)
 			if err := ensureUserGroup(rangeName, rangeStart, extrausers); err != nil {
 				return fmt.Errorf(`snap %q requires system username "%s": %v`, si.InstanceName(), user.Name, err)
 			}

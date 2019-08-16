@@ -1022,13 +1022,13 @@ var systemUsernamesTests = []struct {
 	sysIDs:      "snap_daemon: shared",
 	noRangeUser: true,
 	scVer:       "dead 2.4.1 deadbeef bpf-actlog",
-	error:       `requires system username "snap_daemon": cannot add user/group "snap-range-524288-root", group exists and user does not`,
+	error:       `requires system username "snap_daemon": cannot add user/group "snapd-range-524288-root", group exists and user does not`,
 }, {
 	sysIDs:      "snap_daemon: shared",
 	classic:     true,
 	noRangeUser: true,
 	scVer:       "dead 2.4.1 deadbeef bpf-actlog",
-	error:       `requires system username "snap_daemon": cannot add user/group "snap-range-524288-root", group exists and user does not`,
+	error:       `requires system username "snap_daemon": cannot add user/group "snapd-range-524288-root", group exists and user does not`,
 }}
 
 func (s *checkSnapSuite) TestCheckSnapSystemUsernames(c *C) {
@@ -1049,7 +1049,7 @@ func (s *checkSnapSuite) TestCheckSnapSystemUsernames(c *C) {
 			})
 		} else if test.noUser {
 			restore = snapstate.MockEnsureUserGroup(func(name string, id uint32, extraUsers bool) error {
-				if name == "snap-range-524288-root" {
+				if name == "snapd-range-524288-root" {
 					return nil
 				}
 				return fmt.Errorf(`cannot add user/group "%s", group exists and user does not`, name)
