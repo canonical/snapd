@@ -82,7 +82,7 @@ execute: |
     if [ "$supported" = "yes" ]; then
         snap install --edge test-snapd-daemon-user
     else
-        snap install --edge test-snapd-daemon-user 2>&1 | MATCH 'This snap requires that snapd be compiled against'
+        snap install --edge test-snapd-daemon-user 2>&1 | MATCH 'require a snapd built against libseccomp >= 2.4'
         exit 0
     fi
 
