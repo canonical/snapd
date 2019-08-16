@@ -156,26 +156,22 @@ func MockUname(f func(*syscall.Utsname) error) (restore func()) {
 	}
 }
 
-func MockFindUid(mock func(name string) (uint64, error)) (restore func()) {
-	old := FindUid
-	FindUid = mock
-	return func() { FindUid = old }
+var (
+	FindUidNoGetentFallback = findUidNoGetentFallback
+	FindGidNoGetentFallback = findGidNoGetentFallback
+
+	FindUidWithGetentFallback = findUidWithGetentFallback
+	FindGidWithGetentFallback = findGidWithGetentFallback
+)
+
+func MockFindUidNoFallback(mock func(name string) (uint64, error)) (restore func()) {
+	old := findUidNoGetentFallback
+	findUidNoGetentFallback = mock
+	return func() { findUidNoGetentFallback = old }
 }
 
-func MockFindGid(mock func(name string) (uint64, error)) (restore func()) {
-	old := FindGid
-	FindGid = mock
-	return func() { FindGid = old }
-}
-
-func MockFindUidGetent(mock func(name string) (uint64, error)) (restore func()) {
-	old := FindUidGetent
-	FindUidGetent = mock
-	return func() { FindUidGetent = old }
-}
-
-func MockFindGidGetent(mock func(name string) (uint64, error)) (restore func()) {
-	old := FindGidGetent
-	FindGidGetent = mock
-	return func() { FindGidGetent = old }
+func MockFindGidNoFallback(mock func(name string) (uint64, error)) (restore func()) {
+	old := findGidNoGetentFallback
+	findGidNoGetentFallback = mock
+	return func() { findGidNoGetentFallback = old }
 }

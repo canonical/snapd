@@ -69,14 +69,14 @@ func EnsureUserGroup(name string, id uint32, extraUsers bool) error {
 	}
 
 	// Perform uid and gid lookups (with extrausers support)
-	uid, uidErr := FindUidGetent(name)
+	uid, uidErr := FindUid(name)
 	if uidErr != nil {
 		if _, ok := uidErr.(user.UnknownUserError); !ok {
 			return uidErr
 		}
 	}
 
-	gid, gidErr := FindGidGetent(name)
+	gid, gidErr := FindGid(name)
 	if gidErr != nil {
 		if _, ok := gidErr.(user.UnknownGroupError); !ok {
 			return gidErr

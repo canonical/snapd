@@ -3001,6 +3001,165 @@ func (s *deviceMgrSuite) TestRemodelRereg(c *C) {
 	c.Assert(tPrepareRemodeling.WaitTasks(), DeepEquals, []*state.Task{tRequestSerial})
 }
 
+func (s *deviceMgrSuite) TestRemodelClash(c *C) {
+	s.state.Lock()
+	defer s.state.Unlock()
+	s.state.Set("seeded", true)
+	s.state.Set("refresh-privacy-key", "some-privacy-key")
+
+	var clashing *asserts.Model
+
+	restore := devicestate.MockSnapstateInstallWithDeviceContext(func(ctx context.Context, st *state.State, name string, opts *snapstate.RevisionOptions, userID int, flags snapstate.Flags, deviceCtx snapstate.DeviceContext, fromChange string) (*state.TaskSet, error) {
+		// simulate things changing under our feet
+		assertstatetest.AddMany(st, clashing)
+		devicestatetest.SetDevice(s.state, &auth.DeviceState{
+			Brand: "canonical",
+			Model: clashing.Model(),
+		})
+
+		tDownload := s.state.NewTask("fake-download", fmt.Sprintf("Download %s", name))
+		tValidate := s.state.NewTask("validate-snap", fmt.Sprintf("Validate %s", name))
+		tValidate.WaitFor(tDownload)
+		tInstall := s.state.NewTask("fake-install", fmt.Sprintf("Install %s", name))
+		tInstall.WaitFor(tValidate)
+		ts := state.NewTaskSet(tDownload, tValidate, tInstall)
+		ts.MarkEdge(tValidate, snapstate.DownloadAndChecksDoneEdge)
+		return ts, nil
+	})
+	defer restore()
+
+	// set a model assertion
+	s.makeModelAssertionInState(c, "canonical", "pc-model", map[string]interface{}{
+		"architecture": "amd64",
+		"kernel":       "pc-kernel",
+		"gadget":       "pc",
+		"base":         "core18",
+	})
+	devicestatetest.SetDevice(s.state, &auth.DeviceState{
+		Brand: "canonical",
+		Model: "pc-model",
+	})
+
+	new := s.brands.Model("canonical", "pc-model", map[string]interface{}{
+		"architecture":   "amd64",
+		"kernel":         "pc-kernel",
+		"gadget":         "pc",
+		"base":           "core18",
+		"required-snaps": []interface{}{"new-required-snap-1", "new-required-snap-2"},
+		"revision":       "1",
+	})
+	other := s.brands.Model("canonical", "pc-model-other", map[string]interface{}{
+		"architecture":   "amd64",
+		"kernel":         "pc-kernel",
+		"gadget":         "pc",
+		"base":           "core18",
+		"required-snaps": []interface{}{"new-required-snap-1", "new-required-snap-2"},
+	})
+
+	clashing = other
+	_, err := devicestate.Remodel(s.state, new)
+	c.Check(err, DeepEquals, &snapstate.ChangeConflictError{
+		Message: "cannot start remodel, clashing with concurrent remodel to canonical/pc-model-other (0)",
+	})
+
+	// reset
+	devicestatetest.SetDevice(s.state, &auth.DeviceState{
+		Brand: "canonical",
+		Model: "pc-model",
+	})
+	clashing = new
+	_, err = devicestate.Remodel(s.state, new)
+	c.Check(err, DeepEquals, &snapstate.ChangeConflictError{
+		Message: "cannot start remodel, clashing with concurrent remodel to canonical/pc-model (1)",
+	})
+}
+
+func (s *deviceMgrSuite) TestRemodelClashInProgress(c *C) {
+	s.state.Lock()
+	defer s.state.Unlock()
+	s.state.Set("seeded", true)
+	s.state.Set("refresh-privacy-key", "some-privacy-key")
+
+	restore := devicestate.MockSnapstateInstallWithDeviceContext(func(ctx context.Context, st *state.State, name string, opts *snapstate.RevisionOptions, userID int, flags snapstate.Flags, deviceCtx snapstate.DeviceContext, fromChange string) (*state.TaskSet, error) {
+		// simulate another started remodeling
+		st.NewChange("remodel", "other remodel")
+
+		tDownload := s.state.NewTask("fake-download", fmt.Sprintf("Download %s", name))
+		tValidate := s.state.NewTask("validate-snap", fmt.Sprintf("Validate %s", name))
+		tValidate.WaitFor(tDownload)
+		tInstall := s.state.NewTask("fake-install", fmt.Sprintf("Install %s", name))
+		tInstall.WaitFor(tValidate)
+		ts := state.NewTaskSet(tDownload, tValidate, tInstall)
+		ts.MarkEdge(tValidate, snapstate.DownloadAndChecksDoneEdge)
+		return ts, nil
+	})
+	defer restore()
+
+	// set a model assertion
+	s.makeModelAssertionInState(c, "canonical", "pc-model", map[string]interface{}{
+		"architecture": "amd64",
+		"kernel":       "pc-kernel",
+		"gadget":       "pc",
+		"base":         "core18",
+	})
+	devicestatetest.SetDevice(s.state, &auth.DeviceState{
+		Brand: "canonical",
+		Model: "pc-model",
+	})
+
+	new := s.brands.Model("canonical", "pc-model", map[string]interface{}{
+		"architecture":   "amd64",
+		"kernel":         "pc-kernel",
+		"gadget":         "pc",
+		"base":           "core18",
+		"required-snaps": []interface{}{"new-required-snap-1", "new-required-snap-2"},
+		"revision":       "1",
+	})
+
+	_, err := devicestate.Remodel(s.state, new)
+	c.Check(err, DeepEquals, &snapstate.ChangeConflictError{
+		Message: "cannot start remodel, clashing with concurrent one",
+	})
+}
+
+func (s *deviceMgrSuite) TestReregRemodelClashAnyChange(c *C) {
+	s.state.Lock()
+	defer s.state.Unlock()
+	s.state.Set("seeded", true)
+
+	// set a model assertion
+	s.makeModelAssertionInState(c, "canonical", "pc-model", map[string]interface{}{
+		"architecture": "amd64",
+		"kernel":       "pc-kernel",
+		"gadget":       "pc",
+		"base":         "core18",
+	})
+	s.makeSerialAssertionInState(c, "canonical", "pc-model", "orig-serial")
+	devicestatetest.SetDevice(s.state, &auth.DeviceState{
+		Brand:           "canonical",
+		Model:           "pc-model",
+		Serial:          "orig-serial",
+		SessionMacaroon: "old-session",
+	})
+
+	new := s.brands.Model("canonical", "pc-model-2", map[string]interface{}{
+		"architecture":   "amd64",
+		"kernel":         "pc-kernel",
+		"gadget":         "pc",
+		"base":           "core18",
+		"required-snaps": []interface{}{"new-required-snap-1", "new-required-snap-2"},
+		"revision":       "1",
+	})
+
+	// simulate any other change
+	s.state.NewChange("chg", "other change")
+
+	_, err := devicestate.Remodel(s.state, new)
+	c.Check(err, DeepEquals, &snapstate.ChangeConflictError{
+		Message: "cannot start complete remodel, other changes are in progress",
+	})
+}
+
 func (s *deviceMgrSuite) TestRemodeling(c *C) {
 	s.state.Lock()
 	defer s.state.Unlock()

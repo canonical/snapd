@@ -27,38 +27,16 @@ import (
 	"strconv"
 )
 
-var (
-	FindUid       = findUid
-	FindGid       = findGid
-	FindUidGetent = findUidGetent
-	FindGidGetent = findGidGetent
-)
-
-// The builtin os/user functions only look at /etc/passwd and /etc/group and
-// nothing configured via nsswitch.conf, like extrausers. findUid() and
-// findGid() continue this behavior where findUidGetent() and findGidGetent()
-// will perform a 'getent <database> <name>'
-
-// findUid returns the identifier of the given UNIX user name with no getent
+// FindUid returns the identifier of the given UNIX user name with no getent
 // fallback
-func findUid(username string) (uint64, error) {
-	myuser, err := user.Lookup(username)
-	if err != nil {
-		return 0, err
-	}
-
-	return strconv.ParseUint(myuser.Uid, 10, 64)
+func FindUid(username string) (uint64, error) {
+	return findUid(username)
 }
 
-// findGid returns the identifier of the given UNIX group name with no getent
+// FindGid returns the identifier of the given UNIX group name with no getent
 // fallback
-func findGid(groupname string) (uint64, error) {
-	group, err := user.LookupGroup(groupname)
-	if err != nil {
-		return 0, err
-	}
-
-	return strconv.ParseUint(group.Gid, 10, 64)
+func FindGid(groupname string) (uint64, error) {
+	return findGid(groupname)
 }
 
 // getent returns the identifier of the given UNIX user or group name as
@@ -98,36 +76,56 @@ func getent(name string, database string) (uint64, error) {
 	return strconv.ParseUint(string(parts[2]), 10, 64)
 }
 
-// findUidGetent returns the identifier of the given UNIX user name with
-// getent fallback
-func findUidGetent(username string) (uint64, error) {
-	// first do the cheap os/user lookup
-	myuser, err := FindUid(username)
-	if err == nil {
-		// found it!
-		return myuser, nil
-	} else if _, ok := err.(user.UnknownUserError); !ok {
-		// something weird happened with the lookup, just report it
+var findUidNoGetentFallback = func(username string) (uint64, error) {
+	myuser, err := user.Lookup(username)
+	if err != nil {
 		return 0, err
 	}
 
-	// user unknown, let's try getent
-	return getent(username, "passwd")
+	return strconv.ParseUint(myuser.Uid, 10, 64)
 }
 
-// findGidGetent returns the identifier of the given UNIX group name with
-// getent fallback
-func findGidGetent(groupname string) (uint64, error) {
-	// first do the cheap os/user lookup
-	group, err := FindGid(groupname)
-	if err == nil {
-		// found it!
-		return group, nil
-	} else if _, ok := err.(user.UnknownGroupError); !ok {
-		// something weird happened with the lookup, just report it
+var findGidNoGetentFallback = func(groupname string) (uint64, error) {
+	group, err := user.LookupGroup(groupname)
+	if err != nil {
 		return 0, err
 	}
 
-	// group unknown, let's try getent
-	return getent(groupname, "group")
+	return strconv.ParseUint(group.Gid, 10, 64)
+}
+
+// findUidWithGetentFallback returns the identifier of the given UNIX user name with
+// getent fallback
+func findUidWithGetentFallback(username string) (uint64, error) {
+	// first do the cheap os/user lookup
+	myuser, err := findUidNoGetentFallback(username)
+	switch err.(type) {
+	case nil:
+		// found it!
+		return myuser, nil
+	case user.UnknownUserError:
+		// user unknown, let's try getent
+		return getent(username, "passwd")
+	default:
+		// something weird happened with the lookup, just report it
+		return 0, err
+	}
+}
+
+// findGidWithGetentFallback returns the identifier of the given UNIX group name with
+// getent fallback
+func findGidWithGetentFallback(groupname string) (uint64, error) {
+	// first do the cheap os/user lookup
+	group, err := findGidNoGetentFallback(groupname)
+	switch err.(type) {
+	case nil:
+		// found it!
+		return group, nil
+	case user.UnknownGroupError:
+		// group unknown, let's try getent
+		return getent(groupname, "group")
+	default:
+		// something weird happened with the lookup, just report it
+		return 0, err
+	}
 }
