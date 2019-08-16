@@ -1862,7 +1862,6 @@ system-usernames:
   a: true
 `)
 	info, err := snap.InfoFromSnapYaml(y)
-	c.Assert(err, NotNil)
 	c.Assert(err, ErrorMatches, `system username "a" has malformed definition \(found bool\)`)
 	c.Assert(info, IsNil)
 }
@@ -1874,7 +1873,6 @@ system-usernames:
   a: [b, c]
 `)
 	info, err := snap.InfoFromSnapYaml(y)
-	c.Assert(err, NotNil)
 	c.Assert(err, ErrorMatches, `system username "a" has malformed definition \(found \[\]interface {}\)`)
 	c.Assert(info, IsNil)
 }
@@ -1886,7 +1884,6 @@ system-usernames:
   "": shared
 `)
 	_, err := snap.InfoFromSnapYaml(y)
-	c.Assert(err, NotNil)
 	c.Assert(err, ErrorMatches, `system username cannot be empty`)
 }
 
@@ -1897,7 +1894,6 @@ system-usernames:
 - foo: shared
 `)
 	_, err := snap.InfoFromSnapYaml(y)
-	c.Assert(err, NotNil)
 	c.Assert(err, ErrorMatches, `(?m)cannot parse snap.yaml:.*`)
 }
 
@@ -1930,7 +1926,6 @@ system-usernames:
     "": bar
 `)
 	_, err := snap.InfoFromSnapYaml(y)
-	c.Assert(err, NotNil)
 	c.Assert(err, ErrorMatches, `system username "foo" has an empty attribute key`)
 }
 
@@ -1943,7 +1938,6 @@ system-usernames:
     1: bar
 `)
 	_, err := snap.InfoFromSnapYaml(y)
-	c.Assert(err, NotNil)
 	c.Assert(err, ErrorMatches, `system username "foo" has attribute key that is not a string \(found int\)`)
 }
 
@@ -1956,7 +1950,6 @@ system-usernames:
     bar: null
 `)
 	_, err := snap.InfoFromSnapYaml(y)
-	c.Assert(err, NotNil)
 	c.Assert(err, ErrorMatches, `attribute "bar" of system username "foo": invalid scalar:.*`)
 }
 
@@ -1968,6 +1961,5 @@ system-usernames:
     scope: 10
 `)
 	_, err := snap.InfoFromSnapYaml(y)
-	c.Assert(err, NotNil)
 	c.Assert(err, ErrorMatches, `scope on system username "foo" is not a string \(found int\)`)
 }
