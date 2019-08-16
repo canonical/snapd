@@ -106,7 +106,18 @@ func serviceStart(inst *serviceInstruction, sysd systemd.Systemd) Response {
 			}
 		}
 	}
-	return SyncResponse(startErrors)
+	if len(startErrors) == 0 {
+		return SyncResponse(nil)
+	}
+	return SyncResponse(&resp{
+		Type:   ResponseTypeError,
+		Status: 500,
+		Result: &errorResult{
+			Message: "some services failed to start",
+			Kind:    errorKindServiceControl,
+			Value:   startErrors,
+		},
+	})
 }
 
 func serviceStop(inst *serviceInstruction, sysd systemd.Systemd) Response {
@@ -123,7 +134,18 @@ func serviceStop(inst *serviceInstruction, sysd systemd.Systemd) Response {
 			stopErrors[service] = err.Error()
 		}
 	}
-	return SyncResponse(stopErrors)
+	if len(stopErrors) == 0 {
+		return SyncResponse(nil)
+	}
+	return SyncResponse(&resp{
+		Type:   ResponseTypeError,
+		Status: 500,
+		Result: &errorResult{
+			Message: "some services failed to stop",
+			Kind:    errorKindServiceControl,
+			Value:   stopErrors,
+		},
+	})
 }
 
 func serviceDaemonReload(inst *serviceInstruction, sysd systemd.Systemd) Response {

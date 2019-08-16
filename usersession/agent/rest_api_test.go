@@ -143,7 +143,7 @@ func (s *restSuite) TestServicesStart(c *C) {
 	var rsp resp
 	c.Assert(json.Unmarshal(rec.Body.Bytes(), &rsp), IsNil)
 	c.Check(rsp.Type, Equals, agent.ResponseTypeSync)
-	c.Check(rsp.Result, DeepEquals, map[string]interface{}{})
+	c.Check(rsp.Result, Equals, nil)
 
 	c.Check(s.sysdLog, DeepEquals, [][]string{
 		{"--user", "start", "snap.foo.service"},
@@ -193,14 +193,18 @@ func (s *restSuite) TestServicesStartFailureStopsServices(c *C) {
 	c.Assert(err, IsNil)
 	rec := httptest.NewRecorder()
 	agent.ServicesCmd.POST(agent.ServicesCmd, req).ServeHTTP(rec, req)
-	c.Check(rec.Code, Equals, 200)
+	c.Check(rec.Code, Equals, 500)
 	c.Check(rec.HeaderMap.Get("Content-Type"), Equals, "application/json")
 
 	var rsp resp
 	c.Assert(json.Unmarshal(rec.Body.Bytes(), &rsp), IsNil)
-	c.Check(rsp.Type, Equals, agent.ResponseTypeSync)
+	c.Check(rsp.Type, Equals, agent.ResponseTypeError)
 	c.Check(rsp.Result, DeepEquals, map[string]interface{}{
-		"snap.bar.service": "start failure",
+		"message": "some services failed to start",
+		"kind":    "service-control",
+		"value": map[string]interface{}{
+			"snap.bar.service": "start failure",
+		},
 	})
 
 	c.Check(sysdLog, DeepEquals, [][]string{
@@ -226,7 +230,7 @@ func (s *restSuite) TestServicesStop(c *C) {
 	var rsp resp
 	c.Assert(json.Unmarshal(rec.Body.Bytes(), &rsp), IsNil)
 	c.Check(rsp.Type, Equals, agent.ResponseTypeSync)
-	c.Check(rsp.Result, DeepEquals, map[string]interface{}{})
+	c.Check(rsp.Result, Equals, nil)
 
 	c.Check(s.sysdLog, DeepEquals, [][]string{
 		{"--user", "stop", "snap.foo.service"},
@@ -281,14 +285,18 @@ func (s *restSuite) TestServicesStopFallbackToKill(c *C) {
 	c.Assert(err, IsNil)
 	rec := httptest.NewRecorder()
 	agent.ServicesCmd.POST(agent.ServicesCmd, req).ServeHTTP(rec, req)
-	c.Check(rec.Code, Equals, 200)
+	c.Check(rec.Code, Equals, 500)
 	c.Check(rec.HeaderMap.Get("Content-Type"), Equals, "application/json")
 
 	var rsp resp
 	c.Assert(json.Unmarshal(rec.Body.Bytes(), &rsp), IsNil)
-	c.Check(rsp.Type, Equals, agent.ResponseTypeSync)
+	c.Check(rsp.Type, Equals, agent.ResponseTypeError)
 	c.Check(rsp.Result, DeepEquals, map[string]interface{}{
-		"snap.bar.service": "snap.bar.service failed to stop: timeout",
+		"message": "some services failed to stop",
+		"kind":    "service-control",
+		"value": map[string]interface{}{
+			"snap.bar.service": "snap.bar.service failed to stop: timeout",
+		},
 	})
 
 	c.Check(sysdLog, DeepEquals, [][]string{
