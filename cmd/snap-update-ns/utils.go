@@ -156,7 +156,7 @@ func MkPrefix(base string, perm os.FileMode, uid sys.UserID, gid sys.GroupID, rs
 		// Keep closing the previous descriptor as we go, so that we have the
 		// last one handy from the MkDir below.
 		defer sysClose(fd)
-		fd, err = MkDir(fd, iter.CurrentCleanBase(), iter.CurrentCleanName(), perm, uid, gid, rs)
+		fd, err = MkDir(fd, iter.CurrentBase(), iter.CurrentCleanName(), perm, uid, gid, rs)
 		if err != nil {
 			return -1, err
 		}

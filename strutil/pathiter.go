@@ -80,13 +80,10 @@ func (iter *PathIterator) CurrentPath() string {
 	return iter.path[:iter.right]
 }
 
-// CurrentBase returns the prefix of the path that was traversed, excluding the current name.
+// CurrentBase returns the prefix of the path that was traversed,
+// excluding the current name.  The result never ends in '/' except if
+// current base is root.
 func (iter *PathIterator) CurrentBase() string {
-	return iter.path[:iter.left]
-}
-
-// CurrentCleanBase returns the same value as CurrentBase with the right slash trimmed.
-func (iter *PathIterator) CurrentCleanBase() string {
 	if iter.left > 0 && iter.path[iter.left-1] == '/' && iter.path[:iter.left] != "/" {
 		return iter.path[:iter.left-1]
 	}
