@@ -1,10 +1,10 @@
 summary: Ensure our osutil.Find{Uid,Gid} code work with libnss
 
 description: |
-    The os/user code in go will behave different when compiled
-    with or without cgo. This is confused so we created a helper
-    osutil.Find{Uid,Gid} that automatically falls back to calling
-    getent(1) when build without cgo. This test ensures this is
+    The os/user code in go will behave differently when compiled with
+    or without cgo. This is confusing so we created the helpers
+    osutil.Find{Uid,Gid} that automatically fall back to calling
+    getent(1) when build without cgo. This test ensures these are
     working correctly.
 
 # only run on a well defined system where we know how to setup libnss
@@ -19,12 +19,29 @@ prepare: |
     sed -i 's/^group:.*compat/\0 extrausers/' /etc/nsswitch.conf
     sed -i 's/^passwd:.*compat/\0 extrausers/' /etc/nsswitch.conf
     sed -i 's/^shadow:.*compat/\0 extrausers/' /etc/nsswitch.conf
-    echo "Workaroudn silly bug that causes extrausers to crash when missing"
+    echo "Workaround silly bug that causes extrausers to crash when missing"
     for name in gshadow shadow; do
         touch /var/lib/extrausers/$name
         chmod 640 /var/lib/extrausers/$name
         chown root:shadow /var/lib/extrausers/$name
     done
+        cat >/usr/share/pam-configs/snappy-extrausers <<EOF
+    Name: Extrausers authentication
+    Default: yes
+    Priority: 257
+    Auth-Type: Primary
+    Auth:
+      [success=end authinfo_unavail=ignore default=die] pam_extrausers.so nodelay nullok try_first_pass
+    Auth-Initial:
+      [success=end authinfo_unavail=ignore default=die] pam_extrausers.so nodelay nullok
+    Password-Type: Primary
+    Password:
+      [success=end default=ignore] pam_extrausers.so minlen=4 sha512 use_authtok try_first_pass
+    Password-Initial:
+      [success=end default=ignore] pam_extrausers.so minlen=4 sha512
+    EOF
+    pam-auth-update --enable snappy-extrausers
+
     echo "Add user"
     adduser --extrausers --disabled-login --no-create-home --gecos '' --uid 9876 --shell /bin/false extratest
 

@@ -108,7 +108,7 @@ func (s *findUserGroupSuite) TestFindUidGetentMockedOtherError(c *check.C) {
 	s.mockGetent = testutil.MockCommand(c, "getent", "exit 3")
 
 	uid, err := osutil.FindUidWithGetentFallback("lakatos")
-	c.Assert(err, check.ErrorMatches, "cannot run getent: exit status 3")
+	c.Assert(err, check.ErrorMatches, "getent failed with: exit status 3")
 	c.Check(uid, check.Equals, uint64(0))
 	// getent should've have been called
 	c.Check(s.mockGetent.Calls(), check.DeepEquals, [][]string{
@@ -195,7 +195,7 @@ func (s *findUserGroupSuite) TestFindGidGetentMockedOtherError(c *check.C) {
 	s.mockGetent = testutil.MockCommand(c, "getent", "exit 3")
 
 	gid, err := osutil.FindGidWithGetentFallback("lakatos")
-	c.Assert(err, check.ErrorMatches, "cannot run getent: exit status 3")
+	c.Assert(err, check.ErrorMatches, "getent failed with: exit status 3")
 	c.Check(gid, check.Equals, uint64(0))
 	// getent should've have been called
 	c.Check(s.mockGetent.Calls(), check.DeepEquals, [][]string{
