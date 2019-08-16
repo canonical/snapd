@@ -129,3 +129,13 @@ func findGidWithGetentFallback(groupname string) (uint64, error) {
 		return 0, err
 	}
 }
+
+func IsUnknownUser(err error) bool {
+	_, ok := err.(user.UnknownUserError)
+	return ok
+}
+
+func IsUnknownGroup(err error) bool {
+	_, ok := err.(user.UnknownGroupError)
+	return ok
+}

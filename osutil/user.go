@@ -68,7 +68,7 @@ func EnsureUserGroup(name string, id uint32, extraUsers bool) error {
 		return fmt.Errorf(`cannot add user/group %q: name contains invalid characters`, name)
 	}
 
-	// Perform uid and gid lookups (with extrausers support)
+	// Perform uid and gid lookups
 	uid, uidErr := FindUid(name)
 	if uidErr != nil {
 		if _, ok := uidErr.(user.UnknownUserError); !ok {
