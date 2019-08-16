@@ -30,6 +30,7 @@ import (
 	"net/url"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 	"time"
 
@@ -67,6 +68,7 @@ import (
 	"github.com/snapcore/snapd/snap/snaptest"
 	"github.com/snapcore/snapd/store/storetest"
 	"github.com/snapcore/snapd/strutil"
+	"github.com/snapcore/snapd/testutil"
 	"github.com/snapcore/snapd/timings"
 )
 
@@ -2999,6 +3001,165 @@ func (s *deviceMgrSuite) TestRemodelRereg(c *C) {
 	c.Assert(tPrepareRemodeling.WaitTasks(), DeepEquals, []*state.Task{tRequestSerial})
 }
 
+func (s *deviceMgrSuite) TestRemodelClash(c *C) {
+	s.state.Lock()
+	defer s.state.Unlock()
+	s.state.Set("seeded", true)
+	s.state.Set("refresh-privacy-key", "some-privacy-key")
+
+	var clashing *asserts.Model
+
+	restore := devicestate.MockSnapstateInstallWithDeviceContext(func(ctx context.Context, st *state.State, name string, opts *snapstate.RevisionOptions, userID int, flags snapstate.Flags, deviceCtx snapstate.DeviceContext, fromChange string) (*state.TaskSet, error) {
+		// simulate things changing under our feet
+		assertstatetest.AddMany(st, clashing)
+		devicestatetest.SetDevice(s.state, &auth.DeviceState{
+			Brand: "canonical",
+			Model: clashing.Model(),
+		})
+
+		tDownload := s.state.NewTask("fake-download", fmt.Sprintf("Download %s", name))
+		tValidate := s.state.NewTask("validate-snap", fmt.Sprintf("Validate %s", name))
+		tValidate.WaitFor(tDownload)
+		tInstall := s.state.NewTask("fake-install", fmt.Sprintf("Install %s", name))
+		tInstall.WaitFor(tValidate)
+		ts := state.NewTaskSet(tDownload, tValidate, tInstall)
+		ts.MarkEdge(tValidate, snapstate.DownloadAndChecksDoneEdge)
+		return ts, nil
+	})
+	defer restore()
+
+	// set a model assertion
+	s.makeModelAssertionInState(c, "canonical", "pc-model", map[string]interface{}{
+		"architecture": "amd64",
+		"kernel":       "pc-kernel",
+		"gadget":       "pc",
+		"base":         "core18",
+	})
+	devicestatetest.SetDevice(s.state, &auth.DeviceState{
+		Brand: "canonical",
+		Model: "pc-model",
+	})
+
+	new := s.brands.Model("canonical", "pc-model", map[string]interface{}{
+		"architecture":   "amd64",
+		"kernel":         "pc-kernel",
+		"gadget":         "pc",
+		"base":           "core18",
+		"required-snaps": []interface{}{"new-required-snap-1", "new-required-snap-2"},
+		"revision":       "1",
+	})
+	other := s.brands.Model("canonical", "pc-model-other", map[string]interface{}{
+		"architecture":   "amd64",
+		"kernel":         "pc-kernel",
+		"gadget":         "pc",
+		"base":           "core18",
+		"required-snaps": []interface{}{"new-required-snap-1", "new-required-snap-2"},
+	})
+
+	clashing = other
+	_, err := devicestate.Remodel(s.state, new)
+	c.Check(err, DeepEquals, &snapstate.ChangeConflictError{
+		Message: "cannot start remodel, clashing with concurrent remodel to canonical/pc-model-other (0)",
+	})
+
+	// reset
+	devicestatetest.SetDevice(s.state, &auth.DeviceState{
+		Brand: "canonical",
+		Model: "pc-model",
+	})
+	clashing = new
+	_, err = devicestate.Remodel(s.state, new)
+	c.Check(err, DeepEquals, &snapstate.ChangeConflictError{
+		Message: "cannot start remodel, clashing with concurrent remodel to canonical/pc-model (1)",
+	})
+}
+
+func (s *deviceMgrSuite) TestRemodelClashInProgress(c *C) {
+	s.state.Lock()
+	defer s.state.Unlock()
+	s.state.Set("seeded", true)
+	s.state.Set("refresh-privacy-key", "some-privacy-key")
+
+	restore := devicestate.MockSnapstateInstallWithDeviceContext(func(ctx context.Context, st *state.State, name string, opts *snapstate.RevisionOptions, userID int, flags snapstate.Flags, deviceCtx snapstate.DeviceContext, fromChange string) (*state.TaskSet, error) {
+		// simulate another started remodeling
+		st.NewChange("remodel", "other remodel")
+
+		tDownload := s.state.NewTask("fake-download", fmt.Sprintf("Download %s", name))
+		tValidate := s.state.NewTask("validate-snap", fmt.Sprintf("Validate %s", name))
+		tValidate.WaitFor(tDownload)
+		tInstall := s.state.NewTask("fake-install", fmt.Sprintf("Install %s", name))
+		tInstall.WaitFor(tValidate)
+		ts := state.NewTaskSet(tDownload, tValidate, tInstall)
+		ts.MarkEdge(tValidate, snapstate.DownloadAndChecksDoneEdge)
+		return ts, nil
+	})
+	defer restore()
+
+	// set a model assertion
+	s.makeModelAssertionInState(c, "canonical", "pc-model", map[string]interface{}{
+		"architecture": "amd64",
+		"kernel":       "pc-kernel",
+		"gadget":       "pc",
+		"base":         "core18",
+	})
+	devicestatetest.SetDevice(s.state, &auth.DeviceState{
+		Brand: "canonical",
+		Model: "pc-model",
+	})
+
+	new := s.brands.Model("canonical", "pc-model", map[string]interface{}{
+		"architecture":   "amd64",
+		"kernel":         "pc-kernel",
+		"gadget":         "pc",
+		"base":           "core18",
+		"required-snaps": []interface{}{"new-required-snap-1", "new-required-snap-2"},
+		"revision":       "1",
+	})
+
+	_, err := devicestate.Remodel(s.state, new)
+	c.Check(err, DeepEquals, &snapstate.ChangeConflictError{
+		Message: "cannot start remodel, clashing with concurrent one",
+	})
+}
+
+func (s *deviceMgrSuite) TestReregRemodelClashAnyChange(c *C) {
+	s.state.Lock()
+	defer s.state.Unlock()
+	s.state.Set("seeded", true)
+
+	// set a model assertion
+	s.makeModelAssertionInState(c, "canonical", "pc-model", map[string]interface{}{
+		"architecture": "amd64",
+		"kernel":       "pc-kernel",
+		"gadget":       "pc",
+		"base":         "core18",
+	})
+	s.makeSerialAssertionInState(c, "canonical", "pc-model", "orig-serial")
+	devicestatetest.SetDevice(s.state, &auth.DeviceState{
+		Brand:           "canonical",
+		Model:           "pc-model",
+		Serial:          "orig-serial",
+		SessionMacaroon: "old-session",
+	})
+
+	new := s.brands.Model("canonical", "pc-model-2", map[string]interface{}{
+		"architecture":   "amd64",
+		"kernel":         "pc-kernel",
+		"gadget":         "pc",
+		"base":           "core18",
+		"required-snaps": []interface{}{"new-required-snap-1", "new-required-snap-2"},
+		"revision":       "1",
+	})
+
+	// simulate any other change
+	s.state.NewChange("chg", "other change")
+
+	_, err := devicestate.Remodel(s.state, new)
+	c.Check(err, DeepEquals, &snapstate.ChangeConflictError{
+		Message: "cannot start complete remodel, other changes are in progress",
+	})
+}
+
 func (s *deviceMgrSuite) TestRemodeling(c *C) {
 	s.state.Lock()
 	defer s.state.Unlock()
@@ -3451,6 +3612,103 @@ func (s *deviceMgrSuite) TestUpdateGadgetOnClassicErrorsOut(c *C) {
 	c.Assert(chg.IsReady(), Equals, true)
 	c.Check(chg.Err(), ErrorMatches, `(?s).*update gadget \(cannot run update gadget assets task on a classic system\).*`)
 	c.Check(t.Status(), Equals, state.ErrorStatus)
+}
+
+type mockUpdater struct{}
+
+func (m *mockUpdater) Backup() error { return nil }
+
+func (m *mockUpdater) Rollback() error { return nil }
+
+func (m *mockUpdater) Update() error { return nil }
+
+func (s *deviceMgrSuite) TestUpdateGadgetCallsToGadget(c *C) {
+	siCurrent := &snap.SideInfo{
+		RealName: "foo-gadget",
+		Revision: snap.R(33),
+		SnapID:   "foo-id",
+	}
+	si := &snap.SideInfo{
+		RealName: "foo-gadget",
+		Revision: snap.R(34),
+		SnapID:   "foo-id",
+	}
+	var gadgetCurrentYaml = `
+volumes:
+  pc:
+    bootloader: grub
+    structure:
+       - name: foo
+         size: 10M
+         type: bare
+         content:
+            - image: content.img
+`
+	var gadgetUpdateYaml = `
+volumes:
+  pc:
+    bootloader: grub
+    structure:
+       - name: foo
+         size: 10M
+         type: bare
+         content:
+            - image: content.img
+         update:
+           edition: 2
+`
+	snaptest.MockSnapWithFiles(c, snapYaml, siCurrent, [][]string{
+		{"meta/gadget.yaml", gadgetCurrentYaml},
+		{"content.img", "some content"},
+	})
+	updateInfo := snaptest.MockSnapWithFiles(c, snapYaml, si, [][]string{
+		{"meta/gadget.yaml", gadgetUpdateYaml},
+		{"content.img", "updated content"},
+	})
+
+	expectedRollbackDir := filepath.Join(dirs.SnapRollbackDir, "foo-gadget_34")
+	updaterForStructureCalls := 0
+	gadget.MockUpdaterForStructure(func(ps *gadget.PositionedStructure, rootDir, rollbackDir string) (gadget.Updater, error) {
+		updaterForStructureCalls++
+
+		c.Assert(ps.Name, Equals, "foo")
+		c.Assert(rootDir, Equals, updateInfo.MountDir())
+		c.Assert(filepath.Join(rootDir, "content.img"), testutil.FileEquals, "updated content")
+		c.Assert(strings.HasPrefix(rollbackDir, expectedRollbackDir), Equals, true)
+		c.Assert(osutil.IsDirectory(rollbackDir), Equals, true)
+		return &mockUpdater{}, nil
+	})
+
+	s.state.Lock()
+
+	snapstate.Set(s.state, "foo-gadget", &snapstate.SnapState{
+		SnapType: "gadget",
+		Sequence: []*snap.SideInfo{siCurrent},
+		Current:  siCurrent.Revision,
+		Active:   true,
+	})
+
+	t := s.state.NewTask("update-gadget-assets", "update gadget")
+	t.Set("snap-setup", &snapstate.SnapSetup{
+		SideInfo: si,
+		Type:     snap.TypeGadget,
+	})
+	chg := s.state.NewChange("dummy", "...")
+	chg.AddTask(t)
+
+	s.state.Unlock()
+
+	for i := 0; i < 6; i++ {
+		s.se.Ensure()
+		s.se.Wait()
+	}
+
+	s.state.Lock()
+	defer s.state.Unlock()
+	c.Assert(chg.IsReady(), Equals, true)
+	c.Check(t.Status(), Equals, state.DoneStatus)
+	c.Check(s.restartRequests, HasLen, 1)
+	c.Check(updaterForStructureCalls, Equals, 1)
 }
 
 func (s *deviceMgrSuite) TestCurrentAndUpdateInfo(c *C) {

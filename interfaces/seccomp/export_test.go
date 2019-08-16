@@ -25,8 +25,13 @@ package seccomp
 // replace it with a shorter snippet.
 func MockTemplate(fakeTemplate []byte) (restore func()) {
 	orig := defaultTemplate
+	origBarePrivDropSyscalls := barePrivDropSyscalls
 	defaultTemplate = fakeTemplate
-	return func() { defaultTemplate = orig }
+	barePrivDropSyscalls = ""
+	return func() {
+		defaultTemplate = orig
+		barePrivDropSyscalls = origBarePrivDropSyscalls
+	}
 }
 
 func MockKernelFeatures(f func() []string) (resture func()) {

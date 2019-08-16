@@ -31,6 +31,7 @@ import (
 	"github.com/snapcore/snapd/arch"
 	"github.com/snapcore/snapd/cmd"
 	"github.com/snapcore/snapd/dirs"
+	"github.com/snapcore/snapd/interfaces"
 	"github.com/snapcore/snapd/overlord/state"
 	"github.com/snapcore/snapd/release"
 	"github.com/snapcore/snapd/snap"
@@ -919,6 +920,181 @@ func (s *checkSnapSuite) TestCheckSnapdHappy(c *C) {
 			c.Check(err, IsNil)
 		} else {
 			c.Check(err, ErrorMatches, t.errStr)
+		}
+	}
+}
+
+// Note, invalid usernames checked in snap/info_snap_yaml.go
+var systemUsernamesTests = []struct {
+	sysIDs  string
+	classic bool
+	noGroup bool
+	noUser  bool
+	scVer   string
+	error   string
+}{{
+	sysIDs: "snap_daemon: shared",
+	scVer:  "dead 2.4.1 deadbeef bpf-actlog",
+}, {
+	sysIDs: "snap_daemon:\n    scope: shared",
+	scVer:  "dead 2.4.1 deadbeef bpf-actlog",
+}, {
+	sysIDs: "snap_daemon:\n    scope: private",
+	scVer:  "dead 2.4.1 deadbeef bpf-actlog",
+	error:  `requires unsupported user scope "private" for this version of snapd`,
+}, {
+	sysIDs: "snap_daemon:\n    scope: external",
+	scVer:  "dead 2.4.1 deadbeef bpf-actlog",
+	error:  `requires unsupported user scope "external" for this version of snapd`,
+}, {
+	sysIDs: "snap_daemon:\n    scope: other",
+	scVer:  "dead 2.4.1 deadbeef bpf-actlog",
+	error:  `requires unsupported user scope "other"`,
+}, {
+	sysIDs:  "snap_daemon: shared",
+	scVer:   "dead 2.4.1 deadbeef bpf-actlog",
+	classic: true,
+}, {
+	sysIDs:  "snap_daemon:\n    scope: shared",
+	scVer:   "dead 2.4.1 deadbeef bpf-actlog",
+	classic: true,
+}, {
+	sysIDs:  "snap_daemon:\n    scope: private",
+	scVer:   "dead 2.4.1 deadbeef bpf-actlog",
+	classic: true,
+	error:   `requires unsupported user scope "private" for this version of snapd`,
+}, {
+	sysIDs:  "snap_daemon:\n    scope: external",
+	scVer:   "dead 2.4.1 deadbeef bpf-actlog",
+	classic: true,
+	error:   `requires unsupported user scope "external" for this version of snapd`,
+}, {
+	sysIDs:  "snap_daemon:\n    scope: other",
+	scVer:   "dead 2.4.1 deadbeef bpf-actlog",
+	classic: true,
+	error:   `requires unsupported user scope "other"`,
+}, {
+	sysIDs: "snap_daemon: shared\n  allowed-not: shared",
+	scVer:  "dead 2.4.1 deadbeef bpf-actlog",
+	error:  `requires unsupported system username "allowed-not"`,
+}, {
+	sysIDs:  "allowed-not: shared\n  snap_daemon: shared",
+	scVer:   "dead 2.4.1 deadbeef bpf-actlog",
+	classic: true,
+	error:   `requires unsupported system username "allowed-not"`,
+}, {
+	sysIDs:  "snap_daemon: shared",
+	noGroup: true,
+	scVer:   "dead 2.4.1 deadbeef bpf-actlog",
+	error:   `requires that both the \"snap_daemon\" system user and group are present on the system.`,
+}, {
+	sysIDs:  "snap_daemon: shared",
+	classic: true,
+	noGroup: true,
+	scVer:   "dead 2.4.1 deadbeef bpf-actlog",
+	error:   `requires that both the \"snap_daemon\" system user and group are present on the system.`,
+}, {
+	sysIDs: "snap_daemon: shared",
+	noUser: true,
+	scVer:  "dead 2.4.1 deadbeef bpf-actlog",
+	error:  `requires that both the \"snap_daemon\" system user and group are present on the system.`,
+}, {
+	sysIDs:  "snap_daemon: shared",
+	classic: true,
+	noUser:  true,
+	scVer:   "dead 2.4.1 deadbeef bpf-actlog",
+	error:   `requires that both the \"snap_daemon\" system user and group are present on the system.`,
+}, {
+	sysIDs:  "snap_daemon: shared",
+	noUser:  true,
+	noGroup: true,
+	scVer:   "dead 2.4.1 deadbeef bpf-actlog",
+	error:   `requires that both the \"snap_daemon\" system user and group are present on the system.`,
+}, {
+	sysIDs:  "snap_daemon: shared",
+	classic: true,
+	noUser:  true,
+	noGroup: true,
+	scVer:   "dead 2.4.1 deadbeef bpf-actlog",
+	error:   `requires that both the \"snap_daemon\" system user and group are present on the system.`,
+}, {
+	sysIDs: "snap_daemon: shared",
+	scVer:  "dead 2.3.3 deadbeef bpf-actlog",
+	error:  `system usernames require a snapd built against libseccomp >= 2.4`,
+}, {
+	sysIDs:  "snap_daemon: shared",
+	classic: true,
+	scVer:   "dead 2.3.3 deadbeef bpf-actlog",
+	error:   `system usernames require a snapd built against libseccomp >= 2.4`,
+}, {
+	sysIDs: "snap_daemon: shared",
+	scVer:  "dead 3.0.0 deadbeef bpf-actlog",
+}, {
+	sysIDs:  "snap_daemon: shared",
+	classic: true,
+	scVer:   "dead 3.0.0 deadbeef bpf-actlog",
+}, {
+	sysIDs: "snap_daemon: shared",
+	scVer:  "dead 2.4.1 deadbeef -",
+	error:  `system usernames require a snapd built against golang-seccomp >= 0.9.1`,
+}, {
+	sysIDs:  "snap_daemon: shared",
+	classic: true,
+	scVer:   "dead 2.4.1 deadbeef -",
+	error:   `system usernames require a snapd built against golang-seccomp >= 0.9.1`,
+}}
+
+func (s *checkSnapSuite) TestCheckSnapSystemUsernames(c *C) {
+	r := snapstate.EnableSystemUsernamesSupportForTest()
+	defer r()
+
+	restore := release.MockOnClassic(false)
+	defer restore()
+
+	for _, test := range systemUsernamesTests {
+		restore = interfaces.MockSeccompCompilerVersionInfo(func(_ string) (string, error) {
+			return test.scVer, nil
+		})
+		defer restore()
+
+		release.OnClassic = test.classic
+		if test.noGroup {
+			restore = snapstate.MockFindGid(func(name string) (uint64, error) {
+				return 0, fmt.Errorf("user: unknown group %s", name)
+			})
+		} else {
+			restore = snapstate.MockFindGid(func(name string) (uint64, error) {
+				return 123, nil
+			})
+		}
+		defer restore()
+
+		if test.noUser {
+			restore = snapstate.MockFindUid(func(name string) (uint64, error) {
+				return 0, fmt.Errorf("user: unknown user %s", name)
+			})
+		} else {
+			restore = snapstate.MockFindUid(func(name string) (uint64, error) {
+				return 124, nil
+			})
+		}
+		defer restore()
+
+		yaml := fmt.Sprintf("name: foo\nsystem-usernames:\n  %s\n", test.sysIDs)
+
+		info, err := snap.InfoFromSnapYaml([]byte(yaml))
+		c.Assert(err, IsNil)
+
+		var openSnapFile = func(path string, si *snap.SideInfo) (*snap.Info, snap.Container, error) {
+			return info, emptyContainer(c), nil
+		}
+		restore := snapstate.MockOpenSnapFile(openSnapFile)
+		defer restore()
+		err = snapstate.CheckSnap(s.st, "snap-path", "foo", nil, nil, snapstate.Flags{}, nil)
+		if test.error != "" {
+			c.Check(err, ErrorMatches, `snap "foo" `+test.error)
+		} else {
+			c.Assert(err, IsNil)
 		}
 	}
 }
