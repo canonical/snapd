@@ -176,7 +176,7 @@ func (s *findUserGroupSuite) TestFindGidWithGetentFallback(c *check.C) {
 	gid, err := osutil.FindGidWithGetentFallback("root")
 	c.Assert(err, check.IsNil)
 	c.Assert(gid, check.Equals, uint64(0))
-	// getent shouldn't have been called since 'root' is in /etc/passwd
+	// getent shouldn't have been called since 'root' is in /etc/group
 	c.Check(s.mockGetent.Calls(), check.DeepEquals, [][]string(nil))
 }
 

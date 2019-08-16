@@ -19,9 +19,14 @@ prepare: |
     sed -i 's/^group:.*compat/\0 extrausers/' /etc/nsswitch.conf
     sed -i 's/^passwd:.*compat/\0 extrausers/' /etc/nsswitch.conf
     sed -i 's/^shadow:.*compat/\0 extrausers/' /etc/nsswitch.conf
-    pam-auth-update --enable snappy-extrausers
+    echo "Workaroudn silly bug that causes extrausers to crash when missing"
+    for name in gshadow shadow; do
+        touch /var/lib/extrausers/$name
+        chmod 640 /var/lib/extrausers/$name
+        chown root:shadow /var/lib/extrausers/$name
+    done
     echo "Add user"
-    adduser --extrausers --disabled-password --gecos '' --uid 9876 extratest
+    adduser --extrausers --disabled-login --no-create-home --gecos '' --uid 9876 --shell /bin/false extratest
 
 restore: |
     mv /etc/nsswitch.conf.save /etc/nsswitch.conf
@@ -32,11 +37,10 @@ execute: |
     su test -c 'CGO_ENABLED=1 go test github.com/snapcore/snapd/osutil'
     su test -c 'CGO_ENABLED=0 go test github.com/snapcore/snapd/osutil'
 
-    go build -o findid ./findid.go
+    CGO_ENABLED=1 go build -o findid ./findid.go
     test "$(./findid uid extratest)" = "9876"
     test "$(./findid gid extratest)" = "9876"
 
     CGO_ENABLED=0 go build -o findid ./findid.go
     test "$(./findid uid extratest)" = "9876"
     test "$(./findid gid extratest)" = "9876"
-    

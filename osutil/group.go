@@ -55,8 +55,8 @@ func getent(name string, database string) (uint64, error) {
 	output, err := cmd.CombinedOutput()
 	if err != nil {
 		// according to getent(1) the exit value of "2" means:
-		//    One or more supplied key could not be found in
-		//    the database.
+		// "One or more supplied key could not be found in the
+		// database."
 		exitCode, _ := ExitCode(err)
 		if exitCode == 2 {
 			if database == "passwd" {
