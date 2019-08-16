@@ -441,7 +441,18 @@ plugs:
     net:
         1: ok
 `))
-	c.Assert(err, ErrorMatches, `plug "net" has attribute that is not a string \(found int\)`)
+	c.Assert(err, ErrorMatches, `plug "net" has attribute key that is not a string \(found int\)`)
+}
+
+func (s *YamlSuite) TestUnmarshalCorruptedPlugWithEmptyAttributeKey(c *C) {
+	// NOTE: yaml content cannot use tabs, indent the section with spaces.
+	_, err := snap.InfoFromSnapYaml([]byte(`
+name: snap
+plugs:
+    net:
+        "": ok
+`))
+	c.Assert(err, ErrorMatches, `plug "net" has an empty attribute key`)
 }
 
 func (s *YamlSuite) TestUnmarshalCorruptedPlugWithUnexpectedType(c *C) {
@@ -854,7 +865,18 @@ slots:
     net:
         1: ok
 `))
-	c.Assert(err, ErrorMatches, `slot "net" has attribute that is not a string \(found int\)`)
+	c.Assert(err, ErrorMatches, `slot "net" has attribute key that is not a string \(found int\)`)
+}
+
+func (s *YamlSuite) TestUnmarshalCorruptedSlotWithEmptyAttributeKey(c *C) {
+	// NOTE: yaml content cannot use tabs, indent the section with spaces.
+	_, err := snap.InfoFromSnapYaml([]byte(`
+name: snap
+slots:
+    net:
+        "": ok
+`))
+	c.Assert(err, ErrorMatches, `slot "net" has an empty attribute key`)
 }
 
 func (s *YamlSuite) TestUnmarshalCorruptedSlotWithUnexpectedType(c *C) {
