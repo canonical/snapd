@@ -618,12 +618,12 @@ func checkSystemUsernames(si *snap.Info) error {
 			rangeStart := id & 0xFFFF0000
 			rangeName := fmt.Sprintf("snapd-range-%d-root", rangeStart)
 			if err := ensureUserGroup(rangeName, rangeStart, extrausers); err != nil {
-				return fmt.Errorf(`snap %q requires system username "%s": %v`, si.InstanceName(), user.Name, err)
+				return fmt.Errorf(`cannot ensure users for snap %q required system username "%s": %v`, si.InstanceName(), user.Name, err)
 			}
 
 			// Create the requested user and group
 			if err := ensureUserGroup(user.Name, id, extrausers); err != nil {
-				return fmt.Errorf(`snap %q requires system username "%s": %v`, si.InstanceName(), user.Name, err)
+				return fmt.Errorf(`cannot ensure users for snap %q required system username "%s": %v`, si.InstanceName(), user.Name, err)
 			}
 		case "private", "external":
 			return fmt.Errorf(`snap %q requires unsupported user scope "%s" for this version of snapd`, si.InstanceName(), user.Scope)
