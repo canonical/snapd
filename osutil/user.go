@@ -70,17 +70,13 @@ func EnsureUserGroup(name string, id uint32, extraUsers bool) error {
 
 	// Perform uid and gid lookups
 	uid, uidErr := FindUid(name)
-	if uidErr != nil {
-		if _, ok := uidErr.(user.UnknownUserError); !ok {
-			return uidErr
-		}
+	if uidErr != nil && !IsUnknownUser(uidErr) {
+		return uidErr
 	}
 
 	gid, gidErr := FindGid(name)
-	if gidErr != nil {
-		if _, ok := gidErr.(user.UnknownGroupError); !ok {
-			return gidErr
-		}
+	if gidErr != nil && !IsUnknownGroup(gidErr) {
+		return gidErr
 	}
 
 	if uidErr == nil && gidErr == nil {
