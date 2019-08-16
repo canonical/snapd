@@ -37,18 +37,14 @@ execute: |
     su test -c 'CGO_ENABLED=1 go test github.com/snapcore/snapd/osutil'
     su test -c 'CGO_ENABLED=0 go test github.com/snapcore/snapd/osutil'
 
-    # TODO: there seem to be some caching, find a nicer way
-    for _ in $(seq 60); do
-        if ./findid uid extratest; then
-            break
-        fi
-        sleep 1
-    done
+    CGO_ENABLED=1 go build -o findid-cgo ./findid.go
+    CGO_ENABLED=0 go build -o findid-no-cgo ./findid.go
 
-    CGO_ENABLED=1 go build -o findid ./findid.go
-    test "$(./findid uid extratest)" = "9876"
-    test "$(./findid gid extratest)" = "9876"
+    # sanity check
+    getent passwd extratest
 
-    CGO_ENABLED=0 go build -o findid ./findid.go
-    test "$(./findid uid extratest)" = "9876"
-    test "$(./findid gid extratest)" = "9876"
+    test "$(./findid-cgo uid extratest)" = "9876"
+    test "$(./findid-cgo gid extratest)" = "9876"
+
+    test "$(./findid-no-cgo uid extratest)" = "9876"
+    test "$(./findid-no-cgo gid extratest)" = "9876"
