@@ -1,0 +1,42 @@
+summary: Ensure our osutil.Find{Uid,Gid} code work with libnss
+
+description: |
+    The os/user code in go will behave different when compiled
+    with or without cgo. This is confused so we created a helper
+    osutil.Find{Uid,Gid} that automatically falls back to calling
+    getent(1) when build without cgo. This test ensures this is
+    working correctly.
+
+# only run on a well defined system where we know how to setup libnss
+systems: [ubuntu-18.04-64]
+
+prepare: |
+    echo "Save nsswitch.conf"
+    cp /etc/nsswitch.conf /etc/nsswitch.conf.save
+    echo "Install extrausers"
+    apt install libnss-extrausers
+    echo "Enable libnss-extrusers"
+    sed -i 's/^group:.*compat/\0 extrausers/' /etc/nsswitch.conf
+    sed -i 's/^passwd:.*compat/\0 extrausers/' /etc/nsswitch.conf
+    sed -i 's/^shadow:.*compat/\0 extrausers/' /etc/nsswitch.conf
+    pam-auth-update --enable snappy-extrausers
+    echo "Add user"
+    adduser --extrausers --disabled-password --gecos '' --uid 9876 extratest
+
+restore: |
+    mv /etc/nsswitch.conf.save /etc/nsswitch.conf
+    apt autoremove -y libnss-extrausers
+
+execute: |
+    echo "Ensure tests run with both CGO and without"
+    su test -c 'CGO_ENABLED=1 go test github.com/snapcore/snapd/osutil'
+    su test -c 'CGO_ENABLED=0 go test github.com/snapcore/snapd/osutil'
+
+    go build -o findid ./findid.go
+    test "$(./findid uid extratest)" = "9876"
+    test "$(./findid gid extratest)" = "9876"
+
+    CGO_ENABLED=0 go build -o findid ./findid.go
+    test "$(./findid uid extratest)" = "9876"
+    test "$(./findid gid extratest)" = "9876"
+    
