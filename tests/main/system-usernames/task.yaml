@@ -82,7 +82,7 @@ execute: |
     if [ "$supported" = "yes" ]; then
         snap install --edge test-snapd-daemon-user
     else
-        snap install --edge test-snapd-daemon-user 2>&1 | MATCH 'require a snapd built against libseccomp >= 2.4'
+        snap install --edge test-snapd-daemon-user 2>&1 | MATCH 'require a snapd built against (libseccomp >= 2.4|golang-seccomp >= 0.9.1)'
         exit 0
     fi
 
