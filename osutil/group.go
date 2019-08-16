@@ -76,7 +76,7 @@ func getent(name string, database string) (uint64, error) {
 	return strconv.ParseUint(string(parts[2]), 10, 64)
 }
 
-func findUidNoGetentFallback(username string) (uint64, error) {
+var findUidNoGetentFallback = func(username string) (uint64, error) {
 	myuser, err := user.Lookup(username)
 	if err != nil {
 		return 0, err
@@ -85,7 +85,7 @@ func findUidNoGetentFallback(username string) (uint64, error) {
 	return strconv.ParseUint(myuser.Uid, 10, 64)
 }
 
-func findGidNoGetentFallback(groupname string) (uint64, error) {
+var findGidNoGetentFallback = func(groupname string) (uint64, error) {
 	group, err := user.LookupGroup(groupname)
 	if err != nil {
 		return 0, err
@@ -99,16 +99,17 @@ func findGidNoGetentFallback(groupname string) (uint64, error) {
 func findUidWithGetentFallback(username string) (uint64, error) {
 	// first do the cheap os/user lookup
 	myuser, err := findUidNoGetentFallback(username)
-	if err == nil {
+	switch err.(type) {
+	case nil:
 		// found it!
 		return myuser, nil
-	} else if _, ok := err.(user.UnknownUserError); !ok {
+	case user.UnknownUserError:
+		// user unknown, let's try getent
+		return getent(username, "passwd")
+	default:
 		// something weird happened with the lookup, just report it
 		return 0, err
 	}
-
-	// user unknown, let's try getent
-	return getent(username, "passwd")
 }
 
 // findGidWithGetentFallback returns the identifier of the given UNIX group name with
@@ -116,14 +117,15 @@ func findUidWithGetentFallback(username string) (uint64, error) {
 func findGidWithGetentFallback(groupname string) (uint64, error) {
 	// first do the cheap os/user lookup
 	group, err := findGidNoGetentFallback(groupname)
-	if err == nil {
+	switch err.(type) {
+	case nil:
 		// found it!
 		return group, nil
-	} else if _, ok := err.(user.UnknownGroupError); !ok {
+	case user.UnknownGroupError:
+		// group unknown, let's try getent
+		return getent(groupname, "group")
+	default:
 		// something weird happened with the lookup, just report it
 		return 0, err
 	}
-
-	// group unknown, let's try getent
-	return getent(groupname, "group")
 }

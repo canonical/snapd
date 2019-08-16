@@ -163,3 +163,15 @@ var (
 	FindUidWithGetentFallback = findUidWithGetentFallback
 	FindGidWithGetentFallback = findGidWithGetentFallback
 )
+
+func MockFindUidNoFallback(mock func(name string) (uint64, error)) (restore func()) {
+	old := findUidNoGetentFallback
+	findUidNoGetentFallback = mock
+	return func() { findUidNoGetentFallback = old }
+}
+
+func MockFindGidNoFallback(mock func(name string) (uint64, error)) (restore func()) {
+	old := findGidNoGetentFallback
+	findGidNoGetentFallback = mock
+	return func() { findGidNoGetentFallback = old }
+}

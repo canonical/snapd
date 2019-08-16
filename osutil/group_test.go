@@ -20,6 +20,7 @@
 package osutil_test
 
 import (
+	"fmt"
 	"os/user"
 
 	"gopkg.in/check.v1"
@@ -80,6 +81,29 @@ func (s *findUserGroupSuite) TestFindUidGetentNonexistent(c *check.C) {
 	})
 }
 
+func (s *findUserGroupSuite) TestFindUidGetentFoundFromGetent(c *check.C) {
+	restore := osutil.MockFindUidNoFallback(func(string) (uint64, error) {
+		return 1000, nil
+	})
+	defer restore()
+
+	uid, err := osutil.FindUidWithGetentFallback("some-user")
+	c.Assert(err, check.IsNil)
+	c.Assert(uid, check.Equals, uint64(1000))
+	// getent not called, "some-user" was available in the local db
+	c.Check(s.mockGetent.Calls(), check.HasLen, 0)
+}
+
+func (s *findUserGroupSuite) TestFindUidGetentOtherErrFromFindUid(c *check.C) {
+	restore := osutil.MockFindUidNoFallback(func(string) (uint64, error) {
+		return 0, fmt.Errorf("other-error")
+	})
+	defer restore()
+
+	_, err := osutil.FindUidWithGetentFallback("root")
+	c.Assert(err, check.ErrorMatches, "other-error")
+}
+
 func (s *findUserGroupSuite) TestFindUidGetentMockedOtherError(c *check.C) {
 	s.mockGetent = testutil.MockCommand(c, "getent", "exit 3")
 
@@ -123,6 +147,29 @@ func (s *findUserGroupSuite) TestFindGidNonexistent(c *check.C) {
 	c.Assert(err, check.ErrorMatches, "group: unknown group lakatos")
 	_, ok := err.(user.UnknownGroupError)
 	c.Assert(ok, check.Equals, true)
+}
+
+func (s *findUserGroupSuite) TestFindGidGetentFoundFromGetent(c *check.C) {
+	restore := osutil.MockFindGidNoFallback(func(string) (uint64, error) {
+		return 1000, nil
+	})
+	defer restore()
+
+	gid, err := osutil.FindGidWithGetentFallback("some-group")
+	c.Assert(err, check.IsNil)
+	c.Assert(gid, check.Equals, uint64(1000))
+	// getent not called, "some-group" was available in the local db
+	c.Check(s.mockGetent.Calls(), check.HasLen, 0)
+}
+
+func (s *findUserGroupSuite) TestFindGidGetentOtherErrFromFindUid(c *check.C) {
+	restore := osutil.MockFindGidNoFallback(func(string) (uint64, error) {
+		return 0, fmt.Errorf("other-error")
+	})
+	defer restore()
+
+	_, err := osutil.FindGidWithGetentFallback("root")
+	c.Assert(err, check.ErrorMatches, "other-error")
 }
 
 func (s *findUserGroupSuite) TestFindGidWithGetentFallback(c *check.C) {
