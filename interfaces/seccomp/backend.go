@@ -421,11 +421,10 @@ func requiresSocketcallImpl(baseSnap string) bool {
 }
 
 // MockSnapSeccompVersionInfo is for use in tests only.
-func MockSnapSeccompVersionInfo(s func(c Compiler) (string, error)) (restore func()) {
+func MockSnapSeccompVersionInfo(versionInfo string) (restore func()) {
 	old := snapSeccompVersionInfo
 	snapSeccompVersionInfo = func(c Compiler) (seccomp_compiler.VersionInfo, error) {
-		vi, err := s(c)
-		return seccomp_compiler.VersionInfo(vi), err
+		return seccomp_compiler.VersionInfo(versionInfo), nil
 	}
 	return func() {
 		snapSeccompVersionInfo = old
