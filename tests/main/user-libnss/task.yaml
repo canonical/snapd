@@ -31,6 +31,7 @@ prepare: |
 restore: |
     mv /etc/nsswitch.conf.save /etc/nsswitch.conf
     apt autoremove -y libnss-extrausers
+    rm -rf /var/lib/extrausers
 
 execute: |
     echo "Ensure tests run with both CGO and without"
@@ -42,7 +43,9 @@ execute: |
 
     # sanity check
     getent passwd extratest
+    getent group extratest
 
+    echo "Run binaries (CGO, without) exercising the helpers"
     test "$(./findid-cgo uid extratest)" = "9876"
     test "$(./findid-cgo gid extratest)" = "9876"
 
