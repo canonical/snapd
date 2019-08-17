@@ -1,7 +1,8 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
+// +build cgo
 
 /*
- * Copyright (C) 2014-2015 Canonical Ltd
+ * Copyright (C) 2017-2019 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -19,21 +20,10 @@
 
 package osutil
 
-import (
-	"os/exec"
-	"syscall"
-)
+// The builtin os/user functions use the libc functions when compiled
+// with cgo so we use use them here.
 
-// ExitCode extract the exit code from the error of a failed cmd.Run() or the
-// original error if its not a exec.ExitError
-func ExitCode(runErr error) (e int, err error) {
-	// TODO: with golang-1.12 this becomes a bit nicer:
-	//       https://github.com/golang/go/issues/26539
-	// golang, you are kidding me, right?
-	if exitErr, ok := runErr.(*exec.ExitError); ok {
-		waitStatus := exitErr.Sys().(syscall.WaitStatus)
-		e = waitStatus.ExitStatus()
-		return e, nil
-	}
-	return e, runErr
-}
+var (
+	findUid = findUidNoGetentFallback
+	findGid = findGidNoGetentFallback
+)
