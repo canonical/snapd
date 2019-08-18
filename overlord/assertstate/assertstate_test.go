@@ -36,6 +36,7 @@ import (
 	"github.com/snapcore/snapd/asserts/assertstest"
 	"github.com/snapcore/snapd/asserts/sysdb"
 	"github.com/snapcore/snapd/dirs"
+	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/overlord"
 	"github.com/snapcore/snapd/overlord/assertstate"
 	"github.com/snapcore/snapd/overlord/auth"
@@ -562,6 +563,97 @@ func (s *assertMgrSuite) settle(c *C) {
 	c.Assert(err, IsNil)
 }
 
+func (s *assertMgrSuite) TestFetchUnsupportedUpdateIgnored(c *C) {
+	// ATM in principle we ignore updated assertions with unsupported formats
+	// NB: this scenario can only happen if there is a bug
+	// we ask the store to filter what is returned by max supported format!
+	restore := asserts.MockMaxSupportedFormat(asserts.SnapDeclarationType, 111)
+	defer restore()
+
+	logbuf, restore := logger.MockLogger()
+	defer restore()
+
+	snapDeclFoo0 := s.snapDecl(c, "foo", nil)
+
+	s.state.Lock()
+	defer s.state.Unlock()
+	err := assertstate.Add(s.state, s.storeSigning.StoreAccountKey(""))
+	c.Assert(err, IsNil)
+
+	err = assertstate.Add(s.state, s.dev1Acct)
+	c.Assert(err, IsNil)
+	err = assertstate.Add(s.state, snapDeclFoo0)
+	c.Assert(err, IsNil)
+
+	var snapDeclFoo1 *asserts.SnapDeclaration
+	(func() {
+		restore := asserts.MockMaxSupportedFormat(asserts.SnapDeclarationType, 999)
+		defer restore()
+		snapDeclFoo1 = s.snapDecl(c, "foo", map[string]interface{}{
+			"format":   "999",
+			"revision": "1",
+		})
+	})()
+	c.Check(snapDeclFoo1.Revision(), Equals, 1)
+
+	ref := &asserts.Ref{
+		Type:       asserts.SnapDeclarationType,
+		PrimaryKey: []string{"16", "foo-id"},
+	}
+	fetching := func(f asserts.Fetcher) error {
+		restore := asserts.MockMaxSupportedFormat(asserts.SnapDeclarationType, 999)
+		defer restore()
+
+		return f.Fetch(ref)
+	}
+
+	err = assertstate.DoFetch(s.state, 0, s.trivialDeviceCtx, fetching)
+	// no error and the old one was kept
+	c.Assert(err, IsNil)
+	snapDecl, err := ref.Resolve(assertstate.DB(s.state).Find)
+	c.Assert(err, IsNil)
+	c.Check(snapDecl.Revision(), Equals, 0)
+
+	// we log the issue
+	c.Check(logbuf.String(), testutil.Contains, `Cannot update assertion snap-declaration (foo-id;`)
+}
+
+func (s *assertMgrSuite) TestFetchUnsupportedError(c *C) {
+	// NB: this scenario can only happen if there is a bug
+	// we ask the store to filter what is returned by max supported format!
+
+	restore := asserts.MockMaxSupportedFormat(asserts.SnapDeclarationType, 111)
+	defer restore()
+
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	var snapDeclFoo1 *asserts.SnapDeclaration
+	(func() {
+		restore := asserts.MockMaxSupportedFormat(asserts.SnapDeclarationType, 999)
+		defer restore()
+		snapDeclFoo1 = s.snapDecl(c, "foo", map[string]interface{}{
+			"format":   "999",
+			"revision": "1",
+		})
+	})()
+	c.Check(snapDeclFoo1.Revision(), Equals, 1)
+
+	ref := &asserts.Ref{
+		Type:       asserts.SnapDeclarationType,
+		PrimaryKey: []string{"16", "foo-id"},
+	}
+	fetching := func(f asserts.Fetcher) error {
+		restore := asserts.MockMaxSupportedFormat(asserts.SnapDeclarationType, 999)
+		defer restore()
+
+		return f.Fetch(ref)
+	}
+
+	err := assertstate.DoFetch(s.state, 0, s.trivialDeviceCtx, fetching)
+	c.Check(err, ErrorMatches, `(?s).*proposed "snap-declaration" assertion has format 999 but 111 is latest supported.*`)
+}
+
 func (s *assertMgrSuite) setModel(model *asserts.Model) {
 	deviceCtx := &snapstatetest.TrivialDeviceContext{
 		DeviceModel: model,
@@ -778,60 +870,6 @@ func (s *assertMgrSuite) TestValidateSnapCrossCheckFail(c *C) {
 	s.state.Lock()
 
 	c.Assert(chg.Err(), ErrorMatches, `(?s).*cannot install "f", snap "f" is undergoing a rename to "foo".*`)
-}
-
-func (s *assertMgrSuite) TestValidateSnapSnapDeclIsTooNewFirstInstall(c *C) {
-	c.Skip("the assertion service will make this scenario not possible")
-
-	s.prereqSnapAssertions(c, 10)
-
-	tempdir := c.MkDir()
-	snapPath := filepath.Join(tempdir, "foo.snap")
-	err := ioutil.WriteFile(snapPath, fakeSnap(10), 0644)
-	c.Assert(err, IsNil)
-
-	// update snap decl with one that is too new
-	(func() {
-		restore := asserts.MockMaxSupportedFormat(asserts.SnapDeclarationType, 999)
-		defer restore()
-		headers := map[string]interface{}{
-			"format":       "999",
-			"revision":     "1",
-			"series":       "16",
-			"snap-id":      "snap-id-1",
-			"snap-name":    "foo",
-			"publisher-id": s.dev1Acct.AccountID(),
-			"timestamp":    time.Now().Format(time.RFC3339),
-		}
-		snapDecl, err := s.storeSigning.Sign(asserts.SnapDeclarationType, headers, nil, "")
-		c.Assert(err, IsNil)
-		err = s.storeSigning.Add(snapDecl)
-		c.Assert(err, IsNil)
-	})()
-
-	s.state.Lock()
-	defer s.state.Unlock()
-
-	chg := s.state.NewChange("install", "...")
-	t := s.state.NewTask("validate-snap", "Fetch and check snap assertions")
-	snapsup := snapstate.SnapSetup{
-		SnapPath: snapPath,
-		UserID:   0,
-		SideInfo: &snap.SideInfo{
-			RealName: "foo",
-			SnapID:   "snap-id-1",
-			Revision: snap.R(10),
-		},
-	}
-	t.Set("snap-setup", snapsup)
-	chg.AddTask(t)
-
-	s.state.Unlock()
-	defer s.se.Stop()
-	s.settle(c)
-	s.state.Lock()
-
-	c.Assert(chg.Err(), ErrorMatches, `(?s).*proposed "snap-declaration" assertion has format 999 but 0 is latest supported.*`)
 }
 
 func (s *assertMgrSuite) snapDecl(c *C, name string, extraHeaders map[string]interface{}) *asserts.SnapDeclaration {

@@ -77,7 +77,7 @@ func commitTo(db *asserts.Database, assertions []asserts.Assertion) error {
 		if asserts.IsUnaccceptedUpdate(err) {
 			if _, ok := err.(*asserts.UnsupportedFormatError); ok {
 				// we kept the old one, but log the issue
-				logger.Noticef("Cannot update assertion: %v", err)
+				logger.Noticef("Cannot update assertion %v: %v", a.Ref(), err)
 			}
 			// be idempotent
 			// system db has already the same or newer
