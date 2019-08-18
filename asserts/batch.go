@@ -29,9 +29,11 @@ import (
 // prerequisite order and then add them in one go to an assertion
 // database.
 type Batch struct {
-	bs          Backstore
-	added       []Assertion
-	linearized  bool
+	bs    Backstore
+	added []Assertion
+	// added is in prereq order
+	inPrereqOrder bool
+
 	unsupported func(u *Ref, err error) error
 }
 
@@ -47,15 +49,15 @@ func NewBatch(unsupported func(u *Ref, err error) error) *Batch {
 	}
 
 	return &Batch{
-		bs:          NewMemoryBackstore(),
-		linearized:  true, // empty list is trivially so
-		unsupported: unsupported,
+		bs:            NewMemoryBackstore(),
+		inPrereqOrder: true, // empty list is trivially so
+		unsupported:   unsupported,
 	}
 }
 
 // Add one assertion to the batch.
 func (b *Batch) Add(a Assertion) error {
-	b.linearized = false
+	b.inPrereqOrder = false
 
 	if !a.SupportedFormat() {
 		err := &UnsupportedFormatError{Ref: a.Ref(), Format: a.Format()}
@@ -77,7 +79,7 @@ func (b *Batch) Add(a Assertion) error {
 // AddStream adds a stream of assertions to the batch.
 // Returns references to to the assertions effectively added.
 func (b *Batch) AddStream(r io.Reader) ([]*Ref, error) {
-	b.linearized = false
+	b.inPrereqOrder = false
 
 	start := len(b.added)
 	dec := NewDecoder(r)
@@ -126,7 +128,7 @@ func (b *Batch) CommitTo(db *Database) error {
 // commitTo does a best effort of adding all the batch assertions to
 // the target database.
 func (b *Batch) commitTo(db *Database) error {
-	if err := b.linearize(db); err != nil {
+	if err := b.prereqSort(db); err != nil {
 		return err
 	}
 
@@ -153,14 +155,14 @@ func (b *Batch) commitTo(db *Database) error {
 	return nil
 }
 
-func (b *Batch) linearize(db *Database) error {
-	if b.linearized {
+func (b *Batch) prereqSort(db *Database) error {
+	if b.inPrereqOrder {
 		// nothing to do
 		return nil
 	}
 
-	// linearize using fetcher
-	linearized := make([]Assertion, 0, len(b.added))
+	// put in prereq order using a fetcher
+	inPrereqOrder := make([]Assertion, 0, len(b.added))
 	retrieve := func(ref *Ref) (Assertion, error) {
 		a, err := b.bs.Get(ref.Type, ref.PrimaryKey, ref.Type.MaxSupportedFormat())
 		if IsNotFound(err) {
@@ -173,7 +175,7 @@ func (b *Batch) linearize(db *Database) error {
 		return a, nil
 	}
 	save := func(a Assertion) error {
-		linearized = append(linearized, a)
+		inPrereqOrder = append(inPrereqOrder, a)
 		return nil
 	}
 	f := NewFetcher(db, retrieve, save)
@@ -184,8 +186,8 @@ func (b *Batch) linearize(db *Database) error {
 		}
 	}
 
-	b.added = linearized
-	b.linearized = true
+	b.added = inPrereqOrder
+	b.inPrereqOrder = true
 	return nil
 }
 
