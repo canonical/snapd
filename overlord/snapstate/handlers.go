@@ -42,6 +42,7 @@ import (
 	"github.com/snapcore/snapd/overlord/configstate/settings"
 	"github.com/snapcore/snapd/overlord/snapstate/backend"
 	"github.com/snapcore/snapd/overlord/state"
+	"github.com/snapcore/snapd/progress"
 	"github.com/snapcore/snapd/release"
 	"github.com/snapcore/snapd/snap"
 	"github.com/snapcore/snapd/store"
@@ -737,6 +738,31 @@ func (m *SnapManager) undoMountSnap(t *state.Task, _ *tomb.Tomb) error {
 	return m.backend.RemoveSnapDir(snapsup.placeInfo(), otherInstances)
 }
 
+// saveSnapDisabledServices queries for all currently disabled snap services and
+// adds those inside *snap.Info.
+func (m *SnapManager) saveSnapDisabledServices(snapst *SnapState, pb progress.Meter) error {
+	info, err := snapst.CurrentInfo()
+	if err != nil {
+		return err
+	}
+
+	// save the list of services that are in the disabled state before unlinking
+	// and thus removing the snap services
+	snapSvcStates, err := m.backend.CurrentSnapServiceStates(info, pb)
+	if err != nil {
+		return err
+	}
+
+	// add all disabled services to the list
+	for svc, isEnabled := range snapSvcStates {
+		if !isEnabled {
+			snapst.LastActiveDisabledServices = append(snapst.LastActiveDisabledServices, svc)
+		}
+	}
+
+	return nil
+}
+
 func (m *SnapManager) doUnlinkCurrentSnap(t *state.Task, _ *tomb.Tomb) error {
 	st := t.State()
 	st.Lock()
@@ -779,6 +805,14 @@ func (m *SnapManager) doUnlinkCurrentSnap(t *state.Task, _ *tomb.Tomb) error {
 	snapst.Active = false
 
 	pb := NewTaskProgressAdapterLocked(t)
+
+	// save the disabled services for later
+	err = m.saveSnapDisabledServices(snapst, pb)
+	if err != nil {
+		return err
+	}
+
+	// do the final unlink
 	err = m.backend.UnlinkSnap(oldInfo, pb)
 	if err != nil {
 		return err
@@ -817,6 +851,20 @@ func (m *SnapManager) undoUnlinkCurrentSnap(t *state.Task, _ *tomb.Tomb) error {
 	if err != nil {
 		return err
 	}
+
+	// Restore disabled services
+	var missingSvcs []string
+	missingSvcs, err = m.backend.RestoreDisabledServices(oldInfo, snapst.LastActiveDisabledServices, progress.Null)
+	if err != nil {
+		// nothing to undo, since worst case we would have just disabled some
+		// services which will now be removed anyways
+		return err
+	}
+
+	// re-save the missing services so when we unlink this revision and go to a
+	// different revision with potentially different service names, the
+	// currently missing service names will be re-disabled if they exist later
+	snapst.LastActiveDisabledServices = missingSvcs
 
 	// mark as active again
 	Set(st, snapsup.InstanceName(), snapst)
@@ -1042,12 +1090,26 @@ func (m *SnapManager) doLinkSnap(t *state.Task, _ *tomb.Tomb) (err error) {
 	// record type
 	snapst.SetType(newInfo.GetType())
 
+	pb := NewTaskProgressAdapterLocked(t)
+
 	// XXX: this block is slightly ugly, find a pattern when we have more examples
 	model, _ := ModelFromTask(t)
 	err = m.backend.LinkSnap(newInfo, model, perfTimings)
 	if err != nil {
-		pb := NewTaskProgressAdapterLocked(t)
-		err := m.backend.UnlinkSnap(newInfo, pb)
+		var firstErr error
+		var err error
+		if len(snapst.Sequence) > 0 {
+			// save the disabled services for later
+			firstErr = m.saveSnapDisabledServices(snapst, pb)
+		}
+
+		secondErr := m.backend.UnlinkSnap(newInfo, pb)
+		switch {
+		case firstErr != nil:
+			err = secondErr
+		case secondErr != nil:
+			err = secondErr
+		}
 		if err != nil {
 			t.Errorf("cannot cleanup failed attempt at making snap %q available to the system: %v", snapsup.InstanceName(), err)
 		}
@@ -1055,6 +1117,20 @@ func (m *SnapManager) doLinkSnap(t *state.Task, _ *tomb.Tomb) (err error) {
 	if err != nil {
 		return err
 	}
+
+	// Restore disabled services
+	var missingSvcs []string
+	missingSvcs, err = m.backend.RestoreDisabledServices(newInfo, snapst.LastActiveDisabledServices, pb)
+	if err != nil {
+		// nothing to undo, since worst case we would have just disabled some
+		// services which will now be removed anyways
+		return err
+	}
+
+	// re-save the missing services so when we unlink this revision and go to a
+	// different revision with potentially different service names, the
+	// currently missing service names will be re-disabled if they exist later
+	snapst.LastActiveDisabledServices = missingSvcs
 
 	// Restore configuration of the target revision (if available) on revert
 	if snapsup.Revert {
@@ -1290,12 +1366,23 @@ func (m *SnapManager) undoLinkSnap(t *state.Task, _ *tomb.Tomb) error {
 		return err
 	}
 
+	pb := NewTaskProgressAdapterLocked(t)
+
+	// if we have more revisions of this snap available, then restore the
+	// revision config and save the disabled services (which are restored when
+	// we go to link another snap)
 	if len(snapst.Sequence) > 0 {
+		// save the disabled services for later
+		err = m.saveSnapDisabledServices(snapst, pb)
+		if err != nil {
+			return err
+		}
+
 		if err = config.RestoreRevisionConfig(st, snapsup.InstanceName(), oldCurrent); err != nil {
 			return err
 		}
 	}
-	pb := NewTaskProgressAdapterLocked(t)
+
 	err = m.backend.UnlinkSnap(newInfo, pb)
 	if err != nil {
 		return err
@@ -1466,6 +1553,14 @@ func (m *SnapManager) doUnlinkSnap(t *state.Task, _ *tomb.Tomb) error {
 	}
 
 	pb := NewTaskProgressAdapterLocked(t)
+
+	// save the disabled services for later
+	err = m.saveSnapDisabledServices(snapst, pb)
+	if err != nil {
+		return err
+	}
+
+	// do the final unlink
 	err = m.backend.UnlinkSnap(info, pb)
 	if err != nil {
 		return err

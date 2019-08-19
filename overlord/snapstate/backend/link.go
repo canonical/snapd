@@ -78,6 +78,51 @@ func hasFontConfigCache(info *snap.Info) bool {
 	return false
 }
 
+// RestoreDisabledServices will check for the provided list of previously
+// disabled services, and if the services exist in the provided snap, then they
+// are disabled and not returned in the list.
+// The returned list should be persisted again until the unlinking of this snap
+// in case the service names come back either in a refresh or a revert
+func (b Backend) RestoreDisabledServices(
+	info *snap.Info,
+	lastActiveDisabledSvcNames []string,
+	meter progress.Meter) ([]string, error) {
+	// make a copy of the services to
+	previouslyDisabledMissingServices := make([]string, len(lastActiveDisabledSvcNames))
+	copy(previouslyDisabledMissingServices, lastActiveDisabledSvcNames)
+
+	// disable services that were marked in the state as disabled right before
+	// this snap went inactive, since that state is lost when we unlink the snap
+	// and remove systemd units
+	// note that we only remove services from the list if they actually exist in
+	// the snap, if they don't exist then we leave them in the list to handle
+	// service renames, i.e. snap rev 1 has svc1 and svc2 with svc1 disabled,
+	// we do a refresh and svc1 disappears, but we need to go back to rev 1, if
+	// we don't delete svc1 from the list then when we go to re-link rev 1, we
+	// can still keep svc1 disabled as expected
+	// TODO: actually perform the disable
+	var errs []error
+	for name, app := range info.Apps {
+		if !app.IsService() {
+			continue
+		}
+
+		for i, svcName := range lastActiveDisabledSvcNames {
+			if svcName == name {
+				// disable the service and delete it from the list of previously
+				// disabled services, since the fact that it was disabled will
+				// now be tracked by systemd
+				previouslyDisabledMissingServices = append(previouslyDisabledMissingServices[:i], previouslyDisabledMissingServices[i+1:]...)
+
+				// TODO: actually disable the service here
+			}
+			// if the service is no longer found, leave it in the list
+		}
+	}
+
+	return previouslyDisabledMissingServices, firstErr(errs...)
+}
+
 // LinkSnap makes the snap available by generating wrappers and setting the current symlinks.
 func (b Backend) LinkSnap(info *snap.Info, model *asserts.Model, tm timings.Measurer) (e error) {
 	if info.Revision.Unset() {
@@ -203,6 +248,12 @@ func (b Backend) UnlinkSnap(info *snap.Info, meter progress.Meter) error {
 
 	// FIXME: aggregate errors instead
 	return firstErr(err1, err2)
+}
+
+// CurrentSnapServiceStates returns the current enabled/disabled states of a
+// snap's services, primarily for committing before snap removal/disable/revert.
+func (b Backend) CurrentSnapServiceStates(info *snap.Info, meter progress.Meter) (map[string]bool, error) {
+	return wrappers.CurrentSnapServiceStates(info, meter)
 }
 
 func removeCurrentSymlinks(info snap.PlaceInfo) error {

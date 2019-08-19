@@ -67,6 +67,7 @@ type managerBackend interface {
 	LinkSnap(info *snap.Info, model *asserts.Model, tm timings.Measurer) error
 	StartServices(svcs []*snap.AppInfo, meter progress.Meter, tm timings.Measurer) error
 	StopServices(svcs []*snap.AppInfo, reason snap.ServiceStopReason, meter progress.Meter, tm timings.Measurer) error
+	RestoreDisabledServices(info *snap.Info, lastActiveDisabledSvcNames []string, meter progress.Meter) ([]string, error)
 
 	// the undoers for install
 	UndoSetupSnap(s snap.PlaceInfo, typ snap.Type, meter progress.Meter) error
@@ -75,6 +76,7 @@ type managerBackend interface {
 	ClearTrashedData(oldSnap *snap.Info)
 
 	// remove related
+	CurrentSnapServiceStates(info *snap.Info, meter progress.Meter) (map[string]bool, error)
 	UnlinkSnap(info *snap.Info, meter progress.Meter) error
 	RemoveSnapFiles(s snap.PlaceInfo, typ snap.Type, meter progress.Meter) error
 	RemoveSnapDir(s snap.PlaceInfo, hasOtherInstances bool) error
