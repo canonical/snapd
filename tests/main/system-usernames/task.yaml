@@ -26,6 +26,9 @@ restore: |
         userdel --extrausers --force snap_daemon || true
     else
         userdel --force snap_daemon || true
+        # some systems do not set "USERGROUPS_ENAB yes" so we need to cleanup
+        # the group manually
+        groupdel --force snap_daemon || true
     fi
     # ensure the snap_daemon user really got deleted
     not getent passwd snap_daemon

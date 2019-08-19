@@ -15,7 +15,8 @@ restore: |
     snap remove test-snapd-daemon-user || true
     # snapd will create this for us, but we'll remove it for consistency in
     # test runs
-    groupdel snap_daemon
+    groupdel snap_daemon || true
+    not getent group snap_daemon
 
 execute: |
     echo "When the snap_daemon group exists but not the user"
