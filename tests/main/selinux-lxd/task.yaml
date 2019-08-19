@@ -15,6 +15,11 @@ prepare: |
     ausearch --checkpoint stamp -m AVC || true
 
 restore: |
+    # Restore nsdelegate mount option clobbered by LXD.
+    if mountinfo-tool /sys/fs/cgroup/unified; then
+        mount -o remount,nsdelegate /sys/fs/cgroup/unified
+    fi
+
     setenforce "$(cat enforcing.mode)"
     rm -f stamp enforcing.mode
 
