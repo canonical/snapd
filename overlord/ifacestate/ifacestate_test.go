@@ -369,7 +369,7 @@ func (s *interfaceManagerSuite) TestConnectTask(c *C) {
 	c.Assert(task.Get("undo-hook-setup", &undoHookSetup), IsNil)
 	c.Assert(undoHookSetup, Equals, hookstate.HookSetup{Snap: "consumer", Hook: "disconnect-plug-plug", Optional: true, IgnoreError: true})
 
-	// after-connect-hooks task	 edge is not present
+	// after-connect-hooks task edge is not present
 	_, err = ts.Edge(ifacestate.AfterConnectHooksEdge)
 	c.Assert(err, ErrorMatches, `internal error: missing .* edge in task set`)
 }
