@@ -25,9 +25,9 @@ import (
 	"sort"
 )
 
-// PositioningConstraints defines the constraints for positioning structures
-// within a volume
-type PositioningConstraints struct {
+// LayoutConstraints defines the constraints for arranging structures within a
+// volume
+type LayoutConstraints struct {
 	// NonMBRStartOffset is the default start offset of non-MBR structure in
 	// the volume.
 	NonMBRStartOffset Size
@@ -35,81 +35,81 @@ type PositioningConstraints struct {
 	SectorSize Size
 }
 
-// PositionedVolume defines the size of a volume and positions of all the
+// LaidOutVolume defines the size of a volume and arrangement of all the
 // structures within it
-type PositionedVolume struct {
+type LaidOutVolume struct {
 	*Volume
 	// Size is the total size of the volume
 	Size Size
 	// SectorSize sector size of the volume
 	SectorSize Size
-	// PositionedStructure are sorted in order of 'appearance' in the volume
-	PositionedStructure []PositionedStructure
+	// StructureLayout are the structures within the volume, sorted by their
+	// start offsets
+	StructureLayout []LaidOutStructure
 	// RootDir is the root directory for volume data
 	RootDir string
 }
 
-// PositionedStructure describes a VolumeStructure that has been positioned
-// within the volume
-type PositionedStructure struct {
+// LaidOutStructure describes a VolumeStructure that has been placed within the
+// volume
+type LaidOutStructure struct {
 	*VolumeStructure
 	// StartOffset defines the start offset of the structure within the
 	// enclosing volume
 	StartOffset Size
-	// PositionedOffsetWrite is the resolved position of offset-write for
-	// this structure element within the enclosing volume
-	PositionedOffsetWrite *Size
+	// AbsoluteOffsetWrite is the resolved absolute position of offset-write
+	// for this structure element within the enclosing volume
+	AbsoluteOffsetWrite *Size
 	// Index of the structure definition in gadget YAML
 	Index int
 
-	// PositionedContent is a list of raw content included in this structure
-	PositionedContent []PositionedContent
+	// ContentLayout is a list of raw content included in this structure
+	ContentLayout []LaidOutContent
 }
 
-func (p PositionedStructure) String() string {
+func (p LaidOutStructure) String() string {
 	return fmtIndexAndName(p.Index, p.Name)
 }
 
-type byStartOffset []PositionedStructure
+type byStartOffset []LaidOutStructure
 
 func (b byStartOffset) Len() int           { return len(b) }
 func (b byStartOffset) Swap(i, j int)      { b[i], b[j] = b[j], b[i] }
 func (b byStartOffset) Less(i, j int) bool { return b[i].StartOffset < b[j].StartOffset }
 
-// PositionedContent describes raw content that has been positioned within the
-// encompassing structure
-type PositionedContent struct {
+// LaidOutContent describes raw content that has been placed within the
+// encompassing structure and voulme
+type LaidOutContent struct {
 	*VolumeContent
 
 	// StartOffset defines the start offset of this content image
 	StartOffset Size
-	// PositionedOffsetWrite is the resolved position of offset-write for
-	// this content element within the enclosing volume
-	PositionedOffsetWrite *Size
+	// AbsoluteOffsetWrite is the resolved absolute position of offset-write
+	// for this content element within the enclosing volume
+	AbsoluteOffsetWrite *Size
 	// Size is the maximum size occupied by this image
 	Size Size
 	// Index of the content in structure declaration inside gadget YAML
 	Index int
 }
 
-func (p PositionedContent) String() string {
+func (p LaidOutContent) String() string {
 	if p.Image != "" {
 		return fmt.Sprintf("#%v (%q@%#x{%v})", p.Index, p.Image, p.StartOffset, p.Size)
 	}
 	return fmt.Sprintf("#%v (source:%q)", p.Index, p.Source)
 }
 
-// PositionVolume attempts to lay out the volume using constraints and returns a
-// fully positioned description of the resulting volume
-func PositionVolume(gadgetRootDir string, volume *Volume, constraints PositioningConstraints) (*PositionedVolume, error) {
+// VolumeLayout attempts to lay out the volume using provided constraints
+func VolumeLayout(gadgetRootDir string, volume *Volume, constraints LayoutConstraints) (*LaidOutVolume, error) {
 	previousEnd := Size(0)
 	farthestEnd := Size(0)
 	fartherstOffsetWrite := Size(0)
-	structures := make([]PositionedStructure, len(volume.Structure))
-	structuresByName := make(map[string]*PositionedStructure, len(volume.Structure))
+	structures := make([]LaidOutStructure, len(volume.Structure))
+	structuresByName := make(map[string]*LaidOutStructure, len(volume.Structure))
 
 	if constraints.SectorSize == 0 {
-		return nil, fmt.Errorf("cannot position volume, invalid constraints: sector size cannot be 0")
+		return nil, fmt.Errorf("cannot lay out volume, invalid constraints: sector size cannot be 0")
 	}
 
 	for idx, s := range volume.Structure {
@@ -125,7 +125,7 @@ func PositionVolume(gadgetRootDir string, volume *Volume, constraints Positionin
 		}
 
 		end := start + s.Size
-		ps := PositionedStructure{
+		ps := LaidOutStructure{
 			VolumeStructure: &volume.Structure[idx],
 			StartOffset:     start,
 			Index:           idx,
@@ -133,7 +133,7 @@ func PositionVolume(gadgetRootDir string, volume *Volume, constraints Positionin
 
 		if ps.EffectiveRole() != MBR {
 			if s.Size%constraints.SectorSize != 0 {
-				return nil, fmt.Errorf("cannot position volume, structure %v size is not a multiple of sector size %v",
+				return nil, fmt.Errorf("cannot lay out volume, structure %v size is not a multiple of sector size %v",
 					ps, constraints.SectorSize)
 			}
 		}
@@ -156,7 +156,7 @@ func PositionVolume(gadgetRootDir string, volume *Volume, constraints Positionin
 	previousEnd = Size(0)
 	for idx, ps := range structures {
 		if ps.StartOffset < previousEnd {
-			return nil, fmt.Errorf("cannot position volume, structure %v overlaps with preceding structure %v", ps, structures[idx-1])
+			return nil, fmt.Errorf("cannot lay out volume, structure %v overlaps with preceding structure %v", ps, structures[idx-1])
 		}
 		previousEnd = ps.StartOffset + ps.Size
 
@@ -164,24 +164,24 @@ func PositionVolume(gadgetRootDir string, volume *Volume, constraints Positionin
 		if err != nil {
 			return nil, fmt.Errorf("cannot resolve offset-write of structure %v: %v", ps, err)
 		}
-		structures[idx].PositionedOffsetWrite = offsetWrite
+		structures[idx].AbsoluteOffsetWrite = offsetWrite
 
 		if offsetWrite != nil && *offsetWrite > fartherstOffsetWrite {
 			fartherstOffsetWrite = *offsetWrite
 		}
 
-		content, err := positionStructureContent(gadgetRootDir, &structures[idx], structuresByName)
+		content, err := layOutStructureContent(gadgetRootDir, &structures[idx], structuresByName)
 		if err != nil {
 			return nil, err
 		}
 
 		for _, c := range content {
-			if c.PositionedOffsetWrite != nil && *c.PositionedOffsetWrite > fartherstOffsetWrite {
-				fartherstOffsetWrite = *c.PositionedOffsetWrite
+			if c.AbsoluteOffsetWrite != nil && *c.AbsoluteOffsetWrite > fartherstOffsetWrite {
+				fartherstOffsetWrite = *c.AbsoluteOffsetWrite
 			}
 		}
 
-		structures[idx].PositionedContent = content
+		structures[idx].ContentLayout = content
 	}
 
 	volumeSize := farthestEnd
@@ -189,17 +189,17 @@ func PositionVolume(gadgetRootDir string, volume *Volume, constraints Positionin
 		volumeSize = fartherstOffsetWrite + SizeLBA48Pointer
 	}
 
-	vol := &PositionedVolume{
-		Volume:              volume,
-		Size:                volumeSize,
-		SectorSize:          constraints.SectorSize,
-		PositionedStructure: structures,
-		RootDir:             gadgetRootDir,
+	vol := &LaidOutVolume{
+		Volume:          volume,
+		Size:            volumeSize,
+		SectorSize:      constraints.SectorSize,
+		StructureLayout: structures,
+		RootDir:         gadgetRootDir,
 	}
 	return vol, nil
 }
 
-type byContentStartOffset []PositionedContent
+type byContentStartOffset []LaidOutContent
 
 func (b byContentStartOffset) Len() int           { return len(b) }
 func (b byContentStartOffset) Swap(i, j int)      { b[i], b[j] = b[j], b[i] }
@@ -213,23 +213,22 @@ func getImageSize(path string) (Size, error) {
 	return Size(stat.Size()), nil
 }
 
-func positionStructureContent(gadgetRootDir string, ps *PositionedStructure, known map[string]*PositionedStructure) ([]PositionedContent, error) {
+func layOutStructureContent(gadgetRootDir string, ps *LaidOutStructure, known map[string]*LaidOutStructure) ([]LaidOutContent, error) {
 	if !ps.IsBare() {
-		// structures with a filesystem do not need any extra
-		// positioning
+		// structures with a filesystem do not need any extra layout
 		return nil, nil
 	}
 	if len(ps.Content) == 0 {
 		return nil, nil
 	}
 
-	content := make([]PositionedContent, len(ps.Content))
+	content := make([]LaidOutContent, len(ps.Content))
 	previousEnd := Size(0)
 
 	for idx, c := range ps.Content {
 		imageSize, err := getImageSize(filepath.Join(gadgetRootDir, c.Image))
 		if err != nil {
-			return nil, fmt.Errorf("cannot position structure %v: content %q: %v", ps, c.Image, err)
+			return nil, fmt.Errorf("cannot lay out structure %v: content %q: %v", ps, c.Image, err)
 		}
 
 		var start Size
@@ -243,7 +242,7 @@ func positionStructureContent(gadgetRootDir string, ps *PositionedStructure, kno
 
 		if c.Size != 0 {
 			if c.Size < imageSize {
-				return nil, fmt.Errorf("cannot position structure %v: content %q size %v is larger than declared %v", ps, c.Image, actualSize, c.Size)
+				return nil, fmt.Errorf("cannot lay out structure %v: content %q size %v is larger than declared %v", ps, c.Image, actualSize, c.Size)
 			}
 			actualSize = c.Size
 		}
@@ -253,17 +252,17 @@ func positionStructureContent(gadgetRootDir string, ps *PositionedStructure, kno
 			return nil, fmt.Errorf("cannot resolve offset-write of structure %v content %q: %v", ps, c.Image, err)
 		}
 
-		content[idx] = PositionedContent{
+		content[idx] = LaidOutContent{
 			VolumeContent: &ps.Content[idx],
 			Size:          actualSize,
 			StartOffset:   ps.StartOffset + start,
 			Index:         idx,
 			// break for gofmt < 1.11
-			PositionedOffsetWrite: offsetWrite,
+			AbsoluteOffsetWrite: offsetWrite,
 		}
 		previousEnd = start + actualSize
 		if previousEnd > ps.Size {
-			return nil, fmt.Errorf("cannot position structure %v: content %q does not fit in the structure", ps, c.Image)
+			return nil, fmt.Errorf("cannot lay out structure %v: content %q does not fit in the structure", ps, c.Image)
 		}
 	}
 
@@ -272,7 +271,7 @@ func positionStructureContent(gadgetRootDir string, ps *PositionedStructure, kno
 	previousEnd = ps.StartOffset
 	for idx, pc := range content {
 		if pc.StartOffset < previousEnd {
-			return nil, fmt.Errorf("cannot position structure %v: content %q overlaps with preceding image %q", ps, pc.Image, content[idx-1].Image)
+			return nil, fmt.Errorf("cannot lay out structure %v: content %q overlaps with preceding image %q", ps, pc.Image, content[idx-1].Image)
 		}
 		previousEnd = pc.StartOffset + pc.Size
 	}
@@ -280,7 +279,7 @@ func positionStructureContent(gadgetRootDir string, ps *PositionedStructure, kno
 	return content, nil
 }
 
-func resolveOffsetWrite(offsetWrite *RelativeOffset, knownStructs map[string]*PositionedStructure) (*Size, error) {
+func resolveOffsetWrite(offsetWrite *RelativeOffset, knownStructs map[string]*LaidOutStructure) (*Size, error) {
 	if offsetWrite == nil {
 		return nil, nil
 	}
@@ -298,20 +297,19 @@ func resolveOffsetWrite(offsetWrite *RelativeOffset, knownStructs map[string]*Po
 	return &resolvedOffsetWrite, nil
 }
 
-// ShiftStructureTo creates a new positioned structure, shifted to start at a
-// given offset. The start offsets of positioned content within the structure is
-// updated.
-func ShiftStructureTo(ps PositionedStructure, offset Size) PositionedStructure {
+// ShiftStructureTo translates the starting offset of a laid out structure and
+// its content to the provided offset.
+func ShiftStructureTo(ps LaidOutStructure, offset Size) LaidOutStructure {
 	change := int64(offset - ps.StartOffset)
 
 	newPs := ps
 	newPs.StartOffset = Size(int64(ps.StartOffset) + change)
 
-	newPs.PositionedContent = make([]PositionedContent, len(ps.PositionedContent))
-	for idx, pc := range ps.PositionedContent {
+	newPs.ContentLayout = make([]LaidOutContent, len(ps.ContentLayout))
+	for idx, pc := range ps.ContentLayout {
 		newPc := pc
 		newPc.StartOffset = Size(int64(pc.StartOffset) + change)
-		newPs.PositionedContent[idx] = newPc
+		newPs.ContentLayout[idx] = newPc
 	}
 	return newPs
 }

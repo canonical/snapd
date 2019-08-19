@@ -56,14 +56,14 @@ func (s *partitionSuite) input(c *C) string {
 }
 
 func (s *partitionSuite) TestGPTHappy(c *C) {
-	pv := &gadget.PositionedVolume{
+	pv := &gadget.LaidOutVolume{
 		Volume: &gadget.Volume{
 			Schema: "gpt",
 			ID:     "123-123",
 		},
 		Size:       3 * gadget.SizeMiB,
 		SectorSize: 512,
-		PositionedStructure: []gadget.PositionedStructure{
+		StructureLayout: []gadget.LaidOutStructure{
 			{
 				// does not appear as partition
 				VolumeStructure: &gadget.VolumeStructure{
@@ -110,14 +110,14 @@ start=10240, size=24576, type=21686148-6449-6E6F-744E-656564454650, name="bar"
 }
 
 func (s *partitionSuite) TestMBRHappy(c *C) {
-	pv := &gadget.PositionedVolume{
+	pv := &gadget.LaidOutVolume{
 		Volume: &gadget.Volume{
 			Schema: "mbr",
 			ID:     "0x123",
 		},
 		Size:       3 * gadget.SizeMiB,
 		SectorSize: 512,
-		PositionedStructure: []gadget.PositionedStructure{
+		StructureLayout: []gadget.LaidOutStructure{
 			{
 				// does not appear as partition
 				VolumeStructure: &gadget.VolumeStructure{
@@ -174,20 +174,20 @@ start=264192, size=24576
 }
 
 func (s *partitionSuite) TestHybridType(c *C) {
-	ps := gadget.PositionedStructure{
+	ps := gadget.LaidOutStructure{
 		VolumeStructure: &gadget.VolumeStructure{
 			Size: 2 * gadget.SizeMiB,
 			Type: "0C,21686148-6449-6E6F-744E-656564454649",
 		},
 		StartOffset: 1 * gadget.SizeMiB,
 	}
-	pvGPT := &gadget.PositionedVolume{
+	pvGPT := &gadget.LaidOutVolume{
 		Volume: &gadget.Volume{
 			Schema: "gpt",
 		},
-		Size:                3 * gadget.SizeMiB,
-		SectorSize:          512,
-		PositionedStructure: []gadget.PositionedStructure{ps},
+		Size:            3 * gadget.SizeMiB,
+		SectorSize:      512,
+		StructureLayout: []gadget.LaidOutStructure{ps},
 	}
 
 	err := gadget.Partition("foo", pvGPT)
@@ -199,13 +199,13 @@ first-lba: 34
 start=2048, size=4096, type=21686148-6449-6E6F-744E-656564454649
 `)
 
-	pvMBR := &gadget.PositionedVolume{
+	pvMBR := &gadget.LaidOutVolume{
 		Volume: &gadget.Volume{
 			Schema: "mbr",
 		},
-		Size:                3 * gadget.SizeMiB,
-		SectorSize:          512,
-		PositionedStructure: []gadget.PositionedStructure{ps},
+		Size:            3 * gadget.SizeMiB,
+		SectorSize:      512,
+		StructureLayout: []gadget.LaidOutStructure{ps},
 	}
 	err = gadget.Partition("foo", pvMBR)
 	c.Assert(err, IsNil)
@@ -217,13 +217,13 @@ start=2048, size=4096, type=0C
 }
 
 func (s *partitionSuite) TestInputErrors(c *C) {
-	pv := &gadget.PositionedVolume{
+	pv := &gadget.LaidOutVolume{
 		Volume: &gadget.Volume{
 			Schema: "gpt",
 		},
 		Size:       3 * gadget.SizeMiB,
 		SectorSize: 512,
-		PositionedStructure: []gadget.PositionedStructure{
+		StructureLayout: []gadget.LaidOutStructure{
 			{
 				VolumeStructure: &gadget.VolumeStructure{
 					Size: 2 * gadget.SizeMiB,
@@ -247,13 +247,13 @@ func (s *partitionSuite) TestInputErrors(c *C) {
 }
 
 func (s *partitionSuite) TestCommandError(c *C) {
-	pv := &gadget.PositionedVolume{
+	pv := &gadget.LaidOutVolume{
 		Volume: &gadget.Volume{
 			Schema: "gpt",
 		},
 		Size:       3 * gadget.SizeMiB,
 		SectorSize: 512,
-		PositionedStructure: []gadget.PositionedStructure{
+		StructureLayout: []gadget.LaidOutStructure{
 			{
 				VolumeStructure: &gadget.VolumeStructure{
 					Size: 2 * gadget.SizeMiB,
