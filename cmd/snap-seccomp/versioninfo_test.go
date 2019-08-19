@@ -41,6 +41,7 @@ func (s *versionInfoSuite) TestVersionInfo(c *C) {
 
 	m, i, p := seccomp.GetLibraryVersion()
 	prefix := fmt.Sprintf("%s %d.%d.%d ", buildID, m, i, p)
+	suffix := fmt.Sprintf(" %s", main.GoSeccompFeatures())
 
 	defaultVi, err := main.VersionInfo()
 	c.Assert(err, IsNil)
@@ -50,8 +51,9 @@ func (s *versionInfoSuite) TestVersionInfo(c *C) {
 	readWriteHash := "88b06efcea4b5946cebd4b0674b93744de328339de5d61b75db858119054ff93"
 
 	c.Check(strings.HasPrefix(defaultVi, prefix), Equals, true)
-	c.Assert(len(defaultVi) > len(prefix), Equals, true)
-	hash := defaultVi[len(prefix):]
+	c.Check(strings.HasSuffix(defaultVi, suffix), Equals, true)
+	c.Assert(len(defaultVi) > len(prefix)+len(suffix), Equals, true)
+	hash := defaultVi[len(prefix) : len(defaultVi)-len(suffix)]
 	c.Check(len(hash), Equals, len(readWriteHash))
 	c.Check(hash, Not(Equals), readWriteHash)
 
@@ -60,7 +62,7 @@ func (s *versionInfoSuite) TestVersionInfo(c *C) {
 
 	vi, err := main.VersionInfo()
 	c.Assert(err, IsNil)
-	c.Check(vi, Equals, prefix+readWriteHash)
+	c.Check(vi, Equals, prefix+readWriteHash+suffix)
 
 	// pretend it's only 'read' now
 	readHash := "15fd60c6f5c6804626177d178f3dba849a41f4a1878b2e7e7e3ed38a194dc82b"
@@ -69,5 +71,5 @@ func (s *versionInfoSuite) TestVersionInfo(c *C) {
 
 	vi, err = main.VersionInfo()
 	c.Assert(err, IsNil)
-	c.Check(vi, Equals, prefix+readHash)
+	c.Check(vi, Equals, prefix+readHash+suffix)
 }

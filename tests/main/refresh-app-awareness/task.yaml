@@ -45,7 +45,7 @@ execute: |
     unwrap_msg() {
         tr '\n' ' ' | sed -e 's/ \+/ /g'
     }
-    ! snap install --dangerous test-snapd-refresh_2_all.snap >install.log 2>&1
+    not snap install --dangerous test-snapd-refresh_2_all.snap >install.log 2>&1
     unwrap_msg < install.log | MATCH 'error: cannot install snap file: snap "test-snapd-refresh" has running apps +\(sh\)'
     test-snapd-refresh.version | MATCH v1
 

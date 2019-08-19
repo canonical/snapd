@@ -80,6 +80,7 @@ func (s *SnapSuite) TestConnectExplicitEverything(c *C) {
 					},
 				},
 			})
+			w.WriteHeader(202)
 			fmt.Fprintln(w, `{"type":"async", "status-code": 202, "change": "zzz"}`)
 		case "/v2/changes/zzz":
 			c.Check(r.Method, Equals, "GET")
@@ -113,6 +114,7 @@ func (s *SnapSuite) TestConnectExplicitPlugImplicitSlot(c *C) {
 					},
 				},
 			})
+			w.WriteHeader(202)
 			fmt.Fprintln(w, `{"type":"async", "status-code": 202, "change": "zzz"}`)
 		case "/v2/changes/zzz":
 			c.Check(r.Method, Equals, "GET")
@@ -146,6 +148,7 @@ func (s *SnapSuite) TestConnectImplicitPlugExplicitSlot(c *C) {
 					},
 				},
 			})
+			w.WriteHeader(202)
 			fmt.Fprintln(w, `{"type":"async", "status-code": 202, "change": "zzz"}`)
 		case "/v2/changes/zzz":
 			c.Check(r.Method, Equals, "GET")
@@ -179,6 +182,7 @@ func (s *SnapSuite) TestConnectImplicitPlugImplicitSlot(c *C) {
 					},
 				},
 			})
+			w.WriteHeader(202)
 			fmt.Fprintln(w, `{"type":"async", "status-code": 202, "change": "zzz"}`)
 		case "/v2/changes/zzz":
 			c.Check(r.Method, Equals, "GET")

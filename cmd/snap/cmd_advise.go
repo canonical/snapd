@@ -26,6 +26,7 @@ import (
 	"io"
 	"net"
 	"os"
+	"sort"
 	"strconv"
 
 	"github.com/jessevdk/go-flags"
@@ -47,6 +48,9 @@ type cmdAdviseSnap struct {
 	// FromApt tells advise that it got started from an apt hook
 	// and needs to communicate over a socket
 	FromApt bool `long:"from-apt"`
+
+	// DumpDb dumps the whole advise database
+	DumpDb bool `long:"dump-db"`
 }
 
 var shortAdviseSnapHelp = i18n.G("Advise on available snaps")
@@ -63,6 +67,8 @@ func init() {
 	}, map[string]string{
 		// TRANSLATORS: This should not start with a lowercase letter.
 		"command": i18n.G("Advise on snaps that provide the given command"),
+		// TRANSLATORS: This should not start with a lowercase letter.
+		"dump-db": i18n.G("Dump advise database for use by command-not-found."),
 		// TRANSLATORS: This should not start with a lowercase letter.
 		"from-apt": i18n.G("Run as an apt hook"),
 		// TRANSLATORS: This should not start with a lowercase letter.
@@ -213,9 +219,53 @@ func adviseViaAptHook() error {
 	return nil
 }
 
+type Snap struct {
+	Snap    string
+	Version string
+	Command string
+}
+
+func dumpDbHook() error {
+	commands, err := advisor.DumpCommands()
+	if err != nil {
+		return err
+	}
+
+	commands_processed := make([]string, 0)
+	var b []Snap
+
+	var sortedCmds []string
+	for cmd := range commands {
+		sortedCmds = append(sortedCmds, cmd)
+	}
+	sort.Strings(sortedCmds)
+
+	for _, key := range sortedCmds {
+		value := commands[key]
+		err := json.Unmarshal([]byte(value), &b)
+		if err != nil {
+			return err
+		}
+		for i := range b {
+			var s = fmt.Sprintf("%s %s %s\n", key, b[i].Snap, b[i].Version)
+			commands_processed = append(commands_processed, s)
+		}
+	}
+
+	for _, value := range commands_processed {
+		fmt.Fprint(Stdout, value)
+	}
+
+	return nil
+}
+
 func (x *cmdAdviseSnap) Execute(args []string) error {
 	if len(args) > 0 {
 		return ErrExtraArgs
+	}
+
+	if x.DumpDb {
+		return dumpDbHook()
 	}
 
 	if x.FromApt {

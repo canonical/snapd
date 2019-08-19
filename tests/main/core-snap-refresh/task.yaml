@@ -30,7 +30,7 @@ execute: |
         fi
 
         # there are no errors in the changes list
-        ! snap changes | MATCH '^[0-9]+ +Error'
+        snap changes | not MATCH '^[0-9]+ +Error'
 
         REBOOT
     fi
@@ -47,4 +47,4 @@ execute: |
     fi
 
     # and there are no errors in the changes list
-    ! snap changes | MATCH '^[0-9]+ +Error'
+    snap changes | not MATCH '^[0-9]+ +Error'

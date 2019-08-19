@@ -52,7 +52,7 @@ var _ = Suite(&NetlinkConnectorInterfaceSuite{
 
 func (s *NetlinkConnectorInterfaceSuite) SetUpTest(c *C) {
 	s.slotInfo = &snap.SlotInfo{
-		Snap:      &snap.Info{SuggestedName: "core", Type: snap.TypeOS},
+		Snap:      &snap.Info{SuggestedName: "core", SnapType: snap.TypeOS},
 		Name:      "netlink-connector",
 		Interface: "netlink-connector",
 	}
@@ -68,13 +68,6 @@ func (s *NetlinkConnectorInterfaceSuite) TestName(c *C) {
 
 func (s *NetlinkConnectorInterfaceSuite) TestSanitizeSlot(c *C) {
 	c.Assert(interfaces.BeforePrepareSlot(s.iface, s.slotInfo), IsNil)
-	slot := &snap.SlotInfo{
-		Snap:      &snap.Info{SuggestedName: "some-snap"},
-		Name:      "netlink-connector",
-		Interface: "netlink-connector",
-	}
-	c.Assert(interfaces.BeforePrepareSlot(s.iface, slot), ErrorMatches,
-		"netlink-connector slots are reserved for the core snap")
 }
 
 func (s *NetlinkConnectorInterfaceSuite) TestSanitizePlug(c *C) {

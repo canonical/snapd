@@ -402,6 +402,11 @@ func (m *InterfaceManager) doConnect(task *state.Task, _ *tomb.Tomb) error {
 		return err
 	}
 
+	deviceCtx, err := snapstate.DeviceCtx(st, task, nil)
+	if err != nil {
+		return err
+	}
+
 	conns, err := getConns(st)
 	if err != nil {
 		return err
@@ -451,13 +456,13 @@ func (m *InterfaceManager) doConnect(task *state.Task, _ *tomb.Tomb) error {
 	// policy "connection" rules, other auto-connections obey the
 	// "auto-connection" rules
 	if autoConnect && !byGadget {
-		autochecker, err := newAutoConnectChecker(st)
+		autochecker, err := newAutoConnectChecker(st, deviceCtx)
 		if err != nil {
 			return err
 		}
 		policyChecker = autochecker.check
 	} else {
-		policyCheck, err := newConnectChecker(st)
+		policyCheck, err := newConnectChecker(st, deviceCtx)
 		if err != nil {
 			return err
 		}
@@ -896,12 +901,17 @@ func (m *InterfaceManager) doAutoConnect(task *state.Task, _ *tomb.Tomb) error {
 	st.Lock()
 	defer st.Unlock()
 
-	conns, err := getConns(st)
+	snapsup, err := snapstate.TaskSnapSetup(task)
 	if err != nil {
 		return err
 	}
 
-	snapsup, err := snapstate.TaskSnapSetup(task)
+	deviceCtx, err := snapstate.DeviceCtx(st, task, nil)
+	if err != nil {
+		return err
+	}
+
+	conns, err := getConns(st)
 	if err != nil {
 		return err
 	}
@@ -917,7 +927,7 @@ func (m *InterfaceManager) doAutoConnect(task *state.Task, _ *tomb.Tomb) error {
 	snapName := snapsup.InstanceName()
 
 	autots := state.NewTaskSet()
-	autochecker, err := newAutoConnectChecker(st)
+	autochecker, err := newAutoConnectChecker(st, deviceCtx)
 	if err != nil {
 		return err
 	}
@@ -1216,12 +1226,17 @@ func (m *InterfaceManager) doGadgetConnect(task *state.Task, _ *tomb.Tomb) error
 	st.Lock()
 	defer st.Unlock()
 
+	deviceCtx, err := snapstate.DeviceCtx(st, task, nil)
+	if err != nil {
+		return err
+	}
+
 	conns, err := getConns(st)
 	if err != nil {
 		return err
 	}
 
-	gconns, err := snapstate.GadgetConnections(st)
+	gconns, err := snapstate.GadgetConnections(st, deviceCtx)
 	if err != nil {
 		return err
 	}
@@ -1293,6 +1308,11 @@ func (m *InterfaceManager) doHotplugConnect(task *state.Task, _ *tomb.Tomb) erro
 	st.Lock()
 	defer st.Unlock()
 
+	deviceCtx, err := snapstate.DeviceCtx(st, task, nil)
+	if err != nil {
+		return err
+	}
+
 	conns, err := getConns(st)
 	if err != nil {
 		return err
@@ -1343,7 +1363,7 @@ func (m *InterfaceManager) doHotplugConnect(task *state.Task, _ *tomb.Tomb) erro
 	}
 
 	// find new auto-connections
-	autochecker, err := newAutoConnectChecker(st)
+	autochecker, err := newAutoConnectChecker(st, deviceCtx)
 	if err != nil {
 		return err
 	}

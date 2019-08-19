@@ -20,9 +20,10 @@
 package boot
 
 import (
+	"errors"
 	"fmt"
-	"os"
 	"path/filepath"
+	"strings"
 
 	"github.com/snapcore/snapd/bootloader"
 	"github.com/snapcore/snapd/logger"
@@ -33,69 +34,30 @@ import (
 // RemoveKernelAssets removes the unpacked kernel/initrd for the given
 // kernel snap.
 func RemoveKernelAssets(s snap.PlaceInfo) error {
-	loader, err := bootloader.Find()
+	bootloader, err := bootloader.Find()
 	if err != nil {
 		return fmt.Errorf("no not remove kernel assets: %s", err)
 	}
 
-	// remove the kernel blob
-	blobName := filepath.Base(s.MountFile())
-	dstDir := filepath.Join(loader.Dir(), blobName)
-	if err := os.RemoveAll(dstDir); err != nil {
-		return err
-	}
-
-	return nil
+	// ask bootloader to remove the kernel assets if needed
+	return bootloader.RemoveKernelAssets(s)
 }
 
 // ExtractKernelAssets extracts kernel/initrd/dtb data from the given
 // kernel snap, if required, to a versioned bootloader directory so
 // that the bootloader can use it.
 func ExtractKernelAssets(s *snap.Info, snapf snap.Container) error {
-	if s.Type != snap.TypeKernel {
-		return fmt.Errorf("cannot extract kernel assets from snap type %q", s.Type)
+	if s.GetType() != snap.TypeKernel {
+		return fmt.Errorf("cannot extract kernel assets from snap type %q", s.GetType())
 	}
 
-	loader, err := bootloader.Find()
+	bootloader, err := bootloader.Find()
 	if err != nil {
 		return fmt.Errorf("cannot extract kernel assets: %s", err)
 	}
 
-	// XXX: should we use "kernel.yaml" for this?
-	var forceKernelExtraction bool
-	if _, err := snapf.ReadFile("meta/force-kernel-extraction"); err == nil {
-		forceKernelExtraction = true
-	}
-
-	if !forceKernelExtraction && loader.Name() == "grub" {
-		return nil
-	}
-
-	// now do the kernel specific bits
-	blobName := filepath.Base(s.MountFile())
-	dstDir := filepath.Join(loader.Dir(), blobName)
-	if err := os.MkdirAll(dstDir, 0755); err != nil {
-		return err
-	}
-	dir, err := os.Open(dstDir)
-	if err != nil {
-		return err
-	}
-	defer dir.Close()
-
-	for _, src := range []string{"kernel.img", "initrd.img"} {
-		if err := snapf.Unpack(src, dstDir); err != nil {
-			return err
-		}
-		if err := dir.Sync(); err != nil {
-			return err
-		}
-	}
-	if err := snapf.Unpack("dtbs/*", dstDir); err != nil {
-		return err
-	}
-
-	return dir.Sync()
+	// ask bootloader to extract the kernel assets if needed
+	return bootloader.ExtractKernelAssets(s, snapf)
 }
 
 // SetNextBoot will schedule the given OS or base or kernel snap to be
@@ -106,8 +68,8 @@ func SetNextBoot(s *snap.Info) error {
 		return fmt.Errorf("cannot set next boot on classic systems")
 	}
 
-	if s.Type != snap.TypeOS && s.Type != snap.TypeKernel && s.Type != snap.TypeBase {
-		return fmt.Errorf("cannot set next boot to snap %q with type %q", s.SnapName(), s.Type)
+	if s.GetType() != snap.TypeOS && s.GetType() != snap.TypeKernel && s.GetType() != snap.TypeBase {
+		return fmt.Errorf("cannot set next boot to snap %q with type %q", s.SnapName(), s.GetType())
 	}
 
 	bootloader, err := bootloader.Find()
@@ -116,7 +78,7 @@ func SetNextBoot(s *snap.Info) error {
 	}
 
 	var nextBoot, goodBoot string
-	switch s.Type {
+	switch s.GetType() {
 	case snap.TypeOS, snap.TypeBase:
 		nextBoot = "snap_try_core"
 		goodBoot = "snap_core"
@@ -156,7 +118,7 @@ func SetNextBoot(s *snap.Info) error {
 // ChangeRequiresReboot returns whether a reboot is required to switch
 // to the given OS, base or kernel snap.
 func ChangeRequiresReboot(s *snap.Info) bool {
-	if s.Type != snap.TypeKernel && s.Type != snap.TypeOS && s.Type != snap.TypeBase {
+	if s.GetType() != snap.TypeKernel && s.GetType() != snap.TypeOS && s.GetType() != snap.TypeBase {
 		return false
 	}
 
@@ -167,7 +129,7 @@ func ChangeRequiresReboot(s *snap.Info) bool {
 	}
 
 	var nextBoot, goodBoot string
-	switch s.Type {
+	switch s.GetType() {
 	case snap.TypeKernel:
 		nextBoot = "snap_try_kernel"
 		goodBoot = "snap_kernel"
@@ -213,4 +175,68 @@ func InUse(name string, rev snap.Revision) bool {
 	}
 
 	return false
+}
+
+var (
+	ErrBootNameAndRevisionAgain = errors.New("boot revision not yet established")
+)
+
+type NameAndRevision struct {
+	Name     string
+	Revision snap.Revision
+}
+
+// GetCurrentBoot returns the currently set name and revision for boot for the given
+// type of snap, which can be snap.TypeBase (or snap.TypeOS), or snap.TypeKernel.
+// Returns ErrBootNameAndRevisionAgain if the values are temporarily not established.
+func GetCurrentBoot(t snap.Type) (*NameAndRevision, error) {
+	var bootVar, errName string
+	switch t {
+	case snap.TypeKernel:
+		bootVar = "snap_kernel"
+		errName = "kernel"
+	case snap.TypeOS, snap.TypeBase:
+		bootVar = "snap_core"
+		errName = "snap"
+	default:
+		return nil, fmt.Errorf("internal error: cannot find boot revision for snap type %q", t)
+	}
+
+	loader, err := bootloader.Find()
+	if err != nil {
+		return nil, fmt.Errorf("cannot get boot settings: %s", err)
+	}
+
+	m, err := loader.GetBootVars(bootVar, "snap_mode")
+	if err != nil {
+		return nil, fmt.Errorf("cannot get boot variables: %s", err)
+	}
+
+	if m["snap_mode"] == "trying" {
+		return nil, ErrBootNameAndRevisionAgain
+	}
+
+	nameAndRevno, err := nameAndRevnoFromSnap(m[bootVar])
+	if err != nil {
+		return nil, fmt.Errorf("cannot get name and revision of boot %s: %v", errName, err)
+	}
+
+	return nameAndRevno, nil
+}
+
+func nameAndRevnoFromSnap(sn string) (*NameAndRevision, error) {
+	if sn == "" {
+		return nil, fmt.Errorf("unset")
+	}
+	idx := strings.IndexByte(sn, '_')
+	if idx < 1 {
+		return nil, fmt.Errorf("input %q has invalid format (not enough '_')", sn)
+	}
+	name := sn[:idx]
+	revnoNSuffix := sn[idx+1:]
+	rev, err := snap.ParseRevision(strings.TrimSuffix(revnoNSuffix, ".snap"))
+	if err != nil {
+		return nil, err
+	}
+	return &NameAndRevision{Name: name, Revision: rev}, nil
 }

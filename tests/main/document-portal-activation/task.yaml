@@ -68,7 +68,7 @@ execute: |
 
     echo "No attempt is made to activate the document portal due to the previous failure"
     test-snapd-desktop.check-dirs "$user_data"
-    ! MATCH "GetMountPoint called" < doc-portal.log
+    not MATCH "GetMountPoint called" < doc-portal.log
 
     echo "Remove the .portals-unavailable file to force a recheck"
     rm "$XDG_RUNTIME_DIR/.portals-unavailable"

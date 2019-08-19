@@ -67,7 +67,7 @@ const openglConnectedPlugAppArmor = `
 /dev/nvidia* rw,
 unix (send, receive) type=dgram peer=(addr="@nvidia[0-9a-f]*"),
 
-# eglfs
+# VideoCore/EGL (shared device with VideoCore camera)
 /dev/vchiq rw,
 
 # va-api

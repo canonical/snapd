@@ -38,17 +38,14 @@ func userFromUserID(st *state.State, userID int) (*auth.UserState, error) {
 	return auth.User(st, userID)
 }
 
-type fetcher struct {
-	db *asserts.Database
+type accumFetcher struct {
 	asserts.Fetcher
 	fetched []asserts.Assertion
 }
 
-// newFetches creates a fetcher used to retrieve assertions and later commit them to the system database in one go.
-func newFetcher(s *state.State, retrieve func(*asserts.Ref) (asserts.Assertion, error)) *fetcher {
-	db := cachedDB(s)
-
-	f := &fetcher{db: db}
+// newAccumFetcher creates an accumFetcher used to retrieve assertions and later commit them to the system database in one go.
+func newAccumFetcher(db *asserts.Database, retrieve func(*asserts.Ref) (asserts.Assertion, error)) *accumFetcher {
+	f := &accumFetcher{}
 
 	save := func(a asserts.Assertion) error {
 		f.fetched = append(f.fetched, a)
@@ -72,11 +69,11 @@ func (e *commitError) Error() string {
 	return fmt.Sprintf("cannot add some assertions to the system database:%s", strings.Join(l, "\n - "))
 }
 
-// commit does a best effort of adding all the fetched assertions to the system database.
-func (f *fetcher) commit() error {
+// commitTo does a best effort of adding all the fetched assertions to the system database.
+func commitTo(db *asserts.Database, assertions []asserts.Assertion) error {
 	var errs []error
-	for _, a := range f.fetched {
-		err := f.db.Add(a)
+	for _, a := range assertions {
+		err := db.Add(a)
 		if asserts.IsUnaccceptedUpdate(err) {
 			if _, ok := err.(*asserts.UnsupportedFormatError); ok {
 				// we kept the old one, but log the issue
@@ -96,7 +93,7 @@ func (f *fetcher) commit() error {
 	return nil
 }
 
-func doFetch(s *state.State, userID int, fetching func(asserts.Fetcher) error) error {
+func doFetch(s *state.State, userID int, deviceCtx snapstate.DeviceContext, fetching func(asserts.Fetcher) error) error {
 	// TODO: once we have a bulk assertion retrieval endpoint this approach will change
 
 	user, err := userFromUserID(s, userID)
@@ -104,14 +101,15 @@ func doFetch(s *state.State, userID int, fetching func(asserts.Fetcher) error) e
 		return err
 	}
 
-	sto := snapstate.Store(s)
+	sto := snapstate.Store(s, deviceCtx)
 
 	retrieve := func(ref *asserts.Ref) (asserts.Assertion, error) {
 		// TODO: ignore errors if already in db?
 		return sto.Assertion(ref.Type, ref.PrimaryKey, user)
 	}
 
-	f := newFetcher(s, retrieve)
+	db := cachedDB(s)
+	f := newAccumFetcher(db, retrieve)
 
 	s.Unlock()
 	err = fetching(f)
@@ -123,5 +121,5 @@ func doFetch(s *state.State, userID int, fetching func(asserts.Fetcher) error) e
 	// TODO: trigger w. caller a global sanity check if a is revoked
 	// (but try to save as much possible still),
 	// or err is a check error
-	return f.commit()
+	return commitTo(db, f.fetched)
 }

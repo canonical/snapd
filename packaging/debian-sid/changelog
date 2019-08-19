@@ -1,3 +1,17 @@
+snapd (2.40-2) UNRELEASED; urgency=medium
+
+  * debian/control: Depends on apparmor >= 2.10.95-5 instead of
+    2.10.95-0ubuntu2.2 since 2.10.95-5 in Debian is the first version to have
+    all the patches that 2.10.95-0ubuntu2.2 in Ubuntu brought.
+
+ -- Jamie Strandboge <jamie@ubuntu.com>  Wed, 24 Jul 2019 13:48:52 +0000
+
+snapd (2.40-1) unstable; urgency=medium
+
+  * New upstream release.
+
+ -- Michael Vogt <mvo@debian.org>  Tue, 23 Jul 2019 15:38:36 +0200
+
 snapd (2.39.3-1) unstable; urgency=medium
 
   * New upstream release, LP: #1827495
@@ -18,23 +32,39 @@ snapd (2.39.2-1) unstable; urgency=medium
 
  -- Michael Vogt <michael.vogt@ubuntu.com>  Wed, 05 Jun 2019 08:46:14 +0200
 
+snapd (2.39-1) unstable; urgency=medium
+
+   * New upstream release
+   * d/patches0008-snap-squashsh-skip-TestBuildDate-on-Debian.patch: drop,
+     fixed upstream
+
+ -- Zygmunt Krynicki <me@zygoon.pl>  Thu, 28 Feb 2019 18:21:26 +0100
+
 snapd (2.39.1-1) unstable; urgency=medium
 
   * New upstream release
 
  -- Michael Vogt <michael.vogt@ubuntu.com>  Wed, 29 May 2019 12:08:43 +0200
 
-snapd (2.39-1) unstable; urgency=medium
-
-  * New upstream release
-
- -- Michael Vogt <michael.vogt@ubuntu.com>  Fri, 03 May 2019 11:55:23 +0200
-
 snapd (2.38-1) unstable; urgency=medium
 
   * New upstream release
 
  -- Michael Vogt <michael.vogt@ubuntu.com>  Thu, 21 Mar 2019 11:02:04 +0100
+
+snapd (2.37.4-1) unstable; urgency=medium
+
+  * New upstream release
+  * d/patches0008-snap-squashsh-skip-TestBuildDate-on-Debian.patch: drop,
+    fixed upstream
+
+ -- Zygmunt Krynicki <me@zygoon.pl>  Thu, 28 Feb 2019 18:21:26 +0100
+
+snapd (2.37.3-1) unstable; urgency=medium
+
+  * New upstream release
+
+ -- Zygmunt Krynicki <me@zygoon.pl>  Tue, 19 Feb 2019 13:46:24 +0100
 
 snapd (2.37.2-1) unstable; urgency=medium
 

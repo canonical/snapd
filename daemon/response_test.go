@@ -88,7 +88,7 @@ func (s *responseSuite) TestFileResponseSetsContentDisposition(c *check.C) {
 	c.Check(err, check.IsNil)
 
 	rec := httptest.NewRecorder()
-	rsp := FileResponse(path)
+	rsp := fileResponse(path)
 	req, err := http.NewRequest("GET", "", nil)
 	c.Check(err, check.IsNil)
 

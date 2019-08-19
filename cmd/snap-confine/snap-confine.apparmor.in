@@ -38,6 +38,8 @@
     /{,usr/}lib{,32,64,x32}/{,@{multiarch}/}libudev.so* mr,
     /{,usr/}lib{,32,64,x32}/{,@{multiarch}/}libseccomp.so* mr,
     /{,usr/}lib{,32,64,x32}/{,@{multiarch}/}libcap.so* mr,
+    # Needed to run /usr/bin/sh for snap-device-helper.
+    /{,usr/}lib{,32,64,x32}/{,@{multiarch}/}libtinfo.so* mr,
 
     @LIBEXECDIR@/snap-confine mr,
 
@@ -190,6 +192,9 @@
 
     mount options=(rw rbind) {,/usr}/lib{,32,64,x32}/modules/ -> /tmp/snap.rootfs_*{,/usr}/lib/modules/,
     mount options=(rw rslave) -> /tmp/snap.rootfs_*{,/usr}/lib/modules/,
+
+    mount options=(rw rbind) {,/usr}/lib{,32,64,x32}/firmware/ -> /tmp/snap.rootfs_*{,/usr}/lib/firmware/,
+    mount options=(rw rslave) -> /tmp/snap.rootfs_*{,/usr}/lib/firmware/,
 
     mount options=(rw rbind) /var/log/ -> /tmp/snap.rootfs_*/var/log/,
     mount options=(rw rslave) -> /tmp/snap.rootfs_*/var/log/,
@@ -359,6 +364,8 @@
     # Allow snap-confine to unmount stale mount namespaces.
     umount /run/snapd/ns/*.mnt,
     /run/snapd/ns/snap.*.fstab w,
+    # Allow snap-confine to read and write mount namespace information files.
+    /run/snapd/ns/snap.*.info rw,
     # Required to correctly unmount bound mount namespace.
     # See LP: #1735459 for details.
     umount /,
@@ -521,7 +528,7 @@
     /{,var/lib/snapd/}snap/{core,snapd}/*/usr/lib/snapd/snap-discard-ns rix,
     /var/lib/snapd/hostfs/{,var/lib/snapd/}snap/{core,snapd}/*/usr/lib/snapd/snap-discard-ns rix,
 
-    # Allow mounting /var/lib/jenkinks from the host into the snap.
+    # Allow mounting /var/lib/jenkins from the host into the snap.
     mount options=(rw rbind) /var/lib/jenkins/ -> /tmp/snap.rootfs_*/var/lib/jenkins/,
     mount options=(rw rslave) -> /tmp/snap.rootfs_*/var/lib/jenkins/,
 }

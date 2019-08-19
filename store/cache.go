@@ -41,6 +41,8 @@ type downloadCache interface {
 	Get(cacheKey, targetPath string) error
 	// Put adds a new file to the cache
 	Put(cacheKey, sourcePath string) error
+	// Get full path of the file in cache
+	GetPath(cacheKey string) string
 }
 
 // nullCache is cache that does not cache
@@ -48,6 +50,9 @@ type nullCache struct{}
 
 func (cm *nullCache) Get(cacheKey, targetPath string) error {
 	return fmt.Errorf("cannot get items from the nullCache")
+}
+func (cm *nullCache) GetPath(cacheKey string) string {
+	return ""
 }
 func (cm *nullCache) Put(cacheKey, sourcePath string) error { return nil }
 
@@ -83,6 +88,15 @@ func NewCacheManager(cacheDir string, maxItems int) *CacheManager {
 		cacheDir: cacheDir,
 		maxItems: maxItems,
 	}
+}
+
+// GetPath returns the full path of the given content in the cache
+// or empty string
+func (cm *CacheManager) GetPath(cacheKey string) string {
+	if _, err := os.Stat(cm.path(cacheKey)); os.IsNotExist(err) {
+		return ""
+	}
+	return cm.path(cacheKey)
 }
 
 // Get gets the given cacheKey content and puts it into targetPath

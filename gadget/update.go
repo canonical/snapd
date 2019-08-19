@@ -1,0 +1,307 @@
+// -*- Mode: Go; indent-tabs-mode: t -*-
+
+/*
+ * Copyright (C) 2019 Canonical Ltd
+ *
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License version 3 as
+ * published by the Free Software Foundation.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program.  If not, see <http://www.gnu.org/licenses/>.
+ *
+ */
+package gadget
+
+import (
+	"errors"
+	"fmt"
+
+	"github.com/snapcore/snapd/logger"
+)
+
+var (
+	ErrNoUpdate = errors.New("nothing to update")
+)
+
+var (
+	// default positioning constraints that match ubuntu-image
+	defaultConstraints = PositioningConstraints{
+		NonMBRStartOffset: 1 * SizeMiB,
+		SectorSize:        512,
+	}
+)
+
+// GadgetData holds references to a gadget revision metadata and its data directory.
+type GadgetData struct {
+	// Info is the gadget metadata
+	Info *Info
+	// RootDir is the root directory of gadget snap data
+	RootDir string
+}
+
+// Update applies the gadget update given the gadget information and data from
+// old and new revisions. It errors out when the update is not possible or
+// illegal, or a failure occurs at any of the steps. When there is no update, a
+// special error ErrNoUpdate is returned.
+//
+// Updates are opt-in, and are only applied to structures with a higher value of
+// Edition field in the new gadget definition.
+//
+// Data that would be modified during the update is first backed up inside the
+// rollback directory. Should the apply step fail, the modified data is
+// recovered.
+func Update(old, new GadgetData, rollbackDirPath string) error {
+	oldVol, newVol, err := resolveVolume(old.Info, new.Info)
+	if err != nil {
+		return err
+	}
+
+	// layout old
+	pOld, err := PositionVolume(old.RootDir, oldVol, defaultConstraints)
+	if err != nil {
+		return fmt.Errorf("cannot lay out the old volume: %v", err)
+	}
+
+	// layout new
+	pNew, err := PositionVolume(new.RootDir, newVol, defaultConstraints)
+	if err != nil {
+		return fmt.Errorf("cannot lay out the new volume: %v", err)
+	}
+
+	if err := canUpdateVolume(pOld, pNew); err != nil {
+		return fmt.Errorf("cannot apply update to volume: %v", err)
+	}
+
+	// now we know which structure is which, find which ones need an update
+	updates, err := resolveUpdate(pOld, pNew)
+	if err != nil {
+		return err
+	}
+	if len(updates) == 0 {
+		// nothing to update
+		return ErrNoUpdate
+	}
+
+	// can update old layout to new layout
+	for _, update := range updates {
+		if err := canUpdateStructure(update.from, update.to); err != nil {
+			return fmt.Errorf("cannot update volume structure %v: %v", update.to, err)
+		}
+	}
+
+	return applyUpdates(new, updates, rollbackDirPath)
+}
+
+func resolveVolume(old *Info, new *Info) (oldVol, newVol *Volume, err error) {
+	// support only one volume
+	if len(new.Volumes) != 1 || len(old.Volumes) != 1 {
+		return nil, nil, errors.New("cannot update with more than one volume")
+	}
+
+	var name string
+	for n := range old.Volumes {
+		name = n
+		break
+	}
+	oldV := old.Volumes[name]
+
+	newV, ok := new.Volumes[name]
+	if !ok {
+		return nil, nil, fmt.Errorf("cannot find entry for volume %q in updated gadget info", name)
+	}
+
+	return &oldV, &newV, nil
+}
+
+func isSameOffset(one *Size, two *Size) bool {
+	if one == nil && two == nil {
+		return true
+	}
+	if one != nil && two != nil {
+		return *one == *two
+	}
+	return false
+}
+
+func isSameRelativeOffset(one *RelativeOffset, two *RelativeOffset) bool {
+	if one == nil && two == nil {
+		return true
+	}
+	if one != nil && two != nil {
+		return *one == *two
+	}
+	return false
+}
+
+func isLegacyMBRTransition(from *PositionedStructure, to *PositionedStructure) bool {
+	// legacy MBR could have been specified by setting type: mbr, with no
+	// role
+	return from.Type == MBR && to.EffectiveRole() == MBR
+}
+
+func canUpdateStructure(from *PositionedStructure, to *PositionedStructure) error {
+	if from.Size != to.Size {
+		return fmt.Errorf("cannot change structure size from %v to %v", from.Size, to.Size)
+	}
+	if !isSameOffset(from.Offset, to.Offset) {
+		return fmt.Errorf("cannot change structure offset from %v to %v", from.Offset, to.Offset)
+	}
+	if from.StartOffset != to.StartOffset {
+		return fmt.Errorf("cannot change structure start offset from %v to %v", from.StartOffset, to.StartOffset)
+	}
+	// TODO: should this limitation be lifted?
+	if !isSameRelativeOffset(from.OffsetWrite, to.OffsetWrite) {
+		return fmt.Errorf("cannot change structure offset-write from %v to %v", from.OffsetWrite, to.OffsetWrite)
+	}
+	if from.EffectiveRole() != to.EffectiveRole() {
+		return fmt.Errorf("cannot change structure role from %q to %q", from.EffectiveRole(), to.EffectiveRole())
+	}
+	if from.Type != to.Type {
+		if !isLegacyMBRTransition(from, to) {
+			return fmt.Errorf("cannot change structure type from %q to %q", from.Type, to.Type)
+		}
+	}
+	if from.ID != to.ID {
+		return fmt.Errorf("cannot change structure ID from %q to %q", from.ID, to.ID)
+	}
+	if !to.IsBare() {
+		if from.IsBare() {
+			return fmt.Errorf("cannot change a bare structure to filesystem one")
+		}
+		if from.Filesystem != to.Filesystem {
+			return fmt.Errorf("cannot change filesystem from %q to %q",
+				from.Filesystem, to.Filesystem)
+		}
+		if from.EffectiveFilesystemLabel() != to.EffectiveFilesystemLabel() {
+			return fmt.Errorf("cannot change filesystem label from %q to %q",
+				from.Label, to.Label)
+		}
+	} else {
+		if !from.IsBare() {
+			return fmt.Errorf("cannot change a filesystem structure to a bare one")
+		}
+	}
+
+	return nil
+}
+
+func canUpdateVolume(from *PositionedVolume, to *PositionedVolume) error {
+	if from.ID != to.ID {
+		return fmt.Errorf("cannot change volume ID from %q to %q", from.ID, to.ID)
+	}
+	if from.EffectiveSchema() != to.EffectiveSchema() {
+		return fmt.Errorf("cannot change volume schema from %q to %q", from.EffectiveSchema(), to.EffectiveSchema())
+	}
+	if len(from.PositionedStructure) != len(to.PositionedStructure) {
+		return fmt.Errorf("cannot change the number of structures within volume from %v to %v", len(from.PositionedStructure), len(to.PositionedStructure))
+	}
+	return nil
+}
+
+type updatePair struct {
+	from *PositionedStructure
+	to   *PositionedStructure
+}
+
+func resolveUpdate(oldVol *PositionedVolume, newVol *PositionedVolume) (updates []updatePair, err error) {
+	if len(oldVol.PositionedStructure) != len(newVol.PositionedStructure) {
+		return nil, errors.New("internal error: the number of structures in new and old volume definitions is different")
+	}
+	for j, oldStruct := range oldVol.PositionedStructure {
+		newStruct := newVol.PositionedStructure[j]
+		// update only when new edition is higher than the old one; boot
+		// assets are assumed to be backwards compatible, once deployed
+		// are not rolled back or replaced unless a higher edition is
+		// available
+		if newStruct.Update.Edition > oldStruct.Update.Edition {
+			updates = append(updates, updatePair{
+				from: &oldVol.PositionedStructure[j],
+				to:   &newVol.PositionedStructure[j],
+			})
+		}
+	}
+	return updates, nil
+}
+
+type Updater interface {
+	// Update applies the update or errors out on failures
+	Update() error
+	// Backup prepares a backup copy of data that will be modified by
+	// Update()
+	Backup() error
+	// Rollback restores data modified by update
+	Rollback() error
+}
+
+func applyUpdates(new GadgetData, updates []updatePair, rollbackDir string) error {
+	updaters := make([]Updater, len(updates))
+
+	for i, one := range updates {
+		up, err := updaterForStructure(one.to, new.RootDir, rollbackDir)
+		if err != nil {
+			return fmt.Errorf("cannot prepare update for volume structure %v: %v", one.to, err)
+		}
+		updaters[i] = up
+	}
+
+	for i, one := range updaters {
+		if err := one.Backup(); err != nil {
+			return fmt.Errorf("cannot backup volume structure %v: %v", updates[i].to, err)
+		}
+	}
+
+	var updateErr error
+	var updateLastAttempted int
+	for i, one := range updaters {
+		updateLastAttempted = i
+		if err := one.Update(); err != nil {
+			updateErr = fmt.Errorf("cannot update volume structure %v: %v", updates[i].to, err)
+			break
+		}
+	}
+
+	if updateErr == nil {
+		// all good, updates applied successfully
+		return nil
+	}
+
+	logger.Noticef("cannot update gadget: %v", updateErr)
+	// not so good, rollback ones that got applied
+	for i := 0; i <= updateLastAttempted; i++ {
+		one := updaters[i]
+		if err := one.Rollback(); err != nil {
+			// TODO: log errors to oplog
+			logger.Noticef("cannot rollback volume structure %v update: %v", updates[i].to, err)
+		}
+	}
+
+	return updateErr
+}
+
+var updaterForStructure = updaterForStructureImpl
+
+func updaterForStructureImpl(ps *PositionedStructure, newRootDir, rollbackDir string) (Updater, error) {
+	var updater Updater
+	var err error
+	if ps.IsBare() {
+		updater, err = NewRawStructureUpdater(newRootDir, ps, rollbackDir, FindDeviceForStructureWithFallback)
+	} else {
+		updater, err = NewMountedFilesystemUpdater(newRootDir, ps, rollbackDir, FindMountPointForStructure)
+	}
+	return updater, err
+}
+
+// MockUpdaterForStructure replace internal call with a mocked one, for use in tests only
+func MockUpdaterForStructure(mock func(ps *PositionedStructure, rootDir, rollbackDir string) (Updater, error)) (restore func()) {
+	old := updaterForStructure
+	updaterForStructure = mock
+	return func() {
+		updaterForStructure = old
+	}
+}

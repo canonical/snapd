@@ -24,6 +24,8 @@ import (
 
 	"github.com/snapcore/snapd/overlord/configstate"
 	"github.com/snapcore/snapd/overlord/hookstate"
+	"github.com/snapcore/snapd/overlord/snapstate"
+	"github.com/snapcore/snapd/overlord/storecontext"
 	"github.com/snapcore/snapd/store"
 )
 
@@ -57,6 +59,11 @@ func MockEnsureNext(o *Overlord, t time.Time) {
 // Engine exposes the state engine in an Overlord for tests.
 func (o *Overlord) Engine() *StateEngine {
 	return o.stateEng
+}
+
+// NewStore exposes newStore.
+func (o *Overlord) NewStore(devBE storecontext.DeviceBackend) snapstate.StoreService {
+	return o.newStore(devBE)
 }
 
 // MockStoreNew mocks store.New as called by overlord.New.

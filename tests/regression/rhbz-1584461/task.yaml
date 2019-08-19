@@ -20,8 +20,7 @@ restore: |
 
 execute: |
     # on Fedora, /etc/nsswitch.conf is a symlink to /etc/authselect/nsswitch.conf
-    # TODO: uncomment once we fix this in spread images
-    # test -s /etc/nsswitch.conf
+    test -L /etc/nsswitch.conf
 
     # the following mount entries are visible on a broken system:
     # /var/lib/snapd/snaps/core_6818.snap on /etc/authselect/nsswitch.conf type squashfs (ro,nodev,relatime,context=system_u:object_r:snappy_snap_t:s0)
@@ -39,7 +38,7 @@ execute: |
     snap install test-snapd-tools
     test-snapd-tools.echo hello
 
-    ! mount |MATCH /etc/ssl-backup
+    mount | not MATCH /etc/ssl-backup
 
     test-snapd-tools.cmd find /etc/ssl/ -ls | sort > in-snap
     # same thing is visible in and out

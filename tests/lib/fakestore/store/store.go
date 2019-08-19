@@ -229,7 +229,7 @@ func snapEssentialInfo(w http.ResponseWriter, fn, snapID string, bs asserts.Back
 		Digest:      snapDigest,
 		Size:        size,
 		Confinement: string(info.Confinement),
-		Type:        string(info.Type),
+		Type:        string(info.GetType()),
 	}, nil
 }
 

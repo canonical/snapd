@@ -3,7 +3,7 @@ summary: Ensure create-user functionality
 # FIXME: enable on ubuntu-core-18-* as well once the shadow SRU
 #        https://launchpad.net/ubuntu/+source/shadow/1:4.5-1ubuntu2
 #        is available on -updates
-systems: [ubuntu-core-16-*]
+systems: [ubuntu-core-1*]
 
 environment:
     USER_EMAIL: mvo@ubuntu.com
@@ -22,6 +22,16 @@ execute: |
         echo "create-user command should have failed"
     fi
     [[ "$obtained" =~ $expected ]]
+
+    if [ "$(snap managed)" = "true" ]; then
+        echo "snap create-user -- not success when run as non-root user with sudo on managed device"
+        if su - test /bin/sh -c "sudo snap create-user --sudoer $USER_EMAIL" 2>create.error; then
+            echo "Did not get expected error creating user in managed device"
+            exit 1
+        fi
+        MATCH "cannot create user: device already managed" < create.error
+        exit 0
+    fi
 
     echo "snap create-user -- ensure success when run as non-root user with sudo"
     expected="created user \"$USER_NAME\""

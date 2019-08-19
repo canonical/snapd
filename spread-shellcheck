@@ -20,6 +20,7 @@ import subprocess
 import argparse
 from concurrent.futures import ThreadPoolExecutor
 from multiprocessing import cpu_count
+from typing import Dict
 
 import yaml
 
@@ -101,15 +102,34 @@ class ShellcheckFailures(Exception):
         return iter(self.failures)
 
 
-def checksection(data):
+def checksection(data, env: Dict[str, str]):
     # spread shell snippets are executed under 'set -e' shell, make sure
     # shellcheck knows about that
-    data = 'set -e\n' + data
+    script_data = []
+    script_data.append('set -e')
+    for key, value in env.items():
+        value = str(value)
+        # Unpack the special "$(HOST: ...) syntax and tell shellcheck not to
+        # worry about the use of echo to print variable value.
+        if value.startswith("$(HOST:") and value.endswith(")"):
+            script_data.append("# shellcheck disable=SC2116")
+            value = "$({})".format(value[len("$(HOST:"):-1])
+        # XXX: poor man's shell key=value assignment with values in double
+        # quotes so that one value can refer to another value.
+        if '"' in value:
+            value = value.replace('"', '\"')
+        # converts
+        # FOO: "$(HOST: echo $foo)"     -> FOO="$(echo $foo)"
+        # FOO: "$(HOST: echo \"$foo\")" -> FOO="$(echo \"$foo\")"
+        # FOO: "foo"                    -> FOO="foo"
+        script_data.append("{}=\"{}\"".format(key, value))
+        script_data.append("export {}".format(key))
+    script_data.append(data)
     proc = subprocess.Popen("shellcheck -s {} -x -".format(SHELLCHECK_SHELL),
                             stdout=subprocess.PIPE,
                             stdin=subprocess.PIPE,
                             shell=True)
-    stdout, _ = proc.communicate(input=data.encode('utf-8'), timeout=10)
+    stdout, _ = proc.communicate(input='\n'.join(script_data).encode('utf-8'), timeout=10)
     if proc.returncode != 0:
         raise ShellcheckRunError(stdout)
 
@@ -117,17 +137,24 @@ def checksection(data):
 def checkfile(path):
     logging.debug("checking file %s", path)
     with open(path) as inf:
-        data = yaml.load(inf)
+        data = yaml.load(inf, Loader=yaml.CSafeLoader)
 
     errors = ShellcheckError(path)
-
+    # TODO: handle stacking of environment from other places that influence it:
+    # spread.yaml -> global env + backend env + suite env -> task.yaml (task
+    # env + variant env).
+    env = {}
+    for key, value in data.get("environment", {}).items():
+        if "/" in key:
+            # TODO: re-check with each variant's value set.
+            key = key.split('/', 1)[0]
+        env[key] = value
     for section in SECTIONS:
         if section not in data:
             continue
-
         try:
             logging.debug("%s: checking section %s", path, section)
-            checksection(data[section])
+            checksection(data[section], env)
         except ShellcheckRunError as serr:
             errors.addfailure(section, serr.stderr.decode('utf-8'))
 
@@ -139,7 +166,7 @@ def checkfile(path):
                     continue
                 try:
                     logging.debug("%s (suite %s): checking section %s", path, suite, section)
-                    checksection(data['suites'][suite][section])
+                    checksection(data['suites'][suite][section], env)
                 except ShellcheckRunError as serr:
                     errors.addfailure('suites/' + suite + '/' + section,
                                       serr.stderr.decode('utf-8'))

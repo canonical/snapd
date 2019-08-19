@@ -14,6 +14,11 @@ prepare: |
 
 restore: |
     rm -f /etc/sudoers.d/create-test
+    # Undo the change done by the classic snap.
+    # FIXME: https://github.com/snapcore/classic-snap/issues/32
+    if [ "$(mountinfo-tool /dev/pts .sb_opts)" = "rw,mode=666,ptmxmode=666" ]; then
+        mount devpts -t devpts /dev/pts -o remount,nosuid,noexec,relatime,gid=5,mode=620,ptmxmode=000
+    fi
 
 execute: |
     echo "Ensure classic can be installed"

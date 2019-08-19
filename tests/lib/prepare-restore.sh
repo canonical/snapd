@@ -22,9 +22,6 @@ set -e
 # shellcheck source=tests/lib/random.sh
 . "$TESTSLIB/random.sh"
 
-# shellcheck source=tests/lib/spread-funcs.sh
-. "$TESTSLIB/spread-funcs.sh"
-
 # shellcheck source=tests/lib/journalctl.sh
 . "$TESTSLIB/journalctl.sh"
 
@@ -280,7 +277,9 @@ prepare_project() {
 
     create_test_user
 
-    distro_update_package_db
+    if ! distro_update_package_db; then
+        echo "Error updating the package db, continue with the system preparation"
+    fi
 
     if [[ "$SPREAD_SYSTEM" == arch-* ]]; then
         # perform system upgrade on Arch so that we run with most recent kernel
@@ -379,7 +378,9 @@ prepare_project() {
             ;;
     esac
 
-    install_pkg_dependencies
+    if ! install_pkg_dependencies; then
+        echo "Error installing test dependencies, continue with the system preparation"
+    fi
 
     # We take a special case for Debian/Ubuntu where we install additional build deps
     # base on the packaging. In Fedora/Suse this is handled via mock/osc
@@ -408,7 +409,13 @@ prepare_project() {
         rm -rf "${GOPATH%%:*}/src/github.com/kardianos/govendor"
         go get -u github.com/kardianos/govendor
     fi
-    quiet govendor sync
+    # Retry govendor sync to minimize the number of connection errors during the sync
+    for _ in $(seq 10); do
+        if quiet govendor sync; then
+            break
+        fi
+        sleep 1
+    done
     # govendor runs as root and will leave strange permissions
     chown test.test -R "$SPREAD_PATH"
 
@@ -477,6 +484,21 @@ prepare_suite() {
     fi
 }
 
+install_snap_profiler(){
+    echo "install snaps profiler"
+
+    if [ "$PROFILE_SNAPS" = 1 ]; then
+        profiler_snap=test-snapd-profiler
+        if is_core18_system; then
+            profiler_snap=test-snapd-profiler-core18
+        fi
+
+        rm -f "/var/snap/${profiler_snap}/common/profiler.log"
+        snap install "${profiler_snap}"
+        snap connect "${profiler_snap}":system-observe
+    fi
+}
+
 prepare_suite_each() {
     # back test directory to be restored during the restore
     tar cf "${PWD}.tar" "$PWD"
@@ -492,6 +514,10 @@ prepare_suite_each() {
     "$TESTSLIB"/reset.sh --reuse-core
     # Reset systemd journal cursor.
     start_new_journalctl_log
+
+    echo "Install the snaps profiler snap"
+    install_snap_profiler
+
     # shellcheck source=tests/lib/prepare.sh
     . "$TESTSLIB"/prepare.sh
     if is_classic_system; then
@@ -515,6 +541,25 @@ restore_suite_each() {
         rm -rf "$PWD"
         tar -C/ -xf "${PWD}.tar"
         rm -rf "${PWD}.tar"
+    fi
+
+    if [ "$PROFILE_SNAPS" = 1 ]; then
+        echo "Save snaps profiler log"
+        local logs_id logs_dir logs_file
+        logs_dir="$RUNTIME_STATE_PATH/logs"
+        logs_id=$(find "$logs_dir" -maxdepth 1 -name '*.journal.log' | wc -l)
+        logs_file=$(echo "${logs_id}_${SPREAD_JOB}" | tr '/' '_' | tr ':' '__')
+
+        profiler_snap=test-snapd-profiler
+        if is_core18_system; then
+            profiler_snap=test-snapd-profiler-core18
+        fi
+
+        mkdir -p "$logs_dir"
+        if [ -e "/var/snap/${profiler_snap}/common/profiler.log" ]; then
+            cp -f "/var/snap/${profiler_snap}/common/profiler.log" "${logs_dir}/${logs_file}.profiler.log"
+        fi
+        get_journalctl_log > "${logs_dir}/${logs_file}.journal.log"
     fi
 }
 
@@ -574,7 +619,7 @@ restore_project_each() {
     fi
 
     # Something is hosing the filesystem so look for signs of that
-    ! grep -F "//deleted /etc" /proc/self/mountinfo
+    not grep -F "//deleted /etc" /proc/self/mountinfo
 }
 
 restore_project() {

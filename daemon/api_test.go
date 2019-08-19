@@ -34,7 +34,6 @@ import (
 	"net/http/httptest"
 	"net/url"
 	"os"
-	"os/user"
 	"path/filepath"
 	"regexp"
 	"sort"
@@ -43,7 +42,6 @@ import (
 	"time"
 
 	"golang.org/x/crypto/sha3"
-
 	"gopkg.in/check.v1"
 	"gopkg.in/tomb.v2"
 
@@ -60,9 +58,12 @@ import (
 	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/overlord"
 	"github.com/snapcore/snapd/overlord/assertstate"
+	"github.com/snapcore/snapd/overlord/assertstate/assertstatetest"
 	"github.com/snapcore/snapd/overlord/auth"
 	"github.com/snapcore/snapd/overlord/configstate/config"
 	"github.com/snapcore/snapd/overlord/devicestate"
+	"github.com/snapcore/snapd/overlord/devicestate/devicestatetest"
+	"github.com/snapcore/snapd/overlord/healthstate"
 	"github.com/snapcore/snapd/overlord/hookstate"
 	"github.com/snapcore/snapd/overlord/hookstate/ctlcmd"
 	"github.com/snapcore/snapd/overlord/ifacestate"
@@ -88,6 +89,7 @@ type apiBaseSuite struct {
 	suggestedCurrency string
 	d                 *Daemon
 	user              *auth.UserState
+	ctx               context.Context
 	restoreBackends   func()
 	currentSnaps      []*store.CurrentSnap
 	actions           []*store.SnapAction
@@ -96,6 +98,7 @@ type apiBaseSuite struct {
 	storeSigning      *assertstest.StoreStack
 	restoreRelease    func()
 	trustedRestorer   func()
+	brands            *assertstest.SigningAccounts
 
 	systemctlRestorer func()
 	sysctlArgses      [][]string
@@ -126,21 +129,22 @@ func (s *apiBaseSuite) pokeStateLock() {
 	st.Unlock()
 }
 
-func (s *apiBaseSuite) SnapInfo(spec store.SnapSpec, user *auth.UserState) (*snap.Info, error) {
+func (s *apiBaseSuite) SnapInfo(ctx context.Context, spec store.SnapSpec, user *auth.UserState) (*snap.Info, error) {
 	s.pokeStateLock()
-
 	s.user = user
+	s.ctx = ctx
 	if len(s.rsnaps) > 0 {
 		return s.rsnaps[0], s.err
 	}
 	return nil, s.err
 }
 
-func (s *apiBaseSuite) Find(search *store.Search, user *auth.UserState) ([]*snap.Info, error) {
+func (s *apiBaseSuite) Find(ctx context.Context, search *store.Search, user *auth.UserState) ([]*snap.Info, error) {
 	s.pokeStateLock()
 
 	s.storeSearch = *search
 	s.user = user
+	s.ctx = ctx
 
 	return s.rsnaps, s.err
 }
@@ -286,6 +290,9 @@ func (s *apiBaseSuite) SetUpTest(c *check.C) {
 	s.storeSigning = assertstest.NewStoreStack("can0nical", nil)
 	s.trustedRestorer = sysdb.InjectTrusted(s.storeSigning.Trusted)
 
+	s.brands = assertstest.NewSigningAccounts(s.storeSigning)
+	s.brands.Register("my-brand", brandPrivKey, nil)
+
 	assertstateRefreshSnapDeclarations = nil
 	snapstateInstall = nil
 	snapstateInstallMany = nil
@@ -297,6 +304,7 @@ func (s *apiBaseSuite) SetUpTest(c *check.C) {
 	snapstateTryPath = nil
 	snapstateUpdate = nil
 	snapstateUpdateMany = nil
+	snapstateSwitch = nil
 
 	devicestateRemodel = nil
 }
@@ -304,6 +312,7 @@ func (s *apiBaseSuite) SetUpTest(c *check.C) {
 func (s *apiBaseSuite) TearDownTest(c *check.C) {
 	s.trustedRestorer()
 	s.d = nil
+	s.ctx = nil
 	s.restoreBackends()
 	unsafeReadSnapInfo = unsafeReadSnapInfoImpl
 	ensureStateSoon = ensureStateSoonImpl
@@ -320,36 +329,28 @@ func (s *apiBaseSuite) TearDownTest(c *check.C) {
 	snapstateTryPath = snapstate.TryPath
 	snapstateUpdate = snapstate.Update
 	snapstateUpdateMany = snapstate.UpdateMany
+	snapstateSwitch = snapstate.Switch
 }
 
-func makeMockModelHdrs() map[string]interface{} {
-	return map[string]interface{}{
-		"type":         "model",
-		"authority-id": "can0nical",
-		"series":       "16",
-		"brand-id":     "can0nical",
-		"model":        "pc",
-		"architecture": "amd64",
-		"gadget":       "gadget",
-		"kernel":       "kernel",
-		"timestamp":    time.Now().Format(time.RFC3339),
-	}
+var modelDefaults = map[string]interface{}{
+	"architecture": "amd64",
+	"gadget":       "gadget",
+	"kernel":       "kernel",
 }
 
-func (s *apiBaseSuite) mockModel(c *check.C, st *state.State) {
+func (s *apiBaseSuite) mockModel(c *check.C, st *state.State, model *asserts.Model) {
 	// realistic model setup
-	a, err := s.storeSigning.RootSigning.Sign(asserts.ModelType, makeMockModelHdrs(), nil, "")
-	c.Assert(err, check.IsNil)
-	model := a.(*asserts.Model)
+	if model == nil {
+		model = s.brands.Model("can0nical", "pc", modelDefaults)
+	}
 
-	snapstate.Model = devicestate.Model
+	snapstate.DeviceCtx = devicestate.DeviceCtx
 
-	err = assertstate.Add(st, model)
-	c.Assert(err, check.IsNil)
+	assertstatetest.AddMany(st, model)
 
-	auth.SetDevice(st, &auth.DeviceState{
-		Brand:  "can0nical",
-		Model:  "pc",
+	devicestatetest.SetDevice(st, &auth.DeviceState{
+		Brand:  model.BrandID(),
+		Model:  model.Model(),
 		Serial: "serialserial",
 	})
 }
@@ -362,6 +363,8 @@ func (s *apiBaseSuite) daemon(c *check.C) *Daemon {
 	c.Assert(err, check.IsNil)
 	d.addRoutes()
 
+	c.Assert(d.overlord.StartUp(), check.IsNil)
+
 	st := d.overlord.State()
 	st.Lock()
 	defer st.Unlock()
@@ -369,7 +372,7 @@ func (s *apiBaseSuite) daemon(c *check.C) *Daemon {
 	// mark as already seeded
 	st.Set("seeded", true)
 	// registered
-	s.mockModel(c, st)
+	s.mockModel(c, st, nil)
 
 	// don't actually try to talk to the store on snapstate.Ensure
 	// needs doing after the call to devicestate.Manager (which
@@ -428,6 +431,7 @@ func (s *apiBaseSuite) daemonWithFakeSnapManager(c *check.C) *Daemon {
 	runner := d.overlord.TaskRunner()
 	d.overlord.AddManager(newFakeSnapManager(st, runner))
 	d.overlord.AddManager(runner)
+	c.Assert(d.overlord.StartUp(), check.IsNil)
 	return d
 }
 
@@ -506,18 +510,10 @@ version: %s
 		return snapInfo
 	}
 
-	err := assertstate.Add(st, s.storeSigning.StoreAccountKey(""))
-	if _, ok := err.(*asserts.RevisionError); !ok {
-		c.Assert(err, check.IsNil)
-	}
-
 	devAcct := assertstest.NewAccount(s.storeSigning, developer, map[string]interface{}{
 		"account-id": developer + "-id",
 	}, "")
-	err = assertstate.Add(st, devAcct)
-	if _, ok := err.(*asserts.RevisionError); !ok {
-		c.Assert(err, check.IsNil)
-	}
+
 	snapInfo.Publisher = snap.StoreAccount{
 		ID:          devAcct.AccountID(),
 		Username:    devAcct.Username(),
@@ -533,10 +529,6 @@ version: %s
 		"timestamp":    time.Now().Format(time.RFC3339),
 	}, nil, "")
 	c.Assert(err, check.IsNil)
-	err = assertstate.Add(st, snapDecl)
-	if _, ok := err.(*asserts.RevisionError); !ok {
-		c.Assert(err, check.IsNil)
-	}
 
 	content, err := ioutil.ReadFile(snapInfo.MountFile())
 	c.Assert(err, check.IsNil)
@@ -552,8 +544,8 @@ version: %s
 		"timestamp":     time.Now().Format(time.RFC3339),
 	}, nil, "")
 	c.Assert(err, check.IsNil)
-	err = assertstate.Add(st, snapRev)
-	c.Assert(err, check.IsNil)
+
+	assertstatetest.AddMany(st, s.storeSigning.StoreAccountKey(""), devAcct, snapDecl, snapRev)
 
 	return snapInfo
 }
@@ -563,6 +555,14 @@ type apiSuite struct {
 }
 
 var _ = check.Suite(&apiSuite{})
+
+func (s *apiSuite) TestUsersOnlyRoot(c *check.C) {
+	for _, cmd := range api {
+		if strings.Contains(cmd.Path, "user") {
+			c.Check(cmd.RootOnly, check.Equals, true, check.Commentf(cmd.Path))
+		}
+	}
+}
 
 func (s *apiSuite) TestSnapInfoOneIntegration(c *check.C) {
 	d := s.daemon(c)
@@ -667,6 +667,9 @@ UnitFileState=enabled
 	var snapst snapstate.SnapState
 	st := s.d.overlord.State()
 	st.Lock()
+	st.Set("health", map[string]healthstate.HealthState{
+		"foo": {Status: healthstate.OkayStatus},
+	})
 	err := snapstate.Get(st, "foo", &snapst)
 	st.Unlock()
 	c.Assert(err, check.IsNil)
@@ -674,6 +677,7 @@ UnitFileState=enabled
 	// modify state
 	snapst.Channel = "beta"
 	snapst.IgnoreValidation = true
+	snapst.CohortKey = "some-long-cohort-key"
 	st.Lock()
 	snapstate.Set(st, "foo", &snapst)
 	st.Unlock()
@@ -717,6 +721,7 @@ UnitFileState=enabled
 				Validation:  "unproven",
 			},
 			Status:      "active",
+			Health:      &client.SnapHealth{Status: "okay"},
 			Icon:        "/v2/icons/foo/icon",
 			Type:        string(snap.TypeApp),
 			Base:        "base18",
@@ -788,7 +793,8 @@ UnitFileState=enabled
 			Contact:     "",
 			License:     "GPL-3.0",
 			CommonIDs:   []string{"org.foo.cmd"},
-			Screenshots: []snap.ScreenshotInfo{},
+			Screenshots: []snap.ScreenshotInfo{{Note: snap.ScreenshotsDeprecationNotice}},
+			CohortKey:   "some-long-cohort-key",
 		},
 		Meta: meta,
 	}
@@ -876,7 +882,7 @@ func (s *apiSuite) TestMapLocalFields(c *check.C) {
 			Private:           true,
 		},
 		InstanceKey: "instance",
-		Type:        "app",
+		SnapType:    "app",
 		Base:        "the-base",
 		Version:     "v1.0",
 		License:     "MIT",
@@ -942,7 +948,7 @@ func (s *apiSuite) TestMapLocalFields(c *check.C) {
 		CommonIDs:        []string{"foo", "bar"},
 		MountedFrom:      filepath.Join(dirs.SnapBlobDir, "some-snap_instance_7.snap"),
 		Media:            media,
-		Screenshots:      media.Screenshots(),
+		Screenshots:      []snap.ScreenshotInfo{{Note: snap.ScreenshotsDeprecationNotice}},
 		Apps: []client.AppInfo{
 			{Snap: "some-snap_instance", Name: "bar"},
 			{Snap: "some-snap_instance", Name: "foo"},
@@ -1034,8 +1040,9 @@ func (s *apiSuite) TestSysInfo(c *check.C) {
 	// reload dirs for release info to have effect
 	dirs.SetRootDir(dirs.GlobalRootDir)
 
-	buildID, err := osutil.MyBuildID()
-	c.Assert(err, check.IsNil)
+	buildID := "this-is-my-build-id"
+	restore = MockBuildID(buildID)
+	defer restore()
 
 	sysInfoCmd.GET(sysInfoCmd, nil, nil).ServeHTTP(rec, nil)
 	c.Check(rec.Code, check.Equals, 200)
@@ -1104,8 +1111,9 @@ func (s *apiSuite) TestSysInfoLegacyRefresh(c *check.C) {
 	})
 	c.Assert(err, check.IsNil)
 
-	buildID, err := osutil.MyBuildID()
-	c.Assert(err, check.IsNil)
+	buildID := "this-is-my-build-id"
+	restore = MockBuildID(buildID)
+	defer restore()
 
 	sysInfoCmd.GET(sysInfoCmd, nil, nil).ServeHTTP(rec, nil)
 	c.Check(rec.Code, check.Equals, 200)
@@ -1633,6 +1641,12 @@ func (s *apiSuite) TestSnapsInfoOnlyLocal(c *check.C) {
 		},
 	}}
 	s.mkInstalledInState(c, d, "local", "foo", "v1", snap.R(10), true, "")
+	st := s.d.overlord.State()
+	st.Lock()
+	st.Set("health", map[string]healthstate.HealthState{
+		"local": {Status: healthstate.OkayStatus},
+	})
+	st.Unlock()
 
 	req, err := http.NewRequest("GET", "/v2/snaps?sources=local", nil)
 	c.Assert(err, check.IsNil)
@@ -1644,6 +1658,11 @@ func (s *apiSuite) TestSnapsInfoOnlyLocal(c *check.C) {
 	snaps := snapList(rsp.Result)
 	c.Assert(snaps, check.HasLen, 1)
 	c.Assert(snaps[0]["name"], check.Equals, "local")
+	c.Check(snaps[0]["health"], check.DeepEquals, map[string]interface{}{
+		"status":    "okay",
+		"revision":  "unset",
+		"timestamp": "0001-01-01T00:00:00Z",
+	})
 }
 
 func (s *apiSuite) TestSnapsInfoAllMixedPublishers(c *check.C) {
@@ -1746,7 +1765,7 @@ func (s *apiSuite) TestFind(c *check.C) {
 	c.Assert(snaps, check.HasLen, 1)
 	c.Assert(snaps[0]["name"], check.Equals, "store")
 	c.Check(snaps[0]["prices"], check.IsNil)
-	c.Check(snaps[0]["screenshots"], check.IsNil)
+	c.Check(snaps[0]["screenshots"], check.DeepEquals, []interface{}{map[string]interface{}{"note": snap.ScreenshotsDeprecationNotice}})
 	c.Check(snaps[0]["channels"], check.IsNil)
 
 	c.Check(rsp.SuggestedCurrency, check.Equals, "EUR")
@@ -1842,6 +1861,43 @@ func (s *apiSuite) TestFindPrivate(c *check.C) {
 		Query:   "foo",
 		Private: true,
 	})
+}
+
+func (s *apiSuite) TestFindUserAgentContextCreated(c *check.C) {
+	s.daemon(c)
+
+	req, err := http.NewRequest("GET", "/v2/find", nil)
+	c.Assert(err, check.IsNil)
+	req.Header.Add("User-Agent", "some-agent/1.0")
+
+	_ = searchStore(findCmd, req, nil).(*resp)
+
+	c.Check(store.ClientUserAgent(s.ctx), check.Equals, "some-agent/1.0")
+}
+
+func (s *apiSuite) TestFindOneUserAgentContextCreated(c *check.C) {
+	s.daemon(c)
+
+	s.rsnaps = []*snap.Info{{
+		SnapType: snap.TypeApp,
+		Version:  "v2",
+		SideInfo: snap.SideInfo{
+			RealName: "banana",
+		},
+		Publisher: snap.StoreAccount{
+			ID:          "foo-id",
+			Username:    "foo",
+			DisplayName: "Foo",
+			Validation:  "unproven",
+		},
+	}}
+	req, err := http.NewRequest("GET", "/v2/find?name=foo", nil)
+	c.Assert(err, check.IsNil)
+	req.Header.Add("User-Agent", "some-agent/1.0")
+
+	_ = searchStore(findCmd, req, nil).(*resp)
+
+	c.Check(store.ClientUserAgent(s.ctx), check.Equals, "some-agent/1.0")
 }
 
 func (s *apiSuite) TestFindPrefix(c *check.C) {
@@ -2055,8 +2111,8 @@ func (s *apiSuite) TestFindPriced(c *check.C) {
 	s.suggestedCurrency = "GBP"
 
 	s.rsnaps = []*snap.Info{{
-		Type:    snap.TypeApp,
-		Version: "v2",
+		SnapType: snap.TypeApp,
+		Version:  "v2",
 		Prices: map[string]float64{
 			"GBP": 1.23,
 			"EUR": 2.34,
@@ -2096,8 +2152,8 @@ func (s *apiSuite) TestFindScreenshotted(c *check.C) {
 	s.daemon(c)
 
 	s.rsnaps = []*snap.Info{{
-		Type:    snap.TypeApp,
-		Version: "v2",
+		SnapType: snap.TypeApp,
+		Version:  "v2",
 		Media: []snap.MediaInfo{
 			{
 				Type:   "screenshot",
@@ -2133,13 +2189,6 @@ func (s *apiSuite) TestFindScreenshotted(c *check.C) {
 	c.Check(snaps[0]["name"], check.Equals, "test-screenshot")
 	c.Check(snaps[0]["screenshots"], check.DeepEquals, []interface{}{
 		map[string]interface{}{
-			"url":    "http://example.com/screenshot.png",
-			"width":  float64(800),
-			"height": float64(1280),
-			"note":   snap.ScreenshotsDeprecationNotice,
-		},
-		map[string]interface{}{
-			"url":  "http://example.com/screenshot2.png",
 			"note": snap.ScreenshotsDeprecationNotice,
 		},
 	})
@@ -2419,6 +2468,68 @@ func (s *apiSuite) TestPostSnapVerifySnapInstruction(c *check.C) {
 	c.Check(rsp.Result.(*errorResult).Message, testutil.Contains, `cannot install "ubuntu-core", please use "core" instead`)
 }
 
+func (s *apiSuite) TestPostSnapCohortRandoAction(c *check.C) {
+	s.daemonWithOverlordMock(c)
+	s.vars = map[string]string{"name": "some-snap"}
+	const expectedErr = "cohort-key can only be specified for install, refresh, or switch"
+
+	for _, action := range []string{"remove", "revert", "enable", "disable", "xyzzy"} {
+		buf := strings.NewReader(fmt.Sprintf(`{"action": "%s", "cohort-key": "32"}`, action))
+		req, err := http.NewRequest("POST", "/v2/snaps/some-snap", buf)
+		c.Assert(err, check.IsNil)
+
+		rsp := postSnap(snapCmd, req, nil).(*resp)
+
+		c.Check(rsp.Type, check.Equals, ResponseTypeError)
+		c.Check(rsp.Status, check.Equals, 400, check.Commentf("%q", action))
+		c.Check(rsp.Result.(*errorResult).Message, check.Equals, expectedErr, check.Commentf("%q", action))
+	}
+}
+
+func (s *apiSuite) TestPostSnapLeaveCohortRandoAction(c *check.C) {
+	s.daemonWithOverlordMock(c)
+	s.vars = map[string]string{"name": "some-snap"}
+	const expectedErr = "leave-cohort can only be specified for refresh or switch"
+
+	for _, action := range []string{"install", "remove", "revert", "enable", "disable", "xyzzy"} {
+		buf := strings.NewReader(fmt.Sprintf(`{"action": "%s", "leave-cohort": true}`, action))
+		req, err := http.NewRequest("POST", "/v2/snaps/some-snap", buf)
+		c.Assert(err, check.IsNil)
+
+		rsp := postSnap(snapCmd, req, nil).(*resp)
+
+		c.Check(rsp.Type, check.Equals, ResponseTypeError)
+		c.Check(rsp.Status, check.Equals, 400, check.Commentf("%q", action))
+		c.Check(rsp.Result.(*errorResult).Message, check.Equals, expectedErr, check.Commentf("%q", action))
+	}
+}
+
+func (s *apiSuite) TestPostSnapCohortIncompat(c *check.C) {
+	s.daemonWithOverlordMock(c)
+	s.vars = map[string]string{"name": "some-snap"}
+
+	type T struct {
+		opts   string
+		errmsg string
+	}
+
+	for i, t := range []T{
+		// TODO: more?
+		{`"cohort-key": "what", "revision": "42"`, `cannot specify both cohort-key and revision`},
+		{`"cohort-key": "what", "leave-cohort": true`, `cannot specify both cohort-key and leave-cohort`},
+	} {
+		buf := strings.NewReader(fmt.Sprintf(`{"action": "refresh", %s}`, t.opts))
+		req, err := http.NewRequest("POST", "/v2/snaps/some-snap", buf)
+		c.Assert(err, check.IsNil, check.Commentf("%d (%s)", i, t.opts))
+
+		rsp := postSnap(snapCmd, req, nil).(*resp)
+
+		c.Check(rsp.Type, check.Equals, ResponseTypeError, check.Commentf("%d (%s)", i, t.opts))
+		c.Check(rsp.Status, check.Equals, 400, check.Commentf("%d (%s)", i, t.opts))
+		c.Check(rsp.Result.(*errorResult).Message, check.Equals, t.errmsg, check.Commentf("%d (%s)", i, t.opts))
+	}
+}
+
 func (s *apiSuite) TestPostSnapVerifyMultiSnapInstruction(c *check.C) {
 	s.daemonWithOverlordMock(c)
 
@@ -2432,6 +2543,33 @@ func (s *apiSuite) TestPostSnapVerifyMultiSnapInstruction(c *check.C) {
 	c.Check(rsp.Type, check.Equals, ResponseTypeError)
 	c.Check(rsp.Status, check.Equals, 400)
 	c.Check(rsp.Result.(*errorResult).Message, testutil.Contains, `cannot install "ubuntu-core", please use "core" instead`)
+}
+
+func (s *apiSuite) TestPostSnapsNoWeirdses(c *check.C) {
+	s.daemonWithOverlordMock(c)
+
+	// one could add more actions here ... 🤷
+	for _, action := range []string{"install", "refresh", "remove"} {
+		for weird, v := range map[string]string{
+			"channel":      `"beta"`,
+			"revision":     `"1"`,
+			"devmode":      "true",
+			"jailmode":     "true",
+			"cohort-key":   `"what"`,
+			"leave-cohort": "true",
+		} {
+			buf := strings.NewReader(fmt.Sprintf(`{"action": "%s","snaps":["foo","bar"], "%s": %s}`, action, weird, v))
+			req, err := http.NewRequest("POST", "/v2/snaps", buf)
+			c.Assert(err, check.IsNil)
+			req.Header.Set("Content-Type", "application/json")
+
+			rsp := postSnaps(snapsCmd, req, nil).(*resp)
+
+			c.Check(rsp.Type, check.Equals, ResponseTypeError)
+			c.Check(rsp.Status, check.Equals, 400)
+			c.Check(rsp.Result.(*errorResult).Message, testutil.Contains, `unsupported option provided for multi-snap operation`)
+		}
+	}
 }
 
 func (s *apiSuite) TestPostSnapSetsUser(c *check.C) {
@@ -2601,7 +2739,7 @@ func (s *apiSuite) sideloadCheck(c *check.C, content string, head map[string]str
 		return &snap.Info{SuggestedName: mockedName}, nil
 	}
 
-	snapstateInstall = func(s *state.State, name, channel string, revision snap.Revision, userID int, flags snapstate.Flags) (*state.TaskSet, error) {
+	snapstateInstall = func(ctx context.Context, s *state.State, name string, opts *snapstate.RevisionOptions, userID int, flags snapstate.Flags) (*state.TaskSet, error) {
 		// NOTE: ubuntu-core is not installed in developer mode
 		c.Check(flags, check.Equals, snapstate.Flags{})
 		installQueue = append(installQueue, name)
@@ -2719,10 +2857,8 @@ func (s *apiSuite) TestLocalInstallSnapDeriveSideInfo(c *check.C) {
 	d := s.daemonWithOverlordMock(c)
 	// add the assertions first
 	st := d.overlord.State()
-	assertAdd(st, s.storeSigning.StoreAccountKey(""))
 
 	dev1Acct := assertstest.NewAccount(s.storeSigning, "devel1", nil, "")
-	assertAdd(st, dev1Acct)
 
 	snapDecl, err := s.storeSigning.Sign(asserts.SnapDeclarationType, map[string]interface{}{
 		"series":       "16",
@@ -2732,7 +2868,6 @@ func (s *apiSuite) TestLocalInstallSnapDeriveSideInfo(c *check.C) {
 		"timestamp":    time.Now().Format(time.RFC3339),
 	}, nil, "")
 	c.Assert(err, check.IsNil)
-	assertAdd(st, snapDecl)
 
 	snapRev, err := s.storeSigning.Sign(asserts.SnapRevisionType, map[string]interface{}{
 		"snap-sha3-384": "YK0GWATaZf09g_fvspYPqm_qtaiqf-KjaNj5uMEQCjQpuXWPjqQbeBINL5H_A0Lo",
@@ -2743,7 +2878,12 @@ func (s *apiSuite) TestLocalInstallSnapDeriveSideInfo(c *check.C) {
 		"timestamp":     time.Now().Format(time.RFC3339),
 	}, nil, "")
 	c.Assert(err, check.IsNil)
-	assertAdd(st, snapRev)
+
+	func() {
+		st.Lock()
+		defer st.Unlock()
+		assertstatetest.AddMany(st, s.storeSigning.StoreAccountKey(""), dev1Acct, snapDecl, snapRev)
+	}()
 
 	body := "" +
 		"----hello--\r\n" +
@@ -2985,7 +3125,7 @@ func (s *apiSuite) TestTrySnap(c *check.C) {
 			return state.NewTaskSet(t), nil
 		}
 
-		snapstateInstall = func(s *state.State, name, channel string, revision snap.Revision, userID int, flags snapstate.Flags) (*state.TaskSet, error) {
+		snapstateInstall = func(ctx context.Context, s *state.State, name string, opts *snapstate.RevisionOptions, userID int, flags snapstate.Flags) (*state.TaskSet, error) {
 			if name != "core" {
 				c.Check(flags, check.DeepEquals, t.flags, check.Commentf(t.desc))
 			}
@@ -3471,10 +3611,10 @@ func (s *apiSuite) testInstall(c *check.C, forcedDevmode bool, flags snapstate.F
 	restore := release.MockForcedDevmode(forcedDevmode)
 	defer restore()
 
-	snapstateInstall = func(s *state.State, name, channel string, revno snap.Revision, userID int, flags snapstate.Flags) (*state.TaskSet, error) {
+	snapstateInstall = func(ctx context.Context, s *state.State, name string, opts *snapstate.RevisionOptions, userID int, flags snapstate.Flags) (*state.TaskSet, error) {
 		calledFlags = flags
 		installQueue = append(installQueue, name)
-		c.Check(revision, check.Equals, revno)
+		c.Check(revision, check.Equals, opts.Revision)
 
 		t := s.NewTask("fake-install-snap", "Doing a fake install")
 		return state.NewTaskSet(t), nil
@@ -3520,13 +3660,39 @@ func (s *apiSuite) testInstall(c *check.C, forcedDevmode bool, flags snapstate.F
 	c.Check(chg.Summary(), check.Equals, `Install "some-snap" snap`)
 }
 
+func (s *apiSuite) TestInstallUserAgentContextCreated(c *check.C) {
+	snapstateInstall = func(ctx context.Context, st *state.State, name string, opts *snapstate.RevisionOptions, userID int, flags snapstate.Flags) (*state.TaskSet, error) {
+		s.ctx = ctx
+		t := st.NewTask("fake-install-snap", "Doing a fake install")
+		return state.NewTaskSet(t), nil
+	}
+	defer func() {
+		snapstateInstall = nil
+	}()
+
+	s.daemonWithFakeSnapManager(c)
+
+	var buf bytes.Buffer
+	buf.WriteString(`{"action": "install"}`)
+	req, err := http.NewRequest("POST", "/v2/snaps/some-snap", &buf)
+	req.RemoteAddr = "pid=100;uid=0;socket=;"
+	c.Assert(err, check.IsNil)
+	req.Header.Add("User-Agent", "some-agent/1.0")
+
+	s.vars = map[string]string{"name": "some-snap"}
+	rec := httptest.NewRecorder()
+	snapCmd.ServeHTTP(rec, req)
+	c.Assert(rec.Code, check.Equals, 202)
+	c.Check(store.ClientUserAgent(s.ctx), check.Equals, "some-agent/1.0")
+}
+
 func (s *apiSuite) TestRefresh(c *check.C) {
 	var calledFlags snapstate.Flags
 	calledUserID := 0
 	installQueue := []string{}
 	assertstateCalledUserID := 0
 
-	snapstateUpdate = func(s *state.State, name, channel string, revision snap.Revision, userID int, flags snapstate.Flags) (*state.TaskSet, error) {
+	snapstateUpdate = func(s *state.State, name string, opts *snapstate.RevisionOptions, userID int, flags snapstate.Flags) (*state.TaskSet, error) {
 		calledFlags = flags
 		calledUserID = userID
 		installQueue = append(installQueue, name)
@@ -3565,7 +3731,7 @@ func (s *apiSuite) TestRefreshDevMode(c *check.C) {
 	calledUserID := 0
 	installQueue := []string{}
 
-	snapstateUpdate = func(s *state.State, name, channel string, revision snap.Revision, userID int, flags snapstate.Flags) (*state.TaskSet, error) {
+	snapstateUpdate = func(s *state.State, name string, opts *snapstate.RevisionOptions, userID int, flags snapstate.Flags) (*state.TaskSet, error) {
 		calledFlags = flags
 		calledUserID = userID
 		installQueue = append(installQueue, name)
@@ -3603,7 +3769,7 @@ func (s *apiSuite) TestRefreshDevMode(c *check.C) {
 func (s *apiSuite) TestRefreshClassic(c *check.C) {
 	var calledFlags snapstate.Flags
 
-	snapstateUpdate = func(s *state.State, name, channel string, revision snap.Revision, userID int, flags snapstate.Flags) (*state.TaskSet, error) {
+	snapstateUpdate = func(s *state.State, name string, opts *snapstate.RevisionOptions, userID int, flags snapstate.Flags) (*state.TaskSet, error) {
 		calledFlags = flags
 		return nil, nil
 	}
@@ -3633,7 +3799,7 @@ func (s *apiSuite) TestRefreshIgnoreValidation(c *check.C) {
 	calledUserID := 0
 	installQueue := []string{}
 
-	snapstateUpdate = func(s *state.State, name, channel string, revision snap.Revision, userID int, flags snapstate.Flags) (*state.TaskSet, error) {
+	snapstateUpdate = func(s *state.State, name string, opts *snapstate.RevisionOptions, userID int, flags snapstate.Flags) (*state.TaskSet, error) {
 		calledFlags = flags
 		calledUserID = userID
 		installQueue = append(installQueue, name)
@@ -3667,6 +3833,118 @@ func (s *apiSuite) TestRefreshIgnoreValidation(c *check.C) {
 	c.Check(err, check.IsNil)
 	c.Check(installQueue, check.DeepEquals, []string{"some-snap"})
 	c.Check(summary, check.Equals, `Refresh "some-snap" snap`)
+}
+
+func (s *apiSuite) TestRefreshCohort(c *check.C) {
+	cohort := ""
+
+	snapstateUpdate = func(s *state.State, name string, opts *snapstate.RevisionOptions, userID int, flags snapstate.Flags) (*state.TaskSet, error) {
+		cohort = opts.CohortKey
+
+		t := s.NewTask("fake-refresh-snap", "Doing a fake install")
+		return state.NewTaskSet(t), nil
+	}
+	assertstateRefreshSnapDeclarations = func(s *state.State, userID int) error {
+		return nil
+	}
+
+	d := s.daemon(c)
+	inst := &snapInstruction{
+		Action:    "refresh",
+		CohortKey: "xyzzy",
+		Snaps:     []string{"some-snap"},
+	}
+
+	st := d.overlord.State()
+	st.Lock()
+	defer st.Unlock()
+	summary, _, err := inst.dispatch()(inst, st)
+	c.Check(err, check.IsNil)
+
+	c.Check(cohort, check.Equals, "xyzzy")
+	c.Check(summary, check.Equals, `Refresh "some-snap" snap`)
+}
+
+func (s *apiSuite) TestRefreshLeaveCohort(c *check.C) {
+	var leave *bool
+
+	snapstateUpdate = func(s *state.State, name string, opts *snapstate.RevisionOptions, userID int, flags snapstate.Flags) (*state.TaskSet, error) {
+		leave = &opts.LeaveCohort
+
+		t := s.NewTask("fake-refresh-snap", "Doing a fake install")
+		return state.NewTaskSet(t), nil
+	}
+	assertstateRefreshSnapDeclarations = func(s *state.State, userID int) error {
+		return nil
+	}
+
+	d := s.daemon(c)
+	inst := &snapInstruction{
+		Action:      "refresh",
+		LeaveCohort: true,
+		Snaps:       []string{"some-snap"},
+	}
+
+	st := d.overlord.State()
+	st.Lock()
+	defer st.Unlock()
+	summary, _, err := inst.dispatch()(inst, st)
+	c.Check(err, check.IsNil)
+
+	c.Check(*leave, check.Equals, true)
+	c.Check(summary, check.Equals, `Refresh "some-snap" snap`)
+}
+
+func (s *apiSuite) TestSwitchInstruction(c *check.C) {
+	var cohort, channel string
+	var leave *bool
+	snapstateSwitch = func(s *state.State, name string, opts *snapstate.RevisionOptions) (*state.TaskSet, error) {
+		cohort = opts.CohortKey
+		leave = &opts.LeaveCohort
+		channel = opts.Channel
+
+		t := s.NewTask("fake-switch", "Doing a fake switch")
+		return state.NewTaskSet(t), nil
+	}
+
+	d := s.daemon(c)
+	st := d.overlord.State()
+
+	type T struct {
+		channel string
+		cohort  string
+		leave   bool
+		summary string
+	}
+	table := []T{
+		{"", "some-cohort", false, `Switch "some-snap" snap to cohort "…me-cohort"`},
+		{"some-channel", "", false, `Switch "some-snap" snap to channel "some-channel"`},
+		{"some-channel", "some-cohort", false, `Switch "some-snap" snap to channel "some-channel" and cohort "…me-cohort"`},
+		{"", "", true, `Switch "some-snap" snap away from cohort`},
+		{"some-channel", "", true, `Switch "some-snap" snap to channel "some-channel" and away from cohort`},
+	}
+
+	for _, t := range table {
+		cohort, channel = "", ""
+		leave = nil
+		inst := &snapInstruction{
+			Action:      "switch",
+			CohortKey:   t.cohort,
+			Channel:     t.channel,
+			Snaps:       []string{"some-snap"},
+			LeaveCohort: t.leave,
+		}
+
+		st.Lock()
+		summary, _, err := inst.dispatch()(inst, st)
+		st.Unlock()
+		c.Check(err, check.IsNil)
+
+		c.Check(cohort, check.Equals, t.cohort)
+		c.Check(channel, check.Equals, t.channel)
+		c.Check(summary, check.Equals, t.summary)
+		c.Check(*leave, check.Equals, t.leave)
+	}
 }
 
 func (s *apiSuite) TestPostSnapsOp(c *check.C) {
@@ -3857,7 +4135,7 @@ func (s *apiSuite) TestRemoveMany(c *check.C) {
 }
 
 func (s *apiSuite) TestInstallFails(c *check.C) {
-	snapstateInstall = func(s *state.State, name, channel string, revision snap.Revision, userID int, flags snapstate.Flags) (*state.TaskSet, error) {
+	snapstateInstall = func(ctx context.Context, s *state.State, name string, opts *snapstate.RevisionOptions, userID int, flags snapstate.Flags) (*state.TaskSet, error) {
 		t := s.NewTask("fake-install-snap-error", "Install task")
 		return state.NewTaskSet(t), nil
 	}
@@ -3891,7 +4169,7 @@ func (s *apiSuite) TestInstallLeaveOld(c *check.C) {
 	c.Skip("temporarily dropped half-baked support while sorting out flag mess")
 	var calledFlags snapstate.Flags
 
-	snapstateInstall = func(s *state.State, name, channel string, revision snap.Revision, userID int, flags snapstate.Flags) (*state.TaskSet, error) {
+	snapstateInstall = func(ctx context.Context, s *state.State, name string, opts *snapstate.RevisionOptions, userID int, flags snapstate.Flags) (*state.TaskSet, error) {
 		calledFlags = flags
 
 		t := s.NewTask("fake-install-snap", "Doing a fake install")
@@ -3917,7 +4195,7 @@ func (s *apiSuite) TestInstallLeaveOld(c *check.C) {
 func (s *apiSuite) TestInstall(c *check.C) {
 	var calledName string
 
-	snapstateInstall = func(s *state.State, name, channel string, revision snap.Revision, userID int, flags snapstate.Flags) (*state.TaskSet, error) {
+	snapstateInstall = func(ctx context.Context, s *state.State, name string, opts *snapstate.RevisionOptions, userID int, flags snapstate.Flags) (*state.TaskSet, error) {
 		calledName = name
 
 		t := s.NewTask("fake-install-snap", "Doing a fake install")
@@ -3940,10 +4218,39 @@ func (s *apiSuite) TestInstall(c *check.C) {
 	c.Check(calledName, check.Equals, "fake")
 }
 
+func (s *apiSuite) TestInstallCohort(c *check.C) {
+	var calledName string
+	var calledCohort string
+
+	snapstateInstall = func(ctx context.Context, s *state.State, name string, opts *snapstate.RevisionOptions, userID int, flags snapstate.Flags) (*state.TaskSet, error) {
+		calledName = name
+		calledCohort = opts.CohortKey
+
+		t := s.NewTask("fake-install-snap", "Doing a fake install")
+		return state.NewTaskSet(t), nil
+	}
+
+	d := s.daemon(c)
+	inst := &snapInstruction{
+		Action:    "install",
+		CohortKey: "To the legion of the lost ones, to the cohort of the damned.",
+		Snaps:     []string{"fake"},
+	}
+
+	st := d.overlord.State()
+	st.Lock()
+	defer st.Unlock()
+	msg, _, err := inst.dispatch()(inst, st)
+	c.Check(err, check.IsNil)
+	c.Check(calledName, check.Equals, "fake")
+	c.Check(calledCohort, check.Equals, "To the legion of the lost ones, to the cohort of the damned.")
+	c.Check(msg, check.Equals, `Install "fake" snap from "…e damned." cohort`)
+}
+
 func (s *apiSuite) TestInstallDevMode(c *check.C) {
 	var calledFlags snapstate.Flags
 
-	snapstateInstall = func(s *state.State, name, channel string, revision snap.Revision, userID int, flags snapstate.Flags) (*state.TaskSet, error) {
+	snapstateInstall = func(ctx context.Context, s *state.State, name string, opts *snapstate.RevisionOptions, userID int, flags snapstate.Flags) (*state.TaskSet, error) {
 		calledFlags = flags
 
 		t := s.NewTask("fake-install-snap", "Doing a fake install")
@@ -3970,7 +4277,7 @@ func (s *apiSuite) TestInstallDevMode(c *check.C) {
 func (s *apiSuite) TestInstallJailMode(c *check.C) {
 	var calledFlags snapstate.Flags
 
-	snapstateInstall = func(s *state.State, name, channel string, revision snap.Revision, userID int, flags snapstate.Flags) (*state.TaskSet, error) {
+	snapstateInstall = func(ctx context.Context, s *state.State, name string, opts *snapstate.RevisionOptions, userID int, flags snapstate.Flags) (*state.TaskSet, error) {
 		calledFlags = flags
 
 		t := s.NewTask("fake-install-snap", "Doing a fake install")
@@ -4012,7 +4319,7 @@ func (s *apiSuite) TestInstallJailModeDevModeOS(c *check.C) {
 }
 
 func (s *apiSuite) TestInstallEmptyName(c *check.C) {
-	snapstateInstall = func(_ *state.State, _, _ string, _ snap.Revision, _ int, _ snapstate.Flags) (*state.TaskSet, error) {
+	snapstateInstall = func(ctx context.Context, _ *state.State, _ string, _ *snapstate.RevisionOptions, _ int, _ snapstate.Flags) (*state.TaskSet, error) {
 		return nil, errors.New("should not be called")
 	}
 	d := s.daemon(c)
@@ -5040,15 +5347,6 @@ func (s *apiSuite) TestUnsupportedInterfaceAction(c *check.C) {
 	})
 }
 
-func assertAdd(st *state.State, a asserts.Assertion) {
-	st.Lock()
-	defer st.Unlock()
-	err := assertstate.Add(st, a)
-	if err != nil {
-		panic(err)
-	}
-}
-
 func setupChanges(st *state.State) []string {
 	chg1 := st.NewChange("install", "install...")
 	chg1.Set("snap-names", []string{"funky-snap-name"})
@@ -5572,565 +5870,6 @@ func (s *apiSuite) TestReadyToBuy(c *check.C) {
 		c.Assert(rsp.Result, check.FitsTypeOf, test.response)
 		c.Check(rsp.Result, check.DeepEquals, test.response)
 	}
-}
-
-var _ = check.Suite(&postCreateUserSuite{})
-
-type postCreateUserSuite struct {
-	apiBaseSuite
-
-	mockUserHome string
-}
-
-func (s *postCreateUserSuite) SetUpTest(c *check.C) {
-	s.apiBaseSuite.SetUpTest(c)
-
-	s.daemon(c)
-	postCreateUserUcrednetGet = func(string) (int32, uint32, string, error) {
-		return 100, 0, dirs.SnapdSocket, nil
-	}
-	s.mockUserHome = c.MkDir()
-	userLookup = mkUserLookup(s.mockUserHome)
-}
-
-func (s *postCreateUserSuite) TearDownTest(c *check.C) {
-	s.apiBaseSuite.TearDownTest(c)
-
-	postCreateUserUcrednetGet = ucrednetGet
-	userLookup = user.Lookup
-	osutilAddUser = osutil.AddUser
-}
-
-func mkUserLookup(userHomeDir string) func(string) (*user.User, error) {
-	return func(username string) (*user.User, error) {
-		cur, err := user.Current()
-		cur.Username = username
-		cur.HomeDir = userHomeDir
-		return cur, err
-	}
-}
-
-func (s *postCreateUserSuite) TestPostCreateUserNoSSHKeys(c *check.C) {
-	restore := release.MockOnClassic(false)
-	defer restore()
-
-	s.userInfoExpectedEmail = "popper@lse.ac.uk"
-	s.userInfoResult = &store.User{
-		Username:         "karl",
-		OpenIDIdentifier: "xxyyzz",
-	}
-	buf := bytes.NewBufferString(fmt.Sprintf(`{"email": "%s"}`, s.userInfoExpectedEmail))
-	req, err := http.NewRequest("POST", "/v2/create-user", buf)
-	c.Assert(err, check.IsNil)
-
-	rsp := postCreateUser(createUserCmd, req, nil).(*resp)
-
-	c.Check(rsp.Type, check.Equals, ResponseTypeError)
-	c.Check(rsp.Result.(*errorResult).Message, check.Matches, `cannot create user for "popper@lse.ac.uk": no ssh keys found`)
-}
-
-func (s *postCreateUserSuite) TestPostCreateUser(c *check.C) {
-	restore := release.MockOnClassic(false)
-	defer restore()
-
-	expectedUsername := "karl"
-	s.userInfoExpectedEmail = "popper@lse.ac.uk"
-	s.userInfoResult = &store.User{
-		Username:         expectedUsername,
-		SSHKeys:          []string{"ssh1", "ssh2"},
-		OpenIDIdentifier: "xxyyzz",
-	}
-	osutilAddUser = func(username string, opts *osutil.AddUserOptions) error {
-		c.Check(username, check.Equals, expectedUsername)
-		c.Check(opts.SSHKeys, check.DeepEquals, []string{"ssh1", "ssh2"})
-		c.Check(opts.Gecos, check.Equals, "popper@lse.ac.uk,xxyyzz")
-		c.Check(opts.Sudoer, check.Equals, false)
-		return nil
-	}
-
-	buf := bytes.NewBufferString(fmt.Sprintf(`{"email": "%s"}`, s.userInfoExpectedEmail))
-	req, err := http.NewRequest("POST", "/v2/create-user", buf)
-	c.Assert(err, check.IsNil)
-
-	rsp := postCreateUser(createUserCmd, req, nil).(*resp)
-
-	expected := &userResponseData{
-		Username: expectedUsername,
-		SSHKeys:  []string{"ssh1", "ssh2"},
-	}
-
-	c.Check(rsp.Type, check.Equals, ResponseTypeSync)
-	c.Check(rsp.Result, check.FitsTypeOf, expected)
-	c.Check(rsp.Result, check.DeepEquals, expected)
-
-	// user was setup in state
-	state := s.d.overlord.State()
-	state.Lock()
-	user, err := auth.User(state, 1)
-	state.Unlock()
-	c.Check(err, check.IsNil)
-	c.Check(user.Username, check.Equals, expectedUsername)
-	c.Check(user.Email, check.Equals, s.userInfoExpectedEmail)
-	c.Check(user.Macaroon, check.NotNil)
-	// auth saved to user home dir
-	outfile := filepath.Join(s.mockUserHome, ".snap", "auth.json")
-	c.Check(osutil.FileExists(outfile), check.Equals, true)
-	c.Check(outfile, testutil.FileEquals,
-		fmt.Sprintf(`{"id":%d,"username":"%s","email":"%s","macaroon":"%s"}`,
-			1, expectedUsername, s.userInfoExpectedEmail, user.Macaroon))
-}
-
-func (s *postCreateUserSuite) TestGetUserDetailsFromAssertionModelNotFound(c *check.C) {
-	st := s.d.overlord.State()
-	st.Lock()
-	auth.SetDevice(st, nil)
-	st.Unlock()
-
-	email := "foo@example.com"
-
-	username, opts, err := getUserDetailsFromAssertion(st, email)
-	c.Check(username, check.Equals, "")
-	c.Check(opts, check.IsNil)
-	c.Check(err, check.ErrorMatches, `cannot add system-user "foo@example.com": cannot get model assertion: no state entry for key`)
-}
-
-func (s *postCreateUserSuite) setupSigner(accountID string, signerPrivKey asserts.PrivateKey) *assertstest.SigningDB {
-	st := s.d.overlord.State()
-
-	// create fake brand signature
-	signerSigning := assertstest.NewSigningDB(accountID, signerPrivKey)
-
-	signerAcct := assertstest.NewAccount(s.storeSigning, accountID, map[string]interface{}{
-		"account-id":   accountID,
-		"verification": "verified",
-	}, "")
-	s.storeSigning.Add(signerAcct)
-	assertAdd(st, signerAcct)
-
-	signerAccKey := assertstest.NewAccountKey(s.storeSigning, signerAcct, nil, signerPrivKey.PublicKey(), "")
-	s.storeSigning.Add(signerAccKey)
-	assertAdd(st, signerAccKey)
-
-	return signerSigning
-}
-
-var (
-	brandPrivKey, _   = assertstest.GenerateKey(752)
-	partnerPrivKey, _ = assertstest.GenerateKey(752)
-	unknownPrivKey, _ = assertstest.GenerateKey(752)
-)
-
-func (s *postCreateUserSuite) makeSystemUsers(c *check.C, systemUsers []map[string]interface{}) {
-	st := s.d.overlord.State()
-
-	assertAdd(st, s.storeSigning.StoreAccountKey(""))
-
-	brandSigning := s.setupSigner("my-brand", brandPrivKey)
-	partnerSigning := s.setupSigner("partner", partnerPrivKey)
-	unknownSigning := s.setupSigner("unknown", unknownPrivKey)
-
-	signers := map[string]*assertstest.SigningDB{
-		"my-brand": brandSigning,
-		"partner":  partnerSigning,
-		"unknown":  unknownSigning,
-	}
-
-	model, err := brandSigning.Sign(asserts.ModelType, map[string]interface{}{
-		"series":                "16",
-		"authority-id":          "my-brand",
-		"brand-id":              "my-brand",
-		"model":                 "my-model",
-		"architecture":          "amd64",
-		"gadget":                "pc",
-		"kernel":                "pc-kernel",
-		"required-snaps":        []interface{}{"required-snap1"},
-		"system-user-authority": []interface{}{"my-brand", "partner"},
-		"timestamp":             time.Now().Format(time.RFC3339),
-	}, nil, "")
-	c.Assert(err, check.IsNil)
-	model = model.(*asserts.Model)
-
-	// now add model related stuff to the system
-	assertAdd(st, model)
-
-	for _, suMap := range systemUsers {
-		su, err := signers[suMap["authority-id"].(string)].Sign(asserts.SystemUserType, suMap, nil, "")
-		c.Assert(err, check.IsNil)
-		su = su.(*asserts.SystemUser)
-		// now add system-user assertion to the system
-		assertAdd(st, su)
-	}
-	// create fake device
-	st.Lock()
-	err = auth.SetDevice(st, &auth.DeviceState{
-		Brand:  "my-brand",
-		Model:  "my-model",
-		Serial: "serialserial",
-	})
-	st.Unlock()
-	c.Assert(err, check.IsNil)
-}
-
-var goodUser = map[string]interface{}{
-	"authority-id": "my-brand",
-	"brand-id":     "my-brand",
-	"email":        "foo@bar.com",
-	"series":       []interface{}{"16", "18"},
-	"models":       []interface{}{"my-model", "other-model"},
-	"name":         "Boring Guy",
-	"username":     "guy",
-	"password":     "$6$salt$hash",
-	"since":        time.Now().Format(time.RFC3339),
-	"until":        time.Now().Add(24 * 30 * time.Hour).Format(time.RFC3339),
-}
-
-var partnerUser = map[string]interface{}{
-	"authority-id": "partner",
-	"brand-id":     "my-brand",
-	"email":        "p@partner.com",
-	"series":       []interface{}{"16", "18"},
-	"models":       []interface{}{"my-model"},
-	"name":         "Partner Guy",
-	"username":     "partnerguy",
-	"password":     "$6$salt$hash",
-	"since":        time.Now().Format(time.RFC3339),
-	"until":        time.Now().Add(24 * 30 * time.Hour).Format(time.RFC3339),
-}
-
-var badUser = map[string]interface{}{
-	// bad user (not valid for this model)
-	"authority-id": "my-brand",
-	"brand-id":     "my-brand",
-	"email":        "foobar@bar.com",
-	"series":       []interface{}{"16", "18"},
-	"models":       []interface{}{"non-of-the-models-i-have"},
-	"name":         "Random Gal",
-	"username":     "gal",
-	"password":     "$6$salt$hash",
-	"since":        time.Now().Format(time.RFC3339),
-	"until":        time.Now().Add(24 * 30 * time.Hour).Format(time.RFC3339),
-}
-
-var unknownUser = map[string]interface{}{
-	"authority-id": "unknown",
-	"brand-id":     "my-brand",
-	"email":        "x@partner.com",
-	"series":       []interface{}{"16", "18"},
-	"models":       []interface{}{"my-model"},
-	"name":         "XGuy",
-	"username":     "xguy",
-	"password":     "$6$salt$hash",
-	"since":        time.Now().Format(time.RFC3339),
-	"until":        time.Now().Add(24 * 30 * time.Hour).Format(time.RFC3339),
-}
-
-func (s *postCreateUserSuite) TestGetUserDetailsFromAssertionHappy(c *check.C) {
-	s.makeSystemUsers(c, []map[string]interface{}{goodUser})
-
-	// ensure that if we query the details from the assert DB we get
-	// the expected user
-	st := s.d.overlord.State()
-	username, opts, err := getUserDetailsFromAssertion(st, "foo@bar.com")
-	c.Check(username, check.Equals, "guy")
-	c.Check(opts, check.DeepEquals, &osutil.AddUserOptions{
-		Gecos:    "foo@bar.com,Boring Guy",
-		Password: "$6$salt$hash",
-	})
-	c.Check(err, check.IsNil)
-}
-
-// FIXME: These tests all look similar, with small deltas. Would be
-// nice to transform them into a table that is just the deltas, and
-// run on a loop.
-func (s *postCreateUserSuite) TestPostCreateUserFromAssertion(c *check.C) {
-	restore := release.MockOnClassic(false)
-	defer restore()
-
-	s.makeSystemUsers(c, []map[string]interface{}{goodUser})
-
-	// mock the calls that create the user
-	osutilAddUser = func(username string, opts *osutil.AddUserOptions) error {
-		c.Check(username, check.Equals, "guy")
-		c.Check(opts.Gecos, check.Equals, "foo@bar.com,Boring Guy")
-		c.Check(opts.Sudoer, check.Equals, false)
-		c.Check(opts.Password, check.Equals, "$6$salt$hash")
-		c.Check(opts.ForcePasswordChange, check.Equals, false)
-		return nil
-	}
-
-	defer func() {
-		osutilAddUser = osutil.AddUser
-	}()
-
-	// do it!
-	buf := bytes.NewBufferString(`{"email": "foo@bar.com","known":true}`)
-	req, err := http.NewRequest("POST", "/v2/create-user", buf)
-	c.Assert(err, check.IsNil)
-
-	rsp := postCreateUser(createUserCmd, req, nil).(*resp)
-
-	expected := &userResponseData{
-		Username: "guy",
-	}
-
-	c.Check(rsp.Type, check.Equals, ResponseTypeSync)
-	c.Check(rsp.Result, check.FitsTypeOf, expected)
-	c.Check(rsp.Result, check.DeepEquals, expected)
-
-	// ensure the user was added to the state
-	st := s.d.overlord.State()
-	st.Lock()
-	users, err := auth.Users(st)
-	c.Assert(err, check.IsNil)
-	st.Unlock()
-	c.Check(users, check.HasLen, 1)
-}
-
-func (s *postCreateUserSuite) TestPostCreateUserFromAssertionWithForcePasswordChnage(c *check.C) {
-	restore := release.MockOnClassic(false)
-	defer restore()
-
-	lusers := []map[string]interface{}{goodUser}
-	lusers[0]["force-password-change"] = "true"
-	s.makeSystemUsers(c, lusers)
-
-	// mock the calls that create the user
-	osutilAddUser = func(username string, opts *osutil.AddUserOptions) error {
-		c.Check(username, check.Equals, "guy")
-		c.Check(opts.Gecos, check.Equals, "foo@bar.com,Boring Guy")
-		c.Check(opts.Sudoer, check.Equals, false)
-		c.Check(opts.Password, check.Equals, "$6$salt$hash")
-		c.Check(opts.ForcePasswordChange, check.Equals, true)
-		return nil
-	}
-
-	defer func() {
-		osutilAddUser = osutil.AddUser
-	}()
-
-	// do it!
-	buf := bytes.NewBufferString(`{"email": "foo@bar.com","known":true}`)
-	req, err := http.NewRequest("POST", "/v2/create-user", buf)
-	c.Assert(err, check.IsNil)
-
-	rsp := postCreateUser(createUserCmd, req, nil).(*resp)
-
-	expected := &userResponseData{
-		Username: "guy",
-	}
-
-	c.Check(rsp.Type, check.Equals, ResponseTypeSync)
-	c.Check(rsp.Result, check.FitsTypeOf, expected)
-	c.Check(rsp.Result, check.DeepEquals, expected)
-
-	// ensure the user was added to the state
-	st := s.d.overlord.State()
-	st.Lock()
-	users, err := auth.Users(st)
-	c.Assert(err, check.IsNil)
-	st.Unlock()
-	c.Check(users, check.HasLen, 1)
-}
-
-func (s *postCreateUserSuite) TestPostCreateUserFromAssertionAllKnown(c *check.C) {
-	restore := release.MockOnClassic(false)
-	defer restore()
-
-	s.makeSystemUsers(c, []map[string]interface{}{goodUser, partnerUser, badUser, unknownUser})
-
-	// mock the calls that create the user
-	osutilAddUser = func(username string, opts *osutil.AddUserOptions) error {
-		switch username {
-		case "guy":
-			c.Check(opts.Gecos, check.Equals, "foo@bar.com,Boring Guy")
-		case "partnerguy":
-			c.Check(opts.Gecos, check.Equals, "p@partner.com,Partner Guy")
-		default:
-			c.Logf("unexpected username %q", username)
-			c.Fail()
-		}
-		c.Check(opts.Sudoer, check.Equals, false)
-		c.Check(opts.Password, check.Equals, "$6$salt$hash")
-		return nil
-	}
-	defer func() {
-		osutilAddUser = osutil.AddUser
-	}()
-
-	// do it!
-	buf := bytes.NewBufferString(`{"known":true}`)
-	req, err := http.NewRequest("POST", "/v2/create-user", buf)
-	c.Assert(err, check.IsNil)
-
-	rsp := postCreateUser(createUserCmd, req, nil).(*resp)
-
-	c.Check(rsp.Type, check.Equals, ResponseTypeSync)
-	// note that we get a list here instead of a single
-	// userResponseData item
-	c.Check(rsp.Result, check.FitsTypeOf, []userResponseData{})
-	seen := map[string]bool{}
-	for _, u := range rsp.Result.([]userResponseData) {
-		seen[u.Username] = true
-		c.Check(u, check.DeepEquals, userResponseData{Username: u.Username})
-	}
-	c.Check(seen, check.DeepEquals, map[string]bool{
-		"guy":        true,
-		"partnerguy": true,
-	})
-
-	// ensure the user was added to the state
-	st := s.d.overlord.State()
-	st.Lock()
-	users, err := auth.Users(st)
-	c.Assert(err, check.IsNil)
-	st.Unlock()
-	c.Check(users, check.HasLen, 2)
-}
-
-func (s *postCreateUserSuite) TestPostCreateUserFromAssertionAllKnownClassicErrors(c *check.C) {
-	restore := release.MockOnClassic(true)
-	defer restore()
-
-	s.makeSystemUsers(c, []map[string]interface{}{goodUser})
-
-	postCreateUserUcrednetGet = func(string) (int32, uint32, string, error) {
-		return 100, 0, dirs.SnapdSocket, nil
-	}
-	defer func() {
-		postCreateUserUcrednetGet = ucrednetGet
-	}()
-
-	// do it!
-	buf := bytes.NewBufferString(`{"known":true}`)
-	req, err := http.NewRequest("POST", "/v2/create-user", buf)
-	c.Assert(err, check.IsNil)
-
-	rsp := postCreateUser(createUserCmd, req, nil).(*resp)
-
-	c.Check(rsp.Type, check.Equals, ResponseTypeError)
-	c.Check(rsp.Result.(*errorResult).Message, check.Matches, `cannot create user: device is a classic system`)
-}
-
-func (s *postCreateUserSuite) TestPostCreateUserFromAssertionAllKnownButOwnedErrors(c *check.C) {
-	restore := release.MockOnClassic(false)
-	defer restore()
-
-	s.makeSystemUsers(c, []map[string]interface{}{goodUser})
-
-	st := s.d.overlord.State()
-	st.Lock()
-	_, err := auth.NewUser(st, "username", "email@test.com", "macaroon", []string{"discharge"})
-	st.Unlock()
-	c.Check(err, check.IsNil)
-
-	// do it!
-	buf := bytes.NewBufferString(`{"known":true}`)
-	req, err := http.NewRequest("POST", "/v2/create-user", buf)
-	c.Assert(err, check.IsNil)
-
-	rsp := postCreateUser(createUserCmd, req, nil).(*resp)
-
-	c.Check(rsp.Type, check.Equals, ResponseTypeError)
-	c.Check(rsp.Result.(*errorResult).Message, check.Matches, `cannot create user: device already managed`)
-}
-
-func (s *postCreateUserSuite) TestPostCreateUserFromAssertionAllKnownButOwned(c *check.C) {
-	restore := release.MockOnClassic(false)
-	defer restore()
-
-	s.makeSystemUsers(c, []map[string]interface{}{goodUser})
-
-	st := s.d.overlord.State()
-	st.Lock()
-	_, err := auth.NewUser(st, "username", "email@test.com", "macaroon", []string{"discharge"})
-	st.Unlock()
-	c.Check(err, check.IsNil)
-
-	// mock the calls that create the user
-	osutilAddUser = func(username string, opts *osutil.AddUserOptions) error {
-		c.Check(username, check.Equals, "guy")
-		c.Check(opts.Gecos, check.Equals, "foo@bar.com,Boring Guy")
-		c.Check(opts.Sudoer, check.Equals, false)
-		c.Check(opts.Password, check.Equals, "$6$salt$hash")
-		return nil
-	}
-	defer func() {
-		osutilAddUser = osutil.AddUser
-	}()
-
-	// do it!
-	buf := bytes.NewBufferString(`{"known":true,"force-managed":true}`)
-	req, err := http.NewRequest("POST", "/v2/create-user", buf)
-	c.Assert(err, check.IsNil)
-
-	rsp := postCreateUser(createUserCmd, req, nil).(*resp)
-
-	// note that we get a list here instead of a single
-	// userResponseData item
-	expected := []userResponseData{
-		{Username: "guy"},
-	}
-	c.Check(rsp.Type, check.Equals, ResponseTypeSync)
-	c.Check(rsp.Result, check.FitsTypeOf, expected)
-	c.Check(rsp.Result, check.DeepEquals, expected)
-}
-
-func (s *postCreateUserSuite) TestUsersEmpty(c *check.C) {
-	req, err := http.NewRequest("GET", "/v2/users", nil)
-	c.Assert(err, check.IsNil)
-
-	rsp := getUsers(usersCmd, req, nil).(*resp)
-
-	expected := []userResponseData{}
-	c.Check(rsp.Type, check.Equals, ResponseTypeSync)
-	c.Check(rsp.Result, check.FitsTypeOf, expected)
-	c.Check(rsp.Result, check.DeepEquals, expected)
-}
-
-func (s *postCreateUserSuite) TestUsersHasUser(c *check.C) {
-	st := s.d.overlord.State()
-	st.Lock()
-	u, err := auth.NewUser(st, "someuser", "mymail@test.com", "macaroon", []string{"discharge"})
-	st.Unlock()
-	c.Assert(err, check.IsNil)
-
-	req, err := http.NewRequest("GET", "/v2/users", nil)
-	c.Assert(err, check.IsNil)
-
-	rsp := getUsers(usersCmd, req, nil).(*resp)
-
-	expected := []userResponseData{
-		{ID: u.ID, Username: u.Username, Email: u.Email},
-	}
-	c.Check(rsp.Type, check.Equals, ResponseTypeSync)
-	c.Check(rsp.Result, check.FitsTypeOf, expected)
-	c.Check(rsp.Result, check.DeepEquals, expected)
-}
-
-func (s *postCreateUserSuite) TestSysInfoIsManaged(c *check.C) {
-	st := s.d.overlord.State()
-	st.Lock()
-	_, err := auth.NewUser(st, "someuser", "mymail@test.com", "macaroon", []string{"discharge"})
-	st.Unlock()
-	c.Assert(err, check.IsNil)
-
-	req, err := http.NewRequest("GET", "/v2/system-info", nil)
-	c.Assert(err, check.IsNil)
-
-	rsp := sysInfo(sysInfoCmd, req, nil).(*resp)
-
-	c.Check(rsp.Type, check.Equals, ResponseTypeSync)
-	c.Check(rsp.Result.(map[string]interface{})["managed"], check.Equals, true)
-}
-
-func (s *postCreateUserSuite) TestSysInfoWorksDegraded(c *check.C) {
-	s.d.SetDegradedMode(fmt.Errorf("some error"))
-
-	req, err := http.NewRequest("GET", "/v2/system-info", nil)
-	c.Assert(err, check.IsNil)
-
-	rsp := sysInfo(sysInfoCmd, req, nil).(*resp)
-	c.Check(rsp.Status, check.Equals, 200)
 }
 
 // aliases
@@ -6674,7 +6413,7 @@ func (s *apiSuite) TestAliases(c *check.C) {
 func (s *apiSuite) TestInstallUnaliased(c *check.C) {
 	var calledFlags snapstate.Flags
 
-	snapstateInstall = func(s *state.State, name, channel string, revision snap.Revision, userID int, flags snapstate.Flags) (*state.TaskSet, error) {
+	snapstateInstall = func(ctx context.Context, s *state.State, name string, opts *snapstate.RevisionOptions, userID int, flags snapstate.Flags) (*state.TaskSet, error) {
 		calledFlags = flags
 
 		t := s.NewTask("fake-install-snap", "Doing a fake install")
@@ -7330,7 +7069,7 @@ func (s *appSuite) TestPostAppsConflict(c *check.C) {
 		}
 	}()
 
-	ts, err := snapstate.Remove(st, "snap-a", snap.R(0))
+	ts, err := snapstate.Remove(st, "snap-a", snap.R(0), nil)
 	c.Assert(err, check.IsNil)
 	// need a change to make the tasks visible
 	st.NewChange("enable", "...").AddAll(ts)

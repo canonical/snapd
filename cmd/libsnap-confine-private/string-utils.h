@@ -32,6 +32,11 @@ bool sc_streq(const char *a, const char *b);
 bool sc_endswith(const char *str, const char *suffix);
 
 /**
+ * Check if a string has a given prefix.
+ **/
+bool sc_startswith(const char *str, const char *prefix);
+
+/**
  * Allocate and return a copy of a string.
 **/
 char *sc_strdup(const char *str);

@@ -70,13 +70,13 @@ execute: |
     su -l -c "test-snapd-tools_foo.cmd sh -c 'echo hello user data from \$SNAP_INSTANCE_NAME > \$SNAP_USER_DATA/data'" test
     MATCH 'hello user data from test-snapd-tools_foo' < /home/test/snap/test-snapd-tools_foo/x1/data
     # the file not present in non-instance snap data
-    ! test -f /home/test/snap/test-snapd-tools/x1/data
+    not test -f /home/test/snap/test-snapd-tools/x1/data
 
     # instance snap can write to common user data
     su -l -c "test-snapd-tools_foo.cmd sh -c 'echo hello user data from \$SNAP_INSTANCE_NAME > \$SNAP_USER_COMMON/data'" test
     MATCH 'hello user data from test-snapd-tools_foo' < /home/test/snap/test-snapd-tools_foo/common/data
     # the file not present in non-instance snap data
-    ! test -f /home/test/snap/test-snapd-tools/common/data
+    not test -f /home/test/snap/test-snapd-tools/common/data
 
     su -l -c "test-snapd-tools_foo.cmd sh -c 'cat \$SNAP_USER_COMMON/canary'" test | MATCH canary-instance-common
     su -l -c "test-snapd-tools_foo.cmd sh -c 'cat \$SNAP_USER_DATA/canary'" test | MATCH canary-instance-snap

@@ -37,57 +37,15 @@ import (
 	"github.com/snapcore/snapd/jsonutil"
 	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/overlord/assertstate"
-	"github.com/snapcore/snapd/overlord/devicestate"
 	"github.com/snapcore/snapd/overlord/snapstate"
 	"github.com/snapcore/snapd/overlord/state"
 	"github.com/snapcore/snapd/snap"
 	"github.com/snapcore/snapd/timings"
 )
 
-func (m *InterfaceManager) initialize(extraInterfaces []interfaces.Interface, extraBackends []interfaces.SecurityBackend, tm timings.Measurer) error {
-	m.state.Lock()
-	defer m.state.Unlock()
-
-	snaps, err := snapsWithSecurityProfiles(m.state)
-	if err != nil {
-		return err
-	}
-	// Before deciding about adding implicit slots to any snap we need to scan
-	// the set of snaps we know about. If any of those is "snapd" then for the
-	// duration of this process always add implicit slots to snapd and not to
-	// any other type: os snap and use a mapper to use names core-snapd-system
-	// on state, in memory and in API responses, respectively.
-	m.selectInterfaceMapper(snaps)
-
-	if err := m.addInterfaces(extraInterfaces); err != nil {
-		return err
-	}
-	if err := m.addBackends(extraBackends); err != nil {
-		return err
-	}
-	if err := m.addSnaps(snaps); err != nil {
-		return err
-	}
-	if err := m.renameCorePlugConnection(); err != nil {
-		return err
-	}
-	if err := removeStaleConnections(m.state); err != nil {
-		return err
-	}
-	if _, err := m.reloadConnections(""); err != nil {
-		return err
-	}
-	if profilesNeedRegeneration() {
-		if err := m.regenerateAllSecurityProfiles(tm); err != nil {
-			return err
-		}
-	}
-	return nil
-}
-
 func (m *InterfaceManager) selectInterfaceMapper(snaps []*snap.Info) {
 	for _, snapInfo := range snaps {
-		if snapInfo.SnapName() == "snapd" {
+		if snapInfo.GetType() == snap.TypeSnapd {
 			mapper = &CoreSnapdSystemMapper{}
 			break
 		}
@@ -508,20 +466,22 @@ type connState struct {
 }
 
 type autoConnectChecker struct {
-	st       *state.State
-	cache    map[string]*asserts.SnapDeclaration
-	baseDecl *asserts.BaseDeclaration
+	st        *state.State
+	deviceCtx snapstate.DeviceContext
+	cache     map[string]*asserts.SnapDeclaration
+	baseDecl  *asserts.BaseDeclaration
 }
 
-func newAutoConnectChecker(s *state.State) (*autoConnectChecker, error) {
+func newAutoConnectChecker(s *state.State, deviceCtx snapstate.DeviceContext) (*autoConnectChecker, error) {
 	baseDecl, err := assertstate.BaseDeclaration(s)
 	if err != nil {
 		return nil, fmt.Errorf("internal error: cannot find base declaration: %v", err)
 	}
 	return &autoConnectChecker{
-		st:       s,
-		cache:    make(map[string]*asserts.SnapDeclaration),
-		baseDecl: baseDecl,
+		st:        s,
+		deviceCtx: deviceCtx,
+		cache:     make(map[string]*asserts.SnapDeclaration),
+		baseDecl:  baseDecl,
 	}, nil
 }
 
@@ -539,10 +499,7 @@ func (c *autoConnectChecker) snapDeclaration(snapID string) (*asserts.SnapDeclar
 }
 
 func (c *autoConnectChecker) check(plug *interfaces.ConnectedPlug, slot *interfaces.ConnectedSlot) (bool, error) {
-	modelAs, err := devicestate.Model(c.st)
-	if err != nil {
-		return false, err
-	}
+	modelAs := c.deviceCtx.Model()
 
 	var storeAs *asserts.Store
 	if modelAs.Store() != "" {
@@ -588,26 +545,25 @@ func (c *autoConnectChecker) check(plug *interfaces.ConnectedPlug, slot *interfa
 }
 
 type connectChecker struct {
-	st       *state.State
-	baseDecl *asserts.BaseDeclaration
+	st        *state.State
+	deviceCtx snapstate.DeviceContext
+	baseDecl  *asserts.BaseDeclaration
 }
 
-func newConnectChecker(s *state.State) (*connectChecker, error) {
+func newConnectChecker(s *state.State, deviceCtx snapstate.DeviceContext) (*connectChecker, error) {
 	baseDecl, err := assertstate.BaseDeclaration(s)
 	if err != nil {
 		return nil, fmt.Errorf("internal error: cannot find base declaration: %v", err)
 	}
 	return &connectChecker{
-		st:       s,
-		baseDecl: baseDecl,
+		st:        s,
+		deviceCtx: deviceCtx,
+		baseDecl:  baseDecl,
 	}, nil
 }
 
 func (c *connectChecker) check(plug *interfaces.ConnectedPlug, slot *interfaces.ConnectedSlot) (bool, error) {
-	modelAs, err := devicestate.Model(c.st)
-	if err != nil {
-		return false, fmt.Errorf("cannot get model assertion: %v", err)
-	}
+	modelAs := c.deviceCtx.Model()
 
 	var storeAs *asserts.Store
 	if modelAs.Store() != "" {

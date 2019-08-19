@@ -36,8 +36,11 @@ import (
 
 type cmdDownload struct {
 	channelMixin
-	Revision string `long:"revision"`
+	Revision  string `long:"revision"`
+	Basename  string `long:"basename"`
+	TargetDir string `long:"target-directory"`
 
+	CohortKey  string `long:"cohort"`
 	Positional struct {
 		Snap remoteSnapName
 	} `positional-args:"true" required:"true"`
@@ -53,7 +56,14 @@ func init() {
 	addCommand("download", shortDownloadHelp, longDownloadHelp, func() flags.Commander {
 		return &cmdDownload{}
 	}, channelDescs.also(map[string]string{
+		// TRANSLATORS: This should not start with a lowercase letter.
 		"revision": i18n.G("Download the given revision of a snap, to which you must have developer access"),
+		// TRANSLATORS: This should not start with a lowercase letter.
+		"cohort": i18n.G("Download from the given cohort"),
+		// TRANSLATORS: This should not start with a lowercase letter.
+		"basename": i18n.G("Use this basename for the snap and assertion files (defaults to <snap>_<revision>)"),
+		// TRANSLATORS: This should not start with a lowercase letter.
+		"target-directory": i18n.G("Download to this directory (defaults to the current directory)"),
 	}), []argDesc{{
 		name: "<snap>",
 		// TRANSLATORS: This should not start with a lowercase letter.
@@ -88,6 +98,9 @@ func fetchSnapAssertions(tsto *image.ToolingStore, snapPath string, snapInfo *sn
 }
 
 func (x *cmdDownload) Execute(args []string) error {
+	if strings.ContainsRune(x.Basename, filepath.Separator) {
+		return fmt.Errorf(i18n.G("cannot specify a path in basename (use --target-dir for that)"))
+	}
 	if err := x.setChannelFromCommandline(); err != nil {
 		return err
 	}
@@ -102,6 +115,9 @@ func (x *cmdDownload) Execute(args []string) error {
 	} else {
 		if x.Channel != "" {
 			return fmt.Errorf(i18n.G("cannot specify both channel and revision"))
+		}
+		if x.CohortKey != "" {
+			return fmt.Errorf(i18n.G("cannot specify both cohort and revision"))
 		}
 		var err error
 		revision, err = snap.ParseRevision(x.Revision)
@@ -119,10 +135,13 @@ func (x *cmdDownload) Execute(args []string) error {
 
 	fmt.Fprintf(Stdout, i18n.G("Fetching snap %q\n"), snapName)
 	dlOpts := image.DownloadOptions{
-		TargetDir: "", // cwd
+		TargetDir: x.TargetDir,
+		Basename:  x.Basename,
 		Channel:   x.Channel,
+		CohortKey: x.CohortKey,
+		Revision:  revision,
 	}
-	snapPath, snapInfo, err := tsto.DownloadSnap(snapName, revision, &dlOpts)
+	snapPath, snapInfo, err := tsto.DownloadSnap(snapName, dlOpts)
 	if err != nil {
 		return err
 	}

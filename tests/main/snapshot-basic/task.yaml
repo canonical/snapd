@@ -65,7 +65,18 @@ execute: |
     snap install test-snapd-tools
     snap set core snapshots.automatic.retention=30h
     snap remove test-snapd-tools
-    snap saved | MATCH "test-snapd-tools .* auto"
+    snap saved test-snapd-tools | MATCH "auto"
+    SET_ID=$( snap saved test-snapd-tools | cut -d\  -f1 | tail -n1 )
+    snap forget "$SET_ID"
+
+    # removing with --purge doesn't create automatic snapshot
+    snap set core snapshots.automatic.retention=30h
+    snap install test-snapd-tools
+    snap remove --purge test-snapd-tools
+    if snap saved test-snapd-tools | MATCH "auto" ; then
+        echo "automatic snapshot is not expected"
+        exit 1
+    fi
 
     # check validatation of the automatic snapshot expiration range
     (snap set core snapshots.automatic.retention=1s 2>&1 || true) | MATCH "must be"

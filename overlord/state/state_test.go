@@ -942,6 +942,49 @@ func (ss *stateSuite) TestRequestRestart(c *C) {
 	c.Check(t, Equals, state.RestartDaemon)
 }
 
+func (ss *stateSuite) TestRequestRestartSystemAndVerifyReboot(c *C) {
+	b := new(fakeStateBackend)
+	st := state.New(b)
+
+	st.Lock()
+	err := st.VerifyReboot("boot-id-1")
+	st.Unlock()
+	c.Assert(err, IsNil)
+
+	ok, t := st.Restarting()
+	c.Check(ok, Equals, false)
+	c.Check(t, Equals, state.RestartUnset)
+
+	st.Lock()
+	st.RequestRestart(state.RestartSystem)
+	st.Unlock()
+
+	c.Check(b.restartRequested, Equals, true)
+
+	ok, t = st.Restarting()
+	c.Check(ok, Equals, true)
+	c.Check(t, Equals, state.RestartSystem)
+
+	var fromBootID string
+	st.Lock()
+	c.Check(st.Get("system-restart-from-boot-id", &fromBootID), IsNil)
+	st.Unlock()
+	c.Check(fromBootID, Equals, "boot-id-1")
+
+	st.Lock()
+	err = st.VerifyReboot("boot-id-1")
+	st.Unlock()
+	c.Check(err, Equals, state.ErrExpectedReboot)
+
+	st.Lock()
+	err = st.VerifyReboot("boot-id-2")
+	st.Unlock()
+	c.Assert(err, IsNil)
+	st.Lock()
+	c.Check(st.Get("system-restart-from-boot-id", &fromBootID), Equals, state.ErrNoState)
+	st.Unlock()
+}
+
 func (ss *stateSuite) TestReadStateInitsCache(c *C) {
 	st, err := state.ReadState(nil, bytes.NewBufferString("{}"))
 	c.Assert(err, IsNil)

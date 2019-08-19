@@ -42,7 +42,7 @@ type systemKeySuite struct {
 	tmp                    string
 	apparmorFeatures       string
 	buildID                string
-	seccompCompilerVersion string
+	seccompCompilerVersion seccomp_compiler.VersionInfo
 }
 
 var _ = Suite(&systemKeySuite{})
@@ -60,11 +60,9 @@ func (s *systemKeySuite) SetUpTest(c *C) {
 	c.Assert(err, IsNil)
 
 	s.apparmorFeatures = filepath.Join(s.tmp, "/sys/kernel/security/apparmor/features")
-	id, err := osutil.MyBuildID()
-	c.Assert(err, IsNil)
-	s.buildID = id
+	s.buildID = "this-is-my-build-id"
 
-	s.seccompCompilerVersion = "123 2.3.3 abcdef123"
+	s.seccompCompilerVersion = seccomp_compiler.VersionInfo("123 2.3.3 abcdef123 -")
 	testutil.MockCommand(c, filepath.Join(dirs.DistroLibExecDir, "snap-seccomp"), fmt.Sprintf(`
 if [ "$1" = "version-info" ]; then echo "%s"; exit 0; fi
 exit 1
@@ -81,6 +79,12 @@ func (s *systemKeySuite) TearDownTest(c *C) {
 
 func (s *systemKeySuite) testInterfaceWriteSystemKey(c *C, nfsHome bool) {
 	restore := interfaces.MockIsHomeUsingNFS(func() (bool, error) { return nfsHome, nil })
+	defer restore()
+
+	restore = interfaces.MockReadBuildID(func(p string) (string, error) {
+		c.Assert(p, Equals, filepath.Join(dirs.DistroLibExecDir, "snapd"))
+		return s.buildID, nil
+	})
 	defer restore()
 
 	err := interfaces.WriteSystemKey()
@@ -104,9 +108,6 @@ func (s *systemKeySuite) testInterfaceWriteSystemKey(c *C, nfsHome bool) {
 	seccompActionsStr, err := json.Marshal(release.SecCompActions())
 	c.Assert(err, IsNil)
 
-	buildID, err := osutil.ReadBuildID("/proc/self/exe")
-	c.Assert(err, IsNil)
-
 	compiler, err := seccomp_compiler.New(func(name string) (string, error) {
 		return filepath.Join(dirs.DistroLibExecDir, "snap-seccomp"), nil
 	})
@@ -117,7 +118,7 @@ func (s *systemKeySuite) testInterfaceWriteSystemKey(c *C, nfsHome bool) {
 
 	overlayRoot, err := osutil.IsRootWritableOverlay()
 	c.Assert(err, IsNil)
-	c.Check(string(systemKey), Equals, fmt.Sprintf(`{"version":1,"build-id":"%s","apparmor-features":%s,"apparmor-parser-mtime":%s,"apparmor-parser-features":%s,"nfs-home":%v,"overlay-root":%q,"seccomp-features":%s,"seccomp-compiler-version":"%s"}`, buildID, apparmorFeaturesStr, apparmorParserMtime, apparmorParserFeaturesStr, nfsHome, overlayRoot, seccompActionsStr, seccompCompilerVersion))
+	c.Check(string(systemKey), Equals, fmt.Sprintf(`{"version":1,"build-id":"%s","apparmor-features":%s,"apparmor-parser-mtime":%s,"apparmor-parser-features":%s,"nfs-home":%v,"overlay-root":%q,"seccomp-features":%s,"seccomp-compiler-version":"%s"}`, s.buildID, apparmorFeaturesStr, apparmorParserMtime, apparmorParserFeaturesStr, nfsHome, overlayRoot, seccompActionsStr, seccompCompilerVersion))
 }
 
 func (s *systemKeySuite) TestInterfaceWriteSystemKeyNoNFS(c *C) {
@@ -126,6 +127,20 @@ func (s *systemKeySuite) TestInterfaceWriteSystemKeyNoNFS(c *C) {
 
 func (s *systemKeySuite) TestInterfaceWriteSystemKeyWithNFS(c *C) {
 	s.testInterfaceWriteSystemKey(c, true)
+}
+
+func (s *systemKeySuite) TestInterfaceWriteSystemKeyErrorOnBuildID(c *C) {
+	restore := interfaces.MockIsHomeUsingNFS(func() (bool, error) { return false, nil })
+	defer restore()
+
+	restore = interfaces.MockReadBuildID(func(p string) (string, error) {
+		c.Assert(p, Equals, filepath.Join(dirs.DistroLibExecDir, "snapd"))
+		return "", fmt.Errorf("no build ID for you")
+	})
+	defer restore()
+
+	err := interfaces.WriteSystemKey()
+	c.Assert(err, ErrorMatches, "no build ID for you")
 }
 
 func (s *systemKeySuite) TestInterfaceSystemKeyMismatchHappy(c *C) {

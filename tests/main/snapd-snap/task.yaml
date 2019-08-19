@@ -7,10 +7,13 @@ systems: [ubuntu-16.04-64]
 priority: 100
 
 restore: |
+    cd "$PROJECT_PATH"
+    echo "Cleanup build artifacts"
+    not command -v snapcraft >/dev/null || snapcraft clean
     echo "Cleanup the installed snapcraft"
     apt autoremove -y snapcraft
     echo "Cleanup the build snapd snap"
-    rm -f "$PROJECT_PATH"/snapd_*.snap
+    rm -f snapd_*.snap
 
 execute: |
     echo "Installing snapscraft"

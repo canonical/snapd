@@ -20,6 +20,7 @@
 package main
 
 import (
+	"os"
 	"os/user"
 	"time"
 
@@ -41,8 +42,6 @@ var (
 	CreateUserDataDirs = createUserDataDirs
 	ResolveApp         = resolveApp
 	SnapdHelperPath    = snapdHelperPath
-	MaybePrintServices = maybePrintServices
-	MaybePrintCommands = maybePrintCommands
 	SortByPath         = sortByPath
 	AdviseCommand      = adviseCommand
 	Antialias          = antialias
@@ -79,6 +78,41 @@ var (
 	FixupArg = fixupArg
 
 	InterfacesDeprecationNotice = interfacesDeprecationNotice
+
+	SignalNotify = signalNotify
+)
+
+func NewInfoWriter(w writeflusher) *infoWriter {
+	return &infoWriter{
+		writeflusher: w,
+		termWidth:    20,
+		esc:          &escapes{dash: "--", tick: "*"},
+		fmtTime:      func(t time.Time) string { return t.Format(time.Kitchen) },
+	}
+}
+
+func SetVerbose(iw *infoWriter, verbose bool) {
+	iw.verbose = verbose
+}
+
+var (
+	ClientSnapFromPath          = clientSnapFromPath
+	SetupDiskSnap               = (*infoWriter).setupDiskSnap
+	SetupSnap                   = (*infoWriter).setupSnap
+	MaybePrintServices          = (*infoWriter).maybePrintServices
+	MaybePrintCommands          = (*infoWriter).maybePrintCommands
+	MaybePrintType              = (*infoWriter).maybePrintType
+	PrintSummary                = (*infoWriter).printSummary
+	MaybePrintPublisher         = (*infoWriter).maybePrintPublisher
+	MaybePrintNotes             = (*infoWriter).maybePrintNotes
+	MaybePrintStandaloneVersion = (*infoWriter).maybePrintStandaloneVersion
+	MaybePrintBuildDate         = (*infoWriter).maybePrintBuildDate
+	MaybePrintContact           = (*infoWriter).maybePrintContact
+	MaybePrintBase              = (*infoWriter).maybePrintBase
+	MaybePrintPath              = (*infoWriter).maybePrintPath
+	MaybePrintSum               = (*infoWriter).maybePrintSum
+	MaybePrintCohortKey         = (*infoWriter).maybePrintCohortKey
+	MaybePrintHealth            = (*infoWriter).maybePrintHealth
 )
 
 func MockPollTime(d time.Duration) (restore func()) {
@@ -261,6 +295,14 @@ func MockImagePrepare(newImagePrepare func(*image.Options) error) (restore func(
 	imagePrepare = newImagePrepare
 	return func() {
 		imagePrepare = old
+	}
+}
+
+func MockSignalNotify(newSignalNotify func(sig ...os.Signal) (chan os.Signal, func())) (restore func()) {
+	old := signalNotify
+	signalNotify = newSignalNotify
+	return func() {
+		signalNotify = old
 	}
 }
 

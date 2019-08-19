@@ -23,11 +23,13 @@ import (
 	"bytes"
 	"encoding/json"
 	"net/http"
-	"time"
 
 	"gopkg.in/check.v1"
 
 	"github.com/snapcore/snapd/asserts"
+	"github.com/snapcore/snapd/overlord/assertstate/assertstatetest"
+	"github.com/snapcore/snapd/overlord/devicestate"
+	"github.com/snapcore/snapd/overlord/hookstate"
 	"github.com/snapcore/snapd/overlord/state"
 )
 
@@ -43,24 +45,43 @@ func (s *apiSuite) TestPostRemodelUnhappy(c *check.C) {
 	c.Check(rsp.Result.(*errorResult).Message, check.Matches, "cannot decode new model assertion: .*")
 }
 
-func (s *apiSuite) testPostRemodel(c *check.C, newModel map[string]interface{}, expectedChgSummary string) {
+func (s *apiSuite) TestPostRemodel(c *check.C) {
+	oldModel := s.brands.Model("my-brand", "my-old-model", modelDefaults)
+	newModel := s.brands.Model("my-brand", "my-old-model", modelDefaults, map[string]interface{}{
+		"revision": "2",
+	})
+
 	d := s.daemonWithOverlordMock(c)
+	hookMgr, err := hookstate.Manager(d.overlord.State(), d.overlord.TaskRunner())
+	c.Assert(err, check.IsNil)
+	deviceMgr, err := devicestate.Manager(d.overlord.State(), hookMgr, d.overlord.TaskRunner(), nil)
+	c.Assert(err, check.IsNil)
+	d.overlord.AddManager(deviceMgr)
 	st := d.overlord.State()
 	st.Lock()
-	s.mockModel(c, st)
+	assertstatetest.AddMany(st, s.storeSigning.StoreAccountKey(""))
+	assertstatetest.AddMany(st, s.brands.AccountsAndKeys("my-brand")...)
+	s.mockModel(c, st, oldModel)
 	st.Unlock()
 
+	soon := 0
+	ensureStateSoon = func(st *state.State) {
+		soon++
+		ensureStateSoonImpl(st)
+	}
+	defer func() { ensureStateSoon = func(st *state.State) {} }()
+
 	var devicestateRemodelGotModel *asserts.Model
-	devicestateRemodel = func(st *state.State, nm *asserts.Model) ([]*state.TaskSet, error) {
+	devicestateRemodel = func(st *state.State, nm *asserts.Model) (*state.Change, error) {
 		devicestateRemodelGotModel = nm
-		return nil, nil
+		chg := st.NewChange("remodel", "...")
+		return chg, nil
 	}
 
 	// create a valid model assertion
-	mockModel, err := s.storeSigning.RootSigning.Sign(asserts.ModelType, newModel, nil, "")
 	c.Assert(err, check.IsNil)
-	mockModelEncoded := string(asserts.Encode(mockModel))
-	data, err := json.Marshal(postModelData{NewModel: mockModelEncoded})
+	modelEncoded := string(asserts.Encode(newModel))
+	data, err := json.Marshal(postModelData{NewModel: modelEncoded})
 	c.Check(err, check.IsNil)
 
 	// set it and validate that this is what we was passed to
@@ -69,36 +90,18 @@ func (s *apiSuite) testPostRemodel(c *check.C, newModel map[string]interface{}, 
 	c.Assert(err, check.IsNil)
 	rsp := postModel(appsCmd, req, nil).(*resp)
 	c.Assert(rsp.Status, check.Equals, 202)
-	c.Check(devicestateRemodelGotModel, check.DeepEquals, mockModel)
+	c.Check(devicestateRemodelGotModel, check.DeepEquals, newModel)
 
 	st.Lock()
 	defer st.Unlock()
 	chg := st.Change(rsp.Change)
-	c.Check(chg.Summary(), check.Equals, expectedChgSummary)
-}
+	c.Assert(chg, check.NotNil)
 
-func (s *apiSuite) TestPostRemodelDifferentBrandModel(c *check.C) {
-	newModel := map[string]interface{}{
-		"series":       "16",
-		"authority-id": "my-brand",
-		"brand-id":     "my-brand",
-		"model":        "my-model",
-		"architecture": "amd64",
-		"gadget":       "pc",
-		"kernel":       "pc-kernel",
-		"timestamp":    time.Now().Format(time.RFC3339),
-	}
-	expectedChgSummary := "Remodel device to my-brand/my-model (0)"
-	s.testPostRemodel(c, newModel, expectedChgSummary)
-}
+	c.Assert(st.Changes(), check.HasLen, 1)
+	chg1 := st.Changes()[0]
+	c.Assert(chg, check.DeepEquals, chg1)
+	c.Assert(chg.Kind(), check.Equals, "remodel")
+	c.Assert(chg.Err(), check.IsNil)
 
-func (s *apiSuite) TestPostRemodelSameBrandModelDifferentRev(c *check.C) {
-	newModel := make(map[string]interface{})
-	for k, v := range makeMockModelHdrs() {
-		newModel[k] = v
-	}
-	newModel["revision"] = "2"
-
-	expectedChgSummary := "Refresh model assertion from revision 0 to 2"
-	s.testPostRemodel(c, newModel, expectedChgSummary)
+	c.Assert(soon, check.Equals, 1)
 }

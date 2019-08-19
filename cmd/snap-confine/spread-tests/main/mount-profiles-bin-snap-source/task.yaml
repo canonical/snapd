@@ -15,7 +15,7 @@ execute: |
     echo "We can now run busybox true and expect it to fail"
     orig_ratelimit=$(sysctl -n kernel.printk_ratelimit)
     sysctl -w kernel.printk_ratelimit=0
-    ! /snap/bin/snapd-hacker-toolbelt.busybox true
+    not /snap/bin/snapd-hacker-toolbelt.busybox true
     sysctl -w kernel.printk_ratelimit=$orig_ratelimit
     echo "Not only the command failed because snap-confine failed, we see why!"
     dmesg --ctime | grep 'apparmor="DENIED" operation="mount" info="failed srcname match" error=-13 profile="/usr/lib/snapd/snap-confine" name="/snap/snapd-hacker-toolbelt/[0-9]\+/mnt/" pid=[0-9]\+ comm="ubuntu-core-lau" srcname="/snap/bin/" flags="rw, bind"'

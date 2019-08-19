@@ -56,7 +56,9 @@ owner /run/user/[0-9]*/wayland-[0-9]* rwk,
 # Allow access to common client Wayland sockets from non-snap clients
 /run/user/[0-9]*/{mesa,mutter,sdl,wayland-cursor,weston,xwayland}-shared-* rw,
 
-# Allow write access to create /run/user/* to create XDG_RUNTIME_DIR (until lp:1738197 is fixed)
+# Allow write access to create /run/user/* to create XDG_RUNTIME_DIR (until
+# lp:1738197 is fixed). Note this is not needed if creating a session using
+# logind (as provided by the login-session-control snapd interface).
 /run/user/[0-9]*/ w,
 
 # Needed for mode setting via drmSetMaster() and drmDropMaster()

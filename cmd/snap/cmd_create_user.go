@@ -23,10 +23,10 @@ import (
 	"encoding/json"
 	"fmt"
 
+	"github.com/jessevdk/go-flags"
+
 	"github.com/snapcore/snapd/client"
 	"github.com/snapcore/snapd/i18n"
-
-	"github.com/jessevdk/go-flags"
 )
 
 var shortCreateUserHelp = i18n.G("Create a local system user")

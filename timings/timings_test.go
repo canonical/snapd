@@ -168,6 +168,29 @@ func (s *timingsSuite) TestSaveNoTimings(c *C) {
 	c.Assert(s.st.Get("timings", &stateTimings), Equals, state.ErrNoState)
 }
 
+func (s *timingsSuite) TestSaveNoTimingsWithChangeID(c *C) {
+	s.st.Lock()
+	defer s.st.Unlock()
+
+	chg := s.st.NewChange("change", "...")
+	task := s.st.NewTask("kind", "...")
+	task.SetStatus(state.DoingStatus)
+	chg.AddTask(task)
+
+	timing := timings.New(nil)
+	timing.LinkChange(chg)
+	timing.Save(s.st)
+
+	var stateTimings []interface{}
+	c.Assert(s.st.Get("timings", &stateTimings), IsNil)
+	c.Assert(stateTimings, DeepEquals, []interface{}{
+		map[string]interface{}{
+			"tags":       map[string]interface{}{"change-id": chg.ID()},
+			"start-time": "0001-01-01T00:00:00Z",
+			"stop-time":  "0001-01-01T00:00:00Z",
+		}})
+}
+
 func (s *timingsSuite) TestDuration(c *C) {
 	s.st.Lock()
 	defer s.st.Unlock()

@@ -7,8 +7,7 @@ prepare: |
     # need to install shellcheck in devmode, the tests are run by 'root', the
     # source code is under /home/gopath, all file accesses to the source code
     # will end up getting DENIED even though shellcheck uses home interface
-    # FIXME: switch to stable to workaround for SC2251
-    snap install --stable --devmode shellcheck
+    snap install --edge --devmode shellcheck
 
 execute: |
     testdir=$PWD

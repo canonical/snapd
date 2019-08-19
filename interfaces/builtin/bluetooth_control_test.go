@@ -54,7 +54,7 @@ var _ = Suite(&BluetoothControlInterfaceSuite{
 
 func (s *BluetoothControlInterfaceSuite) SetUpTest(c *C) {
 	s.slotInfo = &snap.SlotInfo{
-		Snap:      &snap.Info{SuggestedName: "core", Type: snap.TypeOS},
+		Snap:      &snap.Info{SuggestedName: "core", SnapType: snap.TypeOS},
 		Name:      "bluetooth-control",
 		Interface: "bluetooth-control",
 		Apps: map[string]*snap.AppInfo{
@@ -76,13 +76,6 @@ func (s *BluetoothControlInterfaceSuite) TestName(c *C) {
 
 func (s *BluetoothControlInterfaceSuite) TestSanitizeSlot(c *C) {
 	c.Assert(interfaces.BeforePrepareSlot(s.iface, s.slotInfo), IsNil)
-	slot := &snap.SlotInfo{
-		Snap:      &snap.Info{SuggestedName: "some-snap"},
-		Name:      "bluetooth-control",
-		Interface: "bluetooth-control",
-	}
-	c.Assert(interfaces.BeforePrepareSlot(s.iface, slot), ErrorMatches,
-		"bluetooth-control slots are reserved for the core snap")
 }
 
 func (s *BluetoothControlInterfaceSuite) TestSanitizePlug(c *C) {
@@ -106,9 +99,11 @@ func (s *BluetoothControlInterfaceSuite) TestSecCompSpec(c *C) {
 func (s *BluetoothControlInterfaceSuite) TestUDevSpec(c *C) {
 	spec := &udev.Specification{}
 	c.Assert(spec.AddConnectedPlug(s.iface, s.plug, s.slot), IsNil)
-	c.Assert(spec.Snippets(), HasLen, 2)
+	c.Assert(spec.Snippets(), HasLen, 3)
 	c.Assert(spec.Snippets(), testutil.Contains, `# bluetooth-control
 SUBSYSTEM=="bluetooth", TAG+="snap_other_app2"`)
+	c.Assert(spec.Snippets(), testutil.Contains, `# bluetooth-control
+SUBSYSTEM=="BT_chrdev", TAG+="snap_other_app2"`)
 	c.Assert(spec.Snippets(), testutil.Contains, `TAG=="snap_other_app2", RUN+="/usr/lib/snapd/snap-device-helper $env{ACTION} snap_other_app2 $devpath $major:$minor"`)
 }
 

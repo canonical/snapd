@@ -122,6 +122,8 @@ func newUserMacaroon(macaroonKey []byte, userID int) (string, error) {
 	return serializedMacaroon, nil
 }
 
+// TODO: possibly move users' related functions to a userstate package
+
 // NewUser tracks a new authenticated user and saves its details in the state
 func NewUser(st *state.State, username, email, macaroon string, discharges []string) (*UserState, error) {
 	var authStateData AuthState
@@ -252,41 +254,6 @@ func UpdateUser(st *state.State, user *UserState) error {
 	}
 
 	return ErrInvalidUser
-}
-
-// Device returns the device details from the state.
-func Device(st *state.State) (*DeviceState, error) {
-	var authStateData AuthState
-
-	err := st.Get("auth", &authStateData)
-	if err == state.ErrNoState {
-		return &DeviceState{}, nil
-	} else if err != nil {
-		return nil, err
-	}
-
-	if authStateData.Device == nil {
-		return &DeviceState{}, nil
-	}
-
-	return authStateData.Device, nil
-}
-
-// SetDevice updates the device details in the state.
-func SetDevice(st *state.State, device *DeviceState) error {
-	var authStateData AuthState
-
-	err := st.Get("auth", &authStateData)
-	if err == state.ErrNoState {
-		authStateData = AuthState{}
-	} else if err != nil {
-		return err
-	}
-
-	authStateData.Device = device
-	st.Set("auth", authStateData)
-
-	return nil
 }
 
 var ErrInvalidAuth = fmt.Errorf("invalid authentication")

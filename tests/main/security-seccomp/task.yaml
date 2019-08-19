@@ -1,0 +1,86 @@
+summary: Check basic seccomp rules
+
+details: |
+    This test verifies that:
+    .
+    - absence of a syscall is denied
+    - use of a bare syscall (ie, no arguments) is allowed
+    - use of a syscall with arg filtering is allowed with matching arguments
+    - use of a syscall with arg filtering is denied with unmatching arguments
+    .
+    We choose the setpriority syscall for these tests since it is available on
+    all architectures and can be easily used to test all of the above. As part of
+    its testing, this test will modify the snap's seccomp filter and recompile
+    it. On strict mode systems, it will also adjust the apparmor profile to allow
+    'capability nice' so it doesn't interfere with anything.
+
+# IMPORTANT: disabling a system here is an explicit statement that snapd
+# doesn't care that the system has broken seccomp mediation. This is unlikely
+# what you want. If adding, please add why and any references to supporting
+# context. See:
+# https://forum.snapcraft.io/t/disabling-seccomp-sandbox-where-a-buggy-golang-seccomp-is-used/11054
+#
+#systems: [...]
+
+environment:
+    SRC: /var/lib/snapd/seccomp/bpf/snap.test-snapd-setpriority.test-snapd-setpriority.src
+    BIN: /var/lib/snapd/seccomp/bpf/snap.test-snapd-setpriority.test-snapd-setpriority.bin
+    AAP: /var/lib/snapd/apparmor/profiles/snap.test-snapd-setpriority.test-snapd-setpriority
+
+prepare: |
+    echo "Install a helper snap with default confinement"
+    snap install test-snapd-setpriority
+
+    echo "Copy $SRC aside for safekeeping"
+    cp "$SRC" "$SRC".orig
+
+    if snap debug sandbox-features --required apparmor:kernel:caps ; then
+        echo "Copy $AAP aside for safekeeping"
+        cp "$AAP" "$AAP".orig
+        sed 's/^}/capability sys_nice,\n}\n/g' "$AAP".orig > "$AAP"
+        apparmor_parser -r "$AAP"
+    fi
+
+restore: |
+    #shellcheck source=tests/lib/dirs.sh
+    . "$TESTSLIB/dirs.sh"
+    mv -f "$SRC".orig "$SRC"
+    "$LIBEXECDIR/snapd/snap-seccomp" compile "$SRC" "$BIN"
+    if [ -f "$AAP".orig ]; then
+        mv -f "$AAP".orig "$AAP"
+        apparmor_parser -r "$AAP"
+    fi
+
+execute: |
+    #shellcheck source=tests/lib/dirs.sh
+    . "$TESTSLIB/dirs.sh"
+
+    # other tests ensure seccomp is available so we can skip any systems that
+    # don't have it
+    if ! snap debug sandbox-features --required seccomp:bpf-argument-filtering ; then
+        exit 0
+    fi
+
+    echo "Remove any setpriority rules from the filter"
+    sed 's/^\(setpriority.*\)/#SPREAD: \1/g' "$SRC".orig > "$SRC"
+    "$LIBEXECDIR/snapd/snap-seccomp" compile "$SRC" "$BIN"
+    echo "and check that positive nice fails"
+    test-snapd-setpriority 10  | MATCH 'Operation not permitted \(EPERM\)'
+    echo "and check that negative nice fails"
+    test-snapd-setpriority -10 | MATCH 'Operation not permitted \(EPERM\)'
+
+    echo "Use bare setpriority rule"
+    sed 's/^\(setpriority.*\)/#SPREAD: \1\nsetpriority/g' "$SRC".orig > "$SRC"
+    "$LIBEXECDIR/snapd/snap-seccomp" compile "$SRC" "$BIN"
+    echo "and check that positive nice succeeds"
+    test-snapd-setpriority 10  | MATCH 'Successfully used setpriority\(PRIO_PROCESS, 0, 10\)'
+    echo "and check that negative nice succeeds"
+    test-snapd-setpriority -10 | MATCH 'Successfully used setpriority\(PRIO_PROCESS, 0, -10\)'
+
+    echo "Use arg filtered setpriority rule"
+    sed 's/^\(setpriority.*\)/#SPREAD: \1\nsetpriority PRIO_PROCESS 0 <=19/g' "$SRC".orig > "$SRC"
+    "$LIBEXECDIR/snapd/snap-seccomp" compile "$SRC" "$BIN"
+    echo "and check that positive nice succeeds"
+    test-snapd-setpriority 10  | MATCH 'Successfully used setpriority\(PRIO_PROCESS, 0, 10\)'
+    echo "and check that negative nice fails"
+    test-snapd-setpriority -10 | MATCH 'Operation not permitted \(EPERM\)'

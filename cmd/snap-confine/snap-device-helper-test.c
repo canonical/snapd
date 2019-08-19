@@ -196,28 +196,43 @@ static struct sdh_test_data add_data =
     { "add", "snap.foo.bar", "snap_foo_bar", "devices.allow", "devices.deny" };
 static struct sdh_test_data change_data =
     { "change", "snap.foo.bar", "snap_foo_bar", "devices.allow",
-"devices.deny" };
+	"devices.deny"
+};
+
 static struct sdh_test_data remove_data =
     { "remove", "snap.foo.bar", "snap_foo_bar", "devices.deny",
-"devices.allow" };
+	"devices.allow"
+};
+
 static struct sdh_test_data instance_add_data =
     { "add", "snap.foo_bar.baz", "snap_foo_bar_baz", "devices.allow",
-"devices.deny" };
+	"devices.deny"
+};
+
 static struct sdh_test_data instance_change_data =
     { "change", "snap.foo_bar.baz", "snap_foo_bar_baz", "devices.allow",
-"devices.deny" };
+	"devices.deny"
+};
+
 static struct sdh_test_data instance_remove_data =
     { "remove", "snap.foo_bar.baz", "snap_foo_bar_baz", "devices.deny",
-"devices.allow" };
+	"devices.allow"
+};
+
 static struct sdh_test_data add_hook_data =
     { "add", "snap.foo.hook.configure", "snap_foo_hook_configure",
-"devices.allow", "devices.deny" };
+	"devices.allow", "devices.deny"
+};
+
 static struct sdh_test_data instance_add_hook_data =
     { "add", "snap.foo_bar.hook.configure", "snap_foo_bar_hook_configure",
-"devices.allow", "devices.deny" };
+	"devices.allow", "devices.deny"
+};
+
 static struct sdh_test_data instance_add_instance_name_is_hook_data =
     { "add", "snap.foo_hook.hook.configure", "snap_foo_hook_hook_configure",
-"devices.allow", "devices.deny" };
+	"devices.allow", "devices.deny"
+};
 
 static void __attribute__((constructor)) init(void)
 {

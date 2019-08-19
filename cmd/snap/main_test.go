@@ -408,3 +408,18 @@ func (s *SnapSuite) TestFixupArg(c *C) {
 	// Trailing ">s" is fixed to just >.
 	c.Check(snap.FixupArg("<option>s"), Equals, "<option>")
 }
+
+func (s *SnapSuite) TestSetsUserAgent(c *C) {
+	testServerHit := false
+	s.RedirectClientToTestServer(func(w http.ResponseWriter, r *http.Request) {
+		c.Check(r.Header.Get("User-Agent"), Matches, "snapd/.*")
+		testServerHit = true
+
+		fmt.Fprintln(w, `{"type": "error", "result": {"message": "cannot do something"}}`)
+	})
+	restore := mockArgs("snap", "install", "foo")
+	defer restore()
+
+	_ = snap.RunMain()
+	c.Assert(testServerHit, Equals, true)
+}

@@ -69,7 +69,7 @@ execute: |
     firewall-control-consumer.delete
 
     echo "Then the service listening on localhost is no longer accessible through the destination IP in the rule"
-    ! nc -w 2 "$DESTINATION_IP" "$PORT" < "$REQUEST_FILE"
+    not nc -w 2 "$DESTINATION_IP" "$PORT" < "$REQUEST_FILE"
 
     if [ "$(snap debug confinement)" = partial ] ; then
         exit 0

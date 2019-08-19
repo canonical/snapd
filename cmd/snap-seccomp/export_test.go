@@ -20,9 +20,10 @@
 package main
 
 var (
-	Compile         = compile
-	SeccompResolver = seccompResolver
-	VersionInfo     = versionInfo
+	Compile           = compile
+	SeccompResolver   = seccompResolver
+	VersionInfo       = versionInfo
+	GoSeccompFeatures = goSeccompFeatures
 )
 
 func MockArchUbuntuArchitecture(f func() string) (restore func()) {

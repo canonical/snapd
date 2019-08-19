@@ -33,16 +33,17 @@ import (
 	"github.com/snapcore/snapd/i18n"
 	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/overlord/assertstate"
-	"github.com/snapcore/snapd/overlord/auth"
+	"github.com/snapcore/snapd/overlord/devicestate/internal"
 	"github.com/snapcore/snapd/overlord/snapstate"
 	"github.com/snapcore/snapd/overlord/state"
 	"github.com/snapcore/snapd/release"
 	"github.com/snapcore/snapd/snap"
+	"github.com/snapcore/snapd/timings"
 )
 
 var errNothingToDo = errors.New("nothing to do")
 
-func installSeedSnap(st *state.State, sn *snap.SeedSnap, flags snapstate.Flags) (*state.TaskSet, *snap.Info, error) {
+func installSeedSnap(st *state.State, sn *snap.SeedSnap, flags snapstate.Flags, tm timings.Measurer) (*state.TaskSet, *snap.Info, error) {
 	if sn.Classic {
 		flags.Classic = true
 	}
@@ -56,7 +57,11 @@ func installSeedSnap(st *state.State, sn *snap.SeedSnap, flags snapstate.Flags) 
 	if sn.Unasserted {
 		sideInfo.RealName = sn.Name
 	} else {
-		si, err := snapasserts.DeriveSideInfo(path, assertstate.DB(st))
+		var si *snap.SideInfo
+		var err error
+		timings.Run(tm, "derive-side-info", fmt.Sprintf("hash and derive side info for snap %q", sn.Name), func(nested timings.Measurer) {
+			si, err = snapasserts.DeriveSideInfo(path, assertstate.DB(st))
+		})
 		if asserts.IsNotFound(err) {
 			return nil, nil, fmt.Errorf("cannot find signatures with metadata for snap %q (%q)", sn.Name, path)
 		}
@@ -79,7 +84,7 @@ func trivialSeeding(st *state.State, markSeeded *state.Task) []*state.TaskSet {
 	return []*state.TaskSet{configTs, state.NewTaskSet(markSeeded)}
 }
 
-func populateStateFromSeedImpl(st *state.State) ([]*state.TaskSet, error) {
+func populateStateFromSeedImpl(st *state.State, tm timings.Measurer) ([]*state.TaskSet, error) {
 	// check that the state is empty
 	var seeded bool
 	err := st.Get("seeded", &seeded)
@@ -93,7 +98,10 @@ func populateStateFromSeedImpl(st *state.State) ([]*state.TaskSet, error) {
 	markSeeded := st.NewTask("mark-seeded", i18n.G("Mark system seeded"))
 
 	// ack all initial assertions
-	model, err := importAssertionsFromSeed(st)
+	var model *asserts.Model
+	timings.Run(tm, "import-assertions", "import assertions from seed", func(nested timings.Measurer) {
+		model, err = importAssertionsFromSeed(st)
+	})
 	if err == errNothingToDo {
 		return trivialSeeding(st, markSeeded), nil
 	}
@@ -121,93 +129,107 @@ func populateStateFromSeedImpl(st *state.State) ([]*state.TaskSet, error) {
 
 	tsAll := []*state.TaskSet{}
 	configTss := []*state.TaskSet{}
+	chainTs := func(all []*state.TaskSet, ts *state.TaskSet) []*state.TaskSet {
+		n := len(all)
+		if n != 0 {
+			ts.WaitAll(all[n-1])
+		}
+		return append(all, ts)
+	}
 
 	baseSnap := "core"
+	classicWithSnapd := false
 	if model.Base() != "" {
 		baseSnap = model.Base()
 	}
-
-	installSeedEssential := func(snapName string, last int) (*snap.Info, error) {
-		seedSnap := seeding[snapName]
-		if seedSnap == nil {
-			return nil, fmt.Errorf("cannot proceed without seeding %q", snapName)
-		}
-		ts, info, err := installSeedSnap(st, seedSnap, snapstate.Flags{SkipConfigure: true, Required: true})
-		if err != nil {
-			return nil, err
-		}
-		if last >= 0 {
-			ts.WaitAll(tsAll[last])
-		}
-		tsAll = append(tsAll, ts)
-		alreadySeeded[snapName] = true
-		return info, nil
+	if _, ok := seeding["snapd"]; release.OnClassic && ok {
+		classicWithSnapd = true
+		// there is no system-wide base as such
+		// if there is a gadget we will install its base first though
+		baseSnap = ""
 	}
 
-	last := -1
+	var installSeedEssential func(snapName string) error
+	var installGadgetBase func(gadget *snap.Info) error
+	installSeedEssential = func(snapName string) error {
+		// be idempotent for installGadgetBase use
+		if alreadySeeded[snapName] {
+			return nil
+		}
+		seedSnap := seeding[snapName]
+		if seedSnap == nil {
+			return fmt.Errorf("cannot proceed without seeding %q", snapName)
+		}
+		ts, info, err := installSeedSnap(st, seedSnap, snapstate.Flags{SkipConfigure: true, Required: true}, tm)
+		if err != nil {
+			return err
+		}
+		if info.GetType() == snap.TypeGadget {
+			// always make sure the base of gadget is installed first
+			if err := installGadgetBase(info); err != nil {
+				return err
+			}
+		}
+		tsAll = chainTs(tsAll, ts)
+		alreadySeeded[snapName] = true
+		return nil
+	}
+	installGadgetBase = func(gadget *snap.Info) error {
+		gadgetBase := gadget.Base
+		if gadgetBase == "" {
+			gadgetBase = "core"
+		}
+		// Sanity check
+		// TODO: do we want to relax this? the new logic would allow
+		// but it might just be confusing for now
+		if baseSnap != "" && gadgetBase != baseSnap {
+			return fmt.Errorf("cannot use gadget snap because its base %q is different from model base %q", gadgetBase, model.Base())
+		}
+		return installSeedEssential(gadgetBase)
+	}
+
 	// if there are snaps to seed, core/base needs to be seeded too
 	if len(seed.Snaps) != 0 {
 		// ensure "snapd" snap is installed first
-		if model.Base() != "" {
-			if _, err := installSeedEssential("snapd", last); err != nil {
+		if model.Base() != "" || classicWithSnapd {
+			if err := installSeedEssential("snapd"); err != nil {
 				return nil, err
 			}
-			last++
 		}
-		if _, err := installSeedEssential(baseSnap, last); err != nil {
-			return nil, err
+		if !classicWithSnapd {
+			if err := installSeedEssential(baseSnap); err != nil {
+				return nil, err
+			}
 		}
 		// we *always* configure "core" here even if bases are used
 		// for booting. "core" if where the system config lives.
-		configTss = append(configTss, snapstate.ConfigureSnap(st, "core", snapstate.UseConfigDefaults))
-		last++
+		configTss = chainTs(configTss, snapstate.ConfigureSnap(st, "core", snapstate.UseConfigDefaults))
 	}
 
-	lastConf := 0
 	if kernelName := model.Kernel(); kernelName != "" {
-		if _, err := installSeedEssential(kernelName, last); err != nil {
+		if err := installSeedEssential(kernelName); err != nil {
 			return nil, err
 		}
 		configTs := snapstate.ConfigureSnap(st, kernelName, snapstate.UseConfigDefaults)
 		// wait for the previous configTss
-		configTs.WaitAll(configTss[lastConf])
-		configTss = append(configTss, configTs)
-		last++
-		lastConf++
+		configTss = chainTs(configTss, configTs)
 	}
 
-	// FIXME: ensure that any base is ordered before the gadget so that
-	//        the gadget can use bases that are not the model base
 	if gadgetName := model.Gadget(); gadgetName != "" {
-		info, err := installSeedEssential(gadgetName, last)
+		err := installSeedEssential(gadgetName)
 		if err != nil {
 			return nil, err
 		}
-		// Sanity check, note that we could support this if we have
-		// a use-case. However this requires that we do the sorting
-		// different, i.e. other bases will have to be sorted before
-		// the gadget.
-		if info.Base != model.Base() {
-			return nil, fmt.Errorf("cannot use gadget snap because its base %q is different from model base %q", info.Base, model.Base())
-		}
-
 		configTs := snapstate.ConfigureSnap(st, gadgetName, snapstate.UseConfigDefaults)
 		// wait for the previous configTss
-		configTs.WaitAll(configTss[lastConf])
-		configTss = append(configTss, configTs)
-		last++
-		//If we use lastConf again we need to enable this. It is
-		//commented out because go vet complains about an ineffectual
-		// assignment.
-		//lastConf++
+		configTss = chainTs(configTss, configTs)
 	}
 
 	// chain together configuring core, kernel, and gadget after
 	// installing them so that defaults are availabble from gadget
 	if len(configTss) > 0 {
-		configTss[0].WaitAll(tsAll[last])
+		configTss[0].WaitAll(tsAll[len(tsAll)-1])
 		tsAll = append(tsAll, configTss...)
-		last += len(configTss)
 	}
 
 	// ensure we install in the right order
@@ -224,7 +246,7 @@ func populateStateFromSeedImpl(st *state.State) ([]*state.TaskSet, error) {
 			flags.Required = true
 		}
 
-		ts, info, err := installSeedSnap(st, sn, flags)
+		ts, info, err := installSeedSnap(st, sn, flags, tm)
 		if err != nil {
 			return nil, err
 		}
@@ -237,9 +259,7 @@ func populateStateFromSeedImpl(st *state.State) ([]*state.TaskSet, error) {
 	sort.Stable(snap.ByType(infos))
 	for _, info := range infos {
 		ts := infoToTs[info]
-		ts.WaitAll(tsAll[last])
-		tsAll = append(tsAll, ts)
-		last++
+		tsAll = chainTs(tsAll, ts)
 	}
 
 	if len(tsAll) == 0 {
@@ -273,7 +293,8 @@ func readAsserts(fn string, batch *assertstate.Batch) ([]*asserts.Ref, error) {
 }
 
 func importAssertionsFromSeed(st *state.State) (*asserts.Model, error) {
-	device, err := auth.Device(st)
+	// TODO: use some kind of context fo Device/SetDevice?
+	device, err := internal.Device(st)
 	if err != nil {
 		return nil, err
 	}

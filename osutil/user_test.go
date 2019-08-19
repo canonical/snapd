@@ -251,3 +251,29 @@ func (s *createUserSuite) TestAddUserUnhappy(c *check.C) {
 	c.Assert(err, check.ErrorMatches, "adduser failed with: some error")
 
 }
+
+func (s *createUserSuite) TestIsValidUsername(c *check.C) {
+	for k, v := range map[string]bool{
+		"a":       true,
+		"a-b":     true,
+		"a+b":     true,
+		"a.b":     true,
+		"a_b":     true,
+		"1":       true,
+		"1+":      true,
+		"1.":      true,
+		"1_":      true,
+		"-":       false,
+		"+":       false,
+		".":       false,
+		"_":       false,
+		"-a":      false,
+		"+a":      false,
+		".a":      false,
+		"_a":      false,
+		"a:b":     false,
+		"inval!d": false,
+	} {
+		c.Check(osutil.IsValidUsername(k), check.Equals, v)
+	}
+}

@@ -31,7 +31,6 @@ import (
 	"github.com/snapcore/snapd/interfaces"
 	"github.com/snapcore/snapd/interfaces/policy"
 	"github.com/snapcore/snapd/overlord/assertstate"
-	"github.com/snapcore/snapd/overlord/devicestate"
 	"github.com/snapcore/snapd/overlord/hookstate"
 	"github.com/snapcore/snapd/overlord/snapstate"
 	"github.com/snapcore/snapd/overlord/state"
@@ -406,21 +405,13 @@ func disconnectTasks(st *state.State, conn *interfaces.Connection, flags disconn
 }
 
 // CheckInterfaces checks whether plugs and slots of snap are allowed for installation.
-func CheckInterfaces(st *state.State, snapInfo *snap.Info) error {
+func CheckInterfaces(st *state.State, snapInfo *snap.Info, deviceCtx snapstate.DeviceContext) error {
 	// XXX: addImplicitSlots is really a brittle interface
 	if err := addImplicitSlots(st, snapInfo); err != nil {
 		return err
 	}
 
-	if snapInfo.SnapID == "" {
-		// no SnapID means --dangerous was given, so skip interface checks
-		return nil
-	}
-
-	modelAs, err := devicestate.Model(st)
-	if err != nil {
-		return err
-	}
+	modelAs := deviceCtx.Model()
 
 	var storeAs *asserts.Store
 	if modelAs.Store() != "" {
@@ -434,6 +425,17 @@ func CheckInterfaces(st *state.State, snapInfo *snap.Info) error {
 	baseDecl, err := assertstate.BaseDeclaration(st)
 	if err != nil {
 		return fmt.Errorf("internal error: cannot find base declaration: %v", err)
+	}
+
+	if snapInfo.SnapID == "" {
+		// no SnapID means --dangerous was given, perform a minimal check about the compatibility of the snap type and the interface
+		ic := policy.InstallCandidateMinimalCheck{
+			Snap:            snapInfo,
+			BaseDeclaration: baseDecl,
+			Model:           modelAs,
+			Store:           storeAs,
+		}
+		return ic.Check()
 	}
 
 	snapDecl, err := assertstate.SnapDeclaration(st, snapInfo.SnapID)
@@ -458,8 +460,8 @@ func delayedCrossMgrInit() {
 	once.Do(func() {
 		// hook interface checks into snapstate installation logic
 
-		snapstate.AddCheckSnapCallback(func(st *state.State, snapInfo, _ *snap.Info, _ snapstate.Flags) error {
-			return CheckInterfaces(st, snapInfo)
+		snapstate.AddCheckSnapCallback(func(st *state.State, snapInfo, _ *snap.Info, _ snapstate.Flags, deviceCtx snapstate.DeviceContext) error {
+			return CheckInterfaces(st, snapInfo, deviceCtx)
 		})
 
 		// hook into conflict checks mechanisms

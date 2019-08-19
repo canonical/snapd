@@ -53,7 +53,7 @@ var _ = Suite(&ClassicSupportInterfaceSuite{
 
 func (s *ClassicSupportInterfaceSuite) SetUpTest(c *C) {
 	s.slotInfo = &snap.SlotInfo{
-		Snap:      &snap.Info{SuggestedName: "core", Type: snap.TypeOS},
+		Snap:      &snap.Info{SuggestedName: "core", SnapType: snap.TypeOS},
 		Name:      "classic-support",
 		Interface: "classic-support",
 	}

@@ -33,6 +33,7 @@ import (
 	"github.com/snapcore/snapd/overlord/auth"
 	"github.com/snapcore/snapd/overlord/configstate/config"
 	"github.com/snapcore/snapd/overlord/snapstate"
+	"github.com/snapcore/snapd/overlord/snapstate/snapstatetest"
 	"github.com/snapcore/snapd/overlord/state"
 	"github.com/snapcore/snapd/release"
 	"github.com/snapcore/snapd/snap"
@@ -73,6 +74,8 @@ type autoRefreshTestSuite struct {
 	state *state.State
 
 	store *autoRefreshStore
+
+	restore func()
 }
 
 var _ = Suite(&autoRefreshTestSuite{})
@@ -107,13 +110,13 @@ func (s *autoRefreshTestSuite) SetUpTest(c *C) {
 	s.state.Set("seeded", true)
 	s.state.Set("seed-time", time.Now())
 	s.state.Set("refresh-privacy-key", "privacy-key")
-	snapstate.SetDefaultModel()
+	s.restore = snapstatetest.MockDeviceModel(DefaultModel())
 }
 
 func (s *autoRefreshTestSuite) TearDownTest(c *C) {
 	snapstate.CanAutoRefresh = nil
 	snapstate.AutoAliases = nil
-	snapstate.Model = nil
+	s.restore()
 	dirs.SetRootDir("")
 }
 
@@ -373,8 +376,7 @@ func (s *autoRefreshTestSuite) TestLastRefreshRefreshHoldExpired(c *C) {
 	tr = config.NewTransaction(s.state)
 	var t1 time.Time
 	err = tr.Get("core", "refresh.hold", &t1)
-	c.Assert(err, IsNil)
-	c.Check(t1.IsZero(), Equals, true)
+	c.Assert(config.IsNoOption(err), Equals, true)
 }
 
 func (s *autoRefreshTestSuite) TestLastRefreshRefreshHoldExpiredReschedule(c *C) {
@@ -409,8 +411,7 @@ func (s *autoRefreshTestSuite) TestLastRefreshRefreshHoldExpiredReschedule(c *C)
 	tr = config.NewTransaction(s.state)
 	var t1 time.Time
 	err = tr.Get("core", "refresh.hold", &t1)
-	c.Assert(err, IsNil)
-	c.Check(t1.IsZero(), Equals, true)
+	c.Assert(config.IsNoOption(err), Equals, true)
 
 	// check next refresh
 	nextRefresh1 := af.NextRefresh()

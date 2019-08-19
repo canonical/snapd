@@ -33,6 +33,8 @@ import (
 	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/overlord/auth"
 	"github.com/snapcore/snapd/overlord/state"
+	"github.com/snapcore/snapd/store"
+	"github.com/snapcore/snapd/timings"
 )
 
 var (
@@ -73,7 +75,7 @@ func (r *catalogRefresh) Ensure() error {
 		}
 	}
 
-	theStore := Store(r.state)
+	theStore := Store(r.state, nil)
 	needsRefresh := r.nextCatalogRefresh.IsZero() || r.nextCatalogRefresh.Before(now)
 
 	if !needsRefresh {
@@ -87,9 +89,13 @@ func (r *catalogRefresh) Ensure() error {
 	logger.Debugf("Catalog refresh starting now; next scheduled for %s.", next)
 
 	err := refreshCatalogs(r.state, theStore)
-	if err == nil {
+	switch err {
+	case nil:
 		logger.Debugf("Catalog refresh succeeded.")
-	} else {
+	case store.ErrTooManyRequests:
+		logger.Debugf("Catalog refresh postponed.")
+		err = nil
+	default:
 		logger.Debugf("Catalog refresh failed: %v.", err)
 	}
 	return err
@@ -101,11 +107,17 @@ func refreshCatalogs(st *state.State, theStore StoreService) error {
 	st.Unlock()
 	defer st.Lock()
 
+	perfTimings := timings.New(map[string]string{"ensure": "refresh-catalogs"})
+
 	if err := os.MkdirAll(dirs.SnapCacheDir, 0755); err != nil {
 		return fmt.Errorf("cannot create directory %q: %v", dirs.SnapCacheDir, err)
 	}
 
-	sections, err := theStore.Sections(auth.EnsureContextTODO(), nil)
+	var sections []string
+	var err error
+	timings.Run(perfTimings, "get-sections", "query store for sections", func(tm timings.Measurer) {
+		sections, err = theStore.Sections(auth.EnsureContextTODO(), nil)
+	})
 	if err != nil {
 		return err
 	}
@@ -128,7 +140,10 @@ func refreshCatalogs(st *state.State, theStore StoreService) error {
 	// if all goes well we'll Commit() making this a NOP:
 	defer cmdDB.Rollback()
 
-	if err := theStore.WriteCatalogs(auth.EnsureContextTODO(), namesFile, cmdDB); err != nil {
+	timings.Run(perfTimings, "write-catalogs", "query store for catalogs", func(tm timings.Measurer) {
+		err = theStore.WriteCatalogs(auth.EnsureContextTODO(), namesFile, cmdDB)
+	})
+	if err != nil {
 		return err
 	}
 
@@ -138,6 +153,10 @@ func refreshCatalogs(st *state.State, theStore StoreService) error {
 	if err2 != nil {
 		return err2
 	}
+
+	st.Lock()
+	perfTimings.Save(st)
+	st.Unlock()
 
 	return err1
 }

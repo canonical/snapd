@@ -200,11 +200,11 @@ func mustParseGadgetSize(c *C, s string) gadget.Size {
 	return gs
 }
 
-func mustParseGadgetRelativeOffset(c *C, s string) gadget.RelativeOffset {
+func mustParseGadgetRelativeOffset(c *C, s string) *gadget.RelativeOffset {
 	grs, err := gadget.ParseRelativeOffset(s)
 	c.Assert(err, IsNil)
 	c.Assert(grs, NotNil)
-	return *grs
+	return grs
 }
 
 func (s *gadgetYamlTestSuite) SetUpTest(c *C) {
@@ -255,6 +255,11 @@ func (s *gadgetYamlTestSuite) TestReadGadgetYamlOnClassicOnylDefaultsIsValid(c *
 	})
 }
 
+func asSizePtr(size gadget.Size) *gadget.Size {
+	gsz := gadget.Size(size)
+	return &gsz
+}
+
 func (s *gadgetYamlTestSuite) TestReadGadgetYamlValid(c *C) {
 	err := ioutil.WriteFile(s.gadgetYamlPath, mockGadgetYaml, 0644)
 	c.Assert(err, IsNil)
@@ -272,13 +277,13 @@ func (s *gadgetYamlTestSuite) TestReadGadgetYamlValid(c *C) {
 		},
 		Volumes: map[string]gadget.Volume{
 			"volumename": {
-				Schema:     "mbr",
+				Schema:     gadget.MBR,
 				Bootloader: "u-boot",
 				ID:         "0C",
 				Structure: []gadget.VolumeStructure{
 					{
 						Label:       "system-boot",
-						Offset:      12345,
+						Offset:      asSizePtr(12345),
 						OffsetWrite: mustParseGadgetRelativeOffset(c, "777"),
 						Size:        88888,
 						Type:        "0C",
@@ -312,7 +317,7 @@ func (s *gadgetYamlTestSuite) TestReadMultiVolumeGadgetYamlValid(c *C) {
 	c.Assert(ginfo, DeepEquals, &gadget.Info{
 		Volumes: map[string]gadget.Volume{
 			"frobinator-image": {
-				Schema:     "mbr",
+				Schema:     gadget.MBR,
 				Bootloader: "u-boot",
 				Structure: []gadget.VolumeStructure{
 					{
@@ -345,7 +350,7 @@ func (s *gadgetYamlTestSuite) TestReadMultiVolumeGadgetYamlValid(c *C) {
 						Name:   "u-boot",
 						Type:   "bare",
 						Size:   623000,
-						Offset: 0,
+						Offset: asSizePtr(0),
 						Content: []gadget.VolumeContent{
 							{
 								Image: "u-boot.imz",
@@ -445,13 +450,13 @@ func (s *gadgetYamlTestSuite) TestReadGadgetYamlVolumeUpdate(c *C) {
 	c.Assert(ginfo, DeepEquals, &gadget.Info{
 		Volumes: map[string]gadget.Volume{
 			"bootloader": {
-				Schema:     "mbr",
+				Schema:     gadget.MBR,
 				Bootloader: "u-boot",
 				ID:         "0C",
 				Structure: []gadget.VolumeStructure{
 					{
 						Label:       "system-boot",
-						Offset:      12345,
+						Offset:      asSizePtr(12345),
 						OffsetWrite: mustParseGadgetRelativeOffset(c, "777"),
 						Size:        88888,
 						Type:        "0C",
@@ -536,7 +541,7 @@ func (s *gadgetYamlTestSuite) TestUnmarshalGadgetRelativeOffset(c *C) {
 		{"1234M", &gadget.RelativeOffset{Offset: 1234 * gadget.SizeMiB}, ""},
 		{"4096M", &gadget.RelativeOffset{Offset: 4096 * gadget.SizeMiB}, ""},
 		{"0", &gadget.RelativeOffset{}, ""},
-		{"mbr+0", &gadget.RelativeOffset{RelativeTo: "mbr"}, ""},
+		{"mbr+0", &gadget.RelativeOffset{RelativeTo: gadget.MBR}, ""},
 		{"foo+1234M", &gadget.RelativeOffset{RelativeTo: "foo", Offset: 1234 * gadget.SizeMiB}, ""},
 		{"foo+1G", &gadget.RelativeOffset{RelativeTo: "foo", Offset: 1 * gadget.SizeGiB}, ""},
 		{"foo+1G", &gadget.RelativeOffset{RelativeTo: "foo", Offset: 1 * gadget.SizeGiB}, ""},
@@ -589,17 +594,25 @@ func (s *gadgetYamlTestSuite) TestValidateStructureType(c *C) {
 		// special case
 		{"bare", "", ""},
 		// plain MBR type
-		{"0C", "", "mbr"},
+		{"0C", "", gadget.MBR},
 		// GPT UUID
-		{"21686148-6449-6E6F-744E-656564454649", "", "gpt"},
+		{"21686148-6449-6E6F-744E-656564454649", "", gadget.GPT},
+		// GPT UUID (lowercase)
+		{"21686148-6449-6e6f-744e-656564454649", "", gadget.GPT},
 		// hybrid ID
 		{"EF,21686148-6449-6E6F-744E-656564454649", "", ""},
+		// hybrid ID (UUID lowercase)
+		{"EF,21686148-6449-6e6f-744e-656564454649", "", ""},
+		// hybrid, partially lowercase UUID
+		{"EF,aa686148-6449-6e6f-744E-656564454649", "", ""},
+		// GPT UUID, partially lowercase
+		{"aa686148-6449-6e6f-744E-656564454649", "", ""},
 		// no type specified
 		{"", `invalid type "": type is not specified`, ""},
 		// plain MBR type without mbr schema
 		{"0C", `invalid type "0C": MBR structure type with non-MBR schema ""`, ""},
 		// GPT UUID with non GPT schema
-		{"21686148-6449-6E6F-744E-656564454649", `invalid type "21686148-6449-6E6F-744E-656564454649": GUID structure type with non-GPT schema "mbr"`, "mbr"},
+		{"21686148-6449-6E6F-744E-656564454649", `invalid type "21686148-6449-6E6F-744E-656564454649": GUID structure type with non-GPT schema "mbr"`, gadget.MBR},
 		// invalid
 		{"1234", `invalid type "1234": invalid format`, ""},
 		// outside of hex range
@@ -616,11 +629,11 @@ func (s *gadgetYamlTestSuite) TestValidateStructureType(c *C) {
 		// hybrid, GPT UUID too long
 		{"EF,AAAA686148-6449-6E6F-744E-656564454649", `invalid type "EF,AAAA686148-6449-6E6F-744E-656564454649": invalid format of hybrid type`, ""},
 		// GPT schema with non GPT type
-		{"EF,AAAA686148-6449-6E6F-744E-656564454649", `invalid type "EF,AAAA686148-6449-6E6F-744E-656564454649": invalid format of hybrid type`, "gpt"},
+		{"EF,AAAA686148-6449-6E6F-744E-656564454649", `invalid type "EF,AAAA686148-6449-6E6F-744E-656564454649": invalid format of hybrid type`, gadget.GPT},
 	} {
 		c.Logf("tc: %v %q", i, tc.s)
 
-		err := gadget.ValidateVolumeStructure(&gadget.VolumeStructure{Type: tc.s}, &gadget.Volume{Schema: tc.schema})
+		err := gadget.ValidateVolumeStructure(&gadget.VolumeStructure{Type: tc.s, Size: 123}, &gadget.Volume{Schema: tc.schema})
 		if tc.err != "" {
 			c.Check(err, ErrorMatches, tc.err)
 		} else {
@@ -639,33 +652,36 @@ func mustParseStructure(c *C, s string) *gadget.VolumeStructure {
 func (s *gadgetYamlTestSuite) TestValidateRole(c *C) {
 	uuidType := `
 type: 21686148-6449-6E6F-744E-656564454649
+size: 1023
 `
 	bareType := `
-type: mbr
+type: bare
 `
 	invalidSystemDataLabel := uuidType + `
 role: system-data
 filesystem-label: foobar
+size: 123M
 `
 	mbrTooLarge := bareType + `
 role: mbr
 size: 467`
 	mbrBadOffset := bareType + `
 role: mbr
+size: 446
 offset: 123`
 	mbrBadID := bareType + `
 role: mbr
-id: 123`
+id: 123
+size: 446`
 	mbrBadFilesystem := bareType + `
 role: mbr
+size: 446
 filesystem: vfat`
 	mbrNoneFilesystem := `
 type: bare
 role: mbr
-filesystem: none`
-	typeAsMBRTooLarge := `
-type: mbr
-size: 467`
+filesystem: none
+size: 446`
 	typeConflictsRole := `
 type: bare
 role: system-data
@@ -675,12 +691,28 @@ role: system-boot
 `
 	emptyRole := uuidType + `
 role: system-boot
+size: 123M
 `
 	bogusRole := uuidType + `
 role: foobar
+size: 123M
 `
+	legacyMBR := `
+type: mbr
+size: 446`
+	legacyTypeMatchingRole := `
+type: mbr
+role: mbr
+size: 446`
+	legacyTypeConflictsRole := `
+type: mbr
+role: system-data
+size: 446`
+	legacyTypeAsMBRTooLarge := `
+type: mbr
+size: 447`
 	vol := &gadget.Volume{}
-	mbrVol := &gadget.Volume{Schema: "mbr"}
+	mbrVol := &gadget.Volume{Schema: gadget.MBR}
 	for i, tc := range []struct {
 		s   *gadget.VolumeStructure
 		v   *gadget.Volume
@@ -701,8 +733,10 @@ role: foobar
 		// filesystem: none is ok for MBR
 		{mustParseStructure(c, mbrNoneFilesystem), mbrVol, ""},
 		// legacy, type: mbr treated like role: mbr
-		{mustParseStructure(c, `type: mbr`), mbrVol, ""},
-		{mustParseStructure(c, typeAsMBRTooLarge), mbrVol, `invalid implicit role "mbr": mbr structures cannot be larger than 446 bytes`},
+		{mustParseStructure(c, legacyMBR), mbrVol, ""},
+		{mustParseStructure(c, legacyTypeMatchingRole), mbrVol, ""},
+		{mustParseStructure(c, legacyTypeAsMBRTooLarge), mbrVol, `invalid implicit role "mbr": mbr structures cannot be larger than 446 bytes`},
+		{mustParseStructure(c, legacyTypeConflictsRole), vol, `invalid role "system-data": conflicting legacy type: "mbr"`},
 		// conflicting type/role
 		{mustParseStructure(c, typeConflictsRole), vol, `invalid role "system-data": conflicting type: "bare"`},
 	} {
@@ -729,7 +763,7 @@ func (s *gadgetYamlTestSuite) TestValidateFilesystem(c *C) {
 	} {
 		c.Logf("tc: %v %+v", i, tc.s)
 
-		err := gadget.ValidateVolumeStructure(&gadget.VolumeStructure{Filesystem: tc.s, Type: "21686148-6449-6E6F-744E-656564454649"}, &gadget.Volume{})
+		err := gadget.ValidateVolumeStructure(&gadget.VolumeStructure{Filesystem: tc.s, Type: "21686148-6449-6E6F-744E-656564454649", Size: 123}, &gadget.Volume{})
 		if tc.err != "" {
 			c.Check(err, ErrorMatches, tc.err)
 		} else {
@@ -743,8 +777,8 @@ func (s *gadgetYamlTestSuite) TestValidateVolumeSchema(c *C) {
 		s   string
 		err string
 	}{
-		{"gpt", ""},
-		{"mbr", ""},
+		{gadget.GPT, ""},
+		{gadget.MBR, ""},
 		// implicit GPT
 		{"", ""},
 		// invalid
@@ -801,6 +835,50 @@ func (s *gadgetYamlTestSuite) TestValidateVolumeDuplicateStructures(c *C) {
 	c.Assert(err, ErrorMatches, `structure name "duplicate" is not unique`)
 }
 
+func (s *gadgetYamlTestSuite) TestValidateVolumeDuplicateFsLabel(c *C) {
+	err := gadget.ValidateVolume("name", &gadget.Volume{
+		Structure: []gadget.VolumeStructure{
+			{Label: "foo", Type: "21686148-6449-6E6F-744E-656564454123", Size: gadget.SizeMiB},
+			{Label: "foo", Type: "21686148-6449-6E6F-744E-656564454649", Size: gadget.SizeMiB},
+		},
+	})
+	c.Assert(err, ErrorMatches, `filesystem label "foo" is not unique`)
+
+	// writable isn't special
+	err = gadget.ValidateVolume("name", &gadget.Volume{
+		Structure: []gadget.VolumeStructure{{
+			Name:  "data1",
+			Role:  gadget.SystemData,
+			Label: "writable",
+			Type:  "21686148-6449-6E6F-744E-656564454123",
+			Size:  gadget.SizeMiB,
+		}, {
+			Name:  "data2",
+			Role:  gadget.SystemData,
+			Label: "writable",
+			Type:  "21686148-6449-6E6F-744E-656564454649",
+			Size:  gadget.SizeMiB,
+		}},
+	})
+	c.Assert(err, ErrorMatches, `filesystem label "writable" is not unique`)
+
+	// nor is system-boot
+	err = gadget.ValidateVolume("name", &gadget.Volume{
+		Structure: []gadget.VolumeStructure{{
+			Name:  "boot1",
+			Label: "system-boot",
+			Type:  "EF,C12A7328-F81F-11D2-BA4B-00A0C93EC93B",
+			Size:  gadget.SizeMiB,
+		}, {
+			Name:  "boot2",
+			Label: "system-boot",
+			Type:  "EF,C12A7328-F81F-11D2-BA4B-00A0C93EC93B",
+			Size:  gadget.SizeMiB,
+		}},
+	})
+	c.Assert(err, ErrorMatches, `filesystem label "system-boot" is not unique`)
+}
+
 func (s *gadgetYamlTestSuite) TestValidateVolumeErrorsWrapped(c *C) {
 	err := gadget.ValidateVolume("name", &gadget.Volume{
 		Structure: []gadget.VolumeStructure{
@@ -829,11 +907,13 @@ func (s *gadgetYamlTestSuite) TestValidateVolumeErrorsWrapped(c *C) {
 func (s *gadgetYamlTestSuite) TestValidateStructureContent(c *C) {
 	bareOnlyOk := `
 type: bare
+size: 1M
 content:
   - image: foo.img
 `
 	bareMixed := `
 type: bare
+size: 1M
 content:
   - image: foo.img
   - source: foo
@@ -841,12 +921,14 @@ content:
 `
 	bareMissing := `
 type: bare
+size: 1M
 content:
   - offset: 123
 `
 	fsOk := `
 type: 21686148-6449-6E6F-744E-656564454649
 filesystem: ext4
+size: 1M
 content:
   - source: foo
     target: bar
@@ -854,6 +936,7 @@ content:
 	fsMixed := `
 type: 21686148-6449-6E6F-744E-656564454649
 filesystem: ext4
+size: 1M
 content:
   - source: foo
     target: bar
@@ -862,6 +945,7 @@ content:
 	fsMissing := `
 type: 21686148-6449-6E6F-744E-656564454649
 filesystem: ext4
+size: 1M
 content:
   - source: foo
 `
@@ -920,6 +1004,7 @@ volumes:
           - image: pc-core.img
             offset-write: bad-name+123
 `
+
 	err := ioutil.WriteFile(s.gadgetYamlPath, []byte(gadgetYamlBadStructureName), 0644)
 	c.Assert(err, IsNil)
 
@@ -931,6 +1016,7 @@ volumes:
 
 	_, err = gadget.ReadInfo(s.dir, false)
 	c.Check(err, ErrorMatches, `invalid volume "pc": structure #1 \("other-name"\), content #0 \("pc-core.img"\) refers to an unknown structure "bad-name"`)
+
 }
 
 func (s *gadgetYamlTestSuite) TestValidateStructureUpdatePreserveOnlyForFs(c *C) {
@@ -939,12 +1025,14 @@ func (s *gadgetYamlTestSuite) TestValidateStructureUpdatePreserveOnlyForFs(c *C)
 	err := gadget.ValidateVolumeStructure(&gadget.VolumeStructure{
 		Type:   "bare",
 		Update: gadget.VolumeUpdate{Preserve: []string{"foo"}},
+		Size:   512,
 	}, gv)
 	c.Check(err, ErrorMatches, "preserving files during update is not supported for non-filesystem structures")
 
 	err = gadget.ValidateVolumeStructure(&gadget.VolumeStructure{
 		Type:   "21686148-6449-6E6F-744E-656564454649",
 		Update: gadget.VolumeUpdate{Preserve: []string{"foo"}},
+		Size:   512,
 	}, gv)
 	c.Check(err, ErrorMatches, "preserving files during update is not supported for non-filesystem structures")
 
@@ -952,6 +1040,7 @@ func (s *gadgetYamlTestSuite) TestValidateStructureUpdatePreserveOnlyForFs(c *C)
 		Type:       "21686148-6449-6E6F-744E-656564454649",
 		Filesystem: "vfat",
 		Update:     gadget.VolumeUpdate{Preserve: []string{"foo"}},
+		Size:       512,
 	}, gv)
 	c.Check(err, IsNil)
 }
@@ -963,6 +1052,7 @@ func (s *gadgetYamlTestSuite) TestValidateStructureUpdatePreserveDuplicates(c *C
 		Type:       "21686148-6449-6E6F-744E-656564454649",
 		Filesystem: "vfat",
 		Update:     gadget.VolumeUpdate{Edition: 1, Preserve: []string{"foo", "bar"}},
+		Size:       512,
 	}, gv)
 	c.Check(err, IsNil)
 
@@ -970,6 +1060,182 @@ func (s *gadgetYamlTestSuite) TestValidateStructureUpdatePreserveDuplicates(c *C
 		Type:       "21686148-6449-6E6F-744E-656564454649",
 		Filesystem: "vfat",
 		Update:     gadget.VolumeUpdate{Edition: 1, Preserve: []string{"foo", "bar", "foo"}},
+		Size:       512,
 	}, gv)
 	c.Check(err, ErrorMatches, `duplicate "preserve" entry "foo"`)
+}
+
+func (s *gadgetYamlTestSuite) TestValidateStructureSizeRequired(c *C) {
+
+	gv := &gadget.Volume{}
+
+	err := gadget.ValidateVolumeStructure(&gadget.VolumeStructure{
+		Type:   "bare",
+		Update: gadget.VolumeUpdate{Preserve: []string{"foo"}},
+	}, gv)
+	c.Check(err, ErrorMatches, "missing size")
+
+	err = gadget.ValidateVolumeStructure(&gadget.VolumeStructure{
+		Type:       "21686148-6449-6E6F-744E-656564454649",
+		Filesystem: "vfat",
+		Update:     gadget.VolumeUpdate{Preserve: []string{"foo"}},
+	}, gv)
+	c.Check(err, ErrorMatches, "missing size")
+
+	err = gadget.ValidateVolumeStructure(&gadget.VolumeStructure{
+		Type:       "21686148-6449-6E6F-744E-656564454649",
+		Filesystem: "vfat",
+		Size:       mustParseGadgetSize(c, "123M"),
+		Update:     gadget.VolumeUpdate{Preserve: []string{"foo"}},
+	}, gv)
+	c.Check(err, IsNil)
+}
+
+func (s *gadgetYamlTestSuite) TestValidatePositioningOverlapPreceding(c *C) {
+	overlappingGadgetYaml := `
+volumes:
+  pc:
+    bootloader: grub
+    structure:
+      - name: mbr
+        type: mbr
+        size: 440
+        content:
+          - image: pc-boot.img
+      - name: other-name
+        type: DA,21686148-6449-6E6F-744E-656564454649
+        size: 1M
+        offset: 200
+        content:
+          - image: pc-core.img
+`
+	err := ioutil.WriteFile(s.gadgetYamlPath, []byte(overlappingGadgetYaml), 0644)
+	c.Assert(err, IsNil)
+
+	_, err = gadget.ReadInfo(s.dir, false)
+	c.Check(err, ErrorMatches, `invalid volume "pc": structure #1 \("other-name"\) overlaps with the preceding structure #0 \("mbr"\)`)
+}
+
+func (s *gadgetYamlTestSuite) TestValidatePositioningOverlapOutOfOrder(c *C) {
+	outOfOrderGadgetYaml := `
+volumes:
+  pc:
+    bootloader: grub
+    structure:
+      - name: overlaps-with-foo
+        type: DA,21686148-6449-6E6F-744E-656564454649
+        size: 1M
+        offset: 200
+        content:
+          - image: pc-core.img
+      - name: foo
+        type: DA,21686148-6449-6E6F-744E-656564454648
+        size: 1M
+        offset: 100
+        filesystem: vfat
+`
+	err := ioutil.WriteFile(s.gadgetYamlPath, []byte(outOfOrderGadgetYaml), 0644)
+	c.Assert(err, IsNil)
+
+	_, err = gadget.ReadInfo(s.dir, false)
+	c.Check(err, ErrorMatches, `invalid volume "pc": structure #0 \("overlaps-with-foo"\) overlaps with the preceding structure #1 \("foo"\)`)
+}
+
+func (s *gadgetYamlTestSuite) TestValidateCrossStructureMBRFixedOffset(c *C) {
+	gadgetYaml := `
+volumes:
+  pc:
+    bootloader: grub
+    structure:
+      - name: other-name
+        type: DA,21686148-6449-6E6F-744E-656564454649
+        size: 1M
+        offset: 500
+        content:
+          - image: pc-core.img
+      - name: mbr
+        type: mbr
+        size: 440
+        offset: 0
+        content:
+          - image: pc-boot.img
+`
+	err := ioutil.WriteFile(s.gadgetYamlPath, []byte(gadgetYaml), 0644)
+	c.Assert(err, IsNil)
+
+	_, err = gadget.ReadInfo(s.dir, false)
+	c.Check(err, IsNil)
+}
+
+func (s *gadgetYamlTestSuite) TestValidateCrossStructureMBRDefaultOffsetInvalid(c *C) {
+	gadgetYaml := `
+volumes:
+  pc:
+    bootloader: grub
+    structure:
+      - name: other-name
+        type: DA,21686148-6449-6E6F-744E-656564454649
+        size: 1M
+        offset: 500
+        content:
+          - image: pc-core.img
+      - name: mbr
+        type: mbr
+        size: 440
+        content:
+          - image: pc-boot.img
+`
+	err := ioutil.WriteFile(s.gadgetYamlPath, []byte(gadgetYaml), 0644)
+	c.Assert(err, IsNil)
+
+	_, err = gadget.ReadInfo(s.dir, false)
+	c.Check(err, ErrorMatches, `invalid volume "pc": structure #1 \("mbr"\) has "mbr" role and must start at offset 0`)
+}
+
+type gadgetTestSuite struct{}
+
+var _ = Suite(&gadgetTestSuite{})
+
+func (s *gadgetTestSuite) TestEffectiveRole(c *C) {
+	// no role set
+	vs := gadget.VolumeStructure{Role: ""}
+	c.Check(vs.EffectiveRole(), Equals, "")
+
+	// explicitly set role trumps all
+	vs = gadget.VolumeStructure{Role: "foobar", Type: gadget.MBR, Label: gadget.SystemBoot}
+
+	c.Check(vs.EffectiveRole(), Equals, "foobar")
+
+	vs = gadget.VolumeStructure{Role: gadget.MBR}
+	c.Check(vs.EffectiveRole(), Equals, gadget.MBR)
+
+	// legacy fallback
+	vs = gadget.VolumeStructure{Role: "", Type: gadget.MBR}
+	c.Check(vs.EffectiveRole(), Equals, gadget.MBR)
+
+	// fallback role based on fs label applies only to system-boot
+	vs = gadget.VolumeStructure{Role: "", Label: gadget.SystemBoot}
+	c.Check(vs.EffectiveRole(), Equals, gadget.SystemBoot)
+	vs = gadget.VolumeStructure{Role: "", Label: gadget.SystemData}
+	c.Check(vs.EffectiveRole(), Equals, "")
+}
+
+func (s *gadgetTestSuite) TestEffectiveFilesystemLabel(c *C) {
+	// no label, and no role set
+	vs := gadget.VolumeStructure{Role: ""}
+	c.Check(vs.EffectiveFilesystemLabel(), Equals, "")
+
+	// explicitly set label
+	vs = gadget.VolumeStructure{Label: "my-label"}
+	c.Check(vs.EffectiveFilesystemLabel(), Equals, "my-label")
+
+	// inferred based on role
+	vs = gadget.VolumeStructure{Role: gadget.SystemData, Label: "unused-label"}
+	c.Check(vs.EffectiveFilesystemLabel(), Equals, gadget.ImplicitSystemDataLabel)
+	vs = gadget.VolumeStructure{Role: gadget.SystemData}
+	c.Check(vs.EffectiveFilesystemLabel(), Equals, gadget.ImplicitSystemDataLabel)
+
+	// only system-data role is special
+	vs = gadget.VolumeStructure{Role: gadget.SystemBoot}
+	c.Check(vs.EffectiveFilesystemLabel(), Equals, "")
 }

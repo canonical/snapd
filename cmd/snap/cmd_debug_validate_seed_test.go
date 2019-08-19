@@ -28,25 +28,6 @@ import (
 	snap "github.com/snapcore/snapd/cmd/snap"
 )
 
-func (s *SnapSuite) TestDebugValidateSeedHappy(c *C) {
-	tmpf := filepath.Join(c.MkDir(), "seed.yaml")
-	err := ioutil.WriteFile(tmpf, []byte(`
-snaps:
- -
-   name: core
-   channel: stable
-   file: core_6673.snap
- -
-   name: gtk-common-themes
-   channel: stable/ubuntu-19.04
-   file: gtk-common-themes_1198.snap
-`), 0644)
-	c.Assert(err, IsNil)
-
-	_, err = snap.Parser(snap.Client()).ParseArgs([]string{"debug", "validate-seed", tmpf})
-	c.Assert(err, IsNil)
-}
-
 func (s *SnapSuite) TestDebugValidateSeedRegressionLp1825437(c *C) {
 	tmpf := filepath.Join(c.MkDir(), "seed.yaml")
 	err := ioutil.WriteFile(tmpf, []byte(`

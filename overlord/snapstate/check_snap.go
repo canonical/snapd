@@ -26,11 +26,14 @@ import (
 	"strings"
 
 	"github.com/snapcore/snapd/arch"
+	"github.com/snapcore/snapd/asserts"
 	"github.com/snapcore/snapd/cmd"
 	"github.com/snapcore/snapd/logger"
+	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/overlord/snapstate/backend"
 	"github.com/snapcore/snapd/overlord/state"
 	"github.com/snapcore/snapd/release"
+	seccomp_compiler "github.com/snapcore/snapd/sandbox/seccomp"
 	"github.com/snapcore/snapd/snap"
 )
 
@@ -43,6 +46,12 @@ var featureSet = map[string]bool{
 	"snap-env": true,
 	// Support for the "command-chain" feature for apps and hooks in snap.yaml
 	"command-chain": true,
+}
+
+// supportedSystemUsernames for now contains the hardcoded list of system
+// users (and implied system group of same name) that snaps may specify
+var supportedSystemUsernames = map[string]bool{
+	"snap_daemon": true,
 }
 
 func checkAssumes(si *snap.Info) error {
@@ -192,6 +201,11 @@ func validateInfoAndFlags(info *snap.Info, snapst *SnapState, flags Flags) error
 		return err
 	}
 
+	// check system-usernames
+	if err := checkSystemUsernames(info); err != nil {
+		return err
+	}
+
 	return nil
 }
 
@@ -206,7 +220,7 @@ func validateContainer(c snap.Container, s *snap.Info, logf func(format string, 
 }
 
 // checkSnap ensures that the snap can be installed.
-func checkSnap(st *state.State, snapFilePath, instanceName string, si *snap.SideInfo, curInfo *snap.Info, flags Flags) error {
+func checkSnap(st *state.State, snapFilePath, instanceName string, si *snap.SideInfo, curInfo *snap.Info, flags Flags, deviceCtx DeviceContext) error {
 	// This assumes that the snap was already verified or --dangerous was used.
 
 	s, c, err := openSnapFile(snapFilePath, si)
@@ -232,7 +246,7 @@ func checkSnap(st *state.State, snapFilePath, instanceName string, si *snap.Side
 	// allow registered checks to run first as they may produce more
 	// precise errors
 	for _, check := range checkSnapCallbacks {
-		err := check(st, s, curInfo, flags)
+		err := check(st, s, curInfo, flags, deviceCtx)
 		if err != nil {
 			return err
 		}
@@ -246,7 +260,7 @@ func checkSnap(st *state.State, snapFilePath, instanceName string, si *snap.Side
 }
 
 // CheckSnapCallback defines callbacks for checking a snap for installation or refresh.
-type CheckSnapCallback func(st *state.State, snap, curSnap *snap.Info, flags Flags) error
+type CheckSnapCallback func(st *state.State, snap, curSnap *snap.Info, flags Flags, deviceCtx DeviceContext) error
 
 var checkSnapCallbacks []CheckSnapCallback
 
@@ -263,8 +277,20 @@ func MockCheckSnapCallbacks(checks []CheckSnapCallback) (restore func()) {
 	}
 }
 
-func checkCoreName(st *state.State, snapInfo, curInfo *snap.Info, flags Flags) error {
-	if snapInfo.Type != snap.TypeOS {
+func checkSnapdName(st *state.State, snapInfo, curInfo *snap.Info, flags Flags, deviceCtx DeviceContext) error {
+	if snapInfo.GetType() != snap.TypeSnapd {
+		// not a relevant check
+		return nil
+	}
+	if snapInfo.InstanceName() != "snapd" {
+		return fmt.Errorf(`cannot install snap %q of type "snapd" with a name other than "snapd"`, snapInfo.InstanceName())
+	}
+
+	return nil
+}
+
+func checkCoreName(st *state.State, snapInfo, curInfo *snap.Info, flags Flags, deviceCtx DeviceContext) error {
+	if snapInfo.GetType() != snap.TypeOS {
 		// not a relevant check
 		return nil
 	}
@@ -272,7 +298,7 @@ func checkCoreName(st *state.State, snapInfo, curInfo *snap.Info, flags Flags) e
 		// already one of these installed
 		return nil
 	}
-	core, err := CoreInfo(st)
+	core, err := coreInfo(st)
 	if err == state.ErrNoState {
 		return nil
 	}
@@ -299,26 +325,36 @@ func checkCoreName(st *state.State, snapInfo, curInfo *snap.Info, flags Flags) e
 	return nil
 }
 
-func checkGadgetOrKernel(st *state.State, snapInfo, curInfo *snap.Info, flags Flags) error {
+func checkGadgetOrKernel(st *state.State, snapInfo, curInfo *snap.Info, flags Flags, deviceCtx DeviceContext) error {
+	typ := snapInfo.GetType()
 	kind := ""
-	var currentInfo func(*state.State) (*snap.Info, error)
-	switch snapInfo.Type {
+	var whichName func(*asserts.Model) string
+	switch typ {
 	case snap.TypeGadget:
 		kind = "gadget"
-		currentInfo = GadgetInfo
+		whichName = (*asserts.Model).Gadget
 	case snap.TypeKernel:
 		kind = "kernel"
-		currentInfo = KernelInfo
+		whichName = (*asserts.Model).Kernel
 	default:
 		// not a relevant check
 		return nil
 	}
 
-	currentSnap, err := currentInfo(st)
+	ok, err := HasSnapOfType(st, typ)
+	if err != nil {
+		return fmt.Errorf("cannot detect original %s snap: %v", kind, err)
+	}
 	// in firstboot we have no gadget/kernel yet - that is ok
 	// first install rules are in devicestate!
-	if err == state.ErrNoState {
+	if !ok {
 		return nil
+	}
+
+	currentSnap, err := infoForDeviceSnap(st, deviceCtx, kind, whichName)
+	if err == state.ErrNoState {
+		// TODO: remodeling logic
+		return fmt.Errorf("internal error: cannot remodel kernel/gadget yet")
 	}
 	if err != nil {
 		return fmt.Errorf("cannot find original %s snap: %v", kind, err)
@@ -343,12 +379,15 @@ func checkGadgetOrKernel(st *state.State, snapInfo, curInfo *snap.Info, flags Fl
 	return nil
 }
 
-func checkBases(st *state.State, snapInfo, curInfo *snap.Info, flags Flags) error {
+func checkBases(st *state.State, snapInfo, curInfo *snap.Info, flags Flags, deviceCtx DeviceContext) error {
 	// check if this is relevant
-	if snapInfo.Type != snap.TypeApp && snapInfo.Type != snap.TypeGadget {
+	if snapInfo.GetType() != snap.TypeApp && snapInfo.GetType() != snap.TypeGadget {
 		return nil
 	}
 	if snapInfo.Base == "" {
+		return nil
+	}
+	if snapInfo.Base == "none" {
 		return nil
 	}
 
@@ -373,7 +412,7 @@ func checkBases(st *state.State, snapInfo, curInfo *snap.Info, flags Flags) erro
 	return fmt.Errorf("cannot find required base %q", snapInfo.Base)
 }
 
-func checkEpochs(_ *state.State, snapInfo, curInfo *snap.Info, _ Flags) error {
+func checkEpochs(_ *state.State, snapInfo, curInfo *snap.Info, _ Flags, deviceCtx DeviceContext) error {
 	if curInfo == nil {
 		return nil
 	}
@@ -404,11 +443,68 @@ func earlyEpochCheck(info *snap.Info, snapst *SnapState) error {
 		return err
 	}
 
-	return checkEpochs(nil, info, cur, Flags{})
+	return checkEpochs(nil, info, cur, Flags{}, nil)
+}
+
+// check that the listed system users are valid
+var (
+	findUid = osutil.FindUid
+	findGid = osutil.FindGid
+)
+
+// TODO: keep this unsupported until it is complete!
+var systemUsernamesSupported = false
+
+func checkSystemUsernames(si *snap.Info) error {
+	// TODO: keep this unsupported until it is complete!
+	if !systemUsernamesSupported && len(si.SystemUsernames) > 0 {
+		return fmt.Errorf("system usernames are not yet supported")
+	}
+
+	// No need to check support if no system-usernames
+	if len(si.SystemUsernames) == 0 {
+		return nil
+	}
+
+	// Run /.../snap-seccomp version-info
+	vi, err := seccomp_compiler.CompilerVersionInfo(cmd.InternalToolPath)
+	if err != nil {
+		return fmt.Errorf("cannot obtain seccomp compiler information: %v", err)
+	}
+
+	// If the system doesn't support robust argument filtering then we
+	// can't support system-usernames
+	if err := vi.SupportsRobustArgumentFiltering(); err != nil {
+		if re, ok := err.(*seccomp_compiler.BuildTimeRequirementError); ok {
+			return fmt.Errorf("snap %q system usernames require a snapd built against %s", si.InstanceName(), re.RequirementsString())
+		}
+		return err
+	}
+
+	for _, user := range si.SystemUsernames {
+		if !supportedSystemUsernames[user.Name] {
+			return fmt.Errorf(`snap %q requires unsupported system username "%s"`, si.InstanceName(), user.Name)
+		}
+
+		switch user.Scope {
+		case "shared":
+			_, uidErr := findUid(user.Name)
+			_, gidErr := findGid(user.Name)
+			if uidErr != nil || gidErr != nil {
+				return fmt.Errorf(`snap %q requires that both the "%s" system user and group are present on the system.`, si.InstanceName(), user.Name)
+			}
+		case "private", "external":
+			return fmt.Errorf(`snap %q requires unsupported user scope "%s" for this version of snapd`, si.InstanceName(), user.Scope)
+		default:
+			return fmt.Errorf(`snap %q requires unsupported user scope "%s"`, si.InstanceName(), user.Scope)
+		}
+	}
+	return nil
 }
 
 func init() {
 	AddCheckSnapCallback(checkCoreName)
+	AddCheckSnapCallback(checkSnapdName)
 	AddCheckSnapCallback(checkGadgetOrKernel)
 	AddCheckSnapCallback(checkBases)
 	AddCheckSnapCallback(checkEpochs)

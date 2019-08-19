@@ -61,7 +61,7 @@ func (s *InfoSnapYamlTestSuite) TestSimple(c *C) {
 	c.Assert(err, IsNil)
 	c.Assert(info.InstanceName(), Equals, "foo")
 	c.Assert(info.Version, Equals, "1.0")
-	c.Assert(info.Type, Equals, snap.TypeApp)
+	c.Assert(info.GetType(), Equals, snap.TypeApp)
 	c.Assert(info.Epoch, DeepEquals, snap.E("0"))
 }
 
@@ -71,7 +71,7 @@ version: 1.0`))
 	c.Assert(err, IsNil)
 	c.Assert(info.InstanceName(), Equals, "snapd")
 	c.Assert(info.Version, Equals, "1.0")
-	c.Assert(info.Type, Equals, snap.TypeSnapd)
+	c.Assert(info.GetType(), Equals, snap.TypeSnapd)
 }
 
 func (s *InfoSnapYamlTestSuite) TestFail(c *C) {
@@ -441,7 +441,18 @@ plugs:
     net:
         1: ok
 `))
-	c.Assert(err, ErrorMatches, `plug "net" has attribute that is not a string \(found int\)`)
+	c.Assert(err, ErrorMatches, `plug "net" has attribute key that is not a string \(found int\)`)
+}
+
+func (s *YamlSuite) TestUnmarshalCorruptedPlugWithEmptyAttributeKey(c *C) {
+	// NOTE: yaml content cannot use tabs, indent the section with spaces.
+	_, err := snap.InfoFromSnapYaml([]byte(`
+name: snap
+plugs:
+    net:
+        "": ok
+`))
+	c.Assert(err, ErrorMatches, `plug "net" has an empty attribute key`)
 }
 
 func (s *YamlSuite) TestUnmarshalCorruptedPlugWithUnexpectedType(c *C) {
@@ -854,7 +865,18 @@ slots:
     net:
         1: ok
 `))
-	c.Assert(err, ErrorMatches, `slot "net" has attribute that is not a string \(found int\)`)
+	c.Assert(err, ErrorMatches, `slot "net" has attribute key that is not a string \(found int\)`)
+}
+
+func (s *YamlSuite) TestUnmarshalCorruptedSlotWithEmptyAttributeKey(c *C) {
+	// NOTE: yaml content cannot use tabs, indent the section with spaces.
+	_, err := snap.InfoFromSnapYaml([]byte(`
+name: snap
+slots:
+    net:
+        "": ok
+`))
+	c.Assert(err, ErrorMatches, `slot "net" has an empty attribute key`)
 }
 
 func (s *YamlSuite) TestUnmarshalCorruptedSlotWithUnexpectedType(c *C) {
@@ -1203,7 +1225,7 @@ slots:
 	c.Assert(err, IsNil)
 	c.Check(info.InstanceName(), Equals, "foo")
 	c.Check(info.Version, Equals, "1.2")
-	c.Check(info.Type, Equals, snap.TypeApp)
+	c.Check(info.GetType(), Equals, snap.TypeApp)
 	c.Check(info.Epoch, DeepEquals, snap.E("1*"))
 	c.Check(info.Confinement, Equals, snap.DevModeConfinement)
 	c.Check(info.Title(), Equals, "Foo")
@@ -1336,7 +1358,7 @@ version: 1.0
 `)
 	info, err := snap.InfoFromSnapYaml(y)
 	c.Assert(err, IsNil)
-	c.Assert(info.Type, Equals, snap.TypeApp)
+	c.Assert(info.GetType(), Equals, snap.TypeApp)
 }
 
 func (s *YamlSuite) TestSnapYamlEpochDefault(c *C) {
@@ -1818,4 +1840,148 @@ apps:
 	app := info.Apps["foo"]
 	c.Assert(app, NotNil)
 	c.Check(app.RestartDelay, Equals, timeout.Timeout(12*time.Second))
+}
+
+func (s *YamlSuite) TestSnapYamlSystemUsernamesParsing(c *C) {
+	y := []byte(`name: binary
+version: 1.0
+system-usernames:
+  foo: shared
+  bar:
+    scope: external
+  baz:
+    scope: private
+    attr1: norf
+    attr2: corge
+    attr3: ""
+`)
+	info, err := snap.InfoFromSnapYaml(y)
+	c.Assert(err, IsNil)
+	c.Check(info.SystemUsernames, HasLen, 3)
+	c.Assert(info.SystemUsernames["foo"], DeepEquals, &snap.SystemUsernameInfo{
+		Name:  "foo",
+		Scope: "shared",
+	})
+	c.Assert(info.SystemUsernames["bar"], DeepEquals, &snap.SystemUsernameInfo{
+		Name:  "bar",
+		Scope: "external",
+	})
+	c.Assert(info.SystemUsernames["baz"], DeepEquals, &snap.SystemUsernameInfo{
+		Name:  "baz",
+		Scope: "private",
+		Attrs: map[string]interface{}{
+			"attr1": "norf",
+			"attr2": "corge",
+			"attr3": "",
+		},
+	})
+}
+
+func (s *YamlSuite) TestSnapYamlSystemUsernamesParsingBadType(c *C) {
+	y := []byte(`name: binary
+version: 1.0
+system-usernames:
+  a: true
+`)
+	info, err := snap.InfoFromSnapYaml(y)
+	c.Assert(err, ErrorMatches, `system username "a" has malformed definition \(found bool\)`)
+	c.Assert(info, IsNil)
+}
+
+func (s *YamlSuite) TestSnapYamlSystemUsernamesParsingBadValue(c *C) {
+	y := []byte(`name: binary
+version: 1.0
+system-usernames:
+  a: [b, c]
+`)
+	info, err := snap.InfoFromSnapYaml(y)
+	c.Assert(err, ErrorMatches, `system username "a" has malformed definition \(found \[\]interface {}\)`)
+	c.Assert(info, IsNil)
+}
+
+func (s *YamlSuite) TestSnapYamlSystemUsernamesParsingBadKeyEmpty(c *C) {
+	y := []byte(`name: binary
+version: 1.0
+system-usernames:
+  "": shared
+`)
+	_, err := snap.InfoFromSnapYaml(y)
+	c.Assert(err, ErrorMatches, `system username cannot be empty`)
+}
+
+func (s *YamlSuite) TestSnapYamlSystemUsernamesParsingBadKeyList(c *C) {
+	y := []byte(`name: binary
+version: 1.0
+system-usernames:
+- foo: shared
+`)
+	_, err := snap.InfoFromSnapYaml(y)
+	c.Assert(err, ErrorMatches, `(?m)cannot parse snap.yaml:.*`)
+}
+
+func (s *YamlSuite) TestSnapYamlSystemUsernamesParsingBadValueEmpty(c *C) {
+	y := []byte(`name: binary
+version: 1.0
+system-usernames:
+  a: ""
+`)
+	_, err := snap.InfoFromSnapYaml(y)
+	c.Assert(err, ErrorMatches, `system username "a" does not specify a scope`)
+}
+
+func (s *YamlSuite) TestSnapYamlSystemUsernamesParsingBadValueNull(c *C) {
+	y := []byte(`name: binary
+version: 1.0
+system-usernames:
+  a: null
+`)
+	_, err := snap.InfoFromSnapYaml(y)
+	c.Assert(err, ErrorMatches, `system username "a" does not specify a scope`)
+}
+
+func (s *YamlSuite) TestSnapYamlSystemUsernamesParsingBadAttrKeyEmpty(c *C) {
+	y := []byte(`name: binary
+version: 1.0
+system-usernames:
+  foo:
+    scope: shared
+    "": bar
+`)
+	_, err := snap.InfoFromSnapYaml(y)
+	c.Assert(err, ErrorMatches, `system username "foo" has an empty attribute key`)
+}
+
+func (s *YamlSuite) TestSnapYamlSystemUsernamesParsingBadAttrKeyNonString(c *C) {
+	y := []byte(`name: binary
+version: 1.0
+system-usernames:
+  foo:
+    scope: shared
+    1: bar
+`)
+	_, err := snap.InfoFromSnapYaml(y)
+	c.Assert(err, ErrorMatches, `system username "foo" has attribute key that is not a string \(found int\)`)
+}
+
+func (s *YamlSuite) TestSnapYamlSystemUsernamesParsingBadAttrValue(c *C) {
+	y := []byte(`name: binary
+version: 1.0
+system-usernames:
+  foo:
+    scope: shared
+    bar: null
+`)
+	_, err := snap.InfoFromSnapYaml(y)
+	c.Assert(err, ErrorMatches, `attribute "bar" of system username "foo": invalid scalar:.*`)
+}
+
+func (s *YamlSuite) TestSnapYamlSystemUsernamesParsingBadScopeNonString(c *C) {
+	y := []byte(`name: binary
+version: 1.0
+system-usernames:
+  foo:
+    scope: 10
+`)
+	_, err := snap.InfoFromSnapYaml(y)
+	c.Assert(err, ErrorMatches, `scope on system username "foo" is not a string \(found int\)`)
 }

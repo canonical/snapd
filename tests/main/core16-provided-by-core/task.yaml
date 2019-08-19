@@ -25,7 +25,7 @@ execute: |
     install_local test-snapd-sh-core16
 
     echo "and core16 was not pulled in"
-    ! snap list core16
+    not snap list core16
 
     echo "and the snap works fine"
     test-snapd-sh-core16.sh -c "echo hello" | MATCH hello
