@@ -1077,3 +1077,58 @@ func (s *checkSnapSuite) TestCheckSnapSystemUsernames(c *C) {
 		}
 	}
 }
+
+func (s *checkSnapSuite) TestCheckSnapSystemUsernamesCalls(c *C) {
+	for _, classic := range []bool{false, true} {
+		restore := release.MockOnClassic(classic)
+		defer restore()
+
+		restore = interfaces.MockSeccompCompilerVersionInfo(func(_ string) (string, error) {
+			return "dead 2.4.1 deadbeef bpf-actlog", nil
+		})
+		defer restore()
+
+		const yaml = `name: foo
+version: 1.0
+system-usernames:
+  snap_daemon: shared`
+
+		info, err := snap.InfoFromSnapYaml([]byte(yaml))
+		c.Assert(err, IsNil)
+
+		var openSnapFile = func(path string, si *snap.SideInfo) (*snap.Info, snap.Container, error) {
+			return info, emptyContainer(c), nil
+		}
+		restore = snapstate.MockOpenSnapFile(openSnapFile)
+		defer restore()
+
+		mockGroupAdd := testutil.MockCommand(c, "groupadd", "")
+		defer mockGroupAdd.Restore()
+
+		mockUserAdd := testutil.MockCommand(c, "useradd", "")
+		defer mockUserAdd.Restore()
+
+		err = snapstate.CheckSnap(s.st, "snap-path", "foo", nil, nil, snapstate.Flags{}, nil)
+		c.Assert(err, IsNil)
+		if classic {
+			c.Check(mockGroupAdd.Calls(), DeepEquals, [][]string{
+				{"groupadd", "--system", "--gid", "524288", "snapd-range-524288-root"},
+				{"groupadd", "--system", "--gid", "584788", "snap_daemon"},
+			})
+			c.Check(mockUserAdd.Calls(), DeepEquals, [][]string{
+				{"useradd", "--system", "--home-dir", "/nonexistent", "--no-create-home", "--shell", "/bin/false", "--gid", "524288", "--no-user-group", "--uid", "524288", "snapd-range-524288-root"},
+				{"useradd", "--system", "--home-dir", "/nonexistent", "--no-create-home", "--shell", "/bin/false", "--gid", "584788", "--no-user-group", "--uid", "584788", "snap_daemon"},
+			})
+		} else {
+			c.Check(mockGroupAdd.Calls(), DeepEquals, [][]string{
+				{"groupadd", "--system", "--gid", "524288", "--extrausers", "snapd-range-524288-root"},
+				{"groupadd", "--system", "--gid", "584788", "--extrausers", "snap_daemon"},
+			})
+			c.Check(mockUserAdd.Calls(), DeepEquals, [][]string{
+				{"useradd", "--system", "--home-dir", "/nonexistent", "--no-create-home", "--shell", "/bin/false", "--gid", "524288", "--no-user-group", "--uid", "524288", "--extrausers", "snapd-range-524288-root"},
+				{"useradd", "--system", "--home-dir", "/nonexistent", "--no-create-home", "--shell", "/bin/false", "--gid", "584788", "--no-user-group", "--uid", "584788", "--extrausers", "snap_daemon"},
+			})
+
+		}
+	}
+}
