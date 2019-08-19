@@ -77,7 +77,7 @@ func (b *Batch) Add(a Assertion) error {
 }
 
 // AddStream adds a stream of assertions to the batch.
-// Returns references to to the assertions effectively added.
+// Returns references to the assertions effectively added.
 func (b *Batch) AddStream(r io.Reader) ([]*Ref, error) {
 	b.inPrereqOrder = false
 
@@ -106,8 +106,8 @@ func (b *Batch) AddStream(r io.Reader) ([]*Ref, error) {
 	return refs, nil
 }
 
-// Fetch adds to the batch via a driven by the fetching function
-// internal Fetcher built with trustedDB and retrieve.
+// Fetch adds to the batch by invoking fetching to drive an internal
+// Fetcher that was built with trustedDB and retrieve.
 func (b *Batch) Fetch(trustedDB RODatabase, retrieve func(*Ref) (Assertion, error), fetching func(Fetcher) error) error {
 	f := NewFetcher(trustedDB, retrieve, b.Add)
 	return fetching(f)
