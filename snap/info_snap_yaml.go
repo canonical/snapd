@@ -34,24 +34,25 @@ import (
 )
 
 type snapYaml struct {
-	Name          string                 `yaml:"name"`
-	Version       string                 `yaml:"version"`
-	Type          Type                   `yaml:"type"`
-	Architectures []string               `yaml:"architectures,omitempty"`
-	Assumes       []string               `yaml:"assumes"`
-	Title         string                 `yaml:"title"`
-	Description   string                 `yaml:"description"`
-	Summary       string                 `yaml:"summary"`
-	License       string                 `yaml:"license,omitempty"`
-	Epoch         Epoch                  `yaml:"epoch,omitempty"`
-	Base          string                 `yaml:"base,omitempty"`
-	Confinement   ConfinementType        `yaml:"confinement,omitempty"`
-	Environment   strutil.OrderedMap     `yaml:"environment,omitempty"`
-	Plugs         map[string]interface{} `yaml:"plugs,omitempty"`
-	Slots         map[string]interface{} `yaml:"slots,omitempty"`
-	Apps          map[string]appYaml     `yaml:"apps,omitempty"`
-	Hooks         map[string]hookYaml    `yaml:"hooks,omitempty"`
-	Layout        map[string]layoutYaml  `yaml:"layout,omitempty"`
+	Name            string                 `yaml:"name"`
+	Version         string                 `yaml:"version"`
+	Type            Type                   `yaml:"type"`
+	Architectures   []string               `yaml:"architectures,omitempty"`
+	Assumes         []string               `yaml:"assumes"`
+	Title           string                 `yaml:"title"`
+	Description     string                 `yaml:"description"`
+	Summary         string                 `yaml:"summary"`
+	License         string                 `yaml:"license,omitempty"`
+	Epoch           Epoch                  `yaml:"epoch,omitempty"`
+	Base            string                 `yaml:"base,omitempty"`
+	Confinement     ConfinementType        `yaml:"confinement,omitempty"`
+	Environment     strutil.OrderedMap     `yaml:"environment,omitempty"`
+	Plugs           map[string]interface{} `yaml:"plugs,omitempty"`
+	Slots           map[string]interface{} `yaml:"slots,omitempty"`
+	Apps            map[string]appYaml     `yaml:"apps,omitempty"`
+	Hooks           map[string]hookYaml    `yaml:"hooks,omitempty"`
+	Layout          map[string]layoutYaml  `yaml:"layout,omitempty"`
+	SystemUsernames map[string]interface{} `yaml:"system-usernames,omitempty"`
 
 	// TypoLayouts is used to detect the use of the incorrect plural form of "layout"
 	TypoLayouts typoDetector `yaml:"layouts,omitempty"`
@@ -223,6 +224,11 @@ func infoFromSnapYaml(yamlData []byte, strk *scopedTracker) (*Info, error) {
 	snap.BadInterfaces = make(map[string]string)
 	SanitizePlugsSlots(snap)
 
+	// Collect system usernames
+	if err := setSystemUsernamesFromSnapYaml(y, snap); err != nil {
+		return nil, err
+	}
+
 	// FIXME: validation of the fields
 	return snap, nil
 }
@@ -235,6 +241,7 @@ func infoSkeletonFromSnapYaml(y snapYaml) *Info {
 	if len(y.Architectures) != 0 {
 		architectures = y.Architectures
 	}
+
 	typ := TypeApp
 	if y.Type != "" {
 		typ = y.Type
@@ -275,6 +282,7 @@ func infoSkeletonFromSnapYaml(y snapYaml) *Info {
 		Plugs:               make(map[string]*PlugInfo),
 		Slots:               make(map[string]*SlotInfo),
 		Environment:         y.Environment,
+		SystemUsernames:     make(map[string]*SystemUsernameInfo),
 	}
 
 	sort.Strings(snap.Assumes)
@@ -497,6 +505,28 @@ func setHooksFromSnapYaml(y snapYaml, snap *Info, strk *scopedTracker) {
 	}
 }
 
+func setSystemUsernamesFromSnapYaml(y snapYaml, snap *Info) error {
+	for user, data := range y.SystemUsernames {
+		if user == "" {
+			return fmt.Errorf("system username cannot be empty")
+		}
+		scope, attrs, err := convertToUsernamesData(user, data)
+		if err != nil {
+			return err
+		}
+		if scope == "" {
+			return fmt.Errorf("system username %q does not specify a scope", user)
+		}
+		snap.SystemUsernames[user] = &SystemUsernameInfo{
+			Name:  user,
+			Scope: scope,
+			Attrs: attrs,
+		}
+	}
+
+	return nil
+}
+
 func bindUnscopedPlugs(snap *Info, strk *scopedTracker) {
 	for plugName, plug := range snap.Plugs {
 		if strk.plug(plug) {
@@ -616,5 +646,57 @@ func convertToSlotOrPlugData(plugOrSlot, name string, data interface{}) (iface, 
 	default:
 		err := fmt.Errorf("%s %q has malformed definition (found %T)", plugOrSlot, name, data)
 		return "", "", nil, err
+	}
+}
+
+// Short form:
+//   system-usernames:
+//     snap_daemon: shared  # 'scope' is 'shared'
+//     lxd: external        # currently unsupported
+//     foo: private         # currently unsupported
+// Attributes form:
+//   system-usernames:
+//     snap_daemon:
+//       scope: shared
+//       attrib1: ...
+//       attrib2: ...
+func convertToUsernamesData(user string, data interface{}) (scope string, attrs map[string]interface{}, err error) {
+	switch data.(type) {
+	case string:
+		return data.(string), nil, nil
+	case nil:
+		return "", nil, nil
+	case map[interface{}]interface{}:
+		for keyData, valueData := range data.(map[interface{}]interface{}) {
+			key, ok := keyData.(string)
+			if !ok {
+				err := fmt.Errorf("system username %q has attribute key that is not a string (found %T)", user, keyData)
+				return "", nil, err
+			}
+			switch key {
+			case "scope":
+				value, ok := valueData.(string)
+				if !ok {
+					err := fmt.Errorf("scope on system username %q is not a string (found %T)", user, valueData)
+					return "", nil, err
+				}
+				scope = value
+			case "":
+				return "", nil, fmt.Errorf("system username %q has an empty attribute key", user)
+			default:
+				if attrs == nil {
+					attrs = make(map[string]interface{})
+				}
+				value, err := metautil.NormalizeValue(valueData)
+				if err != nil {
+					return "", nil, fmt.Errorf("attribute %q of system username %q: %v", key, user, err)
+				}
+				attrs[key] = value
+			}
+		}
+		return scope, attrs, nil
+	default:
+		err := fmt.Errorf("system username %q has malformed definition (found %T)", user, data)
+		return "", nil, err
 	}
 }

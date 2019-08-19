@@ -152,6 +152,7 @@ func (s *baseDeclSuite) TestAutoConnection(c *C) {
 
 	// these simply auto-connect, anything else doesn't
 	autoconnect := map[string]bool{
+		"audio-playback":          true,
 		"browser-support":         true,
 		"desktop":                 true,
 		"desktop-legacy":          true,
@@ -579,6 +580,8 @@ var (
 	slotInstallation = map[string][]string{
 		// other
 		"adb-support":             {"core"},
+		"audio-playback":          {"app", "core"},
+		"audio-record":            {"app", "core"},
 		"autopilot-introspection": {"core"},
 		"avahi-control":           {"app", "core"},
 		"avahi-observe":           {"app", "core"},
@@ -649,12 +652,10 @@ func (s *baseDeclSuite) TestSlotInstallation(c *C) {
 
 	for _, iface := range all {
 		types, ok := slotInstallation[iface.Name()]
-		compareWithSanitize := false
 		if !ok { // common ones, only core can install them,
-			// their plain BeforePrepareSlot checked for that
 			types = []string{"core"}
-			compareWithSanitize = true
 		}
+
 		if types == nil {
 			// snowflake needs to be tested specially
 			continue
@@ -662,21 +663,12 @@ func (s *baseDeclSuite) TestSlotInstallation(c *C) {
 		for name, snapType := range snapTypeMap {
 			ok := strutil.ListContains(types, name)
 			ic := s.installSlotCand(c, iface.Name(), snapType, ``)
-			slotInfo := ic.Snap.Slots[iface.Name()]
 			err := ic.Check()
 			comm := Commentf("%s by %s snap", iface.Name(), name)
 			if ok {
 				c.Check(err, IsNil, comm)
 			} else {
 				c.Check(err, NotNil, comm)
-			}
-			if compareWithSanitize {
-				sanitizeErr := interfaces.BeforePrepareSlot(iface, slotInfo)
-				if err == nil {
-					c.Check(sanitizeErr, IsNil, comm)
-				} else {
-					c.Check(sanitizeErr, NotNil, comm)
-				}
 			}
 		}
 	}
@@ -792,6 +784,7 @@ func (s *baseDeclSuite) TestConnectionOnClassic(c *C) {
 	// connecting with these interfaces needs to be allowed on
 	// case-by-case basis when not on classic
 	noconnect := map[string]bool{
+		"audio-record":    true,
 		"modem-manager":   true,
 		"network-manager": true,
 		"ofono":           true,
@@ -829,6 +822,7 @@ func (s *baseDeclSuite) TestSanity(c *C) {
 	// listed here to make sure that was a conscious decision
 	bothSides := map[string]bool{
 		"block-devices":         true,
+		"audio-playback":        true,
 		"classic-support":       true,
 		"core-support":          true,
 		"docker-support":        true,

@@ -220,3 +220,30 @@ func (s *compilerSuite) TestHasFeature(c *C) {
 		}
 	}
 }
+
+func (s *compilerSuite) TestSupportsRobustArgumentFiltering(c *C) {
+	for _, tc := range []struct {
+		v   string
+		err string
+	}{
+		// libseccomp < 2.3.3 and golang-seccomp < 0.9.1
+		{"a 2.3.3 b -", "robust argument filtering requires a snapd built against libseccomp >= 2.4, golang-seccomp >= 0.9.1"},
+		// libseccomp < 2.3.3
+		{"a 2.3.3 b bpf-actlog", "robust argument filtering requires a snapd built against libseccomp >= 2.4"},
+		// golang-seccomp < 0.9.1
+		{"a 2.4.1 b -", "robust argument filtering requires a snapd built against golang-seccomp >= 0.9.1"},
+		{"a 2.4.1 b bpf-other", "robust argument filtering requires a snapd built against golang-seccomp >= 0.9.1"},
+		// libseccomp >= 2.4.1 and golang-seccomp >= 0.9.1
+		{"a 2.4.1 b bpf-actlog", ""},
+		{"a 3.0.0 b bpf-actlog", ""},
+		// invalid
+		{"a 1.2.3 b b@rf", "invalid format of version-info: .*"},
+	} {
+		err := seccomp.VersionInfo(tc.v).SupportsRobustArgumentFiltering()
+		if tc.err == "" {
+			c.Assert(err, IsNil)
+		} else {
+			c.Assert(err, ErrorMatches, tc.err)
+		}
+	}
+}

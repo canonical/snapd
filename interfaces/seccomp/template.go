@@ -67,8 +67,9 @@ chmod
 fchmod
 fchmodat
 
-# snappy doesn't currently support per-app UID/GIDs. All daemons run as 'root'
-# so allow chown to 'root'. DAC will prevent non-root from chowning to root.
+# Daemons typically run as 'root' so allow chown to 'root'. DAC will prevent
+# non-root from chowning to root.
+# (chown root:root)
 chown - u:root g:root
 chown32 - u:root g:root
 fchown - u:root g:root
@@ -76,6 +77,22 @@ fchown32 - u:root g:root
 fchownat - - u:root g:root
 lchown - u:root g:root
 lchown32 - u:root g:root
+# (chown root)
+chown - u:root -1
+chown32 - u:root -1
+fchown - u:root -1
+fchown32 - u:root -1
+fchownat - - u:root -1
+lchown - u:root -1
+lchown32 - u:root -1
+# (chgrp root)
+chown - -1 g:root
+chown32 - -1 g:root
+fchown - -1 g:root
+fchown32 - -1 g:root
+fchownat - - -1 g:root
+lchown - -1 g:root
+lchown32 - -1 g:root
 
 clock_getres
 clock_gettime
@@ -353,25 +370,6 @@ sendmmsg
 sendfile
 sendfile64
 
-# While we don't yet have seccomp arg filtering (LP: #1446748), we must allow
-# these because the launcher drops privileges after seccomp_load(). Eventually
-# we will only allow dropping to particular UIDs. For now, we mediate this with
-# AppArmor
-setgid
-setgid32
-setregid
-setregid32
-setresgid
-setresgid32
-setresuid
-setresuid32
-setreuid
-setreuid32
-setuid
-setuid32
-#setgroups
-#setgroups32
-
 # These break isolation but are common and can't be mediated at the seccomp
 # level with arg filtering
 setpgid
@@ -577,4 +575,192 @@ bind
 const socketcallSyscallDeprecated = `
 # Add socketcall() for system and/or base that requires it. LP: #1446748
 socketcall
+`
+
+// Historically snapd has allowed the use of the various setuid, setgid and
+// setgroups syscalls, relying on AppArmor for mediation of the CAP_SETUID and
+// CAP_SETGID. In core20, these can be dropped.
+var barePrivDropSyscalls = `
+# Allow these and rely on AppArmor to mediate CAP_SETUID and CAP_SETGID. When
+# dropping to particular UID/GIDs, we'll use a different set of
+# argument-filtered syscalls.
+setgid
+setgid32
+setregid
+setregid32
+setresgid
+setresgid32
+setresuid
+setresuid32
+setreuid
+setreuid32
+setuid
+setuid32
+`
+
+// Syscalls for setuid/setgid family of syscalls when dealing with only root
+// uid and gid
+var rootSetUidGidSyscalls = `
+# Allow various setuid/setgid/chown family of syscalls with argument
+# filtering. AppArmor has corresponding CAP_SETUID, CAP_SETGID and CAP_CHOWN
+# rules.
+
+# allow use of setgroups(0, NULL)
+setgroups 0 0
+setgroups32 0 0
+
+# allow setgid to root
+setgid g:root
+setgid32 g:root
+
+# allow setuid to root
+setuid u:root
+setuid32 u:root
+
+# allow setregid to root
+setregid g:root g:root
+setregid32 g:root g:root
+setregid -1 g:root
+setregid32 -1 g:root
+setregid g:root -1
+setregid32 g:root -1
+
+# allow setresgid to root
+# (permanent drop)
+setresgid g:root g:root g:root
+setresgid32 g:root g:root g:root
+# (setegid)
+setresgid -1 g:root -1
+setresgid32 -1 g:root -1
+# (setgid equivalent)
+setresgid g:root g:root -1
+setresgid32 g:root g:root -1
+
+# allow setreuid to root
+setreuid u:root u:root
+setreuid32 u:root u:root
+setreuid -1 u:root
+setreuid32 -1 u:root
+setreuid u:root -1
+setreuid32 u:root -1
+
+# allow setresuid to root
+# (permanent drop)
+setresuid u:root u:root u:root
+setresuid32 u:root u:root u:root
+# (seteuid)
+setresuid -1 u:root -1
+setresuid32 -1 u:root -1
+# (setuid equivalent)
+setresuid u:root u:root -1
+setresuid32 u:root u:root -1
+`
+
+// Template for privilege drop and chown operations. This intentionally does
+// not support all combinations of users or obscure combinations (we can add
+// combinations as users dictate). Eg, these are supported:
+//   chown foo:foo
+//   chown foo
+//   chgrp foo
+// but these are not:
+//   chown foo:bar
+//   chown bar:foo
+// For now, users who want 'foo:bar' can do:
+//   chown foo ; chgrp bar
+var privDropAndChownSyscalls = `
+# allow setgid to ###GROUP###
+setgid g:###GROUP###
+setgid32 g:###GROUP###
+
+# allow setregid to ###GROUP###
+setregid g:###GROUP### g:###GROUP###
+setregid32 g:###GROUP### g:###GROUP###
+setregid -1 g:###GROUP###
+setregid32 -1 g:###GROUP###
+setregid g:###GROUP### -1
+setregid32 g:###GROUP### -1
+# (real root)
+setregid g:root g:###GROUP###
+setregid32 g:root g:###GROUP###
+# (euid root)
+setregid g:###GROUP### g:root
+setregid32 g:###GROUP### g:root
+
+# allow setresgid to ###GROUP###
+# (permanent drop)
+setresgid g:###GROUP### g:###GROUP### g:###GROUP###
+setresgid32 g:###GROUP### g:###GROUP### g:###GROUP###
+# (setegid)
+setresgid -1 g:###GROUP### -1
+setresgid32 -1 g:###GROUP### -1
+# (setgid equivalent)
+setresgid g:###GROUP### g:###GROUP### -1
+setresgid32 g:###GROUP### g:###GROUP### -1
+# (saving root)
+setresgid g:###GROUP### g:###GROUP### g:root
+setresgid32 g:###GROUP### g:###GROUP### g:root
+# (euid root and saving root)
+setresgid g:###GROUP### g:root g:root
+setresgid32 g:###GROUP### g:root g:root
+
+# allow setuid to ###USERNAME###
+setuid u:###USERNAME###
+setuid32 u:###USERNAME###
+
+# allow setreuid to ###USERNAME###
+setreuid u:###USERNAME### u:###USERNAME###
+setreuid32 u:###USERNAME### u:###USERNAME###
+setreuid -1 u:###USERNAME###
+setreuid32 -1 u:###USERNAME###
+setreuid u:###USERNAME### -1
+setreuid32 u:###USERNAME### -1
+# (real root)
+setreuid u:root u:###USERNAME###
+setreuid32 u:root u:###USERNAME###
+# (euid root)
+setreuid u:###USERNAME### u:root
+setreuid32 u:###USERNAME### u:root
+
+# allow setresuid to ###USERNAME###
+# (permanent drop)
+setresuid u:###USERNAME### u:###USERNAME### u:###USERNAME###
+setresuid32 u:###USERNAME### u:###USERNAME### u:###USERNAME###
+# (seteuid)
+setresuid -1 u:###USERNAME### -1
+setresuid32 -1 u:###USERNAME### -1
+# (setuid equivalent)
+setresuid u:###USERNAME### u:###USERNAME### -1
+setresuid32 u:###USERNAME### u:###USERNAME### -1
+# (saving root)
+setresuid u:###USERNAME### u:###USERNAME### u:root
+setresuid32 u:###USERNAME### u:###USERNAME### u:root
+# (euid root and saving root)
+setresuid u:###USERNAME### u:root u:root
+setresuid32 u:###USERNAME### u:root u:root
+
+# allow chown to ###USERNAME###:###GROUP###
+# (chown ###USERNAME###:###GROUP###)
+chown - u:###USERNAME### g:###GROUP###
+chown32 - u:###USERNAME### g:###GROUP###
+fchown - u:###USERNAME### g:###GROUP###
+fchown32 - u:###USERNAME### g:###GROUP###
+fchownat - - u:###USERNAME### g:###GROUP###
+lchown - u:###USERNAME### g:###GROUP###
+lchown32 - u:###USERNAME### g:###GROUP###
+# (chown ###USERNAME###)
+chown - u:###USERNAME### -1
+chown32 - u:###USERNAME### -1
+fchown - u:###USERNAME### -1
+fchown32 - u:###USERNAME### -1
+fchownat - - u:###USERNAME### -1
+lchown - u:###USERNAME### -1
+lchown32 - u:###USERNAME### -1
+# (chgrp ###GROUP###)
+chown - -1 g:###GROUP###
+chown32 - -1 g:###GROUP###
+fchown - -1 g:###GROUP###
+fchown32 - -1 g:###GROUP###
+fchownat - - -1 g:###GROUP###
+lchown - -1 g:###GROUP###
+lchown32 - -1 g:###GROUP###
 `
