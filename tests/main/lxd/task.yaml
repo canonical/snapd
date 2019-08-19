@@ -31,9 +31,6 @@ restore: |
     lxd.lxc stop my-ubuntu --force
     lxd.lxc delete my-ubuntu
 
-    # LXD alters the configuration of the cpuset cgroup. Restore the original state.
-    echo 0 > /sys/fs/cgroup/cpuset/cgroup.clone_children
-
 debug: |
     # shellcheck source=tests/lib/journalctl.sh
     . "$TESTSLIB/journalctl.sh"
