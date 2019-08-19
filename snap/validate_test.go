@@ -1559,3 +1559,18 @@ apps:
 		}
 	}
 }
+
+func (s *ValidateSuite) TestValidateSystemUsernames(c *C) {
+	const yaml1 = `name: binary
+version: 1.0
+system-usernames:
+  "b@d": shared
+`
+
+	strk := NewScopedTracker()
+	info, err := InfoFromSnapYamlWithSideInfo([]byte(yaml1), nil, strk)
+	c.Assert(err, IsNil)
+	c.Assert(info.SystemUsernames, HasLen, 1)
+	err = Validate(info)
+	c.Assert(err, ErrorMatches, `invalid system username "b@d"`)
+}

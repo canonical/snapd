@@ -84,11 +84,6 @@ func (iface *commonInterface) StaticInfo() interfaces.StaticInfo {
 	}
 }
 
-// BeforePrepareSlot checks and possibly modifies a slot.
-func (iface *commonInterface) BeforePrepareSlot(slot *snap.SlotInfo) error {
-	return nil
-}
-
 func (iface *commonInterface) AppArmorConnectedPlug(spec *apparmor.Specification, plug *interfaces.ConnectedPlug, slot *interfaces.ConnectedSlot) error {
 	if iface.usesPtraceTrace {
 		spec.SetUsesPtraceTrace()
