@@ -41,7 +41,7 @@ func (s *SnapSuite) TestDebugTask(c *C) {
 		"summary: Prepare snap c\n"+
 		"status: Done\n"+
 		"\n"+
-		"log:\n"+
+		"log: |\n"+
 		"  logline1\n"+
 		"  logline2\n"+
 		"\n"+
