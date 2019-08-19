@@ -103,6 +103,15 @@ func (s *batchSuite) TestAddStream(c *C) {
 	c.Check(devAcct.(*asserts.Account).Username(), Equals, "developer1")
 }
 
+func (s *batchSuite) TestAddEmptyStream(c *C) {
+	b := &bytes.Buffer{}
+
+	batch := asserts.NewBatch(nil)
+	refs, err := batch.AddStream(b)
+	c.Assert(err, IsNil)
+	c.Check(refs, HasLen, 0)
+}
+
 func (s *batchSuite) TestConsiderPreexisting(c *C) {
 	// prereq store key
 	err := s.db.Add(s.storeSigning.StoreAccountKey(""))
