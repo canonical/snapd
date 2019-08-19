@@ -395,20 +395,6 @@ func MockTrusted(mockTrusted []asserts.Assertion) (restore func()) {
 	}
 }
 
-// neededDefaultProviders returns the names of all default-providers for
-// the content plugs that the given snap.Info needs.
-func neededDefaultProviders(info *snap.Info) (cps []string) {
-	for _, plug := range info.Plugs {
-		if plug.Interface == "content" {
-			var dprovider string
-			if err := plug.Attr("default-provider", &dprovider); err == nil && dprovider != "" {
-				cps = append(cps, dprovider)
-			}
-		}
-	}
-	return cps
-}
-
 // hasBase checks if the given snap has a base in the given localInfos and
 // snaps. If not an error is returned.
 func hasBase(snap *snap.Info, local *localInfos, snaps []string) error {
@@ -568,7 +554,7 @@ func setupSeed(tsto *ToolingStore, model *asserts.Model, opts *Options, local *l
 			return err
 		}
 		// warn about missing default providers
-		for _, dp := range neededDefaultProviders(info) {
+		for _, dp := range snap.NeededDefaultProviders(info) {
 			if !local.hasName(snaps, dp) {
 				// TODO: have a way to ignore this issue on a snap by snap basis?
 				return fmt.Errorf("cannot use snap %q without its default content provider %q being added explicitly", info.InstanceName(), dp)
@@ -789,32 +775,6 @@ func copyLocalSnapFile(snapPath, targetDir string, info *snap.Info) (dstPath str
 	return dst, osutil.CopyFile(snapPath, dst, 0)
 }
 
-// CheckBasesAndProviders checks that all bases/default-providers are part of the seed
-func CheckBasesAndProviders(snapInfos map[string]*snap.Info) []error {
-	var errs []error
-	for _, info := range snapInfos {
-		// ensure base is available
-		if info.Base != "" && info.Base != "none" {
-			if _, ok := snapInfos[info.Base]; !ok {
-				errs = append(errs, fmt.Errorf("cannot use snap %q: base %q is missing", info.InstanceName(), info.Base))
-			}
-		}
-		// ensure core is available
-		if info.Base == "" && info.SnapType == snap.TypeApp && info.InstanceName() != "snapd" {
-			if _, ok := snapInfos["core"]; !ok {
-				errs = append(errs, fmt.Errorf(`cannot use snap %q: required snap "core" missing`, info.InstanceName()))
-			}
-		}
-		// ensure default-providers are available
-		for _, dp := range neededDefaultProviders(info) {
-			if _, ok := snapInfos[dp]; !ok {
-				errs = append(errs, fmt.Errorf("cannot use snap %q: default provider %q is missing", info.InstanceName(), dp))
-			}
-		}
-	}
-	return errs
-}
-
 func ValidateSeed(seedFile string) error {
 	seed, err := snap.ReadSeedYaml(seedFile)
 	if err != nil {
@@ -846,7 +806,7 @@ func ValidateSeed(seedFile string) error {
 		errs = append(errs, fmt.Errorf("the core or snapd snap must be part of the seed"))
 	}
 
-	if errs2 := CheckBasesAndProviders(snapInfos); errs2 != nil {
+	if errs2 := snap.ValidateBasesAndProviders(snapInfos); errs2 != nil {
 		errs = append(errs, errs2...)
 	}
 	if errs != nil {

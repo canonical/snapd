@@ -31,7 +31,6 @@ import (
 	"github.com/snapcore/snapd/asserts/snapasserts"
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/i18n"
-	"github.com/snapcore/snapd/image"
 	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/overlord/assertstate"
 	"github.com/snapcore/snapd/overlord/devicestate/internal"
@@ -261,7 +260,7 @@ func populateStateFromSeedImpl(st *state.State, tm timings.Measurer) ([]*state.T
 	}
 
 	// validate that all snaps have bases
-	errs := image.CheckBasesAndProviders(allSnapInfos)
+	errs := snap.ValidateBasesAndProviders(allSnapInfos)
 	if errs != nil {
 		// only report the first error encountered
 		return nil, errs[0]

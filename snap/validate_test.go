@@ -1574,3 +1574,19 @@ system-usernames:
 	err = Validate(info)
 	c.Assert(err, ErrorMatches, `invalid system username "b@d"`)
 }
+
+func (s *ValidateSuite) TestNeededDefaultProviders(c *C) {
+	const yaml = `name: need-df
+version: 1.0
+plugs:
+  gtk-3-themes:
+    interface: content
+    default-provider: gtk-common-themes
+`
+	strk := NewScopedTracker()
+	info, err := InfoFromSnapYamlWithSideInfo([]byte(yaml), nil, strk)
+	c.Assert(err, IsNil)
+
+	dps := NeededDefaultProviders(info)
+	c.Check(dps, DeepEquals, []string{"gtk-common-themes"})
+}
