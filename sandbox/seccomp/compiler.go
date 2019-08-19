@@ -20,6 +20,7 @@ package seccomp
 
 import (
 	"bytes"
+	"errors"
 	"fmt"
 	"os/exec"
 	"regexp"
@@ -63,7 +64,7 @@ func New(lookupTool func(name string) (string, error)) (*Compiler, error) {
 // version information is: <build-id> <libseccomp-version> <hash> <features>.
 // Where, the hash is calculated over all syscall names supported by the
 // libseccomp library.
-func (c *Compiler) VersionInfo() (string, error) {
+func (c *Compiler) VersionInfo() (VersionInfo, error) {
 	cmd := exec.Command(c.snapSeccomp, "version-info")
 	output, err := cmd.CombinedOutput()
 	if err != nil {
@@ -76,14 +77,44 @@ func (c *Compiler) VersionInfo() (string, error) {
 		return "", fmt.Errorf("invalid format of version-info: %q", raw)
 	}
 
-	return string(raw), nil
+	return VersionInfo(raw), nil
 }
+
+var compilerVersionInfoImpl = func(lookupTool func(name string) (string, error)) (VersionInfo, error) {
+	c, err := New(lookupTool)
+	if err != nil {
+		return VersionInfo(""), err
+	}
+	return c.VersionInfo()
+}
+
+// CompilerVersionInfo returns the version information of snap-seccomp
+// looked up via lookupTool.
+func CompilerVersionInfo(lookupTool func(name string) (string, error)) (VersionInfo, error) {
+	return compilerVersionInfoImpl(lookupTool)
+}
+
+// MockCompilerVersionInfo mocks the return value of CompilerVersionInfo.
+func MockCompilerVersionInfo(versionInfo string) (restore func()) {
+	old := compilerVersionInfoImpl
+	compilerVersionInfoImpl = func(_ func(name string) (string, error)) (VersionInfo, error) {
+		return VersionInfo(versionInfo), nil
+	}
+	return func() {
+		compilerVersionInfoImpl = old
+	}
+}
+
+var errEmptyVersionInfo = errors.New("empty version-info")
 
 // VersionInfo represents information about the seccomp compilter
 type VersionInfo string
 
 // LibseccompVersion parses VersionInfo and provides the libseccomp version
 func (vi VersionInfo) LibseccompVersion() (string, error) {
+	if vi == "" {
+		return "", errEmptyVersionInfo
+	}
 	if match := validVersionInfo.Match([]byte(vi)); !match {
 		return "", fmt.Errorf("invalid format of version-info: %q", vi)
 	}
@@ -93,6 +124,9 @@ func (vi VersionInfo) LibseccompVersion() (string, error) {
 // Features parses the output of VersionInfo and provides the
 // golang seccomp features
 func (vi VersionInfo) Features() (string, error) {
+	if vi == "" {
+		return "", errEmptyVersionInfo
+	}
 	if match := validVersionInfo.Match([]byte(vi)); !match {
 		return "", fmt.Errorf("invalid format of version-info: %q", vi)
 	}

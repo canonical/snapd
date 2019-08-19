@@ -31,9 +31,9 @@ import (
 	"github.com/snapcore/snapd/arch"
 	"github.com/snapcore/snapd/cmd"
 	"github.com/snapcore/snapd/dirs"
-	"github.com/snapcore/snapd/interfaces"
 	"github.com/snapcore/snapd/overlord/state"
 	"github.com/snapcore/snapd/release"
+	seccomp_compiler "github.com/snapcore/snapd/sandbox/seccomp"
 	"github.com/snapcore/snapd/snap"
 	"github.com/snapcore/snapd/snap/snapdir"
 	"github.com/snapcore/snapd/snap/snaptest"
@@ -1033,9 +1033,7 @@ var systemUsernamesTests = []struct {
 
 func (s *checkSnapSuite) TestCheckSnapSystemUsernames(c *C) {
 	for _, test := range systemUsernamesTests {
-		restore := interfaces.MockSeccompCompilerVersionInfo(func(_ string) (string, error) {
-			return test.scVer, nil
-		})
+		restore := seccomp_compiler.MockCompilerVersionInfo(test.scVer)
 		defer restore()
 
 		restore = release.MockOnClassic(test.classic)
@@ -1083,9 +1081,7 @@ func (s *checkSnapSuite) TestCheckSnapSystemUsernamesCalls(c *C) {
 		restore := release.MockOnClassic(classic)
 		defer restore()
 
-		restore = interfaces.MockSeccompCompilerVersionInfo(func(_ string) (string, error) {
-			return "dead 2.4.1 deadbeef bpf-actlog", nil
-		})
+		restore = seccomp_compiler.MockCompilerVersionInfo("dead 2.4.1 deadbeef bpf-actlog")
 		defer restore()
 
 		const yaml = `name: foo

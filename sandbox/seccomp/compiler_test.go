@@ -86,10 +86,10 @@ func (s *compilerSuite) TestVersionInfoValidate(c *C) {
 		v, err := compiler.VersionInfo()
 		if tc.err != "" {
 			c.Check(err, ErrorMatches, tc.err)
-			c.Check(v, Equals, "")
+			c.Check(v, Equals, seccomp.VersionInfo(""))
 		} else {
 			c.Check(err, IsNil)
-			c.Check(v, Equals, tc.exp)
+			c.Check(v, Equals, seccomp.VersionInfo(tc.exp))
 			_, err := seccomp.VersionInfo(v).LibseccompVersion()
 			c.Check(err, IsNil)
 			_, err = seccomp.VersionInfo(v).Features()
@@ -101,6 +101,25 @@ func (s *compilerSuite) TestVersionInfoValidate(c *C) {
 		cmd.Restore()
 	}
 
+}
+
+func (s *compilerSuite) TestCompilerVersionInfo(c *C) {
+	const vi = "7ac348ac9c934269214b00d1692dfa50d5d4a157 2.3.3 03e996919907bc7163bc83b95bca0ecab31300f20dfa365ea14047c698340e7c bpf-actlog"
+	cmd := testutil.MockCommand(c, "snap-seccomp", fmt.Sprintf(`echo "%s"`, vi))
+
+	vi1, err := seccomp.CompilerVersionInfo(fromCmd(c, cmd))
+	c.Check(err, IsNil)
+	c.Check(vi1, Equals, seccomp.VersionInfo(vi))
+}
+
+func (s *compilerSuite) TestEmptyVersionInfo(c *C) {
+	vi := seccomp.VersionInfo("")
+
+	_, err := vi.LibseccompVersion()
+	c.Check(err, ErrorMatches, "empty version-info")
+
+	_, err = vi.Features()
+	c.Check(err, ErrorMatches, "empty version-info")
 }
 
 func (s *compilerSuite) TestVersionInfoUnhappy(c *C) {
