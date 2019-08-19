@@ -300,6 +300,7 @@ func (s *ensureUserSuite) TearDownTest(c *check.C) {
 }
 
 func (s *ensureUserSuite) TestEnsureUserGroupExtraUsersFalse(c *check.C) {
+	falsePath = osutil.LookPathDefault("false", "/bin/false")
 	err := osutil.EnsureUserGroup("lakatos", 123456, false)
 	c.Assert(err, check.IsNil)
 
@@ -307,11 +308,12 @@ func (s *ensureUserSuite) TestEnsureUserGroupExtraUsersFalse(c *check.C) {
 		{"groupadd", "--system", "--gid", "123456", "lakatos"},
 	})
 	c.Check(s.mockUserAdd.Calls(), check.DeepEquals, [][]string{
-		{"useradd", "--system", "--home-dir", "/nonexistent", "--no-create-home", "--shell", "/bin/false", "--gid", "123456", "--no-user-group", "--uid", "123456", "lakatos"},
+		{"useradd", "--system", "--home-dir", "/nonexistent", "--no-create-home", "--shell", falsePath, "--gid", "123456", "--no-user-group", "--uid", "123456", "lakatos"},
 	})
 }
 
 func (s *ensureUserSuite) TestEnsureUserGroupExtraUsersTrue(c *check.C) {
+	falsePath = osutil.LookPathDefault("false", "/bin/false")
 	err := osutil.EnsureUserGroup("lakatos", 123456, true)
 	c.Assert(err, check.IsNil)
 
@@ -319,7 +321,7 @@ func (s *ensureUserSuite) TestEnsureUserGroupExtraUsersTrue(c *check.C) {
 		{"groupadd", "--system", "--gid", "123456", "--extrausers", "lakatos"},
 	})
 	c.Check(s.mockUserAdd.Calls(), check.DeepEquals, [][]string{
-		{"useradd", "--system", "--home-dir", "/nonexistent", "--no-create-home", "--shell", "/bin/false", "--gid", "123456", "--no-user-group", "--uid", "123456", "--extrausers", "lakatos"},
+		{"useradd", "--system", "--home-dir", "/nonexistent", "--no-create-home", "--shell", falsePath, "--gid", "123456", "--no-user-group", "--uid", "123456", "--extrausers", "lakatos"},
 	})
 }
 

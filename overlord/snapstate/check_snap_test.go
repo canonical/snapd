@@ -31,6 +31,7 @@ import (
 	"github.com/snapcore/snapd/arch"
 	"github.com/snapcore/snapd/cmd"
 	"github.com/snapcore/snapd/dirs"
+	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/overlord/state"
 	"github.com/snapcore/snapd/release"
 	seccomp_compiler "github.com/snapcore/snapd/sandbox/seccomp"
@@ -1077,6 +1078,7 @@ func (s *checkSnapSuite) TestCheckSnapSystemUsernames(c *C) {
 }
 
 func (s *checkSnapSuite) TestCheckSnapSystemUsernamesCalls(c *C) {
+	falsePath := osutil.LookPathDefault("false", "/bin/false")
 	for _, classic := range []bool{false, true} {
 		restore := release.MockOnClassic(classic)
 		defer restore()
@@ -1112,8 +1114,8 @@ system-usernames:
 				{"groupadd", "--system", "--gid", "584788", "snap_daemon"},
 			})
 			c.Check(mockUserAdd.Calls(), DeepEquals, [][]string{
-				{"useradd", "--system", "--home-dir", "/nonexistent", "--no-create-home", "--shell", "/bin/false", "--gid", "524288", "--no-user-group", "--uid", "524288", "snapd-range-524288-root"},
-				{"useradd", "--system", "--home-dir", "/nonexistent", "--no-create-home", "--shell", "/bin/false", "--gid", "584788", "--no-user-group", "--uid", "584788", "snap_daemon"},
+				{"useradd", "--system", "--home-dir", "/nonexistent", "--no-create-home", "--shell", falsePath, "--gid", "524288", "--no-user-group", "--uid", "524288", "snapd-range-524288-root"},
+				{"useradd", "--system", "--home-dir", "/nonexistent", "--no-create-home", "--shell", falsePath, "--gid", "584788", "--no-user-group", "--uid", "584788", "snap_daemon"},
 			})
 		} else {
 			c.Check(mockGroupAdd.Calls(), DeepEquals, [][]string{
@@ -1121,8 +1123,8 @@ system-usernames:
 				{"groupadd", "--system", "--gid", "584788", "--extrausers", "snap_daemon"},
 			})
 			c.Check(mockUserAdd.Calls(), DeepEquals, [][]string{
-				{"useradd", "--system", "--home-dir", "/nonexistent", "--no-create-home", "--shell", "/bin/false", "--gid", "524288", "--no-user-group", "--uid", "524288", "--extrausers", "snapd-range-524288-root"},
-				{"useradd", "--system", "--home-dir", "/nonexistent", "--no-create-home", "--shell", "/bin/false", "--gid", "584788", "--no-user-group", "--uid", "584788", "--extrausers", "snap_daemon"},
+				{"useradd", "--system", "--home-dir", "/nonexistent", "--no-create-home", "--shell", falsePath, "--gid", "524288", "--no-user-group", "--uid", "524288", "--extrausers", "snapd-range-524288-root"},
+				{"useradd", "--system", "--home-dir", "/nonexistent", "--no-create-home", "--shell", falsePath, "--gid", "584788", "--no-user-group", "--uid", "584788", "--extrausers", "snap_daemon"},
 			})
 
 		}
