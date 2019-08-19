@@ -33,6 +33,7 @@ import (
 	"github.com/snapcore/snapd/cmd/cmdutil"
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/osutil"
+	"github.com/snapcore/snapd/snap/undo_context"
 	"github.com/snapcore/snapd/strutil"
 )
 
@@ -57,12 +58,14 @@ func New(snapPath string) *Snap {
 var osLink = os.Link
 var cmdutilCommandFromSystemSnap = cmdutil.CommandFromSystemSnap
 
-func (s *Snap) Install(targetPath, mountDir string) error {
+func (s *Snap) Install(targetPath, mountDir string) (*undo_context.InstallUndoContext, error) {
+
+	undo := undo_context.InstallUndoContext{}
 
 	// ensure mount-point and blob target dir.
 	for _, dir := range []string{mountDir, filepath.Dir(targetPath)} {
 		if err := os.MkdirAll(dir, 0755); err != nil {
-			return err
+			return &undo, err
 		}
 	}
 
@@ -72,14 +75,15 @@ func (s *Snap) Install(targetPath, mountDir string) error {
 	// it to the location which is good enough for the tests.
 	if osutil.GetenvBool("SNAPPY_SQUASHFS_UNPACK_FOR_TESTS") {
 		if err := s.Unpack("*", mountDir); err != nil {
-			return err
+			return &undo, err
 		}
 	}
 
 	// nothing to do, happens on e.g. first-boot when we already
 	// booted with the OS snap but its also in the seed.yaml
 	if s.path == targetPath || osutil.FilesAreEqual(s.path, targetPath) {
-		return nil
+		undo.TargetPathExists = true
+		return &undo, nil
 	}
 
 	// try to (hard)link the file, but go on to trying to copy it
@@ -89,16 +93,16 @@ func (s *Snap) Install(targetPath, mountDir string) error {
 	// hard links (like vfat), so checking the error here doesn't
 	// make sense vs just trying to copy it.
 	if err := osLink(s.path, targetPath); err == nil {
-		return nil
+		return &undo, nil
 	}
 
 	// if the file is a seed, but the hardlink failed, symlinking it
 	// saves the copy (which in livecd is expensive) so try that next
 	if filepath.Dir(s.path) == dirs.SnapSeedDir && os.Symlink(s.path, targetPath) == nil {
-		return nil
+		return &undo, nil
 	}
 
-	return osutil.CopyFile(s.path, targetPath, osutil.CopyFlagPreserveAll|osutil.CopyFlagSync)
+	return &undo, osutil.CopyFile(s.path, targetPath, osutil.CopyFlagPreserveAll|osutil.CopyFlagSync)
 }
 
 // unsquashfsStderrWriter is a helper that captures errors from

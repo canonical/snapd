@@ -44,6 +44,7 @@ import (
 	"github.com/snapcore/snapd/overlord/state"
 	"github.com/snapcore/snapd/release"
 	"github.com/snapcore/snapd/snap"
+	"github.com/snapcore/snapd/snap/undo_context"
 	"github.com/snapcore/snapd/store"
 	"github.com/snapcore/snapd/strutil"
 	"github.com/snapcore/snapd/timings"
@@ -643,8 +644,9 @@ func (m *SnapManager) doMountSnap(t *state.Task, _ *tomb.Tomb) error {
 	// TODO Use snapsup.Revision() to obtain the right info to mount
 	//      instead of assuming the candidate is the right one.
 	var snapType snap.Type
+	var undoCtx *undo_context.InstallUndoContext
 	timings.Run(perfTimings, "setup-snap", fmt.Sprintf("setup snap %q", snapsup.InstanceName()), func(timings.Measurer) {
-		snapType, err = m.backend.SetupSnap(snapsup.SnapPath, snapsup.InstanceName(), snapsup.SideInfo, pb)
+		snapType, undoCtx, err = m.backend.SetupSnap(snapsup.SnapPath, snapsup.InstanceName(), snapsup.SideInfo, pb)
 	})
 	if err != nil {
 		cleanup()
@@ -671,7 +673,7 @@ func (m *SnapManager) doMountSnap(t *state.Task, _ *tomb.Tomb) error {
 	}
 	if readInfoErr != nil {
 		timings.Run(perfTimings, "undo-setup-snap", fmt.Sprintf("Undo setup of snap %q", snapsup.InstanceName()), func(timings.Measurer) {
-			err = m.backend.UndoSetupSnap(snapsup.placeInfo(), snapType, pb)
+			err = m.backend.UndoSetupSnap(snapsup.placeInfo(), snapType, undoCtx, pb)
 		})
 		if err != nil {
 			st.Lock()
@@ -686,6 +688,9 @@ func (m *SnapManager) doMountSnap(t *state.Task, _ *tomb.Tomb) error {
 	st.Lock()
 	// set snapst type for undoMountSnap
 	t.Set("snap-type", snapType)
+	if undoCtx != nil {
+		t.Set("undo-context", undoCtx)
+	}
 	st.Unlock()
 
 	if snapsup.Flags.RemoveSnapPath {
@@ -721,8 +726,17 @@ func (m *SnapManager) undoMountSnap(t *state.Task, _ *tomb.Tomb) error {
 		return err
 	}
 
+	var undoCtx undo_context.InstallUndoContext
+	st.Lock()
+	// undo-context is optional (e.g. not present in tasks from older snapd)
+	err = t.Get("undo-context", &undoCtx)
+	st.Unlock()
+	if err != nil && err != state.ErrNoState {
+		return err
+	}
+
 	pb := NewTaskProgressAdapterUnlocked(t)
-	if err := m.backend.UndoSetupSnap(snapsup.placeInfo(), typ, pb); err != nil {
+	if err := m.backend.UndoSetupSnap(snapsup.placeInfo(), typ, &undoCtx, pb); err != nil {
 		return err
 	}
 
@@ -1557,7 +1571,7 @@ func (m *SnapManager) doDiscardSnap(t *state.Task, _ *tomb.Tomb) error {
 	if err != nil {
 		return err
 	}
-	err = m.backend.RemoveSnapFiles(snapsup.placeInfo(), typ, pb)
+	err = m.backend.RemoveSnapFiles(snapsup.placeInfo(), typ, nil, pb)
 	if err != nil {
 		t.Errorf("cannot remove snap file %q, will retry in 3 mins: %s", snapsup.InstanceName(), err)
 		return &state.Retry{After: 3 * time.Minute}

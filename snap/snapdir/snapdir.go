@@ -25,6 +25,8 @@ import (
 	"io/ioutil"
 	"os"
 	"path/filepath"
+
+	"github.com/snapcore/snapd/snap/undo_context"
 )
 
 // SnapDir is the snapdir based snap.
@@ -53,8 +55,8 @@ func (s *SnapDir) Size() (size int64, err error) {
 	return totalSize, nil
 }
 
-func (s *SnapDir) Install(targetPath, mountDir string) error {
-	return os.Symlink(s.path, targetPath)
+func (s *SnapDir) Install(targetPath, mountDir string) (*undo_context.InstallUndoContext, error) {
+	return nil, os.Symlink(s.path, targetPath)
 }
 
 func (s *SnapDir) ReadFile(file string) (content []byte, err error) {

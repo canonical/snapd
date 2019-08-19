@@ -30,6 +30,7 @@ import (
 	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/snap/snapdir"
 	"github.com/snapcore/snapd/snap/squashfs"
+	"github.com/snapcore/snapd/snap/undo_context"
 )
 
 // Container is the interface to interact with the low-level snap files.
@@ -47,7 +48,7 @@ type Container interface {
 	ListDir(path string) ([]string, error)
 
 	// Install copies the snap file to targetPath (and possibly unpacks it to mountDir)
-	Install(targetPath, mountDir string) error
+	Install(targetPath, mountDir string) (*undo_context.InstallUndoContext, error)
 
 	// Unpack unpacks the src parts to the dst directory
 	Unpack(src, dst string) error

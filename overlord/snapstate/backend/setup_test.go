@@ -35,6 +35,7 @@ import (
 	"github.com/snapcore/snapd/progress"
 	"github.com/snapcore/snapd/snap"
 	"github.com/snapcore/snapd/snap/snaptest"
+	"github.com/snapcore/snapd/snap/undo_context"
 	"github.com/snapcore/snapd/systemd"
 	"github.com/snapcore/snapd/testutil"
 )
@@ -80,8 +81,9 @@ func (s *setupSuite) TestSetupDoUndoSimple(c *C) {
 		Revision: snap.R(14),
 	}
 
-	snapType, err := s.be.SetupSnap(snapPath, "hello", &si, progress.Null)
+	snapType, undoCtx, err := s.be.SetupSnap(snapPath, "hello", &si, progress.Null)
 	c.Assert(err, IsNil)
+	c.Assert(undoCtx, NotNil)
 	c.Check(snapType, Equals, snap.TypeApp)
 
 	// after setup the snap file is in the right dir
@@ -97,7 +99,7 @@ func (s *setupSuite) TestSetupDoUndoSimple(c *C) {
 	c.Assert(osutil.FileExists(minInfo.MountDir()), Equals, true)
 
 	// undo undoes the mount unit and the instdir creation
-	err = s.be.UndoSetupSnap(minInfo, "app", progress.Null)
+	err = s.be.UndoSetupSnap(minInfo, "app", nil, progress.Null)
 	c.Assert(err, IsNil)
 
 	l, _ := filepath.Glob(filepath.Join(dirs.SnapServicesDir, "*.mount"))
@@ -116,8 +118,9 @@ func (s *setupSuite) TestSetupDoUndoInstance(c *C) {
 		Revision: snap.R(14),
 	}
 
-	snapType, err := s.be.SetupSnap(snapPath, "hello_instance", &si, progress.Null)
+	snapType, undoCtx, err := s.be.SetupSnap(snapPath, "hello_instance", &si, progress.Null)
 	c.Assert(err, IsNil)
+	c.Assert(undoCtx, NotNil)
 	c.Check(snapType, Equals, snap.TypeApp)
 
 	// after setup the snap file is in the right dir
@@ -133,7 +136,7 @@ func (s *setupSuite) TestSetupDoUndoInstance(c *C) {
 	c.Assert(osutil.FileExists(minInfo.MountDir()), Equals, true)
 
 	// undo undoes the mount unit and the instdir creation
-	err = s.be.UndoSetupSnap(minInfo, "app", progress.Null)
+	err = s.be.UndoSetupSnap(minInfo, "app", nil, progress.Null)
 	c.Assert(err, IsNil)
 
 	l, _ := filepath.Glob(filepath.Join(dirs.SnapServicesDir, "*.mount"))
@@ -168,15 +171,16 @@ type: kernel
 		Revision: snap.R(140),
 	}
 
-	snapType, err := s.be.SetupSnap(snapPath, "kernel", &si, progress.Null)
+	snapType, undoCtx, err := s.be.SetupSnap(snapPath, "kernel", &si, progress.Null)
 	c.Assert(err, IsNil)
 	c.Check(snapType, Equals, snap.TypeKernel)
+	c.Assert(undoCtx, NotNil)
 	c.Assert(loader.ExtractKernelAssetsCalls, HasLen, 1)
 	c.Assert(loader.ExtractKernelAssetsCalls[0].InstanceName(), Equals, "kernel")
 	minInfo := snap.MinimalPlaceInfo("kernel", snap.R(140))
 
 	// undo deletes the kernel assets again
-	err = s.be.UndoSetupSnap(minInfo, "kernel", progress.Null)
+	err = s.be.UndoSetupSnap(minInfo, "kernel", nil, progress.Null)
 	c.Assert(err, IsNil)
 	c.Assert(loader.RemoveKernelAssetsCalls, HasLen, 1)
 	c.Assert(loader.RemoveKernelAssetsCalls[0].InstanceName(), Equals, "kernel")
@@ -211,14 +215,16 @@ type: kernel
 		Revision: snap.R(140),
 	}
 
-	_, err := s.be.SetupSnap(snapPath, "kernel", &si, progress.Null)
+	_, undoCtx, err := s.be.SetupSnap(snapPath, "kernel", &si, progress.Null)
 	c.Assert(err, IsNil)
+	c.Assert(undoCtx, NotNil)
 	c.Assert(loader.ExtractKernelAssetsCalls, HasLen, 1)
 	c.Assert(loader.ExtractKernelAssetsCalls[0].InstanceName(), Equals, "kernel")
 
 	// retry run
-	_, err = s.be.SetupSnap(snapPath, "kernel", &si, progress.Null)
+	_, undoCtx, err = s.be.SetupSnap(snapPath, "kernel", &si, progress.Null)
 	c.Assert(err, IsNil)
+	c.Assert(undoCtx, NotNil)
 	c.Assert(loader.ExtractKernelAssetsCalls, HasLen, 2)
 	c.Assert(loader.ExtractKernelAssetsCalls[1].InstanceName(), Equals, "kernel")
 	minInfo := snap.MinimalPlaceInfo("kernel", snap.R(140))
@@ -260,16 +266,17 @@ type: kernel
 		Revision: snap.R(140),
 	}
 
-	_, err := s.be.SetupSnap(snapPath, "kernel", &si, progress.Null)
+	_, undoCtx, err := s.be.SetupSnap(snapPath, "kernel", &si, progress.Null)
 	c.Assert(err, IsNil)
+	c.Assert(undoCtx, NotNil)
 
 	minInfo := snap.MinimalPlaceInfo("kernel", snap.R(140))
 
-	err = s.be.UndoSetupSnap(minInfo, "kernel", progress.Null)
+	err = s.be.UndoSetupSnap(minInfo, "kernel", nil, progress.Null)
 	c.Assert(err, IsNil)
 
 	// retry run
-	err = s.be.UndoSetupSnap(minInfo, "kernel", progress.Null)
+	err = s.be.UndoSetupSnap(minInfo, "kernel", nil, progress.Null)
 	c.Assert(err, IsNil)
 
 	// sanity checks
@@ -301,8 +308,9 @@ func (s *setupSuite) TestSetupCleanupAfterFail(c *C) {
 	})
 	defer r()
 
-	_, err := s.be.SetupSnap(snapPath, "hello", &si, progress.Null)
+	_, undoCtx, err := s.be.SetupSnap(snapPath, "hello", &si, progress.Null)
 	c.Assert(err, ErrorMatches, "failed")
+	c.Check(undoCtx, IsNil)
 
 	// everything is gone
 	l, _ := filepath.Glob(filepath.Join(dirs.SnapServicesDir, "*.mount"))
@@ -322,15 +330,17 @@ func (s *setupSuite) TestRemoveSnapFilesDir(c *C) {
 		Revision: snap.R(14),
 	}
 
-	snapType, err := s.be.SetupSnap(snapPath, "hello_instance", &si, progress.Null)
+	snapType, undoCtx, err := s.be.SetupSnap(snapPath, "hello_instance", &si, progress.Null)
 	c.Assert(err, IsNil)
+	c.Assert(undoCtx, NotNil)
 	c.Check(snapType, Equals, snap.TypeApp)
 
 	minInfo := snap.MinimalPlaceInfo("hello_instance", snap.R(14))
 	// mount dir was created
 	c.Assert(osutil.FileExists(minInfo.MountDir()), Equals, true)
 
-	s.be.RemoveSnapFiles(minInfo, snapType, progress.Null)
+	undoCtx = &undo_context.InstallUndoContext{}
+	s.be.RemoveSnapFiles(minInfo, snapType, undoCtx, progress.Null)
 	c.Assert(err, IsNil)
 
 	l, _ := filepath.Glob(filepath.Join(dirs.SnapServicesDir, "*.mount"))
