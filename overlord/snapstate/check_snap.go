@@ -21,7 +21,6 @@ package snapstate
 
 import (
 	"fmt"
-	"path/filepath"
 	"regexp"
 	"strconv"
 	"strings"
@@ -29,7 +28,6 @@ import (
 	"github.com/snapcore/snapd/arch"
 	"github.com/snapcore/snapd/asserts"
 	"github.com/snapcore/snapd/cmd"
-	"github.com/snapcore/snapd/interfaces"
 	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/overlord/snapstate/backend"
@@ -468,22 +466,15 @@ func checkSystemUsernames(si *snap.Info) error {
 		return nil
 	}
 
-	// TODO: wrap this invocation differently in a sandbox helper
 	// Run /.../snap-seccomp version-info
-	path, err := cmd.InternalToolPath("snapd")
-	if err != nil {
-		return err
-	}
-
-	vi, err := interfaces.SeccompCompilerVersionInfo(filepath.Join(filepath.Dir(path), "snap-seccomp"))
+	vi, err := seccomp_compiler.CompilerVersionInfo(cmd.InternalToolPath)
 	if err != nil {
 		return fmt.Errorf("cannot obtain seccomp compiler information: %v", err)
 	}
 
 	// If the system doesn't support robust argument filtering then we
 	// can't support system-usernames
-	err = seccomp_compiler.VersionInfo(vi).SupportsRobustArgumentFiltering()
-	if err != nil {
+	if err := vi.SupportsRobustArgumentFiltering(); err != nil {
 		if re, ok := err.(*seccomp_compiler.BuildTimeRequirementError); ok {
 			return fmt.Errorf("snap %q system usernames require a snapd built against %s", si.InstanceName(), re.RequirementsString())
 		}

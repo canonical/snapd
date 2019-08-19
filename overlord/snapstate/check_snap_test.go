@@ -31,9 +31,9 @@ import (
 	"github.com/snapcore/snapd/arch"
 	"github.com/snapcore/snapd/cmd"
 	"github.com/snapcore/snapd/dirs"
-	"github.com/snapcore/snapd/interfaces"
 	"github.com/snapcore/snapd/overlord/state"
 	"github.com/snapcore/snapd/release"
+	seccomp_compiler "github.com/snapcore/snapd/sandbox/seccomp"
 	"github.com/snapcore/snapd/snap"
 	"github.com/snapcore/snapd/snap/snapdir"
 	"github.com/snapcore/snapd/snap/snaptest"
@@ -1052,9 +1052,7 @@ func (s *checkSnapSuite) TestCheckSnapSystemUsernames(c *C) {
 	defer restore()
 
 	for _, test := range systemUsernamesTests {
-		restore = interfaces.MockSeccompCompilerVersionInfo(func(_ string) (string, error) {
-			return test.scVer, nil
-		})
+		restore = seccomp_compiler.MockCompilerVersionInfo(test.scVer)
 		defer restore()
 
 		release.OnClassic = test.classic
