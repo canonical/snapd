@@ -1032,16 +1032,14 @@ var systemUsernamesTests = []struct {
 }}
 
 func (s *checkSnapSuite) TestCheckSnapSystemUsernames(c *C) {
-	restore := release.MockOnClassic(false)
-	defer restore()
-
 	for _, test := range systemUsernamesTests {
-		restore = interfaces.MockSeccompCompilerVersionInfo(func(_ string) (string, error) {
+		restore := interfaces.MockSeccompCompilerVersionInfo(func(_ string) (string, error) {
 			return test.scVer, nil
 		})
 		defer restore()
 
-		release.OnClassic = test.classic
+		restore = release.MockOnClassic(test.classic)
+		defer restore()
 
 		if test.noRangeUser {
 			restore = snapstate.MockOsutilEnsureUserGroup(func(name string, id uint32, extraUsers bool) error {
@@ -1069,7 +1067,7 @@ func (s *checkSnapSuite) TestCheckSnapSystemUsernames(c *C) {
 		var openSnapFile = func(path string, si *snap.SideInfo) (*snap.Info, snap.Container, error) {
 			return info, emptyContainer(c), nil
 		}
-		restore := snapstate.MockOpenSnapFile(openSnapFile)
+		restore = snapstate.MockOpenSnapFile(openSnapFile)
 		defer restore()
 		err = snapstate.CheckSnap(s.st, "snap-path", "foo", nil, nil, snapstate.Flags{}, nil)
 		if test.error != "" {
