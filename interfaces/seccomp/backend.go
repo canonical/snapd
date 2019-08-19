@@ -235,12 +235,32 @@ func (b *Backend) Remove(snapName string) error {
 	return nil
 }
 
+// Obtain the privilege dropping snippet
+func uidGidChownSnippet(name string) (string, error) {
+	tmp := strings.Replace(privDropAndChownSyscalls, "###USERNAME###", name, -1)
+	return strings.Replace(tmp, "###GROUP###", name, -1), nil
+}
+
 // deriveContent combines security snippets collected from all the interfaces
 // affecting a given snap into a content map applicable to EnsureDirState.
 func (b *Backend) deriveContent(spec *Specification, opts interfaces.ConfinementOptions, snapInfo *snap.Info) (content map[string]*osutil.FileState, err error) {
 	// Some base snaps and systems require the socketcall() in the default
 	// template
 	addSocketcall := requiresSocketcall(snapInfo.Base)
+
+	var uidGidChownSyscalls bytes.Buffer
+	if len(snapInfo.SystemUsernames) == 0 {
+		uidGidChownSyscalls.WriteString(barePrivDropSyscalls)
+	} else {
+		for _, id := range snapInfo.SystemUsernames {
+			syscalls, err := uidGidChownSnippet(id.Name)
+			if err != nil {
+				return nil, fmt.Errorf(`cannot calculate syscalls for "%s": %s`, id, err)
+			}
+			uidGidChownSyscalls.WriteString(syscalls)
+		}
+		uidGidChownSyscalls.WriteString(rootSetUidGidSyscalls)
+	}
 
 	for _, hookInfo := range snapInfo.Hooks {
 		if content == nil {
@@ -250,7 +270,7 @@ func (b *Backend) deriveContent(spec *Specification, opts interfaces.Confinement
 
 		path := securityTag + ".src"
 		content[path] = &osutil.FileState{
-			Content: generateContent(opts, spec.SnippetForTag(securityTag), addSocketcall, b.versionInfo),
+			Content: generateContent(opts, spec.SnippetForTag(securityTag), addSocketcall, b.versionInfo, uidGidChownSyscalls.String()),
 			Mode:    0644,
 		}
 	}
@@ -261,7 +281,7 @@ func (b *Backend) deriveContent(spec *Specification, opts interfaces.Confinement
 		securityTag := appInfo.SecurityTag()
 		path := securityTag + ".src"
 		content[path] = &osutil.FileState{
-			Content: generateContent(opts, spec.SnippetForTag(securityTag), addSocketcall, b.versionInfo),
+			Content: generateContent(opts, spec.SnippetForTag(securityTag), addSocketcall, b.versionInfo, uidGidChownSyscalls.String()),
 			Mode:    0644,
 		}
 	}
@@ -269,7 +289,7 @@ func (b *Backend) deriveContent(spec *Specification, opts interfaces.Confinement
 	return content, nil
 }
 
-func generateContent(opts interfaces.ConfinementOptions, snippetForTag string, addSocketcall bool, versionInfo string) []byte {
+func generateContent(opts interfaces.ConfinementOptions, snippetForTag string, addSocketcall bool, versionInfo string, uidGidChownSyscalls string) []byte {
 	var buffer bytes.Buffer
 
 	if versionInfo != "" {
@@ -291,6 +311,7 @@ func generateContent(opts interfaces.ConfinementOptions, snippetForTag string, a
 
 	buffer.Write(defaultTemplate)
 	buffer.WriteString(snippetForTag)
+	buffer.WriteString(uidGidChownSyscalls)
 
 	// For systems with force-devmode we need to apply a workaround
 	// to avoid failing hooks. See description in template.go for
