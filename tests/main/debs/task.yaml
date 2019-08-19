@@ -12,5 +12,8 @@ execute: |
     fi
     echo "$out" | MATCH 'Built-Using:.*libcap2 \(='
 
-    echo "Ensure that the snapd.session-agent.socket symlinks is part of the deb and that it has the right (relative) target"
-    dpkg -c "$GOHOME"/snapd_*.deb |grep -- '-> \.\./snapd.session-agent.socket'
+    # not running on 14.04 because we don't have user sessions there
+    if [[ "$SPREAD_SYSTEM" != ubuntu-14.04-* ]]; then
+        echo "Ensure that the snapd.session-agent.socket symlinks is part of the deb and that it has the right (relative) target"
+        dpkg -c "$GOHOME"/snapd_*.deb |MATCH -- '-> \.\./snapd.session-agent.socket'
+    fi
