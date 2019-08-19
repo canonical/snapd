@@ -109,7 +109,7 @@ func (b Backend) RemoveSnapFiles(s snap.PlaceInfo, typ snap.Type, undoCtx *undo_
 		}
 
 		// don't remove snap path if it existed before snap installation was attempted
-		if undoCtx == nil || !undoCtx.TargetPathExists {
+		if undoCtx == nil || !undoCtx.KeepTargetSnap {
 			// remove the snap
 			if err := os.RemoveAll(snapPath); err != nil {
 				return err

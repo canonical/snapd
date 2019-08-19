@@ -82,7 +82,17 @@ func (s *Snap) Install(targetPath, mountDir string) (*undo_context.InstallUndoCo
 	// nothing to do, happens on e.g. first-boot when we already
 	// booted with the OS snap but its also in the seed.yaml
 	if s.path == targetPath || osutil.FilesAreEqual(s.path, targetPath) {
-		undo.TargetPathExists = true
+		if osutil.IsSymlink(targetPath) {
+			// XXX: ideally, we would do this whether target is a symlink or not.
+			// Symlink is the known edge case of kernel/core snaps that we want to support
+			// in case seeding change fails and is undone - we don't want to remove kernel snap
+			// symlink as this bricks the device.
+			// However, supporting regular files would lead to a potential edge case:
+			// if target doesn't exist, snapd creates a copy below and if the system is
+			// rebooted before the task is 'Done', we will repeat Install() and conclude
+			// the file existed on second exceution.
+			undo.KeepTargetSnap = true
+		}
 		return &undo, nil
 	}
 

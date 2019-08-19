@@ -21,7 +21,7 @@ package undo_context
 
 // InstallUndoContext keeps information about what needs to be undone in case of install failure
 type InstallUndoContext struct {
-	// TargetPathExists indicates that the target .snap file under /var/lib/snapd/snap already existed when the
-	// backend attempted SetupSnap() through squashfs Install().
-	TargetPathExists bool `json:"target-path-exists,omitempty"`
+	// KeepTargetSnap indicates that the target .snap file under /var/lib/snapd/snap already existed when the
+	// backend attempted SetupSnap() through squashfs Install() and should be kept.
+	KeepTargetSnap bool `json:"keep-target-snap,omitempty"`
 }
