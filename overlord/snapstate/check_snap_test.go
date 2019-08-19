@@ -1044,18 +1044,18 @@ func (s *checkSnapSuite) TestCheckSnapSystemUsernames(c *C) {
 		release.OnClassic = test.classic
 
 		if test.noRangeUser {
-			restore = snapstate.MockEnsureUserGroup(func(name string, id uint32, extraUsers bool) error {
+			restore = snapstate.MockOsutilEnsureUserGroup(func(name string, id uint32, extraUsers bool) error {
 				return fmt.Errorf(`cannot add user/group "%s", group exists and user does not`, name)
 			})
 		} else if test.noUser {
-			restore = snapstate.MockEnsureUserGroup(func(name string, id uint32, extraUsers bool) error {
+			restore = snapstate.MockOsutilEnsureUserGroup(func(name string, id uint32, extraUsers bool) error {
 				if name == "snapd-range-524288-root" {
 					return nil
 				}
 				return fmt.Errorf(`cannot add user/group "%s", group exists and user does not`, name)
 			})
 		} else {
-			restore = snapstate.MockEnsureUserGroup(func(name string, id uint32, extraUsers bool) error {
+			restore = snapstate.MockOsutilEnsureUserGroup(func(name string, id uint32, extraUsers bool) error {
 				return nil
 			})
 		}
