@@ -39,12 +39,9 @@ type createUserSuite struct {
 	mockHome string
 	restorer func()
 
-	mockAddUser  *testutil.MockCmd
-	mockUserMod  *testutil.MockCmd
-	mockPasswd   *testutil.MockCmd
-	mockUserAdd  *testutil.MockCmd
-	mockGroupAdd *testutil.MockCmd
-	mockGroupDel *testutil.MockCmd
+	mockAddUser *testutil.MockCmd
+	mockUserMod *testutil.MockCmd
+	mockPasswd  *testutil.MockCmd
 }
 
 var _ = check.Suite(&createUserSuite{})
@@ -65,9 +62,6 @@ func (s *createUserSuite) SetUpTest(c *check.C) {
 	s.mockAddUser = testutil.MockCommand(c, "adduser", "")
 	s.mockUserMod = testutil.MockCommand(c, "usermod", "")
 	s.mockPasswd = testutil.MockCommand(c, "passwd", "")
-	s.mockUserAdd = testutil.MockCommand(c, "useradd", "")
-	s.mockGroupAdd = testutil.MockCommand(c, "groupadd", "")
-	s.mockGroupDel = testutil.MockCommand(c, "groupdel", "")
 }
 
 func (s *createUserSuite) TearDownTest(c *check.C) {
@@ -75,9 +69,6 @@ func (s *createUserSuite) TearDownTest(c *check.C) {
 	s.mockAddUser.Restore()
 	s.mockUserMod.Restore()
 	s.mockPasswd.Restore()
-	s.mockUserAdd.Restore()
-	s.mockGroupAdd.Restore()
-	s.mockGroupDel.Restore()
 }
 
 func (s *createUserSuite) TestAddUserExtraUsersFalse(c *check.C) {
