@@ -20,6 +20,7 @@
 package userd
 
 import (
+	"bufio"
 	"fmt"
 	"net/url"
 	"os"
@@ -50,6 +51,9 @@ const launcherIntrospectionXML = `
 	<method name='OpenURL'>
 		<arg type='s' name='url' direction='in'/>
 	</method>
+	<method name='OpenDesktopEntry'>
+		<arg type='s' name='desktop_file' direction='in'/>
+	</method>
 	<method name="OpenFile">
 		<arg type="s" name="parent_window" direction="in"/>
 		<arg type="h" name="fd" direction="in"/>
@@ -58,6 +62,7 @@ const launcherIntrospectionXML = `
 
 var (
 	allowedURLSchemes = []string{"http", "https", "mailto", "snap", "help"}
+	allowedDesktopLocations = []string{"/var/lib/snapd/desktop/applications"}
 )
 
 // Launcher implements the 'io.snapcraft.Launcher' DBus interface.
@@ -119,6 +124,62 @@ func (s *Launcher) OpenURL(addr string, sender dbus.Sender) *dbus.Error {
 	if err := cmd.Run(); err != nil {
 		return dbus.MakeFailedError(fmt.Errorf("cannot open supplied URL"))
 	}
+
+	return nil
+}
+
+// OpenDesktopEntry implements the 'OpenDesktopEntry' method of the 'io.snapcraft.Launcher'
+// DBus interface. Before the provided desktop_file is parsed it is validated against a list
+// of allowed locations.
+func (s *Launcher) OpenDesktopEntry(desktop_file string, sender dbus.Sender) *dbus.Error {
+
+	if !strutil.ListContains(allowedDesktopLocations, filepath.Dir(desktop_file)) {
+		return makeAccessDeniedError(fmt.Errorf("Supplied desktop location %q is not allowed", desktop_file))
+	}
+
+// 	snap, err := snapFromSender(s.conn, sender)
+// 	if err != nil {
+// 		return dbus.MakeFailedError(err)
+// 	}
+
+  file, err := os.Open(desktop_file)
+	if err != nil {
+		return dbus.MakeFailedError(err)
+	}
+  defer file.Close()
+  reader := bufio.NewReader(file)
+
+  var launch string;
+
+  for {
+    line, err := reader.ReadString('\n')
+    if err != nil {
+      return dbus.MakeFailedError(err)
+    }
+
+    line = strings.TrimSpace(line)
+
+    if strings.HasPrefix(line, "Exec=") {
+      launch = strings.TrimPrefix(line, "Exec=")
+      break;
+    }
+  }
+
+  // This is very hacky parsing and doesn't cover a lot of cases
+  command := strings.Split(strings.SplitN(launch, "%", 2)[0], " ");
+
+  cmd := exec.Command(command[0], command[1:]...)
+  cmd.Env = os.Environ()
+
+  // Encourage applications to use Wayland
+  cmd.Env = append(cmd.Env, "XDG_SESSION_TYPE=mir")
+  cmd.Env = append(cmd.Env, "GDK_BACKEND=wayland")
+  cmd.Env = append(cmd.Env, "QT_QPA_PLATFORM=wayland")
+  cmd.Env = append(cmd.Env, "SDL_VIDEODRIVER=wayland")
+
+  if err := cmd.Start(); err != nil {
+    return dbus.MakeFailedError(fmt.Errorf("cannot run %q", launch))
+  }
 
 	return nil
 }
