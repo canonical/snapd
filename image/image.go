@@ -444,7 +444,7 @@ func setupSeed(tsto *ToolingStore, model *asserts.Model, opts *Options, local *l
 		if !osutil.GetenvBool("UBUNTU_IMAGE_SKIP_COPY_UNVERIFIED_MODEL") {
 			return fmt.Errorf("cannot fetch and check prerequisites for the model assertion: %v", err)
 		} else {
-			fmt.Fprintf(Stderr, "WARNING: Cannot fetch and check prerequisites for the model assertion, it will not be copied into the image making it unusable (unless this is a test): %v\n", err)
+			fmt.Fprintf(Stderr, "WARNING: cannot fetch and check prerequisites for the model assertion, it will not be copied into the image making it unusable (unless this is a test): %v\n", err)
 			f.addedRefs = nil
 		}
 	}
@@ -521,10 +521,14 @@ func setupSeed(tsto *ToolingStore, model *asserts.Model, opts *Options, local *l
 		}
 	}
 
-	// provide snapd
-	if seed.needsCore {
+	// provide snapd or core
+	if seed.needsCore && !seed.seen["core"] {
 		// one of the snaps requires core as base
 		// which used to be implicit, add it
+		if model.Base() != "" {
+			// TODO: later turn this into an error? for sure for UC20
+			fmt.Fprintf(Stderr, "WARNING: model has base %q but some snaps require \"core\" as base as well, for compatibility it was added implicitly, listing \"core\" explicitly is recommended\n", model.Base())
+		}
 		if err := seed.add("core"); err != nil {
 			return err
 		}
