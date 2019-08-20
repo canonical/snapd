@@ -62,7 +62,7 @@
 %global snappy_svcs     snapd.service snapd.socket snapd.autoimport.service snapd.seeded.service
 
 # Until we have a way to add more extldflags to gobuild macro...
-%if 0%{?fedora}
+%if 0%{?fedora} || 0%{?rhel} >= 8
 # buildmode PIE triggers external linker consumes -extldflags
 %define gobuild_static(o:) go build -buildmode pie -compiler gc -tags=rpm_crashtraceback -ldflags "${LDFLAGS:-} -B 0x$(head -c20 /dev/urandom|od -An -tx1|tr -d ' \\n') -extldflags '%__global_ldflags -static'" -a -v -x %{?**};
 %endif
@@ -183,7 +183,6 @@ BuildRequires:  libtool
 BuildRequires:  gcc
 BuildRequires:  gettext
 BuildRequires:  gnupg
-BuildRequires:  indent
 BuildRequires:  pkgconfig(glib-2.0)
 BuildRequires:  pkgconfig(libcap)
 BuildRequires:  pkgconfig(libseccomp)
