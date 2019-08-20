@@ -43,9 +43,9 @@ type LaidOutVolume struct {
 	Size Size
 	// SectorSize sector size of the volume
 	SectorSize Size
-	// StructureLayout are the structures within the volume, sorted by their
-	// start offsets
-	StructureLayout []LaidOutStructure
+	// LaidOutStructure is a list of structures within the volume, sorted
+	// by their start offsets
+	LaidOutStructure []LaidOutStructure
 	// RootDir is the root directory for volume data
 	RootDir string
 }
@@ -62,9 +62,8 @@ type LaidOutStructure struct {
 	AbsoluteOffsetWrite *Size
 	// Index of the structure definition in gadget YAML
 	Index int
-
-	// ContentLayout is a list of raw content included in this structure
-	ContentLayout []LaidOutContent
+	// LaidOutContent is a list of raw content inside the structure
+	LaidOutContent []LaidOutContent
 }
 
 func (p LaidOutStructure) String() string {
@@ -181,7 +180,7 @@ func VolumeLayout(gadgetRootDir string, volume *Volume, constraints LayoutConstr
 			}
 		}
 
-		structures[idx].ContentLayout = content
+		structures[idx].LaidOutContent = content
 	}
 
 	volumeSize := farthestEnd
@@ -190,11 +189,11 @@ func VolumeLayout(gadgetRootDir string, volume *Volume, constraints LayoutConstr
 	}
 
 	vol := &LaidOutVolume{
-		Volume:          volume,
-		Size:            volumeSize,
-		SectorSize:      constraints.SectorSize,
-		StructureLayout: structures,
-		RootDir:         gadgetRootDir,
+		Volume:           volume,
+		Size:             volumeSize,
+		SectorSize:       constraints.SectorSize,
+		LaidOutStructure: structures,
+		RootDir:          gadgetRootDir,
 	}
 	return vol, nil
 }
@@ -305,11 +304,11 @@ func ShiftStructureTo(ps LaidOutStructure, offset Size) LaidOutStructure {
 	newPs := ps
 	newPs.StartOffset = Size(int64(ps.StartOffset) + change)
 
-	newPs.ContentLayout = make([]LaidOutContent, len(ps.ContentLayout))
-	for idx, pc := range ps.ContentLayout {
+	newPs.LaidOutContent = make([]LaidOutContent, len(ps.LaidOutContent))
+	for idx, pc := range ps.LaidOutContent {
 		newPc := pc
 		newPc.StartOffset = Size(int64(pc.StartOffset) + change)
-		newPs.ContentLayout[idx] = newPc
+		newPs.LaidOutContent[idx] = newPc
 	}
 	return newPs
 }

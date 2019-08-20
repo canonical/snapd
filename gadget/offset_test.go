@@ -42,7 +42,7 @@ func (m *offsetSuite) TestOffsetWriterOnlyStructure(c *C) {
 		// start offset written at this location
 		AbsoluteOffsetWrite: asSizePtr(512),
 
-		ContentLayout: []gadget.LaidOutContent{
+		LaidOutContent: []gadget.LaidOutContent{
 			{
 				VolumeContent: &gadget.VolumeContent{
 					Image: "foo.img",
@@ -81,7 +81,7 @@ func (m *offsetSuite) TestOffsetWriterOnlyRawContent(c *C) {
 		},
 		StartOffset: gadget.Size(1024),
 
-		ContentLayout: []gadget.LaidOutContent{
+		LaidOutContent: []gadget.LaidOutContent{
 			{
 				VolumeContent: &gadget.VolumeContent{
 					Image: "foo.img",
@@ -193,7 +193,7 @@ func (m *offsetSuite) TestOffsetWriterErrors(c *C) {
 			Size: 1 * gadget.SizeMiB,
 		},
 		StartOffset: gadget.Size(348 * gadget.SizeKiB),
-		ContentLayout: []gadget.LaidOutContent{
+		LaidOutContent: []gadget.LaidOutContent{
 			{
 				VolumeContent: &gadget.VolumeContent{
 					Image: "foo.img",

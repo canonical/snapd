@@ -525,13 +525,13 @@ func (u *updateTestSuite) TestCanUpdateVolume(c *C) {
 		}, {
 			from: gadget.LaidOutVolume{
 				Volume: &gadget.Volume{},
-				StructureLayout: []gadget.LaidOutStructure{
+				LaidOutStructure: []gadget.LaidOutStructure{
 					{}, {},
 				},
 			},
 			to: gadget.LaidOutVolume{
 				Volume: &gadget.Volume{},
-				StructureLayout: []gadget.LaidOutStructure{
+				LaidOutStructure: []gadget.LaidOutStructure{
 					{},
 				},
 			},
@@ -540,13 +540,13 @@ func (u *updateTestSuite) TestCanUpdateVolume(c *C) {
 			// valid, implicit schema
 			from: gadget.LaidOutVolume{
 				Volume: &gadget.Volume{Schema: ""},
-				StructureLayout: []gadget.LaidOutStructure{
+				LaidOutStructure: []gadget.LaidOutStructure{
 					{}, {},
 				},
 			},
 			to: gadget.LaidOutVolume{
 				Volume: &gadget.Volume{Schema: "gpt"},
-				StructureLayout: []gadget.LaidOutStructure{
+				LaidOutStructure: []gadget.LaidOutStructure{
 					{}, {},
 				},
 			},
@@ -555,13 +555,13 @@ func (u *updateTestSuite) TestCanUpdateVolume(c *C) {
 			// valid
 			from: gadget.LaidOutVolume{
 				Volume: &gadget.Volume{Schema: "mbr"},
-				StructureLayout: []gadget.LaidOutStructure{
+				LaidOutStructure: []gadget.LaidOutStructure{
 					{}, {},
 				},
 			},
 			to: gadget.LaidOutVolume{
 				Volume: &gadget.Volume{Schema: "mbr"},
-				StructureLayout: []gadget.LaidOutStructure{
+				LaidOutStructure: []gadget.LaidOutStructure{
 					{}, {},
 				},
 			},
@@ -686,9 +686,9 @@ func (u *updateTestSuite) TestUpdateApplyHappy(c *C) {
 			c.Check(ps.Size, Equals, 5*gadget.SizeMiB)
 			// non MBR start offset defaults to 1MiB
 			c.Check(ps.StartOffset, Equals, 1*gadget.SizeMiB)
-			c.Assert(ps.ContentLayout, HasLen, 1)
-			c.Check(ps.ContentLayout[0].Image, Equals, "first.img")
-			c.Check(ps.ContentLayout[0].Size, Equals, 900*gadget.SizeKiB)
+			c.Assert(ps.LaidOutContent, HasLen, 1)
+			c.Check(ps.LaidOutContent[0].Image, Equals, "first.img")
+			c.Check(ps.LaidOutContent[0].Size, Equals, 900*gadget.SizeKiB)
 		case 1:
 			c.Check(ps.Name, Equals, "second")
 			c.Check(ps.IsBare(), Equals, false)
@@ -696,7 +696,7 @@ func (u *updateTestSuite) TestUpdateApplyHappy(c *C) {
 			c.Check(ps.Size, Equals, 10*gadget.SizeMiB)
 			// foo's start offset + foo's size
 			c.Check(ps.StartOffset, Equals, (1+5)*gadget.SizeMiB)
-			c.Assert(ps.ContentLayout, HasLen, 0)
+			c.Assert(ps.LaidOutContent, HasLen, 0)
 			c.Assert(ps.Content, HasLen, 1)
 			c.Check(ps.Content[0].Source, Equals, "/second-content")
 			c.Check(ps.Content[0].Target, Equals, "/")

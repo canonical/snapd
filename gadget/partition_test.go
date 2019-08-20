@@ -63,7 +63,7 @@ func (s *partitionSuite) TestGPTHappy(c *C) {
 		},
 		Size:       3 * gadget.SizeMiB,
 		SectorSize: 512,
-		StructureLayout: []gadget.LaidOutStructure{
+		LaidOutStructure: []gadget.LaidOutStructure{
 			{
 				// does not appear as partition
 				VolumeStructure: &gadget.VolumeStructure{
@@ -117,7 +117,7 @@ func (s *partitionSuite) TestMBRHappy(c *C) {
 		},
 		Size:       3 * gadget.SizeMiB,
 		SectorSize: 512,
-		StructureLayout: []gadget.LaidOutStructure{
+		LaidOutStructure: []gadget.LaidOutStructure{
 			{
 				// does not appear as partition
 				VolumeStructure: &gadget.VolumeStructure{
@@ -185,9 +185,9 @@ func (s *partitionSuite) TestHybridType(c *C) {
 		Volume: &gadget.Volume{
 			Schema: "gpt",
 		},
-		Size:            3 * gadget.SizeMiB,
-		SectorSize:      512,
-		StructureLayout: []gadget.LaidOutStructure{ps},
+		Size:             3 * gadget.SizeMiB,
+		SectorSize:       512,
+		LaidOutStructure: []gadget.LaidOutStructure{ps},
 	}
 
 	err := gadget.Partition("foo", pvGPT)
@@ -203,9 +203,9 @@ start=2048, size=4096, type=21686148-6449-6E6F-744E-656564454649
 		Volume: &gadget.Volume{
 			Schema: "mbr",
 		},
-		Size:            3 * gadget.SizeMiB,
-		SectorSize:      512,
-		StructureLayout: []gadget.LaidOutStructure{ps},
+		Size:             3 * gadget.SizeMiB,
+		SectorSize:       512,
+		LaidOutStructure: []gadget.LaidOutStructure{ps},
 	}
 	err = gadget.Partition("foo", pvMBR)
 	c.Assert(err, IsNil)
@@ -223,7 +223,7 @@ func (s *partitionSuite) TestInputErrors(c *C) {
 		},
 		Size:       3 * gadget.SizeMiB,
 		SectorSize: 512,
-		StructureLayout: []gadget.LaidOutStructure{
+		LaidOutStructure: []gadget.LaidOutStructure{
 			{
 				VolumeStructure: &gadget.VolumeStructure{
 					Size: 2 * gadget.SizeMiB,
@@ -253,7 +253,7 @@ func (s *partitionSuite) TestCommandError(c *C) {
 		},
 		Size:       3 * gadget.SizeMiB,
 		SectorSize: 512,
-		StructureLayout: []gadget.LaidOutStructure{
+		LaidOutStructure: []gadget.LaidOutStructure{
 			{
 				VolumeStructure: &gadget.VolumeStructure{
 					Size: 2 * gadget.SizeMiB,

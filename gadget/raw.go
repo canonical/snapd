@@ -86,7 +86,7 @@ func (r *RawStructureWriter) writeRawImage(out io.WriteSeeker, pc *LaidOutConten
 
 // Write will write whole contents of a structure into the output stream.
 func (r *RawStructureWriter) Write(out io.WriteSeeker) error {
-	for _, pc := range r.ps.ContentLayout {
+	for _, pc := range r.ps.LaidOutContent {
 		if err := r.writeRawImage(out, &pc); err != nil {
 			return fmt.Errorf("failed to write image %v: %v", pc, err)
 		}
@@ -224,7 +224,7 @@ func (r *RawStructureUpdater) Backup() error {
 	}
 	defer disk.Close()
 
-	for _, pc := range structForDevice.ContentLayout {
+	for _, pc := range structForDevice.LaidOutContent {
 		if err := r.backupOrCheckpointContent(disk, &pc); err != nil {
 			return fmt.Errorf("cannot backup image %v: %v", pc, err)
 		}
@@ -266,7 +266,7 @@ func (r *RawStructureUpdater) Rollback() error {
 	}
 	defer disk.Close()
 
-	for _, pc := range structForDevice.ContentLayout {
+	for _, pc := range structForDevice.LaidOutContent {
 		if err := r.rollbackDifferent(disk, &pc); err != nil {
 			return fmt.Errorf("cannot rollback image %v: %v", pc, err)
 		}
@@ -310,7 +310,7 @@ func (r *RawStructureUpdater) Update() error {
 	}
 	defer disk.Close()
 
-	for _, pc := range structForDevice.ContentLayout {
+	for _, pc := range structForDevice.LaidOutContent {
 		if err := r.updateDifferent(disk, &pc); err != nil {
 			return fmt.Errorf("cannot update image %v: %v", pc, err)
 		}

@@ -65,7 +65,7 @@ func (p *layoutTestSuite) TestVolumeSize(c *C) {
 		Size:       3 * gadget.SizeMiB,
 		SectorSize: 512,
 		RootDir:    p.dir,
-		StructureLayout: []gadget.LaidOutStructure{
+		LaidOutStructure: []gadget.LaidOutStructure{
 			{VolumeStructure: &gadget.VolumeStructure{Size: 2 * gadget.SizeMiB}, StartOffset: 1 * gadget.SizeMiB},
 		},
 	})
@@ -105,7 +105,7 @@ volumes:
 		Size:       501 * gadget.SizeMiB,
 		SectorSize: 512,
 		RootDir:    p.dir,
-		StructureLayout: []gadget.LaidOutStructure{
+		LaidOutStructure: []gadget.LaidOutStructure{
 			{
 				VolumeStructure: &vol.Structure[0],
 				StartOffset:     1 * gadget.SizeMiB,
@@ -148,7 +148,7 @@ volumes:
 		Size:       1101 * gadget.SizeMiB,
 		SectorSize: 512,
 		RootDir:    p.dir,
-		StructureLayout: []gadget.LaidOutStructure{
+		LaidOutStructure: []gadget.LaidOutStructure{
 			{
 				VolumeStructure: &vol.Structure[0],
 				StartOffset:     1 * gadget.SizeMiB,
@@ -205,7 +205,7 @@ volumes:
 		Size:       1300 * gadget.SizeMiB,
 		SectorSize: 512,
 		RootDir:    p.dir,
-		StructureLayout: []gadget.LaidOutStructure{
+		LaidOutStructure: []gadget.LaidOutStructure{
 			{
 				VolumeStructure: &vol.Structure[3],
 				StartOffset:     1 * gadget.SizeMiB,
@@ -261,7 +261,7 @@ volumes:
 		Size:       1200 * gadget.SizeMiB,
 		SectorSize: 512,
 		RootDir:    p.dir,
-		StructureLayout: []gadget.LaidOutStructure{
+		LaidOutStructure: []gadget.LaidOutStructure{
 			{
 				VolumeStructure: &vol.Structure[3],
 				StartOffset:     1 * gadget.SizeMiB,
@@ -474,11 +474,11 @@ volumes:
 		Size:       3 * gadget.SizeMiB,
 		SectorSize: 512,
 		RootDir:    p.dir,
-		StructureLayout: []gadget.LaidOutStructure{
+		LaidOutStructure: []gadget.LaidOutStructure{
 			{
 				VolumeStructure: &vol.Structure[0],
 				StartOffset:     1 * gadget.SizeMiB,
-				ContentLayout: []gadget.LaidOutContent{
+				LaidOutContent: []gadget.LaidOutContent{
 					{
 						VolumeContent: &vol.Structure[0].Content[1],
 						StartOffset:   1 * gadget.SizeMiB,
@@ -526,11 +526,11 @@ volumes:
 		Size:       3 * gadget.SizeMiB,
 		SectorSize: 512,
 		RootDir:    p.dir,
-		StructureLayout: []gadget.LaidOutStructure{
+		LaidOutStructure: []gadget.LaidOutStructure{
 			{
 				VolumeStructure: &vol.Structure[0],
 				StartOffset:     1 * gadget.SizeMiB,
-				ContentLayout: []gadget.LaidOutContent{
+				LaidOutContent: []gadget.LaidOutContent{
 					{
 						VolumeContent: &vol.Structure[0].Content[0],
 						StartOffset:   1 * gadget.SizeMiB,
@@ -575,11 +575,11 @@ volumes:
 		Size:       3 * gadget.SizeMiB,
 		SectorSize: 512,
 		RootDir:    p.dir,
-		StructureLayout: []gadget.LaidOutStructure{
+		LaidOutStructure: []gadget.LaidOutStructure{
 			{
 				VolumeStructure: &vol.Structure[0],
 				StartOffset:     1 * gadget.SizeMiB,
-				ContentLayout: []gadget.LaidOutContent{
+				LaidOutContent: []gadget.LaidOutContent{
 					{
 						VolumeContent: &vol.Structure[0].Content[0],
 						StartOffset:   1 * gadget.SizeMiB,
@@ -618,7 +618,7 @@ volumes:
 		Size:       3 * gadget.SizeMiB,
 		SectorSize: 512,
 		RootDir:    p.dir,
-		StructureLayout: []gadget.LaidOutStructure{
+		LaidOutStructure: []gadget.LaidOutStructure{
 			{
 				VolumeStructure: &vol.Structure[0],
 				StartOffset:     1 * gadget.SizeMiB,
@@ -658,7 +658,7 @@ volumes:
 		Size:       3 * gadget.SizeMiB,
 		SectorSize: 512,
 		RootDir:    p.dir,
-		StructureLayout: []gadget.LaidOutStructure{
+		LaidOutStructure: []gadget.LaidOutStructure{
 			{
 				VolumeStructure: &vol.Structure[0],
 				StartOffset:     0,
@@ -685,7 +685,7 @@ volumes:
 		Size:       2*gadget.SizeMiB + 512*gadget.SizeKiB,
 		SectorSize: 512,
 		RootDir:    p.dir,
-		StructureLayout: []gadget.LaidOutStructure{
+		LaidOutStructure: []gadget.LaidOutStructure{
 			{
 				VolumeStructure: &vol.Structure[0],
 				StartOffset:     0,
@@ -713,7 +713,7 @@ volumes:
 		Size:       2*gadget.SizeMiB + 446,
 		SectorSize: 512,
 		RootDir:    p.dir,
-		StructureLayout: []gadget.LaidOutStructure{
+		LaidOutStructure: []gadget.LaidOutStructure{
 			{
 				VolumeStructure: &vol.Structure[0],
 				Index:           0,
@@ -738,7 +738,7 @@ volumes:
 		Size:       3 * gadget.SizeMiB,
 		SectorSize: 1024,
 		RootDir:    p.dir,
-		StructureLayout: []gadget.LaidOutStructure{
+		LaidOutStructure: []gadget.LaidOutStructure{
 			{
 				VolumeStructure: &vol.Structure[0],
 				Index:           0,
@@ -816,7 +816,7 @@ volumes:
 		Size:       2 * gadget.SizeMiB,
 		SectorSize: 512,
 		RootDir:    p.dir,
-		StructureLayout: []gadget.LaidOutStructure{
+		LaidOutStructure: []gadget.LaidOutStructure{
 			{
 				// MBR
 				VolumeStructure: &vol.Structure[0],
@@ -869,7 +869,7 @@ volumes:
 		Size:       3 * gadget.SizeMiB,
 		SectorSize: 512,
 		RootDir:    p.dir,
-		StructureLayout: []gadget.LaidOutStructure{
+		LaidOutStructure: []gadget.LaidOutStructure{
 			{
 				// mbr
 				VolumeStructure: &vol.Structure[0],
@@ -882,7 +882,7 @@ volumes:
 				Index:           1,
 				// break for gofmt < 1.11
 				AbsoluteOffsetWrite: asSizePtr(92),
-				ContentLayout: []gadget.LaidOutContent{
+				LaidOutContent: []gadget.LaidOutContent{
 					{
 						VolumeContent: &vol.Structure[1].Content[0],
 						Size:          200 * gadget.SizeKiB,
@@ -898,7 +898,7 @@ volumes:
 				Index:           2,
 				// break for gofmt < 1.11
 				AbsoluteOffsetWrite: asSizePtr(600),
-				ContentLayout: []gadget.LaidOutContent{
+				LaidOutContent: []gadget.LaidOutContent{
 					{
 						VolumeContent: &vol.Structure[2].Content[0],
 						Size:          150 * gadget.SizeKiB,
@@ -1041,17 +1041,17 @@ volumes:
 
 	v, err := gadget.VolumeLayout(p.dir, vol, defaultConstraints)
 	c.Assert(err, IsNil)
-	c.Assert(v.StructureLayout, HasLen, 1)
-	c.Assert(v.StructureLayout[0].ContentLayout, HasLen, 2)
+	c.Assert(v.LaidOutStructure, HasLen, 1)
+	c.Assert(v.LaidOutStructure[0].LaidOutContent, HasLen, 2)
 
-	ps := v.StructureLayout[0]
+	ps := v.LaidOutStructure[0]
 
 	c.Assert(ps, DeepEquals, gadget.LaidOutStructure{
 		// foo
 		VolumeStructure: &vol.Structure[0],
 		StartOffset:     1 * gadget.SizeMiB,
 		Index:           0,
-		ContentLayout: []gadget.LaidOutContent{
+		LaidOutContent: []gadget.LaidOutContent{
 			{
 				VolumeContent: &vol.Structure[0].Content[0],
 				Size:          200 * gadget.SizeKiB,
@@ -1072,7 +1072,7 @@ volumes:
 		VolumeStructure: &vol.Structure[0],
 		StartOffset:     0,
 		Index:           0,
-		ContentLayout: []gadget.LaidOutContent{
+		LaidOutContent: []gadget.LaidOutContent{
 			{
 				VolumeContent: &vol.Structure[0].Content[0],
 				Size:          200 * gadget.SizeKiB,
@@ -1093,7 +1093,7 @@ volumes:
 		VolumeStructure: &vol.Structure[0],
 		StartOffset:     2 * gadget.SizeMiB,
 		Index:           0,
-		ContentLayout: []gadget.LaidOutContent{
+		LaidOutContent: []gadget.LaidOutContent{
 			{
 				VolumeContent: &vol.Structure[0].Content[0],
 				Size:          200 * gadget.SizeKiB,

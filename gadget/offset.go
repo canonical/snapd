@@ -78,7 +78,7 @@ func (w *OffsetWriter) Write(out io.WriteSeeker) error {
 		return nil
 	}
 
-	for _, pc := range w.ps.ContentLayout {
+	for _, pc := range w.ps.LaidOutContent {
 		if pc.AbsoluteOffsetWrite == nil {
 			continue
 		}

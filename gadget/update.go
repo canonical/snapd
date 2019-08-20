@@ -198,8 +198,8 @@ func canUpdateVolume(from *LaidOutVolume, to *LaidOutVolume) error {
 	if from.EffectiveSchema() != to.EffectiveSchema() {
 		return fmt.Errorf("cannot change volume schema from %q to %q", from.EffectiveSchema(), to.EffectiveSchema())
 	}
-	if len(from.StructureLayout) != len(to.StructureLayout) {
-		return fmt.Errorf("cannot change the number of structures within volume from %v to %v", len(from.StructureLayout), len(to.StructureLayout))
+	if len(from.LaidOutStructure) != len(to.LaidOutStructure) {
+		return fmt.Errorf("cannot change the number of structures within volume from %v to %v", len(from.LaidOutStructure), len(to.LaidOutStructure))
 	}
 	return nil
 }
@@ -210,19 +210,19 @@ type updatePair struct {
 }
 
 func resolveUpdate(oldVol *LaidOutVolume, newVol *LaidOutVolume) (updates []updatePair, err error) {
-	if len(oldVol.StructureLayout) != len(newVol.StructureLayout) {
+	if len(oldVol.LaidOutStructure) != len(newVol.LaidOutStructure) {
 		return nil, errors.New("internal error: the number of structures in new and old volume definitions is different")
 	}
-	for j, oldStruct := range oldVol.StructureLayout {
-		newStruct := newVol.StructureLayout[j]
+	for j, oldStruct := range oldVol.LaidOutStructure {
+		newStruct := newVol.LaidOutStructure[j]
 		// update only when new edition is higher than the old one; boot
 		// assets are assumed to be backwards compatible, once deployed
 		// are not rolled back or replaced unless a higher edition is
 		// available
 		if newStruct.Update.Edition > oldStruct.Update.Edition {
 			updates = append(updates, updatePair{
-				from: &oldVol.StructureLayout[j],
-				to:   &newVol.StructureLayout[j],
+				from: &oldVol.LaidOutStructure[j],
+				to:   &newVol.LaidOutStructure[j],
 			})
 		}
 	}
