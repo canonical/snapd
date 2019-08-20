@@ -42,7 +42,7 @@ type systemKeySuite struct {
 	tmp                    string
 	apparmorFeatures       string
 	buildID                string
-	seccompCompilerVersion string
+	seccompCompilerVersion seccomp_compiler.VersionInfo
 }
 
 var _ = Suite(&systemKeySuite{})
@@ -62,7 +62,7 @@ func (s *systemKeySuite) SetUpTest(c *C) {
 	s.apparmorFeatures = filepath.Join(s.tmp, "/sys/kernel/security/apparmor/features")
 	s.buildID = "this-is-my-build-id"
 
-	s.seccompCompilerVersion = "123 2.3.3 abcdef123 -"
+	s.seccompCompilerVersion = seccomp_compiler.VersionInfo("123 2.3.3 abcdef123 -")
 	testutil.MockCommand(c, filepath.Join(dirs.DistroLibExecDir, "snap-seccomp"), fmt.Sprintf(`
 if [ "$1" = "version-info" ]; then echo "%s"; exit 0; fi
 exit 1

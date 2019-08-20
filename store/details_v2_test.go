@@ -298,6 +298,7 @@ func (s *detailsV2Suite) TestInfoFromStoreSnap(c *C) {
 		"Layout",
 		"SideInfo.Channel",
 		"DownloadInfo.AnonDownloadURL", // TODO: going away at some point
+		"SystemUsernames",
 	}
 	var checker func(string, reflect.Value)
 	checker = func(pfx string, x reflect.Value) {

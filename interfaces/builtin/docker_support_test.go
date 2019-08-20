@@ -26,6 +26,7 @@ import (
 	"github.com/snapcore/snapd/interfaces/apparmor"
 	"github.com/snapcore/snapd/interfaces/builtin"
 	"github.com/snapcore/snapd/interfaces/seccomp"
+	"github.com/snapcore/snapd/interfaces/udev"
 	"github.com/snapcore/snapd/release"
 	"github.com/snapcore/snapd/snap"
 	"github.com/snapcore/snapd/snap/snaptest"
@@ -33,11 +34,19 @@ import (
 )
 
 type DockerSupportInterfaceSuite struct {
-	iface    interfaces.Interface
-	slotInfo *snap.SlotInfo
-	slot     *interfaces.ConnectedSlot
-	plugInfo *snap.PlugInfo
-	plug     *interfaces.ConnectedPlug
+	iface                    interfaces.Interface
+	slotInfo                 *snap.SlotInfo
+	slot                     *interfaces.ConnectedSlot
+	plugInfo                 *snap.PlugInfo
+	plug                     *interfaces.ConnectedPlug
+	networkCtrlSlotInfo      *snap.SlotInfo
+	networkCtrlSlot          *interfaces.ConnectedSlot
+	networkCtrlPlugInfo      *snap.PlugInfo
+	networkCtrlPlug          *interfaces.ConnectedPlug
+	privContainersPlugInfo   *snap.PlugInfo
+	privContainersPlug       *interfaces.ConnectedPlug
+	noPrivContainersPlugInfo *snap.PlugInfo
+	noPrivContainersPlug     *interfaces.ConnectedPlug
 }
 
 const coreDockerSlotYaml = `name: core
@@ -45,6 +54,7 @@ version: 0
 type: os
 slots:
   docker-support:
+  network-control:
 `
 
 const dockerSupportMockPlugSnapInfoYaml = `name: docker
@@ -52,7 +62,35 @@ version: 1.0
 apps:
  app:
   command: foo
-  plugs: [docker-support]
+  plugs: 
+   - docker-support
+   - network-control
+`
+
+const dockerSupportPrivilegedContainersFalseMockPlugSnapInfoYaml = `name: docker
+version: 1.0
+plugs:
+ privileged:
+  interface: docker-support
+  privileged-containers: false
+apps:
+ app:
+  command: foo
+  plugs:
+  - privileged
+`
+
+const dockerSupportPrivilegedContainersTrueMockPlugSnapInfoYaml = `name: docker
+version: 1.0
+plugs:
+ privileged:
+  interface: docker-support
+  privileged-containers: true
+apps:
+ app:
+  command: foo
+  plugs:
+  - privileged
 `
 
 var _ = Suite(&DockerSupportInterfaceSuite{
@@ -62,6 +100,10 @@ var _ = Suite(&DockerSupportInterfaceSuite{
 func (s *DockerSupportInterfaceSuite) SetUpTest(c *C) {
 	s.plug, s.plugInfo = MockConnectedPlug(c, dockerSupportMockPlugSnapInfoYaml, nil, "docker-support")
 	s.slot, s.slotInfo = MockConnectedSlot(c, coreDockerSlotYaml, nil, "docker-support")
+	s.networkCtrlPlug, s.networkCtrlPlugInfo = MockConnectedPlug(c, dockerSupportMockPlugSnapInfoYaml, nil, "network-control")
+	s.networkCtrlSlot, s.networkCtrlSlotInfo = MockConnectedSlot(c, coreDockerSlotYaml, nil, "network-control")
+	s.privContainersPlug, s.privContainersPlugInfo = MockConnectedPlug(c, dockerSupportPrivilegedContainersTrueMockPlugSnapInfoYaml, nil, "privileged")
+	s.noPrivContainersPlug, s.noPrivContainersPlugInfo = MockConnectedPlug(c, dockerSupportPrivilegedContainersFalseMockPlugSnapInfoYaml, nil, "privileged")
 }
 
 func (s *DockerSupportInterfaceSuite) TestName(c *C) {
@@ -89,67 +131,25 @@ func (s *DockerSupportInterfaceSuite) TestSanitizePlug(c *C) {
 }
 
 func (s *DockerSupportInterfaceSuite) TestSanitizePlugWithPrivilegedTrue(c *C) {
-	var mockSnapYaml = []byte(`name: docker
-version: 1.0
-plugs:
- privileged:
-  interface: docker-support
-  privileged-containers: true
-apps:
- app:
-  command: foo
-  plugs:
-   - privileged
-`)
-
-	info, err := snap.InfoFromSnapYaml(mockSnapYaml)
-	c.Assert(err, IsNil)
-
-	plug := info.Plugs["privileged"]
-	c.Assert(interfaces.BeforePreparePlug(s.iface, plug), IsNil)
-
 	apparmorSpec := &apparmor.Specification{}
-	err = apparmorSpec.AddConnectedPlug(s.iface, interfaces.NewConnectedPlug(plug, nil, nil), s.slot)
-	c.Assert(err, IsNil)
+	c.Assert(apparmorSpec.AddConnectedPlug(s.iface, s.privContainersPlug, s.slot), IsNil)
 	c.Assert(apparmorSpec.SecurityTags(), DeepEquals, []string{"snap.docker.app"})
 	c.Assert(apparmorSpec.SnippetForTag("snap.docker.app"), testutil.Contains, `change_profile unsafe /**,`)
 
 	seccompSpec := &seccomp.Specification{}
-	err = seccompSpec.AddConnectedPlug(s.iface, interfaces.NewConnectedPlug(plug, nil, nil), s.slot)
-	c.Assert(err, IsNil)
+	c.Assert(seccompSpec.AddConnectedPlug(s.iface, s.privContainersPlug, s.slot), IsNil)
 	c.Assert(seccompSpec.SecurityTags(), DeepEquals, []string{"snap.docker.app"})
 	c.Check(seccompSpec.SnippetForTag("snap.docker.app"), testutil.Contains, "@unrestricted")
 }
 
 func (s *DockerSupportInterfaceSuite) TestSanitizePlugWithPrivilegedFalse(c *C) {
-	var mockSnapYaml = []byte(`name: docker
-version: 1.0
-plugs:
- privileged:
-  interface: docker-support
-  privileged-containers: false
-apps:
- app:
-  command: foo
-  plugs:
-   - privileged
-`)
-
-	info, err := snap.InfoFromSnapYaml(mockSnapYaml)
-	c.Assert(err, IsNil)
-
-	plug := info.Plugs["privileged"]
-	c.Assert(interfaces.BeforePreparePlug(s.iface, plug), IsNil)
-
 	apparmorSpec := &apparmor.Specification{}
-	err = apparmorSpec.AddConnectedPlug(s.iface, interfaces.NewConnectedPlug(plug, nil, nil), s.slot)
-	c.Assert(err, IsNil)
+	c.Assert(apparmorSpec.AddConnectedPlug(s.iface, s.noPrivContainersPlug, s.slot), IsNil)
 	c.Assert(apparmorSpec.SecurityTags(), DeepEquals, []string{"snap.docker.app"})
 	c.Assert(apparmorSpec.SnippetForTag("snap.docker.app"), Not(testutil.Contains), `change_profile unsafe /**,`)
 
 	seccompSpec := &seccomp.Specification{}
-	err = seccompSpec.AddConnectedPlug(s.iface, interfaces.NewConnectedPlug(plug, nil, nil), s.slot)
-	c.Assert(err, IsNil)
+	c.Assert(seccompSpec.AddConnectedPlug(s.iface, s.noPrivContainersPlug, s.slot), IsNil)
 	c.Assert(seccompSpec.SecurityTags(), DeepEquals, []string{"snap.docker.app"})
 	c.Check(seccompSpec.SnippetForTag("snap.docker.app"), Not(testutil.Contains), "@unrestricted")
 }
@@ -164,7 +164,6 @@ plugs:
 `
 
 	info := snaptest.MockInfo(c, mockSnapYaml, nil)
-
 	plug := info.Plugs["privileged"]
 	c.Assert(interfaces.BeforePreparePlug(s.iface, plug), ErrorMatches, "docker-support plug requires bool with 'privileged-containers'")
 }
@@ -211,4 +210,27 @@ func (s *DockerSupportInterfaceSuite) TestPermanentSlotAppArmorSessionClassic(c 
 
 	// verify core rule not present
 	c.Check(apparmorSpec.SnippetForTag("snap.docker.app"), Not(testutil.Contains), "# /system-data/var/snap/docker/common/var-lib-docker/overlay2/$SHA/diff/\n")
+}
+
+func (s *DockerSupportInterfaceSuite) TestUdevTaggingDisablingRemoveLast(c *C) {
+	// make a spec with network-control that has udev tagging
+	spec := &udev.Specification{}
+	c.Assert(spec.AddConnectedPlug(builtin.MustInterface("network-control"), s.networkCtrlPlug, s.networkCtrlSlot), IsNil)
+	c.Assert(spec.Snippets(), HasLen, 3)
+
+	// connect docker-support interface plug and ensure that the udev spec is now nil
+	c.Assert(spec.AddConnectedPlug(s.iface, s.plug, s.slot), IsNil)
+	c.Check(spec.Snippets(), HasLen, 0)
+}
+
+func (s *DockerSupportInterfaceSuite) TestUdevTaggingDisablingRemoveFirst(c *C) {
+	spec := &udev.Specification{}
+	// connect docker-support interface plug which specifies
+	// controls-device-cgroup as true and ensure that the udev spec is now nil
+	c.Assert(spec.AddConnectedPlug(s.iface, s.plug, s.slot), IsNil)
+	c.Check(spec.Snippets(), HasLen, 0)
+
+	// add network-control and ensure the spec is still nil
+	c.Assert(spec.AddConnectedPlug(builtin.MustInterface("network-control"), s.networkCtrlPlug, s.networkCtrlSlot), IsNil)
+	c.Assert(spec.Snippets(), HasLen, 0)
 }
