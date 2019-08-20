@@ -203,7 +203,7 @@ func (client *Client) doMultiSnapActionFull(actionName string, snaps []string, o
 		"Content-Type": "application/json",
 	}
 
-	return client.doAsyncFull("POST", "/v2/snaps", nil, headers, bytes.NewBuffer(data), 0)
+	return client.doAsyncFull("POST", "/v2/snaps", nil, headers, bytes.NewBuffer(data), doDefaults)
 }
 
 // InstallPath sideloads the snap with the given path under optional provided name,
