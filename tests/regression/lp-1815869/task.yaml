@@ -22,7 +22,7 @@ prepare: |
     fi
 
     # Launch a xenial container.
-    lxc launch ubuntu:xenial xenial
+    lxc launch images:ubuntu/xenial xenial
 
     # Set the proxy inside the container.
     if [ -n "${http_proxy:-}" ]; then

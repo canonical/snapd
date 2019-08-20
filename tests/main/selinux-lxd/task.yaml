@@ -35,7 +35,7 @@ execute: |
         lxd.lxc config set core.proxy_https "$http_proxy"
     fi
 
-    lxd.lxc launch "ubuntu:18.04" my-ubuntu
+    lxd.lxc launch "images:ubuntu/18.04" my-ubuntu
 
     echo "Ensure we can run things inside"
     lxd.lxc exec my-ubuntu echo hello | MATCH hello
