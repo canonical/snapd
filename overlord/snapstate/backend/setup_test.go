@@ -291,6 +291,41 @@ type: kernel
 	c.Assert(loader.RemoveKernelAssetsCalls, HasLen, 1)
 }
 
+func (s *setupSuite) TestSetupUndoKeepsTargetSnap(c *C) {
+	snapPath := makeTestSnap(c, helloYaml1)
+
+	si := snap.SideInfo{
+		RealName: "hello",
+		Revision: snap.R(14),
+	}
+
+	snapType, undoCtx, err := s.be.SetupSnap(snapPath, "hello", &si, progress.Null)
+	c.Assert(err, IsNil)
+	c.Assert(undoCtx, NotNil)
+	c.Check(snapType, Equals, snap.TypeApp)
+
+	// after setup the snap file is in the right dir
+	c.Assert(osutil.FileExists(filepath.Join(dirs.SnapBlobDir, "hello_14.snap")), Equals, true)
+
+	// ensure the right unit is created
+	mup := systemd.MountUnitPath(filepath.Join(dirs.StripRootDir(dirs.SnapMountDir), "hello/14"))
+	c.Assert(mup, testutil.FileMatches, fmt.Sprintf("(?ms).*^Where=%s", filepath.Join(dirs.StripRootDir(dirs.SnapMountDir), "hello/14")))
+	c.Assert(mup, testutil.FileMatches, "(?ms).*^What=/var/lib/snapd/snaps/hello_14.snap")
+
+	minInfo := snap.MinimalPlaceInfo("hello", snap.R(14))
+	// mount dir was created
+	c.Assert(osutil.FileExists(minInfo.MountDir()), Equals, true)
+
+	// undo keeps the target .snap file intact if requested
+	undoCtx = &undo_context.InstallUndoContext{KeepTargetSnap: true}
+	c.Assert(s.be.UndoSetupSnap(minInfo, "app", undoCtx, progress.Null), IsNil)
+
+	l, _ := filepath.Glob(filepath.Join(dirs.SnapServicesDir, "*.mount"))
+	c.Assert(l, HasLen, 0)
+	c.Assert(osutil.FileExists(minInfo.MountDir()), Equals, false)
+	c.Assert(osutil.FileExists(minInfo.MountFile()), Equals, true)
+}
+
 func (s *setupSuite) TestSetupCleanupAfterFail(c *C) {
 	snapPath := makeTestSnap(c, helloYaml1)
 
