@@ -20,6 +20,7 @@
 package xdgopenproxy_test
 
 import (
+	"context"
 	"fmt"
 	"io/ioutil"
 	"net/url"
@@ -142,12 +143,33 @@ func (f fakeBusObject) Call(method string, flags dbus.Flags, args ...interface{}
 	return &dbus.Call{Err: err}
 }
 
+func (f fakeBusObject) CallWithContext(ctx context.Context, method string, flags dbus.Flags, args ...interface{}) *dbus.Call {
+	err := f(method, args...)
+	return &dbus.Call{Err: err}
+}
+
 func (f fakeBusObject) Go(method string, flags dbus.Flags, ch chan *dbus.Call, args ...interface{}) *dbus.Call {
+	return nil
+}
+
+func (f fakeBusObject) GoWithContext(ctx context.Context, method string, flags dbus.Flags, ch chan *dbus.Call, args ...interface{}) *dbus.Call {
+	return nil
+}
+
+func (f fakeBusObject) AddMatchSignal(iface, member string, options ...dbus.MatchOption) *dbus.Call {
+	return nil
+}
+
+func (f fakeBusObject) RemoveMatchSignal(iface, member string, options ...dbus.MatchOption) *dbus.Call {
 	return nil
 }
 
 func (f fakeBusObject) GetProperty(prop string) (dbus.Variant, error) {
 	return dbus.Variant{}, nil
+}
+
+func (f fakeBusObject) SetProperty(p string, v interface{}) error {
+	return nil
 }
 
 func (f fakeBusObject) Destination() string {

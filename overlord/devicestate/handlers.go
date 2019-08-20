@@ -872,67 +872,62 @@ func makeRollbackDir(name string) (string, error) {
 	return rollbackDir, nil
 }
 
-func currentGadgetInfo(snapst *snapstate.SnapState) (*gadget.Info, error) {
-	var gi *gadget.Info
-
+func currentGadgetInfo(snapst *snapstate.SnapState) (*gadget.GadgetData, error) {
 	currentInfo, err := snapst.CurrentInfo()
 	if err != nil && err != snapstate.ErrNoCurrent {
 		return nil, err
 	}
-	if currentInfo != nil {
-		const onClassic = false
-		gi, err = snap.ReadGadgetInfo(currentInfo, onClassic)
-		if err != nil {
-			return nil, err
-		}
+	if currentInfo == nil {
+		// no current yet
+		return nil, nil
 	}
-	return gi, nil
+	const onClassic = false
+	gi, err := gadget.ReadInfo(currentInfo.MountDir(), onClassic)
+	if err != nil {
+		return nil, err
+	}
+	return &gadget.GadgetData{Info: gi, RootDir: currentInfo.MountDir()}, nil
 }
 
-func pendingGadgetInfo(snapsup *snapstate.SnapSetup) (*gadget.Info, error) {
+func pendingGadgetInfo(snapsup *snapstate.SnapSetup) (*gadget.GadgetData, error) {
 	info, err := snap.ReadInfo(snapsup.InstanceName(), snapsup.SideInfo)
 	if err != nil {
 		return nil, err
 	}
 	const onClassic = false
-	update, err := snap.ReadGadgetInfo(info, onClassic)
+	update, err := gadget.ReadInfo(info.MountDir(), onClassic)
 	if err != nil {
 		return nil, err
 	}
-	return update, nil
+	return &gadget.GadgetData{Info: update, RootDir: info.MountDir()}, nil
 }
 
-func gadgetCurrentAndUpdate(st *state.State, snapsup *snapstate.SnapSetup) (current *gadget.Info, update *gadget.Info, err error) {
+func gadgetCurrentAndUpdate(st *state.State, snapsup *snapstate.SnapSetup) (current *gadget.GadgetData, update *gadget.GadgetData, err error) {
 	snapst, err := snapState(st, snapsup.InstanceName())
 	if err != nil {
 		return nil, nil, err
 	}
 
-	currentInfo, err := currentGadgetInfo(snapst)
+	currentData, err := currentGadgetInfo(snapst)
 	if err != nil {
-		return nil, nil, err
+		return nil, nil, fmt.Errorf("cannot read current gadget snap details: %v", err)
 	}
-
-	if currentInfo == nil {
+	if currentData == nil {
 		// don't bother reading update if there is no current
 		return nil, nil, nil
 	}
 
-	newInfo, err := pendingGadgetInfo(snapsup)
+	newData, err := pendingGadgetInfo(snapsup)
 	if err != nil {
-		return nil, nil, err
+		return nil, nil, fmt.Errorf("cannot read candidate gadget snap details: %v", err)
 	}
 
-	return currentInfo, newInfo, nil
+	return currentData, newData, nil
 }
 
 var (
-	gadgetUpdate = nopGadgetOp
+	gadgetUpdate = gadget.Update
 )
-
-func nopGadgetOp(current, update *gadget.Info, rollbackRootDir string) error {
-	return nil
-}
 
 func (m *DeviceManager) doUpdateGadgetAssets(t *state.Task, _ *tomb.Tomb) error {
 	if release.OnClassic {
@@ -948,11 +943,11 @@ func (m *DeviceManager) doUpdateGadgetAssets(t *state.Task, _ *tomb.Tomb) error 
 		return err
 	}
 
-	current, update, err := gadgetCurrentAndUpdate(t.State(), snapsup)
+	currentData, updateData, err := gadgetCurrentAndUpdate(t.State(), snapsup)
 	if err != nil {
 		return err
 	}
-	if current == nil {
+	if currentData == nil {
 		// no updates during first boot & seeding
 		return nil
 	}
@@ -963,7 +958,7 @@ func (m *DeviceManager) doUpdateGadgetAssets(t *state.Task, _ *tomb.Tomb) error 
 	}
 
 	st.Unlock()
-	err = gadgetUpdate(current, update, snapRollbackDir)
+	err = gadgetUpdate(*currentData, *updateData, snapRollbackDir)
 	st.Lock()
 	if err != nil {
 		if err == gadget.ErrNoUpdate {
@@ -980,6 +975,8 @@ func (m *DeviceManager) doUpdateGadgetAssets(t *state.Task, _ *tomb.Tomb) error 
 		logger.Noticef("failed to remove gadget update rollback directory %q: %v", snapRollbackDir, err)
 	}
 
+	// TODO: consider having the option to do this early via recovery in
+	// core20, have fallback code as well there
 	st.RequestRestart(state.RestartSystem)
 
 	return nil

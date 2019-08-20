@@ -248,7 +248,7 @@ func isPrivateTmpfsCreatedBySnapd(dirName string, fsData *syscall.Statfs_t, file
 	for i := len(changes) - 1; i >= 0; i-- {
 		change := changes[i]
 		if change.Entry.Type == "tmpfs" && change.Entry.Dir == dirName {
-			return change.Action == Mount
+			return change.Action == Mount || change.Action == Keep
 		}
 	}
 	return false

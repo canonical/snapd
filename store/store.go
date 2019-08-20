@@ -175,7 +175,13 @@ type Store struct {
 	proxy  func(*http.Request) (*url.URL, error)
 }
 
+var ErrTooManyRequests = errors.New("too many requests")
+
 func respToError(resp *http.Response, msg string) error {
+	if resp.StatusCode == 429 {
+		return ErrTooManyRequests
+	}
+
 	tpl := "cannot %s: got unexpected HTTP status code %d via %s to %q"
 	if oops := resp.Header.Get("X-Oops-Id"); oops != "" {
 		tpl += " [%s]"
@@ -1449,6 +1455,8 @@ func downloadReqOpts(storeURL *url.URL, cdnHeader string, opts *DownloadOptions)
 		Method:       "GET",
 		URL:          storeURL,
 		ExtraHeaders: map[string]string{},
+		// FIXME: use the new headers? with
+		// APILevel: apiV2Endps,
 	}
 	if cdnHeader != "" {
 		reqOptions.ExtraHeaders["Snap-CDN"] = cdnHeader

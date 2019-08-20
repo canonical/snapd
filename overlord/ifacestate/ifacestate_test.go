@@ -51,6 +51,7 @@ import (
 	"github.com/snapcore/snapd/overlord/snapstate/snapstatetest"
 	"github.com/snapcore/snapd/overlord/state"
 	"github.com/snapcore/snapd/release"
+	seccomp_compiler "github.com/snapcore/snapd/sandbox/seccomp"
 	"github.com/snapcore/snapd/snap"
 	"github.com/snapcore/snapd/snap/snaptest"
 	"github.com/snapcore/snapd/testutil"
@@ -212,9 +213,7 @@ func (s *interfaceManagerSuite) SetUpTest(c *C) {
 	s.log = buf
 
 	s.BaseTest.AddCleanup(ifacestate.MockConnectRetryTimeout(0))
-	restore = interfaces.MockSeccompCompilerVersionInfo(func(_ string) (string, error) {
-		return "abcdef 1.2.3 1234abcd -", nil
-	})
+	restore = seccomp_compiler.MockCompilerVersionInfo("abcdef 1.2.3 1234abcd -")
 	s.BaseTest.AddCleanup(restore)
 }
 
@@ -247,6 +246,8 @@ func (s *interfaceManagerSuite) manager(c *C) *ifacestate.InterfaceManager {
 		s.o.AddManager(mgr)
 
 		s.o.AddManager(s.o.TaskRunner())
+
+		c.Assert(s.o.StartUp(), IsNil)
 
 		// ensure the re-generation of security profiles did not
 		// confuse the tests
@@ -3718,7 +3719,8 @@ slots:
 	c.Check(ifacestate.CheckInterfaces(s.state, snapInfo, deviceCtx), ErrorMatches, "installation denied.*")
 }
 
-func (s *interfaceManagerSuite) TestCheckInterfacesDenySkippedIfNoDecl(c *C) {
+func (s *interfaceManagerSuite) TestCheckInterfacesNoDenyIfNoDecl(c *C) {
+	deviceCtx := s.TrivialDeviceContext(c, nil)
 	restore := assertstest.MockBuiltinBaseDeclaration([]byte(`
 type: base-declaration
 authority-id: canonical
@@ -3735,7 +3737,55 @@ slots:
 
 	s.state.Lock()
 	defer s.state.Unlock()
-	c.Check(ifacestate.CheckInterfaces(s.state, snapInfo, nil), IsNil)
+	c.Check(ifacestate.CheckInterfaces(s.state, snapInfo, deviceCtx), IsNil)
+}
+
+func (s *interfaceManagerSuite) TestCheckInterfacesDisallowBasedOnSnapTypeNoSnapDecl(c *C) {
+	deviceCtx := s.TrivialDeviceContext(c, nil)
+
+	restore := assertstest.MockBuiltinBaseDeclaration([]byte(`
+type: base-declaration
+authority-id: canonical
+series: 16
+slots:
+  test:
+    allow-installation:
+      slot-snap-type:
+        - core
+`))
+	defer restore()
+	s.mockIface(c, &ifacetest.TestInterface{InterfaceName: "test"})
+
+	// no snap decl
+	snapInfo := s.mockSnap(c, producerYaml)
+
+	s.state.Lock()
+	defer s.state.Unlock()
+	c.Check(ifacestate.CheckInterfaces(s.state, snapInfo, deviceCtx), ErrorMatches, `installation not allowed by "slot" slot rule of interface "test"`)
+}
+
+func (s *interfaceManagerSuite) TestCheckInterfacesAllowBasedOnSnapTypeNoSnapDecl(c *C) {
+	deviceCtx := s.TrivialDeviceContext(c, nil)
+
+	restore := assertstest.MockBuiltinBaseDeclaration([]byte(`
+type: base-declaration
+authority-id: canonical
+series: 16
+slots:
+  test:
+    allow-installation:
+      slot-snap-type:
+        - app
+`))
+	defer restore()
+	s.mockIface(c, &ifacetest.TestInterface{InterfaceName: "test"})
+
+	// no snap decl
+	snapInfo := s.mockSnap(c, producerYaml)
+
+	s.state.Lock()
+	defer s.state.Unlock()
+	c.Check(ifacestate.CheckInterfaces(s.state, snapInfo, deviceCtx), IsNil)
 }
 
 func (s *interfaceManagerSuite) TestCheckInterfacesAllow(c *C) {
@@ -3937,11 +3987,12 @@ slots:
 }
 
 func (s *interfaceManagerSuite) TestCheckInterfacesConsidersImplicitSlots(c *C) {
+	deviceCtx := s.TrivialDeviceContext(c, nil)
 	snapInfo := s.mockSnap(c, ubuntuCoreSnapYaml)
 
 	s.state.Lock()
 	defer s.state.Unlock()
-	c.Check(ifacestate.CheckInterfaces(s.state, snapInfo, nil), IsNil)
+	c.Check(ifacestate.CheckInterfaces(s.state, snapInfo, deviceCtx), IsNil)
 	c.Check(snapInfo.Slots["home"], NotNil)
 }
 
@@ -5348,6 +5399,7 @@ func (s *interfaceManagerSuite) TestUDevMonitorInit(c *C) {
 	mgr, err := ifacestate.Manager(s.state, nil, s.o.TaskRunner(), nil, nil)
 	c.Assert(err, IsNil)
 	s.o.AddManager(mgr)
+	c.Assert(s.o.StartUp(), IsNil)
 
 	// succesfull initialization should result in exactly 1 connect and run call
 	for i := 0; i < 5; i++ {
@@ -5387,6 +5439,7 @@ func (s *interfaceManagerSuite) TestUDevMonitorInitErrors(c *C) {
 	mgr, err := ifacestate.Manager(s.state, nil, s.o.TaskRunner(), nil, nil)
 	c.Assert(err, IsNil)
 	s.o.AddManager(mgr)
+	c.Assert(s.o.StartUp(), IsNil)
 
 	c.Assert(s.se.Ensure(), ErrorMatches, ".*Connect failed.*")
 	c.Assert(u.ConnectCalls, Equals, 1)
@@ -5423,6 +5476,7 @@ func (s *interfaceManagerSuite) TestUDevMonitorInitWaitsForCore(c *C) {
 	mgr, err := ifacestate.Manager(s.state, nil, s.o.TaskRunner(), nil, nil)
 	c.Assert(err, IsNil)
 	s.o.AddManager(mgr)
+	c.Assert(s.o.StartUp(), IsNil)
 
 	for i := 0; i < 5; i++ {
 		c.Assert(s.se.Ensure(), IsNil)

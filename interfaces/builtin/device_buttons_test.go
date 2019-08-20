@@ -67,13 +67,6 @@ func (s *DeviceButtonsInterfaceSuite) TestName(c *C) {
 
 func (s *DeviceButtonsInterfaceSuite) TestSanitizeSlot(c *C) {
 	c.Assert(interfaces.BeforePrepareSlot(s.iface, s.slotInfo), IsNil)
-	slot := &snap.SlotInfo{
-		Snap:      &snap.Info{SuggestedName: "some-snap"},
-		Name:      "device-buttons",
-		Interface: "device-buttons",
-	}
-	c.Assert(interfaces.BeforePrepareSlot(s.iface, slot), ErrorMatches,
-		"device-buttons slots are reserved for the core snap")
 }
 
 func (s *DeviceButtonsInterfaceSuite) TestSanitizePlug(c *C) {

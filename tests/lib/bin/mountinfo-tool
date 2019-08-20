@@ -352,8 +352,8 @@ def renumber_snap_revision(entry, seen):
     entry.mount_point = "/".join(compose(parts, n))
 
 
-def renumber_opt_fields(entry, seen):
-    # type: (MountInfoEntry, Dict[int, int]) -> None
+def renumber_opt_fields(entry, seen, base_n):
+    # type: (MountInfoEntry, Dict[int, int], int) -> None
     """renumber_opt_fields re-numbers peer group in optional fields."""
 
     def alloc_n(peer_group):
@@ -362,7 +362,11 @@ def renumber_opt_fields(entry, seen):
         try:
             return seen[key]
         except KeyError:
-            n = len(seen) + 1
+            n = (
+                len({orig for orig, renumbered in seen.items() if renumbered >= base_n})
+                + base_n
+                + 1
+            )
             seen[key] = n
             return n
 
@@ -394,8 +398,8 @@ def renumber_loop_devices(entry, seen):
     entry.mount_source = re.sub("loop(\\d+)", fn, entry.mount_source)
 
 
-def renumber_mount_ids(entry, seen):
-    # type: (MountInfoEntry, Dict[int, int]) -> None
+def renumber_mount_ids(entry, seen, base_n):
+    # type: (MountInfoEntry, Dict[int, int], int) -> None
     """renumber_mount_ids re-numbers mount and parent mount IDs."""
 
     def alloc_n(mount_id):
@@ -404,7 +408,10 @@ def renumber_mount_ids(entry, seen):
         try:
             return seen[key]
         except KeyError:
-            n = len(seen)
+            n = (
+                len({orig for orig, renumbered in seen.items() if renumbered >= base_n})
+                + base_n
+            )
             seen[key] = n
             return n
 
@@ -529,15 +536,15 @@ class RewriteState(object):
         self.seen_mount_opts = {}  # type: Dict[Tuple[Text, Text], int]
 
 
-def rewrite_renumber(entries, order, rs):
-    # type: (List[MountInfoEntry], List[int], RewriteState) -> None
+def rewrite_renumber(entries, order, rs, base_n=0):
+    # type: (List[MountInfoEntry], List[int], RewriteState, int) -> None
     """rewrite_renumber applies all re-numbering helpers to a single entry."""
     for i in range(len(entries)):
         entry = entries[order[i]]
-        renumber_mount_ids(entry, rs.seen_mount_ids)
+        renumber_mount_ids(entry, rs.seen_mount_ids, base_n)
         renumber_devices(entry, rs.seen_devices)
         renumber_snap_revision(entry, rs.seen_snap_revs)
-        renumber_opt_fields(entry, rs.seen_opt_fields)
+        renumber_opt_fields(entry, rs.seen_opt_fields, base_n)
         renumber_loop_devices(entry, rs.seen_loops)
         renumber_ns(entry, rs.seen_ns)
         renumber_mount_opts(entry, rs.seen_mount_opts)
@@ -606,6 +613,8 @@ Known attributes, applicable for both filtering and display.
     parent_id:      identifier of parent mount point
     dev:            major:minor numbers of the mounted device
     root_dir:       subtree of the mounted filesystem exposed at mount_point
+
+The exit code indicates if any mount point matched the query.
     """,
         formatter_class=RawTextHelpFormatter,
     )
@@ -628,6 +637,13 @@ Known attributes, applicable for both filtering and display.
         action="append",
         default=[],
         help="refer to another table while rewriting, makes output comparable across namespaces",
+    )
+    parser.add_argument(
+        "--ref-x1000",
+        dest="ref_x1000",
+        action="store_true",
+        default=False,
+        help="start mount point IDs and peer groups at multiple of 1000, once for each ref",
     )
     parser.add_argument(
         "--one", default=False, action="store_true", help="expect exactly one match"
@@ -674,7 +690,7 @@ Known attributes, applicable for both filtering and display.
     # Build rewrite state based on reference tables. This way the entries
     # we will display can be correlated to other tables.
     rs = RewriteState()
-    for ref in opts.refs:
+    for i, ref in enumerate(opts.refs):
         ref_entries = [MountInfoEntry.parse(line) for line in ref]
         ref_rewrite_order = list(range(len(ref_entries)))
         if opts.rewrite_order:
@@ -687,7 +703,9 @@ Known attributes, applicable for both filtering and display.
 
         ref_rewrite_order.sort(key=ref_rewrite_key_fn)
         if opts.renumber:
-            rewrite_renumber(ref_entries, ref_rewrite_order, rs)
+            rewrite_renumber(
+                ref_entries, ref_rewrite_order, rs, 1000 * i if opts.ref_x1000 else 0
+            )
         if opts.rename:
             rewrite_rename(ref_entries, ref_rewrite_order, rs)
 
@@ -701,7 +719,9 @@ Known attributes, applicable for both filtering and display.
 
         rewrite_order.sort(key=rewrite_key_fn)
     if opts.renumber:
-        rewrite_renumber(entries, rewrite_order, rs)
+        rewrite_renumber(
+            entries, rewrite_order, rs, 1000 * len(opts.refs) if opts.ref_x1000 else 0
+        )
     if opts.rename:
         rewrite_rename(entries, rewrite_order, rs)
 
@@ -731,7 +751,10 @@ Known attributes, applicable for both filtering and display.
         raise SystemExit(
             "--one requires exactly one match, found {}".format(len(entries))
         )
-
+	# Return with an exit code indicating if anything matched.
+	# This allows mountinfo-tool to be used in scripts.
+    if len(entries) == 0:
+        raise SystemExit(1)
 
 class MountInfoEntryTests(unittest.TestCase):
 
@@ -1027,6 +1050,66 @@ class RenumberMountOptionsTests(unittest.TestCase):
             renumber_mount_option("pipe_ino=16610", self.seen), "pipe_ino=0"
         )
         self.assertEqual(self.seen, {("fd", "40"): 0, ("pipe_ino", "16610"): 0})
+
+
+class RenumberMountIdsTests(unittest.TestCase):
+    def setUp(self):
+        # type: () -> None
+        self.seen = {}  # type: Dict[int, int]
+
+    def test_smoke(self):
+        # type: () -> None
+        # Renumber the first mount entry, from the "initial" mount namespace,
+        # with the initial, zero multiple.
+        entry = MountInfoEntry()
+        entry.mount_id = 12
+        entry.parent_id = 5
+        renumber_mount_ids(entry, self.seen, 0)
+        self.assertEqual(entry.parent_id, 0)
+        self.assertEqual(entry.mount_id, 1)
+
+        # Renumber another entry, now in a separate mount namespace, with a
+        # different multiplier. The parent ID stays in the < 1000 range.  NOTE:
+        # in reality mount namespaces never share mount IDs but that's fine.
+        # The test just checks the renumber logic.
+        entry = MountInfoEntry()
+        entry.mount_id = 13
+        entry.parent_id = 5
+        renumber_mount_ids(entry, self.seen, 1000)
+        self.assertEqual(entry.parent_id, 0)
+        self.assertEqual(entry.mount_id, 1000)
+
+
+class RenumberOptFieldsTests(unittest.TestCase):
+    def setUp(self):
+        # type: () -> None
+        self.seen = {}  # type: Dict[int, int]
+
+    def test_smoke(self):
+        # type: () -> None
+        # Renumber the first mount entry, from the "initial" mount namespace,
+        # with the initial, zero multiple.
+        entry = MountInfoEntry()
+        entry.opt_fields = ["shared:12"]
+        renumber_opt_fields(entry, self.seen, 0)
+        self.assertEqual(entry.opt_fields, ["shared:1"])
+
+        # Renumber the second entry, now in a separate mount namespace, with a
+        # different multiplier. Given that the peer group number was not seen
+        # before it gets allocated into the 1000-1999 range.
+        entry = MountInfoEntry()
+        entry.opt_fields = ["shared:13"]
+        renumber_opt_fields(entry, self.seen, 1000)
+        self.assertEqual(entry.opt_fields, ["shared:1001"])
+
+        # Renumber the third entry, in the same mount namespace as the second
+        # one.  Given that the peer group number was seen in the initial mount
+        # namespace it is renumbered the same was as the original was, even
+        # though the actual sharing mode is different.
+        entry = MountInfoEntry()
+        entry.opt_fields = ["master:12"]
+        renumber_opt_fields(entry, self.seen, 1000)
+        self.assertEqual(entry.opt_fields, ["master:1"])
 
 
 class RewriteTests(unittest.TestCase):
