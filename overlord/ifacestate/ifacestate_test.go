@@ -51,6 +51,7 @@ import (
 	"github.com/snapcore/snapd/overlord/snapstate/snapstatetest"
 	"github.com/snapcore/snapd/overlord/state"
 	"github.com/snapcore/snapd/release"
+	seccomp_compiler "github.com/snapcore/snapd/sandbox/seccomp"
 	"github.com/snapcore/snapd/snap"
 	"github.com/snapcore/snapd/snap/snaptest"
 	"github.com/snapcore/snapd/testutil"
@@ -212,9 +213,7 @@ func (s *interfaceManagerSuite) SetUpTest(c *C) {
 	s.log = buf
 
 	s.BaseTest.AddCleanup(ifacestate.MockConnectRetryTimeout(0))
-	restore = interfaces.MockSeccompCompilerVersionInfo(func(_ string) (string, error) {
-		return "abcdef 1.2.3 1234abcd -", nil
-	})
+	restore = seccomp_compiler.MockCompilerVersionInfo("abcdef 1.2.3 1234abcd -")
 	s.BaseTest.AddCleanup(restore)
 }
 
@@ -3720,7 +3719,7 @@ slots:
 	c.Check(ifacestate.CheckInterfaces(s.state, snapInfo, deviceCtx), ErrorMatches, "installation denied.*")
 }
 
-func (s *interfaceManagerSuite) TestCheckInterfacesDenySkippedWithMinimalCheckIfNoDecl(c *C) {
+func (s *interfaceManagerSuite) TestCheckInterfacesNoDenyIfNoDecl(c *C) {
 	deviceCtx := s.TrivialDeviceContext(c, nil)
 	restore := assertstest.MockBuiltinBaseDeclaration([]byte(`
 type: base-declaration
