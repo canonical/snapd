@@ -401,6 +401,14 @@ func (iw *infoWriter) printSummary() {
 	wrapFlow(iw, quotedIfNeeded(iw.theSnap.Summary), "summary:\t", iw.termWidth)
 }
 
+func (iw *infoWriter) printStoreURL() {
+	if iw.remoteSnap == nil {
+		// no store page for snaps that don't come from the store
+		return
+	}
+	fmt.Fprintf(iw, "store-url:\thttps://snapcraft.io/%s\n", snap.InstanceSnap(iw.theSnap.Name))
+}
+
 func (iw *infoWriter) maybePrintPublisher() {
 	if iw.diskSnap != nil {
 		// snaps read from disk won't have a publisher
@@ -717,6 +725,7 @@ func (x *infoCmd) Execute([]string) error {
 		iw.printSummary()
 		iw.maybePrintHealth()
 		iw.maybePrintPublisher()
+		iw.printStoreURL()
 		iw.maybePrintStandaloneVersion()
 		iw.maybePrintBuildDate()
 		iw.maybePrintContact()

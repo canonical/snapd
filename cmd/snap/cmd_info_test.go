@@ -431,6 +431,7 @@ name:    hello
 summary: GNU Hello, the "hello world"
   snap
 publisher: Canonical*
+store-url: https://snapcraft.io/hello
 license:   Proprietary
 price:     1.99GBP
 description: |
@@ -466,6 +467,7 @@ func (s *infoSuite) TestInfoPriced(c *check.C) {
 	c.Check(s.Stdout(), check.Equals, `name:      hello
 summary:   GNU Hello, the "hello world" snap
 publisher: Canonical*
+store-url: https://snapcraft.io/hello
 license:   Proprietary
 price:     1.99GBP
 description: |
@@ -587,6 +589,7 @@ func (s *infoSuite) TestInfoUnquoted(c *check.C) {
 	c.Check(s.Stdout(), check.Equals, `name:      hello
 summary:   The GNU Hello snap
 publisher: Canonical*
+store-url: https://snapcraft.io/hello
 license:   MIT
 description: |
   GNU hello prints a friendly greeting. This is part of the snapcraft tour at
@@ -693,6 +696,7 @@ health:
   checked:  2019-05-13T16:27:01+01:00
   revision: 1
 publisher: Canonical*
+store-url: https://snapcraft.io/hello
 license:   BSD-3
 description: |
   GNU hello prints a friendly greeting. This is part of the snapcraft tour at
@@ -751,6 +755,7 @@ func (s *infoSuite) TestInfoWithLocalNoLicense(c *check.C) {
 	c.Check(s.Stdout(), check.Equals, `name:      hello
 summary:   The GNU Hello snap
 publisher: Canonical*
+store-url: https://snapcraft.io/hello
 license:   unset
 description: |
   GNU hello prints a friendly greeting. This is part of the snapcraft tour at
@@ -787,6 +792,7 @@ func (s *infoSuite) TestInfoWithChannelsAndLocal(c *check.C) {
 	c.Check(s.Stdout(), check.Equals, `name:      hello
 summary:   The GNU Hello snap
 publisher: Canonical*
+store-url: https://snapcraft.io/hello
 license:   unset
 description: |
   GNU hello prints a friendly greeting. This is part of the snapcraft tour at
@@ -812,6 +818,7 @@ installed:     2.10                      (100)  1kB disabled
 	c.Check(s.Stdout(), check.Equals, `name:      hello
 summary:   The GNU Hello snap
 publisher: Canonical*
+store-url: https://snapcraft.io/hello
 license:   unset
 description: |
   GNU hello prints a friendly greeting. This is part of the snapcraft tour at
@@ -837,6 +844,7 @@ installed:     2.10            (100)  1kB disabled
 	c.Check(s.Stdout(), check.Equals, `name:      hello
 summary:   The GNU Hello snap
 publisher: Canonical✓
+store-url: https://snapcraft.io/hello
 license:   unset
 description: |
   GNU hello prints a friendly greeting. This is part of the snapcraft tour at
