@@ -19,16 +19,29 @@ prepare: |
     . "$TESTSLIB/snaps.sh"
     install_local test-snapd-sh
 
+    # If /proc/fs/nfsd is not initially mounted then ask the test to unmount it later.
+    if not mountinfo-tool /proc/fs/nfsd .fs_type=nfsd; then
+        touch /tmp/please-unmount-nfsd
+        echo "the test needs to unmount /proc/fs/nfsd if it becomes mounted"
+    fi
+    # If /var/lib/nfs/rpc_pipefs is not initially mounted then ask the test to unmount it later.
+    if not mountinfo-tool /var/lib/nfs/rpc_pipefs .fs_type=rpc_pipefs; then
+        touch /tmp/please-unmount-rpc-pipefs
+        echo "the test needs to unmount /var/lib/nfs/rpc_pipefs if it becomes mounted"
+    fi
+
 restore: |
     #shellcheck source=tests/lib/pkgdb.sh
     . "$TESTSLIB/pkgdb.sh"
 
     # Unmount NFS mount over /home if one exists.
-    umount /home || true
+    if mountinfo-tool /home; then
+        umount /home
+    fi
 
     # Restore the fstab backup file if one exists.
-    if [ -e fstab.orig ]; then
-        mv fstab.orig /etc/fstab
+    if [ -e /tmp/fstab.orig ]; then
+        mv /tmp/fstab.orig /etc/fstab
     fi
 
     # Remove the NFS server and its configuration data.
@@ -40,6 +53,43 @@ restore: |
     systemctl stop snapd.service snapd.socket
     systemctl reset-failed snapd.service
     systemctl start snapd.service
+
+    # Depending on OS do cleanup appropriate for the host.
+    case "$SPREAD_SYSTEM" in
+        ubuntu-14.04-*)
+            # On Ubuntu 14.04 we started the NFS server so stop it here. On
+            # other versions of Ubuntu the server was pre-installed and
+            # running.
+            service nfs-kernel-server stop
+            ;;
+        arch-*)
+            systemctl stop nfs-server.service
+            systemctl disable nfs-server.service
+            ;;
+        amazon-*|centos-*)
+            systemctl stop nfs
+            systemctl disable nfs
+            ;;
+    esac
+    if [ -e /tmp/please-unmount-nfsd ]; then
+        if mountinfo-tool /proc/fs/nfsd .fs_type=nfsd; then
+            umount /proc/fs/nfsd
+        fi
+        rm -f /tmp/please-unmount-nfsd
+    fi
+    if [ -e /tmp/please-unmount-rpc-pipefs ]; then
+        if mountinfo-tool /var/lib/nfs/rpc_pipefs .fs_type=rpc_pipefs; then
+            umount /var/lib/nfs/rpc_pipefs
+        fi
+        rm -f /tmp/please-unmount-rpc-pipefs
+    fi
+    # If the system originally had NFS installed, restore the status after
+    # changes made in switch-case above.
+    case "$SPREAD_SYSTEM" in
+        ubuntu-14.04-*)
+            service nfs-kernel-server start
+            ;;
+    esac
 
 execute: |
     # only needed because we do it 11 times (!)
@@ -65,7 +115,7 @@ execute: |
     # Export /home over NFS.
     mkdir -p /etc/exports.d/
     echo '/home localhost(rw,no_subtree_check,no_root_squash)' > /etc/exports.d/test.exports
-    
+   
     # Make sure the nfs service is running
     case "$SPREAD_SYSTEM" in
         ubuntu-14.04-*)
@@ -75,8 +125,9 @@ execute: |
             systemctl restart nfs-kernel-server
             ;;
         fedora-*)
-            # Enable udp protocol for nfs on fedora which is disable by default           
+            # Enable udp protocol for nfs on fedora which is disable by default          
             sed -i -e 's/RPCNFSDARGS=.*/RPCNFSDARGS="--udp"/g' /etc/sysconfig/nfs
+            # FIXME: this is not restored anywhere.
             systemctl restart nfs
             ;;
         arch-*)
@@ -176,7 +227,7 @@ execute: |
     ensure_normal_perms
 
     # Back up the /etc/fstab file and define a NFS mount mount there.
-    cp -a /etc/fstab fstab.orig
+    cp -a /etc/fstab /tmp/fstab.orig
     echo 'localhost:/home /home nfs defaults 0 0' >> /etc/fstab
 
     # Restart snapd and ensure that we have extra permissions again.
