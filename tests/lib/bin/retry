@@ -1,8 +1,27 @@
 #!/bin/bash
 
-COMMAND="${1:-true}"
-MAX_ATTEMPTS="${2:-20}"
-SLEEP_TIME="${3:-.5}"
+MAX_ATTEMPTS=20
+SLEEP_TIME=.5
+for i in "$@"; do
+    case $i in
+        --max-attempts)
+        MAX_ATTEMPTS="$2"
+        shift
+        shift
+        ;;
+        --sleep-time)
+        SLEEP_TIME="$2"
+        shift
+        shift
+        ;;
+    esac
+done
+
+COMMAND="$@"
+if [ -z "$COMMAND" ]; then
+    echo "ERROR: No command provided"
+    exit 1
+fi
 
 for _ in $(seq "$MAX_ATTEMPTS"); do
     if $COMMAND; then
