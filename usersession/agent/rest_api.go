@@ -23,6 +23,7 @@ import (
 	"encoding/json"
 	"net/http"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/snapcore/snapd/dirs"
@@ -164,6 +165,8 @@ var serviceInstructionDispTable = map[string]func(*serviceInstruction, systemd.S
 	"daemon-reload": serviceDaemonReload,
 }
 
+var systemdLock sync.Mutex
+
 type dummyReporter struct{}
 
 func (dummyReporter) Notify(string) {}
@@ -182,6 +185,9 @@ func postServices(c *Command, r *http.Request) Response {
 	if impl == nil {
 		return BadRequest("unknown action %s", inst.Action)
 	}
+	// Prevent multiple systemd actions from being carried out simultaneously
+	systemdLock.Lock()
+	defer systemdLock.Unlock()
 	sysd := systemd.New(dirs.GlobalRootDir, systemd.UserMode, dummyReporter{})
 	return impl(&inst, sysd)
 }
