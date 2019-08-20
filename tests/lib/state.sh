@@ -44,6 +44,7 @@ save_snapd_state() {
 
         # Copy the state preserving the timestamps
         cp -a /var/lib/snapd "$SNAPD_STATE_PATH"/snapd-lib
+        cp -rf /var/cache/snapd "$SNAPD_STATE_PATH"/snapd-cache
         cp -rf "$boot_path" "$SNAPD_STATE_PATH"/boot
         cp -f /etc/systemd/system/snap-*core*.mount "$SNAPD_STATE_PATH"/system-units
     else
@@ -59,6 +60,7 @@ save_snapd_state() {
         # shellcheck disable=SC2086
         tar cf "$SNAPD_STATE_FILE" \
             /var/lib/snapd \
+            /var/cache/snapd \
             "$SNAP_MOUNT_DIR" \
             /etc/systemd/system/"$escaped_snap_mount_dir"-*core*.mount \
             /etc/systemd/system/multi-user.target.wants/"$escaped_snap_mount_dir"-*core*.mount \
@@ -89,6 +91,7 @@ restore_snapd_state() {
         test -n "$boot_path" || return 1
 
         restore_snapd_lib
+        cp -rf "$SNAPD_STATE_PATH"/snapd-cache/*  /var/cache/snapd
         cp -rf "$SNAPD_STATE_PATH"/boot/* "$boot_path"
         cp -f "$SNAPD_STATE_PATH"/system-units/*  /etc/systemd/system
     else

@@ -63,19 +63,19 @@ var (
 	seccompCompilerLookup  = cmd.InternalToolPath
 )
 
-func snapSeccompVersionInfoImpl(c Compiler) (string, error) {
+func snapSeccompVersionInfoImpl(c Compiler) (seccomp_compiler.VersionInfo, error) {
 	return c.VersionInfo()
 }
 
 type Compiler interface {
 	Compile(in, out string) error
-	VersionInfo() (string, error)
+	VersionInfo() (seccomp_compiler.VersionInfo, error)
 }
 
 // Backend is responsible for maintaining seccomp profiles for snap-confine.
 type Backend struct {
 	snapSeccomp Compiler
-	versionInfo string
+	versionInfo seccomp_compiler.VersionInfo
 }
 
 var globalProfileLE = []byte{
@@ -289,7 +289,7 @@ func (b *Backend) deriveContent(spec *Specification, opts interfaces.Confinement
 	return content, nil
 }
 
-func generateContent(opts interfaces.ConfinementOptions, snippetForTag string, addSocketcall bool, versionInfo string, uidGidChownSyscalls string) []byte {
+func generateContent(opts interfaces.ConfinementOptions, snippetForTag string, addSocketcall bool, versionInfo seccomp_compiler.VersionInfo, uidGidChownSyscalls string) []byte {
 	var buffer bytes.Buffer
 
 	if versionInfo != "" {
@@ -344,7 +344,7 @@ func (b *Backend) SandboxFeatures() []string {
 	}
 	tags = append(tags, "bpf-argument-filtering")
 
-	if res, err := seccomp_compiler.VersionInfo(b.versionInfo).HasFeature("bpf-actlog"); err == nil && res {
+	if res, err := b.versionInfo.HasFeature("bpf-actlog"); err == nil && res {
 		tags = append(tags, "bpf-actlog")
 	}
 
@@ -421,9 +421,11 @@ func requiresSocketcallImpl(baseSnap string) bool {
 }
 
 // MockSnapSeccompVersionInfo is for use in tests only.
-func MockSnapSeccompVersionInfo(s func(c Compiler) (string, error)) (restore func()) {
+func MockSnapSeccompVersionInfo(versionInfo string) (restore func()) {
 	old := snapSeccompVersionInfo
-	snapSeccompVersionInfo = s
+	snapSeccompVersionInfo = func(c Compiler) (seccomp_compiler.VersionInfo, error) {
+		return seccomp_compiler.VersionInfo(versionInfo), nil
+	}
 	return func() {
 		snapSeccompVersionInfo = old
 	}
