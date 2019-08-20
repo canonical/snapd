@@ -337,9 +337,10 @@ func (s *infoSuite) TestMaybePrintContact(c *check.C) {
 	iw := snap.NewInfoWriter(&buf)
 
 	for contact, expected := range map[string]string{
-		"": "",
 		"mailto:joe@example.com": "contact:\tjoe@example.com\n",
+		// gofmt 1.9 being silly
 		"foo": "contact:\tfoo\n",
+		"":    "",
 	} {
 		buf.Reset()
 		snap.SetupDiskSnap(iw, "", &client.Snap{Contact: contact})
