@@ -39,7 +39,7 @@ const (
 
 // MetaHeaders is a list of headers in assertions which are about the assertion
 // itself.
-var MetaHeaders = []string{
+var MetaHeaders = [...]string{
 	"type",
 	"format",
 	"authority-id",

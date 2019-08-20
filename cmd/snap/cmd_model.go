@@ -52,7 +52,7 @@ serial assertion.
 	// it also contains both serial and model assertion headers, but we
 	// follow the same code path for both assertion types and some of the
 	// headers are shared between the two, so it still works out correctly
-	niceOrdering = []string{
+	niceOrdering = [...]string{
 		"architecture",
 		"base",
 		"classic",
