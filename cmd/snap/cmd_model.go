@@ -209,8 +209,8 @@ func (x *cmdModel) Execute(args []string) error {
 				}
 				// the string value here has newlines inserted as part of the
 				// raw assertion, but base64 doesn't care about whitespace, so
-				// split by newlines and re-wrap since base64 doesn't care about
-				// whitespace and we can make it prettier
+				// it's safe to split by newlines and re-wrap to make it
+				// prettier
 				headerString = strings.Join(
 					strings.Split(headerString, "\n"),
 					"")
