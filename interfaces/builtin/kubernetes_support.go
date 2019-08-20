@@ -72,6 +72,7 @@ profile systemd_run (attach_disconnected,mediate_deleted) {
   owner @{PROC}/@{pid}/environ r,
   @{PROC}/cmdline r,
   @{PROC}/sys/kernel/osrelease r,
+  @{PROC}/1/sched r,
 
   # setsockopt()
   capability net_admin,
