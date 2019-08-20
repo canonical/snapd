@@ -20,6 +20,7 @@
 package client
 
 import (
+	"context"
 	"fmt"
 	"io/ioutil"
 	"regexp"
@@ -37,7 +38,9 @@ var contentDispositionMatcher = regexp.MustCompile(`attachment; filename=(.+)`).
 func (c *Client) Icon(pkgID string) (*Icon, error) {
 	const errPrefix = "cannot retrieve icon"
 
-	response, err := c.raw("GET", fmt.Sprintf("/v2/icons/%s/icon", pkgID), nil, nil, nil, doTimeout)
+	ctx, cancel := context.WithTimeout(context.Background(), doTimeout)
+	defer cancel()
+	response, err := c.raw(ctx, "GET", fmt.Sprintf("/v2/icons/%s/icon", pkgID), nil, nil, nil)
 	if err != nil {
 		return nil, fmt.Errorf("%s: failed to communicate with server: %s", errPrefix, err)
 	}

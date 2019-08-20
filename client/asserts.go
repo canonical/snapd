@@ -21,6 +21,7 @@ package client
 
 import (
 	"bytes"
+	"context"
 	"fmt"
 	"io"
 	"net/url"
@@ -66,7 +67,9 @@ func (client *Client) Known(assertTypeName string, headers map[string]string) ([
 		}
 	}
 
-	response, err := client.raw("GET", path, q, nil, nil, doTimeout)
+	ctx, cancel := context.WithTimeout(context.Background(), doTimeout)
+	defer cancel()
+	response, err := client.raw(ctx, "GET", path, q, nil, nil)
 	if err != nil {
 		return nil, fmt.Errorf("failed to query assertions: %v", err)
 	}

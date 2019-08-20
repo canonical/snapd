@@ -193,7 +193,7 @@ const AllowInteractionHeader = "X-Allow-Interaction"
 // raw performs a request and returns the resulting http.Response and
 // error you usually only need to call this directly if you expect the
 // response to not be JSON, otherwise you'd call Do(...) instead.
-func (client *Client) raw(method, urlpath string, query url.Values, headers map[string]string, body io.Reader, timeout time.Duration) (*http.Response, error) {
+func (client *Client) raw(ctx context.Context, method, urlpath string, query url.Values, headers map[string]string, body io.Reader) (*http.Response, error) {
 	// fake a url to keep http.Client happy
 	u := client.baseURL
 	u.Path = path.Join(client.baseURL.Path, urlpath)
@@ -222,9 +222,7 @@ func (client *Client) raw(method, urlpath string, query url.Values, headers map[
 		req.Header.Set(AllowInteractionHeader, "true")
 	}
 
-	if timeout > 0 {
-		ctx, cancel := context.WithTimeout(req.Context(), timeout)
-		defer cancel()
+	if ctx != nil {
 		req = req.WithContext(ctx)
 	}
 
@@ -281,13 +279,16 @@ func (client *Client) do(method, path string, query url.Values, headers map[stri
 	defer retry.Stop()
 	timeout := time.NewTimer(doTimeout)
 	defer timeout.Stop()
+
 	var rsp *http.Response
+	var ctx context.Context = context.Background()
+	if (flags & doNoTimeout) == 0 {
+		cancelCtx, cancel := context.WithTimeout(ctx, doTimeout)
+		ctx = cancelCtx
+		defer cancel()
+	}
 	for {
-		reqTimeout := doTimeout
-		if (flags & doNoTimeout) != 0 {
-			reqTimeout = 0
-		}
-		rsp, err = client.raw(method, path, query, headers, body, reqTimeout)
+		rsp, err = client.raw(ctx, method, path, query, headers, body)
 		if err == nil || method != "GET" {
 			break
 		}
