@@ -23,6 +23,10 @@ restore: |
     setenforce "$(cat enforcing.mode)"
     rm -f stamp enforcing.mode
 
+    if mountinfo-tool /proc/sys/fs/binfmt_misc .fs_type=binfmt_misc; then
+        umount /proc/sys/fs/binfmt_misc
+    fi
+
 execute: |
     snap install lxd
     ausearch -i --checkpoint stamp --start checkpoint -m AVC 2>&1 | MATCH 'no matches'
