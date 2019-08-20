@@ -72,8 +72,10 @@ const dockerSupportConnectedPlugAppArmor = `
 /{,var/}run/runc/**     mrwklix,
 
 # Allow sockets/etc for containerd
-/run/containerd/{,runc/,runc/k8s.io/,runc/k8s.io/*/} rw,
-/run/containerd/runc/k8s.io/*/** rwk,
+/{,var/}run/containerd/{,runc/,runc/k8s.io/,runc/k8s.io/*/} rw,
+/{,var/}run/containerd/runc/k8s.io/*/** rwk,
+/{,var/}run/containerd/{io.containerd*/,io.containerd*/k8s.io/,io.containerd*/k8s.io/*/} rw,
+/{,var/}run/containerd/io.containerd*/*/** rwk,
 
 # Limit ipam-state to k8s
 /run/ipam-state/k8s-** rw,
