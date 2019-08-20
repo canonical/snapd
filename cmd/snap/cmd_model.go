@@ -81,7 +81,7 @@ func init() {
 		longModelHelp,
 		func() flags.Commander {
 			return &cmdModel{}
-		}, timeDescs.also(waitDescs.also(map[string]string{
+		}, timeDescs.also(waitDescs).also(map[string]string{
 			"assertion": i18n.G("Print the raw assertion."),
 			"verbose":   i18n.G("Print all specific assertion fields."),
 			"serial": i18n.G(
