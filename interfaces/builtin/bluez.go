@@ -92,6 +92,11 @@ dbus (bind)
     bus=system
     name="org.bluez.obex",
 
+# Allow binding the service to the requested connection name
+dbus (bind)
+    bus=system
+    name="org.bluez.mesh",
+
 # Allow traffic to/from our interface with any method for unconfined clients
 # to talk to our bluez services. For the org.bluez interface we don't specify
 # an Object Path since according to the bluez specification these can be
@@ -162,6 +167,10 @@ dbus (send)
 dbus (send)
     bus=system
     peer=(name=org.bluez.obex, label=unconfined),
+
+dbus (send)
+    bus=system
+    peer=(name=org.bluez.mesh, label=unconfined),
 
 dbus (receive)
     bus=system
