@@ -20,7 +20,6 @@
 package main
 
 import (
-	"errors"
 	"fmt"
 	"strings"
 	"time"
@@ -67,6 +66,8 @@ model assertion.
 	}
 )
 
+const invalidTypeMessage = "invalid type for %q header"
+
 type cmdModel struct {
 	waitMixin
 	timeMixin
@@ -86,7 +87,7 @@ func init() {
 			"verbose":   i18n.G("Print all specific assertion fields."),
 			"serial": i18n.G(
 				"Print the serial assertion instead of the model assertion."),
-		})),
+		}),
 		[]argDesc{},
 	)
 }
@@ -134,6 +135,8 @@ func (x *cmdModel) Execute(args []string) error {
 		allHeadersMap := assertion.Headers()
 
 		for _, headerName := range niceOrdering {
+			invalidTypeErr := fmt.Errorf(invalidTypeMessage, headerName)
+
 			headerValue, ok := allHeadersMap[headerName]
 			// make sure the header is in the map
 			if !ok {
@@ -146,7 +149,7 @@ func (x *cmdModel) Execute(args []string) error {
 			case "required-snaps":
 				headerIfaceList, ok := headerValue.([]interface{})
 				if !ok {
-					return fmt.Errorf("invalid type for \"%s\" header", headerName)
+					return invalidTypeErr
 				}
 				if len(headerIfaceList) == 0 {
 					fmt.Fprintf(w, "%s:\t[]\n", headerName)
@@ -155,7 +158,7 @@ func (x *cmdModel) Execute(args []string) error {
 					for _, elem := range headerIfaceList {
 						headerStringElem, ok := elem.(string)
 						if !ok {
-							return fmt.Errorf("invalid type for \"%s\" header", headerName)
+							return invalidTypeErr
 						}
 						// note we don't wrap these, since for now this is
 						// specifically just required-snaps and so all of these
@@ -168,7 +171,7 @@ func (x *cmdModel) Execute(args []string) error {
 			case "timestamp":
 				timestamp, ok := allHeadersMap[headerName].(string)
 				if !ok {
-					return errors.New("invalid type for \"timestamp\" header")
+					return invalidTypeErr
 				}
 
 				// parse the time string as RFC3339, which is what the format is
@@ -187,7 +190,7 @@ func (x *cmdModel) Execute(args []string) error {
 				w.Flush()
 				headerString, ok := headerValue.(string)
 				if !ok {
-					return errors.New("invalid type for \"device-key-sha3-384\" header")
+					return invalidTypeErr
 				}
 
 				switch {
@@ -202,13 +205,15 @@ func (x *cmdModel) Execute(args []string) error {
 			case "device-key":
 				headerString, ok := headerValue.(string)
 				if !ok {
-					return errors.New("invalid type for \"device-key\" header")
+					return invalidTypeErr
 				}
 				// the string value here has newlines inserted as part of the
 				// raw assertion, but base64 doesn't care about whitespace, so
 				// split by newlines and re-wrap since base64 doesn't care about
 				// whitespace and we can make it prettier
-				headerString = strings.Join(strings.Split(headerString, "\n"), "")
+				headerString = strings.Join(
+					strings.Split(headerString, "\n"),
+					"")
 				fmt.Fprintln(w, "device-key: |")
 				wrapLine(w, []rune(headerString), "  ", termWidth)
 
@@ -217,7 +222,7 @@ func (x *cmdModel) Execute(args []string) error {
 			default:
 				headerString, ok := headerValue.(string)
 				if !ok {
-					return fmt.Errorf("invalid type for \"%s\" header", headerName)
+					return invalidTypeErr
 				}
 				fmt.Fprintf(w, "%s:\t%s\n", headerName, headerString)
 			}
