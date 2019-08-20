@@ -41,8 +41,8 @@ device.
 By default, only the primary keys of the headers are included in the output, but
 this can be expanded to include all of an assertion's headers non-meta headers.
 
-Similarly, the default model assertion can alternatively be replaced with the 
-serial assertion.
+Similarly, the active serial assertion can be used for the output instead of the
+model assertion.
 `)
 
 	// this list is a "nice" "human" "readable" "ordering" of headers to print
