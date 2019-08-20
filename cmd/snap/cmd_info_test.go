@@ -541,6 +541,7 @@ const mockInfoJSONWithChannels = `
       "revision": "1",
       "status": "available",
       "summary": "The GNU Hello snap",
+      "store-url": "https://snapcraft.io/hello",
       "type": "app",
       "version": "2.10",
       "license": "MIT",
@@ -787,6 +788,7 @@ func (s *infoSuite) TestInfoWithChannelsAndLocal(c *check.C) {
 	c.Check(s.Stdout(), check.Equals, `name:      hello
 summary:   The GNU Hello snap
 publisher: Canonical*
+store-url: https://snapcraft.io/hello
 license:   unset
 description: |
   GNU hello prints a friendly greeting. This is part of the snapcraft tour at
@@ -812,6 +814,7 @@ installed:     2.10                      (100)  1kB disabled
 	c.Check(s.Stdout(), check.Equals, `name:      hello
 summary:   The GNU Hello snap
 publisher: Canonical*
+store-url: https://snapcraft.io/hello
 license:   unset
 description: |
   GNU hello prints a friendly greeting. This is part of the snapcraft tour at
@@ -837,6 +840,7 @@ installed:     2.10            (100)  1kB disabled
 	c.Check(s.Stdout(), check.Equals, `name:      hello
 summary:   The GNU Hello snap
 publisher: Canonical✓
+store-url: https://snapcraft.io/hello
 license:   unset
 description: |
   GNU hello prints a friendly greeting. This is part of the snapcraft tour at
@@ -1121,6 +1125,86 @@ func (s *infoSuite) TestInfoParllelInstance(c *check.C) {
 	c.Check(s.Stdout(), check.Equals, `name:      hello_foo
 summary:   The GNU Hello snap
 publisher: Canonical*
+store-url: https://snapcraft.io/hello
+license:   unset
+description: |
+  GNU hello prints a friendly greeting. This is part of the snapcraft tour at
+  https://snapcraft.io/
+snap-id:      mVyGrEwiqSi5PugCwyH7WgpoQLemtTd6
+tracking:     beta
+refresh-date: 2006-01-02
+channels:
+  1/stable:    2.10 2018-12-18   (1) 65kB -
+  1/candidate: ^                          
+  1/beta:      ^                          
+  1/edge:      ^                          
+installed:     2.10            (100)  1kB disabled
+`)
+	c.Check(s.Stderr(), check.Equals, "")
+}
+
+const mockInfoJSONWithStoreURL = `
+{
+  "type": "sync",
+  "status-code": 200,
+  "status": "OK",
+  "result": {
+      "channel": "stable",
+      "confinement": "strict",
+      "description": "GNU hello prints a friendly greeting. This is part of the snapcraft tour at https://snapcraft.io/",
+      "developer": "canonical",
+      "publisher": {
+         "id": "canonical",
+         "username": "canonical",
+         "display-name": "Canonical",
+         "validation": "verified"
+      },
+      "id": "mVyGrEwiqSi5PugCwyH7WgpoQLemtTd6",
+      "install-date": "2006-01-02T22:04:07.123456789Z",
+      "installed-size": 1024,
+      "name": "hello",
+      "private": false,
+      "revision": "100",
+      "status": "available",
+      "store-url": "https://snapcraft.io/hello",
+      "summary": "The GNU Hello snap",
+      "type": "app",
+      "version": "2.10",
+      "license": "",
+      "tracking-channel": "beta"
+    }
+}
+`
+
+func (s *infoSuite) TestInfoStoreURL(c *check.C) {
+	n := 0
+	s.RedirectClientToTestServer(func(w http.ResponseWriter, r *http.Request) {
+		switch n {
+		case 0:
+			c.Check(r.Method, check.Equals, "GET")
+			c.Check(r.URL.Path, check.Equals, "/v2/find")
+			q := r.URL.Query()
+			// asks for the instance snap
+			c.Check(q.Get("name"), check.Equals, "hello")
+			fmt.Fprintln(w, mockInfoJSONWithChannels)
+		case 1:
+			c.Check(r.Method, check.Equals, "GET")
+			c.Check(r.URL.Path, check.Equals, "/v2/snaps/hello")
+			fmt.Fprintln(w, mockInfoJSONWithStoreURL)
+		default:
+			c.Fatalf("expected to get 2 requests, now on %d (%v)", n+1, r)
+		}
+
+		n++
+	})
+	rest, err := snap.Parser(snap.Client()).ParseArgs([]string{"info", "hello"})
+	c.Assert(err, check.IsNil)
+	c.Assert(rest, check.DeepEquals, []string{})
+	// make sure local and remote info is combined in the output
+	c.Check(s.Stdout(), check.Equals, `name:      hello
+summary:   The GNU Hello snap
+publisher: Canonical*
+store-url: https://snapcraft.io/hello
 license:   unset
 description: |
   GNU hello prints a friendly greeting. This is part of the snapcraft tour at
