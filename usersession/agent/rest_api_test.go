@@ -167,7 +167,7 @@ func (s *restSuite) TestServicesStartNonSnap(c *C) {
 	c.Assert(json.Unmarshal(rec.Body.Bytes(), &rsp), IsNil)
 	c.Check(rsp.Type, Equals, agent.ResponseTypeError)
 	c.Check(rsp.Result, DeepEquals, map[string]interface{}{
-		"message": "cannot start service not-snap.bar.service",
+		"message": "cannot start non-snap service not-snap.bar.service",
 	})
 
 	// No services were started on the error.
@@ -256,7 +256,7 @@ func (s *restSuite) TestServicesStopNonSnap(c *C) {
 	c.Assert(json.Unmarshal(rec.Body.Bytes(), &rsp), IsNil)
 	c.Check(rsp.Type, Equals, agent.ResponseTypeError)
 	c.Check(rsp.Result, DeepEquals, map[string]interface{}{
-		"message": "cannot stop service not-snap.bar.service",
+		"message": "cannot stop non-snap service not-snap.bar.service",
 	})
 
 	// No services were started on the error.

@@ -85,7 +85,7 @@ func serviceStart(inst *serviceInstruction, sysd systemd.Systemd) Response {
 	// Refuse to start non-snap services
 	for _, service := range inst.Services {
 		if !strings.HasPrefix(service, "snap.") {
-			return InternalError("cannot start service %v", service)
+			return InternalError("cannot start non-snap service %v", service)
 		}
 	}
 
@@ -124,7 +124,7 @@ func serviceStop(inst *serviceInstruction, sysd systemd.Systemd) Response {
 	// Refuse to start non-snap services
 	for _, service := range inst.Services {
 		if !strings.HasPrefix(service, "snap.") {
-			return InternalError("cannot stop service %v", service)
+			return InternalError("cannot stop non-snap service %v", service)
 		}
 	}
 
