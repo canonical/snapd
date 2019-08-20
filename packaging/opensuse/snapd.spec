@@ -29,6 +29,7 @@
 # The list of systemd services we are expected to ship. Note that this does
 # not include services that are only required on core systems.
 %global systemd_services_list snapd.socket snapd.service snapd.seeded.service snapd.failure.service %{?with_apparmor:snapd.apparmor.service}
+%global systemd_user_services_list snapd.session-agent.socket
 
 # Alternate snap mount directory: not used by openSUSE.
 # If this spec file is integrated into Fedora then consider
@@ -38,6 +39,7 @@
 # Compat macros
 %{!?make_build: %global make_build %{__make} %{?_smp_mflags}}
 %{?!_environmentdir: %global _environmentdir %{_prefix}/lib/environment.d}
+%{?!_userunitdir: %global _userunitdir %{_prefix}/lib/systemd/user}
 
 # Define the variable for systemd generators, if missing.
 %{?!_systemdgeneratordir: %global _systemdgeneratordir %{_prefix}/lib/systemd/system-generators}
@@ -309,6 +311,7 @@ install -m 644 -D %{indigo_srcdir}/data/completion/etelpmoc.sh %{buildroot}%{_li
 %apparmor_reload /etc/apparmor.d/usr.lib.snapd.snap-confine
 %endif
 %service_add_post %{systemd_services_list}
+%systemd_user_post %{systemd_user_services_list}
 case ":$PATH:" in
     *:/snap/bin:*)
         ;;
@@ -320,12 +323,14 @@ esac
 
 %preun
 %service_del_preun %{systemd_services_list}
+%systemd_user_preun %{systemd_user_services_list}
 if [ $1 -eq 0 ]; then
     %{_libexecdir}/snapd/snap-mgmt --purge || :
 fi
 
 %postun
 %service_del_postun %{systemd_services_list}
+%systemd_user_postun %{systemd_user_services_list}
 
 %files
 
@@ -366,6 +371,7 @@ fi
 %dir %{_sharedstatedir}/snapd/snaps
 %dir %{_systemd_system_env_generator_dir}
 %dir %{_systemdgeneratordir}
+%dir %{_userunitdir}
 %dir %{snap_mount_dir}
 %dir %{snap_mount_dir}/bin
 
@@ -413,6 +419,8 @@ fi
 %{_unitdir}/snapd.seeded.service
 %{_unitdir}/snapd.service
 %{_unitdir}/snapd.socket
+%{_userunitdir}/snapd.session-agent.service
+%{_userunitdir}/snapd.session-agent.socket
 
 # When apparmor is enabled there are some additional entries.
 %if %{with apparmor}

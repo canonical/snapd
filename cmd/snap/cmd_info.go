@@ -695,7 +695,7 @@ func (x *infoCmd) Execute([]string) error {
 		if diskSnap, err := clientSnapFromPath(snapName); err == nil {
 			iw.setupDiskSnap(snapName, diskSnap)
 		} else {
-			remoteSnap, resInfo, _ := x.client.FindOne(snapName)
+			remoteSnap, resInfo, _ := x.client.FindOne(snap.InstanceSnap(snapName))
 			localSnap, _, _ := x.client.Snap(snapName)
 			iw.setupSnap(localSnap, remoteSnap, resInfo)
 		}

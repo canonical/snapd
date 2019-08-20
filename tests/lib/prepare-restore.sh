@@ -465,6 +465,13 @@ prepare_project() {
     RateLimitBurst=0
 EOF
     systemctl restart systemd-journald.service
+
+    # Re-configure cgroups in a way that LXD would so that
+    # installation, use and removal of LXD does not leave any changes
+    # in the system.
+    if [ -f /sys/fs/cgroup/cpuset/cgroup.clone_children ]; then
+        echo 1 > /sys/fs/cgroup/cpuset/cgroup.clone_children
+    fi
 }
 
 prepare_project_each() {

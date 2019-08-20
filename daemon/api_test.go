@@ -363,6 +363,8 @@ func (s *apiBaseSuite) daemon(c *check.C) *Daemon {
 	c.Assert(err, check.IsNil)
 	d.addRoutes()
 
+	c.Assert(d.overlord.StartUp(), check.IsNil)
+
 	st := d.overlord.State()
 	st.Lock()
 	defer st.Unlock()
@@ -429,6 +431,7 @@ func (s *apiBaseSuite) daemonWithFakeSnapManager(c *check.C) *Daemon {
 	runner := d.overlord.TaskRunner()
 	d.overlord.AddManager(newFakeSnapManager(st, runner))
 	d.overlord.AddManager(runner)
+	c.Assert(d.overlord.StartUp(), check.IsNil)
 	return d
 }
 

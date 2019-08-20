@@ -230,6 +230,12 @@ type witnessManager struct {
 	expectedEnsure int
 	ensureCalled   chan struct{}
 	ensureCallback func(s *state.State) error
+	startedUp      int
+}
+
+func (wm *witnessManager) StartUp() error {
+	wm.startedUp++
+	return nil
 }
 
 func (wm *witnessManager) Ensure() error {
@@ -263,6 +269,9 @@ func (ovs *overlordSuite) TestTrivialRunAndStop(c *C) {
 	markSeeded(o)
 	// make sure we don't try to talk to the store
 	snapstate.CanAutoRefresh = nil
+
+	err = o.StartUp()
+	c.Assert(err, IsNil)
 
 	o.Loop()
 
@@ -307,6 +316,9 @@ func (ovs *overlordSuite) TestEnsureLoopRunAndStop(c *C) {
 	}
 	o.AddManager(witness)
 
+	err := o.StartUp()
+	c.Assert(err, IsNil)
+
 	o.Loop()
 	defer o.Stop()
 
@@ -318,8 +330,10 @@ func (ovs *overlordSuite) TestEnsureLoopRunAndStop(c *C) {
 	}
 	c.Check(time.Since(t0) >= 10*time.Millisecond, Equals, true)
 
-	err := o.Stop()
+	err = o.Stop()
 	c.Assert(err, IsNil)
+
+	c.Check(witness.startedUp, Equals, 1)
 }
 
 func (ovs *overlordSuite) TestEnsureLoopMediatedEnsureBeforeImmediate(c *C) {
@@ -339,6 +353,8 @@ func (ovs *overlordSuite) TestEnsureLoopMediatedEnsureBeforeImmediate(c *C) {
 		ensureCallback: ensure,
 	}
 	o.AddManager(witness)
+
+	c.Assert(o.StartUp(), IsNil)
 
 	o.Loop()
 	defer o.Stop()
@@ -367,6 +383,8 @@ func (ovs *overlordSuite) TestEnsureLoopMediatedEnsureBefore(c *C) {
 		ensureCallback: ensure,
 	}
 	o.AddManager(witness)
+
+	c.Assert(o.StartUp(), IsNil)
 
 	o.Loop()
 	defer o.Stop()
@@ -397,6 +415,8 @@ func (ovs *overlordSuite) TestEnsureBeforeSleepy(c *C) {
 	}
 	o.AddManager(witness)
 
+	c.Assert(o.StartUp(), IsNil)
+
 	o.Loop()
 	defer o.Stop()
 
@@ -426,6 +446,8 @@ func (ovs *overlordSuite) TestEnsureBeforeLater(c *C) {
 	}
 	o.AddManager(witness)
 
+	c.Assert(o.StartUp(), IsNil)
+
 	o.Loop()
 	defer o.Stop()
 
@@ -454,6 +476,8 @@ func (ovs *overlordSuite) TestEnsureLoopMediatedEnsureBeforeOutsideEnsure(c *C) 
 		ensureCallback: ensure,
 	}
 	o.AddManager(witness)
+
+	c.Assert(o.StartUp(), IsNil)
 
 	o.Loop()
 	defer o.Stop()
@@ -510,6 +534,8 @@ func (ovs *overlordSuite) TestEnsureLoopPrune(c *C) {
 		ensureCallback: waitForPrune,
 	}
 	o.AddManager(witness)
+
+	c.Assert(o.StartUp(), IsNil)
 
 	o.Loop()
 
@@ -938,6 +964,8 @@ func (ovs *overlordSuite) TestOverlordCanStandby(c *C) {
 		ensureCalled:   make(chan struct{}),
 	}
 	o.AddManager(witness)
+
+	c.Assert(o.StartUp(), IsNil)
 
 	// can only standby after loop ran once
 	c.Assert(o.CanStandby(), Equals, false)

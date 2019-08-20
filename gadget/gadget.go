@@ -140,6 +140,10 @@ func (vs *VolumeStructure) EffectiveRole() string {
 	if vs.Role == "" && vs.Type == MBR {
 		return MBR
 	}
+	if vs.Label == SystemBoot {
+		// for gadgets that only specify a filesystem-label, eg. pc
+		return SystemBoot
+	}
 	return ""
 }
 
@@ -359,6 +363,8 @@ func validateVolume(name string, vol *Volume) error {
 
 	// named structures, for cross-referencing relative offset-write names
 	knownStructures := make(map[string]*PositionedStructure, len(vol.Structure))
+	// for uniqueness of filesystem labels
+	knownFsLabels := make(map[string]bool, len(vol.Structure))
 	// for validating structure overlap
 	structures := make([]PositionedStructure, len(vol.Structure))
 
@@ -386,6 +392,12 @@ func validateVolume(name string, vol *Volume) error {
 			}
 			// keep track of named structures
 			knownStructures[s.Name] = &ps
+		}
+		if s.Label != "" {
+			if seen := knownFsLabels[s.Label]; seen {
+				return fmt.Errorf("filesystem label %q is not unique", s.Label)
+			}
+			knownFsLabels[s.Label] = true
 		}
 
 		previousEnd = end
