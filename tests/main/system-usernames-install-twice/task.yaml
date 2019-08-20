@@ -12,6 +12,12 @@ prepare: |
 restore: |
     snap remove test-snapd-daemon-user || true
 
+    # snapd will create this for us, but we'll remove it for consistency in
+    # test runs
+    # shellcheck source=tests/lib/dirs.sh
+    . "$TESTSLIB/users.sh"
+    remove_user_with_group snap_daemon
+
 execute: |
     echo "When the snap is removed"
     snap remove test-snapd-daemon-user
