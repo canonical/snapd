@@ -1,8 +1,8 @@
-summary: check that the ubuntu-core system is rebooted after the core snap is refreshed
+summary: Check that the ubuntu-core system is rebooted after the core snap is refreshed
 
 details: |
     This test checks that when invoking a manual refresh/revert for core or core18 snaps,
-    it is triggered a reboot and the command would exit after the first phase of the installation
+    a reboot is triggered and the command would exit after the first phase of the installation
     reporting "snapd is about to reboot the system"
 
 systems: [ubuntu-core-1*]
@@ -33,10 +33,18 @@ execute: |
         snap install --dangerous "${TARGET_SNAP_NAME}"_*.snap &> refresh.log
         MATCH "snapd is about to reboot the system" < refresh.log
 
-        # use journalctl wrapper to grep only the logs collected while the test is running
-        while ! check_journalctl_log "Waiting for system reboot"; do
-            sleep 1
+        # Detect in the logs when the reboot can been triggered
+        for _ in $(seq 50); do
+            if check_journalctl_log "Waiting for system reboot"; then
+                 break
+            fi
+            sleep 2
         done
+
+        if ! check_journalctl_log "Waiting for system reboot"; then
+            echo "Taking too long to reach waiting for reboot"
+            exit 1
+        fi
 
         REBOOT
     elif [ "$SPREAD_REBOOT" = 1 ]; then
@@ -52,10 +60,18 @@ execute: |
         snap revert "$TARGET_SNAP_NAME" &> revert.log
         MATCH "snapd is about to reboot the system" < revert.log
 
-        # use journalctl wrapper to grep only the logs collected while the test is running
-        while ! check_journalctl_log "Waiting for system reboot" -b; do
-            sleep 1
+        # Detect in the logs when the reboot can been triggered
+        for _ in $(seq 50); do
+            if check_journalctl_log "Waiting for system reboot" -b; then
+                 break
+            fi
+            sleep 2
         done
+
+        if ! check_journalctl_log "Waiting for system reboot" -b; then
+            echo "Taking too long to reach waiting for reboot"
+            exit 1
+        fi
 
         REBOOT
     elif [  "$SPREAD_REBOOT" = 2 ]; then
