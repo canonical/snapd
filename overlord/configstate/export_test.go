@@ -20,4 +20,4 @@
 package configstate
 
 var NewConfigureHandler = newConfigureHandler
-var SortPatchKeys = sortPatchKeys
+var SortPatchKeysByDepth = sortPatchKeysByDepth
