@@ -63,6 +63,9 @@ restore: |
             service nfs-kernel-server stop
             ;;
         arch-*)
+            # The nfsdcld service may keep rpc_pipefs busy, as seen in this output from lsof.
+            # nfsdcld 5736 root   10u  FIFO   0,47      0t0  114 /var/lib/nfs/rpc_pipefs/nfsd/cld (deleted)
+            systemctl stop nfsdcld.service
             systemctl stop nfs-server.service
             systemctl disable nfs-server.service
             ;;
