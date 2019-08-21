@@ -112,8 +112,9 @@ func (h *configureHandler) Before() error {
 		}
 	}
 
-	for key, value := range patch {
-		if err := tr.Set(instanceName, key, value); err != nil {
+	patchKeys := sortPatchKeys(patch)
+	for _, key := range patchKeys {
+		if err := tr.Set(instanceName, key, patch[key]); err != nil {
 			return err
 		}
 	}

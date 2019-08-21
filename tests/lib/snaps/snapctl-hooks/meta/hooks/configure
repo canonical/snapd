@@ -131,6 +131,8 @@ case $command in
   "test-get-nested")
     test_get_nested
     ;;
+  "noop")
+	;;
   "test-unset")
     test_snapctl_unset
 	;;
