@@ -60,6 +60,11 @@ func MockUseFuse(r bool) func() {
 	return func() { useFuse = oldUseFuse }
 }
 
+// NeedsFuse returns true if the given system needs fuse to mount snaps
+func NeedsFuse() bool {
+	return useFuse()
+}
+
 // FsType returns what fstype to use for squashfs mounts and what
 // mount options
 func FsType() (fstype string, options []string, err error) {

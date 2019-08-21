@@ -120,3 +120,30 @@ func (s *sanitySuite) TestCheckSquashfsMountSELinuxContext(c *C) {
 		{"mount", "-t", "squashfs", "-o", "context=system_u:object_r:snappy_snap_t:s0", squashfsFile, mountPoint},
 	})
 }
+
+func (s *sanitySuite) TestCheckFuseNoFuseHappy(c *C) {
+	restore := squashfs.MockUseFuse(false)
+	defer restore()
+
+	c.Assert(sanity.CheckFuse(), IsNil)
+}
+
+func (s *sanitySuite) TestCheckFuseNeedsFuseAndHasFuse(c *C) {
+	restore := squashfs.MockUseFuse(true)
+	defer restore()
+
+	restore = sanity.MockFuseBinary("true")
+	defer restore()
+
+	c.Assert(sanity.CheckFuse(), IsNil)
+}
+
+func (s *sanitySuite) TestCheckFuseNoDevFuseUnhappy(c *C) {
+	restore := squashfs.MockUseFuse(true)
+	defer restore()
+
+	restore = sanity.MockFuseBinary("/it/does/not/exist")
+	defer restore()
+
+	c.Assert(sanity.CheckFuse(), ErrorMatches, `The "fuse" filesystem is required on this system but not available. Please try to install the fuse package.`)
+}
