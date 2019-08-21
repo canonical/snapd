@@ -39,6 +39,7 @@ import (
 	"github.com/snapcore/snapd/snap"
 	"github.com/snapcore/snapd/store"
 	"github.com/snapcore/snapd/store/storetest"
+	"github.com/snapcore/snapd/strutil"
 	"github.com/snapcore/snapd/timings"
 )
 
@@ -605,6 +606,8 @@ type fakeSnappyBackend struct {
 	linkSnapFailTrigger     string
 	copySnapDataFailTrigger string
 	emptyContainer          snap.Container
+
+	servicesCurrentlyDisabled []string
 }
 
 func (f *fakeSnappyBackend) OpenSnapFile(snapFilePath string, si *snap.SideInfo) (*snap.Info, snap.Container, error) {
@@ -845,6 +848,27 @@ func (f *fakeSnappyBackend) StopServices(svcs []*snap.AppInfo, reason snap.Servi
 	return nil
 }
 
+func (f *fakeSnappyBackend) RestoreDisabledServices(info *snap.Info, lastActiveDisabledSvcNames []string, meter progress.Meter) ([]string, error) {
+	// return the services that weren't in the list provided to us, assuming
+	// that all of the services in the snap were disabled
+	var missingSvcs []string
+	for name, app := range info.Apps {
+		if !app.IsService() {
+			continue
+		}
+		if !strutil.ListContains(lastActiveDisabledSvcNames, name) {
+			missingSvcs = append(missingSvcs, name)
+		}
+	}
+
+	f.appendOp(&fakeOp{
+		op:       "restore-disabled-services",
+		services: lastActiveDisabledSvcNames,
+	})
+
+	return missingSvcs, nil
+}
+
 func (f *fakeSnappyBackend) UndoSetupSnap(s snap.PlaceInfo, typ snap.Type, p progress.Meter) error {
 	p.Notify("setup-snap")
 	f.appendOp(&fakeOp{
@@ -871,6 +895,21 @@ func (f *fakeSnappyBackend) UndoCopySnapData(newInfo *snap.Info, oldInfo *snap.I
 		old:  old,
 	})
 	return nil
+}
+
+func (f *fakeSnappyBackend) CurrentSnapServiceStates(info *snap.Info, meter progress.Meter) (map[string]bool, error) {
+	// return the disabled services as disabled and nothing else
+	m := make(map[string]bool)
+	for _, svc := range f.servicesCurrentlyDisabled {
+		m[svc] = false
+	}
+
+	f.appendOp(&fakeOp{
+		op:       "current-snap-service-states",
+		services: f.servicesCurrentlyDisabled,
+	})
+
+	return m, nil
 }
 
 func (f *fakeSnappyBackend) UnlinkSnap(info *snap.Info, meter progress.Meter) error {
