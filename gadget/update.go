@@ -296,3 +296,12 @@ func updaterForStructureImpl(ps *PositionedStructure, newRootDir, rollbackDir st
 	}
 	return updater, err
 }
+
+// MockUpdaterForStructure replace internal call with a mocked one, for use in tests only
+func MockUpdaterForStructure(mock func(ps *PositionedStructure, rootDir, rollbackDir string) (Updater, error)) (restore func()) {
+	old := updaterForStructure
+	updaterForStructure = mock
+	return func() {
+		updaterForStructure = old
+	}
+}

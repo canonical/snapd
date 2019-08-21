@@ -72,6 +72,7 @@ profile systemd_run (attach_disconnected,mediate_deleted) {
   owner @{PROC}/@{pid}/environ r,
   @{PROC}/cmdline r,
   @{PROC}/sys/kernel/osrelease r,
+  @{PROC}/1/sched r,
 
   # setsockopt()
   capability net_admin,
@@ -182,11 +183,6 @@ var kubernetesSupportConnectedPlugKmodKubeProxy = []string{
 
 type kubernetesSupportInterface struct {
 	commonInterface
-}
-
-func (iface *kubernetesSupportInterface) BeforePrepareSlot(slot *snap.SlotInfo) error {
-	iface.commonInterface.BeforePrepareSlot(slot)
-	return sanitizeSlotReservedForOS(iface, slot)
 }
 
 func k8sFlavor(plug *interfaces.ConnectedPlug) string {

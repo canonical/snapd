@@ -51,6 +51,7 @@ import (
 	"github.com/snapcore/snapd/overlord/snapstate/snapstatetest"
 	"github.com/snapcore/snapd/overlord/state"
 	"github.com/snapcore/snapd/release"
+	seccomp_compiler "github.com/snapcore/snapd/sandbox/seccomp"
 	"github.com/snapcore/snapd/snap"
 	"github.com/snapcore/snapd/snap/snaptest"
 	"github.com/snapcore/snapd/testutil"
@@ -212,9 +213,7 @@ func (s *interfaceManagerSuite) SetUpTest(c *C) {
 	s.log = buf
 
 	s.BaseTest.AddCleanup(ifacestate.MockConnectRetryTimeout(0))
-	restore = interfaces.MockSeccompCompilerVersionInfo(func(_ string) (string, error) {
-		return "abcdef 1.2.3 1234abcd -", nil
-	})
+	restore = seccomp_compiler.MockCompilerVersionInfo("abcdef 1.2.3 1234abcd -")
 	s.BaseTest.AddCleanup(restore)
 }
 
@@ -3720,7 +3719,8 @@ slots:
 	c.Check(ifacestate.CheckInterfaces(s.state, snapInfo, deviceCtx), ErrorMatches, "installation denied.*")
 }
 
-func (s *interfaceManagerSuite) TestCheckInterfacesDenySkippedIfNoDecl(c *C) {
+func (s *interfaceManagerSuite) TestCheckInterfacesNoDenyIfNoDecl(c *C) {
+	deviceCtx := s.TrivialDeviceContext(c, nil)
 	restore := assertstest.MockBuiltinBaseDeclaration([]byte(`
 type: base-declaration
 authority-id: canonical
@@ -3737,7 +3737,55 @@ slots:
 
 	s.state.Lock()
 	defer s.state.Unlock()
-	c.Check(ifacestate.CheckInterfaces(s.state, snapInfo, nil), IsNil)
+	c.Check(ifacestate.CheckInterfaces(s.state, snapInfo, deviceCtx), IsNil)
+}
+
+func (s *interfaceManagerSuite) TestCheckInterfacesDisallowBasedOnSnapTypeNoSnapDecl(c *C) {
+	deviceCtx := s.TrivialDeviceContext(c, nil)
+
+	restore := assertstest.MockBuiltinBaseDeclaration([]byte(`
+type: base-declaration
+authority-id: canonical
+series: 16
+slots:
+  test:
+    allow-installation:
+      slot-snap-type:
+        - core
+`))
+	defer restore()
+	s.mockIface(c, &ifacetest.TestInterface{InterfaceName: "test"})
+
+	// no snap decl
+	snapInfo := s.mockSnap(c, producerYaml)
+
+	s.state.Lock()
+	defer s.state.Unlock()
+	c.Check(ifacestate.CheckInterfaces(s.state, snapInfo, deviceCtx), ErrorMatches, `installation not allowed by "slot" slot rule of interface "test"`)
+}
+
+func (s *interfaceManagerSuite) TestCheckInterfacesAllowBasedOnSnapTypeNoSnapDecl(c *C) {
+	deviceCtx := s.TrivialDeviceContext(c, nil)
+
+	restore := assertstest.MockBuiltinBaseDeclaration([]byte(`
+type: base-declaration
+authority-id: canonical
+series: 16
+slots:
+  test:
+    allow-installation:
+      slot-snap-type:
+        - app
+`))
+	defer restore()
+	s.mockIface(c, &ifacetest.TestInterface{InterfaceName: "test"})
+
+	// no snap decl
+	snapInfo := s.mockSnap(c, producerYaml)
+
+	s.state.Lock()
+	defer s.state.Unlock()
+	c.Check(ifacestate.CheckInterfaces(s.state, snapInfo, deviceCtx), IsNil)
 }
 
 func (s *interfaceManagerSuite) TestCheckInterfacesAllow(c *C) {
@@ -3939,11 +3987,12 @@ slots:
 }
 
 func (s *interfaceManagerSuite) TestCheckInterfacesConsidersImplicitSlots(c *C) {
+	deviceCtx := s.TrivialDeviceContext(c, nil)
 	snapInfo := s.mockSnap(c, ubuntuCoreSnapYaml)
 
 	s.state.Lock()
 	defer s.state.Unlock()
-	c.Check(ifacestate.CheckInterfaces(s.state, snapInfo, nil), IsNil)
+	c.Check(ifacestate.CheckInterfaces(s.state, snapInfo, deviceCtx), IsNil)
 	c.Check(snapInfo.Slots["home"], NotNil)
 }
 
