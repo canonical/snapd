@@ -61,7 +61,8 @@ void sc_init_invocation(sc_invocation *inv, const struct sc_args *args, const ch
         die("cannot run with NULL executable");
     }
 
-    char snap_name[53] = {0};
+    /* Instance name length + 1 overflow + 1 NULL */
+    char snap_name[SNAP_INSTANCE_LEN + 1 + 1] = {0};
     sc_snap_drop_instance_key(snap_instance, snap_name, sizeof snap_name);
 
     /* Invocation helps to pass relevant data to various parts of snap-confine. */
