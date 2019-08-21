@@ -30,6 +30,7 @@ import (
 	"strings"
 	"unicode/utf8"
 
+	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/snap/naming"
 	"github.com/snapcore/snapd/spdx"
 	"github.com/snapcore/snapd/strutil"
@@ -343,6 +344,11 @@ func Validate(info *Info) error {
 
 	// Ensure that base field is valid
 	if err := ValidateBase(info); err != nil {
+		return err
+	}
+
+	// Ensure system usernames are valid
+	if err := ValidateSystemUsernames(info); err != nil {
 		return err
 	}
 
@@ -932,6 +938,15 @@ func ValidateCommonIDs(info *Info) error {
 					app.Name, app.CommonID, other)
 			}
 			seen[app.CommonID] = app.Name
+		}
+	}
+	return nil
+}
+
+func ValidateSystemUsernames(info *Info) error {
+	for username := range info.SystemUsernames {
+		if !osutil.IsValidUsername(username) {
+			return fmt.Errorf("invalid system username %q", username)
 		}
 	}
 	return nil

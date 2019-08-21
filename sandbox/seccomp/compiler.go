@@ -20,9 +20,11 @@ package seccomp
 
 import (
 	"bytes"
+	"errors"
 	"fmt"
 	"os/exec"
 	"regexp"
+	"strconv"
 	"strings"
 
 	"github.com/snapcore/snapd/osutil"
@@ -62,7 +64,7 @@ func New(lookupTool func(name string) (string, error)) (*Compiler, error) {
 // version information is: <build-id> <libseccomp-version> <hash> <features>.
 // Where, the hash is calculated over all syscall names supported by the
 // libseccomp library.
-func (c *Compiler) VersionInfo() (string, error) {
+func (c *Compiler) VersionInfo() (VersionInfo, error) {
 	cmd := exec.Command(c.snapSeccomp, "version-info")
 	output, err := cmd.CombinedOutput()
 	if err != nil {
@@ -75,15 +77,44 @@ func (c *Compiler) VersionInfo() (string, error) {
 		return "", fmt.Errorf("invalid format of version-info: %q", raw)
 	}
 
-	return string(raw), nil
+	return VersionInfo(raw), nil
 }
+
+var compilerVersionInfoImpl = func(lookupTool func(name string) (string, error)) (VersionInfo, error) {
+	c, err := New(lookupTool)
+	if err != nil {
+		return VersionInfo(""), err
+	}
+	return c.VersionInfo()
+}
+
+// CompilerVersionInfo returns the version information of snap-seccomp
+// looked up via lookupTool.
+func CompilerVersionInfo(lookupTool func(name string) (string, error)) (VersionInfo, error) {
+	return compilerVersionInfoImpl(lookupTool)
+}
+
+// MockCompilerVersionInfo mocks the return value of CompilerVersionInfo.
+func MockCompilerVersionInfo(versionInfo string) (restore func()) {
+	old := compilerVersionInfoImpl
+	compilerVersionInfoImpl = func(_ func(name string) (string, error)) (VersionInfo, error) {
+		return VersionInfo(versionInfo), nil
+	}
+	return func() {
+		compilerVersionInfoImpl = old
+	}
+}
+
+var errEmptyVersionInfo = errors.New("empty version-info")
 
 // VersionInfo represents information about the seccomp compilter
 type VersionInfo string
 
-// LibseccompVersion parses VersionInfo and provides the
-// libseccomp version
+// LibseccompVersion parses VersionInfo and provides the libseccomp version
 func (vi VersionInfo) LibseccompVersion() (string, error) {
+	if vi == "" {
+		return "", errEmptyVersionInfo
+	}
 	if match := validVersionInfo.Match([]byte(vi)); !match {
 		return "", fmt.Errorf("invalid format of version-info: %q", vi)
 	}
@@ -93,6 +124,9 @@ func (vi VersionInfo) LibseccompVersion() (string, error) {
 // Features parses the output of VersionInfo and provides the
 // golang seccomp features
 func (vi VersionInfo) Features() (string, error) {
+	if vi == "" {
+		return "", errEmptyVersionInfo
+	}
 	if match := validVersionInfo.Match([]byte(vi)); !match {
 		return "", fmt.Errorf("invalid format of version-info: %q", vi)
 	}
@@ -112,6 +146,74 @@ func (vi VersionInfo) HasFeature(feature string) (bool, error) {
 		}
 	}
 	return false, nil
+}
+
+// BuildTimeRequirementError represents the error case of a feature
+// that cannot be supported because of unfulfilled build time
+// requirements.
+type BuildTimeRequirementError struct {
+	Feature      string
+	Requirements []string
+}
+
+func (e *BuildTimeRequirementError) RequirementsString() string {
+	return strings.Join(e.Requirements, ", ")
+}
+
+func (e *BuildTimeRequirementError) Error() string {
+	return fmt.Sprintf("%s requires a snapd built against %s", e.Feature, e.RequirementsString())
+}
+
+// SupportsRobustArgumentFiltering parses the output of VersionInfo and
+// determines if libseccomp and golang-seccomp are new enough to support robust
+// argument filtering
+func (vi VersionInfo) SupportsRobustArgumentFiltering() error {
+	libseccompVersion, err := vi.LibseccompVersion()
+	if err != nil {
+		return err
+	}
+
+	// Parse <libseccomp version>
+	tmp := strings.Split(libseccompVersion, ".")
+	maj, err := strconv.Atoi(tmp[0])
+	if err != nil {
+		return fmt.Errorf("cannot obtain seccomp compiler information: %v", err)
+	}
+	min, err := strconv.Atoi(tmp[1])
+	if err != nil {
+		return fmt.Errorf("cannot obtain seccomp compiler information: %v", err)
+	}
+
+	var unfulfilledReqs []string
+
+	// libseccomp < 2.4 has significant argument filtering bugs that we
+	// cannot reliably work around with this feature.
+	if maj < 2 || (maj == 2 && min < 4) {
+		unfulfilledReqs = append(unfulfilledReqs, "libseccomp >= 2.4")
+	}
+
+	// Due to https://github.com/seccomp/libseccomp-golang/issues/22,
+	// golang-seccomp <= 0.9.0 cannot create correct BPFs for this feature.
+	// The package does not contain any version information, but we know
+	// that ActLog was implemented in the library after this issue was
+	// fixed, so base the decision on that. ActLog is first available in
+	// 0.9.1.
+	res, err := vi.HasFeature("bpf-actlog")
+	if err != nil {
+		return err
+	}
+	if !res {
+		unfulfilledReqs = append(unfulfilledReqs, "golang-seccomp >= 0.9.1")
+	}
+
+	if len(unfulfilledReqs) != 0 {
+		return &BuildTimeRequirementError{
+			Feature:      "robust argument filtering",
+			Requirements: unfulfilledReqs,
+		}
+	}
+
+	return nil
 }
 
 // Compile compiles given source profile and saves the result to the out

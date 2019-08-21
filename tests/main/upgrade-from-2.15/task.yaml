@@ -69,5 +69,8 @@ execute: |
     MATCH "^/usr/lib/snapd/snap-confine \\(enforce\\)" < /sys/kernel/security/apparmor/profiles
     MATCH "^/snap/core/.*/usr/lib/snapd/snap-confine \\(enforce\\)" < /sys/kernel/security/apparmor/profiles
 
+    echo "ensure that the old/obsolete snap-confine appamor profile got removed"
+    test ! -f /etc/apparmor.d/usr.lib.snapd.snap-confine
+
     echo "Smoke test, this should fail if profiles were wrong"
     test-snapd-tools.echo hello | MATCH hello
