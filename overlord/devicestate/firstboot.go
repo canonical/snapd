@@ -38,6 +38,7 @@ import (
 	"github.com/snapcore/snapd/overlord/state"
 	"github.com/snapcore/snapd/release"
 	"github.com/snapcore/snapd/snap"
+	"github.com/snapcore/snapd/snap/naming"
 	"github.com/snapcore/snapd/timings"
 )
 
@@ -242,7 +243,8 @@ func populateStateFromSeedImpl(st *state.State, tm timings.Measurer) ([]*state.T
 		}
 
 		var flags snapstate.Flags
-		if required[sn.Name] {
+		// TODO|XXX: turn SeedSnap into a SnapRef
+		if required.Contains(naming.Snap(sn.Name)) {
 			flags.Required = true
 		}
 

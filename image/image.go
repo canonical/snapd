@@ -473,7 +473,13 @@ func setupSeed(tsto *ToolingStore, model *asserts.Model, opts *Options, local *l
 		}
 	}
 
-	basesAndApps = append(basesAndApps, model.RequiredSnaps()...)
+	// TODO|XXX: later use the refs directly and simplify
+	reqSnaps := make([]string, 0, len(model.RequiredSnaps()))
+	for _, reqRef := range model.RequiredSnaps() {
+		reqSnaps = append(reqSnaps, reqRef.SnapName())
+	}
+
+	basesAndApps = append(basesAndApps, reqSnaps...)
 	basesAndApps = append(basesAndApps, opts.Snaps...)
 	// TODO: required snaps should get their base from required
 	// snaps (mentioned in the model); additional snaps could
@@ -513,7 +519,7 @@ func setupSeed(tsto *ToolingStore, model *asserts.Model, opts *Options, local *l
 	}
 
 	// then required and the user requested stuff
-	snaps = append(snaps, model.RequiredSnaps()...)
+	snaps = append(snaps, reqSnaps...)
 	snaps = append(snaps, opts.Snaps...)
 
 	for _, snapName := range snaps {
