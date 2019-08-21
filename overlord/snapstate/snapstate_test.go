@@ -2753,6 +2753,9 @@ func (s *snapmgrTestSuite) TestInstallRunThrough(c *C) {
 			path: filepath.Join(dirs.SnapMountDir, "some-snap/11"),
 		},
 		{
+			op: "restore-disabled-services",
+		},
+		{
 			op:    "auto-connect:Doing",
 			name:  "some-snap",
 			revno: snap.R(11),
@@ -2921,6 +2924,9 @@ func (s *snapmgrTestSuite) TestParallelInstanceInstallRunThrough(c *C) {
 		{
 			op:   "link-snap",
 			path: filepath.Join(dirs.SnapMountDir, "some-snap_instance/11"),
+		},
+		{
+			op: "restore-disabled-services",
 		},
 		{
 			op:    "auto-connect:Doing",
@@ -3104,6 +3110,9 @@ func (s *snapmgrTestSuite) TestInstallUndoRunThroughJustOneSnap(c *C) {
 			path: filepath.Join(dirs.SnapMountDir, "some-snap/11"),
 		},
 		{
+			op: "restore-disabled-services",
+		},
+		{
 			op:    "auto-connect:Doing",
 			name:  "some-snap",
 			revno: snap.R(11),
@@ -3246,6 +3255,9 @@ func (s *snapmgrTestSuite) TestInstallWithCohortRunThrough(c *C) {
 		{
 			op:   "link-snap",
 			path: filepath.Join(dirs.SnapMountDir, "some-snap/666"),
+		},
+		{
+			op: "restore-disabled-services",
 		},
 		{
 			op:    "auto-connect:Doing",
@@ -3411,6 +3423,9 @@ func (s *snapmgrTestSuite) TestInstallWithRevisionRunThrough(c *C) {
 			path: filepath.Join(dirs.SnapMountDir, "some-snap/42"),
 		},
 		{
+			op: "restore-disabled-services",
+		},
+		{
 			op:    "auto-connect:Doing",
 			name:  "some-snap",
 			revno: snap.R(42),
@@ -3569,11 +3584,13 @@ func (s *snapmgrTestSuite) TestUpdateAmendRunThrough(c *C) {
 		"open-snap-file",
 		"setup-snap",
 		"remove-snap-aliases",
+		"current-snap-service-states",
 		"unlink-snap",
 		"copy-data",
 		"setup-profiles:Doing",
 		"candidate",
 		"link-snap",
+		"restore-disabled-services",
 		"auto-connect:Doing",
 		"update-aliases",
 		"cleanup-trash",
@@ -3753,6 +3770,9 @@ func (s *snapmgrTestSuite) TestUpdateRunThrough(c *C) {
 			name: "services-snap",
 		},
 		{
+			op: "current-snap-service-states",
+		},
+		{
 			op:   "unlink-snap",
 			path: filepath.Join(dirs.SnapMountDir, "services-snap/7"),
 		},
@@ -3778,6 +3798,9 @@ func (s *snapmgrTestSuite) TestUpdateRunThrough(c *C) {
 		{
 			op:   "link-snap",
 			path: filepath.Join(dirs.SnapMountDir, "services-snap/11"),
+		},
+		{
+			op: "restore-disabled-services",
 		},
 		{
 			op:    "auto-connect:Doing",
@@ -3976,6 +3999,9 @@ func (s *snapmgrTestSuite) TestParallelInstanceUpdateRunThrough(c *C) {
 			name: "services-snap_instance",
 		},
 		{
+			op: "current-snap-service-states",
+		},
+		{
 			op:   "unlink-snap",
 			path: filepath.Join(dirs.SnapMountDir, "services-snap_instance/7"),
 		},
@@ -4001,6 +4027,9 @@ func (s *snapmgrTestSuite) TestParallelInstanceUpdateRunThrough(c *C) {
 		{
 			op:   "link-snap",
 			path: filepath.Join(dirs.SnapMountDir, "services-snap_instance/11"),
+		},
+		{
+			op: "restore-disabled-services",
 		},
 		{
 			op:    "auto-connect:Doing",
@@ -4892,6 +4921,9 @@ func (s *snapmgrTestSuite) TestUpdateUndoRunThrough(c *C) {
 			name: "some-snap",
 		},
 		{
+			op: "current-snap-service-states",
+		},
+		{
 			op:   "unlink-snap",
 			path: filepath.Join(dirs.SnapMountDir, "some-snap/7"),
 		},
@@ -4919,6 +4951,9 @@ func (s *snapmgrTestSuite) TestUpdateUndoRunThrough(c *C) {
 			path: filepath.Join(dirs.SnapMountDir, "some-snap/11"),
 		},
 		{
+			op: "current-snap-service-states",
+		},
+		{
 			op:   "unlink-snap",
 			path: filepath.Join(dirs.SnapMountDir, "some-snap/11"),
 		},
@@ -4935,6 +4970,9 @@ func (s *snapmgrTestSuite) TestUpdateUndoRunThrough(c *C) {
 		{
 			op:   "link-snap",
 			path: filepath.Join(dirs.SnapMountDir, "some-snap/7"),
+		},
+		{
+			op: "restore-disabled-services",
 		},
 		{
 			op: "update-aliases",
@@ -5159,6 +5197,9 @@ func (s *snapmgrTestSuite) TestUpdateTotalUndoRunThrough(c *C) {
 			name: "some-snap",
 		},
 		{
+			op: "current-snap-service-states",
+		},
+		{
 			op:   "unlink-snap",
 			path: filepath.Join(dirs.SnapMountDir, "some-snap/7"),
 		},
@@ -5186,6 +5227,9 @@ func (s *snapmgrTestSuite) TestUpdateTotalUndoRunThrough(c *C) {
 			path: filepath.Join(dirs.SnapMountDir, "some-snap/11"),
 		},
 		{
+			op: "restore-disabled-services",
+		},
+		{
 			op:    "auto-connect:Doing",
 			name:  "some-snap",
 			revno: snap.R(11),
@@ -5197,6 +5241,9 @@ func (s *snapmgrTestSuite) TestUpdateTotalUndoRunThrough(c *C) {
 		{
 			op:   "remove-snap-aliases",
 			name: "some-snap",
+		},
+		{
+			op: "current-snap-service-states",
 		},
 		{
 			op:   "unlink-snap",
@@ -5215,6 +5262,9 @@ func (s *snapmgrTestSuite) TestUpdateTotalUndoRunThrough(c *C) {
 		{
 			op:   "link-snap",
 			path: filepath.Join(dirs.SnapMountDir, "some-snap/7"),
+		},
+		{
+			op: "restore-disabled-services",
 		},
 		{
 			op: "update-aliases",
@@ -6711,6 +6761,9 @@ version: 1.0`)
 			path: filepath.Join(dirs.SnapMountDir, "mock/x1"),
 		},
 		{
+			op: "restore-disabled-services",
+		},
+		{
 			op:    "auto-connect:Doing",
 			name:  "mock",
 			revno: snap.R("x1"),
@@ -6725,6 +6778,7 @@ version: 1.0`)
 		},
 	}
 
+	// start with an easier-to-read error if this fails:
 	c.Assert(s.fakeBackend.ops.Ops(), DeepEquals, expected.Ops())
 	c.Check(s.fakeBackend.ops, DeepEquals, expected)
 
@@ -6788,41 +6842,69 @@ epoch: 1*
 	s.settle(c)
 	s.state.Lock()
 
-	ops := s.fakeBackend.ops
-	// ensure only local install was run, i.e. first action is pseudo-action current
-	c.Assert(ops.Ops(), HasLen, 11)
-	c.Check(ops[0].op, Equals, "current")
-	c.Check(ops[0].old, Equals, filepath.Join(dirs.SnapMountDir, "mock/x2"))
-	// and setup-snap
-	c.Check(ops[1].op, Equals, "setup-snap")
-	c.Check(ops[1].name, Matches, "mock")
-	c.Check(ops[1].path, Matches, `.*/mock_1.0_all.snap`)
-	c.Check(ops[1].revno, Equals, snap.R("x3"))
-	// and cleanup
-	c.Check(ops[len(ops)-1], DeepEquals, fakeOp{
-		op:    "cleanup-trash",
-		name:  "mock",
-		revno: snap.R("x3"),
-	})
+	expected := fakeOps{
+		{
+			op:  "current",
+			old: filepath.Join(dirs.SnapMountDir, "mock/x2"),
+		},
+		{
+			op:    "setup-snap",
+			name:  "mock",
+			path:  mockSnap,
+			revno: snap.R("x3"),
+		},
+		{
+			op:   "remove-snap-aliases",
+			name: "mock",
+		},
+		{
+			op: "current-snap-service-states",
+		},
+		{
+			op:   "unlink-snap",
+			path: filepath.Join(dirs.SnapMountDir, "mock/x2"),
+		},
+		{
+			op:   "copy-data",
+			path: filepath.Join(dirs.SnapMountDir, "mock/x3"),
+			old:  filepath.Join(dirs.SnapMountDir, "mock/x2"),
+		},
+		{
+			op:    "setup-profiles:Doing",
+			name:  "mock",
+			revno: snap.R(-3),
+		},
+		{
+			op: "candidate",
+			sinfo: snap.SideInfo{
+				RealName: "mock",
+				Revision: snap.R(-3),
+			},
+		},
+		{
+			op:   "link-snap",
+			path: filepath.Join(dirs.SnapMountDir, "mock/x3"),
+		},
+		{
+			op: "restore-disabled-services",
+		},
+		{
+			op:    "auto-connect:Doing",
+			name:  "mock",
+			revno: snap.R("x3"),
+		},
+		{
+			op: "update-aliases",
+		},
+		{
+			op:    "cleanup-trash",
+			name:  "mock",
+			revno: snap.R("x3"),
+		},
+	}
 
-	c.Check(ops[3].op, Equals, "unlink-snap")
-	c.Check(ops[3].path, Equals, filepath.Join(dirs.SnapMountDir, "mock/x2"))
-
-	c.Check(ops[4].op, Equals, "copy-data")
-	c.Check(ops[4].path, Equals, filepath.Join(dirs.SnapMountDir, "mock/x3"))
-	c.Check(ops[4].old, Equals, filepath.Join(dirs.SnapMountDir, "mock/x2"))
-
-	c.Check(ops[5].op, Equals, "setup-profiles:Doing")
-	c.Check(ops[5].name, Equals, "mock")
-	c.Check(ops[5].revno, Equals, snap.R(-3))
-
-	c.Check(ops[6].op, Equals, "candidate")
-	c.Check(ops[6].sinfo, DeepEquals, snap.SideInfo{
-		RealName: "mock",
-		Revision: snap.R(-3),
-	})
-	c.Check(ops[7].op, Equals, "link-snap")
-	c.Check(ops[7].path, Equals, filepath.Join(dirs.SnapMountDir, "mock/x3"))
+	c.Assert(s.fakeBackend.ops.Ops(), DeepEquals, expected.Ops())
+	c.Check(s.fakeBackend.ops, DeepEquals, expected)
 
 	// verify snapSetup info
 	var snapsup snapstate.SnapSetup
@@ -6903,6 +6985,9 @@ epoch: 1*
 			name: "mock",
 		},
 		{
+			op: "current-snap-service-states",
+		},
+		{
 			op:   "unlink-snap",
 			path: filepath.Join(dirs.SnapMountDir, "mock/100001"),
 		},
@@ -6928,6 +7013,9 @@ epoch: 1*
 			path: filepath.Join(dirs.SnapMountDir, "mock/x1"),
 		},
 		{
+			op: "restore-disabled-services",
+		},
+		{
 			op:    "auto-connect:Doing",
 			name:  "mock",
 			revno: snap.R("x1"),
@@ -6942,6 +7030,7 @@ epoch: 1*
 			revno: snap.R("x1"),
 		},
 	}
+	// start with an easier-to-read error if this fails:
 	c.Assert(s.fakeBackend.ops.Ops(), DeepEquals, expected.Ops())
 	c.Check(s.fakeBackend.ops, DeepEquals, expected)
 
@@ -6985,7 +7074,7 @@ version: 1.0`)
 	s.state.Lock()
 
 	// ensure only local install was run, i.e. first actions are pseudo-action current
-	c.Assert(s.fakeBackend.ops.Ops(), HasLen, 9)
+	c.Assert(s.fakeBackend.ops.Ops(), HasLen, 10)
 	c.Check(s.fakeBackend.ops[0].op, Equals, "current")
 	c.Check(s.fakeBackend.ops[0].old, Equals, "<no-current>")
 	// and setup-snap
@@ -7065,6 +7154,9 @@ func (s *snapmgrTestSuite) TestRemoveRunThrough(c *C) {
 		{
 			op:   "remove-snap-aliases",
 			name: "some-snap",
+		},
+		{
+			op: "current-snap-service-states",
 		},
 		{
 			op:   "unlink-snap",
@@ -7202,6 +7294,9 @@ func (s *snapmgrTestSuite) TestParallelInstanceRemoveRunThrough(c *C) {
 		{
 			op:   "remove-snap-aliases",
 			name: "some-snap_instance",
+		},
+		{
+			op: "current-snap-service-states",
 		},
 		{
 			op:   "unlink-snap",
@@ -7347,6 +7442,9 @@ func (s *snapmgrTestSuite) TestParallelInstanceRemoveRunThroughOtherInstances(c 
 			name: "some-snap_instance",
 		},
 		{
+			op: "current-snap-service-states",
+		},
+		{
 			op:   "unlink-snap",
 			path: filepath.Join(dirs.SnapMountDir, "some-snap_instance/7"),
 		},
@@ -7448,6 +7546,9 @@ func (s *snapmgrTestSuite) TestRemoveWithManyRevisionsRunThrough(c *C) {
 		{
 			op:   "remove-snap-aliases",
 			name: "some-snap",
+		},
+		{
+			op: "current-snap-service-states",
 		},
 		{
 			op:   "unlink-snap",
@@ -8086,6 +8187,9 @@ func (s *snapmgrTestSuite) TestUpdateDoesGC(c *C) {
 			path: filepath.Join(dirs.SnapMountDir, "some-snap/11"),
 		},
 		{
+			op: "restore-disabled-services",
+		},
+		{
 			op:    "auto-connect:Doing",
 			name:  "some-snap",
 			revno: snap.R(11),
@@ -8252,6 +8356,9 @@ func (s *snapmgrTestSuite) TestRevertRunThrough(c *C) {
 			name: "some-snap",
 		},
 		{
+			op: "current-snap-service-states",
+		},
+		{
 			op:   "unlink-snap",
 			path: filepath.Join(dirs.SnapMountDir, "some-snap/7"),
 		},
@@ -8270,6 +8377,9 @@ func (s *snapmgrTestSuite) TestRevertRunThrough(c *C) {
 		{
 			op:   "link-snap",
 			path: filepath.Join(dirs.SnapMountDir, "some-snap/2"),
+		},
+		{
+			op: "restore-disabled-services",
 		},
 		{
 			op:    "auto-connect:Doing",
@@ -8350,6 +8460,9 @@ func (s *snapmgrTestSuite) TestParallelInstanceRevertRunThrough(c *C) {
 			name: "some-snap_instance",
 		},
 		{
+			op: "current-snap-service-states",
+		},
+		{
 			op:   "unlink-snap",
 			path: filepath.Join(dirs.SnapMountDir, "some-snap_instance/7"),
 		},
@@ -8368,6 +8481,9 @@ func (s *snapmgrTestSuite) TestParallelInstanceRevertRunThrough(c *C) {
 		{
 			op:   "link-snap",
 			path: filepath.Join(dirs.SnapMountDir, "some-snap_instance/2"),
+		},
+		{
+			op: "restore-disabled-services",
 		},
 		{
 			op:    "auto-connect:Doing",
@@ -8441,7 +8557,7 @@ func (s *snapmgrTestSuite) TestRevertWithLocalRevisionRunThrough(c *C) {
 	s.settle(c)
 	s.state.Lock()
 
-	c.Assert(s.fakeBackend.ops.Ops(), HasLen, 7)
+	c.Assert(s.fakeBackend.ops.Ops(), HasLen, 9)
 
 	// verify that LocalRevision is still -7
 	var snapst snapstate.SnapState
@@ -8491,6 +8607,9 @@ func (s *snapmgrTestSuite) TestRevertToRevisionNewVersion(c *C) {
 			name: "some-snap",
 		},
 		{
+			op: "current-snap-service-states",
+		},
+		{
 			op:   "unlink-snap",
 			path: filepath.Join(dirs.SnapMountDir, "some-snap/2"),
 		},
@@ -8506,6 +8625,9 @@ func (s *snapmgrTestSuite) TestRevertToRevisionNewVersion(c *C) {
 		{
 			op:   "link-snap",
 			path: filepath.Join(dirs.SnapMountDir, "some-snap/7"),
+		},
+		{
+			op: "restore-disabled-services",
 		},
 		{
 			op:    "auto-connect:Doing",
@@ -8577,6 +8699,9 @@ func (s *snapmgrTestSuite) TestRevertTotalUndoRunThrough(c *C) {
 			name: "some-snap",
 		},
 		{
+			op: "current-snap-service-states",
+		},
+		{
 			op:   "unlink-snap",
 			path: filepath.Join(dirs.SnapMountDir, "some-snap/2"),
 		},
@@ -8597,6 +8722,9 @@ func (s *snapmgrTestSuite) TestRevertTotalUndoRunThrough(c *C) {
 			path: filepath.Join(dirs.SnapMountDir, "some-snap/1"),
 		},
 		{
+			op: "restore-disabled-services",
+		},
+		{
 			op:    "auto-connect:Doing",
 			name:  "some-snap",
 			revno: snap.R(1),
@@ -8610,6 +8738,9 @@ func (s *snapmgrTestSuite) TestRevertTotalUndoRunThrough(c *C) {
 			name: "some-snap",
 		},
 		{
+			op: "current-snap-service-states",
+		},
+		{
 			op:   "unlink-snap",
 			path: filepath.Join(dirs.SnapMountDir, "some-snap/1"),
 		},
@@ -8621,6 +8752,9 @@ func (s *snapmgrTestSuite) TestRevertTotalUndoRunThrough(c *C) {
 		{
 			op:   "link-snap",
 			path: filepath.Join(dirs.SnapMountDir, "some-snap/2"),
+		},
+		{
+			op: "restore-disabled-services",
 		},
 		{
 			op: "update-aliases",
@@ -8678,6 +8812,9 @@ func (s *snapmgrTestSuite) TestRevertUndoRunThrough(c *C) {
 			name: "some-snap",
 		},
 		{
+			op: "current-snap-service-states",
+		},
+		{
 			op:   "unlink-snap",
 			path: filepath.Join(dirs.SnapMountDir, "some-snap/2"),
 		},
@@ -8699,6 +8836,9 @@ func (s *snapmgrTestSuite) TestRevertUndoRunThrough(c *C) {
 		},
 		// undo stuff here
 		{
+			op: "current-snap-service-states",
+		},
+		{
 			op:   "unlink-snap",
 			path: filepath.Join(dirs.SnapMountDir, "some-snap/1"),
 		},
@@ -8710,6 +8850,9 @@ func (s *snapmgrTestSuite) TestRevertUndoRunThrough(c *C) {
 		{
 			op:   "link-snap",
 			path: filepath.Join(dirs.SnapMountDir, "some-snap/2"),
+		},
+		{
+			op: "restore-disabled-services",
 		},
 		{
 			op: "update-aliases",
@@ -8804,6 +8947,9 @@ func (s *snapmgrTestSuite) TestEnableRunThrough(c *C) {
 			path: filepath.Join(dirs.SnapMountDir, "some-snap/7"),
 		},
 		{
+			op: "restore-disabled-services",
+		},
+		{
 			op:    "auto-connect:Doing",
 			name:  "some-snap",
 			revno: snap.R(7),
@@ -8871,6 +9017,9 @@ func (s *snapmgrTestSuite) TestDisableRunThrough(c *C) {
 		{
 			op:   "remove-snap-aliases",
 			name: "some-snap",
+		},
+		{
+			op: "current-snap-service-states",
 		},
 		{
 			op:   "unlink-snap",
@@ -8968,6 +9117,9 @@ func (s *snapmgrTestSuite) TestParallelInstanceEnableRunThrough(c *C) {
 			path: filepath.Join(dirs.SnapMountDir, "some-snap_instance/7"),
 		},
 		{
+			op: "restore-disabled-services",
+		},
+		{
 			op:    "auto-connect:Doing",
 			name:  "some-snap_instance",
 			revno: snap.R(7),
@@ -9037,6 +9189,9 @@ func (s *snapmgrTestSuite) TestParallelInstanceDisableRunThrough(c *C) {
 		{
 			op:   "remove-snap-aliases",
 			name: "some-snap_instance",
+		},
+		{
+			op: "current-snap-service-states",
 		},
 		{
 			op:   "unlink-snap",
@@ -9291,11 +9446,13 @@ func (s *snapmgrTestSuite) testUpdateScenario(c *C, desc string, t switchScenari
 		"open-snap-file",
 		"setup-snap",
 		"remove-snap-aliases",
+		"current-snap-service-states",
 		"unlink-snap",
 		"copy-data",
 		"setup-profiles:Doing",
 		"candidate",
 		"link-snap",
+		"restore-disabled-services",
 		"auto-connect:Doing",
 		"update-aliases",
 		"cleanup-trash",
@@ -11597,6 +11754,9 @@ func (s *snapmgrTestSuite) TestUpdateCanDoBackwards(c *C) {
 			name: "some-snap",
 		},
 		{
+			op: "current-snap-service-states",
+		},
+		{
 			op:   "unlink-snap",
 			path: filepath.Join(dirs.SnapMountDir, "some-snap/11"),
 		},
@@ -11622,6 +11782,9 @@ func (s *snapmgrTestSuite) TestUpdateCanDoBackwards(c *C) {
 		{
 			op:   "link-snap",
 			path: filepath.Join(dirs.SnapMountDir, "some-snap/7"),
+		},
+		{
+			op: "restore-disabled-services",
 		},
 		{
 			op:    "auto-connect:Doing",
@@ -12314,6 +12477,9 @@ func (s *snapmgrTestSuite) TestTransitionCoreRunThrough(c *C) {
 			path: filepath.Join(dirs.SnapMountDir, "core/11"),
 		},
 		{
+			op: "restore-disabled-services",
+		},
+		{
 			op:    "auto-connect:Doing",
 			name:  "core",
 			revno: snap.R(11),
@@ -12333,6 +12499,9 @@ func (s *snapmgrTestSuite) TestTransitionCoreRunThrough(c *C) {
 		{
 			op:   "remove-snap-aliases",
 			name: "ubuntu-core",
+		},
+		{
+			op: "current-snap-service-states",
 		},
 		{
 			op:   "unlink-snap",
@@ -12429,6 +12598,9 @@ func (s *snapmgrTestSuite) TestTransitionCoreRunThroughWithCore(c *C) {
 		{
 			op:   "remove-snap-aliases",
 			name: "ubuntu-core",
+		},
+		{
+			op: "current-snap-service-states",
 		},
 		{
 			op:   "unlink-snap",
@@ -13028,6 +13200,9 @@ func (s *snapmgrTestSuite) TestInstallWithoutCoreRunThrough1(c *C) {
 			path: filepath.Join(dirs.SnapMountDir, "core/11"),
 		},
 		{
+			op: "restore-disabled-services",
+		},
+		{
 			op:    "auto-connect:Doing",
 			name:  "core",
 			revno: snap.R(11),
@@ -13085,6 +13260,9 @@ func (s *snapmgrTestSuite) TestInstallWithoutCoreRunThrough1(c *C) {
 		{
 			op:   "link-snap",
 			path: filepath.Join(dirs.SnapMountDir, "some-snap/42"),
+		},
+		{
+			op: "restore-disabled-services",
 		},
 		{
 			op:    "auto-connect:Doing",
@@ -13576,6 +13754,8 @@ func (s *snapmgrTestSuite) TestInstallDefaultProviderRunThrough(c *C) {
 		op:   "link-snap",
 		path: filepath.Join(dirs.SnapMountDir, "snap-content-slot/11"),
 	}, {
+		op: "restore-disabled-services",
+	}, {
 		op:    "auto-connect:Doing",
 		name:  "snap-content-slot",
 		revno: snap.R(11),
@@ -13623,6 +13803,8 @@ func (s *snapmgrTestSuite) TestInstallDefaultProviderRunThrough(c *C) {
 		op:   "link-snap",
 		path: filepath.Join(dirs.SnapMountDir, "snap-content-plug/42"),
 	}, {
+		op: "restore-disabled-services",
+	}, {
 		op:    "auto-connect:Doing",
 		name:  "snap-content-plug",
 		revno: snap.R(42),
@@ -13638,6 +13820,7 @@ func (s *snapmgrTestSuite) TestInstallDefaultProviderRunThrough(c *C) {
 		revno: snap.R(11),
 	},
 	}
+
 	// snap and default provider are installed in parallel so we can't
 	// do a simple c.Check(ops, DeepEquals, fakeOps{...})
 	c.Check(len(s.fakeBackend.ops), Equals, len(expected))
