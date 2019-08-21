@@ -322,6 +322,7 @@ func (mods *modelSuite) TestDecodeInvalid(c *C) {
 		{"kernel: baz-linux\n", "kernel: baz-linux=stable\n", `"kernel" channel selector must be a track name`},
 		{"kernel: baz-linux\n", "kernel: baz-linux=18/beta\n", `"kernel" channel selector must be a track name only`},
 		{"kernel: baz-linux\n", "kernel:\n  - xyz \n", `"kernel" header must be a string`},
+		{"base: core18\n", "base:\n  - xyz \n", `"base" header must be a string`},
 		{"store: brand-store\n", "store:\n  - xyz\n", `"store" header must be a string`},
 		{mods.tsLine, "", `"timestamp" header is mandatory`},
 		{mods.tsLine, "timestamp: \n", `"timestamp" header should not be empty`},
@@ -403,6 +404,7 @@ func (mods *modelSuite) TestClassicDecodeInvalid(c *C) {
 		{"gadget: brand-gadget\n", "gadget:\n  - foo\n", `"gadget" header must be a string`},
 		{"gadget: brand-gadget\n", "kernel: brand-kernel\n", `cannot specify a kernel with a classic model`},
 		{"gadget: brand-gadget\n", "base: some-base\n", `cannot specify a base with a classic model`},
+		{"gadget: brand-gadget\n", "gadget:\n  - xyz\n", `"gadget" header must be a string`},
 	}
 
 	for _, test := range invalidTests {
