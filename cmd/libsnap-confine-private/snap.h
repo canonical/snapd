@@ -37,6 +37,13 @@ enum {
 	SC_SNAP_INVALID_INSTANCE_NAME = 3,
 };
 
+/* 40 char snap_name */
+#define SNAP_NAME_LEN 40
+/* 10 char instance key */
+#define SNAP_INSTANCE_KEY_LEN 10
+/* 40 char snap_name + '_' + 10 char instance_key */
+#define SNAP_INSTANCE_LEN (SNAP_NAME_LEN + 1 + SNAP_INSTANCE_KEY_LEN)
+
 /**
  * Validate the given snap name.
  *
