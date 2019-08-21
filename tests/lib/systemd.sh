@@ -68,9 +68,10 @@ systemd_stop_units() {
             echo "Ensure the service is active before stopping it"
             retries=20
             systemctl status "$unit" || true
-            while systemctl status "$unit" | grep "Active: activating"; do
+            while systemctl status "$unit" | grep -q "Active: activating"; do
                 if [ $retries -eq 0 ]; then
                     echo "$unit unit not active"
+                    systemctl status "$unit" || true
                     exit 1
                 fi
                 retries=$(( retries - 1 ))
