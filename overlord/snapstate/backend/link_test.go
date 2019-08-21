@@ -178,6 +178,56 @@ apps:
 	c.Assert(currentDataDir, Equals, dataDir)
 }
 
+func (s *linkSuite) TestLinkRestoreDisabledServices(c *C) {
+	// TODO: mock systemctl calls and check them here when
+	// RestoreDisabledServices actually disables services
+
+	for _, tt := range []struct {
+		lastActiveDisabledSvcs      []string
+		nowActiveDisabledSvcs       []string
+		expectedMissingDisabledSvcs []string
+	}{
+		{
+			// svcs stays same, no leftovers
+			[]string{"svc1"},
+			[]string{"svc1"},
+			[]string{},
+		},
+		{
+			// svc1 is removed and thus leftover
+			[]string{"svc1"},
+			[]string{},
+			[]string{"svc1"},
+		},
+		{
+			// svc2 is added, no leftovers
+			[]string{"svc1"},
+			[]string{"svc1", "svc2"},
+			[]string{},
+		},
+	} {
+		// make an apps map for this service set to put in a snap.Info
+		theApps := make(map[string]*snap.AppInfo)
+		for _, svc := range tt.nowActiveDisabledSvcs {
+			theApps[svc] = &snap.AppInfo{
+				// need to make it a daemon so that app.IsService() is true
+				Daemon: "simple",
+			}
+		}
+
+		result, err := s.be.RestoreDisabledServices(
+			&snap.Info{Apps: theApps},
+			tt.lastActiveDisabledSvcs,
+			progress.Null,
+		)
+
+		// check that the error is nil and that the result matches the expected
+		// missing disabled services
+		c.Check(err, IsNil)
+		c.Check(result, DeepEquals, tt.expectedMissingDisabledSvcs)
+	}
+}
+
 func (s *linkSuite) TestLinkUndoIdempotent(c *C) {
 	// make sure that a retry wouldn't stumble on partial work
 
