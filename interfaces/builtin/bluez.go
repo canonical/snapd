@@ -218,6 +218,10 @@ const bluezPermanentSlotDBus = `
     <allow send_interface="org.bluez.mesh.Application1"/>
     <allow send_interface="org.bluez.mesh.ProvisionAgent1"/>
     <allow send_interface="org.bluez.mesh.Provisioner1"/>
+    <allow send_interface="org.bluez.mesh.Attention1"/>
+    <allow send_interface="org.bluez.mesh.Network1"/>
+    <allow send_interface="org.bluez.mesh.Node1"/>
+    <allow send_interface="org.bluez.mesh.Management1"/>
     <allow send_interface="org.freedesktop.DBus.ObjectManager"/>
     <allow send_interface="org.freedesktop.DBus.Properties"/>
 </policy>
