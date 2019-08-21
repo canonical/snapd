@@ -73,7 +73,9 @@ execute: |
     [[ "$obtained" == *"error from within configure hook"* ]]
 
     echo "Test that the 'snap set' order is deterministic"
-    snap set snapctl-hooks command=noop one.two.three=3 one='{"four":4}' one.two='{"five":5}'
-    snap get snapctl-hooks -l one.two | MATCH "one.two.five .* 5"
-    snap get snapctl-hooks -l one.two | MATCH "one.two.three .* 3"
-    snap get snapctl-hooks -l one.four | MATCH "one.four .* 4"
+    for _ in $(seq 50); do
+        snap set snapctl-hooks command=noop one!
+        snap set snapctl-hooks one.two=2 one='{"three":3}'
+        snap get snapctl-hooks -l one.two | MATCH "one.two .* 2"
+        snap get snapctl-hooks -l one.three | MATCH "one.three .* 3"
+    done
