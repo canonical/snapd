@@ -290,7 +290,7 @@ static void sc_cleanup_preserved_process_state(sc_preserved_process_state *
 	sc_cleanup_close(&proc_state->orig_cwd_fd);
 }
 
-static void enter_classic_execution_environment(void);
+static void enter_classic_execution_environment(sc_invocation * inv);
 static void enter_non_classic_execution_environment(sc_invocation * inv,
 						    struct sc_apparmor *aa,
 						    uid_t real_uid,
@@ -391,7 +391,7 @@ int main(int argc, char **argv)
 	// TODO: check for similar situation and linux capabilities.
 	if (geteuid() == 0) {
 		if (invocation.classic_confinement) {
-			enter_classic_execution_environment();
+			enter_classic_execution_environment(&invocation);
 		} else {
 			enter_non_classic_execution_environment(&invocation,
 								&apparmor,
@@ -515,16 +515,47 @@ int main(int argc, char **argv)
 	return 1;
 }
 
-static void enter_classic_execution_environment(void)
+static void enter_classic_execution_environment(sc_invocation * inv)
 {
 	/* 'classic confinement' is designed to run without the sandbox inside the
 	 * shared namespace. Specifically:
-	 * - snap-confine skips using the snap-specific mount namespace
+	 * - snap-confine skips using the snap-specific mount namespace (unless a
+	 parallel installed classic snap)
 	 * - snap-confine skips using device cgroups
 	 * - snapd sets up a lenient AppArmor profile for snap-confine to use
 	 * - snapd sets up a lenient seccomp profile for snap-confine to use
 	 */
+
 	debug("skipping sandbox setup, classic confinement in use");
+
+	/* Parallel installed classic snap get special handling */
+	if (!sc_streq(inv->snap_instance, inv->snap_name)) {
+		/* Construct a mount namespace where the snap instance directories are
+		 * visible under the regular snap name. In order to do that we will:
+		 *
+		 * - convert SNAP_MOUNT_DIR into a mount point
+		 * - convert /var/snap into a mount point
+		 * - set slave propagation for both
+		 * - create a new mount namespace
+		 * - mount SNAP_MOUNT_DIR/<snap>_<key> on top of SNAP_MOUNT_DIR/<snap>
+		 * - mount /var/snap/<snap>_<key> on top of /var/snap/<snap>
+		 *
+		 * The destination directories /var/snap/<snap> and SNAP_MOUNT_DIR/<snap>
+		 * are guaranteed to exist and were created during installation of a given
+		 * instance.
+		 */
+
+		/* ensure SNAP_MOUNT_DIR and /var/snap are mount points */
+		sc_ensure_snap_dir_shared_mounts();
+
+		debug("unsharing the mount namespace (per-classic-snap)");
+		if (unshare(CLONE_NEWNS) < 0) {
+			die("cannot unshare the mount namespace for parallel installed classic snap");
+		}
+		/* set up mappings for snap and data directories */
+		sc_setup_parallel_instance_classic_mounts(inv->snap_name,
+							  inv->snap_instance);
+	}
 }
 
 static void enter_non_classic_execution_environment(sc_invocation * inv,
