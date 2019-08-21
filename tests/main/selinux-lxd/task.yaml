@@ -15,8 +15,17 @@ prepare: |
     ausearch --checkpoint stamp -m AVC || true
 
 restore: |
+    # Restore nsdelegate mount option clobbered by LXD.
+    if mountinfo-tool /sys/fs/cgroup/unified; then
+        mount -o remount,nsdelegate /sys/fs/cgroup/unified
+    fi
+
     setenforce "$(cat enforcing.mode)"
     rm -f stamp enforcing.mode
+
+    if mountinfo-tool /proc/sys/fs/binfmt_misc .fs_type=binfmt_misc; then
+        umount /proc/sys/fs/binfmt_misc
+    fi
 
 execute: |
     snap install lxd
