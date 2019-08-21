@@ -67,7 +67,7 @@ func (s *unsetCommand) Execute(args []string) error {
 	context.Unlock()
 
 	for _, confKey := range s.Positional.ConfKeys {
-		tr.Set(s.context().InstanceName(), confKey, nil)
+		tr.Set(context.InstanceName(), confKey, nil)
 	}
 
 	return nil
