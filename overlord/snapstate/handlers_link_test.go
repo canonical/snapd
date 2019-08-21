@@ -387,7 +387,7 @@ func (s *linkSnapSuite) TestDoLinkSnapTryToCleanupOnError(c *C) {
 	c.Assert(err, Equals, state.ErrNoState)
 
 	// tried to cleanup
-	c.Check(s.fakeBackend.ops, DeepEquals, fakeOps{
+	expected := fakeOps{
 		{
 			op:    "candidate",
 			sinfo: *si,
@@ -397,10 +397,17 @@ func (s *linkSnapSuite) TestDoLinkSnapTryToCleanupOnError(c *C) {
 			path: filepath.Join(dirs.SnapMountDir, "foo/35"),
 		},
 		{
+			op: "current-snap-service-states",
+		},
+		{
 			op:   "unlink-snap",
 			path: filepath.Join(dirs.SnapMountDir, "foo/35"),
 		},
-	})
+	}
+
+	// start with an easier-to-read error if this fails:
+	c.Check(s.fakeBackend.ops.Ops(), DeepEquals, expected.Ops())
+	c.Check(s.fakeBackend.ops, DeepEquals, expected)
 }
 
 func (s *linkSnapSuite) TestDoLinkSnapSuccessCoreRestarts(c *C) {
