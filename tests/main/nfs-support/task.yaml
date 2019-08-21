@@ -59,7 +59,7 @@ restore: |
         ubuntu-14.04-*)
             # On Ubuntu 14.04 we started the NFS server so stop it here. On
             # other versions of Ubuntu the server was pre-installed and
-            # running.
+            # running so we don't have to stop it.
             service nfs-kernel-server stop
             ;;
         arch-*)
