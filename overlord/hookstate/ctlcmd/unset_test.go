@@ -59,6 +59,37 @@ func (s *unsetSuite) TestInvalidArguments(c *C) {
 	c.Check(err, ErrorMatches, "unset which option.*")
 }
 
+func (s *unsetSuite) TestUnsetOne(c *C) {
+	// Setup an initial configuration
+	s.mockContext.State().Lock()
+	tr := config.NewTransaction(s.mockContext.State())
+	tr.Set("test-snap", "foo", "a")
+	tr.Commit()
+	s.mockContext.State().Unlock()
+
+	// Sanity check
+	var value interface{}
+	s.mockContext.State().Lock()
+	tr = config.NewTransaction(s.mockContext.State())
+	c.Check(tr.Get("test-snap", "foo", &value), IsNil)
+	s.mockContext.State().Unlock()
+	c.Check(value, Equals, "a")
+
+	stdout, stderr, err := ctlcmd.Run(s.mockContext, []string{"unset", "foo"}, 0)
+	c.Check(err, IsNil)
+	c.Check(string(stdout), Equals, "")
+	c.Check(string(stderr), Equals, "")
+
+	// Notify the context that we're done. This should save the config.
+	s.mockContext.Lock()
+	defer s.mockContext.Unlock()
+	c.Check(s.mockContext.Done(), IsNil)
+
+	// Verify that the global config has been updated.
+	tr = config.NewTransaction(s.mockContext.State())
+	c.Check(tr.Get("test-snap", "foo", &value), ErrorMatches, `snap "test-snap" has no "foo" configuration option`)
+}
+
 func (s *unsetSuite) TestUnsetMany(c *C) {
 	// Setup an initial configuration
 	s.mockContext.State().Lock()
@@ -89,36 +120,14 @@ func (s *unsetSuite) TestUnsetMany(c *C) {
 }
 
 func (s *unsetSuite) TestUnsetRegularUserForbidden(c *C) {
-	state := state.New(nil)
-	state.Lock()
-
-	task := state.NewTask("test-task", "")
-	setup := &hookstate.HookSetup{Snap: "test-snap", Revision: snap.R(1), Hook: "hook"}
-
-	state.Unlock()
-
-	mockHandler := hooktest.NewMockHandler()
-	mockContext, err := hookstate.NewContext(task, task.State(), setup, mockHandler, "")
-	c.Assert(err, IsNil)
-	_, _, err = ctlcmd.Run(mockContext, []string{"unset", "key"}, 1000)
+	_, _, err := ctlcmd.Run(s.mockContext, []string{"unset", "key"}, 1000)
 	c.Assert(err, ErrorMatches, `cannot use "unset" with uid 1000, try with sudo`)
 	forbidden, _ := err.(*ctlcmd.ForbiddenCommandError)
 	c.Assert(forbidden, NotNil)
 }
 
 func (s *unsetSuite) TestUnsetHelpRegularUserAllowed(c *C) {
-	state := state.New(nil)
-	state.Lock()
-
-	task := state.NewTask("test-task", "")
-	setup := &hookstate.HookSetup{Snap: "test-snap", Revision: snap.R(1), Hook: "hook"}
-
-	state.Unlock()
-
-	mockHandler := hooktest.NewMockHandler()
-	mockContext, err := hookstate.NewContext(task, task.State(), setup, mockHandler, "")
-	c.Assert(err, IsNil)
-	_, _, err = ctlcmd.Run(mockContext, []string{"unset", "-h"}, 1000)
+	_, _, err := ctlcmd.Run(s.mockContext, []string{"unset", "-h"}, 1000)
 	c.Assert(strings.HasPrefix(err.Error(), "Usage:"), Equals, true)
 }
 
