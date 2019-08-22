@@ -1095,25 +1095,19 @@ func (m *SnapManager) doLinkSnap(t *state.Task, _ *tomb.Tomb) (err error) {
 	// XXX: this block is slightly ugly, find a pattern when we have more examples
 	model, _ := ModelFromTask(t)
 	err = m.backend.LinkSnap(newInfo, model, perfTimings)
-	if err != nil {
-		var firstErr error
-		var err error
-		if len(snapst.Sequence) > 0 {
-			// save the disabled services for later
-			firstErr = m.saveSnapDisabledServices(snapst, pb)
+	// defer a cleanup helper which will unlink the snap if anything fails after
+	// this point
+	defer func() {
+		if err == nil {
+			return
 		}
-
-		secondErr := m.backend.UnlinkSnap(newInfo, pb)
-		switch {
-		case firstErr != nil:
-			err = secondErr
-		case secondErr != nil:
-			err = secondErr
+		// err is not nil, we need to try and unlink the snap to cleanup after
+		// ourselves
+		unlinkErr := m.backend.UnlinkSnap(newInfo, pb)
+		if unlinkErr != nil {
+			t.Errorf("cannot cleanup failed attempt at making snap %q available to the system: %v", snapsup.InstanceName(), unlinkErr)
 		}
-		if err != nil {
-			t.Errorf("cannot cleanup failed attempt at making snap %q available to the system: %v", snapsup.InstanceName(), err)
-		}
-	}
+	}()
 	if err != nil {
 		return err
 	}
@@ -1122,13 +1116,11 @@ func (m *SnapManager) doLinkSnap(t *state.Task, _ *tomb.Tomb) (err error) {
 	var missingSvcs []string
 	missingSvcs, err = m.backend.RestoreDisabledServices(newInfo, snapst.LastActiveDisabledServices, pb)
 	if err != nil {
-		// nothing to undo, since worst case we would have just disabled some
-		// services which will now be removed anyways
 		return err
 	}
 
-	// re-save the missing services so when we unlink this revision and go to a
-	// different revision with potentially different service names, the
+	// commit the missing services to state so when we unlink this revision and
+	// go to a different revision with potentially different service names, the
 	// currently missing service names will be re-disabled if they exist later
 	snapst.LastActiveDisabledServices = missingSvcs
 

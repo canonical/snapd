@@ -4996,9 +4996,6 @@ func (s *snapmgrTestSuite) TestUpdateUndoRunThrough(c *C) {
 			path: filepath.Join(dirs.SnapMountDir, "some-snap/11"),
 		},
 		{
-			op: "current-snap-service-states",
-		},
-		{
 			op:   "unlink-snap",
 			path: filepath.Join(dirs.SnapMountDir, "some-snap/11"),
 		},
@@ -8880,9 +8877,6 @@ func (s *snapmgrTestSuite) TestRevertUndoRunThrough(c *C) {
 			path: filepath.Join(dirs.SnapMountDir, "some-snap/1"),
 		},
 		// undo stuff here
-		{
-			op: "current-snap-service-states",
-		},
 		{
 			op:   "unlink-snap",
 			path: filepath.Join(dirs.SnapMountDir, "some-snap/1"),
