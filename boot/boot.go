@@ -69,7 +69,7 @@ func Lookup(s snap.PlaceInfo, t snap.Type, model Model, onClassic bool) (bp Boot
 	if onClassic {
 		return nil, false
 	}
-	if t != snap.TypeOS && t != snap.TypeKernel && t != snap.TypeBase && t != snap.TypeSnapd {
+	if t != snap.TypeOS && t != snap.TypeKernel && t != snap.TypeBase {
 		return nil, false
 	}
 
@@ -79,7 +79,7 @@ func Lookup(s snap.PlaceInfo, t snap.Type, model Model, onClassic bool) (bp Boot
 			if s.InstanceName() != model.Kernel() {
 				return nil, false
 			}
-		case snap.TypeBase:
+		case snap.TypeBase, snap.TypeOS:
 			base := model.Base()
 			if base == "" {
 				base = "core"
@@ -87,12 +87,6 @@ func Lookup(s snap.PlaceInfo, t snap.Type, model Model, onClassic bool) (bp Boot
 			if s.InstanceName() != base {
 				return nil, false
 			}
-		case snap.TypeSnapd:
-			base := model.Base()
-			if base == "" || base == "core" {
-				return nil, false
-			}
-
 		}
 	}
 

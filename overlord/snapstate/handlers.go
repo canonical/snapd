@@ -1148,44 +1148,39 @@ func (m *SnapManager) doLinkSnap(t *state.Task, _ *tomb.Tomb) (err error) {
 func maybeRestart(t *state.Task, info *snap.Info) {
 	st := t.State()
 
-	if release.OnClassic {
-		// ignore error here as we have no way to return to caller
-		snapdSnapInstalled, _ := isInstalled(st, "snapd")
-		if (info.GetType() == snap.TypeOS && !snapdSnapInstalled) ||
-			info.GetType() == snap.TypeSnapd {
-			t.Logf("Requested daemon restart.")
-			st.RequestRestart(state.RestartDaemon)
-		}
-		return
-	}
-
-	// On core systems that use a base snap we need to restart
-	// snapd when the snapd snap changes.
 	model, err := ModelFromTask(t)
 	if err != nil {
 		logger.Noticef("cannot get model assertion: %v", model)
 		return
 	}
 
-	bp, applicable := boot.Lookup(info, info.GetType(), model, release.OnClassic)
-	if !applicable {
+	typ := info.GetType()
+	bp, applicable := boot.Lookup(info, typ, model, release.OnClassic)
+	if applicable {
+		if bp.ChangeRequiresReboot() {
+			t.Logf("Requested system restart.")
+			st.RequestRestart(state.RestartSystem)
+		}
 		return
 	}
 
-	if !bp.ChangeRequiresReboot() {
+	if !((release.OnClassic && typ == snap.TypeOS) || typ == snap.TypeSnapd) {
+		// not interesting
 		return
 	}
 
-	// On a core system we may need a full reboot if core/base or
-	// the kernel changes, but only a restart if it's the snapd
-	// snap.
-	if info.GetType() == snap.TypeSnapd {
-		t.Logf("Requested daemon restart (snapd snap).")
-		st.RequestRestart(state.RestartDaemon)
-	} else {
-		t.Logf("Requested system restart.")
-		st.RequestRestart(state.RestartSystem)
+	msg := "Requested daemon restart (snapd snap)."
+	if typ == snap.TypeOS {
+		// ignore error here as we have no way to return to caller
+		snapdSnapInstalled, _ := isInstalled(st, "snapd")
+		if snapdSnapInstalled {
+			return
+		}
+		msg = "Requested daemon restart."
 	}
+
+	t.Logf(msg)
+	st.RequestRestart(state.RestartDaemon)
 }
 
 func (m *SnapManager) undoLinkSnap(t *state.Task, _ *tomb.Tomb) error {

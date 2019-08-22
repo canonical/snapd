@@ -209,9 +209,7 @@ func (s *bootSetSuite) TestLookup(c *C) {
 	for _, typ := range []snap.Type{
 		snap.TypeKernel,
 		snap.TypeOS,
-		// snap.TypeGadget, XXX: why not gadget?
 		snap.TypeBase,
-		snap.TypeSnapd,
 	} {
 		bp, applicable = boot.Lookup(info, typ, nil, true)
 		c.Check(bp, IsNil)
@@ -234,40 +232,58 @@ func (s mockModel) Kernel() string { return string(s) }
 func (s mockModel) Base() string   { return string(s) }
 
 func (s *bootSetSuite) TestLookupBaseWithModel(c *C) {
-	info := &snap.Info{}
-	info.RealName = "core"
-	expectedbp := boot.NewCoreBootParticipant(info, snap.TypeBase)
+	core := &snap.Info{SideInfo: snap.SideInfo{RealName: "core"}, SnapType: snap.TypeOS}
+	core18 := &snap.Info{SideInfo: snap.SideInfo{RealName: "core18"}, SnapType: snap.TypeBase}
 
 	type tableT struct {
+		with       *snap.Info
 		model      mockModel
 		applicable bool
-		bp         boot.BootParticipant
 	}
 
 	table := []tableT{
 		{
-			model:      "core18",
-			applicable: false,
-			bp:         nil,
-		}, {
-			model:      "core",
-			applicable: true,
-			bp:         expectedbp,
-		}, {
+			with:       core,
 			model:      "",
 			applicable: true,
-			bp:         expectedbp,
+		}, {
+			with:       core,
+			model:      "core",
+			applicable: true,
+		}, {
+			with:       core,
+			model:      "core18",
+			applicable: false,
+		},
+		{
+			with:       core18,
+			model:      "",
+			applicable: false,
+		},
+		{
+			with:       core18,
+			model:      "core",
+			applicable: false,
+		},
+		{
+			with:       core18,
+			model:      "core18",
+			applicable: true,
 		},
 	}
 
-	for _, t := range table {
-		bp, applicable := boot.Lookup(info, snap.TypeBase, t.model, true)
+	for i, t := range table {
+		bp, applicable := boot.Lookup(t.with, t.with.GetType(), t.model, true)
 		c.Check(applicable, Equals, false)
 		c.Check(bp, IsNil)
 
-		bp, applicable = boot.Lookup(info, snap.TypeBase, t.model, false)
-		c.Check(applicable, Equals, t.applicable)
-		c.Check(bp, DeepEquals, t.bp)
+		bp, applicable = boot.Lookup(t.with, t.with.GetType(), t.model, false)
+		c.Check(applicable, Equals, t.applicable, Commentf("%d", i))
+		if t.applicable {
+			c.Check(bp, DeepEquals, boot.NewCoreBootParticipant(t.with, t.with.GetType()))
+		} else {
+			c.Check(bp, IsNil)
+		}
 	}
 }
 

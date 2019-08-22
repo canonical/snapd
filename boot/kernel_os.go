@@ -80,14 +80,6 @@ func (bs *coreBootParticipant) SetNextBoot() error {
 }
 
 func (bs *coreBootParticipant) ChangeRequiresReboot() bool {
-	// TODO: at some point ChangeRequiresReboot might be in its own
-	// interface, at which point it'd make sense to have an ad-hoc
-	// implementation for snapd because it's really a different
-	// animal?
-	if bs.t == snap.TypeSnapd {
-		return true
-	}
-
 	bootloader, err := bootloader.Find()
 	if err != nil {
 		logger.Noticef("cannot get boot settings: %s", err)
