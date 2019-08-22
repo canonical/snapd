@@ -78,18 +78,19 @@ func hasFontConfigCache(info *snap.Info) bool {
 	return false
 }
 
-// RestoreDisabledServices will check for the provided list of previously
-// disabled services, and if the services exist in the provided snap, then they
-// are disabled and not returned in the list.
-// The returned list should be persisted again until the unlinking of this snap
-// in case the service names come back either in a refresh or a revert
+// RestoreDisabledServices disables provided system services in current revision
+// of the snap. Returns the list of services that are no longer present in
+// current revision or an error.
+// Note: the caller is responsible for persisting the list across snap refreshes
+// or reverts.
 func (b Backend) RestoreDisabledServices(
 	info *snap.Info,
 	lastActiveDisabledSvcNames []string,
-	meter progress.Meter) ([]string, error) {
+	meter progress.Meter,
+) (missing []string, err error) {
 	// make a copy of the services to
-	previouslyDisabledMissingServices := make([]string, len(lastActiveDisabledSvcNames))
-	copy(previouslyDisabledMissingServices, lastActiveDisabledSvcNames)
+	missing = make([]string, len(lastActiveDisabledSvcNames))
+	copy(missing, lastActiveDisabledSvcNames)
 
 	// disable services that were marked in the state as disabled right before
 	// this snap went inactive, since that state is lost when we unlink the snap
@@ -112,7 +113,7 @@ func (b Backend) RestoreDisabledServices(
 				// disable the service and delete it from the list of previously
 				// disabled services, since the fact that it was disabled will
 				// now be tracked by systemd
-				previouslyDisabledMissingServices = append(previouslyDisabledMissingServices[:i], previouslyDisabledMissingServices[i+1:]...)
+				missing = append(missing[:i], missing[i+1:]...)
 
 				// TODO: actually disable the service here
 			}
@@ -120,7 +121,7 @@ func (b Backend) RestoreDisabledServices(
 		}
 	}
 
-	return previouslyDisabledMissingServices, firstErr(errs...)
+	return missing, firstErr(errs...)
 }
 
 // LinkSnap makes the snap available by generating wrappers and setting the current symlinks.
