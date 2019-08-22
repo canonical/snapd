@@ -540,8 +540,8 @@ static void enter_classic_execution_environment(sc_invocation * inv)
 		 *
 		 * - convert SNAP_MOUNT_DIR into a mount point
 		 * - convert /var/snap into a mount point
-		 * - set slave propagation for both
 		 * - create a new mount namespace (done earlier)
+		 * - set slave propagation SNAP_MOUNT_DIR and /var/snap
 		 * - mount SNAP_MOUNT_DIR/<snap>_<key> on top of SNAP_MOUNT_DIR/<snap>
 		 * - mount /var/snap/<snap>_<key> on top of /var/snap/<snap>
 		 *
