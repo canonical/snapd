@@ -58,9 +58,6 @@ restore: |
 
     snap remove lxd
 
-    # LXD alters the configuration of the cpuset cgroup. Restore the original state.
-    echo 0 > /sys/fs/cgroup/cpuset/cgroup.clone_children
-
 execute: |
     # Run python0 with a hello.py script and redirect the logs to /var/lib/test/hello.log
     # Run the script as a regular user for extra (lower) permissions.
