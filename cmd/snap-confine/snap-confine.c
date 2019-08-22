@@ -528,6 +528,11 @@ static void enter_classic_execution_environment(sc_invocation * inv)
 
 	debug("skipping sandbox setup, classic confinement in use");
 
+	debug("unsharing the mount namespace (per-classic-snap)");
+	if (unshare(CLONE_NEWNS) < 0) {
+		die("cannot unshare the mount namespace for parallel installed classic snap");
+	}
+
 	/* Parallel installed classic snap get special handling */
 	if (!sc_streq(inv->snap_instance, inv->snap_name)) {
 		/* Construct a mount namespace where the snap instance directories are
@@ -536,7 +541,7 @@ static void enter_classic_execution_environment(sc_invocation * inv)
 		 * - convert SNAP_MOUNT_DIR into a mount point
 		 * - convert /var/snap into a mount point
 		 * - set slave propagation for both
-		 * - create a new mount namespace
+		 * - create a new mount namespace (done earlier)
 		 * - mount SNAP_MOUNT_DIR/<snap>_<key> on top of SNAP_MOUNT_DIR/<snap>
 		 * - mount /var/snap/<snap>_<key> on top of /var/snap/<snap>
 		 *
@@ -548,10 +553,6 @@ static void enter_classic_execution_environment(sc_invocation * inv)
 		/* ensure SNAP_MOUNT_DIR and /var/snap are mount points */
 		sc_ensure_snap_dir_shared_mounts();
 
-		debug("unsharing the mount namespace (per-classic-snap)");
-		if (unshare(CLONE_NEWNS) < 0) {
-			die("cannot unshare the mount namespace for parallel installed classic snap");
-		}
 		/* set up mappings for snap and data directories */
 		sc_setup_parallel_instance_classic_mounts(inv->snap_name,
 							  inv->snap_instance);
