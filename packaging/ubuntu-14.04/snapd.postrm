@@ -22,6 +22,10 @@ if [ "$1" = "purge" ]; then
     # snap.mount.service is a trusty thing
     systemctl_stop snap.mount.service
 
+    if grep -q "/var/snap /var/snap" /proc/self/mountinfo; then
+        umount -l /var/snap || true
+    fi
+
     units=$(systemctl list-unit-files --full | grep '^snap[-.]' | cut -f1 -d ' ' | grep -vF snap.mount.service || true)
     mounts=$(echo "$units" | grep '^snap[-.].*\.mount$' || true)
     services=$(echo "$units" | grep '^snap[-.].*\.service$' || true)

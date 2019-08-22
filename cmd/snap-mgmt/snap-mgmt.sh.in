@@ -40,13 +40,14 @@ purge() {
     if [ "$distribution" = "ubuntu-14.04" ]; then
         # snap.mount.service is a trusty thing
         systemctl_stop snap.mount.service
-    else
-        # undo any bind mount to ${SNAP_MOUNT_DIR} that resulted from LP:#1668659
-        # (that bug can't happen in trusty -- and doing this would mess up snap.mount.service there)
-        if grep -q "${SNAP_MOUNT_DIR} ${SNAP_MOUNT_DIR}" /proc/self/mountinfo; then
-            umount -l "${SNAP_MOUNT_DIR}" || true
-        fi
     fi
+
+    # undo any bind mounts to ${SNAP_MOUNT_DIR} or /var/snap
+    for mp in "$SNAP_MOUNT_DIR" /var/snap; do
+        if grep -q "$mp $mp" /proc/self/mountinfo; then
+            umount -l "$mp" || true
+        fi
+    done
 
     units=$(systemctl list-unit-files --no-legend --full | grep -vF snap.mount.service || true)
     # *.snap mount points
