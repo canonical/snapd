@@ -44,6 +44,8 @@ Similarly, the active serial assertion can be used for the output instead of the
 model assertion.
 `)
 
+	invalidTypeMessage = i18n.G("invalid type for %q header")
+
 	// this list is a "nice" "human" "readable" "ordering" of headers to print
 	// off, sorted in lexographical order with meta headers and primary key
 	// headers removed, and big nasty keys such as device-key-sha3-384 and
@@ -65,8 +67,6 @@ model assertion.
 		"device-key",
 	}
 )
-
-const invalidTypeMessage = "invalid type for %q header"
 
 type cmdModel struct {
 	waitMixin
