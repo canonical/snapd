@@ -36,6 +36,14 @@ import (
 	"github.com/snapcore/snapd/osutil"
 )
 
+type PerstistentNetworkError struct {
+	Err error
+}
+
+func (e *PerstistentNetworkError) Error() string {
+	return fmt.Sprintf("persistent network error: %v", e.Err)
+}
+
 func MaybeLogRetryAttempt(url string, attempt *retry.Attempt, startTime time.Time) {
 	if osutil.GetenvBool("SNAPD_DEBUG") || attempt.Count() > 1 {
 		logger.Debugf("Retrying %s, attempt %d, elapsed time=%v", url, attempt.Count(), time.Since(startTime))
@@ -77,6 +85,10 @@ func ShouldRetryError(attempt *retry.Attempt, err error) bool {
 	// The CDN sometimes resets the connection (LP:#1617765), also
 	// retry in this case
 	if opErr, ok := err.(*net.OpError); ok {
+		// "no such host" is a permanent error and should not be retried.
+		if opErr.Op == "dial" && strings.Contains(opErr.Error(), "no such host") {
+			return false
+		}
 		// peeling the onion
 		if syscallErr, ok := opErr.Err.(*os.SyscallError); ok {
 			if syscallErr.Err == syscall.ECONNRESET {
@@ -115,6 +127,17 @@ func ShouldRetryError(attempt *retry.Attempt, err error) bool {
 		logger.Debugf("Encountered non temporary net.OpError: %#v", opErr)
 	}
 
+	// we see this from http2 downloads sometimes - it is unclear what
+	// is causing it but https://github.com/golang/go/issues/29125
+	// indicates a retry might be enough. Note that we get the
+	// PROTOCOL_ERROR *from* the remote side (fastly it seems)
+	//
+	// FIXME: find a better way to get to this error
+	if strings.Contains(err.Error(), "PROTOCOL_ERROR") {
+		logger.Debugf("Retrying because of: %s", err)
+		return true
+	}
+
 	if err == io.ErrUnexpectedEOF || err == io.EOF {
 		logger.Debugf("Retrying because of: %s", err)
 		return true
@@ -125,6 +148,52 @@ func ShouldRetryError(attempt *retry.Attempt, err error) bool {
 	}
 
 	return false
+}
+
+func isNetworkDown(err error) bool {
+	urlErr, ok := err.(*url.Error)
+	if !ok {
+		return false
+	}
+	opErr, ok := urlErr.Err.(*net.OpError)
+	if !ok {
+		return false
+	}
+
+	switch lowerErr := opErr.Err.(type) {
+	case *net.DNSError:
+		// on 16.04 we will not have SyscallError here, but DNSError, with
+		// no further details other than error message
+		return strings.Contains(lowerErr.Err, "connect: network is unreachable")
+	case *os.SyscallError:
+		if errnoErr, ok := lowerErr.Err.(syscall.Errno); ok {
+			// the errno codes from kernel/libc when the network is down
+			return errnoErr == syscall.ENETUNREACH || errnoErr == syscall.ENETDOWN
+		}
+	}
+	return false
+}
+
+func isDnsUnavailable(err error) bool {
+	urlErr, ok := err.(*url.Error)
+	if !ok {
+		return false
+	}
+	opErr, ok := urlErr.Err.(*net.OpError)
+	if !ok {
+		return false
+	}
+
+	dnsErr, ok := opErr.Err.(*net.DNSError)
+	if !ok {
+		return false
+	}
+
+	// We really want to check for EAI_AGAIN error here - but this is
+	// not exposed in net.DNSError and in go-1.10 it is not even
+	// a temporary error so there is no way to distiguish it other
+	// than a fugly string compare on a (potentially) localized string
+	return strings.Contains(dnsErr.Err, "Temporary failure in name resolution")
 }
 
 // RetryRequest calls doRequest and read the response body in a retry loop using the given retryStrategy.
@@ -138,6 +207,10 @@ func RetryRequest(endpoint string, doRequest func() (*http.Response, error), rea
 		if err != nil {
 			if ShouldRetryError(attempt, err) {
 				continue
+			}
+
+			if isNetworkDown(err) || isDnsUnavailable(err) {
+				err = &PerstistentNetworkError{Err: err}
 			}
 			break
 		}

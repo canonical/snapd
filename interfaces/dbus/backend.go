@@ -58,14 +58,27 @@ func (b *Backend) Name() interfaces.SecuritySystem {
 // setupDbusServiceForUserd will setup the service file for the new
 // `snap userd` instance on re-exec
 func setupDbusServiceForUserd(snapInfo *snap.Info) error {
-	coreRoot := snapInfo.MountDir()
+	coreOrSnapdRoot := snapInfo.MountDir()
+
+	// fugly - but we need to make sure that the content of the
+	// "snapd" snap wins
+	//
+	// TODO: this is also racy but the content of the files in core and
+	// snapd is identical cleanup after link-snap and
+	// setup-profiles are unified
+	if snapInfo.InstanceName() == "core" && osutil.FileExists(filepath.Join(coreOrSnapdRoot, "../..", "snapd/current")) {
+		return nil
+	}
 
 	for _, srv := range []string{
 		"io.snapcraft.Launcher.service",
 		"io.snapcraft.Settings.service",
 	} {
 		dst := filepath.Join("/usr/share/dbus-1/services/", srv)
-		src := filepath.Join(coreRoot, dst)
+		src := filepath.Join(coreOrSnapdRoot, dst)
+
+		// we only need the GlobalRootDir for testing
+		dst = filepath.Join(dirs.GlobalRootDir, dst)
 		if !osutil.FilesAreEqual(src, dst) {
 			if err := osutil.CopyFile(src, dst, osutil.CopyFlagPreserveAll); err != nil {
 				return err
@@ -86,10 +99,8 @@ func (b *Backend) Setup(snapInfo *snap.Info, opts interfaces.ConfinementOptions,
 		return fmt.Errorf("cannot obtain dbus specification for snap %q: %s", snapName, err)
 	}
 
-	// core on classic is special
-	//
-	// TODO: we need to deal with the "snapd" snap here soon
-	if snapName == "core" && release.OnClassic {
+	// core/snapd on classic are special
+	if (snapInfo.GetType() == snap.TypeOS || snapInfo.GetType() == snap.TypeSnapd) && release.OnClassic {
 		if err := setupDbusServiceForUserd(snapInfo); err != nil {
 			logger.Noticef("cannot create host `snap userd` dbus service file: %s", err)
 		}

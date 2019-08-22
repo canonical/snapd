@@ -29,6 +29,7 @@ import (
 	"path"
 	"path/filepath"
 	"strings"
+	"sync"
 
 	"gopkg.in/check.v1"
 )
@@ -41,14 +42,35 @@ func init() {
 	}
 }
 
-func maybeShellcheck(c *check.C, script io.Reader) {
+var (
+	shellchecked   = make(map[string]bool, 16)
+	shellcheckedMu sync.Mutex
+)
+
+func shellcheckSeenAlready(script string) bool {
+	shellcheckedMu.Lock()
+	defer shellcheckedMu.Unlock()
+	if shellchecked[script] {
+		return true
+	}
+	shellchecked[script] = true
+	return false
+}
+
+func maybeShellcheck(c *check.C, script string, wholeScript io.Reader) {
+	// MockCommand is used sometimes in SetUptTest, so it adds up
+	// even for the empty script, don't recheck the essentially same
+	// thing again and again!
+	if shellcheckSeenAlready(script) {
+		return
+	}
 	c.Logf("using shellcheck: %q", shellcheckPath)
 	if shellcheckPath == "" {
 		// no shellcheck, nothing to do
 		return
 	}
 	cmd := exec.Command(shellcheckPath, "-s", "bash", "-")
-	cmd.Stdin = script
+	cmd.Stdin = wholeScript
 	out, err := cmd.CombinedOutput()
 	c.Check(err, check.IsNil, check.Commentf("shellcheck failed:\n%s", string(out)))
 }
@@ -106,7 +128,7 @@ func MockCommand(c *check.C, basename, script string) *MockCmd {
 		panic(err)
 	}
 
-	maybeShellcheck(c, &wholeScript)
+	maybeShellcheck(c, script, &wholeScript)
 
 	return &MockCmd{binDir: binDir, exeFile: exeFile, logFile: logFile}
 }

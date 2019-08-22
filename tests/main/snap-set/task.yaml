@@ -32,13 +32,31 @@ execute: |
         exit 1
     fi
 
-    echo "Test that the set value can be null and can be retrieved"
-    if ! snap set snapctl-hooks command=test-snapctl-get-foo-null foo=null; then
+    echo "Sanity check before we unset the value with null"
+    if ! obtained=$(snap get snapctl-hooks foo); then
+        echo "Expected snap get to be able to retrieve set value"
+        exit 1
+    fi
+    [[ "$obtained" == "bar" ]]
+
+    echo "Test that the set value can be null and it removes the option"
+    if ! snap set snapctl-hooks command=test-snapctl-foo-null foo=null; then
         echo "Expected hook to be able to retrieve set value"
         exit 1
     fi
-    obtained=$(snap get snapctl-hooks foo)
-    [[ "$obtained" == "" ]]
+    snap get snapctl-hooks foo 2>&1 | MATCH 'snap "snapctl-hooks" has no "foo" configuration option'
+
+    echo "Set foo back"
+    snap set snapctl-hooks command=test-snapctl-get-foo foo=bar
+    if ! obtained=$(snap get snapctl-hooks foo); then
+        echo "Expected snap get to be able to retrieve set value"
+        exit 1
+    fi
+    test "$obtained" = "bar"
+
+    echo "Test that the foo value can be unset"
+    snap set snapctl-hooks command=test-snapctl-foo-null foo!
+    snap get snapctl-hooks foo 2>&1 | MATCH 'snap "snapctl-hooks" has no "foo" configuration option'
 
     echo "Test that an invalid key results in an error"
     if obtained=$(snap set snapctl-hooks invalid_key=value 2>&1); then

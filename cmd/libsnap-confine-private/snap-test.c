@@ -111,13 +111,13 @@ static void test_sc_is_hook_security_tag(void)
 
 static void test_sc_snap_or_instance_name_validate(gconstpointer data)
 {
-	typedef void (*validate_func_t)(const char *, struct sc_error **);
+	typedef void (*validate_func_t)(const char *, sc_error **);
 
 	validate_func_t validate = (validate_func_t) data;
 	bool is_instance =
 	    (validate == sc_instance_name_validate) ? true : false;
 
-	struct sc_error *err = NULL;
+	sc_error *err = NULL;
 
 	// Smoke test, a valid snap name
 	validate("hello-world", &err);
@@ -267,7 +267,7 @@ static void test_sc_snap_name_validate__respects_error_protocol(void)
 
 static void test_sc_instance_name_validate(void)
 {
-	struct sc_error *err = NULL;
+	sc_error *err = NULL;
 
 	sc_instance_name_validate("hello-world", &err);
 	g_assert_null(err);

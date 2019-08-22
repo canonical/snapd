@@ -154,6 +154,18 @@ func MockInvalidInfo(c *check.C, yamlText string, sideInfo *snap.SideInfo) *snap
 	return snapInfo
 }
 
+// MockSnapWithFiles does the same as MockSnap, but also populates the snap
+// directory with given content
+//
+// The caller is responsible for mocking root directory with dirs.SetRootDir()
+//and for altering the overlord state if required.
+func MockSnapWithFiles(c *check.C, yamlText string, si *snap.SideInfo, files [][]string) *snap.Info {
+	info := MockSnap(c, yamlText, si)
+
+	PopulateDir(info.MountDir(), files)
+	return info
+}
+
 // PopulateDir populates the directory with files specified as pairs of relative file path and its content. Useful to add extra files to a snap.
 func PopulateDir(dir string, files [][]string) {
 	for _, filenameAndContent := range files {

@@ -33,6 +33,7 @@ func (cs *clientSuite) TestClientRemodelEndpoint(c *C) {
 }
 
 func (cs *clientSuite) TestClientRemodel(c *C) {
+	cs.status = 202
 	cs.rsp = `{
 		"type": "async",
 		"status-code": 202,

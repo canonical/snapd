@@ -42,16 +42,6 @@ void die(const char *msg, ...)
 	exit(1);
 }
 
-bool error(const char *msg, ...)
-{
-	va_list va;
-	va_start(va, msg);
-	vfprintf(stderr, msg, va);
-	va_end(va);
-
-	return false;
-}
-
 struct sc_bool_name {
 	const char *text;
 	bool value;

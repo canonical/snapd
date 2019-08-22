@@ -11,8 +11,8 @@ prepare: |
     fi
 
 restore: |
+    rm -rf /home/test/snap
     if [ -d /home/test/snap.old ]; then
-        rm -rf /home/test/snap
         mv /home/test/snap.old /home/test/snap
     fi
 

@@ -23,6 +23,7 @@ import (
 	"crypto/sha256"
 	"fmt"
 	"os"
+	"strings"
 
 	"github.com/mvo5/libseccomp-golang"
 
@@ -53,8 +54,9 @@ func versionInfo() (string, error) {
 	}
 
 	major, minor, micro := seccomp.GetLibraryVersion()
+	features := goSeccompFeatures()
 
-	return fmt.Sprintf("%s %d.%d.%d %x", myBuildID, major, minor, micro, sh.Sum(nil)), nil
+	return fmt.Sprintf("%s %d.%d.%d %x %s", myBuildID, major, minor, micro, sh.Sum(nil), features), nil
 }
 
 func showVersionInfo() error {
@@ -64,4 +66,16 @@ func showVersionInfo() error {
 	}
 	fmt.Fprintln(os.Stdout, vi)
 	return nil
+}
+
+func goSeccompFeatures() string {
+	var features []string
+	if actLogSupported() {
+		features = append(features, "bpf-actlog")
+	}
+
+	if len(features) == 0 {
+		return "-"
+	}
+	return strings.Join(features, ":")
 }

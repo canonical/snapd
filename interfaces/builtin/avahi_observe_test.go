@@ -32,13 +32,15 @@ import (
 )
 
 type AvahiObserveInterfaceSuite struct {
-	iface        interfaces.Interface
-	plug         *interfaces.ConnectedPlug
-	plugInfo     *snap.PlugInfo
-	appSlot      *interfaces.ConnectedSlot
-	appSlotInfo  *snap.SlotInfo
-	coreSlot     *interfaces.ConnectedSlot
-	coreSlotInfo *snap.SlotInfo
+	iface         interfaces.Interface
+	plug          *interfaces.ConnectedPlug
+	plugInfo      *snap.PlugInfo
+	appSlot       *interfaces.ConnectedSlot
+	appSlotInfo   *snap.SlotInfo
+	coreSlot      *interfaces.ConnectedSlot
+	coreSlotInfo  *snap.SlotInfo
+	snapdSlot     *interfaces.ConnectedSlot
+	snapdSlotInfo *snap.SlotInfo
 }
 
 var _ = Suite(&AvahiObserveInterfaceSuite{
@@ -61,6 +63,14 @@ apps:
 
 const avahiObserveCoreYaml = `name: core
 version: 0
+type: os
+slots:
+  avahi-observe:
+`
+
+const avahiObserveSnapdYaml = `name: snapd
+version: 0
+type: snapd
 slots:
   avahi-observe:
 `
@@ -69,6 +79,7 @@ func (s *AvahiObserveInterfaceSuite) SetUpTest(c *C) {
 	s.plug, s.plugInfo = MockConnectedPlug(c, avahiObserveConsumerYaml, nil, "avahi-observe")
 	s.appSlot, s.appSlotInfo = MockConnectedSlot(c, avahiObserveProducerYaml, nil, "avahi-observe")
 	s.coreSlot, s.coreSlotInfo = MockConnectedSlot(c, avahiObserveCoreYaml, nil, "avahi-observe")
+	s.snapdSlot, s.snapdSlotInfo = MockConnectedSlot(c, avahiObserveSnapdYaml, nil, "avahi-observe")
 }
 
 func (s *AvahiObserveInterfaceSuite) TestName(c *C) {
@@ -91,14 +102,11 @@ func (s *AvahiObserveInterfaceSuite) TestSanitizePlug(c *C) {
 	c.Assert(interfaces.BeforePreparePlug(s.iface, s.plugInfo), IsNil)
 }
 
-func (s *AvahiObserveInterfaceSuite) TestAppArmorSpec(c *C) {
-	// on a core system with avahi slot coming from a regular app snap.
-	restore := release.MockOnClassic(false)
-	defer restore()
-
+func (s *AvahiObserveInterfaceSuite) testAppArmorSpecWithProducer(c *C,
+	slot *interfaces.ConnectedSlot, slotInfo *snap.SlotInfo) {
 	// connected plug to app slot
 	spec := &apparmor.Specification{}
-	c.Assert(spec.AddConnectedPlug(s.iface, s.plug, s.appSlot), IsNil)
+	c.Assert(spec.AddConnectedPlug(s.iface, s.plug, slot), IsNil)
 	c.Assert(spec.SecurityTags(), DeepEquals, []string{"snap.consumer.app"})
 	c.Assert(spec.SnippetForTag("snap.consumer.app"), testutil.Contains, "name=org.freedesktop.Avahi")
 	c.Assert(spec.SnippetForTag("snap.consumer.app"), testutil.Contains, `peer=(label="snap.producer.app"),`)
@@ -114,7 +122,7 @@ func (s *AvahiObserveInterfaceSuite) TestAppArmorSpec(c *C) {
 
 	// connected app slot to plug
 	spec = &apparmor.Specification{}
-	c.Assert(spec.AddConnectedSlot(s.iface, s.plug, s.appSlot), IsNil)
+	c.Assert(spec.AddConnectedSlot(s.iface, s.plug, slot), IsNil)
 	c.Assert(spec.SecurityTags(), DeepEquals, []string{"snap.producer.app"})
 	c.Assert(spec.SnippetForTag("snap.producer.app"), testutil.Contains, `interface=org.freedesktop.Avahi`)
 	c.Assert(spec.SnippetForTag("snap.producer.app"), testutil.Contains, `peer=(label="snap.consumer.app"),`)
@@ -128,22 +136,21 @@ func (s *AvahiObserveInterfaceSuite) TestAppArmorSpec(c *C) {
 
 	// permanent app slot
 	spec = &apparmor.Specification{}
-	c.Assert(spec.AddPermanentSlot(s.iface, s.appSlotInfo), IsNil)
+	c.Assert(spec.AddPermanentSlot(s.iface, slotInfo), IsNil)
 	c.Assert(spec.SecurityTags(), DeepEquals, []string{"snap.producer.app"})
 	c.Assert(spec.SnippetForTag("snap.producer.app"), testutil.Contains, `dbus (bind)
     bus=system
     name="org.freedesktop.Avahi",`)
+}
 
-	// on a classic system with avahi slot coming from the core snap.
-	restore = release.MockOnClassic(true)
-	defer restore()
-
+func (s *AvahiObserveInterfaceSuite) testAppArmorSpecFromSystem(c *C,
+	slot *interfaces.ConnectedSlot, slotInfo *snap.SlotInfo) {
 	// connected plug to core slot
-	spec = &apparmor.Specification{}
-	c.Assert(spec.AddConnectedPlug(s.iface, s.plug, s.coreSlot), IsNil)
+	spec := &apparmor.Specification{}
+	c.Assert(spec.AddConnectedPlug(s.iface, s.plug, slot), IsNil)
 	c.Assert(spec.SecurityTags(), DeepEquals, []string{"snap.consumer.app"})
 	c.Assert(spec.SnippetForTag("snap.consumer.app"), testutil.Contains, "name=org.freedesktop.Avahi")
-	c.Assert(spec.SnippetForTag("snap.consumer.app"), testutil.Contains, "peer=(label=unconfined),")
+	c.Assert(spec.SnippetForTag("snap.consumer.app"), testutil.Contains, "peer=(label=\"{unconfined,/usr/sbin/avahi-daemon}\"),")
 	// make sure observe does have observe but not control capabilities
 	c.Assert(spec.SnippetForTag("snap.consumer.app"), testutil.Contains, `interface=org.freedesktop.Avahi.AddressResolver`)
 	c.Assert(spec.SnippetForTag("snap.consumer.app"), testutil.Contains, `interface=org.freedesktop.Avahi.HostNameResolver`)
@@ -155,32 +162,66 @@ func (s *AvahiObserveInterfaceSuite) TestAppArmorSpec(c *C) {
 
 	// connected core slot to plug
 	spec = &apparmor.Specification{}
-	c.Assert(spec.AddConnectedSlot(s.iface, s.plug, s.coreSlot), IsNil)
+	c.Assert(spec.AddConnectedSlot(s.iface, s.plug, slot), IsNil)
 	c.Assert(spec.SecurityTags(), HasLen, 0)
 
 	// permanent core slot
 	spec = &apparmor.Specification{}
-	c.Assert(spec.AddPermanentSlot(s.iface, s.coreSlotInfo), IsNil)
+	c.Assert(spec.AddPermanentSlot(s.iface, slotInfo), IsNil)
 	c.Assert(spec.SecurityTags(), HasLen, 0)
 }
 
-func (s *AvahiObserveInterfaceSuite) TestDBusSpec(c *C) {
+func (s *AvahiObserveInterfaceSuite) TestAppArmorSpec(c *C) {
 	// on a core system with avahi slot coming from a regular app snap.
 	restore := release.MockOnClassic(false)
+	defer restore()
+	s.testAppArmorSpecWithProducer(c, s.appSlot, s.appSlotInfo)
+
+	// on a classic system with avahi slot coming from the system by core snap.
+	restore = release.MockOnClassic(true)
+	defer restore()
+	s.testAppArmorSpecWithProducer(c, s.appSlot, s.appSlotInfo)
+
+	// on a classic system with avahi slot coming from the system by core snap.
+	restore = release.MockOnClassic(true)
+	defer restore()
+	s.testAppArmorSpecFromSystem(c, s.coreSlot, s.coreSlotInfo)
+
+	// on a classic system with avahi slot coming from the system by snapd snap.
+	restore = release.MockOnClassic(true)
+	defer restore()
+	s.testAppArmorSpecFromSystem(c, s.snapdSlot, s.snapdSlotInfo)
+}
+
+func (s *AvahiObserveInterfaceSuite) testDBusSpecSlotByApp(c *C, classic bool) {
+	restore := release.MockOnClassic(classic)
 	defer restore()
 
 	spec := &dbus.Specification{}
 	c.Assert(spec.AddPermanentSlot(s.iface, s.appSlotInfo), IsNil)
 	c.Assert(spec.SecurityTags(), DeepEquals, []string{"snap.producer.app"})
 	c.Assert(spec.SnippetForTag("snap.producer.app"), testutil.Contains, `<allow own="org.freedesktop.Avahi"/>`)
+}
 
-	// on a classic system with avahi slot coming from the core snap.
-	restore = release.MockOnClassic(true)
+func (s *AvahiObserveInterfaceSuite) testDBusSpecSlotBySystem(c *C, slotInfo *snap.SlotInfo) {
+	restore := release.MockOnClassic(true)
 	defer restore()
 
-	spec = &dbus.Specification{}
-	c.Assert(spec.AddPermanentSlot(s.iface, s.coreSlotInfo), IsNil)
+	spec := &dbus.Specification{}
+	c.Assert(spec.AddPermanentSlot(s.iface, slotInfo), IsNil)
 	c.Assert(spec.SecurityTags(), HasLen, 0)
+}
+
+func (s *AvahiObserveInterfaceSuite) TestDBusSpecSlot(c *C) {
+	// on a core system with avahi slot coming from a regular app snap.
+	s.testDBusSpecSlotByApp(c, false)
+	// on a classic system with avahi slot coming from a regular app snap.
+	s.testDBusSpecSlotByApp(c, true)
+
+	// on a classic system with avahi slot coming from the core snap.
+	s.testDBusSpecSlotBySystem(c, s.coreSlotInfo)
+	// on a classic system with avahi slot coming from the snapd snap.
+	s.testDBusSpecSlotBySystem(c, s.snapdSlotInfo)
 }
 
 func (s *AvahiObserveInterfaceSuite) TestStaticInfo(c *C) {

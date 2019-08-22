@@ -1,7 +1,7 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
 
 /*
- * Copyright (C) 2018 Canonical Ltd
+ * Copyright (C) 2018-2019 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -78,37 +78,12 @@ type systemKey struct {
 var (
 	isHomeUsingNFS  = osutil.IsHomeUsingNFS
 	mockedSystemKey *systemKey
-	osReadlink      = os.Readlink
 
-	seccompCompilerVersionInfo = seccompCompilerVersionInfoImpl
+	readBuildID = osutil.ReadBuildID
 )
 
-func findSnapdPath() (string, error) {
-	snapdPath := filepath.Join(dirs.DistroLibExecDir, "snapd")
-
-	// find the right snapdPath by looking if we are re-execing or not
-	exe, err := osReadlink("/proc/self/exe")
-	if err != nil {
-		return "", err
-	}
-
-	if strings.HasPrefix(exe, dirs.SnapMountDir) {
-		// reexecd' snapd may be coming from either 'core' or 'snapd'
-		// snaps, find the local prefix to the snap:
-		// /snap/snapd/123/usr/bin/snap       -> /snap/snapd/123
-		// /snap/core/234/usr/lib/snapd/snapd -> /snap/core/234
-		prefix := strings.Split(exe, "/usr/")[0]
-		return filepath.Join(prefix, "/usr/lib/snapd/snapd"), nil
-	}
-	return snapdPath, nil
-}
-
-func seccompCompilerVersionInfoImpl(path string) (string, error) {
-	compiler, err := seccomp_compiler.New(func(name string) (string, error) { return path, nil })
-	if err != nil {
-		return "", err
-	}
-	return compiler.VersionInfo()
+func seccompCompilerVersionInfo(path string) (seccomp_compiler.VersionInfo, error) {
+	return seccomp_compiler.CompilerVersionInfo(func(name string) (string, error) { return filepath.Join(path, name), nil })
 }
 
 func generateSystemKey() (*systemKey, error) {
@@ -124,7 +99,7 @@ func generateSystemKey() (*systemKey, error) {
 	if err != nil {
 		return nil, err
 	}
-	buildID, err := osutil.ReadBuildID(snapdPath)
+	buildID, err := readBuildID(snapdPath)
 	if err != nil && !os.IsNotExist(err) {
 		return nil, err
 	}
@@ -158,12 +133,12 @@ func generateSystemKey() (*systemKey, error) {
 	// Add seccomp-features
 	sk.SecCompActions = release.SecCompActions()
 
-	versionInfo, err := seccompCompilerVersionInfo(filepath.Join(filepath.Dir(snapdPath), "snap-seccomp"))
+	versionInfo, err := seccompCompilerVersionInfo(filepath.Dir(snapdPath))
 	if err != nil {
 		logger.Noticef("cannot determine seccomp compiler version in generateSystemKey: %v", err)
 		return nil, err
 	}
-	sk.SeccompCompilerVersion = versionInfo
+	sk.SeccompCompilerVersion = string(versionInfo)
 
 	return sk, nil
 }
@@ -274,12 +249,4 @@ func MockSystemKey(s string) func() {
 	}
 	mockedSystemKey = &sk
 	return func() { mockedSystemKey = nil }
-}
-
-func MockSeccompCompilerVersionInfo(s func(p string) (string, error)) (restore func()) {
-	old := seccompCompilerVersionInfo
-	seccompCompilerVersionInfo = s
-	return func() {
-		seccompCompilerVersionInfo = old
-	}
 }

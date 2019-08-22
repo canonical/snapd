@@ -32,12 +32,6 @@ import (
 	"github.com/snapcore/snapd/strutil"
 )
 
-type updateInfoOpts struct {
-	channel          string
-	ignoreValidation bool
-	amend            bool
-}
-
 func userIDForSnap(st *state.State, snapst *SnapState, fallbackUserID int) (int, error) {
 	userID := snapst.UserID
 	_, err := auth.User(st, userID)
@@ -88,7 +82,7 @@ func refreshOptions(st *state.State, origOpts *store.RefreshOptions) (*store.Ref
 	return &opts, nil
 }
 
-func installInfo(st *state.State, name, channel string, revision snap.Revision, userID int) (*snap.Info, error) {
+func installInfo(ctx context.Context, st *state.State, name string, revOpts *RevisionOptions, userID int, deviceCtx DeviceContext) (*snap.Info, error) {
 	// TODO: support ignore-validation?
 
 	curSnaps, err := currentSnaps(st)
@@ -101,11 +95,6 @@ func installInfo(st *state.State, name, channel string, revision snap.Revision, 
 		return nil, err
 	}
 
-	// cannot specify both with the API
-	if !revision.Unset() {
-		channel = ""
-	}
-
 	opts, err := refreshOptions(st, nil)
 	if err != nil {
 		return nil, err
@@ -114,25 +103,28 @@ func installInfo(st *state.State, name, channel string, revision snap.Revision, 
 	action := &store.SnapAction{
 		Action:       "install",
 		InstanceName: name,
-		// the desired channel
-		Channel: channel,
-		// the desired revision
-		Revision: revision,
 	}
 
-	theStore := Store(st)
+	// cannot specify both with the API
+	if revOpts.Revision.Unset() {
+		// the desired channel
+		action.Channel = revOpts.Channel
+		// the desired cohort key
+		action.CohortKey = revOpts.CohortKey
+	} else {
+		// the desired revision
+		action.Revision = revOpts.Revision
+	}
+
+	theStore := Store(st, deviceCtx)
 	st.Unlock() // calls to the store should be done without holding the state lock
-	res, err := theStore.SnapAction(context.TODO(), curSnaps, []*store.SnapAction{action}, user, opts)
+	res, err := theStore.SnapAction(ctx, curSnaps, []*store.SnapAction{action}, user, opts)
 	st.Lock()
 
 	return singleActionResult(name, action.Action, res, err)
 }
 
-func updateInfo(st *state.State, snapst *SnapState, opts *updateInfoOpts, userID int) (*snap.Info, error) {
-	if opts == nil {
-		opts = &updateInfoOpts{}
-	}
-
+func updateInfo(st *state.State, snapst *SnapState, opts *RevisionOptions, userID int, flags Flags, deviceCtx DeviceContext) (*snap.Info, error) {
 	curSnaps, err := currentSnaps(st)
 	if err != nil {
 		return nil, err
@@ -143,16 +135,16 @@ func updateInfo(st *state.State, snapst *SnapState, opts *updateInfoOpts, userID
 		return nil, err
 	}
 
-	curInfo, user, err := preUpdateInfo(st, snapst, opts.amend, userID)
+	curInfo, user, err := preUpdateInfo(st, snapst, flags.Amend, userID)
 	if err != nil {
 		return nil, err
 	}
 
-	var flags store.SnapActionFlags
-	if opts.ignoreValidation {
-		flags = store.SnapActionIgnoreValidation
+	var storeFlags store.SnapActionFlags
+	if flags.IgnoreValidation {
+		storeFlags = store.SnapActionIgnoreValidation
 	} else {
-		flags = store.SnapActionEnforceValidation
+		storeFlags = store.SnapActionEnforceValidation
 	}
 
 	action := &store.SnapAction{
@@ -160,8 +152,9 @@ func updateInfo(st *state.State, snapst *SnapState, opts *updateInfoOpts, userID
 		InstanceName: curInfo.InstanceName(),
 		SnapID:       curInfo.SnapID,
 		// the desired channel
-		Channel: opts.channel,
-		Flags:   flags,
+		Channel:   opts.Channel,
+		CohortKey: opts.CohortKey,
+		Flags:     storeFlags,
 	}
 
 	if curInfo.SnapID == "" { // amend
@@ -169,7 +162,7 @@ func updateInfo(st *state.State, snapst *SnapState, opts *updateInfoOpts, userID
 		action.Epoch = curInfo.Epoch
 	}
 
-	theStore := Store(st)
+	theStore := Store(st, deviceCtx)
 	st.Unlock() // calls to the store should be done without holding the state lock
 	res, err := theStore.SnapAction(context.TODO(), curSnaps, []*store.SnapAction{action}, user, refreshOpts)
 	st.Lock()
@@ -233,7 +226,7 @@ func singleActionResult(name, action string, results []*snap.Info, e error) (inf
 	return nil, e
 }
 
-func updateToRevisionInfo(st *state.State, snapst *SnapState, revision snap.Revision, userID int) (*snap.Info, error) {
+func updateToRevisionInfo(st *state.State, snapst *SnapState, revision snap.Revision, userID int, deviceCtx DeviceContext) (*snap.Info, error) {
 	// TODO: support ignore-validation?
 
 	curSnaps, err := currentSnaps(st)
@@ -259,7 +252,7 @@ func updateToRevisionInfo(st *state.State, snapst *SnapState, revision snap.Revi
 		Revision: revision,
 	}
 
-	theStore := Store(st)
+	theStore := Store(st, deviceCtx)
 	st.Unlock() // calls to the store should be done without holding the state lock
 	res, err := theStore.SnapAction(context.TODO(), curSnaps, []*store.SnapAction{action}, user, opts)
 	st.Lock()
@@ -313,6 +306,7 @@ func collectCurrentSnaps(snapStates map[string]*SnapState, consider func(*store.
 			RefreshedDate:    revisionDate(snapInfo),
 			IgnoreValidation: snapst.IgnoreValidation,
 			Epoch:            snapInfo.Epoch,
+			CohortKey:        snapst.CohortKey,
 		}
 		curSnaps = append(curSnaps, installed)
 
@@ -425,7 +419,8 @@ func refreshCandidates(ctx context.Context, st *state.State, names []string, use
 		}
 	}
 
-	theStore := Store(st)
+	// TODO: possibly support a deviceCtx
+	theStore := Store(st, nil)
 
 	updates := make([]*snap.Info, 0, nCands)
 	for u, actions := range actionsForUser {
@@ -468,7 +463,8 @@ func installCandidates(st *state.State, names []string, channel string, user *au
 		}
 	}
 
-	theStore := Store(st)
+	// TODO: possibly support a deviceCtx
+	theStore := Store(st, nil)
 	st.Unlock() // calls to the store should be done without holding the state lock
 	defer st.Lock()
 	return theStore.SnapAction(context.TODO(), curSnaps, actions, user, opts)

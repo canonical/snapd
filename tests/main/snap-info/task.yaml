@@ -2,7 +2,7 @@ summary: Check that snap info works
 
 # core18 has no python3-yaml
 # amazon: no PyYAML is not packaged for python3
-systems: [-ubuntu-core-18-*, -amazon-*, -centos-*]
+systems: [-amazon-*, -centos-*]
 
 prepare: |
     snap pack "$TESTSLIB"/snaps/basic
@@ -11,10 +11,10 @@ prepare: |
 
 execute: |
     echo "With no arguments, errors out"
-    ! snap info
+    not snap info
 
     echo "With one non-snap argument, errors out"
-    ! snap info /etc/passwd
+    not snap info /etc/passwd
 
     snap info --unicode=always        \
       basic_1.0_all.snap              \
@@ -48,7 +48,7 @@ execute: |
     snap info no-such-snap test-snapd-tools > out.stdout 2> out.stderr
     MATCH 'warning: no snap found for "no-such-snap"' < out.stdout
     # no error output generated
-    ! test -s out.stderr
+    not test -s out.stderr
 
     echo "Ensure we show versions as strings (LP: 1669291)"
     snap info test-snapd-number-version | MATCH "edge:[ ]+2.10"

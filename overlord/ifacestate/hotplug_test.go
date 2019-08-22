@@ -57,27 +57,29 @@ type hotplugSuite struct {
 	udevMon               *udevMonitorMock
 	mgr                   *ifacestate.InterfaceManager
 	handledByGadgetCalled int
+
+	ifaceTestAAutoConnect bool
 }
 
 type hotplugTasksWitness struct {
 	seenHooks              map[string]string
-	seenHotplugRemoveKeys  map[string]string
-	seenHotplugConnectKeys map[string]string
-	seenHotplugUpdateKeys  map[string]string
-	seenHotplugAddKeys     map[string]string
+	seenHotplugRemoveKeys  map[snap.HotplugKey]string
+	seenHotplugConnectKeys map[snap.HotplugKey]string
+	seenHotplugUpdateKeys  map[snap.HotplugKey]string
+	seenHotplugAddKeys     map[snap.HotplugKey]string
 	seenTasks              map[string]int
-	hotplugDisconnects     map[string]string
+	hotplugDisconnects     map[snap.HotplugKey]string
 	connects               []string
 	disconnects            []string
 }
 
 func (w *hotplugTasksWitness) checkTasks(c *C, st *state.State) {
 	w.seenTasks = make(map[string]int)
-	w.seenHotplugRemoveKeys = make(map[string]string)
-	w.seenHotplugConnectKeys = make(map[string]string)
-	w.seenHotplugUpdateKeys = make(map[string]string)
-	w.seenHotplugAddKeys = make(map[string]string)
-	w.hotplugDisconnects = make(map[string]string)
+	w.seenHotplugRemoveKeys = make(map[snap.HotplugKey]string)
+	w.seenHotplugConnectKeys = make(map[snap.HotplugKey]string)
+	w.seenHotplugUpdateKeys = make(map[snap.HotplugKey]string)
+	w.seenHotplugAddKeys = make(map[snap.HotplugKey]string)
+	w.hotplugDisconnects = make(map[snap.HotplugKey]string)
 	w.seenHooks = make(map[string]string)
 	for _, t := range st.Tasks() {
 		c.Check(t.Status(), Equals, state.DoneStatus)
@@ -141,7 +143,7 @@ func (s *hotplugSuite) SetUpTest(c *C) {
 
 	s.mockSnapCmd = testutil.MockCommand(c, "snap", "")
 
-	s.SetupAsserts(c, s.state)
+	s.SetupAsserts(c, s.state, &s.BaseTest)
 
 	restoreTimeout := ifacestate.MockUDevInitRetryTimeout(0 * time.Second)
 	s.BaseTest.AddCleanup(restoreTimeout)
@@ -179,9 +181,27 @@ func (s *hotplugSuite) SetUpTest(c *C) {
 	s.mgr, err = ifacestate.Manager(s.state, hookMgr, s.o.TaskRunner(), nil, nil)
 	c.Assert(err, IsNil)
 
+	s.o.AddManager(s.mgr)
+	s.o.AddManager(s.o.TaskRunner())
+
+	// startup
+	err = s.o.StartUp()
+	c.Assert(err, IsNil)
+
+	autoConnectNo := func(*snap.PlugInfo, *snap.SlotInfo) bool {
+		return false
+	}
+	s.ifaceTestAAutoConnect = false
+	testAAutoConnect := func(*snap.PlugInfo, *snap.SlotInfo) bool {
+		return s.ifaceTestAAutoConnect
+	}
+
 	testIface1 := &ifacetest.TestHotplugInterface{
-		TestInterface: ifacetest.TestInterface{InterfaceName: "test-a"},
-		HotplugKeyCallback: func(deviceInfo *hotplug.HotplugDeviceInfo) (string, error) {
+		TestInterface: ifacetest.TestInterface{
+			InterfaceName:       "test-a",
+			AutoConnectCallback: testAAutoConnect,
+		},
+		HotplugKeyCallback: func(deviceInfo *hotplug.HotplugDeviceInfo) (snap.HotplugKey, error) {
 			return "key-1", nil
 		},
 		HotplugDeviceDetectedCallback: func(deviceInfo *hotplug.HotplugDeviceInfo) (*hotplug.ProposedSlot, error) {
@@ -194,8 +214,11 @@ func (s *hotplugSuite) SetUpTest(c *C) {
 		},
 	}
 	testIface2 := &ifacetest.TestHotplugInterface{
-		TestInterface: ifacetest.TestInterface{InterfaceName: "test-b"},
-		HotplugKeyCallback: func(deviceInfo *hotplug.HotplugDeviceInfo) (string, error) {
+		TestInterface: ifacetest.TestInterface{
+			InterfaceName:       "test-b",
+			AutoConnectCallback: autoConnectNo,
+		},
+		HotplugKeyCallback: func(deviceInfo *hotplug.HotplugDeviceInfo) (snap.HotplugKey, error) {
 			return "key-2", nil
 		},
 		HotplugDeviceDetectedCallback: func(deviceInfo *hotplug.HotplugDeviceInfo) (*hotplug.ProposedSlot, error) {
@@ -210,8 +233,11 @@ func (s *hotplugSuite) SetUpTest(c *C) {
 	}
 	// 3rd hotplug interface doesn't create hotplug slot (to simulate a case where doesn't device is not supported)
 	testIface3 := &ifacetest.TestHotplugInterface{
-		TestInterface: ifacetest.TestInterface{InterfaceName: "test-c"},
-		HotplugKeyCallback: func(deviceInfo *hotplug.HotplugDeviceInfo) (string, error) {
+		TestInterface: ifacetest.TestInterface{
+			InterfaceName:       "test-c",
+			AutoConnectCallback: autoConnectNo,
+		},
+		HotplugKeyCallback: func(deviceInfo *hotplug.HotplugDeviceInfo) (snap.HotplugKey, error) {
 			return "key-3", nil
 		},
 		HotplugDeviceDetectedCallback: func(deviceInfo *hotplug.HotplugDeviceInfo) (*hotplug.ProposedSlot, error) {
@@ -220,7 +246,10 @@ func (s *hotplugSuite) SetUpTest(c *C) {
 	}
 	// 3rd hotplug interface will only create a slot if default hotplug key can be computed
 	testIface4 := &ifacetest.TestHotplugInterface{
-		TestInterface: ifacetest.TestInterface{InterfaceName: "test-d"},
+		TestInterface: ifacetest.TestInterface{
+			InterfaceName:       "test-d",
+			AutoConnectCallback: autoConnectNo,
+		},
 		HotplugDeviceDetectedCallback: func(deviceInfo *hotplug.HotplugDeviceInfo) (*hotplug.ProposedSlot, error) {
 			return &hotplug.ProposedSlot{Name: "hotplugslot-d"}, nil
 		},
@@ -230,9 +259,6 @@ func (s *hotplugSuite) SetUpTest(c *C) {
 		c.Assert(s.mgr.Repository().AddInterface(iface), IsNil)
 		s.AddCleanup(builtin.MockInterface(iface))
 	}
-
-	s.o.AddManager(s.mgr)
-	s.o.AddManager(s.o.TaskRunner())
 
 	// single Ensure to have udev monitor created and wired up by interface manager
 	c.Assert(s.mgr.Ensure(), IsNil)
@@ -267,6 +293,8 @@ func testByHotplugTaskFlag(c *C, t *state.Task) {
 }
 
 func (s *hotplugSuite) TestHotplugAddBasic(c *C) {
+	s.MockModel(c, nil)
+
 	di, err := hotplug.NewHotplugDeviceInfo(map[string]string{"DEVPATH": "a/path", "ACTION": "add", "SUBSYSTEM": "foo"})
 	c.Assert(err, IsNil)
 	s.udevMon.AddDevice(di)
@@ -280,8 +308,8 @@ func (s *hotplugSuite) TestHotplugAddBasic(c *C) {
 	var hp hotplugTasksWitness
 	hp.checkTasks(c, st)
 	c.Check(hp.seenTasks, DeepEquals, map[string]int{"hotplug-seq-wait": 2, "hotplug-add-slot": 2, "hotplug-connect": 2})
-	c.Check(hp.seenHotplugAddKeys, DeepEquals, map[string]string{"key-1": "test-a", "key-2": "test-b"})
-	c.Check(hp.seenHotplugConnectKeys, DeepEquals, map[string]string{"key-1": "test-a", "key-2": "test-b"})
+	c.Check(hp.seenHotplugAddKeys, DeepEquals, map[snap.HotplugKey]string{"key-1": "test-a", "key-2": "test-b"})
+	c.Check(hp.seenHotplugConnectKeys, DeepEquals, map[snap.HotplugKey]string{"key-1": "test-a", "key-2": "test-b"})
 	c.Check(hp.seenHooks, HasLen, 0)
 	c.Check(hp.connects, HasLen, 0)
 
@@ -296,7 +324,7 @@ func (s *hotplugSuite) TestHotplugAddBasic(c *C) {
 	c.Check(slots[0].Attrs, DeepEquals, map[string]interface{}{
 		"path":         di.DevicePath(),
 		"slot-a-attr1": "a"})
-	c.Check(slots[0].HotplugKey, Equals, "key-1")
+	c.Check(slots[0].HotplugKey, DeepEquals, snap.HotplugKey("key-1"))
 
 	slot, err = repo.SlotForHotplugKey("test-b", "key-2")
 	c.Assert(err, IsNil)
@@ -310,6 +338,10 @@ func (s *hotplugSuite) TestHotplugAddBasic(c *C) {
 }
 
 func (s *hotplugSuite) TestHotplugConnectWithGadgetSlot(c *C) {
+	s.MockModel(c, map[string]interface{}{
+		"gadget": "the-gadget",
+	})
+
 	st := s.state
 	st.Lock()
 	defer st.Unlock()
@@ -358,6 +390,8 @@ slots:
 }
 
 func (s *hotplugSuite) TestHotplugAddWithDefaultKey(c *C) {
+	s.MockModel(c, nil)
+
 	di, err := hotplug.NewHotplugDeviceInfo(map[string]string{
 		"DEVPATH":         "a/path",
 		"ACTION":          "add",
@@ -381,11 +415,11 @@ func (s *hotplugSuite) TestHotplugAddWithDefaultKey(c *C) {
 	c.Check(hp.seenHooks, HasLen, 0)
 	c.Check(hp.connects, HasLen, 0)
 	testIfaceDkey := keyHelper("ID_VENDOR_ID\x00vendor\x00ID_MODEL_ID\x00model\x00ID_SERIAL_SHORT\x00serial\x00")
-	c.Assert(hp.seenHotplugAddKeys, DeepEquals, map[string]string{
+	c.Assert(hp.seenHotplugAddKeys, DeepEquals, map[snap.HotplugKey]string{
 		"key-1":       "test-a",
 		"key-2":       "test-b",
 		testIfaceDkey: "test-d"})
-	c.Assert(hp.seenHotplugConnectKeys, DeepEquals, map[string]string{
+	c.Assert(hp.seenHotplugConnectKeys, DeepEquals, map[snap.HotplugKey]string{
 		"key-1":       "test-a",
 		"key-2":       "test-b",
 		testIfaceDkey: "test-d"})
@@ -400,6 +434,9 @@ func (s *hotplugSuite) TestHotplugAddWithDefaultKey(c *C) {
 
 func (s *hotplugSuite) TestHotplugAddWithAutoconnect(c *C) {
 	s.MockModel(c, nil)
+
+	s.ifaceTestAAutoConnect = true
+
 	repo := s.mgr.Repository()
 	st := s.state
 
@@ -431,8 +468,8 @@ func (s *hotplugSuite) TestHotplugAddWithAutoconnect(c *C) {
 	hp.checkTasks(c, st)
 	c.Check(hp.seenTasks, DeepEquals, map[string]int{"hotplug-seq-wait": 2, "hotplug-add-slot": 2, "hotplug-connect": 2, "connect": 1})
 	c.Check(hp.seenHooks, DeepEquals, map[string]string{"prepare-plug-plug": "consumer", "connect-plug-plug": "consumer"})
-	c.Check(hp.seenHotplugAddKeys, DeepEquals, map[string]string{"key-1": "test-a", "key-2": "test-b"})
-	c.Check(hp.seenHotplugConnectKeys, DeepEquals, map[string]string{"key-1": "test-a", "key-2": "test-b"})
+	c.Check(hp.seenHotplugAddKeys, DeepEquals, map[snap.HotplugKey]string{"key-1": "test-a", "key-2": "test-b"})
+	c.Check(hp.seenHotplugConnectKeys, DeepEquals, map[snap.HotplugKey]string{"key-1": "test-a", "key-2": "test-b"})
 	c.Check(hp.connects, DeepEquals, []string{"consumer:plug core:hotplugslot-a"})
 
 	// make sure slots have been created in the repo
@@ -491,7 +528,7 @@ func (s *hotplugSuite) TestHotplugRemove(c *C) {
 		SnapType: "app",
 	})
 
-	core, err := snapstate.CoreInfo(s.state)
+	core, err := snapstate.CurrentInfo(s.state, "core")
 	c.Assert(err, IsNil)
 	c.Assert(repo.AddSlot(&snap.SlotInfo{
 		Interface:  "test-a",
@@ -529,8 +566,8 @@ func (s *hotplugSuite) TestHotplugRemove(c *C) {
 	var hp hotplugTasksWitness
 	hp.checkTasks(c, st)
 	c.Check(hp.seenHooks, DeepEquals, map[string]string{"disconnect-plug-plug": "consumer"})
-	c.Check(hp.seenHotplugRemoveKeys, DeepEquals, map[string]string{"key-1": "test-a"})
-	c.Check(hp.hotplugDisconnects, DeepEquals, map[string]string{"key-1": "test-a"})
+	c.Check(hp.seenHotplugRemoveKeys, DeepEquals, map[snap.HotplugKey]string{"key-1": "test-a"})
+	c.Check(hp.hotplugDisconnects, DeepEquals, map[snap.HotplugKey]string{"key-1": "test-a"})
 	c.Check(hp.seenTasks, DeepEquals, map[string]int{"hotplug-seq-wait": 1, "hotplug-disconnect": 1, "disconnect": 1, "hotplug-remove-slot": 1})
 	c.Check(hp.disconnects, DeepEquals, []string{"consumer:plug core:hotplugslot"})
 
@@ -547,6 +584,8 @@ func (s *hotplugSuite) TestHotplugRemove(c *C) {
 }
 
 func (s *hotplugSuite) TestHotplugEnumerationDone(c *C) {
+	s.MockModel(c, nil)
+
 	st := s.state
 	st.Lock()
 
@@ -573,7 +612,7 @@ func (s *hotplugSuite) TestHotplugEnumerationDone(c *C) {
 		Current:  snap.R(1),
 		SnapType: "app"})
 
-	core, err := snapstate.CoreInfo(s.state)
+	core, err := snapstate.CurrentInfo(s.state, "core")
 	c.Assert(err, IsNil)
 	c.Assert(repo.AddSlot(&snap.SlotInfo{
 		Interface:  "test-a",
@@ -675,7 +714,7 @@ func (s *hotplugSuite) TestHotplugDeviceUpdate(c *C) {
 		Current:  snap.R(1),
 		SnapType: "app"})
 
-	core, err := snapstate.CoreInfo(s.state)
+	core, err := snapstate.CurrentInfo(s.state, "core")
 	c.Assert(err, IsNil)
 	c.Assert(repo.AddSlot(&snap.SlotInfo{
 		Interface:  "test-a",
@@ -721,10 +760,10 @@ func (s *hotplugSuite) TestHotplugDeviceUpdate(c *C) {
 		"disconnect-plug-plug": "consumer",
 		"prepare-plug-plug":    "consumer",
 		"connect-plug-plug":    "consumer"})
-	c.Check(hp.hotplugDisconnects, DeepEquals, map[string]string{"key-1": "test-a"})
-	c.Check(hp.seenHotplugAddKeys, DeepEquals, map[string]string{"key-1": "test-a", "key-2": "test-b"})
-	c.Check(hp.seenHotplugConnectKeys, DeepEquals, map[string]string{"key-1": "test-a", "key-2": "test-b"})
-	c.Check(hp.seenHotplugUpdateKeys, DeepEquals, map[string]string{"key-1": "test-a"})
+	c.Check(hp.hotplugDisconnects, DeepEquals, map[snap.HotplugKey]string{"key-1": "test-a"})
+	c.Check(hp.seenHotplugAddKeys, DeepEquals, map[snap.HotplugKey]string{"key-1": "test-a", "key-2": "test-b"})
+	c.Check(hp.seenHotplugConnectKeys, DeepEquals, map[snap.HotplugKey]string{"key-1": "test-a", "key-2": "test-b"})
+	c.Check(hp.seenHotplugUpdateKeys, DeepEquals, map[snap.HotplugKey]string{"key-1": "test-a"})
 	c.Check(hp.connects, DeepEquals, []string{"consumer:plug core:hotplugslot-a"})
 	c.Check(hp.disconnects, DeepEquals, []string{"consumer:plug core:hotplugslot-a"})
 
@@ -753,8 +792,8 @@ func (s *hotplugSuite) TestHotplugDeviceUpdate(c *C) {
 		"hotplug-gone": false})
 }
 
-func keyHelper(input string) string {
-	return fmt.Sprintf("0%x", sha256.Sum256([]byte(input)))
+func keyHelper(input string) snap.HotplugKey {
+	return snap.HotplugKey(fmt.Sprintf("0%x", sha256.Sum256([]byte(input))))
 }
 
 func (s *hotplugSuite) TestDefaultDeviceKey(c *C) {
@@ -775,7 +814,7 @@ func (s *hotplugSuite) TestDefaultDeviceKey(c *C) {
 
 	// sanity check
 	c.Check(key, HasLen, 65)
-	c.Check(key, Equals, "08bcbdcda3fee3534c0288506d9b75d4e26fe3692a36a11e75d05eac9ebf5ca7d")
+	c.Check(key, Equals, snap.HotplugKey("08bcbdcda3fee3534c0288506d9b75d4e26fe3692a36a11e75d05eac9ebf5ca7d"))
 	c.Assert(key, Equals, keyHelper("ID_V4L_PRODUCT\x00v4lproduct\x00ID_VENDOR_ID\x00vendor\x00ID_MODEL_ID\x00model\x00ID_SERIAL\x00serial\x00"))
 
 	di, err = hotplug.NewHotplugDeviceInfo(map[string]string{
@@ -920,7 +959,7 @@ func (s *hotplugSuite) TestDefaultDeviceKey(c *C) {
 	c.Assert(err, IsNil)
 	key, err = ifacestate.DefaultDeviceKey(di, 0)
 	c.Assert(err, IsNil)
-	c.Assert(key, Equals, "")
+	c.Assert(key, Equals, snap.HotplugKey(""))
 }
 
 func (s *hotplugSuite) TestDefaultDeviceKeyError(c *C) {
@@ -1088,14 +1127,14 @@ func (s *hotplugSuite) TestUpdateDeviceTasks(c *C) {
 	iface, key, err := ifacestate.GetHotplugAttrs(task1)
 	c.Assert(err, IsNil)
 	c.Assert(iface, Equals, "interface")
-	c.Assert(key, Equals, "key")
+	c.Assert(key, DeepEquals, snap.HotplugKey("key"))
 
 	task2 := tss.Tasks()[1]
 	c.Assert(task2.Kind(), Equals, "hotplug-update-slot")
 	iface, key, err = ifacestate.GetHotplugAttrs(task2)
 	c.Assert(err, IsNil)
 	c.Assert(iface, Equals, "interface")
-	c.Assert(key, Equals, "key")
+	c.Assert(key, DeepEquals, snap.HotplugKey("key"))
 	var attrs map[string]interface{}
 	c.Assert(task2.Get("slot-attrs", &attrs), IsNil)
 	c.Assert(attrs, DeepEquals, map[string]interface{}{"attr": "value"})
@@ -1120,14 +1159,14 @@ func (s *hotplugSuite) TestRemoveDeviceTasks(c *C) {
 	iface, key, err := ifacestate.GetHotplugAttrs(task1)
 	c.Assert(err, IsNil)
 	c.Assert(iface, Equals, "interface")
-	c.Assert(key, Equals, "key")
+	c.Assert(key, DeepEquals, snap.HotplugKey("key"))
 
 	task2 := tss.Tasks()[1]
 	c.Assert(task2.Kind(), Equals, "hotplug-remove-slot")
 	iface, key, err = ifacestate.GetHotplugAttrs(task2)
 	c.Assert(err, IsNil)
 	c.Assert(iface, Equals, "interface")
-	c.Assert(key, Equals, "key")
+	c.Assert(key, DeepEquals, snap.HotplugKey("key"))
 
 	wt := task2.WaitTasks()
 	c.Assert(wt, HasLen, 1)

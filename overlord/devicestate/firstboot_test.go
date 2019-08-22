@@ -44,6 +44,7 @@ import (
 	"github.com/snapcore/snapd/overlord/configstate"
 	"github.com/snapcore/snapd/overlord/configstate/config"
 	"github.com/snapcore/snapd/overlord/devicestate"
+	"github.com/snapcore/snapd/overlord/devicestate/devicestatetest"
 	"github.com/snapcore/snapd/overlord/hookstate"
 	"github.com/snapcore/snapd/overlord/ifacestate"
 	"github.com/snapcore/snapd/overlord/snapstate"
@@ -53,6 +54,7 @@ import (
 	"github.com/snapcore/snapd/snap/snaptest"
 	"github.com/snapcore/snapd/systemd"
 	"github.com/snapcore/snapd/testutil"
+	"github.com/snapcore/snapd/timings"
 )
 
 type FirstBootTestSuite struct {
@@ -61,10 +63,11 @@ type FirstBootTestSuite struct {
 	storeSigning *assertstest.StoreStack
 	restore      func()
 
-	brandPrivKey asserts.PrivateKey
-	brandSigning *assertstest.SigningDB
+	brands *assertstest.SigningAccounts
 
 	overlord *overlord.Overlord
+
+	perfTimings timings.Measurer
 
 	restoreOnClassic func()
 	restoreBackends  func()
@@ -94,19 +97,24 @@ func (s *FirstBootTestSuite) SetUpTest(c *C) {
 	s.storeSigning = assertstest.NewStoreStack("can0nical", nil)
 	s.restore = sysdb.InjectTrusted(s.storeSigning.Trusted)
 
-	s.brandPrivKey, _ = assertstest.GenerateKey(752)
-	s.brandSigning = assertstest.NewSigningDB("my-brand", s.brandPrivKey)
+	s.brands = assertstest.NewSigningAccounts(s.storeSigning)
+	s.brands.Register("my-brand", brandPrivKey, map[string]interface{}{
+		"verification": "verified",
+	})
 
 	s.restoreBackends = ifacestate.MockSecurityBackends(nil)
 
-	ovld, err := overlord.New()
+	ovld, err := overlord.New(nil)
 	c.Assert(err, IsNil)
 	ovld.InterfaceManager().DisableUDevMonitor()
 	s.overlord = ovld
+	c.Assert(ovld.StartUp(), IsNil)
 
 	// don't actually try to talk to the store on snapstate.Ensure
 	// needs doing after the call to devicestate.Manager (which happens in overlord.New)
 	snapstate.CanAutoRefresh = nil
+
+	s.perfTimings = timings.New(nil)
 }
 
 func (s *FirstBootTestSuite) TearDownTest(c *C) {
@@ -146,7 +154,7 @@ func (s *FirstBootTestSuite) TestPopulateFromSeedOnClassicNoop(c *C) {
 	err := os.Remove(filepath.Join(dirs.SnapSeedDir, "assertions"))
 	c.Assert(err, IsNil)
 
-	tsAll, err := devicestate.PopulateStateFromSeedImpl(st)
+	tsAll, err := devicestate.PopulateStateFromSeedImpl(st, s.perfTimings)
 	c.Assert(err, IsNil)
 	checkTrivialSeeding(c, tsAll)
 
@@ -163,7 +171,7 @@ func (s *FirstBootTestSuite) TestPopulateFromSeedOnClassicNoop(c *C) {
 	_, ok := as.(*asserts.Model)
 	c.Check(ok, Equals, true)
 
-	ds, err := auth.Device(st)
+	ds, err := devicestatetest.Device(st)
 	c.Assert(err, IsNil)
 	c.Check(ds.Brand, Equals, "generic")
 	c.Check(ds.Model, Equals, "generic-classic")
@@ -173,7 +181,7 @@ func (s *FirstBootTestSuite) TestPopulateFromSeedOnClassicNoSeedYaml(c *C) {
 	restore := release.MockOnClassic(true)
 	defer restore()
 
-	ovld, err := overlord.New()
+	ovld, err := overlord.New(nil)
 	c.Assert(err, IsNil)
 	st := ovld.State()
 
@@ -191,11 +199,11 @@ func (s *FirstBootTestSuite) TestPopulateFromSeedOnClassicNoSeedYaml(c *C) {
 	st.Lock()
 	defer st.Unlock()
 
-	tsAll, err := devicestate.PopulateStateFromSeedImpl(st)
+	tsAll, err := devicestate.PopulateStateFromSeedImpl(st, s.perfTimings)
 	c.Assert(err, IsNil)
 	checkTrivialSeeding(c, tsAll)
 
-	ds, err := auth.Device(st)
+	ds, err := devicestatetest.Device(st)
 	c.Assert(err, IsNil)
 	c.Check(ds.Brand, Equals, "my-brand")
 	c.Check(ds.Model, Equals, "my-model-classic")
@@ -205,7 +213,7 @@ func (s *FirstBootTestSuite) TestPopulateFromSeedOnClassicEmptySeedYaml(c *C) {
 	restore := release.MockOnClassic(true)
 	defer restore()
 
-	ovld, err := overlord.New()
+	ovld, err := overlord.New(nil)
 	c.Assert(err, IsNil)
 	st := ovld.State()
 
@@ -224,7 +232,7 @@ func (s *FirstBootTestSuite) TestPopulateFromSeedOnClassicEmptySeedYaml(c *C) {
 	st.Lock()
 	defer st.Unlock()
 
-	_, err = devicestate.PopulateStateFromSeedImpl(st)
+	_, err = devicestate.PopulateStateFromSeedImpl(st, s.perfTimings)
 	c.Assert(err, ErrorMatches, "cannot proceed, no snaps to seed")
 }
 
@@ -263,11 +271,11 @@ func (s *FirstBootTestSuite) TestPopulateFromSeedOnClassicNoSeedYamlWithCloudIns
 	st.Lock()
 	defer st.Unlock()
 
-	tsAll, err := devicestate.PopulateStateFromSeedImpl(st)
+	tsAll, err := devicestate.PopulateStateFromSeedImpl(st, s.perfTimings)
 	c.Assert(err, IsNil)
 	checkTrivialSeeding(c, tsAll)
 
-	ds, err := auth.Device(st)
+	ds, err := devicestatetest.Device(st)
 	c.Assert(err, IsNil)
 	c.Check(ds.Brand, Equals, "my-brand")
 	c.Check(ds.Model, Equals, "my-model-classic")
@@ -312,7 +320,7 @@ func (s *FirstBootTestSuite) TestPopulateFromSeedErrorsOnState(c *C) {
 	defer st.Unlock()
 	st.Set("seeded", true)
 
-	_, err := devicestate.PopulateStateFromSeedImpl(st)
+	_, err := devicestate.PopulateStateFromSeedImpl(st, s.perfTimings)
 	c.Assert(err, ErrorMatches, "cannot populate state: already seeded")
 }
 
@@ -419,7 +427,7 @@ type: gadget`
 	return coreFname, kernelFname, gadgetFname
 }
 
-func (s *FirstBootTestSuite) makeBecomeOperationalChange(c *C, st *state.State) *state.Change {
+func (s *FirstBootTestSuite) makeSeedChange(c *C, st *state.State) *state.Change {
 	coreFname, kernelFname, gadgetFname := s.makeCoreSnaps(c, "")
 
 	devAcct := assertstest.NewAccount(s.storeSigning, "developer", map[string]interface{}{
@@ -481,22 +489,10 @@ snaps:
 	// run the firstboot stuff
 	st.Lock()
 	defer st.Unlock()
-	tsAll, err := devicestate.PopulateStateFromSeedImpl(st)
+	tsAll, err := devicestate.PopulateStateFromSeedImpl(st, s.perfTimings)
 	c.Assert(err, IsNil)
 
-	// the first taskset installs core and waits for noone
-	i := 0
-	tCore := tsAll[i].Tasks()[0]
-	c.Check(tCore.WaitTasks(), HasLen, 0)
-	// the next installs the kernel and that will wait for core
-	i++
-	tKernel := tsAll[i].Tasks()[0]
-	c.Check(tKernel.WaitTasks(), testutil.Contains, tCore)
-	// the next installs the gadget and will wait for the kernel
-	i++
-	tGadget := tsAll[i].Tasks()[0]
-	c.Check(tGadget.WaitTasks(), testutil.Contains, tKernel)
-
+	checkOrder(c, tsAll, "core", "pc-kernel", "pc", "foo", "local")
 	checkSeedTasks(c, tsAll)
 
 	// now run the change and check the result
@@ -514,17 +510,38 @@ snaps:
 	return chg
 }
 
+func checkOrder(c *C, tsAll []*state.TaskSet, snaps ...string) {
+	matched := 0
+	var prevTask *state.Task
+	for i, ts := range tsAll {
+		task0 := ts.Tasks()[0]
+		waitTasks := task0.WaitTasks()
+		if i == 0 {
+			c.Check(waitTasks, HasLen, 0)
+		} else {
+			c.Check(waitTasks, testutil.Contains, prevTask)
+		}
+		prevTask = task0
+		if task0.Kind() != "prerequisites" {
+			continue
+		}
+		snapsup, err := snapstate.TaskSnapSetup(task0)
+		c.Assert(err, IsNil, Commentf("%#v", task0))
+		c.Check(snapsup.InstanceName(), Equals, snaps[matched])
+		matched++
+	}
+	c.Check(matched, Equals, len(snaps))
+}
+
 func (s *FirstBootTestSuite) TestPopulateFromSeedHappy(c *C) {
 	loader := boottest.NewMockBootloader("mock", c.MkDir())
 	bootloader.Force(loader)
 	defer bootloader.Force(nil)
-	loader.SetBootVars(map[string]string{
-		"snap_core":   "core_1.snap",
-		"snap_kernel": "pc-kernel_1.snap",
-	})
+	boottest.SetBootKernel("pc-kernel_1.snap", loader)
+	boottest.SetBootBase("core_1.snap", loader)
 
 	st := s.overlord.State()
-	chg := s.makeBecomeOperationalChange(c, st)
+	chg := s.makeSeedChange(c, st)
 	err := s.overlord.Settle(settleTimeout)
 	c.Assert(err, IsNil)
 
@@ -618,13 +635,15 @@ func (s *FirstBootTestSuite) TestPopulateFromSeedMissingBootloader(c *C) {
 	ifacemgr, err := ifacestate.Manager(st, nil, o.TaskRunner(), nil, nil)
 	c.Assert(err, IsNil)
 	o.AddManager(ifacemgr)
+	c.Assert(o.StartUp(), IsNil)
+
 	st.Lock()
 	assertstate.ReplaceDB(st, db.(*asserts.Database))
 	st.Unlock()
 
 	o.AddManager(o.TaskRunner())
 
-	chg := s.makeBecomeOperationalChange(c, st)
+	chg := s.makeSeedChange(c, st)
 
 	se := o.StateEngine()
 	// we cannot use Settle because the Change will not become Clean
@@ -659,10 +678,8 @@ func (s *FirstBootTestSuite) TestPopulateFromSeedHappyMultiAssertsFiles(c *C) {
 	loader := boottest.NewMockBootloader("mock", c.MkDir())
 	bootloader.Force(loader)
 	defer bootloader.Force(nil)
-	loader.SetBootVars(map[string]string{
-		"snap_core":   "core_1.snap",
-		"snap_kernel": "pc-kernel_1.snap",
-	})
+	boottest.SetBootKernel("pc-kernel_1.snap", loader)
+	boottest.SetBootBase("core_1.snap", loader)
 
 	coreFname, kernelFname, gadgetFname := s.makeCoreSnaps(c, "")
 
@@ -710,7 +727,7 @@ snaps:
 	st.Lock()
 	defer st.Unlock()
 
-	tsAll, err := devicestate.PopulateStateFromSeedImpl(st)
+	tsAll, err := devicestate.PopulateStateFromSeedImpl(st, s.perfTimings)
 	c.Assert(err, IsNil)
 	// use the expected kind otherwise settle with start another one
 	chg := st.NewChange("seed", "run the populate from seed changes")
@@ -764,16 +781,8 @@ snaps:
 
 func (s *FirstBootTestSuite) makeModelAssertion(c *C, modelStr string, extraHeaders map[string]interface{}, reqSnaps ...string) *asserts.Model {
 	headers := map[string]interface{}{
-		"series":       "16",
-		"authority-id": "my-brand",
-		"brand-id":     "my-brand",
-		"model":        modelStr,
 		"architecture": "amd64",
 		"store":        "canonical",
-		"timestamp":    time.Now().Format(time.RFC3339),
-	}
-	for k, v := range extraHeaders {
-		headers[k] = v
 	}
 	if strings.HasSuffix(modelStr, "-classic") {
 		headers["classic"] = "true"
@@ -788,22 +797,14 @@ func (s *FirstBootTestSuite) makeModelAssertion(c *C, modelStr string, extraHead
 		}
 		headers["required-snaps"] = reqs
 	}
-	model, err := s.brandSigning.Sign(asserts.ModelType, headers, nil, "")
-	c.Assert(err, IsNil)
-	return model.(*asserts.Model)
+	return s.brands.Model("my-brand", modelStr, headers, extraHeaders)
 }
 
 func (s *FirstBootTestSuite) makeModelAssertionChain(c *C, modName string, extraHeaders map[string]interface{}, reqSnaps ...string) []asserts.Assertion {
 	assertChain := []asserts.Assertion{}
 
-	brandAcct := assertstest.NewAccount(s.storeSigning, "my-brand", map[string]interface{}{
-		"account-id":   "my-brand",
-		"verification": "verified",
-	}, "")
-	assertChain = append(assertChain, brandAcct)
-
-	brandAccKey := assertstest.NewAccountKey(s.storeSigning, brandAcct, nil, s.brandPrivKey.PublicKey(), "")
-	assertChain = append(assertChain, brandAccKey)
+	assertChain = append(assertChain, s.brands.Account("my-brand"))
+	assertChain = append(assertChain, s.brands.AccountKey("my-brand"))
 
 	model := s.makeModelAssertion(c, modName, extraHeaders, reqSnaps...)
 	assertChain = append(assertChain, model)
@@ -817,10 +818,8 @@ func (s *FirstBootTestSuite) TestPopulateFromSeedConfigureHappy(c *C) {
 	loader := boottest.NewMockBootloader("mock", c.MkDir())
 	bootloader.Force(loader)
 	defer bootloader.Force(nil)
-	loader.SetBootVars(map[string]string{
-		"snap_core":   "core_1.snap",
-		"snap_kernel": "pc-kernel_1.snap",
-	})
+	boottest.SetBootKernel("pc-kernel_1.snap", loader)
+	boottest.SetBootBase("core_1.snap", loader)
 
 	const defaultsYaml = `
 defaults:
@@ -884,7 +883,7 @@ snaps:
 	st := s.overlord.State()
 	st.Lock()
 	defer st.Unlock()
-	tsAll, err := devicestate.PopulateStateFromSeedImpl(st)
+	tsAll, err := devicestate.PopulateStateFromSeedImpl(st, s.perfTimings)
 	c.Assert(err, IsNil)
 
 	checkSeedTasks(c, tsAll)
@@ -902,8 +901,9 @@ snaps:
 		ctx.Lock()
 		defer ctx.Unlock()
 		// we have a gadget at this point(s)
-		_, err := snapstate.GadgetInfo(st)
+		ok, err := snapstate.HasSnapOfType(st, snap.TypeGadget)
 		c.Check(err, IsNil)
+		c.Check(ok, Equals, true)
 		configured = append(configured, ctx.InstanceName())
 		return nil, nil
 	}
@@ -988,10 +988,8 @@ func (s *FirstBootTestSuite) TestPopulateFromSeedGadgetConnectHappy(c *C) {
 	loader := boottest.NewMockBootloader("mock", c.MkDir())
 	bootloader.Force(loader)
 	defer bootloader.Force(nil)
-	loader.SetBootVars(map[string]string{
-		"snap_core":   "core_1.snap",
-		"snap_kernel": "pc-kernel_1.snap",
-	})
+	boottest.SetBootKernel("pc-kernel_1.snap", loader)
+	boottest.SetBootBase("core_1.snap", loader)
 
 	const connectionsYaml = `
 connections:
@@ -1049,7 +1047,7 @@ snaps:
 	st := s.overlord.State()
 	st.Lock()
 	defer st.Unlock()
-	tsAll, err := devicestate.PopulateStateFromSeedImpl(st)
+	tsAll, err := devicestate.PopulateStateFromSeedImpl(st, s.perfTimings)
 	c.Assert(err, IsNil)
 
 	checkSeedTasks(c, tsAll)
@@ -1115,7 +1113,7 @@ func (s *FirstBootTestSuite) TestImportAssertionsFromSeedClassicModelMismatch(c 
 	restore := release.MockOnClassic(true)
 	defer restore()
 
-	ovld, err := overlord.New()
+	ovld, err := overlord.New(nil)
 	c.Assert(err, IsNil)
 	st := ovld.State()
 
@@ -1136,7 +1134,7 @@ func (s *FirstBootTestSuite) TestImportAssertionsFromSeedClassicModelMismatch(c 
 }
 
 func (s *FirstBootTestSuite) TestImportAssertionsFromSeedAllSnapsModelMismatch(c *C) {
-	ovld, err := overlord.New()
+	ovld, err := overlord.New(nil)
 	c.Assert(err, IsNil)
 	st := ovld.State()
 
@@ -1157,7 +1155,7 @@ func (s *FirstBootTestSuite) TestImportAssertionsFromSeedAllSnapsModelMismatch(c
 }
 
 func (s *FirstBootTestSuite) TestImportAssertionsFromSeedHappy(c *C) {
-	ovld, err := overlord.New()
+	ovld, err := overlord.New(nil)
 	c.Assert(err, IsNil)
 	st := ovld.State()
 
@@ -1188,7 +1186,7 @@ func (s *FirstBootTestSuite) TestImportAssertionsFromSeedHappy(c *C) {
 	_, ok := as.(*asserts.Model)
 	c.Check(ok, Equals, true)
 
-	ds, err := auth.Device(st)
+	ds, err := devicestatetest.Device(st)
 	c.Assert(err, IsNil)
 	c.Check(ds.Brand, Equals, "my-brand")
 	c.Check(ds.Model, Equals, "my-model")
@@ -1262,7 +1260,16 @@ func (s *FirstBootTestSuite) TestImportAssertionsFromSeedNoModelAsserts(c *C) {
 	c.Assert(err, ErrorMatches, "need a model assertion")
 }
 
-func (s *FirstBootTestSuite) makeCore18Snaps(c *C) (core18Fn, snapdFn, kernelFn, gadgetFn string) {
+type core18SnapsOpts struct {
+	classic bool
+	gadget  bool
+}
+
+func (s *FirstBootTestSuite) makeCore18Snaps(c *C, opts *core18SnapsOpts) (core18Fn, snapdFn, kernelFn, gadgetFn string) {
+	if opts == nil {
+		opts = &core18SnapsOpts{}
+	}
+
 	files := [][]string{}
 
 	core18Yaml := `name: core18
@@ -1277,27 +1284,38 @@ version: 1.0
 	snapdFname, snapdDecl, snapdRev := s.makeAssertedSnap(c, snapdYaml, nil, snap.R(2), "canonical")
 	writeAssertionsToFile("snapd.asserts", []asserts.Assertion{snapdRev, snapdDecl})
 
-	kernelYaml := `name: pc-kernel
+	var kernelFname string
+	if !opts.classic {
+		kernelYaml := `name: pc-kernel
 version: 1.0
 type: kernel`
-	kernelFname, kernelDecl, kernelRev := s.makeAssertedSnap(c, kernelYaml, files, snap.R(1), "canonical")
+		fname, kernelDecl, kernelRev := s.makeAssertedSnap(c, kernelYaml, files, snap.R(1), "canonical")
 
-	writeAssertionsToFile("kernel.asserts", []asserts.Assertion{kernelRev, kernelDecl})
+		writeAssertionsToFile("kernel.asserts", []asserts.Assertion{kernelRev, kernelDecl})
+		kernelFname = fname
+	}
 
-	gadgetYaml := `
+	if !opts.classic {
+		gadgetYaml := `
 volumes:
     volume-id:
         bootloader: grub
 `
-	files = append(files, []string{"meta/gadget.yaml", gadgetYaml})
-	gaYaml := `name: pc
+		files = append(files, []string{"meta/gadget.yaml", gadgetYaml})
+	}
+
+	var gadgetFname string
+	if !opts.classic || opts.gadget {
+		gaYaml := `name: pc
 version: 1.0
 type: gadget
 base: core18
 `
-	gadgetFname, gadgetDecl, gadgetRev := s.makeAssertedSnap(c, gaYaml, files, snap.R(1), "canonical")
+		fname, gadgetDecl, gadgetRev := s.makeAssertedSnap(c, gaYaml, files, snap.R(1), "canonical")
 
-	writeAssertionsToFile("gadget.asserts", []asserts.Assertion{gadgetRev, gadgetDecl})
+		writeAssertionsToFile("gadget.asserts", []asserts.Assertion{gadgetRev, gadgetDecl})
+		gadgetFname = fname
+	}
 
 	return core18Fname, snapdFname, kernelFname, gadgetFname
 }
@@ -1313,12 +1331,10 @@ func (s *FirstBootTestSuite) TestPopulateFromSeedWithBaseHappy(c *C) {
 	loader := boottest.NewMockBootloader("mock", c.MkDir())
 	bootloader.Force(loader)
 	defer bootloader.Force(nil)
-	loader.SetBootVars(map[string]string{
-		"snap_core":   "core18_1.snap",
-		"snap_kernel": "pc-kernel_1.snap",
-	})
+	boottest.SetBootKernel("pc-kernel_1.snap", loader)
+	boottest.SetBootBase("core18_1.snap", loader)
 
-	core18Fname, snapdFname, kernelFname, gadgetFname := s.makeCore18Snaps(c)
+	core18Fname, snapdFname, kernelFname, gadgetFname := s.makeCore18Snaps(c, nil)
 
 	devAcct := assertstest.NewAccount(s.storeSigning, "developer", map[string]interface{}{
 		"account-id": "developerid",
@@ -1355,25 +1371,10 @@ snaps:
 	st := s.overlord.State()
 	st.Lock()
 	defer st.Unlock()
-	tsAll, err := devicestate.PopulateStateFromSeedImpl(st)
+	tsAll, err := devicestate.PopulateStateFromSeedImpl(st, s.perfTimings)
 	c.Assert(err, IsNil)
 
-	// the first taskset installs snapd and waits for noone
-	i := 0
-	tSnapd := tsAll[i].Tasks()[0]
-	c.Check(tSnapd.WaitTasks(), HasLen, 0)
-	// the next installs the core18 and that will wait for snapd
-	i++
-	tCore18 := tsAll[i].Tasks()[0]
-	c.Check(tCore18.WaitTasks(), testutil.Contains, tSnapd)
-	// the next installs the kernel and will wait for the core18
-	i++
-	tKernel := tsAll[i].Tasks()[0]
-	c.Check(tKernel.WaitTasks(), testutil.Contains, tCore18)
-	// the next installs the gadget and will wait for the kernel
-	i++
-	tGadget := tsAll[i].Tasks()[0]
-	c.Check(tGadget.WaitTasks(), testutil.Contains, tKernel)
+	checkOrder(c, tsAll, "snapd", "core18", "pc-kernel", "pc")
 
 	// now run the change and check the result
 	// use the expected kind otherwise settle with start another one
@@ -1464,7 +1465,7 @@ func (s *FirstBootTestSuite) TestPopulateFromSeedOrdering(c *C) {
 		c.Assert(err, IsNil)
 	}
 
-	core18Fname, snapdFname, kernelFname, gadgetFname := s.makeCore18Snaps(c)
+	core18Fname, snapdFname, kernelFname, gadgetFname := s.makeCore18Snaps(c, nil)
 
 	snapYaml := `name: snap-req-other-base
 version: 1.0
@@ -1502,33 +1503,10 @@ snaps:
 	st := s.overlord.State()
 	st.Lock()
 	defer st.Unlock()
-	tsAll, err := devicestate.PopulateStateFromSeedImpl(st)
+	tsAll, err := devicestate.PopulateStateFromSeedImpl(st, s.perfTimings)
 	c.Assert(err, IsNil)
 
-	// the first taskset installs snapd and waits for noone
-	i := 0
-	tSnapd := tsAll[i].Tasks()[0]
-	c.Check(tSnapd.WaitTasks(), HasLen, 0)
-	// the next installs the core18 and that will wait for snapd
-	i++
-	tCore18 := tsAll[i].Tasks()[0]
-	c.Check(tCore18.WaitTasks(), testutil.Contains, tSnapd)
-	// the next installs the kernel and will wait for the core18
-	i++
-	tKernel := tsAll[i].Tasks()[0]
-	c.Check(tKernel.WaitTasks(), testutil.Contains, tCore18)
-	// the next installs the gadget and will wait for the kernel
-	i++
-	tGadget := tsAll[i].Tasks()[0]
-	c.Check(tGadget.WaitTasks(), testutil.Contains, tKernel)
-	// the next installs the base and waits for the gadget
-	i++
-	tOtherBase := tsAll[i].Tasks()[0]
-	c.Check(tOtherBase.WaitTasks(), testutil.Contains, tGadget)
-	// and finally the app
-	i++
-	tSnap := tsAll[i].Tasks()[0]
-	c.Check(tSnap.WaitTasks(), testutil.Contains, tOtherBase)
+	checkOrder(c, tsAll, "snapd", "core18", "pc-kernel", "pc", "other-base", "snap-req-other-base")
 }
 
 func (s *FirstBootTestSuite) TestFirstbootGadgetBaseModelBaseMismatch(c *C) {
@@ -1548,7 +1526,7 @@ func (s *FirstBootTestSuite) TestFirstbootGadgetBaseModelBaseMismatch(c *C) {
 		c.Assert(err, IsNil)
 	}
 
-	core18Fname, snapdFname, kernelFname, _ := s.makeCore18Snaps(c)
+	core18Fname, snapdFname, kernelFname, _ := s.makeCore18Snaps(c, nil)
 	// take the gadget without "base: core18"
 	_, _, gadgetFname := s.makeCoreSnaps(c, "")
 
@@ -1572,18 +1550,16 @@ snaps:
 	st.Lock()
 	defer st.Unlock()
 
-	_, err = devicestate.PopulateStateFromSeedImpl(st)
-	c.Assert(err, ErrorMatches, `cannot use gadget snap because its base "" is different from model base "core18"`)
+	_, err = devicestate.PopulateStateFromSeedImpl(st, s.perfTimings)
+	c.Assert(err, ErrorMatches, `cannot use gadget snap because its base "core" is different from model base "core18"`)
 }
 
 func (s *FirstBootTestSuite) TestPopulateFromSeedWrongContentProviderOrder(c *C) {
 	loader := boottest.NewMockBootloader("mock", c.MkDir())
 	bootloader.Force(loader)
 	defer bootloader.Force(nil)
-	loader.SetBootVars(map[string]string{
-		"snap_core":   "core_1.snap",
-		"snap_kernel": "pc-kernel_1.snap",
-	})
+	boottest.SetBootKernel("pc-kernel_1.snap", loader)
+	boottest.SetBootBase("core_1.snap", loader)
 
 	coreFname, kernelFname, gadgetFname := s.makeCoreSnaps(c, "")
 
@@ -1644,7 +1620,7 @@ snaps:
 	st.Lock()
 	defer st.Unlock()
 
-	tsAll, err := devicestate.PopulateStateFromSeedImpl(st)
+	tsAll, err := devicestate.PopulateStateFromSeedImpl(st, s.perfTimings)
 	c.Assert(err, IsNil)
 	// use the expected kind otherwise settle with start another one
 	chg := st.NewChange("seed", "run the populate from seed changes")
@@ -1673,4 +1649,243 @@ snaps:
 	c.Check(hasConn, Equals, true)
 	c.Check(conn.(map[string]interface{})["auto"], Equals, true)
 	c.Check(conn.(map[string]interface{})["interface"], Equals, "content")
+}
+
+func (s *FirstBootTestSuite) TestPopulateFromSeedOnClassicWithSnapdOnlyHappy(c *C) {
+	restore := release.MockOnClassic(true)
+	defer restore()
+
+	var sysdLog [][]string
+	systemctlRestorer := systemd.MockSystemctl(func(cmd ...string) ([]byte, error) {
+		sysdLog = append(sysdLog, cmd)
+		return []byte("ActiveState=inactive\n"), nil
+	})
+	defer systemctlRestorer()
+
+	core18Fname, snapdFname, _, _ := s.makeCore18Snaps(c, &core18SnapsOpts{
+		classic: true,
+	})
+
+	devAcct := assertstest.NewAccount(s.storeSigning, "developer", map[string]interface{}{
+		"account-id": "developerid",
+	}, "")
+
+	// put a firstboot snap into the SnapBlobDir
+	snapYaml := `name: foo
+version: 1.0
+base: core18
+`
+	fooFname, fooDecl, fooRev := s.makeAssertedSnap(c, snapYaml, nil, snap.R(128), "developerid")
+
+	writeAssertionsToFile("foo.asserts", []asserts.Assertion{devAcct, fooRev, fooDecl})
+
+	// add a model assertion and its chain
+	assertsChain := s.makeModelAssertionChain(c, "my-model-classic", nil)
+	for i, as := range assertsChain {
+		fn := filepath.Join(dirs.SnapSeedDir, "assertions", strconv.Itoa(i))
+		err := ioutil.WriteFile(fn, asserts.Encode(as), 0644)
+		c.Assert(err, IsNil)
+	}
+
+	// create a seed.yaml
+	content := []byte(fmt.Sprintf(`
+snaps:
+ - name: snapd
+   file: %s
+ - name: foo
+   file: %s
+ - name: core18
+   file: %s
+`, snapdFname, fooFname, core18Fname))
+	err := ioutil.WriteFile(filepath.Join(dirs.SnapSeedDir, "seed.yaml"), content, 0644)
+	c.Assert(err, IsNil)
+
+	// run the firstboot stuff
+	st := s.overlord.State()
+	st.Lock()
+	defer st.Unlock()
+	tsAll, err := devicestate.PopulateStateFromSeedImpl(st, s.perfTimings)
+	c.Assert(err, IsNil)
+
+	checkOrder(c, tsAll, "snapd", "core18", "foo")
+
+	// now run the change and check the result
+	// use the expected kind otherwise settle with start another one
+	chg := st.NewChange("seed", "run the populate from seed changes")
+	for _, ts := range tsAll {
+		chg.AddAll(ts)
+	}
+	c.Assert(st.Changes(), HasLen, 1)
+
+	c.Assert(chg.Err(), IsNil)
+
+	// avoid device reg
+	chg1 := st.NewChange("become-operational", "init device")
+	chg1.SetStatus(state.DoingStatus)
+
+	// run change until it wants to restart
+	st.Unlock()
+	err = s.overlord.Settle(settleTimeout)
+	st.Lock()
+	c.Assert(err, IsNil)
+
+	// at this point the system is "restarting", pretend the restart has
+	// happened
+	c.Assert(chg.Status(), Equals, state.DoingStatus)
+	state.MockRestarting(st, state.RestartUnset)
+	st.Unlock()
+	err = s.overlord.Settle(settleTimeout)
+	st.Lock()
+	c.Assert(err, IsNil)
+	c.Assert(chg.Status(), Equals, state.DoneStatus)
+
+	// verify
+	r, err := os.Open(dirs.SnapStateFile)
+	c.Assert(err, IsNil)
+	state, err := state.ReadState(nil, r)
+	c.Assert(err, IsNil)
+
+	state.Lock()
+	defer state.Unlock()
+	// check snapd, core18, kernel, gadget
+	_, err = snapstate.CurrentInfo(state, "snapd")
+	c.Check(err, IsNil)
+	_, err = snapstate.CurrentInfo(state, "core18")
+	c.Check(err, IsNil)
+	_, err = snapstate.CurrentInfo(state, "foo")
+	c.Check(err, IsNil)
+
+	// and ensure state is now considered seeded
+	var seeded bool
+	err = state.Get("seeded", &seeded)
+	c.Assert(err, IsNil)
+	c.Check(seeded, Equals, true)
+
+	// check we set seed-time
+	var seedTime time.Time
+	err = state.Get("seed-time", &seedTime)
+	c.Assert(err, IsNil)
+	c.Check(seedTime.IsZero(), Equals, false)
+}
+
+func (s *FirstBootTestSuite) TestPopulateFromSeedOnClassicWithSnapdOnlyAndGadgetHappy(c *C) {
+	restore := release.MockOnClassic(true)
+	defer restore()
+
+	var sysdLog [][]string
+	systemctlRestorer := systemd.MockSystemctl(func(cmd ...string) ([]byte, error) {
+		sysdLog = append(sysdLog, cmd)
+		return []byte("ActiveState=inactive\n"), nil
+	})
+	defer systemctlRestorer()
+
+	core18Fname, snapdFname, _, gadgetFname := s.makeCore18Snaps(c, &core18SnapsOpts{
+		classic: true,
+		gadget:  true,
+	})
+
+	devAcct := assertstest.NewAccount(s.storeSigning, "developer", map[string]interface{}{
+		"account-id": "developerid",
+	}, "")
+
+	// put a firstboot snap into the SnapBlobDir
+	snapYaml := `name: foo
+version: 1.0
+base: core18
+`
+	fooFname, fooDecl, fooRev := s.makeAssertedSnap(c, snapYaml, nil, snap.R(128), "developerid")
+
+	writeAssertionsToFile("foo.asserts", []asserts.Assertion{devAcct, fooRev, fooDecl})
+
+	// add a model assertion and its chain
+	assertsChain := s.makeModelAssertionChain(c, "my-model-classic", map[string]interface{}{"gadget": "pc"})
+	for i, as := range assertsChain {
+		fn := filepath.Join(dirs.SnapSeedDir, "assertions", strconv.Itoa(i))
+		err := ioutil.WriteFile(fn, asserts.Encode(as), 0644)
+		c.Assert(err, IsNil)
+	}
+
+	// create a seed.yaml
+	content := []byte(fmt.Sprintf(`
+snaps:
+ - name: snapd
+   file: %s
+ - name: foo
+   file: %s
+ - name: core18
+   file: %s
+ - name: pc
+   file: %s
+`, snapdFname, fooFname, core18Fname, gadgetFname))
+	err := ioutil.WriteFile(filepath.Join(dirs.SnapSeedDir, "seed.yaml"), content, 0644)
+	c.Assert(err, IsNil)
+
+	// run the firstboot stuff
+	st := s.overlord.State()
+	st.Lock()
+	defer st.Unlock()
+	tsAll, err := devicestate.PopulateStateFromSeedImpl(st, s.perfTimings)
+	c.Assert(err, IsNil)
+
+	checkOrder(c, tsAll, "snapd", "core18", "pc", "foo")
+
+	// now run the change and check the result
+	// use the expected kind otherwise settle with start another one
+	chg := st.NewChange("seed", "run the populate from seed changes")
+	for _, ts := range tsAll {
+		chg.AddAll(ts)
+	}
+	c.Assert(st.Changes(), HasLen, 1)
+
+	c.Assert(chg.Err(), IsNil)
+
+	// avoid device reg
+	chg1 := st.NewChange("become-operational", "init device")
+	chg1.SetStatus(state.DoingStatus)
+
+	// run change until it wants to restart
+	st.Unlock()
+	err = s.overlord.Settle(settleTimeout)
+	st.Lock()
+	c.Assert(err, IsNil)
+
+	// at this point the system is "restarting", pretend the restart has
+	// happened
+	c.Assert(chg.Status(), Equals, state.DoingStatus)
+	state.MockRestarting(st, state.RestartUnset)
+	st.Unlock()
+	err = s.overlord.Settle(settleTimeout)
+	st.Lock()
+	c.Assert(err, IsNil)
+	c.Assert(chg.Status(), Equals, state.DoneStatus, Commentf("%s", chg.Err()))
+
+	// verify
+	r, err := os.Open(dirs.SnapStateFile)
+	c.Assert(err, IsNil)
+	state, err := state.ReadState(nil, r)
+	c.Assert(err, IsNil)
+
+	state.Lock()
+	defer state.Unlock()
+	// check snapd, core18, kernel, gadget
+	_, err = snapstate.CurrentInfo(state, "snapd")
+	c.Check(err, IsNil)
+	_, err = snapstate.CurrentInfo(state, "core18")
+	c.Check(err, IsNil)
+	_, err = snapstate.CurrentInfo(state, "pc")
+	c.Check(err, IsNil)
+	_, err = snapstate.CurrentInfo(state, "foo")
+	c.Check(err, IsNil)
+
+	// and ensure state is now considered seeded
+	var seeded bool
+	err = state.Get("seeded", &seeded)
+	c.Assert(err, IsNil)
+	c.Check(seeded, Equals, true)
+
+	// check we set seed-time
+	var seedTime time.Time
+	err = state.Get("seed-time", &seedTime)
+	c.Assert(err, IsNil)
+	c.Check(seedTime.IsZero(), Equals, false)
 }

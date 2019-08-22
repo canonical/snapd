@@ -51,7 +51,7 @@ apps:
   plugs: [home]
 `
 	s.slotInfo = &snap.SlotInfo{
-		Snap:      &snap.Info{SuggestedName: "core", Type: snap.TypeOS},
+		Snap:      &snap.Info{SuggestedName: "core", SnapType: snap.TypeOS},
 		Name:      "home",
 		Interface: "home",
 	}
@@ -67,13 +67,6 @@ func (s *HomeInterfaceSuite) TestName(c *C) {
 
 func (s *HomeInterfaceSuite) TestSanitizeSlot(c *C) {
 	c.Assert(interfaces.BeforePrepareSlot(s.iface, s.slotInfo), IsNil)
-	slot := &snap.SlotInfo{
-		Snap:      &snap.Info{SuggestedName: "some-snap"},
-		Name:      "home",
-		Interface: "home",
-	}
-	c.Assert(interfaces.BeforePrepareSlot(s.iface, slot), ErrorMatches,
-		"home slots are reserved for the core snap")
 }
 
 func (s *HomeInterfaceSuite) TestSanitizePlugNoAttrib(c *C) {

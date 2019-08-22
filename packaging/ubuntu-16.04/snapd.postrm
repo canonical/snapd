@@ -2,6 +2,11 @@
 
 set -e
 
+# "powerpc" is not supported unfortunately, do nothing here# 
+if [ "$DPKG_MAINTSCRIPT_ARCH" = powerpc ]; then
+    exit 0
+fi
+
 systemctl_stop() {
     unit="$1"
 
@@ -107,7 +112,7 @@ if [ "$1" = "purge" ]; then
                 rm -f "$mnt"
             done
         fi
-        find /run/snapd/ns/ \( -name '*.fstab' -o -name '*.user-fstab' \) -delete
+        find /run/snapd/ns/ \( -name '*.fstab' -o -name '*.user-fstab' -o -name '*.info' \) -delete
         umount -l /run/snapd/ns/ || true
     fi
 

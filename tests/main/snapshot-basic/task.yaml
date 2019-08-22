@@ -2,25 +2,30 @@ summary: Check that the basic snapshots functionality is ok
 
 prepare: |
     snap install test-snapd-tools
-    snap install test-snapd-rsync
+    snap install --edge test-snapd-just-edge
+
+debug: |
+    snap list || true
+    snap info core || true
+    snap saved || true
 
 execute: |
     # use the snaps, so they create the dirs:
     test-snapd-tools.echo
-    test-snapd-rsync.rsync --version >/dev/null
+    test-snapd-just-edge.snap-name >/dev/null
     # drop in canaries:
-    for snap in test-snapd-tools test-snapd-rsync; do
+    for snap in test-snapd-tools test-snapd-just-edge; do
        echo "hello versioned $snap"  > ~/snap/$snap/current/canary.txt
        echo "hello common $snap" > ~/snap/$snap/common/canary.txt
     done
     # create snapshot, grab its id
-    SET_ID=$( snap save test-snapd-tools test-snapd-rsync | cut -d\  -f1 | tail -n1 )
+    SET_ID=$( snap save test-snapd-tools test-snapd-just-edge | cut -d\  -f1 | tail -n1 )
 
     # check it includes both snaps
     snap saved | MATCH test-snapd-tools
-    snap saved | MATCH test-snapd-rsync
+    snap saved | MATCH test-snapd-just-edge
     snap saved --id="$SET_ID" | grep test-snapd-tools
-    snap saved --id="$SET_ID" | grep test-snapd-rsync
+    snap saved --id="$SET_ID" | grep test-snapd-just-edge
     # and is valid
     snap check-snapshot "$SET_ID"
 
@@ -32,14 +37,14 @@ execute: |
     test -e ~/snap/test-snapd-tools/current/canary.txt
     test -e ~/snap/test-snapd-tools/common/canary.txt
     # it didn't restore the other one
-    test ! -e ~/snap/test-snapd-rsync/current/canary.txt
-    test ! -e ~/snap/test-snapd-rsync/common/canary.txt
+    test ! -e ~/snap/test-snapd-just-edge/current/canary.txt
+    test ! -e ~/snap/test-snapd-just-edge/common/canary.txt
 
     # restore the other
-    snap restore "$SET_ID" test-snapd-rsync
+    snap restore "$SET_ID" test-snapd-just-edge
 
     # now check everything's as we expect
-    for snap in test-snapd-tools test-snapd-rsync; do
+    for snap in test-snapd-tools test-snapd-just-edge; do
         test "$( cat ~/snap/$snap/current/canary.txt )" = "hello versioned $snap"
         test "$( cat ~/snap/$snap/common/canary.txt )" = "hello common $snap"
     done
@@ -47,3 +52,35 @@ execute: |
     # check removal works
     snap forget "$SET_ID"
     snap saved --id="$SET_ID" | grep "No snapshots found"
+
+    # check automatic snapshot can be disabled
+    snap set core snapshots.automatic.retention=no
+    snap remove test-snapd-tools
+    if snap saved | MATCH "test-snapd-tools"; then
+        echo "did not expect a snapshot for test-snapd-tools"
+        exit 1
+    fi
+
+    # re-enable snapshots, check automatic snapshot is created on snap remove
+    snap install test-snapd-tools
+    snap set core snapshots.automatic.retention=30h
+    snap remove test-snapd-tools
+    snap saved test-snapd-tools | MATCH "auto"
+    SET_ID=$( snap saved test-snapd-tools | cut -d\  -f1 | tail -n1 )
+    snap forget "$SET_ID"
+
+    # removing with --purge doesn't create automatic snapshot
+    snap set core snapshots.automatic.retention=30h
+    snap install test-snapd-tools
+    snap remove --purge test-snapd-tools
+    if snap saved test-snapd-tools | MATCH "auto" ; then
+        echo "automatic snapshot is not expected"
+        exit 1
+    fi
+
+    # check validatation of the automatic snapshot expiration range
+    (snap set core snapshots.automatic.retention=1s 2>&1 || true) | MATCH "must be"
+
+    # check that expiration can be read back
+    snap get core snapshots.automatic.retention | MATCH "30h"
+    snap get core -d snapshots.automatic | MATCH '"retention"'

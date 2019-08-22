@@ -19,9 +19,9 @@ execute: |
     test ! -e /home/test/bin/evil-1
     test ! -e /home/test/bin/evil-2
     if [ "$(snap debug confinement)" = "strict" ]; then
-        ! su -l -c 'test-snapd-sh.with-home-plug -c "touch /home/test/bin/evil-1"' test 2>&1 | MATCH '.* Permission denied'
+        su -l -c 'test-snapd-sh.with-home-plug -c "touch /home/test/bin/evil-1"' test 2>&1 | MATCH '.* Permission denied'
         dmesg | grep 'apparmor="DENIED" operation="mknod".* name="/home/test/bin/evil-1"'
-        ! su -l -c 'test-snapd-sh.with-home-plug -c "ln /home/test/snap/test-snapd-sh/common/evil-2 /home/test/bin/evil-2"' test 2>&1 | MATCH '.* Permission denied'
+        su -l -c 'test-snapd-sh.with-home-plug -c "ln /home/test/snap/test-snapd-sh/common/evil-2 /home/test/bin/evil-2"' test 2>&1 | MATCH '.* Permission denied'
         dmesg | grep 'apparmor="DENIED" operation="link".* name="/home/test/bin/evil-2"'
     fi
     test ! -e /home/test/bin/evil-1

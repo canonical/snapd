@@ -1,7 +1,7 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
 
 /*
- * Copyright (C) 2014-2015 Canonical Ltd
+ * Copyright (C) 2014-2019 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -208,4 +208,20 @@ func ElliptRight(str string, n int) string {
 
 	// this is expensive; look into a cheaper way maybe sometime
 	return string([]rune(str)[:n-1]) + "…"
+}
+
+// ElliptLeft returns a string that is at most n runes long,
+// replacing the first rune with an ellipsis if necessary. If N is less
+// than 1 it's treated as a 1.
+func ElliptLeft(str string, n int) string {
+	if n < 1 {
+		n = 1
+	}
+	// this is expensive; look into a cheaper way maybe sometime
+	rstr := []rune(str)
+	if len(rstr) <= n {
+		return str
+	}
+
+	return "…" + string(rstr[len(rstr)-n+1:])
 }

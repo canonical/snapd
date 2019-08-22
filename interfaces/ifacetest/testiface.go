@@ -112,7 +112,7 @@ type TestHotplugInterface struct {
 	TestInterface
 
 	// Support for interacting with hotplug subsystem.
-	HotplugKeyCallback            func(deviceInfo *hotplug.HotplugDeviceInfo) (string, error)
+	HotplugKeyCallback            func(deviceInfo *hotplug.HotplugDeviceInfo) (snap.HotplugKey, error)
 	HandledByGadgetCallback       func(deviceInfo *hotplug.HotplugDeviceInfo, slot *snap.SlotInfo) bool
 	HotplugDeviceDetectedCallback func(deviceInfo *hotplug.HotplugDeviceInfo) (*hotplug.ProposedSlot, error)
 }
@@ -414,7 +414,7 @@ func (t *TestInterface) SystemdPermanentPlug(spec *systemd.Specification, plug *
 
 // Support for interacting with hotplug subsystem.
 
-func (t *TestHotplugInterface) HotplugKey(deviceInfo *hotplug.HotplugDeviceInfo) (string, error) {
+func (t *TestHotplugInterface) HotplugKey(deviceInfo *hotplug.HotplugDeviceInfo) (snap.HotplugKey, error) {
 	if t.HotplugKeyCallback != nil {
 		return t.HotplugKeyCallback(deviceInfo)
 	}

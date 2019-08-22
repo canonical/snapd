@@ -20,6 +20,7 @@
 package image
 
 import (
+	"bytes"
 	"fmt"
 	"io"
 	"io/ioutil"
@@ -72,6 +73,11 @@ func (li *localInfos) Name(pathOrName string) string {
 		return info.InstanceName()
 	}
 	return pathOrName
+}
+
+func (li *localInfos) IsLocal(name string) bool {
+	_, ok := li.nameToPath[name]
+	return ok
 }
 
 func (li *localInfos) PreferLocal(name string) string {
@@ -343,7 +349,7 @@ func acquireSnap(tsto *ToolingStore, name string, dlOpts *DownloadOptions, local
 		}
 		return dst, info, nil
 	}
-	return tsto.DownloadSnap(name, snap.R(0), dlOpts)
+	return tsto.DownloadSnap(name, *dlOpts)
 }
 
 type addingFetcher struct {
@@ -401,6 +407,29 @@ func neededDefaultProviders(info *snap.Info) (cps []string) {
 		}
 	}
 	return cps
+}
+
+// hasBase checks if the given snap has a base in the given localInfos and
+// snaps. If not an error is returned.
+func hasBase(snap *snap.Info, local *localInfos, snaps []string) error {
+	// snap needs no base (or it simply needs core which is never listed explicitly): nothing to do
+	if snap.Base == "" {
+		return nil
+	}
+
+	// snap explicitly listed as not needing a base snap (e.g. a content-only snap)
+	if snap.Base == "none" {
+		return nil
+	}
+
+	// core provides everything that core16 needs
+	if snap.Base == "core16" && local.hasName(snaps, "core") {
+		return nil
+	}
+	if local.hasName(snaps, snap.Base) {
+		return nil
+	}
+	return fmt.Errorf("cannot add snap %q without also adding its base %q explicitly", snap.InstanceName(), snap.Base)
 }
 
 func setupSeed(tsto *ToolingStore, model *asserts.Model, opts *Options, local *localInfos) error {
@@ -467,31 +496,29 @@ func setupSeed(tsto *ToolingStore, model *asserts.Model, opts *Options, local *l
 		// that when people use model assertions with
 		// required snaps like bluez which at this point
 		// still requires core will hang forever in seeding.
-		if strutil.ListContains(opts.Snaps, "core") {
+		if strutil.ListContains(model.RequiredSnaps(), "core") || local.hasName(opts.Snaps, "core") {
 			snaps = append(snaps, "core")
 		}
 	}
 
 	if !opts.Classic {
 		// core/base,kernel,gadget first
-		snaps = append(snaps, local.PreferLocal(baseName))
-		snaps = append(snaps, local.PreferLocal(model.Kernel()))
-		snaps = append(snaps, local.PreferLocal(model.Gadget()))
+		snaps = append(snaps, baseName)
+		snaps = append(snaps, model.Kernel())
+		snaps = append(snaps, model.Gadget())
 	} else {
 		// classic image case: first core as needed and gadget
 		if classicHasSnaps(model, opts) {
 			// TODO: later use snapd+core16 or core18 if specified
-			snaps = append(snaps, local.PreferLocal("core"))
+			snaps = append(snaps, "core")
 		}
 		if model.Gadget() != "" {
-			snaps = append(snaps, local.PreferLocal(model.Gadget()))
+			snaps = append(snaps, model.Gadget())
 		}
 	}
 
 	// then required and the user requested stuff
-	for _, snapName := range model.RequiredSnaps() {
-		snaps = append(snaps, local.PreferLocal(snapName))
-	}
+	snaps = append(snaps, model.RequiredSnaps()...)
 	snaps = append(snaps, opts.Snaps...)
 
 	if !opts.Classic {
@@ -511,10 +538,10 @@ func setupSeed(tsto *ToolingStore, model *asserts.Model, opts *Options, local *l
 			continue
 		}
 
-		if name != snapName {
-			fmt.Fprintf(Stdout, "Copying %q (%s)\n", snapName, name)
+		if local.IsLocal(name) {
+			fmt.Fprintf(Stdout, "Copying %q (%s)\n", local.Path(name), name)
 		} else {
-			fmt.Fprintf(Stdout, "Fetching %s\n", snapName)
+			fmt.Fprintf(Stdout, "Fetching %s\n", name)
 		}
 
 		snapChannel, err := snapChannel(name, model, opts, local)
@@ -534,21 +561,22 @@ func setupSeed(tsto *ToolingStore, model *asserts.Model, opts *Options, local *l
 		// Sanity check, note that we could support this case
 		// if we have a use-case but it requires changes in the
 		// devicestate/firstboot.go ordering code.
-		if info.Type == snap.TypeGadget && info.Base != model.Base() {
+		if info.GetType() == snap.TypeGadget && info.Base != model.Base() {
 			return fmt.Errorf("cannot use gadget snap because its base %q is different from model base %q", info.Base, model.Base())
 		}
-		if info.Base != "" && !local.hasName(snaps, info.Base) {
-			return fmt.Errorf("cannot add snap %q without also adding its base %q explicitly", name, info.Base)
+		if err := hasBase(info, local, snaps); err != nil {
+			return err
 		}
 		// warn about missing default providers
 		for _, dp := range neededDefaultProviders(info) {
 			if !local.hasName(snaps, dp) {
-				fmt.Fprintf(Stderr, "WARNING: the default content provider %q requested by snap %q is not getting installed.", dp, info.InstanceName())
+				// TODO: have a way to ignore this issue on a snap by snap basis?
+				return fmt.Errorf("cannot use snap %q without its default content provider %q being added explicitly", info.InstanceName(), dp)
 			}
 		}
 
 		seen[name] = true
-		typ := info.Type
+		typ := info.GetType()
 
 		needsClassic := info.NeedsClassic()
 		if needsClassic && !opts.Classic {
@@ -582,7 +610,7 @@ func setupSeed(tsto *ToolingStore, model *asserts.Model, opts *Options, local *l
 		}
 
 		// kernel/os/model.base are required for booting on core
-		if !opts.Classic && (typ == snap.TypeKernel || local.Name(snapName) == baseName) {
+		if !opts.Classic && (typ == snap.TypeKernel || name == baseName) {
 			dst := filepath.Join(dirs.SnapBlobDir, filepath.Base(fn))
 			// construct a relative symlink from the blob dir
 			// to the seed file
@@ -722,7 +750,7 @@ func setBootvars(downloadedSnapsInfoForBootConfig map[string]*snap.Info, model *
 			}
 			return fmt.Errorf("cannot get download info for snap %s, available infos: %v", fn, keys)
 		}
-		switch info.Type {
+		switch info.GetType() {
 		case snap.TypeOS, snap.TypeBase:
 			bootvar = "snap_core"
 		case snap.TypeKernel:
@@ -759,4 +787,68 @@ func extractKernelAssets(snapPath string, info *snap.Info) error {
 func copyLocalSnapFile(snapPath, targetDir string, info *snap.Info) (dstPath string, err error) {
 	dst := filepath.Join(targetDir, filepath.Base(info.MountFile()))
 	return dst, osutil.CopyFile(snapPath, dst, 0)
+}
+
+func ValidateSeed(seedFile string) error {
+	seed, err := snap.ReadSeedYaml(seedFile)
+	if err != nil {
+		return err
+	}
+
+	var errs []error
+	// read the snaps info
+	snapInfos := make(map[string]*snap.Info)
+	for _, seedSnap := range seed.Snaps {
+		fn := filepath.Join(filepath.Dir(seedFile), "snaps", seedSnap.File)
+		snapf, err := snap.Open(fn)
+		if err != nil {
+			errs = append(errs, err)
+		} else {
+			info, err := snap.ReadInfoFromSnapFile(snapf, nil)
+			if err != nil {
+				errs = append(errs, fmt.Errorf("cannot use snap %s: %v", fn, err))
+			} else {
+				snapInfos[info.InstanceName()] = info
+			}
+		}
+	}
+
+	// ensure we have either "core" or "snapd"
+	_, haveCore := snapInfos["core"]
+	_, haveSnapd := snapInfos["snapd"]
+	if !(haveCore || haveSnapd) {
+		errs = append(errs, fmt.Errorf("the core or snapd snap must be part of the seed"))
+	}
+
+	// check that all bases/default-providers are part of the seed
+	for _, info := range snapInfos {
+		// ensure base is available
+		if info.Base != "" && info.Base != "none" {
+			if _, ok := snapInfos[info.Base]; !ok {
+				errs = append(errs, fmt.Errorf("cannot use snap %q: base %q is missing", info.InstanceName(), info.Base))
+			}
+		}
+		// ensure core is available
+		if info.Base == "" && info.SnapType == snap.TypeApp && info.InstanceName() != "snapd" {
+			if _, ok := snapInfos["core"]; !ok {
+				errs = append(errs, fmt.Errorf(`cannot use snap %q: required snap "core" missing`, info.InstanceName()))
+			}
+		}
+		// ensure default-providers are available
+		for _, dp := range neededDefaultProviders(info) {
+			if _, ok := snapInfos[dp]; !ok {
+				errs = append(errs, fmt.Errorf("cannot use snap %q: default provider %q is missing", info.InstanceName(), dp))
+			}
+		}
+	}
+
+	if errs != nil {
+		var buf bytes.Buffer
+		for _, err := range errs {
+			fmt.Fprintf(&buf, "\n- %s", err)
+		}
+		return fmt.Errorf("cannot validate seed:%s", buf.Bytes())
+	}
+
+	return nil
 }

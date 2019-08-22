@@ -10,8 +10,10 @@ prepare: |
     install_local basic-run
     install_local test-snapd-tools
 
-debug:
-    cat stderr
+debug: |
+    if [ -f stderr ]; then
+        cat stderr
+    fi
 
 execute: |
     echo "Test that snap run use environments"
@@ -41,10 +43,10 @@ execute: |
     fi
 
     echo "Test snap run --strace with options works"
-    snap run --strace="-tt" test-snapd-tools.echo "hello-world" >stdout 2>stderr
-    MATCH hello-world < stdout
-    MATCH '[0-9:.]+ write\(1, "hello-world\\n"' < stderr
-    
+    snap run --strace="-V" test-snapd-tools.echo "hello-world" >stdout 2>stderr
+    MATCH "strace -- version" < stdout
+    [ ! -s stderr ]
+
     echo "Test snap --strace invalid works"
     if snap run --strace="invalid" test-snapd-tools.echo hello 2>stderr ; then
         echo "snap run with an invalid strace option should fail but it did not"

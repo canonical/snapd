@@ -19,12 +19,15 @@
 #endif
 
 #include <errno.h>
+#include <fcntl.h>
 #include <glob.h>
 #include <sched.h>
 #include <signal.h>
+#include <stdbool.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <sys/capability.h>
 #include <sys/stat.h>
 #include <sys/types.h>
 #include <unistd.h>
@@ -39,6 +42,7 @@
 #include "../libsnap-confine-private/secure-getenv.h"
 #include "../libsnap-confine-private/snap.h"
 #include "../libsnap-confine-private/string-utils.h"
+#include "../libsnap-confine-private/tool.h"
 #include "../libsnap-confine-private/utils.h"
 #include "cookie-support.h"
 #include "mount-support.h"
@@ -108,10 +112,16 @@ static void sc_maybe_fixup_udev(void)
 **/
 typedef struct sc_preserved_process_state {
 	mode_t orig_umask;
+	int orig_cwd_fd;
+	struct stat file_info_orig_cwd;
 } sc_preserved_process_state;
 
 /**
  * sc_preserve_and_sanitize_process_state sanitizes process state.
+ *
+ * The following process state is sanitised:
+ *  - the umask is set to 0
+ *  - the current working directory is set to /
  *
  * The original values are stored to be restored later. Currently only the
  * umask is altered. It is set to zero to make the ownership of created files
@@ -123,6 +133,22 @@ static void sc_preserve_and_sanitize_process_state(sc_preserved_process_state *
 	/* Reset umask to zero, storing the old value. */
 	proc_state->orig_umask = umask(0);
 	debug("umask reset, old umask was %#4o", proc_state->orig_umask);
+	/* Remember a file descriptor corresponding to the original working
+	 * directory. This is an O_PATH file descriptor. The descriptor is
+	 * used as explained below. */
+	proc_state->orig_cwd_fd =
+	    openat(AT_FDCWD, ".",
+		   O_PATH | O_DIRECTORY | O_CLOEXEC | O_NOFOLLOW);
+	if (proc_state->orig_cwd_fd < 0) {
+		die("cannot open path of the current working directory");
+	}
+	if (fstat(proc_state->orig_cwd_fd, &proc_state->file_info_orig_cwd) < 0) {
+		die("cannot stat path of the current working directory");
+	}
+	/* Move to the root directory. */
+	if (chdir("/") < 0) {
+		die("cannot move to /");
+	}
 }
 
 /**
@@ -131,8 +157,137 @@ static void sc_preserve_and_sanitize_process_state(sc_preserved_process_state *
 static void sc_restore_process_state(const sc_preserved_process_state *
 				     proc_state)
 {
+	/* Restore original umask */
 	umask(proc_state->orig_umask);
 	debug("umask restored to %#4o", proc_state->orig_umask);
+
+	/* Restore original current working directory.
+	 *
+	 * This part is more involved for the following reasons. While we hold an
+	 * O_PATH file descriptor that still points to the original working
+	 * directory, that directory may not be representable in the target mount
+	 * namespace. A quick example may be /custom that exists on the host but
+	 * not in the base snap of the application.
+	 *
+	 * Also consider when the path of the original working directory now
+	 * maps to a different inode we cannot use fchdir(2). One example of
+	 * that is the /tmp directory, which exists in both the host mount
+	 * namespace and the per-snap mount namespace but actually represents a
+	 * different directory.
+	 **/
+
+	/* Read the target of symlink at /proc/self/fd/<fd-of-orig-cwd> */
+	char fd_path[PATH_MAX];
+	char orig_cwd[PATH_MAX];
+	ssize_t nread;
+	/* If the original working directory cannot be used for whatever reason then
+	 * move the process to a special void directory. */
+	const char *sc_void_dir = "/var/lib/snapd/void";
+	int void_dir_fd SC_CLEANUP(sc_cleanup_close) = -1;
+
+	sc_must_snprintf(fd_path, sizeof fd_path, "/proc/self/fd/%d",
+			 proc_state->orig_cwd_fd);
+	nread = readlink(fd_path, orig_cwd, sizeof orig_cwd);
+	if (nread < 0) {
+		die("cannot read symbolic link target %s", fd_path);
+	}
+	if (nread == sizeof orig_cwd) {
+		die("cannot fit symbolic link target %s", fd_path);
+	}
+
+	/* Open path corresponding to the original working directory in the
+	 * execution environment. This may normally fail if the path no longer
+	 * exists here, this is not a fatal error. It may also fail if we don't
+	 * have permissions to view that path, that is not a fatal error either. */
+	int inner_cwd_fd SC_CLEANUP(sc_cleanup_close) = -1;
+	inner_cwd_fd =
+	    open(orig_cwd, O_PATH | O_DIRECTORY | O_CLOEXEC | O_NOFOLLOW);
+	if (inner_cwd_fd < 0) {
+		if (errno == EPERM || errno == EACCES || errno == ENOENT) {
+			debug
+			    ("cannot open path of the original working directory %s",
+			     orig_cwd);
+			goto the_void;
+		}
+		/* Any error other than the three above is unexpected. */
+		die("cannot open path of the original working directory %s",
+		    orig_cwd);
+	}
+
+	/* The original working directory exists in the execution environment
+	 * which lets us check if it points to the same inode as before. */
+	struct stat file_info_inner;
+	if (fstat(inner_cwd_fd, &file_info_inner) < 0) {
+		die("cannot stat path of working directory in the execution environment");
+	}
+
+	/* Note that we cannot use proc_state->orig_cwd_fd as that points to the
+	 * directory but in another mount namespace and using that causes
+	 * weird and undesired effects.
+	 *
+	 * By the time this code runs we are already running as the
+	 * designated user so UNIX permissions are in effect. */
+	if (fchdir(inner_cwd_fd) < 0) {
+		if (errno == EPERM || errno == EACCES) {
+			debug("cannot access original working directory %s",
+			      orig_cwd);
+			goto the_void;
+		}
+		die("cannot restore original working directory via path");
+	}
+	/* The distinction below is only logged and not acted upon. Perhaps someday
+	 * this will be somehow communicated to cooperating applications that can
+	 * instruct the user and avoid potential confusion. This mostly applies to
+	 * tools that are invoked from /tmp. */
+	if (proc_state->file_info_orig_cwd.st_dev ==
+	    file_info_inner.st_dev
+	    && proc_state->file_info_orig_cwd.st_ino ==
+	    file_info_inner.st_ino) {
+		/* The path of the original working directory points to the same
+		 * inode as before. */
+		debug("working directory restored to %s", orig_cwd);
+	} else {
+		/* The path of the original working directory points to a different
+		 * inode inside inside the execution environment than the host
+		 * environment. */
+		debug("working directory re-interpreted to %s", orig_cwd);
+	}
+	return;
+ the_void:
+	/* The void directory may be absent. On core18 system, and other
+	 * systems using bootable base snap coupled with snapd snap, the
+	 * /var/lib/snapd directory structure is not provided with packages but
+	 * created on demand. */
+	void_dir_fd = open(sc_void_dir,
+			   O_DIRECTORY | O_PATH | O_NOFOLLOW | O_CLOEXEC);
+	if (void_dir_fd < 0 && errno == ENOENT) {
+		if (mkdir(sc_void_dir, 0111) < 0) {
+			die("cannot create void directory: %s", sc_void_dir);
+		}
+		if (lchown(sc_void_dir, 0, 0) < 0) {
+			die("cannot change ownership of void directory %s",
+			    sc_void_dir);
+		}
+		void_dir_fd = open(sc_void_dir,
+				   O_DIRECTORY | O_PATH | O_NOFOLLOW |
+				   O_CLOEXEC);
+	}
+	if (void_dir_fd < 0) {
+		die("cannot open the void directory %s", sc_void_dir);
+	}
+	if (fchdir(void_dir_fd) < 0) {
+		die("cannot move to void directory %s", sc_void_dir);
+	}
+	debug("the process has been placed in the special void directory");
+}
+
+/**
+ *  sc_cleanup_preserved_process_state releases system resources.
+**/
+static void sc_cleanup_preserved_process_state(sc_preserved_process_state *
+					       proc_state)
+{
+	sc_cleanup_close(&proc_state->orig_cwd_fd);
 }
 
 static void enter_classic_execution_environment(void);
@@ -145,9 +300,12 @@ static void enter_non_classic_execution_environment(sc_invocation * inv,
 int main(int argc, char **argv)
 {
 	// Use our super-defensive parser to figure out what we've been asked to do.
-	struct sc_error *err = NULL;
+	sc_error *err = NULL;
 	struct sc_args *args SC_CLEANUP(sc_cleanup_args) = NULL;
-	sc_preserved_process_state proc_state;
+	sc_preserved_process_state proc_state
+	    SC_CLEANUP(sc_cleanup_preserved_process_state) = {
+		.orig_umask = 0,.orig_cwd_fd = -1
+	};
 	args = sc_nonfatal_parse_args(&argc, &argv, &err);
 	sc_die_on_error(err);
 
@@ -175,8 +333,12 @@ int main(int argc, char **argv)
 	// Who are we?
 	uid_t real_uid, effective_uid, saved_uid;
 	gid_t real_gid, effective_gid, saved_gid;
-	getresuid(&real_uid, &effective_uid, &saved_uid);
-	getresgid(&real_gid, &effective_gid, &saved_gid);
+	if (getresuid(&real_uid, &effective_uid, &saved_uid) != 0) {
+		die("getresuid failed");
+	}
+	if (getresgid(&real_gid, &effective_gid, &saved_gid) != 0) {
+		die("getresgid failed");
+	}
 	debug("ruid: %d, euid: %d, suid: %d",
 	      real_uid, effective_uid, saved_uid);
 	debug("rgid: %d, egid: %d, sgid: %d",
@@ -201,12 +363,16 @@ int main(int argc, char **argv)
 	char *snap_context SC_CLEANUP(sc_cleanup_string) = NULL;
 	// Do no get snap context value if running a hook (we don't want to overwrite hook's SNAP_COOKIE)
 	if (!sc_is_hook_security_tag(invocation.security_tag)) {
-		struct sc_error *err SC_CLEANUP(sc_cleanup_error) = NULL;
+		sc_error *err SC_CLEANUP(sc_cleanup_error) = NULL;
 		snap_context =
 		    sc_cookie_get_from_snapd(invocation.snap_instance, &err);
-		if (err != NULL) {
-			error("%s\n", sc_error_msg(err));
-		}
+		/* While the cookie is normally present due to various protection
+		 * mechanisms ensuring its creation from snapd, we are not considering
+		 * it a critical error for snap-confine in the case it is absent. When
+		 * absent snaps attempting to utilize snapctl to interact with snapd
+		 * will fail but it is more important to run a little than break
+		 * entirely in case snapd-side code is incorrect. Therefore error
+		 * information is collected but discarded. */
 	}
 
 	struct sc_apparmor apparmor;
@@ -256,18 +422,48 @@ int main(int argc, char **argv)
 	// For classic and confined snaps
 	sc_selinux_set_snap_execcon();
 #endif
-	if (sc_apply_seccomp_profile_for_security_tag(invocation.security_tag)) {
-		/* If the process is not explicitly unconfined then load the global
-		 * profile as well. */
-		sc_apply_global_seccomp_profile();
-	}
 	if (snap_context != NULL) {
 		setenv("SNAP_COOKIE", snap_context, 1);
 		// for compatibility, if facing older snapd.
 		setenv("SNAP_CONTEXT", snap_context, 1);
 	}
+	// Normally setuid/setgid not only permanently drops the UID/GID, but
+	// also clears the capabilities bounding sets (see "Effect of user ID
+	// changes on capabilities" in 'man capabilities'). To load a seccomp
+	// profile, we need either CAP_SYS_ADMIN or PR_SET_NO_NEW_PRIVS. Since
+	// NNP causes issues with AppArmor and exec transitions in certain
+	// snapd interfaces, keep CAP_SYS_ADMIN temporarily when we are
+	// permanently dropping privileges.
+	if (getresuid(&real_uid, &effective_uid, &saved_uid) != 0) {
+		die("getresuid failed");
+	}
+	debug("ruid: %d, euid: %d, suid: %d",
+	      real_uid, effective_uid, saved_uid);
+	struct __user_cap_header_struct hdr =
+	    { _LINUX_CAPABILITY_VERSION_3, 0 };
+	struct __user_cap_data_struct cap_data[2] = { {0} };
+
+	// At this point in time, if we are going to permanently drop our
+	// effective_uid will not be '0' but our saved_uid will be '0'. Detect
+	// and save when we are in the this state so know when to setup the
+	// capabilities bounding set, regain CAP_SYS_ADMIN and later drop it.
+	bool keep_sys_admin = effective_uid != 0 && saved_uid == 0;
+	if (keep_sys_admin) {
+		debug("setting capabilities bounding set");
+		// clear all 32 bit caps but SYS_ADMIN, with none inheritable
+		cap_data[0].effective = CAP_TO_MASK(CAP_SYS_ADMIN);
+		cap_data[0].permitted = cap_data[0].effective;
+		cap_data[0].inheritable = 0;
+		// clear all 64 bit caps
+		cap_data[1].effective = 0;
+		cap_data[1].permitted = 0;
+		cap_data[1].inheritable = 0;
+		if (capset(&hdr, cap_data) != 0) {
+			die("capset failed");
+		}
+	}
 	// Permanently drop if not root
-	if (geteuid() == 0) {
+	if (effective_uid == 0) {
 		// Note that we do not call setgroups() here because its ok
 		// that the user keeps the groups he already belongs to
 		if (setgid(real_gid) != 0)
@@ -279,6 +475,32 @@ int main(int argc, char **argv)
 			die("permanently dropping privs did not work");
 		if (real_uid != 0 && (getgid() == 0 || getegid() == 0))
 			die("permanently dropping privs did not work");
+	}
+	// Now that we've permanently dropped, regain SYS_ADMIN
+	if (keep_sys_admin) {
+		debug("regaining SYS_ADMIN");
+		cap_data[0].effective = CAP_TO_MASK(CAP_SYS_ADMIN);
+		cap_data[0].permitted = cap_data[0].effective;
+		if (capset(&hdr, cap_data) != 0) {
+			die("capset regain failed");
+		}
+	}
+	// Now that we've dropped and regained SYS_ADMIN, we can load the
+	// seccomp profiles.
+	if (sc_apply_seccomp_profile_for_security_tag(invocation.security_tag)) {
+		// If the process is not explicitly unconfined then load the
+		// global profile as well.
+		sc_apply_global_seccomp_profile();
+	}
+	// Even though we set inheritable to 0, let's clear SYS_ADMIN
+	// explicitly
+	if (keep_sys_admin) {
+		debug("clearing SYS_ADMIN");
+		cap_data[0].effective = 0;
+		cap_data[0].permitted = cap_data[0].effective;
+		if (capset(&hdr, cap_data) != 0) {
+			die("capset clear failed");
+		}
 	}
 	// and exec the new executable
 	argv[0] = (char *)invocation.executable;
@@ -347,8 +569,14 @@ static void enter_non_classic_execution_environment(sc_invocation * inv,
 	struct sc_mount_ns *group = NULL;
 	group = sc_open_mount_ns(inv->snap_instance);
 
-	/* Apply fallback behaviors, if any apply. */
-	sc_maybe_pick_alt_base_snap(inv);
+	// Init and check rootfs_dir, apply any fallback behaviors.
+	sc_check_rootfs_dir(inv);
+
+	/** Populate and join the device control group. */
+	struct snappy_udev udev_s;
+	if (snappy_udev_init(inv->security_tag, &udev_s) == 0)
+		setup_devices_cgroup(inv->security_tag, &udev_s);
+	snappy_udev_cleanup(&udev_s);
 
 	/**
 	 * is_normal_mode controls if we should pivot into the base snap.
@@ -378,7 +606,7 @@ static void enter_non_classic_execution_environment(sc_invocation * inv,
 	 **/
 	sc_distro distro = sc_classify_distro();
 	inv->is_normal_mode = distro != SC_DISTRO_CORE16 ||
-		!sc_streq(inv->orig_base_snap_name, "core");
+	    !sc_streq(inv->orig_base_snap_name, "core");
 
 	/* Stale mount namespace discarded or no mount namespace to
 	   join. We need to construct a new mount namespace ourselves.
@@ -394,6 +622,7 @@ static void enter_non_classic_execution_environment(sc_invocation * inv,
 			die("cannot unshare the mount namespace");
 		}
 		sc_populate_mount_ns(aa, snap_update_ns_fd, inv);
+		sc_store_ns_info(inv);
 
 		/* Preserve the mount namespace. */
 		sc_preserve_populated_mount_ns(group);
@@ -483,8 +712,4 @@ static void enter_non_classic_execution_environment(sc_invocation * inv,
 			die("cannot set environment variable '%s'", tmpd[i]);
 		}
 	}
-	struct snappy_udev udev_s;
-	if (snappy_udev_init(inv->security_tag, &udev_s) == 0)
-		setup_devices_cgroup(inv->security_tag, &udev_s);
-	snappy_udev_cleanup(&udev_s);
 }

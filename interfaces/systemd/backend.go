@@ -69,7 +69,7 @@ func (b *Backend) Setup(snapInfo *snap.Info, confinement interfaces.ConfinementO
 	}
 	glob := interfaces.InterfaceServiceName(snapName, "*")
 
-	systemd := sysd.New(dirs.GlobalRootDir, &dummyReporter{})
+	systemd := sysd.New(dirs.GlobalRootDir, sysd.SystemMode, &dummyReporter{})
 	// We need to be carefully here and stop all removed service units before
 	// we remove their files as otherwise systemd is not able to disable/stop
 	// them anymore.
@@ -100,7 +100,7 @@ func (b *Backend) Setup(snapInfo *snap.Info, confinement interfaces.ConfinementO
 
 // Remove disables, stops and removes systemd services of a given snap.
 func (b *Backend) Remove(snapName string) error {
-	systemd := sysd.New(dirs.GlobalRootDir, &dummyReporter{})
+	systemd := sysd.New(dirs.GlobalRootDir, sysd.SystemMode, &dummyReporter{})
 	// Remove all the files matching snap glob
 	glob := interfaces.InterfaceServiceName(snapName, "*")
 	_, removed, errEnsure := osutil.EnsureDirState(dirs.SnapServicesDir, glob, nil)

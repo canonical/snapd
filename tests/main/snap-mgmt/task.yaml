@@ -71,16 +71,16 @@ execute: |
     done
 
     echo "State file is gone"
-    ! test -f /var/lib/snapd/state.json
+    not test -f /var/lib/snapd/state.json
     echo "And so is the system key"
-    ! test -f /var/lib/snapd/system-key
+    not test -f /var/lib/snapd/system-key
 
     echo "Preserved namespaces directory is not mounted"
-    ! MATCH "/run/snapd/ns" < /proc/mounts
+    not MATCH "/run/snapd/ns" < /proc/mounts
 
     systemctl daemon-reload
     echo "Snap *.service files are removed"
-    ! systemctl list-unit-files --type service | MATCH '^snap.test-snapd-service.*\.service'
+    systemctl list-unit-files --type service | not MATCH '^snap.test-snapd-service.*\.service'
 
     echo "No dangling service symlinks are left behind"
     test -z "$(find /etc/systemd/system/multi-user.target.wants/ -name 'snap.test-snapd-service.*')"

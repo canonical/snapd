@@ -216,18 +216,18 @@ func (s *changeSuite) TestNeededChangesTmpfsBindMountFarmUnused(c *C) {
 		{Entry: osutil.MountEntry{
 			Name:    "/var/lib/snapd/hostfs/snap/name/42/subdir/existing",
 			Dir:     "/snap/name/42/subdir/existing",
-			Options: []string{"bind", "ro", "x-snapd.needed-by=/snap/name/42/subdir", "x-snapd.synthetic"},
+			Options: []string{"bind", "ro", "x-snapd.needed-by=/snap/name/42/subdir", "x-snapd.synthetic", "x-snapd.detach"},
 		}, Action: update.Unmount},
 		{Entry: osutil.MountEntry{
 			Name:    "/snap/other/123/libs",
 			Dir:     "/snap/name/42/subdir/created",
-			Options: []string{"bind", "ro"},
+			Options: []string{"bind", "ro", "x-snapd.detach"},
 		}, Action: update.Unmount},
 		{Entry: osutil.MountEntry{
 			Name:    "tmpfs",
 			Dir:     "/snap/name/42/subdir",
 			Type:    "tmpfs",
-			Options: []string{"x-snapd.needed-by=/snap/name/42/subdir", "x-snapd.synthetic"},
+			Options: []string{"x-snapd.needed-by=/snap/name/42/subdir", "x-snapd.synthetic", "x-snapd.detach"},
 		}, Action: update.Unmount},
 	})
 }
@@ -383,47 +383,51 @@ func (s *changeSuite) TestRuntimeUsingSymlinks(c *C) {
 	// to /opt with a symbolic link. This is the initial state of the
 	// application in version v1.
 	initial := mustReadProfile("")
-	desired_v1 := mustReadProfile(
+	desiredV1 := mustReadProfile(
 		"none /opt/runtime none x-snapd.kind=symlink,x-snapd.symlink=/snap/app/x1/runtime,x-snapd.origin=layout 0 0\n" +
 			"/snap/runtime/x1/opt/runtime /snap/app/x1/runtime none bind,ro 0 0\n")
 	// The changes we compute are trivial, simply perform each operation in order.
-	changes := update.NeededChanges(initial, desired_v1)
+	changes := update.NeededChanges(initial, desiredV1)
 	c.Assert(changes, DeepEquals, []*update.Change{
-		{Entry: desired_v1.Entries[0], Action: update.Mount},
-		{Entry: desired_v1.Entries[1], Action: update.Mount},
+		{Entry: desiredV1.Entries[0], Action: update.Mount},
+		{Entry: desiredV1.Entries[1], Action: update.Mount},
 	})
 	// After performing both changes we have a new synthesized entry. We get an
 	// extra writable mimic over /opt so that we can add our symlink. The
 	// content sharing into $SNAP is applied as expected since the snap ships
 	// the required mount point.
-	current_v1 := mustReadProfile(
+	currentV1 := mustReadProfile(
 		"/snap/runtime/x1/opt/runtime /snap/app/x1/runtime none bind,ro 0 0\n" +
 			"none /opt/runtime none x-snapd.kind=symlink,x-snapd.symlink=/snap/app/x1/runtime,x-snapd.origin=layout 0 0\n" +
 			"tmpfs /opt tmpfs x-snapd.synthetic,x-snapd.needed-by=/opt/runtime,mode=0755,uid=0,gid=0 0")
 
 	// We now proceed to replace app v1 with v2 which uses a bind mount instead
 	// of a symlink. First, let's start with the updated desired profile:
-	desired_v2 := mustReadProfile(
+	desiredV2 := mustReadProfile(
 		"/snap/app/x2/runtime /opt/runtime none rbind,rw,x-snapd.origin=layout 0 0\n" +
 			"/snap/runtime/x1/opt/runtime /snap/app/x2/runtime none bind,ro 0 0\n")
 
 	// Let's see what the update algorithm thinks.
-	changes = update.NeededChanges(current_v1, desired_v2)
+	changes = update.NeededChanges(currentV1, desiredV2)
+	// e0 and e1 are like currentV1.Entries[0] and [1] but with different options.
+	currentV1Entries0 := currentV1.Entries[0]
+	currentV1Entries0.Options = append([]string(nil), currentV1Entries0.Options...)
+	currentV1Entries0.Options = append(currentV1Entries0.Options, osutil.XSnapdDetach())
 	c.Assert(changes, DeepEquals, []*update.Change{
 		// We are dropping the content interface bind mount because app changed revision
-		{Entry: current_v1.Entries[0], Action: update.Unmount},
+		{Entry: currentV1Entries0, Action: update.Unmount},
 		// We are also dropping the symlink we had in /opt/runtime
-		{Entry: current_v1.Entries[1], Action: update.Unmount},
+		{Entry: currentV1.Entries[1], Action: update.Unmount},
 		// But, we are keeping the /opt tmpfs because we still want /opt/runtime to exist (neat!)
-		{Entry: current_v1.Entries[2], Action: update.Keep},
+		{Entry: currentV1.Entries[2], Action: update.Keep},
 		// We are adding a new bind mount for /opt/runtime
-		{Entry: desired_v2.Entries[0], Action: update.Mount},
+		{Entry: desiredV2.Entries[0], Action: update.Mount},
 		// We also adding the updated path of the content interface (for revision x2)
-		{Entry: desired_v2.Entries[1], Action: update.Mount},
+		{Entry: desiredV2.Entries[1], Action: update.Mount},
 	})
 
 	// After performing all those changes this is the profile we observe.
-	current_v2 := mustReadProfile(
+	currentV2 := mustReadProfile(
 		"tmpfs /opt tmpfs x-snapd.synthetic,x-snapd.needed-by=/opt/runtime,mode=0755,uid=0,gid=0 0 0\n" +
 			"/snap/app/x2/runtime /opt/runtime none rbind,rw,x-snapd.origin=layout 0 0\n" +
 			"/snap/runtime/x1/opt/runtime /snap/app/x2/runtime none bind,ro 0 0\n")
@@ -431,18 +435,24 @@ func (s *changeSuite) TestRuntimeUsingSymlinks(c *C) {
 	// So far so good. To trigger the issue we now revert or refresh to v1
 	// again. Let's see what happens here. The desired profiles are already
 	// known so let's see what the algorithm thinks now.
-	changes = update.NeededChanges(current_v2, desired_v1)
+	changes = update.NeededChanges(currentV2, desiredV1)
+	currentV2Entries1 := currentV2.Entries[1]
+	currentV2Entries1.Options = append([]string(nil), currentV2Entries1.Options...)
+	currentV2Entries1.Options = append(currentV2Entries1.Options, osutil.XSnapdDetach())
+	currentV2Entries2 := currentV2.Entries[2]
+	currentV2Entries2.Options = append([]string(nil), currentV2Entries2.Options...)
+	currentV2Entries2.Options = append(currentV2Entries2.Options, osutil.XSnapdDetach())
 	c.Assert(changes, DeepEquals, []*update.Change{
 		// We are, again, dropping the content interface bind mount because app changed revision
-		{Entry: current_v2.Entries[2], Action: update.Unmount},
+		{Entry: currentV2Entries2, Action: update.Unmount},
 		// We are also dropping the bind mount from /opt/runtime since we want a symlink instead
-		{Entry: current_v2.Entries[1], Action: update.Unmount},
+		{Entry: currentV2Entries1, Action: update.Unmount},
 		// Again, we reuse the tmpfs.
-		{Entry: current_v2.Entries[0], Action: update.Keep},
+		{Entry: currentV2.Entries[0], Action: update.Keep},
 		// We are providing a symlink /opt/runtime -> to $SNAP/runtime.
-		{Entry: desired_v1.Entries[0], Action: update.Mount},
+		{Entry: desiredV1.Entries[0], Action: update.Mount},
 		// We are bind mounting the runtime from another snap into $SNAP/runtime
-		{Entry: desired_v1.Entries[1], Action: update.Mount},
+		{Entry: desiredV1.Entries[1], Action: update.Mount},
 	})
 
 	// The problem is that the tmpfs contains leftovers from the things we
@@ -478,11 +488,39 @@ func (s *changeSuite) TestPerformFilesystemMount(c *C) {
 	})
 }
 
+// Change.Perform wants to mount a filesystem with sharing changes.
+func (s *changeSuite) TestPerformFilesystemMountAndShareChanges(c *C) {
+	s.sys.InsertOsLstatResult(`lstat "/target"`, testutil.FileInfoDir)
+	chg := &update.Change{Action: update.Mount, Entry: osutil.MountEntry{Name: "device", Dir: "/target", Type: "type", Options: []string{"shared"}}}
+	synth, err := chg.Perform(s.as)
+	c.Assert(err, IsNil)
+	c.Assert(synth, HasLen, 0)
+	c.Assert(s.sys.RCalls(), testutil.SyscallsEqual, []testutil.CallResultError{
+		{C: `lstat "/target"`, R: testutil.FileInfoDir},
+		{C: `mount "device" "/target" "type" 0 ""`},
+		{C: `mount "none" "/target" "" MS_SHARED ""`},
+	})
+}
+
 // Change.Perform wants to mount a filesystem but it fails.
 func (s *changeSuite) TestPerformFilesystemMountWithError(c *C) {
 	s.sys.InsertOsLstatResult(`lstat "/target"`, testutil.FileInfoDir)
 	s.sys.InsertFault(`mount "device" "/target" "type" 0 ""`, errTesting)
 	chg := &update.Change{Action: update.Mount, Entry: osutil.MountEntry{Name: "device", Dir: "/target", Type: "type"}}
+	synth, err := chg.Perform(s.as)
+	c.Assert(err, Equals, errTesting)
+	c.Assert(synth, HasLen, 0)
+	c.Assert(s.sys.RCalls(), testutil.SyscallsEqual, []testutil.CallResultError{
+		{C: `lstat "/target"`, R: testutil.FileInfoDir},
+		{C: `mount "device" "/target" "type" 0 ""`, E: errTesting},
+	})
+}
+
+// Change.Perform wants to mount a filesystem with sharing changes but mounting fails.
+func (s *changeSuite) TestPerformFilesystemMountAndShareWithError(c *C) {
+	s.sys.InsertOsLstatResult(`lstat "/target"`, testutil.FileInfoDir)
+	s.sys.InsertFault(`mount "device" "/target" "type" 0 ""`, errTesting)
+	chg := &update.Change{Action: update.Mount, Entry: osutil.MountEntry{Name: "device", Dir: "/target", Type: "type", Options: []string{"shared"}}}
 	synth, err := chg.Perform(s.as)
 	c.Assert(err, Equals, errTesting)
 	c.Assert(synth, HasLen, 0)
@@ -873,6 +911,34 @@ func (s *changeSuite) TestPerformDirectoryBindMount(c *C) {
 		{C: `mount "/proc/self/fd/4" "/proc/self/fd/5" "" MS_BIND ""`},
 		{C: `close 5`},
 		{C: `close 4`},
+	})
+}
+
+// Change.Perform wants to bind mount a directory with sharing changes.
+func (s *changeSuite) TestPerformRecursiveDirectorySharedBindMount(c *C) {
+	s.sys.InsertOsLstatResult(`lstat "/source"`, testutil.FileInfoDir)
+	s.sys.InsertOsLstatResult(`lstat "/target"`, testutil.FileInfoDir)
+	s.sys.InsertFstatResult(`fstat 4 <ptr>`, syscall.Stat_t{})
+	s.sys.InsertFstatResult(`fstat 5 <ptr>`, syscall.Stat_t{})
+	chg := &update.Change{Action: update.Mount, Entry: osutil.MountEntry{Name: "/source", Dir: "/target", Options: []string{"rshared", "rbind"}}}
+	synth, err := chg.Perform(s.as)
+	c.Assert(err, IsNil)
+	c.Assert(synth, HasLen, 0)
+	c.Assert(s.sys.RCalls(), testutil.SyscallsEqual, []testutil.CallResultError{
+		{C: `lstat "/target"`, R: testutil.FileInfoDir},
+		{C: `lstat "/source"`, R: testutil.FileInfoDir},
+		{C: `open "/" O_NOFOLLOW|O_CLOEXEC|O_DIRECTORY|O_PATH 0`, R: 3},
+		{C: `openat 3 "source" O_NOFOLLOW|O_CLOEXEC|O_PATH 0`, R: 4},
+		{C: `fstat 4 <ptr>`, R: syscall.Stat_t{}},
+		{C: `close 3`},
+		{C: `open "/" O_NOFOLLOW|O_CLOEXEC|O_DIRECTORY|O_PATH 0`, R: 3},
+		{C: `openat 3 "target" O_NOFOLLOW|O_CLOEXEC|O_PATH 0`, R: 5},
+		{C: `fstat 5 <ptr>`, R: syscall.Stat_t{}},
+		{C: `close 3`},
+		{C: `mount "/proc/self/fd/4" "/proc/self/fd/5" "" MS_BIND|MS_REC ""`},
+		{C: `close 5`},
+		{C: `close 4`},
+		{C: `mount "none" "/target" "" MS_REC|MS_SHARED ""`},
 	})
 }
 
@@ -2347,9 +2413,14 @@ func (s *changeSuite) TestPerformedChangesAreTracked(c *C) {
 	chg = &update.Change{Action: update.Unmount, Entry: osutil.MountEntry{Name: "device", Dir: "/target", Type: "type"}}
 	_, err = chg.Perform(s.as)
 	c.Assert(err, IsNil)
+
+	chg = &update.Change{Action: update.Keep, Entry: osutil.MountEntry{Name: "tmpfs", Dir: "/target", Type: "tmpfs"}}
+	_, err = chg.Perform(s.as)
+	c.Assert(err, IsNil)
 	c.Assert(s.as.PastChanges(), DeepEquals, []*update.Change{
 		// past changes stack in order.
 		{Action: update.Mount, Entry: osutil.MountEntry{Name: "device", Dir: "/target", Type: "type"}},
 		{Action: update.Unmount, Entry: osutil.MountEntry{Name: "device", Dir: "/target", Type: "type"}},
+		{Action: update.Keep, Entry: osutil.MountEntry{Name: "tmpfs", Dir: "/target", Type: "tmpfs"}},
 	})
 }

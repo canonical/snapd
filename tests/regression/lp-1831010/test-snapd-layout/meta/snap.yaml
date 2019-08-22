@@ -1,0 +1,10 @@
+name: test-snapd-layout
+version: 1
+layout:
+  $SNAP/b/c:
+    bind: $SNAP/a
+  $SNAP/d:
+    bind: $SNAP/b
+apps:
+  sh:
+    command: bin/sh

@@ -24,7 +24,7 @@ execute: |
     if test-snapd-tools.echo hello 2>snap-confine.stderr; then
         echo "test-snapd-tools.echo should fail to run, test broken"
     fi
-    MATCH 'cannot proceed without base snap core: No such file or directory' < snap-confine.stderr
+    MATCH 'cannot locate base snap core: No such file or directory' < snap-confine.stderr
     mv $SNAP_MOUNT_DIR/core/current.renamed $SNAP_MOUNT_DIR/core/current
 
     echo "Test nvidia device fix"
@@ -38,8 +38,8 @@ execute: |
     echo "Non nvidia files are still there"
     test -f /run/udev/tags/snap_test-snapd-tools_echo/c226:0
     echo "But nvidia files are gone"
-    ! test -f /run/udev/tags/snap_test-snapd-tools_echo/+module:nvidia
-    ! test -f /run/udev/tags/snap_test-snapd-tools_echo/+module:nvidia_modeset
+    not test -f /run/udev/tags/snap_test-snapd-tools_echo/+module:nvidia
+    not test -f /run/udev/tags/snap_test-snapd-tools_echo/+module:nvidia_modeset
 
     echo "Ensure apparmor profile for snap-confine is parsable"
     for f in /etc/apparmor.d/usr.lib.snapd.snap-confine*; do

@@ -120,11 +120,6 @@ network packet,
 #include <abstractions/nameservice>
 /run/systemd/resolve/stub-resolv.conf r,
 
-# Explicitly deny plugging snaps from ptracing the slot to silence noisy
-# denials. Neither the NetworkManager service nor nmcli require ptrace
-# trace for full functionality.
-deny ptrace (trace) peer=###PLUG_SECURITY_TAGS###,
-
 # DBus accesses
 #include <abstractions/dbus-strict>
 
@@ -261,6 +256,13 @@ dbus (receive, send)
     bus=system
     path=/org/freedesktop/NetworkManager{,/**}
     peer=(label=###PLUG_SECURITY_TAGS###),
+
+# Explicitly deny ptrace to silence noisy denials. These denials happen when NM
+# tries to access /proc/<peer_pid>/stat.  What apparmor prevents is showing
+# internal process addresses that live in that file, but that has no adverse
+# effects for NetworkManager, which just wants to find out the start time of the
+# process.
+deny ptrace (trace) peer=###PLUG_SECURITY_TAGS###,
 `
 
 const networkManagerConnectedPlugAppArmor = `

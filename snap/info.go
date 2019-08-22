@@ -203,7 +203,7 @@ type Info struct {
 	SuggestedName string
 	InstanceKey   string
 	Version       string
-	Type          Type
+	SnapType      Type
 	Architectures []string
 	Assumes       []string
 
@@ -224,9 +224,6 @@ type Info struct {
 	Hooks            map[string]*HookInfo
 	Plugs            map[string]*PlugInfo
 	Slots            map[string]*SlotInfo
-
-	toplevelPlugs []*PlugInfo
-	toplevelSlots []*SlotInfo
 
 	// Plugs or slots with issues (they are not included in Plugs or Slots)
 	BadInterfaces map[string]string // slot or plug => message
@@ -257,6 +254,10 @@ type Info struct {
 
 	// The list of common-ids from all apps of the snap
 	CommonIDs []string
+
+	// List of system users (usernames) this snap may use. The group
+	// of the same name must also exist.
+	SystemUsernames map[string]*SystemUsernameInfo
 }
 
 // StoreAccount holds information about a store account, for example
@@ -358,6 +359,13 @@ func (s *Info) Description() string {
 		return s.EditedDescription
 	}
 	return s.OriginalDescription
+}
+
+func (s *Info) GetType() Type {
+	if s.SnapType == TypeApp && IsSnapd(s.SnapID) {
+		return TypeSnapd
+	}
+	return s.SnapType
 }
 
 // MountDir returns the base directory of the snap where it gets mounted.
@@ -661,7 +669,7 @@ type SlotInfo struct {
 	// using properties of a hotplugged device so that the same
 	// slot may be made available if the device is reinserted.
 	// It's empty for regular slots.
-	HotplugKey string
+	HotplugKey HotplugKey
 }
 
 // SocketInfo provides information on application sockets.
@@ -753,7 +761,7 @@ type AppInfo struct {
 
 // ScreenshotInfo provides information about a screenshot.
 type ScreenshotInfo struct {
-	URL    string `json:"url"`
+	URL    string `json:"url,omitempty"`
 	Width  int64  `json:"width,omitempty"`
 	Height int64  `json:"height,omitempty"`
 	Note   string `json:"note,omitempty"`
@@ -771,19 +779,7 @@ type MediaInfos []MediaInfo
 const ScreenshotsDeprecationNotice = `'screenshots' is deprecated; use 'media' instead. More info at https://forum.snapcraft.io/t/8086`
 
 func (mis MediaInfos) Screenshots() []ScreenshotInfo {
-	shots := make([]ScreenshotInfo, 0, len(mis))
-	for _, mi := range mis {
-		if mi.Type != "screenshot" {
-			continue
-		}
-		shots = append(shots, ScreenshotInfo{
-			URL:    mi.URL,
-			Width:  mi.Width,
-			Height: mi.Height,
-			Note:   ScreenshotsDeprecationNotice,
-		})
-	}
-	return shots
+	return []ScreenshotInfo{{Note: ScreenshotsDeprecationNotice}}
 }
 
 func (mis MediaInfos) IconURL() string {
@@ -807,6 +803,21 @@ type HookInfo struct {
 	CommandChain []string
 
 	Explicit bool
+}
+
+// SystemUsernameInfo provides information about a system username (ie, a
+// UNIX user and group with the same name). The scope defines visibility of the
+// username wrt the snap and the system. Defined scopes:
+// - shared    static, snapd-managed user/group shared between host and all
+//             snaps
+// - private   static, snapd-managed user/group private to a particular snap
+//             (currently not implemented)
+// - external  dynamic user/group shared between host and all snaps (currently
+//             not implented)
+type SystemUsernameInfo struct {
+	Name  string
+	Scope string
+	Attrs map[string]interface{}
 }
 
 // File returns the path to the *.socket file
@@ -931,8 +942,8 @@ func envFromMap(envMap *strutil.OrderedMap) []string {
 	return env
 }
 
-func infoFromSnapYamlWithSideInfo(meta []byte, si *SideInfo) (*Info, error) {
-	info, err := InfoFromSnapYaml(meta)
+func infoFromSnapYamlWithSideInfo(meta []byte, si *SideInfo, strk *scopedTracker) (*Info, error) {
+	info, err := infoFromSnapYaml(meta, strk)
 	if err != nil {
 		return nil, err
 	}
@@ -1004,7 +1015,8 @@ func ReadInfo(name string, si *SideInfo) (*Info, error) {
 		return nil, err
 	}
 
-	info, err := infoFromSnapYamlWithSideInfo(meta, si)
+	strk := new(scopedTracker)
+	info, err := infoFromSnapYamlWithSideInfo(meta, si, strk)
 	if err != nil {
 		return nil, &invalidMetaError{Snap: name, Revision: si.Revision, Msg: err.Error()}
 	}
@@ -1017,7 +1029,7 @@ func ReadInfo(name string, si *SideInfo) (*Info, error) {
 		return nil, &invalidMetaError{Snap: name, Revision: si.Revision, Msg: err.Error()}
 	}
 
-	bindImplicitHooks(info)
+	bindImplicitHooks(info, strk)
 
 	mountFile := MountFile(name, si.Revision)
 	st, err := os.Lstat(mountFile)
@@ -1065,7 +1077,8 @@ func ReadInfoFromSnapFile(snapf Container, si *SideInfo) (*Info, error) {
 		return nil, err
 	}
 
-	info, err := infoFromSnapYamlWithSideInfo(meta, si)
+	strk := new(scopedTracker)
+	info, err := infoFromSnapYamlWithSideInfo(meta, si, strk)
 	if err != nil {
 		return nil, err
 	}
@@ -1080,7 +1093,7 @@ func ReadInfoFromSnapFile(snapf Container, si *SideInfo) (*Info, error) {
 		return nil, err
 	}
 
-	bindImplicitHooks(info)
+	bindImplicitHooks(info, strk)
 
 	err = Validate(info)
 	if err != nil {
@@ -1157,7 +1170,7 @@ type ByType []*Info
 func (r ByType) Len() int      { return len(r) }
 func (r ByType) Swap(i, j int) { r[i], r[j] = r[j], r[i] }
 func (r ByType) Less(i, j int) bool {
-	return r[i].Type.SortsBefore(r[j].Type)
+	return r[i].GetType().SortsBefore(r[j].GetType())
 }
 
 func SortServices(apps []*AppInfo) (sorted []*AppInfo, err error) {

@@ -41,20 +41,13 @@
 #include "../libsnap-confine-private/cgroup-freezer-support.h"
 #include "../libsnap-confine-private/classic.h"
 #include "../libsnap-confine-private/cleanup-funcs.h"
+#include "../libsnap-confine-private/infofile.h"
 #include "../libsnap-confine-private/locking.h"
 #include "../libsnap-confine-private/mountinfo.h"
 #include "../libsnap-confine-private/string-utils.h"
 #include "../libsnap-confine-private/tool.h"
 #include "../libsnap-confine-private/utils.h"
 #include "user-support.h"
-
-/*!
- * The void directory.
- *
- * Snap confine moves to that directory in case it cannot retain the current
- * working directory across the pivot_root call.
- **/
-#define SC_VOID_DIR "/var/lib/snapd/void"
 
 /**
  * Directory where snap-confine keeps namespace files.
@@ -296,9 +289,70 @@ static bool should_discard_current_ns(dev_t base_snap_dev)
 }
 
 enum sc_discard_vote {
+	/**
+	 * SC_DISCARD_NO denotes that the mount namespace doesn't have to be
+	 * discarded. This happens when the base snap has not changed.
+	 **/
 	SC_DISCARD_NO = 1,
-	SC_DISCARD_YES = 2,
+	/**
+	 * SC_DISCARD_SHOULD indicates that the mount namespace should be discarded
+	 * but may be reused if it is still inhabited by processes. This only
+	 * happens when the base snap revision changes but the name of the base
+	 * snap is the same as before.
+	 **/
+	SC_DISCARD_SHOULD = 2,
+	/**
+	 * SC_DISCARD_MUST indicates that the mount namespace must be discarded
+	 * even if it still inhabited by processes. This only happens when the name
+	 * of the base snap changes.
+	 **/
+	SC_DISCARD_MUST = 3,
 };
+
+/**
+ * is_base_transition returns true if a base transition is occurring.
+ *
+ * The function inspects /run/snapd/ns/snap.$SNAP_INSTANCE_NAME.info as well
+ * as the invocation parameters of snap-confine. If the base snap name, as
+ * encoded in the info file and as described by the invocation parameters
+ * differ then a base transition is occurring. If the info file is absent or
+ * does not record the name of the base snap then transition cannot be
+ * detected.
+**/
+static bool is_base_transition(const sc_invocation * inv)
+{
+	char info_path[PATH_MAX] = { 0 };
+	sc_must_snprintf(info_path,
+			 sizeof info_path,
+			 "/run/snapd/ns/snap.%s.info", inv->snap_instance);
+
+	FILE *stream SC_CLEANUP(sc_cleanup_file) = NULL;
+	stream = fopen(info_path, "r");
+	if (stream == NULL && errno == ENOENT) {
+		// If the info file is absent then we cannot decide if a transition had
+		// occurred. For people upgrading from snap-confine without the info
+		// file, that is the best we can do.
+		return false;
+	}
+	if (stream == NULL) {
+		die("cannot open %s", info_path);
+	}
+
+	char *base_snap_name SC_CLEANUP(sc_cleanup_string) = NULL;
+	sc_error *err = NULL;
+	if (sc_infofile_get_key
+	    (stream, "base-snap-name", &base_snap_name, &err) < 0) {
+		sc_die_on_error(err);
+	}
+
+	if (base_snap_name == NULL) {
+		// If the info file doesn't record the name of the base snap then,
+		// again, we cannot decide if a transition had occurred.
+		return false;
+	}
+
+	return !sc_streq(inv->orig_base_snap_name, base_snap_name);
+}
 
 // The namespace may be stale. To check this we must actually switch into it
 // but then we use up our setns call (the kernel misbehaves if we setns twice).
@@ -310,14 +364,11 @@ static int sc_inspect_and_maybe_discard_stale_ns(int mnt_fd,
 						 int snap_discard_ns_fd)
 {
 	char base_snap_rev[PATH_MAX] = { 0 };
-	char fname[PATH_MAX] = { 0 };
 	dev_t base_snap_dev;
 	int event_fd SC_CLEANUP(sc_cleanup_close) = -1;
 
 	// Read the revision of the base snap by looking at the current symlink.
-	sc_must_snprintf(fname, sizeof fname, "%s/%s/current",
-			 SNAP_MOUNT_DIR, inv->base_snap_name);
-	if (readlink(fname, base_snap_rev, sizeof base_snap_rev) < 0) {
+	if (readlink(inv->rootfs_dir, base_snap_rev, sizeof base_snap_rev) < 0) {
 		die("cannot read current revision of snap %s",
 		    inv->snap_instance);
 	}
@@ -376,21 +427,34 @@ static int sc_inspect_and_maybe_discard_stale_ns(int mnt_fd,
 			die("cannot join preserved mount namespace");
 		}
 		// Check if the namespace needs to be discarded.
-		//
+		eventfd_t value = SC_DISCARD_NO;
+		const char *value_str = "no";
+
 		// TODO: enable this for core distributions. This is complex because on
 		// core the rootfs is mounted in initrd and is _not_ changed (no
 		// pivot_root) and the base snap is again mounted (2nd time) by
 		// systemd. This makes us end up in a situation where the outer base
 		// snap will never match the rootfs inside the mount namespace.
-		bool should_discard =
-		    inv->is_normal_mode ?
-		    should_discard_current_ns(base_snap_dev) : false;
+		if (inv->is_normal_mode
+		    && should_discard_current_ns(base_snap_dev)) {
+			value = SC_DISCARD_SHOULD;
+			value_str = "should";
 
-		// Send this back to the parent: 2 - discard, 1 - keep.
+			// The namespace is stale so also check if we must discard it due to the
+			// base snap changing. If the base snap changed, we must discard since even
+			// though currently running processes from this snap will continue to see
+			// the old base, we want new processes to use the new base. See LP:
+			// #1819875 for details.
+			if (is_base_transition(inv)) {
+				// The base snap has changed. We must discard ...
+				value = SC_DISCARD_MUST;
+				value_str = "must";
+			}
+		}
+		// Send this back to the parent: 3 - force discard 2 - prefer discard, 1 - keep.
 		// Note that we cannot just use 0 and 1 because of the semantics of eventfd(2).
-		if (eventfd_write(event_fd, should_discard ?
-				  SC_DISCARD_YES : SC_DISCARD_NO) < 0) {
-			die("cannot send information to %s preserved mount namespace", should_discard ? "discard" : "keep");
+		if (eventfd_write(event_fd, value) < 0) {
+			die("cannot send information to %s preserved mount namespace", value_str);
 		}
 		// Exit, we're done.
 		exit(0);
@@ -417,19 +481,25 @@ static int sc_inspect_and_maybe_discard_stale_ns(int mnt_fd,
 		die("support process for mount namespace inspection exited abnormally");
 	}
 	// If the namespace is up-to-date then we are done.
-	if (value == SC_DISCARD_NO) {
-		debug("preserved mount namespace can be reused");
+	switch (value) {
+	case SC_DISCARD_NO:
+		debug("preserved mount is not stale, reusing");
 		return 0;
+	case SC_DISCARD_SHOULD:
+		if (sc_cgroup_freezer_occupied(inv->snap_instance)) {
+			// Some processes are still using the namespace so we cannot discard it
+			// as that would fracture the view that the set of processes inside
+			// have on what is mounted.
+			debug
+			    ("preserved mount namespace is stale but occupied, reusing");
+			return 0;
+		}
+		break;
+	case SC_DISCARD_MUST:
+		debug
+		    ("preserved mount namespace is stale and base snap has changed, discarding");
+		break;
 	}
-	// The namespace is stale, let's check if we can discard it.
-	if (sc_cgroup_freezer_occupied(inv->snap_instance)) {
-		// Some processes are still using the namespace so we cannot discard it
-		// as that would fracture the view that the set of processes inside
-		// have on what is mounted.
-		debug("preserved mount namespace is stale but occupied");
-		return 0;
-	}
-	// The namespace is both stale and empty. We can discard it now.
 	sc_call_snap_discard_ns(snap_discard_ns_fd, inv->snap_instance);
 	return EAGAIN;
 }
@@ -487,28 +557,12 @@ int sc_join_preserved_ns(struct sc_mount_ns *group, struct sc_apparmor
 		    (mnt_fd, inv, snap_discard_ns_fd) == EAGAIN) {
 			return ESRCH;
 		}
-		// Remember the vanilla working directory so that we may attempt to restore it later.
-		char *vanilla_cwd SC_CLEANUP(sc_cleanup_string) = NULL;
-		vanilla_cwd = get_current_dir_name();
-		if (vanilla_cwd == NULL) {
-			die("cannot get the current working directory");
-		}
 		// Move to the mount namespace of the snap we're trying to start.
 		if (setns(mnt_fd, CLONE_NEWNS) < 0) {
 			die("cannot join preserved mount namespace %s",
 			    group->name);
 		}
 		debug("joined preserved mount namespace %s", group->name);
-
-		// Try to re-locate back to vanilla working directory. This can fail
-		// because that directory is no longer present.
-		if (chdir(vanilla_cwd) != 0) {
-			debug("cannot enter %s, moving to void", vanilla_cwd);
-			if (chdir(SC_VOID_DIR) != 0) {
-				die("cannot change directory to %s",
-				    SC_VOID_DIR);
-			}
-		}
 		return 0;
 	}
 	return ESRCH;
@@ -545,24 +599,11 @@ int sc_join_preserved_per_user_ns(struct sc_mount_ns *group,
 #endif
 	if (ns_statfs_buf.f_type == NSFS_MAGIC
 	    || ns_statfs_buf.f_type == PROC_SUPER_MAGIC) {
-		// TODO: refactor the cwd workflow across all of snap-confine.
-		char *vanilla_cwd SC_CLEANUP(sc_cleanup_string) = NULL;
-		vanilla_cwd = get_current_dir_name();
-		if (vanilla_cwd == NULL) {
-			die("cannot get the current working directory");
-		}
 		if (setns(mnt_fd, CLONE_NEWNS) < 0) {
 			die("cannot join preserved per-user mount namespace %s",
 			    group->name);
 		}
 		debug("joined preserved mount namespace %s", group->name);
-		if (chdir(vanilla_cwd) != 0) {
-			debug("cannot enter %s, moving to void", vanilla_cwd);
-			if (chdir(SC_VOID_DIR) != 0) {
-				die("cannot change directory to %s",
-				    SC_VOID_DIR);
-			}
-		}
 		return 0;
 	}
 	return ESRCH;
@@ -650,8 +691,24 @@ static void helper_main(struct sc_mount_ns *group, struct sc_apparmor *apparmor,
 	if (kill(parent, 0) < 0) {
 		switch (errno) {
 		case ESRCH:
+			// When snap-confine executes it will fork a helper process. That
+			// process establishes an elaborate dance to ensure both itself and
+			// the parent are operating exactly as specified, so that no
+			// processes are left behind for unbound amount of time. As a part
+			// of that dance the child pings the parent to ensure it is still
+			// alive after establishing a notification signal to be sent in
+			// case the parent dies. This is a race avoidance mechanism, we set
+			// up the notification and then check if the parent is alive by the
+			// time we are done.
+			//
+			// In the case when the parent does go away we used to call
+			// abort(). On some distributions this would trigger an unclean
+			// process termination error report to be sent. One such example is
+			// the Ubuntu error tracker. Since the parent process can be
+			// legitimately interrupted and killed, this should not generate an
+			// error report. As such, perform clean exit in this specific case.
 			debug("parent process has terminated");
-			abort();
+			exit(0);
 		default:
 			die("cannot confirm that parent process is alive");
 			break;
@@ -808,4 +865,24 @@ void sc_wait_for_helper(struct sc_mount_ns *group)
 {
 	sc_message_capture_helper(group, HELPER_CMD_EXIT);
 	sc_wait_for_capture_helper(group);
+}
+
+void sc_store_ns_info(const sc_invocation * inv)
+{
+	FILE *stream SC_CLEANUP(sc_cleanup_file) = NULL;
+	char info_path[PATH_MAX] = { 0 };
+	sc_must_snprintf(info_path, sizeof info_path,
+			 "/run/snapd/ns/snap.%s.info", inv->snap_instance);
+	stream = fopen(info_path, "w");
+	if (stream == NULL) {
+		die("cannot open %s", info_path);
+	}
+	fprintf(stream, "base-snap-name=%s\n", inv->orig_base_snap_name);
+	if (ferror(stream) != 0) {
+		die("I/O error when writing to %s", info_path);
+	}
+	if (fflush(stream) == EOF) {
+		die("cannot flush %s", info_path);
+	}
+	debug("saved mount namespace meta-data to %s", info_path);
 }

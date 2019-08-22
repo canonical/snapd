@@ -289,13 +289,31 @@ func (c *Change) lowLevelPerform(as *Assumptions) error {
 			// symlinks are handled in createInode directly, nothing to do here.
 		case "", "file":
 			flags, unparsed := osutil.MountOptsToCommonFlags(c.Entry.Options)
-			// Use Secure.BindMount for bind mounts
+			// Split the mount flags from the event propagation changes.
+			// Those have to be applied separately.
+			const propagationMask = syscall.MS_SHARED | syscall.MS_SLAVE | syscall.MS_PRIVATE | syscall.MS_UNBINDABLE
+			maskedFlagsRecursive := flags & syscall.MS_REC
+			maskedFlagsPropagation := flags & propagationMask
+			maskedFlagsNotPropagationNotRecursive := flags & ^(propagationMask | syscall.MS_REC)
+
+			var flagsForMount uintptr
 			if flags&syscall.MS_BIND == syscall.MS_BIND {
-				err = BindMount(c.Entry.Name, c.Entry.Dir, uint(flags))
+				// bind / rbind mount
+				flagsForMount = uintptr(maskedFlagsNotPropagationNotRecursive | maskedFlagsRecursive)
+				err = BindMount(c.Entry.Name, c.Entry.Dir, uint(flagsForMount))
 			} else {
-				err = sysMount(c.Entry.Name, c.Entry.Dir, c.Entry.Type, uintptr(flags), strings.Join(unparsed, ","))
+				// normal mount, not bind / rbind, not propagation change
+				flagsForMount = uintptr(maskedFlagsNotPropagationNotRecursive)
+				err = sysMount(c.Entry.Name, c.Entry.Dir, c.Entry.Type, uintptr(flagsForMount), strings.Join(unparsed, ","))
 			}
-			logger.Debugf("mount %q %q %q %d %q (error: %v)", c.Entry.Name, c.Entry.Dir, c.Entry.Type, uintptr(flags), strings.Join(unparsed, ","), err)
+			logger.Debugf("mount %q %q %q %d %q (error: %v)", c.Entry.Name, c.Entry.Dir, c.Entry.Type, flagsForMount, strings.Join(unparsed, ","), err)
+			if err == nil && maskedFlagsPropagation != 0 {
+				// now change mount propagation (shared/rshared, private/rprivate,
+				// slave/rslave, unbindable/runbindable).
+				flagsForMount := uintptr(maskedFlagsPropagation | maskedFlagsRecursive)
+				err = sysMount("none", c.Entry.Dir, "", flagsForMount, "")
+				logger.Debugf("mount %q %q %q %d %q (error: %v)", "none", c.Entry.Dir, "", flagsForMount, "", err)
+			}
 			if err == nil {
 				as.AddChange(c)
 			}
@@ -374,6 +392,7 @@ func (c *Change) lowLevelPerform(as *Assumptions) error {
 		}
 		return err
 	case Keep:
+		as.AddChange(c)
 		return nil
 	}
 	return fmt.Errorf("cannot process mount change: unknown action: %q", c.Action)
@@ -385,7 +404,10 @@ func (c *Change) lowLevelPerform(as *Assumptions) error {
 // lists are processed and a "diff" of mount changes is produced. The mount
 // changes, when applied in order, transform the current profile into the
 // desired profile.
-func NeededChanges(currentProfile, desiredProfile *osutil.MountProfile) []*Change {
+var NeededChanges = neededChangesImpl
+
+// neededChangesImpl is the real implementation of NeededChanges
+func neededChangesImpl(currentProfile, desiredProfile *osutil.MountProfile) []*Change {
 	// Copy both profiles as we will want to mutate them.
 	current := make([]osutil.MountEntry, len(currentProfile.Entries))
 	copy(current, currentProfile.Entries)
@@ -477,7 +499,15 @@ func NeededChanges(currentProfile, desiredProfile *osutil.MountProfile) []*Chang
 		if reuse[current[i].Dir] {
 			changes = append(changes, &Change{Action: Keep, Entry: current[i]})
 		} else {
-			changes = append(changes, &Change{Action: Unmount, Entry: current[i]})
+			var entry osutil.MountEntry = current[i]
+			entry.Options = append([]string(nil), entry.Options...)
+			// If the mount entry can potentially host nested mount points then detach
+			// rather than unmount, since detach will always succeed.
+			shouldDetach := entry.Type == "tmpfs" || entry.OptBool("bind") || entry.OptBool("rbind")
+			if shouldDetach && !entry.XSnapdDetach() {
+				entry.Options = append(entry.Options, osutil.XSnapdDetach())
+			}
+			changes = append(changes, &Change{Action: Unmount, Entry: entry})
 		}
 	}
 

@@ -25,6 +25,7 @@ import (
 	"net"
 	"regexp"
 	"strconv"
+	"sync"
 	sys "syscall"
 )
 
@@ -94,7 +95,12 @@ func (wc *ucrednetConn) RemoteAddr() net.Addr {
 	return &ucrednetAddr{wc.Conn.RemoteAddr(), wc.ucrednet}
 }
 
-type ucrednetListener struct{ net.Listener }
+type ucrednetListener struct {
+	net.Listener
+
+	idempotClose sync.Once
+	closeErr     error
+}
 
 var getUcred = sys.GetsockoptUcred
 
@@ -126,4 +132,11 @@ func (wl *ucrednetListener) Accept() (net.Conn, error) {
 	}
 
 	return &ucrednetConn{con, unet}, nil
+}
+
+func (wl *ucrednetListener) Close() error {
+	wl.idempotClose.Do(func() {
+		wl.closeErr = wl.Listener.Close()
+	})
+	return wl.closeErr
 }

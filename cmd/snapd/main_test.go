@@ -62,9 +62,7 @@ func (s *snapdSuite) TestSanityFailGoesIntoDegradedMode(c *C) {
 	defer restore()
 	restore = apparmor.MockIsHomeUsingNFS(func() (bool, error) { return false, nil })
 	defer restore()
-	restore = seccomp.MockSnapSeccompVersionInfo(func(s seccomp.Compiler) (string, error) {
-		return "abcdef 1.2.3 1234abcd", nil
-	})
+	restore = seccomp.MockSnapSeccompVersionInfo("abcdef 1.2.3 1234abcd -")
 	defer restore()
 
 	sanityErr := fmt.Errorf("foo failed")

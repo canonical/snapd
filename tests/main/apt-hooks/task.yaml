@@ -1,7 +1,7 @@
 summary: Ensure apt hooks work
 
 # apt hook only available on 18.04+ and aws-cli only for amd64
-systems: [ubuntu-18.04-64, ubuntu-18.10-64]
+systems: [ubuntu-18.04-64, ubuntu-19.04-64]
 
 debug: |
     ls -lh /var/cache/snapd
@@ -9,10 +9,6 @@ debug: |
     strings /var/cache/snapd/commands.db | sed  -e 's#"}\(]\)\?#"}\1\n#g'
     
 execute: |
-    # FIXME: remove this once the store is in good shape again
-    echo "the store is unhappy right now"
-    exit 0
-
     echo "Ensure we have a snap catalog in our cache"
     for _ in {1..30}; do
         if [ -s /var/cache/snapd/commands.db ]; then

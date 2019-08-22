@@ -60,6 +60,14 @@ type Flags struct {
 
 	// IsAutoRefresh is true if the snap is currently auto-refreshed
 	IsAutoRefresh bool `json:"is-auto-refresh,omitempty"`
+
+	// NoReRefresh prevents refresh from adding epoch-hopping
+	// re-refresh tasks. This allows refresh to work offline, as
+	// long as refresh assets are cached.
+	NoReRefresh bool `json:"no-rerefresh,omitempty"`
+
+	// RequireTypeBase is set to mark that a snap needs to be of type: base, otherwise installation fails.
+	RequireTypeBase bool `json:"require-base-type,omitempty"`
 }
 
 // DevModeAllowed returns whether a snap can be installed with devmode confinement (either set or overridden)
@@ -70,5 +78,7 @@ func (f Flags) DevModeAllowed() bool {
 // ForSnapSetup returns a copy of the Flags with the flags that we don't need in SnapSetup set to false (so they're not serialized)
 func (f Flags) ForSnapSetup() Flags {
 	f.SkipConfigure = false
+	f.NoReRefresh = false
+	f.RequireTypeBase = false
 	return f
 }

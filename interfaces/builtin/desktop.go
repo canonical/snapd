@@ -217,21 +217,17 @@ func (iface *desktopInterface) StaticInfo() interfaces.StaticInfo {
 	}
 }
 
-func (iface *desktopInterface) BeforePrepareSlot(slot *snap.SlotInfo) error {
-	return sanitizeSlotReservedForOS(iface, slot)
-}
-
 func (iface *desktopInterface) AutoConnect(*snap.PlugInfo, *snap.SlotInfo) bool {
 	// allow what declarations allowed
 	return true
 }
 
 func (iface *desktopInterface) fontconfigDirs() []string {
-	return []string{
+	fontDirs := []string{
 		dirs.SystemFontsDir,
 		dirs.SystemLocalFontsDir,
-		dirs.SystemFontconfigCacheDir,
 	}
+	return append(fontDirs, dirs.SystemFontconfigCacheDirs...)
 }
 
 func (iface *desktopInterface) AppArmorConnectedPlug(spec *apparmor.Specification, plug *interfaces.ConnectedPlug, slot *interfaces.ConnectedSlot) error {

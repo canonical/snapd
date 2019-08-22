@@ -155,3 +155,35 @@ func MockUname(f func(*syscall.Utsname) error) (restore func()) {
 		syscallUname = old
 	}
 }
+
+var (
+	FindUidNoGetentFallback = findUidNoGetentFallback
+	FindGidNoGetentFallback = findGidNoGetentFallback
+
+	FindUidWithGetentFallback = findUidWithGetentFallback
+	FindGidWithGetentFallback = findGidWithGetentFallback
+)
+
+func MockFindUidNoFallback(mock func(name string) (uint64, error)) (restore func()) {
+	old := findUidNoGetentFallback
+	findUidNoGetentFallback = mock
+	return func() { findUidNoGetentFallback = old }
+}
+
+func MockFindGidNoFallback(mock func(name string) (uint64, error)) (restore func()) {
+	old := findGidNoGetentFallback
+	findGidNoGetentFallback = mock
+	return func() { findGidNoGetentFallback = old }
+}
+
+func MockFindUid(mock func(name string) (uint64, error)) (restore func()) {
+	old := findUid
+	findUid = mock
+	return func() { findUid = old }
+}
+
+func MockFindGid(mock func(name string) (uint64, error)) (restore func()) {
+	old := findGid
+	findGid = mock
+	return func() { findGid = old }
+}

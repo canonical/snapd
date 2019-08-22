@@ -146,11 +146,7 @@ func lintDesc(cmdName, optName, desc, origDesc string) {
 		// decode the first rune instead of converting all of desc into []rune
 		r, _ := utf8.DecodeRuneInString(desc)
 		// note IsLower != !IsUpper for runes with no upper/lower.
-		// Also note that login.u.c. is the only exception we're allowing for
-		// now, but the list of exceptions could grow -- if it does, we might
-		// want to change it to check for urlish things instead of just
-		// login.u.c.
-		if unicode.IsLower(r) && !strings.HasPrefix(desc, "login.ubuntu.com") {
+		if unicode.IsLower(r) && !strings.HasPrefix(desc, "login.ubuntu.com") && !strings.HasPrefix(desc, cmdName) {
 			noticef("description of %s's %q is lowercase: %q", cmdName, optName, desc)
 		}
 	}
@@ -355,7 +351,12 @@ var ClientConfig = client.Config{
 // Client returns a new client using ClientConfig as configuration.
 // commands should (in general) not use this, and instead use clientMixin.
 func mkClient() *client.Client {
-	cli := client.New(&ClientConfig)
+	cfg := &ClientConfig
+	// Set client user-agent when talking to the snapd daemon to the
+	// same value as when talking to the store.
+	cfg.UserAgent = httputil.UserAgent()
+
+	cli := client.New(cfg)
 	goos := runtime.GOOS
 	if release.OnWSL {
 		goos = "Windows Subsystem for Linux"

@@ -25,12 +25,12 @@ restore: |
 execute: |
     echo "The plug can be connected to a matching slot of OS snap without snap:slot argument"
     snap connect home-consumer:home
-    snap interfaces | MATCH ':home .*home-consumer$'
+    snap interfaces -i home | MATCH ':home .*home-consumer'
     snap tasks --last=connect| MATCH "Connect home-consumer:home to (core|snapd):home"
 
     echo "Instance snap plug can be connected as well"
     snap connect home-consumer_foo:home
-    snap interfaces | MATCH ':home .*home-consumer_foo$'
+    snap interfaces -i home | MATCH ':home .*home-consumer_foo'
     snap tasks --last=connect| MATCH "Connect home-consumer_foo:home to (core|snapd):home"
 
     echo "When non-instance snap plug is disconnected"
@@ -38,7 +38,7 @@ execute: |
     snap tasks --last=disconnect| MATCH "Disconnect home-consumer:home from (core|snapd):home"
 
     echo "The instance snap plug remains connected"
-    snap interfaces | MATCH ':home .*home-consumer_foo$'
+    snap interfaces -i home | MATCH ':home .*home-consumer_foo'
 
     snap disconnect home-consumer_foo:home
     snap tasks --last=disconnect| MATCH "Disconnect home-consumer_foo:home from (core|snapd):home"

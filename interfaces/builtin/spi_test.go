@@ -39,11 +39,15 @@ type spiInterfaceSuite struct {
 	slotOs1     *interfaces.ConnectedSlot
 	slotOs2Info *snap.SlotInfo
 	slotOs2     *interfaces.ConnectedSlot
+	slotOs3Info *snap.SlotInfo
+	slotOs3     *interfaces.ConnectedSlot
 
 	slotGadget1Info    *snap.SlotInfo
 	slotGadget1        *interfaces.ConnectedSlot
 	slotGadget2Info    *snap.SlotInfo
 	slotGadget2        *interfaces.ConnectedSlot
+	slotGadget3Info    *snap.SlotInfo
+	slotGadget3        *interfaces.ConnectedSlot
 	slotGadgetBad1Info *snap.SlotInfo
 	slotGadgetBad1     *interfaces.ConnectedSlot
 	slotGadgetBad2Info *snap.SlotInfo
@@ -61,6 +65,8 @@ type spiInterfaceSuite struct {
 	plug1     *interfaces.ConnectedPlug
 	plug2Info *snap.PlugInfo
 	plug2     *interfaces.ConnectedPlug
+	plug3Info *snap.PlugInfo
+	plug3     *interfaces.ConnectedPlug
 }
 
 var _ = Suite(&spiInterfaceSuite{
@@ -79,11 +85,16 @@ slots:
   spi-2:
     interface: spi
     path: /dev/spidev0.1
+  spi-3:
+    interface: spi
+    path: /dev/spidev33566.0
 `, nil)
 	s.slotOs1Info = info.Slots["spi-1"]
 	s.slotOs1 = interfaces.NewConnectedSlot(s.slotOs1Info, nil, nil)
 	s.slotOs2Info = info.Slots["spi-2"]
 	s.slotOs2 = interfaces.NewConnectedSlot(s.slotOs2Info, nil, nil)
+	s.slotOs3Info = info.Slots["spi-3"]
+	s.slotOs3 = interfaces.NewConnectedSlot(s.slotOs3Info, nil, nil)
 
 	info = snaptest.MockInfo(c, `
 name: gadget
@@ -96,6 +107,9 @@ slots:
   spi-2:
     interface: spi
     path: /dev/spidev0.1
+  spi-3:
+    interface: spi
+    path: /dev/spidev33566.0
   bad-spi-1:
     interface: spi
     path: /dev/spev0.0
@@ -118,6 +132,8 @@ slots:
 	s.slotGadget1 = interfaces.NewConnectedSlot(s.slotGadget1Info, nil, nil)
 	s.slotGadget2Info = info.Slots["spi-2"]
 	s.slotGadget2 = interfaces.NewConnectedSlot(s.slotGadget2Info, nil, nil)
+	s.slotGadget3Info = info.Slots["spi-3"]
+	s.slotGadget3 = interfaces.NewConnectedSlot(s.slotGadget3Info, nil, nil)
 	s.slotGadgetBad1Info = info.Slots["bad-spi-1"]
 	s.slotGadgetBad1 = interfaces.NewConnectedSlot(s.slotGadgetBad1Info, nil, nil)
 	s.slotGadgetBad2Info = info.Slots["bad-spi-2"]
@@ -141,6 +157,9 @@ plugs:
   spi-2:
     interface: spi
     path: /dev/spidev0.1
+  spi-3:
+    interface: spi
+    path: /dev/spidev33566.0
 apps:
   app:
     command: foo
@@ -150,6 +169,8 @@ apps:
 	s.plug1 = interfaces.NewConnectedPlug(s.plug1Info, nil, nil)
 	s.plug2Info = info.Plugs["spi-2"]
 	s.plug2 = interfaces.NewConnectedPlug(s.plug2Info, nil, nil)
+	s.plug3Info = info.Plugs["spi-3"]
+	s.plug3 = interfaces.NewConnectedPlug(s.plug3Info, nil, nil)
 }
 
 func (s *spiInterfaceSuite) TestName(c *C) {
@@ -159,8 +180,10 @@ func (s *spiInterfaceSuite) TestName(c *C) {
 func (s *spiInterfaceSuite) TestSanitizeSlot(c *C) {
 	c.Assert(interfaces.BeforePrepareSlot(s.iface, s.slotOs1Info), IsNil)
 	c.Assert(interfaces.BeforePrepareSlot(s.iface, s.slotOs2Info), IsNil)
+	c.Assert(interfaces.BeforePrepareSlot(s.iface, s.slotOs3Info), IsNil)
 	c.Assert(interfaces.BeforePrepareSlot(s.iface, s.slotGadget1Info), IsNil)
 	c.Assert(interfaces.BeforePrepareSlot(s.iface, s.slotGadget2Info), IsNil)
+	c.Assert(interfaces.BeforePrepareSlot(s.iface, s.slotGadget3Info), IsNil)
 	err := interfaces.BeforePrepareSlot(s.iface, s.slotGadgetBad1Info)
 	c.Assert(err, ErrorMatches, `"/dev/spev0.0" is not a valid SPI device`)
 	err = interfaces.BeforePrepareSlot(s.iface, s.slotGadgetBad2Info)
@@ -173,13 +196,6 @@ func (s *spiInterfaceSuite) TestSanitizeSlot(c *C) {
 	c.Assert(err, ErrorMatches, `"/dev/spi-foo" is not a valid SPI device`)
 	err = interfaces.BeforePrepareSlot(s.iface, s.slotGadgetBad6Info)
 	c.Assert(err, ErrorMatches, `slot "gadget:bad-spi-6" must have a path attribute`)
-	slot := &snap.SlotInfo{
-		Snap:      &snap.Info{SuggestedName: "some-snap"},
-		Name:      "spi",
-		Interface: "spi",
-	}
-	c.Assert(interfaces.BeforePrepareSlot(s.iface, slot), ErrorMatches,
-		"spi slots are reserved for the core and gadget snaps")
 }
 
 func (s *spiInterfaceSuite) TestUDevSpec(c *C) {

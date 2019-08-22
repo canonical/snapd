@@ -1,0 +1,21 @@
+summary: verify the output of 'snap services' command
+
+restore: |
+    rm -f ./*.out
+
+execute: |
+    #shellcheck source=tests/lib/snaps.sh
+    . "$TESTSLIB"/snaps.sh
+    install_local test-snapd-service
+    install_local socket-activation
+    install_local test-snapd-timer-service
+
+    snap services test-snapd-timer-service > timer-service.out
+    MATCH '^test-snapd-timer-service.random-timer\s+ disabled\s+ (in)?active\s+ timer-activated$' < timer-service.out
+    MATCH '^test-snapd-timer-service.regular-timer\s+ disabled\s+ (in)?active\s+ timer-activated$' < timer-service.out
+
+    snap services socket-activation > socket-activation.out
+    MATCH '^socket-activation.sleep-daemon\s+ enabled\s+ inactive\s+ socket-activated$' < socket-activation.out
+
+    snap services test-snapd-service > test-snapd-service.out
+    MATCH '^test-snapd-service.test-snapd-service\s+ enabled\s+ active\s+ -$' < test-snapd-service.out

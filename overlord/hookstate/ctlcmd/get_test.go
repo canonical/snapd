@@ -265,8 +265,7 @@ func (s *setSuite) TestNull(c *C) {
 	// Verify config value
 	var value interface{}
 	tr := config.NewTransaction(s.mockContext.State())
-	c.Assert(tr.Get("test-snap", "foo", &value), IsNil)
-	c.Assert(value, IsNil)
+	c.Assert(config.IsNoOption(tr.Get("test-snap", "foo", &value)), Equals, true)
 	c.Assert(tr.Get("test-snap", "bar", &value), IsNil)
 	c.Assert(value, DeepEquals, []interface{}{nil})
 }

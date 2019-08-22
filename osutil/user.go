@@ -53,14 +53,127 @@ type AddUserOptions struct {
 // we check the (user)name ourselves, adduser is a bit too
 // strict (i.e. no `.`) - this regexp is in sync with that SSO
 // allows as valid usernames
-var isValidUsername = regexp.MustCompile(`^[a-z0-9][-a-z0-9+.-_]*$`).MatchString
+var IsValidUsername = regexp.MustCompile(`^[a-z0-9][-a-z0-9+._]*$`).MatchString
 
+// EnsureUserGroup uses the standard shadow utilities' 'useradd' and 'groupadd'
+// commands for creating non-login system users and groups that is portable
+// cross-distro. It will create the group with groupname 'name' and gid 'id' as
+// well as the user with username 'name' and uid 'id'. Importantly, 'useradd'
+// and 'groupadd' will use NSS to determine if a uid/gid is already assigned
+// (so LDAP, etc are consulted), but will themselves only add to local files,
+// which is exactly what we want since we don't want snaps to be blocked on
+// LDAP, etc when performing lookups.
+func EnsureUserGroup(name string, id uint32, extraUsers bool) error {
+	if !IsValidUsername(name) {
+		return fmt.Errorf(`cannot add user/group %q: name contains invalid characters`, name)
+	}
+
+	// Perform uid and gid lookups
+	uid, uidErr := FindUid(name)
+	if uidErr != nil && !IsUnknownUser(uidErr) {
+		return uidErr
+	}
+
+	gid, gidErr := FindGid(name)
+	if gidErr != nil && !IsUnknownGroup(gidErr) {
+		return gidErr
+	}
+
+	if uidErr == nil && gidErr == nil {
+		if uid != uint64(id) {
+			return fmt.Errorf(`found unexpected uid for user %q: %d`, name, uid)
+		} else if gid != uint64(id) {
+			return fmt.Errorf(`found unexpected gid for group %q: %d`, name, gid)
+		}
+		// found the user and group with expected values
+		return nil
+	}
+
+	// If the user and group do not exist, snapd will create both, so if
+	// the admin removed one of them, error and don't assume we can just
+	// add the missing one
+	if uidErr != nil && gidErr == nil {
+		return fmt.Errorf(`cannot add user/group %q: group exists and user does not`, name)
+	} else if uidErr == nil && gidErr != nil {
+		return fmt.Errorf(`cannot add user/group %q: user exists and group does not`, name)
+	}
+
+	// At this point, we know that the user and group don't exist, so
+	// create them.
+
+	// First create the group. useradd --user-group will choose a gid from
+	// the range defined in login.defs, so first call groupadd and use
+	// --gid with useradd.
+	groupCmdStr := []string{
+		"groupadd",
+		"--system",
+		"--gid", strconv.FormatUint(uint64(id), 10),
+	}
+
+	if extraUsers {
+		groupCmdStr = append(groupCmdStr, "--extrausers")
+	}
+	groupCmdStr = append(groupCmdStr, name)
+
+	cmd := exec.Command(groupCmdStr[0], groupCmdStr[1:]...)
+	if output, err := cmd.CombinedOutput(); err != nil {
+		return fmt.Errorf("groupadd failed with: %s", OutputErr(output, err))
+	}
+
+	// Now call useradd with the group we just created. As a non-login
+	// system user, we choose:
+	// - no password or aging (use --system without --password)
+	// - a non-existent home directory (--home-dir /nonexistent and
+	//   --no-create-home)
+	// - a non-functional shell (--shell .../nologin)
+	// - use the above group (--gid with --no-user-group)
+	userCmdStr := []string{
+		"useradd",
+		"--system",
+		"--home-dir", "/nonexistent", "--no-create-home",
+		"--shell", LookPathDefault("false", "/bin/false"),
+		"--gid", strconv.FormatUint(uint64(id), 10), "--no-user-group",
+		"--uid", strconv.FormatUint(uint64(id), 10),
+	}
+
+	if extraUsers {
+		userCmdStr = append(userCmdStr, "--extrausers")
+	}
+	userCmdStr = append(userCmdStr, name)
+
+	cmd = exec.Command(userCmdStr[0], userCmdStr[1:]...)
+	if output, err := cmd.CombinedOutput(); err != nil {
+		useraddErrStr := fmt.Sprintf("useradd failed with: %s", OutputErr(output, err))
+
+		delCmdStr := []string{"groupdel"}
+		if extraUsers {
+			delCmdStr = append(delCmdStr, "--extrausers")
+		}
+
+		// TODO: groupdel doesn't currently support --extrausers, so
+		// don't try to clean up when it is specified (LP: #1840375)
+		if !extraUsers {
+			delCmdStr = append(delCmdStr, name)
+			cmd = exec.Command(delCmdStr[0], delCmdStr[1:]...)
+			if output2, err2 := cmd.CombinedOutput(); err2 != nil {
+				return fmt.Errorf("groupdel failed with: %s (after %s)", OutputErr(output2, err2), useraddErrStr)
+			}
+		}
+		return fmt.Errorf(useraddErrStr)
+	}
+
+	return nil
+}
+
+// AddUser uses the Debian/Ubuntu/derivative 'adduser' command for creating
+// regular login users on Ubuntu Core. 'adduser' is not portable cross-distro
+// but is convenient for creating regular login users.
 func AddUser(name string, opts *AddUserOptions) error {
 	if opts == nil {
 		opts = &AddUserOptions{}
 	}
 
-	if !isValidUsername(name) {
+	if !IsValidUsername(name) {
 		return fmt.Errorf("cannot add user %q: name contains invalid characters", name)
 	}
 

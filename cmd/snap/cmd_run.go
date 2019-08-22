@@ -897,6 +897,11 @@ func (x *cmdRun) runSnapConfine(info *snap.Info, securityTag, snapApp, hook stri
 	if info.NeedsClassic() {
 		cmd = append(cmd, "--classic")
 	}
+
+	// this should never happen since we validate snaps with "base: none" and do not allow hooks/apps
+	if info.Base == "none" {
+		return fmt.Errorf(`cannot run hooks / applications with base "none"`)
+	}
 	if info.Base != "" {
 		cmd = append(cmd, "--base", info.Base)
 	}

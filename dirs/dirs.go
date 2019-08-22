@@ -75,6 +75,8 @@ var (
 	SnapRepairAssertsDir string
 	SnapRunRepairDir     string
 
+	SnapRollbackDir string
+
 	SnapCacheDir        string
 	SnapNamesFile       string
 	SnapSectionsFile    string
@@ -83,6 +85,7 @@ var (
 
 	SnapBinariesDir     string
 	SnapServicesDir     string
+	SnapUserServicesDir string
 	SnapSystemdConfDir  string
 	SnapDesktopFilesDir string
 	SnapBusPolicyDir    string
@@ -98,12 +101,12 @@ var (
 	XdgRuntimeDirBase string
 	XdgRuntimeDirGlob string
 
-	CompletionHelper string
-	CompletersDir    string
+	CompletionHelperInCore string
+	CompletersDir          string
 
-	SystemFontsDir           string
-	SystemLocalFontsDir      string
-	SystemFontconfigCacheDir string
+	SystemFontsDir            string
+	SystemLocalFontsDir       string
+	SystemFontconfigCacheDirs []string
 
 	FreezerCgroupDir string
 	PidsCgroupDir    string
@@ -163,14 +166,19 @@ func StripRootDir(dir string) string {
 
 // SupportsClassicConfinement returns true if the current directory layout supports classic confinement.
 func SupportsClassicConfinement() bool {
+	// Core systems don't support classic confinement as a policy decision.
+	if !release.OnClassic {
+		return false
+	}
+
+	// Classic systems support classic confinement if using the primary mount
+	// location for snaps, that is /snap or if using the alternate mount
+	// location, /var/lib/snapd/snap along with the /snap ->
+	// /var/lib/snapd/snap symlink in place.
 	smd := filepath.Join(GlobalRootDir, defaultSnapMountDir)
 	if SnapMountDir == smd {
 		return true
 	}
-
-	// distros with a non-default /snap location may still be good
-	// if there is a symlink in place that links from the
-	// defaultSnapMountDir (/snap) to the distro specific mount dir
 	fi, err := os.Lstat(smd)
 	if err == nil && fi.Mode()&os.ModeSymlink != 0 {
 		if target, err := filepath.EvalSymlinks(smd); err == nil {
@@ -256,8 +264,11 @@ func SetRootDir(rootdir string) {
 	SnapRepairAssertsDir = filepath.Join(SnapRepairDir, "assertions")
 	SnapRunRepairDir = filepath.Join(SnapRunDir, "repair")
 
+	SnapRollbackDir = filepath.Join(rootdir, snappyDir, "rollback")
+
 	SnapBinariesDir = filepath.Join(SnapMountDir, "bin")
 	SnapServicesDir = filepath.Join(rootdir, "/etc/systemd/system")
+	SnapUserServicesDir = filepath.Join(rootdir, "/etc/systemd/user")
 	SnapSystemdConfDir = filepath.Join(rootdir, "/etc/systemd/system.conf.d")
 	SnapBusPolicyDir = filepath.Join(rootdir, "/etc/dbus-1/system.d")
 
@@ -291,14 +302,14 @@ func SetRootDir(rootdir string) {
 	XdgRuntimeDirBase = filepath.Join(rootdir, "/run/user")
 	XdgRuntimeDirGlob = filepath.Join(rootdir, XdgRuntimeDirBase, "*/")
 
-	CompletionHelper = filepath.Join(CoreLibExecDir, "etelpmoc.sh")
+	CompletionHelperInCore = filepath.Join(CoreLibExecDir, "etelpmoc.sh")
 	CompletersDir = filepath.Join(rootdir, "/usr/share/bash-completion/completions/")
 
 	// These paths agree across all supported distros
 	SystemFontsDir = filepath.Join(rootdir, "/usr/share/fonts")
 	SystemLocalFontsDir = filepath.Join(rootdir, "/usr/local/share/fonts")
 	// The cache path is true for Ubuntu, Debian, openSUSE, Arch
-	SystemFontconfigCacheDir = filepath.Join(rootdir, "/var/cache/fontconfig")
+	SystemFontconfigCacheDirs = []string{filepath.Join(rootdir, "/var/cache/fontconfig")}
 	if release.DistroLike("fedora") && !release.DistroLike("amzn") {
 		// Applies to Fedora and CentOS, Amazon Linux 2 is behind with
 		// updates to fontconfig and uses /var/cache/fontconfig instead,
@@ -306,7 +317,12 @@ func SetRootDir(rootdir string) {
 		// https://fedoraproject.org/wiki/Changes/FontconfigCacheDirChange
 		// https://bugzilla.redhat.com/show_bug.cgi?id=1416380
 		// https://bugzilla.redhat.com/show_bug.cgi?id=1377367
-		SystemFontconfigCacheDir = filepath.Join(rootdir, "/usr/lib/fontconfig/cache")
+		//
+		// However, snaps may still use older libfontconfig, which fails
+		// to parse the new config and defaults to
+		// /var/cache/fontconfig. In this case we need to make both
+		// locations available
+		SystemFontconfigCacheDirs = append(SystemFontconfigCacheDirs, filepath.Join(rootdir, "/usr/lib/fontconfig/cache"))
 	}
 
 	FreezerCgroupDir = filepath.Join(rootdir, "/sys/fs/cgroup/freezer/")

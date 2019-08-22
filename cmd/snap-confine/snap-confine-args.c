@@ -37,10 +37,10 @@ struct sc_args {
 };
 
 struct sc_args *sc_nonfatal_parse_args(int *argcp, char ***argvp,
-				       struct sc_error **errorp)
+				       sc_error ** errorp)
 {
 	struct sc_args *args = NULL;
-	struct sc_error *err = NULL;
+	sc_error *err = NULL;
 
 	if (argcp == NULL || argvp == NULL) {
 		err = sc_error_init(SC_ARGS_DOMAIN, 0,

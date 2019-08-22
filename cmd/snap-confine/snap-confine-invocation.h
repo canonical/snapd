@@ -36,6 +36,7 @@ typedef struct sc_invocation {
     bool classic_confinement;
     /* Things derived at runtime. */
     char *base_snap_name;
+    char *rootfs_dir;
     bool is_normal_mode;
 } sc_invocation;
 
@@ -59,7 +60,10 @@ void sc_init_invocation(sc_invocation *inv, const struct sc_args *args, const ch
 void sc_cleanup_invocation(sc_invocation *inv);
 
 /**
- * sc_maybe_pick_alt_base_snap enables fall-back base in absence of primary.
+ * sc_check_rootfs_dir checks the rootfs_dir and applies potential fall-backs.
+ *
+ * Checks that the rootfs_dir for the given base_snap exists and may apply
+ * the fallback logic below. Will die() if no base_snap can be found.
  *
  * When performing ubuntu-core to core migration, the  snap "core" may not be
  * mounted yet. In that mode when snapd instructs us to use "core" as the base
@@ -70,6 +74,6 @@ void sc_cleanup_invocation(sc_invocation *inv);
  * of the init process) because it relies on the value of compile-time-choice
  * of SNAP_MOUNT_DIR.
  **/
-void sc_maybe_pick_alt_base_snap(sc_invocation *inv);
+void sc_check_rootfs_dir(sc_invocation *inv);
 
 #endif

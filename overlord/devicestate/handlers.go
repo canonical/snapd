@@ -20,12 +20,15 @@ package devicestate
 
 import (
 	"bytes"
+	"crypto/rsa"
 	"encoding/json"
 	"errors"
 	"fmt"
 	"net"
 	"net/http"
 	"net/url"
+	"os"
+	"path/filepath"
 	"strconv"
 	"strings"
 	"time"
@@ -33,6 +36,8 @@ import (
 	"gopkg.in/tomb.v2"
 
 	"github.com/snapcore/snapd/asserts"
+	"github.com/snapcore/snapd/dirs"
+	"github.com/snapcore/snapd/gadget"
 	"github.com/snapcore/snapd/httputil"
 	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/osutil"
@@ -42,6 +47,9 @@ import (
 	"github.com/snapcore/snapd/overlord/configstate/proxyconf"
 	"github.com/snapcore/snapd/overlord/snapstate"
 	"github.com/snapcore/snapd/overlord/state"
+	"github.com/snapcore/snapd/release"
+	"github.com/snapcore/snapd/snap"
+	"github.com/snapcore/snapd/timings"
 )
 
 func (m *DeviceManager) doMarkSeeded(t *state.Task, _ *tomb.Tomb) error {
@@ -71,28 +79,53 @@ func (m *DeviceManager) doSetModel(t *state.Task, _ *tomb.Tomb) error {
 	st.Lock()
 	defer st.Unlock()
 
-	var modelass []byte
-	if err := t.Get("new-model", &modelass); err != nil {
-		return err
-	}
-
-	ass, err := asserts.Decode(modelass)
+	remodCtx, err := remodelCtxFromTask(t)
 	if err != nil {
 		return err
 	}
+	new := remodCtx.Model()
 
-	_, ok := ass.(*asserts.Model)
-	if !ok {
-		return fmt.Errorf("internal error: new-model is not a model assertion but: %s", ass.Type().Name)
-	}
-
-	err = assertstate.Add(st, ass)
+	err = assertstate.Add(st, new)
 	if err != nil && !isSameAssertsRevision(err) {
 		return err
 	}
 
-	// TODO: set device,model from the new model assertion
-	// return setDeviceFromModelAssertion(st, device, model)
+	// unmark no-longer required snaps
+	requiredSnaps := getAllRequiredSnapsForModel(new)
+	snapStates, err := snapstate.All(st)
+	if err != nil {
+		return err
+	}
+	for snapName, snapst := range snapStates {
+		// TODO: remove this type restriction once we remodel
+		//       kernels/gadgets and add tests that ensure
+		//       that the required flag is properly set/unset
+		typ, err := snapst.Type()
+		if err != nil {
+			return err
+		}
+		if typ != snap.TypeApp && typ != snap.TypeBase {
+			continue
+		}
+		// clean required flag if no-longer needed
+		if snapst.Flags.Required && !requiredSnaps[snapName] {
+			snapst.Flags.Required = false
+			snapstate.Set(st, snapName, snapst)
+		}
+		// TODO: clean "required" flag of "core" if a remodel
+		//       moves from the "core" snap to a different
+		//       bootable base snap.
+	}
+
+	return remodCtx.Finish()
+}
+
+func (m *DeviceManager) cleanupRemodel(t *state.Task, _ *tomb.Tomb) error {
+	st := t.State()
+	st.Lock()
+	defer st.Unlock()
+	// cleanup the cached remodel context
+	cleanupRemodelCtx(t.Change())
 	return nil
 }
 
@@ -188,7 +221,10 @@ func (m *DeviceManager) doGenerateDeviceKey(t *state.Task, _ *tomb.Tomb) error {
 	st.Lock()
 	defer st.Unlock()
 
-	device, err := auth.Device(st)
+	perfTimings := timings.NewForTask(t)
+	defer perfTimings.Save(st)
+
+	device, err := m.device()
 	if err != nil {
 		return err
 	}
@@ -199,7 +235,10 @@ func (m *DeviceManager) doGenerateDeviceKey(t *state.Task, _ *tomb.Tomb) error {
 	}
 
 	st.Unlock()
-	keyPair, err := generateRSAKey(keyLength)
+	var keyPair *rsa.PrivateKey
+	timings.Run(perfTimings, "generate-rsa-key", "generating device key pair", func(tm timings.Measurer) {
+		keyPair, err = generateRSAKey(keyLength)
+	})
 	st.Lock()
 	if err != nil {
 		return fmt.Errorf("cannot generate device key pair: %v", err)
@@ -212,12 +251,93 @@ func (m *DeviceManager) doGenerateDeviceKey(t *state.Task, _ *tomb.Tomb) error {
 	}
 
 	device.KeyID = privKey.PublicKey().ID()
-	err = auth.SetDevice(st, device)
+	err = m.setDevice(device)
 	if err != nil {
 		return err
 	}
 	t.SetStatus(state.DoneStatus)
 	return nil
+}
+
+// A registrationContext handles the contextual information needed
+// for the initial registration or a re-registration.
+type registrationContext interface {
+	Device() (*auth.DeviceState, error)
+
+	GadgetForSerialRequestConfig() string
+	SerialRequestExtraHeaders() map[string]interface{}
+	SerialRequestAncillaryAssertions() []asserts.Assertion
+
+	FinishRegistration(serial *asserts.Serial) error
+
+	ForRemodeling() bool
+}
+
+// initialRegistrationContext is a thin wrapper around DeviceManager
+// implementing registrationContext for initial regitration
+type initialRegistrationContext struct {
+	deviceMgr *DeviceManager
+
+	gadget string
+}
+
+func (rc *initialRegistrationContext) ForRemodeling() bool {
+	return false
+}
+
+func (rc *initialRegistrationContext) Device() (*auth.DeviceState, error) {
+	return rc.deviceMgr.device()
+}
+
+func (rc *initialRegistrationContext) GadgetForSerialRequestConfig() string {
+	return rc.gadget
+}
+
+func (rc *initialRegistrationContext) SerialRequestExtraHeaders() map[string]interface{} {
+	return nil
+}
+
+func (rc *initialRegistrationContext) SerialRequestAncillaryAssertions() []asserts.Assertion {
+	return nil
+}
+
+func (rc *initialRegistrationContext) FinishRegistration(serial *asserts.Serial) error {
+	device, err := rc.deviceMgr.device()
+	if err != nil {
+		return err
+	}
+
+	device.Serial = serial.Serial()
+	if err := rc.deviceMgr.setDevice(device); err != nil {
+		return err
+	}
+	rc.deviceMgr.markRegistered()
+
+	// make sure we timely consider anything that was blocked on
+	// registration
+	rc.deviceMgr.state.EnsureBefore(0)
+
+	return nil
+}
+
+// registrationCtx returns a registrationContext appropriate for the task and its change.
+func (m *DeviceManager) registrationCtx(t *state.Task) (registrationContext, error) {
+	remodCtx, err := remodelCtxFromTask(t)
+	if err != nil && err != state.ErrNoState {
+		return nil, err
+	}
+	if regCtx, ok := remodCtx.(registrationContext); ok {
+		return regCtx, nil
+	}
+	model, err := m.Model()
+	if err != nil {
+		return nil, err
+	}
+
+	return &initialRegistrationContext{
+		deviceMgr: m,
+		gadget:    model.Gadget(),
+	}, nil
 }
 
 type serialSetup struct {
@@ -266,7 +386,7 @@ func retryBadStatus(t *state.Task, nTentatives int, reason string, resp *http.Re
 	return fmt.Errorf("%s: unexpected status %d", reason, resp.StatusCode)
 }
 
-func prepareSerialRequest(t *state.Task, privKey asserts.PrivateKey, device *auth.DeviceState, client *http.Client, cfg *serialRequestConfig) (string, error) {
+func prepareSerialRequest(t *state.Task, regCtx registrationContext, privKey asserts.PrivateKey, device *auth.DeviceState, client *http.Client, cfg *serialRequestConfig) (string, error) {
 	// limit tentatives starting from scratch before going to
 	// slower full retries
 	var nTentatives int
@@ -325,12 +445,29 @@ func prepareSerialRequest(t *state.Task, privKey asserts.PrivateKey, device *aut
 		headers["serial"] = cfg.proposedSerial
 	}
 
+	for k, v := range regCtx.SerialRequestExtraHeaders() {
+		headers[k] = v
+	}
+
 	serialReq, err := asserts.SignWithoutAuthority(asserts.SerialRequestType, headers, cfg.body, privKey)
 	if err != nil {
 		return "", err
 	}
 
-	return string(asserts.Encode(serialReq)), nil
+	buf := new(bytes.Buffer)
+	encoder := asserts.NewEncoder(buf)
+	if err := encoder.Encode(serialReq); err != nil {
+		return "", fmt.Errorf("cannot encode serial-request: %v", err)
+	}
+
+	for _, ancillaryAs := range regCtx.SerialRequestAncillaryAssertions() {
+		if err := encoder.Encode(ancillaryAs); err != nil {
+			return "", fmt.Errorf("cannot encode ancillary assertion: %v", err)
+		}
+
+	}
+
+	return buf.String(), nil
 }
 
 var errPoll = errors.New("serial-request accepted, poll later")
@@ -379,7 +516,7 @@ func submitSerialRequest(t *state.Task, serialRequest string, client *http.Clien
 	return serial, nil
 }
 
-func getSerial(t *state.Task, privKey asserts.PrivateKey, device *auth.DeviceState) (*asserts.Serial, error) {
+func getSerial(t *state.Task, regCtx registrationContext, privKey asserts.PrivateKey, device *auth.DeviceState, tm timings.Measurer) (*asserts.Serial, error) {
 	var serialSup serialSetup
 	err := t.Get("serial-setup", &serialSup)
 	if err != nil && err != state.ErrNoState {
@@ -403,7 +540,7 @@ func getSerial(t *state.Task, privKey asserts.PrivateKey, device *auth.DeviceSta
 		Proxy:      proxyConf.Conf,
 	})
 
-	cfg, err := getSerialRequestConfig(t, client)
+	cfg, err := getSerialRequestConfig(t, regCtx, client)
 	if err != nil {
 		return nil, err
 	}
@@ -413,7 +550,11 @@ func getSerial(t *state.Task, privKey asserts.PrivateKey, device *auth.DeviceSta
 	// previous one used could have expired
 
 	if serialSup.SerialRequest == "" {
-		serialRequest, err := prepareSerialRequest(t, privKey, device, client, cfg)
+		var serialRequest string
+		var err error
+		timings.Run(tm, "prepare-serial-request", "prepare device serial request", func(timings.Measurer) {
+			serialRequest, err = prepareSerialRequest(t, regCtx, privKey, device, client, cfg)
+		})
 		if err != nil { // errors & retries
 			return nil, err
 		}
@@ -421,7 +562,10 @@ func getSerial(t *state.Task, privKey asserts.PrivateKey, device *auth.DeviceSta
 		serialSup.SerialRequest = serialRequest
 	}
 
-	serial, err := submitSerialRequest(t, serialSup.SerialRequest, client, cfg)
+	var serial *asserts.Serial
+	timings.Run(tm, "submit-serial-request", "submit device serial request", func(timings.Measurer) {
+		serial, err = submitSerialRequest(t, serialSup.SerialRequest, client, cfg)
+	})
 	if err == errPoll {
 		// we can/should reuse the serial-request
 		t.Set("serial-setup", serialSup)
@@ -461,7 +605,7 @@ func (cfg *serialRequestConfig) applyHeaders(req *http.Request) {
 	}
 }
 
-func getSerialRequestConfig(t *state.Task, client *http.Client) (*serialRequestConfig, error) {
+func getSerialRequestConfig(t *state.Task, regCtx registrationContext, client *http.Client) (*serialRequestConfig, error) {
 	var svcURL, proxyURL *url.URL
 
 	st := t.State()
@@ -472,24 +616,18 @@ func getSerialRequestConfig(t *state.Task, client *http.Client) (*serialRequestC
 		proxyURL = proxyStore.URL()
 	}
 
-	// gadget is optional on classic
-	model, err := Model(st)
-	if err != nil && err != state.ErrNoState {
-		return nil, err
-	}
-
 	cfg := serialRequestConfig{}
 
-	if model != nil && model.Gadget() != "" {
-		// model specifies a gadget
-		gadgetInfo, err := snapstate.GadgetInfo(st)
-		if err != nil {
-			return nil, fmt.Errorf("cannot find gadget snap and its name: %v", err)
+	gadgetName := regCtx.GadgetForSerialRequestConfig()
+	// gadget is optional on classic
+	if gadgetName != "" {
+		var gadgetSt snapstate.SnapState
+		if err := snapstate.Get(st, gadgetName, &gadgetSt); err != nil {
+			return nil, fmt.Errorf("cannot find gadget snap %q: %v", gadgetName, err)
 		}
-		gadgetName := gadgetInfo.InstanceName()
 
 		var svcURI string
-		err = tr.GetMaybe(gadgetName, "device-service.url", &svcURI)
+		err := tr.GetMaybe(gadgetName, "device-service.url", &svcURI)
 		if err != nil {
 			return nil, err
 		}
@@ -533,27 +671,25 @@ func getSerialRequestConfig(t *state.Task, client *http.Client) (*serialRequestC
 	return &cfg, nil
 }
 
-func (m *DeviceManager) finishRegistration(t *state.Task, device *auth.DeviceState, serial *asserts.Serial) error {
-	device.Serial = serial.Serial()
-	err := auth.SetDevice(t.State(), device)
-	if err != nil {
-		return err
-	}
-	m.markRegistered()
-	t.SetStatus(state.DoneStatus)
-	return nil
-}
-
 func (m *DeviceManager) doRequestSerial(t *state.Task, _ *tomb.Tomb) error {
 	st := t.State()
 	st.Lock()
 	defer st.Unlock()
 
-	device, err := auth.Device(st)
+	perfTimings := timings.NewForTask(t)
+	defer perfTimings.Save(st)
+
+	regCtx, err := m.registrationCtx(t)
 	if err != nil {
 		return err
 	}
 
+	device, err := regCtx.Device()
+	if err != nil {
+		return err
+	}
+
+	// NB: the keyPair is fixed for now
 	privKey, err := m.keyPair()
 	if err == state.ErrNoState {
 		return fmt.Errorf("internal error: cannot find device key pair")
@@ -573,25 +709,40 @@ func (m *DeviceManager) doRequestSerial(t *state.Task, _ *tomb.Tomb) error {
 		return err
 	}
 
+	finish := func(serial *asserts.Serial) error {
+		if regCtx.FinishRegistration(serial); err != nil {
+			return err
+		}
+		t.SetStatus(state.DoneStatus)
+		return nil
+	}
+
 	if len(serials) == 1 {
 		// means we saved the assertion but didn't get to the end of the task
-		return m.finishRegistration(t, device, serials[0].(*asserts.Serial))
+		return finish(serials[0].(*asserts.Serial))
 	}
 	if len(serials) > 1 {
 		return fmt.Errorf("internal error: multiple serial assertions for the same device key")
 	}
 
-	serial, err := getSerial(t, privKey, device)
+	var serial *asserts.Serial
+	timings.Run(perfTimings, "get-serial", "get device serial", func(tm timings.Measurer) {
+		serial, err = getSerial(t, regCtx, privKey, device, tm)
+	})
 	if err == errPoll {
 		t.Logf("Will poll for device serial assertion in 60 seconds")
 		return &state.Retry{After: retryInterval}
 	}
 	if err != nil { // errors & retries
 		return err
+
 	}
 
+	var errAcctKey error
 	// try to fetch the signing key chain of the serial
-	errAcctKey, err := fetchKeys(st, serial.SignKeyID())
+	timings.Run(perfTimings, "fetch-keys", "fetch signing key chain", func(timings.Measurer) {
+		errAcctKey, err = fetchKeys(st, serial.SignKeyID())
+	})
 	if err != nil {
 		return err
 	}
@@ -612,36 +763,221 @@ func (m *DeviceManager) doRequestSerial(t *state.Task, _ *tomb.Tomb) error {
 		return &state.Retry{}
 	}
 
-	return m.finishRegistration(t, device, serial)
+	return finish(serial)
 }
 
 var repeatRequestSerial string // for tests
 
 func fetchKeys(st *state.State, keyID string) (errAcctKey error, err error) {
-	sto := snapstate.Store(st)
+	// TODO: right now any store should be good enough here but
+	// that might change, also this is brittle, best would be to
+	// receive a stream with any relevant assertions
+	sto := snapstate.Store(st, nil)
 	db := assertstate.DB(st)
-	for {
-		_, err := db.FindPredefined(asserts.AccountKeyType, map[string]string{
-			"public-key-sha3-384": keyID,
-		})
-		if err == nil {
-			return nil, nil
+
+	retrieveError := false
+	retrieve := func(ref *asserts.Ref) (asserts.Assertion, error) {
+		st.Unlock()
+		defer st.Lock()
+		a, err := sto.Assertion(ref.Type, ref.PrimaryKey, nil)
+		retrieveError = err != nil
+		return a, err
+	}
+
+	save := func(a asserts.Assertion) error {
+		err = assertstate.Add(st, a)
+		if err != nil && !asserts.IsUnaccceptedUpdate(err) {
+			return err
 		}
-		if !asserts.IsNotFound(err) {
+		return nil
+	}
+
+	f := asserts.NewFetcher(db, retrieve, save)
+
+	keyRef := &asserts.Ref{
+		Type:       asserts.AccountKeyType,
+		PrimaryKey: []string{keyID},
+	}
+	if err := f.Fetch(keyRef); err != nil {
+		if retrieveError {
+			return err, nil
+		} else {
 			return nil, err
 		}
-		st.Unlock()
-		a, errAcctKey := sto.Assertion(asserts.AccountKeyType, []string{keyID}, nil)
-		st.Lock()
-		if errAcctKey != nil {
-			return errAcctKey, nil
-		}
-		err = assertstate.Add(st, a)
-		if err != nil {
-			if !asserts.IsUnaccceptedUpdate(err) {
-				return nil, err
-			}
-		}
-		keyID = a.SignKeyID()
 	}
+	return nil, nil
+}
+
+func (m *DeviceManager) doPrepareRemodeling(t *state.Task, tmb *tomb.Tomb) error {
+	st := t.State()
+	st.Lock()
+	defer st.Unlock()
+
+	remodCtx, err := remodelCtxFromTask(t)
+	if err != nil {
+		return err
+	}
+	current, err := findModel(st)
+	if err != nil {
+		return err
+	}
+
+	sto := remodCtx.Store()
+	if sto == nil {
+		return fmt.Errorf("internal error: re-registration remodeling should have built a store")
+	}
+	// ensure a new session accounting for the new brand/model
+	st.Unlock()
+	_, err = sto.EnsureDeviceSession()
+	st.Lock()
+	if err != nil {
+		return fmt.Errorf("cannot get a store session based on the new model assertion: %v", err)
+	}
+
+	chgID := t.Change().ID()
+
+	tss, err := remodelTasks(tmb.Context(nil), st, current, remodCtx.Model(), remodCtx, chgID)
+	if err != nil {
+		return err
+	}
+
+	allTs := state.NewTaskSet()
+	for _, ts := range tss {
+		allTs.AddAll(ts)
+	}
+	snapstate.InjectTasks(t, allTs)
+
+	st.EnsureBefore(0)
+	t.SetStatus(state.DoneStatus)
+
+	return nil
+}
+
+func snapState(st *state.State, name string) (*snapstate.SnapState, error) {
+	var snapst snapstate.SnapState
+	err := snapstate.Get(st, name, &snapst)
+	if err != nil && err != state.ErrNoState {
+		return nil, err
+	}
+	return &snapst, nil
+}
+
+func makeRollbackDir(name string) (string, error) {
+	rollbackDir := filepath.Join(dirs.SnapRollbackDir, name)
+
+	if err := os.MkdirAll(rollbackDir, 0750); err != nil {
+		return "", err
+	}
+
+	return rollbackDir, nil
+}
+
+func currentGadgetInfo(snapst *snapstate.SnapState) (*gadget.GadgetData, error) {
+	currentInfo, err := snapst.CurrentInfo()
+	if err != nil && err != snapstate.ErrNoCurrent {
+		return nil, err
+	}
+	if currentInfo == nil {
+		// no current yet
+		return nil, nil
+	}
+	const onClassic = false
+	gi, err := gadget.ReadInfo(currentInfo.MountDir(), onClassic)
+	if err != nil {
+		return nil, err
+	}
+	return &gadget.GadgetData{Info: gi, RootDir: currentInfo.MountDir()}, nil
+}
+
+func pendingGadgetInfo(snapsup *snapstate.SnapSetup) (*gadget.GadgetData, error) {
+	info, err := snap.ReadInfo(snapsup.InstanceName(), snapsup.SideInfo)
+	if err != nil {
+		return nil, err
+	}
+	const onClassic = false
+	update, err := gadget.ReadInfo(info.MountDir(), onClassic)
+	if err != nil {
+		return nil, err
+	}
+	return &gadget.GadgetData{Info: update, RootDir: info.MountDir()}, nil
+}
+
+func gadgetCurrentAndUpdate(st *state.State, snapsup *snapstate.SnapSetup) (current *gadget.GadgetData, update *gadget.GadgetData, err error) {
+	snapst, err := snapState(st, snapsup.InstanceName())
+	if err != nil {
+		return nil, nil, err
+	}
+
+	currentData, err := currentGadgetInfo(snapst)
+	if err != nil {
+		return nil, nil, fmt.Errorf("cannot read current gadget snap details: %v", err)
+	}
+	if currentData == nil {
+		// don't bother reading update if there is no current
+		return nil, nil, nil
+	}
+
+	newData, err := pendingGadgetInfo(snapsup)
+	if err != nil {
+		return nil, nil, fmt.Errorf("cannot read candidate gadget snap details: %v", err)
+	}
+
+	return currentData, newData, nil
+}
+
+var (
+	gadgetUpdate = gadget.Update
+)
+
+func (m *DeviceManager) doUpdateGadgetAssets(t *state.Task, _ *tomb.Tomb) error {
+	if release.OnClassic {
+		return fmt.Errorf("cannot run update gadget assets task on a classic system")
+	}
+
+	st := t.State()
+	st.Lock()
+	defer st.Unlock()
+
+	snapsup, err := snapstate.TaskSnapSetup(t)
+	if err != nil {
+		return err
+	}
+
+	currentData, updateData, err := gadgetCurrentAndUpdate(t.State(), snapsup)
+	if err != nil {
+		return err
+	}
+	if currentData == nil {
+		// no updates during first boot & seeding
+		return nil
+	}
+
+	snapRollbackDir, err := makeRollbackDir(fmt.Sprintf("%v_%v", snapsup.InstanceName(), snapsup.SideInfo.Revision))
+	if err != nil {
+		return fmt.Errorf("cannot prepare update rollback directory: %v", err)
+	}
+
+	st.Unlock()
+	err = gadgetUpdate(*currentData, *updateData, snapRollbackDir)
+	st.Lock()
+	if err != nil {
+		if err == gadget.ErrNoUpdate {
+			// no update needed
+			t.Logf("No gadget assets update needed")
+			return nil
+		}
+		return err
+	}
+
+	t.SetStatus(state.DoneStatus)
+
+	if err := os.RemoveAll(snapRollbackDir); err != nil && !os.IsNotExist(err) {
+		logger.Noticef("failed to remove gadget update rollback directory %q: %v", snapRollbackDir, err)
+	}
+
+	// TODO: consider having the option to do this early via recovery in
+	// core20, have fallback code as well there
+	st.RequestRestart(state.RestartSystem)
+
+	return nil
 }

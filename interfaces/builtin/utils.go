@@ -25,6 +25,7 @@ import (
 	"sort"
 
 	"github.com/snapcore/snapd/interfaces"
+	"github.com/snapcore/snapd/release"
 	"github.com/snapcore/snapd/snap"
 )
 
@@ -73,26 +74,25 @@ func plugAppLabelExpr(plug *interfaces.ConnectedPlug) string {
 	return appLabelExpr(plug.Apps(), plug.Snap())
 }
 
-// sanitizeSlotReservedForOS checks if slot is of type os.
-func sanitizeSlotReservedForOS(iface interfaces.Interface, slot *snap.SlotInfo) error {
-	if slot.Snap.Type != snap.TypeOS {
-		return fmt.Errorf("%s slots are reserved for the core snap", iface.Name())
+// determine if permanent slot side is provided by the system
+// on classic system some implicit slots can be provided by system or by
+// application snap e.g. avahi (it can be installed as deb or snap)
+// - slot owned by the system (core,snapd snap)  usually requires no action
+// - slot owned by application snap typically requires rules update
+func implicitSystemPermanentSlot(slot *snap.SlotInfo) bool {
+	if release.OnClassic &&
+		(slot.Snap.GetType() == snap.TypeOS || slot.Snap.GetType() == snap.TypeSnapd) {
+		return true
 	}
-	return nil
+	return false
 }
 
-// sanitizeSlotReservedForOSOrGadget checks if the slot is of type os or gadget.
-func sanitizeSlotReservedForOSOrGadget(iface interfaces.Interface, slot *snap.SlotInfo) error {
-	if slot.Snap.Type != snap.TypeOS && slot.Snap.Type != snap.TypeGadget {
-		return fmt.Errorf("%s slots are reserved for the core and gadget snaps", iface.Name())
+// determine if connected slot side is provided by the system
+// as for isPermanentSlotSystemSlot() slot can be owned by app or system
+func implicitSystemConnectedSlot(slot *interfaces.ConnectedSlot) bool {
+	if release.OnClassic &&
+		(slot.Snap().GetType() == snap.TypeOS || slot.Snap().GetType() == snap.TypeSnapd) {
+		return true
 	}
-	return nil
-}
-
-// sanitizeSlotReservedForOSOrApp checks if the slot is of type os or app.
-func sanitizeSlotReservedForOSOrApp(iface interfaces.Interface, slot *snap.SlotInfo) error {
-	if slot.Snap.Type != snap.TypeOS && slot.Snap.Type != snap.TypeApp {
-		return fmt.Errorf("%s slots are reserved for the core and app snaps", iface.Name())
-	}
-	return nil
+	return false
 }

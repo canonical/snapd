@@ -138,7 +138,7 @@ func (cmd *cmdOkay) Execute(args []string) error {
 
 	last, err := lastWarningTimestamp()
 	if err != nil {
-		return fmt.Errorf("no client-side warning timestamp found: %v", err)
+		return err
 	}
 
 	return cmd.client.Okay(last)
@@ -193,8 +193,12 @@ func lastWarningTimestamp() (time.Time, error) {
 	if err != nil {
 		return time.Time{}, fmt.Errorf("cannot determine real user: %v", err)
 	}
+
 	f, err := os.Open(warnFilename(user.HomeDir))
 	if err != nil {
+		if os.IsNotExist(err) {
+			return time.Time{}, fmt.Errorf("you must have looked at the warnings before acknowledging them. Try 'snap warnings'.")
+		}
 		return time.Time{}, fmt.Errorf("cannot open timestamp file: %v", err)
 
 	}

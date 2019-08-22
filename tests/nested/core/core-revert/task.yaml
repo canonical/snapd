@@ -2,15 +2,7 @@ summary: core revert test
 
 kill-timeout: 30m
 
-prepare: |
-    #shellcheck source=tests/lib/nested.sh
-    . "$TESTSLIB/nested.sh"
-    create_nested_core_vm
-
-restore: |
-    #shellcheck source=tests/lib/nested.sh
-    . "$TESTSLIB/nested.sh"
-    destroy_nested_vm
+systems: [ubuntu-16.04-64]
 
 debug: |
     systemctl stop nested-vm || true
