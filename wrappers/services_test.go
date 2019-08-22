@@ -189,6 +189,60 @@ apps:
 	})
 }
 
+func (s *servicesTestSuite) TestCurrentSnapServiceStates(c *C) {
+	info := snaptest.MockSnap(c, packageHello+`
+ svc2:
+  command: bin/hello
+  daemon: forking
+`, &snap.SideInfo{Revision: snap.R(12)})
+	svc1File := filepath.Join(s.tempdir, "/etc/systemd/system/snap.hello-snap.svc1.service")
+	svc2File := filepath.Join(s.tempdir, "/etc/systemd/system/snap.hello-snap.svc2.service")
+
+	s.systemctlRestorer()
+	r := testutil.MockCommand(c, "systemctl", `#!/bin/sh
+	if [ "$1" = "--root" ]; then
+	    shift 2
+	fi
+
+	case "$1" in
+		is-enabled)
+			case "$2" in 
+			"snap.hello-snap.svc1.service")
+				echo "disabled"
+				exit 1
+				;;
+			"snap.hello-snap.svc2.service")
+				echo "enabled"
+				exit 0
+				;;
+			*)
+				echo "unexpected call $*"
+				exit 2
+				;;
+			esac
+	        ;;
+	    *)
+	        echo "unexpected call $*"
+	        exit 2
+	esac
+	`)
+	defer r.Restore()
+
+	states, err := wrappers.CurrentSnapServiceStates(info, progress.Null)
+	c.Assert(err, IsNil)
+
+	c.Assert(states, DeepEquals, map[string]bool{
+		"svc1": false,
+		"svc2": true,
+	})
+
+	c.Assert(r.Calls(), DeepEquals, [][]string{
+		{"systemctl", "--root", s.tempdir, "is-enabled", filepath.Base(svc1File)},
+		{"systemctl", "--root", s.tempdir, "is-enabled", filepath.Base(svc2File)},
+	})
+
+}
+
 func (s *servicesTestSuite) TestStopServicesWithSockets(c *C) {
 	var sysdLog []string
 	r := systemd.MockSystemctl(func(cmd ...string) ([]byte, error) {
