@@ -189,7 +189,7 @@ const (
 	errorKindDaemonRestart = errorKind("daemon-restart")
 	errorKindSystemRestart = errorKind("system-restart")
 
-	errorKindAssertionsNotFound = errorKind("assertion-not-found")
+	errorKindAssertionNotFound = errorKind("assertion-not-found")
 )
 
 type errorValue interface{}

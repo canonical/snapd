@@ -457,7 +457,7 @@ const (
 	ErrorKindSystemRestart = "system-restart"
 	ErrorKindDaemonRestart = "daemon-restart"
 
-	ErrorKindNoAssertion = "assertion-not-found"
+	ErrorKindAssertionNotFound = "assertion-not-found"
 )
 
 // IsRetryable returns true if the given error is an error
@@ -499,8 +499,7 @@ func IsAssertionNotFoundError(err error) bool {
 		return false
 	}
 
-	return e.Kind == ErrorKindNoAssertion
-
+	return e.Kind == ErrorKindAssertionNotFound
 }
 
 // OSRelease contains information about the system extracted from /etc/os-release.

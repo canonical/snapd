@@ -108,7 +108,7 @@ func getModel(c *Command, r *http.Request, _ *auth.UserState) Response {
 	if err == state.ErrNoState {
 		res := &errorResult{
 			Message: "no model assertion yet",
-			Kind:    errorKindAssertionsNotFound,
+			Kind:    errorKindAssertionNotFound,
 			Value:   "model",
 		}
 
@@ -153,7 +153,7 @@ func getSerial(c *Command, r *http.Request, _ *auth.UserState) Response {
 	if err == state.ErrNoState {
 		res := &errorResult{
 			Message: "no serial assertion yet",
-			Kind:    errorKindAssertionsNotFound,
+			Kind:    errorKindAssertionNotFound,
 			Value:   "serial",
 		}
 

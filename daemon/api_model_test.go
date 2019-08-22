@@ -126,7 +126,7 @@ func (s *apiSuite) TestGetModelNoModelAssertion(c *check.C) {
 	c.Assert(rsp.Status, check.Equals, 404)
 	c.Assert(rsp.Result, check.FitsTypeOf, &errorResult{})
 	errRes := rsp.Result.(*errorResult)
-	c.Assert(errRes.Kind, check.Equals, errorKindAssertionsNotFound)
+	c.Assert(errRes.Kind, check.Equals, errorKindAssertionNotFound)
 	c.Assert(errRes.Value, check.Equals, "model")
 	c.Assert(errRes.Message, check.Equals, "no model assertion yet")
 }
@@ -186,7 +186,7 @@ func (s *apiSuite) TestGetModelNoSerialAssertion(c *check.C) {
 	c.Assert(rsp.Status, check.Equals, 404)
 	c.Assert(rsp.Result, check.FitsTypeOf, &errorResult{})
 	errRes := rsp.Result.(*errorResult)
-	c.Assert(errRes.Kind, check.Equals, errorKindAssertionsNotFound)
+	c.Assert(errRes.Kind, check.Equals, errorKindAssertionNotFound)
 	c.Assert(errRes.Value, check.Equals, "serial")
 	c.Assert(errRes.Message, check.Equals, "no serial assertion yet")
 }
