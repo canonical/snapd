@@ -3,10 +3,6 @@ version: 1.0
 summary: Basic daemon-notify snap
 description: A basic snap which allow sending notification messages to systemd through the notify socket
 
-hooks:
-  install:
-    plugs: [network]
-
 apps:
   notify:
     command: bin/notify
