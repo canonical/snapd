@@ -33,6 +33,7 @@ import (
 	"github.com/snapcore/snapd/interfaces/hotplug"
 	"github.com/snapcore/snapd/interfaces/udev"
 	"github.com/snapcore/snapd/snap"
+	"github.com/snapcore/snapd/strutil"
 )
 
 const serialPortSummary = `allows accessing a specific serial port`
@@ -268,7 +269,9 @@ func (iface *serialPortInterface) HotplugKey(di *hotplug.HotplugDeviceInfo) (sna
 
 func (iface *serialPortInterface) HotplugDeviceDetected(di *hotplug.HotplugDeviceInfo) (*hotplug.ProposedSlot, error) {
 	bus, _ := di.Attribute("ID_BUS")
-	if di.Subsystem() != "tty" || bus != "usb" || !serialDeviceNodePattern.MatchString(di.DeviceName()) {
+	if di.Subsystem() != "tty" ||
+		!strutil.ListContains([]string{"usb", "pci"}, bus) ||
+		!serialDeviceNodePattern.MatchString(di.DeviceName()) {
 		return nil, nil
 	}
 
