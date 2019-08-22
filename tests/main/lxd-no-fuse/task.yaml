@@ -23,7 +23,6 @@ execute: |
         lxd.lxc config set core.proxy_https "$http_proxy"
     fi
 
-    . /etc/os-release
     lxd.lxc launch "images:ubuntu/18.04" my-ubuntu
 
     echo "Remove fuse to trigger the fuse sanity check"
