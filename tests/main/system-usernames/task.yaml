@@ -22,9 +22,7 @@ restore: |
 
     # snapd will create this for us, but we'll remove it for consistency in
     # test runs
-    # shellcheck source=tests/lib/dirs.sh
-    . "$TESTSLIB/users.sh"
-    remove_user_with_group snap_daemon
+    user-tool remove-with-group snap_daemon
 
 execute: |
     # to accommodate different distros, we pick the LSB required 'daemon' user
