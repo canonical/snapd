@@ -17,19 +17,6 @@ reset_classic() {
     # Reload all service units as in some situations the unit might
     # have changed on the disk.
     systemctl daemon-reload
-
-    echo "Ensure the service is active before stopping it"
-    retries=20
-    while systemctl status snapd.service snapd.socket | grep -q "Active: activating"; do
-        if [ $retries -eq 0 ]; then
-            echo "snapd service or socket not active"
-            systemctl status snapd.service snapd.socket || true
-            exit 1
-        fi
-        retries=$(( retries - 1 ))
-        sleep 1
-    done
-
     systemd_stop_units snapd.service snapd.socket
 
     case "$SPREAD_SYSTEM" in

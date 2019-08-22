@@ -45,6 +45,9 @@ restore: |
     if [[ "$SPREAD_VARIANT" == "parallel" ]]; then
         snap set system experimental.parallel-instances=null
     fi
+    if mountinfo-tool /sys/fs/fuse/connections .fs_type=fusectl; then
+        umount /sys/fs/fuse/connections
+    fi
 
 execute: |
     echo "The interface is disconnected by default"

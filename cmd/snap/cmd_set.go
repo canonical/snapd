@@ -40,10 +40,10 @@ snap's configuration hook returns successfully.
 
 Nested values may be modified via a dotted path:
 
-    $ snap set author.name=frank
+    $ snap set snap-name author.name=frank
 
 Configuration option may be unset with exclamation mark:
-    $ snap set author!
+    $ snap set snap-name author!
 `)
 
 type cmdSet struct {

@@ -19,6 +19,10 @@
 
 package seccomp
 
+import (
+	seccomp_compiler "github.com/snapcore/snapd/sandbox/seccomp"
+)
+
 // MockTemplate replaces seccomp template.
 //
 // NOTE: The real seccomp template is long. For testing it is convenient for
@@ -82,7 +86,7 @@ func MockSeccompCompilerLookup(f func(string) (string, error)) (restore func()) 
 	}
 }
 
-func (b *Backend) VersionInfo() string {
+func (b *Backend) VersionInfo() seccomp_compiler.VersionInfo {
 	return b.versionInfo
 }
 
