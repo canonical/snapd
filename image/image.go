@@ -574,8 +574,8 @@ func setupSeed(tsto *ToolingStore, model *asserts.Model, opts *Options, local *l
 		}
 	}
 
-	seedYaml := seed.seedYaml()
 	seedFn := filepath.Join(dirs.SnapSeedDir, "seed.yaml")
+	seedYaml := seed.seedYaml()
 	if err := seedYaml.Write(seedFn); err != nil {
 		return fmt.Errorf("cannot write seed.yaml: %s", err)
 	}
