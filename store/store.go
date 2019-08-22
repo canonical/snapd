@@ -1334,8 +1334,9 @@ func (e HashError) Error() string {
 }
 
 type DownloadOptions struct {
-	RateLimit     int64
-	IsAutoRefresh bool
+	RateLimit           int64
+	IsAutoRefresh       bool
+	LeavePartialOnError bool
 }
 
 // Download downloads the snap addressed by download info and returns its
@@ -1375,11 +1376,21 @@ func (s *Store) Download(ctx context.Context, name string, targetPath string, do
 		return err
 	}
 	defer func() {
+		fi, _ := w.Stat()
 		if cerr := w.Close(); cerr != nil && err == nil {
 			err = cerr
 		}
 		if err != nil {
-			os.Remove(w.Name())
+			doRemove := dlOpts == nil || !dlOpts.LeavePartialOnError
+			if !doRemove {
+				// also do remove if the file is empty
+				if fi != nil && fi.Size() == 0 {
+					doRemove = true
+				}
+			}
+			if doRemove {
+				os.Remove(w.Name())
+			}
 		}
 	}()
 	if resume > 0 {
