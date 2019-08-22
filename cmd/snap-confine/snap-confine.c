@@ -390,6 +390,33 @@ int main(int argc, char **argv)
 	}
 	// TODO: check for similar situation and linux capabilities.
 	if (geteuid() == 0) {
+		/* snap-confine uses privately-shared /run/snapd/ns to store bind-mounted
+		 * mount namespaces of each snap. In the case that snap-confine is invoked
+		 * from the mount namespace it typically constructs, the said directory
+		 * does not contain mount entries for preserved namespaces as those are
+		 * only visible in the main, outer namespace.
+		 *
+		 * In order to operate in such an environment snap-confine must first
+		 * re-associate its own process with another namespace in which the
+		 * /run/snapd/ns directory is visible. The most obvious candidate is pid
+		 * one, which definitely doesn't run in a snap-specific namespace, has a
+		 * predictable PID and is long lived.
+		 */
+		sc_reassociate_with_pid1_mount_ns();
+		// Do global initialization:
+		int global_lock_fd = sc_lock_global();
+		// Ensure that "/" or "/snap" is mounted with the
+		// "shared" option on legacy systems, see LP:#1668659
+		debug("ensuring that snap mount directory is shared");
+		sc_ensure_shared_snap_mount();
+		// Ensure that SNAP_MOUNT_DIR and /var/snap are shared mount points
+		debug
+		    ("ensuring snap mount and data directories are mount points");
+		sc_ensure_snap_dir_shared_mounts();
+		debug("unsharing snap namespace directory");
+		sc_initialize_mount_ns();
+		sc_unlock(global_lock_fd);
+
 		if (invocation.classic_confinement) {
 			enter_classic_execution_environment(&invocation);
 		} else {
@@ -519,8 +546,7 @@ static void enter_classic_execution_environment(sc_invocation * inv)
 {
 	/* 'classic confinement' is designed to run without the sandbox inside the
 	 * shared namespace. Specifically:
-	 * - snap-confine skips using the snap-specific mount namespace (unless a
-	 parallel installed classic snap)
+	 * - snap-confine skips using the snap-specific, private, mount namespace
 	 * - snap-confine skips using device cgroups
 	 * - snapd sets up a lenient AppArmor profile for snap-confine to use
 	 * - snapd sets up a lenient seccomp profile for snap-confine to use
@@ -538,8 +564,8 @@ static void enter_classic_execution_environment(sc_invocation * inv)
 		/* Construct a mount namespace where the snap instance directories are
 		 * visible under the regular snap name. In order to do that we will:
 		 *
-		 * - convert SNAP_MOUNT_DIR into a mount point
-		 * - convert /var/snap into a mount point
+		 * - convert SNAP_MOUNT_DIR into a mount point (global init)
+		 * - convert /var/snap into a mount point (global init)
 		 * - create a new mount namespace (done earlier)
 		 * - set slave propagation SNAP_MOUNT_DIR and /var/snap
 		 * - mount SNAP_MOUNT_DIR/<snap>_<key> on top of SNAP_MOUNT_DIR/<snap>
@@ -549,9 +575,6 @@ static void enter_classic_execution_environment(sc_invocation * inv)
 		 * are guaranteed to exist and were created during installation of a given
 		 * instance.
 		 */
-
-		/* ensure SNAP_MOUNT_DIR and /var/snap are mount points */
-		sc_ensure_snap_dir_shared_mounts();
 
 		/* set up mappings for snap and data directories */
 		sc_setup_parallel_instance_classic_mounts(inv->snap_name,
@@ -565,29 +588,6 @@ static void enter_non_classic_execution_environment(sc_invocation * inv,
 						    gid_t real_gid,
 						    gid_t saved_gid)
 {
-	/* snap-confine uses privately-shared /run/snapd/ns to store bind-mounted
-	 * mount namespaces of each snap. In the case that snap-confine is invoked
-	 * from the mount namespace it typically constructs, the said directory
-	 * does not contain mount entries for preserved namespaces as those are
-	 * only visible in the main, outer namespace.
-	 *
-	 * In order to operate in such an environment snap-confine must first
-	 * re-associate its own process with another namespace in which the
-	 * /run/snapd/ns directory is visible. The most obvious candidate is pid
-	 * one, which definitely doesn't run in a snap-specific namespace, has a
-	 * predictable PID and is long lived.
-	 */
-	sc_reassociate_with_pid1_mount_ns();
-	// Do global initialization:
-	int global_lock_fd = sc_lock_global();
-	// ensure that "/" or "/snap" is mounted with the
-	// "shared" option, see LP:#1668659
-	debug("ensuring that snap mount directory is shared");
-	sc_ensure_shared_snap_mount();
-	debug("unsharing snap namespace directory");
-	sc_initialize_mount_ns();
-	sc_unlock(global_lock_fd);
-
 	// Find and open snap-update-ns and snap-discard-ns from the same
 	// path as where we (snap-confine) were called.
 	int snap_update_ns_fd SC_CLEANUP(sc_cleanup_close) = -1;
