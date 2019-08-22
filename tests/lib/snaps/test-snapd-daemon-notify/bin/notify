@@ -1,5 +1,5 @@
-#!/bin/bash
+#!/bin/bash -ex
 
-systemd-notify --ready --status="Test service ready" --pid="$BASHPID" || true
+systemd-notify --ready --status="Test service ready" --pid="$BASHPID"
 
 sleep 100
