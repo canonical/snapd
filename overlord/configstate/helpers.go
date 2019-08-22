@@ -25,11 +25,13 @@ import (
 )
 
 func sortPatchKeys(patch map[string]interface{}) []string {
+	if len(patch) == 0 {
+		return nil
+	}
 	depths := make(map[string]int, len(patch))
-	var keys []string
+	keys := make([]string, 0, len(patch))
 	for k := range patch {
-		parts := strings.Split(k, ".")
-		depths[k] = len(parts)
+		depths[k] = strings.Count(k, ".")
 		keys = append(keys, k)
 	}
 
