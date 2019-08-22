@@ -607,7 +607,8 @@ type fakeSnappyBackend struct {
 	copySnapDataFailTrigger string
 	emptyContainer          snap.Container
 
-	servicesCurrentlyDisabled []string
+	servicesCurrentlyDisabled        []string
+	restoreDisabledServicesFailTrigger string
 }
 
 func (f *fakeSnappyBackend) OpenSnapFile(snapFilePath string, si *snap.SideInfo) (*snap.Info, snap.Container, error) {
@@ -861,10 +862,18 @@ func (f *fakeSnappyBackend) RestoreDisabledServices(info *snap.Info, lastActiveD
 		}
 	}
 
-	f.appendOp(&fakeOp{
-		op:       "restore-disabled-services",
-		services: lastActiveDisabledSvcNames,
-	})
+	if info.MountDir() == f.restoreDisabledServicesFailTrigger {
+		f.appendOp(&fakeOp{
+			op:       "restore-disabled-services:failed",
+			services: lastActiveDisabledSvcNames,
+		})
+		return nil, fmt.Errorf("failed because of trigger")
+	} else {
+		f.appendOp(&fakeOp{
+			op:       "restore-disabled-services",
+			services: lastActiveDisabledSvcNames,
+		})
+	}
 
 	return missingSvcs, nil
 }
