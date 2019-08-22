@@ -53,7 +53,7 @@ execute: |
 
     echo "Then the snap is not able to send notification messages"
     denials_before="$(get_journalctl_log -u snap.test-snapd-daemon-notify.notify.service | grep -c 'Permission denied' || true)"
-    snap start test-snapd-daemon-notify.notify
+    snap start test-snapd-daemon-notify.notify || true
     for _ in $(seq 10); do
         denials_after="$(get_journalctl_log -u snap.test-snapd-daemon-notify.notify.service | grep -c 'Permission denied' || true)"
         if [ "$denials_before" -ne "$denials_after" ]; then
