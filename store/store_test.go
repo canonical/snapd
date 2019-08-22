@@ -56,6 +56,7 @@ import (
 	"github.com/snapcore/snapd/progress"
 	"github.com/snapcore/snapd/release"
 	"github.com/snapcore/snapd/snap"
+	"github.com/snapcore/snapd/snap/channel"
 	"github.com/snapcore/snapd/snap/snaptest"
 	"github.com/snapcore/snapd/store"
 	"github.com/snapcore/snapd/testutil"
@@ -6015,7 +6016,7 @@ func (s *storeTestSuite) TestSnapActionRevisionNotAvailable(c *C) {
 			"snap2": &store.RevisionNotAvailableError{
 				Action:  "refresh",
 				Channel: "candidate",
-				Releases: []snap.Channel{
+				Releases: []channel.Channel{
 					snaptest.MustParseChannel("beta", "amd64"),
 					snaptest.MustParseChannel("beta", "arm64"),
 				},
