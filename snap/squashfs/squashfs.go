@@ -33,7 +33,6 @@ import (
 	"github.com/snapcore/snapd/cmd/cmdutil"
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/osutil"
-	"github.com/snapcore/snapd/snap/undo_context"
 	"github.com/snapcore/snapd/strutil"
 )
 
@@ -58,14 +57,12 @@ func New(snapPath string) *Snap {
 var osLink = os.Link
 var cmdutilCommandFromSystemSnap = cmdutil.CommandFromSystemSnap
 
-func (s *Snap) Install(targetPath, mountDir string) (*undo_context.InstallUndoContext, error) {
-
-	undo := undo_context.InstallUndoContext{}
+func (s *Snap) Install(targetPath, mountDir string) (bool, error) {
 
 	// ensure mount-point and blob target dir.
 	for _, dir := range []string{mountDir, filepath.Dir(targetPath)} {
 		if err := os.MkdirAll(dir, 0755); err != nil {
-			return &undo, err
+			return false, err
 		}
 	}
 
@@ -75,21 +72,15 @@ func (s *Snap) Install(targetPath, mountDir string) (*undo_context.InstallUndoCo
 	// it to the location which is good enough for the tests.
 	if osutil.GetenvBool("SNAPPY_SQUASHFS_UNPACK_FOR_TESTS") {
 		if err := s.Unpack("*", mountDir); err != nil {
-			return &undo, err
+			return false, err
 		}
 	}
 
 	// nothing to do, happens on e.g. first-boot when we already
 	// booted with the OS snap but its also in the seed.yaml
 	if s.path == targetPath || osutil.FilesAreEqual(s.path, targetPath) {
-		if osutil.IsSymlink(targetPath) {
-			// XXX: if target doesn't exist, snapd creates a copy or symlink below and if
-			// the system is restarted before the task is 'Done', we will repeat Install()
-			// and conclude the file existed on second execution, so it won't get removed on undo.
-			// This is probably fine as symlink are only used for seeding.
-			undo.KeepTargetSnap = true
-		}
-		return &undo, nil
+		nothingToDo := true
+		return nothingToDo, nil
 	}
 
 	// try to (hard)link the file, but go on to trying to copy it
@@ -99,16 +90,16 @@ func (s *Snap) Install(targetPath, mountDir string) (*undo_context.InstallUndoCo
 	// hard links (like vfat), so checking the error here doesn't
 	// make sense vs just trying to copy it.
 	if err := osLink(s.path, targetPath); err == nil {
-		return &undo, nil
+		return false, nil
 	}
 
 	// if the file is a seed, but the hardlink failed, symlinking it
 	// saves the copy (which in livecd is expensive) so try that next
 	if filepath.Dir(s.path) == dirs.SnapSeedDir && os.Symlink(s.path, targetPath) == nil {
-		return &undo, nil
+		return false, nil
 	}
 
-	return &undo, osutil.CopyFile(s.path, targetPath, osutil.CopyFlagPreserveAll|osutil.CopyFlagSync)
+	return false, osutil.CopyFile(s.path, targetPath, osutil.CopyFlagPreserveAll|osutil.CopyFlagSync)
 }
 
 // unsquashfsStderrWriter is a helper that captures errors from

@@ -187,9 +187,9 @@ func (s *SquashfsTestSuite) TestInstallSeedNoLink(c *C) {
 	_, err := os.Lstat(targetPath)
 	c.Check(os.IsNotExist(err), Equals, true)
 
-	undoCtx, err := snap.Install(targetPath, c.MkDir())
+	nothingToDo, err := snap.Install(targetPath, c.MkDir())
 	c.Assert(err, IsNil)
-	c.Assert(undoCtx, NotNil)
+	c.Assert(nothingToDo, Equals, false)
 	c.Check(osutil.IsSymlink(targetPath), Equals, true) // \o/
 }
 
@@ -199,10 +199,9 @@ func (s *SquashfsTestSuite) TestInstallSymlinkExists(c *C) {
 	targetPath := filepath.Join(c.MkDir(), "foo.snap")
 	c.Assert(os.Symlink(snap.Path(), targetPath), IsNil)
 
-	undoCtx, err := snap.Install(targetPath, c.MkDir())
+	nothingToDo, err := snap.Install(targetPath, c.MkDir())
 	c.Assert(err, IsNil)
-	c.Assert(undoCtx, NotNil)
-	c.Check(undoCtx.KeepTargetSnap, Equals, true)
+	c.Check(nothingToDo, Equals, true)
 }
 
 func (s *SquashfsTestSuite) TestPath(c *C) {

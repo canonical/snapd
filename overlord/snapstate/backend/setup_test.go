@@ -35,7 +35,6 @@ import (
 	"github.com/snapcore/snapd/progress"
 	"github.com/snapcore/snapd/snap"
 	"github.com/snapcore/snapd/snap/snaptest"
-	"github.com/snapcore/snapd/snap/undo_context"
 	"github.com/snapcore/snapd/systemd"
 	"github.com/snapcore/snapd/testutil"
 )
@@ -317,7 +316,7 @@ func (s *setupSuite) TestSetupUndoKeepsTargetSnap(c *C) {
 	c.Assert(osutil.FileExists(minInfo.MountDir()), Equals, true)
 
 	// undo keeps the target .snap file intact if requested
-	undoCtx = &undo_context.InstallUndoContext{KeepTargetSnap: true}
+	undoCtx = &backend.InstallUndoContext{KeepTargetSnap: true}
 	c.Assert(s.be.UndoSetupSnap(minInfo, "app", undoCtx, progress.Null), IsNil)
 
 	l, _ := filepath.Glob(filepath.Join(dirs.SnapServicesDir, "*.mount"))
@@ -374,7 +373,7 @@ func (s *setupSuite) TestRemoveSnapFilesDir(c *C) {
 	// mount dir was created
 	c.Assert(osutil.FileExists(minInfo.MountDir()), Equals, true)
 
-	undoCtx = &undo_context.InstallUndoContext{}
+	undoCtx = &backend.InstallUndoContext{}
 	s.be.RemoveSnapFiles(minInfo, snapType, undoCtx, progress.Null)
 	c.Assert(err, IsNil)
 

@@ -37,7 +37,6 @@ import (
 	"github.com/snapcore/snapd/overlord/state"
 	"github.com/snapcore/snapd/progress"
 	"github.com/snapcore/snapd/snap"
-	"github.com/snapcore/snapd/snap/undo_context"
 	"github.com/snapcore/snapd/store"
 	"github.com/snapcore/snapd/store/storetest"
 	"github.com/snapcore/snapd/timings"
@@ -657,7 +656,7 @@ func (f *fakeSnappyBackend) OpenSnapFile(snapFilePath string, si *snap.SideInfo)
 	return info, f.emptyContainer, nil
 }
 
-func (f *fakeSnappyBackend) SetupSnap(snapFilePath, instanceName string, si *snap.SideInfo, p progress.Meter) (snap.Type, *undo_context.InstallUndoContext, error) {
+func (f *fakeSnappyBackend) SetupSnap(snapFilePath, instanceName string, si *snap.SideInfo, p progress.Meter) (snap.Type, *backend.InstallUndoContext, error) {
 	p.Notify("setup-snap")
 	revno := snap.R(0)
 	if si != nil {
@@ -679,7 +678,7 @@ func (f *fakeSnappyBackend) SetupSnap(snapFilePath, instanceName string, si *sna
 	if instanceName == "borken-in-setup" {
 		return snapType, nil, fmt.Errorf("cannot install snap %q", instanceName)
 	}
-	return snapType, &undo_context.InstallUndoContext{}, nil
+	return snapType, &backend.InstallUndoContext{}, nil
 }
 
 func (f *fakeSnappyBackend) ReadInfo(name string, si *snap.SideInfo) (*snap.Info, error) {
@@ -846,7 +845,7 @@ func (f *fakeSnappyBackend) StopServices(svcs []*snap.AppInfo, reason snap.Servi
 	return nil
 }
 
-func (f *fakeSnappyBackend) UndoSetupSnap(s snap.PlaceInfo, typ snap.Type, undoCtx *undo_context.InstallUndoContext, p progress.Meter) error {
+func (f *fakeSnappyBackend) UndoSetupSnap(s snap.PlaceInfo, typ snap.Type, undoCtx *backend.InstallUndoContext, p progress.Meter) error {
 	p.Notify("setup-snap")
 	f.appendOp(&fakeOp{
 		op:    "undo-setup-snap",
@@ -883,7 +882,7 @@ func (f *fakeSnappyBackend) UnlinkSnap(info *snap.Info, meter progress.Meter) er
 	return nil
 }
 
-func (f *fakeSnappyBackend) RemoveSnapFiles(s snap.PlaceInfo, typ snap.Type, undoCtx *undo_context.InstallUndoContext, meter progress.Meter) error {
+func (f *fakeSnappyBackend) RemoveSnapFiles(s snap.PlaceInfo, typ snap.Type, undoCtx *backend.InstallUndoContext, meter progress.Meter) error {
 	meter.Notify("remove-snap-files")
 	f.appendOp(&fakeOp{
 		op:    "remove-snap-files",

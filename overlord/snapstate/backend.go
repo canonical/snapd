@@ -29,7 +29,6 @@ import (
 	"github.com/snapcore/snapd/overlord/snapstate/backend"
 	"github.com/snapcore/snapd/progress"
 	"github.com/snapcore/snapd/snap"
-	"github.com/snapcore/snapd/snap/undo_context"
 	"github.com/snapcore/snapd/store"
 	"github.com/snapcore/snapd/timings"
 )
@@ -63,21 +62,21 @@ type StoreService interface {
 
 type managerBackend interface {
 	// install related
-	SetupSnap(snapFilePath, instanceName string, si *snap.SideInfo, meter progress.Meter) (snap.Type, *undo_context.InstallUndoContext, error)
+	SetupSnap(snapFilePath, instanceName string, si *snap.SideInfo, meter progress.Meter) (snap.Type, *backend.InstallUndoContext, error)
 	CopySnapData(newSnap, oldSnap *snap.Info, meter progress.Meter) error
 	LinkSnap(info *snap.Info, model *asserts.Model, tm timings.Measurer) error
 	StartServices(svcs []*snap.AppInfo, meter progress.Meter, tm timings.Measurer) error
 	StopServices(svcs []*snap.AppInfo, reason snap.ServiceStopReason, meter progress.Meter, tm timings.Measurer) error
 
 	// the undoers for install
-	UndoSetupSnap(s snap.PlaceInfo, typ snap.Type, undoCtx *undo_context.InstallUndoContext, meter progress.Meter) error
+	UndoSetupSnap(s snap.PlaceInfo, typ snap.Type, undoCtx *backend.InstallUndoContext, meter progress.Meter) error
 	UndoCopySnapData(newSnap, oldSnap *snap.Info, meter progress.Meter) error
 	// cleanup
 	ClearTrashedData(oldSnap *snap.Info)
 
 	// remove related
 	UnlinkSnap(info *snap.Info, meter progress.Meter) error
-	RemoveSnapFiles(s snap.PlaceInfo, typ snap.Type, undoCtx *undo_context.InstallUndoContext, meter progress.Meter) error
+	RemoveSnapFiles(s snap.PlaceInfo, typ snap.Type, undoCtx *backend.InstallUndoContext, meter progress.Meter) error
 	RemoveSnapDir(s snap.PlaceInfo, hasOtherInstances bool) error
 	RemoveSnapData(info *snap.Info) error
 	RemoveSnapCommonData(info *snap.Info) error

@@ -44,7 +44,6 @@ import (
 	"github.com/snapcore/snapd/overlord/state"
 	"github.com/snapcore/snapd/release"
 	"github.com/snapcore/snapd/snap"
-	"github.com/snapcore/snapd/snap/undo_context"
 	"github.com/snapcore/snapd/store"
 	"github.com/snapcore/snapd/strutil"
 	"github.com/snapcore/snapd/timings"
@@ -644,7 +643,7 @@ func (m *SnapManager) doMountSnap(t *state.Task, _ *tomb.Tomb) error {
 	// TODO Use snapsup.Revision() to obtain the right info to mount
 	//      instead of assuming the candidate is the right one.
 	var snapType snap.Type
-	var undoCtx *undo_context.InstallUndoContext
+	var undoCtx *backend.InstallUndoContext
 	timings.Run(perfTimings, "setup-snap", fmt.Sprintf("setup snap %q", snapsup.InstanceName()), func(timings.Measurer) {
 		snapType, undoCtx, err = m.backend.SetupSnap(snapsup.SnapPath, snapsup.InstanceName(), snapsup.SideInfo, pb)
 	})
@@ -726,7 +725,7 @@ func (m *SnapManager) undoMountSnap(t *state.Task, _ *tomb.Tomb) error {
 		return err
 	}
 
-	var undoCtx undo_context.InstallUndoContext
+	var undoCtx backend.InstallUndoContext
 	st.Lock()
 	// undo-context is optional (e.g. not present in tasks from older snapd)
 	err = t.Get("undo-context", &undoCtx)

@@ -27,11 +27,17 @@ import (
 	"github.com/snapcore/snapd/boot"
 	"github.com/snapcore/snapd/progress"
 	"github.com/snapcore/snapd/snap"
-	"github.com/snapcore/snapd/snap/undo_context"
 )
 
+// InstallUndoContext keeps information about what needs to be undone in case of install failure
+type InstallUndoContext struct {
+	// KeepTargetSnap indicates that the target .snap file under /var/lib/snapd/snap already existed when the
+	// backend attempted SetupSnap() through squashfs Install() and should be kept.
+	KeepTargetSnap bool `json:"keep-target-snap,omitempty"`
+}
+
 // SetupSnap does prepare and mount the snap for further processing.
-func (b Backend) SetupSnap(snapFilePath, instanceName string, sideInfo *snap.SideInfo, meter progress.Meter) (snapType snap.Type, undoCtx *undo_context.InstallUndoContext, err error) {
+func (b Backend) SetupSnap(snapFilePath, instanceName string, sideInfo *snap.SideInfo, meter progress.Meter) (snapType snap.Type, undoCtx *InstallUndoContext, err error) {
 	// This assumes that the snap was already verified or --dangerous was used.
 
 	s, snapf, oErr := OpenSnapFile(snapFilePath, sideInfo)
@@ -66,7 +72,8 @@ func (b Backend) SetupSnap(snapFilePath, instanceName string, sideInfo *snap.Sid
 		}
 	}
 
-	if undoCtx, err = snapf.Install(s.MountFile(), instdir); err != nil {
+	var nothingToDo bool
+	if nothingToDo, err = snapf.Install(s.MountFile(), instdir); err != nil {
 		return snapType, nil, err
 	}
 
@@ -81,12 +88,12 @@ func (b Backend) SetupSnap(snapFilePath, instanceName string, sideInfo *snap.Sid
 		}
 	}
 
-	// non-nil undoCtx is only returned on success, as failures are handled immediately by the deferred cleanup of this function.
+	undoCtx = &InstallUndoContext{KeepTargetSnap: nothingToDo}
 	return s.GetType(), undoCtx, err
 }
 
 // RemoveSnapFiles removes the snap files from the disk after unmounting the snap.
-func (b Backend) RemoveSnapFiles(s snap.PlaceInfo, typ snap.Type, undoCtx *undo_context.InstallUndoContext, meter progress.Meter) error {
+func (b Backend) RemoveSnapFiles(s snap.PlaceInfo, typ snap.Type, undoCtx *InstallUndoContext, meter progress.Meter) error {
 	mountDir := s.MountDir()
 
 	// this also ensures that the mount unit stops
@@ -138,6 +145,6 @@ func (b Backend) RemoveSnapDir(s snap.PlaceInfo, hasOtherInstances bool) error {
 }
 
 // UndoSetupSnap undoes the work of SetupSnap using RemoveSnapFiles.
-func (b Backend) UndoSetupSnap(s snap.PlaceInfo, typ snap.Type, undoCtx *undo_context.InstallUndoContext, meter progress.Meter) error {
+func (b Backend) UndoSetupSnap(s snap.PlaceInfo, typ snap.Type, undoCtx *InstallUndoContext, meter progress.Meter) error {
 	return b.RemoveSnapFiles(s, typ, undoCtx, meter)
 }
