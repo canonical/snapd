@@ -112,7 +112,7 @@ func (h *configureHandler) Before() error {
 		}
 	}
 
-	patchKeys := sortPatchKeys(patch)
+	patchKeys := sortPatchKeysByDepth(patch)
 	for _, key := range patchKeys {
 		if err := tr.Set(instanceName, key, patch[key]); err != nil {
 			return err

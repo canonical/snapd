@@ -27,7 +27,7 @@ import (
 
 func (s *miscSuite) TestSortPatchKeysEmpty(c *C) {
 	patch := map[string]interface{}{}
-	keys := configstate.SortPatchKeys(patch)
+	keys := configstate.SortPatchKeysByDepth(patch)
 	c.Assert(keys, IsNil)
 }
 
@@ -40,6 +40,6 @@ func (s *miscSuite) TestSortPatchKeys(c *C) {
 		"f.g":           0,
 	}
 
-	keys := configstate.SortPatchKeys(patch)
+	keys := configstate.SortPatchKeysByDepth(patch)
 	c.Assert(keys, DeepEquals, []string{"a", "f.g", "a.b.c", "a.b.c.d", "q.w.e.r.t.y.u"})
 }
