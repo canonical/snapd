@@ -12,6 +12,11 @@ prepare: |
     . "$TESTSLIB/snaps.sh"
     install_local test-snapd-daemon-notify
 
+debug: |
+    systemctl status snap.test-snapd-daemon-notify.notify || true
+    journalctl -e --no-pager -u snap.test-snapd-daemon-notify.notify
+    snap services
+
 execute: |
     # shellcheck source=tests/lib/journalctl.sh
     . "$TESTSLIB/journalctl.sh"
