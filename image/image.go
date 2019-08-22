@@ -39,6 +39,7 @@ import (
 	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/release"
 	"github.com/snapcore/snapd/snap"
+	"github.com/snapcore/snapd/snap/channel"
 	"github.com/snapcore/snapd/snap/squashfs"
 	"github.com/snapcore/snapd/strutil"
 )
@@ -209,7 +210,7 @@ func Prepare(opts *Options) error {
 	if err := validateNonLocalSnaps(opts.Snaps); err != nil {
 		return err
 	}
-	if _, err := snap.ParseChannel(opts.Channel, ""); err != nil {
+	if _, err := channel.Parse(opts.Channel, ""); err != nil {
 		return fmt.Errorf("cannot use channel: %v", err)
 	}
 
@@ -298,12 +299,12 @@ func snapChannel(name string, model *asserts.Model, opts *Options, local *localI
 }
 
 func makeChannelFromTrack(what, track, snapChannel string) (string, error) {
-	mch, err := snap.ParseChannel(track, "")
+	mch, err := channel.Parse(track, "")
 	if err != nil {
 		return "", fmt.Errorf("cannot use track %q for %s from model assertion: %v", track, what, err)
 	}
 	if snapChannel != "" {
-		ch, err := snap.ParseChannelVerbatim(snapChannel, "")
+		ch, err := channel.ParseVerbatim(snapChannel, "")
 		if err != nil {
 			return "", fmt.Errorf("cannot parse channel %q for %s", snapChannel, what)
 		}

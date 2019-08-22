@@ -1,0 +1,29 @@
+summary: ensure snap can be installed twice (reusing the created groups)
+
+# List of expected snap install failures due to libseccomp/golang-seccomp being
+# too old. Since the illegal name check happens after verifying system support,
+# we can ignore these. Ignore ubuntu-core since groupdel doesn't support
+# --extrausers
+systems: [-amazon-linux-2-*, -centos-7-*, -debian-9-*, -debian-sid-*, -fedora-29-*, -fedora-30-*, -opensuse-15.0-*, -opensuse-15.1-*, -ubuntu-14.04-*, -ubuntu-core-*]
+
+prepare: |
+    snap install --edge test-snapd-daemon-user
+
+restore: |
+    snap remove test-snapd-daemon-user || true
+
+    # Clean user and group to be used on the following tests
+    userdel --force snap_daemon || true
+    groupdel snap_daemon || true
+    not getent group snap_daemon
+
+execute: |
+    echo "When the snap is removed"
+    snap remove test-snapd-daemon-user
+
+    echo "Then the snap_daemon user and group remain"
+    getent passwd snap_daemon || exit 1
+    getent group snap_daemon || exit 1
+
+    echo "And the snap can be installed again"
+    snap install --edge test-snapd-daemon-user

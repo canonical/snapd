@@ -36,7 +36,7 @@ snap's configuration hook returns successfully.
 
 Nested values may be removed via a dotted path:
 
-	$ snap unset user.name
+	$ snap unset snap-name user.name
 `)
 
 type cmdUnset struct {
