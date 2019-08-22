@@ -29,7 +29,7 @@ import (
 )
 
 func (s *sanitySuite) TestCheckSquashfsMountHappy(c *C) {
-	restore := squashfs.MockUseFuse(false)
+	restore := squashfs.MockNeedsFuse(false)
 	defer restore()
 
 	// we create a canary.txt with the same prefix as the real one
@@ -56,7 +56,7 @@ func (s *sanitySuite) TestCheckSquashfsMountHappy(c *C) {
 }
 
 func (s *sanitySuite) TestCheckSquashfsMountNotHappy(c *C) {
-	restore := squashfs.MockUseFuse(false)
+	restore := squashfs.MockNeedsFuse(false)
 	defer restore()
 
 	mockMount := testutil.MockCommand(c, "mount", "echo iz-broken;false")
@@ -79,7 +79,7 @@ func (s *sanitySuite) TestCheckSquashfsMountNotHappy(c *C) {
 }
 
 func (s *sanitySuite) TestCheckSquashfsMountWrongContent(c *C) {
-	restore := squashfs.MockUseFuse(false)
+	restore := squashfs.MockNeedsFuse(false)
 	defer restore()
 
 	mockMount := testutil.MockCommand(c, "mount", `echo 'wrong content' > "$4"/canary.txt`)
@@ -96,7 +96,7 @@ func (s *sanitySuite) TestCheckSquashfsMountWrongContent(c *C) {
 }
 
 func (s *sanitySuite) TestCheckSquashfsMountSELinuxContext(c *C) {
-	restore := squashfs.MockUseFuse(false)
+	restore := squashfs.MockNeedsFuse(false)
 	defer restore()
 
 	mockMount := testutil.MockCommand(c, "mount", "echo 'mock ran'")
@@ -122,14 +122,14 @@ func (s *sanitySuite) TestCheckSquashfsMountSELinuxContext(c *C) {
 }
 
 func (s *sanitySuite) TestCheckFuseNoFuseHappy(c *C) {
-	restore := squashfs.MockUseFuse(false)
+	restore := squashfs.MockNeedsFuse(false)
 	defer restore()
 
 	c.Assert(sanity.CheckFuse(), IsNil)
 }
 
 func (s *sanitySuite) TestCheckFuseNeedsFuseAndHasFuse(c *C) {
-	restore := squashfs.MockUseFuse(true)
+	restore := squashfs.MockNeedsFuse(true)
 	defer restore()
 
 	restore = sanity.MockFuseBinary("true")
@@ -139,7 +139,7 @@ func (s *sanitySuite) TestCheckFuseNeedsFuseAndHasFuse(c *C) {
 }
 
 func (s *sanitySuite) TestCheckFuseNoDevFuseUnhappy(c *C) {
-	restore := squashfs.MockUseFuse(true)
+	restore := squashfs.MockNeedsFuse(true)
 	defer restore()
 
 	restore = sanity.MockFuseBinary("/it/does/not/exist")

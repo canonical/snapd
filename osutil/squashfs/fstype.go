@@ -26,10 +26,7 @@ import (
 	"github.com/snapcore/snapd/osutil"
 )
 
-// useFuse detects if we should be using squashfuse instead
-var useFuse = useFuseImpl
-
-func useFuseImpl() bool {
+var needsFuseImpl = func() bool {
 	if !osutil.FileExists("/dev/fuse") {
 		return false
 	}
@@ -51,18 +48,18 @@ func useFuseImpl() bool {
 	return false
 }
 
-// MockUseFuse is exported so useFuse can be overridden by testing.
-func MockUseFuse(r bool) func() {
-	oldUseFuse := useFuse
-	useFuse = func() bool {
+// MockNeedsFuse is exported so NeedsFuse can be overridden by testing.
+func MockNeedsFuse(r bool) func() {
+	oldNeedsFuseImpl := needsFuseImpl
+	needsFuseImpl = func() bool {
 		return r
 	}
-	return func() { useFuse = oldUseFuse }
+	return func() { needsFuseImpl = oldNeedsFuseImpl }
 }
 
 // NeedsFuse returns true if the given system needs fuse to mount snaps
 func NeedsFuse() bool {
-	return useFuse()
+	return needsFuseImpl()
 }
 
 // FsType returns what fstype to use for squashfs mounts and what
@@ -71,7 +68,7 @@ func FsType() (fstype string, options []string, err error) {
 	fstype = "squashfs"
 	options = []string{"ro", "x-gdu.hide"}
 
-	if useFuse() {
+	if NeedsFuse() {
 		options = append(options, "allow_other")
 		switch {
 		case osutil.ExecutableExists("squashfuse"):
@@ -79,7 +76,7 @@ func FsType() (fstype string, options []string, err error) {
 		case osutil.ExecutableExists("snapfuse"):
 			fstype = "fuse.snapfuse"
 		default:
-			panic("cannot happen because useFuse() ensures one of the two executables is there")
+			panic("cannot happen because NeedsFuse() ensures one of the two executables is there")
 		}
 	}
 
