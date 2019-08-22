@@ -63,13 +63,13 @@ func Update(old, new GadgetData, rollbackDirPath string) error {
 	}
 
 	// layout old
-	pOld, err := VolumeLayout(old.RootDir, oldVol, defaultConstraints)
+	pOld, err := LayoutVolume(old.RootDir, oldVol, defaultConstraints)
 	if err != nil {
 		return fmt.Errorf("cannot lay out the old volume: %v", err)
 	}
 
 	// layout new
-	pNew, err := VolumeLayout(new.RootDir, newVol, defaultConstraints)
+	pNew, err := LayoutVolume(new.RootDir, newVol, defaultConstraints)
 	if err != nil {
 		return fmt.Errorf("cannot lay out the new volume: %v", err)
 	}

@@ -77,7 +77,7 @@ func (b byStartOffset) Swap(i, j int)      { b[i], b[j] = b[j], b[i] }
 func (b byStartOffset) Less(i, j int) bool { return b[i].StartOffset < b[j].StartOffset }
 
 // LaidOutContent describes raw content that has been placed within the
-// encompassing structure and voulme
+// encompassing structure and volume
 type LaidOutContent struct {
 	*VolumeContent
 
@@ -99,8 +99,8 @@ func (p LaidOutContent) String() string {
 	return fmt.Sprintf("#%v (source:%q)", p.Index, p.Source)
 }
 
-// VolumeLayout attempts to lay out the volume using provided constraints
-func VolumeLayout(gadgetRootDir string, volume *Volume, constraints LayoutConstraints) (*LaidOutVolume, error) {
+// LayoutVolume attempts to lay out the volume using provided constraints
+func LayoutVolume(gadgetRootDir string, volume *Volume, constraints LayoutConstraints) (*LaidOutVolume, error) {
 	previousEnd := Size(0)
 	farthestEnd := Size(0)
 	fartherstOffsetWrite := Size(0)
