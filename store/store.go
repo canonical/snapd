@@ -1380,17 +1380,11 @@ func (s *Store) Download(ctx context.Context, name string, targetPath string, do
 		if cerr := w.Close(); cerr != nil && err == nil {
 			err = cerr
 		}
-		if err != nil {
-			doRemove := dlOpts == nil || !dlOpts.LeavePartialOnError
-			if !doRemove {
-				// also do remove if the file is empty
-				if fi != nil && fi.Size() == 0 {
-					doRemove = true
-				}
-			}
-			if doRemove {
-				os.Remove(w.Name())
-			}
+		if err == nil {
+			return
+		}
+		if dlOpts == nil || !dlOpts.LeavePartialOnError || fi == nil || fi.Size() == 0 {
+			os.Remove(w.Name())
 		}
 	}()
 	if resume > 0 {
