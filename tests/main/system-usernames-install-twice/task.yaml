@@ -12,10 +12,11 @@ prepare: |
 restore: |
     snap remove test-snapd-daemon-user || true
 
-    # Clean user and group to be used on the following tests
-    userdel --force snap_daemon || true
-    groupdel snap_daemon || true
-    not getent group snap_daemon
+    # snapd will create this for us, but we'll remove it for consistency in
+    # test runs
+    # shellcheck source=tests/lib/dirs.sh
+    . "$TESTSLIB/users.sh"
+    remove_user_with_group snap_daemon
 
 execute: |
     echo "When the snap is removed"
