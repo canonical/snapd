@@ -106,7 +106,9 @@ func (s *SnapSet) Contains(ref SnapRef) bool {
 	return s.Lookup(ref) != nil
 }
 
-// Add adds one reference to the set. Already added ids or names will be ignored. The assumption is that a SnapSet is populated with distinct snaps.
+// Add adds one reference to the set.
+// Already added ids or names will be ignored. The assumption is that
+// a SnapSet is populated with distinct snaps.
 func (s *SnapSet) Add(ref SnapRef) {
 	if s.Contains(ref) {
 		// nothing to do
