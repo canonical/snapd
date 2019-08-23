@@ -30,8 +30,6 @@ import (
 	"syscall"
 	"time"
 
-	"golang.org/x/net/http2"
-
 	"gopkg.in/retry.v1"
 
 	"github.com/snapcore/snapd/logger"
@@ -76,17 +74,6 @@ func ShouldRetryError(attempt *retry.Attempt, err error) bool {
 		return false
 	}
 	if urlErr, ok := err.(*url.Error); ok {
-		// we see this from http2 downloads sometimes - it is unclear what
-		// is causing it but https://github.com/golang/go/issues/29125
-		// indicates a retry might be enough. Note that we get the
-		// PROTOCOL_ERROR *from* the remote side (fastly it seems)
-		netErr := urlErr.Err
-		if http2StreamErr, ok := netErr.(http2.StreamError); ok {
-			if http2StreamErr.Code == http2.ErrCodeProtocol {
-				logger.Debugf("Retrying because of: %s", err)
-				return true
-			}
-		}
 		err = urlErr.Err
 	}
 	if netErr, ok := err.(net.Error); ok {
@@ -138,6 +125,17 @@ func ShouldRetryError(attempt *retry.Attempt, err error) bool {
 			return true
 		}
 		logger.Debugf("Encountered non temporary net.OpError: %#v", opErr)
+	}
+
+	// we see this from http2 downloads sometimes - it is unclear what
+	// is causing it but https://github.com/golang/go/issues/29125
+	// indicates a retry might be enough. Note that we get the
+	// PROTOCOL_ERROR *from* the remote side (fastly it seems)
+	//
+	// FIXME: find a better way to get to this error
+	if strings.Contains(err.Error(), "PROTOCOL_ERROR") {
+		logger.Debugf("Retrying because of: %s", err)
+		return true
 	}
 
 	if err == io.ErrUnexpectedEOF || err == io.EOF {
