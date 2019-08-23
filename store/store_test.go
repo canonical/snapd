@@ -862,6 +862,56 @@ func (s *storeTestSuite) TestDownloadFails(c *C) {
 	c.Assert(err, ErrorMatches, "uh, it failed")
 	// ... and ensure that the tempfile is removed
 	c.Assert(osutil.FileExists(tmpfile.Name()), Equals, false)
+	// ... and not because it succeeded either
+	c.Assert(osutil.FileExists(path), Equals, false)
+}
+
+func (s *storeTestSuite) TestDownloadFailsLeavePartial(c *C) {
+	var tmpfile *os.File
+	restore := store.MockDownload(func(ctx context.Context, name, sha3, url string, user *auth.UserState, s *store.Store, w io.ReadWriteSeeker, resume int64, pbar progress.Meter, dlOpts *store.DownloadOptions) error {
+		tmpfile = w.(*os.File)
+		w.Write([]byte{'X'}) // so it's not empty
+		return fmt.Errorf("uh, it failed")
+	})
+	defer restore()
+
+	snap := &snap.Info{}
+	snap.RealName = "foo"
+	snap.AnonDownloadURL = "anon-url"
+	snap.DownloadURL = "AUTH-URL"
+	snap.Size = 1
+	// simulate a failed download
+	path := filepath.Join(c.MkDir(), "downloaded-file")
+	err := s.store.Download(s.ctx, "foo", path, &snap.DownloadInfo, nil, nil, &store.DownloadOptions{LeavePartialOnError: true})
+	c.Assert(err, ErrorMatches, "uh, it failed")
+	// ... and ensure that the tempfile is *NOT* removed
+	c.Assert(osutil.FileExists(tmpfile.Name()), Equals, true)
+	// ... but the target path isn't there
+	c.Assert(osutil.FileExists(path), Equals, false)
+}
+
+func (s *storeTestSuite) TestDownloadFailsDoesNotLeavePartialIfEmpty(c *C) {
+	var tmpfile *os.File
+	restore := store.MockDownload(func(ctx context.Context, name, sha3, url string, user *auth.UserState, s *store.Store, w io.ReadWriteSeeker, resume int64, pbar progress.Meter, dlOpts *store.DownloadOptions) error {
+		tmpfile = w.(*os.File)
+		// no write, so the partial is empty
+		return fmt.Errorf("uh, it failed")
+	})
+	defer restore()
+
+	snap := &snap.Info{}
+	snap.RealName = "foo"
+	snap.AnonDownloadURL = "anon-url"
+	snap.DownloadURL = "AUTH-URL"
+	snap.Size = 1
+	// simulate a failed download
+	path := filepath.Join(c.MkDir(), "downloaded-file")
+	err := s.store.Download(s.ctx, "foo", path, &snap.DownloadInfo, nil, nil, &store.DownloadOptions{LeavePartialOnError: true})
+	c.Assert(err, ErrorMatches, "uh, it failed")
+	// ... and ensure that the tempfile *is* removed
+	c.Assert(osutil.FileExists(tmpfile.Name()), Equals, false)
+	// ... and the target path isn't there
+	c.Assert(osutil.FileExists(path), Equals, false)
 }
 
 func (s *storeTestSuite) TestDownloadSyncFails(c *C) {
@@ -887,6 +937,8 @@ func (s *storeTestSuite) TestDownloadSyncFails(c *C) {
 	c.Assert(err, ErrorMatches, `(sync|fsync:) .*`)
 	// ... and ensure that the tempfile is removed
 	c.Assert(osutil.FileExists(tmpfile.Name()), Equals, false)
+	// ... because it's been renamed to the target path already
+	c.Assert(osutil.FileExists(path), Equals, true)
 }
 
 var downloadDeltaTests = []struct {
