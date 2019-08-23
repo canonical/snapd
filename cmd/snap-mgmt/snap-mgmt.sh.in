@@ -42,7 +42,8 @@ purge() {
         systemctl_stop snap.mount.service
     fi
 
-    # undo any bind mounts to ${SNAP_MOUNT_DIR} or /var/snap
+    # undo any bind mounts to ${SNAP_MOUNT_DIR} or /var/snap done by parallel
+    # installs or LP:#1668659
     for mp in "$SNAP_MOUNT_DIR" /var/snap; do
         if grep -q "$mp $mp" /proc/self/mountinfo; then
             umount -l "$mp" || true

@@ -19,7 +19,8 @@ systemctl_stop() {
 }
 
 if [ "$1" = "purge" ]; then
-    # undo any bind mounts to /snap and /var/snap
+    # undo any bind mounts to ${SNAP_MOUNT_DIR} or /var/snap done by parallel
+    # installs or LP:#1668659
     for mp in /snap /var/snap; do
         if grep -q "$mp $mp" /proc/self/mountinfo; then
             umount -l "$mp" || true

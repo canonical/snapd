@@ -22,6 +22,7 @@ if [ "$1" = "purge" ]; then
     # snap.mount.service is a trusty thing
     systemctl_stop snap.mount.service
 
+    # undo any bind mounts to /var/snap done by parallel installs
     if grep -q "/var/snap /var/snap" /proc/self/mountinfo; then
         umount -l /var/snap || true
     fi
