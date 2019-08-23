@@ -132,19 +132,21 @@ func (s *batchSuite) TestConsiderPreexisting(c *C) {
 }
 
 func (s *batchSuite) TestAddStreamReturnsEffectivelyAddedRefs(c *C) {
+	batch := asserts.NewBatch(nil)
+
+	err := batch.Add(s.storeSigning.StoreAccountKey(""))
+	c.Assert(err, IsNil)
+
 	b := &bytes.Buffer{}
 	enc := asserts.NewEncoder(b)
 	// wrong order is ok
-	err := enc.Encode(s.dev1Acct)
+	err = enc.Encode(s.dev1Acct)
 	c.Assert(err, IsNil)
+	// this was already added to the batch
 	enc.Encode(s.storeSigning.StoreAccountKey(""))
 	c.Assert(err, IsNil)
 
-	batch := asserts.NewBatch(nil)
-
-	err = batch.Add(s.storeSigning.StoreAccountKey(""))
-	c.Assert(err, IsNil)
-
+	// effectively adds only the developer1 account
 	refs, err := batch.AddStream(b)
 	c.Assert(err, IsNil)
 	c.Check(refs, DeepEquals, []*asserts.Ref{
