@@ -60,7 +60,7 @@ func doAssert(c *Command, r *http.Request, user *auth.UserState) Response {
 	state.Lock()
 	defer state.Unlock()
 
-	if err := assertstate.AddBatch(state, batch, &assertstate.AddBatchOptions{
+	if err := assertstate.AddBatch(state, batch, &asserts.CommitOptions{
 		Precheck: true,
 	}); err != nil {
 		return BadRequest("assert failed: %v", err)

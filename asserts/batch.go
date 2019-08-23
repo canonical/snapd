@@ -28,6 +28,8 @@ import (
 // Batch allows to accumulate a set of assertions possibly out of
 // prerequisite order and then add them in one go to an assertion
 // database.
+// Nothing will be committed if there are missing prerequisites, for a full
+// consistency check beforehand there is the Precheck option.
 type Batch struct {
 	bs    Backstore
 	added []Assertion
@@ -113,15 +115,30 @@ func (b *Batch) Fetch(trustedDB RODatabase, retrieve func(*Ref) (Assertion, erro
 	return fetching(f)
 }
 
-// Precheck pre-checks whether adding the batch of assertions to the
-// given assertion database should fully succeed.
-func (b *Batch) Precheck(db *Database) error {
+func (b *Batch) precheck(db *Database) error {
 	db = db.WithStackedBackstore(NewMemoryBackstore())
 	return b.commitTo(db)
 }
 
+type CommitOptions struct {
+	// Precheck indicates whether to do a full consistency check
+	// before starting adding the batch.
+	Precheck bool
+}
+
 // CommitTo adds the batch of assertions to the given assertion database.
-func (b *Batch) CommitTo(db *Database) error {
+// Nothing will be committed if there are missing prerequisites, for a full
+// consistency check beforehand there is the Precheck option.
+func (b *Batch) CommitTo(db *Database, opts *CommitOptions) error {
+	if opts == nil {
+		opts = &CommitOptions{}
+	}
+	if opts.Precheck {
+		if err := b.precheck(db); err != nil {
+			return err
+		}
+	}
+
 	return b.commitTo(db)
 }
 
