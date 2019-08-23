@@ -274,7 +274,7 @@ func (s *assertMgrSuite) TestAddBatchPrecheckPartial(c *C) {
 	err = batch.Add(snapRev)
 	c.Assert(err, IsNil)
 
-	err = assertstate.AddBatch(s.state, batch, &assertstate.AddBatchOptions{
+	err = assertstate.AddBatch(s.state, batch, &asserts.CommitOptions{
 		Precheck: true,
 	})
 	c.Check(err, ErrorMatches, `(?ms).*validity.*`)
@@ -320,7 +320,7 @@ func (s *assertMgrSuite) TestAddBatchPrecheckHappy(c *C) {
 	err = batch.Add(snapRev)
 	c.Assert(err, IsNil)
 
-	err = assertstate.AddBatch(s.state, batch, &assertstate.AddBatchOptions{
+	err = assertstate.AddBatch(s.state, batch, &asserts.CommitOptions{
 		Precheck: true,
 	})
 	c.Assert(err, IsNil)
