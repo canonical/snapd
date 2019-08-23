@@ -102,6 +102,8 @@ backends:
                 storage: preserve-size
 
             - centos-7-64:
+                # 2019-08-23 mirrors breaking with 404
+                manual: true
                 workers: 6
                 image: centos-7-64
 
