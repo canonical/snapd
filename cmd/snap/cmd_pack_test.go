@@ -71,6 +71,20 @@ apps:
 	c.Assert(err, check.ErrorMatches, `cannot validate snap "foo": application ("bar" common-id "org.foo.foo" must be unique, already used by application "foo"|"foo" common-id "org.foo.foo" must be unique, already used by application "bar")`)
 }
 
+func (s *SnapSuite) TestPackCheckSkeletonWonkyInterfaces(c *check.C) {
+	snapYaml := `
+name: foo
+version: 1.0.1
+slots:
+  kale:
+`
+	snapDir := makeSnapDirForPack(c, snapYaml)
+
+	_, err := snaprun.Parser(snaprun.Client()).ParseArgs([]string{"pack", "--check-skeleton", snapDir})
+	c.Assert(err, check.IsNil)
+	c.Check(s.stderr.String(), check.Equals, "snap \"foo\" has bad plugs or slots: potato (unknown interface \"kale\")\n")
+}
+
 func (s *SnapSuite) TestPackPacksFailsForMissingPaths(c *check.C) {
 	_, r := logger.MockLogger()
 	defer r()

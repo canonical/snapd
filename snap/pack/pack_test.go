@@ -20,6 +20,7 @@
 package pack_test
 
 import (
+	"bytes"
 	"fmt"
 	"io/ioutil"
 	"os"
@@ -129,15 +130,24 @@ apps:
 }
 
 func (s *packSuite) TestValidateMissingAppFailsWithErrMissingPaths(c *C) {
+	var buf bytes.Buffer
 	sourceDir := makeExampleSnapSourceDir(c, `name: hello
 version: 0
 apps:
  foo:
   command: bin/hello-world
+  plugs: [potato]
 `)
+	err := pack.FCheckSkeleton(&buf, sourceDir)
+	c.Assert(err, IsNil)
+	c.Check(buf.String(), Equals, "snap \"hello\" has bad plugs or slots: potato (unknown interface \"potato\")\n")
+
+	buf.Reset()
 	c.Assert(os.Remove(filepath.Join(sourceDir, "bin", "hello-world")), IsNil)
-	err := pack.CheckSkeleton(sourceDir)
+
+	err = pack.FCheckSkeleton(&buf, sourceDir)
 	c.Assert(err, Equals, snap.ErrMissingPaths)
+	c.Check(buf.String(), Equals, "")
 }
 
 func (s *packSuite) TestPackExcludesBackups(c *C) {
