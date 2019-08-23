@@ -107,7 +107,7 @@ network packet,
 
 # Needed to use resolvconf from core
 /sbin/resolvconf ixr,
-/run/resolvconf/{,**} r,
+/run/resolvconf/{,**} rk,
 /run/resolvconf/** w,
 /etc/resolvconf/{,**} r,
 /lib/resolvconf/* ix,

@@ -1,7 +1,7 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
 
 /*
- * Copyright (C) 2016 Canonical Ltd
+ * Copyright (C) 2019 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -19,5 +19,24 @@
 
 package configstate
 
-var NewConfigureHandler = newConfigureHandler
-var SortPatchKeysByDepth = sortPatchKeysByDepth
+import (
+	"sort"
+	"strings"
+)
+
+func sortPatchKeysByDepth(patch map[string]interface{}) []string {
+	if len(patch) == 0 {
+		return nil
+	}
+	depths := make(map[string]int, len(patch))
+	keys := make([]string, 0, len(patch))
+	for k := range patch {
+		depths[k] = strings.Count(k, ".")
+		keys = append(keys, k)
+	}
+
+	sort.Slice(keys, func(i, j int) bool {
+		return depths[keys[i]] < depths[keys[j]]
+	})
+	return keys
+}

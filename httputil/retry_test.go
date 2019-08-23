@@ -26,8 +26,11 @@ import (
 	"net"
 	"net/http"
 	"net/http/httptest"
+	"net/url"
 	"sync"
 	"time"
+
+	"golang.org/x/net/http2"
 
 	. "gopkg.in/check.v1"
 	"gopkg.in/retry.v1"
@@ -475,6 +478,24 @@ func (s *retrySuite) TestRetryOnTemporaryDNSfailureNotGo19(c *C) {
 			Err: &net.DNSError{
 				Err: "[::1]:42463->[::1]:53: read: connection refused",
 			},
+		}
+	}
+	readResponseBody := func(resp *http.Response) error {
+		return nil
+	}
+	_, err := httputil.RetryRequest("endp", doRequest, readResponseBody, testRetryStrategy)
+	c.Assert(err, NotNil)
+	c.Assert(n > 1, Equals, true, Commentf("%v not > 1", n))
+}
+
+func (s *retrySuite) TestRetryOnHttp2ProtocolErrors(c *C) {
+	n := 0
+	doRequest := func() (*http.Response, error) {
+		n++
+		return nil, &url.Error{
+			Op:  "Get",
+			URL: "http://...",
+			Err: http2.StreamError{Code: http2.ErrCodeProtocol},
 		}
 	}
 	readResponseBody := func(resp *http.Response) error {
