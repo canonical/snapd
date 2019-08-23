@@ -33,3 +33,7 @@ execute: |
     if [ "$SPREAD_REBOOT" = "0" ]; then
         REBOOT
     fi
+
+    # Invoke a command to ensure /run/snapd/ns is mounted as before.
+    # REBOOT above clobbers that.
+    test-snapd-tools.success
