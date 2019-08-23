@@ -55,6 +55,8 @@ var (
 	AllocHotplugSeq              = allocHotplugSeq
 	AddHotplugSeqWaitTask        = addHotplugSeqWaitTask
 	AddHotplugSlot               = addHotplugSlot
+
+	BatchConnectTasks = batchConnectTasks
 )
 
 func NewConnectOptsWithAutoSet() connectOpts {
@@ -63,6 +65,10 @@ func NewConnectOptsWithAutoSet() connectOpts {
 
 func NewDisconnectOptsWithByHotplugSet() disconnectOpts {
 	return disconnectOpts{ByHotplug: true}
+}
+
+func NewConnectOptsWithDelayProfilesSet() connectOpts {
+	return connectOpts{AutoConnect: true, ByGadget: false, DelayedSetupProfiles: true}
 }
 
 func MockRemoveStaleConnections(f func(st *state.State) error) (restore func()) {

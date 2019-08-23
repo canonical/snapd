@@ -1,0 +1,42 @@
+#!/bin/bash
+
+set -e
+
+# remove_user_with_group remove the given username from the system and also
+# cleans the group
+remove_user_with_group() {
+    REMOVE_USER="$1"
+
+    if [ -z "$REMOVE_USER" ]; then
+        echo "please provide a username to remove"
+        return 1
+    fi
+
+    if [ -e /var/lib/extrausers/passwd ]; then
+        userdel --extrausers --force "${REMOVE_USER}" || true
+    else
+        userdel --force "${REMOVE_USER}" || true
+        # some systems do not set "USERGROUPS_ENAB yes" so we need to cleanup
+        # the group manually. Use "-f" (force) when available, older versions
+        # do not have it.
+        if groupdel -h | grep force; then
+            groupdel -f "${REMOVE_USER}" || true
+        else
+            groupdel "${REMOVE_USER}" || true
+        fi
+    fi
+    # ensure the ${REMOVE_USER} user really got deleted    
+    not getent passwd "${REMOVE_USER}"
+    not getent group "${REMOVE_USER}"
+}
+
+# main()
+case "$1" in
+    remove-with-group)
+        remove_user_with_group "$2"
+        ;;
+    *)
+        echo "unknown argument $1"
+        echo "look at the source of $0 to see what is supported (sry!)"
+        exit 1
+esac
