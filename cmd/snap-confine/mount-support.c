@@ -706,9 +706,8 @@ void sc_ensure_snap_dir_shared_mounts(void)
 	const char *dirs[] = { SNAP_MOUNT_DIR, "/var/snap", NULL };
 	for (const char **dir = dirs; *dir != NULL; dir++) {
 		if (!is_mounted_with_shared_option(*dir)) {
-			/* we need snap mount directory to become a mount point, so that we can
-			 * do further operations on it
-			 */
+			/* We need snap mount directory to become a mount point, so that we
+			 * can do further operations on it. */
 			sc_do_mount(*dir, *dir, "none", MS_BIND | MS_REC, 0);
 			sc_do_mount("none", *dir, NULL, MS_REC | MS_SHARED,
 				    NULL);
@@ -730,13 +729,13 @@ void sc_setup_parallel_instance_classic_mounts(const char *snap_name,
 		sc_do_mount("none", *dir, NULL, MS_REC | MS_SLAVE, NULL);
 	}
 
-	/* mount SNAP_MOUNT_DIR/<snap>_<key> on SNAP_MOUNT_DIR/<snap> */
+	/* Mount SNAP_MOUNT_DIR/<snap>_<key> on SNAP_MOUNT_DIR/<snap> */
 	sc_must_snprintf(src, sizeof src, "%s/%s", SNAP_MOUNT_DIR,
 			 snap_instance_name);
 	sc_must_snprintf(dst, sizeof dst, "%s/%s", SNAP_MOUNT_DIR, snap_name);
 	sc_do_mount(src, dst, "none", MS_BIND | MS_REC, 0);
 
-	/* mount /var/snap/<snap>_<key> on /var/snap/<snap> */
+	/* Mount /var/snap/<snap>_<key> on /var/snap/<snap> */
 	sc_must_snprintf(src, sizeof src, "/var/snap/%s", snap_instance_name);
 	sc_must_snprintf(dst, sizeof dst, "/var/snap/%s", snap_name);
 	sc_do_mount(src, dst, "none", MS_BIND | MS_REC, 0);
