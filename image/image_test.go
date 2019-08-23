@@ -829,7 +829,7 @@ func (s *imageSuite) TestSetupSeedLocalCoreBrandKernel(c *C) {
 	c.Assert(err, IsNil)
 	c.Check(m["snap_core"], Equals, "core_x1.snap")
 
-	c.Check(s.stderr.String(), Equals, "WARNING: \"core\", \"required-snap1\" were installed from local snaps disconnected from a store and cannot be refreshed subsequently!\n")
+	c.Check(s.stderr.String(), Equals, "WARNING: \"core\", \"required-snap1\" installed from local snaps disconnected from a store cannot be refreshed subsequently!\n")
 }
 
 func (s *imageSuite) TestSetupSeedDevmodeSnap(c *C) {
@@ -1112,7 +1112,7 @@ func (s *imageSuite) TestSetupSeedWithBaseLegacySnap(c *C) {
 	c.Assert(err, IsNil)
 	c.Check(m["snap_core"], Equals, "core18_18.snap")
 
-	c.Check(s.stderr.String(), Equals, "WARNING: model has base \"core18\" but some snaps require \"core\" as base as well, for compatibility it was added implicitly, listing \"core\" explicitly is recommended\n")
+	c.Check(s.stderr.String(), Equals, "WARNING: model has base \"core18\" but some snaps (\"required-snap1\") require \"core\" as base as well, for compatibility it was added implicitly, adding \"core\" explicitly is recommended\n")
 }
 
 func (s *imageSuite) TestSetupSeedKernelPublisherMismatch(c *C) {
@@ -2322,7 +2322,7 @@ func (s *imageSuite) TestSetupSeedClassicSnapdOnlyMissingCore16(c *C) {
 	c.Assert(err, IsNil)
 
 	err = image.SetupSeed(s.tsto, model, opts, local)
-	c.Assert(err, ErrorMatches, `cannot use "snap-req-core16-base" requiring base "core16" without adding "core16" explicitly or otherwise "core"`)
+	c.Assert(err, ErrorMatches, `cannot use "snap-req-core16-base" requiring base "core16" without adding "core16" \(or "core"\) explicitly`)
 }
 
 func (s *imageSuite) TestSnapChannel(c *C) {

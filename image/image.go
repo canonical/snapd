@@ -523,12 +523,12 @@ func setupSeed(tsto *ToolingStore, model *asserts.Model, opts *Options, local *l
 	}
 
 	// provide snapd or core
-	if seed.needsCore && !seed.seen["core"] {
+	if len(seed.needsCore) != 0 && !seed.seen["core"] {
 		// one of the snaps requires core as base
 		// which used to be implicit, add it
 		if model.Base() != "" {
 			// TODO: later turn this into an error? for sure for UC20
-			fmt.Fprintf(Stderr, "WARNING: model has base %q but some snaps require \"core\" as base as well, for compatibility it was added implicitly, listing \"core\" explicitly is recommended\n", model.Base())
+			fmt.Fprintf(Stderr, "WARNING: model has base %q but some snaps (%s) require \"core\" as base as well, for compatibility it was added implicitly, adding \"core\" explicitly is recommended\n", model.Base(), strutil.Quoted(seed.needsCore))
 		}
 		if err := seed.add("core"); err != nil {
 			return err
@@ -540,11 +540,11 @@ func setupSeed(tsto *ToolingStore, model *asserts.Model, opts *Options, local *l
 	}
 
 	if len(seed.needsCore16) != 0 && !seed.seen["core"] {
-		return fmt.Errorf(`cannot use %s requiring base "core16" without adding "core16" explicitly or otherwise "core"`, strutil.Quoted(seed.needsCore16))
+		return fmt.Errorf(`cannot use %s requiring base "core16" without adding "core16" (or "core") explicitly`, strutil.Quoted(seed.needsCore16))
 	}
 
 	if len(seed.locals) > 0 {
-		fmt.Fprintf(Stderr, "WARNING: %s were installed from local snaps disconnected from a store and cannot be refreshed subsequently!\n", strutil.Quoted(seed.locals))
+		fmt.Fprintf(Stderr, "WARNING: %s installed from local snaps disconnected from a store cannot be refreshed subsequently!\n", strutil.Quoted(seed.locals))
 	}
 
 	// fetch device store assertion (and prereqs) if available
@@ -647,7 +647,7 @@ type seed struct {
 	locals                           []string
 	downloadedSnapsInfoForBootConfig map[string]*snap.Info
 
-	needsCore   bool
+	needsCore   []string
 	needsCore16 []string
 }
 
@@ -776,7 +776,7 @@ func (s *seed) checkBase(info *snap.Info) error {
 	if info.Base == "" {
 		if info.GetType() == snap.TypeGadget || info.GetType() == snap.TypeApp {
 			// remember to make sure we have core installed
-			s.needsCore = true
+			s.needsCore = append(s.needsCore, info.SnapName())
 		}
 		return nil
 	}
