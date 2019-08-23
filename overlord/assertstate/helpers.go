@@ -76,5 +76,5 @@ func doFetch(s *state.State, userID int, deviceCtx snapstate.DeviceContext, fetc
 	// TODO: trigger w. caller a global sanity check if a is revoked
 	// (but try to save as much possible still),
 	// or err is a check error
-	return b.CommitTo(db)
+	return b.CommitTo(db, nil)
 }
