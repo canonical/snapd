@@ -257,7 +257,9 @@ dbus (receive, send)
     path=/org/freedesktop/NetworkManager{,/**}
     peer=(label=###PLUG_SECURITY_TAGS###),
 
-# NM implements org.freedesktop.DBus.ObjectManager too
+# Later versions of NetworkManager implement org.freedesktop.DBus.ObjectManager
+# for clients to easily obtain all (and be alerted to added/removed) objects
+# from the service.
 dbus (receive, send)
     bus=system
     path=/org/freedesktop
