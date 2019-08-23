@@ -3,7 +3,7 @@ summary: Ensure upgrades from snapd 2.15 work
 systems: [ubuntu-16.04-64]
 
 prepare: |
-    dpkg --get-selections > selections
+    apt-tool checkpoint > installed.pkgs
     #shellcheck source=tests/lib/pkgdb.sh
     . "$TESTSLIB/pkgdb.sh"
     distro_purge_package snapd
@@ -17,8 +17,8 @@ restore: |
     fi
     distro_install_build_snapd
 
-    dpkg --set-selections < selections
-    rm -f selections
+    apt-tool restore installed.pkgs
+    rm -f installed.pkgs
 
 execute: |
     #shellcheck source=tests/lib/systemd.sh

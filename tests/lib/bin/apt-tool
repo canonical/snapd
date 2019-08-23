@@ -1,0 +1,36 @@
+#!/usr/bin/python3
+
+import sys
+
+import apt
+
+
+def checkpoint():
+    pkgs = set()
+    cache = apt.Cache()
+    for pkg in cache:
+        if pkg.is_installed:
+            pkgs.add(pkg.name)
+    for name in sorted(pkgs):
+        print(name)
+
+
+def restore(fname):
+    desired = set([line.strip() for line in open(fname)])
+            
+    cache = apt.Cache()
+    for pkg in cache:
+        if pkg.is_installed and not pkg.name in desired:
+            print("removing", pkg)
+            pkg.mark_delete(auto_fix=False)
+        if not pkg.is_installed and pkg.name in desired:
+            print("installing", pkg)
+            pkg.mark_install(auto_fix=False, auto_install=False)
+    cache.commit()
+
+
+if __name__ == "__main__":
+    if sys.argv[1] == "checkpoint":
+        checkpoint()
+    elif sys.argv[1] == "restore":
+        restore(sys.argv[2])
