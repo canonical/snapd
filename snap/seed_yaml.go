@@ -27,6 +27,7 @@ import (
 	"gopkg.in/yaml.v2"
 
 	"github.com/snapcore/snapd/osutil"
+	"github.com/snapcore/snapd/snap/channel"
 )
 
 // SeedSnap points to a snap in the seed to install, together with
@@ -80,7 +81,7 @@ func ReadSeedYaml(fn string) (*Seed, error) {
 			return nil, fmt.Errorf("%s: %v", errPrefix, err)
 		}
 		if sn.Channel != "" {
-			if _, err := ParseChannel(sn.Channel, ""); err != nil {
+			if _, err := channel.Parse(sn.Channel, ""); err != nil {
 				return nil, fmt.Errorf("%s: %v", errPrefix, err)
 			}
 		}

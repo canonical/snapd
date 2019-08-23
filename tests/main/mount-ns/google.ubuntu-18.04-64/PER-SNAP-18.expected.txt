@@ -34,7 +34,7 @@
 1034 1033 1:14 / /sys/fs/cgroup ro,nosuid,nodev,noexec master:22 - tmpfs tmpfs ro,mode=755
 1035 1034 1:15 / /sys/fs/cgroup/blkio rw,nosuid,nodev,noexec,relatime master:23 - cgroup cgroup rw,blkio
 1036 1034 1:16 / /sys/fs/cgroup/cpu,cpuacct rw,nosuid,nodev,noexec,relatime master:24 - cgroup cgroup rw,cpu,cpuacct
-1037 1034 1:17 / /sys/fs/cgroup/cpuset rw,nosuid,nodev,noexec,relatime master:25 - cgroup cgroup rw,cpuset
+1037 1034 1:17 / /sys/fs/cgroup/cpuset rw,nosuid,nodev,noexec,relatime master:25 - cgroup cgroup rw,cpuset,clone_children
 1038 1034 1:18 / /sys/fs/cgroup/devices rw,nosuid,nodev,noexec,relatime master:26 - cgroup cgroup rw,devices
 1039 1034 1:19 / /sys/fs/cgroup/freezer rw,nosuid,nodev,noexec,relatime master:27 - cgroup cgroup rw,freezer
 1040 1034 1:20 / /sys/fs/cgroup/hugetlb rw,nosuid,nodev,noexec,relatime master:28 - cgroup cgroup rw,hugetlb

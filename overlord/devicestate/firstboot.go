@@ -283,7 +283,7 @@ func populateStateFromSeedImpl(st *state.State, tm timings.Measurer) ([]*state.T
 	return tsAll, nil
 }
 
-func readAsserts(fn string, batch *assertstate.Batch) ([]*asserts.Ref, error) {
+func readAsserts(fn string, batch *asserts.Batch) ([]*asserts.Ref, error) {
 	f, err := os.Open(fn)
 	if err != nil {
 		return nil, err
@@ -317,7 +317,7 @@ func importAssertionsFromSeed(st *state.State) (*asserts.Model, error) {
 
 	// collect
 	var modelRef *asserts.Ref
-	batch := assertstate.NewBatch()
+	batch := asserts.NewBatch(nil)
 	for _, fi := range dc {
 		fn := filepath.Join(assertSeedDir, fi.Name())
 		refs, err := readAsserts(fn, batch)
@@ -338,7 +338,7 @@ func importAssertionsFromSeed(st *state.State) (*asserts.Model, error) {
 		return nil, fmt.Errorf("need a model assertion")
 	}
 
-	if err := batch.Commit(st); err != nil {
+	if err := assertstate.AddBatch(st, batch, nil); err != nil {
 		return nil, err
 	}
 

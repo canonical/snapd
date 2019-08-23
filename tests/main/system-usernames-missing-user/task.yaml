@@ -13,6 +13,7 @@ restore: |
     # Make sure the snap is removed if the test failed and the snap was
     # installed
     snap remove test-snapd-daemon-user || true
+
     # snapd will create this for us, but we'll remove it for consistency in
     # test runs
     groupdel snap_daemon || true

@@ -22,18 +22,7 @@ restore: |
 
     # snapd will create this for us, but we'll remove it for consistency in
     # test runs
-    if [ -e /var/lib/extrausers/passwd ]; then
-        userdel --extrausers --force snap_daemon || true
-    else
-        userdel --force snap_daemon || true
-        # some systems do not set "USERGROUPS_ENAB yes" so we need to cleanup
-        # the group manually. --force is documented but not available with
-        # groupdel and -f is only available on newer releases
-        groupdel snap_daemon || true
-    fi
-    # ensure the snap_daemon user really got deleted
-    not getent passwd snap_daemon
-    not getent group snap_daemon
+    user-tool remove-with-group snap_daemon
 
 execute: |
     # to accommodate different distros, we pick the LSB required 'daemon' user
