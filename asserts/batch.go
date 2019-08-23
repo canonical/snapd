@@ -179,7 +179,7 @@ func (b *Batch) prereqSort(db *Database) error {
 	}
 
 	// put in prereq order using a fetcher
-	inPrereqOrder := make([]Assertion, 0, len(b.added))
+	ordered := make([]Assertion, 0, len(b.added))
 	retrieve := func(ref *Ref) (Assertion, error) {
 		a, err := b.bs.Get(ref.Type, ref.PrimaryKey, ref.Type.MaxSupportedFormat())
 		if IsNotFound(err) {
@@ -192,7 +192,7 @@ func (b *Batch) prereqSort(db *Database) error {
 		return a, nil
 	}
 	save := func(a Assertion) error {
-		inPrereqOrder = append(inPrereqOrder, a)
+		ordered = append(ordered, a)
 		return nil
 	}
 	f := NewFetcher(db, retrieve, save)
@@ -203,7 +203,7 @@ func (b *Batch) prereqSort(db *Database) error {
 		}
 	}
 
-	b.added = inPrereqOrder
+	b.added = ordered
 	b.inPrereqOrder = true
 	return nil
 }
