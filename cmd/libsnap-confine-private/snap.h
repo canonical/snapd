@@ -37,11 +37,15 @@ enum {
 	SC_SNAP_INVALID_INSTANCE_NAME = 3,
 };
 
-/* 40 char snap_name */
+/* SNAP_NAME_LEN is the maximum length of a snap name, enforced by snapd and the
+ * store. */
 #define SNAP_NAME_LEN 40
-/* 10 char instance key */
+/* SNAP_INSTANCE_KEY_LEN is the maximum length of instance key, enforced locally
+ * by snapd. */
 #define SNAP_INSTANCE_KEY_LEN 10
-/* 40 char snap_name + '_' + 10 char instance_key */
+/* SNAP_INSTANCE_LEN is the maximum length of snap instance name, composed of
+ * the snap name, separator '_' and the instance key, enforced locally by
+ * snapd. */
 #define SNAP_INSTANCE_LEN (SNAP_NAME_LEN + 1 + SNAP_INSTANCE_KEY_LEN)
 
 /**
