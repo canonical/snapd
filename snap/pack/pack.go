@@ -26,7 +26,6 @@ import (
 	"os"
 	"path/filepath"
 
-	"github.com/snapcore/snapd/interfaces/builtin"
 	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/snap"
 	"github.com/snapcore/snapd/snap/snapdir"
@@ -96,7 +95,7 @@ func debArchitecture(info *snap.Info) string {
 func FCheckSkeleton(w io.Writer, sourceDir string) error {
 	info, err := loadAndValidate(sourceDir)
 	if err == nil {
-		builtin.SanitizePlugsSlots(info)
+		snap.SanitizePlugsSlots(info)
 		if len(info.BadInterfaces) > 0 {
 			fmt.Fprintln(w, snap.BadInterfacesSummary(info))
 		}

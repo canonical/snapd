@@ -82,7 +82,7 @@ slots:
 
 	_, err := snaprun.Parser(snaprun.Client()).ParseArgs([]string{"pack", "--check-skeleton", snapDir})
 	c.Assert(err, check.IsNil)
-	c.Check(s.stderr.String(), check.Equals, "snap \"foo\" has bad plugs or slots: potato (unknown interface \"kale\")\n")
+	c.Check(s.stderr.String(), check.Equals, "snap \"foo\" has bad plugs or slots: kale (unknown interface \"kale\")\n")
 }
 
 func (s *SnapSuite) TestPackPacksFailsForMissingPaths(c *check.C) {

@@ -37,6 +37,9 @@ import (
 	"github.com/snapcore/snapd/snap/pack"
 	"github.com/snapcore/snapd/snap/squashfs"
 	"github.com/snapcore/snapd/testutil"
+
+	// for SanitizePlugsSlots
+	_ "github.com/snapcore/snapd/interfaces/builtin"
 )
 
 func Test(t *testing.T) { TestingT(t) }
@@ -49,7 +52,6 @@ var _ = Suite(&packSuite{})
 
 func (s *packSuite) SetUpTest(c *C) {
 	s.BaseTest.SetUpTest(c)
-	s.BaseTest.AddCleanup(snap.MockSanitizePlugsSlots(func(snapInfo *snap.Info) {}))
 
 	// chdir into a tempdir
 	pwd, err := os.Getwd()

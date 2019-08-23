@@ -42,7 +42,9 @@ import (
 	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/release"
-	"github.com/snapcore/snapd/snap"
+
+	// for SanitizePlugsSlots
+	_ "github.com/snapcore/snapd/interfaces/builtin"
 )
 
 func init() {
@@ -53,9 +55,6 @@ func init() {
 		// in tests or when debugging, enforce the "tidy" lint checks
 		noticef = logger.Panicf
 	}
-
-	// plug/slot sanitization not used nor possible from snap command, make it no-op
-	snap.SanitizePlugsSlots = func(snapInfo *snap.Info) {}
 }
 
 var (
