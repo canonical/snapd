@@ -721,9 +721,6 @@ void sc_setup_parallel_instance_classic_mounts(const char *snap_name,
 	char src[PATH_MAX] = { 0 };
 	char dst[PATH_MAX] = { 0 };
 
-	debug("setting up environment for classic snap instance %s",
-	      snap_instance_name);
-
 	const char *dirs[] = { SNAP_MOUNT_DIR, "/var/snap", NULL };
 	for (const char **dir = dirs; *dir != NULL; dir++) {
 		sc_do_mount("none", *dir, NULL, MS_REC | MS_SLAVE, NULL);

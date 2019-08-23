@@ -48,6 +48,7 @@
 #include "../libsnap-confine-private/tool.h"
 #include "../libsnap-confine-private/utils.h"
 #include "user-support.h"
+#include "mount-support.h"
 
 /**
  * Directory where snap-confine keeps namespace files.
@@ -117,8 +118,10 @@ void sc_reassociate_with_pid1_mount_ns(void)
 	}
 }
 
-void sc_initialize_mount_ns(void)
+void sc_initialize_mount_ns(bool experimental_features)
 {
+	debug("unsharing snap namespace directory");
+
 	/* Ensure that /run/snapd/ns is a directory. */
 	if (sc_nonfatal_mkpath(sc_ns_dir, 0755) < 0) {
 		die("cannot create directory %s", sc_ns_dir);
@@ -160,6 +163,16 @@ void sc_initialize_mount_ns(void)
 			die("cannot change propagation type to MS_PRIVATE in %s", sc_ns_dir);
 		}
 	}
+
+	if (!experimental_features) {
+		return;
+	}
+	/* code that follows is experimental */
+
+	// Ensure that SNAP_MOUNT_DIR and /var/snap are shared mount points
+	debug
+	    ("(experimental) ensuring snap mount and data directories are mount points");
+	sc_ensure_snap_dir_shared_mounts();
 }
 
 struct sc_mount_ns {

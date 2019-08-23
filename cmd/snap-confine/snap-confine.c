@@ -409,12 +409,9 @@ int main(int argc, char **argv)
 		// "shared" option on legacy systems, see LP:#1668659
 		debug("ensuring that snap mount directory is shared");
 		sc_ensure_shared_snap_mount();
-		// Ensure that SNAP_MOUNT_DIR and /var/snap are shared mount points
-		debug
-		    ("ensuring snap mount and data directories are mount points");
-		sc_ensure_snap_dir_shared_mounts();
-		debug("unsharing snap namespace directory");
-		sc_initialize_mount_ns();
+		bool experimental_features =
+		    sc_feature_enabled(SC_FEATURE_PARALLEL_INSTANCES);
+		sc_initialize_mount_ns(experimental_features);
 		sc_unlock(global_lock_fd);
 
 		if (invocation.classic_confinement) {
@@ -554,7 +551,13 @@ static void enter_classic_execution_environment(sc_invocation * inv)
 
 	debug("skipping sandbox setup, classic confinement in use");
 
-	debug("unsharing the mount namespace (per-classic-snap)");
+	if (!sc_feature_enabled(SC_FEATURE_PARALLEL_INSTANCES)) {
+		return;
+	}
+	/* all of the following code is experimental */
+
+	debug
+	    ("(experimental) unsharing the mount namespace (per-classic-snap)");
 	if (unshare(CLONE_NEWNS) < 0) {
 		die("cannot unshare the mount namespace for parallel installed classic snap");
 	}
@@ -575,6 +578,10 @@ static void enter_classic_execution_environment(sc_invocation * inv)
 		 * are guaranteed to exist and were created during installation of a given
 		 * instance.
 		 */
+
+		debug
+		    ("(experimental) setting up environment for classic snap instance %s",
+		     inv->snap_instance);
 
 		/* set up mappings for snap and data directories */
 		sc_setup_parallel_instance_classic_mounts(inv->snap_name,
