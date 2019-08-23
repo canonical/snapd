@@ -16,22 +16,30 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  *
  */
-package gadget
+
+package configstate_test
 
 import (
-	"errors"
+	"github.com/snapcore/snapd/overlord/configstate"
+
+	. "gopkg.in/check.v1"
 )
 
-var errNotImplemented = errors.New("not implemented")
-
-func FindDeviceForStructure(ps *LaidOutStructure) (string, error) {
-	return "", errNotImplemented
+func (s *miscSuite) TestSortPatchKeysEmpty(c *C) {
+	patch := map[string]interface{}{}
+	keys := configstate.SortPatchKeysByDepth(patch)
+	c.Assert(keys, IsNil)
 }
 
-func FindDeviceForStructureWithFallback(ps *LaidOutStructure) (string, Size, error) {
-	return "", 0, errNotImplemented
-}
+func (s *miscSuite) TestSortPatchKeys(c *C) {
+	patch := map[string]interface{}{
+		"a.b.c":         0,
+		"a":             0,
+		"a.b.c.d":       0,
+		"q.w.e.r.t.y.u": 0,
+		"f.g":           0,
+	}
 
-func FindMountPointForStructure(ps *LaidOutStructure) (string, error) {
-	return "", errNotImplemented
+	keys := configstate.SortPatchKeysByDepth(patch)
+	c.Assert(keys, DeepEquals, []string{"a", "f.g", "a.b.c", "a.b.c.d", "q.w.e.r.t.y.u"})
 }
