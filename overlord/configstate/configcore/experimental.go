@@ -48,7 +48,7 @@ func validateExperimentalSettings(tr config.Conf) error {
 	return nil
 }
 
-func handleExperimentalFlags(tr config.Conf) error {
+func ExportExperimentalFlags(tr config.Conf) error {
 	dir := dirs.FeaturesDir
 	if err := os.MkdirAll(dir, 0755); err != nil {
 		return err
