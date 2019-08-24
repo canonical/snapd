@@ -30,8 +30,6 @@ import (
 	"syscall"
 	"time"
 
-	"golang.org/x/net/http2"
-
 	"gopkg.in/retry.v1"
 
 	"github.com/snapcore/snapd/logger"
@@ -71,22 +69,33 @@ func ShouldRetryHttpResponse(attempt *retry.Attempt, resp *http.Response) bool {
 	return resp.StatusCode >= 500
 }
 
+// isHttp2ProtocolError returns true if the given error is a http2
+// stream error with code 0x1 (PROTOCOL_ERROR).
+//
+// Unfortunately it seems this is not easy to detect. In e3be142 this
+// code tried to be smart and detect this via http2.StreamError but it
+// seems like with the h2_bundle.go in the go distro this does not
+// work, i.e. in https://travis-ci.org/snapcore/snapd/jobs/575471665
+// we still got protocol errors even with this detection code.
+//
+// So this code falls back to simple and naive detection.
+func isHttp2ProtocolError(err error) bool {
+	if strings.Contains(err.Error(), "PROTOCOL_ERROR") {
+		return true
+	}
+	// here is what a protocol error may look like:
+	// "DEBUG: Not retrying: http.http2StreamError{StreamID:0x1, Code:0x1, Cause:error(nil)}"
+	if strings.Contains(err.Error(), "http2StreamError") && strings.Contains(err.Error(), "Code:0x1,") {
+		return true
+	}
+	return false
+}
+
 func ShouldRetryError(attempt *retry.Attempt, err error) bool {
 	if !attempt.More() {
 		return false
 	}
 	if urlErr, ok := err.(*url.Error); ok {
-		// we see this from http2 downloads sometimes - it is unclear what
-		// is causing it but https://github.com/golang/go/issues/29125
-		// indicates a retry might be enough. Note that we get the
-		// PROTOCOL_ERROR *from* the remote side (fastly it seems)
-		netErr := urlErr.Err
-		if http2StreamErr, ok := netErr.(http2.StreamError); ok {
-			if http2StreamErr.Code == http2.ErrCodeProtocol {
-				logger.Debugf("Retrying because of: %s", err)
-				return true
-			}
-		}
 		err = urlErr.Err
 	}
 	if netErr, ok := err.(net.Error); ok {
@@ -140,8 +149,17 @@ func ShouldRetryError(attempt *retry.Attempt, err error) bool {
 		logger.Debugf("Encountered non temporary net.OpError: %#v", opErr)
 	}
 
-	if err == io.ErrUnexpectedEOF || err == io.EOF {
+	// we see this from http2 downloads sometimes - it is unclear what
+	// is causing it but https://github.com/golang/go/issues/29125
+	// indicates a retry might be enough. Note that we get the
+	// PROTOCOL_ERROR *from* the remote side (fastly it seems)
+	if isHttp2ProtocolError(err) {
 		logger.Debugf("Retrying because of: %s", err)
+		return true
+	}
+
+	if err == io.ErrUnexpectedEOF || err == io.EOF {
+		logger.Debugf("Retrying because of: %s (%s)", err, err)
 		return true
 	}
 
