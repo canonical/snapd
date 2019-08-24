@@ -397,20 +397,6 @@ func MockTrusted(mockTrusted []asserts.Assertion) (restore func()) {
 	}
 }
 
-// neededDefaultProviders returns the names of all default-providers for
-// the content plugs that the given snap.Info needs.
-func neededDefaultProviders(info *snap.Info) (cps []string) {
-	for _, plug := range info.Plugs {
-		if plug.Interface == "content" {
-			var dprovider string
-			if err := plug.Attr("default-provider", &dprovider); err == nil && dprovider != "" {
-				cps = append(cps, dprovider)
-			}
-		}
-	}
-	return cps
-}
-
 func setupSeed(tsto *ToolingStore, model *asserts.Model, opts *Options, local *localInfos) error {
 	if model.Classic() != opts.Classic {
 		return fmt.Errorf("internal error: classic model but classic mode not set")
@@ -686,7 +672,7 @@ func (s *seed) add(snapName string) error {
 		return err
 	}
 	// warn about missing default providers
-	for _, dp := range neededDefaultProviders(info) {
+	for _, dp := range snap.NeededDefaultProviders(info) {
 		if !local.hasName(s.basesAndApps, dp) {
 			// TODO: have a way to ignore this issue on a snap by snap basis?
 			return fmt.Errorf("cannot use snap %q without its default content provider %q being added explicitly", info.InstanceName(), dp)
@@ -922,28 +908,9 @@ func ValidateSeed(seedFile string) error {
 		errs = append(errs, fmt.Errorf("the core or snapd snap must be part of the seed"))
 	}
 
-	// check that all bases/default-providers are part of the seed
-	for _, info := range snapInfos {
-		// ensure base is available
-		if info.Base != "" && info.Base != "none" {
-			if _, ok := snapInfos[info.Base]; !ok {
-				errs = append(errs, fmt.Errorf("cannot use snap %q: base %q is missing", info.InstanceName(), info.Base))
-			}
-		}
-		// ensure core is available
-		if info.Base == "" && info.SnapType == snap.TypeApp && info.InstanceName() != "snapd" {
-			if _, ok := snapInfos["core"]; !ok {
-				errs = append(errs, fmt.Errorf(`cannot use snap %q: required snap "core" missing`, info.InstanceName()))
-			}
-		}
-		// ensure default-providers are available
-		for _, dp := range neededDefaultProviders(info) {
-			if _, ok := snapInfos[dp]; !ok {
-				errs = append(errs, fmt.Errorf("cannot use snap %q: default provider %q is missing", info.InstanceName(), dp))
-			}
-		}
+	if errs2 := snap.ValidateBasesAndProviders(snapInfos); errs2 != nil {
+		errs = append(errs, errs2...)
 	}
-
 	if errs != nil {
 		var buf bytes.Buffer
 		for _, err := range errs {
