@@ -260,6 +260,7 @@ func (s *deviceMgrSuite) mockServer(c *C, reqID string, bhv *devicestatetest.Dev
 
 	bhv.ReqID = reqID
 	bhv.SignSerial = s.signSerial
+	bhv.ExpectedCapabilities = "serial-stream"
 
 	return devicestatetest.MockDeviceService(c, bhv)
 }

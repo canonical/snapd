@@ -159,6 +159,9 @@ var (
 	reqIdRef   = mustParse("request-id")
 	serialRef  = mustParse("serial")
 	devicesRef = mustParse("devices")
+
+	// we accept a stream with the serial assertion as well
+	registrationCapabilities = []string{"serial-stream"}
 )
 
 func newEnoughProxy(st *state.State, proxyURL *url.URL, client *http.Client) bool {
@@ -483,6 +486,7 @@ func submitSerialRequest(t *state.Task, serialRequest string, client *http.Clien
 		return nil, nil, fmt.Errorf("internal error: cannot create serial-request request %q", cfg.serialRequestURL)
 	}
 	req.Header.Set("User-Agent", httputil.UserAgent())
+	req.Header.Set("Snap-Device-Capabilities", strings.Join(registrationCapabilities, " "))
 	cfg.applyHeaders(req)
 	req.Header.Set("Content-Type", asserts.MediaType)
 

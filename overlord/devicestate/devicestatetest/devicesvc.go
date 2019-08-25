@@ -37,8 +37,9 @@ import (
 type DeviceServiceBehavior struct {
 	ReqID string
 
-	RequestIDURLPath string
-	SerialURLPath    string
+	RequestIDURLPath     string
+	SerialURLPath        string
+	ExpectedCapabilities string
 
 	Head          func(c *C, bhv *DeviceServiceBehavior, w http.ResponseWriter, r *http.Request)
 	PostPreflight func(c *C, bhv *DeviceServiceBehavior, w http.ResponseWriter, r *http.Request)
@@ -66,6 +67,10 @@ func MockDeviceService(c *C, bhv *DeviceServiceBehavior) *httptest.Server {
 	if bhv.RequestIDURLPath == "" {
 		bhv.RequestIDURLPath = requestIDURLPath
 		bhv.SerialURLPath = serialURLPath
+	}
+	// currently supported
+	if bhv.ExpectedCapabilities == "" {
+		bhv.ExpectedCapabilities = "serial-stream"
 	}
 
 	var mu sync.Mutex
@@ -104,6 +109,7 @@ func MockDeviceService(c *C, bhv *DeviceServiceBehavior) *httptest.Server {
 			io.WriteString(w, fmt.Sprintf(`{"request-id": "%s"}`, bhv.ReqID))
 		case bhv.SerialURLPath:
 			c.Check(r.Header.Get("User-Agent"), Equals, expectedUserAgent)
+			c.Check(r.Header.Get("Snap-Device-Capabilities"), Equals, bhv.ExpectedCapabilities)
 
 			mu.Lock()
 			serialNum := 9999 + count
