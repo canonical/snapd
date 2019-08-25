@@ -822,8 +822,8 @@ var repeatRequestSerial string // for tests
 
 func fetchKeys(st *state.State, keyID string) (errAcctKey error, err error) {
 	// TODO: right now any store should be good enough here but
-	// that might change. We do support the alternative to
-	// receive a stream with any relevant assertions.
+	// that might change. As an alternative we do support
+	// receiving a stream with any relevant assertions.
 	sto := snapstate.Store(st, nil)
 	db := assertstate.DB(st)
 
