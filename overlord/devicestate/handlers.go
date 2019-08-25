@@ -938,7 +938,7 @@ func currentGadgetInfo(snapst *snapstate.SnapState) (*gadget.GadgetData, error) 
 		return nil, nil
 	}
 	const onClassic = false
-	gi, err := snap.ReadGadgetInfo(currentInfo, onClassic)
+	gi, err := gadget.ReadInfo(currentInfo.MountDir(), onClassic)
 	if err != nil {
 		return nil, err
 	}
@@ -951,7 +951,7 @@ func pendingGadgetInfo(snapsup *snapstate.SnapSetup) (*gadget.GadgetData, error)
 		return nil, err
 	}
 	const onClassic = false
-	update, err := snap.ReadGadgetInfo(info, onClassic)
+	update, err := gadget.ReadInfo(info.MountDir(), onClassic)
 	if err != nil {
 		return nil, err
 	}
@@ -966,7 +966,7 @@ func gadgetCurrentAndUpdate(st *state.State, snapsup *snapstate.SnapSetup) (curr
 
 	currentData, err := currentGadgetInfo(snapst)
 	if err != nil {
-		return nil, nil, err
+		return nil, nil, fmt.Errorf("cannot read current gadget snap details: %v", err)
 	}
 	if currentData == nil {
 		// don't bother reading update if there is no current
@@ -975,19 +975,15 @@ func gadgetCurrentAndUpdate(st *state.State, snapsup *snapstate.SnapSetup) (curr
 
 	newData, err := pendingGadgetInfo(snapsup)
 	if err != nil {
-		return nil, nil, err
+		return nil, nil, fmt.Errorf("cannot read candidate gadget snap details: %v", err)
 	}
 
 	return currentData, newData, nil
 }
 
 var (
-	gadgetUpdate = nopGadgetOp
+	gadgetUpdate = gadget.Update
 )
-
-func nopGadgetOp(current, update gadget.GadgetData, rollbackRootDir string) error {
-	return nil
-}
 
 func (m *DeviceManager) doUpdateGadgetAssets(t *state.Task, _ *tomb.Tomb) error {
 	if release.OnClassic {

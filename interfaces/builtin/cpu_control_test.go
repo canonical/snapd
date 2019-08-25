@@ -68,13 +68,6 @@ func (s *CpuControlInterfaceSuite) TestName(c *C) {
 
 func (s *CpuControlInterfaceSuite) TestSanitizeSlot(c *C) {
 	c.Assert(interfaces.BeforePrepareSlot(s.iface, s.slotInfo), IsNil)
-	slot := &snap.SlotInfo{
-		Snap:      &snap.Info{SuggestedName: "some-snap"},
-		Name:      "cpu-control",
-		Interface: "cpu-control",
-	}
-	c.Assert(interfaces.BeforePrepareSlot(s.iface, slot), ErrorMatches,
-		"cpu-control slots are reserved for the core snap")
 }
 
 func (s *CpuControlInterfaceSuite) TestSanitizePlug(c *C) {

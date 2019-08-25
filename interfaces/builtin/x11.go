@@ -120,6 +120,10 @@ owner @{HOME}/.local/share/fonts/{,**} r,
 # startup.
 owner /run/user/[0-9]*/.Xauthority r,
 
+# Allow reading an Xwayland Xauth file
+# (see https://gitlab.gnome.org/GNOME/mutter/merge_requests/626)
+owner /run/user/[0-9]*/.mutter-Xwaylandauth.* r,
+
 # Needed by QtSystems on X to detect mouse and keyboard. Note, the 'netlink
 # raw' rule is not finely mediated by apparmor so we mediate with seccomp arg
 # filtering.

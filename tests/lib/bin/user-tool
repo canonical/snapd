@@ -1,0 +1,55 @@
+#!/usr/bin/env any-python
+from __future__ import print_function, absolute_import, unicode_literals
+
+import argparse
+import os
+import subprocess
+
+# Define MYPY as False and use it as a conditional for typing import. Despite
+# this declaration mypy will really treat MYPY as True when type-checking.
+# This is required so that we can import typing on Python 2.x without the
+# typing module installed. For more details see:
+# https://mypy.readthedocs.io/en/latest/common_issues.html#import-cycles
+MYPY = False
+if MYPY:
+    from typing import Text
+
+
+def remove_user_with_group(user_name):
+    # type: (Text) -> None
+    """remove the user and group with the same name, if present."""
+    if os.path.exists("/var/lib/extrausers/passwd"):
+        subprocess.call(["userdel", "--extrausers", "--force", user_name])
+    else:
+        subprocess.call(["userdel", "--force", "--remove", user_name])
+        # Some systems do not set "USERGROUPS_ENAB yes" so we need to cleanup
+        # the group manually. Use "-f" (force) when available, older versions
+        # do not have it.
+        proc = subprocess.Popen(["groupdel", "-h"], stdout=subprocess.PIPE)
+        out, _ = proc.communicate()
+        if b"force" in out:
+            subprocess.call(["groupdel", "-f", user_name])
+        else:
+            subprocess.call(["groupdel", user_name])
+    # Ensure the user user really got deleted
+    if subprocess.call(["getent", "passwd", user_name]) == 0:
+        raise SystemExit("user exists after removal?")
+    if subprocess.call(["getent", "group", user_name]) == 0:
+        raise SystemExit("group exists after removal?")
+
+
+def main():
+    # type: () -> None
+    parser = argparse.ArgumentParser()
+    sub = parser.add_subparsers()
+    cmd = sub.add_parser(
+        "remove-with-group", description="Remove system user and group, if present"
+    )
+    cmd.set_defaults(func=lambda ns: remove_user_with_group(ns.user))
+    cmd.add_argument("user", help="name of the user and group to remove")
+    ns = parser.parse_args()
+    ns.func(ns)
+
+
+if __name__ == "__main__":
+    main()

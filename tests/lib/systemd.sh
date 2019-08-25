@@ -52,7 +52,7 @@ wait_for_service() {
             return
         fi
         # show debug output every 1min
-        if [ $(( i % 60 )) = 0 ]; then
+        if [ "$i" -gt 0 ] && [ $(( i % 60 )) = 0 ]; then
             systemctl status "$service_name" || true;
         fi
         sleep 1;
@@ -67,10 +67,10 @@ systemd_stop_units() {
         if systemctl is-active "$unit"; then
             echo "Ensure the service is active before stopping it"
             retries=20
-            systemctl status "$unit" || true
-            while systemctl status "$unit" | grep "Active: activating"; do
+            while systemctl status "$unit" | grep -q "Active: activating"; do
                 if [ $retries -eq 0 ]; then
                     echo "$unit unit not active"
+                    systemctl status "$unit" || true
                     exit 1
                 fi
                 retries=$(( retries - 1 ))

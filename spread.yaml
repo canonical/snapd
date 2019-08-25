@@ -64,7 +64,7 @@ backends:
             - ubuntu-16.04-64:
                 workers: 8
             - ubuntu-18.04-64:
-                workers: 6
+                workers: 8
             - ubuntu-19.04-64:
                 workers: 6
             - ubuntu-core-16-64:
@@ -112,14 +112,11 @@ backends:
         halt-timeout: 2h
         systems:
             - ubuntu-16.04-64:
-                workers: 4
+                workers: 6
             - ubuntu-18.04-64:
-                workers: 4
-            - ubuntu-18.10-64:
-                image: ubuntu-1810
-                workers: 4
+                workers: 6
             - ubuntu-19.04-64:
-                workers: 4
+                workers: 6
 
     google-nested:
         type: google
@@ -644,8 +641,10 @@ suites:
         prepare: |
             "$TESTSLIB"/prepare-restore.sh --prepare-suite
         debug: |
-            systemctl status snapd.socket || true
-            journalctl -xe
+            if [ "$SPREAD_DEBUG_EACH" = 1 ]; then
+                systemctl status snapd.socket || true
+                journalctl -xe
+            fi
         prepare-each: |
             "$TESTSLIB"/prepare-restore.sh --prepare-suite-each
         restore-each: |

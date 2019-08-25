@@ -140,6 +140,8 @@ func (x *cmdDownload) Execute(args []string) error {
 		Channel:   x.Channel,
 		CohortKey: x.CohortKey,
 		Revision:  revision,
+		// if something goes wrong, don't force it to start over again
+		LeavePartialOnError: true,
 	}
 	snapPath, snapInfo, err := tsto.DownloadSnap(snapName, dlOpts)
 	if err != nil {
