@@ -473,7 +473,7 @@ func prepareSerialRequest(t *state.Task, regCtx registrationContext, privKey ass
 
 var errPoll = errors.New("serial-request accepted, poll later")
 
-func submitSerialRequest(t *state.Task, serialRequest string, client *http.Client, cfg *serialRequestConfig) (*asserts.Serial, *assertstate.Batch, error) {
+func submitSerialRequest(t *state.Task, serialRequest string, client *http.Client, cfg *serialRequestConfig) (*asserts.Serial, *asserts.Batch, error) {
 	st := t.State()
 	st.Unlock()
 	defer st.Lock()
@@ -501,7 +501,7 @@ func submitSerialRequest(t *state.Task, serialRequest string, client *http.Clien
 	}
 
 	var serial *asserts.Serial
-	var batch *assertstate.Batch
+	var batch *asserts.Batch
 	// decode body with stream of assertions, of which one is the serial
 	dec := asserts.NewDecoder(resp.Body)
 	for {
@@ -519,7 +519,7 @@ func submitSerialRequest(t *state.Task, serialRequest string, client *http.Clien
 			serial = got.(*asserts.Serial)
 		} else {
 			if batch == nil {
-				batch = assertstate.NewBatch()
+				batch = asserts.NewBatch(nil)
 			}
 			if err := batch.Add(got); err != nil {
 				return nil, nil, err
@@ -535,7 +535,7 @@ func submitSerialRequest(t *state.Task, serialRequest string, client *http.Clien
 	return serial, batch, nil
 }
 
-func getSerial(t *state.Task, regCtx registrationContext, privKey asserts.PrivateKey, device *auth.DeviceState, tm timings.Measurer) (serial *asserts.Serial, ancillaryBatch *assertstate.Batch, err error) {
+func getSerial(t *state.Task, regCtx registrationContext, privKey asserts.PrivateKey, device *auth.DeviceState, tm timings.Measurer) (serial *asserts.Serial, ancillaryBatch *asserts.Batch, err error) {
 	var serialSup serialSetup
 	err = t.Get("serial-setup", &serialSup)
 	if err != nil && err != state.ErrNoState {
@@ -746,7 +746,7 @@ func (m *DeviceManager) doRequestSerial(t *state.Task, _ *tomb.Tomb) error {
 	}
 
 	var serial *asserts.Serial
-	var ancillaryBatch *assertstate.Batch
+	var ancillaryBatch *asserts.Batch
 	timings.Run(perfTimings, "get-serial", "get device serial", func(tm timings.Measurer) {
 		serial, ancillaryBatch, err = getSerial(t, regCtx, privKey, device, tm)
 	})
@@ -809,17 +809,13 @@ func acceptSerialOnly(t *state.Task, serial *asserts.Serial, perfTimings *timing
 	return nil
 }
 
-func acceptSerialPlusBatch(t *state.Task, serial *asserts.Serial, batch *assertstate.Batch) error {
+func acceptSerialPlusBatch(t *state.Task, serial *asserts.Serial, batch *asserts.Batch) error {
 	st := t.State()
 	err := batch.Add(serial)
 	if err != nil {
 		return err
 	}
-	err = batch.Precheck(st)
-	if err != nil {
-		return err
-	}
-	return batch.Commit(st)
+	return assertstate.AddBatch(st, batch, &asserts.CommitOptions{Precheck: true})
 }
 
 var repeatRequestSerial string // for tests
