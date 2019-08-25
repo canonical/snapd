@@ -3278,7 +3278,7 @@ func (s *deviceMgrSuite) TestDoRequestSerialReregistrationStreamFromService(c *C
 
 	s.ancillary = s.brands.AccountsAndKeys("rereg-brand")
 
-	// setup state as done by first-boot/Ensure/doGenerateDeviceKey
+	// setup state as after initial registration
 	s.state.Lock()
 	defer s.state.Unlock()
 
@@ -3298,7 +3298,7 @@ func (s *deviceMgrSuite) TestDoRequestSerialReregistrationStreamFromService(c *C
 	})
 	devicestate.KeypairManager(s.mgr).Put(devKey)
 
-	// have a serial assertion
+	// have the serial assertion
 	s.makeSerialAssertionInState(c, "my-brand", "my-model", "9999")
 
 	new := s.brands.Model("rereg-brand", "rereg-model", map[string]interface{}{
@@ -3364,7 +3364,7 @@ func (s *deviceMgrSuite) TestDoRequestSerialReregistrationIncompleteStreamFromSe
 	// will produce an incomplete stream!
 	s.ancillary = s.brands.AccountsAndKeys("rereg-brand")[:1]
 
-	// setup state as done by first-boot/Ensure/doGenerateDeviceKey
+	// setup state as after initial registration
 	s.state.Lock()
 	defer s.state.Unlock()
 
@@ -3384,7 +3384,7 @@ func (s *deviceMgrSuite) TestDoRequestSerialReregistrationIncompleteStreamFromSe
 	})
 	devicestate.KeypairManager(s.mgr).Put(devKey)
 
-	// have a serial assertion
+	// have the serial assertion
 	s.makeSerialAssertionInState(c, "my-brand", "my-model", "9999")
 
 	new := s.brands.Model("rereg-brand", "rereg-model", map[string]interface{}{
@@ -3441,7 +3441,7 @@ func (s *deviceMgrSuite) TestDoRequestSerialReregistrationDoubleSerialStreamFrom
 	// will produce an incomplete stream!
 	s.ancillary = s.brands.AccountsAndKeys("rereg-brand")
 
-	// setup state as done by first-boot/Ensure/doGenerateDeviceKey
+	// setup state as after initial registration
 	s.state.Lock()
 	defer s.state.Unlock()
 
@@ -3461,7 +3461,7 @@ func (s *deviceMgrSuite) TestDoRequestSerialReregistrationDoubleSerialStreamFrom
 	})
 	devicestate.KeypairManager(s.mgr).Put(devKey)
 
-	// have a serial assertion
+	// have the serial assertion
 	serial0 := s.makeSerialAssertionInState(c, "my-brand", "my-model", "9999")
 	s.ancillary = append(s.ancillary, serial0)
 
