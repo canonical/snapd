@@ -20,7 +20,8 @@ execute: |
 
     # After installing a new version of the core/core18 snap the system is rebooted
     if [ "$SPREAD_REBOOT" = 0 ]; then
-        snap list | awk "/^${TARGET_SNAP_NAME} / {print(\$3)}" > initialRev    
+        currRev="$(readlink /snap/${TARGET_SNAP_NAME}/current)"
+        echo "$currRev" > initialRev
 
         # use journalctl wrapper to grep only the logs collected while the test is running
         if get_journalctl_log | MATCH "Waiting for system reboot"; then
@@ -29,8 +30,8 @@ execute: |
         fi
 
         # install new target snap
-        snap download "$TARGET_SNAP_NAME"
-        snap install --dangerous "${TARGET_SNAP_NAME}"_*.snap &> refresh.log
+
+        snap install --dangerous "/var/lib/snapd/snaps/${TARGET_SNAP_NAME}_${currRev}.snap" &> refresh.log
         MATCH "snapd is about to reboot the system" < refresh.log
 
         # Detect in the logs when the reboot can been triggered
@@ -53,7 +54,7 @@ execute: |
         done
 
         # Check the current revision has changed
-        currRev=$(snap list | awk "/^${TARGET_SNAP_NAME} / {print(\$3)}") 
+        currRev="$(readlink /snap/${TARGET_SNAP_NAME}/current)"
         [ "$(cat initialRev)" !=  "$currRev" ]
 
         # revert the target snap
@@ -76,6 +77,6 @@ execute: |
         REBOOT
     elif [  "$SPREAD_REBOOT" = 2 ]; then
         # Check the current revision is the same than the original
-        currRev=$(snap list | awk "/^${TARGET_SNAP_NAME} / {print(\$3)}") 
+        currRev="$(readlink /snap/${TARGET_SNAP_NAME}/current)"
         [ "$(cat initialRev)" ==  "$currRev" ]
     fi
