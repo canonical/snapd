@@ -79,7 +79,7 @@ func currentAssertion(client *Client, path string) (asserts.Assertion, error) {
 
 	response, err := client.raw("GET", path, q, nil, nil)
 	if err != nil {
-		return nil, fmt.Errorf("failed to query current model assertion: %v", err)
+		return nil, fmt.Errorf("failed to query current assertion: %v", err)
 	}
 	defer response.Body.Close()
 	if response.StatusCode != 200 {
