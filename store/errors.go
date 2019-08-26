@@ -26,7 +26,7 @@ import (
 	"sort"
 	"strings"
 
-	"github.com/snapcore/snapd/snap"
+	"github.com/snapcore/snapd/snap/channel"
 	"github.com/snapcore/snapd/strutil"
 )
 
@@ -71,7 +71,7 @@ var (
 type RevisionNotAvailableError struct {
 	Action   string
 	Channel  string
-	Releases []snap.Channel
+	Releases []channel.Channel
 }
 
 func (e *RevisionNotAvailableError) Error() string {
@@ -234,18 +234,18 @@ var (
 	errDeviceAuthorizationNeedsRefresh = errors.New("soft-expired device authorization needs refresh")
 )
 
-func translateSnapActionError(action, channel, code, message string, releases []snapRelease) error {
+func translateSnapActionError(action, snapChannel, code, message string, releases []snapRelease) error {
 	switch code {
 	case "revision-not-found":
 		e := &RevisionNotAvailableError{
 			Action:  action,
-			Channel: channel,
+			Channel: snapChannel,
 		}
 		if len(releases) != 0 {
-			parsedReleases := make([]snap.Channel, len(releases))
+			parsedReleases := make([]channel.Channel, len(releases))
 			for i := 0; i < len(releases); i++ {
 				var err error
-				parsedReleases[i], err = snap.ParseChannel(releases[i].Channel, releases[i].Architecture)
+				parsedReleases[i], err = channel.Parse(releases[i].Channel, releases[i].Architecture)
 				if err != nil {
 					// shouldn't happen, return error without Releases
 					return e
