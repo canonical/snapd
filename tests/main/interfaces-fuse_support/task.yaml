@@ -24,6 +24,10 @@ environment:
     NAME/parallel: test-snapd-fuse-consumer_foo
 
 prepare: |
+    if not mountinfo-tool /sys/fs/fuse/connections .fs_type=fusectl; then
+        touch please-unmount-fuse-connections
+    fi
+
     if [[ "$SPREAD_VARIANT" == "parallel" ]]; then
         snap set system experimental.parallel-instances=true
     fi
@@ -44,6 +48,12 @@ restore: |
 
     if [[ "$SPREAD_VARIANT" == "parallel" ]]; then
         snap set system experimental.parallel-instances=null
+    fi
+    if [ -e please-unmount-fuse-connections ]; then
+        if mountinfo-tool /sys/fs/fuse/connections .fs_type=fusectl; then
+            umount /sys/fs/fuse/connections
+        fi
+        rm -f please-unmount-fuse-connections
     fi
 
 execute: |

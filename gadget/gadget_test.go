@@ -1091,7 +1091,7 @@ func (s *gadgetYamlTestSuite) TestValidateStructureSizeRequired(c *C) {
 	c.Check(err, IsNil)
 }
 
-func (s *gadgetYamlTestSuite) TestValidatePositioningOverlapPreceding(c *C) {
+func (s *gadgetYamlTestSuite) TestValidateLayoutOverlapPreceding(c *C) {
 	overlappingGadgetYaml := `
 volumes:
   pc:
@@ -1116,7 +1116,7 @@ volumes:
 	c.Check(err, ErrorMatches, `invalid volume "pc": structure #1 \("other-name"\) overlaps with the preceding structure #0 \("mbr"\)`)
 }
 
-func (s *gadgetYamlTestSuite) TestValidatePositioningOverlapOutOfOrder(c *C) {
+func (s *gadgetYamlTestSuite) TestValidateLayoutOverlapOutOfOrder(c *C) {
 	outOfOrderGadgetYaml := `
 volumes:
   pc:

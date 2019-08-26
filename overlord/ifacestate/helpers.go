@@ -387,22 +387,7 @@ func (m *InterfaceManager) setupSecurityByBackend(task *state.Task, snaps []*sna
 }
 
 func (m *InterfaceManager) setupSnapSecurity(task *state.Task, snapInfo *snap.Info, opts interfaces.ConfinementOptions, tm timings.Measurer) error {
-	st := task.State()
-	instanceName := snapInfo.InstanceName()
-
-	for _, backend := range m.repo.Backends() {
-		st.Unlock()
-		var err error
-		timings.Run(tm, "setup-security-backend", fmt.Sprintf("setup security backend %q for snap %q", backend.Name(), snapInfo.InstanceName()), func(nesttm timings.Measurer) {
-			err = backend.Setup(snapInfo, opts, m.repo, nesttm)
-		})
-		st.Lock()
-		if err != nil {
-			task.Errorf("cannot setup %s for snap %q: %s", backend.Name(), instanceName, err)
-			return err
-		}
-	}
-	return nil
+	return m.setupSecurityByBackend(task, []*snap.Info{snapInfo}, []interfaces.ConfinementOptions{opts}, tm)
 }
 
 func (m *InterfaceManager) removeSnapSecurity(task *state.Task, instanceName string) error {
