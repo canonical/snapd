@@ -20,6 +20,12 @@ environment:
     XDG_DATA_HOME: $XDG/share
     XDG_CACHE_HOME: $XDG/cache
 
+debug: |
+    echo "Output process to see what might write to $XDG"
+    ps uafx
+    echo "Show what is in $XDG"
+    ls -alR "$XDG"
+
 restore: |
     if [ -e dbus-launch.pid ]; then
         kill "$(cat dbus-launch.pid)"
