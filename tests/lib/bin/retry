@@ -6,25 +6,25 @@ for i in "$@"; do
     case $i in
         --max-attempts)
         MAX_ATTEMPTS="$2"
-        shift
-        shift
+        shift 2
         ;;
         --sleep-time)
         SLEEP_TIME="$2"
-        shift
-        shift
+        shift 2
         ;;
     esac
 done
 
-COMMAND="$@"
+COMMAND="$1"
+shift
+
 if [ -z "$COMMAND" ]; then
     echo "ERROR: No command provided"
     exit 1
 fi
 
 for _ in $(seq "$MAX_ATTEMPTS"); do
-    if $COMMAND; then
+    if "$COMMAND" "$@"; then
         exit 0
     fi
 
