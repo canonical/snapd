@@ -213,6 +213,7 @@ func (cs *clientSuite) TestClientLogsNotFound(c *check.C) {
 }
 
 func (cs *clientSuite) TestClientServiceStart(c *check.C) {
+	cs.status = 202
 	cs.rsp = `{"type": "async", "status-code": 202, "change": "24"}`
 
 	type scenario struct {
@@ -274,6 +275,7 @@ func (cs *clientSuite) TestClientServiceStart(c *check.C) {
 }
 
 func (cs *clientSuite) TestClientServiceStop(c *check.C) {
+	cs.status = 202
 	cs.rsp = `{"type": "async", "status-code": 202, "change": "24"}`
 
 	type tT struct {
@@ -335,6 +337,7 @@ func (cs *clientSuite) TestClientServiceStop(c *check.C) {
 }
 
 func (cs *clientSuite) TestClientServiceRestart(c *check.C) {
+	cs.status = 202
 	cs.rsp = `{"type": "async", "status-code": 202, "change": "24"}`
 
 	type tT struct {

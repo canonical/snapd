@@ -67,6 +67,9 @@ func purgeNulls(config interface{}) interface{} {
 			}
 		}
 	case *json.RawMessage:
+		if config == nil {
+			return nil
+		}
 		var configm interface{}
 		if err := jsonutil.DecodeWithNumber(bytes.NewReader(*config), &configm); err != nil {
 			panic(fmt.Errorf("internal error: cannot unmarshal configuration: %v", err))

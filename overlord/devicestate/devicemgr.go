@@ -92,8 +92,11 @@ func Manager(s *state.State, hookManager *hookstate.HookManager, runner *state.T
 	runner.AddHandler("generate-device-key", m.doGenerateDeviceKey, nil)
 	runner.AddHandler("request-serial", m.doRequestSerial, nil)
 	runner.AddHandler("mark-seeded", m.doMarkSeeded, nil)
+	runner.AddHandler("prepare-remodeling", m.doPrepareRemodeling, nil)
+	runner.AddCleanup("prepare-remodeling", m.cleanupRemodel)
 	// this *must* always run last and finalizes a remodel
 	runner.AddHandler("set-model", m.doSetModel, nil)
+	runner.AddCleanup("set-model", m.cleanupRemodel)
 	// There is no undo for successful gadget updates. The system is
 	// rebooted during update, if it boots up to the point where snapd runs
 	// we deem the new assets (be it bootloader or firmware) functional. The

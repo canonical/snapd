@@ -22,6 +22,7 @@
 package devicestate
 
 import (
+	"context"
 	"fmt"
 	"sync"
 
@@ -333,13 +334,13 @@ func extractDownloadInstallEdgesFromTs(ts *state.TaskSet) (firstDl, lastDl, firs
 	return firstDl, tasks[edgeTaskIndex], tasks[edgeTaskIndex+1], lastInst, nil
 }
 
-func remodelTasks(st *state.State, current, new *asserts.Model, deviceCtx snapstate.DeviceContext) ([]*state.TaskSet, error) {
+func remodelTasks(ctx context.Context, st *state.State, current, new *asserts.Model, deviceCtx snapstate.DeviceContext, fromChange string) ([]*state.TaskSet, error) {
 	userID := 0
 
 	// adjust kernel track
 	var tss []*state.TaskSet
 	if current.KernelTrack() != new.KernelTrack() {
-		ts, err := snapstateUpdateWithDeviceContext(st, new.Kernel(), &snapstate.RevisionOptions{Channel: new.KernelTrack()}, userID, snapstate.Flags{NoReRefresh: true}, deviceCtx)
+		ts, err := snapstateUpdateWithDeviceContext(st, new.Kernel(), &snapstate.RevisionOptions{Channel: new.KernelTrack()}, userID, snapstate.Flags{NoReRefresh: true}, deviceCtx, fromChange)
 		if err != nil {
 			return nil, err
 		}
@@ -351,7 +352,7 @@ func remodelTasks(st *state.State, current, new *asserts.Model, deviceCtx snapst
 		_, err := snapstate.CurrentInfo(st, snapName)
 		// If the snap is not installed we need to install it now.
 		if _, ok := err.(*snap.NotInstalledError); ok {
-			ts, err := snapstateInstallWithDeviceContext(st, snapName, nil, userID, snapstate.Flags{Required: true}, deviceCtx)
+			ts, err := snapstateInstallWithDeviceContext(ctx, st, snapName, nil, userID, snapstate.Flags{Required: true}, deviceCtx, fromChange)
 			if err != nil {
 				return nil, err
 			}
@@ -437,7 +438,6 @@ func remodelTasks(st *state.State, current, new *asserts.Model, deviceCtx snapst
 // TODO:
 // - Check estimated disk size delta
 // - Reapply gadget connections as needed
-// - Need new session/serial if changing store or model
 // - Check all relevant snaps exist in new store
 //   (need to check that even unchanged snaps are accessible)
 func Remodel(st *state.State, new *asserts.Model) (*state.Change, error) {
@@ -459,17 +459,10 @@ func Remodel(st *state.State, new *asserts.Model) (*state.Change, error) {
 	}
 
 	// TODO: we need dedicated assertion language to permit for
-	// model transitions before we allow that cross vault
+	// model transitions before we allow cross vault
 	// transitions.
-	//
-	// Right now we only allow "remodel" to a different revision of
-	// the same model.
 
 	remodelKind := ClassifyRemodel(current, new)
-
-	if remodelKind == ReregRemodel {
-		return nil, fmt.Errorf("cannot remodel to different brand/model yet")
-	}
 
 	// TODO: should we restrict remodel from one arch to another?
 	// There are valid use-cases here though, i.e. amd64 machine that
@@ -502,7 +495,23 @@ func Remodel(st *state.State, new *asserts.Model) (*state.Change, error) {
 		return nil, err
 	}
 
-	if remodelKind == StoreSwitchRemodel {
+	var tss []*state.TaskSet
+	switch remodelKind {
+	case ReregRemodel:
+		// nothing else can be in-flight
+		for _, chg := range st.Changes() {
+			if !chg.IsReady() {
+				return nil, &snapstate.ChangeConflictError{Message: "cannot start complete remodel, other changes are in progress"}
+			}
+		}
+
+		requestSerial := st.NewTask("request-serial", i18n.G("Request new device serial"))
+
+		prepare := st.NewTask("prepare-remodeling", i18n.G("Prepare remodeling"))
+		prepare.WaitFor(requestSerial)
+		ts := state.NewTaskSet(requestSerial, prepare)
+		tss = []*state.TaskSet{ts}
+	case StoreSwitchRemodel:
 		sto := remodCtx.Store()
 		if sto == nil {
 			return nil, fmt.Errorf("internal error: a store switch remodeling should have built a store")
@@ -514,22 +523,34 @@ func Remodel(st *state.State, new *asserts.Model) (*state.Change, error) {
 		if err != nil {
 			return nil, fmt.Errorf("cannot get a store session based on the new model assertion: %v", err)
 		}
+		fallthrough
+	case UpdateRemodel:
+		var err error
+		tss, err = remodelTasks(context.TODO(), st, current, new, remodCtx, "")
+		if err != nil {
+			return nil, err
+		}
 	}
 
-	tss, err := remodelTasks(st, current, new, remodCtx)
+	// we potentially released the lock a couple of times here:
+	// make sure the current model is essentially the same as when
+	// we started
+	current1, err := findModel(st)
 	if err != nil {
 		return nil, err
 	}
-
-	// TODO: we released the lock a couple of times here:
-	// make sure the current model is essentially the same
-	// make sure no remodeling is in progress
+	if current.BrandID() != current1.BrandID() || current.Model() != current1.Model() || current.Revision() != current1.Revision() {
+		return nil, &snapstate.ChangeConflictError{Message: fmt.Sprintf("cannot start remodel, clashing with concurrent remodel to %v/%v (%v)", current1.BrandID(), current1.Model(), current1.Revision())}
+	}
+	// make sure another unfinished remodel wasn't already setup either
+	if Remodeling(st) {
+		return nil, &snapstate.ChangeConflictError{Message: "cannot start remodel, clashing with concurrent one"}
+	}
 
 	var msg string
 	if current.BrandID() == new.BrandID() && current.Model() == new.Model() {
 		msg = fmt.Sprintf(i18n.G("Refresh model assertion from revision %v to %v"), current.Revision(), new.Revision())
 	} else {
-		// TODO: add test once we support this kind of remodel
 		msg = fmt.Sprintf(i18n.G("Remodel device to %v/%v (%v)"), new.BrandID(), new.Model(), new.Revision())
 	}
 

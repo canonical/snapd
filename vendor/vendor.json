@@ -13,10 +13,10 @@
 			"revisionTime": "2018-05-11T13:34:05Z"
 		},
 		{
-			"checksumSHA1": "h77tT8kVh8x/J5ikkZReONPUjU0=",
+			"checksumSHA1": "qwK75TRXmR/k8CiegYaeqaCDek4=",
 			"path": "github.com/godbus/dbus",
-			"revision": "97646858c46433e4afb3432ad28c12e968efa298",
-			"revisionTime": "2017-08-22T15:24:03Z"
+			"revision": "4481cbc300e2df0c0b3cecc18b6c16c6c0bb885d",
+			"revisionTime": "2019-07-26T02:52:47Z"
 		},
 		{
 			"checksumSHA1": "NrP46FPoALgKz3FY6puL3syMAAI=",
@@ -25,16 +25,10 @@
 			"revisionTime": "2017-08-22T15:24:03Z"
 		},
 		{
-			"checksumSHA1": "iIUYZyoanCQQTUaWsu8b+iOSPt4=",
-			"path": "github.com/gorilla/context",
-			"revision": "1c83b3eabd45b6d76072b66b746c20815fb2872d",
-			"revisionTime": "2015-08-20T05:12:45Z"
-		},
-		{
-			"checksumSHA1": "xF+WqeL9eAlbUkiO2bLghMQzO4k=",
+			"checksumSHA1": "2Iy16w6c+4oMD8TtobbO0qsCrDo=",
 			"path": "github.com/gorilla/mux",
-			"revision": "0eeaf8392f5b04950925b8a69fe70f110fa7cbfc",
-			"revisionTime": "2016-03-17T21:34:30Z"
+			"revision": "d83b6ffe499a29cc05fc977988d0392851779620",
+			"revisionTime": "2019-07-01T20:26:33Z"
 		},
 		{
 			"checksumSHA1": "GcYF2BhpiQkshVVXxHPS/Oq491c=",

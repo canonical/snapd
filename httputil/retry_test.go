@@ -26,6 +26,7 @@ import (
 	"net"
 	"net/http"
 	"net/http/httptest"
+	"net/url"
 	"sync"
 	"time"
 
@@ -475,6 +476,24 @@ func (s *retrySuite) TestRetryOnTemporaryDNSfailureNotGo19(c *C) {
 			Err: &net.DNSError{
 				Err: "[::1]:42463->[::1]:53: read: connection refused",
 			},
+		}
+	}
+	readResponseBody := func(resp *http.Response) error {
+		return nil
+	}
+	_, err := httputil.RetryRequest("endp", doRequest, readResponseBody, testRetryStrategy)
+	c.Assert(err, NotNil)
+	c.Assert(n > 1, Equals, true, Commentf("%v not > 1", n))
+}
+
+func (s *retrySuite) TestRetryOnHttp2ProtocolErrors(c *C) {
+	n := 0
+	doRequest := func() (*http.Response, error) {
+		n++
+		return nil, &url.Error{
+			Op:  "Get",
+			URL: "http://...",
+			Err: fmt.Errorf("http.http2StreamError{StreamID:0x1, Code:0x1, Cause:error(nil)}"),
 		}
 	}
 	readResponseBody := func(resp *http.Response) error {

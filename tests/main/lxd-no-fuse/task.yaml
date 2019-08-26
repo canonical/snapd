@@ -1,0 +1,42 @@
+summary: Check that we give a useful error when fuse is missing in lxd
+
+# we just need a single system to verify this
+systems: [ubuntu-18.04-64]
+
+execute: |
+    echo "Ensure we use the snap"
+    apt autoremove -y lxd
+
+    echo "Install lxd"
+    snap install --candidate lxd
+
+    echo "Create a trivial container using the lxd snap"
+    snap set lxd waitready.timeout=240
+    lxd waitready
+    lxd init --auto
+
+    echo "Setting up proxy for lxc"
+    if [ -n "${http_proxy:-}" ]; then
+        lxd.lxc config set core.proxy_http "$http_proxy"
+    fi
+    if [ -n "${https_proxy:-}" ]; then
+        lxd.lxc config set core.proxy_https "$http_proxy"
+    fi
+
+    lxd.lxc launch "images:ubuntu/18.04" my-ubuntu
+
+    echo "Remove fuse to trigger the fuse sanity check"
+    lxd.lxc exec my-ubuntu -- apt autoremove -y fuse
+
+    echo "Install snapd"
+    lxd.lxc exec my-ubuntu -- mkdir -p "$GOHOME"
+    lxd.lxc file push "$GOHOME"/snapd_*.deb "my-ubuntu/$GOHOME/"
+    lxd.lxc exec my-ubuntu -- apt install -y "$GOHOME"/snapd_*.deb
+
+    echo "And validate that we get a useful error"
+    if lxd.lxc exec my-ubuntu snap install test-snapd-tools 2> err.txt; then
+        echo "snap install should fail but it did not?"
+        exit 1
+    fi
+    MATCH 'The "fuse" filesystem is required' < err.txt
+

@@ -108,6 +108,14 @@ execute: |
     fi
     snap get snapctl-hooks root.key2 2>&1 | MATCH 'snap "snapctl-hooks" has no "root.key2" configuration option'
 
+    echo "Test unsetting of root.key2 with via snapctl unset"
+    # init and sanity check
+    snap set snapctl-hooks command=noop root.key2="b"
+    snap get snapctl-hooks root.key2 | MATCH "b"
+    # note, unsetting happens in the configure hook in response to "test-unset-with-unset" value
+    snap set snapctl-hooks command=test-unset-with-unset
+    snap get snapctl-hooks root.key2 2>&1 | MATCH 'snap "snapctl-hooks" has no "root.key2" configuration option'
+
     echo "Test that config values are not available once snap is removed"
     snap remove snapctl-hooks
     if output=$(snap get snapctl-hooks foo); then

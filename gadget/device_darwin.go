@@ -24,10 +24,14 @@ import (
 
 var errNotImplemented = errors.New("not implemented")
 
-func FindDeviceForStructure(ps *PositionedStructure) (string, error) {
+func FindDeviceForStructure(ps *LaidOutStructure) (string, error) {
 	return "", errNotImplemented
 }
 
-func FindMountPointForStructure(ps *PositionedStructure) (string, error) {
+func FindDeviceForStructureWithFallback(ps *LaidOutStructure) (string, Size, error) {
+	return "", 0, errNotImplemented
+}
+
+func FindMountPointForStructure(ps *LaidOutStructure) (string, error) {
 	return "", errNotImplemented
 }

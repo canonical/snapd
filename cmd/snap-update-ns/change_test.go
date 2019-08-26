@@ -2413,9 +2413,14 @@ func (s *changeSuite) TestPerformedChangesAreTracked(c *C) {
 	chg = &update.Change{Action: update.Unmount, Entry: osutil.MountEntry{Name: "device", Dir: "/target", Type: "type"}}
 	_, err = chg.Perform(s.as)
 	c.Assert(err, IsNil)
+
+	chg = &update.Change{Action: update.Keep, Entry: osutil.MountEntry{Name: "tmpfs", Dir: "/target", Type: "tmpfs"}}
+	_, err = chg.Perform(s.as)
+	c.Assert(err, IsNil)
 	c.Assert(s.as.PastChanges(), DeepEquals, []*update.Change{
 		// past changes stack in order.
 		{Action: update.Mount, Entry: osutil.MountEntry{Name: "device", Dir: "/target", Type: "type"}},
 		{Action: update.Unmount, Entry: osutil.MountEntry{Name: "device", Dir: "/target", Type: "type"}},
+		{Action: update.Keep, Entry: osutil.MountEntry{Name: "tmpfs", Dir: "/target", Type: "tmpfs"}},
 	})
 }

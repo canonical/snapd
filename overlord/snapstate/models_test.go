@@ -54,3 +54,16 @@ func MakeModel(override map[string]interface{}) *asserts.Model {
 	}
 	return assertstest.FakeAssertion(model, override).(*asserts.Model)
 }
+
+func ClassicModel() *asserts.Model {
+	headers := map[string]interface{}{
+		"type":         "model",
+		"authority-id": "brand",
+		"series":       "16",
+		"brand-id":     "brand",
+		"model":        "classicbaz-3000",
+		"classic":      "true",
+		"timestamp":    "2018-01-01T08:00:00+00:00",
+	}
+	return assertstest.FakeAssertion(headers).(*asserts.Model)
+}

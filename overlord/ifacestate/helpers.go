@@ -43,50 +43,9 @@ import (
 	"github.com/snapcore/snapd/timings"
 )
 
-func (m *InterfaceManager) initialize(extraInterfaces []interfaces.Interface, extraBackends []interfaces.SecurityBackend, tm timings.Measurer) error {
-	m.state.Lock()
-	defer m.state.Unlock()
-
-	snaps, err := snapsWithSecurityProfiles(m.state)
-	if err != nil {
-		return err
-	}
-	// Before deciding about adding implicit slots to any snap we need to scan
-	// the set of snaps we know about. If any of those is "snapd" then for the
-	// duration of this process always add implicit slots to snapd and not to
-	// any other type: os snap and use a mapper to use names core-snapd-system
-	// on state, in memory and in API responses, respectively.
-	m.selectInterfaceMapper(snaps)
-
-	if err := m.addInterfaces(extraInterfaces); err != nil {
-		return err
-	}
-	if err := m.addBackends(extraBackends); err != nil {
-		return err
-	}
-	if err := m.addSnaps(snaps); err != nil {
-		return err
-	}
-	if err := m.renameCorePlugConnection(); err != nil {
-		return err
-	}
-	if err := removeStaleConnections(m.state); err != nil {
-		return err
-	}
-	if _, err := m.reloadConnections(""); err != nil {
-		return err
-	}
-	if profilesNeedRegeneration() {
-		if err := m.regenerateAllSecurityProfiles(tm); err != nil {
-			return err
-		}
-	}
-	return nil
-}
-
 func (m *InterfaceManager) selectInterfaceMapper(snaps []*snap.Info) {
 	for _, snapInfo := range snaps {
-		if snapInfo.SnapName() == "snapd" {
+		if snapInfo.GetType() == snap.TypeSnapd {
 			mapper = &CoreSnapdSystemMapper{}
 			break
 		}
@@ -428,22 +387,7 @@ func (m *InterfaceManager) setupSecurityByBackend(task *state.Task, snaps []*sna
 }
 
 func (m *InterfaceManager) setupSnapSecurity(task *state.Task, snapInfo *snap.Info, opts interfaces.ConfinementOptions, tm timings.Measurer) error {
-	st := task.State()
-	instanceName := snapInfo.InstanceName()
-
-	for _, backend := range m.repo.Backends() {
-		st.Unlock()
-		var err error
-		timings.Run(tm, "setup-security-backend", fmt.Sprintf("setup security backend %q for snap %q", backend.Name(), snapInfo.InstanceName()), func(nesttm timings.Measurer) {
-			err = backend.Setup(snapInfo, opts, m.repo, nesttm)
-		})
-		st.Lock()
-		if err != nil {
-			task.Errorf("cannot setup %s for snap %q: %s", backend.Name(), instanceName, err)
-			return err
-		}
-	}
-	return nil
+	return m.setupSecurityByBackend(task, []*snap.Info{snapInfo}, []interfaces.ConfinementOptions{opts}, tm)
 }
 
 func (m *InterfaceManager) removeSnapSecurity(task *state.Task, instanceName string) error {

@@ -37,7 +37,7 @@ prepare: |
 
     unsquashfs -no-progress /var/lib/snapd/snaps/pc_*.snap
 
-    # Update hte gadget config file
+    # Update the gadget config file
     cat "$GADGET_FILE" >> squashfs-root/meta/gadget.yaml
     sed -i -e "s/TEST_SNAP_ID/$TEST_SNAP_ID/" squashfs-root/meta/gadget.yaml
 
@@ -101,8 +101,8 @@ restore: |
     rm /var/lib/snapd/seed/snaps/pc_x1.snap
 
     TEST_REVNO=$(awk "/^snap-revision: / {print \$2}" ${TARGET_SNAP}_*.assert)
-    if systemctl status "${TARGET_SNAP}-${TEST_REVNO}.mount" ; then
-       systemctl stop "${TARGET_SNAP}-${TEST_REVNO}.mount"
+    if systemctl status "$(systemd-escape --path /snap/test-snapd-with-configure/"$TEST_REVNO".mount)"; then
+       systemctl stop "$(systemd-escape --path /snap/test-snapd-with-configure/"$TEST_REVNO".mount)"
        rm -f "/etc/systemd/system/${TARGET_SNAP}-${TEST_REVNO}.mount"
        rm -f "/etc/systemd/system/multi-user.target.wants/${TARGET_SNAP}-${TEST_REVNO}.mount"
        rm -f /var/lib/snapd/snaps/"${TARGET_SNAP}"_*.snap
