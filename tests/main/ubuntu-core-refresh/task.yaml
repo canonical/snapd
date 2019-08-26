@@ -5,7 +5,7 @@ details: |
     a reboot is triggered and the command would exit after the first phase of the installation
     reporting "snapd is about to reboot the system"
 
-systems: [ubuntu-core-1*]
+systems: [ubuntu-core-*]
 
 execute: |
     #shellcheck source=tests/lib/journalctl.sh
