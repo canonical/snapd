@@ -54,6 +54,9 @@ amazon_name_package() {
             xdelta3)
                 echo "xdelta"
                 ;;
+            openvswitch-switch)
+                echo "openvswitch"
+                ;;
             *)
                 echo "$i"
                 ;;
