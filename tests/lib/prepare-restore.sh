@@ -465,6 +465,13 @@ prepare_project() {
     RateLimitBurst=0
 EOF
     systemctl restart systemd-journald.service
+
+    # Re-configure cgroups in a way that LXD would so that
+    # installation, use and removal of LXD does not leave any changes
+    # in the system.
+    if [ -f /sys/fs/cgroup/cpuset/cgroup.clone_children ]; then
+        echo 1 > /sys/fs/cgroup/cpuset/cgroup.clone_children
+    fi
 }
 
 prepare_project_each() {
@@ -561,6 +568,18 @@ restore_suite_each() {
         fi
         get_journalctl_log > "${logs_dir}/${logs_file}.journal.log"
     fi
+
+    # On Arch it seems that using sudo / su for working with the test user
+    # spawns the /run/user/12345 tmpfs for XDG_RUNTIME_DIR which asynchronously
+    # cleans up itself sometime after the test but not instantly, leading to
+    # random failures in the mount leak detector. Give it a moment but don't
+    # clean it up ourselves, this should report actual test errors, if any.
+    for i in $(seq 10); do
+        if not mountinfo-tool /run/user/12345 .fs_type=tmpfs; then
+            break
+        fi
+        sleep 1
+    done
 }
 
 restore_suite() {

@@ -70,7 +70,22 @@ INcAFWRghMtyMiQn5iUWVeqVVJQIwOVh8QmLJ5aGF8wMsIgfBaNgFIyCUTAKRsEoGAWjYBSMglEw
 bAEA+f+YuAAQAAA=
 `)
 
+var fuseBinary = "mount.fuse"
+
+func firstCheckFuse() error {
+	if squashfs.NeedsFuse() {
+		if _, err := exec.LookPath(fuseBinary); err != nil {
+			return fmt.Errorf(`The "fuse" filesystem is required on this system but not available. Please try to install the fuse package.`)
+		}
+	}
+	return nil
+}
+
 func checkSquashfsMount() error {
+	if err := firstCheckFuse(); err != nil {
+		return err
+	}
+
 	tmpSquashfsFile, err := ioutil.TempFile("", "sanity-squashfs-")
 	if err != nil {
 		return err
@@ -112,7 +127,7 @@ func checkSquashfsMount() error {
 	}
 
 	defer func() {
-		if output, err := exec.Command("umount", tmpMountDir).CombinedOutput(); err != nil {
+		if output, err := exec.Command("umount", "-l", tmpMountDir).CombinedOutput(); err != nil {
 			// os.RemoveAll(tmpMountDir) will fail here if umount fails
 			logger.Noticef("cannot unmount sanity check squashfs image: %v", osutil.OutputErr(output, err))
 		}

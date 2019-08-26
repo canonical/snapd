@@ -636,8 +636,8 @@ func (s *remodelLogicSuite) TestRemodelContextForTaskAndCaching(c *C) {
 	t := s.state.NewTask("remodel-task-1", "...")
 	chg.AddTask(t)
 
-	// caching
-	remodCtx1, err := devicestate.RemodelCtxFromTask(t)
+	// caching, internally this use remodelCtxFromTask
+	remodCtx1, err := devicestate.DeviceCtx(s.state, t, nil)
 	c.Assert(err, IsNil)
 	c.Check(remodCtx1, Equals, remodCtx)
 
@@ -645,7 +645,7 @@ func (s *remodelLogicSuite) TestRemodelContextForTaskAndCaching(c *C) {
 	// compute a new one
 	devicestate.CleanupRemodelCtx(chg)
 
-	remodCtx2, err := devicestate.RemodelCtxFromTask(t)
+	remodCtx2, err := devicestate.DeviceCtx(s.state, t, nil)
 	c.Assert(err, IsNil)
 	c.Check(remodCtx2 != remodCtx, Equals, true)
 	c.Check(remodCtx2.Model(), DeepEquals, newModel)
@@ -655,20 +655,22 @@ func (s *remodelLogicSuite) TestRemodelContextForTaskNo(c *C) {
 	s.state.Lock()
 	defer s.state.Unlock()
 
+	// internally these use remodelCtxFromTask
+
 	// task is nil
-	remodCtx1, err := devicestate.RemodelCtxFromTask(nil)
+	remodCtx1, err := devicestate.DeviceCtx(s.state, nil, nil)
 	c.Check(err, Equals, state.ErrNoState)
 	c.Check(remodCtx1, IsNil)
 
 	// no change
 	t := s.state.NewTask("random-task", "...")
-	_, err = devicestate.RemodelCtxFromTask(t)
+	_, err = devicestate.DeviceCtx(s.state, t, nil)
 	c.Check(err, Equals, state.ErrNoState)
 
 	// not a remodel change
 	chg := s.state.NewChange("not-remodel", "...")
 	chg.AddTask(t)
-	_, err = devicestate.RemodelCtxFromTask(t)
+	_, err = devicestate.DeviceCtx(s.state, t, nil)
 	c.Check(err, Equals, state.ErrNoState)
 }
 
@@ -747,7 +749,7 @@ func (s *remodelLogicSuite) TestReregRemodelContextInit(c *C) {
 	t := s.state.NewTask("remodel-task-1", "...")
 	chg.AddTask(t)
 
-	remodCtx1, err := devicestate.RemodelCtxFromTask(t)
+	remodCtx1, err := devicestate.DeviceCtx(s.state, t, nil)
 	c.Assert(err, IsNil)
 	c.Check(remodCtx1, Equals, remodCtx)
 }

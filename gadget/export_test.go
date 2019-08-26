@@ -31,21 +31,13 @@ var (
 
 	EncodeLabel = encodeLabel
 
-	WriteFile      = writeFile
+	WriteFile      = writeFileOrSymlink
 	WriteDirectory = writeDirectory
 
 	RawContentBackupPath = rawContentBackupPath
 
 	UpdaterForStructure = updaterForStructure
 )
-
-func MockUpdaterForStructure(mock func(ps *PositionedStructure, rootDir, rollbackDir string) (Updater, error)) (restore func()) {
-	old := updaterForStructure
-	updaterForStructure = mock
-	return func() {
-		updaterForStructure = old
-	}
-}
 
 func MockEvalSymlinks(mock func(path string) (string, error)) (restore func()) {
 	oldEvalSymlinks := evalSymlinks

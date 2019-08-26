@@ -35,6 +35,7 @@ import (
 	"github.com/snapcore/snapd/interfaces/seccomp"
 	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/release"
+	seccomp_compiler "github.com/snapcore/snapd/sandbox/seccomp"
 	"github.com/snapcore/snapd/snap"
 	"github.com/snapcore/snapd/snap/snaptest"
 	"github.com/snapcore/snapd/testutil"
@@ -278,6 +279,7 @@ func (s *backendSuite) TestRealDefaultTemplateIsNormallyUsed(c *C) {
 		"# - create_module, init_module, finit_module, delete_module (kernel modules)\n",
 		"open\n",
 		"getuid\n",
+		"setresuid\n", // this is not random
 	} {
 		c.Assert(string(data), testutil.Contains, line)
 	}
@@ -724,7 +726,7 @@ fi`)
 
 	sb, ok := s.Backend.(*seccomp.Backend)
 	c.Assert(ok, Equals, true)
-	c.Check(sb.VersionInfo(), Equals, "2345cdef 2.3.4 2345cdef -")
+	c.Check(sb.VersionInfo(), Equals, seccomp_compiler.VersionInfo("2345cdef 2.3.4 2345cdef -"))
 }
 
 func (s *backendSuite) TestCompilerInitUnhappy(c *C) {
@@ -735,4 +737,84 @@ func (s *backendSuite) TestCompilerInitUnhappy(c *C) {
 	defer restore()
 	err := s.Backend.Initialize()
 	c.Assert(err, ErrorMatches, "cannot initialize seccomp profile compiler: failed")
+}
+
+func (s *backendSuite) TestSystemUsernamesPolicy(c *C) {
+	snapYaml := `
+name: app
+version: 0.1
+system-usernames:
+  testid: shared
+  testid2: shared
+apps:
+  cmd:
+`
+	snapInfo := snaptest.MockInfo(c, snapYaml, nil)
+	// NOTE: we don't call seccomp.MockTemplate()
+	err := s.Backend.Setup(snapInfo, interfaces.ConfinementOptions{}, s.Repo, s.meas)
+	c.Assert(err, IsNil)
+	// NOTE: we don't call seccomp.MockTemplate()
+	profile := filepath.Join(dirs.SnapSeccompDir, "snap.app.cmd")
+	data, err := ioutil.ReadFile(profile + ".src")
+	c.Assert(err, IsNil)
+	for _, line := range []string{
+		// NOTE: a few randomly picked lines from the real
+		// profile.  Comments and empty lines are avoided as
+		// those can be discarded in the future.
+		"\n# - create_module, init_module, finit_module, delete_module (kernel modules)\n",
+		"\nopen\n",
+		"\ngetuid\n",
+		"\nsetgroups 0 0\n",
+		// and a few randomly picked lines from root syscalls
+		// with extra \n checks to ensure we have the right
+		// "paragraphs" in the generated output
+		"\n\n# allow setresgid to root\n",
+		"\n# allow setresuid to root\n",
+		"\nsetresuid u:root u:root u:root\n",
+		// and a few randomly picked lines from global id syscalls
+		"\n\n# allow setresgid to testid\n",
+		"\n\n# allow setresuid to testid\n",
+		"\nsetresuid -1 u:testid -1\n",
+		// also for the second user
+		"\n\n# allow setresgid to testid2\n",
+		"\n# allow setresuid to testid2\n",
+		"\nsetresuid -1 u:testid2 -1\n",
+	} {
+		c.Assert(string(data), testutil.Contains, line)
+	}
+
+	// make sure the bare syscalls aren't present
+	c.Assert(string(data), Not(testutil.Contains), "setresuid\n")
+}
+
+func (s *backendSuite) TestNoSystemUsernamesPolicy(c *C) {
+	snapYaml := `
+name: app
+version: 0.1
+apps:
+  cmd:
+`
+	snapInfo := snaptest.MockInfo(c, snapYaml, nil)
+	// NOTE: we don't call seccomp.MockTemplate()
+	err := s.Backend.Setup(snapInfo, interfaces.ConfinementOptions{}, s.Repo, s.meas)
+	c.Assert(err, IsNil)
+	// NOTE: we don't call seccomp.MockTemplate()
+	profile := filepath.Join(dirs.SnapSeccompDir, "snap.app.cmd")
+	data, err := ioutil.ReadFile(profile + ".src")
+	c.Assert(err, IsNil)
+	for _, line := range []string{
+		// and a few randomly picked lines from root syscalls
+		"# allow setresgid to root\n",
+		"# allow setresuid to root\n",
+		"setresuid u:root u:root u:root\n",
+		// and a few randomly picked lines from global id syscalls
+		"# allow setresgid to testid\n",
+		"# allow setresuid to testid\n",
+		"setresuid -1 u:testid -1\n",
+	} {
+		c.Assert(string(data), Not(testutil.Contains), line)
+	}
+
+	// make sure the bare syscalls are present
+	c.Assert(string(data), testutil.Contains, "setresuid\n")
 }

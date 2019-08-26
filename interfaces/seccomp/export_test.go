@@ -19,14 +19,23 @@
 
 package seccomp
 
+import (
+	seccomp_compiler "github.com/snapcore/snapd/sandbox/seccomp"
+)
+
 // MockTemplate replaces seccomp template.
 //
 // NOTE: The real seccomp template is long. For testing it is convenient for
 // replace it with a shorter snippet.
 func MockTemplate(fakeTemplate []byte) (restore func()) {
 	orig := defaultTemplate
+	origBarePrivDropSyscalls := barePrivDropSyscalls
 	defaultTemplate = fakeTemplate
-	return func() { defaultTemplate = orig }
+	barePrivDropSyscalls = ""
+	return func() {
+		defaultTemplate = orig
+		barePrivDropSyscalls = origBarePrivDropSyscalls
+	}
 }
 
 func MockKernelFeatures(f func() []string) (resture func()) {
@@ -77,7 +86,7 @@ func MockSeccompCompilerLookup(f func(string) (string, error)) (restore func()) 
 	}
 }
 
-func (b *Backend) VersionInfo() string {
+func (b *Backend) VersionInfo() seccomp_compiler.VersionInfo {
 	return b.versionInfo
 }
 

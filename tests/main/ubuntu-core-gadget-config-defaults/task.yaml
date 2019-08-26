@@ -34,7 +34,7 @@ prepare: |
         TEST_SNAP_ID=aLcJorEJZgJNUGL2GMb3WR9SoVyHUNAd
     fi
 
-    # Update hte gadget config file
+    # Update the gadget config file
     cat "$GADGET_FILE" >> squashfs-root/meta/gadget.yaml
     sed -i -e "s/TEST_SNAP_ID/$TEST_SNAP_ID/" squashfs-root/meta/gadget.yaml
 

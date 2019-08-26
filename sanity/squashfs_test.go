@@ -29,7 +29,7 @@ import (
 )
 
 func (s *sanitySuite) TestCheckSquashfsMountHappy(c *C) {
-	restore := squashfs.MockUseFuse(false)
+	restore := squashfs.MockNeedsFuse(false)
 	defer restore()
 
 	// we create a canary.txt with the same prefix as the real one
@@ -51,12 +51,12 @@ func (s *sanitySuite) TestCheckSquashfsMountHappy(c *C) {
 		{"mount", "-t", "squashfs", squashfsFile, mountPoint},
 	})
 	c.Check(mockUmount.Calls(), DeepEquals, [][]string{
-		{"umount", mountPoint},
+		{"umount", "-l", mountPoint},
 	})
 }
 
 func (s *sanitySuite) TestCheckSquashfsMountNotHappy(c *C) {
-	restore := squashfs.MockUseFuse(false)
+	restore := squashfs.MockNeedsFuse(false)
 	defer restore()
 
 	mockMount := testutil.MockCommand(c, "mount", "echo iz-broken;false")
@@ -79,7 +79,7 @@ func (s *sanitySuite) TestCheckSquashfsMountNotHappy(c *C) {
 }
 
 func (s *sanitySuite) TestCheckSquashfsMountWrongContent(c *C) {
-	restore := squashfs.MockUseFuse(false)
+	restore := squashfs.MockNeedsFuse(false)
 	defer restore()
 
 	mockMount := testutil.MockCommand(c, "mount", `echo 'wrong content' > "$4"/canary.txt`)
@@ -96,7 +96,7 @@ func (s *sanitySuite) TestCheckSquashfsMountWrongContent(c *C) {
 }
 
 func (s *sanitySuite) TestCheckSquashfsMountSELinuxContext(c *C) {
-	restore := squashfs.MockUseFuse(false)
+	restore := squashfs.MockNeedsFuse(false)
 	defer restore()
 
 	mockMount := testutil.MockCommand(c, "mount", "echo 'mock ran'")
@@ -119,4 +119,31 @@ func (s *sanitySuite) TestCheckSquashfsMountSELinuxContext(c *C) {
 	c.Check(mockMount.Calls(), DeepEquals, [][]string{
 		{"mount", "-t", "squashfs", "-o", "context=system_u:object_r:snappy_snap_t:s0", squashfsFile, mountPoint},
 	})
+}
+
+func (s *sanitySuite) TestCheckFuseNoFuseHappy(c *C) {
+	restore := squashfs.MockNeedsFuse(false)
+	defer restore()
+
+	c.Assert(sanity.CheckFuse(), IsNil)
+}
+
+func (s *sanitySuite) TestCheckFuseNeedsFuseAndHasFuse(c *C) {
+	restore := squashfs.MockNeedsFuse(true)
+	defer restore()
+
+	restore = sanity.MockFuseBinary("true")
+	defer restore()
+
+	c.Assert(sanity.CheckFuse(), IsNil)
+}
+
+func (s *sanitySuite) TestCheckFuseNoDevFuseUnhappy(c *C) {
+	restore := squashfs.MockNeedsFuse(true)
+	defer restore()
+
+	restore = sanity.MockFuseBinary("/it/does/not/exist")
+	defer restore()
+
+	c.Assert(sanity.CheckFuse(), ErrorMatches, `The "fuse" filesystem is required on this system but not available. Please try to install the fuse package.`)
 }
