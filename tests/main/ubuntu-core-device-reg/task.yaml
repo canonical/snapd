@@ -5,6 +5,8 @@ summary: |
 systems: [ubuntu-core-1*]
 
 execute: |
+    #shellcheck source=tests/lib/names.sh
+    . "$TESTSLIB"/names.sh
     #shellcheck source=tests/lib/systems.sh
     . "$TESTSLIB"/systems.sh
 
@@ -25,10 +27,12 @@ execute: |
     echo "Check we have a serial"
     snap known serial|MATCH "authority-id: canonical"
     snap known serial|MATCH "brand-id: canonical"
-    if is_core18_system; then
+    if [ "$SPREAD_SYSTEM" = "ubuntu-core-18-64" ]; then
         snap known serial | MATCH "model: ubuntu-core-18-amd64"
-    else
+    elif [ "$SPREAD_SYSTEM" = "ubuntu-core-16-64" ]; then
         snap known serial | MATCH "model: pc"
+    else
+        snap known serial | MATCH "model: $gadget_name"
     fi
 
     echo "Make sure we could acquire a session macaroon"
