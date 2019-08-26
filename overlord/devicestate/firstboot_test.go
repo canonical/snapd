@@ -97,7 +97,7 @@ func (s *FirstBootTestSuite) SetUpTest(c *C) {
 	err = ioutil.WriteFile(filepath.Join(dirs.SnapSeedDir, "seed.yaml"), nil, 0644)
 	c.Assert(err, IsNil)
 
-	s.SetupAsserts("can0nical", s)
+	s.SetupAssertSigning("can0nical", s)
 	s.Brands.Register("my-brand", brandPrivKey, map[string]interface{}{
 		"verification": "verified",
 	})

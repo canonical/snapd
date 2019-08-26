@@ -35,41 +35,44 @@ import (
 	"github.com/snapcore/snapd/snap/snaptest"
 )
 
-// TestingSeed helps setting up a populated testing seed.
-type TestingSeed struct {
+// SeedSnaps helps creating snaps for a seed.
+type SeedSnaps struct {
 	StoreSigning *assertstest.StoreStack
 	Brands       *assertstest.SigningAccounts
 
-	SnapsDir string
-	AssertsDir string
+	// DB will be populated with snap assertions if not nil
+	DB *asserts.Database
+
+	snaps map[string]string
+	infos map[string]*snap.Info
 }
 
-type cleaner interface {
+type Cleaner interface {
 	AddCleanup(func())
 }
 
-func (s *TestingSeed) SetupAsserts(storeBrandID string, cleaner cleaner) {
-	s.StoreSigning = assertstest.NewStoreStack(storeBrandID, nil)
-	cleaner.AddCleanup(sysdb.InjectTrusted(s.StoreSigning.Trusted))
+// SetupAssertSigning initializes StoreSigning for storeBrandID and Brands.
+func (ss *SeedSnaps) SetupAssertSigning(storeBrandID string, cleaner Cleaner) {
+	ss.StoreSigning = assertstest.NewStoreStack(storeBrandID, nil)
+	cleaner.AddCleanup(sysdb.InjectTrusted(ss.StoreSigning.Trusted))
 
-	s.Brands = assertstest.NewSigningAccounts(s.StoreSigning)
+	ss.Brands = assertstest.NewSigningAccounts(ss.StoreSigning)
 }
 
-func (s *TestingSeed) MakeAssertedSnap(c *C, snapYaml string, files [][]string, revision snap.Revision, developerID string) (snapFname string, snapDecl *asserts.SnapDeclaration, snapRev *asserts.SnapRevision) {
+func (ss *SeedSnaps) AssertedSnapID(snapName string) string {
+	cleanedName := strings.Replace(snapName, "-", "", -1)
+	return (cleanedName + strings.Repeat("id", 16)[len(cleanedName):])
+}
+
+func (ss *SeedSnaps) MakeAssertedSnap(c *C, snapYaml string, files [][]string, revision snap.Revision, developerID string) (*asserts.SnapDeclaration, *asserts.SnapRevision) {
 	info, err := snap.InfoFromSnapYaml([]byte(snapYaml))
 	c.Assert(err, IsNil)
 	snapName := info.SnapName()
 
-	mockSnapFile := snaptest.MakeTestSnapWithFiles(c, snapYaml, files)
-	snapFname = filepath.Base(mockSnapFile)
+	snapFile := snaptest.MakeTestSnapWithFiles(c, snapYaml, files)
 
-	targetFile := filepath.Join(s.SnapsDir, snapFname)
-	err = os.Rename(mockSnapFile, targetFile)
-	c.Assert(err, IsNil)
-
-	cleanedName := strings.Replace(snapName, "-", "", -1)
-	snapID := (cleanedName + strings.Repeat("id", 16)[len(cleanedName):])
-	declA, err := s.StoreSigning.Sign(asserts.SnapDeclarationType, map[string]interface{}{
+	snapID := ss.AssertedSnapID(snapName)
+	declA, err := ss.StoreSigning.Sign(asserts.SnapDeclarationType, map[string]interface{}{
 		"series":       "16",
 		"snap-id":      snapID,
 		"publisher-id": developerID,
@@ -78,10 +81,10 @@ func (s *TestingSeed) MakeAssertedSnap(c *C, snapYaml string, files [][]string, 
 	}, nil, "")
 	c.Assert(err, IsNil)
 
-	sha3_384, size, err := asserts.SnapFileSHA3_384(targetFile)
+	sha3_384, size, err := asserts.SnapFileSHA3_384(snapFile)
 	c.Assert(err, IsNil)
 
-	revA, err := s.StoreSigning.Sign(asserts.SnapRevisionType, map[string]interface{}{
+	revA, err := ss.StoreSigning.Sign(asserts.SnapRevisionType, map[string]interface{}{
 		"snap-sha3-384": sha3_384,
 		"snap-size":     fmt.Sprintf("%d", size),
 		"snap-id":       snapID,
@@ -91,7 +94,56 @@ func (s *TestingSeed) MakeAssertedSnap(c *C, snapYaml string, files [][]string, 
 	}, nil, "")
 	c.Assert(err, IsNil)
 
-	return snapFname, declA.(*asserts.SnapDeclaration), revA.(*asserts.SnapRevision)
+	if !revision.Unset() {
+		info.SnapID = snapID
+		info.Revision = revision
+	}
+
+	if ss.DB != nil {
+		err := ss.DB.Add(declA)
+		c.Assert(err, IsNil)
+		err = ss.DB.Add(revA)
+		c.Assert(err, IsNil)
+	}
+
+	if ss.snaps == nil {
+		ss.snaps = make(map[string]string)
+		ss.infos = make(map[string]*snap.Info)
+	}
+
+	ss.snaps[snapName] = snapFile
+	ss.infos[snapName] = info
+
+	return declA.(*asserts.SnapDeclaration), revA.(*asserts.SnapRevision)
+}
+
+func (ss *SeedSnaps) AssertedSnap(snapName string) (snapFile string) {
+	return ss.snaps[snapName]
+}
+
+func (ss *SeedSnaps) AssertedSnapInfo(snapName string) *snap.Info {
+	return ss.infos[snapName]
+}
+
+// TestingSeed helps setting up a populated testing seed.
+type TestingSeed struct {
+	SeedSnaps
+
+	SnapsDir   string
+	AssertsDir string
+}
+
+func (s *TestingSeed) MakeAssertedSnap(c *C, snapYaml string, files [][]string, revision snap.Revision, developerID string) (snapFname string, snapDecl *asserts.SnapDeclaration, snapRev *asserts.SnapRevision) {
+	decl, rev := s.SeedSnaps.MakeAssertedSnap(c, snapYaml, files, revision, developerID)
+
+	snapFile := s.snaps[decl.SnapName()]
+
+	snapFname = filepath.Base(snapFile)
+	targetFile := filepath.Join(s.SnapsDir, snapFname)
+	err := os.Rename(snapFile, targetFile)
+	c.Assert(err, IsNil)
+
+	return snapFname, decl, rev
 }
 
 func (s *TestingSeed) MakeModelAssertionChain(brandID, model string, extras ...map[string]interface{}) []asserts.Assertion {
