@@ -58,27 +58,29 @@ import (
 )
 
 type FirstBootTestSuite struct {
+	testutil.BaseTest
+
 	systemctl *testutil.MockCmd
 
 	storeSigning *assertstest.StoreStack
-	restore      func()
 
 	brands *assertstest.SigningAccounts
 
 	overlord *overlord.Overlord
 
 	perfTimings timings.Measurer
-
-	restoreOnClassic func()
-	restoreBackends  func()
 }
 
 var _ = Suite(&FirstBootTestSuite{})
 
 func (s *FirstBootTestSuite) SetUpTest(c *C) {
+	s.BaseTest.SetUpTest(c)
+
 	tempdir := c.MkDir()
 	dirs.SetRootDir(tempdir)
-	s.restoreOnClassic = release.MockOnClassic(false)
+	s.AddCleanup(func() { dirs.SetRootDir("/") })
+
+	s.AddCleanup(release.MockOnClassic(false))
 
 	// mock the world!
 	err := os.MkdirAll(filepath.Join(dirs.SnapSeedDir, "snaps"), 0755)
@@ -89,20 +91,22 @@ func (s *FirstBootTestSuite) SetUpTest(c *C) {
 	err = os.MkdirAll(dirs.SnapServicesDir, 0755)
 	c.Assert(err, IsNil)
 	os.Setenv("SNAPPY_SQUASHFS_UNPACK_FOR_TESTS", "1")
+	s.AddCleanup(func() { os.Unsetenv("SNAPPY_SQUASHFS_UNPACK_FOR_TESTS") })
 	s.systemctl = testutil.MockCommand(c, "systemctl", "")
+	s.AddCleanup(s.systemctl.Restore)
 
 	err = ioutil.WriteFile(filepath.Join(dirs.SnapSeedDir, "seed.yaml"), nil, 0644)
 	c.Assert(err, IsNil)
 
 	s.storeSigning = assertstest.NewStoreStack("can0nical", nil)
-	s.restore = sysdb.InjectTrusted(s.storeSigning.Trusted)
+	s.AddCleanup(sysdb.InjectTrusted(s.storeSigning.Trusted))
 
 	s.brands = assertstest.NewSigningAccounts(s.storeSigning)
 	s.brands.Register("my-brand", brandPrivKey, map[string]interface{}{
 		"verification": "verified",
 	})
 
-	s.restoreBackends = ifacestate.MockSecurityBackends(nil)
+	s.AddCleanup(ifacestate.MockSecurityBackends(nil))
 
 	ovld, err := overlord.New(nil)
 	c.Assert(err, IsNil)
@@ -115,16 +119,6 @@ func (s *FirstBootTestSuite) SetUpTest(c *C) {
 	snapstate.CanAutoRefresh = nil
 
 	s.perfTimings = timings.New(nil)
-}
-
-func (s *FirstBootTestSuite) TearDownTest(c *C) {
-	os.Unsetenv("SNAPPY_SQUASHFS_UNPACK_FOR_TESTS")
-	s.systemctl.Restore()
-
-	s.restore()
-	s.restoreOnClassic()
-	s.restoreBackends()
-	dirs.SetRootDir("/")
 }
 
 func checkTrivialSeeding(c *C, tsAll []*state.TaskSet) {
