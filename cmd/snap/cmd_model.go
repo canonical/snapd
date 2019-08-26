@@ -101,11 +101,11 @@ func (x *cmdModel) Execute(args []string) error {
 		assertion, err = x.client.CurrentModelAssertion()
 	}
 
-	switch {
-	case client.IsAssertionNotFoundError(err):
-		// device is not registered yet - use specific error message
-		return fmt.Errorf(i18n.G("device not ready - no assertion found"))
-	case err != nil:
+	if err != nil {
+		if client.IsAssertionNotFoundError(err) {
+			// device is not registered yet - use specific error message
+			err = fmt.Errorf(i18n.G("device not ready - no assertion found"))
+		}
 		return err
 	}
 
