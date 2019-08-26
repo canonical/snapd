@@ -28,7 +28,7 @@ import (
 	snap "github.com/snapcore/snapd/cmd/snap"
 )
 
-const modelAssertionResponse = `type: model
+const happyModelAssertionResponse = `type: model
 authority-id: mememe
 series: 16
 brand-id: mememe
@@ -55,6 +55,72 @@ ZaVXKg8Lu+cHtCJDeYXEkPIDQzXswdBO1M8Mb9D0mYxQwHxwvsWv1DByB+Otq08EYgPh4kyHo7ag
 85yK2e/NQ/fxSwQJMhBF74jM1z9arq6RMiE/KOleFAOraKn2hcROKnEeinABW+sOn6vNuMVv
 `
 
+const noModelAssertionYetResponse = `
+{
+	"type": "error",
+	"status-code": 404,
+	"status": "Not Found",
+	"result": {
+	  "message": "no model assertion yet",
+	  "kind": "assertion-not-found",
+	  "value": "model"
+	}
+}`
+
+const noSerialAssertionYetResponse = `
+{
+	"type": "error",
+	"status-code": 404,
+	"status": "Not Found",
+	"result": {
+	  "message": "no serial assertion yet",
+	  "kind": "assertion-not-found",
+	  "value": "serial"
+	}
+}`
+
+func (s *SnapSuite) TestNoModelYet(c *check.C) {
+	n := 0
+	s.RedirectClientToTestServer(func(w http.ResponseWriter, r *http.Request) {
+		switch n {
+		case 0:
+			c.Check(r.Method, check.Equals, "GET")
+			c.Check(r.URL.Path, check.Equals, "/v2/model")
+			c.Check(r.URL.RawQuery, check.Equals, "")
+			w.Header().Set("Content-Type", "application/json")
+			w.WriteHeader(404)
+			fmt.Fprintln(w, noModelAssertionYetResponse)
+		default:
+			c.Fatalf("expected to get 1 requests, now on %d", n+1)
+		}
+
+		n++
+	})
+	_, err := snap.Parser(snap.Client()).ParseArgs([]string{"model"})
+	c.Assert(err, check.ErrorMatches, "device not ready - no assertion found")
+}
+
+func (s *SnapSuite) TestNoSerialYes(c *check.C) {
+	n := 0
+	s.RedirectClientToTestServer(func(w http.ResponseWriter, r *http.Request) {
+		switch n {
+		case 0:
+			c.Check(r.Method, check.Equals, "GET")
+			c.Check(r.URL.Path, check.Equals, "/v2/model/serial")
+			c.Check(r.URL.RawQuery, check.Equals, "")
+			w.Header().Set("Content-Type", "application/json")
+			w.WriteHeader(404)
+			fmt.Fprintln(w, noSerialAssertionYetResponse)
+		default:
+			c.Fatalf("expected to get 1 requests, now on %d", n+1)
+		}
+
+		n++
+	})
+	_, err := snap.Parser(snap.Client()).ParseArgs([]string{"model", "--serial"})
+	c.Assert(err, check.ErrorMatches, "device not ready - no assertion found")
+}
+
 func (s *SnapSuite) TestModel(c *check.C) {
 	n := 0
 	s.RedirectClientToTestServer(func(w http.ResponseWriter, r *http.Request) {
@@ -63,7 +129,7 @@ func (s *SnapSuite) TestModel(c *check.C) {
 			c.Check(r.Method, check.Equals, "GET")
 			c.Check(r.URL.Path, check.Equals, "/v2/model")
 			c.Check(r.URL.RawQuery, check.Equals, "")
-			fmt.Fprintln(w, modelAssertionResponse)
+			fmt.Fprintln(w, happyModelAssertionResponse)
 		default:
 			c.Fatalf("expected to get 1 requests, now on %d", n+1)
 		}
@@ -89,7 +155,7 @@ func (s *SnapSuite) TestModelVerbose(c *check.C) {
 			c.Check(r.Method, check.Equals, "GET")
 			c.Check(r.URL.Path, check.Equals, "/v2/model")
 			c.Check(r.URL.RawQuery, check.Equals, "")
-			fmt.Fprintln(w, modelAssertionResponse)
+			fmt.Fprintln(w, happyModelAssertionResponse)
 		default:
 			c.Fatalf("expected to get 1 requests, now on %d", n+1)
 		}
@@ -123,7 +189,7 @@ func (s *SnapSuite) TestModelAssertion(c *check.C) {
 			c.Check(r.Method, check.Equals, "GET")
 			c.Check(r.URL.Path, check.Equals, "/v2/model")
 			c.Check(r.URL.RawQuery, check.Equals, "")
-			fmt.Fprintln(w, modelAssertionResponse)
+			fmt.Fprintln(w, happyModelAssertionResponse)
 		default:
 			c.Fatalf("expected to get 1 requests, now on %d", n+1)
 		}
@@ -133,6 +199,6 @@ func (s *SnapSuite) TestModelAssertion(c *check.C) {
 	rest, err := snap.Parser(snap.Client()).ParseArgs([]string{"model", "--assertion"})
 	c.Assert(err, check.IsNil)
 	c.Assert(rest, check.DeepEquals, []string{})
-	c.Check(s.Stdout(), check.Equals, modelAssertionResponse)
+	c.Check(s.Stdout(), check.Equals, happyModelAssertionResponse)
 	c.Check(s.Stderr(), check.Equals, "")
 }
