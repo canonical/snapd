@@ -169,6 +169,46 @@ func (s *apiSuite) TestGetModelHasModelAssertion(c *check.C) {
 	c.Assert(arch.(string), check.Equals, modelDefaults["architecture"])
 }
 
+func (s *apiSuite) TestGetModelJSONHasModelAssertion(c *check.C) {
+	// make a model assertion
+	theModel := s.brands.Model("my-brand", "my-old-model", modelDefaults)
+
+	// model assertion setup
+	d := s.daemonWithOverlordMock(c)
+	hookMgr, err := hookstate.Manager(d.overlord.State(), d.overlord.TaskRunner())
+	c.Assert(err, check.IsNil)
+	deviceMgr, err := devicestate.Manager(d.overlord.State(), hookMgr, d.overlord.TaskRunner(), nil)
+	c.Assert(err, check.IsNil)
+	d.overlord.AddManager(deviceMgr)
+	st := d.overlord.State()
+	st.Lock()
+	assertstatetest.AddMany(st, s.storeSigning.StoreAccountKey(""))
+	assertstatetest.AddMany(st, s.brands.AccountsAndKeys("my-brand")...)
+	s.mockModel(c, st, theModel)
+	st.Unlock()
+
+	// make a new get request to the model endpoint with json as true
+	req, err := http.NewRequest("GET", "/v2/model?json=true", nil)
+	c.Assert(err, check.IsNil)
+	response := getModel(appsCmd, req, nil)
+
+	// check that we get an generic response type
+	c.Assert(response, check.FitsTypeOf, &resp{})
+
+	// get the body and try to unmarshal into modelAssertJSONResponse
+	c.Assert(response.(*resp).Result, check.FitsTypeOf, modelAssertJSONResponse{})
+
+	jsonResponse := response.(*resp).Result.(modelAssertJSONResponse)
+
+	// get the architecture key from the headers
+	arch, ok := jsonResponse.Headers["architecture"]
+	c.Assert(ok, check.Equals, true)
+
+	// ensure that the architecture key is what we set in the model defaults
+	c.Assert(arch, check.FitsTypeOf, "")
+	c.Assert(arch.(string), check.Equals, modelDefaults["architecture"])
+}
+
 func (s *apiSuite) TestGetModelNoSerialAssertion(c *check.C) {
 
 	d := s.daemonWithOverlordMock(c)
@@ -248,6 +288,70 @@ func (s *apiSuite) TestGetModelHasSerialAssertion(c *check.C) {
 	// created above
 	assert := assertions[0]
 	devKey := assert.Header("device-key")
+	c.Assert(devKey, check.FitsTypeOf, "")
+	c.Assert(devKey.(string), check.Equals, string(encDevKey))
+}
+
+func (s *apiSuite) TestGetModelJSONHasSerialAssertion(c *check.C) {
+	// make a model assertion
+	theModel := s.brands.Model("my-brand", "my-old-model", modelDefaults)
+
+	deviceKey, _ := assertstest.GenerateKey(752)
+
+	encDevKey, err := asserts.EncodePublicKey(deviceKey.PublicKey())
+	c.Assert(err, check.IsNil)
+
+	// model assertion setup
+	d := s.daemonWithOverlordMock(c)
+	hookMgr, err := hookstate.Manager(d.overlord.State(), d.overlord.TaskRunner())
+	c.Assert(err, check.IsNil)
+	deviceMgr, err := devicestate.Manager(d.overlord.State(), hookMgr, d.overlord.TaskRunner(), nil)
+	c.Assert(err, check.IsNil)
+	d.overlord.AddManager(deviceMgr)
+	st := d.overlord.State()
+	st.Lock()
+	assertstatetest.AddMany(st, s.storeSigning.StoreAccountKey(""))
+	assertstatetest.AddMany(st, s.brands.AccountsAndKeys("my-brand")...)
+	s.mockModel(c, st, theModel)
+
+	// in case the name of the serial ever changes, just get it state in State
+	// currently it's hard-coded to always be serialserial
+	var authStateData auth.AuthState
+	err = st.Get("auth", &authStateData)
+	c.Assert(err, check.IsNil)
+	serial, err := s.brands.Signing("my-brand").Sign(asserts.SerialType, map[string]interface{}{
+		"authority-id":        "my-brand",
+		"brand-id":            "my-brand",
+		"model":               "my-old-model",
+		"serial":              authStateData.Device.Serial,
+		"device-key":          string(encDevKey),
+		"device-key-sha3-384": deviceKey.PublicKey().ID(),
+		"timestamp":           time.Now().Format(time.RFC3339),
+	}, nil, "")
+	c.Assert(err, check.IsNil)
+	assertstatetest.AddMany(st, serial)
+
+	st.Unlock()
+
+	// make a new get request to the model endpoint with json as true
+	req, err := http.NewRequest("GET", "/v2/model/serial?json=true", nil)
+	c.Assert(err, check.IsNil)
+	response := getSerial(appsCmd, req, nil)
+
+	// check that we get an generic response type
+	c.Assert(response, check.FitsTypeOf, &resp{})
+
+	// get the body and try to unmarshal into modelAssertJSONResponse
+	c.Assert(response.(*resp).Result, check.FitsTypeOf, modelAssertJSONResponse{})
+
+	jsonResponse := response.(*resp).Result.(modelAssertJSONResponse)
+
+	// get the architecture key from the headers
+	devKey, ok := jsonResponse.Headers["device-key"]
+	c.Assert(ok, check.Equals, true)
+
+	// check that the device key in the returned assertion matches what we
+	// created above
 	c.Assert(devKey, check.FitsTypeOf, "")
 	c.Assert(devKey.(string), check.Equals, string(encDevKey))
 }
