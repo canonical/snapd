@@ -107,9 +107,9 @@ func (s *TestingSeed) MakeModelAssertionChain(brandID, model string, extras ...m
 	return assertChain
 }
 
-func (s *TestingSeed) WriteAssertionsToFile(fn string, assertions []asserts.Assertion) {
+func (s *TestingSeed) WriteAssertions(fn string, assertions ...asserts.Assertion) {
 	multifn := filepath.Join(s.AssertsDir, fn)
-	f, err := os.Create(multifn)
+	f, err := os.OpenFile(multifn, os.O_CREATE|os.O_WRONLY, 0644)
 	if err != nil {
 		panic(err)
 	}
