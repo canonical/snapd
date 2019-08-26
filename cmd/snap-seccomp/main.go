@@ -183,7 +183,7 @@ import (
 	// FIXME: we want github.com/seccomp/libseccomp-golang but that
 	// will not work with trusty because libseccomp-golang checks
 	// for the seccomp version and errors if it find one < 2.2.0
-	"github.com/mvo5/libseccomp-golang"
+	seccomp "github.com/mvo5/libseccomp-golang"
 
 	"github.com/snapcore/snapd/arch"
 	"github.com/snapcore/snapd/osutil"
@@ -631,13 +631,13 @@ func parseLine(line string, secFilter *seccomp.ScmpFilter) error {
 
 // used to mock in tests
 var (
-	archUbuntuArchitecture       = arch.UbuntuArchitecture
-	archUbuntuKernelArchitecture = arch.UbuntuKernelArchitecture
+	archDpkgArchitecture       = arch.DpkgArchitecture
+	archDpkgKernelArchitecture = arch.DpkgKernelArchitecture
 )
 
 var (
-	ubuntuArchitecture       = archUbuntuArchitecture()
-	ubuntuKernelArchitecture = archUbuntuKernelArchitecture()
+	dpkgArchitecture       = archDpkgArchitecture()
+	dpkgKernelArchitecture = archDpkgKernelArchitecture()
 )
 
 // For architectures that support a compat architecture, when the
@@ -653,8 +653,8 @@ func addSecondaryArches(secFilter *seccomp.ScmpFilter) error {
 	// add a compat architecture for some architectures that
 	// support it, e.g. on amd64 kernel and userland, we add
 	// compat i386 syscalls.
-	if ubuntuArchitecture == ubuntuKernelArchitecture {
-		switch archUbuntuArchitecture() {
+	if dpkgArchitecture == dpkgKernelArchitecture {
+		switch archDpkgArchitecture() {
 		case "amd64":
 			compatArch = seccomp.ArchX86
 		case "arm64":
@@ -672,7 +672,7 @@ func addSecondaryArches(secFilter *seccomp.ScmpFilter) error {
 		// snaps. While unusual from a traditional Linux distribution
 		// perspective, certain classes of embedded devices are known
 		// to use this configuration.
-		compatArch = UbuntuArchToScmpArch(archUbuntuKernelArchitecture())
+		compatArch = UbuntuArchToScmpArch(archDpkgKernelArchitecture())
 	}
 
 	if compatArch != seccomp.ArchInvalid {

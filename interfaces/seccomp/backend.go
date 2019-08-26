@@ -54,7 +54,7 @@ import (
 
 var (
 	kernelFeatures           = release.SecCompActions
-	ubuntuKernelArchitecture = arch.UbuntuKernelArchitecture
+	ubuntuKernelArchitecture = arch.DpkgKernelArchitecture
 	releaseInfoId            = release.ReleaseInfo.ID
 	releaseInfoVersionId     = release.ReleaseInfo.VersionID
 	requiresSocketcall       = requiresSocketcallImpl

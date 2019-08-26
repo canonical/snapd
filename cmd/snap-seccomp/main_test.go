@@ -32,7 +32,7 @@ import (
 
 	. "gopkg.in/check.v1"
 
-	"github.com/mvo5/libseccomp-golang"
+	seccomp "github.com/mvo5/libseccomp-golang"
 
 	"github.com/snapcore/snapd/arch"
 	main "github.com/snapcore/snapd/cmd/snap-seccomp"
@@ -191,7 +191,7 @@ func (s *snapSeccompSuite) SetUpSuite(c *C) {
 	// Build 32bit runner on amd64 to test non-native syscall handling.
 	// Ideally we would build for ppc64el->powerpc and arm64->armhf but
 	// it seems tricky to find the right gcc-multilib for this.
-	if arch.UbuntuArchitecture() == "amd64" && s.canCheckCompatArch {
+	if arch.DpkgArchitecture() == "amd64" && s.canCheckCompatArch {
 		cmd = exec.Command(cmd.Args[0], cmd.Args[1:]...)
 		cmd.Args = append(cmd.Args, "-m32")
 		for i, k := range cmd.Args {
@@ -828,7 +828,7 @@ func (s *snapSeccompSuite) TestCompatArchWorks(c *C) {
 		//    main.MockArchUbuntuArchitecture(t.arch)
 		// here because on endian mismatch the arch will *not* be
 		// added
-		if arch.UbuntuArchitecture() == t.arch {
+		if arch.DpkgArchitecture() == t.arch {
 			s.runBpf(c, t.seccompWhitelist, t.bpfInput, t.expected)
 		}
 	}

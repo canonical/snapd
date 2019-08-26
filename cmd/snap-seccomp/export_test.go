@@ -27,18 +27,18 @@ var (
 )
 
 func MockArchUbuntuArchitecture(f func() string) (restore func()) {
-	realArchUbuntuArchitecture := archUbuntuArchitecture
-	archUbuntuArchitecture = f
+	realArchUbuntuArchitecture := archDpkgArchitecture
+	archDpkgArchitecture = f
 	return func() {
-		archUbuntuArchitecture = realArchUbuntuArchitecture
+		archDpkgArchitecture = realArchUbuntuArchitecture
 	}
 }
 
 func MockArchUbuntuKernelArchitecture(f func() string) (restore func()) {
-	realArchUbuntuKernelArchitecture := archUbuntuKernelArchitecture
-	archUbuntuKernelArchitecture = f
+	realArchUbuntuKernelArchitecture := archDpkgKernelArchitecture
+	archDpkgKernelArchitecture = f
 	return func() {
-		archUbuntuKernelArchitecture = realArchUbuntuKernelArchitecture
+		archDpkgKernelArchitecture = realArchUbuntuKernelArchitecture
 	}
 }
 
