@@ -67,6 +67,8 @@ backends:
                 workers: 8
             - ubuntu-19.04-64:
                 workers: 6
+            - ubuntu-19.10-64:
+                workers: 6
             - ubuntu-core-16-64:
                 image: ubuntu-16.04-64
                 workers: 6
