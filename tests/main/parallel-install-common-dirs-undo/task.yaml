@@ -33,5 +33,5 @@ execute: |
     not test -d "$SNAP_MOUNT_DIR/test-snapd-service"
     not test -d "/var/snap/test-snapd-service"
 
-restore:
+restore: |
     snap set system experimental.parallel-instances=null

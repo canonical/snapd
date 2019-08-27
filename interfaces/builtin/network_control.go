@@ -161,7 +161,7 @@ capability setuid,
 
 # resolvconf
 /sbin/resolvconf ixr,
-/run/resolvconf/{,**} r,
+/run/resolvconf/{,**} rk,
 /run/resolvconf/** w,
 /etc/resolvconf/{,**} r,
 /lib/resolvconf/* ix,

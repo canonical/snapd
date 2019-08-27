@@ -1,7 +1,7 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
 
 /*
- * Copyright (C) 2018 Canonical Ltd
+ * Copyright (C) 2018-2019 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -17,7 +17,7 @@
  *
  */
 
-package snap
+package channel
 
 import (
 	"fmt"
@@ -38,11 +38,11 @@ type Channel struct {
 	Branch       string `json:"branch,omitempty"`
 }
 
-// ParseChannelVerbatim parses a string representing a store channel and
+// ParseVerbatim parses a string representing a store channel and
 // includes the given architecture, if architecture is "" the system
 // architecture is included. The channel representation is not normalized.
-// ParseChannel() should be used in most cases.
-func ParseChannelVerbatim(s string, architecture string) (Channel, error) {
+// Parse() should be used in most cases.
+func ParseVerbatim(s string, architecture string) (Channel, error) {
 	if s == "" {
 		return Channel{}, fmt.Errorf("channel name cannot be empty")
 	}
@@ -97,11 +97,11 @@ func ParseChannelVerbatim(s string, architecture string) (Channel, error) {
 	return ch, nil
 }
 
-// ParseChannel parses a string representing a store channel and includes given
+// Parse parses a string representing a store channel and includes given
 // architecture, , if architecture is "" the system architecture is included.
 // The returned channel's track, risk and name are normalized.
-func ParseChannel(s string, architecture string) (Channel, error) {
-	channel, err := ParseChannelVerbatim(s, architecture)
+func Parse(s string, architecture string) (Channel, error) {
+	channel, err := ParseVerbatim(s, architecture)
 	if err != nil {
 		return Channel{}, err
 	}

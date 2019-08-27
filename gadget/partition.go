@@ -45,7 +45,7 @@ func splitType(maybeHybridType string) (mbrTypeID, gptTypeID string) {
 	return maybeHybridType[:idx], maybeHybridType[idx+1:]
 }
 
-func Partition(image string, pv *PositionedVolume) error {
+func Partition(image string, pv *LaidOutVolume) error {
 	if image == "" {
 		return fmt.Errorf("internal error: image path is unset")
 	}
@@ -73,7 +73,7 @@ func Partition(image string, pv *PositionedVolume) error {
 	}
 	fmt.Fprintf(script, "\n")
 
-	for _, ps := range pv.PositionedStructure {
+	for _, ps := range pv.LaidOutStructure {
 		if ps.Type == "bare" || ps.Type == "mbr" {
 			continue
 		}

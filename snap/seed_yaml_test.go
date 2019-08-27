@@ -82,6 +82,23 @@ func (s *seedYamlTestSuite) TestNoPathAllowed(c *C) {
 	c.Assert(err, ErrorMatches, `cannot read seed yaml: "foo/bar.snap" must be a filename, not a path`)
 }
 
+func (s *seedYamlTestSuite) TestDuplicatedSnapName(c *C) {
+	fn := filepath.Join(c.MkDir(), "seed.yaml")
+	err := ioutil.WriteFile(fn, []byte(`
+snaps:
+ - name: foo
+   channel: stable
+   file: foo_1.0_all.snap
+ - name: foo
+   channel: edge
+   file: bar_1.0_all.snap
+`), 0644)
+	c.Assert(err, IsNil)
+
+	_, err = snap.ReadSeedYaml(fn)
+	c.Assert(err, ErrorMatches, `cannot read seed yaml: snap name "foo" must be unique`)
+}
+
 func (s *seedYamlTestSuite) TestValidateChannelUnhappy(c *C) {
 	fn := filepath.Join(c.MkDir(), "seed.yaml")
 	err := ioutil.WriteFile(fn, []byte(`
@@ -106,6 +123,19 @@ snaps:
 
 	_, err = snap.ReadSeedYaml(fn)
 	c.Assert(err, ErrorMatches, `cannot read seed yaml: invalid snap name: "invalid--name"`)
+}
+
+func (s *seedYamlTestSuite) TestValidateNameInstanceUnsupported(c *C) {
+	fn := filepath.Join(c.MkDir(), "seed.yaml")
+	err := ioutil.WriteFile(fn, []byte(`
+snaps:
+ - name: foo_1
+   file: ./foo.snap
+`), 0644)
+	c.Assert(err, IsNil)
+
+	_, err = snap.ReadSeedYaml(fn)
+	c.Assert(err, ErrorMatches, `cannot read seed yaml: invalid snap name: "foo_1"`)
 }
 
 func (s *seedYamlTestSuite) TestValidateNameMissing(c *C) {
