@@ -369,9 +369,12 @@ func showDone(cli *client.Client, names []string, op string, opts *client.SnapOp
 				msg = fmt.Sprintf(i18n.G("%q left the cohort"), snap.Name)
 			}
 			fmt.Fprintln(Stdout, msg)
+			// go to next snap, skipping the temporary forward logic below for "switch" op.
+			continue
 		default:
 			fmt.Fprintf(Stdout, "internal error: unknown op %q", op)
 		}
+		// XXX: this makes sense only for certain operations (refresh?), but not for "switch"
 		if snap.TrackingChannel != snap.Channel && snap.Channel != "" {
 			if sameRisk, err := isSameRisk(snap.TrackingChannel, snap.Channel); err == nil && !sameRisk {
 				// TRANSLATORS: first %s is a channel name, following %s is a snap name, last %s is a channel name again.
