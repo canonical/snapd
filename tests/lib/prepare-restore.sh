@@ -637,6 +637,15 @@ restore_project_each() {
         exit 1
     fi
 
+    if getent passwd snap_daemon; then
+        echo "Test left the snap_daemon user behind, this should not happen"
+        exit 1
+    fi
+    if getent group snap_daemon; then
+        echo "Test left the snap_daemon group behind, this should not happen"
+        exit 1
+    fi
+
     # Something is hosing the filesystem so look for signs of that
     not grep -F "//deleted /etc" /proc/self/mountinfo
 }
