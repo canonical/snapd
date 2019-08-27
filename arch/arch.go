@@ -56,7 +56,7 @@ func DpkgArchitecture() string {
 // architecture.
 func dpkgArchFromGoArch(goarch string) string {
 	goArchMapping := map[string]string{
-		// go      ubuntu
+		// go      dpkg
 		"386":     "i386",
 		"amd64":   "amd64",
 		"arm":     "armhf",
@@ -99,7 +99,7 @@ func DpkgKernelArchitecture() string {
 // via uname() to the dpkg architecture
 func dpkgArchFromKernelArch(utsMachine string) string {
 	kernelArchMapping := map[string]string{
-		// kernel  ubuntu
+		// kernel  dpkg
 		"i686":    "i386",
 		"x86_64":  "amd64",
 		"armv7l":  "armhf",

@@ -274,7 +274,7 @@ restart_syscall
 	// compiler that can produce the required binaries. Currently
 	// we only test amd64 running i386 here.
 	if syscallArch != "native" {
-		syscallNr, err = seccomp.GetSyscallFromNameByArch(syscallName, main.UbuntuArchToScmpArch(syscallArch))
+		syscallNr, err = seccomp.GetSyscallFromNameByArch(syscallName, main.DpkgArchToScmpArch(syscallArch))
 		c.Assert(err, IsNil)
 
 		switch syscallArch {

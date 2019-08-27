@@ -53,11 +53,11 @@ import (
 )
 
 var (
-	kernelFeatures           = release.SecCompActions
-	ubuntuKernelArchitecture = arch.DpkgKernelArchitecture
-	releaseInfoId            = release.ReleaseInfo.ID
-	releaseInfoVersionId     = release.ReleaseInfo.VersionID
-	requiresSocketcall       = requiresSocketcallImpl
+	kernelFeatures         = release.SecCompActions
+	dpkgKernelArchitecture = arch.DpkgKernelArchitecture
+	releaseInfoId          = release.ReleaseInfo.ID
+	releaseInfoVersionId   = release.ReleaseInfo.VersionID
+	requiresSocketcall     = requiresSocketcallImpl
 
 	snapSeccompVersionInfo = snapSeccompVersionInfoImpl
 	seccompCompilerLookup  = cmd.InternalToolPath
@@ -365,7 +365,7 @@ func (b *Backend) SandboxFeatures() []string {
 // - if the kernel architecture is not any of the above, force the use of
 //   socketcall()
 func requiresSocketcallImpl(baseSnap string) bool {
-	switch ubuntuKernelArchitecture() {
+	switch dpkgKernelArchitecture() {
 	case "i386", "s390x":
 		// glibc sysdeps/unix/sysv/linux/i386/kernel-features.h and
 		// sysdeps/unix/sysv/linux/s390/kernel-features.h added the

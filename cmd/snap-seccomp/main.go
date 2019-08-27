@@ -426,10 +426,10 @@ var seccompResolver = map[string]uint64{
 	"PTRACE_CONT":     C.PTRACE_CONT,
 }
 
-// UbuntuArchToScmpArch takes a dpkg architecture and converts it to
+// DpkgArchToScmpArch takes a dpkg architecture and converts it to
 // the seccomp.ScmpArch as used in the libseccomp-golang library
-func UbuntuArchToScmpArch(ubuntuArch string) seccomp.ScmpArch {
-	switch ubuntuArch {
+func DpkgArchToScmpArch(dpkgArch string) seccomp.ScmpArch {
+	switch dpkgArch {
 	case "amd64":
 		return seccomp.ArchAMD64
 	case "arm64":
@@ -447,7 +447,7 @@ func UbuntuArchToScmpArch(ubuntuArch string) seccomp.ScmpArch {
 	case "s390x":
 		return seccomp.ArchS390X
 	}
-	panic(fmt.Sprintf("cannot map ubuntu arch %q to a seccomp arch", ubuntuArch))
+	panic(fmt.Sprintf("cannot map dpkg arch %q to a seccomp arch", dpkgArch))
 }
 
 // important for unit testing
@@ -672,7 +672,7 @@ func addSecondaryArches(secFilter *seccomp.ScmpFilter) error {
 		// snaps. While unusual from a traditional Linux distribution
 		// perspective, certain classes of embedded devices are known
 		// to use this configuration.
-		compatArch = UbuntuArchToScmpArch(archDpkgKernelArchitecture())
+		compatArch = DpkgArchToScmpArch(archDpkgKernelArchitecture())
 	}
 
 	if compatArch != seccomp.ArchInvalid {
