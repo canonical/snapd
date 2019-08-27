@@ -276,6 +276,10 @@ func infoFromStoreSnap(d *storeSnap) (*snap.Info, error) {
 			info.Slots[k] = v
 			info.Slots[k].Snap = info
 		}
+
+		if len(rawYamlInfo.Assumes) > 0 {
+			info.Assumes = rawYamlInfo.Assumes
+		}
 	}
 
 	// convert prices

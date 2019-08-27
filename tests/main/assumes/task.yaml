@@ -1,0 +1,44 @@
+summary: Test that assumes work correctly
+
+execute: |
+    echo "Try to install an impossible version"
+    if snap install --edge test-snapd-assumes 2>stderr.txt; then
+        echo "snap install should not work here"
+        exit 1
+    fi
+    echo "Ensure we got the right error"
+    MATCH "unsupported feature: snapd9.99" < stderr.txt
+    echo "Ensure we got the error early"
+    not grep "Mount snap" < stderr.txt
+
+    
+    echo "Now install a version without strange assumes"
+    snap install --candidate test-snapd-assumes
+    echo "And validate that refresh does not work"
+    if snap refresh --edge test-snapd-assumes 2>stderr.txt; then
+        echo "snap refresh should not work here"
+        exit 1
+    fi
+    MATCH "unsupported feature: snapd9.99" < stderr.txt
+    echo "Ensure we got the error early"
+    not grep "Mount snap" < stderr.txt
+
+    
+    echo "Now ensure that we don't break refreshes by installing a normal snap"
+    snap install test-snapd-tools
+    echo "Switch versions for assumes and unrelated snap"
+    snap switch --edge test-snapd-tools 
+    snap switch --edge test-snapd-assumes
+    snap refresh
+    if snap change --last=refresh | grep test-snapd-assumes; then
+        echo "The snap refresh should not touch test-snapd-assumes but it did"
+        exit 1
+    fi
+
+    echo "Now ensure that refrehes with valid assumes keeps working"
+    snap refresh --stable test-snapd-tools
+    snap switch --edge test-snapd-tools
+    # this is a valid refresh
+    snap switch --beta test-snapd-assumes
+    snap refresh
+    snap change --last=refresh | MATCH test-snapd-assumes
