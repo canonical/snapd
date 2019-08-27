@@ -273,7 +273,7 @@ func checkSnapWithTrack(headers map[string]interface{}, which string) (*ModelSna
 
 	name := l[0]
 	track := ""
-	if err := validateSnapName(l[0], which); err != nil {
+	if err := validateSnapName(name, which); err != nil {
 		return nil, err
 	}
 	if len(l) > 1 {
@@ -574,9 +574,6 @@ func assembleModel(assert assertionBase) (Assertion, error) {
 		if _, err := checker(assert.headers, h); err != nil {
 			return nil, err
 		}
-	}
-
-	if !extended {
 	}
 
 	// base, if provided, must be a valid snap name too
