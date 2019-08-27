@@ -1460,22 +1460,20 @@ func (s *FirstBootTestSuite) TestPopulateFromSeedMissingBase(c *C) {
 	s.WriteAssertions("developer.account", s.devAcct)
 
 	// add a model assertion and its chain
-	assertsChain := s.makeModelAssertionChain(c, "my-model", nil, "bar")
+	assertsChain := s.makeModelAssertionChain(c, "my-model", nil)
 	s.WriteAssertions("model.asserts", assertsChain...)
 
 	coreFname, kernelFname, gadgetFname := s.makeCoreSnaps(c, "")
 
+	// TODO: this test doesn't particularly need to use a local snap
 	// local snap with unknown base
 	snapYaml = `name: local
 base: foo
-unasserted: true
 version: 1.0`
 	mockSnapFile := snaptest.MakeTestSnapWithFiles(c, snapYaml, nil)
-	targetSnapFile2 := filepath.Join(dirs.SnapSeedDir, "snaps", filepath.Base(mockSnapFile))
-
-	fooFname, fooDecl, fooRev := s.MakeAssertedSnap(c, snapYaml, nil, snap.R(128), "developerid")
+	localFname := filepath.Base(mockSnapFile)
+	targetSnapFile2 := filepath.Join(dirs.SnapSeedDir, "snaps", localFname)
 	c.Assert(os.Rename(mockSnapFile, targetSnapFile2), IsNil)
-	s.WriteAssertions("foo.asserts", fooDecl, fooRev)
 
 	// create a seed.yaml
 	content := []byte(fmt.Sprintf(`
@@ -1487,8 +1485,9 @@ snaps:
  - name: pc
    file: %s
  - name: local
+   unasserted: true
    file: %s
-`, coreFname, kernelFname, gadgetFname, fooFname))
+`, coreFname, kernelFname, gadgetFname, localFname))
 
 	c.Assert(ioutil.WriteFile(filepath.Join(dirs.SnapSeedDir, "seed.yaml"), content, 0644), IsNil)
 
