@@ -40,7 +40,8 @@ type ModelSnap struct {
 	Modes []string
 	// DefaultChannel is the initial tracking channel, default is stable
 	DefaultChannel string
-	// Track is a locked track for the snap, if set DefaultChannel cannot be
+	// Track is a locked track for the snap, if set DefaultChannel
+	// cannot be set at the same time
 	Track string
 	// Presence is one of: required|optional
 	Presence string
@@ -114,6 +115,8 @@ func checkExtendSnaps(extendedSnaps interface{}, base string) (*modelSnaps, erro
 		if seen[modelSnap.Name] {
 			return nil, fmt.Errorf("cannot list the same snap %q multiple times", modelSnap.Name)
 		}
+		// at this time we do not support parallel installing
+		// from model/seed
 		if underName := seenIDs[modelSnap.SnapID]; underName != "" {
 			return nil, fmt.Errorf("cannot specify the same snap id %q multiple times, specified for snaps %q and %q", modelSnap.SnapID, underName, modelSnap.Name)
 		}
