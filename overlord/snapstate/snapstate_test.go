@@ -675,7 +675,13 @@ func (s *snapmgrTestSuite) TestInstallWithDeviceContext(c *C) {
 	// unset the global store, it will need to come via the device context
 	snapstate.ReplaceStore(s.state, nil)
 
-	deviceCtx := &snapstatetest.TrivialDeviceContext{CtxStore: s.fakeStore}
+	deviceCtx := &snapstatetest.TrivialDeviceContext{
+		CtxStore: s.fakeStore,
+		// need to provide a non-nil model here so that we can check the Kernel
+		// specified in the model, etc. when we ensure that the channel spec is
+		// correct
+		DeviceModel: ModelWithKernelTrack("18"),
+	}
 
 	opts := &snapstate.RevisionOptions{Channel: "some-channel"}
 	ts, err := snapstate.InstallWithDeviceContext(context.Background(), s.state, "some-snap", opts, 0, snapstate.Flags{}, deviceCtx, "")
@@ -683,6 +689,38 @@ func (s *snapmgrTestSuite) TestInstallWithDeviceContext(c *C) {
 
 	verifyInstallTasks(c, 0, 0, ts, s.state)
 	c.Assert(s.state.TaskCount(), Equals, len(ts.Tasks()))
+}
+
+func (s *snapmgrTestSuite) TestInstallWithDeviceContextInvalidChannelSpec(c *C) {
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	// unset the global store, it will need to come via the device context
+	snapstate.ReplaceStore(s.state, nil)
+
+	// r := snapstatetest.MockDeviceModel(ModelWithKernelTrack("18"))
+	// defer r()
+
+	deviceCtx := &snapstatetest.TrivialDeviceContext{
+		CtxStore: s.fakeStore,
+		// need to provide a non-nil model here so that we can check the Kernel
+		// specified in the model, etc. when we ensure that the channel spec is
+		// correct
+		DeviceModel: ModelWithKernelTrack("18"),
+	}
+
+	for _, tt := range []struct {
+		channel   string
+		wrongType string
+	}{
+		{"/stable", "track"},
+		{"/some-track", "risk"},
+		{"latest/invalid", "risk"},
+	} {
+		opts := &snapstate.RevisionOptions{Channel: tt.channel}
+		_, err := snapstate.InstallWithDeviceContext(context.Background(), s.state, "some-snap", opts, 0, snapstate.Flags{}, deviceCtx, "")
+		c.Assert(err, ErrorMatches, "invalid "+tt.wrongType+" in channel name: "+tt.channel)
+	}
 }
 
 func (s *snapmgrTestSuite) TestInstallHookNotRunForInstalledSnap(c *C) {
