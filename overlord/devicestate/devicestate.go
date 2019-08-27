@@ -291,7 +291,7 @@ func CanManageRefreshes(st *state.State) bool {
 }
 
 func getAllRequiredSnapsForModel(model *asserts.Model) *naming.SnapSet {
-	reqSnaps := model.AllRequiredSnaps()
+	reqSnaps := model.RequiredWithEssentialSnaps()
 	return naming.NewSnapSet(reqSnaps)
 }
 
@@ -332,7 +332,7 @@ func remodelTasks(ctx context.Context, st *state.State, current, new *asserts.Mo
 	}
 	// add new required-snaps, no longer required snaps will be cleaned
 	// in "set-model"
-	for _, snapRef := range new.RequiredSnaps() {
+	for _, snapRef := range new.RequiredNoEssentialSnaps() {
 		// TODO|XXX: have methods that take refs directly
 		// to respect the snap ids
 		_, err := snapstate.CurrentInfo(st, snapRef.SnapName())

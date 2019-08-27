@@ -63,36 +63,36 @@ func (s *ModelSnap) ID() string {
 }
 
 type modelSnaps struct {
-	Base   *ModelSnap
-	Gadget *ModelSnap
-	Kernel *ModelSnap
-	Snaps  []*ModelSnap
+	base             *ModelSnap
+	gadget           *ModelSnap
+	kernel           *ModelSnap
+	snapsNoEssential []*ModelSnap
 }
 
-func (ms *modelSnaps) list() (allSnaps []*ModelSnap, allRequiredSnaps []naming.SnapRef, numBootSnaps int) {
-	addSnap := func(snap *ModelSnap, bootSnap int) {
+func (ms *modelSnaps) list() (allSnaps []*ModelSnap, requiredWithEssentialSnaps []naming.SnapRef, numEssentialSnaps int) {
+	addSnap := func(snap *ModelSnap, essentialSnap int) {
 		if snap == nil {
 			return
 		}
-		numBootSnaps += bootSnap
+		numEssentialSnaps += essentialSnap
 		allSnaps = append(allSnaps, snap)
 		if snap.Presence == "required" {
-			allRequiredSnaps = append(allRequiredSnaps, snap)
+			requiredWithEssentialSnaps = append(requiredWithEssentialSnaps, snap)
 		}
 	}
 
-	addSnap(ms.Base, 1)
-	addSnap(ms.Gadget, 1)
-	addSnap(ms.Kernel, 1)
-	for _, snap := range ms.Snaps {
+	addSnap(ms.base, 1)
+	addSnap(ms.gadget, 1)
+	addSnap(ms.kernel, 1)
+	for _, snap := range ms.snapsNoEssential {
 		addSnap(snap, 0)
 	}
-	return allSnaps, allRequiredSnaps, numBootSnaps
+	return allSnaps, requiredWithEssentialSnaps, numEssentialSnaps
 }
 
 var (
-	bootSnapModes = []string{"run", "ephemeral"}
-	defaultModes  = []string{"run"}
+	essentialSnapModes = []string{"run", "ephemeral"}
+	defaultModes       = []string{"run"}
 )
 
 func checkExtendSnaps(extendedSnaps interface{}, base string) (*modelSnaps, error) {
@@ -128,33 +128,33 @@ func checkExtendSnaps(extendedSnaps interface{}, base string) (*modelSnaps, erro
 		seen[modelSnap.Name] = true
 		seenIDs[modelSnap.SnapID] = modelSnap.Name
 
-		boot := false
+		essential := false
 		switch {
 		case modelSnap.SnapType == "kernel":
-			boot = true
-			if modelSnaps.Kernel != nil {
-				return nil, fmt.Errorf("cannot specify multiple kernel snaps: %q and %q", modelSnaps.Kernel.Name, modelSnap.Name)
+			essential = true
+			if modelSnaps.kernel != nil {
+				return nil, fmt.Errorf("cannot specify multiple kernel snaps: %q and %q", modelSnaps.kernel.Name, modelSnap.Name)
 			}
-			modelSnaps.Kernel = modelSnap
+			modelSnaps.kernel = modelSnap
 		case modelSnap.SnapType == "gadget":
-			boot = true
-			if modelSnaps.Gadget != nil {
-				return nil, fmt.Errorf("cannot specify multiple gadget snaps: %q and %q", modelSnaps.Gadget.Name, modelSnap.Name)
+			essential = true
+			if modelSnaps.gadget != nil {
+				return nil, fmt.Errorf("cannot specify multiple gadget snaps: %q and %q", modelSnaps.gadget.Name, modelSnap.Name)
 			}
-			modelSnaps.Gadget = modelSnap
+			modelSnaps.gadget = modelSnap
 		case modelSnap.Name == base:
-			boot = true
+			essential = true
 			if modelSnap.SnapType != "base" {
 				return nil, fmt.Errorf(`boot base %q must specify type "base", not %q`, base, modelSnap.SnapType)
 			}
-			modelSnaps.Base = modelSnap
+			modelSnaps.base = modelSnap
 		}
 
-		if boot {
+		if essential {
 			if len(modelSnap.Modes) != 0 || modelSnap.Presence != "" {
-				return nil, fmt.Errorf("boot snaps are always available, cannot specify modes or presence for snap %q", modelSnap.Name)
+				return nil, fmt.Errorf("essential snaps are always available, cannot specify modes or presence for snap %q", modelSnap.Name)
 			}
-			modelSnap.Modes = bootSnapModes
+			modelSnap.Modes = essentialSnapModes
 		}
 
 		if len(modelSnap.Modes) == 0 {
@@ -164,8 +164,8 @@ func checkExtendSnaps(extendedSnaps interface{}, base string) (*modelSnaps, erro
 			modelSnap.Presence = "required"
 		}
 
-		if !boot {
-			modelSnaps.Snaps = append(modelSnaps.Snaps, modelSnap)
+		if !essential {
+			modelSnaps.snapsNoEssential = append(modelSnaps.snapsNoEssential, modelSnap)
 		}
 	}
 
@@ -333,9 +333,11 @@ type Model struct {
 	gadgetSnap *ModelSnap
 	kernelSnap *ModelSnap
 
-	allSnaps         []*ModelSnap
-	allRequiredSnaps []naming.SnapRef
-	numBootSnaps     int
+	allSnaps []*ModelSnap
+	// consumers of this info should care only about snap identity =>
+	// snapRef
+	requiredWithEssentialSnaps []naming.SnapRef
+	numEssentialSnaps          int
 
 	sysUserAuthority []string
 	timestamp        time.Time
@@ -436,14 +438,14 @@ func (mod *Model) Store() string {
 	return mod.HeaderString("store")
 }
 
-// RequiredSnaps returns the snaps that must be installed at all times and cannot be removed for this model, excluding the boot snaps (gadget, kernel, boot base).
-func (mod *Model) RequiredSnaps() []naming.SnapRef {
-	return mod.allRequiredSnaps[mod.numBootSnaps:]
+// RequiredNoEssentialSnaps returns the snaps that must be installed at all times and cannot be removed for this model, excluding the essential snaps (gadget, kernel, boot base).
+func (mod *Model) RequiredNoEssentialSnaps() []naming.SnapRef {
+	return mod.requiredWithEssentialSnaps[mod.numEssentialSnaps:]
 }
 
-// AllRequiredSnaps returns the snaps that must be installed at all times and cannot be removed for this model, including the boot snaps (gadget, kernel, boot base).
-func (mod *Model) AllRequiredSnaps() []naming.SnapRef {
-	return mod.allRequiredSnaps
+// RequiredWithEssentialSnaps returns the snaps that must be installed at all times and cannot be removed for this model, including the essential snaps (gadget, kernel, boot base).
+func (mod *Model) RequiredWithEssentialSnaps() []naming.SnapRef {
+	return mod.requiredWithEssentialSnaps
 }
 
 // AllSnaps returns all the snap listed by the model.
@@ -606,31 +608,31 @@ func assembleModel(assert assertionBase) (Assertion, error) {
 		if err != nil {
 			return nil, err
 		}
-		if modSnaps.Gadget == nil {
+		if modSnaps.gadget == nil {
 			return nil, fmt.Errorf(`one "snaps" header entry must specify the model gadget`)
 		}
-		if modSnaps.Kernel == nil {
+		if modSnaps.kernel == nil {
 			return nil, fmt.Errorf(`one "snaps" header entry must specify the model kernel`)
 		}
 
-		if modSnaps.Base == nil {
+		if modSnaps.base == nil {
 			// complete with defaults,
 			// the assumption is that base names are very stable
 			// essentially fixed
-			modSnaps.Base = baseSnap
-			modSnaps.Base.Modes = bootSnapModes
+			modSnaps.base = baseSnap
+			modSnaps.base.Modes = essentialSnapModes
 		}
 	} else {
 		modSnaps = &modelSnaps{
-			Base: baseSnap,
+			base: baseSnap,
 		}
 		// kernel/gadget must be valid snap names and can have (optional) tracks
 		// - validate those
-		modSnaps.Kernel, err = checkSnapWithTrack(assert.headers, "kernel")
+		modSnaps.kernel, err = checkSnapWithTrack(assert.headers, "kernel")
 		if err != nil {
 			return nil, err
 		}
-		modSnaps.Gadget, err = checkSnapWithTrack(assert.headers, "gadget")
+		modSnaps.gadget, err = checkSnapWithTrack(assert.headers, "gadget")
 		if err != nil {
 			return nil, err
 		}
@@ -645,7 +647,7 @@ func assembleModel(assert assertionBase) (Assertion, error) {
 			if err != nil {
 				return nil, err
 			}
-			modSnaps.Snaps = append(modSnaps.Snaps, reqSnap)
+			modSnaps.snapsNoEssential = append(modSnaps.snapsNoEssential, reqSnap)
 		}
 	}
 
@@ -659,7 +661,7 @@ func assembleModel(assert assertionBase) (Assertion, error) {
 		return nil, err
 	}
 
-	allSnaps, allRequiredSnaps, numBootSnaps := modSnaps.list()
+	allSnaps, requiredWithEssentialSnaps, numEssentialSnaps := modSnaps.list()
 
 	// NB:
 	// * core is not supported at this time, it defaults to ubuntu-core
@@ -670,15 +672,15 @@ func assembleModel(assert assertionBase) (Assertion, error) {
 
 	// ignore extra headers and non-empty body for future compatibility
 	return &Model{
-		assertionBase:    assert,
-		classic:          classic,
-		baseSnap:         modSnaps.Base,
-		gadgetSnap:       modSnaps.Gadget,
-		kernelSnap:       modSnaps.Kernel,
-		allSnaps:         allSnaps,
-		allRequiredSnaps: allRequiredSnaps,
-		numBootSnaps:     numBootSnaps,
-		sysUserAuthority: sysUserAuthority,
-		timestamp:        timestamp,
+		assertionBase:              assert,
+		classic:                    classic,
+		baseSnap:                   modSnaps.base,
+		gadgetSnap:                 modSnaps.gadget,
+		kernelSnap:                 modSnaps.kernel,
+		allSnaps:                   allSnaps,
+		requiredWithEssentialSnaps: requiredWithEssentialSnaps,
+		numEssentialSnaps:          numEssentialSnaps,
+		sysUserAuthority:           sysUserAuthority,
+		timestamp:                  timestamp,
 	}, nil
 }

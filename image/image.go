@@ -178,7 +178,7 @@ func validateNonLocalSnaps(snaps []string) error {
 
 // classicHasSnaps returns whether the model or options specify any snaps for the classic case
 func classicHasSnaps(model *asserts.Model, opts *Options) bool {
-	return model.Gadget() != "" || len(model.RequiredSnaps()) != 0 || len(opts.Snaps) != 0
+	return model.Gadget() != "" || len(model.RequiredNoEssentialSnaps()) != 0 || len(opts.Snaps) != 0
 }
 
 func Prepare(opts *Options) error {
@@ -460,8 +460,8 @@ func setupSeed(tsto *ToolingStore, model *asserts.Model, opts *Options, local *l
 	}
 
 	// TODO|XXX: later use the refs directly and simplify
-	reqSnaps := make([]string, 0, len(model.RequiredSnaps()))
-	for _, reqRef := range model.RequiredSnaps() {
+	reqSnaps := make([]string, 0, len(model.RequiredNoEssentialSnaps()))
+	for _, reqRef := range model.RequiredNoEssentialSnaps() {
 		reqSnaps = append(reqSnaps, reqRef.SnapName())
 	}
 

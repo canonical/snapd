@@ -195,15 +195,15 @@ func (mods *modelSuite) TestDecodeOK(c *C) {
 			Presence:       "required",
 		},
 	})
-	// boot snaps included
-	reqSnaps := model.AllRequiredSnaps()
+	// essential snaps included
+	reqSnaps := model.RequiredWithEssentialSnaps()
 	c.Check(reqSnaps, HasLen, len(allSnaps))
 	for i, r := range reqSnaps {
 		c.Check(r.SnapName(), Equals, allSnaps[i].Name)
 		c.Check(r.ID(), Equals, "")
 	}
-	// boot snaps excluded
-	c.Check(model.RequiredSnaps(), DeepEquals, reqSnaps[3:])
+	// essential snaps excluded
+	c.Check(model.RequiredNoEssentialSnaps(), DeepEquals, reqSnaps[3:])
 	c.Check(model.SystemUserAuthority(), HasLen, 0)
 }
 
@@ -261,7 +261,7 @@ func (mods *modelSuite) TestDecodeRequiredSnapsAreOptional(c *C) {
 	a, err := asserts.Decode([]byte(encoded))
 	c.Assert(err, IsNil)
 	model := a.(*asserts.Model)
-	c.Check(model.RequiredSnaps(), HasLen, 0)
+	c.Check(model.RequiredNoEssentialSnaps(), HasLen, 0)
 }
 
 func (mods *modelSuite) TestDecodeValidatesSnapNames(c *C) {
@@ -532,14 +532,14 @@ func (mods *modelSuite) TestClassicDecodeOK(c *C) {
 		},
 	})
 	// gadget included
-	reqSnaps := model.AllRequiredSnaps()
+	reqSnaps := model.RequiredWithEssentialSnaps()
 	c.Check(reqSnaps, HasLen, len(allSnaps))
 	for i, r := range reqSnaps {
 		c.Check(r.SnapName(), Equals, allSnaps[i].Name)
 		c.Check(r.ID(), Equals, "")
 	}
 	// gadget excluded
-	c.Check(model.RequiredSnaps(), DeepEquals, reqSnaps[1:])
+	c.Check(model.RequiredNoEssentialSnaps(), DeepEquals, reqSnaps[1:])
 }
 
 func (mods *modelSuite) TestClassicDecodeInvalid(c *C) {
@@ -657,15 +657,15 @@ func (mods *modelSuite) TestCore20DecodeOK(c *C) {
 			Presence:       "optional",
 		},
 	})
-	// boot snaps included
-	reqSnaps := model.AllRequiredSnaps()
+	// essential snaps included
+	reqSnaps := model.RequiredWithEssentialSnaps()
 	c.Check(reqSnaps, HasLen, len(allSnaps)-1)
 	for i, r := range reqSnaps {
 		c.Check(r.SnapName(), Equals, allSnaps[i].Name)
 		c.Check(r.ID(), Equals, allSnaps[i].SnapID)
 	}
-	// boot snaps excluded
-	c.Check(model.RequiredSnaps(), DeepEquals, reqSnaps[3:])
+	// essential snaps excluded
+	c.Check(model.RequiredNoEssentialSnaps(), DeepEquals, reqSnaps[3:])
 	c.Check(model.SystemUserAuthority(), HasLen, 0)
 }
 
@@ -711,10 +711,10 @@ func (mods *modelSuite) TestCore20DecodeInvalid(c *C) {
 		{"OTHER", "  -\n    name: myapp2\n    id: myappdididididididididididididid\n", `cannot specify the same snap id "myappdididididididididididididid" multiple times, specified for snaps "myapp" and "myapp2"`},
 		{"OTHER", "  -\n    name: kernel2\n    id: kernel2didididididididididididid\n    type: kernel\n", `cannot specify multiple kernel snaps: "baz-linux" and "kernel2"`},
 		{"OTHER", "  -\n    name: gadget2\n    id: gadget2didididididididididididid\n    type: gadget\n", `cannot specify multiple gadget snaps: "brand-gadget" and "gadget2"`},
-		{"type: gadget\n", "type: gadget\n    presence: required\n", `boot snaps are always available, cannot specify modes or presence for snap "brand-gadget"`},
-		{"type: gadget\n", "type: gadget\n    modes:\n      - run\n", `boot snaps are always available, cannot specify modes or presence for snap "brand-gadget"`},
-		{"type: kernel\n", "type: kernel\n    presence: required\n", `boot snaps are always available, cannot specify modes or presence for snap "baz-linux"`},
-		{"OTHER", "  -\n    name: core20\n    id: core20ididididididididididididid\n    type: base\n    presence: optional\n", `boot snaps are always available, cannot specify modes or presence for snap "core20"`},
+		{"type: gadget\n", "type: gadget\n    presence: required\n", `essential snaps are always available, cannot specify modes or presence for snap "brand-gadget"`},
+		{"type: gadget\n", "type: gadget\n    modes:\n      - run\n", `essential snaps are always available, cannot specify modes or presence for snap "brand-gadget"`},
+		{"type: kernel\n", "type: kernel\n    presence: required\n", `essential snaps are always available, cannot specify modes or presence for snap "baz-linux"`},
+		{"OTHER", "  -\n    name: core20\n    id: core20ididididididididididididid\n    type: base\n    presence: optional\n", `essential snaps are always available, cannot specify modes or presence for snap "core20"`},
 		{"type: gadget\n", "type: app\n", `one "snaps" header entry must specify the model gadget`},
 		{"type: kernel\n", "type: app\n", `one "snaps" header entry must specify the model kernel`},
 		{"OTHER", "  -\n    name: core20\n    id: core20ididididididididididididid\n    type: app\n", `boot base "core20" must specify type "base", not "app"`},
