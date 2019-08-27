@@ -22,7 +22,6 @@ package snapstate
 import (
 	"fmt"
 	"regexp"
-	"strconv"
 	"strings"
 
 	"github.com/snapcore/snapd/arch"
@@ -35,6 +34,7 @@ import (
 	"github.com/snapcore/snapd/release"
 	seccomp_compiler "github.com/snapcore/snapd/sandbox/seccomp"
 	"github.com/snapcore/snapd/snap"
+	"github.com/snapcore/snapd/strutil"
 )
 
 // featureSet contains the flag values that can be listed in assumes entries
@@ -199,6 +199,7 @@ func checkAssumes(si *snap.Info) error {
 var versionExp = regexp.MustCompile(`^([1-9][0-9]*)(?:\.([0-9]+)(?:\.([0-9]+))?)?`)
 
 func checkVersion(version string) bool {
+	// double check that the input looks like a snapd version
 	req := versionExp.FindStringSubmatch(version)
 	if req == nil || req[0] != version {
 		return false
@@ -208,29 +209,11 @@ func checkVersion(version string) bool {
 		return true // Development tree.
 	}
 
-	cur := versionExp.FindStringSubmatch(cmd.Version)
-	if cur == nil {
+	cmdVerBigger, err := strutil.VersionCompare(cmd.Version, version)
+	if err != nil {
 		return false
 	}
-
-	for i := 1; i < len(req); i++ {
-		if req[i] == "" {
-			return true
-		}
-		if cur[i] == "" {
-			return false
-		}
-		reqN, err1 := strconv.Atoi(req[i])
-		curN, err2 := strconv.Atoi(cur[i])
-		if err1 != nil || err2 != nil {
-			panic("internal error: version regexp is broken")
-		}
-		if curN != reqN {
-			return curN > reqN
-		}
-	}
-
-	return true
+	return cmdVerBigger >= 0
 }
 
 type SnapNeedsDevModeError struct {
