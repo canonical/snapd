@@ -241,7 +241,7 @@ distro_install_package() {
         ;;
     esac
 
-    # fix dependency issue where libp11-kit0 needs to be downgraded to 
+    # fix dependency issue where libp11-kit0 needs to be downgraded to
     # install gnome-keyring
     case "$SPREAD_SYSTEM" in
         debian-9-*)

@@ -41,5 +41,5 @@ execute: |
     snap remove basic-desktop
     test -f /var/lib/snapd/desktop/applications/basic-desktop+longname_echo.desktop
 
-restore:
+restore: |
     snap set system experimental.parallel-instances=null

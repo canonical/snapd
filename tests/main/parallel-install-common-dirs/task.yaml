@@ -80,5 +80,5 @@ execute: |
     not test -d "$SNAP_MOUNT_DIR/test-snapd-tools"
     not test -d "/var/snap/test-snapd-tools"
 
-restore:
+restore: |
     snap set system experimental.parallel-instances=null

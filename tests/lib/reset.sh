@@ -109,7 +109,15 @@ reset_all_snap() {
                 if ! systemctl status snapd.service snapd.socket >/dev/null; then
                     systemctl start snapd.service snapd.socket
                 fi
-                if ! echo "$SKIP_REMOVE_SNAPS" | grep -w "$snap"; then
+                # Check if a snap should be kept, there's a list of those in spread.yaml.
+                keep=0
+                for precious_snap in $SKIP_REMOVE_SNAPS; do
+                    if [ "$snap" = "$precious_snap" ]; then
+                        keep=1
+                        break
+                    fi
+                done
+                if [ "$keep" -eq 0 ]; then
                     if snap info --verbose "$snap" | grep -E '^type: +(base|core)'; then
                         if [ -z "$remove_bases" ]; then
                             remove_bases="$snap"
