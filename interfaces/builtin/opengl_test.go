@@ -84,7 +84,7 @@ func (s *OpenglInterfaceSuite) TestAppArmorSpec(c *C) {
 func (s *OpenglInterfaceSuite) TestUDevSpec(c *C) {
 	spec := &udev.Specification{}
 	c.Assert(spec.AddConnectedPlug(s.iface, s.plug, s.slot), IsNil)
-	c.Assert(spec.Snippets(), HasLen, 6)
+	c.Assert(spec.Snippets(), HasLen, 8)
 	c.Assert(spec.Snippets(), testutil.Contains, `# opengl
 SUBSYSTEM=="drm", KERNEL=="card[0-9]*", TAG+="snap_consumer_app"`)
 	c.Assert(spec.Snippets(), testutil.Contains, `# opengl
@@ -93,6 +93,10 @@ KERNEL=="renderD[0-9]*", TAG+="snap_consumer_app"`)
 KERNEL=="nvhost-*", TAG+="snap_consumer_app"`)
 	c.Assert(spec.Snippets(), testutil.Contains, `# opengl
 KERNEL=="nvmap", TAG+="snap_consumer_app"`)
+	c.Assert(spec.Snippets(), testutil.Contains, `# opengl
+KERNEL=="tegra_dc_ctrl", TAG+="snap_consumer_app"`)
+	c.Assert(spec.Snippets(), testutil.Contains, `# opengl
+KERNEL=="tegra_dc_[0-9]*", TAG+="snap_consumer_app"`)
 	c.Assert(spec.Snippets(), testutil.Contains, `TAG=="snap_consumer_app", RUN+="/usr/lib/snapd/snap-device-helper $env{ACTION} snap_consumer_app $devpath $major:$minor"`)
 }
 

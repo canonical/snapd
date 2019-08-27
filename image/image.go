@@ -397,20 +397,6 @@ func MockTrusted(mockTrusted []asserts.Assertion) (restore func()) {
 	}
 }
 
-// neededDefaultProviders returns the names of all default-providers for
-// the content plugs that the given snap.Info needs.
-func neededDefaultProviders(info *snap.Info) (cps []string) {
-	for _, plug := range info.Plugs {
-		if plug.Interface == "content" {
-			var dprovider string
-			if err := plug.Attr("default-provider", &dprovider); err == nil && dprovider != "" {
-				cps = append(cps, dprovider)
-			}
-		}
-	}
-	return cps
-}
-
 func setupSeed(tsto *ToolingStore, model *asserts.Model, opts *Options, local *localInfos) error {
 	if model.Classic() != opts.Classic {
 		return fmt.Errorf("internal error: classic model but classic mode not set")
@@ -529,12 +515,12 @@ func setupSeed(tsto *ToolingStore, model *asserts.Model, opts *Options, local *l
 	}
 
 	// provide snapd or core
-	if seed.needsCore && !seed.seen["core"] {
+	if len(seed.needsCore) != 0 && !seed.seen["core"] {
 		// one of the snaps requires core as base
 		// which used to be implicit, add it
 		if model.Base() != "" {
 			// TODO: later turn this into an error? for sure for UC20
-			fmt.Fprintf(Stderr, "WARNING: model has base %q but some snaps require \"core\" as base as well, for compatibility it was added implicitly, listing \"core\" explicitly is recommended\n", model.Base())
+			fmt.Fprintf(Stderr, "WARNING: model has base %q but some snaps (%s) require \"core\" as base as well, for compatibility it was added implicitly, adding \"core\" explicitly is recommended\n", model.Base(), strutil.Quoted(seed.needsCore))
 		}
 		if err := seed.add("core"); err != nil {
 			return err
@@ -546,11 +532,11 @@ func setupSeed(tsto *ToolingStore, model *asserts.Model, opts *Options, local *l
 	}
 
 	if len(seed.needsCore16) != 0 && !seed.seen["core"] {
-		return fmt.Errorf(`cannot use %s requiring base "core16" without adding "core16" explicitly or otherwise "core"`, strutil.Quoted(seed.needsCore16))
+		return fmt.Errorf(`cannot use %s requiring base "core16" without adding "core16" (or "core") explicitly`, strutil.Quoted(seed.needsCore16))
 	}
 
 	if len(seed.locals) > 0 {
-		fmt.Fprintf(Stderr, "WARNING: %s were installed from local snaps disconnected from a store and cannot be refreshed subsequently!\n", strutil.Quoted(seed.locals))
+		fmt.Fprintf(Stderr, "WARNING: %s installed from local snaps disconnected from a store cannot be refreshed subsequently!\n", strutil.Quoted(seed.locals))
 	}
 
 	// fetch device store assertion (and prereqs) if available
@@ -653,7 +639,7 @@ type seed struct {
 	locals                           []string
 	downloadedSnapsInfoForBootConfig map[string]*snap.Info
 
-	needsCore   bool
+	needsCore   []string
 	needsCore16 []string
 }
 
@@ -692,7 +678,7 @@ func (s *seed) add(snapName string) error {
 		return err
 	}
 	// warn about missing default providers
-	for _, dp := range neededDefaultProviders(info) {
+	for _, dp := range snap.NeededDefaultProviders(info) {
 		if !local.hasName(s.basesAndApps, dp) {
 			// TODO: have a way to ignore this issue on a snap by snap basis?
 			return fmt.Errorf("cannot use snap %q without its default content provider %q being added explicitly", info.InstanceName(), dp)
@@ -782,7 +768,7 @@ func (s *seed) checkBase(info *snap.Info) error {
 	if info.Base == "" {
 		if info.GetType() == snap.TypeGadget || info.GetType() == snap.TypeApp {
 			// remember to make sure we have core installed
-			s.needsCore = true
+			s.needsCore = append(s.needsCore, info.SnapName())
 		}
 		return nil
 	}
@@ -928,28 +914,9 @@ func ValidateSeed(seedFile string) error {
 		errs = append(errs, fmt.Errorf("the core or snapd snap must be part of the seed"))
 	}
 
-	// check that all bases/default-providers are part of the seed
-	for _, info := range snapInfos {
-		// ensure base is available
-		if info.Base != "" && info.Base != "none" {
-			if _, ok := snapInfos[info.Base]; !ok {
-				errs = append(errs, fmt.Errorf("cannot use snap %q: base %q is missing", info.InstanceName(), info.Base))
-			}
-		}
-		// ensure core is available
-		if info.Base == "" && info.SnapType == snap.TypeApp && info.InstanceName() != "snapd" {
-			if _, ok := snapInfos["core"]; !ok {
-				errs = append(errs, fmt.Errorf(`cannot use snap %q: required snap "core" missing`, info.InstanceName()))
-			}
-		}
-		// ensure default-providers are available
-		for _, dp := range neededDefaultProviders(info) {
-			if _, ok := snapInfos[dp]; !ok {
-				errs = append(errs, fmt.Errorf("cannot use snap %q: default provider %q is missing", info.InstanceName(), dp))
-			}
-		}
+	if errs2 := snap.ValidateBasesAndProviders(snapInfos); errs2 != nil {
+		errs = append(errs, errs2...)
 	}
-
 	if errs != nil {
 		var buf bytes.Buffer
 		for _, err := range errs {
