@@ -19,7 +19,7 @@ def remove_user_with_group(user_name):
     # type: (Text) -> None
     """remove the user and group with the same name, if present."""
     if os.path.exists("/var/lib/extrausers/passwd"):
-        subprocess.call(["userdel", "--extrausers", "--force", user_name])
+        subprocess.call(["userdel", "--extrausers", "--force", "--remove", user_name])
     else:
         subprocess.call(["userdel", "--force", "--remove", user_name])
         # Some systems do not set "USERGROUPS_ENAB yes" so we need to cleanup
