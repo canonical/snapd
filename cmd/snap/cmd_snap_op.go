@@ -345,30 +345,6 @@ func showDone(cli *client.Client, names []string, op string, opts *client.SnapOp
 		case "revert":
 			// TRANSLATORS: first %s is a snap name, second %s is a revision
 			fmt.Fprintf(Stdout, i18n.G("%s reverted to %s\n"), snap.Name, snap.Version)
-		case "switch":
-			switchCohort := opts.CohortKey != ""
-			switchChannel := opts.Channel != ""
-			var msg string
-			// we have three boolean things to check, meaning 2³=8 possibilities,
-			// minus 3 error cases which are handled before the call to showDone.
-			switch {
-			case switchCohort && !opts.LeaveCohort && !switchChannel:
-				// TRANSLATORS: the first %q will be the (quoted) snap name, the second an ellipted cohort string
-				msg = fmt.Sprintf(i18n.G("%q switched to the %q cohort\n"), snap.Name, strutil.ElliptLeft(opts.CohortKey, 10))
-			case switchCohort && !opts.LeaveCohort && switchChannel:
-				// TRANSLATORS: the first %q will be the (quoted) snap name, the second a channel, the third an ellipted cohort string
-				msg = fmt.Sprintf(i18n.G("%q switched to the %q channel and the %q cohort\n"), snap.Name, snap.TrackingChannel, strutil.ElliptLeft(opts.CohortKey, 10))
-			case !switchCohort && !opts.LeaveCohort && switchChannel:
-				// TRANSLATORS: the first %q will be the (quoted) snap name, the second a channel
-				msg = fmt.Sprintf(i18n.G("%q switched to the %q channel\n"), snap.Name, snap.TrackingChannel)
-			case !switchCohort && opts.LeaveCohort && switchChannel:
-				// TRANSLATORS: the first %q will be the (quoted) snap name, the second a channel
-				msg = fmt.Sprintf(i18n.G("%q left the cohort, and switched to the %q channel"), snap.Name, snap.TrackingChannel)
-			case !switchCohort && opts.LeaveCohort && !switchChannel:
-				// TRANSLATORS: %q will be the (quoted) snap name
-				msg = fmt.Sprintf(i18n.G("%q left the cohort"), snap.Name)
-			}
-			fmt.Fprintln(Stdout, msg)
 		default:
 			fmt.Fprintf(Stdout, "internal error: unknown op %q", op)
 		}
@@ -1003,19 +979,34 @@ func (x cmdSwitch) Execute(args []string) error {
 	name := string(x.Positional.Snap)
 	channel := string(x.Channel)
 
+	var msg string
+	// some duplication between this and the two other switch-summarisers...
+	// in this one, we have three boolean things to check, meaning 2³=8 possibilities
+	// of which 3 are errors (which is why we look at this before running it)
 	switchCohort := x.Cohort != ""
 	switchChannel := x.Channel != ""
-
-	// we have three boolean things to check, meaning 2³=8 possibilities
-	// of which 3 are errors (which is why we look at the errors first).
-	// the 5 valid cases are handled by showDone.
-	if switchCohort && x.LeaveCohort {
+	switch {
+	case switchCohort && x.LeaveCohort:
 		// this one counts as two (no channel filter)
 		return fmt.Errorf(i18n.G("cannot specify both --cohort and --leave-cohort"))
-	}
-	if !switchCohort && !x.LeaveCohort && !switchChannel {
+	case switchCohort && !x.LeaveCohort && !switchChannel:
+		// TRANSLATORS: the first %q will be the (quoted) snap name, the second an ellipted cohort string
+		msg = fmt.Sprintf(i18n.G("%q switched to the %q cohort\n"), name, strutil.ElliptLeft(x.Cohort, 10))
+	case switchCohort && !x.LeaveCohort && switchChannel:
+		// TRANSLATORS: the first %q will be the (quoted) snap name, the second a channel, the third an ellipted cohort string
+		msg = fmt.Sprintf(i18n.G("%q switched to the %q channel and the %q cohort\n"), name, channel, strutil.ElliptLeft(x.Cohort, 10))
+	case !switchCohort && !x.LeaveCohort && switchChannel:
+		// TRANSLATORS: the first %q will be the (quoted) snap name, the second a channel
+		msg = fmt.Sprintf(i18n.G("%q switched to the %q channel\n"), name, channel)
+	case !switchCohort && x.LeaveCohort && switchChannel:
+		// TRANSLATORS: the first %q will be the (quoted) snap name, the second a channel
+		msg = fmt.Sprintf(i18n.G("%q left the cohort, and switched to the %q channel"), name, channel)
+	case !switchCohort && x.LeaveCohort && !switchChannel:
+		// TRANSLATORS: %q will be the (quoted) snap name
+		msg = fmt.Sprintf(i18n.G("%q left the cohort"), name)
+	case !switchCohort && !x.LeaveCohort && !switchChannel:
 		return fmt.Errorf(i18n.G("nothing to switch; specify --channel (and/or one of --cohort/--leave-cohort)"))
-	}
+	} // and that's the 8 \o/
 
 	opts := &client.SnapOptions{
 		Channel:     channel,
@@ -1034,7 +1025,8 @@ func (x cmdSwitch) Execute(args []string) error {
 		return err
 	}
 
-	return showDone(x.client, []string{name}, "switch", opts, nil)
+	fmt.Fprintln(Stdout, msg)
+	return nil
 }
 
 func init() {
