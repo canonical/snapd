@@ -5,18 +5,13 @@ summary: ensure unapproved user cannot be used with system-usernames
 # we can ignore these.
 systems: [-amazon-linux-2-*, -centos-7-*, -debian-9-*, -debian-sid-*, -fedora-29-*, -fedora-30-*, -opensuse-15.0-*, -opensuse-15.1-*, -ubuntu-14.04-*]
 
-restore: |
-    # Make sure the snap is removed if the test failed and the snap was
-    # installed
-    snap remove test-snapd-illegal-system-username || true
-
-    # snapd will create this for us, but we'll remove it for consistency in
-    # test runs
-    user-tool remove-with-group snap_daemon
-
 execute: |
     #shellcheck source=tests/lib/snaps.sh
     . "$TESTSLIB"/snaps.sh
     snap_path=$(make_snap test-snapd-illegal-system-username)
     echo "Try to install a snap with an illegal user in 'system-usernames'"
     snap install --dangerous "${snap_path}" 2>&1 | MATCH 'requires unsupported system username "daemon"'
+
+    # Make sure neiter snap_deaemon user nor group are created
+    not getent passwd snap_daemon
+    not getent group snap_daemon
