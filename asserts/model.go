@@ -30,6 +30,11 @@ import (
 	"github.com/snapcore/snapd/strutil"
 )
 
+// TODO: for ModelSnap
+//  * consider moving snap.Type out of snap and using it in ModelSnap
+//    but remember assertions use "core" (never "os") for TypeOS
+//  * consider having a first-class Presence type
+
 // ModelSnap holds the details about a snap specified by a model assertion.
 type ModelSnap struct {
 	Name   string
