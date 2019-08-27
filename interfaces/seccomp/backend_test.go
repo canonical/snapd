@@ -35,6 +35,7 @@ import (
 	"github.com/snapcore/snapd/interfaces/seccomp"
 	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/release"
+	seccomp_compiler "github.com/snapcore/snapd/sandbox/seccomp"
 	"github.com/snapcore/snapd/snap"
 	"github.com/snapcore/snapd/snap/snaptest"
 	"github.com/snapcore/snapd/testutil"
@@ -725,7 +726,7 @@ fi`)
 
 	sb, ok := s.Backend.(*seccomp.Backend)
 	c.Assert(ok, Equals, true)
-	c.Check(sb.VersionInfo(), Equals, "2345cdef 2.3.4 2345cdef -")
+	c.Check(sb.VersionInfo(), Equals, seccomp_compiler.VersionInfo("2345cdef 2.3.4 2345cdef -"))
 }
 
 func (s *backendSuite) TestCompilerInitUnhappy(c *C) {

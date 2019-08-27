@@ -99,38 +99,15 @@ func (s *setSuite) TestCommand(c *C) {
 	c.Check(value, Equals, "qux")
 }
 
-func (s *getSuite) TestSetRegularUserForbidden(c *C) {
-	state := state.New(nil)
-	state.Lock()
-
-	task := state.NewTask("test-task", "my test task")
-	setup := &hookstate.HookSetup{Snap: "test-snap", Revision: snap.R(1), Hook: "test-hook"}
-
-	state.Unlock()
-
-	mockHandler := hooktest.NewMockHandler()
-	mockContext, err := hookstate.NewContext(task, task.State(), setup, mockHandler, "")
-	c.Assert(err, IsNil)
-	_, _, err = ctlcmd.Run(mockContext, []string{"set", "test-key1"}, 1000)
-	c.Assert(err, NotNil)
+func (s *setSuite) TestSetRegularUserForbidden(c *C) {
+	_, _, err := ctlcmd.Run(s.mockContext, []string{"set", "test-key1"}, 1000)
 	c.Assert(err, ErrorMatches, `cannot use "set" with uid 1000, try with sudo`)
 	forbidden, _ := err.(*ctlcmd.ForbiddenCommandError)
 	c.Assert(forbidden, NotNil)
 }
 
-func (s *getSuite) TestSetHelpRegularUserAllowed(c *C) {
-	state := state.New(nil)
-	state.Lock()
-
-	task := state.NewTask("test-task", "my test task")
-	setup := &hookstate.HookSetup{Snap: "test-snap", Revision: snap.R(1), Hook: "test-hook"}
-
-	state.Unlock()
-
-	mockHandler := hooktest.NewMockHandler()
-	mockContext, err := hookstate.NewContext(task, task.State(), setup, mockHandler, "")
-	c.Assert(err, IsNil)
-	_, _, err = ctlcmd.Run(mockContext, []string{"set", "-h"}, 1000)
+func (s *setSuite) TestSetHelpRegularUserAllowed(c *C) {
+	_, _, err := ctlcmd.Run(s.mockContext, []string{"set", "-h"}, 1000)
 	c.Assert(err, NotNil)
 	c.Assert(strings.HasPrefix(err.Error(), "Usage:"), Equals, true)
 }
@@ -352,7 +329,7 @@ func (s *setAttrSuite) TestSetPlugAttributesSupportsDottedSyntax(c *C) {
 
 func (s *setAttrSuite) TestPlugOrSlotEmpty(c *C) {
 	stdout, stderr, err := ctlcmd.Run(s.mockPlugHookContext, []string{"set", ":", "foo=bar"}, 0)
-	c.Check(err.Error(), Equals, "plug or slot name not provided")
+	c.Check(err, ErrorMatches, "plug or slot name not provided")
 	c.Check(string(stdout), Equals, "")
 	c.Check(string(stderr), Equals, "")
 }
@@ -371,8 +348,7 @@ func (s *setAttrSuite) TestSetCommandFailsOutsideOfValidContext(c *C) {
 	c.Assert(err, IsNil)
 
 	stdout, stderr, err := ctlcmd.Run(mockContext, []string{"set", ":aplug", "foo=bar"}, 0)
-	c.Check(err, NotNil)
-	c.Check(err.Error(), Equals, `interface attributes can only be set during the execution of prepare hooks`)
+	c.Check(err, ErrorMatches, `interface attributes can only be set during the execution of prepare hooks`)
 	c.Check(string(stdout), Equals, "")
 	c.Check(string(stderr), Equals, "")
 }

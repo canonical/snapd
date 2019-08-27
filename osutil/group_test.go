@@ -213,3 +213,15 @@ func (s *findUserGroupSuite) TestFindGidGetentMocked(c *check.C) {
 		{"getent", "group", "lakatos"},
 	})
 }
+
+func (s *findUserGroupSuite) TestIsUnknownUser(c *check.C) {
+	c.Check(osutil.IsUnknownUser(nil), check.Equals, false)
+	c.Check(osutil.IsUnknownUser(fmt.Errorf("something else")), check.Equals, false)
+	c.Check(osutil.IsUnknownUser(user.UnknownUserError("lakatos")), check.Equals, true)
+}
+
+func (s *findUserGroupSuite) TestIsUnknownGroup(c *check.C) {
+	c.Check(osutil.IsUnknownGroup(nil), check.Equals, false)
+	c.Check(osutil.IsUnknownGroup(fmt.Errorf("something else")), check.Equals, false)
+	c.Check(osutil.IsUnknownGroup(user.UnknownGroupError("lakatos")), check.Equals, true)
+}

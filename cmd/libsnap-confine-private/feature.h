@@ -23,6 +23,7 @@
 typedef enum sc_feature_flag {
 	SC_FEATURE_PER_USER_MOUNT_NAMESPACE,
 	SC_FEATURE_REFRESH_APP_AWARENESS,
+	SC_FEATURE_PARALLEL_INSTANCES,
 } sc_feature_flag;
 
 /**

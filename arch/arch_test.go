@@ -41,6 +41,8 @@ func (ts *ArchTestSuite) TestUbuntuArchitecture(c *C) {
 	c.Check(ubuntuArchFromGoArch("ppc64le"), Equals, "ppc64el")
 	c.Check(ubuntuArchFromGoArch("ppc64"), Equals, "ppc64")
 	c.Check(ubuntuArchFromGoArch("s390x"), Equals, "s390x")
+	c.Check(ubuntuArchFromGoArch("ppc"), Equals, "powerpc")
+	c.Check(ubuntuArchFromGoArch("ppc64"), Equals, "ppc64")
 }
 
 func (ts *ArchTestSuite) TestSetArchitecture(c *C) {
@@ -56,6 +58,7 @@ func (ts *ArchTestSuite) TestSupportedArchitectures(c *C) {
 	c.Check(IsSupportedArchitecture([]string{"amd64", "powerpc"}), Equals, false)
 
 	arch = "amd64"
+	c.Check(IsSupportedArchitecture([]string{"all"}), Equals, true)
 	c.Check(IsSupportedArchitecture([]string{"amd64", "armhf", "powerpc"}), Equals, true)
 	c.Check(IsSupportedArchitecture([]string{"powerpc"}), Equals, false)
 }

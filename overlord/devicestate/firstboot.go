@@ -127,6 +127,9 @@ func populateStateFromSeedImpl(st *state.State, tm timings.Measurer) ([]*state.T
 	}
 	alreadySeeded := make(map[string]bool, 3)
 
+	// allSnapInfos are collected for cross-check validation of bases
+	allSnapInfos := make(map[string]*snap.Info, len(seed.Snaps))
+
 	tsAll := []*state.TaskSet{}
 	configTss := []*state.TaskSet{}
 	chainTs := func(all []*state.TaskSet, ts *state.TaskSet) []*state.TaskSet {
@@ -172,6 +175,7 @@ func populateStateFromSeedImpl(st *state.State, tm timings.Measurer) ([]*state.T
 		}
 		tsAll = chainTs(tsAll, ts)
 		alreadySeeded[snapName] = true
+		allSnapInfos[snapName] = info
 		return nil
 	}
 	installGadgetBase = func(gadget *snap.Info) error {
@@ -252,6 +256,14 @@ func populateStateFromSeedImpl(st *state.State, tm timings.Measurer) ([]*state.T
 		}
 		infos = append(infos, info)
 		infoToTs[info] = ts
+		allSnapInfos[info.InstanceName()] = info
+	}
+
+	// validate that all snaps have bases
+	errs := snap.ValidateBasesAndProviders(allSnapInfos)
+	if errs != nil {
+		// only report the first error encountered
+		return nil, errs[0]
 	}
 
 	// now add/chain the tasksets in the right order, note that we
@@ -283,7 +295,7 @@ func populateStateFromSeedImpl(st *state.State, tm timings.Measurer) ([]*state.T
 	return tsAll, nil
 }
 
-func readAsserts(fn string, batch *assertstate.Batch) ([]*asserts.Ref, error) {
+func readAsserts(fn string, batch *asserts.Batch) ([]*asserts.Ref, error) {
 	f, err := os.Open(fn)
 	if err != nil {
 		return nil, err
@@ -317,7 +329,7 @@ func importAssertionsFromSeed(st *state.State) (*asserts.Model, error) {
 
 	// collect
 	var modelRef *asserts.Ref
-	batch := assertstate.NewBatch()
+	batch := asserts.NewBatch(nil)
 	for _, fi := range dc {
 		fn := filepath.Join(assertSeedDir, fi.Name())
 		refs, err := readAsserts(fn, batch)
@@ -338,7 +350,7 @@ func importAssertionsFromSeed(st *state.State) (*asserts.Model, error) {
 		return nil, fmt.Errorf("need a model assertion")
 	}
 
-	if err := batch.Commit(st); err != nil {
+	if err := assertstate.AddBatch(st, batch, nil); err != nil {
 		return nil, err
 	}
 

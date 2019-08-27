@@ -45,6 +45,7 @@ import (
 	"github.com/snapcore/snapd/overlord/state"
 	"github.com/snapcore/snapd/release"
 	"github.com/snapcore/snapd/snap"
+	"github.com/snapcore/snapd/snap/channel"
 	"github.com/snapcore/snapd/store"
 	"github.com/snapcore/snapd/strutil"
 )
@@ -1205,7 +1206,7 @@ func resolveChannel(st *state.State, snapName, newChannel string, deviceCtx Devi
 			return "", err
 		}
 		if snapst.IsInstalled() && snapst.Channel != "" {
-			ch, err := snap.ParseChannel(snapst.Channel, "")
+			ch, err := channel.Parse(snapst.Channel, "")
 			if err != nil {
 				return "", err
 			}
@@ -1218,7 +1219,7 @@ func resolveChannel(st *state.State, snapName, newChannel string, deviceCtx Devi
 		return newChannel, nil
 	}
 
-	nch, err := snap.ParseChannelVerbatim(newChannel, "")
+	nch, err := channel.ParseVerbatim(newChannel, "")
 	if err != nil {
 		return "", err
 	}

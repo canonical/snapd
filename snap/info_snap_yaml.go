@@ -606,7 +606,7 @@ func convertToSlotOrPlugData(plugOrSlot, name string, data interface{}) (iface, 
 		for keyData, valueData := range data.(map[interface{}]interface{}) {
 			key, ok := keyData.(string)
 			if !ok {
-				err := fmt.Errorf("%s %q has attribute that is not a string (found %T)",
+				err := fmt.Errorf("%s %q has attribute key that is not a string (found %T)",
 					plugOrSlot, name, keyData)
 				return "", "", nil, err
 			}
@@ -615,6 +615,8 @@ func convertToSlotOrPlugData(plugOrSlot, name string, data interface{}) (iface, 
 				return "", "", nil, err
 			}
 			switch key {
+			case "":
+				return "", "", nil, fmt.Errorf("%s %q has an empty attribute key", plugOrSlot, name)
 			case "interface":
 				value, ok := valueData.(string)
 				if !ok {

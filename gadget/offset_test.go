@@ -33,16 +33,16 @@ type offsetSuite struct{}
 var _ = Suite(&offsetSuite{})
 
 func (m *offsetSuite) TestOffsetWriterOnlyStructure(c *C) {
-	ps := &gadget.PositionedStructure{
+	ps := &gadget.LaidOutStructure{
 		VolumeStructure: &gadget.VolumeStructure{
 			Size:        1 * gadget.SizeMiB,
 			OffsetWrite: &gadget.RelativeOffset{Offset: 512},
 		},
 		StartOffset: 1024,
 		// start offset written at this location
-		PositionedOffsetWrite: asSizePtr(512),
+		AbsoluteOffsetWrite: asSizePtr(512),
 
-		PositionedContent: []gadget.PositionedContent{
+		LaidOutContent: []gadget.LaidOutContent{
 			{
 				VolumeContent: &gadget.VolumeContent{
 					Image: "foo.img",
@@ -75,13 +75,13 @@ func (m *offsetSuite) TestOffsetWriterOnlyStructure(c *C) {
 }
 
 func (m *offsetSuite) TestOffsetWriterOnlyRawContent(c *C) {
-	ps := &gadget.PositionedStructure{
+	ps := &gadget.LaidOutStructure{
 		VolumeStructure: &gadget.VolumeStructure{
 			Size: 1 * gadget.SizeMiB,
 		},
 		StartOffset: gadget.Size(1024),
 
-		PositionedContent: []gadget.PositionedContent{
+		LaidOutContent: []gadget.LaidOutContent{
 			{
 				VolumeContent: &gadget.VolumeContent{
 					Image: "foo.img",
@@ -91,7 +91,7 @@ func (m *offsetSuite) TestOffsetWriterOnlyRawContent(c *C) {
 				Size:        128,
 				StartOffset: 2048,
 				// start offset written here
-				PositionedOffsetWrite: asSizePtr(4096),
+				AbsoluteOffsetWrite: asSizePtr(4096),
 			},
 		},
 	}
@@ -118,15 +118,15 @@ func (m *offsetSuite) TestOffsetWriterOnlyRawContent(c *C) {
 }
 
 func (m *offsetSuite) TestOffsetWriterOnlyFsStructure(c *C) {
-	ps := &gadget.PositionedStructure{
+	ps := &gadget.LaidOutStructure{
 		VolumeStructure: &gadget.VolumeStructure{
 			Size:       1 * gadget.SizeMiB,
 			Filesystem: "ext4",
 			// same as in pc gadget
 			OffsetWrite: &gadget.RelativeOffset{Offset: 92},
 		},
-		StartOffset:           gadget.Size(348 * gadget.SizeKiB),
-		PositionedOffsetWrite: asSizePtr(92),
+		StartOffset:         gadget.Size(348 * gadget.SizeKiB),
+		AbsoluteOffsetWrite: asSizePtr(92),
 	}
 
 	const sectorSize = 512
@@ -151,15 +151,15 @@ func (m *offsetSuite) TestOffsetWriterOnlyFsStructure(c *C) {
 }
 
 func (m *offsetSuite) TestOffsetWriterErrors(c *C) {
-	ps := &gadget.PositionedStructure{
+	ps := &gadget.LaidOutStructure{
 		VolumeStructure: &gadget.VolumeStructure{
 			Size:       1 * gadget.SizeMiB,
 			Filesystem: "ext4",
 			// same as in pc gadget
 			OffsetWrite: &gadget.RelativeOffset{Offset: 92},
 		},
-		StartOffset:           gadget.Size(348 * gadget.SizeKiB),
-		PositionedOffsetWrite: asSizePtr(92),
+		StartOffset:         gadget.Size(348 * gadget.SizeKiB),
+		AbsoluteOffsetWrite: asSizePtr(92),
 	}
 
 	const sectorSize = 512
@@ -188,12 +188,12 @@ func (m *offsetSuite) TestOffsetWriterErrors(c *C) {
 	err = ow.Write(mwBadWriter)
 	c.Assert(err, ErrorMatches, "cannot write LBA value 0x2b8 at offset 92: bad writer")
 
-	psOnlyContent := &gadget.PositionedStructure{
+	psOnlyContent := &gadget.LaidOutStructure{
 		VolumeStructure: &gadget.VolumeStructure{
 			Size: 1 * gadget.SizeMiB,
 		},
 		StartOffset: gadget.Size(348 * gadget.SizeKiB),
-		PositionedContent: []gadget.PositionedContent{
+		LaidOutContent: []gadget.LaidOutContent{
 			{
 				VolumeContent: &gadget.VolumeContent{
 					Image: "foo.img",
@@ -203,7 +203,7 @@ func (m *offsetSuite) TestOffsetWriterErrors(c *C) {
 				Size:        128,
 				StartOffset: 2048,
 				// start offset written here
-				PositionedOffsetWrite: asSizePtr(4096),
+				AbsoluteOffsetWrite: asSizePtr(4096),
 			},
 		},
 	}
@@ -217,18 +217,18 @@ func (m *offsetSuite) TestOffsetWriterErrors(c *C) {
 
 func (m *offsetSuite) TestOffsetWriterErrorSimpleValidation(c *C) {
 	ow, err := gadget.NewOffsetWriter(nil, 512)
-	c.Assert(err, ErrorMatches, `internal error: \*PositionedStructure is nil`)
+	c.Assert(err, ErrorMatches, `internal error: \*LaidOutStructure is nil`)
 	c.Assert(ow, IsNil)
 
-	ps := &gadget.PositionedStructure{
+	ps := &gadget.LaidOutStructure{
 		VolumeStructure: &gadget.VolumeStructure{
 			Size:       1 * gadget.SizeMiB,
 			Filesystem: "ext4",
 			// same as in pc gadget
 			OffsetWrite: &gadget.RelativeOffset{Offset: 92},
 		},
-		StartOffset:           gadget.Size(348 * gadget.SizeKiB),
-		PositionedOffsetWrite: asSizePtr(92),
+		StartOffset:         gadget.Size(348 * gadget.SizeKiB),
+		AbsoluteOffsetWrite: asSizePtr(92),
 	}
 
 	ow, err = gadget.NewOffsetWriter(ps, 0)
