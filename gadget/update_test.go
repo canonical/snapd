@@ -1238,15 +1238,15 @@ func (u *updateTestSuite) TestUpdaterMultiVolumesDoesNotError(c *C) {
 	multiVolume := gadget.GadgetData{
 		Info: &gadget.Info{
 			Volumes: map[string]gadget.Volume{
-				"1": gadget.Volume{},
-				"2": gadget.Volume{},
+				"1": {},
+				"2": {},
 			},
 		},
 	}
 	singleVolume := gadget.GadgetData{
 		Info: &gadget.Info{
 			Volumes: map[string]gadget.Volume{
-				"1": gadget.Volume{},
+				"1": {},
 			},
 		},
 	}
