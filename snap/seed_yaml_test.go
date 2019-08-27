@@ -125,6 +125,19 @@ snaps:
 	c.Assert(err, ErrorMatches, `cannot read seed yaml: invalid snap name: "invalid--name"`)
 }
 
+func (s *seedYamlTestSuite) TestValidateNameInstanceUnsupported(c *C) {
+	fn := filepath.Join(c.MkDir(), "seed.yaml")
+	err := ioutil.WriteFile(fn, []byte(`
+snaps:
+ - name: foo_1
+   file: ./foo.snap
+`), 0644)
+	c.Assert(err, IsNil)
+
+	_, err = snap.ReadSeedYaml(fn)
+	c.Assert(err, ErrorMatches, `cannot read seed yaml: invalid snap name: "foo_1"`)
+}
+
 func (s *seedYamlTestSuite) TestValidateNameMissing(c *C) {
 	fn := filepath.Join(c.MkDir(), "seed.yaml")
 	err := ioutil.WriteFile(fn, []byte(`
