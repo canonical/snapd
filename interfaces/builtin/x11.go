@@ -72,6 +72,12 @@ unix (bind, listen, accept)
      type=stream
      addr="@/tmp/.ICE-unix/[0-9]*",
 
+# On systems with Tegra drivers, X11 needs to create the socket for clients to
+# use.
+unix (bind, listen, accept)
+     type=dgram
+     addr="@nvidia[0-9a-f]*",
+
 # For Xorg to detect screens
 /sys/devices/pci**/boot_vga r,
 /sys/devices/pci**/resources r,

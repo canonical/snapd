@@ -363,7 +363,7 @@ prepare_project() {
         quiet eatmydata apt-get install -y --force-yes apparmor libapparmor1 seccomp libseccomp2 systemd cgroup-lite util-linux
     fi
 
-    # WORKAROUND for older postrm scripts that did not do 
+    # WORKAROUND for older postrm scripts that did not do
     # "rm -rf /var/cache/snapd"
     rm -rf /var/cache/snapd/aux
     case "$SPREAD_SYSTEM" in
@@ -637,12 +637,21 @@ restore_project_each() {
         exit 1
     fi
 
+    if getent passwd snap_daemon; then
+        echo "Test left the snap_daemon user behind, this should not happen"
+        exit 1
+    fi
+    if getent group snap_daemon; then
+        echo "Test left the snap_daemon group behind, this should not happen"
+        exit 1
+    fi
+
     # Something is hosing the filesystem so look for signs of that
     not grep -F "//deleted /etc" /proc/self/mountinfo
 }
 
 restore_project() {
-    # Delete the snapd state used to accelerate prepare/restore code in certain suites. 
+    # Delete the snapd state used to accelerate prepare/restore code in certain suites.
     delete_snapd_state
 
     # Remove all of the code we pushed and any build results. This removes

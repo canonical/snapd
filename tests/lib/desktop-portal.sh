@@ -51,7 +51,7 @@ teardown_portals() {
     distro_purge_package xdg-desktop-portal
     distro_auto_remove_packages
 
-    if [ -d "${USER_RUNTIME_DIR}" ]; then 
+    if [ -d "${USER_RUNTIME_DIR}" ]; then
         umount --lazy "${USER_RUNTIME_DIR}/doc" || :
         rm -rf "${USER_RUNTIME_DIR:?}"/* "${USER_RUNTIME_DIR:?}"/.[!.]*
     fi

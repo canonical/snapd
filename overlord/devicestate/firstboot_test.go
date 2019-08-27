@@ -1214,7 +1214,7 @@ func (s *FirstBootTestSuite) TestImportAssertionsFromSeedMissingSig(c *C) {
 	// try import and verify that its rejects because other assertions are
 	// missing
 	_, err := devicestate.ImportAssertionsFromSeed(st)
-	c.Assert(err, ErrorMatches, "cannot find account-key .*")
+	c.Assert(err, ErrorMatches, "cannot resolve prerequisite assertion: account-key .*")
 }
 
 func (s *FirstBootTestSuite) TestImportAssertionsFromSeedTwoModelAsserts(c *C) {
@@ -1649,6 +1649,63 @@ snaps:
 	c.Check(hasConn, Equals, true)
 	c.Check(conn.(map[string]interface{})["auto"], Equals, true)
 	c.Check(conn.(map[string]interface{})["interface"], Equals, "content")
+}
+
+func (s *FirstBootTestSuite) TestPopulateFromSeedMissingBase(c *C) {
+	devAcct := assertstest.NewAccount(s.storeSigning, "developer", map[string]interface{}{
+		"account-id": "developerid",
+	}, "")
+
+	devAcctFn := filepath.Join(dirs.SnapSeedDir, "assertions", "developer.account")
+	c.Assert(ioutil.WriteFile(devAcctFn, asserts.Encode(devAcct), 0644), IsNil)
+
+	// add a model assertion and its chain
+	assertsChain := s.makeModelAssertionChain(c, "my-model", nil, "bar")
+	for i, as := range assertsChain {
+		fn := filepath.Join(dirs.SnapSeedDir, "assertions", strconv.Itoa(i))
+		err := ioutil.WriteFile(fn, asserts.Encode(as), 0644)
+		c.Assert(err, IsNil)
+	}
+
+	coreFname, kernelFname, gadgetFname := s.makeCoreSnaps(c, "")
+
+	// local snap with unknown base
+	snapYaml = `name: local
+base: foo
+unasserted: true
+version: 1.0`
+	mockSnapFile := snaptest.MakeTestSnapWithFiles(c, snapYaml, nil)
+	targetSnapFile2 := filepath.Join(dirs.SnapSeedDir, "snaps", filepath.Base(mockSnapFile))
+	fooFname, fooDecl, fooRev := s.makeAssertedSnap(c, snapYaml, nil, snap.R(128), "developerid")
+	c.Assert(os.Rename(mockSnapFile, targetSnapFile2), IsNil)
+
+	declFn := filepath.Join(dirs.SnapSeedDir, "assertions", "foo.snap-declaration")
+	c.Assert(ioutil.WriteFile(declFn, asserts.Encode(fooDecl), 0644), IsNil)
+
+	revFn := filepath.Join(dirs.SnapSeedDir, "assertions", "foo.snap-revision")
+	c.Assert(ioutil.WriteFile(revFn, asserts.Encode(fooRev), 0644), IsNil)
+
+	// create a seed.yaml
+	content := []byte(fmt.Sprintf(`
+snaps:
+ - name: core
+   file: %s
+ - name: pc-kernel
+   file: %s
+ - name: pc
+   file: %s
+ - name: local
+   file: %s
+`, coreFname, kernelFname, gadgetFname, fooFname))
+
+	c.Assert(ioutil.WriteFile(filepath.Join(dirs.SnapSeedDir, "seed.yaml"), content, 0644), IsNil)
+
+	// run the firstboot stuff
+	st := s.overlord.State()
+	st.Lock()
+	defer st.Unlock()
+	_, err := devicestate.PopulateStateFromSeedImpl(st, s.perfTimings)
+	c.Assert(err, ErrorMatches, `cannot use snap "local": base "foo" is missing`)
 }
 
 func (s *FirstBootTestSuite) TestPopulateFromSeedOnClassicWithSnapdOnlyHappy(c *C) {

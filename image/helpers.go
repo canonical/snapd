@@ -214,6 +214,8 @@ type DownloadOptions struct {
 	Channel   string
 	CohortKey string
 	Basename  string
+
+	LeavePartialOnError bool
 }
 
 var (
@@ -322,7 +324,8 @@ func (tsto *ToolingStore) DownloadSnap(name string, opts DownloadOptions) (targe
 		os.Exit(1)
 	}()
 
-	if err = sto.Download(context.TODO(), name, targetFn, &snap.DownloadInfo, pb, tsto.user, nil); err != nil {
+	dlOpts := &store.DownloadOptions{LeavePartialOnError: opts.LeavePartialOnError}
+	if err = sto.Download(context.TODO(), name, targetFn, &snap.DownloadInfo, pb, tsto.user, dlOpts); err != nil {
 		return "", nil, err
 	}
 
