@@ -1834,3 +1834,9 @@ apps:
 	c.Assert(string(data), Not(testutil.Contains), "capability chown,")
 	s.RemoveSnap(c, snapInfo)
 }
+
+func (s *backendSuite) TestSetupManySmoke(c *C) {
+	setupManyInterface, ok := s.Backend.(interfaces.SecurityBackendSetupMany)
+	c.Assert(ok, Equals, true)
+	c.Assert(setupManyInterface, NotNil)
+}
