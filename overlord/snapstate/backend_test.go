@@ -607,7 +607,7 @@ type fakeSnappyBackend struct {
 	copySnapDataFailTrigger string
 	emptyContainer          snap.Container
 
-	servicesCurrentlyDisabled        []string
+	servicesCurrentlyDisabled          []string
 	restoreDisabledServicesFailTrigger string
 }
 
