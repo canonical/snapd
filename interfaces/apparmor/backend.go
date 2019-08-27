@@ -312,17 +312,11 @@ func profileIsRemovableOnCoreSetup(fn string) bool {
 	return true
 }
 
-// Setup creates and loads apparmor profiles specific to a given snap.
-// The snap can be in developer mode to make security violations non-fatal to
-// the offending application process.
-//
-// This method should be called after changing plug, slots, connections between
-// them or application present in the snap.
-func (b *Backend) Setup(snapInfo *snap.Info, opts interfaces.ConfinementOptions, repo *interfaces.Repository, tm timings.Measurer) error {
+func (b *Backend) prepareProfiles(snapInfo *snap.Info, opts interfaces.ConfinementOptions, repo *interfaces.Repository) (changedPaths, unchangedPaths, removedPaths []string, err error) {
 	snapName := snapInfo.InstanceName()
 	spec, err := repo.SnapSpecification(b.Name(), snapName)
 	if err != nil {
-		return fmt.Errorf("cannot obtain apparmor specification for snap %q: %s", snapName, err)
+		return nil, nil, nil, fmt.Errorf("cannot obtain apparmor specification for snap %q: %s", snapName, err)
 	}
 
 	// Add snippets for parallel snap installation mapping
@@ -334,7 +328,7 @@ func (b *Backend) Setup(snapInfo *snap.Info, opts interfaces.ConfinementOptions,
 	// core on classic is special
 	if snapName == "core" && release.OnClassic && release.AppArmorLevel() != release.NoAppArmor {
 		if err := setupSnapConfineReexec(snapInfo); err != nil {
-			return fmt.Errorf("cannot create host snap-confine apparmor configuration: %s", err)
+			return nil, nil, nil, fmt.Errorf("cannot create host snap-confine apparmor configuration: %s", err)
 		}
 	}
 
@@ -343,7 +337,7 @@ func (b *Backend) Setup(snapInfo *snap.Info, opts interfaces.ConfinementOptions,
 	// systems but /etc/apparmor.d is not writable on core18 systems
 	if snapInfo.GetType() == snap.TypeSnapd && release.AppArmorLevel() != release.NoAppArmor {
 		if err := setupSnapConfineReexec(snapInfo); err != nil {
-			return fmt.Errorf("cannot create host snap-confine apparmor configuration: %s", err)
+			return nil, nil, nil, fmt.Errorf("cannot create host snap-confine apparmor configuration: %s", err)
 		}
 	}
 
@@ -367,15 +361,19 @@ func (b *Backend) Setup(snapInfo *snap.Info, opts interfaces.ConfinementOptions,
 	// Get the files that this snap should have
 	content, err := b.deriveContent(spec.(*Specification), snapInfo, opts)
 	if err != nil {
-		return fmt.Errorf("cannot obtain expected security files for snap %q: %s", snapName, err)
+		return nil, nil, nil, fmt.Errorf("cannot obtain expected security files for snap %q: %s", snapName, err)
 	}
 	dir := dirs.SnapAppArmorDir
 	globs := profileGlobs(snapInfo.InstanceName())
-	cache := dirs.AppArmorCacheDir
 	if err := os.MkdirAll(dir, 0755); err != nil {
-		return fmt.Errorf("cannot create directory for apparmor profiles %q: %s", dir, err)
+		return nil, nil, nil, fmt.Errorf("cannot create directory for apparmor profiles %q: %s", dir, err)
 	}
-	changed, removed, errEnsure := osutil.EnsureDirStateGlobs(dir, globs, content)
+	changed, removedPaths, errEnsure := osutil.EnsureDirStateGlobs(dir, globs, content)
+	// XXX: in the old code this error was reported late, after doing load/unload.
+	if errEnsure != nil {
+		return nil, nil, nil, fmt.Errorf("cannot synchronize security files for snap %q: %s", snapName, errEnsure)
+	}
+
 	// Find the set of unchanged profiles.
 	unchanged := make([]string, 0, len(content)-len(changed))
 	for name := range content {
@@ -391,32 +389,154 @@ func (b *Backend) Setup(snapInfo *snap.Info, opts interfaces.ConfinementOptions,
 	// the cache (since we know those changed for sure).  This allows us to
 	// work despite time being wrong (e.g. in the past). For more details see
 	// https://forum.snapcraft.io/t/apparmor-profile-caching/1268/18
-	pathnames := make([]string, len(changed))
+	changedPaths = make([]string, len(changed))
 	for i, profile := range changed {
-		pathnames[i] = filepath.Join(dir, profile)
+		changedPaths[i] = filepath.Join(dir, profile)
 	}
-
-	var errReloadChanged error
-	timings.Run(tm, "load-profiles[changed]", fmt.Sprintf("load changed security profiles of snap %q", snapInfo.InstanceName()), func(nesttm timings.Measurer) {
-		errReloadChanged = loadProfiles(pathnames, cache, skipReadCache)
-	})
 
 	// Load all unchanged profiles anyway. This ensures those are correct in
 	// the kernel even if the files on disk were not changed. We rely on
 	// apparmor cache to make this performant.
-	pathnames = make([]string, len(unchanged))
+	unchangedPaths = make([]string, len(unchanged))
 	for i, profile := range unchanged {
-		pathnames[i] = filepath.Join(dir, profile)
+		unchangedPaths[i] = filepath.Join(dir, profile)
 	}
+
+	return changedPaths, removedPaths, unchangedPaths, nil
+}
+
+// Setup creates and loads apparmor profiles specific to a given snap.
+// The snap can be in developer mode to make security violations non-fatal to
+// the offending application process.
+//
+// This method should be called after changing plug, slots, connections between
+// them or application present in the snap.
+func (b *Backend) Setup(snapInfo *snap.Info, opts interfaces.ConfinementOptions, repo *interfaces.Repository, tm timings.Measurer) error {
+	/*
+		snapName := snapInfo.InstanceName()
+		spec, err := repo.SnapSpecification(b.Name(), snapName)
+		if err != nil {
+			return fmt.Errorf("cannot obtain apparmor specification for snap %q: %s", snapName, err)
+		}
+
+		// Add snippets for parallel snap installation mapping
+		spec.(*Specification).AddOvername(snapInfo)
+
+		// Add snippets derived from the layout definition.
+		spec.(*Specification).AddLayout(snapInfo)
+
+		// core on classic is special
+		if snapName == "core" && release.OnClassic && release.AppArmorLevel() != release.NoAppArmor {
+			if err := setupSnapConfineReexec(snapInfo); err != nil {
+				return fmt.Errorf("cannot create host snap-confine apparmor configuration: %s", err)
+			}
+		}
+
+		// Deal with the "snapd" snap - we do the setup slightly differently
+		// here because this will run both on classic and on Ubuntu Core 18
+		// systems but /etc/apparmor.d is not writable on core18 systems
+		if snapInfo.GetType() == snap.TypeSnapd && release.AppArmorLevel() != release.NoAppArmor {
+			if err := setupSnapConfineReexec(snapInfo); err != nil {
+				return fmt.Errorf("cannot create host snap-confine apparmor configuration: %s", err)
+			}
+		}
+
+		// core on core devices is also special, the apparmor cache gets
+		// confused too easy, especially at rollbacks, so we delete the cache.
+		// See LP:#1460152 and
+		// https://forum.snapcraft.io/t/core-snap-revert-issues-on-core-devices/
+		//
+		if (snapInfo.GetType() == snap.TypeOS || snapInfo.GetType() == snap.TypeSnapd) && !release.OnClassic {
+			if li, err := filepath.Glob(filepath.Join(dirs.SystemApparmorCacheDir, "*")); err == nil {
+				for _, p := range li {
+					if st, err := os.Stat(p); err == nil && st.Mode().IsRegular() && profileIsRemovableOnCoreSetup(p) {
+						if err := os.Remove(p); err != nil {
+							logger.Noticef("cannot remove %q: %s", p, err)
+						}
+					}
+				}
+			}
+		}
+
+		// Get the files that this snap should have
+		content, err := b.deriveContent(spec.(*Specification), snapInfo, opts)
+		if err != nil {
+			return fmt.Errorf("cannot obtain expected security files for snap %q: %s", snapName, err)
+		}
+		dir := dirs.SnapAppArmorDir
+		globs := profileGlobs(snapInfo.InstanceName())
+		cache := dirs.AppArmorCacheDir
+		if err := os.MkdirAll(dir, 0755); err != nil {
+			return fmt.Errorf("cannot create directory for apparmor profiles %q: %s", dir, err)
+		}
+		changed, removed, errEnsure := osutil.EnsureDirStateGlobs(dir, globs, content)
+		// Find the set of unchanged profiles.
+		unchanged := make([]string, 0, len(content)-len(changed))
+		for name := range content {
+			// changed is pre-sorted by EnsureDirStateGlobs
+			x := sort.SearchStrings(changed, name)
+			if x < len(changed) && changed[x] == name {
+				continue
+			}
+			unchanged = append(unchanged, name)
+		}
+		sort.Strings(unchanged)
+		// Load all changed profiles with a flag that asks apparmor to skip reading
+		// the cache (since we know those changed for sure).  This allows us to
+		// work despite time being wrong (e.g. in the past). For more details see
+		// https://forum.snapcraft.io/t/apparmor-profile-caching/1268/18
+		pathnames := make([]string, len(changed))
+		for i, profile := range changed {
+			pathnames[i] = filepath.Join(dir, profile)
+		}*/
+
+	changedPaths, removedPaths, unchangedPaths, err := b.prepareProfiles(snapInfo, opts, repo)
+	if err != nil {
+		return err
+	}
+
+	var errReloadChanged error
+	timings.Run(tm, "load-profiles[changed]", fmt.Sprintf("load changed security profiles of snap %q", snapInfo.InstanceName()), func(nesttm timings.Measurer) {
+		errReloadChanged = loadProfiles(changedPaths, dirs.AppArmorCacheDir, skipReadCache)
+	})
 
 	var errReloadOther error
 	timings.Run(tm, "load-profiles[unchanged]", fmt.Sprintf("load unchanged security profiles of snap %q", snapInfo.InstanceName()), func(nesttm timings.Measurer) {
-		errReloadOther = loadProfiles(pathnames, cache, 0)
+		errReloadOther = loadProfiles(unchangedPaths, dirs.AppArmorCacheDir, 0)
 	})
-	errUnload := unloadProfiles(removed, cache)
-	if errEnsure != nil {
-		return fmt.Errorf("cannot synchronize security files for snap %q: %s", snapName, errEnsure)
+	errUnload := unloadProfiles(removedPaths, dirs.AppArmorCacheDir)
+	if errReloadChanged != nil {
+		return errReloadChanged
 	}
+	if errReloadOther != nil {
+		return errReloadOther
+	}
+	return errUnload
+}
+
+func (b *Backend) SetupMany(snaps []*snap.Info, confinement func(snapName string) interfaces.ConfinementOptions, repo *interfaces.Repository, tm timings.Measurer) error {
+	var allChangedPaths, allUnchangedPaths, allRemovedPaths []string
+	for _, snapInfo := range snaps {
+		opts := confinement(snapInfo.InstanceName())
+		changedPaths, removedPaths, unchangedPaths, err := b.prepareProfiles(snapInfo, opts, repo)
+		if err != nil {
+			return err
+		}
+		allChangedPaths = append(allChangedPaths, changedPaths...)
+		allUnchangedPaths = append(allUnchangedPaths, unchangedPaths...)
+		allRemovedPaths = append(allRemovedPaths, removedPaths...)
+	}
+
+	var errReloadChanged error
+	timings.Run(tm, "load-profiles-many[changed]", fmt.Sprintf("load changed security profiles of %d snaps", len(snaps)), func(nesttm timings.Measurer) {
+		errReloadChanged = loadProfiles(allChangedPaths, dirs.AppArmorCacheDir, skipReadCache)
+	})
+
+	var errReloadOther error
+	timings.Run(tm, "load-profiles-many[unchanged]", fmt.Sprintf("load unchanged security profiles %d snaps", len(snaps)), func(nesttm timings.Measurer) {
+		errReloadOther = loadProfiles(allUnchangedPaths, dirs.AppArmorCacheDir, 0)
+	})
+	errUnload := unloadProfiles(allRemovedPaths, dirs.AppArmorCacheDir)
 	if errReloadChanged != nil {
 		return errReloadChanged
 	}

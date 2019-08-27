@@ -98,6 +98,17 @@ func (b *Backend) Setup(snapInfo *snap.Info, confinement interfaces.ConfinementO
 	return errEnsure
 }
 
+func (b *Backend) SetupMany(snaps []*snap.Info, confinement func(snapName string) interfaces.ConfinementOptions, repo *interfaces.Repository, tm timings.Measurer) error {
+	for _, snapInfo := range snaps {
+		opts := confinement(snapInfo.InstanceName())
+		err := b.Setup(snapInfo, opts, repo, tm)
+		if err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
 // Remove disables, stops and removes systemd services of a given snap.
 func (b *Backend) Remove(snapName string) error {
 	systemd := sysd.New(dirs.GlobalRootDir, sysd.SystemMode, &dummyReporter{})

@@ -94,6 +94,17 @@ func (b *Backend) Setup(snapInfo *snap.Info, confinement interfaces.ConfinementO
 	return nil
 }
 
+func (b *Backend) SetupMany(snaps []*snap.Info, confinement func(snapName string) interfaces.ConfinementOptions, repo *interfaces.Repository, tm timings.Measurer) error {
+	for _, snapInfo := range snaps {
+		opts := confinement(snapInfo.InstanceName())
+		err := b.Setup(snapInfo, opts, repo, tm)
+		if err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
 // Remove removes modules config file specific to a given snap.
 //
 // This method should be called after removing a snap.
