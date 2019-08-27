@@ -22,6 +22,7 @@ package gadget_test
 import (
 	"errors"
 	"path/filepath"
+	"strings"
 
 	. "gopkg.in/check.v1"
 
@@ -1228,4 +1229,36 @@ func (u *updateTestSuite) TestUpdaterForStructure(c *C) {
 	updater, err = gadget.UpdaterForStructure(psFs, "", rollbackDir)
 	c.Assert(err, ErrorMatches, "internal error: gadget content directory cannot be unset")
 	c.Assert(updater, IsNil)
+}
+
+func (u *updateTestSuite) TestUpdaterMultiVolumesDoesNotError(c *C) {
+	logbuf, restore := logger.MockLogger()
+	defer restore()
+
+	multiVolume := gadget.GadgetData{
+		Info: &gadget.Info{
+			Volumes: map[string]gadget.Volume{
+				"1": gadget.Volume{},
+				"2": gadget.Volume{},
+			},
+		},
+	}
+	singleVolume := gadget.GadgetData{
+		Info: &gadget.Info{
+			Volumes: map[string]gadget.Volume{
+				"1": gadget.Volume{},
+			},
+		},
+	}
+
+	// a new multi volume gadget update gives no error
+	err := gadget.Update(singleVolume, multiVolume, "some-rollback-dir")
+	c.Assert(err, IsNil)
+	// but it warns that nothing happens either
+	c.Assert(logbuf.String(), testutil.Contains, "WARNING: gadget assests cannot be updated yet when multiple volumes are used")
+
+	// same for old
+	err = gadget.Update(multiVolume, singleVolume, "some-rollback-dir")
+	c.Assert(err, IsNil)
+	c.Assert(strings.Count(logbuf.String(), "WARNING: gadget assests cannot be updated yet when multiple volumes are used"), Equals, 2)
 }
