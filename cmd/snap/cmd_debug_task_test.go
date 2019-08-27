@@ -33,7 +33,7 @@ func (s *SnapSuite) TestDebugTask(c *C) {
 	stateFile := filepath.Join(dir, "test-state.json")
 	c.Assert(ioutil.WriteFile(stateFile, stateJSON, 0644), IsNil)
 
-	rest, err := main.Parser(main.Client()).ParseArgs([]string{"debug", "task", "--task-id=31", stateFile})
+	rest, err := main.Parser(main.Client()).ParseArgs([]string{"debug", "state", "--task=31", stateFile})
 	c.Assert(err, IsNil)
 	c.Assert(rest, DeepEquals, []string{})
 	c.Check(s.Stdout(), Matches, "id: 31\n"+
@@ -51,13 +51,8 @@ func (s *SnapSuite) TestDebugTask(c *C) {
 }
 
 func (s *SnapSuite) TestDebugTaskMissingState(c *C) {
-	_, err := main.Parser(main.Client()).ParseArgs([]string{"debug", "task", "--task-id=1", "/missing-state.json"})
+	_, err := main.Parser(main.Client()).ParseArgs([]string{"debug", "state", "--task=1", "/missing-state.json"})
 	c.Check(err, ErrorMatches, "cannot read the state file: open /missing-state.json: no such file or directory")
-}
-
-func (s *SnapSuite) TestDebugTaskMissingTaskID(c *C) {
-	_, err := main.Parser(main.Client()).ParseArgs([]string{"debug", "task", "state.json"})
-	c.Check(err, ErrorMatches, "the required flag `--task-id' was not specified")
 }
 
 func (s *SnapSuite) TestDebugTaskNoSuchTaskError(c *C) {
@@ -65,6 +60,6 @@ func (s *SnapSuite) TestDebugTaskNoSuchTaskError(c *C) {
 	stateFile := filepath.Join(dir, "test-state.json")
 	c.Assert(ioutil.WriteFile(stateFile, stateJSON, 0644), IsNil)
 
-	_, err := main.Parser(main.Client()).ParseArgs([]string{"debug", "task", "--task-id=99", stateFile})
+	_, err := main.Parser(main.Client()).ParseArgs([]string{"debug", "state", "--task=99", stateFile})
 	c.Check(err, ErrorMatches, "no such task: 99")
 }

@@ -22,27 +22,10 @@ package main
 import (
 	"fmt"
 
-	"github.com/jessevdk/go-flags"
-	"github.com/snapcore/snapd/i18n"
 	"github.com/snapcore/snapd/overlord/state"
 )
 
-type cmdDebugTask struct {
-	baseOfflineDebugCommand
-
-	TaskID string `long:"task-id" required:"yes"`
-}
-
-var shortDebugTaskHelp = i18n.G("Show details of the given task from snapd state file.")
-var longDebugTaskHelp = i18n.G("Show details of the given task from snapd state file, bypassing snapd API.")
-
-func init() {
-	addDebugCommand("task", shortDebugTaskHelp, longDebugTaskHelp, func() flags.Commander {
-		return &cmdDebugTask{}
-	}, map[string]string{"task-id": i18n.G("ID of the task to inspect")}, nil)
-}
-
-func (c *cmdDebugTask) showTask(st *state.State, taskID string) error {
+func (c *cmdDebugState) showTask(st *state.State, taskID string) error {
 	st.Lock()
 	defer st.Unlock()
 
@@ -77,12 +60,4 @@ func (c *cmdDebugTask) showTask(st *state.State, taskID string) error {
 	}
 
 	return nil
-}
-
-func (c *cmdDebugTask) Execute(args []string) error {
-	st, err := loadState(c.Positional.StateFilePath)
-	if err != nil {
-		return err
-	}
-	return c.showTask(st, c.TaskID)
 }

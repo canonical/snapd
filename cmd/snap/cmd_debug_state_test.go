@@ -102,7 +102,7 @@ func (s *SnapSuite) TestDebugChanges(c *C) {
 	stateFile := filepath.Join(dir, "test-state.json")
 	c.Assert(ioutil.WriteFile(stateFile, stateJSON, 0644), IsNil)
 
-	rest, err := main.Parser(main.Client()).ParseArgs([]string{"debug", "changes", stateFile})
+	rest, err := main.Parser(main.Client()).ParseArgs([]string{"debug", "state", "--changes", stateFile})
 	c.Assert(err, IsNil)
 	c.Assert(rest, DeepEquals, []string{})
 	c.Check(s.Stdout(), Matches,
@@ -113,6 +113,6 @@ func (s *SnapSuite) TestDebugChanges(c *C) {
 }
 
 func (s *SnapSuite) TestDebugChangesMissingState(c *C) {
-	_, err := main.Parser(main.Client()).ParseArgs([]string{"debug", "changes", "/missing-state.json"})
+	_, err := main.Parser(main.Client()).ParseArgs([]string{"debug", "state", "--changes", "/missing-state.json"})
 	c.Check(err, ErrorMatches, "cannot read the state file: open /missing-state.json: no such file or directory")
 }

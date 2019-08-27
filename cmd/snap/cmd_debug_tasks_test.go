@@ -33,7 +33,7 @@ func (s *SnapSuite) TestDebugTasks(c *C) {
 	stateFile := filepath.Join(dir, "test-state.json")
 	c.Assert(ioutil.WriteFile(stateFile, stateJSON, 0644), IsNil)
 
-	rest, err := main.Parser(main.Client()).ParseArgs([]string{"debug", "tasks", "--change-id=1", stateFile})
+	rest, err := main.Parser(main.Client()).ParseArgs([]string{"debug", "state", "--change=1", stateFile})
 	c.Assert(err, IsNil)
 	c.Assert(rest, DeepEquals, []string{})
 	c.Check(s.Stdout(), Matches,
@@ -44,11 +44,6 @@ func (s *SnapSuite) TestDebugTasks(c *C) {
 }
 
 func (s *SnapSuite) TestDebugTasksMissingState(c *C) {
-	_, err := main.Parser(main.Client()).ParseArgs([]string{"debug", "tasks", "--change-id=1", "/missing-state.json"})
+	_, err := main.Parser(main.Client()).ParseArgs([]string{"debug", "state", "--change=1", "/missing-state.json"})
 	c.Check(err, ErrorMatches, "cannot read the state file: open /missing-state.json: no such file or directory")
-}
-
-func (s *SnapSuite) TestDebugTasksMissingChangeID(c *C) {
-	_, err := main.Parser(main.Client()).ParseArgs([]string{"debug", "tasks", "state.json"})
-	c.Check(err, ErrorMatches, "the required flag `--change-id' was not specified")
 }

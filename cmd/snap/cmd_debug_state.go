@@ -23,6 +23,7 @@ import (
 	"fmt"
 	"os"
 	"sort"
+	"strconv"
 	"text/tabwriter"
 	"time"
 
@@ -31,20 +32,25 @@ import (
 	"github.com/snapcore/snapd/overlord/state"
 )
 
-type baseOfflineDebugCommand struct {
+type cmdDebugState struct {
 	st *state.State
+
+	Changes  bool   `long:"changes"`
+	TaskID   string `long:"task"`
+	ChangeID string `long:"change"`
+
+	// flags for --change=N output
+	DotOutput bool `long:"dot"` // XXX: mildly useful (too crowded in many cases), but let's have it just in case
+	// When inspecting errors/undone tasks, those in Hold state are usually irrelevant, make it possible to ignore them
+	NoHoldState bool `long:"no-hold"`
 
 	Positional struct {
 		StateFilePath string `positional-args:"yes" positional-arg-name:"<state-file>"`
 	} `positional-args:"yes"`
 }
 
-type cmdDebugChanges struct {
-	baseOfflineDebugCommand
-}
-
-var shortDebugChangesHelp = i18n.G("Show all changes from a snapd state file.")
-var longDebugChangesHelp = i18n.G("Show all changes from a snapd state file, bypassing snapd API.")
+var cmdDebugStateShortHelp = i18n.G("Inspect a snapd state file.")
+var cmdDebugStateLongHelp = i18n.G("Inspect a snapd state file, bypassing snapd API.")
 
 type byChangeID []*state.Change
 
@@ -76,12 +82,18 @@ func loadState(path string) (*state.State, error) {
 }
 
 func init() {
-	addDebugCommand("changes", shortDebugChangesHelp, longDebugChangesHelp, func() flags.Commander {
-		return &cmdDebugChanges{}
-	}, nil, nil)
+	addDebugCommand("state", cmdDebugStateShortHelp, cmdDebugStateLongHelp, func() flags.Commander {
+		return &cmdDebugState{}
+	}, map[string]string{
+		"change":  i18n.G("ID of the change to inspect"),
+		"task":    i18n.G("ID of the task to inspect"),
+		"dot":     i18n.G("Dot (graphviz) output"),
+		"no-hold": i18n.G("Omit tasks in 'Hold' state in the change output"),
+		"changes": i18n.G("List all changes"),
+	}, nil)
 }
 
-func (c *cmdDebugChanges) showChanges(st *state.State) error {
+func (c *cmdDebugState) showChanges(st *state.State) error {
 	st.Lock()
 	defer st.Unlock()
 
@@ -98,11 +110,57 @@ func (c *cmdDebugChanges) showChanges(st *state.State) error {
 	return nil
 }
 
-func (c *cmdDebugChanges) Execute(args []string) error {
+func (c *cmdDebugState) Execute(args []string) error {
 	st, err := loadState(c.Positional.StateFilePath)
 	if err != nil {
 		return err
 	}
 
+	// check valid combinations of args
+	var cmds int
+	if c.Changes {
+		cmds++
+	}
+	if c.ChangeID != "" {
+		cmds++
+	}
+	if c.TaskID != "" {
+		cmds++
+	}
+	if cmds > 1 {
+		return fmt.Errorf("cannot use --changes, --change= or --task= together")
+	}
+
+	if c.DotOutput && c.ChangeID == "" {
+		return fmt.Errorf("--dot can only be used with --change=")
+	}
+	if c.NoHoldState && c.ChangeID == "" {
+		return fmt.Errorf("--no-hold can only be used with --change=")
+	}
+
+	if c.Changes {
+		return c.showChanges(st)
+	}
+
+	if c.ChangeID != "" {
+		_, err := strconv.ParseInt(c.ChangeID, 0, 64)
+		if err != nil {
+			return fmt.Errorf("invalid change: %s", c.ChangeID)
+		}
+		if c.DotOutput {
+			return c.writeDotOutput(st, c.ChangeID)
+		}
+		return c.showTasks(st, c.ChangeID)
+	}
+
+	if c.TaskID != "" {
+		_, err := strconv.ParseInt(c.TaskID, 0, 64)
+		if err != nil {
+			return fmt.Errorf("invalid task: %s", c.TaskID)
+		}
+		return c.showTask(st, c.TaskID)
+	}
+
+	// show changes by default
 	return c.showChanges(st)
 }

@@ -25,38 +25,8 @@ import (
 	"strings"
 	"text/tabwriter"
 
-	"github.com/jessevdk/go-flags"
-	"github.com/snapcore/snapd/i18n"
 	"github.com/snapcore/snapd/overlord/state"
 )
-
-type cmdDebugTasks struct {
-	baseOfflineDebugCommand
-
-	ChangeID  string `long:"change-id" required:"yes"`
-	DotOutput bool   `long:"dot"` // XXX: mildly useful (too crowded in many cases), but let's have it just in case
-
-	// When inspecting errors/undone tasks, those in Hold state are usually irrelevant, make it possible to ignore them
-	NoHoldState bool `long:"no-hold"`
-}
-
-var shortDebugTasksHelp = i18n.G("Show all tasks of the given change from snapd state file.")
-var longDebugTasksHelp = i18n.G("Show all tasks of the given change from snapd state file, bypassing snapd API.")
-
-func init() {
-	descs := map[string]string{
-		"change-id": i18n.G("ID of the change to inspect"),
-		"dot":       i18n.G("Dot (graphviz) output"),
-		"no-hold":   i18n.G("Omit tasks in 'Hold' state in the output"),
-	}
-	// tasks and change commands do the same and exist for symmetry with 'snap change' / 'snap tasks'.
-	addDebugCommand("tasks", shortDebugTasksHelp, longDebugTasksHelp, func() flags.Commander {
-		return &cmdDebugTasks{}
-	}, descs, nil)
-	addDebugCommand("change", shortDebugTasksHelp, longDebugTasksHelp, func() flags.Commander {
-		return &cmdDebugTasks{}
-	}, descs, nil)
-}
 
 type byLaneAndWaitTaskChain []*state.Task
 
@@ -83,7 +53,7 @@ func waitChainSearch(startT, searchT *state.Task) bool {
 	return false
 }
 
-func (c *cmdDebugTasks) writeDotOutput(st *state.State, changeID string) error {
+func (c *cmdDebugState) writeDotOutput(st *state.State, changeID string) error {
 	st.Lock()
 	defer st.Unlock()
 
@@ -111,7 +81,7 @@ func (c *cmdDebugTasks) writeDotOutput(st *state.State, changeID string) error {
 	return nil
 }
 
-func (c *cmdDebugTasks) showTasks(st *state.State, changeID string) error {
+func (c *cmdDebugState) showTasks(st *state.State, changeID string) error {
 	st.Lock()
 	defer st.Unlock()
 
@@ -150,16 +120,4 @@ func (c *cmdDebugTasks) showTasks(st *state.State, changeID string) error {
 	}
 
 	return nil
-}
-
-func (c *cmdDebugTasks) Execute(args []string) error {
-	st, err := loadState(c.Positional.StateFilePath)
-	if err != nil {
-		return err
-	}
-
-	if c.DotOutput {
-		return c.writeDotOutput(st, c.ChangeID)
-	}
-	return c.showTasks(st, c.ChangeID)
 }

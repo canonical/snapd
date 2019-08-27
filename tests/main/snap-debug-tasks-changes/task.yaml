@@ -14,21 +14,21 @@ execute: |
     systemctl stop snapd.{socket,service}
 
     echo "Changes can be listed"
-    snap debug changes /var/lib/snapd/state.json | MATCH "seed .*Initialize system state"
+    snap debug state --changes /var/lib/snapd/state.json | MATCH "seed .*Initialize system state"
+    snap debug state /var/lib/snapd/state.json | MATCH "seed .*Initialize system state"
 
     echo "Snap changes defaults to state.json in the current directory"
     cd /var/lib/snapd
-    snap debug changes | MATCH "install-snap .*Install \"hello-world\" snap"
+    snap debug state --changes | MATCH "install-snap .*Install \"hello-world\" snap"
 
     echo "Tasks can be listed"
-    snap debug tasks --change-id=1 /var/lib/snapd/state.json | MATCH "mark-seeded .*Mark system seeded"
-    snap debug change --change-id=1 /var/lib/snapd/state.json | MATCH "mark-seeded .*Mark system seeded"
+    snap debug state --change=1 /var/lib/snapd/state.json | MATCH "mark-seeded .*Mark system seeded"
 
     echo "Individual task can be examined"
-    snap debug task --task-id=1 /var/lib/snapd/state.json | MATCH "kind: mark-seeded"
-    snap debug task --task-id=1 /var/lib/snapd/state.json | MATCH "summary: Mark system seeded"
+    snap debug state --task=1 /var/lib/snapd/state.json | MATCH "kind: mark-seeded"
+    snap debug state --task=1 /var/lib/snapd/state.json | MATCH "summary: Mark system seeded"
 
     # sanity check, dot shouldn't fail
     if [[ "$SPREAD_SYSTEM" == ubuntu-1* ]]; then
-        snap debug tasks --change-id=1 --dot /var/lib/snapd/state.json | dot -Tpng > out.png
+        snap debug state --change=1 --dot /var/lib/snapd/state.json | dot -Tpng > out.png
     fi
