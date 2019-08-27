@@ -648,6 +648,23 @@ restore_project_each() {
 
     # Something is hosing the filesystem so look for signs of that
     not grep -F "//deleted /etc" /proc/self/mountinfo
+
+    if journalctl -u snapd.service | grep -F "signal: terminated"; then
+        exit 1;
+    fi
+
+    case "$SPREAD_SYSTEM" in
+        fedora-*|centos-*)
+            # Make sure that we are not leaving behind incorrectly labeled snap
+            # files on systems supporting SELinux
+            (
+                find /root/snap -printf '%Z\t%H/%P\n' || true
+                find /home -regex '/home/[^/]*/snap\(/.*\)?' -printf '%Z\t%H/%P\n' || true
+            ) | grep -c -v snappy_home_t | MATCH "0"
+
+            find /var/snap -printf '%Z\t%H/%P\n' | grep -c -v snappy_var_t  | MATCH "0"
+            ;;
+    esac
 }
 
 restore_project() {
