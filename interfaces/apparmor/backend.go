@@ -514,36 +514,57 @@ func (b *Backend) Setup(snapInfo *snap.Info, opts interfaces.ConfinementOptions,
 	return errUnload
 }
 
-func (b *Backend) SetupMany(snaps []*snap.Info, confinement func(snapName string) interfaces.ConfinementOptions, repo *interfaces.Repository, tm timings.Measurer) error {
+func (b *Backend) SetupMany(snaps []*snap.Info, confinement func(snapName string) interfaces.ConfinementOptions, repo *interfaces.Repository, tm timings.Measurer) []error {
 	var allChangedPaths, allUnchangedPaths, allRemovedPaths []string
+	var fallback bool
 	for _, snapInfo := range snaps {
 		opts := confinement(snapInfo.InstanceName())
 		changedPaths, removedPaths, unchangedPaths, err := b.prepareProfiles(snapInfo, opts, repo)
 		if err != nil {
-			return err
+			fallback = true
+			break
 		}
 		allChangedPaths = append(allChangedPaths, changedPaths...)
 		allUnchangedPaths = append(allUnchangedPaths, unchangedPaths...)
 		allRemovedPaths = append(allRemovedPaths, removedPaths...)
 	}
 
-	var errReloadChanged error
-	timings.Run(tm, "load-profiles-many[changed]", fmt.Sprintf("load changed security profiles of %d snaps", len(snaps)), func(nesttm timings.Measurer) {
-		errReloadChanged = loadProfiles(allChangedPaths, dirs.AppArmorCacheDir, skipReadCache)
-	})
+	if !fallback {
+		var errReloadChanged error
+		timings.Run(tm, "load-profiles-many[changed]", fmt.Sprintf("load changed security profiles of %d snaps", len(snaps)), func(nesttm timings.Measurer) {
+			errReloadChanged = loadProfiles(allChangedPaths, dirs.AppArmorCacheDir, skipReadCache)
+		})
 
-	var errReloadOther error
-	timings.Run(tm, "load-profiles-many[unchanged]", fmt.Sprintf("load unchanged security profiles %d snaps", len(snaps)), func(nesttm timings.Measurer) {
-		errReloadOther = loadProfiles(allUnchangedPaths, dirs.AppArmorCacheDir, 0)
-	})
-	errUnload := unloadProfiles(allRemovedPaths, dirs.AppArmorCacheDir)
-	if errReloadChanged != nil {
-		return errReloadChanged
+		var errReloadOther error
+		timings.Run(tm, "load-profiles-many[unchanged]", fmt.Sprintf("load unchanged security profiles %d snaps", len(snaps)), func(nesttm timings.Measurer) {
+			errReloadOther = loadProfiles(allUnchangedPaths, dirs.AppArmorCacheDir, 0)
+		})
+		errUnload := unloadProfiles(allRemovedPaths, dirs.AppArmorCacheDir)
+		if errReloadChanged != nil {
+			logger.Noticef("failed to reload changed profiles: %s", errReloadChanged)
+			fallback = true
+		}
+		if errReloadOther != nil {
+			logger.Noticef("failed to reload unchanged profiles: %s", errReloadOther)
+			fallback = true
+		}
+		if errUnload != nil {
+			logger.Noticef("failed to unload profiles: %s", errUnload)
+			fallback = true
+		}
 	}
-	if errReloadOther != nil {
-		return errReloadOther
+
+	var errors []error
+	// if an error was encountered when processing all profiles at once, re-try them one by one
+	if fallback {
+		for _, snapInfo := range snaps {
+			opts := confinement(snapInfo.InstanceName())
+			if err := b.Setup(snapInfo, opts, repo, tm); err != nil {
+				errors = append(errors, fmt.Errorf("failed to setup profiles for snap %q: %s", snapInfo.InstanceName(), err))
+			}
+		}
 	}
-	return errUnload
+	return errors
 }
 
 // Remove removes and unloads apparmor profiles of a given snap.

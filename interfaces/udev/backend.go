@@ -129,17 +129,6 @@ func (b *Backend) Setup(snapInfo *snap.Info, opts interfaces.ConfinementOptions,
 	return ReloadRules(subsystemTriggers)
 }
 
-func (b *Backend) SetupMany(snaps []*snap.Info, confinement func(snapName string) interfaces.ConfinementOptions, repo *interfaces.Repository, tm timings.Measurer) error {
-	for _, snapInfo := range snaps {
-		opts := confinement(snapInfo.InstanceName())
-		err := b.Setup(snapInfo, opts, repo, tm)
-		if err != nil {
-			return err
-		}
-	}
-	return nil
-}
-
 // Remove removes udev rules specific to a given snap.
 // If any of the rules are removed then udev database is reloaded.
 //

@@ -30,14 +30,10 @@ type TestSecurityBackend struct {
 	BackendName interfaces.SecuritySystem
 	// SetupCalls stores information about all calls to Setup
 	SetupCalls []TestSetupCall
-	// SetupManyCalls stores information about all calls to SetupMany
-	SetupManyCalls []TestSetupManyCall
 	// RemoveCalls stores information about all calls to Remove
 	RemoveCalls []string
 	// SetupCallback is an callback that is optionally called in Setup
 	SetupCallback func(snapInfo *snap.Info, opts interfaces.ConfinementOptions, repo *interfaces.Repository) error
-	// SetupManyCallback is an callback that is optionally called in SetupMany
-	SetupManyCallback func(snaps []*snap.Info, confinement func(snapName string) interfaces.ConfinementOptions, repo *interfaces.Repository) error
 	// RemoveCallback is a callback that is optionally called in Remove
 	RemoveCallback func(snapName string) error
 	// SandboxFeaturesCallback is a callback that is optionally called in SandboxFeatures
@@ -50,12 +46,6 @@ type TestSetupCall struct {
 	SnapInfo *snap.Info
 	// Options is a copy of the confinement options to a particular call to Setup
 	Options interfaces.ConfinementOptions
-}
-
-// TestSetupManyCall stores details about calls to TestSecurityBackend.SetupMany
-type TestSetupManyCall struct {
-	// SnapInfos is a copy of the snapInfo arguments to a particular call to SetupMany
-	SnapInfos []*snap.Info
 }
 
 // Initialize does nothing.
@@ -75,14 +65,6 @@ func (b *TestSecurityBackend) Setup(snapInfo *snap.Info, opts interfaces.Confine
 		return nil
 	}
 	return b.SetupCallback(snapInfo, opts, repo)
-}
-
-func (b *TestSecurityBackend) SetupMany(snaps []*snap.Info, confinement func(snapName string) interfaces.ConfinementOptions, repo *interfaces.Repository, tm timings.Measurer) error {
-	b.SetupManyCalls = append(b.SetupManyCalls, TestSetupManyCall{SnapInfos: snaps})
-	if b.SetupManyCallback == nil {
-		return nil
-	}
-	return b.SetupManyCallback(snaps, confinement, repo)
 }
 
 // Remove records information about the call and calls the remove callback if one is defined
