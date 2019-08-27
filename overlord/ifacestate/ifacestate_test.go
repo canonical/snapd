@@ -2615,7 +2615,7 @@ slots:
 
 	// Because of the fact that during testing the system key always
 	// mismatches, the security setup is performed.
-	c.Check(secBackend.SetupManyCalls, HasLen, 1)
+	c.Check(secBackend.SetupCalls, HasLen, 2)
 }
 
 // LP:#1825883; make sure static attributes in conns state are updated from the snap yaml on snap refresh (content interface only)
@@ -4807,7 +4807,7 @@ func (s *interfaceManagerSuite) TestStartupTimings(c *C) {
 	c.Assert(ok, Equals, true)
 	tm := timingsList[0].(map[string]interface{})
 	c.Check(tm["label"], Equals, "setup-security-backend")
-	c.Check(tm["summary"], Matches, `setup security backend "fake"`)
+	c.Check(tm["summary"], Matches, `setup security backend "fake" for snap "consumer"`)
 
 	tags, ok := allTimings[0]["tags"]
 	c.Assert(ok, Equals, true)

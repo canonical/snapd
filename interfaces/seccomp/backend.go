@@ -225,17 +225,6 @@ func (b *Backend) Setup(snapInfo *snap.Info, opts interfaces.ConfinementOptions,
 	return nil
 }
 
-func (b *Backend) SetupMany(snaps []*snap.Info, confinement func(snapName string) interfaces.ConfinementOptions, repo *interfaces.Repository, tm timings.Measurer) error {
-	for _, snapInfo := range snaps {
-		opts := confinement(snapInfo.InstanceName())
-		err := b.Setup(snapInfo, opts, repo, tm)
-		if err != nil {
-			return err
-		}
-	}
-	return nil
-}
-
 // Remove removes seccomp profiles of a given snap.
 func (b *Backend) Remove(snapName string) error {
 	glob := interfaces.SecurityTagGlob(snapName)

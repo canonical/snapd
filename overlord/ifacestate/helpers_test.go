@@ -358,10 +358,7 @@ func (s *helpersSuite) TestSystemKeyAndFailingProfileRegeneration(c *C) {
 	// test backends with empty name for convenience.
 	backend := &ifacetest.TestSecurityBackend{
 		BackendName: "BROKEN",
-		/*SetupCallback: func(snapInfo *snap.Info, opts interfaces.ConfinementOptions, repo *interfaces.Repository) error {
-			return errors.New("cannot setup security profile")
-		},*/
-		SetupManyCallback: func(snaps []*snap.Info, confinement func(snapName string) interfaces.ConfinementOptions, repo *interfaces.Repository) error {
+		SetupCallback: func(snapInfo *snap.Info, opts interfaces.ConfinementOptions, repo *interfaces.Repository) error {
 			return errors.New("cannot setup security profile")
 		},
 	}
