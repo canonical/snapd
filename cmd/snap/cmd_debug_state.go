@@ -24,6 +24,7 @@ import (
 	"os"
 	"sort"
 	"strconv"
+	"strings"
 	"text/tabwriter"
 	"time"
 
@@ -93,6 +94,100 @@ func init() {
 	}, nil)
 }
 
+type byLaneAndWaitTaskChain []*state.Task
+
+func (t byLaneAndWaitTaskChain) Len() int      { return len(t) }
+func (t byLaneAndWaitTaskChain) Swap(i, j int) { t[i], t[j] = t[j], t[i] }
+func (t byLaneAndWaitTaskChain) Less(i, j int) bool {
+	// cover the typical case (just one lane), and order by first lane
+	if t[i].Lanes()[0] == t[j].Lanes()[0] {
+		return waitChainSearch(t[i], t[j])
+	}
+	return t[i].Lanes()[0] < t[j].Lanes()[0]
+}
+
+func waitChainSearch(startT, searchT *state.Task) bool {
+	for _, cand := range startT.HaltTasks() {
+		if cand == searchT {
+			return true
+		}
+		if waitChainSearch(cand, searchT) {
+			return true
+		}
+	}
+
+	return false
+}
+
+func (c *cmdDebugState) writeDotOutput(st *state.State, changeID string) error {
+	st.Lock()
+	defer st.Unlock()
+
+	chg := st.Change(changeID)
+	if chg == nil {
+		return fmt.Errorf("no such change: %s", changeID)
+	}
+
+	fmt.Fprintf(Stdout, "digraph D{\n")
+	tasks := chg.Tasks()
+	for _, t := range tasks {
+		if c.NoHoldState && t.Status() == state.HoldStatus {
+			continue
+		}
+		fmt.Fprintf(Stdout, "  %s [label=%q];\n", t.ID(), t.Kind())
+		for _, wt := range t.WaitTasks() {
+			if c.NoHoldState && wt.Status() == state.HoldStatus {
+				continue
+			}
+			fmt.Fprintf(Stdout, "  %s -> %s;\n", t.ID(), wt.ID())
+		}
+	}
+	fmt.Fprintf(Stdout, "}\n")
+
+	return nil
+}
+
+func (c *cmdDebugState) showTasks(st *state.State, changeID string) error {
+	st.Lock()
+	defer st.Unlock()
+
+	chg := st.Change(changeID)
+	if chg == nil {
+		return fmt.Errorf("no such change: %s", changeID)
+	}
+
+	tasks := chg.Tasks()
+	sort.Sort(byLaneAndWaitTaskChain(tasks))
+
+	w := tabwriter.NewWriter(Stdout, 5, 3, 2, ' ', 0)
+	fmt.Fprintf(w, "Lanes\tID\tStatus\tSpawn\tReady\tKind\tSummary\n")
+	for _, t := range tasks {
+		if c.NoHoldState && t.Status() == state.HoldStatus {
+			continue
+		}
+		var lanes []string
+		for _, lane := range t.Lanes() {
+			lanes = append(lanes, fmt.Sprintf("%d", lane))
+		}
+		fmt.Fprintf(w, "%s\t%s\t%s\t%s\t%s\t%s\t%s\n", strings.Join(lanes, ","), t.ID(), t.Status().String(), formatTime(t.SpawnTime()), formatTime(t.ReadyTime()), t.Kind(), t.Summary())
+	}
+
+	w.Flush()
+
+	for _, t := range tasks {
+		logs := t.Log()
+		if len(logs) > 0 {
+			fmt.Fprintf(Stdout, "---\n")
+			fmt.Fprintf(Stdout, "%s %s\n", t.ID(), t.Summary())
+			for _, log := range logs {
+				fmt.Fprintf(Stdout, "  %s\n", log)
+			}
+		}
+	}
+
+	return nil
+}
+
 func (c *cmdDebugState) showChanges(st *state.State) error {
 	st.Lock()
 	defer st.Unlock()
@@ -106,6 +201,43 @@ func (c *cmdDebugState) showChanges(st *state.State) error {
 		fmt.Fprintf(w, "%s\t%s\t%s\t%s\t%s\t%s\n", chg.ID(), chg.Status().String(), formatTime(chg.SpawnTime()), formatTime(chg.ReadyTime()), chg.Kind(), chg.Summary())
 	}
 	w.Flush()
+
+	return nil
+}
+
+func (c *cmdDebugState) showTask(st *state.State, taskID string) error {
+	st.Lock()
+	defer st.Unlock()
+
+	task := st.Task(taskID)
+	if task == nil {
+		return fmt.Errorf("no such task: %s", taskID)
+	}
+
+	termWidth, _ := termSize()
+	termWidth -= 3
+	if termWidth > 100 {
+		// any wider than this and it gets hard to read
+		termWidth = 100
+	}
+
+	// the output of 'debug task' is yaml'ish
+	fmt.Fprintf(Stdout, "id: %s\nkind: %s\nsummary: %s\nstatus: %s\n\n", taskID, task.Kind(), task.Summary(), task.Status().String())
+	log := task.Log()
+	if len(log) > 0 {
+		fmt.Fprintf(Stdout, "log: |\n")
+		for _, msg := range log {
+			if err := wrapLine(Stdout, []rune(msg), "  ", termWidth); err != nil {
+				break
+			}
+		}
+		fmt.Fprintln(Stdout)
+	}
+
+	fmt.Fprintf(Stdout, "tasks waiting for %s:\n", taskID)
+	for _, ht := range task.HaltTasks() {
+		fmt.Fprintf(Stdout, " - %s (%s)\n", ht.Kind(), ht.ID())
+	}
 
 	return nil
 }
