@@ -75,6 +75,20 @@ static void test_feature_enabled__present_file(void)
 	g_assert(sc_feature_enabled(SC_FEATURE_PER_USER_MOUNT_NAMESPACE));
 }
 
+static void test_feature_parallel_instances(void)
+{
+	const char *d = sc_testdir();
+	sc_mock_feature_flag_dir(d);
+
+	g_assert(!sc_feature_enabled(SC_FEATURE_PARALLEL_INSTANCES));
+
+	char pname[PATH_MAX];
+	sc_must_snprintf(pname, sizeof pname, "%s/parallel-instances", d);
+	g_file_set_contents(pname, "", -1, NULL);
+
+	g_assert(sc_feature_enabled(SC_FEATURE_PARALLEL_INSTANCES));
+}
+
 static void __attribute__((constructor)) init(void)
 {
 	g_test_add_func("/feature/missing_dir",
@@ -83,4 +97,6 @@ static void __attribute__((constructor)) init(void)
 			test_feature_enabled__missing_file);
 	g_test_add_func("/feature/present_file",
 			test_feature_enabled__present_file);
+	g_test_add_func("/feature/parallel_instances",
+			test_feature_parallel_instances);
 }
