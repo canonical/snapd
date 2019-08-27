@@ -27,23 +27,3 @@ import (
 
 	"github.com/snapcore/snapd/cmd/snap"
 )
-
-func (s *SnapSuite) TestDebugTasks(c *C) {
-	dir := c.MkDir()
-	stateFile := filepath.Join(dir, "test-state.json")
-	c.Assert(ioutil.WriteFile(stateFile, stateJSON, 0644), IsNil)
-
-	rest, err := main.Parser(main.Client()).ParseArgs([]string{"debug", "state", "--change=1", stateFile})
-	c.Assert(err, IsNil)
-	c.Assert(rest, DeepEquals, []string{})
-	c.Check(s.Stdout(), Matches,
-		"Lanes  ID   Status  Spawn                 Ready                 Kind             Summary\n"+
-			"0      11   Done    0001-01-01T00:00:00Z  0001-01-01T00:00:00Z  download-snap    Download snap a from channel edge\n"+
-			"0      12   Do      0001-01-01T00:00:00Z  0001-01-01T00:00:00Z  some-other-task  \n")
-	c.Check(s.Stderr(), Equals, "")
-}
-
-func (s *SnapSuite) TestDebugTasksMissingState(c *C) {
-	_, err := main.Parser(main.Client()).ParseArgs([]string{"debug", "state", "--change=1", "/missing-state.json"})
-	c.Check(err, ErrorMatches, "cannot read the state file: open /missing-state.json: no such file or directory")
-}
