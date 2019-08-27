@@ -22,8 +22,6 @@ package devicestate
 import (
 	"errors"
 	"fmt"
-	"io/ioutil"
-	"os"
 	"path/filepath"
 	"sort"
 
@@ -297,15 +295,6 @@ func populateStateFromSeedImpl(st *state.State, tm timings.Measurer) ([]*state.T
 	return tsAll, nil
 }
 
-func readAsserts(fn string, batch *asserts.Batch) ([]*asserts.Ref, error) {
-	f, err := os.Open(fn)
-	if err != nil {
-		return nil, err
-	}
-	defer f.Close()
-	return batch.AddStream(f)
-}
-
 func importAssertionsFromSeed(st *state.State) (*asserts.Model, error) {
 	// TODO: use some kind of context fo Device/SetDevice?
 	device, err := internal.Device(st)
@@ -313,10 +302,22 @@ func importAssertionsFromSeed(st *state.State) (*asserts.Model, error) {
 		return nil, err
 	}
 
-	// set device,model from the model assertion
 	assertSeedDir := filepath.Join(dirs.SnapSeedDir, "assertions")
-	dc, err := ioutil.ReadDir(assertSeedDir)
-	if release.OnClassic && os.IsNotExist(err) {
+	// collect and
+	// set device,model from the model assertion
+	var modelRef *asserts.Ref
+	checkForModel := func(ref *asserts.Ref) error {
+		if ref.Type == asserts.ModelType {
+			if modelRef != nil && modelRef.Unique() != ref.Unique() {
+				return fmt.Errorf("cannot add more than one model assertion")
+			}
+			modelRef = ref
+		}
+		return nil
+	}
+
+	batch, err := seed.LoadAssertions(assertSeedDir, checkForModel)
+	if err == seed.ErrNoAssertions && release.OnClassic {
 		// on classic seeding is optional
 		// set the fallback model
 		err := setClassicFallbackModel(st, device)
@@ -326,27 +327,9 @@ func importAssertionsFromSeed(st *state.State) (*asserts.Model, error) {
 		return nil, errNothingToDo
 	}
 	if err != nil {
-		return nil, fmt.Errorf("cannot read assert seed dir: %s", err)
+		return nil, err
 	}
 
-	// collect
-	var modelRef *asserts.Ref
-	batch := asserts.NewBatch(nil)
-	for _, fi := range dc {
-		fn := filepath.Join(assertSeedDir, fi.Name())
-		refs, err := readAsserts(fn, batch)
-		if err != nil {
-			return nil, fmt.Errorf("cannot read assertions: %s", err)
-		}
-		for _, ref := range refs {
-			if ref.Type == asserts.ModelType {
-				if modelRef != nil && modelRef.Unique() != ref.Unique() {
-					return nil, fmt.Errorf("cannot add more than one model assertion")
-				}
-				modelRef = ref
-			}
-		}
-	}
 	// verify we have one model assertion
 	if modelRef == nil {
 		return nil, fmt.Errorf("need a model assertion")
