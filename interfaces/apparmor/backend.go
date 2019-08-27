@@ -454,12 +454,12 @@ func (b *Backend) SetupMany(snaps []*snap.Info, confinement func(snapName string
 	if !fallback {
 		var errReloadChanged error
 		timings.Run(tm, "load-profiles-many[changed]", fmt.Sprintf("load changed security profiles of %d snaps", len(snaps)), func(nesttm timings.Measurer) {
-			errReloadChanged = loadProfiles(allChangedPaths, dirs.AppArmorCacheDir, skipReadCache)
+			errReloadChanged = loadProfiles(allChangedPaths, dirs.AppArmorCacheDir, skipReadCache|conserveCPU)
 		})
 
 		var errReloadOther error
 		timings.Run(tm, "load-profiles-many[unchanged]", fmt.Sprintf("load unchanged security profiles %d snaps", len(snaps)), func(nesttm timings.Measurer) {
-			errReloadOther = loadProfiles(allUnchangedPaths, dirs.AppArmorCacheDir, 0)
+			errReloadOther = loadProfiles(allUnchangedPaths, dirs.AppArmorCacheDir, conserveCPU)
 		})
 		errUnload := unloadProfiles(allRemovedPaths, dirs.AppArmorCacheDir)
 		if errReloadChanged != nil {
