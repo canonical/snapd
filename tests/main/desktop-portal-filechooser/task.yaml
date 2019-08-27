@@ -59,7 +59,13 @@ execute: |
     touch /tmp/file-to-write.txt
     chown test:test /tmp/file-to-write.txt
     as_user test-snapd-portal-client save-file "from-sandbox"
-    [ -f /tmp/file-to-write.txt ]
+    # Rerty checking until the file contains the written text
+    for _ in $(seq 5); do
+        if [ -f /tmp/file-to-write.txt ] && MATCH "from-sandbox" < /tmp/file-to-write.txt; then
+            break
+        fi
+        sleep 1
+    done
     MATCH "from-sandbox" < /tmp/file-to-write.txt
 
 debug: |
