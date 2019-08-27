@@ -467,17 +467,6 @@ func (s *imageSuite) TestMissingGadgetUnpackDir(c *C) {
 	c.Assert(err, ErrorMatches, `cannot create gadget unpack dir "": mkdir : no such file or directory`)
 }
 
-func infoFromSnapYaml(c *C, snapYaml string, rev snap.Revision) *snap.Info {
-	info, err := snap.InfoFromSnapYaml([]byte(snapYaml))
-	c.Assert(err, IsNil)
-
-	if !rev.Unset() {
-		info.SnapID = info.InstanceName() + "-Id"
-		info.Revision = rev
-	}
-	return info
-}
-
 func (s *imageSuite) TestDownloadUnpackGadget(c *C) {
 	files := [][]string{
 		{"subdir/canary.txt", "I'm a canary"},
