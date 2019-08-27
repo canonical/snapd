@@ -72,7 +72,7 @@ int main(int argc, char *argv[])
 	 */
 
 	if (mkdir("/writable", 0755) < 0) {
-		die("cannot create directory /writable");
+		die_reboot("cannot create directory /writable");
 	}
 	// We are reading a file from /run and need to do this before unmounting
 	if (sc_read_reboot_arg(reboot_arg, sizeof reboot_arg) < 0) {
@@ -84,7 +84,7 @@ int main(int argc, char *argv[])
 	} else {
 		if (mount("/oldroot/writable", "/writable", NULL, MS_MOVE, NULL)
 		    < 0) {
-			die("cannot move writable out of the way");
+			die_reboot("cannot move writable out of the way");
 		}
 
 		if (umount_all()) {

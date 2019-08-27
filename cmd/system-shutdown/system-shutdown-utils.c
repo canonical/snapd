@@ -54,7 +54,7 @@ void kmsg(const char *fmt, ...)
 }
 
 __attribute__((noreturn))
-void die(const char *msg)
+void die_reboot(const char *msg)
 {
 	if (errno == 0) {
 		kmsg("*** %s", msg);
@@ -114,7 +114,7 @@ bool umount_all(void)
 		sc_mountinfo *mounts = sc_parse_mountinfo(NULL);
 		if (!mounts) {
 			// oh dear
-			die("unable to get mount info; giving up");
+			die_reboot("unable to get mount info; giving up");
 		}
 		sc_mountinfo_entry *cur = sc_first_mountinfo_entry(mounts);
 
