@@ -47,3 +47,18 @@ snaps:
 	_, err = snap.Parser(snap.Client()).ParseArgs([]string{"debug", "validate-seed", tmpf})
 	c.Assert(err, ErrorMatches, "cannot read seed yaml: empty element in seed")
 }
+
+func (s *SnapSuite) TestDebugValidateSeedDuplicatedSnap(c *C) {
+	tmpf := filepath.Join(c.MkDir(), "seed.yaml")
+	err := ioutil.WriteFile(tmpf, []byte(`
+snaps:
+ - name: foo
+   file: foo.snap
+ - name: foo
+   file: bar.snap
+`), 0644)
+	c.Assert(err, IsNil)
+
+	_, err = snap.Parser(snap.Client()).ParseArgs([]string{"debug", "validate-seed", tmpf})
+	c.Assert(err, ErrorMatches, `cannot read seed yaml: snap name "foo" must be unique`)
+}

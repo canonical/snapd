@@ -951,3 +951,43 @@ func ValidateSystemUsernames(info *Info) error {
 	}
 	return nil
 }
+
+// neededDefaultProviders returns the names of all default-providers for
+// the content plugs that the given snap.Info needs.
+func NeededDefaultProviders(info *Info) (cps []string) {
+	for _, plug := range info.Plugs {
+		if plug.Interface == "content" {
+			var dprovider string
+			if err := plug.Attr("default-provider", &dprovider); err == nil && dprovider != "" {
+				cps = append(cps, dprovider)
+			}
+		}
+	}
+	return cps
+}
+
+// ValidateBasesAndProviders checks that all bases/default-providers are part of the seed
+func ValidateBasesAndProviders(snapInfos map[string]*Info) []error {
+	var errs []error
+	for _, info := range snapInfos {
+		// ensure base is available
+		if info.Base != "" && info.Base != "none" {
+			if _, ok := snapInfos[info.Base]; !ok {
+				errs = append(errs, fmt.Errorf("cannot use snap %q: base %q is missing", info.InstanceName(), info.Base))
+			}
+		}
+		// ensure core is available
+		if info.Base == "" && info.SnapType == TypeApp && info.InstanceName() != "snapd" {
+			if _, ok := snapInfos["core"]; !ok {
+				errs = append(errs, fmt.Errorf(`cannot use snap %q: required snap "core" missing`, info.InstanceName()))
+			}
+		}
+		// ensure default-providers are available
+		for _, dp := range NeededDefaultProviders(info) {
+			if _, ok := snapInfos[dp]; !ok {
+				errs = append(errs, fmt.Errorf("cannot use snap %q: default provider %q is missing", info.InstanceName(), dp))
+			}
+		}
+	}
+	return errs
+}

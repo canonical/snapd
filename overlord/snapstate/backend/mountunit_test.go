@@ -63,7 +63,7 @@ func (s *mountunitSuite) TearDownTest(c *C) {
 }
 
 func (s *mountunitSuite) TestAddMountUnit(c *C) {
-	restore := squashfs.MockUseFuse(false)
+	restore := squashfs.MockNeedsFuse(false)
 	defer restore()
 
 	info := &snap.Info{
