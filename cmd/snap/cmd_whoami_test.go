@@ -1,7 +1,7 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
 
 /*
- * Copyright (C) 2016 Canonical Ltd
+ * Copyright (C) 2019 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -61,9 +61,9 @@ func (s *SnapSuite) TestWhoamiEmptyAuthFile(c *C) {
 	s.Login(c)
 	defer s.Logout(c)
 
-	wErr := osutil.AtomicWriteFile(s.AuthFile, []byte(``), 0600, 0)
-	c.Assert(wErr, IsNil)
+	err := osutil.AtomicWriteFile(s.AuthFile, []byte(``), 0600, 0)
+	c.Assert(err, IsNil)
 
-	_, err := snap.Parser(snap.Client()).ParseArgs([]string{"whoami"})
+	_, err = snap.Parser(snap.Client()).ParseArgs([]string{"whoami"})
 	c.Check(err, ErrorMatches, "EOF")
 }
