@@ -618,6 +618,7 @@ func checkAndCreateSystemUsernames(si *snap.Info) error {
 	}
 
 	// then create
+	// TODO: move user creation to a more appropriate place like "link-snap"
 	extrausers := !release.OnClassic
 	for _, user := range si.SystemUsernames {
 		id := supportedSystemUsernames[user.Name]
