@@ -57,6 +57,15 @@ type GadgetData struct {
 // rollback directory. Should the apply step fail, the modified data is
 // recovered.
 func Update(old, new GadgetData, rollbackDirPath string) error {
+	// TODO: support multi-volume gadgets. But for now we simply
+	//       do not do any gadget updates on those. We cannot error
+	//       here because this would break refreshes of gadgets even
+	//       when they don't require any updates.
+	if len(new.Info.Volumes) != 1 || len(old.Info.Volumes) != 1 {
+		logger.Noticef("WARNING: gadget assests cannot be updated yet when multiple volumes are used")
+		return nil
+	}
+
 	oldVol, newVol, err := resolveVolume(old.Info, new.Info)
 	if err != nil {
 		return err
