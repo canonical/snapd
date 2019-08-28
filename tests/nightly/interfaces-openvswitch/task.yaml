@@ -24,9 +24,9 @@ prepare: |
 
     # Ensure the openvswitch service is started which isn't the case by
     # default on all distributions
-    if find / -name openvswitch-switch.service | MATCH "openvswitch-switch.service"; then 
+    if systemctl status openvswitch-switch.service | MATCH "Loaded:.*loaded"; then
         systemctl enable --now openvswitch-switch.service
-    elif find / -name openvswitch.service | MATCH "openvswitch.service"; then 
+    elif systemctl status openvswitch.service | MATCH "Loaded:.*loaded"; then
         systemctl enable --now openvswitch.service
     fi
 
