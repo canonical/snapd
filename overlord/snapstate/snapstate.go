@@ -1373,6 +1373,41 @@ func Update(st *state.State, name string, opts *RevisionOptions, userID int, fla
 	return UpdateWithDeviceContext(st, name, opts, userID, flags, nil, "")
 }
 
+// maybeMigrateSnapStateChannel checks if the stored Channel in the snap state is
+// of the form "/<some-risk>", and if so migrates to just be "<some-risk>"
+// this is needed because previously we didn't verify the snap channel when
+// installing / refreshing, but now we verify it on refresh so previous channel
+// specs that were saved like this need to migrated so that refreshes work
+func maybeMigrateSnapStateChannel(st *state.State, snapName string) (string, error) {
+	var snapst SnapState
+	err := Get(st, snapName, &snapst)
+	if err != nil && err != state.ErrNoState {
+		return "", err
+	}
+
+	if snapst.Channel != "" {
+		parts := strings.Split(snapst.Channel, "/")
+		if len(parts) > 1 && parts[0] == "" {
+			// migration needed, but note that there's option of any of the
+			// following no longer supported specifications:
+			// * /<risk>
+			// * /<track>
+			// * /<track>/<risk>
+			// * /<track>/<risk>/<branch>
+			// * /<risk>/<branch>
+			// but the migration for now is to just drop the leading "/", so we
+			// handle them all the same
+			// see https://bugs.launchpad.net/snapd/+bug/1841475 for more
+			// details
+			parts = parts[1:]
+			snapst.Channel = strings.Join(parts, "/")
+			Set(st, snapName, &snapst)
+		}
+	}
+
+	return snapst.Channel, nil
+}
+
 // UpdateWithDeviceContext initiates a change updating a snap.
 // It will query for the snap with the given deviceCtx.
 // Note that the state must be locked by the caller.
@@ -1402,6 +1437,16 @@ func UpdateWithDeviceContext(st *state.State, name string, opts *RevisionOptions
 	if err != nil {
 		return nil, err
 	}
+
+	// check if we need to migrate the snap channel before in snap state before
+	// resolving the channel
+	newChannel, err := maybeMigrateSnapStateChannel(st, name)
+	if err != nil {
+		return nil, err
+	}
+
+	// update the channel with what we maybe got changed from
+	snapst.Channel = newChannel
 
 	opts.Channel, err = resolveChannel(st, name, opts.Channel, deviceCtx)
 	if err != nil {
