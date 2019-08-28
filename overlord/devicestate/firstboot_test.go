@@ -62,7 +62,10 @@ type FirstBootTestSuite struct {
 
 	systemctl *testutil.MockCmd
 
+	// TestingSeed helps populating seeds (it provides
+	// MakeAssertedSnap, WriteAssertions etc.) for tests.
 	seedtest.TestingSeed
+
 	devAcct *asserts.Account
 
 	overlord *overlord.Overlord

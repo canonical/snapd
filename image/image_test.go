@@ -77,6 +77,8 @@ type imageSuite struct {
 	storeActions []*store.SnapAction
 	tsto         *image.ToolingStore
 
+	// SeedSnaps helps creating and making available seed snaps
+	// (it provides MakeAssertedSnap etc.) for the tests.
 	seedtest.SeedSnaps
 
 	model *asserts.Model
