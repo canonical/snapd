@@ -225,7 +225,7 @@ fixup_after_lxd() {
     # +37 32 0:32 / /sys/fs/cgroup/cpuset rw,nosuid,nodev,noexec,relatime shared:15 - cgroup cgroup rw,cpuset,clone_children
     #
     # To restore vanilla state, disable the option now.
-    if [ -e /sys/fs/cgroup/cpuset ]; then
+    if mountinfo-tool /sys/fs/cgroup/cpuset; then
         echo 0 > /sys/fs/cgroup/cpuset/cgroup.clone_children
     fi
 
