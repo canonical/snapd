@@ -19,7 +19,7 @@
 
 package builtin
 
-const gpgKeysSummary = `allows reading gpg user configuration and keys and updating gpg's random seed file`
+const gpgKeysSummary = `allows limited access to gpg-agent, reading gpg user configuration and keys and updating gpg's random seed file`
 
 const gpgKeysBaseDeclarationSlots = `
   gpg-keys:
@@ -49,6 +49,15 @@ deny @{HOME}/.gnupg/trustdb.gpg w,
 # trust to access the user's keys and the level of trust for the random_seed
 # is commensurate with accessing the private keys.
 owner @{HOME}/.gnupg/random_seed wk,
+
+# allow access to gpg-agent's extra socket for passphrase entry.
+# This socket exposes a very limited subset of gpg-agent's functionality and
+# only allows the confined application to use gpg's cryptographic functions
+# but not anything related to managing the keys (adding, trusting etc).
+owner /run/user/[0-9]*/gnupg/S.gpg-agent.extra wr,
+
+# gpg creates lockfiles on every invocation
+owner @{HOME}/.gnupg/.#lk* rwk,
 `
 
 func init() {
