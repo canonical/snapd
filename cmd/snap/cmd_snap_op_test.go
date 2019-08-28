@@ -1292,13 +1292,16 @@ func (s *SnapOpSuite) TestRefreshOneRebooting(c *check.C) {
 }
 
 func (s *SnapOpSuite) TestRefreshOneChanDeprecated(c *check.C) {
+	var in, out string
 	s.RedirectClientToTestServer(func(w http.ResponseWriter, r *http.Request) {
+		c.Check(DecodedRequestBody(c, r), check.DeepEquals, map[string]interface{}{"action": "refresh", "channel": out})
 		fmt.Fprintln(w, `{"type": "error", "result": {"message": "snap not found", "value": "foo", "kind": "snap-not-found"}, "status-code": 404}`)
 	})
 
-	for in, out := range map[string]string{
-		"/foo":    "foo/stable",
-		"/stable": "latest/stable",
+	for in, out = range map[string]string{
+		"/foo":            "foo/stable",
+		"/stable":         "stable",
+		"///foo/stable//": "foo/stable",
 	} {
 		s.stderr.Reset()
 		_, err := snap.Parser(snap.Client()).ParseArgs([]string{"refresh", "--channel=" + in, "one"})
