@@ -2258,6 +2258,53 @@ func (s *snapmgrTestSuite) TestUpdateWithDeviceContext(c *C) {
 	c.Check(validateCalled, Equals, true)
 }
 
+func (s *snapmgrTestSuite) TestUpdateWithDeviceContextWithOldChannelSpecPatched(c *C) {
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	// unset the global store, it will need to come via the device context
+	snapstate.ReplaceStore(s.state, nil)
+
+	deviceCtx := &snapstatetest.TrivialDeviceContext{
+		DeviceModel: DefaultModel(),
+		CtxStore:    s.fakeStore,
+	}
+
+	happyValidateRefreshes := func(st *state.State, refreshes []*snap.Info, ignoreValidation map[string]bool, userID int, deviceCtx1 snapstate.DeviceContext) ([]*snap.Info, error) {
+		return refreshes, nil
+	}
+	// hook it up
+	snapstate.ValidateRefreshes = happyValidateRefreshes
+
+	for _, tt := range []struct {
+		channelBefore string
+		channelAfter  string
+	}{
+		{"/edge", "edge"},
+		{"/beta", "beta"},
+		{"/candidate", "candidate"},
+		{"/stable", "stable"},
+	} {
+		snapstate.Set(s.state, "some-snap", &snapstate.SnapState{
+			Active:   true,
+			Channel:  tt.channelBefore,
+			Sequence: []*snap.SideInfo{{RealName: "some-snap", SnapID: "some-snap-id", Revision: snap.R(7)}},
+			Current:  snap.R(7),
+			SnapType: "app",
+		})
+
+		ts, err := snapstate.UpdateWithDeviceContext(s.state, "some-snap", &snapstate.RevisionOptions{Channel: "/edge"}, s.user.ID, snapstate.Flags{}, deviceCtx, "")
+		c.Assert(err, IsNil, Commentf("%+v", tt))
+		verifyUpdateTasks(c, unlinkBefore|cleanupAfter|doesReRefresh, 0, ts, s.state)
+
+		afterSnapState := snapstate.SnapState{}
+		snapstate.Get(s.state, "some-snap", &afterSnapState)
+		c.Check(afterSnapState.Channel, Equals, tt.channelAfter, Commentf("%+v", tt))
+
+	}
+
+}
+
 func (s *snapmgrTestSuite) TestUpdateWithDeviceContextToRevision(c *C) {
 	s.state.Lock()
 	defer s.state.Unlock()
