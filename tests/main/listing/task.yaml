@@ -8,7 +8,7 @@ prepare: |
     snap set system experimental.parallel-instances=true
     install_local_as test-snapd-tools test-snapd-tools_foo
 
-restore:
+restore: |
     snap set system experimental.parallel-instances=null
 
 execute: |
