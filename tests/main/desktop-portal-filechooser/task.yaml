@@ -24,7 +24,6 @@ systems:
 
     - ubuntu-19.10-*
 
-
 prepare: |
     #shellcheck source=tests/lib/desktop-portal.sh
     . "$TESTSLIB"/desktop-portal.sh
