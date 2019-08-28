@@ -236,7 +236,7 @@ fixup_after_lxd() {
     # +32 31 0:27 / /sys/fs/cgroup/unified rw,nosuid,nodev,noexec,relatime shared:10 - cgroup2 cgroup rw
     #
     # To restore vanilla state, enable the option now.
-    if [ -e /sys/fs/cgroup/unified ]; then
+    if mountinfo-tool /sys/fs/cgroup/unified; then
         mount -o remount,nsdelegate /sys/fs/cgroup/unified
     fi
 }
