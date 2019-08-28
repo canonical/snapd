@@ -1,33 +1,38 @@
-#!/bin/bash
+#!/usr/bin/env any-python
+import argparse
+import subprocess
+import sys
+import time
 
-MAX_ATTEMPTS=20
-SLEEP_TIME=.5
-for i in "$@"; do
-    case $i in
-        --max-attempts)
-        MAX_ATTEMPTS="$2"
-        shift 2
-        ;;
-        --sleep-time)
-        SLEEP_TIME="$2"
-        shift 2
-        ;;
-    esac
-done
 
-COMMAND="$1"
-shift
+def run_command(commands, max_attempts, sleep_time):
 
-if [ -z "$COMMAND" ]; then
-    echo "ERROR: No command provided"
-    exit 1
-fi
+    for _ in range(0, max_attempts):
+        try:
+            subprocess.call(commands)
+            return
+        except:
+            time.sleep(sleep_time)
 
-for _ in $(seq "$MAX_ATTEMPTS"); do
-    if "$COMMAND" "$@"; then
-        exit 0
-    fi
+    sys.exit(1)
 
-    sleep "$SLEEP_TIME"
-done
-exit 1
+
+def main():
+    parser = argparse.ArgumentParser()
+    parser.add_argument(
+        "--max-attempts",
+        type=int,
+        default=20,
+        help="Number of attempts the command will be executed")
+    parser.add_argument(
+        "--sleep-time",
+        type=float,
+        default=.5,
+        help="Time to wait between the retries")
+    args, commands = parser.parse_known_args()
+
+    run_command(commands, args.max_attempts, args.sleep_time)
+
+
+if __name__ == "__main__":
+    main()
