@@ -523,11 +523,6 @@ prepare: |
         fi
     fi
 
-    if [[ "$SPREAD_SYSTEM" == ubuntu-* ]] && [[ "$SPREAD_SYSTEM" != ubuntu-core-* ]]; then
-        apt-get remove --purge -y lxd lxcfs || true
-        apt-get autoremove --purge -y
-    fi
-
     if [[ "$SPREAD_SYSTEM" == debian-* ]]; then
         apt-get update && apt-get install -y eatmydata
     fi

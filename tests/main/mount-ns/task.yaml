@@ -52,7 +52,37 @@ details: |
     If you see this test randomly failing it may be because it has observed
     state leaked by another test that ran on the same machine earlier in the
     spread  execution chain.
+environment:
+    MACHINE_STATE/inherit: inherit
+    MACHINE_STATE/reboot: reboot
 prepare: |
+    case "$MACHINE_STATE" in
+        inherit)
+            # The test will run with whatever the machine state was originally.
+            true
+        ;;
+        reboot)
+            # TODO: when https://github.com/snapcore/spread/pull/85 is merged
+            # and released this test can be allowed to run on bash 4.3. Without
+            # the workaround for a bug in bash REBOOT causes the spread test to
+            # fail instead of asking spread to reboot the machine.
+            case "$(LANG=C bash --version | head -n 1 | cut -d ' ' -f 4)" in
+                4.3.*)
+                echo "SKIP: this test cannot operate on bash 4.3.x"
+                touch please-skip-this-test
+                exit 0
+                ;;
+            esac
+            #
+            # The test will reboot once before performing the test. This will
+            # remove any ephemeral state that may be left in the kernel by prior
+            # test cases or by project-wide prepare that is does not persist across
+            # boots.
+            if [ "$SPREAD_REBOOT" -eq 0 ]; then
+                REBOOT
+            fi
+        ;;
+    esac
     # The --renumber and --rename options renumber and rename various
     # non-deterministic elements of the mount table. The --ref-x1000 option
     # sets a multiple of 1000 as the base value for allocated renumbered
@@ -132,6 +162,9 @@ prepare: |
     snap remove test-snapd-mountinfo-core16
     snap remove test-snapd-mountinfo-core18
 execute: |
+    if [ -e please-skip-this-test ]; then
+        exit 0
+    fi
     diff -u "$SPREAD_BACKEND.$SPREAD_SYSTEM/HOST.expected.txt" HOST.deterministic.txt
     diff -u "$SPREAD_BACKEND.$SPREAD_SYSTEM/PER-SNAP-16.expected.txt" PER-SNAP-16.deterministic.txt
     diff -u "$SPREAD_BACKEND.$SPREAD_SYSTEM/PER-USER-16.expected.txt" PER-USER-16.deterministic.txt
@@ -146,6 +179,7 @@ restore: |
     rm -f test-snapd-mountinfo-classic_1_all.snap
     rm -f test-snapd-mountinfo-core16_1_all.snap
     rm -f test-snapd-mountinfo-core18-1_all.snap
+    rm -f please-skip-this-test
 debug: |
     for fname in ./*.deterministic.txt; do
         echo

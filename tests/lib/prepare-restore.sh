@@ -217,11 +217,41 @@ install_dependencies_from_published(){
     done
 }
 
+fixup_after_lxd() {
+    # Vanilla systems have /sys/fs/cgroup/cpuset without clone_children option.
+    # Using LXD to create a container enables this option, as can be seen here:
+    #
+    # -37 32 0:32 / /sys/fs/cgroup/cpuset rw,nosuid,nodev,noexec,relatime shared:15 - cgroup cgroup rw,cpuset
+    # +37 32 0:32 / /sys/fs/cgroup/cpuset rw,nosuid,nodev,noexec,relatime shared:15 - cgroup cgroup rw,cpuset,clone_children
+    #
+    # To restore vanilla state, disable the option now.
+    if [ -e /sys/fs/cgroup/cpuset ]; then
+        echo 0 > /sys/fs/cgroup/cpuset/cgroup.clone_children
+    fi
+
+    # Vanilla system have /sys/fs/cgroup/unified with nsdelegate option.
+    # Using LXD to create a container disables this options, as can be seen here:
+    #
+    # -32 31 0:27 / /sys/fs/cgroup/unified rw,nosuid,nodev,noexec,relatime shared:10 - cgroup2 cgroup rw,nsdelegate
+    # +32 31 0:27 / /sys/fs/cgroup/unified rw,nosuid,nodev,noexec,relatime shared:10 - cgroup2 cgroup rw
+    #
+    # To restore vanilla state, enable the option now.
+    if [ -e /sys/fs/cgroup/unified ]; then
+        mount -o remount,nsdelegate /sys/fs/cgroup/unified
+    fi
+}
+
 ###
 ### Prepare / restore functions for {project,suite}
 ###
 
 prepare_project() {
+    if [[ "$SPREAD_SYSTEM" == ubuntu-* ]] && [[ "$SPREAD_SYSTEM" != ubuntu-core-* ]]; then
+        apt-get remove --purge -y lxd lxcfs || true
+        apt-get autoremove --purge -y
+        fixup_after_lxd
+    fi
+
     # Check if running inside a container.
     # The testsuite will not work in such an environment
     if systemd-detect-virt -c; then
@@ -465,13 +495,6 @@ prepare_project() {
     RateLimitBurst=0
 EOF
     systemctl restart systemd-journald.service
-
-    # Re-configure cgroups in a way that LXD would so that
-    # installation, use and removal of LXD does not leave any changes
-    # in the system.
-    if [ -f /sys/fs/cgroup/cpuset/cgroup.clone_children ]; then
-        echo 1 > /sys/fs/cgroup/cpuset/cgroup.clone_children
-    fi
 }
 
 prepare_project_each() {
@@ -665,6 +688,8 @@ restore_project_each() {
             find /var/snap -printf '%Z\t%H/%P\n' | grep -c -v snappy_var_t  | MATCH "0"
             ;;
     esac
+
+    fixup_after_lxd
 }
 
 restore_project() {
