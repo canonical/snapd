@@ -252,10 +252,19 @@ func (mx *channelMixin) setChannelFromCommandline() error {
 		mx.Channel = ch.chName
 	}
 
-	if !strings.Contains(mx.Channel, "/") && mx.Channel != "" && mx.Channel != "edge" && mx.Channel != "beta" && mx.Channel != "candidate" && mx.Channel != "stable" {
-		// shortcut to jump to a different track, e.g.
-		// snap install foo --channel=3.4 # implies 3.4/stable
-		mx.Channel += "/stable"
+	if mx.Channel != "" {
+		ch, err := channel.Parse(mx.Channel, "")
+		if err != nil {
+			if _, ok := err.(channel.DeprecatedChannelStringError); !ok {
+				return err
+			}
+			head := i18n.G("Warning:")
+			warn := fill(fmt.Sprintf(i18n.G("Specifying a channel %q is relying on undefined behaviour. Interpreting it as %q for now, but this will change.\n"), mx.Channel, ch.Name), utf8.RuneCountInString(head)+1) // +1 for the space
+			fmt.Fprint(Stderr, head, " ", warn, "\n\n")
+		}
+		// because snap.ParseChannel calls Clean() on the channel,
+		// the name will be the short form name that we want
+		mx.Channel = ch.Name
 	}
 
 	return nil

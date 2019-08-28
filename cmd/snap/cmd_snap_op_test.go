@@ -276,7 +276,7 @@ func (s *SnapOpSuite) TestInstallSameRiskInTrack(c *check.C) {
 		c.Check(r.URL.Path, check.Equals, "/v2/snaps/foo")
 		c.Check(DecodedRequestBody(c, r), check.DeepEquals, map[string]interface{}{
 			"action":  "install",
-			"channel": "latest/stable",
+			"channel": "stable",
 		})
 		s.srv.channel = "stable"
 		s.srv.trackingChannel = "latest/stable"
@@ -662,21 +662,11 @@ error: snap "foo" is not available on this architecture (arm64) but exists on
 
 func (s *SnapOpSuite) TestInstallSnapRevisionNotAvailableInvalidChannel(c *check.C) {
 	s.RedirectClientToTestServer(func(w http.ResponseWriter, r *http.Request) {
-		fmt.Fprintln(w, `{"type": "error", "result": {"message": "no snap revision on specified channel", "value": {
-  "snap-name": "foo",
-  "action": "install",
-  "architecture": "amd64",
-  "channel": "a/b/c/d",
-  "releases": [{"architecture": "amd64", "channel": "stable"}]
-}, "kind": "snap-channel-not-available"}, "status-code": 404}`)
+		c.Fatal("unexpected call to server")
 	})
 
 	_, err := snap.Parser(snap.Client()).ParseArgs([]string{"install", "--channel=a/b/c/d", "foo"})
-	c.Assert(err, check.NotNil)
-	c.Check(fmt.Sprintf("\nerror: %v\n", err), check.Equals, `
-error: requested channel "a/b/c/d" is not valid (see 'snap info foo' for valid
-       ones)
-`)
+	c.Assert(err, check.ErrorMatches, "channel name has too many components: a/b/c/d")
 
 	c.Check(s.Stdout(), check.Equals, "")
 	c.Check(s.Stderr(), check.Equals, "")
