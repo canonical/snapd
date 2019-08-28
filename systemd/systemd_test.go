@@ -505,7 +505,7 @@ func makeMockFile(c *C, path string) {
 func (s *SystemdTestSuite) TestAddMountUnit(c *C) {
 	rootDir := dirs.GlobalRootDir
 
-	restore := squashfs.MockUseFuse(false)
+	restore := squashfs.MockNeedsFuse(false)
 	defer restore()
 
 	mockSnapPath := filepath.Join(c.MkDir(), "/var/lib/snappy/snaps/foo_1.0.snap")
@@ -538,7 +538,7 @@ WantedBy=multi-user.target
 }
 
 func (s *SystemdTestSuite) TestAddMountUnitForDirs(c *C) {
-	restore := squashfs.MockUseFuse(false)
+	restore := squashfs.MockNeedsFuse(false)
 	defer restore()
 
 	// a directory instead of a file produces a different output
@@ -572,7 +572,7 @@ WantedBy=multi-user.target
 func (s *SystemdTestSuite) TestWriteSELinuxMountUnit(c *C) {
 	restore := release.MockSELinuxIsEnabled(func() (bool, error) { return true, nil })
 	defer restore()
-	restore = squashfs.MockUseFuse(false)
+	restore = squashfs.MockNeedsFuse(false)
 	defer restore()
 
 	mockSnapPath := filepath.Join(c.MkDir(), "/var/lib/snappy/snaps/foo_1.0.snap")

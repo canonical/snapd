@@ -31,7 +31,7 @@ var (
 
 var (
 	// default positioning constraints that match ubuntu-image
-	defaultConstraints = PositioningConstraints{
+	defaultConstraints = LayoutConstraints{
 		NonMBRStartOffset: 1 * SizeMiB,
 		SectorSize:        512,
 	}
@@ -63,13 +63,13 @@ func Update(old, new GadgetData, rollbackDirPath string) error {
 	}
 
 	// layout old
-	pOld, err := PositionVolume(old.RootDir, oldVol, defaultConstraints)
+	pOld, err := LayoutVolume(old.RootDir, oldVol, defaultConstraints)
 	if err != nil {
 		return fmt.Errorf("cannot lay out the old volume: %v", err)
 	}
 
 	// layout new
-	pNew, err := PositionVolume(new.RootDir, newVol, defaultConstraints)
+	pNew, err := LayoutVolume(new.RootDir, newVol, defaultConstraints)
 	if err != nil {
 		return fmt.Errorf("cannot lay out the new volume: %v", err)
 	}
@@ -139,13 +139,13 @@ func isSameRelativeOffset(one *RelativeOffset, two *RelativeOffset) bool {
 	return false
 }
 
-func isLegacyMBRTransition(from *PositionedStructure, to *PositionedStructure) bool {
+func isLegacyMBRTransition(from *LaidOutStructure, to *LaidOutStructure) bool {
 	// legacy MBR could have been specified by setting type: mbr, with no
 	// role
 	return from.Type == MBR && to.EffectiveRole() == MBR
 }
 
-func canUpdateStructure(from *PositionedStructure, to *PositionedStructure) error {
+func canUpdateStructure(from *LaidOutStructure, to *LaidOutStructure) error {
 	if from.Size != to.Size {
 		return fmt.Errorf("cannot change structure size from %v to %v", from.Size, to.Size)
 	}
@@ -191,38 +191,38 @@ func canUpdateStructure(from *PositionedStructure, to *PositionedStructure) erro
 	return nil
 }
 
-func canUpdateVolume(from *PositionedVolume, to *PositionedVolume) error {
+func canUpdateVolume(from *LaidOutVolume, to *LaidOutVolume) error {
 	if from.ID != to.ID {
 		return fmt.Errorf("cannot change volume ID from %q to %q", from.ID, to.ID)
 	}
 	if from.EffectiveSchema() != to.EffectiveSchema() {
 		return fmt.Errorf("cannot change volume schema from %q to %q", from.EffectiveSchema(), to.EffectiveSchema())
 	}
-	if len(from.PositionedStructure) != len(to.PositionedStructure) {
-		return fmt.Errorf("cannot change the number of structures within volume from %v to %v", len(from.PositionedStructure), len(to.PositionedStructure))
+	if len(from.LaidOutStructure) != len(to.LaidOutStructure) {
+		return fmt.Errorf("cannot change the number of structures within volume from %v to %v", len(from.LaidOutStructure), len(to.LaidOutStructure))
 	}
 	return nil
 }
 
 type updatePair struct {
-	from *PositionedStructure
-	to   *PositionedStructure
+	from *LaidOutStructure
+	to   *LaidOutStructure
 }
 
-func resolveUpdate(oldVol *PositionedVolume, newVol *PositionedVolume) (updates []updatePair, err error) {
-	if len(oldVol.PositionedStructure) != len(newVol.PositionedStructure) {
+func resolveUpdate(oldVol *LaidOutVolume, newVol *LaidOutVolume) (updates []updatePair, err error) {
+	if len(oldVol.LaidOutStructure) != len(newVol.LaidOutStructure) {
 		return nil, errors.New("internal error: the number of structures in new and old volume definitions is different")
 	}
-	for j, oldStruct := range oldVol.PositionedStructure {
-		newStruct := newVol.PositionedStructure[j]
+	for j, oldStruct := range oldVol.LaidOutStructure {
+		newStruct := newVol.LaidOutStructure[j]
 		// update only when new edition is higher than the old one; boot
 		// assets are assumed to be backwards compatible, once deployed
 		// are not rolled back or replaced unless a higher edition is
 		// available
 		if newStruct.Update.Edition > oldStruct.Update.Edition {
 			updates = append(updates, updatePair{
-				from: &oldVol.PositionedStructure[j],
-				to:   &newVol.PositionedStructure[j],
+				from: &oldVol.LaidOutStructure[j],
+				to:   &newVol.LaidOutStructure[j],
 			})
 		}
 	}
@@ -286,7 +286,7 @@ func applyUpdates(new GadgetData, updates []updatePair, rollbackDir string) erro
 
 var updaterForStructure = updaterForStructureImpl
 
-func updaterForStructureImpl(ps *PositionedStructure, newRootDir, rollbackDir string) (Updater, error) {
+func updaterForStructureImpl(ps *LaidOutStructure, newRootDir, rollbackDir string) (Updater, error) {
 	var updater Updater
 	var err error
 	if ps.IsBare() {
@@ -295,4 +295,13 @@ func updaterForStructureImpl(ps *PositionedStructure, newRootDir, rollbackDir st
 		updater, err = NewMountedFilesystemUpdater(newRootDir, ps, rollbackDir, FindMountPointForStructure)
 	}
 	return updater, err
+}
+
+// MockUpdaterForStructure replace internal call with a mocked one, for use in tests only
+func MockUpdaterForStructure(mock func(ps *LaidOutStructure, rootDir, rollbackDir string) (Updater, error)) (restore func()) {
+	old := updaterForStructure
+	updaterForStructure = mock
+	return func() {
+		updaterForStructure = old
+	}
 }

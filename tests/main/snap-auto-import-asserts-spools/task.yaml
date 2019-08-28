@@ -1,6 +1,6 @@
 summary: Check that `snap auto-import` works as expected
 
-systems: [ubuntu-core-16-64]
+systems: [ubuntu-core-1*-64]
 
 prepare: |
     if [ "$TRUST_TEST_KEYS" = "false" ]; then
@@ -17,7 +17,7 @@ prepare: |
     #shellcheck source=tests/lib/ramdisk.sh
     . "$TESTSLIB/ramdisk.sh"
     setup_ramdisk
-    mkfs.vfat /dev/ram0
+    mkfs.ext3 /dev/ram0
     mount /dev/ram0 /mnt
     cp "$TESTSLIB"/assertions/testrootorg-store.account-key /mnt/auto-import.assert
     sync

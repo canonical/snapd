@@ -67,13 +67,6 @@ func (s *loginSessionControlSuite) TestName(c *C) {
 
 func (s *loginSessionControlSuite) TestSanitizeSlot(c *C) {
 	c.Assert(interfaces.BeforePrepareSlot(s.iface, s.slotInfo), IsNil)
-	slot := &snap.SlotInfo{
-		Snap:      &snap.Info{SuggestedName: "some-snap"},
-		Name:      "login-session-control",
-		Interface: "login-session-control",
-	}
-	c.Assert(interfaces.BeforePrepareSlot(s.iface, slot), ErrorMatches,
-		"login-session-control slots are reserved for the core snap")
 }
 
 func (s *loginSessionControlSuite) TestSanitizePlug(c *C) {

@@ -60,9 +60,10 @@
 %global import_path     %{provider_prefix}
 
 %global snappy_svcs     snapd.service snapd.socket snapd.autoimport.service snapd.seeded.service
+%global snappy_user_svcs snapd.session-agent.socket
 
 # Until we have a way to add more extldflags to gobuild macro...
-%if 0%{?fedora}
+%if 0%{?fedora} || 0%{?rhel} >= 8
 # buildmode PIE triggers external linker consumes -extldflags
 %define gobuild_static(o:) go build -buildmode pie -compiler gc -tags=rpm_crashtraceback -ldflags "${LDFLAGS:-} -B 0x$(head -c20 /dev/urandom|od -An -tx1|tr -d ' \\n') -extldflags '%__global_ldflags -static'" -a -v -x %{?**};
 %endif
@@ -155,8 +156,8 @@ BuildRequires: golang(github.com/juju/ratelimit)
 BuildRequires: golang(github.com/kr/pretty)
 BuildRequires: golang(github.com/kr/text)
 BuildRequires: golang(github.com/mvo5/goconfigparser)
-BuildRequires: golang(github.com/ojii/gettext.go)
 BuildRequires: golang(github.com/seccomp/libseccomp-golang)
+BuildRequires: golang(github.com/snapcore/go-gettext)
 BuildRequires: golang(golang.org/x/crypto/openpgp/armor)
 BuildRequires: golang(golang.org/x/crypto/openpgp/packet)
 BuildRequires: golang(golang.org/x/crypto/sha3)
@@ -182,7 +183,6 @@ BuildRequires:  libtool
 BuildRequires:  gcc
 BuildRequires:  gettext
 BuildRequires:  gnupg
-BuildRequires:  indent
 BuildRequires:  pkgconfig(glib-2.0)
 BuildRequires:  pkgconfig(libcap)
 BuildRequires:  pkgconfig(libseccomp)
@@ -251,8 +251,8 @@ Requires:      golang(github.com/juju/ratelimit)
 Requires:      golang(github.com/kr/pretty)
 Requires:      golang(github.com/kr/text)
 Requires:      golang(github.com/mvo5/goconfigparser)
-Requires:      golang(github.com/ojii/gettext.go)
 Requires:      golang(github.com/seccomp/libseccomp-golang)
+Requires:      golang(github.com/snapcore/go-gettext)
 Requires:      golang(golang.org/x/crypto/openpgp/armor)
 Requires:      golang(golang.org/x/crypto/openpgp/packet)
 Requires:      golang(golang.org/x/crypto/sha3)
@@ -278,7 +278,7 @@ Provides:      bundled(golang(github.com/kr/pretty))
 Provides:      bundled(golang(github.com/kr/text))
 Provides:      bundled(golang(github.com/mvo5/goconfigparser))
 Provides:      bundled(golang(github.com/mvo5/libseccomp-golang))
-Provides:      bundled(golang(github.com/ojii/gettext.go))
+Provides:      bundled(golang(github.com/snapcore/go-gettext))
 Provides:      bundled(golang(golang.org/x/crypto/openpgp/armor))
 Provides:      bundled(golang(golang.org/x/crypto/openpgp/packet))
 Provides:      bundled(golang(golang.org/x/crypto/sha3))
@@ -727,7 +727,6 @@ popd
 %{_unitdir}/snapd.seeded.service
 %{_userunitdir}/snapd.session-agent.service
 %{_userunitdir}/snapd.session-agent.socket
-%{_userunitdir}/sockets.target.wants/snapd.session-agent.socket
 %{_datadir}/dbus-1/services/io.snapcraft.Launcher.service
 %{_datadir}/dbus-1/services/io.snapcraft.Settings.service
 %{_datadir}/polkit-1/actions/io.snapcraft.snapd.policy
@@ -803,6 +802,7 @@ popd
 %sysctl_apply 99-snap.conf
 %endif
 %systemd_post %{snappy_svcs}
+%systemd_user_post %{snappy_user_svcs}
 # If install, test if snapd socket and timer are enabled.
 # If enabled, then attempt to start them. This will silently fail
 # in chroots or other environments where services aren't expected
@@ -815,6 +815,7 @@ fi
 
 %preun
 %systemd_preun %{snappy_svcs}
+%systemd_user_preun %{snappy_user_svcs}
 
 # Remove all Snappy content if snapd is being fully uninstalled
 if [ $1 -eq 0 ]; then
@@ -823,6 +824,7 @@ fi
 
 %postun
 %systemd_postun_with_restart %{snappy_svcs}
+%systemd_user_postun %{snappy_user_svcs}
 
 %if 0%{?with_selinux}
 %triggerun -- snapd < 2.39

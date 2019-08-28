@@ -56,6 +56,7 @@ import (
 	"github.com/snapcore/snapd/progress"
 	"github.com/snapcore/snapd/release"
 	"github.com/snapcore/snapd/snap"
+	"github.com/snapcore/snapd/snap/channel"
 	"github.com/snapcore/snapd/snap/snaptest"
 	"github.com/snapcore/snapd/store"
 	"github.com/snapcore/snapd/testutil"
@@ -861,6 +862,56 @@ func (s *storeTestSuite) TestDownloadFails(c *C) {
 	c.Assert(err, ErrorMatches, "uh, it failed")
 	// ... and ensure that the tempfile is removed
 	c.Assert(osutil.FileExists(tmpfile.Name()), Equals, false)
+	// ... and not because it succeeded either
+	c.Assert(osutil.FileExists(path), Equals, false)
+}
+
+func (s *storeTestSuite) TestDownloadFailsLeavePartial(c *C) {
+	var tmpfile *os.File
+	restore := store.MockDownload(func(ctx context.Context, name, sha3, url string, user *auth.UserState, s *store.Store, w io.ReadWriteSeeker, resume int64, pbar progress.Meter, dlOpts *store.DownloadOptions) error {
+		tmpfile = w.(*os.File)
+		w.Write([]byte{'X'}) // so it's not empty
+		return fmt.Errorf("uh, it failed")
+	})
+	defer restore()
+
+	snap := &snap.Info{}
+	snap.RealName = "foo"
+	snap.AnonDownloadURL = "anon-url"
+	snap.DownloadURL = "AUTH-URL"
+	snap.Size = 1
+	// simulate a failed download
+	path := filepath.Join(c.MkDir(), "downloaded-file")
+	err := s.store.Download(s.ctx, "foo", path, &snap.DownloadInfo, nil, nil, &store.DownloadOptions{LeavePartialOnError: true})
+	c.Assert(err, ErrorMatches, "uh, it failed")
+	// ... and ensure that the tempfile is *NOT* removed
+	c.Assert(osutil.FileExists(tmpfile.Name()), Equals, true)
+	// ... but the target path isn't there
+	c.Assert(osutil.FileExists(path), Equals, false)
+}
+
+func (s *storeTestSuite) TestDownloadFailsDoesNotLeavePartialIfEmpty(c *C) {
+	var tmpfile *os.File
+	restore := store.MockDownload(func(ctx context.Context, name, sha3, url string, user *auth.UserState, s *store.Store, w io.ReadWriteSeeker, resume int64, pbar progress.Meter, dlOpts *store.DownloadOptions) error {
+		tmpfile = w.(*os.File)
+		// no write, so the partial is empty
+		return fmt.Errorf("uh, it failed")
+	})
+	defer restore()
+
+	snap := &snap.Info{}
+	snap.RealName = "foo"
+	snap.AnonDownloadURL = "anon-url"
+	snap.DownloadURL = "AUTH-URL"
+	snap.Size = 1
+	// simulate a failed download
+	path := filepath.Join(c.MkDir(), "downloaded-file")
+	err := s.store.Download(s.ctx, "foo", path, &snap.DownloadInfo, nil, nil, &store.DownloadOptions{LeavePartialOnError: true})
+	c.Assert(err, ErrorMatches, "uh, it failed")
+	// ... and ensure that the tempfile *is* removed
+	c.Assert(osutil.FileExists(tmpfile.Name()), Equals, false)
+	// ... and the target path isn't there
+	c.Assert(osutil.FileExists(path), Equals, false)
 }
 
 func (s *storeTestSuite) TestDownloadSyncFails(c *C) {
@@ -886,6 +937,8 @@ func (s *storeTestSuite) TestDownloadSyncFails(c *C) {
 	c.Assert(err, ErrorMatches, `(sync|fsync:) .*`)
 	// ... and ensure that the tempfile is removed
 	c.Assert(osutil.FileExists(tmpfile.Name()), Equals, false)
+	// ... because it's been renamed to the target path already
+	c.Assert(osutil.FileExists(path), Equals, true)
 }
 
 var downloadDeltaTests = []struct {
@@ -2212,7 +2265,7 @@ func (s *storeTestSuite) TestInfoAndChannels(c *C) {
 			Revision:    snap.R(27),
 			Version:     "6.3",
 			Confinement: snap.StrictConfinement,
-			Channel:     "stable",
+			Channel:     "latest/stable",
 			Size:        20480,
 			Epoch:       snap.E("0"),
 			ReleasedAt:  time.Date(2019, 1, 1, 10, 11, 12, 123456789, time.UTC),
@@ -2221,7 +2274,7 @@ func (s *storeTestSuite) TestInfoAndChannels(c *C) {
 			Revision:    snap.R(27),
 			Version:     "6.3",
 			Confinement: snap.StrictConfinement,
-			Channel:     "candidate",
+			Channel:     "latest/candidate",
 			Size:        20480,
 			Epoch:       snap.E("0"),
 			ReleasedAt:  time.Date(2019, 1, 2, 10, 11, 12, 123456789, time.UTC),
@@ -2230,7 +2283,7 @@ func (s *storeTestSuite) TestInfoAndChannels(c *C) {
 			Revision:    snap.R(27),
 			Version:     "6.3",
 			Confinement: snap.StrictConfinement,
-			Channel:     "beta",
+			Channel:     "latest/beta",
 			Size:        20480,
 			Epoch:       snap.E("0"),
 			ReleasedAt:  time.Date(2019, 1, 3, 10, 11, 12, 123456789, time.UTC),
@@ -2239,7 +2292,7 @@ func (s *storeTestSuite) TestInfoAndChannels(c *C) {
 			Revision:    snap.R(28),
 			Version:     "6.3",
 			Confinement: snap.StrictConfinement,
-			Channel:     "edge",
+			Channel:     "latest/edge",
 			Size:        20480,
 			Epoch:       snap.E("0"),
 			ReleasedAt:  time.Date(2019, 1, 4, 10, 11, 12, 123456789, time.UTC),
@@ -2287,8 +2340,8 @@ func (s *storeTestSuite) TestInfoMoreChannels(c *C) {
 	result, err := sto.SnapInfo(s.ctx, store.SnapSpec{Name: "eh"}, nil)
 	c.Assert(err, IsNil)
 	expected := map[string]*snap.ChannelSnapInfo{
-		"latest/stable":  {Channel: "stable", ReleasedAt: time.Date(2018, 12, 17, 9, 17, 16, 288554000, time.UTC)},
-		"latest/edge":    {Channel: "edge", ReleasedAt: time.Date(2018, 11, 6, 0, 46, 3, 348730000, time.UTC)},
+		"latest/stable":  {Channel: "latest/stable", ReleasedAt: time.Date(2018, 12, 17, 9, 17, 16, 288554000, time.UTC)},
+		"latest/edge":    {Channel: "latest/edge", ReleasedAt: time.Date(2018, 11, 6, 0, 46, 3, 348730000, time.UTC)},
 		"1.6/stable":     {Channel: "1.6/stable", ReleasedAt: time.Date(2017, 5, 17, 21, 18, 42, 224979000, time.UTC)},
 		"1.7/stable":     {Channel: "1.7/stable", ReleasedAt: time.Date(2017, 6, 2, 1, 16, 52, 640258000, time.UTC)},
 		"1.8/stable":     {Channel: "1.8/stable", ReleasedAt: time.Date(2018, 2, 7, 23, 8, 59, 152984000, time.UTC)},
@@ -2682,6 +2735,39 @@ func (s *storeTestSuite) TestSectionsQuery(c *C) {
 	sections, err := sto.Sections(s.ctx, s.user)
 	c.Check(err, IsNil)
 	c.Check(sections, DeepEquals, []string{"featured", "database"})
+	c.Check(n, Equals, 1)
+}
+
+func (s *storeTestSuite) TestSectionsQueryTooMany(c *C) {
+	n := 0
+	mockServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		assertRequest(c, r, "GET", sectionsPath)
+		c.Check(r.Header.Get("X-Device-Authorization"), Equals, "")
+
+		switch n {
+		case 0:
+			// All good.
+		default:
+			c.Fatalf("what? %d", n)
+		}
+
+		w.WriteHeader(429)
+		n++
+	}))
+	c.Assert(mockServer, NotNil)
+	defer mockServer.Close()
+
+	serverURL, _ := url.Parse(mockServer.URL)
+	cfg := store.Config{
+		StoreBaseURL: serverURL,
+	}
+	dauthCtx := &testDauthContext{c: c, device: s.device}
+	sto := store.New(&cfg, dauthCtx)
+
+	sections, err := sto.Sections(s.ctx, s.user)
+	c.Check(err, Equals, store.ErrTooManyRequests)
+	c.Check(sections, IsNil)
+	c.Check(n, Equals, 1)
 }
 
 func (s *storeTestSuite) TestSectionsQueryCustomStore(c *C) {
@@ -2809,6 +2895,47 @@ func (s *storeTestSuite) testSnapCommands(c *C, onClassic bool) {
 		"potato":  `[{"snap":"bar","version":"2.0"}]`,
 		"meh":     `[{"snap":"bar","version":"2.0"},{"snap":"foo","version":"1.0"}]`,
 	})
+	c.Check(n, Equals, 1)
+}
+
+func (s *storeTestSuite) TestSnapCommandsTooMany(c *C) {
+	c.Assert(os.MkdirAll(dirs.SnapCacheDir, 0755), IsNil)
+
+	n := 0
+	mockServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		c.Check(r.Header.Get("X-Device-Authorization"), Equals, "")
+
+		switch n {
+		case 0:
+			c.Check(r.URL.Path, Equals, "/api/v1/snaps/names")
+		default:
+			c.Fatalf("what? %d", n)
+		}
+
+		w.WriteHeader(429)
+		n++
+	}))
+	c.Assert(mockServer, NotNil)
+	defer mockServer.Close()
+
+	serverURL, _ := url.Parse(mockServer.URL)
+	dauthCtx := &testDauthContext{c: c, device: s.device}
+	sto := store.New(&store.Config{StoreBaseURL: serverURL}, dauthCtx)
+
+	db, err := advisor.Create()
+	c.Assert(err, IsNil)
+	defer db.Rollback()
+
+	var bufNames bytes.Buffer
+	err = sto.WriteCatalogs(s.ctx, &bufNames, db)
+	c.Assert(err, Equals, store.ErrTooManyRequests)
+	db.Commit()
+	c.Check(bufNames.String(), Equals, "")
+
+	dump, err := advisor.DumpCommands()
+	c.Assert(err, IsNil)
+	c.Check(dump, HasLen, 0)
+	c.Check(n, Equals, 1)
 }
 
 func (s *storeTestSuite) TestFind(c *C) {
@@ -5941,7 +6068,7 @@ func (s *storeTestSuite) TestSnapActionRevisionNotAvailable(c *C) {
 			"snap2": &store.RevisionNotAvailableError{
 				Action:  "refresh",
 				Channel: "candidate",
-				Releases: []snap.Channel{
+				Releases: []channel.Channel{
 					snaptest.MustParseChannel("beta", "amd64"),
 					snaptest.MustParseChannel("beta", "arm64"),
 				},

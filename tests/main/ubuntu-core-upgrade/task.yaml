@@ -18,6 +18,10 @@ restore: |
     if [ -f curChg ] ; then
         snap abort "$(cat curChg)" || true
     fi
+    # Remove the revisions installed during the test.
+    # The x1 revision is the one we use initially.
+    snap remove core --revision=x2
+    snap remove core --revision=x3
 
 prepare: |
     snap list | awk "/^core / {print(\$3)}" > nextBoot

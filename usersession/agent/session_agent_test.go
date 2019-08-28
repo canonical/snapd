@@ -71,6 +71,7 @@ func (s *sessionAgentSuite) TestStartStop(c *C) {
 
 	response, err := s.client.Get("http://localhost/v1/session-info")
 	c.Assert(err, IsNil)
+	defer response.Body.Close()
 	c.Check(response.StatusCode, Equals, 200)
 
 	var rst struct {

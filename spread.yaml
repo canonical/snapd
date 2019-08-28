@@ -64,7 +64,7 @@ backends:
             - ubuntu-16.04-64:
                 workers: 8
             - ubuntu-18.04-64:
-                workers: 6
+                workers: 8
             - ubuntu-19.04-64:
                 workers: 6
             - ubuntu-core-16-64:
@@ -112,14 +112,11 @@ backends:
         halt-timeout: 2h
         systems:
             - ubuntu-16.04-64:
-                workers: 4
+                workers: 6
             - ubuntu-18.04-64:
-                workers: 4
-            - ubuntu-18.10-64:
-                image: ubuntu-1810
-                workers: 4
+                workers: 6
             - ubuntu-19.04-64:
-                workers: 4
+                workers: 6
 
     google-nested:
         type: google
@@ -602,25 +599,10 @@ prepare: |
     "$TESTSLIB"/prepare-restore.sh --prepare-project
 prepare-each: |
     "$TESTSLIB"/prepare-restore.sh --prepare-project-each
-    grep -v /var/lib/lxcfs /proc/self/mountinfo
 restore: |
     "$TESTSLIB"/prepare-restore.sh --restore-project
 restore-each: |
     "$TESTSLIB"/prepare-restore.sh --restore-project-each
-    if journalctl -u snapd.service | grep -F "signal: terminated"; then exit 1; fi
-    case "$SPREAD_SYSTEM" in
-        fedora-*|centos-*)
-            # Make sure that we are not leaving behind incorrectly labeled snap
-            # files on systems supporting SELinux
-            (
-                find /root/snap -printf '%Z\t%H/%P\n' || true
-                find /home -regex '/home/[^/]*/snap\(/.*\)?' -printf '%Z\t%H/%P\n' || true
-            ) | grep -c -v snappy_home_t | MATCH "0"
-
-            find /var/snap -printf '%Z\t%H/%P\n' | grep -c -v snappy_var_t  | MATCH "0"
-            ;;
-    esac
-    grep -v /var/lib/lxcfs /proc/self/mountinfo
 suites:
     # The essential tests designed to run inside the autopkgtest
     # environment on each platform. On autopkgtest we cannot run all tests
@@ -644,8 +626,10 @@ suites:
         prepare: |
             "$TESTSLIB"/prepare-restore.sh --prepare-suite
         debug: |
-            systemctl status snapd.socket || true
-            journalctl -xe
+            if [ "$SPREAD_DEBUG_EACH" = 1 ]; then
+                systemctl status snapd.socket || true
+                journalctl -xe
+            fi
         prepare-each: |
             "$TESTSLIB"/prepare-restore.sh --prepare-suite-each
         restore-each: |
