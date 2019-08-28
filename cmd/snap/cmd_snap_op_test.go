@@ -1300,7 +1300,7 @@ func (s *SnapOpSuite) TestRefreshOneChanDeprecated(c *check.C) {
 
 	for in, out = range map[string]string{
 		"/foo":            "foo/stable",
-		"/stable":         "stable",
+		"/stable":         "latest/stable",
 		"///foo/stable//": "foo/stable",
 	} {
 		s.stderr.Reset()
