@@ -18,8 +18,3 @@ execute: |
     snap install test-snapd-tools
     ls /var/cache/fontconfig/*.cache-6
     ls /var/cache/fontconfig/*.cache-7
-
-    echo "Installing with invalid channel spec fails"
-    snap remove test-snapd-tools
-    snap install test-snapd-tools --channel=/stable 2>&1 | MATCH "error: cannot install \"test-snapd-tools\": invalid track in channel name: /stable"
-    snap install test-snapd-tools --channel=track/not-a-risk 2>&1 | MATCH "error: cannot install \"test-snapd-tools\": Invalid channel"
