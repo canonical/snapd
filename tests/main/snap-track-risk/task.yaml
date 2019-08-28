@@ -1,0 +1,26 @@
+summary: Ensure that the snap switch and refresh commands support track/risk switching
+
+environment:
+    TRACK: 3.16
+    SNAP: lxd
+
+prepare: |
+    snap install "$SNAP"
+
+execute: |
+    snap info "$SNAP" | MATCH "tracking: +stable"
+    snap refresh "$SNAP" --channel="$TRACK/edge"
+    snap info "$SNAP" | MATCH "tracking: +$TRACK/edge"
+    snap refresh "$SNAP" --stable
+    snap info "$SNAP" | MATCH "tracking: +$TRACK/stable"
+    snap refresh "$SNAP" --channel=edge
+    snap info "$SNAP" | MATCH "tracking: +$TRACK/edge"
+    snap refresh "$SNAP" --channel=latest/stable
+    snap info "$SNAP" | MATCH "tracking: +latest/stable"
+
+    snap switch --channel="$TRACK/edge" "$SNAP"
+    snap info "$SNAP" | MATCH "tracking: +$TRACK/edge"
+    snap switch --channel=stable "$SNAP"
+    snap info "$SNAP" | MATCH "tracking: +$TRACK/stable"
+    snap switch --channel=latest/stable "$SNAP"
+    snap info "$SNAP" | MATCH "tracking: +latest/stable"
