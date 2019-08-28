@@ -703,6 +703,12 @@ func InstallWithDeviceContext(ctx context.Context, st *state.State, name string,
 		return nil, err
 	}
 
+	// check the channel specification, enforce pinned tracks
+	opts.Channel, err = resolveChannel(st, name, opts.Channel, deviceCtx)
+	if err != nil {
+		return nil, err
+	}
+
 	if err := snap.ValidateInstanceName(name); err != nil {
 		return nil, fmt.Errorf("invalid instance name: %v", err)
 	}
@@ -1190,6 +1196,12 @@ func resolveChannel(st *state.State, snapName, newChannel string, deviceCtx Devi
 		return "", nil
 	}
 
+	// always check channel
+	nch, err := channel.ParseVerbatim(newChannel, "")
+	if err != nil {
+		return "", err
+	}
+
 	// ensure we do not switch away from the kernel-track in the model
 	model := deviceCtx.Model()
 
@@ -1215,13 +1227,9 @@ func resolveChannel(st *state.State, snapName, newChannel string, deviceCtx Devi
 	}
 
 	if pinnedTrack == "" {
-		// no pinned track
+		// no pinned track, then just return the original
+		// validated spec
 		return newChannel, nil
-	}
-
-	nch, err := channel.ParseVerbatim(newChannel, "")
-	if err != nil {
-		return "", err
 	}
 
 	if nch.Track == "" {
