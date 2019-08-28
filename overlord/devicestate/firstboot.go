@@ -43,7 +43,7 @@ import (
 
 var errNothingToDo = errors.New("nothing to do")
 
-func installSeedSnap(st *state.State, sn *seed.Snap, flags snapstate.Flags, tm timings.Measurer) (*state.TaskSet, *snap.Info, error) {
+func installSeedSnap(st *state.State, sn *seed.Snap16, flags snapstate.Flags, tm timings.Measurer) (*state.TaskSet, *snap.Info, error) {
 	if sn.Classic {
 		flags.Classic = true
 	}
@@ -122,7 +122,7 @@ func populateStateFromSeedImpl(st *state.State, tm timings.Measurer) ([]*state.T
 	seedSnaps := seedMeta.Snaps
 
 	required := getAllRequiredSnapsForModel(model)
-	seeding := make(map[string]*seed.Snap, len(seedSnaps))
+	seeding := make(map[string]*seed.Snap16, len(seedSnaps))
 	for _, sn := range seedSnaps {
 		seeding[sn.Name] = sn
 	}

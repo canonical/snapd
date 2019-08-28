@@ -606,7 +606,7 @@ func setupSeed(tsto *ToolingStore, model *asserts.Model, opts *Options, local *l
 }
 
 type seedEntry struct {
-	snap     *seed.Snap
+	snap     *seed.Snap16
 	snapType snap.Type
 }
 
@@ -737,7 +737,7 @@ func (s *imageSeed) add(snapName string) error {
 	}
 
 	s.entries = append(s.entries, seedEntry{
-		snap: &seed.Snap{
+		snap: &seed.Snap16{
 			Name:    info.InstanceName(),
 			SnapID:  info.SnapID, // cross-ref
 			Channel: snapChannel,
@@ -791,12 +791,12 @@ func (s *imageSeed) checkBase(info *snap.Info) error {
 	return fmt.Errorf("cannot add snap %q without also adding its base %q explicitly", info.InstanceName(), info.Base)
 }
 
-func (s *imageSeed) seedYaml() *seed.Seed {
-	var seedYaml seed.Seed
+func (s *imageSeed) seedYaml() *seed.Seed16 {
+	var seedYaml seed.Seed16
 
 	sort.Stable(s.entries)
 
-	seedYaml.Snaps = make([]*seed.Snap, len(s.entries))
+	seedYaml.Snaps = make([]*seed.Snap16, len(s.entries))
 	for i, e := range s.entries {
 		seedYaml.Snaps[i] = e.snap
 	}
