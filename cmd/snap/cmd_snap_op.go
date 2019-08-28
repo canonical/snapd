@@ -258,6 +258,7 @@ func (mx *channelMixin) setChannelFromCommandline() error {
 			if _, ok := err.(channel.DeprecatedChannelStringError); !ok {
 				return err
 			}
+			// TODO: get escapes in here so we can bold the Warning
 			head := i18n.G("Warning:")
 			warn := fill(fmt.Sprintf(i18n.G("Specifying a channel %q is relying on undefined behaviour. Interpreting it as %q for now, but this will change.\n"), mx.Channel, ch.Name), utf8.RuneCountInString(head)+1) // +1 for the space
 			fmt.Fprint(Stderr, head, " ", warn, "\n\n")

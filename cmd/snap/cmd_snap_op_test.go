@@ -1291,6 +1291,22 @@ func (s *SnapOpSuite) TestRefreshOneRebooting(c *check.C) {
 
 }
 
+func (s *SnapOpSuite) TestRefreshOneChanDeprecated(c *check.C) {
+	s.RedirectClientToTestServer(func(w http.ResponseWriter, r *http.Request) {
+		fmt.Fprintln(w, `{"type": "error", "result": {"message": "snap not found", "value": "foo", "kind": "snap-not-found"}, "status-code": 404}`)
+	})
+
+	for in, out := range map[string]string{
+		"/foo":    "foo/stable",
+		"/stable": "latest/stable",
+	} {
+		s.stderr.Reset()
+		_, err := snap.Parser(snap.Client()).ParseArgs([]string{"refresh", "--channel=" + in, "one"})
+		c.Assert(err, check.ErrorMatches, "snap \"one\" not found")
+		c.Check(s.Stderr(), testutil.EqualsWrapped, `Warning: Specifying a channel "`+in+`" is relying on undefined behaviour. Interpreting it as "`+out+`" for now, but this will change.`)
+	}
+}
+
 func (s *SnapOpSuite) TestRefreshOneModeErr(c *check.C) {
 	s.RedirectClientToTestServer(nil)
 	_, err := snap.Parser(snap.Client()).ParseArgs([]string{"refresh", "--jailmode", "--devmode", "one"})
