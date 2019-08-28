@@ -262,14 +262,14 @@ func (s *SnapSuite) TestSerialVerbose(c *check.C) {
 
 		n++
 	})
-	rest, err := snap.Parser(snap.Client()).ParseArgs([]string{"model", "--serial", "--verbose"})
+	rest, err := snap.Parser(snap.Client()).ParseArgs([]string{"model", "--serial", "--verbose", "--abs-time"})
 	c.Assert(err, check.IsNil)
 	c.Assert(rest, check.DeepEquals, []string{})
 	c.Check(s.Stdout(), check.Equals, `
 brand-id:   my-brand
 model:      my-old-model
 serial:     serialserial
-timestamp:  today at 16:34 CDT
+timestamp:  2019-08-26T16:34:21-05:00
 device-key-sha3-384: |
   iqLo9doLzK8De9925UrdUyuvPbBad72OTWVE9YJXqd6nz9dKvwJ_lHP5bVxrl3VO
 device-key: |
