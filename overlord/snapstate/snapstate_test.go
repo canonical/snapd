@@ -680,7 +680,7 @@ func (s *snapmgrTestSuite) TestInstallWithDeviceContext(c *C) {
 		// need to provide a non-nil model here so that we can check the Kernel
 		// specified in the model, etc. when we ensure that the channel spec is
 		// correct
-		DeviceModel: DefaultModel(),
+		DeviceModel: ModelWithKernelTrack("18"),
 	}
 
 	opts := &snapstate.RevisionOptions{Channel: "some-channel"}
@@ -691,54 +691,22 @@ func (s *snapmgrTestSuite) TestInstallWithDeviceContext(c *C) {
 	c.Assert(s.state.TaskCount(), Equals, len(ts.Tasks()))
 }
 
-func (s *snapmgrTestSuite) TestInstallWithDeviceContextEnforceTrack(c *C) {
+func (s *snapmgrTestSuite) TestInstallWithDeviceContextInvalidChannelSpec(c *C) {
 	s.state.Lock()
 	defer s.state.Unlock()
 
 	// unset the global store, it will need to come via the device context
 	snapstate.ReplaceStore(s.state, nil)
 
-	deviceCtx := &snapstatetest.TrivialDeviceContext{
-		CtxStore:    s.fakeStore,
-		DeviceModel: ModelWithKernelTrack("18"),
-	}
-
-	opts := &snapstate.RevisionOptions{Channel: "edge"}
-	ts, err := snapstate.InstallWithDeviceContext(context.Background(), s.state, "kernel", opts, 0, snapstate.Flags{}, deviceCtx, "")
-	c.Assert(err, IsNil)
-
-	verifyInstallTasks(c, 0, 0, ts, s.state)
-	c.Assert(s.state.TaskCount(), Equals, len(ts.Tasks()))
-
-	c.Check(s.fakeBackend.ops[:2], DeepEquals, fakeOps{
-		{
-			op: "storesvc-snap-action",
-		},
-		{
-			op: "storesvc-snap-action:action",
-			action: store.SnapAction{
-				Action:       "install",
-				InstanceName: "kernel",
-				Channel:      "18/edge",
-			},
-			revno: snap.R(11),
-		},
-	})
-
-	snapsup, err := snapstate.TaskSnapSetup(ts.Tasks()[0])
-	c.Assert(err, IsNil)
-	c.Check(snapsup.Channel, Equals, "18/edge")
-}
-
-func (s *snapmgrTestSuite) TestInstallWithDeviceContextInvalidChannelSpec(c *C) {
-	s.state.Lock()
-	defer s.state.Unlock()
+	// r := snapstatetest.MockDeviceModel(ModelWithKernelTrack("18"))
+	// defer r()
 
 	deviceCtx := &snapstatetest.TrivialDeviceContext{
+		CtxStore: s.fakeStore,
 		// need to provide a non-nil model here so that we can check the Kernel
 		// specified in the model, etc. when we ensure that the channel spec is
 		// correct
-		DeviceModel: DefaultModel(),
+		DeviceModel: ModelWithKernelTrack("18"),
 	}
 
 	for _, tt := range []struct {
