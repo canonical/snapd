@@ -1202,12 +1202,7 @@ func resolveChannel(st *state.State, snapName, newChannel string, deviceCtx Devi
 	}
 
 	if pinnedTrack == "" {
-		// no pinned track, but still check for valid channel spec
-		_, err = channel.ParseVerbatim(newChannel, "")
-		if err != nil {
-			return "", err
-		}
-		// if the spec was valid, then just return the original spec
+		// no pinned track
 		return newChannel, nil
 	}
 
