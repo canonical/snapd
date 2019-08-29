@@ -14621,7 +14621,6 @@ func (s *snapmgrTestSuite) TestResolveChannelPinnedTrack(c *C) {
 		// risk only with regular snap defaults to pinned track
 		{snap: "some-snap", new: "stable", exp: "3.0/stable", snapChannel: "3.0/edge"},
 		{snap: "some-snap", new: "4.0/stable", exp: "4.0/stable", snapChannel: "3.0/edge"},
-		{snap: "some-snap", new: "latest/stable", exp: "latest/stable", snapChannel: "3.0/edge"},
 		// risk only with kernel/gadget defaults to pinned track from channel in snap state if not pinned by model
 		{snap: "kernel", new: "stable", exp: "2.0/stable", snapChannel: "2.0/edge"},
 		{snap: "brand-gadget", new: "stable", exp: "2.0/stable", snapChannel: "2.0/edge"},
