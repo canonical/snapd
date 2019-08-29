@@ -310,6 +310,14 @@ func (s *apiSuite) TestGetModelJSONHasSerialAssertion(c *check.C) {
 	d.overlord.AddManager(deviceMgr)
 	st := d.overlord.State()
 	st.Lock()
+	isLocked := true
+	// don't defer unlocking unconditionally because we need to unlock it before
+	// the below part of our tests, specifically the call to getSerial
+	defer func() {
+		if isLocked {
+			st.Unlock()
+		}
+	}()
 	assertstatetest.AddMany(st, s.storeSigning.StoreAccountKey(""))
 	assertstatetest.AddMany(st, s.brands.AccountsAndKeys("my-brand")...)
 	s.mockModel(c, st, theModel)
@@ -331,6 +339,9 @@ func (s *apiSuite) TestGetModelJSONHasSerialAssertion(c *check.C) {
 	c.Assert(err, check.IsNil)
 	assertstatetest.AddMany(st, serial)
 
+	// we are now safe to unlock so make sure we don't try to unlock an already
+	// unlocked lock
+	isLocked = false
 	st.Unlock()
 
 	// make a new get request to the model endpoint with json as true
