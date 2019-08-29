@@ -151,7 +151,7 @@ func (x *cmdModel) Execute(args []string) error {
 					return invalidTypeErr
 				}
 				if len(headerIfaceList) == 0 {
-					fmt.Fprintf(w, "%s:\t[]\n", headerName)
+					continue
 				} else {
 					fmt.Fprintf(w, "%s:\t\n", headerName)
 					for _, elem := range headerIfaceList {
