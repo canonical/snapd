@@ -1196,7 +1196,7 @@ func resolveChannel(st *state.State, snapName, newChannel string, deviceCtx Devi
 	}
 
 	// always check channel
-	nch, err := channel.ParseVerbatim(newChannel, "")
+	nch, err := snap.ParseChannelVerbatim(newChannel, "")
 	if err != nil {
 		return "", err
 	}
