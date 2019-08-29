@@ -90,19 +90,15 @@ execute: |
     fi
 
     echo "Installing with invalid channel spec fails"
-    snap remove "$SNAP_NAME"
-    if snap install "$SNAP_NAME" --channel=/stable 2>stderr.out ; then
-       echo "snap install "$SNAP_NAME" --channel=/stable should have failed but did not"
+    snap remove $SNAP_NAME
+    if snap install $SNAP_NAME --channel=/stable 2>stderr.out ; then
+       echo "snap install $SNAP_NAME --channel=/stable should have failed but did not"
        exit 1
     fi
-
-    #shellcheck disable=SC2002
     cat stderr.out | tr '\n' ' ' | tr -s ' ' | MATCH "error: cannot install \"test-snapd-tools\": invalid track in channel name: /stable"
 
-    if snap install "$SNAP_NAME" --channel=track/not-a-risk 2>stderr.out ; then
-       echo "snap install "$SNAP_NAME" --channel=track/not-a-risk should have failed but did not"
+    if snap install $SNAP_NAME --channel=track/not-a-risk 2>stderr.out ; then
+       echo "snap install $SNAP_NAME --channel=track/not-a-risk should have failed but did not"
        exit 1
     fi
-
-    #shellcheck disable=SC2002
     cat stderr.out | tr '\n' ' ' | tr -s ' ' | MATCH "error: cannot install \"test-snapd-tools\": invalid risk in channel name: track/not-a-risk"
