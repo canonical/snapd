@@ -675,7 +675,13 @@ func (s *snapmgrTestSuite) TestInstallWithDeviceContext(c *C) {
 	// unset the global store, it will need to come via the device context
 	snapstate.ReplaceStore(s.state, nil)
 
-	deviceCtx := &snapstatetest.TrivialDeviceContext{CtxStore: s.fakeStore}
+	deviceCtx := &snapstatetest.TrivialDeviceContext{
+		CtxStore: s.fakeStore,
+		// need to provide a non-nil model here so that we can check the Kernel
+		// specified in the model, etc. when we ensure that the channel spec is
+		// correct
+		DeviceModel: DefaultModel(),
+	}
 
 	opts := &snapstate.RevisionOptions{Channel: "some-channel"}
 	ts, err := snapstate.InstallWithDeviceContext(context.Background(), s.state, "some-snap", opts, 0, snapstate.Flags{}, deviceCtx, "")
@@ -683,6 +689,70 @@ func (s *snapmgrTestSuite) TestInstallWithDeviceContext(c *C) {
 
 	verifyInstallTasks(c, 0, 0, ts, s.state)
 	c.Assert(s.state.TaskCount(), Equals, len(ts.Tasks()))
+}
+
+func (s *snapmgrTestSuite) TestInstallWithDeviceContextEnforceTrack(c *C) {
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	// unset the global store, it will need to come via the device context
+	snapstate.ReplaceStore(s.state, nil)
+
+	deviceCtx := &snapstatetest.TrivialDeviceContext{
+		CtxStore:    s.fakeStore,
+		DeviceModel: ModelWithKernelTrack("18"),
+	}
+
+	opts := &snapstate.RevisionOptions{Channel: "edge"}
+	ts, err := snapstate.InstallWithDeviceContext(context.Background(), s.state, "kernel", opts, 0, snapstate.Flags{}, deviceCtx, "")
+	c.Assert(err, IsNil)
+
+	verifyInstallTasks(c, 0, 0, ts, s.state)
+	c.Assert(s.state.TaskCount(), Equals, len(ts.Tasks()))
+
+	c.Check(s.fakeBackend.ops[:2], DeepEquals, fakeOps{
+		{
+			op: "storesvc-snap-action",
+		},
+		{
+			op: "storesvc-snap-action:action",
+			action: store.SnapAction{
+				Action:       "install",
+				InstanceName: "kernel",
+				Channel:      "18/edge",
+			},
+			revno: snap.R(11),
+		},
+	})
+
+	snapsup, err := snapstate.TaskSnapSetup(ts.Tasks()[0])
+	c.Assert(err, IsNil)
+	c.Check(snapsup.Channel, Equals, "18/edge")
+}
+
+func (s *snapmgrTestSuite) TestInstallWithDeviceContextInvalidChannelSpec(c *C) {
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	deviceCtx := &snapstatetest.TrivialDeviceContext{
+		// need to provide a non-nil model here so that we can check the Kernel
+		// specified in the model, etc. when we ensure that the channel spec is
+		// correct
+		DeviceModel: DefaultModel(),
+	}
+
+	for _, tt := range []struct {
+		channel   string
+		wrongType string
+	}{
+		{"/stable", "track"},
+		{"/some-track", "risk"},
+		{"latest/invalid", "risk"},
+	} {
+		opts := &snapstate.RevisionOptions{Channel: tt.channel}
+		_, err := snapstate.InstallWithDeviceContext(context.Background(), s.state, "some-snap", opts, 0, snapstate.Flags{}, deviceCtx, "")
+		c.Assert(err, ErrorMatches, "invalid "+tt.wrongType+" in channel name: "+tt.channel)
+	}
 }
 
 func (s *snapmgrTestSuite) TestInstallHookNotRunForInstalledSnap(c *C) {

@@ -57,6 +57,6 @@ prepare: |
 
 execute: |
     cd /tmp/cross-build/src/github.com/snapcore/snapd
-    for cmd in $( find ./cmd -mindepth 2 -maxdepth 2 -name \*.go -printf '%h\n' | sort -u ); do
+    for cmd in $( find ./cmd -mindepth 2 -maxdepth 2 -name main.go -printf '%h\n' | sort -u ); do
       su -c "GOPATH=/tmp/cross-build CGO_ENABLED=1 GOARCH=$X_GOARCH CC=$X_CC go build -v -o /dev/null $cmd" test
     done
