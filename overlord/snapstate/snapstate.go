@@ -1213,8 +1213,7 @@ func resolveChannel(st *state.State, snapName, newChannel string, deviceCtx Devi
 	}
 
 	if pinnedTrack == "" {
-		// no pinned track, then just return the original
-		// validated spec
+		// no pinned track
 		return newChannel, nil
 	}
 
