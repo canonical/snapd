@@ -64,7 +64,7 @@ type FirstBootTestSuite struct {
 
 	// TestingSeed helps populating seeds (it provides
 	// MakeAssertedSnap, WriteAssertions etc.) for tests.
-	seedtest.TestingSeed
+	*seedtest.TestingSeed
 
 	devAcct *asserts.Account
 
@@ -100,6 +100,7 @@ func (s *FirstBootTestSuite) SetUpTest(c *C) {
 	err = ioutil.WriteFile(filepath.Join(dirs.SnapSeedDir, "seed.yaml"), nil, 0644)
 	c.Assert(err, IsNil)
 
+	s.TestingSeed = &seedtest.TestingSeed{}
 	s.SetupAssertSigning("can0nical", s)
 	s.Brands.Register("my-brand", brandPrivKey, map[string]interface{}{
 		"verification": "verified",
