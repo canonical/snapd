@@ -28,6 +28,7 @@ import (
 
 	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/snap/channel"
+	"github.com/snapcore/snapd/snap/naming"
 )
 
 // SeedSnap points to a snap in the seed to install, together with
@@ -77,7 +78,7 @@ func ReadSeedYaml(fn string) (*Seed, error) {
 		if sn == nil {
 			return nil, fmt.Errorf("%s: empty element in seed", errPrefix)
 		}
-		if err := ValidateInstanceName(sn.Name); err != nil {
+		if err := naming.ValidateSnap(sn.Name); err != nil {
 			return nil, fmt.Errorf("%s: %v", errPrefix, err)
 		}
 		if sn.Channel != "" {
