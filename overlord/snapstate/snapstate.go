@@ -724,12 +724,6 @@ func InstallWithDeviceContext(ctx context.Context, st *state.State, name string,
 		return nil, err
 	}
 
-	// check the channel specification
-	_, err = resolveChannel(st, name, opts.Channel, deviceCtx)
-	if err != nil {
-		return nil, err
-	}
-
 	snapsup := &SnapSetup{
 		Channel:      opts.Channel,
 		Base:         info.Base,
