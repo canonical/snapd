@@ -20,7 +20,6 @@
 package image
 
 import (
-	"bytes"
 	"fmt"
 	"io"
 	"io/ioutil"
@@ -38,6 +37,7 @@ import (
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/release"
+	"github.com/snapcore/snapd/seed"
 	"github.com/snapcore/snapd/snap"
 	"github.com/snapcore/snapd/snap/channel"
 	"github.com/snapcore/snapd/snap/squashfs"
@@ -178,7 +178,7 @@ func validateNonLocalSnaps(snaps []string) error {
 
 // classicHasSnaps returns whether the model or options specify any snaps for the classic case
 func classicHasSnaps(model *asserts.Model, opts *Options) bool {
-	return model.Gadget() != "" || len(model.RequiredSnaps()) != 0 || len(opts.Snaps) != 0
+	return model.Gadget() != "" || len(model.RequiredNoEssentialSnaps()) != 0 || len(opts.Snaps) != 0
 }
 
 func Prepare(opts *Options) error {
@@ -459,14 +459,20 @@ func setupSeed(tsto *ToolingStore, model *asserts.Model, opts *Options, local *l
 		}
 	}
 
-	basesAndApps = append(basesAndApps, model.RequiredSnaps()...)
+	// TODO|XXX: later use the refs directly and simplify
+	reqSnaps := make([]string, 0, len(model.RequiredNoEssentialSnaps()))
+	for _, reqRef := range model.RequiredNoEssentialSnaps() {
+		reqSnaps = append(reqSnaps, reqRef.SnapName())
+	}
+
+	basesAndApps = append(basesAndApps, reqSnaps...)
 	basesAndApps = append(basesAndApps, opts.Snaps...)
 	// TODO: required snaps should get their base from required
 	// snaps (mentioned in the model); additional snaps could
 	// fetch their base, providers instead if not already present
 	// Be careful about core vs core16
 
-	seed := &seed{
+	seed := &imageSeed{
 		model:        model,
 		baseName:     baseName,
 		opts:         opts,
@@ -499,7 +505,7 @@ func setupSeed(tsto *ToolingStore, model *asserts.Model, opts *Options, local *l
 	}
 
 	// then required and the user requested stuff
-	snaps = append(snaps, model.RequiredSnaps()...)
+	snaps = append(snaps, reqSnaps...)
 	snaps = append(snaps, opts.Snaps...)
 
 	for _, snapName := range snaps {
@@ -600,7 +606,7 @@ func setupSeed(tsto *ToolingStore, model *asserts.Model, opts *Options, local *l
 }
 
 type seedEntry struct {
-	snap     *snap.SeedSnap
+	snap     *seed.Snap
 	snapType snap.Type
 }
 
@@ -612,7 +618,7 @@ func (e seedEntriesByType) Less(i, j int) bool {
 	return e[i].snapType.SortsBefore(e[j].snapType)
 }
 
-type seed struct {
+type imageSeed struct {
 	model    *asserts.Model
 	baseName string
 
@@ -637,7 +643,7 @@ type seed struct {
 	needsCore16 []string
 }
 
-func (s *seed) add(snapName string) error {
+func (s *imageSeed) add(snapName string) error {
 	model := s.model
 	opts := s.opts
 	local := s.local
@@ -731,7 +737,7 @@ func (s *seed) add(snapName string) error {
 	}
 
 	s.entries = append(s.entries, seedEntry{
-		snap: &snap.SeedSnap{
+		snap: &seed.Snap{
 			Name:    info.InstanceName(),
 			SnapID:  info.SnapID, // cross-ref
 			Channel: snapChannel,
@@ -750,7 +756,7 @@ func (s *seed) add(snapName string) error {
 
 // checkBase checks if the given snap has a base in the given localInfos and
 // snaps. If not an error is returned.
-func (s *seed) checkBase(info *snap.Info) error {
+func (s *imageSeed) checkBase(info *snap.Info) error {
 	// Sanity check, note that we could support this case
 	// if we have a use-case but it requires changes in the
 	// devicestate/firstboot.go ordering code.
@@ -785,12 +791,12 @@ func (s *seed) checkBase(info *snap.Info) error {
 	return fmt.Errorf("cannot add snap %q without also adding its base %q explicitly", info.InstanceName(), info.Base)
 }
 
-func (s *seed) seedYaml() *snap.Seed {
-	var seedYaml snap.Seed
+func (s *imageSeed) seedYaml() *seed.Seed {
+	var seedYaml seed.Seed
 
 	sort.Stable(s.entries)
 
-	seedYaml.Snaps = make([]*snap.SeedSnap, len(s.entries))
+	seedYaml.Snaps = make([]*seed.Snap, len(s.entries))
 	for i, e := range s.entries {
 		seedYaml.Snaps[i] = e.snap
 	}
@@ -843,7 +849,7 @@ func setBootvars(downloadedSnapsInfoForBootConfig map[string]*snap.Info, model *
 			bootvar = "snap_core"
 		case snap.TypeKernel:
 			bootvar = "snap_kernel"
-			if err := extractKernelAssets(fn, info); err != nil {
+			if err := extractKernelAssets(fn, info, model); err != nil {
 				return err
 			}
 		}
@@ -860,64 +866,22 @@ func setBootvars(downloadedSnapsInfoForBootConfig map[string]*snap.Info, model *
 	return nil
 }
 
-func extractKernelAssets(snapPath string, info *snap.Info) error {
+func extractKernelAssets(snapPath string, info *snap.Info, model *asserts.Model) error {
 	snapf, err := snap.Open(snapPath)
 	if err != nil {
 		return err
 	}
 
-	if err := boot.ExtractKernelAssets(info, snapf); err != nil {
-		return err
+	// image always runs in not-on-classic mode
+	bp, _ := boot.Lookup(info, info.GetType(), model, false)
+	kernel, ok := bp.(boot.Kernel)
+	if !ok {
+		return nil
 	}
-	return nil
+	return kernel.ExtractKernelAssets(snapf)
 }
 
 func copyLocalSnapFile(snapPath, targetDir string, info *snap.Info) (dstPath string, err error) {
 	dst := filepath.Join(targetDir, filepath.Base(info.MountFile()))
 	return dst, osutil.CopyFile(snapPath, dst, 0)
-}
-
-func ValidateSeed(seedFile string) error {
-	seed, err := snap.ReadSeedYaml(seedFile)
-	if err != nil {
-		return err
-	}
-
-	var errs []error
-	// read the snaps info
-	snapInfos := make(map[string]*snap.Info)
-	for _, seedSnap := range seed.Snaps {
-		fn := filepath.Join(filepath.Dir(seedFile), "snaps", seedSnap.File)
-		snapf, err := snap.Open(fn)
-		if err != nil {
-			errs = append(errs, err)
-		} else {
-			info, err := snap.ReadInfoFromSnapFile(snapf, nil)
-			if err != nil {
-				errs = append(errs, fmt.Errorf("cannot use snap %s: %v", fn, err))
-			} else {
-				snapInfos[info.InstanceName()] = info
-			}
-		}
-	}
-
-	// ensure we have either "core" or "snapd"
-	_, haveCore := snapInfos["core"]
-	_, haveSnapd := snapInfos["snapd"]
-	if !(haveCore || haveSnapd) {
-		errs = append(errs, fmt.Errorf("the core or snapd snap must be part of the seed"))
-	}
-
-	if errs2 := snap.ValidateBasesAndProviders(snapInfos); errs2 != nil {
-		errs = append(errs, errs2...)
-	}
-	if errs != nil {
-		var buf bytes.Buffer
-		for _, err := range errs {
-			fmt.Fprintf(&buf, "\n- %s", err)
-		}
-		return fmt.Errorf("cannot validate seed:%s", buf.Bytes())
-	}
-
-	return nil
 }

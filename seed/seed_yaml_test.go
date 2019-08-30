@@ -17,16 +17,19 @@
  *
  */
 
-package snap_test
+package seed_test
 
 import (
 	"io/ioutil"
 	"path/filepath"
+	"testing"
 
 	. "gopkg.in/check.v1"
 
-	"github.com/snapcore/snapd/snap"
+	"github.com/snapcore/snapd/seed"
 )
+
+func Test(t *testing.T) { TestingT(t) }
 
 type seedYamlTestSuite struct{}
 
@@ -49,10 +52,10 @@ func (s *seedYamlTestSuite) TestSimple(c *C) {
 	err := ioutil.WriteFile(fn, mockSeedYaml, 0644)
 	c.Assert(err, IsNil)
 
-	seed, err := snap.ReadSeedYaml(fn)
+	seedYaml, err := seed.ReadYaml(fn)
 	c.Assert(err, IsNil)
-	c.Assert(seed.Snaps, HasLen, 2)
-	c.Assert(seed.Snaps[0], DeepEquals, &snap.SeedSnap{
+	c.Assert(seedYaml.Snaps, HasLen, 2)
+	c.Assert(seedYaml.Snaps[0], DeepEquals, &seed.Snap{
 		File:   "foo_1.0_all.snap",
 		Name:   "foo",
 		SnapID: "snapidsnapidsnapid",
@@ -60,7 +63,7 @@ func (s *seedYamlTestSuite) TestSimple(c *C) {
 		Channel: "stable",
 		DevMode: true,
 	})
-	c.Assert(seed.Snaps[1], DeepEquals, &snap.SeedSnap{
+	c.Assert(seedYaml.Snaps[1], DeepEquals, &seed.Snap{
 		File:       "local.snap",
 		Name:       "local",
 		Unasserted: true,
@@ -78,7 +81,7 @@ func (s *seedYamlTestSuite) TestNoPathAllowed(c *C) {
 	err := ioutil.WriteFile(fn, badMockSeedYaml, 0644)
 	c.Assert(err, IsNil)
 
-	_, err = snap.ReadSeedYaml(fn)
+	_, err = seed.ReadYaml(fn)
 	c.Assert(err, ErrorMatches, `cannot read seed yaml: "foo/bar.snap" must be a filename, not a path`)
 }
 
@@ -95,7 +98,7 @@ snaps:
 `), 0644)
 	c.Assert(err, IsNil)
 
-	_, err = snap.ReadSeedYaml(fn)
+	_, err = seed.ReadYaml(fn)
 	c.Assert(err, ErrorMatches, `cannot read seed yaml: snap name "foo" must be unique`)
 }
 
@@ -108,7 +111,7 @@ snaps:
 `), 0644)
 	c.Assert(err, IsNil)
 
-	_, err = snap.ReadSeedYaml(fn)
+	_, err = seed.ReadYaml(fn)
 	c.Assert(err, ErrorMatches, `cannot read seed yaml: invalid risk in channel name: invalid/channel/`)
 }
 
@@ -121,8 +124,21 @@ snaps:
 `), 0644)
 	c.Assert(err, IsNil)
 
-	_, err = snap.ReadSeedYaml(fn)
+	_, err = seed.ReadYaml(fn)
 	c.Assert(err, ErrorMatches, `cannot read seed yaml: invalid snap name: "invalid--name"`)
+}
+
+func (s *seedYamlTestSuite) TestValidateNameInstanceUnsupported(c *C) {
+	fn := filepath.Join(c.MkDir(), "seed.yaml")
+	err := ioutil.WriteFile(fn, []byte(`
+snaps:
+ - name: foo_1
+   file: ./foo.snap
+`), 0644)
+	c.Assert(err, IsNil)
+
+	_, err = seed.ReadYaml(fn)
+	c.Assert(err, ErrorMatches, `cannot read seed yaml: invalid snap name: "foo_1"`)
 }
 
 func (s *seedYamlTestSuite) TestValidateNameMissing(c *C) {
@@ -133,7 +149,7 @@ snaps:
 `), 0644)
 	c.Assert(err, IsNil)
 
-	_, err = snap.ReadSeedYaml(fn)
+	_, err = seed.ReadYaml(fn)
 	c.Assert(err, ErrorMatches, `cannot read seed yaml: invalid snap name: ""`)
 }
 
@@ -145,6 +161,6 @@ snaps:
 `), 0644)
 	c.Assert(err, IsNil)
 
-	_, err = snap.ReadSeedYaml(fn)
+	_, err = seed.ReadYaml(fn)
 	c.Assert(err, ErrorMatches, `cannot read seed yaml: "file" attribute for "foo" cannot be empty`)
 }
