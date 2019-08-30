@@ -229,14 +229,17 @@ fixup_after_lxd() {
         echo 0 > /sys/fs/cgroup/cpuset/cgroup.clone_children
     fi
 
-    # Vanilla system have /sys/fs/cgroup/unified with nsdelegate option.
-    # Using LXD to create a container disables this options, as can be seen here:
+    # Vanilla system have /sys/fs/cgroup/unified mounted with the nsdelegate
+    # option which is available since kernel 4.13 Using LXD to create a
+    # container disables this options, as can be seen here:
     #
     # -32 31 0:27 / /sys/fs/cgroup/unified rw,nosuid,nodev,noexec,relatime shared:10 - cgroup2 cgroup rw,nsdelegate
     # +32 31 0:27 / /sys/fs/cgroup/unified rw,nosuid,nodev,noexec,relatime shared:10 - cgroup2 cgroup rw
     #
-    # To restore vanilla state, enable the option now.
-    if mountinfo-tool /sys/fs/cgroup/unified; then
+    # To restore vanilla state, enable the option now, but only if the kernel supports that.
+    # https://lore.kernel.org/patchwork/patch/803265/
+    # https://github.com/systemd/systemd/commit/4095205ecccdfddb822ee8fdc44d11f2ded9be24
+    if [ "$(mountinfo-tool /sys/fs/cgroup/unified .fs_type)" = cgroup2 ] && version-tool --naive "$(uname -r)" -ge 4.13; then
         mount -o remount,nsdelegate /sys/fs/cgroup/unified
     fi
 }
