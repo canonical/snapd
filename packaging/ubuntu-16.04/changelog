@@ -1,6 +1,19 @@
-snapd (2.41~pre1) xenial; urgency=medium
+snapd (2.41) xenial; urgency=medium
 
   * New upstream release, LP: #1840740
+    - overlord/snapstate: revert track-risk behavior
+    - tests: fix snap info test
+    - httputil: rework protocol error detection
+    - gadget: do not error on gadget refreshes with multiple volumes
+    - i18n, vendor, packaging: drop github.com/ojii/gettext.go, use
+      github.com/snapcore/go-gettext
+    - snapstate: validate all system-usernames before creating them
+    - mkversion.sh: fix version from git checkouts
+    - interfaces/network-{control,manager}: allow 'k' on
+      /run/resolvconf/**
+    - interfaces/wayland,x11: allow reading an Xwayland Xauth file
+    - interfaces: k8s worker node updates
+    - debian: re-enable systemd environment generator
     - many: create system-usernames user/group if both don't exist
     - packaging: fix symlink for snapd.session-agent.socket
     - tests: change cgroups so that LXD doesn't have to
@@ -196,7 +209,7 @@ snapd (2.41~pre1) xenial; urgency=medium
     - interfaces/optical-drive: add scsi-generic type 4 and 5 support
     - cmd/snap-confine: exit from helper when parent dies
 
- -- Michael Vogt <michael.vogt@ubuntu.com>  Tue, 20 Aug 2019 09:03:06 +0200
+ -- Michael Vogt <michael.vogt@ubuntu.com>  Fri, 30 Aug 2019 08:56:16 +0200
 
 snapd (2.40) xenial; urgency=medium
 
