@@ -20,7 +20,6 @@
 package image
 
 import (
-	"bytes"
 	"fmt"
 	"io"
 	"io/ioutil"
@@ -876,49 +875,4 @@ func extractKernelAssets(snapPath string, info *snap.Info) error {
 func copyLocalSnapFile(snapPath, targetDir string, info *snap.Info) (dstPath string, err error) {
 	dst := filepath.Join(targetDir, filepath.Base(info.MountFile()))
 	return dst, osutil.CopyFile(snapPath, dst, 0)
-}
-
-func ValidateSeed(seedFile string) error {
-	seed, err := seed.ReadYaml(seedFile)
-	if err != nil {
-		return err
-	}
-
-	var errs []error
-	// read the snaps info
-	snapInfos := make(map[string]*snap.Info)
-	for _, seedSnap := range seed.Snaps {
-		fn := filepath.Join(filepath.Dir(seedFile), "snaps", seedSnap.File)
-		snapf, err := snap.Open(fn)
-		if err != nil {
-			errs = append(errs, err)
-		} else {
-			info, err := snap.ReadInfoFromSnapFile(snapf, nil)
-			if err != nil {
-				errs = append(errs, fmt.Errorf("cannot use snap %s: %v", fn, err))
-			} else {
-				snapInfos[info.InstanceName()] = info
-			}
-		}
-	}
-
-	// ensure we have either "core" or "snapd"
-	_, haveCore := snapInfos["core"]
-	_, haveSnapd := snapInfos["snapd"]
-	if !(haveCore || haveSnapd) {
-		errs = append(errs, fmt.Errorf("the core or snapd snap must be part of the seed"))
-	}
-
-	if errs2 := snap.ValidateBasesAndProviders(snapInfos); errs2 != nil {
-		errs = append(errs, errs2...)
-	}
-	if errs != nil {
-		var buf bytes.Buffer
-		for _, err := range errs {
-			fmt.Fprintf(&buf, "\n- %s", err)
-		}
-		return fmt.Errorf("cannot validate seed:%s", buf.Bytes())
-	}
-
-	return nil
 }
