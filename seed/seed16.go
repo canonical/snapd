@@ -38,6 +38,7 @@ import (
 	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/snap"
 	"github.com/snapcore/snapd/snap/naming"
+	"github.com/snapcore/snapd/timings"
 )
 
 type seed16 struct {
@@ -107,7 +108,7 @@ func (s *seed16) Model() (*asserts.Model, error) {
 	return s.model, nil
 }
 
-func (s *seed16) addSnap(sn *Snap16) (*Snap, error) {
+func (s *seed16) addSnap(sn *Snap16, tm timings.Measurer) (*Snap, error) {
 	path := filepath.Join(s.seedDir, "snaps", sn.File)
 	seedSnap := &Snap{
 		Path: path,
@@ -123,10 +124,9 @@ func (s *seed16) addSnap(sn *Snap16) (*Snap, error) {
 	} else {
 		var si *snap.SideInfo
 		var err error
-		// XXX: put timings back
-		//timings.Run(tm, "derive-side-info", fmt.Sprintf("hash and derive side info for snap %q", sn.Name), func(nested timings.Measurer) {
-		si, err = snapasserts.DeriveSideInfo(path, s.db)
-		//})
+		timings.Run(tm, "derive-side-info", fmt.Sprintf("hash and derive side info for snap %q", sn.Name), func(nested timings.Measurer) {
+			si, err = snapasserts.DeriveSideInfo(path, s.db)
+		})
 		if asserts.IsNotFound(err) {
 			return nil, fmt.Errorf("cannot find signatures with metadata for snap %q (%q)", sn.Name, path)
 		}
@@ -145,7 +145,7 @@ func (s *seed16) addSnap(sn *Snap16) (*Snap, error) {
 	return seedSnap, nil
 }
 
-func (s *seed16) LoadMeta() error {
+func (s *seed16) LoadMeta(tm timings.Measurer) error {
 	model, err := s.Model()
 	if err != nil {
 		return err
@@ -195,7 +195,7 @@ func (s *seed16) LoadMeta() error {
 			return nil, fmt.Errorf("cannot proceed without seeding %q", snapName)
 		}
 
-		seedSnap, err := s.addSnap(yamlSnap)
+		seedSnap, err := s.addSnap(yamlSnap, tm)
 		if err != nil {
 			return nil, err
 		}
@@ -265,7 +265,7 @@ func (s *seed16) LoadMeta() error {
 		if added[sn.Name] {
 			continue
 		}
-		seedSnap, err := s.addSnap(sn)
+		seedSnap, err := s.addSnap(sn, tm)
 		if err != nil {
 			return err
 		}

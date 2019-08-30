@@ -91,7 +91,7 @@ func populateStateFromSeedImpl(st *state.State, tm timings.Measurer) ([]*state.T
 		return nil, err
 	}
 
-	err = deviceSeed.LoadMeta()
+	err = deviceSeed.LoadMeta(tm)
 	if release.OnClassic && err == seed.ErrNoMeta {
 		// on classic it is ok to not seed any snaps
 		return trivialSeeding(st, markSeeded), nil

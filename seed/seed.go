@@ -25,6 +25,7 @@ import (
 
 	"github.com/snapcore/snapd/asserts"
 	"github.com/snapcore/snapd/snap"
+	"github.com/snapcore/snapd/timings"
 )
 
 var (
@@ -75,7 +76,7 @@ type Seed interface {
 	// return ErrNoMeta if there is no metadata nor snaps in the
 	// seed, this is legitimate only on classic. It is an error to
 	// call LoadMeta before LoadAssertions.
-	LoadMeta() error
+	LoadMeta(tm timings.Measurer) error
 
 	// UsesSnapdSnap returns whether the system as defined by the
 	// seed will use the snapd snap, after LoadMeta.
