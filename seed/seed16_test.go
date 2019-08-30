@@ -168,6 +168,29 @@ func (s *seed16Suite) TestLoadAssertionsModelHappy(c *C) {
 	c.Assert(err, IsNil)
 }
 
+func (s *seed16Suite) TestLoadAssertionsModelTempDBHappy(c *C) {
+	r := seed.MockTrusted(s.StoreSigning.Trusted)
+	defer r()
+
+	err := os.Mkdir(s.AssertsDir, 0755)
+	c.Assert(err, IsNil)
+
+	headers := map[string]interface{}{
+		"architecture": "amd64",
+		"kernel":       "pc-kernel",
+		"gadget":       "pc",
+	}
+	modelChain := s.MakeModelAssertionChain("my-brand", "my-model", headers)
+	s.WriteAssertions("model.asserts", modelChain...)
+
+	err = s.seed16.LoadAssertions(nil, nil)
+	c.Assert(err, IsNil)
+
+	model, err := s.seed16.Model()
+	c.Assert(err, IsNil)
+	c.Check(model.Model(), Equals, "my-model")
+}
+
 func (s *seed16Suite) TestSkippedLoadAssertion(c *C) {
 	_, err := s.seed16.Model()
 	c.Check(err, ErrorMatches, "internal error: model assertion unset")

@@ -26,7 +26,34 @@ import (
 	"path/filepath"
 
 	"github.com/snapcore/snapd/asserts"
+	"github.com/snapcore/snapd/asserts/sysdb"
 )
+
+var trusted = sysdb.Trusted()
+
+func MockTrusted(mockTrusted []asserts.Assertion) (restore func()) {
+	prevTrusted := trusted
+	trusted = mockTrusted
+	return func() {
+		trusted = prevTrusted
+	}
+}
+
+func newMemAssertionsDB() (db asserts.RODatabase, commitTo func(*asserts.Batch) error, err error) {
+	memDB, err := asserts.OpenDatabase(&asserts.DatabaseConfig{
+		Backstore: asserts.NewMemoryBackstore(),
+		Trusted:   trusted,
+	})
+	if err != nil {
+		return nil, nil, err
+	}
+
+	commitTo = func(b *asserts.Batch) error {
+		return b.CommitTo(memDB, nil)
+	}
+
+	return memDB, commitTo, nil
+}
 
 func loadAssertions(assertsDir string, loadedFunc func(*asserts.Ref) error) (*asserts.Batch, error) {
 	dc, err := ioutil.ReadDir(assertsDir)

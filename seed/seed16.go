@@ -55,9 +55,13 @@ type seed16 struct {
 }
 
 func (s *seed16) LoadAssertions(db asserts.RODatabase, commitTo func(*asserts.Batch) error) error {
-	if db == nil || commitTo == nil {
-		// TODO: create an internal temp db instead
-		return fmt.Errorf("internal error: db or commitTo is nil")
+	if db == nil {
+		// a db was not provided, create an internal temporary one
+		var err error
+		db, commitTo, err = newMemAssertionsDB()
+		if err != nil {
+			return err
+		}
 	}
 
 	// TODO: improve error messages
