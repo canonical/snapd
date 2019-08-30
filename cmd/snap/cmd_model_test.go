@@ -158,7 +158,6 @@ func (s *SnapSuite) TestModel(c *check.C) {
 	c.Assert(err, check.IsNil)
 	c.Assert(rest, check.DeepEquals, []string{})
 	c.Check(s.Stdout(), check.Equals, `
-series:    16
 brand-id:  mememe
 model:     test-model
 `[1:])
@@ -184,7 +183,6 @@ func (s *SnapSuite) TestModelVerbose(c *check.C) {
 	c.Assert(err, check.IsNil)
 	c.Assert(rest, check.DeepEquals, []string{})
 	c.Check(s.Stdout(), check.Equals, `
-series:          16
 brand-id:        mememe
 model:           test-model
 architecture:    amd64

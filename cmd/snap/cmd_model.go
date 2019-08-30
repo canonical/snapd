@@ -34,11 +34,12 @@ import (
 var (
 	shortModelHelp = i18n.G("Get the active model for this device")
 	longModelHelp  = i18n.G(`
-The model command returns the active model assertion information for this 
-device.	
+The model command returns the active model assertion information for this
+device.
 
-By default, only the primary keys of the headers are included in the output, but
-this can be expanded to include all of an assertion's headers non-meta headers.
+By default, only the essential model identification information is
+included in the output, but this can be expanded to include all of an
+assertion's headers non-meta headers.
 
 Similarly, the active serial assertion can be used for the output instead of the
 model assertion.
@@ -126,6 +127,11 @@ func (x *cmdModel) Execute(args []string) error {
 
 	// output the primary keys first in their canonical order
 	for _, headerName := range assertion.Type().PrimaryKey {
+		if headerName == "series" {
+			// series can be obtained from "snap version"
+			// and given it is stuck at 16 is mainly confusing
+			continue
+		}
 		fmt.Fprintf(w, "%s:\t%s\n", headerName, assertion.HeaderString(headerName))
 	}
 
