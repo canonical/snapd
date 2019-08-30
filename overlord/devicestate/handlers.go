@@ -49,6 +49,7 @@ import (
 	"github.com/snapcore/snapd/overlord/state"
 	"github.com/snapcore/snapd/release"
 	"github.com/snapcore/snapd/snap"
+	"github.com/snapcore/snapd/snap/naming"
 	"github.com/snapcore/snapd/timings"
 )
 
@@ -92,6 +93,7 @@ func (m *DeviceManager) doSetModel(t *state.Task, _ *tomb.Tomb) error {
 
 	// unmark no-longer required snaps
 	requiredSnaps := getAllRequiredSnapsForModel(new)
+	// TODO:XXX: have AllByRef
 	snapStates, err := snapstate.All(st)
 	if err != nil {
 		return err
@@ -108,7 +110,7 @@ func (m *DeviceManager) doSetModel(t *state.Task, _ *tomb.Tomb) error {
 			continue
 		}
 		// clean required flag if no-longer needed
-		if snapst.Flags.Required && !requiredSnaps[snapName] {
+		if snapst.Flags.Required && !requiredSnaps.Contains(naming.Snap(snapName)) {
 			snapst.Flags.Required = false
 			snapstate.Set(st, snapName, snapst)
 		}
