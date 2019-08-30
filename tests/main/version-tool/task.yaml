@@ -1,0 +1,33 @@
+summary: integration tests for version-tool
+execute: |
+    # ==
+    version-tool --naive 1 -eq 1
+    version-tool --naive 1 -eq 1.0
+    version-tool --naive 1.0 -eq 1
+    not version-tool --naive 1 -eq 2
+
+    # !=
+    not version-tool --naive 1.2 -ne  1.2
+    version-tool --naive 1 -ne 2
+    version-tool --naive 2 -ne 1
+
+    # < and <=
+    version-tool --naive 1 -lt 2
+    not version-tool --naive 2 -lt 1
+    version-tool --naive 1 -le 2
+    version-tool --naive 2 -le 2
+    not version-tool --naive 2 -le 1
+
+    # > and >=
+    version-tool --naive 2 -gt 1
+    not version-tool --naive 1 -gt 2
+    version-tool --naive 2 -ge 1
+    version-tool --naive 2 -ge 2
+    not version-tool --naive 1 -ge 2
+
+    # --verbose
+    version-tool --verbose --naive 1 -eq 2 | MATCH 'delta between 1 and 2 is: -1'
+    version-tool --verbose --naive 1 -eq 2 | MATCH 'delta -1 is inconsistent with =='
+
+    # --version
+    version-tool --version | MATCH 1.0
