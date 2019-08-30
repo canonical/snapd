@@ -15,10 +15,16 @@ systems: [-ubuntu-core-*, -ubuntu-14.04-*, -amazon-*, -centos-*]
 backends: [-autopkgtest]
 
 environment:
-    XDG: $(pwd)/xdg
+    XDG: /tmp/xdg
     XDG_CONFIG_HOME: $XDG/config
     XDG_DATA_HOME: $XDG/share
     XDG_CACHE_HOME: $XDG/cache
+
+debug: |
+    echo "Output process to see what might write to $XDG"
+    ps uafx
+    echo "Show what is in $XDG"
+    ls -alR "$XDG"
 
 restore: |
     if [ -e dbus-launch.pid ]; then

@@ -36,6 +36,7 @@ import (
 	"github.com/snapcore/snapd/asserts/assertstest"
 	"github.com/snapcore/snapd/asserts/sysdb"
 	"github.com/snapcore/snapd/dirs"
+	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/overlord"
 	"github.com/snapcore/snapd/overlord/assertstate"
 	"github.com/snapcore/snapd/overlord/auth"
@@ -70,8 +71,9 @@ var _ = Suite(&assertMgrSuite{})
 
 type fakeStore struct {
 	storetest.Store
-	state *state.State
-	db    asserts.RODatabase
+	state                  *state.State
+	db                     asserts.RODatabase
+	maxDeclSupportedFormat int
 }
 
 func (sto *fakeStore) pokeStateLock() {
@@ -83,6 +85,10 @@ func (sto *fakeStore) pokeStateLock() {
 
 func (sto *fakeStore) Assertion(assertType *asserts.AssertionType, key []string, _ *auth.UserState) (asserts.Assertion, error) {
 	sto.pokeStateLock()
+
+	restore := asserts.MockMaxSupportedFormat(asserts.SnapDeclarationType, sto.maxDeclSupportedFormat)
+	defer restore()
+
 	ref := &asserts.Ref{Type: assertType, PrimaryKey: key}
 	return ref.Resolve(sto.db.Find)
 }
@@ -121,6 +127,7 @@ func (s *assertMgrSuite) SetUpTest(c *C) {
 	s.fakeStore = &fakeStore{
 		state: s.state,
 		db:    s.storeSigning,
+		maxDeclSupportedFormat: asserts.SnapDeclarationType.MaxSupportedFormat(),
 	}
 	s.trivialDeviceCtx = &snapstatetest.TrivialDeviceContext{
 		CtxStore: s.fakeStore,
@@ -154,7 +161,7 @@ func (s *assertMgrSuite) TestAdd(c *C) {
 	c.Check(devAcct.(*asserts.Account).Username(), Equals, "developer1")
 }
 
-func (s *assertMgrSuite) TestBatchAddStream(c *C) {
+func (s *assertMgrSuite) TestAddBatch(c *C) {
 	s.state.Lock()
 	defer s.state.Unlock()
 
@@ -166,7 +173,7 @@ func (s *assertMgrSuite) TestBatchAddStream(c *C) {
 	enc.Encode(s.storeSigning.StoreAccountKey(""))
 	c.Assert(err, IsNil)
 
-	batch := assertstate.NewBatch()
+	batch := asserts.NewBatch(nil)
 	refs, err := batch.AddStream(b)
 	c.Assert(err, IsNil)
 	c.Check(refs, DeepEquals, []*asserts.Ref{
@@ -178,7 +185,7 @@ func (s *assertMgrSuite) TestBatchAddStream(c *C) {
 	err = batch.Add(s.storeSigning.StoreAccountKey(""))
 	c.Assert(err, IsNil)
 
-	err = batch.Commit(s.state)
+	err = assertstate.AddBatch(s.state, batch, nil)
 	c.Assert(err, IsNil)
 
 	db := assertstate.DB(s.state)
@@ -189,135 +196,7 @@ func (s *assertMgrSuite) TestBatchAddStream(c *C) {
 	c.Check(devAcct.(*asserts.Account).Username(), Equals, "developer1")
 }
 
-func (s *assertMgrSuite) TestBatchConsiderPreexisting(c *C) {
-	s.state.Lock()
-	defer s.state.Unlock()
-
-	// prereq store key
-	err := assertstate.Add(s.state, s.storeSigning.StoreAccountKey(""))
-	c.Assert(err, IsNil)
-
-	batch := assertstate.NewBatch()
-	err = batch.Add(s.dev1Acct)
-	c.Assert(err, IsNil)
-
-	err = batch.Commit(s.state)
-	c.Assert(err, IsNil)
-
-	db := assertstate.DB(s.state)
-	devAcct, err := db.Find(asserts.AccountType, map[string]string{
-		"account-id": s.dev1Acct.AccountID(),
-	})
-	c.Assert(err, IsNil)
-	c.Check(devAcct.(*asserts.Account).Username(), Equals, "developer1")
-}
-
-func (s *assertMgrSuite) TestBatchAddStreamReturnsEffectivelyAddedRefs(c *C) {
-	s.state.Lock()
-	defer s.state.Unlock()
-
-	b := &bytes.Buffer{}
-	enc := asserts.NewEncoder(b)
-	// wrong order is ok
-	err := enc.Encode(s.dev1Acct)
-	c.Assert(err, IsNil)
-	enc.Encode(s.storeSigning.StoreAccountKey(""))
-	c.Assert(err, IsNil)
-
-	batch := assertstate.NewBatch()
-
-	err = batch.Add(s.storeSigning.StoreAccountKey(""))
-	c.Assert(err, IsNil)
-
-	refs, err := batch.AddStream(b)
-	c.Assert(err, IsNil)
-	c.Check(refs, DeepEquals, []*asserts.Ref{
-		{Type: asserts.AccountType, PrimaryKey: []string{s.dev1Acct.AccountID()}},
-	})
-
-	err = batch.Commit(s.state)
-	c.Assert(err, IsNil)
-
-	db := assertstate.DB(s.state)
-	devAcct, err := db.Find(asserts.AccountType, map[string]string{
-		"account-id": s.dev1Acct.AccountID(),
-	})
-	c.Assert(err, IsNil)
-	c.Check(devAcct.(*asserts.Account).Username(), Equals, "developer1")
-}
-
-func (s *assertMgrSuite) TestBatchCommitRefusesSelfSignedKey(c *C) {
-	s.state.Lock()
-	defer s.state.Unlock()
-
-	aKey, _ := assertstest.GenerateKey(752)
-	aSignDB := assertstest.NewSigningDB("can0nical", aKey)
-
-	aKeyEncoded, err := asserts.EncodePublicKey(aKey.PublicKey())
-	c.Assert(err, IsNil)
-
-	headers := map[string]interface{}{
-		"authority-id":        "can0nical",
-		"account-id":          "can0nical",
-		"public-key-sha3-384": aKey.PublicKey().ID(),
-		"name":                "default",
-		"since":               time.Now().UTC().Format(time.RFC3339),
-	}
-	acctKey, err := aSignDB.Sign(asserts.AccountKeyType, headers, aKeyEncoded, "")
-	c.Assert(err, IsNil)
-
-	headers = map[string]interface{}{
-		"authority-id": "can0nical",
-		"brand-id":     "can0nical",
-		"repair-id":    "2",
-		"summary":      "repair two",
-		"timestamp":    time.Now().UTC().Format(time.RFC3339),
-	}
-	repair, err := aSignDB.Sign(asserts.RepairType, headers, []byte("#script"), "")
-	c.Assert(err, IsNil)
-
-	batch := assertstate.NewBatch()
-
-	err = batch.Add(repair)
-	c.Assert(err, IsNil)
-
-	err = batch.Add(acctKey)
-	c.Assert(err, IsNil)
-
-	// this must fail
-	err = batch.Commit(s.state)
-	c.Assert(err, ErrorMatches, `circular assertions are not expected:.*`)
-}
-
-func (s *assertMgrSuite) TestBatchAddUnsupported(c *C) {
-	restore := asserts.MockMaxSupportedFormat(asserts.SnapDeclarationType, 111)
-	defer restore()
-
-	batch := assertstate.NewBatch()
-
-	var a asserts.Assertion
-	(func() {
-		restore := asserts.MockMaxSupportedFormat(asserts.SnapDeclarationType, 999)
-		defer restore()
-		headers := map[string]interface{}{
-			"format":       "999",
-			"revision":     "1",
-			"series":       "16",
-			"snap-id":      "snap-id-1",
-			"snap-name":    "foo",
-			"publisher-id": s.dev1Acct.AccountID(),
-			"timestamp":    time.Now().Format(time.RFC3339),
-		}
-		var err error
-		a, err = s.storeSigning.Sign(asserts.SnapDeclarationType, headers, nil, "")
-		c.Assert(err, IsNil)
-	})()
-
-	err := batch.Add(a)
-	c.Check(err, ErrorMatches, `proposed "snap-declaration" assertion has format 999 but 111 is latest supported`)
-}
-
-func (s *assertMgrSuite) TestBatchCommitPartial(c *C) {
+func (s *assertMgrSuite) TestAddBatchPartial(c *C) {
 	// Commit does add any successful assertion until the first error
 	s.state.Lock()
 	defer s.state.Unlock()
@@ -326,7 +205,7 @@ func (s *assertMgrSuite) TestBatchCommitPartial(c *C) {
 	err := assertstate.Add(s.state, s.storeSigning.StoreAccountKey(""))
 	c.Assert(err, IsNil)
 
-	batch := assertstate.NewBatch()
+	batch := asserts.NewBatch(nil)
 
 	snapDeclFoo := s.snapDecl(c, "foo", nil)
 
@@ -351,7 +230,7 @@ func (s *assertMgrSuite) TestBatchCommitPartial(c *C) {
 	err = batch.Add(snapRev)
 	c.Assert(err, IsNil)
 
-	err = batch.Commit(s.state)
+	err = assertstate.AddBatch(s.state, batch, nil)
 	c.Check(err, ErrorMatches, `(?ms).*validity.*`)
 
 	// snap-declaration was added anyway
@@ -362,7 +241,7 @@ func (s *assertMgrSuite) TestBatchCommitPartial(c *C) {
 	c.Assert(err, IsNil)
 }
 
-func (s *assertMgrSuite) TestBatchPrecheckPartial(c *C) {
+func (s *assertMgrSuite) TestAddBatchPrecheckPartial(c *C) {
 	s.state.Lock()
 	defer s.state.Unlock()
 
@@ -370,7 +249,7 @@ func (s *assertMgrSuite) TestBatchPrecheckPartial(c *C) {
 	err := assertstate.Add(s.state, s.storeSigning.StoreAccountKey(""))
 	c.Assert(err, IsNil)
 
-	batch := assertstate.NewBatch()
+	batch := asserts.NewBatch(nil)
 
 	snapDeclFoo := s.snapDecl(c, "foo", nil)
 
@@ -395,7 +274,9 @@ func (s *assertMgrSuite) TestBatchPrecheckPartial(c *C) {
 	err = batch.Add(snapRev)
 	c.Assert(err, IsNil)
 
-	err = batch.Precheck(s.state)
+	err = assertstate.AddBatch(s.state, batch, &asserts.CommitOptions{
+		Precheck: true,
+	})
 	c.Check(err, ErrorMatches, `(?ms).*validity.*`)
 
 	// nothing was added
@@ -406,7 +287,7 @@ func (s *assertMgrSuite) TestBatchPrecheckPartial(c *C) {
 	c.Assert(asserts.IsNotFound(err), Equals, true)
 }
 
-func (s *assertMgrSuite) TestBatchPrecheckHappy(c *C) {
+func (s *assertMgrSuite) TestAddBatchPrecheckHappy(c *C) {
 	s.state.Lock()
 	defer s.state.Unlock()
 
@@ -414,7 +295,7 @@ func (s *assertMgrSuite) TestBatchPrecheckHappy(c *C) {
 	err := assertstate.Add(s.state, s.storeSigning.StoreAccountKey(""))
 	c.Assert(err, IsNil)
 
-	batch := assertstate.NewBatch()
+	batch := asserts.NewBatch(nil)
 
 	snapDeclFoo := s.snapDecl(c, "foo", nil)
 
@@ -439,18 +320,9 @@ func (s *assertMgrSuite) TestBatchPrecheckHappy(c *C) {
 	err = batch.Add(snapRev)
 	c.Assert(err, IsNil)
 
-	err = batch.Precheck(s.state)
-	c.Assert(err, IsNil)
-
-	// nothing was added yet
-	_, err = assertstate.DB(s.state).Find(asserts.SnapDeclarationType, map[string]string{
-		"series":  "16",
-		"snap-id": "foo-id",
+	err = assertstate.AddBatch(s.state, batch, &asserts.CommitOptions{
+		Precheck: true,
 	})
-	c.Assert(asserts.IsNotFound(err), Equals, true)
-
-	// commit
-	err = batch.Commit(s.state)
 	c.Assert(err, IsNil)
 
 	_, err = assertstate.DB(s.state).Find(asserts.SnapRevisionType, map[string]string{
@@ -560,6 +432,93 @@ func (s *assertMgrSuite) TestFetchIdempotent(c *C) {
 func (s *assertMgrSuite) settle(c *C) {
 	err := s.o.Settle(5 * time.Second)
 	c.Assert(err, IsNil)
+}
+
+func (s *assertMgrSuite) TestFetchUnsupportedUpdateIgnored(c *C) {
+	// ATM in principle we ignore updated assertions with unsupported formats
+	// NB: this scenario can only happen if there is a bug
+	// we ask the store to filter what is returned by max supported format!
+	restore := asserts.MockMaxSupportedFormat(asserts.SnapDeclarationType, 111)
+	defer restore()
+
+	logbuf, restore := logger.MockLogger()
+	defer restore()
+
+	snapDeclFoo0 := s.snapDecl(c, "foo", nil)
+
+	s.state.Lock()
+	defer s.state.Unlock()
+	err := assertstate.Add(s.state, s.storeSigning.StoreAccountKey(""))
+	c.Assert(err, IsNil)
+
+	err = assertstate.Add(s.state, s.dev1Acct)
+	c.Assert(err, IsNil)
+	err = assertstate.Add(s.state, snapDeclFoo0)
+	c.Assert(err, IsNil)
+
+	var snapDeclFoo1 *asserts.SnapDeclaration
+	(func() {
+		restore := asserts.MockMaxSupportedFormat(asserts.SnapDeclarationType, 999)
+		defer restore()
+		snapDeclFoo1 = s.snapDecl(c, "foo", map[string]interface{}{
+			"format":   "999",
+			"revision": "1",
+		})
+	})()
+	c.Check(snapDeclFoo1.Revision(), Equals, 1)
+
+	ref := &asserts.Ref{
+		Type:       asserts.SnapDeclarationType,
+		PrimaryKey: []string{"16", "foo-id"},
+	}
+	fetching := func(f asserts.Fetcher) error {
+		return f.Fetch(ref)
+	}
+
+	s.fakeStore.(*fakeStore).maxDeclSupportedFormat = 999
+	err = assertstate.DoFetch(s.state, 0, s.trivialDeviceCtx, fetching)
+	// no error and the old one was kept
+	c.Assert(err, IsNil)
+	snapDecl, err := ref.Resolve(assertstate.DB(s.state).Find)
+	c.Assert(err, IsNil)
+	c.Check(snapDecl.Revision(), Equals, 0)
+
+	// we log the issue
+	c.Check(logbuf.String(), testutil.Contains, `Cannot update assertion snap-declaration (foo-id;`)
+}
+
+func (s *assertMgrSuite) TestFetchUnsupportedError(c *C) {
+	// NB: this scenario can only happen if there is a bug
+	// we ask the store to filter what is returned by max supported format!
+
+	restore := asserts.MockMaxSupportedFormat(asserts.SnapDeclarationType, 111)
+	defer restore()
+
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	var snapDeclFoo1 *asserts.SnapDeclaration
+	(func() {
+		restore := asserts.MockMaxSupportedFormat(asserts.SnapDeclarationType, 999)
+		defer restore()
+		snapDeclFoo1 = s.snapDecl(c, "foo", map[string]interface{}{
+			"format":   "999",
+			"revision": "1",
+		})
+	})()
+	c.Check(snapDeclFoo1.Revision(), Equals, 1)
+
+	ref := &asserts.Ref{
+		Type:       asserts.SnapDeclarationType,
+		PrimaryKey: []string{"16", "foo-id"},
+	}
+	fetching := func(f asserts.Fetcher) error {
+		return f.Fetch(ref)
+	}
+
+	s.fakeStore.(*fakeStore).maxDeclSupportedFormat = 999
+	err := assertstate.DoFetch(s.state, 0, s.trivialDeviceCtx, fetching)
+	c.Check(err, ErrorMatches, `(?s).*proposed "snap-declaration" assertion has format 999 but 111 is latest supported.*`)
 }
 
 func (s *assertMgrSuite) setModel(model *asserts.Model) {
@@ -778,60 +737,6 @@ func (s *assertMgrSuite) TestValidateSnapCrossCheckFail(c *C) {
 	s.state.Lock()
 
 	c.Assert(chg.Err(), ErrorMatches, `(?s).*cannot install "f", snap "f" is undergoing a rename to "foo".*`)
-}
-
-func (s *assertMgrSuite) TestValidateSnapSnapDeclIsTooNewFirstInstall(c *C) {
-	c.Skip("the assertion service will make this scenario not possible")
-
-	s.prereqSnapAssertions(c, 10)
-
-	tempdir := c.MkDir()
-	snapPath := filepath.Join(tempdir, "foo.snap")
-	err := ioutil.WriteFile(snapPath, fakeSnap(10), 0644)
-	c.Assert(err, IsNil)
-
-	// update snap decl with one that is too new
-	(func() {
-		restore := asserts.MockMaxSupportedFormat(asserts.SnapDeclarationType, 999)
-		defer restore()
-		headers := map[string]interface{}{
-			"format":       "999",
-			"revision":     "1",
-			"series":       "16",
-			"snap-id":      "snap-id-1",
-			"snap-name":    "foo",
-			"publisher-id": s.dev1Acct.AccountID(),
-			"timestamp":    time.Now().Format(time.RFC3339),
-		}
-		snapDecl, err := s.storeSigning.Sign(asserts.SnapDeclarationType, headers, nil, "")
-		c.Assert(err, IsNil)
-		err = s.storeSigning.Add(snapDecl)
-		c.Assert(err, IsNil)
-	})()
-
-	s.state.Lock()
-	defer s.state.Unlock()
-
-	chg := s.state.NewChange("install", "...")
-	t := s.state.NewTask("validate-snap", "Fetch and check snap assertions")
-	snapsup := snapstate.SnapSetup{
-		SnapPath: snapPath,
-		UserID:   0,
-		SideInfo: &snap.SideInfo{
-			RealName: "foo",
-			SnapID:   "snap-id-1",
-			Revision: snap.R(10),
-		},
-	}
-	t.Set("snap-setup", snapsup)
-	chg.AddTask(t)
-
-	s.state.Unlock()
-	defer s.se.Stop()
-	s.settle(c)
-	s.state.Lock()
-
-	c.Assert(chg.Err(), ErrorMatches, `(?s).*proposed "snap-declaration" assertion has format 999 but 0 is latest supported.*`)
 }
 
 func (s *assertMgrSuite) snapDecl(c *C, name string, extraHeaders map[string]interface{}) *asserts.SnapDeclaration {
