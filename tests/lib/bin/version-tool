@@ -279,7 +279,7 @@ naive:
     rel_op_grp.add_argument(
         "-lt",
         action="store_const",
-        const="<=",
+        const="<",
         dest="rel_op",
         help="test that version-a is less than version-b",
     )
