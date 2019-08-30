@@ -32,6 +32,7 @@ import (
 	"github.com/snapcore/snapd/overlord/assertstate/assertstatetest"
 	"github.com/snapcore/snapd/overlord/auth"
 	"github.com/snapcore/snapd/overlord/devicestate"
+	"github.com/snapcore/snapd/overlord/devicestate/devicestatetest"
 	"github.com/snapcore/snapd/overlord/hookstate"
 	"github.com/snapcore/snapd/overlord/state"
 )
@@ -249,28 +250,30 @@ func (s *apiSuite) TestGetModelHasSerialAssertion(c *check.C) {
 	d.overlord.AddManager(deviceMgr)
 	st := d.overlord.State()
 	st.Lock()
+	defer st.Unlock()
 	assertstatetest.AddMany(st, s.storeSigning.StoreAccountKey(""))
 	assertstatetest.AddMany(st, s.brands.AccountsAndKeys("my-brand")...)
 	s.mockModel(c, st, theModel)
 
-	// in case the name of the serial ever changes, just get it state in State
-	// currently it's hard-coded to always be serialserial
-	var authStateData auth.AuthState
-	err = st.Get("auth", &authStateData)
-	c.Assert(err, check.IsNil)
 	serial, err := s.brands.Signing("my-brand").Sign(asserts.SerialType, map[string]interface{}{
 		"authority-id":        "my-brand",
 		"brand-id":            "my-brand",
 		"model":               "my-old-model",
-		"serial":              authStateData.Device.Serial,
+		"serial":              "serialserial",
 		"device-key":          string(encDevKey),
 		"device-key-sha3-384": deviceKey.PublicKey().ID(),
 		"timestamp":           time.Now().Format(time.RFC3339),
 	}, nil, "")
 	c.Assert(err, check.IsNil)
 	assertstatetest.AddMany(st, serial)
+	devicestatetest.SetDevice(st, &auth.DeviceState{
+		Brand:  "my-brand",
+		Model:  "my-old-model",
+		Serial: "serialserial",
+	})
 
 	st.Unlock()
+	defer st.Lock()
 
 	// make a new get request to the serial endpoint
 	req, err := http.NewRequest("GET", "/v2/model/serial", nil)
@@ -310,39 +313,30 @@ func (s *apiSuite) TestGetModelJSONHasSerialAssertion(c *check.C) {
 	d.overlord.AddManager(deviceMgr)
 	st := d.overlord.State()
 	st.Lock()
-	isLocked := true
-	// don't defer unlocking unconditionally because we need to unlock it before
-	// the below part of our tests, specifically the call to getSerial
-	defer func() {
-		if isLocked {
-			st.Unlock()
-		}
-	}()
+	defer st.Unlock()
 	assertstatetest.AddMany(st, s.storeSigning.StoreAccountKey(""))
 	assertstatetest.AddMany(st, s.brands.AccountsAndKeys("my-brand")...)
 	s.mockModel(c, st, theModel)
 
-	// in case the name of the serial ever changes, just get it state in State
-	// currently it's hard-coded to always be serialserial
-	var authStateData auth.AuthState
-	err = st.Get("auth", &authStateData)
-	c.Assert(err, check.IsNil)
 	serial, err := s.brands.Signing("my-brand").Sign(asserts.SerialType, map[string]interface{}{
 		"authority-id":        "my-brand",
 		"brand-id":            "my-brand",
 		"model":               "my-old-model",
-		"serial":              authStateData.Device.Serial,
+		"serial":              "serialserial",
 		"device-key":          string(encDevKey),
 		"device-key-sha3-384": deviceKey.PublicKey().ID(),
 		"timestamp":           time.Now().Format(time.RFC3339),
 	}, nil, "")
 	c.Assert(err, check.IsNil)
 	assertstatetest.AddMany(st, serial)
+	devicestatetest.SetDevice(st, &auth.DeviceState{
+		Brand:  "my-brand",
+		Model:  "my-old-model",
+		Serial: "serialserial",
+	})
 
-	// we are now safe to unlock so make sure we don't try to unlock an already
-	// unlocked lock
-	isLocked = false
 	st.Unlock()
+	defer st.Lock()
 
 	// make a new get request to the model endpoint with json as true
 	req, err := http.NewRequest("GET", "/v2/model/serial?json=true", nil)
