@@ -849,7 +849,7 @@ func setBootvars(downloadedSnapsInfoForBootConfig map[string]*snap.Info, model *
 			bootvar = "snap_core"
 		case snap.TypeKernel:
 			bootvar = "snap_kernel"
-			if err := extractKernelAssets(fn, info); err != nil {
+			if err := extractKernelAssets(fn, info, model); err != nil {
 				return err
 			}
 		}
@@ -866,16 +866,19 @@ func setBootvars(downloadedSnapsInfoForBootConfig map[string]*snap.Info, model *
 	return nil
 }
 
-func extractKernelAssets(snapPath string, info *snap.Info) error {
+func extractKernelAssets(snapPath string, info *snap.Info, model *asserts.Model) error {
 	snapf, err := snap.Open(snapPath)
 	if err != nil {
 		return err
 	}
 
-	if err := boot.ExtractKernelAssets(info, snapf); err != nil {
-		return err
+	// image always runs in not-on-classic mode
+	bp, _ := boot.Lookup(info, info.GetType(), model, false)
+	kernel, ok := bp.(boot.Kernel)
+	if !ok {
+		return nil
 	}
-	return nil
+	return kernel.ExtractKernelAssets(snapf)
 }
 
 func copyLocalSnapFile(snapPath, targetDir string, info *snap.Info) (dstPath string, err error) {
