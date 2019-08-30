@@ -3631,13 +3631,14 @@ func (s *mgrsSuite) TestHappyDeviceRegistrationWithPrepareDeviceHook(c *C) {
 	err = assertstate.Add(st, model)
 	c.Assert(err, IsNil)
 
-	signSerial := func(c *C, bhv *devicestatetest.DeviceServiceBehavior, headers map[string]interface{}, body []byte) (asserts.Assertion, error) {
+	signSerial := func(c *C, bhv *devicestatetest.DeviceServiceBehavior, headers map[string]interface{}, body []byte) (serial asserts.Assertion, ancillary []asserts.Assertion, err error) {
 		brandID := headers["brand-id"].(string)
 		model := headers["model"].(string)
 		c.Check(brandID, Equals, "my-brand")
 		c.Check(model, Equals, "my-model")
 		headers["authority-id"] = brandID
-		return s.brands.Signing("my-brand").Sign(asserts.SerialType, headers, body, "")
+		a, err := s.brands.Signing("my-brand").Sign(asserts.SerialType, headers, body, "")
+		return a, nil, err
 	}
 
 	bhv := &devicestatetest.DeviceServiceBehavior{
@@ -3771,13 +3772,14 @@ func (s *mgrsSuite) TestRemodelReregistration(c *C) {
 	err = assertstate.Add(st, serial)
 	c.Assert(err, IsNil)
 
-	signSerial := func(c *C, bhv *devicestatetest.DeviceServiceBehavior, headers map[string]interface{}, body []byte) (asserts.Assertion, error) {
+	signSerial := func(c *C, bhv *devicestatetest.DeviceServiceBehavior, headers map[string]interface{}, body []byte) (serial asserts.Assertion, ancillary []asserts.Assertion, err error) {
 		brandID := headers["brand-id"].(string)
 		model := headers["model"].(string)
 		c.Check(brandID, Equals, "my-brand")
 		c.Check(model, Equals, "other-model")
 		headers["authority-id"] = brandID
-		return s.brands.Signing("my-brand").Sign(asserts.SerialType, headers, body, "")
+		a, err := s.brands.Signing("my-brand").Sign(asserts.SerialType, headers, body, "")
+		return a, nil, err
 	}
 
 	bhv := &devicestatetest.DeviceServiceBehavior{
