@@ -1102,7 +1102,7 @@ func (s *FirstBootTestSuite) TestImportAssertionsFromSeedTwoModelAsserts(c *C) {
 	// try import and verify that its rejects because other assertions are
 	// missing
 	_, err = devicestate.ImportAssertionsFromSeed(st, deviceSeed)
-	c.Assert(err, ErrorMatches, "cannot add more than one model assertion")
+	c.Assert(err, ErrorMatches, "cannot have multiple model assertions in seed")
 }
 
 func (s *FirstBootTestSuite) TestImportAssertionsFromSeedNoModelAsserts(c *C) {
@@ -1123,7 +1123,7 @@ func (s *FirstBootTestSuite) TestImportAssertionsFromSeedNoModelAsserts(c *C) {
 	// try import and verify that its rejects because other assertions are
 	// missing
 	_, err = devicestate.ImportAssertionsFromSeed(st, deviceSeed)
-	c.Assert(err, ErrorMatches, "need a model assertion")
+	c.Assert(err, ErrorMatches, "seed must have a model assertion")
 }
 
 type core18SnapsOpts struct {

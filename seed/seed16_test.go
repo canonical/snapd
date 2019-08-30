@@ -105,7 +105,7 @@ func (s *seed16Suite) TestLoadAssertionsNoModelAssertion(c *C) {
 	err := os.Mkdir(s.AssertsDir, 0755)
 	c.Assert(err, IsNil)
 
-	c.Check(s.seed16.LoadAssertions(s.db, s.commitTo), ErrorMatches, "need a model assertion")
+	c.Check(s.seed16.LoadAssertions(s.db, s.commitTo), ErrorMatches, "seed must have a model assertion")
 }
 
 func (s *seed16Suite) TestLoadAssertionsTwoModelAssertionsError(c *C) {
@@ -122,7 +122,7 @@ func (s *seed16Suite) TestLoadAssertionsTwoModelAssertionsError(c *C) {
 	modelChain = s.MakeModelAssertionChain("my-brand", "my-model-2", headers)
 	s.WriteAssertions("model2.asserts", modelChain...)
 
-	c.Check(s.seed16.LoadAssertions(s.db, s.commitTo), ErrorMatches, "cannot add more than one model assertion")
+	c.Check(s.seed16.LoadAssertions(s.db, s.commitTo), ErrorMatches, "cannot have multiple model assertions in seed")
 }
 
 func (s *seed16Suite) TestLoadAssertionsConsistencyError(c *C) {
@@ -1030,10 +1030,10 @@ version: other-base
 		breakSeed func([]*seed.Snap16) []*seed.Snap16
 		err       string
 	}{
-		{omit(0), `cannot proceed without seeding "snapd"`},
-		{omit(1), `cannot proceed without seeding "core18"`},
-		{omit(2), `cannot proceed without seeding "pc-kernel"`},
-		{omit(3), `cannot proceed without seeding "pc"`},
+		{omit(0), `model requires but seed is missing essential snap "snapd"`},
+		{omit(1), `model requires but seed is missing essential snap "core18"`},
+		{omit(2), `model requires but seed is missing essential snap "pc-kernel"`},
+		{omit(3), `model requires but seed is missing essential snap "pc"`},
 		// omitting "required18" currently doesn't error in any way
 		{replaceFile("core18", otherFname), `cannot find signatures with metadata for snap "core18".*`},
 		{replaceFile("required18", otherFname), `cannot find signatures with metadata for snap "required18".*`},

@@ -64,15 +64,13 @@ func (s *seed16) LoadAssertions(db asserts.RODatabase, commitTo func(*asserts.Ba
 		}
 	}
 
-	// TODO: improve error messages
-
 	assertSeedDir := filepath.Join(s.seedDir, "assertions")
 	// collect assertions and find model assertion
 	var modelRef *asserts.Ref
 	checkForModel := func(ref *asserts.Ref) error {
 		if ref.Type == asserts.ModelType {
 			if modelRef != nil && modelRef.Unique() != ref.Unique() {
-				return fmt.Errorf("cannot add more than one model assertion")
+				return fmt.Errorf("cannot have multiple model assertions in seed")
 			}
 			modelRef = ref
 		}
@@ -86,7 +84,7 @@ func (s *seed16) LoadAssertions(db asserts.RODatabase, commitTo func(*asserts.Ba
 
 	// verify we have one model assertion
 	if modelRef == nil {
-		return fmt.Errorf("need a model assertion")
+		return fmt.Errorf("seed must have a model assertion")
 	}
 
 	if err := commitTo(batch); err != nil {
@@ -195,8 +193,7 @@ func (s *seed16) LoadMeta(tm timings.Measurer) error {
 		}
 		yamlSnap := seeding[snapName]
 		if yamlSnap == nil {
-			// TODO: clarify this error message
-			return nil, fmt.Errorf("cannot proceed without seeding %q", snapName)
+			return nil, fmt.Errorf("model requires but seed is missing essential snap %q", snapName)
 		}
 
 		seedSnap, err := s.addSnap(yamlSnap, tm)
