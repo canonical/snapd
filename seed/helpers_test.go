@@ -37,7 +37,7 @@ import (
 type helpersSuite struct {
 	testutil.BaseTest
 
-	seedtest.TestingSeed
+	*seedtest.TestingSeed
 	devAcct *asserts.Account
 }
 
@@ -47,6 +47,7 @@ func (s *helpersSuite) SetUpTest(c *C) {
 	s.BaseTest.SetUpTest(c)
 	s.BaseTest.AddCleanup(snap.MockSanitizePlugsSlots(func(snapInfo *snap.Info) {}))
 
+	s.TestingSeed = &seedtest.TestingSeed{}
 	s.SetupAssertSigning("canonical", s)
 
 	dir := c.MkDir()

@@ -79,7 +79,7 @@ type imageSuite struct {
 
 	// SeedSnaps helps creating and making available seed snaps
 	// (it provides MakeAssertedSnap etc.) for the tests.
-	seedtest.SeedSnaps
+	*seedtest.SeedSnaps
 
 	model *asserts.Model
 }
@@ -104,6 +104,7 @@ func (s *imageSuite) SetUpTest(c *C) {
 	image.Stderr = s.stderr
 	s.tsto = image.MockToolingStore(s)
 
+	s.SeedSnaps = &seedtest.SeedSnaps{}
 	s.SetupAssertSigning("canonical", s)
 	s.Brands.Register("my-brand", brandPrivKey, map[string]interface{}{
 		"verification": "verified",
