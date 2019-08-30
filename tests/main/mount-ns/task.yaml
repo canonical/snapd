@@ -66,13 +66,11 @@ prepare: |
             # and released this test can be allowed to run on bash 4.3. Without
             # the workaround for a bug in bash REBOOT causes the spread test to
             # fail instead of asking spread to reboot the machine.
-            case "$(LANG=C bash --version | head -n 1 | cut -d ' ' -f 4)" in
-                4.3.*)
-                echo "SKIP: this test cannot operate on bash 4.3.x"
+            if version-tool --naive "$(LANG=C bash --version | head -n 1 | cut -d ' ' -f 4)" -lt 4.4; then
+                echo "SKIP: this test cannot operate on bash 4.3.x or older"
                 touch please-skip-this-test
                 exit 0
-                ;;
-            esac
+            fi
             #
             # The test will reboot once before performing the test. This will
             # remove any ephemeral state that may be left in the kernel by prior
