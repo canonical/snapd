@@ -126,8 +126,9 @@ def numeric_part_of(text):
     """
     numeric_part_of returns the integer representing the numeric portion of text.
 
-    If text does not start with an decimal integer the result is zero. The
-    function never fails.
+    If text does not start with an natural number the result is zero. The
+    function never fails. Negative numbers are not supported because they are
+    meaningless for version numbers.
     """
     match = re.match("^([0-9]+)", text)
     if match:
