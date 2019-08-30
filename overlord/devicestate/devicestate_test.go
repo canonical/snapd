@@ -3185,16 +3185,14 @@ func (s *deviceMgrSuite) TestRemodeling(c *C) {
 	c.Check(devicestate.Remodeling(s.state), Equals, false)
 }
 
-func (s *deviceMgrSuite) TestDoRequestSerialReregistration(c *C) {
+func (s *deviceMgrSuite) testDoRequestSerialReregistration(c *C, setAncillary func(origSerial *asserts.Serial)) *state.Task {
 	mockServer := s.mockServer(c, "REQID-1", nil)
 	defer mockServer.Close()
 
 	restore := devicestate.MockBaseStoreURL(mockServer.URL)
 	defer restore()
 
-	assertstest.AddMany(s.storeSigning, s.brands.AccountsAndKeys("rereg-brand")...)
-
-	// setup state as done by first-boot/Ensure/doGenerateDeviceKey
+	// setup state as after initial registration
 	s.state.Lock()
 	defer s.state.Unlock()
 
@@ -3215,7 +3213,12 @@ func (s *deviceMgrSuite) TestDoRequestSerialReregistration(c *C) {
 	devicestate.KeypairManager(s.mgr).Put(devKey)
 
 	// have a serial assertion
-	s.makeSerialAssertionInState(c, "my-brand", "my-model", "9999")
+	serial0 := s.makeSerialAssertionInState(c, "my-brand", "my-model", "9999")
+	// give a chance to the test to setup returning a stream vs
+	// just the serial assertion
+	if setAncillary != nil {
+		setAncillary(serial0)
+	}
 
 	new := s.brands.Model("rereg-brand", "rereg-model", map[string]interface{}{
 		"architecture": "amd64",
@@ -3256,6 +3259,18 @@ func (s *deviceMgrSuite) TestDoRequestSerialReregistration(c *C) {
 	s.se.Ensure()
 	s.se.Wait()
 	s.state.Lock()
+
+	return t
+}
+
+func (s *deviceMgrSuite) TestDoRequestSerialReregistration(c *C) {
+	assertstest.AddMany(s.storeSigning, s.brands.AccountsAndKeys("rereg-brand")...)
+
+	t := s.testDoRequestSerialReregistration(c, nil)
+
+	s.state.Lock()
+	defer s.state.Unlock()
+	chg := t.Change()
 
 	c.Check(chg.Status(), Equals, state.DoneStatus, Commentf("%s", t.Log()))
 	c.Check(chg.Err(), IsNil)
@@ -3271,76 +3286,17 @@ func (s *deviceMgrSuite) TestDoRequestSerialReregistration(c *C) {
 }
 
 func (s *deviceMgrSuite) TestDoRequestSerialReregistrationStreamFromService(c *C) {
-	mockServer := s.mockServer(c, "REQID-1", nil)
-	defer mockServer.Close()
-
-	restore := devicestate.MockBaseStoreURL(mockServer.URL)
-	defer restore()
-
-	s.ancillary = s.brands.AccountsAndKeys("rereg-brand")
-
-	// setup state as after initial registration
-	s.state.Lock()
-	defer s.state.Unlock()
-
-	s.makeModelAssertionInState(c, "my-brand", "my-model", map[string]interface{}{
-		"architecture": "amd64",
-		"kernel":       "pc-kernel",
-		"gadget":       "pc",
-	})
-
-	devicestatetest.MockGadget(c, s.state, "pc", snap.R(2), nil)
-
-	devicestatetest.SetDevice(s.state, &auth.DeviceState{
-		Brand:  "my-brand",
-		Model:  "my-model",
-		KeyID:  devKey.PublicKey().ID(),
-		Serial: "9999",
-	})
-	devicestate.KeypairManager(s.mgr).Put(devKey)
-
-	// have the serial assertion
-	s.makeSerialAssertionInState(c, "my-brand", "my-model", "9999")
-
-	new := s.brands.Model("rereg-brand", "rereg-model", map[string]interface{}{
-		"architecture": "amd64",
-		"kernel":       "pc-kernel",
-		"gadget":       "pc",
-	})
-	cur, err := s.mgr.Model()
-	c.Assert(err, IsNil)
-
-	s.newFakeStore = func(devBE storecontext.DeviceBackend) snapstate.StoreService {
-		mod, err := devBE.Model()
-		c.Check(err, IsNil)
-		if err == nil {
-			c.Check(mod, DeepEquals, new)
-		}
-		return nil
+	setAncillary := func(_ *asserts.Serial) {
+		// sets up such that re-registration returns a stream
+		// of assertions
+		s.ancillary = s.brands.AccountsAndKeys("rereg-brand")
 	}
 
-	remodCtx, err := devicestate.RemodelCtx(s.state, cur, new)
-	c.Assert(err, IsNil)
-	c.Check(remodCtx.Kind(), Equals, devicestate.ReregRemodel)
+	t := s.testDoRequestSerialReregistration(c, setAncillary)
 
-	t := s.state.NewTask("request-serial", "test")
-	chg := s.state.NewChange("remodel", "...")
-	// associate with context
-	remodCtx.Init(chg)
-	chg.AddTask(t)
-
-	// sanity
-	regCtx, err := devicestate.RegistrationCtx(s.mgr, t)
-	c.Assert(err, IsNil)
-	c.Check(regCtx, Equals, remodCtx.(devicestate.RegistrationContext))
-
-	// avoid full seeding
-	s.seeding()
-
-	s.state.Unlock()
-	s.se.Ensure()
-	s.se.Wait()
 	s.state.Lock()
+	defer s.state.Unlock()
+	chg := t.Change()
 
 	c.Check(chg.Status(), Equals, state.DoneStatus, Commentf("%s", t.Log()))
 	c.Check(chg.Err(), IsNil)
@@ -3356,155 +3312,34 @@ func (s *deviceMgrSuite) TestDoRequestSerialReregistrationStreamFromService(c *C
 }
 
 func (s *deviceMgrSuite) TestDoRequestSerialReregistrationIncompleteStreamFromService(c *C) {
-	mockServer := s.mockServer(c, "REQID-1", nil)
-	defer mockServer.Close()
-
-	restore := devicestate.MockBaseStoreURL(mockServer.URL)
-	defer restore()
-
-	// will produce an incomplete stream!
-	s.ancillary = s.brands.AccountsAndKeys("rereg-brand")[:1]
-
-	// setup state as after initial registration
-	s.state.Lock()
-	defer s.state.Unlock()
-
-	s.makeModelAssertionInState(c, "my-brand", "my-model", map[string]interface{}{
-		"architecture": "amd64",
-		"kernel":       "pc-kernel",
-		"gadget":       "pc",
-	})
-
-	devicestatetest.MockGadget(c, s.state, "pc", snap.R(2), nil)
-
-	devicestatetest.SetDevice(s.state, &auth.DeviceState{
-		Brand:  "my-brand",
-		Model:  "my-model",
-		KeyID:  devKey.PublicKey().ID(),
-		Serial: "9999",
-	})
-	devicestate.KeypairManager(s.mgr).Put(devKey)
-
-	// have the serial assertion
-	s.makeSerialAssertionInState(c, "my-brand", "my-model", "9999")
-
-	new := s.brands.Model("rereg-brand", "rereg-model", map[string]interface{}{
-		"architecture": "amd64",
-		"kernel":       "pc-kernel",
-		"gadget":       "pc",
-	})
-	cur, err := s.mgr.Model()
-	c.Assert(err, IsNil)
-
-	s.newFakeStore = func(devBE storecontext.DeviceBackend) snapstate.StoreService {
-		mod, err := devBE.Model()
-		c.Check(err, IsNil)
-		if err == nil {
-			c.Check(mod, DeepEquals, new)
-		}
-		return nil
+	setAncillary := func(_ *asserts.Serial) {
+		// will produce an incomplete stream!
+		s.ancillary = s.brands.AccountsAndKeys("rereg-brand")[:1]
 	}
 
-	remodCtx, err := devicestate.RemodelCtx(s.state, cur, new)
-	c.Assert(err, IsNil)
-	c.Check(remodCtx.Kind(), Equals, devicestate.ReregRemodel)
+	t := s.testDoRequestSerialReregistration(c, setAncillary)
 
-	t := s.state.NewTask("request-serial", "test")
-	chg := s.state.NewChange("remodel", "...")
-	// associate with context
-	remodCtx.Init(chg)
-	chg.AddTask(t)
-
-	// sanity
-	regCtx, err := devicestate.RegistrationCtx(s.mgr, t)
-	c.Assert(err, IsNil)
-	c.Check(regCtx, Equals, remodCtx.(devicestate.RegistrationContext))
-
-	// avoid full seeding
-	s.seeding()
-
-	s.state.Unlock()
-	s.se.Ensure()
-	s.se.Wait()
 	s.state.Lock()
+	defer s.state.Unlock()
+	chg := t.Change()
 
 	c.Check(chg.Status(), Equals, state.ErrorStatus, Commentf("%s", t.Log()))
 	c.Check(chg.Err(), ErrorMatches, `(?ms).*cannot accept stream of assertions from device service:.*`)
 }
 
 func (s *deviceMgrSuite) TestDoRequestSerialReregistrationDoubleSerialStreamFromService(c *C) {
-	mockServer := s.mockServer(c, "REQID-1", nil)
-	defer mockServer.Close()
-
-	restore := devicestate.MockBaseStoreURL(mockServer.URL)
-	defer restore()
-
-	// will produce an incomplete stream!
-	s.ancillary = s.brands.AccountsAndKeys("rereg-brand")
-
-	// setup state as after initial registration
-	s.state.Lock()
-	defer s.state.Unlock()
-
-	s.makeModelAssertionInState(c, "my-brand", "my-model", map[string]interface{}{
-		"architecture": "amd64",
-		"kernel":       "pc-kernel",
-		"gadget":       "pc",
-	})
-
-	devicestatetest.MockGadget(c, s.state, "pc", snap.R(2), nil)
-
-	devicestatetest.SetDevice(s.state, &auth.DeviceState{
-		Brand:  "my-brand",
-		Model:  "my-model",
-		KeyID:  devKey.PublicKey().ID(),
-		Serial: "9999",
-	})
-	devicestate.KeypairManager(s.mgr).Put(devKey)
-
-	// have the serial assertion
-	serial0 := s.makeSerialAssertionInState(c, "my-brand", "my-model", "9999")
-	s.ancillary = append(s.ancillary, serial0)
-
-	new := s.brands.Model("rereg-brand", "rereg-model", map[string]interface{}{
-		"architecture": "amd64",
-		"kernel":       "pc-kernel",
-		"gadget":       "pc",
-	})
-	cur, err := s.mgr.Model()
-	c.Assert(err, IsNil)
-
-	s.newFakeStore = func(devBE storecontext.DeviceBackend) snapstate.StoreService {
-		mod, err := devBE.Model()
-		c.Check(err, IsNil)
-		if err == nil {
-			c.Check(mod, DeepEquals, new)
-		}
-		return nil
+	setAncillary := func(serial0 *asserts.Serial) {
+		// will produce a stream with confusingly two serial
+		// assertions
+		s.ancillary = s.brands.AccountsAndKeys("rereg-brand")
+		s.ancillary = append(s.ancillary, serial0)
 	}
 
-	remodCtx, err := devicestate.RemodelCtx(s.state, cur, new)
-	c.Assert(err, IsNil)
-	c.Check(remodCtx.Kind(), Equals, devicestate.ReregRemodel)
+	t := s.testDoRequestSerialReregistration(c, setAncillary)
 
-	t := s.state.NewTask("request-serial", "test")
-	chg := s.state.NewChange("remodel", "...")
-	// associate with context
-	remodCtx.Init(chg)
-	chg.AddTask(t)
-
-	// sanity
-	regCtx, err := devicestate.RegistrationCtx(s.mgr, t)
-	c.Assert(err, IsNil)
-	c.Check(regCtx, Equals, remodCtx.(devicestate.RegistrationContext))
-
-	// avoid full seeding
-	s.seeding()
-
-	s.state.Unlock()
-	s.se.Ensure()
-	s.se.Wait()
 	s.state.Lock()
+	defer s.state.Unlock()
+	chg := t.Change()
 
 	c.Check(chg.Status(), Equals, state.ErrorStatus, Commentf("%s", t.Log()))
 	c.Check(chg.Err(), ErrorMatches, `(?ms).*cannot accept more than a single device serial assertion from the device service.*`)
