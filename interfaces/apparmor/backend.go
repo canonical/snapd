@@ -606,6 +606,11 @@ func addContent(securityTag string, snapInfo *snap.Info, opts interfaces.Confine
 					repl = ""
 				}
 				tagSnippets = strings.Replace(tagSnippets, "###HOME_IX###", repl, -1)
+
+				// Conditionally add privilege dropping policy
+				if len(snapInfo.SystemUsernames) > 0 {
+					tagSnippets += privDropAndChownRules
+				}
 			}
 
 			return tagSnippets

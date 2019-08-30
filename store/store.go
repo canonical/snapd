@@ -175,7 +175,13 @@ type Store struct {
 	proxy  func(*http.Request) (*url.URL, error)
 }
 
+var ErrTooManyRequests = errors.New("too many requests")
+
 func respToError(resp *http.Response, msg string) error {
+	if resp.StatusCode == 429 {
+		return ErrTooManyRequests
+	}
+
 	tpl := "cannot %s: got unexpected HTTP status code %d via %s to %q"
 	if oops := resp.Header.Get("X-Oops-Id"); oops != "" {
 		tpl += " [%s]"
@@ -1328,8 +1334,9 @@ func (e HashError) Error() string {
 }
 
 type DownloadOptions struct {
-	RateLimit     int64
-	IsAutoRefresh bool
+	RateLimit           int64
+	IsAutoRefresh       bool
+	LeavePartialOnError bool
 }
 
 // Download downloads the snap addressed by download info and returns its
@@ -1369,10 +1376,14 @@ func (s *Store) Download(ctx context.Context, name string, targetPath string, do
 		return err
 	}
 	defer func() {
+		fi, _ := w.Stat()
 		if cerr := w.Close(); cerr != nil && err == nil {
 			err = cerr
 		}
-		if err != nil {
+		if err == nil {
+			return
+		}
+		if dlOpts == nil || !dlOpts.LeavePartialOnError || fi == nil || fi.Size() == 0 {
 			os.Remove(w.Name())
 		}
 	}()

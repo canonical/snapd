@@ -86,7 +86,7 @@ func getAssertTypeNames(c *Command, r *http.Request, user *auth.UserState) Respo
 }
 
 func doAssert(c *Command, r *http.Request, user *auth.UserState) Response {
-	batch := assertstate.NewBatch()
+	batch := asserts.NewBatch(nil)
 	_, err := batch.AddStream(r.Body)
 	if err != nil {
 		return BadRequest("cannot decode request body into assertions: %v", err)
@@ -96,7 +96,9 @@ func doAssert(c *Command, r *http.Request, user *auth.UserState) Response {
 	state.Lock()
 	defer state.Unlock()
 
-	if err := batch.Commit(state); err != nil {
+	if err := assertstate.AddBatch(state, batch, &asserts.CommitOptions{
+		Precheck: true,
+	}); err != nil {
 		return BadRequest("assert failed: %v", err)
 	}
 	// TODO: what more info do we want to return on success?

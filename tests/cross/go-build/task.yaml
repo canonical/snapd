@@ -34,12 +34,17 @@ prepare: |
     cp -ar "$PROJECT_PATH" /tmp/cross-build/src/github.com/snapcore
     chown -R test:12345 /tmp/cross-build
 
+    UBUNTU_ARCHIVE="http://archive.ubuntu.com/ubuntu/"
+    if [ "$SPREAD_BACKEND" = "google" ]; then
+        UBUNTU_ARCHIVE="http://$(cloud-id -l | cut -f2).gce.archive.ubuntu.com/ubuntu/"
+    fi
+
     mv /etc/apt/sources.list /etc/apt/sources.list.orig
     cat > /etc/apt/sources.list <<-EOF
-          deb [arch=amd64,i386] http://archive.ubuntu.com/ubuntu/  $UBUNTU_CODENAME           main universe
-          deb [arch=amd64,i386] http://archive.ubuntu.com/ubuntu/  $UBUNTU_CODENAME-updates   main universe
-          deb [arch=amd64,i386] http://archive.ubuntu.com/ubuntu/  $UBUNTU_CODENAME-backports main universe
-          deb [arch=amd64,i386] http://security.ubuntu.com/ubuntu/ $UBUNTU_CODENAME-security  main universe
+          deb [arch=amd64,i386] $UBUNTU_ARCHIVE $UBUNTU_CODENAME           main universe
+          deb [arch=amd64,i386] $UBUNTU_ARCHIVE $UBUNTU_CODENAME-updates   main universe
+          deb [arch=amd64,i386] $UBUNTU_ARCHIVE $UBUNTU_CODENAME-backports main universe
+          deb [arch=amd64,i386] $UBUNTU_ARCHIVE $UBUNTU_CODENAME-security  main universe
 
           deb [arch=armhf,arm64,powerpc,ppc64el,s390x] http://ports.ubuntu.com/ $UBUNTU_CODENAME           main universe
           deb [arch=armhf,arm64,powerpc,ppc64el,s390x] http://ports.ubuntu.com/ $UBUNTU_CODENAME-updates   main universe
@@ -52,6 +57,6 @@ prepare: |
 
 execute: |
     cd /tmp/cross-build/src/github.com/snapcore/snapd
-    for cmd in $( find ./cmd -mindepth 2 -maxdepth 2 -name \*.go -printf '%h\n' | sort -u ); do
+    for cmd in $( find ./cmd -mindepth 2 -maxdepth 2 -name main.go -printf '%h\n' | sort -u ); do
       su -c "GOPATH=/tmp/cross-build CGO_ENABLED=1 GOARCH=$X_GOARCH CC=$X_CC go build -v -o /dev/null $cmd" test
     done

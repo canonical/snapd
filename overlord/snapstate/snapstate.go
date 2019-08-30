@@ -45,6 +45,7 @@ import (
 	"github.com/snapcore/snapd/overlord/state"
 	"github.com/snapcore/snapd/release"
 	"github.com/snapcore/snapd/snap"
+	"github.com/snapcore/snapd/snap/channel"
 	"github.com/snapcore/snapd/store"
 	"github.com/snapcore/snapd/strutil"
 )
@@ -1193,24 +1194,11 @@ func resolveChannel(st *state.State, snapName, newChannel string, deviceCtx Devi
 	model := deviceCtx.Model()
 
 	var pinnedTrack, which string
-	switch {
-	case snapName == model.Kernel() && model.KernelTrack() != "":
+	if snapName == model.Kernel() && model.KernelTrack() != "" {
 		pinnedTrack, which = model.KernelTrack(), "kernel"
-	case snapName == model.Gadget() && model.GadgetTrack() != "":
+	}
+	if snapName == model.Gadget() && model.GadgetTrack() != "" {
 		pinnedTrack, which = model.GadgetTrack(), "gadget"
-	default:
-		var snapst SnapState
-		err := Get(st, snapName, &snapst)
-		if err != nil && err != state.ErrNoState {
-			return "", err
-		}
-		if snapst.IsInstalled() && snapst.Channel != "" {
-			ch, err := snap.ParseChannel(snapst.Channel, "")
-			if err != nil {
-				return "", err
-			}
-			pinnedTrack = ch.Track
-		}
 	}
 
 	if pinnedTrack == "" {
@@ -1218,7 +1206,7 @@ func resolveChannel(st *state.State, snapName, newChannel string, deviceCtx Devi
 		return newChannel, nil
 	}
 
-	nch, err := snap.ParseChannelVerbatim(newChannel, "")
+	nch, err := channel.ParseVerbatim(newChannel, "")
 	if err != nil {
 		return "", err
 	}
@@ -1229,7 +1217,7 @@ func resolveChannel(st *state.State, snapName, newChannel string, deviceCtx Devi
 		// risk/branch) within the pinned track
 		return pinnedTrack + "/" + newChannel, nil
 	}
-	if nch.Track != "" && nch.Track != pinnedTrack && which != "" {
+	if nch.Track != "" && nch.Track != pinnedTrack {
 		// switching to a different track is not allowed
 		return "", fmt.Errorf("cannot switch from %s track %q as specified for the (device) model to %q", which, pinnedTrack, nch.Clean().String())
 
@@ -2405,7 +2393,7 @@ func coreInfo(st *state.State) (*snap.Info, error) {
 // If gadget is absent or the snap has no snap-id it returns
 // ErrNoState.
 func ConfigDefaults(st *state.State, deviceCtx DeviceContext, snapName string) (map[string]interface{}, error) {
-	gadget, err := GadgetInfo(st, deviceCtx)
+	info, err := GadgetInfo(st, deviceCtx)
 	if err != nil {
 		return nil, err
 	}
@@ -2425,7 +2413,7 @@ func ConfigDefaults(st *state.State, deviceCtx DeviceContext, snapName string) (
 		return nil, state.ErrNoState
 	}
 
-	gadgetInfo, err := snap.ReadGadgetInfo(gadget, release.OnClassic)
+	gadgetInfo, err := gadget.ReadInfo(info.MountDir(), release.OnClassic)
 	if err != nil {
 		return nil, err
 	}
@@ -2453,12 +2441,12 @@ func ConfigDefaults(st *state.State, deviceCtx DeviceContext, snapName string) (
 // specified in the gadget for the given device context.
 // If gadget is absent it returns ErrNoState.
 func GadgetConnections(st *state.State, deviceCtx DeviceContext) ([]gadget.Connection, error) {
-	gadget, err := GadgetInfo(st, deviceCtx)
+	info, err := GadgetInfo(st, deviceCtx)
 	if err != nil {
 		return nil, err
 	}
 
-	gadgetInfo, err := snap.ReadGadgetInfo(gadget, release.OnClassic)
+	gadgetInfo, err := gadget.ReadInfo(info.MountDir(), release.OnClassic)
 	if err != nil {
 		return nil, err
 	}
