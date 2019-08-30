@@ -217,7 +217,7 @@ install_dependencies_from_published(){
     done
 }
 
-fixup_after_lxd() {
+undo_lxd_mount_changes() {
     # Vanilla systems have /sys/fs/cgroup/cpuset without clone_children option.
     # Using LXD to create a container enables this option, as can be seen here:
     #
@@ -254,7 +254,7 @@ prepare_project() {
     if [[ "$SPREAD_SYSTEM" == ubuntu-* ]] && [[ "$SPREAD_SYSTEM" != ubuntu-core-* ]]; then
         apt-get remove --purge -y lxd lxcfs || true
         apt-get autoremove --purge -y
-        fixup_after_lxd
+        undo_lxd_mount_changes
     fi
 
     # Check if running inside a container.
@@ -694,7 +694,7 @@ restore_project_each() {
             ;;
     esac
 
-    fixup_after_lxd
+    undo_lxd_mount_changes
 }
 
 restore_project() {
