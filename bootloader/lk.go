@@ -125,7 +125,7 @@ func (l *lk) SetBootVars(values map[string]string) error {
 // for lk we need to flash boot image to free bootimg partition
 // first make sure there is free boot part to use
 // if this is image creation, we just extract file
-func (l *lk) ExtractKernelAssets(s *snap.Info, snapf snap.Container) error {
+func (l *lk) ExtractKernelAssets(s snap.PlaceInfo, snapf snap.Container) error {
 	blobName := filepath.Base(s.MountFile())
 
 	logger.Debugf("ExtractKernelAssets (%s)\n", blobName)
