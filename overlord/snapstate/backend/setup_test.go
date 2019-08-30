@@ -27,8 +27,8 @@ import (
 
 	. "gopkg.in/check.v1"
 
-	"github.com/snapcore/snapd/boot/boottest"
 	"github.com/snapcore/snapd/bootloader"
+	"github.com/snapcore/snapd/bootloader/mockbootloader"
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/overlord/snapstate/backend"
@@ -147,7 +147,7 @@ func (s *setupSuite) TestSetupDoUndoInstance(c *C) {
 func (s *setupSuite) TestSetupDoUndoKernel(c *C) {
 	// kernel snaps only happen on non-classic
 	defer release.MockOnClassic(false)()
-	loader := boottest.NewMockBootloader("mock", c.MkDir())
+	loader := mockbootloader.New("mock", c.MkDir())
 	bootloader.Force(loader)
 
 	// we don't get real mounting
@@ -193,7 +193,7 @@ func (s *setupSuite) TestSetupDoIdempotent(c *C) {
 
 	// kernel snaps only happen on non-classic
 	defer release.MockOnClassic(false)()
-	loader := boottest.NewMockBootloader("mock", c.MkDir())
+	loader := mockbootloader.New("mock", c.MkDir())
 	bootloader.Force(loader)
 	// we don't get real mounting
 	os.Setenv("SNAPPY_SQUASHFS_UNPACK_FOR_TESTS", "1")
@@ -244,7 +244,7 @@ func (s *setupSuite) TestSetupUndoIdempotent(c *C) {
 
 	// kernel snaps only happen on non-classic
 	defer release.MockOnClassic(false)()
-	loader := boottest.NewMockBootloader("mock", c.MkDir())
+	loader := mockbootloader.New("mock", c.MkDir())
 	bootloader.Force(loader)
 	// we don't get real mounting
 	os.Setenv("SNAPPY_SQUASHFS_UNPACK_FOR_TESTS", "1")

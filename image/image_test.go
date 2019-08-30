@@ -35,8 +35,8 @@ import (
 
 	"github.com/snapcore/snapd/asserts"
 	"github.com/snapcore/snapd/asserts/assertstest"
-	"github.com/snapcore/snapd/boot/boottest"
 	"github.com/snapcore/snapd/bootloader"
+	"github.com/snapcore/snapd/bootloader/mockbootloader"
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/image"
 	"github.com/snapcore/snapd/osutil"
@@ -69,7 +69,7 @@ func Test(t *testing.T) { TestingT(t) }
 type imageSuite struct {
 	testutil.BaseTest
 	root       string
-	bootloader *boottest.MockBootloader
+	bootloader *mockbootloader.MockBootloader
 
 	stdout *bytes.Buffer
 	stderr *bytes.Buffer
@@ -92,7 +92,7 @@ var (
 
 func (s *imageSuite) SetUpTest(c *C) {
 	s.root = c.MkDir()
-	s.bootloader = boottest.NewMockBootloader("grub", c.MkDir())
+	s.bootloader = mockbootloader.New("grub", c.MkDir())
 	bootloader.Force(s.bootloader)
 
 	s.BaseTest.SetUpTest(c)
