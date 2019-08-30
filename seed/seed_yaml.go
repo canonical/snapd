@@ -17,7 +17,7 @@
  *
  */
 
-package snap
+package seed
 
 import (
 	"fmt"
@@ -27,12 +27,14 @@ import (
 	"gopkg.in/yaml.v2"
 
 	"github.com/snapcore/snapd/osutil"
+	"github.com/snapcore/snapd/snap/channel"
+	"github.com/snapcore/snapd/snap/naming"
 )
 
-// SeedSnap points to a snap in the seed to install, together with
+// Snap points to a snap in the seed to install, together with
 // assertions (or alone if unasserted is true) it will be used to
 // drive the installation and ultimately set SideInfo/SnapState for it.
-type SeedSnap struct {
+type Snap struct {
 	Name string `yaml:"name"`
 
 	// cross-reference/audit
@@ -54,10 +56,10 @@ type SeedSnap struct {
 }
 
 type Seed struct {
-	Snaps []*SeedSnap `yaml:"snaps"`
+	Snaps []*Snap `yaml:"snaps"`
 }
 
-func ReadSeedYaml(fn string) (*Seed, error) {
+func ReadYaml(fn string) (*Seed, error) {
 	errPrefix := "cannot read seed yaml"
 
 	yamlData, err := ioutil.ReadFile(fn)
@@ -70,16 +72,19 @@ func ReadSeedYaml(fn string) (*Seed, error) {
 		return nil, fmt.Errorf("%s: cannot unmarshal %q: %s", errPrefix, yamlData, err)
 	}
 
+	seenNames := make(map[string]bool, len(seed.Snaps))
 	// validate
 	for _, sn := range seed.Snaps {
 		if sn == nil {
 			return nil, fmt.Errorf("%s: empty element in seed", errPrefix)
 		}
-		if err := ValidateInstanceName(sn.Name); err != nil {
+		// TODO: check if it's a parallel install explicitly,
+		// need to move *Instance* helpers from snap to naming
+		if err := naming.ValidateSnap(sn.Name); err != nil {
 			return nil, fmt.Errorf("%s: %v", errPrefix, err)
 		}
 		if sn.Channel != "" {
-			if _, err := ParseChannel(sn.Channel, ""); err != nil {
+			if _, err := channel.Parse(sn.Channel, ""); err != nil {
 				return nil, fmt.Errorf("%s: %v", errPrefix, err)
 			}
 		}
@@ -89,6 +94,12 @@ func ReadSeedYaml(fn string) (*Seed, error) {
 		if strings.Contains(sn.File, "/") {
 			return nil, fmt.Errorf("%s: %q must be a filename, not a path", errPrefix, sn.File)
 		}
+
+		// make sure names and file names are unique
+		if seenNames[sn.Name] {
+			return nil, fmt.Errorf("%s: snap name %q must be unique", errPrefix, sn.Name)
+		}
+		seenNames[sn.Name] = true
 	}
 
 	return &seed, nil

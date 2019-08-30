@@ -599,25 +599,10 @@ prepare: |
     "$TESTSLIB"/prepare-restore.sh --prepare-project
 prepare-each: |
     "$TESTSLIB"/prepare-restore.sh --prepare-project-each
-    grep -v /var/lib/lxcfs /proc/self/mountinfo
 restore: |
     "$TESTSLIB"/prepare-restore.sh --restore-project
 restore-each: |
     "$TESTSLIB"/prepare-restore.sh --restore-project-each
-    if journalctl -u snapd.service | grep -F "signal: terminated"; then exit 1; fi
-    case "$SPREAD_SYSTEM" in
-        fedora-*|centos-*)
-            # Make sure that we are not leaving behind incorrectly labeled snap
-            # files on systems supporting SELinux
-            (
-                find /root/snap -printf '%Z\t%H/%P\n' || true
-                find /home -regex '/home/[^/]*/snap\(/.*\)?' -printf '%Z\t%H/%P\n' || true
-            ) | grep -c -v snappy_home_t | MATCH "0"
-
-            find /var/snap -printf '%Z\t%H/%P\n' | grep -c -v snappy_var_t  | MATCH "0"
-            ;;
-    esac
-    grep -v /var/lib/lxcfs /proc/self/mountinfo
 suites:
     # The essential tests designed to run inside the autopkgtest
     # environment on each platform. On autopkgtest we cannot run all tests
@@ -784,7 +769,6 @@ suites:
         # Test cases are not yet ported to Fedora/openSUSE/Arch/AMZN2 that is why
         # we keep them disabled. A later PR will enable most tests and
         # drop this blacklist.
-        systems: [-fedora-*, -opensuse-*, -arch-*, -amazon-*, -centos-*]
         prepare: |
             "$TESTSLIB"/prepare-restore.sh --prepare-suite
         prepare-each: |

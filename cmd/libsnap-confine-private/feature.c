@@ -40,6 +40,9 @@ bool sc_feature_enabled(sc_feature_flag flag)
 	case SC_FEATURE_REFRESH_APP_AWARENESS:
 		file_name = "refresh-app-awareness";
 		break;
+	case SC_FEATURE_PARALLEL_INSTANCES:
+		file_name = "parallel-instances";
+		break;
 	default:
 		die("unknown feature flag code %d", flag);
 	}
