@@ -30,4 +30,5 @@ execute: |
     version-tool --verbose --naive 1 -eq 2 | MATCH 'delta -1 is inconsistent with =='
 
     # --version
-    version-tool --version | MATCH 1.0
+    # NOTE: older python versions print the version string to stderr
+    version-tool --version 2>&1 | MATCH 1.0
