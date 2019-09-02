@@ -26,7 +26,6 @@ import (
 	"strconv"
 	"strings"
 	"text/tabwriter"
-	"time"
 
 	"github.com/jessevdk/go-flags"
 	"github.com/snapcore/snapd/i18n"
@@ -34,6 +33,8 @@ import (
 )
 
 type cmdDebugState struct {
+	timeMixin
+
 	st *state.State
 
 	Changes  bool   `long:"changes"`
@@ -59,10 +60,6 @@ func (c byChangeID) Len() int           { return len(c) }
 func (c byChangeID) Swap(i, j int)      { c[i], c[j] = c[j], c[i] }
 func (c byChangeID) Less(i, j int) bool { return c[i].ID() < c[j].ID() }
 
-func formatTime(t time.Time) string {
-	return t.Format(time.RFC3339)
-}
-
 func loadState(path string) (*state.State, error) {
 	if path == "" {
 		path = "state.json"
@@ -79,13 +76,14 @@ func loadState(path string) (*state.State, error) {
 func init() {
 	addDebugCommand("state", cmdDebugStateShortHelp, cmdDebugStateLongHelp, func() flags.Commander {
 		return &cmdDebugState{}
-	}, map[string]string{
+	}, timeDescs.also(map[string]string{
+		// TRANSLATORS: This should not start with a lowercase letter.
 		"change":  i18n.G("ID of the change to inspect"),
 		"task":    i18n.G("ID of the task to inspect"),
 		"dot":     i18n.G("Dot (graphviz) output"),
 		"no-hold": i18n.G("Omit tasks in 'Hold' state in the change output"),
 		"changes": i18n.G("List all changes"),
-	}, nil)
+	}), nil)
 }
 
 type byLaneAndWaitTaskChain []*state.Task
@@ -167,8 +165,8 @@ func (c *cmdDebugState) showTasks(st *state.State, changeID string) error {
 			strings.Join(lanes, ","),
 			t.ID(),
 			t.Status().String(),
-			formatTime(t.SpawnTime()),
-			formatTime(t.ReadyTime()),
+			c.fmtTime(t.SpawnTime()),
+			c.fmtTime(t.ReadyTime()),
 			t.Kind(),
 			t.Summary())
 	}
@@ -199,7 +197,7 @@ func (c *cmdDebugState) showChanges(st *state.State) error {
 	w := tabwriter.NewWriter(Stdout, 5, 3, 2, ' ', 0)
 	fmt.Fprintf(w, "ID\tStatus\tSpawn\tReady\tLabel\tSummary\n")
 	for _, chg := range changes {
-		fmt.Fprintf(w, "%s\t%s\t%s\t%s\t%s\t%s\n", chg.ID(), chg.Status().String(), formatTime(chg.SpawnTime()), formatTime(chg.ReadyTime()), chg.Kind(), chg.Summary())
+		fmt.Fprintf(w, "%s\t%s\t%s\t%s\t%s\t%s\n", chg.ID(), chg.Status().String(), c.fmtTime(chg.SpawnTime()), c.fmtTime(chg.ReadyTime()), chg.Kind(), chg.Summary())
 	}
 	w.Flush()
 
