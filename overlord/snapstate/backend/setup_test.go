@@ -27,12 +27,13 @@ import (
 
 	. "gopkg.in/check.v1"
 
-	"github.com/snapcore/snapd/boot/boottest"
 	"github.com/snapcore/snapd/bootloader"
+	"github.com/snapcore/snapd/bootloader/bootloadertest"
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/overlord/snapstate/backend"
 	"github.com/snapcore/snapd/progress"
+	"github.com/snapcore/snapd/release"
 	"github.com/snapcore/snapd/snap"
 	"github.com/snapcore/snapd/snap/snaptest"
 	"github.com/snapcore/snapd/systemd"
@@ -144,7 +145,9 @@ func (s *setupSuite) TestSetupDoUndoInstance(c *C) {
 }
 
 func (s *setupSuite) TestSetupDoUndoKernel(c *C) {
-	loader := boottest.NewMockBootloader("mock", c.MkDir())
+	// kernel snaps only happen on non-classic
+	defer release.MockOnClassic(false)()
+	loader := bootloadertest.Mock("mock", c.MkDir())
 	bootloader.Force(loader)
 
 	// we don't get real mounting
@@ -188,7 +191,9 @@ func (s *setupSuite) TestSetupDoIdempotent(c *C) {
 
 	// this cannot check systemd own behavior though around mounts!
 
-	loader := boottest.NewMockBootloader("mock", c.MkDir())
+	// kernel snaps only happen on non-classic
+	defer release.MockOnClassic(false)()
+	loader := bootloadertest.Mock("mock", c.MkDir())
 	bootloader.Force(loader)
 	// we don't get real mounting
 	os.Setenv("SNAPPY_SQUASHFS_UNPACK_FOR_TESTS", "1")
@@ -237,7 +242,9 @@ func (s *setupSuite) TestSetupUndoIdempotent(c *C) {
 
 	// this cannot check systemd own behavior though around mounts!
 
-	loader := boottest.NewMockBootloader("mock", c.MkDir())
+	// kernel snaps only happen on non-classic
+	defer release.MockOnClassic(false)()
+	loader := bootloadertest.Mock("mock", c.MkDir())
 	bootloader.Force(loader)
 	// we don't get real mounting
 	os.Setenv("SNAPPY_SQUASHFS_UNPACK_FOR_TESTS", "1")

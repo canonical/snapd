@@ -151,6 +151,11 @@ var assumesTests = []struct {
 	version: "2.15.0",
 	error:   `.* unsupported features: snapd2\.15\.1 .*`,
 }, {
+	// Note that this is different from how strconv.VersionCompare
+	// (dpkg version numbering) would behave - it would error here
+	assumes: "[snapd2.15]",
+	version: "2.15~pre1",
+}, {
 	assumes: "[command-chain]",
 }}
 

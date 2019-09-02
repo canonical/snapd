@@ -43,8 +43,8 @@ import (
 	"github.com/snapcore/snapd/asserts"
 	"github.com/snapcore/snapd/asserts/assertstest"
 	"github.com/snapcore/snapd/asserts/sysdb"
-	"github.com/snapcore/snapd/boot/boottest"
 	"github.com/snapcore/snapd/bootloader"
+	"github.com/snapcore/snapd/bootloader/bootloadertest"
 	"github.com/snapcore/snapd/client"
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/interfaces"
@@ -1529,7 +1529,7 @@ func findKind(chg *state.Change, kind string) *state.Task {
 }
 
 func (s *mgrsSuite) TestInstallCoreSnapUpdatesBootloaderAndSplitsAcrossRestart(c *C) {
-	loader := boottest.NewMockBootloader("mock", c.MkDir())
+	loader := bootloadertest.Mock("mock", c.MkDir())
 	bootloader.Force(loader)
 	defer bootloader.Force(nil)
 
@@ -1587,7 +1587,7 @@ type: os
 	// simulate successful restart happened
 	state.MockRestarting(st, state.RestartUnset)
 	loader.BootVars["snap_mode"] = ""
-	boottest.SetBootBase("core_x1.snap", loader)
+	loader.SetBootBase("core_x1.snap")
 
 	st.Unlock()
 	err = s.o.Settle(settleTimeout)
@@ -1599,7 +1599,7 @@ type: os
 }
 
 func (s *mgrsSuite) TestInstallKernelSnapUpdatesBootloader(c *C) {
-	loader := boottest.NewMockBootloader("mock", c.MkDir())
+	loader := bootloadertest.Mock("mock", c.MkDir())
 	bootloader.Force(loader)
 	defer bootloader.Force(nil)
 
@@ -3402,9 +3402,9 @@ type: base`
 }
 
 func (s *mgrsSuite) TestRemodelSwitchKernelTrack(c *C) {
-	loader := boottest.NewMockBootloader("mock", c.MkDir())
-	boottest.SetBootKernel("pc-kernel_1.snap", loader)
-	boottest.SetBootBase("core_1.snap", loader)
+	loader := bootloadertest.Mock("mock", c.MkDir())
+	loader.SetBootKernel("pc-kernel_1.snap")
+	loader.SetBootBase("core_1.snap")
 	bootloader.Force(loader)
 	defer bootloader.Force(nil)
 
@@ -3631,13 +3631,14 @@ func (s *mgrsSuite) TestHappyDeviceRegistrationWithPrepareDeviceHook(c *C) {
 	err = assertstate.Add(st, model)
 	c.Assert(err, IsNil)
 
-	signSerial := func(c *C, bhv *devicestatetest.DeviceServiceBehavior, headers map[string]interface{}, body []byte) (asserts.Assertion, error) {
+	signSerial := func(c *C, bhv *devicestatetest.DeviceServiceBehavior, headers map[string]interface{}, body []byte) (serial asserts.Assertion, ancillary []asserts.Assertion, err error) {
 		brandID := headers["brand-id"].(string)
 		model := headers["model"].(string)
 		c.Check(brandID, Equals, "my-brand")
 		c.Check(model, Equals, "my-model")
 		headers["authority-id"] = brandID
-		return s.brands.Signing("my-brand").Sign(asserts.SerialType, headers, body, "")
+		a, err := s.brands.Signing("my-brand").Sign(asserts.SerialType, headers, body, "")
+		return a, nil, err
 	}
 
 	bhv := &devicestatetest.DeviceServiceBehavior{
@@ -3771,13 +3772,14 @@ func (s *mgrsSuite) TestRemodelReregistration(c *C) {
 	err = assertstate.Add(st, serial)
 	c.Assert(err, IsNil)
 
-	signSerial := func(c *C, bhv *devicestatetest.DeviceServiceBehavior, headers map[string]interface{}, body []byte) (asserts.Assertion, error) {
+	signSerial := func(c *C, bhv *devicestatetest.DeviceServiceBehavior, headers map[string]interface{}, body []byte) (serial asserts.Assertion, ancillary []asserts.Assertion, err error) {
 		brandID := headers["brand-id"].(string)
 		model := headers["model"].(string)
 		c.Check(brandID, Equals, "my-brand")
 		c.Check(model, Equals, "other-model")
 		headers["authority-id"] = brandID
-		return s.brands.Signing("my-brand").Sign(asserts.SerialType, headers, body, "")
+		a, err := s.brands.Signing("my-brand").Sign(asserts.SerialType, headers, body, "")
+		return a, nil, err
 	}
 
 	bhv := &devicestatetest.DeviceServiceBehavior{
