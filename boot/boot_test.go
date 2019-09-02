@@ -163,7 +163,7 @@ func (s *bootSetSuite) TestCurrentBootNameAndRevision(c *C) {
 
 	s.loader.BootVars["snap_mode"] = "trying"
 	_, err = boot.GetCurrentBoot(snap.TypeKernel)
-	c.Check(err, Equals, boot.ErrBootNameAndRevisionAgain)
+	c.Check(err, Equals, boot.ErrBootNameAndRevisionNotReady)
 }
 
 func (s *bootSetSuite) TestCurrentBootNameAndRevisionUnhappy(c *C) {
