@@ -280,6 +280,7 @@ func (s *patch63Suite) TestPatch63(c *C) {
 	// this was converted
 	var snapsup snapstate.SnapSetup
 	err = task.Get("snap-setup", &snapsup)
+	c.Assert(err, IsNil)
 	c.Check(snapsup.Channel, Equals, "stable")
 
 	// sanity check that old stuff is untouched
