@@ -37,8 +37,8 @@ import (
 	"gopkg.in/tomb.v2"
 
 	"github.com/snapcore/snapd/asserts"
-	"github.com/snapcore/snapd/boot/boottest"
 	"github.com/snapcore/snapd/bootloader"
+	"github.com/snapcore/snapd/bootloader/bootloadertest"
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/gadget"
 	"github.com/snapcore/snapd/interfaces"
@@ -10952,7 +10952,7 @@ type canRemoveSuite struct {
 	st        *state.State
 	deviceCtx snapstate.DeviceContext
 
-	bs bootloader.Bootloader
+	bs *bootloadertest.MockBootloader
 }
 
 var _ = Suite(&canRemoveSuite{})
@@ -10962,7 +10962,7 @@ func (s *canRemoveSuite) SetUpTest(c *C) {
 	s.st = state.New(nil)
 	s.deviceCtx = &snapstatetest.TrivialDeviceContext{DeviceModel: DefaultModel()}
 
-	s.bs = boottest.NewMockBootloader("mock", c.MkDir())
+	s.bs = bootloadertest.Mock("mock", c.MkDir())
 	bootloader.Force(s.bs)
 }
 
@@ -11015,7 +11015,7 @@ func (s *canRemoveSuite) TestKernelBootInUseIsKept(c *C) {
 	}
 	kernel.RealName = "kernel"
 
-	boottest.SetBootKernel(fmt.Sprintf("%s_%s.snap", kernel.RealName, kernel.SideInfo.Revision), s.bs)
+	s.bs.SetBootKernel(fmt.Sprintf("%s_%s.snap", kernel.RealName, kernel.SideInfo.Revision))
 
 	removeAll := false
 	c.Check(snapstate.CanRemove(s.st, kernel, &snapstate.SnapState{}, removeAll, s.deviceCtx), Equals, false)
@@ -11030,7 +11030,7 @@ func (s *canRemoveSuite) TestOstInUseIsKept(c *C) {
 	}
 	base.RealName = "core18"
 
-	boottest.SetBootBase(fmt.Sprintf("%s_%s.snap", base.RealName, base.SideInfo.Revision), s.bs)
+	s.bs.SetBootBase(fmt.Sprintf("%s_%s.snap", base.RealName, base.SideInfo.Revision))
 
 	removeAll := false
 	c.Check(snapstate.CanRemove(s.st, base, &snapstate.SnapState{}, removeAll, s.deviceCtx), Equals, false)
@@ -11054,7 +11054,7 @@ func (s *canRemoveSuite) TestRemoveNonModelKernelStillInUseNotOk(c *C) {
 	}
 	kernel.RealName = "other-non-model-kernel"
 
-	boottest.SetBootKernel(fmt.Sprintf("%s_%s.snap", kernel.RealName, kernel.SideInfo.Revision), s.bs)
+	s.bs.SetBootKernel(fmt.Sprintf("%s_%s.snap", kernel.RealName, kernel.SideInfo.Revision))
 
 	c.Check(snapstate.CanRemove(s.st, kernel, &snapstate.SnapState{}, true, s.deviceCtx), Equals, false)
 }

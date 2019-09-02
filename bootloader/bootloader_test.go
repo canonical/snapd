@@ -27,8 +27,8 @@ import (
 
 	. "gopkg.in/check.v1"
 
-	"github.com/snapcore/snapd/boot/boottest"
 	"github.com/snapcore/snapd/bootloader"
+	"github.com/snapcore/snapd/bootloader/bootloadertest"
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/snap"
@@ -59,7 +59,7 @@ func (s *baseBootenvTestSuite) SetUpTest(c *C) {
 type bootenvTestSuite struct {
 	baseBootenvTestSuite
 
-	b *boottest.MockBootloader
+	b *bootloadertest.MockBootloader
 }
 
 var _ = Suite(&bootenvTestSuite{})
@@ -67,7 +67,7 @@ var _ = Suite(&bootenvTestSuite{})
 func (s *bootenvTestSuite) SetUpTest(c *C) {
 	s.baseBootenvTestSuite.SetUpTest(c)
 
-	s.b = boottest.NewMockBootloader("mocky", c.MkDir())
+	s.b = bootloadertest.Mock("mocky", c.MkDir())
 }
 
 func (s *bootenvTestSuite) TestForceBootloader(c *C) {
