@@ -90,19 +90,14 @@ build_rpm() {
     base_version="$(head -1 debian/changelog | awk -F '[()]' '{print $2}')"
     version="1337.$base_version"
     packaging_path=packaging/$distro-$release
-    archive_name=snapd-$version.tar.gz
-    archive_compression=z
-    extra_tar_args=
     rpm_dir=$(rpm --eval "%_topdir")
-
+    pack_args=
     case "$SPREAD_SYSTEM" in
         fedora-*|amazon-*|centos-*)
-            extra_tar_args="$extra_tar_args --exclude=vendor/*"
-            archive_name=snapd_$version.no-vendor.tar.xz
             ;;
         opensuse-*)
-            archive_name=snapd_$version.vendor.tar.xz
-            archive_compression=J
+            # use bundled snapd*.vendor.tar.xz archive
+            pack_args=-s
             ;;
         *)
             echo "ERROR: RPM build for system $SPREAD_SYSTEM is not yet supported"
@@ -112,18 +107,10 @@ build_rpm() {
     sed -i -e "s/^Version:.*$/Version: $version/g" "$packaging_path/snapd.spec"
 
     # Create a source tarball for the current snapd sources
-    mkdir -p "/tmp/pkg/snapd-$version"
-    cp -ra -- * "/tmp/pkg/snapd-$version/"
     mkdir -p "$rpm_dir/SOURCES"
-    # shellcheck disable=SC2086
-    (cd /tmp/pkg && tar "-c${archive_compression}f" "$rpm_dir/SOURCES/$archive_name" $extra_tar_args "snapd-$version")
-    case "$SPREAD_SYSTEM" in
-        fedora-*|amazon-*|centos-*)
-            # need to build the vendor tree
-            (cd /tmp/pkg && tar "-cJf" "$rpm_dir/SOURCES/snapd_${version}.only-vendor.tar.xz" "snapd-$version/vendor")
-            ;;
-    esac
     cp "$packaging_path"/* "$rpm_dir/SOURCES/"
+    # shellcheck disable=SC2086
+    ./packaging/fedora/pack-source -v "$version" -o "$rpm_dir/SOURCES" $pack_args
 
     # Cleanup all artifacts from previous builds
     rm -rf "$rpm_dir"/BUILD/*
