@@ -239,7 +239,9 @@ fixup_after_lxd() {
     # To restore vanilla state, enable the option now, but only if the kernel supports that.
     # https://lore.kernel.org/patchwork/patch/803265/
     # https://github.com/systemd/systemd/commit/4095205ecccdfddb822ee8fdc44d11f2ded9be24
-    if [ "$(mountinfo-tool /sys/fs/cgroup/unified .fs_type)" = cgroup2 ] && version-tool --naive "$(uname -r)" -ge 4.13; then
+    # The kernel version must be made compatible with the strict version
+    # comparison. I chose to cut at the "-" and take the stuff before it.
+    if [ "$(mountinfo-tool /sys/fs/cgroup/unified .fs_type)" = cgroup2 ] && version-tool --strict "$(uname -r | cut -d- -f 1)" -ge 4.13; then
         mount -o remount,nsdelegate /sys/fs/cgroup/unified
     fi
 }
