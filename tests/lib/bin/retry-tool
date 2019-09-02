@@ -92,6 +92,7 @@ def main():
             "retry: cannot execute command {}: {}".format(" ".join(ns.cmd), exc),
             file=sys.stderr,
         )
+        raise SystemExit(1)
     else:
         raise SystemExit(retcode)
 
