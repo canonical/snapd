@@ -21,7 +21,6 @@ package boot
 
 import (
 	"fmt"
-	"path/filepath"
 
 	"github.com/snapcore/snapd/bootloader"
 	"github.com/snapcore/snapd/logger"
@@ -36,78 +35,15 @@ type coreBootParticipant struct {
 var _ BootParticipant = (*coreBootParticipant)(nil)
 
 func (bs *coreBootParticipant) SetNextBoot() error {
-	bootloader, err := bootloader.Find()
-	if err != nil {
-		return fmt.Errorf("cannot set next boot: %s", err)
-	}
-
-	var nextBoot, goodBoot string
-	switch bs.t {
-	case snap.TypeOS, snap.TypeBase:
-		nextBoot = "snap_try_core"
-		goodBoot = "snap_core"
-	case snap.TypeKernel:
-		nextBoot = "snap_try_kernel"
-		goodBoot = "snap_kernel"
-	}
-	blobName := filepath.Base(bs.s.MountFile())
-
-	// check if we actually need to do anything, i.e. the exact same
-	// kernel/core revision got installed again (e.g. firstboot)
-	// and we are not in any special boot mode
-	m, err := bootloader.GetBootVars("snap_mode", goodBoot)
-	if err != nil {
-		return fmt.Errorf("cannot set next boot: %s", err)
-	}
-	if m[goodBoot] == blobName {
-		// If we were in anything but default ("") mode before
-		// and now switch to the good core/kernel again, make
-		// sure to clean the snap_mode here. This also
-		// mitigates https://forum.snapcraft.io/t/5253
-		if m["snap_mode"] != "" {
-			return bootloader.SetBootVars(map[string]string{
-				"snap_mode": "",
-				nextBoot:    "",
-			})
-		}
-		return nil
-	}
-
-	return bootloader.SetBootVars(map[string]string{
-		nextBoot:    blobName,
-		"snap_mode": "try",
-	})
+	return bootloader.SetNextBoot(bs.s, bs.t)
 }
 
 func (bs *coreBootParticipant) ChangeRequiresReboot() bool {
-	bootloader, err := bootloader.Find()
+	reqd, err := bootloader.ChangeRequiresReboot(bs.s, bs.t)
 	if err != nil {
-		logger.Noticef("cannot get boot settings: %s", err)
-		return false
+		logger.Noticef("%s", err)
 	}
-
-	var nextBoot, goodBoot string
-	switch bs.t {
-	case snap.TypeKernel:
-		nextBoot = "snap_try_kernel"
-		goodBoot = "snap_kernel"
-	case snap.TypeOS, snap.TypeBase:
-		nextBoot = "snap_try_core"
-		goodBoot = "snap_core"
-	}
-
-	m, err := bootloader.GetBootVars(nextBoot, goodBoot)
-	if err != nil {
-		logger.Noticef("cannot get boot variables: %s", err)
-		return false
-	}
-
-	squashfsName := filepath.Base(bs.s.MountFile())
-	if m[nextBoot] == squashfsName && m[goodBoot] != m[nextBoot] {
-		return true
-	}
-
-	return false
+	return reqd
 }
 
 type coreKernel struct {

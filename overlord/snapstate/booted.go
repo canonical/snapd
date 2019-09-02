@@ -22,7 +22,7 @@ package snapstate
 import (
 	"fmt"
 
-	"github.com/snapcore/snapd/boot"
+	"github.com/snapcore/snapd/bootloader"
 	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/overlord/state"
 	"github.com/snapcore/snapd/release"
@@ -53,17 +53,17 @@ func UpdateBootRevisions(st *state.State) error {
 		return nil
 	}
 
-	kernel, err := boot.GetCurrentBoot(snap.TypeKernel)
+	kernel, err := bootloader.GetCurrentBoot(snap.TypeKernel)
 	if err != nil {
 		return fmt.Errorf(errorPrefix+"%s", err)
 	}
-	base, err := boot.GetCurrentBoot(snap.TypeBase)
+	base, err := bootloader.GetCurrentBoot(snap.TypeBase)
 	if err != nil {
 		return fmt.Errorf(errorPrefix+"%s", err)
 	}
 
 	var tsAll []*state.TaskSet
-	for _, actual := range []*boot.NameAndRevision{kernel, base} {
+	for _, actual := range []*bootloader.NameAndRevision{kernel, base} {
 		info, err := CurrentInfo(st, actual.Name)
 		if err != nil {
 			logger.Noticef("cannot get info for %q: %s", actual.Name, err)

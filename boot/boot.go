@@ -20,13 +20,6 @@
 package boot
 
 import (
-	"errors"
-	"fmt"
-	"path/filepath"
-	"strings"
-
-	"github.com/snapcore/snapd/bootloader"
-	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/snap"
 )
 
@@ -97,93 +90,4 @@ func Lookup(s snap.PlaceInfo, t snap.Type, model Model, onClassic bool) (bp Boot
 	}
 
 	return bp, true
-}
-
-// InUse checks if the given name/revision is used in the
-// boot environment
-func InUse(name string, rev snap.Revision) bool {
-	bootloader, err := bootloader.Find()
-	if err != nil {
-		logger.Noticef("cannot get boot settings: %s", err)
-		return false
-	}
-
-	bootVars, err := bootloader.GetBootVars("snap_kernel", "snap_try_kernel", "snap_core", "snap_try_core")
-	if err != nil {
-		logger.Noticef("cannot get boot vars: %s", err)
-		return false
-	}
-
-	snapFile := filepath.Base(snap.MountFile(name, rev))
-	for _, bootVar := range bootVars {
-		if bootVar == snapFile {
-			return true
-		}
-	}
-
-	return false
-}
-
-var (
-	ErrBootNameAndRevisionAgain = errors.New("boot revision not yet established")
-)
-
-type NameAndRevision struct {
-	Name     string
-	Revision snap.Revision
-}
-
-// GetCurrentBoot returns the currently set name and revision for boot for the given
-// type of snap, which can be snap.TypeBase (or snap.TypeOS), or snap.TypeKernel.
-// Returns ErrBootNameAndRevisionAgain if the values are temporarily not established.
-func GetCurrentBoot(t snap.Type) (*NameAndRevision, error) {
-	var bootVar, errName string
-	switch t {
-	case snap.TypeKernel:
-		bootVar = "snap_kernel"
-		errName = "kernel"
-	case snap.TypeOS, snap.TypeBase:
-		bootVar = "snap_core"
-		errName = "base"
-	default:
-		return nil, fmt.Errorf("internal error: cannot find boot revision for snap type %q", t)
-	}
-
-	loader, err := bootloader.Find()
-	if err != nil {
-		return nil, fmt.Errorf("cannot get boot settings: %s", err)
-	}
-
-	m, err := loader.GetBootVars(bootVar, "snap_mode")
-	if err != nil {
-		return nil, fmt.Errorf("cannot get boot variables: %s", err)
-	}
-
-	if m["snap_mode"] == "trying" {
-		return nil, ErrBootNameAndRevisionAgain
-	}
-
-	nameAndRevno, err := nameAndRevnoFromSnap(m[bootVar])
-	if err != nil {
-		return nil, fmt.Errorf("cannot get name and revision of boot %s: %v", errName, err)
-	}
-
-	return nameAndRevno, nil
-}
-
-func nameAndRevnoFromSnap(sn string) (*NameAndRevision, error) {
-	if sn == "" {
-		return nil, fmt.Errorf("unset")
-	}
-	idx := strings.IndexByte(sn, '_')
-	if idx < 1 {
-		return nil, fmt.Errorf("input %q has invalid format (not enough '_')", sn)
-	}
-	name := sn[:idx]
-	revnoNSuffix := sn[idx+1:]
-	rev, err := snap.ParseRevision(strings.TrimSuffix(revnoNSuffix, ".snap"))
-	if err != nil {
-		return nil, err
-	}
-	return &NameAndRevision{Name: name, Revision: rev}, nil
 }

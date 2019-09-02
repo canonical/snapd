@@ -31,7 +31,7 @@ import (
 	"time"
 
 	"github.com/snapcore/snapd/asserts"
-	"github.com/snapcore/snapd/boot"
+	"github.com/snapcore/snapd/bootloader"
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/features"
 	"github.com/snapcore/snapd/gadget"
@@ -310,7 +310,7 @@ func doInstall(st *state.State, snapst *SnapState, snapsup *SnapSetup, flags int
 		// normal garbage collect
 		for i := 0; i <= currentIndex-retain; i++ {
 			si := seq[i]
-			if boot.InUse(snapsup.InstanceName(), si.Revision) {
+			if inUse, _ := bootloader.InUse(snapsup.InstanceName(), si.Revision); inUse {
 				continue
 			}
 			ts := removeInactiveRevision(st, snapsup.InstanceName(), si.SnapID, si.Revision)
@@ -437,8 +437,8 @@ func WaitRestart(task *state.Task, snapsup *SnapSetup) (err error) {
 			return nil
 		}
 
-		current, err := boot.GetCurrentBoot(typ)
-		if err == boot.ErrBootNameAndRevisionAgain {
+		current, err := bootloader.GetCurrentBoot(typ)
+		if err == bootloader.ErrBootNameAndRevisionAgain {
 			return &state.Retry{After: 5 * time.Second}
 		}
 		if err != nil {
@@ -1724,8 +1724,12 @@ func coreInUse(st *state.State) bool {
 // TODO: canRemove should also return the reason why the snap cannot
 //       be removed to the user
 func canRemove(st *state.State, si *snap.Info, snapst *SnapState, removeAll bool, deviceCtx DeviceContext) bool {
+	inUse, err := bootloader.InUse(si.InstanceName(), si.Revision)
+	if err != nil {
+		logger.Noticef("%s", err)
+	}
 	// never remove anything that is used for booting
-	if boot.InUse(si.InstanceName(), si.Revision) {
+	if inUse {
 		return false
 	}
 

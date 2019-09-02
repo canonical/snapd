@@ -68,3 +68,7 @@ func MockGrubFiles(c *C) {
 	err = ioutil.WriteFile(g.ConfigFile(), nil, 0644)
 	c.Assert(err, IsNil)
 }
+
+var (
+	NameAndRevnoFromSnap = nameAndRevnoFromSnap
+)
