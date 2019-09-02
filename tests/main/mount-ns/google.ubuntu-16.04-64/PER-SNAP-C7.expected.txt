@@ -22,7 +22,7 @@
 22 21 1:15 / /sys/fs/cgroup rw shared:22 - tmpfs tmpfs rw,mode=755
 23 22 1:16 / /sys/fs/cgroup/blkio rw,nosuid,nodev,noexec,relatime shared:23 - cgroup cgroup rw,blkio
 24 22 1:17 / /sys/fs/cgroup/cpu,cpuacct rw,nosuid,nodev,noexec,relatime shared:24 - cgroup cgroup rw,cpu,cpuacct
-25 22 1:18 / /sys/fs/cgroup/cpuset rw,nosuid,nodev,noexec,relatime shared:25 - cgroup cgroup rw,cpuset,clone_children
+25 22 1:18 / /sys/fs/cgroup/cpuset rw,nosuid,nodev,noexec,relatime shared:25 - cgroup cgroup rw,cpuset
 26 22 1:19 / /sys/fs/cgroup/devices rw,nosuid,nodev,noexec,relatime shared:26 - cgroup cgroup rw,devices
 27 22 1:20 / /sys/fs/cgroup/freezer rw,nosuid,nodev,noexec,relatime shared:27 - cgroup cgroup rw,freezer
 28 22 1:21 / /sys/fs/cgroup/hugetlb rw,nosuid,nodev,noexec,relatime shared:28 - cgroup cgroup rw,hugetlb,release_agent=/run/cgmanager/agents/cgm-release-agent.hugetlb
