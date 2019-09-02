@@ -324,3 +324,47 @@ func (s *bootSetSuite) TestLookupKernelWithModel(c *C) {
 		c.Check(bp, DeepEquals, t.bp)
 	}
 }
+
+func (s *bootSetSuite) TestMarkBootSuccessfulAllSnap(c *C) {
+	s.loader.BootVars["snap_mode"] = "trying"
+	s.loader.BootVars["snap_try_core"] = "os1"
+	s.loader.BootVars["snap_try_kernel"] = "k1"
+	err := boot.MarkBootSuccessful()
+	c.Assert(err, IsNil)
+
+	expected := map[string]string{
+		// cleared
+		"snap_mode":       "",
+		"snap_try_kernel": "",
+		"snap_try_core":   "",
+		// updated
+		"snap_kernel": "k1",
+		"snap_core":   "os1",
+	}
+	c.Assert(s.loader.BootVars, DeepEquals, expected)
+
+	// do it again, verify its still valid
+	err = boot.MarkBootSuccessful()
+	c.Assert(err, IsNil)
+	c.Assert(s.loader.BootVars, DeepEquals, expected)
+}
+
+func (s *bootSetSuite) TestMarkBootSuccessfulKKernelUpdate(c *C) {
+	s.loader.BootVars["snap_mode"] = "trying"
+	s.loader.BootVars["snap_core"] = "os1"
+	s.loader.BootVars["snap_kernel"] = "k1"
+	s.loader.BootVars["snap_try_core"] = ""
+	s.loader.BootVars["snap_try_kernel"] = "k2"
+	err := boot.MarkBootSuccessful()
+	c.Assert(err, IsNil)
+	c.Assert(s.loader.BootVars, DeepEquals, map[string]string{
+		// cleared
+		"snap_mode":       "",
+		"snap_try_kernel": "",
+		"snap_try_core":   "",
+		// unchanged
+		"snap_core": "os1",
+		// updated
+		"snap_kernel": "k2",
+	})
+}
