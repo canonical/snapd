@@ -71,6 +71,8 @@ echo "Verify the constraints imposed by the device cgroup made by snapd"
 # NOTE: the actual permissions may drift over time. We just care about the fact
 # that there *are* some constraints here now and there were none before.
 test 'c 1:3 rwm' = "$(head -n 1 "/sys/fs/cgroup/devices/snap.test-snapd-service.test-snapd-service/devices.list")"
+# The device cgroup made by snapd is, currently, still empty.
+test -z "$(cat "/sys/fs/cgroup/devices/snap.test-snapd-service.test-snapd-service/cgroup.procs")"
 
 echo "Restart the test service"
 # See the comment for the similar code above.
