@@ -168,13 +168,13 @@ func (s *bootSetSuite) TestCurrentBootNameAndRevision(c *C) {
 
 func (s *bootSetSuite) TestCurrentBootNameAndRevisionUnhappy(c *C) {
 	_, err := boot.GetCurrentBoot(snap.TypeKernel)
-	c.Check(err, ErrorMatches, "cannot get name and revision of boot kernel: unset")
+	c.Check(err, ErrorMatches, "cannot get name and revision of boot kernel: boot variable unset")
 
 	_, err = boot.GetCurrentBoot(snap.TypeOS)
-	c.Check(err, ErrorMatches, "cannot get name and revision of boot base: unset")
+	c.Check(err, ErrorMatches, "cannot get name and revision of boot base: boot variable unset")
 
 	_, err = boot.GetCurrentBoot(snap.TypeBase)
-	c.Check(err, ErrorMatches, "cannot get name and revision of boot base: unset")
+	c.Check(err, ErrorMatches, "cannot get name and revision of boot base: boot variable unset")
 
 	_, err = boot.GetCurrentBoot(snap.TypeApp)
 	c.Check(err, ErrorMatches, "internal error: cannot find boot revision for snap type \"app\"")

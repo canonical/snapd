@@ -173,7 +173,7 @@ func GetCurrentBoot(t snap.Type) (*NameAndRevision, error) {
 
 func nameAndRevnoFromSnap(sn string) (*NameAndRevision, error) {
 	if sn == "" {
-		return nil, fmt.Errorf("unset")
+		return nil, fmt.Errorf("boot variable unset")
 	}
 	idx := strings.IndexByte(sn, '_')
 	if idx < 1 {
