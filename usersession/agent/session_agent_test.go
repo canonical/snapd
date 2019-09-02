@@ -20,7 +20,6 @@
 package agent_test
 
 import (
-	"bytes"
 	"encoding/json"
 	"fmt"
 	"net"
@@ -142,40 +141,69 @@ func (s *sessionAgentSuite) TestExitOnIdle(c *C) {
 	}
 }
 
-func (s *sessionAgentSuite) TestPeerCredentialsCheck(c *C) {
-	var logbuf bytes.Buffer
-	log, err := logger.New(&logbuf, logger.DefaultFlags)
-	c.Assert(err, IsNil)
-	logger.SetLogger(log)
+func (s *sessionAgentSuite) TestConnectFromOtherUser(c *C) {
+	logbuf, restore := logger.MockLogger()
+	defer restore()
+
+	// Mock connections to appear to come from a different user ID
+	uid := uint32(syscall.Geteuid())
+	restore = agent.MockUcred(&syscall.Ucred{Uid: uid + 1}, nil)
+	defer restore()
 
 	sa, err := agent.New()
 	c.Assert(err, IsNil)
 	sa.Start()
 	defer sa.Stop()
 
-	// Connections from other users are dropped.
-	uid := uint32(syscall.Geteuid())
-	restore := agent.MockUcred(&syscall.Ucred{Uid: uid + 1}, nil)
-	defer restore()
 	_, err = s.client.Get("http://localhost/v1/session-info")
 	// This could be an EOF error or a failed read, depending on timing
 	c.Assert(err, ErrorMatches, "Get http://localhost/v1/session-info: .*")
-	c.Check(logbuf.String(), testutil.Contains, "Blocking request from user ID")
-	logbuf.Reset()
 
-	// However, connections from root are accepted.
+	// Stop the session agent to avoid data race on the logging buffer
+	sa.Stop()
+	c.Check(logbuf.String(), testutil.Contains, "Blocking request from user ID")
+}
+
+func (s *sessionAgentSuite) TestConnectFromRoot(c *C) {
+	logbuf, restore := logger.MockLogger()
+	defer restore()
+
+	// Mock connections to appear to come from root
 	restore = agent.MockUcred(&syscall.Ucred{Uid: 0}, nil)
 	defer restore()
+
+	sa, err := agent.New()
+	c.Assert(err, IsNil)
+	sa.Start()
+	defer sa.Stop()
+
 	response, err := s.client.Get("http://localhost/v1/session-info")
 	c.Assert(err, IsNil)
 	defer response.Body.Close()
 	c.Check(response.StatusCode, Equals, 200)
+
+	// Stop the session agent to avoid data race on the logging buffer
+	sa.Stop()
 	c.Check(logbuf.String(), Equals, "")
+}
+
+func (s *sessionAgentSuite) TestConnectWithFailedPeerCredentials(c *C) {
+	logbuf, restore := logger.MockLogger()
+	defer restore()
 
 	// Connections are dropped if peer credential lookup fails.
 	restore = agent.MockUcred(nil, fmt.Errorf("SO_PEERCRED failed"))
 	defer restore()
+
+	sa, err := agent.New()
+	c.Assert(err, IsNil)
+	sa.Start()
+	defer sa.Stop()
+
 	_, err = s.client.Get("http://localhost/v1/session-info")
 	c.Assert(err, ErrorMatches, "Get http://localhost/v1/session-info: .*")
+
+	// Stop the session agent to avoid data race on the logging buffer
+	sa.Stop()
 	c.Check(logbuf.String(), testutil.Contains, "Failed to retrieve peer credentials: SO_PEERCRED failed")
 }
