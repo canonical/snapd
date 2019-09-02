@@ -199,6 +199,7 @@ func checkAssumes(si *snap.Info) error {
 var versionExp = regexp.MustCompile(`^([1-9][0-9]*)(?:\.([0-9]+)(?:\.([0-9]+))?)?`)
 
 func checkVersion(version string) bool {
+	// double check that the input looks like a snapd version
 	req := versionExp.FindStringSubmatch(version)
 	if req == nil || req[0] != version {
 		return false
@@ -208,6 +209,10 @@ func checkVersion(version string) bool {
 		return true // Development tree.
 	}
 
+	// We could (should?) use strutil.VersionCompare here and simplify
+	// this code (see PR#7344). However this would change current
+	// behavior, i.e. "2.41~pre1" would *not* match [snapd2.41] anymore
+	// (which the code below does).
 	cur := versionExp.FindStringSubmatch(cmd.Version)
 	if cur == nil {
 		return false
@@ -323,8 +328,8 @@ func validateInfoAndFlags(info *snap.Info, snapst *SnapState, flags Flags) error
 		return err
 	}
 
-	// check system-usernames
-	if err := checkSystemUsernames(info); err != nil {
+	// check and create system-usernames
+	if err := checkAndCreateSystemUsernames(info); err != nil {
 		return err
 	}
 
@@ -571,7 +576,27 @@ func earlyEpochCheck(info *snap.Info, snapst *SnapState) error {
 // check that the listed system users are valid
 var osutilEnsureUserGroup = osutil.EnsureUserGroup
 
-func checkSystemUsernames(si *snap.Info) error {
+func validateSystemUsernames(si *snap.Info) error {
+	for _, user := range si.SystemUsernames {
+		if _, ok := supportedSystemUsernames[user.Name]; !ok {
+			return fmt.Errorf(`snap %q requires unsupported system username "%s"`, si.InstanceName(), user.Name)
+		}
+
+		switch user.Scope {
+		case "shared":
+			// this is supported
+			continue
+		case "private", "external":
+			// not supported yet
+			return fmt.Errorf(`snap %q requires unsupported user scope "%s" for this version of snapd`, si.InstanceName(), user.Scope)
+		default:
+			return fmt.Errorf(`snap %q requires unsupported user scope "%s"`, si.InstanceName(), user.Scope)
+		}
+	}
+	return nil
+}
+
+func checkAndCreateSystemUsernames(si *snap.Info) error {
 	// No need to check support if no system-usernames
 	if len(si.SystemUsernames) == 0 {
 		return nil
@@ -592,14 +617,16 @@ func checkSystemUsernames(si *snap.Info) error {
 		return err
 	}
 
+	// first validate
+	if err := validateSystemUsernames(si); err != nil {
+		return err
+	}
+
+	// then create
+	// TODO: move user creation to a more appropriate place like "link-snap"
 	extrausers := !release.OnClassic
 	for _, user := range si.SystemUsernames {
-		var id uint32
-		id, ok := supportedSystemUsernames[user.Name]
-		if !ok {
-			return fmt.Errorf(`snap %q requires unsupported system username "%s"`, si.InstanceName(), user.Name)
-		}
-
+		id := supportedSystemUsernames[user.Name]
 		switch user.Scope {
 		case "shared":
 			// Create the snapd-range-<base>-root user and group so
@@ -616,10 +643,6 @@ func checkSystemUsernames(si *snap.Info) error {
 			if err := osutilEnsureUserGroup(user.Name, id, extrausers); err != nil {
 				return fmt.Errorf(`cannot ensure users for snap %q required system username "%s": %v`, si.InstanceName(), user.Name, err)
 			}
-		case "private", "external":
-			return fmt.Errorf(`snap %q requires unsupported user scope "%s" for this version of snapd`, si.InstanceName(), user.Scope)
-		default:
-			return fmt.Errorf(`snap %q requires unsupported user scope "%s"`, si.InstanceName(), user.Scope)
 		}
 	}
 	return nil

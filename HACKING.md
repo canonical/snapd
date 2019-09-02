@@ -243,4 +243,5 @@ version on your system and reloads the apparmor profile.
 
 ## Submitting patches
 
-Please run `make fmt` before sending your patches.
+Please run `(cd cmd; make fmt)` before sending your patches for the "C" part of
+the source code.

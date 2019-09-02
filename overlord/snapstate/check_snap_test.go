@@ -151,6 +151,11 @@ var assumesTests = []struct {
 	version: "2.15.0",
 	error:   `.* unsupported features: snapd2\.15\.1 .*`,
 }, {
+	// Note that this is different from how strconv.VersionCompare
+	// (dpkg version numbering) would behave - it would error here
+	assumes: "[snapd2.15]",
+	version: "2.15~pre1",
+}, {
 	assumes: "[command-chain]",
 }}
 
@@ -1030,7 +1035,13 @@ var systemUsernamesTests = []struct {
 	noRangeUser: true,
 	scVer:       "dead 2.4.1 deadbeef bpf-actlog",
 	error:       `cannot ensure users for snap "foo" required system username "snap_daemon": cannot add user/group "snapd-range-524288-root", group exists and user does not`,
-}}
+}, {
+	sysIDs:  "snap_daemon: shared\n  daemon: shared",
+	classic: true,
+	scVer:   "dead 2.4.1 deadbeef bpf-actlog",
+	error:   `snap "foo" requires unsupported system username "daemon"`,
+},
+}
 
 func (s *checkSnapSuite) TestCheckSnapSystemUsernames(c *C) {
 	for _, test := range systemUsernamesTests {
@@ -1040,6 +1051,7 @@ func (s *checkSnapSuite) TestCheckSnapSystemUsernames(c *C) {
 		restore = release.MockOnClassic(test.classic)
 		defer restore()
 
+		var osutilEnsureUserGroupCalls int
 		if test.noRangeUser {
 			restore = snapstate.MockOsutilEnsureUserGroup(func(name string, id uint32, extraUsers bool) error {
 				return fmt.Errorf(`cannot add user/group "%s", group exists and user does not`, name)
@@ -1053,6 +1065,7 @@ func (s *checkSnapSuite) TestCheckSnapSystemUsernames(c *C) {
 			})
 		} else {
 			restore = snapstate.MockOsutilEnsureUserGroup(func(name string, id uint32, extraUsers bool) error {
+				osutilEnsureUserGroupCalls++
 				return nil
 			})
 		}
@@ -1071,8 +1084,11 @@ func (s *checkSnapSuite) TestCheckSnapSystemUsernames(c *C) {
 		err = snapstate.CheckSnap(s.st, "snap-path", "foo", nil, nil, snapstate.Flags{}, nil)
 		if test.error != "" {
 			c.Check(err, ErrorMatches, test.error)
+			c.Check(osutilEnsureUserGroupCalls, Equals, 0)
 		} else {
 			c.Assert(err, IsNil)
+			// one call for the range user, one for the system user
+			c.Check(osutilEnsureUserGroupCalls, Equals, 2)
 		}
 	}
 }

@@ -33,6 +33,7 @@ import (
 	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/overlord/snapstate/backend"
 	"github.com/snapcore/snapd/progress"
+	"github.com/snapcore/snapd/release"
 	"github.com/snapcore/snapd/snap"
 	"github.com/snapcore/snapd/snap/snaptest"
 	"github.com/snapcore/snapd/systemd"
@@ -144,6 +145,8 @@ func (s *setupSuite) TestSetupDoUndoInstance(c *C) {
 }
 
 func (s *setupSuite) TestSetupDoUndoKernel(c *C) {
+	// kernel snaps only happen on non-classic
+	defer release.MockOnClassic(false)()
 	loader := boottest.NewMockBootloader("mock", c.MkDir())
 	bootloader.Force(loader)
 
@@ -188,6 +191,8 @@ func (s *setupSuite) TestSetupDoIdempotent(c *C) {
 
 	// this cannot check systemd own behavior though around mounts!
 
+	// kernel snaps only happen on non-classic
+	defer release.MockOnClassic(false)()
 	loader := boottest.NewMockBootloader("mock", c.MkDir())
 	bootloader.Force(loader)
 	// we don't get real mounting
@@ -237,6 +242,8 @@ func (s *setupSuite) TestSetupUndoIdempotent(c *C) {
 
 	// this cannot check systemd own behavior though around mounts!
 
+	// kernel snaps only happen on non-classic
+	defer release.MockOnClassic(false)()
 	loader := boottest.NewMockBootloader("mock", c.MkDir())
 	bootloader.Force(loader)
 	// we don't get real mounting

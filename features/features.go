@@ -76,6 +76,7 @@ var featuresEnabledWhenUnset = map[SnapdFeature]bool{
 var featuresExported = map[SnapdFeature]bool{
 	PerUserMountNamespace: true,
 	RefreshAppAwareness:   true,
+	ParallelInstances:     true,
 }
 
 // String returns the name of a snapd feature.

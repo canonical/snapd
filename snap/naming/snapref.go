@@ -67,17 +67,16 @@ func SameSnap(snapRef1, snapRef2 SnapRef) bool {
 
 // SnapSet can hold a set of references to snaps.
 type SnapSet struct {
-	byID         map[string]SnapRef
-	byNameWithID map[string]SnapRef
-	byNameOnly   map[string]SnapRef
+	byID   map[string]SnapRef
+	byName map[string]SnapRef
 }
 
 // NewSnapSet builds a snap set with the given references.
 func NewSnapSet(refs []SnapRef) *SnapSet {
+	sz := len(refs) + 2
 	s := &SnapSet{
-		byID:         make(map[string]SnapRef),
-		byNameWithID: make(map[string]SnapRef),
-		byNameOnly:   make(map[string]SnapRef),
+		byID:   make(map[string]SnapRef, sz),
+		byName: make(map[string]SnapRef, sz),
 	}
 	for _, r := range refs {
 		s.Add(r)
@@ -93,12 +92,12 @@ func (s *SnapSet) Lookup(which SnapRef) SnapRef {
 		if ref := s.byID[whichID]; ref != nil {
 			return ref
 		}
-	} else {
-		if ref := s.byNameWithID[name]; ref != nil {
-			return ref
-		}
 	}
-	return s.byNameOnly[name]
+	ref := s.byName[name]
+	if ref == nil || (ref.ID() != "" && whichID != "") {
+		return nil
+	}
+	return ref
 }
 
 // Contains returns whether the set has a matching reference already.
@@ -114,16 +113,10 @@ func (s *SnapSet) Add(ref SnapRef) {
 		// nothing to do
 		return
 	}
-	id := ref.ID()
-	if id != "" {
+	if id := ref.ID(); id != "" {
 		s.byID[id] = ref
 	}
-	name := ref.SnapName()
-	if name != "" {
-		if id != "" {
-			s.byNameWithID[name] = ref
-		} else {
-			s.byNameOnly[name] = ref
-		}
+	if name := ref.SnapName(); name != "" {
+		s.byName[name] = ref
 	}
 }

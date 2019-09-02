@@ -20,6 +20,7 @@
 package configstate_test
 
 import (
+	"fmt"
 	"time"
 
 	. "gopkg.in/check.v1"
@@ -31,6 +32,7 @@ import (
 	"github.com/snapcore/snapd/overlord/snapstate"
 	"github.com/snapcore/snapd/overlord/state"
 	"github.com/snapcore/snapd/snap"
+	"github.com/snapcore/snapd/testutil"
 )
 
 type tasksetsSuite struct {
@@ -214,17 +216,26 @@ func (s *tasksetsSuite) TestConfigureDenySnapd(c *C) {
 }
 
 type configcoreHijackSuite struct {
+	testutil.BaseTest
+
 	o     *overlord.Overlord
 	state *state.State
 }
 
 func (s *configcoreHijackSuite) SetUpTest(c *C) {
+	s.BaseTest.SetUpTest(c)
 	s.o = overlord.Mock()
 	s.state = s.o.State()
 	hookMgr, err := hookstate.Manager(s.state, s.o.TaskRunner())
 	c.Assert(err, IsNil)
 	s.o.AddManager(hookMgr)
-	configstate.Init(hookMgr)
+	r := configstate.MockConfigcoreExportExperimentalFlags(func(_ config.Conf) error {
+		return nil
+	})
+	s.AddCleanup(r)
+
+	err = configstate.Init(s.state, hookMgr)
+	c.Assert(err, IsNil)
 	s.o.AddManager(s.o.TaskRunner())
 }
 
@@ -308,4 +319,53 @@ func (s *miscSuite) TestRemappingFuncs(c *C) {
 	// This is the one we alter.
 	c.Assert(configstate.RemapSnapFromRequest("system"), Equals, "core")
 	c.Assert(configstate.RemapSnapToResponse("core"), Equals, "system")
+}
+
+type configcoreExportSuite struct {
+	o       *overlord.Overlord
+	state   *state.State
+	hookMgr *hookstate.HookManager
+}
+
+func (s *configcoreExportSuite) SetUpTest(c *C) {
+	s.o = overlord.Mock()
+	s.state = s.o.State()
+	hookMgr, err := hookstate.Manager(s.state, s.o.TaskRunner())
+	c.Assert(err, IsNil)
+	s.o.AddManager(hookMgr)
+	s.hookMgr = hookMgr
+}
+
+func (s *configcoreExportSuite) TestExportHappy(c *C) {
+	var calls int
+	var val string
+
+	tr := config.NewTransaction(s.state)
+	tr.Set("core", "experimental.key", "foobar")
+	tr.Commit()
+
+	r := configstate.MockConfigcoreExportExperimentalFlags(func(conf config.Conf) error {
+		calls++
+		err := conf.Get("core", "experimental.keys", &val)
+		c.Assert(err, IsNil)
+		return nil
+	})
+	defer r()
+	err := configstate.Init(s.state, s.hookMgr)
+	c.Assert(err, IsNil)
+	c.Assert(calls, Equals, 1)
+	c.Assert(val, Equals, "foobar")
+}
+
+func (s *configcoreExportSuite) TestExportErr(c *C) {
+	var calls int
+
+	r := configstate.MockConfigcoreExportExperimentalFlags(func(conf config.Conf) error {
+		calls++
+		return fmt.Errorf("bad bad")
+	})
+	defer r()
+	err := configstate.Init(s.state, s.hookMgr)
+	c.Assert(err, ErrorMatches, "cannot export experimental config flags: bad bad")
+	c.Assert(calls, Equals, 1)
 }
