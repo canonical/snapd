@@ -1,7 +1,23 @@
 #!/bin/sh -ex
 echo "Install a test service"
 snap pack test-snapd-service
+
+# Because this service is of type "simple" it is considered "ready" instantly.
+# In reality the process needs to go through snap "run" chain to be really
+# ready. As a workaround, touch a "remove-me" file that is removed by the
+# service on startup, restart the service and the wait for the file to
+# disappear.
+mkdir -p /var/snap/test-snapd-service/common
+touch /var/snap/test-snapd-service/common/remove-me
 snap install --dangerous ./test-snapd-service_1.0_all.snap
+# Wait for the service to really be alive and running. Otherwise the "main pid"
+# will be still tracking snap-run-confine-exec chain and be unreliable.
+for _ in $(seq 5); do
+	if [ ! -e /var/snap/test-snapd-service/common/remove-me ]; then
+		break
+	fi
+	sleep 1
+done
 
 echo "Extract the PID of the main process tracked by systemd"
 # It would be nicer to use "systemctl show --property=... --value" but it doesn't work on older systemd.
@@ -56,11 +72,7 @@ echo "Verify the constraints imposed by the device cgroup made by snapd"
 test 'c 1:3 rwm' = "$(head -n 1 "/sys/fs/cgroup/devices/snap.test-snapd-service.test-snapd-service/devices.list")"
 
 echo "Restart the test service"
-# Because this service is of type "simple" it is considered "ready" instantly.
-# In reality the process needs to go through snap "run" chain to be really
-# ready. As a workaround, touch a "remove-me" file that is removed by the
-# service on startup, restart the service and the wait for the file to
-# disappear.
+# See the comment for the similar code above.
 touch /var/snap/test-snapd-service/common/remove-me
 systemctl restart snap.test-snapd-service.test-snapd-service.service
 for _ in $(seq 5); do
