@@ -59,7 +59,7 @@ func (s *baseBootSetSuite) SetUpTest(c *C) {
 type bootSetSuite struct {
 	baseBootSetSuite
 
-	loader *bootloadertest.MockBootloader
+	bl *bootloadertest.MockBootloader
 }
 
 var _ = Suite(&bootSetSuite{})
@@ -67,8 +67,8 @@ var _ = Suite(&bootSetSuite{})
 func (s *bootSetSuite) SetUpTest(c *C) {
 	s.baseBootSetSuite.SetUpTest(c)
 
-	s.loader = bootloadertest.Mock("mock", c.MkDir())
-	bootloader.Force(s.loader)
+	s.bl = bootloadertest.Mock("mock", c.MkDir())
+	bootloader.Force(s.bl)
 	s.AddCleanup(func() { bootloader.Force(nil) })
 }
 
