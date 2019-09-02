@@ -1164,17 +1164,17 @@ func maybeRestart(t *state.Task, info *snap.Info) {
 		return
 	}
 
-	restartMsg := daemonRestartMessage(st, typ)
-	if restartMsg == "" {
+	restartReason := daemonRestartReason(st, typ)
+	if restartReason == "" {
 		// no message -> no restart
 		return
 	}
 
-	t.Logf(restartMsg)
+	t.Logf(restartReason)
 	st.RequestRestart(state.RestartDaemon)
 }
 
-func daemonRestartMessage(st *state.State, typ snap.Type) string {
+func daemonRestartReason(st *state.State, typ snap.Type) string {
 	if !((release.OnClassic && typ == snap.TypeOS) || typ == snap.TypeSnapd) {
 		// not interesting
 		return ""
