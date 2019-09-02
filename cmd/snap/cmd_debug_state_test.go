@@ -30,8 +30,8 @@ import (
 
 var stateJSON = []byte(`
 {
-	"last-task-id": 999,
-	"last-change-id": 99,
+	"last-task-id": 31,
+	"last-change-id": 2,
 
 	"data": {
 		"snaps": {}

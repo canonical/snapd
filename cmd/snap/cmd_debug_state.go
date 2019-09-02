@@ -73,13 +73,7 @@ func loadState(path string) (*state.State, error) {
 	}
 	defer r.Close()
 
-	var s *state.State
-	s, err = state.ReadState(nil, r)
-	if err != nil {
-		return nil, err
-	}
-
-	return s, nil
+	return state.ReadState(nil, r)
 }
 
 func init() {
@@ -169,7 +163,14 @@ func (c *cmdDebugState) showTasks(st *state.State, changeID string) error {
 		for _, lane := range t.Lanes() {
 			lanes = append(lanes, fmt.Sprintf("%d", lane))
 		}
-		fmt.Fprintf(w, "%s\t%s\t%s\t%s\t%s\t%s\t%s\n", strings.Join(lanes, ","), t.ID(), t.Status().String(), formatTime(t.SpawnTime()), formatTime(t.ReadyTime()), t.Kind(), t.Summary())
+		fmt.Fprintf(w, "%s\t%s\t%s\t%s\t%s\t%s\t%s\n",
+			strings.Join(lanes, ","),
+			t.ID(),
+			t.Status().String(),
+			formatTime(t.SpawnTime()),
+			formatTime(t.ReadyTime()),
+			t.Kind(),
+			t.Summary())
 	}
 
 	w.Flush()
