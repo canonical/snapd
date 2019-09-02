@@ -250,18 +250,18 @@ func (c *cmdDebugState) Execute(args []string) error {
 	}
 
 	// check valid combinations of args
-	var cmds int
+	var cmds []string
 	if c.Changes {
-		cmds++
+		cmds = append(cmds, "--changes")
 	}
 	if c.ChangeID != "" {
-		cmds++
+		cmds = append(cmds, "--change=")
 	}
 	if c.TaskID != "" {
-		cmds++
+		cmds = append(cmds, "--task=")
 	}
-	if cmds > 1 {
-		return fmt.Errorf("cannot use --changes, --change= or --task= together")
+	if len(cmds) > 1 {
+		return fmt.Errorf("cannot use %s and %s together", cmds[0], cmds[1])
 	}
 
 	if c.DotOutput && c.ChangeID == "" {

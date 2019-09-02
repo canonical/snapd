@@ -153,6 +153,21 @@ func (s *SnapSuite) TestDebugTaskNoSuchTaskError(c *C) {
 	c.Check(err, ErrorMatches, "no such task: 99")
 }
 
+func (s *SnapSuite) TestDebugTaskMutuallyExclusiveCommands(c *C) {
+	dir := c.MkDir()
+	stateFile := filepath.Join(dir, "test-state.json")
+	c.Assert(ioutil.WriteFile(stateFile, stateJSON, 0644), IsNil)
+
+	_, err := main.Parser(main.Client()).ParseArgs([]string{"debug", "state", "--task=99", "--changes", stateFile})
+	c.Check(err, ErrorMatches, "cannot use --changes and --task= together")
+
+	_, err = main.Parser(main.Client()).ParseArgs([]string{"debug", "state", "--changes", "--change=1", stateFile})
+	c.Check(err, ErrorMatches, "cannot use --changes and --change= together")
+
+	_, err = main.Parser(main.Client()).ParseArgs([]string{"debug", "state", "--change=1", "--task=1", stateFile})
+	c.Check(err, ErrorMatches, "cannot use --change= and --task= together")
+}
+
 func (s *SnapSuite) TestDebugTasks(c *C) {
 	dir := c.MkDir()
 	stateFile := filepath.Join(dir, "test-state.json")
