@@ -322,7 +322,7 @@ func InUse(name string, rev snap.Revision) (bool, error) {
 }
 
 var (
-	ErrBootNameAndRevisionAgain = errors.New("boot revision not yet established")
+	ErrBootNameAndRevisionNotReady = errors.New("boot revision not yet established")
 )
 
 type NameAndRevision struct {
@@ -332,7 +332,7 @@ type NameAndRevision struct {
 
 // GetCurrentBoot returns the currently set name and revision for boot for the given
 // type of snap, which can be snap.TypeBase (or snap.TypeOS), or snap.TypeKernel.
-// Returns ErrBootNameAndRevisionAgain if the values are temporarily not established.
+// Returns ErrBootNameAndRevisionNotReady if the values are temporarily not established.
 func GetCurrentBoot(t snap.Type) (*NameAndRevision, error) {
 	var bootVar, errName string
 	switch t {
@@ -357,7 +357,7 @@ func GetCurrentBoot(t snap.Type) (*NameAndRevision, error) {
 	}
 
 	if m["snap_mode"] == "trying" {
-		return nil, ErrBootNameAndRevisionAgain
+		return nil, ErrBootNameAndRevisionNotReady
 	}
 
 	nameAndRevno, err := nameAndRevnoFromSnap(m[bootVar])

@@ -438,7 +438,7 @@ func WaitRestart(task *state.Task, snapsup *SnapSetup) (err error) {
 		}
 
 		current, err := bootloader.GetCurrentBoot(typ)
-		if err == bootloader.ErrBootNameAndRevisionAgain {
+		if err == bootloader.ErrBootNameAndRevisionNotReady {
 			return &state.Retry{After: 5 * time.Second}
 		}
 		if err != nil {

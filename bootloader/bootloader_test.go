@@ -402,7 +402,7 @@ func (s *bootenvTestSuite) TestCurrentBootNameAndRevision(c *C) {
 
 	s.b.BootVars["snap_mode"] = "trying"
 	_, err = bootloader.GetCurrentBoot(snap.TypeKernel)
-	c.Check(err, Equals, bootloader.ErrBootNameAndRevisionAgain)
+	c.Check(err, Equals, bootloader.ErrBootNameAndRevisionNotReady)
 }
 
 func (s *bootenvTestSuite) TestCurrentBootNameAndRevisionUnhappy(c *C) {
