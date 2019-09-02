@@ -149,12 +149,12 @@ func GetCurrentBoot(t snap.Type) (*NameAndRevision, error) {
 		return nil, fmt.Errorf("internal error: cannot find boot revision for snap type %q", t)
 	}
 
-	loader, err := bootloader.Find()
+	bloader, err := bootloader.Find()
 	if err != nil {
 		return nil, fmt.Errorf("cannot get boot settings: %s", err)
 	}
 
-	m, err := loader.GetBootVars(bootVar, "snap_mode")
+	m, err := bloader.GetBootVars(bootVar, "snap_mode")
 	if err != nil {
 		return nil, fmt.Errorf("cannot get boot variables: %s", err)
 	}
