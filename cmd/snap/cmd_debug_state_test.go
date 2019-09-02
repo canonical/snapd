@@ -125,17 +125,32 @@ func (s *SnapSuite) TestDebugTask(c *C) {
 	rest, err := main.Parser(main.Client()).ParseArgs([]string{"debug", "state", "--task=31", stateFile})
 	c.Assert(err, IsNil)
 	c.Assert(rest, DeepEquals, []string{})
-	c.Check(s.Stdout(), Matches, "id: 31\n"+
+	c.Check(s.Stdout(), Equals, "id: 31\n"+
 		"kind: prepare-snap\n"+
 		"summary: Prepare snap c\n"+
 		"status: Done\n"+
-		"\n"+
 		"log: |\n"+
 		"  logline1\n"+
 		"  logline2\n"+
 		"\n"+
-		"tasks waiting for 31:\n"+
-		"  some-other-task \\(12\\)\n")
+		"halt-tasks:\n"+
+		" - some-other-task (12)\n")
+	c.Check(s.Stderr(), Equals, "")
+}
+
+func (s *SnapSuite) TestDebugTaskEmptyLists(c *C) {
+	dir := c.MkDir()
+	stateFile := filepath.Join(dir, "test-state.json")
+	c.Assert(ioutil.WriteFile(stateFile, stateJSON, 0644), IsNil)
+
+	rest, err := main.Parser(main.Client()).ParseArgs([]string{"debug", "state", "--task=12", stateFile})
+	c.Assert(err, IsNil)
+	c.Assert(rest, DeepEquals, []string{})
+	c.Check(s.Stdout(), Equals, "id: 12\n"+
+		"kind: some-other-task\n"+
+		"summary: \n"+
+		"status: Do\n"+
+		"halt-tasks: []\n")
 	c.Check(s.Stderr(), Equals, "")
 }
 

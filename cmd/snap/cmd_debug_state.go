@@ -223,7 +223,7 @@ func (c *cmdDebugState) showTask(st *state.State, taskID string) error {
 	}
 
 	// the output of 'debug task' is yaml'ish
-	fmt.Fprintf(Stdout, "id: %s\nkind: %s\nsummary: %s\nstatus: %s\n\n", taskID, task.Kind(), task.Summary(), task.Status().String())
+	fmt.Fprintf(Stdout, "id: %s\nkind: %s\nsummary: %s\nstatus: %s\n", taskID, task.Kind(), task.Summary(), task.Status().String())
 	log := task.Log()
 	if len(log) > 0 {
 		fmt.Fprintf(Stdout, "log: |\n")
@@ -235,9 +235,14 @@ func (c *cmdDebugState) showTask(st *state.State, taskID string) error {
 		fmt.Fprintln(Stdout)
 	}
 
-	fmt.Fprintf(Stdout, "tasks waiting for %s:\n", taskID)
-	for _, ht := range task.HaltTasks() {
-		fmt.Fprintf(Stdout, " - %s (%s)\n", ht.Kind(), ht.ID())
+	fmt.Fprintf(Stdout, "halt-tasks:")
+	if len(task.HaltTasks()) == 0 {
+		fmt.Fprintln(Stdout, " []")
+	} else {
+		fmt.Fprintln(Stdout)
+		for _, ht := range task.HaltTasks() {
+			fmt.Fprintf(Stdout, " - %s (%s)\n", ht.Kind(), ht.ID())
+		}
 	}
 
 	return nil
