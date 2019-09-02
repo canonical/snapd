@@ -1164,23 +1164,33 @@ func maybeRestart(t *state.Task, info *snap.Info) {
 		return
 	}
 
-	if !((release.OnClassic && typ == snap.TypeOS) || typ == snap.TypeSnapd) {
-		// not interesting
+	restartMsg := daemonRestartMessage(st, typ)
+	if restartMsg == "" {
+		// no message -> no restart
 		return
 	}
 
-	msg := "Requested daemon restart (snapd snap)."
+	t.Logf(restartMsg)
+	st.RequestRestart(state.RestartDaemon)
+}
+
+func daemonRestartMessage(st *state.State, typ snap.Type) string {
+	if !((release.OnClassic && typ == snap.TypeOS) || typ == snap.TypeSnapd) {
+		// not interesting
+		return ""
+	}
+
 	if typ == snap.TypeOS {
 		// ignore error here as we have no way to return to caller
 		snapdSnapInstalled, _ := isInstalled(st, "snapd")
 		if snapdSnapInstalled {
-			return
+			// this snap is the base, but snapd is running from the snapd snap
+			return ""
 		}
-		msg = "Requested daemon restart."
+		return "Requested daemon restart."
 	}
 
-	t.Logf(msg)
-	st.RequestRestart(state.RestartDaemon)
+	return "Requested daemon restart (snapd snap)."
 }
 
 func (m *SnapManager) undoLinkSnap(t *state.Task, _ *tomb.Tomb) error {
