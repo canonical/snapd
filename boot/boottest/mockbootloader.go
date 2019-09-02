@@ -48,7 +48,7 @@ type MockBootloader struct {
 	name    string
 	bootdir string
 
-	ExtractKernelAssetsCalls []*snap.Info
+	ExtractKernelAssetsCalls []snap.PlaceInfo
 	RemoveKernelAssetsCalls  []snap.PlaceInfo
 }
 
@@ -85,7 +85,7 @@ func (b *MockBootloader) ConfigFile() string {
 	return filepath.Join(b.bootdir, "mockboot/mockboot.cfg")
 }
 
-func (b *MockBootloader) ExtractKernelAssets(s *snap.Info, snapf snap.Container) error {
+func (b *MockBootloader) ExtractKernelAssets(s snap.PlaceInfo, snapf snap.Container) error {
 	b.ExtractKernelAssetsCalls = append(b.ExtractKernelAssetsCalls, s)
 	return nil
 }

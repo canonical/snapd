@@ -20,6 +20,7 @@
 package bootloader_test
 
 import (
+	"errors"
 	"io/ioutil"
 	"path/filepath"
 	"testing"
@@ -76,6 +77,16 @@ func (s *bootenvTestSuite) TestForceBootloader(c *C) {
 	got, err := bootloader.Find()
 	c.Assert(err, IsNil)
 	c.Check(got, Equals, s.b)
+}
+
+func (s *bootenvTestSuite) TestForceBootloaderError(c *C) {
+	myErr := errors.New("zap")
+	bootloader.ForceError(myErr)
+	defer bootloader.ForceError(nil)
+
+	got, err := bootloader.Find()
+	c.Assert(err, Equals, myErr)
+	c.Check(got, IsNil)
 }
 
 func (s *bootenvTestSuite) TestMarkBootSuccessfulAllSnap(c *C) {
