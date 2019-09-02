@@ -54,6 +54,8 @@ type Kernel interface {
 	ExtractKernelAssets(snap.Container) error
 }
 
+// Model carries information about the model that is relevant to boot.
+// Note *asserts.Model implements this, and that's the expected use case.
 type Model interface {
 	Kernel() string
 	Base() string
@@ -70,6 +72,7 @@ func Lookup(s snap.PlaceInfo, t snap.Type, model Model, onClassic bool) (bp Boot
 		return nil, false
 	}
 	if t != snap.TypeOS && t != snap.TypeKernel && t != snap.TypeBase {
+		// note we don't currently have anything useful to do with gadgets
 		return nil, false
 	}
 
@@ -77,6 +80,7 @@ func Lookup(s snap.PlaceInfo, t snap.Type, model Model, onClassic bool) (bp Boot
 		switch t {
 		case snap.TypeKernel:
 			if s.InstanceName() != model.Kernel() {
+				// a remodel might leave you in this state
 				return nil, false
 			}
 		case snap.TypeBase, snap.TypeOS:
@@ -171,6 +175,8 @@ func GetCurrentBoot(t snap.Type) (*NameAndRevision, error) {
 	return nameAndRevno, nil
 }
 
+// nameAndRevnoFromSnap grabs the snap name and revision from the
+// value of a boot variable. E.g., foo_2.snap -> name "foo", revno 2
 func nameAndRevnoFromSnap(sn string) (*NameAndRevision, error) {
 	if sn == "" {
 		return nil, fmt.Errorf("boot variable unset")
