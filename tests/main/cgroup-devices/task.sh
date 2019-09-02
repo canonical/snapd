@@ -54,7 +54,8 @@ snap connect test-snapd-service:joystick
 
 echo "Refresh the value of the main pid and the effective device cgroup after snap connect"
 # NOTE: As of snapd 2.40 the PID and cgroup are expected to be the same as before.
-pid=$(systemctl show snap.test-snapd-service.test-snapd-service.service --property=ExecMainPID | cut -d = -f 2)
+pid_check=$(systemctl show snap.test-snapd-service.test-snapd-service.service --property=ExecMainPID | cut -d = -f 2)
+test "$pid" -eq "$pid_check"
 updated_device_cgroup=$(grep devices < "/proc/$pid/cgroup" | cut -d : -f 3)
 
 echo "Verify that the main process is still in the systemd-made cgroup"
