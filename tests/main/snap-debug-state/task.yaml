@@ -2,7 +2,7 @@ summary: Ensure `snap debug changes|tasks|task` commands work
 
 prepare: |
     snap install hello-world
-    if [[ "$SPREAD_SYSTEM" == ubuntu-* ]]; then
+    if [[ "$SPREAD_SYSTEM" == ubuntu-1* ]]; then
         apt install -y graphviz
     fi
 
