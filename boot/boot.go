@@ -54,6 +54,8 @@ type Kernel interface {
 	ExtractKernelAssets(snap.Container) error
 }
 
+// Model carries information about the model that is relevant to boot.
+// Note *asserts.Model implements this, and that's the expected use case.
 type Model interface {
 	Kernel() string
 	Base() string
@@ -70,6 +72,7 @@ func Lookup(s snap.PlaceInfo, t snap.Type, model Model, onClassic bool) (bp Boot
 		return nil, false
 	}
 	if t != snap.TypeOS && t != snap.TypeKernel && t != snap.TypeBase {
+		// note we don't currently have anything useful to do with gadgets
 		return nil, false
 	}
 
@@ -77,6 +80,7 @@ func Lookup(s snap.PlaceInfo, t snap.Type, model Model, onClassic bool) (bp Boot
 		switch t {
 		case snap.TypeKernel:
 			if s.InstanceName() != model.Kernel() {
+				// a remodel might leave you in this state
 				return nil, false
 			}
 		case snap.TypeBase, snap.TypeOS:
@@ -125,7 +129,7 @@ func InUse(name string, rev snap.Revision) bool {
 }
 
 var (
-	ErrBootNameAndRevisionAgain = errors.New("boot revision not yet established")
+	ErrBootNameAndRevisionNotReady = errors.New("boot revision not yet established")
 )
 
 type NameAndRevision struct {
@@ -135,7 +139,7 @@ type NameAndRevision struct {
 
 // GetCurrentBoot returns the currently set name and revision for boot for the given
 // type of snap, which can be snap.TypeBase (or snap.TypeOS), or snap.TypeKernel.
-// Returns ErrBootNameAndRevisionAgain if the values are temporarily not established.
+// Returns ErrBootNameAndRevisionNotReady if the values are temporarily not established.
 func GetCurrentBoot(t snap.Type) (*NameAndRevision, error) {
 	var bootVar, errName string
 	switch t {
@@ -149,18 +153,18 @@ func GetCurrentBoot(t snap.Type) (*NameAndRevision, error) {
 		return nil, fmt.Errorf("internal error: cannot find boot revision for snap type %q", t)
 	}
 
-	loader, err := bootloader.Find()
+	bloader, err := bootloader.Find()
 	if err != nil {
 		return nil, fmt.Errorf("cannot get boot settings: %s", err)
 	}
 
-	m, err := loader.GetBootVars(bootVar, "snap_mode")
+	m, err := bloader.GetBootVars(bootVar, "snap_mode")
 	if err != nil {
 		return nil, fmt.Errorf("cannot get boot variables: %s", err)
 	}
 
 	if m["snap_mode"] == "trying" {
-		return nil, ErrBootNameAndRevisionAgain
+		return nil, ErrBootNameAndRevisionNotReady
 	}
 
 	nameAndRevno, err := nameAndRevnoFromSnap(m[bootVar])
@@ -171,9 +175,11 @@ func GetCurrentBoot(t snap.Type) (*NameAndRevision, error) {
 	return nameAndRevno, nil
 }
 
+// nameAndRevnoFromSnap grabs the snap name and revision from the
+// value of a boot variable. E.g., foo_2.snap -> name "foo", revno 2
 func nameAndRevnoFromSnap(sn string) (*NameAndRevision, error) {
 	if sn == "" {
-		return nil, fmt.Errorf("unset")
+		return nil, fmt.Errorf("boot variable unset")
 	}
 	idx := strings.IndexByte(sn, '_')
 	if idx < 1 {
@@ -186,4 +192,55 @@ func nameAndRevnoFromSnap(sn string) (*NameAndRevision, error) {
 		return nil, err
 	}
 	return &NameAndRevision{Name: name, Revision: rev}, nil
+}
+
+// MarkBootSuccessful marks the current boot as successful. This means
+// that snappy will consider this combination of kernel/os a valid
+// target for rollback.
+//
+// The states that a boot goes through are the following:
+// - By default snap_mode is "" in which case the bootloader loads
+//   two squashfs'es denoted by variables snap_core and snap_kernel.
+// - On a refresh of core/kernel snapd will set snap_mode=try and
+//   will also set snap_try_{core,kernel} to the core/kernel that
+//   will be tried next.
+// - On reboot the bootloader will inspect the snap_mode and if the
+//   mode is set to "try" it will set "snap_mode=trying" and then
+//   try to boot the snap_try_{core,kernel}".
+// - On a successful boot snapd resets snap_mode to "" and copies
+//   snap_try_{core,kernel} to snap_{core,kernel}. The snap_try_*
+//   values are cleared afterwards.
+// - On a failing boot the bootloader will see snap_mode=trying which
+//   means snapd did not start successfully. In this case the bootloader
+//   will set snap_mode="" and the system will boot with the known good
+//   values from snap_{core,kernel}
+func MarkBootSuccessful() error {
+	bl, err := bootloader.Find()
+	if err != nil {
+		return fmt.Errorf("cannot mark boot successful: %s", err)
+	}
+	m, err := bl.GetBootVars("snap_mode", "snap_try_core", "snap_try_kernel")
+	if err != nil {
+		return err
+	}
+
+	// snap_mode goes from "" -> "try" -> "trying" -> ""
+	// so if we are not in "trying" mode, nothing to do here
+	if m["snap_mode"] != "trying" {
+		return nil
+	}
+
+	// update the boot vars
+	for _, k := range []string{"kernel", "core"} {
+		tryBootVar := fmt.Sprintf("snap_try_%s", k)
+		bootVar := fmt.Sprintf("snap_%s", k)
+		// update the boot vars
+		if m[tryBootVar] != "" {
+			m[bootVar] = m[tryBootVar]
+			m[tryBootVar] = ""
+		}
+	}
+	m["snap_mode"] = ""
+
+	return bl.SetBootVars(m)
 }

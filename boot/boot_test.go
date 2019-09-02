@@ -61,7 +61,7 @@ func (s *baseBootSetSuite) SetUpTest(c *C) {
 type bootSetSuite struct {
 	baseBootSetSuite
 
-	loader *bootloadertest.MockBootloader
+	bootloader *bootloadertest.MockBootloader
 }
 
 var _ = Suite(&bootSetSuite{})
@@ -69,8 +69,8 @@ var _ = Suite(&bootSetSuite{})
 func (s *bootSetSuite) SetUpTest(c *C) {
 	s.baseBootSetSuite.SetUpTest(c)
 
-	s.loader = bootloadertest.Mock("mock", c.MkDir())
-	bootloader.Force(s.loader)
+	s.bootloader = bootloadertest.Mock("mock", c.MkDir())
+	bootloader.Force(s.bootloader)
 	s.AddCleanup(func() { bootloader.Force(nil) })
 }
 
@@ -122,7 +122,7 @@ func (s *bootSetSuite) TestInUse(c *C) {
 		{"snap_kernel", "kernel_111.snap", "kernel", snap.R(1), false},
 		{"snap_try_kernel", "kernel_111.snap", "kernel", snap.R(1), false},
 	} {
-		s.loader.BootVars[t.bootVarKey] = t.bootVarValue
+		s.bootloader.BootVars[t.bootVarKey] = t.bootVarValue
 		c.Assert(boot.InUse(t.snapName, t.snapRev), Equals, t.inUse, Commentf("unexpected result: %s %s %v", t.snapName, t.snapRev, t.inUse))
 	}
 }
@@ -130,16 +130,16 @@ func (s *bootSetSuite) TestInUse(c *C) {
 func (s *bootSetSuite) TestInUseUnhapy(c *C) {
 	logbuf, restore := logger.MockLogger()
 	defer restore()
-	s.loader.BootVars["snap_kernel"] = "kernel_41.snap"
+	s.bootloader.BootVars["snap_kernel"] = "kernel_41.snap"
 
 	// sanity check
 	c.Check(boot.InUse("kernel", snap.R(41)), Equals, true)
 
 	// make GetVars fail
-	s.loader.GetErr = errors.New("zap")
+	s.bootloader.GetErr = errors.New("zap")
 	c.Check(boot.InUse("kernel", snap.R(41)), Equals, false)
 	c.Check(logbuf.String(), testutil.Contains, "cannot get boot vars: zap")
-	s.loader.GetErr = nil
+	s.bootloader.GetErr = nil
 
 	// make bootloader.Find fail
 	bootloader.ForceError(errors.New("broken bootloader"))
@@ -148,8 +148,8 @@ func (s *bootSetSuite) TestInUseUnhapy(c *C) {
 }
 
 func (s *bootSetSuite) TestCurrentBootNameAndRevision(c *C) {
-	s.loader.BootVars["snap_core"] = "core_2.snap"
-	s.loader.BootVars["snap_kernel"] = "canonical-pc-linux_2.snap"
+	s.bootloader.BootVars["snap_core"] = "core_2.snap"
+	s.bootloader.BootVars["snap_kernel"] = "canonical-pc-linux_2.snap"
 
 	current, err := boot.GetCurrentBoot(snap.TypeOS)
 	c.Check(err, IsNil)
@@ -161,36 +161,36 @@ func (s *bootSetSuite) TestCurrentBootNameAndRevision(c *C) {
 	c.Check(current.Name, Equals, "canonical-pc-linux")
 	c.Check(current.Revision, Equals, snap.R(2))
 
-	s.loader.BootVars["snap_mode"] = "trying"
+	s.bootloader.BootVars["snap_mode"] = "trying"
 	_, err = boot.GetCurrentBoot(snap.TypeKernel)
-	c.Check(err, Equals, boot.ErrBootNameAndRevisionAgain)
+	c.Check(err, Equals, boot.ErrBootNameAndRevisionNotReady)
 }
 
 func (s *bootSetSuite) TestCurrentBootNameAndRevisionUnhappy(c *C) {
 	_, err := boot.GetCurrentBoot(snap.TypeKernel)
-	c.Check(err, ErrorMatches, "cannot get name and revision of boot kernel: unset")
+	c.Check(err, ErrorMatches, "cannot get name and revision of boot kernel: boot variable unset")
 
 	_, err = boot.GetCurrentBoot(snap.TypeOS)
-	c.Check(err, ErrorMatches, "cannot get name and revision of boot base: unset")
+	c.Check(err, ErrorMatches, "cannot get name and revision of boot base: boot variable unset")
 
 	_, err = boot.GetCurrentBoot(snap.TypeBase)
-	c.Check(err, ErrorMatches, "cannot get name and revision of boot base: unset")
+	c.Check(err, ErrorMatches, "cannot get name and revision of boot base: boot variable unset")
 
 	_, err = boot.GetCurrentBoot(snap.TypeApp)
 	c.Check(err, ErrorMatches, "internal error: cannot find boot revision for snap type \"app\"")
 
 	// sanity check
-	s.loader.BootVars["snap_kernel"] = "kernel_41.snap"
+	s.bootloader.BootVars["snap_kernel"] = "kernel_41.snap"
 	current, err := boot.GetCurrentBoot(snap.TypeKernel)
 	c.Check(err, IsNil)
 	c.Check(current.Name, Equals, "kernel")
 	c.Check(current.Revision, Equals, snap.R(41))
 
 	// make GetVars fail
-	s.loader.GetErr = errors.New("zap")
+	s.bootloader.GetErr = errors.New("zap")
 	_, err = boot.GetCurrentBoot(snap.TypeKernel)
 	c.Check(err, ErrorMatches, "cannot get boot variables: zap")
-	s.loader.GetErr = nil
+	s.bootloader.GetErr = nil
 
 	// make bootloader.Find fail
 	bootloader.ForceError(errors.New("broken bootloader"))
@@ -323,4 +323,48 @@ func (s *bootSetSuite) TestLookupKernelWithModel(c *C) {
 		c.Check(applicable, Equals, t.applicable)
 		c.Check(bp, DeepEquals, t.bp)
 	}
+}
+
+func (s *bootSetSuite) TestMarkBootSuccessfulAllSnap(c *C) {
+	s.bootloader.BootVars["snap_mode"] = "trying"
+	s.bootloader.BootVars["snap_try_core"] = "os1"
+	s.bootloader.BootVars["snap_try_kernel"] = "k1"
+	err := boot.MarkBootSuccessful()
+	c.Assert(err, IsNil)
+
+	expected := map[string]string{
+		// cleared
+		"snap_mode":       "",
+		"snap_try_kernel": "",
+		"snap_try_core":   "",
+		// updated
+		"snap_kernel": "k1",
+		"snap_core":   "os1",
+	}
+	c.Assert(s.bootloader.BootVars, DeepEquals, expected)
+
+	// do it again, verify its still valid
+	err = boot.MarkBootSuccessful()
+	c.Assert(err, IsNil)
+	c.Assert(s.bootloader.BootVars, DeepEquals, expected)
+}
+
+func (s *bootSetSuite) TestMarkBootSuccessfulKKernelUpdate(c *C) {
+	s.bootloader.BootVars["snap_mode"] = "trying"
+	s.bootloader.BootVars["snap_core"] = "os1"
+	s.bootloader.BootVars["snap_kernel"] = "k1"
+	s.bootloader.BootVars["snap_try_core"] = ""
+	s.bootloader.BootVars["snap_try_kernel"] = "k2"
+	err := boot.MarkBootSuccessful()
+	c.Assert(err, IsNil)
+	c.Assert(s.bootloader.BootVars, DeepEquals, map[string]string{
+		// cleared
+		"snap_mode":       "",
+		"snap_try_kernel": "",
+		"snap_try_core":   "",
+		// unchanged
+		"snap_core": "os1",
+		// updated
+		"snap_kernel": "k2",
+	})
 }

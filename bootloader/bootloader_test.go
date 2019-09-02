@@ -89,50 +89,6 @@ func (s *bootenvTestSuite) TestForceBootloaderError(c *C) {
 	c.Check(got, IsNil)
 }
 
-func (s *bootenvTestSuite) TestMarkBootSuccessfulAllSnap(c *C) {
-	s.b.BootVars["snap_mode"] = "trying"
-	s.b.BootVars["snap_try_core"] = "os1"
-	s.b.BootVars["snap_try_kernel"] = "k1"
-	err := bootloader.MarkBootSuccessful(s.b)
-	c.Assert(err, IsNil)
-
-	expected := map[string]string{
-		// cleared
-		"snap_mode":       "",
-		"snap_try_kernel": "",
-		"snap_try_core":   "",
-		// updated
-		"snap_kernel": "k1",
-		"snap_core":   "os1",
-	}
-	c.Assert(s.b.BootVars, DeepEquals, expected)
-
-	// do it again, verify its still valid
-	err = bootloader.MarkBootSuccessful(s.b)
-	c.Assert(err, IsNil)
-	c.Assert(s.b.BootVars, DeepEquals, expected)
-}
-
-func (s *bootenvTestSuite) TestMarkBootSuccessfulKKernelUpdate(c *C) {
-	s.b.BootVars["snap_mode"] = "trying"
-	s.b.BootVars["snap_core"] = "os1"
-	s.b.BootVars["snap_kernel"] = "k1"
-	s.b.BootVars["snap_try_core"] = ""
-	s.b.BootVars["snap_try_kernel"] = "k2"
-	err := bootloader.MarkBootSuccessful(s.b)
-	c.Assert(err, IsNil)
-	c.Assert(s.b.BootVars, DeepEquals, map[string]string{
-		// cleared
-		"snap_mode":       "",
-		"snap_try_kernel": "",
-		"snap_try_core":   "",
-		// unchanged
-		"snap_core": "os1",
-		// updated
-		"snap_kernel": "k2",
-	})
-}
-
 func (s *bootenvTestSuite) TestInstallBootloaderConfigNoConfig(c *C) {
 	err := bootloader.InstallBootConfig(c.MkDir())
 	c.Assert(err, ErrorMatches, `cannot find boot config in.*`)

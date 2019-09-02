@@ -10952,7 +10952,7 @@ type canRemoveSuite struct {
 	st        *state.State
 	deviceCtx snapstate.DeviceContext
 
-	bs *bootloadertest.MockBootloader
+	bootloader *bootloadertest.MockBootloader
 }
 
 var _ = Suite(&canRemoveSuite{})
@@ -10962,8 +10962,8 @@ func (s *canRemoveSuite) SetUpTest(c *C) {
 	s.st = state.New(nil)
 	s.deviceCtx = &snapstatetest.TrivialDeviceContext{DeviceModel: DefaultModel()}
 
-	s.bs = bootloadertest.Mock("mock", c.MkDir())
-	bootloader.Force(s.bs)
+	s.bootloader = bootloadertest.Mock("mock", c.MkDir())
+	bootloader.Force(s.bootloader)
 }
 
 func (s *canRemoveSuite) TearDownTest(c *C) {
@@ -11015,7 +11015,7 @@ func (s *canRemoveSuite) TestKernelBootInUseIsKept(c *C) {
 	}
 	kernel.RealName = "kernel"
 
-	s.bs.SetBootKernel(fmt.Sprintf("%s_%s.snap", kernel.RealName, kernel.SideInfo.Revision))
+	s.bootloader.SetBootKernel(fmt.Sprintf("%s_%s.snap", kernel.RealName, kernel.SideInfo.Revision))
 
 	removeAll := false
 	c.Check(snapstate.CanRemove(s.st, kernel, &snapstate.SnapState{}, removeAll, s.deviceCtx), Equals, false)
@@ -11030,7 +11030,7 @@ func (s *canRemoveSuite) TestOstInUseIsKept(c *C) {
 	}
 	base.RealName = "core18"
 
-	s.bs.SetBootBase(fmt.Sprintf("%s_%s.snap", base.RealName, base.SideInfo.Revision))
+	s.bootloader.SetBootBase(fmt.Sprintf("%s_%s.snap", base.RealName, base.SideInfo.Revision))
 
 	removeAll := false
 	c.Check(snapstate.CanRemove(s.st, base, &snapstate.SnapState{}, removeAll, s.deviceCtx), Equals, false)
@@ -11054,7 +11054,7 @@ func (s *canRemoveSuite) TestRemoveNonModelKernelStillInUseNotOk(c *C) {
 	}
 	kernel.RealName = "other-non-model-kernel"
 
-	s.bs.SetBootKernel(fmt.Sprintf("%s_%s.snap", kernel.RealName, kernel.SideInfo.Revision))
+	s.bootloader.SetBootKernel(fmt.Sprintf("%s_%s.snap", kernel.RealName, kernel.SideInfo.Revision))
 
 	c.Check(snapstate.CanRemove(s.st, kernel, &snapstate.SnapState{}, true, s.deviceCtx), Equals, false)
 }
