@@ -122,95 +122,6 @@ class ConsistentRelationTests(unittest.TestCase):
             consistent_relation("???", 0)
 
 
-def numeric_part_of(text):
-    # type: (Text) -> int
-    """
-    numeric_part_of returns the integer representing the numeric portion of text.
-
-    If text does not start with an natural number the result is zero. The
-    function never fails. Negative numbers are not supported because they are
-    meaningless for version numbers.
-    """
-    match = re.match("^([0-9]+)", text)
-    if match:
-        return int(match.group(1))
-    return 0
-
-
-class NumericPartOfTests(unittest.TestCase):
-    def test_simple(self):
-        # type: () -> None
-        self.assertEqual(numeric_part_of("12"), 12)
-        self.assertEqual(numeric_part_of("12-stuff"), 12)
-        self.assertEqual(numeric_part_of("stuff-12"), 0)
-        self.assertEqual(numeric_part_of("-12"), 0)
-
-
-def naive_version_cmp(a, b):
-    # type: (Text, Text) -> int
-    """
-    naive_version_cmp naively compares two version numbers.
-
-    The algorithm considers each version to be a tuple of integers. Non,
-    integer elements or element fragments are discarded.
-
-    Comparison is performed on by considering the leftmost element in each
-    tuple. First pair of numbers that are not equal determine the result of the
-    comparison. Tuples have unequal length then missing elements are
-    substituted with zero.
-
-    The return value is 0 if the version strings are equal, -1 if version a is
-    smaller or +1 if version b is smaller.
-    """
-    a_items = a.split(".")
-    b_items = b.split(".")
-    if PY2:
-        zip_longest_fn = itertools.izip_longest
-    else:
-        zip_longest_fn = itertools.zip_longest
-    for a_item, b_item in zip_longest_fn(a_items, b_items, fillvalue="0"):
-        a_val = numeric_part_of(a_item)
-        b_val = numeric_part_of(b_item)
-        delta = a_val - b_val
-        if delta != 0:
-            return 1 if delta > 0 else -1
-    return 0
-
-
-class NaiveVersionCmpTests(unittest.TestCase):
-    def test_simple(self):
-        # type: () -> None
-        self.assertEqual(naive_version_cmp("10", "10"), 0)
-        self.assertEqual(naive_version_cmp("10", "20"), -1)
-        self.assertEqual(naive_version_cmp("20", "10"), +1)
-
-    def test_many_segments(self):
-        # type: () -> None
-        self.assertEqual(naive_version_cmp("1.2.3", "1.2.3"), 0)
-        self.assertEqual(naive_version_cmp("1.2.3", "1.3.4"), -1)
-        self.assertEqual(naive_version_cmp("1.4.3", "1.2.3"), +1)
-        self.assertEqual(naive_version_cmp("1.0.0", "1.1.0"), -1)
-        self.assertEqual(naive_version_cmp("0.1.2", "1.1.2"), -1)
-
-    def test_unequal_length(self):
-        # type: () -> None
-        self.assertEqual(naive_version_cmp("1", "1.0"), 0)
-        self.assertEqual(naive_version_cmp("1", "1.2"), -1)
-        self.assertEqual(naive_version_cmp("1.2", "1"), +1)
-        self.assertEqual(naive_version_cmp("1", "1.0.1"), -1)
-        self.assertEqual(naive_version_cmp("1.1", "1.0.1"), +1)
-
-    def test_version_with_text(self):
-        # type: () -> None
-        self.assertEqual(naive_version_cmp("1-foo", "1-bar"), 0)
-        self.assertEqual(naive_version_cmp("1-foo.2-froz", "1-bar"), +1)
-        self.assertEqual(naive_version_cmp("1-foo.2-froz", "1-bar.3-quux"), -1)
-
-    def test_kernel_version(self):
-        # type: () -> None
-        self.assertEqual(naive_version_cmp("5.2.9-1-default", "4.13"), +1)
-
-
 def strict_version_cmp(a, b):
     # type: (Text, Text) -> int
     """
@@ -290,15 +201,6 @@ Relational operator is one of:
 
 Version comparison is performed using the selected algorithm.
 
-naive:
-    The algorithm considers each version to be a tuple of integers.
-    Non-integer elements or element fragments are discarded.
-
-    Comparison is performed on by considering the leftmost element in each
-    tuple. First pair of numbers that are not equal determine the result of the
-    comparison. Tuples have unequal length then missing elements are
-    substituted with zero.
-
 strict:
     The algorithm considers each version to be a tuple of integers.
     Non-integer elements are considered to be invalid version.
@@ -321,13 +223,6 @@ strict:
 
     # algorithm selection
     alg_grp = parser.add_mutually_exclusive_group(required=True)
-    alg_grp.add_argument(
-        "--naive",
-        dest="algorithm",
-        action="store_const",
-        const=naive_version_cmp,
-        help="select the naive version comparison",
-    )
     alg_grp.add_argument(
         "--strict",
         dest="algorithm",

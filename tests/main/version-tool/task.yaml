@@ -33,10 +33,7 @@ execute: |
     # NOTE: older python versions print the version string to stderr
     version-tool --version 2>&1 | MATCH 1.0
 
-    # The difference between --naive and --strict is that naive only looks at
-    # integer part of each version segment while strict errors on any
-    # non-integer segment.
-    version-tool --naive 1.2 -eq 1.2-foo
+    # Strict requires all version components to be integers.
     version-tool --strict 1.2 -eq 1.2-foo 2>&1 | MATCH 'error: version 1.2-foo is not purely numeric'
     # Such invalid comparison also returns a distinct error code.
     set +e
