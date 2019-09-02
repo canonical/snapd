@@ -368,6 +368,8 @@ func GetCurrentBoot(t snap.Type) (*NameAndRevision, error) {
 	return nameAndRevno, nil
 }
 
+// nameAndRevnoFromSnap grabs the snap name and revision from the
+// value of a boot variable. E.g., foo_2.snap -> name "foo", revno 2
 func nameAndRevnoFromSnap(sn string) (*NameAndRevision, error) {
 	if sn == "" {
 		return nil, fmt.Errorf("boot variable unset")
