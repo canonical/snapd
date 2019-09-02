@@ -197,7 +197,13 @@ func (c *cmdDebugState) showChanges(st *state.State) error {
 	w := tabwriter.NewWriter(Stdout, 5, 3, 2, ' ', 0)
 	fmt.Fprintf(w, "ID\tStatus\tSpawn\tReady\tLabel\tSummary\n")
 	for _, chg := range changes {
-		fmt.Fprintf(w, "%s\t%s\t%s\t%s\t%s\t%s\n", chg.ID(), chg.Status().String(), c.fmtTime(chg.SpawnTime()), c.fmtTime(chg.ReadyTime()), chg.Kind(), chg.Summary())
+		fmt.Fprintf(w, "%s\t%s\t%s\t%s\t%s\t%s\n",
+			chg.ID(),
+			chg.Status().String(),
+			c.fmtTime(chg.SpawnTime()),
+			c.fmtTime(chg.ReadyTime()),
+			chg.Kind(),
+			chg.Summary())
 	}
 	w.Flush()
 
@@ -221,7 +227,10 @@ func (c *cmdDebugState) showTask(st *state.State, taskID string) error {
 	}
 
 	// the output of 'debug task' is yaml'ish
-	fmt.Fprintf(Stdout, "id: %s\nkind: %s\nsummary: %s\nstatus: %s\n", taskID, task.Kind(), task.Summary(), task.Status().String())
+	fmt.Fprintf(Stdout, "id: %s\nkind: %s\nsummary: %s\nstatus: %s\n",
+		taskID, task.Kind(),
+		task.Summary(),
+		task.Status().String())
 	log := task.Log()
 	if len(log) > 0 {
 		fmt.Fprintf(Stdout, "log: |\n")
