@@ -17,7 +17,7 @@
  *
  */
 
-package mockbootloader
+package bootloadertest
 
 import (
 	"path/filepath"
@@ -43,7 +43,7 @@ type MockBootloader struct {
 // ensure MockBootloader implements the Bootloader interface
 var _ bootloader.Bootloader = (*MockBootloader)(nil)
 
-func New(name, bootdir string) *MockBootloader {
+func Mock(name, bootdir string) *MockBootloader {
 	return &MockBootloader{
 		name:    name,
 		bootdir: bootdir,

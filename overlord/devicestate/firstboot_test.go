@@ -34,7 +34,7 @@ import (
 	"github.com/snapcore/snapd/asserts"
 	"github.com/snapcore/snapd/asserts/assertstest"
 	"github.com/snapcore/snapd/bootloader"
-	"github.com/snapcore/snapd/bootloader/mockbootloader"
+	"github.com/snapcore/snapd/bootloader/bootloadertest"
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/overlord"
@@ -487,7 +487,7 @@ snaps:
 }
 
 func (s *FirstBootTestSuite) TestPopulateFromSeedHappy(c *C) {
-	loader := mockbootloader.New("mock", c.MkDir())
+	loader := bootloadertest.Mock("mock", c.MkDir())
 	bootloader.Force(loader)
 	defer bootloader.Force(nil)
 	loader.SetBootKernel("pc-kernel_1.snap")
@@ -612,7 +612,7 @@ func (s *FirstBootTestSuite) TestPopulateFromSeedMissingBootloader(c *C) {
 }
 
 func (s *FirstBootTestSuite) TestPopulateFromSeedHappyMultiAssertsFiles(c *C) {
-	loader := mockbootloader.New("mock", c.MkDir())
+	loader := bootloadertest.Mock("mock", c.MkDir())
 	bootloader.Force(loader)
 	defer bootloader.Force(nil)
 	loader.SetBootKernel("pc-kernel_1.snap")
@@ -711,7 +711,7 @@ snaps:
 }
 
 func (s *FirstBootTestSuite) TestPopulateFromSeedConfigureHappy(c *C) {
-	loader := mockbootloader.New("mock", c.MkDir())
+	loader := bootloadertest.Mock("mock", c.MkDir())
 	bootloader.Force(loader)
 	defer bootloader.Force(nil)
 	loader.SetBootKernel("pc-kernel_1.snap")
@@ -864,7 +864,7 @@ snaps:
 }
 
 func (s *FirstBootTestSuite) TestPopulateFromSeedGadgetConnectHappy(c *C) {
-	loader := mockbootloader.New("mock", c.MkDir())
+	loader := bootloadertest.Mock("mock", c.MkDir())
 	bootloader.Force(loader)
 	defer bootloader.Force(nil)
 	loader.SetBootKernel("pc-kernel_1.snap")
@@ -1173,7 +1173,7 @@ func (s *FirstBootTestSuite) TestPopulateFromSeedWithBaseHappy(c *C) {
 	})
 	defer systemctlRestorer()
 
-	loader := mockbootloader.New("mock", c.MkDir())
+	loader := bootloadertest.Mock("mock", c.MkDir())
 	bootloader.Force(loader)
 	defer bootloader.Force(nil)
 	loader.SetBootKernel("pc-kernel_1.snap")
@@ -1370,7 +1370,7 @@ snaps:
 }
 
 func (s *FirstBootTestSuite) TestPopulateFromSeedWrongContentProviderOrder(c *C) {
-	loader := mockbootloader.New("mock", c.MkDir())
+	loader := bootloadertest.Mock("mock", c.MkDir())
 	bootloader.Force(loader)
 	defer bootloader.Force(nil)
 	loader.SetBootKernel("pc-kernel_1.snap")

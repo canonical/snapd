@@ -28,7 +28,7 @@ import (
 
 	"github.com/snapcore/snapd/boot"
 	"github.com/snapcore/snapd/bootloader"
-	"github.com/snapcore/snapd/bootloader/mockbootloader"
+	"github.com/snapcore/snapd/bootloader/bootloadertest"
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/snap"
@@ -61,7 +61,7 @@ func (s *baseBootSetSuite) SetUpTest(c *C) {
 type bootSetSuite struct {
 	baseBootSetSuite
 
-	loader *mockbootloader.MockBootloader
+	loader *bootloadertest.MockBootloader
 }
 
 var _ = Suite(&bootSetSuite{})
@@ -69,7 +69,7 @@ var _ = Suite(&bootSetSuite{})
 func (s *bootSetSuite) SetUpTest(c *C) {
 	s.baseBootSetSuite.SetUpTest(c)
 
-	s.loader = mockbootloader.New("mock", c.MkDir())
+	s.loader = bootloadertest.Mock("mock", c.MkDir())
 	bootloader.Force(s.loader)
 	s.AddCleanup(func() { bootloader.Force(nil) })
 }

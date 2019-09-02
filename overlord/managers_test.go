@@ -44,7 +44,7 @@ import (
 	"github.com/snapcore/snapd/asserts/assertstest"
 	"github.com/snapcore/snapd/asserts/sysdb"
 	"github.com/snapcore/snapd/bootloader"
-	"github.com/snapcore/snapd/bootloader/mockbootloader"
+	"github.com/snapcore/snapd/bootloader/bootloadertest"
 	"github.com/snapcore/snapd/client"
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/interfaces"
@@ -1529,7 +1529,7 @@ func findKind(chg *state.Change, kind string) *state.Task {
 }
 
 func (s *mgrsSuite) TestInstallCoreSnapUpdatesBootloaderAndSplitsAcrossRestart(c *C) {
-	loader := mockbootloader.New("mock", c.MkDir())
+	loader := bootloadertest.Mock("mock", c.MkDir())
 	bootloader.Force(loader)
 	defer bootloader.Force(nil)
 
@@ -1599,7 +1599,7 @@ type: os
 }
 
 func (s *mgrsSuite) TestInstallKernelSnapUpdatesBootloader(c *C) {
-	loader := mockbootloader.New("mock", c.MkDir())
+	loader := bootloadertest.Mock("mock", c.MkDir())
 	bootloader.Force(loader)
 	defer bootloader.Force(nil)
 
@@ -3402,7 +3402,7 @@ type: base`
 }
 
 func (s *mgrsSuite) TestRemodelSwitchKernelTrack(c *C) {
-	loader := mockbootloader.New("mock", c.MkDir())
+	loader := bootloadertest.Mock("mock", c.MkDir())
 	loader.SetBootKernel("pc-kernel_1.snap")
 	loader.SetBootBase("core_1.snap")
 	bootloader.Force(loader)

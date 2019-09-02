@@ -38,7 +38,7 @@ import (
 
 	"github.com/snapcore/snapd/asserts"
 	"github.com/snapcore/snapd/bootloader"
-	"github.com/snapcore/snapd/bootloader/mockbootloader"
+	"github.com/snapcore/snapd/bootloader/bootloadertest"
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/gadget"
 	"github.com/snapcore/snapd/interfaces"
@@ -10952,7 +10952,7 @@ type canRemoveSuite struct {
 	st        *state.State
 	deviceCtx snapstate.DeviceContext
 
-	bs *mockbootloader.MockBootloader
+	bs *bootloadertest.MockBootloader
 }
 
 var _ = Suite(&canRemoveSuite{})
@@ -10962,7 +10962,7 @@ func (s *canRemoveSuite) SetUpTest(c *C) {
 	s.st = state.New(nil)
 	s.deviceCtx = &snapstatetest.TrivialDeviceContext{DeviceModel: DefaultModel()}
 
-	s.bs = mockbootloader.New("mock", c.MkDir())
+	s.bs = bootloadertest.Mock("mock", c.MkDir())
 	bootloader.Force(s.bs)
 }
 

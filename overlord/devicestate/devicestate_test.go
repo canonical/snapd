@@ -42,7 +42,7 @@ import (
 	"github.com/snapcore/snapd/asserts/assertstest"
 	"github.com/snapcore/snapd/asserts/sysdb"
 	"github.com/snapcore/snapd/bootloader"
-	"github.com/snapcore/snapd/bootloader/mockbootloader"
+	"github.com/snapcore/snapd/bootloader/bootloadertest"
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/gadget"
 	"github.com/snapcore/snapd/httputil"
@@ -82,7 +82,7 @@ type deviceMgrSuite struct {
 	mgr     *devicestate.DeviceManager
 	db      *asserts.Database
 
-	bootloader *mockbootloader.MockBootloader
+	bootloader *bootloadertest.MockBootloader
 
 	storeSigning *assertstest.StoreStack
 	brands       *assertstest.SigningAccounts
@@ -136,7 +136,7 @@ func (s *deviceMgrSuite) SetUpTest(c *C) {
 
 	s.restoreSanitize = snap.MockSanitizePlugsSlots(func(snapInfo *snap.Info) {})
 
-	s.bootloader = mockbootloader.New("mock", c.MkDir())
+	s.bootloader = bootloadertest.Mock("mock", c.MkDir())
 	bootloader.Force(s.bootloader)
 
 	s.restoreOnClassic = release.MockOnClassic(false)
