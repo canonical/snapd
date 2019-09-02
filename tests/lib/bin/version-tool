@@ -5,6 +5,7 @@ from argparse import Action, ArgumentParser, RawTextHelpFormatter, SUPPRESS
 import itertools
 import re
 import sys
+import sys
 import unittest
 
 # PY2 is true when we're running under Python 2.x It is used for appropriate
@@ -210,6 +211,75 @@ class NaiveVersionCmpTests(unittest.TestCase):
         self.assertEqual(naive_version_cmp("5.2.9-1-default", "4.13"), +1)
 
 
+def strict_version_cmp(a, b):
+    # type: (Text, Text) -> int
+    """
+    strictly_version_cmp compares two version numbers without leeway.
+
+    The algorithm considers each version to be a tuple of integers. Non,
+    integer elements or element fragments are regarded as an error and raised
+    as ValueError.
+
+    Comparison is performed on by considering the leftmost element in each
+    tuple. First pair of numbers that are not equal determine the result of the
+    comparison. Tuples have unequal length then missing elements are
+    substituted with zero.
+
+    The return value is 0 if the version strings are equal, -1 if version a is
+    smaller or +1 if version b is smaller.
+    """
+    try:
+        a_items = [int(item, 10) for item in a.split(".")]
+    except ValueError:
+        raise ValueError("version {} is not purely numeric".format(a))
+    try:
+        b_items = [int(item, 10) for item in b.split(".")]
+    except ValueError:
+        raise ValueError("version {} is not purely numeric".format(b))
+    if PY2:
+        zip_longest_fn = itertools.izip_longest
+    else:
+        zip_longest_fn = itertools.zip_longest
+    for a_val, b_val in zip_longest_fn(a_items, b_items, fillvalue=0):
+        delta = a_val - b_val
+        if delta != 0:
+            return 1 if delta > 0 else -1
+    return 0
+
+
+class StrictVersionCmpTests(unittest.TestCase):
+    def test_simple(self):
+        # type: () -> None
+        self.assertEqual(strict_version_cmp("10", "10"), 0)
+        self.assertEqual(strict_version_cmp("10", "20"), -1)
+        self.assertEqual(strict_version_cmp("20", "10"), +1)
+
+    def test_many_segments(self):
+        # type: () -> None
+        self.assertEqual(strict_version_cmp("1.2.3", "1.2.3"), 0)
+        self.assertEqual(strict_version_cmp("1.2.3", "1.3.4"), -1)
+        self.assertEqual(strict_version_cmp("1.4.3", "1.2.3"), +1)
+        self.assertEqual(strict_version_cmp("1.0.0", "1.1.0"), -1)
+        self.assertEqual(strict_version_cmp("0.1.2", "1.1.2"), -1)
+
+    def test_unequal_length(self):
+        # type: () -> None
+        self.assertEqual(strict_version_cmp("1", "1.0"), 0)
+        self.assertEqual(strict_version_cmp("1", "1.2"), -1)
+        self.assertEqual(strict_version_cmp("1.2", "1"), +1)
+        self.assertEqual(strict_version_cmp("1", "1.0.1"), -1)
+        self.assertEqual(strict_version_cmp("1.1", "1.0.1"), +1)
+
+    def test_version_with_text(self):
+        # type: () -> None
+        with self.assertRaises(ValueError) as cm:
+            strict_version_cmp("1-foo", "1")
+        self.assertEqual(cm.exception.args, ("version 1-foo is not purely numeric",))
+        with self.assertRaises(ValueError) as cm:
+            strict_version_cmp("1.2-foo", "1.2")
+        self.assertEqual(cm.exception.args, ("version 1.2-foo is not purely numeric",))
+
+
 def _make_parser():
     # type: () -> ArgumentParser
     parser = ArgumentParser(
@@ -221,8 +291,17 @@ Relational operator is one of:
 Version comparison is performed using the selected algorithm.
 
 naive:
-    The algorithm considers each version to be a tuple of integers. Non,
-    integer elements or element fragments are discarded.
+    The algorithm considers each version to be a tuple of integers.
+    Non-integer elements or element fragments are discarded.
+
+    Comparison is performed on by considering the leftmost element in each
+    tuple. First pair of numbers that are not equal determine the result of the
+    comparison. Tuples have unequal length then missing elements are
+    substituted with zero.
+
+strict:
+    The algorithm considers each version to be a tuple of integers.
+    Non-integer elements are considered to be invalid version.
 
     Comparison is performed on by considering the leftmost element in each
     tuple. First pair of numbers that are not equal determine the result of the
@@ -246,8 +325,15 @@ naive:
         "--naive",
         dest="algorithm",
         action="store_const",
-        const="naive",
+        const=naive_version_cmp,
         help="select the naive version comparison",
+    )
+    alg_grp.add_argument(
+        "--strict",
+        dest="algorithm",
+        action="store_const",
+        const=strict_version_cmp,
+        help="select the strict version comparison",
     )
     # relation selection
     rel_op_grp = parser.add_mutually_exclusive_group(required=True)
@@ -302,24 +388,25 @@ naive:
 
 def main():
     # type: () -> None
-    parser = _make_parser()
-    opts = parser.parse_args()
-    if opts.algorithm == "naive":
-        delta = naive_version_cmp(opts.version_a, opts.version_b)
+    opts = _make_parser().parse_args()
+    try:
+        delta = opts.algorithm(opts.version_a, opts.version_b)
+    except ValueError as exc:
+        print("error: {}".format(exc), file=sys.stderr)
+        raise SystemExit(2)
     else:
-        parser.error("unsupported delta algorithm")
-    is_consistent = consistent_relation(opts.rel_op, delta)
-    if opts.verbose:
-        print(
-            "delta between {} and {} is: {}".format(
-                opts.version_a, opts.version_b, delta
+        is_consistent = consistent_relation(opts.rel_op, delta)
+        if opts.verbose:
+            print(
+                "delta between {} and {} is: {}".format(
+                    opts.version_a, opts.version_b, delta
+                )
             )
-        )
-        if is_consistent:
-            print("delta {} is consistent with {}".format(delta, opts.rel_op))
-        else:
-            print("delta {} is inconsistent with {}".format(delta, opts.rel_op))
-    raise SystemExit(0 if is_consistent else 1)
+            if is_consistent:
+                print("delta {} is consistent with {}".format(delta, opts.rel_op))
+            else:
+                print("delta {} is inconsistent with {}".format(delta, opts.rel_op))
+        raise SystemExit(0 if is_consistent else 1)
 
 
 if __name__ == "__main__":
