@@ -53,11 +53,11 @@ void sc_reassociate_with_pid1_mount_ns(void);
  * where namespaces are kept (/run/snapd/ns) is correctly prepared as described
  * above.
  *
- * Optional experimental features can be enabled via arguments.
+ * Experimental features can be enabled via optional feature flags.
  *
  * For more details see namespaces(7).
  **/
-void sc_initialize_mount_ns(bool experimental_features);
+void sc_initialize_mount_ns(unsigned int experimental_features);
 
 /**
  * Data required to manage namespaces amongst a group of processes.

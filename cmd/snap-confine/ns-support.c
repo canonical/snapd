@@ -41,6 +41,7 @@
 #include "../libsnap-confine-private/cgroup-freezer-support.h"
 #include "../libsnap-confine-private/classic.h"
 #include "../libsnap-confine-private/cleanup-funcs.h"
+#include "../libsnap-confine-private/feature.h"
 #include "../libsnap-confine-private/infofile.h"
 #include "../libsnap-confine-private/locking.h"
 #include "../libsnap-confine-private/mountinfo.h"
@@ -118,7 +119,7 @@ void sc_reassociate_with_pid1_mount_ns(void)
 	}
 }
 
-void sc_initialize_mount_ns(bool experimental_features)
+void sc_initialize_mount_ns(unsigned int experimental_features)
 {
 	debug("unsharing snap namespace directory");
 
@@ -169,10 +170,12 @@ void sc_initialize_mount_ns(bool experimental_features)
 	}
 	/* code that follows is experimental */
 
-	// Ensure that SNAP_MOUNT_DIR and /var/snap are shared mount points
-	debug
-	    ("(experimental) ensuring snap mount and data directories are mount points");
-	sc_ensure_snap_dir_shared_mounts();
+	if (experimental_features & SC_FEATURE_PARALLEL_INSTANCES) {
+		// Ensure that SNAP_MOUNT_DIR and /var/snap are shared mount points
+		debug
+		    ("(experimental) ensuring snap mount and data directories are mount points");
+		sc_ensure_snap_dir_shared_mounts();
+	}
 }
 
 struct sc_mount_ns {

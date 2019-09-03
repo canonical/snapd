@@ -409,8 +409,10 @@ int main(int argc, char **argv)
 		// "shared" option on legacy systems, see LP:#1668659
 		debug("ensuring that snap mount directory is shared");
 		sc_ensure_shared_snap_mount();
-		bool experimental_features =
-		    sc_feature_enabled(SC_FEATURE_PARALLEL_INSTANCES);
+		unsigned int experimental_features = 0;
+		if (sc_feature_enabled(SC_FEATURE_PARALLEL_INSTANCES)) {
+			experimental_features |= SC_FEATURE_PARALLEL_INSTANCES;
+		}
 		sc_initialize_mount_ns(experimental_features);
 		sc_unlock(global_lock_fd);
 
