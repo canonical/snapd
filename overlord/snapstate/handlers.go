@@ -1155,8 +1155,8 @@ func maybeRestart(t *state.Task, info *snap.Info) {
 	}
 
 	typ := info.GetType()
-	bp, applicable := boot.Lookup(info, typ, model, release.OnClassic)
-	if applicable {
+	bp := boot.Lookup(info, typ, model, release.OnClassic)
+	if !bp.IsTrivial() {
 		if bp.ChangeRequiresReboot() {
 			t.Logf("Requested system restart.")
 			st.RequestRestart(state.RestartSystem)
