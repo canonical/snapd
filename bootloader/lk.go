@@ -151,14 +151,16 @@ func (l *lk) ExtractKernelAssets(s snap.PlaceInfo, snapf snap.Container) error {
 			return fmt.Errorf("Failed to create tmp directory %v", err)
 		}
 		defer os.RemoveAll(tmpdir)
-		if err := snapf.Unpack(env.GetBootImageName(), tmpdir); err != nil {
-			return fmt.Errorf("Failed to unpack %s %v", env.GetBootImageName(), err)
+
+		bootImg := env.GetBootImageName()
+		if err := snapf.Unpack(bootImg, tmpdir); err != nil {
+			return fmt.Errorf("Failed to unpack %s %v", bootImg, err)
 		}
 		// write boot.img to free boot partition
-		bootimgName := filepath.Join(tmpdir, env.GetBootImageName())
+		bootimgName := filepath.Join(tmpdir, bootImg)
 		bif, err := os.Open(bootimgName)
 		if err != nil {
-			return fmt.Errorf("Failed to open unpacked %s %v", env.GetBootImageName(), err)
+			return fmt.Errorf("Failed to open unpacked %s %v", bootImg, err)
 		}
 		defer bif.Close()
 		bpart := filepath.Join(l.dir(), bootPartition)
