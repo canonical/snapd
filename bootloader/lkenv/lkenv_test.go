@@ -77,6 +77,52 @@ func (l *lkenvTestSuite) TestSave(c *C) {
 	l.TestSaveNoBak(c)
 }
 
+func (l *lkenvTestSuite) TestCtoGoString(c *C) {
+	for _, t := range []struct {
+		input    []byte
+		expected string
+	}{
+		{[]byte{0, 0, 0, 0, 0}, ""},
+		{[]byte{'a', 0, 0, 0, 0}, "a"},
+		{[]byte{'a', 'b', 0, 0, 0}, "ab"},
+		{[]byte{'a', 'b', 'c', 0, 0}, "abc"},
+		{[]byte{'a', 'b', 'c', 'd', 0}, "abcd"},
+		{[]byte{'a', 'b', 'c', 'd', 'e'}, "abcde"},
+		// first \0 is the cutof
+		{[]byte{'a', 'b', 0, 'z', 0}, "ab"},
+	} {
+		c.Check(lkenv.CToGoString(t.input), Equals, t.expected)
+	}
+
+}
+
+func (l *lkenvTestSuite) TestCopyStringHappy(c *C) {
+	for _, t := range []struct {
+		input    string
+		expected []byte
+	}{
+		// input up to the size of the buffer works
+		{"", []byte{0, 0, 0, 0, 0}},
+		{"a", []byte{'a', 0, 0, 0, 0}},
+		{"ab", []byte{'a', 'b', 0, 0, 0}},
+		{"abc", []byte{'a', 'b', 'c', 0, 0}},
+		{"abcd", []byte{'a', 'b', 'c', 'd', 0}},
+		// strange embedded stuff works
+		{"ab\000z", []byte{'a', 'b', 0, 'z', 0}},
+	} {
+		b := make([]byte, 5)
+		lkenv.CopyString(b, t.input)
+		c.Check(b, DeepEquals, t.expected)
+	}
+}
+
+// XXX: should we do something else here than crashing?
+func (l *lkenvTestSuite) TestCopyStringTooLong(c *C) {
+	// too long, can't fit the trailing \0
+	b := make([]byte, 5)
+	c.Assert(func() { lkenv.CopyString(b, "12345") }, PanicMatches, "runtime error: index out of range")
+}
+
 func (l *lkenvTestSuite) TestSaveNoBak(c *C) {
 	buf := make([]byte, 4096)
 	err := ioutil.WriteFile(l.envPath, buf, 0644)
