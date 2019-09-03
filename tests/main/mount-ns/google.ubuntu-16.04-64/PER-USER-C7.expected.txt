@@ -12,6 +12,7 @@
 12 11 1:10 / /run/cgmanager/fs rw,relatime shared:12 - tmpfs cgmfs rw,size=VARIABLE,mode=755
 13 11 1:11 / /run/lock rw,nosuid,nodev,noexec,relatime shared:13 - tmpfs tmpfs rw,size=VARIABLE
 14 11 1:12 / /run/rpc_pipefs rw,relatime shared:14 - rpc_pipefs sunrpc rw
+1000 11 1:9 /snapd/ns /run/snapd/ns rw,nosuid,noexec,relatime - tmpfs tmpfs rw,size=VARIABLE,mode=755
 15 11 1:13 / /run/user/0 rw,nosuid,nodev,relatime shared:15 - tmpfs tmpfs rw,size=VARIABLE,mode=700
 16 1 2:0 / /snap/core/1 ro,nodev,relatime shared:16 - squashfs /dev/loop0 ro
 17 1 2:1 / /snap/core18/1 ro,nodev,relatime shared:17 - squashfs /dev/loop1 ro
