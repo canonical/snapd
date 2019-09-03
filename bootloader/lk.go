@@ -33,7 +33,9 @@ import (
 	"github.com/snapcore/snapd/snap"
 )
 
-type lk struct{}
+type lk struct {
+	inRuntimeMode bool
+}
 
 // newLk create a new lk bootloader object
 func newLk() Bootloader {
@@ -41,6 +43,15 @@ func newLk() Bootloader {
 	if !osutil.FileExists(e.envFile()) {
 		return nil
 	}
+
+	// XXX: in the long run we want this to go away, we probably add
+	//      something like "boot.PrepareImage()" and add an (optional)
+	//      method "PrepareImage" to the bootloader interface that is
+	//      used to setup a bootloader from prepare-image if things
+	//      are very different from runtime vs image-building mode.
+	//
+	// determine mode we are in, runtime or image build
+	e.inRuntimeMode = (dirs.GlobalRootDir == "/")
 
 	return e
 }
@@ -53,8 +64,8 @@ func (l *lk) dir() string {
 	// we have two scenarios, image building and runtime
 	// during image building we store environment into file
 	// at runtime environment is written directly into dedicated partition
-	if inRuntimeMode() {
-		return "/dev/disk/by-partlabel/"
+	if l.inRuntimeMode {
+		return filepath.Join(dirs.GlobalRootDir, "/dev/disk/by-partlabel/")
 	} else {
 		return filepath.Join(dirs.GlobalRootDir, "/boot/lk/")
 	}
@@ -66,26 +77,11 @@ func (l *lk) ConfigFile() string {
 
 func (l *lk) envFile() string {
 	// as for dir, we have two scenarios, image building and runtime
-	if inRuntimeMode() {
+	if l.inRuntimeMode {
 		// TO-DO: this should be eventually fetched from gadget.yaml
 		return filepath.Join(l.dir(), "snapbootsel")
 	} else {
 		return filepath.Join(l.dir(), "snapbootsel.bin")
-	}
-}
-
-// XXX: in the long run we want this to go away, we probably add
-//      something like "boot.PrepareImage()" and add an (optional)
-//      method "PrepareImage" to the bootloader interface that is
-//      used to setup a bootloader from prepare-image if things
-//      are very different from runtime vs image-building mode.
-//
-// determine mode we are in, runtime or image build
-func inRuntimeMode() bool {
-	if dirs.GlobalRootDir == "/" {
-		return true
-	} else {
-		return false
 	}
 }
 
@@ -146,7 +142,7 @@ func (l *lk) ExtractKernelAssets(s snap.PlaceInfo, snapf snap.Container) error {
 		return err
 	}
 
-	if inRuntimeMode() {
+	if l.inRuntimeMode {
 		logger.Debugf("ExtractKernelAssets handling run time usecase")
 		// this is live system, extracted bootimg needs to be flashed to
 		// free bootimg partition and env has be updated boot slop mapping

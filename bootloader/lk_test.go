@@ -20,6 +20,8 @@
 package bootloader_test
 
 import (
+	"io/ioutil"
+	"os"
 	"path/filepath"
 
 	. "gopkg.in/check.v1"
@@ -146,4 +148,57 @@ func (s *lkTestSuite) TestExtractKernelAssetsUnpacksCustomBootimg(c *C) {
 	// kernel is *not* here
 	bootimg := filepath.Join(dirs.GlobalRootDir, "boot", "lk", "boot-2.img")
 	c.Assert(osutil.FileExists(bootimg), Equals, true)
+}
+
+func (s *lkTestSuite) TestExtractKernelAssetsUnpacksInRuntimeMode(c *C) {
+	bootloader.MockLkFiles(c)
+	lk := bootloader.NewLk()
+	c.Assert(lk, NotNil)
+	bootloader.MockLkRuntimeMode(lk, true)
+
+	// create mock bootsel, boot_a, boot_b partitions
+	for _, partName := range []string{"snapbootsel", "boot_a", "boot_b"} {
+		mockPart := filepath.Join(dirs.GlobalRootDir, "/dev/disk/by-partlabel/", partName)
+		err := os.MkdirAll(filepath.Dir(mockPart), 0755)
+		c.Assert(err, IsNil)
+		err = ioutil.WriteFile(mockPart, nil, 0600)
+		c.Assert(err, IsNil)
+	}
+	// ensure we have a valid boot env
+	bootselPartition := filepath.Join(dirs.GlobalRootDir, "/dev/disk/by-partlabel/snapbootsel")
+	lkenv := lkenv.NewEnv(bootselPartition)
+	lkenv.ConfigureBootPartitions("boot_a", "boot_b")
+	err := lkenv.Save()
+	c.Assert(err, IsNil)
+
+	// mock a kernel snap that has a boot.img
+	files := [][]string{
+		{"boot.img", "I'm the default boot image name"},
+	}
+	si := &snap.SideInfo{
+		RealName: "ubuntu-kernel",
+		Revision: snap.R(42),
+	}
+	fn := snaptest.MakeTestSnapWithFiles(c, packageKernel, files)
+	snapf, err := snap.Open(fn)
+	c.Assert(err, IsNil)
+
+	info, err := snap.ReadInfoFromSnapFile(snapf, si)
+	c.Assert(err, IsNil)
+
+	// now extract
+	err = lk.ExtractKernelAssets(info, snapf)
+	c.Assert(err, IsNil)
+
+	// and validate it went to the "boot_a" partition
+	bootA := filepath.Join(dirs.GlobalRootDir, "/dev/disk/by-partlabel/boot_a")
+	content, err := ioutil.ReadFile(bootA)
+	c.Assert(err, IsNil)
+	c.Assert(string(content), Equals, "I'm the default boot image name")
+
+	// also validate that bootB is empty
+	bootB := filepath.Join(dirs.GlobalRootDir, "/dev/disk/by-partlabel/boot_b")
+	content, err = ioutil.ReadFile(bootB)
+	c.Assert(err, IsNil)
+	c.Assert(content, HasLen, 0)
 }

@@ -89,3 +89,8 @@ func MockLkFiles(c *C) {
 	err = env.Save()
 	c.Assert(err, IsNil)
 }
+
+func MockLkRuntimeMode(b Bootloader, inRuntimeMode bool) {
+	lk := b.(*lk)
+	lk.inRuntimeMode = inRuntimeMode
+}
