@@ -13,7 +13,7 @@ restore: |
     echo "Cleanup the installed snapcraft"
     snap remove --purge snapcraft
     echo "Cleanup the build snapd snap"
-    rm -f snapd_*.snap
+    not command -v snapcraft >/dev/null || snapcraft clean --destructive-mode
 
 execute: |
     echo "Installing snapcraft"

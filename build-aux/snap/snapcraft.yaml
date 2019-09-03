@@ -12,7 +12,7 @@ version-script: |
   ./mkversion.sh --output-only
 type: snapd
 grade: stable
-base: core
+build-base: core
 
 # Note that this snap is unusual in that it has no "apps" section.
 #
