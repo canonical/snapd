@@ -3,7 +3,8 @@ summary: Ensure that the contacts-service interface works
 # Only test on classic systems.  Don't test on Ubuntu 14.04, which
 # does not ship a new enough evolution-data-server.
 # amazon: no need to run this on amazon
-systems: [-ubuntu-core-*, -ubuntu-14.04-*, -amazon-*, -centos-*]
+# ubuntu-19.10-64: pending fix for this test coming on a following change
+systems: [-ubuntu-core-*, -ubuntu-14.04-*, -amazon-*, -centos-*, -ubuntu-19.10-64]
 
 # fails in autopkgtest environment with:
 # [Wed Aug 15 16:08:23 2018] audit: type=1400
@@ -15,10 +16,16 @@ systems: [-ubuntu-core-*, -ubuntu-14.04-*, -amazon-*, -centos-*]
 backends: [-autopkgtest]
 
 environment:
-    XDG: $(pwd)/xdg
+    XDG: /tmp/xdg
     XDG_CONFIG_HOME: $XDG/config
     XDG_DATA_HOME: $XDG/share
     XDG_CACHE_HOME: $XDG/cache
+
+debug: |
+    echo "Output process to see what might write to $XDG"
+    ps uafx
+    echo "Show what is in $XDG"
+    ls -alR "$XDG"
 
 restore: |
     if [ -e dbus-launch.pid ]; then
@@ -31,7 +38,7 @@ restore: |
     if pid="$(pidof gvfsd-metadata)"; then
         kill -9 "$pid" || true
     fi
-    retry rm -rf "$XDG"
+    retry-tool rm -rf "$XDG"
 
 execute: |
     if ! snap install --edge test-snapd-eds ; then

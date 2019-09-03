@@ -81,5 +81,5 @@ execute: |
     su -l -c "test-snapd-tools_foo.cmd sh -c 'cat \$SNAP_USER_COMMON/canary'" test | MATCH canary-instance-common
     su -l -c "test-snapd-tools_foo.cmd sh -c 'cat \$SNAP_USER_DATA/canary'" test | MATCH canary-instance-snap
 
-restore:
+restore: |
     snap set system experimental.parallel-instances=null
