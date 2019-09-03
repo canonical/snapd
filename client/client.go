@@ -370,6 +370,7 @@ type ServerVersion struct {
 	OnClassic   bool
 
 	KernelVersion string
+	Architecture  string
 }
 
 func (client *Client) ServerVersion() (*ServerVersion, error) {
@@ -386,6 +387,7 @@ func (client *Client) ServerVersion() (*ServerVersion, error) {
 		OnClassic:   sysInfo.OnClassic,
 
 		KernelVersion: sysInfo.KernelVersion,
+		Architecture:  sysInfo.Architecture,
 	}, nil
 }
 
@@ -529,6 +531,7 @@ type SysInfo struct {
 	Managed   bool      `json:"managed"`
 
 	KernelVersion string `json:"kernel-version,omitempty"`
+	Architecture  string `json:"architecture,omitempty"`
 
 	Refresh         RefreshInfo         `json:"refresh,omitempty"`
 	Confinement     string              `json:"confinement"`

@@ -261,14 +261,17 @@ func (cs *clientSuite) TestServerVersion(c *C) {
 	cs.rsp = `{"type": "sync", "result":
                      {"series": "16",
                       "version": "2",
-                      "os-release": {"id": "zyggy", "version-id": "123"}}}`
+                      "os-release": {"id": "zyggy", "version-id": "123"},
+                      "architecture": "m32"
+}}}`
 	version, err := cs.cli.ServerVersion()
 	c.Check(err, IsNil)
 	c.Check(version, DeepEquals, &client.ServerVersion{
-		Version:     "2",
-		Series:      "16",
-		OSID:        "zyggy",
-		OSVersionID: "123",
+		Version:      "2",
+		Series:       "16",
+		OSID:         "zyggy",
+		OSVersionID:  "123",
+		Architecture: "m32",
 	})
 }
 

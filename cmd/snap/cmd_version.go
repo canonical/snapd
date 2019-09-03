@@ -58,7 +58,11 @@ func printVersions(cli *client.Client) error {
 
 	fmt.Fprintf(w, "snap\t%s\n", cmd.Version)
 	fmt.Fprintf(w, "snapd\t%s\n", sv.Version)
-	fmt.Fprintf(w, "series\t%s\n", sv.Series)
+	if sv.Architecture != "" {
+		fmt.Fprintf(w, "series\t%s (on %s)\n", sv.Series, sv.Architecture)
+	} else {
+		fmt.Fprintf(w, "series\t%s\n", sv.Series)
+	}
 	if sv.OnClassic {
 		if sv.OSVersionID == "" {
 			sv.OSVersionID = "-"
@@ -68,6 +72,7 @@ func printVersions(cli *client.Client) error {
 	if sv.KernelVersion != "" {
 		fmt.Fprintf(w, "kernel\t%s\n", sv.KernelVersion)
 	}
+
 	w.Flush()
 
 	return nil
