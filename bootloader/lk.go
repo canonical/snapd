@@ -169,20 +169,8 @@ func (l *lk) ExtractKernelAssets(s snap.PlaceInfo, snapf snap.Container) error {
 		}
 		defer bpf.Close()
 
-		buf := make([]byte, 1024)
-		for {
-			// read by chunks
-			n, err := bif.Read(buf)
-			if err != nil && err != io.EOF {
-				return fmt.Errorf("Failed to read buffer chunk of %s %v", env.GetBootImageName(), err)
-			}
-			if n == 0 {
-				break
-			}
-			// write a chunk
-			if _, err := bpf.Write(buf[:n]); err != nil {
-				return fmt.Errorf("Failed to write buffer chunk of %s %v", env.GetBootImageName(), err)
-			}
+		if _, err := io.Copy(bpf, bif); err != nil {
+			return err
 		}
 	} else {
 		// we are preparing image, just extract boot image to bootloader directory
