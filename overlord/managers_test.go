@@ -43,8 +43,8 @@ import (
 	"github.com/snapcore/snapd/asserts"
 	"github.com/snapcore/snapd/asserts/assertstest"
 	"github.com/snapcore/snapd/asserts/sysdb"
-	"github.com/snapcore/snapd/boot/boottest"
 	"github.com/snapcore/snapd/bootloader"
+	"github.com/snapcore/snapd/bootloader/bootloadertest"
 	"github.com/snapcore/snapd/client"
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/interfaces"
@@ -1529,8 +1529,8 @@ func findKind(chg *state.Change, kind string) *state.Task {
 }
 
 func (s *mgrsSuite) TestInstallCoreSnapUpdatesBootloaderAndSplitsAcrossRestart(c *C) {
-	loader := boottest.NewMockBootloader("mock", c.MkDir())
-	bootloader.Force(loader)
+	bloader := bootloadertest.Mock("mock", c.MkDir())
+	bootloader.Force(bloader)
 	defer bootloader.Force(nil)
 
 	restore := release.MockOnClassic(false)
@@ -1579,15 +1579,15 @@ type: os
 	c.Assert(t.Status(), Equals, state.DoingStatus, Commentf("install-snap change failed with: %v", chg.Err()))
 
 	// this is already set
-	c.Assert(loader.BootVars, DeepEquals, map[string]string{
+	c.Assert(bloader.BootVars, DeepEquals, map[string]string{
 		"snap_try_core": "core_x1.snap",
 		"snap_mode":     "try",
 	})
 
 	// simulate successful restart happened
 	state.MockRestarting(st, state.RestartUnset)
-	loader.BootVars["snap_mode"] = ""
-	boottest.SetBootBase("core_x1.snap", loader)
+	bloader.BootVars["snap_mode"] = ""
+	bloader.SetBootBase("core_x1.snap")
 
 	st.Unlock()
 	err = s.o.Settle(settleTimeout)
@@ -1599,8 +1599,8 @@ type: os
 }
 
 func (s *mgrsSuite) TestInstallKernelSnapUpdatesBootloader(c *C) {
-	loader := boottest.NewMockBootloader("mock", c.MkDir())
-	bootloader.Force(loader)
+	bloader := bootloadertest.Mock("mock", c.MkDir())
+	bootloader.Force(bloader)
 	defer bootloader.Force(nil)
 
 	restore := release.MockOnClassic(false)
@@ -1659,7 +1659,7 @@ type: kernel`
 
 	c.Assert(chg.Status(), Equals, state.DoneStatus, Commentf("install-snap change failed with: %v", chg.Err()))
 
-	c.Assert(loader.BootVars, DeepEquals, map[string]string{
+	c.Assert(bloader.BootVars, DeepEquals, map[string]string{
 		"snap_try_kernel": "pc-kernel_x1.snap",
 		"snap_mode":       "try",
 	})
@@ -3402,10 +3402,10 @@ type: base`
 }
 
 func (s *mgrsSuite) TestRemodelSwitchKernelTrack(c *C) {
-	loader := boottest.NewMockBootloader("mock", c.MkDir())
-	boottest.SetBootKernel("pc-kernel_1.snap", loader)
-	boottest.SetBootBase("core_1.snap", loader)
-	bootloader.Force(loader)
+	bloader := bootloadertest.Mock("mock", c.MkDir())
+	bloader.SetBootKernel("pc-kernel_1.snap")
+	bloader.SetBootBase("core_1.snap")
+	bootloader.Force(bloader)
 	defer bootloader.Force(nil)
 
 	restore := release.MockOnClassic(false)

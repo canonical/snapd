@@ -812,7 +812,7 @@ func setBootvars(downloadedSnapsInfoForBootConfig map[string]*snap.Info, model *
 	// Set bootvars for kernel/core snaps so the system boots and
 	// does the first-time initialization. There is also no
 	// mounted kernel/core/base snap, but just the blobs.
-	loader, err := bootloader.Find()
+	bloader, err := bootloader.Find()
 	if err != nil {
 		return fmt.Errorf("cannot set kernel/core boot variables: %s", err)
 	}
@@ -859,7 +859,7 @@ func setBootvars(downloadedSnapsInfoForBootConfig map[string]*snap.Info, model *
 			m[bootvar] = name
 		}
 	}
-	if err := loader.SetBootVars(m); err != nil {
+	if err := bloader.SetBootVars(m); err != nil {
 		return err
 	}
 

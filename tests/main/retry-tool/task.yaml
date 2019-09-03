@@ -1,0 +1,11 @@
+summary: smoke test for the retry test tool
+execute: |
+    # Retry runs the command that was passed as argument and returns the exit
+    # code of that command.
+    retry-tool true
+    not retry-tool -n 1 false
+    # On failure it tells us about it, showing progress.
+    retry-tool -n 2 --wait 0.1 false 2>&1 | grep -F "retry: command false failed with code 1"
+    retry-tool -n 2 --wait 0.1 false 2>&1 | grep -F "retry: next attempt in 0.1 second(s) (attempt 1 of 2)"
+    retry-tool -n 2 --wait 0.1 false 2>&1 | grep -F "retry: command false keeps failing after 2 attempts"
+
