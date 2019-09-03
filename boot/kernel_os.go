@@ -33,6 +33,7 @@ type coreBootParticipant struct {
 	t snap.Type
 }
 
+// ensure coreBootParticipant is a BootParticipant
 var _ BootParticipant = (*coreBootParticipant)(nil)
 
 func (bs *coreBootParticipant) SetNextBoot() error {
@@ -114,7 +115,8 @@ type coreKernel struct {
 	*coreBootParticipant
 }
 
-var _ BootParticipant = (*coreKernel)(nil)
+// ensure coreKernel is a Kernel
+var _ Kernel = (*coreKernel)(nil)
 
 func (k *coreKernel) RemoveKernelAssets() error {
 	// XXX: shouldn't we check the snap type?

@@ -629,7 +629,7 @@ pkg_dependencies_ubuntu_classic(){
                 packagekit
                 "
             ;;
-        ubuntu-19.04-64)
+        ubuntu-19.04-64|ubuntu-19.10-64)
             echo "
                 evolution-data-server
                 packagekit
