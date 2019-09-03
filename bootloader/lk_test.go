@@ -23,6 +23,7 @@ import (
 	"io/ioutil"
 	"os"
 	"path/filepath"
+	"sort"
 
 	. "gopkg.in/check.v1"
 
@@ -43,13 +44,9 @@ var _ = Suite(&lkTestSuite{})
 
 func (g *lkTestSuite) SetUpTest(c *C) {
 	g.BaseTest.SetUpTest(c)
-	g.BaseTest.AddCleanup(snap.MockSanitizePlugsSlots(func(snapInfo *snap.Info) {}))
+	g.AddCleanup(snap.MockSanitizePlugsSlots(func(snapInfo *snap.Info) {}))
 	dirs.SetRootDir(c.MkDir())
-}
-
-func (g *lkTestSuite) TearDownTest(c *C) {
-	g.BaseTest.TearDownTest(c)
-	dirs.SetRootDir("")
+	g.AddCleanup(func() { dirs.SetRootDir("") })
 }
 
 func (s *lkTestSuite) TestNewLkNolkReturnsNil(c *C) {
@@ -75,7 +72,7 @@ func (s *lkTestSuite) TestSetGetBootVar(c *C) {
 	c.Check(v["snap_mode"], Equals, "try")
 }
 
-func (s *lkTestSuite) TestExtractKernelAssetsUnpacksBootimg(c *C) {
+func (s *lkTestSuite) TestExtractKernelAssetsUnpacksBootimgImageBuilding(c *C) {
 	bootloader.MockLkFiles(c)
 	l := bootloader.NewLk()
 
@@ -104,12 +101,19 @@ func (s *lkTestSuite) TestExtractKernelAssetsUnpacksBootimg(c *C) {
 	err = l.ExtractKernelAssets(info, snapf)
 	c.Assert(err, IsNil)
 
-	// kernel is *not* here
-	bootimg := filepath.Join(dirs.GlobalRootDir, "boot", "lk", "boot.img")
-	c.Assert(osutil.FileExists(bootimg), Equals, true)
+	// just boot.img and snapbootsel.bin are there, no kernel.img
+	infos, err := ioutil.ReadDir(filepath.Join(dirs.GlobalRootDir, "boot", "lk", ""))
+	c.Assert(err, IsNil)
+	var fnames []string
+	for _, info := range infos {
+		fnames = append(fnames, info.Name())
+	}
+	sort.Strings(fnames)
+	c.Assert(fnames, HasLen, 2)
+	c.Assert(fnames, DeepEquals, []string{"boot.img", "snapbootsel.bin"})
 }
 
-func (s *lkTestSuite) TestExtractKernelAssetsUnpacksCustomBootimg(c *C) {
+func (s *lkTestSuite) TestExtractKernelAssetsUnpacksCustomBootimgImageBuilding(c *C) {
 	bootloader.MockLkFiles(c)
 	l := bootloader.NewLk()
 
@@ -145,7 +149,7 @@ func (s *lkTestSuite) TestExtractKernelAssetsUnpacksCustomBootimg(c *C) {
 	err = l.ExtractKernelAssets(info, snapf)
 	c.Assert(err, IsNil)
 
-	// kernel is *not* here
+	// boot-2.img is there
 	bootimg := filepath.Join(dirs.GlobalRootDir, "boot", "lk", "boot-2.img")
 	c.Assert(osutil.FileExists(bootimg), Equals, true)
 }
