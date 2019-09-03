@@ -52,10 +52,10 @@ const launcherIntrospectionXML = `
 		<arg type='s' name='url' direction='in'/>
 	</method>
 	<method name='OpenDesktopEntry'>
-		<arg type='s' name='desktop_file' direction='in'/>
+		<arg type='s' name='desktop_file_id' direction='in'/>
 	</method>
 	<method name='OpenDesktopEntryEnv'>
-		<arg type='s' name='desktop_file' direction='in'/>
+		<arg type='s' name='desktop_file_id' direction='in'/>
 		<arg type='as' name='env' direction='in'/>
 	</method>
 	<method name="OpenFile">
@@ -66,7 +66,6 @@ const launcherIntrospectionXML = `
 
 var (
 	allowedURLSchemes = []string{"http", "https", "mailto", "snap", "help"}
-	allowedDesktopLocations = []string{"/var/lib/snapd/desktop/applications"}
 )
 
 // Launcher implements the 'io.snapcraft.Launcher' DBus interface.
@@ -135,61 +134,33 @@ func (s *Launcher) OpenURL(addr string, sender dbus.Sender) *dbus.Error {
 // OpenDesktopEntry implements the 'OpenDesktopEntry' method of the 'io.snapcraft.Launcher'
 // DBus interface. Before the provided desktop_file is parsed it is validated against a list
 // of allowed locations.
-func (s *Launcher) OpenDesktopEntry(desktop_file string, sender dbus.Sender) *dbus.Error {
+func (s *Launcher) OpenDesktopEntry(desktop_file_id string, sender dbus.Sender) *dbus.Error {
 
-	if !strutil.ListContains(allowedDesktopLocations, filepath.Dir(desktop_file)) {
-		return makeAccessDeniedError(fmt.Errorf("Supplied desktop location %q is not allowed", desktop_file))
-	}
-
-// 	snap, err := snapFromSender(s.conn, sender)
-// 	if err != nil {
-// 		return dbus.MakeFailedError(err)
-// 	}
-
-  file, err := os.Open(desktop_file)
-	if err != nil {
-		return dbus.MakeFailedError(err)
-	}
-  defer file.Close()
-  reader := bufio.NewReader(file)
-
-  var launch string;
-
-  for {
-    line, err := reader.ReadString('\n')
-    if err != nil {
-      return dbus.MakeFailedError(err)
-    }
-
-    line = strings.TrimSpace(line)
-
-    if strings.HasPrefix(line, "Exec=") {
-      launch = strings.TrimPrefix(line, "Exec=")
-      break;
-    }
-  }
-
-  // This is very hacky parsing and doesn't cover a lot of cases
-  command := strings.Split(strings.SplitN(launch, "%", 2)[0], " ");
-
-  cmd := exec.Command(command[0], command[1:]...)
-  cmd.Env = os.Environ()
-
-  if err := cmd.Start(); err != nil {
-    return dbus.MakeFailedError(fmt.Errorf("cannot run %q", launch))
-  }
-
-	return nil
+  return s.OpenDesktopEntryEnv(desktop_file_id, []string{}, sender)
 }
 
 // OpenDesktopEntryEnv implements the 'OpenDesktopEntryEnv' method of the 'io.snapcraft.Launcher'
-// DBus interface. Before the provided desktop_file is parsed it is validated against a list
-// of allowed locations.
-func (s *Launcher) OpenDesktopEntryEnv(desktop_file string, env []string, sender dbus.Sender) *dbus.Error {
+// DBus interface.
+func (s *Launcher) OpenDesktopEntryEnv(desktop_file_id string, env []string, sender dbus.Sender) *dbus.Error {
+  splitFileId := strings.Split(desktop_file_id, "-")
 
-	if !strutil.ListContains(allowedDesktopLocations, filepath.Dir(desktop_file)) {
-		return makeAccessDeniedError(fmt.Errorf("Supplied desktop location %q is not allowed", desktop_file))
-	}
+  var desktop_file string;
+
+  for _, dir := range strings.Split(os.Getenv("XDG_DATA_DIRS"), ":") {
+    var fileStat os.FileInfo
+
+    for i:=0; i != len(splitFileId); i = i+1 {
+      desktop_file = dir + "/applications/" + strings.Join(splitFileId[0:i], "/") + "/" + strings.Join(splitFileId[i:], "-")
+      fileStat, _ = os.Stat(desktop_file)
+      if fileStat != nil {
+        break;
+      }
+    }
+
+    if fileStat != nil {
+      break;
+    }
+  }
 
   file, err := os.Open(desktop_file)
 	if err != nil {
