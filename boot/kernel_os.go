@@ -118,7 +118,7 @@ type coreKernel struct {
 }
 
 // ensure coreKernel is a Kernel
-var _ Kernel = (*coreKernel)(nil)
+var _ BootKernel = (*coreKernel)(nil)
 
 func (*coreKernel) IsTrivial() bool { return false }
 

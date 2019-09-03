@@ -76,7 +76,7 @@ func (b Backend) SetupSnap(snapFilePath, instanceName string, sideInfo *snap.Sid
 
 	t := s.GetType()
 	// TODO: maybe look into passing the model
-	if err := boot.LookupKernel(s, t, nil, release.OnClassic).ExtractKernelAssets(snapf); err != nil {
+	if err := boot.Kernel(s, t, nil, release.OnClassic).ExtractKernelAssets(snapf); err != nil {
 		return snapType, fmt.Errorf("cannot install kernel: %s", err)
 	}
 
@@ -101,7 +101,7 @@ func (b Backend) RemoveSnapFiles(s snap.PlaceInfo, typ snap.Type, meter progress
 	if _, err := os.Lstat(snapPath); err == nil {
 		// remove the kernel assets (if any)
 		// TODO: maybe look into passing the model
-		if err := boot.LookupKernel(s, typ, nil, release.OnClassic).RemoveKernelAssets(); err != nil {
+		if err := boot.Kernel(s, typ, nil, release.OnClassic).RemoveKernelAssets(); err != nil {
 			return err
 		}
 

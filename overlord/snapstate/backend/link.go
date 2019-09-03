@@ -113,7 +113,7 @@ func (b Backend) LinkSnap(info *snap.Info, model *asserts.Model, tm timings.Meas
 		})
 	}
 
-	if err := boot.Lookup(info, info.GetType(), model, release.OnClassic).SetNextBoot(); err != nil {
+	if err := boot.Participant(info, info.GetType(), model, release.OnClassic).SetNextBoot(); err != nil {
 		return err
 	}
 

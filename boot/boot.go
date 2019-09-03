@@ -30,7 +30,7 @@ import (
 	"github.com/snapcore/snapd/snap"
 )
 
-// A BootParticipant is a snap that is involved in a device's boot process.
+// A BootParticipant handles the boot process details for a snap involved in it.
 type BootParticipant interface {
 	// SetNextBoot will schedule the snap to be used in the next boot. For
 	// base snaps it is up to the caller to select the right bootable base
@@ -43,8 +43,8 @@ type BootParticipant interface {
 	IsTrivial() bool
 }
 
-// A Kernel exposes functionality that some bootloaders need
-type Kernel interface {
+// A BootKernel handles the bootloader setup of a kernel.
+type BootKernel interface {
 	// RemoveKernelAssets removes the unpacked kernel/initrd for the given
 	// kernel snap.
 	RemoveKernelAssets() error
@@ -60,7 +60,7 @@ type trivial struct{}
 
 func (trivial) SetNextBoot() error                       { return nil }
 func (trivial) ChangeRequiresReboot() bool               { return false }
-func (trivial) IsTrivial() bool                              { return true }
+func (trivial) IsTrivial() bool                          { return true }
 func (trivial) RemoveKernelAssets() error                { return nil }
 func (trivial) ExtractKernelAssets(snap.Container) error { return nil }
 
@@ -68,33 +68,34 @@ func (trivial) ExtractKernelAssets(snap.Container) error { return nil }
 var _ BootParticipant = trivial{}
 
 // ensure trivial is a Kernel
-var _ Kernel = trivial{}
+var _ BootKernel = trivial{}
 
 // Model carries information about the model that is relevant to boot.
 // Note *asserts.Model implements this, and that's the expected use case.
 type Model interface {
 	Kernel() string
 	Base() string
+	Classic() bool
 }
 
-// Lookup figures out what the boot participant is for the given
+// Participant figures out what the BootParticipant is for the given
 // arguments, and returns it. If the snap does _not_ participate in
 // the boot process, the returned object will be a NOP, so it's safe
 // to call anything on it always.
 //
 // Currently, on classic, nothing is a boot participant (returned will
 // always be NOP).
-func Lookup(s snap.PlaceInfo, t snap.Type, model Model, onClassic bool) BootParticipant {
+func Participant(s snap.PlaceInfo, t snap.Type, model Model, onClassic bool) BootParticipant {
 	if applicable(s, t, model, onClassic) {
 		return &coreBootParticipant{s: s, t: t}
 	}
 	return trivial{}
 }
 
-// LookupKernel checks that the given arguments refer to a kernel snap
+// Kernel checks that the given arguments refer to a kernel snap
 // that participates in the boot process, and returns the associated
-// Kernel, or a trivial implementation otherwise.
-func LookupKernel(s snap.PlaceInfo, t snap.Type, model Model, onClassic bool) Kernel {
+// BootKernel, or a trivial implementation otherwise.
+func Kernel(s snap.PlaceInfo, t snap.Type, model Model, onClassic bool) BootKernel {
 	if t == snap.TypeKernel && applicable(s, t, model, onClassic) {
 		return &coreKernel{s: s}
 	}

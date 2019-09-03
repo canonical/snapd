@@ -198,11 +198,11 @@ func (s *bootSetSuite) TestCurrentBootNameAndRevisionUnhappy(c *C) {
 	c.Check(err, ErrorMatches, "cannot get boot settings: broken bootloader")
 }
 
-func (s *bootSetSuite) TestLookup(c *C) {
+func (s *bootSetSuite) TestParticipant(c *C) {
 	info := &snap.Info{}
 	info.RealName = "some-snap"
 
-	bp := boot.Lookup(info, snap.TypeApp, nil, false)
+	bp := boot.Participant(info, snap.TypeApp, nil, false)
 	c.Check(bp.IsTrivial(), Equals, true)
 
 	for _, typ := range []snap.Type{
@@ -210,10 +210,10 @@ func (s *bootSetSuite) TestLookup(c *C) {
 		snap.TypeOS,
 		snap.TypeBase,
 	} {
-		bp = boot.Lookup(info, typ, nil, true)
+		bp = boot.Participant(info, typ, nil, true)
 		c.Check(bp.IsTrivial(), Equals, true)
 
-		bp = boot.Lookup(info, typ, nil, false)
+		bp = boot.Participant(info, typ, nil, false)
 		c.Check(bp.IsTrivial(), Equals, false)
 
 		c.Check(bp, DeepEquals, boot.NewCoreBootParticipant(info, typ))
@@ -224,8 +224,9 @@ type mockModel string
 
 func (s mockModel) Kernel() string { return string(s) }
 func (s mockModel) Base() string   { return string(s) }
+func (s mockModel) Classic() bool  { return s == "" }
 
-func (s *bootSetSuite) TestLookupBaseWithModel(c *C) {
+func (s *bootSetSuite) TestParticipantBaseWithModel(c *C) {
 	core := &snap.Info{SideInfo: snap.SideInfo{RealName: "core"}, SnapType: snap.TypeOS}
 	core18 := &snap.Info{SideInfo: snap.SideInfo{RealName: "core18"}, SnapType: snap.TypeBase}
 
@@ -267,10 +268,10 @@ func (s *bootSetSuite) TestLookupBaseWithModel(c *C) {
 	}
 
 	for i, t := range table {
-		bp := boot.Lookup(t.with, t.with.GetType(), t.model, true)
+		bp := boot.Participant(t.with, t.with.GetType(), t.model, true)
 		c.Check(bp.IsTrivial(), Equals, true)
 
-		bp = boot.Lookup(t.with, t.with.GetType(), t.model, false)
+		bp = boot.Participant(t.with, t.with.GetType(), t.model, false)
 		c.Check(bp.IsTrivial(), Equals, t.nop, Commentf("%d", i))
 		if !t.nop {
 			c.Check(bp, DeepEquals, boot.NewCoreBootParticipant(t.with, t.with.GetType()))
@@ -278,7 +279,7 @@ func (s *bootSetSuite) TestLookupBaseWithModel(c *C) {
 	}
 }
 
-func (s *bootSetSuite) TestLookupKernelWithModel(c *C) {
+func (s *bootSetSuite) TestKernelWithModel(c *C) {
 	info := &snap.Info{}
 	info.RealName = "kernel"
 	expected := boot.NewCoreKernel(info)
@@ -286,7 +287,7 @@ func (s *bootSetSuite) TestLookupKernelWithModel(c *C) {
 	type tableT struct {
 		model mockModel
 		nop   bool
-		krn   boot.Kernel
+		krn   boot.BootKernel
 	}
 
 	table := []tableT{
@@ -306,10 +307,10 @@ func (s *bootSetSuite) TestLookupKernelWithModel(c *C) {
 	}
 
 	for _, t := range table {
-		krn := boot.LookupKernel(info, snap.TypeKernel, t.model, true)
+		krn := boot.Kernel(info, snap.TypeKernel, t.model, true)
 		c.Check(krn.IsTrivial(), Equals, true)
 
-		krn = boot.LookupKernel(info, snap.TypeKernel, t.model, false)
+		krn = boot.Kernel(info, snap.TypeKernel, t.model, false)
 		c.Check(krn.IsTrivial(), Equals, t.nop)
 		c.Check(krn, DeepEquals, t.krn)
 	}
