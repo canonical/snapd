@@ -40,7 +40,7 @@ dbus (send)
     bus=session
     path=/io/snapcraft/Launcher
     interface=io.snapcraft.Launcher
-    member=OpenDesktopEntry
+    member={OpenDesktopEntry,OpenDesktopEntryEnv}
     peer=(label=unconfined),
 `
 
