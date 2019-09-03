@@ -87,6 +87,7 @@ func (l *lkenvTestSuite) TestCtoGoString(c *C) {
 		{[]byte{'a', 'b', 0, 0, 0}, "ab"},
 		{[]byte{'a', 'b', 'c', 0, 0}, "abc"},
 		{[]byte{'a', 'b', 'c', 'd', 0}, "abcd"},
+		// XXX: no trailing \0 - should this be "" ?
 		{[]byte{'a', 'b', 'c', 'd', 'e'}, "abcde"},
 		// first \0 is the cutof
 		{[]byte{'a', 'b', 0, 'z', 0}, "ab"},

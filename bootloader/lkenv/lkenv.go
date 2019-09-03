@@ -132,24 +132,17 @@ type Env struct {
 
 //helper function to trim string from byte array to actual length
 func cToGoString(c []byte) string {
-	n := -1
-	for i, b := range c {
-		if b == 0 {
-			break
-		}
-		n = i
+	if end := bytes.IndexByte(c, 0); end >= 0 {
+		return string(c[:end])
 	}
-	return string(c[:n+1])
+	// XXX: no trailing \0 - should we return "" here?
+	return string(c)
 }
 
 // helper function to copy string into array and making sure it's terminated
 func copyString(b []byte, s string) {
-	if s == "" {
-		b[0] = 0
-	} else {
-		copy(b[:], s)
-		b[len(s)] = 0
-	}
+	copy(b[:], s)
+	b[len(s)] = 0
 }
 
 func NewEnv(path string) *Env {
