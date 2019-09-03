@@ -201,4 +201,11 @@ func (s *lkTestSuite) TestExtractKernelAssetsUnpacksInRuntimeMode(c *C) {
 	content, err = ioutil.ReadFile(bootB)
 	c.Assert(err, IsNil)
 	c.Assert(content, HasLen, 0)
+
+	// test that boot partition got set
+	err = lkenv.Load()
+	c.Assert(err, IsNil)
+	bootPart, err := lkenv.GetBootPartition("ubuntu-kernel_42.snap")
+	c.Assert(err, IsNil)
+	c.Assert(bootPart, Equals, "boot_a")
 }

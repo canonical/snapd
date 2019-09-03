@@ -324,6 +324,15 @@ func (l *Env) SetBootPartition(bootpart, kernel string) error {
 	return fmt.Errorf("cannot find defined [%s] boot image partition", bootpart)
 }
 
+func (l *Env) GetBootPartition(kernel string) (string, error) {
+	for x := range l.env.Bootimg_matrix {
+		if kernel == cToGoString(l.env.Bootimg_matrix[x][1][:]) {
+			return cToGoString(l.env.Bootimg_matrix[x][0][:]), nil
+		}
+	}
+	return "", fmt.Errorf("cannot find kernel [%s] in boot image partitions", kernel)
+}
+
 // frees boot partition with given kernel revision
 // ignored if it cannot find given kernel revision
 func (l *Env) FreeBootPartition(kernel string) (bool, error) {
