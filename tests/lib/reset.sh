@@ -17,19 +17,6 @@ reset_classic() {
     # Reload all service units as in some situations the unit might
     # have changed on the disk.
     systemctl daemon-reload
-
-    echo "Ensure the service is active before stopping it"
-    retries=20
-    while systemctl status snapd.service snapd.socket | grep -q "Active: activating"; do
-        if [ $retries -eq 0 ]; then
-            echo "snapd service or socket not active"
-            systemctl status snapd.service snapd.socket || true
-            exit 1
-        fi
-        retries=$(( retries - 1 ))
-        sleep 1
-    done
-
     systemd_stop_units snapd.service snapd.socket
 
     case "$SPREAD_SYSTEM" in
@@ -122,7 +109,15 @@ reset_all_snap() {
                 if ! systemctl status snapd.service snapd.socket >/dev/null; then
                     systemctl start snapd.service snapd.socket
                 fi
-                if ! echo "$SKIP_REMOVE_SNAPS" | grep -w "$snap"; then
+                # Check if a snap should be kept, there's a list of those in spread.yaml.
+                keep=0
+                for precious_snap in $SKIP_REMOVE_SNAPS; do
+                    if [ "$snap" = "$precious_snap" ]; then
+                        keep=1
+                        break
+                    fi
+                done
+                if [ "$keep" -eq 0 ]; then
                     if snap info --verbose "$snap" | grep -E '^type: +(base|core)'; then
                         if [ -z "$remove_bases" ]; then
                             remove_bases="$snap"

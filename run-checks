@@ -270,9 +270,11 @@ if [ "$UNIT" = 1 ]; then
         fi
     fi
 
-    # python unit test for mountinfo-tool
+    # python unit test for mountinfo-tool and version-tool
     command -v python2 && python2 ./tests/lib/bin/mountinfo-tool --run-unit-tests
     command -v python3 && python3 ./tests/lib/bin/mountinfo-tool --run-unit-tests
+    command -v python2 && python2 ./tests/lib/bin/version-tool --run-unit-tests
+    command -v python3 && python3 ./tests/lib/bin/version-tool --run-unit-tests
 fi
 
 if [ -n "$SPREAD" ]; then

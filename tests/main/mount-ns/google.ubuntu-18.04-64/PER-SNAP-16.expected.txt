@@ -44,7 +44,7 @@
 1044 1034 1:24 / /sys/fs/cgroup/pids rw,nosuid,nodev,noexec,relatime master:32 - cgroup cgroup rw,pids
 1045 1034 1:25 / /sys/fs/cgroup/rdma rw,nosuid,nodev,noexec,relatime master:33 - cgroup cgroup rw,rdma
 1046 1034 1:26 / /sys/fs/cgroup/systemd rw,nosuid,nodev,noexec,relatime master:34 - cgroup cgroup rw,xattr,name=systemd
-1047 1034 1:27 / /sys/fs/cgroup/unified rw,nosuid,nodev,noexec,relatime master:35 - cgroup2 cgroup rw
+1047 1034 1:27 / /sys/fs/cgroup/unified rw,nosuid,nodev,noexec,relatime master:35 - cgroup2 cgroup rw,nsdelegate
 1048 1033 1:28 / /sys/fs/fuse/connections rw,relatime master:36 - fusectl fusectl rw
 1049 1033 1:29 / /sys/fs/pstore rw,nosuid,nodev,noexec,relatime master:37 - pstore pstore rw
 1050 1033 1:30 / /sys/kernel/config rw,relatime master:38 - configfs configfs rw

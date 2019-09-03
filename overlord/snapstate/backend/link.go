@@ -113,18 +113,9 @@ func (b Backend) LinkSnap(info *snap.Info, model *asserts.Model, tm timings.Meas
 		})
 	}
 
-	// XXX/TODO: this needs to be a task with proper undo and tests!
-	if model != nil && !release.OnClassic {
-		bootBase := "core"
-		if model.Base() != "" {
-			bootBase = model.Base()
-		}
-		switch info.InstanceName() {
-		case model.Kernel(), bootBase:
-			// XXX: This *needs* to clean up if updateCurrentSymlinks fails
-			if err := boot.SetNextBoot(info); err != nil {
-				return err
-			}
+	if bp, applicable := boot.Lookup(info, info.GetType(), model, release.OnClassic); applicable {
+		if err := bp.SetNextBoot(); err != nil {
+			return err
 		}
 	}
 

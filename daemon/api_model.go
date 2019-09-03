@@ -26,18 +26,39 @@ import (
 	"github.com/snapcore/snapd/asserts"
 	"github.com/snapcore/snapd/overlord/auth"
 	"github.com/snapcore/snapd/overlord/devicestate"
+	"github.com/snapcore/snapd/overlord/state"
 )
 
-var modelCmd = &Command{
-	Path: "/v2/model",
-	POST: postModel,
-	// TODO: provide GET here too once we decided on the details of the API
-}
+var (
+	serialModelCmd = &Command{
+		Path:   "/v2/model/serial",
+		GET:    getSerial,
+		UserOK: true,
+	}
+	modelCmd = &Command{
+		Path:   "/v2/model",
+		POST:   postModel,
+		GET:    getModel,
+		UserOK: true,
+	}
+)
+
+type assertType int
+
+const (
+	serialType assertType = iota
+	modelType
+)
 
 var devicestateRemodel = devicestate.Remodel
 
 type postModelData struct {
 	NewModel string `json:"new-model"`
+}
+
+type modelAssertJSONResponse struct {
+	Headers map[string]interface{} `json:"headers,omitempty"`
+	Body    string                 `json:"body,omitempty"`
 }
 
 func postModel(c *Command, r *http.Request, _ *auth.UserState) Response {
@@ -68,4 +89,94 @@ func postModel(c *Command, r *http.Request, _ *auth.UserState) Response {
 
 	return AsyncResponse(nil, &Meta{Change: chg.ID()})
 
+}
+
+// getModel gets the current model assertion using the DeviceManager
+func getModel(c *Command, r *http.Request, _ *auth.UserState) Response {
+	opts, err := parseHeadersFormatOptionsFromURL(r.URL.Query())
+	if err != nil {
+		return BadRequest(err.Error())
+	}
+
+	st := c.d.overlord.State()
+	st.Lock()
+	defer st.Unlock()
+
+	devmgr := c.d.overlord.DeviceManager()
+
+	model, err := devmgr.Model()
+	if err == state.ErrNoState {
+		res := &errorResult{
+			Message: "no model assertion yet",
+			Kind:    errorKindAssertionNotFound,
+			Value:   "model",
+		}
+
+		return &resp{
+			Type:   ResponseTypeError,
+			Result: res,
+			Status: 404,
+		}
+	}
+	if err != nil {
+		return InternalError("accessing model failed: %v", err)
+	}
+
+	if opts.jsonResult {
+		modelJSON := modelAssertJSONResponse{}
+
+		modelJSON.Headers = model.Headers()
+		if !opts.headersOnly {
+			modelJSON.Body = string(model.Body())
+		}
+
+		return SyncResponse(modelJSON, nil)
+	}
+
+	return AssertResponse([]asserts.Assertion{model}, true)
+}
+
+// getSerial gets the current serial assertion using the DeviceManager
+func getSerial(c *Command, r *http.Request, _ *auth.UserState) Response {
+	opts, err := parseHeadersFormatOptionsFromURL(r.URL.Query())
+	if err != nil {
+		return BadRequest(err.Error())
+	}
+
+	st := c.d.overlord.State()
+	st.Lock()
+	defer st.Unlock()
+
+	devmgr := c.d.overlord.DeviceManager()
+
+	serial, err := devmgr.Serial()
+	if err == state.ErrNoState {
+		res := &errorResult{
+			Message: "no serial assertion yet",
+			Kind:    errorKindAssertionNotFound,
+			Value:   "serial",
+		}
+
+		return &resp{
+			Type:   ResponseTypeError,
+			Result: res,
+			Status: 404,
+		}
+	}
+	if err != nil {
+		return InternalError("accessing serial failed: %v", err)
+	}
+
+	if opts.jsonResult {
+		serialJSON := modelAssertJSONResponse{}
+
+		serialJSON.Headers = serial.Headers()
+		if !opts.headersOnly {
+			serialJSON.Body = string(serial.Body())
+		}
+
+		return SyncResponse(serialJSON, nil)
+	}
+
+	return AssertResponse([]asserts.Assertion{serial}, true)
 }

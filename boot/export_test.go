@@ -19,6 +19,18 @@
 
 package boot
 
+import (
+	"github.com/snapcore/snapd/snap"
+)
+
 var (
 	NameAndRevnoFromSnap = nameAndRevnoFromSnap
 )
+
+func NewCoreBootParticipant(s snap.PlaceInfo, t snap.Type) *coreBootParticipant {
+	return &coreBootParticipant{s: s, t: t}
+}
+
+func NewCoreKernel(s snap.PlaceInfo) *coreKernel {
+	return &coreKernel{NewCoreBootParticipant(s, snap.TypeKernel)}
+}

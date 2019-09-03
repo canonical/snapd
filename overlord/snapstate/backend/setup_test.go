@@ -27,12 +27,13 @@ import (
 
 	. "gopkg.in/check.v1"
 
-	"github.com/snapcore/snapd/boot/boottest"
 	"github.com/snapcore/snapd/bootloader"
+	"github.com/snapcore/snapd/bootloader/bootloadertest"
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/overlord/snapstate/backend"
 	"github.com/snapcore/snapd/progress"
+	"github.com/snapcore/snapd/release"
 	"github.com/snapcore/snapd/snap"
 	"github.com/snapcore/snapd/snap/snaptest"
 	"github.com/snapcore/snapd/systemd"
@@ -146,8 +147,10 @@ func (s *setupSuite) TestSetupDoUndoInstance(c *C) {
 }
 
 func (s *setupSuite) TestSetupDoUndoKernel(c *C) {
-	loader := boottest.NewMockBootloader("mock", c.MkDir())
-	bootloader.Force(loader)
+	// kernel snaps only happen on non-classic
+	defer release.MockOnClassic(false)()
+	bloader := bootloadertest.Mock("mock", c.MkDir())
+	bootloader.Force(bloader)
 
 	// we don't get real mounting
 	os.Setenv("SNAPPY_SQUASHFS_UNPACK_FOR_TESTS", "1")
@@ -174,15 +177,15 @@ type: kernel
 	c.Assert(err, IsNil)
 	c.Check(snapType, Equals, snap.TypeKernel)
 	c.Assert(undoCtx, NotNil)
-	c.Assert(loader.ExtractKernelAssetsCalls, HasLen, 1)
-	c.Assert(loader.ExtractKernelAssetsCalls[0].InstanceName(), Equals, "kernel")
+	c.Assert(bloader.ExtractKernelAssetsCalls, HasLen, 1)
+	c.Assert(bloader.ExtractKernelAssetsCalls[0].InstanceName(), Equals, "kernel")
 	minInfo := snap.MinimalPlaceInfo("kernel", snap.R(140))
 
 	// undo deletes the kernel assets again
 	err = s.be.UndoSetupSnap(minInfo, "kernel", nil, progress.Null)
 	c.Assert(err, IsNil)
-	c.Assert(loader.RemoveKernelAssetsCalls, HasLen, 1)
-	c.Assert(loader.RemoveKernelAssetsCalls[0].InstanceName(), Equals, "kernel")
+	c.Assert(bloader.RemoveKernelAssetsCalls, HasLen, 1)
+	c.Assert(bloader.RemoveKernelAssetsCalls[0].InstanceName(), Equals, "kernel")
 }
 
 func (s *setupSuite) TestSetupDoIdempotent(c *C) {
@@ -191,8 +194,10 @@ func (s *setupSuite) TestSetupDoIdempotent(c *C) {
 
 	// this cannot check systemd own behavior though around mounts!
 
-	loader := boottest.NewMockBootloader("mock", c.MkDir())
-	bootloader.Force(loader)
+	// kernel snaps only happen on non-classic
+	defer release.MockOnClassic(false)()
+	bloader := bootloadertest.Mock("mock", c.MkDir())
+	bootloader.Force(bloader)
 	// we don't get real mounting
 	os.Setenv("SNAPPY_SQUASHFS_UNPACK_FOR_TESTS", "1")
 	defer os.Unsetenv("SNAPPY_SQUASHFS_UNPACK_FOR_TESTS")
@@ -217,15 +222,15 @@ type: kernel
 	_, undoCtx, err := s.be.SetupSnap(snapPath, "kernel", &si, progress.Null)
 	c.Assert(err, IsNil)
 	c.Assert(undoCtx, NotNil)
-	c.Assert(loader.ExtractKernelAssetsCalls, HasLen, 1)
-	c.Assert(loader.ExtractKernelAssetsCalls[0].InstanceName(), Equals, "kernel")
+	c.Assert(bloader.ExtractKernelAssetsCalls, HasLen, 1)
+	c.Assert(bloader.ExtractKernelAssetsCalls[0].InstanceName(), Equals, "kernel")
 
 	// retry run
 	_, undoCtx, err = s.be.SetupSnap(snapPath, "kernel", &si, progress.Null)
 	c.Assert(err, IsNil)
 	c.Assert(undoCtx, NotNil)
-	c.Assert(loader.ExtractKernelAssetsCalls, HasLen, 2)
-	c.Assert(loader.ExtractKernelAssetsCalls[1].InstanceName(), Equals, "kernel")
+	c.Assert(bloader.ExtractKernelAssetsCalls, HasLen, 2)
+	c.Assert(bloader.ExtractKernelAssetsCalls[1].InstanceName(), Equals, "kernel")
 	minInfo := snap.MinimalPlaceInfo("kernel", snap.R(140))
 
 	// sanity checks
@@ -242,8 +247,10 @@ func (s *setupSuite) TestSetupUndoIdempotent(c *C) {
 
 	// this cannot check systemd own behavior though around mounts!
 
-	loader := boottest.NewMockBootloader("mock", c.MkDir())
-	bootloader.Force(loader)
+	// kernel snaps only happen on non-classic
+	defer release.MockOnClassic(false)()
+	bloader := bootloadertest.Mock("mock", c.MkDir())
+	bootloader.Force(bloader)
 	// we don't get real mounting
 	os.Setenv("SNAPPY_SQUASHFS_UNPACK_FOR_TESTS", "1")
 	defer os.Unsetenv("SNAPPY_SQUASHFS_UNPACK_FOR_TESTS")
@@ -286,8 +293,8 @@ type: kernel
 	c.Assert(osutil.FileExists(minInfo.MountFile()), Equals, false)
 
 	// assets got extracted and then removed again
-	c.Assert(loader.ExtractKernelAssetsCalls, HasLen, 1)
-	c.Assert(loader.RemoveKernelAssetsCalls, HasLen, 1)
+	c.Assert(bloader.ExtractKernelAssetsCalls, HasLen, 1)
+	c.Assert(bloader.RemoveKernelAssetsCalls, HasLen, 1)
 }
 
 func (s *setupSuite) TestSetupUndoKeepsTargetSnap(c *C) {
