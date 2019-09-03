@@ -67,8 +67,6 @@ backends:
                 workers: 8
             - ubuntu-19.04-64:
                 workers: 6
-            - ubuntu-19.10-64:
-                workers: 6
             - ubuntu-core-16-64:
                 image: ubuntu-16.04-64
                 workers: 6
@@ -106,6 +104,14 @@ backends:
             - centos-7-64:
                 workers: 6
                 image: centos-7-64
+
+    google-unstable:
+        key: '$(HOST: echo "$SPREAD_GOOGLE_KEY")'
+        location: computeengine/us-east1-b
+        halt-timeout: 2h
+        systems:
+            - ubuntu-19.10-64:
+                workers: 6
 
     google-sru:
         type: google
