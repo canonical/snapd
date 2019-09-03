@@ -154,7 +154,7 @@ func (s *lkTestSuite) TestExtractKernelAssetsUnpacksCustomBootimgImageBuilding(c
 	c.Assert(osutil.FileExists(bootimg), Equals, true)
 }
 
-func (s *lkTestSuite) TestExtractKernelAssetsUnpacksInRuntimeMode(c *C) {
+func (s *lkTestSuite) TestExtractKernelAssetsUnpacksAndRemoveInRuntimeMode(c *C) {
 	bootloader.MockLkFiles(c)
 	lk := bootloader.NewLk()
 	c.Assert(lk, NotNil)
@@ -212,4 +212,14 @@ func (s *lkTestSuite) TestExtractKernelAssetsUnpacksInRuntimeMode(c *C) {
 	bootPart, err := lkenv.GetBootPartition("ubuntu-kernel_42.snap")
 	c.Assert(err, IsNil)
 	c.Assert(bootPart, Equals, "boot_a")
+
+	// now remove the kernel
+	err = lk.RemoveKernelAssets(info)
+	c.Assert(err, IsNil)
+	// and ensure its no longer available in the boot partions
+	err = lkenv.Load()
+	c.Assert(err, IsNil)
+	bootPart, err = lkenv.GetBootPartition("ubuntu-kernel_42.snap")
+	c.Assert(err, ErrorMatches, "cannot find kernel .* in boot image partitions")
+	c.Assert(bootPart, Equals, "")
 }
