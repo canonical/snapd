@@ -41,14 +41,15 @@ while getopts "v:o:gsh" arg; do
     esac
 done
 
-set -x
-
 if [ -z "$version" ]; then
-	# try to read if tform spec
-	version="$(awk '/^Version: / { print $2}' packaging/fedora/snapd.spec)"
+    echo "error: version is unset"
+    exit 1
 fi
 
+set -x
+
 tmpdir=$(mktemp -d)
+trap 'rm -rf "$tmpdir"' EXIT
 
 if [[ "$single" == 0 ]]; then
     tar -cJf "$tmpdir"/snapd_"$version".no-vendor.tar.xz --exclude='vendor/*' --exclude='.git/*' --transform "s#^#snapd-$version/#" .
