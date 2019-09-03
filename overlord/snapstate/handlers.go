@@ -860,8 +860,11 @@ func (m *SnapManager) undoUnlinkCurrentSnap(t *state.Task, _ *tomb.Tomb) error {
 	missingSvcs, err = m.backend.RestoreDisabledServices(oldInfo, snapst.LastActiveDisabledServices, progress.Null)
 	st.Lock()
 	if err != nil {
-		// nothing to undo, since worst case we would have just disabled some
-		// services which will now be removed anyways
+		// nothing to undo here since we're already in the undo handler, and the
+		// old service definitions were already installed and we just failed to
+		// disable some of the services, so worst case scenario here we didn't
+		// disable something that should have been disabled
+		t.Errorf("cannot undo unlinking of current snap, failed to restore disabled services: %v", err)
 		return err
 	}
 
