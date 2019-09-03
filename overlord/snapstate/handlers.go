@@ -854,7 +854,11 @@ func (m *SnapManager) undoUnlinkCurrentSnap(t *state.Task, _ *tomb.Tomb) error {
 
 	// Restore disabled services
 	var missingSvcs []string
+	// unlock the state during the external call because we need to run an
+	// external program
+	st.Unlock()
 	missingSvcs, err = m.backend.RestoreDisabledServices(oldInfo, snapst.LastActiveDisabledServices, progress.Null)
+	st.Lock()
 	if err != nil {
 		// nothing to undo, since worst case we would have just disabled some
 		// services which will now be removed anyways
@@ -1114,7 +1118,10 @@ func (m *SnapManager) doLinkSnap(t *state.Task, _ *tomb.Tomb) (err error) {
 
 	// Restore disabled services
 	var missingSvcs []string
-	missingSvcs, err = m.backend.RestoreDisabledServices(newInfo, snapst.LastActiveDisabledServices, pb)
+	// unlock the state because we have to run an external command
+	st.Unlock()
+	missingSvcs, err = m.backend.RestoreDisabledServices(newInfo, snapst.LastActiveDisabledServices, NewTaskProgressAdapterUnlocked(t))
+	st.Lock()
 	if err != nil {
 		return err
 	}
