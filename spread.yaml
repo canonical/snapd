@@ -106,6 +106,7 @@ backends:
                 image: centos-7-64
 
     google-unstable:
+        type: google
         key: '$(HOST: echo "$SPREAD_GOOGLE_KEY")'
         location: computeengine/us-east1-b
         halt-timeout: 2h
