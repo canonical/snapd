@@ -42,6 +42,12 @@ const SNAP_BOOTIMG_PART_NUM = 2
 /* Default boot image file name to be used from kernel snap */
 const BOOTIMG_DEFAULT_NAME = "boot.img"
 
+// for accessing the 	Bootimg_matrix
+const (
+	MATRIX_ROW_PARTITION = 0
+	MATRIX_ROW_KERNEL    = 1
+)
+
 type SnapBootSelect struct {
 	/* Contains value BOOTSELECT_SIGNATURE defined above */
 	Signature uint32
@@ -200,8 +206,8 @@ func (l *Env) Set(key, value string) {
 // this should not be used at run time, it should be used
 // once at image build time, if part labels are not filled by gadget build
 func (l *Env) ConfigureBootPartitions(boot_1, boot_2 string) {
-	copyString(l.env.Bootimg_matrix[0][0][:], boot_1)
-	copyString(l.env.Bootimg_matrix[1][0][:], boot_2)
+	copyString(l.env.Bootimg_matrix[0][MATRIX_ROW_PARTITION][:], boot_1)
+	copyString(l.env.Bootimg_matrix[1][MATRIX_ROW_PARTITION][:], boot_2)
 }
 
 // Configure boot image file name to be used at kernel extraction time
@@ -295,11 +301,11 @@ func (l *Env) SaveEnv(path string, buf *bytes.Buffer) error {
 // - consider only boot partitions with defined partition name
 func (l *Env) FindFreeBootPartition(kernel string) (string, error) {
 	for x := range l.env.Bootimg_matrix {
-		bp := cToGoString(l.env.Bootimg_matrix[x][0][:])
+		bp := cToGoString(l.env.Bootimg_matrix[x][MATRIX_ROW_PARTITION][:])
 		if bp != "" {
-			k := cToGoString(l.env.Bootimg_matrix[x][1][:])
+			k := cToGoString(l.env.Bootimg_matrix[x][MATRIX_ROW_KERNEL][:])
 			if k != cToGoString(l.env.Snap_kernel[:]) || k == kernel || k == "" {
-				return cToGoString(l.env.Bootimg_matrix[x][0][:]), nil
+				return cToGoString(l.env.Bootimg_matrix[x][MATRIX_ROW_PARTITION][:]), nil
 			}
 		}
 	}
@@ -309,8 +315,8 @@ func (l *Env) FindFreeBootPartition(kernel string) (string, error) {
 // sets kernel revision to defined boot partition partition
 func (l *Env) SetBootPartition(bootpart, kernel string) error {
 	for x := range l.env.Bootimg_matrix {
-		if bootpart == cToGoString(l.env.Bootimg_matrix[x][0][:]) {
-			copyString(l.env.Bootimg_matrix[x][1][:], kernel)
+		if bootpart == cToGoString(l.env.Bootimg_matrix[x][MATRIX_ROW_PARTITION][:]) {
+			copyString(l.env.Bootimg_matrix[x][MATRIX_ROW_KERNEL][:], kernel)
 			return nil
 		}
 	}
@@ -319,8 +325,8 @@ func (l *Env) SetBootPartition(bootpart, kernel string) error {
 
 func (l *Env) GetBootPartition(kernel string) (string, error) {
 	for x := range l.env.Bootimg_matrix {
-		if kernel == cToGoString(l.env.Bootimg_matrix[x][1][:]) {
-			return cToGoString(l.env.Bootimg_matrix[x][0][:]), nil
+		if kernel == cToGoString(l.env.Bootimg_matrix[x][MATRIX_ROW_KERNEL][:]) {
+			return cToGoString(l.env.Bootimg_matrix[x][MATRIX_ROW_PARTITION][:]), nil
 		}
 	}
 	return "", fmt.Errorf("cannot find kernel [%s] in boot image partitions", kernel)
@@ -330,9 +336,9 @@ func (l *Env) GetBootPartition(kernel string) (string, error) {
 // ignored if it cannot find given kernel revision
 func (l *Env) FreeBootPartition(kernel string) (bool, error) {
 	for x := range l.env.Bootimg_matrix {
-		if "" != cToGoString(l.env.Bootimg_matrix[x][0][:]) {
-			if kernel == cToGoString(l.env.Bootimg_matrix[x][1][:]) {
-				l.env.Bootimg_matrix[x][1][0] = 0
+		if "" != cToGoString(l.env.Bootimg_matrix[x][MATRIX_ROW_PARTITION][:]) {
+			if kernel == cToGoString(l.env.Bootimg_matrix[x][MATRIX_ROW_KERNEL][:]) {
+				l.env.Bootimg_matrix[x][1][MATRIX_ROW_PARTITION] = 0
 				return true, nil
 			}
 		}
