@@ -178,7 +178,7 @@ func validateNonLocalSnaps(snaps []string) error {
 
 // classicHasSnaps returns whether the model or options specify any snaps for the classic case
 func classicHasSnaps(model *asserts.Model, opts *Options) bool {
-	return model.Gadget() != "" || len(model.RequiredSnaps()) != 0 || len(opts.Snaps) != 0
+	return model.Gadget() != "" || len(model.RequiredNoEssentialSnaps()) != 0 || len(opts.Snaps) != 0
 }
 
 func Prepare(opts *Options) error {
@@ -459,7 +459,13 @@ func setupSeed(tsto *ToolingStore, model *asserts.Model, opts *Options, local *l
 		}
 	}
 
-	basesAndApps = append(basesAndApps, model.RequiredSnaps()...)
+	// TODO|XXX: later use the refs directly and simplify
+	reqSnaps := make([]string, 0, len(model.RequiredNoEssentialSnaps()))
+	for _, reqRef := range model.RequiredNoEssentialSnaps() {
+		reqSnaps = append(reqSnaps, reqRef.SnapName())
+	}
+
+	basesAndApps = append(basesAndApps, reqSnaps...)
 	basesAndApps = append(basesAndApps, opts.Snaps...)
 	// TODO: required snaps should get their base from required
 	// snaps (mentioned in the model); additional snaps could
@@ -499,7 +505,7 @@ func setupSeed(tsto *ToolingStore, model *asserts.Model, opts *Options, local *l
 	}
 
 	// then required and the user requested stuff
-	snaps = append(snaps, model.RequiredSnaps()...)
+	snaps = append(snaps, reqSnaps...)
 	snaps = append(snaps, opts.Snaps...)
 
 	for _, snapName := range snaps {
@@ -806,7 +812,7 @@ func setBootvars(downloadedSnapsInfoForBootConfig map[string]*snap.Info, model *
 	// Set bootvars for kernel/core snaps so the system boots and
 	// does the first-time initialization. There is also no
 	// mounted kernel/core/base snap, but just the blobs.
-	loader, err := bootloader.Find()
+	bloader, err := bootloader.Find()
 	if err != nil {
 		return fmt.Errorf("cannot set kernel/core boot variables: %s", err)
 	}
@@ -843,7 +849,7 @@ func setBootvars(downloadedSnapsInfoForBootConfig map[string]*snap.Info, model *
 			bootvar = "snap_core"
 		case snap.TypeKernel:
 			bootvar = "snap_kernel"
-			if err := extractKernelAssets(fn, info); err != nil {
+			if err := extractKernelAssets(fn, info, model); err != nil {
 				return err
 			}
 		}
@@ -853,23 +859,26 @@ func setBootvars(downloadedSnapsInfoForBootConfig map[string]*snap.Info, model *
 			m[bootvar] = name
 		}
 	}
-	if err := loader.SetBootVars(m); err != nil {
+	if err := bloader.SetBootVars(m); err != nil {
 		return err
 	}
 
 	return nil
 }
 
-func extractKernelAssets(snapPath string, info *snap.Info) error {
+func extractKernelAssets(snapPath string, info *snap.Info, model *asserts.Model) error {
 	snapf, err := snap.Open(snapPath)
 	if err != nil {
 		return err
 	}
 
-	if err := boot.ExtractKernelAssets(info, snapf); err != nil {
-		return err
+	// image always runs in not-on-classic mode
+	bp, _ := boot.Lookup(info, info.GetType(), model, false)
+	kernel, ok := bp.(boot.Kernel)
+	if !ok {
+		return nil
 	}
-	return nil
+	return kernel.ExtractKernelAssets(snapf)
 }
 
 func copyLocalSnapFile(snapPath, targetDir string, info *snap.Info) (dstPath string, err error) {

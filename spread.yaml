@@ -67,6 +67,8 @@ backends:
                 workers: 8
             - ubuntu-19.04-64:
                 workers: 6
+            - ubuntu-19.10-64:
+                workers: 6
             - ubuntu-core-16-64:
                 image: ubuntu-16.04-64
                 workers: 6
@@ -521,11 +523,6 @@ prepare: |
         else
             exit 1
         fi
-    fi
-
-    if [[ "$SPREAD_SYSTEM" == ubuntu-* ]] && [[ "$SPREAD_SYSTEM" != ubuntu-core-* ]]; then
-        apt-get remove --purge -y lxd lxcfs || true
-        apt-get autoremove --purge -y
     fi
 
     if [[ "$SPREAD_SYSTEM" == debian-* ]]; then
