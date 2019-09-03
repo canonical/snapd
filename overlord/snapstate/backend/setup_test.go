@@ -299,24 +299,23 @@ type: kernel
 
 func (s *setupSuite) TestSetupUndoKeepsTargetSnap(c *C) {
 	snapPath := makeTestSnap(c, helloYaml1)
+	tmpPath := filepath.Join(dirs.SnapBlobDir, "hello_14.snap")
+	c.Assert(os.MkdirAll(dirs.SnapBlobDir, 0755), IsNil)
+	c.Assert(os.Symlink(snapPath, tmpPath), IsNil)
 
 	si := snap.SideInfo{
 		RealName: "hello",
 		Revision: snap.R(14),
 	}
 
-	snapType, undoCtx, err := s.be.SetupSnap(snapPath, "hello", &si, progress.Null)
+	snapType, undoCtx, err := s.be.SetupSnap(tmpPath, "hello", &si, progress.Null)
 	c.Assert(err, IsNil)
 	c.Assert(undoCtx, NotNil)
+	c.Check(undoCtx.KeepTargetSnap, Equals, true)
 	c.Check(snapType, Equals, snap.TypeApp)
 
 	// after setup the snap file is in the right dir
 	c.Assert(osutil.FileExists(filepath.Join(dirs.SnapBlobDir, "hello_14.snap")), Equals, true)
-
-	// ensure the right unit is created
-	mup := systemd.MountUnitPath(filepath.Join(dirs.StripRootDir(dirs.SnapMountDir), "hello/14"))
-	c.Assert(mup, testutil.FileMatches, fmt.Sprintf("(?ms).*^Where=%s", filepath.Join(dirs.StripRootDir(dirs.SnapMountDir), "hello/14")))
-	c.Assert(mup, testutil.FileMatches, "(?ms).*^What=/var/lib/snapd/snaps/hello_14.snap")
 
 	minInfo := snap.MinimalPlaceInfo("hello", snap.R(14))
 	// mount dir was created

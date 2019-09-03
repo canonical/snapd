@@ -25,6 +25,7 @@ import (
 	"path/filepath"
 
 	"github.com/snapcore/snapd/boot"
+	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/progress"
 	"github.com/snapcore/snapd/release"
 	"github.com/snapcore/snapd/snap"
@@ -56,7 +57,7 @@ func (b Backend) SetupSnap(snapFilePath, instanceName string, sideInfo *snap.Sid
 			return
 		}
 
-		// XXX: this will also remove the snap from /var/lib/snapd/snaps
+		// this will also remove the snap from /var/lib/snapd/snaps depending on undoCtx
 		if e := b.RemoveSnapFiles(s, s.GetType(), undoCtx, meter); e != nil {
 			meter.Notify(fmt.Sprintf("while trying to clean up due to previous failure: %v", e))
 		}
@@ -122,7 +123,9 @@ func (b Backend) RemoveSnapFiles(s snap.PlaceInfo, typ snap.Type, undoCtx *Insta
 		}
 
 		// don't remove snap path if it existed before snap installation was attempted
-		if undoCtx == nil || !undoCtx.KeepTargetSnap {
+		// and is a symlink, which is the case with kernel/core snaps during seeding.
+		keepSeededSnap := undoCtx != nil && undoCtx.KeepTargetSnap && osutil.IsSymlink(snapPath)
+		if !keepSeededSnap {
 			// remove the snap
 			if err := os.RemoveAll(snapPath); err != nil {
 				return err
