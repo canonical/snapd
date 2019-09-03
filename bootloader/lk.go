@@ -74,6 +74,12 @@ func (l *lk) envFile() string {
 	}
 }
 
+// XXX: in the long run we want this to go away, we probably add
+//      something like "boot.PrepareImage()" and add an (optional)
+//      method "PrepareImage" to the bootloader interface that is
+//      used to setup a bootloader from prepare-image if things
+//      are very different from runtime vs image-building mode.
+//
 // determine mode we are in, runtime or image build
 func inRuntimeMode() bool {
 	if dirs.GlobalRootDir == "/" {
@@ -128,7 +134,7 @@ func (l *lk) SetBootVars(values map[string]string) error {
 func (l *lk) ExtractKernelAssets(s snap.PlaceInfo, snapf snap.Container) error {
 	blobName := filepath.Base(s.MountFile())
 
-	logger.Debugf("ExtractKernelAssets (%s)\n", blobName)
+	logger.Debugf("ExtractKernelAssets (%s)", blobName)
 
 	env := lkenv.NewEnv(l.envFile())
 	if err := env.Load(); err != nil && !os.IsNotExist(err) {
@@ -141,7 +147,7 @@ func (l *lk) ExtractKernelAssets(s snap.PlaceInfo, snapf snap.Container) error {
 	}
 
 	if inRuntimeMode() {
-		logger.Debugf("ExtractKernelAssets handling run time usecase\n")
+		logger.Debugf("ExtractKernelAssets handling run time usecase")
 		// this is live system, extracted bootimg needs to be flashed to
 		// free bootimg partition and env has be updated boot slop mapping
 		tmpdir, err := ioutil.TempDir("", "bootimg")
@@ -184,7 +190,7 @@ func (l *lk) ExtractKernelAssets(s snap.PlaceInfo, snapf snap.Container) error {
 		}
 	} else {
 		// we are preparing image, just extract boot image to bootloader directory
-		logger.Debugf("ExtractKernelAssets handling image prepare\n")
+		logger.Debugf("ExtractKernelAssets handling image prepare")
 		if err := snapf.Unpack(env.GetBootImageName(), l.dir()); err != nil {
 			return fmt.Errorf("Failed to open unpacked %s %v", env.GetBootImageName(), err)
 		}
@@ -198,7 +204,7 @@ func (l *lk) ExtractKernelAssets(s snap.PlaceInfo, snapf snap.Container) error {
 
 func (l *lk) RemoveKernelAssets(s snap.PlaceInfo) error {
 	blobName := filepath.Base(s.MountFile())
-	logger.Debugf("RemoveKernelAssets (%s)\n", blobName)
+	logger.Debugf("RemoveKernelAssets (%s)", blobName)
 	env := lkenv.NewEnv(l.envFile())
 	if err := env.Load(); err != nil && !os.IsNotExist(err) {
 		return err
