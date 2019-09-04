@@ -57,7 +57,7 @@ func (b Backend) SetupSnap(snapFilePath, instanceName string, sideInfo *snap.Sid
 			return
 		}
 
-		// this will also remove the snap from /var/lib/snapd/snaps depending on undoCtx
+		// this may remove the snap from /var/lib/snapd/snaps depending on undoCtx
 		if e := b.RemoveSnapFiles(s, s.GetType(), undoCtx, meter); e != nil {
 			meter.Notify(fmt.Sprintf("while trying to clean up due to previous failure: %v", e))
 		}

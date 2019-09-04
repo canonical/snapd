@@ -297,38 +297,56 @@ type: kernel
 	c.Assert(bloader.RemoveKernelAssetsCalls, HasLen, 1)
 }
 
-func (s *setupSuite) TestSetupUndoKeepsTargetSnap(c *C) {
+func (s *setupSuite) TestSetupUndoKeepsTargetSnapIfSymlink(c *C) {
 	snapPath := makeTestSnap(c, helloYaml1)
-	tmpPath := filepath.Join(dirs.SnapBlobDir, "hello_14.snap")
 	c.Assert(os.MkdirAll(dirs.SnapBlobDir, 0755), IsNil)
+	// symlink the test snap under target blob dir where SetupSnap would normally
+	// install it, so that it realizes there is nothing to do.
+	tmpPath := filepath.Join(dirs.SnapBlobDir, "hello_14.snap")
 	c.Assert(os.Symlink(snapPath, tmpPath), IsNil)
 
-	si := snap.SideInfo{
-		RealName: "hello",
-		Revision: snap.R(14),
-	}
-
-	snapType, undoCtx, err := s.be.SetupSnap(tmpPath, "hello", &si, progress.Null)
+	si := snap.SideInfo{RealName: "hello", Revision: snap.R(14)}
+	_, undoCtx, err := s.be.SetupSnap(snapPath, "hello", &si, progress.Null)
 	c.Assert(err, IsNil)
 	c.Assert(undoCtx, NotNil)
 	c.Check(undoCtx.KeepTargetSnap, Equals, true)
-	c.Check(snapType, Equals, snap.TypeApp)
+
+	minInfo := snap.MinimalPlaceInfo("hello", snap.R(14))
 
 	// after setup the snap file is in the right dir
 	c.Assert(osutil.FileExists(filepath.Join(dirs.SnapBlobDir, "hello_14.snap")), Equals, true)
-
-	minInfo := snap.MinimalPlaceInfo("hello", snap.R(14))
-	// mount dir was created
-	c.Assert(osutil.FileExists(minInfo.MountDir()), Equals, true)
+	c.Assert(osutil.FileExists(minInfo.MountFile()), Equals, true)
+	// sanity
+	c.Assert(osutil.IsSymlink(minInfo.MountFile()), Equals, true)
 
 	// undo keeps the target .snap file intact if requested
 	undoCtx = &backend.InstallUndoContext{KeepTargetSnap: true}
 	c.Assert(s.be.UndoSetupSnap(minInfo, "app", undoCtx, progress.Null), IsNil)
-
-	l, _ := filepath.Glob(filepath.Join(dirs.SnapServicesDir, "*.mount"))
-	c.Assert(l, HasLen, 0)
-	c.Assert(osutil.FileExists(minInfo.MountDir()), Equals, false)
 	c.Assert(osutil.FileExists(minInfo.MountFile()), Equals, true)
+}
+
+func (s *setupSuite) TestSetupUndoKeepsTargetSnapIgnoredIfNotSymlink(c *C) {
+	snapPath := makeTestSnap(c, helloYaml1)
+	c.Assert(os.MkdirAll(dirs.SnapBlobDir, 0755), IsNil)
+	// copy test snap to target blob dir where SetupSnap would normally install it,
+	// so that it realizes there is nothing to do.
+	tmpPath := filepath.Join(dirs.SnapBlobDir, "hello_14.snap")
+	c.Assert(osutil.CopyFile(snapPath, tmpPath, 0), IsNil)
+
+	si := snap.SideInfo{RealName: "hello", Revision: snap.R(14)}
+	_, undoCtx, err := s.be.SetupSnap(snapPath, "hello", &si, progress.Null)
+	c.Assert(err, IsNil)
+	c.Assert(undoCtx, NotNil)
+	c.Check(undoCtx.KeepTargetSnap, Equals, true)
+
+	minInfo := snap.MinimalPlaceInfo("hello", snap.R(14))
+
+	// after setup the snap file is in the right dir
+	c.Assert(osutil.FileExists(minInfo.MountFile()), Equals, true)
+
+	undoCtx = &backend.InstallUndoContext{KeepTargetSnap: true}
+	c.Assert(s.be.UndoSetupSnap(minInfo, "app", undoCtx, progress.Null), IsNil)
+	c.Assert(osutil.FileExists(minInfo.MountFile()), Equals, false)
 }
 
 func (s *setupSuite) TestSetupCleanupAfterFail(c *C) {
