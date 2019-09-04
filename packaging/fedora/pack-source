@@ -13,7 +13,7 @@ show_help() {
     exit 1
 }
 
-if [ ! -e packaging/fedora/snapd.spec ]; then
+if [ ! -e "packaging/fedora/$(basename "$0")" ]; then
     echo "must be executed at the top of srcdir"
     exit 1
 fi
