@@ -113,10 +113,8 @@ func (b Backend) LinkSnap(info *snap.Info, model *asserts.Model, tm timings.Meas
 		})
 	}
 
-	if bp, applicable := boot.Lookup(info, info.GetType(), model, release.OnClassic); applicable {
-		if err := bp.SetNextBoot(); err != nil {
-			return err
-		}
+	if err := boot.Participant(info, info.GetType(), model, release.OnClassic).SetNextBoot(); err != nil {
+		return err
 	}
 
 	if err := updateCurrentSymlinks(info); err != nil {

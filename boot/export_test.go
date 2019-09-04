@@ -32,5 +32,7 @@ func NewCoreBootParticipant(s snap.PlaceInfo, t snap.Type) *coreBootParticipant 
 }
 
 func NewCoreKernel(s snap.PlaceInfo) *coreKernel {
-	return &coreKernel{NewCoreBootParticipant(s, snap.TypeKernel)}
+	return &coreKernel{s}
 }
+
+type Trivial = trivial
