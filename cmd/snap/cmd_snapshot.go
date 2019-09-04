@@ -342,8 +342,7 @@ func init() {
 				// TRANSLATORS: This should not start with a lowercase letter.
 				desc: i18n.G("The snap for which data will be restored"),
 			}, {
-				// TRANSLATORS: This needs to begin with < and end with >
-				name: i18n.G("<id>"),
+				name: "<id>",
 				// TRANSLATORS: This should not start with a lowercase letter.
 				desc: i18n.G("Set id of snapshot to restore (see 'snap help saved')"),
 			},
@@ -356,8 +355,7 @@ func init() {
 			return &forgetCmd{}
 		}, waitDescs, []argDesc{
 			{
-				// TRANSLATORS: This needs to begin with < and end with >
-				name: i18n.G("<id>"),
+				name: "<id>",
 				// TRANSLATORS: This should not start with a lowercase letter.
 				desc: i18n.G("Set id of snapshot to delete (see 'snap help saved')"),
 			}, {
@@ -377,8 +375,7 @@ func init() {
 			"users": i18n.G("Check data of only specific users (comma-separated) (default: all users)"),
 		}), []argDesc{
 			{
-				// TRANSLATORS: This needs to begin with < and end with >
-				name: i18n.G("<id>"),
+				name: "<id>",
 				// TRANSLATORS: This should not start with a lowercase letter.
 				desc: i18n.G("Set id of snapshot to verify (see 'snap help saved')"),
 			}, {
