@@ -142,27 +142,7 @@ func (s *Launcher) OpenDesktopEntry(desktop_file_id string, sender dbus.Sender) 
 // OpenDesktopEntryEnv implements the 'OpenDesktopEntryEnv' method of the 'io.snapcraft.Launcher'
 // DBus interface.
 func (s *Launcher) OpenDesktopEntryEnv(desktop_file_id string, env []string, sender dbus.Sender) *dbus.Error {
-  splitFileId := strings.Split(desktop_file_id, "-")
-
-  var desktop_file string;
-
-  for _, dir := range strings.Split(os.Getenv("XDG_DATA_DIRS"), ":") {
-    var fileStat os.FileInfo
-
-    for i:=0; i != len(splitFileId); i = i+1 {
-      desktop_file = dir + "/applications/" + strings.Join(splitFileId[0:i], "/") + "/" + strings.Join(splitFileId[i:], "-")
-      fileStat, _ = os.Stat(desktop_file)
-      if fileStat != nil {
-        break;
-      }
-    }
-
-    if fileStat != nil {
-      break;
-    }
-  }
-
-  file, err := os.Open(desktop_file)
+  file, err := os.Open(s.desktopFileIdToFilename(desktop_file_id))
 	if err != nil {
 		return dbus.MakeFailedError(err)
 	}
@@ -200,6 +180,31 @@ func (s *Launcher) OpenDesktopEntryEnv(desktop_file_id string, env []string, sen
   }
 
 	return nil
+}
+
+// desktopFileIdToFilename determines the path associated with a desktop file ID.
+func (s *Launcher) desktopFileIdToFilename(desktop_file_id string) string {
+  splitFileId := strings.Split(desktop_file_id, "-")
+
+  var desktop_file string;
+
+  for _, dir := range strings.Split(os.Getenv("XDG_DATA_DIRS"), ":") {
+    var fileStat os.FileInfo
+
+    for i:=0; i != len(splitFileId); i = i+1 {
+      desktop_file = dir + "/applications/" + strings.Join(splitFileId[0:i], "/") + "/" + strings.Join(splitFileId[i:], "-")
+      fileStat, _ = os.Stat(desktop_file)
+      if fileStat != nil {
+        break;
+      }
+    }
+
+    if fileStat != nil {
+      break;
+    }
+  }
+
+  return desktop_file
 }
 
 // fdToFilename determines the path associated with an open file descriptor.
