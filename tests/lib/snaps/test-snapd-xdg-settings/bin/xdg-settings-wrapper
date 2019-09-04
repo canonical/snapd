@@ -1,7 +1,7 @@
 #!/bin/bash
 set -e
 set -o pipefail
-# We need to add a "cut -b4-" everyhwere because `dbus-send
+# We need to add a "cut -b4-" everywhere because `dbus-send
 # --print-reply=literal` indents the output by 3 spaces (hard-coded in
 # dbus-print-message.c:print_iter).
 case "$1" in
