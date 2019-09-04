@@ -142,28 +142,11 @@ func (s *Launcher) OpenDesktopEntry(desktop_file_id string, sender dbus.Sender) 
 // OpenDesktopEntryEnv implements the 'OpenDesktopEntryEnv' method of the 'io.snapcraft.Launcher'
 // DBus interface.
 func (s *Launcher) OpenDesktopEntryEnv(desktop_file_id string, env []string, sender dbus.Sender) *dbus.Error {
-  file, err := os.Open(s.desktopFileIdToFilename(desktop_file_id))
+  launch, err := s.readExecCommandFromDesktopFile(s.desktopFileIdToFilename(desktop_file_id))
+
 	if err != nil {
 		return dbus.MakeFailedError(err)
 	}
-  defer file.Close()
-  reader := bufio.NewReader(file)
-
-  var launch string;
-
-  for {
-    line, err := reader.ReadString('\n')
-    if err != nil {
-      return dbus.MakeFailedError(err)
-    }
-
-    line = strings.TrimSpace(line)
-
-    if strings.HasPrefix(line, "Exec=") {
-      launch = strings.TrimPrefix(line, "Exec=")
-      break;
-    }
-  }
 
   // This is very hacky parsing and doesn't cover a lot of cases
   command := strings.Split(strings.SplitN(launch, "%", 2)[0], " ");
@@ -205,6 +188,34 @@ func (s *Launcher) desktopFileIdToFilename(desktop_file_id string) string {
   }
 
   return desktop_file
+}
+
+// readExecCommandFromDesktopFile parses the desktop file to get the Exec entry.
+func (s *Launcher) readExecCommandFromDesktopFile(desktop_file string) (string, error) {
+  var launch string
+
+  file, err := os.Open(desktop_file)
+	if err != nil {
+		return launch, err
+	}
+  defer file.Close()
+  reader := bufio.NewReader(file)
+
+  for {
+    line, err := reader.ReadString('\n')
+    if err != nil {
+      return launch, err
+    }
+
+    line = strings.TrimSpace(line)
+
+    if strings.HasPrefix(line, "Exec=") {
+      launch = strings.TrimPrefix(line, "Exec=")
+      break;
+    }
+  }
+
+  return launch, nil
 }
 
 // fdToFilename determines the path associated with an open file descriptor.
