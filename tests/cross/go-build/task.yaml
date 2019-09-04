@@ -57,6 +57,7 @@ prepare: |
 
 execute: |
     cd /tmp/cross-build/src/github.com/snapcore/snapd
-    for cmd in $( find ./cmd -mindepth 2 -maxdepth 2 -name main.go -printf '%h\n' | sort -u ); do
+    # grab only packages whose name is 'main'
+    for cmd in $( GOPATH=/tmp/cross-build go list -f '{{if eq .Name "main"}}{{.ImportPath}}{{end}}' ./cmd/...); do
       su -c "GOPATH=/tmp/cross-build CGO_ENABLED=1 GOARCH=$X_GOARCH CC=$X_CC go build -v -o /dev/null $cmd" test
     done
