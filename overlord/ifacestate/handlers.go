@@ -28,6 +28,7 @@ import (
 
 	"gopkg.in/tomb.v2"
 
+	"github.com/snapcore/snapd/i18n"
 	"github.com/snapcore/snapd/interfaces"
 	"github.com/snapcore/snapd/interfaces/hotplug"
 	"github.com/snapcore/snapd/logger"
@@ -401,6 +402,10 @@ func (m *InterfaceManager) doConnect(task *state.Task, _ *tomb.Tomb) error {
 	if err := task.Get("by-gadget", &byGadget); err != nil && err != state.ErrNoState {
 		return err
 	}
+	var delayedSetupProfiles bool
+	if err := task.Get("delayed-setup-profiles", &delayedSetupProfiles); err != nil && err != state.ErrNoState {
+		return err
+	}
 
 	deviceCtx, err := snapstate.DeviceCtx(st, task, nil)
 	if err != nil {
@@ -475,14 +480,18 @@ func (m *InterfaceManager) doConnect(task *state.Task, _ *tomb.Tomb) error {
 		return err
 	}
 
-	slotOpts := confinementOptions(slotSnapst.Flags)
-	if err := m.setupSnapSecurity(task, slot.Snap, slotOpts, perfTimings); err != nil {
-		return err
-	}
+	if !delayedSetupProfiles {
+		slotOpts := confinementOptions(slotSnapst.Flags)
+		if err := m.setupSnapSecurity(task, slot.Snap, slotOpts, perfTimings); err != nil {
+			return err
+		}
 
-	plugOpts := confinementOptions(plugSnapst.Flags)
-	if err := m.setupSnapSecurity(task, plug.Snap, plugOpts, perfTimings); err != nil {
-		return err
+		plugOpts := confinementOptions(plugSnapst.Flags)
+		if err := m.setupSnapSecurity(task, plug.Snap, plugOpts, perfTimings); err != nil {
+			return err
+		}
+	} else {
+		logger.Debugf("Connect handler: skipping setupSnapSecurity for snaps %q and %q", plug.Snap.InstanceName(), slot.Snap.InstanceName())
 	}
 
 	conns[connRef.ID()] = &connState{
@@ -895,6 +904,47 @@ func waitChainSearch(startT, searchT *state.Task) bool {
 	return false
 }
 
+// batchConnectTasks creates connect tasks and interface hooks for
+// conns and sets their wait chain with regard to the setupProfiles
+// task.
+//
+// The tasks are chained so that: - prepare-plug-, prepare-slot- and
+// connect tasks are all executed before setup-profiles -
+// connect-plug-, connect-slot- are all executed after setup-profiles.
+// The "delayed-setup-profiles" flag is set on the connect tasks to
+// indicate that doConnect handler should not set security backends up
+// because this will be done later by the setup-profiles task.
+func batchConnectTasks(st *state.State, snapsup *snapstate.SnapSetup, conns map[string]*interfaces.ConnRef, autoconnect bool) (*state.TaskSet, error) {
+	setupProfiles := st.NewTask("setup-profiles", fmt.Sprintf(i18n.G("Setup snap %q (%s) security profiles for auto-connections"), snapsup.InstanceName(), snapsup.Revision()))
+	setupProfiles.Set("snap-setup", snapsup)
+
+	ts := state.NewTaskSet()
+	for _, conn := range conns {
+		connectTs, err := connect(st, conn.PlugRef.Snap, conn.PlugRef.Name, conn.SlotRef.Snap, conn.SlotRef.Name, connectOpts{AutoConnect: autoconnect, DelayedSetupProfiles: true})
+		if err != nil {
+			return nil, fmt.Errorf("internal error: auto-connect of %q failed: %s", conn, err)
+		}
+
+		// setup-profiles needs to wait for the main "connect" task
+		connectTask, _ := connectTs.Edge(ConnectTaskEdge)
+		if connectTask == nil {
+			return nil, fmt.Errorf("internal error: no 'connect' task found for %q", conn)
+		}
+		setupProfiles.WaitFor(connectTask)
+
+		// setup-profiles must be run before the task that marks the end of connect-plug- and connect-slot- hooks
+		afterConnectTask, _ := connectTs.Edge(AfterConnectHooksEdge)
+		if afterConnectTask != nil {
+			afterConnectTask.WaitFor(setupProfiles)
+		}
+		ts.AddAll(connectTs)
+	}
+	if len(ts.Tasks()) > 0 {
+		ts.AddTask(setupProfiles)
+	}
+	return ts, nil
+}
+
 // doAutoConnect creates task(s) to connect the given snap to viable candidates.
 func (m *InterfaceManager) doAutoConnect(task *state.Task, _ *tomb.Tomb) error {
 	st := task.State()
@@ -926,7 +976,6 @@ func (m *InterfaceManager) doAutoConnect(task *state.Task, _ *tomb.Tomb) error {
 
 	snapName := snapsup.InstanceName()
 
-	autots := state.NewTaskSet()
 	autochecker, err := newAutoConnectChecker(st, deviceCtx)
 	if err != nil {
 		return err
@@ -1068,13 +1117,10 @@ func (m *InterfaceManager) doAutoConnect(task *state.Task, _ *tomb.Tomb) error {
 		}
 	}
 
-	// Create connect tasks and interface hooks
-	for _, conn := range newconns {
-		ts, err := connect(st, conn.PlugRef.Snap, conn.PlugRef.Name, conn.SlotRef.Snap, conn.SlotRef.Name, connectOpts{AutoConnect: true})
-		if err != nil {
-			return fmt.Errorf("internal error: auto-connect of %q failed: %s", conn, err)
-		}
-		autots.AddAll(ts)
+	autoconnect := true
+	autots, err := batchConnectTasks(st, snapsup, newconns, autoconnect)
+	if err != nil {
+		return err
 	}
 
 	if len(autots.Tasks()) > 0 {
