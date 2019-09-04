@@ -92,6 +92,11 @@ dbus (bind)
     bus=system
     name="org.bluez.obex",
 
+# Allow binding the service to the requested connection name
+dbus (bind)
+    bus=system
+    name="org.bluez.mesh",
+
 # Allow traffic to/from our interface with any method for unconfined clients
 # to talk to our bluez services. For the org.bluez interface we don't specify
 # an Object Path since according to the bluez specification these can be
@@ -163,6 +168,10 @@ dbus (send)
     bus=system
     peer=(name=org.bluez.obex, label=unconfined),
 
+dbus (send)
+    bus=system
+    peer=(name=org.bluez.mesh, label=unconfined),
+
 dbus (receive)
     bus=system
     path=/
@@ -191,8 +200,10 @@ const bluezPermanentSlotDBus = `
 <policy user="root">
     <allow own="org.bluez"/>
     <allow own="org.bluez.obex"/>
+    <allow own="org.bluez.mesh"/>
     <allow send_destination="org.bluez"/>
     <allow send_destination="org.bluez.obex"/>
+    <allow send_destination="org.bluez.mesh"/>
     <allow send_interface="org.bluez.Agent1"/>
     <allow send_interface="org.bluez.MediaEndpoint1"/>
     <allow send_interface="org.bluez.MediaPlayer1"/>
@@ -203,6 +214,14 @@ const bluezPermanentSlotDBus = `
     <allow send_interface="org.bluez.CyclingSpeedWatcher1"/>
     <allow send_interface="org.bluez.GattCharacteristic1"/>
     <allow send_interface="org.bluez.GattDescriptor1"/>
+    <allow send_interface="org.bluez.mesh.Element1"/>
+    <allow send_interface="org.bluez.mesh.Application1"/>
+    <allow send_interface="org.bluez.mesh.ProvisionAgent1"/>
+    <allow send_interface="org.bluez.mesh.Provisioner1"/>
+    <allow send_interface="org.bluez.mesh.Attention1"/>
+    <allow send_interface="org.bluez.mesh.Network1"/>
+    <allow send_interface="org.bluez.mesh.Node1"/>
+    <allow send_interface="org.bluez.mesh.Management1"/>
     <allow send_interface="org.freedesktop.DBus.ObjectManager"/>
     <allow send_interface="org.freedesktop.DBus.Properties"/>
 </policy>

@@ -74,8 +74,9 @@ func (ovs *overlordSuite) TestNew(c *C) {
 	defer restore()
 
 	var configstateInitCalled bool
-	overlord.MockConfigstateInit(func(*hookstate.HookManager) {
+	overlord.MockConfigstateInit(func(*state.State, *hookstate.HookManager) error {
 		configstateInitCalled = true
+		return nil
 	})
 
 	o, err := overlord.New(nil)
@@ -223,6 +224,23 @@ func (ovs *overlordSuite) TestNewWithPatches(c *C) {
 
 	c.Assert(state.Get("patched2", &b), IsNil)
 	c.Check(b, Equals, true)
+}
+
+func (ovs *overlordSuite) TestNewFailedConfigstate(c *C) {
+	restore := patch.Mock(42, 2, nil)
+	defer restore()
+
+	var configstateInitCalled bool
+	restore = overlord.MockConfigstateInit(func(*state.State, *hookstate.HookManager) error {
+		configstateInitCalled = true
+		return fmt.Errorf("bad bad")
+	})
+	defer restore()
+
+	o, err := overlord.New(nil)
+	c.Assert(err, ErrorMatches, "bad bad")
+	c.Check(o, IsNil)
+	c.Check(configstateInitCalled, Equals, true)
 }
 
 type witnessManager struct {

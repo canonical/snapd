@@ -17,7 +17,7 @@
  *
  */
 
-package boottest
+package bootloadertest
 
 import (
 	"path/filepath"
@@ -25,18 +25,6 @@ import (
 	"github.com/snapcore/snapd/bootloader"
 	"github.com/snapcore/snapd/snap"
 )
-
-// SetBootKernel sets the current boot kernel string. Should be
-// something like "pc-kernel_1234.snap".
-func SetBootKernel(kernel string, b bootloader.Bootloader) {
-	b.SetBootVars(map[string]string{"snap_kernel": kernel})
-}
-
-// SetBootBase sets the current boot base string. Should be something
-// like "core_1234.snap".
-func SetBootBase(base string, b bootloader.Bootloader) {
-	b.SetBootVars(map[string]string{"snap_core": base})
-}
 
 // MockBootloader mocks the bootloader interface and records all
 // set/get calls.
@@ -48,11 +36,14 @@ type MockBootloader struct {
 	name    string
 	bootdir string
 
-	ExtractKernelAssetsCalls []*snap.Info
+	ExtractKernelAssetsCalls []snap.PlaceInfo
 	RemoveKernelAssetsCalls  []snap.PlaceInfo
 }
 
-func NewMockBootloader(name, bootdir string) *MockBootloader {
+// ensure MockBootloader implements the Bootloader interface
+var _ bootloader.Bootloader = (*MockBootloader)(nil)
+
+func Mock(name, bootdir string) *MockBootloader {
 	return &MockBootloader{
 		name:    name,
 		bootdir: bootdir,
@@ -85,7 +76,7 @@ func (b *MockBootloader) ConfigFile() string {
 	return filepath.Join(b.bootdir, "mockboot/mockboot.cfg")
 }
 
-func (b *MockBootloader) ExtractKernelAssets(s *snap.Info, snapf snap.Container) error {
+func (b *MockBootloader) ExtractKernelAssets(s snap.PlaceInfo, snapf snap.Container) error {
 	b.ExtractKernelAssetsCalls = append(b.ExtractKernelAssetsCalls, s)
 	return nil
 }
@@ -93,4 +84,16 @@ func (b *MockBootloader) ExtractKernelAssets(s *snap.Info, snapf snap.Container)
 func (b *MockBootloader) RemoveKernelAssets(s snap.PlaceInfo) error {
 	b.RemoveKernelAssetsCalls = append(b.RemoveKernelAssetsCalls, s)
 	return nil
+}
+
+// SetBootKernel sets the current boot kernel string. Should be
+// something like "pc-kernel_1234.snap".
+func (b *MockBootloader) SetBootKernel(kernel string) {
+	b.SetBootVars(map[string]string{"snap_kernel": kernel})
+}
+
+// SetBootBase sets the current boot base string. Should be something
+// like "core_1234.snap".
+func (b *MockBootloader) SetBootBase(base string) {
+	b.SetBootVars(map[string]string{"snap_core": base})
 }

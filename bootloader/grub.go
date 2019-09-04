@@ -83,7 +83,7 @@ func (g *grub) SetBootVars(values map[string]string) error {
 	return env.Save()
 }
 
-func (g *grub) ExtractKernelAssets(s *snap.Info, snapf snap.Container) error {
+func (g *grub) ExtractKernelAssets(s snap.PlaceInfo, snapf snap.Container) error {
 	// XXX: should we use "kernel.yaml" for this?
 	if _, err := snapf.ReadFile("meta/force-kernel-extraction"); err == nil {
 		return extractKernelAssetsToBootDir(g.dir(), s, snapf)

@@ -25,6 +25,7 @@ import (
 	"github.com/snapcore/snapd/overlord/configstate"
 	"github.com/snapcore/snapd/overlord/hookstate"
 	"github.com/snapcore/snapd/overlord/snapstate"
+	"github.com/snapcore/snapd/overlord/state"
 	"github.com/snapcore/snapd/overlord/storecontext"
 	"github.com/snapcore/snapd/store"
 )
@@ -74,7 +75,7 @@ func MockStoreNew(new func(*store.Config, store.DeviceAndAuthContext) *store.Sto
 	}
 }
 
-func MockConfigstateInit(new func(hookmgr *hookstate.HookManager)) (restore func()) {
+func MockConfigstateInit(new func(*state.State, *hookstate.HookManager) error) (restore func()) {
 	configstateInit = new
 	return func() {
 		configstateInit = configstate.Init
