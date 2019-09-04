@@ -36,6 +36,8 @@ type coreBootParticipant struct {
 // ensure coreBootParticipant is a BootParticipant
 var _ BootParticipant = (*coreBootParticipant)(nil)
 
+func (*coreBootParticipant) IsTrivial() bool { return false }
+
 func (bs *coreBootParticipant) SetNextBoot() error {
 	bootloader, err := bootloader.Find()
 	if err != nil {
@@ -112,11 +114,13 @@ func (bs *coreBootParticipant) ChangeRequiresReboot() bool {
 }
 
 type coreKernel struct {
-	*coreBootParticipant
+	s snap.PlaceInfo
 }
 
 // ensure coreKernel is a Kernel
-var _ Kernel = (*coreKernel)(nil)
+var _ BootKernel = (*coreKernel)(nil)
+
+func (*coreKernel) IsTrivial() bool { return false }
 
 func (k *coreKernel) RemoveKernelAssets() error {
 	// XXX: shouldn't we check the snap type?

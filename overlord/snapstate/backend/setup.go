@@ -86,11 +86,8 @@ func (b Backend) SetupSnap(snapFilePath, instanceName string, sideInfo *snap.Sid
 
 	t := s.GetType()
 	// TODO: maybe look into passing the model
-	bp, _ := boot.Lookup(s, t, nil, release.OnClassic)
-	if kernel, ok := bp.(boot.Kernel); ok {
-		if err := kernel.ExtractKernelAssets(snapf); err != nil {
-			return snapType, nil, fmt.Errorf("cannot install kernel: %s", err)
-		}
+	if err := boot.Kernel(s, t, nil, release.OnClassic).ExtractKernelAssets(snapf); err != nil {
+		return snapType, nil, fmt.Errorf("cannot install kernel: %s", err)
 	}
 
 	undoCtx = &InstallUndoContext{KeepTargetSnap: nothingToDo}
@@ -115,11 +112,8 @@ func (b Backend) RemoveSnapFiles(s snap.PlaceInfo, typ snap.Type, undoCtx *Insta
 	if _, err := os.Lstat(snapPath); err == nil {
 		// remove the kernel assets (if any)
 		// TODO: maybe look into passing the model
-		bp, _ := boot.Lookup(s, typ, nil, release.OnClassic)
-		if kernel, ok := bp.(boot.Kernel); ok {
-			if err := kernel.RemoveKernelAssets(); err != nil {
-				return err
-			}
+		if err := boot.Kernel(s, typ, nil, release.OnClassic).RemoveKernelAssets(); err != nil {
+			return err
 		}
 
 		// don't remove snap path if it existed before snap installation was attempted
