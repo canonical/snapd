@@ -78,6 +78,8 @@ execute: |
     lxd.lxc exec my-ubuntu -- mkdir -p "$GOHOME"
     lxd.lxc file push "$GOHOME"/snapd_*.deb "my-ubuntu/$GOHOME/"
     lxd.lxc exec my-ubuntu -- apt install -y "$GOHOME"/snapd_*.deb
+    echo "Ensure apparmor profile for snapd is generated"
+    lxd.lxc exec my-ubuntu -- apparmor_status | MATCH ' /usr/lib/snapd/snap-confine'
 
     echo "Setting up proxy *inside* the container"
     if [ -n "${http_proxy:-}" ]; then
