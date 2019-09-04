@@ -207,12 +207,20 @@ if [ "$STATIC" = 1 ]; then
     if ! command -v misspell >/dev/null; then
         go get -u github.com/client9/misspell/cmd/misspell
     fi
-    for file in *; do
-        if [ "$file" = "vendor" ] || [ "$file" = "po" ]; then
-            continue
-        fi
-        misspell -error -i auther,PROCES,PROCESSS,proces,processs,exportfs "$file"
-    done
+    # skip vendor, potfiles, autoconf/automake/libtool generated files (those
+    # contain a bunch of misspellings that are to common to ignore)
+    find . \
+         -path ./vendor -prune -o \
+         -path ./po -prune -o \
+         -path ./cmd/m4 -prune -o \
+         -path ./cmd/ltmain.sh -prune -o \
+         -path ./cmd/autom4te.cache -prune -o \
+         -path ./cmd/aclocal.m4 -prune -o \
+         -path './cmd/config.*' -prune -o \
+         -path ./cmd/configure -prune -o \
+         -path ./cmd/depcomp -prune -o \
+         -type f -print0 | \
+        xargs -0 misspell -i auther,PROCES,PROCESSS,proces,processs,exportfs
 
     echo Checking for ineffective assignments
     if ! command -v ineffassign >/dev/null; then
