@@ -142,19 +142,20 @@ func cToGoString(c []byte) string {
 	if end := bytes.IndexByte(c, 0); end >= 0 {
 		return string(c[:end])
 	}
-	// XXX: no trailing \0 - should we return "" here?
-	return string(c)
+	// no trailing \0 - return ""
+	return ""
 }
 
 // helper function to copy string into array and making sure it's terminated
 func copyString(b []byte, s string) {
-	copy(b[:], s)
 	sl := len(s)
 	bs := len(b)
-	if bs < sl {
-		b[bs-1] = 0
-	} else {
+	if bs > sl {
+		copy(b[:], s)
 		b[sl] = 0
+	} else {
+		copy(b[:bs-1], s)
+		b[bs-1] = 0
 	}
 }
 

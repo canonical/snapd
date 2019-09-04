@@ -87,8 +87,8 @@ func (l *lkenvTestSuite) TestCtoGoString(c *C) {
 		{[]byte{'a', 'b', 0, 0, 0}, "ab"},
 		{[]byte{'a', 'b', 'c', 0, 0}, "abc"},
 		{[]byte{'a', 'b', 'c', 'd', 0}, "abcd"},
-		// XXX: no trailing \0 - should this be "" ?
-		{[]byte{'a', 'b', 'c', 'd', 'e'}, "abcde"},
+		// no trailing \0 - assume corrupted "" ?
+		{[]byte{'a', 'b', 'c', 'd', 'e'}, ""},
 		// first \0 is the cutof
 		{[]byte{'a', 'b', 0, 'z', 0}, "ab"},
 	} {
@@ -108,6 +108,9 @@ func (l *lkenvTestSuite) TestCopyStringHappy(c *C) {
 		{"ab", []byte{'a', 'b', 0, 0, 0}},
 		{"abc", []byte{'a', 'b', 'c', 0, 0}},
 		{"abcd", []byte{'a', 'b', 'c', 'd', 0}},
+		// only what fit is copied
+		{"abcde", []byte{'a', 'b', 'c', 'd', 0}},
+		{"abcdef", []byte{'a', 'b', 'c', 'd', 0}},
 		// strange embedded stuff works
 		{"ab\000z", []byte{'a', 'b', 0, 'z', 0}},
 	} {
@@ -117,11 +120,13 @@ func (l *lkenvTestSuite) TestCopyStringHappy(c *C) {
 	}
 }
 
-// XXX: should we do something else here than crashing?
-func (l *lkenvTestSuite) TestCopyStringTooLong(c *C) {
-	// too long, can't fit the trailing \0
+func (l *lkenvTestSuite) TestCopyStringNoPanic(c *C) {
+	// too long, string should get concatenate
 	b := make([]byte, 5)
-	c.Assert(func() { lkenv.CopyString(b, "12345") }, PanicMatches, "runtime error: index out of range")
+	defer lkenv.CopyString(b, "12345")
+	c.Assert(recover(), IsNil)
+	defer lkenv.CopyString(b, "123456")
+	c.Assert(recover(), IsNil)
 }
 
 func (l *lkenvTestSuite) TestSaveNoBak(c *C) {
