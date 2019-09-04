@@ -678,6 +678,9 @@ func (f *fakeSnappyBackend) SetupSnap(snapFilePath, instanceName string, si *sna
 	if instanceName == "borken-in-setup" {
 		return snapType, nil, fmt.Errorf("cannot install snap %q", instanceName)
 	}
+	if instanceName == "some-snap-no-undo-context" {
+		return snapType, nil, nil
+	}
 	return snapType, &backend.InstallUndoContext{}, nil
 }
 
