@@ -149,7 +149,13 @@ func cToGoString(c []byte) string {
 // helper function to copy string into array and making sure it's terminated
 func copyString(b []byte, s string) {
 	copy(b[:], s)
-	b[len(s)] = 0
+	sl := len(s)
+	bs := len(b)
+	if bs < sl {
+		b[bs-1] = 0
+	} else {
+		b[sl] = 0
+	}
 }
 
 func NewEnv(path string) *Env {
