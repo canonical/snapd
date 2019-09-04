@@ -236,11 +236,21 @@ func (s *servicesTestSuite) TestCurrentSnapServiceStates(c *C) {
 		"svc2": true,
 	})
 
-	c.Assert(r.Calls(), DeepEquals, [][]string{
-		{"systemctl", "--root", s.tempdir, "is-enabled", filepath.Base(svc1File)},
-		{"systemctl", "--root", s.tempdir, "is-enabled", filepath.Base(svc2File)},
+	c.Assert(states, DeepEquals, map[string]bool{
+		"svc1": false,
+		"svc2": true,
 	})
 
+	for _, call := range r.Calls() {
+		c.Assert(call, HasLen, 5)
+		c.Assert(call[:4], DeepEquals, []string{"systemctl", "--root", s.tempdir, "is-enabled"})
+		switch call[4] {
+		case filepath.Base(svc1File):
+		case filepath.Base(svc2File):
+		default:
+			c.Errorf("unknown service for systemctl call: %s", call[4])
+		}
+	}
 }
 
 func (s *servicesTestSuite) TestStopServicesWithSockets(c *C) {
