@@ -20,6 +20,7 @@
 package main
 
 import (
+	"errors"
 	"fmt"
 	"strings"
 	"time"
@@ -46,6 +47,7 @@ model assertion.
 `)
 
 	invalidTypeMessage = i18n.G("invalid type for %q header")
+	devNotReadyMessage = i18n.G("device not ready yet (no assertions found)")
 
 	// this list is a "nice" "human" "readable" "ordering" of headers to print
 	// off, sorted in lexographical order with meta headers and primary key
@@ -72,6 +74,8 @@ model assertion.
 type cmdModel struct {
 	waitMixin
 	timeMixin
+	colorMixin
+
 	Serial    bool `long:"serial"`
 	Verbose   bool `long:"verbose"`
 	Assertion bool `long:"assertion"`
@@ -83,7 +87,7 @@ func init() {
 		longModelHelp,
 		func() flags.Commander {
 			return &cmdModel{}
-		}, timeDescs.also(waitDescs).also(map[string]string{
+		}, colorDescs.also(timeDescs).also(waitDescs).also(map[string]string{
 			"assertion": i18n.G("Print the raw assertion."),
 			"verbose":   i18n.G("Print all specific assertion fields."),
 			"serial": i18n.G(
@@ -94,25 +98,40 @@ func init() {
 }
 
 func (x *cmdModel) Execute(args []string) error {
-	var assertion asserts.Assertion
-	var err error
-	if x.Serial {
-		assertion, err = x.client.CurrentSerialAssertion()
-	} else {
-		assertion, err = x.client.CurrentModelAssertion()
-	}
+	var mainAssertion asserts.Assertion
+	serialAssertion, serialErr := x.client.CurrentSerialAssertion()
+	modelAssertion, modelErr := x.client.CurrentModelAssertion()
 
-	if err != nil {
-		if client.IsAssertionNotFoundError(err) {
+	// if we didn't get a model assertion bail early
+	if modelErr != nil {
+		if client.IsAssertionNotFoundError(modelErr) {
 			// device is not registered yet - use specific error message
-			err = fmt.Errorf(i18n.G("device not ready - no assertion found"))
+			modelErr = fmt.Errorf(devNotReadyMessage)
 		}
-		return err
+		return modelErr
 	}
 
-	// --assertion means output the raw assertion
+	// if the serial assertion error is anything other than not found, also
+	// bail early
+	// the serial assertion not being found may not be fatal
+	if serialErr != nil && !client.IsAssertionNotFoundError(serialErr) {
+		return serialErr
+	}
+
+	if x.Serial {
+		mainAssertion = serialAssertion
+	} else {
+		mainAssertion = modelAssertion
+	}
+
 	if x.Assertion {
-		_, err = Stdout.Write(asserts.Encode(assertion))
+		// if we are using the serial assertion and we specifically didn't find the
+		// serial assertion, bail with specific error
+		if x.Serial && client.IsAssertionNotFoundError(serialErr) {
+			return errors.New(devNotReadyMessage)
+		}
+
+		_, err := Stdout.Write(asserts.Encode(mainAssertion))
 		return err
 	}
 
@@ -125,19 +144,81 @@ func (x *cmdModel) Execute(args []string) error {
 
 	w := tabWriter()
 
+	if x.Serial && client.IsAssertionNotFoundError(serialErr) {
+		// for serial assertion, the primary keys are output (model and
+		// brand-id), but if we didn't find the serial assertion then we still
+		// output the brand-id and model from the model assertion, but also
+		// return a devNotReady error
+		fmt.Fprintf(w, "brand-id:\t%s\n", modelAssertion.HeaderString("brand-id"))
+		fmt.Fprintf(w, "model:\t%s\n", modelAssertion.HeaderString("model"))
+
+		return errors.New(devNotReadyMessage)
+	}
+
+	// the rest of this function is the main flow for outputting either the
+	// model or serial assertion in normal or verbose mode
+
 	// output the primary keys first in their canonical order
-	for _, headerName := range assertion.Type().PrimaryKey {
-		if headerName == "series" {
+	for _, headerName := range mainAssertion.Type().PrimaryKey {
+		switch headerName {
+		case "series":
 			// series can be obtained from "snap version"
 			// and given it is stuck at 16 is mainly confusing
-			continue
+		case "model":
+			if x.Serial {
+				fmt.Fprintf(w, "model:\t%s\n", mainAssertion.HeaderString("model"))
+				continue
+			}
+
+			// for the model command (not --serial) we want to conditionally
+			// use the display-name for the model if it exists (with the
+			// normal model header after the display-name)
+			modelHeader := modelAssertion.HeaderString("model")
+			if displayName, ok := modelAssertion.Headers()["display-name"]; ok {
+				displayNameStr, ok := displayName.(string)
+				if !ok {
+					return fmt.Errorf(invalidTypeMessage, "display-name")
+				}
+				modelHeader = fmt.Sprintf("%s (%s)", displayNameStr, modelHeader)
+			}
+			fmt.Fprintf(w, "model:\t%s\n", modelHeader)
+		case "brand-id":
+			brandID := mainAssertion.HeaderString("brand-id")
+			if x.Serial {
+				fmt.Fprintf(w, "brand-id:\t%s\n", brandID)
+				continue
+			}
+
+			// for the model command (not --serial) we want to output the
+			// "brand" instead of the "brand-id"
+			storeAccount, err := x.client.StoreAccount(brandID)
+			if err != nil {
+				return err
+			}
+			// use the longPublisher helper to format the brand store account
+			// like we do in `snap info`
+			fmt.Fprintf(w, "brand:\t%s\n", longPublisher(x.getEscapes(), storeAccount))
+		default:
+			fmt.Fprintf(w, "%s:\t%s\n", headerName, mainAssertion.HeaderString(headerName))
 		}
-		fmt.Fprintf(w, "%s:\t%s\n", headerName, assertion.HeaderString(headerName))
+	}
+
+	if !x.Serial {
+		// for the model command we also need to always add the serial, even if
+		// we don't have a serial assertion yet
+		var serial string
+		if client.IsAssertionNotFoundError(serialErr) {
+			// didn't get a serial assertion yet
+			serial = "- (device not registered yet)"
+		} else {
+			serial = serialAssertion.HeaderString("serial")
+		}
+		fmt.Fprintf(w, "serial:\t%s\n", serial)
 	}
 
 	// --verbose means output all of the fields
 	if x.Verbose {
-		allHeadersMap := assertion.Headers()
+		allHeadersMap := mainAssertion.Headers()
 
 		for _, headerName := range niceOrdering {
 			invalidTypeErr := fmt.Errorf(invalidTypeMessage, headerName)
