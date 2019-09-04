@@ -333,7 +333,7 @@ func ReadInfo(gadgetSnapRootDir string, classic bool) (*Info, error) {
 		case "grub", "u-boot", "android-boot", "lk":
 			bootloadersFound += 1
 		default:
-			return nil, errors.New("bootloader must be one of grub, u-boot or android-boot")
+			return nil, errors.New("bootloader must be one of grub, u-boot, android-boot or lk")
 		}
 	}
 	switch {
