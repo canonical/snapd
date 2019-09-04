@@ -3530,10 +3530,9 @@ func (s *snapmgrTestSuite) TestDisableSnapDisabledServicesSaved(c *C) {
 	c.Assert(disableChg.IsReady(), Equals, true)
 
 	// get the snap state
-	allsnaps, err := snapstate.All(s.state)
+	var snapst snapstate.SnapState
+	err = snapstate.Get(s.state, "services-snap", &snapst)
 	c.Assert(err, IsNil)
-	snapst, ok := allsnaps["services-snap"]
-	c.Assert(ok, Equals, true)
 
 	// make sure that the disabled services in this snap's state is what we
 	// provided
