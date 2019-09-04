@@ -40,9 +40,6 @@ type lk struct {
 // newLk create a new lk bootloader object
 func newLk() Bootloader {
 	e := &lk{}
-	if !osutil.FileExists(e.envFile()) {
-		return nil
-	}
 
 	// XXX: in the long run we want this to go away, we probably add
 	//      something like "boot.PrepareImage()" and add an (optional)
@@ -52,6 +49,10 @@ func newLk() Bootloader {
 	//
 	// determine mode we are in, runtime or image build
 	e.inRuntimeMode = (dirs.GlobalRootDir == "/")
+
+	if !osutil.FileExists(e.envFile()) {
+		return nil
+	}
 
 	return e
 }
