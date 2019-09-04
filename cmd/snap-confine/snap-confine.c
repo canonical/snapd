@@ -556,31 +556,35 @@ static void enter_classic_execution_environment(const sc_invocation * inv)
 	if (!sc_feature_enabled(SC_FEATURE_PARALLEL_INSTANCES)) {
 		return;
 	}
-	/* all of the following code is experimental */
+
+	/* all of the following code is experimental and part of parallel instances
+	 * of classic snaps support */
 
 	debug
 	    ("(experimental) unsharing the mount namespace (per-classic-snap)");
+
+	/* Construct a mount namespace where the snap instance directories are
+	 * visible under the regular snap name. In order to do that we will:
+	 *
+	 * - convert SNAP_MOUNT_DIR into a mount point (global init)
+	 * - convert /var/snap into a mount point (global init)
+	 * - always create a new mount namespace
+	 * - for parallel instances of classic snaps only:
+	 *   - set slave propagation on SNAP_MOUNT_DIR and /var/snap
+	 *   - mount SNAP_MOUNT_DIR/<snap>_<key> on top of SNAP_MOUNT_DIR/<snap>
+	 *   - mount /var/snap/<snap>_<key> on top of /var/snap/<snap>
+	 *
+	 * The destination directories /var/snap/<snap> and SNAP_MOUNT_DIR/<snap>
+	 * are guaranteed to exist and were created during installation of a given
+	 * instance.
+	 */
+
 	if (unshare(CLONE_NEWNS) < 0) {
 		die("cannot unshare the mount namespace for parallel installed classic snap");
 	}
 
 	/* Parallel installed classic snap get special handling */
 	if (!sc_streq(inv->snap_instance, inv->snap_name)) {
-		/* Construct a mount namespace where the snap instance directories are
-		 * visible under the regular snap name. In order to do that we will:
-		 *
-		 * - convert SNAP_MOUNT_DIR into a mount point (global init)
-		 * - convert /var/snap into a mount point (global init)
-		 * - create a new mount namespace (done earlier)
-		 * - set slave propagation SNAP_MOUNT_DIR and /var/snap
-		 * - mount SNAP_MOUNT_DIR/<snap>_<key> on top of SNAP_MOUNT_DIR/<snap>
-		 * - mount /var/snap/<snap>_<key> on top of /var/snap/<snap>
-		 *
-		 * The destination directories /var/snap/<snap> and SNAP_MOUNT_DIR/<snap>
-		 * are guaranteed to exist and were created during installation of a given
-		 * instance.
-		 */
-
 		debug
 		    ("(experimental) setting up environment for classic snap instance %s",
 		     inv->snap_instance);
