@@ -193,7 +193,7 @@ func (s *SquashfsTestSuite) TestInstallSeedNoLink(c *C) {
 	c.Check(osutil.IsSymlink(targetPath), Equals, true) // \o/
 }
 
-func (s *SquashfsTestSuite) TestInstallSymlinkExists(c *C) {
+func (s *SquashfsTestSuite) TestInstallNothingToDo(c *C) {
 	snap := makeSnap(c, "name: test2", "")
 
 	targetPath := filepath.Join(c.MkDir(), "foo.snap")
