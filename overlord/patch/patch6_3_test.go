@@ -100,7 +100,7 @@ var statePatch6_3JSON = []byte(`
 			],
 			"active": true,
 			"current": "3",
-			"channel": "latest/stable/branch"
+			"channel": "1.0/stable/branch"
 		  }
 		}
 	  },
@@ -270,9 +270,10 @@ func (s *patch63Suite) TestPatch63(c *C) {
 	})
 	// another transition
 	c.Check(all["one-prefix-slash"].Channel, Equals, "stable")
+	// normalized
+	c.Check(all["track-with-risk"].Channel, Equals, "stable")
 	// unchanged
-	c.Check(all["track-with-risk"].Channel, Equals, "latest/stable")
-	c.Check(all["track-with-risk-branch"].Channel, Equals, "latest/stable/branch")
+	c.Check(all["track-with-risk-branch"].Channel, Equals, "1.0/stable/branch")
 
 	// check tasks
 	task := st.Task("1")
