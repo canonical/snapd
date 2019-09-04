@@ -33,6 +33,7 @@ import (
 const SNAP_BOOTSELECT_VERSION = 0x00010001
 
 // const SNAP_BOOTSELECT_SIGNATURE ('S' | ('B' << 8) | ('s' << 16) | ('e' << 24))
+const SNAP_BOOTSELECT_SIGNATURE = 0x53 | 0x42<<8 | 0x73<<16 | 0x65<<24
 const SNAP_NAME_MAX_LEN = 256
 const SNAP_MODE_LENGTH = 8
 
@@ -156,6 +157,10 @@ func NewEnv(path string) *Env {
 	return &Env{
 		path:    path,
 		pathbak: path + "bak",
+		env: SnapBootSelect{
+			Signature: SNAP_BOOTSELECT_SIGNATURE,
+			Version:   SNAP_BOOTSELECT_VERSION,
+		},
 	}
 }
 
@@ -242,6 +247,9 @@ func (l *Env) LoadEnv(path string) error {
 	w.Grow(ss)
 	if err := binary.Write(w, binary.LittleEndian, &l.env); err != nil {
 		return fmt.Errorf("error writing lk environment to buffer for validation %v", err)
+	}
+	if l.env.Version != SNAP_BOOTSELECT_VERSION || l.env.Signature != SNAP_BOOTSELECT_SIGNATURE {
+		return fmt.Errorf("invalid version/signature check %s, got 0x%X expected 0x%X, got 0x%X expected 0x%X\n", path, l.env.Version, SNAP_BOOTSELECT_VERSION, l.env.Signature, SNAP_BOOTSELECT_SIGNATURE)
 	}
 
 	crc := crc32.ChecksumIEEE(w.Bytes()[:ss-4]) // size of crc32 itself at the end of the structure
