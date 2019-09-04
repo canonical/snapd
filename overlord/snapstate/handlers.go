@@ -804,16 +804,17 @@ func (m *SnapManager) doUnlinkCurrentSnap(t *state.Task, _ *tomb.Tomb) error {
 
 	snapst.Active = false
 
-	pb := NewTaskProgressAdapterLocked(t)
-
-	// save the disabled services for later
-	err = m.saveSnapDisabledServices(snapst, pb)
+	// save the disabled services for later - note since this requires calling
+	// out to systemd, we need to unlock the state
+	st.Unlock()
+	err = m.saveSnapDisabledServices(snapst, NewTaskProgressAdapterUnlocked(t))
+	st.Lock()
 	if err != nil {
 		return err
 	}
 
 	// do the final unlink
-	err = m.backend.UnlinkSnap(oldInfo, pb)
+	err = m.backend.UnlinkSnap(oldInfo, NewTaskProgressAdapterLocked(t))
 	if err != nil {
 		return err
 	}
@@ -1368,14 +1369,14 @@ func (m *SnapManager) undoLinkSnap(t *state.Task, _ *tomb.Tomb) error {
 		return err
 	}
 
-	pb := NewTaskProgressAdapterLocked(t)
-
 	// if we have more revisions of this snap available, then restore the
 	// revision config and save the disabled services (which are restored when
 	// we go to link another snap)
 	if len(snapst.Sequence) > 0 {
 		// save the disabled services for later
-		err = m.saveSnapDisabledServices(snapst, pb)
+		st.Unlock()
+		err = m.saveSnapDisabledServices(snapst, NewTaskProgressAdapterUnlocked(t))
+		st.Lock()
 		if err != nil {
 			return err
 		}
@@ -1385,7 +1386,7 @@ func (m *SnapManager) undoLinkSnap(t *state.Task, _ *tomb.Tomb) error {
 		}
 	}
 
-	err = m.backend.UnlinkSnap(newInfo, pb)
+	err = m.backend.UnlinkSnap(newInfo, NewTaskProgressAdapterLocked(t))
 	if err != nil {
 		return err
 	}
@@ -1554,16 +1555,16 @@ func (m *SnapManager) doUnlinkSnap(t *state.Task, _ *tomb.Tomb) error {
 		return err
 	}
 
-	pb := NewTaskProgressAdapterLocked(t)
-
 	// save the disabled services for later
-	err = m.saveSnapDisabledServices(snapst, pb)
+	st.Unlock()
+	err = m.saveSnapDisabledServices(snapst, NewTaskProgressAdapterUnlocked(t))
+	st.Lock()
 	if err != nil {
 		return err
 	}
 
 	// do the final unlink
-	err = m.backend.UnlinkSnap(info, pb)
+	err = m.backend.UnlinkSnap(info, NewTaskProgressAdapterLocked(t))
 	if err != nil {
 		return err
 	}
