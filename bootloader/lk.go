@@ -145,7 +145,8 @@ func (l *lk) ExtractKernelAssets(s snap.PlaceInfo, snapf snap.Container) error {
 	if l.inRuntimeMode {
 		logger.Debugf("ExtractKernelAssets handling run time usecase")
 		// this is live system, extracted bootimg needs to be flashed to
-		// free bootimg partition and env has be updated boot slop mapping
+		// free bootimg partition and env has to be updated with
+		// new kernel snap to bootimg partition mapping
 		tmpdir, err := ioutil.TempDir("", "bootimg")
 		if err != nil {
 			return fmt.Errorf("Failed to create tmp directory %v", err)
