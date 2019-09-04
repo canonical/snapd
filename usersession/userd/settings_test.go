@@ -50,28 +50,58 @@ func (s *settingsSuite) SetUpTest(c *C) {
 
 	s.settings = &userd.Settings{}
 	s.mockXdgSettings = testutil.MockCommand(c, "xdg-settings", `
-if [ "$1" = "get" ] && [ "$2" = "default-web-browser" ];  then
-  echo "some-snap_foo.desktop"
-elif [ "$1" = "get" ] && [ "$2" = "default-url-scheme-handler" ] && [ "$3" = "irc" ];  then
-  echo "some-snap_ircclient.desktop"
-elif [ "$1" = "check" ] && [ "$2" = "default-web-browser" ] && [ "$3" = "some-snap_foo.desktop" ];  then
-  echo yes
-elif [ "$1" = "check" ] && [ "$2" = "default-url-scheme-handler" ] && [ "$3" = "irc" ] && [ "$4" = "some-snap_ircclient.desktop" ];  then
-  echo yes
-elif [ "$1" = "check" ] && [ "$2" = "default-web-browser" ];  then
-  echo no
-elif [ "$1" = "check" ] && [ "$2" = "default-url-scheme-handler" ];  then
-  echo no
-elif [ "$1" = "set" ] && [ "$2" = "default-web-browser" ]; then
-  # nothing to do
-  exit 0
-elif [ "$1" = "set" ] && [ "$2" = "default-url-scheme-handler" ]; then
-  # nothing to do
-  exit 0
-else
-  echo "mock called with unsupported arguments $*"
-  exit 1
-fi
+case "$1" in
+    get)
+        case "$2" in
+            default-web-browser)
+                echo "some-snap_foo.desktop"
+                ;;
+            default-url-scheme-handler)
+                echo "some-snap_ircclient.desktop"
+                ;;
+            *)
+                echo "mock called with unsupported arguments: $*"
+                exit 1
+                ;;
+        esac
+        ;;
+    set)
+        case "$2" in
+            default-web-browser)
+                # nothing to do
+                ;;
+            default-url-scheme-handler)
+                # nothing to do
+                ;;
+            *)
+                echo "mock called with unsupported arguments: $*"
+                exit 1
+                ;;
+        esac
+        ;;
+    check)
+        case "$2" in
+            default-web-browser)
+                if [ "$3" = "some-snap_foo.desktop" ]; then
+                    echo "yes"
+                else
+                    echo "no"
+                fi
+                ;;
+            default-url-scheme-handler)
+                if [ "$3" = "irc" ] && [ "$4" = "some-snap_ircclient.desktop" ]; then
+                    echo "yes"
+                else
+                    echo "no"
+                fi
+                ;;
+        esac
+        ;;
+    *)
+        echo "mock called with unsupported argument: $1"
+        exit 1
+        ;;
+esac
 `)
 }
 
