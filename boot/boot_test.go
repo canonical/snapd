@@ -198,31 +198,25 @@ func (s *bootSetSuite) TestCurrentBootNameAndRevisionUnhappy(c *C) {
 	c.Check(err, ErrorMatches, "cannot get boot settings: broken bootloader")
 }
 
-func (s *bootSetSuite) TestLookup(c *C) {
+func (s *bootSetSuite) TestParticipant(c *C) {
 	info := &snap.Info{}
 	info.RealName = "some-snap"
 
-	bp, applicable := boot.Lookup(info, snap.TypeApp, nil, false)
-	c.Check(bp, IsNil)
-	c.Check(applicable, Equals, false)
+	bp := boot.Participant(info, snap.TypeApp, nil, false)
+	c.Check(bp.IsTrivial(), Equals, true)
 
 	for _, typ := range []snap.Type{
 		snap.TypeKernel,
 		snap.TypeOS,
 		snap.TypeBase,
 	} {
-		bp, applicable = boot.Lookup(info, typ, nil, true)
-		c.Check(bp, IsNil)
-		c.Check(applicable, Equals, false)
+		bp = boot.Participant(info, typ, nil, true)
+		c.Check(bp.IsTrivial(), Equals, true)
 
-		bp, applicable = boot.Lookup(info, typ, nil, false)
-		c.Check(applicable, Equals, true)
+		bp = boot.Participant(info, typ, nil, false)
+		c.Check(bp.IsTrivial(), Equals, false)
 
-		if typ == snap.TypeKernel {
-			c.Check(bp, DeepEquals, boot.NewCoreKernel(info))
-		} else {
-			c.Check(bp, DeepEquals, boot.NewCoreBootParticipant(info, typ))
-		}
+		c.Check(bp, DeepEquals, boot.NewCoreBootParticipant(info, typ))
 	}
 }
 
@@ -230,98 +224,95 @@ type mockModel string
 
 func (s mockModel) Kernel() string { return string(s) }
 func (s mockModel) Base() string   { return string(s) }
+func (s mockModel) Classic() bool  { return s == "" }
 
-func (s *bootSetSuite) TestLookupBaseWithModel(c *C) {
+func (s *bootSetSuite) TestParticipantBaseWithModel(c *C) {
 	core := &snap.Info{SideInfo: snap.SideInfo{RealName: "core"}, SnapType: snap.TypeOS}
 	core18 := &snap.Info{SideInfo: snap.SideInfo{RealName: "core18"}, SnapType: snap.TypeBase}
 
 	type tableT struct {
-		with       *snap.Info
-		model      mockModel
-		applicable bool
+		with  *snap.Info
+		model mockModel
+		nop   bool
 	}
 
 	table := []tableT{
 		{
-			with:       core,
-			model:      "",
-			applicable: true,
+			with:  core,
+			model: "",
+			nop:   false,
 		}, {
-			with:       core,
-			model:      "core",
-			applicable: true,
+			with:  core,
+			model: "core",
+			nop:   false,
 		}, {
-			with:       core,
-			model:      "core18",
-			applicable: false,
+			with:  core,
+			model: "core18",
+			nop:   true,
 		},
 		{
-			with:       core18,
-			model:      "",
-			applicable: false,
+			with:  core18,
+			model: "",
+			nop:   true,
 		},
 		{
-			with:       core18,
-			model:      "core",
-			applicable: false,
+			with:  core18,
+			model: "core",
+			nop:   true,
 		},
 		{
-			with:       core18,
-			model:      "core18",
-			applicable: true,
+			with:  core18,
+			model: "core18",
+			nop:   false,
 		},
 	}
 
 	for i, t := range table {
-		bp, applicable := boot.Lookup(t.with, t.with.GetType(), t.model, true)
-		c.Check(applicable, Equals, false)
-		c.Check(bp, IsNil)
+		bp := boot.Participant(t.with, t.with.GetType(), t.model, true)
+		c.Check(bp.IsTrivial(), Equals, true)
 
-		bp, applicable = boot.Lookup(t.with, t.with.GetType(), t.model, false)
-		c.Check(applicable, Equals, t.applicable, Commentf("%d", i))
-		if t.applicable {
+		bp = boot.Participant(t.with, t.with.GetType(), t.model, false)
+		c.Check(bp.IsTrivial(), Equals, t.nop, Commentf("%d", i))
+		if !t.nop {
 			c.Check(bp, DeepEquals, boot.NewCoreBootParticipant(t.with, t.with.GetType()))
-		} else {
-			c.Check(bp, IsNil)
 		}
 	}
 }
 
-func (s *bootSetSuite) TestLookupKernelWithModel(c *C) {
+func (s *bootSetSuite) TestKernelWithModel(c *C) {
 	info := &snap.Info{}
 	info.RealName = "kernel"
-	expectedbp := boot.NewCoreKernel(info)
+	expected := boot.NewCoreKernel(info)
 
 	type tableT struct {
-		model      mockModel
-		applicable bool
-		bp         boot.BootParticipant
+		model mockModel
+		nop   bool
+		krn   boot.BootKernel
 	}
 
 	table := []tableT{
 		{
-			model:      "other-kernel",
-			applicable: false,
-			bp:         nil,
+			model: "other-kernel",
+			nop:   true,
+			krn:   boot.Trivial{},
 		}, {
-			model:      "kernel",
-			applicable: true,
-			bp:         expectedbp,
+			model: "kernel",
+			nop:   false,
+			krn:   expected,
 		}, {
-			model:      "",
-			applicable: false,
-			bp:         nil,
+			model: "",
+			nop:   true,
+			krn:   boot.Trivial{},
 		},
 	}
 
 	for _, t := range table {
-		bp, applicable := boot.Lookup(info, snap.TypeKernel, t.model, true)
-		c.Check(applicable, Equals, false)
-		c.Check(bp, IsNil)
+		krn := boot.Kernel(info, snap.TypeKernel, t.model, true)
+		c.Check(krn.IsTrivial(), Equals, true)
 
-		bp, applicable = boot.Lookup(info, snap.TypeKernel, t.model, false)
-		c.Check(applicable, Equals, t.applicable)
-		c.Check(bp, DeepEquals, t.bp)
+		krn = boot.Kernel(info, snap.TypeKernel, t.model, false)
+		c.Check(krn.IsTrivial(), Equals, t.nop)
+		c.Check(krn, DeepEquals, t.krn)
 	}
 }
 

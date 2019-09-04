@@ -146,7 +146,7 @@ func (s *coreBootSetSuite) TestSetNextBootForKernel(c *C) {
 	info.RealName = "krnl"
 	info.Revision = snap.R(42)
 
-	bp := boot.NewCoreKernel(info)
+	bp := boot.NewCoreBootParticipant(info, snap.TypeKernel)
 	err := bp.SetNextBoot()
 	c.Assert(err, IsNil)
 
@@ -178,7 +178,7 @@ func (s *coreBootSetSuite) TestSetNextBootForKernelForTheSameKernel(c *C) {
 	bootVars := map[string]string{"snap_kernel": "krnl_40.snap"}
 	s.bootloader.SetBootVars(bootVars)
 
-	err := boot.NewCoreKernel(info).SetNextBoot()
+	err := boot.NewCoreBootParticipant(info, snap.TypeKernel).SetNextBoot()
 	c.Assert(err, IsNil)
 
 	v, err := s.bootloader.GetBootVars("snap_kernel")
@@ -200,7 +200,7 @@ func (s *coreBootSetSuite) TestSetNextBootForKernelForTheSameKernelTryMode(c *C)
 		"snap_mode":       "try"}
 	s.bootloader.SetBootVars(bootVars)
 
-	err := boot.NewCoreKernel(info).SetNextBoot()
+	err := boot.NewCoreBootParticipant(info, snap.TypeKernel).SetNextBoot()
 	c.Assert(err, IsNil)
 
 	v, err := s.bootloader.GetBootVars("snap_kernel", "snap_try_kernel", "snap_mode")
