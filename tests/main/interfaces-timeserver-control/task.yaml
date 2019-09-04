@@ -7,8 +7,7 @@ details: |
 # Debian sid is skipped because "timedatectl set-ntp" fails with the error:
 # "Failed to set ntp: Message recipient disconnected from message bus without replying"
 # A workaround is to make "systemctl enable --now systemd-timesyncd.service" instead
-# FIXME: re-enable ubuntu-19.10 after stabelizing it
-systems: [-debian-sid-*, -ubuntu-19.10-*]
+systems: [-debian-sid-*]
 
 prepare: |
     # shellcheck source=tests/lib/snaps.sh
@@ -16,6 +15,13 @@ prepare: |
 
     # Install a snap declaring a plug on timeserver-control
     install_local test-snapd-timedate-control-consumer
+
+    if [[ "$SPREAD_SYSTEM" == ubuntu-19.10-* ]]; then
+        # ensure chrony is not installed as it interferes with
+        # the systemd-timesyncd.service
+        apt remove -y chrony
+        systemctl restart systemd-timesyncd.service
+    fi
 
 restore: |
     # Restore the initial timeserver
