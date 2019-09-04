@@ -240,7 +240,7 @@ func (l *Env) Load() error {
 func (l *Env) LoadEnv(path string) error {
 	f, err := os.Open(path)
 	if err != nil {
-		return fmt.Errorf("cannot open LK environment file: %v", err)
+		return fmt.Errorf("cannot open lk environment file: %v", err)
 	}
 
 	defer f.Close()
