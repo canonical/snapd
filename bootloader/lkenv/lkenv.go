@@ -92,7 +92,7 @@ type SnapBootSelect struct {
 			 - boot partition labels are never modified by snapd at run time
 	 bootloader:
 			 - Finds boot partition to use based on info in matrix and snap_kernel / snap_try_kernel
-			 - bootloaer does not alter matrix, only alters snap_mode
+			 - bootloader does not alter matrix, only alters snap_mode
 
 	 [ <bootimg 1 part label> ] [ <currently installed kernel snap revison> ]
 	 [ <bootimg 2 part label> ] [ <currently installed kernel snap revision> ]
@@ -244,7 +244,7 @@ func (l *Env) LoadEnv(path string) error {
 
 	defer f.Close()
 	if err := binary.Read(f, binary.LittleEndian, &l.env); err != nil {
-		return fmt.Errorf("error reading lk environment from file %v", err)
+		return fmt.Errorf("cannot read lk environment from file %v", err)
 	}
 
 	// calculate crc32 to validate structure
@@ -252,15 +252,15 @@ func (l *Env) LoadEnv(path string) error {
 	ss := binary.Size(l.env)
 	w.Grow(ss)
 	if err := binary.Write(w, binary.LittleEndian, &l.env); err != nil {
-		return fmt.Errorf("error writing lk environment to buffer for validation %v", err)
+		return fmt.Errorf("cannot write lk environment to buffer for validation %v", err)
 	}
 	if l.env.Version != SNAP_BOOTSELECT_VERSION || l.env.Signature != SNAP_BOOTSELECT_SIGNATURE {
-		return fmt.Errorf("invalid version/signature check %s, got 0x%X expected 0x%X, got 0x%X expected 0x%X\n", path, l.env.Version, SNAP_BOOTSELECT_VERSION, l.env.Signature, SNAP_BOOTSELECT_SIGNATURE)
+		return fmt.Errorf("cannot validate version/signature for %s, got 0x%X expected 0x%X, got 0x%X expected 0x%X\n", path, l.env.Version, SNAP_BOOTSELECT_VERSION, l.env.Signature, SNAP_BOOTSELECT_SIGNATURE)
 	}
 
 	crc := crc32.ChecksumIEEE(w.Bytes()[:ss-4]) // size of crc32 itself at the end of the structure
 	if crc != l.env.Crc32 {
-		return fmt.Errorf("invalid environment checksum %s, got 0x%X expected 0x%X\n", path, crc, l.env.Crc32)
+		return fmt.Errorf("cannot validate environment checksum %s, got 0x%X expected 0x%X\n", path, crc, l.env.Crc32)
 	}
 	logger.Debugf("Load: validated crc32 (0x%X)", l.env.Crc32)
 	return nil
@@ -272,7 +272,7 @@ func (l *Env) Save() error {
 	ss := binary.Size(l.env)
 	w.Grow(ss)
 	if err := binary.Write(w, binary.LittleEndian, &l.env); err != nil {
-		return fmt.Errorf("error writing lk environment to buffer for saving %v", err)
+		return fmt.Errorf("cannot write lk environment to buffer for saving %v", err)
 	}
 	// calculate crc32
 	l.env.Crc32 = crc32.ChecksumIEEE(w.Bytes()[:ss-4])
@@ -296,15 +296,15 @@ func (l *Env) Save() error {
 func (l *Env) SaveEnv(path string, buf *bytes.Buffer) error {
 	f, err := os.OpenFile(path, os.O_WRONLY, 0660)
 	if err != nil {
-		return fmt.Errorf("error opening lk env file for env storing %v", err)
+		return fmt.Errorf("cannot open lk env file for env storing %v", err)
 	}
 	defer f.Close()
 
 	if _, err := f.Write(buf.Bytes()); err != nil {
-		return fmt.Errorf("error writing lk env buf to lk env file %v", err)
+		return fmt.Errorf("cannot write lk env buf to lk env file %v", err)
 	}
 	if err := f.Sync(); err != nil {
-		return fmt.Errorf("error syncying lk environment file %v", err)
+		return fmt.Errorf("cannot sync lk environment file %v", err)
 	}
 	return nil
 }
