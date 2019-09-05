@@ -567,9 +567,11 @@ prepare_suite_each() {
             ;;
     esac
 
-    # shellcheck source=tests/lib/pkgdb.sh
-    . "$TESTSLIB"/pkgdb.sh
-    distro_list_packages "$RUNTIME_STATE_PATH/package-selection"
+    if is_classic_system; then
+        # shellcheck source=tests/lib/pkgdb.sh
+        . "$TESTSLIB"/pkgdb.sh
+        distro_list_packages "$RUNTIME_STATE_PATH/package-selection"
+    fi
 }
 
 restore_suite_each() {
