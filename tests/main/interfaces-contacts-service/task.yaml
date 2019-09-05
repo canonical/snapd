@@ -48,7 +48,7 @@ execute: |
     mkdir -p "$XDG_CONFIG_HOME" "$XDG_DATA_HOME" "$XDG_CACHE_HOME"
 
     echo "Setting up D-Bus session bus in a systemd unit"
-    systemd-run --unit=dbus-session --property=Type=forking -E "$(env | tr '\n' ' ')"  -r /bin/sh -c 'dbus-launch --sh-syntax > /tmp/dbus-sh'
+    systemd-run --unit=dbus-session --property=Type=forking -r /bin/sh -c "XDG_CONFIG_HOME=$XDG_CONFIG_HOME XDG_DATA_HOME=$XDG_DATA_HOME XDG_CACHE_HOME=$XDG_CACHE_HOME dbus-launch --sh-syntax > /tmp/dbus-sh"
     for _ in $(seq 20); do
         if test -e /tmp/dbus-sh; then
             break
