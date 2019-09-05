@@ -510,11 +510,7 @@ install_snap_profiler(){
     echo "install snaps profiler"
 
     if [ "$PROFILE_SNAPS" = 1 ]; then
-        profiler_snap=test-snapd-profiler
-        if is_core18_system; then
-            profiler_snap=test-snapd-profiler-core18
-        fi
-
+        profiler_snap="$(get_snap_for_system test-snapd-profiler)"
         rm -f "/var/snap/${profiler_snap}/common/profiler.log"
         snap install "${profiler_snap}"
         snap connect "${profiler_snap}":system-observe
@@ -572,10 +568,7 @@ restore_suite_each() {
         logs_id=$(find "$logs_dir" -maxdepth 1 -name '*.journal.log' | wc -l)
         logs_file=$(echo "${logs_id}_${SPREAD_JOB}" | tr '/' '_' | tr ':' '__')
 
-        profiler_snap=test-snapd-profiler
-        if is_core18_system; then
-            profiler_snap=test-snapd-profiler-core18
-        fi
+        profiler_snap="$(get_snap_for_system test-snapd-profiler)"
 
         mkdir -p "$logs_dir"
         if [ -e "/var/snap/${profiler_snap}/common/profiler.log" ]; then
