@@ -480,8 +480,15 @@ func checkGadgetOrKernel(st *state.State, snapInfo, curInfo *snap.Info, flags Fl
 
 	currentSnap, err := infoForDeviceSnap(st, deviceCtx, kind, whichName)
 	if err == state.ErrNoState {
-		// TODO: remodeling logic
-		return fmt.Errorf("internal error: cannot remodel kernel/gadget yet")
+		// check if we are in the remodel case
+		if deviceCtx != nil && deviceCtx.ForRemodeling() {
+			model := deviceCtx.Model()
+			if model.Kernel() == snapInfo.InstanceName() {
+				return nil
+			}
+		}
+
+		return fmt.Errorf("internal error: cannot remodel gadget yet")
 	}
 	if err != nil {
 		return fmt.Errorf("cannot find original %s snap: %v", kind, err)
@@ -489,13 +496,6 @@ func checkGadgetOrKernel(st *state.State, snapInfo, curInfo *snap.Info, flags Fl
 
 	if currentSnap.SnapID != "" && snapInfo.SnapID == "" {
 		return fmt.Errorf("cannot replace signed %s snap with an unasserted one", kind)
-	}
-
-	if deviceCtx != nil && deviceCtx.ForRemodeling() {
-		model := deviceCtx.Model()
-		if model.Kernel() == snapInfo.InstanceName() {
-			return nil
-		}
 	}
 
 	if currentSnap.SnapID != "" && snapInfo.SnapID != "" {

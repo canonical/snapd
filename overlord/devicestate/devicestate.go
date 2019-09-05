@@ -338,7 +338,7 @@ func remodelTasks(ctx context.Context, st *state.State, current, new *asserts.Mo
 		//  2. remodel back to "old-kernel"
 		// In step (2) we will get a "already-installed" error
 		// here right now (workaround: remove "old-kernel")
-		ts, err := snapstateInstallWithDeviceContext(st, new.Kernel(), nil, userID, snapstate.Flags{}, deviceCtx)
+		ts, err := snapstateInstallWithDeviceContext(ctx, st, new.Kernel(), &snapstate.RevisionOptions{Channel: new.KernelTrack()}, userID, snapstate.Flags{}, deviceCtx, fromChange)
 		if err != nil {
 			return nil, err
 		}

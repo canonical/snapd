@@ -3499,8 +3499,8 @@ version: 2.0`
 }
 
 func (ms *mgrsSuite) TestRemodelSwitchToDifferentKernel(c *C) {
-	loader := boottest.NewMockBootloader("mock", c.MkDir())
-	bootloader.Force(loader)
+	bloader := bootloadertest.Mock("mock", c.MkDir())
+	bootloader.Force(bloader)
 	defer bootloader.Force(nil)
 
 	restore := release.MockOnClassic(false)
@@ -3519,6 +3519,11 @@ func (ms *mgrsSuite) TestRemodelSwitchToDifferentKernel(c *C) {
 		Sequence: []*snap.SideInfo{si},
 		Current:  snap.R(1),
 		SnapType: "kernel",
+	})
+	bloader.SetBootVars(map[string]string{
+		"snap_mode":   "",
+		"snap_core":   "core_1.snap",
+		"snap_kernel": "pc-kernel_1.snap",
 	})
 	si2 := &snap.SideInfo{RealName: "pc", SnapID: fakeSnapID("pc"), Revision: snap.R(1)}
 	gadgetSnapYaml := "name: pc\nversion: 1.0\ntype: gadget"
