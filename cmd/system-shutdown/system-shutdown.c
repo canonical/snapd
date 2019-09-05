@@ -46,7 +46,7 @@ static void show_error(const char *fmt, va_list ap, int errno_copy)
 	fprintf(stderr, "\n");
 }
 
-static void sync_and_reboot(void)
+static void sync_and_halt(void)
 {
 	sync();
 	reboot(RB_HALT_SYSTEM);
@@ -55,7 +55,7 @@ static void sync_and_reboot(void)
 int main(int argc, char *argv[])
 {
 	sc_set_panic_msg_fn(show_error);
-	sc_set_panic_exit_fn(sync_and_reboot);
+	sc_set_panic_exit_fn(sync_and_halt);
 
 	// 256 should be more than enough...
 	char reboot_arg[256] = { 0 };
