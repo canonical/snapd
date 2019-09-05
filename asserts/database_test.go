@@ -1139,6 +1139,105 @@ func (safs *signAddFindSuite) TestFindMaxFormat(c *C) {
 	c.Check(err, ErrorMatches, `cannot find "test-only" assertions for format 3 higher than supported format 1`)
 }
 
+func (safs *signAddFindSuite) TestWithStackedBackstore(c *C) {
+	headers := map[string]interface{}{
+		"authority-id": "canonical",
+		"primary-key":  "one",
+	}
+	a1, err := safs.signingDB.Sign(asserts.TestOnlyType, headers, nil, safs.signingKeyID)
+	c.Assert(err, IsNil)
+
+	err = safs.db.Add(a1)
+	c.Assert(err, IsNil)
+
+	headers = map[string]interface{}{
+		"authority-id": "canonical",
+		"primary-key":  "two",
+	}
+	a2, err := safs.signingDB.Sign(asserts.TestOnlyType, headers, nil, safs.signingKeyID)
+	c.Assert(err, IsNil)
+
+	bs := asserts.NewMemoryBackstore()
+	stacked := safs.db.WithStackedBackstore(bs)
+
+	err = stacked.Add(a2)
+	c.Assert(err, IsNil)
+
+	_, err = stacked.Find(asserts.TestOnlyType, map[string]string{
+		"primary-key": "one",
+	})
+	c.Check(err, IsNil)
+
+	_, err = stacked.Find(asserts.TestOnlyType, map[string]string{
+		"primary-key": "two",
+	})
+	c.Check(err, IsNil)
+
+	_, err = safs.db.Find(asserts.TestOnlyType, map[string]string{
+		"primary-key": "two",
+	})
+	c.Check(asserts.IsNotFound(err), Equals, true)
+
+	_, err = stacked.Find(asserts.AccountKeyType, map[string]string{
+		"public-key-sha3-384": safs.signingKeyID,
+	})
+	c.Check(err, IsNil)
+
+	// stored in backstore
+	_, err = bs.Get(asserts.TestOnlyType, []string{"two"}, 0)
+	c.Check(err, IsNil)
+}
+
+func (safs *signAddFindSuite) TestWithStackedBackstoreSafety(c *C) {
+	stacked := safs.db.WithStackedBackstore(asserts.NewMemoryBackstore())
+
+	// usual add safety
+	pubKey0, err := safs.signingDB.PublicKey(safs.signingKeyID)
+	c.Assert(err, IsNil)
+	pubKey0Encoded, err := asserts.EncodePublicKey(pubKey0)
+	c.Assert(err, IsNil)
+
+	now := time.Now().UTC()
+	headers := map[string]interface{}{
+		"authority-id":        "canonical",
+		"account-id":          "canonical",
+		"public-key-sha3-384": safs.signingKeyID,
+		"name":                "default",
+		"since":               now.Format(time.RFC3339),
+		"until":               now.AddDate(1, 0, 0).Format(time.RFC3339),
+	}
+	tKey, err := safs.signingDB.Sign(asserts.AccountKeyType, headers, []byte(pubKey0Encoded), safs.signingKeyID)
+	c.Assert(err, IsNil)
+
+	err = stacked.Add(tKey)
+	c.Check(err, ErrorMatches, `cannot add "account-key" assertion with primary key clashing with a trusted assertion: .*`)
+
+	// cannot go back to old revisions
+	headers = map[string]interface{}{
+		"authority-id": "canonical",
+		"primary-key":  "one",
+	}
+	a0, err := safs.signingDB.Sign(asserts.TestOnlyType, headers, nil, safs.signingKeyID)
+	c.Assert(err, IsNil)
+
+	headers = map[string]interface{}{
+		"authority-id": "canonical",
+		"primary-key":  "one",
+		"revision":     "1",
+	}
+	a1, err := safs.signingDB.Sign(asserts.TestOnlyType, headers, nil, safs.signingKeyID)
+	c.Assert(err, IsNil)
+
+	err = safs.db.Add(a1)
+	c.Assert(err, IsNil)
+
+	err = stacked.Add(a0)
+	c.Assert(err, DeepEquals, &asserts.RevisionError{
+		Used:    0,
+		Current: 1,
+	})
+}
+
 type revisionErrorSuite struct{}
 
 func (res *revisionErrorSuite) TestErrorText(c *C) {

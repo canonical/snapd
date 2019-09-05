@@ -24,13 +24,11 @@ restore: |
     for f in /var/lib/extrausers/*; do
         sed -i '/^alice:/d' "$f"
     done
+    snap remove "$TSNAP"
 
 execute: |
-    #shellcheck source=tests/lib/dirs.sh
-    . "$TESTSLIB"/dirs.sh
-
-    "$SNAP_MOUNT_DIR"/bin/"$TSNAP".useradd --extrausers alice
-    echo alice:password | "$SNAP_MOUNT_DIR"/bin/"$TSNAP".chpasswd
+    snap run "$TSNAP".useradd --extrausers alice
+    echo alice:password | snap run "$TSNAP".chpasswd
 
     # User deletion is unsupported yet on Core: https://bugs.launchpad.net/ubuntu/+source/shadow/+bug/1659534
-    # $SNAP_MOUNT_DIR/bin/"$TSNAP".userdel --extrausers alice
+    # snap run $TSNAP".userdel --extrausers alice

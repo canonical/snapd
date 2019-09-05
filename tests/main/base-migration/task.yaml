@@ -10,8 +10,13 @@ execute: |
   # snap runs on top of the core16 runtime environment. This can be seen by
   # looking at the os-release file which will match that of ubuntu core 16.
   snap install --dangerous test-snapd-core-migration_1_all.snap
-  test-snapd-core-migration.sh -c "cat /usr/lib/os-release" | MATCH 'VERSION_ID="16"'
+  su test -c 'snap run test-snapd-core-migration.sh -c "cat /usr/lib/os-release"' | MATCH 'VERSION_ID="16"'
+
+  # The mount namespace information file is owned by root.root and has mode 0644
+  # even though the user invoking the snap command was non-root.
   MATCH 'base-snap-name=core' < /run/snapd/ns/snap.test-snapd-core-migration.info
+  test "$(stat -c '%u.%g' /run/snapd/ns/snap.test-snapd-core-migration.info)" = 0.0
+  test "$(stat -c '%a'    /run/snapd/ns/snap.test-snapd-core-migration.info)" = 644
 
   # When said snap is refreshed to use "base: core18" then, because there are
   # no active processes in that snap, the base will change correctly to core18.
@@ -49,4 +54,7 @@ execute: |
 
 restore: |
 
+  if snap list test-snapd-core-migration; then
+    snap remove test-snapd-core-migration
+  fi
   rm -f test-snapd-core-migration_{1,2}_all.snap

@@ -54,6 +54,7 @@ var piConfigKeys = map[string]bool{
 	"sdtv_aspect":              true,
 	"config_hdmi_boost":        true,
 	"hdmi_force_hotplug":       true,
+	"start_x":                  true,
 }
 
 func init() {

@@ -69,13 +69,6 @@ func (s *Unity7InterfaceSuite) TestName(c *C) {
 
 func (s *Unity7InterfaceSuite) TestSanitizeSlot(c *C) {
 	c.Assert(interfaces.BeforePrepareSlot(s.iface, s.slotInfo), IsNil)
-	slot := &snap.SlotInfo{
-		Snap:      &snap.Info{SuggestedName: "some-snap"},
-		Name:      "unity7",
-		Interface: "unity7",
-	}
-	c.Assert(interfaces.BeforePrepareSlot(s.iface, slot), ErrorMatches,
-		"unity7 slots are reserved for the core snap")
 }
 
 func (s *Unity7InterfaceSuite) TestSanitizePlug(c *C) {

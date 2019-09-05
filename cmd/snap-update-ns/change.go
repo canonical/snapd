@@ -392,6 +392,7 @@ func (c *Change) lowLevelPerform(as *Assumptions) error {
 		}
 		return err
 	case Keep:
+		as.AddChange(c)
 		return nil
 	}
 	return fmt.Errorf("cannot process mount change: unknown action: %q", c.Action)
