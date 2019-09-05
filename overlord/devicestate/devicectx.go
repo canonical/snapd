@@ -42,11 +42,11 @@ func DeviceCtx(st *state.State, task *state.Task, providedDeviceCtx snapstate.De
 	if err != nil && err != state.ErrNoState {
 		return nil, err
 	}
-	modelAssert, err := findModel(st)
+	modelAs, err := findModel(st)
 	if err != nil {
 		return nil, err
 	}
-	return modelDeviceContext{model: modelAssert}, nil
+	return modelDeviceContext{model: modelAs}, nil
 }
 
 type modelDeviceContext struct {

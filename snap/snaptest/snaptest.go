@@ -83,17 +83,6 @@ func MockSnap(c *check.C, yamlText string, sideInfo *snap.SideInfo) *snap.Info {
 	return mockSnap(c, "", yamlText, sideInfo)
 }
 
-// MockSnapWithFiles puts a snap.yaml file on disk so to mock an
-// installed snap, based on the provided arguments and the given files
-//
-// The caller is responsible for mocking root directory with dirs.SetRootDir()
-// and for altering the overlord state if required.
-func MockSnapWithFiles(c *check.C, yamlText string, sideInfo *snap.SideInfo, files [][]string) *snap.Info {
-	info := mockSnap(c, "", yamlText, sideInfo)
-	PopulateDir(info.MountDir(), files)
-	return info
-}
-
 // MockSnapInstance puts a snap.yaml file on disk so to mock an installed snap
 // instance, based on the provided arguments.
 //
@@ -164,6 +153,18 @@ func MockInvalidInfo(c *check.C, yamlText string, sideInfo *snap.SideInfo) *snap
 	err = snap.Validate(snapInfo)
 	c.Assert(err, check.NotNil)
 	return snapInfo
+}
+
+// MockSnapWithFiles does the same as MockSnap, but also populates the snap
+// directory with given content
+//
+// The caller is responsible for mocking root directory with dirs.SetRootDir()
+//and for altering the overlord state if required.
+func MockSnapWithFiles(c *check.C, yamlText string, si *snap.SideInfo, files [][]string) *snap.Info {
+	info := MockSnap(c, yamlText, si)
+
+	PopulateDir(info.MountDir(), files)
+	return info
 }
 
 // PopulateDir populates the directory with files specified as pairs of relative file path and its content. Useful to add extra files to a snap.
