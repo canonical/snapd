@@ -24,6 +24,7 @@ import (
 	"github.com/snapcore/snapd/interfaces/apparmor"
 	"github.com/snapcore/snapd/interfaces/seccomp"
 	"github.com/snapcore/snapd/interfaces/udev"
+	"github.com/snapcore/snapd/release"
 	"github.com/snapcore/snapd/snap"
 
 	"strings"
@@ -157,9 +158,14 @@ func (iface *waylandInterface) UDevPermanentSlot(spec *udev.Specification, slot 
 	return nil
 }
 
-func (iface *waylandInterface) AutoConnect(*snap.PlugInfo, *snap.SlotInfo) bool {
-	// allow what declarations allowed
-	return true
+func (iface *waylandInterface) AutoConnect(plug *snap.PlugInfo, slot *snap.SlotInfo) bool {
+  if release.OnClassic {
+	  // allow connection to implicit slot
+    return slot.Snap.GetType() == snap.TypeOS
+  } else {
+    // allow what declarations allowed
+    return true
+  }
 }
 
 func init() {
