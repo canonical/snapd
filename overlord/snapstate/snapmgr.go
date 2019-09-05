@@ -550,7 +550,7 @@ func (m *SnapManager) ensureForceDevmodeDropsDevmodeFromState() error {
 // in non-ready state.
 func changeInFlight(st *state.State) bool {
 	for _, chg := range st.Changes() {
-		if !chg.Status().Ready() {
+		if !chg.IsReady() {
 			// another change already in motion
 			return true
 		}
@@ -562,6 +562,12 @@ func changeInFlight(st *state.State) bool {
 func (m *SnapManager) ensureSnapdSnapTransition() error {
 	m.state.Lock()
 	defer m.state.Unlock()
+
+	// we only auto-transition people on classic systems, for core we
+	// will need to do a proper re-model
+	if !release.OnClassic {
+		return nil
+	}
 
 	// check if snapd snap is installed
 	var snapst SnapState
