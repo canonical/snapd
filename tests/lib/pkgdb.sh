@@ -896,8 +896,8 @@ distro_restore_packages() {
         return 0
     fi
 
-    grep -v -f "$before" "$after" > "$installed"
-    grep -v -f "$after" "$before" > "$removed"
+    grep -v -f "$before" "$after" > "$installed" || true
+    grep -v -f "$after" "$before" > "$removed" || true
 
     case "$SPREAD_SYSTEM" in
         fedora-*|centos-*|amazon-linux-*)
