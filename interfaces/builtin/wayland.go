@@ -55,10 +55,9 @@ capability sys_tty_config,
 owner /run/user/[0-9]*/wayland-[0-9]* rwk,
 # Allow access to common client Wayland sockets from non-snap clients
 /run/user/[0-9]*/{mesa,mutter,sdl,wayland-cursor,weston,xwayland}-shared-* rw,
-
-# Some Wayland based toolkits (Qt, GTK3, SDL2) create shm files to pass to the
-# server. Although they are passed by FD we still need rw access to the file.
-owner /run/user/[0-9]*/snap.*/{,wayland-*} rw,
+# Some Wayland based toolkits (Qt, GTK3, SDL2) create shm files to pass cursor images
+# to the server. Although they are passed by FD we still need rw access to the file.
+/run/user/[0-9]*/snap.*/wayland-cursor-shared-* rw,
 
 # Allow reading an Xwayland Xauth file
 # (see https://gitlab.gnome.org/GNOME/mutter/merge_requests/626)
