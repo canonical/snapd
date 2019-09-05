@@ -81,9 +81,9 @@ func (s *setupSuite) TestSetupDoUndoSimple(c *C) {
 		Revision: snap.R(14),
 	}
 
-	snapType, undoCtx, err := s.be.SetupSnap(snapPath, "hello", &si, progress.Null)
+	snapType, installRecord, err := s.be.SetupSnap(snapPath, "hello", &si, progress.Null)
 	c.Assert(err, IsNil)
-	c.Assert(undoCtx, NotNil)
+	c.Assert(installRecord, NotNil)
 	c.Check(snapType, Equals, snap.TypeApp)
 
 	// after setup the snap file is in the right dir
@@ -118,9 +118,9 @@ func (s *setupSuite) TestSetupDoUndoInstance(c *C) {
 		Revision: snap.R(14),
 	}
 
-	snapType, undoCtx, err := s.be.SetupSnap(snapPath, "hello_instance", &si, progress.Null)
+	snapType, installRecord, err := s.be.SetupSnap(snapPath, "hello_instance", &si, progress.Null)
 	c.Assert(err, IsNil)
-	c.Assert(undoCtx, NotNil)
+	c.Assert(installRecord, NotNil)
 	c.Check(snapType, Equals, snap.TypeApp)
 
 	// after setup the snap file is in the right dir
@@ -173,10 +173,10 @@ type: kernel
 		Revision: snap.R(140),
 	}
 
-	snapType, undoCtx, err := s.be.SetupSnap(snapPath, "kernel", &si, progress.Null)
+	snapType, installRecord, err := s.be.SetupSnap(snapPath, "kernel", &si, progress.Null)
 	c.Assert(err, IsNil)
 	c.Check(snapType, Equals, snap.TypeKernel)
-	c.Assert(undoCtx, NotNil)
+	c.Assert(installRecord, NotNil)
 	c.Assert(bloader.ExtractKernelAssetsCalls, HasLen, 1)
 	c.Assert(bloader.ExtractKernelAssetsCalls[0].InstanceName(), Equals, "kernel")
 	minInfo := snap.MinimalPlaceInfo("kernel", snap.R(140))
@@ -219,16 +219,16 @@ type: kernel
 		Revision: snap.R(140),
 	}
 
-	_, undoCtx, err := s.be.SetupSnap(snapPath, "kernel", &si, progress.Null)
+	_, installRecord, err := s.be.SetupSnap(snapPath, "kernel", &si, progress.Null)
 	c.Assert(err, IsNil)
-	c.Assert(undoCtx, NotNil)
+	c.Assert(installRecord, NotNil)
 	c.Assert(bloader.ExtractKernelAssetsCalls, HasLen, 1)
 	c.Assert(bloader.ExtractKernelAssetsCalls[0].InstanceName(), Equals, "kernel")
 
 	// retry run
-	_, undoCtx, err = s.be.SetupSnap(snapPath, "kernel", &si, progress.Null)
+	_, installRecord, err = s.be.SetupSnap(snapPath, "kernel", &si, progress.Null)
 	c.Assert(err, IsNil)
-	c.Assert(undoCtx, NotNil)
+	c.Assert(installRecord, NotNil)
 	c.Assert(bloader.ExtractKernelAssetsCalls, HasLen, 2)
 	c.Assert(bloader.ExtractKernelAssetsCalls[1].InstanceName(), Equals, "kernel")
 	minInfo := snap.MinimalPlaceInfo("kernel", snap.R(140))
@@ -272,9 +272,9 @@ type: kernel
 		Revision: snap.R(140),
 	}
 
-	_, undoCtx, err := s.be.SetupSnap(snapPath, "kernel", &si, progress.Null)
+	_, installRecord, err := s.be.SetupSnap(snapPath, "kernel", &si, progress.Null)
 	c.Assert(err, IsNil)
-	c.Assert(undoCtx, NotNil)
+	c.Assert(installRecord, NotNil)
 
 	minInfo := snap.MinimalPlaceInfo("kernel", snap.R(140))
 
@@ -306,10 +306,10 @@ func (s *setupSuite) TestSetupUndoKeepsTargetSnapIfSymlink(c *C) {
 	c.Assert(os.Symlink(snapPath, tmpPath), IsNil)
 
 	si := snap.SideInfo{RealName: "hello", Revision: snap.R(14)}
-	_, undoCtx, err := s.be.SetupSnap(snapPath, "hello", &si, progress.Null)
+	_, installRecord, err := s.be.SetupSnap(snapPath, "hello", &si, progress.Null)
 	c.Assert(err, IsNil)
-	c.Assert(undoCtx, NotNil)
-	c.Check(undoCtx.KeepTargetSnap, Equals, true)
+	c.Assert(installRecord, NotNil)
+	c.Check(installRecord.TargetSnapExisted, Equals, true)
 
 	minInfo := snap.MinimalPlaceInfo("hello", snap.R(14))
 
@@ -320,8 +320,8 @@ func (s *setupSuite) TestSetupUndoKeepsTargetSnapIfSymlink(c *C) {
 	c.Assert(osutil.IsSymlink(minInfo.MountFile()), Equals, true)
 
 	// undo keeps the target .snap file intact if requested
-	undoCtx = &backend.InstallUndoContext{KeepTargetSnap: true}
-	c.Assert(s.be.UndoSetupSnap(minInfo, "app", undoCtx, progress.Null), IsNil)
+	installRecord = &backend.InstallRecord{TargetSnapExisted: true}
+	c.Assert(s.be.UndoSetupSnap(minInfo, "app", installRecord, progress.Null), IsNil)
 	c.Assert(osutil.FileExists(minInfo.MountFile()), Equals, true)
 }
 
@@ -334,18 +334,18 @@ func (s *setupSuite) TestSetupUndoKeepsTargetSnapIgnoredIfNotSymlink(c *C) {
 	c.Assert(osutil.CopyFile(snapPath, tmpPath, 0), IsNil)
 
 	si := snap.SideInfo{RealName: "hello", Revision: snap.R(14)}
-	_, undoCtx, err := s.be.SetupSnap(snapPath, "hello", &si, progress.Null)
+	_, installRecord, err := s.be.SetupSnap(snapPath, "hello", &si, progress.Null)
 	c.Assert(err, IsNil)
-	c.Assert(undoCtx, NotNil)
-	c.Check(undoCtx.KeepTargetSnap, Equals, true)
+	c.Assert(installRecord, NotNil)
+	c.Check(installRecord.TargetSnapExisted, Equals, true)
 
 	minInfo := snap.MinimalPlaceInfo("hello", snap.R(14))
 
 	// after setup the snap file is in the right dir
 	c.Assert(osutil.FileExists(minInfo.MountFile()), Equals, true)
 
-	undoCtx = &backend.InstallUndoContext{KeepTargetSnap: true}
-	c.Assert(s.be.UndoSetupSnap(minInfo, "app", undoCtx, progress.Null), IsNil)
+	installRecord = &backend.InstallRecord{TargetSnapExisted: true}
+	c.Assert(s.be.UndoSetupSnap(minInfo, "app", installRecord, progress.Null), IsNil)
 	c.Assert(osutil.FileExists(minInfo.MountFile()), Equals, false)
 }
 
@@ -366,9 +366,9 @@ func (s *setupSuite) TestSetupCleanupAfterFail(c *C) {
 	})
 	defer r()
 
-	_, undoCtx, err := s.be.SetupSnap(snapPath, "hello", &si, progress.Null)
+	_, installRecord, err := s.be.SetupSnap(snapPath, "hello", &si, progress.Null)
 	c.Assert(err, ErrorMatches, "failed")
-	c.Check(undoCtx, IsNil)
+	c.Check(installRecord, IsNil)
 
 	// everything is gone
 	l, _ := filepath.Glob(filepath.Join(dirs.SnapServicesDir, "*.mount"))
@@ -388,17 +388,17 @@ func (s *setupSuite) TestRemoveSnapFilesDir(c *C) {
 		Revision: snap.R(14),
 	}
 
-	snapType, undoCtx, err := s.be.SetupSnap(snapPath, "hello_instance", &si, progress.Null)
+	snapType, installRecord, err := s.be.SetupSnap(snapPath, "hello_instance", &si, progress.Null)
 	c.Assert(err, IsNil)
-	c.Assert(undoCtx, NotNil)
+	c.Assert(installRecord, NotNil)
 	c.Check(snapType, Equals, snap.TypeApp)
 
 	minInfo := snap.MinimalPlaceInfo("hello_instance", snap.R(14))
 	// mount dir was created
 	c.Assert(osutil.FileExists(minInfo.MountDir()), Equals, true)
 
-	undoCtx = &backend.InstallUndoContext{}
-	s.be.RemoveSnapFiles(minInfo, snapType, undoCtx, progress.Null)
+	installRecord = &backend.InstallRecord{}
+	s.be.RemoveSnapFiles(minInfo, snapType, installRecord, progress.Null)
 	c.Assert(err, IsNil)
 
 	l, _ := filepath.Glob(filepath.Join(dirs.SnapServicesDir, "*.mount"))

@@ -643,9 +643,9 @@ func (m *SnapManager) doMountSnap(t *state.Task, _ *tomb.Tomb) error {
 	// TODO Use snapsup.Revision() to obtain the right info to mount
 	//      instead of assuming the candidate is the right one.
 	var snapType snap.Type
-	var undoCtx *backend.InstallUndoContext
+	var installRecord *backend.InstallRecord
 	timings.Run(perfTimings, "setup-snap", fmt.Sprintf("setup snap %q", snapsup.InstanceName()), func(timings.Measurer) {
-		snapType, undoCtx, err = m.backend.SetupSnap(snapsup.SnapPath, snapsup.InstanceName(), snapsup.SideInfo, pb)
+		snapType, installRecord, err = m.backend.SetupSnap(snapsup.SnapPath, snapsup.InstanceName(), snapsup.SideInfo, pb)
 	})
 	if err != nil {
 		cleanup()
@@ -672,7 +672,7 @@ func (m *SnapManager) doMountSnap(t *state.Task, _ *tomb.Tomb) error {
 	}
 	if readInfoErr != nil {
 		timings.Run(perfTimings, "undo-setup-snap", fmt.Sprintf("Undo setup of snap %q", snapsup.InstanceName()), func(timings.Measurer) {
-			err = m.backend.UndoSetupSnap(snapsup.placeInfo(), snapType, undoCtx, pb)
+			err = m.backend.UndoSetupSnap(snapsup.placeInfo(), snapType, installRecord, pb)
 		})
 		if err != nil {
 			st.Lock()
@@ -687,8 +687,8 @@ func (m *SnapManager) doMountSnap(t *state.Task, _ *tomb.Tomb) error {
 	st.Lock()
 	// set snapst type for undoMountSnap
 	t.Set("snap-type", snapType)
-	if undoCtx != nil {
-		t.Set("undo-context", undoCtx)
+	if installRecord != nil {
+		t.Set("install-record", installRecord)
 	}
 	st.Unlock()
 
@@ -725,17 +725,17 @@ func (m *SnapManager) undoMountSnap(t *state.Task, _ *tomb.Tomb) error {
 		return err
 	}
 
-	var undoCtx backend.InstallUndoContext
+	var installRecord backend.InstallRecord
 	st.Lock()
-	// undo-context is optional (e.g. not present in tasks from older snapd)
-	err = t.Get("undo-context", &undoCtx)
+	// install-record is optional (e.g. not present in tasks from older snapd)
+	err = t.Get("install-record", &installRecord)
 	st.Unlock()
 	if err != nil && err != state.ErrNoState {
 		return err
 	}
 
 	pb := NewTaskProgressAdapterUnlocked(t)
-	if err := m.backend.UndoSetupSnap(snapsup.placeInfo(), typ, &undoCtx, pb); err != nil {
+	if err := m.backend.UndoSetupSnap(snapsup.placeInfo(), typ, &installRecord, pb); err != nil {
 		return err
 	}
 

@@ -2778,12 +2778,12 @@ func (s *snapmgrTestSuite) TestInstallRunThrough(c *C) {
 	c.Assert(total, Equals, s.fakeStore.fakeTotalProgress)
 	c.Check(task.Summary(), Equals, `Download snap "some-snap" (11) from channel "some-channel"`)
 
-	// check undo-context present
+	// check install-record present
 	mountTask := ta[len(ta)-11]
 	c.Check(mountTask.Kind(), Equals, "mount-snap")
-	var undoCtx backend.InstallUndoContext
-	c.Assert(mountTask.Get("undo-context", &undoCtx), IsNil)
-	c.Check(undoCtx.KeepTargetSnap, Equals, false)
+	var installRecord backend.InstallRecord
+	c.Assert(mountTask.Get("install-record", &installRecord), IsNil)
+	c.Check(installRecord.TargetSnapExisted, Equals, false)
 
 	// check link/start snap summary
 	linkTask := ta[len(ta)-8]
@@ -3039,9 +3039,9 @@ func (s *snapmgrTestSuite) TestInstallUndoRunThroughJustOneSnap(c *C) {
 
 	mountTask := tasks[len(tasks)-11]
 	c.Assert(mountTask.Kind(), Equals, "mount-snap")
-	var undoContext backend.InstallUndoContext
-	c.Assert(mountTask.Get("undo-context", &undoContext), IsNil)
-	c.Check(undoContext.KeepTargetSnap, Equals, false)
+	var installRecord backend.InstallRecord
+	c.Assert(mountTask.Get("install-record", &installRecord), IsNil)
+	c.Check(installRecord.TargetSnapExisted, Equals, false)
 
 	// ensure all our tasks ran
 	c.Check(s.fakeStore.downloads, DeepEquals, []fakeDownload{{
@@ -3174,7 +3174,7 @@ func (s *snapmgrTestSuite) TestInstallUndoRunThroughUndoContextOptional(c *C) {
 
 	chg := s.state.NewChange("install", "install a snap")
 	opts := &snapstate.RevisionOptions{Channel: "some-channel"}
-	ts, err := snapstate.Install(context.Background(), s.state, "some-snap-no-undo-context", opts, s.user.ID, snapstate.Flags{})
+	ts, err := snapstate.Install(context.Background(), s.state, "some-snap-no-install-record", opts, s.user.ID, snapstate.Flags{})
 	c.Assert(err, IsNil)
 	chg.AddAll(ts)
 
@@ -3194,8 +3194,8 @@ func (s *snapmgrTestSuite) TestInstallUndoRunThroughUndoContextOptional(c *C) {
 
 	mountTask := tasks[len(tasks)-11]
 	c.Assert(mountTask.Kind(), Equals, "mount-snap")
-	var undoContext backend.InstallUndoContext
-	c.Assert(mountTask.Get("undo-context", &undoContext), Equals, state.ErrNoState)
+	var installRecord backend.InstallRecord
+	c.Assert(mountTask.Get("install-record", &installRecord), Equals, state.ErrNoState)
 }
 
 func (s *snapmgrTestSuite) TestInstallWithCohortRunThrough(c *C) {

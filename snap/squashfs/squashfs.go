@@ -79,8 +79,8 @@ func (s *Snap) Install(targetPath, mountDir string) (bool, error) {
 	// nothing to do, happens on e.g. first-boot when we already
 	// booted with the OS snap but its also in the seed.yaml
 	if s.path == targetPath || osutil.FilesAreEqual(s.path, targetPath) {
-		nothingToDo := true
-		return nothingToDo, nil
+		didNothing := true
+		return didNothing, nil
 	}
 
 	// try to (hard)link the file, but go on to trying to copy it

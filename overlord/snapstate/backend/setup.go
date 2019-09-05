@@ -31,15 +31,15 @@ import (
 	"github.com/snapcore/snapd/snap"
 )
 
-// InstallUndoContext keeps information about what needs to be undone in case of install failure
-type InstallUndoContext struct {
-	// KeepTargetSnap indicates that the target .snap file under /var/lib/snapd/snap already existed when the
+// InstallRecord keeps hints about what needs to be undone in case of install failure
+type InstallRecord struct {
+	// TargetSnapExisted indicates that the target .snap file under /var/lib/snapd/snap already existed when the
 	// backend attempted SetupSnap() through squashfs Install() and should be kept.
-	KeepTargetSnap bool `json:"keep-target-snap,omitempty"`
+	TargetSnapExisted bool `json:"target-snap-existed,omitempty"`
 }
 
 // SetupSnap does prepare and mount the snap for further processing.
-func (b Backend) SetupSnap(snapFilePath, instanceName string, sideInfo *snap.SideInfo, meter progress.Meter) (snapType snap.Type, undoCtx *InstallUndoContext, err error) {
+func (b Backend) SetupSnap(snapFilePath, instanceName string, sideInfo *snap.SideInfo, meter progress.Meter) (snapType snap.Type, installRecord *InstallRecord, err error) {
 	// This assumes that the snap was already verified or --dangerous was used.
 
 	s, snapf, oErr := OpenSnapFile(snapFilePath, sideInfo)
@@ -57,8 +57,8 @@ func (b Backend) SetupSnap(snapFilePath, instanceName string, sideInfo *snap.Sid
 			return
 		}
 
-		// this may remove the snap from /var/lib/snapd/snaps depending on undoCtx
-		if e := b.RemoveSnapFiles(s, s.GetType(), undoCtx, meter); e != nil {
+		// this may remove the snap from /var/lib/snapd/snaps depending on installRecord
+		if e := b.RemoveSnapFiles(s, s.GetType(), installRecord, meter); e != nil {
 			meter.Notify(fmt.Sprintf("while trying to clean up due to previous failure: %v", e))
 		}
 	}()
@@ -74,8 +74,8 @@ func (b Backend) SetupSnap(snapFilePath, instanceName string, sideInfo *snap.Sid
 		}
 	}
 
-	var nothingToDo bool
-	if nothingToDo, err = snapf.Install(s.MountFile(), instdir); err != nil {
+	var didNothing bool
+	if didNothing, err = snapf.Install(s.MountFile(), instdir); err != nil {
 		return snapType, nil, err
 	}
 
@@ -90,12 +90,12 @@ func (b Backend) SetupSnap(snapFilePath, instanceName string, sideInfo *snap.Sid
 		return snapType, nil, fmt.Errorf("cannot install kernel: %s", err)
 	}
 
-	undoCtx = &InstallUndoContext{KeepTargetSnap: nothingToDo}
-	return t, undoCtx, nil
+	installRecord = &InstallRecord{TargetSnapExisted: didNothing}
+	return t, installRecord, nil
 }
 
 // RemoveSnapFiles removes the snap files from the disk after unmounting the snap.
-func (b Backend) RemoveSnapFiles(s snap.PlaceInfo, typ snap.Type, undoCtx *InstallUndoContext, meter progress.Meter) error {
+func (b Backend) RemoveSnapFiles(s snap.PlaceInfo, typ snap.Type, installRecord *InstallRecord, meter progress.Meter) error {
 	mountDir := s.MountDir()
 
 	// this also ensures that the mount unit stops
@@ -118,7 +118,7 @@ func (b Backend) RemoveSnapFiles(s snap.PlaceInfo, typ snap.Type, undoCtx *Insta
 
 		// don't remove snap path if it existed before snap installation was attempted
 		// and is a symlink, which is the case with kernel/core snaps during seeding.
-		keepSeededSnap := undoCtx != nil && undoCtx.KeepTargetSnap && osutil.IsSymlink(snapPath)
+		keepSeededSnap := installRecord != nil && installRecord.TargetSnapExisted && osutil.IsSymlink(snapPath)
 		if !keepSeededSnap {
 			// remove the snap
 			if err := os.RemoveAll(snapPath); err != nil {
@@ -148,6 +148,6 @@ func (b Backend) RemoveSnapDir(s snap.PlaceInfo, hasOtherInstances bool) error {
 }
 
 // UndoSetupSnap undoes the work of SetupSnap using RemoveSnapFiles.
-func (b Backend) UndoSetupSnap(s snap.PlaceInfo, typ snap.Type, undoCtx *InstallUndoContext, meter progress.Meter) error {
-	return b.RemoveSnapFiles(s, typ, undoCtx, meter)
+func (b Backend) UndoSetupSnap(s snap.PlaceInfo, typ snap.Type, installRecord *InstallRecord, meter progress.Meter) error {
+	return b.RemoveSnapFiles(s, typ, installRecord, meter)
 }
