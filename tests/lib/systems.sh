@@ -38,9 +38,8 @@ is_ubuntu_14_system(){
 
 get_snap_for_system(){
     local snap=$1
-    local system=${2:-$SPREAD_SYSTEM}
 
-    case "$system" in
+    case "$SPREAD_SYSTEM" in
         ubuntu-core-18-*)
             echo "${snap}-core18"
             ;;
@@ -54,9 +53,7 @@ get_snap_for_system(){
 }
 
 get_core_for_system(){
-    local system=${1:-$SPREAD_SYSTEM}
-
-    case "$system" in
+    case "$SPREAD_SYSTEM" in
         ubuntu-core-18-*)
             echo "core18"
             ;;
