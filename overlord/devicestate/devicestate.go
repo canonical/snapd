@@ -330,6 +330,15 @@ func remodelTasks(ctx context.Context, st *state.State, current, new *asserts.Mo
 		}
 		tss = append(tss, ts)
 	}
+
+	if current.Base() != new.Base() {
+		ts, err := snapstateInstallWithDeviceContext(ctx, st, new.Base(), nil, userID, snapstate.Flags{}, deviceCtx, fromChange)
+		if err != nil {
+			return nil, err
+		}
+		tss = append(tss, ts)
+	}
+
 	// add new required-snaps, no longer required snaps will be cleaned
 	// in "set-model"
 	for _, snapRef := range new.RequiredNoEssentialSnaps() {
@@ -458,9 +467,9 @@ func Remodel(st *state.State, new *asserts.Model) (*state.Change, error) {
 	}
 
 	// calculate snap differences between the two models
-	// FIXME: this needs work to switch the base to boot as well
-	if current.Base() != new.Base() {
-		return nil, fmt.Errorf("cannot remodel to different bases yet")
+	// FIXME: this needs work to switch from core->bases
+	if current.Base() == "" && new.Base() != "" {
+		return nil, fmt.Errorf("cannot remodel from core to bases yet")
 	}
 	// FIXME: we need to support this soon but right now only a single
 	// snap of type "gadget/kernel" is allowed so this needs work
