@@ -566,10 +566,21 @@ prepare_suite_each() {
             ausearch -i -m AVC --checkpoint "$RUNTIME_STATE_PATH/audit-stamp" || true
             ;;
     esac
+
+    # shellcheck source=tests/lib/pkgdb.sh
+    . "$TESTSLIB"/pkgdb.sh
+    distro_list_packages "$RUNTIME_STATE_PATH/package-selection"
 }
 
 restore_suite_each() {
     rm -f "$RUNTIME_STATE_PATH/audit-stamp"
+
+    if [ -e "$RUNTIME_STATE_PATH/package-selection" ]; then
+        # shellcheck source=tests/lib/pkgdb.sh
+        . "$TESTSLIB"/pkgdb.sh
+        distro_restore_packages "$RUNTIME_STATE_PATH/package-selection"
+        rm -rf "$RUNTIME_STATE_PATH"/package-selection*
+    fi
 
     # restore test directory saved during prepare
     if [ -f "${PWD}.tar" ]; then

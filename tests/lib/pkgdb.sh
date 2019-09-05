@@ -850,3 +850,80 @@ distro_upgrade() {
             ;;
     esac
 }
+
+distro_list_packages() {
+    where="$1"
+
+    case "$SPREAD_SYSTEM" in
+        fedora-*|centos-*|amazon-linux-*|opensuse-*)
+            rpm -qa | sort > "$where"
+            ;;
+        ubuntu-*|debian-*)
+            dpkg --get-selections > "$where"
+            ;;
+        arch-*)
+            pacman -Q | cut -f1 -d' ' | sort > "$where"
+            ;;
+        *)
+            ;;
+    esac
+}
+
+distro_restore_packages() {
+    before="$1"
+    after="$before.after"
+    installed="$before.installed"
+    removed="$before.removed"
+
+    # find out what's installed now on systems where we the old list is
+    # not enough
+    case "$SPREAD_SYSTEM" in
+        fedora-*|centos-*|amazon-linux-*|opensuse-*)
+            rpm -qa | sort > "$after"
+            ;;
+        arch-*)
+            # the output format of pacman -Q is:
+            # zsh 5.7.1-1\n
+            pacman -Q | cut -f1 -d' ' | sort > "$after"
+            ;;
+        ubuntu-*|debian-*)
+            dpkg --get-selections > "$after"
+            ;;
+    esac
+
+    if diff -up "$before" "$after"; then
+        # system pacakges did not change, nothing to do
+        return 0
+    fi
+
+    grep -v -f "$before" "$after" > "$installed"
+    grep -v -f "$after" "$before" > "$removed"
+
+    case "$SPREAD_SYSTEM" in
+        fedora-*|centos-*|amazon-linux-*)
+            cmd=dnf
+            if [[ "$SPREAD_SYSTEM" != fedora-* ]]; then
+                cmd=yum
+            fi
+            # XXX: rpm -e is faster for remove
+            [ -s "$installed" ] && $cmd remove "$(cat "$installed")" -y
+            [ -s "$removed" ] && $cmd install "$(cat "$removed")" -y
+            ;;
+        opensuse-*)
+            # XXX: rpm -e is faster for remove
+            [ -s "$installed" ] && zypper remove "$(cat "$installed")" -y
+            [ -s "$removed" ] && zypper install "$(cat "$removed")" -y
+            ;;
+        ubuntu-*|debian-*)
+            dpkg --clear-selections
+            dpkg --set-selections < "$before"
+            apt-get -y dselect-upgrade
+            ;;
+        arch-*)
+            [ -s "$installed" ] && pacman -R --noconfirm "$(cat "$installed")"
+            [ -s "$removed" ] && pacman -S --noconfirm "$(cat "$removed")"
+            ;;
+        *)
+            ;;
+    esac
+}
