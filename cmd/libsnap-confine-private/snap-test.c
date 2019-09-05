@@ -400,9 +400,21 @@ static void test_sc_snap_drop_instance_key_no_name(void)
 	g_test_trap_assert_failed();
 }
 
+static void test_sc_snap_drop_instance_key_short_dest_max(void)
+{
+	if (g_test_subprocess()) {
+		char dest[SNAP_NAME_LEN + 1] = { 0 };
+		/* 40 chars (max valid length), pretend dest is the same length, no space for terminator */
+		sc_snap_drop_instance_key("01234567890123456789012345678901234567890", dest, sizeof dest - 1);
+		return;
+	}
+	g_test_trap_subprocess(NULL, 0, 0);
+	g_test_trap_assert_failed();
+}
+
 static void test_sc_snap_drop_instance_key_basic(void)
 {
-	char name[41] = { 0xff };
+	char name[SNAP_NAME_LEN + 1] = { 0xff };
 
 	sc_snap_drop_instance_key("foo_bar", name, sizeof name);
 	g_assert_cmpstr(name, ==, "foo");
@@ -422,6 +434,11 @@ static void test_sc_snap_drop_instance_key_basic(void)
 	memset(name, 0xff, sizeof name);
 	sc_snap_drop_instance_key("foo", name, sizeof name);
 	g_assert_cmpstr(name, ==, "foo");
+
+	memset(name, 0xff, sizeof name);
+	/* 40 chars - snap name length */
+	sc_snap_drop_instance_key("0123456789012345678901234567890123456789", name, sizeof name);
+	g_assert_cmpstr(name, ==, "0123456789012345678901234567890123456789");
 }
 
 static void test_sc_snap_split_instance_name_trailing_nil(void)
@@ -450,7 +467,7 @@ static void test_sc_snap_split_instance_name_short_instance_dest(void)
 
 static void test_sc_snap_split_instance_name_basic(void)
 {
-	char name[41] = { 0xff };
+	char name[SNAP_NAME_LEN + 1] = { 0xff };
 	char instance[20] = { 0xff };
 
 	sc_snap_split_instance_name("foo_bar", name, sizeof name, instance,
@@ -552,6 +569,8 @@ static void __attribute__((constructor)) init(void)
 			test_sc_snap_drop_instance_key_short_dest);
 	g_test_add_func("/snap/sc_snap_drop_instance_key/short_dest2",
 			test_sc_snap_drop_instance_key_short_dest2);
+	g_test_add_func("/snap/sc_snap_drop_instance_key/short_dest_max",
+					test_sc_snap_drop_instance_key_short_dest_max);
 
 	g_test_add_func("/snap/sc_snap_split_instance_name/basic",
 			test_sc_snap_split_instance_name_basic);
