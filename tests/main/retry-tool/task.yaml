@@ -11,4 +11,5 @@ execute: |
     retry-tool -n 2 --wait 0.1 false 2>&1 | grep -F "retry: command false failed with code 1"
     retry-tool -n 2 --wait 0.1 false 2>&1 | grep -F "retry: next attempt in 0.1 second(s) (attempt 1 of 2)"
     retry-tool -n 2 --wait 0.1 false 2>&1 | grep -F "retry: command false keeps failing after 2 attempts"
-
+    # Though all output is removed with the --quiet switch.
+    test "$(retry-tool -n 2 --wait 0.1 --quiet false 2>&1 | wc -l)" -eq 0
