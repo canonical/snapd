@@ -53,7 +53,7 @@ var _ = Suite(&BrowserSupportInterfaceSuite{
 
 func (s *BrowserSupportInterfaceSuite) SetUpTest(c *C) {
 	s.slotInfo = &snap.SlotInfo{
-		Snap:      &snap.Info{SuggestedName: "core", Type: snap.TypeOS},
+		Snap:      &snap.Info{SuggestedName: "core", SnapType: snap.TypeOS},
 		Name:      "browser-support",
 		Interface: "browser-support",
 	}

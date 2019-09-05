@@ -27,6 +27,7 @@ import (
 	"os"
 	"path/filepath"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	"gopkg.in/tomb.v2"
@@ -40,6 +41,7 @@ import (
 	"github.com/snapcore/snapd/overlord/configstate"
 	"github.com/snapcore/snapd/overlord/configstate/proxyconf"
 	"github.com/snapcore/snapd/overlord/devicestate"
+	"github.com/snapcore/snapd/overlord/healthstate"
 	"github.com/snapcore/snapd/overlord/hookstate"
 	"github.com/snapcore/snapd/overlord/ifacestate"
 	"github.com/snapcore/snapd/overlord/patch"
@@ -73,12 +75,13 @@ type Overlord struct {
 	ensureLock  sync.Mutex
 	ensureTimer *time.Timer
 	ensureNext  time.Time
+	ensureRun   int32
 	pruneTicker *time.Ticker
-	numEnsure   uint64
 	// restarts
-	restartHandler func(t state.RestartType)
+	restartBehavior RestartBehavior
 	// managers
 	inited    bool
+	startedUp bool
 	runner    *state.TaskRunner
 	snapMgr   *snapstate.SnapManager
 	assertMgr *assertstate.AssertManager
@@ -91,13 +94,27 @@ type Overlord struct {
 	proxyConf func(req *http.Request) (*url.URL, error)
 }
 
+// RestartBehavior controls how to hanndle and carry forward restart requests
+// via the state.
+type RestartBehavior interface {
+	HandleRestart(t state.RestartType)
+	// RebootAsExpected is called early when either a reboot was
+	// requested by snapd and happened or no reboot was expected at all.
+	RebootAsExpected(st *state.State) error
+	// RebootDidNotHappen is called early instead when a reboot was
+	// requested by snad but did not happen.
+	RebootDidNotHappen(st *state.State) error
+}
+
 var storeNew = store.New
 
 // New creates a new Overlord with all its state managers.
-func New() (*Overlord, error) {
+// It can be provided with an optional RestartBehavior.
+func New(restartBehavior RestartBehavior) (*Overlord, error) {
 	o := &Overlord{
-		loopTomb: new(tomb.Tomb),
-		inited:   true,
+		loopTomb:        new(tomb.Tomb),
+		inited:          true,
+		restartBehavior: restartBehavior,
 	}
 
 	backend := &overlordStateBackend{
@@ -105,7 +122,7 @@ func New() (*Overlord, error) {
 		ensureBefore:   o.ensureBefore,
 		requestRestart: o.requestRestart,
 	}
-	s, err := loadState(backend)
+	s, err := loadState(backend, restartBehavior)
 	if err != nil {
 		return nil, err
 	}
@@ -152,7 +169,10 @@ func New() (*Overlord, error) {
 	o.addManager(cmdstate.Manager(s, o.runner))
 	o.addManager(snapshotstate.Manager(s, o.runner))
 
-	configstateInit(hookMgr)
+	if err := configstateInit(s, hookMgr); err != nil {
+		return nil, err
+	}
+	healthstate.Init(hookMgr)
 
 	// the shared task runner should be added last!
 	o.stateEng.AddManager(o.runner)
@@ -165,10 +185,6 @@ func New() (*Overlord, error) {
 	sto := o.newStoreWithContext(storeCtx)
 
 	snapstate.ReplaceStore(s, sto)
-
-	if err := o.snapMgr.SyncCookies(s); err != nil {
-		return nil, fmt.Errorf("failed to generate cookies: %q", err)
-	}
 
 	return o, nil
 }
@@ -193,7 +209,12 @@ func (o *Overlord) addManager(mgr StateManager) {
 	o.stateEng.AddManager(mgr)
 }
 
-func loadState(backend state.Backend) (*state.State, error) {
+func loadState(backend state.Backend, restartBehavior RestartBehavior) (*state.State, error) {
+	curBootID, err := osutil.BootID()
+	if err != nil {
+		return nil, fmt.Errorf("fatal: cannot find current boot id: %v", err)
+	}
+
 	perfTimings := timings.New(map[string]string{"startup": "load-state"})
 
 	if !osutil.FileExists(dirs.SnapStateFile) {
@@ -204,6 +225,9 @@ func loadState(backend state.Backend) (*state.State, error) {
 			return nil, fmt.Errorf("fatal: directory %q must be present", stateDir)
 		}
 		s := state.New(backend)
+		s.Lock()
+		s.VerifyReboot(curBootID)
+		s.Unlock()
 		patch.Init(s)
 		return s, nil
 	}
@@ -225,12 +249,37 @@ func loadState(backend state.Backend) (*state.State, error) {
 	perfTimings.Save(s)
 	s.Unlock()
 
+	err = verifyReboot(s, curBootID, restartBehavior)
+	if err != nil {
+		return nil, err
+	}
+
 	// one-shot migrations
 	err = patch.Apply(s)
 	if err != nil {
 		return nil, err
 	}
 	return s, nil
+}
+
+func verifyReboot(s *state.State, curBootID string, restartBehavior RestartBehavior) error {
+	s.Lock()
+	defer s.Unlock()
+	err := s.VerifyReboot(curBootID)
+	if err != nil && err != state.ErrExpectedReboot {
+		return err
+	}
+	expectedRebootDidNotHappen := err == state.ErrExpectedReboot
+	if restartBehavior != nil {
+		if expectedRebootDidNotHappen {
+			return restartBehavior.RebootDidNotHappen(s)
+		}
+		return restartBehavior.RebootAsExpected(s)
+	}
+	if expectedRebootDidNotHappen {
+		logger.Noticef("expected system restart but it did not happen")
+	}
+	return nil
 }
 
 func (o *Overlord) newStoreWithContext(storeCtx store.DeviceAndAuthContext) snapstate.StoreService {
@@ -247,6 +296,15 @@ func (o *Overlord) newStore(devBE storecontext.DeviceBackend) snapstate.StoreSer
 	scb := o.deviceMgr.StoreContextBackend()
 	stoCtx := storecontext.NewComposed(o.State(), devBE, scb, scb)
 	return o.newStoreWithContext(stoCtx)
+}
+
+// StartUp proceeds to run any expensive Overlord or managers initialization. After this is done once it is a noop.
+func (o *Overlord) StartUp() error {
+	if o.startedUp {
+		return nil
+	}
+	o.startedUp = true
+	return o.stateEng.StartUp()
 }
 
 func (o *Overlord) ensureTimerSetup() {
@@ -292,16 +350,11 @@ func (o *Overlord) ensureBefore(d time.Duration) {
 }
 
 func (o *Overlord) requestRestart(t state.RestartType) {
-	if o.restartHandler == nil {
-		logger.Noticef("restart requested but no handler set")
+	if o.restartBehavior == nil {
+		logger.Noticef("restart requested but no behavior set")
 	} else {
-		o.restartHandler(t)
+		o.restartBehavior.HandleRestart(t)
 	}
-}
-
-// SetRestartHandler sets a handler to fulfill restart requests asynchronously.
-func (o *Overlord) SetRestartHandler(handleRestart func(t state.RestartType)) {
-	o.restartHandler = handleRestart
 }
 
 // Loop runs a loop in a goroutine to ensure the current state regularly through StateEngine Ensure.
@@ -314,7 +367,7 @@ func (o *Overlord) Loop() {
 			// in case of errors engine logs them,
 			// continue to the next Ensure() try for now
 			o.stateEng.Ensure()
-			o.numEnsure++
+			o.ensureDidRun()
 			select {
 			case <-o.loopTomb.Dying():
 				return nil
@@ -329,8 +382,13 @@ func (o *Overlord) Loop() {
 	})
 }
 
+func (o *Overlord) ensureDidRun() {
+	atomic.StoreInt32(&o.ensureRun, 1)
+}
+
 func (o *Overlord) CanStandby() bool {
-	return o.numEnsure > 0
+	run := atomic.LoadInt32(&o.ensureRun)
+	return run != 0
 }
 
 // Stop stops the ensure loop and the managers under the StateEngine.
@@ -342,6 +400,10 @@ func (o *Overlord) Stop() error {
 }
 
 func (o *Overlord) settle(timeout time.Duration, beforeCleanups func()) error {
+	if err := o.StartUp(); err != nil {
+		return err
+	}
+
 	func() {
 		o.ensureLock.Lock()
 		defer o.ensureLock.Unlock()
@@ -411,7 +473,7 @@ func (o *Overlord) settle(timeout time.Duration, beforeCleanups func()) error {
 // is scheduled. It then waits similarly for all ready changes to
 // reach the clean state. Chiefly for tests. Cannot be used in
 // conjunction with Loop. If timeout is non-zero and settling takes
-// longer than timeout, returns an error.
+// longer than timeout, returns an error. Calls StartUp as well.
 func (o *Overlord) Settle(timeout time.Duration) error {
 	return o.settle(timeout, nil)
 }
@@ -423,7 +485,7 @@ func (o *Overlord) Settle(timeout time.Duration) error {
 // changes to reach the clean state, but calls once the provided
 // callback before doing that. Chiefly for tests. Cannot be used in
 // conjunction with Loop. If timeout is non-zero and settling takes
-// longer than timeout, returns an error.
+// longer than timeout, returns an error. Calls StartUp as well.
 func (o *Overlord) SettleObserveBeforeCleanups(timeout time.Duration, beforeCleanups func()) error {
 	return o.settle(timeout, beforeCleanups)
 }
@@ -488,9 +550,18 @@ func (o *Overlord) SnapshotManager() *snapshotstate.SnapshotManager {
 // Mock creates an Overlord without any managers and with a backend
 // not using disk. Managers can be added with AddManager. For testing.
 func Mock() *Overlord {
+	return MockWithRestartHandler(nil)
+}
+
+// MockWithRestartHandler creates an Overlord without any managers and
+// with a backend not using disk. It will use the given handler on
+// restart requests. Managers can be added with AddManager. For
+// testing.
+func MockWithRestartHandler(handleRestart func(state.RestartType)) *Overlord {
 	o := &Overlord{
-		loopTomb: new(tomb.Tomb),
-		inited:   false,
+		loopTomb:        new(tomb.Tomb),
+		inited:          false,
+		restartBehavior: mockRestartBehavior(handleRestart),
 	}
 	s := state.New(mockBackend{o: o})
 	o.stateEng = NewStateEngine(s)
@@ -506,6 +577,23 @@ func (o *Overlord) AddManager(mgr StateManager) {
 		panic("internal error: cannot add managers to a fully initialized Overlord")
 	}
 	o.addManager(mgr)
+}
+
+type mockRestartBehavior func(state.RestartType)
+
+func (rb mockRestartBehavior) HandleRestart(t state.RestartType) {
+	if rb == nil {
+		return
+	}
+	rb(t)
+}
+
+func (rb mockRestartBehavior) RebootAsExpected(*state.State) error {
+	panic("internal error: overlord.Mock should not invoke RebootAsExpected")
+}
+
+func (rb mockRestartBehavior) RebootDidNotHappen(*state.State) error {
+	panic("internal error: overlord.Mock should not invoke RebootDidNotHappen")
 }
 
 type mockBackend struct {

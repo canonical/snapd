@@ -72,13 +72,19 @@ func MockPrerequisitesRetryTimeout(d time.Duration) (restore func()) {
 	return func() { prerequisitesRetryTimeout = old }
 }
 
+func MockOsutilEnsureUserGroup(mock func(name string, id uint32, extraUsers bool) error) (restore func()) {
+	old := osutilEnsureUserGroup
+	osutilEnsureUserGroup = mock
+	return func() { osutilEnsureUserGroup = old }
+}
+
 var (
+	CoreInfoInternal       = coreInfo
 	CheckSnap              = checkSnap
 	CanRemove              = canRemove
 	CanDisable             = canDisable
 	CachedStore            = cachedStore
 	DefaultRefreshSchedule = defaultRefreshSchedule
-	NameAndRevnoFromSnap   = nameAndRevnoFromSnap
 	DoInstall              = doInstall
 	UserFromUserID         = userFromUserID
 	ValidateFeatureFlags   = validateFeatureFlags

@@ -23,3 +23,7 @@ var (
 	SnapDownloadCmd  = snapDownloadCmd
 	PostSnapDownload = postSnapDownload
 )
+
+type (
+	FileStream = fileStream
+)

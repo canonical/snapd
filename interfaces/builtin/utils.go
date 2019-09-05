@@ -74,30 +74,6 @@ func plugAppLabelExpr(plug *interfaces.ConnectedPlug) string {
 	return appLabelExpr(plug.Apps(), plug.Snap())
 }
 
-// sanitizeSlotReservedForOS checks if slot is of type os.
-func sanitizeSlotReservedForOS(iface interfaces.Interface, slot *snap.SlotInfo) error {
-	if slot.Snap.Type != snap.TypeOS && slot.Snap.InstanceName() != "snapd" {
-		return fmt.Errorf("%s slots are reserved for the core snap", iface.Name())
-	}
-	return nil
-}
-
-// sanitizeSlotReservedForOSOrGadget checks if the slot is of type os or gadget.
-func sanitizeSlotReservedForOSOrGadget(iface interfaces.Interface, slot *snap.SlotInfo) error {
-	if slot.Snap.Type != snap.TypeOS && slot.Snap.Type != snap.TypeGadget && slot.Snap.InstanceName() != "snapd" {
-		return fmt.Errorf("%s slots are reserved for the core and gadget snaps", iface.Name())
-	}
-	return nil
-}
-
-// sanitizeSlotReservedForOSOrApp checks if the slot is of type os or app.
-func sanitizeSlotReservedForOSOrApp(iface interfaces.Interface, slot *snap.SlotInfo) error {
-	if slot.Snap.Type != snap.TypeOS && slot.Snap.Type != snap.TypeApp {
-		return fmt.Errorf("%s slots are reserved for the core and app snaps", iface.Name())
-	}
-	return nil
-}
-
 // determine if permanent slot side is provided by the system
 // on classic system some implicit slots can be provided by system or by
 // application snap e.g. avahi (it can be installed as deb or snap)
@@ -105,7 +81,7 @@ func sanitizeSlotReservedForOSOrApp(iface interfaces.Interface, slot *snap.SlotI
 // - slot owned by application snap typically requires rules update
 func implicitSystemPermanentSlot(slot *snap.SlotInfo) bool {
 	if release.OnClassic &&
-		(slot.Snap.Type == snap.TypeOS || slot.Snap.Type == snap.TypeSnapd) {
+		(slot.Snap.GetType() == snap.TypeOS || slot.Snap.GetType() == snap.TypeSnapd) {
 		return true
 	}
 	return false
@@ -115,7 +91,7 @@ func implicitSystemPermanentSlot(slot *snap.SlotInfo) bool {
 // as for isPermanentSlotSystemSlot() slot can be owned by app or system
 func implicitSystemConnectedSlot(slot *interfaces.ConnectedSlot) bool {
 	if release.OnClassic &&
-		(slot.Snap().Type == snap.TypeOS || slot.Snap().Type == snap.TypeSnapd) {
+		(slot.Snap().GetType() == snap.TypeOS || slot.Snap().GetType() == snap.TypeSnapd) {
 		return true
 	}
 	return false

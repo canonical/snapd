@@ -23,7 +23,6 @@ import (
 	"bytes"
 	"fmt"
 	"io"
-	"io/ioutil"
 	"net/http"
 	"net/http/httptest"
 	"sync"
@@ -38,13 +37,14 @@ import (
 type DeviceServiceBehavior struct {
 	ReqID string
 
-	RequestIDURLPath string
-	SerialURLPath    string
+	RequestIDURLPath     string
+	SerialURLPath        string
+	ExpectedCapabilities string
 
 	Head          func(c *C, bhv *DeviceServiceBehavior, w http.ResponseWriter, r *http.Request)
 	PostPreflight func(c *C, bhv *DeviceServiceBehavior, w http.ResponseWriter, r *http.Request)
 
-	SignSerial func(c *C, bhv *DeviceServiceBehavior, headers map[string]interface{}, body []byte) (asserts.Assertion, error)
+	SignSerial func(c *C, bhv *DeviceServiceBehavior, headers map[string]interface{}, body []byte) (serial asserts.Assertion, ancillary []asserts.Assertion, err error)
 }
 
 // Request IDs for hard-coded behaviors.
@@ -67,6 +67,10 @@ func MockDeviceService(c *C, bhv *DeviceServiceBehavior) *httptest.Server {
 	if bhv.RequestIDURLPath == "" {
 		bhv.RequestIDURLPath = requestIDURLPath
 		bhv.SerialURLPath = serialURLPath
+	}
+	// currently supported
+	if bhv.ExpectedCapabilities == "" {
+		bhv.ExpectedCapabilities = "serial-stream"
 	}
 
 	var mu sync.Mutex
@@ -105,18 +109,28 @@ func MockDeviceService(c *C, bhv *DeviceServiceBehavior) *httptest.Server {
 			io.WriteString(w, fmt.Sprintf(`{"request-id": "%s"}`, bhv.ReqID))
 		case bhv.SerialURLPath:
 			c.Check(r.Header.Get("User-Agent"), Equals, expectedUserAgent)
+			c.Check(r.Header.Get("Snap-Device-Capabilities"), Equals, bhv.ExpectedCapabilities)
 
 			mu.Lock()
 			serialNum := 9999 + count
 			count++
 			mu.Unlock()
 
-			b, err := ioutil.ReadAll(r.Body)
-			c.Assert(err, IsNil)
-			a, err := asserts.Decode(b)
+			dec := asserts.NewDecoder(r.Body)
+
+			a, err := dec.Decode()
 			c.Assert(err, IsNil)
 			serialReq, ok := a.(*asserts.SerialRequest)
 			c.Assert(ok, Equals, true)
+			extra := []asserts.Assertion{}
+			for {
+				a1, err := dec.Decode()
+				if err == io.EOF {
+					break
+				}
+				c.Assert(err, IsNil)
+				extra = append(extra, a1)
+			}
 			err = asserts.SignatureCheck(serialReq, serialReq.DeviceKey())
 			c.Assert(err, IsNil)
 			brandID := serialReq.BrandID()
@@ -139,7 +153,19 @@ func MockDeviceService(c *C, bhv *DeviceServiceBehavior) *httptest.Server {
 				// use proposed serial
 				serialStr = serialReq.Serial()
 			}
-			serial, err := bhv.SignSerial(c, bhv, map[string]interface{}{
+			if serialReq.HeaderString("original-model") != "" {
+				// re-registration
+				c.Check(extra, HasLen, 2)
+				_, ok := extra[0].(*asserts.Model)
+				c.Check(ok, Equals, true)
+				origSerial, ok := extra[1].(*asserts.Serial)
+				c.Check(ok, Equals, true)
+				c.Check(origSerial.DeviceKey(), DeepEquals, serialReq.DeviceKey())
+				// TODO: more checks once we have Original* accessors
+			} else {
+				c.Check(extra, HasLen, 0)
+			}
+			serial, ancillary, err := bhv.SignSerial(c, bhv, map[string]interface{}{
 				"authority-id":        "canonical",
 				"brand-id":            brandID,
 				"model":               model,
@@ -151,11 +177,18 @@ func MockDeviceService(c *C, bhv *DeviceServiceBehavior) *httptest.Server {
 			c.Assert(err, IsNil)
 			w.Header().Set("Content-Type", asserts.MediaType)
 			w.WriteHeader(200)
-			encoded := asserts.Encode(serial)
 			if reqID == ReqIDSerialWithBadModel {
+				encoded := asserts.Encode(serial)
+
 				encoded = bytes.Replace(encoded, []byte("model: pc"), []byte("model: bad-model-foo"), 1)
+				w.Write(encoded)
+				return
 			}
-			w.Write(encoded)
+			enc := asserts.NewEncoder(w)
+			enc.Encode(serial)
+			for _, a := range ancillary {
+				enc.Encode(a)
+			}
 		}
 	}))
 }

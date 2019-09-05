@@ -76,6 +76,41 @@ func init() {
 		}), nil)
 }
 
+func (iw *infoWriter) maybePrintHealth() {
+	if iw.localSnap == nil {
+		return
+	}
+	health := iw.localSnap.Health
+	if health == nil {
+		if !iw.verbose {
+			return
+		}
+		health = &client.SnapHealth{
+			Status:  "unknown",
+			Message: "health has not been set",
+		}
+	}
+	if health.Status == "okay" && !iw.verbose {
+		return
+	}
+
+	fmt.Fprintln(iw, "health:")
+	fmt.Fprintf(iw, "  status:\t%s\n", health.Status)
+	if health.Message != "" {
+		wrapGeneric(iw, quotedIfNeeded(health.Message), "  message:\t", "    ", iw.termWidth)
+	}
+	if health.Code != "" {
+		fmt.Fprintf(iw, "  code:\t%s\n", health.Code)
+	}
+	if !health.Timestamp.IsZero() {
+		fmt.Fprintf(iw, "  checked:\t%s\n", iw.fmtTime(health.Timestamp))
+	}
+	if !health.Revision.Unset() {
+		fmt.Fprintf(iw, "  revision:\t%s\n", health.Revision)
+	}
+	iw.Flush()
+}
+
 func clientSnapFromPath(path string) (*client.Snap, error) {
 	snapf, err := snap.Open(path)
 	if err != nil {
@@ -196,6 +231,20 @@ func wrapGeneric(out io.Writer, text []rune, indent, indent2 string, termWidth i
 	}
 	_, err = fmt.Fprint(out, indent, string(text), "\n")
 	return err
+}
+
+func quotedIfNeeded(raw string) []rune {
+	// simplest way of checking to see if it needs quoting is to try
+	raw = strings.TrimSpace(raw)
+	type T struct {
+		S string
+	}
+	if len(raw) == 0 {
+		raw = `""`
+	} else if err := yaml.UnmarshalStrict([]byte("s: "+raw), &T{}); err != nil {
+		raw = strconv.Quote(raw)
+	}
+	return []rune(raw)
 }
 
 // printDescr formats a given string (typically a snap description)
@@ -349,18 +398,7 @@ func (iw *infoWriter) printName() {
 }
 
 func (iw *infoWriter) printSummary() {
-	// simplest way of checking to see if it needs quoting is to try
-	raw := strings.TrimSpace(iw.theSnap.Summary)
-	type T struct {
-		S string
-	}
-	if len(raw) == 0 {
-		raw = `""`
-	} else if err := yaml.UnmarshalStrict([]byte("s: "+raw), &T{}); err != nil {
-		raw = strconv.Quote(raw)
-	}
-
-	wrapFlow(iw, []rune(raw), "summary:\t", iw.termWidth)
+	wrapFlow(iw, quotedIfNeeded(iw.theSnap.Summary), "summary:\t", iw.termWidth)
 }
 
 func (iw *infoWriter) maybePrintPublisher() {
@@ -516,7 +554,7 @@ func (iw *infoWriter) maybePrintCohortKey() {
 	}
 	if isStdoutTTY {
 		// 15 is 1 + the length of "refresh-date: "
-		coh = strutil.ElliptRight(iw.localSnap.CohortKey, iw.termWidth-15)
+		coh = strutil.ElliptLeft(iw.localSnap.CohortKey, iw.termWidth-15)
 	}
 	fmt.Fprintf(iw, "cohort:\t%s\n", coh)
 }
@@ -657,7 +695,7 @@ func (x *infoCmd) Execute([]string) error {
 		if diskSnap, err := clientSnapFromPath(snapName); err == nil {
 			iw.setupDiskSnap(snapName, diskSnap)
 		} else {
-			remoteSnap, resInfo, _ := x.client.FindOne(snapName)
+			remoteSnap, resInfo, _ := x.client.FindOne(snap.InstanceSnap(snapName))
 			localSnap, _, _ := x.client.Snap(snapName)
 			iw.setupSnap(localSnap, remoteSnap, resInfo)
 		}
@@ -677,6 +715,7 @@ func (x *infoCmd) Execute([]string) error {
 		iw.maybePrintPath()
 		iw.printName()
 		iw.printSummary()
+		iw.maybePrintHealth()
 		iw.maybePrintPublisher()
 		iw.maybePrintStandaloneVersion()
 		iw.maybePrintBuildDate()

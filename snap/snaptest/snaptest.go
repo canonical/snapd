@@ -30,6 +30,7 @@ import (
 
 	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/snap"
+	"github.com/snapcore/snapd/snap/channel"
 	"github.com/snapcore/snapd/snap/pack"
 )
 
@@ -218,8 +219,8 @@ func MakeTestSnapWithFiles(c *check.C, snapYamlContent string, files [][]string)
 // MustParseChannel parses a string representing a store channel and
 // includes the given architecture, if architecture is "" the system
 // architecture is included. It panics on error.
-func MustParseChannel(s string, architecture string) snap.Channel {
-	c, err := snap.ParseChannel(s, architecture)
+func MustParseChannel(s string, architecture string) channel.Channel {
+	c, err := channel.Parse(s, architecture)
 	if err != nil {
 		panic(err)
 	}

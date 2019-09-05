@@ -67,7 +67,7 @@ const openglConnectedPlugAppArmor = `
 /dev/nvidia* rw,
 unix (send, receive) type=dgram peer=(addr="@nvidia[0-9a-f]*"),
 
-# eglfs
+# VideoCore/EGL (shared device with VideoCore camera)
 /dev/vchiq rw,
 
 # va-api
@@ -83,6 +83,10 @@ unix (bind,listen) type=seqpacket addr="@cuda-uvmfd-[0-9a-f]*",
 /dev/nvhost-* rw,
 /dev/nvmap rw,
 
+# Tegra display driver
+/dev/tegra_dc_ctrl rw,
+/dev/tegra_dc_[0-9]* rw,
+
 # OpenCL ICD files
 /etc/OpenCL/vendors/ r,
 /etc/OpenCL/vendors/** r,
@@ -91,10 +95,11 @@ unix (bind,listen) type=seqpacket addr="@cuda-uvmfd-[0-9a-f]*",
 @{PROC}/driver/prl_vtg rw,
 
 # /sys/devices
-/sys/devices/pci[0-9a-f]*/**/config r,
-/sys/devices/pci[0-9a-f]*/**/revision r,
-/sys/devices/pci[0-9a-f]*/**/{,subsystem_}device r,
-/sys/devices/pci[0-9a-f]*/**/{,subsystem_}vendor r,
+/sys/devices/{,*pcie-controller/}pci[0-9a-f]*/**/config r,
+/sys/devices/{,*pcie-controller/}pci[0-9a-f]*/**/revision r,
+/sys/devices/{,*pcie-controller/}pci[0-9a-f]*/**/{,subsystem_}class r,
+/sys/devices/{,*pcie-controller/}pci[0-9a-f]*/**/{,subsystem_}device r,
+/sys/devices/{,*pcie-controller/}pci[0-9a-f]*/**/{,subsystem_}vendor r,
 /sys/devices/**/drm{,_dp_aux_dev}/** r,
 
 # FIXME: this is an information leak and snapd should instead query udev for
@@ -121,6 +126,8 @@ var openglConnectedPlugUDev = []string{
 	`KERNEL=="renderD[0-9]*"`,
 	`KERNEL=="nvhost-*"`,
 	`KERNEL=="nvmap"`,
+	`KERNEL=="tegra_dc_ctrl"`,
+	`KERNEL=="tegra_dc_[0-9]*"`,
 }
 
 func init() {

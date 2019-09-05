@@ -200,7 +200,7 @@ var helpCategories = []helpCategory{
 	}, {
 		Label:       i18n.G("Configuration"),
 		Description: i18n.G("system administration and configuration"),
-		Commands:    []string{"get", "set", "wait"},
+		Commands:    []string{"get", "set", "unset", "wait"},
 	}, {
 		Label:       i18n.G("Account"),
 		Description: i18n.G("authentication to snapd and the snap store"),
@@ -216,7 +216,7 @@ var helpCategories = []helpCategory{
 	}, {
 		Label:       i18n.G("Other"),
 		Description: i18n.G("miscellanea"),
-		Commands:    []string{"version", "warnings", "okay", "ack", "known", "create-cohort"},
+		Commands:    []string{"version", "warnings", "okay", "ack", "known", "model", "create-cohort"},
 	}, {
 		Label:       i18n.G("Development"),
 		Description: i18n.G("developer-oriented features"),

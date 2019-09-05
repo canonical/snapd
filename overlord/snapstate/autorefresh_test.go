@@ -376,8 +376,7 @@ func (s *autoRefreshTestSuite) TestLastRefreshRefreshHoldExpired(c *C) {
 	tr = config.NewTransaction(s.state)
 	var t1 time.Time
 	err = tr.Get("core", "refresh.hold", &t1)
-	c.Assert(err, IsNil)
-	c.Check(t1.IsZero(), Equals, true)
+	c.Assert(config.IsNoOption(err), Equals, true)
 }
 
 func (s *autoRefreshTestSuite) TestLastRefreshRefreshHoldExpiredReschedule(c *C) {
@@ -412,8 +411,7 @@ func (s *autoRefreshTestSuite) TestLastRefreshRefreshHoldExpiredReschedule(c *C)
 	tr = config.NewTransaction(s.state)
 	var t1 time.Time
 	err = tr.Get("core", "refresh.hold", &t1)
-	c.Assert(err, IsNil)
-	c.Check(t1.IsZero(), Equals, true)
+	c.Assert(config.IsNoOption(err), Equals, true)
 
 	// check next refresh
 	nextRefresh1 := af.NextRefresh()

@@ -261,6 +261,15 @@ prepare_classic() {
         # shellcheck disable=SC2086
         cache_snaps ${PRE_CACHE_SNAPS}
 
+        echo "Cache the snaps profiler snap"
+        if [ "$PROFILE_SNAPS" = 1 ]; then
+            if is_core18_system; then
+                cache_snaps test-snapd-profiler-core18
+            else
+                cache_snaps test-snapd-profiler
+            fi
+        fi
+
         snap list | not grep core || exit 1
         # use parameterized core channel (defaults to edge) instead
         # of a fixed one and close to stable in order to detect defects
@@ -401,7 +410,7 @@ EOF
         # ubuntu-image channel to that of the gadget, so that we don't
         # need to download it
         snap download --channel="$KERNEL_CHANNEL" pc-kernel
-        
+
         EXTRA_FUNDAMENTAL="--extra-snaps $PWD/pc-kernel_*.snap"
         IMAGE_CHANNEL="$GADGET_CHANNEL"
     fi
@@ -429,7 +438,7 @@ EOF
                            "$EXTRA_FUNDAMENTAL" \
                            --extra-snaps "${extra_snap[0]}" \
                            --output "$IMAGE_HOME/$IMAGE"
-    rm -f ./pc-kernel_*.{snap,assert} ./pc_*.{snap,assert}
+    rm -f ./pc-kernel_*.{snap,assert} ./pc_*.{snap,assert} ./snapd_*.{snap,assert}
 
     # mount fresh image and add all our SPREAD_PROJECT data
     kpartx -avs "$IMAGE_HOME/$IMAGE"
@@ -452,7 +461,7 @@ EOF
           --exclude /gopath/bin/govendor \
           --exclude /gopath/pkg/ \
           /home/gopath /mnt/user-data/
-        
+
     # now modify the image
     if is_core18_system; then
         UNPACK_DIR="/tmp/core18-snap"
@@ -500,12 +509,12 @@ EOF
         grep -v "^root:" "$UNPACK_DIR/etc/$f" > /mnt/system-data/root/test-etc/"$f"
         # append this systems root user so that linode can connect
         grep "^root:" /etc/"$f" >> /mnt/system-data/root/test-etc/"$f"
-        
+
         # make sure the group is as expected
         chgrp --reference "$UNPACK_DIR/etc/$f" /mnt/system-data/root/test-etc/"$f"
         # now bind mount read-only those passwd files on boot
         cat >/mnt/system-data/etc/systemd/system/etc-"$f".mount <<EOF
-[Unit]  
+[Unit]
 Description=Mount root/test-etc/$f over system etc/$f
 Before=ssh.service
 
@@ -519,7 +528,7 @@ Options=bind,ro
 WantedBy=multi-user.target
 EOF
         ln -s /etc/systemd/system/etc-"$f".mount /mnt/system-data/etc/systemd/system/multi-user.target.wants/etc-"$f".mount
-        
+
         # create /var/lib/extrausers/$f
         # append ubuntu, test user for the testing
         grep "^test:" /etc/$f >> /mnt/system-data/var/lib/extrausers/"$f"
@@ -538,7 +547,7 @@ EOF
     # inside and outside which is a pain (see 12345 above), but
     # using the ids directly is the wrong kind of fragile
     chown --verbose test:test /mnt/user-data/test
-    
+
     # we do what sync-dirs is normally doing on boot, but because
     # we have subdirs/files in /etc/systemd/system (created below)
     # the writeable-path sync-boot won't work
@@ -649,6 +658,10 @@ prepare_ubuntu_core() {
             exit 1
         fi
         cache_snaps core
+    fi
+    echo "Cache the snaps profiler snap"
+    if [ "$PROFILE_SNAPS" = 1 ]; then
+        cache_snaps test-snapd-profiler
     fi
 
     disable_refreshes

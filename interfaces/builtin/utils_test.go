@@ -44,37 +44,14 @@ type utilsSuite struct {
 
 var _ = Suite(&utilsSuite{
 	iface:        &ifacetest.TestInterface{InterfaceName: "iface"},
-	slotOS:       &snap.SlotInfo{Snap: &snap.Info{Type: snap.TypeOS}},
-	slotApp:      &snap.SlotInfo{Snap: &snap.Info{Type: snap.TypeApp}},
-	slotSnapd:    &snap.SlotInfo{Snap: &snap.Info{Type: snap.TypeSnapd, SuggestedName: "snapd"}},
-	slotGadget:   &snap.SlotInfo{Snap: &snap.Info{Type: snap.TypeGadget}},
-	conSlotOS:    interfaces.NewConnectedSlot(&snap.SlotInfo{Snap: &snap.Info{Type: snap.TypeOS}}, nil, nil),
-	conSlotSnapd: interfaces.NewConnectedSlot(&snap.SlotInfo{Snap: &snap.Info{Type: snap.TypeSnapd}}, nil, nil),
-	conSlotApp:   interfaces.NewConnectedSlot(&snap.SlotInfo{Snap: &snap.Info{Type: snap.TypeApp}}, nil, nil),
+	slotOS:       &snap.SlotInfo{Snap: &snap.Info{SnapType: snap.TypeOS}},
+	slotApp:      &snap.SlotInfo{Snap: &snap.Info{SnapType: snap.TypeApp}},
+	slotSnapd:    &snap.SlotInfo{Snap: &snap.Info{SnapType: snap.TypeSnapd, SuggestedName: "snapd"}},
+	slotGadget:   &snap.SlotInfo{Snap: &snap.Info{SnapType: snap.TypeGadget}},
+	conSlotOS:    interfaces.NewConnectedSlot(&snap.SlotInfo{Snap: &snap.Info{SnapType: snap.TypeOS}}, nil, nil),
+	conSlotSnapd: interfaces.NewConnectedSlot(&snap.SlotInfo{Snap: &snap.Info{SnapType: snap.TypeSnapd}}, nil, nil),
+	conSlotApp:   interfaces.NewConnectedSlot(&snap.SlotInfo{Snap: &snap.Info{SnapType: snap.TypeApp}}, nil, nil),
 })
-
-func (s *utilsSuite) TestSanitizeSlotReservedForOS(c *C) {
-	errmsg := "iface slots are reserved for the core snap"
-	c.Assert(builtin.SanitizeSlotReservedForOS(s.iface, s.slotOS), IsNil)
-	c.Assert(builtin.SanitizeSlotReservedForOS(s.iface, s.slotSnapd), IsNil)
-	c.Assert(builtin.SanitizeSlotReservedForOS(s.iface, s.slotApp), ErrorMatches, errmsg)
-	c.Assert(builtin.SanitizeSlotReservedForOS(s.iface, s.slotGadget), ErrorMatches, errmsg)
-}
-
-func (s *utilsSuite) TestSanitizeSlotReservedForOSOrGadget(c *C) {
-	errmsg := "iface slots are reserved for the core and gadget snaps"
-	c.Assert(builtin.SanitizeSlotReservedForOSOrGadget(s.iface, s.slotOS), IsNil)
-	c.Assert(builtin.SanitizeSlotReservedForOSOrGadget(s.iface, s.slotSnapd), IsNil)
-	c.Assert(builtin.SanitizeSlotReservedForOSOrGadget(s.iface, s.slotApp), ErrorMatches, errmsg)
-	c.Assert(builtin.SanitizeSlotReservedForOSOrGadget(s.iface, s.slotGadget), IsNil)
-}
-
-func (s *utilsSuite) TestSanitizeSlotReservedForOSOrApp(c *C) {
-	errmsg := "iface slots are reserved for the core and app snaps"
-	c.Assert(builtin.SanitizeSlotReservedForOSOrApp(s.iface, s.slotOS), IsNil)
-	c.Assert(builtin.SanitizeSlotReservedForOSOrApp(s.iface, s.slotApp), IsNil)
-	c.Assert(builtin.SanitizeSlotReservedForOSOrApp(s.iface, s.slotGadget), ErrorMatches, errmsg)
-}
 
 func (s *utilsSuite) TestIsSlotSystemSlot(c *C) {
 	c.Assert(builtin.ImplicitSystemPermanentSlot(s.slotApp), Equals, false)

@@ -49,6 +49,34 @@ static void test_sc_error_init_from_errno(void)
 	g_assert_cmpstr(sc_error_msg(err), ==, "printer is on fire");
 }
 
+static void test_sc_error_init_simple(void)
+{
+	struct sc_error *err;
+	// Create an error
+	err = sc_error_init_simple("hello %s", "errors");
+	g_assert_nonnull(err);
+	g_test_queue_destroy((GDestroyNotify) sc_error_free, err);
+
+	// Inspect the exposed attributes
+	g_assert_cmpstr(sc_error_domain(err), ==, SC_LIBSNAP_DOMAIN);
+	g_assert_cmpint(sc_error_code(err), ==, 0);
+	g_assert_cmpstr(sc_error_msg(err), ==, "hello errors");
+}
+
+static void test_sc_error_init_api_misuse(void)
+{
+	struct sc_error *err;
+	// Create an error
+	err = sc_error_init_api_misuse("foo cannot be %d", 42);
+	g_assert_nonnull(err);
+	g_test_queue_destroy((GDestroyNotify) sc_error_free, err);
+
+	// Inspect the exposed attributes
+	g_assert_cmpstr(sc_error_domain(err), ==, SC_LIBSNAP_DOMAIN);
+	g_assert_cmpint(sc_error_code(err), ==, SC_API_MISUSE);
+	g_assert_cmpstr(sc_error_msg(err), ==, "foo cannot be 42");
+}
+
 static void test_sc_error_cleanup(void)
 {
 	// Check that sc_error_cleanup() is safe to use.
@@ -161,8 +189,10 @@ static void test_sc_error_forward__nothing(void)
 	// Check that forwarding NULL does exactly that.
 	struct sc_error *recipient = (void *)0xDEADBEEF;
 	struct sc_error *err = NULL;
-	sc_error_forward(&recipient, err);
+	int rc;
+	rc = sc_error_forward(&recipient, err);
 	g_assert_null(recipient);
+	g_assert_cmpint(rc, ==, 0);
 }
 
 static void test_sc_error_forward__something_somewhere(void)
@@ -170,10 +200,12 @@ static void test_sc_error_forward__something_somewhere(void)
 	// Check that forwarding a real error works OK.
 	struct sc_error *recipient = NULL;
 	struct sc_error *err = sc_error_init("domain", 42, "just testing");
+	int rc;
 	g_test_queue_destroy((GDestroyNotify) sc_error_free, err);
 	g_assert_nonnull(err);
-	sc_error_forward(&recipient, err);
+	rc = sc_error_forward(&recipient, err);
 	g_assert_nonnull(recipient);
+	g_assert_cmpint(rc, ==, -1);
 }
 
 static void test_sc_error_forward__something_nowhere(void)
@@ -232,6 +264,10 @@ static void __attribute__((constructor)) init(void)
 	g_test_add_func("/error/sc_error_init", test_sc_error_init);
 	g_test_add_func("/error/sc_error_init_from_errno",
 			test_sc_error_init_from_errno);
+	g_test_add_func("/error/sc_error_init_simple",
+			test_sc_error_init_simple);
+	g_test_add_func("/error/sc_error_init_api_misue",
+			test_sc_error_init_api_misuse);
 	g_test_add_func("/error/sc_error_cleanup", test_sc_error_cleanup);
 	g_test_add_func("/error/sc_error_domain/NULL",
 			test_sc_error_domain__NULL);

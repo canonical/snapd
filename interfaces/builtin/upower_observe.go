@@ -263,10 +263,6 @@ func (iface *upowerObserveInterface) AppArmorConnectedSlot(spec *apparmor.Specif
 	return nil
 }
 
-func (iface *upowerObserveInterface) BeforePrepareSlot(slot *snap.SlotInfo) error {
-	return sanitizeSlotReservedForOSOrApp(iface, slot)
-}
-
 func (iface *upowerObserveInterface) AutoConnect(*snap.PlugInfo, *snap.SlotInfo) bool {
 	// allow what declarations allowed
 	return true

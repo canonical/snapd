@@ -67,7 +67,7 @@ func (s *snapDownloadSuite) SetUpTest(c *check.C) {
 
 var content = "SNAP"
 
-func (s *snapDownloadSuite) SnapInfo(spec store.SnapSpec, user *auth.UserState) (*snap.Info, error) {
+func (s *snapDownloadSuite) SnapInfo(ctx context.Context, spec store.SnapSpec, user *auth.UserState) (*snap.Info, error) {
 	switch spec.Name {
 	case "bar":
 		return &snap.Info{

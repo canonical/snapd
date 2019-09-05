@@ -36,19 +36,36 @@ init_fake_refreshes(){
     local dir="$1"
     shift
 
-    fakestore make-refreshable --dir "$dir" "$@" 
+    fakestore make-refreshable --dir "$dir" "$@"
 }
 
 make_snap_installable(){
     local dir="$1"
     local snap_path="$2"
 
+    new_snap_declaration "$dir" "$snap_path"
+    new_snap_revision "$dir" "$snap_path"
+}
+
+new_snap_declaration(){
+    local dir="$1"
+    local snap_path="$2"
+    shift 2
+
     cp -a "$snap_path" "$dir"
-    p=$(fakestore new-snap-declaration --dir "$dir" "${snap_path}")
-    snap ack "$p"
-    p=$(fakestore new-snap-revision --dir "$dir" "${snap_path}")
+    p=$(fakestore new-snap-declaration --dir "$dir" "$@" "${snap_path}" )
     snap ack "$p"
 }
+
+new_snap_revision(){
+    local dir="$1"
+    local snap_path="$2"
+    shift 2
+
+    p=$(fakestore new-snap-revision --dir "$dir" "$@" "${snap_path}")
+    snap ack "$p"
+}
+
 
 setup_fake_store(){
     # before switching make sure we have a session macaroon

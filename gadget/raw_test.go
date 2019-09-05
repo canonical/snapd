@@ -75,11 +75,11 @@ func (r *rawTestSuite) TestRawWriterHappy(c *C) {
 	makeSizedFile(c, filepath.Join(r.dir, "foo.img"), 128, []byte("foo foo foo"))
 	makeSizedFile(c, filepath.Join(r.dir, "bar.img"), 128, []byte("bar bar bar"))
 
-	ps := &gadget.PositionedStructure{
+	ps := &gadget.LaidOutStructure{
 		VolumeStructure: &gadget.VolumeStructure{
 			Size: 2048,
 		},
-		PositionedContent: []gadget.PositionedContent{
+		LaidOutContent: []gadget.LaidOutContent{
 			{
 				VolumeContent: &gadget.VolumeContent{
 					Image: "foo.img",
@@ -124,11 +124,11 @@ func (r *rawTestSuite) TestRawWriterHappy(c *C) {
 
 func (r *rawTestSuite) TestRawWriterNoFile(c *C) {
 
-	ps := &gadget.PositionedStructure{
+	ps := &gadget.LaidOutStructure{
 		VolumeStructure: &gadget.VolumeStructure{
 			Size: 2048,
 		},
-		PositionedContent: []gadget.PositionedContent{
+		LaidOutContent: []gadget.LaidOutContent{
 			{
 				VolumeContent: &gadget.VolumeContent{
 					Image: "foo.img",
@@ -176,11 +176,11 @@ func (r *rawTestSuite) TestRawWriterFailInWriteSeeker(c *C) {
 	}
 	makeSizedFile(c, filepath.Join(r.dir, "foo.img"), 128, []byte("foo foo foo"))
 
-	ps := &gadget.PositionedStructure{
+	ps := &gadget.LaidOutStructure{
 		VolumeStructure: &gadget.VolumeStructure{
 			Size: 2048,
 		},
-		PositionedContent: []gadget.PositionedContent{
+		LaidOutContent: []gadget.LaidOutContent{
 			{
 				VolumeContent: &gadget.VolumeContent{
 					Image: "foo.img",
@@ -208,11 +208,11 @@ func (r *rawTestSuite) TestRawWriterFailInWriteSeeker(c *C) {
 
 func (r *rawTestSuite) TestRawWriterNoImage(c *C) {
 	out := &mockWriteSeeker{}
-	ps := &gadget.PositionedStructure{
+	ps := &gadget.LaidOutStructure{
 		VolumeStructure: &gadget.VolumeStructure{
 			Size: 2048,
 		},
-		PositionedContent: []gadget.PositionedContent{
+		LaidOutContent: []gadget.LaidOutContent{
 			{
 				// invalid content
 				VolumeContent: &gadget.VolumeContent{
@@ -232,7 +232,7 @@ func (r *rawTestSuite) TestRawWriterNoImage(c *C) {
 }
 
 func (r *rawTestSuite) TestRawWriterFailWithNonBare(c *C) {
-	ps := &gadget.PositionedStructure{
+	ps := &gadget.LaidOutStructure{
 		VolumeStructure: &gadget.VolumeStructure{
 			Size: 2048,
 			// non-bare
@@ -246,7 +246,7 @@ func (r *rawTestSuite) TestRawWriterFailWithNonBare(c *C) {
 }
 
 func (r *rawTestSuite) TestRawWriterInternalErrors(c *C) {
-	ps := &gadget.PositionedStructure{
+	ps := &gadget.LaidOutStructure{
 		VolumeStructure: &gadget.VolumeStructure{
 			Size: 2048,
 		},
@@ -257,7 +257,7 @@ func (r *rawTestSuite) TestRawWriterInternalErrors(c *C) {
 	c.Assert(rw, IsNil)
 
 	rw, err = gadget.NewRawStructureWriter(r.dir, nil)
-	c.Assert(err, ErrorMatches, `internal error: \*PositionedStructure is nil`)
+	c.Assert(err, ErrorMatches, `internal error: \*LaidOutStructure is nil`)
 	c.Assert(rw, IsNil)
 }
 
@@ -268,7 +268,7 @@ func getFileSize(c *C, path string) int64 {
 }
 
 func (r *rawTestSuite) TestRawUpdaterFailWithNonBare(c *C) {
-	ps := &gadget.PositionedStructure{
+	ps := &gadget.LaidOutStructure{
 		VolumeStructure: &gadget.VolumeStructure{
 			Size: 2048,
 			// non-bare
@@ -276,9 +276,9 @@ func (r *rawTestSuite) TestRawUpdaterFailWithNonBare(c *C) {
 		},
 	}
 
-	ru, err := gadget.NewRawStructureUpdater(r.dir, ps, r.backup, func(to *gadget.PositionedStructure) (string, error) {
+	ru, err := gadget.NewRawStructureUpdater(r.dir, ps, r.backup, func(to *gadget.LaidOutStructure) (string, gadget.Size, error) {
 		c.Fatalf("unexpected call")
-		return "", nil
+		return "", 0, nil
 	})
 	c.Assert(err, ErrorMatches, "internal error: structure #0 is not bare")
 	c.Assert(ru, IsNil)
@@ -286,39 +286,40 @@ func (r *rawTestSuite) TestRawUpdaterFailWithNonBare(c *C) {
 
 func (r *rawTestSuite) TestRawUpdaterBackupUpdateRestoreSame(c *C) {
 
-	diskPath := filepath.Join(r.dir, "disk.img")
-	mutateFile(c, diskPath, 2048, []mutateWrite{
+	partitionPath := filepath.Join(r.dir, "partition.img")
+	mutateFile(c, partitionPath, 2048, []mutateWrite{
 		{[]byte("foo foo foo"), 0},
 		{[]byte("bar bar bar"), 1024},
 	})
 
 	makeSizedFile(c, filepath.Join(r.dir, "foo.img"), 128, []byte("foo foo foo"))
 	makeSizedFile(c, filepath.Join(r.dir, "bar.img"), 128, []byte("bar bar bar"))
-	ps := &gadget.PositionedStructure{
+	ps := &gadget.LaidOutStructure{
 		VolumeStructure: &gadget.VolumeStructure{
 			Size: 2048,
 		},
-		StartOffset: 0,
-		PositionedContent: []gadget.PositionedContent{
+		StartOffset: 1 * gadget.SizeMiB,
+		LaidOutContent: []gadget.LaidOutContent{
 			{
 				VolumeContent: &gadget.VolumeContent{
 					Image: "foo.img",
 				},
-				StartOffset: 0,
+				StartOffset: 1 * gadget.SizeMiB,
 				Size:        128,
 			}, {
 				VolumeContent: &gadget.VolumeContent{
 					Image: "bar.img",
 				},
-				StartOffset: 1024,
+				StartOffset: 1*gadget.SizeMiB + 1024,
 				Size:        128,
 				Index:       1,
 			},
 		},
 	}
-	ru, err := gadget.NewRawStructureUpdater(r.dir, ps, r.backup, func(to *gadget.PositionedStructure) (string, error) {
+	ru, err := gadget.NewRawStructureUpdater(r.dir, ps, r.backup, func(to *gadget.LaidOutStructure) (string, gadget.Size, error) {
 		c.Check(to, DeepEquals, ps)
-		return diskPath, nil
+		// Structure has a partition, thus it starts at 0 offset.
+		return partitionPath, 0, nil
 	})
 	c.Assert(err, IsNil)
 	c.Assert(ru, NotNil)
@@ -326,16 +327,16 @@ func (r *rawTestSuite) TestRawUpdaterBackupUpdateRestoreSame(c *C) {
 	err = ru.Backup()
 	c.Assert(err, IsNil)
 
-	c.Check(osutil.FileExists(gadget.RawContentBackupPath(r.backup, ps, &ps.PositionedContent[0])+".same"), Equals, true)
-	c.Check(osutil.FileExists(gadget.RawContentBackupPath(r.backup, ps, &ps.PositionedContent[1])+".same"), Equals, true)
+	c.Check(osutil.FileExists(gadget.RawContentBackupPath(r.backup, ps, &ps.LaidOutContent[0])+".same"), Equals, true)
+	c.Check(osutil.FileExists(gadget.RawContentBackupPath(r.backup, ps, &ps.LaidOutContent[1])+".same"), Equals, true)
 
 	emptyDiskPath := filepath.Join(r.dir, "disk-not-written.img")
 	err = osutil.AtomicWriteFile(emptyDiskPath, nil, 0644, 0)
 	c.Assert(err, IsNil)
 	// update should be a noop now, use the same locations, point to a file
 	// of 0 size, so that seek fails and write would increase the size
-	ru, err = gadget.NewRawStructureUpdater(r.dir, ps, r.backup, func(to *gadget.PositionedStructure) (string, error) {
-		return emptyDiskPath, nil
+	ru, err = gadget.NewRawStructureUpdater(r.dir, ps, r.backup, func(to *gadget.LaidOutStructure) (string, gadget.Size, error) {
+		return emptyDiskPath, 0, nil
 	})
 	c.Assert(err, IsNil)
 	c.Assert(ru, NotNil)
@@ -352,7 +353,7 @@ func (r *rawTestSuite) TestRawUpdaterBackupUpdateRestoreSame(c *C) {
 
 func (r *rawTestSuite) TestRawUpdaterBackupUpdateRestoreDifferent(c *C) {
 
-	diskPath := filepath.Join(r.dir, "disk.img")
+	diskPath := filepath.Join(r.dir, "partition.img")
 	mutateFile(c, diskPath, 2048, []mutateWrite{
 		{[]byte("foo foo foo"), 0},
 		{[]byte("bar bar bar"), 1024},
@@ -370,31 +371,32 @@ func (r *rawTestSuite) TestRawUpdaterBackupUpdateRestoreDifferent(c *C) {
 
 	makeSizedFile(c, filepath.Join(r.dir, "foo.img"), 128, []byte("zzz zzz zzz zzz"))
 	makeSizedFile(c, filepath.Join(r.dir, "bar.img"), 256, []byte("xxx xxx xxx xxx"))
-	ps := &gadget.PositionedStructure{
+	ps := &gadget.LaidOutStructure{
 		VolumeStructure: &gadget.VolumeStructure{
 			Size: 2048,
 		},
-		StartOffset: 0,
-		PositionedContent: []gadget.PositionedContent{
+		StartOffset: 1 * gadget.SizeMiB,
+		LaidOutContent: []gadget.LaidOutContent{
 			{
 				VolumeContent: &gadget.VolumeContent{
 					Image: "foo.img",
 				},
-				StartOffset: 0,
+				StartOffset: 1 * gadget.SizeMiB,
 				Size:        128,
 			}, {
 				VolumeContent: &gadget.VolumeContent{
 					Image: "bar.img",
 				},
-				StartOffset: 1024,
+				StartOffset: 1*gadget.SizeMiB + 1024,
 				Size:        256,
 				Index:       1,
 			},
 		},
 	}
-	ru, err := gadget.NewRawStructureUpdater(r.dir, ps, r.backup, func(to *gadget.PositionedStructure) (string, error) {
+	ru, err := gadget.NewRawStructureUpdater(r.dir, ps, r.backup, func(to *gadget.LaidOutStructure) (string, gadget.Size, error) {
 		c.Check(to, DeepEquals, ps)
-		return diskPath, nil
+		// Structure has a partition, thus it starts at 0 offset.
+		return diskPath, 0, nil
 	})
 	c.Assert(err, IsNil)
 	c.Assert(ru, NotNil)
@@ -407,10 +409,10 @@ func (r *rawTestSuite) TestRawUpdaterBackupUpdateRestoreDifferent(c *C) {
 		size   int64
 		exists bool
 	}{
-		{gadget.RawContentBackupPath(r.backup, ps, &ps.PositionedContent[0]) + ".backup", 128, true},
-		{gadget.RawContentBackupPath(r.backup, ps, &ps.PositionedContent[1]) + ".backup", 256, true},
-		{gadget.RawContentBackupPath(r.backup, ps, &ps.PositionedContent[1]) + ".same", 0, false},
-		{gadget.RawContentBackupPath(r.backup, ps, &ps.PositionedContent[1]) + ".same", 0, false},
+		{gadget.RawContentBackupPath(r.backup, ps, &ps.LaidOutContent[0]) + ".backup", 128, true},
+		{gadget.RawContentBackupPath(r.backup, ps, &ps.LaidOutContent[1]) + ".backup", 256, true},
+		{gadget.RawContentBackupPath(r.backup, ps, &ps.LaidOutContent[1]) + ".same", 0, false},
+		{gadget.RawContentBackupPath(r.backup, ps, &ps.LaidOutContent[1]) + ".same", 0, false},
 	} {
 		c.Check(osutil.FileExists(e.path), Equals, e.exists)
 		if e.exists {
@@ -432,14 +434,94 @@ func (r *rawTestSuite) TestRawUpdaterBackupUpdateRestoreDifferent(c *C) {
 	c.Check(osutil.FilesAreEqual(diskPath, pristinePath), Equals, true)
 }
 
+func (r *rawTestSuite) TestRawUpdaterBackupUpdateRestoreNoPartition(c *C) {
+	diskPath := filepath.Join(r.dir, "disk.img")
+
+	mutateFile(c, diskPath, gadget.SizeMiB+2048, []mutateWrite{
+		{[]byte("baz baz baz"), int64(gadget.SizeMiB)},
+		{[]byte("oof oof oof"), int64(gadget.SizeMiB + 1024)},
+	})
+
+	pristinePath := filepath.Join(r.dir, "pristine.img")
+	err := osutil.CopyFile(diskPath, pristinePath, 0)
+	c.Assert(err, IsNil)
+
+	expectedPath := filepath.Join(r.dir, "expected.img")
+	mutateFile(c, expectedPath, gadget.SizeMiB+2048, []mutateWrite{
+		{[]byte("zzz zzz zzz zzz"), int64(gadget.SizeMiB)},
+		{[]byte("xxx xxx xxx xxx"), int64(gadget.SizeMiB + 1024)},
+	})
+
+	makeSizedFile(c, filepath.Join(r.dir, "foo.img"), 128, []byte("zzz zzz zzz zzz"))
+	makeSizedFile(c, filepath.Join(r.dir, "bar.img"), 256, []byte("xxx xxx xxx xxx"))
+	ps := &gadget.LaidOutStructure{
+		VolumeStructure: &gadget.VolumeStructure{
+			// No partition table entry, would trigger fallback lookup path.
+			Type: "bare",
+			Size: 2048,
+		},
+		StartOffset: 1 * gadget.SizeMiB,
+		LaidOutContent: []gadget.LaidOutContent{
+			{
+				VolumeContent: &gadget.VolumeContent{
+					Image: "foo.img",
+				},
+				StartOffset: 1 * gadget.SizeMiB,
+				Size:        128,
+			}, {
+				VolumeContent: &gadget.VolumeContent{
+					Image: "bar.img",
+				},
+				StartOffset: 1*gadget.SizeMiB + 1024,
+				Size:        256,
+				Index:       1,
+			},
+		},
+	}
+	ru, err := gadget.NewRawStructureUpdater(r.dir, ps, r.backup, func(to *gadget.LaidOutStructure) (string, gadget.Size, error) {
+		c.Check(to, DeepEquals, ps)
+		// No partition table, returned path corresponds to a disk, start offset is non-0.
+		return diskPath, ps.StartOffset, nil
+	})
+	c.Assert(err, IsNil)
+	c.Assert(ru, NotNil)
+
+	err = ru.Backup()
+	c.Assert(err, IsNil)
+
+	for _, e := range []struct {
+		path string
+		size int64
+	}{
+		{gadget.RawContentBackupPath(r.backup, ps, &ps.LaidOutContent[0]) + ".backup", 128},
+		{gadget.RawContentBackupPath(r.backup, ps, &ps.LaidOutContent[1]) + ".backup", 256},
+	} {
+		c.Check(osutil.FileExists(e.path), Equals, true)
+		c.Check(getFileSize(c, e.path), Equals, e.size)
+	}
+
+	err = ru.Update()
+	c.Assert(err, IsNil)
+
+	// After update, files should be identical.
+	c.Check(osutil.FilesAreEqual(diskPath, expectedPath), Equals, true)
+
+	// Rollback restores the original contents.
+	err = ru.Rollback()
+	c.Assert(err, IsNil)
+
+	// Which should match the pristine copy now.
+	c.Check(osutil.FilesAreEqual(diskPath, pristinePath), Equals, true)
+}
+
 func (r *rawTestSuite) TestRawUpdaterBackupErrors(c *C) {
 	diskPath := filepath.Join(r.dir, "disk.img")
-	ps := &gadget.PositionedStructure{
+	ps := &gadget.LaidOutStructure{
 		VolumeStructure: &gadget.VolumeStructure{
 			Size: 2048,
 		},
 		StartOffset: 0,
-		PositionedContent: []gadget.PositionedContent{
+		LaidOutContent: []gadget.LaidOutContent{
 			{
 				VolumeContent: &gadget.VolumeContent{
 					Image: "foo.img",
@@ -450,23 +532,23 @@ func (r *rawTestSuite) TestRawUpdaterBackupErrors(c *C) {
 		},
 	}
 
-	ru, err := gadget.NewRawStructureUpdater(r.dir, ps, r.backup, func(to *gadget.PositionedStructure) (string, error) {
+	ru, err := gadget.NewRawStructureUpdater(r.dir, ps, r.backup, func(to *gadget.LaidOutStructure) (string, gadget.Size, error) {
 		c.Check(to, DeepEquals, ps)
-		return diskPath, nil
+		return diskPath, 0, nil
 	})
 	c.Assert(err, IsNil)
 	c.Assert(ru, NotNil)
 
 	err = ru.Backup()
 	c.Assert(err, ErrorMatches, "cannot open device for reading: .*")
-	c.Check(osutil.FileExists(gadget.RawContentBackupPath(r.backup, ps, &ps.PositionedContent[0])+".backup"), Equals, false)
+	c.Check(osutil.FileExists(gadget.RawContentBackupPath(r.backup, ps, &ps.LaidOutContent[0])+".backup"), Equals, false)
 
 	// 0 sized disk, copying will fail with early EOF
 	makeSizedFile(c, diskPath, 0, nil)
 
 	err = ru.Backup()
 	c.Assert(err, ErrorMatches, "cannot backup image .*: cannot backup original image: EOF")
-	c.Check(osutil.FileExists(gadget.RawContentBackupPath(r.backup, ps, &ps.PositionedContent[0])+".backup"), Equals, false)
+	c.Check(osutil.FileExists(gadget.RawContentBackupPath(r.backup, ps, &ps.LaidOutContent[0])+".backup"), Equals, false)
 
 	// make proper disk image now
 	err = os.Remove(diskPath)
@@ -475,7 +557,7 @@ func (r *rawTestSuite) TestRawUpdaterBackupErrors(c *C) {
 
 	err = ru.Backup()
 	c.Assert(err, ErrorMatches, "cannot backup image .*: cannot checksum update image: .*")
-	c.Check(osutil.FileExists(gadget.RawContentBackupPath(r.backup, ps, &ps.PositionedContent[0])+".backup"), Equals, false)
+	c.Check(osutil.FileExists(gadget.RawContentBackupPath(r.backup, ps, &ps.LaidOutContent[0])+".backup"), Equals, false)
 }
 
 func (r *rawTestSuite) TestRawUpdaterBackupIdempotent(c *C) {
@@ -483,12 +565,12 @@ func (r *rawTestSuite) TestRawUpdaterBackupIdempotent(c *C) {
 	// 0 sized disk, copying will fail with early EOF
 	makeSizedFile(c, diskPath, 0, nil)
 
-	ps := &gadget.PositionedStructure{
+	ps := &gadget.LaidOutStructure{
 		VolumeStructure: &gadget.VolumeStructure{
 			Size: 2048,
 		},
 		StartOffset: 0,
-		PositionedContent: []gadget.PositionedContent{
+		LaidOutContent: []gadget.LaidOutContent{
 			{
 				VolumeContent: &gadget.VolumeContent{
 					Image: "foo.img",
@@ -499,14 +581,14 @@ func (r *rawTestSuite) TestRawUpdaterBackupIdempotent(c *C) {
 		},
 	}
 
-	ru, err := gadget.NewRawStructureUpdater(r.dir, ps, r.backup, func(to *gadget.PositionedStructure) (string, error) {
+	ru, err := gadget.NewRawStructureUpdater(r.dir, ps, r.backup, func(to *gadget.LaidOutStructure) (string, gadget.Size, error) {
 		c.Check(to, DeepEquals, ps)
-		return diskPath, nil
+		return diskPath, 0, nil
 	})
 	c.Assert(err, IsNil)
 	c.Assert(ru, NotNil)
 
-	contentBackupBasePath := gadget.RawContentBackupPath(r.backup, ps, &ps.PositionedContent[0])
+	contentBackupBasePath := gadget.RawContentBackupPath(r.backup, ps, &ps.LaidOutContent[0])
 	// mock content backed-up marker
 	makeSizedFile(c, contentBackupBasePath+".backup", 0, nil)
 
@@ -525,12 +607,12 @@ func (r *rawTestSuite) TestRawUpdaterBackupIdempotent(c *C) {
 }
 
 func (r *rawTestSuite) TestRawUpdaterFindDeviceFailed(c *C) {
-	ps := &gadget.PositionedStructure{
+	ps := &gadget.LaidOutStructure{
 		VolumeStructure: &gadget.VolumeStructure{
 			Size: 2048,
 		},
 		StartOffset: 0,
-		PositionedContent: []gadget.PositionedContent{
+		LaidOutContent: []gadget.LaidOutContent{
 			{
 				VolumeContent: &gadget.VolumeContent{
 					Image: "foo.img",
@@ -545,9 +627,9 @@ func (r *rawTestSuite) TestRawUpdaterFindDeviceFailed(c *C) {
 	c.Assert(err, ErrorMatches, "internal error: device lookup helper must be provided")
 	c.Assert(ru, IsNil)
 
-	ru, err = gadget.NewRawStructureUpdater(r.dir, ps, r.backup, func(to *gadget.PositionedStructure) (string, error) {
+	ru, err = gadget.NewRawStructureUpdater(r.dir, ps, r.backup, func(to *gadget.LaidOutStructure) (string, gadget.Size, error) {
 		c.Check(to, DeepEquals, ps)
-		return "", errors.New("failed")
+		return "", 0, errors.New("failed")
 	})
 	c.Assert(err, IsNil)
 	c.Assert(ru, NotNil)
@@ -567,12 +649,12 @@ func (r *rawTestSuite) TestRawUpdaterRollbackErrors(c *C) {
 	// 0 sized disk, copying will fail with early EOF
 	makeSizedFile(c, diskPath, 0, nil)
 
-	ps := &gadget.PositionedStructure{
+	ps := &gadget.LaidOutStructure{
 		VolumeStructure: &gadget.VolumeStructure{
 			Size: 2048,
 		},
 		StartOffset: 0,
-		PositionedContent: []gadget.PositionedContent{
+		LaidOutContent: []gadget.LaidOutContent{
 			{
 				VolumeContent: &gadget.VolumeContent{
 					Image: "foo.img",
@@ -583,9 +665,9 @@ func (r *rawTestSuite) TestRawUpdaterRollbackErrors(c *C) {
 		},
 	}
 
-	ru, err := gadget.NewRawStructureUpdater(r.dir, ps, r.backup, func(to *gadget.PositionedStructure) (string, error) {
+	ru, err := gadget.NewRawStructureUpdater(r.dir, ps, r.backup, func(to *gadget.LaidOutStructure) (string, gadget.Size, error) {
 		c.Check(to, DeepEquals, ps)
-		return diskPath, nil
+		return diskPath, 0, nil
 	})
 	c.Assert(err, IsNil)
 	c.Assert(ru, NotNil)
@@ -593,7 +675,7 @@ func (r *rawTestSuite) TestRawUpdaterRollbackErrors(c *C) {
 	err = ru.Rollback()
 	c.Assert(err, ErrorMatches, `cannot rollback image #0 \("foo.img"@0x80\{128\}\): cannot open backup image: .*no such file or directory`)
 
-	contentBackupPath := gadget.RawContentBackupPath(r.backup, ps, &ps.PositionedContent[0]) + ".backup"
+	contentBackupPath := gadget.RawContentBackupPath(r.backup, ps, &ps.LaidOutContent[0]) + ".backup"
 
 	// trigger short read
 	makeSizedFile(c, contentBackupPath, 0, nil)
@@ -613,12 +695,12 @@ func (r *rawTestSuite) TestRawUpdaterUpdateErrors(c *C) {
 	// 0 sized disk, copying will fail with early EOF
 	makeSizedFile(c, diskPath, 2048, nil)
 
-	ps := &gadget.PositionedStructure{
+	ps := &gadget.LaidOutStructure{
 		VolumeStructure: &gadget.VolumeStructure{
 			Size: 2048,
 		},
 		StartOffset: 0,
-		PositionedContent: []gadget.PositionedContent{
+		LaidOutContent: []gadget.LaidOutContent{
 			{
 				VolumeContent: &gadget.VolumeContent{
 					Image: "foo.img",
@@ -629,9 +711,9 @@ func (r *rawTestSuite) TestRawUpdaterUpdateErrors(c *C) {
 		},
 	}
 
-	ru, err := gadget.NewRawStructureUpdater(r.dir, ps, r.backup, func(to *gadget.PositionedStructure) (string, error) {
+	ru, err := gadget.NewRawStructureUpdater(r.dir, ps, r.backup, func(to *gadget.LaidOutStructure) (string, gadget.Size, error) {
 		c.Check(to, DeepEquals, ps)
-		return diskPath, nil
+		return diskPath, 0, nil
 	})
 	c.Assert(err, IsNil)
 	c.Assert(ru, NotNil)
@@ -641,7 +723,7 @@ func (r *rawTestSuite) TestRawUpdaterUpdateErrors(c *C) {
 	c.Assert(err, ErrorMatches, `cannot update image #0 \("foo.img"@0x80\{128\}\): missing backup file`)
 
 	// pretend backup was done
-	makeSizedFile(c, gadget.RawContentBackupPath(r.backup, ps, &ps.PositionedContent[0])+".backup", 0, nil)
+	makeSizedFile(c, gadget.RawContentBackupPath(r.backup, ps, &ps.LaidOutContent[0])+".backup", 0, nil)
 
 	err = ru.Update()
 	c.Assert(err, ErrorMatches, `cannot update image #0 \("foo.img"@0x80\{128\}\).*: cannot open image file: .*no such file or directory`)
@@ -658,16 +740,16 @@ func (r *rawTestSuite) TestRawUpdaterUpdateErrors(c *C) {
 }
 
 func (r *rawTestSuite) TestRawUpdaterContentBackupPath(c *C) {
-	ps := &gadget.PositionedStructure{
+	ps := &gadget.LaidOutStructure{
 		VolumeStructure: &gadget.VolumeStructure{},
 		StartOffset:     0,
-		PositionedContent: []gadget.PositionedContent{
+		LaidOutContent: []gadget.LaidOutContent{
 			{
 				VolumeContent: &gadget.VolumeContent{},
 			},
 		},
 	}
-	pc := &ps.PositionedContent[0]
+	pc := &ps.LaidOutContent[0]
 
 	p := gadget.RawContentBackupPath(r.backup, ps, pc)
 	c.Assert(p, Equals, r.backup+"/struct-0-0")
@@ -680,21 +762,21 @@ func (r *rawTestSuite) TestRawUpdaterContentBackupPath(c *C) {
 }
 
 func (r *rawTestSuite) TestRawUpdaterInternalErrors(c *C) {
-	ps := &gadget.PositionedStructure{
+	ps := &gadget.LaidOutStructure{
 		VolumeStructure: &gadget.VolumeStructure{
 			Size: 2048,
 		},
 	}
 
-	f := func(to *gadget.PositionedStructure) (string, error) {
-		return "", errors.New("unexpected call")
+	f := func(to *gadget.LaidOutStructure) (string, gadget.Size, error) {
+		return "", 0, errors.New("unexpected call")
 	}
 	rw, err := gadget.NewRawStructureUpdater("", ps, r.backup, f)
 	c.Assert(err, ErrorMatches, "internal error: gadget content directory cannot be unset")
 	c.Assert(rw, IsNil)
 
 	rw, err = gadget.NewRawStructureUpdater(r.dir, nil, r.backup, f)
-	c.Assert(err, ErrorMatches, `internal error: \*PositionedStructure is nil`)
+	c.Assert(err, ErrorMatches, `internal error: \*LaidOutStructure is nil`)
 	c.Assert(rw, IsNil)
 
 	rw, err = gadget.NewRawStructureUpdater(r.dir, ps, "", f)

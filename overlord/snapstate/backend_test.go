@@ -147,7 +147,7 @@ func (f *fakeStore) pokeStateLock() {
 	f.state.Unlock()
 }
 
-func (f *fakeStore) SnapInfo(spec store.SnapSpec, user *auth.UserState) (*snap.Info, error) {
+func (f *fakeStore) SnapInfo(ctx context.Context, spec store.SnapSpec, user *auth.UserState) (*snap.Info, error) {
 	f.pokeStateLock()
 
 	_, instanceKey := snap.SplitInstanceName(spec.Name)
@@ -192,15 +192,17 @@ func (f *fakeStore) snap(spec snapSpec, user *auth.UserState) (*snap.Info, error
 	typ := snap.TypeApp
 	epoch := snap.E("1*")
 	switch spec.Name {
-	case "core", "ubuntu-core", "some-core":
+	case "core", "core16", "ubuntu-core", "some-core":
 		typ = snap.TypeOS
-	case "some-base":
+	case "some-base", "core18":
 		typ = snap.TypeBase
 	case "some-kernel":
 		typ = snap.TypeKernel
 	case "some-gadget", "brand-gadget":
 		typ = snap.TypeGadget
 	case "some-snapd":
+		typ = snap.TypeSnapd
+	case "snapd":
 		typ = snap.TypeSnapd
 	case "some-snap-now-classic":
 		confinement = "classic"
@@ -225,7 +227,7 @@ func (f *fakeStore) snap(spec snapSpec, user *auth.UserState) (*snap.Info, error
 			DownloadURL: "https://some-server.com/some/path.snap",
 		},
 		Confinement: confinement,
-		Type:        typ,
+		SnapType:    typ,
 		Epoch:       epoch,
 	}
 	switch spec.Channel {
@@ -331,7 +333,7 @@ func (f *fakeStore) lookupRefresh(cand refreshCand) (*snap.Info, error) {
 	}
 
 	info := &snap.Info{
-		Type: typ,
+		SnapType: typ,
 		SideInfo: snap.SideInfo{
 			RealName: name,
 			Channel:  cand.channel,
@@ -695,7 +697,7 @@ func (f *fakeSnappyBackend) ReadInfo(name string, si *snap.SideInfo) (*snap.Info
 		SuggestedName: snapName,
 		SideInfo:      *si,
 		Architectures: []string{"all"},
-		Type:          snap.TypeApp,
+		SnapType:      snap.TypeApp,
 		Epoch:         snap.E("1*"),
 	}
 	if strings.Contains(snapName, "alias-snap") {
@@ -708,9 +710,9 @@ func (f *fakeSnappyBackend) ReadInfo(name string, si *snap.SideInfo) (*snap.Info
 	case "some-epoch-snap":
 		info.Epoch = snap.E("13")
 	case "gadget":
-		info.Type = snap.TypeGadget
+		info.SnapType = snap.TypeGadget
 	case "core":
-		info.Type = snap.TypeOS
+		info.SnapType = snap.TypeOS
 	case "services-snap":
 		var err error
 		// fix services after/before so that there is only one solution

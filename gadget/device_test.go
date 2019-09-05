@@ -20,6 +20,7 @@
 package gadget_test
 
 import (
+	"errors"
 	"io/ioutil"
 	"os"
 	"path/filepath"
@@ -54,6 +55,22 @@ func (d *deviceSuite) TearDownTest(c *C) {
 	dirs.SetRootDir("/")
 }
 
+func (d *deviceSuite) setUpWritableFallback(c *C, mountInfo string) {
+	// setup everything for 'writable'
+	err := ioutil.WriteFile(filepath.Join(d.dir, "/dev/fakedevice0p1"), []byte(""), 0644)
+	c.Assert(err, IsNil)
+	err = os.Symlink("../../fakedevice0p1", filepath.Join(d.dir, "/dev/disk/by-label/writable"))
+	c.Assert(err, IsNil)
+	// make parent device
+	err = ioutil.WriteFile(filepath.Join(d.dir, "/dev/fakedevice0"), []byte(""), 0644)
+	c.Assert(err, IsNil)
+	// and fake /sys/block structure
+	err = os.MkdirAll(filepath.Join(d.dir, "/sys/block/fakedevice0/fakedevice0p1"), 0755)
+	c.Assert(err, IsNil)
+
+	mockProcSelfFilesystem(c, d.dir, mountInfo)
+}
+
 func (d *deviceSuite) TestDeviceFindByStructureName(c *C) {
 	names := []struct {
 		escaped   string
@@ -73,12 +90,23 @@ func (d *deviceSuite) TestDeviceFindByStructureName(c *C) {
 
 	for _, tc := range names {
 		c.Logf("trying: %q", tc)
-		found, err := gadget.FindDeviceForStructure(&gadget.PositionedStructure{
+		found, err := gadget.FindDeviceForStructure(&gadget.LaidOutStructure{
 			VolumeStructure: &gadget.VolumeStructure{Name: tc.structure},
 		})
 		c.Check(err, IsNil)
 		c.Check(found, Equals, filepath.Join(d.dir, "/dev/fakedevice"))
 	}
+}
+
+func (d *deviceSuite) TestDeviceFindRelativeSymlink(c *C) {
+	err := os.Symlink("../../fakedevice", filepath.Join(d.dir, "/dev/disk/by-partlabel/relative"))
+	c.Assert(err, IsNil)
+
+	found, err := gadget.FindDeviceForStructure(&gadget.LaidOutStructure{
+		VolumeStructure: &gadget.VolumeStructure{Name: "relative"},
+	})
+	c.Check(err, IsNil)
+	c.Check(found, Equals, filepath.Join(d.dir, "/dev/fakedevice"))
 }
 
 func (d *deviceSuite) TestDeviceFindByFilesystemLabel(c *C) {
@@ -100,7 +128,7 @@ func (d *deviceSuite) TestDeviceFindByFilesystemLabel(c *C) {
 
 	for _, tc := range names {
 		c.Logf("trying: %q", tc)
-		found, err := gadget.FindDeviceForStructure(&gadget.PositionedStructure{
+		found, err := gadget.FindDeviceForStructure(&gadget.LaidOutStructure{
 			VolumeStructure: &gadget.VolumeStructure{Label: tc.structure},
 		})
 		c.Check(err, IsNil)
@@ -116,7 +144,7 @@ func (d *deviceSuite) TestDeviceFindChecksPartlabelAndFilesystemLabelHappy(c *C)
 	err = os.Symlink(fakedevice, filepath.Join(d.dir, "/dev/disk/by-partlabel/bar"))
 	c.Assert(err, IsNil)
 
-	found, err := gadget.FindDeviceForStructure(&gadget.PositionedStructure{
+	found, err := gadget.FindDeviceForStructure(&gadget.LaidOutStructure{
 		VolumeStructure: &gadget.VolumeStructure{
 			Name:  "bar",
 			Label: "foo",
@@ -138,7 +166,7 @@ func (d *deviceSuite) TestDeviceFindChecksPartlabelAndFilesystemLabelMismatch(c 
 	err = os.Symlink(fakedeviceOther, filepath.Join(d.dir, "/dev/disk/by-partlabel/bar"))
 	c.Assert(err, IsNil)
 
-	found, err := gadget.FindDeviceForStructure(&gadget.PositionedStructure{
+	found, err := gadget.FindDeviceForStructure(&gadget.LaidOutStructure{
 		VolumeStructure: &gadget.VolumeStructure{
 			Name:  "bar",
 			Label: "foo",
@@ -149,7 +177,7 @@ func (d *deviceSuite) TestDeviceFindChecksPartlabelAndFilesystemLabelMismatch(c 
 }
 
 func (d *deviceSuite) TestDeviceFindNotFound(c *C) {
-	found, err := gadget.FindDeviceForStructure(&gadget.PositionedStructure{
+	found, err := gadget.FindDeviceForStructure(&gadget.LaidOutStructure{
 		VolumeStructure: &gadget.VolumeStructure{
 			Name:  "bar",
 			Label: "foo",
@@ -161,7 +189,7 @@ func (d *deviceSuite) TestDeviceFindNotFound(c *C) {
 
 func (d *deviceSuite) TestDeviceFindNotFoundEmpty(c *C) {
 	// neither name nor filesystem label set
-	found, err := gadget.FindDeviceForStructure(&gadget.PositionedStructure{
+	found, err := gadget.FindDeviceForStructure(&gadget.LaidOutStructure{
 		VolumeStructure: &gadget.VolumeStructure{
 			Name:  "",
 			Label: "",
@@ -176,7 +204,7 @@ func (d *deviceSuite) TestDeviceFindNotFoundSymlinkPointsNowhere(c *C) {
 	err := os.Symlink(fakedevice, filepath.Join(d.dir, "/dev/disk/by-label/foo"))
 	c.Assert(err, IsNil)
 
-	found, err := gadget.FindDeviceForStructure(&gadget.PositionedStructure{
+	found, err := gadget.FindDeviceForStructure(&gadget.LaidOutStructure{
 		VolumeStructure: &gadget.VolumeStructure{
 			Label: "foo",
 		},
@@ -189,13 +217,179 @@ func (d *deviceSuite) TestDeviceFindNotFoundNotASymlink(c *C) {
 	err := ioutil.WriteFile(filepath.Join(d.dir, "/dev/disk/by-label/foo"), nil, 0644)
 	c.Assert(err, IsNil)
 
-	found, err := gadget.FindDeviceForStructure(&gadget.PositionedStructure{
+	found, err := gadget.FindDeviceForStructure(&gadget.LaidOutStructure{
 		VolumeStructure: &gadget.VolumeStructure{
 			Label: "foo",
 		},
 	})
-	c.Check(err, ErrorMatches, `cannot read device link: .*`)
+	c.Check(err, ErrorMatches, `candidate .*/dev/disk/by-label/foo is not a symlink`)
 	c.Check(found, Equals, "")
+}
+
+func (d *deviceSuite) TestDeviceFindBadEvalSymlinks(c *C) {
+	fakedevice := filepath.Join(d.dir, "/dev/fakedevice")
+	fooSymlink := filepath.Join(d.dir, "/dev/disk/by-label/foo")
+	err := os.Symlink(fakedevice, fooSymlink)
+	c.Assert(err, IsNil)
+
+	restore := gadget.MockEvalSymlinks(func(p string) (string, error) {
+		c.Assert(p, Equals, fooSymlink)
+		return "", errors.New("failed")
+	})
+	defer restore()
+
+	found, err := gadget.FindDeviceForStructure(&gadget.LaidOutStructure{
+		VolumeStructure: &gadget.VolumeStructure{
+			Label: "foo",
+		},
+	})
+	c.Check(err, ErrorMatches, `cannot read device link: failed`)
+	c.Check(found, Equals, "")
+}
+
+var writableMountInfo = `26 27 8:3 / /writable rw,relatime shared:7 - ext4 /dev/fakedevice0p1 rw,data=ordered`
+
+func (d *deviceSuite) TestDeviceFindFallbackNotFoundNoWritable(c *C) {
+	badMountInfo := `26 27 8:3 / /not-writable rw,relatime shared:7 - ext4 /dev/fakedevice0p1 rw,data=ordered`
+
+	mockProcSelfFilesystem(c, d.dir, badMountInfo)
+
+	found, offs, err := gadget.FindDeviceForStructureWithFallback(&gadget.LaidOutStructure{
+		VolumeStructure: &gadget.VolumeStructure{
+			Type: "bare",
+		},
+		StartOffset: 123,
+	})
+	c.Check(err, ErrorMatches, `device not found`)
+	c.Check(found, Equals, "")
+	c.Check(offs, Equals, gadget.Size(0))
+}
+
+func (d *deviceSuite) TestDeviceFindFallbackBadWritable(c *C) {
+	mockProcSelfFilesystem(c, d.dir, writableMountInfo)
+
+	ps := &gadget.LaidOutStructure{
+		VolumeStructure: &gadget.VolumeStructure{
+			Type: "bare",
+		},
+		StartOffset: 123,
+	}
+
+	found, offs, err := gadget.FindDeviceForStructureWithFallback(ps)
+	c.Check(err, ErrorMatches, `unexpected number of matches \(0\) for /sys/block/\*/fakedevice0p1`)
+	c.Check(found, Equals, "")
+	c.Check(offs, Equals, gadget.Size(0))
+
+	err = os.MkdirAll(filepath.Join(d.dir, "/sys/block/fakedevice0/fakedevice0p1"), 0755)
+	c.Assert(err, IsNil)
+
+	found, offs, err = gadget.FindDeviceForStructureWithFallback(ps)
+	c.Check(err, ErrorMatches, `device .*/dev/fakedevice0 does not exist`)
+	c.Check(found, Equals, "")
+	c.Check(offs, Equals, gadget.Size(0))
+}
+
+func (d *deviceSuite) TestDeviceFindFallbackHappyWritable(c *C) {
+	d.setUpWritableFallback(c, writableMountInfo)
+
+	psJustBare := &gadget.LaidOutStructure{
+		VolumeStructure: &gadget.VolumeStructure{
+			Type: "bare",
+		},
+		StartOffset: 123,
+	}
+	psBareWithName := &gadget.LaidOutStructure{
+		VolumeStructure: &gadget.VolumeStructure{
+			Type: "bare",
+			Name: "foo",
+		},
+		StartOffset: 123,
+	}
+	psNoName := &gadget.LaidOutStructure{
+		VolumeStructure: &gadget.VolumeStructure{},
+		StartOffset:     123,
+	}
+
+	for _, ps := range []*gadget.LaidOutStructure{psJustBare, psBareWithName, psNoName} {
+		found, offs, err := gadget.FindDeviceForStructureWithFallback(ps)
+		c.Check(err, IsNil)
+		c.Check(found, Equals, filepath.Join(d.dir, "/dev/fakedevice0"))
+		c.Check(offs, Equals, gadget.Size(123))
+	}
+}
+
+func (d *deviceSuite) TestDeviceFindFallbackNotForNamedWritable(c *C) {
+	d.setUpWritableFallback(c, writableMountInfo)
+
+	// should not hit the fallback path
+	psNamed := &gadget.LaidOutStructure{
+		VolumeStructure: &gadget.VolumeStructure{
+			Name: "foo",
+		},
+		StartOffset: 123,
+	}
+	found, offs, err := gadget.FindDeviceForStructureWithFallback(psNamed)
+	c.Check(err, Equals, gadget.ErrDeviceNotFound)
+	c.Check(found, Equals, "")
+	c.Check(offs, Equals, gadget.Size(0))
+}
+
+func (d *deviceSuite) TestDeviceFindFallbackNotForFilesystem(c *C) {
+	d.setUpWritableFallback(c, writableMountInfo)
+
+	psFs := &gadget.LaidOutStructure{
+		VolumeStructure: &gadget.VolumeStructure{
+			Label:      "foo",
+			Filesystem: "ext4",
+		},
+		StartOffset: 123,
+	}
+	found, offs, err := gadget.FindDeviceForStructureWithFallback(psFs)
+	c.Check(err, ErrorMatches, "internal error: cannot use with filesystem structures")
+	c.Check(found, Equals, "")
+	c.Check(offs, Equals, gadget.Size(0))
+}
+
+func (d *deviceSuite) TestDeviceFindFallbackBadMountInfo(c *C) {
+	d.setUpWritableFallback(c, "garbage")
+	psFs := &gadget.LaidOutStructure{
+		VolumeStructure: &gadget.VolumeStructure{
+			Name: "foo",
+			Type: "bare",
+		},
+		StartOffset: 123,
+	}
+	found, offs, err := gadget.FindDeviceForStructureWithFallback(psFs)
+	c.Check(err, ErrorMatches, "cannot read mount info: .*")
+	c.Check(found, Equals, "")
+	c.Check(offs, Equals, gadget.Size(0))
+}
+
+func (d *deviceSuite) TestDeviceFindFallbackPassThrough(c *C) {
+	err := ioutil.WriteFile(filepath.Join(d.dir, "/dev/disk/by-partlabel/foo"), nil, 0644)
+	c.Assert(err, IsNil)
+
+	ps := &gadget.LaidOutStructure{
+		VolumeStructure: &gadget.VolumeStructure{
+			Name: "foo",
+		},
+	}
+	found, offs, err := gadget.FindDeviceForStructureWithFallback(ps)
+	c.Check(err, ErrorMatches, `candidate .*/dev/disk/by-partlabel/foo is not a symlink`)
+	c.Check(found, Equals, "")
+	c.Check(offs, Equals, gadget.Size(0))
+
+	// create a proper symlink
+	err = os.Remove(filepath.Join(d.dir, "/dev/disk/by-partlabel/foo"))
+	c.Assert(err, IsNil)
+	err = os.Symlink("../../fakedevice", filepath.Join(d.dir, "/dev/disk/by-partlabel/foo"))
+	c.Assert(err, IsNil)
+
+	// this should be happy again
+	found, offs, err = gadget.FindDeviceForStructureWithFallback(ps)
+	c.Assert(err, IsNil)
+	c.Check(found, Equals, filepath.Join(d.dir, "/dev/fakedevice"))
+	c.Check(offs, Equals, gadget.Size(0))
 }
 
 func (d *deviceSuite) TestDeviceEncodeLabel(c *C) {
@@ -238,7 +432,7 @@ func (d *deviceSuite) TestDeviceEncodeLabel(c *C) {
 }
 
 func (d *deviceSuite) TestDeviceFindMountPointErrorsWithBare(c *C) {
-	p, err := gadget.FindMountPointForStructure(&gadget.PositionedStructure{
+	p, err := gadget.FindMountPointForStructure(&gadget.LaidOutStructure{
 		VolumeStructure: &gadget.VolumeStructure{
 			// no filesystem
 			Filesystem: "",
@@ -247,7 +441,7 @@ func (d *deviceSuite) TestDeviceFindMountPointErrorsWithBare(c *C) {
 	c.Assert(err, ErrorMatches, "no filesystem defined")
 	c.Check(p, Equals, "")
 
-	p, err = gadget.FindMountPointForStructure(&gadget.PositionedStructure{
+	p, err = gadget.FindMountPointForStructure(&gadget.LaidOutStructure{
 		VolumeStructure: &gadget.VolumeStructure{
 			// also counts as bare structure
 			Filesystem: "none",
@@ -258,7 +452,7 @@ func (d *deviceSuite) TestDeviceFindMountPointErrorsWithBare(c *C) {
 }
 
 func (d *deviceSuite) TestDeviceFindMountPointErrorsFromDevice(c *C) {
-	p, err := gadget.FindMountPointForStructure(&gadget.PositionedStructure{
+	p, err := gadget.FindMountPointForStructure(&gadget.LaidOutStructure{
 		VolumeStructure: &gadget.VolumeStructure{
 			Label:      "bar",
 			Filesystem: "ext4",
@@ -267,7 +461,7 @@ func (d *deviceSuite) TestDeviceFindMountPointErrorsFromDevice(c *C) {
 	c.Assert(err, ErrorMatches, "device not found")
 	c.Check(p, Equals, "")
 
-	p, err = gadget.FindMountPointForStructure(&gadget.PositionedStructure{
+	p, err = gadget.FindMountPointForStructure(&gadget.LaidOutStructure{
 		VolumeStructure: &gadget.VolumeStructure{
 			Name:       "bar",
 			Filesystem: "ext4",
@@ -296,7 +490,7 @@ func (d *deviceSuite) TestDeviceFindMountPointErrorBadMountinfo(c *C) {
 
 	mockProcSelfFilesystem(c, d.dir, "garbage")
 
-	found, err := gadget.FindMountPointForStructure(&gadget.PositionedStructure{
+	found, err := gadget.FindMountPointForStructure(&gadget.LaidOutStructure{
 		VolumeStructure: &gadget.VolumeStructure{
 			Name:       "EFI System",
 			Label:      "system-boot",
@@ -324,7 +518,7 @@ func (d *deviceSuite) TestDeviceFindMountPointByLabeHappySimple(c *C) {
 `
 	mockProcSelfFilesystem(c, d.dir, strings.Replace(mountInfo[1:], "${rootDir}", d.dir, -1))
 
-	found, err := gadget.FindMountPointForStructure(&gadget.PositionedStructure{
+	found, err := gadget.FindMountPointForStructure(&gadget.LaidOutStructure{
 		VolumeStructure: &gadget.VolumeStructure{
 			Name:       "EFI System",
 			Label:      "system-boot",
@@ -353,7 +547,7 @@ func (d *deviceSuite) TestDeviceFindMountPointByLabeHappyReversed(c *C) {
 
 	mockProcSelfFilesystem(c, d.dir, strings.Replace(mountInfoReversed[1:], "${rootDir}", d.dir, -1))
 
-	found, err := gadget.FindMountPointForStructure(&gadget.PositionedStructure{
+	found, err := gadget.FindMountPointForStructure(&gadget.LaidOutStructure{
 		VolumeStructure: &gadget.VolumeStructure{
 			Name:       "EFI System",
 			Label:      "system-boot",
@@ -382,7 +576,7 @@ func (d *deviceSuite) TestDeviceFindMountPointPicksFirstMatch(c *C) {
 
 	mockProcSelfFilesystem(c, d.dir, strings.Replace(mountInfo[1:], "${rootDir}", d.dir, -1))
 
-	found, err := gadget.FindMountPointForStructure(&gadget.PositionedStructure{
+	found, err := gadget.FindMountPointForStructure(&gadget.LaidOutStructure{
 		VolumeStructure: &gadget.VolumeStructure{
 			Name:       "EFI System",
 			Label:      "system-boot",
@@ -406,7 +600,7 @@ func (d *deviceSuite) TestDeviceFindMountPointByPartlabel(c *C) {
 
 	mockProcSelfFilesystem(c, d.dir, strings.Replace(mountInfo[1:], "${rootDir}", d.dir, -1))
 
-	found, err := gadget.FindMountPointForStructure(&gadget.PositionedStructure{
+	found, err := gadget.FindMountPointForStructure(&gadget.LaidOutStructure{
 		VolumeStructure: &gadget.VolumeStructure{
 			Name:       "pinkié pie",
 			Filesystem: "ext4",
@@ -429,7 +623,7 @@ func (d *deviceSuite) TestDeviceFindMountPointChecksFilesystem(c *C) {
 
 	mockProcSelfFilesystem(c, d.dir, strings.Replace(mountInfo[1:], "${rootDir}", d.dir, -1))
 
-	found, err := gadget.FindMountPointForStructure(&gadget.PositionedStructure{
+	found, err := gadget.FindMountPointForStructure(&gadget.LaidOutStructure{
 		VolumeStructure: &gadget.VolumeStructure{
 			Name: "label",
 			// different fs than mount entry

@@ -34,6 +34,28 @@ const networkSetupControlConnectedPlugAppArmor = `
 
 /etc/netplan/{,**} rw,
 /etc/network/{,**} rw,
+/etc/systemd/network/{,**} rw,
+
+# netplan generate
+/run/ r,
+/run/systemd/network/{,**} r,
+/run/systemd/network/*-netplan-* w,
+/run/NetworkManager/conf.d/{,**} r,
+/run/NetworkManager/conf.d/*netplan*.conf* w,
+
+/run/udev/rules.d/ rw,                 # needed for cloud-init
+/run/udev/rules.d/[0-9]*-netplan-* rw,
+
+#include <abstractions/dbus-strict>
+
+# Allow use of NetPlan Apply API, used to apply network configuration
+dbus (send)
+    bus=system
+    interface=io.netplan.Netplan
+    path=/io/netplan/Netplan
+	member=Apply
+	peer=(label=unconfined),
+
 `
 
 func init() {

@@ -31,24 +31,13 @@ import (
 
 // check helpers
 
-func snapIDSnapd(snapID string) bool {
-	var snapIDsSnapd = []string{
-		// production
-		"PMrrV4ml8uWuEUDBT8dSGnKUYbevVhc4",
-		// TODO: when snapd snap is uploaded to staging, replace this with
-		// the real snap-id.
-		"todo-staging-snapd-id",
-	}
-	return strutil.ListContains(snapIDsSnapd, snapID)
-}
-
-func checkSnapType(snap *snap.Info, types []string) error {
+func checkSnapType(snapInfo *snap.Info, types []string) error {
 	if len(types) == 0 {
 		return nil
 	}
-	snapID := snap.SnapID
-	s := string(snap.Type)
-	if s == "os" || snapIDSnapd(snapID) {
+	snapType := snapInfo.GetType()
+	s := string(snapType)
+	if snapType == snap.TypeOS || snapType == snap.TypeSnapd {
 		// we use "core" in the assertions and we need also to
 		// allow for the "snapd" snap
 		s = "core"
@@ -219,6 +208,36 @@ func checkSlotConnectionConstraints(connc *ConnectCandidate, cstrs []*asserts.Sl
 		}
 	}
 	return firstErr
+}
+
+func checkSnapTypeSlotInstallationConstraints1(ic *InstallCandidateMinimalCheck, slot *snap.SlotInfo, cstrs *asserts.SlotInstallationConstraints) error {
+	if err := checkSnapType(slot.Snap, cstrs.SlotSnapTypes); err != nil {
+		return err
+	}
+	if err := checkOnClassic(cstrs.OnClassic); err != nil {
+		return err
+	}
+	return nil
+}
+
+func checkMinimalSlotInstallationConstraints(ic *InstallCandidateMinimalCheck, slot *snap.SlotInfo, cstrs []*asserts.SlotInstallationConstraints) (bool, error) {
+	var firstErr error
+	var hasSnapTypeConstraints bool
+	// OR of constraints
+	for _, cstrs1 := range cstrs {
+		if cstrs1.OnClassic == nil && len(cstrs1.SlotSnapTypes) == 0 {
+			continue
+		}
+		hasSnapTypeConstraints = true
+		err := checkSnapTypeSlotInstallationConstraints1(ic, slot, cstrs1)
+		if err == nil {
+			return true, nil
+		}
+		if firstErr == nil {
+			firstErr = err
+		}
+	}
+	return hasSnapTypeConstraints, firstErr
 }
 
 func checkSlotInstallationConstraints1(ic *InstallCandidate, slot *snap.SlotInfo, cstrs *asserts.SlotInstallationConstraints) error {

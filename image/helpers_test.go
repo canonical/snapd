@@ -33,19 +33,22 @@ import (
 
 func (s *imageSuite) TestDownloadOptionsString(c *check.C) {
 	for opts, str := range map[image.DownloadOptions]string{
+		{LeavePartialOnError: true}: "",
 		{}:                     "",
-		{TargetDir: "foo"}:     `to "foo"`,
+		{TargetDir: "/foo"}:    `in "/foo"`,
+		{Basename: "foo"}:      `to "foo.snap"`,
 		{Channel: "foo"}:       `from channel "foo"`,
 		{Revision: snap.R(42)}: `(42)`,
 		{
 			CohortKey: "AbCdEfGhIjKlMnOpQrStUvWxYz",
-		}: `from cohort "…StUvWxYz"`,
+		}: `from cohort "…rStUvWxYz"`,
 		{
-			TargetDir: "foo",
-			Channel:   "bar",
+			TargetDir: "/foo",
+			Basename:  "bar",
+			Channel:   "baz",
 			Revision:  snap.R(13),
 			CohortKey: "MSBIc3dwOW9PemozYjRtdzhnY0MwMFh0eFduS0g5UWlDUSAxNTU1NDExNDE1IDBjYzJhNTc1ZjNjOTQ3ZDEwMWE1NTNjZWFkNmFmZDE3ZWJhYTYyNjM4ZWQ3ZGMzNjI5YmU4YjQ3NzAwMjdlMDk=",
-		}: `(13) from channel "bar" from cohort "…MjdlMDk=" to "foo"`, // note this one is not 'valid' so it's ok if the string is a bit wonky
+		}: `(13) from channel "baz" from cohort "…wMjdlMDk=" to "bar.snap" in "/foo"`, // note this one is not 'valid' so it's ok if the string is a bit wonky
 	} {
 		c.Check(opts.String(), check.Equals, str)
 	}
@@ -72,7 +75,13 @@ func (s *imageSuite) TestDownloadOptionsValid(c *check.C) {
 			Revision:  snap.R(1),
 			CohortKey: "bar",
 		}: image.ErrRevisionAndCohort,
+		{
+			Basename: "/foo",
+		}: image.ErrPathInBase,
 	} {
+		opts.LeavePartialOnError = true
+		c.Check(opts.Validate(), check.Equals, err)
+		opts.LeavePartialOnError = false
 		c.Check(opts.Validate(), check.Equals, err)
 	}
 }

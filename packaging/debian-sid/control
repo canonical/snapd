@@ -83,7 +83,7 @@ Description: snappy development go packages.
 Package: snapd
 Architecture: any
 Depends: adduser,
-         apparmor (>= 2.10.95-0ubuntu2.2),
+         apparmor (>= 2.10.95-5),
          ca-certificates,
          gnupg1 | gnupg,
          openssh-client,

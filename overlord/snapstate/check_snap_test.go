@@ -31,19 +31,23 @@ import (
 	"github.com/snapcore/snapd/arch"
 	"github.com/snapcore/snapd/cmd"
 	"github.com/snapcore/snapd/dirs"
+	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/overlord/state"
 	"github.com/snapcore/snapd/release"
+	seccomp_compiler "github.com/snapcore/snapd/sandbox/seccomp"
 	"github.com/snapcore/snapd/snap"
 	"github.com/snapcore/snapd/snap/snapdir"
 	"github.com/snapcore/snapd/snap/snaptest"
 	"github.com/snapcore/snapd/testutil"
 
 	"github.com/snapcore/snapd/overlord/snapstate"
+	"github.com/snapcore/snapd/overlord/snapstate/snapstatetest"
 )
 
 type checkSnapSuite struct {
 	testutil.BaseTest
-	st *state.State
+	st        *state.State
+	deviceCtx snapstate.DeviceContext
 }
 
 var _ = Suite(&checkSnapSuite{})
@@ -53,6 +57,10 @@ func (s *checkSnapSuite) SetUpTest(c *C) {
 	dirs.SetRootDir(c.MkDir())
 	s.st = state.New(nil)
 	s.BaseTest.AddCleanup(snap.MockSanitizePlugsSlots(func(snapInfo *snap.Info) {}))
+	s.deviceCtx = &snapstatetest.TrivialDeviceContext{DeviceModel: MakeModel(map[string]interface{}{
+		"kernel": "kernel",
+		"gadget": "gadget",
+	})}
 }
 
 func (s *checkSnapSuite) TearDownTest(c *C) {
@@ -142,6 +150,11 @@ var assumesTests = []struct {
 	assumes: "[snapd2.15.1]",
 	version: "2.15.0",
 	error:   `.* unsupported features: snapd2\.15\.1 .*`,
+}, {
+	// Note that this is different from how strconv.VersionCompare
+	// (dpkg version numbering) would behave - it would error here
+	assumes: "[snapd2.15]",
+	version: "2.15~pre1",
 }, {
 	assumes: "[command-chain]",
 }}
@@ -272,7 +285,7 @@ version: 2
 	defer restore()
 
 	st.Unlock()
-	err = snapstate.CheckSnap(st, "snap-path", "gadget", nil, nil, snapstate.Flags{}, nil)
+	err = snapstate.CheckSnap(st, "snap-path", "gadget", nil, nil, snapstate.Flags{}, s.deviceCtx)
 	st.Lock()
 	c.Check(err, IsNil)
 }
@@ -314,7 +327,7 @@ version: 2
 	defer restore()
 
 	st.Unlock()
-	err = snapstate.CheckSnap(st, "snap-path", "gadget", nil, nil, snapstate.Flags{}, nil)
+	err = snapstate.CheckSnap(st, "snap-path", "gadget", nil, nil, snapstate.Flags{}, s.deviceCtx)
 	st.Lock()
 	c.Check(err, IsNil)
 }
@@ -355,7 +368,7 @@ version: 2
 	defer restore()
 
 	st.Unlock()
-	err = snapstate.CheckSnap(st, "snap-path", "gadget", nil, nil, snapstate.Flags{}, nil)
+	err = snapstate.CheckSnap(st, "snap-path", "gadget", nil, nil, snapstate.Flags{}, s.deviceCtx)
 	st.Lock()
 	c.Check(err, ErrorMatches, `cannot replace signed gadget snap with an unasserted one`)
 }
@@ -396,7 +409,7 @@ version: 2
 	defer restore()
 
 	st.Unlock()
-	err = snapstate.CheckSnap(st, "snap-path", "gadget", nil, nil, snapstate.Flags{}, nil)
+	err = snapstate.CheckSnap(st, "snap-path", "gadget", nil, nil, snapstate.Flags{}, s.deviceCtx)
 	st.Lock()
 	c.Check(err, ErrorMatches, "cannot replace gadget snap with a different one")
 }
@@ -438,7 +451,7 @@ version: 2
 	defer restore()
 
 	st.Unlock()
-	err = snapstate.CheckSnap(st, "snap-path", "gadget", nil, nil, snapstate.Flags{}, nil)
+	err = snapstate.CheckSnap(st, "snap-path", "gadget", nil, nil, snapstate.Flags{}, s.deviceCtx)
 	st.Lock()
 	c.Check(err, ErrorMatches, "cannot replace gadget snap with a different one")
 }
@@ -598,7 +611,7 @@ version: 2
 	defer restore()
 
 	st.Unlock()
-	err = snapstate.CheckSnap(st, "snap-path", "kernel", nil, nil, snapstate.Flags{}, nil)
+	err = snapstate.CheckSnap(st, "snap-path", "kernel", nil, nil, snapstate.Flags{}, s.deviceCtx)
 	st.Lock()
 	c.Check(err, IsNil)
 }
@@ -640,7 +653,7 @@ version: 2
 	defer restore()
 
 	st.Unlock()
-	err = snapstate.CheckSnap(st, "snap-path", "kernel", nil, nil, snapstate.Flags{}, nil)
+	err = snapstate.CheckSnap(st, "snap-path", "kernel", nil, nil, snapstate.Flags{}, s.deviceCtx)
 	st.Lock()
 	c.Check(err, ErrorMatches, "cannot replace kernel snap with a different one")
 }
@@ -882,4 +895,254 @@ base: core16
 	err = snapstate.CheckSnap(st, "snap-path", "requires-core16", nil, nil, snapstate.Flags{}, nil)
 	st.Lock()
 	c.Check(err, IsNil)
+}
+
+func (s *checkSnapSuite) TestCheckSnapdHappy(c *C) {
+	st := state.New(nil)
+	st.Lock()
+	defer st.Unlock()
+
+	for _, t := range []struct {
+		yaml   string
+		errStr string
+	}{
+		{"name: snapd\nversion: 1\ntype: snapd", ""},
+		{"name: some-snap\nversion: 1\ntype: snapd", `cannot install snap "some-snap" of type "snapd" with a name other than "snapd"`},
+		{"name: snapd_instance\nversion: 1\ntype: snapd", `cannot install snap "snapd_instance" of type "snapd" with a name other than "snapd"`},
+	} {
+		info, err := snap.InfoFromSnapYaml([]byte(t.yaml))
+		c.Assert(err, IsNil)
+
+		var openSnapFile = func(path string, si *snap.SideInfo) (*snap.Info, snap.Container, error) {
+			return info, emptyContainer(c), nil
+		}
+		restore := snapstate.MockOpenSnapFile(openSnapFile)
+		defer restore()
+
+		st.Unlock()
+		err = snapstate.CheckSnap(st, "snap-path", "snapd", nil, nil, snapstate.Flags{}, nil)
+		st.Lock()
+		if t.errStr == "" {
+			c.Check(err, IsNil)
+		} else {
+			c.Check(err, ErrorMatches, t.errStr)
+		}
+	}
+}
+
+// Note, invalid usernames checked in snap/info_snap_yaml.go
+var systemUsernamesTests = []struct {
+	sysIDs      string
+	classic     bool
+	noRangeUser bool
+	noUser      bool
+	scVer       string
+	error       string
+}{{
+	sysIDs: "snap_daemon: shared",
+	scVer:  "dead 2.4.1 deadbeef bpf-actlog",
+}, {
+	sysIDs: "snap_daemon:\n    scope: shared",
+	scVer:  "dead 2.4.1 deadbeef bpf-actlog",
+}, {
+	sysIDs: "snap_daemon:\n    scope: private",
+	scVer:  "dead 2.4.1 deadbeef bpf-actlog",
+	error:  `snap "foo" requires unsupported user scope "private" for this version of snapd`,
+}, {
+	sysIDs: "snap_daemon:\n    scope: external",
+	scVer:  "dead 2.4.1 deadbeef bpf-actlog",
+	error:  `snap "foo" requires unsupported user scope "external" for this version of snapd`,
+}, {
+	sysIDs: "snap_daemon:\n    scope: other",
+	scVer:  "dead 2.4.1 deadbeef bpf-actlog",
+	error:  `snap "foo" requires unsupported user scope "other"`,
+}, {
+	sysIDs:  "snap_daemon: shared",
+	scVer:   "dead 2.4.1 deadbeef bpf-actlog",
+	classic: true,
+}, {
+	sysIDs:  "snap_daemon:\n    scope: shared",
+	scVer:   "dead 2.4.1 deadbeef bpf-actlog",
+	classic: true,
+}, {
+	sysIDs:  "snap_daemon:\n    scope: private",
+	scVer:   "dead 2.4.1 deadbeef bpf-actlog",
+	classic: true,
+	error:   `snap "foo" requires unsupported user scope "private" for this version of snapd`,
+}, {
+	sysIDs:  "snap_daemon:\n    scope: external",
+	scVer:   "dead 2.4.1 deadbeef bpf-actlog",
+	classic: true,
+	error:   `snap "foo" requires unsupported user scope "external" for this version of snapd`,
+}, {
+	sysIDs:  "snap_daemon:\n    scope: other",
+	scVer:   "dead 2.4.1 deadbeef bpf-actlog",
+	classic: true,
+	error:   `snap "foo" requires unsupported user scope "other"`,
+}, {
+	sysIDs: "snap_daemon: shared\n  allowed-not: shared",
+	scVer:  "dead 2.4.1 deadbeef bpf-actlog",
+	error:  `snap "foo" requires unsupported system username "allowed-not"`,
+}, {
+	sysIDs:  "allowed-not: shared\n  snap_daemon: shared",
+	scVer:   "dead 2.4.1 deadbeef bpf-actlog",
+	classic: true,
+	error:   `snap "foo" requires unsupported system username "allowed-not"`,
+}, {
+	sysIDs: "snap_daemon: shared",
+	noUser: true,
+	scVer:  "dead 2.4.1 deadbeef bpf-actlog",
+	error:  `cannot ensure users for snap "foo" required system username "snap_daemon": cannot add user/group "snap_daemon", group exists and user does not`,
+}, {
+	sysIDs:  "snap_daemon: shared",
+	classic: true,
+	noUser:  true,
+	scVer:   "dead 2.4.1 deadbeef bpf-actlog",
+	error:   `cannot ensure users for snap "foo" required system username "snap_daemon": cannot add user/group "snap_daemon", group exists and user does not`,
+}, {
+	sysIDs: "snap_daemon: shared",
+	scVer:  "dead 2.3.3 deadbeef bpf-actlog",
+	error:  `snap "foo" system usernames require a snapd built against libseccomp >= 2.4`,
+}, {
+	sysIDs:  "snap_daemon: shared",
+	classic: true,
+	scVer:   "dead 2.3.3 deadbeef bpf-actlog",
+	error:   `snap "foo" system usernames require a snapd built against libseccomp >= 2.4`,
+}, {
+	sysIDs: "snap_daemon: shared",
+	scVer:  "dead 3.0.0 deadbeef bpf-actlog",
+}, {
+	sysIDs:  "snap_daemon: shared",
+	classic: true,
+	scVer:   "dead 3.0.0 deadbeef bpf-actlog",
+}, {
+	sysIDs: "snap_daemon: shared",
+	scVer:  "dead 2.4.1 deadbeef -",
+	error:  `snap "foo" system usernames require a snapd built against golang-seccomp >= 0.9.1`,
+}, {
+	sysIDs:  "snap_daemon: shared",
+	classic: true,
+	scVer:   "dead 2.4.1 deadbeef -",
+	error:   `snap "foo" system usernames require a snapd built against golang-seccomp >= 0.9.1`,
+}, {
+	sysIDs:      "snap_daemon: shared",
+	noRangeUser: true,
+	scVer:       "dead 2.4.1 deadbeef bpf-actlog",
+	error:       `cannot ensure users for snap "foo" required system username "snap_daemon": cannot add user/group "snapd-range-524288-root", group exists and user does not`,
+}, {
+	sysIDs:      "snap_daemon: shared",
+	classic:     true,
+	noRangeUser: true,
+	scVer:       "dead 2.4.1 deadbeef bpf-actlog",
+	error:       `cannot ensure users for snap "foo" required system username "snap_daemon": cannot add user/group "snapd-range-524288-root", group exists and user does not`,
+}, {
+	sysIDs:  "snap_daemon: shared\n  daemon: shared",
+	classic: true,
+	scVer:   "dead 2.4.1 deadbeef bpf-actlog",
+	error:   `snap "foo" requires unsupported system username "daemon"`,
+},
+}
+
+func (s *checkSnapSuite) TestCheckSnapSystemUsernames(c *C) {
+	for _, test := range systemUsernamesTests {
+		restore := seccomp_compiler.MockCompilerVersionInfo(test.scVer)
+		defer restore()
+
+		restore = release.MockOnClassic(test.classic)
+		defer restore()
+
+		var osutilEnsureUserGroupCalls int
+		if test.noRangeUser {
+			restore = snapstate.MockOsutilEnsureUserGroup(func(name string, id uint32, extraUsers bool) error {
+				return fmt.Errorf(`cannot add user/group "%s", group exists and user does not`, name)
+			})
+		} else if test.noUser {
+			restore = snapstate.MockOsutilEnsureUserGroup(func(name string, id uint32, extraUsers bool) error {
+				if name == "snapd-range-524288-root" {
+					return nil
+				}
+				return fmt.Errorf(`cannot add user/group "%s", group exists and user does not`, name)
+			})
+		} else {
+			restore = snapstate.MockOsutilEnsureUserGroup(func(name string, id uint32, extraUsers bool) error {
+				osutilEnsureUserGroupCalls++
+				return nil
+			})
+		}
+		defer restore()
+
+		yaml := fmt.Sprintf("name: foo\nsystem-usernames:\n  %s\n", test.sysIDs)
+
+		info, err := snap.InfoFromSnapYaml([]byte(yaml))
+		c.Assert(err, IsNil)
+
+		var openSnapFile = func(path string, si *snap.SideInfo) (*snap.Info, snap.Container, error) {
+			return info, emptyContainer(c), nil
+		}
+		restore = snapstate.MockOpenSnapFile(openSnapFile)
+		defer restore()
+		err = snapstate.CheckSnap(s.st, "snap-path", "foo", nil, nil, snapstate.Flags{}, nil)
+		if test.error != "" {
+			c.Check(err, ErrorMatches, test.error)
+			c.Check(osutilEnsureUserGroupCalls, Equals, 0)
+		} else {
+			c.Assert(err, IsNil)
+			// one call for the range user, one for the system user
+			c.Check(osutilEnsureUserGroupCalls, Equals, 2)
+		}
+	}
+}
+
+func (s *checkSnapSuite) TestCheckSnapSystemUsernamesCalls(c *C) {
+	falsePath := osutil.LookPathDefault("false", "/bin/false")
+	for _, classic := range []bool{false, true} {
+		restore := release.MockOnClassic(classic)
+		defer restore()
+
+		restore = seccomp_compiler.MockCompilerVersionInfo("dead 2.4.1 deadbeef bpf-actlog")
+		defer restore()
+
+		const yaml = `name: foo
+version: 1.0
+system-usernames:
+  snap_daemon: shared`
+
+		info, err := snap.InfoFromSnapYaml([]byte(yaml))
+		c.Assert(err, IsNil)
+
+		var openSnapFile = func(path string, si *snap.SideInfo) (*snap.Info, snap.Container, error) {
+			return info, emptyContainer(c), nil
+		}
+		restore = snapstate.MockOpenSnapFile(openSnapFile)
+		defer restore()
+
+		mockGroupAdd := testutil.MockCommand(c, "groupadd", "")
+		defer mockGroupAdd.Restore()
+
+		mockUserAdd := testutil.MockCommand(c, "useradd", "")
+		defer mockUserAdd.Restore()
+
+		err = snapstate.CheckSnap(s.st, "snap-path", "foo", nil, nil, snapstate.Flags{}, nil)
+		c.Assert(err, IsNil)
+		if classic {
+			c.Check(mockGroupAdd.Calls(), DeepEquals, [][]string{
+				{"groupadd", "--system", "--gid", "524288", "snapd-range-524288-root"},
+				{"groupadd", "--system", "--gid", "584788", "snap_daemon"},
+			})
+			c.Check(mockUserAdd.Calls(), DeepEquals, [][]string{
+				{"useradd", "--system", "--home-dir", "/nonexistent", "--no-create-home", "--shell", falsePath, "--gid", "524288", "--no-user-group", "--uid", "524288", "snapd-range-524288-root"},
+				{"useradd", "--system", "--home-dir", "/nonexistent", "--no-create-home", "--shell", falsePath, "--gid", "584788", "--no-user-group", "--uid", "584788", "snap_daemon"},
+			})
+		} else {
+			c.Check(mockGroupAdd.Calls(), DeepEquals, [][]string{
+				{"groupadd", "--system", "--gid", "524288", "--extrausers", "snapd-range-524288-root"},
+				{"groupadd", "--system", "--gid", "584788", "--extrausers", "snap_daemon"},
+			})
+			c.Check(mockUserAdd.Calls(), DeepEquals, [][]string{
+				{"useradd", "--system", "--home-dir", "/nonexistent", "--no-create-home", "--shell", falsePath, "--gid", "524288", "--no-user-group", "--uid", "524288", "--extrausers", "snapd-range-524288-root"},
+				{"useradd", "--system", "--home-dir", "/nonexistent", "--no-create-home", "--shell", falsePath, "--gid", "584788", "--no-user-group", "--uid", "584788", "--extrausers", "snap_daemon"},
+			})
+
+		}
+	}
 }

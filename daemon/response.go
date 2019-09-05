@@ -188,6 +188,8 @@ const (
 
 	errorKindDaemonRestart = errorKind("daemon-restart")
 	errorKindSystemRestart = errorKind("system-restart")
+
+	errorKindAssertionNotFound = errorKind("assertion-not-found")
 )
 
 type errorValue interface{}
@@ -247,14 +249,14 @@ func makeErrorResponder(status int) errorResponder {
 }
 
 // A FileStream ServeHTTP method streams the snap
-type FileStream struct {
+type fileStream struct {
 	SnapName string
 	Info     snap.DownloadInfo
 	stream   io.ReadCloser
 }
 
 // ServeHTTP from the Response interface
-func (s FileStream) ServeHTTP(w http.ResponseWriter, _ *http.Request) {
+func (s fileStream) ServeHTTP(w http.ResponseWriter, _ *http.Request) {
 	hdr := w.Header()
 	hdr.Set("Content-Type", "application/octet-stream")
 	snapname := fmt.Sprintf("attachment; filename=%s", s.SnapName)
@@ -275,11 +277,11 @@ func (s FileStream) ServeHTTP(w http.ResponseWriter, _ *http.Request) {
 	}
 }
 
-// A FileResponse 's ServeHTTP method serves the file
-type FileResponse string
+// A fileResponse 's ServeHTTP method serves the file
+type fileResponse string
 
 // ServeHTTP from the Response interface
-func (f FileResponse) ServeHTTP(w http.ResponseWriter, r *http.Request) {
+func (f fileResponse) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	filename := fmt.Sprintf("attachment; filename=%s", filepath.Base(string(f)))
 	w.Header().Add("Content-Disposition", filename)
 	http.ServeFile(w, r, string(f))

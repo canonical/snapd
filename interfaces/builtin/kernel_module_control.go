@@ -42,12 +42,14 @@ capability sys_module,
 @{PROC}/modules r,
 /{,usr/}bin/kmod ixr,
 
-# FIXME: moved to physical-memory-observe (remove this in series 18)
+# FIXME: moved to physical-memory-observe (remove this in series 20)
 /dev/mem r,
 
 # Required to use SYSLOG_ACTION_READ_ALL and SYSLOG_ACTION_SIZE_BUFFER when
 # /proc/sys/kernel/dmesg_restrict is '1' (syslog(2)). These operations are
-# required to verify kernel modules that are loaded.
+# required to verify kernel modules that are loaded. This also exposes kernel
+# pointer addresses via %pK format specifiers for processes running with this
+# capability when accessing /proc/kallsyms, etc when kptr_restrict=1.
 capability syslog,
 
 # Allow reading information about loaded kernel modules

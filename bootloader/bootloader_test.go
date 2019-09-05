@@ -17,99 +17,84 @@
  *
  */
 
-package bootloader
+package bootloader_test
 
 import (
+	"errors"
 	"io/ioutil"
-	"os"
 	"path/filepath"
 	"testing"
 
 	. "gopkg.in/check.v1"
 
-	"github.com/snapcore/snapd/boot/boottest"
+	"github.com/snapcore/snapd/bootloader"
+	"github.com/snapcore/snapd/bootloader/bootloadertest"
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/osutil"
+	"github.com/snapcore/snapd/snap"
+	"github.com/snapcore/snapd/testutil"
 )
 
 // Hook up check.v1 into the "go test" runner
 func Test(t *testing.T) { TestingT(t) }
 
-// partition specific testsuite
-type PartitionTestSuite struct{}
+const packageKernel = `
+name: ubuntu-kernel
+version: 4.0-1
+type: kernel
+vendor: Someone
+`
 
-var _ = Suite(&PartitionTestSuite{})
+type baseBootenvTestSuite struct {
+	testutil.BaseTest
+}
 
-func (s *PartitionTestSuite) SetUpTest(c *C) {
+func (s *baseBootenvTestSuite) SetUpTest(c *C) {
+	s.BaseTest.SetUpTest(c)
+	s.AddCleanup(snap.MockSanitizePlugsSlots(func(snapInfo *snap.Info) {}))
 	dirs.SetRootDir(c.MkDir())
-	err := os.MkdirAll((&grub{}).Dir(), 0755)
-	c.Assert(err, IsNil)
-	err = os.MkdirAll((&uboot{}).Dir(), 0755)
-	c.Assert(err, IsNil)
+	s.AddCleanup(func() { dirs.SetRootDir("") })
 }
 
-func (s *PartitionTestSuite) TestForceBootloader(c *C) {
-	b := boottest.NewMockBootloader("mocky", c.MkDir())
-	Force(b)
-	defer Force(nil)
+type bootenvTestSuite struct {
+	baseBootenvTestSuite
 
-	got, err := Find()
-	c.Assert(err, IsNil)
-	c.Check(got, Equals, b)
+	b *bootloadertest.MockBootloader
 }
 
-func (s *PartitionTestSuite) TestMarkBootSuccessfulAllSnap(c *C) {
-	b := boottest.NewMockBootloader("mocky", c.MkDir())
-	b.BootVars["snap_mode"] = "trying"
-	b.BootVars["snap_try_core"] = "os1"
-	b.BootVars["snap_try_kernel"] = "k1"
-	err := MarkBootSuccessful(b)
-	c.Assert(err, IsNil)
+var _ = Suite(&bootenvTestSuite{})
 
-	expected := map[string]string{
-		// cleared
-		"snap_mode":       "",
-		"snap_try_kernel": "",
-		"snap_try_core":   "",
-		// updated
-		"snap_kernel": "k1",
-		"snap_core":   "os1",
-	}
-	c.Assert(b.BootVars, DeepEquals, expected)
+func (s *bootenvTestSuite) SetUpTest(c *C) {
+	s.baseBootenvTestSuite.SetUpTest(c)
 
-	// do it again, verify its still valid
-	err = MarkBootSuccessful(b)
-	c.Assert(err, IsNil)
-	c.Assert(b.BootVars, DeepEquals, expected)
+	s.b = bootloadertest.Mock("mocky", c.MkDir())
 }
 
-func (s *PartitionTestSuite) TestMarkBootSuccessfulKKernelUpdate(c *C) {
-	b := boottest.NewMockBootloader("mocky", c.MkDir())
-	b.BootVars["snap_mode"] = "trying"
-	b.BootVars["snap_core"] = "os1"
-	b.BootVars["snap_kernel"] = "k1"
-	b.BootVars["snap_try_core"] = ""
-	b.BootVars["snap_try_kernel"] = "k2"
-	err := MarkBootSuccessful(b)
+func (s *bootenvTestSuite) TestForceBootloader(c *C) {
+	bootloader.Force(s.b)
+	defer bootloader.Force(nil)
+
+	got, err := bootloader.Find()
 	c.Assert(err, IsNil)
-	c.Assert(b.BootVars, DeepEquals, map[string]string{
-		// cleared
-		"snap_mode":       "",
-		"snap_try_kernel": "",
-		"snap_try_core":   "",
-		// unchanged
-		"snap_core": "os1",
-		// updated
-		"snap_kernel": "k2",
-	})
+	c.Check(got, Equals, s.b)
 }
 
-func (s *PartitionTestSuite) TestInstallBootloaderConfigNoConfig(c *C) {
-	err := InstallBootConfig(c.MkDir())
+func (s *bootenvTestSuite) TestForceBootloaderError(c *C) {
+	myErr := errors.New("zap")
+	bootloader.ForceError(myErr)
+	defer bootloader.ForceError(nil)
+
+	got, err := bootloader.Find()
+	c.Assert(err, Equals, myErr)
+	c.Check(got, IsNil)
+}
+
+func (s *bootenvTestSuite) TestInstallBootloaderConfigNoConfig(c *C) {
+	err := bootloader.InstallBootConfig(c.MkDir())
 	c.Assert(err, ErrorMatches, `cannot find boot config in.*`)
 }
 
-func (s *PartitionTestSuite) TestInstallBootloaderConfig(c *C) {
+func (s *bootenvTestSuite) TestInstallBootloaderConfig(c *C) {
 	for _, t := range []struct{ gadgetFile, systemFile string }{
 		{"grub.conf", "/boot/grub/grub.cfg"},
 		{"uboot.conf", "/boot/uboot/uboot.env"},
@@ -118,7 +103,7 @@ func (s *PartitionTestSuite) TestInstallBootloaderConfig(c *C) {
 		mockGadgetDir := c.MkDir()
 		err := ioutil.WriteFile(filepath.Join(mockGadgetDir, t.gadgetFile), nil, 0644)
 		c.Assert(err, IsNil)
-		err = InstallBootConfig(mockGadgetDir)
+		err = bootloader.InstallBootConfig(mockGadgetDir)
 		c.Assert(err, IsNil)
 		fn := filepath.Join(dirs.GlobalRootDir, t.systemFile)
 		c.Assert(osutil.FileExists(fn), Equals, true)

@@ -47,6 +47,7 @@ import (
 	"github.com/snapcore/snapd/release"
 	"github.com/snapcore/snapd/snap"
 	"github.com/snapcore/snapd/store"
+	"github.com/snapcore/snapd/strutil"
 )
 
 // A Store can find metadata on snaps, download snaps and fetch assertions.
@@ -212,28 +213,28 @@ type DownloadOptions struct {
 	TargetDir string
 	Channel   string
 	CohortKey string
+	Basename  string
+
+	LeavePartialOnError bool
 }
 
-var errRevisionAndCohort = errors.New("cannot specify both revision and cohort")
+var (
+	errRevisionAndCohort = errors.New("cannot specify both revision and cohort")
+	errPathInBase        = errors.New("cannot specify a path in basename (use target dir for that)")
+)
 
 func (opts *DownloadOptions) validate() error {
-	if opts.Revision.Unset() || opts.CohortKey == "" {
-		return nil
+	if strings.ContainsRune(opts.Basename, filepath.Separator) {
+		return errPathInBase
 	}
-	return errRevisionAndCohort
-}
-
-// TODO: maybe move this to strutil next to ElliptRight
-func elliptLeft(str string) string {
-	if len(str) < 10 {
-		// shouldn't happen outside of tests
-		return str
+	if !(opts.Revision.Unset() || opts.CohortKey == "") {
+		return errRevisionAndCohort
 	}
-	return "…" + str[len(str)-8:]
+	return nil
 }
 
 func (opts *DownloadOptions) String() string {
-	spec := make([]string, 0, 4)
+	spec := make([]string, 0, 5)
 	if !opts.Revision.Unset() {
 		spec = append(spec, fmt.Sprintf("(%s)", opts.Revision))
 	}
@@ -243,10 +244,13 @@ func (opts *DownloadOptions) String() string {
 	if opts.CohortKey != "" {
 		// cohort keys are really long, and the rightmost bit being the
 		// interesting bit, so ellipt the rest
-		spec = append(spec, fmt.Sprintf(`from cohort %q`, elliptLeft(opts.CohortKey)))
+		spec = append(spec, fmt.Sprintf(`from cohort %q`, strutil.ElliptLeft(opts.CohortKey, 10)))
+	}
+	if opts.Basename != "" {
+		spec = append(spec, fmt.Sprintf("to %q", opts.Basename+".snap"))
 	}
 	if opts.TargetDir != "" {
-		spec = append(spec, fmt.Sprintf("to %q", opts.TargetDir))
+		spec = append(spec, fmt.Sprintf("in %q", opts.TargetDir))
 	}
 	return strings.Join(spec, " ")
 }
@@ -290,7 +294,12 @@ func (tsto *ToolingStore) DownloadSnap(name string, opts DownloadOptions) (targe
 	}
 	snap := snaps[0]
 
-	baseName := filepath.Base(snap.MountFile())
+	baseName := opts.Basename
+	if baseName == "" {
+		baseName = filepath.Base(snap.MountFile())
+	} else {
+		baseName += ".snap"
+	}
 	targetFn = filepath.Join(opts.TargetDir, baseName)
 
 	// check if we already have the right file
@@ -315,7 +324,8 @@ func (tsto *ToolingStore) DownloadSnap(name string, opts DownloadOptions) (targe
 		os.Exit(1)
 	}()
 
-	if err = sto.Download(context.TODO(), name, targetFn, &snap.DownloadInfo, pb, tsto.user, nil); err != nil {
+	dlOpts := &store.DownloadOptions{LeavePartialOnError: opts.LeavePartialOnError}
+	if err = sto.Download(context.TODO(), name, targetFn, &snap.DownloadInfo, pb, tsto.user, dlOpts); err != nil {
 		return "", nil, err
 	}
 

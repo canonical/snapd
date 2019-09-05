@@ -54,6 +54,9 @@ amazon_name_package() {
             xdelta3)
                 echo "xdelta"
                 ;;
+            openvswitch-switch)
+                echo "openvswitch"
+                ;;
             *)
                 echo "$i"
                 ;;
@@ -238,7 +241,7 @@ distro_install_package() {
         ;;
     esac
 
-    # fix dependency issue where libp11-kit0 needs to be downgraded to 
+    # fix dependency issue where libp11-kit0 needs to be downgraded to
     # install gnome-keyring
     case "$SPREAD_SYSTEM" in
         debian-9-*)
@@ -601,6 +604,7 @@ pkg_dependencies_ubuntu_classic(){
                 gccgo-6
                 evolution-data-server
                 gnome-online-accounts
+                packagekit
                 "
                 pkg_linux_image_extra
             ;;
@@ -611,24 +615,24 @@ pkg_dependencies_ubuntu_classic(){
                 gnome-online-accounts
                 kpartx
                 libvirt-bin
+                packagekit
                 qemu
                 x11-utils
                 xvfb
                 "
                 pkg_linux_image_extra
             ;;
-        ubuntu-17.10-64)
-                pkg_linux_image_extra
-            ;;
         ubuntu-18.04-64)
             echo "
                 gccgo-8
                 evolution-data-server
+                packagekit
                 "
             ;;
-        ubuntu-18.10-64|ubuntu-19.04-64)
+        ubuntu-19.04-64|ubuntu-19.10-64)
             echo "
                 evolution-data-server
+                packagekit
                 "
             ;;
         ubuntu-*)
@@ -641,6 +645,7 @@ pkg_dependencies_ubuntu_classic(){
                 eatmydata
                 evolution-data-server
                 net-tools
+                packagekit
                 sbuild
                 "
             ;;
@@ -683,6 +688,7 @@ pkg_dependencies_fedora(){
         mock
         net-tools
         nfs-utils
+        PackageKit
         python3-yaml
         python3-dbus
         python3-gobject
@@ -711,6 +717,7 @@ pkg_dependencies_amazon(){
         nc
         net-tools
         nfs-utils
+        PackageKit
         system-lsb-core
         rpm-build
         xdg-user-dirs
@@ -733,6 +740,7 @@ pkg_dependencies_opensuse(){
         lsb-release
         man
         nfs-kernel-server
+        PackageKit
         python3-yaml
         netcat-openbsd
         osc
@@ -762,6 +770,7 @@ pkg_dependencies_arch(){
     net-tools
     nfs-utils
     openbsd-netcat
+    packagekit
     python
     python-docutils
     python-dbus

@@ -40,7 +40,10 @@ snap's configuration hook returns successfully.
 
 Nested values may be modified via a dotted path:
 
-    $ snap set author.name=frank
+    $ snap set snap-name author.name=frank
+
+Configuration option may be unset with exclamation mark:
+    $ snap set snap-name author!
 `)
 
 type cmdSet struct {
@@ -61,7 +64,7 @@ func init() {
 			// TRANSLATORS: This needs to begin with < and end with >
 			name: i18n.G("<conf value>"),
 			// TRANSLATORS: This should not start with a lowercase letter.
-			desc: i18n.G("Configuration value (key=value)"),
+			desc: i18n.G("Set (key=value) or unset (key!) configuration value"),
 		},
 	})
 }
@@ -70,6 +73,10 @@ func (x *cmdSet) Execute(args []string) error {
 	patchValues := make(map[string]interface{})
 	for _, patchValue := range x.Positional.ConfValues {
 		parts := strings.SplitN(patchValue, "=", 2)
+		if len(parts) == 1 && strings.HasSuffix(patchValue, "!") {
+			patchValues[strings.TrimSuffix(patchValue, "!")] = nil
+			continue
+		}
 		if len(parts) != 2 {
 			return fmt.Errorf(i18n.G("invalid configuration: %q (want key=value)"), patchValue)
 		}

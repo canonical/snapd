@@ -175,7 +175,13 @@ type Store struct {
 	proxy  func(*http.Request) (*url.URL, error)
 }
 
+var ErrTooManyRequests = errors.New("too many requests")
+
 func respToError(resp *http.Response, msg string) error {
+	if resp.StatusCode == 429 {
+		return ErrTooManyRequests
+	}
+
 	tpl := "cannot %s: got unexpected HTTP status code %d via %s to %q"
 	if oops := resp.Header.Get("X-Oops-Id"); oops != "" {
 		tpl += " [%s]"
@@ -1092,7 +1098,7 @@ type SnapSpec struct {
 }
 
 // SnapInfo returns the snap.Info for the store-hosted snap matching the given spec, or an error.
-func (s *Store) SnapInfo(snapSpec SnapSpec, user *auth.UserState) (*snap.Info, error) {
+func (s *Store) SnapInfo(ctx context.Context, snapSpec SnapSpec, user *auth.UserState) (*snap.Info, error) {
 	query := url.Values{}
 	query.Set("fields", strings.Join(s.infoFields, ","))
 	query.Set("architecture", s.architecture)
@@ -1105,7 +1111,7 @@ func (s *Store) SnapInfo(snapSpec SnapSpec, user *auth.UserState) (*snap.Info, e
 	}
 
 	var remote storeInfo
-	resp, err := s.retryRequestDecodeJSON(context.TODO(), reqOptions, user, &remote, nil)
+	resp, err := s.retryRequestDecodeJSON(ctx, reqOptions, user, &remote, nil)
 	if err != nil {
 		return nil, err
 	}
@@ -1328,8 +1334,9 @@ func (e HashError) Error() string {
 }
 
 type DownloadOptions struct {
-	RateLimit     int64
-	IsAutoRefresh bool
+	RateLimit           int64
+	IsAutoRefresh       bool
+	LeavePartialOnError bool
 }
 
 // Download downloads the snap addressed by download info and returns its
@@ -1369,10 +1376,14 @@ func (s *Store) Download(ctx context.Context, name string, targetPath string, do
 		return err
 	}
 	defer func() {
+		fi, _ := w.Stat()
 		if cerr := w.Close(); cerr != nil && err == nil {
 			err = cerr
 		}
-		if err != nil {
+		if err == nil {
+			return
+		}
+		if dlOpts == nil || !dlOpts.LeavePartialOnError || fi == nil || fi.Size() == 0 {
 			os.Remove(w.Name())
 		}
 	}()
@@ -1449,6 +1460,8 @@ func downloadReqOpts(storeURL *url.URL, cdnHeader string, opts *DownloadOptions)
 		Method:       "GET",
 		URL:          storeURL,
 		ExtraHeaders: map[string]string{},
+		// FIXME: use the new headers? with
+		// APILevel: apiV2Endps,
 	}
 	if cdnHeader != "" {
 		reqOptions.ExtraHeaders["Snap-CDN"] = cdnHeader

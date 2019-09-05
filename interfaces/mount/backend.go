@@ -89,7 +89,7 @@ func (b *Backend) Remove(snapName string) error {
 	if err != nil {
 		return fmt.Errorf("cannot synchronize mount configuration files for snap %q: %s", snapName, err)
 	}
-	return nil
+	return DiscardSnapNamespace(snapName)
 }
 
 // addMountProfile adds a mount profile with the given name, based on the given entries.

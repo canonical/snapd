@@ -17,19 +17,6 @@ reset_classic() {
     # Reload all service units as in some situations the unit might
     # have changed on the disk.
     systemctl daemon-reload
-
-    echo "Ensure the service is active before stopping it"
-    retries=20
-    systemctl status snapd.service snapd.socket || true
-    while systemctl status snapd.service snapd.socket | grep "Active: activating"; do
-        if [ $retries -eq 0 ]; then
-            echo "snapd service or socket not active"
-            exit 1
-        fi
-        retries=$(( retries - 1 ))
-        sleep 1
-    done
-
     systemd_stop_units snapd.service snapd.socket
 
     case "$SPREAD_SYSTEM" in
@@ -119,11 +106,19 @@ reset_all_snap() {
                 ;;
             *)
                 # make sure snapd is running before we attempt to remove snaps, in case a test stopped it
-                if ! systemctl status snapd.service snapd.socket; then
+                if ! systemctl status snapd.service snapd.socket >/dev/null; then
                     systemctl start snapd.service snapd.socket
                 fi
-                if ! echo "$SKIP_REMOVE_SNAPS" | grep -w "$snap"; then
-                    if snap info "$snap" | grep -E '^type: +(base|core)'; then
+                # Check if a snap should be kept, there's a list of those in spread.yaml.
+                keep=0
+                for precious_snap in $SKIP_REMOVE_SNAPS; do
+                    if [ "$snap" = "$precious_snap" ]; then
+                        keep=1
+                        break
+                    fi
+                done
+                if [ "$keep" -eq 0 ]; then
+                    if snap info --verbose "$snap" | grep -E '^type: +(base|core)'; then
                         if [ -z "$remove_bases" ]; then
                             remove_bases="$snap"
                         else
@@ -182,7 +177,7 @@ if [ -d /run/snapd/ns ]; then
         umount -l "$mnt" || true
         rm -f "$mnt"
     done
-    find /run/snapd/ns/ \( -name '*.fstab' -o -name '*.user-fstab' \) -delete
+    find /run/snapd/ns/ \( -name '*.fstab' -o -name '*.user-fstab' -o -name '*.info' \) -delete
 fi
 
 if [ "$REMOTE_STORE" = staging ] && [ "$1" = "--store" ]; then

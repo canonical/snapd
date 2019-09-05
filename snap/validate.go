@@ -30,6 +30,7 @@ import (
 	"strings"
 	"unicode/utf8"
 
+	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/snap/naming"
 	"github.com/snapcore/snapd/spdx"
 	"github.com/snapcore/snapd/strutil"
@@ -200,9 +201,9 @@ func validateSocketAddrPath(socket *SocketInfo, fieldName string, path string) e
 		return fmt.Errorf("invalid %q: %q should be written as %q", fieldName, path, clean)
 	}
 
-	if !(strings.HasPrefix(path, "$SNAP_DATA/") || strings.HasPrefix(path, "$SNAP_COMMON/")) {
+	if !(strings.HasPrefix(path, "$SNAP_DATA/") || strings.HasPrefix(path, "$SNAP_COMMON/") || strings.HasPrefix(path, "$XDG_RUNTIME_DIR/")) {
 		return fmt.Errorf(
-			"invalid %q: must have a prefix of $SNAP_DATA or $SNAP_COMMON", fieldName)
+			"invalid %q: must have a prefix of $SNAP_DATA, $SNAP_COMMON or $XDG_RUNTIME_DIR", fieldName)
 	}
 
 	return nil
@@ -346,6 +347,11 @@ func Validate(info *Info) error {
 		return err
 	}
 
+	// Ensure system usernames are valid
+	if err := ValidateSystemUsernames(info); err != nil {
+		return err
+	}
+
 	// ensure that common-id(s) are unique
 	if err := ValidateCommonIDs(info); err != nil {
 		return err
@@ -357,14 +363,24 @@ func Validate(info *Info) error {
 // ValidateBase validates the base field.
 func ValidateBase(info *Info) error {
 	// validate that bases do not have base fields
-	if info.Type == TypeOS || info.Type == TypeBase {
+	if info.GetType() == TypeOS || info.GetType() == TypeBase {
 		if info.Base != "" && info.Base != "none" {
-			return fmt.Errorf(`cannot have "base" field on %q snap %q`, info.Type, info.InstanceName())
+			return fmt.Errorf(`cannot have "base" field on %q snap %q`, info.GetType(), info.InstanceName())
 		}
 	}
 
 	if info.Base == "none" && (len(info.Hooks) > 0 || len(info.Apps) > 0) {
 		return fmt.Errorf(`cannot have apps or hooks with base "none"`)
+	}
+
+	if info.Base != "" {
+		baseSnapName, instanceKey := SplitInstanceName(info.Base)
+		if instanceKey != "" {
+			return fmt.Errorf("base cannot specify a snap instance name: %q", info.Base)
+		}
+		if err := ValidateName(baseSnapName); err != nil {
+			return fmt.Errorf("invalid base name: %s", err)
+		}
 	}
 	return nil
 }
@@ -400,6 +416,16 @@ func ValidateLayoutAll(info *Info) error {
 				}
 			}
 			sourceKindMap[sourcePath] = "file"
+		}
+	}
+
+	// Validate that layout are not attempting to define elements that normally
+	// come from other snaps. This is separate from the ValidateLayout below to
+	// simplify argument passing.
+	thisSnapMntDir := filepath.Join("/snap/", info.SnapName())
+	for _, path := range paths {
+		if strings.HasPrefix(path, "/snap/") && !strings.HasPrefix(path, thisSnapMntDir) {
+			return fmt.Errorf("layout %q defines a layout in space belonging to another snap", path)
 		}
 	}
 
@@ -717,6 +743,72 @@ func (layout *Layout) constraint() LayoutConstraint {
 	return mountedTree(path)
 }
 
+// layoutRejectionList contains directories that cannot be used as layout
+// targets. Nothing there, or underneath can be replaced with $SNAP or
+// $SNAP_DATA, or $SNAP_COMMON content, even from the point of view of a single
+// snap.
+var layoutRejectionList = []string{
+	// Special locations that need to retain their properties:
+
+	// The /dev directory contains essential device nodes and there's no valid
+	// reason to allow snaps to replace it.
+	"/dev",
+	// The /proc directory contains essential process meta-data and
+	// miscellaneous kernel configuration parameters and there is no valid
+	// reason to allow snaps to replace it.
+	"/proc",
+	// The /sys directory exposes many kernel internals, similar to /proc and
+	// there is no known reason to allow snaps to replace it.
+	"/sys",
+	// The media directory is mounted with bi-directional mount event sharing.
+	// Any mount operations there are reflected in the host's view of /media,
+	// which may be either itself or /run/media.
+	"/media",
+	// The /run directory contains various ephemeral information files or
+	// sockets used by various programs. Providing view of the true /run allows
+	// snap applications to be integrated with the rest of the system and
+	// therefore snaps should not be allowed to replace it.
+	"/run",
+	// The /tmp directory contains a private, per-snap, view of /tmp and
+	// there's no valid reason to allow snaps to replace it.
+	"/tmp",
+	// The /var/lib/snapd directory contains essential snapd state and is
+	// sometimes consulted from inside the mount namespace.
+	"/var/lib/snapd",
+
+	// Locations that may be used to attack the host:
+
+	// The firmware is sometimes loaded on demand by the kernel, in response to
+	// a process performing generic I/O to a specific device. In that case the
+	// mount namespace of the process is searched, by the kernel, for the
+	// firmware. Therefore firmware must not be replaceable to prevent
+	// malicious firmware from attacking the host.
+	"/lib/firmware",
+	// Similarly the kernel will load modules and the modules should not be
+	// something that snaps can tamper with.
+	"/lib/modules",
+
+	// Locations that store essential data:
+
+	// The /var/snap directory contains system-wide state of particular snaps
+	// and should not be replaced as it would break content interface
+	// connections that use $SNAP_DATA or $SNAP_COMMON.
+	"/var/snap",
+	// The /home directory contains user data, including $SNAP_USER_DATA,
+	// $SNAP_USER_COMMON and should be disallowed for the same reasons as
+	// /var/snap.
+	"/home",
+
+	// Locations that should be pristine to avoid confusion.
+
+	// There's no known reason to allow snaps to replace things there.
+	"/boot",
+	// The lost+found directory is used by fsck tools to link lost blocks back
+	// into the filesystem tree. Using layouts for this element is just
+	// confusing and there is no valid reason to allow it.
+	"/lost+found",
+}
+
 // ValidateLayout ensures that the given layout contains only valid subset of constructs.
 func ValidateLayout(layout *Layout, constraints []LayoutConstraint) error {
 	si := layout.Snap
@@ -740,7 +832,7 @@ func ValidateLayout(layout *Layout, constraints []LayoutConstraint) error {
 		return fmt.Errorf("layout %q uses invalid mount point: must be absolute and clean", layout.Path)
 	}
 
-	for _, path := range []string{"/proc", "/sys", "/dev", "/run", "/boot", "/lost+found", "/media", "/var/lib/snapd", "/var/snap", "/lib/firmware", "/lib/modules"} {
+	for _, path := range layoutRejectionList {
 		// We use the mountedTree constraint as this has the right semantics.
 		if mountedTree(path).IsOffLimits(mountPoint) {
 			return fmt.Errorf("layout %q in an off-limits area", layout.Path)
@@ -849,4 +941,53 @@ func ValidateCommonIDs(info *Info) error {
 		}
 	}
 	return nil
+}
+
+func ValidateSystemUsernames(info *Info) error {
+	for username := range info.SystemUsernames {
+		if !osutil.IsValidUsername(username) {
+			return fmt.Errorf("invalid system username %q", username)
+		}
+	}
+	return nil
+}
+
+// neededDefaultProviders returns the names of all default-providers for
+// the content plugs that the given snap.Info needs.
+func NeededDefaultProviders(info *Info) (cps []string) {
+	for _, plug := range info.Plugs {
+		if plug.Interface == "content" {
+			var dprovider string
+			if err := plug.Attr("default-provider", &dprovider); err == nil && dprovider != "" {
+				cps = append(cps, dprovider)
+			}
+		}
+	}
+	return cps
+}
+
+// ValidateBasesAndProviders checks that all bases/default-providers are part of the seed
+func ValidateBasesAndProviders(snapInfos map[string]*Info) []error {
+	var errs []error
+	for _, info := range snapInfos {
+		// ensure base is available
+		if info.Base != "" && info.Base != "none" {
+			if _, ok := snapInfos[info.Base]; !ok {
+				errs = append(errs, fmt.Errorf("cannot use snap %q: base %q is missing", info.InstanceName(), info.Base))
+			}
+		}
+		// ensure core is available
+		if info.Base == "" && info.SnapType == TypeApp && info.InstanceName() != "snapd" {
+			if _, ok := snapInfos["core"]; !ok {
+				errs = append(errs, fmt.Errorf(`cannot use snap %q: required snap "core" missing`, info.InstanceName()))
+			}
+		}
+		// ensure default-providers are available
+		for _, dp := range NeededDefaultProviders(info) {
+			if _, ok := snapInfos[dp]; !ok {
+				errs = append(errs, fmt.Errorf("cannot use snap %q: default provider %q is missing", info.InstanceName(), dp))
+			}
+		}
+	}
+	return errs
 }
