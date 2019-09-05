@@ -7,7 +7,7 @@ execute: |
         exit 1
     fi
     echo "Ensure we got the right error"
-    MATCH "unsupported feature: snapd9.99" < stderr.txt
+    MATCH "unsupported features: snapd9999.99" < stderr.txt
     echo "Ensure we got the error early"
     not grep "Mount snap" < stderr.txt
 
@@ -19,7 +19,7 @@ execute: |
         echo "snap refresh should not work here"
         exit 1
     fi
-    MATCH "unsupported feature: snapd9.99" < stderr.txt
+    MATCH "unsupported features: snapd9999.99" < stderr.txt
     echo "Ensure we got the error early"
     not grep "Mount snap" < stderr.txt
 
