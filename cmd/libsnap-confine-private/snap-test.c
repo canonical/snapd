@@ -359,7 +359,6 @@ static void test_sc_snap_drop_instance_key_no_dest(void)
 {
 	if (g_test_subprocess()) {
 		sc_snap_drop_instance_key("foo_bar", NULL, 0);
-		g_test_fail();
 		return;
 	}
 	g_test_trap_subprocess(NULL, 0, 0);
@@ -373,7 +372,6 @@ static void test_sc_snap_drop_instance_key_short_dest(void)
 		char dest[10] = { 0 };
 		sc_snap_drop_instance_key("foo-foo-foo-foo-foo_bar", dest,
 					  sizeof dest);
-		g_test_fail();
 		return;
 	}
 	g_test_trap_subprocess(NULL, 0, 0);
@@ -385,7 +383,6 @@ static void test_sc_snap_drop_instance_key_short_dest2(void)
 	if (g_test_subprocess()) {
 		char dest[3] = { 0 };	// "foo" sans the nil byte
 		sc_snap_drop_instance_key("foo", dest, sizeof dest);
-		g_test_fail();
 		return;
 	}
 	g_test_trap_subprocess(NULL, 0, 0);
@@ -397,7 +394,6 @@ static void test_sc_snap_drop_instance_key_no_name(void)
 	if (g_test_subprocess()) {
 		char dest[10] = { 0 };
 		sc_snap_drop_instance_key(NULL, dest, sizeof dest);
-		g_test_fail();
 		return;
 	}
 	g_test_trap_subprocess(NULL, 0, 0);
@@ -434,7 +430,6 @@ static void test_sc_snap_split_instance_name_trailing_nil(void)
 		char dest[3] = { 0 };
 		// pretend there is no place for trailing \0
 		sc_snap_split_instance_name("_", NULL, 0, dest, 0);
-		g_test_fail();
 		return;
 	}
 	g_test_trap_subprocess(NULL, 0, 0);
@@ -447,7 +442,6 @@ static void test_sc_snap_split_instance_name_short_instance_dest(void)
 		char dest[10] = { 0 };
 		sc_snap_split_instance_name("foo_barbarbarbar", NULL, 0,
 					    dest, sizeof dest);
-		g_test_fail();
 		return;
 	}
 	g_test_trap_subprocess(NULL, 0, 0);
