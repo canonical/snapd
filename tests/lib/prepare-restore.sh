@@ -110,7 +110,7 @@ build_rpm() {
     mkdir -p "$rpm_dir/SOURCES"
     cp "$packaging_path"/* "$rpm_dir/SOURCES/"
     # shellcheck disable=SC2086
-    ./packaging/fedora/pack-source -v "$version" -o "$rpm_dir/SOURCES" $pack_args
+    ./packaging/pack-source -v "$version" -o "$rpm_dir/SOURCES" $pack_args
 
     # Cleanup all artifacts from previous builds
     rm -rf "$rpm_dir"/BUILD/*
