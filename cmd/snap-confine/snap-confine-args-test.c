@@ -23,57 +23,6 @@
 
 #include <glib.h>
 
-/**
- * Create an argc + argv pair out of a NULL terminated argument list.
- **/
-static void
-    __attribute__((sentinel)) test_argc_argv(int *argcp, char ***argvp, ...)
-{
-	int argc = 0;
-	char **argv = NULL;
-	g_test_queue_free(argv);
-
-	va_list ap;
-	va_start(ap, argvp);
-	const char *arg;
-	do {
-		arg = va_arg(ap, const char *);
-		// XXX: yeah, wrong way but the worse that can happen is for test to fail
-		argv = realloc(argv, sizeof(const char **) * (argc + 1));
-		g_assert_nonnull(argv);
-		if (arg != NULL) {
-			char *arg_copy = sc_strdup(arg);
-			g_test_queue_free(arg_copy);
-			argv[argc] = arg_copy;
-			argc += 1;
-		} else {
-			argv[argc] = NULL;
-		}
-	} while (arg != NULL);
-	va_end(ap);
-
-	*argcp = argc;
-	*argvp = argv;
-}
-
-static void test_test_argc_argv(void)
-{
-	// Check that test_argc_argv() correctly stores data
-	int argc;
-	char **argv;
-
-	test_argc_argv(&argc, &argv, NULL);
-	g_assert_cmpint(argc, ==, 0);
-	g_assert_null(argv[0]);
-
-	test_argc_argv(&argc, &argv, "zero", "one", "two", NULL);
-	g_assert_cmpint(argc, ==, 3);
-	g_assert_cmpstr(argv[0], ==, "zero");
-	g_assert_cmpstr(argv[1], ==, "one");
-	g_assert_cmpstr(argv[2], ==, "two");
-	g_assert_null(argv[3]);
-}
-
 static void test_sc_nonfatal_parse_args__typical(void)
 {
 	// Test that typical invocation of snap-confine is parsed correctly.
@@ -451,7 +400,6 @@ static void test_sc_nonfatal_parse_args__base_snap__twice(void)
 
 static void __attribute__((constructor)) init(void)
 {
-	g_test_add_func("/args/test_argc_argv", test_test_argc_argv);
 	g_test_add_func("/args/sc_cleanup_args", test_sc_cleanup_args);
 	g_test_add_func("/args/sc_nonfatal_parse_args/typical",
 			test_sc_nonfatal_parse_args__typical);

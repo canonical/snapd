@@ -16,6 +16,7 @@
  */
 
 #include "test-utils.h"
+#include "string-utils.h"
 
 #include "error.h"
 #include "utils.h"
@@ -70,4 +71,34 @@ void rm_rf_tmp(const char *dir)
 	g_free(argv[2]);
 	g_free(argv[3]);
 	g_free(argv);
+}
+
+void
+__attribute__((sentinel)) test_argc_argv(int *argcp, char ***argvp, ...)
+{
+	int argc = 0;
+	char **argv = NULL;
+	g_test_queue_free(argv);
+
+	va_list ap;
+	va_start(ap, argvp);
+	const char *arg;
+	do {
+		arg = va_arg(ap, const char *);
+		// XXX: yeah, wrong way but the worse that can happen is for test to fail
+		argv = realloc(argv, sizeof(const char **) * (argc + 1));
+		g_assert_nonnull(argv);
+		if (arg != NULL) {
+			char *arg_copy = sc_strdup(arg);
+			g_test_queue_free(arg_copy);
+			argv[argc] = arg_copy;
+			argc += 1;
+		} else {
+			argv[argc] = NULL;
+		}
+	} while (arg != NULL);
+	va_end(ap);
+
+	*argcp = argc;
+	*argvp = argv;
 }
