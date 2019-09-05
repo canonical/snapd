@@ -2524,7 +2524,7 @@ func (s *deviceMgrSuite) TestRemodelUnhappy(c *C) {
 	}
 }
 
-func (s *deviceMgrSuite) TestRemodelTasksSmoke(c *C) {
+func (s *deviceMgrSuite) TestRemodelTasksSwitchKernelTrack(c *C) {
 	s.state.Lock()
 	defer s.state.Unlock()
 	s.state.Set("seeded", true)
@@ -2595,6 +2595,60 @@ func (s *deviceMgrSuite) TestRemodelTasksSmoke(c *C) {
 	// 2 snaps, plus one track switch plus the remodel task, the
 	// wait chain is tested in TestRemodel*
 	c.Assert(tss, HasLen, 4)
+}
+
+func (s *deviceMgrSuite) TestRemodelTasksSwitchKernel(c *C) {
+	s.state.Lock()
+	defer s.state.Unlock()
+	s.state.Set("seeded", true)
+	s.state.Set("refresh-privacy-key", "some-privacy-key")
+
+	var testDeviceCtx snapstate.DeviceContext
+
+	restore := devicestate.MockSnapstateInstallWithDeviceContext(func(ctx context.Context, st *state.State, name string, opts *snapstate.RevisionOptions, userID int, flags snapstate.Flags, deviceCtx snapstate.DeviceContext, fromChange string) (*state.TaskSet, error) {
+		c.Check(deviceCtx, Equals, testDeviceCtx)
+		c.Check(name, Equals, "other-kernel")
+		c.Check(opts.Channel, Equals, "18")
+
+		tDownload := s.state.NewTask("fake-download", fmt.Sprintf("Download %s", name))
+		tValidate := s.state.NewTask("validate-snap", fmt.Sprintf("Validate %s", name))
+		tValidate.WaitFor(tDownload)
+		tInstall := s.state.NewTask("fake-install", fmt.Sprintf("Install %s", name))
+		tInstall.WaitFor(tValidate)
+		ts := state.NewTaskSet(tDownload, tValidate, tInstall)
+		ts.MarkEdge(tValidate, snapstate.DownloadAndChecksDoneEdge)
+		return ts, nil
+	})
+	defer restore()
+
+	// set a model assertion
+	current := s.brands.Model("canonical", "pc-model", map[string]interface{}{
+		"architecture": "amd64",
+		"kernel":       "pc-kernel",
+		"gadget":       "pc",
+		"base":         "core18",
+	})
+	err := assertstate.Add(s.state, current)
+	c.Assert(err, IsNil)
+	devicestatetest.SetDevice(s.state, &auth.DeviceState{
+		Brand: "canonical",
+		Model: "pc-model",
+	})
+
+	new := s.brands.Model("canonical", "pc-model", map[string]interface{}{
+		"architecture": "amd64",
+		"kernel":       "other-kernel=18",
+		"gadget":       "pc",
+		"base":         "core18",
+		"revision":     "1",
+	})
+
+	testDeviceCtx = &snapstatetest.TrivialDeviceContext{Remodeling: true}
+
+	tss, err := devicestate.RemodelTasks(context.Background(), s.state, current, new, testDeviceCtx, "99")
+	c.Assert(err, IsNil)
+	// 1 new kernel plus the remodel task
+	c.Assert(tss, HasLen, 2)
 }
 
 func (s *deviceMgrSuite) TestRemodelRequiredSnaps(c *C) {

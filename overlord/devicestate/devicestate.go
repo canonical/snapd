@@ -320,10 +320,10 @@ func extractDownloadInstallEdgesFromTs(ts *state.TaskSet) (firstDl, lastDl, firs
 
 func remodelTasks(ctx context.Context, st *state.State, current, new *asserts.Model, deviceCtx snapstate.DeviceContext, fromChange string) ([]*state.TaskSet, error) {
 	userID := 0
+	var tss []*state.TaskSet
 
 	// adjust kernel track
-	var tss []*state.TaskSet
-	if current.KernelTrack() != new.KernelTrack() {
+	if current.Kernel() == new.Kernel() && current.KernelTrack() != new.KernelTrack() {
 		ts, err := snapstateUpdateWithDeviceContext(st, new.Kernel(), &snapstate.RevisionOptions{Channel: new.KernelTrack()}, userID, snapstate.Flags{NoReRefresh: true}, deviceCtx, fromChange)
 		if err != nil {
 			return nil, err
@@ -344,6 +344,7 @@ func remodelTasks(ctx context.Context, st *state.State, current, new *asserts.Mo
 		}
 		tss = append(tss, ts)
 	}
+
 	// add new required-snaps, no longer required snaps will be cleaned
 	// in "set-model"
 	for _, snapRef := range new.RequiredNoEssentialSnaps() {
