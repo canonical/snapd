@@ -1,6 +1,7 @@
 #!/bin/bash
 
 set -e
+set +x
 
 SNAP_MOUNT_DIR="@SNAP_MOUNT_DIR@"
 

@@ -360,11 +360,11 @@ func validateVolume(name string, vol *Volume) error {
 	}
 
 	// named structures, for cross-referencing relative offset-write names
-	knownStructures := make(map[string]*PositionedStructure, len(vol.Structure))
+	knownStructures := make(map[string]*LaidOutStructure, len(vol.Structure))
 	// for uniqueness of filesystem labels
 	knownFsLabels := make(map[string]bool, len(vol.Structure))
 	// for validating structure overlap
-	structures := make([]PositionedStructure, len(vol.Structure))
+	structures := make([]LaidOutStructure, len(vol.Structure))
 
 	previousEnd := Size(0)
 	for idx, s := range vol.Structure {
@@ -378,7 +378,7 @@ func validateVolume(name string, vol *Volume) error {
 			start = previousEnd
 		}
 		end := start + s.Size
-		ps := PositionedStructure{
+		ps := LaidOutStructure{
 			VolumeStructure: &vol.Structure[idx],
 			StartOffset:     start,
 			Index:           idx,
@@ -407,12 +407,12 @@ func validateVolume(name string, vol *Volume) error {
 	return validateCrossVolumeStructure(structures, knownStructures)
 }
 
-func validateCrossVolumeStructure(structures []PositionedStructure, knownStructures map[string]*PositionedStructure) error {
+func validateCrossVolumeStructure(structures []LaidOutStructure, knownStructures map[string]*LaidOutStructure) error {
 	previousEnd := Size(0)
 	// cross structure validation:
 	// - relative offsets that reference other structures by name
-	// - positioned structure overlap
-	// use structures positioned within the volume
+	// - laid out structure overlap
+	// use structures laid out within the volume
 	for pidx, ps := range structures {
 		if ps.EffectiveRole() == MBR {
 			if ps.StartOffset != 0 {

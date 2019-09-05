@@ -32,7 +32,7 @@
 32 22 1:24 / /sys/fs/cgroup/pids rw,nosuid,nodev,noexec,relatime shared:32 - cgroup cgroup rw,pids
 33 22 1:25 / /sys/fs/cgroup/rdma rw,nosuid,nodev,noexec,relatime shared:33 - cgroup cgroup rw,rdma
 34 22 1:26 / /sys/fs/cgroup/systemd rw,nosuid,nodev,noexec,relatime shared:34 - cgroup cgroup rw,xattr,name=systemd
-35 22 1:27 / /sys/fs/cgroup/unified rw,nosuid,nodev,noexec,relatime shared:35 - cgroup2 cgroup rw
+35 22 1:27 / /sys/fs/cgroup/unified rw,nosuid,nodev,noexec,relatime shared:35 - cgroup2 cgroup rw,nsdelegate
 36 21 1:28 / /sys/fs/fuse/connections rw,relatime shared:36 - fusectl fusectl rw
 37 21 1:29 / /sys/fs/pstore rw,nosuid,nodev,noexec,relatime shared:37 - pstore pstore rw
 38 21 1:30 / /sys/kernel/config rw,relatime shared:38 - configfs configfs rw

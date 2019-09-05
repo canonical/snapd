@@ -62,16 +62,20 @@ func checkNotEmptyStringWhat(m map[string]interface{}, name, what string) (strin
 	return s, nil
 }
 
-func checkOptionalString(headers map[string]interface{}, name string) (string, error) {
+func checkOptionalStringWhat(headers map[string]interface{}, name, what string) (string, error) {
 	value, ok := headers[name]
 	if !ok {
 		return "", nil
 	}
 	s, ok := value.(string)
 	if !ok {
-		return "", fmt.Errorf("%q header must be a string", name)
+		return "", fmt.Errorf("%q %s must be a string", name, what)
 	}
 	return s, nil
+}
+
+func checkOptionalString(headers map[string]interface{}, name string) (string, error) {
+	return checkOptionalStringWhat(headers, name, "header")
 }
 
 func checkPrimaryKey(headers map[string]interface{}, primKey string) (string, error) {
