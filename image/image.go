@@ -812,7 +812,7 @@ func setBootvars(downloadedSnapsInfoForBootConfig map[string]*snap.Info, model *
 	// Set bootvars for kernel/core snaps so the system boots and
 	// does the first-time initialization. There is also no
 	// mounted kernel/core/base snap, but just the blobs.
-	loader, err := bootloader.Find()
+	bloader, err := bootloader.Find()
 	if err != nil {
 		return fmt.Errorf("cannot set kernel/core boot variables: %s", err)
 	}
@@ -849,7 +849,7 @@ func setBootvars(downloadedSnapsInfoForBootConfig map[string]*snap.Info, model *
 			bootvar = "snap_core"
 		case snap.TypeKernel:
 			bootvar = "snap_kernel"
-			if err := extractKernelAssets(fn, info); err != nil {
+			if err := extractKernelAssets(fn, info, model); err != nil {
 				return err
 			}
 		}
@@ -859,23 +859,22 @@ func setBootvars(downloadedSnapsInfoForBootConfig map[string]*snap.Info, model *
 			m[bootvar] = name
 		}
 	}
-	if err := loader.SetBootVars(m); err != nil {
+	if err := bloader.SetBootVars(m); err != nil {
 		return err
 	}
 
 	return nil
 }
 
-func extractKernelAssets(snapPath string, info *snap.Info) error {
+func extractKernelAssets(snapPath string, info *snap.Info, model *asserts.Model) error {
 	snapf, err := snap.Open(snapPath)
 	if err != nil {
 		return err
 	}
 
-	if err := boot.ExtractKernelAssets(info, snapf); err != nil {
-		return err
-	}
-	return nil
+	// image always runs in not-on-classic mode
+	kernel := boot.Kernel(info, info.GetType(), model, false)
+	return kernel.ExtractKernelAssets(snapf)
 }
 
 func copyLocalSnapFile(snapPath, targetDir string, info *snap.Info) (dstPath string, err error) {
