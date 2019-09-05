@@ -4,5 +4,8 @@ execute: |
     snap install test-snapd-tools
     snap info test-snapd-tools|MATCH "tracking: +stable"
 
-    snap switch --edge test-snapd-tools
+    snap switch --edge test-snapd-tools > stdout.txt
     snap info test-snapd-tools|MATCH "tracking: +edge"
+
+    echo "Ensure we don't print incorrect and confusing information"
+    not grep "is closed; temporarily forwarding to stable." < stdout.txt

@@ -217,11 +217,46 @@ install_dependencies_from_published(){
     done
 }
 
+undo_lxd_mount_changes() {
+    # Vanilla systems have /sys/fs/cgroup/cpuset without clone_children option.
+    # Using LXD to create a container enables this option, as can be seen here:
+    #
+    # -37 32 0:32 / /sys/fs/cgroup/cpuset rw,nosuid,nodev,noexec,relatime shared:15 - cgroup cgroup rw,cpuset
+    # +37 32 0:32 / /sys/fs/cgroup/cpuset rw,nosuid,nodev,noexec,relatime shared:15 - cgroup cgroup rw,cpuset,clone_children
+    #
+    # To restore vanilla state, disable the option now.
+    if mountinfo-tool /sys/fs/cgroup/cpuset; then
+        echo 0 > /sys/fs/cgroup/cpuset/cgroup.clone_children
+    fi
+
+    # Vanilla system have /sys/fs/cgroup/unified mounted with the nsdelegate
+    # option which is available since kernel 4.13 Using LXD to create a
+    # container disables this options, as can be seen here:
+    #
+    # -32 31 0:27 / /sys/fs/cgroup/unified rw,nosuid,nodev,noexec,relatime shared:10 - cgroup2 cgroup rw,nsdelegate
+    # +32 31 0:27 / /sys/fs/cgroup/unified rw,nosuid,nodev,noexec,relatime shared:10 - cgroup2 cgroup rw
+    #
+    # To restore vanilla state, enable the option now, but only if the kernel supports that.
+    # https://lore.kernel.org/patchwork/patch/803265/
+    # https://github.com/systemd/systemd/commit/4095205ecccdfddb822ee8fdc44d11f2ded9be24
+    # The kernel version must be made compatible with the strict version
+    # comparison. I chose to cut at the "-" and take the stuff before it.
+    if [ "$(mountinfo-tool /sys/fs/cgroup/unified .fs_type)" = cgroup2 ] && version-tool --strict "$(uname -r | cut -d- -f 1)" -ge 4.13; then
+        mount -o remount,nsdelegate /sys/fs/cgroup/unified
+    fi
+}
+
 ###
 ### Prepare / restore functions for {project,suite}
 ###
 
 prepare_project() {
+    if [[ "$SPREAD_SYSTEM" == ubuntu-* ]] && [[ "$SPREAD_SYSTEM" != ubuntu-core-* ]]; then
+        apt-get remove --purge -y lxd lxcfs || true
+        apt-get autoremove --purge -y
+        undo_lxd_mount_changes
+    fi
+
     # Check if running inside a container.
     # The testsuite will not work in such an environment
     if systemd-detect-virt -c; then
@@ -465,13 +500,6 @@ prepare_project() {
     RateLimitBurst=0
 EOF
     systemctl restart systemd-journald.service
-
-    # Re-configure cgroups in a way that LXD would so that
-    # installation, use and removal of LXD does not leave any changes
-    # in the system.
-    if [ -f /sys/fs/cgroup/cpuset/cgroup.clone_children ]; then
-        echo 1 > /sys/fs/cgroup/cpuset/cgroup.clone_children
-    fi
 }
 
 prepare_project_each() {
@@ -648,6 +676,25 @@ restore_project_each() {
 
     # Something is hosing the filesystem so look for signs of that
     not grep -F "//deleted /etc" /proc/self/mountinfo
+
+    if journalctl -u snapd.service | grep -F "signal: terminated"; then
+        exit 1;
+    fi
+
+    case "$SPREAD_SYSTEM" in
+        fedora-*|centos-*)
+            # Make sure that we are not leaving behind incorrectly labeled snap
+            # files on systems supporting SELinux
+            (
+                find /root/snap -printf '%Z\t%H/%P\n' || true
+                find /home -regex '/home/[^/]*/snap\(/.*\)?' -printf '%Z\t%H/%P\n' || true
+            ) | grep -c -v snappy_home_t | MATCH "0"
+
+            find /var/snap -printf '%Z\t%H/%P\n' | grep -c -v snappy_var_t  | MATCH "0"
+            ;;
+    esac
+
+    undo_lxd_mount_changes
 }
 
 restore_project() {

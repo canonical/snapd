@@ -56,6 +56,6 @@ class XBuildDeb(snapcraft.BasePlugin):
         # run the real build
         self.run(["dpkg-buildpackage"], env=env)
         # and "install" into the right place
-        snapd_deb = glob.glob("parts/snapd/snapd_*.deb")[0]
+        snapd_deb = glob.glob(os.path.join(self.partdir, "snapd_*.deb"))[0]
         self.run(["dpkg-deb", "-x", os.path.abspath(snapd_deb), self.installdir])
 

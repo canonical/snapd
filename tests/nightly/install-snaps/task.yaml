@@ -7,8 +7,6 @@ details: |
     with many revisions.
     The execution of this test is made on the nightly build.
 
-manual: true
-
 environment:
     # High Profile
     SNAP/azurecli: azure-cli

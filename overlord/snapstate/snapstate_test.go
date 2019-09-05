@@ -37,8 +37,8 @@ import (
 	"gopkg.in/tomb.v2"
 
 	"github.com/snapcore/snapd/asserts"
-	"github.com/snapcore/snapd/boot/boottest"
 	"github.com/snapcore/snapd/bootloader"
+	"github.com/snapcore/snapd/bootloader/bootloadertest"
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/gadget"
 	"github.com/snapcore/snapd/interfaces"
@@ -10952,7 +10952,7 @@ type canRemoveSuite struct {
 	st        *state.State
 	deviceCtx snapstate.DeviceContext
 
-	bs bootloader.Bootloader
+	bootloader *bootloadertest.MockBootloader
 }
 
 var _ = Suite(&canRemoveSuite{})
@@ -10962,8 +10962,8 @@ func (s *canRemoveSuite) SetUpTest(c *C) {
 	s.st = state.New(nil)
 	s.deviceCtx = &snapstatetest.TrivialDeviceContext{DeviceModel: DefaultModel()}
 
-	s.bs = boottest.NewMockBootloader("mock", c.MkDir())
-	bootloader.Force(s.bs)
+	s.bootloader = bootloadertest.Mock("mock", c.MkDir())
+	bootloader.Force(s.bootloader)
 }
 
 func (s *canRemoveSuite) TearDownTest(c *C) {
@@ -11015,7 +11015,7 @@ func (s *canRemoveSuite) TestKernelBootInUseIsKept(c *C) {
 	}
 	kernel.RealName = "kernel"
 
-	boottest.SetBootKernel(fmt.Sprintf("%s_%s.snap", kernel.RealName, kernel.SideInfo.Revision), s.bs)
+	s.bootloader.SetBootKernel(fmt.Sprintf("%s_%s.snap", kernel.RealName, kernel.SideInfo.Revision))
 
 	removeAll := false
 	c.Check(snapstate.CanRemove(s.st, kernel, &snapstate.SnapState{}, removeAll, s.deviceCtx), Equals, false)
@@ -11030,7 +11030,7 @@ func (s *canRemoveSuite) TestOstInUseIsKept(c *C) {
 	}
 	base.RealName = "core18"
 
-	boottest.SetBootBase(fmt.Sprintf("%s_%s.snap", base.RealName, base.SideInfo.Revision), s.bs)
+	s.bootloader.SetBootBase(fmt.Sprintf("%s_%s.snap", base.RealName, base.SideInfo.Revision))
 
 	removeAll := false
 	c.Check(snapstate.CanRemove(s.st, base, &snapstate.SnapState{}, removeAll, s.deviceCtx), Equals, false)
@@ -11054,7 +11054,7 @@ func (s *canRemoveSuite) TestRemoveNonModelKernelStillInUseNotOk(c *C) {
 	}
 	kernel.RealName = "other-non-model-kernel"
 
-	boottest.SetBootKernel(fmt.Sprintf("%s_%s.snap", kernel.RealName, kernel.SideInfo.Revision), s.bs)
+	s.bootloader.SetBootKernel(fmt.Sprintf("%s_%s.snap", kernel.RealName, kernel.SideInfo.Revision))
 
 	c.Check(snapstate.CanRemove(s.st, kernel, &snapstate.SnapState{}, true, s.deviceCtx), Equals, false)
 }
@@ -14510,7 +14510,6 @@ func (s *snapmgrTestSuite) TestResolveChannelPinnedTrack(c *C) {
 		exp         string
 		kernelTrack string
 		gadgetTrack string
-		snapChannel string
 		err         string
 	}{
 		// neither kernel nor gadget
@@ -14548,13 +14547,6 @@ func (s *snapmgrTestSuite) TestResolveChannelPinnedTrack(c *C) {
 		// risk only defaults to pinned kernel track
 		{snap: "kernel", new: "stable", exp: "17/stable", kernelTrack: "17"},
 		{snap: "kernel", new: "edge", exp: "17/edge", kernelTrack: "17"},
-		// risk only with regular snap defaults to pinned track
-		{snap: "some-snap", new: "stable", exp: "3.0/stable", snapChannel: "3.0/edge"},
-		{snap: "some-snap", new: "4.0/stable", exp: "4.0/stable", snapChannel: "3.0/edge"},
-		{snap: "some-snap", new: "latest/stable", exp: "latest/stable", snapChannel: "3.0/edge"},
-		// risk only with kernel/gadget defaults to pinned track from channel in snap state if not pinned by model
-		{snap: "kernel", new: "stable", exp: "2.0/stable", snapChannel: "2.0/edge"},
-		{snap: "brand-gadget", new: "stable", exp: "2.0/stable", snapChannel: "2.0/edge"},
 	} {
 		c.Logf("tc: %+v", tc)
 		if tc.kernelTrack != "" && tc.gadgetTrack != "" {
@@ -14571,19 +14563,6 @@ func (s *snapmgrTestSuite) TestResolveChannelPinnedTrack(c *C) {
 		}
 		deviceCtx := &snapstatetest.TrivialDeviceContext{DeviceModel: model}
 		s.state.Lock()
-		if tc.snapChannel != "" {
-			snapstate.Set(s.state, tc.snap, &snapstate.SnapState{
-				Active:  true,
-				Channel: tc.snapChannel,
-				Sequence: []*snap.SideInfo{{
-					RealName: tc.snap,
-					Revision: snap.R(1),
-					SnapID:   "some-id",
-				}},
-				Current: snap.R(1)})
-		} else {
-			snapstate.Set(s.state, tc.snap, nil)
-		}
 		ch, err := snapstate.ResolveChannel(s.state, tc.snap, tc.new, deviceCtx)
 		s.state.Unlock()
 		if tc.err != "" {
