@@ -49,11 +49,7 @@ execute: |
 
     echo "Setting up D-Bus session bus in a systemd unit"
     systemd-run --unit=dbus-session --property=Type=forking -r /bin/sh -c "XDG_CONFIG_HOME=$XDG_CONFIG_HOME XDG_DATA_HOME=$XDG_DATA_HOME XDG_CACHE_HOME=$XDG_CACHE_HOME dbus-launch --sh-syntax > /tmp/dbus-sh"
-    for _ in $(seq 20); do
-        if test -e /tmp/dbus-sh; then
-            break
-        fi
-    done
+    retry-tool -n 20 test -e /tmp/dbus-sh
     eval "$(cat /tmp/dbus-sh)"
 
     echo "The interface is initially disconnected"
