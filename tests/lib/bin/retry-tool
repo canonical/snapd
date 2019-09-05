@@ -41,32 +41,41 @@ attempt. On failure the exit code from the final attempt is returned.
         help="grace period between attempts (default %(default)ss)",
     )
     parser.add_argument(
+        "--quiet",
+        dest="verbose",
+        action="store_false",
+        default=True,
+        help="refrain from printing any output",
+    )
+    parser.add_argument(
         "cmd", metavar="COMMAND", nargs="...", help="command to execute"
     )
     return parser
 
 
-def run_cmd(cmd, n, wait):
-    # type: (List[Text], int, float) -> int
+def run_cmd(cmd, n, wait, verbose):
+    # type: (List[Text], int, float, bool) -> int
     retcode = 0
     for i in range(1, n + 1):
         retcode = subprocess.call(cmd)
         if retcode == 0:
             break
-        print(
-            "retry: command {} failed with code {}".format(" ".join(cmd), retcode),
-            file=sys.stderr,
-        )
-        if i < n:
+        if verbose:
             print(
-                "retry: next attempt in {} second(s) (attempt {} of {})".format(
-                    wait, i, n
-                ),
+                "retry: command {} failed with code {}".format(" ".join(cmd), retcode),
                 file=sys.stderr,
             )
+        if i < n:
+            if verbose:
+                print(
+                    "retry: next attempt in {} second(s) (attempt {} of {})".format(
+                        wait, i, n
+                    ),
+                    file=sys.stderr,
+                )
             time.sleep(wait)
     else:
-        if n > 1:
+        if verbose and n > 1:
             print(
                 "retry: command {} keeps failing after {} attempts".format(
                     " ".join(cmd), n
@@ -86,12 +95,13 @@ def main():
         parser.exit(0)
     # Return the last exit code as the exit code of this process.
     try:
-        retcode = run_cmd(ns.cmd, ns.attempts, ns.wait)
+        retcode = run_cmd(ns.cmd, ns.attempts, ns.wait, ns.verbose)
     except OSError as exc:
-        print(
-            "retry: cannot execute command {}: {}".format(" ".join(ns.cmd), exc),
-            file=sys.stderr,
-        )
+        if ns.verbose:
+            print(
+                "retry: cannot execute command {}: {}".format(" ".join(ns.cmd), exc),
+                file=sys.stderr,
+            )
         raise SystemExit(1)
     else:
         raise SystemExit(retcode)
