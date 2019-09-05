@@ -59,6 +59,10 @@ func (s *deviceMgrSuite) TestSetModelHandlerNewRevision(c *C) {
 		RealName: "foo",
 		Revision: snap.R(1),
 	}
+	pcKernelSI := &snap.SideInfo{
+		RealName: "pc-kernel",
+		Revision: snap.R(1),
+	}
 	snapstate.Set(s.state, "foo", &snapstate.SnapState{
 		SnapType: "app",
 		Active:   true,
@@ -73,11 +77,18 @@ func (s *deviceMgrSuite) TestSetModelHandlerNewRevision(c *C) {
 		Current:  barSI.Revision,
 		Flags:    snapstate.Flags{Required: true},
 	})
+	snapstate.Set(s.state, "pc-kernel", &snapstate.SnapState{
+		SnapType: "kernel",
+		Active:   true,
+		Sequence: []*snap.SideInfo{pcKernelSI},
+		Current:  pcKernelSI.Revision,
+		Flags:    snapstate.Flags{Required: true},
+	})
 	s.state.Unlock()
 
 	newModel := s.brands.Model("canonical", "pc-model", map[string]interface{}{
 		"architecture":   "amd64",
-		"kernel":         "pc-kernel",
+		"kernel":         "other-kernel",
 		"gadget":         "pc",
 		"revision":       "2",
 		"required-snaps": []interface{}{"foo"},
@@ -108,6 +119,11 @@ func (s *deviceMgrSuite) TestSetModelHandlerNewRevision(c *C) {
 	err = snapstate.Get(s.state, "foo", &fooState)
 	c.Assert(err, IsNil)
 	err = snapstate.Get(s.state, "bar", &barState)
+	c.Assert(err, IsNil)
+	c.Check(fooState.Flags.Required, Equals, true)
+	c.Check(barState.Flags.Required, Equals, false)
+	// the kernel is no longer required
+	err = snapstate.Get(s.state, "pc-kernel", &barState)
 	c.Assert(err, IsNil)
 	c.Check(fooState.Flags.Required, Equals, true)
 	c.Check(barState.Flags.Required, Equals, false)
