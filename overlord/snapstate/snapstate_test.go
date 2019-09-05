@@ -12597,7 +12597,7 @@ func (s *snapmgrTestSuite) TestTransitionCoreBlocksOtherChanges(c *C) {
 	c.Check(ts, NotNil)
 }
 
-func (s *snapmgrTestSuite) TestTransitionSnapdSnapDoesNOTRunWithoutSnaps(c *C) {
+func (s *snapmgrTestSuite) TestTransitionSnapdSnapDoesNotRunWithoutSnaps(c *C) {
 	s.state.Lock()
 	defer s.state.Unlock()
 
@@ -12640,7 +12640,7 @@ func (s *snapmgrTestSuite) TestTransitionSnapdSnapDoesRunWithAnySnap(c *C) {
 	c.Check(s.state.Changes(), HasLen, 1)
 }
 
-func (s *snapmgrTestSuite) TestTransitionSnapdSnapDoesNOTRunWhenNotEnabled(c *C) {
+func (s *snapmgrTestSuite) TestTransitionSnapdSnapDoesNotRunWhenNotEnabled(c *C) {
 	s.state.Lock()
 	defer s.state.Unlock()
 
