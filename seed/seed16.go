@@ -193,7 +193,7 @@ func (s *seed16) LoadMeta(tm timings.Measurer) error {
 		}
 		yamlSnap := seeding[snapName]
 		if yamlSnap == nil {
-			return nil, fmt.Errorf("model requires but seed is missing essential snap %q", snapName)
+			return nil, fmt.Errorf("essential snap %q required by the model is missing in the seed", snapName)
 		}
 
 		seedSnap, err := s.addSnap(yamlSnap, tm)

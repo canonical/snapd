@@ -1030,10 +1030,10 @@ version: other-base
 		breakSeed func([]*seed.Snap16) []*seed.Snap16
 		err       string
 	}{
-		{omit(0), `model requires but seed is missing essential snap "snapd"`},
-		{omit(1), `model requires but seed is missing essential snap "core18"`},
-		{omit(2), `model requires but seed is missing essential snap "pc-kernel"`},
-		{omit(3), `model requires but seed is missing essential snap "pc"`},
+		{omit(0), `essential snap "snapd" required by the model is missing in the seed`},
+		{omit(1), `essential snap "core18" required by the model is missing in the seed`},
+		{omit(2), `essential snap "pc-kernel" required by the model is missing in the seed`},
+		{omit(3), `essential snap "pc" required by the model is missing in the seed`},
 		// omitting "required18" currently doesn't error in any way
 		{replaceFile("core18", otherFname), `cannot find signatures with metadata for snap "core18".*`},
 		{replaceFile("required18", otherFname), `cannot find signatures with metadata for snap "required18".*`},

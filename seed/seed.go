@@ -58,7 +58,7 @@ func (s *Snap) ID() string {
 
 // Seed supports loading assertions and seed snaps' metadata.
 type Seed interface {
-	// LoadAssertions load all assertions from the seed with
+	// LoadAssertions loads all assertions from the seed with
 	// cross-checks.  A read-only view on an assertions database
 	// can be passed in together with a commitTo function which
 	// will be used to commit the assertions to the underlying
@@ -86,7 +86,7 @@ type Seed interface {
 	// the seed, after LoadMeta.
 	EssentialSnaps() []*Snap
 
-	// EssentialSnaps returns the snaps that should be available
+	// ModeSnaps returns the snaps that should be available
 	// in the given mode as defined by the seed, after LoadMeta.
 	ModeSnaps(mode string) ([]*Snap, error)
 }
