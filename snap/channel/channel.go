@@ -20,6 +20,7 @@
 package channel
 
 import (
+	"errors"
 	"fmt"
 	"strings"
 
@@ -150,6 +151,11 @@ func (c *Channel) Full() string {
 	return c.String()
 }
 
+// VerbatimTrackOnly returns whether the channel represents a track only.
+func (c *Channel) VerbatimTrackOnly() bool {
+	return c.Track != "" && c.Risk == "" && c.Branch == ""
+}
+
 func riskLevel(risk string) int {
 	for i, r := range channelRisks {
 		if r == risk {
@@ -199,4 +205,51 @@ func (c *Channel) Match(c1 *Channel) ChannelMatch {
 		Track:        c.Track == c1.Track,
 		Risk:         requestedRiskLevel >= rl1,
 	}
+}
+
+// Resolve resolves newChannel wrt channel, this means if newChannel
+// is risk/branch only it will preserve the track of channel. It
+// assumes that if both are not empty, channel is parseable.
+func Resolve(channel, newChannel string) (string, error) {
+	if newChannel == "" {
+		return channel, nil
+	}
+	if channel == "" {
+		return newChannel, nil
+	}
+	ch, err := ParseVerbatim(channel, "-")
+	if err != nil {
+		return "", err
+	}
+	p := strings.Split(newChannel, "/")
+	// risk/branch only
+	if strutil.ListContains(channelRisks, p[0]) && ch.Track != "" {
+		return ch.Track + "/" + newChannel, nil
+	}
+	return newChannel, nil
+}
+
+var ErrTrackSwitch = errors.New("cannot switch locked track")
+
+// ResolveLocked resolves newChannel wrt a locked track, newChannel
+// can only be risk/branch-only or have the same track, otherwise
+// ErrTrackSwitch is returned.
+func ResolveLocked(track, newChannel string) (string, error) {
+	ch, err := ParseVerbatim(track, "-")
+	if err != nil || !ch.VerbatimTrackOnly() {
+		return "", fmt.Errorf("invalid locked track: %s", track)
+	}
+	if newChannel == "" {
+		return track, nil
+	}
+	trackPrefix := ch.Track + "/"
+	p := strings.Split(newChannel, "/")
+	// risk/branch only
+	if strutil.ListContains(channelRisks, p[0]) && ch.Track != "" {
+		return trackPrefix + newChannel, nil
+	}
+	if !strings.HasPrefix(newChannel, trackPrefix) {
+		return "", ErrTrackSwitch
+	}
+	return newChannel, nil
 }
