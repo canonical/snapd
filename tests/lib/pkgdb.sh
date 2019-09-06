@@ -906,13 +906,17 @@ distro_restore_packages() {
                 cmd=yum
             fi
             # XXX: rpm -e is faster for remove
-            [ -s "$installed" ] && $cmd remove "$(cat "$installed")" -y
-            [ -s "$removed" ] && $cmd install "$(cat "$removed")" -y
+            # shellcheck disable=SC2046
+            if [ -s "$installed" ]; then $cmd remove $(cat "$installed") -y; fi
+            # shellcheck disable=SC2046
+            if [ -s "$removed" ]; then $cmd install $(cat "$removed") -y; fi
             ;;
         opensuse-*)
             # XXX: rpm -e is faster for remove
-            [ -s "$installed" ] && zypper remove "$(cat "$installed")" -y
-            [ -s "$removed" ] && zypper install "$(cat "$removed")" -y
+            # shellcheck disable=SC2046
+            if [ -s "$installed" ]; then zypper remove $(cat "$installed") -y; fi
+            # shellcheck disable=SC2046
+            if [ -s "$removed" ]; then zypper install $(cat "$removed") -y; fi
             ;;
         ubuntu-*|debian-*)
             dpkg --clear-selections
@@ -920,8 +924,10 @@ distro_restore_packages() {
             apt-get -y dselect-upgrade
             ;;
         arch-*)
-            [ -s "$installed" ] && pacman -R --noconfirm "$(cat "$installed")"
-            [ -s "$removed" ] && pacman -S --noconfirm "$(cat "$removed")"
+            # shellcheck disable=SC2046
+            if [ -s "$installed" ]; then pacman -R --noconfirm $(cat "$installed"); fi
+            # shellcheck disable=SC2046
+            if [ -s "$removed" ]; then pacman -S --noconfirm $(cat "$removed"); fi
             ;;
         *)
             ;;
