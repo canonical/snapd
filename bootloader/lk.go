@@ -38,8 +38,8 @@ type lk struct {
 }
 
 // newLk create a new lk bootloader object
-func newLk(rootdir string) Bootloader {
-	e := &lk{rootdir: rootdir}
+func newLk(rootdir string, opts *Options) Bootloader {
+	l := &lk{rootdir: rootdir}
 
 	// XXX: in the long run we want this to go away, we probably add
 	//      something like "boot.PrepareImage()" and add an (optional)
@@ -48,13 +48,13 @@ func newLk(rootdir string) Bootloader {
 	//      are very different from runtime vs image-building mode.
 	//
 	// determine mode we are in, runtime or image build
-	e.inRuntimeMode = (rootdir == "/")
+	l.inRuntimeMode = !opts.PrepareImageTime
 
-	if !osutil.FileExists(e.envFile()) {
+	if !osutil.FileExists(l.envFile()) {
 		return nil
 	}
 
-	return e
+	return l
 }
 
 func (l *lk) setRootDir(rootdir string) {

@@ -99,13 +99,16 @@ type Options struct {
 
 // Find returns the bootloader for the system
 // or an error if no bootloader is found.
-func Find(rootdir string, _ *Options) (Bootloader, error) {
+func Find(rootdir string, opts *Options) (Bootloader, error) {
 	if forcedBootloader != nil || forcedError != nil {
 		return forcedBootloader, forcedError
 	}
 
 	if rootdir == "" {
 		rootdir = dirs.GlobalRootDir
+	}
+	if opts == nil {
+		opts = &Options{}
 	}
 
 	// try uboot
@@ -124,7 +127,7 @@ func Find(rootdir string, _ *Options) (Bootloader, error) {
 	}
 
 	// no, try lk
-	if lk := newLk(rootdir); lk != nil {
+	if lk := newLk(rootdir, opts); lk != nil {
 		return lk, nil
 	}
 

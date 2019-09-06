@@ -70,12 +70,18 @@ func MockGrubFiles(c *C, rootdir string) {
 	c.Assert(err, IsNil)
 }
 
-func NewLk(rootdir string) Bootloader {
-	return newLk(rootdir)
+func NewLk(rootdir string, opts *Options) Bootloader {
+	if opts == nil {
+		opts = &Options{}
+	}
+	return newLk(rootdir, opts)
 }
 
-func MockLkFiles(c *C, rootdir string) {
-	l := &lk{rootdir: rootdir}
+func MockLkFiles(c *C, rootdir string, opts *Options) {
+	if opts == nil {
+		opts = &Options{}
+	}
+	l := &lk{rootdir: rootdir, inRuntimeMode: !opts.PrepareImageTime}
 	err := os.MkdirAll(l.dir(), 0755)
 	c.Assert(err, IsNil)
 
@@ -90,7 +96,7 @@ func MockLkFiles(c *C, rootdir string) {
 	c.Assert(err, IsNil)
 }
 
-func MockLkRuntimeMode(b Bootloader, inRuntimeMode bool) {
+func LkRuntimeMode(b Bootloader) bool {
 	lk := b.(*lk)
-	lk.inRuntimeMode = inRuntimeMode
+	return lk.inRuntimeMode
 }
