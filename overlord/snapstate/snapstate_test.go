@@ -12760,25 +12760,6 @@ func (s *snapmgrTestSuite) TestTransitionSnapdSnapTimeLimitWorks(c *C) {
 	c.Assert(time.Now().Sub(t) < 2*time.Minute, Equals, true)
 }
 
-func (s *snapmgrTestSuite) TestTransitionSnapdSnapDoesNotRunWithoutCore(c *C) {
-	s.state.Lock()
-	defer s.state.Unlock()
-
-	// ensure core is *not* installed
-	snapstate.Set(s.state, "core", nil)
-
-	tr := config.NewTransaction(s.state)
-	tr.Set("core", "experimental.snapd-snap", true)
-	tr.Commit()
-
-	s.state.Unlock()
-	defer s.se.Stop()
-	s.settle(c)
-	s.state.Lock()
-
-	c.Check(s.state.Changes(), HasLen, 0)
-}
-
 type unhappyStore struct {
 	*fakeStore
 }
