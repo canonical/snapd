@@ -318,6 +318,7 @@ slots:
 	profile0 := `  # Read-only content sharing consumer:content -> producer:content (r#0)
   mount options=(bind) /snap/producer/5/export/ -> /snap/consumer/7/import/,
   remount options=(bind, ro) /snap/consumer/7/import/,
+  mount options=(rprivate) -> /snap/consumer/7/import/,
   umount /snap/consumer/7/import/,
   # Writable mimic /snap/producer/5
   # .. permissions for traversing the prefix that is assumed to exist
@@ -339,10 +340,14 @@ slots:
   mount options=(bind, rw) /tmp/.snap/* -> /*,
   # Allow unmounting the auxiliary directory.
   # TODO: use fstype=tmpfs here for more strictness (LP: #1613403)
+  mount options=(rprivate) -> /tmp/.snap/,
   umount /tmp/.snap/,
   # Allow unmounting the destination directory as well as anything
   # inside.  This lets us perform the undo plan in case the writable
   # mimic fails.
+  mount options=(rprivate) -> /,
+  mount options=(rprivate) -> /*,
+  mount options=(rprivate) -> /*/,
   umount /,
   umount /*,
   umount /*/,
@@ -364,10 +369,14 @@ slots:
   mount options=(bind, rw) /tmp/.snap/snap/* -> /snap/*,
   # Allow unmounting the auxiliary directory.
   # TODO: use fstype=tmpfs here for more strictness (LP: #1613403)
+  mount options=(rprivate) -> /tmp/.snap/snap/,
   umount /tmp/.snap/snap/,
   # Allow unmounting the destination directory as well as anything
   # inside.  This lets us perform the undo plan in case the writable
   # mimic fails.
+  mount options=(rprivate) -> /snap/,
+  mount options=(rprivate) -> /snap/*,
+  mount options=(rprivate) -> /snap/*/,
   umount /snap/,
   umount /snap/*,
   umount /snap/*/,
@@ -389,10 +398,14 @@ slots:
   mount options=(bind, rw) /tmp/.snap/snap/producer/* -> /snap/producer/*,
   # Allow unmounting the auxiliary directory.
   # TODO: use fstype=tmpfs here for more strictness (LP: #1613403)
+  mount options=(rprivate) -> /tmp/.snap/snap/producer/,
   umount /tmp/.snap/snap/producer/,
   # Allow unmounting the destination directory as well as anything
   # inside.  This lets us perform the undo plan in case the writable
   # mimic fails.
+  mount options=(rprivate) -> /snap/producer/,
+  mount options=(rprivate) -> /snap/producer/*,
+  mount options=(rprivate) -> /snap/producer/*/,
   umount /snap/producer/,
   umount /snap/producer/*,
   umount /snap/producer/*/,
@@ -414,10 +427,14 @@ slots:
   mount options=(bind, rw) /tmp/.snap/snap/producer/5/* -> /snap/producer/5/*,
   # Allow unmounting the auxiliary directory.
   # TODO: use fstype=tmpfs here for more strictness (LP: #1613403)
+  mount options=(rprivate) -> /tmp/.snap/snap/producer/5/,
   umount /tmp/.snap/snap/producer/5/,
   # Allow unmounting the destination directory as well as anything
   # inside.  This lets us perform the undo plan in case the writable
   # mimic fails.
+  mount options=(rprivate) -> /snap/producer/5/,
+  mount options=(rprivate) -> /snap/producer/5/*,
+  mount options=(rprivate) -> /snap/producer/5/*/,
   umount /snap/producer/5/,
   umount /snap/producer/5/*,
   umount /snap/producer/5/*/,
@@ -441,10 +458,14 @@ slots:
   mount options=(bind, rw) /tmp/.snap/* -> /*,
   # Allow unmounting the auxiliary directory.
   # TODO: use fstype=tmpfs here for more strictness (LP: #1613403)
+  mount options=(rprivate) -> /tmp/.snap/,
   umount /tmp/.snap/,
   # Allow unmounting the destination directory as well as anything
   # inside.  This lets us perform the undo plan in case the writable
   # mimic fails.
+  mount options=(rprivate) -> /,
+  mount options=(rprivate) -> /*,
+  mount options=(rprivate) -> /*/,
   umount /,
   umount /*,
   umount /*/,
@@ -466,10 +487,14 @@ slots:
   mount options=(bind, rw) /tmp/.snap/snap/* -> /snap/*,
   # Allow unmounting the auxiliary directory.
   # TODO: use fstype=tmpfs here for more strictness (LP: #1613403)
+  mount options=(rprivate) -> /tmp/.snap/snap/,
   umount /tmp/.snap/snap/,
   # Allow unmounting the destination directory as well as anything
   # inside.  This lets us perform the undo plan in case the writable
   # mimic fails.
+  mount options=(rprivate) -> /snap/,
+  mount options=(rprivate) -> /snap/*,
+  mount options=(rprivate) -> /snap/*/,
   umount /snap/,
   umount /snap/*,
   umount /snap/*/,
@@ -491,10 +516,14 @@ slots:
   mount options=(bind, rw) /tmp/.snap/snap/consumer/* -> /snap/consumer/*,
   # Allow unmounting the auxiliary directory.
   # TODO: use fstype=tmpfs here for more strictness (LP: #1613403)
+  mount options=(rprivate) -> /tmp/.snap/snap/consumer/,
   umount /tmp/.snap/snap/consumer/,
   # Allow unmounting the destination directory as well as anything
   # inside.  This lets us perform the undo plan in case the writable
   # mimic fails.
+  mount options=(rprivate) -> /snap/consumer/,
+  mount options=(rprivate) -> /snap/consumer/*,
+  mount options=(rprivate) -> /snap/consumer/*/,
   umount /snap/consumer/,
   umount /snap/consumer/*,
   umount /snap/consumer/*/,
@@ -516,10 +545,14 @@ slots:
   mount options=(bind, rw) /tmp/.snap/snap/consumer/7/* -> /snap/consumer/7/*,
   # Allow unmounting the auxiliary directory.
   # TODO: use fstype=tmpfs here for more strictness (LP: #1613403)
+  mount options=(rprivate) -> /tmp/.snap/snap/consumer/7/,
   umount /tmp/.snap/snap/consumer/7/,
   # Allow unmounting the destination directory as well as anything
   # inside.  This lets us perform the undo plan in case the writable
   # mimic fails.
+  mount options=(rprivate) -> /snap/consumer/7/,
+  mount options=(rprivate) -> /snap/consumer/7/*,
+  mount options=(rprivate) -> /snap/consumer/7/*/,
   umount /snap/consumer/7/,
   umount /snap/consumer/7/*,
   umount /snap/consumer/7/*/,
@@ -577,6 +610,7 @@ slots:
 	updateNS := apparmorSpec.UpdateNS()
 	profile0 := `  # Read-write content sharing consumer:content -> producer:content (w#0)
   mount options=(bind, rw) /var/snap/producer/5/export/ -> /var/snap/consumer/7/import/,
+  mount options=(rprivate) -> /var/snap/consumer/7/import/,
   umount /var/snap/consumer/7/import/,
   # Writable directory /var/snap/producer/5/export
   /var/snap/producer/5/export/ rw,
@@ -640,6 +674,7 @@ slots:
 	updateNS := apparmorSpec.UpdateNS()
 	profile0 := `  # Read-write content sharing consumer:content -> producer:content (w#0)
   mount options=(bind, rw) /var/snap/producer/common/export/ -> /var/snap/consumer/common/import/,
+  mount options=(rprivate) -> /var/snap/consumer/common/import/,
   umount /var/snap/consumer/common/import/,
   # Writable directory /var/snap/producer/common/export
   /var/snap/producer/common/export/ rw,
@@ -738,6 +773,7 @@ slots:
 	updateNS := apparmorSpec.UpdateNS()
 	profile0 := `  # Read-write content sharing consumer:content -> producer:content (w#0)
   mount options=(bind, rw) /var/snap/producer/common/write-common/ -> /var/snap/consumer/common/import/write-common/,
+  mount options=(rprivate) -> /var/snap/consumer/common/import/write-common/,
   umount /var/snap/consumer/common/import/write-common/,
   # Writable directory /var/snap/producer/common/write-common
   /var/snap/producer/common/write-common/ rw,
@@ -753,6 +789,7 @@ slots:
 
 	profile1 := `  # Read-write content sharing consumer:content -> producer:content (w#1)
   mount options=(bind, rw) /var/snap/producer/2/write-data/ -> /var/snap/consumer/common/import/write-data/,
+  mount options=(rprivate) -> /var/snap/consumer/common/import/write-data/,
   umount /var/snap/consumer/common/import/write-data/,
   # Writable directory /var/snap/producer/2/write-data
   /var/snap/producer/2/write-data/ rw,
@@ -769,6 +806,7 @@ slots:
 	profile2 := `  # Read-only content sharing consumer:content -> producer:content (r#0)
   mount options=(bind) /var/snap/producer/common/read-common/ -> /var/snap/consumer/common/import/read-common/,
   remount options=(bind, ro) /var/snap/consumer/common/import/read-common/,
+  mount options=(rprivate) -> /var/snap/consumer/common/import/read-common/,
   umount /var/snap/consumer/common/import/read-common/,
   # Writable directory /var/snap/producer/common/read-common
   /var/snap/producer/common/read-common/ rw,
@@ -785,6 +823,7 @@ slots:
 	profile3 := `  # Read-only content sharing consumer:content -> producer:content (r#1)
   mount options=(bind) /var/snap/producer/2/read-data/ -> /var/snap/consumer/common/import/read-data/,
   remount options=(bind, ro) /var/snap/consumer/common/import/read-data/,
+  mount options=(rprivate) -> /var/snap/consumer/common/import/read-data/,
   umount /var/snap/consumer/common/import/read-data/,
   # Writable directory /var/snap/producer/2/read-data
   /var/snap/producer/2/read-data/ rw,
@@ -801,6 +840,7 @@ slots:
 	profile4 := `  # Read-only content sharing consumer:content -> producer:content (r#2)
   mount options=(bind) /snap/producer/2/read-snap/ -> /var/snap/consumer/common/import/read-snap/,
   remount options=(bind, ro) /var/snap/consumer/common/import/read-snap/,
+  mount options=(rprivate) -> /var/snap/consumer/common/import/read-snap/,
   umount /var/snap/consumer/common/import/read-snap/,
   # Writable mimic /snap/producer/2
   # .. permissions for traversing the prefix that is assumed to exist
@@ -822,10 +862,14 @@ slots:
   mount options=(bind, rw) /tmp/.snap/* -> /*,
   # Allow unmounting the auxiliary directory.
   # TODO: use fstype=tmpfs here for more strictness (LP: #1613403)
+  mount options=(rprivate) -> /tmp/.snap/,
   umount /tmp/.snap/,
   # Allow unmounting the destination directory as well as anything
   # inside.  This lets us perform the undo plan in case the writable
   # mimic fails.
+  mount options=(rprivate) -> /,
+  mount options=(rprivate) -> /*,
+  mount options=(rprivate) -> /*/,
   umount /,
   umount /*,
   umount /*/,
@@ -847,10 +891,14 @@ slots:
   mount options=(bind, rw) /tmp/.snap/snap/* -> /snap/*,
   # Allow unmounting the auxiliary directory.
   # TODO: use fstype=tmpfs here for more strictness (LP: #1613403)
+  mount options=(rprivate) -> /tmp/.snap/snap/,
   umount /tmp/.snap/snap/,
   # Allow unmounting the destination directory as well as anything
   # inside.  This lets us perform the undo plan in case the writable
   # mimic fails.
+  mount options=(rprivate) -> /snap/,
+  mount options=(rprivate) -> /snap/*,
+  mount options=(rprivate) -> /snap/*/,
   umount /snap/,
   umount /snap/*,
   umount /snap/*/,
@@ -872,10 +920,14 @@ slots:
   mount options=(bind, rw) /tmp/.snap/snap/producer/* -> /snap/producer/*,
   # Allow unmounting the auxiliary directory.
   # TODO: use fstype=tmpfs here for more strictness (LP: #1613403)
+  mount options=(rprivate) -> /tmp/.snap/snap/producer/,
   umount /tmp/.snap/snap/producer/,
   # Allow unmounting the destination directory as well as anything
   # inside.  This lets us perform the undo plan in case the writable
   # mimic fails.
+  mount options=(rprivate) -> /snap/producer/,
+  mount options=(rprivate) -> /snap/producer/*,
+  mount options=(rprivate) -> /snap/producer/*/,
   umount /snap/producer/,
   umount /snap/producer/*,
   umount /snap/producer/*/,
@@ -897,10 +949,14 @@ slots:
   mount options=(bind, rw) /tmp/.snap/snap/producer/2/* -> /snap/producer/2/*,
   # Allow unmounting the auxiliary directory.
   # TODO: use fstype=tmpfs here for more strictness (LP: #1613403)
+  mount options=(rprivate) -> /tmp/.snap/snap/producer/2/,
   umount /tmp/.snap/snap/producer/2/,
   # Allow unmounting the destination directory as well as anything
   # inside.  This lets us perform the undo plan in case the writable
   # mimic fails.
+  mount options=(rprivate) -> /snap/producer/2/,
+  mount options=(rprivate) -> /snap/producer/2/*,
+  mount options=(rprivate) -> /snap/producer/2/*/,
   umount /snap/producer/2/,
   umount /snap/producer/2/*,
   umount /snap/producer/2/*/,
