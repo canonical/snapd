@@ -16,6 +16,7 @@
  */
 
 #include "snap-confine-invocation.h"
+#include "snap-confine-invocation.c"
 #include "snap-confine-args.h"
 
 #include "../libsnap-confine-private/cleanup-funcs.h"
