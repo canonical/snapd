@@ -44,9 +44,9 @@ var _ = Suite(&grubTestSuite{})
 
 func (s *grubTestSuite) SetUpTest(c *C) {
 	s.baseBootenvTestSuite.SetUpTest(c)
-	bootloader.MockGrubFiles(c)
+	bootloader.MockGrubFiles(c, s.rootdir)
 
-	s.bootdir = filepath.Join(dirs.GlobalRootDir, "boot")
+	s.bootdir = filepath.Join(s.rootdir, "boot")
 }
 
 // grubEditenvCmd finds the right grub{,2}-editenv command
@@ -59,25 +59,25 @@ func grubEditenvCmd() string {
 	return ""
 }
 
-func grubEnvPath() string {
-	return filepath.Join(dirs.GlobalRootDir, "boot/grub/grubenv")
+func grubEnvPath(rootdir string) string {
+	return filepath.Join(rootdir, "boot/grub/grubenv")
 }
 
-func grubEditenvSet(c *C, key, value string) {
+func (s *grubTestSuite) grubEditenvSet(c *C, key, value string) {
 	if grubEditenvCmd() == "" {
 		c.Skip("grub{,2}-editenv is not available")
 	}
 
-	err := exec.Command(grubEditenvCmd(), grubEnvPath(), "set", fmt.Sprintf("%s=%s", key, value)).Run()
+	err := exec.Command(grubEditenvCmd(), grubEnvPath(s.rootdir), "set", fmt.Sprintf("%s=%s", key, value)).Run()
 	c.Assert(err, IsNil)
 }
 
-func grubEditenvGet(c *C, key string) string {
+func (s *grubTestSuite) grubEditenvGet(c *C, key string) string {
 	if grubEditenvCmd() == "" {
 		c.Skip("grub{,2}-editenv is not available")
 	}
 
-	output, err := exec.Command(grubEditenvCmd(), grubEnvPath(), "list").CombinedOutput()
+	output, err := exec.Command(grubEditenvCmd(), grubEnvPath(s.rootdir), "list").CombinedOutput()
 	c.Assert(err, IsNil)
 	cfg := goconfigparser.New()
 	cfg.AllowNoSectionHeader = true
@@ -89,20 +89,18 @@ func grubEditenvGet(c *C, key string) string {
 }
 
 func (s *grubTestSuite) makeFakeGrubEnv(c *C) {
-	grubEditenvSet(c, "k", "v")
+	s.grubEditenvSet(c, "k", "v")
 }
 
 func (s *grubTestSuite) TestNewGrubNoGrubReturnsNil(c *C) {
-	dirs.GlobalRootDir = "/something/not/there"
-
-	g := bootloader.NewGrub()
+	g := bootloader.NewGrub("/something/not/there")
 	c.Assert(g, IsNil)
 }
 
 func (s *grubTestSuite) TestNewGrub(c *C) {
 	s.makeFakeGrubEnv(c)
 
-	g := bootloader.NewGrub()
+	g := bootloader.NewGrub(s.rootdir)
 	c.Assert(g, NotNil)
 	c.Assert(g.Name(), Equals, "grub")
 }
@@ -110,16 +108,27 @@ func (s *grubTestSuite) TestNewGrub(c *C) {
 func (s *grubTestSuite) TestGetBootloaderWithGrub(c *C) {
 	s.makeFakeGrubEnv(c)
 
-	bootloader, err := bootloader.Find()
+	bootloader, err := bootloader.Find(s.rootdir, nil)
+	c.Assert(err, IsNil)
+	c.Assert(bootloader.Name(), Equals, "grub")
+}
+
+func (s *grubTestSuite) TestGetBootloaderWithGrubWithDefaultRoot(c *C) {
+	s.makeFakeGrubEnv(c)
+
+	dirs.SetRootDir(s.rootdir)
+	defer func() { dirs.SetRootDir("") }()
+
+	bootloader, err := bootloader.Find("", nil)
 	c.Assert(err, IsNil)
 	c.Assert(bootloader.Name(), Equals, "grub")
 }
 
 func (s *grubTestSuite) TestGetBootVer(c *C) {
 	s.makeFakeGrubEnv(c)
-	grubEditenvSet(c, "snap_mode", "regular")
+	s.grubEditenvSet(c, "snap_mode", "regular")
 
-	g := bootloader.NewGrub()
+	g := bootloader.NewGrub(s.rootdir)
 	v, err := g.GetBootVars("snap_mode")
 	c.Assert(err, IsNil)
 	c.Check(v, HasLen, 1)
@@ -129,21 +138,21 @@ func (s *grubTestSuite) TestGetBootVer(c *C) {
 func (s *grubTestSuite) TestSetBootVer(c *C) {
 	s.makeFakeGrubEnv(c)
 
-	g := bootloader.NewGrub()
+	g := bootloader.NewGrub(s.rootdir)
 	err := g.SetBootVars(map[string]string{
 		"k1": "v1",
 		"k2": "v2",
 	})
 	c.Assert(err, IsNil)
 
-	c.Check(grubEditenvGet(c, "k1"), Equals, "v1")
-	c.Check(grubEditenvGet(c, "k2"), Equals, "v2")
+	c.Check(s.grubEditenvGet(c, "k1"), Equals, "v1")
+	c.Check(s.grubEditenvGet(c, "k2"), Equals, "v2")
 }
 
 func (s *grubTestSuite) TestExtractKernelAssetsNoUnpacksKernelForGrub(c *C) {
 	s.makeFakeGrubEnv(c)
 
-	g := bootloader.NewGrub()
+	g := bootloader.NewGrub(s.rootdir)
 
 	files := [][]string{
 		{"kernel.img", "I'm a kernel"},
@@ -172,7 +181,7 @@ func (s *grubTestSuite) TestExtractKernelAssetsNoUnpacksKernelForGrub(c *C) {
 func (s *grubTestSuite) TestExtractKernelForceWorks(c *C) {
 	s.makeFakeGrubEnv(c)
 
-	g := bootloader.NewGrub()
+	g := bootloader.NewGrub(s.rootdir)
 	c.Assert(g, NotNil)
 
 	files := [][]string{
