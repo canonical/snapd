@@ -62,12 +62,12 @@ func init() {
 		}})
 }
 
-func dumpVolumeInfo(pv *gadget.PositionedVolume, rootfsForName map[string]string) {
+func dumpVolumeInfo(pv *gadget.LaidOutVolume, rootfsForName map[string]string) {
 	fmt.Fprintf(Stderr, "volume:\n")
 	fmt.Fprintf(Stderr, "  size: %v\n", pv.Size)
 	fmt.Fprintf(Stderr, "  schema: %v\n", pv.EffectiveSchema())
 	fmt.Fprintf(Stderr, "  structures: \n")
-	for _, ps := range pv.PositionedStructure {
+	for _, ps := range pv.LaidOutStructure {
 		fmt.Fprintf(Stderr, "     %v:\n", ps)
 		fmt.Fprintf(Stderr, "       type: %v\n", ps.Type)
 		fmt.Fprintf(Stderr, "       size: %v\n", ps.Size)
@@ -173,7 +173,7 @@ func setupSystemData(vol *gadget.Volume, rootfsDir string, autoAdd bool) error {
 	return nil
 }
 
-var defaultConstraints = gadget.PositioningConstraints{
+var defaultConstraints = gadget.LayoutConstraints{
 	SectorSize:        512,
 	NonMBRStartOffset: 1 * gadget.SizeMiB,
 }
@@ -214,9 +214,9 @@ func (x *cmdPrepareVolume) Execute(args []string) error {
 		}
 	}
 
-	pv, err := gadget.PositionVolume(gadgetRootDir, &vol, defaultConstraints)
+	pv, err := gadget.LayoutVolume(gadgetRootDir, &vol, defaultConstraints)
 	if err != nil {
-		return fmt.Errorf("cannot position volume %q: %v", x.Positional.VolumeName, err)
+		return fmt.Errorf("cannot lay out volume %q: %v", x.Positional.VolumeName, err)
 	}
 
 	// GPT schema uses a GPT header at the start of the image and a backup
@@ -256,7 +256,7 @@ type ImageData struct {
 	StructRootfs     map[string]string
 }
 
-func (id *ImageData) RootfsForStruct(ps *gadget.PositionedStructure) (string, error) {
+func (id *ImageData) RootfsForStruct(ps *gadget.LaidOutStructure) (string, error) {
 	rootfs, ok := id.StructRootfs[ps.Name]
 	if !ok {
 		return "", fmt.Errorf("no rootfs for structure %v", ps)
@@ -266,17 +266,17 @@ func (id *ImageData) RootfsForStruct(ps *gadget.PositionedStructure) (string, er
 
 type ImageBuilder struct {
 	workDir string
-	pv      *gadget.PositionedVolume
+	vol     *gadget.LaidOutVolume
 }
 
-func NewImageBuilder(workDir string, pv *gadget.PositionedVolume) *ImageBuilder {
+func NewImageBuilder(workDir string, vol *gadget.LaidOutVolume) *ImageBuilder {
 	return &ImageBuilder{
 		workDir: workDir,
-		pv:      pv,
+		vol:     vol,
 	}
 }
 
-func (ib *ImageBuilder) fileForStructure(ps *gadget.PositionedStructure) string {
+func (ib *ImageBuilder) fileForStructure(ps *gadget.LaidOutStructure) string {
 	return filepath.Join(ib.workDir, fmt.Sprintf("part-%04d.img", ps.Index))
 }
 
@@ -285,58 +285,58 @@ func (ib *ImageBuilder) fileInWork(name string) string {
 }
 
 func (ib *ImageBuilder) BuildVolume(data ImageData, rootForName map[string]string) (output string, err error) {
-	for _, ps := range ib.pv.PositionedStructure {
-		simg := ib.fileForStructure(&ps)
-		if err := ib.prepareStructure(data, simg, &ps); err != nil {
-			return "", fmt.Errorf("cannot write structure %v: %v", ps, err)
+	for _, vs := range ib.vol.LaidOutStructure {
+		simg := ib.fileForStructure(&vs)
+		if err := ib.prepareStructure(data, simg, &vs); err != nil {
+			return "", fmt.Errorf("cannot write structure %v: %v", vs, err)
 		}
 	}
 
 	imgName := ib.fileInWork("output.img")
 	logger.Noticef("writing image to %v", imgName)
 
-	out, err := makeSizedFile(imgName, ib.pv.Size)
+	out, err := makeSizedFile(imgName, ib.vol.Size)
 	if err != nil {
 		return "", fmt.Errorf("cannot prepare image file: %v", err)
 	}
 	defer out.Close()
 
-	if err := gadget.Partition(out.Name(), ib.pv); err != nil {
+	if err := gadget.Partition(out.Name(), ib.vol); err != nil {
 		return "", fmt.Errorf("cannot partition volume: %v", err)
 	}
 
-	for _, ps := range ib.pv.PositionedStructure {
-		simg := ib.fileForStructure(&ps)
-		if err := writeStructureToVolume(out, simg, &ps); err != nil {
-			return "", fmt.Errorf("cannot write structure %v to volume: %v", ps, err)
+	for _, vs := range ib.vol.LaidOutStructure {
+		simg := ib.fileForStructure(&vs)
+		if err := writeStructureToVolume(out, simg, &vs); err != nil {
+			return "", fmt.Errorf("cannot write structure %v to volume: %v", vs, err)
 		}
 	}
 
-	for _, ps := range ib.pv.PositionedStructure {
-		ow, err := gadget.NewOffsetWriter(&ps, ib.pv.SectorSize)
+	for _, vs := range ib.vol.LaidOutStructure {
+		ow, err := gadget.NewOffsetWriter(&vs, ib.vol.SectorSize)
 		if err != nil {
 			return "", fmt.Errorf("cannot create offset writer: %v", err)
 		}
 		if err := ow.Write(out); err != nil {
-			return "", fmt.Errorf("cannot populate offset-write for %v: %v", ps, err)
+			return "", fmt.Errorf("cannot populate offset-write for %v: %v", vs, err)
 		}
 	}
 
 	return imgName, nil
 }
 
-func writeStructureToVolume(out io.WriteSeeker, from string, ps *gadget.PositionedStructure) error {
+func writeStructureToVolume(out io.WriteSeeker, from string, vs *gadget.LaidOutStructure) error {
 	in, err := os.Open(from)
 	if err != nil {
 		return fmt.Errorf("cannot open image file: %v", err)
 	}
 	defer in.Close()
 
-	if _, err := out.Seek(int64(ps.StartOffset), io.SeekStart); err != nil {
-		return fmt.Errorf("cannot seek to position %v: %v", ps.StartOffset, err)
+	if _, err := out.Seek(int64(vs.StartOffset), io.SeekStart); err != nil {
+		return fmt.Errorf("cannot seek to position %v: %v", vs.StartOffset, err)
 	}
 
-	if _, err := io.CopyN(out, in, int64(ps.Size)); err != nil {
+	if _, err := io.CopyN(out, in, int64(vs.Size)); err != nil {
 		return fmt.Errorf("cannot copy source image to destination: %v", err)
 	}
 	return nil
@@ -355,32 +355,32 @@ func makeSizedFile(name string, size gadget.Size) (*os.File, error) {
 	return out, nil
 }
 
-func (ib *ImageBuilder) prepareStructure(data ImageData, img string, ps *gadget.PositionedStructure) error {
-	rootDir, err := data.RootfsForStruct(ps)
+func (ib *ImageBuilder) prepareStructure(data ImageData, img string, vs *gadget.LaidOutStructure) error {
+	rootDir, err := data.RootfsForStruct(vs)
 	if err != nil {
-		return fmt.Errorf("cannot find data directory for %v: %v", ps, err)
+		return fmt.Errorf("cannot find data directory for %v: %v", vs, err)
 	}
 
-	logger.Noticef("structure %v:\n  image file: %v\n  rootfs: %v", ps, img, rootDir)
+	logger.Noticef("structure %v:\n  image file: %v\n  rootfs: %v", vs, img, rootDir)
 
-	out, err := makeSizedFile(img, ps.Size)
+	out, err := makeSizedFile(img, vs.Size)
 	if err != nil {
 		return fmt.Errorf("cannot prepare structure image file: %v", err)
 	}
 
 	defer out.Close()
 
-	if ps.IsBare() {
-		return ib.prepareRawStructure(data, out, rootDir, ps)
+	if vs.IsBare() {
+		return ib.prepareRawStructure(data, out, rootDir, vs)
 	} else {
-		return ib.prepareFilesystemStructure(data, out, rootDir, ps)
+		return ib.prepareFilesystemStructure(data, out, rootDir, vs)
 	}
 }
 
-func (ib *ImageBuilder) prepareRawStructure(_ ImageData, out *os.File, rootDir string, ps *gadget.PositionedStructure) error {
+func (ib *ImageBuilder) prepareRawStructure(_ ImageData, out *os.File, rootDir string, vs *gadget.LaidOutStructure) error {
 	// each structure is written to a partition file, thus we need to apply
 	// bias to have them start at 0 offset of the output file
-	shifted := gadget.ShiftStructureTo(*ps, 0)
+	shifted := gadget.ShiftStructureTo(*vs, 0)
 	raw, err := gadget.NewRawStructureWriter(rootDir, &shifted)
 	if err != nil {
 		return fmt.Errorf("cannot prepare image writer: %v", err)
@@ -421,15 +421,15 @@ func copyTree(src, dst string) error {
 }
 
 func (ib *ImageBuilder) fixupSystemBoot(data ImageData) gadget.PostStageFunc {
-	return func(where string, ps *gadget.PositionedStructure) error {
-		logger.Noticef("%v role? %v", ps, ps.EffectiveRole())
-		if ps.EffectiveRole() != "system-boot" {
+	return func(where string, vs *gadget.LaidOutStructure) error {
+		logger.Noticef("%v role? %v", vs, vs.EffectiveRole())
+		if vs.EffectiveRole() != "system-boot" {
 			return nil
 		}
 
 		var fromDir, toDir string
 
-		switch ib.pv.Bootloader {
+		switch ib.vol.Bootloader {
 		case "grub":
 			fromDir = filepath.Join(data.PreparedImageDir, "image", "boot", "grub")
 			toDir = filepath.Join(where, "EFI", "ubuntu")
@@ -437,7 +437,7 @@ func (ib *ImageBuilder) fixupSystemBoot(data ImageData) gadget.PostStageFunc {
 			fromDir = filepath.Join(data.PreparedImageDir, "image", "boot", "uboot")
 			toDir = where
 		default:
-			return fmt.Errorf("unsupported bootloader %q", ib.pv.Bootloader)
+			return fmt.Errorf("unsupported bootloader %q", ib.vol.Bootloader)
 		}
 
 		logger.Noticef("populate system boot env files in %v from %v ", toDir, fromDir)
@@ -453,17 +453,17 @@ func (ib *ImageBuilder) fixupSystemBoot(data ImageData) gadget.PostStageFunc {
 	}
 }
 
-func (ib *ImageBuilder) prepareFilesystemStructure(data ImageData, out *os.File, rootDir string, ps *gadget.PositionedStructure) error {
+func (ib *ImageBuilder) prepareFilesystemStructure(data ImageData, out *os.File, rootDir string, vs *gadget.LaidOutStructure) error {
 	fname := out.Name()
 
-	logger.Noticef("root dir for %v: %v", ps, rootDir)
-	fs, err := gadget.NewFilesystemImageWriter(rootDir, ps, ib.workDir)
+	logger.Noticef("root dir for %v: %v", vs, rootDir)
+	fs, err := gadget.NewFilesystemImageWriter(rootDir, vs, ib.workDir)
 	if err != nil {
 		return fmt.Errorf("cannot create filesystem image writer: %v", err)
 	}
 
 	var postStage gadget.PostStageFunc
-	if ps.EffectiveRole() == "system-boot" {
+	if vs.EffectiveRole() == "system-boot" {
 		// boot filesystem gets extra steps
 		postStage = ib.fixupSystemBoot(data)
 	}

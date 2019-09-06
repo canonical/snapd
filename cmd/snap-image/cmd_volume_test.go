@@ -537,7 +537,7 @@ volumes:
 
 	// still missing declared foo.img for uboot structure
 	_, err = snap_image.Parser().ParseArgs([]string{"prepare-volume", "--work-dir", tmpDir, preparedDir, "vol-1"})
-	c.Assert(err, ErrorMatches, `cannot position volume "vol-1": cannot position structure #0 \("uboot"\): content "foo.img": .* no such file or directory`)
+	c.Assert(err, ErrorMatches, `cannot lay out volume "vol-1": cannot lay out structure #0 \("uboot"\): content "foo.img": .* no such file or directory`)
 
 	makeDirectoryTree(c, preparedDir, []mockEntry{
 		// unpacked gadget contents
