@@ -90,6 +90,22 @@ test_snapctl_foo_null() {
 	  fi
 }
 
+test_snapctl_unset() {
+	  echo "Unsetting an option"
+	  if ! snapctl set root.key2! ; then
+	            echo "snapctl set unexpectedly failed when un-setting root.key2"
+		    exit 1
+	  fi
+}
+
+test_snapctl_unset_with_unset() {
+	echo "Unsetting an option"
+	if ! snapctl unset root.key2 ; then
+	    echo "snapctl set unexpectedly failed when un-setting root.key2"
+		exit 1
+	fi
+}
+
 test_exit_one() {
 	echo "Failing as requested."
 	exit 1
@@ -123,6 +139,14 @@ case $command in
   "test-get-nested")
     test_get_nested
     ;;
+  "test-unset-with-unset")
+    test_snapctl_unset_with_unset
+	;;
+  "noop")
+	;;
+  "test-unset")
+    test_snapctl_unset
+	;;
 	*)
 		echo "Invalid command: '$command'"
 		exit 1

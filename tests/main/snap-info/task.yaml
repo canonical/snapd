@@ -2,12 +2,17 @@ summary: Check that snap info works
 
 # core18 has no python3-yaml
 # amazon: no PyYAML is not packaged for python3
-systems: [-ubuntu-core-18-*, -amazon-*, -centos-*]
+systems: [-amazon-*, -centos-*]
 
 prepare: |
     snap pack "$TESTSLIB"/snaps/basic
     snap install test-snapd-tools
     snap install --channel beta --devmode test-snapd-devmode
+    # ensures that an empty directory doesn't confuse things
+    mkdir -v core
+
+restore: |
+    rmdir -v core
 
 execute: |
     echo "With no arguments, errors out"

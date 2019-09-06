@@ -24,16 +24,17 @@ import (
 	"path/filepath"
 
 	"github.com/snapcore/snapd/bootloader/grubenv"
-	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/snap"
 )
 
-type grub struct{}
+type grub struct {
+	rootdir string
+}
 
 // newGrub create a new Grub bootloader object
-func newGrub() Bootloader {
-	g := &grub{}
+func newGrub(rootdir string) Bootloader {
+	g := &grub{rootdir: rootdir}
 	if !osutil.FileExists(g.ConfigFile()) {
 		return nil
 	}
@@ -45,16 +46,23 @@ func (g *grub) Name() string {
 	return "grub"
 }
 
-func (g *grub) Dir() string {
-	return filepath.Join(dirs.GlobalRootDir, "/boot/grub")
+func (g *grub) setRootDir(rootdir string) {
+	g.rootdir = rootdir
+}
+
+func (g *grub) dir() string {
+	if g.rootdir == "" {
+		panic("internal error: unset rootdir")
+	}
+	return filepath.Join(g.rootdir, "/boot/grub")
 }
 
 func (g *grub) ConfigFile() string {
-	return filepath.Join(g.Dir(), "grub.cfg")
+	return filepath.Join(g.dir(), "grub.cfg")
 }
 
 func (g *grub) envFile() string {
-	return filepath.Join(g.Dir(), "grubenv")
+	return filepath.Join(g.dir(), "grubenv")
 }
 
 func (g *grub) GetBootVars(names ...string) (map[string]string, error) {
@@ -83,14 +91,14 @@ func (g *grub) SetBootVars(values map[string]string) error {
 	return env.Save()
 }
 
-func (g *grub) ExtractKernelAssets(s *snap.Info, snapf snap.Container) error {
+func (g *grub) ExtractKernelAssets(s snap.PlaceInfo, snapf snap.Container) error {
 	// XXX: should we use "kernel.yaml" for this?
 	if _, err := snapf.ReadFile("meta/force-kernel-extraction"); err == nil {
-		return extractKernelAssetsToBootDir(g.Dir(), s, snapf)
+		return extractKernelAssetsToBootDir(g.dir(), s, snapf)
 	}
 	return nil
 }
 
 func (g *grub) RemoveKernelAssets(s snap.PlaceInfo) error {
-	return removeKernelAssetsFromBootDir(g.Dir(), s)
+	return removeKernelAssetsFromBootDir(g.dir(), s)
 }

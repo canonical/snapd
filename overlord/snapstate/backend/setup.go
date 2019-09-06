@@ -26,6 +26,7 @@ import (
 
 	"github.com/snapcore/snapd/boot"
 	"github.com/snapcore/snapd/progress"
+	"github.com/snapcore/snapd/release"
 	"github.com/snapcore/snapd/snap"
 )
 
@@ -73,13 +74,13 @@ func (b Backend) SetupSnap(snapFilePath, instanceName string, sideInfo *snap.Sid
 		return snapType, err
 	}
 
-	if s.GetType() == snap.TypeKernel {
-		if err := boot.ExtractKernelAssets(s, snapf); err != nil {
-			return snapType, fmt.Errorf("cannot install kernel: %s", err)
-		}
+	t := s.GetType()
+	// TODO: maybe look into passing the model
+	if err := boot.Kernel(s, t, nil, release.OnClassic).ExtractKernelAssets(snapf); err != nil {
+		return snapType, fmt.Errorf("cannot install kernel: %s", err)
 	}
 
-	return s.GetType(), err
+	return t, nil
 }
 
 // RemoveSnapFiles removes the snap files from the disk after unmounting the snap.
@@ -99,10 +100,9 @@ func (b Backend) RemoveSnapFiles(s snap.PlaceInfo, typ snap.Type, meter progress
 	snapPath := s.MountFile()
 	if _, err := os.Lstat(snapPath); err == nil {
 		// remove the kernel assets (if any)
-		if typ == snap.TypeKernel {
-			if err := boot.RemoveKernelAssets(s); err != nil {
-				return err
-			}
+		// TODO: maybe look into passing the model
+		if err := boot.Kernel(s, typ, nil, release.OnClassic).RemoveKernelAssets(); err != nil {
+			return err
 		}
 
 		// remove the snap

@@ -25,58 +25,27 @@ import (
 
 	"github.com/snapcore/snapd/bootloader"
 	"github.com/snapcore/snapd/logger"
-	"github.com/snapcore/snapd/release"
 	"github.com/snapcore/snapd/snap"
 )
 
-// RemoveKernelAssets removes the unpacked kernel/initrd for the given
-// kernel snap.
-func RemoveKernelAssets(s snap.PlaceInfo) error {
-	bootloader, err := bootloader.Find()
-	if err != nil {
-		return fmt.Errorf("no not remove kernel assets: %s", err)
-	}
-
-	// ask bootloader to remove the kernel assets if needed
-	return bootloader.RemoveKernelAssets(s)
+type coreBootParticipant struct {
+	s snap.PlaceInfo
+	t snap.Type
 }
 
-// ExtractKernelAssets extracts kernel/initrd/dtb data from the given
-// kernel snap, if required, to a versioned bootloader directory so
-// that the bootloader can use it.
-func ExtractKernelAssets(s *snap.Info, snapf snap.Container) error {
-	if s.GetType() != snap.TypeKernel {
-		return fmt.Errorf("cannot extract kernel assets from snap type %q", s.GetType())
-	}
+// ensure coreBootParticipant is a BootParticipant
+var _ BootParticipant = (*coreBootParticipant)(nil)
 
-	bootloader, err := bootloader.Find()
-	if err != nil {
-		return fmt.Errorf("cannot extract kernel assets: %s", err)
-	}
+func (*coreBootParticipant) IsTrivial() bool { return false }
 
-	// ask bootloader to extract the kernel assets if needed
-	return bootloader.ExtractKernelAssets(s, snapf)
-}
-
-// SetNextBoot will schedule the given OS or base or kernel snap to be
-// used in the next boot. For base snaps it up to the caller to select
-// the right bootable base (from the model assertion).
-func SetNextBoot(s *snap.Info) error {
-	if release.OnClassic {
-		return fmt.Errorf("cannot set next boot on classic systems")
-	}
-
-	if s.GetType() != snap.TypeOS && s.GetType() != snap.TypeKernel && s.GetType() != snap.TypeBase {
-		return fmt.Errorf("cannot set next boot to snap %q with type %q", s.SnapName(), s.GetType())
-	}
-
-	bootloader, err := bootloader.Find()
+func (bs *coreBootParticipant) SetNextBoot() error {
+	bootloader, err := bootloader.Find("", nil)
 	if err != nil {
 		return fmt.Errorf("cannot set next boot: %s", err)
 	}
 
 	var nextBoot, goodBoot string
-	switch s.GetType() {
+	switch bs.t {
 	case snap.TypeOS, snap.TypeBase:
 		nextBoot = "snap_try_core"
 		goodBoot = "snap_core"
@@ -84,14 +53,14 @@ func SetNextBoot(s *snap.Info) error {
 		nextBoot = "snap_try_kernel"
 		goodBoot = "snap_kernel"
 	}
-	blobName := filepath.Base(s.MountFile())
+	blobName := filepath.Base(bs.s.MountFile())
 
 	// check if we actually need to do anything, i.e. the exact same
 	// kernel/core revision got installed again (e.g. firstboot)
 	// and we are not in any special boot mode
 	m, err := bootloader.GetBootVars("snap_mode", goodBoot)
 	if err != nil {
-		return err
+		return fmt.Errorf("cannot set next boot: %s", err)
 	}
 	if m[goodBoot] == blobName {
 		// If we were in anything but default ("") mode before
@@ -113,21 +82,15 @@ func SetNextBoot(s *snap.Info) error {
 	})
 }
 
-// ChangeRequiresReboot returns whether a reboot is required to switch
-// to the given OS, base or kernel snap.
-func ChangeRequiresReboot(s *snap.Info) bool {
-	if s.GetType() != snap.TypeKernel && s.GetType() != snap.TypeOS && s.GetType() != snap.TypeBase {
-		return false
-	}
-
-	bootloader, err := bootloader.Find()
+func (bs *coreBootParticipant) ChangeRequiresReboot() bool {
+	bootloader, err := bootloader.Find("", nil)
 	if err != nil {
 		logger.Noticef("cannot get boot settings: %s", err)
 		return false
 	}
 
 	var nextBoot, goodBoot string
-	switch s.GetType() {
+	switch bs.t {
 	case snap.TypeKernel:
 		nextBoot = "snap_try_kernel"
 		goodBoot = "snap_kernel"
@@ -142,7 +105,7 @@ func ChangeRequiresReboot(s *snap.Info) bool {
 		return false
 	}
 
-	squashfsName := filepath.Base(s.MountFile())
+	squashfsName := filepath.Base(bs.s.MountFile())
 	if m[nextBoot] == squashfsName && m[goodBoot] != m[nextBoot] {
 		return true
 	}
@@ -150,27 +113,32 @@ func ChangeRequiresReboot(s *snap.Info) bool {
 	return false
 }
 
-// InUse checks if the given name/revision is used in the
-// boot environment
-func InUse(name string, rev snap.Revision) bool {
-	bootloader, err := bootloader.Find()
+type coreKernel struct {
+	s snap.PlaceInfo
+}
+
+// ensure coreKernel is a Kernel
+var _ BootKernel = (*coreKernel)(nil)
+
+func (*coreKernel) IsTrivial() bool { return false }
+
+func (k *coreKernel) RemoveKernelAssets() error {
+	// XXX: shouldn't we check the snap type?
+	bootloader, err := bootloader.Find("", nil)
 	if err != nil {
-		logger.Noticef("cannot get boot settings: %s", err)
-		return false
+		return fmt.Errorf("cannot remove kernel assets: %s", err)
 	}
 
-	bootVars, err := bootloader.GetBootVars("snap_kernel", "snap_try_kernel", "snap_core", "snap_try_core")
+	// ask bootloader to remove the kernel assets if needed
+	return bootloader.RemoveKernelAssets(k.s)
+}
+
+func (k *coreKernel) ExtractKernelAssets(snapf snap.Container) error {
+	bootloader, err := bootloader.Find("", nil)
 	if err != nil {
-		logger.Noticef("cannot get boot vars: %s", err)
-		return false
+		return fmt.Errorf("cannot extract kernel assets: %s", err)
 	}
 
-	snapFile := filepath.Base(snap.MountFile(name, rev))
-	for _, bootVar := range bootVars {
-		if bootVar == snapFile {
-			return true
-		}
-	}
-
-	return false
+	// ask bootloader to extract the kernel assets if needed
+	return bootloader.ExtractKernelAssets(k.s, snapf)
 }

@@ -63,6 +63,9 @@ case "${1:-all}" in
     --spread-no-ubuntu)
         SPREAD=no-ubuntu
         ;;
+    --spread-unstable)
+        SPREAD=unstable
+        ;;
     *)
         echo "Wrong flag ${1}. To run a single suite use --static, --unit, --spread."
         exit 1
@@ -247,7 +250,7 @@ if [ "$UNIT" = 1 ]; then
     echo Running tests from "$PWD"
     if [ "$short" = 1 ]; then
             # shellcheck disable=SC2046
-            $goctest -short -v $(go list ./... | grep -v '/vendor/' )
+            GOTRACEBACK=1 $goctest -short -v -timeout 5m $(go list ./... | grep -v '/vendor/' )
     else
         # Prepare the coverage output profile.
         rm -rf .coverage
@@ -256,11 +259,11 @@ if [ "$UNIT" = 1 ]; then
 
         if dpkg --compare-versions "$(go version | awk '$3 ~ /^go[0-9]/ {print substr($3, 3)}')" ge 1.10; then
             # shellcheck disable=SC2046
-            $goctest -v -coverprofile=.coverage/coverage.out -covermode="$COVERMODE" $(go list ./... | grep -v '/vendor/' )
+            GOTRACEBACK=1 $goctest -v -timeout 5m -coverprofile=.coverage/coverage.out -covermode="$COVERMODE" $(go list ./... | grep -v '/vendor/' )
         else
             for pkg in $(go list ./... | grep -v '/vendor/' ); do
-                go test -i "$pkg"
-                $goctest -v -coverprofile=.coverage/profile.out -covermode="$COVERMODE" "$pkg"
+                GOTRACEBACK=1 go test -timeout 5m -i "$pkg"
+                GOTRACEBACK=1 $goctest -v -timeout 5m -coverprofile=.coverage/profile.out -covermode="$COVERMODE" "$pkg"
                 append_coverage .coverage/profile.out
             done
         fi
@@ -270,9 +273,11 @@ if [ "$UNIT" = 1 ]; then
         fi
     fi
 
-    # python unit test for mountinfo-tool
+    # python unit test for mountinfo-tool and version-tool
     command -v python2 && python2 ./tests/lib/bin/mountinfo-tool --run-unit-tests
     command -v python3 && python3 ./tests/lib/bin/mountinfo-tool --run-unit-tests
+    command -v python2 && python2 ./tests/lib/bin/version-tool --run-unit-tests
+    command -v python3 && python3 ./tests/lib/bin/version-tool --run-unit-tests
 fi
 
 if [ -n "$SPREAD" ]; then
@@ -291,6 +296,9 @@ if [ -n "$SPREAD" ]; then
             ;;
         no-ubuntu)
             spread "google:[^u]...:tests/..." "google-nested:[^u]...:tests/nested/custom/..."
+            ;;
+        unstable)
+            spread "google-unstable:"
             ;;
         *)
             echo "Spread parameter $SPREAD not supported"

@@ -19,11 +19,10 @@ systems:
     # Ships xdg-desktop-portal 0.11
     - ubuntu-18.04-*
 
-    # Ships xdg-desktop-portal 1.0.3
-    - ubuntu-18.10-*
-
     # Ships xdg-desktop-portal 1.2.0
     - ubuntu-19.04-*
+
+    - ubuntu-19.10-*
 
 prepare: |
     #shellcheck source=tests/lib/desktop-portal.sh

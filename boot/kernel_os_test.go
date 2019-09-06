@@ -1,7 +1,7 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
 
 /*
- * Copyright (C) 2014-2016 Canonical Ltd
+ * Copyright (C) 2014-2019 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -20,24 +20,22 @@
 package boot_test
 
 import (
+	"errors"
 	"io/ioutil"
 	"path/filepath"
-	"testing"
 
 	. "gopkg.in/check.v1"
 
 	"github.com/snapcore/snapd/boot"
-	"github.com/snapcore/snapd/boot/boottest"
 	"github.com/snapcore/snapd/bootloader"
+	"github.com/snapcore/snapd/bootloader/bootloadertest"
 	"github.com/snapcore/snapd/dirs"
+	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/osutil"
-	"github.com/snapcore/snapd/release"
 	"github.com/snapcore/snapd/snap"
 	"github.com/snapcore/snapd/snap/snaptest"
 	"github.com/snapcore/snapd/testutil"
 )
-
-func TestBoot(t *testing.T) { TestingT(t) }
 
 const packageKernel = `
 name: ubuntu-kernel
@@ -46,109 +44,114 @@ type: kernel
 vendor: Someone
 `
 
-// baseKernelOSSuite is used to setup the common test environment
-type baseKernelOSSuite struct {
-	testutil.BaseTest
+// coreBootSetSuite tests the abstract bootloader behaviour including
+// bootenv setting, error handling etc., for a core BootSet.
+type coreBootSetSuite struct {
+	baseBootSetSuite
+
+	bootloader *bootloadertest.MockBootloader
 }
 
-func (s *baseKernelOSSuite) SetUpTest(c *C) {
-	s.BaseTest.SetUpTest(c)
+var _ = Suite(&coreBootSetSuite{})
 
-	dirs.SetRootDir(c.MkDir())
-	s.AddCleanup(func() { dirs.SetRootDir("") })
-	restore := snap.MockSanitizePlugsSlots(func(snapInfo *snap.Info) {})
-	s.AddCleanup(restore)
-	restore = release.MockOnClassic(false)
-	s.AddCleanup(restore)
-}
+func (s *coreBootSetSuite) SetUpTest(c *C) {
+	s.baseBootSetSuite.SetUpTest(c)
 
-// kernelOSSuite tests the abstract bootloader behaviour including
-// bootenv setting, error handling etc
-type kernelOSSuite struct {
-	baseKernelOSSuite
-
-	loader *boottest.MockBootloader
-}
-
-var _ = Suite(&kernelOSSuite{})
-
-func (s *kernelOSSuite) SetUpTest(c *C) {
-	s.baseKernelOSSuite.SetUpTest(c)
-
-	s.loader = boottest.NewMockBootloader("mock", c.MkDir())
-	bootloader.Force(s.loader)
+	s.bootloader = bootloadertest.Mock("mock", c.MkDir())
+	bootloader.Force(s.bootloader)
 	s.AddCleanup(func() { bootloader.Force(nil) })
 }
 
-func (s *kernelOSSuite) TestExtractKernelAssetsError(c *C) {
-	info := &snap.Info{}
-	info.SnapType = snap.TypeApp
-
-	err := boot.ExtractKernelAssets(info, nil)
-	c.Assert(err, ErrorMatches, `cannot extract kernel assets from snap type "app"`)
+func (s *coreBootSetSuite) TestExtractKernelAssetsError(c *C) {
+	bootloader.ForceError(errors.New("brkn"))
+	err := boot.NewCoreKernel(&snap.Info{}).ExtractKernelAssets(nil)
+	c.Check(err, ErrorMatches, `cannot extract kernel assets: brkn`)
 }
 
-// SetNextBoot should do nothing on classic LP: #1580403
-func (s *kernelOSSuite) TestSetNextBootOnClassic(c *C) {
-	restore := release.MockOnClassic(true)
+func (s *coreBootSetSuite) TestRemoveKernelAssetsError(c *C) {
+	bootloader.ForceError(errors.New("brkn"))
+	err := boot.NewCoreKernel(&snap.Info{}).RemoveKernelAssets()
+	c.Check(err, ErrorMatches, `cannot remove kernel assets: brkn`)
+}
+
+func (s *coreBootSetSuite) TestChangeRequiresRebootError(c *C) {
+	logbuf, restore := logger.MockLogger()
 	defer restore()
+	bp := boot.NewCoreBootParticipant(&snap.Info{}, snap.TypeBase)
 
-	// Create a fake OS snap that we try to update
-	snapInfo := snaptest.MockSnap(c, "name: os\ntype: os", &snap.SideInfo{Revision: snap.R(42)})
-	err := boot.SetNextBoot(snapInfo)
-	c.Assert(err, ErrorMatches, "cannot set next boot on classic systems")
+	s.bootloader.GetErr = errors.New("zap")
 
-	c.Assert(s.loader.BootVars, HasLen, 0)
+	c.Check(bp.ChangeRequiresReboot(), Equals, false)
+	c.Check(logbuf.String(), testutil.Contains, `cannot get boot variables: zap`)
+	s.bootloader.GetErr = nil
+	logbuf.Reset()
+
+	bootloader.ForceError(errors.New("brkn"))
+	c.Check(bp.ChangeRequiresReboot(), Equals, false)
+	c.Check(logbuf.String(), testutil.Contains, `cannot get boot settings: brkn`)
 }
 
-func (s *kernelOSSuite) TestSetNextBootForCore(c *C) {
+func (s *coreBootSetSuite) TestSetNextBootError(c *C) {
+	s.bootloader.GetErr = errors.New("zap")
+	err := boot.NewCoreBootParticipant(&snap.Info{}, snap.TypeApp).SetNextBoot()
+	c.Check(err, ErrorMatches, `cannot set next boot: zap`)
+
+	bootloader.ForceError(errors.New("brkn"))
+	err = boot.NewCoreBootParticipant(&snap.Info{}, snap.TypeApp).SetNextBoot()
+	c.Check(err, ErrorMatches, `cannot set next boot: brkn`)
+}
+
+func (s *coreBootSetSuite) TestSetNextBootForCore(c *C) {
 	info := &snap.Info{}
 	info.SnapType = snap.TypeOS
 	info.RealName = "core"
 	info.Revision = snap.R(100)
 
-	err := boot.SetNextBoot(info)
+	bs := boot.NewCoreBootParticipant(info, info.GetType())
+	err := bs.SetNextBoot()
 	c.Assert(err, IsNil)
 
-	v, err := s.loader.GetBootVars("snap_try_core", "snap_mode")
+	v, err := s.bootloader.GetBootVars("snap_try_core", "snap_mode")
 	c.Assert(err, IsNil)
 	c.Assert(v, DeepEquals, map[string]string{
 		"snap_try_core": "core_100.snap",
 		"snap_mode":     "try",
 	})
 
-	c.Check(boot.ChangeRequiresReboot(info), Equals, true)
+	c.Check(bs.ChangeRequiresReboot(), Equals, true)
 }
 
-func (s *kernelOSSuite) TestSetNextBootWithBaseForCore(c *C) {
+func (s *coreBootSetSuite) TestSetNextBootWithBaseForCore(c *C) {
 	info := &snap.Info{}
 	info.SnapType = snap.TypeBase
 	info.RealName = "core18"
 	info.Revision = snap.R(1818)
 
-	err := boot.SetNextBoot(info)
+	bs := boot.NewCoreBootParticipant(info, info.GetType())
+	err := bs.SetNextBoot()
 	c.Assert(err, IsNil)
 
-	v, err := s.loader.GetBootVars("snap_try_core", "snap_mode")
+	v, err := s.bootloader.GetBootVars("snap_try_core", "snap_mode")
 	c.Assert(err, IsNil)
 	c.Assert(v, DeepEquals, map[string]string{
 		"snap_try_core": "core18_1818.snap",
 		"snap_mode":     "try",
 	})
 
-	c.Check(boot.ChangeRequiresReboot(info), Equals, true)
+	c.Check(bs.ChangeRequiresReboot(), Equals, true)
 }
 
-func (s *kernelOSSuite) TestSetNextBootForKernel(c *C) {
+func (s *coreBootSetSuite) TestSetNextBootForKernel(c *C) {
 	info := &snap.Info{}
 	info.SnapType = snap.TypeKernel
 	info.RealName = "krnl"
 	info.Revision = snap.R(42)
 
-	err := boot.SetNextBoot(info)
+	bp := boot.NewCoreBootParticipant(info, snap.TypeKernel)
+	err := bp.SetNextBoot()
 	c.Assert(err, IsNil)
 
-	v, err := s.loader.GetBootVars("snap_try_kernel", "snap_mode")
+	v, err := s.bootloader.GetBootVars("snap_try_kernel", "snap_mode")
 	c.Assert(err, IsNil)
 	c.Assert(v, DeepEquals, map[string]string{
 		"snap_try_kernel": "krnl_42.snap",
@@ -158,35 +161,35 @@ func (s *kernelOSSuite) TestSetNextBootForKernel(c *C) {
 	bootVars := map[string]string{
 		"snap_kernel":     "krnl_40.snap",
 		"snap_try_kernel": "krnl_42.snap"}
-	s.loader.SetBootVars(bootVars)
-	c.Check(boot.ChangeRequiresReboot(info), Equals, true)
+	s.bootloader.SetBootVars(bootVars)
+	c.Check(bp.ChangeRequiresReboot(), Equals, true)
 
 	// simulate good boot
 	bootVars = map[string]string{"snap_kernel": "krnl_42.snap"}
-	s.loader.SetBootVars(bootVars)
-	c.Check(boot.ChangeRequiresReboot(info), Equals, false)
+	s.bootloader.SetBootVars(bootVars)
+	c.Check(bp.ChangeRequiresReboot(), Equals, false)
 }
 
-func (s *kernelOSSuite) TestSetNextBootForKernelForTheSameKernel(c *C) {
+func (s *coreBootSetSuite) TestSetNextBootForKernelForTheSameKernel(c *C) {
 	info := &snap.Info{}
 	info.SnapType = snap.TypeKernel
 	info.RealName = "krnl"
 	info.Revision = snap.R(40)
 
 	bootVars := map[string]string{"snap_kernel": "krnl_40.snap"}
-	s.loader.SetBootVars(bootVars)
+	s.bootloader.SetBootVars(bootVars)
 
-	err := boot.SetNextBoot(info)
+	err := boot.NewCoreBootParticipant(info, snap.TypeKernel).SetNextBoot()
 	c.Assert(err, IsNil)
 
-	v, err := s.loader.GetBootVars("snap_kernel")
+	v, err := s.bootloader.GetBootVars("snap_kernel")
 	c.Assert(err, IsNil)
 	c.Assert(v, DeepEquals, map[string]string{
 		"snap_kernel": "krnl_40.snap",
 	})
 }
 
-func (s *kernelOSSuite) TestSetNextBootForKernelForTheSameKernelTryMode(c *C) {
+func (s *coreBootSetSuite) TestSetNextBootForKernelForTheSameKernelTryMode(c *C) {
 	info := &snap.Info{}
 	info.SnapType = snap.TypeKernel
 	info.RealName = "krnl"
@@ -196,12 +199,12 @@ func (s *kernelOSSuite) TestSetNextBootForKernelForTheSameKernelTryMode(c *C) {
 		"snap_kernel":     "krnl_40.snap",
 		"snap_try_kernel": "krnl_99.snap",
 		"snap_mode":       "try"}
-	s.loader.SetBootVars(bootVars)
+	s.bootloader.SetBootVars(bootVars)
 
-	err := boot.SetNextBoot(info)
+	err := boot.NewCoreBootParticipant(info, snap.TypeKernel).SetNextBoot()
 	c.Assert(err, IsNil)
 
-	v, err := s.loader.GetBootVars("snap_kernel", "snap_try_kernel", "snap_mode")
+	v, err := s.bootloader.GetBootVars("snap_kernel", "snap_try_kernel", "snap_mode")
 	c.Assert(err, IsNil)
 	c.Assert(v, DeepEquals, map[string]string{
 		"snap_kernel":     "krnl_40.snap",
@@ -210,60 +213,34 @@ func (s *kernelOSSuite) TestSetNextBootForKernelForTheSameKernelTryMode(c *C) {
 	})
 }
 
-func (s *kernelOSSuite) TestInUse(c *C) {
-	for _, t := range []struct {
-		bootVarKey   string
-		bootVarValue string
-
-		snapName string
-		snapRev  snap.Revision
-
-		inUse bool
-	}{
-		// in use
-		{"snap_kernel", "kernel_41.snap", "kernel", snap.R(41), true},
-		{"snap_try_kernel", "kernel_82.snap", "kernel", snap.R(82), true},
-		{"snap_core", "core_21.snap", "core", snap.R(21), true},
-		{"snap_try_core", "core_42.snap", "core", snap.R(42), true},
-		// not in use
-		{"snap_core", "core_111.snap", "core", snap.R(21), false},
-		{"snap_try_core", "core_111.snap", "core", snap.R(21), false},
-		{"snap_kernel", "kernel_111.snap", "kernel", snap.R(1), false},
-		{"snap_try_kernel", "kernel_111.snap", "kernel", snap.R(1), false},
-	} {
-		s.loader.BootVars[t.bootVarKey] = t.bootVarValue
-		c.Assert(boot.InUse(t.snapName, t.snapRev), Equals, t.inUse, Commentf("unexpected result: %s %s %v", t.snapName, t.snapRev, t.inUse))
-	}
+// ubootBootSetSuite tests the uboot specific code in the bootloader handling
+type ubootBootSetSuite struct {
+	baseBootSetSuite
 }
 
-// ubootKernelOSSuite tests the uboot specific code in the bootloader handling
-type ubootKernelOSSuite struct {
-	baseKernelOSSuite
-}
+var _ = Suite(&ubootBootSetSuite{})
 
-var _ = Suite(&ubootKernelOSSuite{})
-
-func (s *ubootKernelOSSuite) forceUbootBootloader(c *C) bootloader.Bootloader {
+func (s *ubootBootSetSuite) forceUbootBootloader(c *C) bootloader.Bootloader {
 	mockGadgetDir := c.MkDir()
 	err := ioutil.WriteFile(filepath.Join(mockGadgetDir, "uboot.conf"), nil, 0644)
 	c.Assert(err, IsNil)
-	err = bootloader.InstallBootConfig(mockGadgetDir)
+	err = bootloader.InstallBootConfig(mockGadgetDir, dirs.GlobalRootDir)
 	c.Assert(err, IsNil)
 
-	loader, err := bootloader.Find()
+	bloader, err := bootloader.Find("", nil)
 	c.Assert(err, IsNil)
-	c.Check(loader, NotNil)
-	bootloader.Force(loader)
+	c.Check(bloader, NotNil)
+	bootloader.Force(bloader)
 	s.AddCleanup(func() { bootloader.Force(nil) })
 
-	fn := filepath.Join(dirs.GlobalRootDir, "/boot/uboot/uboot.env")
+	fn := filepath.Join(s.bootdir, "/uboot/uboot.env")
 	c.Assert(osutil.FileExists(fn), Equals, true)
-	return loader
+	return bloader
 }
 
-func (s *ubootKernelOSSuite) TestExtractKernelAssetsAndRemoveOnUboot(c *C) {
-	loader := s.forceUbootBootloader(c)
-	c.Assert(loader, NotNil)
+func (s *ubootBootSetSuite) TestExtractKernelAssetsAndRemoveOnUboot(c *C) {
+	bloader := s.forceUbootBootloader(c)
+	c.Assert(bloader, NotNil)
 
 	files := [][]string{
 		{"kernel.img", "I'm a kernel"},
@@ -285,12 +262,12 @@ func (s *ubootKernelOSSuite) TestExtractKernelAssetsAndRemoveOnUboot(c *C) {
 	info, err := snap.ReadInfoFromSnapFile(snapf, si)
 	c.Assert(err, IsNil)
 
-	err = boot.ExtractKernelAssets(info, snapf)
+	bp := boot.NewCoreKernel(info)
+	err = bp.ExtractKernelAssets(snapf)
 	c.Assert(err, IsNil)
 
 	// this is where the kernel/initrd is unpacked
-	bootdir := loader.Dir()
-	kernelAssetsDir := filepath.Join(bootdir, "ubuntu-kernel_42.snap")
+	kernelAssetsDir := filepath.Join(s.bootdir, "/uboot/ubuntu-kernel_42.snap")
 	for _, def := range files {
 		if def[0] == "meta/kernel.yaml" {
 			break
@@ -301,51 +278,51 @@ func (s *ubootKernelOSSuite) TestExtractKernelAssetsAndRemoveOnUboot(c *C) {
 	}
 
 	// it's idempotent
-	err = boot.ExtractKernelAssets(info, snapf)
+	err = bp.ExtractKernelAssets(snapf)
 	c.Assert(err, IsNil)
 
 	// remove
-	err = boot.RemoveKernelAssets(info)
+	err = bp.RemoveKernelAssets()
 	c.Assert(err, IsNil)
 	c.Check(osutil.FileExists(kernelAssetsDir), Equals, false)
 
 	// it's idempotent
-	err = boot.RemoveKernelAssets(info)
+	err = bp.RemoveKernelAssets()
 	c.Assert(err, IsNil)
 }
 
-// grubKernelOSSuite tests the GRUB specific code in the bootloader handling
-type grubKernelOSSuite struct {
-	baseKernelOSSuite
+// grubBootSetSuite tests the GRUB specific code in the bootloader handling
+type grubBootSetSuite struct {
+	baseBootSetSuite
 }
 
-var _ = Suite(&grubKernelOSSuite{})
+var _ = Suite(&grubBootSetSuite{})
 
-func (s *grubKernelOSSuite) forceGrubBootloader(c *C) bootloader.Bootloader {
+func (s *grubBootSetSuite) forceGrubBootloader(c *C) bootloader.Bootloader {
 	// make mock grub bootenv dir
 	mockGadgetDir := c.MkDir()
 	err := ioutil.WriteFile(filepath.Join(mockGadgetDir, "grub.conf"), nil, 0644)
 	c.Assert(err, IsNil)
-	err = bootloader.InstallBootConfig(mockGadgetDir)
+	err = bootloader.InstallBootConfig(mockGadgetDir, dirs.GlobalRootDir)
 	c.Assert(err, IsNil)
 
-	loader, err := bootloader.Find()
+	bloader, err := bootloader.Find("", nil)
 	c.Assert(err, IsNil)
-	c.Check(loader, NotNil)
-	loader.SetBootVars(map[string]string{
+	c.Check(bloader, NotNil)
+	bloader.SetBootVars(map[string]string{
 		"snap_kernel": "kernel_41.snap",
 		"snap_core":   "core_21.snap",
 	})
-	bootloader.Force(loader)
+	bootloader.Force(bloader)
 	s.AddCleanup(func() { bootloader.Force(nil) })
 
-	fn := filepath.Join(dirs.GlobalRootDir, "/boot/grub/grub.cfg")
+	fn := filepath.Join(s.bootdir, "/grub/grub.cfg")
 	c.Assert(osutil.FileExists(fn), Equals, true)
-	return loader
+	return bloader
 }
 
-func (s *grubKernelOSSuite) TestExtractKernelAssetsNoUnpacksKernelForGrub(c *C) {
-	loader := s.forceGrubBootloader(c)
+func (s *grubBootSetSuite) TestExtractKernelAssetsNoUnpacksKernelForGrub(c *C) {
+	s.forceGrubBootloader(c)
 
 	files := [][]string{
 		{"kernel.img", "I'm a kernel"},
@@ -363,20 +340,21 @@ func (s *grubKernelOSSuite) TestExtractKernelAssetsNoUnpacksKernelForGrub(c *C) 
 	info, err := snap.ReadInfoFromSnapFile(snapf, si)
 	c.Assert(err, IsNil)
 
-	err = boot.ExtractKernelAssets(info, snapf)
+	bp := boot.NewCoreKernel(info)
+	err = bp.ExtractKernelAssets(snapf)
 	c.Assert(err, IsNil)
 
 	// kernel is *not* here
-	kernimg := filepath.Join(loader.Dir(), "ubuntu-kernel_42.snap", "kernel.img")
+	kernimg := filepath.Join(s.bootdir, "grub", "ubuntu-kernel_42.snap", "kernel.img")
 	c.Assert(osutil.FileExists(kernimg), Equals, false)
 
 	// it's idempotent
-	err = boot.ExtractKernelAssets(info, snapf)
+	err = bp.ExtractKernelAssets(snapf)
 	c.Assert(err, IsNil)
 }
 
-func (s *grubKernelOSSuite) TestExtractKernelForceWorks(c *C) {
-	loader := s.forceGrubBootloader(c)
+func (s *grubBootSetSuite) TestExtractKernelForceWorks(c *C) {
+	s.forceGrubBootloader(c)
 
 	files := [][]string{
 		{"kernel.img", "I'm a kernel"},
@@ -395,28 +373,29 @@ func (s *grubKernelOSSuite) TestExtractKernelForceWorks(c *C) {
 	info, err := snap.ReadInfoFromSnapFile(snapf, si)
 	c.Assert(err, IsNil)
 
-	err = boot.ExtractKernelAssets(info, snapf)
+	bp := boot.NewCoreKernel(info)
+	err = bp.ExtractKernelAssets(snapf)
 	c.Assert(err, IsNil)
 
 	// kernel is extracted
-	kernimg := filepath.Join(loader.Dir(), "ubuntu-kernel_42.snap", "kernel.img")
+	kernimg := filepath.Join(s.bootdir, "/grub/ubuntu-kernel_42.snap/kernel.img")
 	c.Assert(osutil.FileExists(kernimg), Equals, true)
 	// initrd
-	initrdimg := filepath.Join(loader.Dir(), "ubuntu-kernel_42.snap", "initrd.img")
+	initrdimg := filepath.Join(s.bootdir, "/grub/ubuntu-kernel_42.snap/initrd.img")
 	c.Assert(osutil.FileExists(initrdimg), Equals, true)
 
 	// it's idempotent
-	err = boot.ExtractKernelAssets(info, snapf)
+	err = bp.ExtractKernelAssets(snapf)
 	c.Assert(err, IsNil)
 
 	// ensure that removal of assets also works
-	err = boot.RemoveKernelAssets(info)
+	err = bp.RemoveKernelAssets()
 	c.Assert(err, IsNil)
 	exists, _, err := osutil.DirExists(filepath.Dir(kernimg))
 	c.Assert(err, IsNil)
 	c.Check(exists, Equals, false)
 
 	// it's idempotent
-	err = boot.RemoveKernelAssets(info)
+	err = bp.RemoveKernelAssets()
 	c.Assert(err, IsNil)
 }

@@ -86,8 +86,13 @@ func (h *configureHandler) Before() error {
 	instanceName := h.context.InstanceName()
 	st := h.context.State()
 	if useDefaults {
-		var err error
-		patch, err = snapstate.ConfigDefaults(st, instanceName)
+		task, _ := h.context.Task()
+		deviceCtx, err := snapstate.DeviceCtx(st, task, nil)
+		if err != nil {
+			return err
+		}
+
+		patch, err = snapstate.ConfigDefaults(st, deviceCtx, instanceName)
 		if err != nil && err != state.ErrNoState {
 			return err
 		}
@@ -107,8 +112,9 @@ func (h *configureHandler) Before() error {
 		}
 	}
 
-	for key, value := range patch {
-		if err := tr.Set(instanceName, key, value); err != nil {
+	patchKeys := sortPatchKeysByDepth(patch)
+	for _, key := range patchKeys {
+		if err := tr.Set(instanceName, key, patch[key]); err != nil {
 			return err
 		}
 	}

@@ -20,35 +20,122 @@
 package osutil
 
 import (
+	"bytes"
+	"fmt"
+	"os/exec"
 	"os/user"
 	"strconv"
 )
 
-// TODO: the builtin os/user functions only look at /etc/passwd and /etc/group
-// which is fine for our purposes today. In the future we may want to support
-// lookups in extrausers, which is configured via nsswitch.conf. Since snapd
-// does not support being built with cgo itself, when we want to support
-// extrausers here, we can convert these to do the equivalent of:
-//
-//   getent passwd <user> | cut -d : -f 3
-//   getent group <group> | cut -d : -f 3
-
-// FindUid returns the identifier of the given UNIX user name.
+// FindUid returns the identifier of the given UNIX user name. It will
+// automatically fallback to use "getent" if needed.
 func FindUid(username string) (uint64, error) {
-	user, err := user.Lookup(username)
+	return findUid(username)
+}
+
+// FindGid returns the identifier of the given UNIX group name. It will
+// automatically fallback to use "getent" if needed.
+func FindGid(groupname string) (uint64, error) {
+	return findGid(groupname)
+}
+
+// getent returns the identifier of the given UNIX user or group name as
+// determined by the specified database
+func getent(database, name string) (uint64, error) {
+	if database != "passwd" && database != "group" {
+		return 0, fmt.Errorf(`unsupported getent database "%q"`, database)
+	}
+
+	cmdStr := []string{
+		"getent",
+		database,
+		name,
+	}
+	cmd := exec.Command(cmdStr[0], cmdStr[1:]...)
+	output, err := cmd.CombinedOutput()
+	if err != nil {
+		// according to getent(1) the exit value of "2" means:
+		// "One or more supplied key could not be found in the
+		// database."
+		exitCode, _ := ExitCode(err)
+		if exitCode == 2 {
+			if database == "passwd" {
+				return 0, user.UnknownUserError(name)
+			}
+			return 0, user.UnknownGroupError(name)
+		}
+		return 0, fmt.Errorf("getent failed with: %v", OutputErr(output, err))
+	}
+
+	// passwd has 7 entries and group 4. In both cases, parts[2] is the id
+	parts := bytes.Split(output, []byte(":"))
+	if len(parts) < 4 {
+		return 0, fmt.Errorf("malformed entry: %q", output)
+	}
+
+	return strconv.ParseUint(string(parts[2]), 10, 64)
+}
+
+var findUidNoGetentFallback = func(username string) (uint64, error) {
+	myuser, err := user.Lookup(username)
 	if err != nil {
 		return 0, err
 	}
 
-	return strconv.ParseUint(user.Uid, 10, 64)
+	return strconv.ParseUint(myuser.Uid, 10, 64)
 }
 
-// FindGid returns the identifier of the given UNIX group name.
-func FindGid(groupname string) (uint64, error) {
+var findGidNoGetentFallback = func(groupname string) (uint64, error) {
 	group, err := user.LookupGroup(groupname)
 	if err != nil {
 		return 0, err
 	}
 
 	return strconv.ParseUint(group.Gid, 10, 64)
+}
+
+// findUidWithGetentFallback returns the identifier of the given UNIX user name with
+// getent fallback
+func findUidWithGetentFallback(username string) (uint64, error) {
+	// first do the cheap os/user lookup
+	myuser, err := findUidNoGetentFallback(username)
+	switch err.(type) {
+	case nil:
+		// found it!
+		return myuser, nil
+	case user.UnknownUserError:
+		// user unknown, let's try getent
+		return getent("passwd", username)
+	default:
+		// something weird happened with the lookup, just report it
+		return 0, err
+	}
+}
+
+// findGidWithGetentFallback returns the identifier of the given UNIX group name with
+// getent fallback
+func findGidWithGetentFallback(groupname string) (uint64, error) {
+	// first do the cheap os/user lookup
+	group, err := findGidNoGetentFallback(groupname)
+	switch err.(type) {
+	case nil:
+		// found it!
+		return group, nil
+	case user.UnknownGroupError:
+		// group unknown, let's try getent
+		return getent("group", groupname)
+	default:
+		// something weird happened with the lookup, just report it
+		return 0, err
+	}
+}
+
+func IsUnknownUser(err error) bool {
+	_, ok := err.(user.UnknownUserError)
+	return ok
+}
+
+func IsUnknownGroup(err error) bool {
+	_, ok := err.(user.UnknownGroupError)
+	return ok
 }

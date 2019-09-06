@@ -11,6 +11,7 @@ get_last_journalctl_cursor(){
 }
 
 start_new_journalctl_log(){
+    sync_journalctl_log
     echo "New test starts here - $SPREAD_JOB" | systemd-cat -t snapd-test
     cursor=$(get_last_journalctl_cursor)
     if [ -z "$cursor" ]; then
@@ -51,8 +52,7 @@ get_journalctl_log(){
     if [ -f "$JOURNALCTL_CURSOR_FILE" ]; then
         cursor=$(tail -n1 "$JOURNALCTL_CURSOR_FILE")
     fi
-    journalctl --flush || true
-    journalctl --sync || true
+    sync_journalctl_log
     get_journalctl_log_from_cursor "$cursor" "$@"
 }
 
@@ -64,4 +64,9 @@ get_journalctl_log_from_cursor(){
     else
         journalctl "$@" --cursor "$cursor"
     fi
+}
+
+sync_journalctl_log(){
+    journalctl --flush || true
+    journalctl --sync || true
 }

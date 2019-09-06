@@ -98,6 +98,24 @@ execute: |
     echo "Ensure config value has correct format"
     jq ".data[\"config\"][\"snapctl-hooks\"].intnumber" /var/lib/snapd/state.json | MATCH "1234567890"
 
+    echo "Test unsetting of root.key2 with exclamation mark via snapctl"
+    # sanity check
+    snap get snapctl-hooks root.key2 | MATCH "b"
+    # note, unsetting happens in the configure hook in response to "test-unset" value
+    snap set snapctl-hooks command=test-unset root.key1="c"
+    if ! output=$(snap get snapctl-hooks root.key1); then
+        echo "snap get unexpectedly failed"
+    fi
+    snap get snapctl-hooks root.key2 2>&1 | MATCH 'snap "snapctl-hooks" has no "root.key2" configuration option'
+
+    echo "Test unsetting of root.key2 with via snapctl unset"
+    # init and sanity check
+    snap set snapctl-hooks command=noop root.key2="b"
+    snap get snapctl-hooks root.key2 | MATCH "b"
+    # note, unsetting happens in the configure hook in response to "test-unset-with-unset" value
+    snap set snapctl-hooks command=test-unset-with-unset
+    snap get snapctl-hooks root.key2 2>&1 | MATCH 'snap "snapctl-hooks" has no "root.key2" configuration option'
+
     echo "Test that config values are not available once snap is removed"
     snap remove snapctl-hooks
     if output=$(snap get snapctl-hooks foo); then

@@ -1,7 +1,7 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
 
 /*
- * Copyright (C) 2014-2015 Canonical Ltd
+ * Copyright (C) 2014-2019 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -22,28 +22,27 @@ package devicestate
 import (
 	"errors"
 	"fmt"
-	"io/ioutil"
-	"os"
-	"path/filepath"
 	"sort"
 
 	"github.com/snapcore/snapd/asserts"
-	"github.com/snapcore/snapd/asserts/snapasserts"
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/i18n"
-	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/overlord/assertstate"
 	"github.com/snapcore/snapd/overlord/devicestate/internal"
 	"github.com/snapcore/snapd/overlord/snapstate"
 	"github.com/snapcore/snapd/overlord/state"
 	"github.com/snapcore/snapd/release"
+	"github.com/snapcore/snapd/seed"
 	"github.com/snapcore/snapd/snap"
 	"github.com/snapcore/snapd/timings"
 )
 
 var errNothingToDo = errors.New("nothing to do")
 
-func installSeedSnap(st *state.State, sn *snap.SeedSnap, flags snapstate.Flags, tm timings.Measurer) (*state.TaskSet, *snap.Info, error) {
+func installSeedSnap(st *state.State, sn *seed.Snap, flags snapstate.Flags) (*state.TaskSet, *snap.Info, error) {
+	if sn.Required {
+		flags.Required = true
+	}
 	if sn.Classic {
 		flags.Classic = true
 	}
@@ -51,29 +50,7 @@ func installSeedSnap(st *state.State, sn *snap.SeedSnap, flags snapstate.Flags, 
 		flags.DevMode = true
 	}
 
-	path := filepath.Join(dirs.SnapSeedDir, "snaps", sn.File)
-
-	var sideInfo snap.SideInfo
-	if sn.Unasserted {
-		sideInfo.RealName = sn.Name
-	} else {
-		var si *snap.SideInfo
-		var err error
-		timings.Run(tm, "derive-side-info", fmt.Sprintf("hash and derive side info for snap %q", sn.Name), func(nested timings.Measurer) {
-			si, err = snapasserts.DeriveSideInfo(path, assertstate.DB(st))
-		})
-		if asserts.IsNotFound(err) {
-			return nil, nil, fmt.Errorf("cannot find signatures with metadata for snap %q (%q)", sn.Name, path)
-		}
-		if err != nil {
-			return nil, nil, err
-		}
-		sideInfo = *si
-		sideInfo.Private = sn.Private
-		sideInfo.Contact = sn.Contact
-	}
-
-	return snapstate.InstallPath(st, &sideInfo, path, "", sn.Channel, flags)
+	return snapstate.InstallPath(st, sn.SideInfo, sn.Path, "", sn.Channel, flags)
 }
 
 func trivialSeeding(st *state.State, markSeeded *state.Task) []*state.TaskSet {
@@ -97,10 +74,15 @@ func populateStateFromSeedImpl(st *state.State, tm timings.Measurer) ([]*state.T
 
 	markSeeded := st.NewTask("mark-seeded", i18n.G("Mark system seeded"))
 
+	deviceSeed, err := seed.Open(dirs.SnapSeedDir)
+	if err != nil {
+		return nil, err
+	}
+
 	// ack all initial assertions
 	var model *asserts.Model
 	timings.Run(tm, "import-assertions", "import assertions from seed", func(nested timings.Measurer) {
-		model, err = importAssertionsFromSeed(st)
+		model, err = importAssertionsFromSeed(st, deviceSeed)
 	})
 	if err == errNothingToDo {
 		return trivialSeeding(st, markSeeded), nil
@@ -109,146 +91,100 @@ func populateStateFromSeedImpl(st *state.State, tm timings.Measurer) ([]*state.T
 		return nil, err
 	}
 
-	seedYamlFile := filepath.Join(dirs.SnapSeedDir, "seed.yaml")
-	if release.OnClassic && !osutil.FileExists(seedYamlFile) {
+	err = deviceSeed.LoadMeta(tm)
+	if release.OnClassic && err == seed.ErrNoMeta {
 		// on classic it is ok to not seed any snaps
 		return trivialSeeding(st, markSeeded), nil
 	}
-
-	seed, err := snap.ReadSeedYaml(seedYamlFile)
 	if err != nil {
 		return nil, err
 	}
 
-	required := getAllRequiredSnapsForModel(model)
-	seeding := make(map[string]*snap.SeedSnap, len(seed.Snaps))
-	for _, sn := range seed.Snaps {
-		seeding[sn.Name] = sn
+	essentialSeedSnaps := deviceSeed.EssentialSnaps()
+	seedSnaps, err := deviceSeed.ModeSnaps("run") // XXX mode should be passed in
+	if err != nil {
+		return nil, err
 	}
-	alreadySeeded := make(map[string]bool, 3)
+
+	// allSnapInfos are collected for cross-check validation of bases
+	allSnapInfos := make(map[string]*snap.Info, len(essentialSeedSnaps)+len(seedSnaps))
 
 	tsAll := []*state.TaskSet{}
 	configTss := []*state.TaskSet{}
-
-	baseSnap := "core"
-	if model.Base() != "" {
-		baseSnap = model.Base()
+	chainTs := func(all []*state.TaskSet, ts *state.TaskSet) []*state.TaskSet {
+		n := len(all)
+		if n != 0 {
+			ts.WaitAll(all[n-1])
+		}
+		return append(all, ts)
+	}
+	chainSorted := func(infos []*snap.Info, infoToTs map[*snap.Info]*state.TaskSet) {
+		sort.Stable(snap.ByType(infos))
+		for _, info := range infos {
+			ts := infoToTs[info]
+			tsAll = chainTs(tsAll, ts)
+		}
 	}
 
-	installSeedEssential := func(snapName string, last int) (*snap.Info, error) {
-		seedSnap := seeding[snapName]
-		if seedSnap == nil {
-			return nil, fmt.Errorf("cannot proceed without seeding %q", snapName)
-		}
-		ts, info, err := installSeedSnap(st, seedSnap, snapstate.Flags{SkipConfigure: true, Required: true}, tm)
-		if err != nil {
-			return nil, err
-		}
-		if last >= 0 {
-			ts.WaitAll(tsAll[last])
-		}
-		tsAll = append(tsAll, ts)
-		alreadySeeded[snapName] = true
-		return info, nil
-	}
+	essInfoToTs := make(map[*snap.Info]*state.TaskSet, len(essentialSeedSnaps))
+	essInfos := make([]*snap.Info, 0, len(essentialSeedSnaps))
 
-	last := -1
-	// if there are snaps to seed, core/base needs to be seeded too
-	if len(seed.Snaps) != 0 {
-		// ensure "snapd" snap is installed first
-		if model.Base() != "" {
-			if _, err := installSeedEssential("snapd", last); err != nil {
-				return nil, err
-			}
-			last++
-		}
-		if _, err := installSeedEssential(baseSnap, last); err != nil {
-			return nil, err
-		}
+	if len(essentialSeedSnaps) != 0 {
 		// we *always* configure "core" here even if bases are used
 		// for booting. "core" if where the system config lives.
-		configTss = append(configTss, snapstate.ConfigureSnap(st, "core", snapstate.UseConfigDefaults))
-		last++
+		configTss = chainTs(configTss, snapstate.ConfigureSnap(st, "core", snapstate.UseConfigDefaults))
 	}
 
-	lastConf := 0
-	if kernelName := model.Kernel(); kernelName != "" {
-		if _, err := installSeedEssential(kernelName, last); err != nil {
-			return nil, err
-		}
-		configTs := snapstate.ConfigureSnap(st, kernelName, snapstate.UseConfigDefaults)
-		// wait for the previous configTss
-		configTs.WaitAll(configTss[lastConf])
-		configTss = append(configTss, configTs)
-		last++
-		lastConf++
-	}
-
-	// FIXME: ensure that any base is ordered before the gadget so that
-	//        the gadget can use bases that are not the model base
-	if gadgetName := model.Gadget(); gadgetName != "" {
-		info, err := installSeedEssential(gadgetName, last)
+	for _, seedSnap := range essentialSeedSnaps {
+		ts, info, err := installSeedSnap(st, seedSnap, snapstate.Flags{SkipConfigure: true})
 		if err != nil {
 			return nil, err
 		}
-		// Sanity check, note that we could support this if we have
-		// a use-case. However this requires that we do the sorting
-		// different, i.e. other bases will have to be sorted before
-		// the gadget.
-		if info.Base != model.Base() {
-			return nil, fmt.Errorf("cannot use gadget snap because its base %q is different from model base %q", info.Base, model.Base())
+		if info.GetType() == snap.TypeKernel || info.GetType() == snap.TypeGadget {
+			configTs := snapstate.ConfigureSnap(st, info.SnapName(), snapstate.UseConfigDefaults)
+			// wait for the previous configTss
+			configTss = chainTs(configTss, configTs)
 		}
-
-		configTs := snapstate.ConfigureSnap(st, gadgetName, snapstate.UseConfigDefaults)
-		// wait for the previous configTss
-		configTs.WaitAll(configTss[lastConf])
-		configTss = append(configTss, configTs)
-		last++
-		//If we use lastConf again we need to enable this. It is
-		//commented out because go vet complains about an ineffectual
-		// assignment.
-		//lastConf++
+		essInfos = append(essInfos, info)
+		essInfoToTs[info] = ts
+		allSnapInfos[info.SnapName()] = info
 	}
+	// now add/chain the tasksets in the right order based on essential
+	// snap types
+	chainSorted(essInfos, essInfoToTs)
 
 	// chain together configuring core, kernel, and gadget after
 	// installing them so that defaults are availabble from gadget
 	if len(configTss) > 0 {
-		configTss[0].WaitAll(tsAll[last])
+		configTss[0].WaitAll(tsAll[len(tsAll)-1])
 		tsAll = append(tsAll, configTss...)
-		last += len(configTss)
 	}
 
 	// ensure we install in the right order
-	infoToTs := make(map[*snap.Info]*state.TaskSet, len(seed.Snaps))
-	infos := make([]*snap.Info, 0, len(seed.Snaps))
+	infoToTs := make(map[*snap.Info]*state.TaskSet, len(seedSnaps))
+	infos := make([]*snap.Info, 0, len(seedSnaps))
 
-	for _, sn := range seed.Snaps {
-		if alreadySeeded[sn.Name] {
-			continue
-		}
-
+	for _, seedSnap := range seedSnaps {
 		var flags snapstate.Flags
-		if required[sn.Name] {
-			flags.Required = true
-		}
-
-		ts, info, err := installSeedSnap(st, sn, flags, tm)
+		ts, info, err := installSeedSnap(st, seedSnap, flags)
 		if err != nil {
 			return nil, err
 		}
 		infos = append(infos, info)
 		infoToTs[info] = ts
+		allSnapInfos[info.SnapName()] = info
+	}
+
+	// validate that all snaps have bases
+	errs := snap.ValidateBasesAndProviders(allSnapInfos)
+	if errs != nil {
+		// only report the first error encountered
+		return nil, errs[0]
 	}
 
 	// now add/chain the tasksets in the right order, note that we
 	// only have tasksets that we did not already seeded
-	sort.Stable(snap.ByType(infos))
-	for _, info := range infos {
-		ts := infoToTs[info]
-		ts.WaitAll(tsAll[last])
-		tsAll = append(tsAll, ts)
-		last++
-	}
+	chainSorted(infos, infoToTs)
 
 	if len(tsAll) == 0 {
 		return nil, fmt.Errorf("cannot proceed, no snaps to seed")
@@ -271,26 +207,21 @@ func populateStateFromSeedImpl(st *state.State, tm timings.Measurer) ([]*state.T
 	return tsAll, nil
 }
 
-func readAsserts(fn string, batch *assertstate.Batch) ([]*asserts.Ref, error) {
-	f, err := os.Open(fn)
-	if err != nil {
-		return nil, err
-	}
-	defer f.Close()
-	return batch.AddStream(f)
-}
-
-func importAssertionsFromSeed(st *state.State) (*asserts.Model, error) {
+func importAssertionsFromSeed(st *state.State, deviceSeed seed.Seed) (*asserts.Model, error) {
 	// TODO: use some kind of context fo Device/SetDevice?
 	device, err := internal.Device(st)
 	if err != nil {
 		return nil, err
 	}
 
+	// collect and
 	// set device,model from the model assertion
-	assertSeedDir := filepath.Join(dirs.SnapSeedDir, "assertions")
-	dc, err := ioutil.ReadDir(assertSeedDir)
-	if release.OnClassic && os.IsNotExist(err) {
+	commitTo := func(batch *asserts.Batch) error {
+		return assertstate.AddBatch(st, batch, nil)
+	}
+
+	err = deviceSeed.LoadAssertions(assertstate.DB(st), commitTo)
+	if err == seed.ErrNoAssertions && release.OnClassic {
 		// on classic seeding is optional
 		// set the fallback model
 		err := setClassicFallbackModel(st, device)
@@ -300,41 +231,13 @@ func importAssertionsFromSeed(st *state.State) (*asserts.Model, error) {
 		return nil, errNothingToDo
 	}
 	if err != nil {
-		return nil, fmt.Errorf("cannot read assert seed dir: %s", err)
-	}
-
-	// collect
-	var modelRef *asserts.Ref
-	batch := assertstate.NewBatch()
-	for _, fi := range dc {
-		fn := filepath.Join(assertSeedDir, fi.Name())
-		refs, err := readAsserts(fn, batch)
-		if err != nil {
-			return nil, fmt.Errorf("cannot read assertions: %s", err)
-		}
-		for _, ref := range refs {
-			if ref.Type == asserts.ModelType {
-				if modelRef != nil && modelRef.Unique() != ref.Unique() {
-					return nil, fmt.Errorf("cannot add more than one model assertion")
-				}
-				modelRef = ref
-			}
-		}
-	}
-	// verify we have one model assertion
-	if modelRef == nil {
-		return nil, fmt.Errorf("need a model assertion")
-	}
-
-	if err := batch.Commit(st); err != nil {
 		return nil, err
 	}
 
-	a, err := modelRef.Resolve(assertstate.DB(st).Find)
+	modelAssertion, err := deviceSeed.Model()
 	if err != nil {
-		return nil, fmt.Errorf("internal error: cannot find just added assertion %v: %v", modelRef, err)
+		return nil, err
 	}
-	modelAssertion := a.(*asserts.Model)
 
 	classicModel := modelAssertion.Classic()
 	if release.OnClassic != classicModel {

@@ -30,6 +30,7 @@ import (
 	"strings"
 	"unicode/utf8"
 
+	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/snap/naming"
 	"github.com/snapcore/snapd/spdx"
 	"github.com/snapcore/snapd/strutil"
@@ -343,6 +344,11 @@ func Validate(info *Info) error {
 
 	// Ensure that base field is valid
 	if err := ValidateBase(info); err != nil {
+		return err
+	}
+
+	// Ensure system usernames are valid
+	if err := ValidateSystemUsernames(info); err != nil {
 		return err
 	}
 
@@ -935,4 +941,53 @@ func ValidateCommonIDs(info *Info) error {
 		}
 	}
 	return nil
+}
+
+func ValidateSystemUsernames(info *Info) error {
+	for username := range info.SystemUsernames {
+		if !osutil.IsValidUsername(username) {
+			return fmt.Errorf("invalid system username %q", username)
+		}
+	}
+	return nil
+}
+
+// neededDefaultProviders returns the names of all default-providers for
+// the content plugs that the given snap.Info needs.
+func NeededDefaultProviders(info *Info) (cps []string) {
+	for _, plug := range info.Plugs {
+		if plug.Interface == "content" {
+			var dprovider string
+			if err := plug.Attr("default-provider", &dprovider); err == nil && dprovider != "" {
+				cps = append(cps, dprovider)
+			}
+		}
+	}
+	return cps
+}
+
+// ValidateBasesAndProviders checks that all bases/default-providers are part of the seed
+func ValidateBasesAndProviders(snapInfos map[string]*Info) []error {
+	var errs []error
+	for _, info := range snapInfos {
+		// ensure base is available
+		if info.Base != "" && info.Base != "none" {
+			if _, ok := snapInfos[info.Base]; !ok {
+				errs = append(errs, fmt.Errorf("cannot use snap %q: base %q is missing", info.InstanceName(), info.Base))
+			}
+		}
+		// ensure core is available
+		if info.Base == "" && info.SnapType == TypeApp && info.InstanceName() != "snapd" {
+			if _, ok := snapInfos["core"]; !ok {
+				errs = append(errs, fmt.Errorf(`cannot use snap %q: required snap "core" missing`, info.InstanceName()))
+			}
+		}
+		// ensure default-providers are available
+		for _, dp := range NeededDefaultProviders(info) {
+			if _, ok := snapInfos[dp]; !ok {
+				errs = append(errs, fmt.Errorf("cannot use snap %q: default provider %q is missing", info.InstanceName(), dp))
+			}
+		}
+	}
+	return errs
 }

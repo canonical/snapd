@@ -37,7 +37,7 @@ type filesystemImageTestSuite struct {
 	dir       string
 	work      string
 	content   string
-	psTrivial *gadget.PositionedStructure
+	psTrivial *gadget.LaidOutStructure
 }
 
 var _ = Suite(&filesystemImageTestSuite{})
@@ -54,7 +54,7 @@ func (s *filesystemImageTestSuite) SetUpTest(c *C) {
 	// gadget content directory
 	s.content = filepath.Join(s.dir, "content")
 
-	s.psTrivial = &gadget.PositionedStructure{
+	s.psTrivial = &gadget.LaidOutStructure{
 		VolumeStructure: &gadget.VolumeStructure{
 			Filesystem: "happyfs",
 			Size:       2 * gadget.SizeMiB,
@@ -68,7 +68,7 @@ func (s *filesystemImageTestSuite) TearDownTest(c *C) {
 	s.BaseTest.TearDownTest(c)
 }
 
-func (s *filesystemImageTestSuite) imgForPs(c *C, ps *gadget.PositionedStructure) string {
+func (s *filesystemImageTestSuite) imgForPs(c *C, ps *gadget.LaidOutStructure) string {
 	c.Assert(ps, NotNil)
 	img := filepath.Join(s.dir, "img")
 	makeSizedFile(c, img, ps.Size, nil)
@@ -97,7 +97,7 @@ func (s *filesystemImageMockedTestSuite) TearDownTest(c *C) {
 }
 
 func (s *filesystemImageMockedTestSuite) TestSimpleErrors(c *C) {
-	psValid := &gadget.PositionedStructure{
+	psValid := &gadget.LaidOutStructure{
 		VolumeStructure: &gadget.VolumeStructure{
 			Filesystem: "ext4",
 			Size:       2 * gadget.SizeMiB,
@@ -109,10 +109,10 @@ func (s *filesystemImageMockedTestSuite) TestSimpleErrors(c *C) {
 	c.Assert(fiw, IsNil)
 
 	fiw, err = gadget.NewFilesystemImageWriter(s.dir, nil, "")
-	c.Assert(err, ErrorMatches, `internal error: \*PositionedStructure is nil`)
+	c.Assert(err, ErrorMatches, `internal error: \*LaidOutStructure is nil`)
 	c.Assert(fiw, IsNil)
 
-	psNoFs := &gadget.PositionedStructure{
+	psNoFs := &gadget.LaidOutStructure{
 		VolumeStructure: &gadget.VolumeStructure{
 			Filesystem: "none",
 			Size:       2 * gadget.SizeMiB,
@@ -123,7 +123,7 @@ func (s *filesystemImageMockedTestSuite) TestSimpleErrors(c *C) {
 	c.Assert(err, ErrorMatches, "internal error: structure has no filesystem")
 	c.Assert(fiw, IsNil)
 
-	psInvalidFs := &gadget.PositionedStructure{
+	psInvalidFs := &gadget.LaidOutStructure{
 		VolumeStructure: &gadget.VolumeStructure{
 			Filesystem: "xfs",
 			Size:       2 * gadget.SizeMiB,
@@ -135,7 +135,7 @@ func (s *filesystemImageMockedTestSuite) TestSimpleErrors(c *C) {
 }
 
 func (s *filesystemImageMockedTestSuite) TestHappyFull(c *C) {
-	ps := &gadget.PositionedStructure{
+	ps := &gadget.LaidOutStructure{
 		VolumeStructure: &gadget.VolumeStructure{
 			Filesystem: "happyfs",
 			Label:      "so-happy",
@@ -159,10 +159,10 @@ func (s *filesystemImageMockedTestSuite) TestHappyFull(c *C) {
 	var cbCalled bool
 	var mkfsCalled bool
 
-	cb := func(rootDir string, cbPs *gadget.PositionedStructure) error {
+	cb := func(rootDir string, cbPs *gadget.LaidOutStructure) error {
 		c.Assert(cbPs, DeepEquals, ps)
 		c.Assert(rootDir, Equals, filepath.Join(s.work, "snap-stage-content-part-0002"))
-		verifyDeployedGadgetData(c, rootDir, gd)
+		verifyWrittenGadgetData(c, rootDir, gd)
 
 		cbCalled = true
 		return nil
@@ -217,7 +217,7 @@ func (s *filesystemImageMockedTestSuite) TestPostStageOptional(c *C) {
 }
 
 func (s *filesystemImageMockedTestSuite) TestChecksImage(c *C) {
-	cb := func(rootDir string, cbPs *gadget.PositionedStructure) error {
+	cb := func(rootDir string, cbPs *gadget.LaidOutStructure) error {
 		return errors.New("unexpected call")
 	}
 
@@ -238,7 +238,7 @@ func (s *filesystemImageMockedTestSuite) TestChecksImage(c *C) {
 }
 
 func (s *filesystemImageMockedTestSuite) TestPostStageError(c *C) {
-	cb := func(rootDir string, cbPs *gadget.PositionedStructure) error {
+	cb := func(rootDir string, cbPs *gadget.LaidOutStructure) error {
 		return errors.New("post stage exploded")
 	}
 
@@ -270,7 +270,7 @@ func (s *filesystemImageMockedTestSuite) TestMkfsError(c *C) {
 }
 
 func (s *filesystemImageMockedTestSuite) TestFilesystemExtraCheckError(c *C) {
-	ps := &gadget.PositionedStructure{
+	ps := &gadget.LaidOutStructure{
 		VolumeStructure: &gadget.VolumeStructure{
 			Filesystem: "happyfs",
 			Size:       2 * gadget.SizeMiB,
@@ -291,7 +291,7 @@ func (s *filesystemImageMockedTestSuite) TestFilesystemExtraCheckError(c *C) {
 }
 
 func (s *filesystemImageMockedTestSuite) TestMountedWriterError(c *C) {
-	ps := &gadget.PositionedStructure{
+	ps := &gadget.LaidOutStructure{
 		VolumeStructure: &gadget.VolumeStructure{
 			Filesystem: "happyfs",
 			Size:       2 * gadget.SizeMiB,
@@ -301,7 +301,7 @@ func (s *filesystemImageMockedTestSuite) TestMountedWriterError(c *C) {
 		},
 	}
 
-	cb := func(rootDir string, cbPs *gadget.PositionedStructure) error {
+	cb := func(rootDir string, cbPs *gadget.LaidOutStructure) error {
 		return errors.New("unexpected call")
 	}
 
@@ -316,7 +316,7 @@ func (s *filesystemImageMockedTestSuite) TestMountedWriterError(c *C) {
 }
 
 func (s *filesystemImageMockedTestSuite) TestBadWorkDirError(c *C) {
-	cb := func(rootDir string, cbPs *gadget.PositionedStructure) error {
+	cb := func(rootDir string, cbPs *gadget.LaidOutStructure) error {
 		return errors.New("unexpected call")
 	}
 
@@ -337,7 +337,7 @@ func (s *filesystemImageMockedTestSuite) TestBadWorkDirError(c *C) {
 }
 
 func (s *filesystemImageMockedTestSuite) TestKeepsStagingDir(c *C) {
-	cb := func(rootDir string, cbPs *gadget.PositionedStructure) error {
+	cb := func(rootDir string, cbPs *gadget.LaidOutStructure) error {
 		return nil
 	}
 	mkfsHappyFs := func(imgFile, label, contentsRootDir string) error {
@@ -393,7 +393,7 @@ func (s *filesystemImageMkfsTestSuite) TearDownTest(c *C) {
 var _ = Suite(&filesystemImageMkfsTestSuite{})
 
 func (s *filesystemImageMkfsTestSuite) TestExt4(c *C) {
-	psExt4 := &gadget.PositionedStructure{
+	psExt4 := &gadget.LaidOutStructure{
 		VolumeStructure: &gadget.VolumeStructure{
 			Filesystem: "ext4",
 			Size:       2 * gadget.SizeMiB,
@@ -416,7 +416,7 @@ func (s *filesystemImageMkfsTestSuite) TestExt4(c *C) {
 }
 
 func (s *filesystemImageMkfsTestSuite) TestVfat(c *C) {
-	psVfat := &gadget.PositionedStructure{
+	psVfat := &gadget.LaidOutStructure{
 		VolumeStructure: &gadget.VolumeStructure{
 			Filesystem: "vfat",
 			Size:       2 * gadget.SizeMiB,

@@ -20,6 +20,7 @@
 package snapstate
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	"os"
@@ -207,7 +208,7 @@ func (m *SnapManager) doPrerequisites(t *state.Task, _ *tomb.Tomb) error {
 		return nil
 	}
 	// snapd is special and has no prereqs
-	if snapsup.InstanceName() == "snapd" {
+	if snapsup.Type == snap.TypeSnapd {
 		return nil
 	}
 
@@ -253,7 +254,7 @@ func (m *SnapManager) installOneBaseOrRequired(st *state.State, snapName string,
 	}
 
 	// not installed, nor queued for install -> install it
-	ts, err := Install(st, snapName, &RevisionOptions{Channel: channel}, userID, Flags{RequireTypeBase: requireTypeBase})
+	ts, err := Install(context.TODO(), st, snapName, &RevisionOptions{Channel: channel}, userID, Flags{RequireTypeBase: requireTypeBase})
 
 	// something might have triggered an explicit install while
 	// the state was unlocked -> deal with that here by simply
@@ -469,7 +470,7 @@ func installInfoUnlocked(st *state.State, snapsup *SnapSetup, deviceCtx DeviceCo
 	st.Lock()
 	defer st.Unlock()
 	opts := &RevisionOptions{Channel: snapsup.Channel, CohortKey: snapsup.CohortKey, Revision: snapsup.Revision()}
-	return installInfo(st, snapsup.InstanceName(), opts, snapsup.UserID, deviceCtx)
+	return installInfo(context.TODO(), st, snapsup.InstanceName(), opts, snapsup.UserID, deviceCtx)
 }
 
 // autoRefreshRateLimited returns the rate limit of auto-refreshes or 0 if
@@ -1147,36 +1148,53 @@ func (m *SnapManager) doLinkSnap(t *state.Task, _ *tomb.Tomb) (err error) {
 func maybeRestart(t *state.Task, info *snap.Info) {
 	st := t.State()
 
-	if release.OnClassic {
-		// ignore error here as we have no way to return to caller
-		snapdSnapInstalled, _ := isInstalled(st, "snapd")
-		if (info.GetType() == snap.TypeOS && !snapdSnapInstalled) ||
-			info.InstanceName() == "snapd" {
-			t.Logf("Requested daemon restart.")
-			st.RequestRestart(state.RestartDaemon)
-		}
-		return
-	}
-
-	// On a core system we may need a full reboot if
-	// core/base or the kernel changes.
-	if boot.ChangeRequiresReboot(info) {
-		t.Logf("Requested system restart.")
-		st.RequestRestart(state.RestartSystem)
-		return
-	}
-
-	// On core systems that use a base snap we need to restart
-	// snapd when the snapd snap changes.
 	model, err := ModelFromTask(t)
 	if err != nil {
 		logger.Noticef("cannot get model assertion: %v", model)
 		return
 	}
-	if model.Base() != "" && info.InstanceName() == "snapd" {
-		t.Logf("Requested daemon restart (snapd snap).")
-		st.RequestRestart(state.RestartDaemon)
+
+	typ := info.GetType()
+	bp := boot.Participant(info, typ, model, release.OnClassic)
+	if bp.ChangeRequiresReboot() {
+		t.Logf("Requested system restart.")
+		st.RequestRestart(state.RestartSystem)
+		return
 	}
+
+	// if bp is non-trivial then either we're not on classic, or the snap is
+	// snapd. So daemonRestartReason will always return "" which is what we
+	// want. If that combination stops being true and there's a situation
+	// where a non-trivial bp could return a non-empty reason, use IsTrivial
+	// to check and bail before reaching this far.
+
+	restartReason := daemonRestartReason(st, typ)
+	if restartReason == "" {
+		// no message -> no restart
+		return
+	}
+
+	t.Logf(restartReason)
+	st.RequestRestart(state.RestartDaemon)
+}
+
+func daemonRestartReason(st *state.State, typ snap.Type) string {
+	if !((release.OnClassic && typ == snap.TypeOS) || typ == snap.TypeSnapd) {
+		// not interesting
+		return ""
+	}
+
+	if typ == snap.TypeOS {
+		// ignore error here as we have no way to return to caller
+		snapdSnapInstalled, _ := isInstalled(st, "snapd")
+		if snapdSnapInstalled {
+			// this snap is the base, but snapd is running from the snapd snap
+			return ""
+		}
+		return "Requested daemon restart."
+	}
+
+	return "Requested daemon restart (snapd snap)."
 }
 
 func (m *SnapManager) undoLinkSnap(t *state.Task, _ *tomb.Tomb) error {
