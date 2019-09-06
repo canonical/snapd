@@ -95,7 +95,7 @@ var (
 	defaultModes       = []string{"run"}
 )
 
-func checkExtendSnaps(extendedSnaps interface{}, base string) (*modelSnaps, error) {
+func checkExtendedSnaps(extendedSnaps interface{}, base string) (*modelSnaps, error) {
 	const wrongHeaderType = `"snaps" header must be a list of maps`
 
 	entries, ok := extendedSnaps.([]interface{})
@@ -604,7 +604,7 @@ func assembleModel(assert assertionBase) (Assertion, error) {
 	var modSnaps *modelSnaps
 	if extended {
 		// TODO: support and consider grade!
-		modSnaps, err = checkExtendSnaps(extendedSnaps, base)
+		modSnaps, err = checkExtendedSnaps(extendedSnaps, base)
 		if err != nil {
 			return nil, err
 		}
