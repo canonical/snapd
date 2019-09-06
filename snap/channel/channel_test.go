@@ -313,7 +313,8 @@ func (s *storeChannelSuite) TestResolveLocked(c *C) {
 		result string
 		expErr string
 	}{
-		{"", "", "", "invalid locked track: "},
+		{"", "", "", ""},
+		{"", "anytrack/stable", "anytrack/stable", ""},
 		{"track/foo", "", "", "invalid locked track: track/foo"},
 		{"track", "", "track", ""},
 		{"track", "beta", "track/beta", ""},

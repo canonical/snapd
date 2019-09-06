@@ -235,6 +235,9 @@ var ErrTrackSwitch = errors.New("cannot switch locked track")
 // can only be risk/branch-only or have the same track, otherwise
 // ErrTrackSwitch is returned.
 func ResolveLocked(track, newChannel string) (string, error) {
+	if track == "" {
+		return newChannel, nil
+	}
 	ch, err := ParseVerbatim(track, "-")
 	if err != nil || !ch.VerbatimTrackOnly() {
 		return "", fmt.Errorf("invalid locked track: %s", track)
