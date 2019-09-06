@@ -74,7 +74,7 @@ void rm_rf_tmp(const char *dir)
 }
 
 void
-__attribute__((sentinel)) test_argc_argv(int *argcp, char ***argvp, ...)
+    __attribute__((sentinel)) test_argc_argv(int *argcp, char ***argvp, ...)
 {
 	int argc = 0;
 	char **argv = NULL;

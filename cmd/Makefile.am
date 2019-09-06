@@ -69,6 +69,7 @@ new_format = \
 	 snap-confine/seccomp-support-ext.h \
 	 snap-confine/selinux-support.c \
 	 snap-confine/selinux-support.h \
+	 snap-confine/snap-confine-invocation-test.c \
 	 snap-confine/snap-confine-invocation.c \
 	 snap-confine/snap-confine-invocation.h \
 	 snap-discard-ns/snap-discard-ns.c
