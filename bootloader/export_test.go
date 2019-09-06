@@ -70,12 +70,12 @@ func MockGrubFiles(c *C, rootdir string) {
 	c.Assert(err, IsNil)
 }
 
-func NewLk() Bootloader {
-	return newLk()
+func NewLk(rootdir string) Bootloader {
+	return newLk(rootdir)
 }
 
-func MockLkFiles(c *C) {
-	l := &lk{}
+func MockLkFiles(c *C, rootdir string) {
+	l := &lk{rootdir: rootdir}
 	err := os.MkdirAll(l.dir(), 0755)
 	c.Assert(err, IsNil)
 

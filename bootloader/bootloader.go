@@ -124,7 +124,7 @@ func Find(rootdir string, _ *Options) (Bootloader, error) {
 	}
 
 	// no, try lk
-	if lk := newLk(); lk != nil {
+	if lk := newLk(rootdir); lk != nil {
 		return lk, nil
 	}
 

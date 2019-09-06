@@ -27,19 +27,19 @@ import (
 	"path/filepath"
 
 	"github.com/snapcore/snapd/bootloader/lkenv"
-	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/snap"
 )
 
 type lk struct {
+	rootdir       string
 	inRuntimeMode bool
 }
 
 // newLk create a new lk bootloader object
-func newLk() Bootloader {
-	e := &lk{}
+func newLk(rootdir string) Bootloader {
+	e := &lk{rootdir: rootdir}
 
 	// XXX: in the long run we want this to go away, we probably add
 	//      something like "boot.PrepareImage()" and add an (optional)
@@ -48,13 +48,17 @@ func newLk() Bootloader {
 	//      are very different from runtime vs image-building mode.
 	//
 	// determine mode we are in, runtime or image build
-	e.inRuntimeMode = (dirs.GlobalRootDir == "/")
+	e.inRuntimeMode = (rootdir == "/")
 
 	if !osutil.FileExists(e.envFile()) {
 		return nil
 	}
 
 	return e
+}
+
+func (l *lk) setRootDir(rootdir string) {
+	l.rootdir = rootdir
 }
 
 func (l *lk) Name() string {
@@ -66,9 +70,9 @@ func (l *lk) dir() string {
 	// during image building we store environment into file
 	// at runtime environment is written directly into dedicated partition
 	if l.inRuntimeMode {
-		return filepath.Join(dirs.GlobalRootDir, "/dev/disk/by-partlabel/")
+		return filepath.Join(l.rootdir, "/dev/disk/by-partlabel/")
 	} else {
-		return filepath.Join(dirs.GlobalRootDir, "/boot/lk/")
+		return filepath.Join(l.rootdir, "/boot/lk/")
 	}
 }
 

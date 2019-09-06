@@ -29,40 +29,31 @@ import (
 
 	"github.com/snapcore/snapd/bootloader"
 	"github.com/snapcore/snapd/bootloader/lkenv"
-	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/snap"
 	"github.com/snapcore/snapd/snap/snaptest"
-	"github.com/snapcore/snapd/testutil"
 )
 
 type lkTestSuite struct {
-	testutil.BaseTest
+	baseBootenvTestSuite
 }
 
 var _ = Suite(&lkTestSuite{})
 
-func (g *lkTestSuite) SetUpTest(c *C) {
-	g.BaseTest.SetUpTest(c)
-	g.AddCleanup(snap.MockSanitizePlugsSlots(func(snapInfo *snap.Info) {}))
-	dirs.SetRootDir(c.MkDir())
-	g.AddCleanup(func() { dirs.SetRootDir("") })
-}
-
 func (s *lkTestSuite) TestNewLkNolkReturnsNil(c *C) {
-	l := bootloader.NewLk()
+	l := bootloader.NewLk("/does/not/exist")
 	c.Assert(l, IsNil)
 }
 
 func (s *lkTestSuite) TestNewLk(c *C) {
-	bootloader.MockLkFiles(c)
-	l := bootloader.NewLk()
+	bootloader.MockLkFiles(c, s.rootdir)
+	l := bootloader.NewLk(s.rootdir)
 	c.Assert(l, NotNil)
 }
 
 func (s *lkTestSuite) TestSetGetBootVar(c *C) {
-	bootloader.MockLkFiles(c)
-	l := bootloader.NewLk()
+	bootloader.MockLkFiles(c, s.rootdir)
+	l := bootloader.NewLk(s.rootdir)
 	bootVars := map[string]string{"snap_mode": "try"}
 	l.SetBootVars(bootVars)
 
@@ -73,8 +64,8 @@ func (s *lkTestSuite) TestSetGetBootVar(c *C) {
 }
 
 func (s *lkTestSuite) TestExtractKernelAssetsUnpacksBootimgImageBuilding(c *C) {
-	bootloader.MockLkFiles(c)
-	l := bootloader.NewLk()
+	bootloader.MockLkFiles(c, s.rootdir)
+	l := bootloader.NewLk(s.rootdir)
 
 	c.Assert(l, NotNil)
 
@@ -102,7 +93,7 @@ func (s *lkTestSuite) TestExtractKernelAssetsUnpacksBootimgImageBuilding(c *C) {
 	c.Assert(err, IsNil)
 
 	// just boot.img and snapbootsel.bin are there, no kernel.img
-	infos, err := ioutil.ReadDir(filepath.Join(dirs.GlobalRootDir, "boot", "lk", ""))
+	infos, err := ioutil.ReadDir(filepath.Join(s.rootdir, "boot", "lk", ""))
 	c.Assert(err, IsNil)
 	var fnames []string
 	for _, info := range infos {
@@ -114,8 +105,8 @@ func (s *lkTestSuite) TestExtractKernelAssetsUnpacksBootimgImageBuilding(c *C) {
 }
 
 func (s *lkTestSuite) TestExtractKernelAssetsUnpacksCustomBootimgImageBuilding(c *C) {
-	bootloader.MockLkFiles(c)
-	l := bootloader.NewLk()
+	bootloader.MockLkFiles(c, s.rootdir)
+	l := bootloader.NewLk(s.rootdir)
 
 	c.Assert(l, NotNil)
 
@@ -150,26 +141,26 @@ func (s *lkTestSuite) TestExtractKernelAssetsUnpacksCustomBootimgImageBuilding(c
 	c.Assert(err, IsNil)
 
 	// boot-2.img is there
-	bootimg := filepath.Join(dirs.GlobalRootDir, "boot", "lk", "boot-2.img")
+	bootimg := filepath.Join(s.rootdir, "boot", "lk", "boot-2.img")
 	c.Assert(osutil.FileExists(bootimg), Equals, true)
 }
 
 func (s *lkTestSuite) TestExtractKernelAssetsUnpacksAndRemoveInRuntimeMode(c *C) {
-	bootloader.MockLkFiles(c)
-	lk := bootloader.NewLk()
+	bootloader.MockLkFiles(c, s.rootdir)
+	lk := bootloader.NewLk(s.rootdir)
 	c.Assert(lk, NotNil)
 	bootloader.MockLkRuntimeMode(lk, true)
 
 	// create mock bootsel, boot_a, boot_b partitions
 	for _, partName := range []string{"snapbootsel", "boot_a", "boot_b"} {
-		mockPart := filepath.Join(dirs.GlobalRootDir, "/dev/disk/by-partlabel/", partName)
+		mockPart := filepath.Join(s.rootdir, "/dev/disk/by-partlabel/", partName)
 		err := os.MkdirAll(filepath.Dir(mockPart), 0755)
 		c.Assert(err, IsNil)
 		err = ioutil.WriteFile(mockPart, nil, 0600)
 		c.Assert(err, IsNil)
 	}
 	// ensure we have a valid boot env
-	bootselPartition := filepath.Join(dirs.GlobalRootDir, "/dev/disk/by-partlabel/snapbootsel")
+	bootselPartition := filepath.Join(s.rootdir, "/dev/disk/by-partlabel/snapbootsel")
 	lkenv := lkenv.NewEnv(bootselPartition)
 	lkenv.ConfigureBootPartitions("boot_a", "boot_b")
 	err := lkenv.Save()
@@ -195,13 +186,13 @@ func (s *lkTestSuite) TestExtractKernelAssetsUnpacksAndRemoveInRuntimeMode(c *C)
 	c.Assert(err, IsNil)
 
 	// and validate it went to the "boot_a" partition
-	bootA := filepath.Join(dirs.GlobalRootDir, "/dev/disk/by-partlabel/boot_a")
+	bootA := filepath.Join(s.rootdir, "/dev/disk/by-partlabel/boot_a")
 	content, err := ioutil.ReadFile(bootA)
 	c.Assert(err, IsNil)
 	c.Assert(string(content), Equals, "I'm the default boot image name")
 
 	// also validate that bootB is empty
-	bootB := filepath.Join(dirs.GlobalRootDir, "/dev/disk/by-partlabel/boot_b")
+	bootB := filepath.Join(s.rootdir, "/dev/disk/by-partlabel/boot_b")
 	content, err = ioutil.ReadFile(bootB)
 	c.Assert(err, IsNil)
 	c.Assert(content, HasLen, 0)
