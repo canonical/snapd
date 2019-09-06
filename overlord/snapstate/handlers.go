@@ -1061,7 +1061,8 @@ func (m *SnapManager) doLinkSnap(t *state.Task, _ *tomb.Tomb) (err error) {
 		}
 	}
 
-	// Restore configuration of the target revision (if available; nothing happens if it's not)
+	// Restore configuration of the target revision (if available; nothing happens if it's not).
+	// We only do this on reverts (and not on refreshes).
 	if snapsup.Revert {
 		if err = config.RestoreRevisionConfig(st, snapsup.InstanceName(), snapsup.Revision()); err != nil {
 			return err
