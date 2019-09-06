@@ -234,7 +234,7 @@ func checkModelSnap(snap map[string]interface{}) (*ModelSnap, error) {
 		}
 	} else {
 		trackCh, err := channel.ParseVerbatim(track, "-")
-		if err != nil || trackCh.Track == "" || trackCh.Risk != "" || trackCh.Branch != "" {
+		if err != nil || !trackCh.VerbatimTrackOnly() {
 			return nil, fmt.Errorf("invalid locked track for snap %q: %s", name, track)
 		}
 	}
