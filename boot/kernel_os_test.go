@@ -29,6 +29,7 @@ import (
 	"github.com/snapcore/snapd/boot"
 	"github.com/snapcore/snapd/bootloader"
 	"github.com/snapcore/snapd/bootloader/bootloadertest"
+	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/snap"
@@ -146,7 +147,7 @@ func (s *coreBootSetSuite) TestSetNextBootForKernel(c *C) {
 	info.RealName = "krnl"
 	info.Revision = snap.R(42)
 
-	bp := boot.NewCoreKernel(info)
+	bp := boot.NewCoreBootParticipant(info, snap.TypeKernel)
 	err := bp.SetNextBoot()
 	c.Assert(err, IsNil)
 
@@ -178,7 +179,7 @@ func (s *coreBootSetSuite) TestSetNextBootForKernelForTheSameKernel(c *C) {
 	bootVars := map[string]string{"snap_kernel": "krnl_40.snap"}
 	s.bootloader.SetBootVars(bootVars)
 
-	err := boot.NewCoreKernel(info).SetNextBoot()
+	err := boot.NewCoreBootParticipant(info, snap.TypeKernel).SetNextBoot()
 	c.Assert(err, IsNil)
 
 	v, err := s.bootloader.GetBootVars("snap_kernel")
@@ -200,7 +201,7 @@ func (s *coreBootSetSuite) TestSetNextBootForKernelForTheSameKernelTryMode(c *C)
 		"snap_mode":       "try"}
 	s.bootloader.SetBootVars(bootVars)
 
-	err := boot.NewCoreKernel(info).SetNextBoot()
+	err := boot.NewCoreBootParticipant(info, snap.TypeKernel).SetNextBoot()
 	c.Assert(err, IsNil)
 
 	v, err := s.bootloader.GetBootVars("snap_kernel", "snap_try_kernel", "snap_mode")
@@ -223,10 +224,10 @@ func (s *ubootBootSetSuite) forceUbootBootloader(c *C) bootloader.Bootloader {
 	mockGadgetDir := c.MkDir()
 	err := ioutil.WriteFile(filepath.Join(mockGadgetDir, "uboot.conf"), nil, 0644)
 	c.Assert(err, IsNil)
-	err = bootloader.InstallBootConfig(mockGadgetDir)
+	err = bootloader.InstallBootConfig(mockGadgetDir, dirs.GlobalRootDir)
 	c.Assert(err, IsNil)
 
-	bloader, err := bootloader.Find()
+	bloader, err := bootloader.Find("", nil)
 	c.Assert(err, IsNil)
 	c.Check(bloader, NotNil)
 	bootloader.Force(bloader)
@@ -302,10 +303,10 @@ func (s *grubBootSetSuite) forceGrubBootloader(c *C) bootloader.Bootloader {
 	mockGadgetDir := c.MkDir()
 	err := ioutil.WriteFile(filepath.Join(mockGadgetDir, "grub.conf"), nil, 0644)
 	c.Assert(err, IsNil)
-	err = bootloader.InstallBootConfig(mockGadgetDir)
+	err = bootloader.InstallBootConfig(mockGadgetDir, dirs.GlobalRootDir)
 	c.Assert(err, IsNil)
 
-	bloader, err := bootloader.Find()
+	bloader, err := bootloader.Find("", nil)
 	c.Assert(err, IsNil)
 	c.Check(bloader, NotNil)
 	bloader.SetBootVars(map[string]string{

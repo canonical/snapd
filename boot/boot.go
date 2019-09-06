@@ -30,8 +30,7 @@ import (
 	"github.com/snapcore/snapd/snap"
 )
 
-// A BootParticipant is a snap that is involved in a device's boot
-// process.
+// A BootParticipant handles the boot process details for a snap involved in it.
 type BootParticipant interface {
 	// SetNextBoot will schedule the snap to be used in the next boot. For
 	// base snaps it is up to the caller to select the right bootable base
@@ -40,11 +39,12 @@ type BootParticipant interface {
 	// ChangeRequiresReboot returns whether a reboot is required to switch
 	// to the snap.
 	ChangeRequiresReboot() bool
+	// Is this a trivial implementation of the interface?
+	IsTrivial() bool
 }
 
-// A Kernel is a snap.TypeKernel BootParticipant
-type Kernel interface {
-	BootParticipant
+// A BootKernel handles the bootloader setup of a kernel.
+type BootKernel interface {
 	// RemoveKernelAssets removes the unpacked kernel/initrd for the given
 	// kernel snap.
 	RemoveKernelAssets() error
@@ -52,28 +52,63 @@ type Kernel interface {
 	// kernel snap, if required, to a versioned bootloader directory so
 	// that the bootloader can use it.
 	ExtractKernelAssets(snap.Container) error
+	// Is this a trivial implementation of the interface?
+	IsTrivial() bool
 }
+
+type trivial struct{}
+
+func (trivial) SetNextBoot() error                       { return nil }
+func (trivial) ChangeRequiresReboot() bool               { return false }
+func (trivial) IsTrivial() bool                          { return true }
+func (trivial) RemoveKernelAssets() error                { return nil }
+func (trivial) ExtractKernelAssets(snap.Container) error { return nil }
+
+// ensure trivial is a BootParticipant
+var _ BootParticipant = trivial{}
+
+// ensure trivial is a Kernel
+var _ BootKernel = trivial{}
 
 // Model carries information about the model that is relevant to boot.
 // Note *asserts.Model implements this, and that's the expected use case.
 type Model interface {
 	Kernel() string
 	Base() string
+	Classic() bool
 }
 
-// Lookup figures out what the boot participant is for the given arguments, and
-// returns it. The second return value indicates whether no boot participant
-// exists, and if false the first return value will be nil.
+// Participant figures out what the BootParticipant is for the given
+// arguments, and returns it. If the snap does _not_ participate in
+// the boot process, the returned object will be a NOP, so it's safe
+// to call anything on it always.
 //
-// Currently, on classic, nothing is a boot participant (applicable
-// will always be false).
-func Lookup(s snap.PlaceInfo, t snap.Type, model Model, onClassic bool) (bp BootParticipant, applicable bool) {
+// Currently, on classic, nothing is a boot participant (returned will
+// always be NOP).
+func Participant(s snap.PlaceInfo, t snap.Type, model Model, onClassic bool) BootParticipant {
+	if applicable(s, t, model, onClassic) {
+		return &coreBootParticipant{s: s, t: t}
+	}
+	return trivial{}
+}
+
+// Kernel checks that the given arguments refer to a kernel snap
+// that participates in the boot process, and returns the associated
+// BootKernel, or a trivial implementation otherwise.
+func Kernel(s snap.PlaceInfo, t snap.Type, model Model, onClassic bool) BootKernel {
+	if t == snap.TypeKernel && applicable(s, t, model, onClassic) {
+		return &coreKernel{s: s}
+	}
+	return trivial{}
+}
+
+func applicable(s snap.PlaceInfo, t snap.Type, model Model, onClassic bool) bool {
 	if onClassic {
-		return nil, false
+		return false
 	}
 	if t != snap.TypeOS && t != snap.TypeKernel && t != snap.TypeBase {
 		// note we don't currently have anything useful to do with gadgets
-		return nil, false
+		return false
 	}
 
 	if model != nil {
@@ -81,7 +116,7 @@ func Lookup(s snap.PlaceInfo, t snap.Type, model Model, onClassic bool) (bp Boot
 		case snap.TypeKernel:
 			if s.InstanceName() != model.Kernel() {
 				// a remodel might leave you in this state
-				return nil, false
+				return false
 			}
 		case snap.TypeBase, snap.TypeOS:
 			base := model.Base()
@@ -89,24 +124,18 @@ func Lookup(s snap.PlaceInfo, t snap.Type, model Model, onClassic bool) (bp Boot
 				base = "core"
 			}
 			if s.InstanceName() != base {
-				return nil, false
+				return false
 			}
 		}
 	}
 
-	cbp := &coreBootParticipant{s: s, t: t}
-	bp = cbp
-	if t == snap.TypeKernel {
-		bp = &coreKernel{cbp}
-	}
-
-	return bp, true
+	return true
 }
 
 // InUse checks if the given name/revision is used in the
 // boot environment
 func InUse(name string, rev snap.Revision) bool {
-	bootloader, err := bootloader.Find()
+	bootloader, err := bootloader.Find("", nil)
 	if err != nil {
 		logger.Noticef("cannot get boot settings: %s", err)
 		return false
@@ -153,7 +182,7 @@ func GetCurrentBoot(t snap.Type) (*NameAndRevision, error) {
 		return nil, fmt.Errorf("internal error: cannot find boot revision for snap type %q", t)
 	}
 
-	bloader, err := bootloader.Find()
+	bloader, err := bootloader.Find("", nil)
 	if err != nil {
 		return nil, fmt.Errorf("cannot get boot settings: %s", err)
 	}
@@ -215,7 +244,7 @@ func nameAndRevnoFromSnap(sn string) (*NameAndRevision, error) {
 //   will set snap_mode="" and the system will boot with the known good
 //   values from snap_{core,kernel}
 func MarkBootSuccessful() error {
-	bl, err := bootloader.Find()
+	bl, err := bootloader.Find("", nil)
 	if err != nil {
 		return fmt.Errorf("cannot mark boot successful: %s", err)
 	}

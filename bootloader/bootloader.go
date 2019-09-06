@@ -25,6 +25,7 @@ import (
 	"os"
 	"path/filepath"
 
+	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/snap"
 )
@@ -56,15 +57,22 @@ type Bootloader interface {
 	RemoveKernelAssets(s snap.PlaceInfo) error
 }
 
+type installableBootloader interface {
+	Bootloader
+	setRootDir(string)
+}
+
 // InstallBootConfig installs the bootloader config from the gadget
 // snap dir into the right place.
-func InstallBootConfig(gadgetDir string) error {
-	for _, bl := range []Bootloader{&grub{}, &uboot{}, &androidboot{}, &lk{}} {
+func InstallBootConfig(gadgetDir, rootDir string) error {
+	for _, bl := range []installableBootloader{&grub{}, &uboot{}, &androidboot{}, &lk{}} {
 		// the bootloader config file has to be root of the gadget snap
 		gadgetFile := filepath.Join(gadgetDir, bl.Name()+".conf")
 		if !osutil.FileExists(gadgetFile) {
 			continue
 		}
+
+		bl.setRootDir(rootDir)
 
 		systemFile := bl.ConfigFile()
 		if err := os.MkdirAll(filepath.Dir(systemFile), 0755); err != nil {
@@ -81,24 +89,37 @@ var (
 	forcedError      error
 )
 
-// Find returns the bootloader for the given system
-// or an error if no bootloader is found
-func Find() (Bootloader, error) {
+// Options carries bootloader options.
+type Options struct {
+	// PrepareImageTime indicates whether the booloader is being
+	// used at prepare-image time, that means not on a runtime
+	// system.
+	PrepareImageTime bool
+}
+
+// Find returns the bootloader for the system
+// or an error if no bootloader is found.
+func Find(rootdir string, _ *Options) (Bootloader, error) {
 	if forcedBootloader != nil || forcedError != nil {
 		return forcedBootloader, forcedError
 	}
+
+	if rootdir == "" {
+		rootdir = dirs.GlobalRootDir
+	}
+
 	// try uboot
-	if uboot := newUboot(); uboot != nil {
+	if uboot := newUboot(rootdir); uboot != nil {
 		return uboot, nil
 	}
 
 	// no, try grub
-	if grub := newGrub(); grub != nil {
+	if grub := newGrub(rootdir); grub != nil {
 		return grub, nil
 	}
 
 	// no, try androidboot
-	if androidboot := newAndroidBoot(); androidboot != nil {
+	if androidboot := newAndroidBoot(rootdir); androidboot != nil {
 		return androidboot, nil
 	}
 
