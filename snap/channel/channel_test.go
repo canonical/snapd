@@ -120,6 +120,7 @@ func (s storeChannelSuite) TestParseVerbatim(c *C) {
 		Track:        "sometrack",
 	})
 	c.Check(ch.VerbatimTrackOnly(), Equals, true)
+	c.Check(ch.VerbatimRiskOnly(), Equals, false)
 	c.Check(mustParse(c, "sometrack"), DeepEquals, ch.Clean())
 
 	ch, err = channel.ParseVerbatim("latest", "")
@@ -129,7 +130,18 @@ func (s storeChannelSuite) TestParseVerbatim(c *C) {
 		Track:        "latest",
 	})
 	c.Check(ch.VerbatimTrackOnly(), Equals, true)
+	c.Check(ch.VerbatimRiskOnly(), Equals, false)
 	c.Check(mustParse(c, "latest"), DeepEquals, ch.Clean())
+
+	ch, err = channel.ParseVerbatim("edge", "")
+	c.Assert(err, IsNil)
+	c.Check(ch, DeepEquals, channel.Channel{
+		Architecture: arch.UbuntuArchitecture(),
+		Risk:         "edge",
+	})
+	c.Check(ch.VerbatimTrackOnly(), Equals, false)
+	c.Check(ch.VerbatimRiskOnly(), Equals, true)
+	c.Check(mustParse(c, "edge"), DeepEquals, ch.Clean())
 
 	ch, err = channel.ParseVerbatim("latest/stable", "")
 	c.Assert(err, IsNil)
@@ -139,6 +151,7 @@ func (s storeChannelSuite) TestParseVerbatim(c *C) {
 		Risk:         "stable",
 	})
 	c.Check(ch.VerbatimTrackOnly(), Equals, false)
+	c.Check(ch.VerbatimRiskOnly(), Equals, false)
 	c.Check(mustParse(c, "latest/stable"), DeepEquals, ch.Clean())
 
 	ch, err = channel.ParseVerbatim("latest/stable/foo", "")
@@ -150,6 +163,7 @@ func (s storeChannelSuite) TestParseVerbatim(c *C) {
 		Branch:       "foo",
 	})
 	c.Check(ch.VerbatimTrackOnly(), Equals, false)
+	c.Check(ch.VerbatimRiskOnly(), Equals, false)
 	c.Check(mustParse(c, "latest/stable/foo"), DeepEquals, ch.Clean())
 }
 

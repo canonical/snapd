@@ -156,6 +156,11 @@ func (c *Channel) VerbatimTrackOnly() bool {
 	return c.Track != "" && c.Risk == "" && c.Branch == ""
 }
 
+// VerbatimRiskOnly returns whether the channel represents a risk only.
+func (c *Channel) VerbatimRiskOnly() bool {
+	return c.Track == "" && c.Risk != "" && c.Branch == ""
+}
+
 func riskLevel(risk string) int {
 	for i, r := range channelRisks {
 		if r == risk {
