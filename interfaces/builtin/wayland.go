@@ -159,7 +159,7 @@ func (iface *waylandInterface) UDevPermanentSlot(spec *udev.Specification, slot 
 }
 
 func (iface *waylandInterface) AutoConnect(plug *snap.PlugInfo, slot *snap.SlotInfo) bool {
-	if release.OnClassic {
+	if release.OnClassic && slot != nil {
 		// allow connection to implicit slot
 		return slot.Snap.GetType() == snap.TypeOS
 	} else {
