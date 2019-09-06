@@ -135,7 +135,7 @@ func applicable(s snap.PlaceInfo, t snap.Type, model Model, onClassic bool) bool
 // InUse checks if the given name/revision is used in the
 // boot environment
 func InUse(name string, rev snap.Revision) bool {
-	bootloader, err := bootloader.Find()
+	bootloader, err := bootloader.Find("", nil)
 	if err != nil {
 		logger.Noticef("cannot get boot settings: %s", err)
 		return false
@@ -182,7 +182,7 @@ func GetCurrentBoot(t snap.Type) (*NameAndRevision, error) {
 		return nil, fmt.Errorf("internal error: cannot find boot revision for snap type %q", t)
 	}
 
-	bloader, err := bootloader.Find()
+	bloader, err := bootloader.Find("", nil)
 	if err != nil {
 		return nil, fmt.Errorf("cannot get boot settings: %s", err)
 	}
@@ -244,7 +244,7 @@ func nameAndRevnoFromSnap(sn string) (*NameAndRevision, error) {
 //   will set snap_mode="" and the system will boot with the known good
 //   values from snap_{core,kernel}
 func MarkBootSuccessful() error {
-	bl, err := bootloader.Find()
+	bl, err := bootloader.Find("", nil)
 	if err != nil {
 		return fmt.Errorf("cannot mark boot successful: %s", err)
 	}
