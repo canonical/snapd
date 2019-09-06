@@ -4,8 +4,9 @@ summary: Checks parallel installation of classic snaps
 systems: [-ubuntu-core-*]
 
 prepare: |
-    # ensure we have no snap user data directory yet
+    # ensure we have no snap user data directories yet
     rm -rf /home/test/snap
+    rm -rf /root/snap
     rm -rf /var/snap/test-snapd-classic-confinement
     rm -rf /var/snap/test-snapd-classic-confinement_foo
 
@@ -25,6 +26,15 @@ prepare: |
     esac
 
     snap set system experimental.parallel-instances=true
+
+restore:
+    snap set system experimental.parallel-instances=null
+
+    case "$SPREAD_SYSTEM" in
+        fedora-*|arch-*|centos-*)
+            rm -f /snap
+            ;;
+    esac
 
 execute: |
     #shellcheck source=tests/lib/snaps.sh
@@ -76,6 +86,3 @@ execute: |
     # and does not see instance specific data
     # shellcheck disable=SC2016
     not test-snapd-classic-confinement.sh -c "test -e \$SNAP_COMMON/foobar/hello"
-
-restore:
-    snap set system experimental.parallel-instances=null
