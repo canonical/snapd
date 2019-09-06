@@ -32,7 +32,6 @@ import (
 	"github.com/snapcore/snapd/asserts"
 	"github.com/snapcore/snapd/asserts/snapasserts"
 	"github.com/snapcore/snapd/asserts/sysdb"
-	"github.com/snapcore/snapd/boot"
 	"github.com/snapcore/snapd/bootloader"
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/osutil"
@@ -587,8 +586,10 @@ func setupSeed(tsto *ToolingStore, model *asserts.Model, opts *Options, local *l
 	}
 
 	if !opts.Classic {
+		// TODO: make this functionality part of the boot package?
+
 		// now do the bootloader stuff
-		if err := bootloader.InstallBootConfig(opts.GadgetUnpackDir); err != nil {
+		if err := bootloader.InstallBootConfig(opts.GadgetUnpackDir, dirs.GlobalRootDir); err != nil {
 			return err
 		}
 
@@ -812,7 +813,9 @@ func setBootvars(downloadedSnapsInfoForBootConfig map[string]*snap.Info, model *
 	// Set bootvars for kernel/core snaps so the system boots and
 	// does the first-time initialization. There is also no
 	// mounted kernel/core/base snap, but just the blobs.
-	bloader, err := bootloader.Find()
+	bloader, err := bootloader.Find("", &bootloader.Options{
+		PrepareImageTime: true,
+	})
 	if err != nil {
 		return fmt.Errorf("cannot set kernel/core boot variables: %s", err)
 	}
@@ -849,7 +852,7 @@ func setBootvars(downloadedSnapsInfoForBootConfig map[string]*snap.Info, model *
 			bootvar = "snap_core"
 		case snap.TypeKernel:
 			bootvar = "snap_kernel"
-			if err := extractKernelAssets(fn, info, model); err != nil {
+			if err := extractKernelAssets(bloader, fn, info, model); err != nil {
 				return err
 			}
 		}
@@ -866,15 +869,13 @@ func setBootvars(downloadedSnapsInfoForBootConfig map[string]*snap.Info, model *
 	return nil
 }
 
-func extractKernelAssets(snapPath string, info *snap.Info, model *asserts.Model) error {
+func extractKernelAssets(bootloader bootloader.Bootloader, snapPath string, info *snap.Info, model *asserts.Model) error {
 	snapf, err := snap.Open(snapPath)
 	if err != nil {
 		return err
 	}
 
-	// image always runs in not-on-classic mode
-	kernel := boot.Kernel(info, info.GetType(), model, false)
-	return kernel.ExtractKernelAssets(snapf)
+	return bootloader.ExtractKernelAssets(info, snapf)
 }
 
 func copyLocalSnapFile(snapPath, targetDir string, info *snap.Info) (dstPath string, err error) {
