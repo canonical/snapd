@@ -14,12 +14,9 @@ execute: |
 
     echo "Enable installing the snapd snap, this happens automatically"
     snap set core experimental.snapd-snap=true
-    for _ in $(seq 20); do
-        if snap list snapd; then
-            break
-        fi
-        sleep 6
-    done
+    # give the state time to create the change and then start watching
+    # it
+    retry-tool -n 30 snap watch --last=transition-to-snapd-snap
     snap list snapd
 
     # shellcheck source=tests/lib/journalctl.sh
