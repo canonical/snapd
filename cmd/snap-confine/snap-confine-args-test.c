@@ -188,6 +188,7 @@ static void test_sc_nonfatal_parse_args__evil_input(void)
 	g_assert_null(args);
 	g_assert_cmpstr(sc_error_msg(err), ==,
 			"cannot parse arguments, argcp or argvp is NULL");
+	sc_cleanup_error(&err);
 
 	int argc;
 	char **argv;
@@ -201,6 +202,7 @@ static void test_sc_nonfatal_parse_args__evil_input(void)
 	g_assert_null(args);
 	g_assert_cmpstr(sc_error_msg(err), ==,
 			"cannot parse arguments, argc is zero or argv is NULL");
+	sc_cleanup_error(&err);
 
 	// NULL argv[i] attack
 	test_argc_argv(&argc, &argv,
