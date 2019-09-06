@@ -22,11 +22,18 @@ execute: |
     echo "Install test snap"
     install_local config-versions
 
+    # sanity
+    snap get config-versions configure-marker | MATCH "executed-for-v1"
+
     echo "Setting config value affecting rev 1"
     snap set config-versions value=100
 
     echo "Install a new version of the test snap"
     install_local config-versions-v2
+
+    # sanity
+    snap get config-versions configure-marker | MATCH "executed-for-v2"
+    snap get config-versions post-refresh-hook-marker | MATCH "executed-for-v2"
 
     echo "Expecting config value to be carried over to the new version 2"
     verify_config_value 100
@@ -57,3 +64,13 @@ execute: |
     echo "Revert back to the rev 2"
     snap revert --revision=x2 config-versions
     verify_config_value 400
+    
+    echo "Failing refresh of rev 2"
+    snap refresh --revision=x1 config-versions
+    snap get config-versions post-refresh-hook-marker | MATCH "executed-for-v1"
+    snap get config-versions configure-marker | MATCH "executed-for-v1"
+    # force failure of v2 configure hook
+    snap set config-versions fail-configure=yes
+    snap refresh --revision=x2 config-versions || true
+    snap changes | MATCH "Error .* Refresh \"config-versions\" snap"
+    snap get config-versions post-refresh-hook-marker | MATCH "executed-for-v1"
