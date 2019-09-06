@@ -20,15 +20,13 @@
 package userd
 
 import (
-	"bufio"
 	"fmt"
-	"os"
-	"path/filepath"
-	"strings"
-
-	"github.com/godbus/dbus"
 
 	"github.com/snapcore/snapd/dirs"
+
+	"github.com/snapcore/snapd/osutil"
+
+	"github.com/godbus/dbus"
 )
 
 var snapFromSender = snapFromSenderImpl
@@ -38,7 +36,7 @@ func snapFromSenderImpl(conn *dbus.Conn, sender dbus.Sender) (string, error) {
 	if err != nil {
 		return "", fmt.Errorf("cannot get connection pid: %v", err)
 	}
-	snap, err := snapFromPid(pid)
+	snap, err := osutil.SnapFromPid(pid, dirs.GlobalRootDir)
 	if err != nil {
 		return "", fmt.Errorf("cannot find snap for connection: %v", err)
 	}
@@ -69,41 +67,4 @@ func nameHasOwner(conn *dbus.Conn, sender dbus.Sender) bool {
 	var hasOwner bool
 	call.Store(&hasOwner)
 	return hasOwner
-}
-
-// FIXME: move to osutil?
-func snapFromPid(pid int) (string, error) {
-	f, err := os.Open(fmt.Sprintf("%s/proc/%d/cgroup", dirs.GlobalRootDir, pid))
-	if err != nil {
-		return "", err
-	}
-	defer f.Close()
-
-	scanner := bufio.NewScanner(f)
-	for scanner.Scan() {
-		// we need to find a string like:
-		//   ...
-		//   7:freezer:/snap.hello-world
-		//   ...
-		// See cgroup(7) for details about the /proc/[pid]/cgroup
-		// format.
-		l := strings.Split(scanner.Text(), ":")
-		if len(l) < 3 {
-			continue
-		}
-		controllerList := l[1]
-		cgroupPath := l[2]
-		if !strings.Contains(controllerList, "freezer") {
-			continue
-		}
-		if strings.HasPrefix(cgroupPath, "/snap.") {
-			snap := strings.SplitN(filepath.Base(cgroupPath), ".", 2)[1]
-			return snap, nil
-		}
-	}
-	if scanner.Err() != nil {
-		return "", scanner.Err()
-	}
-
-	return "", fmt.Errorf("cannot find a snap for pid %v", pid)
 }
