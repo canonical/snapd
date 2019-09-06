@@ -286,33 +286,14 @@ func snapChannel(name string, model *asserts.Model, opts *Options, local *localI
 		kind = "kernel"
 		pinnedTrack = model.KernelTrack()
 	}
-	if pinnedTrack != "" {
-		ch, err := makeChannelFromTrack(kind, pinnedTrack, snapChannel)
-		if err != nil {
-			return "", err
-		}
-		snapChannel = ch
-
+	ch, err := channel.ResolveLocked(pinnedTrack, snapChannel)
+	if err == channel.ErrTrackSwitch {
+		return "", fmt.Errorf("channel %q for %s has a track incompatible with the track from model assertion: %s", snapChannel, kind, pinnedTrack)
 	}
-	return snapChannel, nil
-}
-
-func makeChannelFromTrack(what, track, snapChannel string) (string, error) {
-	mch, err := channel.Parse(track, "")
 	if err != nil {
-		return "", fmt.Errorf("cannot use track %q for %s from model assertion: %v", track, what, err)
+		return "", err
 	}
-	if snapChannel != "" {
-		ch, err := channel.ParseVerbatim(snapChannel, "")
-		if err != nil {
-			return "", fmt.Errorf("cannot parse channel %q for %s", snapChannel, what)
-		}
-		if ch.Track != "" && ch.Track != mch.Track {
-			return "", fmt.Errorf("channel %q for %s has a track incompatible with the track from model assertion: %s", snapChannel, what, track)
-		}
-		mch.Risk = ch.Risk
-	}
-	return mch.Clean().String(), nil
+	return ch, nil
 }
 
 func downloadUnpackGadget(tsto *ToolingStore, model *asserts.Model, opts *Options, local *localInfos) error {

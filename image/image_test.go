@@ -507,6 +507,7 @@ func (s *imageSuite) TestDownloadUnpackGadgetFromTrack(c *C) {
 	gadgetUnpackDir := filepath.Join(c.MkDir(), "gadget-unpack-dir")
 	opts := &image.Options{
 		GadgetUnpackDir: gadgetUnpackDir,
+		Channel:         "stable",
 	}
 	local, err := image.LocalSnaps(s.tsto, opts)
 	c.Assert(err, IsNil)
@@ -1442,6 +1443,7 @@ func (s *imageSuite) TestSetupSeedWithKernelAndGadgetTrack(c *C) {
 	opts := &image.Options{
 		RootDir:         rootdir,
 		GadgetUnpackDir: gadgetUnpackDir,
+		Channel:         "stable",
 	}
 	local, err := image.LocalSnaps(s.tsto, opts)
 	c.Assert(err, IsNil)
@@ -1455,9 +1457,10 @@ func (s *imageSuite) TestSetupSeedWithKernelAndGadgetTrack(c *C) {
 
 	c.Check(seedYaml.Snaps, HasLen, 3)
 	c.Check(seedYaml.Snaps[0], DeepEquals, &seed.Snap16{
-		Name:   "core",
-		SnapID: s.AssertedSnapID("core"),
-		File:   "core_3.snap",
+		Name:    "core",
+		SnapID:  s.AssertedSnapID("core"),
+		File:    "core_3.snap",
+		Channel: "stable",
 	})
 	c.Check(seedYaml.Snaps[1], DeepEquals, &seed.Snap16{
 		Name:    "pc-kernel",
