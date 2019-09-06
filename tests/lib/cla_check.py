@@ -9,6 +9,8 @@ import re
 import sys
 from subprocess import check_call, check_output
 
+# IN 92a0962 we have an invalid email address which will break LP
+WHITELIST = [ "zyga@xenial-server" ]
 
 try:
     from launchpadlib.launchpad import Launchpad
@@ -38,6 +40,9 @@ else:
 
 
 def static_email_check(email, master_emails, width):
+    if email in WHITELIST:
+        print("{}✓{} {:<{}} in whitelist".format(green, reset, email, width))
+        return True
     if email in master_emails:
         print("{}✓{} {:<{}} already on master".format(green, reset, email, width))
         return True
