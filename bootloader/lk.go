@@ -154,26 +154,26 @@ func (l *lk) ExtractKernelAssets(s snap.PlaceInfo, snapf snap.Container) error {
 		// new kernel snap to bootimg partition mapping
 		tmpdir, err := ioutil.TempDir("", "bootimg")
 		if err != nil {
-			return fmt.Errorf("cannot create tmp directory %v", err)
+			return fmt.Errorf("cannot create temp directory: %v", err)
 		}
 		defer os.RemoveAll(tmpdir)
 
 		bootImg := env.GetBootImageName()
 		if err := snapf.Unpack(bootImg, tmpdir); err != nil {
-			return fmt.Errorf("cannot unpack %s %v", bootImg, err)
+			return fmt.Errorf("cannot unpack %s: %v", bootImg, err)
 		}
 		// write boot.img to free boot partition
 		bootimgName := filepath.Join(tmpdir, bootImg)
 		bif, err := os.Open(bootimgName)
 		if err != nil {
-			return fmt.Errorf("cannot open unpacked %s %v", bootImg, err)
+			return fmt.Errorf("cannot open unpacked %s: %v", bootImg, err)
 		}
 		defer bif.Close()
 		bpart := filepath.Join(l.dir(), bootPartition)
 
 		bpf, err := os.OpenFile(bpart, os.O_WRONLY, 0660)
 		if err != nil {
-			return fmt.Errorf("cannot open boot partition [%s] %v", bpart, err)
+			return fmt.Errorf("cannot open boot partition [%s]: %v", bpart, err)
 		}
 		defer bpf.Close()
 
@@ -184,7 +184,7 @@ func (l *lk) ExtractKernelAssets(s snap.PlaceInfo, snapf snap.Container) error {
 		// we are preparing image, just extract boot image to bootloader directory
 		logger.Debugf("ExtractKernelAssets handling image prepare")
 		if err := snapf.Unpack(env.GetBootImageName(), l.dir()); err != nil {
-			return fmt.Errorf("cannot open unpacked %s %v", env.GetBootImageName(), err)
+			return fmt.Errorf("cannot open unpacked %s: %v", env.GetBootImageName(), err)
 		}
 	}
 	if err := env.SetBootPartition(bootPartition, blobName); err != nil {

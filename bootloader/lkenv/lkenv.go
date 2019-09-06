@@ -253,12 +253,12 @@ func (l *Env) Load() error {
 func (l *Env) LoadEnv(path string) error {
 	f, err := os.Open(path)
 	if err != nil {
-		return fmt.Errorf("cannot open lk environment file: %v", err)
+		return fmt.Errorf("cannot open LK env file: %v", err)
 	}
 
 	defer f.Close()
 	if err := binary.Read(f, binary.LittleEndian, &l.env); err != nil {
-		return fmt.Errorf("cannot read lk environment from file %v", err)
+		return fmt.Errorf("cannot read LK env from file: %v", err)
 	}
 
 	// calculate crc32 to validate structure
@@ -266,7 +266,7 @@ func (l *Env) LoadEnv(path string) error {
 	ss := binary.Size(l.env)
 	w.Grow(ss)
 	if err := binary.Write(w, binary.LittleEndian, &l.env); err != nil {
-		return fmt.Errorf("cannot write lk environment to buffer for validation %v", err)
+		return fmt.Errorf("cannot write LK env to buffer for validation: %v", err)
 	}
 	if l.env.Version != SNAP_BOOTSELECT_VERSION || l.env.Signature != SNAP_BOOTSELECT_SIGNATURE {
 		return fmt.Errorf("cannot validate version/signature for %s, got 0x%X expected 0x%X, got 0x%X expected 0x%X\n", path, l.env.Version, SNAP_BOOTSELECT_VERSION, l.env.Signature, SNAP_BOOTSELECT_SIGNATURE)
@@ -286,7 +286,7 @@ func (l *Env) Save() error {
 	ss := binary.Size(l.env)
 	w.Grow(ss)
 	if err := binary.Write(w, binary.LittleEndian, &l.env); err != nil {
-		return fmt.Errorf("cannot write lk environment to buffer for saving %v", err)
+		return fmt.Errorf("cannot write LK env to buffer for saving: %v", err)
 	}
 	// calculate crc32
 	l.env.Crc32 = crc32.ChecksumIEEE(w.Bytes()[:ss-4])
@@ -310,15 +310,15 @@ func (l *Env) Save() error {
 func (l *Env) SaveEnv(path string, buf *bytes.Buffer) error {
 	f, err := os.OpenFile(path, os.O_WRONLY, 0660)
 	if err != nil {
-		return fmt.Errorf("cannot open lk env file for env storing %v", err)
+		return fmt.Errorf("cannot open LK env file for env storing: %v", err)
 	}
 	defer f.Close()
 
 	if _, err := f.Write(buf.Bytes()); err != nil {
-		return fmt.Errorf("cannot write lk env buf to lk env file %v", err)
+		return fmt.Errorf("cannot write LK env buf to LK env file: %v", err)
 	}
 	if err := f.Sync(); err != nil {
-		return fmt.Errorf("cannot sync lk environment file %v", err)
+		return fmt.Errorf("cannot sync LK env file: %v", err)
 	}
 	return nil
 }
@@ -357,7 +357,7 @@ func (l *Env) GetBootPartition(kernel string) (string, error) {
 			return cToGoString(l.env.Bootimg_matrix[x][MATRIX_ROW_PARTITION][:]), nil
 		}
 	}
-	return "", fmt.Errorf("cannot find kernel [%s] in boot image partitions", kernel)
+	return "", fmt.Errorf("cannot find kernel %q in boot image partitions", kernel)
 }
 
 // frees boot partition with given kernel revision
