@@ -21,10 +21,14 @@ package seedwriter
 
 import (
 	"fmt"
+	"io/ioutil"
 	"os"
 	"path/filepath"
+	"sort"
+	"strings"
 
 	"github.com/snapcore/snapd/asserts"
+	"github.com/snapcore/snapd/seed"
 	"github.com/snapcore/snapd/snap"
 	"github.com/snapcore/snapd/snap/naming"
 )
@@ -106,4 +110,75 @@ func (tr *tree16) mkFixedDirs() error {
 
 func (tr *tree16) snapsDir() string {
 	return tr.snapsDirPath
+}
+
+func (tr *tree16) writeAssertions(db asserts.RODatabase, modelRefs []*asserts.Ref, snapsFromModel []*SeedSnap) error {
+	seedAssertsDir := filepath.Join(tr.opts.SeedDir, "assertions")
+	if err := os.MkdirAll(seedAssertsDir, 0755); err != nil {
+		return err
+	}
+
+	writeRefs := func(aRefs []*asserts.Ref) error {
+		for _, aRef := range aRefs {
+			var afn string
+			// the names don't matter in practice as long as they don't conflict
+			if aRef.Type == asserts.ModelType {
+				afn = "model"
+			} else {
+				afn = fmt.Sprintf("%s.%s", strings.Join(aRef.PrimaryKey, ","), aRef.Type.Name)
+			}
+			a, err := aRef.Resolve(db.Find)
+			if err != nil {
+				return fmt.Errorf("internal error: lost saved assertion")
+			}
+			if err = ioutil.WriteFile(filepath.Join(seedAssertsDir, afn), asserts.Encode(a), 0644); err != nil {
+				return err
+			}
+		}
+		return nil
+	}
+
+	if err := writeRefs(modelRefs); err != nil {
+		return err
+	}
+
+	for _, sn := range snapsFromModel {
+		if err := writeRefs(sn.ARefs); err != nil {
+			return err
+		}
+	}
+
+	return nil
+}
+
+func (tr *tree16) writeMeta(snapsFromModel []*SeedSnap) error {
+	var seedYaml seed.Seed16
+
+	seedSnaps := make(seedSnapsByType, len(snapsFromModel))
+	copy(seedSnaps, snapsFromModel)
+
+	sort.Stable(seedSnaps)
+
+	seedYaml.Snaps = make([]*seed.Snap16, len(seedSnaps))
+	for i, sn := range seedSnaps {
+		info := sn.Info
+		seedYaml.Snaps[i] = &seed.Snap16{
+			Name:   info.SnapName(),
+			SnapID: info.SnapID, // cross-ref
+			// XXX Channel: snapChannel,
+			File:    filepath.Base(sn.Path),
+			DevMode: info.NeedsDevMode(),
+			Classic: info.NeedsClassic(),
+			Contact: info.Contact,
+			// no assertions for this snap were put in the seed
+			Unasserted: info.SnapID == "",
+		}
+	}
+
+	seedFn := filepath.Join(tr.opts.SeedDir, "seed.yaml")
+	if err := seedYaml.Write(seedFn); err != nil {
+		return fmt.Errorf("cannot write seed.yaml: %v", err)
+	}
+
+	return nil
 }
