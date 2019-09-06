@@ -190,8 +190,14 @@ func (s *WaylandInterfaceSuite) TestStaticInfo(c *C) {
 }
 
 func (s *WaylandInterfaceSuite) TestAutoConnect(c *C) {
-	c.Assert(s.iface.AutoConnect(s.plugInfo, s.coreSlotInfo), Equals, true)
+	// On Classic, only connect to the implicit slot
+	c.Assert(s.iface.AutoConnect(s.plugInfo, s.coreSlotInfo), Equals, false)
 	c.Assert(s.iface.AutoConnect(s.plugInfo, s.classicSlotInfo), Equals, true)
+
+	// On Core, can connect to app supplied slot
+	restore := release.MockOnClassic(false)
+	defer restore()
+	c.Assert(s.iface.AutoConnect(s.plugInfo, s.coreSlotInfo), Equals, true)
 }
 
 func (s *WaylandInterfaceSuite) TestInterfaces(c *C) {
