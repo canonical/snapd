@@ -222,6 +222,21 @@ func (s *writerSuite) fillMetaDownloadedSnap(c *C, w *seedwriter.Writer, sn *see
 	s.doFillMetaDownloadedSnap(c, w, sn)
 }
 
+func (s *writerSuite) TestNewDefaultChannelError(c *C) {
+	model := s.Brands.Model("my-brand", "my-model", map[string]interface{}{
+		"display-name":   "my model",
+		"architecture":   "amd64",
+		"gadget":         "pc",
+		"kernel":         "pc-kernel",
+		"required-snaps": []interface{}{"required"},
+	})
+
+	s.opts.DefaultChannel = "foo/bar"
+	w, err := seedwriter.New(model, s.opts)
+	c.Assert(w, IsNil)
+	c.Check(err, ErrorMatches, `cannot use global default option channel: invalid risk in channel name: foo/bar`)
+}
+
 func (s writerSuite) TestSetOptionsSnapsErrors(c *C) {
 	model := s.Brands.Model("my-brand", "my-model", map[string]interface{}{
 		"display-name":   "my model",
@@ -238,6 +253,7 @@ func (s writerSuite) TestSetOptionsSnapsErrors(c *C) {
 		{[]*seedwriter.OptionSnap{{Name: "foo%&"}}, `invalid snap name: "foo%&"`},
 		{[]*seedwriter.OptionSnap{{Name: "foo_1"}}, `cannot use snap "foo_1", parallel snap instances are unsupported`},
 		{[]*seedwriter.OptionSnap{{Name: "foo"}, {Name: "foo"}}, `snap "foo" is repeated in options`},
+		{[]*seedwriter.OptionSnap{{Name: "foo", Channel: "track/foo"}}, `cannot use option channel for snap "foo": invalid risk in channel name: track/foo`},
 	}
 
 	for _, t := range tests {
@@ -272,8 +288,9 @@ func (s *writerSuite) TestSnapsToDownloadCore16(c *C) {
 
 	c.Check(naming.SameSnap(snaps[0], naming.Snap("core")), Equals, true)
 	c.Check(naming.SameSnap(snaps[1], naming.Snap("pc-kernel")), Equals, true)
+	c.Check(snaps[1].Channel, Equals, "stable")
 	c.Check(naming.SameSnap(snaps[2], naming.Snap("pc")), Equals, true)
-	// XXX c.Check(snaps[2].Channel, Equals, "edge")
+	c.Check(snaps[2].Channel, Equals, "edge")
 	c.Check(naming.SameSnap(snaps[3], naming.Snap("required")), Equals, true)
 }
 
@@ -346,7 +363,7 @@ func (s *writerSuite) TestDownloadedCore18(c *C) {
 	c.Check(naming.SameSnap(snaps[1], naming.Snap("pc-kernel")), Equals, true)
 	c.Check(naming.SameSnap(snaps[2], naming.Snap("core18")), Equals, true)
 	c.Check(naming.SameSnap(snaps[3], naming.Snap("pc")), Equals, true)
-	// XXX c.Check(snaps[3].Channel, Equals, "edge")
+	c.Check(snaps[3].Channel, Equals, "18/edge")
 
 	for _, sn := range snaps {
 		s.fillDownloadedSnap(c, w, sn)
@@ -355,6 +372,36 @@ func (s *writerSuite) TestDownloadedCore18(c *C) {
 	complete, err := w.Downloaded()
 	c.Assert(err, IsNil)
 	c.Check(complete, Equals, true)
+}
+
+func (s *writerSuite) TestSnapsToDownloadCore18IncompatibleTrack(c *C) {
+	model := s.Brands.Model("my-brand", "my-model", map[string]interface{}{
+		"display-name":   "my model",
+		"architecture":   "amd64",
+		"base":           "core18",
+		"gadget":         "pc=18",
+		"kernel":         "pc-kernel=18",
+		"required-snaps": []interface{}{"cont-consumer", "cont-producer"},
+	})
+
+	s.makeSnap(c, "snapd", "")
+	s.makeSnap(c, "core18", "")
+	s.makeSnap(c, "pc-kernel=18", "")
+	s.makeSnap(c, "pc=18", "")
+	s.makeSnap(c, "cont-producer", "developerid")
+	s.makeSnap(c, "cont-consumer", "developerid")
+
+	w, err := seedwriter.New(model, s.opts)
+	c.Assert(err, IsNil)
+
+	err = w.SetOptionsSnaps([]*seedwriter.OptionSnap{{Name: "pc-kernel", Channel: "18.1"}})
+	c.Assert(err, IsNil)
+
+	err = w.Start(s.db, s.newFetcher)
+	c.Assert(err, IsNil)
+
+	_, err = w.SnapsToDownload()
+	c.Check(err, ErrorMatches, `option channel "18.1" for kernel "pc-kernel" has a track incompatible with the track from model assertion: 18`)
 }
 
 func (s *writerSuite) upToDownloaded(c *C, model *asserts.Model, fill func(c *C, w *seedwriter.Writer, sn *seedwriter.SeedSnap)) (complete bool, err error) {
@@ -679,10 +726,18 @@ func (s *writerSuite) TestSeedSnapsWriteMetaCore18(c *C) {
 		p := filepath.Join(s.opts.SeedDir, "snaps", fn)
 		c.Check(osutil.FileExists(p), Equals, true)
 
+		channel := "stable"
+		switch name {
+		case "pc-kernel":
+			channel = "18"
+		case "pc":
+			channel = "18/edge"
+		}
+
 		c.Check(seedYaml.Snaps[i], DeepEquals, &seed.Snap16{
-			Name:   info.SnapName(),
-			SnapID: info.SnapID,
-			// XXX Channel
+			Name:    info.SnapName(),
+			SnapID:  info.SnapID,
+			Channel: channel,
 			File:    fn,
 			Contact: info.Contact,
 		})

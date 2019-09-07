@@ -27,6 +27,7 @@ import (
 	"github.com/snapcore/snapd/asserts"
 	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/snap"
+	"github.com/snapcore/snapd/snap/channel"
 	"github.com/snapcore/snapd/snap/naming"
 )
 
@@ -155,6 +156,9 @@ type Writer struct {
 }
 
 type policy interface {
+	checkDefaultChannel(channel.Channel) error
+	checkSnapChannel(ch channel.Channel, whichSnap string) error
+
 	systemSnap() *asserts.ModelSnap
 
 	checkBase(*snap.Info, *naming.SnapSet) error
@@ -177,10 +181,22 @@ func New(model *asserts.Model, opts *Options) (*Writer, error) {
 	if opts == nil {
 		return nil, fmt.Errorf("internal error: Writer *Options is nil")
 	}
+	pol := &policy16{model: model, opts: opts}
+
+	if opts.DefaultChannel != "" {
+		deflCh, err := channel.ParseVerbatim(opts.DefaultChannel, "_")
+		if err != nil {
+			return nil, fmt.Errorf("cannot use global default option channel: %v", err)
+		}
+		if err := pol.checkDefaultChannel(deflCh); err != nil {
+			return nil, err
+		}
+	}
+
 	return &Writer{
 		model:  model,
 		opts:   opts,
-		policy: &policy16{model: model, opts: opts},
+		policy: pol,
 		tree:   &tree16{opts: opts},
 
 		expectedStep: setOptionsSnapsStep,
@@ -276,6 +292,16 @@ func (w *Writer) SetOptionsSnaps(optSnaps []*OptionSnap) error {
 			}
 			w.byNameOptSnaps.Add(sn)
 		}
+		if sn.Channel != "" {
+			whichSnap := sn.Name
+			ch, err := channel.ParseVerbatim(sn.Channel, "_")
+			if err != nil {
+				return fmt.Errorf("cannot use option channel for snap %q: %v", whichSnap, err)
+			}
+			if err := w.policy.checkSnapChannel(ch, whichSnap); err != nil {
+				return err
+			}
+		}
 	}
 
 	return nil
@@ -352,9 +378,13 @@ func (w *Writer) SnapsToDownload() (snaps []*SeedSnap, err error) {
 
 	for _, modSnap := range modSnaps {
 		optSnap, _ := w.byNameOptSnaps.Lookup(modSnap).(*OptionSnap)
-		// XXX channel = s.policy.ResolveChannel...
+		channel, err := w.resolveChannel(modSnap.SnapName(), modSnap, optSnap)
+		if err != nil {
+			return nil, err
+		}
 		sn := SeedSnap{
 			SnapRef: modSnap,
+			Channel: channel,
 
 			local:      false,
 			modelSnap:  modSnap,
@@ -369,6 +399,44 @@ func (w *Writer) SnapsToDownload() (snaps []*SeedSnap, err error) {
 	w.snapsFromModel = snapsFromModel
 	// XXX once we have local snaps this will not be all of the snaps
 	return snapsFromModel, nil
+}
+
+func (w *Writer) resolveChannel(whichSnap string, modSnap *asserts.ModelSnap, optSnap *OptionSnap) (string, error) {
+	var optChannel string
+	if optSnap != nil {
+		optChannel = optSnap.Channel
+	}
+	if optChannel == "" {
+		optChannel = w.opts.DefaultChannel
+	}
+
+	if modSnap == nil {
+		if optChannel == "" {
+			return "stable", nil
+		}
+		return optChannel, nil
+	}
+
+	if modSnap.Track != "" {
+		resChannel, err := channel.ResolveLocked(modSnap.Track, optChannel)
+		if err == channel.ErrLockedTrackSwitch {
+			return "", fmt.Errorf("option channel %q for %s has a track incompatible with the track from model assertion: %s", optChannel, whichModelSnap(modSnap, w.model), modSnap.Track)
+		}
+		if err != nil {
+			// shouldn't happen given that we check that
+			// the inputs parse before
+			return "", fmt.Errorf("internal error: cannot resolve locked track %q and option channel %q for snap %q", modSnap.Track, optChannel, whichSnap)
+		}
+		return resChannel, nil
+	}
+
+	resChannel, err := channel.Resolve(modSnap.DefaultChannel, optChannel)
+	if err != nil {
+		// shouldn't happen given that we check that
+		// the inputs parse before
+		return "", fmt.Errorf("internal error: cannot resolve model default channel %q and option channel %q for snap %q", modSnap.DefaultChannel, optChannel, whichSnap)
+	}
+	return resChannel, nil
 }
 
 // Downloaded checks the downloaded snaps metadata provided via
