@@ -38,11 +38,14 @@ type settingsSuite struct {
 
 	mockXdgSettings       *testutil.MockCmd
 	restoreSnapFromSender func()
+	rootDir               string
 }
 
 var _ = Suite(&settingsSuite{})
 
 func (s *settingsSuite) SetUpTest(c *C) {
+	s.rootDir = c.MkDir()
+	dirs.SetRootDir(s.rootDir)
 	s.restoreSnapFromSender = userd.MockSnapFromSender(func(*dbus.Conn, dbus.Sender) (string, error) {
 		return "some-snap", nil
 	})
