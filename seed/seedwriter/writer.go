@@ -254,33 +254,6 @@ func (w *Writer) checkStep(thisStep writerStep) error {
 	return nil
 }
 
-func (w *Writer) Start(db asserts.RODatabase, newFetcher NewFetcherFunc) error {
-	if err := w.checkStep(startStep); err != nil {
-		return err
-	}
-	if db == nil {
-		return fmt.Errorf("internal error: Writer *asserts.RODatabsae is nil")
-
-	}
-	if newFetcher == nil {
-		return fmt.Errorf("internal error: Writer newFetcherFunc is nil")
-	}
-	w.db = db
-
-	f := MakeRefAssertsFetcher(newFetcher)
-
-	// XXX support UBUNTU_IMAGE_SKIP_COPY_UNVERIFIED_MODEL ?
-	if err := f.Save(w.model); err != nil {
-		return fmt.Errorf("cannot fetch and check prerequisites for the model assertion: %v", err)
-	}
-
-	w.modelRefs = f.Refs()
-
-	// XXX get if needed the store assertion
-
-	return w.tree.mkFixedDirs()
-}
-
 // SetOptionsSnaps accepts options-referred snaps represented as OptionSnap.
 func (w *Writer) SetOptionsSnaps(optSnaps []*OptionSnap) error {
 	if err := w.checkStep(setOptionsSnapsStep); err != nil {
@@ -306,6 +279,33 @@ func (w *Writer) SetOptionsSnaps(optSnaps []*OptionSnap) error {
 	}
 
 	return nil
+}
+
+func (w *Writer) Start(db asserts.RODatabase, newFetcher NewFetcherFunc) error {
+	if err := w.checkStep(startStep); err != nil {
+		return err
+	}
+	if db == nil {
+		return fmt.Errorf("internal error: Writer *asserts.RODatabsae is nil")
+
+	}
+	if newFetcher == nil {
+		return fmt.Errorf("internal error: Writer newFetcherFunc is nil")
+	}
+	w.db = db
+
+	f := MakeRefAssertsFetcher(newFetcher)
+
+	// XXX support UBUNTU_IMAGE_SKIP_COPY_UNVERIFIED_MODEL ?
+	if err := f.Save(w.model); err != nil {
+		return fmt.Errorf("cannot fetch and check prerequisites for the model assertion: %v", err)
+	}
+
+	w.modelRefs = f.Refs()
+
+	// XXX get if needed the store assertion
+
+	return w.tree.mkFixedDirs()
 }
 
 // LocalSnaps()
