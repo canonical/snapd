@@ -275,6 +275,11 @@ func snapChannel(name string, model *asserts.Model, opts *Options, local *localI
 		// fallback to default channel
 		snapChannel = opts.Channel
 	}
+	if snapChannel != "" {
+		if _, err := channel.ParseVerbatim(snapChannel, "_"); err != nil {
+			return "", fmt.Errorf("cannot use option channel for snap %q: %v", name, err)
+		}
+	}
 	// consider snap types that can be pinned to a track by the model
 	var pinnedTrack string
 	var kind string

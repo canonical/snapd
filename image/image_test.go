@@ -2296,6 +2296,11 @@ func (s *imageSuite) TestSnapChannel(c *C) {
 	opts.SnapChannels["pc-kernel"] = "lts/candidate"
 	_, err = image.SnapChannel("pc-kernel", model, opts, local)
 	c.Assert(err, ErrorMatches, `channel "lts/candidate" for kernel has a track incompatible with the track from model assertion: 18`)
+
+	opts.SnapChannels["pc-kernel"] = "track/foo"
+	_, err = image.SnapChannel("pc-kernel", model, opts, local)
+	c.Assert(err, ErrorMatches, `cannot use option channel for snap "pc-kernel": invalid risk in channel name: track/foo`)
+
 }
 
 func (s *imageSuite) TestSetupSeedLocalSnapd(c *C) {
