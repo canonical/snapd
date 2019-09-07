@@ -32,7 +32,7 @@ import (
 
 	. "gopkg.in/check.v1"
 
-	"github.com/mvo5/libseccomp-golang"
+	seccomp "github.com/mvo5/libseccomp-golang"
 
 	"github.com/snapcore/snapd/arch"
 	main "github.com/snapcore/snapd/cmd/snap-seccomp"
@@ -825,7 +825,7 @@ func (s *snapSeccompSuite) TestCompatArchWorks(c *C) {
 		// https://github.com/seccomp/libseccomp/issues/86
 		//
 		// This means we can not just
-		//    main.MockArchUbuntuArchitecture(t.arch)
+		//    main.MockArchDpkgArchitecture(t.arch)
 		// here because on endian mismatch the arch will *not* be
 		// added
 		if arch.DpkgArchitecture() == t.arch {
