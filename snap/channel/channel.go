@@ -256,7 +256,7 @@ func ResolveLocked(track, newChannel string) (string, error) {
 	if strutil.ListContains(channelRisks, p[0]) && ch.Track != "" {
 		return trackPrefix + newChannel, nil
 	}
-	if !strings.HasPrefix(newChannel, trackPrefix) {
+	if newChannel != track && !strings.HasPrefix(newChannel, trackPrefix) {
 		return "", ErrTrackSwitch
 	}
 	return newChannel, nil
