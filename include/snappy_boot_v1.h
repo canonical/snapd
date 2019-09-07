@@ -30,7 +30,7 @@
 /* partition label where boot select structure is stored */
 #define SNAP_BOOTSELECT_PARTITION "snapbootsel"
 
-/* number of avaiable bootimg partitions, min 2 */
+/* number of available bootimg partitions, min 2 */
 #define SNAP_BOOTIMG_PART_NUM 2
 
 /* snappy bootselect partition format structure */
@@ -68,7 +68,7 @@ typedef struct SNAP_BOOT_SELECTION {
       At image build time:
         - snap prepare populates:
              - fills matrix first column with bootimage part names based on
-               gadget.yaml file where we will support multiple occurance of role: bootimg
+               gadget.yaml file where we will support multiple occurrences of the role: bootimg
              - fills boot_part_num with number of actually available boot partitions
         - snapd:
              - when new kernel snap is installed, snap updates mapping in matrix so
