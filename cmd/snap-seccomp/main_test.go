@@ -32,7 +32,7 @@ import (
 
 	. "gopkg.in/check.v1"
 
-	seccomp "github.com/mvo5/libseccomp-golang"
+	"github.com/mvo5/libseccomp-golang"
 
 	"github.com/snapcore/snapd/arch"
 	main "github.com/snapcore/snapd/cmd/snap-seccomp"
