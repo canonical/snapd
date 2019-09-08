@@ -335,7 +335,22 @@ func StopServices(apps []*snap.AppInfo, reason snap.ServiceStopReason, inter int
 	}
 
 	return nil
+}
 
+// DisableSnapServices disables the specific apps (which should all be services)
+func DisableSnapServices(apps []*snap.AppInfo, inter interacter) error {
+
+	sysd := systemd.New(dirs.GlobalRootDir, systemd.SystemMode, inter)
+
+	svcNames := make([]string, len(apps))
+	for i, app := range apps {
+		if !app.IsService() {
+			return fmt.Errorf("snap app %s is not a service, cannot be disabled", app.Name)
+		}
+
+		svcNames[i] = filepath.Base(app.ServiceFile())
+	}
+	return sysd.DisableMany(svcNames)
 }
 
 // RemoveSnapServices disables and removes service units for the applications from the snap which are services.

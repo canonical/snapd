@@ -189,6 +189,99 @@ apps:
 	})
 }
 
+func (s *servicesTestSuite) TestDisableSnapServices(c *C) {
+	info := snaptest.MockSnap(c, packageHello+`
+ svc2:
+  command: bin/hello
+  daemon: forking
+`, &snap.SideInfo{Revision: snap.R(12)})
+
+	s.systemctlRestorer()
+	r := testutil.MockCommand(c, "systemctl", `#!/bin/sh
+	if [ "$1" = "--root" ]; then
+	    shift 2
+	fi
+
+	case "$1" in
+		disable)
+			case "$2" in 
+			"snap.hello-snap.svc1.service")
+				exit 0
+				;;
+			"snap.hello-snap.svc2.service")
+				exit 0
+				;;
+			*)
+				echo "unexpected service $*"
+				exit 2
+				;;
+			esac
+	        ;;
+	    *)
+	        echo "unexpected op $*"
+	        exit 2
+	esac
+	`)
+	defer r.Restore()
+
+	// manually create the list so that we don't have to deal with
+	// non-deterministic ordering of the range over the info.Apps map
+	svcs := []*snap.AppInfo{
+		info.Apps["svc1"],
+		info.Apps["svc2"],
+	}
+
+	err := wrappers.DisableSnapServices(svcs, progress.Null)
+	c.Assert(err, IsNil)
+
+	c.Assert(r.Calls(), DeepEquals, [][]string{[]string{
+		"systemctl", "--root", s.tempdir, "disable", "snap.hello-snap.svc1.service", "snap.hello-snap.svc2.service",
+	}})
+}
+
+func (s *servicesTestSuite) TestDisableSnapServicesNotService(c *C) {
+	info := snaptest.MockSnap(c, packageHello+`
+ svc2:
+  command: bin/hello
+  daemon: forking
+`, &snap.SideInfo{Revision: snap.R(12)})
+
+	s.systemctlRestorer()
+	r := testutil.MockCommand(c, "systemctl", `#!/bin/sh
+	if [ "$1" = "--root" ]; then
+	    shift 2
+	fi
+
+	case "$1" in
+		disable)
+			case "$2" in 
+			"snap.hello-snap.svc1.service")
+				exit 0
+				;;
+			"snap.hello-snap.svc2.service")
+				exit 0
+				;;
+			*)
+				echo "unexpected service $*"
+				exit 2
+				;;
+			esac
+	        ;;
+	    *)
+	        echo "unexpected op $*"
+	        exit 2
+	esac
+	`)
+	defer r.Restore()
+
+	// manually create the list so that we don't have to deal with
+	// non-deterministic ordering of the range over the info.Apps map
+	svcs := []*snap.AppInfo{info.Apps["hello"]}
+
+	err := wrappers.DisableSnapServices(svcs, progress.Null)
+	c.Assert(err, ErrorMatches, "snap app hello is not a service, cannot be disabled")
+}
+
 func (s *servicesTestSuite) TestStopServicesWithSockets(c *C) {
 	var sysdLog []string
 	r := systemd.MockSystemctl(func(cmd ...string) ([]byte, error) {
