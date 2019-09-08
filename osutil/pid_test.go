@@ -27,9 +27,9 @@ import (
 	. "gopkg.in/check.v1"
 )
 
-type helpersSuite struct{}
+type pidTestSuite struct{}
 
-var _ = Suite(&helpersSuite{})
+var _ = Suite(&pidTestSuite{})
 
 var mockCgroup = []byte(`
 10:devices:/user.slice
@@ -45,7 +45,7 @@ var mockCgroup = []byte(`
 0::/user.slice/user-1000.slice/user@1000.service/gnome-terminal-server.service
 `)
 
-func (s *helpersSuite) TestSnapFromPid(c *C) {
+func (s *pidTestSuite) TestSnapFromPid(c *C) {
 	root := c.MkDir()
 
 	err := os.MkdirAll(filepath.Join(root, "proc/333"), 0755)
