@@ -27,7 +27,9 @@ import (
 	. "gopkg.in/check.v1"
 )
 
-type pidTestSuite struct{}
+type pidTestSuite struct {
+	rootDir string
+}
 
 var _ = Suite(&pidTestSuite{})
 
@@ -45,15 +47,17 @@ var mockCgroup = []byte(`
 0::/user.slice/user-1000.slice/user@1000.service/gnome-terminal-server.service
 `)
 
+func (s *pidTestSuite) SetUpTest(c *C) {
+	s.rootDir = c.MkDir()
+}
+
 func (s *pidTestSuite) TestSnapFromPid(c *C) {
-	root := c.MkDir()
-
-	err := os.MkdirAll(filepath.Join(root, "proc/333"), 0755)
+	err := os.MkdirAll(filepath.Join(s.rootDir, "proc/333"), 0755)
 	c.Assert(err, IsNil)
-	err = ioutil.WriteFile(filepath.Join(root, "proc/333/cgroup"), mockCgroup, 0755)
+	err = ioutil.WriteFile(filepath.Join(s.rootDir, "proc/333/cgroup"), mockCgroup, 0755)
 	c.Assert(err, IsNil)
 
-	snap, err := SnapFromPid(333, root)
+	snap, err := SnapFromPid(333, s.rootDir)
 	c.Assert(err, IsNil)
 	c.Check(snap, Equals, "hello-world")
 }
