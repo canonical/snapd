@@ -384,6 +384,18 @@ func (s *SystemdTestSuite) TestDisable(c *C) {
 	c.Check(s.argses, DeepEquals, [][]string{{"--root", "xyzzy", "disable", "foo"}})
 }
 
+func (s *SystemdTestSuite) TestDisableMany(c *C) {
+	err := New("xyzzy", SystemMode, s.rep).DisableMany([]string{"foo", "bar", "baz"})
+	c.Assert(err, IsNil)
+	c.Check(s.argses, DeepEquals, [][]string{{"--root", "xyzzy", "disable", "foo", "bar", "baz"}})
+}
+
+func (s *SystemdTestSuite) TestDisableManyEmptyList(c *C) {
+	err := New("xyzzy", SystemMode, s.rep).DisableMany([]string{})
+	c.Assert(err, IsNil)
+	c.Check(s.argses, IsNil)
+}
+
 func (s *SystemdTestSuite) TestAvailable(c *C) {
 	err := Available()
 	c.Assert(err, IsNil)

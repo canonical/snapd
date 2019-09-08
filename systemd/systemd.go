@@ -165,6 +165,7 @@ type Systemd interface {
 	DaemonReload() error
 	Enable(service string) error
 	Disable(service string) error
+	DisableMany(services []string) error
 	Start(service ...string) error
 	StartNoBlock(service ...string) error
 	Stop(service string, timeout time.Duration) error
@@ -276,6 +277,19 @@ func (s *systemd) Unmask(serviceName string) error {
 // Disable the given service
 func (s *systemd) Disable(serviceName string) error {
 	_, err := s.systemctl("--root", s.rootDir, "disable", serviceName)
+	return err
+}
+
+// DisableMany the given services
+// NOTE: if serviceNames is empty then nothing is done and nil is returned
+func (s *systemd) DisableMany(serviceNames []string) error {
+	if len(serviceNames) == 0 {
+		return nil
+	}
+	// disable them all in one go
+	_, err := s.systemctl(
+		append([]string{"--root", s.rootDir, "disable"}, serviceNames...)...,
+	)
 	return err
 }
 
