@@ -69,6 +69,7 @@ fi
 }
 
 func (s *settingsSuite) TearDownTest(c *C) {
+	dirs.SetRootDir("/")
 	s.mockXdgSettings.Restore()
 	s.restoreSnapFromSender()
 }

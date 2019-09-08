@@ -20,6 +20,7 @@
 package userd_test
 
 import (
+	"github.com/snapcore/snapd/dirs"
 	"io/ioutil"
 	"os"
 	"path/filepath"
@@ -42,11 +43,14 @@ type launcherSuite struct {
 
 	mockXdgOpen           *testutil.MockCmd
 	restoreSnapFromSender func()
+	rootDir               string
 }
 
 var _ = Suite(&launcherSuite{})
 
 func (s *launcherSuite) SetUpTest(c *C) {
+	s.rootDir = c.MkDir()
+	dirs.SetRootDir(s.rootDir)
 	s.launcher = &userd.Launcher{}
 	s.mockXdgOpen = testutil.MockCommand(c, "xdg-open", "")
 	s.restoreSnapFromSender = userd.MockSnapFromSender(func(*dbus.Conn, dbus.Sender) (string, error) {
@@ -55,6 +59,7 @@ func (s *launcherSuite) SetUpTest(c *C) {
 }
 
 func (s *launcherSuite) TearDownTest(c *C) {
+	dirs.SetRootDir("/")
 	s.mockXdgOpen.Restore()
 	s.restoreSnapFromSender()
 }
