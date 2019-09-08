@@ -577,6 +577,7 @@ func (s *imageSuite) TestSetupSeed(c *C) {
 	defer restore()
 
 	rootdir := filepath.Join(c.MkDir(), "imageroot")
+	blobdir := filepath.Join(rootdir, "var/lib/snapd/snaps")
 	seeddir := filepath.Join(rootdir, "var/lib/snapd/seed")
 	seedsnapsdir := filepath.Join(seeddir, "snaps")
 	seedassertsdir := filepath.Join(seeddir, "assertions")
@@ -652,6 +653,21 @@ func (s *imageSuite) TestSetupSeed(c *C) {
 	c.Check(m["snap_kernel"], Equals, "pc-kernel_2.snap")
 	c.Check(m["snap_core"], Equals, "core_3.snap")
 	c.Check(m["snap_menuentry"], Equals, "my display name")
+
+	// check symlinks from snap blob dir
+	kernelInfo := s.AssertedSnapInfo("pc-kernel")
+	coreInfo := s.AssertedSnapInfo("core")
+	kernelBlob := filepath.Join(blobdir, filepath.Base(kernelInfo.MountFile()))
+	dst, err := os.Readlink(kernelBlob)
+	c.Assert(err, IsNil)
+	c.Check(dst, Equals, "../seed/snaps/pc-kernel_2.snap")
+	c.Check(kernelBlob, testutil.FilePresent)
+
+	coreBlob := filepath.Join(blobdir, filepath.Base(coreInfo.MountFile()))
+	dst, err = os.Readlink(coreBlob)
+	c.Assert(err, IsNil)
+	c.Check(dst, Equals, "../seed/snaps/core_3.snap")
+	c.Check(coreBlob, testutil.FilePresent)
 
 	c.Check(s.stderr.String(), Equals, "")
 }
@@ -890,6 +906,7 @@ func (s *imageSuite) TestSetupSeedWithBase(c *C) {
 	})
 
 	rootdir := filepath.Join(c.MkDir(), "imageroot")
+	blobdir := filepath.Join(rootdir, "/var/lib/snapd/snaps")
 	gadgetUnpackDir := c.MkDir()
 	s.setupSnaps(c, gadgetUnpackDir, map[string]string{
 		"core18":     "canonical",
@@ -954,6 +971,21 @@ func (s *imageSuite) TestSetupSeedWithBase(c *C) {
 	c.Check(m["snap_kernel"], Equals, "pc-kernel_2.snap")
 	c.Assert(err, IsNil)
 	c.Check(m["snap_core"], Equals, "core18_18.snap")
+
+	// check symlinks from snap blob dir
+	kernelInfo := s.AssertedSnapInfo("pc-kernel")
+	baseInfo := s.AssertedSnapInfo("core18")
+	kernelBlob := filepath.Join(blobdir, filepath.Base(kernelInfo.MountFile()))
+	dst, err := os.Readlink(kernelBlob)
+	c.Assert(err, IsNil)
+	c.Check(dst, Equals, "../seed/snaps/pc-kernel_2.snap")
+	c.Check(kernelBlob, testutil.FilePresent)
+
+	baseBlob := filepath.Join(blobdir, filepath.Base(baseInfo.MountFile()))
+	dst, err = os.Readlink(baseBlob)
+	c.Assert(err, IsNil)
+	c.Check(dst, Equals, "../seed/snaps/core18_18.snap")
+	c.Check(baseBlob, testutil.FilePresent)
 
 	c.Check(s.stderr.String(), Equals, "")
 }
