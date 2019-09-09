@@ -89,6 +89,7 @@ What=/var/lib/snapd/snaps/foo_13.snap
 Where=%s/foo/13
 Type=squashfs
 Options=nodev,ro,x-gdu.hide
+LazyUnmount=yes
 
 [Install]
 WantedBy=multi-user.target
