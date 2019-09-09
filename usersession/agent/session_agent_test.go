@@ -33,6 +33,7 @@ import (
 
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/logger"
+	"github.com/snapcore/snapd/osutil/sys"
 	"github.com/snapcore/snapd/testutil"
 	"github.com/snapcore/snapd/usersession/agent"
 )
@@ -146,7 +147,7 @@ func (s *sessionAgentSuite) TestConnectFromOtherUser(c *C) {
 	defer restore()
 
 	// Mock connections to appear to come from a different user ID
-	uid := uint32(syscall.Geteuid())
+	uid := uint32(sys.Geteuid())
 	restore = agent.MockUcred(&syscall.Ucred{Uid: uid + 1}, nil)
 	defer restore()
 

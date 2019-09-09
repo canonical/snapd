@@ -35,6 +35,7 @@ import (
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/netutil"
+	"github.com/snapcore/snapd/osutil/sys"
 	"github.com/snapcore/snapd/systemd"
 )
 
@@ -114,7 +115,7 @@ func (it *idleTracker) trackConn(conn net.Conn, state http.ConnState) {
 			conn.Close()
 			return
 		}
-		if ucred.Uid != 0 && ucred.Uid != uint32(syscall.Geteuid()) {
+		if ucred.Uid != 0 && ucred.Uid != uint32(sys.Geteuid()) {
 			logger.Noticef("Blocking request from user ID %v", ucred.Uid)
 			conn.Close()
 			return
