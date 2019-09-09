@@ -103,12 +103,12 @@ type SnapBootSelect_v1 struct {
 	 *   is pupulated at image build time by snapd
 	 *
 	 * There are two rows in the matrix, representing current and previous kernel revision
-	 * folowing describes how this matrix should be modified at different stages:
+	 * following describes how this matrix should be modified at different stages:
 	 *  - at image build time:
 	 *    - extracted kernel snap revision name should be filled
 	 *      into free slow (first row, second row)
 	 *  - snapd:
-	 *    - when new kernel snap revision is beeing installed, snapd cycles through
+	 *    - when new kernel snap revision is being installed, snapd cycles through
 	 *      matrix to find unused 'boot slot' to be used for new kernel snap revision
 	 *      from free slot, first column represents partition label to which kernel
 	 *      snap boot image should be extracted. Second column is then populated with
