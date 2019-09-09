@@ -68,7 +68,7 @@ WpPUffJzEdhHBFhvYMuD4Vqj6ejUv9l3oTrjQWVC
 		ID:          "canonicalID",
 		Username:    "canonicalUser",
 		DisplayName: "canonicalDisplay",
-		Validation:  "certified",
+		Validation:  "verified",
 	})
 }
 

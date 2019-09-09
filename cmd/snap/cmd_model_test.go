@@ -254,7 +254,7 @@ func (s *SnapSuite) TestModel(c *check.C) {
 			modelF:  simpleHappyResponder(happyModelAssertionResponse),
 			serialF: simpleHappyResponder(happySerialAssertionResponse),
 			outText: `
-brand:   MeMeMe (meuser)
+brand:   MeMeMe (meuser*)
 model:   test-model
 serial:  serialserial
 `[1:],
@@ -264,7 +264,7 @@ serial:  serialserial
 			modelF:  simpleHappyResponder(happyModelWithDisplayNameAssertionResponse),
 			serialF: simpleHappyResponder(happySerialAssertionResponse),
 			outText: `
-brand:   MeMeMe (meuser)
+brand:   MeMeMe (meuser*)
 model:   Model Name (test-model)
 serial:  serialserial
 `[1:],
@@ -274,7 +274,7 @@ serial:  serialserial
 			modelF:  simpleHappyResponder(happyModelAssertionResponse),
 			serialF: simpleUnhappyResponder(noSerialAssertionYetResponse),
 			outText: `
-brand:   MeMeMe (meuser)
+brand:   MeMeMe (meuser*)
 model:   test-model
 serial:  - (device not registered yet)
 `[1:],
@@ -308,7 +308,7 @@ func (s *SnapSuite) TestModelVerbose(c *check.C) {
 	c.Assert(err, check.IsNil)
 	c.Assert(rest, check.DeepEquals, []string{})
 	c.Check(s.Stdout(), check.Equals, `
-brand:           MeMeMe (meuser)
+brand:           MeMeMe (meuser*)
 model:           test-model
 serial:          serialserial
 architecture:    amd64

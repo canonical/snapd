@@ -22,17 +22,17 @@ package client
 import (
 	"fmt"
 
+	"github.com/snapcore/snapd/asserts"
 	"github.com/snapcore/snapd/snap"
 )
 
 // StoreAccount returns the full store account info for the specified accountID
 func (client *Client) StoreAccount(accountID string) (*snap.StoreAccount, error) {
-
-	asserts, err := client.Known("account", map[string]string{"account-id": accountID})
+	assertions, err := client.Known("account", map[string]string{"account-id": accountID})
 	if err != nil {
 		return nil, err
 	}
-	switch len(asserts) {
+	switch len(assertions) {
 	case 1:
 		// happy case, break out of the switch
 	case 0:
@@ -42,11 +42,14 @@ func (client *Client) StoreAccount(accountID string) (*snap.StoreAccount, error)
 		return nil, fmt.Errorf("multiple assertions for account-id %s", accountID)
 	}
 
-	accountAssert := asserts[0]
+	acct, ok := assertions[0].(*asserts.Account)
+	if !ok {
+		return nil, fmt.Errorf("incorrect type of account assertion returned")
+	}
 	return &snap.StoreAccount{
-		ID:          accountID,
-		Username:    accountAssert.HeaderString("username"),
-		DisplayName: accountAssert.HeaderString("display-name"),
-		Validation:  accountAssert.HeaderString("validation"),
+		ID:          acct.AccountID(),
+		Username:    acct.Username(),
+		DisplayName: acct.DisplayName(),
+		Validation:  acct.Validation(),
 	}, nil
 }
