@@ -10969,10 +10969,6 @@ func (snapStateSuite) TestDefaultContentPlugProviders(c *C) {
 	c.Check(providers, DeepEquals, []string{"common-themes", "some-snap"})
 }
 
-type snapSetupSuite struct{}
-
-var _ = Suite(&snapSetupSuite{})
-
 type canRemoveSuite struct {
 	st        *state.State
 	deviceCtx snapstate.DeviceContext
@@ -11018,17 +11014,29 @@ func (s *canRemoveSuite) TestLastGadgetsAreNotOK(c *C) {
 func (s *canRemoveSuite) TestLastOSAndKernelAreNotOK(c *C) {
 	os := &snap.Info{
 		SnapType: snap.TypeOS,
+		SideInfo: snap.SideInfo{
+			Revision: snap.R(1),
+			RealName: "os",
+		},
 	}
-	os.RealName = "os"
+	snapst := &snapstate.SnapState{
+		Current:  os.SideInfo.Revision,
+		Sequence: []*snap.SideInfo{&os.SideInfo},
+	}
+
+	c.Check(snapstate.CanRemove(s.st, os, snapst, true, s.deviceCtx), Equals, false)
+
 	kernel := &snap.Info{
 		SnapType: snap.TypeKernel,
+		SideInfo: snap.SideInfo{
+			RealName: "kernel",
+			Revision: snap.R(1),
+		},
 	}
 	// this kernel part of the model
-	kernel.RealName = "kernel"
+	snapst.Sequence[0] = &kernel.SideInfo
 
-	c.Check(snapstate.CanRemove(s.st, os, &snapstate.SnapState{}, true, s.deviceCtx), Equals, false)
-
-	c.Check(snapstate.CanRemove(s.st, kernel, &snapstate.SnapState{}, true, s.deviceCtx), Equals, false)
+	c.Check(snapstate.CanRemove(s.st, kernel, snapst, true, s.deviceCtx), Equals, false)
 }
 
 func (s *canRemoveSuite) TestKernelBootInUseIsKept(c *C) {
@@ -11036,14 +11044,18 @@ func (s *canRemoveSuite) TestKernelBootInUseIsKept(c *C) {
 		SnapType: snap.TypeKernel,
 		SideInfo: snap.SideInfo{
 			Revision: snap.R(3),
+			RealName: "kernel",
 		},
 	}
-	kernel.RealName = "kernel"
+	snapst := &snapstate.SnapState{
+		Current:  kernel.SideInfo.Revision,
+		Sequence: []*snap.SideInfo{&kernel.SideInfo},
+	}
 
 	s.bootloader.SetBootKernel(fmt.Sprintf("%s_%s.snap", kernel.RealName, kernel.SideInfo.Revision))
 
 	removeAll := false
-	c.Check(snapstate.CanRemove(s.st, kernel, &snapstate.SnapState{}, removeAll, s.deviceCtx), Equals, false)
+	c.Check(snapstate.CanRemove(s.st, kernel, snapst, removeAll, s.deviceCtx), Equals, false)
 }
 
 func (s *canRemoveSuite) TestOstInUseIsKept(c *C) {
@@ -11051,23 +11063,34 @@ func (s *canRemoveSuite) TestOstInUseIsKept(c *C) {
 		SnapType: snap.TypeBase,
 		SideInfo: snap.SideInfo{
 			Revision: snap.R(3),
+			RealName: "core18",
 		},
 	}
-	base.RealName = "core18"
+	snapst := &snapstate.SnapState{
+		Current:  base.SideInfo.Revision,
+		Sequence: []*snap.SideInfo{&base.SideInfo},
+	}
 
 	s.bootloader.SetBootBase(fmt.Sprintf("%s_%s.snap", base.RealName, base.SideInfo.Revision))
 
 	removeAll := false
-	c.Check(snapstate.CanRemove(s.st, base, &snapstate.SnapState{}, removeAll, s.deviceCtx), Equals, false)
+	c.Check(snapstate.CanRemove(s.st, base, snapst, removeAll, s.deviceCtx), Equals, false)
 }
 
 func (s *canRemoveSuite) TestRemoveNonModelKernelIsOk(c *C) {
 	kernel := &snap.Info{
 		SnapType: snap.TypeKernel,
+		SideInfo: snap.SideInfo{
+			Revision: snap.R(1),
+			RealName: "other-non-model-kernel",
+		},
 	}
-	kernel.RealName = "other-non-model-kernel"
+	snapst := &snapstate.SnapState{
+		Current:  kernel.SideInfo.Revision,
+		Sequence: []*snap.SideInfo{&kernel.SideInfo},
+	}
 
-	c.Check(snapstate.CanRemove(s.st, kernel, &snapstate.SnapState{}, true, s.deviceCtx), Equals, true)
+	c.Check(snapstate.CanRemove(s.st, kernel, snapst, true, s.deviceCtx), Equals, true)
 }
 
 func (s *canRemoveSuite) TestRemoveNonModelKernelStillInUseNotOk(c *C) {
@@ -11075,13 +11098,17 @@ func (s *canRemoveSuite) TestRemoveNonModelKernelStillInUseNotOk(c *C) {
 		SnapType: snap.TypeKernel,
 		SideInfo: snap.SideInfo{
 			Revision: snap.R(2),
+			RealName: "other-non-model-kernel",
 		},
 	}
-	kernel.RealName = "other-non-model-kernel"
+	snapst := &snapstate.SnapState{
+		Current:  kernel.SideInfo.Revision,
+		Sequence: []*snap.SideInfo{&kernel.SideInfo},
+	}
 
 	s.bootloader.SetBootKernel(fmt.Sprintf("%s_%s.snap", kernel.RealName, kernel.SideInfo.Revision))
 
-	c.Check(snapstate.CanRemove(s.st, kernel, &snapstate.SnapState{}, true, s.deviceCtx), Equals, false)
+	c.Check(snapstate.CanRemove(s.st, kernel, snapst, true, s.deviceCtx), Equals, false)
 }
 
 func (s *canRemoveSuite) TestLastOSWithModelBaseIsOk(c *C) {
@@ -11091,10 +11118,17 @@ func (s *canRemoveSuite) TestLastOSWithModelBaseIsOk(c *C) {
 	deviceCtx := &snapstatetest.TrivialDeviceContext{DeviceModel: ModelWithBase("core18")}
 	os := &snap.Info{
 		SnapType: snap.TypeOS,
+		SideInfo: snap.SideInfo{
+			Revision: snap.R(1),
+			RealName: "os",
+		},
 	}
-	os.RealName = "os"
+	snapst := &snapstate.SnapState{
+		Current:  os.SideInfo.Revision,
+		Sequence: []*snap.SideInfo{&os.SideInfo},
+	}
 
-	c.Check(snapstate.CanRemove(s.st, os, &snapstate.SnapState{}, true, deviceCtx), Equals, true)
+	c.Check(snapstate.CanRemove(s.st, os, snapst, true, deviceCtx), Equals, true)
 }
 
 func (s *canRemoveSuite) TestLastOSWithModelBaseButOsInUse(c *C) {
@@ -11116,9 +11150,16 @@ func (s *canRemoveSuite) TestLastOSWithModelBaseButOsInUse(c *C) {
 	// now pretend we want to remove the core snap
 	os := &snap.Info{
 		SnapType: snap.TypeOS,
+		SideInfo: snap.SideInfo{
+			Revision: snap.R(1),
+			RealName: "core",
+		},
 	}
-	os.RealName = "core"
-	c.Check(snapstate.CanRemove(s.st, os, &snapstate.SnapState{}, true, deviceCtx), Equals, false)
+	snapst := &snapstate.SnapState{
+		Current:  os.SideInfo.Revision,
+		Sequence: []*snap.SideInfo{&os.SideInfo},
+	}
+	c.Check(snapstate.CanRemove(s.st, os, snapst, true, deviceCtx), Equals, false)
 }
 
 func (s *canRemoveSuite) TestOneRevisionIsOK(c *C) {
@@ -11147,11 +11188,18 @@ func (s *canRemoveSuite) TestBaseUnused(c *C) {
 
 	info := &snap.Info{
 		SnapType: snap.TypeBase,
+		SideInfo: snap.SideInfo{
+			Revision: snap.R(1),
+			RealName: "some-base",
+		},
 	}
-	info.RealName = "some-base"
+	snapst := &snapstate.SnapState{
+		Current:  info.SideInfo.Revision,
+		Sequence: []*snap.SideInfo{&info.SideInfo},
+	}
 
-	c.Check(snapstate.CanRemove(s.st, info, &snapstate.SnapState{Active: true}, false, s.deviceCtx), Equals, true)
-	c.Check(snapstate.CanRemove(s.st, info, &snapstate.SnapState{Active: true}, true, s.deviceCtx), Equals, true)
+	c.Check(snapstate.CanRemove(s.st, info, snapst, false, s.deviceCtx), Equals, true)
+	c.Check(snapstate.CanRemove(s.st, info, snapst, true, s.deviceCtx), Equals, true)
 }
 
 func (s *canRemoveSuite) TestBaseInUse(c *C) {
@@ -11170,9 +11218,16 @@ func (s *canRemoveSuite) TestBaseInUse(c *C) {
 	// pretend now we want to remove "some-base"
 	info := &snap.Info{
 		SnapType: snap.TypeBase,
+		SideInfo: snap.SideInfo{
+			Revision: snap.R(1),
+			RealName: "some-base",
+		},
 	}
-	info.RealName = "some-base"
-	c.Check(snapstate.CanRemove(s.st, info, &snapstate.SnapState{Active: true}, true, s.deviceCtx), Equals, false)
+	snapst := &snapstate.SnapState{
+		Current:  info.SideInfo.Revision,
+		Sequence: []*snap.SideInfo{&info.SideInfo},
+	}
+	c.Check(snapstate.CanRemove(s.st, info, snapst, true, s.deviceCtx), Equals, false)
 }
 
 func (s *canRemoveSuite) TestBaseInUseOtherRevision(c *C) {
@@ -11195,18 +11250,29 @@ func (s *canRemoveSuite) TestBaseInUseOtherRevision(c *C) {
 	// pretend now we want to remove "some-base"
 	info := &snap.Info{
 		SnapType: snap.TypeBase,
+		SideInfo: snap.SideInfo{
+			Revision: snap.R(1),
+			RealName: "some-base",
+		},
 	}
-	info.RealName = "some-base"
+	snapst := &snapstate.SnapState{
+		Current:  info.SideInfo.Revision,
+		Sequence: []*snap.SideInfo{&info.SideInfo},
+	}
 	// revision 1 requires some-base
-	c.Check(snapstate.CanRemove(s.st, info, &snapstate.SnapState{Active: true}, true, s.deviceCtx), Equals, false)
+	c.Check(snapstate.CanRemove(s.st, info, snapst, true, s.deviceCtx), Equals, false)
 
 	// now pretend we want to remove the core snap
 	os := &snap.Info{
 		SnapType: snap.TypeOS,
+		SideInfo: snap.SideInfo{
+			Revision: snap.R(1),
+			RealName: "core",
+		},
 	}
-	os.RealName = "core"
+	snapst.Sequence[0] = &os.SideInfo
 	// but revision 2 requires core
-	c.Check(snapstate.CanRemove(s.st, os, &snapstate.SnapState{}, true, s.deviceCtx), Equals, false)
+	c.Check(snapstate.CanRemove(s.st, os, snapst, true, s.deviceCtx), Equals, false)
 }
 
 func revs(seq []*snap.SideInfo) []int {

@@ -303,6 +303,14 @@ func (snapst *SnapState) CurrentInfo() (*snap.Info, error) {
 	return readInfo(name, cur, withAuxStoreInfo)
 }
 
+func (snapst *SnapState) InstanceName() string {
+	cur := snapst.CurrentSideInfo()
+	if cur == nil {
+		return ""
+	}
+	return snap.InstanceName(cur.RealName, snapst.InstanceKey)
+}
+
 func revisionInSequence(snapst *SnapState, needle snap.Revision) bool {
 	for _, si := range snapst.Sequence {
 		if si.Revision == needle {
