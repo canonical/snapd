@@ -244,7 +244,7 @@ func (s *patch63Suite) TestPatch63(c *C) {
 	c.Check(all, HasLen, 4)
 	c.Check(all["prefix-postfix-slashes"], NotNil)
 	// our patch changed this
-	c.Check(all["prefix-postfix-slashes"].Channel, Equals, "edge")
+	c.Check(all["prefix-postfix-slashes"].Channel, Equals, "latest/edge")
 	// none of the other information has changed
 	c.Check(all["prefix-postfix-slashes"], DeepEquals, &snapstate.SnapState{
 		SnapType: "app",
@@ -265,13 +265,13 @@ func (s *patch63Suite) TestPatch63(c *C) {
 		},
 		Active:  true,
 		Current: snap.R(32),
-		Channel: "edge",
+		Channel: "latest/edge",
 		UserID:  1,
 	})
 	// another transition
-	c.Check(all["one-prefix-slash"].Channel, Equals, "stable")
-	// normalized
-	c.Check(all["track-with-risk"].Channel, Equals, "stable")
+	c.Check(all["one-prefix-slash"].Channel, Equals, "latest/stable")
+	// full
+	c.Check(all["track-with-risk"].Channel, Equals, "latest/stable")
 	// unchanged
 	c.Check(all["track-with-risk-branch"].Channel, Equals, "1.0/stable/branch")
 
@@ -282,7 +282,7 @@ func (s *patch63Suite) TestPatch63(c *C) {
 	var snapsup snapstate.SnapSetup
 	err = task.Get("snap-setup", &snapsup)
 	c.Assert(err, IsNil)
-	c.Check(snapsup.Channel, Equals, "stable")
+	c.Check(snapsup.Channel, Equals, "latest/stable")
 
 	// sanity check that old stuff is untouched
 	c.Check(snapsup.Flags.IsAutoRefresh, Equals, true)
