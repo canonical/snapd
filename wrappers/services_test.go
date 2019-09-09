@@ -238,12 +238,12 @@ func (s *servicesTestSuite) TestCurrentSnapServiceStates(c *C) {
 
 	// the calls could be out of order in the list, since iterating over a map
 	// is non-deterministic, so manually check each call
+	c.Assert(r.Calls(), HasLen, 2)
 	for _, call := range r.Calls() {
 		c.Assert(call, HasLen, 5)
 		c.Assert(call[:4], DeepEquals, []string{"systemctl", "--root", s.tempdir, "is-enabled"})
 		switch call[4] {
-		case svc1File:
-		case svc2File:
+		case svc1File, svc2File:
 		default:
 			c.Errorf("unknown service for systemctl call: %s", call[4])
 		}
