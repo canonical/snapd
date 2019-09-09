@@ -78,26 +78,30 @@ void
 {
 	int argc = 0;
 	char **argv = NULL;
-	g_test_queue_free(argv);
-
 	va_list ap;
+
+	/* find out how many elements there are */
 	va_start(ap, argvp);
-	const char *arg;
-	do {
-		arg = va_arg(ap, const char *);
-		// XXX: yeah, wrong way but the worse that can happen is for test to fail
-		argv = realloc(argv, sizeof(const char **) * (argc + 1));
-		g_assert_nonnull(argv);
-		if (arg != NULL) {
-			char *arg_copy = sc_strdup(arg);
-			g_test_queue_free(arg_copy);
-			argv[argc] = arg_copy;
-			argc += 1;
-		} else {
-			argv[argc] = NULL;
-		}
-	} while (arg != NULL);
+	while (NULL != va_arg(ap, const char *)) {
+		argc += 1;
+	}
 	va_end(ap);
+
+	/* argc + terminating NULL entry */
+	argv = calloc(argc + 1, sizeof argv[0]);
+	g_assert_nonnull(argv);
+
+	va_start(ap, argvp);
+	for (int i = 0; i < argc; i++) {
+		const char *arg = va_arg(ap, const char *);
+		char *arg_copy = sc_strdup(arg);
+		g_test_queue_free(arg_copy);
+		argv[i] = arg_copy;
+	}
+	va_end(ap);
+
+	/* free argv last, so that entries do not leak */
+	g_test_queue_free(argv);
 
 	*argcp = argc;
 	*argvp = argv;

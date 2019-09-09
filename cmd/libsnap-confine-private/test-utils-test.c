@@ -42,15 +42,20 @@ static void test_rm_rf_tmp(void)
 static void test_test_argc_argv(void)
 {
 	// Check that test_argc_argv() correctly stores data
-	int argc;
-	char **argv;
+	int argc = 0;
+	char **argv = NULL;
 
 	test_argc_argv(&argc, &argv, NULL);
 	g_assert_cmpint(argc, ==, 0);
+	g_assert_nonnull(argv);
 	g_assert_null(argv[0]);
+
+	argc = 0;
+	argv = NULL;
 
 	test_argc_argv(&argc, &argv, "zero", "one", "two", NULL);
 	g_assert_cmpint(argc, ==, 3);
+	g_assert_nonnull(argv);
 	g_assert_cmpstr(argv[0], ==, "zero");
 	g_assert_cmpstr(argv[1], ==, "one");
 	g_assert_cmpstr(argv[2], ==, "two");
