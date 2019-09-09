@@ -50,7 +50,7 @@ const (
 )
 
 /**
- * following structure has to be kept in sync with c structure defined by
+ * Following structure has to be kept in sync with c structure defined by
  * include/snappy-boot_v1.h
  * c headerfile is used by bootloader, this ensures sync of  the environment
  * between snapd and bootloader
@@ -85,48 +85,64 @@ type SnapBootSelect_v1 struct {
 	Snap_try_gadget [SNAP_NAME_MAX_LEN]byte
 
 	/**
-	Reboot reason
-	Optional parameter to signal bootloader alternative reboot reasons
-	e.g. recovery/factory-reset/boot asset update
-	*/
+	 * Reboot reason
+	 * optional parameter to signal bootloader alternative reboot reasons
+	 * e.g. recovery/factory-reset/boot asset update
+	 */
 	Reboot_reason [SNAP_NAME_MAX_LEN]byte
 
 	/**
-	 Matrix for mapping of boot img partion to installed kernel snap revision
-	 At image build time:
-			 - snap prepare populates boot args as for other bootloaders
-			 - first column with bootimage part names can be filled at gadget builds
-			   or in the future by snap prepare image time
-			 - ExtractKernelAssets fills mapping for initial boot image
-	 snapd:
-			 - when new kernel snap is installed, ExtractKernelAssets updates mapping
-			   in matrix for bootloader to pick correct kernel snap to use for boot
-			 - snap_mode, snap_try_kernel, snap_try_core behaves same way as with u-boot
-			 - boot partition labels are never modified by snapd at run time
-	 bootloader:
-			 - Finds boot partition to use based on info in matrix and snap_kernel / snap_try_kernel
-			 - bootloader does not alter matrix, only alters snap_mode
-
-	 [ <bootimg 1 part label> ] [ <currently installed kernel snap revison> ]
-	 [ <bootimg 2 part label> ] [ <currently installed kernel snap revision> ]
-	*/
+	 * Matrix for mapping of boot img partion to installed kernel snap revision
+	 *
+	 * First column represents boot image partition label (e.g. boot_a,boot_b )
+	 *   value are static and should be populated at gadget built time
+	 *   or latest at image build time. Values are not further altered at run time.
+	 * Second column represents name currently installed kernel snap
+	 *   e.g. pi2-kernel_123.snap
+	 * initial value representing initial kernel snap revision
+	 *   is pupulated at image build time by snapd
+	 *
+	 * There are two rows in the matrix, representing current and previous kernel revision
+	 * folowing describes how this matrix should be modified at different stages:
+	 *  - at image build time:
+	 *    - extracted kernel snap revision name should be filled
+	 *      into free slow (first row, second row)
+	 *  - snapd:
+	 *    - when new kernel snap revision is beeing installed, snapd cycles through
+	 *      matrix to find unused 'boot slot' to be used for new kernel snap revision
+	 *      from free slot, first column represents partition label to which kernel
+	 *      snap boot image should be extracted. Second column is then populated with
+	 *      kernel snap revision name.
+	 *    - snap_mode, snap_try_kernel, snap_try_core behaves same way as with u-boot
+	 *  - bootloader:
+	 *    - bootloader reads snap_mode to determine if snap_kernel or snap_kernel is used
+	 *      to get kernel snap revision name
+	 *      kernel snap revision is then used to search matrix to determine
+	 *      partition label to be used for current boot
+	 *    - bootloader NEVER alters this matrix values
+	 *
+	 * [ <bootimg 1 part label> ] [ <currently installed kernel snap revison> ]
+	 * [ <bootimg 2 part label> ] [ <currently installed kernel snap revision> ]
+	 */
 	Bootimg_matrix [SNAP_BOOTIMG_PART_NUM][2][SNAP_NAME_MAX_LEN]byte
 
-	/* name of the boot image from kernel snap to be used for extraction
-	   when not defined or empty, default boot.img will be used */
+	/**
+	 * name of the boot image from kernel snap to be used for extraction
+	 * when not defined or empty, default boot.img will be used
+	 */
 	Bootimg_file_name [SNAP_NAME_MAX_LEN]byte
 
 	/**
-	GADGET assets: Matrix for mapping of gadget asset partions
-	Optional boot asset tracking, based on bootloader support
-	Some boot chains support A/B boot assets for increased robustness
-	example being A/B TrustExecutionEnvironment
-	This matrix can be used to track current and try boot assets for
-	robust updates
-
-	[ <boot assets 1 part label> ] [ <currently installed assets revison> ]
-	[ <boot assets 2 part label> ] [ <currently installed assets revision> ]
-	*/
+	 * Gadget assets: Matrix for mapping of gadget asset partions
+	 * Optional boot asset tracking, based on bootloader support
+	 * Some boot chains support A/B boot assets for increased robustness
+	 * example being A/B TrustExecutionEnvironment
+	 * This matrix can be used to track current and try boot assets for
+	 * robust updates
+	 *
+	 * [ <boot assets 1 part label> ] [ <currently installed assets revison> ]
+	 * [ <boot assets 2 part label> ] [ <currently installed assets revision> ]
+	 */
 	Boot_asset_matrix [SNAP_BOOTIMG_PART_NUM][2][SNAP_NAME_MAX_LEN]byte
 
 	/* unused placeholders for additional parameters in the future */
@@ -150,7 +166,8 @@ type Env struct {
 	env     SnapBootSelect_v1
 }
 
-//helper function to trim string from byte array to actual length
+// cToGoString convert string in passed byte array into string type
+// if string in byte array is not terminated, empty string is returned
 func cToGoString(c []byte) string {
 	if end := bytes.IndexByte(c, 0); end >= 0 {
 		return string(c[:end])
@@ -159,7 +176,9 @@ func cToGoString(c []byte) string {
 	return ""
 }
 
-// helper function to copy string into array and making sure it's terminated
+// copyString copy passed string into byte array
+// make sure string is terminated
+// if string does not fit into byte array, it will be concatenated
 func copyString(b []byte, s string) {
 	sl := len(s)
 	bs := len(b)
@@ -227,17 +246,20 @@ func (l *Env) Set(key, value string) {
 	}
 }
 
-// Configure partition labels for used boot partitions
-// this should not be used at run time, it should be used
-// once at image build time, if part labels are not filled by gadget build
+// ConfigureBootPartitions set boot partitions label names
+// this function should not be used at run time!
+// it should be used only at image build time,
+// if partition labels are not pre-filled by gadget built
 func (l *Env) ConfigureBootPartitions(boot_1, boot_2 string) {
 	copyString(l.env.Bootimg_matrix[0][MATRIX_ROW_PARTITION][:], boot_1)
 	copyString(l.env.Bootimg_matrix[1][MATRIX_ROW_PARTITION][:], boot_2)
 }
 
-// Configure boot image file name to be used at kernel extraction time
-// this should not be used at run time, it should be used
-// once at image build time if default boot.img is not used
+// ConfigureBootimgName set boot image file name
+// boot image file name is used at kernel extraction time
+// this function should not be used at run time!
+// it should be used only at image build time
+// if default boot.img is not set by gadget built
 func (l *Env) ConfigureBootimgName(bootimgName string) {
 	copyString(l.env.Bootimg_file_name[:], bootimgName)
 }
@@ -323,8 +345,9 @@ func (l *Env) SaveEnv(path string, buf *bytes.Buffer) error {
 	return nil
 }
 
-// Find first free boot partition to be used
-// - consider kernel snap blob name, if already used simply return used part name
+// FindFreeBootPartition find free boot partition to be used for new kernel revision
+// - consider kernel snap blob name, if kernel name matches
+//   already installed revision, return coresponding partition name
 // - protect partition used by kernel_snap, consider other as free
 // - consider only boot partitions with defined partition name
 func (l *Env) FindFreeBootPartition(kernel string) (string, error) {
@@ -340,7 +363,7 @@ func (l *Env) FindFreeBootPartition(kernel string) (string, error) {
 	return "", fmt.Errorf("cannot find free partition for boot image")
 }
 
-// sets kernel revision to defined boot partition partition
+// SetBootPartition set kernel revison name to passed boot partition
 func (l *Env) SetBootPartition(bootpart, kernel string) error {
 	for x := range l.env.Bootimg_matrix {
 		if bootpart == cToGoString(l.env.Bootimg_matrix[x][MATRIX_ROW_PARTITION][:]) {
@@ -360,8 +383,8 @@ func (l *Env) GetBootPartition(kernel string) (string, error) {
 	return "", fmt.Errorf("cannot find kernel %q in boot image partitions", kernel)
 }
 
-// frees boot partition with given kernel revision
-// ignored if it cannot find given kernel revision
+// FreeBootPartition free passed kernel revision from any boot partition
+// ignore if there is no boot partition with given kernel revision
 func (l *Env) FreeBootPartition(kernel string) (bool, error) {
 	for x := range l.env.Bootimg_matrix {
 		if "" != cToGoString(l.env.Bootimg_matrix[x][MATRIX_ROW_PARTITION][:]) {
@@ -374,7 +397,7 @@ func (l *Env) FreeBootPartition(kernel string) (bool, error) {
 	return false, fmt.Errorf("cannot find defined [%s] boot image partition", kernel)
 }
 
-// return name of boot.img from kernel snap to used
+// GetBootImageName return expected boot image file name in kernel snap
 func (l *Env) GetBootImageName() string {
 	if "" != cToGoString(l.env.Bootimg_file_name[:]) {
 		return cToGoString(l.env.Bootimg_file_name[:])

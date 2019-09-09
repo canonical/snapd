@@ -129,9 +129,12 @@ func (l *lk) SetBootVars(values map[string]string) error {
 	return nil
 }
 
-// for lk we need to flash boot image to free bootimg partition
-// first make sure there is free boot part to use
-// if this is image creation, we just extract file
+// ExtractKernelAssets extract kernel assets per bootloader specifics
+// lk bootloader requires boot partition to hold valid boot image
+// there are two boot partition available, one holding current bootimage
+// kernel assets are extracted to other (free) boot partition
+// in case this function is called as part of image creation,
+// boot image is extracted to the file
 func (l *lk) ExtractKernelAssets(s snap.PlaceInfo, snapf snap.Container) error {
 	blobName := filepath.Base(s.MountFile())
 
