@@ -47,6 +47,7 @@ import (
 	"github.com/snapcore/snapd/overlord/patch"
 	"github.com/snapcore/snapd/overlord/snapshotstate"
 	"github.com/snapcore/snapd/overlord/snapstate"
+	_ "github.com/snapcore/snapd/overlord/snapstate/policy"
 	"github.com/snapcore/snapd/overlord/state"
 	"github.com/snapcore/snapd/overlord/storecontext"
 	"github.com/snapcore/snapd/store"
