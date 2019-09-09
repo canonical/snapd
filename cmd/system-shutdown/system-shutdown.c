@@ -33,9 +33,30 @@
 
 #include "system-shutdown-utils.h"
 #include "../libsnap-confine-private/string-utils.h"
+#include "../libsnap-confine-private/panic.h"
+
+static void show_error(const char *fmt, va_list ap, int errno_copy)
+{
+	fprintf(stderr, "snapd system-shutdown helper: ");
+	fprintf(stderr, "*** ");
+	vfprintf(stderr, fmt, ap);
+	if (errno_copy != 0) {
+		fprintf(stderr, ": %s", strerror(errno_copy));
+	}
+	fprintf(stderr, "\n");
+}
+
+static void sync_and_halt(void)
+{
+	sync();
+	reboot(RB_HALT_SYSTEM);
+}
 
 int main(int argc, char *argv[])
 {
+	sc_set_panic_msg_fn(show_error);
+	sc_set_panic_exit_fn(sync_and_halt);
+
 	// 256 should be more than enough...
 	char reboot_arg[256] = { 0 };
 

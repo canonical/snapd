@@ -758,6 +758,7 @@ profile snap-update-ns.###SNAP_INSTANCE_NAME### (attach_disconnected) {
 
   # Allow the content interface to bind fonts from the host filesystem
   mount options=(ro bind) /var/lib/snapd/hostfs/usr/share/fonts/ -> /snap/###SNAP_INSTANCE_NAME###/*/**,
+  mount options=(rw private) -> /snap/###SNAP_INSTANCE_NAME###/*/**,
   umount /snap/###SNAP_INSTANCE_NAME###/*/**,
 
   # set up user mount namespace

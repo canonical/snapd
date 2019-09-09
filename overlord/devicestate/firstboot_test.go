@@ -49,6 +49,7 @@ import (
 	"github.com/snapcore/snapd/overlord/snapstate"
 	"github.com/snapcore/snapd/overlord/state"
 	"github.com/snapcore/snapd/release"
+	"github.com/snapcore/snapd/seed"
 	"github.com/snapcore/snapd/seed/seedtest"
 	"github.com/snapcore/snapd/snap"
 	"github.com/snapcore/snapd/snap/snaptest"
@@ -987,7 +988,10 @@ func (s *FirstBootTestSuite) TestImportAssertionsFromSeedClassicModelMismatch(c 
 	st.Lock()
 	defer st.Unlock()
 
-	_, err = devicestate.ImportAssertionsFromSeed(st)
+	deviceSeed, err := seed.Open(dirs.SnapSeedDir)
+	c.Assert(err, IsNil)
+
+	_, err = devicestate.ImportAssertionsFromSeed(st, deviceSeed)
 	c.Assert(err, ErrorMatches, "cannot seed a classic system with an all-snaps model")
 }
 
@@ -1004,7 +1008,10 @@ func (s *FirstBootTestSuite) TestImportAssertionsFromSeedAllSnapsModelMismatch(c
 	st.Lock()
 	defer st.Unlock()
 
-	_, err = devicestate.ImportAssertionsFromSeed(st)
+	deviceSeed, err := seed.Open(dirs.SnapSeedDir)
+	c.Assert(err, IsNil)
+
+	_, err = devicestate.ImportAssertionsFromSeed(st, deviceSeed)
 	c.Assert(err, ErrorMatches, "cannot seed an all-snaps system with a classic model")
 }
 
@@ -1027,7 +1034,10 @@ func (s *FirstBootTestSuite) TestImportAssertionsFromSeedHappy(c *C) {
 	st.Lock()
 	defer st.Unlock()
 
-	model, err := devicestate.ImportAssertionsFromSeed(st)
+	deviceSeed, err := seed.Open(dirs.SnapSeedDir)
+	c.Assert(err, IsNil)
+
+	model, err := devicestate.ImportAssertionsFromSeed(st, deviceSeed)
 	c.Assert(err, IsNil)
 	c.Assert(model, NotNil)
 
@@ -1065,9 +1075,12 @@ func (s *FirstBootTestSuite) TestImportAssertionsFromSeedMissingSig(c *C) {
 		}
 	}
 
+	deviceSeed, err := seed.Open(dirs.SnapSeedDir)
+	c.Assert(err, IsNil)
+
 	// try import and verify that its rejects because other assertions are
 	// missing
-	_, err := devicestate.ImportAssertionsFromSeed(st)
+	_, err = devicestate.ImportAssertionsFromSeed(st, deviceSeed)
 	c.Assert(err, ErrorMatches, "cannot resolve prerequisite assertion: account-key .*")
 }
 
@@ -1083,10 +1096,13 @@ func (s *FirstBootTestSuite) TestImportAssertionsFromSeedTwoModelAsserts(c *C) {
 	model2 := s.Brands.Model("my-brand", "my-second-model", s.modelHeaders("my-second-model"))
 	s.WriteAssertions("model2", model2)
 
+	deviceSeed, err := seed.Open(dirs.SnapSeedDir)
+	c.Assert(err, IsNil)
+
 	// try import and verify that its rejects because other assertions are
 	// missing
-	_, err := devicestate.ImportAssertionsFromSeed(st)
-	c.Assert(err, ErrorMatches, "cannot add more than one model assertion")
+	_, err = devicestate.ImportAssertionsFromSeed(st, deviceSeed)
+	c.Assert(err, ErrorMatches, "cannot have multiple model assertions in seed")
 }
 
 func (s *FirstBootTestSuite) TestImportAssertionsFromSeedNoModelAsserts(c *C) {
@@ -1101,10 +1117,13 @@ func (s *FirstBootTestSuite) TestImportAssertionsFromSeedNoModelAsserts(c *C) {
 		}
 	}
 
+	deviceSeed, err := seed.Open(dirs.SnapSeedDir)
+	c.Assert(err, IsNil)
+
 	// try import and verify that its rejects because other assertions are
 	// missing
-	_, err := devicestate.ImportAssertionsFromSeed(st)
-	c.Assert(err, ErrorMatches, "need a model assertion")
+	_, err = devicestate.ImportAssertionsFromSeed(st, deviceSeed)
+	c.Assert(err, ErrorMatches, "seed must have a model assertion")
 }
 
 type core18SnapsOpts struct {
@@ -1209,7 +1228,7 @@ snaps:
 	tsAll, err := devicestate.PopulateStateFromSeedImpl(st, s.perfTimings)
 	c.Assert(err, IsNil)
 
-	checkOrder(c, tsAll, "snapd", "core18", "pc-kernel", "pc")
+	checkOrder(c, tsAll, "snapd", "pc-kernel", "core18", "pc")
 
 	// now run the change and check the result
 	// use the expected kind otherwise settle with start another one
@@ -1331,7 +1350,7 @@ snaps:
 	tsAll, err := devicestate.PopulateStateFromSeedImpl(st, s.perfTimings)
 	c.Assert(err, IsNil)
 
-	checkOrder(c, tsAll, "snapd", "core18", "pc-kernel", "pc", "other-base", "snap-req-other-base")
+	checkOrder(c, tsAll, "snapd", "pc-kernel", "core18", "pc", "other-base", "snap-req-other-base")
 }
 
 func (s *FirstBootTestSuite) TestFirstbootGadgetBaseModelBaseMismatch(c *C) {
