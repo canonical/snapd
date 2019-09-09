@@ -174,12 +174,8 @@ func (x *cmdModel) Execute(args []string) error {
 			// use the display-name for the model if it exists (with the
 			// normal model header after the display-name)
 			modelHeader := modelAssertion.HeaderString("model")
-			if displayName, ok := modelAssertion.Headers()["display-name"]; ok {
-				displayNameStr, ok := displayName.(string)
-				if !ok {
-					return fmt.Errorf(invalidTypeMessage, "display-name")
-				}
-				modelHeader = fmt.Sprintf("%s (%s)", displayNameStr, modelHeader)
+			if displayName := modelAssertion.HeaderString("display-name"); displayName != "" {
+				modelHeader = fmt.Sprintf("%s (%s)", displayName, modelHeader)
 			}
 			fmt.Fprintf(w, "model:\t%s\n", modelHeader)
 		case "brand-id":
