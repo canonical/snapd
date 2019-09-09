@@ -848,7 +848,7 @@ func (s *imageSuite) TestSetupSeedWithBase(c *C) {
 	model := s.Brands.Model("my-brand", "my-model", map[string]interface{}{
 		"architecture":   "amd64",
 		"gadget":         "pc18",
-		"kernel":         "pc-kernel=18",
+		"kernel":         "pc-kernel",
 		"base":           "core18",
 		"required-snaps": []interface{}{"other-base"},
 	})
@@ -901,15 +901,9 @@ func (s *imageSuite) TestSetupSeedWithBase(c *C) {
 		p := filepath.Join(rootdir, "var/lib/snapd/seed/snaps", fn)
 		c.Check(osutil.FileExists(p), Equals, true)
 
-		channel := ""
-		if name == "pc-kernel" {
-			channel = "18/stable"
-		}
-
 		c.Check(seedYaml.Snaps[i], DeepEquals, &seed.Snap16{
 			Name:       info.InstanceName(),
 			SnapID:     info.SnapID,
-			Channel:    channel,
 			File:       fn,
 			Unasserted: unasserted,
 		})
@@ -956,7 +950,6 @@ func (s *imageSuite) TestSetupSeedWithBase(c *C) {
 	c.Check(s.storeActions[2], DeepEquals, &store.SnapAction{
 		Action:       "download",
 		InstanceName: "pc-kernel",
-		Channel:      "18/stable",
 	})
 	c.Check(s.storeActions[3], DeepEquals, &store.SnapAction{
 		Action:       "download",
