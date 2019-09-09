@@ -79,6 +79,7 @@ static const char *cgroup_dir = "/sys/fs/cgroup";
 // hybrid or legacy) The algorithm is described in
 // https://systemd.io/CGROUP_DELEGATION.html
 bool sc_cgroup_is_v2() {
+    static bool did_warn = false;
     struct statfs buf;
 
     int err = statfs(cgroup_dir, &buf);
@@ -86,8 +87,11 @@ bool sc_cgroup_is_v2() {
         die("cannot statfs %s", cgroup_dir);
     }
     if (err == 0 && buf.f_type == CGROUP2_SUPER_MAGIC) {
-       fprintf(stderr, "WARNING: cgroup v2 is not fully supported yet\n");
-       return true;
+        if (!did_warn) {
+            fprintf(stderr, "WARNING: cgroup v2 is not fully supported yet\n");
+            did_warn = true;
+        }
+        return true;
     }
     return false;
 }
