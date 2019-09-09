@@ -330,10 +330,20 @@ func (c *Change) lowLevelPerform(as *Assumptions) error {
 			flags := umountNoFollow
 			if c.Entry.XSnapdDetach() {
 				flags |= syscall.MNT_DETACH
+				// If we are detaching something then before performing the actual detach
+				// switch the entire hierarchy to private event propagation (that is,
+				// none). This works around a bit of peculiar kernel behavior when the
+				// kernel reports EBUSY during a detach operation, because the changes
+				// propagate in a way that conflicts with itself. This is also documented
+				// in umount(2).
+				err = sysMount("none", c.Entry.Dir, "", syscall.MS_REC|syscall.MS_PRIVATE, "")
+				logger.Debugf("mount --make-rprivate %q (error: %v)", c.Entry.Dir, err)
 			}
 
 			// Perform the raw unmount operation.
-			err = sysUnmount(c.Entry.Dir, flags)
+			if err == nil {
+				err = sysUnmount(c.Entry.Dir, flags)
+			}
 			if err == nil {
 				as.AddChange(c)
 			}

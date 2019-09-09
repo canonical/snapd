@@ -7,8 +7,7 @@ details: |
 # Debian sid is skipped because "timedatectl set-ntp" fails with the error:
 # "Failed to set ntp: Message recipient disconnected from message bus without replying"
 # A workaround is to make "systemctl enable --now systemd-timesyncd.service" instead
-# FIXME: re-enable ubuntu-19.10 after stabelizing it
-systems: [-debian-sid-*, -ubuntu-19.10-*]
+systems: [-debian-sid-*]
 
 prepare: |
     # shellcheck source=tests/lib/snaps.sh
