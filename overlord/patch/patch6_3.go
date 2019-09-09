@@ -42,7 +42,7 @@ func normChan(in string) string {
 		logger.Noticef("cannot parse cleaned channel string %q", cleanIn)
 		return in
 	}
-	return ch.String()
+	return ch.Full()
 }
 
 // patch6_3:
