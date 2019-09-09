@@ -1490,6 +1490,7 @@ func (s *imageSuite) TestSetupSeedWithKernelAndGadgetTrack(c *C) {
 	c.Check(s.storeActions[0], DeepEquals, &store.SnapAction{
 		Action:       "download",
 		InstanceName: "core",
+		Channel:      "stable",
 	})
 	c.Check(s.storeActions[1], DeepEquals, &store.SnapAction{
 		Action:       "download",
