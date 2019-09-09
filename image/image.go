@@ -276,7 +276,7 @@ func snapChannel(name string, model *asserts.Model, opts *Options, local *localI
 		snapChannel = opts.Channel
 	}
 	if snapChannel != "" {
-		if _, err := channel.ParseVerbatim(snapChannel, "_"); err != nil {
+		if _, err := channel.ParseVerbatim(snapChannel, "-"); err != nil {
 			return "", fmt.Errorf("cannot use option channel for snap %q: %v", name, err)
 		}
 	}
@@ -292,7 +292,7 @@ func snapChannel(name string, model *asserts.Model, opts *Options, local *localI
 		pinnedTrack = model.KernelTrack()
 	}
 	ch, err := channel.ResolveLocked(pinnedTrack, snapChannel)
-	if err == channel.ErrTrackSwitch {
+	if err == channel.ErrLockedTrackSwitch {
 		return "", fmt.Errorf("channel %q for %s has a track incompatible with the track from model assertion: %s", snapChannel, kind, pinnedTrack)
 	}
 	if err != nil {

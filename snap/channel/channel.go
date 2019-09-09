@@ -227,18 +227,18 @@ func Resolve(channel, newChannel string) (string, error) {
 		return "", err
 	}
 	p := strings.Split(newChannel, "/")
-	// risk/branch only
 	if strutil.ListContains(channelRisks, p[0]) && ch.Track != "" {
+		// risk/branch inherits the track if any
 		return ch.Track + "/" + newChannel, nil
 	}
 	return newChannel, nil
 }
 
-var ErrTrackSwitch = errors.New("cannot switch locked track")
+var ErrLockedTrackSwitch = errors.New("cannot switch locked track")
 
 // ResolveLocked resolves newChannel wrt a locked track, newChannel
 // can only be risk/branch-only or have the same track, otherwise
-// ErrTrackSwitch is returned.
+// ErrLockedTrackSwitch is returned.
 func ResolveLocked(track, newChannel string) (string, error) {
 	if track == "" {
 		return newChannel, nil
@@ -252,12 +252,13 @@ func ResolveLocked(track, newChannel string) (string, error) {
 	}
 	trackPrefix := ch.Track + "/"
 	p := strings.Split(newChannel, "/")
-	// risk/branch only
 	if strutil.ListContains(channelRisks, p[0]) && ch.Track != "" {
+		// risk/branch inherits the track if any
 		return trackPrefix + newChannel, nil
 	}
 	if newChannel != track && !strings.HasPrefix(newChannel, trackPrefix) {
-		return "", ErrTrackSwitch
+		// the track is locked/pinned
+		return "", ErrLockedTrackSwitch
 	}
 	return newChannel, nil
 }
