@@ -287,7 +287,7 @@ func (s *servicesTestSuite) TestServicesEnableStateFail(c *C) {
 	defer r.Restore()
 
 	_, err := wrappers.ServicesEnableState(info, progress.Null)
-	c.Assert(err, ErrorMatches, ".*is-enabled snap.hello-snap.svc1.service] failed with exit status 1: whoops\n.*")
+	c.Assert(err, ErrorMatches, ".*is-enabled snap.hello-snap.svc1.service\\] failed with exit status 1: whoops\n.*")
 
 	// the calls could be out of order in the list, since iterating over a map
 	// is non-deterministic, so manually check each call
