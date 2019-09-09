@@ -6725,6 +6725,7 @@ version: 1.0`)
 		},
 	}
 
+	// start with an easier-to-read error if this fails:
 	c.Assert(s.fakeBackend.ops.Ops(), DeepEquals, expected.Ops())
 	c.Check(s.fakeBackend.ops, DeepEquals, expected)
 
@@ -6788,41 +6789,64 @@ epoch: 1*
 	s.settle(c)
 	s.state.Lock()
 
-	ops := s.fakeBackend.ops
-	// ensure only local install was run, i.e. first action is pseudo-action current
-	c.Assert(ops.Ops(), HasLen, 11)
-	c.Check(ops[0].op, Equals, "current")
-	c.Check(ops[0].old, Equals, filepath.Join(dirs.SnapMountDir, "mock/x2"))
-	// and setup-snap
-	c.Check(ops[1].op, Equals, "setup-snap")
-	c.Check(ops[1].name, Matches, "mock")
-	c.Check(ops[1].path, Matches, `.*/mock_1.0_all.snap`)
-	c.Check(ops[1].revno, Equals, snap.R("x3"))
-	// and cleanup
-	c.Check(ops[len(ops)-1], DeepEquals, fakeOp{
-		op:    "cleanup-trash",
-		name:  "mock",
-		revno: snap.R("x3"),
-	})
+	expected := fakeOps{
+		{
+			op:  "current",
+			old: filepath.Join(dirs.SnapMountDir, "mock/x2"),
+		},
+		{
+			op:    "setup-snap",
+			name:  "mock",
+			path:  mockSnap,
+			revno: snap.R("x3"),
+		},
+		{
+			op:   "remove-snap-aliases",
+			name: "mock",
+		},
+		{
+			op:   "unlink-snap",
+			path: filepath.Join(dirs.SnapMountDir, "mock/x2"),
+		},
+		{
+			op:   "copy-data",
+			path: filepath.Join(dirs.SnapMountDir, "mock/x3"),
+			old:  filepath.Join(dirs.SnapMountDir, "mock/x2"),
+		},
+		{
+			op:    "setup-profiles:Doing",
+			name:  "mock",
+			revno: snap.R(-3),
+		},
+		{
+			op: "candidate",
+			sinfo: snap.SideInfo{
+				RealName: "mock",
+				Revision: snap.R(-3),
+			},
+		},
+		{
+			op:   "link-snap",
+			path: filepath.Join(dirs.SnapMountDir, "mock/x3"),
+		},
+		{
+			op:    "auto-connect:Doing",
+			name:  "mock",
+			revno: snap.R("x3"),
+		},
+		{
+			op: "update-aliases",
+		},
+		{
+			op:    "cleanup-trash",
+			name:  "mock",
+			revno: snap.R("x3"),
+		},
+	}
 
-	c.Check(ops[3].op, Equals, "unlink-snap")
-	c.Check(ops[3].path, Equals, filepath.Join(dirs.SnapMountDir, "mock/x2"))
-
-	c.Check(ops[4].op, Equals, "copy-data")
-	c.Check(ops[4].path, Equals, filepath.Join(dirs.SnapMountDir, "mock/x3"))
-	c.Check(ops[4].old, Equals, filepath.Join(dirs.SnapMountDir, "mock/x2"))
-
-	c.Check(ops[5].op, Equals, "setup-profiles:Doing")
-	c.Check(ops[5].name, Equals, "mock")
-	c.Check(ops[5].revno, Equals, snap.R(-3))
-
-	c.Check(ops[6].op, Equals, "candidate")
-	c.Check(ops[6].sinfo, DeepEquals, snap.SideInfo{
-		RealName: "mock",
-		Revision: snap.R(-3),
-	})
-	c.Check(ops[7].op, Equals, "link-snap")
-	c.Check(ops[7].path, Equals, filepath.Join(dirs.SnapMountDir, "mock/x3"))
+	// start with an easier-to-read error if this fails:
+	c.Assert(s.fakeBackend.ops.Ops(), DeepEquals, expected.Ops())
+	c.Check(s.fakeBackend.ops, DeepEquals, expected)
 
 	// verify snapSetup info
 	var snapsup snapstate.SnapSetup
@@ -6942,6 +6966,7 @@ epoch: 1*
 			revno: snap.R("x1"),
 		},
 	}
+	// start with an easier-to-read error if this fails:
 	c.Assert(s.fakeBackend.ops.Ops(), DeepEquals, expected.Ops())
 	c.Check(s.fakeBackend.ops, DeepEquals, expected)
 
