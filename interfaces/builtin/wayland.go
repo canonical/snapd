@@ -59,6 +59,7 @@ owner /run/user/[0-9]*/wayland-[0-9]* rwk,
 # Allow reading an Xwayland Xauth file
 # (see https://gitlab.gnome.org/GNOME/mutter/merge_requests/626)
 /run/user/[0-9]*/.mutter-Xwaylandauth.* r,
+/run/user/[0-9]*/mutter/Xauthority r,
 
 # Allow write access to create /run/user/* to create XDG_RUNTIME_DIR (until
 # lp:1738197 is fixed). Note this is not needed if creating a session using

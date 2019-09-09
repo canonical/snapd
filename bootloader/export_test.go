@@ -29,24 +29,24 @@ import (
 )
 
 // creates a new Androidboot bootloader object
-func NewAndroidBoot() Bootloader {
-	return newAndroidBoot()
+func NewAndroidBoot(rootdir string) Bootloader {
+	return newAndroidBoot(rootdir)
 }
 
-func MockAndroidBootFile(c *C, mode os.FileMode) {
-	f := &androidboot{}
+func MockAndroidBootFile(c *C, rootdir string, mode os.FileMode) {
+	f := &androidboot{rootdir: rootdir}
 	err := os.MkdirAll(f.dir(), 0755)
 	c.Assert(err, IsNil)
 	err = ioutil.WriteFile(f.ConfigFile(), nil, mode)
 	c.Assert(err, IsNil)
 }
 
-func NewUboot() Bootloader {
-	return newUboot()
+func NewUboot(rootdir string) Bootloader {
+	return newUboot(rootdir)
 }
 
-func MockUbootFiles(c *C) {
-	u := &uboot{}
+func MockUbootFiles(c *C, rootdir string) {
+	u := &uboot{rootdir: rootdir}
 	err := os.MkdirAll(u.dir(), 0755)
 	c.Assert(err, IsNil)
 
@@ -57,12 +57,12 @@ func MockUbootFiles(c *C) {
 	c.Assert(err, IsNil)
 }
 
-func NewGrub() Bootloader {
-	return newGrub()
+func NewGrub(rootdir string) Bootloader {
+	return newGrub(rootdir)
 }
 
-func MockGrubFiles(c *C) {
-	g := &grub{}
+func MockGrubFiles(c *C, rootdir string) {
+	g := &grub{rootdir: rootdir}
 	err := os.MkdirAll(g.dir(), 0755)
 	c.Assert(err, IsNil)
 	err = ioutil.WriteFile(g.ConfigFile(), nil, 0644)

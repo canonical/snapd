@@ -20,20 +20,42 @@
 package seed
 
 import (
-	"errors"
 	"fmt"
 	"io/ioutil"
 	"os"
 	"path/filepath"
 
 	"github.com/snapcore/snapd/asserts"
+	"github.com/snapcore/snapd/asserts/sysdb"
 )
 
-var ErrNoAssertions = errors.New("no seed assertions")
+var trusted = sysdb.Trusted()
 
-func LoadAssertions(assertsDir string, loaded func(*asserts.Ref) error) (*asserts.Batch, error) {
-	batch := asserts.NewBatch(nil)
+func MockTrusted(mockTrusted []asserts.Assertion) (restore func()) {
+	prevTrusted := trusted
+	trusted = mockTrusted
+	return func() {
+		trusted = prevTrusted
+	}
+}
 
+func newMemAssertionsDB() (db asserts.RODatabase, commitTo func(*asserts.Batch) error, err error) {
+	memDB, err := asserts.OpenDatabase(&asserts.DatabaseConfig{
+		Backstore: asserts.NewMemoryBackstore(),
+		Trusted:   trusted,
+	})
+	if err != nil {
+		return nil, nil, err
+	}
+
+	commitTo = func(b *asserts.Batch) error {
+		return b.CommitTo(memDB, nil)
+	}
+
+	return memDB, commitTo, nil
+}
+
+func loadAssertions(assertsDir string, loadedFunc func(*asserts.Ref) error) (*asserts.Batch, error) {
 	dc, err := ioutil.ReadDir(assertsDir)
 	if err != nil {
 		if os.IsNotExist(err) {
@@ -41,15 +63,17 @@ func LoadAssertions(assertsDir string, loaded func(*asserts.Ref) error) (*assert
 		}
 		return nil, fmt.Errorf("cannot read assertions dir: %s", err)
 	}
+
+	batch := asserts.NewBatch(nil)
 	for _, fi := range dc {
 		fn := filepath.Join(assertsDir, fi.Name())
 		refs, err := readAsserts(batch, fn)
 		if err != nil {
 			return nil, fmt.Errorf("cannot read assertions: %s", err)
 		}
-		if loaded != nil {
+		if loadedFunc != nil {
 			for _, ref := range refs {
-				if err := loaded(ref); err != nil {
+				if err := loadedFunc(ref); err != nil {
 					return nil, err
 				}
 			}

@@ -610,7 +610,7 @@ func (s *imageSuite) TestSetupSeed(c *C) {
 		p := filepath.Join(seedsnapsdir, fn)
 		c.Check(osutil.FileExists(p), Equals, true)
 
-		c.Check(seedYaml.Snaps[i], DeepEquals, &seed.Snap{
+		c.Check(seedYaml.Snaps[i], DeepEquals, &seed.Snap16{
 			Name:   name,
 			SnapID: s.AssertedSnapID(name),
 			File:   fn,
@@ -718,7 +718,7 @@ func (s *imageSuite) TestSetupSeedLocalCoreBrandKernel(c *C) {
 		p := filepath.Join(rootdir, "var/lib/snapd/seed/snaps", fn)
 		c.Check(osutil.FileExists(p), Equals, true)
 
-		c.Check(seedYaml.Snaps[i], DeepEquals, &seed.Snap{
+		c.Check(seedYaml.Snaps[i], DeepEquals, &seed.Snap16{
 			Name:       info.InstanceName(),
 			SnapID:     info.SnapID,
 			File:       fn,
@@ -793,25 +793,25 @@ func (s *imageSuite) TestSetupSeedDevmodeSnap(c *C) {
 	c.Assert(err, IsNil)
 
 	c.Check(seedYaml.Snaps, HasLen, 5)
-	c.Check(seedYaml.Snaps[0], DeepEquals, &seed.Snap{
+	c.Check(seedYaml.Snaps[0], DeepEquals, &seed.Snap16{
 		Name:    "core",
 		SnapID:  s.AssertedSnapID("core"),
 		File:    "core_3.snap",
 		Channel: "beta",
 	})
-	c.Check(seedYaml.Snaps[1], DeepEquals, &seed.Snap{
+	c.Check(seedYaml.Snaps[1], DeepEquals, &seed.Snap16{
 		Name:    "pc-kernel",
 		SnapID:  s.AssertedSnapID("pc-kernel"),
 		File:    "pc-kernel_2.snap",
 		Channel: "beta",
 	})
-	c.Check(seedYaml.Snaps[2], DeepEquals, &seed.Snap{
+	c.Check(seedYaml.Snaps[2], DeepEquals, &seed.Snap16{
 		Name:    "pc",
 		SnapID:  s.AssertedSnapID("pc"),
 		File:    "pc_1.snap",
 		Channel: "beta",
 	})
-	c.Check(seedYaml.Snaps[3], DeepEquals, &seed.Snap{
+	c.Check(seedYaml.Snaps[3], DeepEquals, &seed.Snap16{
 		Name:    "required-snap1",
 		SnapID:  s.AssertedSnapID("required-snap1"),
 		File:    "required-snap1_3.snap",
@@ -819,7 +819,7 @@ func (s *imageSuite) TestSetupSeedDevmodeSnap(c *C) {
 		Channel: "beta",
 	})
 	// ensure local snaps are put last in seed.yaml
-	c.Check(seedYaml.Snaps[4], DeepEquals, &seed.Snap{
+	c.Check(seedYaml.Snaps[4], DeepEquals, &seed.Snap16{
 		Name:       "devmode-snap",
 		DevMode:    true,
 		Unasserted: true,
@@ -841,7 +841,7 @@ func (s *imageSuite) TestSetupSeedDevmodeSnap(c *C) {
 
 	// ensure local snaps are put last in seed.yaml
 	last := len(seedYaml.Snaps) - 1
-	c.Check(seedYaml.Snaps[last], DeepEquals, &seed.Snap{
+	c.Check(seedYaml.Snaps[last], DeepEquals, &seed.Snap16{
 		Name:       "devmode-snap",
 		File:       fn,
 		DevMode:    true,
@@ -936,7 +936,7 @@ func (s *imageSuite) TestSetupSeedWithBase(c *C) {
 		p := filepath.Join(rootdir, "var/lib/snapd/seed/snaps", fn)
 		c.Check(osutil.FileExists(p), Equals, true)
 
-		c.Check(seedYaml.Snaps[i], DeepEquals, &seed.Snap{
+		c.Check(seedYaml.Snaps[i], DeepEquals, &seed.Snap16{
 			Name:       info.InstanceName(),
 			SnapID:     info.SnapID,
 			File:       fn,
@@ -1020,7 +1020,7 @@ func (s *imageSuite) TestSetupSeedWithBaseLegacySnap(c *C) {
 		p := filepath.Join(rootdir, "var/lib/snapd/seed/snaps", fn)
 		c.Check(osutil.FileExists(p), Equals, true)
 
-		c.Check(seedYaml.Snaps[i], DeepEquals, &seed.Snap{
+		c.Check(seedYaml.Snaps[i], DeepEquals, &seed.Snap16{
 			Name:       info.InstanceName(),
 			SnapID:     info.SnapID,
 			File:       fn,
@@ -1190,7 +1190,7 @@ func (s *imageSuite) TestSetupSeedLocalSnapsWithStoreAsserts(c *C) {
 		p := filepath.Join(rootdir, "var/lib/snapd/seed/snaps", fn)
 		c.Check(osutil.FileExists(p), Equals, true, Commentf("cannot find %s", p))
 
-		c.Check(seedYaml.Snaps[i], DeepEquals, &seed.Snap{
+		c.Check(seedYaml.Snaps[i], DeepEquals, &seed.Snap16{
 			Name:       info.InstanceName(),
 			SnapID:     info.SnapID,
 			File:       fn,
@@ -1299,7 +1299,7 @@ func (s *imageSuite) TestSetupSeedLocalSnapsWithChannels(c *C) {
 		p := filepath.Join(rootdir, "var/lib/snapd/seed/snaps", fn)
 		c.Check(osutil.FileExists(p), Equals, true, Commentf("cannot find %s", p))
 
-		c.Check(seedYaml.Snaps[i], DeepEquals, &seed.Snap{
+		c.Check(seedYaml.Snaps[i], DeepEquals, &seed.Snap16{
 			Name:       info.InstanceName(),
 			SnapID:     info.SnapID,
 			Channel:    info.Channel,
@@ -1454,18 +1454,18 @@ func (s *imageSuite) TestSetupSeedWithKernelAndGadgetTrack(c *C) {
 	c.Assert(err, IsNil)
 
 	c.Check(seedYaml.Snaps, HasLen, 3)
-	c.Check(seedYaml.Snaps[0], DeepEquals, &seed.Snap{
+	c.Check(seedYaml.Snaps[0], DeepEquals, &seed.Snap16{
 		Name:   "core",
 		SnapID: s.AssertedSnapID("core"),
 		File:   "core_3.snap",
 	})
-	c.Check(seedYaml.Snaps[1], DeepEquals, &seed.Snap{
+	c.Check(seedYaml.Snaps[1], DeepEquals, &seed.Snap16{
 		Name:    "pc-kernel",
 		SnapID:  s.AssertedSnapID("pc-kernel"),
 		File:    "pc-kernel_2.snap",
 		Channel: "18/stable",
 	})
-	c.Check(seedYaml.Snaps[2], DeepEquals, &seed.Snap{
+	c.Check(seedYaml.Snaps[2], DeepEquals, &seed.Snap16{
 		Name:    "pc",
 		SnapID:  s.AssertedSnapID("pc"),
 		File:    "pc_1.snap",
@@ -1508,19 +1508,19 @@ func (s *imageSuite) TestSetupSeedWithKernelTrackWithDefaultChannel(c *C) {
 	c.Assert(err, IsNil)
 
 	c.Check(seedYaml.Snaps, HasLen, 3)
-	c.Check(seedYaml.Snaps[0], DeepEquals, &seed.Snap{
+	c.Check(seedYaml.Snaps[0], DeepEquals, &seed.Snap16{
 		Name:    "core",
 		SnapID:  s.AssertedSnapID("core"),
 		File:    "core_3.snap",
 		Channel: "edge",
 	})
-	c.Check(seedYaml.Snaps[1], DeepEquals, &seed.Snap{
+	c.Check(seedYaml.Snaps[1], DeepEquals, &seed.Snap16{
 		Name:    "pc-kernel",
 		SnapID:  s.AssertedSnapID("pc-kernel"),
 		File:    "pc-kernel_2.snap",
 		Channel: "18/edge",
 	})
-	c.Check(seedYaml.Snaps[2], DeepEquals, &seed.Snap{
+	c.Check(seedYaml.Snaps[2], DeepEquals, &seed.Snap16{
 		Name:    "pc",
 		SnapID:  s.AssertedSnapID("pc"),
 		File:    "pc_1.snap",
@@ -1568,13 +1568,13 @@ func (s *imageSuite) TestSetupSeedWithKernelTrackOnLocalSnap(c *C) {
 	c.Assert(err, IsNil)
 
 	c.Check(seedYaml.Snaps, HasLen, 3)
-	c.Check(seedYaml.Snaps[0], DeepEquals, &seed.Snap{
+	c.Check(seedYaml.Snaps[0], DeepEquals, &seed.Snap16{
 		Name:    "core",
 		SnapID:  s.AssertedSnapID("core"),
 		File:    "core_3.snap",
 		Channel: "beta",
 	})
-	c.Check(seedYaml.Snaps[1], DeepEquals, &seed.Snap{
+	c.Check(seedYaml.Snaps[1], DeepEquals, &seed.Snap16{
 		Name:    "pc-kernel",
 		SnapID:  s.AssertedSnapID("pc-kernel"),
 		File:    "pc-kernel_2.snap",
@@ -1622,32 +1622,32 @@ func (s *imageSuite) TestSetupSeedWithBaseAndLocalLegacyCoreOrdering(c *C) {
 	c.Assert(err, IsNil)
 
 	c.Check(seedYaml.Snaps, HasLen, 6)
-	c.Check(seedYaml.Snaps[0], DeepEquals, &seed.Snap{
+	c.Check(seedYaml.Snaps[0], DeepEquals, &seed.Snap16{
 		Name:   "snapd",
 		SnapID: s.AssertedSnapID("snapd"),
 		File:   "snapd_18.snap",
 	})
-	c.Check(seedYaml.Snaps[1], DeepEquals, &seed.Snap{
+	c.Check(seedYaml.Snaps[1], DeepEquals, &seed.Snap16{
 		Name:       "core",
 		Unasserted: true,
 		File:       "core_x1.snap",
 	})
-	c.Check(seedYaml.Snaps[2], DeepEquals, &seed.Snap{
+	c.Check(seedYaml.Snaps[2], DeepEquals, &seed.Snap16{
 		Name:   "pc-kernel",
 		SnapID: s.AssertedSnapID("pc-kernel"),
 		File:   "pc-kernel_2.snap",
 	})
-	c.Check(seedYaml.Snaps[3], DeepEquals, &seed.Snap{
+	c.Check(seedYaml.Snaps[3], DeepEquals, &seed.Snap16{
 		Name:   "core18",
 		SnapID: s.AssertedSnapID("core18"),
 		File:   "core18_18.snap",
 	})
-	c.Check(seedYaml.Snaps[4], DeepEquals, &seed.Snap{
+	c.Check(seedYaml.Snaps[4], DeepEquals, &seed.Snap16{
 		Name:   "pc18",
 		SnapID: s.AssertedSnapID("pc18"),
 		File:   "pc18_4.snap",
 	})
-	c.Check(seedYaml.Snaps[5], DeepEquals, &seed.Snap{
+	c.Check(seedYaml.Snaps[5], DeepEquals, &seed.Snap16{
 		Name:    "required-snap1",
 		SnapID:  s.AssertedSnapID("required-snap1"),
 		File:    "required-snap1_3.snap",
@@ -1692,32 +1692,32 @@ func (s *imageSuite) TestSetupSeedWithBaseAndLegacyCoreOrdering(c *C) {
 	c.Assert(err, IsNil)
 
 	c.Check(seedYaml.Snaps, HasLen, 6)
-	c.Check(seedYaml.Snaps[0], DeepEquals, &seed.Snap{
+	c.Check(seedYaml.Snaps[0], DeepEquals, &seed.Snap16{
 		Name:   "snapd",
 		SnapID: s.AssertedSnapID("snapd"),
 		File:   "snapd_18.snap",
 	})
-	c.Check(seedYaml.Snaps[1], DeepEquals, &seed.Snap{
+	c.Check(seedYaml.Snaps[1], DeepEquals, &seed.Snap16{
 		Name:   "core",
 		SnapID: s.AssertedSnapID("core"),
 		File:   "core_3.snap",
 	})
-	c.Check(seedYaml.Snaps[2], DeepEquals, &seed.Snap{
+	c.Check(seedYaml.Snaps[2], DeepEquals, &seed.Snap16{
 		Name:   "pc-kernel",
 		SnapID: s.AssertedSnapID("pc-kernel"),
 		File:   "pc-kernel_2.snap",
 	})
-	c.Check(seedYaml.Snaps[3], DeepEquals, &seed.Snap{
+	c.Check(seedYaml.Snaps[3], DeepEquals, &seed.Snap16{
 		Name:   "core18",
 		SnapID: s.AssertedSnapID("core18"),
 		File:   "core18_18.snap",
 	})
-	c.Check(seedYaml.Snaps[4], DeepEquals, &seed.Snap{
+	c.Check(seedYaml.Snaps[4], DeepEquals, &seed.Snap16{
 		Name:   "pc18",
 		SnapID: s.AssertedSnapID("pc18"),
 		File:   "pc18_4.snap",
 	})
-	c.Check(seedYaml.Snaps[5], DeepEquals, &seed.Snap{
+	c.Check(seedYaml.Snaps[5], DeepEquals, &seed.Snap16{
 		Name:    "required-snap1",
 		SnapID:  s.AssertedSnapID("required-snap1"),
 		File:    "required-snap1_3.snap",
@@ -2020,7 +2020,7 @@ func (s *imageSuite) TestSetupSeedClassic(c *C) {
 		p := filepath.Join(rootdir, "var/lib/snapd/seed/snaps", fn)
 		c.Check(osutil.FileExists(p), Equals, true)
 
-		c.Check(seedYaml.Snaps[i], DeepEquals, &seed.Snap{
+		c.Check(seedYaml.Snaps[i], DeepEquals, &seed.Snap16{
 			Name:       info.InstanceName(),
 			SnapID:     info.SnapID,
 			File:       fn,
@@ -2082,7 +2082,7 @@ func (s *imageSuite) TestSetupSeedClassicWithLocalClassicSnap(c *C) {
 
 	p := filepath.Join(rootdir, "var/lib/snapd/seed/snaps", "core_3.snap")
 	c.Check(osutil.FileExists(p), Equals, true)
-	c.Check(seedYaml.Snaps[0], DeepEquals, &seed.Snap{
+	c.Check(seedYaml.Snaps[0], DeepEquals, &seed.Snap16{
 		Name:   "core",
 		SnapID: s.AssertedSnapID("core"),
 		File:   "core_3.snap",
@@ -2090,7 +2090,7 @@ func (s *imageSuite) TestSetupSeedClassicWithLocalClassicSnap(c *C) {
 
 	p = filepath.Join(rootdir, "var/lib/snapd/seed/snaps", "classic-snap_x1.snap")
 	c.Check(osutil.FileExists(p), Equals, true)
-	c.Check(seedYaml.Snaps[1], DeepEquals, &seed.Snap{
+	c.Check(seedYaml.Snaps[1], DeepEquals, &seed.Snap16{
 		Name:       "classic-snap",
 		File:       "classic-snap_x1.snap",
 		Classic:    true,
@@ -2152,7 +2152,7 @@ func (s *imageSuite) TestSetupSeedClassicSnapdOnly(c *C) {
 		p := filepath.Join(rootdir, "var/lib/snapd/seed/snaps", fn)
 		c.Check(osutil.FileExists(p), Equals, true)
 
-		c.Check(seedYaml.Snaps[i], DeepEquals, &seed.Snap{
+		c.Check(seedYaml.Snaps[i], DeepEquals, &seed.Snap16{
 			Name:       info.InstanceName(),
 			SnapID:     info.SnapID,
 			File:       fn,
