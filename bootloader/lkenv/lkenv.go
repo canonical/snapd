@@ -121,8 +121,8 @@ type SnapBootSelect_v1 struct {
 	 *      partition label to be used for current boot
 	 *    - bootloader NEVER alters this matrix values
 	 *
-	 * [ <bootimg 1 part label> ] [ <currently installed kernel snap revison> ]
-	 * [ <bootimg 2 part label> ] [ <currently installed kernel snap revision> ]
+	 * [ <bootimg 1 part label> ] [ <kernel snap revison installed in this boot partition> ]
+	 * [ <bootimg 2 part label> ] [ <kernel snap revison installed in this boot partition> ]
 	 */
 	Bootimg_matrix [SNAP_BOOTIMG_PART_NUM][2][SNAP_NAME_MAX_LEN]byte
 
