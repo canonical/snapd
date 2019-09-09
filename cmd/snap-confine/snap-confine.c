@@ -390,31 +390,38 @@ int main(int argc, char **argv)
 	}
 	// TODO: check for similar situation and linux capabilities.
 	if (geteuid() == 0) {
-		/* snap-confine uses privately-shared /run/snapd/ns to store bind-mounted
-		 * mount namespaces of each snap. In the case that snap-confine is invoked
-		 * from the mount namespace it typically constructs, the said directory
-		 * does not contain mount entries for preserved namespaces as those are
-		 * only visible in the main, outer namespace.
-		 *
-		 * In order to operate in such an environment snap-confine must first
-		 * re-associate its own process with another namespace in which the
-		 * /run/snapd/ns directory is visible. The most obvious candidate is pid
-		 * one, which definitely doesn't run in a snap-specific namespace, has a
-		 * predictable PID and is long lived.
-		 */
-		sc_reassociate_with_pid1_mount_ns();
-		// Do global initialization:
-		int global_lock_fd = sc_lock_global();
-		// Ensure that "/" or "/snap" is mounted with the
-		// "shared" option on legacy systems, see LP:#1668659
-		debug("ensuring that snap mount directory is shared");
-		sc_ensure_shared_snap_mount();
-		unsigned int experimental_features = 0;
-		if (sc_feature_enabled(SC_FEATURE_PARALLEL_INSTANCES)) {
-			experimental_features |= SC_FEATURE_PARALLEL_INSTANCES;
+		/* perform global initialization of mount namespace support for confined
+		 * snaps only, or both when parallel-instances feature is enabled */
+		if (!invocation.classic_confinement ||
+		    sc_feature_enabled(SC_FEATURE_PARALLEL_INSTANCES)) {
+
+			/* snap-confine uses privately-shared /run/snapd/ns to store bind-mounted
+			 * mount namespaces of each snap. In the case that snap-confine is invoked
+			 * from the mount namespace it typically constructs, the said directory
+			 * does not contain mount entries for preserved namespaces as those are
+			 * only visible in the main, outer namespace.
+			 *
+			 * In order to operate in such an environment snap-confine must first
+			 * re-associate its own process with another namespace in which the
+			 * /run/snapd/ns directory is visible. The most obvious candidate is pid
+			 * one, which definitely doesn't run in a snap-specific namespace, has a
+			 * predictable PID and is long lived.
+			 */
+			sc_reassociate_with_pid1_mount_ns();
+			// Do global initialization:
+			int global_lock_fd = sc_lock_global();
+			// Ensure that "/" or "/snap" is mounted with the
+			// "shared" option on legacy systems, see LP:#1668659
+			debug("ensuring that snap mount directory is shared");
+			sc_ensure_shared_snap_mount();
+			unsigned int experimental_features = 0;
+			if (sc_feature_enabled(SC_FEATURE_PARALLEL_INSTANCES)) {
+				experimental_features |=
+				    SC_FEATURE_PARALLEL_INSTANCES;
+			}
+			sc_initialize_mount_ns(experimental_features);
+			sc_unlock(global_lock_fd);
 		}
-		sc_initialize_mount_ns(experimental_features);
-		sc_unlock(global_lock_fd);
 
 		if (invocation.classic_confinement) {
 			enter_classic_execution_environment(&invocation);
