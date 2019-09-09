@@ -463,79 +463,12 @@ func (s *imageSuite) TestHappyDecodeModelAssertion(c *C) {
 	c.Check(a.Type(), Equals, asserts.ModelType)
 }
 
-func (s *imageSuite) TestMissingGadgetUnpackDir(c *C) {
-	err := image.DownloadUnpackGadget(s.tsto, s.model, &image.Options{}, nil)
-	c.Assert(err, ErrorMatches, `cannot create gadget unpack dir "": mkdir : no such file or directory`)
-}
-
-func (s *imageSuite) TestDownloadUnpackGadget(c *C) {
-	files := [][]string{
-		{"subdir/canary.txt", "I'm a canary"},
-	}
-	s.MakeAssertedSnap(c, packageGadget, files, snap.R(99), "canonical")
-
-	gadgetUnpackDir := filepath.Join(c.MkDir(), "gadget-unpack-dir")
-	opts := &image.Options{
-		GadgetUnpackDir: gadgetUnpackDir,
-	}
-	local, err := image.LocalSnaps(s.tsto, opts)
-	c.Assert(err, IsNil)
-
-	err = image.DownloadUnpackGadget(s.tsto, s.model, opts, local)
-	c.Assert(err, IsNil)
-
-	// verify the right data got unpacked
-	for _, t := range []struct{ file, content string }{
-		{"meta/snap.yaml", packageGadget},
-		{files[0][0], files[0][1]},
-	} {
-		fn := filepath.Join(gadgetUnpackDir, t.file)
-		c.Check(fn, testutil.FileEquals, t.content)
-	}
-}
-
-func (s *imageSuite) TestDownloadUnpackGadgetFromTrack(c *C) {
-	s.MakeAssertedSnap(c, packageGadget, nil, snap.R(1818), "canonical")
-
-	model := s.Brands.Model("my-brand", "my-model", map[string]interface{}{
-
-		"architecture": "amd64",
-		"gadget":       "pc=18",
-		"kernel":       "pc-kernel=18",
-	})
-
-	gadgetUnpackDir := filepath.Join(c.MkDir(), "gadget-unpack-dir")
-	opts := &image.Options{
-		GadgetUnpackDir: gadgetUnpackDir,
-	}
-	local, err := image.LocalSnaps(s.tsto, opts)
-	c.Assert(err, IsNil)
-
-	err = image.DownloadUnpackGadget(s.tsto, model, opts, local)
-	c.Assert(err, IsNil)
-
-	c.Check(s.storeActions, HasLen, 1)
-	c.Check(s.storeActions[0], DeepEquals, &store.SnapAction{
-		Action:       "download",
-		Channel:      "18/stable",
-		InstanceName: "pc",
-	})
-
-}
-
 func (s *imageSuite) setupSnaps(c *C, gadgetUnpackDir string, publishers map[string]string) {
-	if gadgetUnpackDir != "" {
-		err := os.MkdirAll(gadgetUnpackDir, 0755)
-		c.Assert(err, IsNil)
-		err = ioutil.WriteFile(filepath.Join(gadgetUnpackDir, "grub.conf"), nil, 0644)
-		c.Assert(err, IsNil)
-	}
-
 	if _, ok := publishers["pc"]; ok {
-		s.MakeAssertedSnap(c, packageGadget, [][]string{{"grub.cfg", "I'm a grub.cfg"}}, snap.R(1), publishers["pc"])
+		s.MakeAssertedSnap(c, packageGadget, [][]string{{"grub.conf", ""}, {"grub.cfg", "I'm a grub.cfg"}}, snap.R(1), publishers["pc"])
 	}
 	if _, ok := publishers["pc18"]; ok {
-		s.MakeAssertedSnap(c, packageGadgetWithBase, [][]string{{"grub.cfg", "I'm a grub.cfg"}}, snap.R(4), publishers["pc18"])
+		s.MakeAssertedSnap(c, packageGadgetWithBase, [][]string{{"grub.conf", ""}, {"grub.cfg", "I'm a grub.cfg"}}, snap.R(4), publishers["pc18"])
 	}
 
 	if _, ok := publishers["classic-gadget"]; ok {
@@ -1386,6 +1319,18 @@ func (s *imageSuite) TestSetupSeedLocalSnapsWithChannels(c *C) {
 	c.Check(l, HasLen, 4)
 }
 
+func (s *imageSuite) TestMissingGadgetUnpackDir(c *C) {
+	fn := filepath.Join(c.MkDir(), "model.assertion")
+	err := ioutil.WriteFile(fn, asserts.Encode(s.model), 0644)
+	c.Assert(err, IsNil)
+
+	err = image.Prepare(&image.Options{
+		ModelFile: fn,
+		Channel:   "stable",
+	})
+	c.Assert(err, ErrorMatches, `cannot create gadget unpack dir "": mkdir : no such file or directory`)
+}
+
 func (s *imageSuite) TestNoLocalParallelSnapInstances(c *C) {
 	fn := filepath.Join(c.MkDir(), "model.assertion")
 	err := ioutil.WriteFile(fn, asserts.Encode(s.model), 0644)
@@ -1543,6 +1488,23 @@ func (s *imageSuite) TestSetupSeedWithKernelAndGadgetTrack(c *C) {
 		SnapID:  s.AssertedSnapID("pc"),
 		File:    "pc_1.snap",
 		Channel: "18/stable",
+	})
+
+	// check the downloads
+	c.Check(s.storeActions, HasLen, 3)
+	c.Check(s.storeActions[0], DeepEquals, &store.SnapAction{
+		Action:       "download",
+		InstanceName: "core",
+	})
+	c.Check(s.storeActions[1], DeepEquals, &store.SnapAction{
+		Action:       "download",
+		InstanceName: "pc-kernel",
+		Channel:      "18/stable",
+	})
+	c.Check(s.storeActions[2], DeepEquals, &store.SnapAction{
+		Action:       "download",
+		InstanceName: "pc",
+		Channel:      "18/stable",
 	})
 }
 

@@ -229,9 +229,9 @@ func Prepare(opts *Options) error {
 	}
 
 	if !opts.Classic {
-		// unpacking the gadget for core models
-		if err := downloadUnpackGadget(tsto, model, opts, local); err != nil {
-			return err
+		// create directory for later unpacking the gadget in
+		if err := os.MkdirAll(opts.GadgetUnpackDir, 0755); err != nil {
+			return fmt.Errorf("cannot create gadget unpack dir %q: %s", opts.GadgetUnpackDir, err)
 		}
 	}
 
@@ -315,29 +315,11 @@ func makeChannelFromTrack(what, track, snapChannel string) (string, error) {
 	return mch.Clean().String(), nil
 }
 
-func downloadUnpackGadget(tsto *ToolingStore, model *asserts.Model, opts *Options, local *localInfos) error {
-	if err := os.MkdirAll(opts.GadgetUnpackDir, 0755); err != nil {
-		return fmt.Errorf("cannot create gadget unpack dir %q: %s", opts.GadgetUnpackDir, err)
-	}
-
-	gadgetName := model.Gadget()
-	gadgetChannel, err := snapChannel(gadgetName, model, opts, local)
-	if err != nil {
-		return err
-	}
-
-	dlOpts := &DownloadOptions{
-		TargetDir: opts.GadgetUnpackDir,
-		Channel:   gadgetChannel,
-	}
-	snapFn, _, err := acquireSnap(tsto, gadgetName, dlOpts, local)
-	if err != nil {
-		return err
-	}
+func unpackGadget(gadgetFname, gadgetUnpackDir string) error {
 	// FIXME: jumping through layers here, we need to make
 	//        unpack part of the container interface (again)
-	snap := squashfs.New(snapFn)
-	return snap.Unpack("*", opts.GadgetUnpackDir)
+	snap := squashfs.New(gadgetFname)
+	return snap.Unpack("*", gadgetUnpackDir)
 }
 
 func acquireSnap(tsto *ToolingStore, name string, dlOpts *DownloadOptions, local *localInfos) (downloadedSnap string, info *snap.Info, err error) {
@@ -586,6 +568,11 @@ func setupSeed(tsto *ToolingStore, model *asserts.Model, opts *Options, local *l
 	}
 
 	if !opts.Classic {
+		// unpacking the gadget for core models
+		if err := unpackGadget(seed.gadgetFname, opts.GadgetUnpackDir); err != nil {
+			return err
+		}
+
 		if err := boot.MakeBootable(model, opts.RootDir, seed.downloadedSnapsInfoForBootConfig, opts.GadgetUnpackDir); err != nil {
 			return err
 		}
@@ -632,6 +619,7 @@ type imageSeed struct {
 	seen                             map[string]bool
 	locals                           []string
 	downloadedSnapsInfoForBootConfig map[string]*snap.Info
+	gadgetFname                      string
 
 	needsCore   []string
 	needsCore16 []string
@@ -718,6 +706,10 @@ func (s *imageSeed) add(snapName string) error {
 		// store the snap.Info for kernel/os/base so
 		// that boot.MakeBootable can DTRT
 		s.downloadedSnapsInfoForBootConfig[fn] = info
+	}
+	// remember the gadget for unpacking later
+	if !opts.Classic && typ == snap.TypeGadget {
+		s.gadgetFname = fn
 	}
 
 	s.entries = append(s.entries, seedEntry{
