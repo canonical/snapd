@@ -341,7 +341,7 @@ func (b *Backend) Setup(snapInfo *snap.Info, opts interfaces.ConfinementOptions,
 	// Deal with the "snapd" snap - we do the setup slightly differently
 	// here because this will run both on classic and on Ubuntu Core 18
 	// systems but /etc/apparmor.d is not writable on core18 systems
-	if snapName == "snapd" && release.AppArmorLevel() != release.NoAppArmor {
+	if snapInfo.GetType() == snap.TypeSnapd && release.AppArmorLevel() != release.NoAppArmor {
 		if err := setupSnapConfineReexec(snapInfo); err != nil {
 			return fmt.Errorf("cannot create host snap-confine apparmor configuration: %s", err)
 		}
@@ -352,7 +352,7 @@ func (b *Backend) Setup(snapInfo *snap.Info, opts interfaces.ConfinementOptions,
 	// See LP:#1460152 and
 	// https://forum.snapcraft.io/t/core-snap-revert-issues-on-core-devices/
 	//
-	if (snapName == "core" || snapName == "snapd") && !release.OnClassic {
+	if (snapInfo.GetType() == snap.TypeOS || snapInfo.GetType() == snap.TypeSnapd) && !release.OnClassic {
 		if li, err := filepath.Glob(filepath.Join(dirs.SystemApparmorCacheDir, "*")); err == nil {
 			for _, p := range li {
 				if st, err := os.Stat(p); err == nil && st.Mode().IsRegular() && profileIsRemovableOnCoreSetup(p) {
@@ -606,6 +606,11 @@ func addContent(securityTag string, snapInfo *snap.Info, opts interfaces.Confine
 					repl = ""
 				}
 				tagSnippets = strings.Replace(tagSnippets, "###HOME_IX###", repl, -1)
+
+				// Conditionally add privilege dropping policy
+				if len(snapInfo.SystemUsernames) > 0 {
+					tagSnippets += privDropAndChownRules
+				}
 			}
 
 			return tagSnippets

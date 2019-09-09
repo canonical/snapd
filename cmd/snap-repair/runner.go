@@ -188,7 +188,7 @@ func (r *Repair) Run() error {
 	// wait for repair to finish or timeout
 	var scriptErr error
 	killTimerCh := time.After(defaultRepairTimeout)
-	doneCh := make(chan error)
+	doneCh := make(chan error, 1)
 	go func() {
 		doneCh <- cmd.Wait()
 		close(doneCh)

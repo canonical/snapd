@@ -406,10 +406,14 @@ static void sc_bootstrap_mount_namespace(const struct sc_mount_config *config)
 	// the this directory on the host filesystem may not match the location in
 	// the desired root filesystem. In the "core" and "ubuntu-core" snaps the
 	// directory is always /snap. On the host it is a build-time configuration
-	// option stored in SNAP_MOUNT_DIR.
-	sc_must_snprintf(dst, sizeof dst, "%s/snap", scratch_dir);
-	sc_do_mount(SNAP_MOUNT_DIR, dst, NULL, MS_BIND | MS_REC, NULL);
-	sc_do_mount("none", dst, NULL, MS_REC | MS_SLAVE, NULL);
+	// option stored in SNAP_MOUNT_DIR. In legacy mode (or in other words, not
+	// in normal mode), we don't need to do this because /snap is fixed and
+	// already contains the correct view of the mounted snaps.
+	if (config->normal_mode) {
+		sc_must_snprintf(dst, sizeof dst, "%s/snap", scratch_dir);
+		sc_do_mount(SNAP_MOUNT_DIR, dst, NULL, MS_BIND | MS_REC, NULL);
+		sc_do_mount("none", dst, NULL, MS_REC | MS_SLAVE, NULL);
+	}
 	// Create the hostfs directory if one is missing. This directory is a part
 	// of packaging now so perhaps this code can be removed later.
 	if (access(SC_HOSTFS_DIR, F_OK) != 0) {
@@ -585,6 +589,7 @@ void sc_populate_mount_ns(struct sc_apparmor *apparmor, int snap_update_ns_fd,
 			{"/var/tmp"},	// to get access to the other temporary directory
 			{"/run"},	// to get /run with sockets and what not
 			{"/lib/modules",.is_optional = true},	// access to the modules of the running kernel
+			{"/lib/firmware",.is_optional = true},	// access to the firmware of the running kernel
 			{"/usr/src"},	// FIXME: move to SecurityMounts in system-trace interface
 			{"/var/log"},	// FIXME: move to SecurityMounts in log-observe interface
 #ifdef MERGED_USR

@@ -62,6 +62,9 @@ new_format = \
 	 libsnap-confine-private/infofile-test.c \
 	 libsnap-confine-private/infofile.c \
 	 libsnap-confine-private/infofile.h \
+	 libsnap-confine-private/panic-test.h \
+	 libsnap-confine-private/panic.c \
+	 libsnap-confine-private/panic.h \
 	 snap-confine/seccomp-support-ext.c \
 	 snap-confine/seccomp-support-ext.h \
 	 snap-confine/selinux-support.c \
@@ -93,9 +96,9 @@ hack: snap-confine/snap-confine-debug snap-confine/snap-confine.apparmor snap-up
 
 # for the hack target also:
 snap-update-ns/snap-update-ns: snap-update-ns/*.go snap-update-ns/*.[ch]
-	cd snap-update-ns && GOPATH=$(or $(GOPATH),$(realpath $(srcdir)/../../../../..)) go build -i -v
+	cd snap-update-ns && GOPATH=$(or $(GOPATH),$(realpath $(srcdir)/../../../../..)) go build -v
 snap-seccomp/snap-seccomp: snap-seccomp/*.go
-	cd snap-seccomp && GOPATH=$(or $(GOPATH),$(realpath $(srcdir)/../../../../..)) go build -i -v
+	cd snap-seccomp && GOPATH=$(or $(GOPATH),$(realpath $(srcdir)/../../../../..)) go build -v
 
 ##
 ## libsnap-confine-private.a
@@ -129,6 +132,8 @@ libsnap_confine_private_a_SOURCES = \
 	libsnap-confine-private/mount-opt.h \
 	libsnap-confine-private/mountinfo.c \
 	libsnap-confine-private/mountinfo.h \
+	libsnap-confine-private/panic.c \
+	libsnap-confine-private/panic.h \
 	libsnap-confine-private/privs.c \
 	libsnap-confine-private/privs.h \
 	libsnap-confine-private/secure-getenv.c \
@@ -159,6 +164,7 @@ libsnap_confine_private_unit_tests_SOURCES = \
 	libsnap-confine-private/locking-test.c \
 	libsnap-confine-private/mount-opt-test.c \
 	libsnap-confine-private/mountinfo-test.c \
+	libsnap-confine-private/panic-test.c \
 	libsnap-confine-private/privs-test.c \
 	libsnap-confine-private/secure-getenv-test.c \
 	libsnap-confine-private/snap-test.c \

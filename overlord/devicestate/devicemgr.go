@@ -27,7 +27,7 @@ import (
 
 	"github.com/snapcore/snapd/asserts"
 	"github.com/snapcore/snapd/asserts/sysdb"
-	"github.com/snapcore/snapd/bootloader"
+	"github.com/snapcore/snapd/boot"
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/i18n"
 	"github.com/snapcore/snapd/overlord/assertstate"
@@ -92,8 +92,11 @@ func Manager(s *state.State, hookManager *hookstate.HookManager, runner *state.T
 	runner.AddHandler("generate-device-key", m.doGenerateDeviceKey, nil)
 	runner.AddHandler("request-serial", m.doRequestSerial, nil)
 	runner.AddHandler("mark-seeded", m.doMarkSeeded, nil)
+	runner.AddHandler("prepare-remodeling", m.doPrepareRemodeling, nil)
+	runner.AddCleanup("prepare-remodeling", m.cleanupRemodel)
 	// this *must* always run last and finalizes a remodel
 	runner.AddHandler("set-model", m.doSetModel, nil)
+	runner.AddCleanup("set-model", m.cleanupRemodel)
 	// There is no undo for successful gadget updates. The system is
 	// rebooted during update, if it boots up to the point where snapd runs
 	// we deem the new assets (be it bootloader or firmware) functional. The
@@ -435,11 +438,7 @@ func (m *DeviceManager) ensureBootOk() error {
 	}
 
 	if !m.bootOkRan {
-		loader, err := bootloader.Find()
-		if err != nil {
-			return fmt.Errorf(i18n.G("cannot mark boot successful: %s"), err)
-		}
-		if err := bootloader.MarkBootSuccessful(loader); err != nil {
+		if err := boot.MarkBootSuccessful(); err != nil {
 			return err
 		}
 		m.bootOkRan = true

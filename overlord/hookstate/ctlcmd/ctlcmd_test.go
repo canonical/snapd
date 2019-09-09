@@ -23,11 +23,13 @@ import (
 	"fmt"
 	"testing"
 
+	"github.com/jessevdk/go-flags"
 	"github.com/snapcore/snapd/overlord/hookstate"
 	"github.com/snapcore/snapd/overlord/hookstate/ctlcmd"
 	"github.com/snapcore/snapd/overlord/hookstate/hooktest"
 	"github.com/snapcore/snapd/overlord/state"
 	"github.com/snapcore/snapd/snap"
+	"github.com/snapcore/snapd/testutil"
 
 	. "gopkg.in/check.v1"
 )
@@ -90,4 +92,21 @@ func taskKinds(tasks []*state.Task) []string {
 		kinds[i] = k
 	}
 	return kinds
+}
+
+func (s *ctlcmdSuite) TestHiddenCommand(c *C) {
+	ctlcmd.AddHiddenMockCommand("mock-hidden")
+	ctlcmd.AddMockCommand("mock-shown")
+	defer ctlcmd.RemoveCommand("mock-hidden")
+	defer ctlcmd.RemoveCommand("mock-shown")
+
+	_, _, err := ctlcmd.Run(s.mockContext, []string{"--help"}, 0)
+	// help message output is returned as *flags.Error with
+	// Type as flags.ErrHelp
+	c.Assert(err, FitsTypeOf, &flags.Error{})
+	c.Check(err.(*flags.Error).Type, Equals, flags.ErrHelp)
+	// mock-shown is in the help message
+	c.Check(err.Error(), testutil.Contains, "  mock-shown\n")
+	// mock-hidden is not in the help message
+	c.Check(err.Error(), Not(testutil.Contains), "  mock-hidden\n")
 }

@@ -90,19 +90,14 @@ build_rpm() {
     base_version="$(head -1 debian/changelog | awk -F '[()]' '{print $2}')"
     version="1337.$base_version"
     packaging_path=packaging/$distro-$release
-    archive_name=snapd-$version.tar.gz
-    archive_compression=z
-    extra_tar_args=
     rpm_dir=$(rpm --eval "%_topdir")
-
+    pack_args=
     case "$SPREAD_SYSTEM" in
         fedora-*|amazon-*|centos-*)
-            extra_tar_args="$extra_tar_args --exclude=vendor/*"
-            archive_name=snapd_$version.no-vendor.tar.xz
             ;;
         opensuse-*)
-            archive_name=snapd_$version.vendor.tar.xz
-            archive_compression=J
+            # use bundled snapd*.vendor.tar.xz archive
+            pack_args=-s
             ;;
         *)
             echo "ERROR: RPM build for system $SPREAD_SYSTEM is not yet supported"
@@ -112,18 +107,10 @@ build_rpm() {
     sed -i -e "s/^Version:.*$/Version: $version/g" "$packaging_path/snapd.spec"
 
     # Create a source tarball for the current snapd sources
-    mkdir -p "/tmp/pkg/snapd-$version"
-    cp -ra -- * "/tmp/pkg/snapd-$version/"
     mkdir -p "$rpm_dir/SOURCES"
-    # shellcheck disable=SC2086
-    (cd /tmp/pkg && tar "-c${archive_compression}f" "$rpm_dir/SOURCES/$archive_name" $extra_tar_args "snapd-$version")
-    case "$SPREAD_SYSTEM" in
-        fedora-*|amazon-*|centos-*)
-            # need to build the vendor tree
-            (cd /tmp/pkg && tar "-cJf" "$rpm_dir/SOURCES/snapd_${version}.only-vendor.tar.xz" "snapd-$version/vendor")
-            ;;
-    esac
     cp "$packaging_path"/* "$rpm_dir/SOURCES/"
+    # shellcheck disable=SC2086
+    ./packaging/pack-source -v "$version" -o "$rpm_dir/SOURCES" $pack_args
 
     # Cleanup all artifacts from previous builds
     rm -rf "$rpm_dir"/BUILD/*
@@ -217,11 +204,46 @@ install_dependencies_from_published(){
     done
 }
 
+undo_lxd_mount_changes() {
+    # Vanilla systems have /sys/fs/cgroup/cpuset without clone_children option.
+    # Using LXD to create a container enables this option, as can be seen here:
+    #
+    # -37 32 0:32 / /sys/fs/cgroup/cpuset rw,nosuid,nodev,noexec,relatime shared:15 - cgroup cgroup rw,cpuset
+    # +37 32 0:32 / /sys/fs/cgroup/cpuset rw,nosuid,nodev,noexec,relatime shared:15 - cgroup cgroup rw,cpuset,clone_children
+    #
+    # To restore vanilla state, disable the option now.
+    if mountinfo-tool /sys/fs/cgroup/cpuset; then
+        echo 0 > /sys/fs/cgroup/cpuset/cgroup.clone_children
+    fi
+
+    # Vanilla system have /sys/fs/cgroup/unified mounted with the nsdelegate
+    # option which is available since kernel 4.13 Using LXD to create a
+    # container disables this options, as can be seen here:
+    #
+    # -32 31 0:27 / /sys/fs/cgroup/unified rw,nosuid,nodev,noexec,relatime shared:10 - cgroup2 cgroup rw,nsdelegate
+    # +32 31 0:27 / /sys/fs/cgroup/unified rw,nosuid,nodev,noexec,relatime shared:10 - cgroup2 cgroup rw
+    #
+    # To restore vanilla state, enable the option now, but only if the kernel supports that.
+    # https://lore.kernel.org/patchwork/patch/803265/
+    # https://github.com/systemd/systemd/commit/4095205ecccdfddb822ee8fdc44d11f2ded9be24
+    # The kernel version must be made compatible with the strict version
+    # comparison. I chose to cut at the "-" and take the stuff before it.
+    if [ "$(mountinfo-tool /sys/fs/cgroup/unified .fs_type)" = cgroup2 ] && version-tool --strict "$(uname -r | cut -d- -f 1)" -ge 4.13; then
+        mount -o remount,nsdelegate /sys/fs/cgroup/unified
+    fi
+}
+
 ###
 ### Prepare / restore functions for {project,suite}
 ###
 
 prepare_project() {
+    if [[ "$SPREAD_SYSTEM" == ubuntu-* ]] && [[ "$SPREAD_SYSTEM" != ubuntu-core-* ]]; then
+        apt-get remove --purge -y lxd lxcfs || true
+        apt-get autoremove --purge -y
+        undo_lxd_mount_changes
+    fi
+
     # Check if running inside a container.
     # The testsuite will not work in such an environment
     if systemd-detect-virt -c; then
@@ -363,7 +385,7 @@ prepare_project() {
         quiet eatmydata apt-get install -y --force-yes apparmor libapparmor1 seccomp libseccomp2 systemd cgroup-lite util-linux
     fi
 
-    # WORKAROUND for older postrm scripts that did not do 
+    # WORKAROUND for older postrm scripts that did not do
     # "rm -rf /var/cache/snapd"
     rm -rf /var/cache/snapd/aux
     case "$SPREAD_SYSTEM" in
@@ -488,11 +510,7 @@ install_snap_profiler(){
     echo "install snaps profiler"
 
     if [ "$PROFILE_SNAPS" = 1 ]; then
-        profiler_snap=test-snapd-profiler
-        if is_core18_system; then
-            profiler_snap=test-snapd-profiler-core18
-        fi
-
+        profiler_snap="$(get_snap_for_system test-snapd-profiler)"
         rm -f "/var/snap/${profiler_snap}/common/profiler.log"
         snap install "${profiler_snap}"
         snap connect "${profiler_snap}":system-observe
@@ -550,10 +568,7 @@ restore_suite_each() {
         logs_id=$(find "$logs_dir" -maxdepth 1 -name '*.journal.log' | wc -l)
         logs_file=$(echo "${logs_id}_${SPREAD_JOB}" | tr '/' '_' | tr ':' '__')
 
-        profiler_snap=test-snapd-profiler
-        if is_core18_system; then
-            profiler_snap=test-snapd-profiler-core18
-        fi
+        profiler_snap="$(get_snap_for_system test-snapd-profiler)"
 
         mkdir -p "$logs_dir"
         if [ -e "/var/snap/${profiler_snap}/common/profiler.log" ]; then
@@ -561,6 +576,18 @@ restore_suite_each() {
         fi
         get_journalctl_log > "${logs_dir}/${logs_file}.journal.log"
     fi
+
+    # On Arch it seems that using sudo / su for working with the test user
+    # spawns the /run/user/12345 tmpfs for XDG_RUNTIME_DIR which asynchronously
+    # cleans up itself sometime after the test but not instantly, leading to
+    # random failures in the mount leak detector. Give it a moment but don't
+    # clean it up ourselves, this should report actual test errors, if any.
+    for i in $(seq 10); do
+        if not mountinfo-tool /run/user/12345 .fs_type=tmpfs; then
+            break
+        fi
+        sleep 1
+    done
 }
 
 restore_suite() {
@@ -618,12 +645,40 @@ restore_project_each() {
         exit 1
     fi
 
+    if getent passwd snap_daemon; then
+        echo "Test left the snap_daemon user behind, this should not happen"
+        exit 1
+    fi
+    if getent group snap_daemon; then
+        echo "Test left the snap_daemon group behind, this should not happen"
+        exit 1
+    fi
+
     # Something is hosing the filesystem so look for signs of that
     not grep -F "//deleted /etc" /proc/self/mountinfo
+
+    if journalctl -u snapd.service | grep -F "signal: terminated"; then
+        exit 1;
+    fi
+
+    case "$SPREAD_SYSTEM" in
+        fedora-*|centos-*)
+            # Make sure that we are not leaving behind incorrectly labeled snap
+            # files on systems supporting SELinux
+            (
+                find /root/snap -printf '%Z\t%H/%P\n' || true
+                find /home -regex '/home/[^/]*/snap\(/.*\)?' -printf '%Z\t%H/%P\n' || true
+            ) | grep -c -v snappy_home_t | MATCH "0"
+
+            find /var/snap -printf '%Z\t%H/%P\n' | grep -c -v snappy_var_t  | MATCH "0"
+            ;;
+    esac
+
+    undo_lxd_mount_changes
 }
 
 restore_project() {
-    # Delete the snapd state used to accelerate prepare/restore code in certain suites. 
+    # Delete the snapd state used to accelerate prepare/restore code in certain suites.
     delete_snapd_state
 
     # Remove all of the code we pushed and any build results. This removes

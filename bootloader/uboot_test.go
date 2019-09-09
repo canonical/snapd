@@ -41,20 +41,20 @@ type ubootTestSuite struct {
 var _ = Suite(&ubootTestSuite{})
 
 func (s *ubootTestSuite) TestNewUbootNoUbootReturnsNil(c *C) {
-	u := bootloader.NewUboot()
+	u := bootloader.NewUboot(s.rootdir)
 	c.Assert(u, IsNil)
 }
 
 func (s *ubootTestSuite) TestNewUboot(c *C) {
-	bootloader.MockUbootFiles(c)
-	u := bootloader.NewUboot()
+	bootloader.MockUbootFiles(c, s.rootdir)
+	u := bootloader.NewUboot(s.rootdir)
 	c.Assert(u, NotNil)
 	c.Assert(u.Name(), Equals, "uboot")
 }
 
 func (s *ubootTestSuite) TestUbootGetEnvVar(c *C) {
-	bootloader.MockUbootFiles(c)
-	u := bootloader.NewUboot()
+	bootloader.MockUbootFiles(c, s.rootdir)
+	u := bootloader.NewUboot(s.rootdir)
 	c.Assert(u, NotNil)
 	err := u.SetBootVars(map[string]string{
 		"snap_mode": "",
@@ -71,16 +71,16 @@ func (s *ubootTestSuite) TestUbootGetEnvVar(c *C) {
 }
 
 func (s *ubootTestSuite) TestGetBootloaderWithUboot(c *C) {
-	bootloader.MockUbootFiles(c)
+	bootloader.MockUbootFiles(c, s.rootdir)
 
-	bootloader, err := bootloader.Find()
+	bootloader, err := bootloader.Find(s.rootdir, nil)
 	c.Assert(err, IsNil)
 	c.Assert(bootloader.Name(), Equals, "uboot")
 }
 
 func (s *ubootTestSuite) TestUbootSetEnvNoUselessWrites(c *C) {
-	bootloader.MockUbootFiles(c)
-	u := bootloader.NewUboot()
+	bootloader.MockUbootFiles(c, s.rootdir)
+	u := bootloader.NewUboot(s.rootdir)
 	c.Assert(u, NotNil)
 
 	envFile := u.ConfigFile()
@@ -109,8 +109,8 @@ func (s *ubootTestSuite) TestUbootSetEnvNoUselessWrites(c *C) {
 }
 
 func (s *ubootTestSuite) TestUbootSetBootVarFwEnv(c *C) {
-	bootloader.MockUbootFiles(c)
-	u := bootloader.NewUboot()
+	bootloader.MockUbootFiles(c, s.rootdir)
+	u := bootloader.NewUboot(s.rootdir)
 
 	err := u.SetBootVars(map[string]string{"key": "value"})
 	c.Assert(err, IsNil)
@@ -121,8 +121,8 @@ func (s *ubootTestSuite) TestUbootSetBootVarFwEnv(c *C) {
 }
 
 func (s *ubootTestSuite) TestUbootGetBootVarFwEnv(c *C) {
-	bootloader.MockUbootFiles(c)
-	u := bootloader.NewUboot()
+	bootloader.MockUbootFiles(c, s.rootdir)
+	u := bootloader.NewUboot(s.rootdir)
 
 	err := u.SetBootVars(map[string]string{"key2": "value2"})
 	c.Assert(err, IsNil)
@@ -133,8 +133,8 @@ func (s *ubootTestSuite) TestUbootGetBootVarFwEnv(c *C) {
 }
 
 func (s *ubootTestSuite) TestExtractKernelAssetsAndRemove(c *C) {
-	bootloader.MockUbootFiles(c)
-	u := bootloader.NewUboot()
+	bootloader.MockUbootFiles(c, s.rootdir)
+	u := bootloader.NewUboot(s.rootdir)
 
 	files := [][]string{
 		{"kernel.img", "I'm a kernel"},
@@ -159,9 +159,7 @@ func (s *ubootTestSuite) TestExtractKernelAssetsAndRemove(c *C) {
 	c.Assert(err, IsNil)
 
 	// this is where the kernel/initrd is unpacked
-	bootdir := u.Dir()
-
-	kernelAssetsDir := filepath.Join(bootdir, "ubuntu-kernel_42.snap")
+	kernelAssetsDir := filepath.Join(s.rootdir, "boot", "uboot", "ubuntu-kernel_42.snap")
 
 	for _, def := range files {
 		if def[0] == "meta/kernel.yaml" {

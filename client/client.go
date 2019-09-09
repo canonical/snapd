@@ -262,12 +262,11 @@ func (client *Client) Hijack(f func(*http.Request) (*http.Response, error)) {
 // do performs a request and decodes the resulting json into the given
 // value. It's low-level, for testing/experimenting only; you should
 // usually use a higher level interface that builds on this.
-func (client *Client) do(method, path string, query url.Values, headers map[string]string, body io.Reader, v interface{}) error {
+func (client *Client) do(method, path string, query url.Values, headers map[string]string, body io.Reader, v interface{}) (statusCode int, err error) {
 	retry := time.NewTicker(doRetry)
 	defer retry.Stop()
 	timeout := time.After(doTimeout)
 	var rsp *http.Response
-	var err error
 	for {
 		rsp, err = client.raw(method, path, query, headers, body)
 		if err == nil || method != "GET" {
@@ -281,17 +280,17 @@ func (client *Client) do(method, path string, query url.Values, headers map[stri
 		break
 	}
 	if err != nil {
-		return err
+		return 0, err
 	}
 	defer rsp.Body.Close()
 
 	if v != nil {
 		if err := decodeInto(rsp.Body, v); err != nil {
-			return err
+			return rsp.StatusCode, err
 		}
 	}
 
-	return nil
+	return rsp.StatusCode, nil
 }
 
 func decodeInto(reader io.Reader, v interface{}) error {
@@ -313,10 +312,11 @@ func decodeInto(reader io.Reader, v interface{}) error {
 // which produces json.Numbers instead of float64 types for numbers.
 func (client *Client) doSync(method, path string, query url.Values, headers map[string]string, body io.Reader, v interface{}) (*ResultInfo, error) {
 	var rsp response
-	if err := client.do(method, path, query, headers, body, &rsp); err != nil {
+	statusCode, err := client.do(method, path, query, headers, body, &rsp)
+	if err != nil {
 		return nil, err
 	}
-	if err := rsp.err(client); err != nil {
+	if err := rsp.err(client, statusCode); err != nil {
 		return nil, err
 	}
 	if rsp.Type != "sync" {
@@ -342,17 +342,17 @@ func (client *Client) doAsync(method, path string, query url.Values, headers map
 
 func (client *Client) doAsyncFull(method, path string, query url.Values, headers map[string]string, body io.Reader) (result json.RawMessage, changeID string, err error) {
 	var rsp response
-
-	if err := client.do(method, path, query, headers, body, &rsp); err != nil {
+	statusCode, err := client.do(method, path, query, headers, body, &rsp)
+	if err != nil {
 		return nil, "", err
 	}
-	if err := rsp.err(client); err != nil {
+	if err := rsp.err(client, statusCode); err != nil {
 		return nil, "", err
 	}
 	if rsp.Type != "async" {
 		return nil, "", fmt.Errorf("expected async response for %q on %q, got %q", method, path, rsp.Type)
 	}
-	if rsp.StatusCode != 202 {
+	if statusCode != 202 {
 		return nil, "", fmt.Errorf("operation not accepted")
 	}
 	if rsp.Change == "" {
@@ -392,11 +392,9 @@ func (client *Client) ServerVersion() (*ServerVersion, error) {
 // A response produced by the REST API will usually fit in this
 // (exceptions are the icons/ endpoints obvs)
 type response struct {
-	Result     json.RawMessage `json:"result"`
-	Status     string          `json:"status"`
-	StatusCode int             `json:"status-code"`
-	Type       string          `json:"type"`
-	Change     string          `json:"change"`
+	Result json.RawMessage `json:"result"`
+	Type   string          `json:"type"`
+	Change string          `json:"change"`
 
 	WarningCount     int       `json:"warning-count"`
 	WarningTimestamp time.Time `json:"warning-timestamp"`
@@ -458,6 +456,8 @@ const (
 
 	ErrorKindSystemRestart = "system-restart"
 	ErrorKindDaemonRestart = "daemon-restart"
+
+	ErrorKindAssertionNotFound = "assertion-not-found"
 )
 
 // IsRetryable returns true if the given error is an error
@@ -489,6 +489,17 @@ func IsInterfacesUnchangedError(err error) bool {
 		return false
 	}
 	return e.Kind == ErrorKindInterfacesUnchanged
+}
+
+// IsAssertionNotFoundError returns whether the given error means that the
+// assertion wasn't found and thus the device isn't ready/seeded.
+func IsAssertionNotFoundError(err error) bool {
+	e, ok := err.(*Error)
+	if !ok || e == nil {
+		return false
+	}
+
+	return e.Kind == ErrorKindAssertionNotFound
 }
 
 // OSRelease contains information about the system extracted from /etc/os-release.
@@ -524,7 +535,7 @@ type SysInfo struct {
 	SandboxFeatures map[string][]string `json:"sandbox-features,omitempty"`
 }
 
-func (rsp *response) err(cli *Client) error {
+func (rsp *response) err(cli *Client, statusCode int) error {
 	if cli != nil {
 		maintErr := rsp.Maintenance
 		// avoid setting to (*client.Error)(nil)
@@ -540,9 +551,9 @@ func (rsp *response) err(cli *Client) error {
 	var resultErr Error
 	err := json.Unmarshal(rsp.Result, &resultErr)
 	if err != nil || resultErr.Message == "" {
-		return fmt.Errorf("server error: %q", rsp.Status)
+		return fmt.Errorf("server error: %q", http.StatusText(statusCode))
 	}
-	resultErr.StatusCode = rsp.StatusCode
+	resultErr.StatusCode = statusCode
 
 	return &resultErr
 }
@@ -558,7 +569,7 @@ func parseError(r *http.Response) error {
 		return fmt.Errorf("cannot unmarshal error: %v", err)
 	}
 
-	err := rsp.err(nil)
+	err := rsp.err(nil, r.StatusCode)
 	if err == nil {
 		return fmt.Errorf("server error: %q", r.Status)
 	}

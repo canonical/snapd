@@ -52,10 +52,6 @@ func (s *LibvirtInterfaceSuite) TestName(c *C) {
 	c.Assert(s.iface.Name(), Equals, "libvirt")
 }
 
-func (s *LibvirtInterfaceSuite) TestSanitizeSlot(c *C) {
-	c.Assert(interfaces.BeforePrepareSlot(s.iface, s.slotInfo), ErrorMatches, ".*libvirt slots are reserved for the core snap.*")
-}
-
 func (s *LibvirtInterfaceSuite) TestSanitizePlug(c *C) {
 	c.Assert(interfaces.BeforePreparePlug(s.iface, s.plugInfo), IsNil)
 }

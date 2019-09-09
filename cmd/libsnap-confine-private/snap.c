@@ -111,9 +111,8 @@ void sc_instance_name_validate(const char *instance_name, sc_error ** errorp)
 				  "snap instance name cannot be NULL");
 		goto out;
 	}
-	// 40 char snap_name + '_' + 10 char instance_key + 1 extra overflow + 1
-	// NULL
-	char s[53] = { 0 };
+	// instance name length + 1 extra overflow + 1 NULL
+	char s[SNAP_INSTANCE_LEN + 1 + 1] = { 0 };
 	strncpy(s, instance_name, sizeof(s) - 1);
 
 	char *t = s;
@@ -175,7 +174,7 @@ void sc_instance_key_validate(const char *instance_key, sc_error ** errorp)
 		err =
 		    sc_error_init(SC_SNAP_DOMAIN, SC_SNAP_INVALID_INSTANCE_KEY,
 				  "instance key must contain at least one letter or digit");
-	} else if (i > 10) {
+	} else if (i > SNAP_INSTANCE_KEY_LEN) {
 		err =
 		    sc_error_init(SC_SNAP_DOMAIN, SC_SNAP_INVALID_INSTANCE_KEY,
 				  "instance key must be shorter than 10 characters");
@@ -253,7 +252,7 @@ void sc_snap_name_validate(const char *snap_name, sc_error ** errorp)
 				    "snap name must be longer than 1 character");
 		goto out;
 	}
-	if (n > 40) {
+	if (n > SNAP_NAME_LEN) {
 		err = sc_error_init(SC_SNAP_DOMAIN, SC_SNAP_INVALID_NAME,
 				    "snap name must be shorter than 40 characters");
 		goto out;

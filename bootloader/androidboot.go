@@ -24,16 +24,17 @@ import (
 	"path/filepath"
 
 	"github.com/snapcore/snapd/bootloader/androidbootenv"
-	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/snap"
 )
 
-type androidboot struct{}
+type androidboot struct {
+	rootdir string
+}
 
 // newAndroidboot creates a new Androidboot bootloader object
-func newAndroidBoot() Bootloader {
-	a := &androidboot{}
+func newAndroidBoot(rootdir string) Bootloader {
+	a := &androidboot{rootdir: rootdir}
 	if !osutil.FileExists(a.ConfigFile()) {
 		return nil
 	}
@@ -44,12 +45,19 @@ func (a *androidboot) Name() string {
 	return "androidboot"
 }
 
-func (a *androidboot) Dir() string {
-	return filepath.Join(dirs.GlobalRootDir, "/boot/androidboot")
+func (a *androidboot) setRootDir(rootdir string) {
+	a.rootdir = rootdir
+}
+
+func (a *androidboot) dir() string {
+	if a.rootdir == "" {
+		panic("internal error: unset rootdir")
+	}
+	return filepath.Join(a.rootdir, "/boot/androidboot")
 }
 
 func (a *androidboot) ConfigFile() string {
-	return filepath.Join(a.Dir(), "androidboot.env")
+	return filepath.Join(a.dir(), "androidboot.env")
 }
 
 func (a *androidboot) GetBootVars(names ...string) (map[string]string, error) {
@@ -77,7 +85,7 @@ func (a *androidboot) SetBootVars(values map[string]string) error {
 	return env.Save()
 }
 
-func (a *androidboot) ExtractKernelAssets(s *snap.Info, snapf snap.Container) error {
+func (a *androidboot) ExtractKernelAssets(s snap.PlaceInfo, snapf snap.Container) error {
 	return nil
 
 }

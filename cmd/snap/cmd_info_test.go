@@ -475,6 +475,7 @@ snap-id: mVyGrEwiqSi5PugCwyH7WgpoQLemtTd6
 	c.Check(s.Stderr(), check.Equals, "")
 }
 
+// only used for results on /v2/find
 const mockInfoJSON = `
 {
   "type": "sync",
@@ -594,6 +595,7 @@ snap-id: mVyGrEwiqSi5PugCwyH7WgpoQLemtTd6
 	c.Check(s.Stderr(), check.Equals, "")
 }
 
+// only used for /v2/snaps/hello
 const mockInfoJSONOtherLicense = `
 {
   "type": "sync",
@@ -610,6 +612,7 @@ const mockInfoJSONOtherLicense = `
          "display-name": "Canonical",
          "validation": "verified"
       },
+      "health": {"revision": "1", "status": "blocked", "message": "please configure the grawflit", "timestamp": "2019-05-13T16:27:01.475851677+01:00"},
       "id": "mVyGrEwiqSi5PugCwyH7WgpoQLemtTd6",
       "install-date": "2006-01-02T22:04:07.123456789Z",
       "installed-size": 1024,
@@ -680,8 +683,14 @@ func (s *infoSuite) TestInfoWithLocalDifferentLicense(c *check.C) {
 	rest, err := snap.Parser(snap.Client()).ParseArgs([]string{"info", "--abs-time", "hello"})
 	c.Assert(err, check.IsNil)
 	c.Assert(rest, check.DeepEquals, []string{})
-	c.Check(s.Stdout(), check.Equals, `name:      hello
-summary:   The GNU Hello snap
+	c.Check(s.Stdout(), check.Equals, `
+name:    hello
+summary: The GNU Hello snap
+health:
+  status:   blocked
+  message:  please configure the grawflit
+  checked:  2019-05-13T16:27:01+01:00
+  revision: 1
 publisher: Canonical*
 license:   BSD-3
 description: |
@@ -690,8 +699,8 @@ description: |
 snap-id:      mVyGrEwiqSi5PugCwyH7WgpoQLemtTd6
 tracking:     beta
 refresh-date: 2006-01-02T22:04:07Z
-installed:    2.10 (1) 1kB disabled
-`)
+installed:    2.10 (1) 1kB disabled,blocked
+`[1:])
 	c.Check(s.Stderr(), check.Equals, "")
 }
 
@@ -956,6 +965,69 @@ func (infoSuite) TestMaybePrintCohortKey(c *check.C) {
 	}
 }
 
+func (infoSuite) TestMaybePrintHealth(c *check.C) {
+	type T struct {
+		snap     *client.Snap
+		verbose  bool
+		expected string
+	}
+
+	goodHealth := &client.SnapHealth{Status: "okay"}
+	t0 := time.Date(1970, 1, 1, 10, 24, 0, 0, time.UTC)
+	badHealth := &client.SnapHealth{
+		Status:    "waiting",
+		Message:   "godot should be here any moment now",
+		Code:      "godot-is-a-lie",
+		Revision:  snaplib.R("42"),
+		Timestamp: t0,
+	}
+
+	tests := []T{
+		{snap: nil, verbose: false, expected: ""},
+		{snap: nil, verbose: true, expected: ""},
+		{snap: &client.Snap{}, verbose: false, expected: ""},
+		{snap: &client.Snap{}, verbose: true, expected: `health:
+  status:	unknown
+  message:	health
+    has not been set
+`},
+		{snap: &client.Snap{Health: goodHealth}, verbose: false, expected: ``},
+		{snap: &client.Snap{Health: goodHealth}, verbose: true, expected: `health:
+  status:	okay
+`},
+		{snap: &client.Snap{Health: badHealth}, verbose: false, expected: `health:
+  status:	waiting
+  message:	godot
+    should be here
+    any moment now
+  code:	godot-is-a-lie
+  checked:	10:24AM
+  revision:	42
+`},
+		{snap: &client.Snap{Health: badHealth}, verbose: true, expected: `health:
+  status:	waiting
+  message:	godot
+    should be here
+    any moment now
+  code:	godot-is-a-lie
+  checked:	10:24AM
+  revision:	42
+`},
+	}
+
+	var buf flushBuffer
+	iw := snap.NewInfoWriter(&buf)
+	defer snap.MockIsStdoutTTY(false)()
+
+	for i, t := range tests {
+		buf.Reset()
+		snap.SetupSnap(iw, t.snap, nil, nil)
+		snap.SetVerbose(iw, t.verbose)
+		snap.MaybePrintHealth(iw)
+		c.Check(buf.String(), check.Equals, t.expected, check.Commentf("%d", i))
+	}
+}
+
 func (infoSuite) TestWrapCornerCase(c *check.C) {
 	// this particular corner case isn't currently reachable from
 	// printDescr nor printSummary, but best to have it covered
@@ -986,4 +1058,81 @@ func (infoSuite) TestBug1828425(c *check.C) {
     too deeply
     indented.
 `)
+}
+
+const mockInfoJSONParallelInstance = `
+{
+  "type": "sync",
+  "status-code": 200,
+  "status": "OK",
+  "result": {
+      "channel": "stable",
+      "confinement": "strict",
+      "description": "GNU hello prints a friendly greeting. This is part of the snapcraft tour at https://snapcraft.io/",
+      "developer": "canonical",
+      "publisher": {
+         "id": "canonical",
+         "username": "canonical",
+         "display-name": "Canonical",
+         "validation": "verified"
+      },
+      "id": "mVyGrEwiqSi5PugCwyH7WgpoQLemtTd6",
+      "install-date": "2006-01-02T22:04:07.123456789Z",
+      "installed-size": 1024,
+      "name": "hello_foo",
+      "private": false,
+      "revision": "100",
+      "status": "available",
+      "summary": "The GNU Hello snap",
+      "type": "app",
+      "version": "2.10",
+      "license": "",
+      "tracking-channel": "beta"
+    }
+}
+`
+
+func (s *infoSuite) TestInfoParllelInstance(c *check.C) {
+	n := 0
+	s.RedirectClientToTestServer(func(w http.ResponseWriter, r *http.Request) {
+		switch n {
+		case 0:
+			c.Check(r.Method, check.Equals, "GET")
+			c.Check(r.URL.Path, check.Equals, "/v2/find")
+			q := r.URL.Query()
+			// asks for the instance snap
+			c.Check(q.Get("name"), check.Equals, "hello")
+			fmt.Fprintln(w, mockInfoJSONWithChannels)
+		case 1:
+			c.Check(r.Method, check.Equals, "GET")
+			c.Check(r.URL.Path, check.Equals, "/v2/snaps/hello_foo")
+			fmt.Fprintln(w, mockInfoJSONParallelInstance)
+		default:
+			c.Fatalf("expected to get 2 requests, now on %d (%v)", n+1, r)
+		}
+
+		n++
+	})
+	rest, err := snap.Parser(snap.Client()).ParseArgs([]string{"info", "hello_foo"})
+	c.Assert(err, check.IsNil)
+	c.Assert(rest, check.DeepEquals, []string{})
+	// make sure local and remote info is combined in the output
+	c.Check(s.Stdout(), check.Equals, `name:      hello_foo
+summary:   The GNU Hello snap
+publisher: Canonical*
+license:   unset
+description: |
+  GNU hello prints a friendly greeting. This is part of the snapcraft tour at
+  https://snapcraft.io/
+snap-id:      mVyGrEwiqSi5PugCwyH7WgpoQLemtTd6
+tracking:     beta
+refresh-date: 2006-01-02
+channels:
+  1/stable:    2.10 2018-12-18   (1) 65kB -
+  1/candidate: ^                          
+  1/beta:      ^                          
+  1/edge:      ^                          
+installed:     2.10            (100)  1kB disabled
+`)
+	c.Check(s.Stderr(), check.Equals, "")
 }

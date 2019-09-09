@@ -68,13 +68,6 @@ func (s *ioPortsControlInterfaceSuite) TestName(c *C) {
 
 func (s *ioPortsControlInterfaceSuite) TestSanitizeSlot(c *C) {
 	c.Assert(interfaces.BeforePrepareSlot(s.iface, s.slotInfo), IsNil)
-	slot := &snap.SlotInfo{
-		Snap:      &snap.Info{SuggestedName: "some-snap"},
-		Name:      "io-ports-control",
-		Interface: "io-ports-control",
-	}
-	c.Assert(interfaces.BeforePrepareSlot(s.iface, slot), ErrorMatches,
-		"io-ports-control slots are reserved for the core snap")
 }
 
 func (s *ioPortsControlInterfaceSuite) TestSanitizePlug(c *C) {

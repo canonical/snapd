@@ -1,0 +1,29 @@
+summary: Check that `snap unset` works and removes config options.
+
+prepare: |
+    #shellcheck source=tests/lib/snaps.sh
+    . "$TESTSLIB"/snaps.sh
+
+    echo "Build basic test snap"
+    install_local basic-hooks
+
+execute: |
+    echo "Setting up initial configuration"
+    snap set basic-hooks foo=abc bar=def baz=1234
+    # sanity check
+    snap get basic-hooks foo bar baz
+
+    echo "Unsetting unknown option currently doesn't give an error"
+    snap unset basic-hooks unknown.option
+
+    echo "Unsetting foo option"
+    snap unset basic-hooks foo
+    snap get basic-hooks foo 2>&1 | MATCH 'snap "basic-hooks" has no "foo" configuration option'
+
+    # sanity check, two options still available
+    snap get basic-hooks bar baz
+
+    echo "Unsetting multiple options"
+    snap unset basic-hooks bar baz
+    snap get basic-hooks bar 2>&1 | MATCH 'snap "basic-hooks" has no "bar" configuration option'
+    snap get basic-hooks baz 2>&1 | MATCH 'snap "basic-hooks" has no "baz" configuration option'

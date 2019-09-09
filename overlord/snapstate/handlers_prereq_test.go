@@ -406,6 +406,8 @@ func (s *prereqSuite) TestDoPrereqNothingToDoForSnapdSnap(c *C) {
 	s.state.Lock()
 	t := s.state.NewTask("prerequisites", "test")
 	t.Set("snap-setup", &snapstate.SnapSetup{
+		// type is normally set from snap info at install time
+		Type: snap.TypeSnapd,
 		SideInfo: &snap.SideInfo{
 			RealName: "snapd",
 			Revision: snap.R(1),

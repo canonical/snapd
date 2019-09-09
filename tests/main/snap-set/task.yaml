@@ -46,6 +46,18 @@ execute: |
     fi
     snap get snapctl-hooks foo 2>&1 | MATCH 'snap "snapctl-hooks" has no "foo" configuration option'
 
+    echo "Set foo back"
+    snap set snapctl-hooks command=test-snapctl-get-foo foo=bar
+    if ! obtained=$(snap get snapctl-hooks foo); then
+        echo "Expected snap get to be able to retrieve set value"
+        exit 1
+    fi
+    test "$obtained" = "bar"
+
+    echo "Test that the foo value can be unset"
+    snap set snapctl-hooks command=test-snapctl-foo-null foo!
+    snap get snapctl-hooks foo 2>&1 | MATCH 'snap "snapctl-hooks" has no "foo" configuration option'
+
     echo "Test that an invalid key results in an error"
     if obtained=$(snap set snapctl-hooks invalid_key=value 2>&1); then
         echo "Expected usage of an invalid key to result in an error"
@@ -59,3 +71,11 @@ execute: |
         exit 1
     fi
     [[ "$obtained" == *"error from within configure hook"* ]]
+
+    echo "Test that the 'snap set' order is deterministic"
+    for _ in $(seq 50); do
+        snap set snapctl-hooks command=noop one!
+        snap set snapctl-hooks one.two=2 one='{"three":3}'
+        snap get snapctl-hooks -l one.two | MATCH "one.two[ ]*2"
+        snap get snapctl-hooks -l one.three | MATCH "one.three[ ]*3"
+    done

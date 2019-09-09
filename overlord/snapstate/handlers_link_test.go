@@ -67,6 +67,7 @@ func (s *linkSnapSuite) SetUpTest(c *C) {
 	s.setup(c, s.stateBackend)
 
 	s.AddCleanup(snapstatetest.MockDeviceModel(DefaultModel()))
+	s.AddCleanup(snap.MockSnapdSnapID("snapd-snap-id"))
 }
 
 func checkHasCookieForSnap(c *C, st *state.State, instanceName string) {
@@ -386,7 +387,7 @@ func (s *linkSnapSuite) TestDoLinkSnapTryToCleanupOnError(c *C) {
 	c.Assert(err, Equals, state.ErrNoState)
 
 	// tried to cleanup
-	c.Check(s.fakeBackend.ops, DeepEquals, fakeOps{
+	expected := fakeOps{
 		{
 			op:    "candidate",
 			sinfo: *si,
@@ -399,7 +400,11 @@ func (s *linkSnapSuite) TestDoLinkSnapTryToCleanupOnError(c *C) {
 			op:   "unlink-snap",
 			path: filepath.Join(dirs.SnapMountDir, "foo/35"),
 		},
-	})
+	}
+
+	// start with an easier-to-read error if this fails:
+	c.Check(s.fakeBackend.ops.Ops(), DeepEquals, expected.Ops())
+	c.Check(s.fakeBackend.ops, DeepEquals, expected)
 }
 
 func (s *linkSnapSuite) TestDoLinkSnapSuccessCoreRestarts(c *C) {
@@ -449,6 +454,7 @@ func (s *linkSnapSuite) TestDoLinkSnapSuccessSnapdRestartsOnCoreWithBase(c *C) {
 	s.state.Lock()
 	si := &snap.SideInfo{
 		RealName: "snapd",
+		SnapID:   "snapd-snap-id",
 		Revision: snap.R(22),
 	}
 	t := s.state.NewTask("link-snap", "test")
@@ -471,7 +477,7 @@ func (s *linkSnapSuite) TestDoLinkSnapSuccessSnapdRestartsOnCoreWithBase(c *C) {
 
 	typ, err := snapst.Type()
 	c.Check(err, IsNil)
-	c.Check(typ, Equals, snap.TypeApp)
+	c.Check(typ, Equals, snap.TypeSnapd)
 
 	c.Check(t.Status(), Equals, state.DoneStatus)
 	c.Check(s.stateBackend.restartRequested, DeepEquals, []state.RestartType{state.RestartDaemon})
@@ -486,6 +492,7 @@ func (s *linkSnapSuite) TestDoLinkSnapSuccessSnapdRestartsOnClassic(c *C) {
 	s.state.Lock()
 	si := &snap.SideInfo{
 		RealName: "snapd",
+		SnapID:   "snapd-snap-id",
 		Revision: snap.R(22),
 	}
 	t := s.state.NewTask("link-snap", "test")
@@ -508,7 +515,7 @@ func (s *linkSnapSuite) TestDoLinkSnapSuccessSnapdRestartsOnClassic(c *C) {
 
 	typ, err := snapst.Type()
 	c.Check(err, IsNil)
-	c.Check(typ, Equals, snap.TypeApp)
+	c.Check(typ, Equals, snap.TypeSnapd)
 
 	c.Check(t.Status(), Equals, state.DoneStatus)
 	c.Check(s.stateBackend.restartRequested, DeepEquals, []state.RestartType{state.RestartDaemon})
