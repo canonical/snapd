@@ -253,6 +253,56 @@ func (s *servicesTestSuite) TestServicesEnableState(c *C) {
 	}
 }
 
+func (s *servicesTestSuite) TestServicesEnableStateFail(c *C) {
+	info := snaptest.MockSnap(c, packageHello, &snap.SideInfo{Revision: snap.R(12)})
+	svc1File := "snap.hello-snap.svc1.service"
+
+	s.systemctlRestorer()
+	r := testutil.MockCommand(c, "systemctl", `#!/bin/sh
+	if [ "$1" = "--root" ]; then
+		# shifting by 2 also drops the temp dir arg to --root
+	    shift 2
+	fi
+
+	case "$1" in
+		is-enabled)
+			case "$2" in
+			"snap.hello-snap.svc1.service")
+				echo "whoops"
+				exit 1
+				;;
+			*)
+				echo "unexpected service $*"
+				exit 2
+				;;
+			esac
+	        ;;
+	    *)
+	        echo "unexpected op $*"
+	        exit 2
+	esac
+
+	exit 1
+	`)
+	defer r.Restore()
+
+	_, err := wrappers.ServicesEnableState(info, progress.Null)
+	c.Assert(err, ErrorMatches, ".*is-enabled snap.hello-snap.svc1.service] failed with exit status 1: whoops\n.*")
+
+	// the calls could be out of order in the list, since iterating over a map
+	// is non-deterministic, so manually check each call
+	c.Assert(r.Calls(), HasLen, 1)
+	for _, call := range r.Calls() {
+		c.Assert(call, HasLen, 5)
+		c.Assert(call[:4], DeepEquals, []string{"systemctl", "--root", s.tempdir, "is-enabled"})
+		switch call[4] {
+		case svc1File:
+		default:
+			c.Errorf("unknown service for systemctl call: %s", call[4])
+		}
+	}
+}
+
 func (s *servicesTestSuite) TestStopServicesWithSockets(c *C) {
 	var sysdLog []string
 	r := systemd.MockSystemctl(func(cmd ...string) ([]byte, error) {
