@@ -201,6 +201,7 @@ func (s *servicesTestSuite) TestCurrentSnapServiceStates(c *C) {
 	s.systemctlRestorer()
 	r := testutil.MockCommand(c, "systemctl", `#!/bin/sh
 	if [ "$1" = "--root" ]; then
+		# shifting by 2 also drops the temp dir arg to --root
 	    shift 2
 	fi
 
@@ -225,6 +226,8 @@ func (s *servicesTestSuite) TestCurrentSnapServiceStates(c *C) {
 	        echo "unexpected op $*"
 	        exit 2
 	esac
+
+	exit 1
 	`)
 	defer r.Restore()
 
