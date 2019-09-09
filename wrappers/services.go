@@ -337,9 +337,9 @@ func StopServices(apps []*snap.AppInfo, reason snap.ServiceStopReason, inter int
 	return nil
 }
 
-// CurrentSnapServiceStates builds a map of service names and whether the snap
+// ServicesEnableState builds a map of service names and whether the snap
 // is enabled or disabled
-func CurrentSnapServiceStates(s *snap.Info, inter interacter) (map[string]bool, error) {
+func ServicesEnableState(s *snap.Info, inter interacter) (map[string]bool, error) {
 	sysd := systemd.New(dirs.GlobalRootDir, systemd.SystemMode, inter)
 
 	// loop over all services in the snap, querying systemd for the current

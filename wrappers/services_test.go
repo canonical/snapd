@@ -189,7 +189,7 @@ apps:
 	})
 }
 
-func (s *servicesTestSuite) TestCurrentSnapServiceStates(c *C) {
+func (s *servicesTestSuite) TestServicesEnableState(c *C) {
 	info := snaptest.MockSnap(c, packageHello+`
  svc2:
   command: bin/hello
@@ -231,7 +231,7 @@ func (s *servicesTestSuite) TestCurrentSnapServiceStates(c *C) {
 	`)
 	defer r.Restore()
 
-	states, err := wrappers.CurrentSnapServiceStates(info, progress.Null)
+	states, err := wrappers.ServicesEnableState(info, progress.Null)
 	c.Assert(err, IsNil)
 
 	c.Assert(states, DeepEquals, map[string]bool{
