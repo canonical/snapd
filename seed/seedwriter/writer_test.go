@@ -271,9 +271,9 @@ func (s *writerSuite) TestSnapsToDownloadCore16(c *C) {
 	c.Check(snaps, HasLen, 4)
 
 	c.Check(naming.SameSnap(snaps[0], naming.Snap("core")), Equals, true)
-	c.Check(naming.SameSnap(snaps[1], naming.Snap("pc")), Equals, true)
-	// XXX c.Check(snaps[1].Channel, Equals, "edge")
-	c.Check(naming.SameSnap(snaps[2], naming.Snap("pc-kernel")), Equals, true)
+	c.Check(naming.SameSnap(snaps[1], naming.Snap("pc-kernel")), Equals, true)
+	c.Check(naming.SameSnap(snaps[2], naming.Snap("pc")), Equals, true)
+	// XXX c.Check(snaps[2].Channel, Equals, "edge")
 	c.Check(naming.SameSnap(snaps[3], naming.Snap("required")), Equals, true)
 }
 
@@ -343,10 +343,10 @@ func (s *writerSuite) TestDownloadedCore18(c *C) {
 	c.Assert(err, IsNil)
 	c.Check(snaps, HasLen, 6)
 	c.Check(naming.SameSnap(snaps[0], naming.Snap("snapd")), Equals, true)
-	c.Check(naming.SameSnap(snaps[1], naming.Snap("core18")), Equals, true)
-	c.Check(naming.SameSnap(snaps[2], naming.Snap("pc")), Equals, true)
-	// XXX c.Check(snaps[2].Channel, Equals, "edge")
-	c.Check(naming.SameSnap(snaps[3], naming.Snap("pc-kernel")), Equals, true)
+	c.Check(naming.SameSnap(snaps[1], naming.Snap("pc-kernel")), Equals, true)
+	c.Check(naming.SameSnap(snaps[2], naming.Snap("core18")), Equals, true)
+	c.Check(naming.SameSnap(snaps[3], naming.Snap("pc")), Equals, true)
+	// XXX c.Check(snaps[3].Channel, Equals, "edge")
 
 	for _, sn := range snaps {
 		s.fillDownloadedSnap(c, w, sn)
