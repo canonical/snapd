@@ -289,18 +289,9 @@ func (s *servicesTestSuite) TestServicesEnableStateFail(c *C) {
 	_, err := wrappers.ServicesEnableState(info, progress.Null)
 	c.Assert(err, ErrorMatches, ".*is-enabled snap.hello-snap.svc1.service\\] failed with exit status 1: whoops\n.*")
 
-	// the calls could be out of order in the list, since iterating over a map
-	// is non-deterministic, so manually check each call
-	c.Assert(r.Calls(), HasLen, 1)
-	for _, call := range r.Calls() {
-		c.Assert(call, HasLen, 5)
-		c.Assert(call[:4], DeepEquals, []string{"systemctl", "--root", s.tempdir, "is-enabled"})
-		switch call[4] {
-		case svc1File:
-		default:
-			c.Errorf("unknown service for systemctl call: %s", call[4])
-		}
-	}
+	c.Assert(r.Calls(), DeepEquals, [][]string{
+		{"systemctl", "--root", s.tempdir, "is-enabled", svc1File},
+	})
 }
 
 func (s *servicesTestSuite) TestStopServicesWithSockets(c *C) {
