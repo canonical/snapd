@@ -136,7 +136,7 @@ func (s storeChannelSuite) TestParseVerbatim(c *C) {
 	ch, err = channel.ParseVerbatim("edge", "")
 	c.Assert(err, IsNil)
 	c.Check(ch, DeepEquals, channel.Channel{
-		Architecture: arch.UbuntuArchitecture(),
+		Architecture: arch.DpkgArchitecture(),
 		Risk:         "edge",
 	})
 	c.Check(ch.VerbatimTrackOnly(), Equals, false)
