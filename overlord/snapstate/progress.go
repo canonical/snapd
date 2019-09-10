@@ -20,6 +20,8 @@
 package snapstate
 
 import (
+	"math"
+
 	"github.com/snapcore/snapd/overlord/state"
 	"github.com/snapcore/snapd/progress"
 )
@@ -58,8 +60,10 @@ func (t *taskProgressAdapter) Set(current float64) {
 	t.current = current
 
 	// check if we made at least "minProgress" before we lock the state
+	// (using Abs to ensure that even if lastReported is smaller than
+	//  current we still report progress)
 	const minProgress = 0.2 / 100.0
-	if current != 0.0 && (t.current-t.lastReported)/t.total < minProgress {
+	if current != 0.0 && math.Abs(t.current-t.lastReported)/t.total < minProgress {
 		return
 	}
 
