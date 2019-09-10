@@ -128,7 +128,8 @@ sign-key-sha3-384: anCEGC2NYq7DzDEi6y7OafQCVeVLS90XlLt9PNjrRl9sim5rmRHDDNFNO7ODc
 
 AcJwBAABCgAGBQJdZFBdAADCLALwR6Sy24wm9PffwbvUhOEXneyY3BnxKC0+NgdHu1gU8go9vEP1
 i+Flh5uoS70+MBIO+nmF8T+9JWIx2QWFDDxvcuFosnIhvUajCEQohauys5FMz/H/WvB0vrbTBpvK
-eg==`
+eg==
+`
 
 const noModelAssertionYetResponse = `
 {
@@ -380,4 +381,31 @@ device-key: |
   omTcoTssVHrfLpBoSDV1aBs44rg3NK40ZKPJP7d2zkds1GxUo1Ea5vfet3SJ4h3aRABEBAAE=
 `[1:])
 	c.Check(s.Stderr(), check.Equals, "")
+}
+
+func (s *SnapSuite) TestSerialAssertion(c *check.C) {
+	s.RedirectClientToTestServer(
+		makeHappyTestServerHandler(
+			c,
+			simpleHappyResponder(happyModelAssertionResponse),
+			simpleHappyResponder(happySerialAssertionResponse),
+			simpleAssertionAccountResponder(happyAccountAssertionResponse),
+		))
+	rest, err := snap.Parser(snap.Client()).ParseArgs([]string{"model", "--serial", "--assertion"})
+	c.Assert(err, check.IsNil)
+	c.Assert(rest, check.DeepEquals, []string{})
+	c.Check(s.Stdout(), check.Equals, happySerialAssertionResponse)
+	c.Check(s.Stderr(), check.Equals, "")
+}
+
+func (s *SnapSuite) TestSerialAssertionSerialAssertionMissing(c *check.C) {
+	s.RedirectClientToTestServer(
+		makeHappyTestServerHandler(
+			c,
+			simpleHappyResponder(happyModelAssertionResponse),
+			simpleUnhappyResponder(noSerialAssertionYetResponse),
+			simpleAssertionAccountResponder(happyAccountAssertionResponse),
+		))
+	_, err := snap.Parser(snap.Client()).ParseArgs([]string{"model", "--serial", "--assertion"})
+	c.Assert(err, check.ErrorMatches, `device not ready yet \(no assertions found\)`)
 }
