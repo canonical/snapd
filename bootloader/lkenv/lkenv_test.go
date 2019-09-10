@@ -209,6 +209,34 @@ func (l *lkenvTestSuite) TestFailedCRCFallBack(c *C) {
 	c.Check(env2.Get("snap_try_kernel"), Equals, "kernel-2")
 }
 
+func (l *lkenvTestSuite) TestGetBootPartition(c *C) {
+	buf := make([]byte, 4096)
+	err := ioutil.WriteFile(l.envPath, buf, 0644)
+	c.Assert(err, IsNil)
+
+	env := lkenv.NewEnv(l.envPath)
+	c.Assert(err, IsNil)
+	env.ConfigureBootPartitions("boot_a", "boot_b")
+	// test no boot partition used
+	p, err := env.FindFreeBootPartition("kernel-1")
+	c.Check(p, Equals, "boot_a")
+	c.Assert(err, IsNil)
+	//  set kernel-2 to boot_a partition
+	err = env.SetBootPartition("boot_a", "kernel-1")
+	c.Assert(err, IsNil)
+	//  set kernel-2 to boot_a partition
+	err = env.SetBootPartition("boot_b", "kernel-2")
+
+	// 'boot_a' has 'kernel-1' revision
+	p, err = env.GetBootPartition("kernel-1")
+	c.Check(p, Equals, "boot_a")
+	c.Assert(err, IsNil)
+	// 'boot_b' has 'kernel-2' revision
+	p, err = env.GetBootPartition("kernel-2")
+	c.Check(p, Equals, "boot_b")
+	c.Assert(err, IsNil)
+}
+
 func (l *lkenvTestSuite) TestFindFree_Set_Free_BootPartition(c *C) {
 	buf := make([]byte, 4096)
 	err := ioutil.WriteFile(l.envPath, buf, 0644)
