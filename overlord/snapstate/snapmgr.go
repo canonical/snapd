@@ -602,11 +602,16 @@ func (m *SnapManager) ensureSnapdSnapTransition() error {
 
 	// get current core snap and use same channel/user for the snapd snap
 	err = Get(m.state, "core", &snapst)
+	// Note that state.ErrNoState should never happen in practise. However
+	// if it *does* happen we still want to fix those systems by installing
+	// the snapd snap.
 	if err != nil && err != state.ErrNoState {
 		return err
 	}
 	coreChannel := snapst.Channel
-	userID := snapst.UserID
+	// snapd/core are never blocked on auth so we don't need to copy
+	// the userID from the snapst here
+	userID := 0
 
 	if changeInFlight(m.state) {
 		// check that there is no change in flight already, this is a
