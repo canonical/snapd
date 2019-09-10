@@ -337,7 +337,7 @@ func StopServices(apps []*snap.AppInfo, reason snap.ServiceStopReason, inter int
 	return nil
 }
 
-// ServicesEnableState returns a map of service names from the given snap, 
+// ServicesEnableState returns a map of service names from the given snap,
 // together with their enable/disable status.
 func ServicesEnableState(s *snap.Info, inter interacter) (map[string]bool, error) {
 	sysd := systemd.New(dirs.GlobalRootDir, systemd.SystemMode, inter)
