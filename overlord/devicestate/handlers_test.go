@@ -123,10 +123,10 @@ func (s *deviceMgrSuite) TestSetModelHandlerNewRevision(c *C) {
 	c.Check(fooState.Flags.Required, Equals, true)
 	c.Check(barState.Flags.Required, Equals, false)
 	// the kernel is no longer required
-	err = snapstate.Get(s.state, "pc-kernel", &barState)
+	var kernelState snapstate.SnapState
+	err = snapstate.Get(s.state, "pc-kernel", &kernelState)
 	c.Assert(err, IsNil)
-	c.Check(fooState.Flags.Required, Equals, true)
-	c.Check(barState.Flags.Required, Equals, false)
+	c.Check(kernelState.Flags.Required, Equals, false)
 }
 
 func (s *deviceMgrSuite) TestSetModelHandlerSameRevisionNoError(c *C) {
