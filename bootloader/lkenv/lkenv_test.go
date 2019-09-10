@@ -226,6 +226,7 @@ func (l *lkenvTestSuite) TestGetBootPartition(c *C) {
 	c.Assert(err, IsNil)
 	//  set kernel-2 to boot_a partition
 	err = env.SetBootPartition("boot_b", "kernel-2")
+	c.Assert(err, IsNil)
 
 	// 'boot_a' has 'kernel-1' revision
 	p, err = env.GetBootPartition("kernel-1")
