@@ -746,6 +746,26 @@ func (ts *timeutilSuite) TestScheduleNext(c *C) {
 			last: "2018-07-29 13:00",
 			// next one on 2018-08-01 13:00
 			next: "52h-52h",
+		}, {
+			//   October 2019
+			// Su Mo Tu We Th Fr Sa
+			//        1  2  3  4  5
+			//  6  7  8  9 10 11 12
+			// 13 14 15 16 17 18 19
+			// 20 21 22 23 24 25 26
+			// 27 28 29 30 31
+
+			// first Monday to first Wednesday of the month, in Oct
+			// 2019, matches the following days:
+			// - 01.10
+			// - 02.10
+			// - 07.10
+			schedule: "mon1-wed1,9:00-13:00",
+			now:      "2019-09-30 9:00",
+			// yesterday
+			last: "2019-09-30 9:00",
+			// next one on 2019-10-01 9:00
+			next: "24h-24h",
 		},
 	} {
 		c.Logf("trying %+v", t)
@@ -917,6 +937,18 @@ func (ts *timeutilSuite) TestScheduleIncludes(c *C) {
 			// sometime between 10am and 11am
 			now:       "2017-02-06 9:30:00",
 			expecting: true,
+		}, {
+			// schedule: "mon1-wed1,9:00-10:00",
+			schedule: "mon1-wed1,9:00-10:00",
+			// Tue, 9:30
+			now:       "2019-10-01 9:30:00",
+			expecting: true,
+		}, {
+			// schedule: "mon1-wed1,9:00-10:00",
+			schedule: "tue1,9:00-10:00",
+			// Tue, 9:30
+			now:       "2019-10-01 9:30:00",
+			expecting: true,
 		},
 	} {
 		c.Logf("trying %+v", t)
@@ -1019,6 +1051,59 @@ func (ts *timeutilSuite) TestWeekSpans(c *C) {
 			week:  "thu5",
 			when:  "2018-07-26",
 			match: true,
+		}, {
+			// first Monday (06.08) to first Friday (03.08), see August calendar above
+			// includes: 01.08-03.08 and 06.08-07.08
+			week: "mon1-fri1",
+			// Wednesday
+			when:  "2018-08-01",
+			match: true,
+		}, {
+			// first Monday (06.08) to first Friday (03.08), see August calendar above
+			week: "mon1-fri1",
+			// Tuesday
+			when:  "2018-08-07",
+			match: true,
+		}, {
+			// first Monday (06.08) to first Friday (03.08), see August calendar above
+			week: "mon1-fri1",
+			// Thursday
+			when:  "2018-08-08",
+			match: false,
+		}, {
+			// second Monday (13.08) to second Friday (10.08), see August calendar above
+			// includes: 13.08-14.08 and 08.08-10.08
+			week: "mon2-fri2",
+			// Thursday
+			when:  "2018-08-13",
+			match: true,
+		}, {
+			// second Monday (13.08) to second Friday (10.08), see August calendar above
+			week: "mon2-fri2",
+			// Thursday
+			when:  "2018-08-13",
+			match: true,
+		}, {
+			// first Friday (03.08) to second Monday (13.08), see August calendar above
+			// includes: 03.08-13.08
+			week: "fri1-mon2",
+			// Saturday
+			when:  "2018-08-11",
+			match: true,
+		}, {
+			// first Friday (06.07) to second Monday (09.07), see July calendar above
+			// includes: 03.07-09.07
+			week: "fri1-mon2",
+			// Sunday
+			when:  "2018-07-08",
+			match: true,
+		}, {
+			// first Friday (06.07) to second Monday (09.07), see July calendar above
+			// includes: 06.07-09.07
+			week: "fri1-mon2",
+			// Sunday
+			when:  "2018-07-10",
+			match: false,
 		},
 	} {
 		c.Logf("trying %+v", t)

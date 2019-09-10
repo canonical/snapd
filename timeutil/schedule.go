@@ -155,6 +155,15 @@ func (ws WeekSpan) Match(t time.Time) bool {
 	start, end := ws.Start, ws.End
 	wdStart, wdEnd := start.Weekday, end.Weekday
 
+	weekdayMatch := func(t time.Time) bool {
+		if wdStart <= wdEnd {
+			// single day (mon) or start < end (eg. mon-fri)
+			return t.Weekday() >= wdStart && t.Weekday() <= wdEnd
+		}
+		// wraps around the week end, eg. fri-mon
+		return t.Weekday() >= wdStart || t.Weekday() <= wdEnd
+	}
+
 	if start.Pos != EveryWeek {
 		if start.Pos == LastWeek {
 			// last week of the month
@@ -165,19 +174,49 @@ func (ws WeekSpan) Match(t time.Time) bool {
 			startDay := findNthWeekDay(t, start.Weekday, start.Pos)
 			endDay := findNthWeekDay(t, end.Weekday, end.Pos)
 
-			if t.Day() < startDay.Day() || t.Day() > endDay.Day() {
-				return false
+			if startDay.After(endDay) {
+				// fun cases, eg (consider the calendar below):
+				//
+				// - mon1-fri1, 1st Monday is 06.08, 1st Friday
+				//   is 03.08, matches: 01.08-03.08 and 06.08-07.08
+				// - mon2-fri2, 2nd Monday is 13.08, 2nd Friday
+				//   is 10.08, matches: 13.08-14.08 and
+				//   08.08-10.08
+				//
+				//      August 2018
+				// Su Mo Tu We Th Fr Sa
+				//           1  2  3  4
+				//  5  6  7  8  9 10 11
+				// 12 13 14 15 16 17 18
+				// 19 20 21 22 23 24 25
+				// 26 27 28 29 30 31
+
+				if t.Day() > endDay.Day() && t.Day() < startDay.Day() {
+					// between the end and start dates
+					return false
+				}
+
+				// which occurrence of given weekday it is
+				nth := uint((t.Day()-1)/7 + 1)
+
+				if nth < start.Pos || nth > end.Pos {
+					return false
+				}
+				if !weekdayMatch(t) {
+					return false
+				}
+			} else {
+				// easy, unambiguous case
+
+				if t.Day() < startDay.Day() || t.Day() > endDay.Day() {
+					return false
+				}
 			}
 			return true
 		}
 	}
 
-	if wdStart <= wdEnd {
-		// single day (mon) or start < end (eg. mon-fri)
-		return t.Weekday() >= wdStart && t.Weekday() <= wdEnd
-	}
-	// wraps around the week end, eg. fri-mon
-	return t.Weekday() >= wdStart || t.Weekday() <= wdEnd
+	return weekdayMatch(t)
 }
 
 // ClockSpan represents a time span within 24h, potentially crossing days. For
