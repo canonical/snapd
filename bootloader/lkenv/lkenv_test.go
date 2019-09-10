@@ -144,6 +144,7 @@ func (l *lkenvTestSuite) TestSaveNoBak(c *C) {
 	env.Set("snap_try_core", "core-2")
 	env.Set("snap_gadget", "gadget-1")
 	env.Set("snap_try_gadget", "gadget-2")
+	env.Set("bootimg_file_name", "boot.img")
 
 	err = env.Save()
 	c.Assert(err, IsNil)
@@ -158,6 +159,7 @@ func (l *lkenvTestSuite) TestSaveNoBak(c *C) {
 	c.Check(env2.Get("snap_try_core"), Equals, "core-2")
 	c.Check(env2.Get("snap_gadget"), Equals, "gadget-1")
 	c.Check(env2.Get("snap_try_gadget"), Equals, "gadget-2")
+	c.Check(env2.Get("bootimg_file_name"), Equals, "boot.img")
 }
 
 func (l *lkenvTestSuite) TestFailedCRC(c *C) {
