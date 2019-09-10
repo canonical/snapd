@@ -22,7 +22,6 @@
 #define SNAP_BOOTSELECT_SIGNATURE ('S' | ('B' << 8) | ('s' << 16) | ('e' << 24))
 #define SNAP_NAME_MAX_LEN (256)
 #define HASH_LENGTH (32)
-#define SNAP_MODE_LENGTH (8)
 #define SNAP_MODE_TRY "try"
 #define SNAP_MODE_TRYING "trying"
 #define FACTORY_RESET "factory-reset"
@@ -41,7 +40,7 @@ typedef struct SNAP_BOOT_SELECTION {
     uint32_t version;
 
     /* snap_mode, one of: 'empty', "try", "trying" */
-    char snap_mode[SNAP_MODE_LENGTH];
+    char snap_mode[SNAP_NAME_MAX_LEN];
     /* current core snap revision */
     char snap_core[SNAP_NAME_MAX_LEN];
     /* try core snap revision */
@@ -51,37 +50,53 @@ typedef struct SNAP_BOOT_SELECTION {
     /* current kernel snap revision */
     char snap_try_kernel[SNAP_NAME_MAX_LEN];
 
+    /* gadget_mode, one of: 'empty', "try", "trying" */
+    char gadget_mode[SNAP_NAME_MAX_LEN];
     /* GADGET assets: current gadget assets revision */
     char snap_gadget[SNAP_NAME_MAX_LEN];
     /* GADGET assets: try gadget assets revision */
     char snap_try_gadget [SNAP_NAME_MAX_LEN];
 
     /**
-     Reboot reason
-     Optional parameter to signal bootloader alternative reboot reasons
-     e.g. recovery/factory-reset/boot asset update
-    */
+     * Reboot reason
+     * optional parameter to signal bootloader alternative reboot reasons
+     * e.g. recovery/factory-reset/boot asset update
+     */
     char reboot_reason[SNAP_NAME_MAX_LEN];
 
-	/**
-      Matrix for mapping of boot img partion to installed kernel snap revision
-      At image build time:
-        - snap prepare populates:
-             - fills matrix first column with bootimage part names based on
-               gadget.yaml file where we will support multiple occurrences of the role: bootimg
-             - fills boot_part_num with number of actually available boot partitions
-        - snapd:
-             - when new kernel snap is installed, snap updates mapping in matrix so
-               bootloader can pick correct kernel snap to use for boot
-             - snap_mode, snap_try_kernel, snap_try_core behaves same way as with u-boot
-             - boot partition labels are never modified by snapd at run time
-        - bootloader:
-             - Finds boot partition to use based on info in matrix and snap_kernel / snap_try_kernel
-             - bootloaer does not alter matrix, only alters snap_mode
-
-        [ <bootimg 1 part label> ] [ <currently installed kernel snap revison> ]
-        [ <bootimg 2 part label> ] [ <currently installed kernel snap revision> ]
-    */
+    /**
+     * Matrix for mapping of boot img partion to installed kernel snap revision
+     *
+     * First column represents boot image partition label (e.g. boot_a,boot_b )
+     *   value are static and should be populated at gadget built time
+     *   or latest at image build time. Values are not further altered at run time.
+     * Second column represents name currently installed kernel snap
+     *   e.g. pi2-kernel_123.snap
+     * initial value representing initial kernel snap revision
+     *   is pupulated at image build time by snapd
+     *
+     * There are two rows in the matrix, representing current and previous kernel revision
+     * following describes how this matrix should be modified at different stages:
+     *  - at image build time:
+     *    - extracted kernel snap revision name should be filled
+     *      into free slow (first row, second row)
+     *  - snapd:
+     *    - when new kernel snap revision is being installed, snapd cycles through
+     *      matrix to find unused 'boot slot' to be used for new kernel snap revision
+     *      from free slot, first column represents partition label to which kernel
+     *      snap boot image should be extracted. Second column is then populated with
+     *      kernel snap revision name.
+     *    - snap_mode, snap_try_kernel, snap_try_core behaves same way as with u-boot
+     *  - bootloader:
+     *    - bootloader reads snap_mode to determine if snap_kernel or snap_kernel is used
+     *      to get kernel snap revision name
+     *      kernel snap revision is then used to search matrix to determine
+     *      partition label to be used for current boot
+     *    - bootloader NEVER alters this matrix values
+     *
+     * [ <bootimg 1 part label> ] [ <kernel snap revison installed in this boot partition> ]
+     * [ <bootimg 2 part label> ] [ <kernel snap revison installed in this boot partition> ]
+     */
     char bootimg_matrix[SNAP_BOOTIMG_PART_NUM][2][SNAP_NAME_MAX_LEN];
 
     /* name of the boot image from kernel snap to be used for extraction
@@ -89,23 +104,40 @@ typedef struct SNAP_BOOT_SELECTION {
     char bootimg_file_name[SNAP_NAME_MAX_LEN];
 
     /**
-     GADGET assets: Matrix for mapping of gadget asset partions
-     Optional boot asset tracking, based on bootloader support
-     Some boot chains support A/B boot assets for increased robustness
-     example being A/B TrustExecutionEnvironment
-     This matrix can be used to track current and try boot assets for
-     robust updates
-
-     [ <boot assets 1 part label> ] [ <currently installed assets revison> ]
-     [ <boot assets 2 part label> ] [ <currently installed assets revision> ]
-    */
-    char boot_asset_matrix [SNAP_BOOTIMG_PART_NUM][2][SNAP_NAME_MAX_LEN];
+     * Gadget assets: Matrix for mapping of gadget asset partions
+     * Optional boot asset tracking, based on bootloader support
+     * Some boot chains support A/B boot assets for increased robustness
+     * example being A/B TrustExecutionEnvironment
+     * This matrix can be used to track current and try boot assets for
+     * robust updates
+     * Use of Gadget_asset_matrix matches use of Bootimg_matrix
+     *
+     * [ <boot assets 1 part label> ] [ <currently installed assets revison> ]
+     * [ <boot assets 2 part label> ] [ <currently installed assets revision> ]
+     */
+    char gadget_asset_matrix [SNAP_BOOTIMG_PART_NUM][2][SNAP_NAME_MAX_LEN];
 
     /* unused placeholders for additional parameters to be used  in the future */
-    char unused_key_1 [SNAP_NAME_MAX_LEN];
-    char unused_key_2 [SNAP_NAME_MAX_LEN];
-    char unused_key_3 [SNAP_NAME_MAX_LEN];
-    char unused_key_4 [SNAP_NAME_MAX_LEN];
+    char unused_key_01 [SNAP_NAME_MAX_LEN];
+    char unused_key_02 [SNAP_NAME_MAX_LEN];
+    char unused_key_03 [SNAP_NAME_MAX_LEN];
+    char unused_key_04 [SNAP_NAME_MAX_LEN];
+    char unused_key_05 [SNAP_NAME_MAX_LEN];
+    char unused_key_06 [SNAP_NAME_MAX_LEN];
+    char unused_key_07 [SNAP_NAME_MAX_LEN];
+    char unused_key_08 [SNAP_NAME_MAX_LEN];
+    char unused_key_09 [SNAP_NAME_MAX_LEN];
+    char unused_key_10 [SNAP_NAME_MAX_LEN];
+    char unused_key_11 [SNAP_NAME_MAX_LEN];
+    char unused_key_12 [SNAP_NAME_MAX_LEN];
+    char unused_key_13 [SNAP_NAME_MAX_LEN];
+    char unused_key_14 [SNAP_NAME_MAX_LEN];
+    char unused_key_15 [SNAP_NAME_MAX_LEN];
+    char unused_key_16 [SNAP_NAME_MAX_LEN];
+    char unused_key_17 [SNAP_NAME_MAX_LEN];
+    char unused_key_18 [SNAP_NAME_MAX_LEN];
+    char unused_key_19 [SNAP_NAME_MAX_LEN];
+    char unused_key_20 [SNAP_NAME_MAX_LEN];
 
     /* unused array of 10 key - value pairs */
     char key_value_pairs [10][2][SNAP_NAME_MAX_LEN];

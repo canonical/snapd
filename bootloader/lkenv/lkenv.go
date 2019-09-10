@@ -35,7 +35,6 @@ const SNAP_BOOTSELECT_VERSION = 0x00010001
 // const SNAP_BOOTSELECT_SIGNATURE ('S' | ('B' << 8) | ('s' << 16) | ('e' << 24))
 const SNAP_BOOTSELECT_SIGNATURE = 0x53 | 0x42<<8 | 0x73<<16 | 0x65<<24
 const SNAP_NAME_MAX_LEN = 256
-const SNAP_MODE_LENGTH = 8
 
 /* number of available boot partitions */
 const SNAP_BOOTIMG_PART_NUM = 2
@@ -69,7 +68,7 @@ type SnapBootSelect_v1 struct {
 	Version uint32
 
 	/* snap_mode, one of: 'empty', "try", "trying" */
-	Snap_mode [SNAP_MODE_LENGTH]byte
+	Snap_mode [SNAP_NAME_MAX_LEN]byte
 	/* current core snap revision */
 	Snap_core [SNAP_NAME_MAX_LEN]byte
 	/* try core snap revision */
@@ -79,6 +78,8 @@ type SnapBootSelect_v1 struct {
 	/* current kernel snap revision */
 	Snap_try_kernel [SNAP_NAME_MAX_LEN]byte
 
+	/* gadget_mode, one of: 'empty', "try", "trying" */
+	Gadget_mode [SNAP_NAME_MAX_LEN]byte
 	/* GADGET assets: current gadget assets revision */
 	Snap_gadget [SNAP_NAME_MAX_LEN]byte
 	/* GADGET assets: try gadget assets revision */
@@ -139,17 +140,34 @@ type SnapBootSelect_v1 struct {
 	 * example being A/B TrustExecutionEnvironment
 	 * This matrix can be used to track current and try boot assets for
 	 * robust updates
+	 * Use of Gadget_asset_matrix matches use of Bootimg_matrix
 	 *
 	 * [ <boot assets 1 part label> ] [ <currently installed assets revison> ]
 	 * [ <boot assets 2 part label> ] [ <currently installed assets revision> ]
 	 */
-	Boot_asset_matrix [SNAP_BOOTIMG_PART_NUM][2][SNAP_NAME_MAX_LEN]byte
+	Gadget_asset_matrix [SNAP_BOOTIMG_PART_NUM][2][SNAP_NAME_MAX_LEN]byte
 
 	/* unused placeholders for additional parameters in the future */
-	Unused_key_1 [SNAP_NAME_MAX_LEN]byte
-	Unused_key_2 [SNAP_NAME_MAX_LEN]byte
-	Unused_key_3 [SNAP_NAME_MAX_LEN]byte
-	Unused_key_4 [SNAP_NAME_MAX_LEN]byte
+	Unused_key_01 [SNAP_NAME_MAX_LEN]byte
+	Unused_key_02 [SNAP_NAME_MAX_LEN]byte
+	Unused_key_03 [SNAP_NAME_MAX_LEN]byte
+	Unused_key_04 [SNAP_NAME_MAX_LEN]byte
+	Unused_key_05 [SNAP_NAME_MAX_LEN]byte
+	Unused_key_06 [SNAP_NAME_MAX_LEN]byte
+	Unused_key_07 [SNAP_NAME_MAX_LEN]byte
+	Unused_key_08 [SNAP_NAME_MAX_LEN]byte
+	Unused_key_09 [SNAP_NAME_MAX_LEN]byte
+	Unused_key_10 [SNAP_NAME_MAX_LEN]byte
+	Unused_key_11 [SNAP_NAME_MAX_LEN]byte
+	Unused_key_12 [SNAP_NAME_MAX_LEN]byte
+	Unused_key_13 [SNAP_NAME_MAX_LEN]byte
+	Unused_key_14 [SNAP_NAME_MAX_LEN]byte
+	Unused_key_15 [SNAP_NAME_MAX_LEN]byte
+	Unused_key_16 [SNAP_NAME_MAX_LEN]byte
+	Unused_key_17 [SNAP_NAME_MAX_LEN]byte
+	Unused_key_18 [SNAP_NAME_MAX_LEN]byte
+	Unused_key_19 [SNAP_NAME_MAX_LEN]byte
+	Unused_key_20 [SNAP_NAME_MAX_LEN]byte
 
 	/* unused array of 10 key value pairs */
 	Kye_value_pairs [10][2][SNAP_NAME_MAX_LEN]byte
