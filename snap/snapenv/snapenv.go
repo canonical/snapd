@@ -112,7 +112,7 @@ func basicEnv(info *snap.Info) map[string]string {
 		"SNAP_INSTANCE_KEY":  info.InstanceKey,
 		"SNAP_VERSION":       info.Version,
 		"SNAP_REVISION":      info.Revision.String(),
-		"SNAP_ARCH":          arch.UbuntuArchitecture(),
+		"SNAP_ARCH":          arch.DpkgArchitecture(),
 		// see https://github.com/snapcore/snapd/pull/2732#pullrequestreview-18827193
 		"SNAP_LIBRARY_PATH": "/var/lib/snapd/lib/gl:/var/lib/snapd/lib/gl32:/var/lib/snapd/void",
 		"SNAP_REEXEC":       os.Getenv("SNAP_REEXEC"),
