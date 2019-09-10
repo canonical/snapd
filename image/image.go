@@ -275,6 +275,11 @@ func snapChannel(name string, model *asserts.Model, opts *Options, local *localI
 		// fallback to default channel
 		snapChannel = opts.Channel
 	}
+	if snapChannel != "" {
+		if _, err := channel.ParseVerbatim(snapChannel, "-"); err != nil {
+			return "", fmt.Errorf("cannot use option channel for snap %q: %v", name, err)
+		}
+	}
 	// consider snap types that can be pinned to a track by the model
 	var pinnedTrack string
 	var kind string
@@ -286,33 +291,14 @@ func snapChannel(name string, model *asserts.Model, opts *Options, local *localI
 		kind = "kernel"
 		pinnedTrack = model.KernelTrack()
 	}
-	if pinnedTrack != "" {
-		ch, err := makeChannelFromTrack(kind, pinnedTrack, snapChannel)
-		if err != nil {
-			return "", err
-		}
-		snapChannel = ch
-
+	ch, err := channel.ResolveLocked(pinnedTrack, snapChannel)
+	if err == channel.ErrLockedTrackSwitch {
+		return "", fmt.Errorf("channel %q for %s has a track incompatible with the track from model assertion: %s", snapChannel, kind, pinnedTrack)
 	}
-	return snapChannel, nil
-}
-
-func makeChannelFromTrack(what, track, snapChannel string) (string, error) {
-	mch, err := channel.Parse(track, "")
 	if err != nil {
-		return "", fmt.Errorf("cannot use track %q for %s from model assertion: %v", track, what, err)
+		return "", err
 	}
-	if snapChannel != "" {
-		ch, err := channel.ParseVerbatim(snapChannel, "")
-		if err != nil {
-			return "", fmt.Errorf("cannot parse channel %q for %s", snapChannel, what)
-		}
-		if ch.Track != "" && ch.Track != mch.Track {
-			return "", fmt.Errorf("channel %q for %s has a track incompatible with the track from model assertion: %s", snapChannel, what, track)
-		}
-		mch.Risk = ch.Risk
-	}
-	return mch.Clean().String(), nil
+	return ch, nil
 }
 
 func unpackGadget(gadgetFname, gadgetUnpackDir string) error {
