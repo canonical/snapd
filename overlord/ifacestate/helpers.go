@@ -151,42 +151,8 @@ func (m *InterfaceManager) regenerateAllSecurityProfiles(tm timings.Measurer) er
 		if backend.Name() == "" {
 			continue // Test backends have no name, skip them to simplify testing.
 		}
-
-		// use .SetupMany() if implemented by the backend, otherwise fall back to .Setup()
-		if setupManyInterface, ok := backend.(interfaces.SecurityBackendSetupMany); ok {
-			timings.Run(tm, "setup-security-backend", fmt.Sprintf("setup security backend %q", backend.Name()), func(nesttm timings.Measurer) {
-				if errors := setupManyInterface.SetupMany(snaps, confinementOpts, m.repo, nesttm); errors != nil {
-					// Let's log this but carry on without writing the system key.
-					logger.Noticef("cannot regenerate %s profiles", backend.Name())
-					for _, err := range errors {
-						logger.Noticef(err.Error())
-					}
-					shouldWriteSystemKey = false
-				}
-			})
-		} else {
-			// For each snap:
-			for _, snapInfo := range snaps {
-				snapName := snapInfo.InstanceName()
-				// Get the state of the snap so we can compute the confinement option
-				var snapst snapstate.SnapState
-				if err := snapstate.Get(m.state, snapName, &snapst); err != nil {
-					logger.Noticef("cannot get state of snap %q: %s", snapName, err)
-				}
-
-				// Compute confinement options
-				opts := confinementOptions(snapst.Flags)
-
-				// Refresh security of this snap and backend
-				timings.Run(tm, "setup-security-backend", fmt.Sprintf("setup security backend %q for snap %q", backend.Name(), snapInfo.InstanceName()), func(nesttm timings.Measurer) {
-					if err := backend.Setup(snapInfo, opts, m.repo, nesttm); err != nil {
-						// Let's log this but carry on without writing the system key.
-						logger.Noticef("cannot regenerate %s profile for snap %q: %s",
-							backend.Name(), snapName, err)
-						shouldWriteSystemKey = false
-					}
-				})
-			}
+		if ok := interfaces.SetupMany(m.repo, backend, snaps, confinementOpts, tm); !ok {
+			shouldWriteSystemKey = false
 		}
 	}
 

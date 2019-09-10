@@ -467,8 +467,7 @@ func (s *helpersSuite) TestProfileRegenerationSetupMany(c *C) {
 
 	mockSnaps(c, st)
 
-	// Pretend that security profiles are out of date and mock the
-	// function that writes the new system key with one always panics.
+	// Pretend that security profiles are out of date.
 	restore = ifacestate.MockProfilesNeedRegeneration(func() bool { return true })
 	defer restore()
 	restore = ifacestate.MockWriteSystemKey(func() error {
@@ -516,8 +515,7 @@ func (s *helpersSuite) TestProfileRegenerationSetupManyFailsSystemKeyNotWritten(
 
 	mockSnaps(c, st)
 
-	// Pretend that security profiles are out of date and mock the
-	// function that writes the new system key with one always panics.
+	// Pretend that security profiles are out of date.
 	restore = ifacestate.MockProfilesNeedRegeneration(func() bool { return true })
 	defer restore()
 	restore = ifacestate.MockWriteSystemKey(func() error {

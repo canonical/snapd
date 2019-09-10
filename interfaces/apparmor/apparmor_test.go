@@ -231,3 +231,23 @@ func (s *appArmorSuite) TestValidateFreeFromAAREhappy(c *C) {
 		c.Check(apparmor.ValidateNoAppArmorRegexp(s), IsNil, Commentf("%q raised an error but shouldn't", s))
 	}
 }
+
+func (s *appArmorSuite) TestMaybeSetNumberOfJobs(c *C) {
+	var cpus int
+	restore := apparmor.MockRuntimeNumCPU(func() int {
+		return cpus
+	})
+	defer restore()
+
+	cpus = 10
+	args := apparmor.MaybeSetNumberOfJobs([]string{"foo"})
+	c.Check(args, DeepEquals, []string{"foo", "-j8"})
+
+	cpus = 2
+	args = apparmor.MaybeSetNumberOfJobs([]string{"bar"})
+	c.Check(args, DeepEquals, []string{"bar", "-j1"})
+
+	cpus = 1
+	args = apparmor.MaybeSetNumberOfJobs([]string{"baz"})
+	c.Check(args, DeepEquals, []string{"baz"})
+}
