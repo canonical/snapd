@@ -674,6 +674,7 @@ What=%s
 Where=%s
 Type=%s
 Options=%s
+LazyUnmount=yes
 
 [Install]
 WantedBy=multi-user.target

@@ -1206,24 +1206,19 @@ func resolveChannel(st *state.State, snapName, newChannel string, deviceCtx Devi
 		return newChannel, nil
 	}
 
-	nch, err := channel.ParseVerbatim(newChannel, "")
+	// channel name is valid and consist of risk level or
+	// risk/branch only, do the right thing and default to risk (or
+	// risk/branch) within the pinned track
+	resChannel, err := channel.ResolveLocked(pinnedTrack, newChannel)
+	if err == channel.ErrLockedTrackSwitch {
+		// switching to a different track is not allowed
+		return "", fmt.Errorf("cannot switch from %s track %q as specified for the (device) model to %q", which, pinnedTrack, newChannel)
+
+	}
 	if err != nil {
 		return "", err
 	}
-
-	if nch.Track == "" {
-		// channel name is valid and consist of risk level or
-		// risk/branch only, do the right thing and default to risk (or
-		// risk/branch) within the pinned track
-		return pinnedTrack + "/" + newChannel, nil
-	}
-	if nch.Track != "" && nch.Track != pinnedTrack {
-		// switching to a different track is not allowed
-		return "", fmt.Errorf("cannot switch from %s track %q as specified for the (device) model to %q", which, pinnedTrack, nch.Clean().String())
-
-	}
-
-	return newChannel, nil
+	return resChannel, nil
 }
 
 var errRevisionSwitch = errors.New("cannot switch revision")
