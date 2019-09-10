@@ -84,7 +84,7 @@ func deriveIconContent(instanceName string, rootDir string, icons []string) (con
 			return nil, err
 		}
 		if !strings.HasPrefix(base, snapPrefix) {
-			return nil, fmt.Errorf("Icon file %q does not begin with %q", iconFile, snapPrefix)
+			return nil, fmt.Errorf("cannot use icon file %q: must start with snap prefix %q", iconFile, snapPrefix)
 		}
 		// rename icons to match snap instance name
 		base = instancePrefix + base[len(snapPrefix):]

@@ -148,10 +148,10 @@ func rewriteIconLine(s *snap.Info, line string) (string, error) {
 	// If there is a path separator, assume the icon is a path name
 	if strings.ContainsRune(icon, filepath.Separator) {
 		if !strings.HasPrefix(icon, "${SNAP}/") {
-			return "", fmt.Errorf("icon path %v is not part of the snap", icon)
+			return "", fmt.Errorf("icon path %q is not part of the snap", icon)
 		}
 		if filepath.Clean(icon) != icon {
-			return "", fmt.Errorf("icon path %v is not canonical", icon)
+			return "", fmt.Errorf("icon path %q is not canonicalized", icon)
 		}
 		return line, nil
 	}
@@ -165,7 +165,7 @@ func rewriteIconLine(s *snap.Info, line string) (string, error) {
 
 	// If the icon has any other "snap." prefix, treat this as an error.
 	if strings.HasPrefix(icon, "snap.") {
-		return "", fmt.Errorf("invalid icon name: %q", icon)
+		return "", fmt.Errorf("invalid icon name: %q, must start with %q", icon, snapIconPrefix)
 	}
 
 	// Allow other icons names through unchanged.

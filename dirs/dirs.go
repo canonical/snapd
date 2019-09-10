@@ -232,6 +232,9 @@ func SetRootDir(rootdir string) {
 	SnapMountPolicyDir = filepath.Join(rootdir, snappyDir, "mount")
 	SnapMetaDir = filepath.Join(rootdir, snappyDir, "meta")
 	SnapBlobDir = filepath.Join(rootdir, snappyDir, "snaps")
+	// ${snappyDir}/desktop is added to $XDG_DATA_DIRS.
+	// Subdirectories are interpreted according to the relevant
+	// freedesktop.org specifications
 	SnapDesktopFilesDir = filepath.Join(rootdir, snappyDir, "desktop", "applications")
 	SnapDesktopIconsDir = filepath.Join(rootdir, snappyDir, "desktop", "icons")
 	SnapRunDir = filepath.Join(rootdir, "/run/snapd")

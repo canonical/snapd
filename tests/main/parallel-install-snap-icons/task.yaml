@@ -1,7 +1,7 @@
 summary: Parallel installed snaps have non-conflicting icons
 
 restore: |
-    snap set system experimental.parallel-instances=null
+    snap unset system experimental.parallel-instances
 
 execute: |
     #shellcheck source=tests/lib/snaps.sh
