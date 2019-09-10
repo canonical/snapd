@@ -254,9 +254,9 @@ func (s *SnapSuite) TestModel(c *check.C) {
 			modelF:  simpleHappyResponder(happyModelAssertionResponse),
 			serialF: simpleHappyResponder(happySerialAssertionResponse),
 			outText: `
-brand:   MeMeMe (meuser*)
-model:   test-model
-serial:  serialserial
+brand   MeMeMe (meuser*)
+model   test-model
+serial  serialserial
 `[1:],
 		},
 		{
@@ -264,9 +264,9 @@ serial:  serialserial
 			modelF:  simpleHappyResponder(happyModelWithDisplayNameAssertionResponse),
 			serialF: simpleHappyResponder(happySerialAssertionResponse),
 			outText: `
-brand:   MeMeMe (meuser*)
-model:   Model Name (test-model)
-serial:  serialserial
+brand   MeMeMe (meuser*)
+model   Model Name (test-model)
+serial  serialserial
 `[1:],
 		},
 		{
@@ -274,9 +274,9 @@ serial:  serialserial
 			modelF:  simpleHappyResponder(happyModelAssertionResponse),
 			serialF: simpleUnhappyResponder(noSerialAssertionYetResponse),
 			outText: `
-brand:   MeMeMe (meuser*)
-model:   test-model
-serial:  - (device not registered yet)
+brand   MeMeMe (meuser*)
+model   test-model
+serial  - (device not registered yet)
 `[1:],
 		},
 	} {

@@ -158,6 +158,13 @@ func (x *cmdModel) Execute(args []string) error {
 	// the rest of this function is the main flow for outputting either the
 	// model or serial assertion in normal or verbose mode
 
+	// for the `snap model` case with no options, we don't want colons, we want
+	// to be like `snap version`
+	separator := ":"
+	if !x.Verbose && !x.Serial {
+		separator = ""
+	}
+
 	// output the primary keys first in their canonical order
 	for _, headerName := range mainAssertion.Type().PrimaryKey {
 		switch headerName {
@@ -177,7 +184,7 @@ func (x *cmdModel) Execute(args []string) error {
 			if displayName := modelAssertion.HeaderString("display-name"); displayName != "" {
 				modelHeader = fmt.Sprintf("%s (%s)", displayName, modelHeader)
 			}
-			fmt.Fprintf(w, "model:\t%s\n", modelHeader)
+			fmt.Fprintf(w, "model%s\t%s\n", separator, modelHeader)
 		case "brand-id":
 			brandID := mainAssertion.HeaderString("brand-id")
 			if x.Serial {
@@ -193,9 +200,9 @@ func (x *cmdModel) Execute(args []string) error {
 			}
 			// use the longPublisher helper to format the brand store account
 			// like we do in `snap info`
-			fmt.Fprintf(w, "brand:\t%s\n", longPublisher(x.getEscapes(), storeAccount))
+			fmt.Fprintf(w, "brand%s\t%s\n", separator, longPublisher(x.getEscapes(), storeAccount))
 		default:
-			fmt.Fprintf(w, "%s:\t%s\n", headerName, mainAssertion.HeaderString(headerName))
+			fmt.Fprintf(w, "%s%s\t%s\n", headerName, separator, mainAssertion.HeaderString(headerName))
 		}
 	}
 
@@ -209,7 +216,7 @@ func (x *cmdModel) Execute(args []string) error {
 		} else {
 			serial = serialAssertion.HeaderString("serial")
 		}
-		fmt.Fprintf(w, "serial:\t%s\n", serial)
+		fmt.Fprintf(w, "serial%s\t%s\n", separator, serial)
 	}
 
 	// --verbose means output all of the fields

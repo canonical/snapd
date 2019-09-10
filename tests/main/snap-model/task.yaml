@@ -28,7 +28,7 @@ execute: |
     exit 1
   fi
 
-  modelCmdModel="$(snap model | grep -Po "model:\s+\K(.*)")"
+  modelCmdModel="$(snap model | grep -Po "model\s+\K(.*)")"
   knownCmdModel="$(snap known model | grep -Po "model:\s+\K(.*)")"
   echo "Check that model from \"snap known\" matches \"snap model\""
   if snap known model | grep -q -P '^display-name:'; then
