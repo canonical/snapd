@@ -94,8 +94,8 @@ typedef struct SNAP_BOOT_SELECTION {
      *      partition label to be used for current boot
      *    - bootloader NEVER alters this matrix values
      *
-     * [ <bootimg 1 part label> ] [ <kernel snap revison installed in this boot partition> ]
-     * [ <bootimg 2 part label> ] [ <kernel snap revison installed in this boot partition> ]
+     * [ <bootimg 1 part label> ] [ <kernel snap revision installed in this boot partition> ]
+     * [ <bootimg 2 part label> ] [ <kernel snap revision installed in this boot partition> ]
      */
     char bootimg_matrix[SNAP_BOOTIMG_PART_NUM][2][SNAP_NAME_MAX_LEN];
 
@@ -104,7 +104,7 @@ typedef struct SNAP_BOOT_SELECTION {
     char bootimg_file_name[SNAP_NAME_MAX_LEN];
 
     /**
-     * Gadget assets: Matrix for mapping of gadget asset partions
+     * gadget assets: Matrix for mapping of gadget asset partions
      * Optional boot asset tracking, based on bootloader support
      * Some boot chains support A/B boot assets for increased robustness
      * example being A/B TrustExecutionEnvironment
@@ -112,8 +112,8 @@ typedef struct SNAP_BOOT_SELECTION {
      * robust updates
      * Use of Gadget_asset_matrix matches use of Bootimg_matrix
      *
-     * [ <boot assets 1 part label> ] [ <currently installed assets revison> ]
-     * [ <boot assets 2 part label> ] [ <currently installed assets revision> ]
+     * [ <boot assets 1 part label> ] [ <currently installed assets revision in this partition> ]
+     * [ <boot assets 2 part label> ] [ <currently installed assets revision in this partition> ]
      */
     char gadget_asset_matrix [SNAP_BOOTIMG_PART_NUM][2][SNAP_NAME_MAX_LEN];
 
