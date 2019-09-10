@@ -1453,6 +1453,7 @@ func (s *imageSuite) TestSetupSeedWithKernelAndGadgetTrack(c *C) {
 	opts := &image.Options{
 		RootDir:         rootdir,
 		GadgetUnpackDir: gadgetUnpackDir,
+		Channel:         "stable",
 	}
 	local, err := image.LocalSnaps(s.tsto, opts)
 	c.Assert(err, IsNil)
@@ -1466,9 +1467,10 @@ func (s *imageSuite) TestSetupSeedWithKernelAndGadgetTrack(c *C) {
 
 	c.Check(seedYaml.Snaps, HasLen, 3)
 	c.Check(seedYaml.Snaps[0], DeepEquals, &seed.Snap16{
-		Name:   "core",
-		SnapID: s.AssertedSnapID("core"),
-		File:   "core_3.snap",
+		Name:    "core",
+		SnapID:  s.AssertedSnapID("core"),
+		File:    "core_3.snap",
+		Channel: "stable",
 	})
 	c.Check(seedYaml.Snaps[1], DeepEquals, &seed.Snap16{
 		Name:    "pc-kernel",
@@ -1488,6 +1490,7 @@ func (s *imageSuite) TestSetupSeedWithKernelAndGadgetTrack(c *C) {
 	c.Check(s.storeActions[0], DeepEquals, &store.SnapAction{
 		Action:       "download",
 		InstanceName: "core",
+		Channel:      "stable",
 	})
 	c.Check(s.storeActions[1], DeepEquals, &store.SnapAction{
 		Action:       "download",
@@ -2321,6 +2324,11 @@ func (s *imageSuite) TestSnapChannel(c *C) {
 	opts.SnapChannels["pc-kernel"] = "lts/candidate"
 	_, err = image.SnapChannel("pc-kernel", model, opts, local)
 	c.Assert(err, ErrorMatches, `channel "lts/candidate" for kernel has a track incompatible with the track from model assertion: 18`)
+
+	opts.SnapChannels["pc-kernel"] = "track/foo"
+	_, err = image.SnapChannel("pc-kernel", model, opts, local)
+	c.Assert(err, ErrorMatches, `cannot use option channel for snap "pc-kernel": invalid risk in channel name: track/foo`)
+
 }
 
 func (s *imageSuite) TestSetupSeedLocalSnapd(c *C) {
