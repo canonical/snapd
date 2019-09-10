@@ -47,7 +47,8 @@ model assertion.
 `)
 
 	invalidTypeMessage = i18n.G("invalid type for %q header")
-	devNotReadyMessage = i18n.G("device not ready yet (no assertions found)")
+	errNoMainAssertion = errors.New(i18n.G("device not ready yet (no assertions found)"))
+	errNoSerial        = errors.New(i18n.G("device not ready yet (no serial assertion found)"))
 
 	// this list is a "nice" "human" "readable" "ordering" of headers to print
 	// off, sorted in lexographical order with meta headers and primary key
@@ -106,7 +107,7 @@ func (x *cmdModel) Execute(args []string) error {
 	if modelErr != nil {
 		if client.IsAssertionNotFoundError(modelErr) {
 			// device is not registered yet - use specific error message
-			modelErr = fmt.Errorf(devNotReadyMessage)
+			modelErr = errNoMainAssertion
 		}
 		return modelErr
 	}
@@ -128,7 +129,7 @@ func (x *cmdModel) Execute(args []string) error {
 		// if we are using the serial assertion and we specifically didn't find the
 		// serial assertion, bail with specific error
 		if x.Serial && client.IsAssertionNotFoundError(serialErr) {
-			return errors.New(devNotReadyMessage)
+			return errNoMainAssertion
 		}
 
 		_, err := Stdout.Write(asserts.Encode(mainAssertion))
@@ -152,7 +153,7 @@ func (x *cmdModel) Execute(args []string) error {
 		fmt.Fprintf(w, "brand-id:\t%s\n", modelAssertion.HeaderString("brand-id"))
 		fmt.Fprintf(w, "model:\t%s\n", modelAssertion.HeaderString("model"))
 
-		return errors.New(devNotReadyMessage)
+		return errNoSerial
 	}
 
 	// the rest of this function is the main flow for outputting either the

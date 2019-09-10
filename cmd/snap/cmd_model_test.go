@@ -238,7 +238,7 @@ func (s *SnapSuite) TestNoSerialYet(c *check.C) {
 			simpleAssertionAccountResponder(happyAccountAssertionResponse),
 		))
 	_, err := snap.Parser(snap.Client()).ParseArgs([]string{"model", "--serial"})
-	c.Assert(err, check.ErrorMatches, `device not ready yet \(no assertions found\)`)
+	c.Assert(err, check.ErrorMatches, `device not ready yet \(no serial assertion found\)`)
 }
 
 func (s *SnapSuite) TestModel(c *check.C) {
