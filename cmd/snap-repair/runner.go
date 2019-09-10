@@ -776,7 +776,7 @@ func (run *Runner) Applicable(headers map[string]interface{}) bool {
 	if err != nil {
 		return false
 	}
-	if len(archs) != 0 && !strutil.ListContains(archs, arch.UbuntuArchitecture()) {
+	if len(archs) != 0 && !strutil.ListContains(archs, arch.DpkgArchitecture()) {
 		return false
 	}
 	brandModel := fmt.Sprintf("%s/%s", run.state.Device.Brand, run.state.Device.Model)

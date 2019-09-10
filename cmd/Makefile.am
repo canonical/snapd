@@ -69,6 +69,7 @@ new_format = \
 	 snap-confine/seccomp-support-ext.h \
 	 snap-confine/selinux-support.c \
 	 snap-confine/selinux-support.h \
+	 snap-confine/snap-confine-invocation-test.c \
 	 snap-confine/snap-confine-invocation.c \
 	 snap-confine/snap-confine-invocation.h \
 	 snap-discard-ns/snap-discard-ns.c
@@ -336,8 +337,7 @@ snap_confine_unit_tests_SOURCES = \
 	snap-confine/mount-support-test.c \
 	snap-confine/ns-support-test.c \
 	snap-confine/snap-confine-args-test.c \
-	snap-confine/snap-confine-invocation.c \
-	snap-confine/snap-confine-invocation.h \
+	snap-confine/snap-confine-invocation-test.c \
 	snap-confine/snap-device-helper-test.c
 snap_confine_unit_tests_CFLAGS = $(snap_confine_snap_confine_CFLAGS) $(GLIB_CFLAGS)
 snap_confine_unit_tests_LDADD = $(snap_confine_snap_confine_LDADD) $(GLIB_LIBS)
