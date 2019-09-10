@@ -38,7 +38,7 @@ func (s storeChannelSuite) TestParse(c *C) {
 	ch, err := channel.Parse("stable", "")
 	c.Assert(err, IsNil)
 	c.Check(ch, DeepEquals, channel.Channel{
-		Architecture: arch.UbuntuArchitecture(),
+		Architecture: arch.DpkgArchitecture(),
 		Name:         "stable",
 		Track:        "",
 		Risk:         "stable",
@@ -48,7 +48,7 @@ func (s storeChannelSuite) TestParse(c *C) {
 	ch, err = channel.Parse("latest/stable", "")
 	c.Assert(err, IsNil)
 	c.Check(ch, DeepEquals, channel.Channel{
-		Architecture: arch.UbuntuArchitecture(),
+		Architecture: arch.DpkgArchitecture(),
 		Name:         "stable",
 		Track:        "",
 		Risk:         "stable",
@@ -58,7 +58,7 @@ func (s storeChannelSuite) TestParse(c *C) {
 	ch, err = channel.Parse("1.0/edge", "")
 	c.Assert(err, IsNil)
 	c.Check(ch, DeepEquals, channel.Channel{
-		Architecture: arch.UbuntuArchitecture(),
+		Architecture: arch.DpkgArchitecture(),
 		Name:         "1.0/edge",
 		Track:        "1.0",
 		Risk:         "edge",
@@ -68,7 +68,7 @@ func (s storeChannelSuite) TestParse(c *C) {
 	ch, err = channel.Parse("1.0", "")
 	c.Assert(err, IsNil)
 	c.Check(ch, DeepEquals, channel.Channel{
-		Architecture: arch.UbuntuArchitecture(),
+		Architecture: arch.DpkgArchitecture(),
 		Name:         "1.0/stable",
 		Track:        "1.0",
 		Risk:         "stable",
@@ -78,7 +78,7 @@ func (s storeChannelSuite) TestParse(c *C) {
 	ch, err = channel.Parse("1.0/beta/foo", "")
 	c.Assert(err, IsNil)
 	c.Check(ch, DeepEquals, channel.Channel{
-		Architecture: arch.UbuntuArchitecture(),
+		Architecture: arch.DpkgArchitecture(),
 		Name:         "1.0/beta/foo",
 		Track:        "1.0",
 		Risk:         "beta",
@@ -88,7 +88,7 @@ func (s storeChannelSuite) TestParse(c *C) {
 	ch, err = channel.Parse("candidate/foo", "")
 	c.Assert(err, IsNil)
 	c.Check(ch, DeepEquals, channel.Channel{
-		Architecture: arch.UbuntuArchitecture(),
+		Architecture: arch.DpkgArchitecture(),
 		Name:         "candidate/foo",
 		Track:        "",
 		Risk:         "candidate",
@@ -116,7 +116,7 @@ func (s storeChannelSuite) TestParseVerbatim(c *C) {
 	ch, err := channel.ParseVerbatim("sometrack", "")
 	c.Assert(err, IsNil)
 	c.Check(ch, DeepEquals, channel.Channel{
-		Architecture: arch.UbuntuArchitecture(),
+		Architecture: arch.DpkgArchitecture(),
 		Track:        "sometrack",
 	})
 	c.Check(ch.VerbatimTrackOnly(), Equals, true)
@@ -126,7 +126,7 @@ func (s storeChannelSuite) TestParseVerbatim(c *C) {
 	ch, err = channel.ParseVerbatim("latest", "")
 	c.Assert(err, IsNil)
 	c.Check(ch, DeepEquals, channel.Channel{
-		Architecture: arch.UbuntuArchitecture(),
+		Architecture: arch.DpkgArchitecture(),
 		Track:        "latest",
 	})
 	c.Check(ch.VerbatimTrackOnly(), Equals, true)
@@ -146,7 +146,7 @@ func (s storeChannelSuite) TestParseVerbatim(c *C) {
 	ch, err = channel.ParseVerbatim("latest/stable", "")
 	c.Assert(err, IsNil)
 	c.Check(ch, DeepEquals, channel.Channel{
-		Architecture: arch.UbuntuArchitecture(),
+		Architecture: arch.DpkgArchitecture(),
 		Track:        "latest",
 		Risk:         "stable",
 	})
@@ -157,7 +157,7 @@ func (s storeChannelSuite) TestParseVerbatim(c *C) {
 	ch, err = channel.ParseVerbatim("latest/stable/foo", "")
 	c.Assert(err, IsNil)
 	c.Check(ch, DeepEquals, channel.Channel{
-		Architecture: arch.UbuntuArchitecture(),
+		Architecture: arch.DpkgArchitecture(),
 		Track:        "latest",
 		Risk:         "stable",
 		Branch:       "foo",

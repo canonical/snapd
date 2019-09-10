@@ -69,7 +69,7 @@ func ParseVerbatim(s string, architecture string) (Channel, error) {
 	}
 
 	if architecture == "" {
-		architecture = arch.UbuntuArchitecture()
+		architecture = arch.DpkgArchitecture()
 	}
 
 	ch := Channel{
