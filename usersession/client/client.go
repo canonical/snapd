@@ -190,3 +190,18 @@ func (client *Client) SessionInfo(ctx context.Context) (info map[int]SessionInfo
 	}
 	return info, err
 }
+
+func (client *Client) ServicesDaemonReload(ctx context.Context) error {
+	headers := map[string]string{"Content-Type": "application/json"}
+	reqBody := []byte(`{"action": "daemon-reload"}`)
+	responses, err := client.do(ctx, "POST", "/v1/services", nil, headers, reqBody)
+	if err != nil {
+		return err
+	}
+	for _, resp := range responses {
+		if resp.err != nil {
+			return resp.err
+		}
+	}
+	return nil
+}

@@ -127,3 +127,30 @@ func (s *clientSuite) TestSessionInfoError(c *C) {
 		Value:   nil,
 	})
 }
+
+func (s *clientSuite) TestServicesDaemonReload(c *C) {
+	s.header.Set("Content-Type", "application/json")
+	s.rsp = `{
+  "type": "sync",
+  "result": null
+}`
+	err := s.cli.ServicesDaemonReload(context.Background())
+	c.Assert(err, IsNil)
+}
+
+func (s *clientSuite) TestServicesDaemonReloadError(c *C) {
+	s.header.Set("Content-Type", "application/json")
+	s.status = 500
+	s.rsp = `{
+  "type": "error",
+  "result": {
+    "message": "something bad happened"
+  }
+}`
+	err := s.cli.ServicesDaemonReload(context.Background())
+	c.Check(err, DeepEquals, &client.Error{
+		Kind:    "",
+		Message: "something bad happened",
+		Value:   nil,
+	})
+}
