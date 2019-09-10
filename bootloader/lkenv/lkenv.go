@@ -239,6 +239,8 @@ func (l *Env) Get(key string) string {
 		return cToGoString(l.env.Snap_try_gadget[:])
 	case "reboot_reason":
 		return cToGoString(l.env.Reboot_reason[:])
+	case "bootimg_file_name":
+		return cToGoString(l.env.Bootimg_file_name[:])
 	}
 	return ""
 }
@@ -261,6 +263,8 @@ func (l *Env) Set(key, value string) {
 		copyString(l.env.Snap_try_gadget[:], value)
 	case "reboot_reason":
 		copyString(l.env.Reboot_reason[:], value)
+	case "bootimg_file_name":
+		copyString(l.env.Bootimg_file_name[:], value)
 	}
 }
 
