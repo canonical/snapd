@@ -74,10 +74,7 @@ execute: |
 
     #shellcheck source=tests/lib/systems.sh
     . "$TESTSLIB"/systems.sh
-    SNAP=test-snapd-tools
-    if is_core18_system; then
-        SNAP=test-snapd-tools-core18
-    fi
+    SNAP="$(get_snap_for_system test-snapd-tools)"
 
     # sanity check
     not snap list "$SNAP"

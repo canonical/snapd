@@ -23,16 +23,17 @@ import (
 	"path/filepath"
 
 	"github.com/snapcore/snapd/bootloader/ubootenv"
-	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/snap"
 )
 
-type uboot struct{}
+type uboot struct {
+	rootdir string
+}
 
 // newUboot create a new Uboot bootloader object
-func newUboot() Bootloader {
-	u := &uboot{}
+func newUboot(rootdir string) Bootloader {
+	u := &uboot{rootdir: rootdir}
 	if !osutil.FileExists(u.envFile()) {
 		return nil
 	}
@@ -44,8 +45,15 @@ func (u *uboot) Name() string {
 	return "uboot"
 }
 
+func (u *uboot) setRootDir(rootdir string) {
+	u.rootdir = rootdir
+}
+
 func (u *uboot) dir() string {
-	return filepath.Join(dirs.GlobalRootDir, "/boot/uboot")
+	if u.rootdir == "" {
+		panic("internal error: unset rootdir")
+	}
+	return filepath.Join(u.rootdir, "/boot/uboot")
 }
 
 func (u *uboot) ConfigFile() string {
