@@ -426,10 +426,10 @@ var seccompResolver = map[string]uint64{
 	"PTRACE_CONT":     C.PTRACE_CONT,
 }
 
-// UbuntuArchToScmpArch takes a dpkg architecture and converts it to
+// DpkgArchToScmpArch takes a dpkg architecture and converts it to
 // the seccomp.ScmpArch as used in the libseccomp-golang library
-func UbuntuArchToScmpArch(ubuntuArch string) seccomp.ScmpArch {
-	switch ubuntuArch {
+func DpkgArchToScmpArch(dpkgArch string) seccomp.ScmpArch {
+	switch dpkgArch {
 	case "amd64":
 		return seccomp.ArchAMD64
 	case "arm64":
@@ -447,7 +447,7 @@ func UbuntuArchToScmpArch(ubuntuArch string) seccomp.ScmpArch {
 	case "s390x":
 		return seccomp.ArchS390X
 	}
-	panic(fmt.Sprintf("cannot map ubuntu arch %q to a seccomp arch", ubuntuArch))
+	panic(fmt.Sprintf("cannot map dpkg arch %q to a seccomp arch", dpkgArch))
 }
 
 // important for unit testing
@@ -631,13 +631,13 @@ func parseLine(line string, secFilter *seccomp.ScmpFilter) error {
 
 // used to mock in tests
 var (
-	archUbuntuArchitecture       = arch.UbuntuArchitecture
-	archUbuntuKernelArchitecture = arch.UbuntuKernelArchitecture
+	archDpkgArchitecture       = arch.DpkgArchitecture
+	archDpkgKernelArchitecture = arch.DpkgKernelArchitecture
 )
 
 var (
-	ubuntuArchitecture       = archUbuntuArchitecture()
-	ubuntuKernelArchitecture = archUbuntuKernelArchitecture()
+	dpkgArchitecture       = archDpkgArchitecture()
+	dpkgKernelArchitecture = archDpkgKernelArchitecture()
 )
 
 // For architectures that support a compat architecture, when the
@@ -653,8 +653,8 @@ func addSecondaryArches(secFilter *seccomp.ScmpFilter) error {
 	// add a compat architecture for some architectures that
 	// support it, e.g. on amd64 kernel and userland, we add
 	// compat i386 syscalls.
-	if ubuntuArchitecture == ubuntuKernelArchitecture {
-		switch archUbuntuArchitecture() {
+	if dpkgArchitecture == dpkgKernelArchitecture {
+		switch archDpkgArchitecture() {
 		case "amd64":
 			compatArch = seccomp.ArchX86
 		case "arm64":
@@ -672,7 +672,7 @@ func addSecondaryArches(secFilter *seccomp.ScmpFilter) error {
 		// snaps. While unusual from a traditional Linux distribution
 		// perspective, certain classes of embedded devices are known
 		// to use this configuration.
-		compatArch = UbuntuArchToScmpArch(archUbuntuKernelArchitecture())
+		compatArch = DpkgArchToScmpArch(archDpkgKernelArchitecture())
 	}
 
 	if compatArch != seccomp.ArchInvalid {

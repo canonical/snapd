@@ -24,14 +24,14 @@ Signed-off-by: Zygmunt Krynicki <me@zygoon.pl>
  cmd/snap-seccomp/main_test.go | 8 ++++++++
  1 file changed, 8 insertions(+)
 
-diff --git a/cmd/snap-seccomp/main_test.go b/cmd/snap-seccomp/main_test.go
-index d4ca193b2..8977385c2 100644
---- a/cmd/snap-seccomp/main_test.go
-+++ b/cmd/snap-seccomp/main_test.go
-@@ -185,6 +185,14 @@ func (s *snapSeccompSuite) SetUpSuite(c *C) {
+Index: snapd/cmd/snap-seccomp/main_test.go
+===================================================================
+--- snapd.orig/cmd/snap-seccomp/main_test.go
++++ snapd/cmd/snap-seccomp/main_test.go
+@@ -192,6 +192,14 @@ func (s *snapSeccompSuite) SetUpSuite(c
  	// Ideally we would build for ppc64el->powerpc and arm64->armhf but
  	// it seems tricky to find the right gcc-multilib for this.
- 	if arch.UbuntuArchitecture() == "amd64" && s.canCheckCompatArch {
+ 	if arch.DpkgArchitecture() == "amd64" && s.canCheckCompatArch {
 +		// This test fails on Debian amd64
 +		// cannot build multi-lib syscall runner: exit status 1
 +		// In file included from /usr/include/errno.h:25,
@@ -43,6 +43,3 @@ index d4ca193b2..8977385c2 100644
  		cmd = exec.Command(cmd.Args[0], cmd.Args[1:]...)
  		cmd.Args = append(cmd.Args, "-m32")
  		for i, k := range cmd.Args {
--- 
-2.17.1
-

@@ -5,8 +5,7 @@ summary: Ensure that the calendar-service interface works
 #
 # FIXME: disable opensuse-tumbleweed until
 # https://github.com/snapcore/snapd/pull/7230 is landed
-# ubuntu-19.10-64: pending fix for this test coming on a following change
-systems: [-ubuntu-core-*, -ubuntu-14.04-*, -amazon-*, -centos-*, -opensuse-tumbleweed-*, -ubuntu-19.10-64]
+systems: [-ubuntu-core-*, -ubuntu-14.04-*, -amazon-*, -centos-*, -opensuse-tumbleweed-*]
 
 # fails in the autopkgtest env with:
 # [Wed Aug 15 16:34:12 2018] audit: type=1400
