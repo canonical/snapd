@@ -38,7 +38,7 @@ func (s storeChannelSuite) TestParse(c *C) {
 	ch, err := channel.Parse("stable", "")
 	c.Assert(err, IsNil)
 	c.Check(ch, DeepEquals, channel.Channel{
-		Architecture: arch.UbuntuArchitecture(),
+		Architecture: arch.DpkgArchitecture(),
 		Name:         "stable",
 		Track:        "",
 		Risk:         "stable",
@@ -48,7 +48,7 @@ func (s storeChannelSuite) TestParse(c *C) {
 	ch, err = channel.Parse("latest/stable", "")
 	c.Assert(err, IsNil)
 	c.Check(ch, DeepEquals, channel.Channel{
-		Architecture: arch.UbuntuArchitecture(),
+		Architecture: arch.DpkgArchitecture(),
 		Name:         "stable",
 		Track:        "",
 		Risk:         "stable",
@@ -58,7 +58,7 @@ func (s storeChannelSuite) TestParse(c *C) {
 	ch, err = channel.Parse("1.0/edge", "")
 	c.Assert(err, IsNil)
 	c.Check(ch, DeepEquals, channel.Channel{
-		Architecture: arch.UbuntuArchitecture(),
+		Architecture: arch.DpkgArchitecture(),
 		Name:         "1.0/edge",
 		Track:        "1.0",
 		Risk:         "edge",
@@ -68,7 +68,7 @@ func (s storeChannelSuite) TestParse(c *C) {
 	ch, err = channel.Parse("1.0", "")
 	c.Assert(err, IsNil)
 	c.Check(ch, DeepEquals, channel.Channel{
-		Architecture: arch.UbuntuArchitecture(),
+		Architecture: arch.DpkgArchitecture(),
 		Name:         "1.0/stable",
 		Track:        "1.0",
 		Risk:         "stable",
@@ -78,7 +78,7 @@ func (s storeChannelSuite) TestParse(c *C) {
 	ch, err = channel.Parse("1.0/beta/foo", "")
 	c.Assert(err, IsNil)
 	c.Check(ch, DeepEquals, channel.Channel{
-		Architecture: arch.UbuntuArchitecture(),
+		Architecture: arch.DpkgArchitecture(),
 		Name:         "1.0/beta/foo",
 		Track:        "1.0",
 		Risk:         "beta",
@@ -88,7 +88,7 @@ func (s storeChannelSuite) TestParse(c *C) {
 	ch, err = channel.Parse("candidate/foo", "")
 	c.Assert(err, IsNil)
 	c.Check(ch, DeepEquals, channel.Channel{
-		Architecture: arch.UbuntuArchitecture(),
+		Architecture: arch.DpkgArchitecture(),
 		Name:         "candidate/foo",
 		Track:        "",
 		Risk:         "candidate",
@@ -116,36 +116,54 @@ func (s storeChannelSuite) TestParseVerbatim(c *C) {
 	ch, err := channel.ParseVerbatim("sometrack", "")
 	c.Assert(err, IsNil)
 	c.Check(ch, DeepEquals, channel.Channel{
-		Architecture: arch.UbuntuArchitecture(),
+		Architecture: arch.DpkgArchitecture(),
 		Track:        "sometrack",
 	})
+	c.Check(ch.VerbatimTrackOnly(), Equals, true)
+	c.Check(ch.VerbatimRiskOnly(), Equals, false)
 	c.Check(mustParse(c, "sometrack"), DeepEquals, ch.Clean())
 
 	ch, err = channel.ParseVerbatim("latest", "")
 	c.Assert(err, IsNil)
 	c.Check(ch, DeepEquals, channel.Channel{
-		Architecture: arch.UbuntuArchitecture(),
+		Architecture: arch.DpkgArchitecture(),
 		Track:        "latest",
 	})
+	c.Check(ch.VerbatimTrackOnly(), Equals, true)
+	c.Check(ch.VerbatimRiskOnly(), Equals, false)
 	c.Check(mustParse(c, "latest"), DeepEquals, ch.Clean())
+
+	ch, err = channel.ParseVerbatim("edge", "")
+	c.Assert(err, IsNil)
+	c.Check(ch, DeepEquals, channel.Channel{
+		Architecture: arch.DpkgArchitecture(),
+		Risk:         "edge",
+	})
+	c.Check(ch.VerbatimTrackOnly(), Equals, false)
+	c.Check(ch.VerbatimRiskOnly(), Equals, true)
+	c.Check(mustParse(c, "edge"), DeepEquals, ch.Clean())
 
 	ch, err = channel.ParseVerbatim("latest/stable", "")
 	c.Assert(err, IsNil)
 	c.Check(ch, DeepEquals, channel.Channel{
-		Architecture: arch.UbuntuArchitecture(),
+		Architecture: arch.DpkgArchitecture(),
 		Track:        "latest",
 		Risk:         "stable",
 	})
+	c.Check(ch.VerbatimTrackOnly(), Equals, false)
+	c.Check(ch.VerbatimRiskOnly(), Equals, false)
 	c.Check(mustParse(c, "latest/stable"), DeepEquals, ch.Clean())
 
 	ch, err = channel.ParseVerbatim("latest/stable/foo", "")
 	c.Assert(err, IsNil)
 	c.Check(ch, DeepEquals, channel.Channel{
-		Architecture: arch.UbuntuArchitecture(),
+		Architecture: arch.DpkgArchitecture(),
 		Track:        "latest",
 		Risk:         "stable",
 		Branch:       "foo",
 	})
+	c.Check(ch.VerbatimTrackOnly(), Equals, false)
+	c.Check(ch.VerbatimRiskOnly(), Equals, false)
 	c.Check(mustParse(c, "latest/stable/foo"), DeepEquals, ch.Clean())
 }
 
@@ -264,5 +282,74 @@ func (s *storeChannelSuite) TestMatch(c *C) {
 		c.Assert(err, IsNil)
 
 		c.Check(req.Match(&c1).String(), Equals, t.res)
+	}
+}
+
+func (s *storeChannelSuite) TestResolve(c *C) {
+	tests := []struct {
+		channel string
+		new     string
+		result  string
+		expErr  string
+	}{
+		{"", "", "", ""},
+		{"", "edge", "edge", ""},
+		{"track/foo", "", "track/foo", ""},
+		{"stable", "", "stable", ""},
+		{"stable", "edge", "edge", ""},
+		{"stable/branch1", "edge/branch2", "edge/branch2", ""},
+		{"track", "track", "track", ""},
+		{"track", "beta", "track/beta", ""},
+		{"track/stable", "beta", "track/beta", ""},
+		{"track/stable", "stable/branch", "track/stable/branch", ""},
+		{"track/stable", "track/edge/branch", "track/edge/branch", ""},
+		{"track/stable", "track/candidate", "track/candidate", ""},
+		{"track/stable", "track/stable/branch", "track/stable/branch", ""},
+		{"track1/stable", "track2/stable", "track2/stable", ""},
+		{"track1/stable", "track2/stable/branch", "track2/stable/branch", ""},
+		{"track/foo", "track/stable/branch", "", "invalid risk in channel name: track/foo"},
+	}
+
+	for _, t := range tests {
+		r, err := channel.Resolve(t.channel, t.new)
+		tcomm := Commentf("%#v", t)
+		if t.expErr == "" {
+			c.Assert(err, IsNil, tcomm)
+			c.Check(r, Equals, t.result, tcomm)
+		} else {
+			c.Assert(err, ErrorMatches, t.expErr, tcomm)
+		}
+	}
+}
+
+func (s *storeChannelSuite) TestResolveLocked(c *C) {
+	tests := []struct {
+		track  string
+		new    string
+		result string
+		expErr string
+	}{
+		{"", "", "", ""},
+		{"", "anytrack/stable", "anytrack/stable", ""},
+		{"track/foo", "", "", "invalid locked track: track/foo"},
+		{"track", "", "track", ""},
+		{"track", "track", "track", ""},
+		{"track", "beta", "track/beta", ""},
+		{"track", "stable/branch", "track/stable/branch", ""},
+		{"track", "track/edge/branch", "track/edge/branch", ""},
+		{"track", "track/candidate", "track/candidate", ""},
+		{"track", "track/stable/branch", "track/stable/branch", ""},
+		{"track1", "track2/stable", "track2/stable", "cannot switch locked track"},
+		{"track1", "track2/stable/branch", "track2/stable/branch", "cannot switch locked track"},
+	}
+	for _, t := range tests {
+		r, err := channel.ResolveLocked(t.track, t.new)
+		tcomm := Commentf("%#v", t)
+		if t.expErr == "" {
+			c.Assert(err, IsNil, tcomm)
+			c.Check(r, Equals, t.result, tcomm)
+		} else {
+			c.Assert(err, ErrorMatches, t.expErr, tcomm)
+		}
 	}
 }
