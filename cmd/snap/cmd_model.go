@@ -166,59 +166,46 @@ func (x *cmdModel) Execute(args []string) error {
 		separator = ""
 	}
 
-	// output the primary keys first in their canonical order
-	for _, headerName := range mainAssertion.Type().PrimaryKey {
-		switch headerName {
-		case "series":
-			// series can be obtained from "snap version"
-			// and given it is stuck at 16 is mainly confusing
-		case "model":
-			if x.Serial {
-				fmt.Fprintf(w, "model:\t%s\n", mainAssertion.HeaderString("model"))
-				continue
-			}
+	// ordering of the primary keys for model: brand, model, serial
+	// ordering of primary keys for serial is brand-id, model, serial
 
-			// for the model command (not --serial) we want to conditionally
-			// use the display-name for the model if it exists (with the
-			// normal model header after the display-name)
-			modelHeader := modelAssertion.HeaderString("model")
-			if displayName := modelAssertion.HeaderString("display-name"); displayName != "" {
-				modelHeader = fmt.Sprintf("%s (%s)", displayName, modelHeader)
-			}
-			fmt.Fprintf(w, "model%s\t%s\n", separator, modelHeader)
-		case "brand-id":
-			brandID := mainAssertion.HeaderString("brand-id")
-			if x.Serial {
-				fmt.Fprintf(w, "brand-id:\t%s\n", brandID)
-				continue
-			}
-
-			// for the model command (not --serial) we want to output the
-			// "brand" instead of the "brand-id"
-			storeAccount, err := x.client.StoreAccount(brandID)
-			if err != nil {
-				return err
-			}
-			// use the longPublisher helper to format the brand store account
-			// like we do in `snap info`
-			fmt.Fprintf(w, "brand%s\t%s\n", separator, longPublisher(x.getEscapes(), storeAccount))
-		default:
-			fmt.Fprintf(w, "%s%s\t%s\n", headerName, separator, mainAssertion.HeaderString(headerName))
+	// output brand/brand-id
+	brandIDHeader := mainAssertion.HeaderString("brand-id")
+	modelHeader := mainAssertion.HeaderString("model")
+	// for the serial header, if there's no serial yet, it's not an error for
+	// model (and we already handled the serial error above) but need to add a
+	// parenthetical about the device not being registered yet
+	var serial string
+	if client.IsAssertionNotFoundError(serialErr) {
+		serial = "- (device not registered yet)"
+	} else {
+		serial = serialAssertion.HeaderString("serial")
+	}
+	if x.Serial {
+		fmt.Fprintf(w, "brand-id:\t%s\n", brandIDHeader)
+		fmt.Fprintf(w, "model:\t%s\n", modelHeader)
+	} else {
+		// for the model command (not --serial) we want to show a publisher
+		// style display of "brand" instead of just "brand-id"
+		storeAccount, err := x.client.StoreAccount(brandIDHeader)
+		if err != nil {
+			return err
 		}
+		// use the longPublisher helper to format the brand store account
+		// like we do in `snap info`
+		fmt.Fprintf(w, "brand%s\t%s\n", separator, longPublisher(x.getEscapes(), storeAccount))
+
+		// for model, if there's a display-name, we show that first with the
+		// real model in parenthesis
+		if displayName := modelAssertion.HeaderString("display-name"); displayName != "" {
+			modelHeader = fmt.Sprintf("%s (%s)", displayName, modelHeader)
+		}
+		fmt.Fprintf(w, "model%s\t%s\n", separator, modelHeader)
 	}
 
-	if !x.Serial {
-		// for the model command we also need to always add the serial, even if
-		// we don't have a serial assertion yet
-		var serial string
-		if client.IsAssertionNotFoundError(serialErr) {
-			// didn't get a serial assertion yet
-			serial = "- (device not registered yet)"
-		} else {
-			serial = serialAssertion.HeaderString("serial")
-		}
-		fmt.Fprintf(w, "serial%s\t%s\n", separator, serial)
-	}
+	// the code for outputting serial is the same for both `snap model` and
+	// `snap model --serial` commands
+	fmt.Fprintf(w, "serial%s\t%s\n", separator, serial)
 
 	// --verbose means output all of the fields
 	if x.Verbose {
@@ -259,7 +246,7 @@ func (x *cmdModel) Execute(args []string) error {
 
 			//timestamp needs to be formatted with fmtTime from the timeMixin
 			case "timestamp":
-				timestamp, ok := allHeadersMap[headerName].(string)
+				timestamp, ok := headerValue.(string)
 				if !ok {
 					return invalidTypeErr
 				}
