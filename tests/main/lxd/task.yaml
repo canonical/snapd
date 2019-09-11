@@ -31,6 +31,8 @@ restore: |
     lxd.lxc stop my-ubuntu --force
     lxd.lxc delete my-ubuntu
 
+    lxd-tool undo-lxd-mount-changes
+
 debug: |
     # shellcheck source=tests/lib/journalctl.sh
     . "$TESTSLIB/journalctl.sh"
