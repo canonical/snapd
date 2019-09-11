@@ -17,7 +17,7 @@
  *
  */
 
-package snap
+package seed
 
 import (
 	"fmt"
@@ -31,10 +31,11 @@ import (
 	"github.com/snapcore/snapd/snap/naming"
 )
 
-// SeedSnap points to a snap in the seed to install, together with
+// Snap points to a snap in the seed to install, together with
 // assertions (or alone if unasserted is true) it will be used to
 // drive the installation and ultimately set SideInfo/SnapState for it.
-type SeedSnap struct {
+// TODO: make this internal
+type Snap16 struct {
 	Name string `yaml:"name"`
 
 	// cross-reference/audit
@@ -55,11 +56,13 @@ type SeedSnap struct {
 	File string `yaml:"file"`
 }
 
-type Seed struct {
-	Snaps []*SeedSnap `yaml:"snaps"`
+// TODO: make all of this internal only
+
+type Seed16 struct {
+	Snaps []*Snap16 `yaml:"snaps"`
 }
 
-func ReadSeedYaml(fn string) (*Seed, error) {
+func ReadYaml(fn string) (*Seed16, error) {
 	errPrefix := "cannot read seed yaml"
 
 	yamlData, err := ioutil.ReadFile(fn)
@@ -67,7 +70,7 @@ func ReadSeedYaml(fn string) (*Seed, error) {
 		return nil, fmt.Errorf("%s: %v", errPrefix, err)
 	}
 
-	var seed Seed
+	var seed Seed16
 	if err := yaml.Unmarshal(yamlData, &seed); err != nil {
 		return nil, fmt.Errorf("%s: cannot unmarshal %q: %s", errPrefix, yamlData, err)
 	}
@@ -78,6 +81,8 @@ func ReadSeedYaml(fn string) (*Seed, error) {
 		if sn == nil {
 			return nil, fmt.Errorf("%s: empty element in seed", errPrefix)
 		}
+		// TODO: check if it's a parallel install explicitly,
+		// need to move *Instance* helpers from snap to naming
 		if err := naming.ValidateSnap(sn.Name); err != nil {
 			return nil, fmt.Errorf("%s: %v", errPrefix, err)
 		}
@@ -103,7 +108,7 @@ func ReadSeedYaml(fn string) (*Seed, error) {
 	return &seed, nil
 }
 
-func (seed *Seed) Write(seedFn string) error {
+func (seed *Seed16) Write(seedFn string) error {
 	data, err := yaml.Marshal(&seed)
 	if err != nil {
 		return err

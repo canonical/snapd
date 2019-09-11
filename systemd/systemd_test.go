@@ -525,6 +525,7 @@ What=%s
 Where=/snap/snapname/123
 Type=squashfs
 Options=nodev,ro,x-gdu.hide
+LazyUnmount=yes
 
 [Install]
 WantedBy=multi-user.target
@@ -557,6 +558,7 @@ What=%s
 Where=/snap/snapname/x1
 Type=none
 Options=nodev,ro,x-gdu.hide,bind
+LazyUnmount=yes
 
 [Install]
 WantedBy=multi-user.target
@@ -595,6 +597,7 @@ What=%s
 Where=/snap/snapname/123
 Type=squashfs
 Options=nodev,ro,x-gdu.hide,context=system_u:object_r:snappy_snap_t:s0
+LazyUnmount=yes
 
 [Install]
 WantedBy=multi-user.target
@@ -637,6 +640,7 @@ What=%s
 Where=/snap/snapname/123
 Type=fuse.squashfuse
 Options=nodev,ro,x-gdu.hide,allow_other
+LazyUnmount=yes
 
 [Install]
 WantedBy=multi-user.target
@@ -675,6 +679,7 @@ What=%s
 Where=/snap/snapname/123
 Type=squashfs
 Options=nodev,ro,x-gdu.hide
+LazyUnmount=yes
 
 [Install]
 WantedBy=multi-user.target

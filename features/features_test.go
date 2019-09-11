@@ -57,9 +57,10 @@ func (*featureSuite) TestKnownFeatures(c *C) {
 
 func (*featureSuite) TestIsExported(c *C) {
 	c.Check(features.Layouts.IsExported(), Equals, false)
-	c.Check(features.ParallelInstances.IsExported(), Equals, false)
 	c.Check(features.Hotplug.IsExported(), Equals, false)
 	c.Check(features.SnapdSnap.IsExported(), Equals, false)
+
+	c.Check(features.ParallelInstances.IsExported(), Equals, true)
 	c.Check(features.PerUserMountNamespace.IsExported(), Equals, true)
 	c.Check(features.RefreshAppAwareness.IsExported(), Equals, true)
 }
@@ -95,6 +96,7 @@ func (*featureSuite) TestIsEnabledWhenUnset(c *C) {
 func (*featureSuite) TestControlFile(c *C) {
 	c.Check(features.PerUserMountNamespace.ControlFile(), Equals, "/var/lib/snapd/features/per-user-mount-namespace")
 	c.Check(features.RefreshAppAwareness.ControlFile(), Equals, "/var/lib/snapd/features/refresh-app-awareness")
+	c.Check(features.ParallelInstances.ControlFile(), Equals, "/var/lib/snapd/features/parallel-instances")
 	// Features that are not exported don't have a control file.
 	c.Check(features.Layouts.ControlFile, PanicMatches, `cannot compute the control file of feature "layouts" because that feature is not exported`)
 }

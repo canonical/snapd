@@ -28,8 +28,8 @@ import (
 
 	. "gopkg.in/check.v1"
 
-	"github.com/snapcore/snapd/boot/boottest"
 	"github.com/snapcore/snapd/bootloader"
+	"github.com/snapcore/snapd/bootloader/bootloadertest"
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/overlord"
 	"github.com/snapcore/snapd/overlord/snapstate"
@@ -43,7 +43,7 @@ import (
 
 type bootedSuite struct {
 	testutil.BaseTest
-	bootloader *boottest.MockBootloader
+	bootloader *bootloadertest.MockBootloader
 
 	o           *overlord.Overlord
 	state       *state.State
@@ -66,9 +66,9 @@ func (bs *bootedSuite) SetUpTest(c *C) {
 	// booted is not running on classic
 	release.MockOnClassic(false)
 
-	bs.bootloader = boottest.NewMockBootloader("mock", c.MkDir())
-	boottest.SetBootKernel("canonical-pc-linux_2.snap", bs.bootloader)
-	boottest.SetBootBase("core_2.snap", bs.bootloader)
+	bs.bootloader = bootloadertest.Mock("mock", c.MkDir())
+	bs.bootloader.SetBootKernel("canonical-pc-linux_2.snap")
+	bs.bootloader.SetBootBase("core_2.snap")
 	bootloader.Force(bs.bootloader)
 
 	bs.fakeBackend = &fakeSnappyBackend{}
@@ -137,7 +137,7 @@ func (bs *bootedSuite) TestUpdateBootRevisionsOSSimple(c *C) {
 
 	bs.makeInstalledKernelOS(c, st)
 
-	boottest.SetBootBase("core_1.snap", bs.bootloader)
+	bs.bootloader.SetBootBase("core_1.snap")
 	err := snapstate.UpdateBootRevisions(st)
 	c.Assert(err, IsNil)
 
@@ -171,7 +171,7 @@ func (bs *bootedSuite) TestUpdateBootRevisionsKernelSimple(c *C) {
 
 	bs.makeInstalledKernelOS(c, st)
 
-	boottest.SetBootKernel("canonical-pc-linux_1.snap", bs.bootloader)
+	bs.bootloader.SetBootKernel("canonical-pc-linux_1.snap")
 	err := snapstate.UpdateBootRevisions(st)
 	c.Assert(err, IsNil)
 
@@ -205,7 +205,7 @@ func (bs *bootedSuite) TestUpdateBootRevisionsKernelErrorsEarly(c *C) {
 
 	bs.makeInstalledKernelOS(c, st)
 
-	boottest.SetBootKernel("canonical-pc-linux_99.snap", bs.bootloader)
+	bs.bootloader.SetBootKernel("canonical-pc-linux_99.snap")
 	err := snapstate.UpdateBootRevisions(st)
 	c.Assert(err, ErrorMatches, `cannot find revision 99 for snap "canonical-pc-linux"`)
 }
@@ -217,7 +217,7 @@ func (bs *bootedSuite) TestUpdateBootRevisionsOSErrorsEarly(c *C) {
 
 	bs.makeInstalledKernelOS(c, st)
 
-	boottest.SetBootBase("core_99.snap", bs.bootloader)
+	bs.bootloader.SetBootBase("core_99.snap")
 	err := snapstate.UpdateBootRevisions(st)
 	c.Assert(err, ErrorMatches, `cannot find revision 99 for snap "core"`)
 }
@@ -246,7 +246,7 @@ func (bs *bootedSuite) TestUpdateBootRevisionsOSErrorsLate(c *C) {
 	})
 	bs.fakeBackend.linkSnapFailTrigger = filepath.Join(dirs.SnapMountDir, "/core/1")
 
-	boottest.SetBootBase("core_1.snap", bs.bootloader)
+	bs.bootloader.SetBootBase("core_1.snap")
 	err := snapstate.UpdateBootRevisions(st)
 	c.Assert(err, IsNil)
 
@@ -299,7 +299,7 @@ func (bs *bootedSuite) TestWaitRestartCore(c *C) {
 	c.Check(err, IsNil)
 
 	// core snap, restarted, wrong core revision, rollback!
-	boottest.SetBootBase("core_1.snap", bs.bootloader)
+	bs.bootloader.SetBootBase("core_1.snap")
 	err = snapstate.WaitRestart(task, snapsup)
 	c.Check(err, ErrorMatches, `cannot finish core installation, there was a rollback across reboot`)
 }
@@ -346,12 +346,12 @@ func (bs *bootedSuite) TestWaitRestartBootableBase(c *C) {
 
 	// core snap, restarted, right core revision, no rollback
 	bs.bootloader.BootVars["snap_mode"] = ""
-	boottest.SetBootBase("core18_2.snap", bs.bootloader)
+	bs.bootloader.SetBootBase("core18_2.snap")
 	err = snapstate.WaitRestart(task, snapsup)
 	c.Check(err, IsNil)
 
 	// core snap, restarted, wrong core revision, rollback!
-	boottest.SetBootBase("core18_1.snap", bs.bootloader)
+	bs.bootloader.SetBootBase("core18_1.snap")
 	err = snapstate.WaitRestart(task, snapsup)
 	c.Check(err, ErrorMatches, `cannot finish core18 installation, there was a rollback across reboot`)
 }

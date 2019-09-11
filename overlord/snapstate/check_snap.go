@@ -199,6 +199,7 @@ func checkAssumes(si *snap.Info) error {
 var versionExp = regexp.MustCompile(`^([1-9][0-9]*)(?:\.([0-9]+)(?:\.([0-9]+))?)?`)
 
 func checkVersion(version string) bool {
+	// double check that the input looks like a snapd version
 	req := versionExp.FindStringSubmatch(version)
 	if req == nil || req[0] != version {
 		return false
@@ -208,6 +209,10 @@ func checkVersion(version string) bool {
 		return true // Development tree.
 	}
 
+	// We could (should?) use strutil.VersionCompare here and simplify
+	// this code (see PR#7344). However this would change current
+	// behavior, i.e. "2.41~pre1" would *not* match [snapd2.41] anymore
+	// (which the code below does).
 	cur := versionExp.FindStringSubmatch(cmd.Version)
 	if cur == nil {
 		return false
@@ -315,7 +320,7 @@ func validateInfoAndFlags(info *snap.Info, snapst *SnapState, flags Flags) error
 
 	// verify we have a valid architecture
 	if !arch.IsSupportedArchitecture(info.Architectures) {
-		return fmt.Errorf("snap %q supported architectures (%s) are incompatible with this system (%s)", info.InstanceName(), strings.Join(info.Architectures, ", "), arch.UbuntuArchitecture())
+		return fmt.Errorf("snap %q supported architectures (%s) are incompatible with this system (%s)", info.InstanceName(), strings.Join(info.Architectures, ", "), arch.DpkgArchitecture())
 	}
 
 	// check assumes

@@ -105,6 +105,15 @@ backends:
                 workers: 6
                 image: centos-7-64
 
+    google-unstable:
+        type: google
+        key: '$(HOST: echo "$SPREAD_GOOGLE_KEY")'
+        location: computeengine/us-east1-b
+        halt-timeout: 2h
+        systems:
+            - ubuntu-19.10-64:
+                workers: 6
+
     google-sru:
         type: google
         key: '$(HOST: echo "$SPREAD_GOOGLE_KEY")'
@@ -523,11 +532,6 @@ prepare: |
         fi
     fi
 
-    if [[ "$SPREAD_SYSTEM" == ubuntu-* ]] && [[ "$SPREAD_SYSTEM" != ubuntu-core-* ]]; then
-        apt-get remove --purge -y lxd lxcfs || true
-        apt-get autoremove --purge -y
-    fi
-
     if [[ "$SPREAD_SYSTEM" == debian-* ]]; then
         apt-get update && apt-get install -y eatmydata
     fi
@@ -603,19 +607,6 @@ restore: |
     "$TESTSLIB"/prepare-restore.sh --restore-project
 restore-each: |
     "$TESTSLIB"/prepare-restore.sh --restore-project-each
-    if journalctl -u snapd.service | grep -F "signal: terminated"; then exit 1; fi
-    case "$SPREAD_SYSTEM" in
-        fedora-*|centos-*)
-            # Make sure that we are not leaving behind incorrectly labeled snap
-            # files on systems supporting SELinux
-            (
-                find /root/snap -printf '%Z\t%H/%P\n' || true
-                find /home -regex '/home/[^/]*/snap\(/.*\)?' -printf '%Z\t%H/%P\n' || true
-            ) | grep -c -v snappy_home_t | MATCH "0"
-
-            find /var/snap -printf '%Z\t%H/%P\n' | grep -c -v snappy_var_t  | MATCH "0"
-            ;;
-    esac
 suites:
     # The essential tests designed to run inside the autopkgtest
     # environment on each platform. On autopkgtest we cannot run all tests
@@ -638,17 +629,17 @@ suites:
         summary: Full-system tests for snapd
         prepare: |
             "$TESTSLIB"/prepare-restore.sh --prepare-suite
-        debug: |
-            if [ "$SPREAD_DEBUG_EACH" = 1 ]; then
-                systemctl status snapd.socket || true
-                journalctl -xe
-            fi
         prepare-each: |
             "$TESTSLIB"/prepare-restore.sh --prepare-suite-each
         restore-each: |
             "$TESTSLIB"/prepare-restore.sh --restore-suite-each
         restore: |
             "$TESTSLIB"/prepare-restore.sh --restore-suite
+        debug: |
+            if [ "$SPREAD_DEBUG_EACH" = 1 ]; then
+                systemctl status snapd.socket || true
+                journalctl -xe
+            fi
     tests/core18/:
         summary: Subset of core18 specific tests
         systems: [ubuntu-core-18-*]
@@ -782,7 +773,6 @@ suites:
         # Test cases are not yet ported to Fedora/openSUSE/Arch/AMZN2 that is why
         # we keep them disabled. A later PR will enable most tests and
         # drop this blacklist.
-        systems: [-fedora-*, -opensuse-*, -arch-*, -amazon-*, -centos-*]
         prepare: |
             "$TESTSLIB"/prepare-restore.sh --prepare-suite
         prepare-each: |

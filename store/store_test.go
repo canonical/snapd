@@ -1997,7 +1997,7 @@ func (s *storeTestSuite) TestInfo(c *C) {
 
 		query := r.URL.Query()
 		c.Check(query.Get("fields"), Equals, "abc,def")
-		c.Check(query.Get("architecture"), Equals, arch.UbuntuArchitecture())
+		c.Check(query.Get("architecture"), Equals, arch.DpkgArchitecture())
 
 		w.Header().Set("X-Suggested-Currency", "GBP")
 		w.WriteHeader(200)
@@ -2265,7 +2265,7 @@ func (s *storeTestSuite) TestInfoAndChannels(c *C) {
 			Revision:    snap.R(27),
 			Version:     "6.3",
 			Confinement: snap.StrictConfinement,
-			Channel:     "latest/stable",
+			Channel:     "stable",
 			Size:        20480,
 			Epoch:       snap.E("0"),
 			ReleasedAt:  time.Date(2019, 1, 1, 10, 11, 12, 123456789, time.UTC),
@@ -2274,7 +2274,7 @@ func (s *storeTestSuite) TestInfoAndChannels(c *C) {
 			Revision:    snap.R(27),
 			Version:     "6.3",
 			Confinement: snap.StrictConfinement,
-			Channel:     "latest/candidate",
+			Channel:     "candidate",
 			Size:        20480,
 			Epoch:       snap.E("0"),
 			ReleasedAt:  time.Date(2019, 1, 2, 10, 11, 12, 123456789, time.UTC),
@@ -2283,7 +2283,7 @@ func (s *storeTestSuite) TestInfoAndChannels(c *C) {
 			Revision:    snap.R(27),
 			Version:     "6.3",
 			Confinement: snap.StrictConfinement,
-			Channel:     "latest/beta",
+			Channel:     "beta",
 			Size:        20480,
 			Epoch:       snap.E("0"),
 			ReleasedAt:  time.Date(2019, 1, 3, 10, 11, 12, 123456789, time.UTC),
@@ -2292,7 +2292,7 @@ func (s *storeTestSuite) TestInfoAndChannels(c *C) {
 			Revision:    snap.R(28),
 			Version:     "6.3",
 			Confinement: snap.StrictConfinement,
-			Channel:     "latest/edge",
+			Channel:     "edge",
 			Size:        20480,
 			Epoch:       snap.E("0"),
 			ReleasedAt:  time.Date(2019, 1, 4, 10, 11, 12, 123456789, time.UTC),
@@ -2340,8 +2340,8 @@ func (s *storeTestSuite) TestInfoMoreChannels(c *C) {
 	result, err := sto.SnapInfo(s.ctx, store.SnapSpec{Name: "eh"}, nil)
 	c.Assert(err, IsNil)
 	expected := map[string]*snap.ChannelSnapInfo{
-		"latest/stable":  {Channel: "latest/stable", ReleasedAt: time.Date(2018, 12, 17, 9, 17, 16, 288554000, time.UTC)},
-		"latest/edge":    {Channel: "latest/edge", ReleasedAt: time.Date(2018, 11, 6, 0, 46, 3, 348730000, time.UTC)},
+		"latest/stable":  {Channel: "stable", ReleasedAt: time.Date(2018, 12, 17, 9, 17, 16, 288554000, time.UTC)},
+		"latest/edge":    {Channel: "edge", ReleasedAt: time.Date(2018, 11, 6, 0, 46, 3, 348730000, time.UTC)},
 		"1.6/stable":     {Channel: "1.6/stable", ReleasedAt: time.Date(2017, 5, 17, 21, 18, 42, 224979000, time.UTC)},
 		"1.7/stable":     {Channel: "1.7/stable", ReleasedAt: time.Date(2017, 6, 2, 1, 16, 52, 640258000, time.UTC)},
 		"1.8/stable":     {Channel: "1.8/stable", ReleasedAt: time.Date(2018, 2, 7, 23, 8, 59, 152984000, time.UTC)},
@@ -2961,7 +2961,7 @@ func (s *storeTestSuite) TestFind(c *C) {
 		c.Check(r.URL.Query().Get("fields"), Equals, "abc,def")
 
 		c.Check(r.Header.Get("X-Ubuntu-Series"), Equals, release.Series)
-		c.Check(r.Header.Get("X-Ubuntu-Architecture"), Equals, arch.UbuntuArchitecture())
+		c.Check(r.Header.Get("X-Ubuntu-Architecture"), Equals, arch.DpkgArchitecture())
 		c.Check(r.Header.Get("X-Ubuntu-Classic"), Equals, "false")
 
 		c.Check(r.Header.Get("X-Ubuntu-Confinement"), Equals, "")
@@ -4452,7 +4452,7 @@ func (s *storeTestSuite) TestSnapAction(c *C) {
 		c.Check(storeID, Equals, "")
 
 		c.Check(r.Header.Get("Snap-Device-Series"), Equals, release.Series)
-		c.Check(r.Header.Get("Snap-Device-Architecture"), Equals, arch.UbuntuArchitecture())
+		c.Check(r.Header.Get("Snap-Device-Architecture"), Equals, arch.DpkgArchitecture())
 		c.Check(r.Header.Get("Snap-Classic"), Equals, "false")
 
 		jsonReq, err := ioutil.ReadAll(r.Body)
@@ -4562,7 +4562,7 @@ func (s *storeTestSuite) TestSnapActionNonZeroEpochAndEpochBump(c *C) {
 		c.Check(storeID, Equals, "")
 
 		c.Check(r.Header.Get("Snap-Device-Series"), Equals, release.Series)
-		c.Check(r.Header.Get("Snap-Device-Architecture"), Equals, arch.UbuntuArchitecture())
+		c.Check(r.Header.Get("Snap-Device-Architecture"), Equals, arch.DpkgArchitecture())
 		c.Check(r.Header.Get("Snap-Classic"), Equals, "false")
 
 		jsonReq, err := ioutil.ReadAll(r.Body)
@@ -5567,7 +5567,7 @@ func (s *storeTestSuite) testSnapActionGet(action, cohort string, c *C) {
 		c.Check(storeID, Equals, "")
 
 		c.Check(r.Header.Get("Snap-Device-Series"), Equals, release.Series)
-		c.Check(r.Header.Get("Snap-Device-Architecture"), Equals, arch.UbuntuArchitecture())
+		c.Check(r.Header.Get("Snap-Device-Architecture"), Equals, arch.DpkgArchitecture())
 		c.Check(r.Header.Get("Snap-Classic"), Equals, "false")
 
 		jsonReq, err := ioutil.ReadAll(r.Body)
@@ -5664,7 +5664,7 @@ func (s *storeTestSuite) TestSnapActionInstallAmend(c *C) {
 		c.Check(storeID, Equals, "")
 
 		c.Check(r.Header.Get("Snap-Device-Series"), Equals, release.Series)
-		c.Check(r.Header.Get("Snap-Device-Architecture"), Equals, arch.UbuntuArchitecture())
+		c.Check(r.Header.Get("Snap-Device-Architecture"), Equals, arch.DpkgArchitecture())
 		c.Check(r.Header.Get("Snap-Classic"), Equals, "false")
 
 		jsonReq, err := ioutil.ReadAll(r.Body)
@@ -5834,7 +5834,7 @@ func (s *storeTestSuite) testSnapActionGetWithRevision(action string, c *C) {
 		c.Check(storeID, Equals, "")
 
 		c.Check(r.Header.Get("Snap-Device-Series"), Equals, release.Series)
-		c.Check(r.Header.Get("Snap-Device-Architecture"), Equals, arch.UbuntuArchitecture())
+		c.Check(r.Header.Get("Snap-Device-Architecture"), Equals, arch.DpkgArchitecture())
 		c.Check(r.Header.Get("Snap-Classic"), Equals, "false")
 
 		jsonReq, err := ioutil.ReadAll(r.Body)
@@ -6564,7 +6564,7 @@ func (s *storeTestSuite) TestConnectivityCheckHappy(c *C) {
 		switch r.URL.Path {
 		case "/v2/snaps/info/core":
 			c.Check(r.Method, Equals, "GET")
-			c.Check(r.URL.Query(), DeepEquals, url.Values{"fields": {"download"}, "architecture": {arch.UbuntuArchitecture()}})
+			c.Check(r.URL.Query(), DeepEquals, url.Values{"fields": {"download"}, "architecture": {arch.DpkgArchitecture()}})
 			u, err := url.Parse("/download/core")
 			c.Assert(err, IsNil)
 			io.WriteString(w,
