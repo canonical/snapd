@@ -114,7 +114,7 @@ func (s *sessionAgentSuite) TestDying(c *C) {
 func (s *sessionAgentSuite) TestExitOnIdle(c *C) {
 	agent, err := agent.New()
 	c.Assert(err, IsNil)
-	agent.IdleTimeout = 100 * time.Millisecond
+	agent.IdleTimeout = 150 * time.Millisecond
 	startTime := time.Now()
 	agent.Start()
 	defer agent.Stop()
@@ -135,10 +135,10 @@ func (s *sessionAgentSuite) TestExitOnIdle(c *C) {
 		c.Fatal("agent did not exit after idle timeout expired")
 	}
 	elapsed := time.Now().Sub(startTime)
-	if elapsed < 125*time.Millisecond || elapsed > 175*time.Millisecond {
+	if elapsed < 175*time.Millisecond || elapsed > 250*time.Millisecond {
 		// The idle timeout should have been extended when we
 		// issued a second request after 25ms.
-		c.Errorf("Expected ellaped time close to 125 ms, but got %v", elapsed)
+		c.Errorf("Expected ellaped time close to 175 ms, but got %v", elapsed)
 	}
 }
 
