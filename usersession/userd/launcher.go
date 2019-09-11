@@ -136,86 +136,85 @@ func (s *Launcher) OpenURL(addr string, sender dbus.Sender) *dbus.Error {
 // of allowed locations.
 func (s *Launcher) OpenDesktopEntry(desktop_file_id string, sender dbus.Sender) *dbus.Error {
 
-  return s.OpenDesktopEntryEnv(desktop_file_id, []string{}, sender)
+	return s.OpenDesktopEntryEnv(desktop_file_id, []string{}, sender)
 }
 
 // OpenDesktopEntryEnv implements the 'OpenDesktopEntryEnv' method of the 'io.snapcraft.Launcher'
 // DBus interface.
 func (s *Launcher) OpenDesktopEntryEnv(desktop_file_id string, env []string, sender dbus.Sender) *dbus.Error {
-  launch, err := s.readExecCommandFromDesktopFile(s.desktopFileIdToFilename(desktop_file_id))
+	launch, err := s.readExecCommandFromDesktopFile(s.desktopFileIdToFilename(desktop_file_id))
 
 	if err != nil {
 		return dbus.MakeFailedError(err)
 	}
 
-  // This is very hacky parsing and doesn't cover a lot of cases
-  command := strings.Split(strings.SplitN(launch, "%", 2)[0], " ");
+	// This is very hacky parsing and doesn't cover a lot of cases
+	command := strings.Split(strings.SplitN(launch, "%", 2)[0], " ")
+	cmd := exec.Command(command[0], command[1:]...)
 
-  cmd := exec.Command(command[0], command[1:]...)
-  cmd.Env = os.Environ()
+	cmd.Env = os.Environ()
+	for _, e := range env {
+		cmd.Env = append(cmd.Env, e)
+	}
 
-  for _,e := range env {
-    cmd.Env = append(cmd.Env, e)
-  }
-
-  if err := cmd.Start(); err != nil {
-    return dbus.MakeFailedError(fmt.Errorf("cannot run %q", launch))
-  }
+	if err := cmd.Start(); err != nil {
+		return dbus.MakeFailedError(fmt.Errorf("cannot run %q", launch))
+	}
 
 	return nil
 }
 
 // desktopFileIdToFilename determines the path associated with a desktop file ID.
 func (s *Launcher) desktopFileIdToFilename(desktop_file_id string) string {
-  splitFileId := strings.Split(desktop_file_id, "-")
+	splitFileId := strings.Split(desktop_file_id, "-")
 
-  var desktop_file string;
+	var desktop_file string
 
-  for _, dir := range strings.Split(os.Getenv("XDG_DATA_DIRS"), ":") {
-    var fileStat os.FileInfo
+	for _, dir := range strings.Split(os.Getenv("XDG_DATA_DIRS"), ":") {
+		var fileStat os.FileInfo
 
-    for i:=0; i != len(splitFileId); i = i+1 {
-      desktop_file = dir + "/applications/" + strings.Join(splitFileId[0:i], "/") + "/" + strings.Join(splitFileId[i:], "-")
-      fileStat, _ = os.Stat(desktop_file)
-      if fileStat != nil {
-        break;
-      }
-    }
+		for i := 0; i != len(splitFileId); i = i + 1 {
+			desktop_file = dir + "/applications/" + strings.Join(splitFileId[0:i], "/") + "/" + strings.Join(splitFileId[i:], "-")
+			fileStat, _ = os.Stat(desktop_file)
+			if fileStat != nil {
+				break
+			}
+		}
 
-    if fileStat != nil {
-      break;
-    }
-  }
+		if fileStat != nil {
+			break
+		}
+	}
 
-  return desktop_file
+	return desktop_file
 }
 
 // readExecCommandFromDesktopFile parses the desktop file to get the Exec entry.
 func (s *Launcher) readExecCommandFromDesktopFile(desktop_file string) (string, error) {
-  var launch string
+	var launch string
 
-  file, err := os.Open(desktop_file)
+	file, err := os.Open(desktop_file)
 	if err != nil {
 		return launch, err
 	}
-  defer file.Close()
-  reader := bufio.NewReader(file)
+	defer file.Close()
+	reader := bufio.NewReader(file)
 
-  for {
-    line, err := reader.ReadString('\n')
-    if err != nil {
-      return launch, err
-    }
+	for {
+		line, err := reader.ReadString('\n')
+		if err != nil {
+			return launch, err
+		}
 
-    line = strings.TrimSpace(line)
+		line = strings.TrimSpace(line)
 
-    if strings.HasPrefix(line, "Exec=") {
-      launch = strings.TrimPrefix(line, "Exec=")
-      break;
-    }
-  }
+		if strings.HasPrefix(line, "Exec=") {
+			launch = strings.TrimPrefix(line, "Exec=")
+			break
+		}
+	}
 
-  return launch, nil
+	return launch, nil
 }
 
 // fdToFilename determines the path associated with an open file descriptor.
