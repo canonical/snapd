@@ -198,13 +198,13 @@ var setGetTests = [][]setGetOp{{
 	`get doc=-`,
 	`getroot => snap "core" has no configuration`,
 }, {
-	// set null over non-exising path
+	// set null over non-existing path
 	`set x.y.z=null`,
 	`changes core.x.y.z`,
 	`commit`,
 	`get x.y.z=-`,
 }, {
-	// set null over non-exising path with initial config
+	// set null over non-existing path with initial config
 	`set foo=bar`,
 	`commit`,
 	`set x=null`,
