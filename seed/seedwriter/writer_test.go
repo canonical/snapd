@@ -182,6 +182,25 @@ plugs:
      content: cont
      default-provider: cont-producer
 `,
+	"classic-gadget": `name: classic-gadget
+version: 1.0
+type: gadget
+`,
+	"classic-gadget18": `name: classic-gadget18
+version: 1.0
+base: core18
+type: gadget
+`,
+	"required18": `name: required18
+type: app
+base: core18
+version: 1.0
+`,
+	"required-base-core16": `name: required-base-core16
+type: app
+base: core16
+version: 1.0
+`,
 }
 
 func (s *writerSuite) makeSnap(c *C, yamlKey, publisher string) {
@@ -1115,4 +1134,175 @@ func (s *writerSuite) TestInfoDerivedInconsistentChannel(c *C) {
 
 	err = w.InfoDerived()
 	c.Assert(err, ErrorMatches, `option snap has different channels specified: ".*/pc.*.snap"="edge" vs "pc"="beta"`)
+}
+
+func (s *writerSuite) TestSeedSnapsWriteMetaClassicWithCore(c *C) {
+	model := s.Brands.Model("my-brand", "my-model", map[string]interface{}{
+		"classic":        "true",
+		"architecture":   "amd64",
+		"gadget":         "classic-gadget",
+		"required-snaps": []interface{}{"required"},
+	})
+
+	s.makeSnap(c, "core", "")
+	s.makeSnap(c, "classic-gadget", "")
+	s.makeSnap(c, "required", "developerid")
+
+	w, err := seedwriter.New(model, s.opts)
+	c.Assert(err, IsNil)
+
+	_, err = w.Start(s.db, s.newFetcher)
+	c.Assert(err, IsNil)
+
+	snaps, err := w.SnapsToDownload()
+	c.Assert(err, IsNil)
+	c.Assert(snaps, HasLen, 2)
+
+	for _, sn := range snaps {
+		s.fillDownloadedSnap(c, w, sn)
+	}
+
+	complete, err := w.Downloaded()
+	c.Assert(err, IsNil)
+	c.Check(complete, Equals, false)
+
+	snaps, err = w.SnapsToDownload()
+	c.Assert(err, IsNil)
+	c.Assert(snaps, HasLen, 1)
+
+	s.fillDownloadedSnap(c, w, snaps[0])
+
+	complete, err = w.Downloaded()
+	c.Assert(err, IsNil)
+	c.Check(complete, Equals, true)
+
+	err = w.SeedSnaps(nil)
+	c.Assert(err, IsNil)
+
+	err = w.WriteMeta()
+	c.Assert(err, IsNil)
+
+	// check seed
+	seedYaml, err := seed.ReadYaml(filepath.Join(s.opts.SeedDir, "seed.yaml"))
+	c.Assert(err, IsNil)
+
+	c.Check(seedYaml.Snaps, HasLen, 3)
+
+	// check the files are in place
+	for i, name := range []string{"core", "classic-gadget", "required"} {
+		info := s.AssertedSnapInfo(name)
+
+		fn := filepath.Base(info.MountFile())
+		p := filepath.Join(s.opts.SeedDir, "snaps", fn)
+		c.Check(osutil.FileExists(p), Equals, true)
+
+		c.Check(seedYaml.Snaps[i], DeepEquals, &seed.Snap16{
+			Name:    info.SnapName(),
+			SnapID:  info.SnapID,
+			Channel: "stable",
+			File:    fn,
+			Contact: info.Contact,
+		})
+	}
+}
+
+func (s *writerSuite) TestSeedSnapsWriteMetaClassicSnapdOnly(c *C) {
+	model := s.Brands.Model("my-brand", "my-model", map[string]interface{}{
+		"classic":        "true",
+		"architecture":   "amd64",
+		"gadget":         "classic-gadget18",
+		"required-snaps": []interface{}{"core18", "required18"},
+	})
+
+	s.makeSnap(c, "snapd", "")
+	s.makeSnap(c, "core18", "")
+	s.makeSnap(c, "classic-gadget18", "")
+	s.makeSnap(c, "required18", "developerid")
+
+	w, err := seedwriter.New(model, s.opts)
+	c.Assert(err, IsNil)
+
+	_, err = w.Start(s.db, s.newFetcher)
+	c.Assert(err, IsNil)
+
+	snaps, err := w.SnapsToDownload()
+	c.Assert(err, IsNil)
+	c.Assert(snaps, HasLen, 3)
+
+	for _, sn := range snaps {
+		s.fillDownloadedSnap(c, w, sn)
+	}
+
+	complete, err := w.Downloaded()
+	c.Assert(err, IsNil)
+	c.Check(complete, Equals, false)
+
+	snaps, err = w.SnapsToDownload()
+	c.Assert(err, IsNil)
+	c.Assert(snaps, HasLen, 1)
+
+	s.fillDownloadedSnap(c, w, snaps[0])
+
+	complete, err = w.Downloaded()
+	c.Assert(err, IsNil)
+	c.Check(complete, Equals, true)
+
+	err = w.SeedSnaps(nil)
+	c.Assert(err, IsNil)
+
+	err = w.WriteMeta()
+	c.Assert(err, IsNil)
+
+	// check seed
+	seedYaml, err := seed.ReadYaml(filepath.Join(s.opts.SeedDir, "seed.yaml"))
+	c.Assert(err, IsNil)
+	c.Assert(seedYaml.Snaps, HasLen, 4)
+
+	// check the files are in place
+	for i, name := range []string{"snapd", "core18", "classic-gadget18", "required18"} {
+		info := s.AssertedSnapInfo(name)
+
+		fn := filepath.Base(info.MountFile())
+		p := filepath.Join(s.opts.SeedDir, "snaps", fn)
+		c.Check(osutil.FileExists(p), Equals, true)
+
+		c.Check(seedYaml.Snaps[i], DeepEquals, &seed.Snap16{
+			Name:    info.SnapName(),
+			SnapID:  info.SnapID,
+			Channel: "stable",
+			File:    fn,
+			Contact: info.Contact,
+		})
+	}
+}
+
+func (s *writerSuite) TestSeedSnapsWriteMetaClassicSnapdOnlyMissingCore16(c *C) {
+	model := s.Brands.Model("my-brand", "my-model", map[string]interface{}{
+		"classic":        "true",
+		"architecture":   "amd64",
+		"gadget":         "classic-gadget18",
+		"required-snaps": []interface{}{"core18", "required-base-core16"},
+	})
+
+	s.makeSnap(c, "snapd", "")
+	s.makeSnap(c, "core18", "")
+	s.makeSnap(c, "classic-gadget18", "")
+	s.makeSnap(c, "required-base-core16", "developerid")
+
+	w, err := seedwriter.New(model, s.opts)
+	c.Assert(err, IsNil)
+
+	_, err = w.Start(s.db, s.newFetcher)
+	c.Assert(err, IsNil)
+
+	snaps, err := w.SnapsToDownload()
+	c.Assert(err, IsNil)
+	c.Assert(snaps, HasLen, 3)
+
+	for _, sn := range snaps {
+		s.fillDownloadedSnap(c, w, sn)
+	}
+
+	_, err = w.Downloaded()
+	c.Check(err, ErrorMatches, `cannot use "required-base-core16" requiring base "core16" without adding "core16" \(or "core"\) explicitly`)
 }

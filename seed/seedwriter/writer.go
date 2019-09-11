@@ -162,8 +162,12 @@ type Writer struct {
 
 	availableSnaps *naming.SnapSet
 
+	// toDownload tracks which set of snaps SnapsToDownload should compute
+	// next
+	toDownload              snapsToDownloadSet
+	toDownloadConsideredNum int
+
 	snapsFromModel []*SeedSnap
-	implicitSnaps  []*SeedSnap // only for Core 16/18 we allow for these
 	extraSnaps     []*SeedSnap
 }
 
@@ -174,6 +178,9 @@ type policy interface {
 	systemSnap() *asserts.ModelSnap
 
 	checkBase(*snap.Info, *naming.SnapSet) error
+
+	needsImplicitSnaps(*naming.SnapSet) (bool, error)
+	implicitSnaps(*naming.SnapSet) []*asserts.ModelSnap
 }
 
 type tree interface {
@@ -366,7 +373,6 @@ func (w *Writer) Start(db asserts.RODatabase, newFetcher NewFetcherFunc) (RefAss
 	}
 	if db == nil {
 		return nil, fmt.Errorf("internal error: Writer *asserts.RODatabase is nil")
-
 	}
 	if newFetcher == nil {
 		return nil, fmt.Errorf("internal error: Writer newFetcherFunc is nil")
@@ -457,14 +463,64 @@ func (w *Writer) SetInfo(sn *SeedSnap, info *snap.Info) error {
 	return nil
 }
 
-// SnapsToDownload returns a list of seed snaps to download. Once that
-// is done and their SeedSnaps Info with SetInfo and ARefs fields are
-// set, Downloaded should be called next.
-func (w *Writer) SnapsToDownload() (snaps []*SeedSnap, err error) {
-	if err := w.checkStep(snapsToDownloadStep); err != nil {
-		return nil, err
+// snapsToDownloadSet indicates which set of snaps SnapsToDownload should compute
+type snapsToDownloadSet int
+
+const (
+	toDownloadModel snapsToDownloadSet = iota
+	toDownloadImplicit
+	// toDownloadExtra
+	// toDownloadExtraImplicit
+)
+
+func (w *Writer) modelSnapToSeed(modSnap *asserts.ModelSnap) (*SeedSnap, error) {
+	sn, _ := w.byRefLocalSnaps.Lookup(modSnap).(*SeedSnap)
+	var optSnap *OptionSnap
+	if sn == nil {
+		// not local, to download
+		optSnap, _ = w.byNameOptSnaps.Lookup(modSnap).(*OptionSnap)
+		sn = &SeedSnap{
+			SnapRef: modSnap,
+
+			local:      false,
+			optionSnap: optSnap,
+		}
+	} else {
+		optSnap = sn.optionSnap
 	}
 
+	channel, err := w.resolveChannel(modSnap.SnapName(), modSnap, optSnap)
+	if err != nil {
+		return nil, err
+	}
+	sn.modelSnap = modSnap
+	sn.Channel = channel
+	return sn, nil
+}
+
+func (w *Writer) modelSnapsToDownload(modSnaps []*asserts.ModelSnap) (toDownload []*SeedSnap, err error) {
+	if w.snapsFromModel == nil {
+		w.snapsFromModel = make([]*SeedSnap, 0, len(modSnaps))
+	}
+	toDownload = make([]*SeedSnap, 0, len(modSnaps))
+
+	alreadyConsidered := len(w.snapsFromModel)
+	for _, modSnap := range modSnaps {
+		sn, err := w.modelSnapToSeed(modSnap)
+		if err != nil {
+			return nil, err
+		}
+		if !sn.local {
+			toDownload = append(toDownload, sn)
+		}
+		w.snapsFromModel = append(w.snapsFromModel, sn)
+	}
+	w.toDownloadConsideredNum = len(w.snapsFromModel) - alreadyConsidered
+
+	return toDownload, nil
+}
+
+func (w *Writer) modSnaps() []*asserts.ModelSnap {
 	modSnaps := w.model.AllSnaps()
 	if systemSnap := w.policy.systemSnap(); systemSnap != nil {
 		prepend := true
@@ -479,44 +535,30 @@ func (w *Writer) SnapsToDownload() (snaps []*SeedSnap, err error) {
 			modSnaps = append([]*asserts.ModelSnap{systemSnap}, modSnaps...)
 		}
 	}
+	return modSnaps
+}
 
-	snapsFromModel := make([]*SeedSnap, 0, len(modSnaps))
-	toDownload := make([]*SeedSnap, 0, len(modSnaps))
+// SnapsToDownload returns a list of seed snaps to download. Once that
+// is done and their SeedSnaps Info with SetInfo and ARefs fields are
+// set, Downloaded should be called next.
+func (w *Writer) SnapsToDownload() (snaps []*SeedSnap, err error) {
+	if err := w.checkStep(snapsToDownloadStep); err != nil {
+		return nil, err
+	}
 
 	// XXX extra snaps
 
-	for _, modSnap := range modSnaps {
-		sn, _ := w.byRefLocalSnaps.Lookup(modSnap).(*SeedSnap)
-		var optSnap *OptionSnap
-		if sn == nil {
-			// not local, to download
-			optSnap, _ = w.byNameOptSnaps.Lookup(modSnap).(*OptionSnap)
-			sn = &SeedSnap{
-				SnapRef: modSnap,
-
-				local:      false,
-				optionSnap: optSnap,
-			}
-			toDownload = append(toDownload, sn)
-		} else {
-			optSnap = sn.optionSnap
-		}
-
-		channel, err := w.resolveChannel(modSnap.SnapName(), modSnap, optSnap)
-		if err != nil {
-			return nil, err
-		}
-		sn.modelSnap = modSnap
-		sn.Channel = channel
-		snapsFromModel = append(snapsFromModel, sn)
+	switch w.toDownload {
+	case toDownloadModel:
+		return w.modelSnapsToDownload(w.modSnaps())
+	case toDownloadImplicit:
+		return w.modelSnapsToDownload(w.policy.implicitSnaps(w.availableSnaps))
+	default:
+		panic(fmt.Sprintf("unknown to-download set: %d", w.toDownload))
 	}
 
 	// XXX compute extra snaps (up to implicit snaps) to error as
 	// early as possible
-
-	w.snapsFromModel = snapsFromModel
-
-	return toDownload, nil
 }
 
 func (w *Writer) resolveChannel(whichSnap string, modSnap *asserts.ModelSnap, optSnap *OptionSnap) (string, error) {
@@ -557,6 +599,63 @@ func (w *Writer) resolveChannel(whichSnap string, modSnap *asserts.ModelSnap, op
 	return resChannel, nil
 }
 
+func (w *Writer) downloaded(seedSnaps []*SeedSnap) error {
+
+	if w.availableSnaps == nil {
+		w.availableSnaps = naming.NewSnapSet(nil)
+	}
+
+	for _, sn := range seedSnaps {
+		if sn.Info == nil {
+			return fmt.Errorf("internal error: before seedwriter.Writer.Downloaded snap %q Info should have been set", sn.SnapName())
+		}
+		w.availableSnaps.Add(sn)
+	}
+
+	for _, sn := range seedSnaps {
+		info := sn.Info
+		if !sn.local {
+			if info.ID() == "" {
+				return fmt.Errorf("internal error: before seedwriter.Writer.Downloaded snap %q snap-id should have been set", sn.SnapName())
+			}
+		}
+		if info.ID() != "" {
+			if sn.ARefs == nil {
+				return fmt.Errorf("internal error: before seedwriter.Writer.Downloaded snap %q ARefs should have been set", sn.SnapName())
+			}
+		}
+
+		// TODO: optionally check that model snap name and
+		// info snap name match
+
+		if err := checkType(sn, w.model); err != nil {
+			return err
+		}
+
+		needsClassic := info.NeedsClassic()
+		if needsClassic && !w.model.Classic() {
+			return fmt.Errorf("cannot use classic snap %q in a core system", info.SnapName())
+		}
+
+		if err := w.policy.checkBase(info, w.availableSnaps); err != nil {
+			return err
+		}
+		// error about missing default providers
+		for _, dp := range snap.NeededDefaultProviders(info) {
+			if !w.availableSnaps.Contains(naming.Snap(dp)) {
+				// TODO: have a way to ignore this issue on a snap by snap basis?
+				return fmt.Errorf("cannot use snap %q without its default content provider %q being added explicitly", info.SnapName(), dp)
+			}
+		}
+
+		if err := w.checkPublisher(sn); err != nil {
+			return err
+		}
+	}
+
+	return nil
+}
+
 // Downloaded checks the downloaded snaps metadata provided via
 // setting it into the SeedSnaps returned by the previous
 // SnapsToDownload.  It also returns whether the seed snap set is
@@ -566,57 +665,30 @@ func (w *Writer) Downloaded() (complete bool, err error) {
 		return false, err
 	}
 
-	// XXX consider empty w.snapsFromModel
+	// TODO: w.policy.resetChecks()
 
-	w.availableSnaps = naming.NewSnapSet(nil)
-
-	for _, sn := range w.snapsFromModel {
-		if sn.Info == nil {
-			return false, fmt.Errorf("internal error: before seedwriter.Writer.Downloaded snap %q Info should have been set", sn.SnapName())
-		}
-		w.availableSnaps.Add(sn)
+	considered := w.snapsFromModel
+	considered = considered[len(considered)-w.toDownloadConsideredNum:]
+	err = w.downloaded(considered)
+	if err != nil {
+		return false, err
 	}
 
-	for _, sn := range w.snapsFromModel {
-		info := sn.Info
-		if !sn.local {
-			if info.ID() == "" {
-				return false, fmt.Errorf("internal error: before seedwriter.Writer.Downloaded snap %q snap-id should have been set", sn.SnapName())
-			}
-		}
-		if info.ID() != "" {
-			if sn.ARefs == nil {
-
-				return false, fmt.Errorf("internal error: before seedwriter.Writer.Downloaded snap %q ARefs should have been set", sn.SnapName())
-			}
-		}
-
-		// TODO: optionally check that model snap name and
-		// info snap name match
-
-		if err := checkType(sn, w.model); err != nil {
+	switch w.toDownload {
+	case toDownloadModel:
+		implicitNeeded, err := w.policy.needsImplicitSnaps(w.availableSnaps)
+		if err != nil {
 			return false, err
 		}
-
-		needsClassic := info.NeedsClassic()
-		if needsClassic && !w.model.Classic() {
-			return false, fmt.Errorf("cannot use classic snap %q in a core system", info.SnapName())
+		if implicitNeeded {
+			w.toDownload = toDownloadImplicit
+			w.expectedStep = snapsToDownloadStep
+			return false, nil
 		}
-
-		if err := w.policy.checkBase(info, w.availableSnaps); err != nil {
-			return false, err
-		}
-		// error about missing default providers
-		for _, dp := range snap.NeededDefaultProviders(info) {
-			if !w.availableSnaps.Contains(naming.Snap(dp)) {
-				// TODO: have a way to ignore this issue on a snap by snap basis?
-				return false, fmt.Errorf("cannot use snap %q without its default content provider %q being added explicitly", info.SnapName(), dp)
-			}
-		}
-
-		if err := w.checkPublisher(sn); err != nil {
-			return false, err
-		}
+	case toDownloadImplicit:
+		// nothing more to do
+	default:
+		panic(fmt.Sprintf("unknown to-download set: %d", w.toDownload))
 	}
 
 	return true, nil
