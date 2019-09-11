@@ -165,7 +165,7 @@ var setGetTests = [][]setGetOp{{
 	`get doc={"one":"foo"}`,
 	`getunder doc={"one":"foo"}`, // nils are not committed to state
 }, {
-	// Nulls, intermediate temporary maps get dropped
+	// Nulls, intermediate temporary maps
 	`set doc={"one":{"two":2}}`,
 	`commit`,
 	`set doc.one.three.four.five=null`,
@@ -174,9 +174,10 @@ var setGetTests = [][]setGetOp{{
 	`get doc={"one":{"two":2,"three":{"four":{}}}}`,
 	`getrootunder ={"doc":{"one":{"two":2,"three":{"four":{}}}}}`, // nils are not committed to state
 }, {
-	// Nulls, same transaction, intermediate non-existing maps get dropped
+	// Nulls, same transaction
 	`set doc={"one":{"two":2}}`,
 	`set doc.one.three.four.five=null`,
+	`changes core.doc.one.three.four.five core.doc.one.two`,
 	`get doc={"one":{"two":2,"three":{"four":{}}}}`,
 	`commit`,
 	`get doc={"one":{"two":2,"three":{"four":{}}}}`,
