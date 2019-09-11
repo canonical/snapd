@@ -117,6 +117,7 @@ var setGetTests = [][]setGetOp{{
 	`set doc={"one":1,"two":2}`,
 	`commit`,
 	`set doc.one=null`,
+	`changes core.doc.one`,
 	`get doc={"two":2}`,
 	`getunder doc={"one":1,"two":2}`,
 	`commit`,
@@ -127,6 +128,7 @@ var setGetTests = [][]setGetOp{{
 	// Nulls via dotted path, resuling in empty map
 	`set doc={"one":{"three":3},"two":2}`,
 	`set doc.one.three=null`,
+	`changes core.doc.one.three core.doc.two`,
 	`get doc={"one":{},"two":2}`,
 	`commit`,
 	`get doc={"one":{},"two":2}`,
@@ -137,6 +139,7 @@ var setGetTests = [][]setGetOp{{
 	`set doc.three={"four":4}`,
 	`get doc={"one":1,"two":2,"three":{"four":4}}`,
 	`set doc.three={"four":null}`,
+	`changes core.doc.one core.doc.three.four core.doc.two`,
 	`get doc={"one":1,"two":2,"three":{}}`,
 	`commit`,
 	`get doc={"one":1,"two":2,"three":{}}`,
@@ -155,6 +158,7 @@ var setGetTests = [][]setGetOp{{
 	// Nulls with mutating
 	`set doc={"one":{"two":2}}`,
 	`set doc.one.two=null`,
+	`changes core.doc.one.two`,
 	`set doc.one="foo"`,
 	`get doc.one="foo"`,
 	`commit`,
@@ -178,18 +182,34 @@ var setGetTests = [][]setGetOp{{
 	`get doc={"one":{"two":2,"three":{"four":{}}}}`,
 	`getrootunder ={"doc":{"one":{"two":2,"three":{"four":{}}}}}`, // nils are not committed to state
 }, {
-	// Nulls, empty doc dropped
+	// Null leading to empty doc
 	`set doc={"one":1}`,
 	`set doc.one=null`,
+	`changes core.doc.one`,
 	`commit`,
 	`get doc={}`,
 }, {
 	// Nulls leading to no snap configuration
 	`set doc="foo"`,
 	`set doc=null`,
+	`changes core.doc`,
 	`commit`,
 	`get doc=-`,
 	`getroot => snap "core" has no configuration`,
+}, {
+	// set null over non-exising path
+	`set x.y.z=null`,
+	`changes core.x.y.z`,
+	`commit`,
+	`get x.y.z=-`,
+}, {
+	// set null over non-exising path with initial config
+	`set foo=bar`,
+	`commit`,
+	`set x=null`,
+	`changes core.x`,
+	`commit`,
+	`get x=-`,
 }, {
 	// Root doc
 	`set doc={"one":1,"two":2}`,
