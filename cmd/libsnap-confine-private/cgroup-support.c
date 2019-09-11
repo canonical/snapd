@@ -82,11 +82,13 @@ bool sc_cgroup_is_v2() {
     static bool did_warn = false;
     struct statfs buf;
 
-    int err = statfs(cgroup_dir, &buf);
-    if (err != 0 && errno != ENOENT) {
+    if (statfs(cgroup_dir, &buf) != 0) {
+        if (errno == ENOENT) {
+            return false;
+        }
         die("cannot statfs %s", cgroup_dir);
     }
-    if (err == 0 && buf.f_type == CGROUP2_SUPER_MAGIC) {
+    if (buf.f_type == CGROUP2_SUPER_MAGIC) {
         if (!did_warn) {
             fprintf(stderr, "WARNING: cgroup v2 is not fully supported yet\n");
             did_warn = true;
