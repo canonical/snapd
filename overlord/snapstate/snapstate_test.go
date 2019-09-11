@@ -12724,7 +12724,6 @@ func (s *snapmgrTestSuite) TestTransitionSnapdSnapWithCoreRunthrough(c *C) {
 		Sequence: []*snap.SideInfo{{RealName: "corecore", SnapID: "core-snap-id", Revision: snap.R(1), Channel: "edge"}},
 		Current:  snap.R(1),
 		SnapType: "os",
-		UserID:   2,
 		// TrackingChannel
 		Channel: "beta",
 	})
@@ -12750,7 +12749,6 @@ func (s *snapmgrTestSuite) TestTransitionSnapdSnapWithCoreRunthrough(c *C) {
 	var snapst snapstate.SnapState
 	snapstate.Get(s.state, "snapd", &snapst)
 	c.Assert(snapst.Channel, Equals, "beta")
-	c.Assert(snapst.UserID, Equals, 2)
 }
 
 func (s *snapmgrTestSuite) TestTransitionSnapdSnapTimeLimitWorks(c *C) {
