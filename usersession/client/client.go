@@ -34,6 +34,7 @@ import (
 	"sync"
 
 	"github.com/snapcore/snapd/dirs"
+	"github.com/snapcore/snapd/logger"
 )
 
 // dialSessionAgent connects to a user's session agent
@@ -105,13 +106,14 @@ func (client *Client) do(ctx context.Context, method, urlpath string, query url.
 	)
 	for _, socket := range sockets {
 		uidStr := filepath.Base(filepath.Dir(socket))
-		uid, err := strconv.Atoi(uidStr)
-		if err != nil {
-			continue
-		}
 		wg.Add(1)
-		go func(uid int, uidStr string) {
+		go func(uidStr string) {
 			defer wg.Done()
+			uid, err := strconv.Atoi(uidStr)
+			if err != nil {
+				logger.Noticef("Socket %q does not appear to be in a valid XDG_RUNTIME_DIR", socket)
+				return
+			}
 			u := url.URL{
 				Scheme:   "http",
 				Host:     uidStr,
@@ -120,8 +122,7 @@ func (client *Client) do(ctx context.Context, method, urlpath string, query url.
 			}
 			req, err := http.NewRequest(method, u.String(), bytes.NewBuffer(body))
 			if err != nil {
-				println(err)
-				//logger.Warn(err)
+				logger.Noticef("Failed to create HTTP request: %v", err)
 				return
 			}
 			req = req.WithContext(ctx)
@@ -142,7 +143,7 @@ func (client *Client) do(ctx context.Context, method, urlpath string, query url.
 			mu.Lock()
 			defer mu.Unlock()
 			responses = append(responses, &response)
-		}(uid, uidStr)
+		}(uidStr)
 	}
 	wg.Wait()
 	return responses, nil
