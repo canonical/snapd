@@ -31,7 +31,6 @@ type basePolicy struct{}
 func (basePolicy) CanRemove(st *state.State, snapst *snapstate.SnapState, all bool) bool {
 	name := snapst.InstanceName()
 	if name == "" {
-		panic("name unset")
 		// not installed, or something. What are you even trying to do.
 		return false
 	}
