@@ -30,6 +30,7 @@ import (
 	"github.com/snapcore/snapd/interfaces"
 	"github.com/snapcore/snapd/interfaces/ifacetest"
 	"github.com/snapcore/snapd/interfaces/udev"
+	"github.com/snapcore/snapd/sandbox/cgroup"
 	"github.com/snapcore/snapd/snap"
 	"github.com/snapcore/snapd/testutil"
 	"github.com/snapcore/snapd/timings"
@@ -517,8 +518,17 @@ func (s *backendSuite) TestInstallingSnapWritesAndLoadsRulesWithInputJoystickSub
 }
 
 func (s *backendSuite) TestSandboxFeatures(c *C) {
+	restore := cgroup.MockVersion(cgroup.V1, nil)
+	defer restore()
+
 	c.Assert(s.Backend.SandboxFeatures(), DeepEquals, []string{
 		"device-cgroup-v1",
+		"tagging",
+	})
+
+	restore = cgroup.MockVersion(cgroup.V2, nil)
+	defer restore()
+	c.Assert(s.Backend.SandboxFeatures(), DeepEquals, []string{
 		"tagging",
 	})
 }

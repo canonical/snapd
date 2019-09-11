@@ -34,6 +34,7 @@ import (
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/interfaces"
 	"github.com/snapcore/snapd/osutil"
+	"github.com/snapcore/snapd/sandbox/cgroup"
 	"github.com/snapcore/snapd/snap"
 	"github.com/snapcore/snapd/timings"
 )
@@ -165,8 +166,18 @@ func (b *Backend) NewSpecification() interfaces.Specification {
 
 // SandboxFeatures returns the list of features supported by snapd for mediating access to kernel devices.
 func (b *Backend) SandboxFeatures() []string {
-	return []string{
-		"device-cgroup-v1", /* Snapd creates a device group (v1) for each snap */
-		"tagging",          /* Tagging dynamically associates new devices with specific snaps */
+	commonFeatures := []string{
+		"tagging", /* Tagging dynamically associates new devices with specific snaps */
 	}
+	cgroupv1Features := []string{
+		"device-cgroup-v1", /* Snapd creates a device group (v1) for each snap */
+	}
+
+	if cgroup.IsUnified() {
+		// TODO: update v2 device cgroup is supported
+		return commonFeatures
+	}
+
+	features := append(cgroupv1Features, commonFeatures...)
+	return features
 }
