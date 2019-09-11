@@ -1,7 +1,8 @@
 summary: |
-   Test gadget customized device initialisation and registration also on classic
+    Test gadget customized device initialisation and registration also on classic
 
-systems: [-ubuntu-core-*]
+# the test is unable to download the core snap on opensuse and fedora 30
+systems: [-ubuntu-core-*, -opensuse-15.1-64, -fedora-30-64]
 
 environment:
     SEED_DIR: /var/lib/snapd/seed
