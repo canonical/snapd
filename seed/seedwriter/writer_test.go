@@ -1352,3 +1352,254 @@ func (s *writerSuite) TestSeedSnapsWriteMetaClassicSnapdOnlyMissingCore16(c *C) 
 	_, _, err := s.upToDownloaded(c, model, s.fillMetaDownloadedSnap)
 	c.Check(err, ErrorMatches, `cannot use "required-base-core16" requiring base "core16" without adding "core16" \(or "core"\) explicitly`)
 }
+
+func (s *writerSuite) TestSeedSnapsWriteMetaExtraSnaps(c *C) {
+	model := s.Brands.Model("my-brand", "my-model", map[string]interface{}{
+		"display-name":   "my model",
+		"architecture":   "amd64",
+		"base":           "core18",
+		"gadget":         "pc=18",
+		"kernel":         "pc-kernel=18",
+		"required-snaps": []interface{}{"cont-consumer", "cont-producer"},
+	})
+
+	s.makeSnap(c, "snapd", "")
+	s.makeSnap(c, "core18", "")
+	s.makeSnap(c, "pc-kernel=18", "")
+	s.makeSnap(c, "pc=18", "")
+	s.makeSnap(c, "cont-producer", "developerid")
+	s.makeSnap(c, "cont-consumer", "developerid")
+	s.makeSnap(c, "core", "")
+	s.makeSnap(c, "required", "developerid")
+
+	w, err := seedwriter.New(model, s.opts)
+	c.Assert(err, IsNil)
+
+	err = w.SetOptionsSnaps([]*seedwriter.OptionsSnap{{Name: "required", Channel: "beta"}})
+	c.Assert(err, IsNil)
+
+	_, err = w.Start(s.db, s.newFetcher)
+	c.Assert(err, IsNil)
+
+	snaps, err := w.SnapsToDownload()
+	c.Assert(err, IsNil)
+	c.Assert(snaps, HasLen, 6)
+
+	s.AssertedSnapInfo("cont-producer").Contact = "author@cont-producer.net"
+	for _, sn := range snaps {
+		s.fillDownloadedSnap(c, w, sn)
+	}
+
+	complete, err := w.Downloaded()
+	c.Assert(err, IsNil)
+	c.Assert(complete, Equals, false)
+
+	snaps, err = w.SnapsToDownload()
+	c.Assert(err, IsNil)
+	c.Assert(snaps, HasLen, 1)
+	c.Check(naming.SameSnap(snaps[0], naming.Snap("required")), Equals, true)
+
+	s.fillDownloadedSnap(c, w, snaps[0])
+
+	complete, err = w.Downloaded()
+	c.Assert(err, IsNil)
+	c.Assert(complete, Equals, false)
+
+	snaps, err = w.SnapsToDownload()
+	c.Assert(err, IsNil)
+	c.Assert(snaps, HasLen, 1)
+	c.Check(naming.SameSnap(snaps[0], naming.Snap("core")), Equals, true)
+
+	s.fillDownloadedSnap(c, w, snaps[0])
+
+	complete, err = w.Downloaded()
+	c.Assert(err, IsNil)
+	c.Assert(complete, Equals, true)
+
+	err = w.SeedSnaps(nil)
+	c.Assert(err, IsNil)
+
+	err = w.WriteMeta()
+	c.Assert(err, IsNil)
+
+	// check seed
+	seedYaml, err := seed.ReadYaml(filepath.Join(s.opts.SeedDir, "seed.yaml"))
+	c.Assert(err, IsNil)
+	c.Assert(seedYaml.Snaps, HasLen, 8)
+
+	// check the files are in place
+	for i, name := range []string{"snapd", "core", "pc-kernel", "core18", "pc", "cont-consumer", "cont-producer", "required"} {
+		info := s.AssertedSnapInfo(name)
+
+		fn := filepath.Base(info.MountFile())
+		p := filepath.Join(s.opts.SeedDir, "snaps", fn)
+		c.Check(osutil.FileExists(p), Equals, true)
+
+		channel := "stable"
+		switch name {
+		case "pc-kernel", "pc":
+			channel = "18"
+		case "required":
+			channel = "beta"
+		}
+
+		c.Check(seedYaml.Snaps[i], DeepEquals, &seed.Snap16{
+			Name:    info.SnapName(),
+			SnapID:  info.SnapID,
+			Channel: channel,
+			File:    fn,
+			Contact: info.Contact,
+		})
+	}
+
+	l, err := ioutil.ReadDir(filepath.Join(s.opts.SeedDir, "snaps"))
+	c.Assert(err, IsNil)
+	c.Check(l, HasLen, 8)
+
+	// check the snap assertions are also in place
+	seedAssertsDir := filepath.Join(s.opts.SeedDir, "assertions")
+	for _, snapName := range []string{"snapd", "core", "pc-kernel", "core18", "pc", "cont-consumer", "cont-producer", "required"} {
+		p := filepath.Join(seedAssertsDir, fmt.Sprintf("16,%s.snap-declaration", s.AssertedSnapID(snapName)))
+		decl := readAssertions(c, p)
+		c.Assert(decl, HasLen, 1)
+		c.Check(decl[0].Type(), Equals, asserts.SnapDeclarationType)
+		c.Check(decl[0].HeaderString("snap-name"), Equals, snapName)
+		p = filepath.Join(seedAssertsDir, fmt.Sprintf("%s.snap-revision", s.snapRevs[snapName].SnapSHA3_384()))
+		rev := readAssertions(c, p)
+		c.Assert(rev, HasLen, 1)
+		c.Check(rev[0].Type(), Equals, asserts.SnapRevisionType)
+		c.Check(rev[0].HeaderString("snap-id"), Equals, s.AssertedSnapID(snapName))
+	}
+}
+
+func (s *writerSuite) TestSeedSnapsWriteMetaLocalExtraSnaps(c *C) {
+	model := s.Brands.Model("my-brand", "my-model", map[string]interface{}{
+		"display-name":   "my model",
+		"architecture":   "amd64",
+		"base":           "core18",
+		"gadget":         "pc=18",
+		"kernel":         "pc-kernel=18",
+		"required-snaps": []interface{}{"cont-consumer", "cont-producer"},
+	})
+
+	s.makeSnap(c, "snapd", "")
+	s.makeSnap(c, "core18", "")
+	s.makeSnap(c, "pc-kernel=18", "")
+	s.makeSnap(c, "pc=18", "")
+	s.makeSnap(c, "cont-producer", "developerid")
+	s.makeSnap(c, "cont-consumer", "developerid")
+	s.makeSnap(c, "core", "")
+	requiredFn := s.makeLocalSnap(c, "required")
+
+	w, err := seedwriter.New(model, s.opts)
+	c.Assert(err, IsNil)
+
+	err = w.SetOptionsSnaps([]*seedwriter.OptionsSnap{{Path: requiredFn}})
+	c.Assert(err, IsNil)
+
+	tf, err := w.Start(s.db, s.newFetcher)
+	c.Assert(err, IsNil)
+
+	localSnaps, err := w.LocalSnaps()
+	c.Assert(err, IsNil)
+	c.Assert(localSnaps, HasLen, 1)
+
+	for _, sn := range localSnaps {
+		si, aRefs, err := seedwriter.DeriveSideInfo(sn.Path, tf, s.db)
+		if !asserts.IsNotFound(err) {
+			c.Assert(err, IsNil)
+		}
+		f, err := snap.Open(sn.Path)
+		c.Assert(err, IsNil)
+		info, err := snap.ReadInfoFromSnapFile(f, si)
+		c.Assert(err, IsNil)
+		w.SetInfo(sn, info)
+		sn.ARefs = aRefs
+	}
+
+	err = w.InfoDerived()
+	c.Assert(err, IsNil)
+
+	snaps, err := w.SnapsToDownload()
+	c.Assert(err, IsNil)
+	c.Assert(snaps, HasLen, 6)
+
+	s.AssertedSnapInfo("cont-producer").Contact = "author@cont-producer.net"
+	for _, sn := range snaps {
+		s.fillDownloadedSnap(c, w, sn)
+	}
+
+	complete, err := w.Downloaded()
+	c.Assert(err, IsNil)
+	c.Assert(complete, Equals, false)
+
+	snaps, err = w.SnapsToDownload()
+	c.Assert(err, IsNil)
+	c.Assert(snaps, HasLen, 0)
+
+	complete, err = w.Downloaded()
+	c.Assert(err, IsNil)
+	c.Assert(complete, Equals, false)
+
+	snaps, err = w.SnapsToDownload()
+	c.Assert(err, IsNil)
+	c.Assert(snaps, HasLen, 1)
+	c.Check(naming.SameSnap(snaps[0], naming.Snap("core")), Equals, true)
+
+	s.fillDownloadedSnap(c, w, snaps[0])
+
+	complete, err = w.Downloaded()
+	c.Assert(err, IsNil)
+	c.Assert(complete, Equals, true)
+
+	copySnap := func(name, src, dst string) error {
+		return osutil.CopyFile(src, dst, 0)
+	}
+
+	err = w.SeedSnaps(copySnap)
+	c.Assert(err, IsNil)
+
+	err = w.WriteMeta()
+	c.Assert(err, IsNil)
+
+	// check seed
+	seedYaml, err := seed.ReadYaml(filepath.Join(s.opts.SeedDir, "seed.yaml"))
+	c.Assert(err, IsNil)
+	c.Assert(seedYaml.Snaps, HasLen, 8)
+
+	// check the files are in place
+	for i, name := range []string{"snapd", "core", "pc-kernel", "core18", "pc", "cont-consumer", "cont-producer", "required"} {
+		info := s.AssertedSnapInfo(name)
+		unasserted := false
+		if info == nil {
+			info = &snap.Info{
+				SuggestedName: name,
+			}
+			info.Revision = snap.R(-1)
+			unasserted = true
+		}
+
+		fn := filepath.Base(info.MountFile())
+		p := filepath.Join(s.opts.SeedDir, "snaps", fn)
+		c.Check(osutil.FileExists(p), Equals, true)
+
+		channel := "stable"
+		switch name {
+		case "pc-kernel", "pc":
+			channel = "18"
+		}
+
+		c.Check(seedYaml.Snaps[i], DeepEquals, &seed.Snap16{
+			Name:       info.SnapName(),
+			SnapID:     info.SnapID,
+			Channel:    channel,
+			File:       fn,
+			Contact:    info.Contact,
+			Unasserted: unasserted,
+		})
+	}
+
+	l, err := ioutil.ReadDir(filepath.Join(s.opts.SeedDir, "snaps"))
+	c.Assert(err, IsNil)
+	c.Check(l, HasLen, 8)
+}
