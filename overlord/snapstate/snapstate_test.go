@@ -11015,6 +11015,15 @@ func (s *canRemoveSuite) TestLastGadgetsAreNotOK(c *C) {
 	c.Check(snapstate.CanRemove(s.st, info, &snapstate.SnapState{}, true, s.deviceCtx), Equals, false)
 }
 
+func (s *canRemoveSuite) TestLastSnapdSnapAreNotOK(c *C) {
+	info := &snap.Info{
+		SnapType: snap.TypeSnapd,
+	}
+	info.RealName = "snapd"
+
+	c.Check(snapstate.CanRemove(s.st, info, &snapstate.SnapState{}, true, s.deviceCtx), Equals, false)
+}
+
 func (s *canRemoveSuite) TestLastOSAndKernelAreNotOK(c *C) {
 	os := &snap.Info{
 		SnapType: snap.TypeOS,

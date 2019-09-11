@@ -1743,6 +1743,12 @@ func canRemove(st *state.State, si *snap.Info, snapst *SnapState, removeAll bool
 		return false
 	}
 
+	// Snapd snaps should not be removed once installed, we rely
+	// on things like fontconfig cache updates from there.
+	if si.GetType() == snap.TypeSnapd {
+		return false
+	}
+
 	// Allow "ubuntu-core" removals here because we might have two
 	// core snaps installed (ubuntu-core and core). Note that
 	// ideally we would only allow the removal of "ubuntu-core" if
