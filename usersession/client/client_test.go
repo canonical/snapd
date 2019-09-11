@@ -42,11 +42,8 @@ type clientSuite struct {
 
 	cli *client.Client
 
-	server *http.Server
-
-	rsp    string
-	header http.Header
-	status int
+	server  *http.Server
+	handler http.Handler
 }
 
 var _ = Suite(&clientSuite{})
@@ -55,9 +52,7 @@ func (s *clientSuite) SetUpTest(c *C) {
 	s.BaseTest.SetUpTest(c)
 	dirs.SetRootDir(c.MkDir())
 
-	s.rsp = ""
-	s.header = make(http.Header)
-	s.status = 200
+	s.handler = nil
 
 	s.server = &http.Server{Handler: s}
 	for _, uid := range []int{1000, 42} {
@@ -84,24 +79,24 @@ func (s *clientSuite) TearDownTest(c *C) {
 }
 
 func (s *clientSuite) ServeHTTP(w http.ResponseWriter, r *http.Request) {
-	hdr := w.Header()
-	for key, values := range s.header {
-		for _, value := range values {
-			hdr.Set(key, value)
-		}
+	if s.handler == nil {
+		w.WriteHeader(http.StatusServiceUnavailable)
+		return
 	}
-	w.WriteHeader(s.status)
-	w.Write([]byte(s.rsp))
+	s.handler.ServeHTTP(w, r)
 }
 
 func (s *clientSuite) TestSessionInfo(c *C) {
-	s.header.Set("Content-Type", "application/json")
-	s.rsp = `{
+	s.handler = http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusOK)
+		w.Write([]byte(`{
   "type": "sync",
   "result": {
     "version": "42"
   }
-}`
+}`))
+	})
 	si, err := s.cli.SessionInfo(context.Background())
 	c.Assert(err, IsNil)
 	c.Check(si, DeepEquals, map[int]client.SessionInfo{
@@ -111,14 +106,16 @@ func (s *clientSuite) TestSessionInfo(c *C) {
 }
 
 func (s *clientSuite) TestSessionInfoError(c *C) {
-	s.header.Set("Content-Type", "application/json")
-	s.status = 500
-	s.rsp = `{
+	s.handler = http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusInternalServerError)
+		w.Write([]byte(`{
   "type": "error",
   "result": {
     "message": "something bad happened"
   }
-}`
+}`))
+	})
 	si, err := s.cli.SessionInfo(context.Background())
 	c.Check(si, DeepEquals, map[int]client.SessionInfo{})
 	c.Check(err, DeepEquals, &client.Error{
@@ -129,24 +126,29 @@ func (s *clientSuite) TestSessionInfoError(c *C) {
 }
 
 func (s *clientSuite) TestServicesDaemonReload(c *C) {
-	s.header.Set("Content-Type", "application/json")
-	s.rsp = `{
+	s.handler = http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusOK)
+		w.Write([]byte(`{
   "type": "sync",
   "result": null
-}`
+}`))
+	})
 	err := s.cli.ServicesDaemonReload(context.Background())
 	c.Assert(err, IsNil)
 }
 
 func (s *clientSuite) TestServicesDaemonReloadError(c *C) {
-	s.header.Set("Content-Type", "application/json")
-	s.status = 500
-	s.rsp = `{
+	s.handler = http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusInternalServerError)
+		w.Write([]byte(`{
   "type": "error",
   "result": {
     "message": "something bad happened"
   }
-}`
+}`))
+	})
 	err := s.cli.ServicesDaemonReload(context.Background())
 	c.Check(err, DeepEquals, &client.Error{
 		Kind:    "",

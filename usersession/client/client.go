@@ -192,17 +192,53 @@ func (client *Client) SessionInfo(ctx context.Context) (info map[int]SessionInfo
 	return info, err
 }
 
-func (client *Client) ServicesDaemonReload(ctx context.Context) error {
+type ServiceFailure struct {
+	Uid     int
+	Service string
+	Error   string
+}
+
+func (client *Client) servicesCall(ctx context.Context, action string, services []string) (failures []ServiceFailure, err error) {
 	headers := map[string]string{"Content-Type": "application/json"}
-	reqBody := []byte(`{"action": "daemon-reload"}`)
+	reqBody, err := json.Marshal(map[string]interface{}{
+		"action":   action,
+		"services": services,
+	})
+	if err != nil {
+		return nil, err
+	}
 	responses, err := client.do(ctx, "POST", "/v1/services", nil, headers, reqBody)
 	if err != nil {
-		return err
+		return nil, err
 	}
 	for _, resp := range responses {
-		if resp.err != nil {
-			return resp.err
+		if resp.err == nil {
+			continue
+		}
+		if agentErr, ok := err.(*Error); ok && agentErr.Kind == "serice-control" {
+			if errors, ok := agentErr.Value.(map[string]interface{}); ok {
+				for service, failure := range errors {
+					failures = append(failures, ServiceFailure{resp.uid, service, failure.(string)})
+				}
+				continue
+			}
+		}
+		if resp.err != nil && err == nil {
+			err = resp.err
 		}
 	}
-	return nil
+	return failures, err
+}
+
+func (client *Client) ServicesDaemonReload(ctx context.Context) error {
+	_, err := client.servicesCall(ctx, "daemon-reload", nil)
+	return err
+}
+
+func (client *Client) ServicesStart(ctx context.Context, services []string) (failures []ServiceFailure, err error) {
+	return client.servicesCall(ctx, "start", services)
+}
+
+func (client *Client) ServicesStop(ctx context.Context, services []string) (failures []ServiceFailure, err error) {
+	return client.servicesCall(ctx, "stop", services)
 }
