@@ -100,6 +100,7 @@ func (s *bootenvTestSuite) TestInstallBootloaderConfig(c *C) {
 		{"grub.conf", "/boot/grub/grub.cfg"},
 		{"uboot.conf", "/boot/uboot/uboot.env"},
 		{"androidboot.conf", "/boot/androidboot/androidboot.env"},
+		{"lk.conf", "/boot/lk/snapbootsel.bin"},
 	} {
 		mockGadgetDir := c.MkDir()
 		err := ioutil.WriteFile(filepath.Join(mockGadgetDir, t.gadgetFile), nil, 0644)
