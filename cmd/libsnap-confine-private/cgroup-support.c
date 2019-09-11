@@ -90,7 +90,7 @@ bool sc_cgroup_is_v2() {
     }
     if (buf.f_type == CGROUP2_SUPER_MAGIC) {
         if (!did_warn) {
-            fprintf(stderr, "WARNING: cgroup v2 is not fully supported yet\n");
+            fprintf(stderr, "WARNING: cgroup v2 is not fully supported yet, proceeding with partial confinement\n");
             did_warn = true;
         }
         return true;
