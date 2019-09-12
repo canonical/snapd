@@ -82,7 +82,7 @@ func (ts *HTestSuite) TestBasic(c *C) {
 
 	c.Assert(env, DeepEquals, map[string]string{
 		"SNAP":               fmt.Sprintf("%s/foo/17", dirs.CoreSnapMountDir),
-		"SNAP_ARCH":          arch.UbuntuArchitecture(),
+		"SNAP_ARCH":          arch.DpkgArchitecture(),
 		"SNAP_COMMON":        "/var/snap/foo/common",
 		"SNAP_DATA":          "/var/snap/foo/17",
 		"SNAP_LIBRARY_PATH":  "/var/lib/snapd/lib/gl:/var/lib/snapd/lib/gl32:/var/lib/snapd/void",
@@ -136,7 +136,7 @@ func (s *HTestSuite) TestSnapRunSnapExecEnv(c *C) {
 
 		env := snapEnv(info)
 		c.Check(env, DeepEquals, map[string]string{
-			"SNAP_ARCH":          arch.UbuntuArchitecture(),
+			"SNAP_ARCH":          arch.DpkgArchitecture(),
 			"SNAP_LIBRARY_PATH":  "/var/lib/snapd/lib/gl:/var/lib/snapd/lib/gl32:/var/lib/snapd/void",
 			"SNAP_NAME":          "snapname",
 			"SNAP_INSTANCE_NAME": "snapname",
@@ -178,7 +178,7 @@ func (s *HTestSuite) TestParallelInstallSnapRunSnapExecEnv(c *C) {
 
 		env := snapEnv(info)
 		c.Check(env, DeepEquals, map[string]string{
-			"SNAP_ARCH":          arch.UbuntuArchitecture(),
+			"SNAP_ARCH":          arch.DpkgArchitecture(),
 			"SNAP_LIBRARY_PATH":  "/var/lib/snapd/lib/gl:/var/lib/snapd/lib/gl32:/var/lib/snapd/void",
 			"SNAP_NAME":          "snapname",
 			"SNAP_INSTANCE_NAME": "snapname_foo",

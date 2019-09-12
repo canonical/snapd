@@ -64,7 +64,7 @@ func SetUserAgentFromVersion(version string, extraProds ...string) (restore func
 	// assumption checks out in practice, q.v. https://github.com/zyga/os-release-zoo
 	userAgent = fmt.Sprintf("snapd/%v (%s)%s %s/%s (%s) linux/%s", version,
 		strings.Join(extras, "; "), extraProdStr, release.ReleaseInfo.ID,
-		release.ReleaseInfo.VersionID, string(arch.UbuntuArchitecture()),
+		release.ReleaseInfo.VersionID, string(arch.DpkgArchitecture()),
 		sanitizeKernelVersion(osutil.KernelVersion()))
 	return func() {
 		userAgent = origUserAgent

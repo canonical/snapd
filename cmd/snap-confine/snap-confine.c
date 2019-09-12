@@ -35,6 +35,7 @@
 #include "../libsnap-confine-private/apparmor-support.h"
 #include "../libsnap-confine-private/cgroup-freezer-support.h"
 #include "../libsnap-confine-private/cgroup-pids-support.h"
+#include "../libsnap-confine-private/cgroup-support.h"
 #include "../libsnap-confine-private/classic.h"
 #include "../libsnap-confine-private/cleanup-funcs.h"
 #include "../libsnap-confine-private/feature.h"
@@ -574,8 +575,11 @@ static void enter_non_classic_execution_environment(sc_invocation * inv,
 
 	/** Populate and join the device control group. */
 	struct snappy_udev udev_s;
-	if (snappy_udev_init(inv->security_tag, &udev_s) == 0)
-		setup_devices_cgroup(inv->security_tag, &udev_s);
+	if (snappy_udev_init(inv->security_tag, &udev_s) == 0) {
+		if (!sc_cgroup_is_v2()) {
+			setup_devices_cgroup(inv->security_tag, &udev_s);
+		}
+	}
 	snappy_udev_cleanup(&udev_s);
 
 	/**
@@ -675,9 +679,11 @@ static void enter_non_classic_execution_environment(sc_invocation * inv,
 			die("cannot set effective group id to root");
 		}
 	}
-	sc_cgroup_freezer_join(inv->snap_instance, getpid());
-	if (sc_feature_enabled(SC_FEATURE_REFRESH_APP_AWARENESS)) {
-		sc_cgroup_pids_join(inv->security_tag, getpid());
+	if (!sc_cgroup_is_v2()) {
+		sc_cgroup_freezer_join(inv->snap_instance, getpid());
+		if (sc_feature_enabled(SC_FEATURE_REFRESH_APP_AWARENESS)) {
+			sc_cgroup_pids_join(inv->security_tag, getpid());
+		}
 	}
 	if (geteuid() == 0 && real_gid != 0) {
 		if (setegid(real_gid) != 0) {

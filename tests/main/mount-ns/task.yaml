@@ -105,6 +105,7 @@ prepare: |
             --display-order mount_point \
             --display-order mount_source \
             --display-order fs_type \
+            .dev .root_dir .mount_point .mount_opts .opt_fields .fs_type .mount_source .sb_opts \
             "$@"
     }
 
