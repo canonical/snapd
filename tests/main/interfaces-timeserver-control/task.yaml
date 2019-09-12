@@ -24,6 +24,12 @@ prepare: |
     fi
 
 restore: |
+    if [[ "$SPREAD_SYSTEM" == ubuntu-19.10-* ]]; then
+        # bring it back
+        apt install -y chrony
+        systemctl restart systemd-timesyncd.service
+    fi
+
     # Restore the initial timeserver
     if [ -s timeserver.txt ]; then
         timedatectl set-ntp "$(cat timeserver.txt)"
