@@ -40,7 +40,9 @@ device.
 
 By default, only the essential model identification information is
 included in the output, but this can be expanded to include all of an
-assertion's headers non-meta headers.
+assertion's non-meta headers.
+
+The verbose output is presented in a structured, yaml-like format.
 
 Similarly, the active serial assertion can be used for the output instead of the
 model assertion.
