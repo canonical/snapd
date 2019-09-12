@@ -189,6 +189,7 @@ func checkModelSnap(snap map[string]interface{}) (*ModelSnap, error) {
 
 	what := fmt.Sprintf("of snap %q", name)
 
+	// XXX make id optional if grade is unstable
 	snapID, err := checkStringMatchesWhat(snap, "id", what, validSnapID)
 	if err != nil {
 		return nil, err
@@ -323,6 +324,18 @@ func checkRequiredSnap(name string, headerName string, snapType string) (*ModelS
 	}, nil
 }
 
+// ModelGrade characterizes the stability of the model which also
+// controls some related policy.
+type ModelGrade string
+
+const (
+	ModelGradeUnset ModelGrade = "unset"
+	ModelStable     ModelGrade = "stable"
+	ModelUnstable   ModelGrade = "unstable"
+)
+
+var validModelGrades = []string{string(ModelStable), string(ModelUnstable)}
+
 // Model holds a model assertion, which is a statement by a brand
 // about the properties of a device model.
 type Model struct {
@@ -332,6 +345,8 @@ type Model struct {
 	baseSnap   *ModelSnap
 	gadgetSnap *ModelSnap
 	kernelSnap *ModelSnap
+
+	grade ModelGrade
 
 	allSnaps []*ModelSnap
 	// consumers of this info should care only about snap identity =>
@@ -376,6 +391,12 @@ func (mod *Model) Classic() bool {
 // Architecture returns the archicteture the model is based on.
 func (mod *Model) Architecture() string {
 	return mod.HeaderString("architecture")
+}
+
+// Grade returns the stability grade of the model. Will be ModeGradeUnset
+// for Core 16/18 models.
+func (mod *Model) Grade() ModelGrade {
+	return mod.grade
 }
 
 // GadgetSnap returns the details of the gadget snap the model uses.
@@ -553,8 +574,13 @@ func assembleModel(assert assertionBase) (Assertion, error) {
 				return nil, fmt.Errorf("cannot specify separate %q header once using the extended snaps header", conflicting)
 			}
 		}
+	} else {
+		if _, ok := assert.headers["grade"]; ok {
+			return nil, fmt.Errorf("cannot specify a grade for model without the extended snaps header")
+		}
+	}
 
-	} else if classic {
+	if classic {
 		if _, ok := assert.headers["kernel"]; ok {
 			return nil, fmt.Errorf("cannot specify a kernel with a classic model")
 		}
@@ -602,7 +628,20 @@ func assembleModel(assert assertionBase) (Assertion, error) {
 	}
 
 	var modSnaps *modelSnaps
+	grade := ModelGradeUnset
 	if extended {
+		gradeStr, err := checkOptionalString(assert.headers, "grade")
+		if err != nil {
+			return nil, err
+		}
+		if gradeStr != "" && !strutil.ListContains(validModelGrades, gradeStr) {
+			return nil, fmt.Errorf("grade for model must be stable|unstable")
+		}
+		grade = ModelStable
+		if gradeStr != "" {
+			grade = ModelGrade(gradeStr)
+		}
+
 		// TODO: support and consider grade!
 		modSnaps, err = checkExtendedSnaps(extendedSnaps, base)
 		if err != nil {
@@ -677,6 +716,7 @@ func assembleModel(assert assertionBase) (Assertion, error) {
 		baseSnap:                   modSnaps.base,
 		gadgetSnap:                 modSnaps.gadget,
 		kernelSnap:                 modSnaps.kernel,
+		grade:                      grade,
 		allSnaps:                   allSnaps,
 		requiredWithEssentialSnaps: requiredWithEssentialSnaps,
 		numEssentialSnaps:          numEssentialSnaps,

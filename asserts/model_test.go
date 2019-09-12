@@ -177,6 +177,7 @@ func (mods *modelSuite) TestDecodeOK(c *C) {
 		Presence:       "required",
 	})
 	c.Check(model.Store(), Equals, "brand-store")
+	c.Check(model.Grade(), Equals, asserts.ModelGradeUnset)
 	allSnaps := model.AllSnaps()
 	c.Check(allSnaps, DeepEquals, []*asserts.ModelSnap{
 		model.BaseSnap(),
@@ -444,6 +445,7 @@ func (mods *modelSuite) TestDecodeInvalid(c *C) {
 		{reqSnaps, "required-snaps:\n  -\n    - nested\n", `"required-snaps" header must be a list of strings`},
 		{sysUserAuths, "system-user-authority:\n  a: 1\n", `"system-user-authority" header must be '\*' or a list of account ids`},
 		{sysUserAuths, "system-user-authority:\n  - 5_6\n", `"system-user-authority" header must be '\*' or a list of account ids`},
+		{reqSnaps, "grade: unstable\n", `cannot specify a grade for model without the extended snaps header`},
 	}
 
 	for _, test := range invalidTests {
@@ -619,6 +621,7 @@ func (mods *modelSuite) TestCore20DecodeOK(c *C) {
 		Presence:       "required",
 	})
 	c.Check(model.Store(), Equals, "brand-store")
+	c.Check(model.Grade(), Equals, asserts.ModelStable)
 	allSnaps := model.AllSnaps()
 	c.Check(allSnaps, DeepEquals, []*asserts.ModelSnap{
 		model.BaseSnap(),
@@ -691,6 +694,30 @@ func (mods *modelSuite) TestCore20ExplictBootBase(c *C) {
 	})
 }
 
+func (mods *modelSuite) TestCore20GradeOptionalDefaultStable(c *C) {
+	encoded := strings.Replace(core20ModelExample, "TSLINE", mods.tsLine, 1)
+	encoded = strings.Replace(encoded, "OTHER", "", 1)
+	encoded = strings.Replace(encoded, "grade: stable\n", "", 1)
+
+	a, err := asserts.Decode([]byte(encoded))
+	c.Assert(err, IsNil)
+	c.Check(a.Type(), Equals, asserts.ModelType)
+	model := a.(*asserts.Model)
+	c.Check(model.Grade(), Equals, asserts.ModelStable)
+}
+
+func (mods *modelSuite) TestCore20GradeUnstable(c *C) {
+	encoded := strings.Replace(core20ModelExample, "TSLINE", mods.tsLine, 1)
+	encoded = strings.Replace(encoded, "OTHER", "", 1)
+	encoded = strings.Replace(encoded, "grade: stable\n", "grade: unstable\n", 1)
+
+	a, err := asserts.Decode([]byte(encoded))
+	c.Assert(err, IsNil)
+	c.Check(a.Type(), Equals, asserts.ModelType)
+	model := a.(*asserts.Model)
+	c.Check(model.Grade(), Equals, asserts.ModelUnstable)
+}
+
 func (mods *modelSuite) TestCore20DecodeInvalid(c *C) {
 	encoded := strings.Replace(core20ModelExample, "TSLINE", mods.tsLine, 1)
 
@@ -729,6 +756,7 @@ func (mods *modelSuite) TestCore20DecodeInvalid(c *C) {
 		{"OTHER", "kernel: foo\n", `cannot specify separate "kernel" header once using the extended snaps header`},
 		{"OTHER", "gadget: foo\n", `cannot specify separate "gadget" header once using the extended snaps header`},
 		{"OTHER", "required-snaps:\n  - foo\n", `cannot specify separate "required-snaps" header once using the extended snaps header`},
+		{"grade: stable\n", "grade: foo\n", `grade for model must be stable|unstable`},
 	}
 	for _, test := range invalidTests {
 		invalid := strings.Replace(encoded, test.original, test.invalid, 1)
