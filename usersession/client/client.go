@@ -105,10 +105,10 @@ func (client *Client) do(ctx context.Context, method, urlpath string, query url.
 		responses []*response
 	)
 	for _, socket := range sockets {
-		uidStr := filepath.Base(filepath.Dir(socket))
 		wg.Add(1)
-		go func(uidStr string) {
+		go func(socket string) {
 			defer wg.Done()
+			uidStr := filepath.Base(filepath.Dir(socket))
 			uid, err := strconv.Atoi(uidStr)
 			if err != nil {
 				logger.Noticef("Socket %q does not appear to be in a valid XDG_RUNTIME_DIR", socket)
@@ -143,7 +143,7 @@ func (client *Client) do(ctx context.Context, method, urlpath string, query url.
 			mu.Lock()
 			defer mu.Unlock()
 			responses = append(responses, &response)
-		}(uidStr)
+		}(socket)
 	}
 	wg.Wait()
 	return responses, nil

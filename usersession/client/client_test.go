@@ -80,7 +80,7 @@ func (s *clientSuite) TearDownTest(c *C) {
 
 func (s *clientSuite) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	if s.handler == nil {
-		w.WriteHeader(http.StatusServiceUnavailable)
+		w.WriteHeader(500)
 		return
 	}
 	s.handler.ServeHTTP(w, r)
@@ -89,7 +89,7 @@ func (s *clientSuite) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 func (s *clientSuite) TestSessionInfo(c *C) {
 	s.handler = http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
-		w.WriteHeader(http.StatusOK)
+		w.WriteHeader(200)
 		w.Write([]byte(`{
   "type": "sync",
   "result": {
@@ -108,7 +108,7 @@ func (s *clientSuite) TestSessionInfo(c *C) {
 func (s *clientSuite) TestSessionInfoError(c *C) {
 	s.handler = http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
-		w.WriteHeader(http.StatusInternalServerError)
+		w.WriteHeader(500)
 		w.Write([]byte(`{
   "type": "error",
   "result": {
@@ -128,7 +128,7 @@ func (s *clientSuite) TestSessionInfoError(c *C) {
 func (s *clientSuite) TestServicesDaemonReload(c *C) {
 	s.handler = http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
-		w.WriteHeader(http.StatusOK)
+		w.WriteHeader(200)
 		w.Write([]byte(`{
   "type": "sync",
   "result": null
@@ -141,7 +141,7 @@ func (s *clientSuite) TestServicesDaemonReload(c *C) {
 func (s *clientSuite) TestServicesDaemonReloadError(c *C) {
 	s.handler = http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
-		w.WriteHeader(http.StatusInternalServerError)
+		w.WriteHeader(500)
 		w.Write([]byte(`{
   "type": "error",
   "result": {
@@ -160,7 +160,7 @@ func (s *clientSuite) TestServicesDaemonReloadError(c *C) {
 func (s *clientSuite) TestServicesStart(c *C) {
 	s.handler = http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
-		w.WriteHeader(http.StatusOK)
+		w.WriteHeader(200)
 		w.Write([]byte(`{
   "type": "sync",
   "result": null
@@ -174,7 +174,7 @@ func (s *clientSuite) TestServicesStart(c *C) {
 func (s *clientSuite) TestServicesStartFailure(c *C) {
 	s.handler = http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
-		w.WriteHeader(http.StatusInternalServerError)
+		w.WriteHeader(500)
 		w.Write([]byte(`{
   "type": "error",
   "result": {
@@ -206,7 +206,7 @@ func (s *clientSuite) TestServicesStartFailure(c *C) {
 func (s *clientSuite) TestServicesStop(c *C) {
 	s.handler = http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
-		w.WriteHeader(http.StatusOK)
+		w.WriteHeader(200)
 		w.Write([]byte(`{
   "type": "sync",
   "result": null
@@ -220,7 +220,7 @@ func (s *clientSuite) TestServicesStop(c *C) {
 func (s *clientSuite) TestServicesStopFailure(c *C) {
 	s.handler = http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
-		w.WriteHeader(http.StatusInternalServerError)
+		w.WriteHeader(500)
 		w.Write([]byte(`{
   "type": "error",
   "result": {
