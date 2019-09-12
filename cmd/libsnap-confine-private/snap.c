@@ -252,7 +252,7 @@ void sc_snap_name_validate(const char *snap_name, sc_error ** errorp)
 				    "snap name must be longer than 1 character");
 		goto out;
 	}
-	if (n > 40) {
+	if (n > SNAP_NAME_LEN) {
 		err = sc_error_init(SC_SNAP_DOMAIN, SC_SNAP_INVALID_NAME,
 				    "snap name must be shorter than 40 characters");
 		goto out;

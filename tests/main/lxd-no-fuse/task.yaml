@@ -40,3 +40,5 @@ execute: |
     fi
     MATCH 'The "fuse" filesystem is required' < err.txt
 
+restore: |
+    lxd-tool undo-lxd-mount-changes

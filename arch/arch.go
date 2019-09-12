@@ -33,33 +33,30 @@ type ArchitectureType string
 // change the architecture. This is important to e.g. install
 // armhf snaps onto a armhf image that is generated on an amd64
 // machine
-var arch = ArchitectureType(ubuntuArchFromGoArch(runtime.GOARCH))
+var arch = ArchitectureType(dpkgArchFromGoArch(runtime.GOARCH))
 
 // SetArchitecture allows overriding the auto detected Architecture
 func SetArchitecture(newArch ArchitectureType) {
 	arch = newArch
 }
 
-// FIXME: rename all Ubuntu*Architecture() to SnapdArchitecture()
-//        (or DpkgArchitecture)
-
-// UbuntuArchitecture returns the debian equivalent architecture for the
+// DpkgArchitecture returns the debian equivalent architecture for the
 // currently running architecture.
 //
 // If the architecture does not map any debian architecture, the
 // GOARCH is returned.
-func UbuntuArchitecture() string {
+func DpkgArchitecture() string {
 	return string(arch)
 }
 
-// ubuntuArchFromGoArch maps a go architecture string to the coresponding
-// Ubuntu architecture string.
+// dpkgArchFromGoArch maps a go architecture string to the coresponding
+// Debian equivalent architecture string.
 //
 // E.g. the go "386" architecture string maps to the ubuntu "i386"
 // architecture.
-func ubuntuArchFromGoArch(goarch string) string {
+func dpkgArchFromGoArch(goarch string) string {
 	goArchMapping := map[string]string{
-		// go      ubuntu
+		// go      dpkg
 		"386":     "i386",
 		"amd64":   "amd64",
 		"arm":     "armhf",
@@ -82,27 +79,27 @@ func ubuntuArchFromGoArch(goarch string) string {
 		}
 	}
 
-	ubuntuArch := goArchMapping[goarch]
-	if ubuntuArch == "" {
+	dpkgArch := goArchMapping[goarch]
+	if dpkgArch == "" {
 		log.Panicf("unknown goarch %q", goarch)
 	}
 
-	return ubuntuArch
+	return dpkgArch
 }
 
-// UbuntuKernelArchitecture return the debian equivalent architecture
+// DpkgKernelArchitecture returns the debian equivalent architecture
 // for the current running kernel. This is usually the same as the
-// UbuntuArchitecture - however there maybe cases that you run e.g.
+// DpkgArchitecture - however there maybe cases that you run e.g.
 // a snapd:i386 on an amd64 kernel.
-func UbuntuKernelArchitecture() string {
-	return ubuntuArchFromKernelArch(osutil.MachineName())
+func DpkgKernelArchitecture() string {
+	return dpkgArchFromKernelArch(osutil.MachineName())
 }
 
-// ubuntuArchFromkernelArch maps the kernel architecture as reported
+// dpkgArchFromkernelArch maps the kernel architecture as reported
 // via uname() to the dpkg architecture
-func ubuntuArchFromKernelArch(utsMachine string) string {
+func dpkgArchFromKernelArch(utsMachine string) string {
 	kernelArchMapping := map[string]string{
-		// kernel  ubuntu
+		// kernel  dpkg
 		"i686":    "i386",
 		"x86_64":  "amd64",
 		"armv7l":  "armhf",
@@ -115,12 +112,12 @@ func ubuntuArchFromKernelArch(utsMachine string) string {
 		"ppc64": "ppc64",
 	}
 
-	ubuntuArch := kernelArchMapping[utsMachine]
-	if ubuntuArch == "" {
+	dpkgArch := kernelArchMapping[utsMachine]
+	if dpkgArch == "" {
 		log.Panicf("unknown kernel arch %q", utsMachine)
 	}
 
-	return ubuntuArch
+	return dpkgArch
 }
 
 // IsSupportedArchitecture returns true if the system architecture is in the

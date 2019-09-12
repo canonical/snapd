@@ -25,7 +25,6 @@ import (
 	. "gopkg.in/check.v1"
 
 	"github.com/snapcore/snapd/bootloader"
-	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/snap"
 	"github.com/snapcore/snapd/snap/snaptest"
@@ -41,22 +40,21 @@ func (s *androidBootTestSuite) SetUpTest(c *C) {
 	s.baseBootenvTestSuite.SetUpTest(c)
 
 	// the file needs to exist for androidboot object to be created
-	bootloader.MockAndroidBootFile(c, 0644)
+	bootloader.MockAndroidBootFile(c, s.rootdir, 0644)
 }
 
 func (s *androidBootTestSuite) TestNewAndroidbootNoAndroidbootReturnsNil(c *C) {
-	dirs.GlobalRootDir = "/something/not/there"
-	a := bootloader.NewAndroidBoot()
+	a := bootloader.NewAndroidBoot("/something/not/there")
 	c.Assert(a, IsNil)
 }
 
 func (s *androidBootTestSuite) TestNewAndroidboot(c *C) {
-	a := bootloader.NewAndroidBoot()
+	a := bootloader.NewAndroidBoot(s.rootdir)
 	c.Assert(a, NotNil)
 }
 
 func (s *androidBootTestSuite) TestSetGetBootVar(c *C) {
-	a := bootloader.NewAndroidBoot()
+	a := bootloader.NewAndroidBoot(s.rootdir)
 	bootVars := map[string]string{"snap_mode": "try"}
 	a.SetBootVars(bootVars)
 
@@ -67,7 +65,7 @@ func (s *androidBootTestSuite) TestSetGetBootVar(c *C) {
 }
 
 func (s *androidBootTestSuite) TestExtractKernelAssetsNoUnpacksKernel(c *C) {
-	a := bootloader.NewAndroidBoot()
+	a := bootloader.NewAndroidBoot(s.rootdir)
 
 	c.Assert(a, NotNil)
 
@@ -91,6 +89,6 @@ func (s *androidBootTestSuite) TestExtractKernelAssetsNoUnpacksKernel(c *C) {
 	c.Assert(err, IsNil)
 
 	// kernel is *not* here
-	kernimg := filepath.Join(dirs.GlobalRootDir, "boot", "androidboot", "ubuntu-kernel_42.snap", "kernel.img")
+	kernimg := filepath.Join(s.rootdir, "boot", "androidboot", "ubuntu-kernel_42.snap", "kernel.img")
 	c.Assert(osutil.FileExists(kernimg), Equals, false)
 }
