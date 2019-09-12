@@ -77,8 +77,13 @@ func changes(cfgStr string, cfg map[string]interface{}) []string {
 			// check if we need to dive into a sub-config
 			var configm map[string]interface{}
 			if err := jsonutil.DecodeWithNumber(bytes.NewReader(*subCfg), &configm); err == nil {
-				out = append(out, changes(cfgStr+"."+k, configm)...)
-				continue
+				// curiously, json decoder decodes json.RawMessage("null") into a nil map, so no change is
+				// reported when we recurse into it. This happens when unsetting a key and the underlying
+				// config path doesn't exist.
+				if len(configm) > 0 {
+					out = append(out, changes(cfgStr+"."+k, configm)...)
+					continue
+				}
 			}
 			out = append(out, []string{cfgStr + "." + k}...)
 		default:

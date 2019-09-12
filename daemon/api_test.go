@@ -72,6 +72,7 @@ import (
 	"github.com/snapcore/snapd/overlord/state"
 	"github.com/snapcore/snapd/release"
 	"github.com/snapcore/snapd/snap"
+	"github.com/snapcore/snapd/snap/channel"
 	"github.com/snapcore/snapd/snap/snaptest"
 	"github.com/snapcore/snapd/store"
 	"github.com/snapcore/snapd/store/storetest"
@@ -7124,12 +7125,12 @@ func (s *apiSuite) TestErrToResponseNoSnapsDoesNotPanic(c *check.C) {
 func (s *apiSuite) TestErrToResponseForRevisionNotAvailable(c *check.C) {
 	si := &snapInstruction{Action: "frobble", Snaps: []string{"foo"}}
 
-	thisArch := arch.UbuntuArchitecture()
+	thisArch := arch.DpkgArchitecture()
 
 	err := &store.RevisionNotAvailableError{
 		Action:  "install",
 		Channel: "stable",
-		Releases: []snap.Channel{
+		Releases: []channel.Channel{
 			snaptest.MustParseChannel("beta", thisArch),
 		},
 	}
@@ -7155,7 +7156,7 @@ func (s *apiSuite) TestErrToResponseForRevisionNotAvailable(c *check.C) {
 	err = &store.RevisionNotAvailableError{
 		Action:  "install",
 		Channel: "stable",
-		Releases: []snap.Channel{
+		Releases: []channel.Channel{
 			snaptest.MustParseChannel("beta", "other-arch"),
 		},
 	}

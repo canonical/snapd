@@ -85,6 +85,7 @@ var (
 
 	SnapBinariesDir     string
 	SnapServicesDir     string
+	SnapUserServicesDir string
 	SnapSystemdConfDir  string
 	SnapDesktopFilesDir string
 	SnapDesktopIconsDir string
@@ -206,6 +207,16 @@ func isInsideBaseSnap() (bool, error) {
 	return err == nil, err
 }
 
+// SnapBlobDirUnder returns the path to the snap blob dir under rootdir.
+func SnapBlobDirUnder(rootdir string) string {
+	return filepath.Join(rootdir, snappyDir, "snaps")
+}
+
+// SnapSeedDirUnder returns the path to the snap seed dir under rootdir.
+func SnapSeedDirUnder(rootdir string) string {
+	return filepath.Join(rootdir, snappyDir, "seed")
+}
+
 // SetRootDir allows settings a new global root directory, this is useful
 // for e.g. chroot operations
 func SetRootDir(rootdir string) {
@@ -231,7 +242,7 @@ func SetRootDir(rootdir string) {
 	SnapSeccompDir = filepath.Join(rootdir, snappyDir, "seccomp", "bpf")
 	SnapMountPolicyDir = filepath.Join(rootdir, snappyDir, "mount")
 	SnapMetaDir = filepath.Join(rootdir, snappyDir, "meta")
-	SnapBlobDir = filepath.Join(rootdir, snappyDir, "snaps")
+	SnapBlobDir = SnapBlobDirUnder(rootdir)
 	// ${snappyDir}/desktop is added to $XDG_DATA_DIRS.
 	// Subdirectories are interpreted according to the relevant
 	// freedesktop.org specifications
@@ -259,7 +270,7 @@ func SetRootDir(rootdir string) {
 	SnapCommandsDB = filepath.Join(SnapCacheDir, "commands.db")
 	SnapAuxStoreInfoDir = filepath.Join(SnapCacheDir, "aux")
 
-	SnapSeedDir = filepath.Join(rootdir, snappyDir, "seed")
+	SnapSeedDir = SnapSeedDirUnder(rootdir)
 	SnapDeviceDir = filepath.Join(rootdir, snappyDir, "device")
 
 	SnapRepairDir = filepath.Join(rootdir, snappyDir, "repair")
@@ -272,6 +283,7 @@ func SetRootDir(rootdir string) {
 
 	SnapBinariesDir = filepath.Join(SnapMountDir, "bin")
 	SnapServicesDir = filepath.Join(rootdir, "/etc/systemd/system")
+	SnapUserServicesDir = filepath.Join(rootdir, "/etc/systemd/user")
 	SnapSystemdConfDir = filepath.Join(rootdir, "/etc/systemd/system.conf.d")
 	SnapBusPolicyDir = filepath.Join(rootdir, "/etc/dbus-1/system.d")
 

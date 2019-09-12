@@ -3,10 +3,22 @@ summary: Ensure upgrades from snapd 2.15 work
 systems: [ubuntu-16.04-64]
 
 prepare: |
-    dpkg --purge snapd
+    apt-tool checkpoint > installed.pkgs
+    #shellcheck source=tests/lib/pkgdb.sh
+    . "$TESTSLIB/pkgdb.sh"
+    distro_purge_package snapd
 
 restore: |
-    dpkg --purge ubuntu-core-launcher snap-confine
+    #shellcheck source=tests/lib/pkgdb.sh
+    . "$TESTSLIB/pkgdb.sh"
+    if [ -e old_install_done ]; then
+        echo "Ensure core is gone and we have ubuntu-core instead"
+        distro_purge_package snapd
+    fi
+    distro_install_build_snapd
+
+    apt-tool restore installed.pkgs
+    rm -f installed.pkgs
 
 execute: |
     #shellcheck source=tests/lib/systemd.sh
@@ -18,6 +30,9 @@ execute: |
     wget https://launchpad.net/ubuntu/+source/snapd/2.15.2ubuntu1/+build/10939171/+files/snapd_2.15.2ubuntu1_amd64.deb
     echo "Install snapd 2.15.2"
     apt install -y ./ubuntu-core-launcher_1.0.38-0ubuntu0.16.04.8_amd64.deb ./snap-confine_1.0.38-0ubuntu0.16.04.8_amd64.deb ./snapd_2.15.2ubuntu1_amd64.deb
+
+    echo "Installation completed"
+    touch old_install_done
 
     echo "install a service snap and check its active"
     snap install go-example-webserver
@@ -57,6 +72,9 @@ execute: |
     test "$(find /var/lib/snapd/apparmor/profiles/ -name "snap-confine.core.*" | wc -l)" -eq 1
     MATCH "^/usr/lib/snapd/snap-confine \\(enforce\\)" < /sys/kernel/security/apparmor/profiles
     MATCH "^/snap/core/.*/usr/lib/snapd/snap-confine \\(enforce\\)" < /sys/kernel/security/apparmor/profiles
+
+    echo "ensure that the old/obsolete snap-confine appamor profile got removed"
+    test ! -f /etc/apparmor.d/usr.lib.snapd.snap-confine
 
     echo "Smoke test, this should fail if profiles were wrong"
     test-snapd-tools.echo hello | MATCH hello

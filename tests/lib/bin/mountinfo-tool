@@ -94,6 +94,9 @@ class MountInfoEntry(object):
         self.fs_type = ""
         self.mount_source = ""
         self.sb_opts = ""
+        # This field does not represent kernel state.
+        # It is a marker for an entry being matched by a filter.
+        self.matched = False
 
     def __eq__(self, other):
         # type: (object) -> Union[NotImplemented, bool]
@@ -613,6 +616,8 @@ Known attributes, applicable for both filtering and display.
     parent_id:      identifier of parent mount point
     dev:            major:minor numbers of the mounted device
     root_dir:       subtree of the mounted filesystem exposed at mount_point
+
+The exit code indicates if any mount point matched the query.
     """,
         formatter_class=RawTextHelpFormatter,
     )
@@ -685,6 +690,13 @@ Known attributes, applicable for both filtering and display.
         raise SystemExit(exc)
     entries = [MountInfoEntry.parse(line) for line in opts.file]
 
+    # Apply entry filtering ahead of any renumbering.
+    num_matched = 0
+    for e in entries:
+        if matches(e, filters):
+            e.matched = True
+            num_matched += 1
+
     # Build rewrite state based on reference tables. This way the entries
     # we will display can be correlated to other tables.
     rs = RewriteState()
@@ -723,9 +735,6 @@ Known attributes, applicable for both filtering and display.
     if opts.rename:
         rewrite_rename(entries, rewrite_order, rs)
 
-    # Apply entry filtering.
-    entries = [e for e in entries if matches(e, filters)]
-
     # Apply entry reordering for display.
     if opts.display_order:
 
@@ -735,6 +744,8 @@ Known attributes, applicable for both filtering and display.
 
         entries.sort(key=display_key_fn)
     for e in entries:
+        if not e.matched:
+            continue
         if attrs:
             values = []  # type: List[Any]
             for attr in attrs:
@@ -745,10 +756,14 @@ Known attributes, applicable for both filtering and display.
             print(*values)
         else:
             print(e)
-    if opts.one and len(entries) != 1:
+    if opts.one and num_matched != 1:
         raise SystemExit(
-            "--one requires exactly one match, found {}".format(len(entries))
+            "--one requires exactly one match, found {}".format(num_matched)
         )
+    # Return with an exit code indicating if anything matched.
+    # This allows mountinfo-tool to be used in scripts.
+    if num_matched == 0:
+        raise SystemExit(1)
 
 
 class MountInfoEntryTests(unittest.TestCase):

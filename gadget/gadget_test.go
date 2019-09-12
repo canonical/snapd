@@ -192,6 +192,42 @@ volumes:
             target: /
 `)
 
+var gadgetYamlLk = []byte(`
+volumes:
+  volumename:
+    schema: mbr
+    bootloader: lk
+    structure:
+      - name: BOOTIMG1
+        size: 25165824
+        role: bootimg
+        type: 27
+        content:
+          - image: boot.img
+      - name: BOOTIMG2
+        size: 25165824
+        role: bootimg
+        type: 27
+      - name: snapbootsel
+        size: 131072
+        role: bootselect
+        type: B2
+        content:
+          - image: snapbootsel.bin
+      - name: snapbootselbak
+        size: 131072
+        role: bootselect
+        type: B2
+        content:
+          - image: snapbootsel.bin
+      - name: writable
+        type: 83
+        filesystem: ext4
+        filesystem-label: writable
+        size: 500M
+        role: system-data
+`)
+
 func TestRun(t *testing.T) { TestingT(t) }
 
 func mustParseGadgetSize(c *C, s string) gadget.Size {
@@ -374,7 +410,7 @@ volumes:
 	c.Assert(err, IsNil)
 
 	_, err = gadget.ReadInfo(s.dir, false)
-	c.Assert(err, ErrorMatches, "bootloader must be one of grub, u-boot or android-boot")
+	c.Assert(err, ErrorMatches, "bootloader must be one of grub, u-boot, android-boot or lk")
 }
 
 func (s *gadgetYamlTestSuite) TestReadGadgetYamlEmptyBootloader(c *C) {
@@ -577,6 +613,14 @@ func (s *gadgetYamlTestSuite) TestReadGadgetYamlPCHappy(c *C) {
 
 func (s *gadgetYamlTestSuite) TestReadGadgetYamlRPiHappy(c *C) {
 	err := ioutil.WriteFile(s.gadgetYamlPath, gadgetYamlRPi, 0644)
+	c.Assert(err, IsNil)
+
+	_, err = gadget.ReadInfo(s.dir, false)
+	c.Assert(err, IsNil)
+}
+
+func (s *gadgetYamlTestSuite) TestReadGadgetYamlLkHappy(c *C) {
+	err := ioutil.WriteFile(s.gadgetYamlPath, gadgetYamlLk, 0644)
 	c.Assert(err, IsNil)
 
 	_, err = gadget.ReadInfo(s.dir, false)
@@ -835,6 +879,50 @@ func (s *gadgetYamlTestSuite) TestValidateVolumeDuplicateStructures(c *C) {
 	c.Assert(err, ErrorMatches, `structure name "duplicate" is not unique`)
 }
 
+func (s *gadgetYamlTestSuite) TestValidateVolumeDuplicateFsLabel(c *C) {
+	err := gadget.ValidateVolume("name", &gadget.Volume{
+		Structure: []gadget.VolumeStructure{
+			{Label: "foo", Type: "21686148-6449-6E6F-744E-656564454123", Size: gadget.SizeMiB},
+			{Label: "foo", Type: "21686148-6449-6E6F-744E-656564454649", Size: gadget.SizeMiB},
+		},
+	})
+	c.Assert(err, ErrorMatches, `filesystem label "foo" is not unique`)
+
+	// writable isn't special
+	err = gadget.ValidateVolume("name", &gadget.Volume{
+		Structure: []gadget.VolumeStructure{{
+			Name:  "data1",
+			Role:  gadget.SystemData,
+			Label: "writable",
+			Type:  "21686148-6449-6E6F-744E-656564454123",
+			Size:  gadget.SizeMiB,
+		}, {
+			Name:  "data2",
+			Role:  gadget.SystemData,
+			Label: "writable",
+			Type:  "21686148-6449-6E6F-744E-656564454649",
+			Size:  gadget.SizeMiB,
+		}},
+	})
+	c.Assert(err, ErrorMatches, `filesystem label "writable" is not unique`)
+
+	// nor is system-boot
+	err = gadget.ValidateVolume("name", &gadget.Volume{
+		Structure: []gadget.VolumeStructure{{
+			Name:  "boot1",
+			Label: "system-boot",
+			Type:  "EF,C12A7328-F81F-11D2-BA4B-00A0C93EC93B",
+			Size:  gadget.SizeMiB,
+		}, {
+			Name:  "boot2",
+			Label: "system-boot",
+			Type:  "EF,C12A7328-F81F-11D2-BA4B-00A0C93EC93B",
+			Size:  gadget.SizeMiB,
+		}},
+	})
+	c.Assert(err, ErrorMatches, `filesystem label "system-boot" is not unique`)
+}
+
 func (s *gadgetYamlTestSuite) TestValidateVolumeErrorsWrapped(c *C) {
 	err := gadget.ValidateVolume("name", &gadget.Volume{
 		Structure: []gadget.VolumeStructure{
@@ -1047,7 +1135,7 @@ func (s *gadgetYamlTestSuite) TestValidateStructureSizeRequired(c *C) {
 	c.Check(err, IsNil)
 }
 
-func (s *gadgetYamlTestSuite) TestValidatePositioningOverlapPreceding(c *C) {
+func (s *gadgetYamlTestSuite) TestValidateLayoutOverlapPreceding(c *C) {
 	overlappingGadgetYaml := `
 volumes:
   pc:
@@ -1072,7 +1160,7 @@ volumes:
 	c.Check(err, ErrorMatches, `invalid volume "pc": structure #1 \("other-name"\) overlaps with the preceding structure #0 \("mbr"\)`)
 }
 
-func (s *gadgetYamlTestSuite) TestValidatePositioningOverlapOutOfOrder(c *C) {
+func (s *gadgetYamlTestSuite) TestValidateLayoutOverlapOutOfOrder(c *C) {
 	outOfOrderGadgetYaml := `
 volumes:
   pc:
@@ -1146,4 +1234,52 @@ volumes:
 
 	_, err = gadget.ReadInfo(s.dir, false)
 	c.Check(err, ErrorMatches, `invalid volume "pc": structure #1 \("mbr"\) has "mbr" role and must start at offset 0`)
+}
+
+type gadgetTestSuite struct{}
+
+var _ = Suite(&gadgetTestSuite{})
+
+func (s *gadgetTestSuite) TestEffectiveRole(c *C) {
+	// no role set
+	vs := gadget.VolumeStructure{Role: ""}
+	c.Check(vs.EffectiveRole(), Equals, "")
+
+	// explicitly set role trumps all
+	vs = gadget.VolumeStructure{Role: "foobar", Type: gadget.MBR, Label: gadget.SystemBoot}
+
+	c.Check(vs.EffectiveRole(), Equals, "foobar")
+
+	vs = gadget.VolumeStructure{Role: gadget.MBR}
+	c.Check(vs.EffectiveRole(), Equals, gadget.MBR)
+
+	// legacy fallback
+	vs = gadget.VolumeStructure{Role: "", Type: gadget.MBR}
+	c.Check(vs.EffectiveRole(), Equals, gadget.MBR)
+
+	// fallback role based on fs label applies only to system-boot
+	vs = gadget.VolumeStructure{Role: "", Label: gadget.SystemBoot}
+	c.Check(vs.EffectiveRole(), Equals, gadget.SystemBoot)
+	vs = gadget.VolumeStructure{Role: "", Label: gadget.SystemData}
+	c.Check(vs.EffectiveRole(), Equals, "")
+}
+
+func (s *gadgetTestSuite) TestEffectiveFilesystemLabel(c *C) {
+	// no label, and no role set
+	vs := gadget.VolumeStructure{Role: ""}
+	c.Check(vs.EffectiveFilesystemLabel(), Equals, "")
+
+	// explicitly set label
+	vs = gadget.VolumeStructure{Label: "my-label"}
+	c.Check(vs.EffectiveFilesystemLabel(), Equals, "my-label")
+
+	// inferred based on role
+	vs = gadget.VolumeStructure{Role: gadget.SystemData, Label: "unused-label"}
+	c.Check(vs.EffectiveFilesystemLabel(), Equals, gadget.ImplicitSystemDataLabel)
+	vs = gadget.VolumeStructure{Role: gadget.SystemData}
+	c.Check(vs.EffectiveFilesystemLabel(), Equals, gadget.ImplicitSystemDataLabel)
+
+	// only system-data role is special
+	vs = gadget.VolumeStructure{Role: gadget.SystemBoot}
+	c.Check(vs.EffectiveFilesystemLabel(), Equals, "")
 }

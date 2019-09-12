@@ -188,6 +188,8 @@ const (
 
 	errorKindDaemonRestart = errorKind("daemon-restart")
 	errorKindSystemRestart = errorKind("system-restart")
+
+	errorKindAssertionNotFound = errorKind("assertion-not-found")
 )
 
 type errorValue interface{}
@@ -418,7 +420,7 @@ func SnapRevisionNotAvailable(snapName string, rnaErr *store.RevisionNotAvailabl
 	kind := errorKindSnapRevisionNotAvailable
 	msg := rnaErr.Error()
 	if len(rnaErr.Releases) != 0 && rnaErr.Channel != "" {
-		thisArch := arch.UbuntuArchitecture()
+		thisArch := arch.DpkgArchitecture()
 		values := map[string]interface{}{
 			"snap-name":    snapName,
 			"action":       rnaErr.Action,

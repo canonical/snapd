@@ -45,6 +45,7 @@ import (
 	"github.com/snapcore/snapd/overlord/state"
 	"github.com/snapcore/snapd/release"
 	"github.com/snapcore/snapd/snap"
+	"github.com/snapcore/snapd/snap/channel"
 	"github.com/snapcore/snapd/store"
 	"github.com/snapcore/snapd/strutil"
 )
@@ -436,15 +437,15 @@ func WaitRestart(task *state.Task, snapsup *SnapSetup) (err error) {
 			return nil
 		}
 
-		name, rev, err := CurrentBootNameAndRevision(typ)
-		if err == ErrBootNameAndRevisionAgain {
+		current, err := boot.GetCurrentBoot(typ)
+		if err == boot.ErrBootNameAndRevisionNotReady {
 			return &state.Retry{After: 5 * time.Second}
 		}
 		if err != nil {
 			return err
 		}
 
-		if snapsup.InstanceName() != name || snapInfo.Revision != rev {
+		if snapsup.InstanceName() != current.Name || snapInfo.Revision != current.Revision {
 			// TODO: make sure this revision gets ignored for
 			//       automatic refreshes
 			return fmt.Errorf("cannot finish %s installation, there was a rollback across reboot", snapsup.InstanceName())
@@ -1205,24 +1206,19 @@ func resolveChannel(st *state.State, snapName, newChannel string, deviceCtx Devi
 		return newChannel, nil
 	}
 
-	nch, err := snap.ParseChannelVerbatim(newChannel, "")
+	// channel name is valid and consist of risk level or
+	// risk/branch only, do the right thing and default to risk (or
+	// risk/branch) within the pinned track
+	resChannel, err := channel.ResolveLocked(pinnedTrack, newChannel)
+	if err == channel.ErrLockedTrackSwitch {
+		// switching to a different track is not allowed
+		return "", fmt.Errorf("cannot switch from %s track %q as specified for the (device) model to %q", which, pinnedTrack, newChannel)
+
+	}
 	if err != nil {
 		return "", err
 	}
-
-	if nch.Track == "" {
-		// channel name is valid and consist of risk level or
-		// risk/branch only, do the right thing and default to risk (or
-		// risk/branch) within the pinned track
-		return pinnedTrack + "/" + newChannel, nil
-	}
-	if nch.Track != "" && nch.Track != pinnedTrack {
-		// switching to a different track is not allowed
-		return "", fmt.Errorf("cannot switch from %s track %q as specified for the (device) model to %q", which, pinnedTrack, nch.Clean().String())
-
-	}
-
-	return newChannel, nil
+	return resChannel, nil
 }
 
 var errRevisionSwitch = errors.New("cannot switch revision")
@@ -2392,7 +2388,7 @@ func coreInfo(st *state.State) (*snap.Info, error) {
 // If gadget is absent or the snap has no snap-id it returns
 // ErrNoState.
 func ConfigDefaults(st *state.State, deviceCtx DeviceContext, snapName string) (map[string]interface{}, error) {
-	gadget, err := GadgetInfo(st, deviceCtx)
+	info, err := GadgetInfo(st, deviceCtx)
 	if err != nil {
 		return nil, err
 	}
@@ -2412,7 +2408,7 @@ func ConfigDefaults(st *state.State, deviceCtx DeviceContext, snapName string) (
 		return nil, state.ErrNoState
 	}
 
-	gadgetInfo, err := snap.ReadGadgetInfo(gadget, release.OnClassic)
+	gadgetInfo, err := gadget.ReadInfo(info.MountDir(), release.OnClassic)
 	if err != nil {
 		return nil, err
 	}
@@ -2440,12 +2436,12 @@ func ConfigDefaults(st *state.State, deviceCtx DeviceContext, snapName string) (
 // specified in the gadget for the given device context.
 // If gadget is absent it returns ErrNoState.
 func GadgetConnections(st *state.State, deviceCtx DeviceContext) ([]gadget.Connection, error) {
-	gadget, err := GadgetInfo(st, deviceCtx)
+	info, err := GadgetInfo(st, deviceCtx)
 	if err != nil {
 		return nil, err
 	}
 
-	gadgetInfo, err := snap.ReadGadgetInfo(gadget, release.OnClassic)
+	gadgetInfo, err := gadget.ReadInfo(info.MountDir(), release.OnClassic)
 	if err != nil {
 		return nil, err
 	}

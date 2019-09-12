@@ -22,13 +22,13 @@ package main
 import (
 	"github.com/jessevdk/go-flags"
 
-	"github.com/snapcore/snapd/image"
+	"github.com/snapcore/snapd/seed"
 )
 
 type cmdValidateSeed struct {
 	Positionals struct {
-		SeedYamlPath string `positional-arg-name:"<seed-yaml-path>"`
-	} `positional-args:"true"`
+		SeedYamlPath flags.Filename `positional-arg-name:"<seed-yaml-path>"`
+	} `positional-args:"true" required:"true"`
 }
 
 func init() {
@@ -46,5 +46,5 @@ func (x *cmdValidateSeed) Execute(args []string) error {
 		return ErrExtraArgs
 	}
 
-	return image.ValidateSeed(x.Positionals.SeedYamlPath)
+	return seed.ValidateFromYaml(string(x.Positionals.SeedYamlPath))
 }
