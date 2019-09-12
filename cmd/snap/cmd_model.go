@@ -149,6 +149,7 @@ func (x *cmdModel) Execute(args []string) error {
 	}
 
 	w := tabWriter()
+	defer w.Flush()
 
 	if x.Serial && client.IsAssertionNotFoundError(serialErr) {
 		// for serial assertion, the primary keys are output (model and
@@ -310,5 +311,5 @@ func (x *cmdModel) Execute(args []string) error {
 		}
 	}
 
-	return w.Flush()
+	return nil
 }
