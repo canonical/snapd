@@ -60,7 +60,9 @@ func fsTypeForPathImpl(path string) (int64, error) {
 	if err := syscall.Statfs(path, &statfs); err != nil {
 		return 0, fmt.Errorf("cannot statfs path: %v", err)
 	}
-	return statfs.Type, nil
+	// Typs is int32 on 386, use explicit conversion to keep the code
+	// working for both
+	return int64(statfs.Type), nil
 }
 
 // ProcPath returns the path to the cgroup file under /proc for the given
