@@ -20,7 +20,6 @@
 package image
 
 import (
-	"bytes"
 	"fmt"
 	"io"
 	"io/ioutil"
@@ -34,7 +33,6 @@ import (
 	"github.com/snapcore/snapd/asserts/snapasserts"
 	"github.com/snapcore/snapd/asserts/sysdb"
 	"github.com/snapcore/snapd/boot"
-	"github.com/snapcore/snapd/bootloader"
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/release"
@@ -179,7 +177,7 @@ func validateNonLocalSnaps(snaps []string) error {
 
 // classicHasSnaps returns whether the model or options specify any snaps for the classic case
 func classicHasSnaps(model *asserts.Model, opts *Options) bool {
-	return model.Gadget() != "" || len(model.RequiredSnaps()) != 0 || len(opts.Snaps) != 0
+	return model.Gadget() != "" || len(model.RequiredNoEssentialSnaps()) != 0 || len(opts.Snaps) != 0
 }
 
 func Prepare(opts *Options) error {
@@ -231,9 +229,9 @@ func Prepare(opts *Options) error {
 	}
 
 	if !opts.Classic {
-		// unpacking the gadget for core models
-		if err := downloadUnpackGadget(tsto, model, opts, local); err != nil {
-			return err
+		// create directory for later unpacking the gadget in
+		if err := os.MkdirAll(opts.GadgetUnpackDir, 0755); err != nil {
+			return fmt.Errorf("cannot create gadget unpack dir %q: %s", opts.GadgetUnpackDir, err)
 		}
 	}
 
@@ -277,6 +275,11 @@ func snapChannel(name string, model *asserts.Model, opts *Options, local *localI
 		// fallback to default channel
 		snapChannel = opts.Channel
 	}
+	if snapChannel != "" {
+		if _, err := channel.ParseVerbatim(snapChannel, "-"); err != nil {
+			return "", fmt.Errorf("cannot use option channel for snap %q: %v", name, err)
+		}
+	}
 	// consider snap types that can be pinned to a track by the model
 	var pinnedTrack string
 	var kind string
@@ -288,58 +291,21 @@ func snapChannel(name string, model *asserts.Model, opts *Options, local *localI
 		kind = "kernel"
 		pinnedTrack = model.KernelTrack()
 	}
-	if pinnedTrack != "" {
-		ch, err := makeChannelFromTrack(kind, pinnedTrack, snapChannel)
-		if err != nil {
-			return "", err
-		}
-		snapChannel = ch
-
+	ch, err := channel.ResolveLocked(pinnedTrack, snapChannel)
+	if err == channel.ErrLockedTrackSwitch {
+		return "", fmt.Errorf("channel %q for %s has a track incompatible with the track from model assertion: %s", snapChannel, kind, pinnedTrack)
 	}
-	return snapChannel, nil
+	if err != nil {
+		return "", err
+	}
+	return ch, nil
 }
 
-func makeChannelFromTrack(what, track, snapChannel string) (string, error) {
-	mch, err := channel.Parse(track, "")
-	if err != nil {
-		return "", fmt.Errorf("cannot use track %q for %s from model assertion: %v", track, what, err)
-	}
-	if snapChannel != "" {
-		ch, err := channel.ParseVerbatim(snapChannel, "")
-		if err != nil {
-			return "", fmt.Errorf("cannot parse channel %q for %s", snapChannel, what)
-		}
-		if ch.Track != "" && ch.Track != mch.Track {
-			return "", fmt.Errorf("channel %q for %s has a track incompatible with the track from model assertion: %s", snapChannel, what, track)
-		}
-		mch.Risk = ch.Risk
-	}
-	return mch.Clean().String(), nil
-}
-
-func downloadUnpackGadget(tsto *ToolingStore, model *asserts.Model, opts *Options, local *localInfos) error {
-	if err := os.MkdirAll(opts.GadgetUnpackDir, 0755); err != nil {
-		return fmt.Errorf("cannot create gadget unpack dir %q: %s", opts.GadgetUnpackDir, err)
-	}
-
-	gadgetName := model.Gadget()
-	gadgetChannel, err := snapChannel(gadgetName, model, opts, local)
-	if err != nil {
-		return err
-	}
-
-	dlOpts := &DownloadOptions{
-		TargetDir: opts.GadgetUnpackDir,
-		Channel:   gadgetChannel,
-	}
-	snapFn, _, err := acquireSnap(tsto, gadgetName, dlOpts, local)
-	if err != nil {
-		return err
-	}
+func unpackGadget(gadgetFname, gadgetUnpackDir string) error {
 	// FIXME: jumping through layers here, we need to make
 	//        unpack part of the container interface (again)
-	snap := squashfs.New(snapFn)
-	return snap.Unpack("*", opts.GadgetUnpackDir)
+	snap := squashfs.New(gadgetFname)
+	return snap.Unpack("*", gadgetUnpackDir)
 }
 
 func acquireSnap(tsto *ToolingStore, name string, dlOpts *DownloadOptions, local *localInfos) (downloadedSnap string, info *snap.Info, err error) {
@@ -460,7 +426,13 @@ func setupSeed(tsto *ToolingStore, model *asserts.Model, opts *Options, local *l
 		}
 	}
 
-	basesAndApps = append(basesAndApps, model.RequiredSnaps()...)
+	// TODO|XXX: later use the refs directly and simplify
+	reqSnaps := make([]string, 0, len(model.RequiredNoEssentialSnaps()))
+	for _, reqRef := range model.RequiredNoEssentialSnaps() {
+		reqSnaps = append(reqSnaps, reqRef.SnapName())
+	}
+
+	basesAndApps = append(basesAndApps, reqSnaps...)
 	basesAndApps = append(basesAndApps, opts.Snaps...)
 	// TODO: required snaps should get their base from required
 	// snaps (mentioned in the model); additional snaps could
@@ -500,7 +472,7 @@ func setupSeed(tsto *ToolingStore, model *asserts.Model, opts *Options, local *l
 	}
 
 	// then required and the user requested stuff
-	snaps = append(snaps, model.RequiredSnaps()...)
+	snaps = append(snaps, reqSnaps...)
 	snaps = append(snaps, opts.Snaps...)
 
 	for _, snapName := range snaps {
@@ -582,12 +554,12 @@ func setupSeed(tsto *ToolingStore, model *asserts.Model, opts *Options, local *l
 	}
 
 	if !opts.Classic {
-		// now do the bootloader stuff
-		if err := bootloader.InstallBootConfig(opts.GadgetUnpackDir); err != nil {
+		// unpacking the gadget for core models
+		if err := unpackGadget(seed.gadgetFname, opts.GadgetUnpackDir); err != nil {
 			return err
 		}
 
-		if err := setBootvars(seed.downloadedSnapsInfoForBootConfig, model); err != nil {
+		if err := boot.MakeBootable(model, opts.RootDir, seed.downloadedSnapsInfoForBootConfig, opts.GadgetUnpackDir); err != nil {
 			return err
 		}
 
@@ -601,7 +573,7 @@ func setupSeed(tsto *ToolingStore, model *asserts.Model, opts *Options, local *l
 }
 
 type seedEntry struct {
-	snap     *seed.Snap
+	snap     *seed.Snap16
 	snapType snap.Type
 }
 
@@ -633,6 +605,7 @@ type imageSeed struct {
 	seen                             map[string]bool
 	locals                           []string
 	downloadedSnapsInfoForBootConfig map[string]*snap.Info
+	gadgetFname                      string
 
 	needsCore   []string
 	needsCore16 []string
@@ -716,23 +689,17 @@ func (s *imageSeed) add(snapName string) error {
 
 	// kernel/os/model.base are required for booting on core
 	if !opts.Classic && (typ == snap.TypeKernel || name == s.baseName) {
-		dst := filepath.Join(dirs.SnapBlobDir, filepath.Base(fn))
-		// construct a relative symlink from the blob dir
-		// to the seed file
-		relSymlink, err := filepath.Rel(dirs.SnapBlobDir, fn)
-		if err != nil {
-			return fmt.Errorf("cannot build symlink: %v", err)
-		}
-		if err := os.Symlink(relSymlink, dst); err != nil {
-			return err
-		}
 		// store the snap.Info for kernel/os/base so
-		// that the bootload can DTRT
-		s.downloadedSnapsInfoForBootConfig[dst] = info
+		// that boot.MakeBootable can DTRT
+		s.downloadedSnapsInfoForBootConfig[fn] = info
+	}
+	// remember the gadget for unpacking later
+	if !opts.Classic && typ == snap.TypeGadget {
+		s.gadgetFname = fn
 	}
 
 	s.entries = append(s.entries, seedEntry{
-		snap: &seed.Snap{
+		snap: &seed.Snap16{
 			Name:    info.InstanceName(),
 			SnapID:  info.SnapID, // cross-ref
 			Channel: snapChannel,
@@ -786,12 +753,12 @@ func (s *imageSeed) checkBase(info *snap.Info) error {
 	return fmt.Errorf("cannot add snap %q without also adding its base %q explicitly", info.InstanceName(), info.Base)
 }
 
-func (s *imageSeed) seedYaml() *seed.Seed {
-	var seedYaml seed.Seed
+func (s *imageSeed) seedYaml() *seed.Seed16 {
+	var seedYaml seed.Seed16
 
 	sort.Stable(s.entries)
 
-	seedYaml.Snaps = make([]*seed.Snap, len(s.entries))
+	seedYaml.Snaps = make([]*seed.Snap16, len(s.entries))
 	for i, e := range s.entries {
 		seedYaml.Snaps[i] = e.snap
 	}
@@ -799,126 +766,7 @@ func (s *imageSeed) seedYaml() *seed.Seed {
 	return &seedYaml
 }
 
-func setBootvars(downloadedSnapsInfoForBootConfig map[string]*snap.Info, model *asserts.Model) error {
-	if len(downloadedSnapsInfoForBootConfig) != 2 {
-		return fmt.Errorf("setBootvars can only be called with exactly one kernel and exactly one core/base boot info: %v", downloadedSnapsInfoForBootConfig)
-	}
-
-	// Set bootvars for kernel/core snaps so the system boots and
-	// does the first-time initialization. There is also no
-	// mounted kernel/core/base snap, but just the blobs.
-	loader, err := bootloader.Find()
-	if err != nil {
-		return fmt.Errorf("cannot set kernel/core boot variables: %s", err)
-	}
-
-	snaps, err := filepath.Glob(filepath.Join(dirs.SnapBlobDir, "*.snap"))
-	if len(snaps) == 0 || err != nil {
-		return fmt.Errorf("internal error: cannot find core/kernel snap")
-	}
-
-	m := map[string]string{
-		"snap_mode":       "",
-		"snap_try_core":   "",
-		"snap_try_kernel": "",
-	}
-	if model.DisplayName() != "" {
-		m["snap_menuentry"] = model.DisplayName()
-	}
-
-	for _, fn := range snaps {
-		bootvar := ""
-
-		info := downloadedSnapsInfoForBootConfig[fn]
-		if info == nil {
-			// this should never happen, if it does print some
-			// debug info
-			keys := make([]string, 0, len(downloadedSnapsInfoForBootConfig))
-			for k := range downloadedSnapsInfoForBootConfig {
-				keys = append(keys, k)
-			}
-			return fmt.Errorf("cannot get download info for snap %s, available infos: %v", fn, keys)
-		}
-		switch info.GetType() {
-		case snap.TypeOS, snap.TypeBase:
-			bootvar = "snap_core"
-		case snap.TypeKernel:
-			bootvar = "snap_kernel"
-			if err := extractKernelAssets(fn, info); err != nil {
-				return err
-			}
-		}
-
-		if bootvar != "" {
-			name := filepath.Base(fn)
-			m[bootvar] = name
-		}
-	}
-	if err := loader.SetBootVars(m); err != nil {
-		return err
-	}
-
-	return nil
-}
-
-func extractKernelAssets(snapPath string, info *snap.Info) error {
-	snapf, err := snap.Open(snapPath)
-	if err != nil {
-		return err
-	}
-
-	if err := boot.ExtractKernelAssets(info, snapf); err != nil {
-		return err
-	}
-	return nil
-}
-
 func copyLocalSnapFile(snapPath, targetDir string, info *snap.Info) (dstPath string, err error) {
 	dst := filepath.Join(targetDir, filepath.Base(info.MountFile()))
 	return dst, osutil.CopyFile(snapPath, dst, 0)
-}
-
-func ValidateSeed(seedFile string) error {
-	seed, err := seed.ReadYaml(seedFile)
-	if err != nil {
-		return err
-	}
-
-	var errs []error
-	// read the snaps info
-	snapInfos := make(map[string]*snap.Info)
-	for _, seedSnap := range seed.Snaps {
-		fn := filepath.Join(filepath.Dir(seedFile), "snaps", seedSnap.File)
-		snapf, err := snap.Open(fn)
-		if err != nil {
-			errs = append(errs, err)
-		} else {
-			info, err := snap.ReadInfoFromSnapFile(snapf, nil)
-			if err != nil {
-				errs = append(errs, fmt.Errorf("cannot use snap %s: %v", fn, err))
-			} else {
-				snapInfos[info.InstanceName()] = info
-			}
-		}
-	}
-
-	// ensure we have either "core" or "snapd"
-	_, haveCore := snapInfos["core"]
-	_, haveSnapd := snapInfos["snapd"]
-	if !(haveCore || haveSnapd) {
-		errs = append(errs, fmt.Errorf("the core or snapd snap must be part of the seed"))
-	}
-
-	if errs2 := snap.ValidateBasesAndProviders(snapInfos); errs2 != nil {
-		errs = append(errs, errs2...)
-	}
-	if errs != nil {
-		var buf bytes.Buffer
-		for _, err := range errs {
-			fmt.Fprintf(&buf, "\n- %s", err)
-		}
-		return fmt.Errorf("cannot validate seed:%s", buf.Bytes())
-	}
-
-	return nil
 }

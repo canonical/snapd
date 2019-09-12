@@ -33,10 +33,10 @@ import (
 
 var snapshotsTests = []getCmdArgs{{
 	args:  "restore x",
-	error: "invalid argument for set id: expected a non-negative integer argument",
+	error: `invalid argument for snapshot set id: expected a non-negative integer argument \(see 'snap help saved'\)`,
 }, {
 	args:  "saved --id=x",
-	error: "invalid argument for set id: expected a non-negative integer argument",
+	error: `invalid argument for snapshot set id: expected a non-negative integer argument \(see 'snap help saved'\)`,
 }, {
 	args:   "saved --id=3",
 	stdout: "Set  Snap  Age    Version  Rev   Size    Notes\n3    htop  .*  2        1168      1B  auto\n",
@@ -45,10 +45,10 @@ var snapshotsTests = []getCmdArgs{{
 	stdout: "Set  Snap  Age    Version  Rev   Size    Notes\n1    htop  .*  2        1168      1B  -\n",
 }, {
 	args:  "forget x",
-	error: "invalid argument for set id: expected a non-negative integer argument",
+	error: `invalid argument for snapshot set id: expected a non-negative integer argument \(see 'snap help saved'\)`,
 }, {
 	args:  "check-snapshot x",
-	error: "invalid argument for set id: expected a non-negative integer argument",
+	error: `invalid argument for snapshot set id: expected a non-negative integer argument \(see 'snap help saved'\)`,
 }, {
 	args:   "restore 1",
 	stdout: "Restored snapshot #1.\n",
