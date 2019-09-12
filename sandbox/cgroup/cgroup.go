@@ -31,7 +31,10 @@ const (
 	// from golang.org/x/sys/unix
 	cgroup2SuperMagic = 0x63677270
 
-	defaultMountdir = "/sys/fs/cgroup"
+	// the only cgroup path we expect, for v2 this is where the unified
+	// hierarchy is mounted, for v1 this is usually a tmpfs mount, under
+	// which the controller-hierarchies are mounted
+	expectedMountPoint = "/sys/fs/cgroup"
 )
 
 const (
@@ -69,11 +72,11 @@ func ProcPath(pid int) string {
 // ControllerPathV1 returns the path to given controller assuming cgroup v1
 // hierarchy
 func ControllerPathV1(controller string) string {
-	return filepath.Join(dirs.GlobalRootDir, defaultMountdir, controller)
+	return filepath.Join(dirs.GlobalRootDir, expectedMountPoint, controller)
 }
 
 func probeCgroupVersion() (version int, err error) {
-	cgroupMount := filepath.Join(dirs.GlobalRootDir, defaultMountdir)
+	cgroupMount := filepath.Join(dirs.GlobalRootDir, expectedMountPoint)
 	typ, err := fsTypeForPath(cgroupMount)
 	if err != nil {
 		return Unknown, fmt.Errorf("cannot determine filesystem type: %v", err)
