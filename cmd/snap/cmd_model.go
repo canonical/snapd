@@ -107,7 +107,7 @@ func (x *cmdModel) Execute(args []string) error {
 	if modelErr != nil {
 		if client.IsAssertionNotFoundError(modelErr) {
 			// device is not registered yet - use specific error message
-			modelErr = errNoMainAssertion
+			return errNoMainAssertion
 		}
 		return modelErr
 	}
