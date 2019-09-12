@@ -20,8 +20,6 @@ package cgroup_test
 
 import (
 	"errors"
-	"io/ioutil"
-	"os"
 	"path/filepath"
 	"testing"
 
@@ -123,66 +121,4 @@ func (s *cgroupSuite) TestProcPath(c *C) {
 func (s *cgroupSuite) TestControllerPathV1(c *C) {
 	c.Assert(cgroup.ControllerPathV1("freezer"), Equals, filepath.Join(dirs.GlobalRootDir, "/sys/fs/cgroup/freezer"))
 	c.Assert(cgroup.ControllerPathV1("memory"), Equals, filepath.Join(dirs.GlobalRootDir, "/sys/fs/cgroup/memory"))
-}
-
-var mockCgroup = []byte(`
-10:devices:/user.slice
-9:cpuset:/
-8:net_cls,net_prio:/
-7:freezer:/snap.hello-world
-6:perf_event:/
-5:pids:/user.slice/user-1000.slice/user@1000.service
-4:cpu,cpuacct:/
-3:memory:/
-2:blkio:/
-1:name=systemd:/user.slice/user-1000.slice/user@1000.service/gnome-terminal-server.service
-0::/user.slice/user-1000.slice/user@1000.service/gnome-terminal-server.service
-`)
-
-func (s *cgroupSuite) TestProgGroupHappy(c *C) {
-	root := c.MkDir()
-	dirs.SetRootDir(root)
-
-	err := os.MkdirAll(filepath.Join(root, "proc/333"), 0755)
-	c.Assert(err, IsNil)
-	err = ioutil.WriteFile(filepath.Join(root, "proc/333/cgroup"), mockCgroup, 0755)
-	c.Assert(err, IsNil)
-
-	group, err := cgroup.ProcGroup(333, "freezer")
-	c.Assert(err, IsNil)
-	c.Check(group, Equals, "/snap.hello-world")
-
-	group, err = cgroup.ProcGroup(333, "name=systemd")
-	c.Assert(err, IsNil)
-	c.Check(group, Equals, "/user.slice/user-1000.slice/user@1000.service/gnome-terminal-server.service")
-}
-
-func (s *cgroupSuite) TestProgGroupMissingFile(c *C) {
-	root := c.MkDir()
-	dirs.SetRootDir(root)
-
-	err := os.MkdirAll(filepath.Join(root, "proc/333"), 0755)
-	c.Assert(err, IsNil)
-
-	group, err := cgroup.ProcGroup(333, "freezer")
-	c.Assert(err, ErrorMatches, "open .*/proc/333/cgroup: no such file or directory")
-	c.Check(group, Equals, "")
-}
-
-func (s *cgroupSuite) TestProgGroupMissingGroup(c *C) {
-	var noFreezerCgroup = []byte(`
-10:devices:/user.slice
-`)
-
-	root := c.MkDir()
-	dirs.SetRootDir(root)
-
-	err := os.MkdirAll(filepath.Join(root, "proc/333"), 0755)
-	c.Assert(err, IsNil)
-	err = ioutil.WriteFile(filepath.Join(root, "proc/333/cgroup"), noFreezerCgroup, 0755)
-	c.Assert(err, IsNil)
-
-	group, err := cgroup.ProcGroup(333, "freezer")
-	c.Assert(err, ErrorMatches, `cannot find cgroup controller "freezer" path for pid 333`)
-	c.Check(group, Equals, "")
 }
