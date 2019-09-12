@@ -733,6 +733,11 @@ role: system-data
 filesystem-label: foobar
 size: 123M
 `
+	core20SystemDataLabel := uuidType + `
+role: system-data
+filesystem-label: ubuntu-data
+size: 123M
+`
 	mbrTooLarge := bareType + `
 role: mbr
 size: 467`
@@ -759,6 +764,9 @@ role: system-data
 size: 1M`
 	validSystemBoot := uuidType + `
 role: system-boot
+`
+	validSystemSeed := uuidType + `
+role: system-seed
 `
 	emptyRole := uuidType + `
 role: system-boot
@@ -790,12 +798,16 @@ size: 447`
 		err string
 	}{
 		{mustParseStructure(c, validSystemBoot), vol, ""},
+		// the core20 system-seed role
+		{mustParseStructure(c, validSystemSeed), vol, ""},
 		// empty, ok too
 		{mustParseStructure(c, emptyRole), vol, ""},
 		// invalid role name
 		{mustParseStructure(c, bogusRole), vol, `invalid role "foobar": unsupported role`},
 		// system-data, but improper label
 		{mustParseStructure(c, invalidSystemDataLabel), vol, `invalid role "system-data": role of this kind must have an implicit label or "writable", not "foobar"`},
+		// system-data, core20 label
+		{mustParseStructure(c, core20SystemDataLabel), vol, ""},
 		// mbr
 		{mustParseStructure(c, mbrTooLarge), mbrVol, `invalid role "mbr": mbr structures cannot be larger than 446 bytes`},
 		{mustParseStructure(c, mbrBadOffset), mbrVol, `invalid role "mbr": mbr structure must start at offset 0`},
@@ -1288,6 +1300,8 @@ func (s *gadgetTestSuite) TestEffectiveRole(c *C) {
 	vs = gadget.VolumeStructure{Role: "", Label: gadget.SystemBoot}
 	c.Check(vs.EffectiveRole(), Equals, gadget.SystemBoot)
 	vs = gadget.VolumeStructure{Role: "", Label: gadget.SystemData}
+	c.Check(vs.EffectiveRole(), Equals, "")
+	vs = gadget.VolumeStructure{Role: "", Label: gadget.SystemSeed}
 	c.Check(vs.EffectiveRole(), Equals, "")
 }
 

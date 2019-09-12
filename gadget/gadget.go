@@ -47,11 +47,13 @@ const (
 
 	SystemBoot = "system-boot"
 	SystemData = "system-data"
+	SystemSeed = "system-seed"
 	BootImage  = "bootimg"
 	BootSelect = "bootselect"
 	// ImplicitSystemDataLabel is the implicit filesystem label of structure
 	// of system-data role
 	ImplicitSystemDataLabel = "writable"
+	SystemDataLabel         = "ubuntu-data"
 )
 
 var (
@@ -577,7 +579,8 @@ func validateRole(vs *VolumeStructure, vol *Volume) error {
 
 	switch vsRole {
 	case SystemData:
-		if vs.Label != "" && vs.Label != ImplicitSystemDataLabel {
+		// FIXME: determine if we're running on core20 or legacy to check system-data label
+		if vs.Label != "" && vs.Label != ImplicitSystemDataLabel && vs.Label != SystemDataLabel {
 			return fmt.Errorf(`role of this kind must have an implicit label or %q, not %q`, ImplicitSystemDataLabel, vs.Label)
 		}
 	case MBR:
@@ -593,7 +596,7 @@ func validateRole(vs *VolumeStructure, vol *Volume) error {
 		if vs.Filesystem != "" && vs.Filesystem != "none" {
 			return errors.New("mbr structures must not specify a file system")
 		}
-	case SystemBoot, BootImage, BootSelect, "":
+	case SystemBoot, SystemSeed, BootImage, BootSelect, "":
 		// noop
 	default:
 		return fmt.Errorf("unsupported role")
