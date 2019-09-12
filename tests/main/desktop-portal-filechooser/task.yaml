@@ -57,11 +57,16 @@ execute: |
     # code path for when the inode exists and the caller requested O_TRUNC,
     # returns -ENOSYS, resulting in OSError:
     # [Errno 38] Function not implemented on the Python side
-    # To avoid the issue described we are creating manually the file.
-    touch /tmp/file-to-write.txt
-    chown test:test /tmp/file-to-write.txt
+    # make sure the file does not exist
+    rm -f /tmp/file-to-write.txt
     as_user test-snapd-portal-client save-file "from-sandbox"
-    # Rerty checking until the file contains the written text
+    # Rerty checking until the file contains the written text. In particular on
+    # 18.04, xdg-desktop-portal 0.11 (perhaps still the same for later
+    # versions), the writes were implemented such that the client writes to a
+    # fuse filesystem entry, while the portal forwards the writes to the actual
+    # backing file. It was observed that, even after client does close and the
+    # corresponding *fuse_release() code completes on the portal side, the
+    # contents are not visible in the destination file.
     for _ in $(seq 5); do
         if [ -f /tmp/file-to-write.txt ] && MATCH "from-sandbox" < /tmp/file-to-write.txt; then
             break
