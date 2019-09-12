@@ -65,9 +65,9 @@ func fsTypeForPathImpl(path string) (int64, error) {
 	return int64(statfs.Type), nil
 }
 
-// ProcPath returns the path to the cgroup file under /proc for the given
+// ProcPidPath returns the path to the cgroup file under /proc for the given
 // process id.
-func ProcPath(pid int) string {
+func ProcPidPath(pid int) string {
 	return filepath.Join(dirs.GlobalRootDir, fmt.Sprintf("proc/%v/cgroup", pid))
 }
 

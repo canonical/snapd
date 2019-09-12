@@ -113,9 +113,9 @@ func (s *cgroupSuite) TestVersion(c *C) {
 	c.Assert(err, ErrorMatches, "foo")
 }
 
-func (s *cgroupSuite) TestProcPath(c *C) {
-	c.Assert(cgroup.ProcPath(1), Equals, filepath.Join(dirs.GlobalRootDir, "/proc/1/cgroup"))
-	c.Assert(cgroup.ProcPath(1234), Equals, filepath.Join(dirs.GlobalRootDir, "/proc/1234/cgroup"))
+func (s *cgroupSuite) TestProcPidPath(c *C) {
+	c.Assert(cgroup.ProcPidPath(1), Equals, filepath.Join(dirs.GlobalRootDir, "/proc/1/cgroup"))
+	c.Assert(cgroup.ProcPidPath(1234), Equals, filepath.Join(dirs.GlobalRootDir, "/proc/1234/cgroup"))
 }
 
 func (s *cgroupSuite) TestControllerPathV1(c *C) {
