@@ -26,6 +26,7 @@ import (
 	"github.com/snapcore/snapd/interfaces/apparmor"
 	"github.com/snapcore/snapd/interfaces/dbus"
 	"github.com/snapcore/snapd/interfaces/seccomp"
+	"github.com/snapcore/snapd/release"
 	"github.com/snapcore/snapd/snap"
 )
 
@@ -36,6 +37,7 @@ const fwupdBaseDeclarationSlots = `
     allow-installation:
       slot-snap-type:
         - app
+        - core
     deny-connection: true
     deny-auto-connection: true
 `
@@ -223,18 +225,26 @@ func (iface *fwupdInterface) Name() string {
 func (iface *fwupdInterface) StaticInfo() interfaces.StaticInfo {
 	return interfaces.StaticInfo{
 		Summary:              fwupdSummary,
+		ImplicitOnClassic:    true,
 		BaseDeclarationSlots: fwupdBaseDeclarationSlots,
 	}
 }
 
 func (iface *fwupdInterface) DBusPermanentSlot(spec *dbus.Specification, slot *snap.SlotInfo) error {
-	spec.AddSnippet(fwupdPermanentSlotDBus)
+	if !release.OnClassic {
+		spec.AddSnippet(fwupdPermanentSlotDBus)
+	}
 	return nil
 }
 
 func (iface *fwupdInterface) AppArmorConnectedPlug(spec *apparmor.Specification, plug *interfaces.ConnectedPlug, slot *interfaces.ConnectedSlot) error {
 	old := "###SLOT_SECURITY_TAGS###"
-	new := slotAppLabelExpr(slot)
+	var new string
+	if release.OnClassic {
+		new = "unconfined"
+	} else {
+		new = slotAppLabelExpr(slot)
+	}
 	snippet := strings.Replace(fwupdConnectedPlugAppArmor, old, new, -1)
 	spec.AddSnippet(snippet)
 	return nil
@@ -247,10 +257,12 @@ func (iface *fwupdInterface) AppArmorPermanentSlot(spec *apparmor.Specification,
 }
 
 func (iface *fwupdInterface) AppArmorConnectedSlot(spec *apparmor.Specification, plug *interfaces.ConnectedPlug, slot *interfaces.ConnectedSlot) error {
-	old := "###PLUG_SECURITY_TAGS###"
-	new := plugAppLabelExpr(plug)
-	snippet := strings.Replace(fwupdConnectedSlotAppArmor, old, new, -1)
-	spec.AddSnippet(snippet)
+	if !release.OnClassic {
+		old := "###PLUG_SECURITY_TAGS###"
+		new := plugAppLabelExpr(plug)
+		snippet := strings.Replace(fwupdConnectedSlotAppArmor, old, new, -1)
+		spec.AddSnippet(snippet)
+	}
 	return nil
 }
 
@@ -260,7 +272,9 @@ func (iface *fwupdInterface) SecCompConnectedPlug(spec *seccomp.Specification, p
 }
 
 func (iface *fwupdInterface) SecCompPermanentSlot(spec *seccomp.Specification, slot *snap.SlotInfo) error {
-	spec.AddSnippet(fwupdPermanentSlotSecComp)
+	if !release.OnClassic {
+		spec.AddSnippet(fwupdPermanentSlotSecComp)
+	}
 	return nil
 }
 
