@@ -48,7 +48,7 @@ model assertion.
 
 	invalidTypeMessage    = i18n.G("invalid type for %q header")
 	errNoMainAssertion    = errors.New(i18n.G("device not ready yet (no assertions found)"))
-	errNoSerial        = errors.New(i18n.G("device not ready yet (no serial assertion found)"))
+	errNoSerial           = errors.New(i18n.G("device not registered yet (no serial assertion found)"))
 	errNoVerboseAssertion = errors.New(i18n.G("cannot use --verbose with --assertion"))
 
 	// this list is a "nice" "human" "readable" "ordering" of headers to print
