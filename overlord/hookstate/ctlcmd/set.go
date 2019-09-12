@@ -54,7 +54,7 @@ Nested values may be modified via a dotted path:
     $ snapctl set author.name=frank
 
 Configuration option may be unset with exclamation mark:
-    $ snap set author!
+    $ snapctl set author!
 
 Plug and slot attributes may be set in the respective prepare and connect hooks by
 naming the respective plug or slot:

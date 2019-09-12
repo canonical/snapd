@@ -7,8 +7,6 @@ details: |
     with many revisions.
     The execution of this test is made on the nightly build.
 
-manual: true
-
 environment:
     # High Profile
     SNAP/azurecli: azure-cli
@@ -88,6 +86,10 @@ restore: |
 
     if [ -L /snap ]; then
         unlink /snap
+    fi
+
+    if [ "$SNAP" = lxd ]; then
+        lxd-tool undo-lxd-mount-changes
     fi
 
 execute: |

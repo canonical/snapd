@@ -1,0 +1,38 @@
+summary: Check that snap model works
+
+execute: |
+    knownCmdAssertion=$(snap known model)
+    modelCmdAssertion=$(snap model --assertion)
+    echo "Check that model assertion from \"snap known\" matches \"snap model\""
+    if [ "$modelCmdAssertion" != "$knownCmdAssertion" ]; then
+      echo "model assertions not the same, difference is:"
+      diff -u <(echo "$modelCmdAssertion") <(echo "$knownCmdAssertion")
+      exit 1
+    fi
+
+    knownCmdAssertion=$(snap known serial)
+    modelCmdAssertion=$(snap model --serial --assertion)
+    echo "Check that serial assertion from \"snap known\" matches \"snap model\""
+    if [ "$modelCmdAssertion" != "$knownCmdAssertion" ]; then
+      echo "serial assertions not the same, difference is:"
+      diff -u <(echo "$modelCmdAssertion") <(echo "$knownCmdAssertion")
+      exit 1
+    fi
+
+    modelCmdSerial="$(snap model --serial | grep -Po "serial:\s+\K(.*)")"
+    knownCmdSerial="$(snap known serial | grep -Po "serial:\s+\K(.*)")"
+    echo "Check that serial from \"snap known\" matches \"snap model\""
+    if [ "$modelCmdSerial" != "$knownCmdSerial" ]; then
+      echo "serial numbers not the same, difference is:"
+      diff -u <(echo "$knownCmdSerial") <(echo "$knownCmdSerial")
+      exit 1
+    fi
+
+    modelCmdModel="$(snap model | grep -Po "model:\s+\K(.*)")"
+    knownCmdModel="$(snap known model | grep -Po "model:\s+\K(.*)")"
+    echo "Check that serial from \"snap known\" matches \"snap model\""
+    if [ "$modelCmdModel" != "$knownCmdModel" ]; then
+      echo "serial numbers not the same, difference is:"
+      diff -u <(echo "$modelCmdModel") <(echo "$knownCmdModel")
+      exit 1
+    fi

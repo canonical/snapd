@@ -27,3 +27,11 @@ execute: |
         echo "snap set core must error for unknown options"
         exit 1
     fi
+    if snap set core unknown!; then
+        echo "snap set core must error for unknown options"
+        exit 1
+    fi
+    if snap unset core unknown.option; then
+        echo "snap unset core must error for unknown options"
+        exit 1
+    fi

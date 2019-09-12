@@ -438,7 +438,7 @@ func WaitRestart(task *state.Task, snapsup *SnapSetup) (err error) {
 		}
 
 		current, err := boot.GetCurrentBoot(typ)
-		if err == boot.ErrBootNameAndRevisionAgain {
+		if err == boot.ErrBootNameAndRevisionNotReady {
 			return &state.Retry{After: 5 * time.Second}
 		}
 		if err != nil {
@@ -1194,24 +1194,11 @@ func resolveChannel(st *state.State, snapName, newChannel string, deviceCtx Devi
 	model := deviceCtx.Model()
 
 	var pinnedTrack, which string
-	switch {
-	case snapName == model.Kernel() && model.KernelTrack() != "":
+	if snapName == model.Kernel() && model.KernelTrack() != "" {
 		pinnedTrack, which = model.KernelTrack(), "kernel"
-	case snapName == model.Gadget() && model.GadgetTrack() != "":
+	}
+	if snapName == model.Gadget() && model.GadgetTrack() != "" {
 		pinnedTrack, which = model.GadgetTrack(), "gadget"
-	default:
-		var snapst SnapState
-		err := Get(st, snapName, &snapst)
-		if err != nil && err != state.ErrNoState {
-			return "", err
-		}
-		if snapst.IsInstalled() && snapst.Channel != "" {
-			ch, err := channel.Parse(snapst.Channel, "")
-			if err != nil {
-				return "", err
-			}
-			pinnedTrack = ch.Track
-		}
 	}
 
 	if pinnedTrack == "" {
@@ -1219,24 +1206,19 @@ func resolveChannel(st *state.State, snapName, newChannel string, deviceCtx Devi
 		return newChannel, nil
 	}
 
-	nch, err := channel.ParseVerbatim(newChannel, "")
+	// channel name is valid and consist of risk level or
+	// risk/branch only, do the right thing and default to risk (or
+	// risk/branch) within the pinned track
+	resChannel, err := channel.ResolveLocked(pinnedTrack, newChannel)
+	if err == channel.ErrLockedTrackSwitch {
+		// switching to a different track is not allowed
+		return "", fmt.Errorf("cannot switch from %s track %q as specified for the (device) model to %q", which, pinnedTrack, newChannel)
+
+	}
 	if err != nil {
 		return "", err
 	}
-
-	if nch.Track == "" {
-		// channel name is valid and consist of risk level or
-		// risk/branch only, do the right thing and default to risk (or
-		// risk/branch) within the pinned track
-		return pinnedTrack + "/" + newChannel, nil
-	}
-	if nch.Track != "" && nch.Track != pinnedTrack && which != "" {
-		// switching to a different track is not allowed
-		return "", fmt.Errorf("cannot switch from %s track %q as specified for the (device) model to %q", which, pinnedTrack, nch.Clean().String())
-
-	}
-
-	return newChannel, nil
+	return resChannel, nil
 }
 
 var errRevisionSwitch = errors.New("cannot switch revision")
