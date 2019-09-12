@@ -1,6 +1,6 @@
 summary: Test that snapd is not terminated by systemd on a slow startup
 
-systems: [ubuntu-16.04-64, ubuntu-18.04-64]
+systems: [ubuntu-18.04-64,ubuntu-19.04-64]
 
 restore: |
     # extra cleanup in case something in this test went wrong
@@ -12,6 +12,12 @@ debug: |
     cat /etc/systemd/system/snapd.service.d/*
 
 execute: |
+    systemd_ver="$(systemctl --version|head -1|cut -d ' ' -f2)"
+    if [ "${systemd_ver}" -lt 236 ]; then
+       echo "systemd ${systemd_ver} too old, no EXTEND_TIMEOUT_USEC support"
+       exit 0
+    fi
+
     # have 6 extra snaps installed, makes 7 with core
     snap pack "$TESTSLIB"/snaps/basic
     snap set system experimental.parallel-instances=true
