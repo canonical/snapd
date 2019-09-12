@@ -54,11 +54,11 @@ func MockRequiresSocketcall(f func(string) bool) (restore func()) {
 	}
 }
 
-func MockUbuntuKernelArchitecture(f func() string) (restore func()) {
-	old := ubuntuKernelArchitecture
-	ubuntuKernelArchitecture = f
+func MockDpkgKernelArchitecture(f func() string) (restore func()) {
+	old := dpkgKernelArchitecture
+	dpkgKernelArchitecture = f
 	return func() {
-		ubuntuKernelArchitecture = old
+		dpkgKernelArchitecture = old
 	}
 }
 

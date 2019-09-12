@@ -21,17 +21,22 @@ package boot_test
 
 import (
 	"errors"
+	"io/ioutil"
+	"os"
 	"path/filepath"
 	"testing"
 
 	. "gopkg.in/check.v1"
 
+	"github.com/snapcore/snapd/asserts"
+	"github.com/snapcore/snapd/asserts/assertstest"
 	"github.com/snapcore/snapd/boot"
 	"github.com/snapcore/snapd/bootloader"
 	"github.com/snapcore/snapd/bootloader/bootloadertest"
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/snap"
+	"github.com/snapcore/snapd/snap/snaptest"
 	"github.com/snapcore/snapd/testutil"
 )
 
@@ -198,31 +203,25 @@ func (s *bootSetSuite) TestCurrentBootNameAndRevisionUnhappy(c *C) {
 	c.Check(err, ErrorMatches, "cannot get boot settings: broken bootloader")
 }
 
-func (s *bootSetSuite) TestLookup(c *C) {
+func (s *bootSetSuite) TestParticipant(c *C) {
 	info := &snap.Info{}
 	info.RealName = "some-snap"
 
-	bp, applicable := boot.Lookup(info, snap.TypeApp, nil, false)
-	c.Check(bp, IsNil)
-	c.Check(applicable, Equals, false)
+	bp := boot.Participant(info, snap.TypeApp, nil, false)
+	c.Check(bp.IsTrivial(), Equals, true)
 
 	for _, typ := range []snap.Type{
 		snap.TypeKernel,
 		snap.TypeOS,
 		snap.TypeBase,
 	} {
-		bp, applicable = boot.Lookup(info, typ, nil, true)
-		c.Check(bp, IsNil)
-		c.Check(applicable, Equals, false)
+		bp = boot.Participant(info, typ, nil, true)
+		c.Check(bp.IsTrivial(), Equals, true)
 
-		bp, applicable = boot.Lookup(info, typ, nil, false)
-		c.Check(applicable, Equals, true)
+		bp = boot.Participant(info, typ, nil, false)
+		c.Check(bp.IsTrivial(), Equals, false)
 
-		if typ == snap.TypeKernel {
-			c.Check(bp, DeepEquals, boot.NewCoreKernel(info))
-		} else {
-			c.Check(bp, DeepEquals, boot.NewCoreBootParticipant(info, typ))
-		}
+		c.Check(bp, DeepEquals, boot.NewCoreBootParticipant(info, typ))
 	}
 }
 
@@ -230,98 +229,95 @@ type mockModel string
 
 func (s mockModel) Kernel() string { return string(s) }
 func (s mockModel) Base() string   { return string(s) }
+func (s mockModel) Classic() bool  { return s == "" }
 
-func (s *bootSetSuite) TestLookupBaseWithModel(c *C) {
+func (s *bootSetSuite) TestParticipantBaseWithModel(c *C) {
 	core := &snap.Info{SideInfo: snap.SideInfo{RealName: "core"}, SnapType: snap.TypeOS}
 	core18 := &snap.Info{SideInfo: snap.SideInfo{RealName: "core18"}, SnapType: snap.TypeBase}
 
 	type tableT struct {
-		with       *snap.Info
-		model      mockModel
-		applicable bool
+		with  *snap.Info
+		model mockModel
+		nop   bool
 	}
 
 	table := []tableT{
 		{
-			with:       core,
-			model:      "",
-			applicable: true,
+			with:  core,
+			model: "",
+			nop:   false,
 		}, {
-			with:       core,
-			model:      "core",
-			applicable: true,
+			with:  core,
+			model: "core",
+			nop:   false,
 		}, {
-			with:       core,
-			model:      "core18",
-			applicable: false,
+			with:  core,
+			model: "core18",
+			nop:   true,
 		},
 		{
-			with:       core18,
-			model:      "",
-			applicable: false,
+			with:  core18,
+			model: "",
+			nop:   true,
 		},
 		{
-			with:       core18,
-			model:      "core",
-			applicable: false,
+			with:  core18,
+			model: "core",
+			nop:   true,
 		},
 		{
-			with:       core18,
-			model:      "core18",
-			applicable: true,
+			with:  core18,
+			model: "core18",
+			nop:   false,
 		},
 	}
 
 	for i, t := range table {
-		bp, applicable := boot.Lookup(t.with, t.with.GetType(), t.model, true)
-		c.Check(applicable, Equals, false)
-		c.Check(bp, IsNil)
+		bp := boot.Participant(t.with, t.with.GetType(), t.model, true)
+		c.Check(bp.IsTrivial(), Equals, true)
 
-		bp, applicable = boot.Lookup(t.with, t.with.GetType(), t.model, false)
-		c.Check(applicable, Equals, t.applicable, Commentf("%d", i))
-		if t.applicable {
+		bp = boot.Participant(t.with, t.with.GetType(), t.model, false)
+		c.Check(bp.IsTrivial(), Equals, t.nop, Commentf("%d", i))
+		if !t.nop {
 			c.Check(bp, DeepEquals, boot.NewCoreBootParticipant(t.with, t.with.GetType()))
-		} else {
-			c.Check(bp, IsNil)
 		}
 	}
 }
 
-func (s *bootSetSuite) TestLookupKernelWithModel(c *C) {
+func (s *bootSetSuite) TestKernelWithModel(c *C) {
 	info := &snap.Info{}
 	info.RealName = "kernel"
-	expectedbp := boot.NewCoreKernel(info)
+	expected := boot.NewCoreKernel(info)
 
 	type tableT struct {
-		model      mockModel
-		applicable bool
-		bp         boot.BootParticipant
+		model mockModel
+		nop   bool
+		krn   boot.BootKernel
 	}
 
 	table := []tableT{
 		{
-			model:      "other-kernel",
-			applicable: false,
-			bp:         nil,
+			model: "other-kernel",
+			nop:   true,
+			krn:   boot.Trivial{},
 		}, {
-			model:      "kernel",
-			applicable: true,
-			bp:         expectedbp,
+			model: "kernel",
+			nop:   false,
+			krn:   expected,
 		}, {
-			model:      "",
-			applicable: false,
-			bp:         nil,
+			model: "",
+			nop:   true,
+			krn:   boot.Trivial{},
 		},
 	}
 
 	for _, t := range table {
-		bp, applicable := boot.Lookup(info, snap.TypeKernel, t.model, true)
-		c.Check(applicable, Equals, false)
-		c.Check(bp, IsNil)
+		krn := boot.Kernel(info, snap.TypeKernel, t.model, true)
+		c.Check(krn.IsTrivial(), Equals, true)
 
-		bp, applicable = boot.Lookup(info, snap.TypeKernel, t.model, false)
-		c.Check(applicable, Equals, t.applicable)
-		c.Check(bp, DeepEquals, t.bp)
+		krn = boot.Kernel(info, snap.TypeKernel, t.model, false)
+		c.Check(krn.IsTrivial(), Equals, t.nop)
+		c.Check(krn, DeepEquals, t.krn)
 	}
 }
 
@@ -367,4 +363,94 @@ func (s *bootSetSuite) TestMarkBootSuccessfulKKernelUpdate(c *C) {
 		// updated
 		"snap_kernel": "k2",
 	})
+}
+
+func (s *bootSetSuite) makeSnap(c *C, name, yaml string, revno snap.Revision) (fn string, info *snap.Info) {
+	si := &snap.SideInfo{
+		RealName: name,
+		Revision: revno,
+	}
+	fn = snaptest.MakeTestSnapWithFiles(c, yaml, nil)
+	snapf, err := snap.Open(fn)
+	c.Assert(err, IsNil)
+	info, err = snap.ReadInfoFromSnapFile(snapf, si)
+	c.Assert(err, IsNil)
+	return fn, info
+}
+
+func (s *bootSetSuite) TestMakeBootable(c *C) {
+	dirs.SetRootDir("")
+
+	headers := map[string]interface{}{
+		"type":         "model",
+		"authority-id": "my-brand",
+		"series":       "16",
+		"brand-id":     "my-brand",
+		"model":        "my-model",
+		"display-name": "My Model",
+		"architecture": "amd64",
+		"base":         "core18",
+		"gadget":       "pc=18",
+		"kernel":       "pc-kernel=18",
+		"timestamp":    "2018-01-01T08:00:00+00:00",
+	}
+	model := assertstest.FakeAssertion(headers).(*asserts.Model)
+
+	grubCfg := []byte("#grub cfg")
+	unpackedGadgetDir := c.MkDir()
+	err := ioutil.WriteFile(filepath.Join(unpackedGadgetDir, "grub.conf"), grubCfg, 0644)
+	c.Assert(err, IsNil)
+
+	rootdir := c.MkDir()
+
+	seedSnapsDirs := filepath.Join(rootdir, "/var/lib/snapd/seed", "snaps")
+	err = os.MkdirAll(seedSnapsDirs, 0755)
+	c.Assert(err, IsNil)
+
+	baseFn, baseInfo := s.makeSnap(c, "core18", `name: core18
+type: base
+version: 4.0
+`, snap.R(3))
+	baseInSeed := filepath.Join(seedSnapsDirs, filepath.Base(baseInfo.MountFile()))
+	err = os.Rename(baseFn, baseInSeed)
+	c.Assert(err, IsNil)
+	kernelFn, kernelInfo := s.makeSnap(c, "pc-kernel", `name: pc-kernel
+type: kernel
+version: 4.0
+`, snap.R(5))
+	kernelInSeed := filepath.Join(seedSnapsDirs, filepath.Base(kernelInfo.MountFile()))
+	err = os.Rename(kernelFn, kernelInSeed)
+	c.Assert(err, IsNil)
+
+	err = boot.MakeBootable(model, rootdir, map[string]*snap.Info{
+		kernelInSeed: kernelInfo,
+		baseInSeed:   baseInfo,
+	}, unpackedGadgetDir)
+	c.Assert(err, IsNil)
+
+	// check the bootloader config
+	m, err := s.bootloader.GetBootVars("snap_kernel", "snap_core", "snap_menuentry")
+	c.Assert(err, IsNil)
+	c.Check(m["snap_kernel"], Equals, "pc-kernel_5.snap")
+	c.Check(m["snap_core"], Equals, "core18_3.snap")
+	c.Check(m["snap_menuentry"], Equals, "My Model")
+
+	// kernel was extracted as needed
+	c.Check(s.bootloader.ExtractKernelAssetsCalls, DeepEquals, []snap.PlaceInfo{kernelInfo})
+
+	// check symlinks from snap blob dir
+	kernelBlob := filepath.Join(dirs.SnapBlobDirUnder(rootdir), filepath.Base(kernelInfo.MountFile()))
+	dst, err := os.Readlink(filepath.Join(dirs.SnapBlobDirUnder(rootdir), filepath.Base(kernelInfo.MountFile())))
+	c.Assert(err, IsNil)
+	c.Check(dst, Equals, "../seed/snaps/pc-kernel_5.snap")
+	c.Check(kernelBlob, testutil.FilePresent)
+
+	baseBlob := filepath.Join(dirs.SnapBlobDirUnder(rootdir), filepath.Base(baseInfo.MountFile()))
+	dst, err = os.Readlink(filepath.Join(dirs.SnapBlobDirUnder(rootdir), filepath.Base(baseInfo.MountFile())))
+	c.Assert(err, IsNil)
+	c.Check(dst, Equals, "../seed/snaps/core18_3.snap")
+	c.Check(baseBlob, testutil.FilePresent)
+
+	// check that the bootloader (grub here) configuration was copied
+	c.Check(filepath.Join(rootdir, "boot", "grub/grub.cfg"), testutil.FileEquals, grubCfg)
 }

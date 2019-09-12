@@ -55,7 +55,7 @@ func (s *seedYamlTestSuite) TestSimple(c *C) {
 	seedYaml, err := seed.ReadYaml(fn)
 	c.Assert(err, IsNil)
 	c.Assert(seedYaml.Snaps, HasLen, 2)
-	c.Assert(seedYaml.Snaps[0], DeepEquals, &seed.Snap{
+	c.Assert(seedYaml.Snaps[0], DeepEquals, &seed.Snap16{
 		File:   "foo_1.0_all.snap",
 		Name:   "foo",
 		SnapID: "snapidsnapidsnapid",
@@ -63,7 +63,7 @@ func (s *seedYamlTestSuite) TestSimple(c *C) {
 		Channel: "stable",
 		DevMode: true,
 	})
-	c.Assert(seedYaml.Snaps[1], DeepEquals, &seed.Snap{
+	c.Assert(seedYaml.Snaps[1], DeepEquals, &seed.Snap16{
 		File:       "local.snap",
 		Name:       "local",
 		Unasserted: true,

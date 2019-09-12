@@ -7136,7 +7136,7 @@ func (s *apiSuite) TestErrToResponseNoSnapsDoesNotPanic(c *check.C) {
 func (s *apiSuite) TestErrToResponseForRevisionNotAvailable(c *check.C) {
 	si := &snapInstruction{Action: "frobble", Snaps: []string{"foo"}}
 
-	thisArch := arch.UbuntuArchitecture()
+	thisArch := arch.DpkgArchitecture()
 
 	err := &store.RevisionNotAvailableError{
 		Action:  "install",

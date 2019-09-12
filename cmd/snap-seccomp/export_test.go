@@ -26,19 +26,19 @@ var (
 	GoSeccompFeatures = goSeccompFeatures
 )
 
-func MockArchUbuntuArchitecture(f func() string) (restore func()) {
-	realArchUbuntuArchitecture := archUbuntuArchitecture
-	archUbuntuArchitecture = f
+func MockArchDpkgArchitecture(f func() string) (restore func()) {
+	realArchDpkgArchitecture := archDpkgArchitecture
+	archDpkgArchitecture = f
 	return func() {
-		archUbuntuArchitecture = realArchUbuntuArchitecture
+		archDpkgArchitecture = realArchDpkgArchitecture
 	}
 }
 
-func MockArchUbuntuKernelArchitecture(f func() string) (restore func()) {
-	realArchUbuntuKernelArchitecture := archUbuntuKernelArchitecture
-	archUbuntuKernelArchitecture = f
+func MockArchDpkgKernelArchitecture(f func() string) (restore func()) {
+	realArchDpkgKernelArchitecture := archDpkgKernelArchitecture
+	archDpkgKernelArchitecture = f
 	return func() {
-		archUbuntuKernelArchitecture = realArchUbuntuKernelArchitecture
+		archDpkgKernelArchitecture = realArchDpkgKernelArchitecture
 	}
 }
 
