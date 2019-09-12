@@ -169,7 +169,9 @@ func New(restartBehavior RestartBehavior) (*Overlord, error) {
 	o.addManager(cmdstate.Manager(s, o.runner))
 	o.addManager(snapshotstate.Manager(s, o.runner))
 
-	configstateInit(hookMgr)
+	if err := configstateInit(s, hookMgr); err != nil {
+		return nil, err
+	}
 	healthstate.Init(hookMgr)
 
 	// the shared task runner should be added last!

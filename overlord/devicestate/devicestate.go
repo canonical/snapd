@@ -39,6 +39,7 @@ import (
 	"github.com/snapcore/snapd/overlord/state"
 	"github.com/snapcore/snapd/release"
 	"github.com/snapcore/snapd/snap"
+	"github.com/snapcore/snapd/snap/naming"
 )
 
 var (
@@ -289,26 +290,9 @@ func CanManageRefreshes(st *state.State) bool {
 	return false
 }
 
-func getAllRequiredSnapsForModel(model *asserts.Model) map[string]bool {
-	reqSnaps := model.RequiredSnaps()
-	// +4 for (snapd, base, gadget, kernel)
-	required := make(map[string]bool, len(reqSnaps)+4)
-	for _, snap := range reqSnaps {
-		required[snap] = true
-	}
-	if model.Base() != "" {
-		required["snapd"] = true
-		required[model.Base()] = true
-	} else {
-		required["core"] = true
-	}
-	if model.Kernel() != "" {
-		required[model.Kernel()] = true
-	}
-	if model.Gadget() != "" {
-		required[model.Gadget()] = true
-	}
-	return required
+func getAllRequiredSnapsForModel(model *asserts.Model) *naming.SnapSet {
+	reqSnaps := model.RequiredWithEssentialSnaps()
+	return naming.NewSnapSet(reqSnaps)
 }
 
 // extractDownloadInstallEdgesFromTs extracts the first, last download
@@ -348,11 +332,13 @@ func remodelTasks(ctx context.Context, st *state.State, current, new *asserts.Mo
 	}
 	// add new required-snaps, no longer required snaps will be cleaned
 	// in "set-model"
-	for _, snapName := range new.RequiredSnaps() {
-		_, err := snapstate.CurrentInfo(st, snapName)
+	for _, snapRef := range new.RequiredNoEssentialSnaps() {
+		// TODO|XXX: have methods that take refs directly
+		// to respect the snap ids
+		_, err := snapstate.CurrentInfo(st, snapRef.SnapName())
 		// If the snap is not installed we need to install it now.
 		if _, ok := err.(*snap.NotInstalledError); ok {
-			ts, err := snapstateInstallWithDeviceContext(ctx, st, snapName, nil, userID, snapstate.Flags{Required: true}, deviceCtx, fromChange)
+			ts, err := snapstateInstallWithDeviceContext(ctx, st, snapRef.SnapName(), nil, userID, snapstate.Flags{Required: true}, deviceCtx, fromChange)
 			if err != nil {
 				return nil, err
 			}
@@ -459,11 +445,8 @@ func Remodel(st *state.State, new *asserts.Model) (*state.Change, error) {
 	}
 
 	// TODO: we need dedicated assertion language to permit for
-	// model transitions before we allow that cross vault
+	// model transitions before we allow cross vault
 	// transitions.
-	//
-	// Right now we only allow "remodel" to a different revision of
-	// the same model.
 
 	remodelKind := ClassifyRemodel(current, new)
 
@@ -501,6 +484,13 @@ func Remodel(st *state.State, new *asserts.Model) (*state.Change, error) {
 	var tss []*state.TaskSet
 	switch remodelKind {
 	case ReregRemodel:
+		// nothing else can be in-flight
+		for _, chg := range st.Changes() {
+			if !chg.IsReady() {
+				return nil, &snapstate.ChangeConflictError{Message: "cannot start complete remodel, other changes are in progress"}
+			}
+		}
+
 		requestSerial := st.NewTask("request-serial", i18n.G("Request new device serial"))
 
 		prepare := st.NewTask("prepare-remodeling", i18n.G("Prepare remodeling"))
@@ -528,9 +518,20 @@ func Remodel(st *state.State, new *asserts.Model) (*state.Change, error) {
 		}
 	}
 
-	// TODO: we released the lock a couple of times here:
-	// make sure the current model is essentially the same
-	// make sure no remodeling is in progress
+	// we potentially released the lock a couple of times here:
+	// make sure the current model is essentially the same as when
+	// we started
+	current1, err := findModel(st)
+	if err != nil {
+		return nil, err
+	}
+	if current.BrandID() != current1.BrandID() || current.Model() != current1.Model() || current.Revision() != current1.Revision() {
+		return nil, &snapstate.ChangeConflictError{Message: fmt.Sprintf("cannot start remodel, clashing with concurrent remodel to %v/%v (%v)", current1.BrandID(), current1.Model(), current1.Revision())}
+	}
+	// make sure another unfinished remodel wasn't already setup either
+	if Remodeling(st) {
+		return nil, &snapstate.ChangeConflictError{Message: "cannot start remodel, clashing with concurrent one"}
+	}
 
 	var msg string
 	if current.BrandID() == new.BrandID() && current.Model() == new.Model() {

@@ -147,6 +147,27 @@ func (s *trespassingSuite) TestCanWriteToDirectoryTmpfsMountedBySnapd(c *C) {
 	c.Assert(ok, Equals, true)
 }
 
+// We are allowed to write to tmpfs that was mounted by snapd in another run.
+func (s *trespassingSuite) TestCanWriteToDirectoryTmpfsMountedBySnapdEarlier(c *C) {
+	a := &update.Assumptions{}
+
+	path := "/etc"
+	fd, err := s.sys.Open(path, syscall.O_DIRECTORY, 0)
+	c.Assert(err, IsNil)
+	defer s.sys.Close(fd)
+
+	s.sys.InsertFstatfsResult(`fstatfs 3 <ptr>`, syscall.Statfs_t{Type: update.TmpfsMagic})
+	s.sys.InsertFstatResult(`fstat 3 <ptr>`, syscall.Stat_t{})
+
+	a.AddChange(&update.Change{
+		Action: update.Keep,
+		Entry:  osutil.MountEntry{Type: "tmpfs", Dir: path}})
+
+	ok, err := a.CanWriteToDirectory(fd, path)
+	c.Assert(err, IsNil)
+	c.Assert(ok, Equals, true)
+}
+
 // We are allowed to write to directory beneath a tmpfs that was mounted by snapd.
 func (s *trespassingSuite) TestCanWriteToDirectoryUnderTmpfsMountedBySnapd(c *C) {
 	a := &update.Assumptions{}

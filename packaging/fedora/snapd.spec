@@ -63,7 +63,7 @@
 %global snappy_user_svcs snapd.session-agent.socket
 
 # Until we have a way to add more extldflags to gobuild macro...
-%if 0%{?fedora}
+%if 0%{?fedora} || 0%{?rhel} >= 8
 # buildmode PIE triggers external linker consumes -extldflags
 %define gobuild_static(o:) go build -buildmode pie -compiler gc -tags=rpm_crashtraceback -ldflags "${LDFLAGS:-} -B 0x$(head -c20 /dev/urandom|od -An -tx1|tr -d ' \\n') -extldflags '%__global_ldflags -static'" -a -v -x %{?**};
 %endif
@@ -92,7 +92,7 @@
 %endif
 
 Name:           snapd
-Version:        2.40
+Version:        2.41
 Release:        0%{?dist}
 Summary:        A transactional software package manager
 License:        GPLv3
@@ -156,8 +156,8 @@ BuildRequires: golang(github.com/juju/ratelimit)
 BuildRequires: golang(github.com/kr/pretty)
 BuildRequires: golang(github.com/kr/text)
 BuildRequires: golang(github.com/mvo5/goconfigparser)
-BuildRequires: golang(github.com/ojii/gettext.go)
 BuildRequires: golang(github.com/seccomp/libseccomp-golang)
+BuildRequires: golang(github.com/snapcore/go-gettext)
 BuildRequires: golang(golang.org/x/crypto/openpgp/armor)
 BuildRequires: golang(golang.org/x/crypto/openpgp/packet)
 BuildRequires: golang(golang.org/x/crypto/sha3)
@@ -183,7 +183,6 @@ BuildRequires:  libtool
 BuildRequires:  gcc
 BuildRequires:  gettext
 BuildRequires:  gnupg
-BuildRequires:  indent
 BuildRequires:  pkgconfig(glib-2.0)
 BuildRequires:  pkgconfig(libcap)
 BuildRequires:  pkgconfig(libseccomp)
@@ -252,8 +251,8 @@ Requires:      golang(github.com/juju/ratelimit)
 Requires:      golang(github.com/kr/pretty)
 Requires:      golang(github.com/kr/text)
 Requires:      golang(github.com/mvo5/goconfigparser)
-Requires:      golang(github.com/ojii/gettext.go)
 Requires:      golang(github.com/seccomp/libseccomp-golang)
+Requires:      golang(github.com/snapcore/go-gettext)
 Requires:      golang(golang.org/x/crypto/openpgp/armor)
 Requires:      golang(golang.org/x/crypto/openpgp/packet)
 Requires:      golang(golang.org/x/crypto/sha3)
@@ -279,7 +278,7 @@ Provides:      bundled(golang(github.com/kr/pretty))
 Provides:      bundled(golang(github.com/kr/text))
 Provides:      bundled(golang(github.com/mvo5/goconfigparser))
 Provides:      bundled(golang(github.com/mvo5/libseccomp-golang))
-Provides:      bundled(golang(github.com/ojii/gettext.go))
+Provides:      bundled(golang(github.com/snapcore/go-gettext))
 Provides:      bundled(golang(golang.org/x/crypto/openpgp/armor))
 Provides:      bundled(golang(golang.org/x/crypto/openpgp/packet))
 Provides:      bundled(golang(golang.org/x/crypto/sha3))
@@ -869,6 +868,216 @@ fi
 
 
 %changelog
+* Fri Aug 30 2019 Michael Vogt <mvo@ubuntu.com>
+- New upstream release 2.41
+ - overlord/snapstate: revert track-risk behavior
+ - tests: fix snap info test
+ - httputil: rework protocol error detection
+ - gadget: do not error on gadget refreshes with multiple volumes
+ - i18n, vendor, packaging: drop github.com/ojii/gettext.go, use
+   github.com/snapcore/go-gettext
+ - snapstate: validate all system-usernames before creating them
+ - mkversion.sh: fix version from git checkouts
+ - interfaces/network-{control,manager}: allow 'k' on
+   /run/resolvconf/**
+ - interfaces/wayland,x11: allow reading an Xwayland Xauth file
+ - interfaces: k8s worker node updates
+ - debian: re-enable systemd environment generator
+ - many: create system-usernames user/group if both don't exist
+ - packaging: fix symlink for snapd.session-agent.socket
+ - tests: change cgroups so that LXD doesn't have to
+ - interfaces/network-setup-control: allow dbus netplan apply
+   messages
+ - tests: add /var/cache/snapd to the snapd state to prevent error on
+   the store
+ - tests: add test for services disabled during refresh hook
+ - many: simpler access to snap-seccomp version-info
+ - snap: cleanup some tests, clarify some errorsThis is a follow up
+   from work on system usernames:
+ - osutil: add osutil.Find{Uid,Gid}
+ - tests: use a different archive based on the spread backend on go-
+   build test
+ - cmd/snap-update-ns: fix pair of bugs affecting refresh of snap
+   with layouts
+ - overlord/devicestate: detect clashing concurrent (ongoing, just
+   finished) remodels or changes
+ - interfaces/docker-support: declare controls-device-cgroup
+ - packaging: fix removal of old apparmor profile
+ - store: use track/risk for "channel" name when parsing store
+   details
+ - many: allow 'system-usernames' with libseccomp > 2.4 and golang-
+   seccomp > 0.9.0
+ - overlord/devicestate, tests: use gadget.Update() proper, spread
+   test
+ - overlord/configstate/configcore: allow setting start_x=1 to enable
+   CSI camera on RPi
+ - interfaces: remove BeforePrepareSlot from commonInterface
+ - many: support system-usernames for 'snap_daemon' user
+ - overlord/devicestate,o/snapstate: queue service commands before
+   mark-seeded and other final tasks
+ - interfaces/mount: discard mount ns on backend Remove
+ - packaging/fedora: build on RHEL8
+ - overlord/devicestate: support seeding a classic system with the
+   snapd snap and no core
+ - interfaces: fix test failure in gpio_control_test
+ - interfaces, policy: remove sanitize helpers and use minimal policy
+   check
+ - packaging: use %systemd_user_* macros to enable session agent
+   socket according to presets
+ - snapstate, store: handle 429s on catalog refresh a little bit
+   better
+ - tests: part4 making tests work on ubuntu-core-18
+ - many: drop snap.ReadGadgetInfo wrapper
+ - xdgopenproxy: update test API to match upstream
+ - tests: show why sbuild failed
+ - data/selinux: allow mandb_t to search /var/lib/snapd
+ - tests: be less verbose when checking service status
+ - tests: set sbuild test as manual
+ - overlord: DeviceCtx must find the remodel context for a remodel
+   change
+ - tests: use snap info --verbose to check for base
+ - sanity: unmount squashfs with --lazy
+ - overlord/snapstate: keep current track if only risk is specified
+ - interfaces/firewall-control: support nft routing expressions and
+   device groups
+ - gadget: support for writing symlinks
+ - tests: mountinfo-tool fail if there are no matches
+ - tests: sync journal log before start the test
+ - cmd/snap, data/completion: improve completion for 'snap debug'
+ - httputil: retry for http2 PROTOCOL_ERROR
+ - Errata commit: pulseaudio still auto-connects on classic
+ - interfaces/misc: updates for k8s 1.15 (and greengrass test)
+ - tests: set GOTRACEBACK=1 when running tests
+ - cmd/libsnap: don't leak memory in sc_die_on_error
+ - tests: improve how the system is restored when the upgrade-
+   from-2.15 test fails
+ - interfaces/bluetooth-control: add udev rules for BT_chrdev devices
+ - interfaces: add audio-playback/audio-record and make pulseaudio
+   manually connect
+ - tests: split the sbuild test in 2 depending on the type of build
+ - interfaces: add an interface granting access to AppStream metadata
+ - gadget: ensure filesystem labels are unique
+ - usersession/agent: use background context when stopping the agent
+ - HACKING.md: update spread section, other updates
+ - data/selinux: allow snap-confine to read entries on nsfs
+ - tests: respect SPREAD_DEBUG_EACH on the main suite
+ - packaging/debian-sid: set GOCACHE to a known writable location
+ - interfaces: add gpio-control interface
+ - cmd/snap: use showDone helper with 'snap switch'
+ - gadget: effective structure role fallback, extra tests
+ - many: fix unit tests getting stuck
+ - tests: remove installed snap on restore
+ - daemon: do not modify test data in user suite
+ - data/selinux: allow read on sysfs
+ - packaging/debian: don't md5sum absent files
+ - tests: remove test-snapd-curl
+ - tests: remove test-snapd-snapctl-core18 in restore
+ - tests: remove installed snap in the restore section
+ - tests: remove installed test snap
+ - tests: correctly escape mount unit path
+ - cmd/Makefile.am: support building with the go snap
+ - tests: work around classic snap affecting the host
+ - tests: fix typo "current"
+ - overlord/assertstate: add Batch.Precheck to check for the full
+   validity of the batch before Commit
+ - tests: restore cpuset clone_children clobbered by lxd
+ - usersession: move userd package to usersession/userd
+ - tests: reformat and fix markdown in snapd-state.md
+ - gadget: select the right updater for given structure
+ - tests: show stderr only if it exists
+ - sessionagent: add a REST interface with socket activation
+ - tests: remove locally installed core in more tests
+ - tests: remove local revision of core
+ - packaging/debian-sid: use correct apparmor Depends for Debian
+ - packaging/debian-sid: merge debian upload changes back into master
+ - cmd/snap-repair: make sure the goroutine doesn't stick around on
+   timeout
+ - packaging/fedora: github.com/cheggaaa/pb is no longer used
+ - configstate/config: fix crash in purgeNulls
+ - boot, o/snapst, o/devicest: limit knowledge of boot vars to boot
+ - client,cmd/snap: stop depending on status/status-code in the JSON
+   responses in client
+ - tests: unmount leftover /run/netns
+ - tests: switch mount-ns test to manual
+ - overlord,daemon,cmd/snapd:  move expensive startup to dedicated
+   StartUp methods
+ - osutil: add EnsureTreeState helper
+ - tests: measure properties of various  mount namespaces
+ - tests: part2 making tests work on ubuntu-core-18
+ - interfaces/policy: minimal policy check for replacing
+   sanitizeReservedFor helpers (1/2)
+ - interfaces: add an interface that grants access to the PackageKit
+   service
+ - overlord/devicestate: update gadget update handlers and mocks
+ - tests: add mountinfo-tool --ref-x1000
+ - tests: remove lxd / lxcfs if pre-installed
+ - tests: removing support for ubuntu cosmic on spread test suite
+ - tests: don't leak /run/netns mount
+ - image: clean up the validateSuite
+ - bootloader: remove "Dir()" from Bootloader interface
+ - many: retry to reboot if snapd gets restarted before expected
+   reboot
+ - overlord: implement re-registration remodeling
+ - cmd: revert PR#6933 (tweak of GOMAXPROCS)
+ - cmd/snap: add snap unset command
+ - many: add Client-User-Agent to "SnapAction" install API call
+ - tests: first part making tests run on ubuntu-core-18
+ - hookstate/ctlcmd: support hidden commands in snapctl
+ - many: replace snapd snap name checks with type checks (3/4)
+ - overlord: mostly stop needing Kernel/CoreInfo, make GadgetInfo
+   consider a DeviceContext
+ - snapctl: handle unsetting of config options with "!"
+ - tests: move core migration snaps to tests/lib/snaps dir
+ - cmd/snap: handle unsetting of config options with "!"
+ - cmd/snap, etc: add health to 'snap list' and 'snap info'
+ - gadget: use struct field names when intializing data in mounted
+   updater unit tests
+ - cmd/snap-confine: bring /lib/firmware from the host
+ - snap: set snapd snap type (1/4)
+ - snap: add checks in validate-seed for missing base/default-
+   provider
+ - daemon: replace shutdownServer with net/http's native shutdown
+   support
+ - interfaces/builtin: add exec "/bin/runc" to docker-support
+ - gadget: mounted filesystem updater
+ - overlord/patch: simplify conditions for re-applying sublevel
+   patches for level 6
+ - seccomp/compiler: adjust test case names and comment for later
+   changes
+ - tests: fix error doing snap pack running failover test
+ - tests: don't preserve size= when rewriting mount tables
+ - tests: allow reordering of rewrite operations
+ - gadget: main update routine
+ - overlord/config: normalize nulls to support config unsetting
+   semantics
+ - snap-userd-autostart: don't list as a startup application on the
+   GUI
+ - tests: renumber snap revisions as seen via writable
+ - tests: change allocation for mount options
+ - tests: re-enable ns-re-associate test
+ - tests: mountinfo-tool allow many --refs
+ - overlord/devicestate: implement reregRemodelContext with the
+   essential re-registration logic
+ - tests: replace various numeric mount options
+ - gadget: filesystem image writer
+ - tests: add more unit tests for mountinfo-tool
+ - tests: introduce mountinfo-tool --ref feature
+ - tests: refactor mountinfo-tool rewrite state
+ - tests: allow renumbering mount namespace identifiers
+ - snap: refactor and explain layout blacklisting
+ - tests: renumber snap revisions as seen via hostfs
+ - daemon, interfaces, travis: workaround build ID with Go 1.9, use
+   1.9 for travis tests
+ - cmd/libsnap: add sc_error_init_{simple,api_misuse}
+ - gadget: make raw updater handle shifted structures
+ - tests/lib/nested: create WORK_DIR before accessing it
+ - cmd/libsnap: rename SC_LIBSNAP_ERROR to SC_LIBSNAP_DOMAIN
+ - cmd,tests: forcibly discard mount namespace when bases change
+ - many: introduce healthstate, run check-health
+   post-(install/refresh/try/revert)
+ - interfaces/optical-drive: add scsi-generic type 4 and 5 support
+ - cmd/snap-confine: exit from helper when parent dies
+
 * Fri Jul 12 2019 Michael Vogt <mvo@ubuntu.com>
 - New upstream release 2.40
  - overlord/patch: simplify conditions for re-applying sublevel
