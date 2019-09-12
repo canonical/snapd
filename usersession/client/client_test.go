@@ -156,3 +156,95 @@ func (s *clientSuite) TestServicesDaemonReloadError(c *C) {
 		Value:   nil,
 	})
 }
+
+func (s *clientSuite) TestServicesStart(c *C) {
+	s.handler = http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusOK)
+		w.Write([]byte(`{
+  "type": "sync",
+  "result": null
+}`))
+	})
+	failures, err := s.cli.ServicesStart(context.Background(), []string{"service1.service", "service2.service"})
+	c.Assert(err, IsNil)
+	c.Check(failures, HasLen, 0)
+}
+
+func (s *clientSuite) TestServicesStartFailure(c *C) {
+	s.handler = http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusInternalServerError)
+		w.Write([]byte(`{
+  "type": "error",
+  "result": {
+    "kind": "service-control",
+    "message": "failed to start services",
+    "value": {
+      "service2.service": "failed to start"
+    }
+  }
+}`))
+	})
+	failures, err := s.cli.ServicesStart(context.Background(), []string{"service1.service", "service2.service"})
+	c.Assert(err, IsNil)
+	c.Check(failures, HasLen, 2)
+	failure1 := failures[0]
+	failure2 := failures[1]
+	if failure1.Uid == 1000 {
+		failure1, failure2 = failure2, failure1
+	}
+	c.Check(failure1.Uid, Equals, 42)
+	c.Check(failure1.Service, Equals, "service2.service")
+	c.Check(failure1.Error, Equals, "failed to start")
+
+	c.Check(failure2.Uid, Equals, 1000)
+	c.Check(failure2.Service, Equals, "service2.service")
+	c.Check(failure2.Error, Equals, "failed to start")
+}
+
+func (s *clientSuite) TestServicesStop(c *C) {
+	s.handler = http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusOK)
+		w.Write([]byte(`{
+  "type": "sync",
+  "result": null
+}`))
+	})
+	failures, err := s.cli.ServicesStop(context.Background(), []string{"service1.service", "service2.service"})
+	c.Assert(err, IsNil)
+	c.Check(failures, HasLen, 0)
+}
+
+func (s *clientSuite) TestServicesStopFailure(c *C) {
+	s.handler = http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusInternalServerError)
+		w.Write([]byte(`{
+  "type": "error",
+  "result": {
+    "kind": "service-control",
+    "message": "failed to stop services",
+    "value": {
+      "service2.service": "failed to stop"
+    }
+  }
+}`))
+	})
+	failures, err := s.cli.ServicesStop(context.Background(), []string{"service1.service", "service2.service"})
+	c.Assert(err, IsNil)
+	c.Check(failures, HasLen, 2)
+	failure1 := failures[0]
+	failure2 := failures[1]
+	if failure1.Uid == 1000 {
+		failure1, failure2 = failure2, failure1
+	}
+	c.Check(failure1.Uid, Equals, 42)
+	c.Check(failure1.Service, Equals, "service2.service")
+	c.Check(failure1.Error, Equals, "failed to stop")
+
+	c.Check(failure2.Uid, Equals, 1000)
+	c.Check(failure2.Service, Equals, "service2.service")
+	c.Check(failure2.Error, Equals, "failed to stop")
+}

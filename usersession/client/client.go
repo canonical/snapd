@@ -215,7 +215,7 @@ func (client *Client) servicesCall(ctx context.Context, action string, services 
 		if resp.err == nil {
 			continue
 		}
-		if agentErr, ok := err.(*Error); ok && agentErr.Kind == "serice-control" {
+		if agentErr, ok := resp.err.(*Error); ok && agentErr.Kind == "service-control" {
 			if errors, ok := agentErr.Value.(map[string]interface{}); ok {
 				for service, failure := range errors {
 					failures = append(failures, ServiceFailure{resp.uid, service, failure.(string)})
