@@ -67,12 +67,7 @@ execute: |
     # backing file. It was observed that, even after client does close and the
     # corresponding *fuse_release() code completes on the portal side, the
     # contents are not visible in the destination file.
-    for _ in $(seq 5); do
-        if [ -f /tmp/file-to-write.txt ] && MATCH "from-sandbox" < /tmp/file-to-write.txt; then
-            break
-        fi
-        sleep 1
-    done
+    retry-tool -n 5 test -s /tmp/file-to-write.txt
     MATCH "from-sandbox" < /tmp/file-to-write.txt
 
 debug: |
