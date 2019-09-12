@@ -46,9 +46,10 @@ Similarly, the active serial assertion can be used for the output instead of the
 model assertion.
 `)
 
-	invalidTypeMessage = i18n.G("invalid type for %q header")
-	errNoMainAssertion = errors.New(i18n.G("device not ready yet (no assertions found)"))
+	invalidTypeMessage    = i18n.G("invalid type for %q header")
+	errNoMainAssertion    = errors.New(i18n.G("device not ready yet (no assertions found)"))
 	errNoSerial        = errors.New(i18n.G("device not ready yet (no serial assertion found)"))
+	errNoVerboseAssertion = errors.New(i18n.G("cannot use --verbose with --assertion"))
 
 	// this list is a "nice" "human" "readable" "ordering" of headers to print
 	// off, sorted in lexographical order with meta headers and primary key
@@ -126,6 +127,10 @@ func (x *cmdModel) Execute(args []string) error {
 	}
 
 	if x.Assertion {
+		if x.Verbose {
+			// can't do a verbose mode for the assertion
+			return errNoVerboseAssertion
+		}
 		// if we are using the serial assertion and we specifically didn't find the
 		// serial assertion, bail with specific error
 		if x.Serial && client.IsAssertionNotFoundError(serialErr) {
@@ -152,7 +157,6 @@ func (x *cmdModel) Execute(args []string) error {
 		// return a devNotReady error
 		fmt.Fprintf(w, "brand-id:\t%s\n", modelAssertion.HeaderString("brand-id"))
 		fmt.Fprintf(w, "model:\t%s\n", modelAssertion.HeaderString("model"))
-
 		return errNoSerial
 	}
 
