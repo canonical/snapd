@@ -27,7 +27,6 @@ import (
 	"github.com/snapcore/snapd/interfaces/builtin"
 	"github.com/snapcore/snapd/interfaces/dbus"
 	"github.com/snapcore/snapd/interfaces/seccomp"
-	"github.com/snapcore/snapd/release"
 	"github.com/snapcore/snapd/snap"
 	"github.com/snapcore/snapd/testutil"
 )
@@ -81,9 +80,6 @@ func (s *FwupdInterfaceSuite) TestName(c *C) {
 
 // The label glob when all apps are bound to the fwupd slot
 func (s *FwupdInterfaceSuite) TestConnectedPlugSnippetUsesSlotLabelAll(c *C) {
-	restore := release.MockOnClassic(false)
-	defer restore()
-
 	app1 := &snap.AppInfo{Name: "app1"}
 	app2 := &snap.AppInfo{Name: "app2"}
 	slot := &snap.SlotInfo{
@@ -106,9 +102,6 @@ func (s *FwupdInterfaceSuite) TestConnectedPlugSnippetUsesSlotLabelAll(c *C) {
 
 // The label uses alternation when some, but not all, apps is bound to the fwupd slot
 func (s *FwupdInterfaceSuite) TestConnectedPlugSnippetUsesSlotLabelSome(c *C) {
-	restore := release.MockOnClassic(false)
-	defer restore()
-
 	app1 := &snap.AppInfo{Name: "app1"}
 	app2 := &snap.AppInfo{Name: "app2"}
 	app3 := &snap.AppInfo{Name: "app3"}
@@ -131,9 +124,6 @@ func (s *FwupdInterfaceSuite) TestConnectedPlugSnippetUsesSlotLabelSome(c *C) {
 
 // The label uses short form when exactly one app is bound to the fwupd slot
 func (s *FwupdInterfaceSuite) TestConnectedPlugSnippetUsesSlotLabelOne(c *C) {
-	restore := release.MockOnClassic(false)
-	defer restore()
-
 	apparmorSpec := &apparmor.Specification{}
 	err := apparmorSpec.AddConnectedPlug(s.iface, s.plug, s.appSlot)
 	c.Assert(err, IsNil)
@@ -141,10 +131,7 @@ func (s *FwupdInterfaceSuite) TestConnectedPlugSnippetUsesSlotLabelOne(c *C) {
 	c.Assert(apparmorSpec.SnippetForTag("snap.uefi-fw-tools.app"), testutil.Contains, `peer=(label="snap.uefi-fw-tools.app2"),`)
 }
 
-func (s *FwupdInterfaceSuite) TestConnectedPlugSnippetOnClassic(c *C) {
-	restore := release.MockOnClassic(true)
-	defer restore()
-
+func (s *FwupdInterfaceSuite) TestConnectedPlugSnippetToImplicitSlot(c *C) {
 	apparmorSpec := &apparmor.Specification{}
 	err := apparmorSpec.AddConnectedPlug(s.iface, s.plug, s.coreSlot)
 	c.Assert(err, IsNil)
@@ -153,9 +140,6 @@ func (s *FwupdInterfaceSuite) TestConnectedPlugSnippetOnClassic(c *C) {
 }
 
 func (s *FwupdInterfaceSuite) TestUsedSecuritySystems(c *C) {
-	restore := release.MockOnClassic(false)
-	defer restore()
-
 	// connected plugs have a non-nil security snippet for apparmor
 	apparmorSpec := &apparmor.Specification{}
 	err := apparmorSpec.AddConnectedPlug(s.iface, s.plug, s.appSlot)
@@ -171,11 +155,8 @@ func (s *FwupdInterfaceSuite) TestUsedSecuritySystems(c *C) {
 	c.Assert(err, IsNil)
 	c.Assert(dbusSpec.SecurityTags(), HasLen, 1)
 
-	restore = release.MockOnClassic(true)
-	defer restore()
-
-	// On classic systems, we still generate AppArmor rules on the
-	// plug side, but not on the slot side.
+	// When connecting to the implicit slot on Classic systems, we
+	// don't generate slot-side AppArmor rules.
 	apparmorSpec = &apparmor.Specification{}
 	err = apparmorSpec.AddConnectedPlug(s.iface, s.plug, s.coreSlot)
 	c.Assert(err, IsNil)
@@ -187,17 +168,14 @@ func (s *FwupdInterfaceSuite) TestUsedSecuritySystems(c *C) {
 	c.Assert(err, IsNil)
 	c.Assert(apparmorSpec.SecurityTags(), HasLen, 0)
 
-	// And there are no slot side D-Bus rules
+	// The same is true for D-Bus rules
 	dbusSpec = &dbus.Specification{}
-	err = dbusSpec.AddPermanentSlot(s.iface, s.appSlotInfo)
+	err = dbusSpec.AddPermanentSlot(s.iface, s.coreSlotInfo)
 	c.Assert(err, IsNil)
 	c.Assert(dbusSpec.SecurityTags(), HasLen, 0)
 }
 
 func (s *FwupdInterfaceSuite) TestPermanentSlotSnippetSecComp(c *C) {
-	restore := release.MockOnClassic(false)
-	defer restore()
-
 	seccompSpec := &seccomp.Specification{}
 	err := seccompSpec.AddPermanentSlot(s.iface, s.appSlotInfo)
 	c.Assert(err, IsNil)
@@ -205,8 +183,6 @@ func (s *FwupdInterfaceSuite) TestPermanentSlotSnippetSecComp(c *C) {
 	c.Check(seccompSpec.SnippetForTag("snap.uefi-fw-tools.app2"), testutil.Contains, "bind\n")
 
 	// On classic systems, fwupd is an implicit slot
-	restore = release.MockOnClassic(true)
-	defer restore()
 	seccompSpec = &seccomp.Specification{}
 	err = seccompSpec.AddPermanentSlot(s.iface, s.coreSlotInfo)
 	c.Assert(err, IsNil)
@@ -214,18 +190,13 @@ func (s *FwupdInterfaceSuite) TestPermanentSlotSnippetSecComp(c *C) {
 }
 
 func (s *FwupdInterfaceSuite) TestPermanentSlotDBus(c *C) {
-	restore := release.MockOnClassic(false)
-	defer restore()
-
 	dbusSpec := &dbus.Specification{}
 	err := dbusSpec.AddPermanentSlot(s.iface, s.appSlotInfo)
 	c.Assert(err, IsNil)
 	c.Assert(dbusSpec.SecurityTags(), DeepEquals, []string{"snap.uefi-fw-tools.app2"})
 	c.Assert(dbusSpec.SnippetForTag("snap.uefi-fw-tools.app2"), testutil.Contains, `<allow own="org.freedesktop.fwupd"/>`)
 
-	// On classic systems, fwupd is an implicit slot
-	restore = release.MockOnClassic(true)
-	defer restore()
+	// The implicit slot found on classic systems does not generate any rules
 	dbusSpec = &dbus.Specification{}
 	err = dbusSpec.AddPermanentSlot(s.iface, s.coreSlotInfo)
 	c.Assert(err, IsNil)
