@@ -19,6 +19,7 @@
 package cgroup
 
 var (
+	Cgroup2SuperMagic  = cgroup2SuperMagic
 	ProbeCgroupVersion = probeCgroupVersion
 )
 

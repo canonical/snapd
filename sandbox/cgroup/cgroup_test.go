@@ -58,7 +58,7 @@ func (s *cgroupSuite) TestIsUnified(c *C) {
 func (s *cgroupSuite) TestProbeVersion2(c *C) {
 	restore := cgroup.MockFsTypeForPath(func(p string) (int64, error) {
 		c.Assert(p, Equals, filepath.Join(dirs.GlobalRootDir, "/sys/fs/cgroup"))
-		return cgroup.CGROUP2_SUPER_MAGIC, nil
+		return int64(cgroup.Cgroup2SuperMagic), nil
 	})
 	defer restore()
 	v, err := cgroup.ProbeCgroupVersion()

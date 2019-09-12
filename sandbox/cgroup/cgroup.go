@@ -32,7 +32,7 @@ import (
 
 const (
 	// from golang.org/x/sys/unix
-	CGROUP2_SUPER_MAGIC = 0x63677270
+	cgroup2SuperMagic = 0x63677270
 
 	defaultMountdir = "/sys/fs/cgroup"
 )
@@ -81,7 +81,7 @@ func probeCgroupVersion() (version int, err error) {
 	if err != nil {
 		return Unknown, fmt.Errorf("cannot determine filesystem type: %v", err)
 	}
-	if typ == CGROUP2_SUPER_MAGIC {
+	if typ == cgroup2SuperMagic {
 		return V2, nil
 	}
 	return V1, nil
