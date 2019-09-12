@@ -239,7 +239,12 @@ func (s *SnapSuite) TestNoSerialYet(c *check.C) {
 			simpleAssertionAccountResponder(happyAccountAssertionResponse),
 		))
 	_, err := snap.Parser(snap.Client()).ParseArgs([]string{"model", "--serial"})
-	c.Assert(err, check.ErrorMatches, `device not ready yet \(no serial assertion found\)`)
+	c.Assert(err, check.ErrorMatches, `device not registered yet \(no serial assertion found\)`)
+	c.Check(s.Stderr(), check.Equals, "")
+	c.Check(s.Stdout(), check.Equals, `
+brand-id:  mememe
+model:     test-model
+`[1:])
 }
 
 func (s *SnapSuite) TestModel(c *check.C) {
@@ -339,6 +344,20 @@ func (s *SnapSuite) TestModelAssertion(c *check.C) {
 	c.Check(s.Stderr(), check.Equals, "")
 }
 
+func (s *SnapSuite) TestModelAssertionVerbose(c *check.C) {
+	s.RedirectClientToTestServer(
+		makeHappyTestServerHandler(
+			c,
+			simpleHappyResponder(happyModelAssertionResponse),
+			simpleHappyResponder(happySerialAssertionResponse),
+			simpleAssertionAccountResponder(happyAccountAssertionResponse),
+		))
+	_, err := snap.Parser(snap.Client()).ParseArgs([]string{"model", "--assertion", "--verbose"})
+	c.Assert(err, check.ErrorMatches, "cannot use --verbose with --assertion")
+	c.Check(s.Stdout(), check.Equals, "")
+	c.Check(s.Stderr(), check.Equals, "")
+}
+
 func (s *SnapSuite) TestSerial(c *check.C) {
 	s.RedirectClientToTestServer(
 		makeHappyTestServerHandler(
@@ -408,4 +427,6 @@ func (s *SnapSuite) TestSerialAssertionSerialAssertionMissing(c *check.C) {
 		))
 	_, err := snap.Parser(snap.Client()).ParseArgs([]string{"model", "--serial", "--assertion"})
 	c.Assert(err, check.ErrorMatches, `device not ready yet \(no assertions found\)`)
+	c.Assert(s.Stdout(), check.Equals, "")
+	c.Assert(s.Stderr(), check.Equals, "")
 }
