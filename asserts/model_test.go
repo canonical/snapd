@@ -680,7 +680,15 @@ func (mods *modelSuite) TestCore20ExplictBootBase(c *C) {
 	a, err := asserts.Decode([]byte(encoded))
 	c.Assert(err, IsNil)
 	c.Check(a.Type(), Equals, asserts.ModelType)
-	// model := a.(*asserts.Model)
+	model := a.(*asserts.Model)
+	c.Check(model.BaseSnap(), DeepEquals, &asserts.ModelSnap{
+		Name:           "core20",
+		SnapID:         "core20ididididididididididididid",
+		SnapType:       "base",
+		Modes:          []string{"run", "ephemeral"},
+		DefaultChannel: "candidate",
+		Presence:       "required",
+	})
 }
 
 func (mods *modelSuite) TestCore20DecodeInvalid(c *C) {
