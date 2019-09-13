@@ -304,7 +304,34 @@ func (o *Overlord) StartUp() error {
 		return nil
 	}
 	o.startedUp = true
+
+	// slow down for tests
+	if s := os.Getenv("SNAPD_SLOW_STARTUP"); s != "" {
+		if d, err := time.ParseDuration(s); err == nil {
+			logger.Noticef("slowing down startup by %v as requested", d)
+
+			time.Sleep(d)
+		}
+	}
+
 	return o.stateEng.StartUp()
+}
+
+// StartupTimeout computes a usable timeout for the startup
+// initializations by using a pessimistic estimate.
+func (o *Overlord) StartupTimeout() (timeout time.Duration, reasoning string, err error) {
+	// TODO: adjust based on real hardware measurements
+	st := o.State()
+	st.Lock()
+	defer st.Unlock()
+	n, err := snapstate.NumSnaps(st)
+	if err != nil {
+		return 0, "", err
+	}
+	// number of snaps (and connections) play a role
+	reasoning = "pessimistic estimate of 30s plus 5s per snap"
+	to := (30 * time.Second) + time.Duration(n)*(5*time.Second)
+	return to, reasoning, nil
 }
 
 func (o *Overlord) ensureTimerSetup() {

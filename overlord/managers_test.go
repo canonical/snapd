@@ -3498,6 +3498,129 @@ version: 2.0`
 	c.Assert(tasks, HasLen, i+1)
 }
 
+func (ms *mgrsSuite) TestRemodelSwitchToDifferentKernel(c *C) {
+	bloader := bootloadertest.Mock("mock", c.MkDir())
+	bootloader.Force(bloader)
+	defer bootloader.Force(nil)
+
+	restore := release.MockOnClassic(false)
+	defer restore()
+
+	mockServer := ms.mockStore(c)
+	defer mockServer.Close()
+
+	st := ms.o.State()
+	st.Lock()
+	defer st.Unlock()
+
+	si := &snap.SideInfo{RealName: "pc-kernel", SnapID: fakeSnapID("pc-kernel"), Revision: snap.R(1)}
+	snapstate.Set(st, "pc-kernel", &snapstate.SnapState{
+		Active:   true,
+		Sequence: []*snap.SideInfo{si},
+		Current:  snap.R(1),
+		SnapType: "kernel",
+	})
+	bloader.SetBootVars(map[string]string{
+		"snap_mode":   "",
+		"snap_core":   "core_1.snap",
+		"snap_kernel": "pc-kernel_1.snap",
+	})
+	si2 := &snap.SideInfo{RealName: "pc", SnapID: fakeSnapID("pc"), Revision: snap.R(1)}
+	gadgetSnapYaml := "name: pc\nversion: 1.0\ntype: gadget"
+	snapstate.Set(st, "pc", &snapstate.SnapState{
+		Active:   true,
+		Sequence: []*snap.SideInfo{si2},
+		Current:  snap.R(1),
+		SnapType: "gadget",
+	})
+	gadgetYaml := `
+volumes:
+    volume-id:
+        bootloader: grub
+`
+	snaptest.MockSnapWithFiles(c, gadgetSnapYaml, si2, [][]string{
+		{"meta/gadget.yaml", gadgetYaml},
+	})
+
+	// add "brand-kernel" snap to fake store
+	const brandKernelYaml = `name: brand-kernel
+type: kernel
+version: 1.0`
+	ms.prereqSnapAssertions(c, map[string]interface{}{
+		"snap-name":    "brand-kernel",
+		"publisher-id": "can0nical",
+	})
+	snapPath, _ := ms.makeStoreTestSnap(c, brandKernelYaml, "2")
+	ms.serveSnap(snapPath, "2")
+
+	// add "foo" snap to fake store
+	ms.prereqSnapAssertions(c, map[string]interface{}{
+		"snap-name": "foo",
+	})
+	snapPath, _ = ms.makeStoreTestSnap(c, `{name: "foo", version: 1.0}`, "1")
+	ms.serveSnap(snapPath, "1")
+
+	// create/set custom model assertion
+	model := ms.brands.Model("can0nical", "my-model", modelDefaults)
+
+	// setup model assertion
+	devicestatetest.SetDevice(st, &auth.DeviceState{
+		Brand: "can0nical",
+		Model: "my-model",
+	})
+	err := assertstate.Add(st, model)
+	c.Assert(err, IsNil)
+
+	// create a new model
+	newModel := ms.brands.Model("can0nical", "my-model", modelDefaults, map[string]interface{}{
+		"kernel":         "brand-kernel",
+		"revision":       "1",
+		"required-snaps": []interface{}{"foo"},
+	})
+
+	chg, err := devicestate.Remodel(st, newModel)
+	c.Assert(err, IsNil)
+
+	st.Unlock()
+	err = ms.o.Settle(settleTimeout)
+	st.Lock()
+	c.Assert(err, IsNil)
+	c.Assert(chg.Err(), IsNil)
+
+	// system waits for a restart because of the new kernel
+	t := findKind(chg, "auto-connect")
+	c.Assert(t, NotNil)
+	c.Assert(t.Status(), Equals, state.DoingStatus)
+
+	// simulate successful restart happened
+	state.MockRestarting(st, state.RestartUnset)
+
+	// continue
+	st.Unlock()
+	err = ms.o.Settle(settleTimeout)
+	st.Lock()
+	c.Assert(err, IsNil)
+
+	c.Assert(chg.Status(), Equals, state.DoneStatus, Commentf("upgrade-snap change failed with: %v", chg.Err()))
+
+	// ensure tasks were run in the right order
+	tasks := chg.Tasks()
+	sort.Sort(byReadyTime(tasks))
+
+	// first all downloads/checks in sequential order
+	var i int
+	i += validateDownloadCheckTasks(c, tasks[i:], "brand-kernel", "2", "stable")
+	i += validateDownloadCheckTasks(c, tasks[i:], "foo", "1", "stable")
+
+	// then all installs in sequential order
+	i += validateInstallTasks(c, tasks[i:], "brand-kernel", "2")
+	i += validateInstallTasks(c, tasks[i:], "foo", "1")
+
+	// ensure that we only have the tasks we checked (plus the one
+	// extra "set-model" task)
+	c.Assert(tasks, HasLen, i+1)
+}
+
 func (s *mgrsSuite) TestRemodelStoreSwitch(c *C) {
 	s.prereqSnapAssertions(c, map[string]interface{}{
 		"snap-name": "foo",
