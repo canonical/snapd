@@ -80,6 +80,7 @@ profile systemd_run (attach_disconnected,mediate_deleted) {
   # ptrace 'trace' is coarse and not required for using the systemd private
   # socket, and while the child profile omits 'capability sys_ptrace', skip
   # for now since it isn't strictly required.
+  ptrace read peer=unconfined,
   deny ptrace trace peer=unconfined,
   /run/systemd/private rw,
 
