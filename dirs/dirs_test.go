@@ -156,3 +156,13 @@ func (s *DirsTestSuite) TestIsCompleteShSymlink(c *C) {
 	c.Check(dirs.IsCompleteShSymlink("/etc/passwd"), Equals, false)
 	c.Check(dirs.IsCompleteShSymlink("/does-not-exist"), Equals, false)
 }
+
+func (s *DirsTestSuite) TestUnder(c *C) {
+	dirs.SetRootDir("/nowhere")
+	defer dirs.SetRootDir("")
+
+	rootdir := "/other-root"
+
+	c.Check(dirs.SnapBlobDirUnder(rootdir), Equals, "/other-root/var/lib/snapd/snaps")
+	c.Check(dirs.SnapSeedDirUnder(rootdir), Equals, "/other-root/var/lib/snapd/seed")
+}

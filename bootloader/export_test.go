@@ -25,6 +25,7 @@ import (
 
 	. "gopkg.in/check.v1"
 
+	"github.com/snapcore/snapd/bootloader/lkenv"
 	"github.com/snapcore/snapd/bootloader/ubootenv"
 )
 
@@ -67,4 +68,35 @@ func MockGrubFiles(c *C, rootdir string) {
 	c.Assert(err, IsNil)
 	err = ioutil.WriteFile(g.ConfigFile(), nil, 0644)
 	c.Assert(err, IsNil)
+}
+
+func NewLk(rootdir string, opts *Options) Bootloader {
+	if opts == nil {
+		opts = &Options{}
+	}
+	return newLk(rootdir, opts)
+}
+
+func MockLkFiles(c *C, rootdir string, opts *Options) {
+	if opts == nil {
+		opts = &Options{}
+	}
+	l := &lk{rootdir: rootdir, inRuntimeMode: !opts.PrepareImageTime}
+	err := os.MkdirAll(l.dir(), 0755)
+	c.Assert(err, IsNil)
+
+	// first create empty env file
+	buf := make([]byte, 4096)
+	err = ioutil.WriteFile(l.envFile(), buf, 0660)
+	c.Assert(err, IsNil)
+	// now write env in it with correct crc
+	env := lkenv.NewEnv(l.envFile())
+	env.ConfigureBootPartitions("boot_a", "boot_b")
+	err = env.Save()
+	c.Assert(err, IsNil)
+}
+
+func LkRuntimeMode(b Bootloader) bool {
+	lk := b.(*lk)
+	return lk.inRuntimeMode
 }
