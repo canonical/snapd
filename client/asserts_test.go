@@ -25,7 +25,6 @@ import (
 	"net/http"
 	"net/url"
 
-	"gopkg.in/check.v1"
 	. "gopkg.in/check.v1"
 
 	"github.com/snapcore/snapd/asserts"
@@ -160,7 +159,7 @@ func (cs *clientSuite) TestClientAssertsMissingAssertions(c *C) {
 	c.Assert(err, ErrorMatches, "response did not have the expected number of assertions")
 }
 
-func (cs *clientSuite) TestStoreAccount(c *check.C) {
+func (cs *clientSuite) TestStoreAccount(c *C) {
 	cs.header = http.Header{}
 	cs.header.Add("X-Ubuntu-Assertions-Count", "1")
 	cs.rsp = `type: account
@@ -194,11 +193,11 @@ WpPUffJzEdhHBFhvYMuD4Vqj6ejUv9l3oTrjQWVC
 `
 
 	account, err := cs.cli.StoreAccount("canonicalID")
-	c.Assert(err, check.IsNil)
-	c.Check(cs.req.Method, check.Equals, "GET")
-	c.Check(cs.req.URL.Query(), check.HasLen, 1)
-	c.Check(cs.req.URL.Query().Get("account-id"), check.Equals, "canonicalID")
-	c.Assert(account, check.DeepEquals, &snap.StoreAccount{
+	c.Assert(err, IsNil)
+	c.Check(cs.req.Method, Equals, "GET")
+	c.Check(cs.req.URL.Query(), HasLen, 1)
+	c.Check(cs.req.URL.Query().Get("account-id"), Equals, "canonicalID")
+	c.Assert(account, DeepEquals, &snap.StoreAccount{
 		ID:          "canonicalID",
 		Username:    "canonicalUser",
 		DisplayName: "canonicalDisplay",
@@ -206,11 +205,11 @@ WpPUffJzEdhHBFhvYMuD4Vqj6ejUv9l3oTrjQWVC
 	})
 }
 
-func (cs *clientSuite) TestStoreAccountNoAssertionFound(c *check.C) {
+func (cs *clientSuite) TestStoreAccountNoAssertionFound(c *C) {
 	cs.header = http.Header{}
 	cs.header.Add("X-Ubuntu-Assertions-Count", "0")
 	cs.rsp = ""
 
 	_, err := cs.cli.StoreAccount("canonicalID")
-	c.Assert(err, check.ErrorMatches, "no assertion found for account-id canonicalID")
+	c.Assert(err, ErrorMatches, "no assertion found for account-id canonicalID")
 }
