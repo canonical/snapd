@@ -73,12 +73,12 @@ func distroSupportsReExec() bool {
 	return true
 }
 
-// coreSupportsReExec returns true if the given core snap should be used as re-exec target.
+// coreSupportsReExec returns true if the given core/snapd snap should be used as re-exec target.
 //
 // Ensure we do not use older version of snapd, look for info file and ignore
 // version of core that do not yet have it.
-func coreSupportsReExec(corePath string) bool {
-	fullInfo := filepath.Join(corePath, filepath.Join(dirs.CoreLibExecDir, "info"))
+func coreSupportsReExec(coreOrSnapdPath string) bool {
+	fullInfo := filepath.Join(coreOrSnapdPath, filepath.Join(dirs.CoreLibExecDir, "info"))
 	content, err := ioutil.ReadFile(fullInfo)
 	if err != nil {
 		if !os.IsNotExist(err) {
@@ -108,7 +108,7 @@ func coreSupportsReExec(corePath string) bool {
 		return false
 	}
 	if res > 0 {
-		logger.Debugf("core snap (at %q) is older (%q) than distribution package (%q)", corePath, ver, Version)
+		logger.Debugf("snap (at %q) is older (%q) than distribution package (%q)", coreOrSnapdPath, ver, Version)
 		return false
 	}
 	return true
@@ -206,10 +206,10 @@ func ExecInSnapdOrCoreSnap() {
 	}
 
 	// Is this executable in the core snap too?
-	corePath := snapdSnap
+	coreOrSnapdPath := snapdSnap
 	full := filepath.Join(snapdSnap, exe)
 	if !osutil.FileExists(full) {
-		corePath = coreSnap
+		coreOrSnapdPath = coreSnap
 		full = filepath.Join(coreSnap, exe)
 		if !osutil.FileExists(full) {
 			return
@@ -217,7 +217,7 @@ func ExecInSnapdOrCoreSnap() {
 	}
 
 	// If the core snap doesn't support re-exec or run-from-core then don't do it.
-	if !coreSupportsReExec(corePath) {
+	if !coreSupportsReExec(coreOrSnapdPath) {
 		return
 	}
 
