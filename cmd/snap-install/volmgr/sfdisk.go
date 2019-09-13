@@ -76,7 +76,7 @@ func (sf *SFDisk) deviceInfo() (*gadget.LaidOutVolume, error) {
 
 	var dump sfdiskDeviceDump
 	if err := json.Unmarshal(output, &dump); err != nil {
-		return nil, err
+		return nil, fmt.Errorf("cannot unmarshal sfdisk output: %v", err)
 	}
 
 	pv, err := positionedVolumeFromDump(&dump)
@@ -90,20 +90,19 @@ func (sf *SFDisk) deviceInfo() (*gadget.LaidOutVolume, error) {
 }
 
 func (sf *SFDisk) createPartitions(positionedVolume *gadget.LaidOutVolume, usedPartitions []bool, deviceMap map[string]string) error {
-	var buf bytes.Buffer
+	buf := &bytes.Buffer{}
 
 	// Write partition data in sfdisk dump format
 	ptable := sf.partitionTable
-	buf.WriteString(fmt.Sprintf("label: %s\nlabel-id: %s\ndevice: %s\nunit: %s\nfirst-lba: %d\nlast-lba: %d\n\n",
-		ptable.Label, ptable.ID, ptable.Device, ptable.Unit, ptable.FirstLBA, ptable.LastLBA))
+	fmt.Fprintf(buf, "label: %s\nlabel-id: %s\ndevice: %s\nunit: %s\nfirst-lba: %d\nlast-lba: %d\n\n",
+		ptable.Label, ptable.ID, ptable.Device, ptable.Unit, ptable.FirstLBA, ptable.LastLBA)
 
 	for _, p := range ptable.Partitions {
-		buf.WriteString(fmt.Sprintf("%s : start=%12d, size=%12d, type=%s, uuid=%s", p.Node, p.Start,
-			p.Size, p.Type, p.UUID))
+		fmt.Fprintf(buf, "%s : start=%12d, size=%12d, type=%s, uuid=%s", p.Node, p.Start, p.Size, p.Type, p.UUID)
 		if p.Name != "" {
-			buf.WriteString(fmt.Sprintf(", name=%q", p.Name))
+			fmt.Fprintf(buf, ", name=%q", p.Name)
 		}
-		buf.WriteString("\n")
+		fmt.Fprintf(buf, "\n")
 	}
 
 	// Add missing partitions
@@ -120,15 +119,15 @@ func (sf *SFDisk) createPartitions(positionedVolume *gadget.LaidOutVolume, usedP
 			continue
 		}
 		node := deviceName(ptable.Device, p.Index)
-		buf.WriteString(fmt.Sprintf("%s : start=%12d, size=%12d, type=%s, name=%q\n", node,
-			p.StartOffset/sectorSize, s.Size/sectorSize, partitionType(ptable.Label, p.Type), s.Name))
+		fmt.Fprintf(buf, "%s : start=%12d, size=%12d, type=%s, name=%q\n", node, p.StartOffset/sectorSize,
+			s.Size/sectorSize, partitionType(ptable.Label, p.Type), s.Name)
 
 		deviceMap[s.Name] = node
 	}
 
 	// Write the partition table
 	cmd := exec.Command("sfdisk", sf.device)
-	cmd.Stdin = &buf
+	cmd.Stdin = buf
 	output, err := cmd.CombinedOutput()
 	if err != nil {
 		return osutil.OutputErr(output, err)
@@ -229,7 +228,7 @@ func filesystemInfo(node string) (*lsblkFilesystemInfo, error) {
 
 	var info lsblkFilesystemInfo
 	if err := json.Unmarshal(output, &info); err != nil {
-		return nil, err
+		return nil, fmt.Errorf("cannot parse lkblk json output: %v", err)
 	}
 
 	return &info, nil

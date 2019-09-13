@@ -25,14 +25,6 @@ import (
 	"github.com/snapcore/snapd/cmd/snap-install/install"
 )
 
-func run(gadgetRoot, device string, options *install.Options) error {
-	inst := install.New(gadgetRoot, device, options)
-	if err := inst.Run(); err != nil {
-		return err
-	}
-	return nil
-}
-
 func main() {
 	if len(os.Args) < 3 {
 		fmt.Printf("usage: %s <gadget root> <block device>\n", os.Args[0])
@@ -46,9 +38,9 @@ func main() {
 		Encrypt: true,
 	}
 
-	if err := run(gadgetRoot, device, options); err != nil {
+	inst := install.New(gadgetRoot, device, options)
+	if err := inst.Run(); err != nil {
 		fmt.Fprintf(os.Stderr, "error: %s\n", err)
 		os.Exit(1)
-
 	}
 }
