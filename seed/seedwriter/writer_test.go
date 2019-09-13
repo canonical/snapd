@@ -475,8 +475,8 @@ func (s *writerSuite) TestSnapsToDownloadDefaultChannel(c *C) {
 	}
 }
 
-func (s *writerSuite) upToDownloaded(c *C, model *asserts.Model, fill func(c *C, w *seedwriter.Writer, sn *seedwriter.SeedSnap)) (complete bool, err error) {
-	w, err := seedwriter.New(model, s.opts)
+func (s *writerSuite) upToDownloaded(c *C, model *asserts.Model, fill func(c *C, w *seedwriter.Writer, sn *seedwriter.SeedSnap)) (complete bool, w *seedwriter.Writer, err error) {
+	w, err = seedwriter.New(model, s.opts)
 	c.Assert(err, IsNil)
 
 	_, err = w.Start(s.db, s.newFetcher)
@@ -489,7 +489,8 @@ func (s *writerSuite) upToDownloaded(c *C, model *asserts.Model, fill func(c *C,
 		fill(c, w, sn)
 	}
 
-	return w.Downloaded()
+	complete, err = w.Downloaded()
+	return complete, w, err
 }
 
 func (s *writerSuite) TestDownloadedCheckBaseGadget(c *C) {
@@ -506,7 +507,7 @@ func (s *writerSuite) TestDownloadedCheckBaseGadget(c *C) {
 	s.makeSnap(c, "pc-kernel=18", "")
 	s.makeSnap(c, "pc", "")
 
-	_, err := s.upToDownloaded(c, model, s.fillDownloadedSnap)
+	_, _, err := s.upToDownloaded(c, model, s.fillDownloadedSnap)
 	c.Check(err, ErrorMatches, `cannot use gadget snap because its base "" is different from model base "core18"`)
 
 }
@@ -525,7 +526,7 @@ func (s *writerSuite) TestDownloadedCheckBase(c *C) {
 	s.makeSnap(c, "pc", "")
 	s.makeSnap(c, "cont-producer", "developerid")
 
-	_, err := s.upToDownloaded(c, model, s.fillDownloadedSnap)
+	_, _, err := s.upToDownloaded(c, model, s.fillDownloadedSnap)
 	c.Check(err, ErrorMatches, `cannot add snap "cont-producer" without also adding its base "core18" explicitly`)
 
 }
@@ -592,7 +593,7 @@ func (s *writerSuite) TestDownloadedInfosNotSet(c *C) {
 
 	doNothingFill := func(*C, *seedwriter.Writer, *seedwriter.SeedSnap) {}
 
-	_, err := s.upToDownloaded(c, model, doNothingFill)
+	_, _, err := s.upToDownloaded(c, model, doNothingFill)
 	c.Check(err, ErrorMatches, `internal error: before seedwriter.Writer.Downloaded snap \"core\" Info should have been set`)
 }
 
@@ -610,7 +611,7 @@ func (s *writerSuite) TestDownloadedUnexpectedClassicSnap(c *C) {
 	s.makeSnap(c, "pc", "")
 	s.makeSnap(c, "classic-snap", "developerid")
 
-	_, err := s.upToDownloaded(c, model, s.fillDownloadedSnap)
+	_, _, err := s.upToDownloaded(c, model, s.fillDownloadedSnap)
 	c.Check(err, ErrorMatches, `cannot use classic snap "classic-snap" in a core system`)
 }
 
@@ -626,7 +627,7 @@ func (s *writerSuite) TestDownloadedPublisherMismatchKernel(c *C) {
 	s.makeSnap(c, "pc-kernel", "developerid")
 	s.makeSnap(c, "pc", "")
 
-	_, err := s.upToDownloaded(c, model, s.fillDownloadedSnap)
+	_, _, err := s.upToDownloaded(c, model, s.fillDownloadedSnap)
 	c.Check(err, ErrorMatches, `cannot use kernel "pc-kernel" published by "developerid" for model by "my-brand"`)
 }
 
@@ -642,7 +643,7 @@ func (s *writerSuite) TestDownloadedPublisherMismatchGadget(c *C) {
 	s.makeSnap(c, "pc-kernel", "")
 	s.makeSnap(c, "pc", "developerid")
 
-	_, err := s.upToDownloaded(c, model, s.fillDownloadedSnap)
+	_, _, err := s.upToDownloaded(c, model, s.fillDownloadedSnap)
 	c.Check(err, ErrorMatches, `cannot use gadget "pc" published by "developerid" for model by "my-brand"`)
 }
 
@@ -662,7 +663,7 @@ func (s *writerSuite) TestDownloadedMissingDefaultProvider(c *C) {
 	s.makeSnap(c, "pc=18", "")
 	s.makeSnap(c, "cont-consumer", "developerid")
 
-	_, err := s.upToDownloaded(c, model, s.fillDownloadedSnap)
+	_, _, err := s.upToDownloaded(c, model, s.fillDownloadedSnap)
 	c.Check(err, ErrorMatches, `cannot use snap "cont-consumer" without its default content provider "cont-producer" being added explicitly`)
 }
 
@@ -705,7 +706,7 @@ func (s *writerSuite) TestDownloadedCheckType(c *C) {
 			t.header: wrongTypeSnap,
 		})
 
-		_, err := s.upToDownloaded(c, model, s.fillMetaDownloadedSnap)
+		_, _, err := s.upToDownloaded(c, model, s.fillMetaDownloadedSnap)
 
 		expErr := fmt.Sprintf("%s %q has unexpected type: %v", t.what, t.wrongTypeSnap, s.AssertedSnapInfo(t.wrongTypeSnap).GetType())
 		c.Check(err, ErrorMatches, expErr)
@@ -728,7 +729,7 @@ func (s *writerSuite) TestDownloadedCheckTypeSnapd(c *C) {
 
 	// break type
 	s.AssertedSnapInfo("snapd").SnapType = snap.TypeGadget
-	_, err := s.upToDownloaded(c, model, s.fillMetaDownloadedSnap)
+	_, _, err := s.upToDownloaded(c, model, s.fillMetaDownloadedSnap)
 	c.Check(err, ErrorMatches, `snapd snap has unexpected type: gadget`)
 }
 
@@ -746,7 +747,7 @@ func (s *writerSuite) TestDownloadedCheckTypeCore(c *C) {
 
 	// break type
 	s.AssertedSnapInfo("core").SnapType = snap.TypeBase
-	_, err := s.upToDownloaded(c, model, s.fillMetaDownloadedSnap)
+	_, _, err := s.upToDownloaded(c, model, s.fillMetaDownloadedSnap)
 	c.Check(err, ErrorMatches, `core snap has unexpected type: base`)
 }
 
@@ -1192,25 +1193,11 @@ func (s *writerSuite) TestSeedSnapsWriteMetaClassicWithCore(c *C) {
 	s.makeSnap(c, "classic-gadget", "")
 	s.makeSnap(c, "required", "developerid")
 
-	w, err := seedwriter.New(model, s.opts)
-	c.Assert(err, IsNil)
-
-	_, err = w.Start(s.db, s.newFetcher)
-	c.Assert(err, IsNil)
-
-	snaps, err := w.SnapsToDownload()
-	c.Assert(err, IsNil)
-	c.Assert(snaps, HasLen, 2)
-
-	for _, sn := range snaps {
-		s.fillDownloadedSnap(c, w, sn)
-	}
-
-	complete, err := w.Downloaded()
+	complete, w, err := s.upToDownloaded(c, model, s.fillDownloadedSnap)
 	c.Assert(err, IsNil)
 	c.Check(complete, Equals, false)
 
-	snaps, err = w.SnapsToDownload()
+	snaps, err := w.SnapsToDownload()
 	c.Assert(err, IsNil)
 	c.Assert(snaps, HasLen, 1)
 
@@ -1263,25 +1250,11 @@ func (s *writerSuite) TestSeedSnapsWriteMetaClassicSnapdOnly(c *C) {
 	s.makeSnap(c, "classic-gadget18", "")
 	s.makeSnap(c, "required18", "developerid")
 
-	w, err := seedwriter.New(model, s.opts)
-	c.Assert(err, IsNil)
-
-	_, err = w.Start(s.db, s.newFetcher)
-	c.Assert(err, IsNil)
-
-	snaps, err := w.SnapsToDownload()
-	c.Assert(err, IsNil)
-	c.Assert(snaps, HasLen, 3)
-
-	for _, sn := range snaps {
-		s.fillDownloadedSnap(c, w, sn)
-	}
-
-	complete, err := w.Downloaded()
+	complete, w, err := s.upToDownloaded(c, model, s.fillDownloadedSnap)
 	c.Assert(err, IsNil)
 	c.Check(complete, Equals, false)
 
-	snaps, err = w.SnapsToDownload()
+	snaps, err := w.SnapsToDownload()
 	c.Assert(err, IsNil)
 	c.Assert(snaps, HasLen, 1)
 
@@ -1333,20 +1306,6 @@ func (s *writerSuite) TestSeedSnapsWriteMetaClassicSnapdOnlyMissingCore16(c *C) 
 	s.makeSnap(c, "classic-gadget18", "")
 	s.makeSnap(c, "required-base-core16", "developerid")
 
-	w, err := seedwriter.New(model, s.opts)
-	c.Assert(err, IsNil)
-
-	_, err = w.Start(s.db, s.newFetcher)
-	c.Assert(err, IsNil)
-
-	snaps, err := w.SnapsToDownload()
-	c.Assert(err, IsNil)
-	c.Assert(snaps, HasLen, 3)
-
-	for _, sn := range snaps {
-		s.fillDownloadedSnap(c, w, sn)
-	}
-
-	_, err = w.Downloaded()
+	_, _, err := s.upToDownloaded(c, model, s.fillMetaDownloadedSnap)
 	c.Check(err, ErrorMatches, `cannot use "required-base-core16" requiring base "core16" without adding "core16" \(or "core"\) explicitly`)
 }
