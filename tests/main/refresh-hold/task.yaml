@@ -18,3 +18,9 @@ execute: |
     when_nice="$(date -d "$when" +'tomorrow at %H:%M %Z')"
     snap set core refresh.hold="$when"
     snap refresh --time | MATCH "^hold: $when_nice"
+
+    rel_when="$(date --iso-8601=seconds -d '1 hour')"
+    rel_when_nice="$(date -d "$rel_when" +'today at %H:%M %Z')"
+    # hold for one hour
+    snap set system refresh.hold=1h
+    snap refresh --time | MATCH "^hold: $rel_when_nice"
