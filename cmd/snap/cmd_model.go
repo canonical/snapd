@@ -102,6 +102,11 @@ func init() {
 }
 
 func (x *cmdModel) Execute(args []string) error {
+	if x.Verbose && x.Assertion {
+		// can't do a verbose mode for the assertion
+		return errNoVerboseAssertion
+	}
+
 	var mainAssertion asserts.Assertion
 	serialAssertion, serialErr := x.client.CurrentSerialAssertion()
 	modelAssertion, modelErr := x.client.CurrentModelAssertion()
@@ -129,10 +134,6 @@ func (x *cmdModel) Execute(args []string) error {
 	}
 
 	if x.Assertion {
-		if x.Verbose {
-			// can't do a verbose mode for the assertion
-			return errNoVerboseAssertion
-		}
 		// if we are using the serial assertion and we specifically didn't find the
 		// serial assertion, bail with specific error
 		if x.Serial && client.IsAssertionNotFoundError(serialErr) {

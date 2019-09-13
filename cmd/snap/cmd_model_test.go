@@ -372,13 +372,12 @@ func (s *SnapSuite) TestModelAssertion(c *check.C) {
 }
 
 func (s *SnapSuite) TestModelAssertionVerbose(c *check.C) {
+	// check that no calls to the server happen
 	s.RedirectClientToTestServer(
-		makeHappyTestServerHandler(
-			c,
-			simpleHappyResponder(happyModelAssertionResponse),
-			simpleHappyResponder(happySerialAssertionResponse),
-			simpleAssertionAccountResponder(happyAccountAssertionResponse),
-		))
+		func(w http.ResponseWriter, r *http.Request) {
+			c.Fatalf("unexpected request to %s", r.URL.Path)
+		},
+	)
 	_, err := snap.Parser(snap.Client()).ParseArgs([]string{"model", "--assertion", "--verbose"})
 	c.Assert(err, check.ErrorMatches, "cannot use --verbose with --assertion")
 	c.Check(s.Stdout(), check.Equals, "")
