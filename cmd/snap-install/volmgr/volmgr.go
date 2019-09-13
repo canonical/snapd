@@ -169,7 +169,6 @@ func makeFilesystem(node, label, filesystem string) error {
 	default:
 		return fmt.Errorf("cannot create unsupported filesystem %q", filesystem)
 	}
-	return nil
 }
 
 func makeVFATFilesystem(node, label string) error {
