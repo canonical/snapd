@@ -23,6 +23,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/http"
+	"time"
 
 	"gopkg.in/check.v1"
 
@@ -127,4 +128,45 @@ func (s *snapSetSuite) mockSetConfigServer(c *check.C, expectedValue interface{}
 			c.Fatalf("unexpected path %q", r.URL.Path)
 		}
 	})
+}
+
+func (s *snapSetSuite) TestSnapSetRefreshHoldSystem(c *check.C) {
+	now := time.Now()
+	restore := snapset.MockTimeNow(func() time.Time { return now })
+	defer restore()
+
+	expected := now.Add(1 * time.Hour).Format(time.RFC3339)
+
+	s.RedirectClientToTestServer(func(w http.ResponseWriter, r *http.Request) {
+		switch r.URL.Path {
+		case "/v2/snaps/system/conf", "/v2/snaps/core/conf":
+			c.Check(r.Method, check.Equals, "PUT")
+			c.Check(DecodedRequestBody(c, r), check.DeepEquals, map[string]interface{}{
+				"refresh.hold": expected,
+			})
+			w.WriteHeader(202)
+			fmt.Fprintln(w, `{"type":"async", "status-code": 202, "change": "zzz"}`)
+			s.setConfApiCalls += 1
+		case "/v2/changes/zzz":
+			c.Check(r.Method, check.Equals, "GET")
+			fmt.Fprintln(w, `{"type":"sync", "result":{"ready": true, "status": "Done"}}`)
+		default:
+			c.Fatalf("unexpected path %q", r.URL.Path)
+		}
+	})
+
+	// one hour from now
+	_, err := snapset.Parser(snapset.Client()).ParseArgs([]string{"set", "system", "refresh.hold=1h"})
+	c.Assert(err, check.IsNil)
+	c.Check(s.setConfApiCalls, check.Equals, 1)
+
+	// properly formatted time is not mangled
+	_, err = snapset.Parser(snapset.Client()).ParseArgs([]string{"set", "system", "refresh.hold=" + expected})
+	c.Assert(err, check.IsNil)
+	c.Check(s.setConfApiCalls, check.Equals, 2)
+
+	// two hours from now
+	_, err = snapset.Parser(snapset.Client()).ParseArgs([]string{"set", "core", "refresh.hold=1h"})
+	c.Assert(err, check.IsNil)
+	c.Check(s.setConfApiCalls, check.Equals, 3)
 }

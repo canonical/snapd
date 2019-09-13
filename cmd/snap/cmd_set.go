@@ -22,6 +22,7 @@ package main
 import (
 	"fmt"
 	"strings"
+	"time"
 
 	"github.com/jessevdk/go-flags"
 
@@ -69,7 +70,26 @@ func init() {
 	})
 }
 
+func fixupRefreshHold(snap, key, value string) string {
+	if snap != "system" && snap != "core" {
+		return ""
+	}
+	if key != "refresh.hold" {
+		return ""
+	}
+
+	dur, err := time.ParseDuration(value)
+	if err != nil {
+		// maybe not a duration, leave as it is
+		return ""
+	}
+
+	until := timeNow().Add(dur)
+	return until.Format(time.RFC3339)
+}
+
 func (x *cmdSet) Execute(args []string) error {
+	snapName := string(x.Positional.Snap)
 	patchValues := make(map[string]interface{})
 	for _, patchValue := range x.Positional.ConfValues {
 		parts := strings.SplitN(patchValue, "=", 2)
@@ -80,16 +100,20 @@ func (x *cmdSet) Execute(args []string) error {
 		if len(parts) != 2 {
 			return fmt.Errorf(i18n.G("invalid configuration: %q (want key=value)"), patchValue)
 		}
-		var value interface{}
-		if err := jsonutil.DecodeWithNumber(strings.NewReader(parts[1]), &value); err != nil {
+
+		var jsonValue interface{}
+		var k, v string = parts[0], parts[1]
+		if err := jsonutil.DecodeWithNumber(strings.NewReader(v), &jsonValue); err != nil {
 			// Not valid JSON-- just save the string as-is.
-			patchValues[parts[0]] = parts[1]
+			if fixup := fixupRefreshHold(snapName, parts[0], parts[1]); fixup != "" {
+				v = fixup
+			}
+			patchValues[k] = v
 		} else {
-			patchValues[parts[0]] = value
+			patchValues[k] = jsonValue
 		}
 	}
 
-	snapName := string(x.Positional.Snap)
 	id, err := x.client.SetConf(snapName, patchValues)
 	if err != nil {
 		return err
