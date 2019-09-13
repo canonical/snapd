@@ -431,6 +431,49 @@ func (s *writerSuite) TestSnapsToDownloadCore18IncompatibleTrack(c *C) {
 	c.Check(err, ErrorMatches, `option channel "18.1" for kernel "pc-kernel" has a track incompatible with the track from model assertion: 18`)
 }
 
+func (s *writerSuite) TestSnapsToDownloadDefaultChannel(c *C) {
+	model := s.Brands.Model("my-brand", "my-model", map[string]interface{}{
+		"display-name":   "my model",
+		"architecture":   "amd64",
+		"base":           "core18",
+		"gadget":         "pc=18",
+		"kernel":         "pc-kernel=18",
+		"required-snaps": []interface{}{"cont-consumer", "cont-producer"},
+	})
+
+	s.makeSnap(c, "snapd", "")
+	s.makeSnap(c, "core18", "")
+	s.makeSnap(c, "pc-kernel=18", "")
+	s.makeSnap(c, "pc=18", "")
+	s.makeSnap(c, "cont-producer", "developerid")
+	s.makeSnap(c, "cont-consumer", "developerid")
+
+	s.opts.DefaultChannel = "candidate"
+	w, err := seedwriter.New(model, s.opts)
+	c.Assert(err, IsNil)
+
+	err = w.SetOptionsSnaps([]*seedwriter.OptionsSnap{{Name: "pc", Channel: "edge"}})
+	c.Assert(err, IsNil)
+
+	_, err = w.Start(s.db, s.newFetcher)
+	c.Assert(err, IsNil)
+
+	snaps, err := w.SnapsToDownload()
+	c.Check(snaps, HasLen, 6)
+
+	for i, name := range []string{"snapd", "pc-kernel", "core18", "pc", "cont-consumer", "cont-producer"} {
+		c.Check(naming.SameSnap(snaps[i], naming.Snap(name)), Equals, true)
+		channel := "candidate"
+		switch name {
+		case "pc-kernel":
+			channel = "18/candidate"
+		case "pc":
+			channel = "18/edge"
+		}
+		c.Check(snaps[i].Channel, Equals, channel)
+	}
+}
+
 func (s *writerSuite) upToDownloaded(c *C, model *asserts.Model, fill func(c *C, w *seedwriter.Writer, sn *seedwriter.SeedSnap)) (complete bool, err error) {
 	w, err := seedwriter.New(model, s.opts)
 	c.Assert(err, IsNil)
