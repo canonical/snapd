@@ -28,17 +28,17 @@ import (
 )
 
 const (
-	// from golang.org/x/sys/unix
+	// From golang.org/x/sys/unix
 	cgroup2SuperMagic = 0x63677270
 
-	// the only cgroup path we expect, for v2 this is where the unified
+	// The only cgroup path we expect, for v2 this is where the unified
 	// hierarchy is mounted, for v1 this is usually a tmpfs mount, under
 	// which the controller-hierarchies are mounted
 	expectedMountPoint = "/sys/fs/cgroup"
 )
 
 const (
-	// separate block, because iota is fun
+	// Separate block, because iota is fun
 	Unknown = iota
 	V1
 	V2
