@@ -78,6 +78,15 @@ func isParallelInstallable(snapsup *SnapSetup) error {
 	return fmt.Errorf("cannot install snap of type %v as %q", snapsup.Type, snapsup.InstanceName())
 }
 
+func optedIntoSnapdSnap(st *state.State) (bool, error) {
+	tr := config.NewTransaction(st)
+	experimentalAllowSnapd, err := config.GetFeatureFlag(tr, features.SnapdSnap)
+	if err != nil && !config.IsNoOption(err) {
+		return false, err
+	}
+	return experimentalAllowSnapd, nil
+}
+
 func doInstall(st *state.State, snapst *SnapState, snapsup *SnapSetup, flags int, fromChange string) (*state.TaskSet, error) {
 	// NB: we should strive not to need or propagate deviceCtx
 	// here, the resulting effects/changes were not pleasant at
@@ -91,7 +100,6 @@ func doInstall(st *state.State, snapst *SnapState, snapsup *SnapSetup, flags int
 	if snapsup.InstanceName() == "system" {
 		return nil, fmt.Errorf("cannot install reserved snap name 'system'")
 	}
-
 	if snapst.IsInstalled() && !snapst.Active {
 		return nil, fmt.Errorf("cannot update disabled snap %q", snapsup.InstanceName())
 	}
@@ -539,16 +547,8 @@ func checkInstallPreconditions(st *state.State, info *snap.Info, flags Flags, sn
 	// Check if the snapd can be installed on Ubuntu Core systems, it is
 	// always ok to install on classic
 	if info.GetType() == snap.TypeSnapd && !release.OnClassic {
-		tr := config.NewTransaction(st)
-		experimentalAllowSnapd, err := config.GetFeatureFlag(tr, features.SnapdSnap)
-		if err != nil && !config.IsNoOption(err) {
-			return err
-		}
-
 		if deviceCtx.Model().Base() == "" {
-			if !experimentalAllowSnapd {
-				return fmt.Errorf("cannot install snapd snap on a model without a base snap yet")
-			}
+			return fmt.Errorf("cannot install snapd snap on a model without a base snap yet")
 		}
 	}
 

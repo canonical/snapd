@@ -39,6 +39,7 @@
 #include <unistd.h>
 
 #include "../libsnap-confine-private/cgroup-freezer-support.h"
+#include "../libsnap-confine-private/cgroup-support.h"
 #include "../libsnap-confine-private/classic.h"
 #include "../libsnap-confine-private/cleanup-funcs.h"
 #include "../libsnap-confine-private/feature.h"
@@ -502,6 +503,11 @@ static int sc_inspect_and_maybe_discard_stale_ns(int mnt_fd,
 		debug("preserved mount is not stale, reusing");
 		return 0;
 	case SC_DISCARD_SHOULD:
+		if (sc_cgroup_is_v2()) {
+			debug
+			    ("WARNING: cgroup v2 detected, preserved mount namespace process presence check unsupported, discarding");
+			break;
+		}
 		if (sc_cgroup_freezer_occupied(inv->snap_instance)) {
 			// Some processes are still using the namespace so we cannot discard it
 			// as that would fracture the view that the set of processes inside

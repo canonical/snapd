@@ -88,6 +88,10 @@ restore: |
         unlink /snap
     fi
 
+    if [ "$SNAP" = lxd ]; then
+        lxd-tool undo-lxd-mount-changes
+    fi
+
 execute: |
     #shellcheck source=tests/lib/snaps.sh
     . "$TESTSLIB/snaps.sh"
