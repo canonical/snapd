@@ -112,6 +112,7 @@ func (ss *SeedSnaps) MakeAssertedSnap(c *C, snapYaml string, files [][]string, r
 	}
 
 	ss.snaps[snapName] = snapFile
+	info.SideInfo.RealName = snapName
 	ss.infos[snapName] = info
 
 	return declA.(*asserts.SnapDeclaration), revA.(*asserts.SnapRevision)

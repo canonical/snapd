@@ -62,10 +62,14 @@ new_format = \
 	 libsnap-confine-private/infofile-test.c \
 	 libsnap-confine-private/infofile.c \
 	 libsnap-confine-private/infofile.h \
+	 libsnap-confine-private/panic-test.h \
+	 libsnap-confine-private/panic.c \
+	 libsnap-confine-private/panic.h \
 	 snap-confine/seccomp-support-ext.c \
 	 snap-confine/seccomp-support-ext.h \
 	 snap-confine/selinux-support.c \
 	 snap-confine/selinux-support.h \
+	 snap-confine/snap-confine-invocation-test.c \
 	 snap-confine/snap-confine-invocation.c \
 	 snap-confine/snap-confine-invocation.h \
 	 snap-discard-ns/snap-discard-ns.c
@@ -129,6 +133,8 @@ libsnap_confine_private_a_SOURCES = \
 	libsnap-confine-private/mount-opt.h \
 	libsnap-confine-private/mountinfo.c \
 	libsnap-confine-private/mountinfo.h \
+	libsnap-confine-private/panic.c \
+	libsnap-confine-private/panic.h \
 	libsnap-confine-private/privs.c \
 	libsnap-confine-private/privs.h \
 	libsnap-confine-private/secure-getenv.c \
@@ -159,6 +165,7 @@ libsnap_confine_private_unit_tests_SOURCES = \
 	libsnap-confine-private/locking-test.c \
 	libsnap-confine-private/mount-opt-test.c \
 	libsnap-confine-private/mountinfo-test.c \
+	libsnap-confine-private/panic-test.c \
 	libsnap-confine-private/privs-test.c \
 	libsnap-confine-private/secure-getenv-test.c \
 	libsnap-confine-private/snap-test.c \
@@ -330,8 +337,7 @@ snap_confine_unit_tests_SOURCES = \
 	snap-confine/mount-support-test.c \
 	snap-confine/ns-support-test.c \
 	snap-confine/snap-confine-args-test.c \
-	snap-confine/snap-confine-invocation.c \
-	snap-confine/snap-confine-invocation.h \
+	snap-confine/snap-confine-invocation-test.c \
 	snap-confine/snap-device-helper-test.c
 snap_confine_unit_tests_CFLAGS = $(snap_confine_snap_confine_CFLAGS) $(GLIB_CFLAGS)
 snap_confine_unit_tests_LDADD = $(snap_confine_snap_confine_LDADD) $(GLIB_LIBS)

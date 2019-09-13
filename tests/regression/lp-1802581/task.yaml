@@ -17,7 +17,7 @@ description: |
     exporting the pin, would always run before the apparmor backend, which
     could now rely on the pin being exposed to userspace.
 
-systems: [ubuntu-core-16-64]
+systems: [ubuntu-core-1*-64]
 
 prepare: |
     # Core image that were created using spread will have a fake "gpio-pin".

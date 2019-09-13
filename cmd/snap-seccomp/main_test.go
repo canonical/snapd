@@ -191,7 +191,7 @@ func (s *snapSeccompSuite) SetUpSuite(c *C) {
 	// Build 32bit runner on amd64 to test non-native syscall handling.
 	// Ideally we would build for ppc64el->powerpc and arm64->armhf but
 	// it seems tricky to find the right gcc-multilib for this.
-	if arch.UbuntuArchitecture() == "amd64" && s.canCheckCompatArch {
+	if arch.DpkgArchitecture() == "amd64" && s.canCheckCompatArch {
 		cmd = exec.Command(cmd.Args[0], cmd.Args[1:]...)
 		cmd.Args = append(cmd.Args, "-m32")
 		for i, k := range cmd.Args {
@@ -274,7 +274,7 @@ restart_syscall
 	// compiler that can produce the required binaries. Currently
 	// we only test amd64 running i386 here.
 	if syscallArch != "native" {
-		syscallNr, err = seccomp.GetSyscallFromNameByArch(syscallName, main.UbuntuArchToScmpArch(syscallArch))
+		syscallNr, err = seccomp.GetSyscallFromNameByArch(syscallName, main.DpkgArchToScmpArch(syscallArch))
 		c.Assert(err, IsNil)
 
 		switch syscallArch {
@@ -825,10 +825,10 @@ func (s *snapSeccompSuite) TestCompatArchWorks(c *C) {
 		// https://github.com/seccomp/libseccomp/issues/86
 		//
 		// This means we can not just
-		//    main.MockArchUbuntuArchitecture(t.arch)
+		//    main.MockArchDpkgArchitecture(t.arch)
 		// here because on endian mismatch the arch will *not* be
 		// added
-		if arch.UbuntuArchitecture() == t.arch {
+		if arch.DpkgArchitecture() == t.arch {
 			s.runBpf(c, t.seccompWhitelist, t.bpfInput, t.expected)
 		}
 	}

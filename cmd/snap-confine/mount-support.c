@@ -241,10 +241,10 @@ static void sc_bootstrap_mount_namespace(const struct sc_mount_config *config)
 	// replicate the state of the root filesystem into the scratch directory.
 	sc_do_mount(config->rootfs_dir, scratch_dir, NULL, MS_REC | MS_BIND,
 		    NULL);
-	// Make the scratch directory recursively private. Nothing done there will
-	// be shared with any peer group, This effectively detaches us from the
-	// original namespace and coupled with pivot_root below serves as the
-	// foundation of the mount sandbox.
+	// Make the scratch directory recursively slave. Nothing done there will be
+	// shared with the initial mount namespace. This effectively detaches us,
+	// in one way, from the original namespace and coupled with pivot_root
+	// below serves as the foundation of the mount sandbox.
 	sc_do_mount("none", scratch_dir, NULL, MS_REC | MS_SLAVE, NULL);
 	// Bind mount certain directories from the host filesystem to the scratch
 	// directory. By default mount events will propagate in both into and out
@@ -406,10 +406,14 @@ static void sc_bootstrap_mount_namespace(const struct sc_mount_config *config)
 	// the this directory on the host filesystem may not match the location in
 	// the desired root filesystem. In the "core" and "ubuntu-core" snaps the
 	// directory is always /snap. On the host it is a build-time configuration
-	// option stored in SNAP_MOUNT_DIR.
-	sc_must_snprintf(dst, sizeof dst, "%s/snap", scratch_dir);
-	sc_do_mount(SNAP_MOUNT_DIR, dst, NULL, MS_BIND | MS_REC, NULL);
-	sc_do_mount("none", dst, NULL, MS_REC | MS_SLAVE, NULL);
+	// option stored in SNAP_MOUNT_DIR. In legacy mode (or in other words, not
+	// in normal mode), we don't need to do this because /snap is fixed and
+	// already contains the correct view of the mounted snaps.
+	if (config->normal_mode) {
+		sc_must_snprintf(dst, sizeof dst, "%s/snap", scratch_dir);
+		sc_do_mount(SNAP_MOUNT_DIR, dst, NULL, MS_BIND | MS_REC, NULL);
+		sc_do_mount("none", dst, NULL, MS_REC | MS_SLAVE, NULL);
+	}
 	// Create the hostfs directory if one is missing. This directory is a part
 	// of packaging now so perhaps this code can be removed later.
 	if (access(SC_HOSTFS_DIR, F_OK) != 0) {

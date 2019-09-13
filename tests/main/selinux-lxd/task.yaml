@@ -27,6 +27,8 @@ restore: |
         umount /proc/sys/fs/binfmt_misc
     fi
 
+    lxd-tool undo-lxd-mount-changes
+
 execute: |
     snap install lxd
     ausearch -i --checkpoint stamp --start checkpoint -m AVC 2>&1 | MATCH 'no matches'

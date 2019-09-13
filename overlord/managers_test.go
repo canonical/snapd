@@ -3854,3 +3854,96 @@ func (s *mgrsSuite) TestRemodelReregistration(c *C) {
 	// we have a session with the new store
 	c.Check(device.SessionMacaroon, Equals, "other-store-session")
 }
+
+func (s *mgrsSuite) TestCheckRerefreshFailureWithConcurrentRemoveOfConnectedSnap(c *C) {
+	hookMgr := s.o.HookManager()
+	c.Assert(hookMgr, NotNil)
+
+	// force configure hook failure for some-snap.
+	hookMgr.RegisterHijack("configure", "some-snap", func(ctx *hookstate.Context) error {
+		return fmt.Errorf("failing configure hook")
+	})
+
+	snapPath, _ := s.makeStoreTestSnap(c, someSnapYaml, "40")
+	s.serveSnap(snapPath, "40")
+	snapPath, _ = s.makeStoreTestSnap(c, otherSnapYaml, "50")
+	s.serveSnap(snapPath, "50")
+
+	mockServer := s.mockStore(c)
+	defer mockServer.Close()
+
+	st := s.o.State()
+	st.Lock()
+	defer st.Unlock()
+
+	st.Set("conns", map[string]interface{}{
+		"other-snap:media-hub some-snap:media-hub": map[string]interface{}{"interface": "media-hub", "auto": false},
+	})
+
+	si := &snap.SideInfo{RealName: "some-snap", SnapID: fakeSnapID("some-snap"), Revision: snap.R(1)}
+	snapInfo := snaptest.MockSnap(c, someSnapYaml, si)
+
+	oi := &snap.SideInfo{RealName: "other-snap", SnapID: fakeSnapID("other-snap"), Revision: snap.R(1)}
+	otherInfo := snaptest.MockSnap(c, otherSnapYaml, oi)
+
+	snapstate.Set(st, "some-snap", &snapstate.SnapState{
+		Active:   true,
+		Sequence: []*snap.SideInfo{si},
+		Current:  snap.R(1),
+		SnapType: "app",
+	})
+	snapstate.Set(st, "other-snap", &snapstate.SnapState{
+		Active:   true,
+		Sequence: []*snap.SideInfo{oi},
+		Current:  snap.R(1),
+		SnapType: "app",
+	})
+
+	// add snaps to the repo and connect them
+	repo := s.o.InterfaceManager().Repository()
+	c.Assert(repo.AddSnap(snapInfo), IsNil)
+	c.Assert(repo.AddSnap(otherInfo), IsNil)
+	_, err := repo.Connect(&interfaces.ConnRef{
+		PlugRef: interfaces.PlugRef{Snap: "other-snap", Name: "media-hub"},
+		SlotRef: interfaces.SlotRef{Snap: "some-snap", Name: "media-hub"},
+	}, nil, nil, nil, nil, nil)
+	c.Assert(err, IsNil)
+
+	// refresh all
+	c.Assert(assertstate.RefreshSnapDeclarations(st, 0), IsNil)
+
+	ts, err := snapstate.Update(st, "some-snap", nil, 0, snapstate.Flags{})
+	c.Assert(err, IsNil)
+	chg := st.NewChange("refresh", "...")
+	chg.AddAll(ts)
+
+	// remove other-snap
+	ts2, err := snapstate.Remove(st, "other-snap", snap.R(0), nil)
+	c.Assert(err, IsNil)
+	chg2 := st.NewChange("remove-snap", "...")
+	chg2.AddAll(ts2)
+
+	st.Unlock()
+	err = s.o.Settle(settleTimeout)
+	st.Lock()
+
+	c.Check(err, IsNil)
+
+	// the refresh change has failed due to configure hook error
+	c.Check(chg.Err(), ErrorMatches, `cannot perform the following tasks:\n.*failing configure hook.*`)
+	c.Check(chg.Status(), Equals, state.ErrorStatus)
+
+	// download-snap is one of the first tasks in the refresh change, check that it was undone
+	var downloadSnapStatus state.Status
+	for _, t := range chg.Tasks() {
+		if t.Kind() == "download-snap" {
+			downloadSnapStatus = t.Status()
+			break
+		}
+	}
+	c.Check(downloadSnapStatus, Equals, state.UndoneStatus)
+
+	// the remove change succeeded
+	c.Check(chg2.Err(), IsNil)
+	c.Check(chg2.Status(), Equals, state.DoneStatus)
+}
