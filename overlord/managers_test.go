@@ -3978,7 +3978,7 @@ func (s *mgrsSuite) TestRemodelReregistration(c *C) {
 	c.Check(device.SessionMacaroon, Equals, "other-store-session")
 }
 
-func (s *mgrsSuite) TestCheckRerefreshFailureWithConcurrentRemoveOfConnectedSnap(c *C) {
+func (s *mgrsSuite) TestCheckRefreshFailureWithConcurrentRemoveOfConnectedSnap(c *C) {
 	hookMgr := s.o.HookManager()
 	c.Assert(hookMgr, NotNil)
 
