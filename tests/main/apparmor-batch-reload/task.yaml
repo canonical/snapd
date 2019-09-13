@@ -1,0 +1,65 @@
+summary: Ensure that batch-reloading of AppArmor profiles works, including fallback
+
+systems: [ubuntu-1*]
+
+environment:
+    VARIANT/changed: changed
+    VARIANT/unchanged: unchanged
+    AA_CACHE: /var/cache/apparmor/
+    AA_PROFILES: /var/lib/snapd/apparmor/profiles/
+
+prepare: |
+    snap install test-snapd-content-plug test-snapd-tools
+    snap install --edge test-snapd-hello-multi-arch
+    cp /sbin/apparmor_parser /sbin/apparmor_parser.real
+    rm -f /tmp/apparmor-parser-calls.debug
+
+restore: |
+    mv /sbin/apparmor_parser.real /sbin/apparmor_parser
+    rm -f /tmp/apparmor-parser-calls.debug
+
+debug: |
+    cat /tmp/apparmor-parser-calls.debug || true
+
+execute: |
+    systemctl stop snapd.{service,socket}
+
+    echo "Update system key"
+    printf '{"version":1}' > /var/lib/snapd/system-key
+
+    # this makes is easier to analyse the sequence of events shall something fail
+    echo "system key update" >> /tmp/apparmor-parser-calls.debug
+
+    echo "Replace apparmor parser with a broken one"
+    cp bin/apparmor_parser.fake /sbin/apparmor_parser
+
+    # remove all apparmor cached profiles so we can check they are recreated
+    rm -f $AA_CACHE/snap*
+
+    # "changed" variant requires source profiles on the disk to look different than the
+    # ones generated on snapd restart, simulate this by appending a comment to them.
+    if [ "$VARIANT" = "changed" ]; then
+        for profile in $AA_PROFILES/snap*; do
+            echo "# forced profile change" >> $profile
+        done
+    fi
+    systemctl start snapd.{socket,service}
+
+    echo "Checking that apparmor profile cache has been populated"
+    # note, the list is not exhaustive but is enough for the test and the journal check below
+    for p in snap-update-ns.test-snapd-hello-multi-arch snap.test-snapd-hello-multi-arch.hello-i386 snap-update-ns.test-snapd-tools snap.test-snapd-tools.block snap.test-snapd-tools.cat; do
+        retry-tool -n 5 test -f $AA_CACHE/$p
+    done
+
+    #shellcheck source=tests/lib/journalctl.sh
+    . "$TESTSLIB"/journalctl.sh    
+    log="$(get_journalctl_log -u snapd)"
+
+    echo "Check log notification about failed batch-reload"
+    echo $log | MATCH "failed to batch-reload $VARIANT profiles: cannot load apparmor profiles"
+    echo $log | MATCH "FAIL ON: .*/snap-update-ns.test-snapd-hello-multi-arch"
+    echo $log | MATCH "FAIL ON: .*/snap.test-snapd-hello-multi-arch.hello-i386"
+    echo $log | MATCH "FAIL ON: .*/snap-update-ns.test-snapd-tools"
+    echo $log | MATCH "FAIL ON: .*/snap.test-snapd-tools.block"
+    echo $log | MATCH "FAIL ON: .*/snap.test-snapd-tools.cat"
+    
