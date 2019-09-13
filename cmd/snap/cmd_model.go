@@ -250,18 +250,17 @@ func (x *cmdModel) Execute(args []string) error {
 				}
 				if len(headerIfaceList) == 0 {
 					continue
-				} else {
-					fmt.Fprintf(w, "%s:\t\n", headerName)
-					for _, elem := range headerIfaceList {
-						headerStringElem, ok := elem.(string)
-						if !ok {
-							return invalidTypeErr
-						}
-						// note we don't wrap these, since for now this is
-						// specifically just required-snaps and so all of these
-						// will be snap names which are required to be short
-						fmt.Fprintf(w, "  - %s\n", headerStringElem)
+				}
+				fmt.Fprintf(w, "%s:\t\n", headerName)
+				for _, elem := range headerIfaceList {
+					headerStringElem, ok := elem.(string)
+					if !ok {
+						return invalidTypeErr
 					}
+					// note we don't wrap these, since for now this is
+					// specifically just required-snaps and so all of these
+					// will be snap names which are required to be short
+					fmt.Fprintf(w, "  - %s\n", headerStringElem)
 				}
 
 			//timestamp needs to be formatted with fmtTime from the timeMixin
