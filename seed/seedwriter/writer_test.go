@@ -825,7 +825,7 @@ func (s *writerSuite) TestSeedSnapsWriteMetaCore18(c *C) {
 
 		fn := filepath.Base(info.MountFile())
 		p := filepath.Join(s.opts.SeedDir, "snaps", fn)
-		c.Check(osutil.FileExists(p), Equals, true)
+		c.Check(p, testutil.FilePresent)
 
 		channel := "stable"
 		switch name {
@@ -855,7 +855,7 @@ func (s *writerSuite) TestSeedSnapsWriteMetaCore18(c *C) {
 
 	for _, fn := range []string{"model", brandAcctKeyPK + ".account-key", "my-brand.account", storeAccountKeyPK + ".account-key"} {
 		p := filepath.Join(seedAssertsDir, fn)
-		c.Check(osutil.FileExists(p), Equals, true)
+		c.Check(p, testutil.FilePresent)
 	}
 
 	c.Check(filepath.Join(seedAssertsDir, "model"), testutil.FileEquals, asserts.Encode(model))
@@ -1018,7 +1018,7 @@ func (s *writerSuite) TestLocalSnapsFullUse(c *C) {
 
 		fn := filepath.Base(info.MountFile())
 		p := filepath.Join(s.opts.SeedDir, "snaps", fn)
-		c.Check(osutil.FileExists(p), Equals, true)
+		c.Check(p, testutil.FilePresent)
 
 		channel := "stable"
 		switch name {
@@ -1238,7 +1238,7 @@ func (s *writerSuite) TestSeedSnapsWriteMetaClassicWithCore(c *C) {
 
 		fn := filepath.Base(info.MountFile())
 		p := filepath.Join(s.opts.SeedDir, "snaps", fn)
-		c.Check(osutil.FileExists(p), Equals, true)
+		c.Check(p, testutil.FilePresent)
 
 		c.Check(seedYaml.Snaps[i], DeepEquals, &seed.Snap16{
 			Name:    info.SnapName(),
@@ -1308,7 +1308,7 @@ func (s *writerSuite) TestSeedSnapsWriteMetaClassicSnapdOnly(c *C) {
 
 		fn := filepath.Base(info.MountFile())
 		p := filepath.Join(s.opts.SeedDir, "snaps", fn)
-		c.Check(osutil.FileExists(p), Equals, true)
+		c.Check(p, testutil.FilePresent)
 
 		c.Check(seedYaml.Snaps[i], DeepEquals, &seed.Snap16{
 			Name:    info.SnapName(),
