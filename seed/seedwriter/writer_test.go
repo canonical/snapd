@@ -26,6 +26,7 @@ import (
 	"os"
 	"path/filepath"
 	"testing"
+	"time"
 
 	. "gopkg.in/check.v1"
 
@@ -879,6 +880,48 @@ func (s *writerSuite) TestSeedSnapsWriteMetaCore18(c *C) {
 		c.Check(rev[0].Type(), Equals, asserts.SnapRevisionType)
 		c.Check(rev[0].HeaderString("snap-id"), Equals, s.AssertedSnapID(snapName))
 	}
+}
+
+func (s *writerSuite) TestSeedSnapsWriteMetaCore18StoreAssertion(c *C) {
+	// add store assertion
+	storeAs, err := s.StoreSigning.Sign(asserts.StoreType, map[string]interface{}{
+		"store":       "my-store",
+		"operator-id": "canonical",
+		"timestamp":   time.Now().UTC().Format(time.RFC3339),
+	}, nil, "")
+	c.Assert(err, IsNil)
+	err = s.StoreSigning.Add(storeAs)
+	c.Assert(err, IsNil)
+
+	model := s.Brands.Model("my-brand", "my-model", map[string]interface{}{
+		"display-name": "my model",
+		"architecture": "amd64",
+		"base":         "core18",
+		"gadget":       "pc=18",
+		"kernel":       "pc-kernel=18",
+		"store":        "my-store",
+	})
+
+	s.makeSnap(c, "snapd", "")
+	s.makeSnap(c, "core18", "")
+	s.makeSnap(c, "pc-kernel=18", "")
+	s.makeSnap(c, "pc=18", "")
+
+	complete, w, err := s.upToDownloaded(c, model, s.fillDownloadedSnap)
+	c.Assert(err, IsNil)
+	c.Check(complete, Equals, true)
+
+	err = w.SeedSnaps(nil)
+	c.Assert(err, IsNil)
+
+	err = w.WriteMeta()
+	c.Assert(err, IsNil)
+
+	// check assertions
+	seedAssertsDir := filepath.Join(s.opts.SeedDir, "assertions")
+	// check the store assertion was fetched
+	p := filepath.Join(seedAssertsDir, "my-store.store")
+	c.Check(p, testutil.FilePresent)
 }
 
 func (s *writerSuite) TestLocalSnaps(c *C) {

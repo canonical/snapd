@@ -26,6 +26,7 @@ import (
 	"strings"
 
 	"github.com/snapcore/snapd/asserts"
+	"github.com/snapcore/snapd/asserts/snapasserts"
 	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/snap"
 	"github.com/snapcore/snapd/snap/channel"
@@ -380,9 +381,17 @@ func (w *Writer) Start(db asserts.RODatabase, newFetcher NewFetcherFunc) (RefAss
 		return nil, fmt.Errorf("cannot fetch and check prerequisites for the model assertion: %v", err)
 	}
 
-	w.modelRefs = f.Refs()
+	// fetch device store assertion (and prereqs) if available
+	if w.model.Store() != "" {
+		err := snapasserts.FetchStore(f, w.model.Store())
+		if err != nil {
+			if nfe, ok := err.(*asserts.NotFoundError); !ok || nfe.Type != asserts.StoreType {
+				return nil, err
+			}
+		}
+	}
 
-	// XXX get if needed the store assertion
+	w.modelRefs = f.Refs()
 
 	if err := w.tree.mkFixedDirs(); err != nil {
 		return nil, err
