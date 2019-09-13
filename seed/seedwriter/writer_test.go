@@ -459,6 +459,7 @@ func (s *writerSuite) TestSnapsToDownloadDefaultChannel(c *C) {
 	c.Assert(err, IsNil)
 
 	snaps, err := w.SnapsToDownload()
+	c.Assert(err, IsNil)
 	c.Check(snaps, HasLen, 6)
 
 	for i, name := range []string{"snapd", "pc-kernel", "core18", "pc", "cont-consumer", "cont-producer"} {
