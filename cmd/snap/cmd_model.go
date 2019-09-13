@@ -150,6 +150,8 @@ func (x *cmdModel) Execute(args []string) error {
 		termWidth = 100
 	}
 
+	esc := x.getEscapes()
+
 	w := tabWriter()
 	defer w.Flush()
 
@@ -184,7 +186,13 @@ func (x *cmdModel) Execute(args []string) error {
 	// parenthetical about the device not being registered yet
 	var serial string
 	if client.IsAssertionNotFoundError(serialErr) {
-		serial = "- (device not registered yet)"
+		if x.Verbose || x.Serial {
+			// verbose and serial are yamlish, so we need to escape the dash
+			serial = esc.dash
+		} else {
+			serial = "-"
+		}
+		serial += " (device not registered yet)"
 	} else {
 		serial = serialAssertion.HeaderString("serial")
 	}
