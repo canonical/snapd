@@ -314,7 +314,7 @@ func (s *SnapSuite) TestModelVerbose(c *check.C) {
 	c.Assert(err, check.IsNil)
 	c.Assert(rest, check.DeepEquals, []string{})
 	c.Check(s.Stdout(), check.Equals, `
-brand:           MeMeMe (meuser*)
+brand-id:        mememe
 model:           test-model
 serial:          serialserial
 architecture:    amd64

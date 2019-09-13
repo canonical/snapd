@@ -196,9 +196,10 @@ func (x *cmdModel) Execute(args []string) error {
 	} else {
 		serial = serialAssertion.HeaderString("serial")
 	}
-	if x.Serial {
+
+	// handle brand/brand-id (the former is only on `snap model` w/o opts)
+	if x.Serial || x.Verbose {
 		fmt.Fprintf(w, "brand-id:\t%s\n", brandIDHeader)
-		fmt.Fprintf(w, "model:\t%s\n", modelHeader)
 	} else {
 		// for the model command (not --serial) we want to show a publisher
 		// style display of "brand" instead of just "brand-id"
@@ -209,7 +210,12 @@ func (x *cmdModel) Execute(args []string) error {
 		// use the longPublisher helper to format the brand store account
 		// like we do in `snap info`
 		fmt.Fprintf(w, "brand%s\t%s\n", separator, longPublisher(x.getEscapes(), storeAccount))
+	}
 
+	// handle model, on `snap model` we try to add display-name if it exists
+	if x.Serial {
+		fmt.Fprintf(w, "model:\t%s\n", modelHeader)
+	} else {
 		// for model, if there's a display-name, we show that first with the
 		// real model in parenthesis
 		if displayName := modelAssertion.HeaderString("display-name"); displayName != "" {
@@ -218,11 +224,10 @@ func (x *cmdModel) Execute(args []string) error {
 		fmt.Fprintf(w, "model%s\t%s\n", separator, modelHeader)
 	}
 
-	// the code for outputting serial is the same for both `snap model` and
-	// `snap model --serial` commands
+	// serial is same for all variants
 	fmt.Fprintf(w, "serial%s\t%s\n", separator, serial)
 
-	// --verbose means output all of the fields
+	// --verbose means output more information
 	if x.Verbose {
 		allHeadersMap := mainAssertion.Headers()
 
