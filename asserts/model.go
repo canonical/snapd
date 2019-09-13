@@ -95,7 +95,7 @@ var (
 	defaultModes       = []string{"run"}
 )
 
-func checkExtendedSnaps(extendedSnaps interface{}, base string) (*modelSnaps, error) {
+func checkExtendedSnaps(extendedSnaps interface{}, base string, grade ModelGrade) (*modelSnaps, error) {
 	const wrongHeaderType = `"snaps" header must be a list of maps`
 
 	entries, ok := extendedSnaps.([]interface{})
@@ -112,7 +112,7 @@ func checkExtendedSnaps(extendedSnaps interface{}, base string) (*modelSnaps, er
 		if !ok {
 			return nil, fmt.Errorf(wrongHeaderType)
 		}
-		modelSnap, err := checkModelSnap(snap)
+		modelSnap, err := checkModelSnap(snap, grade)
 		if err != nil {
 			return nil, err
 		}
@@ -178,7 +178,7 @@ var (
 	validSnapPresences = []string{"required", "optional"}
 )
 
-func checkModelSnap(snap map[string]interface{}) (*ModelSnap, error) {
+func checkModelSnap(snap map[string]interface{}, grade ModelGrade) (*ModelSnap, error) {
 	name, err := checkNotEmptyStringWhat(snap, "name", "of snap")
 	if err != nil {
 		return nil, err
@@ -189,10 +189,20 @@ func checkModelSnap(snap map[string]interface{}) (*ModelSnap, error) {
 
 	what := fmt.Sprintf("of snap %q", name)
 
-	// XXX make id optional if grade is unstable
-	snapID, err := checkStringMatchesWhat(snap, "id", what, validSnapID)
-	if err != nil {
-		return nil, err
+	var snapID string
+	_, ok := snap["id"]
+	if ok {
+		var err error
+		snapID, err = checkStringMatchesWhat(snap, "id", what, validSnapID)
+		if err != nil {
+			return nil, err
+		}
+	} else {
+		// snap ids are optional with grade unstable to allow working
+		// with local/not pushed yet to the store snaps
+		if grade == ModelStable {
+			return nil, fmt.Errorf(`"id" %s is mandatory for stable model`, what)
+		}
 	}
 
 	typ, err := checkOptionalStringWhat(snap, "type", what)
@@ -642,8 +652,7 @@ func assembleModel(assert assertionBase) (Assertion, error) {
 			grade = ModelGrade(gradeStr)
 		}
 
-		// TODO: support and consider grade!
-		modSnaps, err = checkExtendedSnaps(extendedSnaps, base)
+		modSnaps, err = checkExtendedSnaps(extendedSnaps, base, grade)
 		if err != nil {
 			return nil, err
 		}

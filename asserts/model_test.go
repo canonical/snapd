@@ -710,12 +710,22 @@ func (mods *modelSuite) TestCore20GradeUnstable(c *C) {
 	encoded := strings.Replace(core20ModelExample, "TSLINE", mods.tsLine, 1)
 	encoded = strings.Replace(encoded, "OTHER", "", 1)
 	encoded = strings.Replace(encoded, "grade: stable\n", "grade: unstable\n", 1)
-
+	// snap ids are optional with grade unstable to allow working
+	// with local/not pushed yet to the store snaps
+	encoded = strings.Replace(encoded, "    id: myappdididididididididididididid\n", "", 1)
 	a, err := asserts.Decode([]byte(encoded))
 	c.Assert(err, IsNil)
 	c.Check(a.Type(), Equals, asserts.ModelType)
 	model := a.(*asserts.Model)
 	c.Check(model.Grade(), Equals, asserts.ModelUnstable)
+	allSnaps := model.AllSnaps()
+	c.Check(allSnaps[len(allSnaps)-2], DeepEquals, &asserts.ModelSnap{
+		Name:           "myapp",
+		SnapType:       "app",
+		Modes:          []string{"run"},
+		DefaultChannel: "2.0",
+		Presence:       "required",
+	})
 }
 
 func (mods *modelSuite) TestCore20DecodeInvalid(c *C) {
@@ -731,6 +741,7 @@ func (mods *modelSuite) TestCore20DecodeInvalid(c *C) {
 		{"name: myapp\n", "other: 1\n", `"name" of snap is mandatory`},
 		{"name: myapp\n", "name: myapp_2\n", `invalid snap name "myapp_2"`},
 		{"id: myappdididididididididididididid\n", "id: 2\n", `"id" of snap "myapp" contains invalid characters: "2"`},
+		{"    id: myappdididididididididididididid\n", "", `"id" of snap "myapp" is mandatory for stable model`},
 		{"type: gadget\n", "type:\n      - g\n", `"type" of snap "brand-gadget" must be a string`},
 		{"type: app\n", "type: thing\n", `"type" of snap "myappopt" must be one of must be one of app|base|gadget|kernel|core`},
 		{"modes:\n      - run\n", "modes: run\n", `"modes" of snap "other-base" must be a list of strings`},
