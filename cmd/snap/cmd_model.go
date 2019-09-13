@@ -154,7 +154,6 @@ func (x *cmdModel) Execute(args []string) error {
 	esc := x.getEscapes()
 
 	w := tabWriter()
-	defer w.Flush()
 
 	if x.Serial && client.IsAssertionNotFoundError(serialErr) {
 		// for serial assertion, the primary keys are output (model and
@@ -163,6 +162,7 @@ func (x *cmdModel) Execute(args []string) error {
 		// return a devNotReady error
 		fmt.Fprintf(w, "brand-id:\t%s\n", modelAssertion.HeaderString("brand-id"))
 		fmt.Fprintf(w, "model:\t%s\n", modelAssertion.HeaderString("model"))
+		w.Flush()
 		return errNoSerial
 	}
 
@@ -326,5 +326,5 @@ func (x *cmdModel) Execute(args []string) error {
 		}
 	}
 
-	return nil
+	return w.Flush()
 }
