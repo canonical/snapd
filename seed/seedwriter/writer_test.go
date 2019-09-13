@@ -271,16 +271,16 @@ func (s writerSuite) TestSetOptionsSnapsErrors(c *C) {
 	})
 
 	tests := []struct {
-		snaps []*seedwriter.OptionSnap
+		snaps []*seedwriter.OptionsSnap
 		err   string
 	}{
-		{[]*seedwriter.OptionSnap{{Name: "foo%&"}}, `invalid snap name: "foo%&"`},
-		{[]*seedwriter.OptionSnap{{Name: "foo_1"}}, `cannot use snap "foo_1", parallel snap instances are unsupported`},
-		{[]*seedwriter.OptionSnap{{Name: "foo"}, {Name: "foo"}}, `snap "foo" is repeated in options`},
-		{[]*seedwriter.OptionSnap{{Name: "foo", Channel: "track/foo"}}, `cannot use option channel for snap "foo": invalid risk in channel name: track/foo`},
-		{[]*seedwriter.OptionSnap{{Path: "not-a-snap"}}, `local option snap "not-a-snap" does not end in .snap`},
-		{[]*seedwriter.OptionSnap{{Path: "not-there.snap"}}, `local option snap "not-there.snap" does not exist`},
-		{[]*seedwriter.OptionSnap{{Name: "foo", Path: "foo.snap"}}, `cannot specify both name and path for option snap "foo"`},
+		{[]*seedwriter.OptionsSnap{{Name: "foo%&"}}, `invalid snap name: "foo%&"`},
+		{[]*seedwriter.OptionsSnap{{Name: "foo_1"}}, `cannot use snap "foo_1", parallel snap instances are unsupported`},
+		{[]*seedwriter.OptionsSnap{{Name: "foo"}, {Name: "foo"}}, `snap "foo" is repeated in options`},
+		{[]*seedwriter.OptionsSnap{{Name: "foo", Channel: "track/foo"}}, `cannot use option channel for snap "foo": invalid risk in channel name: track/foo`},
+		{[]*seedwriter.OptionsSnap{{Path: "not-a-snap"}}, `local option snap "not-a-snap" does not end in .snap`},
+		{[]*seedwriter.OptionsSnap{{Path: "not-there.snap"}}, `local option snap "not-there.snap" does not exist`},
+		{[]*seedwriter.OptionsSnap{{Name: "foo", Path: "foo.snap"}}, `cannot specify both name and path for option snap "foo"`},
 	}
 
 	for _, t := range tests {
@@ -303,7 +303,7 @@ func (s *writerSuite) TestSnapsToDownloadCore16(c *C) {
 	w, err := seedwriter.New(model, s.opts)
 	c.Assert(err, IsNil)
 
-	err = w.SetOptionsSnaps([]*seedwriter.OptionSnap{{Name: "pc", Channel: "edge"}})
+	err = w.SetOptionsSnaps([]*seedwriter.OptionsSnap{{Name: "pc", Channel: "edge"}})
 	c.Assert(err, IsNil)
 
 	_, err = w.Start(s.db, s.newFetcher)
@@ -338,7 +338,7 @@ func (s *writerSuite) TestDownloadedCore16(c *C) {
 	w, err := seedwriter.New(model, s.opts)
 	c.Assert(err, IsNil)
 
-	err = w.SetOptionsSnaps([]*seedwriter.OptionSnap{{Name: "pc", Channel: "edge"}})
+	err = w.SetOptionsSnaps([]*seedwriter.OptionsSnap{{Name: "pc", Channel: "edge"}})
 	c.Assert(err, IsNil)
 
 	_, err = w.Start(s.db, s.newFetcher)
@@ -377,7 +377,7 @@ func (s *writerSuite) TestDownloadedCore18(c *C) {
 	w, err := seedwriter.New(model, s.opts)
 	c.Assert(err, IsNil)
 
-	err = w.SetOptionsSnaps([]*seedwriter.OptionSnap{{Name: "pc", Channel: "edge"}})
+	err = w.SetOptionsSnaps([]*seedwriter.OptionsSnap{{Name: "pc", Channel: "edge"}})
 	c.Assert(err, IsNil)
 
 	_, err = w.Start(s.db, s.newFetcher)
@@ -421,7 +421,7 @@ func (s *writerSuite) TestSnapsToDownloadCore18IncompatibleTrack(c *C) {
 	w, err := seedwriter.New(model, s.opts)
 	c.Assert(err, IsNil)
 
-	err = w.SetOptionsSnaps([]*seedwriter.OptionSnap{{Name: "pc-kernel", Channel: "18.1"}})
+	err = w.SetOptionsSnaps([]*seedwriter.OptionsSnap{{Name: "pc-kernel", Channel: "18.1"}})
 	c.Assert(err, IsNil)
 
 	_, err = w.Start(s.db, s.newFetcher)
@@ -521,7 +521,7 @@ func (s *writerSuite) TestOutOfOrderWithLocalSnaps(c *C) {
 
 	requiredFn := s.makeLocalSnap(c, "required")
 
-	err = w.SetOptionsSnaps([]*seedwriter.OptionSnap{{Path: requiredFn}})
+	err = w.SetOptionsSnaps([]*seedwriter.OptionsSnap{{Path: requiredFn}})
 	c.Assert(err, IsNil)
 
 	_, err = w.Start(s.db, s.newFetcher)
@@ -744,7 +744,7 @@ func (s *writerSuite) TestSeedSnapsWriteMetaCore18(c *C) {
 	w, err := seedwriter.New(model, s.opts)
 	c.Assert(err, IsNil)
 
-	err = w.SetOptionsSnaps([]*seedwriter.OptionSnap{{Name: "pc", Channel: "edge"}})
+	err = w.SetOptionsSnaps([]*seedwriter.OptionsSnap{{Name: "pc", Channel: "edge"}})
 	c.Assert(err, IsNil)
 
 	_, err = w.Start(s.db, s.newFetcher)
@@ -854,7 +854,7 @@ func (s *writerSuite) TestLocalSnaps(c *C) {
 	w, err := seedwriter.New(model, s.opts)
 	c.Assert(err, IsNil)
 
-	err = w.SetOptionsSnaps([]*seedwriter.OptionSnap{
+	err = w.SetOptionsSnaps([]*seedwriter.OptionsSnap{
 		{Path: core18Fn},
 		{Path: pcFn, Channel: "edge"},
 		{Path: pcKernelFn},
@@ -895,7 +895,7 @@ func (s *writerSuite) TestLocalSnapsFullUse(c *C) {
 	w, err := seedwriter.New(model, s.opts)
 	c.Assert(err, IsNil)
 
-	err = w.SetOptionsSnaps([]*seedwriter.OptionSnap{
+	err = w.SetOptionsSnaps([]*seedwriter.OptionsSnap{
 		{Path: core18Fn},
 		{Name: "pc-kernel", Channel: "candidate"},
 		{Path: pcFn, Channel: "edge"},
@@ -1031,7 +1031,7 @@ func (s *writerSuite) TestInfoDerivedInfosNotSet(c *C) {
 	w, err := seedwriter.New(model, s.opts)
 	c.Assert(err, IsNil)
 
-	err = w.SetOptionsSnaps([]*seedwriter.OptionSnap{
+	err = w.SetOptionsSnaps([]*seedwriter.OptionsSnap{
 		{Path: core18Fn},
 		{Path: pcFn, Channel: "edge"},
 		{Path: pcKernelFn},
@@ -1065,7 +1065,7 @@ func (s *writerSuite) TestInfoDerivedRepeatedLocalSnap(c *C) {
 	w, err := seedwriter.New(model, s.opts)
 	c.Assert(err, IsNil)
 
-	err = w.SetOptionsSnaps([]*seedwriter.OptionSnap{
+	err = w.SetOptionsSnaps([]*seedwriter.OptionsSnap{
 		{Path: core18Fn},
 		{Path: pcFn, Channel: "edge"},
 		{Path: pcKernelFn},
@@ -1109,7 +1109,7 @@ func (s *writerSuite) TestInfoDerivedInconsistentChannel(c *C) {
 	w, err := seedwriter.New(model, s.opts)
 	c.Assert(err, IsNil)
 
-	err = w.SetOptionsSnaps([]*seedwriter.OptionSnap{
+	err = w.SetOptionsSnaps([]*seedwriter.OptionsSnap{
 		{Path: core18Fn},
 		{Path: pcFn, Channel: "edge"},
 		{Path: pcKernelFn},
