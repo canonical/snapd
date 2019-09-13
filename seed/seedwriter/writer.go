@@ -42,9 +42,11 @@ type Options struct {
 	Architecture string
 }
 
-// OptionSnap represents options about a snap.
+// OptionSnap represents an options-referred snap with its option values.
+// E.g. a snap passed to ubuntu-image via --snap.
 // If Name is set the snap is from the store. If Path is set the snap
 // is local at Path location.
+// XXX|TODO: for further clarity rename to OptionsSnap
 type OptionSnap struct {
 	Name    string
 	SnapID  string
@@ -99,7 +101,7 @@ derived from the snap at SeedSnap.Path, then InfoDerived is called.
 
                       V-------->\
                       |         |
-                  OptionSnaps   |
+               SetOptionsSnaps  |
                       |         v
                       | ________/
                       v
@@ -177,7 +179,7 @@ func New(model *asserts.Model, opts *Options) (*Writer, error) {
 		policy: &policy16{model: model, opts: opts},
 		tree:   &tree16{opts: opts},
 
-		expectedStep: optionSnapsStep,
+		expectedStep: setOptionsSnapsStep,
 
 		byNameOptSnaps: naming.NewSnapSet(nil),
 	}, nil
@@ -186,7 +188,7 @@ func New(model *asserts.Model, opts *Options) (*Writer, error) {
 type writerStep int
 
 const (
-	optionSnapsStep = iota
+	setOptionsSnapsStep = iota
 	startStep
 	localSnapsStep
 	infoDerivedStep
@@ -198,7 +200,7 @@ const (
 
 var writerStepNames = map[writerStep]string{
 	startStep:           "Start",
-	optionSnapsStep:     "OptionSnaps",
+	setOptionsSnapsStep: "SetOptionsSnaps",
 	localSnapsStep:      "LocalSnaps",
 	infoDerivedStep:     "InfoDerived",
 	snapsToDownloadStep: "SnapsToDownload",
@@ -221,7 +223,7 @@ func (w *Writer) checkStep(thisStep writerStep) error {
 		alright := false
 		switch thisStep {
 		case startStep:
-			if w.expectedStep == optionSnapsStep {
+			if w.expectedStep == setOptionsSnapsStep {
 				alright = true
 			}
 		case snapsToDownloadStep:
@@ -236,8 +238,8 @@ func (w *Writer) checkStep(thisStep writerStep) error {
 		if !alright {
 			expected := w.expectedStep.String()
 			switch w.expectedStep {
-			case optionSnapsStep:
-				expected = "Start|OptionSnaps"
+			case setOptionsSnapsStep:
+				expected = "Start|SetOptionsSnaps"
 			case localSnapsStep:
 				expected = "SnapsToDownload|LocalSnaps"
 			}
@@ -262,23 +264,23 @@ func (w *Writer) Start(db asserts.RODatabase, newFetcher NewFetcherFunc) error {
 	}
 	w.db = db
 
-	f := MakeTrailFetcher(newFetcher)
+	f := MakeRefAssertsFetcher(newFetcher)
 
 	// XXX support UBUNTU_IMAGE_SKIP_COPY_UNVERIFIED_MODEL ?
 	if err := f.Save(w.model); err != nil {
 		return fmt.Errorf("cannot fetch and check prerequisites for the model assertion: %v", err)
 	}
 
-	w.modelRefs = f.Trail()
+	w.modelRefs = f.Refs()
 
 	// XXX get if needed the store assertion
 
 	return w.tree.mkFixedDirs()
 }
 
-// OptionSnaps accepts per-snap options represented as OptionSnap.
-func (w *Writer) OptionSnaps(optSnaps []*OptionSnap) error {
-	if err := w.checkStep(optionSnapsStep); err != nil {
+// SetOptionsSnaps accepts options-referred snaps represented as OptionSnap.
+func (w *Writer) SetOptionsSnaps(optSnaps []*OptionSnap) error {
+	if err := w.checkStep(setOptionsSnapsStep); err != nil {
 		return err
 	}
 

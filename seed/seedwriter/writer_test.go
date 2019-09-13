@@ -50,7 +50,7 @@ type writerSuite struct {
 
 	db         *asserts.Database
 	newFetcher seedwriter.NewFetcherFunc
-	tf         seedwriter.TrailFetcher
+	rf         seedwriter.RefAssertsFetcher
 
 	devAcct *asserts.Account
 
@@ -114,7 +114,7 @@ func (s *writerSuite) SetUpTest(c *C) {
 		}
 		return asserts.NewFetcher(db, retrieve, save2)
 	}
-	s.tf = seedwriter.MakeTrailFetcher(s.newFetcher)
+	s.rf = seedwriter.MakeRefAssertsFetcher(s.newFetcher)
 
 	s.snapRevs = make(map[string]*asserts.SnapRevision)
 	s.aRefs = make(map[string][]*asserts.Ref)
@@ -196,10 +196,10 @@ func (s *writerSuite) doFillMetaDownloadedSnap(c *C, w *seedwriter.Writer, sn *s
 
 	aRefs := s.aRefs[sn.SnapName()]
 	if aRefs == nil {
-		t := len(s.tf.Trail())
-		err = s.tf.Fetch(s.snapRevs[sn.SnapName()].Ref())
+		prev := len(s.rf.Refs())
+		err = s.rf.Fetch(s.snapRevs[sn.SnapName()].Ref())
 		c.Assert(err, IsNil)
-		aRefs = s.tf.Trail()[t:]
+		aRefs = s.rf.Refs()[prev:]
 		s.aRefs[sn.SnapName()] = aRefs
 	}
 	sn.ARefs = aRefs
@@ -219,7 +219,7 @@ func (s *writerSuite) fillMetaDownloadedSnap(c *C, w *seedwriter.Writer, sn *see
 	s.doFillMetaDownloadedSnap(c, w, sn)
 }
 
-func (s writerSuite) TestOptionSnapsErrors(c *C) {
+func (s writerSuite) TestSetOptionsSnapsErrors(c *C) {
 	model := s.Brands.Model("my-brand", "my-model", map[string]interface{}{
 		"display-name":   "my model",
 		"architecture":   "amd64",
@@ -241,7 +241,7 @@ func (s writerSuite) TestOptionSnapsErrors(c *C) {
 		w, err := seedwriter.New(model, s.opts)
 		c.Assert(err, IsNil)
 
-		c.Check(w.OptionSnaps(t.snaps), ErrorMatches, t.err)
+		c.Check(w.SetOptionsSnaps(t.snaps), ErrorMatches, t.err)
 	}
 }
 
@@ -257,7 +257,7 @@ func (s *writerSuite) TestSnapsToDownloadCore16(c *C) {
 	w, err := seedwriter.New(model, s.opts)
 	c.Assert(err, IsNil)
 
-	err = w.OptionSnaps([]*seedwriter.OptionSnap{{Name: "pc", Channel: "edge"}})
+	err = w.SetOptionsSnaps([]*seedwriter.OptionSnap{{Name: "pc", Channel: "edge"}})
 	c.Assert(err, IsNil)
 
 	err = w.Start(s.db, s.newFetcher)
@@ -291,7 +291,7 @@ func (s *writerSuite) TestDownloadedCore16(c *C) {
 	w, err := seedwriter.New(model, s.opts)
 	c.Assert(err, IsNil)
 
-	err = w.OptionSnaps([]*seedwriter.OptionSnap{{Name: "pc", Channel: "edge"}})
+	err = w.SetOptionsSnaps([]*seedwriter.OptionSnap{{Name: "pc", Channel: "edge"}})
 	c.Assert(err, IsNil)
 
 	err = w.Start(s.db, s.newFetcher)
@@ -330,7 +330,7 @@ func (s *writerSuite) TestDownloadedCore18(c *C) {
 	w, err := seedwriter.New(model, s.opts)
 	c.Assert(err, IsNil)
 
-	err = w.OptionSnaps([]*seedwriter.OptionSnap{{Name: "pc", Channel: "edge"}})
+	err = w.SetOptionsSnaps([]*seedwriter.OptionSnap{{Name: "pc", Channel: "edge"}})
 	c.Assert(err, IsNil)
 
 	err = w.Start(s.db, s.newFetcher)
@@ -421,8 +421,8 @@ func (s *writerSuite) TestOutOfOrder(c *C) {
 	w, err := seedwriter.New(model, s.opts)
 	c.Assert(err, IsNil)
 
-	c.Check(w.WriteMeta(), ErrorMatches, "internal error: seedwriter.Writer expected Start|OptionSnaps to be invoked on it at this point, not WriteMeta")
-	c.Check(w.SeedSnaps(), ErrorMatches, "internal error: seedwriter.Writer expected Start|OptionSnaps to be invoked on it at this point, not SeedSnaps")
+	c.Check(w.WriteMeta(), ErrorMatches, "internal error: seedwriter.Writer expected Start|SetOptionsSnaps to be invoked on it at this point, not WriteMeta")
+	c.Check(w.SeedSnaps(), ErrorMatches, "internal error: seedwriter.Writer expected Start|SetOptionsSnaps to be invoked on it at this point, not SeedSnaps")
 
 	err = w.Start(s.db, s.newFetcher)
 	c.Assert(err, IsNil)

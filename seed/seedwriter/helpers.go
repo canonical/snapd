@@ -26,41 +26,41 @@ import (
 	"github.com/snapcore/snapd/snap"
 )
 
-// A TrailFetcher is a Fetcher that can return the trail of references
-// of fetched assertions.
-type TrailFetcher interface {
+// A RefAssertsFetcher is a Fetcher that can at any point return
+// references to the fetched assertions.
+type RefAssertsFetcher interface {
 	asserts.Fetcher
-	Trail() []*asserts.Ref
-	ResetTrail()
+	Refs() []*asserts.Ref
+	ResetRefs()
 }
 
-type trailFetcher struct {
+type refRecFetcher struct {
 	asserts.Fetcher
 	refs []*asserts.Ref
 }
 
-func (tf *trailFetcher) Trail() []*asserts.Ref {
-	return tf.refs
+func (rrf *refRecFetcher) Refs() []*asserts.Ref {
+	return rrf.refs
 }
 
-func (tf *trailFetcher) ResetTrail() {
-	tf.refs = nil
+func (rrf *refRecFetcher) ResetRefs() {
+	rrf.refs = nil
 }
 
 // A NewFetcherFunc can build a Fetcher saving to an (implicit)
 // database and also calling the given additional save function.
 type NewFetcherFunc func(save func(asserts.Assertion) error) asserts.Fetcher
 
-// MakeTrailFetcher makes a TrailFetcher using newFetcher which can
+// MakeRefAssertsFetcher makes a RefAssertsFetcher using newFetcher which can
 // build a base Fetcher with an additional save function.
-func MakeTrailFetcher(newFetcher NewFetcherFunc) TrailFetcher {
-	var tf trailFetcher
+func MakeRefAssertsFetcher(newFetcher NewFetcherFunc) RefAssertsFetcher {
+	var rrf refRecFetcher
 	save := func(a asserts.Assertion) error {
-		tf.refs = append(tf.refs, a.Ref())
+		rrf.refs = append(rrf.refs, a.Ref())
 		return nil
 	}
-	tf.Fetcher = newFetcher(save)
-	return &tf
+	rrf.Fetcher = newFetcher(save)
+	return &rrf
 }
 
 func checkType(sn *SeedSnap, model *asserts.Model) error {
@@ -92,6 +92,9 @@ func checkType(sn *SeedSnap, model *asserts.Model) error {
 		expectedType = snap.TypeApp
 		what = fmt.Sprintf("snap %q", sn.SnapName())
 	case "":
+		// ModelSnap for Core 16/18 "required-snaps" have
+		// SnapType not set given the model assertion does not
+		// have the information
 		typ := sn.Info.GetType()
 		if typ == snap.TypeKernel || typ == snap.TypeGadget {
 			return fmt.Errorf("snap %q has unexpected type: %s", sn.SnapName(), typ)
