@@ -66,20 +66,20 @@ const (
 
 var runtimeNumCPU = runtime.NumCPU
 
-func maybeSetNumberOfJobs(args []string) []string {
+func maybeSetNumberOfJobs() string {
 	cpus := runtimeNumCPU()
 	// Do not use all CPUs as this may have negative impact when booting. Note, -j0 has special meaning
 	// so we don't want to pass it to apparmor parser.
 	if cpus > 1 {
 		if cpus == 2 {
 			// systems with only two CPUs, spare 1
-			args = append(args, fmt.Sprintf("-j%d", cpus-1))
+			return fmt.Sprintf("-j%d", cpus-1)
 		} else {
 			// otherwise spare 2
-			args = append(args, fmt.Sprintf("-j%d", cpus-2))
+			return fmt.Sprintf("-j%d", cpus-2)
 		}
 	}
-	return args
+	return ""
 }
 
 // loadProfiles loads apparmor profiles from the given files.
@@ -94,7 +94,9 @@ func loadProfiles(fnames []string, cacheDir string, flags aaParserFlags) error {
 	// Use no-expr-simplify since expr-simplify is actually slower on armhf (LP: #1383858)
 	args := []string{"--replace", "--write-cache", "-O", "no-expr-simplify", fmt.Sprintf("--cache-loc=%s", cacheDir)}
 	if flags&conserveCPU != 0 {
-		args = maybeSetNumberOfJobs(args)
+		if jobArg := maybeSetNumberOfJobs(); jobArg != "" {
+			args = append(args, jobArg)
+		}
 	}
 	if flags&skipReadCache != 0 {
 		args = append(args, "--skip-read-cache")

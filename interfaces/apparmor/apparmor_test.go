@@ -240,14 +240,11 @@ func (s *appArmorSuite) TestMaybeSetNumberOfJobs(c *C) {
 	defer restore()
 
 	cpus = 10
-	args := apparmor.MaybeSetNumberOfJobs([]string{"foo"})
-	c.Check(args, DeepEquals, []string{"foo", "-j8"})
+	c.Check(apparmor.MaybeSetNumberOfJobs(), Equals, "-j8")
 
 	cpus = 2
-	args = apparmor.MaybeSetNumberOfJobs([]string{"bar"})
-	c.Check(args, DeepEquals, []string{"bar", "-j1"})
+	c.Check(apparmor.MaybeSetNumberOfJobs(), Equals, "-j1")
 
 	cpus = 1
-	args = apparmor.MaybeSetNumberOfJobs([]string{"baz"})
-	c.Check(args, DeepEquals, []string{"baz"})
+	c.Check(apparmor.MaybeSetNumberOfJobs(), Equals, "")
 }
