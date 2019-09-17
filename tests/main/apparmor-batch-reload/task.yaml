@@ -31,10 +31,10 @@ execute: |
     echo "system key update" >> /tmp/apparmor-parser-calls.debug
 
     echo "Replace apparmor parser with a broken one"
-    cp bin/apparmor_parser.fake /sbin/apparmor_parser
+    cp -f bin/apparmor_parser.fake /sbin/apparmor_parser
 
     # remove all apparmor cached profiles so we can check they are recreated
-    rm -f $AA_CACHE/snap*
+    rm -f $AA_CACHE/snap* $AA_CACHE/*/snap*
 
     # "changed" variant requires source profiles on the disk to look different than the
     # ones generated on snapd restart, simulate this by appending a comment to them.
@@ -47,9 +47,11 @@ execute: |
 
     echo "Checking that apparmor profile cache has been populated"
     # note, the list is not exhaustive but is enough for the test and the journal check below
-    for p in snap-update-ns.test-snapd-hello-multi-arch snap.test-snapd-hello-multi-arch.hello-i386 snap-update-ns.test-snapd-tools snap.test-snapd-tools.block snap.test-snapd-tools.cat; do
-        retry-tool -n 5 test -f $AA_CACHE/$p
-    done
+    retry-tool -n 50 test -f $AA_CACHE/snap-update-ns.test-snapd-hello-multi-arch \
+        -a -f $AA_CACHE/snap.test-snapd-hello-multi-arch.hello-i386 \
+        -a -f $AA_CACHE/snap-update-ns.test-snapd-tools \
+        -a -f $AA_CACHE/snap.test-snapd-tools.block \
+        -a -f $AA_CACHE/snap.test-snapd-tools.cat
 
     #shellcheck source=tests/lib/journalctl.sh
     . "$TESTSLIB"/journalctl.sh    
