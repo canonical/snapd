@@ -2,17 +2,18 @@ summary: Ensure `snap debug changes|tasks|task` commands work
 
 prepare: |
     snap install hello-world
+    # The debug commands access state.json directly, snapd should be stopped
+    systemctl stop snapd.{socket,service}
+
     if [[ "$SPREAD_SYSTEM" == ubuntu-1* ]]; then
         apt install -y graphviz
     fi
 
 restore: |
+    systemctl start snapd.{socket,service}
     rm -f out.png
 
 execute: |
-    # The following debug commands access state.json directly, snapd should be stopped
-    systemctl stop snapd.{socket,service}
-
     echo "Changes can be listed"
     snap debug state --changes /var/lib/snapd/state.json | MATCH "seed .*Initialize system state"
     snap debug state /var/lib/snapd/state.json | MATCH "seed .*Initialize system state"
