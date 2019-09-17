@@ -151,7 +151,7 @@ func rewriteIconLine(s *snap.Info, line string) (string, error) {
 			return "", fmt.Errorf("icon path %q is not part of the snap", icon)
 		}
 		if filepath.Clean(icon) != icon {
-			return "", fmt.Errorf("icon path %q is not canonicalized", icon)
+			return "", fmt.Errorf("icon path %q is not canonicalized, did you mean %q?", icon, filepath.Clean(icon))
 		}
 		return line, nil
 	}
