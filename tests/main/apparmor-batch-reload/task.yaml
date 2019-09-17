@@ -64,4 +64,3 @@ execute: |
     echo $log | MATCH "FAIL ON: .*/snap-update-ns.test-snapd-tools"
     echo $log | MATCH "FAIL ON: .*/snap.test-snapd-tools.block"
     echo $log | MATCH "FAIL ON: .*/snap.test-snapd-tools.cat"
-    
