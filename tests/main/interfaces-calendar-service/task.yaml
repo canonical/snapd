@@ -5,7 +5,8 @@ summary: Ensure that the calendar-service interface works
 #
 # FIXME: disable opensuse-tumbleweed until
 # https://github.com/snapcore/snapd/pull/7230 is landed
-systems: [-ubuntu-core-*, -ubuntu-14.04-*, -amazon-*, -centos-*, -opensuse-tumbleweed-*]
+# ubuntu-19.10: test-snapd-eds is incompatible with eds version shipped with the distro
+systems: [-ubuntu-core-*, -ubuntu-14.04-*, -amazon-*, -centos-*, -opensuse-tumbleweed-*, -ubuntu-19.10-*]
 
 # fails in the autopkgtest env with:
 # [Wed Aug 15 16:34:12 2018] audit: type=1400

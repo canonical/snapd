@@ -95,6 +95,9 @@
 2:30 / /sys/kernel/security rw,nosuid,nodev,noexec,relatime master:83 - securityfs securityfs rw
 2:31 / /tmp rw,relatime master:84 - tmpfs tmpfs rw
 2:31 /snap.test-snapd-mountinfo-core16/tmp /tmp rw,relatime - tmpfs tmpfs rw
+2:34 / /usr/share/gdb rw,relatime - tmpfs tmpfs rw,mode=755
+0:0 /usr/share/gdb/auto-load /usr/share/gdb/auto-load ro,relatime master:1 - squashfs /dev/loop0 ro
+2:35 / /usr/share/gdb/test rw,relatime - tmpfs tmpfs rw
 1:1 /system-data/var/cache/apparmor /var/cache/apparmor rw,relatime master:15 - ext4 /dev/sda3 rw,data=ordered
 1:1 /system-data/var/cache/snapd /var/cache/snapd rw,relatime master:15 - ext4 /dev/sda3 rw,data=ordered
 1:1 /system-data/var/lib/apparmor /var/lib/apparmor rw,relatime master:15 - ext4 /dev/sda3 rw,data=ordered
