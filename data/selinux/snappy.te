@@ -325,6 +325,8 @@ optional_policy(`
 # snapd runs journalctl to fetch logs
 optional_policy(`
   journalctl_run(snappy_t, snappy_roles)
+  # and kills journalctl once the logs have been fetched
+  allow snappy_t journalctl_t:process sigkill;
 ')
 
 # only pops up in cloud images where cloud-init.target is incorrectly labeled
