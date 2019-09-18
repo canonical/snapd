@@ -39,7 +39,7 @@ var _ BootParticipant = (*coreBootParticipant)(nil)
 func (*coreBootParticipant) IsTrivial() bool { return false }
 
 func (bs *coreBootParticipant) SetNextBoot() error {
-	bootloader, err := bootloader.Find()
+	bootloader, err := bootloader.Find("", nil)
 	if err != nil {
 		return fmt.Errorf("cannot set next boot: %s", err)
 	}
@@ -83,7 +83,7 @@ func (bs *coreBootParticipant) SetNextBoot() error {
 }
 
 func (bs *coreBootParticipant) ChangeRequiresReboot() bool {
-	bootloader, err := bootloader.Find()
+	bootloader, err := bootloader.Find("", nil)
 	if err != nil {
 		logger.Noticef("cannot get boot settings: %s", err)
 		return false
@@ -124,7 +124,7 @@ func (*coreKernel) IsTrivial() bool { return false }
 
 func (k *coreKernel) RemoveKernelAssets() error {
 	// XXX: shouldn't we check the snap type?
-	bootloader, err := bootloader.Find()
+	bootloader, err := bootloader.Find("", nil)
 	if err != nil {
 		return fmt.Errorf("cannot remove kernel assets: %s", err)
 	}
@@ -134,7 +134,7 @@ func (k *coreKernel) RemoveKernelAssets() error {
 }
 
 func (k *coreKernel) ExtractKernelAssets(snapf snap.Container) error {
-	bootloader, err := bootloader.Find()
+	bootloader, err := bootloader.Find("", nil)
 	if err != nil {
 		return fmt.Errorf("cannot extract kernel assets: %s", err)
 	}

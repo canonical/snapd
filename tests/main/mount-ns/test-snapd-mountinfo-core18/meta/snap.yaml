@@ -5,6 +5,10 @@ architecture: [all]
 base: core18
 plugs:
     mount-observe:
+# Please see the comment in test-snapd-mountinfo-core16 snap for rationale.
+layout:
+    /usr/share/gdb/test:
+        type: tmpfs
 apps:
     test-snapd-mountinfo-core18:
         command: bin/mountinfo

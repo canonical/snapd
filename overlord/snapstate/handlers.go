@@ -784,11 +784,6 @@ func (m *SnapManager) doUnlinkCurrentSnap(t *state.Task, _ *tomb.Tomb) error {
 		}
 	}
 
-	// Make a copy of configuration of given snap revision
-	if err = config.SaveRevisionConfig(st, snapsup.InstanceName(), snapst.Current); err != nil {
-		return err
-	}
-
 	snapst.Active = false
 
 	pb := NewTaskProgressAdapterLocked(t)
@@ -991,6 +986,9 @@ func (m *SnapManager) doLinkSnap(t *state.Task, _ *tomb.Tomb) (err error) {
 		return err
 	}
 
+	// find if the snap is already installed before we modify snapst below
+	isInstalled := snapst.IsInstalled()
+
 	cand := snapsup.SideInfo
 	m.backend.Candidate(cand)
 
@@ -1069,7 +1067,15 @@ func (m *SnapManager) doLinkSnap(t *state.Task, _ *tomb.Tomb) (err error) {
 		return err
 	}
 
-	// Restore configuration of the target revision (if available) on revert
+	if isInstalled {
+		// Make a copy of configuration of current snap revision
+		if err = config.SaveRevisionConfig(st, snapsup.InstanceName(), oldCurrent); err != nil {
+			return err
+		}
+	}
+
+	// Restore configuration of the target revision (if available; nothing happens if it's not).
+	// We only do this on reverts (and not on refreshes).
 	if snapsup.Revert {
 		if err = config.RestoreRevisionConfig(st, snapsup.InstanceName(), snapsup.Revision()); err != nil {
 			return err
@@ -1320,6 +1326,8 @@ func (m *SnapManager) undoLinkSnap(t *state.Task, _ *tomb.Tomb) error {
 		return err
 	}
 
+	// we need to undo potential changes to current snap configuration (e.g. if modified by post-refresh/install/configure hooks
+	// as part of failed refresh/install) by restoring the configuration of "old current".
 	if len(snapst.Sequence) > 0 {
 		if err = config.RestoreRevisionConfig(st, snapsup.InstanceName(), oldCurrent); err != nil {
 			return err

@@ -53,19 +53,6 @@ void kmsg(const char *fmt, ...)
 	va_end(va);
 }
 
-__attribute__((noreturn))
-void die(const char *msg)
-{
-	if (errno == 0) {
-		kmsg("*** %s", msg);
-	} else {
-		kmsg("*** %s: %s", msg, strerror(errno));
-	}
-	sync();
-	reboot(RB_HALT_SYSTEM);
-	exit(1);
-}
-
 int sc_read_reboot_arg(char *arg, size_t max_size)
 {
 	FILE *f;
