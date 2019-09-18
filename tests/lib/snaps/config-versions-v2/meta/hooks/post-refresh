@@ -1,0 +1,3 @@
+#!/bin/sh
+
+snapctl set post-refresh-hook-marker="executed-for-v2"

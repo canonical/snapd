@@ -46,6 +46,7 @@ matrix:
           packages:
             python-launchpadlib
       script:
+        - git fetch --unshallow
         - ./tests/lib/cla_check.py
     - stage: integration
       name: Ubuntu 14.04, 16.04, 18.04, 18.10, 19.04, Core 16, Core 18

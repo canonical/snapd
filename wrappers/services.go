@@ -335,7 +335,27 @@ func StopServices(apps []*snap.AppInfo, reason snap.ServiceStopReason, inter int
 	}
 
 	return nil
+}
 
+// ServicesEnableState returns a map of service names from the given snap,
+// together with their enable/disable status.
+func ServicesEnableState(s *snap.Info, inter interacter) (map[string]bool, error) {
+	sysd := systemd.New(dirs.GlobalRootDir, systemd.SystemMode, inter)
+
+	// loop over all services in the snap, querying systemd for the current
+	// systemd state of the snaps
+	snapSvcsState := make(map[string]bool, len(s.Apps))
+	for name, app := range s.Apps {
+		if !app.IsService() {
+			continue
+		}
+		state, err := sysd.IsEnabled(app.ServiceName())
+		if err != nil {
+			return nil, err
+		}
+		snapSvcsState[name] = state
+	}
+	return snapSvcsState, nil
 }
 
 // RemoveSnapServices disables and removes service units for the applications from the snap which are services.

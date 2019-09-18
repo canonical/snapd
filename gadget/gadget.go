@@ -47,6 +47,8 @@ const (
 
 	SystemBoot = "system-boot"
 	SystemData = "system-data"
+	BootImage  = "bootimg"
+	BootSelect = "bootselect"
 	// ImplicitSystemDataLabel is the implicit filesystem label of structure
 	// of system-data role
 	ImplicitSystemDataLabel = "writable"
@@ -112,7 +114,7 @@ type VolumeStructure struct {
 	// structure is treated as if it is of role 'mbr'.
 	Type string `yaml:"type"`
 	// Role describes the role of given structure, can be one of 'mbr',
-	// 'system-data', 'system-boot'. Structures of type 'mbr', must have a
+	// 'system-data', 'system-boot', 'bootimg', 'bootselect'. Structures of type 'mbr', must have a
 	// size of 446 bytes and must start at 0 offset.
 	Role string `yaml:"role"`
 	// ID is the GPT partition ID
@@ -328,10 +330,10 @@ func ReadInfo(gadgetSnapRootDir string, classic bool) (*Info, error) {
 		switch v.Bootloader {
 		case "":
 			// pass
-		case "grub", "u-boot", "android-boot":
+		case "grub", "u-boot", "android-boot", "lk":
 			bootloadersFound += 1
 		default:
-			return nil, errors.New("bootloader must be one of grub, u-boot or android-boot")
+			return nil, errors.New("bootloader must be one of grub, u-boot, android-boot or lk")
 		}
 	}
 	switch {
@@ -591,7 +593,7 @@ func validateRole(vs *VolumeStructure, vol *Volume) error {
 		if vs.Filesystem != "" && vs.Filesystem != "none" {
 			return errors.New("mbr structures must not specify a file system")
 		}
-	case SystemBoot, "":
+	case SystemBoot, BootImage, BootSelect, "":
 		// noop
 	default:
 		return fmt.Errorf("unsupported role")
