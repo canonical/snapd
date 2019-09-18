@@ -1,6 +1,6 @@
 #!/bin/sh
 debugfile=/tmp/apparmor-parser-calls.debug
-args=$@
+args="$@"
 echo "$@" >> $debugfile
 
 profiles=0
@@ -38,4 +38,5 @@ if [ "$profiles" -gt 10 ]; then
 fi
 
 # otherwise run real apparmor parser
+# shellcheck disable=SC2086
 /sbin/apparmor_parser.real $args
