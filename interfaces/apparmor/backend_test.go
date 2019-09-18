@@ -473,7 +473,7 @@ func (s *backendSuite) TestSetupManyProfilesWithChanged(c *C) {
 		err := setupManyInterface.SetupMany([]*snap.Info{snapInfo1, snapInfo2}, func(snapName string) interfaces.ConfinementOptions { return opts }, s.Repo, s.meas)
 		c.Assert(err, IsNil)
 
-		// expect two batch executions - ony for changed profiles, second for unchanged profiles.
+		// expect two batch executions - one for changed profiles, second for unchanged profiles.
 		c.Check(s.parserCmd.Calls(), DeepEquals, [][]string{
 			{"apparmor_parser", "--replace", "--write-cache", "-O", "no-expr-simplify", fmt.Sprintf("--cache-loc=%s/var/cache/apparmor", s.RootDir), "-j97", "--skip-read-cache", "--quiet", snap1AAprofile, snap2AAprofile},
 			{"apparmor_parser", "--replace", "--write-cache", "-O", "no-expr-simplify", fmt.Sprintf("--cache-loc=%s/var/cache/apparmor", s.RootDir), "-j97", "--quiet", snap1nsProfile, snap2nsProfile},
@@ -481,6 +481,21 @@ func (s *backendSuite) TestSetupManyProfilesWithChanged(c *C) {
 		s.RemoveSnap(c, snapInfo1)
 		s.RemoveSnap(c, snapInfo2)
 	}
+}
+
+// helper for checking for apparmor parser calls: batch run followed by fallback runs
+func (s *backendSuite) checkSetupManyCallsWithFallback(c *C, cmd *testutil.MockCmd) {
+	snap1nsProfile := filepath.Join(dirs.SnapAppArmorDir, "snap-update-ns.samba")
+	snap1AAprofile := filepath.Join(dirs.SnapAppArmorDir, "snap.samba.smbd")
+	snap2nsProfile := filepath.Join(dirs.SnapAppArmorDir, "snap-update-ns.some-snap")
+	snap2AAprofile := filepath.Join(dirs.SnapAppArmorDir, "snap.some-snap.someapp")
+
+	// We expect three calls to apparmor_parser due to the failure of batch run. First is the failed batch run, followed by succesfull fallback runs.
+	c.Check(cmd.Calls(), DeepEquals, [][]string{
+		{"apparmor_parser", "--replace", "--write-cache", "-O", "no-expr-simplify", fmt.Sprintf("--cache-loc=%s/var/cache/apparmor", s.RootDir), "-j97", "--quiet", snap1nsProfile, snap1AAprofile, snap2nsProfile, snap2AAprofile},
+		{"apparmor_parser", "--replace", "--write-cache", "-O", "no-expr-simplify", fmt.Sprintf("--cache-loc=%s/var/cache/apparmor", s.RootDir), "--quiet", snap1nsProfile, snap1AAprofile},
+		{"apparmor_parser", "--replace", "--write-cache", "-O", "no-expr-simplify", fmt.Sprintf("--cache-loc=%s/var/cache/apparmor", s.RootDir), "--quiet", snap2nsProfile, snap2AAprofile},
+	})
 }
 
 func (s *backendSuite) TestSetupManyApparmorBatchProcessingPermanentError(c *C) {
@@ -509,17 +524,8 @@ func (s *backendSuite) TestSetupManyApparmorBatchProcessingPermanentError(c *C) 
 		c.Check(errs[1], ErrorMatches, ".*failed to setup profiles for snap \"some-snap\".*\napparmor_parser output:\npermanent failure\n")
 		c.Check(log.String(), Matches, ".*failed to batch-reload unchanged profiles: cannot load apparmor profiles: exit status 1\n.*\n.*\n")
 
-		snap1nsProfile := filepath.Join(dirs.SnapAppArmorDir, "snap-update-ns.samba")
-		snap1AAprofile := filepath.Join(dirs.SnapAppArmorDir, "snap.samba.smbd")
-		snap2nsProfile := filepath.Join(dirs.SnapAppArmorDir, "snap-update-ns.some-snap")
-		snap2AAprofile := filepath.Join(dirs.SnapAppArmorDir, "snap.some-snap.someapp")
+		s.checkSetupManyCallsWithFallback(c, failingParserCmd)
 
-		// We expect three calls to apparmor_parser due to the failure of batch run. First is the failed batch run, followed by failed fallback runs.
-		c.Check(failingParserCmd.Calls(), DeepEquals, [][]string{
-			{"apparmor_parser", "--replace", "--write-cache", "-O", "no-expr-simplify", fmt.Sprintf("--cache-loc=%s/var/cache/apparmor", s.RootDir), "-j97", "--quiet", snap1nsProfile, snap1AAprofile, snap2nsProfile, snap2AAprofile},
-			{"apparmor_parser", "--replace", "--write-cache", "-O", "no-expr-simplify", fmt.Sprintf("--cache-loc=%s/var/cache/apparmor", s.RootDir), "--quiet", snap1nsProfile, snap1AAprofile},
-			{"apparmor_parser", "--replace", "--write-cache", "-O", "no-expr-simplify", fmt.Sprintf("--cache-loc=%s/var/cache/apparmor", s.RootDir), "--quiet", snap2nsProfile, snap2AAprofile},
-		})
 		s.RemoveSnap(c, snapInfo1)
 		s.RemoveSnap(c, snapInfo2)
 	}
@@ -550,17 +556,8 @@ func (s *backendSuite) TestSetupManyApparmorBatchProcessingErrorWithFallbackOK(c
 		c.Assert(errs, HasLen, 0)
 		c.Check(log.String(), Matches, ".*failed to batch-reload unchanged profiles: cannot load apparmor profiles: exit status 1\napparmor_parser output:\nbatch failure \\(4 profiles\\)\n")
 
-		snap1nsProfile := filepath.Join(dirs.SnapAppArmorDir, "snap-update-ns.samba")
-		snap1AAprofile := filepath.Join(dirs.SnapAppArmorDir, "snap.samba.smbd")
-		snap2nsProfile := filepath.Join(dirs.SnapAppArmorDir, "snap-update-ns.some-snap")
-		snap2AAprofile := filepath.Join(dirs.SnapAppArmorDir, "snap.some-snap.someapp")
+		s.checkSetupManyCallsWithFallback(c, failingParserCmd)
 
-		// We expect three calls to apparmor_parser due to the failure of batch run. First is the failed batch run, followed by succesfull fallback runs.
-		c.Check(failingParserCmd.Calls(), DeepEquals, [][]string{
-			{"apparmor_parser", "--replace", "--write-cache", "-O", "no-expr-simplify", fmt.Sprintf("--cache-loc=%s/var/cache/apparmor", s.RootDir), "-j97", "--quiet", snap1nsProfile, snap1AAprofile, snap2nsProfile, snap2AAprofile},
-			{"apparmor_parser", "--replace", "--write-cache", "-O", "no-expr-simplify", fmt.Sprintf("--cache-loc=%s/var/cache/apparmor", s.RootDir), "--quiet", snap1nsProfile, snap1AAprofile},
-			{"apparmor_parser", "--replace", "--write-cache", "-O", "no-expr-simplify", fmt.Sprintf("--cache-loc=%s/var/cache/apparmor", s.RootDir), "--quiet", snap2nsProfile, snap2AAprofile},
-		})
 		s.RemoveSnap(c, snapInfo1)
 		s.RemoveSnap(c, snapInfo2)
 	}
@@ -591,17 +588,8 @@ func (s *backendSuite) TestSetupManyApparmorBatchProcessingErrorWithFallbackPart
 		c.Assert(errs, HasLen, 1)
 		c.Assert(errs[0], ErrorMatches, "failed to setup profiles for snap \"samba\": cannot load apparmor profiles: exit status 1\n.*apparmor_parser output:\nfailure: snap.samba.smbd\n")
 
-		snap1nsProfile := filepath.Join(dirs.SnapAppArmorDir, "snap-update-ns.samba")
-		snap1AAprofile := filepath.Join(dirs.SnapAppArmorDir, "snap.samba.smbd")
-		snap2nsProfile := filepath.Join(dirs.SnapAppArmorDir, "snap-update-ns.some-snap")
-		snap2AAprofile := filepath.Join(dirs.SnapAppArmorDir, "snap.some-snap.someapp")
+		s.checkSetupManyCallsWithFallback(c, failingParserCmd)
 
-		// We expect three calls to apparmor_parser due to the failure of batch run. First is the failed batch run, followed by succesfull fallback runs.
-		c.Check(failingParserCmd.Calls(), DeepEquals, [][]string{
-			{"apparmor_parser", "--replace", "--write-cache", "-O", "no-expr-simplify", fmt.Sprintf("--cache-loc=%s/var/cache/apparmor", s.RootDir), "-j97", "--quiet", snap1nsProfile, snap1AAprofile, snap2nsProfile, snap2AAprofile},
-			{"apparmor_parser", "--replace", "--write-cache", "-O", "no-expr-simplify", fmt.Sprintf("--cache-loc=%s/var/cache/apparmor", s.RootDir), "--quiet", snap1nsProfile, snap1AAprofile},
-			{"apparmor_parser", "--replace", "--write-cache", "-O", "no-expr-simplify", fmt.Sprintf("--cache-loc=%s/var/cache/apparmor", s.RootDir), "--quiet", snap2nsProfile, snap2AAprofile},
-		})
 		s.RemoveSnap(c, snapInfo1)
 		s.RemoveSnap(c, snapInfo2)
 	}
