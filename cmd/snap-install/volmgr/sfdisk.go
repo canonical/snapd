@@ -31,9 +31,12 @@ import (
 
 var (
 	sectorSize gadget.Size = 512
+
+	_ partitionTool = (*SFDisk)(nil)
 )
 
 // sfdiskDeviceDump represents the sfdisk --dump JSON output format.
+
 type sfdiskDeviceDump struct {
 	PartitionTable sfdiskPartitionTable `json:"partitiontable"`
 }
@@ -128,8 +131,7 @@ func (sf *SFDisk) createPartitions(positionedVolume *gadget.LaidOutVolume, usedP
 	// Write the partition table
 	cmd := exec.Command("sfdisk", sf.device)
 	cmd.Stdin = buf
-	output, err := cmd.CombinedOutput()
-	if err != nil {
+	if output, err := cmd.CombinedOutput(); err != nil {
 		return osutil.OutputErr(output, err)
 	}
 
