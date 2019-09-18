@@ -47,7 +47,7 @@ const (
 
 	SystemBoot     = "system-boot"
 	SystemData     = "system-data"
-	SystemRecovery = "system-recovery"
+	SystemRecovery = "system-recovery" // FIXME: this role name may be changed
 	BootImage      = "bootimg"
 	BootSelect     = "bootselect"
 	// ImplicitSystemDataLabel is the implicit filesystem label of structure
