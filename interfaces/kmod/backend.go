@@ -105,11 +105,11 @@ func (b *Backend) Remove(snapName string) error {
 	return err
 }
 
-func deriveContent(spec *Specification, snapInfo *snap.Info) (map[string]*osutil.FileState, []string) {
+func deriveContent(spec *Specification, snapInfo *snap.Info) (map[string]osutil.FileState, []string) {
 	if len(spec.modules) == 0 {
 		return nil, nil
 	}
-	content := make(map[string]*osutil.FileState)
+	content := make(map[string]osutil.FileState)
 	var modules []string
 	for k := range spec.modules {
 		modules = append(modules, k)
@@ -122,7 +122,7 @@ func deriveContent(spec *Specification, snapInfo *snap.Info) (map[string]*osutil
 		buffer.WriteString(module)
 		buffer.WriteRune('\n')
 	}
-	content[fmt.Sprintf("%s.conf", snap.SecurityTag(snapInfo.InstanceName()))] = &osutil.FileState{
+	content[fmt.Sprintf("%s.conf", snap.SecurityTag(snapInfo.InstanceName()))] = &osutil.MemoryBlob{
 		Content: buffer.Bytes(),
 		Mode:    0644,
 	}

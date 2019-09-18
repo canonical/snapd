@@ -54,7 +54,7 @@ func ExportExperimentalFlags(tr config.Conf) error {
 		return err
 	}
 	features := features.KnownFeatures()
-	content := make(map[string]*osutil.FileState, len(features))
+	content := make(map[string]osutil.FileState, len(features))
 	for _, feature := range features {
 		if !feature.IsExported() {
 			continue
@@ -64,7 +64,7 @@ func ExportExperimentalFlags(tr config.Conf) error {
 			return err
 		}
 		if isEnabled {
-			content[feature.String()] = &osutil.FileState{Mode: 0644}
+			content[feature.String()] = &osutil.MemoryBlob{Mode: 0644}
 		}
 	}
 	_, _, err := osutil.EnsureDirState(dir, "*", content)

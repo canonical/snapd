@@ -21,7 +21,6 @@ package wrappers
 
 import (
 	"fmt"
-	"io/ioutil"
 	"os"
 	"path/filepath"
 	"strings"
@@ -66,31 +65,27 @@ func findIconFiles(snapName string, rootDir string) (icons []string, err error) 
 	return icons, err
 }
 
-func deriveIconContent(instanceName string, rootDir string, icons []string) (content map[string]map[string]*osutil.FileState, err error) {
-	content = make(map[string]map[string]*osutil.FileState)
+func deriveIconContent(instanceName string, rootDir string, icons []string) (content map[string]map[string]osutil.FileState, err error) {
+	content = make(map[string]map[string]osutil.FileState)
 	snapPrefix := fmt.Sprintf("snap.%s.", snap.InstanceSnap(instanceName))
 	instancePrefix := fmt.Sprintf("snap.%s.", instanceName)
 
 	for _, iconFile := range icons {
-		dir := filepath.Dir(iconFile)
 		base := filepath.Base(iconFile)
-		dirContent := content[dir]
-		if dirContent == nil {
-			dirContent = make(map[string]*osutil.FileState)
-			content[dir] = dirContent
-		}
-		data, err := ioutil.ReadFile(filepath.Join(rootDir, iconFile))
-		if err != nil {
-			return nil, err
-		}
 		if !strings.HasPrefix(base, snapPrefix) {
 			return nil, fmt.Errorf("cannot use icon file %q: must start with snap prefix %q", iconFile, snapPrefix)
 		}
+		dir := filepath.Dir(iconFile)
+		dirContent := content[dir]
+		if dirContent == nil {
+			dirContent = make(map[string]osutil.FileState)
+			content[dir] = dirContent
+		}
 		// rename icons to match snap instance name
 		base = instancePrefix + base[len(snapPrefix):]
-		dirContent[base] = &osutil.FileState{
-			Content: data,
-			Mode:    0644,
+		dirContent[base] = &osutil.FileContentReference{
+			FileReference: osutil.FileReference{Path: filepath.Join(rootDir, iconFile)},
+			Mode:          0644,
 		}
 	}
 	return content, nil

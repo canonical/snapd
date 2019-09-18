@@ -20,10 +20,12 @@
 package osutil_test
 
 import (
+	"bytes"
 	"io/ioutil"
 	"os"
 	"path"
 	"path/filepath"
+	"strings"
 
 	. "gopkg.in/check.v1"
 
@@ -46,8 +48,8 @@ func (s *EnsureDirStateSuite) TestVerifiesExpectedFiles(c *C) {
 	name := filepath.Join(s.dir, "expected.snap")
 	err := ioutil.WriteFile(name, []byte("expected"), 0600)
 	c.Assert(err, IsNil)
-	changed, removed, err := osutil.EnsureDirState(s.dir, s.glob, map[string]*osutil.FileState{
-		"expected.snap": {Content: []byte("expected"), Mode: 0600},
+	changed, removed, err := osutil.EnsureDirState(s.dir, s.glob, map[string]osutil.FileState{
+		"expected.snap": &osutil.MemoryBlob{Content: []byte("expected"), Mode: 0600},
 	})
 	c.Assert(err, IsNil)
 	// Report says that nothing has changed
@@ -70,9 +72,9 @@ func (s *EnsureDirStateSuite) TestTwoPatterns(c *C) {
 	err = ioutil.WriteFile(name2, []byte("expected-2"), 0600)
 	c.Assert(err, IsNil)
 
-	changed, removed, err := osutil.EnsureDirStateGlobs(s.dir, []string{"*.snap", "*.snap-update-ns"}, map[string]*osutil.FileState{
-		"expected.snap":           {Content: []byte("expected-1"), Mode: 0600},
-		"expected.snap-update-ns": {Content: []byte("expected-2"), Mode: 0600},
+	changed, removed, err := osutil.EnsureDirStateGlobs(s.dir, []string{"*.snap", "*.snap-update-ns"}, map[string]osutil.FileState{
+		"expected.snap":           &osutil.MemoryBlob{Content: []byte("expected-1"), Mode: 0600},
+		"expected.snap-update-ns": &osutil.MemoryBlob{Content: []byte("expected-2"), Mode: 0600},
 	})
 	c.Assert(err, IsNil)
 	// Report says that nothing has changed
@@ -103,8 +105,8 @@ func (s *EnsureDirStateSuite) TestMultipleMatches(c *C) {
 
 func (s *EnsureDirStateSuite) TestCreatesMissingFiles(c *C) {
 	name := filepath.Join(s.dir, "missing.snap")
-	changed, removed, err := osutil.EnsureDirState(s.dir, s.glob, map[string]*osutil.FileState{
-		"missing.snap": {Content: []byte(`content`), Mode: 0600},
+	changed, removed, err := osutil.EnsureDirState(s.dir, s.glob, map[string]osutil.FileState{
+		"missing.snap": &osutil.MemoryBlob{Content: []byte(`content`), Mode: 0600},
 	})
 	c.Assert(err, IsNil)
 	// Created file is reported
@@ -122,7 +124,7 @@ func (s *EnsureDirStateSuite) TestRemovesUnexpectedFiless(c *C) {
 	name := filepath.Join(s.dir, "evil.snap")
 	err := ioutil.WriteFile(name, []byte(`evil text`), 0600)
 	c.Assert(err, IsNil)
-	changed, removed, err := osutil.EnsureDirState(s.dir, s.glob, map[string]*osutil.FileState{})
+	changed, removed, err := osutil.EnsureDirState(s.dir, s.glob, map[string]osutil.FileState{})
 	c.Assert(err, IsNil)
 	// Removed file is reported
 	c.Assert(changed, HasLen, 0)
@@ -136,7 +138,7 @@ func (s *EnsureDirStateSuite) TestIgnoresUnrelatedFiles(c *C) {
 	name := filepath.Join(s.dir, "unrelated")
 	err := ioutil.WriteFile(name, []byte(`text`), 0600)
 	c.Assert(err, IsNil)
-	changed, removed, err := osutil.EnsureDirState(s.dir, s.glob, map[string]*osutil.FileState{})
+	changed, removed, err := osutil.EnsureDirState(s.dir, s.glob, map[string]osutil.FileState{})
 	c.Assert(err, IsNil)
 	// Report says that nothing has changed
 	c.Assert(changed, HasLen, 0)
@@ -150,8 +152,8 @@ func (s *EnsureDirStateSuite) TestCorrectsFilesWithDifferentSize(c *C) {
 	name := filepath.Join(s.dir, "differing.snap")
 	err := ioutil.WriteFile(name, []byte(``), 0600)
 	c.Assert(err, IsNil)
-	changed, removed, err := osutil.EnsureDirState(s.dir, s.glob, map[string]*osutil.FileState{
-		"differing.snap": {Content: []byte(`Hello World`), Mode: 0600},
+	changed, removed, err := osutil.EnsureDirState(s.dir, s.glob, map[string]osutil.FileState{
+		"differing.snap": &osutil.MemoryBlob{Content: []byte(`Hello World`), Mode: 0600},
 	})
 	c.Assert(err, IsNil)
 	// changed file is reported
@@ -169,8 +171,8 @@ func (s *EnsureDirStateSuite) TestCorrectsFilesWithSameSize(c *C) {
 	name := filepath.Join(s.dir, "differing.snap")
 	err := ioutil.WriteFile(name, []byte("evil"), 0600)
 	c.Assert(err, IsNil)
-	changed, removed, err := osutil.EnsureDirState(s.dir, s.glob, map[string]*osutil.FileState{
-		"differing.snap": {Content: []byte("good"), Mode: 0600},
+	changed, removed, err := osutil.EnsureDirState(s.dir, s.glob, map[string]osutil.FileState{
+		"differing.snap": &osutil.MemoryBlob{Content: []byte("good"), Mode: 0600},
 	})
 	c.Assert(err, IsNil)
 	// changed file is reported
@@ -189,9 +191,9 @@ func (s *EnsureDirStateSuite) TestFixesFilesWithBadPermissions(c *C) {
 	// NOTE: the existing file is currently wide-open for everyone"
 	err := ioutil.WriteFile(name, []byte("password"), 0666)
 	c.Assert(err, IsNil)
-	changed, removed, err := osutil.EnsureDirState(s.dir, s.glob, map[string]*osutil.FileState{
+	changed, removed, err := osutil.EnsureDirState(s.dir, s.glob, map[string]osutil.FileState{
 		// NOTE: we want the file to be private
-		"sensitive.snap": {Content: []byte("password"), Mode: 0600},
+		"sensitive.snap": &osutil.MemoryBlob{Content: []byte("password"), Mode: 0600},
 	})
 	c.Assert(err, IsNil)
 	// changed file is reported
@@ -206,12 +208,12 @@ func (s *EnsureDirStateSuite) TestFixesFilesWithBadPermissions(c *C) {
 }
 
 func (s *EnsureDirStateSuite) TestReportsAbnormalFileLocation(c *C) {
-	_, _, err := osutil.EnsureDirState(s.dir, s.glob, map[string]*osutil.FileState{"subdir/file.snap": {}})
+	_, _, err := osutil.EnsureDirState(s.dir, s.glob, map[string]osutil.FileState{"subdir/file.snap": &osutil.MemoryBlob{}})
 	c.Assert(err, ErrorMatches, `internal error: EnsureDirState got filename "subdir/file.snap" which has a path component`)
 }
 
 func (s *EnsureDirStateSuite) TestReportsAbnormalFileName(c *C) {
-	_, _, err := osutil.EnsureDirState(s.dir, s.glob, map[string]*osutil.FileState{"without-namespace": {}})
+	_, _, err := osutil.EnsureDirState(s.dir, s.glob, map[string]osutil.FileState{"without-namespace": &osutil.MemoryBlob{}})
 	c.Assert(err, ErrorMatches, `internal error: EnsureDirState got filename "without-namespace" which doesn't match the glob pattern "\*\.snap"`)
 }
 
@@ -230,14 +232,76 @@ func (s *EnsureDirStateSuite) TestRemovesAllManagedFilesOnError(c *C) {
 	err = os.Mkdir(clash, 0000)
 	c.Assert(err, IsNil)
 	// Try to ensure directory state
-	changed, removed, err := osutil.EnsureDirState(s.dir, s.glob, map[string]*osutil.FileState{
-		"prior.snap": {Content: []byte("data"), Mode: 0600},
-		"clash.snap": {Content: []byte("data"), Mode: 0600},
+	changed, removed, err := osutil.EnsureDirState(s.dir, s.glob, map[string]osutil.FileState{
+		"prior.snap": &osutil.MemoryBlob{Content: []byte("data"), Mode: 0600},
+		"clash.snap": &osutil.MemoryBlob{Content: []byte("data"), Mode: 0600},
 	})
 	c.Assert(changed, HasLen, 0)
 	c.Assert(removed, DeepEquals, []string{"clash.snap", "prior.snap"})
-	c.Assert(err, ErrorMatches, "rename .* .*/clash.snap: (is a directory|file exists)")
+	c.Assert(err, ErrorMatches, "open .*/clash.snap: permission denied")
 	// The clashing file is removed
 	_, err = os.Stat(clash)
 	c.Assert(os.IsNotExist(err), Equals, true)
+}
+
+func (s *EnsureDirStateSuite) TestStreamEqual(c *C) {
+	text := "marry had a little lamb"
+
+	// Passing the same stream twice is not mishandled.
+	readerA := bytes.NewReader(nil)
+	readerB := readerA
+	eq, err := osutil.StreamEqual(readerA, readerB, 0)
+	c.Assert(err, IsNil)
+	c.Check(eq, Equals, true)
+
+	// Passing two streams with the same content works as expected. Note that
+	// we are using different block sizes to check for additional edge cases.
+	for _, chunkSize := range []int{0, 1, len(text) / 2, len(text), len(text) + 1} {
+		readerA = bytes.NewReader([]byte(text))
+		readerB = bytes.NewReader([]byte(text))
+		eq, err = osutil.StreamEqual(readerA, readerB, chunkSize)
+		c.Assert(err, IsNil)
+		c.Check(eq, Equals, true, Commentf("chunk size %d", chunkSize))
+	}
+
+	// Passing two streams with unequal contents but equal length works as
+	// expected.
+	for _, chunkSize := range []int{0, 1, len(text) / 2, len(text), len(text) + 1} {
+		comment := Commentf("chunk size %d", chunkSize)
+		readerA = bytes.NewReader([]byte(strings.ToLower(text)))
+		readerB = bytes.NewReader([]byte(strings.ToUpper(text)))
+		eq, err = osutil.StreamEqual(readerA, readerB, chunkSize)
+		c.Assert(err, IsNil, comment)
+		c.Check(eq, Equals, false, comment)
+	}
+
+	// Passing two streams with different length works as expected.
+	// Note that this is not used by EnsureDirState in practice.
+	for _, chunkSize := range []int{0, 1, len(text) / 2, len(text), len(text) + 1} {
+		comment := Commentf("A: %q, B: %q, chunk size %d", text, text[:len(text)/2], chunkSize)
+		readerA = bytes.NewReader([]byte(text))
+		readerB = bytes.NewReader([]byte(text[:len(text)/2]))
+		eq, err = osutil.StreamEqual(readerA, readerB, chunkSize)
+		c.Assert(err, IsNil, comment)
+		c.Check(eq, Equals, false, comment)
+
+		// Readers passed the other way around.
+		readerA = bytes.NewReader([]byte(text))
+		readerB = bytes.NewReader([]byte(text[:len(text)/2]))
+		eq, err = osutil.StreamEqual(readerB, readerA, chunkSize)
+		c.Assert(err, IsNil, comment)
+		c.Check(eq, Equals, false, comment)
+	}
+}
+
+func (s *EnsureDirStateSuite) TestStreamEqualWAT(c *C) {
+	text := "marry had a little lamb"
+	chunkSize := 1
+	comment := Commentf("A: %q, B: %q, chunk size %d", text, text[:len(text)/2], chunkSize)
+	readerA := bytes.NewReader([]byte(text))
+	readerB := bytes.NewReader([]byte(text[:len(text)/2]))
+
+	eq, err := osutil.StreamEqual(readerB, readerA, chunkSize)
+	c.Assert(err, IsNil, comment)
+	c.Check(eq, Equals, false, comment)
 }

@@ -109,7 +109,7 @@ func (b *Backend) Setup(snapInfo *snap.Info, opts interfaces.ConfinementOptions,
 		buffer.WriteByte('\n')
 	}
 
-	rulesFileState := &osutil.FileState{
+	rulesFileState := &osutil.MemoryBlob{
 		Content: buffer.Bytes(),
 		Mode:    0644,
 	}

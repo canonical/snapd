@@ -763,8 +763,8 @@ func (s *backendSuite) TestSnapConfineProfile(c *C) {
 	c.Assert(err, IsNil)
 	c.Assert(dir, Equals, expectedProfileDir)
 	c.Assert(glob, Equals, expectedProfileGlob)
-	c.Assert(content, DeepEquals, map[string]*osutil.FileState{
-		expectedProfileName: {
+	c.Assert(content, DeepEquals, map[string]osutil.FileState{
+		expectedProfileName: &osutil.MemoryBlob{
 			Content: []byte(expectedProfileText),
 			Mode:    0644,
 		},
@@ -798,8 +798,8 @@ func (s *backendSuite) TestSnapConfineProfileFromSnapdSnap(c *C) {
 	c.Assert(err, IsNil)
 	c.Assert(dir, Equals, expectedProfileDir)
 	c.Assert(glob, Equals, expectedProfileGlob)
-	c.Assert(content, DeepEquals, map[string]*osutil.FileState{
-		expectedProfileName: {
+	c.Assert(content, DeepEquals, map[string]osutil.FileState{
+		expectedProfileName: &osutil.MemoryBlob{
 			Content: []byte(expectedProfileText),
 			Mode:    0644,
 		},
