@@ -1,6 +1,6 @@
 summary: Check that `snap wait` works
 
-kill-timeout: 2m
+kill-timeout: 5m
 
 prepare: |
     # shellcheck source=tests/lib/snaps.sh

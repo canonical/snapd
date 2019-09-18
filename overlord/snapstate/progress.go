@@ -20,6 +20,8 @@
 package snapstate
 
 import (
+	"math"
+
 	"github.com/snapcore/snapd/overlord/state"
 	"github.com/snapcore/snapd/progress"
 )
@@ -32,6 +34,8 @@ type taskProgressAdapter struct {
 	label    string
 	total    float64
 	current  float64
+
+	lastReported float64
 }
 
 // NewTaskProgressAdapterUnlocked creates an adapter of the task into a progress.Meter to use while the state is unlocked
@@ -48,10 +52,23 @@ func NewTaskProgressAdapterLocked(t *state.Task) progress.Meter {
 func (t *taskProgressAdapter) Start(label string, total float64) {
 	t.label = label
 	t.total = total
+	t.Set(0.0)
 }
 
 // Set sets the current progress
 func (t *taskProgressAdapter) Set(current float64) {
+	t.current = current
+
+	// check if we made at least "minProgress" before we lock the state
+	// (using Abs to ensure that even if lastReported is smaller than
+	//  current we still report progress)
+	const minProgress = 0.2 / 100.0
+	if current != 0.0 && math.Abs(t.current-t.lastReported)/t.total < minProgress {
+		return
+	}
+
+	t.lastReported = t.current
+	// set progress in task
 	if t.unlocked {
 		t.task.State().Lock()
 		defer t.task.State().Unlock()
@@ -75,13 +92,7 @@ func (t *taskProgressAdapter) Finished() {
 
 // Write sets the current write progress
 func (t *taskProgressAdapter) Write(p []byte) (n int, err error) {
-	if t.unlocked {
-		t.task.State().Lock()
-		defer t.task.State().Unlock()
-	}
-
-	t.current += float64(len(p))
-	t.task.SetProgress(t.label, int(t.current), int(t.total))
+	t.Set(t.current + float64(len(p)))
 	return len(p), nil
 }
 

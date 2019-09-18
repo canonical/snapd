@@ -12,6 +12,8 @@ broken. You can bring your own build infrastructure or use ours.
 
 Head over to [snapcraft.io](https://snapcraft.io) to get started.
 
+[![Get it from the Snap Store](https://snapcraft.io/static/images/badges/en/snap-store-black.svg)](https://snapcraft.io/snapd)
+
 ## Development
 
 To get started with development off the snapd code itself, please check
