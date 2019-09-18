@@ -81,7 +81,6 @@ func NewVolumeManager(gadgetRoot, device string) (*VolumeManager, error) {
 }
 
 func (v *VolumeManager) Run() error {
-
 	if err := v.readDevice(); err != nil {
 		return err
 	}
@@ -166,14 +165,22 @@ func makeFilesystem(node, label, filesystem string) error {
 	switch filesystem {
 	case "vfat":
 		return makeVFATFilesystem(node, label)
+	case "ext4":
+		return makeExt4Filesystem(node, label)
 	default:
 		return fmt.Errorf("cannot create unsupported filesystem %q", filesystem)
 	}
 }
 
 func makeVFATFilesystem(node, label string) error {
-	output, err := exec.Command("mkfs.vfat", "-n", label, node).CombinedOutput()
-	if err != nil {
+	if output, err := exec.Command("mkfs.vfat", "-n", label, node).CombinedOutput(); err != nil {
+		return osutil.OutputErr(output, err)
+	}
+	return nil
+}
+
+func makeExt4Filesystem(node, label string) error {
+	if output, err := exec.Command("mke2fs", "-t", "ext4", "-L", label, node).CombinedOutput(); err != nil {
 		return osutil.OutputErr(output, err)
 	}
 	return nil
