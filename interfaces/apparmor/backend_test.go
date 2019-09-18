@@ -123,6 +123,33 @@ if [ "$profiles" -gt 3 ]; then
 fi
 `
 
+// apparmor parser that fails on specific profile
+const fakeFailingAppArmorParserOneProfile = `
+profile=""
+while [ -n "$1" ]; do
+	case "$1" in
+		--cache-loc=*)
+			# Ignore
+			;;
+		--quiet|--replace|--remove|--write-cache|-j*)
+			# Ignore
+			;;
+		-O)
+			# Ignore, discard argument
+			shift
+			;;
+		*)
+			profile=$(basename "$1")
+			if [ $profile = "snap.samba.smbd" ]; then
+				echo "failure: $profile"
+				exit 1
+			fi
+			;;
+	esac
+	shift
+done
+`
+
 func (s *backendSuite) SetUpTest(c *C) {
 	s.Backend = &apparmor.Backend{}
 	s.BackendSuite.SetUpTest(c)
@@ -518,8 +545,51 @@ func (s *backendSuite) TestSetupManyApparmorBatchProcessingErrorWithFallbackOK(c
 		failingParserCmd.Restore()
 
 		// no errors expected: error from batch run is only logged, but individual apparmor parser execution as part of the fallback are successfull.
+		// note, tnis scenario is unlikely to happen in real life, because if a profile failed in a batch, it would fail when parsed alone too. It is
+		// tested here just to excercise various execution paths.
 		c.Assert(errs, HasLen, 0)
 		c.Check(log.String(), Matches, ".*failed to batch-reload unchanged profiles: cannot load apparmor profiles: exit status 1\napparmor_parser output:\nbatch failure \\(4 profiles\\)\n")
+
+		snap1nsProfile := filepath.Join(dirs.SnapAppArmorDir, "snap-update-ns.samba")
+		snap1AAprofile := filepath.Join(dirs.SnapAppArmorDir, "snap.samba.smbd")
+		snap2nsProfile := filepath.Join(dirs.SnapAppArmorDir, "snap-update-ns.some-snap")
+		snap2AAprofile := filepath.Join(dirs.SnapAppArmorDir, "snap.some-snap.someapp")
+
+		// We expect three calls to apparmor_parser due to the failure of batch run. First is the failed batch run, followed by succesfull fallback runs.
+		c.Check(failingParserCmd.Calls(), DeepEquals, [][]string{
+			{"apparmor_parser", "--replace", "--write-cache", "-O", "no-expr-simplify", fmt.Sprintf("--cache-loc=%s/var/cache/apparmor", s.RootDir), "-j97", "--quiet", snap1nsProfile, snap1AAprofile, snap2nsProfile, snap2AAprofile},
+			{"apparmor_parser", "--replace", "--write-cache", "-O", "no-expr-simplify", fmt.Sprintf("--cache-loc=%s/var/cache/apparmor", s.RootDir), "--quiet", snap1nsProfile, snap1AAprofile},
+			{"apparmor_parser", "--replace", "--write-cache", "-O", "no-expr-simplify", fmt.Sprintf("--cache-loc=%s/var/cache/apparmor", s.RootDir), "--quiet", snap2nsProfile, snap2AAprofile},
+		})
+		s.RemoveSnap(c, snapInfo1)
+		s.RemoveSnap(c, snapInfo2)
+	}
+}
+
+func (s *backendSuite) TestSetupManyApparmorBatchProcessingErrorWithFallbackPartiallyOK(c *C) {
+	log, restore := logger.MockLogger()
+	defer restore()
+
+	for _, opts := range testedConfinementOpts {
+		log.Reset()
+
+		// note, InstallSnap here uses s.parserCmd which mocks happy apparmor_parser
+		snapInfo1 := s.InstallSnap(c, opts, "", ifacetest.SambaYamlV1, 1)
+		snapInfo2 := s.InstallSnap(c, opts, "", ifacetest.SomeSnapYamlV1, 1)
+		s.parserCmd.ForgetCalls()
+		setupManyInterface, ok := s.Backend.(interfaces.SecurityBackendSetupMany)
+		c.Assert(ok, Equals, true)
+
+		// mock apparmor_parser with a failing one
+		failingParserCmd := testutil.MockCommand(c, "apparmor_parser", fakeFailingAppArmorParserOneProfile)
+		errs := setupManyInterface.SetupMany([]*snap.Info{snapInfo1, snapInfo2}, func(snapName string) interfaces.ConfinementOptions { return opts }, s.Repo, s.meas)
+		failingParserCmd.Restore()
+
+		// the batch reload fails because of snap.samba.smbd profile failing
+		c.Check(log.String(), Matches, ".* failed to batch-reload unchanged profiles: cannot load apparmor profiles: exit status 1\napparmor_parser output:\nfailure: snap.samba.smbd\n")
+		// and we also fail when running that profile in fallback mode
+		c.Assert(errs, HasLen, 1)
+		c.Assert(errs[0], ErrorMatches, "failed to setup profiles for snap \"samba\": cannot load apparmor profiles: exit status 1\n.*apparmor_parser output:\nfailure: snap.samba.smbd\n")
 
 		snap1nsProfile := filepath.Join(dirs.SnapAppArmorDir, "snap-update-ns.samba")
 		snap1AAprofile := filepath.Join(dirs.SnapAppArmorDir, "snap.samba.smbd")
