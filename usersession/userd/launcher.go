@@ -53,9 +53,6 @@ const launcherIntrospectionXML = `
 	<method name='OpenURL'>
 		<arg type='s' name='url' direction='in'/>
 	</method>
-	<method name='OpenDesktopEntry'>
-		<arg type='s' name='desktop_file_id' direction='in'/>
-	</method>
 	<method name='OpenDesktopEntryEnv'>
 		<arg type='s' name='desktop_file_id' direction='in'/>
 		<arg type='as' name='env' direction='in'/>
@@ -131,14 +128,6 @@ func (s *Launcher) OpenURL(addr string, sender dbus.Sender) *dbus.Error {
 	}
 
 	return nil
-}
-
-// OpenDesktopEntry implements the 'OpenDesktopEntry' method of the 'io.snapcraft.Launcher'
-// DBus interface. Before the provided desktop_file is parsed it is validated against a list
-// of allowed locations.
-func (s *Launcher) OpenDesktopEntry(desktop_file_id string, sender dbus.Sender) *dbus.Error {
-
-	return s.OpenDesktopEntryEnv(desktop_file_id, []string{}, sender)
 }
 
 // OpenDesktopEntryEnv implements the 'OpenDesktopEntryEnv' method of the 'io.snapcraft.Launcher'
