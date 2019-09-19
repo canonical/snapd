@@ -32,7 +32,7 @@ import (
 
 	"github.com/godbus/dbus"
 
-  "github.com/google/shlex"
+	"github.com/google/shlex"
 
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/i18n"
@@ -139,15 +139,26 @@ func (s *Launcher) OpenDesktopEntryEnv(desktop_file_id string, env []string, sen
 		return dbus.MakeFailedError(err)
 	}
 
-	// Passing exec variables between confined snaps raises unanswered questions and they are not required
-	// for the simple cases.  For now, we don't have support for passing them in the dbus API and truncate
-	// the exec command at the first exec variable.
-	// https://standards.freedesktop.org/desktop-entry-spec/desktop-entry-spec-latest.html#exec-variables
-	exec_command = strings.SplitN(exec_command, "%", 2)[0]
-
 	args, err := shlex.Split(exec_command)
 	if err != nil {
 		return dbus.MakeFailedError(err)
+	}
+
+	// Passing exec variables between confined snaps raises unanswered questions and they are not required
+	// for the simple cases.  For now, we don't have support for passing them in the dbus API and drop
+	// them from the command.
+	// https://standards.freedesktop.org/desktop-entry-spec/desktop-entry-spec-latest.html#exec-variables
+	i := 0
+	for {
+		if strings.HasPrefix(args[i], "%") {
+			args = append(args[:i], args[i+1:]...)
+		} else {
+			i++
+		}
+
+		if i == len(args) {
+			break
+		}
 	}
 
 	cmd := exec.Command(args[0], args[1:]...)
