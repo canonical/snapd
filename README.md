@@ -9,11 +9,11 @@ Snaps are app packages for desktop, cloud and IoT that update automatically,
 are easy to install, secure, cross-platform and dependency-free. They're being
 used on millions of Linux systems every day.
 
-Alongside its multifarious service and management functions, snapd:
-- implements the confinement policies that isolate snaps from the base system
-  and from each other
+Alongside its various service and management functions, snapd:
 - provides the _snap_ command that's used to install and remove snaps and
   interact with the wider snap ecosystem
+- implements the confinement policies that isolate snaps from the base system
+  and from each other
 - marshals the interfaces that allow snaps to access specific system resources
   outside of their confinement
 
