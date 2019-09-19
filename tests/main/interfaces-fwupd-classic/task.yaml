@@ -5,6 +5,8 @@ systems:
     - -ubuntu-core-*
     # Fwupd is not available in the Ubuntu 14.04 archive.
     - -ubuntu-14.04-*
+    # Amazon Linux does not appear to have a functional fwupd
+    - -amazon-linux-2-*
 
 prepare: |
 
@@ -21,5 +23,12 @@ execute: |
     snap connect test-snapd-fwupd:fwupd
     snap connections test-snapd-fwupd | MATCH "fwupd +test-snapd-fwupd:fwupd +:fwupd +manual"
 
+    if [ "$(snap debug confinement)" = strict ] &&
+       ! grep -q AssumeAppArmorLabel /usr/share/dbus-1/system-services/org.freedesktop.fwupd.service; then
+       # We are running with strict confinement, but fwupd's D-Bus
+       # service activation file has not been annotated with
+       # AssumeAppArmorLabel=unconfined
+       systemctl start fwupd.service
+    fi
     echo "With the plug connected, we can talk to fwupd"
     test-snapd-fwupd.get-version | MATCH 'variant +string "[0-9.]+"'
