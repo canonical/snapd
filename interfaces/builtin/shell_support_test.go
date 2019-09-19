@@ -26,7 +26,6 @@ import (
 	"github.com/snapcore/snapd/interfaces/apparmor"
 	"github.com/snapcore/snapd/interfaces/builtin"
 	"github.com/snapcore/snapd/snap"
-	"github.com/snapcore/snapd/snap/snaptest"
 	"github.com/snapcore/snapd/testutil"
 )
 
@@ -42,23 +41,25 @@ var _ = Suite(&shellSupportSuite{
 	iface: builtin.MustInterface("shell-support"),
 })
 
-func (s *shellSupportSuite) SetUpTest(c *C) {
-	consumingSnapInfo := snaptest.MockInfo(c, `
+const shellSupportConsumerYaml = `
 name: other
 version: 0
 apps:
  app:
     command: foo
     plugs: [shell-support]
-`, nil)
-	s.plugInfo = consumingSnapInfo.Plugs["shell-support"]
-	s.plug = interfaces.NewConnectedPlug(s.plugInfo, nil, nil)
-	s.slotInfo = &snap.SlotInfo{
-		Snap:      &snap.Info{SuggestedName: "core", SnapType: snap.TypeOS},
-		Name:      "shell-support",
-		Interface: "shell-support",
-	}
-	s.slot = interfaces.NewConnectedSlot(s.slotInfo, nil, nil)
+`
+
+const shellSupportCoreYaml = `name: core
+version: 0
+type: os
+slots:
+  shell-support:
+`
+
+func (s *shellSupportSuite) SetUpTest(c *C) {
+	s.plug, s.plugInfo = MockConnectedPlug(c, shellSupportConsumerYaml, nil, "shell-support")
+	s.slot, s.slotInfo = MockConnectedSlot(c, shellSupportCoreYaml, nil, "shell-support")
 }
 
 func (s *shellSupportSuite) TestName(c *C) {
