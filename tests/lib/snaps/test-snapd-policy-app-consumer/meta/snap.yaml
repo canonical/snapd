@@ -317,6 +317,9 @@ apps:
   screencast-legacy:
     command: bin/run
     plugs: [ screencast-legacy ]
+  shell-support:
+    command: bin/run
+    plugs: [ shell-support ]
   shutdown:
     command: bin/run
     plugs: [ shutdown ]
