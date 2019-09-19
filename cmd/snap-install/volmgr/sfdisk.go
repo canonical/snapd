@@ -71,7 +71,7 @@ func newSFDisk(device string) *SFDisk {
 	}
 }
 
-func (sf *SFDisk) deviceInfo() (*gadget.LaidOutVolume, error) {
+func (sf *SFDisk) DeviceInfo() (*gadget.LaidOutVolume, error) {
 	output, err := exec.Command("sfdisk", "--json", "-d", sf.device).CombinedOutput()
 	if err != nil {
 		return nil, osutil.OutputErr(output, err)
@@ -79,7 +79,7 @@ func (sf *SFDisk) deviceInfo() (*gadget.LaidOutVolume, error) {
 
 	var dump sfdiskDeviceDump
 	if err := json.Unmarshal(output, &dump); err != nil {
-		return nil, fmt.Errorf("cannot unmarshal sfdisk output: %v", err)
+		return nil, fmt.Errorf("cannot parse sfdisk output: %v", err)
 	}
 
 	pv, err := positionedVolumeFromDump(&dump)
@@ -92,7 +92,7 @@ func (sf *SFDisk) deviceInfo() (*gadget.LaidOutVolume, error) {
 	return pv, nil
 }
 
-func (sf *SFDisk) createPartitions(positionedVolume *gadget.LaidOutVolume, usedPartitions []bool, deviceMap map[string]string) error {
+func (sf *SFDisk) CreatePartitions(positionedVolume *gadget.LaidOutVolume, usedPartitions []bool, deviceMap map[string]string) error {
 	buf := &bytes.Buffer{}
 
 	// Write partition data in sfdisk dump format
@@ -230,7 +230,7 @@ func filesystemInfo(node string) (*lsblkFilesystemInfo, error) {
 
 	var info lsblkFilesystemInfo
 	if err := json.Unmarshal(output, &info); err != nil {
-		return nil, fmt.Errorf("cannot parse lkblk json output: %v", err)
+		return nil, fmt.Errorf("cannot parse lsblk output: %v", err)
 	}
 
 	return &info, nil

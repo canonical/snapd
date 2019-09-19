@@ -29,8 +29,8 @@ import (
 // PartitionTool is used to query and manipulate the device partition
 // table.
 type partitionTool interface {
-	deviceInfo() (*gadget.LaidOutVolume, error)
-	createPartitions(*gadget.LaidOutVolume, []bool, map[string]string) error
+	DeviceInfo() (*gadget.LaidOutVolume, error)
+	CreatePartitions(*gadget.LaidOutVolume, []bool, map[string]string) error
 }
 
 func newPartitionTool(device string) partitionTool {
@@ -96,7 +96,7 @@ func (v *VolumeManager) Run() error {
 func (v *VolumeManager) readDevice() error {
 
 	var err error
-	if v.deviceVolume, err = v.partitionTool.deviceInfo(); err != nil {
+	if v.deviceVolume, err = v.partitionTool.DeviceInfo(); err != nil {
 		return err
 	}
 
@@ -133,7 +133,7 @@ func (v *VolumeManager) completeLayout() error {
 	deviceMap := map[string]string{}
 
 	// Create missing partitions
-	if err := v.partitionTool.createPartitions(gadgetVolume, usedPartitions, deviceMap); err != nil {
+	if err := v.partitionTool.CreatePartitions(gadgetVolume, usedPartitions, deviceMap); err != nil {
 		return err
 	}
 
