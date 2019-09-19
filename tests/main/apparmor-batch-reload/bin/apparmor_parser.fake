@@ -1,6 +1,7 @@
 #!/bin/sh
 debugfile=/tmp/apparmor-parser-calls.debug
-args="$@"
+# shellcheck disable=SC2124
+args=$@
 echo "$@" >> $debugfile
 
 profiles=0
