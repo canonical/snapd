@@ -258,6 +258,7 @@ func (cs *clientSuite) TestClientSnap(c *check.C) {
                             {"type": "screenshot", "url":"http://example.com/shot2.png"}
                         ],
                         "cohort-key": "some-long-cohort-key",
+                        "website": "http://example.com/funky",
                         "common-ids": ["org.funky.snap"]
 		}
 	}`
@@ -302,6 +303,7 @@ func (cs *clientSuite) TestClientSnap(c *check.C) {
 		},
 		CommonIDs: []string{"org.funky.snap"},
 		CohortKey: "some-long-cohort-key",
+		Website:   "http://example.com/funky",
 	})
 }
 

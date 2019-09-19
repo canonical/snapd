@@ -24,7 +24,18 @@ import (
 
 	"github.com/snapcore/snapd/client"
 	"github.com/snapcore/snapd/cmd"
+	"github.com/snapcore/snapd/snap"
 )
+
+func (*cmdSuite) TestC2S(c *check.C) {
+	// TODO: add moar fields!
+	si := &snap.Info{
+		Website: "http://example.com/xyzzy",
+	}
+	ci, err := cmd.ClientSnapFromSnapInfo(si)
+	c.Check(err, check.IsNil)
+	c.Check(ci.Website, check.Equals, si.Website)
+}
 
 func (*cmdSuite) TestAppStatusNotes(c *check.C) {
 	ai := client.AppInfo{}
