@@ -140,7 +140,7 @@ while [ -n "$1" ]; do
 			;;
 		*)
 			profile=$(basename "$1")
-			if [ $profile = "snap.samba.smbd" ]; then
+			if [ "$profile" = "snap.samba.smbd" ]; then
 				echo "failure: $profile"
 				exit 1
 			fi
