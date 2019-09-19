@@ -170,6 +170,7 @@ func (b *Backend) SandboxFeatures() []string {
 		"tagging", /* Tagging dynamically associates new devices with specific snaps */
 	}
 	cgroupv1Features := []string{
+		"device-filtering", /* Snapd can limit device access for each snap */
 		"device-cgroup-v1", /* Snapd creates a device group (v1) for each snap */
 	}
 
