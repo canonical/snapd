@@ -26,6 +26,7 @@ const shellSupportBaseDeclarationSlots = `
     allow-installation:
       slot-snap-type:
         - core
+    deny-auto-connection: true
 `
 
 const shellSupportConnectedPlugAppArmor = `
