@@ -133,7 +133,7 @@ func (s *Launcher) OpenURL(addr string, sender dbus.Sender) *dbus.Error {
 // OpenDesktopEntryEnv implements the 'OpenDesktopEntryEnv' method of the 'io.snapcraft.Launcher'
 // DBus interface.
 func (s *Launcher) OpenDesktopEntryEnv(desktop_file_id string, env []string, sender dbus.Sender) *dbus.Error {
-	exec_command, err := s.readExecCommandFromDesktopFile(s.desktopFileIdToFilename(desktop_file_id))
+	exec_command, err := readExecCommandFromDesktopFile(desktopFileIdToFilename(desktop_file_id))
 
 	if err != nil {
 		return dbus.MakeFailedError(err)
@@ -175,7 +175,7 @@ func (s *Launcher) OpenDesktopEntryEnv(desktop_file_id string, env []string, sen
 }
 
 // desktopFileIdToFilename determines the path associated with a desktop file ID.
-func (s *Launcher) desktopFileIdToFilename(desktop_file_id string) string {
+func desktopFileIdToFilename(desktop_file_id string) string {
 	splitFileId := strings.Split(desktop_file_id, "-")
 
 	var desktop_file string
@@ -200,7 +200,7 @@ func (s *Launcher) desktopFileIdToFilename(desktop_file_id string) string {
 }
 
 // readExecCommandFromDesktopFile parses the desktop file to get the Exec entry.
-func (s *Launcher) readExecCommandFromDesktopFile(desktop_file string) (string, error) {
+func readExecCommandFromDesktopFile(desktop_file string) (string, error) {
 	var launch string
 
 	file, err := os.Open(desktop_file)
