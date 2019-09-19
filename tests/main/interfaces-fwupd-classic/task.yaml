@@ -5,6 +5,9 @@ systems:
     - -ubuntu-core-*
     # Fwupd is not available in the Ubuntu 14.04 archive.
     - -ubuntu-14.04-*
+    # Fwupd errors out with "FuMain: failed to get USB context: failed
+    # to init libusb: Other error [-99]"
+    - -ubuntu-16.04-32
     # Amazon Linux does not appear to have a functional fwupd
     - -amazon-linux-2-*
 
