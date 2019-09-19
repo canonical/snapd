@@ -200,6 +200,7 @@ func (s *Launcher) readExecCommandFromDesktopFile(desktop_file string) (string, 
 	defer file.Close()
 	reader := bufio.NewReader(file)
 
+	in_desktop_section := false
 	for {
 		line, err := reader.ReadString('\n')
 		if err != nil {
@@ -208,7 +209,14 @@ func (s *Launcher) readExecCommandFromDesktopFile(desktop_file string) (string, 
 
 		line = strings.TrimSpace(line)
 
-		if strings.HasPrefix(line, "Exec=") {
+		if line == "[Desktop Entry]" {
+			in_desktop_section = true
+		} else if strings.HasPrefix(line, "[Desktop Action") {
+			// maybe later we'll add support here
+			in_desktop_section = false
+		} else if strings.HasPrefix(line, "[") {
+			in_desktop_section = false
+		} else if in_desktop_section && strings.HasPrefix(line, "Exec=") {
 			launch = strings.TrimPrefix(line, "Exec=")
 			break
 		}
