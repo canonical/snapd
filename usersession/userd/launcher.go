@@ -32,6 +32,8 @@ import (
 
 	"github.com/godbus/dbus"
 
+  "github.com/google/shlex"
+
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/i18n"
 	"github.com/snapcore/snapd/osutil/sys"
@@ -154,9 +156,12 @@ func (s *Launcher) OpenDesktopEntryEnv(desktop_file_id string, env []string, sen
 	// https://standards.freedesktop.org/desktop-entry-spec/desktop-entry-spec-latest.html#exec-variables
 	exec_command = strings.SplitN(exec_command, "%", 2)[0]
 
-	args := strings.Split(exec_command, " ")
-	cmd := exec.Command(args[0], args[1:]...)
+	args, err := shlex.Split(exec_command)
+	if err != nil {
+		return dbus.MakeFailedError(err)
+	}
 
+	cmd := exec.Command(args[0], args[1:]...)
 	cmd.Env = os.Environ()
 	for _, e := range env {
 		cmd.Env = append(cmd.Env, e)
