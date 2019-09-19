@@ -550,9 +550,9 @@ func (s *backendSuite) TestSetupManyApparmorBatchProcessingErrorWithFallbackOK(c
 		errs := setupManyInterface.SetupMany([]*snap.Info{snapInfo1, snapInfo2}, func(snapName string) interfaces.ConfinementOptions { return opts }, s.Repo, s.meas)
 		failingParserCmd.Restore()
 
-		// no errors expected: error from batch run is only logged, but individual apparmor parser execution as part of the fallback are successfull.
+		// no errors expected: error from batch run is only logged, but individual apparmor parser execution as part of the fallback are successful.
 		// note, tnis scenario is unlikely to happen in real life, because if a profile failed in a batch, it would fail when parsed alone too. It is
-		// tested here just to excercise various execution paths.
+		// tested here just to exercise various execution paths.
 		c.Assert(errs, HasLen, 0)
 		c.Check(log.String(), Matches, ".*failed to batch-reload unchanged profiles: cannot load apparmor profiles: exit status 1\napparmor_parser output:\nbatch failure \\(4 profiles\\)\n")
 
