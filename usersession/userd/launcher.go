@@ -142,15 +142,20 @@ func (s *Launcher) OpenDesktopEntry(desktop_file_id string, sender dbus.Sender) 
 // OpenDesktopEntryEnv implements the 'OpenDesktopEntryEnv' method of the 'io.snapcraft.Launcher'
 // DBus interface.
 func (s *Launcher) OpenDesktopEntryEnv(desktop_file_id string, env []string, sender dbus.Sender) *dbus.Error {
-	launch, err := s.readExecCommandFromDesktopFile(s.desktopFileIdToFilename(desktop_file_id))
+	exec_command, err := s.readExecCommandFromDesktopFile(s.desktopFileIdToFilename(desktop_file_id))
 
 	if err != nil {
 		return dbus.MakeFailedError(err)
 	}
 
-	// This is very hacky parsing and doesn't cover a lot of cases
-	command := strings.Split(strings.SplitN(launch, "%", 2)[0], " ")
-	cmd := exec.Command(command[0], command[1:]...)
+	// Passing exec variables between confined snaps raises unanswered questions and they are not required
+	// for the simple cases.  For now, we don't have support for passing them in the dbus API and truncate
+	// the exec command at the first exec variable.
+	// https://standards.freedesktop.org/desktop-entry-spec/desktop-entry-spec-latest.html#exec-variables
+	exec_command = strings.SplitN(exec_command, "%", 2)[0]
+
+	args := strings.Split(exec_command, " ")
+	cmd := exec.Command(args[0], args[1:]...)
 
 	cmd.Env = os.Environ()
 	for _, e := range env {
@@ -158,7 +163,7 @@ func (s *Launcher) OpenDesktopEntryEnv(desktop_file_id string, env []string, sen
 	}
 
 	if err := cmd.Start(); err != nil {
-		return dbus.MakeFailedError(fmt.Errorf("cannot run %q", launch))
+		return dbus.MakeFailedError(fmt.Errorf("cannot run %q", exec_command))
 	}
 
 	return nil
