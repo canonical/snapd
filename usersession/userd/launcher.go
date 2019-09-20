@@ -133,7 +133,12 @@ func (s *Launcher) OpenURL(addr string, sender dbus.Sender) *dbus.Error {
 // OpenDesktopEntryEnv implements the 'OpenDesktopEntryEnv' method of the 'io.snapcraft.Launcher'
 // DBus interface.
 func (s *Launcher) OpenDesktopEntryEnv(desktop_file_id string, env []string, sender dbus.Sender) *dbus.Error {
-	exec_command, err := readExecCommandFromDesktopFile(desktopFileIdToFilename(desktop_file_id))
+	desktop_file, err := desktopFileIdToFilename(desktop_file_id)
+	if err != nil {
+		return dbus.MakeFailedError(err)
+	}
+
+	exec_command, err := readExecCommandFromDesktopFile(desktop_file)
 
 	if err != nil {
 		return dbus.MakeFailedError(err)
@@ -175,7 +180,7 @@ func (s *Launcher) OpenDesktopEntryEnv(desktop_file_id string, env []string, sen
 }
 
 // desktopFileIdToFilename determines the path associated with a desktop file ID.
-func desktopFileIdToFilename(desktop_file_id string) string {
+func desktopFileIdToFilename(desktop_file_id string) (string, error) {
 	splitFileId := strings.Split(desktop_file_id, "-")
 
 	var desktop_file string
@@ -187,7 +192,7 @@ func desktopFileIdToFilename(desktop_file_id string) string {
 			desktop_file = dir + "/applications/" + strings.Join(splitFileId[0:i], "/") + "/" + strings.Join(splitFileId[i:], "-")
 			fileStat, _ = os.Stat(desktop_file)
 			if fileStat != nil {
-				break
+				return desktop_file, nil
 			}
 		}
 
@@ -196,7 +201,7 @@ func desktopFileIdToFilename(desktop_file_id string) string {
 		}
 	}
 
-	return desktop_file
+	return "", fmt.Errorf("cannot find desktop file for %q", desktop_file_id)
 }
 
 // readExecCommandFromDesktopFile parses the desktop file to get the Exec entry.
