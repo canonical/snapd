@@ -19,17 +19,17 @@
 
 package builtin
 
-const shellSupportSummary = `allows shells to identify and launch other snaps`
+const appLaunchSummary = `allows snaps to identify and launch other snaps`
 
-const shellSupportBaseDeclarationSlots = `
-  shell-support:
+const appLaunchBaseDeclarationSlots = `
+  app-launch:
     allow-installation:
       slot-snap-type:
         - core
     deny-auto-connection: true
 `
 
-const shellSupportConnectedPlugAppArmor = `
+const appLaunchConnectedPlugAppArmor = `
 # Description: Can identify and launch other snaps.
 
 # Access to the desktop files installed by snaps
@@ -47,12 +47,12 @@ dbus (send)
 
 func init() {
 	registerIface(&commonInterface{
-		name:                  "shell-support",
-		summary:               shellSupportSummary,
+		name:                  "app-launch",
+		summary:               appLaunchSummary,
 		implicitOnCore:        true,
 		implicitOnClassic:     true,
-		baseDeclarationSlots:  shellSupportBaseDeclarationSlots,
-		connectedPlugAppArmor: shellSupportConnectedPlugAppArmor,
+		baseDeclarationSlots:  appLaunchBaseDeclarationSlots,
+		connectedPlugAppArmor: appLaunchConnectedPlugAppArmor,
 		reservedForOS:         true,
 	})
 }
