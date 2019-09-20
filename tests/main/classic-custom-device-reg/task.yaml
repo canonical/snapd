@@ -1,12 +1,12 @@
 summary: |
-   Test gadget customized device initialisation and registration also on classic
+    Test gadget customized device initialisation and registration also on classic
 
 systems: [-ubuntu-core-*]
 
 environment:
     SEED_DIR: /var/lib/snapd/seed
 
-kill-timeout: 3m
+kill-timeout: 5m
 
 prepare: |
     if [ "$TRUST_TEST_KEYS" = "false" ]; then

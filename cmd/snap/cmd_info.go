@@ -683,7 +683,7 @@ func (x *infoCmd) Execute([]string) error {
 
 	noneOK := true
 	for i, snapName := range x.Positional.Snaps {
-		snapName := norm(string(snapName))
+		snapName := string(snapName)
 		if i > 0 {
 			fmt.Fprintln(w, "---")
 		}
@@ -693,9 +693,9 @@ func (x *infoCmd) Execute([]string) error {
 		}
 
 		if diskSnap, err := clientSnapFromPath(snapName); err == nil {
-			iw.setupDiskSnap(snapName, diskSnap)
+			iw.setupDiskSnap(norm(snapName), diskSnap)
 		} else {
-			remoteSnap, resInfo, _ := x.client.FindOne(snapName)
+			remoteSnap, resInfo, _ := x.client.FindOne(snap.InstanceSnap(snapName))
 			localSnap, _, _ := x.client.Snap(snapName)
 			iw.setupSnap(localSnap, remoteSnap, resInfo)
 		}

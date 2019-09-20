@@ -33,6 +33,7 @@ import (
 
 func (s *imageSuite) TestDownloadOptionsString(c *check.C) {
 	for opts, str := range map[image.DownloadOptions]string{
+		{LeavePartialOnError: true}: "",
 		{}:                     "",
 		{TargetDir: "/foo"}:    `in "/foo"`,
 		{Basename: "foo"}:      `to "foo.snap"`,
@@ -78,6 +79,9 @@ func (s *imageSuite) TestDownloadOptionsValid(c *check.C) {
 			Basename: "/foo",
 		}: image.ErrPathInBase,
 	} {
+		opts.LeavePartialOnError = true
+		c.Check(opts.Validate(), check.Equals, err)
+		opts.LeavePartialOnError = false
 		c.Check(opts.Validate(), check.Equals, err)
 	}
 }

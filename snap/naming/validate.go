@@ -17,7 +17,7 @@
  *
  */
 
-// Package naming implements naming constraints for snaps and their elements.
+// Package naming implements naming constraints and concepts for snaps and their elements.
 package naming
 
 import (

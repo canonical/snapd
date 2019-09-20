@@ -943,7 +943,6 @@ func (s *SnapOpSuite) TestRevertRunthrough(c *check.C) {
 	c.Assert(rest, check.DeepEquals, []string{})
 	// tracking channel is "" in the test server
 	c.Check(s.Stdout(), check.Equals, `foo reverted to 1.0
-Channel  for foo is closed; temporarily forwarding to potato.
 `)
 	c.Check(s.Stderr(), check.Equals, "")
 	// ensure that the fake server api was actually hit
@@ -1876,27 +1875,30 @@ func (s *SnapOpSuite) TestWaitServerError(c *check.C) {
 }
 
 func (s *SnapOpSuite) TestSwitchHappy(c *check.C) {
-	s.srv.total = 3
+	s.srv.total = 4
 	s.srv.checker = func(r *http.Request) {
 		c.Check(r.URL.Path, check.Equals, "/v2/snaps/foo")
 		c.Check(DecodedRequestBody(c, r), check.DeepEquals, map[string]interface{}{
 			"action":  "switch",
 			"channel": "beta",
 		})
+		s.srv.trackingChannel = "beta"
 	}
 
 	s.RedirectClientToTestServer(s.srv.handle)
 	rest, err := snap.Parser(snap.Client()).ParseArgs([]string{"switch", "--beta", "foo"})
 	c.Assert(err, check.IsNil)
 	c.Assert(rest, check.DeepEquals, []string{})
-	c.Check(s.Stdout(), check.Matches, `(?sm).*"foo" switched to the "beta" channel`)
+	c.Check(s.Stdout(), check.Equals, `"foo" switched to the "beta" channel
+
+`)
 	c.Check(s.Stderr(), check.Equals, "")
 	// ensure that the fake server api was actually hit
 	c.Check(s.srv.n, check.Equals, s.srv.total)
 }
 
 func (s *SnapOpSuite) TestSwitchHappyCohort(c *check.C) {
-	s.srv.total = 3
+	s.srv.total = 4
 	s.srv.checker = func(r *http.Request) {
 		c.Check(r.URL.Path, check.Equals, "/v2/snaps/foo")
 		c.Check(DecodedRequestBody(c, r), check.DeepEquals, map[string]interface{}{
@@ -1916,7 +1918,7 @@ func (s *SnapOpSuite) TestSwitchHappyCohort(c *check.C) {
 }
 
 func (s *SnapOpSuite) TestSwitchHappyLeaveCohort(c *check.C) {
-	s.srv.total = 3
+	s.srv.total = 4
 	s.srv.checker = func(r *http.Request) {
 		c.Check(r.URL.Path, check.Equals, "/v2/snaps/foo")
 		c.Check(DecodedRequestBody(c, r), check.DeepEquals, map[string]interface{}{
@@ -1936,7 +1938,7 @@ func (s *SnapOpSuite) TestSwitchHappyLeaveCohort(c *check.C) {
 }
 
 func (s *SnapOpSuite) TestSwitchHappyChannelAndCohort(c *check.C) {
-	s.srv.total = 3
+	s.srv.total = 4
 	s.srv.checker = func(r *http.Request) {
 		c.Check(r.URL.Path, check.Equals, "/v2/snaps/foo")
 		c.Check(DecodedRequestBody(c, r), check.DeepEquals, map[string]interface{}{
@@ -1944,6 +1946,7 @@ func (s *SnapOpSuite) TestSwitchHappyChannelAndCohort(c *check.C) {
 			"cohort-key": "what",
 			"channel":    "edge",
 		})
+		s.srv.trackingChannel = "edge"
 	}
 
 	s.RedirectClientToTestServer(s.srv.handle)
@@ -1957,7 +1960,7 @@ func (s *SnapOpSuite) TestSwitchHappyChannelAndCohort(c *check.C) {
 }
 
 func (s *SnapOpSuite) TestSwitchHappyChannelAndLeaveCohort(c *check.C) {
-	s.srv.total = 3
+	s.srv.total = 4
 	s.srv.checker = func(r *http.Request) {
 		c.Check(r.URL.Path, check.Equals, "/v2/snaps/foo")
 		c.Check(DecodedRequestBody(c, r), check.DeepEquals, map[string]interface{}{
@@ -1965,6 +1968,7 @@ func (s *SnapOpSuite) TestSwitchHappyChannelAndLeaveCohort(c *check.C) {
 			"leave-cohort": true,
 			"channel":      "edge",
 		})
+		s.srv.trackingChannel = "edge"
 	}
 
 	s.RedirectClientToTestServer(s.srv.handle)

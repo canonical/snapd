@@ -47,6 +47,8 @@ const (
 
 	SystemBoot = "system-boot"
 	SystemData = "system-data"
+	BootImage  = "bootimg"
+	BootSelect = "bootselect"
 	// ImplicitSystemDataLabel is the implicit filesystem label of structure
 	// of system-data role
 	ImplicitSystemDataLabel = "writable"
@@ -112,7 +114,7 @@ type VolumeStructure struct {
 	// structure is treated as if it is of role 'mbr'.
 	Type string `yaml:"type"`
 	// Role describes the role of given structure, can be one of 'mbr',
-	// 'system-data', 'system-boot'. Structures of type 'mbr', must have a
+	// 'system-data', 'system-boot', 'bootimg', 'bootselect'. Structures of type 'mbr', must have a
 	// size of 446 bytes and must start at 0 offset.
 	Role string `yaml:"role"`
 	// ID is the GPT partition ID
@@ -137,6 +139,10 @@ func (vs *VolumeStructure) EffectiveRole() string {
 	}
 	if vs.Role == "" && vs.Type == MBR {
 		return MBR
+	}
+	if vs.Label == SystemBoot {
+		// for gadgets that only specify a filesystem-label, eg. pc
+		return SystemBoot
 	}
 	return ""
 }
@@ -324,10 +330,10 @@ func ReadInfo(gadgetSnapRootDir string, classic bool) (*Info, error) {
 		switch v.Bootloader {
 		case "":
 			// pass
-		case "grub", "u-boot", "android-boot":
+		case "grub", "u-boot", "android-boot", "lk":
 			bootloadersFound += 1
 		default:
-			return nil, errors.New("bootloader must be one of grub, u-boot or android-boot")
+			return nil, errors.New("bootloader must be one of grub, u-boot, android-boot or lk")
 		}
 	}
 	switch {
@@ -356,9 +362,11 @@ func validateVolume(name string, vol *Volume) error {
 	}
 
 	// named structures, for cross-referencing relative offset-write names
-	knownStructures := make(map[string]*PositionedStructure, len(vol.Structure))
+	knownStructures := make(map[string]*LaidOutStructure, len(vol.Structure))
+	// for uniqueness of filesystem labels
+	knownFsLabels := make(map[string]bool, len(vol.Structure))
 	// for validating structure overlap
-	structures := make([]PositionedStructure, len(vol.Structure))
+	structures := make([]LaidOutStructure, len(vol.Structure))
 
 	previousEnd := Size(0)
 	for idx, s := range vol.Structure {
@@ -372,7 +380,7 @@ func validateVolume(name string, vol *Volume) error {
 			start = previousEnd
 		}
 		end := start + s.Size
-		ps := PositionedStructure{
+		ps := LaidOutStructure{
 			VolumeStructure: &vol.Structure[idx],
 			StartOffset:     start,
 			Index:           idx,
@@ -385,6 +393,12 @@ func validateVolume(name string, vol *Volume) error {
 			// keep track of named structures
 			knownStructures[s.Name] = &ps
 		}
+		if s.Label != "" {
+			if seen := knownFsLabels[s.Label]; seen {
+				return fmt.Errorf("filesystem label %q is not unique", s.Label)
+			}
+			knownFsLabels[s.Label] = true
+		}
 
 		previousEnd = end
 	}
@@ -395,12 +409,12 @@ func validateVolume(name string, vol *Volume) error {
 	return validateCrossVolumeStructure(structures, knownStructures)
 }
 
-func validateCrossVolumeStructure(structures []PositionedStructure, knownStructures map[string]*PositionedStructure) error {
+func validateCrossVolumeStructure(structures []LaidOutStructure, knownStructures map[string]*LaidOutStructure) error {
 	previousEnd := Size(0)
 	// cross structure validation:
 	// - relative offsets that reference other structures by name
-	// - positioned structure overlap
-	// use structures positioned within the volume
+	// - laid out structure overlap
+	// use structures laid out within the volume
 	for pidx, ps := range structures {
 		if ps.EffectiveRole() == MBR {
 			if ps.StartOffset != 0 {
@@ -579,7 +593,7 @@ func validateRole(vs *VolumeStructure, vol *Volume) error {
 		if vs.Filesystem != "" && vs.Filesystem != "none" {
 			return errors.New("mbr structures must not specify a file system")
 		}
-	case SystemBoot, "":
+	case SystemBoot, BootImage, BootSelect, "":
 		// noop
 	default:
 		return fmt.Errorf("unsupported role")

@@ -242,7 +242,8 @@ type Info struct {
 
 	Publisher StoreAccount
 
-	Media MediaInfos
+	Media   MediaInfos
+	Website string
 
 	// The flattended channel map with $track/$risk
 	Channels map[string]*ChannelSnapInfo
@@ -254,6 +255,10 @@ type Info struct {
 
 	// The list of common-ids from all apps of the snap
 	CommonIDs []string
+
+	// List of system users (usernames) this snap may use. The group
+	// of the same name must also exist.
+	SystemUsernames map[string]*SystemUsernameInfo
 }
 
 // StoreAccount holds information about a store account, for example
@@ -799,6 +804,21 @@ type HookInfo struct {
 	CommandChain []string
 
 	Explicit bool
+}
+
+// SystemUsernameInfo provides information about a system username (ie, a
+// UNIX user and group with the same name). The scope defines visibility of the
+// username wrt the snap and the system. Defined scopes:
+// - shared    static, snapd-managed user/group shared between host and all
+//             snaps
+// - private   static, snapd-managed user/group private to a particular snap
+//             (currently not implemented)
+// - external  dynamic user/group shared between host and all snaps (currently
+//             not implented)
+type SystemUsernameInfo struct {
+	Name  string
+	Scope string
+	Attrs map[string]interface{}
 }
 
 // File returns the path to the *.socket file

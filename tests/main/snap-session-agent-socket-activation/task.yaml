@@ -12,10 +12,19 @@ environment:
     USER_RUNTIME_DIR: /run/user/${TEST_UID}
 
 prepare: |
+    # Ensure that snapd.session-agent.socket is enabled.  This may not
+    # be the case on distributions where presets have been used to
+    # disable it.
+    if [ ! -L /usr/lib/systemd/user/sockets.target.wants/snapd.session-agent.socket ] &&
+            ! systemctl --user --global is-enabled snapd.session-agent.socket; then
+        systemctl --user --global enable snapd.session-agent.socket
+        touch agent-was-enabled
+    fi
     mkdir -p "$USER_RUNTIME_DIR"
     chmod u=rwX,go= "$USER_RUNTIME_DIR"
     chown test:test "$USER_RUNTIME_DIR"
     systemctl start "user@${TEST_UID}.service"
+
     # ensure curl is available (needed for e.g. core18)
     if ! command -v curl; then
         snap install --devmode --edge test-snapd-curl
@@ -28,6 +37,10 @@ restore: |
     fi
     systemctl stop "user@${TEST_UID}.service"
     rm -rf "${USER_RUNTIME_DIR:?}"/* "${USER_RUNTIME_DIR:?}"/.[!.]*
+    if [ -f agent-was-enabled ]; then
+        systemctl --user --global disable snapd.session-agent.socket
+        rm agent-was-enabled
+    fi
 
 execute: |
     systemctl_user() {

@@ -31,7 +31,6 @@ func MockToolingStore(sto Store) *ToolingStore {
 var (
 	LocalSnaps           = localSnaps
 	DecodeModelAssertion = decodeModelAssertion
-	DownloadUnpackGadget = downloadUnpackGadget
 	SetupSeed            = setupSeed
 	InstallCloudConfig   = installCloudConfig
 	SnapChannel          = snapChannel

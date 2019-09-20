@@ -33,22 +33,24 @@ var _ = Suite(&ArchTestSuite{})
 type ArchTestSuite struct {
 }
 
-func (ts *ArchTestSuite) TestUbuntuArchitecture(c *C) {
-	c.Check(ubuntuArchFromGoArch("386"), Equals, "i386")
-	c.Check(ubuntuArchFromGoArch("amd64"), Equals, "amd64")
-	c.Check(ubuntuArchFromGoArch("arm"), Equals, "armhf")
-	c.Check(ubuntuArchFromGoArch("arm64"), Equals, "arm64")
-	c.Check(ubuntuArchFromGoArch("ppc64le"), Equals, "ppc64el")
-	c.Check(ubuntuArchFromGoArch("ppc64"), Equals, "ppc64")
-	c.Check(ubuntuArchFromGoArch("s390x"), Equals, "s390x")
+func (ts *ArchTestSuite) TestArchDpkgArchitecture(c *C) {
+	c.Check(dpkgArchFromGoArch("386"), Equals, "i386")
+	c.Check(dpkgArchFromGoArch("amd64"), Equals, "amd64")
+	c.Check(dpkgArchFromGoArch("arm"), Equals, "armhf")
+	c.Check(dpkgArchFromGoArch("arm64"), Equals, "arm64")
+	c.Check(dpkgArchFromGoArch("ppc64le"), Equals, "ppc64el")
+	c.Check(dpkgArchFromGoArch("ppc64"), Equals, "ppc64")
+	c.Check(dpkgArchFromGoArch("s390x"), Equals, "s390x")
+	c.Check(dpkgArchFromGoArch("ppc"), Equals, "powerpc")
+	c.Check(dpkgArchFromGoArch("ppc64"), Equals, "ppc64")
 }
 
-func (ts *ArchTestSuite) TestSetArchitecture(c *C) {
+func (ts *ArchTestSuite) TestArchSetArchitecture(c *C) {
 	SetArchitecture("armhf")
-	c.Assert(UbuntuArchitecture(), Equals, "armhf")
+	c.Assert(DpkgArchitecture(), Equals, "armhf")
 }
 
-func (ts *ArchTestSuite) TestSupportedArchitectures(c *C) {
+func (ts *ArchTestSuite) TestArchSupportedArchitectures(c *C) {
 	arch = "armhf"
 	c.Check(IsSupportedArchitecture([]string{"all"}), Equals, true)
 	c.Check(IsSupportedArchitecture([]string{"amd64", "armhf", "powerpc"}), Equals, true)
@@ -56,6 +58,7 @@ func (ts *ArchTestSuite) TestSupportedArchitectures(c *C) {
 	c.Check(IsSupportedArchitecture([]string{"amd64", "powerpc"}), Equals, false)
 
 	arch = "amd64"
+	c.Check(IsSupportedArchitecture([]string{"all"}), Equals, true)
 	c.Check(IsSupportedArchitecture([]string{"amd64", "armhf", "powerpc"}), Equals, true)
 	c.Check(IsSupportedArchitecture([]string{"powerpc"}), Equals, false)
 }

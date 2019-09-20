@@ -13,7 +13,7 @@ prepare: |
     adduser --home "$THOME" "$TUSER"
 
 restore: |
-    deluser --remove-home "$TUSER"
+    user-tool remove-with-group "$TUSER"
 
 execute: |
     echo "Install a snap"

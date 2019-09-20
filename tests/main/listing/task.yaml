@@ -8,7 +8,7 @@ prepare: |
     snap set system experimental.parallel-instances=true
     install_local_as test-snapd-tools test-snapd-tools_foo
 
-restore:
+restore: |
     snap set system experimental.parallel-instances=null
 
 execute: |
@@ -19,7 +19,7 @@ execute: |
 
     # Expressions for version and revision
     NUMERIC_VERSION="[0-9]+(\.[0-9]+)*"
-    CORE_GIT_VERSION="[0-9]{2}-[0-9.]+(~[a-z0-9]+)?(\\+git[0-9]+\\.[0-9a-f]+)?"
+    CORE_GIT_VERSION="[0-9]{2}-[0-9.]+(~[a-z0-9.]+)?(\\+git[0-9]+\\.[0-9a-f]+)?"
     SNAPD_GIT_VERSION="+[0-9.]+(~[a-z0-9]+)?(\\+git[0-9]+\\.[0-9a-z]+)?"
     FINAL_VERSION="[0-9]{2}-[0-9.]+(~[a-z0-9]+)?(\\+[0-9]+\\.[0-9a-f]+)?"
     SIDELOAD_REV="x[0-9]+"
@@ -52,11 +52,11 @@ execute: |
         VERSION=$FINAL_VERSION
         TRACKING=stable
 
-    elif [ "$SPREAD_BACKEND" = "external" ] && [ "$SPREAD_SYSTEM" = "ubuntu-core-16-*" ]; then
+    elif [ "$SPREAD_BACKEND" = "external" ] && [[ "$SPREAD_SYSTEM" == ubuntu-core-16-* ]]; then
         echo "On the external device the core snap tested could be in any track"
         TRACKING="(edge|beta|candidate|stable)"
 
-    elif [ "$SPREAD_BACKEND" = "external" ] && [ "$SPREAD_SYSTEM" = "ubuntu-core-18-*" ]; then
+    elif [ "$SPREAD_BACKEND" = "external" ] && [[ "$SPREAD_SYSTEM" == ubuntu-core-18-* ]]; then
         echo "On the external device the snapd snap tested could be in any track"
         NAME=snapd
         VERSION=$SNAPD_GIT_VERSION

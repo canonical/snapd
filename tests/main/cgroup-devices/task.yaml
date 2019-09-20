@@ -1,0 +1,5 @@
+summary: measuring basic properties of device cgroup
+execute: ./task.sh
+restore: |
+    rm -f test-snapd-service_1.0_all.snap
+    snap remove test-snapd-service

@@ -229,6 +229,7 @@ func (iface *contentInterface) AppArmorConnectedPlug(spec *apparmor.Specificatio
 			var buf bytes.Buffer
 			fmt.Fprintf(&buf, "  # Read-write content sharing %s -> %s (w#%d)\n", plug.Ref(), slot.Ref(), i)
 			fmt.Fprintf(&buf, "  mount options=(bind, rw) %s/ -> %s/,\n", source, target)
+			fmt.Fprintf(&buf, "  mount options=(rprivate) -> %s/,\n", target)
 			fmt.Fprintf(&buf, "  umount %s/,\n", target)
 			// TODO: The assumed prefix depth could be optimized to be more
 			// precise since content sharing can only take place in a fixed
@@ -256,6 +257,7 @@ func (iface *contentInterface) AppArmorConnectedPlug(spec *apparmor.Specificatio
 			fmt.Fprintf(&buf, "  # Read-only content sharing %s -> %s (r#%d)\n", plug.Ref(), slot.Ref(), i)
 			fmt.Fprintf(&buf, "  mount options=(bind) %s/ -> %s/,\n", source, target)
 			fmt.Fprintf(&buf, "  remount options=(bind, ro) %s/,\n", target)
+			fmt.Fprintf(&buf, "  mount options=(rprivate) -> %s/,\n", target)
 			fmt.Fprintf(&buf, "  umount %s/,\n", target)
 			// Look at the TODO comment above.
 			apparmor.WritableProfile(&buf, source, 1)

@@ -8,6 +8,11 @@ prepare: |
     snap pack "$TESTSLIB"/snaps/basic
     snap install test-snapd-tools
     snap install --channel beta --devmode test-snapd-devmode
+    # ensures that an empty directory doesn't confuse things
+    mkdir -v core
+
+restore: |
+    rmdir -v core
 
 execute: |
     echo "With no arguments, errors out"
