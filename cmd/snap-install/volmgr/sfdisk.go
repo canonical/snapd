@@ -142,7 +142,7 @@ func positionedVolumeFromDump(dump *sfdiskDeviceDump) (*gadget.LaidOutVolume, er
 	ptable := dump.PartitionTable
 
 	if ptable.Unit != "sectors" {
-		return nil, fmt.Errorf("cannot position dump: unknown unit %q", ptable.Unit)
+		return nil, fmt.Errorf("cannot position partitions: unknown unit %q", ptable.Unit)
 	}
 
 	structure := make([]gadget.VolumeStructure, len(ptable.Partitions))
@@ -151,7 +151,7 @@ func positionedVolumeFromDump(dump *sfdiskDeviceDump) (*gadget.LaidOutVolume, er
 	for i, p := range ptable.Partitions {
 		info, err := filesystemInfo(p.Node)
 		if err != nil {
-			return nil, err
+			return nil, fmt.Errorf("cannot obtain filesystem information: %v", err)
 		}
 		if len(info.BlockDevices) < 1 {
 			continue

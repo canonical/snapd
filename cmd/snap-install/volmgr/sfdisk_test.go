@@ -90,6 +90,51 @@ exit 0`)
 	c.Assert(pv.Structure[1].Filesystem, Equals, "vfat")
 }
 
+func (s *volmgrTestSuite) TestDeviceInfoNotSectors(c *C) {
+	cmdSfdisk := testutil.MockCommand(c, "sfdisk", `echo '{
+   "partitiontable": {
+      "label": "gpt",
+      "id": "9151F25B-CDF0-48F1-9EDE-68CBD616E2CA",
+      "device": "/dev/node",
+      "unit": "not_sectors",
+      "firstlba": 34,
+      "lastlba": 8388574,
+      "partitions": [
+         {"node": "/dev/node1", "start": 2048, "size": 2048, "type": "21686148-6449-6E6F-744E-656564454649", "uuid": "2E59D969-52AB-430B-88AC-F83873519F6F", "name": "BIOS Boot"}
+      ]
+   }
+}'`)
+	defer cmdSfdisk.Restore()
+
+	sf := volmgr.NewSFDisk("/dev/node")
+	_, err := sf.DeviceInfo()
+	c.Assert(err, ErrorMatches, "cannot position partitions: unknown unit .*")
+}
+
+func (s *volmgrTestSuite) TestDeviceInfoFilesystemInfoError(c *C) {
+	cmdSfdisk := testutil.MockCommand(c, "sfdisk", `echo '{
+   "partitiontable": {
+      "label": "gpt",
+      "id": "9151F25B-CDF0-48F1-9EDE-68CBD616E2CA",
+      "device": "/dev/node",
+      "unit": "sectors",
+      "firstlba": 34,
+      "lastlba": 8388574,
+      "partitions": [
+         {"node": "/dev/node1", "start": 2048, "size": 2048, "type": "21686148-6449-6E6F-744E-656564454649", "uuid": "2E59D969-52AB-430B-88AC-F83873519F6F", "name": "BIOS Boot"}
+      ]
+   }
+}'`)
+	defer cmdSfdisk.Restore()
+
+	cmdLsblk := testutil.MockCommand(c, "lsblk", "echo lsblk error; exit 1")
+	defer cmdLsblk.Restore()
+
+	sf := volmgr.NewSFDisk("/dev/node")
+	_, err := sf.DeviceInfo()
+	c.Assert(err, ErrorMatches, "cannot obtain filesystem information: lsblk error")
+}
+
 func (s *volmgrTestSuite) TestDeviceInfoJsonError(c *C) {
 	cmd := testutil.MockCommand(c, "sfdisk", `echo 'This is not a json'`)
 	defer cmd.Restore()
