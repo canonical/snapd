@@ -209,7 +209,7 @@ func desktopFileIdToFilename(desktop_file_id string) (string, error) {
 
 	// Currently the caller only has access to /var/lib/snapd/desktop/applications/, so we just look there
 	// and ignore https://specifications.freedesktop.org/basedir-spec/basedir-spec-latest.html
-	base_dir := "/var/lib/snapd/desktop/applications/"
+	base_dir := dirs.SnapDesktopFilesDir
 
 	desktop_file := findDesktopFile(base_dir, strings.Split(desktop_file_id, "-"))
 
