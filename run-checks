@@ -201,7 +201,7 @@ if [ "$STATIC" = 1 ]; then
             awk -F": " '$2~/shell.script/{print $1}' |
             xargs shellcheck
         regexp='GOPATH(?!%%:\*)(?!:)[^= ]*/'
-        if  grep -qPr                   --exclude HACKING.md --exclude 'Makefile.*' --exclude-dir .git --exclude-dir vendor "$regexp"; then
+        if  grep -qPr                   --exclude HACKING.md --exclude 'Makefile.*' --exclude-dir .git --exclude-dir vendor --exclude-dir .github "$regexp"; then
             echo "Using GOPATH as if it were a single entry and not a list:"
             grep -PHrn -C1 --color=auto --exclude HACKING.md --exclude 'Makefile.*' --exclude-dir .git --exclude-dir vendor "$regexp"
             echo "Use GOHOME, or {GOPATH%%:*}, instead."

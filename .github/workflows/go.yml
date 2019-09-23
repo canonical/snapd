@@ -1,0 +1,39 @@
+name: Go
+on: [push]
+jobs:
+  static:
+    name: Quick
+    runs-on: ubuntu-18.04
+    steps:
+    - name: Check out code into the Go module directory
+      uses: actions/checkout@v1
+    - name: Setup build-deps
+      run: |
+        sudo apt update
+        sudo apt build-dep -y ./
+        # we need to remove it again or setup of go1.9 below will not work
+        sudo apt autoremove -y golang-1.10
+        sudo apt install -y govendor
+    - name: Set up Go 1.9
+      uses: actions/setup-go@v1
+      with:
+        go-version: 1.9
+      id: go
+    - name: Run checks
+      env:
+        GOPATH: /home/runner/go
+      run: |
+        # setup env is a bit complicated, see
+        # https://github.com/cedrickring/golang-action
+        # we need to hardcode this
+        WORKDIR="${GOPATH}/src/github.com/snapcore/snapd"
+        # Go can only find dependencies if they're under $GOPATH/src.
+        # GitHub Actions mounts your repository outside of $GOPATH.
+        # So symlink the repository into $GOPATH, and then cd to it.
+        mkdir -p "$(dirname "${WORKDIR}")"
+        ln -s "${PWD}" "${WORKDIR}"
+        cd "${WORKDIR}/${PROJECT_PATH}"
+        # run the real checks
+        ./run-checks --static
+        ./run-checks --short-unit
+
