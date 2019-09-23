@@ -64,6 +64,7 @@ const launcherIntrospectionXML = `
 
 var (
 	allowedURLSchemes = []string{"http", "https", "mailto", "snap", "help"}
+	allowedEnvVars    = []string{"DISPLAY", "WAYLAND_DISPLAY", "XDG_CURRENT_DESKTOP", "XDG_SESSION_DESKTOP", "XDG_SESSION_TYPE"}
 )
 
 // Launcher implements the 'io.snapcraft.Launcher' DBus interface.
@@ -169,6 +170,10 @@ func (s *Launcher) OpenDesktopEntryEnv(desktop_file_id string, env []string, sen
 	cmd := exec.Command(args[0], args[1:]...)
 	cmd.Env = os.Environ()
 	for _, e := range env {
+		if !strutil.ListContains(allowedEnvVars, strings.SplitN(e, "=", 2)[0]) {
+			return dbus.MakeFailedError(fmt.Errorf("Supplied environment variable %q is not allowed", e))
+		}
+
 		cmd.Env = append(cmd.Env, e)
 	}
 
