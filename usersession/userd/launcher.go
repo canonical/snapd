@@ -130,7 +130,8 @@ func (s *Launcher) OpenURL(addr string, sender dbus.Sender) *dbus.Error {
 }
 
 // OpenDesktopEntryEnv implements the 'OpenDesktopEntryEnv' method of the 'io.snapcraft.Launcher'
-// DBus interface.
+// DBus interface. The desktop_file_id is described here:
+// https://standards.freedesktop.org/desktop-entry-spec/desktop-entry-spec-latest.html#desktop-file-id
 func (s *Launcher) OpenDesktopEntryEnv(desktop_file_id string, env []string, sender dbus.Sender) *dbus.Error {
 	desktop_file, err := desktopFileIdToFilename(desktop_file_id)
 	if err != nil {
@@ -148,13 +149,13 @@ func (s *Launcher) OpenDesktopEntryEnv(desktop_file_id string, env []string, sen
 		return dbus.MakeFailedError(err)
 	}
 
-	// Passing exec variables between confined snaps raises unanswered questions and they are not required
-	// for the simple cases.  For now, we don't have support for passing them in the dbus API and drop
-	// them from the command.
-	// https://standards.freedesktop.org/desktop-entry-spec/desktop-entry-spec-latest.html#exec-variables
 	i := 0
 	for {
 		if strings.HasPrefix(args[i], "%") {
+			// Passing exec variables between confined snaps raises unanswered questions and they are not required
+			// for the simple cases.  For now, we don't have support for passing them in the dbus API and drop
+			// them from the command.
+			// https://standards.freedesktop.org/desktop-entry-spec/desktop-entry-spec-latest.html#exec-variables
 			args = append(args[:i], args[i+1:]...)
 		} else {
 			i++
