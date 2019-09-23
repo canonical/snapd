@@ -193,6 +193,7 @@ func findDesktopFile(base_dir string, splitFileId []string) *string {
 		return &desktop_file
 	}
 
+  // Iterate through the potential subdirectories formed by the first i elements of the desktop file ID
 	for i := 1; i != len(splitFileId)-1; i++ {
 		desktop_file := findDesktopFile(filepath.Join(base_dir, strings.Join(splitFileId[:i], "-")), splitFileId[i:])
 		if desktop_file != nil {
