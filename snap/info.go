@@ -242,7 +242,8 @@ type Info struct {
 
 	Publisher StoreAccount
 
-	Media MediaInfos
+	Media   MediaInfos
+	Website string
 
 	// The flattended channel map with $track/$risk
 	Channels map[string]*ChannelSnapInfo

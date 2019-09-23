@@ -27,7 +27,7 @@ import (
 
 	"gopkg.in/check.v1"
 
-	"github.com/snapcore/snapd/selinux"
+	"github.com/snapcore/snapd/sandbox/selinux"
 )
 
 func Test(t *testing.T) { check.TestingT(t) }
