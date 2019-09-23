@@ -25,12 +25,6 @@
 			"revisionTime": "2017-08-22T15:24:03Z"
 		},
 		{
-			"checksumSHA1": "c0Z2sKLKi+IKRVzq0IzNvqvfCrQ=",
-			"path": "github.com/google/shlex",
-			"revision": "c34317bd91bf98fab745d77b03933cf8769299fe",
-			"revisionTime": "2018-11-06T13:46:48Z"
-		},
-		{
 			"checksumSHA1": "2Iy16w6c+4oMD8TtobbO0qsCrDo=",
 			"path": "github.com/gorilla/mux",
 			"revision": "d83b6ffe499a29cc05fc977988d0392851779620",

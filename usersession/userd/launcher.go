@@ -32,12 +32,11 @@ import (
 
 	"github.com/godbus/dbus"
 
-	"github.com/google/shlex"
-
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/i18n"
 	"github.com/snapcore/snapd/osutil/sys"
 	"github.com/snapcore/snapd/strutil"
+	"github.com/snapcore/snapd/strutil/shlex"
 	"github.com/snapcore/snapd/usersession/userd/ui"
 )
 
