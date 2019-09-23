@@ -179,22 +179,22 @@ func (s *Launcher) OpenDesktopEntryEnv(desktop_file_id string, env []string, sen
 }
 
 // findDesktopFile recursively tries each subdirectory that can be formed from the (split) desktop file ID.
-func findDesktopFile(base_dir string, splitFileId []string) (string, error) {
+func findDesktopFile(base_dir string, splitFileId []string) *string {
 	desktop_file := filepath.Join(base_dir, strings.Join(splitFileId, "-"))
 	fileStat, _ := os.Stat(desktop_file)
 
 	if fileStat != nil {
-		return desktop_file, nil
+		return &desktop_file
 	}
 
 	for i := 1; i != len(splitFileId)-1; i++ {
-		desktop_file, err := findDesktopFile(filepath.Join(base_dir, strings.Join(splitFileId[:i], "-")), splitFileId[i:])
-		if err == nil {
-			return desktop_file, nil
+		desktop_file := findDesktopFile(filepath.Join(base_dir, strings.Join(splitFileId[:i], "-")), splitFileId[i:])
+		if desktop_file != nil {
+			return desktop_file
 		}
 	}
 
-	return "", fmt.Errorf("cannot find desktop file")
+	return nil
 }
 
 // desktopFileIdToFilename determines the path associated with a desktop file ID.
@@ -204,10 +204,10 @@ func desktopFileIdToFilename(desktop_file_id string) (string, error) {
 	// and ignore https://specifications.freedesktop.org/basedir-spec/basedir-spec-latest.html
 	base_dir := "/var/lib/snapd/desktop/applications/"
 
-	desktop_file, err := findDesktopFile(base_dir, strings.Split(desktop_file_id, "-"))
+	desktop_file := findDesktopFile(base_dir, strings.Split(desktop_file_id, "-"))
 
-	if err == nil {
-		return desktop_file, nil
+	if desktop_file != nil {
+		return *desktop_file, nil
 	}
 
 	return "", fmt.Errorf("cannot find desktop file for %q", desktop_file_id)
