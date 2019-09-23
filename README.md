@@ -14,7 +14,7 @@ Alongside its various service and management functions, snapd:
   interact with the wider snap ecosystem
 - implements the confinement policies that isolate snaps from the base system
   and from each other
-- marshals the interfaces that allow snaps to access specific system resources
+- governs the interfaces that allow snaps to access specific system resources
   outside of their confinement
 
 For general details, including
@@ -26,8 +26,6 @@ something to install, such as [Spotify](https://snapcraft.io/spotify) or
 Store](https://snapcraft.io/store). And if you want to build your own snaps,
 start with our [Creating a snap](https://snapcraft.io/docs/creating-a-snap)
 documentation.
-
-[![Get it from the Snap Store](https://snapcraft.io/static/images/badges/en/snap-store-black.svg)](https://snapcraft.io/snapd)
 
 ## Get involved
 
