@@ -186,3 +186,30 @@ func (s *cgroupSuite) TestProgGroupMissingGroup(c *C) {
 	c.Assert(err, ErrorMatches, `cannot find cgroup controller "freezer" path for pid 333`)
 	c.Check(group, Equals, "")
 }
+
+var mockCgroupConfusingCpu = []byte(`
+8:cpuacct:/foo.cpuacct
+7:cpuset,cpu,cpuacct:/foo.many-cpu
+`)
+
+func (s *cgroupSuite) TestProgGroupConfusingCpu(c *C) {
+	root := c.MkDir()
+	dirs.SetRootDir(root)
+
+	err := os.MkdirAll(filepath.Join(root, "proc/333"), 0755)
+	c.Assert(err, IsNil)
+	err = ioutil.WriteFile(filepath.Join(root, "proc/333/cgroup"), mockCgroupConfusingCpu, 0755)
+	c.Assert(err, IsNil)
+
+	group, err := cgroup.ProcGroup(333, "cpu")
+	c.Assert(err, IsNil)
+	c.Check(group, Equals, "/foo.many-cpu")
+
+	group, err = cgroup.ProcGroup(333, "cpuacct")
+	c.Assert(err, IsNil)
+	c.Check(group, Equals, "/foo.cpuacct")
+
+	group, err = cgroup.ProcGroup(333, "cpuset")
+	c.Assert(err, IsNil)
+	c.Check(group, Equals, "/foo.many-cpu")
+}

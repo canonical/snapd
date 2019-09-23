@@ -28,6 +28,7 @@ import (
 	"syscall"
 
 	"github.com/snapcore/snapd/dirs"
+	"github.com/snapcore/snapd/strutil"
 )
 
 const (
@@ -125,9 +126,9 @@ func ProcGroup(pid int, controller string) (string, error) {
 		if len(l) < 3 {
 			continue
 		}
-		controllerList := l[1]
+		controllerList := strings.Split(l[1], ",")
 		cgroupPath := l[2]
-		if !strings.Contains(controllerList, controller) {
+		if !strutil.ListContains(controllerList, controller) {
 			continue
 		}
 
