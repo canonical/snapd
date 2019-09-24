@@ -125,7 +125,7 @@ func (x *cmdChangeTimings) printChangeTimings(w io.Writer, timing *timingsData) 
 
 func (x *cmdChangeTimings) printEnsureTimings(w io.Writer, timings []*timingsData) error {
 	for _, td := range timings {
-		printTiming(w, x.Verbose, 0, x.EnsureTag, "", "-", "-", "", "")
+		printTiming(w, x.Verbose, 0, x.EnsureTag, "", formatDuration(td.TotalDuration), "-", "", "")
 		for _, t := range td.EnsureTimings {
 			printTiming(w, x.Verbose, t.Level+1, "", "", formatDuration(t.Duration), "-", t.Label, t.Summary)
 		}
@@ -140,7 +140,7 @@ func (x *cmdChangeTimings) printEnsureTimings(w io.Writer, timings []*timingsDat
 
 func (x *cmdChangeTimings) printStartupTimings(w io.Writer, timings []*timingsData) error {
 	for _, td := range timings {
-		printTiming(w, x.Verbose, 0, x.StartupTag, "", "-", "-", "", "")
+		printTiming(w, x.Verbose, 0, x.StartupTag, "", formatDuration(td.TotalDuration), "-", "", "")
 		for _, t := range td.StartupTimings {
 			printTiming(w, x.Verbose, t.Level+1, "", "", formatDuration(t.Duration), "-", t.Label, t.Summary)
 		}
@@ -152,7 +152,9 @@ type timingsData struct {
 	ChangeID       string   `json:"change-id"`
 	EnsureTimings  []Timing `json:"ensure-timings,omitempty"`
 	StartupTimings []Timing `json:"startup-timings,omitempty"`
-	ChangeTimings  map[string]struct {
+
+	TotalDuration time.Duration `json:"total-duration,omitempty"`
+	ChangeTimings map[string]struct {
 		DoingTime      time.Duration `json:"doing-time,omitempty"`
 		UndoingTime    time.Duration `json:"undoing-time,omitempty"`
 		DoingTimings   []Timing      `json:"doing-timings,omitempty"`
