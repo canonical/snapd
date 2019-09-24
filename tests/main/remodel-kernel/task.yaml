@@ -59,7 +59,7 @@ restore: |
         echo "properly cleanup"
         echo "see https://github.com/snapcore/snapd/pull/6620"
         echo
-        find /var/snap
+        find /var/snap -ls
         exit 1
     fi
 

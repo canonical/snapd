@@ -43,6 +43,7 @@ type settingsSuite struct {
 var _ = Suite(&settingsSuite{})
 
 func (s *settingsSuite) SetUpTest(c *C) {
+	dirs.SetRootDir(c.MkDir())
 	s.restoreSnapFromSender = userd.MockSnapFromSender(func(*dbus.Conn, dbus.Sender) (string, error) {
 		return "some-snap", nil
 	})
@@ -68,6 +69,7 @@ fi
 func (s *settingsSuite) TearDownTest(c *C) {
 	s.mockXdgSettings.Restore()
 	s.restoreSnapFromSender()
+	dirs.SetRootDir("/")
 }
 
 func mockUIcommands(c *C, script string) func() {

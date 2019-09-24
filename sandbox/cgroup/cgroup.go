@@ -20,11 +20,15 @@
 package cgroup
 
 import (
+	"bufio"
 	"fmt"
+	"os"
 	"path/filepath"
+	"strings"
 	"syscall"
 
 	"github.com/snapcore/snapd/dirs"
+	"github.com/snapcore/snapd/strutil"
 )
 
 const (
@@ -98,6 +102,43 @@ func IsUnified() bool {
 // Version returns the detected cgroup version
 func Version() (int, error) {
 	return probeVersion, probeErr
+}
+
+// ProcGroup finds the path of a given cgroup controller for provided process
+// id.
+func ProcGroup(pid int, controller string) (string, error) {
+	f, err := os.Open(ProcPidPath(pid))
+	if err != nil {
+		return "", err
+	}
+	defer f.Close()
+
+	scanner := bufio.NewScanner(f)
+	for scanner.Scan() {
+		// we need to find a string like:
+		//   ...
+		//   <id>:<controller[,controller]>:/<path>
+		//   7:freezer:/snap.hello-world
+		//   ...
+		// See cgroup(7) for details about the /proc/[pid]/cgroup
+		// format.
+		l := strings.Split(scanner.Text(), ":")
+		if len(l) < 3 {
+			continue
+		}
+		controllerList := strings.Split(l[1], ",")
+		cgroupPath := l[2]
+		if !strutil.ListContains(controllerList, controller) {
+			continue
+		}
+
+		return cgroupPath, nil
+	}
+	if scanner.Err() != nil {
+		return "", scanner.Err()
+	}
+
+	return "", fmt.Errorf("cannot find cgroup controller %q path for pid %v", controller, pid)
 }
 
 // MockVersion sets the reported version of cgroup support. For use in testing only
