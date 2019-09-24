@@ -34,7 +34,8 @@ import (
 // needed in the state, that may be stored to augment the information
 // returned for locally-installed snaps
 type auxStoreInfo struct {
-	Media snap.MediaInfos `json:"media,omitempty"`
+	Media   snap.MediaInfos `json:"media,omitempty"`
+	Website string          `json:"website,omitempty"`
 }
 
 func auxStoreInfoFilename(snapID string) string {
@@ -65,6 +66,7 @@ func retrieveAuxStoreInfo(info *snap.Info) error {
 	}
 
 	info.Media = aux.Media
+	info.Website = aux.Website
 
 	return nil
 }
