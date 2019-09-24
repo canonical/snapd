@@ -20,6 +20,7 @@
 package main
 
 import (
+	"errors"
 	"fmt"
 	"strings"
 	"time"
@@ -39,13 +40,18 @@ device.
 
 By default, only the essential model identification information is
 included in the output, but this can be expanded to include all of an
-assertion's headers non-meta headers.
+assertion's non-meta headers.
+
+The verbose output is presented in a structured, yaml-like format.
 
 Similarly, the active serial assertion can be used for the output instead of the
 model assertion.
 `)
 
-	invalidTypeMessage = i18n.G("invalid type for %q header")
+	invalidTypeMessage    = i18n.G("invalid type for %q header")
+	errNoMainAssertion    = errors.New(i18n.G("device not ready yet (no assertions found)"))
+	errNoSerial           = errors.New(i18n.G("device not registered yet (no serial assertion found)"))
+	errNoVerboseAssertion = errors.New(i18n.G("cannot use --verbose with --assertion"))
 
 	// this list is a "nice" "human" "readable" "ordering" of headers to print
 	// off, sorted in lexographical order with meta headers and primary key
@@ -72,6 +78,8 @@ model assertion.
 type cmdModel struct {
 	waitMixin
 	timeMixin
+	colorMixin
+
 	Serial    bool `long:"serial"`
 	Verbose   bool `long:"verbose"`
 	Assertion bool `long:"assertion"`
@@ -83,7 +91,7 @@ func init() {
 		longModelHelp,
 		func() flags.Commander {
 			return &cmdModel{}
-		}, timeDescs.also(waitDescs).also(map[string]string{
+		}, colorDescs.also(timeDescs).also(waitDescs).also(map[string]string{
 			"assertion": i18n.G("Print the raw assertion."),
 			"verbose":   i18n.G("Print all specific assertion fields."),
 			"serial": i18n.G(
@@ -94,25 +102,45 @@ func init() {
 }
 
 func (x *cmdModel) Execute(args []string) error {
-	var assertion asserts.Assertion
-	var err error
-	if x.Serial {
-		assertion, err = x.client.CurrentSerialAssertion()
-	} else {
-		assertion, err = x.client.CurrentModelAssertion()
+	if x.Verbose && x.Assertion {
+		// can't do a verbose mode for the assertion
+		return errNoVerboseAssertion
 	}
 
-	if err != nil {
-		if client.IsAssertionNotFoundError(err) {
+	var mainAssertion asserts.Assertion
+	serialAssertion, serialErr := x.client.CurrentSerialAssertion()
+	modelAssertion, modelErr := x.client.CurrentModelAssertion()
+
+	// if we didn't get a model assertion bail early
+	if modelErr != nil {
+		if client.IsAssertionNotFoundError(modelErr) {
 			// device is not registered yet - use specific error message
-			err = fmt.Errorf(i18n.G("device not ready - no assertion found"))
+			return errNoMainAssertion
 		}
-		return err
+		return modelErr
 	}
 
-	// --assertion means output the raw assertion
+	// if the serial assertion error is anything other than not found, also
+	// bail early
+	// the serial assertion not being found may not be fatal
+	if serialErr != nil && !client.IsAssertionNotFoundError(serialErr) {
+		return serialErr
+	}
+
+	if x.Serial {
+		mainAssertion = serialAssertion
+	} else {
+		mainAssertion = modelAssertion
+	}
+
 	if x.Assertion {
-		_, err = Stdout.Write(asserts.Encode(assertion))
+		// if we are using the serial assertion and we specifically didn't find the
+		// serial assertion, bail with specific error
+		if x.Serial && client.IsAssertionNotFoundError(serialErr) {
+			return errNoMainAssertion
+		}
+
+		_, err := Stdout.Write(asserts.Encode(mainAssertion))
 		return err
 	}
 
@@ -123,21 +151,86 @@ func (x *cmdModel) Execute(args []string) error {
 		termWidth = 100
 	}
 
+	esc := x.getEscapes()
+
 	w := tabWriter()
 
-	// output the primary keys first in their canonical order
-	for _, headerName := range assertion.Type().PrimaryKey {
-		if headerName == "series" {
-			// series can be obtained from "snap version"
-			// and given it is stuck at 16 is mainly confusing
-			continue
-		}
-		fmt.Fprintf(w, "%s:\t%s\n", headerName, assertion.HeaderString(headerName))
+	if x.Serial && client.IsAssertionNotFoundError(serialErr) {
+		// for serial assertion, the primary keys are output (model and
+		// brand-id), but if we didn't find the serial assertion then we still
+		// output the brand-id and model from the model assertion, but also
+		// return a devNotReady error
+		fmt.Fprintf(w, "brand-id:\t%s\n", modelAssertion.HeaderString("brand-id"))
+		fmt.Fprintf(w, "model:\t%s\n", modelAssertion.HeaderString("model"))
+		w.Flush()
+		return errNoSerial
 	}
 
-	// --verbose means output all of the fields
+	// the rest of this function is the main flow for outputting either the
+	// model or serial assertion in normal or verbose mode
+
+	// for the `snap model` case with no options, we don't want colons, we want
+	// to be like `snap version`
+	separator := ":"
+	if !x.Verbose && !x.Serial {
+		separator = ""
+	}
+
+	// ordering of the primary keys for model: brand, model, serial
+	// ordering of primary keys for serial is brand-id, model, serial
+
+	// output brand/brand-id
+	brandIDHeader := mainAssertion.HeaderString("brand-id")
+	modelHeader := mainAssertion.HeaderString("model")
+	// for the serial header, if there's no serial yet, it's not an error for
+	// model (and we already handled the serial error above) but need to add a
+	// parenthetical about the device not being registered yet
+	var serial string
+	if client.IsAssertionNotFoundError(serialErr) {
+		if x.Verbose || x.Serial {
+			// verbose and serial are yamlish, so we need to escape the dash
+			serial = esc.dash
+		} else {
+			serial = "-"
+		}
+		serial += " (device not registered yet)"
+	} else {
+		serial = serialAssertion.HeaderString("serial")
+	}
+
+	// handle brand/brand-id (the former is only on `snap model` w/o opts)
+	if x.Serial || x.Verbose {
+		fmt.Fprintf(w, "brand-id:\t%s\n", brandIDHeader)
+	} else {
+		// for the model command (not --serial) we want to show a publisher
+		// style display of "brand" instead of just "brand-id"
+		storeAccount, err := x.client.StoreAccount(brandIDHeader)
+		if err != nil {
+			return err
+		}
+		// use the longPublisher helper to format the brand store account
+		// like we do in `snap info`
+		fmt.Fprintf(w, "brand%s\t%s\n", separator, longPublisher(x.getEscapes(), storeAccount))
+	}
+
+	// handle model, on `snap model` we try to add display-name if it exists
+	if x.Serial {
+		fmt.Fprintf(w, "model:\t%s\n", modelHeader)
+	} else {
+		// for model, if there's a display-name, we show that first with the
+		// real model in parenthesis
+		if displayName := modelAssertion.HeaderString("display-name"); displayName != "" {
+			modelHeader = fmt.Sprintf("%s (%s)", displayName, modelHeader)
+		}
+		fmt.Fprintf(w, "model%s\t%s\n", separator, modelHeader)
+	}
+
+	// serial is same for all variants
+	fmt.Fprintf(w, "serial%s\t%s\n", separator, serial)
+
+	// --verbose means output more information
 	if x.Verbose {
-		allHeadersMap := assertion.Headers()
+		allHeadersMap := mainAssertion.Headers()
 
 		for _, headerName := range niceOrdering {
 			invalidTypeErr := fmt.Errorf(invalidTypeMessage, headerName)
@@ -158,23 +251,22 @@ func (x *cmdModel) Execute(args []string) error {
 				}
 				if len(headerIfaceList) == 0 {
 					continue
-				} else {
-					fmt.Fprintf(w, "%s:\t\n", headerName)
-					for _, elem := range headerIfaceList {
-						headerStringElem, ok := elem.(string)
-						if !ok {
-							return invalidTypeErr
-						}
-						// note we don't wrap these, since for now this is
-						// specifically just required-snaps and so all of these
-						// will be snap names which are required to be short
-						fmt.Fprintf(w, "  - %s\n", headerStringElem)
+				}
+				fmt.Fprintf(w, "%s:\t\n", headerName)
+				for _, elem := range headerIfaceList {
+					headerStringElem, ok := elem.(string)
+					if !ok {
+						return invalidTypeErr
 					}
+					// note we don't wrap these, since for now this is
+					// specifically just required-snaps and so all of these
+					// will be snap names which are required to be short
+					fmt.Fprintf(w, "  - %s\n", headerStringElem)
 				}
 
 			//timestamp needs to be formatted with fmtTime from the timeMixin
 			case "timestamp":
-				timestamp, ok := allHeadersMap[headerName].(string)
+				timestamp, ok := headerValue.(string)
 				if !ok {
 					return invalidTypeErr
 				}

@@ -1,3 +1,15 @@
+snapd (2.42~pre2) xenial; urgency=medium
+
+  * new 2.42~pre2 upload
+
+ -- Michael Vogt <michael.vogt@ubuntu.com>  Thu, 19 Sep 2019 10:59:58 +0200
+
+snapd (2.42~pre1) xenial; urgency=medium
+
+  * placeholder changelog
+
+ -- Michael Vogt <michael.vogt@ubuntu.com>  Tue, 17 Sep 2019 15:24:00 +0200
+
 snapd (2.41) xenial; urgency=medium
 
   * New upstream release, LP: #1840740
