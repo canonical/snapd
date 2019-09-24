@@ -149,12 +149,11 @@ func (x *cmdChangeTimings) printStartupTimings(w io.Writer, timings []*timingsDa
 }
 
 type timingsData struct {
-	ChangeID       string   `json:"change-id"`
-	EnsureTimings  []Timing `json:"ensure-timings,omitempty"`
-	StartupTimings []Timing `json:"startup-timings,omitempty"`
-
-	TotalDuration time.Duration `json:"total-duration,omitempty"`
-	ChangeTimings map[string]struct {
+	ChangeID       string        `json:"change-id"`
+	EnsureTimings  []Timing      `json:"ensure-timings,omitempty"`
+	StartupTimings []Timing      `json:"startup-timings,omitempty"`
+	TotalDuration  time.Duration `json:"total-duration,omitempty"`
+	ChangeTimings  map[string]struct {
 		DoingTime      time.Duration `json:"doing-time,omitempty"`
 		UndoingTime    time.Duration `json:"undoing-time,omitempty"`
 		DoingTimings   []Timing      `json:"doing-timings,omitempty"`
