@@ -1103,6 +1103,8 @@ func (s *apiSuite) TestSysInfoLegacyRefresh(c *check.C) {
 	defer restore()
 	restore = release.MockForcedDevmode(true)
 	defer restore()
+	restore = mockSystemdVirt("kvm")
+	defer restore()
 	// reload dirs for release info to have effect
 	dirs.SetRootDir(dirs.GlobalRootDir)
 
@@ -1153,7 +1155,8 @@ func (s *apiSuite) TestSysInfoLegacyRefresh(c *check.C) {
 			"apparmor":            []interface{}{"feature-1", "feature-2"},
 			"confinement-options": []interface{}{"classic", "devmode"}, // we know it's this because of the release.Mock... calls above
 		},
-		"architecture": arch.DpkgArchitecture(),
+		"architecture":   arch.DpkgArchitecture(),
+		"virtualization": "kvm",
 	}
 	var rsp resp
 	c.Assert(json.Unmarshal(rec.Body.Bytes(), &rsp), check.IsNil)
