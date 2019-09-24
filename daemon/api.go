@@ -298,7 +298,7 @@ func sysInfo(c *Command, r *http.Request, user *auth.UserState) Response {
 			"snap-bin-dir":   dirs.SnapBinariesDir,
 		},
 		"refresh":      refreshInfo,
-		"architecture": arch.UbuntuArchitecture(),
+		"architecture": arch.DpkgArchitecture(),
 	}
 	if systemdVirt != "" {
 		m["virtualization"] = systemdVirt

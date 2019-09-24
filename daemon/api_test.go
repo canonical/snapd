@@ -1077,7 +1077,7 @@ func (s *apiSuite) TestSysInfo(c *check.C) {
 		},
 		"confinement":      "partial",
 		"sandbox-features": map[string]interface{}{"confinement-options": []interface{}{"classic", "devmode"}},
-		"architecture":     arch.UbuntuArchitecture(),
+		"architecture":     arch.DpkgArchitecture(),
 		"virtualization":   "magic",
 	}
 	var rsp resp
@@ -1153,7 +1153,7 @@ func (s *apiSuite) TestSysInfoLegacyRefresh(c *check.C) {
 			"apparmor":            []interface{}{"feature-1", "feature-2"},
 			"confinement-options": []interface{}{"classic", "devmode"}, // we know it's this because of the release.Mock... calls above
 		},
-		"architecture": arch.UbuntuArchitecture(),
+		"architecture": arch.DpkgArchitecture(),
 	}
 	var rsp resp
 	c.Assert(json.Unmarshal(rec.Body.Bytes(), &rsp), check.IsNil)
