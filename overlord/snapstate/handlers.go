@@ -77,6 +77,32 @@ func TaskSnapSetup(t *state.Task) (*SnapSetup, error) {
 	return &snapsup, nil
 }
 
+// SetTaskSnapSetup writes the given SnapSetup to the provided task's
+// snap-setup-task Task, or to the task itself if the task does not have a
+// snap-setup-task (i.e. it _is_ the snap-setup-task)
+func SetTaskSnapSetup(t *state.Task, snapsup *SnapSetup) error {
+	if t.Has("snap-setup-task") {
+		// this task isn't the snap-setup-task, so go get that and write to that
+		// one
+		var id string
+		err := t.Get("snap-setup-task", &id)
+		if err != nil {
+			return err
+		}
+
+		ts := t.State().Task(id)
+		if ts == nil {
+			return fmt.Errorf("internal error: tasks are being pruned")
+		}
+		ts.Set("snap-setup", snapsup)
+	} else {
+		// this is the snap-setup-task so just write to the task directly
+		t.Set("snap-setup", snapsup)
+	}
+
+	return nil
+}
+
 func snapSetupAndState(t *state.Task) (*SnapSetup, *SnapState, error) {
 	snapsup, err := TaskSnapSetup(t)
 	if err != nil {
