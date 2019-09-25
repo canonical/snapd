@@ -81,7 +81,10 @@ func TaskSnapSetup(t *state.Task) (*SnapSetup, error) {
 // snap-setup-task Task, or to the task itself if the task does not have a
 // snap-setup-task (i.e. it _is_ the snap-setup-task)
 func SetTaskSnapSetup(t *state.Task, snapsup *SnapSetup) error {
-	if t.Has("snap-setup-task") {
+	if t.Has("snap-setup") {
+		// this is the snap-setup-task so just write to the task directly
+		t.Set("snap-setup", snapsup)
+	} else {
 		// this task isn't the snap-setup-task, so go get that and write to that
 		// one
 		var id string
@@ -95,9 +98,6 @@ func SetTaskSnapSetup(t *state.Task, snapsup *SnapSetup) error {
 			return fmt.Errorf("internal error: tasks are being pruned")
 		}
 		ts.Set("snap-setup", snapsup)
-	} else {
-		// this is the snap-setup-task so just write to the task directly
-		t.Set("snap-setup", snapsup)
 	}
 
 	return nil
