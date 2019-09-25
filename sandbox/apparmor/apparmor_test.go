@@ -41,16 +41,16 @@ type apparmorSuite struct{}
 var _ = Suite(&apparmorSuite{})
 
 func (*apparmorSuite) TestAppArmorLevelTypeStringer(c *C) {
-	c.Check(apparmor.UnknownAppArmor.String(), Equals, "unknown")
-	c.Check(apparmor.NoAppArmor.String(), Equals, "none")
-	c.Check(apparmor.UnusableAppArmor.String(), Equals, "unusable")
-	c.Check(apparmor.PartialAppArmor.String(), Equals, "partial")
-	c.Check(apparmor.FullAppArmor.String(), Equals, "full")
-	c.Check(apparmor.AppArmorLevelType(42).String(), Equals, "AppArmorLevelType:42")
+	c.Check(apparmor.Unknown.String(), Equals, "unknown")
+	c.Check(apparmor.Unsupported.String(), Equals, "none")
+	c.Check(apparmor.Unusable.String(), Equals, "unusable")
+	c.Check(apparmor.Partial.String(), Equals, "partial")
+	c.Check(apparmor.Full.String(), Equals, "full")
+	c.Check(apparmor.LevelType(42).String(), Equals, "AppArmorLevelType:42")
 }
 
 func (*apparmorSuite) TestMockAppArmorLevel(c *C) {
-	for _, lvl := range []apparmor.AppArmorLevelType{apparmor.NoAppArmor, apparmor.UnusableAppArmor, apparmor.PartialAppArmor, apparmor.FullAppArmor} {
+	for _, lvl := range []apparmor.LevelType{apparmor.Unsupported, apparmor.Unusable, apparmor.Partial, apparmor.Full} {
 		restore := apparmor.MockLevel(lvl)
 		c.Check(apparmor.ProbedLevel(), Equals, lvl)
 		c.Check(apparmor.Summary(), testutil.Contains, "mocked apparmor level: ")
@@ -68,7 +68,7 @@ func (*apparmorSuite) TestMockAppArmorLevel(c *C) {
 func (*apparmorSuite) TestMockAppArmorFeatures(c *C) {
 	// No apparmor in the kernel, apparmor is disabled.
 	restore := apparmor.MockFeatures([]string{}, os.ErrNotExist, []string{}, nil)
-	c.Check(apparmor.ProbedLevel(), Equals, apparmor.NoAppArmor)
+	c.Check(apparmor.ProbedLevel(), Equals, apparmor.Unsupported)
 	c.Check(apparmor.Summary(), Equals, "apparmor not enabled")
 	features, err := apparmor.KernelFeatures()
 	c.Assert(err, Equals, os.ErrNotExist)
@@ -80,7 +80,7 @@ func (*apparmorSuite) TestMockAppArmorFeatures(c *C) {
 
 	// No apparmor_parser, apparmor is disabled.
 	restore = apparmor.MockFeatures([]string{}, nil, []string{}, os.ErrNotExist)
-	c.Check(apparmor.ProbedLevel(), Equals, apparmor.NoAppArmor)
+	c.Check(apparmor.ProbedLevel(), Equals, apparmor.Unsupported)
 	c.Check(apparmor.Summary(), Equals, "apparmor_parser not found")
 	features, err = apparmor.KernelFeatures()
 	c.Assert(err, IsNil)
@@ -92,7 +92,7 @@ func (*apparmorSuite) TestMockAppArmorFeatures(c *C) {
 
 	// Complete kernel features but apparmor is unusable because of missing required parser features.
 	restore = apparmor.MockFeatures(apparmor.RequiredKernelFeatures, nil, []string{}, nil)
-	c.Check(apparmor.ProbedLevel(), Equals, apparmor.UnusableAppArmor)
+	c.Check(apparmor.ProbedLevel(), Equals, apparmor.Unusable)
 	c.Check(apparmor.Summary(), Equals, "apparmor_parser is available but required parser features are missing: unsafe")
 	features, err = apparmor.KernelFeatures()
 	c.Assert(err, IsNil)
@@ -105,7 +105,7 @@ func (*apparmorSuite) TestMockAppArmorFeatures(c *C) {
 	// Complete parser features but apparmor is unusable because of missing required kernel features.
 	// The dummy feature is there to pretend that apparmor in the kernel is not entirely disabled.
 	restore = apparmor.MockFeatures([]string{"dummy-feature"}, nil, apparmor.RequiredParserFeatures, nil)
-	c.Check(apparmor.ProbedLevel(), Equals, apparmor.UnusableAppArmor)
+	c.Check(apparmor.ProbedLevel(), Equals, apparmor.Unusable)
 	c.Check(apparmor.Summary(), Equals, "apparmor is enabled but required kernel features are missing: file")
 	features, err = apparmor.KernelFeatures()
 	c.Assert(err, IsNil)
@@ -117,7 +117,7 @@ func (*apparmorSuite) TestMockAppArmorFeatures(c *C) {
 
 	// Required kernel and parser features available, some optional features are missing though.
 	restore = apparmor.MockFeatures(apparmor.RequiredKernelFeatures, nil, apparmor.RequiredParserFeatures, nil)
-	c.Check(apparmor.ProbedLevel(), Equals, apparmor.PartialAppArmor)
+	c.Check(apparmor.ProbedLevel(), Equals, apparmor.Partial)
 	c.Check(apparmor.Summary(), Equals, "apparmor is enabled but some kernel features are missing: caps, dbus, domain, mount, namespaces, network, ptrace, signal")
 	features, err = apparmor.KernelFeatures()
 	c.Assert(err, IsNil)
@@ -129,7 +129,7 @@ func (*apparmorSuite) TestMockAppArmorFeatures(c *C) {
 
 	// Preferred kernel and parser features available.
 	restore = apparmor.MockFeatures(apparmor.PreferredKernelFeatures, nil, apparmor.PreferredParserFeatures, nil)
-	c.Check(apparmor.ProbedLevel(), Equals, apparmor.FullAppArmor)
+	c.Check(apparmor.ProbedLevel(), Equals, apparmor.Full)
 	c.Check(apparmor.Summary(), Equals, "apparmor is enabled and all features are available")
 	features, err = apparmor.KernelFeatures()
 	c.Assert(err, IsNil)

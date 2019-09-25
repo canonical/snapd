@@ -33,35 +33,35 @@ import (
 	"github.com/snapcore/snapd/strutil"
 )
 
-// AppArmorLevelType encodes the kind of support for apparmor
+// LevelType encodes the kind of support for apparmor
 // found on this system.
-type AppArmorLevelType int
+type LevelType int
 
 const (
-	// UnknownAppArmor indicates that apparmor was not probed yet.
-	UnknownAppArmor AppArmorLevelType = iota
-	// NoAppArmor indicates that apparmor is not enabled.
-	NoAppArmor
-	// UnusableAppArmor indicates that apparmor is enabled but cannot be used.
-	UnusableAppArmor
-	// PartialAppArmor indicates that apparmor is enabled but some
+	// Unknown indicates that apparmor was not probed yet.
+	Unknown LevelType = iota
+	// Unsupported indicates that apparmor is not enabled.
+	Unsupported
+	// Unusable indicates that apparmor is enabled but cannot be used.
+	Unusable
+	// Partial indicates that apparmor is enabled but some
 	// features are missing.
-	PartialAppArmor
-	// FullAppArmor indicates that all features are supported.
-	FullAppArmor
+	Partial
+	// Full indicates that all features are supported.
+	Full
 )
 
-func (level AppArmorLevelType) String() string {
+func (level LevelType) String() string {
 	switch level {
-	case UnknownAppArmor:
+	case Unknown:
 		return "unknown"
-	case NoAppArmor:
+	case Unsupported:
 		return "none"
-	case UnusableAppArmor:
+	case Unusable:
 		return "unusable"
-	case PartialAppArmor:
+	case Partial:
 		return "partial"
-	case FullAppArmor:
+	case Full:
 		return "full"
 	}
 	return fmt.Sprintf("AppArmorLevelType:%d", level)
@@ -72,7 +72,7 @@ var appArmorAssessment = &appArmorAssess{appArmorProber: &appArmorProbe{}}
 
 // ProbedLevel quantifies how well apparmor is supported on the current
 // kernel. The computation is costly to perform. The result is cached internally.
-func ProbedLevel() AppArmorLevelType {
+func ProbedLevel() LevelType {
 	appArmorAssessment.assess()
 	return appArmorAssessment.level
 }
@@ -159,7 +159,7 @@ type appArmorProber interface {
 type appArmorAssess struct {
 	appArmorProber
 	// level contains the assessment of the "level" of apparmor support.
-	level AppArmorLevelType
+	level LevelType
 	// summary contains a human readable description of the assessment.
 	summary string
 
@@ -172,17 +172,17 @@ func (aaa *appArmorAssess) assess() {
 	})
 }
 
-func (aaa *appArmorAssess) doAssess() (level AppArmorLevelType, summary string) {
+func (aaa *appArmorAssess) doAssess() (level LevelType, summary string) {
 	// First, quickly check if apparmor is available in the kernel at all.
 	kernelFeatures, err := aaa.KernelFeatures()
 	if os.IsNotExist(err) {
-		return NoAppArmor, "apparmor not enabled"
+		return Unsupported, "apparmor not enabled"
 	}
 	// Then check that the parser supports the required parser features.
 	// If we have any missing required features then apparmor is unusable.
 	parserFeatures, err := aaa.ParserFeatures()
 	if os.IsNotExist(err) {
-		return NoAppArmor, "apparmor_parser not found"
+		return Unsupported, "apparmor_parser not found"
 	}
 	var missingParserFeatures []string
 	for _, feature := range requiredParserFeatures {
@@ -193,7 +193,7 @@ func (aaa *appArmorAssess) doAssess() (level AppArmorLevelType, summary string) 
 	if len(missingParserFeatures) > 0 {
 		summary := fmt.Sprintf("apparmor_parser is available but required parser features are missing: %s",
 			strings.Join(missingParserFeatures, ", "))
-		return UnusableAppArmor, summary
+		return Unusable, summary
 	}
 
 	// Next, check that the kernel supports the required kernel features.
@@ -206,7 +206,7 @@ func (aaa *appArmorAssess) doAssess() (level AppArmorLevelType, summary string) 
 	if len(missingKernelFeatures) > 0 {
 		summary := fmt.Sprintf("apparmor is enabled but required kernel features are missing: %s",
 			strings.Join(missingKernelFeatures, ", "))
-		return UnusableAppArmor, summary
+		return Unusable, summary
 	}
 
 	// Next check that the parser supports preferred parser features.
@@ -219,7 +219,7 @@ func (aaa *appArmorAssess) doAssess() (level AppArmorLevelType, summary string) 
 	if len(missingParserFeatures) > 0 {
 		summary := fmt.Sprintf("apparmor_parser is available but some features are missing: %s",
 			strings.Join(missingParserFeatures, ", "))
-		return PartialAppArmor, summary
+		return Partial, summary
 	}
 
 	// Lastly check that the kernel supports preferred kernel features.
@@ -231,11 +231,11 @@ func (aaa *appArmorAssess) doAssess() (level AppArmorLevelType, summary string) 
 	if len(missingKernelFeatures) > 0 {
 		summary := fmt.Sprintf("apparmor is enabled but some kernel features are missing: %s",
 			strings.Join(missingKernelFeatures, ", "))
-		return PartialAppArmor, summary
+		return Partial, summary
 	}
 
 	// If we got here then all features are available and supported.
-	return FullAppArmor, "apparmor is enabled and all features are available"
+	return Full, "apparmor is enabled and all features are available"
 }
 
 type appArmorProbe struct {
@@ -340,7 +340,7 @@ func (m *mockAppArmorProbe) ParserFeatures() ([]string, error) {
 // AppArmor kernel and parser features are set to unrealistic values that do
 // not match the requested level. Use this function to observe behavior that
 // relies solely on the apparmor level value.
-func MockLevel(level AppArmorLevelType) (restore func()) {
+func MockLevel(level LevelType) (restore func()) {
 	oldAppArmorAssessment := appArmorAssessment
 	mockProbe := &mockAppArmorProbe{
 		kernelFeatures: []string{"mocked-kernel-feature"},

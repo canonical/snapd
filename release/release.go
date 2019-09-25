@@ -44,7 +44,7 @@ type OS struct {
 // ForceDevMode returns true if the distribution doesn't implement required
 // security features for confinement and devmode is forced.
 func (o *OS) ForceDevMode() bool {
-	return apparmor.ProbedLevel() != apparmor.FullAppArmor
+	return apparmor.ProbedLevel() != apparmor.Full
 }
 
 // DistroLike checks if the distribution ID or ID_LIKE matches one of the given names.
@@ -161,9 +161,9 @@ func MockReleaseInfo(osRelease *OS) (restore func()) {
 // MockForcedDevmode fake the system to believe its in a distro
 // that is in ForcedDevmode
 func MockForcedDevmode(isDevmode bool) (restore func()) {
-	level := apparmor.FullAppArmor
+	level := apparmor.Full
 	if isDevmode {
-		level = apparmor.NoAppArmor
+		level = apparmor.Unsupported
 	}
 	return apparmor.MockLevel(level)
 }

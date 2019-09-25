@@ -333,7 +333,7 @@ func (b *Backend) Setup(snapInfo *snap.Info, opts interfaces.ConfinementOptions,
 	spec.(*Specification).AddLayout(snapInfo)
 
 	// core on classic is special
-	if snapName == "core" && release.OnClassic && apparmor_sandbox.ProbedLevel() != apparmor_sandbox.NoAppArmor {
+	if snapName == "core" && release.OnClassic && apparmor_sandbox.ProbedLevel() != apparmor_sandbox.Unsupported {
 		if err := setupSnapConfineReexec(snapInfo); err != nil {
 			return fmt.Errorf("cannot create host snap-confine apparmor configuration: %s", err)
 		}
@@ -342,7 +342,7 @@ func (b *Backend) Setup(snapInfo *snap.Info, opts interfaces.ConfinementOptions,
 	// Deal with the "snapd" snap - we do the setup slightly differently
 	// here because this will run both on classic and on Ubuntu Core 18
 	// systems but /etc/apparmor.d is not writable on core18 systems
-	if snapInfo.GetType() == snap.TypeSnapd && apparmor_sandbox.ProbedLevel() != apparmor_sandbox.NoAppArmor {
+	if snapInfo.GetType() == snap.TypeSnapd && apparmor_sandbox.ProbedLevel() != apparmor_sandbox.Unsupported {
 		if err := setupSnapConfineReexec(snapInfo); err != nil {
 			return fmt.Errorf("cannot create host snap-confine apparmor configuration: %s", err)
 		}
@@ -531,7 +531,7 @@ func addContent(securityTag string, snapInfo *snap.Info, opts interfaces.Confine
 	// When partial AppArmor is detected, use the classic template for now. We could
 	// use devmode, but that could generate confusing log entries for users running
 	// snaps on systems with partial AppArmor support.
-	if apparmor_sandbox.ProbedLevel() == apparmor_sandbox.PartialAppArmor {
+	if apparmor_sandbox.ProbedLevel() == apparmor_sandbox.Partial {
 		// By default, downgrade confinement to the classic template when
 		// partial AppArmor support is detected. We don't want to use strict
 		// in general yet because older versions of the kernel did not
@@ -632,7 +632,7 @@ func (b *Backend) NewSpecification() interfaces.Specification {
 
 // SandboxFeatures returns the list of apparmor features supported by the kernel.
 func (b *Backend) SandboxFeatures() []string {
-	if apparmor_sandbox.ProbedLevel() == apparmor_sandbox.NoAppArmor {
+	if apparmor_sandbox.ProbedLevel() == apparmor_sandbox.Unsupported {
 		return nil
 	}
 
@@ -653,7 +653,7 @@ func (b *Backend) SandboxFeatures() []string {
 
 	level := "full"
 	policy := "default"
-	if apparmor_sandbox.ProbedLevel() == apparmor_sandbox.PartialAppArmor {
+	if apparmor_sandbox.ProbedLevel() == apparmor_sandbox.Partial {
 		level = "partial"
 
 		if downgradeConfinement() {

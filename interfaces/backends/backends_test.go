@@ -36,7 +36,7 @@ type backendsSuite struct{}
 var _ = Suite(&backendsSuite{})
 
 func (s *backendsSuite) TestIsAppArmorEnabled(c *C) {
-	for _, level := range []apparmor_sandbox.AppArmorLevelType{apparmor_sandbox.NoAppArmor, apparmor_sandbox.UnusableAppArmor, apparmor_sandbox.PartialAppArmor, apparmor_sandbox.FullAppArmor} {
+	for _, level := range []apparmor_sandbox.LevelType{apparmor_sandbox.Unsupported, apparmor_sandbox.Unusable, apparmor_sandbox.Partial, apparmor_sandbox.Full} {
 		restore := apparmor_sandbox.MockLevel(level)
 		defer restore()
 
@@ -46,9 +46,9 @@ func (s *backendsSuite) TestIsAppArmorEnabled(c *C) {
 			names[i] = string(backend.Name())
 		}
 		switch level {
-		case apparmor_sandbox.NoAppArmor, apparmor_sandbox.UnusableAppArmor:
+		case apparmor_sandbox.Unsupported, apparmor_sandbox.Unusable:
 			c.Assert(names, Not(testutil.Contains), "apparmor")
-		case apparmor_sandbox.PartialAppArmor, apparmor_sandbox.FullAppArmor:
+		case apparmor_sandbox.Partial, apparmor_sandbox.Full:
 			c.Assert(names, testutil.Contains, "apparmor")
 		}
 
@@ -56,7 +56,7 @@ func (s *backendsSuite) TestIsAppArmorEnabled(c *C) {
 }
 
 func (s *backendsSuite) TestEssentialOrdering(c *C) {
-	restore := apparmor_sandbox.MockLevel(apparmor_sandbox.FullAppArmor)
+	restore := apparmor_sandbox.MockLevel(apparmor_sandbox.Full)
 	defer restore()
 
 	all := backends.Backends()

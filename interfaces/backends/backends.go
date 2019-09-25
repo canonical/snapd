@@ -70,7 +70,7 @@ func backends() []interfaces.SecurityBackend {
 	// When some features are missing the backend will generate more permissive
 	// profiles that keep applications operational, in forced-devmode.
 	switch apparmor_sandbox.ProbedLevel() {
-	case apparmor_sandbox.PartialAppArmor, apparmor_sandbox.FullAppArmor:
+	case apparmor_sandbox.Partial, apparmor_sandbox.Full:
 		all = append(all, &apparmor.Backend{})
 	}
 	return all
