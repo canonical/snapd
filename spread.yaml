@@ -102,10 +102,6 @@ backends:
                 workers: 6
                 storage: preserve-size
 
-            - centos-7-64:
-                workers: 6
-                image: centos-7-64
-
     google-unstable:
         type: google
         key: '$(HOST: echo "$SPREAD_GOOGLE_KEY")'
@@ -114,6 +110,9 @@ backends:
         systems:
             - ubuntu-19.10-64:
                 workers: 6
+            - centos-7-64:
+                workers: 6
+                image: centos-7-64
 
     google-sru:
         type: google

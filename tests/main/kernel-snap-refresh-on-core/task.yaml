@@ -20,13 +20,6 @@ debug: |
     grub-editenv list
 
 execute: |
-    wait_core_post_boot() {
-        # booted
-        while [ "$(bootenv snap_mode)" != "" ]; do
-            sleep 1
-        done
-    }
-
     same=$(snap info pc-kernel | awk "
         /^  ${KERNEL_CHANNEL}:/ {ch1=\$2}
         /^  ${NEW_KERNEL_CHANNEL}:/ {ch2=\$2}

@@ -320,17 +320,30 @@ func extractDownloadInstallEdgesFromTs(ts *state.TaskSet) (firstDl, lastDl, firs
 
 func remodelTasks(ctx context.Context, st *state.State, current, new *asserts.Model, deviceCtx snapstate.DeviceContext, fromChange string) ([]*state.TaskSet, error) {
 	userID := 0
+	var tss []*state.TaskSet
 
 	// adjust kernel track
-	var tss []*state.TaskSet
-	if current.KernelTrack() != new.KernelTrack() {
+	if current.Kernel() == new.Kernel() && current.KernelTrack() != new.KernelTrack() {
 		ts, err := snapstateUpdateWithDeviceContext(st, new.Kernel(), &snapstate.RevisionOptions{Channel: new.KernelTrack()}, userID, snapstate.Flags{NoReRefresh: true}, deviceCtx, fromChange)
 		if err != nil {
 			return nil, err
 		}
 		tss = append(tss, ts)
 	}
-
+	// add new kernel
+	if current.Kernel() != new.Kernel() {
+		// TODO: we need to support corner cases here like:
+		//  0. start with "old-kernel"
+		//  1. remodel to "new-kernel"
+		//  2. remodel back to "old-kernel"
+		// In step (2) we will get a "already-installed" error
+		// here right now (workaround: remove "old-kernel")
+		ts, err := snapstateInstallWithDeviceContext(ctx, st, new.Kernel(), &snapstate.RevisionOptions{Channel: new.KernelTrack()}, userID, snapstate.Flags{}, deviceCtx, fromChange)
+		if err != nil {
+			return nil, err
+		}
+		tss = append(tss, ts)
+	}
 	if current.Base() != new.Base() {
 		ts, err := snapstateInstallWithDeviceContext(ctx, st, new.Base(), nil, userID, snapstate.Flags{}, deviceCtx, fromChange)
 		if err != nil {
@@ -470,11 +483,6 @@ func Remodel(st *state.State, new *asserts.Model) (*state.Change, error) {
 	// FIXME: this needs work to switch from core->bases
 	if current.Base() == "" && new.Base() != "" {
 		return nil, fmt.Errorf("cannot remodel from core to bases yet")
-	}
-	// FIXME: we need to support this soon but right now only a single
-	// snap of type "gadget/kernel" is allowed so this needs work
-	if current.Kernel() != new.Kernel() {
-		return nil, fmt.Errorf("cannot remodel to different kernels yet")
 	}
 	if current.Gadget() != new.Gadget() {
 		return nil, fmt.Errorf("cannot remodel to different gadgets yet")

@@ -29,7 +29,8 @@
  **/
 typedef struct sc_invocation {
     /* Things declared by the system. */
-    char *snap_instance;
+    char *snap_instance; /* snap instance name (<snap>_<key>) */
+    char *snap_name;     /* snap name (without instance key) */
     char *orig_base_snap_name;
     char *security_tag;
     char *executable;

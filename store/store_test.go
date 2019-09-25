@@ -1046,6 +1046,7 @@ func (s *storeTestSuite) TestDownloadDelta(c *C) {
 	for _, testCase := range downloadDeltaTests {
 		sto.SetDeltaFormat(testCase.format)
 		restore := store.MockDownload(func(ctx context.Context, name, sha3, url string, user *auth.UserState, _ *store.Store, w io.ReadWriteSeeker, resume int64, pbar progress.Meter, dlOpts *store.DownloadOptions) error {
+			c.Check(dlOpts, DeepEquals, &store.DownloadOptions{IsAutoRefresh: true})
 			expectedUser := s.user
 			if testCase.useLocalUser {
 				expectedUser = s.localUser
@@ -1077,7 +1078,7 @@ func (s *storeTestSuite) TestDownloadDelta(c *C) {
 			authedUser = nil
 		}
 
-		err = sto.DownloadDelta("snapname", &testCase.info, w, nil, authedUser)
+		err = sto.DownloadDelta("snapname", &testCase.info, w, nil, authedUser, &store.DownloadOptions{IsAutoRefresh: true})
 
 		if testCase.expectError {
 			c.Assert(err, NotNil)
@@ -1997,7 +1998,7 @@ func (s *storeTestSuite) TestInfo(c *C) {
 
 		query := r.URL.Query()
 		c.Check(query.Get("fields"), Equals, "abc,def")
-		c.Check(query.Get("architecture"), Equals, arch.UbuntuArchitecture())
+		c.Check(query.Get("architecture"), Equals, arch.DpkgArchitecture())
 
 		w.Header().Set("X-Suggested-Currency", "GBP")
 		w.WriteHeader(200)
@@ -2961,7 +2962,7 @@ func (s *storeTestSuite) TestFind(c *C) {
 		c.Check(r.URL.Query().Get("fields"), Equals, "abc,def")
 
 		c.Check(r.Header.Get("X-Ubuntu-Series"), Equals, release.Series)
-		c.Check(r.Header.Get("X-Ubuntu-Architecture"), Equals, arch.UbuntuArchitecture())
+		c.Check(r.Header.Get("X-Ubuntu-Architecture"), Equals, arch.DpkgArchitecture())
 		c.Check(r.Header.Get("X-Ubuntu-Classic"), Equals, "false")
 
 		c.Check(r.Header.Get("X-Ubuntu-Confinement"), Equals, "")
@@ -4452,7 +4453,7 @@ func (s *storeTestSuite) TestSnapAction(c *C) {
 		c.Check(storeID, Equals, "")
 
 		c.Check(r.Header.Get("Snap-Device-Series"), Equals, release.Series)
-		c.Check(r.Header.Get("Snap-Device-Architecture"), Equals, arch.UbuntuArchitecture())
+		c.Check(r.Header.Get("Snap-Device-Architecture"), Equals, arch.DpkgArchitecture())
 		c.Check(r.Header.Get("Snap-Classic"), Equals, "false")
 
 		jsonReq, err := ioutil.ReadAll(r.Body)
@@ -4562,7 +4563,7 @@ func (s *storeTestSuite) TestSnapActionNonZeroEpochAndEpochBump(c *C) {
 		c.Check(storeID, Equals, "")
 
 		c.Check(r.Header.Get("Snap-Device-Series"), Equals, release.Series)
-		c.Check(r.Header.Get("Snap-Device-Architecture"), Equals, arch.UbuntuArchitecture())
+		c.Check(r.Header.Get("Snap-Device-Architecture"), Equals, arch.DpkgArchitecture())
 		c.Check(r.Header.Get("Snap-Classic"), Equals, "false")
 
 		jsonReq, err := ioutil.ReadAll(r.Body)
@@ -5567,7 +5568,7 @@ func (s *storeTestSuite) testSnapActionGet(action, cohort string, c *C) {
 		c.Check(storeID, Equals, "")
 
 		c.Check(r.Header.Get("Snap-Device-Series"), Equals, release.Series)
-		c.Check(r.Header.Get("Snap-Device-Architecture"), Equals, arch.UbuntuArchitecture())
+		c.Check(r.Header.Get("Snap-Device-Architecture"), Equals, arch.DpkgArchitecture())
 		c.Check(r.Header.Get("Snap-Classic"), Equals, "false")
 
 		jsonReq, err := ioutil.ReadAll(r.Body)
@@ -5664,7 +5665,7 @@ func (s *storeTestSuite) TestSnapActionInstallAmend(c *C) {
 		c.Check(storeID, Equals, "")
 
 		c.Check(r.Header.Get("Snap-Device-Series"), Equals, release.Series)
-		c.Check(r.Header.Get("Snap-Device-Architecture"), Equals, arch.UbuntuArchitecture())
+		c.Check(r.Header.Get("Snap-Device-Architecture"), Equals, arch.DpkgArchitecture())
 		c.Check(r.Header.Get("Snap-Classic"), Equals, "false")
 
 		jsonReq, err := ioutil.ReadAll(r.Body)
@@ -5834,7 +5835,7 @@ func (s *storeTestSuite) testSnapActionGetWithRevision(action string, c *C) {
 		c.Check(storeID, Equals, "")
 
 		c.Check(r.Header.Get("Snap-Device-Series"), Equals, release.Series)
-		c.Check(r.Header.Get("Snap-Device-Architecture"), Equals, arch.UbuntuArchitecture())
+		c.Check(r.Header.Get("Snap-Device-Architecture"), Equals, arch.DpkgArchitecture())
 		c.Check(r.Header.Get("Snap-Classic"), Equals, "false")
 
 		jsonReq, err := ioutil.ReadAll(r.Body)
@@ -6564,7 +6565,7 @@ func (s *storeTestSuite) TestConnectivityCheckHappy(c *C) {
 		switch r.URL.Path {
 		case "/v2/snaps/info/core":
 			c.Check(r.Method, Equals, "GET")
-			c.Check(r.URL.Query(), DeepEquals, url.Values{"fields": {"download"}, "architecture": {arch.UbuntuArchitecture()}})
+			c.Check(r.URL.Query(), DeepEquals, url.Values{"fields": {"download"}, "architecture": {arch.DpkgArchitecture()}})
 			u, err := url.Parse("/download/core")
 			c.Assert(err, IsNil)
 			io.WriteString(w,
