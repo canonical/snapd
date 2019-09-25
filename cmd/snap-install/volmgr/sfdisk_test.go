@@ -19,21 +19,12 @@
 package volmgr_test
 
 import (
-	"testing"
-
 	. "gopkg.in/check.v1"
 
 	"github.com/snapcore/snapd/cmd/snap-install/volmgr"
 	"github.com/snapcore/snapd/gadget"
 	"github.com/snapcore/snapd/testutil"
 )
-
-func TestVolMgr(t *testing.T) { TestingT(t) }
-
-type volmgrTestSuite struct {
-}
-
-var _ = Suite(&volmgrTestSuite{})
 
 func (s *volmgrTestSuite) TestDeviceInfo(c *C) {
 	cmdSfdisk := testutil.MockCommand(c, "sfdisk", `echo '{

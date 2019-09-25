@@ -16,19 +16,31 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  *
  */
-package volmgr
+package volmgr_test
 
-type LsblkFilesystemInfo lsblkFilesystemInfo
-type LsblkBlockDevice lsblkBlockDevice
+import (
+	"io/ioutil"
+	"path"
 
-var (
-	NewSFDisk      = newSFDisk
-	FilesystemInfo = filesystemInfo
+	. "gopkg.in/check.v1"
 
-	// encrypt
-	TempKeyFile = &tempKeyFile
-
-	// utils
-	Wipe      = wipe
-	CreateKey = createKey
+	"github.com/snapcore/snapd/cmd/snap-install/volmgr"
+	"github.com/snapcore/snapd/testutil"
 )
+
+func (s *volmgrTestSuite) TestWipe(c *C) {
+	data := []byte("12345678")
+	temp := path.Join(c.MkDir(), "myfile")
+	err := ioutil.WriteFile(temp, data, 0600)
+	c.Assert(err, IsNil)
+	c.Assert(temp, testutil.FilePresent)
+	err = volmgr.Wipe(temp)
+	c.Assert(err, IsNil)
+	c.Assert(temp, testutil.FileAbsent)
+}
+
+func (s *volmgrTestSuite) TestCreateKey(c *C) {
+	data, err := volmgr.CreateKey(16)
+	c.Assert(err, IsNil)
+	c.Assert(data, Not(DeepEquals), make([]byte, 16))
+}
