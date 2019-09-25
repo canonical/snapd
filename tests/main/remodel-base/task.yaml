@@ -87,7 +87,7 @@ execute: |
         echo "Now we remodel"
         snap remodel "$TESTSLIB"/assertions/developer1-pc-18-new-base.model
         echo "Double check that we boot into the right base"
-        /boot/grub/grubenv < MATCH "snap_try_core=$NEW_BASE"
+        MATCH "snap_try_core=$NEW_BASE" < /boot/grub/grubenv
         echo "reboot to finish the change"
         REBOOT
     fi
@@ -97,7 +97,7 @@ execute: |
         snap list "$NEW_BASE"
         echo "And are using it"
         wait_core_post_boot
-        /boot/grub/grubenv < MATCH "snap_core=$NEW_BASE"
+        MATCH "snap_core=$NEW_BASE" < /boot/grub/grubenv
         echo "and we got the new model assertion"
         wait_change_done "Refresh model assertion from revision 0 to 2"
         snap debug model|MATCH "revision: 2"
@@ -113,7 +113,7 @@ execute: |
     # reboot from new model to undo the new model again (to not pollute tests)
     if [ "$SPREAD_REBOOT" = 2 ]; then
         wait_core_post_boot
-        /boot/grub/grubenv < MATCH "snap_core=$OLD_BASE"
+        MATCH "snap_core=$OLD_BASE" < /boot/grub/grubenv
         wait_change_done "Refresh model assertion from revision 2 to 3"
         snap debug model|MATCH "revision: 3"
         echo "cleanup"
