@@ -175,9 +175,10 @@ ptrace (read, trace) peer=cri-containerd.apparmor.d,
 # needed by runc for mitigation of CVE-2019-5736
 # For details see https://bugs.launchpad.net/apparmor/+bug/1820344
 / ix,
-/bin/busybox ixr,
 /bin/runc ixr,
+
 /pause ixr,
+/bin/busybox ixr,
 
 # When kubernetes drives containerd, containerd needs access to CNI services,
 # like flanneld's subnet.env for DNS. This would ideally be snap-specific (it
