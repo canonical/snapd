@@ -22,7 +22,7 @@ package release
 import (
 	"fmt"
 
-	"github.com/snapcore/snapd/selinux"
+	"github.com/snapcore/snapd/sandbox/selinux"
 )
 
 // SELinuxLevelType encodes the state of SELinux support found on this system.

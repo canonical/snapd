@@ -34,3 +34,11 @@ func MockSnapFromSender(f func(*dbus.Conn, dbus.Sender) (string, error)) func() 
 		snapFromSender = origSnapFromSender
 	}
 }
+
+func MockProcGroup(f func(pid int, ctrl string) (string, error)) (restore func()) {
+	old := cgroupProcGroup
+	cgroupProcGroup = f
+	return func() {
+		cgroupProcGroup = old
+	}
+}
