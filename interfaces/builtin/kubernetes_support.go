@@ -136,6 +136,7 @@ capability sys_admin,
 mount /var/snap/@{SNAP_NAME}/common/{,**} -> /var/snap/@{SNAP_NAME}/common/{,**},
 mount options=(rw, rshared) -> /var/snap/@{SNAP_NAME}/common/{,**},
 
+/bin/mount ixr,
 /bin/umount ixr,
 deny /run/mount/utab rw,
 umount /var/snap/@{SNAP_INSTANCE_NAME}/common/**,
