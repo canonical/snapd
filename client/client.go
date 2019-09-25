@@ -365,7 +365,7 @@ func (client *Client) doAsyncNoTimeout(method, path string, query url.Values, he
 		NoTimeout: true,
 	}
 	_, changeID, err = client.doAsyncFull(method, path, query, headers, body, flags)
-	return
+	return changeID, err
 }
 
 func (client *Client) doAsyncFull(method, path string, query url.Values, headers map[string]string, body io.Reader, flags doFlags) (result json.RawMessage, changeID string, err error) {
