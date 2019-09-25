@@ -737,7 +737,8 @@ func InstallWithDeviceContext(ctx context.Context, st *state.State, name string,
 		PlugsOnly:    len(info.Slots) == 0,
 		InstanceKey:  info.InstanceKey,
 		auxStoreInfo: auxStoreInfo{
-			Media: info.Media,
+			Media:   info.Media,
+			Website: info.Website,
 		},
 		CohortKey: opts.CohortKey,
 	}
@@ -997,7 +998,8 @@ func doUpdate(ctx context.Context, st *state.State, names []string, updates []*s
 			PlugsOnly:    len(update.Slots) == 0,
 			InstanceKey:  update.InstanceKey,
 			auxStoreInfo: auxStoreInfo{
-				Media: update.Media,
+				Website: update.Website,
+				Media:   update.Media,
 			},
 		}
 

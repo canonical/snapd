@@ -3582,7 +3582,8 @@ version: 1.0`
 	c.Assert(err, IsNil)
 
 	st.Unlock()
-	err = ms.o.Settle(settleTimeout)
+	// regular settleTimeout is not enough on arm buildds :/
+	err = ms.o.Settle(4 * settleTimeout)
 	st.Lock()
 	c.Assert(err, IsNil)
 	c.Assert(chg.Err(), IsNil)
@@ -3597,7 +3598,8 @@ version: 1.0`
 
 	// continue
 	st.Unlock()
-	err = ms.o.Settle(settleTimeout)
+	// regular settleTimeout is not enough on arm buildds :/
+	err = ms.o.Settle(4 * settleTimeout)
 	st.Lock()
 	c.Assert(err, IsNil)
 
@@ -3978,7 +3980,7 @@ func (s *mgrsSuite) TestRemodelReregistration(c *C) {
 	c.Check(device.SessionMacaroon, Equals, "other-store-session")
 }
 
-func (s *mgrsSuite) TestCheckRerefreshFailureWithConcurrentRemoveOfConnectedSnap(c *C) {
+func (s *mgrsSuite) TestCheckRefreshFailureWithConcurrentRemoveOfConnectedSnap(c *C) {
 	hookMgr := s.o.HookManager()
 	c.Assert(hookMgr, NotNil)
 

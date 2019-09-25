@@ -167,7 +167,11 @@ if [ "$STATIC" = 1 ]; then
     if [ -n "$fmt" ]; then
         echo "Formatting wrong in following files:"
         echo "$fmt" | sed -e 's/\\n/\n/g'
-        exit 1
+        if [ -z "${SKIP_GOFMT:-}" ]; then
+            exit 1
+        else
+            echo "Ignoring gofmt errors as requested"
+        fi
     fi
 
     # go vet
