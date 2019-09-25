@@ -145,26 +145,9 @@ func (s *Launcher) OpenDesktopEntryEnv(desktop_file_id string, env []string, sen
 		return dbus.MakeFailedError(err)
 	}
 
-	args, err := shlex.Split(exec_command)
+	args, err := parseExecCommand(exec_command)
 	if err != nil {
 		return dbus.MakeFailedError(err)
-	}
-
-	i := 0
-	for {
-		if strings.HasPrefix(args[i], "%") {
-			// Passing exec variables between confined snaps raises unanswered questions and they are not required
-			// for the simple cases.  For now, we don't have support for passing them in the dbus API and drop
-			// them from the command.
-			// https://standards.freedesktop.org/desktop-entry-spec/desktop-entry-spec-latest.html#exec-variables
-			args = append(args[:i], args[i+1:]...)
-		} else {
-			i++
-		}
-
-		if i == len(args) {
-			break
-		}
 	}
 
 	cmd := exec.Command(args[0], args[1:]...)
@@ -261,6 +244,34 @@ func readExecCommandFromDesktopFile(desktop_file string) (string, error) {
 	}
 
 	return launch, nil
+}
+
+func parseExecCommand(exec_command string) ([]string, error) {
+	args, err := shlex.Split(exec_command)
+	if err != nil {
+		return []string{}, err
+	}
+
+	i := 0
+	for {
+		if strings.HasPrefix(args[i], "%%") {
+			args[i] = strings.TrimPrefix(args[i], "%")
+			i++
+		} else if strings.HasPrefix(args[i], "%") {
+			// Passing exec variables between confined snaps raises unanswered questions and they are not required
+			// for the simple cases.  For now, we don't have support for passing them in the dbus API and drop
+			// them from the command.
+			// https://standards.freedesktop.org/desktop-entry-spec/desktop-entry-spec-latest.html#exec-variables
+			args = append(args[:i], args[i+1:]...)
+		} else {
+			i++
+		}
+
+		if i == len(args) {
+			break
+		}
+	}
+	return args, nil
 }
 
 // fdToFilename determines the path associated with an open file descriptor.
