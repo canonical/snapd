@@ -39,6 +39,8 @@ type policy16 struct {
 	model *asserts.Model
 	opts  *Options
 
+	warningf func(format string, a ...interface{})
+
 	needsCore   []string
 	needsCore16 []string
 }
@@ -115,7 +117,10 @@ func (pol *policy16) needsImplicitSnaps(availableSnaps *naming.SnapSet) (bool, e
 	// do we need to add implicitly either snapd (or core)
 	hasCore := availableSnaps.Contains(naming.Snap("core"))
 	if len(pol.needsCore) != 0 && !hasCore {
-		// XXX warning on Core 18
+		if pol.model.Base() != "" {
+			// TODO: later turn this into an error? for sure for UC20
+			pol.warningf("model has base %q but some snaps (%s) require \"core\" as base as well, for compatibility it was added implicitly, adding \"core\" explicitly is recommended", pol.model.Base(), strutil.Quoted(pol.needsCore))
+		}
 		return true, nil
 	}
 

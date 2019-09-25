@@ -209,8 +209,10 @@ func NewToolingStore() (*ToolingStore, error) {
 
 // DownloadOptions carries options for downloading snaps plus assertions.
 type DownloadOptions struct {
+	TargetDir  string
+	TargetFunc func(*snap.Info) (string, error)
+
 	Revision  snap.Revision
-	TargetDir string
 	Channel   string
 	CohortKey string
 	Basename  string
@@ -264,7 +266,7 @@ func (tsto *ToolingStore) DownloadSnap(name string, opts DownloadOptions) (targe
 	}
 	sto := tsto.sto
 
-	if opts.TargetDir == "" {
+	if opts.TargetFunc == nil && opts.TargetDir == "" {
 		pwd, err := os.Getwd()
 		if err != nil {
 			return "", nil, err
@@ -294,13 +296,21 @@ func (tsto *ToolingStore) DownloadSnap(name string, opts DownloadOptions) (targe
 	}
 	snap := snaps[0]
 
-	baseName := opts.Basename
-	if baseName == "" {
-		baseName = filepath.Base(snap.MountFile())
+	if opts.TargetFunc == nil {
+		baseName := opts.Basename
+		if baseName == "" {
+			baseName = filepath.Base(snap.MountFile())
+		} else {
+			baseName += ".snap"
+		}
+		targetFn = filepath.Join(opts.TargetDir, baseName)
 	} else {
-		baseName += ".snap"
+		var err error
+		targetFn, err = opts.TargetFunc(snap)
+		if err != nil {
+			return "", nil, err
+		}
 	}
-	targetFn = filepath.Join(opts.TargetDir, baseName)
 
 	// check if we already have the right file
 	if osutil.FileExists(targetFn) {
