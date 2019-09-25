@@ -23,7 +23,7 @@ import (
 	. "gopkg.in/check.v1"
 
 	"github.com/snapcore/snapd/interfaces/backends"
-	"github.com/snapcore/snapd/sandbox/apparmor"
+	apparmor_sandbox "github.com/snapcore/snapd/sandbox/apparmor"
 	"github.com/snapcore/snapd/testutil"
 )
 
@@ -36,8 +36,8 @@ type backendsSuite struct{}
 var _ = Suite(&backendsSuite{})
 
 func (s *backendsSuite) TestIsAppArmorEnabled(c *C) {
-	for _, level := range []apparmor.AppArmorLevelType{apparmor.NoAppArmor, apparmor.UnusableAppArmor, apparmor.PartialAppArmor, apparmor.FullAppArmor} {
-		restore := apparmor.MockLevel(level)
+	for _, level := range []apparmor_sandbox.AppArmorLevelType{apparmor_sandbox.NoAppArmor, apparmor_sandbox.UnusableAppArmor, apparmor_sandbox.PartialAppArmor, apparmor_sandbox.FullAppArmor} {
+		restore := apparmor_sandbox.MockLevel(level)
 		defer restore()
 
 		all := backends.Backends()
@@ -46,9 +46,9 @@ func (s *backendsSuite) TestIsAppArmorEnabled(c *C) {
 			names[i] = string(backend.Name())
 		}
 		switch level {
-		case apparmor.NoAppArmor, apparmor.UnusableAppArmor:
+		case apparmor_sandbox.NoAppArmor, apparmor_sandbox.UnusableAppArmor:
 			c.Assert(names, Not(testutil.Contains), "apparmor")
-		case apparmor.PartialAppArmor, apparmor.FullAppArmor:
+		case apparmor_sandbox.PartialAppArmor, apparmor_sandbox.FullAppArmor:
 			c.Assert(names, testutil.Contains, "apparmor")
 		}
 
@@ -56,7 +56,7 @@ func (s *backendsSuite) TestIsAppArmorEnabled(c *C) {
 }
 
 func (s *backendsSuite) TestEssentialOrdering(c *C) {
-	restore := apparmor.MockLevel(apparmor.FullAppArmor)
+	restore := apparmor_sandbox.MockLevel(apparmor_sandbox.FullAppArmor)
 	defer restore()
 
 	all := backends.Backends()
