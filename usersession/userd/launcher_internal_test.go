@@ -21,6 +21,8 @@ package userd
 
 import (
 	"github.com/snapcore/snapd/strutil"
+	"reflect"
+	"strings"
 	"testing"
 )
 
@@ -65,7 +67,6 @@ func TestLauncher_desktopFileIdToFilenameSucceedsWithValidId(t *testing.T) {
 	}
 }
 
-
 func TestLauncher_desktopFileIdToFilenameFailsWithInvalidId(t *testing.T) {
 	var desktopIdTests = []string{
 		"mir-kiosk-scummvm-mir-kiosk-scummvm.desktop",
@@ -77,6 +78,42 @@ func TestLauncher_desktopFileIdToFilenameFailsWithInvalidId(t *testing.T) {
 		actual, err := desktopFileIdToFilename(existsOnMockFileSystem, id)
 		if err == nil {
 			t.Errorf("desktopFileIdToFilename(%s): expected <error>, actual %s", id, actual)
+		}
+	}
+}
+
+func TestLauncher_parseExecCommandSucceedsWithValidEntry(t *testing.T) {
+	var exec_command = []struct {
+		exec_command string
+		expect       []string
+	}{
+		{"env BAMF_DESKTOP_FILE_HINT=/var/lib/snapd/desktop/applications/mir-kiosk-scummvm_mir-kiosk-scummvm.desktop /snap/bin/mir-kiosk-scummvm %U",
+			[]string{"env", "BAMF_DESKTOP_FILE_HINT=/var/lib/snapd/desktop/applications/mir-kiosk-scummvm_mir-kiosk-scummvm.desktop", "/snap/bin/mir-kiosk-scummvm"}},
+		{"/snap/bin/foo -f %U %%bar", []string{"/snap/bin/foo", "-f", "%bar"}},
+		{"/snap/bin/foo '-f %U %%bar'", []string{"/snap/bin/foo", "-f %U %%bar"}},
+		{"/snap/bin/foo \"'-f bar'\"", []string{"/snap/bin/foo", "'-f bar'"}},
+	}
+
+	for _, test := range exec_command {
+		actual, err := parseExecCommand(test.exec_command)
+		if err != nil {
+			t.Errorf("parseExecCommand(\"%s\"): expected SUCCESS, actual FAILED %e", test.exec_command, err)
+		} else if !reflect.DeepEqual(actual, test.expect) {
+			t.Errorf("parseExecCommand(\"%s\"): expected {\"%s\"}, actual {\"%s\"}", test.exec_command, strings.Join(test.expect, "\", \""), strings.Join(actual, "\", \""))
+		}
+	}
+}
+
+func TestLauncher_parseExecCommandFailsWithInvalidEntry(t *testing.T) {
+	var exec_command = []string{
+		"/snap/bin/foo \"unclosed double quote",
+		"/snap/bin/foo 'unclosed single quote",
+	}
+
+	for _, test := range exec_command {
+		actual, err := parseExecCommand(test)
+		if err == nil {
+			t.Errorf("parseExecCommand(\"%s\"): expected FAILED, actual {\"%s\"}", test, strings.Join(actual, "\", \""))
 		}
 	}
 }
