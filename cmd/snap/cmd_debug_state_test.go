@@ -25,7 +25,7 @@ import (
 
 	. "gopkg.in/check.v1"
 
-	"github.com/snapcore/snapd/cmd/snap"
+	main "github.com/snapcore/snapd/cmd/snap"
 )
 
 var stateJSON = []byte(`
@@ -102,13 +102,13 @@ func (s *SnapSuite) TestDebugChanges(c *C) {
 	stateFile := filepath.Join(dir, "test-state.json")
 	c.Assert(ioutil.WriteFile(stateFile, stateJSON, 0644), IsNil)
 
-	rest, err := main.Parser(main.Client()).ParseArgs([]string{"debug", "state", "--changes", stateFile})
+	rest, err := main.Parser(main.Client()).ParseArgs([]string{"debug", "state", "--abs-time", "--changes", stateFile})
 	c.Assert(err, IsNil)
 	c.Assert(rest, DeepEquals, []string{})
 	c.Check(s.Stdout(), Matches,
-		"ID   Status  Spawn       Ready       Label         Summary\n"+
-			"1    Do      0001-01-01  0001-01-01  install-snap  install a snap\n"+
-			"2    Done    0001-01-01  0001-01-01  revert-snap   revert c snap\n")
+		"ID   Status  Spawn                 Ready                 Label         Summary\n"+
+			"1    Do      0001-01-01T00:00:00Z  0001-01-01T00:00:00Z  install-snap  install a snap\n"+
+			"2    Done    0001-01-01T00:00:00Z  0001-01-01T00:00:00Z  revert-snap   revert c snap\n")
 	c.Check(s.Stderr(), Equals, "")
 }
 
@@ -188,13 +188,13 @@ func (s *SnapSuite) TestDebugTasks(c *C) {
 	stateFile := filepath.Join(dir, "test-state.json")
 	c.Assert(ioutil.WriteFile(stateFile, stateJSON, 0644), IsNil)
 
-	rest, err := main.Parser(main.Client()).ParseArgs([]string{"debug", "state", "--change=1", stateFile})
+	rest, err := main.Parser(main.Client()).ParseArgs([]string{"debug", "state", "--abs-time", "--change=1", stateFile})
 	c.Assert(err, IsNil)
 	c.Assert(rest, DeepEquals, []string{})
 	c.Check(s.Stdout(), Matches,
-		"Lanes  ID   Status  Spawn       Ready       Kind             Summary\n"+
-			"0      11   Done    0001-01-01  0001-01-01  download-snap    Download snap a from channel edge\n"+
-			"0      12   Do      0001-01-01  0001-01-01  some-other-task  \n")
+		"Lanes  ID   Status  Spawn                 Ready                 Kind             Summary\n"+
+			"0      11   Done    0001-01-01T00:00:00Z  0001-01-01T00:00:00Z  download-snap    Download snap a from channel edge\n"+
+			"0      12   Do      0001-01-01T00:00:00Z  0001-01-01T00:00:00Z  some-other-task  \n")
 	c.Check(s.Stderr(), Equals, "")
 }
 
