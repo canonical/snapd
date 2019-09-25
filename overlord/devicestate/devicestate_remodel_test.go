@@ -209,61 +209,19 @@ func (s *deviceMgrSuite) testRemodelTasksSwitchTrack(c *C, whatRefreshes string,
 	c.Assert(tss, HasLen, 4)
 }
 
-func (s *deviceMgrRemodelSuite) TestRemodelTasksSwitchKernel(c *C) {
-	s.state.Lock()
-	defer s.state.Unlock()
-	s.state.Set("seeded", true)
-	s.state.Set("refresh-privacy-key", "some-privacy-key")
-
-	var testDeviceCtx snapstate.DeviceContext
-
-	restore := devicestate.MockSnapstateInstallWithDeviceContext(func(ctx context.Context, st *state.State, name string, opts *snapstate.RevisionOptions, userID int, flags snapstate.Flags, deviceCtx snapstate.DeviceContext, fromChange string) (*state.TaskSet, error) {
-		c.Check(deviceCtx, Equals, testDeviceCtx)
-		c.Check(name, Equals, "other-kernel")
-		c.Check(opts.Channel, Equals, "18")
-
-		tDownload := s.state.NewTask("fake-download", fmt.Sprintf("Download %s", name))
-		tValidate := s.state.NewTask("validate-snap", fmt.Sprintf("Validate %s", name))
-		tValidate.WaitFor(tDownload)
-		tInstall := s.state.NewTask("fake-install", fmt.Sprintf("Install %s", name))
-		tInstall.WaitFor(tValidate)
-		ts := state.NewTaskSet(tDownload, tValidate, tInstall)
-		ts.MarkEdge(tValidate, snapstate.DownloadAndChecksDoneEdge)
-		return ts, nil
+func (s *deviceMgrSuite) TestRemodelTasksSwitchGadget(c *C) {
+	s.testRemodelSwitchTasks(c, "other-gadget", "18", map[string]interface{}{
+		"gadget": "other-gadget=18",
 	})
-	defer restore()
-
-	// set a model assertion
-	current := s.brands.Model("canonical", "pc-model", map[string]interface{}{
-		"architecture": "amd64",
-		"kernel":       "pc-kernel",
-		"gadget":       "pc",
-		"base":         "core18",
-	})
-	err := assertstate.Add(s.state, current)
-	c.Assert(err, IsNil)
-	devicestatetest.SetDevice(s.state, &auth.DeviceState{
-		Brand: "canonical",
-		Model: "pc-model",
-	})
-
-	new := s.brands.Model("canonical", "pc-model", map[string]interface{}{
-		"architecture": "amd64",
-		"kernel":       "other-kernel=18",
-		"gadget":       "pc",
-		"base":         "core18",
-		"revision":     "1",
-	})
-
-	testDeviceCtx = &snapstatetest.TrivialDeviceContext{Remodeling: true}
-
-	tss, err := devicestate.RemodelTasks(context.Background(), s.state, current, new, testDeviceCtx, "99")
-	c.Assert(err, IsNil)
-	// 1 new kernel plus the remodel task
-	c.Assert(tss, HasLen, 2)
 }
 
-func (s *deviceMgrSuite) TestRemodelTasksSwitchGadget(c *C) {
+func (s *deviceMgrSuite) TestRemodelTasksSwitchKernel(c *C) {
+	s.testRemodelSwitchTasks(c, "other-kernel", "18", map[string]interface{}{
+		"kernel": "other-kernel=18",
+	})
+}
+
+func (s *deviceMgrSuite) testRemodelSwitchTasks(c *C, whatsNew, whatNewTrack string, newModelOverrides map[string]interface{}) {
 	s.state.Lock()
 	defer s.state.Unlock()
 	s.state.Set("seeded", true)
@@ -271,10 +229,13 @@ func (s *deviceMgrSuite) TestRemodelTasksSwitchGadget(c *C) {
 
 	var testDeviceCtx snapstate.DeviceContext
 
+	var snapstateInstallWithDeviceContextCalled int
 	restore := devicestate.MockSnapstateInstallWithDeviceContext(func(ctx context.Context, st *state.State, name string, opts *snapstate.RevisionOptions, userID int, flags snapstate.Flags, deviceCtx snapstate.DeviceContext, fromChange string) (*state.TaskSet, error) {
-		c.Check(deviceCtx, Equals, testDeviceCtx)
-		c.Check(name, Equals, "other-gadget")
-		c.Check(opts.Channel, Equals, "18")
+		snapstateInstallWithDeviceContextCalled++
+		c.Check(name, Equals, whatsNew)
+		if whatNewTrack != "" {
+			c.Check(opts.Channel, Equals, whatNewTrack)
+		}
 
 		tDownload := s.state.NewTask("fake-download", fmt.Sprintf("Download %s", name))
 		tValidate := s.state.NewTask("validate-snap", fmt.Sprintf("Validate %s", name))
@@ -301,20 +262,26 @@ func (s *deviceMgrSuite) TestRemodelTasksSwitchGadget(c *C) {
 		Model: "pc-model",
 	})
 
-	new := s.brands.Model("canonical", "pc-model", map[string]interface{}{
+	headers := map[string]interface{}{
 		"architecture": "amd64",
 		"kernel":       "pc-kernel",
-		"gadget":       "other-gadget=18",
+		"gadget":       "pc",
 		"base":         "core18",
 		"revision":     "1",
-	})
+	}
+	for k, v := range newModelOverrides {
+		headers[k] = v
+	}
+	new := s.brands.Model("canonical", "pc-model", headers)
 
 	testDeviceCtx = &snapstatetest.TrivialDeviceContext{Remodeling: true}
 
 	tss, err := devicestate.RemodelTasks(context.Background(), s.state, current, new, testDeviceCtx, "99")
 	c.Assert(err, IsNil)
-	// 1 new kernel plus the remodel task
+	// 1 switch to a new base plus the remodel task
 	c.Assert(tss, HasLen, 2)
+	// API was hit
+	c.Assert(snapstateInstallWithDeviceContextCalled, Equals, 1)
 }
 
 func (s *deviceMgrRemodelSuite) TestRemodelRequiredSnaps(c *C) {
