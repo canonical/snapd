@@ -491,7 +491,7 @@ fi`)
 func (s *backendSuite) TestRequiresSocketcallByNotNeededArch(c *C) {
 	testArchs := []string{"amd64", "armhf", "arm64", "powerpc", "ppc64el", "unknownDefault"}
 	for _, arch := range testArchs {
-		restore := seccomp.MockUbuntuKernelArchitecture(func() string { return arch })
+		restore := seccomp.MockDpkgKernelArchitecture(func() string { return arch })
 		defer restore()
 		c.Assert(seccomp.RequiresSocketcall(""), Equals, false)
 	}
@@ -500,7 +500,7 @@ func (s *backendSuite) TestRequiresSocketcallByNotNeededArch(c *C) {
 func (s *backendSuite) TestRequiresSocketcallForceByArch(c *C) {
 	testArchs := []string{"sparc", "sparc64"}
 	for _, arch := range testArchs {
-		restore := seccomp.MockUbuntuKernelArchitecture(func() string { return arch })
+		restore := seccomp.MockDpkgKernelArchitecture(func() string { return arch })
 		defer restore()
 		c.Assert(seccomp.RequiresSocketcall(""), Equals, true)
 	}
@@ -542,7 +542,7 @@ func (s *backendSuite) TestRequiresSocketcallForcedViaUbuntuRelease(c *C) {
 	for _, t := range tests {
 		restore = seccomp.MockReleaseInfoId(t.distro)
 		defer restore()
-		restore = seccomp.MockUbuntuKernelArchitecture(func() string { return t.arch })
+		restore = seccomp.MockDpkgKernelArchitecture(func() string { return t.arch })
 		defer restore()
 		restore = seccomp.MockReleaseInfoVersionId(t.release)
 		defer restore()
@@ -581,7 +581,7 @@ func (s *backendSuite) TestRequiresSocketcallForcedViaKernelVersion(c *C) {
 	}
 
 	for _, t := range tests {
-		restore := seccomp.MockUbuntuKernelArchitecture(func() string { return t.arch })
+		restore := seccomp.MockDpkgKernelArchitecture(func() string { return t.arch })
 		defer restore()
 		restore = osutil.MockKernelVersion(t.version)
 		defer restore()
@@ -597,7 +597,7 @@ func (s *backendSuite) TestRequiresSocketcallForcedViaBaseSnap(c *C) {
 	// check is reached
 	restore := seccomp.MockReleaseInfoId("other")
 	defer restore()
-	restore = seccomp.MockUbuntuKernelArchitecture(func() string { return "i386" })
+	restore = seccomp.MockDpkgKernelArchitecture(func() string { return "i386" })
 	defer restore()
 	restore = osutil.MockKernelVersion("4.3")
 	defer restore()
@@ -613,7 +613,7 @@ func (s *backendSuite) TestRequiresSocketcallNotForcedViaBaseSnap(c *C) {
 	// check is reached
 	restore := seccomp.MockReleaseInfoId("other")
 	defer restore()
-	restore = seccomp.MockUbuntuKernelArchitecture(func() string { return "i386" })
+	restore = seccomp.MockDpkgKernelArchitecture(func() string { return "i386" })
 	defer restore()
 	restore = osutil.MockKernelVersion("4.3")
 	defer restore()

@@ -348,7 +348,7 @@ func New(cfg *Config, dauthCtx DeviceAndAuthContext) *Store {
 
 	architecture := cfg.Architecture
 	if cfg.Architecture == "" {
-		architecture = arch.UbuntuArchitecture()
+		architecture = arch.DpkgArchitecture()
 	}
 
 	series := cfg.Series
@@ -1334,8 +1334,9 @@ func (e HashError) Error() string {
 }
 
 type DownloadOptions struct {
-	RateLimit     int64
-	IsAutoRefresh bool
+	RateLimit           int64
+	IsAutoRefresh       bool
+	LeavePartialOnError bool
 }
 
 // Download downloads the snap addressed by download info and returns its
@@ -1356,7 +1357,7 @@ func (s *Store) Download(ctx context.Context, name string, targetPath string, do
 		logger.Debugf("Available deltas returned by store: %v", downloadInfo.Deltas)
 
 		if len(downloadInfo.Deltas) == 1 {
-			err := s.downloadAndApplyDelta(name, targetPath, downloadInfo, pbar, user)
+			err := s.downloadAndApplyDelta(name, targetPath, downloadInfo, pbar, user, dlOpts)
 			if err == nil {
 				return nil
 			}
@@ -1375,10 +1376,14 @@ func (s *Store) Download(ctx context.Context, name string, targetPath string, do
 		return err
 	}
 	defer func() {
+		fi, _ := w.Stat()
 		if cerr := w.Close(); cerr != nil && err == nil {
 			err = cerr
 		}
-		if err != nil {
+		if err == nil {
+			return
+		}
+		if dlOpts == nil || !dlOpts.LeavePartialOnError || fi == nil || fi.Size() == 0 {
 			os.Remove(w.Name())
 		}
 	}()
@@ -1645,7 +1650,7 @@ func doDowloadReqImpl(ctx context.Context, storeURL *url.URL, cdnHeader string, 
 }
 
 // downloadDelta downloads the delta for the preferred format, returning the path.
-func (s *Store) downloadDelta(deltaName string, downloadInfo *snap.DownloadInfo, w io.ReadWriteSeeker, pbar progress.Meter, user *auth.UserState) error {
+func (s *Store) downloadDelta(deltaName string, downloadInfo *snap.DownloadInfo, w io.ReadWriteSeeker, pbar progress.Meter, user *auth.UserState, dlOpts *DownloadOptions) error {
 
 	if len(downloadInfo.Deltas) != 1 {
 		return errors.New("store returned more than one download delta")
@@ -1667,7 +1672,7 @@ func (s *Store) downloadDelta(deltaName string, downloadInfo *snap.DownloadInfo,
 		url = deltaInfo.DownloadURL
 	}
 
-	return download(context.TODO(), deltaName, deltaInfo.Sha3_384, url, user, s, w, 0, pbar, nil)
+	return download(context.TODO(), deltaName, deltaInfo.Sha3_384, url, user, s, w, 0, pbar, dlOpts)
 }
 
 func getXdelta3Cmd(args ...string) (*exec.Cmd, error) {
@@ -1732,7 +1737,7 @@ var applyDelta = func(name string, deltaPath string, deltaInfo *snap.DeltaInfo, 
 }
 
 // downloadAndApplyDelta downloads and then applies the delta to the current snap.
-func (s *Store) downloadAndApplyDelta(name, targetPath string, downloadInfo *snap.DownloadInfo, pbar progress.Meter, user *auth.UserState) error {
+func (s *Store) downloadAndApplyDelta(name, targetPath string, downloadInfo *snap.DownloadInfo, pbar progress.Meter, user *auth.UserState, dlOpts *DownloadOptions) error {
 	deltaInfo := &downloadInfo.Deltas[0]
 
 	deltaPath := fmt.Sprintf("%s.%s-%d-to-%d.partial", targetPath, deltaInfo.Format, deltaInfo.FromRevision, deltaInfo.ToRevision)
@@ -1749,7 +1754,7 @@ func (s *Store) downloadAndApplyDelta(name, targetPath string, downloadInfo *sna
 		os.Remove(deltaPath)
 	}()
 
-	err = s.downloadDelta(deltaName, downloadInfo, w, pbar, user)
+	err = s.downloadDelta(deltaName, downloadInfo, w, pbar, user, dlOpts)
 	if err != nil {
 		return err
 	}

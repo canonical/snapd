@@ -39,7 +39,7 @@ import (
 	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/osutil/squashfs"
 	"github.com/snapcore/snapd/release"
-	"github.com/snapcore/snapd/selinux"
+	"github.com/snapcore/snapd/sandbox/selinux"
 )
 
 var (
@@ -674,6 +674,7 @@ What=%s
 Where=%s
 Type=%s
 Options=%s
+LazyUnmount=yes
 
 [Install]
 WantedBy=multi-user.target

@@ -99,7 +99,7 @@ func Run(tr config.Conf) error {
 	}
 
 	// Export experimental.* flags to a place easily accessible from snapd helpers.
-	if err := handleExperimentalFlags(tr); err != nil {
+	if err := ExportExperimentalFlags(tr); err != nil {
 		return err
 	}
 

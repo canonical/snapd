@@ -40,7 +40,7 @@ var evalSymlinks = filepath.EvalSymlinks
 // given volume structure, by inspecting its name and, optionally, the
 // filesystem label. Assumes that the host's udev has set up device symlinks
 // correctly.
-func FindDeviceForStructure(ps *PositionedStructure) (string, error) {
+func FindDeviceForStructure(ps *LaidOutStructure) (string, error) {
 	var candidates []string
 
 	if ps.Name != "" {
@@ -102,7 +102,7 @@ func FindDeviceForStructure(ps *PositionedStructure) (string, error) {
 //
 // Returns the device name and an offset at which the structure content starts
 // within the device or an error.
-func FindDeviceForStructureWithFallback(ps *PositionedStructure) (dev string, offs Size, err error) {
+func FindDeviceForStructureWithFallback(ps *LaidOutStructure) (dev string, offs Size, err error) {
 	if !ps.IsBare() {
 		return "", 0, fmt.Errorf("internal error: cannot use with filesystem structures")
 	}
@@ -157,7 +157,7 @@ func encodeLabel(in string) string {
 // FindMountPointForStructure locates a mount point of a device that matches
 // given structure. The structure must have a filesystem defined, otherwise an
 // error is raised.
-func FindMountPointForStructure(ps *PositionedStructure) (string, error) {
+func FindMountPointForStructure(ps *LaidOutStructure) (string, error) {
 	if ps.IsBare() {
 		return "", ErrNoFilesystemDefined
 	}

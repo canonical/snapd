@@ -56,6 +56,7 @@ import (
 	"github.com/snapcore/snapd/progress"
 	"github.com/snapcore/snapd/release"
 	"github.com/snapcore/snapd/snap"
+	"github.com/snapcore/snapd/snap/channel"
 	"github.com/snapcore/snapd/snap/snaptest"
 	"github.com/snapcore/snapd/store"
 	"github.com/snapcore/snapd/testutil"
@@ -861,6 +862,56 @@ func (s *storeTestSuite) TestDownloadFails(c *C) {
 	c.Assert(err, ErrorMatches, "uh, it failed")
 	// ... and ensure that the tempfile is removed
 	c.Assert(osutil.FileExists(tmpfile.Name()), Equals, false)
+	// ... and not because it succeeded either
+	c.Assert(osutil.FileExists(path), Equals, false)
+}
+
+func (s *storeTestSuite) TestDownloadFailsLeavePartial(c *C) {
+	var tmpfile *os.File
+	restore := store.MockDownload(func(ctx context.Context, name, sha3, url string, user *auth.UserState, s *store.Store, w io.ReadWriteSeeker, resume int64, pbar progress.Meter, dlOpts *store.DownloadOptions) error {
+		tmpfile = w.(*os.File)
+		w.Write([]byte{'X'}) // so it's not empty
+		return fmt.Errorf("uh, it failed")
+	})
+	defer restore()
+
+	snap := &snap.Info{}
+	snap.RealName = "foo"
+	snap.AnonDownloadURL = "anon-url"
+	snap.DownloadURL = "AUTH-URL"
+	snap.Size = 1
+	// simulate a failed download
+	path := filepath.Join(c.MkDir(), "downloaded-file")
+	err := s.store.Download(s.ctx, "foo", path, &snap.DownloadInfo, nil, nil, &store.DownloadOptions{LeavePartialOnError: true})
+	c.Assert(err, ErrorMatches, "uh, it failed")
+	// ... and ensure that the tempfile is *NOT* removed
+	c.Assert(osutil.FileExists(tmpfile.Name()), Equals, true)
+	// ... but the target path isn't there
+	c.Assert(osutil.FileExists(path), Equals, false)
+}
+
+func (s *storeTestSuite) TestDownloadFailsDoesNotLeavePartialIfEmpty(c *C) {
+	var tmpfile *os.File
+	restore := store.MockDownload(func(ctx context.Context, name, sha3, url string, user *auth.UserState, s *store.Store, w io.ReadWriteSeeker, resume int64, pbar progress.Meter, dlOpts *store.DownloadOptions) error {
+		tmpfile = w.(*os.File)
+		// no write, so the partial is empty
+		return fmt.Errorf("uh, it failed")
+	})
+	defer restore()
+
+	snap := &snap.Info{}
+	snap.RealName = "foo"
+	snap.AnonDownloadURL = "anon-url"
+	snap.DownloadURL = "AUTH-URL"
+	snap.Size = 1
+	// simulate a failed download
+	path := filepath.Join(c.MkDir(), "downloaded-file")
+	err := s.store.Download(s.ctx, "foo", path, &snap.DownloadInfo, nil, nil, &store.DownloadOptions{LeavePartialOnError: true})
+	c.Assert(err, ErrorMatches, "uh, it failed")
+	// ... and ensure that the tempfile *is* removed
+	c.Assert(osutil.FileExists(tmpfile.Name()), Equals, false)
+	// ... and the target path isn't there
+	c.Assert(osutil.FileExists(path), Equals, false)
 }
 
 func (s *storeTestSuite) TestDownloadSyncFails(c *C) {
@@ -886,6 +937,8 @@ func (s *storeTestSuite) TestDownloadSyncFails(c *C) {
 	c.Assert(err, ErrorMatches, `(sync|fsync:) .*`)
 	// ... and ensure that the tempfile is removed
 	c.Assert(osutil.FileExists(tmpfile.Name()), Equals, false)
+	// ... because it's been renamed to the target path already
+	c.Assert(osutil.FileExists(path), Equals, true)
 }
 
 var downloadDeltaTests = []struct {
@@ -993,6 +1046,7 @@ func (s *storeTestSuite) TestDownloadDelta(c *C) {
 	for _, testCase := range downloadDeltaTests {
 		sto.SetDeltaFormat(testCase.format)
 		restore := store.MockDownload(func(ctx context.Context, name, sha3, url string, user *auth.UserState, _ *store.Store, w io.ReadWriteSeeker, resume int64, pbar progress.Meter, dlOpts *store.DownloadOptions) error {
+			c.Check(dlOpts, DeepEquals, &store.DownloadOptions{IsAutoRefresh: true})
 			expectedUser := s.user
 			if testCase.useLocalUser {
 				expectedUser = s.localUser
@@ -1024,7 +1078,7 @@ func (s *storeTestSuite) TestDownloadDelta(c *C) {
 			authedUser = nil
 		}
 
-		err = sto.DownloadDelta("snapname", &testCase.info, w, nil, authedUser)
+		err = sto.DownloadDelta("snapname", &testCase.info, w, nil, authedUser, &store.DownloadOptions{IsAutoRefresh: true})
 
 		if testCase.expectError {
 			c.Assert(err, NotNil)
@@ -1944,7 +1998,7 @@ func (s *storeTestSuite) TestInfo(c *C) {
 
 		query := r.URL.Query()
 		c.Check(query.Get("fields"), Equals, "abc,def")
-		c.Check(query.Get("architecture"), Equals, arch.UbuntuArchitecture())
+		c.Check(query.Get("architecture"), Equals, arch.DpkgArchitecture())
 
 		w.Header().Set("X-Suggested-Currency", "GBP")
 		w.WriteHeader(200)
@@ -2212,7 +2266,7 @@ func (s *storeTestSuite) TestInfoAndChannels(c *C) {
 			Revision:    snap.R(27),
 			Version:     "6.3",
 			Confinement: snap.StrictConfinement,
-			Channel:     "latest/stable",
+			Channel:     "stable",
 			Size:        20480,
 			Epoch:       snap.E("0"),
 			ReleasedAt:  time.Date(2019, 1, 1, 10, 11, 12, 123456789, time.UTC),
@@ -2221,7 +2275,7 @@ func (s *storeTestSuite) TestInfoAndChannels(c *C) {
 			Revision:    snap.R(27),
 			Version:     "6.3",
 			Confinement: snap.StrictConfinement,
-			Channel:     "latest/candidate",
+			Channel:     "candidate",
 			Size:        20480,
 			Epoch:       snap.E("0"),
 			ReleasedAt:  time.Date(2019, 1, 2, 10, 11, 12, 123456789, time.UTC),
@@ -2230,7 +2284,7 @@ func (s *storeTestSuite) TestInfoAndChannels(c *C) {
 			Revision:    snap.R(27),
 			Version:     "6.3",
 			Confinement: snap.StrictConfinement,
-			Channel:     "latest/beta",
+			Channel:     "beta",
 			Size:        20480,
 			Epoch:       snap.E("0"),
 			ReleasedAt:  time.Date(2019, 1, 3, 10, 11, 12, 123456789, time.UTC),
@@ -2239,7 +2293,7 @@ func (s *storeTestSuite) TestInfoAndChannels(c *C) {
 			Revision:    snap.R(28),
 			Version:     "6.3",
 			Confinement: snap.StrictConfinement,
-			Channel:     "latest/edge",
+			Channel:     "edge",
 			Size:        20480,
 			Epoch:       snap.E("0"),
 			ReleasedAt:  time.Date(2019, 1, 4, 10, 11, 12, 123456789, time.UTC),
@@ -2287,8 +2341,8 @@ func (s *storeTestSuite) TestInfoMoreChannels(c *C) {
 	result, err := sto.SnapInfo(s.ctx, store.SnapSpec{Name: "eh"}, nil)
 	c.Assert(err, IsNil)
 	expected := map[string]*snap.ChannelSnapInfo{
-		"latest/stable":  {Channel: "latest/stable", ReleasedAt: time.Date(2018, 12, 17, 9, 17, 16, 288554000, time.UTC)},
-		"latest/edge":    {Channel: "latest/edge", ReleasedAt: time.Date(2018, 11, 6, 0, 46, 3, 348730000, time.UTC)},
+		"latest/stable":  {Channel: "stable", ReleasedAt: time.Date(2018, 12, 17, 9, 17, 16, 288554000, time.UTC)},
+		"latest/edge":    {Channel: "edge", ReleasedAt: time.Date(2018, 11, 6, 0, 46, 3, 348730000, time.UTC)},
 		"1.6/stable":     {Channel: "1.6/stable", ReleasedAt: time.Date(2017, 5, 17, 21, 18, 42, 224979000, time.UTC)},
 		"1.7/stable":     {Channel: "1.7/stable", ReleasedAt: time.Date(2017, 6, 2, 1, 16, 52, 640258000, time.UTC)},
 		"1.8/stable":     {Channel: "1.8/stable", ReleasedAt: time.Date(2018, 2, 7, 23, 8, 59, 152984000, time.UTC)},
@@ -2908,7 +2962,7 @@ func (s *storeTestSuite) TestFind(c *C) {
 		c.Check(r.URL.Query().Get("fields"), Equals, "abc,def")
 
 		c.Check(r.Header.Get("X-Ubuntu-Series"), Equals, release.Series)
-		c.Check(r.Header.Get("X-Ubuntu-Architecture"), Equals, arch.UbuntuArchitecture())
+		c.Check(r.Header.Get("X-Ubuntu-Architecture"), Equals, arch.DpkgArchitecture())
 		c.Check(r.Header.Get("X-Ubuntu-Classic"), Equals, "false")
 
 		c.Check(r.Header.Get("X-Ubuntu-Confinement"), Equals, "")
@@ -4399,7 +4453,7 @@ func (s *storeTestSuite) TestSnapAction(c *C) {
 		c.Check(storeID, Equals, "")
 
 		c.Check(r.Header.Get("Snap-Device-Series"), Equals, release.Series)
-		c.Check(r.Header.Get("Snap-Device-Architecture"), Equals, arch.UbuntuArchitecture())
+		c.Check(r.Header.Get("Snap-Device-Architecture"), Equals, arch.DpkgArchitecture())
 		c.Check(r.Header.Get("Snap-Classic"), Equals, "false")
 
 		jsonReq, err := ioutil.ReadAll(r.Body)
@@ -4509,7 +4563,7 @@ func (s *storeTestSuite) TestSnapActionNonZeroEpochAndEpochBump(c *C) {
 		c.Check(storeID, Equals, "")
 
 		c.Check(r.Header.Get("Snap-Device-Series"), Equals, release.Series)
-		c.Check(r.Header.Get("Snap-Device-Architecture"), Equals, arch.UbuntuArchitecture())
+		c.Check(r.Header.Get("Snap-Device-Architecture"), Equals, arch.DpkgArchitecture())
 		c.Check(r.Header.Get("Snap-Classic"), Equals, "false")
 
 		jsonReq, err := ioutil.ReadAll(r.Body)
@@ -5514,7 +5568,7 @@ func (s *storeTestSuite) testSnapActionGet(action, cohort string, c *C) {
 		c.Check(storeID, Equals, "")
 
 		c.Check(r.Header.Get("Snap-Device-Series"), Equals, release.Series)
-		c.Check(r.Header.Get("Snap-Device-Architecture"), Equals, arch.UbuntuArchitecture())
+		c.Check(r.Header.Get("Snap-Device-Architecture"), Equals, arch.DpkgArchitecture())
 		c.Check(r.Header.Get("Snap-Classic"), Equals, "false")
 
 		jsonReq, err := ioutil.ReadAll(r.Body)
@@ -5611,7 +5665,7 @@ func (s *storeTestSuite) TestSnapActionInstallAmend(c *C) {
 		c.Check(storeID, Equals, "")
 
 		c.Check(r.Header.Get("Snap-Device-Series"), Equals, release.Series)
-		c.Check(r.Header.Get("Snap-Device-Architecture"), Equals, arch.UbuntuArchitecture())
+		c.Check(r.Header.Get("Snap-Device-Architecture"), Equals, arch.DpkgArchitecture())
 		c.Check(r.Header.Get("Snap-Classic"), Equals, "false")
 
 		jsonReq, err := ioutil.ReadAll(r.Body)
@@ -5781,7 +5835,7 @@ func (s *storeTestSuite) testSnapActionGetWithRevision(action string, c *C) {
 		c.Check(storeID, Equals, "")
 
 		c.Check(r.Header.Get("Snap-Device-Series"), Equals, release.Series)
-		c.Check(r.Header.Get("Snap-Device-Architecture"), Equals, arch.UbuntuArchitecture())
+		c.Check(r.Header.Get("Snap-Device-Architecture"), Equals, arch.DpkgArchitecture())
 		c.Check(r.Header.Get("Snap-Classic"), Equals, "false")
 
 		jsonReq, err := ioutil.ReadAll(r.Body)
@@ -6015,7 +6069,7 @@ func (s *storeTestSuite) TestSnapActionRevisionNotAvailable(c *C) {
 			"snap2": &store.RevisionNotAvailableError{
 				Action:  "refresh",
 				Channel: "candidate",
-				Releases: []snap.Channel{
+				Releases: []channel.Channel{
 					snaptest.MustParseChannel("beta", "amd64"),
 					snaptest.MustParseChannel("beta", "arm64"),
 				},
@@ -6511,7 +6565,7 @@ func (s *storeTestSuite) TestConnectivityCheckHappy(c *C) {
 		switch r.URL.Path {
 		case "/v2/snaps/info/core":
 			c.Check(r.Method, Equals, "GET")
-			c.Check(r.URL.Query(), DeepEquals, url.Values{"fields": {"download"}, "architecture": {arch.UbuntuArchitecture()}})
+			c.Check(r.URL.Query(), DeepEquals, url.Values{"fields": {"download"}, "architecture": {arch.DpkgArchitecture()}})
 			u, err := url.Parse("/download/core")
 			c.Assert(err, IsNil)
 			io.WriteString(w,

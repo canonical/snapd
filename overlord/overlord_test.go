@@ -44,6 +44,7 @@ import (
 	"github.com/snapcore/snapd/overlord/patch"
 	"github.com/snapcore/snapd/overlord/snapstate"
 	"github.com/snapcore/snapd/overlord/state"
+	"github.com/snapcore/snapd/snap"
 	"github.com/snapcore/snapd/store"
 	"github.com/snapcore/snapd/testutil"
 )
@@ -74,8 +75,9 @@ func (ovs *overlordSuite) TestNew(c *C) {
 	defer restore()
 
 	var configstateInitCalled bool
-	overlord.MockConfigstateInit(func(*hookstate.HookManager) {
+	overlord.MockConfigstateInit(func(*state.State, *hookstate.HookManager) error {
 		configstateInitCalled = true
+		return nil
 	})
 
 	o, err := overlord.New(nil)
@@ -223,6 +225,23 @@ func (ovs *overlordSuite) TestNewWithPatches(c *C) {
 
 	c.Assert(state.Get("patched2", &b), IsNil)
 	c.Check(b, Equals, true)
+}
+
+func (ovs *overlordSuite) TestNewFailedConfigstate(c *C) {
+	restore := patch.Mock(42, 2, nil)
+	defer restore()
+
+	var configstateInitCalled bool
+	restore = overlord.MockConfigstateInit(func(*state.State, *hookstate.HookManager) error {
+		configstateInitCalled = true
+		return fmt.Errorf("bad bad")
+	})
+	defer restore()
+
+	o, err := overlord.New(nil)
+	c.Assert(err, ErrorMatches, "bad bad")
+	c.Check(o, IsNil)
+	c.Check(configstateInitCalled, Equals, true)
 }
 
 type witnessManager struct {
@@ -980,4 +999,43 @@ func (ovs *overlordSuite) TestOverlordCanStandby(c *C) {
 	}
 
 	c.Assert(o.CanStandby(), Equals, true)
+}
+
+func (ovs *overlordSuite) TestStartupTimeout(c *C) {
+	o, err := overlord.New(nil)
+	c.Assert(err, IsNil)
+
+	to, _, err := o.StartupTimeout()
+	c.Assert(err, IsNil)
+	c.Check(to, Equals, 30*time.Second)
+
+	st := o.State()
+	st.Lock()
+	defer st.Unlock()
+
+	// have two snaps
+	snapstate.Set(st, "core18", &snapstate.SnapState{
+		Active: true,
+		Sequence: []*snap.SideInfo{
+			{RealName: "core18", Revision: snap.R(1)},
+		},
+		Current:  snap.R(1),
+		SnapType: "base",
+	})
+	snapstate.Set(st, "foo", &snapstate.SnapState{
+		Active: true,
+		Sequence: []*snap.SideInfo{
+			{RealName: "foo", Revision: snap.R(1)},
+		},
+		Current:  snap.R(1),
+		SnapType: "app",
+	})
+
+	st.Unlock()
+	to, reasoning, err := o.StartupTimeout()
+	st.Lock()
+	c.Assert(err, IsNil)
+
+	c.Check(to, Equals, (30+5+5)*time.Second)
+	c.Check(reasoning, Equals, "pessimistic estimate of 30s plus 5s per snap")
 }

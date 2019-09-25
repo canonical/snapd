@@ -45,6 +45,7 @@ import (
 	"github.com/snapcore/snapd/overlord/state"
 	"github.com/snapcore/snapd/release"
 	"github.com/snapcore/snapd/snap"
+	"github.com/snapcore/snapd/snap/channel"
 	"github.com/snapcore/snapd/store"
 	"github.com/snapcore/snapd/strutil"
 )
@@ -77,6 +78,15 @@ func isParallelInstallable(snapsup *SnapSetup) error {
 	return fmt.Errorf("cannot install snap of type %v as %q", snapsup.Type, snapsup.InstanceName())
 }
 
+func optedIntoSnapdSnap(st *state.State) (bool, error) {
+	tr := config.NewTransaction(st)
+	experimentalAllowSnapd, err := config.GetFeatureFlag(tr, features.SnapdSnap)
+	if err != nil && !config.IsNoOption(err) {
+		return false, err
+	}
+	return experimentalAllowSnapd, nil
+}
+
 func doInstall(st *state.State, snapst *SnapState, snapsup *SnapSetup, flags int, fromChange string) (*state.TaskSet, error) {
 	// NB: we should strive not to need or propagate deviceCtx
 	// here, the resulting effects/changes were not pleasant at
@@ -90,7 +100,6 @@ func doInstall(st *state.State, snapst *SnapState, snapsup *SnapSetup, flags int
 	if snapsup.InstanceName() == "system" {
 		return nil, fmt.Errorf("cannot install reserved snap name 'system'")
 	}
-
 	if snapst.IsInstalled() && !snapst.Active {
 		return nil, fmt.Errorf("cannot update disabled snap %q", snapsup.InstanceName())
 	}
@@ -437,7 +446,7 @@ func WaitRestart(task *state.Task, snapsup *SnapSetup) (err error) {
 		}
 
 		current, err := boot.GetCurrentBoot(typ)
-		if err == boot.ErrBootNameAndRevisionAgain {
+		if err == boot.ErrBootNameAndRevisionNotReady {
 			return &state.Retry{After: 5 * time.Second}
 		}
 		if err != nil {
@@ -538,16 +547,8 @@ func checkInstallPreconditions(st *state.State, info *snap.Info, flags Flags, sn
 	// Check if the snapd can be installed on Ubuntu Core systems, it is
 	// always ok to install on classic
 	if info.GetType() == snap.TypeSnapd && !release.OnClassic {
-		tr := config.NewTransaction(st)
-		experimentalAllowSnapd, err := config.GetFeatureFlag(tr, features.SnapdSnap)
-		if err != nil && !config.IsNoOption(err) {
-			return err
-		}
-
 		if deviceCtx.Model().Base() == "" {
-			if !experimentalAllowSnapd {
-				return fmt.Errorf("cannot install snapd snap on a model without a base snap yet")
-			}
+			return fmt.Errorf("cannot install snapd snap on a model without a base snap yet")
 		}
 	}
 
@@ -736,7 +737,8 @@ func InstallWithDeviceContext(ctx context.Context, st *state.State, name string,
 		PlugsOnly:    len(info.Slots) == 0,
 		InstanceKey:  info.InstanceKey,
 		auxStoreInfo: auxStoreInfo{
-			Media: info.Media,
+			Media:   info.Media,
+			Website: info.Website,
 		},
 		CohortKey: opts.CohortKey,
 	}
@@ -996,7 +998,8 @@ func doUpdate(ctx context.Context, st *state.State, names []string, updates []*s
 			PlugsOnly:    len(update.Slots) == 0,
 			InstanceKey:  update.InstanceKey,
 			auxStoreInfo: auxStoreInfo{
-				Media: update.Media,
+				Website: update.Website,
+				Media:   update.Media,
 			},
 		}
 
@@ -1193,24 +1196,11 @@ func resolveChannel(st *state.State, snapName, newChannel string, deviceCtx Devi
 	model := deviceCtx.Model()
 
 	var pinnedTrack, which string
-	switch {
-	case snapName == model.Kernel() && model.KernelTrack() != "":
+	if snapName == model.Kernel() && model.KernelTrack() != "" {
 		pinnedTrack, which = model.KernelTrack(), "kernel"
-	case snapName == model.Gadget() && model.GadgetTrack() != "":
+	}
+	if snapName == model.Gadget() && model.GadgetTrack() != "" {
 		pinnedTrack, which = model.GadgetTrack(), "gadget"
-	default:
-		var snapst SnapState
-		err := Get(st, snapName, &snapst)
-		if err != nil && err != state.ErrNoState {
-			return "", err
-		}
-		if snapst.IsInstalled() && snapst.Channel != "" {
-			ch, err := snap.ParseChannel(snapst.Channel, "")
-			if err != nil {
-				return "", err
-			}
-			pinnedTrack = ch.Track
-		}
 	}
 
 	if pinnedTrack == "" {
@@ -1218,24 +1208,19 @@ func resolveChannel(st *state.State, snapName, newChannel string, deviceCtx Devi
 		return newChannel, nil
 	}
 
-	nch, err := snap.ParseChannelVerbatim(newChannel, "")
+	// channel name is valid and consist of risk level or
+	// risk/branch only, do the right thing and default to risk (or
+	// risk/branch) within the pinned track
+	resChannel, err := channel.ResolveLocked(pinnedTrack, newChannel)
+	if err == channel.ErrLockedTrackSwitch {
+		// switching to a different track is not allowed
+		return "", fmt.Errorf("cannot switch from %s track %q as specified for the (device) model to %q", which, pinnedTrack, newChannel)
+
+	}
 	if err != nil {
 		return "", err
 	}
-
-	if nch.Track == "" {
-		// channel name is valid and consist of risk level or
-		// risk/branch only, do the right thing and default to risk (or
-		// risk/branch) within the pinned track
-		return pinnedTrack + "/" + newChannel, nil
-	}
-	if nch.Track != "" && nch.Track != pinnedTrack && which != "" {
-		// switching to a different track is not allowed
-		return "", fmt.Errorf("cannot switch from %s track %q as specified for the (device) model to %q", which, pinnedTrack, nch.Clean().String())
-
-	}
-
-	return newChannel, nil
+	return resChannel, nil
 }
 
 var errRevisionSwitch = errors.New("cannot switch revision")

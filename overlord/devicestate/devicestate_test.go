@@ -41,8 +41,8 @@ import (
 	"github.com/snapcore/snapd/asserts"
 	"github.com/snapcore/snapd/asserts/assertstest"
 	"github.com/snapcore/snapd/asserts/sysdb"
-	"github.com/snapcore/snapd/boot/boottest"
 	"github.com/snapcore/snapd/bootloader"
+	"github.com/snapcore/snapd/bootloader/bootloadertest"
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/gadget"
 	"github.com/snapcore/snapd/httputil"
@@ -82,12 +82,14 @@ type deviceMgrSuite struct {
 	mgr     *devicestate.DeviceManager
 	db      *asserts.Database
 
-	bootloader *boottest.MockBootloader
+	bootloader *bootloadertest.MockBootloader
 
 	storeSigning *assertstest.StoreStack
 	brands       *assertstest.SigningAccounts
 
 	reqID string
+
+	ancillary []asserts.Assertion
 
 	restartRequests []state.RestartType
 
@@ -134,7 +136,7 @@ func (s *deviceMgrSuite) SetUpTest(c *C) {
 
 	s.restoreSanitize = snap.MockSanitizePlugsSlots(func(snapInfo *snap.Info) {})
 
-	s.bootloader = boottest.NewMockBootloader("mock", c.MkDir())
+	s.bootloader = bootloadertest.Mock("mock", c.MkDir())
 	bootloader.Force(s.bootloader)
 
 	s.restoreOnClassic = release.MockOnClassic(false)
@@ -202,6 +204,7 @@ func (s *deviceMgrSuite) newStore(devBE storecontext.DeviceBackend) snapstate.St
 }
 
 func (s *deviceMgrSuite) TearDownTest(c *C) {
+	s.ancillary = nil
 	s.state.Lock()
 	assertstate.ReplaceDB(s.state, nil)
 	s.state.Unlock()
@@ -225,7 +228,7 @@ func (s *deviceMgrSuite) seeding() {
 	chg.SetStatus(state.DoingStatus)
 }
 
-func (s *deviceMgrSuite) signSerial(c *C, bhv *devicestatetest.DeviceServiceBehavior, headers map[string]interface{}, body []byte) (asserts.Assertion, error) {
+func (s *deviceMgrSuite) signSerial(c *C, bhv *devicestatetest.DeviceServiceBehavior, headers map[string]interface{}, body []byte) (serial asserts.Assertion, ancillary []asserts.Assertion, err error) {
 	brandID := headers["brand-id"].(string)
 	model := headers["model"].(string)
 	keyID := ""
@@ -246,7 +249,8 @@ func (s *deviceMgrSuite) signSerial(c *C, bhv *devicestatetest.DeviceServiceBeha
 	default:
 		c.Fatalf("unknown model: %s", model)
 	}
-	return signing.Sign(asserts.SerialType, headers, body, keyID)
+	a, err := signing.Sign(asserts.SerialType, headers, body, keyID)
+	return a, s.ancillary, err
 }
 
 func (s *deviceMgrSuite) mockServer(c *C, reqID string, bhv *devicestatetest.DeviceServiceBehavior) *httptest.Server {
@@ -256,6 +260,7 @@ func (s *deviceMgrSuite) mockServer(c *C, reqID string, bhv *devicestatetest.Dev
 
 	bhv.ReqID = reqID
 	bhv.SignSerial = s.signSerial
+	bhv.ExpectedCapabilities = "serial-stream"
 
 	return devicestatetest.MockDeviceService(c, bhv)
 }
@@ -2030,8 +2035,8 @@ func makeSerialAssertionInState(c *C, brands *assertstest.SigningAccounts, st *s
 	return serial.(*asserts.Serial)
 }
 
-func (s *deviceMgrSuite) makeSerialAssertionInState(c *C, brandID, model, serialN string) {
-	makeSerialAssertionInState(c, s.brands, s.state, brandID, model, serialN)
+func (s *deviceMgrSuite) makeSerialAssertionInState(c *C, brandID, model, serialN string) *asserts.Serial {
+	return makeSerialAssertionInState(c, s.brands, s.state, brandID, model, serialN)
 }
 
 func (s *deviceMgrSuite) TestCanAutoRefreshOnCore(c *C) {
@@ -2498,7 +2503,6 @@ func (s *deviceMgrSuite) TestRemodelUnhappy(c *C) {
 	}{
 		{map[string]string{"architecture": "pdp-7"}, "cannot remodel to different architectures yet"},
 		{map[string]string{"base": "core20"}, "cannot remodel to different bases yet"},
-		{map[string]string{"kernel": "other-kernel"}, "cannot remodel to different kernels yet"},
 		{map[string]string{"gadget": "other-gadget"}, "cannot remodel to different gadgets yet"},
 	} {
 		// copy current model unless new model test data is different
@@ -2520,7 +2524,7 @@ func (s *deviceMgrSuite) TestRemodelUnhappy(c *C) {
 	}
 }
 
-func (s *deviceMgrSuite) TestRemodelTasksSmoke(c *C) {
+func (s *deviceMgrSuite) TestRemodelTasksSwitchKernelTrack(c *C) {
 	s.state.Lock()
 	defer s.state.Unlock()
 	s.state.Set("seeded", true)
@@ -2591,6 +2595,60 @@ func (s *deviceMgrSuite) TestRemodelTasksSmoke(c *C) {
 	// 2 snaps, plus one track switch plus the remodel task, the
 	// wait chain is tested in TestRemodel*
 	c.Assert(tss, HasLen, 4)
+}
+
+func (s *deviceMgrSuite) TestRemodelTasksSwitchKernel(c *C) {
+	s.state.Lock()
+	defer s.state.Unlock()
+	s.state.Set("seeded", true)
+	s.state.Set("refresh-privacy-key", "some-privacy-key")
+
+	var testDeviceCtx snapstate.DeviceContext
+
+	restore := devicestate.MockSnapstateInstallWithDeviceContext(func(ctx context.Context, st *state.State, name string, opts *snapstate.RevisionOptions, userID int, flags snapstate.Flags, deviceCtx snapstate.DeviceContext, fromChange string) (*state.TaskSet, error) {
+		c.Check(deviceCtx, Equals, testDeviceCtx)
+		c.Check(name, Equals, "other-kernel")
+		c.Check(opts.Channel, Equals, "18")
+
+		tDownload := s.state.NewTask("fake-download", fmt.Sprintf("Download %s", name))
+		tValidate := s.state.NewTask("validate-snap", fmt.Sprintf("Validate %s", name))
+		tValidate.WaitFor(tDownload)
+		tInstall := s.state.NewTask("fake-install", fmt.Sprintf("Install %s", name))
+		tInstall.WaitFor(tValidate)
+		ts := state.NewTaskSet(tDownload, tValidate, tInstall)
+		ts.MarkEdge(tValidate, snapstate.DownloadAndChecksDoneEdge)
+		return ts, nil
+	})
+	defer restore()
+
+	// set a model assertion
+	current := s.brands.Model("canonical", "pc-model", map[string]interface{}{
+		"architecture": "amd64",
+		"kernel":       "pc-kernel",
+		"gadget":       "pc",
+		"base":         "core18",
+	})
+	err := assertstate.Add(s.state, current)
+	c.Assert(err, IsNil)
+	devicestatetest.SetDevice(s.state, &auth.DeviceState{
+		Brand: "canonical",
+		Model: "pc-model",
+	})
+
+	new := s.brands.Model("canonical", "pc-model", map[string]interface{}{
+		"architecture": "amd64",
+		"kernel":       "other-kernel=18",
+		"gadget":       "pc",
+		"base":         "core18",
+		"revision":     "1",
+	})
+
+	testDeviceCtx = &snapstatetest.TrivialDeviceContext{Remodeling: true}
+
+	tss, err := devicestate.RemodelTasks(context.Background(), s.state, current, new, testDeviceCtx, "99")
+	c.Assert(err, IsNil)
+	// 1 new kernel plus the remodel task
+	c.Assert(tss, HasLen, 2)
 }
 
 func (s *deviceMgrSuite) TestRemodelRequiredSnaps(c *C) {
@@ -3180,16 +3238,14 @@ func (s *deviceMgrSuite) TestRemodeling(c *C) {
 	c.Check(devicestate.Remodeling(s.state), Equals, false)
 }
 
-func (s *deviceMgrSuite) TestDoRequestSerialReregistration(c *C) {
+func (s *deviceMgrSuite) testDoRequestSerialReregistration(c *C, setAncillary func(origSerial *asserts.Serial)) *state.Task {
 	mockServer := s.mockServer(c, "REQID-1", nil)
 	defer mockServer.Close()
 
 	restore := devicestate.MockBaseStoreURL(mockServer.URL)
 	defer restore()
 
-	assertstest.AddMany(s.storeSigning, s.brands.AccountsAndKeys("rereg-brand")...)
-
-	// setup state as done by first-boot/Ensure/doGenerateDeviceKey
+	// setup state as after initial registration
 	s.state.Lock()
 	defer s.state.Unlock()
 
@@ -3210,7 +3266,12 @@ func (s *deviceMgrSuite) TestDoRequestSerialReregistration(c *C) {
 	devicestate.KeypairManager(s.mgr).Put(devKey)
 
 	// have a serial assertion
-	s.makeSerialAssertionInState(c, "my-brand", "my-model", "9999")
+	serial0 := s.makeSerialAssertionInState(c, "my-brand", "my-model", "9999")
+	// give a chance to the test to setup returning a stream vs
+	// just the serial assertion
+	if setAncillary != nil {
+		setAncillary(serial0)
+	}
 
 	new := s.brands.Model("rereg-brand", "rereg-model", map[string]interface{}{
 		"architecture": "amd64",
@@ -3252,6 +3313,18 @@ func (s *deviceMgrSuite) TestDoRequestSerialReregistration(c *C) {
 	s.se.Wait()
 	s.state.Lock()
 
+	return t
+}
+
+func (s *deviceMgrSuite) TestDoRequestSerialReregistration(c *C) {
+	assertstest.AddMany(s.storeSigning, s.brands.AccountsAndKeys("rereg-brand")...)
+
+	t := s.testDoRequestSerialReregistration(c, nil)
+
+	s.state.Lock()
+	defer s.state.Unlock()
+	chg := t.Change()
+
 	c.Check(chg.Status(), Equals, state.DoneStatus, Commentf("%s", t.Log()))
 	c.Check(chg.Err(), IsNil)
 	device, err := devicestatetest.Device(s.state)
@@ -3263,6 +3336,66 @@ func (s *deviceMgrSuite) TestDoRequestSerialReregistration(c *C) {
 		"serial":   "9999",
 	})
 	c.Assert(err, IsNil)
+}
+
+func (s *deviceMgrSuite) TestDoRequestSerialReregistrationStreamFromService(c *C) {
+	setAncillary := func(_ *asserts.Serial) {
+		// sets up such that re-registration returns a stream
+		// of assertions
+		s.ancillary = s.brands.AccountsAndKeys("rereg-brand")
+	}
+
+	t := s.testDoRequestSerialReregistration(c, setAncillary)
+
+	s.state.Lock()
+	defer s.state.Unlock()
+	chg := t.Change()
+
+	c.Check(chg.Status(), Equals, state.DoneStatus, Commentf("%s", t.Log()))
+	c.Check(chg.Err(), IsNil)
+	device, err := devicestatetest.Device(s.state)
+	c.Check(err, IsNil)
+	c.Check(device.Serial, Equals, "9999")
+	_, err = s.db.Find(asserts.SerialType, map[string]string{
+		"brand-id": "rereg-brand",
+		"model":    "rereg-model",
+		"serial":   "9999",
+	})
+	c.Assert(err, IsNil)
+}
+
+func (s *deviceMgrSuite) TestDoRequestSerialReregistrationIncompleteStreamFromService(c *C) {
+	setAncillary := func(_ *asserts.Serial) {
+		// will produce an incomplete stream!
+		s.ancillary = s.brands.AccountsAndKeys("rereg-brand")[:1]
+	}
+
+	t := s.testDoRequestSerialReregistration(c, setAncillary)
+
+	s.state.Lock()
+	defer s.state.Unlock()
+	chg := t.Change()
+
+	c.Check(chg.Status(), Equals, state.ErrorStatus, Commentf("%s", t.Log()))
+	c.Check(chg.Err(), ErrorMatches, `(?ms).*cannot accept stream of assertions from device service:.*`)
+}
+
+func (s *deviceMgrSuite) TestDoRequestSerialReregistrationDoubleSerialStreamFromService(c *C) {
+	setAncillary := func(serial0 *asserts.Serial) {
+		// will produce a stream with confusingly two serial
+		// assertions
+		s.ancillary = s.brands.AccountsAndKeys("rereg-brand")
+		s.ancillary = append(s.ancillary, serial0)
+	}
+
+	t := s.testDoRequestSerialReregistration(c, setAncillary)
+
+	s.state.Lock()
+	defer s.state.Unlock()
+	chg := t.Change()
+
+	c.Check(chg.Status(), Equals, state.ErrorStatus, Commentf("%s", t.Log()))
+	c.Check(chg.Err(), ErrorMatches, `(?ms).*cannot accept more than a single device serial assertion from the device service.*`)
 }
 
 func (s *deviceMgrSuite) TestDeviceCtxNoTask(c *C) {
@@ -3668,7 +3801,7 @@ volumes:
 
 	expectedRollbackDir := filepath.Join(dirs.SnapRollbackDir, "foo-gadget_34")
 	updaterForStructureCalls := 0
-	gadget.MockUpdaterForStructure(func(ps *gadget.PositionedStructure, rootDir, rollbackDir string) (gadget.Updater, error) {
+	gadget.MockUpdaterForStructure(func(ps *gadget.LaidOutStructure, rootDir, rollbackDir string) (gadget.Updater, error) {
 		updaterForStructureCalls++
 
 		c.Assert(ps.Name, Equals, "foo")

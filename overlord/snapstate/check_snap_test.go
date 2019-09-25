@@ -88,7 +88,7 @@ architectures:
 
 	err = snapstate.CheckSnap(s.st, "snap-path", "hello", nil, nil, snapstate.Flags{}, nil)
 
-	errorMsg := fmt.Sprintf(`snap "hello" supported architectures (yadayada, blahblah) are incompatible with this system (%s)`, arch.UbuntuArchitecture())
+	errorMsg := fmt.Sprintf(`snap "hello" supported architectures (yadayada, blahblah) are incompatible with this system (%s)`, arch.DpkgArchitecture())
 	c.Assert(err.Error(), Equals, errorMsg)
 }
 
@@ -150,6 +150,11 @@ var assumesTests = []struct {
 	assumes: "[snapd2.15.1]",
 	version: "2.15.0",
 	error:   `.* unsupported features: snapd2\.15\.1 .*`,
+}, {
+	// Note that this is different from how strconv.VersionCompare
+	// (dpkg version numbering) would behave - it would error here
+	assumes: "[snapd2.15]",
+	version: "2.15~pre1",
 }, {
 	assumes: "[command-chain]",
 }}
@@ -1030,7 +1035,13 @@ var systemUsernamesTests = []struct {
 	noRangeUser: true,
 	scVer:       "dead 2.4.1 deadbeef bpf-actlog",
 	error:       `cannot ensure users for snap "foo" required system username "snap_daemon": cannot add user/group "snapd-range-524288-root", group exists and user does not`,
-}}
+}, {
+	sysIDs:  "snap_daemon: shared\n  daemon: shared",
+	classic: true,
+	scVer:   "dead 2.4.1 deadbeef bpf-actlog",
+	error:   `snap "foo" requires unsupported system username "daemon"`,
+},
+}
 
 func (s *checkSnapSuite) TestCheckSnapSystemUsernames(c *C) {
 	for _, test := range systemUsernamesTests {
@@ -1040,6 +1051,7 @@ func (s *checkSnapSuite) TestCheckSnapSystemUsernames(c *C) {
 		restore = release.MockOnClassic(test.classic)
 		defer restore()
 
+		var osutilEnsureUserGroupCalls int
 		if test.noRangeUser {
 			restore = snapstate.MockOsutilEnsureUserGroup(func(name string, id uint32, extraUsers bool) error {
 				return fmt.Errorf(`cannot add user/group "%s", group exists and user does not`, name)
@@ -1053,6 +1065,7 @@ func (s *checkSnapSuite) TestCheckSnapSystemUsernames(c *C) {
 			})
 		} else {
 			restore = snapstate.MockOsutilEnsureUserGroup(func(name string, id uint32, extraUsers bool) error {
+				osutilEnsureUserGroupCalls++
 				return nil
 			})
 		}
@@ -1071,8 +1084,11 @@ func (s *checkSnapSuite) TestCheckSnapSystemUsernames(c *C) {
 		err = snapstate.CheckSnap(s.st, "snap-path", "foo", nil, nil, snapstate.Flags{}, nil)
 		if test.error != "" {
 			c.Check(err, ErrorMatches, test.error)
+			c.Check(osutilEnsureUserGroupCalls, Equals, 0)
 		} else {
 			c.Assert(err, IsNil)
+			// one call for the range user, one for the system user
+			c.Check(osutilEnsureUserGroupCalls, Equals, 2)
 		}
 	}
 }
@@ -1129,4 +1145,107 @@ system-usernames:
 
 		}
 	}
+}
+
+func (s *checkSnapSuite) TestCheckSnapRemodelKernel(c *C) {
+	reset := release.MockOnClassic(false)
+	defer reset()
+
+	st := state.New(nil)
+	st.Lock()
+	defer st.Unlock()
+
+	si := &snap.SideInfo{RealName: "kernel", Revision: snap.R(2), SnapID: "kernel-id"}
+	snaptest.MockSnap(c, `
+name: kernel
+type: kernel
+version: 1
+`, si)
+	snapstate.Set(st, "kernel", &snapstate.SnapState{
+		SnapType: "kernel",
+		Active:   true,
+		Sequence: []*snap.SideInfo{si},
+		Current:  si.Revision,
+	})
+
+	const yaml = `name: new-kernel
+type: kernel
+version: 2
+`
+
+	info, err := snap.InfoFromSnapYaml([]byte(yaml))
+	info.SnapID = "new-kernel-id"
+	c.Assert(err, IsNil)
+
+	var openSnapFile = func(path string, si *snap.SideInfo) (*snap.Info, snap.Container, error) {
+		return info, emptyContainer(c), nil
+	}
+	restore := snapstate.MockOpenSnapFile(openSnapFile)
+	defer restore()
+
+	// happy case, the new-kernel matches the model
+	deviceCtx := &snapstatetest.TrivialDeviceContext{
+		Remodeling: true,
+		DeviceModel: MakeModel(map[string]interface{}{
+			"kernel": "new-kernel",
+			"gadget": "gadget",
+		}),
+	}
+
+	st.Unlock()
+	err = snapstate.CheckSnap(st, "snap-path", "new-kernel", nil, nil, snapstate.Flags{}, deviceCtx)
+	st.Lock()
+	c.Check(err, IsNil)
+}
+
+func (s *checkSnapSuite) TestCheckSnapRemodelGadgetDoesNotWorkYet(c *C) {
+	reset := release.MockOnClassic(false)
+	defer reset()
+
+	st := state.New(nil)
+	st.Lock()
+	defer st.Unlock()
+
+	si := &snap.SideInfo{RealName: "gadget", Revision: snap.R(2), SnapID: "gadget-id"}
+	snaptest.MockSnap(c, `
+name: gadget
+type: gadget
+version: 1
+`, si)
+	snapstate.Set(st, "gadget", &snapstate.SnapState{
+		SnapType: "gadget",
+		Active:   true,
+		Sequence: []*snap.SideInfo{si},
+		Current:  si.Revision,
+	})
+
+	const yaml = `name: new-gadget
+type: gadget
+version: 2
+`
+
+	info, err := snap.InfoFromSnapYaml([]byte(yaml))
+	info.SnapID = "new-gadget-id"
+	c.Assert(err, IsNil)
+
+	var openSnapFile = func(path string, si *snap.SideInfo) (*snap.Info, snap.Container, error) {
+		return info, emptyContainer(c), nil
+	}
+	restore := snapstate.MockOpenSnapFile(openSnapFile)
+	defer restore()
+
+	// happy case, the new-gadget matches the model but we do not
+	// support this yet
+	deviceCtx := &snapstatetest.TrivialDeviceContext{
+		Remodeling: true,
+		DeviceModel: MakeModel(map[string]interface{}{
+			"kernel": "kernel",
+			"gadget": "new-gadget",
+		}),
+	}
+
+	st.Unlock()
+	err = snapstate.CheckSnap(st, "snap-path", "new-kernel", nil, nil, snapstate.Flags{}, deviceCtx)
+	st.Lock()
+	c.Check(err, ErrorMatches, "internal error: cannot remodel gadget yet")
 }

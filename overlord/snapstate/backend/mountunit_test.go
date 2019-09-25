@@ -63,7 +63,7 @@ func (s *mountunitSuite) TearDownTest(c *C) {
 }
 
 func (s *mountunitSuite) TestAddMountUnit(c *C) {
-	restore := squashfs.MockUseFuse(false)
+	restore := squashfs.MockNeedsFuse(false)
 	defer restore()
 
 	info := &snap.Info{
@@ -89,6 +89,7 @@ What=/var/lib/snapd/snaps/foo_13.snap
 Where=%s/foo/13
 Type=squashfs
 Options=nodev,ro,x-gdu.hide
+LazyUnmount=yes
 
 [Install]
 WantedBy=multi-user.target
