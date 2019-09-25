@@ -136,8 +136,8 @@ capability sys_admin,
 mount /var/snap/@{SNAP_NAME}/common/{,**} -> /var/snap/@{SNAP_NAME}/common/{,**},
 mount options=(rw, rshared) -> /var/snap/@{SNAP_NAME}/common/{,**},
 
-/bin/mount ixr,
-/bin/umount ixr,
+/{,usr/}bin/mount ixr,
+/{,usr/}bin/umount ixr,
 deny /run/mount/utab rw,
 umount /var/snap/@{SNAP_INSTANCE_NAME}/common/**,
 `
@@ -145,7 +145,7 @@ umount /var/snap/@{SNAP_INSTANCE_NAME}/common/**,
 const kubernetesSupportConnectedPlugAppArmorKubeletSystemdRun = `
   # kubelet mount rules
   capability sys_admin,
-  /bin/mount ixr,
+  /{,usr/}bin/mount ixr,
   mount fstype="tmpfs" tmpfs -> /var/snap/@{SNAP_INSTANCE_NAME}/common/**,
   deny /run/mount/utab rw,
 `
