@@ -94,7 +94,6 @@ func (v *VolumeManager) Run() error {
 
 // readDevice reads the partition layout from the block device.
 func (v *VolumeManager) readDevice() error {
-
 	var err error
 	if v.deviceVolume, err = v.partitionTool.DeviceInfo(); err != nil {
 		return err
@@ -105,7 +104,6 @@ func (v *VolumeManager) readDevice() error {
 
 // completeLayout adds missing structures from the gadget specification.
 func (v *VolumeManager) completeLayout() error {
-
 	// Limit ourselves to just one volume for now.
 	if len(v.positionedVolume) != 1 {
 		return fmt.Errorf("multiple volumes are not supported")

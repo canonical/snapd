@@ -75,19 +75,22 @@ exit 0`)
 	c.Assert(pv.Volume.ID, Equals, "9151F25B-CDF0-48F1-9EDE-68CBD616E2CA")
 	c.Assert(len(pv.Structure), Equals, 2)
 
-	// Boot partition
-	c.Assert(pv.Structure[0].Name, Equals, "BIOS Boot")
-	c.Assert(pv.Structure[0].Size, Equals, gadget.Size(0x100000))
-	c.Assert(pv.Structure[0].Label, Equals, "")
-	c.Assert(pv.Structure[0].Type, Equals, "21686148-6449-6E6F-744E-656564454649")
-	c.Assert(pv.Structure[0].Filesystem, Equals, "")
-
-	// Recovery partition
-	c.Assert(pv.Structure[1].Name, Equals, "Recovery")
-	c.Assert(pv.Structure[1].Size, Equals, gadget.Size(0x4b000000))
-	c.Assert(pv.Structure[1].Label, Equals, "ubuntu-seed")
-	c.Assert(pv.Structure[1].Type, Equals, "C12A7328-F81F-11D2-BA4B-00A0C93EC93B")
-	c.Assert(pv.Structure[1].Filesystem, Equals, "vfat")
+	c.Assert(pv.Structure, DeepEquals, []gadget.VolumeStructure{
+		{
+			Name:       "BIOS Boot",
+			Size:       0x100000,
+			Label:      "",
+			Type:       "21686148-6449-6E6F-744E-656564454649",
+			Filesystem: "",
+		},
+		{
+			Name:       "Recovery",
+			Size:       0x4b000000,
+			Label:      "ubuntu-seed",
+			Type:       "C12A7328-F81F-11D2-BA4B-00A0C93EC93B",
+			Filesystem: "vfat",
+		},
+	})
 }
 
 func (s *volmgrTestSuite) TestDeviceInfoNotSectors(c *C) {
@@ -168,6 +171,7 @@ func (s *volmgrTestSuite) TestFilesystemInfo(c *C) {
 		{"lsblk", "--fs", "--json", "/dev/node"},
 	})
 	c.Assert(err, IsNil)
+	c.Assert(len(info.BlockDevices), Equals, 1)
 	bd := info.BlockDevices[0]
 	c.Assert(bd.Name, Equals, "loop8p2")
 	c.Assert(bd.FSType, Equals, "vfat")
