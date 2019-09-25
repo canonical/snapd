@@ -98,7 +98,6 @@ func (s *deviceMgrRemodelSuite) TestRemodelUnhappy(c *C) {
 	}{
 		{map[string]string{"architecture": "pdp-7"}, "cannot remodel to different architectures yet"},
 		{map[string]string{"base": "core20"}, "cannot remodel to different bases yet"},
-		{map[string]string{"gadget": "other-gadget"}, "cannot remodel to different gadgets yet"},
 	} {
 		// copy current model unless new model test data is different
 		for k, v := range cur {
@@ -119,7 +118,19 @@ func (s *deviceMgrRemodelSuite) TestRemodelUnhappy(c *C) {
 	}
 }
 
-func (s *deviceMgrRemodelSuite) TestRemodelTasksSwitchKernelTrack(c *C) {
+func (s *deviceMgrSuite) TestRemodelTasksSwitchGadgetTrack(c *C) {
+	s.testRemodelTasksSwitchTrack(c, "pc", map[string]interface{}{
+		"gadget": "pc=18",
+	})
+}
+
+func (s *deviceMgrSuite) TestRemodelTasksSwitchKernelTrack(c *C) {
+	s.testRemodelTasksSwitchTrack(c, "pc-kernel", map[string]interface{}{
+		"kernel": "pc-kernel=18",
+	})
+}
+
+func (s *deviceMgrSuite) testRemodelTasksSwitchTrack(c *C, whatRefreshes string, newModelOverrides map[string]interface{}) {
 	s.state.Lock()
 	defer s.state.Unlock()
 	s.state.Set("seeded", true)
@@ -148,6 +159,8 @@ func (s *deviceMgrRemodelSuite) TestRemodelTasksSwitchKernelTrack(c *C) {
 		c.Check(flags.NoReRefresh, Equals, true)
 		c.Check(deviceCtx, Equals, testDeviceCtx)
 		c.Check(fromChange, Equals, "99")
+		c.Check(name, Equals, whatRefreshes)
+		c.Check(opts.Channel, Equals, "18")
 
 		tDownload := s.state.NewTask("fake-download", fmt.Sprintf("Download %s to track %s", name, opts.Channel))
 		tValidate := s.state.NewTask("validate-snap", fmt.Sprintf("Validate %s", name))
@@ -174,14 +187,18 @@ func (s *deviceMgrRemodelSuite) TestRemodelTasksSwitchKernelTrack(c *C) {
 		Model: "pc-model",
 	})
 
-	new := s.brands.Model("canonical", "pc-model", map[string]interface{}{
+	headers := map[string]interface{}{
 		"architecture":   "amd64",
-		"kernel":         "pc-kernel=18",
+		"kernel":         "pc-kernel",
 		"gadget":         "pc",
 		"base":           "core18",
 		"required-snaps": []interface{}{"new-required-snap-1", "new-required-snap-2"},
 		"revision":       "1",
-	})
+	}
+	for k, v := range newModelOverrides {
+		headers[k] = v
+	}
+	new := s.brands.Model("canonical", "pc-model", headers)
 
 	testDeviceCtx = &snapstatetest.TrivialDeviceContext{Remodeling: true}
 
@@ -234,6 +251,60 @@ func (s *deviceMgrRemodelSuite) TestRemodelTasksSwitchKernel(c *C) {
 		"architecture": "amd64",
 		"kernel":       "other-kernel=18",
 		"gadget":       "pc",
+		"base":         "core18",
+		"revision":     "1",
+	})
+
+	testDeviceCtx = &snapstatetest.TrivialDeviceContext{Remodeling: true}
+
+	tss, err := devicestate.RemodelTasks(context.Background(), s.state, current, new, testDeviceCtx, "99")
+	c.Assert(err, IsNil)
+	// 1 new kernel plus the remodel task
+	c.Assert(tss, HasLen, 2)
+}
+
+func (s *deviceMgrSuite) TestRemodelTasksSwitchGadget(c *C) {
+	s.state.Lock()
+	defer s.state.Unlock()
+	s.state.Set("seeded", true)
+	s.state.Set("refresh-privacy-key", "some-privacy-key")
+
+	var testDeviceCtx snapstate.DeviceContext
+
+	restore := devicestate.MockSnapstateInstallWithDeviceContext(func(ctx context.Context, st *state.State, name string, opts *snapstate.RevisionOptions, userID int, flags snapstate.Flags, deviceCtx snapstate.DeviceContext, fromChange string) (*state.TaskSet, error) {
+		c.Check(deviceCtx, Equals, testDeviceCtx)
+		c.Check(name, Equals, "other-gadget")
+		c.Check(opts.Channel, Equals, "18")
+
+		tDownload := s.state.NewTask("fake-download", fmt.Sprintf("Download %s", name))
+		tValidate := s.state.NewTask("validate-snap", fmt.Sprintf("Validate %s", name))
+		tValidate.WaitFor(tDownload)
+		tInstall := s.state.NewTask("fake-install", fmt.Sprintf("Install %s", name))
+		tInstall.WaitFor(tValidate)
+		ts := state.NewTaskSet(tDownload, tValidate, tInstall)
+		ts.MarkEdge(tValidate, snapstate.DownloadAndChecksDoneEdge)
+		return ts, nil
+	})
+	defer restore()
+
+	// set a model assertion
+	current := s.brands.Model("canonical", "pc-model", map[string]interface{}{
+		"architecture": "amd64",
+		"kernel":       "pc-kernel",
+		"gadget":       "pc",
+		"base":         "core18",
+	})
+	err := assertstate.Add(s.state, current)
+	c.Assert(err, IsNil)
+	devicestatetest.SetDevice(s.state, &auth.DeviceState{
+		Brand: "canonical",
+		Model: "pc-model",
+	})
+
+	new := s.brands.Model("canonical", "pc-model", map[string]interface{}{
+		"architecture": "amd64",
+		"kernel":       "pc-kernel",
+		"gadget":       "other-gadget=18",
 		"base":         "core18",
 		"revision":     "1",
 	})

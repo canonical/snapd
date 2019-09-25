@@ -486,9 +486,11 @@ func checkGadgetOrKernel(st *state.State, snapInfo, curInfo *snap.Info, _ snap.C
 			if model.Kernel() == snapInfo.InstanceName() {
 				return nil
 			}
+			if model.Gadget() == snapInfo.InstanceName() {
+				return nil
+			}
 		}
-
-		return fmt.Errorf("internal error: cannot remodel gadget yet")
+		return fmt.Errorf("internal error: unknown device snap %q", snapInfo.InstanceName())
 	}
 	if err != nil {
 		return fmt.Errorf("cannot find original %s snap: %v", kind, err)
