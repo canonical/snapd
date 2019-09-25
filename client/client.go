@@ -264,12 +264,9 @@ func (client *Client) Hijack(f func(*http.Request) (*http.Response, error)) {
 	client.doer = hijacked{f}
 }
 
-type doFlags uint
-
-const (
-	doDefaults  doFlags = 0
-	doNoTimeout doFlags = 1 << iota
-)
+type doFlags struct {
+	NoTimeout bool
+}
 
 // do performs a request and decodes the resulting json into the given
 // value. It's low-level, for testing/experimenting only; you should
@@ -282,7 +279,7 @@ func (client *Client) do(method, path string, query url.Values, headers map[stri
 
 	var rsp *http.Response
 	var ctx context.Context = context.Background()
-	if (flags & doNoTimeout) == 0 {
+	if !flags.NoTimeout {
 		cancelCtx, cancel := context.WithTimeout(ctx, doTimeout)
 		ctx = cancelCtx
 		defer cancel()
@@ -332,7 +329,7 @@ func decodeInto(reader io.Reader, v interface{}) error {
 // which produces json.Numbers instead of float64 types for numbers.
 func (client *Client) doSync(method, path string, query url.Values, headers map[string]string, body io.Reader, v interface{}) (*ResultInfo, error) {
 	var rsp response
-	statusCode, err := client.do(method, path, query, headers, body, &rsp, doDefaults)
+	statusCode, err := client.do(method, path, query, headers, body, &rsp, doFlags{})
 	if err != nil {
 		return nil, err
 	}
@@ -356,12 +353,15 @@ func (client *Client) doSync(method, path string, query url.Values, headers map[
 }
 
 func (client *Client) doAsync(method, path string, query url.Values, headers map[string]string, body io.Reader) (changeID string, err error) {
-	_, changeID, err = client.doAsyncFull(method, path, query, headers, body, doDefaults)
+	_, changeID, err = client.doAsyncFull(method, path, query, headers, body, doFlags{})
 	return
 }
 
 func (client *Client) doAsyncNoTimeout(method, path string, query url.Values, headers map[string]string, body io.Reader) (changeID string, err error) {
-	_, changeID, err = client.doAsyncFull(method, path, query, headers, body, doNoTimeout)
+	flags := doFlags{
+		NoTimeout: true,
+	}
+	_, changeID, err = client.doAsyncFull(method, path, query, headers, body, flags)
 	return
 }
 

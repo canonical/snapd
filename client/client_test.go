@@ -105,7 +105,7 @@ func (cs *clientSuite) TestNewPanics(c *C) {
 
 func (cs *clientSuite) TestClientDoReportsErrors(c *C) {
 	cs.err = errors.New("ouchie")
-	_, err := cs.cli.Do("GET", "/", nil, nil, nil, 0)
+	_, err := cs.cli.Do("GET", "/", nil, nil, nil, client.DoFlags{})
 	c.Check(err, ErrorMatches, "cannot communicate with server: ouchie")
 	if cs.doCalls < 2 {
 		c.Fatalf("do did not retry")
@@ -116,7 +116,7 @@ func (cs *clientSuite) TestClientWorks(c *C) {
 	var v []int
 	cs.rsp = `[1,2]`
 	reqBody := ioutil.NopCloser(strings.NewReader(""))
-	statusCode, err := cs.cli.Do("GET", "/this", nil, reqBody, &v, 0)
+	statusCode, err := cs.cli.Do("GET", "/this", nil, reqBody, &v, client.DoFlags{})
 	c.Check(err, IsNil)
 	c.Check(statusCode, Equals, 200)
 	c.Check(v, DeepEquals, []int{1, 2})
@@ -132,7 +132,7 @@ func (cs *clientSuite) TestClientUnderstandsStatusCode(c *C) {
 	cs.status = 202
 	cs.rsp = `[1,2]`
 	reqBody := ioutil.NopCloser(strings.NewReader(""))
-	statusCode, err := cs.cli.Do("GET", "/this", nil, reqBody, &v, 0)
+	statusCode, err := cs.cli.Do("GET", "/this", nil, reqBody, &v, client.DoFlags{})
 	c.Check(err, IsNil)
 	c.Check(statusCode, Equals, 202)
 	c.Check(v, DeepEquals, []int{1, 2})
@@ -148,7 +148,7 @@ func (cs *clientSuite) TestClientDefaultsToNoAuthorization(c *C) {
 	defer os.Unsetenv(client.TestAuthFileEnvKey)
 
 	var v string
-	_, _ = cs.cli.Do("GET", "/this", nil, nil, &v, 0)
+	_, _ = cs.cli.Do("GET", "/this", nil, nil, &v, client.DoFlags{})
 	c.Assert(cs.req, NotNil)
 	authorization := cs.req.Header.Get("Authorization")
 	c.Check(authorization, Equals, "")
@@ -166,7 +166,7 @@ func (cs *clientSuite) TestClientSetsAuthorization(c *C) {
 	c.Assert(err, IsNil)
 
 	var v string
-	_, _ = cs.cli.Do("GET", "/this", nil, nil, &v, 0)
+	_, _ = cs.cli.Do("GET", "/this", nil, nil, &v, client.DoFlags{})
 	authorization := cs.req.Header.Get("Authorization")
 	c.Check(authorization, Equals, `Macaroon root="macaroon", discharge="discharge"`)
 }
@@ -185,7 +185,7 @@ func (cs *clientSuite) TestClientHonorsDisableAuth(c *C) {
 	var v string
 	cli := client.New(&client.Config{DisableAuth: true})
 	cli.SetDoer(cs)
-	_, _ = cli.Do("GET", "/this", nil, nil, &v, 0)
+	_, _ = cli.Do("GET", "/this", nil, nil, &v, client.DoFlags{})
 	authorization := cs.req.Header.Get("Authorization")
 	c.Check(authorization, Equals, "")
 }
@@ -194,13 +194,13 @@ func (cs *clientSuite) TestClientHonorsInteractive(c *C) {
 	var v string
 	cli := client.New(&client.Config{Interactive: false})
 	cli.SetDoer(cs)
-	_, _ = cli.Do("GET", "/this", nil, nil, &v, 0)
+	_, _ = cli.Do("GET", "/this", nil, nil, &v, client.DoFlags{})
 	interactive := cs.req.Header.Get(client.AllowInteractionHeader)
 	c.Check(interactive, Equals, "")
 
 	cli = client.New(&client.Config{Interactive: true})
 	cli.SetDoer(cs)
-	_, _ = cli.Do("GET", "/this", nil, nil, &v, 0)
+	_, _ = cli.Do("GET", "/this", nil, nil, &v, client.DoFlags{})
 	interactive = cs.req.Header.Get(client.AllowInteractionHeader)
 	c.Check(interactive, Equals, "true")
 }
@@ -483,7 +483,7 @@ func (cs *clientSuite) TestUserAgent(c *C) {
 	cli.SetDoer(cs)
 
 	var v string
-	_, _ = cli.Do("GET", "/", nil, nil, &v, 0)
+	_, _ = cli.Do("GET", "/", nil, nil, &v, client.DoFlags{})
 	c.Assert(cs.req, NotNil)
 	c.Check(cs.req.Header.Get("User-Agent"), Equals, "some-agent/9.87")
 }
@@ -617,9 +617,9 @@ func (cs *integrationSuite) TestClientTimeoutLP1837804(c *C) {
 	defer func() { testServer.Close() }()
 
 	cli := client.New(&client.Config{BaseURL: testServer.URL})
-	_, err := cli.Do("GET", "/", nil, nil, nil, 0)
+	_, err := cli.Do("GET", "/", nil, nil, nil, client.DoFlags{})
 	c.Assert(err, ErrorMatches, `.* context deadline exceeded`)
 
-	_, err = cli.Do("POST", "/", nil, nil, nil, 0)
+	_, err = cli.Do("POST", "/", nil, nil, nil, client.DoFlags{})
 	c.Assert(err, ErrorMatches, `.* context deadline exceeded`)
 }
