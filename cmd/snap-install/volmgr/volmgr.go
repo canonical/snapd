@@ -26,6 +26,10 @@ import (
 	"github.com/snapcore/snapd/osutil"
 )
 
+const (
+	MasterKeySize = 64
+)
+
 // PartitionTool is used to query and manipulate the device partition
 // table.
 type partitionTool interface {
@@ -46,6 +50,7 @@ type VolumeManager struct {
 	info             *gadget.Info
 	positionedVolume map[string]*gadget.LaidOutVolume
 	deviceVolume     *gadget.LaidOutVolume
+	encryptedData    bool
 }
 
 func NewVolumeManager(gadgetRoot, device string) (*VolumeManager, error) {
@@ -75,11 +80,14 @@ func NewVolumeManager(gadgetRoot, device string) (*VolumeManager, error) {
 		partitionTool:    newPartitionTool(device),
 		info:             info,
 		positionedVolume: positionedVolume,
+		encryptedData:    true, // FIXME: this definition should come from the model
 	}
 
 	return v, nil
 }
 
+// Run compares the volume definition in gadget with the actual device and
+// creates missing structures.
 func (v *VolumeManager) Run() error {
 	if err := v.readDevice(); err != nil {
 		return err
@@ -135,6 +143,24 @@ func (v *VolumeManager) completeLayout() error {
 		return err
 	}
 
+	// Format encrypted data partition
+	if v.encryptedData {
+		device, ok := deviceMap["system-data"]
+		if ok {
+			keyBuffer, err := createKey(MasterKeySize)
+			if err != nil {
+				return fmt.Errorf("cannot create key: %v", err)
+			}
+
+			e := NewEncryptedPartition(device, "ubuntu-data", keyBuffer)
+			if err := e.Create(); err != nil {
+				return fmt.Errorf("cannot create encrypted partition: %v", err)
+			}
+
+			deviceMap["system-data"] = "/dev/mapper/ubuntu-data"
+		}
+	}
+
 	// Make filesystems on the newly created partitions
 	for i, p := range gadgetVolume.LaidOutStructure {
 		s := p.VolumeStructure
@@ -147,7 +173,7 @@ func (v *VolumeManager) completeLayout() error {
 			continue
 		}
 
-		node, ok := deviceMap[s.Name]
+		node, ok := deviceMap[s.Role]
 		if !ok {
 			continue
 		}

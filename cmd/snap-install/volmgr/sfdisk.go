@@ -125,7 +125,7 @@ func (sf *SFDisk) CreatePartitions(positionedVolume *gadget.LaidOutVolume, usedP
 		fmt.Fprintf(buf, "%s : start=%12d, size=%12d, type=%s, name=%q\n", node, p.StartOffset/sectorSize,
 			s.Size/sectorSize, partitionType(ptable.Label, p.Type), s.Name)
 
-		deviceMap[s.Name] = node
+		deviceMap[s.Role] = node
 	}
 
 	// Write the partition table
@@ -133,6 +133,11 @@ func (sf *SFDisk) CreatePartitions(positionedVolume *gadget.LaidOutVolume, usedP
 	cmd.Stdin = buf
 	if output, err := cmd.CombinedOutput(); err != nil {
 		return osutil.OutputErr(output, err)
+	}
+
+	// Reload the partition table
+	if output, err := exec.Command("partx", "-u", sf.device).CombinedOutput(); err != nil {
+		return osutil.OutputErr(output, fmt.Errorf("cannot update partition table: %s", err))
 	}
 
 	return nil

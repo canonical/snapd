@@ -24,4 +24,7 @@ type LsblkBlockDevice lsblkBlockDevice
 var (
 	NewSFDisk      = newSFDisk
 	FilesystemInfo = filesystemInfo
+
+	// encrypt
+	TempKeyFile = &tempKeyFile
 )
