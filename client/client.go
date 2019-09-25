@@ -235,8 +235,11 @@ func (client *Client) raw(ctx context.Context, method, urlpath string, query url
 }
 
 var (
-	doRetry   = 250 * time.Millisecond
-	doTimeout = 5 * time.Second
+	doRetry = 250 * time.Millisecond
+	// snapd may need to reach out to the store, where it uses a fixed 10s
+	// timeout for the whole request to complete, make sure that the client
+	// timeout is not shorter than that
+	doTimeout = 15 * time.Second
 )
 
 // MockDoTimings mocks the delay used by the do retry loop and request timeout.
