@@ -96,6 +96,12 @@ const kubernetesSupportConnectedPlugAppArmorKubelet = `
 # Ideally this would be snap-specific
 /run/dockershim.sock rw,
 
+# Ideally this would be snap-specific (it could if the control plane was a
+# snap), but in deployments where the control plane is not a snap, it will tell
+# flannel to use this path.
+/run/flannel/{,**} rw,
+/run/flannel/** k,
+
 # allow managing pods' cgroups
 /sys/fs/cgroup/*/kubepods/{,**} rw,
 
