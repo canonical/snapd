@@ -731,20 +731,25 @@ func (*licenseData) Error() string {
 	return "license agreement required"
 }
 
+type snapDownloadOptions struct {
+	Channel   string        `json:"channel"`
+	Revision  snap.Revision `json:"revision"`
+	CohortKey string        `json:"cohort-key"`
+}
+
 type snapInstruction struct {
 	progress.NullMeter
-	Action           string        `json:"action"`
-	Amend            bool          `json:"amend"`
-	Channel          string        `json:"channel"`
-	Revision         snap.Revision `json:"revision"`
-	CohortKey        string        `json:"cohort-key"`
-	LeaveCohort      bool          `json:"leave-cohort"`
-	DevMode          bool          `json:"devmode"`
-	JailMode         bool          `json:"jailmode"`
-	Classic          bool          `json:"classic"`
-	IgnoreValidation bool          `json:"ignore-validation"`
-	Unaliased        bool          `json:"unaliased"`
-	Purge            bool          `json:"purge,omitempty"`
+	snapDownloadOptions
+
+	Action           string `json:"action"`
+	Amend            bool   `json:"amend"`
+	LeaveCohort      bool   `json:"leave-cohort"`
+	DevMode          bool   `json:"devmode"`
+	JailMode         bool   `json:"jailmode"`
+	Classic          bool   `json:"classic"`
+	IgnoreValidation bool   `json:"ignore-validation"`
+	Unaliased        bool   `json:"unaliased"`
+	Purge            bool   `json:"purge,omitempty"`
 	// dropping support temporarely until flag confusion is sorted,
 	// this isn't supported by client atm anyway
 	LeaveOld bool         `json:"temp-dropped-leave-old"`

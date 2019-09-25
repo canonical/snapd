@@ -36,8 +36,9 @@ var snapDownloadCmd = &Command{
 
 // SnapDownloadAction is used to request a snap download
 type snapDownloadAction struct {
-	Action string   `json:"action"`
-	Snaps  []string `json:"snaps,omitempty"`
+	Action  string                `json:"action"`
+	Snaps   []string              `json:"snaps,omitempty"`
+	Options []snapDownloadOptions `json:"options,omitempty"`
 }
 
 func postSnapDownload(c *Command, r *http.Request, user *auth.UserState) Response {
@@ -62,20 +63,39 @@ func postSnapDownload(c *Command, r *http.Request, user *auth.UserState) Respons
 		return BadRequest("download operation requires action")
 	}
 
+	var opts *snapDownloadOptions
+	if len(action.Options) == 1 {
+		opts = &action.Options[0]
+	}
+	if len(action.Options) > 1 {
+		return BadRequest("download operation supports at most one option")
+	}
+
 	switch action.Action {
 	case "download":
 		snapName := action.Snaps[0]
-		return streamOneSnap(c, user, snapName)
+		return streamOneSnap(c, user, snapName, opts)
 	default:
 		return BadRequest("unknown download operation %q", action.Action)
 	}
 }
 
-func streamOneSnap(c *Command, user *auth.UserState, snapName string) Response {
-	info, err := getStore(c).SnapInfo(context.TODO(), store.SnapSpec{Name: snapName}, user)
+func streamOneSnap(c *Command, user *auth.UserState, snapName string, dlOpts *snapDownloadOptions) Response {
+	if dlOpts == nil {
+		dlOpts = &snapDownloadOptions{}
+	}
+	actions := []*store.SnapAction{{
+		Action:       "download",
+		InstanceName: snapName,
+		Revision:     dlOpts.Revision,
+		CohortKey:    dlOpts.CohortKey,
+		Channel:      dlOpts.Channel,
+	}}
+	snaps, err := getStore(c).SnapAction(context.TODO(), nil, actions, user, nil)
 	if err != nil {
 		return SnapNotFound(snapName, err)
 	}
+	info := snaps[0]
 
 	downloadInfo := info.DownloadInfo
 	r, err := getStore(c).DownloadStream(context.TODO(), snapName, &downloadInfo, user)

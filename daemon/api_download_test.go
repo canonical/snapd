@@ -67,29 +67,49 @@ func (s *snapDownloadSuite) SetUpTest(c *check.C) {
 
 var content = "SNAP"
 
-func (s *snapDownloadSuite) SnapInfo(ctx context.Context, spec store.SnapSpec, user *auth.UserState) (*snap.Info, error) {
-	switch spec.Name {
+func (s *snapDownloadSuite) SnapAction(ctx context.Context, currentSnaps []*store.CurrentSnap, actions []*store.SnapAction, user *auth.UserState, opts *store.RefreshOptions) ([]*snap.Info, error) {
+	if len(actions) != 1 {
+		panic(fmt.Sprintf("unexpected amount of actions: %v", len(actions)))
+	}
+	if actions[0].Action != "download" {
+		panic(fmt.Sprintf("unexpected action: %q", actions[0].Action))
+	}
+	action := actions[0]
+	switch action.InstanceName {
 	case "bar":
-		return &snap.Info{
+		if action.Channel != "" {
+			panic(fmt.Sprintf("unexpected channel %q for bar snap", action.Channel))
+		}
+		return []*snap.Info{{
 			DownloadInfo: snap.DownloadInfo{
 				Size:            int64(len(content)),
 				AnonDownloadURL: "http://localhost/bar",
 			},
-		}, nil
+		}}, nil
+	case "edge-bar":
+		if action.Channel != "edge" {
+			panic(fmt.Sprintf("unexpected channel %q for edge-bar snap", action.Channel))
+		}
+		return []*snap.Info{{
+			DownloadInfo: snap.DownloadInfo{
+				Size:            int64(len(content)),
+				AnonDownloadURL: "http://localhost/edge-bar",
+			},
+		}}, nil
 	case "download-error-trigger-snap":
-		return &snap.Info{
+		return []*snap.Info{{
 			DownloadInfo: snap.DownloadInfo{
 				Size:            100,
 				AnonDownloadURL: "http://localhost/foo",
 			},
-		}, nil
+		}}, nil
 	default:
 		return nil, store.ErrSnapNotFound
 	}
 }
 
 func (s *snapDownloadSuite) DownloadStream(ctx context.Context, name string, downloadInfo *snap.DownloadInfo, user *auth.UserState) (io.ReadCloser, error) {
-	if name == "bar" {
+	if name == "bar" || name == "edge-bar" {
 		return ioutil.NopCloser(bytes.NewReader([]byte(content))), nil
 	}
 	return nil, fmt.Errorf("unexpected error")
@@ -124,6 +144,11 @@ func (s *snapDownloadSuite) TestDownloadSnapErrors(c *check.C) {
 			err:      `download operation supports only one snap`,
 		},
 		{
+			dataJSON: `{"action": "foo", "snaps": ["foo"], "options": [{"channel":"edge"},{"revision":"2"}]}`,
+			status:   400,
+			err:      `download operation supports at most one option`,
+		},
+		{
 			dataJSON: `{"}`,
 			status:   400,
 			err:      `cannot decode request body into download operation: unexpected EOF`,
@@ -148,6 +173,7 @@ func (s *snapDownloadSuite) TestDownloadSnapErrors(c *check.C) {
 func (s *snapDownloadSuite) TestStreamOneSnap(c *check.C) {
 
 	type scenario struct {
+		snapName string
 		dataJSON string
 		status   int
 		err      string
@@ -165,7 +191,14 @@ func (s *snapDownloadSuite) TestStreamOneSnap(c *check.C) {
 			err:      "unexpected error",
 		},
 		{
+			snapName: "bar",
 			dataJSON: `{"action": "download", "snaps": ["bar"]}`,
+			status:   200,
+			err:      "",
+		},
+		{
+			snapName: "edge-bar",
+			dataJSON: `{"action": "download", "snaps": ["edge-bar"], "options": [{"channel":"edge"}]}`,
 			status:   200,
 			err:      "",
 		},
@@ -179,7 +212,7 @@ func (s *snapDownloadSuite) TestStreamOneSnap(c *check.C) {
 			result := rsp.(*daemon.Resp).Result
 			c.Check(result.(*daemon.ErrorResult).Message, check.Matches, s.err)
 		} else {
-			c.Assert(rsp.(daemon.FileStream).SnapName, check.Equals, "bar")
+			c.Assert(rsp.(daemon.FileStream).SnapName, check.Equals, s.snapName)
 			c.Assert(rsp.(daemon.FileStream).Info.Size, check.Equals, int64(len(content)))
 
 			w := httptest.NewRecorder()
@@ -190,7 +223,7 @@ func (s *snapDownloadSuite) TestStreamOneSnap(c *check.C) {
 			c.Assert(w.Code, check.Equals, s.status)
 			c.Assert(w.Header().Get("Content-Length"), check.Equals, expectedLength)
 			c.Assert(w.Header().Get("Content-Type"), check.Equals, "application/octet-stream")
-			c.Assert(w.Header().Get("Content-Disposition"), check.Equals, "attachment; filename=bar")
+			c.Assert(w.Header().Get("Content-Disposition"), check.Equals, fmt.Sprintf("attachment; filename=%s", s.snapName))
 			c.Assert(w.Body.String(), check.Equals, "SNAP")
 		}
 	}
