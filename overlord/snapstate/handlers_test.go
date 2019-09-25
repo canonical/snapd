@@ -70,8 +70,9 @@ func (s *handlersSuite) TestSetTaskSnapSetupFirstTask(c *C) {
 	/// snap-setup has the changes in it now
 	newT := s.state.Task(t.ID())
 	c.Assert(newT, Not(IsNil))
-	newsnapsup := &snapstate.SnapSetup{}
-	newT.Get("snap-setup", newsnapsup)
+	var newsnapsup snapstate.SnapSetup
+	err = newT.Get("snap-setup", &newsnapsup)
+	c.Assert(err, IsNil)
 	c.Assert(newsnapsup.Channel, Equals, snapsup.Channel)
 }
 
@@ -108,7 +109,8 @@ func (s *handlersSuite) TestSetTaskSnapSetupLaterTask(c *C) {
 	// check that the original task's snap-setup is different now
 	newT := s.state.Task(t.ID())
 	c.Assert(newT, Not(IsNil))
-	newsnapsup := &snapstate.SnapSetup{}
-	newT.Get("snap-setup", newsnapsup)
+	var newsnapsup snapstate.SnapSetup
+	err = newT.Get("snap-setup", &newsnapsup)
+	c.Assert(err, IsNil)
 	c.Assert(newsnapsup.Channel, Equals, snapsup.Channel)
 }
