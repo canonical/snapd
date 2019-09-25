@@ -1017,6 +1017,37 @@ volumes:
 	c.Check(v.Size, Equals, 3*gadget.SizeGiB+gadget.SizeLBA48Pointer)
 }
 
+func (p *layoutTestSuite) TestLayoutVolumePartialNoSuchFile(c *C) {
+	gadgetYaml := `
+volumes:
+  first:
+    schema: gpt
+    bootloader: grub
+    structure:
+        - type: 00000000-0000-0000-0000-dd00deadbeef
+          size: 400M
+          offset: 800M
+          content:
+              - image: foo.img
+`
+	vol := mustParseVolume(c, gadgetYaml, "first")
+	c.Assert(vol.Structure, HasLen, 1)
+
+	v, err := gadget.LayoutVolumePartially(vol, defaultConstraints)
+	c.Assert(v, DeepEquals, &gadget.PartiallyLaidOutVolume{
+		Volume:     vol,
+		SectorSize: 512,
+		LaidOutStructure: []gadget.LaidOutStructure{
+			{
+				VolumeStructure: &vol.Structure[0],
+				StartOffset:     800 * gadget.SizeMiB,
+				Index:           0,
+			},
+		},
+	})
+	c.Assert(err, IsNil)
+}
+
 func (p *layoutTestSuite) TestLaidOutStructureShift(c *C) {
 	var gadgetYamlContent = `
 volumes:
