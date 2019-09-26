@@ -3853,7 +3853,7 @@ func (s *apiSuite) TestRefreshCohort(c *check.C) {
 	inst := &snapInstruction{
 		Action: "refresh",
 		Snaps:  []string{"some-snap"},
-		snapDownloadOptions: snapDownloadOptions{
+		snapRevisionOptions: snapRevisionOptions{
 			CohortKey: "xyzzy",
 		},
 	}
@@ -3883,9 +3883,9 @@ func (s *apiSuite) TestRefreshLeaveCohort(c *check.C) {
 
 	d := s.daemon(c)
 	inst := &snapInstruction{
-		Action:      "refresh",
-		LeaveCohort: true,
-		Snaps:       []string{"some-snap"},
+		Action:              "refresh",
+		snapRevisionOptions: snapRevisionOptions{LeaveCohort: true},
+		Snaps:               []string{"some-snap"},
 	}
 
 	st := d.overlord.State()
@@ -3932,12 +3932,12 @@ func (s *apiSuite) TestSwitchInstruction(c *check.C) {
 		leave = nil
 		inst := &snapInstruction{
 			Action: "switch",
-			snapDownloadOptions: snapDownloadOptions{
-				CohortKey: t.cohort,
-				Channel:   t.channel,
+			snapRevisionOptions: snapRevisionOptions{
+				CohortKey:   t.cohort,
+				LeaveCohort: t.leave,
+				Channel:     t.channel,
 			},
-			Snaps:       []string{"some-snap"},
-			LeaveCohort: t.leave,
+			Snaps: []string{"some-snap"},
 		}
 
 		st.Lock()
@@ -4238,7 +4238,7 @@ func (s *apiSuite) TestInstallCohort(c *check.C) {
 	d := s.daemon(c)
 	inst := &snapInstruction{
 		Action: "install",
-		snapDownloadOptions: snapDownloadOptions{
+		snapRevisionOptions: snapRevisionOptions{
 			CohortKey: "To the legion of the lost ones, to the cohort of the damned.",
 		},
 		Snaps: []string{"fake"},
@@ -4409,19 +4409,19 @@ func (s *apiSuite) TestRevertSnapClassic(c *check.C) {
 }
 
 func (s *apiSuite) TestRevertSnapToRevision(c *check.C) {
-	s.testRevertSnap(&snapInstruction{snapDownloadOptions: snapDownloadOptions{Revision: snap.R(1)}}, c)
+	s.testRevertSnap(&snapInstruction{snapRevisionOptions: snapRevisionOptions{Revision: snap.R(1)}}, c)
 }
 
 func (s *apiSuite) TestRevertSnapToRevisionDevMode(c *check.C) {
-	s.testRevertSnap(&snapInstruction{snapDownloadOptions: snapDownloadOptions{Revision: snap.R(1)}, DevMode: true}, c)
+	s.testRevertSnap(&snapInstruction{snapRevisionOptions: snapRevisionOptions{Revision: snap.R(1)}, DevMode: true}, c)
 }
 
 func (s *apiSuite) TestRevertSnapToRevisionJailMode(c *check.C) {
-	s.testRevertSnap(&snapInstruction{snapDownloadOptions: snapDownloadOptions{Revision: snap.R(1)}, JailMode: true}, c)
+	s.testRevertSnap(&snapInstruction{snapRevisionOptions: snapRevisionOptions{Revision: snap.R(1)}, JailMode: true}, c)
 }
 
 func (s *apiSuite) TestRevertSnapToRevisionClassic(c *check.C) {
-	s.testRevertSnap(&snapInstruction{snapDownloadOptions: snapDownloadOptions{Revision: snap.R(1)}, Classic: true}, c)
+	s.testRevertSnap(&snapInstruction{snapRevisionOptions: snapRevisionOptions{Revision: snap.R(1)}, Classic: true}, c)
 }
 
 func snapList(rawSnaps interface{}) []map[string]interface{} {

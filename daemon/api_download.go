@@ -38,7 +38,7 @@ var snapDownloadCmd = &Command{
 type snapDownloadAction struct {
 	Action  string                `json:"action"`
 	Snaps   []string              `json:"snaps,omitempty"`
-	Options []snapDownloadOptions `json:"options,omitempty"`
+	Options []snapRevisionOptions `json:"options,omitempty"`
 }
 
 func postSnapDownload(c *Command, r *http.Request, user *auth.UserState) Response {
@@ -63,7 +63,7 @@ func postSnapDownload(c *Command, r *http.Request, user *auth.UserState) Respons
 		return BadRequest("download operation requires action")
 	}
 
-	var opts *snapDownloadOptions
+	var opts *snapRevisionOptions
 	if len(action.Options) == 1 {
 		opts = &action.Options[0]
 	}
@@ -80,9 +80,9 @@ func postSnapDownload(c *Command, r *http.Request, user *auth.UserState) Respons
 	}
 }
 
-func streamOneSnap(c *Command, user *auth.UserState, snapName string, dlOpts *snapDownloadOptions) Response {
+func streamOneSnap(c *Command, user *auth.UserState, snapName string, dlOpts *snapRevisionOptions) Response {
 	if dlOpts == nil {
-		dlOpts = &snapDownloadOptions{}
+		dlOpts = &snapRevisionOptions{}
 	}
 	actions := []*store.SnapAction{{
 		Action:       "download",
