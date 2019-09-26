@@ -23,6 +23,7 @@ import (
 	"fmt"
 	"net/http"
 	"strings"
+	"time"
 
 	. "gopkg.in/check.v1"
 
@@ -272,4 +273,70 @@ func (s *SnapSuite) mockCmdTimingsAPI(c *C) {
 
 		c.Errorf("unexpected path %q", r.URL.Path)
 	})
+}
+
+type TaskDef struct {
+	TaskID    string
+	Lane      int
+	ReadyTime time.Time
+}
+
+func (s *SnapSuite) TestSortTimingsTasks(c *C) {
+	mkTime := func(timeStr string) time.Time {
+		t, err := time.Parse(time.RFC3339, timeStr)
+		c.Assert(err, IsNil)
+		return t
+	}
+
+	testData := []struct {
+		ChangeTimings map[string]main.ChangeTimings
+		Expected      []string
+	}{{
+		// nothing to do
+		ChangeTimings: map[string]main.ChangeTimings{},
+		Expected:      []string{},
+	}, {
+		ChangeTimings: map[string]main.ChangeTimings{
+			// tasks in lane 0 only
+			"1": {ReadyTime: mkTime("2019-04-21T00:00:00Z")},
+			"2": {ReadyTime: mkTime("2019-05-21T00:00:00Z")},
+			"3": {ReadyTime: mkTime("2019-02-21T00:00:00Z")},
+			"4": {ReadyTime: mkTime("2019-03-21T00:00:00Z")},
+			"5": {ReadyTime: mkTime("2019-01-21T00:00:00Z")},
+		},
+		Expected: []string{"5", "3", "4", "1", "2"},
+	}, {
+		// task in lane 1 with a task in lane 0 before and after it
+		ChangeTimings: map[string]main.ChangeTimings{
+			"1": {Lane: 1, ReadyTime: mkTime("2019-01-21T00:00:00Z")},
+			"2": {Lane: 0, ReadyTime: mkTime("2019-01-20T00:00:00Z")},
+			"3": {Lane: 0, ReadyTime: mkTime("2019-01-22T00:00:00Z")},
+		},
+		Expected: []string{"2", "1", "3"},
+	}, {
+		// tasks in lane 1 only
+		ChangeTimings: map[string]main.ChangeTimings{
+			"1": {Lane: 1, ReadyTime: mkTime("2019-01-21T00:00:00Z")},
+			"2": {Lane: 1, ReadyTime: mkTime("2019-01-20T00:00:00Z")},
+			"3": {Lane: 1, ReadyTime: mkTime("2019-01-16T00:00:00Z")},
+		},
+		Expected: []string{"3", "2", "1"},
+	}, {
+		ChangeTimings: map[string]main.ChangeTimings{
+			"1": {Lane: 1, ReadyTime: mkTime("2019-01-21T00:00:00Z")},
+			"8": {Lane: 0, ReadyTime: mkTime("2019-01-27T00:00:00Z")},
+			"2": {Lane: 0, ReadyTime: mkTime("2019-01-19T00:00:00Z")},
+			"3": {Lane: 2, ReadyTime: mkTime("2019-01-20T00:00:00Z")},
+			"4": {Lane: 0, ReadyTime: mkTime("2019-01-25T00:00:00Z")},
+			"5": {Lane: 1, ReadyTime: mkTime("2019-01-20T00:00:00Z")},
+			"6": {Lane: 2, ReadyTime: mkTime("2019-01-21T00:00:00Z")},
+			"7": {Lane: 0, ReadyTime: mkTime("2019-01-18T00:00:00Z")},
+		},
+		Expected: []string{"7", "2", "5", "1", "3", "6", "4", "8"},
+	}}
+
+	for _, data := range testData {
+		tasks := main.SortTimingsTasks(data.ChangeTimings)
+		c.Check(tasks, DeepEquals, data.Expected)
+	}
 }

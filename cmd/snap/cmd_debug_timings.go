@@ -93,27 +93,29 @@ func printTaskTiming(w io.Writer, t *Timing, verbose, doing bool) {
 	printTiming(w, verbose, t.Level+1, "", "", doingTimeStr, undoingTimeStr, t.Label, t.Summary)
 }
 
-func (x *cmdChangeTimings) printChangeTimings(w io.Writer, timing *timingsData) error {
-	tasks := make([]string, 0, len(timing.ChangeTimings))
+func sortTimingsTasks(timings map[string]changeTimings) []string {
+	tasks := make([]string, 0, len(timings))
 
 	var minReadyTime, maxReadyTime time.Time
-	for taskID, taskData := range timing.ChangeTimings {
-		if minReadyTime.IsZero() {
-			minReadyTime = taskData.ReadyTime
-			maxReadyTime = taskData.ReadyTime
-		}
-		if taskData.ReadyTime.Before(minReadyTime) {
-			minReadyTime = taskData.ReadyTime
-		}
-		if taskData.ReadyTime.After(maxReadyTime) {
-			maxReadyTime = taskData.ReadyTime
+	for taskID, taskData := range timings {
+		if taskData.Lane > 0 {
+			if minReadyTime.IsZero() {
+				minReadyTime = taskData.ReadyTime
+				maxReadyTime = taskData.ReadyTime
+			}
+			if taskData.ReadyTime.Before(minReadyTime) {
+				minReadyTime = taskData.ReadyTime
+			}
+			if taskData.ReadyTime.After(maxReadyTime) {
+				maxReadyTime = taskData.ReadyTime
+			}
 		}
 		tasks = append(tasks, taskID)
 	}
 
 	sort.Slice(tasks, func(i, j int) bool {
-		t1 := timing.ChangeTimings[tasks[i]]
-		t2 := timing.ChangeTimings[tasks[j]]
+		t1 := timings[tasks[i]]
+		t2 := timings[tasks[j]]
 		if t1.Lane != t2.Lane {
 			if t1.Lane == 0 {
 				return t1.ReadyTime.Before(minReadyTime)
@@ -125,6 +127,12 @@ func (x *cmdChangeTimings) printChangeTimings(w io.Writer, timing *timingsData) 
 		}
 		return t1.ReadyTime.Before(t2.ReadyTime)
 	})
+
+	return tasks
+}
+
+func (x *cmdChangeTimings) printChangeTimings(w io.Writer, timing *timingsData) error {
+	tasks := sortTimingsTasks(timing.ChangeTimings)
 
 	for _, taskID := range tasks {
 		chgTiming := timing.ChangeTimings[taskID]
@@ -176,23 +184,25 @@ func (x *cmdChangeTimings) printStartupTimings(w io.Writer, timings []*timingsDa
 	return nil
 }
 
+type changeTimings struct {
+	Status         string        `json:"status,omitempty"`
+	Kind           string        `json:"kind,omitempty"`
+	Summary        string        `json:"summary,omitempty"`
+	Lane           int           `json:"lane,omitempty"`
+	ReadyTime      time.Time     `json:"ready-time,omitempty"`
+	DoingTime      time.Duration `json:"doing-time,omitempty"`
+	UndoingTime    time.Duration `json:"undoing-time,omitempty"`
+	DoingTimings   []Timing      `json:"doing-timings,omitempty"`
+	UndoingTimings []Timing      `json:"undoing-timings,omitempty"`
+}
+
 type timingsData struct {
 	ChangeID       string        `json:"change-id"`
 	EnsureTimings  []Timing      `json:"ensure-timings,omitempty"`
 	StartupTimings []Timing      `json:"startup-timings,omitempty"`
 	TotalDuration  time.Duration `json:"total-duration,omitempty"`
 	// ChangeTimings are indexed by task id
-	ChangeTimings map[string]struct {
-		Status         string        `json:"status,omitempty"`
-		Kind           string        `json:"kind,omitempty"`
-		Summary        string        `json:"summary,omitempty"`
-		Lane           int           `json:"lane,omitempty"`
-		ReadyTime      time.Time     `json:"ready-time,omitempty"`
-		DoingTime      time.Duration `json:"doing-time,omitempty"`
-		UndoingTime    time.Duration `json:"undoing-time,omitempty"`
-		DoingTimings   []Timing      `json:"doing-timings,omitempty"`
-		UndoingTimings []Timing      `json:"undoing-timings,omitempty"`
-	} `json:"change-timings,omitempty"`
+	ChangeTimings map[string]changeTimings `json:"change-timings,omitempty"`
 }
 
 func (x *cmdChangeTimings) checkConflictingFlags() error {
