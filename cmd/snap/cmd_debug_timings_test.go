@@ -58,21 +58,30 @@ var timingsTests = []timingsCmdArgs{{
 }, {
 	args: "debug timings --last=install",
 	stdout: "ID   Status        Doing      Undoing  Summary\n" +
-		"40   Doing         910ms            -  task bar summary\n" +
+		"40   Doing         910ms            -  lane 0 task bar summary\n" +
 		" ^                   1ms            -    foo summary\n" +
-		"  ^                  1ms            -      bar summary\n\n",
+		"  ^                  1ms            -      bar summary\n" +
+		"41   Done          210ms            -  lane 1 task baz summary\n" +
+		"42   Done          310ms            -  lane 1 task boo summary\n" +
+		"43   Done          310ms            -  lane 0 task doh summary\n\n",
 }, {
 	args: "debug timings 1",
 	stdout: "ID   Status        Doing      Undoing  Summary\n" +
-		"40   Doing         910ms            -  task bar summary\n" +
+		"40   Doing         910ms            -  lane 0 task bar summary\n" +
 		" ^                   1ms            -    foo summary\n" +
-		"  ^                  1ms            -      bar summary\n\n",
+		"  ^                  1ms            -      bar summary\n" +
+		"41   Done          210ms            -  lane 1 task baz summary\n" +
+		"42   Done          310ms            -  lane 1 task boo summary\n" +
+		"43   Done          310ms            -  lane 0 task doh summary\n\n",
 }, {
 	args: "debug timings 1 --verbose",
 	stdout: "ID   Status        Doing      Undoing  Label  Summary\n" +
-		"40   Doing         910ms            -  bar    task bar summary\n" +
+		"40   Doing         910ms            -  bar    lane 0 task bar summary\n" +
 		" ^                   1ms            -  foo      foo summary\n" +
-		"  ^                  1ms            -  bar        bar summary\n\n",
+		"  ^                  1ms            -  bar        bar summary\n" +
+		"41   Done          210ms            -  baz    lane 1 task baz summary\n" +
+		"42   Done          310ms            -  boo    lane 1 task boo summary\n" +
+		"43   Done          310ms            -  doh    lane 0 task doh summary\n\n",
 }, {
 	args: "debug timings --ensure=seed",
 	stdout: "ID    Status        Doing      Undoing  Summary\n" +
@@ -164,13 +173,18 @@ func (s *SnapSuite) mockCmdTimingsAPI(c *C) {
 
 			switch {
 			case changeID == "1":
+				// lane 0 and lane 1 tasks, interleaved
 				fmt.Fprintln(w, `{"type":"sync","status-code":200,"status":"OK","result":[
 				{"change-id":"1", "change-timings":{
-					"40":{"doing-time":910000000, "status": "Doing", "kind": "bar", "summary": "task bar summary",
+					"41":{"doing-time":210000000, "status": "Done", "lane": 1, "ready-time": "2016-04-22T01:02:04Z", "kind": "baz", "summary": "lane 1 task baz summary"},
+					"43":{"doing-time":310000000, "status": "Done", "ready-time": "2016-04-25T01:02:04Z", "kind": "doh", "summary": "lane 0 task doh summary"},
+					"40":{"doing-time":910000000, "status": "Doing", "ready-time": "2016-04-20T00:00:00Z", "kind": "bar", "summary": "lane 0 task bar summary",
 						"doing-timings":[
 							{"label":"foo", "summary": "foo summary", "duration": 1000001},
 							{"level":1, "label":"bar", "summary": "bar summary", "duration": 1000002}
-				]}}}]}`)
+						]},
+					"42":{"doing-time":310000000, "status": "Done", "lane": 1, "ready-time": "2016-04-23T01:02:04Z", "kind": "boo", "summary": "lane 1 task boo summary"}
+				}}]}`)
 			case ensure == "seed" && all == "false":
 				fmt.Fprintln(w, `{"type":"sync","status-code":200,"status":"OK","result":[
 					{"change-id":"1",
@@ -293,6 +307,7 @@ func (s *SnapSuite) TestSortTimingsTasks(c *C) {
 		},
 		Expected: []string{"3", "2", "1"},
 	}, {
+		// tasks in lanes 0, 1, 2 with tasks from line 0 before and after lanes 1, 2
 		ChangeTimings: map[string]main.ChangeTimings{
 			"1": {Lane: 1, ReadyTime: mkTime("2019-01-21T00:00:00Z")},
 			"8": {Lane: 0, ReadyTime: mkTime("2019-01-27T00:00:00Z")},
