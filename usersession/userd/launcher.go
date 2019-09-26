@@ -151,8 +151,8 @@ func (s *Launcher) OpenDesktopEntryEnv(desktop_file_id string, env []string, sen
 
 	// Before rejoining args to create a new command-line: escape "\" escapes; escape "\"" quotes; and, wrap each arg in "\"" quotes
 	for i := 0; i != len(args); i++ {
-		args[i] = strings.ReplaceAll(args[i], "\\", "\\\\")
-		args[i] = strings.ReplaceAll(args[i], "\"", "\\\"")
+		args[i] = strings.Replace(args[i], "\\", "\\\\", -1)
+		args[i] = strings.Replace(args[i], "\"", "\\\"", -1)
 		args[i] = "\"" + args[i] + "\""
 	}
 
