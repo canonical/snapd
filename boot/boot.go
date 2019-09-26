@@ -22,6 +22,7 @@ package boot
 import (
 	"errors"
 	"fmt"
+	"io"
 	"os"
 	"path/filepath"
 	"strings"
@@ -167,6 +168,23 @@ var (
 type NameAndRevision struct {
 	Name     string
 	Revision snap.Revision
+}
+
+// DebugDumpBootvars writes a dump of the bootvars to the given writer
+func DebugDumpBootvars(w io.Writer) error {
+	bloader, err := bootloader.Find("", nil)
+	if err != nil {
+		return err
+	}
+	allKeys := []string{"snap_mode", "snap_core", "snap_try_core", "snap_kernel", "snap_try_kernel"}
+	bootVars, err := bloader.GetBootVars(allKeys...)
+	if err != nil {
+		return err
+	}
+	for _, k := range allKeys {
+		fmt.Fprintf(w, "%s=%s\n", k, bootVars[k])
+	}
+	return nil
 }
 
 // GetCurrentBoot returns the currently set name and revision for boot for the given
