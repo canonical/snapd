@@ -22,6 +22,7 @@ package main
 import (
 	"fmt"
 	"io"
+	"sort"
 	"strings"
 	"time"
 
@@ -93,28 +94,55 @@ func printTaskTiming(w io.Writer, t *Timing, verbose, doing bool) {
 }
 
 func (x *cmdChangeTimings) printChangeTimings(w io.Writer, timing *timingsData) error {
-	chgid := timing.ChangeID
-	chg, err := x.client.Change(chgid)
-	if err != nil {
-		return err
+	tasks := make([]string, 0, len(timing.ChangeTimings))
+
+	var minReadyTime, maxReadyTime time.Time
+	for taskID, taskData := range timing.ChangeTimings {
+		if minReadyTime.IsZero() {
+			minReadyTime = taskData.ReadyTime
+			maxReadyTime = taskData.ReadyTime
+		}
+		if taskData.ReadyTime.Before(minReadyTime) {
+			minReadyTime = taskData.ReadyTime
+		}
+		if taskData.ReadyTime.After(maxReadyTime) {
+			maxReadyTime = taskData.ReadyTime
+		}
+		tasks = append(tasks, taskID)
 	}
 
-	for _, t := range chg.Tasks {
-		doingTime := formatDuration(timing.ChangeTimings[t.ID].DoingTime)
-		if timing.ChangeTimings[t.ID].DoingTime == 0 {
+	sort.Slice(tasks, func(i, j int) bool {
+		t1 := timing.ChangeTimings[tasks[i]]
+		t2 := timing.ChangeTimings[tasks[j]]
+		if t1.Lane != t2.Lane {
+			if t1.Lane == 0 {
+				return t1.ReadyTime.Before(minReadyTime)
+			}
+			if t2.Lane == 0 {
+				return t2.ReadyTime.After(maxReadyTime)
+			}
+			return t1.Lane < t2.Lane
+		}
+		return t1.ReadyTime.Before(t2.ReadyTime)
+	})
+
+	for _, taskID := range tasks {
+		chgTiming := timing.ChangeTimings[taskID]
+		doingTime := formatDuration(timing.ChangeTimings[taskID].DoingTime)
+		if chgTiming.DoingTime == 0 {
 			doingTime = "-"
 		}
-		undoingTime := formatDuration(timing.ChangeTimings[t.ID].UndoingTime)
-		if timing.ChangeTimings[t.ID].UndoingTime == 0 {
+		undoingTime := formatDuration(timing.ChangeTimings[taskID].UndoingTime)
+		if chgTiming.UndoingTime == 0 {
 			undoingTime = "-"
 		}
 
-		printTiming(w, x.Verbose, 0, t.ID, t.Status, doingTime, undoingTime, t.Kind, t.Summary)
-		for _, nested := range timing.ChangeTimings[t.ID].DoingTimings {
+		printTiming(w, x.Verbose, 0, taskID, chgTiming.Status, doingTime, undoingTime, chgTiming.Kind, chgTiming.Summary)
+		for _, nested := range timing.ChangeTimings[taskID].DoingTimings {
 			showDoing := true
 			printTaskTiming(w, &nested, x.Verbose, showDoing)
 		}
-		for _, nested := range timing.ChangeTimings[t.ID].UndoingTimings {
+		for _, nested := range timing.ChangeTimings[taskID].UndoingTimings {
 			showDoing := false
 			printTaskTiming(w, &nested, x.Verbose, showDoing)
 		}
@@ -153,7 +181,13 @@ type timingsData struct {
 	EnsureTimings  []Timing      `json:"ensure-timings,omitempty"`
 	StartupTimings []Timing      `json:"startup-timings,omitempty"`
 	TotalDuration  time.Duration `json:"total-duration,omitempty"`
-	ChangeTimings  map[string]struct {
+	// ChangeTimings are indexed by task id
+	ChangeTimings map[string]struct {
+		Status         string        `json:"status,omitempty"`
+		Kind           string        `json:"kind,omitempty"`
+		Summary        string        `json:"summary,omitempty"`
+		Lane           int           `json:"lane,omitempty"`
+		ReadyTime      time.Time     `json:"ready-time,omitempty"`
 		DoingTime      time.Duration `json:"doing-time,omitempty"`
 		UndoingTime    time.Duration `json:"undoing-time,omitempty"`
 		DoingTimings   []Timing      `json:"doing-timings,omitempty"`

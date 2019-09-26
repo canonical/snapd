@@ -86,6 +86,11 @@ func checkConnectivity(st *state.State) Response {
 }
 
 type changeTimings struct {
+	Status         string                `json:"status,omitempty"`
+	Kind           string                `json:"kind,omitempty"`
+	Summary        string                `json:"summary,omitempty"`
+	Lane           int                   `json:"lane,omitempty"`
+	ReadyTime      time.Time             `json:"ready-time,omitempty"`
 	DoingTime      time.Duration         `json:"doing-time,omitempty"`
 	UndoingTime    time.Duration         `json:"undoing-time,omitempty"`
 	DoingTimings   []*timings.TimingJSON `json:"doing-timings,omitempty"`
@@ -95,10 +100,11 @@ type changeTimings struct {
 type debugTimings struct {
 	ChangeID string `json:"change-id"`
 	// total duration of the activity - present for ensure and startup timings only
-	TotalDuration  time.Duration             `json:"total-duration,omitempty"`
-	EnsureTimings  []*timings.TimingJSON     `json:"ensure-timings,omitempty"`
-	StartupTimings []*timings.TimingJSON     `json:"startup-timings,omitempty"`
-	ChangeTimings  map[string]*changeTimings `json:"change-timings,omitempty"`
+	TotalDuration  time.Duration         `json:"total-duration,omitempty"`
+	EnsureTimings  []*timings.TimingJSON `json:"ensure-timings,omitempty"`
+	StartupTimings []*timings.TimingJSON `json:"startup-timings,omitempty"`
+	// ChangeTimings are indexed by task id
+	ChangeTimings map[string]*changeTimings `json:"change-timings,omitempty"`
 }
 
 func collectChangeTimings(st *state.State, changeID string) (map[string]*changeTimings, error) {
@@ -131,7 +137,19 @@ func collectChangeTimings(st *state.State, changeID string) (map[string]*changeT
 
 	m := map[string]*changeTimings{}
 	for _, t := range chg.Tasks() {
+		lane := 0
+		// determine lowest lane number, we are only interested in a single lane here
+		for _, l := range t.Lanes() {
+			if l < lane {
+				lane = l
+			}
+		}
 		m[t.ID()] = &changeTimings{
+			Kind:           t.Kind(),
+			Status:         t.Status().String(),
+			Summary:        t.Summary(),
+			Lane:           lane,
+			ReadyTime:      t.ReadyTime(),
 			DoingTime:      t.DoingTime(),
 			UndoingTime:    t.UndoingTime(),
 			DoingTimings:   doingTimingsByTask[t.ID()],
