@@ -10,7 +10,7 @@ environment:
 
 prepare: |
     snap install test-snapd-content-plug test-snapd-tools
-    snap install --edge test-snapd-hello-multi-arch
+    snap install --edge test-snapd-curl
     cp /sbin/apparmor_parser /sbin/apparmor_parser.real
     rm -f /tmp/apparmor-parser-calls.debug
 
@@ -49,10 +49,10 @@ execute: |
     # note, the list is not exhaustive but is enough for the test and the journal check below
     expected_profiles=$(cat <<EOF
     snap-update-ns.test-snapd-content-plug
-    snap-update-ns.test-snapd-hello-multi-arch
+    snap-update-ns.test-snapd-curl
     snap-update-ns.test-snapd-tools
     snap.test-snapd-content-plug.content-plug
-    snap.test-snapd-hello-multi-arch.hello-i386
+    snap.test-snapd-curl.curl
     snap.test-snapd-tools.block
     snap.test-snapd-tools.cat
     snap.test-snapd-tools.cmd
@@ -82,12 +82,12 @@ execute: |
 
     #shellcheck source=tests/lib/journalctl.sh
     . "$TESTSLIB"/journalctl.sh    
-    log="$(get_journalctl_log -u snapd)"
+    log="$(get_journalctl_log -u snapd | grep -i fail)"
 
     echo "Check log notification about failed batch-reload"
     echo $log | MATCH "failed to batch-reload $VARIANT profiles: cannot load apparmor profiles"
-    echo $log | MATCH "FAIL ON: .*/snap-update-ns.test-snapd-hello-multi-arch"
-    echo $log | MATCH "FAIL ON: .*/snap.test-snapd-hello-multi-arch.hello-i386"
+    echo $log | MATCH "FAIL ON: .*/snap-update-ns.test-snapd-curl"
+    echo $log | MATCH "FAIL ON: .*/snap.test-snapd-curl.curl"
     echo $log | MATCH "FAIL ON: .*/snap-update-ns.test-snapd-tools"
     echo $log | MATCH "FAIL ON: .*/snap.test-snapd-tools.block"
     echo $log | MATCH "FAIL ON: .*/snap.test-snapd-tools.cat"
