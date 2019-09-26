@@ -190,10 +190,10 @@ volumes:
 `
 
 var snapFiles = map[string][][]string{
-	"pc": [][]string{
+	"pc": {
 		{"meta/gadget.yaml", pcGadgetYaml},
 	},
-	"pc=18": [][]string{
+	"pc=18": {
 		{"meta/gadget.yaml", pcGadgetYaml},
 	},
 }
