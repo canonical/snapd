@@ -1,5 +1,13 @@
 #!/bin/bash
 
+bootenv() {
+    if [ $# -eq 0 ]; then
+        snap debug boot-vars
+    else
+        snap debug boot-vars | grep "^$1" | sed "s/^${1}=//"
+    fi
+}
+
 GRUB_EDITENV=grub-editenv
 GRUBENV_FILE=/boot/grub/grubenv
 case "$SPREAD_SYSTEM" in
@@ -7,26 +15,6 @@ case "$SPREAD_SYSTEM" in
         GRUB_EDITENV=grub2-editenv
         ;;
 esac
-
-bootenv() {
-    if [ $# -eq 0 ]; then
-        if command -v "$GRUB_EDITENV" >/dev/null; then
-            "$GRUB_EDITENV" list
-        elif [ -s "$GRUBENV_FILE" ]; then
-            cat "$GRUBENV_FILE"
-        else
-            fw_printenv
-        fi
-    else
-        if command -v "$GRUB_EDITENV" >/dev/null; then
-            "$GRUB_EDITENV" list | grep "^$1"
-        elif [ -s "$GRUBENV_FILE" ]; then
-            grep "^$1" "$GRUBENV_FILE"
-        else
-            fw_printenv "$1"
-        fi | sed "s/^${1}=//"
-    fi
-}
 
 # unset the given var from boot configuration
 bootenv_unset() {
