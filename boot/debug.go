@@ -17,26 +17,28 @@
  *
  */
 
-package main
+package boot
 
 import (
-	"github.com/jessevdk/go-flags"
+	"fmt"
+	"io"
 
-	"github.com/snapcore/snapd/boot"
+	"github.com/snapcore/snapd/bootloader"
 )
 
-type cmdBootvars struct{}
-
-func init() {
-	cmd := addDebugCommand("boot-vars",
-		"(internal) obtaind snapd boot variables",
-		"(internal) obtaind snapd boot variables",
-		func() flags.Commander {
-			return &cmdBootvars{}
-		}, nil, nil)
-	cmd.hidden = true
-}
-
-func (x *cmdBootvars) Execute(args []string) error {
-	return boot.DumpBootvars(Stdout)
+// DumpBootvars writes a dump of the snapd bootvars to the given writer
+func DumpBootvars(w io.Writer) error {
+	bloader, err := bootloader.Find("", nil)
+	if err != nil {
+		return err
+	}
+	allKeys := []string{"snap_mode", "snap_core", "snap_try_core", "snap_kernel", "snap_try_kernel"}
+	bootVars, err := bloader.GetBootVars(allKeys...)
+	if err != nil {
+		return err
+	}
+	for _, k := range allKeys {
+		fmt.Fprintf(w, "%s=%s\n", k, bootVars[k])
+	}
+	return nil
 }

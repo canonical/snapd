@@ -39,7 +39,7 @@ func (s *SnapSuite) TestDebugBootvars(c *check.C) {
 		"snap_try_kernel": "pc-kernel_4.snap",
 	}
 
-	rest, err := snap.Parser(snap.Client()).ParseArgs([]string{"debug", "bootvars"})
+	rest, err := snap.Parser(snap.Client()).ParseArgs([]string{"debug", "boot-vars"})
 	c.Assert(err, check.IsNil)
 	c.Assert(rest, check.DeepEquals, []string{})
 	c.Check(s.Stdout(), check.Equals, `snap_mode=try
