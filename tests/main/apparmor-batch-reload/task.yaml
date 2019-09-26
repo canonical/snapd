@@ -85,8 +85,9 @@ execute: |
 
     echo "Check log notification about failed batch-reload"
     # grep by "fail" to reduce log/debug noise in case of a match failure below
-    log="$(get_journalctl_log -u snapd | grep -i fail)"
+    log="$(get_journalctl_log -a -u snapd|grep -i fail)"
     echo "$log" | MATCH "failed to batch-reload $VARIANT profiles: cannot load apparmor profiles"
+    # we're matching a single long log line with non-deterministic order of profiles, therefore it's split
     echo "$log" | MATCH "FAIL ON: .*/snap-update-ns.test-snapd-curl"
     echo "$log" | MATCH "FAIL ON: .*/snap.test-snapd-curl.curl"
     echo "$log" | MATCH "FAIL ON: .*/snap-update-ns.test-snapd-tools"
