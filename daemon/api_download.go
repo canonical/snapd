@@ -86,7 +86,7 @@ func streamOneSnap(c *Command, user *auth.UserState, snapName string) Response {
 
 	return fileStream{
 		SnapName: snapName,
-		FileName: filepath.Base(info.MountFile()),
+		Filename: filepath.Base(info.MountFile()),
 		Info:     downloadInfo,
 		stream:   r,
 	}
