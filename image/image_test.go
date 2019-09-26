@@ -464,19 +464,37 @@ func (s *imageSuite) TestHappyDecodeModelAssertion(c *C) {
 }
 
 func (s *imageSuite) setupSnaps(c *C, gadgetUnpackDir string, publishers map[string]string) {
+	const pcGadgetYaml = `
+volumes:
+  pc:
+    bootloader: grub
+`
+
 	if _, ok := publishers["pc"]; ok {
-		s.MakeAssertedSnap(c, packageGadget, [][]string{{"grub.conf", ""}, {"grub.cfg", "I'm a grub.cfg"}}, snap.R(1), publishers["pc"])
+		s.MakeAssertedSnap(c, packageGadget, [][]string{
+			{"grub.conf", ""}, {"grub.cfg", "I'm a grub.cfg"},
+			{"meta/gadget.yaml", pcGadgetYaml},
+		}, snap.R(1), publishers["pc"])
 	}
 	if _, ok := publishers["pc18"]; ok {
-		s.MakeAssertedSnap(c, packageGadgetWithBase, [][]string{{"grub.conf", ""}, {"grub.cfg", "I'm a grub.cfg"}}, snap.R(4), publishers["pc18"])
+		s.MakeAssertedSnap(c, packageGadgetWithBase, [][]string{
+			{"grub.conf", ""}, {"grub.cfg", "I'm a grub.cfg"},
+			{"meta/gadget.yaml", pcGadgetYaml},
+		}, snap.R(4), publishers["pc18"])
 	}
 
 	if _, ok := publishers["classic-gadget"]; ok {
-		s.MakeAssertedSnap(c, packageClassicGadget, [][]string{{"some-file", "Some file"}}, snap.R(5), publishers["classic-gadget"])
+		s.MakeAssertedSnap(c, packageClassicGadget, [][]string{
+			{"some-file", "Some file"},
+			{"meta/gadget.yaml", pcGadgetYaml},
+		}, snap.R(5), publishers["classic-gadget"])
 	}
 
 	if _, ok := publishers["classic-gadget18"]; ok {
-		s.MakeAssertedSnap(c, packageClassicGadget18, [][]string{{"some-file", "Some file"}}, snap.R(5), publishers["classic-gadget18"])
+		s.MakeAssertedSnap(c, packageClassicGadget18, [][]string{
+			{"some-file", "Some file"},
+			{"meta/gadget.yaml", pcGadgetYaml},
+		}, snap.R(5), publishers["classic-gadget18"])
 	}
 
 	if _, ok := publishers["pc-kernel"]; ok {
