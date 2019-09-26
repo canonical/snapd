@@ -29,8 +29,8 @@ type cmdBootvars struct{}
 
 func init() {
 	cmd := addDebugCommand("boot-vars",
-		"(internal) obtaind snapd boot variables",
-		"(internal) obtaind snapd boot variables",
+		"(internal) obtain the snapd boot variables",
+		"(internal) obtain the snapd boot variables",
 		func() flags.Commander {
 			return &cmdBootvars{}
 		}, nil, nil)
@@ -38,5 +38,5 @@ func init() {
 }
 
 func (x *cmdBootvars) Execute(args []string) error {
-	return boot.DumpBootvars(Stdout)
+	return boot.DumpBootVars(Stdout)
 }

@@ -26,8 +26,8 @@ import (
 	"github.com/snapcore/snapd/bootloader"
 )
 
-// DumpBootvars writes a dump of the snapd bootvars to the given writer
-func DumpBootvars(w io.Writer) error {
+// DumpBootVars writes a dump of the snapd bootvars to the given writer
+func DumpBootVars(w io.Writer) error {
 	bloader, err := bootloader.Find("", nil)
 	if err != nil {
 		return err
