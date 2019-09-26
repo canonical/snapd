@@ -39,8 +39,8 @@ execute: |
     # "changed" variant requires source profiles on the disk to look different than the
     # ones generated on snapd restart, simulate this by appending a comment to them.
     if [ "$VARIANT" = "changed" ]; then
-        for profile in $AA_PROFILES/snap*; do
-            echo "# forced profile change" >> $profile
+        for profile in "$AA_PROFILES"/snap*; do
+            echo "# forced profile change" >> "$profile"
         done
     fi
     systemctl start snapd.{socket,service}
@@ -81,13 +81,14 @@ execute: |
     done
 
     #shellcheck source=tests/lib/journalctl.sh
-    . "$TESTSLIB"/journalctl.sh    
-    log="$(get_journalctl_log -u snapd | grep -i fail)"
+    . "$TESTSLIB"/journalctl.sh
 
     echo "Check log notification about failed batch-reload"
-    echo $log | MATCH "failed to batch-reload $VARIANT profiles: cannot load apparmor profiles"
-    echo $log | MATCH "FAIL ON: .*/snap-update-ns.test-snapd-curl"
-    echo $log | MATCH "FAIL ON: .*/snap.test-snapd-curl.curl"
-    echo $log | MATCH "FAIL ON: .*/snap-update-ns.test-snapd-tools"
-    echo $log | MATCH "FAIL ON: .*/snap.test-snapd-tools.block"
-    echo $log | MATCH "FAIL ON: .*/snap.test-snapd-tools.cat"
+    # grep by "fail" to reduce log/debug noise in case of a match failure below
+    log="$(get_journalctl_log -u snapd | grep -i fail)"
+    echo "$log" | MATCH "failed to batch-reload $VARIANT profiles: cannot load apparmor profiles"
+    echo "$log" | MATCH "FAIL ON: .*/snap-update-ns.test-snapd-curl"
+    echo "$log" | MATCH "FAIL ON: .*/snap.test-snapd-curl.curl"
+    echo "$log" | MATCH "FAIL ON: .*/snap-update-ns.test-snapd-tools"
+    echo "$log" | MATCH "FAIL ON: .*/snap.test-snapd-tools.block"
+    echo "$log" | MATCH "FAIL ON: .*/snap.test-snapd-tools.cat"
