@@ -24,6 +24,7 @@ import (
 	"github.com/snapcore/snapd/overlord/snapstate"
 	"github.com/snapcore/snapd/overlord/state"
 	"github.com/snapcore/snapd/snap"
+	"github.com/snapcore/snapd/strutil"
 )
 
 type basePolicy struct{}
@@ -43,29 +44,49 @@ func (basePolicy) CanRemove(st *state.State, snapst *snapstate.SnapState, all bo
 		return true
 	}
 
+	// a core system could have core18 required in the model due to dependencies for ex
 	if snapst.Required {
 		return false
 	}
 
 	// here we use that bases can't be instantiated (InstanceName == SnapName always)
-	return !baseInUse(st, name)
+	return !baseInUse(st, name, "")
 }
 
-func baseInUse(st *state.State, baseName string) bool {
+func baseInUse(st *state.State, baseName string, altName string) bool {
 	snapStates, err := snapstate.All(st)
 	if err != nil {
-		return false
+		// on error, assume it's in use
+		// (note snapstate.All doesn't currently return ErrNoState)
+		return err != state.ErrNoState
 	}
+	baseNames := []string{baseName}
+	if altName != "" {
+		if snapst, ok := snapStates[altName]; !ok || !snapst.IsInstalled() {
+			// this base is not installed
+			baseNames = append(baseNames, altName)
+		}
+	}
+
 	for name, snapst := range snapStates {
+		if typ, err := snapst.Type(); err == nil && typ != snap.TypeApp && typ != snap.TypeGadget {
+			continue
+		}
+		if !snapst.IsInstalled() {
+			continue
+		}
+
 		for _, si := range snapst.Sequence {
-			if snapInfo, err := snap.ReadInfo(name, si); err == nil {
-				if snapInfo.GetType() != snap.TypeApp {
+			snapInfo, err := snap.ReadInfo(name, si)
+			if err == nil {
+				if typ := snapInfo.GetType(); typ != snap.TypeApp && typ != snap.TypeGadget {
 					continue
 				}
-				if snapInfo.Base == baseName {
-					return true
+				if !strutil.ListContains(baseNames, snapInfo.Base) {
+					continue
 				}
 			}
+			return true
 		}
 	}
 	return false

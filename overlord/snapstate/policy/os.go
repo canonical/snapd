@@ -23,11 +23,10 @@ import (
 	"github.com/snapcore/snapd/boot"
 	"github.com/snapcore/snapd/overlord/snapstate"
 	"github.com/snapcore/snapd/overlord/state"
-	"github.com/snapcore/snapd/snap"
 )
 
 type osPolicy struct {
-	modelName string
+	modelBase string
 }
 
 func (p *osPolicy) CanRemove(st *state.State, snapst *snapstate.SnapState, all bool) bool {
@@ -45,6 +44,7 @@ func (p *osPolicy) CanRemove(st *state.State, snapst *snapstate.SnapState, all b
 		return true
 	}
 
+	// a core18 system could have core required in the model due to dependencies for ex
 	if snapst.Required {
 		return false
 	}
@@ -53,25 +53,9 @@ func (p *osPolicy) CanRemove(st *state.State, snapst *snapstate.SnapState, all b
 		return true
 	}
 
-	return p.modelName != "" && !coreInUse(st)
-}
+	if p.modelBase == "" {
+		return false
+	}
 
-func coreInUse(st *state.State) bool {
-	snapStates, err := snapstate.All(st)
-	if err != nil {
-		return err != state.ErrNoState
-	}
-	for name, snapst := range snapStates {
-		for _, si := range snapst.Sequence {
-			if snapInfo, err := snap.ReadInfo(name, si); err == nil {
-				if snapInfo.GetType() != snap.TypeApp || snapInfo.GetType() == snap.TypeSnapd {
-					continue
-				}
-				if snapInfo.Base == "" {
-					return true
-				}
-			}
-		}
-	}
-	return false
+	return !baseInUse(st, "", "core16")
 }

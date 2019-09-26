@@ -26,7 +26,7 @@ import (
 )
 
 type kernelPolicy struct {
-	modelName string
+	modelKernel string
 }
 
 func (p *kernelPolicy) CanRemove(_ *state.State, snapst *snapstate.SnapState, all bool) bool {
@@ -44,5 +44,5 @@ func (p *kernelPolicy) CanRemove(_ *state.State, snapst *snapstate.SnapState, al
 		return true
 	}
 
-	return p.modelName != name
+	return p.modelKernel != name
 }
