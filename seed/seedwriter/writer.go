@@ -35,14 +35,9 @@ import (
 
 // Options holds the options for a Writer.
 type Options struct {
-	RootDir string
 	SeedDir string
 
 	DefaultChannel string
-
-	// Architecture to use if none is specified by the model,
-	// useful only for classic mode. If set must match the model otherwise.
-	Architecture string
 }
 
 // OptionsSnap represents an options-referred snap with its option values.

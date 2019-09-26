@@ -368,8 +368,6 @@ func setupSeed(tsto *ToolingStore, model *asserts.Model, opts *Options, local *l
 	wOpts := &seedwriter.Options{
 		SeedDir:        seedDir,
 		DefaultChannel: opts.Channel,
-		// XXX RootDir unused
-		// XXX Architecture unused
 	}
 
 	w, err := seedwriter.New(model, wOpts)

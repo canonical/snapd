@@ -79,7 +79,6 @@ func (s *writerSuite) SetUpTest(c *C) {
 	c.Assert(err, IsNil)
 
 	s.opts = &seedwriter.Options{
-		RootDir: "not-root",
 		SeedDir: seedDir,
 	}
 
