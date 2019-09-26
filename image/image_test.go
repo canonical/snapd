@@ -1363,7 +1363,7 @@ func (s *imageSuite) TestPrepareInvalidChannel(c *C) {
 		ModelFile: fn,
 		Channel:   "x/x/x/x",
 	})
-	c.Assert(err, ErrorMatches, `cannot use channel: channel name has too many components: x/x/x/x`)
+	c.Assert(err, ErrorMatches, `cannot use global default option channel: channel name has too many components: x/x/x/x`)
 }
 
 func (s *imageSuite) TestPrepareClassicModeNoClassicModel(c *C) {
@@ -1595,7 +1595,6 @@ func (s *imageSuite) TestSetupSeedWithKernelTrackOnLocalSnap(c *C) {
 	}
 	local, err := image.LocalSnaps(s.tsto, opts)
 	c.Assert(err, IsNil)
-	c.Check(local.NameToPath(), HasLen, 2)
 
 	err = image.SetupSeed(s.tsto, model, opts, local)
 	c.Assert(err, IsNil)
@@ -2052,15 +2051,6 @@ func (s *imageSuite) TestSetupSeedMissingContentProvider(c *C) {
 	c.Check(err, ErrorMatches, `cannot use snap "snap-req-content-provider" without its default content provider "gtk-common-themes" being added explicitly`)
 }
 
-func (s *imageSuite) TestMissingLocalSnaps(c *C) {
-	opts := &image.Options{
-		Snaps: []string{"i-am-missing.snap"},
-	}
-	local, err := image.LocalSnaps(s.tsto, opts)
-	c.Assert(err, ErrorMatches, "local snap i-am-missing.snap not found")
-	c.Assert(local, IsNil)
-}
-
 func (s *imageSuite) TestSetupSeedClassic(c *C) {
 	restore := image.MockTrusted(s.StoreSigning.Trusted)
 	defer restore()
@@ -2334,54 +2324,6 @@ func (s *imageSuite) TestSetupSeedClassicSnapdOnlyMissingCore16(c *C) {
 
 	err = image.SetupSeed(s.tsto, model, opts, local)
 	c.Assert(err, ErrorMatches, `cannot use "snap-req-core16-base" requiring base "core16" without adding "core16" \(or "core"\) explicitly`)
-}
-
-func (s *imageSuite) TestSnapChannel(c *C) {
-	model := s.Brands.Model("my-brand", "my-model", map[string]interface{}{
-		"architecture": "amd64",
-		"gadget":       "pc=18",
-		"kernel":       "pc-kernel=18",
-	})
-
-	opts := &image.Options{
-		Channel: "stable",
-		SnapChannels: map[string]string{
-			"bar":       "beta",
-			"pc-kernel": "edge",
-		},
-	}
-	local, err := image.LocalSnaps(s.tsto, opts)
-	c.Assert(err, IsNil)
-
-	ch, err := image.SnapChannel("foo", model, opts, local)
-	c.Assert(err, IsNil)
-	c.Check(ch, Equals, "stable")
-
-	ch, err = image.SnapChannel("bar", model, opts, local)
-	c.Assert(err, IsNil)
-	c.Check(ch, Equals, "beta")
-
-	ch, err = image.SnapChannel("pc", model, opts, local)
-	c.Assert(err, IsNil)
-	c.Check(ch, Equals, "18/stable")
-
-	ch, err = image.SnapChannel("pc-kernel", model, opts, local)
-	c.Assert(err, IsNil)
-	c.Check(ch, Equals, "18/edge")
-
-	opts.SnapChannels["bar"] = "lts/candidate"
-	ch, err = image.SnapChannel("bar", model, opts, local)
-	c.Assert(err, IsNil)
-	c.Check(ch, Equals, "lts/candidate")
-
-	opts.SnapChannels["pc-kernel"] = "lts/candidate"
-	_, err = image.SnapChannel("pc-kernel", model, opts, local)
-	c.Assert(err, ErrorMatches, `channel "lts/candidate" for kernel has a track incompatible with the track from model assertion: 18`)
-
-	opts.SnapChannels["pc-kernel"] = "track/foo"
-	_, err = image.SnapChannel("pc-kernel", model, opts, local)
-	c.Assert(err, ErrorMatches, `cannot use option channel for snap "pc-kernel": invalid risk in channel name: track/foo`)
-
 }
 
 func (s *imageSuite) TestSetupSeedLocalSnapd(c *C) {

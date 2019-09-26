@@ -29,7 +29,6 @@ import (
 	"syscall"
 
 	"github.com/snapcore/snapd/asserts"
-	"github.com/snapcore/snapd/asserts/snapasserts"
 	"github.com/snapcore/snapd/asserts/sysdb"
 	"github.com/snapcore/snapd/boot"
 	"github.com/snapcore/snapd/dirs"
@@ -37,7 +36,6 @@ import (
 	"github.com/snapcore/snapd/release"
 	"github.com/snapcore/snapd/seed/seedwriter"
 	"github.com/snapcore/snapd/snap"
-	"github.com/snapcore/snapd/snap/channel"
 	"github.com/snapcore/snapd/snap/squashfs"
 	"github.com/snapcore/snapd/strutil"
 )
@@ -65,117 +63,10 @@ type Options struct {
 	Architecture string
 }
 
-type localInfos struct {
-	// path to info for local snaps
-	pathToInfo map[string]*snap.Info
-	// name to path
-	nameToPath map[string]string
-}
-
-func (li *localInfos) Name(pathOrName string) string {
-	if info := li.pathToInfo[pathOrName]; info != nil {
-		return info.InstanceName()
-	}
-	return pathOrName
-}
-
-func (li *localInfos) IsLocal(name string) bool {
-	_, ok := li.nameToPath[name]
-	return ok
-}
-
-func (li *localInfos) PreferLocal(name string) string {
-	if path := li.Path(name); path != "" {
-		return path
-	}
-	return name
-}
-
-func (li *localInfos) Path(name string) string {
-	return li.nameToPath[name]
-}
-
-func (li *localInfos) Info(name string) *snap.Info {
-	if p := li.nameToPath[name]; p != "" {
-		return li.pathToInfo[p]
-	}
-	return nil
-}
-
-// hasName returns true if the given "snapName" is found within the
-// list of snap names or paths.
-func (li *localInfos) hasName(snaps []string, snapName string) bool {
-	for _, snapNameOrPath := range snaps {
-		if li.Name(snapNameOrPath) == snapName {
-			return true
-		}
-	}
-	return false
-}
+type localInfos struct{}
 
 func localSnaps(tsto *ToolingStore, opts *Options) (*localInfos, error) {
-	local := make(map[string]*snap.Info)
-	nameToPath := make(map[string]string)
-	for _, snapName := range opts.Snaps {
-		if !strings.HasSuffix(snapName, ".snap") {
-			continue
-		}
-
-		if !osutil.FileExists(snapName) {
-			return nil, fmt.Errorf("local snap %s not found", snapName)
-		}
-
-		snapFile, err := snap.Open(snapName)
-		if err != nil {
-			return nil, err
-		}
-		info, err := snap.ReadInfoFromSnapFile(snapFile, nil)
-		if err != nil {
-			return nil, err
-		}
-		// local snap gets local revision
-		info.Revision = snap.R(-1)
-		nameToPath[info.InstanceName()] = snapName
-		local[snapName] = info
-
-		si, err := snapasserts.DeriveSideInfo(snapName, tsto)
-		if err != nil && !asserts.IsNotFound(err) {
-			return nil, err
-		}
-		if err == nil {
-			info.SnapID = si.SnapID
-			info.Revision = si.Revision
-		}
-	}
-	return &localInfos{
-		pathToInfo: local,
-		nameToPath: nameToPath,
-	}, nil
-}
-
-func validateSnapNames(snaps []string) error {
-	for _, snapName := range snaps {
-		if _, instanceKey := snap.SplitInstanceName(snapName); instanceKey != "" {
-			// be specific about this error
-			return fmt.Errorf("cannot use snap %q, parallel snap instances are unsupported", snapName)
-		}
-		if err := snap.ValidateName(snapName); err != nil {
-			return err
-		}
-	}
-	return nil
-}
-
-// validateNonLocalSnaps raises an error when snaps that would be pulled from
-// the store use an instance key in their names
-func validateNonLocalSnaps(snaps []string) error {
-	nonLocalSnaps := make([]string, 0, len(snaps))
-	for _, snapName := range snaps {
-		if !strings.HasSuffix(snapName, ".snap") {
-			nonLocalSnaps = append(nonLocalSnaps, snapName)
-		}
-	}
-	return validateSnapNames(nonLocalSnaps)
+	return nil, nil
 }
 
 // classicHasSnaps returns whether the model or options specify any snaps for the classic case
@@ -209,13 +100,6 @@ func Prepare(opts *Options) error {
 		}
 	}
 
-	if err := validateNonLocalSnaps(opts.Snaps); err != nil {
-		return err
-	}
-	if _, err := channel.Parse(opts.Channel, ""); err != nil {
-		return fmt.Errorf("cannot use channel: %v", err)
-	}
-
 	tsto, err := NewToolingStoreFromModel(model, opts.Architecture)
 	if err != nil {
 		return err
@@ -229,13 +113,6 @@ func Prepare(opts *Options) error {
 	// FIXME: limitation until we can pass series parametrized much more
 	if model.Series() != release.Series {
 		return fmt.Errorf("model with series %q != %q unsupported", model.Series(), release.Series)
-	}
-
-	if !opts.Classic {
-		// create directory for later unpacking the gadget in
-		if err := os.MkdirAll(opts.GadgetUnpackDir, 0755); err != nil {
-			return fmt.Errorf("cannot create gadget unpack dir %q: %s", opts.GadgetUnpackDir, err)
-		}
 	}
 
 	return setupSeed(tsto, model, opts, local)
@@ -269,39 +146,6 @@ func decodeModelAssertion(opts *Options) (*asserts.Model, error) {
 	}
 
 	return modela, nil
-}
-
-// snapChannel returns the channel to use for the given snap.
-func snapChannel(name string, model *asserts.Model, opts *Options, local *localInfos) (string, error) {
-	snapChannel := opts.SnapChannels[local.PreferLocal(name)]
-	if snapChannel == "" {
-		// fallback to default channel
-		snapChannel = opts.Channel
-	}
-	if snapChannel != "" {
-		if _, err := channel.ParseVerbatim(snapChannel, "-"); err != nil {
-			return "", fmt.Errorf("cannot use option channel for snap %q: %v", name, err)
-		}
-	}
-	// consider snap types that can be pinned to a track by the model
-	var pinnedTrack string
-	var kind string
-	switch name {
-	case model.Gadget():
-		kind = "gadget"
-		pinnedTrack = model.GadgetTrack()
-	case model.Kernel():
-		kind = "kernel"
-		pinnedTrack = model.KernelTrack()
-	}
-	ch, err := channel.ResolveLocked(pinnedTrack, snapChannel)
-	if err == channel.ErrLockedTrackSwitch {
-		return "", fmt.Errorf("channel %q for %s has a track incompatible with the track from model assertion: %s", snapChannel, kind, pinnedTrack)
-	}
-	if err != nil {
-		return "", err
-	}
-	return ch, nil
 }
 
 func unpackGadget(gadgetFname, gadgetUnpackDir string) error {
@@ -390,6 +234,13 @@ func setupSeed(tsto *ToolingStore, model *asserts.Model, opts *Options, local *l
 
 	if err := w.SetOptionsSnaps(optSnaps); err != nil {
 		return err
+	}
+
+	// create directory for later unpacking the gadget in
+	if !opts.Classic {
+		if err := os.MkdirAll(opts.GadgetUnpackDir, 0755); err != nil {
+			return fmt.Errorf("cannot create gadget unpack dir %q: %s", opts.GadgetUnpackDir, err)
+		}
 	}
 
 	newFetcher := func(save func(asserts.Assertion) error) asserts.Fetcher {
