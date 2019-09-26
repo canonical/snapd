@@ -608,7 +608,7 @@ prepare_ubuntu_core() {
     fi
 
     # Wait for the snap command to become available.
-    if not [ "$SPREAD_BACKEND" = "external" ]; then
+    if [ "$SPREAD_BACKEND" != "external" ]; then
         for i in $(seq 120); do
             if [ "$(command -v snap)" = "/usr/bin/snap" ] && snap version | grep -q 'snapd +1337.*'; then
                 break
