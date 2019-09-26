@@ -141,8 +141,8 @@ func (sto *Store) SetDeltaFormat(dfmt string) {
 	sto.deltaFormat = dfmt
 }
 
-func (sto *Store) DownloadDelta(deltaName string, downloadInfo *snap.DownloadInfo, w io.ReadWriteSeeker, pbar progress.Meter, user *auth.UserState) error {
-	return sto.downloadDelta(deltaName, downloadInfo, w, pbar, user)
+func (sto *Store) DownloadDelta(deltaName string, downloadInfo *snap.DownloadInfo, w io.ReadWriteSeeker, pbar progress.Meter, user *auth.UserState, dlOpts *DownloadOptions) error {
+	return sto.downloadDelta(deltaName, downloadInfo, w, pbar, user, dlOpts)
 }
 
 func (sto *Store) DoRequest(ctx context.Context, client *http.Client, reqOptions *requestOptions, user *auth.UserState) (*http.Response, error) {

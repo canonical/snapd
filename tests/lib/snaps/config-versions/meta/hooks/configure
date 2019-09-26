@@ -1,2 +1,3 @@
 #!/bin/sh
 
+snapctl set configure-marker="executed-for-v1"

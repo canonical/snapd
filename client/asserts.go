@@ -27,6 +27,7 @@ import (
 	"strconv"
 
 	"github.com/snapcore/snapd/asserts" // for parsing
+	"github.com/snapcore/snapd/snap"
 )
 
 // Ack tries to add an assertion to the system assertion
@@ -101,4 +102,32 @@ func (client *Client) Known(assertTypeName string, headers map[string]string) ([
 	}
 
 	return asserts, nil
+}
+
+// StoreAccount returns the full store account info for the specified accountID
+func (client *Client) StoreAccount(accountID string) (*snap.StoreAccount, error) {
+	assertions, err := client.Known("account", map[string]string{"account-id": accountID})
+	if err != nil {
+		return nil, err
+	}
+	switch len(assertions) {
+	case 1:
+		// happy case, break out of the switch
+	case 0:
+		return nil, fmt.Errorf("no assertion found for account-id %s", accountID)
+	default:
+		// unknown how this could happen...
+		return nil, fmt.Errorf("multiple assertions for account-id %s", accountID)
+	}
+
+	acct, ok := assertions[0].(*asserts.Account)
+	if !ok {
+		return nil, fmt.Errorf("incorrect type of account assertion returned")
+	}
+	return &snap.StoreAccount{
+		ID:          acct.AccountID(),
+		Username:    acct.Username(),
+		DisplayName: acct.DisplayName(),
+		Validation:  acct.Validation(),
+	}, nil
 }

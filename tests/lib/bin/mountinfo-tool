@@ -66,6 +66,47 @@ class Device(int):
         return self & ((1 << 16) - 1)
 
 
+def _format_opt_fields(fields):
+    # type: (List[Text]) -> str
+    """_format_opt_fields returns the special formatting of optional fields."""
+    if len(fields):
+        result = " ".join(fields) + " -"
+    else:
+        result = "-"
+    if PY2:
+        return result.encode()
+    return result
+
+
+# OptionalFields is a specialization of List[Text] but because of some Python 2
+# distributions lacking the typing module, we must define a variant for mypy
+# and one for without mypy. In both cases the customized formatting logic is
+# implemented by _format_opt_fields().
+if MYPY:
+
+    class OptionalFields(List[Text]):
+        def __str__(self):
+            # type: () -> str
+            return _format_opt_fields(self)
+
+
+else:
+
+    class OptionalFields(list):
+        def __str__(self):
+            # type: () -> str
+            return _format_opt_fields(self)
+
+
+class OptionalFieldsTests(unittest.TestCase):
+    def test_str(self):
+        # type: () -> None
+        fields = OptionalFields()
+        self.assertEqual("{}".format(fields), "-")
+        fields.append("master:123")
+        self.assertEqual("{}".format(fields), "master:123 -")
+
+
 class MountInfoEntry(object):
     """Single entry in /proc/pid/mointinfo, see proc(5)"""
 
@@ -90,7 +131,7 @@ class MountInfoEntry(object):
         self.root_dir = ""
         self.mount_point = ""
         self.mount_opts = ""
-        self.opt_fields = []  # type: List[Text]
+        self.opt_fields = OptionalFields()  # type: OptionalFields
         self.fs_type = ""
         self.mount_source = ""
         self.sb_opts = ""
@@ -127,7 +168,7 @@ class MountInfoEntry(object):
         self.root_dir = next(it)
         self.mount_point = next(it)
         self.mount_opts = next(it)
-        self.opt_fields = []
+        self.opt_fields = OptionalFields()
         for opt_field in it:
             if opt_field == "-":
                 break
@@ -147,9 +188,9 @@ class MountInfoEntry(object):
         # type: () -> str
         result = (
             "{0.mount_id} {0.parent_id} {0.dev} {0.root_dir}"
-            " {0.mount_point} {0.mount_opts} {opt_fields} {0.fs_type}"
+            " {0.mount_point} {0.mount_opts} {0.opt_fields} {0.fs_type}"
             " {0.mount_source} {0.sb_opts}"
-        ).format(self, opt_fields=" ".join(self.opt_fields + ["-"]))
+        ).format(self)
         if PY2:
             return result.encode()
         return result
@@ -377,7 +418,9 @@ def renumber_opt_fields(entry, seen, base_n):
         # type: (Match[Text]) -> Text
         return "{}".format(alloc_n(int(m.group(1))))
 
-    entry.opt_fields = [re.sub("(\\d+)", fn, opt) for opt in entry.opt_fields]
+    entry.opt_fields = OptionalFields(
+        [re.sub("(\\d+)", fn, opt) for opt in entry.opt_fields]
+    )
 
 
 def renumber_loop_devices(entry, seen):
@@ -747,13 +790,7 @@ The exit code indicates if any mount point matched the query.
         if not e.matched:
             continue
         if attrs:
-            values = []  # type: List[Any]
-            for attr in attrs:
-                value = getattr(e, attr)
-                if isinstance(value, list):
-                    value = " ".join(value)
-                values.append(value)
-            print(*values)
+            print(*[getattr(e, attr) for attr in attrs])
         else:
             print(e)
     if opts.one and num_matched != 1:
@@ -775,7 +812,7 @@ class MountInfoEntryTests(unittest.TestCase):
         "root_dir": "/root-dir",
         "mount_point": "/mount-point",
         "mount_opts": "mount-opts",
-        "opt_fields": ["opt:1", "fields:2"],
+        "opt_fields": OptionalFields(["opt:1", "fields:2"]),
         "fs_type": "fs-type",
         "mount_source": "mount-source",
         "sb_opts": "sb-opts",
@@ -1100,7 +1137,7 @@ class RenumberOptFieldsTests(unittest.TestCase):
         # Renumber the first mount entry, from the "initial" mount namespace,
         # with the initial, zero multiple.
         entry = MountInfoEntry()
-        entry.opt_fields = ["shared:12"]
+        entry.opt_fields = OptionalFields(["shared:12"])
         renumber_opt_fields(entry, self.seen, 0)
         self.assertEqual(entry.opt_fields, ["shared:1"])
 
@@ -1108,7 +1145,7 @@ class RenumberOptFieldsTests(unittest.TestCase):
         # different multiplier. Given that the peer group number was not seen
         # before it gets allocated into the 1000-1999 range.
         entry = MountInfoEntry()
-        entry.opt_fields = ["shared:13"]
+        entry.opt_fields = OptionalFields(["shared:13"])
         renumber_opt_fields(entry, self.seen, 1000)
         self.assertEqual(entry.opt_fields, ["shared:1001"])
 
@@ -1117,7 +1154,7 @@ class RenumberOptFieldsTests(unittest.TestCase):
         # namespace it is renumbered the same was as the original was, even
         # though the actual sharing mode is different.
         entry = MountInfoEntry()
-        entry.opt_fields = ["master:12"]
+        entry.opt_fields = OptionalFields(["master:12"])
         renumber_opt_fields(entry, self.seen, 1000)
         self.assertEqual(entry.opt_fields, ["master:1"])
 

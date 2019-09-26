@@ -80,6 +80,7 @@ profile systemd_run (attach_disconnected,mediate_deleted) {
   # ptrace 'trace' is coarse and not required for using the systemd private
   # socket, and while the child profile omits 'capability sys_ptrace', skip
   # for now since it isn't strictly required.
+  ptrace read peer=unconfined,
   deny ptrace trace peer=unconfined,
   /run/systemd/private rw,
 
@@ -94,6 +95,12 @@ const kubernetesSupportConnectedPlugAppArmorKubelet = `
 
 # Ideally this would be snap-specific
 /run/dockershim.sock rw,
+
+# Ideally this would be snap-specific (it could if the control plane was a
+# snap), but in deployments where the control plane is not a snap, it will tell
+# flannel to use this path.
+/run/flannel/{,**} rw,
+/run/flannel/** k,
 
 # allow managing pods' cgroups
 /sys/fs/cgroup/*/kubepods/{,**} rw,
@@ -129,7 +136,8 @@ capability sys_admin,
 mount /var/snap/@{SNAP_NAME}/common/{,**} -> /var/snap/@{SNAP_NAME}/common/{,**},
 mount options=(rw, rshared) -> /var/snap/@{SNAP_NAME}/common/{,**},
 
-/bin/umount ixr,
+/{,usr/}bin/mount ixr,
+/{,usr/}bin/umount ixr,
 deny /run/mount/utab rw,
 umount /var/snap/@{SNAP_INSTANCE_NAME}/common/**,
 `
@@ -137,7 +145,7 @@ umount /var/snap/@{SNAP_INSTANCE_NAME}/common/**,
 const kubernetesSupportConnectedPlugAppArmorKubeletSystemdRun = `
   # kubelet mount rules
   capability sys_admin,
-  /bin/mount ixr,
+  /{,usr/}bin/mount ixr,
   mount fstype="tmpfs" tmpfs -> /var/snap/@{SNAP_INSTANCE_NAME}/common/**,
   deny /run/mount/utab rw,
 `
