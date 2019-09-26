@@ -140,7 +140,6 @@ func (s *Launcher) OpenDesktopEntryEnv(desktop_file_id string, env []string, sen
 	}
 
 	exec_command, err := readExecCommandFromDesktopFile(desktop_file)
-
 	if err != nil {
 		return dbus.MakeFailedError(err)
 	}
@@ -150,7 +149,15 @@ func (s *Launcher) OpenDesktopEntryEnv(desktop_file_id string, env []string, sen
 		return dbus.MakeFailedError(err)
 	}
 
-	cmd := exec.Command(args[0], args[1:]...)
+	// Before rejoining args to create a new command-line: escape "\" escapes; escape "\"" quotes; and, wrap each arg in "\"" quotes
+	for i := 0; i != len(args); i++ {
+		args[i] = strings.ReplaceAll(args[i], "\\", "\\\\")
+		args[i] = strings.ReplaceAll(args[i], "\"", "\\\"")
+		args[i] = "\"" + args[i] + "\""
+	}
+
+	// Invoke indirectly via sh to unparent and avoid potentially leaving a zombie
+	cmd := exec.Command("sh", "-c", strings.Join(args, " ")+"&")
 	cmd.Env = os.Environ()
 	for _, e := range env {
 		if !strutil.ListContains(allowedEnvVars, strings.SplitN(e, "=", 2)[0]) {
@@ -160,7 +167,7 @@ func (s *Launcher) OpenDesktopEntryEnv(desktop_file_id string, env []string, sen
 		cmd.Env = append(cmd.Env, e)
 	}
 
-	if err := cmd.Start(); err != nil {
+	if cmd.Run() != nil {
 		return dbus.MakeFailedError(fmt.Errorf("cannot run %q", exec_command))
 	}
 
