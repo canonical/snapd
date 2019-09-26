@@ -166,7 +166,7 @@ func (s *SnapSuite) mockCmdTimingsAPI(c *C) {
 			case changeID == "1":
 				fmt.Fprintln(w, `{"type":"sync","status-code":200,"status":"OK","result":[
 				{"change-id":"1", "change-timings":{
-					"40":{"doing-time":910000000,
+					"40":{"doing-time":910000000, "status": "Doing", "kind": "bar", "summary": "task bar summary",
 						"doing-timings":[
 							{"label":"foo", "summary": "foo summary", "duration": 1000001},
 							{"level":1, "label":"bar", "summary": "bar summary", "duration": 1000002}
@@ -180,7 +180,7 @@ func (s *SnapSuite) mockCmdTimingsAPI(c *C) {
 								{"level":1, "label":"booze", "summary": "booze summary", "duration": 8000002}
 							],
 						"change-timings":{
-							"40":{"doing-time":910000000,
+							"40":{"doing-time":910000000, "status": "Doing", "kind": "bar", "summary": "task bar summary",
 								"doing-timings":[
 									{"label":"foo", "summary": "foo summary", "duration": 1000001},
 									{"level":1, "label":"bar", "summary": "bar summary", "duration": 1000002}
@@ -194,7 +194,7 @@ func (s *SnapSuite) mockCmdTimingsAPI(c *C) {
 									{"label":"abc", "summary": "bar summary 2", "duration": 8000002}
 								],
 							"change-timings":{
-								"40":{"doing-time":910000000,
+								"40":{"doing-time":910000000, "status": "Doing", "kind": "bar", "summary": "task bar summary",
 									"doing-timings":[
 										{"label":"foo", "summary": "foo summary", "duration": 1000001},
 										{"level":1, "label":"bar", "summary": "bar summary", "duration": 1000002}
@@ -203,7 +203,7 @@ func (s *SnapSuite) mockCmdTimingsAPI(c *C) {
 							"total-duration": 7000002,
 							"ensure-timings": [{"label":"ghi", "summary": "baz summary 2", "duration": 7000002}],
 							"change-timings":{
-								"60":{"doing-time":910000000,
+								"60":{"doing-time":910000000, "status": "Doing", "kind": "bar", "summary": "task bar summary",
 									"doing-timings":[
 										{"label":"foo", "summary": "foo summary", "duration": 1000001},
 										{"level":1, "label":"bar", "summary": "bar summary", "duration": 1000002}
@@ -242,35 +242,6 @@ func (s *SnapSuite) mockCmdTimingsAPI(c *C) {
 			  }]}`)
 			return
 		}
-
-		// request for specific change
-		if r.URL.Path == "/v2/changes/1" {
-			fmt.Fprintln(w, `{"type":"sync","status-code":200,"status":"OK","result":{
-				"id":   "1",
-				"kind": "foo",
-				"summary": "a",
-				"status": "Doing",
-				"ready": false,
-				"spawn-time": "2016-04-21T01:02:03Z",
-				"ready-time": "2016-04-21T01:02:04Z",
-				"tasks": [{"id":"40", "kind": "bar", "summary": "task bar summary", "status": "Doing", "progress": {"done": 0, "total": 1}, "spawn-time": "2016-04-21T01:02:03Z", "ready-time": "2016-04-21T01:02:04Z"}]
-			  }}`)
-			return
-		}
-		if r.URL.Path == "/v2/changes/2" {
-			fmt.Fprintln(w, `{"type":"sync","status-code":200,"status":"OK","result":{
-				"id":   "2",
-				"kind": "fee",
-				"summary": "b",
-				"status": "Doing",
-				"ready": false,
-				"spawn-time": "2017-04-21T01:02:03Z",
-				"ready-time": "2017-04-21T01:02:04Z",
-				"tasks": [{"id":"60", "kind": "bar", "summary": "task bar summary", "status": "Doing", "progress": {"done": 0, "total": 1}, "spawn-time": "2016-04-21T01:02:03Z", "ready-time": "2016-04-21T01:02:04Z"}]
-			  }}`)
-			return
-		}
-
 		c.Errorf("unexpected path %q", r.URL.Path)
 	})
 }
