@@ -21,7 +21,8 @@ package seedwriter_test
 
 import (
 	"fmt"
-
+	"io"
+	"io/ioutil"
 	"os"
 	"path/filepath"
 	"testing"
@@ -30,6 +31,8 @@ import (
 
 	"github.com/snapcore/snapd/asserts"
 	"github.com/snapcore/snapd/asserts/assertstest"
+	"github.com/snapcore/snapd/osutil"
+	"github.com/snapcore/snapd/seed"
 	"github.com/snapcore/snapd/seed/seedtest"
 	"github.com/snapcore/snapd/seed/seedwriter"
 	"github.com/snapcore/snapd/snap"
@@ -597,4 +600,126 @@ func (s *writerSuite) TestDownloadedCheckTypeCore(c *C) {
 	s.AssertedSnapInfo("core").SnapType = snap.TypeBase
 	_, err := s.upToDownloaded(c, model, s.fillMetaDownloadedSnap)
 	c.Check(err, ErrorMatches, `core snap has unexpected type: base`)
+}
+
+func readAssertions(c *C, fn string) []asserts.Assertion {
+	f, err := os.Open(fn)
+	c.Assert(err, IsNil)
+
+	var as []asserts.Assertion
+	dec := asserts.NewDecoder(f)
+	for {
+		a, err := dec.Decode()
+		if err == io.EOF {
+			break
+		}
+		c.Assert(err, IsNil)
+		as = append(as, a)
+	}
+
+	return as
+}
+
+func (s *writerSuite) TestSeedSnapsWriteMetaCore18(c *C) {
+	model := s.Brands.Model("my-brand", "my-model", map[string]interface{}{
+		"display-name":   "my model",
+		"architecture":   "amd64",
+		"base":           "core18",
+		"gadget":         "pc=18",
+		"kernel":         "pc-kernel=18",
+		"required-snaps": []interface{}{"cont-consumer", "cont-producer"},
+	})
+
+	s.makeSnap(c, "snapd", "")
+	s.makeSnap(c, "core18", "")
+	s.makeSnap(c, "pc-kernel=18", "")
+	s.makeSnap(c, "pc=18", "")
+	s.makeSnap(c, "cont-producer", "developerid")
+	s.makeSnap(c, "cont-consumer", "developerid")
+
+	w, err := seedwriter.New(model, s.opts)
+	c.Assert(err, IsNil)
+
+	err = w.SetOptionsSnaps([]*seedwriter.OptionSnap{{Name: "pc", Channel: "edge"}})
+	c.Assert(err, IsNil)
+
+	err = w.Start(s.db, s.newFetcher)
+	c.Assert(err, IsNil)
+
+	snaps, err := w.SnapsToDownload()
+	c.Assert(err, IsNil)
+	c.Check(snaps, HasLen, 6)
+
+	s.AssertedSnapInfo("cont-producer").Contact = "author@cont-producer.net"
+	for _, sn := range snaps {
+		s.fillDownloadedSnap(c, w, sn)
+	}
+
+	complete, err := w.Downloaded()
+	c.Assert(err, IsNil)
+	c.Check(complete, Equals, true)
+
+	err = w.SeedSnaps()
+	c.Assert(err, IsNil)
+
+	err = w.WriteMeta()
+	c.Assert(err, IsNil)
+
+	// check seed
+	seedYaml, err := seed.ReadYaml(filepath.Join(s.opts.SeedDir, "seed.yaml"))
+	c.Assert(err, IsNil)
+
+	c.Check(seedYaml.Snaps, HasLen, 6)
+
+	// check the files are in place
+	for i, name := range []string{"snapd", "pc-kernel", "core18", "pc", "cont-consumer", "cont-producer"} {
+		info := s.AssertedSnapInfo(name)
+
+		fn := filepath.Base(info.MountFile())
+		p := filepath.Join(s.opts.SeedDir, "snaps", fn)
+		c.Check(osutil.FileExists(p), Equals, true)
+
+		c.Check(seedYaml.Snaps[i], DeepEquals, &seed.Snap16{
+			Name:   info.SnapName(),
+			SnapID: info.SnapID,
+			// XXX Channel
+			File:    fn,
+			Contact: info.Contact,
+		})
+	}
+
+	l, err := ioutil.ReadDir(filepath.Join(s.opts.SeedDir, "snaps"))
+	c.Assert(err, IsNil)
+	c.Check(l, HasLen, 6)
+
+	// check assertions
+	seedAssertsDir := filepath.Join(s.opts.SeedDir, "assertions")
+	storeAccountKeyPK := s.StoreSigning.StoreAccountKey("").PublicKeyID()
+	brandAcctKeyPK := s.Brands.AccountKey("my-brand").PublicKeyID()
+
+	for _, fn := range []string{"model", brandAcctKeyPK + ".account-key", "my-brand.account", storeAccountKeyPK + ".account-key"} {
+		p := filepath.Join(seedAssertsDir, fn)
+		c.Check(osutil.FileExists(p), Equals, true)
+	}
+
+	c.Check(filepath.Join(seedAssertsDir, "model"), testutil.FileEquals, asserts.Encode(model))
+
+	acct := readAssertions(c, filepath.Join(seedAssertsDir, "my-brand.account"))
+	c.Assert(acct, HasLen, 1)
+	c.Check(acct[0].Type(), Equals, asserts.AccountType)
+	c.Check(acct[0].HeaderString("account-id"), Equals, "my-brand")
+
+	// check the snap assertions are also in place
+	for _, snapName := range []string{"snapd", "pc-kernel", "core18", "pc", "cont-consumer", "cont-producer"} {
+		p := filepath.Join(seedAssertsDir, fmt.Sprintf("16,%s.snap-declaration", s.AssertedSnapID(snapName)))
+		decl := readAssertions(c, p)
+		c.Assert(decl, HasLen, 1)
+		c.Check(decl[0].Type(), Equals, asserts.SnapDeclarationType)
+		c.Check(decl[0].HeaderString("snap-name"), Equals, snapName)
+		p = filepath.Join(seedAssertsDir, fmt.Sprintf("%s.snap-revision", s.snapRevs[snapName].SnapSHA3_384()))
+		rev := readAssertions(c, p)
+		c.Assert(rev, HasLen, 1)
+		c.Check(rev[0].Type(), Equals, asserts.SnapRevisionType)
+		c.Check(rev[0].HeaderString("snap-id"), Equals, s.AssertedSnapID(snapName))
+	}
 }

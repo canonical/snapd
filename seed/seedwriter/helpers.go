@@ -106,3 +106,11 @@ func checkType(sn *SeedSnap, model *asserts.Model) error {
 	}
 	return nil
 }
+
+type seedSnapsByType []*SeedSnap
+
+func (s seedSnapsByType) Len() int      { return len(s) }
+func (s seedSnapsByType) Swap(i, j int) { s[i], s[j] = s[j], s[i] }
+func (s seedSnapsByType) Less(i, j int) bool {
+	return s[i].Info.GetType().SortsBefore(s[j].Info.GetType())
+}
