@@ -33,6 +33,7 @@ import (
 	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/release"
+	"github.com/snapcore/snapd/sandbox/apparmor"
 	seccomp_compiler "github.com/snapcore/snapd/sandbox/seccomp"
 )
 
@@ -106,10 +107,10 @@ func generateSystemKey() (*systemKey, error) {
 	sk.BuildID = buildID
 
 	// Add apparmor-features (which is already sorted)
-	sk.AppArmorFeatures, _ = release.AppArmorKernelFeatures()
+	sk.AppArmorFeatures, _ = apparmor.KernelFeatures()
 
 	// Add apparmor-parser-mtime
-	sk.AppArmorParserMtime = release.AppArmorParserMtime()
+	sk.AppArmorParserMtime = apparmor.ParserMtime()
 
 	// Add if home is using NFS, if so we need to have a different
 	// security profile and if this changes we need to change our
@@ -153,7 +154,7 @@ func WriteSystemKey() error {
 	// We only want to calculate this when the mtime of the parser changes.
 	// Since we calculate the mtime() as part of generateSystemKey, we can
 	// simply unconditionally write this out here.
-	sk.AppArmorParserFeatures, _ = release.AppArmorParserFeatures()
+	sk.AppArmorParserFeatures, _ = apparmor.ParserFeatures()
 
 	sks, err := json.Marshal(sk)
 	if err != nil {
