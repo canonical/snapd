@@ -152,13 +152,13 @@ func (s *SystemdTestSuite) TestDaemonReload(c *C) {
 func (s *SystemdTestSuite) TestStart(c *C) {
 	err := New("", SystemMode, s.rep).Start("foo")
 	c.Assert(err, IsNil)
-	c.Check(s.argses, DeepEquals, [][]string{{"start", "foo"}})
+	c.Check(s.argses, DeepEquals, [][]string{{"--root", "", "start", "foo"}})
 }
 
 func (s *SystemdTestSuite) TestStartMany(c *C) {
 	err := New("", SystemMode, s.rep).Start("foo", "bar", "baz")
 	c.Assert(err, IsNil)
-	c.Check(s.argses, DeepEquals, [][]string{{"start", "foo", "bar", "baz"}})
+	c.Check(s.argses, DeepEquals, [][]string{{"--root", "", "start", "foo", "bar", "baz"}})
 }
 
 func (s *SystemdTestSuite) TestStop(c *C) {
@@ -171,11 +171,12 @@ func (s *SystemdTestSuite) TestStop(c *C) {
 		[]byte("ActiveState=inactive\n"),
 	}
 	s.errors = []error{nil, nil, nil, nil, &Timeout{}}
-	err := New("", SystemMode, s.rep).Stop("foo", 1*time.Second)
+	sysd := New("", SystemMode, s.rep)
+	err := sysd.Stop("foo", 1*time.Second)
 	c.Assert(err, IsNil)
 	c.Assert(s.argses, HasLen, 4)
-	c.Check(s.argses[0], DeepEquals, []string{"stop", "foo"})
-	c.Check(s.argses[1], DeepEquals, []string{"show", "--property=ActiveState", "foo"})
+	c.Check(s.argses[0], DeepEquals, []string{"--root", "", "stop", "foo"})
+	c.Check(s.argses[1], DeepEquals, []string{"--root", "", "show", "--property=ActiveState", "foo"})
 	c.Check(s.argses[1], DeepEquals, s.argses[2])
 	c.Check(s.argses[1], DeepEquals, s.argses[3])
 }
@@ -239,8 +240,8 @@ UnitFileState=disabled
 	})
 	c.Check(s.rep.msgs, IsNil)
 	c.Assert(s.argses, DeepEquals, [][]string{
-		{"show", "--property=Id,ActiveState,UnitFileState,Type", "foo.service", "bar.service", "baz.service"},
-		{"show", "--property=Id,ActiveState,UnitFileState", "some.timer", "other.socket"},
+		{"--root", "", "show", "--property=Id,ActiveState,UnitFileState,Type", "foo.service", "bar.service", "baz.service"},
+		{"--root", "", "show", "--property=Id,ActiveState,UnitFileState", "some.timer", "other.socket"},
 	})
 }
 
@@ -420,14 +421,14 @@ func (s *SystemdTestSuite) TestRestart(c *C) {
 	err := New("", SystemMode, s.rep).Restart("foo", 100*time.Millisecond)
 	c.Assert(err, IsNil)
 	c.Check(s.argses, HasLen, 3)
-	c.Check(s.argses[0], DeepEquals, []string{"stop", "foo"})
-	c.Check(s.argses[1], DeepEquals, []string{"show", "--property=ActiveState", "foo"})
-	c.Check(s.argses[2], DeepEquals, []string{"start", "foo"})
+	c.Check(s.argses[0], DeepEquals, []string{"--root", "", "stop", "foo"})
+	c.Check(s.argses[1], DeepEquals, []string{"--root", "", "show", "--property=ActiveState", "foo"})
+	c.Check(s.argses[2], DeepEquals, []string{"--root", "", "start", "foo"})
 }
 
 func (s *SystemdTestSuite) TestKill(c *C) {
 	c.Assert(New("", SystemMode, s.rep).Kill("foo", "HUP", ""), IsNil)
-	c.Check(s.argses, DeepEquals, [][]string{{"kill", "foo", "-s", "HUP", "--kill-who=all"}})
+	c.Check(s.argses, DeepEquals, [][]string{{"--root", "", "kill", "foo", "-s", "HUP", "--kill-who=all"}})
 }
 
 func (s *SystemdTestSuite) TestIsTimeout(c *C) {
@@ -534,7 +535,7 @@ WantedBy=multi-user.target
 	c.Assert(s.argses, DeepEquals, [][]string{
 		{"daemon-reload"},
 		{"--root", rootDir, "enable", "snap-snapname-123.mount"},
-		{"start", "snap-snapname-123.mount"},
+		{"--root", rootDir, "start", "snap-snapname-123.mount"},
 	})
 }
 
@@ -567,7 +568,7 @@ WantedBy=multi-user.target
 	c.Assert(s.argses, DeepEquals, [][]string{
 		{"daemon-reload"},
 		{"--root", "", "enable", "snap-snapname-x1.mount"},
-		{"start", "snap-snapname-x1.mount"},
+		{"--root", "", "start", "snap-snapname-x1.mount"},
 	})
 }
 
@@ -803,7 +804,7 @@ func (s *SystemdTestSuite) TestUserMode(c *C) {
 	c.Assert(sysd.Enable("foo"), IsNil)
 	c.Check(s.argses[0], DeepEquals, []string{"--user", "--root", rootDir, "enable", "foo"})
 	c.Assert(sysd.Start("foo"), IsNil)
-	c.Check(s.argses[1], DeepEquals, []string{"--user", "start", "foo"})
+	c.Check(s.argses[1], DeepEquals, []string{"--user", "--root", rootDir, "start", "foo"})
 }
 
 func (s *SystemdTestSuite) TestGlobalUserMode(c *C) {

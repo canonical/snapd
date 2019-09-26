@@ -1287,7 +1287,7 @@ snaps:
 	}
 
 	// the right systemd commands were run
-	c.Check(sysdLog, testutil.DeepContains, []string{"start", "usr-lib-snapd.mount"})
+	c.Check(sysdLog, testutil.DeepContains, []string{"--root", dirs.GlobalRootDir, "start", "usr-lib-snapd.mount"})
 
 	// and ensure state is now considered seeded
 	var seeded bool

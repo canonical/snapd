@@ -24,6 +24,7 @@ import (
 	"time"
 
 	"github.com/snapcore/snapd/client"
+	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/overlord/cmdstate"
 	"github.com/snapcore/snapd/overlord/hookstate"
 	"github.com/snapcore/snapd/overlord/snapstate"
@@ -49,18 +50,18 @@ func Control(st *state.State, appInfos []*snap.AppInfo, inst *Instruction, conte
 	var tts []*state.TaskSet
 
 	var ctlcmds []string
-	switch {
-	case inst.Action == "start":
+	switch inst.Action {
+	case "start":
 		if inst.Enable {
 			ctlcmds = []string{"enable"}
 		}
 		ctlcmds = append(ctlcmds, "start")
-	case inst.Action == "stop":
+	case "stop":
 		if inst.Disable {
 			ctlcmds = []string{"disable"}
 		}
 		ctlcmds = append(ctlcmds, "stop")
-	case inst.Action == "restart":
+	case "restart":
 		if inst.Reload {
 			ctlcmds = []string{"reload-or-restart"}
 		} else {
@@ -101,7 +102,7 @@ func Control(st *state.State, appInfos []*snap.AppInfo, inst *Instruction, conte
 	}
 
 	for _, cmd := range ctlcmds {
-		argv := append([]string{"systemctl", cmd}, svcs...)
+		argv := append([]string{"systemctl", "--root", dirs.GlobalRootDir, cmd}, svcs...)
 		desc := fmt.Sprintf("%s of %v", cmd, names)
 		// Give the systemctl a maximum time of 61 for now.
 		//

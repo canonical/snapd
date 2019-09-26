@@ -290,7 +290,7 @@ func (s *systemd) Start(serviceNames ...string) error {
 	if s.mode == GlobalUserMode {
 		panic("cannot call start with GlobalUserMode")
 	}
-	_, err := s.systemctl(append([]string{"start"}, serviceNames...)...)
+	_, err := s.systemctl(append([]string{"--root", s.rootDir, "start"}, serviceNames...)...)
 	return err
 }
 
@@ -299,7 +299,7 @@ func (s *systemd) StartNoBlock(serviceNames ...string) error {
 	if s.mode == GlobalUserMode {
 		panic("cannot call start with GlobalUserMode")
 	}
-	_, err := s.systemctl(append([]string{"start", "--no-block"}, serviceNames...)...)
+	_, err := s.systemctl(append([]string{"--root", s.rootDir, "start", "--no-block"}, serviceNames...)...)
 	return err
 }
 
@@ -329,11 +329,13 @@ var unitProperties = map[string][]string{
 }
 
 func (s *systemd) getUnitStatus(properties []string, unitNames []string) ([]*UnitStatus, error) {
-	cmd := make([]string, len(unitNames)+2)
-	cmd[0] = "show"
+	cmd := make([]string, len(unitNames)+4)
+	cmd[0] = "--root"
+	cmd[1] = s.rootDir
+	cmd[2] = "show"
 	// ask for all properties, regardless of unit type
-	cmd[1] = "--property=" + strings.Join(properties, ",")
-	copy(cmd[2:], unitNames)
+	cmd[3] = "--property=" + strings.Join(properties, ",")
+	copy(cmd[4:], unitNames)
 	bs, err := s.systemctl(cmd...)
 	if err != nil {
 		return nil, err
@@ -501,7 +503,7 @@ func (s *systemd) Stop(serviceName string, timeout time.Duration) error {
 	if s.mode == GlobalUserMode {
 		panic("cannot call stop with GlobalUserMode")
 	}
-	if _, err := s.systemctl("stop", serviceName); err != nil {
+	if _, err := s.systemctl("--root", s.rootDir, "stop", serviceName); err != nil {
 		return err
 	}
 
@@ -519,7 +521,7 @@ loop:
 		case <-giveup.C:
 			break loop
 		case <-check.C:
-			bs, err := s.systemctl("show", "--property=ActiveState", serviceName)
+			bs, err := s.systemctl("--root", s.rootDir, "show", "--property=ActiveState", serviceName)
 			if err != nil {
 				return err
 			}
@@ -547,7 +549,7 @@ func (s *systemd) Kill(serviceName, signal, who string) error {
 	if who == "" {
 		who = "all"
 	}
-	_, err := s.systemctl("kill", serviceName, "-s", signal, "--kill-who="+who)
+	_, err := s.systemctl("--root", s.rootDir, "kill", serviceName, "-s", signal, "--kill-who="+who)
 	return err
 }
 

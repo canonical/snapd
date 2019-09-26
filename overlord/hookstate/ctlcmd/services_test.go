@@ -419,20 +419,22 @@ func (s *servicectlSuite) testQueueCommandsOrdering(c *C, finalTaskKind string) 
 		c.Check(t.Kind(), Equals, "exec-command")
 		var argv []string
 		c.Assert(t.Get("argv", &argv), IsNil)
-		c.Check(argv, HasLen, 3)
+		c.Check(argv, HasLen, 5)
 
 		commandWt := make(map[string]bool)
 		for _, wt := range t.WaitTasks() {
 			commandWt[wt.Kind()] = true
 		}
 		// exec-command for "stop" should wait for configure hook task, "start" should wait for "stop" and "configure" hook task.
-		switch argv[1] {
+		c.Assert(argv[1], Equals, "--root")
+		c.Assert(argv[2], Equals, dirs.GlobalRootDir)
+		switch argv[3] {
 		case "stop":
 			c.Check(commandWt, DeepEquals, map[string]bool{"run-hook": true})
 		case "start":
 			c.Check(commandWt, DeepEquals, map[string]bool{"run-hook": true, "exec-command": true})
 		default:
-			c.Fatalf("unexpected command: %q", argv[1])
+			c.Fatalf("unexpected command: %q", argv[3])
 		}
 	}
 	c.Check(finalTask.HaltTasks(), HasLen, 0)
@@ -540,13 +542,13 @@ func (s *servicectlSuite) TestQueuedCommandsSingleLane(c *C) {
 
 func (s *servicectlSuite) TestTwoServices(c *C) {
 	restore := systemd.MockSystemctl(func(args ...string) (buf []byte, err error) {
-		c.Assert(args[0], Equals, "show")
-		c.Check(args[2], Matches, `snap\.test-snap\.\w+-service\.service`)
+		c.Assert(args[2], Equals, "show")
+		c.Check(args[4], Matches, `snap\.test-snap\.\w+-service\.service`)
 		return []byte(fmt.Sprintf(`Id=%s
 Type=simple
 ActiveState=active
 UnitFileState=enabled
-`, args[2])), nil
+`, args[4])), nil
 	})
 	defer restore()
 
@@ -562,8 +564,8 @@ test-snap.test-service     enabled  active   -
 
 func (s *servicectlSuite) TestServices(c *C) {
 	restore := systemd.MockSystemctl(func(args ...string) (buf []byte, err error) {
-		c.Assert(args[0], Equals, "show")
-		c.Check(args[2], Equals, "snap.test-snap.test-service.service")
+		c.Assert(args[2], Equals, "show")
+		c.Check(args[4], Equals, "snap.test-snap.test-service.service")
 		return []byte(`Id=snap.test-snap.test-service.service
 Type=simple
 ActiveState=active

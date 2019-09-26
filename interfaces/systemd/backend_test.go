@@ -74,7 +74,7 @@ func (s *backendSuite) TestInstallingSnapWritesStartsServices(c *C) {
 
 	r := sysd.MockSystemctl(func(cmd ...string) ([]byte, error) {
 		sysdLog = append(sysdLog, cmd)
-		if cmd[0] == "show" {
+		if len(cmd) >= 3 && cmd[2] == "show" {
 			return []byte("ActiveState=inactive\n"), nil
 		}
 		return []byte{}, nil
@@ -93,9 +93,9 @@ func (s *backendSuite) TestInstallingSnapWritesStartsServices(c *C) {
 	c.Check(sysdLog, DeepEquals, [][]string{
 		{"daemon-reload"},
 		{"--root", dirs.GlobalRootDir, "enable", "snap.samba.interface.foo.service"},
-		{"stop", "snap.samba.interface.foo.service"},
-		{"show", "--property=ActiveState", "snap.samba.interface.foo.service"},
-		{"start", "snap.samba.interface.foo.service"},
+		{"--root", dirs.GlobalRootDir, "stop", "snap.samba.interface.foo.service"},
+		{"--root", dirs.GlobalRootDir, "show", "--property=ActiveState", "snap.samba.interface.foo.service"},
+		{"--root", dirs.GlobalRootDir, "start", "snap.samba.interface.foo.service"},
 	})
 }
 
@@ -114,8 +114,8 @@ func (s *backendSuite) TestRemovingSnapRemovesAndStopsServices(c *C) {
 		// the service was stopped
 		c.Check(s.systemctlArgs, DeepEquals, [][]string{
 			{"systemctl", "--root", dirs.GlobalRootDir, "disable", "snap.samba.interface.foo.service"},
-			{"systemctl", "stop", "snap.samba.interface.foo.service"},
-			{"systemctl", "show", "--property=ActiveState", "snap.samba.interface.foo.service"},
+			{"systemctl", "--root", dirs.GlobalRootDir, "stop", "snap.samba.interface.foo.service"},
+			{"systemctl", "--root", dirs.GlobalRootDir, "show", "--property=ActiveState", "snap.samba.interface.foo.service"},
 			{"systemctl", "daemon-reload"},
 		})
 	}
@@ -148,8 +148,8 @@ func (s *backendSuite) TestSettingUpSecurityWithFewerServices(c *C) {
 	// The bar service should have been stopped
 	c.Check(s.systemctlArgs, DeepEquals, [][]string{
 		{"systemctl", "--root", dirs.GlobalRootDir, "disable", "snap.samba.interface.bar.service"},
-		{"systemctl", "stop", "snap.samba.interface.bar.service"},
-		{"systemctl", "show", "--property=ActiveState", "snap.samba.interface.bar.service"},
+		{"systemctl", "--root", dirs.GlobalRootDir, "stop", "snap.samba.interface.bar.service"},
+		{"systemctl", "--root", dirs.GlobalRootDir, "show", "--property=ActiveState", "snap.samba.interface.bar.service"},
 		{"systemctl", "daemon-reload"},
 	})
 }

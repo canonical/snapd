@@ -301,7 +301,7 @@ func (s *setupSuite) TestSetupCleanupAfterFail(c *C) {
 
 	r := systemd.MockSystemctl(func(cmd ...string) ([]byte, error) {
 		// mount unit start fails
-		if len(cmd) >= 2 && cmd[0] == "start" && strings.HasSuffix(cmd[1], ".mount") {
+		if len(cmd) >= 4 && cmd[2] == "start" && strings.HasSuffix(cmd[3], ".mount") {
 			return nil, fmt.Errorf("failed")
 		}
 		return []byte("ActiveState=inactive\n"), nil

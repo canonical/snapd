@@ -100,8 +100,8 @@ func (s *servicesTestSuite) TestAddSnapServicesAndRemove(c *C) {
 	c.Assert(err, IsNil)
 	c.Assert(s.sysdLog, HasLen, 2)
 	c.Check(s.sysdLog, DeepEquals, [][]string{
-		{"stop", filepath.Base(svcFile)},
-		{"show", "--property=ActiveState", "snap.hello-snap.svc1.service"},
+		{"--root", dirs.GlobalRootDir, "stop", filepath.Base(svcFile)},
+		{"--root", dirs.GlobalRootDir, "show", "--property=ActiveState", "snap.hello-snap.svc1.service"},
 	})
 
 	s.sysdLog = nil
@@ -155,7 +155,7 @@ func (s *servicesTestSuite) TestRemoveSnapPackageFallbackToKill(c *C) {
 	r := systemd.MockSystemctl(func(cmd ...string) ([]byte, error) {
 		// filter out the "systemctl show" that
 		// StopServices generates
-		if cmd[0] != "show" {
+		if len(cmd) > 2 && cmd[2] != "show" {
 			sysdLog = append(sysdLog, cmd)
 		}
 		return []byte("ActiveState=active\n"), nil
@@ -182,10 +182,10 @@ apps:
 	c.Assert(err, IsNil)
 
 	c.Check(sysdLog, DeepEquals, [][]string{
-		{"stop", svcFName},
+		{"--root", s.tempdir, "stop", svcFName},
 		// check kill invocations
-		{"kill", svcFName, "-s", "TERM", "--kill-who=all"},
-		{"kill", svcFName, "-s", "KILL", "--kill-who=all"},
+		{"--root", s.tempdir, "kill", svcFName, "-s", "TERM", "--kill-who=all"},
+		{"--root", s.tempdir, "kill", svcFName, "-s", "KILL", "--kill-who=all"},
 	})
 }
 
@@ -297,8 +297,8 @@ func (s *servicesTestSuite) TestServicesEnableStateFail(c *C) {
 func (s *servicesTestSuite) TestStopServicesWithSockets(c *C) {
 	var sysdLog []string
 	r := systemd.MockSystemctl(func(cmd ...string) ([]byte, error) {
-		if cmd[0] == "stop" {
-			sysdLog = append(sysdLog, cmd[1])
+		if len(cmd) > 1 && cmd[2] == "stop" {
+			sysdLog = append(sysdLog, cmd[3])
 		}
 		return []byte("ActiveState=inactive\n"), nil
 	})
@@ -338,7 +338,7 @@ func (s *servicesTestSuite) TestStartServices(c *C) {
 
 	c.Assert(s.sysdLog, DeepEquals, [][]string{
 		{"--root", s.tempdir, "is-enabled", filepath.Base(svcFile)},
-		{"start", filepath.Base(svcFile)},
+		{"--root", s.tempdir, "start", filepath.Base(svcFile)},
 	})
 }
 
@@ -575,7 +575,7 @@ func (s *servicesTestSuite) TestStartSnapMultiServicesFailStartCleanup(c *C) {
 
 	r := systemd.MockSystemctl(func(cmd ...string) ([]byte, error) {
 		sysdLog = append(sysdLog, cmd)
-		if len(cmd) >= 2 && cmd[0] == "start" {
+		if len(cmd) >= 3 && cmd[2] == "start" {
 			name := cmd[len(cmd)-1]
 			if name == svc2Name {
 				return nil, fmt.Errorf("failed")
@@ -602,12 +602,12 @@ func (s *servicesTestSuite) TestStartSnapMultiServicesFailStartCleanup(c *C) {
 	c.Check(sysdLog, DeepEquals, [][]string{
 		{"--root", s.tempdir, "is-enabled", svc1Name},
 		{"--root", s.tempdir, "is-enabled", svc2Name},
-		{"start", svc1Name},
-		{"start", svc2Name}, // one of the services fails
-		{"stop", svc2Name},
-		{"show", "--property=ActiveState", svc2Name},
-		{"stop", svc1Name},
-		{"show", "--property=ActiveState", svc1Name},
+		{"--root", s.tempdir, "start", svc1Name},
+		{"--root", s.tempdir, "start", svc2Name}, // one of the services fails
+		{"--root", s.tempdir, "stop", svc2Name},
+		{"--root", s.tempdir, "show", "--property=ActiveState", svc2Name},
+		{"--root", s.tempdir, "stop", svc1Name},
+		{"--root", s.tempdir, "show", "--property=ActiveState", svc1Name},
 	}, Commentf("calls: %v", sysdLog))
 }
 
@@ -622,7 +622,7 @@ func (s *servicesTestSuite) TestStartSnapMultiServicesFailStartCleanupWithSocket
 	r := systemd.MockSystemctl(func(cmd ...string) ([]byte, error) {
 		sysdLog = append(sysdLog, cmd)
 		c.Logf("call: %v", cmd)
-		if len(cmd) >= 2 && cmd[0] == "start" && cmd[1] == svc3SocketName {
+		if len(cmd) >= 4 && cmd[2] == "start" && cmd[3] == svc3SocketName {
 			// svc2 socket fails
 			return nil, fmt.Errorf("failed")
 		}
@@ -657,21 +657,21 @@ func (s *servicesTestSuite) TestStartSnapMultiServicesFailStartCleanupWithSocket
 	c.Check(sysdLog, DeepEquals, [][]string{
 		{"--root", s.tempdir, "is-enabled", svc1Name},
 		{"--root", s.tempdir, "enable", svc2SocketName},
-		{"start", svc2SocketName},
+		{"--root", s.tempdir, "start", svc2SocketName},
 		{"--root", s.tempdir, "enable", svc3SocketName},
-		{"start", svc3SocketName}, // start failed, what follows is the cleanup
-		{"stop", svc3SocketName},
-		{"show", "--property=ActiveState", svc3SocketName},
-		{"stop", svc3Name},
-		{"show", "--property=ActiveState", svc3Name},
+		{"--root", s.tempdir, "start", svc3SocketName}, // start failed, what follows is the cleanup
+		{"--root", s.tempdir, "stop", svc3SocketName},
+		{"--root", s.tempdir, "show", "--property=ActiveState", svc3SocketName},
+		{"--root", s.tempdir, "stop", svc3Name},
+		{"--root", s.tempdir, "show", "--property=ActiveState", svc3Name},
 		{"--root", s.tempdir, "disable", svc3SocketName},
-		{"stop", svc2SocketName},
-		{"show", "--property=ActiveState", svc2SocketName},
-		{"stop", svc2Name},
-		{"show", "--property=ActiveState", svc2Name},
+		{"--root", s.tempdir, "stop", svc2SocketName},
+		{"--root", s.tempdir, "show", "--property=ActiveState", svc2SocketName},
+		{"--root", s.tempdir, "stop", svc2Name},
+		{"--root", s.tempdir, "show", "--property=ActiveState", svc2Name},
 		{"--root", s.tempdir, "disable", svc2SocketName},
-		{"stop", svc1Name},
-		{"show", "--property=ActiveState", svc1Name},
+		{"--root", s.tempdir, "stop", svc1Name},
+		{"--root", s.tempdir, "show", "--property=ActiveState", svc1Name},
 	}, Commentf("calls: %v", sysdLog))
 }
 
@@ -713,9 +713,9 @@ apps:
 		{"--root", s.tempdir, "is-enabled", svc1Name},
 		{"--root", s.tempdir, "is-enabled", svc3Name},
 		{"--root", s.tempdir, "is-enabled", svc2Name},
-		{"start", svc1Name},
-		{"start", svc3Name},
-		{"start", svc2Name},
+		{"--root", s.tempdir, "start", svc1Name},
+		{"--root", s.tempdir, "start", svc3Name},
+		{"--root", s.tempdir, "start", svc2Name},
 	}, Commentf("calls: %v", sysdLog))
 
 	// change the order
@@ -729,9 +729,9 @@ apps:
 		{"--root", s.tempdir, "is-enabled", svc3Name},
 		{"--root", s.tempdir, "is-enabled", svc1Name},
 		{"--root", s.tempdir, "is-enabled", svc2Name},
-		{"start", svc3Name},
-		{"start", svc1Name},
-		{"start", svc2Name},
+		{"--root", s.tempdir, "start", svc3Name},
+		{"--root", s.tempdir, "start", svc1Name},
+		{"--root", s.tempdir, "start", svc2Name},
 	}, Commentf("calls: %v", sysdLog))
 }
 
@@ -865,8 +865,8 @@ apps:
 	err = wrappers.StopServices(info.Services(), snap.StopReasonRemove, progress.Null, s.perfTimings)
 	c.Assert(err, IsNil)
 	c.Check(s.sysdLog, DeepEquals, [][]string{
-		{"stop", filepath.Base(survivorFile)},
-		{"show", "--property=ActiveState", "snap.survive-snap.survivor.service"},
+		{"--root", dirs.GlobalRootDir, "stop", filepath.Base(survivorFile)},
+		{"--root", dirs.GlobalRootDir, "show", "--property=ActiveState", "snap.survive-snap.survivor.service"},
 	})
 
 }
@@ -912,8 +912,8 @@ apps:
 		err = wrappers.StopServices(info.Services(), snap.StopReasonRefresh, progress.Null, s.perfTimings)
 		c.Assert(err, IsNil)
 		c.Check(s.sysdLog, DeepEquals, [][]string{
-			{"stop", filepath.Base(survivorFile)},
-			{"show", "--property=ActiveState", "snap.survive-snap.srv.service"},
+			{"--root", dirs.GlobalRootDir, "stop", filepath.Base(survivorFile)},
+			{"--root", dirs.GlobalRootDir, "show", "--property=ActiveState", "snap.survive-snap.srv.service"},
 		}, Commentf("failure in %s", t.mode))
 
 		s.sysdLog = nil
@@ -922,15 +922,15 @@ apps:
 		switch t.expectedWho {
 		case "all":
 			c.Check(s.sysdLog, DeepEquals, [][]string{
-				{"stop", filepath.Base(survivorFile)},
-				{"show", "--property=ActiveState", "snap.survive-snap.srv.service"},
+				{"--root", dirs.GlobalRootDir, "stop", filepath.Base(survivorFile)},
+				{"--root", dirs.GlobalRootDir, "show", "--property=ActiveState", "snap.survive-snap.srv.service"},
 			})
 		case "main":
 			c.Check(s.sysdLog, DeepEquals, [][]string{
-				{"stop", filepath.Base(survivorFile)},
-				{"show", "--property=ActiveState", "snap.survive-snap.srv.service"},
-				{"kill", filepath.Base(survivorFile), "-s", "TERM", "--kill-who=all"},
-				{"kill", filepath.Base(survivorFile), "-s", "KILL", "--kill-who=all"},
+				{"--root", dirs.GlobalRootDir, "stop", filepath.Base(survivorFile)},
+				{"--root", dirs.GlobalRootDir, "show", "--property=ActiveState", "snap.survive-snap.srv.service"},
+				{"--root", dirs.GlobalRootDir, "kill", filepath.Base(survivorFile), "-s", "TERM", "--kill-who=all"},
+				{"--root", dirs.GlobalRootDir, "kill", filepath.Base(survivorFile), "-s", "KILL", "--kill-who=all"},
 			})
 		default:
 			panic("not reached")
@@ -959,8 +959,8 @@ func (s *servicesTestSuite) TestStartSnapTimerEnableStart(c *C) {
 	c.Check(s.sysdLog, DeepEquals, [][]string{
 		{"--root", dirs.GlobalRootDir, "is-enabled", svc1Name},
 		{"--root", dirs.GlobalRootDir, "enable", svc2Timer},
-		{"start", svc2Timer},
-		{"start", svc1Name},
+		{"--root", dirs.GlobalRootDir, "start", svc2Timer},
+		{"--root", dirs.GlobalRootDir, "start", svc1Name},
 	}, Commentf("calls: %v", s.sysdLog))
 }
 
@@ -972,7 +972,7 @@ func (s *servicesTestSuite) TestStartSnapTimerCleanup(c *C) {
 
 	r := systemd.MockSystemctl(func(cmd ...string) ([]byte, error) {
 		sysdLog = append(sysdLog, cmd)
-		if len(cmd) >= 2 && cmd[0] == "start" && cmd[1] == svc2Timer {
+		if len(cmd) >= 4 && cmd[2] == "start" && cmd[3] == svc2Timer {
 			return nil, fmt.Errorf("failed")
 		}
 		return []byte("ActiveState=inactive\n"), nil
@@ -994,14 +994,14 @@ func (s *servicesTestSuite) TestStartSnapTimerCleanup(c *C) {
 	c.Check(sysdLog, DeepEquals, [][]string{
 		{"--root", dirs.GlobalRootDir, "is-enabled", svc1Name},
 		{"--root", dirs.GlobalRootDir, "enable", svc2Timer},
-		{"start", svc2Timer}, // this call fails
-		{"stop", svc2Timer},
-		{"show", "--property=ActiveState", svc2Timer},
-		{"stop", svc2Name},
-		{"show", "--property=ActiveState", svc2Name},
+		{"--root", dirs.GlobalRootDir, "start", svc2Timer}, // this call fails
+		{"--root", dirs.GlobalRootDir, "stop", svc2Timer},
+		{"--root", dirs.GlobalRootDir, "show", "--property=ActiveState", svc2Timer},
+		{"--root", dirs.GlobalRootDir, "stop", svc2Name},
+		{"--root", dirs.GlobalRootDir, "show", "--property=ActiveState", svc2Name},
 		{"--root", dirs.GlobalRootDir, "disable", svc2Timer},
-		{"stop", svc1Name},
-		{"show", "--property=ActiveState", svc1Name},
+		{"--root", dirs.GlobalRootDir, "stop", svc1Name},
+		{"--root", dirs.GlobalRootDir, "show", "--property=ActiveState", svc1Name},
 	}, Commentf("calls: %v", sysdLog))
 }
 

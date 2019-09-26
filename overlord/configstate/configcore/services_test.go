@@ -65,7 +65,7 @@ func (s *servicesSuite) TestConfigureServiceNotDisabled(c *C) {
 	c.Check(s.systemctlArgs, DeepEquals, [][]string{
 		{"--root", dirs.GlobalRootDir, "unmask", "sshd.service"},
 		{"--root", dirs.GlobalRootDir, "enable", "sshd.service"},
-		{"start", "sshd.service"},
+		{"--root", dirs.GlobalRootDir, "start", "sshd.service"},
 	})
 }
 
@@ -75,8 +75,8 @@ func (s *servicesSuite) TestConfigureServiceDisabled(c *C) {
 	c.Check(s.systemctlArgs, DeepEquals, [][]string{
 		{"--root", dirs.GlobalRootDir, "disable", "sshd.service"},
 		{"--root", dirs.GlobalRootDir, "mask", "sshd.service"},
-		{"stop", "sshd.service"},
-		{"show", "--property=ActiveState", "sshd.service"},
+		{"--root", dirs.GlobalRootDir, "stop", "sshd.service"},
+		{"--root", dirs.GlobalRootDir, "show", "--property=ActiveState", "sshd.service"},
 	})
 }
 
@@ -110,15 +110,15 @@ func (s *servicesSuite) TestConfigureServiceDisabledIntegration(c *C) {
 			_, err := os.Stat(sshCanary)
 			c.Assert(err, IsNil)
 			c.Check(s.systemctlArgs, DeepEquals, [][]string{
-				{"stop", srv},
-				{"show", "--property=ActiveState", srv},
+				{"--root", dirs.GlobalRootDir, "stop", srv},
+				{"--root", dirs.GlobalRootDir, "show", "--property=ActiveState", srv},
 			})
 		} else {
 			c.Check(s.systemctlArgs, DeepEquals, [][]string{
 				{"--root", dirs.GlobalRootDir, "disable", srv},
 				{"--root", dirs.GlobalRootDir, "mask", srv},
-				{"stop", srv},
-				{"show", "--property=ActiveState", srv},
+				{"--root", dirs.GlobalRootDir, "stop", srv},
+				{"--root", dirs.GlobalRootDir, "show", "--property=ActiveState", srv},
 			})
 		}
 	}
@@ -153,7 +153,7 @@ func (s *servicesSuite) TestConfigureServiceEnableIntegration(c *C) {
 			c.Check(s.systemctlArgs, DeepEquals, [][]string{
 				{"--root", dirs.GlobalRootDir, "unmask", "sshd.service"},
 				{"--root", dirs.GlobalRootDir, "unmask", "ssh.service"},
-				{"start", srv},
+				{"--root", dirs.GlobalRootDir, "start", srv},
 			})
 			sshCanary := filepath.Join(dirs.GlobalRootDir, "/etc/ssh/sshd_not_to_be_run")
 			_, err := os.Stat(sshCanary)
@@ -162,7 +162,7 @@ func (s *servicesSuite) TestConfigureServiceEnableIntegration(c *C) {
 			c.Check(s.systemctlArgs, DeepEquals, [][]string{
 				{"--root", dirs.GlobalRootDir, "unmask", srv},
 				{"--root", dirs.GlobalRootDir, "enable", srv},
-				{"start", srv},
+				{"--root", dirs.GlobalRootDir, "start", srv},
 			})
 		}
 	}
