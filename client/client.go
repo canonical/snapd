@@ -361,10 +361,7 @@ func (client *Client) doAsync(method, path string, query url.Values, headers map
 }
 
 func (client *Client) doAsyncNoTimeout(method, path string, query url.Values, headers map[string]string, body io.Reader) (changeID string, err error) {
-	flags := doFlags{
-		NoTimeout: true,
-	}
-	_, changeID, err = client.doAsyncFull(method, path, query, headers, body, flags)
+	_, changeID, err = client.doAsyncFull(method, path, query, headers, body, doFlags{NoTimeout: true})
 	return changeID, err
 }
 
