@@ -251,7 +251,7 @@ func makeErrorResponder(status int) errorResponder {
 // A FileStream ServeHTTP method streams the snap
 type fileStream struct {
 	SnapName string
-	Info     snap.DownloadInfo
+	Info     *snap.Info
 	stream   io.ReadCloser
 }
 
@@ -259,7 +259,7 @@ type fileStream struct {
 func (s fileStream) ServeHTTP(w http.ResponseWriter, _ *http.Request) {
 	hdr := w.Header()
 	hdr.Set("Content-Type", "application/octet-stream")
-	snapname := fmt.Sprintf("attachment; filename=%s", s.SnapName)
+	snapname := fmt.Sprintf("attachment; filename=%s", filepath.Base(s.Info.MountFile()))
 	hdr.Set("Content-Disposition", snapname)
 
 	size := fmt.Sprintf("%d", s.Info.Size)
