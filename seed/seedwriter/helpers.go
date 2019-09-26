@@ -63,34 +63,45 @@ func MakeRefAssertsFetcher(newFetcher NewFetcherFunc) RefAssertsFetcher {
 	return &rrf
 }
 
+func whichModelSnap(modSnap *asserts.ModelSnap, model *asserts.Model) string {
+	switch modSnap.SnapType {
+	case "snapd":
+		return "snapd snap"
+	case "core":
+		return "core snap"
+	case "base":
+		what := fmt.Sprintf("base %q", modSnap.SnapName())
+		if modSnap.SnapName() == model.Base() {
+			what = "boot " + what
+		}
+		return what
+	case "kernel":
+		return fmt.Sprintf("kernel %q", modSnap.SnapName())
+	case "gadget":
+		return fmt.Sprintf("gadget %q", modSnap.SnapName())
+	default:
+		return fmt.Sprintf("snap %q", modSnap.SnapName())
+	}
+}
+
 func checkType(sn *SeedSnap, model *asserts.Model) error {
 	if sn.modelSnap == nil {
 		return nil
 	}
 	expectedType := snap.TypeApp
-	what := ""
 	switch sn.modelSnap.SnapType {
 	case "snapd":
 		expectedType = snap.TypeSnapd
-		what = "snapd snap"
 	case "core":
 		expectedType = snap.TypeOS
-		what = "core snap"
 	case "base":
 		expectedType = snap.TypeBase
-		what = fmt.Sprintf("base %q", sn.SnapName())
-		if sn.SnapName() == model.Base() {
-			what = "boot " + what
-		}
 	case "kernel":
 		expectedType = snap.TypeKernel
-		what = fmt.Sprintf("kernel %q", sn.SnapName())
 	case "gadget":
 		expectedType = snap.TypeGadget
-		what = fmt.Sprintf("gadget %q", sn.SnapName())
 	case "app":
 		expectedType = snap.TypeApp
-		what = fmt.Sprintf("snap %q", sn.SnapName())
 	case "":
 		// ModelSnap for Core 16/18 "required-snaps" have
 		// SnapType not set given the model assertion does not
@@ -102,6 +113,7 @@ func checkType(sn *SeedSnap, model *asserts.Model) error {
 		return nil
 	}
 	if sn.Info.GetType() != expectedType {
+		what := whichModelSnap(sn.modelSnap, model)
 		return fmt.Errorf("%s has unexpected type: %s", what, sn.Info.GetType())
 	}
 	return nil
