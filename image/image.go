@@ -63,12 +63,6 @@ type Options struct {
 	Architecture string
 }
 
-type localInfos struct{}
-
-func localSnaps(tsto *ToolingStore, opts *Options) (*localInfos, error) {
-	return nil, nil
-}
-
 // classicHasSnaps returns whether the model or options specify any snaps for the classic case
 func classicHasSnaps(model *asserts.Model, opts *Options) bool {
 	return model.Gadget() != "" || len(model.RequiredNoEssentialSnaps()) != 0 || len(opts.Snaps) != 0
@@ -105,17 +99,12 @@ func Prepare(opts *Options) error {
 		return err
 	}
 
-	local, err := localSnaps(tsto, opts)
-	if err != nil {
-		return err
-	}
-
 	// FIXME: limitation until we can pass series parametrized much more
 	if model.Series() != release.Series {
 		return fmt.Errorf("model with series %q != %q unsupported", model.Series(), release.Series)
 	}
 
-	return setupSeed(tsto, model, opts, local)
+	return setupSeed(tsto, model, opts)
 }
 
 // these are postponed, not implemented or abandoned, not finalized,
@@ -179,7 +168,7 @@ func MockTrusted(mockTrusted []asserts.Assertion) (restore func()) {
 	}
 }
 
-func setupSeed(tsto *ToolingStore, model *asserts.Model, opts *Options, local *localInfos) error {
+func setupSeed(tsto *ToolingStore, model *asserts.Model, opts *Options) error {
 	if model.Classic() != opts.Classic {
 		return fmt.Errorf("internal error: classic model but classic mode not set")
 	}

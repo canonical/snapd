@@ -513,10 +513,8 @@ func (s *imageSuite) TestSetupSeed(c *C) {
 		RootDir:         rootdir,
 		GadgetUnpackDir: gadgetUnpackDir,
 	}
-	local, err := image.LocalSnaps(s.tsto, opts)
-	c.Assert(err, IsNil)
 
-	err = image.SetupSeed(s.tsto, s.model, opts, local)
+	err := image.SetupSeed(s.tsto, s.model, opts)
 	c.Assert(err, IsNil)
 
 	// check seed yaml
@@ -635,10 +633,8 @@ func (s *imageSuite) TestSetupSeedLocalCoreBrandKernel(c *C) {
 		RootDir:         rootdir,
 		GadgetUnpackDir: gadgetUnpackDir,
 	}
-	local, err := image.LocalSnaps(s.tsto, opts)
-	c.Assert(err, IsNil)
 
-	err = image.SetupSeed(s.tsto, s.model, opts, local)
+	err := image.SetupSeed(s.tsto, s.model, opts)
 	c.Assert(err, IsNil)
 
 	// check seed yaml
@@ -744,10 +740,8 @@ func (s *imageSuite) TestSetupSeedDevmodeSnap(c *C) {
 		GadgetUnpackDir: gadgetUnpackDir,
 		Channel:         "beta",
 	}
-	local, err := image.LocalSnaps(s.tsto, opts)
-	c.Assert(err, IsNil)
 
-	err = image.SetupSeed(s.tsto, s.model, opts, local)
+	err := image.SetupSeed(s.tsto, s.model, opts)
 	c.Assert(err, IsNil)
 
 	// check seed yaml
@@ -831,10 +825,8 @@ func (s *imageSuite) TestSetupSeedWithClassicSnapFails(c *C) {
 		GadgetUnpackDir: gadgetUnpackDir,
 		Channel:         "beta",
 	}
-	local, err := image.LocalSnaps(s.tsto, opts)
-	c.Assert(err, IsNil)
 
-	err = image.SetupSeed(s.tsto, s.model, opts, local)
+	err := image.SetupSeed(s.tsto, s.model, opts)
 	c.Assert(err, ErrorMatches, `cannot use classic snap "classic-snap" in a core system`)
 }
 
@@ -866,10 +858,8 @@ func (s *imageSuite) TestSetupSeedWithBase(c *C) {
 		RootDir:         rootdir,
 		GadgetUnpackDir: gadgetUnpackDir,
 	}
-	local, err := image.LocalSnaps(s.tsto, opts)
-	c.Assert(err, IsNil)
 
-	err = image.SetupSeed(s.tsto, model, opts, local)
+	err := image.SetupSeed(s.tsto, model, opts)
 	c.Assert(err, IsNil)
 
 	// check seed yaml
@@ -989,10 +979,8 @@ func (s *imageSuite) TestSetupSeedWithBaseLegacySnap(c *C) {
 		RootDir:         rootdir,
 		GadgetUnpackDir: gadgetUnpackDir,
 	}
-	local, err := image.LocalSnaps(s.tsto, opts)
-	c.Assert(err, IsNil)
 
-	err = image.SetupSeed(s.tsto, model, opts, local)
+	err := image.SetupSeed(s.tsto, model, opts)
 	c.Assert(err, IsNil)
 
 	// check seed yaml
@@ -1061,10 +1049,8 @@ func (s *imageSuite) TestSetupSeedKernelPublisherMismatch(c *C) {
 		RootDir:         rootdir,
 		GadgetUnpackDir: gadgetUnpackDir,
 	}
-	local, err := image.LocalSnaps(s.tsto, opts)
-	c.Assert(err, IsNil)
 
-	err = image.SetupSeed(s.tsto, s.model, opts, local)
+	err := image.SetupSeed(s.tsto, s.model, opts)
 	c.Assert(err, ErrorMatches, `cannot use kernel "pc-kernel" published by "other" for model by "my-brand"`)
 }
 
@@ -1151,10 +1137,8 @@ func (s *imageSuite) TestSetupSeedLocalSnapsWithStoreAsserts(c *C) {
 		RootDir:         rootdir,
 		GadgetUnpackDir: gadgetUnpackDir,
 	}
-	local, err := image.LocalSnaps(s.tsto, opts)
-	c.Assert(err, IsNil)
 
-	err = image.SetupSeed(s.tsto, s.model, opts, local)
+	err := image.SetupSeed(s.tsto, s.model, opts)
 	c.Assert(err, IsNil)
 
 	// check seed yaml
@@ -1260,10 +1244,8 @@ func (s *imageSuite) TestSetupSeedLocalSnapsWithChannels(c *C) {
 			s.AssertedSnap("required-snap1"): "edge",
 		},
 	}
-	local, err := image.LocalSnaps(s.tsto, opts)
-	c.Assert(err, IsNil)
 
-	err = image.SetupSeed(s.tsto, s.model, opts, local)
+	err := image.SetupSeed(s.tsto, s.model, opts)
 	c.Assert(err, IsNil)
 
 	// check seed yaml
@@ -1461,10 +1443,8 @@ func (s *imageSuite) TestSetupSeedWithKernelAndGadgetTrack(c *C) {
 		GadgetUnpackDir: gadgetUnpackDir,
 		Channel:         "stable",
 	}
-	local, err := image.LocalSnaps(s.tsto, opts)
-	c.Assert(err, IsNil)
 
-	err = image.SetupSeed(s.tsto, model, opts, local)
+	err := image.SetupSeed(s.tsto, model, opts)
 	c.Assert(err, IsNil)
 
 	// check seed yaml
@@ -1534,10 +1514,8 @@ func (s *imageSuite) TestSetupSeedWithKernelTrackWithDefaultChannel(c *C) {
 		GadgetUnpackDir: gadgetUnpackDir,
 		Channel:         "edge",
 	}
-	local, err := image.LocalSnaps(s.tsto, opts)
-	c.Assert(err, IsNil)
 
-	err = image.SetupSeed(s.tsto, model, opts, local)
+	err := image.SetupSeed(s.tsto, model, opts)
 	c.Assert(err, IsNil)
 
 	// check seed yaml
@@ -1593,10 +1571,8 @@ func (s *imageSuite) TestSetupSeedWithKernelTrackOnLocalSnap(c *C) {
 		Snaps:           []string{kfn, cfn},
 		Channel:         "beta",
 	}
-	local, err := image.LocalSnaps(s.tsto, opts)
-	c.Assert(err, IsNil)
 
-	err = image.SetupSeed(s.tsto, model, opts, local)
+	err := image.SetupSeed(s.tsto, model, opts)
 	c.Assert(err, IsNil)
 
 	// check seed yaml
@@ -1648,10 +1624,8 @@ func (s *imageSuite) TestSetupSeedWithBaseAndLocalLegacyCoreOrdering(c *C) {
 			coreFn,
 		},
 	}
-	local, err := image.LocalSnaps(s.tsto, opts)
-	c.Assert(err, IsNil)
 
-	err = image.SetupSeed(s.tsto, model, opts, local)
+	err := image.SetupSeed(s.tsto, model, opts)
 	c.Assert(err, IsNil)
 
 	// check seed yaml
@@ -1723,10 +1697,8 @@ func (s *imageSuite) TestSetupSeedWithBaseAndLegacyCoreOrdering(c *C) {
 		RootDir:         rootdir,
 		GadgetUnpackDir: gadgetUnpackDir,
 	}
-	local, err := image.LocalSnaps(s.tsto, opts)
-	c.Assert(err, IsNil)
 
-	err = image.SetupSeed(s.tsto, model, opts, local)
+	err := image.SetupSeed(s.tsto, model, opts)
 	c.Assert(err, IsNil)
 
 	// check seed yaml
@@ -1797,9 +1769,8 @@ func (s *imageSuite) TestSetupSeedGadgetBaseModelBaseMismatch(c *C) {
 		RootDir:         rootdir,
 		GadgetUnpackDir: gadgetUnpackDir,
 	}
-	local, err := image.LocalSnaps(s.tsto, opts)
-	c.Assert(err, IsNil)
-	err = image.SetupSeed(s.tsto, model, opts, local)
+
+	err := image.SetupSeed(s.tsto, model, opts)
 	c.Assert(err, ErrorMatches, `cannot use gadget snap because its base "" is different from model base "core18"`)
 }
 
@@ -1825,9 +1796,8 @@ func (s *imageSuite) TestSetupSeedSnapReqBase(c *C) {
 		RootDir:         rootdir,
 		GadgetUnpackDir: gadgetUnpackDir,
 	}
-	local, err := image.LocalSnaps(s.tsto, opts)
-	c.Assert(err, IsNil)
-	err = image.SetupSeed(s.tsto, model, opts, local)
+
+	err := image.SetupSeed(s.tsto, model, opts)
 	c.Assert(err, ErrorMatches, `cannot add snap "snap-req-other-base" without also adding its base "other-base" explicitly`)
 }
 
@@ -1853,9 +1823,8 @@ func (s *imageSuite) TestSetupSeedBaseNone(c *C) {
 		RootDir:         rootdir,
 		GadgetUnpackDir: gadgetUnpackDir,
 	}
-	local, err := image.LocalSnaps(s.tsto, opts)
-	c.Assert(err, IsNil)
-	c.Assert(image.SetupSeed(s.tsto, model, opts, local), IsNil)
+
+	c.Assert(image.SetupSeed(s.tsto, model, opts), IsNil)
 }
 
 func (s *imageSuite) TestSetupSeedSnapCoreSatisfiesCore16(c *C) {
@@ -1880,9 +1849,8 @@ func (s *imageSuite) TestSetupSeedSnapCoreSatisfiesCore16(c *C) {
 		RootDir:         rootdir,
 		GadgetUnpackDir: gadgetUnpackDir,
 	}
-	local, err := image.LocalSnaps(s.tsto, opts)
-	c.Assert(err, IsNil)
-	err = image.SetupSeed(s.tsto, model, opts, local)
+
+	err := image.SetupSeed(s.tsto, model, opts)
 	c.Assert(err, IsNil)
 }
 
@@ -1907,9 +1875,8 @@ func (s *imageSuite) TestSetupSeedStoreAssertionMissing(c *C) {
 		RootDir:         rootdir,
 		GadgetUnpackDir: gadgetUnpackDir,
 	}
-	local, err := image.LocalSnaps(s.tsto, opts)
-	c.Assert(err, IsNil)
-	err = image.SetupSeed(s.tsto, model, opts, local)
+
+	err := image.SetupSeed(s.tsto, model, opts)
 	c.Assert(err, IsNil)
 }
 
@@ -1948,9 +1915,8 @@ func (s *imageSuite) TestSetupSeedStoreAssertionFetched(c *C) {
 		RootDir:         rootdir,
 		GadgetUnpackDir: gadgetUnpackDir,
 	}
-	local, err := image.LocalSnaps(s.tsto, opts)
-	c.Assert(err, IsNil)
-	err = image.SetupSeed(s.tsto, model, opts, local)
+
+	err = image.SetupSeed(s.tsto, model, opts)
 	c.Assert(err, IsNil)
 
 	// check the store assertion was fetched
@@ -1986,9 +1952,8 @@ func (s *imageSuite) TestSetupSeedSnapReqBaseFromLocal(c *C) {
 		GadgetUnpackDir: gadgetUnpackDir,
 		Snaps:           []string{bfn},
 	}
-	local, err := image.LocalSnaps(s.tsto, opts)
-	c.Assert(err, IsNil)
-	err = image.SetupSeed(s.tsto, model, opts, local)
+
+	err := image.SetupSeed(s.tsto, model, opts)
 	c.Assert(err, IsNil)
 }
 
@@ -2017,9 +1982,8 @@ func (s *imageSuite) TestSetupSeedSnapReqBaseFromExtraFails(c *C) {
 		GadgetUnpackDir: gadgetUnpackDir,
 		Snaps:           []string{bfn},
 	}
-	local, err := image.LocalSnaps(s.tsto, opts)
-	c.Assert(err, IsNil)
-	err = image.SetupSeed(s.tsto, model, opts, local)
+
+	err := image.SetupSeed(s.tsto, model, opts)
 	c.Check(err, ErrorMatches, `cannot add snap "snap-req-other-base" without also adding its base "other-base" explicitly`)
 }
 
@@ -2045,9 +2009,8 @@ func (s *imageSuite) TestSetupSeedMissingContentProvider(c *C) {
 		RootDir:         rootdir,
 		GadgetUnpackDir: gadgetUnpackDir,
 	}
-	local, err := image.LocalSnaps(s.tsto, opts)
-	c.Assert(err, IsNil)
-	err = image.SetupSeed(s.tsto, model, opts, local)
+
+	err := image.SetupSeed(s.tsto, model, opts)
 	c.Check(err, ErrorMatches, `cannot use snap "snap-req-content-provider" without its default content provider "gtk-common-themes" being added explicitly`)
 }
 
@@ -2072,10 +2035,8 @@ func (s *imageSuite) TestSetupSeedClassic(c *C) {
 		Classic: true,
 		RootDir: rootdir,
 	}
-	local, err := image.LocalSnaps(s.tsto, opts)
-	c.Assert(err, IsNil)
 
-	err = image.SetupSeed(s.tsto, model, opts, local)
+	err := image.SetupSeed(s.tsto, model, opts)
 	c.Assert(err, IsNil)
 
 	// check seed yaml
@@ -2142,10 +2103,8 @@ func (s *imageSuite) TestSetupSeedClassicWithLocalClassicSnap(c *C) {
 		Snaps:   []string{snapFile},
 		RootDir: rootdir,
 	}
-	local, err := image.LocalSnaps(s.tsto, opts)
-	c.Assert(err, IsNil)
 
-	err = image.SetupSeed(s.tsto, model, opts, local)
+	err := image.SetupSeed(s.tsto, model, opts)
 	c.Assert(err, IsNil)
 
 	// check seed yaml
@@ -2205,10 +2164,8 @@ func (s *imageSuite) TestSetupSeedClassicSnapdOnly(c *C) {
 		Classic: true,
 		RootDir: rootdir,
 	}
-	local, err := image.LocalSnaps(s.tsto, opts)
-	c.Assert(err, IsNil)
 
-	err = image.SetupSeed(s.tsto, model, opts, local)
+	err := image.SetupSeed(s.tsto, model, opts)
 	c.Assert(err, IsNil)
 
 	// check seed yaml
@@ -2269,10 +2226,8 @@ func (s *imageSuite) TestSetupSeedClassicNoSnaps(c *C) {
 		Classic: true,
 		RootDir: rootdir,
 	}
-	local, err := image.LocalSnaps(s.tsto, opts)
-	c.Assert(err, IsNil)
 
-	err = image.SetupSeed(s.tsto, model, opts, local)
+	err := image.SetupSeed(s.tsto, model, opts)
 	c.Assert(err, IsNil)
 
 	// check seed yaml
@@ -2319,10 +2274,8 @@ func (s *imageSuite) TestSetupSeedClassicSnapdOnlyMissingCore16(c *C) {
 		Classic: true,
 		RootDir: rootdir,
 	}
-	local, err := image.LocalSnaps(s.tsto, opts)
-	c.Assert(err, IsNil)
 
-	err = image.SetupSeed(s.tsto, model, opts, local)
+	err := image.SetupSeed(s.tsto, model, opts)
 	c.Assert(err, ErrorMatches, `cannot use "snap-req-core16-base" requiring base "core16" without adding "core16" \(or "core"\) explicitly`)
 }
 
@@ -2357,10 +2310,8 @@ func (s *imageSuite) TestSetupSeedLocalSnapd(c *C) {
 		RootDir:         rootdir,
 		GadgetUnpackDir: gadgetUnpackDir,
 	}
-	local, err := image.LocalSnaps(s.tsto, opts)
-	c.Assert(err, IsNil)
 
-	err = image.SetupSeed(s.tsto, model, opts, local)
+	err := image.SetupSeed(s.tsto, model, opts)
 	c.Assert(err, IsNil)
 	c.Assert(s.stdout.String(), Matches, `(?ms).*Copying ".*/snapd_3.14_all.snap" \(snapd\)`)
 }
