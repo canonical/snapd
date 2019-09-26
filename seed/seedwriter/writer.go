@@ -165,6 +165,10 @@ type tree interface {
 
 	// XXX might need to differentiate for local, extra snaps
 	snapsDir() string
+
+	writeAssertions(db asserts.RODatabase, modelRefs []*asserts.Ref, snapsFromModel []*SeedSnap) error
+
+	writeMeta(snapsFromModel []*SeedSnap) error
 }
 
 // New returns a Writer to write a seed for the given model and using
@@ -248,7 +252,6 @@ func (w *Writer) checkStep(thisStep writerStep) error {
 	}
 	w.expectedStep = thisStep + 1
 	return nil
-
 }
 
 func (w *Writer) Start(db asserts.RODatabase, newFetcher NewFetcherFunc) error {
@@ -495,6 +498,11 @@ func (w *Writer) WriteMeta() error {
 		return err
 	}
 
-	// XXX implement this
-	return nil
+	snapsFromModel := w.snapsFromModel
+
+	if err := w.tree.writeAssertions(w.db, w.modelRefs, snapsFromModel); err != nil {
+		return err
+	}
+
+	return w.tree.writeMeta(snapsFromModel)
 }
