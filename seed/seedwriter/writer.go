@@ -342,8 +342,9 @@ func (w *Writer) SetOptionsSnaps(optSnaps []*OptionSnap) error {
 		}
 		if local {
 			w.localSnaps = append(w.localSnaps, &SeedSnap{
-				SnapRef:    nil,
-				Path:       sn.Path,
+				SnapRef: nil,
+				Path:    sn.Path,
+
 				local:      true,
 				optionSnap: sn,
 			})
