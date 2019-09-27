@@ -88,6 +88,7 @@ var (
 	SnapUserServicesDir string
 	SnapSystemdConfDir  string
 	SnapDesktopFilesDir string
+	SnapDesktopIconsDir string
 	SnapBusPolicyDir    string
 
 	SystemApparmorDir      string
@@ -206,6 +207,16 @@ func isInsideBaseSnap() (bool, error) {
 	return err == nil, err
 }
 
+// SnapBlobDirUnder returns the path to the snap blob dir under rootdir.
+func SnapBlobDirUnder(rootdir string) string {
+	return filepath.Join(rootdir, snappyDir, "snaps")
+}
+
+// SnapSeedDirUnder returns the path to the snap seed dir under rootdir.
+func SnapSeedDirUnder(rootdir string) string {
+	return filepath.Join(rootdir, snappyDir, "seed")
+}
+
 // SetRootDir allows settings a new global root directory, this is useful
 // for e.g. chroot operations
 func SetRootDir(rootdir string) {
@@ -231,8 +242,12 @@ func SetRootDir(rootdir string) {
 	SnapSeccompDir = filepath.Join(rootdir, snappyDir, "seccomp", "bpf")
 	SnapMountPolicyDir = filepath.Join(rootdir, snappyDir, "mount")
 	SnapMetaDir = filepath.Join(rootdir, snappyDir, "meta")
-	SnapBlobDir = filepath.Join(rootdir, snappyDir, "snaps")
+	SnapBlobDir = SnapBlobDirUnder(rootdir)
+	// ${snappyDir}/desktop is added to $XDG_DATA_DIRS.
+	// Subdirectories are interpreted according to the relevant
+	// freedesktop.org specifications
 	SnapDesktopFilesDir = filepath.Join(rootdir, snappyDir, "desktop", "applications")
+	SnapDesktopIconsDir = filepath.Join(rootdir, snappyDir, "desktop", "icons")
 	SnapRunDir = filepath.Join(rootdir, "/run/snapd")
 	SnapRunNsDir = filepath.Join(SnapRunDir, "/ns")
 	SnapRunLockDir = filepath.Join(SnapRunDir, "/lock")
@@ -255,7 +270,7 @@ func SetRootDir(rootdir string) {
 	SnapCommandsDB = filepath.Join(SnapCacheDir, "commands.db")
 	SnapAuxStoreInfoDir = filepath.Join(SnapCacheDir, "aux")
 
-	SnapSeedDir = filepath.Join(rootdir, snappyDir, "seed")
+	SnapSeedDir = SnapSeedDirUnder(rootdir)
 	SnapDeviceDir = filepath.Join(rootdir, snappyDir, "device")
 
 	SnapRepairDir = filepath.Join(rootdir, snappyDir, "repair")

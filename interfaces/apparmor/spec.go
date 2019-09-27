@@ -156,6 +156,7 @@ func (spec *Specification) AddLayout(si *snap.Info) {
 			bind := si.ExpandSnapVariables(l.Bind)
 			// Allow bind mounting the layout element.
 			fmt.Fprintf(&buf, "  mount options=(rbind, rw) %s/ -> %s/,\n", bind, path)
+			fmt.Fprintf(&buf, "  mount options=(rprivate) -> %s/,\n", path)
 			fmt.Fprintf(&buf, "  umount %s/,\n", path)
 			// Allow constructing writable mimic in both bind-mount source and mount point.
 			WritableProfile(&buf, path, 2) // At least / and /some-top-level-directory
@@ -164,12 +165,14 @@ func (spec *Specification) AddLayout(si *snap.Info) {
 			bindFile := si.ExpandSnapVariables(l.BindFile)
 			// Allow bind mounting the layout element.
 			fmt.Fprintf(&buf, "  mount options=(bind, rw) %s -> %s,\n", bindFile, path)
+			fmt.Fprintf(&buf, "  mount options=(rprivate) -> %s,\n", path)
 			fmt.Fprintf(&buf, "  umount %s,\n", path)
 			// Allow constructing writable mimic in both bind-mount source and mount point.
 			WritableFileProfile(&buf, path, 2)     // At least / and /some-top-level-directory
 			WritableFileProfile(&buf, bindFile, 4) // At least /, /snap/, /snap/$SNAP_NAME and /snap/$SNAP_NAME/$SNAP_REVISION
 		case l.Type == "tmpfs":
 			fmt.Fprintf(&buf, "  mount fstype=tmpfs tmpfs -> %s/,\n", path)
+			fmt.Fprintf(&buf, "  mount options=(rprivate) -> %s/,\n", path)
 			fmt.Fprintf(&buf, "  umount %s/,\n", path)
 			// Allow constructing writable mimic to mount point.
 			WritableProfile(&buf, path, 2) // At least / and /some-top-level-directory
@@ -264,10 +267,14 @@ func WritableMimicProfile(buf *bytes.Buffer, path string, assumedPrefixDepth int
 		fmt.Fprintf(buf, "  mount options=(bind, rw) %s* -> %s*,\n", mimicAuxPath, mimicPath)
 		fmt.Fprintf(buf, "  # Allow unmounting the auxiliary directory.\n"+
 			"  # TODO: use fstype=tmpfs here for more strictness (LP: #1613403)\n")
+		fmt.Fprintf(buf, "  mount options=(rprivate) -> %s,\n", mimicAuxPath)
 		fmt.Fprintf(buf, "  umount %s,\n", mimicAuxPath)
 		fmt.Fprintf(buf, "  # Allow unmounting the destination directory as well as anything\n"+
 			"  # inside.  This lets us perform the undo plan in case the writable\n"+
 			"  # mimic fails.\n")
+		fmt.Fprintf(buf, "  mount options=(rprivate) -> %s,\n", mimicPath)
+		fmt.Fprintf(buf, "  mount options=(rprivate) -> %s*,\n", mimicPath)
+		fmt.Fprintf(buf, "  mount options=(rprivate) -> %s*/,\n", mimicPath)
 		fmt.Fprintf(buf, "  umount %s,\n", mimicPath)
 		fmt.Fprintf(buf, "  umount %s*,\n", mimicPath)
 		fmt.Fprintf(buf, "  umount %s*/,\n", mimicPath)

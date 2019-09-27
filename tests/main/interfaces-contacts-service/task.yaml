@@ -3,8 +3,9 @@ summary: Ensure that the contacts-service interface works
 # Only test on classic systems.  Don't test on Ubuntu 14.04, which
 # does not ship a new enough evolution-data-server.
 # amazon: no need to run this on amazon
-# ubuntu-19.10-64: pending fix for this test coming on a following change
-systems: [-ubuntu-core-*, -ubuntu-14.04-*, -amazon-*, -centos-*, -ubuntu-19.10-64]
+# ubuntu-19.10: test-snapd-eds is incompatible with eds shipped with the distro
+# arch-linux: test-snapd-eds is incompatible with eds version shipped with the distro
+systems: [-ubuntu-core-*, -ubuntu-14.04-*, -amazon-*, -centos-*, -ubuntu-19.10-*, -arch-linux-*]
 
 # fails in autopkgtest environment with:
 # [Wed Aug 15 16:08:23 2018] audit: type=1400
@@ -24,19 +25,15 @@ environment:
 debug: |
     echo "Output process to see what might write to $XDG"
     ps uafx
+    echo "Output dbus-session"
+    systemctl status dbus-session || true
     echo "Show what is in $XDG"
     ls -alR "$XDG"
 
 restore: |
-    if [ -e dbus-launch.pid ]; then
-        kill "$(cat dbus-launch.pid)"
-    fi
-
-    # In case the process gvfsd-metadata does not finish by itself, it is manually stopped
-    # The reason is that gvfsd-metadata locks the xdg/share/gvfs-metadata directory content
-    # producing an error when the xdg directory is removed.
-    if pid="$(pidof gvfsd-metadata)"; then
-        kill -9 "$pid" || true
+    echo "Stop dbus session bus and all its children"
+    if systemctl is-active dbus-session; then
+        systemctl stop dbus-session
     fi
     rm -rf "$XDG"
 
@@ -51,9 +48,10 @@ execute: |
     fi
     mkdir -p "$XDG_CONFIG_HOME" "$XDG_DATA_HOME" "$XDG_CACHE_HOME"
 
-    echo "Setting up D-Bus session bus"
-    eval "$(dbus-launch --sh-syntax)"
-    echo "$DBUS_SESSION_BUS_PID" > dbus-launch.pid
+    echo "Setting up D-Bus session bus in a systemd unit"
+    systemd-run --unit=dbus-session --property=Type=forking -r /bin/sh -c "XDG_CONFIG_HOME=$XDG_CONFIG_HOME XDG_DATA_HOME=$XDG_DATA_HOME XDG_CACHE_HOME=$XDG_CACHE_HOME dbus-launch --sh-syntax > /tmp/dbus-sh"
+    retry-tool -n 20 test -e /tmp/dbus-sh
+    eval "$(cat /tmp/dbus-sh)"
 
     echo "The interface is initially disconnected"
     snap interfaces -i contacts-service | MATCH -- '- +test-snapd-eds:contacts-service'

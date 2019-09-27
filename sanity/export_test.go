@@ -24,6 +24,7 @@ var (
 	CheckKernelVersion  = checkKernelVersion
 	CheckApparmorUsable = checkApparmorUsable
 	CheckWSL            = checkWSL
+	CheckCgroup         = checkCgroup
 
 	CheckFuse = firstCheckFuse
 )

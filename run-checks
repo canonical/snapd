@@ -158,7 +158,7 @@ if [ "$STATIC" = 1 ]; then
     echo Checking formatting
     fmt=""
     for dir in $(go list -f '{{.Dir}}' ./... | grep -v '/vendor/' ); do
-        s="$(gofmt -s -l "$dir" | grep -v /vendor/ || true)"
+        s="$(${GOFMT:-gofmt} -s -l -d "$dir" | grep -v /vendor/ || true)"
         if [ -n "$s" ]; then
             fmt="$s\\n$fmt"
         fi
@@ -167,7 +167,11 @@ if [ "$STATIC" = 1 ]; then
     if [ -n "$fmt" ]; then
         echo "Formatting wrong in following files:"
         echo "$fmt" | sed -e 's/\\n/\n/g'
-        exit 1
+        if [ -z "${SKIP_GOFMT:-}" ]; then
+            exit 1
+        else
+            echo "Ignoring gofmt errors as requested"
+        fi
     fi
 
     # go vet
