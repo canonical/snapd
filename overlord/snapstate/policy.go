@@ -12,10 +12,8 @@ import (
 // looking at type, model, etc, we move it to Policy and look it up.
 type Policy interface {
 	// CanRemove verifies that a snap can be removed.
-	//
-	// TODO: CanRemove should also return the reason why the snap cannot
-	//       be removed to the user
-	CanRemove(st *state.State, snapst *SnapState, allRevisions bool) bool
+	// If rev is not unset, check for removing only that revision.
+	CanRemove(st *state.State, snapst *SnapState, rev snap.Revision) error
 }
 
 var PolicyFor func(snap.Type, *asserts.Model) Policy = policyForUnset

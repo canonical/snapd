@@ -24,50 +24,59 @@ import (
 	"github.com/snapcore/snapd/overlord/snapstate"
 	"github.com/snapcore/snapd/overlord/state"
 	"github.com/snapcore/snapd/snap"
-	"github.com/snapcore/snapd/strutil"
 )
 
-type basePolicy struct{}
+type basePolicy struct {
+	modelBase string
+}
 
-func (basePolicy) CanRemove(st *state.State, snapst *snapstate.SnapState, all bool) bool {
+func (p *basePolicy) CanRemove(st *state.State, snapst *snapstate.SnapState, rev snap.Revision) error {
 	name := snapst.InstanceName()
 	if name == "" {
 		// not installed, or something. What are you even trying to do.
-		return false
+		return errNoName
 	}
 
-	if boot.InUse(name, snapst.Current) {
-		return false
+	if !rev.Unset() {
+		if boot.InUse(name, rev) {
+			return errInUseForBoot
+		}
+		return nil
 	}
 
-	if !all {
-		return true
+	if p.modelBase == name {
+		return errIsModel
 	}
 
 	// a core system could have core18 required in the model due to dependencies for ex
 	if snapst.Required {
-		return false
+		return errRequired
 	}
 
 	// here we use that bases can't be instantiated (InstanceName == SnapName always)
-	return !baseInUse(st, name, "")
+	usedBy, err := baseUsedBy(st, name)
+	if len(usedBy) == 0 || err != nil {
+		return err
+	}
+	return inUseByErr(usedBy)
 }
 
-func baseInUse(st *state.State, baseName string, altName string) bool {
+func baseUsedBy(st *state.State, baseName string) ([]string, error) {
 	snapStates, err := snapstate.All(st)
 	if err != nil {
-		// on error, assume it's in use
-		// (note snapstate.All doesn't currently return ErrNoState)
-		return err != state.ErrNoState
+		// note snapstate.All doesn't currently return ErrNoState
+		return nil, err
 	}
-	baseNames := []string{baseName}
-	if altName != "" {
-		if snapst, ok := snapStates[altName]; !ok || !snapst.IsInstalled() {
+	alsoCore16 := false
+	if baseName == "" {
+		// core -> core16 aliasing
+		if snapst, ok := snapStates["core16"]; !ok || !snapst.IsInstalled() {
 			// this base is not installed
-			baseNames = append(baseNames, altName)
+			alsoCore16 = true
 		}
 	}
 
+	var usedBy []string
 	for name, snapst := range snapStates {
 		if typ, err := snapst.Type(); err == nil && typ != snap.TypeApp && typ != snap.TypeGadget {
 			continue
@@ -82,12 +91,13 @@ func baseInUse(st *state.State, baseName string, altName string) bool {
 				if typ := snapInfo.GetType(); typ != snap.TypeApp && typ != snap.TypeGadget {
 					continue
 				}
-				if !strutil.ListContains(baseNames, snapInfo.Base) {
+				if baseName != snapInfo.Base && !(alsoCore16 && snapInfo.Base == "core16") {
 					continue
 				}
 			}
-			return true
+			usedBy = append(usedBy, snapInfo.InstanceName())
+			break
 		}
 	}
-	return false
+	return usedBy, nil
 }

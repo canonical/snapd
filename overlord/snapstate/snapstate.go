@@ -1675,8 +1675,13 @@ func canDisable(si *snap.Info) bool {
 //
 // TODO: canRemove should also return the reason why the snap cannot
 //       be removed to the user
-func canRemove(st *state.State, si *snap.Info, snapst *SnapState, removeAll bool, deviceCtx DeviceContext) bool {
-	return PolicyFor(si.GetType(), deviceCtx.Model()).CanRemove(st, snapst, removeAll)
+func canRemove(st *state.State, si *snap.Info, snapst *SnapState, removeAll bool, deviceCtx DeviceContext) error {
+	rev := snap.Revision{}
+	if !removeAll {
+		rev = si.Revision
+	}
+
+	return PolicyFor(si.GetType(), deviceCtx.Model()).CanRemove(st, snapst, rev)
 }
 
 // RemoveFlags are used to pass additional flags to the Remove operation.
@@ -1737,8 +1742,8 @@ func Remove(st *state.State, name string, revision snap.Revision, flags *RemoveF
 	}
 
 	// check if this is something that can be removed
-	if !canRemove(st, info, &snapst, removeAll, deviceCtx) {
-		return nil, fmt.Errorf("snap %q is not removable", name)
+	if err := canRemove(st, info, &snapst, removeAll, deviceCtx); err != nil {
+		return nil, fmt.Errorf("snap %q is not removable: %v", name, err)
 	}
 
 	// main/current SnapSetup

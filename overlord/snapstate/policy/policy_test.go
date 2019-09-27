@@ -21,8 +21,8 @@ var _ = check.Suite(&policySuite{})
 func (s *policySuite) TestFor(c *check.C) {
 	for typ, pol := range map[snap.Type]snapstate.Policy{
 		snap.TypeApp:    policy.NewAppPolicy(),
-		snap.TypeBase:   policy.NewBasePolicy(),
-		snap.TypeGadget: policy.NewGadgetPolicy(),
+		snap.TypeBase:   policy.NewBasePolicy(""),
+		snap.TypeGadget: policy.NewGadgetPolicy(""),
 		snap.TypeKernel: policy.NewKernelPolicy(""),
 		snap.TypeOS:     policy.NewOSPolicy(""),
 	} {

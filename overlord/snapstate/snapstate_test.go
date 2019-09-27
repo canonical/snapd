@@ -37,8 +37,6 @@ import (
 	"gopkg.in/tomb.v2"
 
 	"github.com/snapcore/snapd/asserts"
-	"github.com/snapcore/snapd/bootloader"
-	"github.com/snapcore/snapd/bootloader/bootloadertest"
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/gadget"
 	"github.com/snapcore/snapd/interfaces"
@@ -7832,44 +7830,44 @@ func (s *snapmgrTestSuite) TestRemoveMissingRevisionRefused(c *C) {
 
 func (s *snapmgrTestSuite) TestRemoveRefused(c *C) {
 	si := snap.SideInfo{
-		RealName: "gadget",
+		RealName: "brand-gadget",
 		Revision: snap.R(7),
 	}
 
 	s.state.Lock()
 	defer s.state.Unlock()
 
-	snapstate.Set(s.state, "gadget", &snapstate.SnapState{
+	snapstate.Set(s.state, "brand-gadget", &snapstate.SnapState{
 		Active:   true,
 		Sequence: []*snap.SideInfo{&si},
 		Current:  si.Revision,
-		SnapType: "app",
+		SnapType: "gadget",
 	})
 
-	_, err := snapstate.Remove(s.state, "gadget", snap.R(0), nil)
+	_, err := snapstate.Remove(s.state, "brand-gadget", snap.R(0), nil)
 
-	c.Check(err, ErrorMatches, `snap "gadget" is not removable`)
+	c.Check(err, ErrorMatches, `snap "brand-gadget" is not removable: snap is used by the model`)
 }
 
 func (s *snapmgrTestSuite) TestRemoveRefusedLastRevision(c *C) {
 	si := snap.SideInfo{
-		RealName: "gadget",
+		RealName: "brand-gadget",
 		Revision: snap.R(7),
 	}
 
 	s.state.Lock()
 	defer s.state.Unlock()
 
-	snapstate.Set(s.state, "gadget", &snapstate.SnapState{
+	snapstate.Set(s.state, "brand-gadget", &snapstate.SnapState{
 		Active:   false,
 		Sequence: []*snap.SideInfo{&si},
 		Current:  si.Revision,
-		SnapType: "app",
+		SnapType: "gadget",
 	})
 
-	_, err := snapstate.Remove(s.state, "gadget", snap.R(7), nil)
+	_, err := snapstate.Remove(s.state, "brand-gadget", snap.R(7), nil)
 
-	c.Check(err, ErrorMatches, `snap "gadget" is not removable`)
+	c.Check(err, ErrorMatches, `snap "brand-gadget" is not removable: snap is used by the model`)
 }
 
 func (s *snapmgrTestSuite) TestRemoveDeletesConfigOnLastRevision(c *C) {
@@ -10967,312 +10965,6 @@ func (snapStateSuite) TestDefaultContentPlugProviders(c *C) {
 	providers := snapstate.DefaultContentPlugProviders(st, info)
 	sort.Strings(providers)
 	c.Check(providers, DeepEquals, []string{"common-themes", "some-snap"})
-}
-
-type canRemoveSuite struct {
-	st        *state.State
-	deviceCtx snapstate.DeviceContext
-
-	bootloader *bootloadertest.MockBootloader
-}
-
-var _ = Suite(&canRemoveSuite{})
-
-func (s *canRemoveSuite) SetUpTest(c *C) {
-	dirs.SetRootDir(c.MkDir())
-	s.st = state.New(nil)
-	s.deviceCtx = &snapstatetest.TrivialDeviceContext{DeviceModel: DefaultModel()}
-
-	s.bootloader = bootloadertest.Mock("mock", c.MkDir())
-	bootloader.Force(s.bootloader)
-}
-
-func (s *canRemoveSuite) TearDownTest(c *C) {
-	dirs.SetRootDir("/")
-	bootloader.Force(nil)
-}
-
-func (s *canRemoveSuite) TestAppAreAlwaysOKToRemove(c *C) {
-	info := &snap.Info{
-		SnapType: snap.TypeApp,
-	}
-	info.RealName = "foo"
-
-	c.Check(snapstate.CanRemove(s.st, info, &snapstate.SnapState{Active: true}, false, s.deviceCtx), Equals, true)
-	c.Check(snapstate.CanRemove(s.st, info, &snapstate.SnapState{Active: true}, true, s.deviceCtx), Equals, true)
-}
-
-func (s *canRemoveSuite) TestLastGadgetsAreNotOK(c *C) {
-	info := &snap.Info{
-		SnapType: snap.TypeGadget,
-	}
-	info.RealName = "foo"
-
-	c.Check(snapstate.CanRemove(s.st, info, &snapstate.SnapState{}, true, s.deviceCtx), Equals, false)
-}
-
-func (s *canRemoveSuite) TestLastOSAndKernelAreNotOK(c *C) {
-	os := &snap.Info{
-		SnapType: snap.TypeOS,
-		SideInfo: snap.SideInfo{
-			Revision: snap.R(1),
-			RealName: "os",
-		},
-	}
-	snapst := &snapstate.SnapState{
-		Current:  os.SideInfo.Revision,
-		Sequence: []*snap.SideInfo{&os.SideInfo},
-	}
-
-	c.Check(snapstate.CanRemove(s.st, os, snapst, true, s.deviceCtx), Equals, false)
-
-	kernel := &snap.Info{
-		SnapType: snap.TypeKernel,
-		SideInfo: snap.SideInfo{
-			RealName: "kernel",
-			Revision: snap.R(1),
-		},
-	}
-	// this kernel part of the model
-	snapst.Sequence[0] = &kernel.SideInfo
-
-	c.Check(snapstate.CanRemove(s.st, kernel, snapst, true, s.deviceCtx), Equals, false)
-}
-
-func (s *canRemoveSuite) TestKernelBootInUseIsKept(c *C) {
-	kernel := &snap.Info{
-		SnapType: snap.TypeKernel,
-		SideInfo: snap.SideInfo{
-			Revision: snap.R(3),
-			RealName: "kernel",
-		},
-	}
-	snapst := &snapstate.SnapState{
-		Current:  kernel.SideInfo.Revision,
-		Sequence: []*snap.SideInfo{&kernel.SideInfo},
-	}
-
-	s.bootloader.SetBootKernel(fmt.Sprintf("%s_%s.snap", kernel.RealName, kernel.SideInfo.Revision))
-
-	removeAll := false
-	c.Check(snapstate.CanRemove(s.st, kernel, snapst, removeAll, s.deviceCtx), Equals, false)
-}
-
-func (s *canRemoveSuite) TestOstInUseIsKept(c *C) {
-	base := &snap.Info{
-		SnapType: snap.TypeBase,
-		SideInfo: snap.SideInfo{
-			Revision: snap.R(3),
-			RealName: "core18",
-		},
-	}
-	snapst := &snapstate.SnapState{
-		Current:  base.SideInfo.Revision,
-		Sequence: []*snap.SideInfo{&base.SideInfo},
-	}
-
-	s.bootloader.SetBootBase(fmt.Sprintf("%s_%s.snap", base.RealName, base.SideInfo.Revision))
-
-	removeAll := false
-	c.Check(snapstate.CanRemove(s.st, base, snapst, removeAll, s.deviceCtx), Equals, false)
-}
-
-func (s *canRemoveSuite) TestRemoveNonModelKernelIsOk(c *C) {
-	kernel := &snap.Info{
-		SnapType: snap.TypeKernel,
-		SideInfo: snap.SideInfo{
-			Revision: snap.R(1),
-			RealName: "other-non-model-kernel",
-		},
-	}
-	snapst := &snapstate.SnapState{
-		Current:  kernel.SideInfo.Revision,
-		Sequence: []*snap.SideInfo{&kernel.SideInfo},
-	}
-
-	c.Check(snapstate.CanRemove(s.st, kernel, snapst, true, s.deviceCtx), Equals, true)
-}
-
-func (s *canRemoveSuite) TestRemoveNonModelKernelStillInUseNotOk(c *C) {
-	kernel := &snap.Info{
-		SnapType: snap.TypeKernel,
-		SideInfo: snap.SideInfo{
-			Revision: snap.R(2),
-			RealName: "other-non-model-kernel",
-		},
-	}
-	snapst := &snapstate.SnapState{
-		Current:  kernel.SideInfo.Revision,
-		Sequence: []*snap.SideInfo{&kernel.SideInfo},
-	}
-
-	s.bootloader.SetBootKernel(fmt.Sprintf("%s_%s.snap", kernel.RealName, kernel.SideInfo.Revision))
-
-	c.Check(snapstate.CanRemove(s.st, kernel, snapst, true, s.deviceCtx), Equals, false)
-}
-
-func (s *canRemoveSuite) TestLastOSWithModelBaseIsOk(c *C) {
-	s.st.Lock()
-	defer s.st.Unlock()
-
-	deviceCtx := &snapstatetest.TrivialDeviceContext{DeviceModel: ModelWithBase("core18")}
-	os := &snap.Info{
-		SnapType: snap.TypeOS,
-		SideInfo: snap.SideInfo{
-			Revision: snap.R(1),
-			RealName: "os",
-		},
-	}
-	snapst := &snapstate.SnapState{
-		Current:  os.SideInfo.Revision,
-		Sequence: []*snap.SideInfo{&os.SideInfo},
-	}
-
-	c.Check(snapstate.CanRemove(s.st, os, snapst, true, deviceCtx), Equals, true)
-}
-
-func (s *canRemoveSuite) TestLastOSWithModelBaseButOsInUse(c *C) {
-	s.st.Lock()
-	defer s.st.Unlock()
-
-	deviceCtx := &snapstatetest.TrivialDeviceContext{DeviceModel: ModelWithBase("core18")}
-
-	// pretend we have a snap installed that has no base (which means
-	// it needs core)
-	si := &snap.SideInfo{RealName: "some-snap", SnapID: "some-snap-id", Revision: snap.R(1)}
-	snaptest.MockSnap(c, "name: some-snap\nversion: 1.0", si)
-	snapstate.Set(s.st, "some-snap", &snapstate.SnapState{
-		Active:   true,
-		Sequence: []*snap.SideInfo{si},
-		Current:  snap.R(1),
-	})
-
-	// now pretend we want to remove the core snap
-	os := &snap.Info{
-		SnapType: snap.TypeOS,
-		SideInfo: snap.SideInfo{
-			Revision: snap.R(1),
-			RealName: "core",
-		},
-	}
-	snapst := &snapstate.SnapState{
-		Current:  os.SideInfo.Revision,
-		Sequence: []*snap.SideInfo{&os.SideInfo},
-	}
-	c.Check(snapstate.CanRemove(s.st, os, snapst, true, deviceCtx), Equals, false)
-}
-
-func (s *canRemoveSuite) TestOneRevisionIsOK(c *C) {
-	info := &snap.Info{
-		SnapType: snap.TypeGadget,
-	}
-	info.RealName = "foo"
-
-	c.Check(snapstate.CanRemove(s.st, info, &snapstate.SnapState{Active: true}, false, s.deviceCtx), Equals, true)
-}
-
-func (s *canRemoveSuite) TestRequiredIsNotOK(c *C) {
-	info := &snap.Info{
-		SnapType: snap.TypeApp,
-	}
-	info.RealName = "foo"
-
-	c.Check(snapstate.CanRemove(s.st, info, &snapstate.SnapState{Active: false, Flags: snapstate.Flags{Required: true}}, true, s.deviceCtx), Equals, false)
-	c.Check(snapstate.CanRemove(s.st, info, &snapstate.SnapState{Active: true, Flags: snapstate.Flags{Required: true}}, true, s.deviceCtx), Equals, false)
-	c.Check(snapstate.CanRemove(s.st, info, &snapstate.SnapState{Active: true, Flags: snapstate.Flags{Required: true}}, false, s.deviceCtx), Equals, true)
-}
-
-func (s *canRemoveSuite) TestBaseUnused(c *C) {
-	s.st.Lock()
-	defer s.st.Unlock()
-
-	info := &snap.Info{
-		SnapType: snap.TypeBase,
-		SideInfo: snap.SideInfo{
-			Revision: snap.R(1),
-			RealName: "some-base",
-		},
-	}
-	snapst := &snapstate.SnapState{
-		Current:  info.SideInfo.Revision,
-		Sequence: []*snap.SideInfo{&info.SideInfo},
-	}
-
-	c.Check(snapstate.CanRemove(s.st, info, snapst, false, s.deviceCtx), Equals, true)
-	c.Check(snapstate.CanRemove(s.st, info, snapst, true, s.deviceCtx), Equals, true)
-}
-
-func (s *canRemoveSuite) TestBaseInUse(c *C) {
-	s.st.Lock()
-	defer s.st.Unlock()
-
-	// pretend we have a snap installed that uses "some-base"
-	si := &snap.SideInfo{RealName: "some-snap", SnapID: "some-snap-id", Revision: snap.R(1)}
-	snaptest.MockSnap(c, "name: some-snap\nversion: 1.0\nbase: some-base", si)
-	snapstate.Set(s.st, "some-snap", &snapstate.SnapState{
-		Active:   true,
-		Sequence: []*snap.SideInfo{si},
-		Current:  snap.R(1),
-	})
-
-	// pretend now we want to remove "some-base"
-	info := &snap.Info{
-		SnapType: snap.TypeBase,
-		SideInfo: snap.SideInfo{
-			Revision: snap.R(1),
-			RealName: "some-base",
-		},
-	}
-	snapst := &snapstate.SnapState{
-		Current:  info.SideInfo.Revision,
-		Sequence: []*snap.SideInfo{&info.SideInfo},
-	}
-	c.Check(snapstate.CanRemove(s.st, info, snapst, true, s.deviceCtx), Equals, false)
-}
-
-func (s *canRemoveSuite) TestBaseInUseOtherRevision(c *C) {
-	s.st.Lock()
-	defer s.st.Unlock()
-
-	// pretend we have a snap installed that uses "some-base"
-	si := &snap.SideInfo{RealName: "some-snap", SnapID: "some-snap-id", Revision: snap.R(1)}
-	si2 := &snap.SideInfo{RealName: "some-snap", SnapID: "some-snap-id", Revision: snap.R(2)}
-	// older revision uses base
-	snaptest.MockSnap(c, "name: some-snap\nversion: 1.0\nbase: some-base", si)
-	// new one does not
-	snaptest.MockSnap(c, "name: some-snap\nversion: 1.0\n", si2)
-	snapstate.Set(s.st, "some-snap", &snapstate.SnapState{
-		Active:   true,
-		Sequence: []*snap.SideInfo{si, si2},
-		Current:  snap.R(2),
-	})
-
-	// pretend now we want to remove "some-base"
-	info := &snap.Info{
-		SnapType: snap.TypeBase,
-		SideInfo: snap.SideInfo{
-			Revision: snap.R(1),
-			RealName: "some-base",
-		},
-	}
-	snapst := &snapstate.SnapState{
-		Current:  info.SideInfo.Revision,
-		Sequence: []*snap.SideInfo{&info.SideInfo},
-	}
-	// revision 1 requires some-base
-	c.Check(snapstate.CanRemove(s.st, info, snapst, true, s.deviceCtx), Equals, false)
-
-	// now pretend we want to remove the core snap
-	os := &snap.Info{
-		SnapType: snap.TypeOS,
-		SideInfo: snap.SideInfo{
-			Revision: snap.R(1),
-			RealName: "core",
-		},
-	}
-	snapst.Sequence[0] = &os.SideInfo
-	// but revision 2 requires core
-	c.Check(snapstate.CanRemove(s.st, os, snapst, true, s.deviceCtx), Equals, false)
 }
 
 func revs(seq []*snap.SideInfo) []int {

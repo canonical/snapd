@@ -36,11 +36,11 @@ func For(typ snap.Type, model *asserts.Model) snapstate.Policy {
 	case snap.TypeKernel:
 		return &kernelPolicy{modelKernel: model.Kernel()}
 	case snap.TypeGadget:
-		return gadgetPolicy{}
+		return &gadgetPolicy{modelGadget: model.Gadget()}
 	case snap.TypeOS:
 		return &osPolicy{modelBase: model.Base()}
 	case snap.TypeBase:
-		return basePolicy{}
+		return &basePolicy{modelBase: model.Base()}
 	default:
 		return appPolicy{}
 	}
@@ -48,10 +48,14 @@ func For(typ snap.Type, model *asserts.Model) snapstate.Policy {
 
 type appPolicy struct{}
 
-func (appPolicy) CanRemove(_ *state.State, snapst *snapstate.SnapState, all bool) bool {
-	if !all {
-		return true
+func (appPolicy) CanRemove(_ *state.State, snapst *snapstate.SnapState, rev snap.Revision) error {
+	if !rev.Unset() {
+		return nil
 	}
 
-	return !snapst.Required
+	if snapst.Required {
+		return errRequired
+	}
+
+	return nil
 }

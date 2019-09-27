@@ -23,39 +23,43 @@ import (
 	"github.com/snapcore/snapd/boot"
 	"github.com/snapcore/snapd/overlord/snapstate"
 	"github.com/snapcore/snapd/overlord/state"
+	"github.com/snapcore/snapd/snap"
 )
 
 type osPolicy struct {
 	modelBase string
 }
 
-func (p *osPolicy) CanRemove(st *state.State, snapst *snapstate.SnapState, all bool) bool {
+func (p *osPolicy) CanRemove(st *state.State, snapst *snapstate.SnapState, rev snap.Revision) error {
 	name := snapst.InstanceName()
 	if name == "" {
 		// not installed, or something. What are you even trying to do.
-		return false
+		return errNoName
 	}
 
-	if boot.InUse(name, snapst.Current) {
-		return false
+	if !rev.Unset() {
+		if boot.InUse(name, rev) {
+			return errInUseForBoot
+		}
+		return nil
 	}
 
-	if !all {
-		return true
+	if name == "ubuntu-core" {
+		return nil
+	}
+
+	if p.modelBase == "" {
+		return errIsModel
 	}
 
 	// a core18 system could have core required in the model due to dependencies for ex
 	if snapst.Required {
-		return false
+		return errRequired
 	}
 
-	if name == "ubuntu-core" {
-		return true
+	usedBy, err := baseUsedBy(st, "")
+	if len(usedBy) == 0 || err != nil {
+		return err
 	}
-
-	if p.modelBase == "" {
-		return false
-	}
-
-	return !baseInUse(st, "", "core16")
+	return inUseByErr(usedBy)
 }

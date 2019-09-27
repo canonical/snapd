@@ -20,29 +20,27 @@
 package policy
 
 import (
-	"github.com/snapcore/snapd/overlord/snapstate"
-	"github.com/snapcore/snapd/overlord/state"
-	"github.com/snapcore/snapd/snap"
+	"errors"
+	"strings"
 )
 
-type gadgetPolicy struct {
-	modelGadget string
-}
+var (
+	errNoName       = errors.New("snap has no name (not installed?)")
+	errInUseForBoot = errors.New("snap is being used for boot")
+	errRequired     = errors.New("snap is required")
+	errIsModel      = errors.New("snap is used by the model")
+)
 
-func (p *gadgetPolicy) CanRemove(st *state.State, snapst *snapstate.SnapState, rev snap.Revision) error {
-	name := snapst.InstanceName()
-	if name == "" {
-		// not installed, or something. What are you even trying to do.
-		return errNoName
+type inUseByErr []string
+
+func (e inUseByErr) Error() string {
+	switch len(e) {
+	case 0:
+		// how
+		return "snap is being used"
+	case 1:
+		return "snap is being used by snap " + e[0]
+	default:
+		return "snap is being used by snaps " + strings.Join(e[:len(e)-1], ", ") + " and " + e[len(e)-1]
 	}
-
-	if !rev.Unset() {
-		return nil
-	}
-
-	if p.modelGadget == name {
-		return errIsModel
-	}
-
-	return nil
 }

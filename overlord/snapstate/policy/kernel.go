@@ -23,26 +23,30 @@ import (
 	"github.com/snapcore/snapd/boot"
 	"github.com/snapcore/snapd/overlord/snapstate"
 	"github.com/snapcore/snapd/overlord/state"
+	"github.com/snapcore/snapd/snap"
 )
 
 type kernelPolicy struct {
 	modelKernel string
 }
 
-func (p *kernelPolicy) CanRemove(_ *state.State, snapst *snapstate.SnapState, all bool) bool {
+func (p *kernelPolicy) CanRemove(_ *state.State, snapst *snapstate.SnapState, rev snap.Revision) error {
 	name := snapst.InstanceName()
 	if name == "" {
 		// not installed, or something. What are you even trying to do.
-		return false
+		return errNoName
 	}
 
-	if boot.InUse(name, snapst.Current) {
-		return false
+	if !rev.Unset() {
+		if boot.InUse(name, rev) {
+			return errInUseForBoot
+		}
+		return nil
 	}
 
-	if !all {
-		return true
+	if p.modelKernel == name {
+		return errIsModel
 	}
 
-	return p.modelKernel != name
+	return nil
 }
