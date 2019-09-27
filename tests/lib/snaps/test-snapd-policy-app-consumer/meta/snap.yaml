@@ -161,6 +161,9 @@ apps:
   hostname-control:
     command: bin/run
     plugs: [ hostname-control ]
+  input:
+    command: bin/run
+    plugs: [ input ]
   intel-mei:
     command: bin/run
     plugs: [ intel-mei ]
