@@ -31,7 +31,8 @@ import (
 	"github.com/snapcore/snapd/snap"
 )
 
-// InstallRecord keeps hints about what needs to be undone in case of install failure
+// InstallRecord keeps a record of what installation effectively did as hints
+// about what needs to be undone in case of failure.
 type InstallRecord struct {
 	// TargetSnapExisted indicates that the target .snap file under /var/lib/snapd/snap already existed when the
 	// backend attempted SetupSnap() through squashfs Install() and should be kept.

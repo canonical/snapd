@@ -144,7 +144,7 @@ exec /bin/cp "$@"
 	mountDir := c.MkDir()
 	didNothing, err := snap.Install(targetPath, mountDir)
 	c.Assert(err, IsNil)
-	c.Assert(didNothing, NotNil)
+	c.Assert(didNothing, Equals, false)
 	c.Check(osutil.FileExists(targetPath), Equals, true)
 	c.Check(linked, Equals, 1)
 	c.Check(cmd.Calls(), HasLen, 0)
@@ -167,14 +167,14 @@ exec /bin/cp "$@"
 	snap := makeSnap(c, "name: test2", "")
 	targetPath := filepath.Join(c.MkDir(), "target.snap")
 	mountDir := c.MkDir()
-	installRecord, err := snap.Install(targetPath, mountDir)
+	didNothing, err := snap.Install(targetPath, mountDir)
 	c.Assert(err, IsNil)
-	c.Assert(installRecord, NotNil)
+	c.Assert(didNothing, Equals, false)
 	c.Check(cmd.Calls(), HasLen, 1)
 
-	installRecord, err = snap.Install(targetPath, mountDir)
+	didNothing, err = snap.Install(targetPath, mountDir)
 	c.Assert(err, IsNil)
-	c.Assert(installRecord, NotNil)
+	c.Assert(didNothing, Equals, true)
 	c.Check(cmd.Calls(), HasLen, 1) // and not 2 \o/
 }
 
