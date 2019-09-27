@@ -101,8 +101,3 @@ func streamsEqualChunked(a, b io.Reader, chunkSize int) bool {
 func StreamsEqual(a, b io.Reader) bool {
 	return streamsEqualChunked(a, b, 0)
 }
-
-// StreamEqual returns true if both streams have same length and content.
-func StreamEqual(readerA, readerB io.Reader, chunkSize int) bool {
-	return streamsEqualChunked(readerA, readerB, chunkSize)
-}

@@ -220,7 +220,7 @@ func fileStateEqualTo(filePath string, state FileState) (bool, error) {
 	}
 	// The files have the same size so they might be identical.
 	// Do a block-wise comparison to determine that.
-	return StreamEqual(readerA, readerB, 0), nil
+	return streamsEqualChunked(readerA, readerB, 0), nil
 }
 
 // EnsureFileState ensures that the file is in the expected state. It will not

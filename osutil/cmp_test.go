@@ -96,13 +96,13 @@ func (ts *CmpTestSuite) TestCmpStreams(c *C) {
 	}
 }
 
-func (s *CmpTestSuite) TestStreamEqual(c *C) {
+func (s *CmpTestSuite) TestStreamsEqualChunked(c *C) {
 	text := "marry had a little lamb"
 
 	// Passing the same stream twice is not mishandled.
 	readerA := bytes.NewReader([]byte(text))
 	readerB := readerA
-	eq := StreamEqual(readerA, readerB, 0)
+	eq := StreamsEqualChunked(readerA, readerB, 0)
 	c.Check(eq, Equals, true)
 
 	// Passing two streams with the same content works as expected. Note that
@@ -110,7 +110,7 @@ func (s *CmpTestSuite) TestStreamEqual(c *C) {
 	for _, chunkSize := range []int{0, 1, len(text) / 2, len(text), len(text) + 1} {
 		readerA = bytes.NewReader([]byte(text))
 		readerB = bytes.NewReader([]byte(text))
-		eq := StreamEqual(readerA, readerB, chunkSize)
+		eq := StreamsEqualChunked(readerA, readerB, chunkSize)
 		c.Check(eq, Equals, true, Commentf("chunk size %d", chunkSize))
 	}
 
@@ -120,7 +120,7 @@ func (s *CmpTestSuite) TestStreamEqual(c *C) {
 		comment := Commentf("chunk size %d", chunkSize)
 		readerA = bytes.NewReader([]byte(strings.ToLower(text)))
 		readerB = bytes.NewReader([]byte(strings.ToUpper(text)))
-		eq = StreamEqual(readerA, readerB, chunkSize)
+		eq = StreamsEqualChunked(readerA, readerB, chunkSize)
 		c.Check(eq, Equals, false, comment)
 	}
 
@@ -130,24 +130,24 @@ func (s *CmpTestSuite) TestStreamEqual(c *C) {
 		comment := Commentf("A: %q, B: %q, chunk size %d", text, text[:len(text)/2], chunkSize)
 		readerA = bytes.NewReader([]byte(text))
 		readerB = bytes.NewReader([]byte(text[:len(text)/2]))
-		eq = StreamEqual(readerA, readerB, chunkSize)
+		eq = StreamsEqualChunked(readerA, readerB, chunkSize)
 		c.Check(eq, Equals, false, comment)
 
 		// Readers passed the other way around.
 		readerA = bytes.NewReader([]byte(text))
 		readerB = bytes.NewReader([]byte(text[:len(text)/2]))
-		eq = StreamEqual(readerB, readerA, chunkSize)
+		eq = StreamsEqualChunked(readerB, readerA, chunkSize)
 		c.Check(eq, Equals, false, comment)
 	}
 }
 
-func (s *CmpTestSuite) TestStreamEqualWAT(c *C) {
+func (s *CmpTestSuite) TestStreamsEqualChunkedWAT(c *C) {
 	text := "marry had a little lamb"
 	chunkSize := 1
 	comment := Commentf("A: %q, B: %q, chunk size %d", text, text[:len(text)/2], chunkSize)
 	readerA := bytes.NewReader([]byte(text))
 	readerB := bytes.NewReader([]byte(text[:len(text)/2]))
 
-	eq := StreamEqual(readerB, readerA, chunkSize)
+	eq := StreamsEqualChunked(readerB, readerA, chunkSize)
 	c.Check(eq, Equals, false, comment)
 }
