@@ -20,12 +20,10 @@
 package osutil_test
 
 import (
-	"bytes"
 	"io/ioutil"
 	"os"
 	"path"
 	"path/filepath"
-	"strings"
 
 	. "gopkg.in/check.v1"
 
@@ -242,66 +240,4 @@ func (s *EnsureDirStateSuite) TestRemovesAllManagedFilesOnError(c *C) {
 	// The clashing file is removed
 	_, err = os.Stat(clash)
 	c.Assert(os.IsNotExist(err), Equals, true)
-}
-
-func (s *EnsureDirStateSuite) TestStreamEqual(c *C) {
-	text := "marry had a little lamb"
-
-	// Passing the same stream twice is not mishandled.
-	readerA := bytes.NewReader(nil)
-	readerB := readerA
-	eq, err := osutil.StreamEqual(readerA, readerB, 0)
-	c.Assert(err, IsNil)
-	c.Check(eq, Equals, true)
-
-	// Passing two streams with the same content works as expected. Note that
-	// we are using different block sizes to check for additional edge cases.
-	for _, chunkSize := range []int{0, 1, len(text) / 2, len(text), len(text) + 1} {
-		readerA = bytes.NewReader([]byte(text))
-		readerB = bytes.NewReader([]byte(text))
-		eq, err = osutil.StreamEqual(readerA, readerB, chunkSize)
-		c.Assert(err, IsNil)
-		c.Check(eq, Equals, true, Commentf("chunk size %d", chunkSize))
-	}
-
-	// Passing two streams with unequal contents but equal length works as
-	// expected.
-	for _, chunkSize := range []int{0, 1, len(text) / 2, len(text), len(text) + 1} {
-		comment := Commentf("chunk size %d", chunkSize)
-		readerA = bytes.NewReader([]byte(strings.ToLower(text)))
-		readerB = bytes.NewReader([]byte(strings.ToUpper(text)))
-		eq, err = osutil.StreamEqual(readerA, readerB, chunkSize)
-		c.Assert(err, IsNil, comment)
-		c.Check(eq, Equals, false, comment)
-	}
-
-	// Passing two streams with different length works as expected.
-	// Note that this is not used by EnsureDirState in practice.
-	for _, chunkSize := range []int{0, 1, len(text) / 2, len(text), len(text) + 1} {
-		comment := Commentf("A: %q, B: %q, chunk size %d", text, text[:len(text)/2], chunkSize)
-		readerA = bytes.NewReader([]byte(text))
-		readerB = bytes.NewReader([]byte(text[:len(text)/2]))
-		eq, err = osutil.StreamEqual(readerA, readerB, chunkSize)
-		c.Assert(err, IsNil, comment)
-		c.Check(eq, Equals, false, comment)
-
-		// Readers passed the other way around.
-		readerA = bytes.NewReader([]byte(text))
-		readerB = bytes.NewReader([]byte(text[:len(text)/2]))
-		eq, err = osutil.StreamEqual(readerB, readerA, chunkSize)
-		c.Assert(err, IsNil, comment)
-		c.Check(eq, Equals, false, comment)
-	}
-}
-
-func (s *EnsureDirStateSuite) TestStreamEqualWAT(c *C) {
-	text := "marry had a little lamb"
-	chunkSize := 1
-	comment := Commentf("A: %q, B: %q, chunk size %d", text, text[:len(text)/2], chunkSize)
-	readerA := bytes.NewReader([]byte(text))
-	readerB := bytes.NewReader([]byte(text[:len(text)/2]))
-
-	eq, err := osutil.StreamEqual(readerB, readerA, chunkSize)
-	c.Assert(err, IsNil, comment)
-	c.Check(eq, Equals, false, comment)
 }
