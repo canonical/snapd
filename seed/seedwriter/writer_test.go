@@ -987,8 +987,11 @@ func (s *writerSuite) TestLocalSnapsFullUse(c *C) {
 		c.Assert(decl, HasLen, 1)
 		c.Check(decl[0].Type(), Equals, asserts.SnapDeclarationType)
 		c.Check(decl[0].HeaderString("snap-name"), Equals, snapName)
-		// check snap-revision
-		// ...
+		p = filepath.Join(seedAssertsDir, fmt.Sprintf("%s.snap-revision", s.snapRevs[snapName].SnapSHA3_384()))
+		rev := readAssertions(c, p)
+		c.Assert(rev, HasLen, 1)
+		c.Check(rev[0].Type(), Equals, asserts.SnapRevisionType)
+		c.Check(rev[0].HeaderString("snap-id"), Equals, s.AssertedSnapID(snapName))
 	}
 }
 
