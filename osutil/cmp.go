@@ -64,6 +64,9 @@ func FilesAreEqual(a, b string) bool {
 }
 
 func streamsEqualChunked(a, b io.Reader, chunkSize int) bool {
+	if a == b {
+		return true
+	}
 	if chunkSize <= 0 {
 		chunkSize = defaultChunkSize
 	}
