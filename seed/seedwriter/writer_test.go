@@ -530,7 +530,7 @@ func (s *writerSuite) TestDownloadedInfosNotSet(c *C) {
 	doNothingFill := func(*C, *seedwriter.Writer, *seedwriter.SeedSnap) {}
 
 	_, err := s.upToDownloaded(c, model, doNothingFill)
-	c.Check(err, ErrorMatches, `internal error: at this point snap \"core\" Info should have been set`)
+	c.Check(err, ErrorMatches, `internal error: before seedwriter.Writer.Downloaded snap \"core\" Info should have been set`)
 }
 
 func (s *writerSuite) TestDownloadedUnexpectedClassicSnap(c *C) {
@@ -1026,7 +1026,7 @@ func (s *writerSuite) TestInfoDerivedInfosNotSet(c *C) {
 	c.Assert(err, IsNil)
 
 	err = w.InfoDerived()
-	c.Assert(err, ErrorMatches, `internal error: at this point snap ".*/core18.*.snap" Info should have been set`)
+	c.Assert(err, ErrorMatches, `internal error: before seedwriter.Writer.InfoDerived snap ".*/core18.*.snap" Info should have been set`)
 }
 
 func (s *writerSuite) TestInfoDerivedRepeatedLocalSnap(c *C) {

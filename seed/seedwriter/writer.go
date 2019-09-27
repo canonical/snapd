@@ -413,7 +413,7 @@ func (w *Writer) InfoDerived() error {
 
 	for _, sn := range w.localSnaps {
 		if sn.Info == nil {
-			return fmt.Errorf("internal error: at this point snap %q Info should have been set", sn.Path)
+			return fmt.Errorf("internal error: before seedwriter.Writer.InfoDerived snap %q Info should have been set", sn.Path)
 		}
 		sn.SnapRef = sn.Info
 
@@ -572,7 +572,7 @@ func (w *Writer) Downloaded() (complete bool, err error) {
 
 	for _, sn := range w.snapsFromModel {
 		if sn.Info == nil {
-			return false, fmt.Errorf("internal error: at this point snap %q Info should have been set", sn.SnapName())
+			return false, fmt.Errorf("internal error: before seedwriter.Writer.Downloaded snap %q Info should have been set", sn.SnapName())
 		}
 		w.availableSnaps.Add(sn)
 	}
@@ -581,12 +581,13 @@ func (w *Writer) Downloaded() (complete bool, err error) {
 		info := sn.Info
 		if !sn.local {
 			if info.ID() == "" {
-				return false, fmt.Errorf("internal error: at this point snap %q snap-id should have been set", sn.SnapName())
+				return false, fmt.Errorf("internal error: before seedwriter.Writer.Downloaded snap %q snap-id should have been set", sn.SnapName())
 			}
 		}
 		if info.ID() != "" {
 			if sn.ARefs == nil {
-				return false, fmt.Errorf("internal error: at this point snap %q ARefs should have been set", sn.SnapName())
+
+				return false, fmt.Errorf("internal error: before seedwriter.Writer.Downloaded snap %q ARefs should have been set", sn.SnapName())
 			}
 		}
 
@@ -674,10 +675,10 @@ func (w *Writer) SeedSnaps(copySnap func(name, src, dst string) error) error {
 		if !sn.local {
 			expectedPath := filepath.Join(snapsDir, filepath.Base(info.MountFile()))
 			if sn.Path != expectedPath {
-				return fmt.Errorf("internal error: at this point snap %q Path should have been set to %q", sn.SnapName(), expectedPath)
+				return fmt.Errorf("internal error: before seedwriter.Writer.SeedSnaps snap %q Path should have been set to %q", sn.SnapName(), expectedPath)
 			}
 			if !osutil.FileExists(expectedPath) {
-				return fmt.Errorf("internal error: at this point snap file %q should exist", expectedPath)
+				return fmt.Errorf("internal error: before seedwriter.Writer.SeedSnaps snap file %q should exist", expectedPath)
 			}
 		} else {
 			dst := w.tree.localSnapPath(sn)
