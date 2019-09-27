@@ -20,9 +20,9 @@
 package osutil
 
 import (
+	"bytes"
 	"io/ioutil"
 	"os"
-	"bytes"
 	"path/filepath"
 	"strings"
 
@@ -41,20 +41,15 @@ func (ts *CmpTestSuite) TestCmp(c *C) {
 	c.Assert(err, IsNil)
 	defer f.Close()
 
-	// pick a smaller bufsize so that the test can complete quicker
-	defer func() {
-		bufsz = defaultBufsz
-	}()
-	bufsz = 128
-
 	// test FilesAreEqual for various sizes:
 	// - bufsz not exceeded
 	// - bufsz matches file size
 	// - bufsz exceeds file size
 	canary := "1234567890123456"
-	for _, n := range []int{1, bufsz / len(canary), (bufsz / len(canary)) + 1} {
+	for _, n := range []int{1, 128 / len(canary), (128 / len(canary)) + 1} {
 		for i := 0; i < n; i++ {
-			c.Assert(FilesAreEqual(foo, foo), Equals, true)
+			// Pick a smaller buffer size so that the test can complete quicker
+			c.Assert(FilesAreEqualChunked(foo, foo, 128), Equals, true)
 			_, err := f.WriteString(canary)
 			c.Assert(err, IsNil)
 			f.Sync()
