@@ -231,6 +231,8 @@ func (f *fakeStore) snap(spec snapSpec, user *auth.UserState) (*snap.Info, error
 		Epoch:       epoch,
 	}
 	switch spec.Channel {
+	case "channel-no-revision":
+		return nil, &store.RevisionNotAvailableError{}
 	case "channel-for-devmode":
 		info.Confinement = snap.DevModeConfinement
 	case "channel-for-classic":
