@@ -52,14 +52,14 @@ func (fref FileReference) State() (io.ReadCloser, int64, os.FileMode, error) {
 	return file, fi.Size(), fi.Mode(), nil
 }
 
-// FileContentReference describes the desired content by referencing an existing file and providing custom mode.
-type FileContentReference struct {
+// FileReferencePlusMode describes the desired content by referencing an existing file and providing custom mode.
+type FileReferencePlusMode struct {
 	FileReference
 	Mode os.FileMode
 }
 
 // State returns a reader of the referenced file, substituting the mode.
-func (fcref FileContentReference) State() (io.ReadCloser, int64, os.FileMode, error) {
+func (fcref FileReferencePlusMode) State() (io.ReadCloser, int64, os.FileMode, error) {
 	reader, size, _, err := fcref.FileReference.State()
 	if err != nil {
 		return nil, 0, os.FileMode(0), err

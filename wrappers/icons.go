@@ -83,7 +83,7 @@ func deriveIconContent(instanceName string, rootDir string, icons []string) (con
 		}
 		// rename icons to match snap instance name
 		base = instancePrefix + base[len(snapPrefix):]
-		dirContent[base] = &osutil.FileContentReference{
+		dirContent[base] = &osutil.FileReferencePlusMode{
 			FileReference: osutil.FileReference{Path: filepath.Join(rootDir, iconFile)},
 			Mode:          0644,
 		}
