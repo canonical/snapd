@@ -104,46 +104,5 @@ func StreamsEqual(a, b io.Reader) bool {
 
 // StreamEqual returns true if both streams have same length and content.
 func StreamEqual(readerA, readerB io.Reader, chunkSize int) bool {
-	// TODO: replace with StreamsEqualChunked(readerA, readerB, chunkSize)
-	if readerA == readerB {
-		return true
-	}
-	if chunkSize <= 0 {
-		chunkSize = 4096
-	}
-	bufA := make([]byte, chunkSize)
-	bufB := make([]byte, chunkSize)
-	for {
-		nA, errA := readerA.Read(bufA)
-		toReadFromB := nA
-		if toReadFromB == 0 {
-			// If we read nothing from stream A we want to get a chance to read
-			// something from B so that we can detect streams of unequal
-			// length.
-			toReadFromB = 1
-		}
-		nB, errB := io.ReadAtLeast(readerB, bufB, toReadFromB)
-		// We read the same non-empty amount from each stream.
-		if nA == nB && nA > 0 {
-			if bytes.Equal(bufA[:nA], bufB[:nB]) {
-				continue
-			}
-		}
-		// We read nothing from both streams.
-		if nA == nB && nA == 0 {
-			break
-		}
-		// Return an error except for EOF and ErrUnexpectedEOF, since those are
-		// just end-of-file indicators. Note that unexpected EOF is not really
-		// unexpected for us because we don't assume they streams have equal
-		// length.
-		if errA != nil && errA != io.EOF {
-			return false
-		}
-		if errB != nil && errB != io.EOF && errB != io.ErrUnexpectedEOF {
-			return false
-		}
-		return false
-	}
-	return true
+	return streamsEqualChunked(readerA, readerB, chunkSize)
 }
