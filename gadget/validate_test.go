@@ -138,3 +138,13 @@ volumes:
 	err = gadget.Validate(s.dir)
 	c.Assert(err, IsNil)
 }
+
+func (s *validateGadgetTestSuite) TestValidateClassic(c *C) {
+	var gadgetYamlContent = `
+# on classic this can be empty
+`
+	makeSizedFile(c, filepath.Join(s.dir, "meta/gadget.yaml"), 0, []byte(gadgetYamlContent))
+
+	err := gadget.Validate(s.dir)
+	c.Assert(err, IsNil)
+}

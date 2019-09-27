@@ -52,8 +52,8 @@ func validateVolumeContentsPresence(gadgetSnapRootDir string, vol *LaidOutVolume
 // Validate checks whether the given directory contains valid gadget snap
 // metadata and a matching content
 func Validate(gadgetSnapRootDir string) error {
-	onClassic := false
-	info, err := ReadInfo(gadgetSnapRootDir, onClassic)
+	allowClassic := true
+	info, err := ReadInfo(gadgetSnapRootDir, allowClassic)
 	if err != nil {
 		return fmt.Errorf("cannot validate gadget metadata: %v", err)
 	}
