@@ -179,9 +179,9 @@ func (mods *modelSuite) TestDecodeOK(c *C) {
 	c.Check(model.Store(), Equals, "brand-store")
 	allSnaps := model.AllSnaps()
 	c.Check(allSnaps, DeepEquals, []*asserts.ModelSnap{
+		model.KernelSnap(),
 		model.BaseSnap(),
 		model.GadgetSnap(),
-		model.KernelSnap(),
 		{
 			Name:           "foo",
 			Modes:          []string{"run"},
@@ -621,9 +621,9 @@ func (mods *modelSuite) TestCore20DecodeOK(c *C) {
 	c.Check(model.Store(), Equals, "brand-store")
 	allSnaps := model.AllSnaps()
 	c.Check(allSnaps, DeepEquals, []*asserts.ModelSnap{
+		model.KernelSnap(),
 		model.BaseSnap(),
 		model.GadgetSnap(),
-		model.KernelSnap(),
 		{
 			Name:           "other-base",
 			SnapID:         "otherbasedididididididididididid",
