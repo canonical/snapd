@@ -326,6 +326,7 @@ func (c *Change) lowLevelPerform(as *Assumptions) error {
 			err = osRemove(c.Entry.Dir)
 			logger.Debugf("remove %q (error: %v)", c.Entry.Dir, err)
 		case "", "file":
+			logger.Debugf("THIS IS THE PATCHED COPY")
 			// Detach the mount point instead of unmounting it if requested.
 			flags := umountNoFollow
 			if c.Entry.XSnapdDetach() {
@@ -343,19 +344,18 @@ func (c *Change) lowLevelPerform(as *Assumptions) error {
 			// Perform the raw unmount operation.
 			if err == nil {
 				err = sysUnmount(c.Entry.Dir, flags)
+				logger.Debugf("umount %q (error: %v)", c.Entry.Dir, err)
 			}
-			if err == nil {
-				as.AddChange(c)
-			}
-			logger.Debugf("umount %q (error: %v)", c.Entry.Dir, err)
 			if err != nil {
 				return err
 			}
+			as.AddChange(c)
 
 			// Open a path of the file we are considering the removal of.
 			path := c.Entry.Dir
 			var fd int
 			fd, err = OpenPath(path)
+			logger.Debugf("openPath %q (error: %v)", path, err)
 			if err != nil {
 				return err
 			}
@@ -364,6 +364,7 @@ func (c *Change) lowLevelPerform(as *Assumptions) error {
 			// Don't attempt to remove anything from squashfs.
 			var statfsBuf syscall.Statfs_t
 			err = sysFstatfs(fd, &statfsBuf)
+			logger.Debugf("fstatfs %d (error: %v)", fd, err)
 			if err != nil {
 				return err
 			}
@@ -376,6 +377,7 @@ func (c *Change) lowLevelPerform(as *Assumptions) error {
 				// the placeholders we created.
 				var statBuf syscall.Stat_t
 				err = sysFstat(fd, &statBuf)
+				logger.Debugf("fstat %d (error: %v)", fd, err)
 				if err != nil {
 					return err
 				}
@@ -388,6 +390,7 @@ func (c *Change) lowLevelPerform(as *Assumptions) error {
 			// no way to avoid a race here since there's no way to unlink a
 			// file solely by file descriptor.
 			err = osRemove(path)
+			logger.Debugf("remove %q (error: %v)", path, err)
 			// Unpack the low-level error that osRemove wraps into PathError.
 			if packed, ok := err.(*os.PathError); ok {
 				err = packed.Err

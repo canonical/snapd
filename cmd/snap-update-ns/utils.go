@@ -453,7 +453,7 @@ func planWritableMimic(dir, neededBy string) ([]*Change, error) {
 	// We need a place for "safe keeping" of what is present in the original
 	// directory as we are about to attach a tmpfs there, which will hide
 	// everything inside.
-	logger.Debugf("create-writable-mimic %q", dir)
+	logger.Debugf("plan-writable-mimic %q (for %q)", dir, neededBy)
 	safeKeepingDir := filepath.Join("/tmp/.snap/", dir)
 
 	var changes []*Change
