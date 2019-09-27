@@ -100,7 +100,7 @@ func (s *CmpTestSuite) TestStreamEqual(c *C) {
 	text := "marry had a little lamb"
 
 	// Passing the same stream twice is not mishandled.
-	readerA := bytes.NewReader(nil)
+	readerA := bytes.NewReader([]byte(text))
 	readerB := readerA
 	eq := StreamEqual(readerA, readerB, 0)
 	c.Check(eq, Equals, true)
