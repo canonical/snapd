@@ -59,7 +59,7 @@ WantedBy=snapd.service
 	fullPath := filepath.Join(dirs.SnapServicesDir, unit)
 
 	err := osutil.EnsureFileState(fullPath,
-		&osutil.MemoryBlob{
+		&osutil.MemoryFileState{
 			Content: content,
 			Mode:    0644,
 		},
@@ -122,7 +122,7 @@ func writeSnapdServicesOnCore(s *snap.Info, inter interacter) error {
 		}
 		content = execStartRe.ReplaceAll(content, []byte(fmt.Sprintf(`ExecStart=%s$1`, s.MountDir())))
 
-		snapdUnits[filepath.Base(unit)] = &osutil.MemoryBlob{
+		snapdUnits[filepath.Base(unit)] = &osutil.MemoryFileState{
 			Content: content,
 			Mode:    st.Mode(),
 		}
@@ -164,7 +164,7 @@ func writeSnapdServicesOnCore(s *snap.Info, inter interacter) error {
 		// Some units (like the snapd.system-shutdown.service) cannot
 		// be started. Others like "snapd.seeded.service" are started
 		// as dependencies of snapd.service.
-		if bytes.Contains(snapdUnits[unit].(*osutil.MemoryBlob).Content, []byte("X-Snapd-Snap: do-not-start")) {
+		if bytes.Contains(snapdUnits[unit].(*osutil.MemoryFileState).Content, []byte("X-Snapd-Snap: do-not-start")) {
 			continue
 		}
 		// Ensure to only restart if the unit was previously
@@ -242,7 +242,7 @@ func writeSnapdUserServicesOnCore(s *snap.Info, inter interacter) error {
 		}
 		content = execStartRe.ReplaceAll(content, []byte(fmt.Sprintf(`ExecStart=%s$1`, s.MountDir())))
 
-		snapdUnits[filepath.Base(unit)] = &osutil.MemoryBlob{
+		snapdUnits[filepath.Base(unit)] = &osutil.MemoryFileState{
 			Content: content,
 			Mode:    st.Mode(),
 		}

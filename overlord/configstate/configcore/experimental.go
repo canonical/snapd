@@ -64,7 +64,7 @@ func ExportExperimentalFlags(tr config.Conf) error {
 			return err
 		}
 		if isEnabled {
-			content[feature.String()] = &osutil.MemoryBlob{Mode: 0644}
+			content[feature.String()] = &osutil.MemoryFileState{Mode: 0644}
 		}
 	}
 	_, _, err := osutil.EnsureDirState(dir, "*", content)

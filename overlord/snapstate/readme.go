@@ -53,7 +53,7 @@ func snapReadme() string {
 func writeSnapReadme() error {
 	const fname = "README"
 	content := map[string]osutil.FileState{
-		fname: &osutil.MemoryBlob{Content: []byte(snapReadme()), Mode: 0444},
+		fname: &osutil.MemoryFileState{Content: []byte(snapReadme()), Mode: 0444},
 	}
 	if err := os.MkdirAll(dirs.SnapMountDir, 0755); err != nil {
 		return err

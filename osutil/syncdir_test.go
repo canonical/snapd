@@ -47,7 +47,7 @@ func (s *EnsureDirStateSuite) TestVerifiesExpectedFiles(c *C) {
 	err := ioutil.WriteFile(name, []byte("expected"), 0600)
 	c.Assert(err, IsNil)
 	changed, removed, err := osutil.EnsureDirState(s.dir, s.glob, map[string]osutil.FileState{
-		"expected.snap": &osutil.MemoryBlob{Content: []byte("expected"), Mode: 0600},
+		"expected.snap": &osutil.MemoryFileState{Content: []byte("expected"), Mode: 0600},
 	})
 	c.Assert(err, IsNil)
 	// Report says that nothing has changed
@@ -71,8 +71,8 @@ func (s *EnsureDirStateSuite) TestTwoPatterns(c *C) {
 	c.Assert(err, IsNil)
 
 	changed, removed, err := osutil.EnsureDirStateGlobs(s.dir, []string{"*.snap", "*.snap-update-ns"}, map[string]osutil.FileState{
-		"expected.snap":           &osutil.MemoryBlob{Content: []byte("expected-1"), Mode: 0600},
-		"expected.snap-update-ns": &osutil.MemoryBlob{Content: []byte("expected-2"), Mode: 0600},
+		"expected.snap":           &osutil.MemoryFileState{Content: []byte("expected-1"), Mode: 0600},
+		"expected.snap-update-ns": &osutil.MemoryFileState{Content: []byte("expected-2"), Mode: 0600},
 	})
 	c.Assert(err, IsNil)
 	// Report says that nothing has changed
@@ -104,7 +104,7 @@ func (s *EnsureDirStateSuite) TestMultipleMatches(c *C) {
 func (s *EnsureDirStateSuite) TestCreatesMissingFiles(c *C) {
 	name := filepath.Join(s.dir, "missing.snap")
 	changed, removed, err := osutil.EnsureDirState(s.dir, s.glob, map[string]osutil.FileState{
-		"missing.snap": &osutil.MemoryBlob{Content: []byte(`content`), Mode: 0600},
+		"missing.snap": &osutil.MemoryFileState{Content: []byte(`content`), Mode: 0600},
 	})
 	c.Assert(err, IsNil)
 	// Created file is reported
@@ -151,7 +151,7 @@ func (s *EnsureDirStateSuite) TestCorrectsFilesWithDifferentSize(c *C) {
 	err := ioutil.WriteFile(name, []byte(``), 0600)
 	c.Assert(err, IsNil)
 	changed, removed, err := osutil.EnsureDirState(s.dir, s.glob, map[string]osutil.FileState{
-		"differing.snap": &osutil.MemoryBlob{Content: []byte(`Hello World`), Mode: 0600},
+		"differing.snap": &osutil.MemoryFileState{Content: []byte(`Hello World`), Mode: 0600},
 	})
 	c.Assert(err, IsNil)
 	// changed file is reported
@@ -170,7 +170,7 @@ func (s *EnsureDirStateSuite) TestCorrectsFilesWithSameSize(c *C) {
 	err := ioutil.WriteFile(name, []byte("evil"), 0600)
 	c.Assert(err, IsNil)
 	changed, removed, err := osutil.EnsureDirState(s.dir, s.glob, map[string]osutil.FileState{
-		"differing.snap": &osutil.MemoryBlob{Content: []byte("good"), Mode: 0600},
+		"differing.snap": &osutil.MemoryFileState{Content: []byte("good"), Mode: 0600},
 	})
 	c.Assert(err, IsNil)
 	// changed file is reported
@@ -191,7 +191,7 @@ func (s *EnsureDirStateSuite) TestFixesFilesWithBadPermissions(c *C) {
 	c.Assert(err, IsNil)
 	changed, removed, err := osutil.EnsureDirState(s.dir, s.glob, map[string]osutil.FileState{
 		// NOTE: we want the file to be private
-		"sensitive.snap": &osutil.MemoryBlob{Content: []byte("password"), Mode: 0600},
+		"sensitive.snap": &osutil.MemoryFileState{Content: []byte("password"), Mode: 0600},
 	})
 	c.Assert(err, IsNil)
 	// changed file is reported
@@ -206,12 +206,12 @@ func (s *EnsureDirStateSuite) TestFixesFilesWithBadPermissions(c *C) {
 }
 
 func (s *EnsureDirStateSuite) TestReportsAbnormalFileLocation(c *C) {
-	_, _, err := osutil.EnsureDirState(s.dir, s.glob, map[string]osutil.FileState{"subdir/file.snap": &osutil.MemoryBlob{}})
+	_, _, err := osutil.EnsureDirState(s.dir, s.glob, map[string]osutil.FileState{"subdir/file.snap": &osutil.MemoryFileState{}})
 	c.Assert(err, ErrorMatches, `internal error: EnsureDirState got filename "subdir/file.snap" which has a path component`)
 }
 
 func (s *EnsureDirStateSuite) TestReportsAbnormalFileName(c *C) {
-	_, _, err := osutil.EnsureDirState(s.dir, s.glob, map[string]osutil.FileState{"without-namespace": &osutil.MemoryBlob{}})
+	_, _, err := osutil.EnsureDirState(s.dir, s.glob, map[string]osutil.FileState{"without-namespace": &osutil.MemoryFileState{}})
 	c.Assert(err, ErrorMatches, `internal error: EnsureDirState got filename "without-namespace" which doesn't match the glob pattern "\*\.snap"`)
 }
 
@@ -231,8 +231,8 @@ func (s *EnsureDirStateSuite) TestRemovesAllManagedFilesOnError(c *C) {
 	c.Assert(err, IsNil)
 	// Try to ensure directory state
 	changed, removed, err := osutil.EnsureDirState(s.dir, s.glob, map[string]osutil.FileState{
-		"prior.snap": &osutil.MemoryBlob{Content: []byte("data"), Mode: 0600},
-		"clash.snap": &osutil.MemoryBlob{Content: []byte("data"), Mode: 0600},
+		"prior.snap": &osutil.MemoryFileState{Content: []byte("data"), Mode: 0600},
+		"clash.snap": &osutil.MemoryFileState{Content: []byte("data"), Mode: 0600},
 	})
 	c.Assert(changed, HasLen, 0)
 	c.Assert(removed, DeepEquals, []string{"clash.snap", "prior.snap"})

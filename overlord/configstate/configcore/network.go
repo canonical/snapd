@@ -63,7 +63,7 @@ func handleNetworkConfiguration(tr config.Conf) error {
 	}
 	dirContent := map[string]osutil.FileState{}
 	if content.Len() > 0 {
-		dirContent[name] = &osutil.MemoryBlob{
+		dirContent[name] = &osutil.MemoryFileState{
 			Content: content.Bytes(),
 			Mode:    0644,
 		}

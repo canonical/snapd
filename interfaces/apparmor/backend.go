@@ -109,7 +109,7 @@ func (b *Backend) Initialize() error {
 	if nfs, err := isHomeUsingNFS(); err != nil {
 		logger.Noticef("cannot determine if NFS is in use: %v", err)
 	} else if nfs {
-		policy["nfs-support"] = &osutil.MemoryBlob{
+		policy["nfs-support"] = &osutil.MemoryFileState{
 			Content: []byte(nfsSnippet),
 			Mode:    0644,
 		}
@@ -122,7 +122,7 @@ func (b *Backend) Initialize() error {
 		logger.Noticef("cannot determine if root filesystem on overlay: %v", err)
 	} else if overlayRoot != "" {
 		snippet := strings.Replace(overlayRootSnippet, "###UPPERDIR###", overlayRoot, -1)
-		policy["overlay-root"] = &osutil.MemoryBlob{
+		policy["overlay-root"] = &osutil.MemoryFileState{
 			Content: []byte(snippet),
 			Mode:    0644,
 		}
@@ -215,7 +215,7 @@ func snapConfineFromSnapProfile(info *snap.Info) (dir, glob string, content map[
 
 	// Return information for EnsureDirState that describes the re-exec profile for snap-confine.
 	content = map[string]osutil.FileState{
-		patchedProfileName: &osutil.MemoryBlob{
+		patchedProfileName: &osutil.MemoryFileState{
 			Content: []byte(patchedProfileText),
 			Mode:    0644,
 		},
@@ -495,7 +495,7 @@ func addUpdateNSProfile(snapInfo *snap.Info, opts interfaces.ConfinementOptions,
 
 	// Ensure that the snap-update-ns profile is on disk.
 	profileName := nsProfile(snapInfo.InstanceName())
-	content[profileName] = &osutil.MemoryBlob{
+	content[profileName] = &osutil.MemoryFileState{
 		Content: []byte(policy),
 		Mode:    0644,
 	}
@@ -619,7 +619,7 @@ func addContent(securityTag string, snapInfo *snap.Info, opts interfaces.Confine
 		return ""
 	})
 
-	content[securityTag] = &osutil.MemoryBlob{
+	content[securityTag] = &osutil.MemoryFileState{
 		Content: []byte(policy),
 		Mode:    0644,
 	}

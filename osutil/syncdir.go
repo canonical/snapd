@@ -67,14 +67,14 @@ func (fcref FileReferencePlusMode) State() (io.ReadCloser, int64, os.FileMode, e
 	return reader, size, fcref.Mode, nil
 }
 
-// MemoryBlob describes the desired content by providing an in-memory copy.
-type MemoryBlob struct {
+// MemoryFileState describes the desired content by providing an in-memory copy.
+type MemoryFileState struct {
 	Content []byte
 	Mode    os.FileMode
 }
 
 // State returns a reader of the in-memory contents of a file, along with other meta-data.
-func (blob *MemoryBlob) State() (io.ReadCloser, int64, os.FileMode, error) {
+func (blob *MemoryFileState) State() (io.ReadCloser, int64, os.FileMode, error) {
 	return ioutil.NopCloser(bytes.NewReader(blob.Content)), int64(len(blob.Content)), blob.Mode, nil
 }
 

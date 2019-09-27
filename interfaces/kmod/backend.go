@@ -122,7 +122,7 @@ func deriveContent(spec *Specification, snapInfo *snap.Info) (map[string]osutil.
 		buffer.WriteString(module)
 		buffer.WriteRune('\n')
 	}
-	content[fmt.Sprintf("%s.conf", snap.SecurityTag(snapInfo.InstanceName()))] = &osutil.MemoryBlob{
+	content[fmt.Sprintf("%s.conf", snap.SecurityTag(snapInfo.InstanceName()))] = &osutil.MemoryFileState{
 		Content: buffer.Bytes(),
 		Mode:    0644,
 	}

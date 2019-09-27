@@ -47,7 +47,7 @@ func (s *EnsureTreeStateSuite) TestVerifiesExpectedFiles(c *C) {
 	c.Assert(ioutil.WriteFile(name, []byte("expected"), 0600), IsNil)
 	changed, removed, err := osutil.EnsureTreeState(s.dir, s.globs, map[string]map[string]osutil.FileState{
 		"foo/bar": {
-			"expected.snap": &osutil.MemoryBlob{Content: []byte("expected"), Mode: 0600},
+			"expected.snap": &osutil.MemoryFileState{Content: []byte("expected"), Mode: 0600},
 		},
 	})
 	c.Assert(err, IsNil)
@@ -66,10 +66,10 @@ func (s *EnsureTreeStateSuite) TestCreatesMissingFiles(c *C) {
 
 	changed, removed, err := osutil.EnsureTreeState(s.dir, s.globs, map[string]map[string]osutil.FileState{
 		"foo": {
-			"missing1.snap": &osutil.MemoryBlob{Content: []byte(`content-1`), Mode: 0600},
+			"missing1.snap": &osutil.MemoryFileState{Content: []byte(`content-1`), Mode: 0600},
 		},
 		"bar": {
-			"missing2.snap": &osutil.MemoryBlob{Content: []byte(`content-2`), Mode: 0600},
+			"missing2.snap": &osutil.MemoryFileState{Content: []byte(`content-2`), Mode: 0600},
 		},
 	})
 	c.Assert(err, IsNil)
@@ -143,7 +143,7 @@ func (s *EnsureTreeStateSuite) TestErrorsOnDirectoryPathsMatchingGlobs(c *C) {
 func (s *EnsureTreeStateSuite) TestErrorsOnFilenamesWithSlashes(c *C) {
 	_, _, err := osutil.EnsureTreeState(s.dir, s.globs, map[string]map[string]osutil.FileState{
 		"foo": {
-			"dir/file1.snap": &osutil.MemoryBlob{Content: []byte(`content-1`), Mode: 0600},
+			"dir/file1.snap": &osutil.MemoryFileState{Content: []byte(`content-1`), Mode: 0600},
 		},
 	})
 	c.Check(err, ErrorMatches, `internal error: EnsureTreeState got filename "dir/file1.snap" in "foo", which has a path component`)
@@ -152,7 +152,7 @@ func (s *EnsureTreeStateSuite) TestErrorsOnFilenamesWithSlashes(c *C) {
 func (s *EnsureTreeStateSuite) TestErrorsOnFilenamesNotMatchingGlobs(c *C) {
 	_, _, err := osutil.EnsureTreeState(s.dir, s.globs, map[string]map[string]osutil.FileState{
 		"foo": {
-			"file1.not-snap": &osutil.MemoryBlob{Content: []byte(`content-1`), Mode: 0600},
+			"file1.not-snap": &osutil.MemoryFileState{Content: []byte(`content-1`), Mode: 0600},
 		},
 	})
 	c.Check(err, ErrorMatches, `internal error: EnsureTreeState got filename "file1.not-snap" in "foo", which doesn't match any glob patterns \["\*.snap"\]`)
@@ -170,7 +170,7 @@ func (s *EnsureTreeStateSuite) TestRemovesFilesOnError(c *C) {
 
 	changed, removed, err := osutil.EnsureTreeState(s.dir, s.globs, map[string]map[string]osutil.FileState{
 		"foo": {
-			"file1.snap": &osutil.MemoryBlob{Content: []byte(`content-1`), Mode: 0600},
+			"file1.snap": &osutil.MemoryFileState{Content: []byte(`content-1`), Mode: 0600},
 		},
 	})
 	c.Check(err, ErrorMatches, `remove .*/bar/dir.snap: directory not empty`)

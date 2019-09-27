@@ -125,7 +125,7 @@ func (b *Backend) Initialize() error {
 		globalProfile = globalProfileLE
 	}
 	content := map[string]osutil.FileState{
-		fname: &osutil.MemoryBlob{Content: globalProfile, Mode: 0644},
+		fname: &osutil.MemoryFileState{Content: globalProfile, Mode: 0644},
 	}
 	if err := os.MkdirAll(dir, 0755); err != nil {
 		return fmt.Errorf("cannot create directory for seccomp profiles %q: %s", dir, err)
@@ -269,7 +269,7 @@ func (b *Backend) deriveContent(spec *Specification, opts interfaces.Confinement
 		securityTag := hookInfo.SecurityTag()
 
 		path := securityTag + ".src"
-		content[path] = &osutil.MemoryBlob{
+		content[path] = &osutil.MemoryFileState{
 			Content: generateContent(opts, spec.SnippetForTag(securityTag), addSocketcall, b.versionInfo, uidGidChownSyscalls.String()),
 			Mode:    0644,
 		}
@@ -280,7 +280,7 @@ func (b *Backend) deriveContent(spec *Specification, opts interfaces.Confinement
 		}
 		securityTag := appInfo.SecurityTag()
 		path := securityTag + ".src"
-		content[path] = &osutil.MemoryBlob{
+		content[path] = &osutil.MemoryFileState{
 			Content: generateContent(opts, spec.SnippetForTag(securityTag), addSocketcall, b.versionInfo, uidGidChownSyscalls.String()),
 			Mode:    0644,
 		}

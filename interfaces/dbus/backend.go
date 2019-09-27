@@ -173,7 +173,7 @@ func addContent(securityTag string, snippet string, content map[string]osutil.Fi
 	buffer.WriteString(snippet)
 	buffer.Write(xmlFooter)
 
-	content[fmt.Sprintf("%s.conf", securityTag)] = &osutil.MemoryBlob{
+	content[fmt.Sprintf("%s.conf", securityTag)] = &osutil.MemoryFileState{
 		Content: buffer.Bytes(),
 		Mode:    0644,
 	}

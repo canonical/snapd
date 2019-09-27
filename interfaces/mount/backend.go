@@ -103,7 +103,7 @@ func addMountProfile(content map[string]osutil.FileState, fname string, entries 
 	for _, entry := range entries {
 		fmt.Fprintf(&buffer, "%s\n", entry)
 	}
-	content[fname] = &osutil.MemoryBlob{Content: buffer.Bytes(), Mode: 0644}
+	content[fname] = &osutil.MemoryFileState{Content: buffer.Bytes(), Mode: 0644}
 }
 
 // deriveContent computes .fstab tables based on requests made to the specification.

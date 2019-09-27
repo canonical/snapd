@@ -140,7 +140,7 @@ func deriveContent(spec *Specification, snapInfo *snap.Info) map[string]osutil.F
 	}
 	content := make(map[string]osutil.FileState)
 	for name, service := range services {
-		content[name] = &osutil.MemoryBlob{
+		content[name] = &osutil.MemoryFileState{
 			Content: []byte(service.String()),
 			Mode:    0644,
 		}

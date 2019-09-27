@@ -82,7 +82,7 @@ func (m *SnapManager) SyncCookies(st *state.State) error {
 
 	content := make(map[string]osutil.FileState)
 	for cookie, snap := range snapCookies {
-		content[fmt.Sprintf("snap.%s", snap)] = &osutil.MemoryBlob{
+		content[fmt.Sprintf("snap.%s", snap)] = &osutil.MemoryFileState{
 			Content: []byte(cookie),
 			Mode:    0600,
 		}
