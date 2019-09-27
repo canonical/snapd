@@ -322,7 +322,7 @@ func (m *SnapManager) installPrereqs(t *state.Task, base string, prereq []string
 			tsSnapd, err = m.installOneBaseOrRequired(st, "snapd", noTypeBaseCheck, defaultSnapdSnapsChannel(), onInFlightErr, userID)
 		})
 		if err != nil {
-			return prereqError("system snap", "snapd", err) // XXX
+			return prereqError("system snap", "snapd", err)
 		}
 	}
 
