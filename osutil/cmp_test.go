@@ -107,8 +107,7 @@ func (s *CmpTestSuite) TestStreamEqual(c *C) {
 	// Passing the same stream twice is not mishandled.
 	readerA := bytes.NewReader(nil)
 	readerB := readerA
-	eq, err := StreamEqual(readerA, readerB, 0)
-	c.Assert(err, IsNil)
+	eq := StreamEqual(readerA, readerB, 0)
 	c.Check(eq, Equals, true)
 
 	// Passing two streams with the same content works as expected. Note that
@@ -116,8 +115,7 @@ func (s *CmpTestSuite) TestStreamEqual(c *C) {
 	for _, chunkSize := range []int{0, 1, len(text) / 2, len(text), len(text) + 1} {
 		readerA = bytes.NewReader([]byte(text))
 		readerB = bytes.NewReader([]byte(text))
-		eq, err = StreamEqual(readerA, readerB, chunkSize)
-		c.Assert(err, IsNil)
+		eq := StreamEqual(readerA, readerB, chunkSize)
 		c.Check(eq, Equals, true, Commentf("chunk size %d", chunkSize))
 	}
 
@@ -127,8 +125,7 @@ func (s *CmpTestSuite) TestStreamEqual(c *C) {
 		comment := Commentf("chunk size %d", chunkSize)
 		readerA = bytes.NewReader([]byte(strings.ToLower(text)))
 		readerB = bytes.NewReader([]byte(strings.ToUpper(text)))
-		eq, err = StreamEqual(readerA, readerB, chunkSize)
-		c.Assert(err, IsNil, comment)
+		eq = StreamEqual(readerA, readerB, chunkSize)
 		c.Check(eq, Equals, false, comment)
 	}
 
@@ -138,15 +135,13 @@ func (s *CmpTestSuite) TestStreamEqual(c *C) {
 		comment := Commentf("A: %q, B: %q, chunk size %d", text, text[:len(text)/2], chunkSize)
 		readerA = bytes.NewReader([]byte(text))
 		readerB = bytes.NewReader([]byte(text[:len(text)/2]))
-		eq, err = StreamEqual(readerA, readerB, chunkSize)
-		c.Assert(err, IsNil, comment)
+		eq = StreamEqual(readerA, readerB, chunkSize)
 		c.Check(eq, Equals, false, comment)
 
 		// Readers passed the other way around.
 		readerA = bytes.NewReader([]byte(text))
 		readerB = bytes.NewReader([]byte(text[:len(text)/2]))
-		eq, err = StreamEqual(readerB, readerA, chunkSize)
-		c.Assert(err, IsNil, comment)
+		eq = StreamEqual(readerB, readerA, chunkSize)
 		c.Check(eq, Equals, false, comment)
 	}
 }
@@ -158,7 +153,6 @@ func (s *CmpTestSuite) TestStreamEqualWAT(c *C) {
 	readerA := bytes.NewReader([]byte(text))
 	readerB := bytes.NewReader([]byte(text[:len(text)/2]))
 
-	eq, err := StreamEqual(readerB, readerA, chunkSize)
-	c.Assert(err, IsNil, comment)
+	eq := StreamEqual(readerB, readerA, chunkSize)
 	c.Check(eq, Equals, false, comment)
 }

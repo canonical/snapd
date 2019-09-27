@@ -91,9 +91,9 @@ func StreamsEqual(a, b io.Reader) bool {
 }
 
 // StreamEqual returns true if both streams have same length and content.
-func StreamEqual(readerA, readerB io.Reader, chunkSize int) (bool, error) {
+func StreamEqual(readerA, readerB io.Reader, chunkSize int) bool {
 	if readerA == readerB {
-		return true, nil
+		return true
 	}
 	if chunkSize <= 0 {
 		chunkSize = 4096
@@ -125,12 +125,12 @@ func StreamEqual(readerA, readerB io.Reader, chunkSize int) (bool, error) {
 		// unexpected for us because we don't assume they streams have equal
 		// length.
 		if errA != nil && errA != io.EOF {
-			return false, errA
+			return false
 		}
 		if errB != nil && errB != io.EOF && errB != io.ErrUnexpectedEOF {
-			return false, errB
+			return false
 		}
-		return false, nil
+		return false
 	}
-	return true, nil
+	return true
 }
