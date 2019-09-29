@@ -22,6 +22,10 @@ type LsblkFilesystemInfo lsblkFilesystemInfo
 type LsblkBlockDevice lsblkBlockDevice
 
 var (
+	// volmgr
+	MountpointRoot = &mountpointRoot
+
+	// sfdisk
 	NewSFDisk      = newSFDisk
 	FilesystemInfo = filesystemInfo
 
@@ -29,6 +33,9 @@ var (
 	TempKeyFile = &tempKeyFile
 
 	// utils
-	Wipe      = wipe
-	CreateKey = createKey
+	Wipe            = wipe
+	CreateKey       = createKey
+	Mount           = mount
+	Unmount         = unmount
+	EnsureDirectory = ensureDirectory
 )

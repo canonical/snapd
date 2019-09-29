@@ -20,6 +20,7 @@ package volmgr_test
 
 import (
 	"io/ioutil"
+	"os"
 	"path"
 
 	. "gopkg.in/check.v1"
@@ -43,4 +44,83 @@ func (s *volmgrTestSuite) TestCreateKey(c *C) {
 	data, err := volmgr.CreateKey(16)
 	c.Assert(err, IsNil)
 	c.Assert(data, Not(DeepEquals), make([]byte, 16))
+}
+
+func (s *volmgrTestSuite) TestMount(c *C) {
+	cmd := testutil.MockCommand(c, "mount", "exit 0")
+	defer cmd.Restore()
+
+	err := volmgr.Mount("/dev/node", "mountpoint")
+	c.Assert(err, IsNil)
+	c.Assert(cmd.Calls(), DeepEquals, [][]string{
+		{"mount", "/dev/node", "mountpoint"},
+	})
+}
+
+func (s *volmgrTestSuite) TestMountOptions(c *C) {
+	cmd := testutil.MockCommand(c, "mount", "exit 0")
+	defer cmd.Restore()
+
+	err := volmgr.Mount("/dev/node", "mountpoint", "-o", "rw,remount")
+	c.Assert(err, IsNil)
+	c.Assert(cmd.Calls(), DeepEquals, [][]string{
+		{"mount", "-o", "rw,remount", "/dev/node", "mountpoint"},
+	})
+}
+
+func (s *volmgrTestSuite) TestMountError(c *C) {
+	cmd := testutil.MockCommand(c, "mount", `echo "mount: some error"; exit 32`)
+	defer cmd.Restore()
+
+	err := volmgr.Mount("/dev/node", "mountpoint")
+	c.Assert(err, ErrorMatches, "mount: some error")
+	c.Assert(cmd.Calls(), DeepEquals, [][]string{
+		{"mount", "/dev/node", "mountpoint"},
+	})
+}
+
+func (s *volmgrTestSuite) TestUnmount(c *C) {
+	cmd := testutil.MockCommand(c, "umount", "exit 0")
+	defer cmd.Restore()
+
+	err := volmgr.Unmount("mountpoint")
+	c.Assert(err, IsNil)
+	c.Assert(cmd.Calls(), DeepEquals, [][]string{
+		{"umount", "mountpoint"},
+	})
+}
+
+func (s *volmgrTestSuite) TestUnmountError(c *C) {
+	cmd := testutil.MockCommand(c, "umount", `echo "umount: some error"; exit 1`)
+	defer cmd.Restore()
+
+	err := volmgr.Unmount("mountpoint")
+	c.Assert(err, ErrorMatches, "umount: some error")
+	c.Assert(cmd.Calls(), DeepEquals, [][]string{
+		{"umount", "mountpoint"},
+	})
+}
+
+func (s *volmgrTestSuite) TestEnsureDirectory(c *C) {
+	name := c.MkDir()
+
+	// test if path exists
+	err := volmgr.EnsureDirectory(name)
+	c.Assert(err, IsNil)
+
+	// test with non-existent path (should create directory)
+	p := path.Join(name, "new", "path")
+	err = volmgr.EnsureDirectory(p)
+	c.Assert(err, IsNil)
+	stat, err := os.Stat(p)
+	c.Assert(err, IsNil)
+	c.Assert(stat.IsDir(), Equals, true)
+
+	// test with non-directory path
+	p = path.Join(name, "newfile")
+	f, err := os.Create(p)
+	c.Assert(err, IsNil)
+	f.Close()
+	err = volmgr.EnsureDirectory(p)
+	c.Assert(err, ErrorMatches, "path exists and is not a directory: .*")
 }
