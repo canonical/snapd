@@ -30,7 +30,7 @@ import (
 	"github.com/snapcore/snapd/interfaces/seccomp"
 	"github.com/snapcore/snapd/interfaces/systemd"
 	"github.com/snapcore/snapd/interfaces/udev"
-	"github.com/snapcore/snapd/release"
+	apparmor_sandbox "github.com/snapcore/snapd/sandbox/apparmor"
 )
 
 var All []interfaces.SecurityBackend = backends()
@@ -47,6 +47,9 @@ func backends() []interfaces.SecurityBackend {
 		&kmod.Backend{},
 	}
 
+	// TODO use something like:
+	// level, summary := apparmor.ProbeResults()
+
 	// This should be logger.Noticef but due to ordering of initialization
 	// calls, the logger is not ready at this point yet and the message goes
 	// nowhere. Per advice from other snapd developers, we just print it
@@ -57,7 +60,7 @@ func backends() []interfaces.SecurityBackend {
 	// By printing this directly we ensure it will end up the journal for the
 	// snapd.service. This aspect should be retained even after the switch to
 	// user-warning.
-	fmt.Printf("AppArmor status: %s\n", release.AppArmorSummary())
+	fmt.Printf("AppArmor status: %s\n", apparmor_sandbox.Summary())
 
 	// Enable apparmor backend if there is any level of apparmor support,
 	// including partial feature set. This will allow snap-confine to always
@@ -66,8 +69,8 @@ func backends() []interfaces.SecurityBackend {
 	//
 	// When some features are missing the backend will generate more permissive
 	// profiles that keep applications operational, in forced-devmode.
-	switch release.AppArmorLevel() {
-	case release.PartialAppArmor, release.FullAppArmor:
+	switch apparmor_sandbox.ProbedLevel() {
+	case apparmor_sandbox.Partial, apparmor_sandbox.Full:
 		all = append(all, &apparmor.Backend{})
 	}
 	return all

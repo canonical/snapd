@@ -121,6 +121,17 @@ defaults:
       bar: baz
 `)
 
+var mockClassicGadgetMultilineDefaultsYaml = []byte(`
+defaults:
+  system:
+    something: true
+  otheridididididididididididididi:
+    foosnap:
+      multiline: |
+        foo
+        bar
+`)
+
 var mockVolumeUpdateGadgetYaml = []byte(`
 volumes:
   bootloader:
@@ -287,6 +298,22 @@ func (s *gadgetYamlTestSuite) TestReadGadgetYamlOnClassicOnylDefaultsIsValid(c *
 			// keep this comment so that gofmt 1.10+ does not
 			// realign this, thus breaking our gofmt 1.9 checks
 			"otheridididididididididididididi": {"foo": map[string]interface{}{"bar": "baz"}},
+		},
+	})
+}
+
+func (s *gadgetYamlTestSuite) TestReadGadgetDefaultsMultiline(c *C) {
+	err := ioutil.WriteFile(s.gadgetYamlPath, mockClassicGadgetMultilineDefaultsYaml, 0644)
+	c.Assert(err, IsNil)
+
+	ginfo, err := gadget.ReadInfo(s.dir, true)
+	c.Assert(err, IsNil)
+	c.Assert(ginfo, DeepEquals, &gadget.Info{
+		Defaults: map[string]map[string]interface{}{
+			"system": {"something": true},
+			// keep this comment so that gofmt 1.10+ does not
+			// realign this, thus breaking our gofmt 1.9 checks
+			"otheridididididididididididididi": {"foosnap": map[string]interface{}{"multiline": "foo\nbar\n"}},
 		},
 	})
 }

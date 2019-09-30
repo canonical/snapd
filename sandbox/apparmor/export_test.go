@@ -17,35 +17,34 @@
  *
  */
 
-package release
+package apparmor
 
-var (
-	ReadOSRelease = readOSRelease
-)
-
-func MockOSReleasePath(filename string) (restore func()) {
-	old := osReleasePath
-	oldFallback := fallbackOsReleasePath
-	osReleasePath = filename
-	fallbackOsReleasePath = filename
+func MockFeaturesSysPath(path string) (restorer func()) {
+	old := featuresSysPath
+	featuresSysPath = path
 	return func() {
-		osReleasePath = old
-		fallbackOsReleasePath = oldFallback
+		featuresSysPath = old
 	}
 }
 
-func MockIoutilReadfile(newReadfile func(string) ([]byte, error)) (restorer func()) {
-	old := ioutilReadFile
-	ioutilReadFile = newReadfile
+func MockParserSearchPath(new string) (restore func()) {
+	oldAppArmorParserSearchPath := parserSearchPath
+	parserSearchPath = new
 	return func() {
-		ioutilReadFile = old
+		parserSearchPath = oldAppArmorParserSearchPath
 	}
 }
 
 var (
-	IsWSL = isWSL
+	ProbeKernelFeatures = probeKernelFeatures
+	ProbeParserFeatures = probeParserFeatures
+
+	RequiredKernelFeatures  = requiredKernelFeatures
+	RequiredParserFeatures  = requiredParserFeatures
+	PreferredKernelFeatures = preferredKernelFeatures
+	PreferredParserFeatures = preferredParserFeatures
 )
 
-func FreshSecCompProbe() {
-	secCompProber = &secCompProbe{}
+func FreshAppArmorAssessment() {
+	appArmorAssessment = &appArmorAssess{appArmorProber: &appArmorProbe{}}
 }

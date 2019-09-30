@@ -21,6 +21,7 @@ package httputil_test
 
 import (
 	"net/http"
+	"net/http/httptest"
 	"net/url"
 
 	"gopkg.in/check.v1"
@@ -33,7 +34,7 @@ type clientSuite struct{}
 var _ = check.Suite(&clientSuite{})
 
 func mustParse(c *check.C, rawurl string) *url.URL {
-	url, err := url.Parse("http://some-proxy:3128")
+	url, err := url.Parse(rawurl)
 	c.Assert(err, check.IsNil)
 	return url
 }
@@ -59,4 +60,26 @@ func (s *clientSuite) TestClientOptionsWithProxy(c *check.C) {
 	url, err := trans.Proxy(req)
 	c.Check(err, check.IsNil)
 	c.Check(url.String(), check.Equals, "http://some-proxy:3128")
+}
+
+func (s *clientSuite) TestClientProxySetsUserAgent(c *check.C) {
+	myUserAgent := "snapd yadda yadda"
+
+	defer httputil.MockUserAgent(myUserAgent)()
+
+	called := false
+	proxyServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		c.Check(r.UserAgent(), check.Equals, myUserAgent)
+		called = true
+	}))
+	defer proxyServer.Close()
+	cli := httputil.NewHTTPClient(&httputil.ClientOptions{
+		Proxy: func(*http.Request) (*url.URL, error) {
+			return mustParse(c, proxyServer.URL), nil
+		},
+	})
+	_, err := cli.Get("https://localhost:9999")
+	c.Check(err, check.NotNil) // because we didn't do anything in the handler
+
+	c.Assert(called, check.Equals, true)
 }

@@ -81,6 +81,10 @@ func (s *snapDownloadSuite) SnapAction(ctx context.Context, currentSnaps []*stor
 			panic(fmt.Sprintf("unexpected channel %q for bar snap", action.Channel))
 		}
 		return []*snap.Info{{
+			SideInfo: snap.SideInfo{
+				RealName: "bar",
+				Revision: snap.R(1),
+			},
 			DownloadInfo: snap.DownloadInfo{
 				Size:            int64(len(content)),
 				AnonDownloadURL: "http://localhost/bar",
@@ -91,6 +95,10 @@ func (s *snapDownloadSuite) SnapAction(ctx context.Context, currentSnaps []*stor
 			panic(fmt.Sprintf("unexpected channel %q for edge-bar snap", action.Channel))
 		}
 		return []*snap.Info{{
+			SideInfo: snap.SideInfo{
+				RealName: "edge-bar",
+				Revision: snap.R(1),
+			},
 			DownloadInfo: snap.DownloadInfo{
 				Size:            int64(len(content)),
 				AnonDownloadURL: "http://localhost/edge-bar",
@@ -223,7 +231,7 @@ func (s *snapDownloadSuite) TestStreamOneSnap(c *check.C) {
 			c.Assert(w.Code, check.Equals, s.status)
 			c.Assert(w.Header().Get("Content-Length"), check.Equals, expectedLength)
 			c.Assert(w.Header().Get("Content-Type"), check.Equals, "application/octet-stream")
-			c.Assert(w.Header().Get("Content-Disposition"), check.Equals, fmt.Sprintf("attachment; filename=%s", s.snapName))
+			c.Assert(w.Header().Get("Content-Disposition"), check.Equals, fmt.Sprintf("attachment; filename=%s_1.snap", s.snapName))
 			c.Assert(w.Body.String(), check.Equals, "SNAP")
 		}
 	}
