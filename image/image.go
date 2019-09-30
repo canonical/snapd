@@ -183,7 +183,7 @@ func setupSeed(tsto *ToolingStore, model *asserts.Model, opts *Options) error {
 	if osutil.FileExists(dirs.SnapStateFile) {
 		return fmt.Errorf("cannot prepare seed over existing system or an already booted image, detected state file %s", dirs.SnapStateFile)
 	}
-	if snaps, _ := filepath.Glob(filepath.Join(dirs.SnapBlobDir, "*.snap")); len(snaps) > 0 {
+	if snaps, _ := filepath.Glob(filepath.Join(dirs.SnapBlobDirUnder(opts.RootDir), "*.snap")); len(snaps) > 0 {
 		return fmt.Errorf("need an empty snap dir in rootdir, got: %v", snaps)
 	}
 
@@ -344,7 +344,7 @@ func setupSeed(tsto *ToolingStore, model *asserts.Model, opts *Options) error {
 	}
 
 	if opts.Classic {
-		seedFn := filepath.Join(dirs.SnapSeedDir, "seed.yaml")
+		seedFn := filepath.Join(seedDir, "seed.yaml")
 		// warn about ownership if not root:root
 		fi, err := os.Stat(seedFn)
 		if err != nil {
@@ -352,7 +352,7 @@ func setupSeed(tsto *ToolingStore, model *asserts.Model, opts *Options) error {
 		}
 		if st, ok := fi.Sys().(*syscall.Stat_t); ok {
 			if st.Uid != 0 || st.Gid != 0 {
-				fmt.Fprintf(Stderr, "WARNING: ensure that the contents under %s are owned by root:root in the (final) image", dirs.SnapSeedDir)
+				fmt.Fprintf(Stderr, "WARNING: ensure that the contents under %s are owned by root:root in the (final) image", seedDir)
 			}
 		}
 		// done already
