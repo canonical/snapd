@@ -24,6 +24,7 @@ type LsblkBlockDevice lsblkBlockDevice
 var (
 	// volmgr
 	MountpointRoot = &mountpointRoot
+	DeployContent  = deployContent
 
 	// sfdisk
 	NewSFDisk      = newSFDisk

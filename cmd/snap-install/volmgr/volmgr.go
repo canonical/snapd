@@ -21,13 +21,19 @@ package volmgr
 import (
 	"fmt"
 	"os/exec"
+	"path"
 
 	"github.com/snapcore/snapd/gadget"
+	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/osutil"
 )
 
 const (
 	MasterKeySize = 64
+)
+
+var (
+	mountpointRoot = "/run"
 )
 
 // PartitionTool is used to query and manipulate the device partition
@@ -53,7 +59,7 @@ type VolumeManager struct {
 	encryptedData    bool
 }
 
-func NewVolumeManager(gadgetRoot, device string) (*VolumeManager, error) {
+func NewVolumeManager(gadgetRoot, device string, encryptedData bool) (*VolumeManager, error) {
 	info, err := gadget.ReadInfo(gadgetRoot, false)
 	if err != nil {
 		return nil, err
@@ -80,15 +86,15 @@ func NewVolumeManager(gadgetRoot, device string) (*VolumeManager, error) {
 		partitionTool:    newPartitionTool(device),
 		info:             info,
 		positionedVolume: positionedVolume,
-		encryptedData:    true, // FIXME: this definition should come from the model
+		encryptedData:    encryptedData,
 	}
 
 	return v, nil
 }
 
-// Run compares the volume definition in gadget with the actual device and
-// creates missing structures.
-func (v *VolumeManager) Run() error {
+// CreatePartitions compares the volume definition in gadget with the actual device
+// and creates missing structures.
+func (v *VolumeManager) CreatePartitions() error {
 	if err := v.readDevice(); err != nil {
 		return err
 	}
@@ -173,11 +179,17 @@ func (v *VolumeManager) completeLayout() error {
 			continue
 		}
 
+		// Create filesystem
 		node, ok := deviceMap[s.Role]
 		if !ok {
 			continue
 		}
 		if err := makeFilesystem(node, s.Label, s.Filesystem); err != nil {
+			return err
+		}
+
+		// Deploy structure content
+		if err := deployContent(&p, v.gadgetRoot, node); err != nil {
 			return err
 		}
 	}
@@ -210,6 +222,31 @@ func makeExt4Filesystem(node, label string) error {
 	return nil
 }
 
+func deployContent(ps *gadget.LaidOutStructure, gadgetRoot, node string) error {
+	vs := ps.VolumeStructure
+	if vs.Label == "" {
+		return fmt.Errorf("cannot deploy content on an unlabeled structure")
+	}
+	mountpoint := path.Join(mountpointRoot, vs.Label)
+
+	// temporarily mount the filesystem
+	if err := mount(node, mountpoint); err != nil {
+		return err
+	}
+	defer unmount(node)
+
+	fs, err := gadget.NewMountedFilesystemWriter(gadgetRoot, ps)
+	if err != nil {
+		return fmt.Errorf("cannot create filesystem image writer: %v", err)
+	}
+
+	if err := fs.Write(mountpoint, []string{}); err != nil {
+		return fmt.Errorf("cannot create filesystem image: %v", err)
+	}
+
+	return nil
+}
+
 func findStructureInVolume(needle *gadget.LaidOutStructure, haystack *gadget.LaidOutVolume) (int, error) {
 	found := -1
 	n := needle.VolumeStructure
@@ -235,7 +272,7 @@ func findStructureInVolume(needle *gadget.LaidOutStructure, haystack *gadget.Lai
 		}
 		found = ps.Index
 
-		fmt.Printf("structure %q found in gadget definition (index %d)\n", h.Name, ps.Index)
+		logger.Noticef("structure %q found in gadget definition (index %d)\n", h.Name, ps.Index)
 	}
 
 	var err error

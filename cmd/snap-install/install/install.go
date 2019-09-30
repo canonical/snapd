@@ -41,11 +41,11 @@ func New(gadgetRoot, device string, options *Options) *Install {
 }
 
 func (inst *Install) Run() error {
-	v, err := volmgr.NewVolumeManager(inst.gadgetRoot, inst.device)
+	v, err := volmgr.NewVolumeManager(inst.gadgetRoot, inst.device, inst.options.Encrypt)
 	if err != nil {
 		return err
 	}
-	if err := v.Run(); err != nil {
+	if err := v.CreatePartitions(); err != nil {
 		return err
 	}
 

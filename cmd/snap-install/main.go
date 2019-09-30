@@ -35,6 +35,7 @@ func main() {
 	device := os.Args[2]
 
 	options := &install.Options{
+		// FIXME: get this from a command line parameter
 		Encrypt: true,
 	}
 

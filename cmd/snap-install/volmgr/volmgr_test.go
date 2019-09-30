@@ -66,7 +66,7 @@ const gadgetContent = `volumes:
         role: system-data
         filesystem: ext4
         type: 83,0FC63DAF-8483-4772-8E79-3D69D8477DE4
-        #filesystem-label: ubuntu-data
+        filesystem-label: ubuntu-data
         size: 1200M
 `
 
@@ -98,7 +98,8 @@ const lsblkMockScript = `echo '{
 }'`
 
 func (s *volmgrTestSuite) TestVolumeManager(c *C) {
-	gadgetRoot := c.MkDir()
+	*volmgr.MountpointRoot = c.MkDir()
+	gadgetRoot := path.Join(*volmgr.MountpointRoot, "gadget")
 	c.Assert(createGadget(gadgetRoot), IsNil)
 
 	cmdSfdisk := testutil.MockCommand(c, "sfdisk", sfdiskMockScript)
@@ -119,38 +120,121 @@ func (s *volmgrTestSuite) TestVolumeManager(c *C) {
 	cmdCryptsetup := testutil.MockCommand(c, "cryptsetup", "exit 0")
 	defer cmdCryptsetup.Restore()
 
+	cmdMount := testutil.MockCommand(c, "mount", "exit 0")
+	defer cmdMount.Restore()
+
+	cmdUmount := testutil.MockCommand(c, "umount", "exit 0")
+	defer cmdUmount.Restore()
+
 	*volmgr.TempKeyFile = path.Join(gadgetRoot, "unlock.tmp")
-	v, err := volmgr.NewVolumeManager(gadgetRoot, "/dev/node")
+	v, err := volmgr.NewVolumeManager(gadgetRoot, "/dev/node", true)
 	c.Assert(err, IsNil)
 
-	err = v.Run()
+	// Create partitions using encryption
+	err = v.CreatePartitions()
 	c.Assert(err, IsNil)
 
+	// Check partition table reload
 	c.Assert(cmdPartx.Calls(), DeepEquals, [][]string{{"partx", "-u", "/dev/node"}})
+
+	// Check filesystem creation
 	c.Assert(cmdMkfsVFAT.Calls(), DeepEquals, [][]string{{"mkfs.vfat", "-n", "ubuntu-seed", "/dev/node2"}})
 	c.Assert(cmdCryptsetup.Calls(), DeepEquals, [][]string{
 		{"cryptsetup", "-q", "luksFormat", "--type", "luks2", "--pbkdf-memory", "1000", "--master-key-file", *volmgr.TempKeyFile, "/dev/node3"},
 		{"cryptsetup", "open", "--master-key-file", *volmgr.TempKeyFile, "/dev/node3", "ubuntu-data"},
 	})
+	c.Assert(cmdMke2fs.Calls(), DeepEquals, [][]string{{"mke2fs", "-t", "ext4", "-L", "ubuntu-data", "/dev/mapper/ubuntu-data"}})
 
-	// FIXME: gadget expects the system-data partition to be labeled as "writable". However, UC20
-	//        changed it to "ubuntu-data", but older versions should keep the previous naming. Enable
-	//        this test after we decide how to deal with legacy naming support.
-	// c.Assert(cmdMke2fs.Calls(), DeepEquals, [][]string{{"mke2fs", "-t", "ext4", "-L", "ubuntu-data", "/dev/mapper/ubuntu-data"}})
+	// Check mount/umount
+	seedMountpoint := path.Join(*volmgr.MountpointRoot, "ubuntu-seed")
+	dataMountpoint := path.Join(*volmgr.MountpointRoot, "ubuntu-data")
+	c.Assert(cmdMount.Calls(), DeepEquals, [][]string{
+		{"mount", "/dev/node2", seedMountpoint},
+		{"mount", "/dev/mapper/ubuntu-data", dataMountpoint},
+	})
+	c.Assert(cmdUmount.Calls(), DeepEquals, [][]string{
+		{"umount", "/dev/node2"},
+		{"umount", "/dev/mapper/ubuntu-data"},
+	})
+
+	// Check target file deployment
+	c.Assert(path.Join(seedMountpoint, "EFI", "boot", "grubx64.efi"), testutil.FilePresent)
+}
+
+func (s *volmgrTestSuite) TestVolumeManagerNoEncryption(c *C) {
+	*volmgr.MountpointRoot = c.MkDir()
+	gadgetRoot := path.Join(*volmgr.MountpointRoot, "gadget")
+	c.Assert(createGadget(gadgetRoot), IsNil)
+
+	cmdSfdisk := testutil.MockCommand(c, "sfdisk", sfdiskMockScript)
+	defer cmdSfdisk.Restore()
+
+	cmdLsblk := testutil.MockCommand(c, "lsblk", lsblkMockScript)
+	defer cmdLsblk.Restore()
+
+	cmdPartx := testutil.MockCommand(c, "partx", "exit 0")
+	defer cmdPartx.Restore()
+
+	cmdMkfsVFAT := testutil.MockCommand(c, "mkfs.vfat", "exit 0")
+	defer cmdMkfsVFAT.Restore()
+
+	cmdMke2fs := testutil.MockCommand(c, "mke2fs", "exit 0")
+	defer cmdMke2fs.Restore()
+
+	cmdCryptsetup := testutil.MockCommand(c, "cryptsetup", "exit 1")
+	defer cmdCryptsetup.Restore()
+
+	cmdMount := testutil.MockCommand(c, "mount", "exit 0")
+	defer cmdMount.Restore()
+
+	cmdUmount := testutil.MockCommand(c, "umount", "exit 0")
+	defer cmdUmount.Restore()
+
+	*volmgr.TempKeyFile = path.Join(gadgetRoot, "unlock.tmp")
+	v, err := volmgr.NewVolumeManager(gadgetRoot, "/dev/node", false)
+	c.Assert(err, IsNil)
+
+	// Create partitions without encryption
+	err = v.CreatePartitions()
+	c.Assert(err, IsNil)
+
+	// Check partition table reload
+	c.Assert(cmdPartx.Calls(), DeepEquals, [][]string{{"partx", "-u", "/dev/node"}})
+
+	// Check filesystem creation
+	c.Assert(cmdMkfsVFAT.Calls(), DeepEquals, [][]string{{"mkfs.vfat", "-n", "ubuntu-seed", "/dev/node2"}})
+	c.Assert(cmdCryptsetup.Calls(), IsNil)
+	c.Assert(cmdMke2fs.Calls(), DeepEquals, [][]string{{"mke2fs", "-t", "ext4", "-L", "ubuntu-data", "/dev/node3"}})
+
+	// Check mount/umount
+	seedMountpoint := path.Join(*volmgr.MountpointRoot, "ubuntu-seed")
+	dataMountpoint := path.Join(*volmgr.MountpointRoot, "ubuntu-data")
+	c.Assert(cmdMount.Calls(), DeepEquals, [][]string{
+		{"mount", "/dev/node2", seedMountpoint},
+		{"mount", "/dev/node3", dataMountpoint},
+	})
+	c.Assert(cmdUmount.Calls(), DeepEquals, [][]string{
+		{"umount", "/dev/node2"},
+		{"umount", "/dev/node3"},
+	})
+
+	// Check target file deployment
+	c.Assert(path.Join(seedMountpoint, "EFI", "boot", "grubx64.efi"), testutil.FilePresent)
 }
 
 func createGadget(gadgetRoot string) error {
-	if err := os.Mkdir(path.Join(gadgetRoot, "meta"), 0755); err != nil {
+	if err := os.MkdirAll(path.Join(gadgetRoot, "meta"), 0755); err != nil {
 		return err
 	}
 	if err := ioutil.WriteFile(path.Join(gadgetRoot, "meta", "gadget.yaml"), []byte(gadgetContent), 0644); err != nil {
 		return err
 	}
-	f, err := os.Create(path.Join(gadgetRoot, "pc-boot.img"))
-	if err != nil {
+	if err := ioutil.WriteFile(path.Join(gadgetRoot, "pc-boot.img"), []byte{}, 0644); err != nil {
 		return err
 	}
-	f.Close()
+	if err := ioutil.WriteFile(path.Join(gadgetRoot, "grubx64.efi"), []byte{}, 0644); err != nil {
+		return err
+	}
 
 	return nil
 }
