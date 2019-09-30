@@ -135,7 +135,7 @@ func (b *Backend) Initialize() error {
 		return fmt.Errorf("cannot synchronize global seccomp profile: %s", err)
 	}
 
-	b.snapSeccomp, err = seccomp.New(seccompCompilerLookup)
+	b.snapSeccomp, err = seccomp.NewCompiler(seccompCompilerLookup)
 	if err != nil {
 		return fmt.Errorf("cannot initialize seccomp profile compiler: %v", err)
 	}

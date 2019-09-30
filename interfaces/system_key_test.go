@@ -108,7 +108,7 @@ func (s *systemKeySuite) testInterfaceWriteSystemKey(c *C, nfsHome bool) {
 	seccompActionsStr, err := json.Marshal(seccomp.Actions())
 	c.Assert(err, IsNil)
 
-	compiler, err := seccomp.New(func(name string) (string, error) {
+	compiler, err := seccomp.NewCompiler(func(name string) (string, error) {
 		return filepath.Join(dirs.DistroLibExecDir, "snap-seccomp"), nil
 	})
 	c.Assert(err, IsNil)
