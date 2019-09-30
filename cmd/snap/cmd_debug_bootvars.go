@@ -1,7 +1,7 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
 
 /*
- * Copyright (C) 2014-2015 Canonical Ltd
+ * Copyright (C) 2019 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -17,35 +17,26 @@
  *
  */
 
-package release
+package main
 
-var (
-	ReadOSRelease = readOSRelease
+import (
+	"github.com/jessevdk/go-flags"
+
+	"github.com/snapcore/snapd/boot"
 )
 
-func MockOSReleasePath(filename string) (restore func()) {
-	old := osReleasePath
-	oldFallback := fallbackOsReleasePath
-	osReleasePath = filename
-	fallbackOsReleasePath = filename
-	return func() {
-		osReleasePath = old
-		fallbackOsReleasePath = oldFallback
-	}
+type cmdBootvars struct{}
+
+func init() {
+	cmd := addDebugCommand("boot-vars",
+		"(internal) obtain the snapd boot variables",
+		"(internal) obtain the snapd boot variables",
+		func() flags.Commander {
+			return &cmdBootvars{}
+		}, nil, nil)
+	cmd.hidden = true
 }
 
-func MockIoutilReadfile(newReadfile func(string) ([]byte, error)) (restorer func()) {
-	old := ioutilReadFile
-	ioutilReadFile = newReadfile
-	return func() {
-		ioutilReadFile = old
-	}
-}
-
-var (
-	IsWSL = isWSL
-)
-
-func FreshSecCompProbe() {
-	secCompProber = &secCompProbe{}
+func (x *cmdBootvars) Execute(args []string) error {
+	return boot.DumpBootVars(Stdout)
 }

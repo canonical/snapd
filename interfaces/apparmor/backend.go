@@ -53,6 +53,7 @@ import (
 	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/release"
+	apparmor_sandbox "github.com/snapcore/snapd/sandbox/apparmor"
 	"github.com/snapcore/snapd/snap"
 	"github.com/snapcore/snapd/strutil"
 	"github.com/snapcore/snapd/timings"
@@ -62,8 +63,8 @@ var (
 	procSelfExe           = "/proc/self/exe"
 	isHomeUsingNFS        = osutil.IsHomeUsingNFS
 	isRootWritableOverlay = osutil.IsRootWritableOverlay
-	kernelFeatures        = release.AppArmorKernelFeatures
-	parserFeatures        = release.AppArmorParserFeatures
+	kernelFeatures        = apparmor_sandbox.KernelFeatures
+	parserFeatures        = apparmor_sandbox.ParserFeatures
 )
 
 // Backend is responsible for maintaining apparmor profiles for snaps and parts of snapd.
@@ -332,7 +333,7 @@ func (b *Backend) prepareProfiles(snapInfo *snap.Info, opts interfaces.Confineme
 	spec.(*Specification).AddLayout(snapInfo)
 
 	// core on classic is special
-	if snapName == "core" && release.OnClassic && release.AppArmorLevel() != release.NoAppArmor {
+	if snapName == "core" && release.OnClassic && apparmor_sandbox.ProbedLevel() != apparmor_sandbox.Unsupported {
 		if err := setupSnapConfineReexec(snapInfo); err != nil {
 			return nil, fmt.Errorf("cannot create host snap-confine apparmor configuration: %s", err)
 		}
@@ -341,7 +342,7 @@ func (b *Backend) prepareProfiles(snapInfo *snap.Info, opts interfaces.Confineme
 	// Deal with the "snapd" snap - we do the setup slightly differently
 	// here because this will run both on classic and on Ubuntu Core 18
 	// systems but /etc/apparmor.d is not writable on core18 systems
-	if snapInfo.GetType() == snap.TypeSnapd && release.AppArmorLevel() != release.NoAppArmor {
+	if snapInfo.GetType() == snap.TypeSnapd && apparmor_sandbox.ProbedLevel() != apparmor_sandbox.Unsupported {
 		if err := setupSnapConfineReexec(snapInfo); err != nil {
 			return nil, fmt.Errorf("cannot create host snap-confine apparmor configuration: %s", err)
 		}
@@ -608,7 +609,7 @@ func addContent(securityTag string, snapInfo *snap.Info, opts interfaces.Confine
 	// When partial AppArmor is detected, use the classic template for now. We could
 	// use devmode, but that could generate confusing log entries for users running
 	// snaps on systems with partial AppArmor support.
-	if release.AppArmorLevel() == release.PartialAppArmor {
+	if apparmor_sandbox.ProbedLevel() == apparmor_sandbox.Partial {
 		// By default, downgrade confinement to the classic template when
 		// partial AppArmor support is detected. We don't want to use strict
 		// in general yet because older versions of the kernel did not
@@ -709,7 +710,7 @@ func (b *Backend) NewSpecification() interfaces.Specification {
 
 // SandboxFeatures returns the list of apparmor features supported by the kernel.
 func (b *Backend) SandboxFeatures() []string {
-	if release.AppArmorLevel() == release.NoAppArmor {
+	if apparmor_sandbox.ProbedLevel() == apparmor_sandbox.Unsupported {
 		return nil
 	}
 
@@ -730,7 +731,7 @@ func (b *Backend) SandboxFeatures() []string {
 
 	level := "full"
 	policy := "default"
-	if release.AppArmorLevel() == release.PartialAppArmor {
+	if apparmor_sandbox.ProbedLevel() == apparmor_sandbox.Partial {
 		level = "partial"
 
 		if downgradeConfinement() {

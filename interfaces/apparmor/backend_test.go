@@ -36,6 +36,7 @@ import (
 	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/overlord/state"
 	"github.com/snapcore/snapd/release"
+	apparmor_sandbox "github.com/snapcore/snapd/sandbox/apparmor"
 	"github.com/snapcore/snapd/snap"
 	"github.com/snapcore/snapd/snap/snaptest"
 	"github.com/snapcore/snapd/testutil"
@@ -653,7 +654,7 @@ func (s *backendSuite) TestRemovingSnapDoesntBreakSnapsWIthPrefixName(c *C) {
 }
 
 func (s *backendSuite) TestRealDefaultTemplateIsNormallyUsed(c *C) {
-	restore := release.MockAppArmorLevel(release.FullAppArmor)
+	restore := apparmor_sandbox.MockLevel(apparmor_sandbox.Full)
 	defer restore()
 
 	snapInfo := snaptest.MockInfo(c, ifacetest.SambaYamlV1, nil)
@@ -735,7 +736,7 @@ snippet
 }}
 
 func (s *backendSuite) TestCombineSnippets(c *C) {
-	restore := release.MockAppArmorLevel(release.FullAppArmor)
+	restore := apparmor_sandbox.MockLevel(apparmor_sandbox.Full)
 	defer restore()
 	restore = apparmor.MockIsHomeUsingNFS(func() (bool, error) { return false, nil })
 	defer restore()
@@ -775,7 +776,7 @@ func (s *backendSuite) TestCombineSnippets(c *C) {
 }
 
 func (s *backendSuite) TestCombineSnippetsChangeProfile(c *C) {
-	restore := release.MockAppArmorLevel(release.FullAppArmor)
+	restore := apparmor_sandbox.MockLevel(apparmor_sandbox.Full)
 	defer restore()
 	restore = apparmor.MockIsHomeUsingNFS(func() (bool, error) { return false, nil })
 	defer restore()
@@ -813,7 +814,7 @@ func (s *backendSuite) TestCombineSnippetsChangeProfile(c *C) {
 }
 
 func (s *backendSuite) TestParallelInstallCombineSnippets(c *C) {
-	restore := release.MockAppArmorLevel(release.FullAppArmor)
+	restore := apparmor_sandbox.MockLevel(apparmor_sandbox.Full)
 	defer restore()
 	restore = apparmor.MockIsHomeUsingNFS(func() (bool, error) { return false, nil })
 	defer restore()
@@ -860,7 +861,7 @@ profile "snap.samba_foo.smbd" (attach_disconnected,mediate_deleted) {
 }
 
 func mockPartalAppArmorOnDistro(c *C, kernelVersion string, releaseID string, releaseIDLike ...string) (restore func()) {
-	restore1 := release.MockAppArmorLevel(release.PartialAppArmor)
+	restore1 := apparmor_sandbox.MockLevel(apparmor_sandbox.Partial)
 	restore2 := release.MockReleaseInfo(&release.OS{ID: releaseID, IDLike: releaseIDLike})
 	restore3 := osutil.MockKernelVersion(kernelVersion)
 	restore4 := apparmor.MockIsHomeUsingNFS(func() (bool, error) { return false, nil })
@@ -1675,7 +1676,7 @@ var nfsAndOverlaySnippetsScenarios = []nfsAndOverlaySnippetsScenario{{
 }}
 
 func (s *backendSuite) TestNFSAndOverlaySnippets(c *C) {
-	restore := release.MockAppArmorLevel(release.FullAppArmor)
+	restore := apparmor_sandbox.MockLevel(apparmor_sandbox.Full)
 	defer restore()
 	restore = apparmor.MockIsHomeUsingNFS(func() (bool, error) { return true, nil })
 	defer restore()
@@ -1721,7 +1722,7 @@ var casperOverlaySnippetsScenarios = []nfsAndOverlaySnippetsScenario{{
 }}
 
 func (s *backendSuite) TestCasperOverlaySnippets(c *C) {
-	restore := release.MockAppArmorLevel(release.FullAppArmor)
+	restore := apparmor_sandbox.MockLevel(apparmor_sandbox.Full)
 	defer restore()
 	restore = apparmor.MockIsHomeUsingNFS(func() (bool, error) { return false, nil })
 	defer restore()
@@ -1749,7 +1750,7 @@ func (s *backendSuite) TestNsProfile(c *C) {
 }
 
 func (s *backendSuite) TestSandboxFeatures(c *C) {
-	restore := release.MockAppArmorLevel(release.FullAppArmor)
+	restore := apparmor_sandbox.MockLevel(apparmor_sandbox.Full)
 	defer restore()
 	restore = apparmor.MockKernelFeatures(func() ([]string, error) { return []string{"foo", "bar"}, nil })
 	defer restore()
@@ -1760,7 +1761,7 @@ func (s *backendSuite) TestSandboxFeatures(c *C) {
 }
 
 func (s *backendSuite) TestSandboxFeaturesPartial(c *C) {
-	restore := release.MockAppArmorLevel(release.PartialAppArmor)
+	restore := apparmor_sandbox.MockLevel(apparmor_sandbox.Partial)
 	defer restore()
 	restore = release.MockReleaseInfo(&release.OS{ID: "opensuse-tumbleweed"})
 	defer restore()
@@ -1803,7 +1804,7 @@ apps:
 
 func (s *backendSuite) TestDowngradeConfinement(c *C) {
 
-	restore := release.MockAppArmorLevel(release.PartialAppArmor)
+	restore := apparmor_sandbox.MockLevel(apparmor_sandbox.Partial)
 	defer restore()
 
 	for _, tc := range []struct {
@@ -1829,7 +1830,7 @@ func (s *backendSuite) TestDowngradeConfinement(c *C) {
 func (s *backendSuite) TestPtraceTraceRule(c *C) {
 	restoreTemplate := apparmor.MockTemplate("template\n###SNIPPETS###\n")
 	defer restoreTemplate()
-	restore := release.MockAppArmorLevel(release.FullAppArmor)
+	restore := apparmor_sandbox.MockLevel(apparmor_sandbox.Full)
 	defer restore()
 	restore = apparmor.MockIsHomeUsingNFS(func() (bool, error) { return false, nil })
 	defer restore()
@@ -1974,7 +1975,7 @@ func (s *backendSuite) TestPtraceTraceRule(c *C) {
 func (s *backendSuite) TestHomeIxRule(c *C) {
 	restoreTemplate := apparmor.MockTemplate("template\n###SNIPPETS###\nneedle rwkl###HOME_IX###,\n")
 	defer restoreTemplate()
-	restore := release.MockAppArmorLevel(release.FullAppArmor)
+	restore := apparmor_sandbox.MockLevel(apparmor_sandbox.Full)
 	defer restore()
 	restore = apparmor.MockIsHomeUsingNFS(func() (bool, error) { return false, nil })
 	defer restore()
@@ -2016,7 +2017,7 @@ func (s *backendSuite) TestHomeIxRule(c *C) {
 func (s *backendSuite) TestSystemUsernamesPolicy(c *C) {
 	restoreTemplate := apparmor.MockTemplate("template\n###SNIPPETS###\n")
 	defer restoreTemplate()
-	restore := release.MockAppArmorLevel(release.FullAppArmor)
+	restore := apparmor_sandbox.MockLevel(apparmor_sandbox.Full)
 	defer restore()
 
 	snapYaml := `
@@ -2041,7 +2042,7 @@ apps:
 func (s *backendSuite) TestNoSystemUsernamesPolicy(c *C) {
 	restoreTemplate := apparmor.MockTemplate("template\n###SNIPPETS###\n")
 	defer restoreTemplate()
-	restore := release.MockAppArmorLevel(release.FullAppArmor)
+	restore := apparmor_sandbox.MockLevel(apparmor_sandbox.Full)
 	defer restore()
 
 	snapYaml := `

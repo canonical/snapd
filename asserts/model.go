@@ -81,9 +81,9 @@ func (ms *modelSnaps) list() (allSnaps []*ModelSnap, requiredWithEssentialSnaps 
 		}
 	}
 
+	addSnap(ms.kernel, 1)
 	addSnap(ms.base, 1)
 	addSnap(ms.gadget, 1)
-	addSnap(ms.kernel, 1)
 	for _, snap := range ms.snapsNoEssential {
 		addSnap(snap, 0)
 	}
