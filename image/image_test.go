@@ -37,7 +37,6 @@ import (
 	"github.com/snapcore/snapd/asserts/assertstest"
 	"github.com/snapcore/snapd/bootloader"
 	"github.com/snapcore/snapd/bootloader/bootloadertest"
-	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/image"
 	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/overlord/auth"
@@ -1089,8 +1088,7 @@ func (s *imageSuite) TestInstallCloudConfigNoConfig(c *C) {
 	targetDir := c.MkDir()
 	emptyGadgetDir := c.MkDir()
 
-	dirs.SetRootDir(targetDir)
-	err := image.InstallCloudConfig(emptyGadgetDir)
+	err := image.InstallCloudConfig(targetDir, emptyGadgetDir)
 	c.Assert(err, IsNil)
 	c.Check(osutil.FileExists(filepath.Join(targetDir, "etc/cloud")), Equals, false)
 }
@@ -1103,8 +1101,7 @@ func (s *imageSuite) TestInstallCloudConfigWithCloudConfig(c *C) {
 	err := ioutil.WriteFile(filepath.Join(gadgetDir, "cloud.conf"), canary, 0644)
 	c.Assert(err, IsNil)
 
-	dirs.SetRootDir(targetDir)
-	err = image.InstallCloudConfig(gadgetDir)
+	err = image.InstallCloudConfig(targetDir, gadgetDir)
 	c.Assert(err, IsNil)
 	c.Check(filepath.Join(targetDir, "etc/cloud/cloud.cfg"), testutil.FileEquals, canary)
 }
