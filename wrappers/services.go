@@ -696,32 +696,113 @@ func generateOnCalendarSchedules(schedule []*timeutil.Schedule) []string {
 		days := make([]string, 0, len(sched.WeekSpans))
 		for _, week := range sched.WeekSpans {
 			abbrev := strings.Join(makeAbbrevWeekdays(week.Start.Weekday, week.End.Weekday), ",")
-			switch week.Start.Pos {
-			case timeutil.EveryWeek:
+
+			if week.Start.Pos == timeutil.EveryWeek && week.End.Pos == timeutil.EveryWeek {
 				// eg: mon, mon-fri, fri-mon
 				days = append(days, fmt.Sprintf("%s *-*-*", abbrev))
-			case timeutil.LastWeek:
-				// eg: mon5
-				days = append(days, fmt.Sprintf("%s *-*~7/1", abbrev))
-			default:
-				// eg: mon1, fri1, mon1-tue2
-				startDay := (week.Start.Pos-1)*7 + 1
-				endDay := week.End.Pos * 7
+				continue
+			}
+			// examples:
+			// mon1 - Mon *-*-1..7/1 (Monday during the first 7 days)
+			// fri1 - Fri *-*-1..7/1 (Friday during the first 7 days)
 
-				// NOTE: schedule mon1-tue2 (all weekdays
-				// between the first Monday of the month, until
-				// the second Tuesday of the month) is not
-				// translatable to systemd.time(7) format, for
-				// this assume all weekdays and allow the runner
-				// to do the filtering
-				if week.Start != week.End {
+			// entries below are will make systemd timer expire more
+			// frequently than the schedule suggests, however snap
+			// runner evaluates current time and gates the actual
+			// action
+			//
+			// mon1-tue - *-*-1..7/1 *-*-8/1 (anchored at first
+			// Monday; Monday happens during the 7 days,
+			// Tuesday can possibly happen on the 8th day if
+			// the month started on Tuesday)
+			//
+			// mon-tue1 - *-*~1 *-*-1..7/1 (anchored at first
+			// Tuesday; matching Monday can happen on the
+			// last day of previous month if Tuesday is the
+			// 1st)
+			//
+			// mon5-tue - *-*~1..7/1 *-*-1 (anchored at last
+			// Monday, the matching Tuesday can still happen
+			// within the last 7 days, or on the 1st of the
+			// next month)
+			//
+			// fri4-mon - *-*-22-31/1 *-*-1..7/1 (anchored at 4th
+			// Friday, can span onto the next month, extreme case in
+			// February when 28th is Friday)
+			startPos := week.Start.Pos
+			endPos := startPos
+			if !week.AnchoredAtStart() {
+				startPos = week.End.Pos
+				endPos = startPos
+			}
+			startDay := (startPos-1)*7 + 1
+			endDay := (endPos) * 7
+
+			if week.IsSingleDay() {
+				// single day, can use the 'weekday' filter
+				if startPos == timeutil.LastWeek {
+					// last n range of days
 					days = append(days,
-						fmt.Sprintf("*-*-%d..%d/1", startDay, endDay))
+						fmt.Sprintf("%s *-*~1..7/1", abbrev))
 				} else {
 					days = append(days,
 						fmt.Sprintf("%s *-*-%d..%d/1", abbrev, startDay, endDay))
 				}
+				continue
+			}
 
+			if week.AnchoredAtStart() {
+				// explore the edge cases first
+				switch startPos {
+				case timeutil.LastWeek:
+					// starts in the last week of the month and
+					// possibly spans into the first week of the
+					// next month
+					days = append(days, "*-*-1..7/1")
+				case 4:
+					// a range in the 4th week can span onto
+					// the next week, which is either 28-31
+					// or in extreme case (eg. February with
+					// 28 days) 1-7 of the next month
+					days = append(days,
+						"*-*-29..31/1",
+						"*-*-1..7/1")
+				default:
+					// can possibly spill into the next week
+					days = append(days,
+						fmt.Sprintf("*-*-%d..%d/1", startDay+7, endDay+7))
+				}
+
+				if startDay < 28 {
+					days = append(days,
+						fmt.Sprintf("*-*-%d..%d/1", startDay, endDay))
+				} else {
+					// from the end of the month
+					days = append(days,
+						fmt.Sprintf("*-*~%d..%d/1", startDay-28, endDay-28))
+				}
+			} else {
+				switch endPos {
+				case timeutil.LastWeek:
+					// the last week of the month
+					days = append(days, "*-*~1..7/1")
+				case 1:
+					// possibly spans from the last week of the
+					// previous month and ends in the first week of
+					// current month
+					days = append(days, "*-*~1..7/1") // already includes 29-31
+				default:
+					// can possibly spill into the previous week
+					days = append(days,
+						fmt.Sprintf("*-*-%d..%d/1", startDay-7, endDay-7))
+				}
+				if endDay < 28 {
+					days = append(days,
+						fmt.Sprintf("*-*-%d..%d/1", startDay, endDay))
+				} else {
+					days = append(days,
+						fmt.Sprintf("*-*-%d..%d/1", startDay-7, endDay-7))
+				}
 			}
 		}
 
