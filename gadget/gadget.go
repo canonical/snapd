@@ -578,7 +578,8 @@ func validateRole(vs *VolumeStructure, vol *Volume) error {
 
 	switch vsRole {
 	case SystemData:
-		if vs.Label != "" && vs.Label != ImplicitSystemDataLabel {
+		// FIXME: determine if we're running on core20 or legacy to check system-data label
+		if vs.Label != "" && vs.Label != ImplicitSystemDataLabel && vs.Label != "ubuntu-data" {
 			return fmt.Errorf(`role of this kind must have an implicit label or %q, not %q`, ImplicitSystemDataLabel, vs.Label)
 		}
 	case MBR:
