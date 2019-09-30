@@ -42,18 +42,8 @@ func MockIoutilReadfile(newReadfile func(string) ([]byte, error)) (restorer func
 	}
 }
 
-func MockSELinuxIsEnforcing(isEnforcing func() (bool, error)) (restore func()) {
-	old := selinuxIsEnforcing
-	selinuxIsEnforcing = isEnforcing
-	return func() {
-		selinuxIsEnforcing = old
-	}
-}
-
 var (
 	IsWSL = isWSL
-
-	ProbeSELinux = probeSELinux
 )
 
 func FreshSecCompProbe() {
