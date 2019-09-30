@@ -35,7 +35,7 @@ import (
 	"github.com/snapcore/snapd/interfaces/seccomp"
 	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/release"
-	seccomp_compiler "github.com/snapcore/snapd/sandbox/seccomp"
+	seccomp_sandbox "github.com/snapcore/snapd/sandbox/seccomp"
 	"github.com/snapcore/snapd/snap"
 	"github.com/snapcore/snapd/snap/snaptest"
 	"github.com/snapcore/snapd/testutil"
@@ -318,7 +318,7 @@ var combineSnippetsScenarios = []combineSnippetsScenario{{
 func (s *backendSuite) TestCombineSnippets(c *C) {
 	restore := release.MockForcedDevmode(false)
 	defer restore()
-	restore = release.MockSecCompActions([]string{"log"})
+	restore = seccomp_sandbox.MockActions([]string{"log"})
 	defer restore()
 	restore = seccomp.MockRequiresSocketcall(func(string) bool { return false })
 	defer restore()
@@ -430,7 +430,7 @@ apps:
   `
 
 func (s *backendSuite) TestSystemKeyRetLogSupported(c *C) {
-	restore := release.MockSecCompActions([]string{"allow", "errno", "kill", "log", "trace", "trap"})
+	restore := seccomp_sandbox.MockActions([]string{"allow", "errno", "kill", "log", "trace", "trap"})
 	defer restore()
 
 	snapInfo := s.InstallSnap(c, interfaces.ConfinementOptions{DevMode: true}, "", ifacetest.SambaYamlV1, 0)
@@ -450,7 +450,7 @@ func (s *backendSuite) TestSystemKeyRetLogSupported(c *C) {
 }
 
 func (s *backendSuite) TestSystemKeyRetLogUnsupported(c *C) {
-	restore := release.MockSecCompActions([]string{"allow", "errno", "kill", "trace", "trap"})
+	restore := seccomp_sandbox.MockActions([]string{"allow", "errno", "kill", "trace", "trap"})
 	defer restore()
 
 	snapInfo := s.InstallSnap(c, interfaces.ConfinementOptions{DevMode: true}, "", ifacetest.SambaYamlV1, 0)
@@ -627,7 +627,7 @@ func (s *backendSuite) TestRequiresSocketcallNotForcedViaBaseSnap(c *C) {
 func (s *backendSuite) TestRebuildsWithVersionInfoWhenNeeded(c *C) {
 	restore := release.MockForcedDevmode(false)
 	defer restore()
-	restore = release.MockSecCompActions([]string{"log"})
+	restore = seccomp_sandbox.MockActions([]string{"log"})
 	defer restore()
 	restore = seccomp.MockRequiresSocketcall(func(string) bool { return false })
 	defer restore()
@@ -726,7 +726,7 @@ fi`)
 
 	sb, ok := s.Backend.(*seccomp.Backend)
 	c.Assert(ok, Equals, true)
-	c.Check(sb.VersionInfo(), Equals, seccomp_compiler.VersionInfo("2345cdef 2.3.4 2345cdef -"))
+	c.Check(sb.VersionInfo(), Equals, seccomp_sandbox.VersionInfo("2345cdef 2.3.4 2345cdef -"))
 }
 
 func (s *backendSuite) TestCompilerInitUnhappy(c *C) {
