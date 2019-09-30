@@ -48,7 +48,7 @@ const inputConnectedSlotAppArmor = `
 
 const inputConnectedPlugAppArmor = `
 # Description: Allow input from keyboard/mouse devices.
-# raw' rule is not finely mediated by apparmor so we mediate with seccomp arg
+# raw rule is not finely mediated by apparmor so we mediate with seccomp arg
 # filtering.
 network netlink raw,
 /run/udev/data/c13:[0-9]* r,
