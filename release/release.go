@@ -27,6 +27,7 @@ import (
 	"strings"
 	"unicode"
 
+	"github.com/snapcore/snapd/sandbox/apparmor"
 	"github.com/snapcore/snapd/strutil"
 )
 
@@ -43,7 +44,7 @@ type OS struct {
 // ForceDevMode returns true if the distribution doesn't implement required
 // security features for confinement and devmode is forced.
 func (o *OS) ForceDevMode() bool {
-	return AppArmorLevel() != FullAppArmor
+	return apparmor.ProbedLevel() != apparmor.Full
 }
 
 // DistroLike checks if the distribution ID or ID_LIKE matches one of the given names.
@@ -160,9 +161,9 @@ func MockReleaseInfo(osRelease *OS) (restore func()) {
 // MockForcedDevmode fake the system to believe its in a distro
 // that is in ForcedDevmode
 func MockForcedDevmode(isDevmode bool) (restore func()) {
-	level := FullAppArmor
+	level := apparmor.Full
 	if isDevmode {
-		level = NoAppArmor
+		level = apparmor.Unsupported
 	}
-	return MockAppArmorLevel(level)
+	return apparmor.MockLevel(level)
 }

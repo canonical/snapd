@@ -281,7 +281,7 @@ func (m *SnapManager) installPrereqs(t *state.Task, base string, prereq []string
 			ts, err = m.installOneBaseOrRequired(st, prereqName, noTypeBaseCheck, defaultPrereqSnapsChannel(), onInFlightErr, userID)
 		})
 		if err != nil {
-			return err
+			return prereqError("prerequisite", prereqName, err)
 		}
 		if ts == nil {
 			continue
@@ -301,7 +301,7 @@ func (m *SnapManager) installPrereqs(t *state.Task, base string, prereq []string
 			tsBase, err = m.installOneBaseOrRequired(st, base, requireTypeBase, defaultBaseSnapsChannel(), onInFlightErr, userID)
 		})
 		if err != nil {
-			return err
+			return prereqError("snap base", base, err)
 		}
 	}
 
@@ -322,7 +322,7 @@ func (m *SnapManager) installPrereqs(t *state.Task, base string, prereq []string
 			tsSnapd, err = m.installOneBaseOrRequired(st, "snapd", noTypeBaseCheck, defaultSnapdSnapsChannel(), onInFlightErr, userID)
 		})
 		if err != nil {
-			return err
+			return prereqError("system snap", "snapd", err)
 		}
 	}
 
@@ -355,6 +355,13 @@ func (m *SnapManager) installPrereqs(t *state.Task, base string, prereq []string
 	t.SetStatus(state.DoneStatus)
 
 	return nil
+}
+
+func prereqError(what, snapName string, err error) error {
+	if _, ok := err.(*state.Retry); ok {
+		return err
+	}
+	return fmt.Errorf("cannot install %s %q: %v", what, snapName, err)
 }
 
 func (m *SnapManager) doPrepareSnap(t *state.Task, _ *tomb.Tomb) error {
