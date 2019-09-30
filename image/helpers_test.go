@@ -114,8 +114,7 @@ func (s *imageSuite) TestDownloadSnap(c *check.C) {
 	logbuf, restore := logger.MockLogger()
 	defer restore()
 
-	gadgetUnpackDir := c.MkDir()
-	s.setupSnaps(c, gadgetUnpackDir, map[string]string{
+	s.setupSnaps(c, map[string]string{
 		"core": "canonical",
 	})
 
