@@ -33,6 +33,7 @@
 
 #include "../libsnap-confine-private/mountinfo.h"
 #include "../libsnap-confine-private/string-utils.h"
+#include "../libsnap-confine-private/utils.h"
 
 __attribute__((format(printf, 1, 2)))
 void kmsg(const char *fmt, ...)
