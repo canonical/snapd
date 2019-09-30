@@ -27,6 +27,7 @@ import (
 	"io/ioutil"
 	"mime"
 	"mime/multipart"
+	"net/http"
 	"path/filepath"
 
 	"gopkg.in/check.v1"
@@ -433,4 +434,36 @@ func (cs *clientSuite) TestSnapOptionsSerialises(c *check.C) {
 		c.Assert(err, check.IsNil, check.Commentf("%s", expected))
 		c.Check(string(buf), check.Equals, expected)
 	}
+}
+
+func (cs *clientSuite) TestClientOpDownload(c *check.C) {
+	cs.status = 200
+	cs.header = http.Header{"Content-Disposition": {"attachment; filename=foo_2.snap"}}
+
+	cs.rsp = `lots-of-foo-data`
+
+	fname, rc, err := cs.cli.Download("foo", &client.SnapOptions{
+		Revision: "2",
+	})
+	c.Check(err, check.IsNil)
+	c.Check(fname, check.Equals, "foo_2.snap")
+
+	// check we posted the right stuff
+	c.Assert(cs.req.Header.Get("Content-Type"), check.Equals, "application/json")
+	body, err := ioutil.ReadAll(cs.req.Body)
+	c.Assert(err, check.IsNil)
+	var jsonBody client.DownloadData
+	err = json.Unmarshal(body, &jsonBody)
+	c.Assert(err, check.IsNil)
+	c.Check(jsonBody.Action, check.Equals, "download")
+	c.Check(jsonBody.Snaps, check.DeepEquals, []string{"foo"})
+	c.Check(jsonBody.Options, check.HasLen, 1)
+	c.Check(jsonBody.Options[0].Revision, check.Equals, "2")
+
+	// ensure we can read the response
+	content, err := ioutil.ReadAll(rc)
+	c.Assert(err, check.IsNil)
+	c.Check(string(content), check.Equals, cs.rsp)
+	// and we can close it
+	c.Check(rc.Close(), check.IsNil)
 }

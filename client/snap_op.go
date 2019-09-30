@@ -305,3 +305,59 @@ func sendSnapFile(snapPath string, snapFile *os.File, pw *io.PipeWriter, mw *mul
 	mw.Close()
 	pw.Close()
 }
+
+type snapRevisionOptions struct {
+	Channel   string `json:"channel,omitempty"`
+	Revision  string `json:"revision,omitempty"`
+	CohortKey string `json:"cohort-key,omitempty"`
+}
+
+type downloadData struct {
+	Action  string                `json:"action"`
+	Snaps   []string              `json:"snaps,omitempty"`
+	Options []snapRevisionOptions `json:"options,omitempty"`
+}
+
+// Download will stream the given snap to the client
+func (client *Client) Download(name string, options *SnapOptions) (suggestedFileName string, r io.ReadCloser, err error) {
+	if options == nil {
+		options = &SnapOptions{}
+	}
+	dlOpts := snapRevisionOptions{
+		Channel:   options.Channel,
+		CohortKey: options.CohortKey,
+		Revision:  options.Revision,
+	}
+	action := downloadData{
+		Action:  "download",
+		Snaps:   []string{name},
+		Options: []snapRevisionOptions{dlOpts},
+	}
+	data, err := json.Marshal(&action)
+	if err != nil {
+		return "", nil, fmt.Errorf("cannot marshal snap action: %s", err)
+	}
+	headers := map[string]string{
+		"Content-Type": "application/json",
+	}
+
+	rsp, err := client.raw("POST", "/v2/download", nil, headers, bytes.NewBuffer(data))
+	if err != nil {
+		return "", nil, err
+	}
+
+	if rsp.StatusCode != 200 {
+		var r response
+		defer rsp.Body.Close()
+		if err := decodeInto(rsp.Body, &r); err != nil {
+			return "", nil, err
+		}
+		return "", nil, r.err(client, rsp.StatusCode)
+	}
+	matches := contentDispositionMatcher(rsp.Header.Get("Content-Disposition"))
+	if matches == nil || matches[1] == "" {
+		return "", nil, fmt.Errorf("cannot determine filename")
+	}
+
+	return matches[1], rsp.Body, nil
+}
