@@ -238,6 +238,8 @@ func (cs *clientSuite) TestClientSysInfo(c *C) {
                       "on-classic": true,
                       "build-id": "1234",
                       "confinement": "strict",
+                      "architecture": "TI-99/4A",
+                      "virtualization": "MESS",
                       "sandbox-features": {"backend": ["feature-1", "feature-2"]}}}`
 	sysInfo, err := cs.cli.SysInfo()
 	c.Check(err, IsNil)
@@ -253,7 +255,9 @@ func (cs *clientSuite) TestClientSysInfo(c *C) {
 		SandboxFeatures: map[string][]string{
 			"backend": {"feature-1", "feature-2"},
 		},
-		BuildID: "1234",
+		BuildID:        "1234",
+		Architecture:   "TI-99/4A",
+		Virtualization: "MESS",
 	})
 }
 
@@ -261,14 +265,19 @@ func (cs *clientSuite) TestServerVersion(c *C) {
 	cs.rsp = `{"type": "sync", "result":
                      {"series": "16",
                       "version": "2",
-                      "os-release": {"id": "zyggy", "version-id": "123"}}}`
+                      "os-release": {"id": "zyggy", "version-id": "123"},
+                      "architecture": "m32",
+                      "virtualization": "qemu"
+}}}`
 	version, err := cs.cli.ServerVersion()
 	c.Check(err, IsNil)
 	c.Check(version, DeepEquals, &client.ServerVersion{
-		Version:     "2",
-		Series:      "16",
-		OSID:        "zyggy",
-		OSVersionID: "123",
+		Version:        "2",
+		Series:         "16",
+		OSID:           "zyggy",
+		OSVersionID:    "123",
+		Architecture:   "m32",
+		Virtualization: "qemu",
 	})
 }
 
