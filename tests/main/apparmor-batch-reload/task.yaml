@@ -47,8 +47,7 @@ execute: |
 
     echo "Checking that apparmor profile cache has been populated"
     # note, the list is not exhaustive but is enough for the test and the journal check below
-    expected_profiles=$(cat <<EOF
-    snap-update-ns.test-snapd-content-plug
+    expected_profiles="snap-update-ns.test-snapd-content-plug
     snap-update-ns.test-snapd-curl
     snap-update-ns.test-snapd-tools
     snap.test-snapd-content-plug.content-plug
@@ -61,9 +60,7 @@ execute: |
     snap.test-snapd-tools.fail
     snap.test-snapd-tools.head
     snap.test-snapd-tools.sh
-    snap.test-snapd-tools.success
-    EOF
-    )
+    snap.test-snapd-tools.success"
 
     retry=50
     while true; do
