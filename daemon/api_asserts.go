@@ -62,18 +62,17 @@ func parseHeadersFormatOptionsFromURL(q url.Values) (*daemonAssertOptions, error
 	res := daemonAssertOptions{}
 	res.headers = make(map[string]string)
 	for k := range q {
-		if k == "remote" {
-			v := q.Get(k)
+		v := q.Get(k)
+		switch k {
+		case "remote":
 			switch v {
 			case "true", "false":
 				res.remote, _ = strconv.ParseBool(v)
 			default:
 				return nil, errors.New(`"remote" query parameter when used must be set to "true" or "false" or left unset`)
 			}
-			continue
-		}
-		if k == "json" {
-			switch q.Get(k) {
+		case "json":
+			switch v {
 			case "false":
 				res.jsonResult = false
 			case "headers":
@@ -84,9 +83,9 @@ func parseHeadersFormatOptionsFromURL(q url.Values) (*daemonAssertOptions, error
 			default:
 				return nil, errors.New(`"json" query parameter when used must be set to "true" or "headers"`)
 			}
-			continue
+		default:
+			res.headers[k] = v
 		}
-		res.headers[k] = q.Get(k)
 	}
 
 	return &res, nil
