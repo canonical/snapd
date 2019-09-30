@@ -26,6 +26,7 @@ import (
 
 var (
 	GetSELinuxMount = getSELinuxMount
+	ProbeSELinux    = probeSELinux
 )
 
 func MockMountInfo(c *check.C, text string) (where string, restore func()) {
@@ -40,4 +41,12 @@ func MockMountInfo(c *check.C, text string) (where string, restore func()) {
 		procSelfMountInfo = old
 	}
 	return procSelfMountInfo, restore
+}
+
+func MockSELinuxIsEnforcing(isEnforcing func() (bool, error)) (restore func()) {
+	old := selinuxIsEnforcing
+	selinuxIsEnforcing = isEnforcing
+	return func() {
+		selinuxIsEnforcing = old
+	}
 }

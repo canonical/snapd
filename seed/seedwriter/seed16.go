@@ -30,6 +30,7 @@ import (
 	"github.com/snapcore/snapd/asserts"
 	"github.com/snapcore/snapd/seed"
 	"github.com/snapcore/snapd/snap"
+	"github.com/snapcore/snapd/snap/channel"
 	"github.com/snapcore/snapd/snap/naming"
 )
 
@@ -39,6 +40,16 @@ type policy16 struct {
 
 	needsCore   []string
 	needsCore16 []string
+}
+
+func (pol *policy16) checkDefaultChannel(channel.Channel) error {
+	// Core 16 has no constraints on the default channel
+	return nil
+}
+
+func (pol *policy16) checkSnapChannel(_ channel.Channel, whichSnap string) error {
+	// Core 16 has no constraints on snap channel overrides
+	return nil
 }
 
 func (pol *policy16) systemSnap() *asserts.ModelSnap {
@@ -165,7 +176,9 @@ func (tr *tree16) writeMeta(snapsFromModel []*SeedSnap) error {
 		seedYaml.Snaps[i] = &seed.Snap16{
 			Name:   info.SnapName(),
 			SnapID: info.SnapID, // cross-ref
-			// XXX Channel: snapChannel,
+			// TODO: with default tracks this might be
+			// redirected by the store during the download
+			Channel: sn.Channel,
 			File:    filepath.Base(sn.Path),
 			DevMode: info.NeedsDevMode(),
 			Classic: info.NeedsClassic(),

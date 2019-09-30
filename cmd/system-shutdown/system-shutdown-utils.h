@@ -25,8 +25,6 @@
 // no longer found writable.
 bool umount_all(void);
 
-__attribute__((noreturn))
-void die(const char *msg);
 __attribute__((format(printf, 1, 2)))
 void kmsg(const char *fmt, ...);
 

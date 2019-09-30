@@ -1,7 +1,7 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
 
 /*
- * Copyright (C) 2014-2015 Canonical Ltd
+ * Copyright (C) 2019 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -17,35 +17,28 @@
  *
  */
 
-package release
+package boot
 
-var (
-	ReadOSRelease = readOSRelease
+import (
+	"fmt"
+	"io"
+
+	"github.com/snapcore/snapd/bootloader"
 )
 
-func MockOSReleasePath(filename string) (restore func()) {
-	old := osReleasePath
-	oldFallback := fallbackOsReleasePath
-	osReleasePath = filename
-	fallbackOsReleasePath = filename
-	return func() {
-		osReleasePath = old
-		fallbackOsReleasePath = oldFallback
+// DumpBootVars writes a dump of the snapd bootvars to the given writer
+func DumpBootVars(w io.Writer) error {
+	bloader, err := bootloader.Find("", nil)
+	if err != nil {
+		return err
 	}
-}
-
-func MockIoutilReadfile(newReadfile func(string) ([]byte, error)) (restorer func()) {
-	old := ioutilReadFile
-	ioutilReadFile = newReadfile
-	return func() {
-		ioutilReadFile = old
+	allKeys := []string{"snap_mode", "snap_core", "snap_try_core", "snap_kernel", "snap_try_kernel"}
+	bootVars, err := bloader.GetBootVars(allKeys...)
+	if err != nil {
+		return err
 	}
-}
-
-var (
-	IsWSL = isWSL
-)
-
-func FreshSecCompProbe() {
-	secCompProber = &secCompProbe{}
+	for _, k := range allKeys {
+		fmt.Fprintf(w, "%s=%s\n", k, bootVars[k])
+	}
+	return nil
 }

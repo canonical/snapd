@@ -32,6 +32,7 @@ import (
 	"github.com/snapcore/snapd/interfaces"
 	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/release"
+	"github.com/snapcore/snapd/sandbox/apparmor"
 	seccomp_compiler "github.com/snapcore/snapd/sandbox/seccomp"
 	"github.com/snapcore/snapd/testutil"
 )
@@ -93,15 +94,15 @@ func (s *systemKeySuite) testInterfaceWriteSystemKey(c *C, nfsHome bool) {
 	systemKey, err := ioutil.ReadFile(dirs.SnapSystemKeyFile)
 	c.Assert(err, IsNil)
 
-	kernelFeatures, _ := release.AppArmorKernelFeatures()
+	kernelFeatures, _ := apparmor.KernelFeatures()
 
 	apparmorFeaturesStr, err := json.Marshal(kernelFeatures)
 	c.Assert(err, IsNil)
 
-	apparmorParserMtime, err := json.Marshal(release.AppArmorParserMtime())
+	apparmorParserMtime, err := json.Marshal(apparmor.ParserMtime())
 	c.Assert(err, IsNil)
 
-	parserFeatures, _ := release.AppArmorParserFeatures()
+	parserFeatures, _ := apparmor.ParserFeatures()
 	apparmorParserFeaturesStr, err := json.Marshal(parserFeatures)
 	c.Assert(err, IsNil)
 
