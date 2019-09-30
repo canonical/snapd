@@ -126,6 +126,18 @@ func (s *CmpTestSuite) TestStreamsEqualChunked(c *C) {
 		c.Check(eq, Equals, false, comment)
 	}
 
+	// Passing two streams which differer by tail only also works as expected.
+	for _, chunkSize := range []int{0, 1, len(text) / 2, len(text), len(text) + 1} {
+		textWithChangedTail := text[:len(text)-1] + strings.ToUpper(text[len(text)-1:])
+		c.Assert(textWithChangedTail, Not(Equals), text)
+		c.Assert(len(textWithChangedTail), Equals, len(text))
+		comment := Commentf("chunk size %d", chunkSize)
+		readerA = bytes.NewReader([]byte(text))
+		readerB = bytes.NewReader([]byte(textWithChangedTail))
+		eq = osutil.StreamsEqualChunked(readerA, readerB, chunkSize)
+		c.Check(eq, Equals, false, comment)
+	}
+
 	// Passing two streams with different length works as expected.
 	// Note that this is not used by EnsureDirState in practice.
 	for _, chunkSize := range []int{0, 1, len(text) / 2, len(text), len(text) + 1} {
