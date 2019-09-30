@@ -124,8 +124,8 @@ func (b *Backend) Initialize() error {
 	} else {
 		globalProfile = globalProfileLE
 	}
-	content := map[string]*osutil.FileState{
-		fname: {Content: globalProfile, Mode: 0644},
+	content := map[string]osutil.FileState{
+		fname: &osutil.MemoryFileState{Content: globalProfile, Mode: 0644},
 	}
 	if err := os.MkdirAll(dir, 0755); err != nil {
 		return fmt.Errorf("cannot create directory for seccomp profiles %q: %s", dir, err)
@@ -243,7 +243,7 @@ func uidGidChownSnippet(name string) (string, error) {
 
 // deriveContent combines security snippets collected from all the interfaces
 // affecting a given snap into a content map applicable to EnsureDirState.
-func (b *Backend) deriveContent(spec *Specification, opts interfaces.ConfinementOptions, snapInfo *snap.Info) (content map[string]*osutil.FileState, err error) {
+func (b *Backend) deriveContent(spec *Specification, opts interfaces.ConfinementOptions, snapInfo *snap.Info) (content map[string]osutil.FileState, err error) {
 	// Some base snaps and systems require the socketcall() in the default
 	// template
 	addSocketcall := requiresSocketcall(snapInfo.Base)
@@ -264,23 +264,23 @@ func (b *Backend) deriveContent(spec *Specification, opts interfaces.Confinement
 
 	for _, hookInfo := range snapInfo.Hooks {
 		if content == nil {
-			content = make(map[string]*osutil.FileState)
+			content = make(map[string]osutil.FileState)
 		}
 		securityTag := hookInfo.SecurityTag()
 
 		path := securityTag + ".src"
-		content[path] = &osutil.FileState{
+		content[path] = &osutil.MemoryFileState{
 			Content: generateContent(opts, spec.SnippetForTag(securityTag), addSocketcall, b.versionInfo, uidGidChownSyscalls.String()),
 			Mode:    0644,
 		}
 	}
 	for _, appInfo := range snapInfo.Apps {
 		if content == nil {
-			content = make(map[string]*osutil.FileState)
+			content = make(map[string]osutil.FileState)
 		}
 		securityTag := appInfo.SecurityTag()
 		path := securityTag + ".src"
-		content[path] = &osutil.FileState{
+		content[path] = &osutil.MemoryFileState{
 			Content: generateContent(opts, spec.SnippetForTag(securityTag), addSocketcall, b.versionInfo, uidGidChownSyscalls.String()),
 			Mode:    0644,
 		}

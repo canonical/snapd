@@ -39,7 +39,7 @@ func init() {
 func updateWatchdogConfig(config map[string]uint) error {
 	dir := dirs.SnapSystemdConfDir
 	name := "10-snapd-watchdog.conf"
-	dirContent := make(map[string]*osutil.FileState, 1)
+	dirContent := make(map[string]osutil.FileState, 1)
 
 	configStr := []string{}
 	for k, v := range config {
@@ -51,7 +51,7 @@ func updateWatchdogConfig(config map[string]uint) error {
 		// We order the variables to have predictable output
 		sort.Strings(configStr)
 		content := "[Manager]\n" + strings.Join(configStr, "")
-		dirContent[name] = &osutil.FileState{
+		dirContent[name] = &osutil.MemoryFileState{
 			Content: []byte(content),
 			Mode:    0644,
 		}

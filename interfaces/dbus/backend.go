@@ -137,7 +137,7 @@ func (b *Backend) Remove(snapName string) error {
 
 // deriveContent combines security snippets collected from all the interfaces
 // affecting a given snap into a content map applicable to EnsureDirState.
-func (b *Backend) deriveContent(spec *Specification, snapInfo *snap.Info) (content map[string]*osutil.FileState, err error) {
+func (b *Backend) deriveContent(spec *Specification, snapInfo *snap.Info) (content map[string]osutil.FileState, err error) {
 	for _, appInfo := range snapInfo.Apps {
 		securityTag := appInfo.SecurityTag()
 		appSnippets := spec.SnippetForTag(securityTag)
@@ -145,7 +145,7 @@ func (b *Backend) deriveContent(spec *Specification, snapInfo *snap.Info) (conte
 			continue
 		}
 		if content == nil {
-			content = make(map[string]*osutil.FileState)
+			content = make(map[string]osutil.FileState)
 		}
 
 		addContent(securityTag, appSnippets, content)
@@ -158,7 +158,7 @@ func (b *Backend) deriveContent(spec *Specification, snapInfo *snap.Info) (conte
 			continue
 		}
 		if content == nil {
-			content = make(map[string]*osutil.FileState)
+			content = make(map[string]osutil.FileState)
 		}
 
 		addContent(securityTag, hookSnippets, content)
@@ -167,13 +167,13 @@ func (b *Backend) deriveContent(spec *Specification, snapInfo *snap.Info) (conte
 	return content, nil
 }
 
-func addContent(securityTag string, snippet string, content map[string]*osutil.FileState) {
+func addContent(securityTag string, snippet string, content map[string]osutil.FileState) {
 	var buffer bytes.Buffer
 	buffer.Write(xmlHeader)
 	buffer.WriteString(snippet)
 	buffer.Write(xmlFooter)
 
-	content[fmt.Sprintf("%s.conf", securityTag)] = &osutil.FileState{
+	content[fmt.Sprintf("%s.conf", securityTag)] = &osutil.MemoryFileState{
 		Content: buffer.Bytes(),
 		Mode:    0644,
 	}
