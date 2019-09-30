@@ -38,6 +38,10 @@ type Options struct {
 	SeedDir string
 
 	DefaultChannel string
+
+	// TestSkipCopyUnverifiedModel is set to support naive tests
+	// using an unverified model, the resulting image is broken
+	TestSkipCopyUnverifiedModel bool
 }
 
 // OptionsSnap represents an options-referred snap with its option values.
@@ -393,9 +397,15 @@ func (w *Writer) Start(db asserts.RODatabase, newFetcher NewFetcherFunc) (RefAss
 
 	f := MakeRefAssertsFetcher(newFetcher)
 
-	// XXX support UBUNTU_IMAGE_SKIP_COPY_UNVERIFIED_MODEL ?
 	if err := f.Save(w.model); err != nil {
-		return nil, fmt.Errorf("cannot fetch and check prerequisites for the model assertion: %v", err)
+		const msg = "cannot fetch and check prerequisites for the model assertion: %v"
+		if !w.opts.TestSkipCopyUnverifiedModel {
+			return nil, fmt.Errorf(msg, err)
+		}
+		// Some naive tests including ubuntu-image ones use
+		// unverified models
+		w.warningf(msg, err)
+		f.ResetRefs()
 	}
 
 	// fetch device store assertion (and prereqs) if available

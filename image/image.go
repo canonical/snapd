@@ -201,6 +201,8 @@ func setupSeed(tsto *ToolingStore, model *asserts.Model, opts *Options) error {
 	wOpts := &seedwriter.Options{
 		SeedDir:        seedDir,
 		DefaultChannel: opts.Channel,
+
+		TestSkipCopyUnverifiedModel: osutil.GetenvBool("UBUNTU_IMAGE_SKIP_COPY_UNVERIFIED_MODEL"),
 	}
 
 	w, err := seedwriter.New(model, wOpts)
