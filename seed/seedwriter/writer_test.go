@@ -962,7 +962,7 @@ func (s *writerSuite) TestLocalSnaps(c *C) {
 	c.Check(localSnaps[3].Path, Equals, contConsumerFn)
 }
 
-func (s *writerSuite) TestLocalSnapsFullUse(c *C) {
+func (s *writerSuite) TestLocalSnapsCore18FullUse(c *C) {
 	model := s.Brands.Model("my-brand", "my-model", map[string]interface{}{
 		"display-name":   "my model",
 		"architecture":   "amd64",
@@ -1064,12 +1064,9 @@ func (s *writerSuite) TestLocalSnapsFullUse(c *C) {
 		p := filepath.Join(s.opts.SeedDir, "snaps", fn)
 		c.Check(p, testutil.FilePresent)
 
-		channel := "stable"
-		switch name {
-		case "pc-kernel":
-			channel = "18/candidate"
-		case "pc":
-			channel = "18/edge"
+		channel := ""
+		if !unasserted {
+			channel = "stable"
 		}
 
 		c.Check(seedYaml.Snaps[i], DeepEquals, &seed.Snap16{
@@ -1583,10 +1580,14 @@ func (s *writerSuite) TestSeedSnapsWriteMetaLocalExtraSnaps(c *C) {
 		p := filepath.Join(s.opts.SeedDir, "snaps", fn)
 		c.Check(osutil.FileExists(p), Equals, true)
 
-		channel := "stable"
-		switch name {
-		case "pc-kernel", "pc":
-			channel = "18"
+		channel := ""
+		if !unasserted {
+			switch name {
+			case "pc-kernel", "pc":
+				channel = "18"
+			default:
+				channel = "stable"
+			}
 		}
 
 		c.Check(seedYaml.Snaps[i], DeepEquals, &seed.Snap16{

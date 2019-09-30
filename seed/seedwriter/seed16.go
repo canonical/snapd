@@ -223,18 +223,25 @@ func (tr *tree16) writeMeta(snapsFromModel []*SeedSnap, extraSnaps []*SeedSnap) 
 	seedYaml.Snaps = make([]*seed.Snap16, len(seedSnaps))
 	for i, sn := range seedSnaps {
 		info := sn.Info
+		// TODO: with default tracks this might be
+		// redirected by the store during the download
+		channel := sn.Channel
+		unasserted := info.SnapID == ""
+		if unasserted {
+			// Core 16/18 don't set a channel in the seed
+			// for unasserted snaps
+			channel = ""
+		}
 		seedYaml.Snaps[i] = &seed.Snap16{
-			Name:   info.SnapName(),
-			SnapID: info.SnapID, // cross-ref
-			// TODO: with default tracks this might be
-			// redirected by the store during the download
-			Channel: sn.Channel,
+			Name:    info.SnapName(),
+			SnapID:  info.SnapID, // cross-ref
+			Channel: channel,
 			File:    filepath.Base(sn.Path),
 			DevMode: info.NeedsDevMode(),
 			Classic: info.NeedsClassic(),
 			Contact: info.Contact,
 			// no assertions for this snap were put in the seed
-			Unasserted: info.SnapID == "",
+			Unasserted: unasserted,
 		}
 	}
 
