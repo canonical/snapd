@@ -6,30 +6,30 @@ echo "$@" >> $debugfile
 
 profiles=0
 while [ -n "$1" ]; do
-	case "$1" in
+    case "$1" in
         --preprocess)
             # preprocess is used by snapd to verify apparmor features
             exit 0
             ;;
-		--cache-loc=*)
-			;;
-		--write-cache)
-			;;
-		--quiet|--replace|--remove|--skip-read-cache)
-			# Ignore
-			;;
-		-O)
-			# Ignore, discard argument
-			shift
-			;;
-		*)
-			profile=$(basename "$1")
+        --cache-loc=*)
+            ;;
+        --write-cache)
+            ;;
+        --quiet|--replace|--remove|--skip-read-cache)
+            # Ignore
+            ;;
+        -O)
+            # Ignore, discard argument
+            shift
+            ;;
+        *)
+            profile=$(basename "$1")
             if echo "$profile" | grep -q "test-"; then
                 profiles=$(( profiles + 1 ))
             fi
-			;;
-	esac
-	shift
+            ;;
+    esac
+    shift
 done
 
 if [ "$profiles" -gt 10 ]; then
