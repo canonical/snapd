@@ -133,7 +133,8 @@ func (pol *policy16) needsImplicitSnaps(availableSnaps *naming.SnapSet) (bool, e
 func (pol *policy16) implicitSnaps(availableSnaps *naming.SnapSet) []*asserts.ModelSnap {
 	if len(pol.needsCore) != 0 && !availableSnaps.Contains(naming.Snap("core")) {
 		return []*asserts.ModelSnap{makeSystemSnap("core")}
-	} else if pol.model.Classic() && !availableSnaps.Empty() {
+	}
+	if pol.model.Classic() && !availableSnaps.Empty() {
 		return []*asserts.ModelSnap{makeSystemSnap("snapd")}
 	}
 	return nil
