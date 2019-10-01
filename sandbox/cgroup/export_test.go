@@ -30,3 +30,11 @@ func MockFsTypeForPath(mock func(string) (int64, error)) (restore func()) {
 		fsTypeForPath = old
 	}
 }
+
+func MockFsRootPath(p string) (restore func()) {
+	old := rootPath
+	rootPath = p
+	return func() {
+		rootPath = old
+	}
+}
