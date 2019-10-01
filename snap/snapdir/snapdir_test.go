@@ -77,8 +77,9 @@ func (s *SnapdirTestSuite) TestInstall(c *C) {
 
 	varLibSnapd := c.MkDir()
 	targetPath := filepath.Join(varLibSnapd, "foo_1.0.snap")
-	err := snap.Install(targetPath, "unused-mount-dir")
+	didNothing, err := snap.Install(targetPath, "unused-mount-dir")
 	c.Assert(err, IsNil)
+	c.Check(didNothing, Equals, false)
 	symlinkTarget, err := filepath.EvalSymlinks(targetPath)
 	c.Assert(err, IsNil)
 	c.Assert(symlinkTarget, Equals, tryBaseDir)
