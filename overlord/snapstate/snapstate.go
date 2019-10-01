@@ -2410,7 +2410,12 @@ func ConfigDefaults(st *state.State, deviceCtx DeviceContext, snapName string) (
 		return nil, state.ErrNoState
 	}
 
-	gadgetInfo, err := gadget.ReadInfo(info.MountDir(), release.OnClassic)
+	constraints := &gadget.ModelConstraints{
+		Classic:    release.OnClassic,
+		SystemSeed: release.HasSystemSeed,
+	}
+
+	gadgetInfo, err := gadget.ReadInfo(info.MountDir(), constraints)
 	if err != nil {
 		return nil, err
 	}
@@ -2443,7 +2448,12 @@ func GadgetConnections(st *state.State, deviceCtx DeviceContext) ([]gadget.Conne
 		return nil, err
 	}
 
-	gadgetInfo, err := gadget.ReadInfo(info.MountDir(), release.OnClassic)
+	constraints := &gadget.ModelConstraints{
+		Classic:    release.OnClassic,
+		SystemSeed: release.HasSystemSeed,
+	}
+
+	gadgetInfo, err := gadget.ReadInfo(info.MountDir(), constraints)
 	if err != nil {
 		return nil, err
 	}

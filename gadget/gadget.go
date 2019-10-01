@@ -71,6 +71,14 @@ type Info struct {
 	Connections []Connection `yaml:"connections"`
 }
 
+// ModelConstraints defines rules to be followed when reading the gadget metadata.
+type ModelConstraints struct {
+	// Classic rules (i.e. content/presence of gadget.yaml is fully optional)
+	Classic bool
+	// System seeding is enabled (Core 20)
+	SystemSeed bool
+}
+
 // Volume defines the structure and content for the image to be written into a
 // block device.
 type Volume struct {
@@ -275,15 +283,15 @@ func systemOrSnapID(s string) bool {
 	return true
 }
 
-// ReadInfo reads the gadget specific metadata from gadget.yaml
-// in the snap. classic set to true means classic rules apply,
-// i.e. content/presence of gadget.yaml is fully optional.
-func ReadInfo(gadgetSnapRootDir string, classic bool) (*Info, error) {
+// ReadInfo reads the gadget specific metadata from gadget.yaml in the snap. If
+// constraints is nil, ReadInfo will just check for self-consistency, otherwise
+// rules for the classic or system seed cases are enforced.
+func ReadInfo(gadgetSnapRootDir string, constraints *ModelConstraints) (*Info, error) {
 	var gi Info
 
 	gadgetYamlFn := filepath.Join(gadgetSnapRootDir, "meta", "gadget.yaml")
 	gmeta, err := ioutil.ReadFile(gadgetYamlFn)
-	if classic && os.IsNotExist(err) {
+	if constraints != nil && constraints.Classic && os.IsNotExist(err) {
 		// gadget.yaml is optional for classic gadgets
 		return &gi, nil
 	}
@@ -316,7 +324,7 @@ func ReadInfo(gadgetSnapRootDir string, classic bool) (*Info, error) {
 		}
 	}
 
-	if classic && len(gi.Volumes) == 0 {
+	if len(gi.Volumes) == 0 && (constraints == nil || constraints.Classic) {
 		// volumes can be left out on classic
 		// can still specify defaults though
 		return &gi, nil
@@ -325,7 +333,7 @@ func ReadInfo(gadgetSnapRootDir string, classic bool) (*Info, error) {
 	// basic validation
 	var bootloadersFound int
 	for name, v := range gi.Volumes {
-		if err := validateVolume(name, &v); err != nil {
+		if err := validateVolume(name, &v, constraints); err != nil {
 			return nil, fmt.Errorf("invalid volume %q: %v", name, err)
 		}
 
@@ -355,7 +363,7 @@ func fmtIndexAndName(idx int, name string) string {
 	return fmt.Sprintf("#%v", idx)
 }
 
-func validateVolume(name string, vol *Volume) error {
+func validateVolume(name string, vol *Volume, constraints *ModelConstraints) error {
 	if !validVolumeName.MatchString(name) {
 		return errors.New("invalid name")
 	}
@@ -372,7 +380,7 @@ func validateVolume(name string, vol *Volume) error {
 
 	previousEnd := Size(0)
 	for idx, s := range vol.Structure {
-		if err := validateVolumeStructure(&s, vol); err != nil {
+		if err := validateVolumeStructure(&s, vol, constraints); err != nil {
 			return fmt.Errorf("invalid structure %v: %v", fmtIndexAndName(idx, s.Name), err)
 		}
 		var start Size
@@ -456,14 +464,14 @@ func validateCrossVolumeStructure(structures []LaidOutStructure, knownStructures
 	return nil
 }
 
-func validateVolumeStructure(vs *VolumeStructure, vol *Volume) error {
+func validateVolumeStructure(vs *VolumeStructure, vol *Volume, constraints *ModelConstraints) error {
 	if vs.Size == 0 {
 		return errors.New("missing size")
 	}
 	if err := validateStructureType(vs.Type, vol); err != nil {
 		return fmt.Errorf("invalid type %q: %v", vs.Type, err)
 	}
-	if err := validateRole(vs, vol); err != nil {
+	if err := validateRole(vs, vol, constraints); err != nil {
 		var what string
 		if vs.Role != "" {
 			what = fmt.Sprintf("role %q", vs.Role)
@@ -562,7 +570,7 @@ func validateStructureType(s string, vol *Volume) error {
 	return nil
 }
 
-func validateRole(vs *VolumeStructure, vol *Volume) error {
+func validateRole(vs *VolumeStructure, vol *Volume, constraints *ModelConstraints) error {
 	if vs.Type == "bare" {
 		if vs.Role != "" && vs.Role != MBR {
 			return fmt.Errorf("conflicting type: %q", vs.Type)
@@ -579,9 +587,12 @@ func validateRole(vs *VolumeStructure, vol *Volume) error {
 
 	switch vsRole {
 	case SystemData:
-		// FIXME: determine if we're running on core20 or legacy to check system-data label
-		if vs.Label != "" && vs.Label != ImplicitSystemDataLabel && vs.Label != SystemDataLabel {
-			return fmt.Errorf(`role of this kind must have an implicit label or %q, not %q`, ImplicitSystemDataLabel, vs.Label)
+		dataLabel := ImplicitSystemDataLabel
+		if constraints != nil && constraints.SystemSeed {
+			dataLabel = SystemDataLabel
+		}
+		if vs.Label != "" && vs.Label != dataLabel {
+			return fmt.Errorf(`role of this kind must have an implicit label or %q, not %q`, dataLabel, vs.Label)
 		}
 	case MBR:
 		if vs.Size > SizeMBR {
@@ -596,8 +607,12 @@ func validateRole(vs *VolumeStructure, vol *Volume) error {
 		if vs.Filesystem != "" && vs.Filesystem != "none" {
 			return errors.New("mbr structures must not specify a file system")
 		}
-	case SystemBoot, SystemSeed, BootImage, BootSelect, "":
+	case SystemBoot, BootImage, BootSelect, "":
 		// noop
+	case SystemSeed:
+		if constraints == nil || !constraints.SystemSeed {
+			return fmt.Errorf("unsupported role")
+		}
 	default:
 		return fmt.Errorf("unsupported role")
 	}

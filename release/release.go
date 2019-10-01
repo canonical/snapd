@@ -24,6 +24,7 @@ import (
 	"bytes"
 	"io/ioutil"
 	"os"
+	"strconv"
 	"strings"
 	"unicode"
 
@@ -123,9 +124,24 @@ func isWSL() bool {
 	return false
 }
 
+func isCore20OrNewer() bool {
+	if ReleaseInfo.ID != "ubuntu-core" {
+		return false
+	}
+	vid, err := strconv.Atoi(ReleaseInfo.VersionID)
+	if err != nil {
+		return false
+	}
+	return vid >= 20
+}
+
 // OnClassic states whether the process is running inside a
 // classic Ubuntu system or a native Ubuntu Core image.
 var OnClassic bool
+
+// HasSystemSeed states whether the gadget is expected to have
+// a system-seed structure.
+var HasSystemSeed bool
 
 // OnWSL states whether the process is running inside the Windows
 // Subsystem for Linux
@@ -138,6 +154,8 @@ func init() {
 	ReleaseInfo = readOSRelease()
 
 	OnClassic = (ReleaseInfo.ID != "ubuntu-core")
+
+	HasSystemSeed = isCore20OrNewer()
 
 	OnWSL = isWSL()
 }
