@@ -27,6 +27,8 @@ import (
 	. "gopkg.in/check.v1"
 
 	"github.com/snapcore/snapd/release"
+	"github.com/snapcore/snapd/sandbox/apparmor"
+	"github.com/snapcore/snapd/sandbox/cgroup"
 )
 
 // Hook up check.v1 into the "go test" runner
@@ -149,8 +151,34 @@ func (s *ReleaseTestSuite) TestReleaseInfo(c *C) {
 }
 
 func (s *ReleaseTestSuite) TestForceDevMode(c *C) {
+
+	runTest := func(apparmorLevel apparmor.LevelType, cgroupVersion int, expect bool) {
+		restore := apparmor.MockLevel(apparmorLevel)
+		defer restore()
+		restore = cgroup.MockVersion(cgroupVersion, nil)
+		defer restore()
+		devMode := release.ReleaseInfo.ForceDevMode()
+		c.Check(devMode, Equals, expect, Commentf("unexpected force-dev-mode for AppArmor level %v cgroup v%v", apparmorLevel, cgroupVersion))
+	}
+
+	for _, tc := range []struct {
+		apparmorLevel apparmor.LevelType
+		cgroupVersion int
+		exp           bool
+	}{
+		{apparmor.Full, cgroup.V1, false},
+		{apparmor.Partial, cgroup.V1, true},
+		// unified mode
+		{apparmor.Full, cgroup.V2, true},
+		{apparmor.Partial, cgroup.V2, true},
+	} {
+		runTest(tc.apparmorLevel, tc.cgroupVersion, tc.exp)
+	}
+}
+
+func (s *ReleaseTestSuite) TestMockForceDevMode(c *C) {
 	for _, devmode := range []bool{true, false} {
-		release.MockForcedDevmode(devmode)
+		defer release.MockForcedDevmode(devmode)()
 		c.Assert(release.ReleaseInfo.ForceDevMode(), Equals, devmode, Commentf("wrong result for %#v", devmode))
 	}
 }
