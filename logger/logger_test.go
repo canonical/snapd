@@ -111,3 +111,14 @@ func (s *LogSuite) TestPanicf(c *C) {
 	c.Check(func() { logger.Panicf("xyzzy") }, Panics, "xyzzy")
 	c.Check(s.logbuf.String(), Matches, `(?m).*logger_test\.go:\d+: PANIC xyzzy`)
 }
+
+func (s *LogSuite) TestWithLoggerLock(c *C) {
+	logger.Noticef("xyzzy")
+
+	called := false
+	logger.WithLoggerLock(func() {
+		called = true
+		c.Check(s.logbuf.String(), Matches, `(?m).*logger_test\.go:\d+: xyzzy`)
+	})
+	c.Check(called, Equals, true)
+}

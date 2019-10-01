@@ -31,8 +31,8 @@ import (
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/interfaces"
 	"github.com/snapcore/snapd/osutil"
-	"github.com/snapcore/snapd/release"
-	seccomp_compiler "github.com/snapcore/snapd/sandbox/seccomp"
+	"github.com/snapcore/snapd/sandbox/apparmor"
+	"github.com/snapcore/snapd/sandbox/seccomp"
 	"github.com/snapcore/snapd/testutil"
 )
 
@@ -42,7 +42,7 @@ type systemKeySuite struct {
 	tmp                    string
 	apparmorFeatures       string
 	buildID                string
-	seccompCompilerVersion seccomp_compiler.VersionInfo
+	seccompCompilerVersion seccomp.VersionInfo
 }
 
 var _ = Suite(&systemKeySuite{})
@@ -62,13 +62,13 @@ func (s *systemKeySuite) SetUpTest(c *C) {
 	s.apparmorFeatures = filepath.Join(s.tmp, "/sys/kernel/security/apparmor/features")
 	s.buildID = "this-is-my-build-id"
 
-	s.seccompCompilerVersion = seccomp_compiler.VersionInfo("123 2.3.3 abcdef123 -")
+	s.seccompCompilerVersion = seccomp.VersionInfo("123 2.3.3 abcdef123 -")
 	testutil.MockCommand(c, filepath.Join(dirs.DistroLibExecDir, "snap-seccomp"), fmt.Sprintf(`
 if [ "$1" = "version-info" ]; then echo "%s"; exit 0; fi
 exit 1
 `, s.seccompCompilerVersion))
 
-	s.AddCleanup(release.MockSecCompActions([]string{"allow", "errno", "kill", "log", "trace", "trap"}))
+	s.AddCleanup(seccomp.MockActions([]string{"allow", "errno", "kill", "log", "trace", "trap"}))
 }
 
 func (s *systemKeySuite) TearDownTest(c *C) {
@@ -93,22 +93,22 @@ func (s *systemKeySuite) testInterfaceWriteSystemKey(c *C, nfsHome bool) {
 	systemKey, err := ioutil.ReadFile(dirs.SnapSystemKeyFile)
 	c.Assert(err, IsNil)
 
-	kernelFeatures, _ := release.AppArmorKernelFeatures()
+	kernelFeatures, _ := apparmor.KernelFeatures()
 
 	apparmorFeaturesStr, err := json.Marshal(kernelFeatures)
 	c.Assert(err, IsNil)
 
-	apparmorParserMtime, err := json.Marshal(release.AppArmorParserMtime())
+	apparmorParserMtime, err := json.Marshal(apparmor.ParserMtime())
 	c.Assert(err, IsNil)
 
-	parserFeatures, _ := release.AppArmorParserFeatures()
+	parserFeatures, _ := apparmor.ParserFeatures()
 	apparmorParserFeaturesStr, err := json.Marshal(parserFeatures)
 	c.Assert(err, IsNil)
 
-	seccompActionsStr, err := json.Marshal(release.SecCompActions())
+	seccompActionsStr, err := json.Marshal(seccomp.Actions())
 	c.Assert(err, IsNil)
 
-	compiler, err := seccomp_compiler.New(func(name string) (string, error) {
+	compiler, err := seccomp.NewCompiler(func(name string) (string, error) {
 		return filepath.Join(dirs.DistroLibExecDir, "snap-seccomp"), nil
 	})
 	c.Assert(err, IsNil)

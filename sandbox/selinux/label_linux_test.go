@@ -26,7 +26,7 @@ import (
 
 	"gopkg.in/check.v1"
 
-	"github.com/snapcore/snapd/selinux"
+	"github.com/snapcore/snapd/sandbox/selinux"
 	"github.com/snapcore/snapd/testutil"
 )
 

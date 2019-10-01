@@ -46,14 +46,14 @@ import (
 	"github.com/snapcore/snapd/interfaces"
 	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/release"
-	seccomp_compiler "github.com/snapcore/snapd/sandbox/seccomp"
+	"github.com/snapcore/snapd/sandbox/seccomp"
 	"github.com/snapcore/snapd/snap"
 	"github.com/snapcore/snapd/strutil"
 	"github.com/snapcore/snapd/timings"
 )
 
 var (
-	kernelFeatures         = release.SecCompActions
+	kernelFeatures         = seccomp.Actions
 	dpkgKernelArchitecture = arch.DpkgKernelArchitecture
 	releaseInfoId          = release.ReleaseInfo.ID
 	releaseInfoVersionId   = release.ReleaseInfo.VersionID
@@ -63,19 +63,19 @@ var (
 	seccompCompilerLookup  = cmd.InternalToolPath
 )
 
-func snapSeccompVersionInfoImpl(c Compiler) (seccomp_compiler.VersionInfo, error) {
+func snapSeccompVersionInfoImpl(c Compiler) (seccomp.VersionInfo, error) {
 	return c.VersionInfo()
 }
 
 type Compiler interface {
 	Compile(in, out string) error
-	VersionInfo() (seccomp_compiler.VersionInfo, error)
+	VersionInfo() (seccomp.VersionInfo, error)
 }
 
 // Backend is responsible for maintaining seccomp profiles for snap-confine.
 type Backend struct {
 	snapSeccomp Compiler
-	versionInfo seccomp_compiler.VersionInfo
+	versionInfo seccomp.VersionInfo
 }
 
 var globalProfileLE = []byte{
@@ -124,8 +124,8 @@ func (b *Backend) Initialize() error {
 	} else {
 		globalProfile = globalProfileLE
 	}
-	content := map[string]*osutil.FileState{
-		fname: {Content: globalProfile, Mode: 0644},
+	content := map[string]osutil.FileState{
+		fname: &osutil.MemoryFileState{Content: globalProfile, Mode: 0644},
 	}
 	if err := os.MkdirAll(dir, 0755); err != nil {
 		return fmt.Errorf("cannot create directory for seccomp profiles %q: %s", dir, err)
@@ -135,7 +135,7 @@ func (b *Backend) Initialize() error {
 		return fmt.Errorf("cannot synchronize global seccomp profile: %s", err)
 	}
 
-	b.snapSeccomp, err = seccomp_compiler.New(seccompCompilerLookup)
+	b.snapSeccomp, err = seccomp.NewCompiler(seccompCompilerLookup)
 	if err != nil {
 		return fmt.Errorf("cannot initialize seccomp profile compiler: %v", err)
 	}
@@ -243,7 +243,7 @@ func uidGidChownSnippet(name string) (string, error) {
 
 // deriveContent combines security snippets collected from all the interfaces
 // affecting a given snap into a content map applicable to EnsureDirState.
-func (b *Backend) deriveContent(spec *Specification, opts interfaces.ConfinementOptions, snapInfo *snap.Info) (content map[string]*osutil.FileState, err error) {
+func (b *Backend) deriveContent(spec *Specification, opts interfaces.ConfinementOptions, snapInfo *snap.Info) (content map[string]osutil.FileState, err error) {
 	// Some base snaps and systems require the socketcall() in the default
 	// template
 	addSocketcall := requiresSocketcall(snapInfo.Base)
@@ -264,23 +264,23 @@ func (b *Backend) deriveContent(spec *Specification, opts interfaces.Confinement
 
 	for _, hookInfo := range snapInfo.Hooks {
 		if content == nil {
-			content = make(map[string]*osutil.FileState)
+			content = make(map[string]osutil.FileState)
 		}
 		securityTag := hookInfo.SecurityTag()
 
 		path := securityTag + ".src"
-		content[path] = &osutil.FileState{
+		content[path] = &osutil.MemoryFileState{
 			Content: generateContent(opts, spec.SnippetForTag(securityTag), addSocketcall, b.versionInfo, uidGidChownSyscalls.String()),
 			Mode:    0644,
 		}
 	}
 	for _, appInfo := range snapInfo.Apps {
 		if content == nil {
-			content = make(map[string]*osutil.FileState)
+			content = make(map[string]osutil.FileState)
 		}
 		securityTag := appInfo.SecurityTag()
 		path := securityTag + ".src"
-		content[path] = &osutil.FileState{
+		content[path] = &osutil.MemoryFileState{
 			Content: generateContent(opts, spec.SnippetForTag(securityTag), addSocketcall, b.versionInfo, uidGidChownSyscalls.String()),
 			Mode:    0644,
 		}
@@ -289,7 +289,7 @@ func (b *Backend) deriveContent(spec *Specification, opts interfaces.Confinement
 	return content, nil
 }
 
-func generateContent(opts interfaces.ConfinementOptions, snippetForTag string, addSocketcall bool, versionInfo seccomp_compiler.VersionInfo, uidGidChownSyscalls string) []byte {
+func generateContent(opts interfaces.ConfinementOptions, snippetForTag string, addSocketcall bool, versionInfo seccomp.VersionInfo, uidGidChownSyscalls string) []byte {
 	var buffer bytes.Buffer
 
 	if versionInfo != "" {
@@ -304,7 +304,7 @@ func generateContent(opts interfaces.ConfinementOptions, snippetForTag string, a
 	if opts.DevMode && !opts.JailMode {
 		// NOTE: This is understood by snap-confine
 		buffer.WriteString("@complain\n")
-		if !release.SecCompSupportsAction("log") {
+		if !seccomp.SupportsAction("log") {
 			buffer.WriteString("# complain mode logging unavailable\n")
 		}
 	}
@@ -423,8 +423,8 @@ func requiresSocketcallImpl(baseSnap string) bool {
 // MockSnapSeccompVersionInfo is for use in tests only.
 func MockSnapSeccompVersionInfo(versionInfo string) (restore func()) {
 	old := snapSeccompVersionInfo
-	snapSeccompVersionInfo = func(c Compiler) (seccomp_compiler.VersionInfo, error) {
-		return seccomp_compiler.VersionInfo(versionInfo), nil
+	snapSeccompVersionInfo = func(c Compiler) (seccomp.VersionInfo, error) {
+		return seccomp.VersionInfo(versionInfo), nil
 	}
 	return func() {
 		snapSeccompVersionInfo = old

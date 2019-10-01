@@ -32,8 +32,8 @@ import (
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/osutil"
-	"github.com/snapcore/snapd/release"
-	seccomp_compiler "github.com/snapcore/snapd/sandbox/seccomp"
+	"github.com/snapcore/snapd/sandbox/apparmor"
+	"github.com/snapcore/snapd/sandbox/seccomp"
 )
 
 // ErrSystemKeyIncomparableVersions indicates that the system-key
@@ -82,8 +82,8 @@ var (
 	readBuildID = osutil.ReadBuildID
 )
 
-func seccompCompilerVersionInfo(path string) (seccomp_compiler.VersionInfo, error) {
-	return seccomp_compiler.CompilerVersionInfo(func(name string) (string, error) { return filepath.Join(path, name), nil })
+func seccompCompilerVersionInfo(path string) (seccomp.VersionInfo, error) {
+	return seccomp.CompilerVersionInfo(func(name string) (string, error) { return filepath.Join(path, name), nil })
 }
 
 func generateSystemKey() (*systemKey, error) {
@@ -106,10 +106,10 @@ func generateSystemKey() (*systemKey, error) {
 	sk.BuildID = buildID
 
 	// Add apparmor-features (which is already sorted)
-	sk.AppArmorFeatures, _ = release.AppArmorKernelFeatures()
+	sk.AppArmorFeatures, _ = apparmor.KernelFeatures()
 
 	// Add apparmor-parser-mtime
-	sk.AppArmorParserMtime = release.AppArmorParserMtime()
+	sk.AppArmorParserMtime = apparmor.ParserMtime()
 
 	// Add if home is using NFS, if so we need to have a different
 	// security profile and if this changes we need to change our
@@ -131,7 +131,7 @@ func generateSystemKey() (*systemKey, error) {
 	}
 
 	// Add seccomp-features
-	sk.SecCompActions = release.SecCompActions()
+	sk.SecCompActions = seccomp.Actions()
 
 	versionInfo, err := seccompCompilerVersionInfo(filepath.Dir(snapdPath))
 	if err != nil {
@@ -153,7 +153,7 @@ func WriteSystemKey() error {
 	// We only want to calculate this when the mtime of the parser changes.
 	// Since we calculate the mtime() as part of generateSystemKey, we can
 	// simply unconditionally write this out here.
-	sk.AppArmorParserFeatures, _ = release.AppArmorParserFeatures()
+	sk.AppArmorParserFeatures, _ = apparmor.ParserFeatures()
 
 	sks, err := json.Marshal(sk)
 	if err != nil {

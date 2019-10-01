@@ -2779,6 +2779,13 @@ func (s *snapmgrTestSuite) TestInstallRunThrough(c *C) {
 	c.Assert(total, Equals, s.fakeStore.fakeTotalProgress)
 	c.Check(task.Summary(), Equals, `Download snap "some-snap" (11) from channel "some-channel"`)
 
+	// check install-record present
+	mountTask := ta[len(ta)-11]
+	c.Check(mountTask.Kind(), Equals, "mount-snap")
+	var installRecord backend.InstallRecord
+	c.Assert(mountTask.Get("install-record", &installRecord), IsNil)
+	c.Check(installRecord.TargetSnapExisted, Equals, false)
+
 	// check link/start snap summary
 	linkTask := ta[len(ta)-8]
 	c.Check(linkTask.Summary(), Equals, `Make snap "some-snap" (11) available to the system`)
@@ -3031,6 +3038,12 @@ func (s *snapmgrTestSuite) TestInstallUndoRunThroughJustOneSnap(c *C) {
 	s.settle(c)
 	s.state.Lock()
 
+	mountTask := tasks[len(tasks)-11]
+	c.Assert(mountTask.Kind(), Equals, "mount-snap")
+	var installRecord backend.InstallRecord
+	c.Assert(mountTask.Get("install-record", &installRecord), IsNil)
+	c.Check(installRecord.TargetSnapExisted, Equals, false)
+
 	// ensure all our tasks ran
 	c.Check(s.fakeStore.downloads, DeepEquals, []fakeDownload{{
 		macaroon: s.user.StoreMacaroon,
@@ -3154,6 +3167,36 @@ func (s *snapmgrTestSuite) TestInstallUndoRunThroughJustOneSnap(c *C) {
 	// start with an easier-to-read error if this fails:
 	c.Assert(s.fakeBackend.ops.Ops(), DeepEquals, expected.Ops())
 	c.Assert(s.fakeBackend.ops, DeepEquals, expected)
+}
+
+func (s *snapmgrTestSuite) TestInstallUndoRunThroughUndoContextOptional(c *C) {
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	chg := s.state.NewChange("install", "install a snap")
+	opts := &snapstate.RevisionOptions{Channel: "some-channel"}
+	ts, err := snapstate.Install(context.Background(), s.state, "some-snap-no-install-record", opts, s.user.ID, snapstate.Flags{})
+	c.Assert(err, IsNil)
+	chg.AddAll(ts)
+
+	tasks := ts.Tasks()
+	last := tasks[len(tasks)-1]
+	// sanity
+	c.Assert(last.Lanes(), HasLen, 1)
+	terr := s.state.NewTask("error-trigger", "provoking total undo")
+	terr.WaitFor(last)
+	terr.JoinLane(last.Lanes()[0])
+	chg.AddTask(terr)
+
+	s.state.Unlock()
+	defer s.se.Stop()
+	s.settle(c)
+	s.state.Lock()
+
+	mountTask := tasks[len(tasks)-11]
+	c.Assert(mountTask.Kind(), Equals, "mount-snap")
+	var installRecord backend.InstallRecord
+	c.Assert(mountTask.Get("install-record", &installRecord), Equals, state.ErrNoState)
 }
 
 func (s *snapmgrTestSuite) TestInstallWithCohortRunThrough(c *C) {
@@ -10411,15 +10454,17 @@ func (s *snapmgrQuerySuite) TestSnapStateCurrentInfo(c *C) {
 	c.Check(info.Version, Equals, "1.2")
 	c.Check(info.Description(), Equals, "Lots of text")
 	c.Check(info.Media, IsNil)
+	c.Check(info.Website, Equals, "")
 }
 
 func (s *snapmgrQuerySuite) TestSnapStateCurrentInfoLoadsAuxiliaryStoreInfo(c *C) {
-	storeInfo := &snapstate.AuxStoreInfo{Media: snap.MediaInfos{
-		{
+	storeInfo := &snapstate.AuxStoreInfo{
+		Media: snap.MediaInfos{{
 			Type: "icon",
 			URL:  "http://example.com/favicon.ico",
-		},
-	}}
+		}},
+		Website: "http://example.com/",
+	}
 
 	c.Assert(snapstate.KeepAuxStoreInfo("123123123", storeInfo), IsNil)
 
@@ -10440,6 +10485,7 @@ func (s *snapmgrQuerySuite) TestSnapStateCurrentInfoLoadsAuxiliaryStoreInfo(c *C
 	c.Check(info.Version, Equals, "1.2")
 	c.Check(info.Description(), Equals, "Lots of text")
 	c.Check(info.Media, DeepEquals, storeInfo.Media)
+	c.Check(info.Website, Equals, storeInfo.Website)
 }
 
 func (s *snapmgrQuerySuite) TestSnapStateCurrentInfoParallelInstall(c *C) {

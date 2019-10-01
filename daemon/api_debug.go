@@ -93,7 +93,9 @@ type changeTimings struct {
 }
 
 type debugTimings struct {
-	ChangeID       string                    `json:"change-id"`
+	ChangeID string `json:"change-id"`
+	// total duration of the activity - present for ensure and startup timings only
+	TotalDuration  time.Duration             `json:"total-duration,omitempty"`
 	EnsureTimings  []*timings.TimingJSON     `json:"ensure-timings,omitempty"`
 	StartupTimings []*timings.TimingJSON     `json:"startup-timings,omitempty"`
 	ChangeTimings  map[string]*changeTimings `json:"change-timings,omitempty"`
@@ -168,6 +170,7 @@ func collectEnsureTimings(st *state.State, ensureTag string, allEnsures bool) ([
 			ChangeID:      ensureChangeID,
 			ChangeTimings: changeTimings,
 			EnsureTimings: ensureTm.NestedTimings,
+			TotalDuration: ensureTm.Duration,
 		}
 		responseData = append(responseData, debugTm)
 	}
@@ -195,6 +198,7 @@ func collectStartupTimings(st *state.State, startupTag string, allStarts bool) (
 	for _, startTm := range starts[first:] {
 		debugTm := &debugTimings{
 			StartupTimings: startTm.NestedTimings,
+			TotalDuration:  startTm.Duration,
 		}
 		responseData = append(responseData, debugTm)
 	}
