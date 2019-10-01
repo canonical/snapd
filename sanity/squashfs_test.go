@@ -23,7 +23,7 @@ import (
 	. "gopkg.in/check.v1"
 
 	"github.com/snapcore/snapd/osutil/squashfs"
-	"github.com/snapcore/snapd/release"
+	"github.com/snapcore/snapd/sandbox/selinux"
 	"github.com/snapcore/snapd/sanity"
 	"github.com/snapcore/snapd/testutil"
 )
@@ -105,7 +105,7 @@ func (s *sanitySuite) TestCheckSquashfsMountSELinuxContext(c *C) {
 	mockUmount := testutil.MockCommand(c, "umount", "")
 	defer mockUmount.Restore()
 
-	mockSELinux := release.MockSELinuxIsEnabled(func() (bool, error) { return true, nil })
+	mockSELinux := selinux.MockIsEnabled(func() (bool, error) { return true, nil })
 	defer mockSELinux()
 
 	err := sanity.CheckSquashfsMount()

@@ -369,7 +369,9 @@ type ServerVersion struct {
 	OSVersionID string
 	OnClassic   bool
 
-	KernelVersion string
+	KernelVersion  string
+	Architecture   string
+	Virtualization string
 }
 
 func (client *Client) ServerVersion() (*ServerVersion, error) {
@@ -385,7 +387,9 @@ func (client *Client) ServerVersion() (*ServerVersion, error) {
 		OSVersionID: sysInfo.OSRelease.VersionID,
 		OnClassic:   sysInfo.OnClassic,
 
-		KernelVersion: sysInfo.KernelVersion,
+		KernelVersion:  sysInfo.KernelVersion,
+		Architecture:   sysInfo.Architecture,
+		Virtualization: sysInfo.Virtualization,
 	}, nil
 }
 
@@ -528,7 +532,9 @@ type SysInfo struct {
 	OnClassic bool      `json:"on-classic"`
 	Managed   bool      `json:"managed"`
 
-	KernelVersion string `json:"kernel-version,omitempty"`
+	KernelVersion  string `json:"kernel-version,omitempty"`
+	Architecture   string `json:"architecture,omitempty"`
+	Virtualization string `json:"virtualization,omitempty"`
 
 	Refresh         RefreshInfo         `json:"refresh,omitempty"`
 	Confinement     string              `json:"confinement"`

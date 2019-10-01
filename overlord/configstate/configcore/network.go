@@ -61,9 +61,9 @@ func handleNetworkConfiguration(tr config.Conf) error {
 	default:
 		return fmt.Errorf("unsupported disable-ipv6 option: %q", output)
 	}
-	dirContent := map[string]*osutil.FileState{}
+	dirContent := map[string]osutil.FileState{}
 	if content.Len() > 0 {
-		dirContent[name] = &osutil.FileState{
+		dirContent[name] = &osutil.MemoryFileState{
 			Content: content.Bytes(),
 			Mode:    0644,
 		}

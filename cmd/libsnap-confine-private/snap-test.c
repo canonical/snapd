@@ -90,6 +90,10 @@ static void test_verify_security_tag(void)
 	g_assert_true(verify_security_tag("snap.123test.123test", "123test"));
 	g_assert_true(verify_security_tag
 		      ("snap.123test.hook.configure", "123test"));
+
+	// regression test snap.eon-edg-shb-pulseaudio.hook.connect-plug-i2c
+	g_assert_true(verify_security_tag
+		      ("snap.foo.hook.connect-plug-i2c", "foo"));
 }
 
 static void test_sc_is_hook_security_tag(void)

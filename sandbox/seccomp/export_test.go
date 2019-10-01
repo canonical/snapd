@@ -17,22 +17,7 @@
  *
  */
 
-package release
-
-var (
-	ReadOSRelease = readOSRelease
-)
-
-func MockOSReleasePath(filename string) (restore func()) {
-	old := osReleasePath
-	oldFallback := fallbackOsReleasePath
-	osReleasePath = filename
-	fallbackOsReleasePath = filename
-	return func() {
-		osReleasePath = old
-		fallbackOsReleasePath = oldFallback
-	}
-}
+package seccomp
 
 func MockIoutilReadfile(newReadfile func(string) ([]byte, error)) (restorer func()) {
 	old := ioutilReadFile
@@ -42,6 +27,6 @@ func MockIoutilReadfile(newReadfile func(string) ([]byte, error)) (restorer func
 	}
 }
 
-var (
-	IsWSL = isWSL
-)
+func FreshSecCompProbe() {
+	secCompProber = &secCompProbe{}
+}
