@@ -137,7 +137,7 @@ func (s *canRemoveSuite) TestKernelBootInUseIsKept(c *check.C) {
 	c.Check(policy.NewKernelPolicy("kernel").CanRemove(s.st, snapst, snap.R(1)), check.Equals, policy.ErrInUseForBoot)
 }
 
-func (s *canRemoveSuite) TestOstInUseIsKept(c *check.C) {
+func (s *canRemoveSuite) TestOsInUseIsKept(c *check.C) {
 	s.st.Lock()
 	defer s.st.Unlock()
 
@@ -251,6 +251,28 @@ func (s *canRemoveSuite) TestBaseInUse(c *check.C) {
 	snapstate.Set(s.st, "some-snap", &snapstate.SnapState{
 		Sequence: []*snap.SideInfo{si},
 		Current:  snap.R(1),
+	})
+
+	// pretend now we want to remove "some-base"
+	snapst := &snapstate.SnapState{
+		Current:  snap.R(1),
+		Sequence: []*snap.SideInfo{{Revision: snap.R(1), RealName: "some-base"}},
+	}
+	c.Check(policy.NewBasePolicy("core18").CanRemove(s.st, snapst, snap.R(0)), check.DeepEquals, policy.InUseByErr("some-snap"))
+}
+
+func (s *canRemoveSuite) TestBaseInUseBrokenApp(c *check.C) {
+	s.st.Lock()
+	defer s.st.Unlock()
+
+	// pretend we have a snap installed that uses "some-base"
+	si := &snap.SideInfo{RealName: "some-snap", SnapID: "some-snap-id", Revision: snap.R(1)}
+	si2 := &snap.SideInfo{RealName: "some-snap", SnapID: "some-snap-id", Revision: snap.R(2)}
+	snaptest.MockSnap(c, "name: some-snap\nversion: 1.0\nbase: some-base", si)
+	// NOTE no snaptest.MockSnap for si2 -> snap is actually broken
+	snapstate.Set(s.st, "some-snap", &snapstate.SnapState{
+		Sequence: []*snap.SideInfo{si2, si},
+		Current:  snap.R(2),
 	})
 
 	// pretend now we want to remove "some-base"

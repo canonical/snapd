@@ -94,9 +94,9 @@ func baseUsedBy(st *state.State, baseName string) ([]string, error) {
 				if baseName != snapInfo.Base && !(alsoCore16 && snapInfo.Base == "core16") {
 					continue
 				}
+				usedBy = append(usedBy, snapInfo.InstanceName())
+				break
 			}
-			usedBy = append(usedBy, snapInfo.InstanceName())
-			break
 		}
 	}
 	return usedBy, nil
