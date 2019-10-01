@@ -20,6 +20,8 @@
 package policy
 
 import (
+	"sort"
+
 	"github.com/snapcore/snapd/boot"
 	"github.com/snapcore/snapd/overlord/snapstate"
 	"github.com/snapcore/snapd/overlord/state"
@@ -99,5 +101,6 @@ func baseUsedBy(st *state.State, baseName string) ([]string, error) {
 			}
 		}
 	}
+	sort.Strings(usedBy)
 	return usedBy, nil
 }

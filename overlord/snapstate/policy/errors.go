@@ -39,8 +39,8 @@ func (e inUseByErr) Error() string {
 		// how
 		return "snap is being used"
 	case 1:
-		return "snap is being used by snap " + e[0]
+		return "snap is being used by snap " + e[0] + "."
 	default:
-		return "snap is being used by snaps " + strings.Join(e[:len(e)-1], ", ") + " and " + e[len(e)-1]
+		return "snap is being used by snaps " + strings.Join(e[:len(e)-1], ", ") + " and " + e[len(e)-1] + "."
 	}
 }
