@@ -76,7 +76,7 @@ execute: |
     systemctl status snapd.seeded.service
 
     echo "Verifying the imported assertions"
-    if ! snap known model | MATCH "model: my-classic" ; then
+    if ! snap model --assertion | MATCH "model: my-classic" ; then
         echo "Model assertion was not imported on firstboot"
         exit 1
     fi

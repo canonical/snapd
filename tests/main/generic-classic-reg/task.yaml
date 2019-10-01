@@ -11,17 +11,17 @@ execute: |
     while ! snap changes | grep -q "Done.*Initialize device"; do sleep 1; done
 
     echo "We have a model assertion"
-    snap known model|MATCH "series: 16"
+    snap model --assertion|MATCH "series: 16"
 
-    if ! snap known model|grep "brand-id: generic" ; then
+    if ! snap model --assertion|grep "brand-id: generic" ; then
        echo "Not a generic model. Skipping."
        exit 0
     fi
 
     echo "Check we have a serial"
-    snap known serial|MATCH "authority-id: generic"
-    snap known serial|MATCH "brand-id: generic"
-    snap known serial|MATCH "model: generic-classic"
+    snap model --serial --assertion|MATCH "authority-id: generic"
+    snap model --serial --assertion|MATCH "brand-id: generic"
+    snap model --serial --assertion|MATCH "model: generic-classic"
 
     echo "Make sure we could acquire a session macaroon"
     snap find pc

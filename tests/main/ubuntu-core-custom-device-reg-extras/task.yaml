@@ -80,14 +80,14 @@ execute: |
     echo "Wait for first boot to be done"
     while ! snap changes | grep -q "Done.*Initialize system state"; do sleep 1; done
     echo "We have a model assertion"
-    snap known model|MATCH "model: my-model"
+    snap model --assertion|MATCH "model: my-model"
 
     echo "Wait for device initialisation to be done"
     while ! snap changes | grep -q "Done.*Initialize device"; do sleep 1; done
 
     echo "Check we have a serial"
-    snap known serial|MATCH "authority-id: developer1"
-    snap known serial|MATCH "brand-id: developer1"
-    snap known serial|MATCH "model: my-model"
-    snap known serial|MATCH "serial: Y1234"
-    snap known serial|MATCH 'mac: "00:00:00:00:ff:00"'
+    snap model --serial --assertion|MATCH "authority-id: developer1"
+    snap model --serial --assertion|MATCH "brand-id: developer1"
+    snap model --serial --assertion|MATCH "model: my-model"
+    snap model --serial --assertion|MATCH "serial: Y1234"
+    snap model --serial --assertion|MATCH 'mac: "00:00:00:00:ff:00"'
