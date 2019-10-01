@@ -34,7 +34,7 @@ import (
 	"github.com/snapcore/snapd/interfaces/ifacetest"
 	"github.com/snapcore/snapd/interfaces/seccomp"
 	"github.com/snapcore/snapd/osutil"
-	"github.com/snapcore/snapd/release"
+	apparmor_sandbox "github.com/snapcore/snapd/sandbox/apparmor"
 	seccomp_sandbox "github.com/snapcore/snapd/sandbox/seccomp"
 	"github.com/snapcore/snapd/snap"
 	"github.com/snapcore/snapd/snap/snaptest"
@@ -316,7 +316,7 @@ var combineSnippetsScenarios = []combineSnippetsScenario{{
 }}
 
 func (s *backendSuite) TestCombineSnippets(c *C) {
-	restore := release.MockForcedDevmode(false)
+	restore := apparmor_sandbox.MockLevel(apparmor_sandbox.Full)
 	defer restore()
 	restore = seccomp_sandbox.MockActions([]string{"log"})
 	defer restore()
@@ -355,7 +355,7 @@ apps:
 
 // Ensure that combined snippets are sorted
 func (s *backendSuite) TestCombineSnippetsOrdering(c *C) {
-	restore := release.MockForcedDevmode(false)
+	restore := apparmor_sandbox.MockLevel(apparmor_sandbox.Full)
 	defer restore()
 	restore = seccomp.MockRequiresSocketcall(func(string) bool { return false })
 	defer restore()
@@ -384,8 +384,8 @@ func (s *backendSuite) TestCombineSnippetsOrdering(c *C) {
 	c.Check(stat.Mode(), Equals, os.FileMode(0644))
 }
 
-func (s *backendSuite) TestBindIsAddedForForcedDevModeSystems(c *C) {
-	restore := release.MockForcedDevmode(true)
+func (s *backendSuite) TestBindIsAddedForNonFullApparmorSystems(c *C) {
+	restore := apparmor_sandbox.MockLevel(apparmor_sandbox.Partial)
 	defer restore()
 
 	snapInfo := snaptest.MockInfo(c, ifacetest.SambaYamlV1, nil)
@@ -393,7 +393,7 @@ func (s *backendSuite) TestBindIsAddedForForcedDevModeSystems(c *C) {
 	err := s.Backend.Setup(snapInfo, interfaces.ConfinementOptions{}, s.Repo, s.meas)
 	c.Assert(err, IsNil)
 	profile := filepath.Join(dirs.SnapSeccompDir, "snap.samba.smbd")
-	c.Assert(profile+".src", testutil.FileContains, "\nbind\n")
+	c.Assert(profile+".src", testutil.FileContains, "# Add bind() for systems with only Seccomp enabled to workaround\n# LP #1644573\nbind\n")
 }
 
 func (s *backendSuite) TestSocketcallIsAddedWhenRequired(c *C) {
@@ -625,7 +625,7 @@ func (s *backendSuite) TestRequiresSocketcallNotForcedViaBaseSnap(c *C) {
 }
 
 func (s *backendSuite) TestRebuildsWithVersionInfoWhenNeeded(c *C) {
-	restore := release.MockForcedDevmode(false)
+	restore := apparmor_sandbox.MockLevel(apparmor_sandbox.Full)
 	defer restore()
 	restore = seccomp_sandbox.MockActions([]string{"log"})
 	defer restore()
