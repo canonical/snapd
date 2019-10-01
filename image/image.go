@@ -358,27 +358,25 @@ func setupSeed(tsto *ToolingStore, model *asserts.Model, opts *Options) error {
 		return err
 	}
 
-	// find the gadget file
-	gadgetFname := ""
-	// find the snap.Info for kernel/os/base so
-	// that boot.MakeBootable can DTRT
-	downloadedSnapsInfoForBootConfig := make(map[string]*snap.Info, 2)
-	for _, sn := range bootSnaps {
-		// TODO|XXX: ultimately change the signature of MakeBootable
-		// to make it more forward compatible and avoid this
-		if sn.Info.GetType() == snap.TypeSnapd {
-			// filter this out
-			continue
-		}
-		if sn.Info.GetType() == snap.TypeGadget {
-			gadgetFname = sn.Path
-			continue
-		}
-		downloadedSnapsInfoForBootConfig[sn.Path] = sn.Info
+	bootWith := &boot.BootableSet{
+		UnpackedGadgetDir: opts.GadgetUnpackDir,
 	}
 
-	if len(downloadedSnapsInfoForBootConfig) != 2 {
-		return fmt.Errorf("internal error: expected 2 snaps in downloadedSnapsInfoForBootConfig, boot base|core and kernel")
+	// find the gadget file
+	// find the snap.Info/path for kernel/os/base so
+	// that boot.MakeBootable can DTRT
+	gadgetFname := ""
+	for _, sn := range bootSnaps {
+		switch sn.Info.GetType() {
+		case snap.TypeGadget:
+			gadgetFname = sn.Path
+		case snap.TypeOS, snap.TypeBase:
+			bootWith.Base = sn.Info
+			bootWith.BasePath = sn.Path
+		case snap.TypeKernel:
+			bootWith.Kernel = sn.Info
+			bootWith.KernelPath = sn.Path
+		}
 	}
 
 	// unpacking the gadget for core models
@@ -386,7 +384,7 @@ func setupSeed(tsto *ToolingStore, model *asserts.Model, opts *Options) error {
 		return err
 	}
 
-	if err := boot.MakeBootable(model, opts.RootDir, downloadedSnapsInfoForBootConfig, opts.GadgetUnpackDir); err != nil {
+	if err := boot.MakeBootable(model, opts.RootDir, bootWith); err != nil {
 		return err
 	}
 
