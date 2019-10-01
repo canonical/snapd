@@ -269,12 +269,7 @@ func (w *Writer) checkStep(thisStep writerStep) error {
 				alright = true
 			}
 		case snapsToDownloadStep:
-			if w.expectedStep == localSnapsStep {
-				if len(w.localSnaps) != 0 {
-					break
-				}
-				alright = true
-			} else if w.expectedStep == infoDerivedStep {
+			if w.expectedStep == localSnapsStep || w.expectedStep == infoDerivedStep {
 				if len(w.localSnaps) != 0 {
 					break
 				}
@@ -600,7 +595,6 @@ func (w *Writer) resolveChannel(whichSnap string, modSnap *asserts.ModelSnap, op
 }
 
 func (w *Writer) downloaded(seedSnaps []*SeedSnap) error {
-
 	if w.availableSnaps == nil {
 		w.availableSnaps = naming.NewSnapSet(nil)
 	}
@@ -658,7 +652,7 @@ func (w *Writer) downloaded(seedSnaps []*SeedSnap) error {
 
 // Downloaded checks the downloaded snaps metadata provided via
 // setting it into the SeedSnaps returned by the previous
-// SnapsToDownload.  It also returns whether the seed snap set is
+// SnapsToDownload. It also returns whether the seed snap set is
 // complete or SnapsToDownload should be called again.
 func (w *Writer) Downloaded() (complete bool, err error) {
 	if err := w.checkStep(downloadedStep); err != nil {
