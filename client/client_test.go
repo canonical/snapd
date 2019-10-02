@@ -627,8 +627,8 @@ func (cs *integrationSuite) TestClientTimeoutLP1837804(c *C) {
 
 	cli := client.New(&client.Config{BaseURL: testServer.URL})
 	_, err := cli.Do("GET", "/", nil, nil, nil, client.DoFlags{})
-	c.Assert(err, ErrorMatches, `.* context deadline exceeded`)
+	c.Assert(err, ErrorMatches, `.* timeout exceeded while waiting for response`)
 
 	_, err = cli.Do("POST", "/", nil, nil, nil, client.DoFlags{})
-	c.Assert(err, ErrorMatches, `.* context deadline exceeded`)
+	c.Assert(err, ErrorMatches, `.* timeout exceeded while waiting for response`)
 }

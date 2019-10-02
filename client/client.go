@@ -183,7 +183,16 @@ func (e AuthorizationError) Error() string {
 type ConnectionError struct{ error }
 
 func (e ConnectionError) Error() string {
-	return fmt.Sprintf("cannot communicate with server: %v", e.error)
+	var errStr string
+	switch e.error {
+	case context.DeadlineExceeded:
+		errStr = "timeout exceeded while waiting for response"
+	case context.Canceled:
+		errStr = "request canceled"
+	default:
+		errStr = e.error.Error()
+	}
+	return fmt.Sprintf("cannot communicate with server: %s", errStr)
 }
 
 // AllowInteractionHeader is the HTTP request header used to indicate
@@ -232,6 +241,25 @@ func (client *Client) raw(ctx context.Context, method, urlpath string, query url
 	}
 
 	return rsp, nil
+}
+
+// rawWithTimeout is like raw(), but sets a timeout for the whole of request and
+// response (including rsp.Body() read) round trip. The caller is responsible
+// for canceling the internal context to release the resources associated with
+// the request by calling the returned cancel function.
+func (client *Client) rawWithTimeout(ctx context.Context, method, urlpath string, query url.Values, headers map[string]string, body io.Reader, timeout time.Duration) (*http.Response, context.CancelFunc, error) {
+	if timeout == 0 {
+		return nil, nil, fmt.Errorf("internal error: timeout not set for rawWithTimeout")
+	}
+
+	ctx, cancel := context.WithTimeout(ctx, timeout)
+	rsp, err := client.raw(ctx, method, urlpath, query, headers, body)
+	if err != nil && ctx.Err() != nil {
+		cancel()
+		return nil, nil, &ConnectionError{ctx.Err()}
+	}
+
+	return rsp, cancel, err
 }
 
 var (
@@ -283,13 +311,19 @@ func (client *Client) do(method, path string, query url.Values, headers map[stri
 
 	var rsp *http.Response
 	var ctx context.Context = context.Background()
-	if !flags.NoTimeout {
-		cancelCtx, cancel := context.WithTimeout(ctx, doTimeout)
-		ctx = cancelCtx
-		defer cancel()
-	}
 	for {
-		rsp, err = client.raw(ctx, method, path, query, headers, body)
+		if flags.NoTimeout {
+			rsp, err = client.raw(ctx, method, path, query, headers, body)
+		} else {
+			var cancel context.CancelFunc
+			// use the same timeout as for the whole of the retry
+			// loop to error out the whole do() call when a single
+			// request exceeds the deadline
+			rsp, cancel, err = client.rawWithTimeout(ctx, method, path, query, headers, body, doTimeout)
+			if err == nil {
+				defer cancel()
+			}
+		}
 		if err == nil || method != "GET" {
 			break
 		}
