@@ -107,6 +107,11 @@ func testClientLogs(cs *clientSuite, c *check.C) ([]client.Log, error) {
 	ch, err := cs.cli.Logs([]string{"foo", "bar"}, client.LogOptions{N: -1, Follow: false})
 	c.Check(cs.req.URL.Path, check.Equals, "/v2/logs")
 	c.Check(cs.req.Method, check.Equals, "GET")
+
+	// logs cannot have a deadline because of "-f"
+	_, ok := cs.req.Context().Deadline()
+	c.Check(ok, check.Equals, false)
+
 	query := cs.req.URL.Query()
 	c.Check(query, check.HasLen, 2)
 	c.Check(query.Get("names"), check.Equals, "foo,bar")
