@@ -10,8 +10,8 @@ prepare: |
 restore: |
     snap remove test-snapd-refresh
     rm -f test-snapd-refresh-{1,2}_all.snap
-    rmdir /sys/fs/cgroup/pids/snap.test-snapd-refresh.sh || true
-    rmdir /sys/fs/cgroup/pids/snap.test-snapd-refresh.version || true
+    rmdir /run/snapd/cgroup/snap.test-snapd-refresh.sh || true
+    rmdir /run/snapd/cgroup/snap.test-snapd-refresh.version || true
     # TODO: There is currently no way to unset configuration options.
     # Once this is fixed please uncomment this line:
     # snap unset core experimental.refresh-app-awareness

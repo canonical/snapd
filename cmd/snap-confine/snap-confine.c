@@ -34,7 +34,6 @@
 
 #include "../libsnap-confine-private/apparmor-support.h"
 #include "../libsnap-confine-private/cgroup-freezer-support.h"
-#include "../libsnap-confine-private/cgroup-pids-support.h"
 #include "../libsnap-confine-private/cgroup-support.h"
 #include "../libsnap-confine-private/classic.h"
 #include "../libsnap-confine-private/cleanup-funcs.h"
@@ -548,6 +547,10 @@ static void enter_non_classic_execution_environment(sc_invocation * inv,
 	sc_ensure_shared_snap_mount();
 	debug("unsharing snap namespace directory");
 	sc_initialize_mount_ns();
+	if (sc_feature_enabled(SC_FEATURE_REFRESH_APP_AWARENESS)) {
+		debug("mounting cgroup hierarchy for snapd");
+		sc_cgroup_mount_snapd_hierarchy();
+	}
 	sc_unlock(global_lock_fd);
 
 	// Find and open snap-update-ns and snap-discard-ns from the same
@@ -658,14 +661,12 @@ static void enter_non_classic_execution_environment(sc_invocation * inv,
 			}
 		}
 	}
-	// Associate each snap process with a dedicated snap freezer cgroup and
-	// snap pids cgroup. All snap processes belonging to one snap share the
-	// freezer cgroup. All snap processes belonging to one app or one hook
-	// share the pids cgroup.
-	//
-	// This simplifies testing if any processes belonging to a given snap are
-	// still alive as well as to properly account for each application and
-	// service.
+	// Associate each snap process with dedicated groups under the default
+	// freezer hierarchy (/sys/fs/cgrou/freezer) and a named snapd hierarchy
+	// (/run/snapd/cgroup). The dedicated group under the freezer hierarchy is
+	// shared by all processes and hooks belonging to one snap. The dedicated
+	// group under the named hierarchy is shared by all processes belonging to
+	// one snap, while each app and hook is placed in a separate group.
 	if (getegid() != 0 && saved_gid == 0) {
 		// Temporarily raise egid so we can chown the freezer cgroup under LXD.
 		if (setegid(0) != 0) {
@@ -674,9 +675,10 @@ static void enter_non_classic_execution_environment(sc_invocation * inv,
 	}
 	if (!sc_cgroup_is_v2()) {
 		sc_cgroup_freezer_join(inv->snap_instance, getpid());
-		if (sc_feature_enabled(SC_FEATURE_REFRESH_APP_AWARENESS)) {
-			sc_cgroup_pids_join(inv->security_tag, getpid());
-		}
+	}
+	// TODO: This should be done uniformly for classic and non-classic snaps.
+	if (sc_feature_enabled(SC_FEATURE_REFRESH_APP_AWARENESS)) {
+		sc_cgroup_snapd_hierarchy_join(inv->security_tag, getpid());
 	}
 	if (geteuid() == 0 && real_gid != 0) {
 		if (setegid(real_gid) != 0) {

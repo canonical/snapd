@@ -21,8 +21,10 @@
 #include "cgroup-support.h"
 
 #include <errno.h>
+#include <linux/magic.h>
 #include <stdio.h>
 #include <string.h>
+#include <sys/mount.h>
 #include <sys/stat.h>
 #include <sys/types.h>
 #include <sys/vfs.h>
@@ -31,6 +33,10 @@
 #include "cleanup-funcs.h"
 #include "string-utils.h"
 #include "utils.h"
+
+static const char *cgroup_dir = "/sys/fs/cgroup";
+static const char *snapd_run_dir = "/run/snapd";
+static const char *snapd_run_cgroup_dir = "/run/snapd/cgroup";
 
 void sc_cgroup_create_and_join(const char *parent, const char *name, pid_t pid) {
     int parent_fd SC_CLEANUP(sc_cleanup_close) = -1;
@@ -68,8 +74,6 @@ void sc_cgroup_create_and_join(const char *parent, const char *name, pid_t pid) 
     debug("moved process %ld to cgroup hierarchy %s/%s", (long)pid, parent, name);
 }
 
-static const char *cgroup_dir = "/sys/fs/cgroup";
-
 // from statfs(2)
 #ifndef CGRUOP2_SUPER_MAGIC
 #define CGROUP2_SUPER_MAGIC 0x63677270
@@ -96,4 +100,50 @@ bool sc_cgroup_is_v2() {
         return true;
     }
     return false;
+}
+
+static void ensure_dir(const char *dir, mode_t mode) {
+    struct stat stat_buf;
+
+    /* The path /run/snapd should be a directory with mode 0655 owned by
+     * root.root. If one is absent it is created. If one is there it is
+     * validated for correct type. */
+    if (lstat(dir, &stat_buf) < 0) {
+        if (errno != ENOENT) {
+            die("cannot lstat %s", dir);
+        }
+        if (mkdir(dir, mode) < 0) {
+            die("cannot mkdir %s", dir);
+        }
+        if (chown(dir, 0, 0) < 0) {
+            die("cannot chown %s to root.root", dir);
+        }
+    } else {
+        if ((stat_buf.st_mode & S_IFMT) != S_IFDIR) {
+            die("cannot proceed: %s must be a directory", dir);
+        }
+    }
+}
+
+void sc_cgroup_mount_snapd_hierarchy(void) {
+    ensure_dir(snapd_run_dir, 0755);
+    ensure_dir(snapd_run_cgroup_dir, 0755);
+
+    /* The path /run/snapd/cgroup should be a mount point for a cgroup. */
+    struct statfs statfs_buf;
+    if (statfs(snapd_run_cgroup_dir, &statfs_buf) < 0) {
+        die("cannot statfs %s", snapd_run_cgroup_dir);
+    }
+    if (statfs_buf.f_type != CGROUP_SUPER_MAGIC) {
+        int mount_flags = MS_NOSUID | MS_NODEV | MS_NOEXEC | MS_RELATIME;
+        // Here "none" indicates that no controllers are enabled.
+        const char *mount_opts = "none,name=snapd";
+        if (mount("cgroup", snapd_run_cgroup_dir, "cgroup", mount_flags, mount_opts) < 0) {
+            die("cannot mount snapd cgroup v1 hierarchy");
+        }
+    }
+}
+
+void sc_cgroup_snapd_hierarchy_join(const char *snap_security_tag, pid_t pid) {
+    sc_cgroup_create_and_join(snapd_run_cgroup_dir, snap_security_tag, pid);
 }

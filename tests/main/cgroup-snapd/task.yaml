@@ -13,7 +13,7 @@ prepare: |
     install_local test-snapd-sh
 
 restore: |
-    rmdir /sys/fs/cgroup/pids/snap.test-snapd-sh.test-snapd-sh || true
+    rmdir /run/snapd/cgroup/snap.test-snapd-sh.test-snapd-sh || true
 
     # TODO: There is currently no way to unset configuration options.
     # Once this is fixed please uncomment this line:
@@ -33,7 +33,7 @@ execute: |
     done
     # While the process is alive its PID can be seen in the cgroup.procs file
     # of the pid controller.
-    MATCH "$pid1" < /sys/fs/cgroup/pids/snap.test-snapd-sh.test-snapd-sh/cgroup.procs
+    MATCH "$pid1" < /run/snapd/cgroup/snap.test-snapd-sh.test-snapd-sh/cgroup.procs
 
     # Start a second process so that we can check adding tasks to an existing
     # control group.
@@ -44,17 +44,17 @@ execute: |
         test -e /var/snap/test-snapd-sh/current/2.stamp && break
         sleep 0.1
     done
-    MATCH "$pid2" < /sys/fs/cgroup/pids/snap.test-snapd-sh.test-snapd-sh/cgroup.procs
+    MATCH "$pid2" < /run/snapd/cgroup/snap.test-snapd-sh.test-snapd-sh/cgroup.procs
 
     # When the process terminates the control group is updated and the task no
     # longer registers there.
     kill "$pid1"
     wait "$pid1" || true  # wait returns the exit code and we kill the process
-    MATCH -v "$pid1" < /sys/fs/cgroup/pids/snap.test-snapd-sh.test-snapd-sh/cgroup.procs
+    MATCH -v "$pid1" < /run/snapd/cgroup/snap.test-snapd-sh.test-snapd-sh/cgroup.procs
 
     kill "$pid2"
     wait "$pid2" || true  # same as above
-    MATCH -v "$pid2" < /sys/fs/cgroup/pids/snap.test-snapd-sh.test-snapd-sh/cgroup.procs
+    MATCH -v "$pid2" < /run/snapd/cgroup/snap.test-snapd-sh.test-snapd-sh/cgroup.procs
 
     # If a snap command forks a child process it is also tracked.
     #shellcheck disable=SC2016
@@ -69,16 +69,16 @@ execute: |
     done
     # While the process is alive its PID can be seen in the cgroup.procs file
     # of the pid controller.
-    MATCH "$pid3" < /sys/fs/cgroup/pids/snap.test-snapd-sh.test-snapd-sh/cgroup.procs
+    MATCH "$pid3" < /run/snapd/cgroup/snap.test-snapd-sh.test-snapd-sh/cgroup.procs
 
     # Because the script above used "sleep 1h" instead of "exec sleep 1h" there
     # are now two processes: the shell and sleep.
-    test "$(wc -l < /sys/fs/cgroup/pids/snap.test-snapd-sh.test-snapd-sh/cgroup.procs)" -eq 2
+    test "$(wc -l < /run/snapd/cgroup/snap.test-snapd-sh.test-snapd-sh/cgroup.procs)" -eq 2
     kill "$pid3"
-    test "$(wc -l < /sys/fs/cgroup/pids/snap.test-snapd-sh.test-snapd-sh/cgroup.procs)" -eq 1
+    test "$(wc -l < /run/snapd/cgroup/snap.test-snapd-sh.test-snapd-sh/cgroup.procs)" -eq 1
     # Kill the remaining cgroup process.
     while read -r pid; do
         kill "$pid"
-    done < /sys/fs/cgroup/pids/snap.test-snapd-sh.test-snapd-sh/cgroup.procs
+    done < /run/snapd/cgroup/snap.test-snapd-sh.test-snapd-sh/cgroup.procs
     wait "$pid3" || true  # same as above
-    test "$(wc -l < /sys/fs/cgroup/pids/snap.test-snapd-sh.test-snapd-sh/cgroup.procs)" -eq 0
+    test "$(wc -l < /run/snapd/cgroup/snap.test-snapd-sh.test-snapd-sh/cgroup.procs)" -eq 0

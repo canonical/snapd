@@ -208,11 +208,11 @@ var (
 
 type AuxStoreInfo = auxStoreInfo
 
-func MockPidsCgroupDir(dir string) (restore func()) {
-	old := pidsCgroupDir
-	pidsCgroupDir = dir
+func MockSnapdCgroupDir(dir string) (restore func()) {
+	old := snapdCgroupDir
+	snapdCgroupDir = dir
 	return func() {
-		pidsCgroupDir = old
+		snapdCgroupDir = old
 	}
 }
 

@@ -110,7 +110,7 @@ var (
 	SystemFontconfigCacheDirs []string
 
 	FreezerCgroupDir string
-	PidsCgroupDir    string
+	SnapdCgroupDir   string
 
 	SnapshotsDir string
 
@@ -346,7 +346,7 @@ func SetRootDir(rootdir string) {
 	}
 
 	FreezerCgroupDir = filepath.Join(rootdir, "/sys/fs/cgroup/freezer/")
-	PidsCgroupDir = filepath.Join(rootdir, "/sys/fs/cgroup/pids/")
+	SnapdCgroupDir = filepath.Join(rootdir, "/run/snapd/cgroup")
 	SnapshotsDir = filepath.Join(rootdir, snappyDir, "snapshots")
 
 	ErrtrackerDbDir = filepath.Join(rootdir, snappyDir, "errtracker.db")

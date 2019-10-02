@@ -88,6 +88,11 @@ func ControllerPathV1(controller string) string {
 	return filepath.Join(rootPath, expectedMountPoint, controller)
 }
 
+// SnapdNamedHierarchyPath returns the path of the name=snapd cgroup mounted by snap-confine.
+func SnapdNamedHierarchyPath() string {
+	return filepath.Join(rootPath, "/run/snapd/cgroup")
+}
+
 func probeCgroupVersion() (version int, err error) {
 	cgroupMount := filepath.Join(rootPath, expectedMountPoint)
 	typ, err := fsTypeForPath(cgroupMount)

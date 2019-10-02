@@ -115,6 +115,9 @@ if [ "$1" = "purge" ]; then
         umount -l /run/snapd/ns/ || true
     fi
 
+    echo "Unmounting snapd-specific naming cgroup"
+    umount -l /run/snapd/cgroup || true
+
     echo "Removing extra snap-confine apparmor rules"
     rm -f /etc/apparmor.d/snap.core.*.usr.lib.snapd.snap-confine
 

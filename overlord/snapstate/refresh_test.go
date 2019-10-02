@@ -53,8 +53,8 @@ func (s *refreshSuite) SetUpTest(c *C) {
 	s.BaseTest.SetUpTest(c)
 
 	dirs.SetRootDir(c.MkDir())
-	mockPidsCgroupDir := c.MkDir()
-	s.AddCleanup(snapstate.MockPidsCgroupDir(mockPidsCgroupDir))
+	mockSnapdCgroupDir := c.MkDir()
+	s.AddCleanup(snapstate.MockSnapdCgroupDir(mockSnapdCgroupDir))
 
 	yamlText := `
 name: foo
@@ -69,9 +69,9 @@ hooks:
   configure:
 `
 	s.info = snaptest.MockInfo(c, yamlText, nil)
-	s.daemonPath = filepath.Join(mockPidsCgroupDir, s.info.Apps["daemon"].SecurityTag())
-	s.appPath = filepath.Join(mockPidsCgroupDir, s.info.Apps["app"].SecurityTag())
-	s.hookPath = filepath.Join(mockPidsCgroupDir, s.info.Hooks["configure"].SecurityTag())
+	s.daemonPath = filepath.Join(mockSnapdCgroupDir, s.info.Apps["daemon"].SecurityTag())
+	s.appPath = filepath.Join(mockSnapdCgroupDir, s.info.Apps["app"].SecurityTag())
+	s.hookPath = filepath.Join(mockSnapdCgroupDir, s.info.Hooks["configure"].SecurityTag())
 }
 
 func (s *refreshSuite) TearDownTest(c *C) {

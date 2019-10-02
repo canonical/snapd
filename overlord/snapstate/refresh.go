@@ -30,7 +30,7 @@ import (
 )
 
 var (
-	pidsCgroupDir = cgroup.ControllerPathV1("pids")
+	snapdCgroupDir = cgroup.SnapdNamedHierarchyPath()
 )
 
 func genericRefreshCheck(info *snap.Info, canAppRunDuringRefresh func(app *snap.AppInfo) bool) error {
@@ -63,7 +63,7 @@ func genericRefreshCheck(info *snap.Info, canAppRunDuringRefresh func(app *snap.
 		if canAppRunDuringRefresh(app) {
 			continue
 		}
-		PIDs, err := cgroup.PidsInGroup(pidsCgroupDir, app.SecurityTag())
+		PIDs, err := cgroup.PidsInGroup(snapdCgroupDir, app.SecurityTag())
 		if err != nil {
 			return err
 		}
@@ -77,7 +77,7 @@ func genericRefreshCheck(info *snap.Info, canAppRunDuringRefresh func(app *snap.
 		if canHookRunDuringRefresh(hook) {
 			continue
 		}
-		PIDs, err := cgroup.PidsInGroup(pidsCgroupDir, hook.SecurityTag())
+		PIDs, err := cgroup.PidsInGroup(snapdCgroupDir, hook.SecurityTag())
 		if err != nil {
 			return err
 		}

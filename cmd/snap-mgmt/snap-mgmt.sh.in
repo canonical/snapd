@@ -130,6 +130,9 @@ purge() {
         umount -l /run/snapd/ns/ || true
     fi
 
+    echo "Unmounting snapd-specific naming cgroup"
+    umount -l /run/snapd/cgroup || true
+
     echo "Removing downloaded snaps"
     rm -rf /var/lib/snapd/snaps/*
 

@@ -55,8 +55,6 @@ check-unit-tests:
 endif
 
 new_format = \
-	 libsnap-confine-private/cgroup-pids-support.c \
-	 libsnap-confine-private/cgroup-pids-support.h \
 	 libsnap-confine-private/cgroup-support.c \
 	 libsnap-confine-private/cgroup-support.h \
 	 libsnap-confine-private/infofile-test.c \
@@ -112,8 +110,6 @@ libsnap_confine_private_a_SOURCES = \
 	libsnap-confine-private/apparmor-support.h \
 	libsnap-confine-private/cgroup-freezer-support.c \
 	libsnap-confine-private/cgroup-freezer-support.h \
-	libsnap-confine-private/cgroup-pids-support.c \
-	libsnap-confine-private/cgroup-pids-support.h \
 	libsnap-confine-private/cgroup-support.c \
 	libsnap-confine-private/cgroup-support.h \
 	libsnap-confine-private/classic.c \
