@@ -49,7 +49,6 @@ func init() {
 	registerIface(&commonInterface{
 		name:                  "app-launch",
 		summary:               appLaunchSummary,
-		implicitOnCore:        true,
 		implicitOnClassic:     true,
 		baseDeclarationSlots:  appLaunchBaseDeclarationSlots,
 		connectedPlugAppArmor: appLaunchConnectedPlugAppArmor,
