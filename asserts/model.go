@@ -200,7 +200,7 @@ func checkModelSnap(snap map[string]interface{}, grade ModelGrade) (*ModelSnap, 
 	} else {
 		// snap ids are optional with grade unstable to allow working
 		// with local/not pushed yet to the store snaps
-		if grade == ModelStable {
+		if grade != ModelDangerous {
 			return nil, fmt.Errorf(`"id" %s is mandatory for stable model`, what)
 		}
 	}
@@ -334,17 +334,22 @@ func checkRequiredSnap(name string, headerName string, snapType string) (*ModelS
 	}, nil
 }
 
-// ModelGrade characterizes the stability of the model which also
-// controls some related policy.
+// ModelGrade characterizes the security of the model which then
+// controls related policy.
 type ModelGrade string
 
 const (
 	ModelGradeUnset ModelGrade = "unset"
-	ModelStable     ModelGrade = "stable"
-	ModelUnstable   ModelGrade = "unstable"
+	// ModelSecured implies mandatory full disk encryption and secure boot.
+	ModelSecured ModelGrade = "secured"
+	// ModelSigned implies all seed snaps are signed and mentioned
+	// in the model, i.e. no unasserted or extra snaps.
+	ModelSigned ModelGrade = "signed"
+	// ModelDangerous allows unasserted snaps and extra snaps.
+	ModelDangerous ModelGrade = "dangerous"
 )
 
-var validModelGrades = []string{string(ModelStable), string(ModelUnstable)}
+var validModelGrades = []string{string(ModelSecured), string(ModelSigned), string(ModelDangerous)}
 
 // Model holds a model assertion, which is a statement by a brand
 // about the properties of a device model.
@@ -645,9 +650,9 @@ func assembleModel(assert assertionBase) (Assertion, error) {
 			return nil, err
 		}
 		if gradeStr != "" && !strutil.ListContains(validModelGrades, gradeStr) {
-			return nil, fmt.Errorf("grade for model must be stable|unstable")
+			return nil, fmt.Errorf("grade for model must be %s, not %q", strings.Join(validModelGrades, "|"), gradeStr)
 		}
-		grade = ModelStable
+		grade = ModelSigned
 		if gradeStr != "" {
 			grade = ModelGrade(gradeStr)
 		}

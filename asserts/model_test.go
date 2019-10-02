@@ -129,7 +129,7 @@ snaps:
     id: myappoptidididididididididididid
     type: app
     presence: optional
-OTHERgrade: stable
+OTHERgrade: secured
 ` + "TSLINE" +
 		"body-length: 0\n" +
 		"sign-key-sha3-384: Jv8_JiHiIzJVcO9M55pPdqSDWUvuhfDIBJUS-3VW7F_idjix7Ffn5qMxB21ZQuij" +
@@ -445,7 +445,7 @@ func (mods *modelSuite) TestDecodeInvalid(c *C) {
 		{reqSnaps, "required-snaps:\n  -\n    - nested\n", `"required-snaps" header must be a list of strings`},
 		{sysUserAuths, "system-user-authority:\n  a: 1\n", `"system-user-authority" header must be '\*' or a list of account ids`},
 		{sysUserAuths, "system-user-authority:\n  - 5_6\n", `"system-user-authority" header must be '\*' or a list of account ids`},
-		{reqSnaps, "grade: unstable\n", `cannot specify a grade for model without the extended snaps header`},
+		{reqSnaps, "grade: dangerous\n", `cannot specify a grade for model without the extended snaps header`},
 	}
 
 	for _, test := range invalidTests {
@@ -621,7 +621,7 @@ func (mods *modelSuite) TestCore20DecodeOK(c *C) {
 		Presence:       "required",
 	})
 	c.Check(model.Store(), Equals, "brand-store")
-	c.Check(model.Grade(), Equals, asserts.ModelStable)
+	c.Check(model.Grade(), Equals, asserts.ModelSecured)
 	allSnaps := model.AllSnaps()
 	c.Check(allSnaps, DeepEquals, []*asserts.ModelSnap{
 		model.BaseSnap(),
@@ -694,30 +694,44 @@ func (mods *modelSuite) TestCore20ExplictBootBase(c *C) {
 	})
 }
 
-func (mods *modelSuite) TestCore20GradeOptionalDefaultStable(c *C) {
+func (mods *modelSuite) TestCore20GradeOptionalDefaultSigned(c *C) {
 	encoded := strings.Replace(core20ModelExample, "TSLINE", mods.tsLine, 1)
 	encoded = strings.Replace(encoded, "OTHER", "", 1)
-	encoded = strings.Replace(encoded, "grade: stable\n", "", 1)
+	encoded = strings.Replace(encoded, "grade: secured\n", "", 1)
 
 	a, err := asserts.Decode([]byte(encoded))
 	c.Assert(err, IsNil)
 	c.Check(a.Type(), Equals, asserts.ModelType)
 	model := a.(*asserts.Model)
-	c.Check(model.Grade(), Equals, asserts.ModelStable)
+	c.Check(model.Grade(), Equals, asserts.ModelSigned)
 }
 
-func (mods *modelSuite) TestCore20GradeUnstable(c *C) {
+func (mods *modelSuite) TestCore20ValidGrades(c *C) {
 	encoded := strings.Replace(core20ModelExample, "TSLINE", mods.tsLine, 1)
 	encoded = strings.Replace(encoded, "OTHER", "", 1)
-	encoded = strings.Replace(encoded, "grade: stable\n", "grade: unstable\n", 1)
-	// snap ids are optional with grade unstable to allow working
+
+	for _, grade := range []string{"signed", "secured", "dangerous"} {
+		ex := strings.Replace(encoded, "grade: secured\n", fmt.Sprintf("grade: %s\n", grade), 1)
+		a, err := asserts.Decode([]byte(ex))
+		c.Assert(err, IsNil)
+		c.Check(a.Type(), Equals, asserts.ModelType)
+		model := a.(*asserts.Model)
+		c.Check(string(model.Grade()), Equals, grade)
+	}
+}
+
+func (mods *modelSuite) TestCore20GradeDangerous(c *C) {
+	encoded := strings.Replace(core20ModelExample, "TSLINE", mods.tsLine, 1)
+	encoded = strings.Replace(encoded, "OTHER", "", 1)
+	encoded = strings.Replace(encoded, "grade: secured\n", "grade: dangerous\n", 1)
+	// snap ids are optional with grade dangerous to allow working
 	// with local/not pushed yet to the store snaps
 	encoded = strings.Replace(encoded, "    id: myappdididididididididididididid\n", "", 1)
 	a, err := asserts.Decode([]byte(encoded))
 	c.Assert(err, IsNil)
 	c.Check(a.Type(), Equals, asserts.ModelType)
 	model := a.(*asserts.Model)
-	c.Check(model.Grade(), Equals, asserts.ModelUnstable)
+	c.Check(model.Grade(), Equals, asserts.ModelDangerous)
 	allSnaps := model.AllSnaps()
 	c.Check(allSnaps[len(allSnaps)-2], DeepEquals, &asserts.ModelSnap{
 		Name:           "myapp",
@@ -767,7 +781,7 @@ func (mods *modelSuite) TestCore20DecodeInvalid(c *C) {
 		{"OTHER", "kernel: foo\n", `cannot specify separate "kernel" header once using the extended snaps header`},
 		{"OTHER", "gadget: foo\n", `cannot specify separate "gadget" header once using the extended snaps header`},
 		{"OTHER", "required-snaps:\n  - foo\n", `cannot specify separate "required-snaps" header once using the extended snaps header`},
-		{"grade: stable\n", "grade: foo\n", `grade for model must be stable|unstable`},
+		{"grade: secured\n", "grade: foo\n", `grade for model must be secured|signed|dangerous`},
 	}
 	for _, test := range invalidTests {
 		invalid := strings.Replace(encoded, test.original, test.invalid, 1)
