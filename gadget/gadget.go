@@ -283,18 +283,6 @@ func systemOrSnapID(s string) bool {
 	return true
 }
 
-type ValidationState struct {
-	constraints        *ModelConstraints
-	implicitSystemSeed bool
-}
-
-func newValidationState(constraints *ModelConstraints) *ValidationState {
-	return &ValidationState{
-		constraints:        constraints,
-		implicitSystemSeed: false,
-	}
-}
-
 // ReadInfo reads the gadget specific metadata from gadget.yaml in the snap. If
 // constraints is nil, ReadInfo will just check for self-consistency, otherwise
 // rules for the classic or system seed cases are enforced.
@@ -342,12 +330,10 @@ func ReadInfo(gadgetSnapRootDir string, constraints *ModelConstraints) (*Info, e
 		return &gi, nil
 	}
 
-	val := newValidationState(constraints)
-
 	// basic validation
 	var bootloadersFound int
 	for name, v := range gi.Volumes {
-		if err := validateVolume(name, &v, val); err != nil {
+		if err := validateVolume(name, &v, constraints); err != nil {
 			return nil, fmt.Errorf("invalid volume %q: %v", name, err)
 		}
 
@@ -377,7 +363,11 @@ func fmtIndexAndName(idx int, name string) string {
 	return fmt.Sprintf("#%v", idx)
 }
 
-func validateVolume(name string, vol *Volume, val *ValidationState) error {
+type validationState struct {
+	SystemSeed bool
+}
+
+func validateVolume(name string, vol *Volume, constraints *ModelConstraints) error {
 	if !validVolumeName.MatchString(name) {
 		return errors.New("invalid name")
 	}
@@ -392,9 +382,10 @@ func validateVolume(name string, vol *Volume, val *ValidationState) error {
 	// for validating structure overlap
 	structures := make([]LaidOutStructure, len(vol.Structure))
 
+	state := &validationState{}
 	previousEnd := Size(0)
 	for idx, s := range vol.Structure {
-		if err := validateVolumeStructure(&s, vol, val); err != nil {
+		if err := validateVolumeStructure(&s, vol, constraints, state); err != nil {
 			return fmt.Errorf("invalid structure %v: %v", fmtIndexAndName(idx, s.Name), err)
 		}
 		var start Size
@@ -425,6 +416,11 @@ func validateVolume(name string, vol *Volume, val *ValidationState) error {
 		}
 
 		previousEnd = end
+	}
+
+	// error if we have a SystemSeed constraint but no actual system-seed structure
+	if constraints != nil && state != nil && constraints.SystemSeed && !state.SystemSeed {
+		return fmt.Errorf("system seed constraint set but no system-seed structure found")
 	}
 
 	// sort by starting offset
@@ -478,14 +474,14 @@ func validateCrossVolumeStructure(structures []LaidOutStructure, knownStructures
 	return nil
 }
 
-func validateVolumeStructure(vs *VolumeStructure, vol *Volume, val *ValidationState) error {
+func validateVolumeStructure(vs *VolumeStructure, vol *Volume, constraints *ModelConstraints, state *validationState) error {
 	if vs.Size == 0 {
 		return errors.New("missing size")
 	}
 	if err := validateStructureType(vs.Type, vol); err != nil {
 		return fmt.Errorf("invalid type %q: %v", vs.Type, err)
 	}
-	if err := validateRole(vs, vol, val); err != nil {
+	if err := validateRole(vs, vol, constraints, state); err != nil {
 		var what string
 		if vs.Role != "" {
 			what = fmt.Sprintf("role %q", vs.Role)
@@ -584,7 +580,7 @@ func validateStructureType(s string, vol *Volume) error {
 	return nil
 }
 
-func validateRole(vs *VolumeStructure, vol *Volume, val *ValidationState) error {
+func validateRole(vs *VolumeStructure, vol *Volume, constraints *ModelConstraints, state *validationState) error {
 	if vs.Type == "bare" {
 		if vs.Role != "" && vs.Role != MBR {
 			return fmt.Errorf("conflicting type: %q", vs.Type)
@@ -602,12 +598,12 @@ func validateRole(vs *VolumeStructure, vol *Volume, val *ValidationState) error 
 	switch vsRole {
 	case SystemData:
 		dataLabel := ImplicitSystemDataLabel
-		if val.constraints == nil {
-			if val.implicitSystemSeed {
+		if constraints == nil {
+			if state != nil && state.SystemSeed {
 				dataLabel = SystemDataLabel
 			}
 		} else {
-			if val.constraints.SystemSeed {
+			if constraints.SystemSeed {
 				dataLabel = SystemDataLabel
 			}
 		}
@@ -631,10 +627,15 @@ func validateRole(vs *VolumeStructure, vol *Volume, val *ValidationState) error 
 		// noop
 	case SystemSeed:
 		// If constraints is nil, accept the system-seed role but ensure we're
-		// consistent, i.e. writable label should be ubuntu-data
-		if val.constraints == nil {
-			val.implicitSystemSeed = true
-		} else if !val.constraints.SystemSeed {
+		// consistent, i.e. writable label should be ubuntu-data. Otherwise the
+		// system-seed role should be accepted only if the constraint allows it.
+		if constraints == nil {
+			if state != nil {
+				state.SystemSeed = true
+			}
+		} else if constraints.SystemSeed {
+			state.SystemSeed = true
+		} else {
 			return fmt.Errorf("unsupported role")
 		}
 	default:
