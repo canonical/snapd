@@ -172,21 +172,3 @@ func (s *ReleaseTestSuite) TestWSL(c *C) {
 
 	c.Check(release.IsWSL(), Equals, true)
 }
-
-func (s *ReleaseTestSuite) TestCore20(c *C) {
-	for _, x := range []struct {
-		os  release.OS
-		res bool
-	}{
-		{release.OS{ID: "ubuntu-core", VersionID: "18"}, false},
-		{release.OS{ID: "ubuntu-core", VersionID: "20"}, true},
-		{release.OS{ID: "ubuntu-core", VersionID: "22"}, true},
-		{release.OS{ID: "ubuntu", VersionID: "18"}, false},
-		{release.OS{ID: "ubuntu", VersionID: "20"}, false},
-		{release.OS{ID: "ubuntu", VersionID: "22"}, false},
-	} {
-		release.ReleaseInfo = x.os
-		c.Check(release.IsCore20OrNewer(), Equals, x.res)
-	}
-
-}

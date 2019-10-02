@@ -941,8 +941,7 @@ func currentGadgetInfo(snapst *snapstate.SnapState) (*gadget.GadgetData, error) 
 	}
 
 	constraints := &gadget.ModelConstraints{
-		Classic:    false,
-		SystemSeed: release.HasSystemSeed,
+		Classic: false,
 	}
 	gi, err := gadget.ReadInfo(currentInfo.MountDir(), constraints)
 	if err != nil {
@@ -958,8 +957,7 @@ func pendingGadgetInfo(snapsup *snapstate.SnapSetup) (*gadget.GadgetData, error)
 	}
 
 	constraints := &gadget.ModelConstraints{
-		Classic:    false,
-		SystemSeed: release.HasSystemSeed,
+		Classic: false,
 	}
 	update, err := gadget.ReadInfo(info.MountDir(), constraints)
 	if err != nil {
