@@ -24,27 +24,18 @@ execute: |
   echo "Check that serial from \"snap known\" matches \"snap model\""
   if [ "$modelCmdSerial" != "$knownCmdSerial" ]; then
     echo "serial numbers not the same, difference is:"
-    diff -u <(echo "$knownCmdSerial") <(echo "$knownCmdSerial")
+    diff -u <(echo "$modelCmdSerial") <(echo "$knownCmdSerial")
     exit 1
   fi
 
-  modelCmdModel="$(snap model | grep -Po "model\s+\K(.*)")"
+  # the model may have a display-name so `snap model` output will be different, 
+  # so use `snap model --verbose` which will not show the display-name alongside
+  # the model
+  modelCmdModel="$(snap model --verbose | grep -Po "model\s+\K(.*)")"
   knownCmdModel="$(snap known model | grep -Po "model:\s+\K(.*)")"
   echo "Check that model from \"snap known\" matches \"snap model\""
-  if snap known model | grep -q -P '^display-name:'; then
-    # the model has a display-name so `snap model` output will be different
-    echo "note: model has a display-name in it"
-    modelDisplayName="$(snap known model | grep -Po "display-name:\s+\K(.*)")"
-    fullModelShown="$modelDisplayName ($knownCmdModel)"
-    if [ "$modelCmdModel" != "$fullModelShown" ]; then
-      echo "model not the same, difference is:"
-      diff -u <(echo "$modelCmdModel") <(echo "$fullModelShown")
-      exit 1
-    fi
-  else   
-    if [ "$modelCmdModel" != "$knownCmdModel" ]; then
-      echo "model not the same, difference is:"
-      diff -u <(echo "$modelCmdModel") <(echo "$knownCmdModel")
-      exit 1
-    fi
+  if [ "$modelCmdModel" != "$knownCmdModel" ]; then
+    echo "models not the same, difference is:"
+    diff -u <(echo "$knownCmdModel") <(echo "$modelCmdModel")
+    exit 1
   fi
