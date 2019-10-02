@@ -34,18 +34,6 @@ const inputBaseDeclarationSlots = `
     deny-auto-connection: true
 `
 
-const inputPermanentSlotAppArmor = `
-# Description: Allow input from keyboard/mouse devices.
-`
-
-const inputPermanentSlotSecComp = `
-# Description: Allow input from keyboard/mouse devices.
-`
-
-const inputConnectedSlotAppArmor = `
-# Description: Allow input from keyboard/mouse devices.
-`
-
 const inputConnectedPlugAppArmor = `
 # Description: Allow input from keyboard/mouse devices.
 # raw rule is not finely mediated by apparmor so we mediate with seccomp arg
