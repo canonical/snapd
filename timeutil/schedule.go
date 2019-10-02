@@ -120,7 +120,7 @@ func (w Week) String() string {
 }
 
 // WeekSpan represents a span of weekdays between Start and End days, which may
-// be a signel day. WeekSpan may wrap around the week, eg. fri-mon is a span
+// be a single day. WeekSpan may wrap around the week, eg. fri-mon is a span
 // from Friday to Monday, mon1-fri is a span from the first Monday to the
 // following Friday, while mon1-mon1 represents the 1st Monday of a month.
 type WeekSpan struct {
@@ -153,16 +153,16 @@ func findNthWeekDay(t time.Time, weekday time.Weekday, nthInMonth uint) time.Tim
 }
 
 func findLastWeekDay(t time.Time, weekday time.Weekday) time.Time {
-	n := monthNext(t)
+	n := monthNext(t).Add(-24 * time.Hour)
 	for n.Weekday() != weekday {
 		n = n.Add(-24 * time.Hour)
 	}
 	return n
 }
 
-// nthWeekdayInMonth returns the number of occurrences of the weekday of t since
+// matchingWeekdaysInMonth returns the number of occurrences of the weekday of t since
 // the start of the month until t event
-func nthWeekdayInMonth(t time.Time) int {
+func matchingWeekdaysInMonth(t time.Time) int {
 	month := t.Month()
 	nth := 0
 	for n := t; n.Month() == month; n = n.Add(-7 * 24 * time.Hour) {
@@ -224,7 +224,7 @@ func (ws WeekSpan) Match(t time.Time) bool {
 
 		if anchoredAtStart {
 			// eg. fri4-thu, range anchored at previous month
-			if nthWeekdayInMonth(t) != 1 {
+			if matchingWeekdaysInMonth(t) != 1 {
 				// no match if t is not within the first week
 				return false
 			}
@@ -682,7 +682,7 @@ func parseWeekSpan(s string) (span WeekSpan, err error) {
 		parsed.End = parsed.Start
 	}
 
-	if (parsed.Start.Pos != EveryWeek) == (parsed.End.Pos != EveryWeek) {
+	if (parsed.Start.Pos != EveryWeek) && (parsed.End.Pos != EveryWeek) {
 		// both ends have a week position set
 
 		if parsed.End.Pos < parsed.Start.Pos {

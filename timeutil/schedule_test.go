@@ -1190,3 +1190,27 @@ func (ts *timeutilSuite) TestWeekSpans(c *C) {
 		c.Check(ws.Match(when), Equals, t.match)
 	}
 }
+
+func (ts *timeutilSuite) TestTimeZero(c *C) {
+	// test with a zero time stamp to make sure that code does not do
+	// anything silly
+
+	// zero time is: time is: 0001-01-01 00:00:00 +0000 UTC and ... Monday
+	zero := time.Time{}
+	c.Logf("time is: %v weekday: %v", zero, zero.Weekday())
+
+	for _, schedule := range []string{
+		"mon-tue,0:00-12:00",
+		"mon1-tue,0:00-12:00",
+		"mon-tue1,0:00-12:00",
+	} {
+		c.Logf("trying: %v", schedule)
+		sch, err := timeutil.ParseSchedule(schedule)
+		c.Assert(err, IsNil)
+
+		c.Check(timeutil.Includes(sch, zero), Equals, true)
+		c.Check(timeutil.Includes(sch, zero.Add(5*time.Hour)), Equals, true)
+		// wednesday
+		c.Check(timeutil.Includes(sch, zero.Add(2*24*time.Hour)), Equals, false)
+	}
+}
