@@ -31,7 +31,7 @@ execute: |
   # the model may have a display-name so `snap model` output will be different, 
   # so use `snap model --verbose` which will not show the display-name alongside
   # the model
-  modelCmdModel="$(snap model --verbose | grep -Po "model\s+\K(.*)")"
+  modelCmdModel="$(snap model --verbose | grep -Po "model:\s+\K(.*)")"
   knownCmdModel="$(snap known model | grep -Po "model:\s+\K(.*)")"
   echo "Check that model from \"snap known\" matches \"snap model\""
   if [ "$modelCmdModel" != "$knownCmdModel" ]; then
