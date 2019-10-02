@@ -17,9 +17,10 @@
  *
  */
 
-package release
+package seccomp
 
 import (
+	"io/ioutil"
 	"sort"
 	"strings"
 	"sync"
@@ -27,14 +28,14 @@ import (
 
 var secCompProber = &secCompProbe{}
 
-// SecCompActions returns a sorted list of seccomp actions like
+// Actions returns a sorted list of seccomp actions like
 // []string{"allow", "errno", "kill", "log", "trace", "trap"}.
-func SecCompActions() []string {
+func Actions() []string {
 	return secCompProber.actions()
 }
 
-func SecCompSupportsAction(action string) bool {
-	actions := SecCompActions()
+func SupportsAction(action string) bool {
+	actions := Actions()
 	i := sort.SearchStrings(actions, action)
 	if i < len(actions) && actions[i] == action {
 		return true
@@ -52,12 +53,14 @@ type secCompProbe struct {
 
 func (scp *secCompProbe) actions() []string {
 	scp.once.Do(func() {
-		scp.probedActions = probeSecCompActions()
+		scp.probedActions = probeActions()
 	})
 	return scp.probedActions
 }
 
-func probeSecCompActions() []string {
+var ioutilReadFile = ioutil.ReadFile
+
+func probeActions() []string {
 	contents, err := ioutilReadFile("/proc/sys/kernel/seccomp/actions_avail")
 	if err != nil {
 		return []string{}
@@ -69,7 +72,7 @@ func probeSecCompActions() []string {
 
 // mocking
 
-func MockSecCompActions(actions []string) (restore func()) {
+func MockActions(actions []string) (restore func()) {
 	old := secCompProber
 	secCompProber = &secCompProbe{
 		probedActions: actions,

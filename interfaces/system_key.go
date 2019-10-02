@@ -32,9 +32,8 @@ import (
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/osutil"
-	"github.com/snapcore/snapd/release"
 	"github.com/snapcore/snapd/sandbox/apparmor"
-	seccomp_compiler "github.com/snapcore/snapd/sandbox/seccomp"
+	"github.com/snapcore/snapd/sandbox/seccomp"
 )
 
 // ErrSystemKeyIncomparableVersions indicates that the system-key
@@ -83,8 +82,8 @@ var (
 	readBuildID = osutil.ReadBuildID
 )
 
-func seccompCompilerVersionInfo(path string) (seccomp_compiler.VersionInfo, error) {
-	return seccomp_compiler.CompilerVersionInfo(func(name string) (string, error) { return filepath.Join(path, name), nil })
+func seccompCompilerVersionInfo(path string) (seccomp.VersionInfo, error) {
+	return seccomp.CompilerVersionInfo(func(name string) (string, error) { return filepath.Join(path, name), nil })
 }
 
 func generateSystemKey() (*systemKey, error) {
@@ -132,7 +131,7 @@ func generateSystemKey() (*systemKey, error) {
 	}
 
 	// Add seccomp-features
-	sk.SecCompActions = release.SecCompActions()
+	sk.SecCompActions = seccomp.Actions()
 
 	versionInfo, err := seccompCompilerVersionInfo(filepath.Dir(snapdPath))
 	if err != nil {

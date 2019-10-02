@@ -87,7 +87,7 @@ func matchAnyComponent(globs []string, path string) (ok bool, index int) {
 //
 // A list of changed and removed files is returned, as relative paths
 // to the base directory.
-func EnsureTreeState(baseDir string, globs []string, content map[string]map[string]*FileState) (changed, removed []string, err error) {
+func EnsureTreeState(baseDir string, globs []string, content map[string]map[string]FileState) (changed, removed []string, err error) {
 	// Sanity check globs before doing anything
 	if _, index, err := matchAny(globs, "foo"); err != nil {
 		return nil, nil, fmt.Errorf("internal error: EnsureTreeState got invalid pattern %q: %s", globs[index], err)

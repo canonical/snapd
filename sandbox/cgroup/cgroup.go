@@ -27,7 +27,6 @@ import (
 	"strings"
 	"syscall"
 
-	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/strutil"
 )
 
@@ -39,6 +38,12 @@ const (
 	// hierarchy is mounted, for v1 this is usually a tmpfs mount, under
 	// which the controller-hierarchies are mounted
 	expectedMountPoint = "/sys/fs/cgroup"
+)
+
+var (
+	// Filesystem root defined locally to avoid dependency on the 'dirs'
+	// package
+	rootPath = "/"
 )
 
 const (
@@ -72,17 +77,17 @@ func fsTypeForPathImpl(path string) (int64, error) {
 // ProcPidPath returns the path to the cgroup file under /proc for the given
 // process id.
 func ProcPidPath(pid int) string {
-	return filepath.Join(dirs.GlobalRootDir, fmt.Sprintf("proc/%v/cgroup", pid))
+	return filepath.Join(rootPath, fmt.Sprintf("proc/%v/cgroup", pid))
 }
 
 // ControllerPathV1 returns the path to given controller assuming cgroup v1
 // hierarchy
 func ControllerPathV1(controller string) string {
-	return filepath.Join(dirs.GlobalRootDir, expectedMountPoint, controller)
+	return filepath.Join(rootPath, expectedMountPoint, controller)
 }
 
 func probeCgroupVersion() (version int, err error) {
-	cgroupMount := filepath.Join(dirs.GlobalRootDir, expectedMountPoint)
+	cgroupMount := filepath.Join(rootPath, expectedMountPoint)
 	typ, err := fsTypeForPath(cgroupMount)
 	if err != nil {
 		return Unknown, fmt.Errorf("cannot determine filesystem type: %v", err)
