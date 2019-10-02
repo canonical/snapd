@@ -283,6 +283,18 @@ func systemOrSnapID(s string) bool {
 	return true
 }
 
+type ValidationState struct {
+	constraints        *ModelConstraints
+	implicitSystemSeed bool
+}
+
+func newValidationState(constraints *ModelConstraints) *ValidationState {
+	return &ValidationState{
+		constraints:        constraints,
+		implicitSystemSeed: false,
+	}
+}
+
 // ReadInfo reads the gadget specific metadata from gadget.yaml in the snap. If
 // constraints is nil, ReadInfo will just check for self-consistency, otherwise
 // rules for the classic or system seed cases are enforced.
@@ -330,10 +342,12 @@ func ReadInfo(gadgetSnapRootDir string, constraints *ModelConstraints) (*Info, e
 		return &gi, nil
 	}
 
+	val := newValidationState(constraints)
+
 	// basic validation
 	var bootloadersFound int
 	for name, v := range gi.Volumes {
-		if err := validateVolume(name, &v, constraints); err != nil {
+		if err := validateVolume(name, &v, val); err != nil {
 			return nil, fmt.Errorf("invalid volume %q: %v", name, err)
 		}
 
@@ -363,7 +377,7 @@ func fmtIndexAndName(idx int, name string) string {
 	return fmt.Sprintf("#%v", idx)
 }
 
-func validateVolume(name string, vol *Volume, constraints *ModelConstraints) error {
+func validateVolume(name string, vol *Volume, val *ValidationState) error {
 	if !validVolumeName.MatchString(name) {
 		return errors.New("invalid name")
 	}
@@ -380,7 +394,7 @@ func validateVolume(name string, vol *Volume, constraints *ModelConstraints) err
 
 	previousEnd := Size(0)
 	for idx, s := range vol.Structure {
-		if err := validateVolumeStructure(&s, vol, constraints); err != nil {
+		if err := validateVolumeStructure(&s, vol, val); err != nil {
 			return fmt.Errorf("invalid structure %v: %v", fmtIndexAndName(idx, s.Name), err)
 		}
 		var start Size
@@ -464,14 +478,14 @@ func validateCrossVolumeStructure(structures []LaidOutStructure, knownStructures
 	return nil
 }
 
-func validateVolumeStructure(vs *VolumeStructure, vol *Volume, constraints *ModelConstraints) error {
+func validateVolumeStructure(vs *VolumeStructure, vol *Volume, val *ValidationState) error {
 	if vs.Size == 0 {
 		return errors.New("missing size")
 	}
 	if err := validateStructureType(vs.Type, vol); err != nil {
 		return fmt.Errorf("invalid type %q: %v", vs.Type, err)
 	}
-	if err := validateRole(vs, vol, constraints); err != nil {
+	if err := validateRole(vs, vol, val); err != nil {
 		var what string
 		if vs.Role != "" {
 			what = fmt.Sprintf("role %q", vs.Role)
@@ -570,7 +584,7 @@ func validateStructureType(s string, vol *Volume) error {
 	return nil
 }
 
-func validateRole(vs *VolumeStructure, vol *Volume, constraints *ModelConstraints) error {
+func validateRole(vs *VolumeStructure, vol *Volume, val *ValidationState) error {
 	if vs.Type == "bare" {
 		if vs.Role != "" && vs.Role != MBR {
 			return fmt.Errorf("conflicting type: %q", vs.Type)
@@ -588,8 +602,14 @@ func validateRole(vs *VolumeStructure, vol *Volume, constraints *ModelConstraint
 	switch vsRole {
 	case SystemData:
 		dataLabel := ImplicitSystemDataLabel
-		if constraints != nil && constraints.SystemSeed {
-			dataLabel = SystemDataLabel
+		if val.constraints == nil {
+			if val.implicitSystemSeed {
+				dataLabel = SystemDataLabel
+			}
+		} else {
+			if val.constraints.SystemSeed {
+				dataLabel = SystemDataLabel
+			}
 		}
 		if vs.Label != "" && vs.Label != dataLabel {
 			return fmt.Errorf(`role of this kind must have an implicit label or %q, not %q`, dataLabel, vs.Label)
@@ -610,7 +630,11 @@ func validateRole(vs *VolumeStructure, vol *Volume, constraints *ModelConstraint
 	case SystemBoot, BootImage, BootSelect, "":
 		// noop
 	case SystemSeed:
-		if constraints == nil || !constraints.SystemSeed {
+		// If constraints is nil, accept the system-seed role but ensure we're
+		// consistent, i.e. writable label should be ubuntu-data
+		if val.constraints == nil {
+			val.implicitSystemSeed = true
+		} else if !val.constraints.SystemSeed {
 			return fmt.Errorf("unsupported role")
 		}
 	default:

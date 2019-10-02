@@ -821,7 +821,7 @@ size: 447`
 		// invalid role name
 		{mustParseStructure(c, bogusRole), vol, nil, `invalid role "foobar": unsupported role`},
 		// the system-seed role
-		{mustParseStructure(c, validSystemSeed), vol, nil, `invalid role "system-seed": unsupported role`},
+		{mustParseStructure(c, validSystemSeed), vol, nil, ""},
 		{mustParseStructure(c, validSystemSeed), vol, &gadget.ModelConstraints{Classic: false, SystemSeed: false}, `invalid role "system-seed": unsupported role`},
 		{mustParseStructure(c, validSystemSeed), vol, &gadget.ModelConstraints{Classic: false, SystemSeed: true}, ""},
 		{mustParseStructure(c, validSystemSeed), vol, &gadget.ModelConstraints{Classic: true, SystemSeed: false}, `invalid role "system-seed": unsupported role`},
@@ -847,7 +847,7 @@ size: 447`
 	} {
 		c.Logf("tc: %v %+v", i, tc.s)
 
-		err := gadget.ValidateVolumeStructure(tc.s, tc.v, tc.c)
+		err := gadget.ValidateVolumeStructure(tc.s, tc.v, gadget.NewValidationState(tc.c))
 		if tc.err != "" {
 			c.Check(err, ErrorMatches, tc.err)
 		} else {
@@ -978,7 +978,7 @@ func (s *gadgetYamlTestSuite) TestValidateVolumeDuplicateFsLabel(c *C) {
 					Type:  "21686148-6449-6E6F-744E-656564454649",
 					Size:  gadget.SizeMiB,
 				}},
-			}, constraints)
+			}, gadget.NewValidationState(constraints))
 			c.Assert(err, ErrorMatches, x.errMsg)
 		}
 	}
