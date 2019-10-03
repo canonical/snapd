@@ -72,33 +72,6 @@ bool sc_startswith(const char *str, const char *prefix)
 	return strncmp(str, prefix, xlen) == 0;
 }
 
-bool sc_is_beneath(const char *path, const char *parent_dir)
-{
-	if (!path || !parent_dir) {
-		return false;
-	}
-	// The path "path" is beneath the directory "parent_dir" if "path" is a
-	// prefix of "parent_dir" with the following additional restrictions.
-	if (sc_startswith(path, parent_dir)) {
-		size_t parent_len = strlen(parent_dir);
-		// If "parent_dir" ends with a directory separator then it means that
-		// "path" must be of the form "$parent_dir/$ANYTHING" because of the
-		// trailing path separator is explicitly present.
-		if (parent_len > 0 && parent_dir[parent_len - 1] == '/') {
-			return true;
-		}
-		// If "path" either is either identical to "parent_dir" or it contains
-		// a path separator character "/" exactly where at the location where
-		// "parent_dir" ends. For example "/foo/bar" is beneath "/foo" because
-		// of "/foo/bar"[4] is "/". This eliminates "/foo2" from matching
-		// "/foo".
-		if (path[parent_len] == '\0' || path[parent_len] == '/') {
-			return true;
-		}
-	}
-	return false;
-}
-
 char *sc_strdup(const char *str)
 {
 	size_t len;
