@@ -69,7 +69,6 @@ def run_cmd(cmd, n, wait, verbose, invert):
             break
         # Break when the retcode is different than 0 and the check is inverted
         if not retcode == 0 and invert:
-            retcode = 0
             break
         if verbose:
             print(
@@ -93,6 +92,13 @@ def run_cmd(cmd, n, wait, verbose, invert):
                 ),
                 file=sys.stderr,
             )
+
+    # Invert the retcode when invert option is set
+    if invert and retcode == 0:
+        retcode = 1
+    elif invert and not retcode == 0:
+        retcode = 0
+
     return retcode
 
 
