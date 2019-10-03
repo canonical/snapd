@@ -1,8 +1,7 @@
 #!/bin/sh
-debugfile=/tmp/apparmor-parser-calls.debug
 # shellcheck disable=SC2124
 args=$@
-echo "$@" >> $debugfile
+echo "$0: $@" > /dev/kmsg
 
 profiles=0
 while [ -n "$1" ]; do

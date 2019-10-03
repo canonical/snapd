@@ -1,6 +1,16 @@
-summary: Ensure that batch-reloading of AppArmor profiles works, including fallback
+summary: Ensure that batch-reloading of AppArmor profiles works, including fallback.
 
 systems: [ubuntu-1*]
+
+details: |
+    This test checks that apparmor profiles are re-generated on snapd startup in a batch,
+    and that fallback logic of running apparmor parser for each individual snap takes
+    over when the batch fails. This is tested by replacing /sbin/apparmor_parser with
+    fake apparmor_parser.fake that fails when if multiple snaps are given (more than 10)
+    at once, and otherwise succeeds and runs the real apparmor_parser.
+    The test checks system log for transient errors reported by snapd for apparmor failures
+    and then verifies apparmor cache to ensure expected profiles were created by fallback
+    logic.
 
 environment:
     VARIANT/changed: changed
@@ -12,23 +22,19 @@ prepare: |
     snap install test-snapd-content-plug test-snapd-tools
     snap install --edge test-snapd-curl
     cp /sbin/apparmor_parser /sbin/apparmor_parser.real
-    rm -f /tmp/apparmor-parser-calls.debug
 
 restore: |
     mv /sbin/apparmor_parser.real /sbin/apparmor_parser
-    rm -f /tmp/apparmor-parser-calls.debug profiles.out
+    rm -f profiles.out
 
 debug: |
-    cat /tmp/apparmor-parser-calls.debug || true
+    get_journalctl_log -a | grep apparmor_parser.fake
 
 execute: |
     systemctl stop snapd.{service,socket}
 
     echo "Update system key"
     printf '{"version":1}' > /var/lib/snapd/system-key
-
-    # this makes is easier to analyse the sequence of events shall something fail
-    echo "system key update" >> /tmp/apparmor-parser-calls.debug
 
     echo "Replace apparmor parser with a broken one"
     cp -f bin/apparmor_parser.fake /sbin/apparmor_parser
@@ -38,6 +44,10 @@ execute: |
 
     # "changed" variant requires source profiles on the disk to look different than the
     # ones generated on snapd restart, simulate this by appending a comment to them.
+    # In both variants fake apparmor parser fails the same way, the difference is only
+    # internal to snapd and it is a slightly different execution path in apparmor backend,
+    # manifested in the log by "failed to batch-reload [variant] profiles.." that we match
+    # further down.
     if [ "$VARIANT" = "changed" ]; then
         for profile in "$AA_PROFILES"/snap*; do
             echo "# forced profile change" >> "$profile"
@@ -46,6 +56,7 @@ execute: |
     systemctl start snapd.{socket,service}
 
     echo "Checking that apparmor profile cache has been populated"
+
     # note, the list is not exhaustive but is enough for the test and the journal check below
     expected_profiles="snap-update-ns.test-snapd-content-plug
     snap-update-ns.test-snapd-curl
@@ -84,9 +95,15 @@ execute: |
     # grep by "fail" to reduce log/debug noise in case of a match failure below
     log="$(get_journalctl_log -a -u snapd|grep -i fail)"
     echo "$log" | MATCH "failed to batch-reload $VARIANT profiles: cannot load apparmor profiles"
-    # we're matching a single long log line with non-deterministic order of profiles, therefore it's split
+    # we're matching a single long log line (the invocation of apparmor_parser for batch-reload of
+    # multiple profiles) where the order of arguments is not deterministic, therefore it's split
+    # into multiple matches. We expect same profiles to always fail - we just don't know how
+    # snapd ordered the arguments when executing apparmor_parser.
     echo "$log" | MATCH "FAIL ON: .*/snap-update-ns.test-snapd-curl"
     echo "$log" | MATCH "FAIL ON: .*/snap.test-snapd-curl.curl"
     echo "$log" | MATCH "FAIL ON: .*/snap-update-ns.test-snapd-tools"
     echo "$log" | MATCH "FAIL ON: .*/snap.test-snapd-tools.block"
     echo "$log" | MATCH "FAIL ON: .*/snap.test-snapd-tools.cat"
+    # sanity: make sure we got just one "FAIL ON:" line, meaning a single failed invocation of apparmor
+    # parser when loading the batch.
+    [ "$(echo "$log" | grep -c "FAIL ON:")" = "1" ] || echo "Got more than one failed invocation of apparmor parser when reloading multiple profiles in a batch"
