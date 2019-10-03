@@ -99,7 +99,9 @@ echo "permanent failure"
 exit 1
 `
 
-// apparmor parser that fails when processing more than 3 profiles
+// apparmor parser that fails when processing more than 3 profiles, i.e.
+// when reloading profiles in a batch, but succeeds when run for individual
+// runs for snaps with less profiles.
 const fakeFailingAppArmorParser = `
 profiles="0"
 while [ -n "$1" ]; do
@@ -124,7 +126,7 @@ if [ "$profiles" -gt 3 ]; then
 fi
 `
 
-// apparmor parser that fails on specific profile
+// apparmor parser that fails on snap.samba.smbd profile
 const fakeFailingAppArmorParserOneProfile = `
 profile=""
 while [ -n "$1" ]; do
@@ -484,7 +486,7 @@ func (s *backendSuite) TestSetupManyProfilesWithChanged(c *C) {
 	}
 }
 
-// helper for checking for apparmor parser calls: batch run followed by fallback runs
+// helper for checking for apparmor parser calls where batch run is expected to fail and is followed by two separate runs for individual snaps.
 func (s *backendSuite) checkSetupManyCallsWithFallback(c *C, cmd *testutil.MockCmd) {
 	snap1nsProfile := filepath.Join(dirs.SnapAppArmorDir, "snap-update-ns.samba")
 	snap1AAprofile := filepath.Join(dirs.SnapAppArmorDir, "snap.samba.smbd")
@@ -518,14 +520,14 @@ func (s *backendSuite) TestSetupManyApparmorBatchProcessingPermanentError(c *C) 
 		errs := setupManyInterface.SetupMany([]*snap.Info{snapInfo1, snapInfo2}, func(snapName string) interfaces.ConfinementOptions { return opts }, s.Repo, s.meas)
 		failingParserCmd.Restore()
 
+		s.checkSetupManyCallsWithFallback(c, failingParserCmd)
+
 		// two errors expected: SetupMany failure on multiple snaps falls back to one-by-one apparmor invocations. Both fail on apparmor_parser again and we only see
 		// individual failures. Error from batch run is only logged.
 		c.Assert(errs, HasLen, 2)
 		c.Check(errs[0], ErrorMatches, ".*failed to setup profiles for snap \"samba\".*\napparmor_parser output:\npermanent failure\n")
 		c.Check(errs[1], ErrorMatches, ".*failed to setup profiles for snap \"some-snap\".*\napparmor_parser output:\npermanent failure\n")
 		c.Check(log.String(), Matches, ".*failed to batch-reload unchanged profiles: cannot load apparmor profiles: exit status 1\n.*\n.*\n")
-
-		s.checkSetupManyCallsWithFallback(c, failingParserCmd)
 
 		s.RemoveSnap(c, snapInfo1)
 		s.RemoveSnap(c, snapInfo2)
@@ -551,13 +553,13 @@ func (s *backendSuite) TestSetupManyApparmorBatchProcessingErrorWithFallbackOK(c
 		errs := setupManyInterface.SetupMany([]*snap.Info{snapInfo1, snapInfo2}, func(snapName string) interfaces.ConfinementOptions { return opts }, s.Repo, s.meas)
 		failingParserCmd.Restore()
 
+		s.checkSetupManyCallsWithFallback(c, failingParserCmd)
+
 		// no errors expected: error from batch run is only logged, but individual apparmor parser execution as part of the fallback are successful.
 		// note, tnis scenario is unlikely to happen in real life, because if a profile failed in a batch, it would fail when parsed alone too. It is
 		// tested here just to exercise various execution paths.
 		c.Assert(errs, HasLen, 0)
 		c.Check(log.String(), Matches, ".*failed to batch-reload unchanged profiles: cannot load apparmor profiles: exit status 1\napparmor_parser output:\nbatch failure \\(4 profiles\\)\n")
-
-		s.checkSetupManyCallsWithFallback(c, failingParserCmd)
 
 		s.RemoveSnap(c, snapInfo1)
 		s.RemoveSnap(c, snapInfo2)
@@ -583,13 +585,13 @@ func (s *backendSuite) TestSetupManyApparmorBatchProcessingErrorWithFallbackPart
 		errs := setupManyInterface.SetupMany([]*snap.Info{snapInfo1, snapInfo2}, func(snapName string) interfaces.ConfinementOptions { return opts }, s.Repo, s.meas)
 		failingParserCmd.Restore()
 
+		s.checkSetupManyCallsWithFallback(c, failingParserCmd)
+
 		// the batch reload fails because of snap.samba.smbd profile failing
 		c.Check(log.String(), Matches, ".* failed to batch-reload unchanged profiles: cannot load apparmor profiles: exit status 1\napparmor_parser output:\nfailure: snap.samba.smbd\n")
 		// and we also fail when running that profile in fallback mode
 		c.Assert(errs, HasLen, 1)
 		c.Assert(errs[0], ErrorMatches, "failed to setup profiles for snap \"samba\": cannot load apparmor profiles: exit status 1\n.*apparmor_parser output:\nfailure: snap.samba.smbd\n")
-
-		s.checkSetupManyCallsWithFallback(c, failingParserCmd)
 
 		s.RemoveSnap(c, snapInfo1)
 		s.RemoveSnap(c, snapInfo2)

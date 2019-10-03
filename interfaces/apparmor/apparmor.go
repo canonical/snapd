@@ -59,7 +59,7 @@ const (
 	// command-line option unconditionally.
 	skipReadCache aaParserFlags = 1 << iota
 
-	// conserveCPU tells apparmor_parser to spare one CPU on multi-core systems to
+	// conserveCPU tells apparmor_parser to spare up to two CPUs on multi-core systems to
 	// reduce load when processing many profiles at once.
 	conserveCPU aaParserFlags = 1 << iota
 )
