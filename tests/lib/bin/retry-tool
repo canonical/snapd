@@ -1,4 +1,4 @@
-#!/usr/bin/env python3
+#!/usr/bin/env any-python
 from __future__ import print_function, absolute_import, unicode_literals
 
 import argparse
@@ -69,6 +69,7 @@ def run_cmd(cmd, n, wait, verbose, invert):
             break
         # Break when the retcode is different than 0 and the check is inverted
         if not retcode == 0 and invert:
+            retcode = 0
             break
         if verbose:
             print(
