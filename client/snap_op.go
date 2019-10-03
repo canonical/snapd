@@ -203,7 +203,7 @@ func (client *Client) doMultiSnapActionFull(actionName string, snaps []string, o
 		"Content-Type": "application/json",
 	}
 
-	return client.doAsyncFull("POST", "/v2/snaps", nil, headers, bytes.NewBuffer(data))
+	return client.doAsyncFull("POST", "/v2/snaps", nil, headers, bytes.NewBuffer(data), doFlags{})
 }
 
 // InstallPath sideloads the snap with the given path under optional provided name,
@@ -229,7 +229,7 @@ func (client *Client) InstallPath(path, name string, options *SnapOptions) (chan
 		"Content-Type": mw.FormDataContentType(),
 	}
 
-	return client.doAsync("POST", "/v2/snaps", nil, headers, pr)
+	return client.doAsyncNoTimeout("POST", "/v2/snaps", nil, headers, pr)
 }
 
 // Try

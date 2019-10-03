@@ -37,6 +37,7 @@ import (
 	"github.com/snapcore/snapd/seed/seedwriter"
 	"github.com/snapcore/snapd/snap"
 	"github.com/snapcore/snapd/snap/naming"
+	"github.com/snapcore/snapd/snap/snaptest"
 	"github.com/snapcore/snapd/testutil"
 )
 
@@ -192,6 +193,10 @@ func (s *writerSuite) makeSnap(c *C, yamlKey, publisher string) {
 	s.snapRevs[decl.SnapName()] = rev
 }
 
+func (s *writerSuite) makeLocalSnap(c *C, yamlKey string) (fname string) {
+	return snaptest.MakeTestSnapWithFiles(c, snapYaml[yamlKey], nil)
+}
+
 func (s *writerSuite) doFillMetaDownloadedSnap(c *C, w *seedwriter.Writer, sn *seedwriter.SeedSnap) *snap.Info {
 	info := s.AssertedSnapInfo(sn.SnapName())
 	err := w.SetInfo(sn, info)
@@ -254,6 +259,9 @@ func (s writerSuite) TestSetOptionsSnapsErrors(c *C) {
 		{[]*seedwriter.OptionSnap{{Name: "foo_1"}}, `cannot use snap "foo_1", parallel snap instances are unsupported`},
 		{[]*seedwriter.OptionSnap{{Name: "foo"}, {Name: "foo"}}, `snap "foo" is repeated in options`},
 		{[]*seedwriter.OptionSnap{{Name: "foo", Channel: "track/foo"}}, `cannot use option channel for snap "foo": invalid risk in channel name: track/foo`},
+		{[]*seedwriter.OptionSnap{{Path: "not-a-snap"}}, `local option snap "not-a-snap" does not end in .snap`},
+		{[]*seedwriter.OptionSnap{{Path: "not-there.snap"}}, `local option snap "not-there.snap" does not exist`},
+		{[]*seedwriter.OptionSnap{{Name: "foo", Path: "foo.snap"}}, `cannot specify both name and path for option snap "foo"`},
 	}
 
 	for _, t := range tests {
@@ -279,7 +287,7 @@ func (s *writerSuite) TestSnapsToDownloadCore16(c *C) {
 	err = w.SetOptionsSnaps([]*seedwriter.OptionSnap{{Name: "pc", Channel: "edge"}})
 	c.Assert(err, IsNil)
 
-	err = w.Start(s.db, s.newFetcher)
+	_, err = w.Start(s.db, s.newFetcher)
 	c.Assert(err, IsNil)
 
 	snaps, err := w.SnapsToDownload()
@@ -314,7 +322,7 @@ func (s *writerSuite) TestDownloadedCore16(c *C) {
 	err = w.SetOptionsSnaps([]*seedwriter.OptionSnap{{Name: "pc", Channel: "edge"}})
 	c.Assert(err, IsNil)
 
-	err = w.Start(s.db, s.newFetcher)
+	_, err = w.Start(s.db, s.newFetcher)
 	c.Assert(err, IsNil)
 
 	snaps, err := w.SnapsToDownload()
@@ -353,7 +361,7 @@ func (s *writerSuite) TestDownloadedCore18(c *C) {
 	err = w.SetOptionsSnaps([]*seedwriter.OptionSnap{{Name: "pc", Channel: "edge"}})
 	c.Assert(err, IsNil)
 
-	err = w.Start(s.db, s.newFetcher)
+	_, err = w.Start(s.db, s.newFetcher)
 	c.Assert(err, IsNil)
 
 	snaps, err := w.SnapsToDownload()
@@ -397,7 +405,7 @@ func (s *writerSuite) TestSnapsToDownloadCore18IncompatibleTrack(c *C) {
 	err = w.SetOptionsSnaps([]*seedwriter.OptionSnap{{Name: "pc-kernel", Channel: "18.1"}})
 	c.Assert(err, IsNil)
 
-	err = w.Start(s.db, s.newFetcher)
+	_, err = w.Start(s.db, s.newFetcher)
 	c.Assert(err, IsNil)
 
 	_, err = w.SnapsToDownload()
@@ -408,7 +416,7 @@ func (s *writerSuite) upToDownloaded(c *C, model *asserts.Model, fill func(c *C,
 	w, err := seedwriter.New(model, s.opts)
 	c.Assert(err, IsNil)
 
-	err = w.Start(s.db, s.newFetcher)
+	_, err = w.Start(s.db, s.newFetcher)
 	c.Assert(err, IsNil)
 
 	snaps, err := w.SnapsToDownload()
@@ -472,12 +480,42 @@ func (s *writerSuite) TestOutOfOrder(c *C) {
 	c.Assert(err, IsNil)
 
 	c.Check(w.WriteMeta(), ErrorMatches, "internal error: seedwriter.Writer expected Start|SetOptionsSnaps to be invoked on it at this point, not WriteMeta")
-	c.Check(w.SeedSnaps(), ErrorMatches, "internal error: seedwriter.Writer expected Start|SetOptionsSnaps to be invoked on it at this point, not SeedSnaps")
+	c.Check(w.SeedSnaps(nil), ErrorMatches, "internal error: seedwriter.Writer expected Start|SetOptionsSnaps to be invoked on it at this point, not SeedSnaps")
 
-	err = w.Start(s.db, s.newFetcher)
+	_, err = w.Start(s.db, s.newFetcher)
 	c.Assert(err, IsNil)
 	_, err = w.Downloaded()
 	c.Check(err, ErrorMatches, "internal error: seedwriter.Writer expected SnapToDownload|LocalSnaps to be invoked on it at this point, not Downloaded")
+}
+
+func (s *writerSuite) TestOutOfOrderWithLocalSnaps(c *C) {
+	model := s.Brands.Model("my-brand", "my-model", map[string]interface{}{
+		"display-name":   "my model",
+		"architecture":   "amd64",
+		"gadget":         "pc",
+		"kernel":         "pc-kernel",
+		"required-snaps": []interface{}{"required"},
+	})
+
+	w, err := seedwriter.New(model, s.opts)
+	c.Assert(err, IsNil)
+
+	requiredFn := s.makeLocalSnap(c, "required")
+
+	err = w.SetOptionsSnaps([]*seedwriter.OptionSnap{{Path: requiredFn}})
+	c.Assert(err, IsNil)
+
+	_, err = w.Start(s.db, s.newFetcher)
+	c.Assert(err, IsNil)
+
+	_, err = w.SnapsToDownload()
+	c.Check(err, ErrorMatches, `internal error: seedwriter.Writer expected LocalSnaps to be invoked on it at this point, not SnapsToDownload`)
+
+	_, err = w.LocalSnaps()
+	c.Assert(err, IsNil)
+
+	_, err = w.SnapsToDownload()
+	c.Check(err, ErrorMatches, `internal error: seedwriter.Writer expected InfoDerived to be invoked on it at this point, not SnapsToDownload`)
 }
 
 func (s *writerSuite) TestDownloadedInfosNotSet(c *C) {
@@ -690,7 +728,7 @@ func (s *writerSuite) TestSeedSnapsWriteMetaCore18(c *C) {
 	err = w.SetOptionsSnaps([]*seedwriter.OptionSnap{{Name: "pc", Channel: "edge"}})
 	c.Assert(err, IsNil)
 
-	err = w.Start(s.db, s.newFetcher)
+	_, err = w.Start(s.db, s.newFetcher)
 	c.Assert(err, IsNil)
 
 	snaps, err := w.SnapsToDownload()
@@ -706,7 +744,7 @@ func (s *writerSuite) TestSeedSnapsWriteMetaCore18(c *C) {
 	c.Assert(err, IsNil)
 	c.Check(complete, Equals, true)
 
-	err = w.SeedSnaps()
+	err = w.SeedSnaps(nil)
 	c.Assert(err, IsNil)
 
 	err = w.WriteMeta()
@@ -777,4 +815,304 @@ func (s *writerSuite) TestSeedSnapsWriteMetaCore18(c *C) {
 		c.Check(rev[0].Type(), Equals, asserts.SnapRevisionType)
 		c.Check(rev[0].HeaderString("snap-id"), Equals, s.AssertedSnapID(snapName))
 	}
+}
+
+func (s *writerSuite) TestLocalSnaps(c *C) {
+	model := s.Brands.Model("my-brand", "my-model", map[string]interface{}{
+		"display-name":   "my model",
+		"architecture":   "amd64",
+		"base":           "core18",
+		"gadget":         "pc=18",
+		"kernel":         "pc-kernel=18",
+		"required-snaps": []interface{}{"cont-consumer", "cont-producer"},
+	})
+
+	core18Fn := s.makeLocalSnap(c, "core18")
+	pcKernelFn := s.makeLocalSnap(c, "pc-kernel=18")
+	pcFn := s.makeLocalSnap(c, "pc=18")
+	contConsumerFn := s.makeLocalSnap(c, "cont-consumer")
+
+	w, err := seedwriter.New(model, s.opts)
+	c.Assert(err, IsNil)
+
+	err = w.SetOptionsSnaps([]*seedwriter.OptionSnap{
+		{Path: core18Fn},
+		{Path: pcFn, Channel: "edge"},
+		{Path: pcKernelFn},
+		{Path: contConsumerFn},
+	})
+	c.Assert(err, IsNil)
+
+	_, err = w.Start(s.db, s.newFetcher)
+	c.Assert(err, IsNil)
+
+	localSnaps, err := w.LocalSnaps()
+	c.Assert(err, IsNil)
+	c.Assert(localSnaps, HasLen, 4)
+	c.Check(localSnaps[0].Path, Equals, core18Fn)
+	c.Check(localSnaps[1].Path, Equals, pcFn)
+	c.Check(localSnaps[2].Path, Equals, pcKernelFn)
+	c.Check(localSnaps[3].Path, Equals, contConsumerFn)
+}
+
+func (s *writerSuite) TestLocalSnapsFullUse(c *C) {
+	model := s.Brands.Model("my-brand", "my-model", map[string]interface{}{
+		"display-name":   "my model",
+		"architecture":   "amd64",
+		"base":           "core18",
+		"gadget":         "pc=18",
+		"kernel":         "pc-kernel=18",
+		"required-snaps": []interface{}{"cont-consumer", "cont-producer"},
+	})
+
+	s.makeSnap(c, "snapd", "")
+	s.makeSnap(c, "cont-producer", "developerid")
+
+	core18Fn := s.makeLocalSnap(c, "core18")
+	pcKernelFn := s.makeLocalSnap(c, "pc-kernel=18")
+	pcFn := s.makeLocalSnap(c, "pc=18")
+	contConsumerFn := s.makeLocalSnap(c, "cont-consumer")
+
+	w, err := seedwriter.New(model, s.opts)
+	c.Assert(err, IsNil)
+
+	err = w.SetOptionsSnaps([]*seedwriter.OptionSnap{
+		{Path: core18Fn},
+		{Name: "pc-kernel", Channel: "candidate"},
+		{Path: pcFn, Channel: "edge"},
+		{Path: pcKernelFn},
+		{Path: s.AssertedSnap("cont-producer")},
+		{Path: contConsumerFn},
+	})
+	c.Assert(err, IsNil)
+
+	tf, err := w.Start(s.db, s.newFetcher)
+	c.Assert(err, IsNil)
+
+	localSnaps, err := w.LocalSnaps()
+	c.Assert(err, IsNil)
+	c.Assert(localSnaps, HasLen, 5)
+
+	for _, sn := range localSnaps {
+		si, aRefs, err := seedwriter.DeriveSideInfo(sn.Path, tf, s.db)
+		if !asserts.IsNotFound(err) {
+			c.Assert(err, IsNil)
+		}
+		f, err := snap.Open(sn.Path)
+		c.Assert(err, IsNil)
+		info, err := snap.ReadInfoFromSnapFile(f, si)
+		c.Assert(err, IsNil)
+		w.SetInfo(sn, info)
+		sn.ARefs = aRefs
+	}
+
+	err = w.InfoDerived()
+	c.Assert(err, IsNil)
+
+	snaps, err := w.SnapsToDownload()
+	c.Assert(err, IsNil)
+	c.Check(snaps, HasLen, 1)
+	c.Check(naming.SameSnap(snaps[0], naming.Snap("snapd")), Equals, true)
+
+	for _, sn := range snaps {
+		s.fillDownloadedSnap(c, w, sn)
+	}
+
+	complete, err := w.Downloaded()
+	c.Assert(err, IsNil)
+	c.Check(complete, Equals, true)
+
+	copySnap := func(name, src, dst string) error {
+		return osutil.CopyFile(src, dst, 0)
+	}
+
+	err = w.SeedSnaps(copySnap)
+	c.Assert(err, IsNil)
+
+	err = w.WriteMeta()
+	c.Assert(err, IsNil)
+
+	// check seed
+	seedYaml, err := seed.ReadYaml(filepath.Join(s.opts.SeedDir, "seed.yaml"))
+	c.Assert(err, IsNil)
+
+	c.Check(seedYaml.Snaps, HasLen, 6)
+
+	assertedNum := 0
+	// check the files are in place
+	for i, name := range []string{"snapd", "pc-kernel", "core18", "pc", "cont-consumer", "cont-producer"} {
+		info := s.AssertedSnapInfo(name)
+		unasserted := false
+		if info == nil {
+			info = &snap.Info{
+				SuggestedName: name,
+			}
+			info.Revision = snap.R(-1)
+			unasserted = true
+		} else {
+			assertedNum++
+		}
+
+		fn := filepath.Base(info.MountFile())
+		p := filepath.Join(s.opts.SeedDir, "snaps", fn)
+		c.Check(osutil.FileExists(p), Equals, true)
+
+		channel := "stable"
+		switch name {
+		case "pc-kernel":
+			channel = "18/candidate"
+		case "pc":
+			channel = "18/edge"
+		}
+
+		c.Check(seedYaml.Snaps[i], DeepEquals, &seed.Snap16{
+			Name:       info.SnapName(),
+			SnapID:     info.SnapID,
+			Channel:    channel,
+			File:       fn,
+			Unasserted: unasserted,
+		})
+	}
+	c.Check(assertedNum, Equals, 2)
+
+	l, err := ioutil.ReadDir(filepath.Join(s.opts.SeedDir, "snaps"))
+	c.Assert(err, IsNil)
+	c.Check(l, HasLen, 6)
+
+	// check the snap assertions are in place
+	seedAssertsDir := filepath.Join(s.opts.SeedDir, "assertions")
+	for _, snapName := range []string{"snapd", "cont-producer"} {
+		p := filepath.Join(seedAssertsDir, fmt.Sprintf("16,%s.snap-declaration", s.AssertedSnapID(snapName)))
+		decl := readAssertions(c, p)
+		c.Assert(decl, HasLen, 1)
+		c.Check(decl[0].Type(), Equals, asserts.SnapDeclarationType)
+		c.Check(decl[0].HeaderString("snap-name"), Equals, snapName)
+		p = filepath.Join(seedAssertsDir, fmt.Sprintf("%s.snap-revision", s.snapRevs[snapName].SnapSHA3_384()))
+		rev := readAssertions(c, p)
+		c.Assert(rev, HasLen, 1)
+		c.Check(rev[0].Type(), Equals, asserts.SnapRevisionType)
+		c.Check(rev[0].HeaderString("snap-id"), Equals, s.AssertedSnapID(snapName))
+	}
+}
+
+func (s *writerSuite) TestInfoDerivedInfosNotSet(c *C) {
+	model := s.Brands.Model("my-brand", "my-model", map[string]interface{}{
+		"display-name":   "my model",
+		"architecture":   "amd64",
+		"base":           "core18",
+		"gadget":         "pc=18",
+		"kernel":         "pc-kernel=18",
+		"required-snaps": []interface{}{"cont-consumer", "cont-producer"},
+	})
+
+	core18Fn := s.makeLocalSnap(c, "core18")
+	pcKernelFn := s.makeLocalSnap(c, "pc-kernel=18")
+	pcFn := s.makeLocalSnap(c, "pc=18")
+
+	w, err := seedwriter.New(model, s.opts)
+	c.Assert(err, IsNil)
+
+	err = w.SetOptionsSnaps([]*seedwriter.OptionSnap{
+		{Path: core18Fn},
+		{Path: pcFn, Channel: "edge"},
+		{Path: pcKernelFn},
+	})
+	c.Assert(err, IsNil)
+
+	_, err = w.Start(s.db, s.newFetcher)
+	c.Assert(err, IsNil)
+
+	_, err = w.LocalSnaps()
+	c.Assert(err, IsNil)
+
+	err = w.InfoDerived()
+	c.Assert(err, ErrorMatches, `internal error: at this point snap ".*/core18.*.snap" Info should have been set`)
+}
+
+func (s *writerSuite) TestInfoDerivedRepeatedLocalSnap(c *C) {
+	model := s.Brands.Model("my-brand", "my-model", map[string]interface{}{
+		"display-name":   "my model",
+		"architecture":   "amd64",
+		"base":           "core18",
+		"gadget":         "pc=18",
+		"kernel":         "pc-kernel=18",
+		"required-snaps": []interface{}{"cont-consumer", "cont-producer"},
+	})
+
+	core18Fn := s.makeLocalSnap(c, "core18")
+	pcKernelFn := s.makeLocalSnap(c, "pc-kernel=18")
+	pcFn := s.makeLocalSnap(c, "pc=18")
+
+	w, err := seedwriter.New(model, s.opts)
+	c.Assert(err, IsNil)
+
+	err = w.SetOptionsSnaps([]*seedwriter.OptionSnap{
+		{Path: core18Fn},
+		{Path: pcFn, Channel: "edge"},
+		{Path: pcKernelFn},
+		{Path: core18Fn},
+	})
+	c.Assert(err, IsNil)
+
+	_, err = w.Start(s.db, s.newFetcher)
+	c.Assert(err, IsNil)
+
+	localSnaps, err := w.LocalSnaps()
+	c.Assert(err, IsNil)
+	c.Check(localSnaps, HasLen, 4)
+
+	for _, sn := range localSnaps {
+		f, err := snap.Open(sn.Path)
+		c.Assert(err, IsNil)
+		info, err := snap.ReadInfoFromSnapFile(f, nil)
+		c.Assert(err, IsNil)
+		w.SetInfo(sn, info)
+	}
+
+	err = w.InfoDerived()
+	c.Assert(err, ErrorMatches, `local snap "core18" is repeated in options`)
+}
+
+func (s *writerSuite) TestInfoDerivedInconsistentChannel(c *C) {
+	model := s.Brands.Model("my-brand", "my-model", map[string]interface{}{
+		"display-name":   "my model",
+		"architecture":   "amd64",
+		"base":           "core18",
+		"gadget":         "pc=18",
+		"kernel":         "pc-kernel=18",
+		"required-snaps": []interface{}{"cont-consumer", "cont-producer"},
+	})
+
+	core18Fn := s.makeLocalSnap(c, "core18")
+	pcKernelFn := s.makeLocalSnap(c, "pc-kernel=18")
+	pcFn := s.makeLocalSnap(c, "pc=18")
+
+	w, err := seedwriter.New(model, s.opts)
+	c.Assert(err, IsNil)
+
+	err = w.SetOptionsSnaps([]*seedwriter.OptionSnap{
+		{Path: core18Fn},
+		{Path: pcFn, Channel: "edge"},
+		{Path: pcKernelFn},
+		{Name: "pc", Channel: "beta"},
+	})
+	c.Assert(err, IsNil)
+
+	_, err = w.Start(s.db, s.newFetcher)
+	c.Assert(err, IsNil)
+
+	localSnaps, err := w.LocalSnaps()
+	c.Assert(err, IsNil)
+	c.Check(localSnaps, HasLen, 3)
+
+	for _, sn := range localSnaps {
+		f, err := snap.Open(sn.Path)
+		c.Assert(err, IsNil)
+		info, err := snap.ReadInfoFromSnapFile(f, nil)
+		c.Assert(err, IsNil)
+		w.SetInfo(sn, info)
+	}
+
+	err = w.InfoDerived()
+	c.Assert(err, ErrorMatches, `option snap has different channels specified: ".*/pc.*.snap"="edge" vs "pc"="beta"`)
 }

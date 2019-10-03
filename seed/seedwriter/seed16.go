@@ -123,6 +123,10 @@ func (tr *tree16) snapsDir() string {
 	return tr.snapsDirPath
 }
 
+func (tr *tree16) localSnapPath(sn *SeedSnap) string {
+	return filepath.Join(tr.snapsDirPath, filepath.Base(sn.Info.MountFile()))
+}
+
 func (tr *tree16) writeAssertions(db asserts.RODatabase, modelRefs []*asserts.Ref, snapsFromModel []*SeedSnap) error {
 	seedAssertsDir := filepath.Join(tr.opts.SeedDir, "assertions")
 	if err := os.MkdirAll(seedAssertsDir, 0755); err != nil {
