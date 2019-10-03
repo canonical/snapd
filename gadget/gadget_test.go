@@ -632,8 +632,8 @@ func (s *gadgetYamlTestSuite) TestUnmarshalGadgetRelativeOffset(c *C) {
 
 var classicModelConstraints = []*gadget.ModelConstraints{
 	nil,
-	{false, false},
-	{true, false},
+	{Classic: false, SystemSeed: false},
+	{Classic: true, SystemSeed: false},
 }
 
 func (s *gadgetYamlTestSuite) TestReadGadgetYamlPCHappy(c *C) {
@@ -958,8 +958,8 @@ func (s *gadgetYamlTestSuite) TestValidateVolumeDuplicateFsLabel(c *C) {
 		{true, "ubuntu-data", `filesystem label "ubuntu-data" is not unique`},
 	} {
 		for _, constraints := range []*gadget.ModelConstraints{
-			{false, x.systemSeed},
-			{true, x.systemSeed},
+			{Classic: false, SystemSeed: x.systemSeed},
+			{Classic: true, SystemSeed: x.systemSeed},
 		} {
 			err = gadget.ValidateVolume("name", &gadget.Volume{
 				Structure: []gadget.VolumeStructure{{
