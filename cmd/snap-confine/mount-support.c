@@ -533,7 +533,7 @@ static void sc_detach_views_of_writable(sc_distro distro, bool normal_mode)
 		return;
 	}
 	// On all core distributions we see /var/lib/snapd/hostfs/writable that
-	// exposes writable, with a structure specific to ubuntu-core. 
+	// exposes writable, with a structure specific to ubuntu-core.
 	debug("detaching %s", hostfs_writable_dir);
 	sc_do_mount("none", hostfs_writable_dir, NULL,
 		    MS_REC | MS_PRIVATE, NULL);
