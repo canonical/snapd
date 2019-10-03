@@ -520,6 +520,11 @@ static void sc_bootstrap_mount_namespace(const struct sc_mount_config *config)
 
 static void sc_detach_views_of_writable(sc_distro distro, bool normal_mode)
 {
+	// Note that prior to detaching either mount point we switch the
+	// propagation to private to both limit the change to just this view and to
+	// prevent otherwise occurring event propagation from self-conflicting and
+	// returning EBUSY. A similar approach is used by snap-update-ns and is
+	// documented in umount(2).
 	const char *writable_dir = "/writable";
 	const char *hostfs_writable_dir = "/var/lib/snapd/hostfs/writable";
 
