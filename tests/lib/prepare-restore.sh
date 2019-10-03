@@ -457,7 +457,8 @@ prepare_project() {
     RateLimitInterval=0
     RateLimitBurst=0
 EOF
-    systemctl restart systemd-journald.service
+    systemctl stop systemd-journald.service
+    systemctl start systemd-journald.service
 }
 
 prepare_project_each() {
