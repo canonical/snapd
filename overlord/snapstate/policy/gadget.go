@@ -36,13 +36,13 @@ func (p *gadgetPolicy) CanRemove(st *state.State, snapst *snapstate.SnapState, r
 		return errNoName
 	}
 
+	if p.modelGadget != name {
+		return nil
+	}
+
 	if !rev.Unset() {
 		return nil
 	}
 
-	if p.modelGadget == name {
-		return errIsModel
-	}
-
-	return nil
+	return errIsModel
 }

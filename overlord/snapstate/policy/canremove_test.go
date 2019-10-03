@@ -59,6 +59,14 @@ func (s *canRemoveSuite) TestOneGadgetRevisionIsOK(c *check.C) {
 	c.Check(policy.NewGadgetPolicy("gadget").CanRemove(s.st, snapst, snap.R(1)), check.IsNil)
 }
 
+func (s *canRemoveSuite) TestOtherGadgetIsOK(c *check.C) {
+	snapst := &snapstate.SnapState{
+		Current:  snap.R(1),
+		Sequence: []*snap.SideInfo{{Revision: snap.R(1), RealName: "gadget"}},
+	}
+	c.Check(policy.NewGadgetPolicy("gadget2").CanRemove(s.st, snapst, snap.R(0)), check.IsNil)
+}
+
 func (s *canRemoveSuite) TestLastGadgetsAreNotOK(c *check.C) {
 	snapst := &snapstate.SnapState{
 		Current:  snap.R(1),
@@ -109,7 +117,10 @@ func (s *canRemoveSuite) TestOSRequiredNotOK(c *check.C) {
 		Sequence: []*snap.SideInfo{{Revision: snap.R(1), RealName: "core"}},
 		Flags:    snapstate.Flags{Required: true},
 	}
+	// can't remove them all if they're required
 	c.Check(policy.NewOSPolicy("core18").CanRemove(s.st, snapst, snap.R(0)), check.Equals, policy.ErrRequired)
+	// but a single rev is ok
+	c.Check(policy.NewOSPolicy("core18").CanRemove(s.st, snapst, snap.R(1)), check.IsNil)
 }
 
 func (s *canRemoveSuite) TestOSUbuntuCoreOK(c *check.C) {
@@ -137,7 +148,7 @@ func (s *canRemoveSuite) TestKernelBootInUseIsKept(c *check.C) {
 	c.Check(policy.NewKernelPolicy("kernel").CanRemove(s.st, snapst, snap.R(1)), check.Equals, policy.ErrInUseForBoot)
 }
 
-func (s *canRemoveSuite) TestOsInUseIsKept(c *check.C) {
+func (s *canRemoveSuite) TestBaseInUseIsKept(c *check.C) {
 	s.st.Lock()
 	defer s.st.Unlock()
 
@@ -145,8 +156,13 @@ func (s *canRemoveSuite) TestOsInUseIsKept(c *check.C) {
 		Current:  snap.R(1),
 		Sequence: []*snap.SideInfo{{Revision: snap.R(1), RealName: "core18"}},
 	}
-	s.bootloader.SetBootBase("core18_1.snap")
+	// if not used for boot, removing a single one is ok
+	c.Check(policy.NewBasePolicy("core18").CanRemove(s.st, snapst, snap.R(1)), check.IsNil)
+	// but not all
+	c.Check(policy.NewBasePolicy("core18").CanRemove(s.st, snapst, snap.R(0)), check.Equals, policy.ErrIsModel)
 
+	// if in use for boot, not even one
+	s.bootloader.SetBootBase("core18_1.snap")
 	c.Check(policy.NewBasePolicy("core18").CanRemove(s.st, snapst, snap.R(1)), check.Equals, policy.ErrInUseForBoot)
 }
 
@@ -156,7 +172,7 @@ func (s *canRemoveSuite) TestRemoveNonModelKernelIsOk(c *check.C) {
 		Sequence: []*snap.SideInfo{{Revision: snap.R(1), RealName: "other-non-model-kernel"}},
 	}
 
-	c.Check(policy.NewKernelPolicy("kernel").CanRemove(s.st, snapst, snap.R(1)), check.IsNil)
+	c.Check(policy.NewKernelPolicy("kernel").CanRemove(s.st, snapst, snap.R(0)), check.IsNil)
 }
 
 func (s *canRemoveSuite) TestLastOSWithModelBaseIsOk(c *check.C) {

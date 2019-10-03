@@ -39,15 +39,20 @@ func (p *basePolicy) CanRemove(st *state.State, snapst *snapstate.SnapState, rev
 		return errNoName
 	}
 
-	if !rev.Unset() {
-		if boot.InUse(name, rev) {
-			return errInUseForBoot
+	if p.modelBase == name {
+		if !rev.Unset() {
+			// TODO: tweak boot.InUse so that it DTRT when rev.Unset, call
+			// it unconditionally as an extra precaution
+			if boot.InUse(name, rev) {
+				return errInUseForBoot
+			}
+			return nil
 		}
-		return nil
+		return errIsModel
 	}
 
-	if p.modelBase == name {
-		return errIsModel
+	if !rev.Unset() {
+		return nil
 	}
 
 	// a core system could have core18 required in the model due to dependencies for ex
@@ -71,9 +76,15 @@ func baseUsedBy(st *state.State, baseName string) ([]string, error) {
 	}
 	alsoCore16 := false
 	if baseName == "" {
-		// core -> core16 aliasing
-		if snapst, ok := snapStates["core16"]; !ok || !snapst.IsInstalled() {
-			// this base is not installed
+		// if core is installed, a snap having base: core16 will not
+		// pull in core16 itself but use core instead. So if we are
+		// looking at core (a base of ""), and core16 is not installed,
+		// then we need to look out for things having base: core16 as
+		// well as "".
+		//
+		// TODO: if we ever do the converse, using core16 for snaps
+		//       having a base of "", then this needs a tweak.
+		if _, ok := snapStates["core16"]; !ok {
 			alsoCore16 = true
 		}
 	}
@@ -81,9 +92,6 @@ func baseUsedBy(st *state.State, baseName string) ([]string, error) {
 	var usedBy []string
 	for name, snapst := range snapStates {
 		if typ, err := snapst.Type(); err == nil && typ != snap.TypeApp && typ != snap.TypeGadget {
-			continue
-		}
-		if !snapst.IsInstalled() {
 			continue
 		}
 

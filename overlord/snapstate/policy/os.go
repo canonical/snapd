@@ -37,19 +37,24 @@ func (p *osPolicy) CanRemove(st *state.State, snapst *snapstate.SnapState, rev s
 		return errNoName
 	}
 
-	if !rev.Unset() {
-		if boot.InUse(name, rev) {
-			return errInUseForBoot
-		}
-		return nil
-	}
-
 	if name == "ubuntu-core" {
 		return nil
 	}
 
 	if p.modelBase == "" {
+		if !rev.Unset() {
+			// TODO: tweak boot.InUse so that it DTRT when rev.Unset, call
+			// it unconditionally as an extra precaution
+			if boot.InUse(name, rev) {
+				return errInUseForBoot
+			}
+			return nil
+		}
 		return errIsModel
+	}
+
+	if !rev.Unset() {
+		return nil
 	}
 
 	// a core18 system could have core required in the model due to dependencies for ex
