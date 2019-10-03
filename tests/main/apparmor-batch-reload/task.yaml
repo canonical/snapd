@@ -28,6 +28,8 @@ restore: |
     rm -f profiles.out
 
 debug: |
+    #shellcheck source=tests/lib/journalctl.sh
+    . "$TESTSLIB"/journalctl.sh
     get_journalctl_log -a | grep apparmor_parser.fake
 
 execute: |

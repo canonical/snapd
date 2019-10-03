@@ -32,7 +32,6 @@ while [ -n "$1" ]; do
 done
 
 if [ "$profiles" -gt 10 ]; then
-    echo "simulating apparmor parser failure" >> $debugfile
     echo "FAIL ON: $args"
     exit 1
 fi
