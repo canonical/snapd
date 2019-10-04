@@ -364,7 +364,8 @@ func fmtIndexAndName(idx int, name string) string {
 }
 
 type validationState struct {
-	SystemSeed bool
+	SystemSeed      bool
+	SystemDataLabel string
 }
 
 func validateVolume(name string, vol *Volume, constraints *ModelConstraints) error {
@@ -418,15 +419,38 @@ func validateVolume(name string, vol *Volume, constraints *ModelConstraints) err
 		previousEnd = end
 	}
 
-	// error if we have a SystemSeed constraint but no actual system-seed structure
-	if constraints != nil && state != nil && constraints.SystemSeed && !state.SystemSeed {
-		return fmt.Errorf("system seed constraint set but no system-seed structure found")
+	if constraints == nil {
+		// gadget must be auto-consistent if constraints are not specified
+		if err := ensureVolumeConsistency(state); err != nil {
+			return err
+		}
+	} else {
+		// error if we have a SystemSeed constraint but no actual system-seed structure
+		if constraints.SystemSeed && !state.SystemSeed {
+			return fmt.Errorf("system seed constraint set but no system-seed structure found")
+		}
 	}
 
 	// sort by starting offset
 	sort.Sort(byStartOffset(structures))
 
 	return validateCrossVolumeStructure(structures, knownStructures)
+}
+
+func ensureVolumeConsistency(state *validationState) error {
+	if state.SystemSeed {
+		if state.SystemDataLabel != SystemDataLabel {
+			return fmt.Errorf("role of this kind must have label %q, not %q",
+				SystemDataLabel, state.SystemDataLabel)
+		}
+	} else {
+		if state.SystemDataLabel != "" && state.SystemDataLabel != ImplicitSystemDataLabel {
+			return fmt.Errorf("role of this kind must have an implicit label or %q, not %q",
+				ImplicitSystemDataLabel, state.SystemDataLabel)
+		}
+	}
+
+	return nil
 }
 
 func validateCrossVolumeStructure(structures []LaidOutStructure, knownStructures map[string]*LaidOutStructure) error {
@@ -597,18 +621,17 @@ func validateRole(vs *VolumeStructure, vol *Volume, constraints *ModelConstraint
 
 	switch vsRole {
 	case SystemData:
-		dataLabel := ImplicitSystemDataLabel
 		if constraints == nil {
-			if state != nil && state.SystemSeed {
-				dataLabel = SystemDataLabel
-			}
+			// store label for consistency check
+			state.SystemDataLabel = vs.Label
 		} else {
+			dataLabel := ImplicitSystemDataLabel
 			if constraints.SystemSeed {
 				dataLabel = SystemDataLabel
 			}
-		}
-		if vs.Label != "" && vs.Label != dataLabel {
-			return fmt.Errorf(`role of this kind must have an implicit label or %q, not %q`, dataLabel, vs.Label)
+			if vs.Label != "" && vs.Label != dataLabel {
+				return fmt.Errorf(`role of this kind must have an implicit label or %q, not %q`, dataLabel, vs.Label)
+			}
 		}
 	case MBR:
 		if vs.Size > SizeMBR {

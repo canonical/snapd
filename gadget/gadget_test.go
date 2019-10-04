@@ -822,9 +822,9 @@ size: 447`
 		{mustParseStructure(c, validSystemSeed), vol, &gadget.ModelConstraints{Classic: true, SystemSeed: false}, `invalid role "system-seed": unsupported role`},
 		{mustParseStructure(c, validSystemSeed), vol, &gadget.ModelConstraints{Classic: true, SystemSeed: true}, ""},
 		// system-data, but improper label
-		{mustParseStructure(c, invalidSystemDataLabel), vol, nil, `invalid role "system-data": role of this kind must have an implicit label or "writable", not "foobar"`},
+		{mustParseStructure(c, invalidSystemDataLabel), vol, &gadget.ModelConstraints{}, `invalid role "system-data": role of this kind must have an implicit label or "writable", not "foobar"`},
 		// system-data, core20 label
-		{mustParseStructure(c, core20SystemDataLabel), vol, nil, `invalid role "system-data": role of this kind must have an implicit label or "writable", not "ubuntu-data"`},
+		{mustParseStructure(c, core20SystemDataLabel), vol, &gadget.ModelConstraints{}, `invalid role "system-data": role of this kind must have an implicit label or "writable", not "ubuntu-data"`},
 		// mbr
 		{mustParseStructure(c, mbrTooLarge), mbrVol, nil, `invalid role "mbr": mbr structures cannot be larger than 446 bytes`},
 		{mustParseStructure(c, mbrBadOffset), mbrVol, nil, `invalid role "mbr": mbr structure must start at offset 0`},
@@ -844,6 +844,7 @@ size: 447`
 
 		state := &gadget.ValidationState{}
 		err := gadget.ValidateVolumeStructure(tc.s, tc.v, tc.c, state)
+		c.Logf("resulting state: %+v", state)
 		if tc.err != "" {
 			c.Check(err, ErrorMatches, tc.err)
 		} else {
@@ -1360,19 +1361,48 @@ func (s *gadgetTestSuite) TestEffectiveFilesystemLabel(c *C) {
 	c.Check(vs.EffectiveFilesystemLabel(), Equals, "")
 }
 
+func (s *gadgetYamlTestSuite) TestEnsureVolumeConsistency(c *C) {
+	for i, tc := range []struct {
+		s   *gadget.ValidationState
+		err string
+	}{
+		// we have the system-seed role
+		{&gadget.ValidationState{SystemSeed: true, SystemDataLabel: ""}, `.* must have label "ubuntu-data", not ""`},
+		{&gadget.ValidationState{SystemSeed: true, SystemDataLabel: "foobar"}, `.* must have label "ubuntu-data", not "foobar"`},
+		{&gadget.ValidationState{SystemSeed: true, SystemDataLabel: "writable"}, `.* must have label "ubuntu-data", not "writable"`},
+		{&gadget.ValidationState{SystemSeed: true, SystemDataLabel: "ubuntu-data"}, ""},
+
+		// we don't have the system-seed role (old systems)
+		{&gadget.ValidationState{SystemSeed: false, SystemDataLabel: ""}, ""}, // implicit is ok
+		{&gadget.ValidationState{SystemSeed: false, SystemDataLabel: "foobar"}, `.* must have an implicit label or "writable", not "foobar"`},
+		{&gadget.ValidationState{SystemSeed: false, SystemDataLabel: "writable"}, ""},
+		{&gadget.ValidationState{SystemSeed: false, SystemDataLabel: "ubuntu-data"}, `.* must have an implicit label or "writable", not "ubuntu-data"`},
+	} {
+		c.Logf("tc: %v %+v", i, tc.s)
+
+		err := gadget.EnsureVolumeConsistency(tc.s)
+		if tc.err != "" {
+			c.Assert(err, ErrorMatches, tc.err)
+		} else {
+			c.Check(err, IsNil)
+		}
+	}
+}
+
 func (s *gadgetYamlTestSuite) TestGadgetConsistencyWithoutConstraints(c *C) {
-	for _, x := range []struct {
+	for i, tc := range []struct {
 		role  string
 		label string
 		err   string
 	}{
 		// when constraints are nil, the system-seed role and ubuntu-data label on the
 		// system-data structure should be consistent
-		{"system-seed", "writable", `.* implicit label or "ubuntu-data", not "writable"`},
+		{"system-seed", "writable", `.* must have label "ubuntu-data", not "writable"`},
 		{"system-seed", "ubuntu-data", ""},
 		{"", "writable", ""},
-		{"", "ubuntu-data", `.* implicit label or "writable", not "ubuntu-data"`},
+		{"", "ubuntu-data", `.* must have an implicit label or "writable", not "ubuntu-data"`},
 	} {
+		c.Logf("tc: %v %v %v", i, tc.role, tc.label)
 		b := &bytes.Buffer{}
 
 		fmt.Fprintf(b, `
@@ -1382,7 +1412,7 @@ volumes:
     schema: mbr
     structure:`)
 
-		if x.role == "system-seed" {
+		if tc.role == "system-seed" {
 			fmt.Fprintf(b, `
       - name: Recovery
         size: 10M
@@ -1396,14 +1426,14 @@ volumes:
         size: 10M
         type: 83
         role: system-data
-        filesystem-label: %s`, x.label)
+        filesystem-label: %s`, tc.label)
 
 		err := ioutil.WriteFile(s.gadgetYamlPath, b.Bytes(), 0644)
 		c.Assert(err, IsNil)
 
 		_, err = gadget.ReadInfo(s.dir, nil)
-		if x.err != "" {
-			c.Assert(err, ErrorMatches, x.err)
+		if tc.err != "" {
+			c.Assert(err, ErrorMatches, tc.err)
 
 		} else {
 			c.Check(err, IsNil)
@@ -1412,7 +1442,7 @@ volumes:
 }
 
 func (s *gadgetYamlTestSuite) TestGadgetConsistencyWithConstraints(c *C) {
-	for _, x := range []struct {
+	for i, tc := range []struct {
 		role       string
 		label      string
 		systemSeed bool
@@ -1420,15 +1450,16 @@ func (s *gadgetYamlTestSuite) TestGadgetConsistencyWithConstraints(c *C) {
 	}{
 		// when constraints are nil, the system-seed role and ubuntu-data label on the
 		// system-data structure should be consistent
-		{"system-seed", "writable", true, `.* implicit label or "ubuntu-data", not "writable"`},
+		{"system-seed", "writable", true, `.* must have an implicit label or "ubuntu-data", not "writable"`},
 		{"system-seed", "writable", false, `.* invalid role "system-seed": unsupported role`},
 		{"system-seed", "ubuntu-data", true, ""},
 		{"system-seed", "ubuntu-data", false, `.* invalid role "system-seed": unsupported role`},
-		{"", "writable", true, `.*implicit label or "ubuntu-data", not "writable"`},
+		{"", "writable", true, `.* must have an implicit label or "ubuntu-data", not "writable"`},
 		{"", "writable", false, ""},
 		{"", "ubuntu-data", true, `.* no system-seed structure found`},
-		{"", "ubuntu-data", false, `.* implicit label or "writable", not "ubuntu-data"`},
+		{"", "ubuntu-data", false, `.* must have an implicit label or "writable", not "ubuntu-data"`},
 	} {
+		c.Logf("tc: %v %v %v %v", i, tc.role, tc.label, tc.systemSeed)
 		b := &bytes.Buffer{}
 
 		fmt.Fprintf(b, `
@@ -1438,7 +1469,7 @@ volumes:
     schema: mbr
     structure:`)
 
-		if x.role == "system-seed" {
+		if tc.role == "system-seed" {
 			fmt.Fprintf(b, `
       - name: Recovery
         size: 10M
@@ -1452,20 +1483,19 @@ volumes:
         size: 10M
         type: 83
         role: system-data
-        filesystem-label: %s`, x.label)
+        filesystem-label: %s`, tc.label)
 
 		err := ioutil.WriteFile(s.gadgetYamlPath, b.Bytes(), 0644)
 		c.Assert(err, IsNil)
 
 		constraints := &gadget.ModelConstraints{
 			Classic:    false,
-			SystemSeed: x.systemSeed,
+			SystemSeed: tc.systemSeed,
 		}
 
 		_, err = gadget.ReadInfo(s.dir, constraints)
-		if x.err != "" {
-			c.Assert(err, ErrorMatches, x.err)
-
+		if tc.err != "" {
+			c.Assert(err, ErrorMatches, tc.err)
 		} else {
 			c.Check(err, IsNil)
 		}

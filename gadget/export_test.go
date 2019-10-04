@@ -39,6 +39,8 @@ var (
 	RawContentBackupPath = rawContentBackupPath
 
 	UpdaterForStructure = updaterForStructure
+
+	EnsureVolumeConsistency = ensureVolumeConsistency
 )
 
 func MockEvalSymlinks(mock func(path string) (string, error)) (restore func()) {
