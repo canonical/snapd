@@ -39,6 +39,9 @@ type Options struct {
 
 	DefaultChannel string
 
+	// The label for the recovery system for Core20 models
+	Label string
+
 	// TestSkipCopyUnverifiedModel is set to support naive tests
 	// using an unverified model, the resulting image is broken
 	TestSkipCopyUnverifiedModel bool
@@ -179,6 +182,8 @@ type Writer struct {
 }
 
 type policy interface {
+	allowsDangerousFeatures() error
+
 	checkDefaultChannel(channel.Channel) error
 	checkSnapChannel(ch channel.Channel, whichSnap string) error
 
@@ -216,7 +221,6 @@ func New(model *asserts.Model, opts *Options) (*Writer, error) {
 	w := &Writer{
 		model: model,
 		opts:  opts,
-		tree:  &tree16{opts: opts},
 
 		expectedStep: setOptionsSnapsStep,
 
@@ -224,7 +228,22 @@ func New(model *asserts.Model, opts *Options) (*Writer, error) {
 		byRefLocalSnaps: naming.NewSnapSet(nil),
 	}
 
-	pol := &policy16{model: model, opts: opts, warningf: w.warningf}
+	var treeImpl tree
+	var pol policy
+	if model.Grade() != asserts.ModelGradeUnset {
+		// Core 20
+		if opts.Label == "" {
+			return nil, fmt.Errorf("internal error: cannot write Core 20 seed with Options.Label unset")
+		}
+		if !validSystemLabel.MatchString(opts.Label) {
+			return nil, fmt.Errorf("system label contains invalid characters: %s", opts.Label)
+		}
+		pol = &policy20{model: model, opts: opts, warningf: w.warningf}
+		treeImpl = &tree20{opts: opts}
+	} else {
+		pol = &policy16{model: model, opts: opts, warningf: w.warningf}
+		treeImpl = &tree16{opts: opts}
+	}
 
 	if opts.DefaultChannel != "" {
 		deflCh, err := channel.ParseVerbatim(opts.DefaultChannel, "_")
@@ -236,6 +255,7 @@ func New(model *asserts.Model, opts *Options) (*Writer, error) {
 		}
 	}
 
+	w.tree = treeImpl
 	w.policy = pol
 	return w, nil
 }
@@ -317,7 +337,16 @@ func (w *Writer) SetOptionsSnaps(optSnaps []*OptionsSnap) error {
 		return err
 	}
 
-	// XXX check with policy if local snaps are ok
+	if len(optSnaps) == 0 {
+		return nil
+	}
+
+	// TODO: relax or allow flags to relax this?
+	// * allow local asserted snaps for >=signed Core 20 models?
+	// * allow some level of channel override for >=signed Core 20 models?
+	if err := w.policy.allowsDangerousFeatures(); err != nil {
+		return err
+	}
 
 	for _, sn := range optSnaps {
 		var whichSnap string
@@ -470,6 +499,15 @@ func (w *Writer) InfoDerived() error {
 		if sn.Info == nil {
 			return fmt.Errorf("internal error: before seedwriter.Writer.InfoDerived snap %q Info should have been set", sn.Path)
 		}
+
+		if sn.Info.ID() == "" {
+			// this check is here in case we relax the checks in
+			// SetOptionsSnaps
+			if err := w.policy.allowsDangerousFeatures(); err != nil {
+				return err
+			}
+		}
+
 		sn.SnapRef = sn.Info
 
 		// local snap gets local revision
@@ -664,8 +702,19 @@ func (w *Writer) SnapsToDownload() (snaps []*SeedSnap, err error) {
 
 	switch w.toDownload {
 	case toDownloadModel:
-		// XXX check early if policy is ok with extra snaps
-		return w.modelSnapsToDownload(w.modSnaps())
+		// TODO|XXX: support Core 20 models optional snaps correctly
+		toDownload, err := w.modelSnapsToDownload(w.modSnaps())
+		if err != nil {
+			return nil, err
+		}
+		if w.extraSnapsGuessNum > 0 {
+			// this check is here in case we relax the checks in
+			// SetOptionsSnaps
+			if err := w.policy.allowsDangerousFeatures(); err != nil {
+				return nil, err
+			}
+		}
+		return toDownload, nil
 	case toDownloadImplicit:
 		return w.modelSnapsToDownload(w.policy.implicitSnaps(w.availableSnaps))
 	case toDownloadExtra:
@@ -718,6 +767,22 @@ func (w *Writer) resolveChannel(whichSnap string, modSnap *asserts.ModelSnap, op
 	return resChannel, nil
 }
 
+func (w *Writer) checkBase(info *snap.Info) error {
+	// Sanity check, note that we could support this case
+	// if we have a use-case but it requires changes in the
+	// devicestate/firstboot.go ordering code.
+	if info.GetType() == snap.TypeGadget && !w.model.Classic() && info.Base != w.model.Base() {
+		return fmt.Errorf("cannot use gadget snap because its base %q is different from model base %q", info.Base, w.model.Base())
+	}
+
+	// snap explicitly listed as not needing a base snap (e.g. a content-only snap)
+	if info.Base == "none" {
+		return nil
+	}
+
+	return w.policy.checkBase(info, w.availableSnaps)
+}
+
 func (w *Writer) downloaded(seedSnaps []*SeedSnap) error {
 	if w.availableSnaps == nil {
 		w.availableSnaps = naming.NewSnapSet(nil)
@@ -755,7 +820,7 @@ func (w *Writer) downloaded(seedSnaps []*SeedSnap) error {
 			return fmt.Errorf("cannot use classic snap %q in a core system", info.SnapName())
 		}
 
-		if err := w.policy.checkBase(info, w.availableSnaps); err != nil {
+		if err := w.checkBase(info); err != nil {
 			return err
 		}
 		// error about missing default providers
