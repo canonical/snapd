@@ -84,6 +84,11 @@ func NewSnapSet(refs []SnapRef) *SnapSet {
 	return s
 }
 
+// Empty returns whether the snap set is empty.
+func (s *SnapSet) Empty() bool {
+	return len(s.byID) == 0 && len(s.byName) == 0
+}
+
 // Lookup finds the reference in the set matching the given one if any.
 func (s *SnapSet) Lookup(which SnapRef) SnapRef {
 	whichID := which.ID()
