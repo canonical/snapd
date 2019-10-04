@@ -1,0 +1,55 @@
+summary: Check that snaps can not access the session agent
+
+systems:
+    # Ubuntu 14.04 does not have a complete systemd implementation
+    - -ubuntu-14.04-*
+    # Systemd on CentOS 7/Amazon Linux 2 does not have the user@uid unit
+    - -amazon-linux-2-*
+    - -centos-7-*
+
+environment:
+    TEST_UID: $(id -u test)
+    USER_RUNTIME_DIR: /run/user/${TEST_UID}
+
+prepare: |
+    # Ensure that snapd.session-agent.socket is enabled.  This may not
+    # be the case on distributions where presets have been used to
+    # disable it.
+    if [ ! -L /usr/lib/systemd/user/sockets.target.wants/snapd.session-agent.socket ] &&
+            ! systemctl --user --global is-enabled snapd.session-agent.socket; then
+        systemctl --user --global enable snapd.session-agent.socket
+        touch agent-was-enabled
+    fi
+    mkdir -p "$USER_RUNTIME_DIR"
+    chmod u=rwX,go= "$USER_RUNTIME_DIR"
+    chown test:test "$USER_RUNTIME_DIR"
+    systemctl start "user@${TEST_UID}.service"
+
+restore: |
+    systemctl stop "user@${TEST_UID}.service"
+    rm -rf "${USER_RUNTIME_DIR:?}"/* "${USER_RUNTIME_DIR:?}"/.[!.]*
+    if [ -f agent-was-enabled ]; then
+        systemctl --user --global disable snapd.session-agent.socket
+        rm agent-was-enabled
+    fi
+
+execute: |
+    if [ "$(snap debug confinement)" != strict ]; then
+        exit 0
+    fi
+
+    echo "Install the curl snap as a confined example client"
+    snap install --edge test-snapd-curl
+
+    echo "The snap session agent REST API socket exists"
+    test -S "${USER_RUNTIME_DIR}/snapd-session-agent.socket"
+
+    echo "But confined applications can not access it"
+    not su -l -c "test-snapd-curl.curl \
+        --unix-socket \"${USER_RUNTIME_DIR}/snapd-session-agent.socket\" \
+        -D- http://localhost/v1/session-info" test
+
+    echo "Confined apps running as root also can not access it"
+    not test-snapd-curl.curl \
+        --unix-socket "${USER_RUNTIME_DIR}/snapd-session-agent.socket" \
+        -D- http://localhost/v1/session-info
