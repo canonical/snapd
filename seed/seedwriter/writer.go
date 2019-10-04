@@ -26,6 +26,7 @@ import (
 	"strings"
 
 	"github.com/snapcore/snapd/asserts"
+	"github.com/snapcore/snapd/asserts/snapasserts"
 	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/snap"
 	"github.com/snapcore/snapd/snap/channel"
@@ -44,27 +45,26 @@ type Options struct {
 	Architecture string
 }
 
-// OptionSnap represents an options-referred snap with its option values.
+// OptionsSnap represents an options-referred snap with its option values.
 // E.g. a snap passed to ubuntu-image via --snap.
 // If Name is set the snap is from the store. If Path is set the snap
 // is local at Path location.
-// XXX|TODO: for further clarity rename to OptionsSnap
-type OptionSnap struct {
+type OptionsSnap struct {
 	Name    string
 	SnapID  string
 	Path    string
 	Channel string
 }
 
-func (s *OptionSnap) SnapName() string {
+func (s *OptionsSnap) SnapName() string {
 	return s.Name
 }
 
-func (s *OptionSnap) ID() string {
+func (s *OptionsSnap) ID() string {
 	return s.SnapID
 }
 
-var _ naming.SnapRef = (*OptionSnap)(nil)
+var _ naming.SnapRef = (*OptionsSnap)(nil)
 
 // SeedSnap holds details of a snap being added to a seed.
 type SeedSnap struct {
@@ -83,7 +83,7 @@ type SeedSnap struct {
 
 	local      bool
 	modelSnap  *asserts.ModelSnap
-	optionSnap *OptionSnap
+	optionSnap *OptionsSnap
 }
 
 var _ naming.SnapRef = (*SeedSnap)(nil)
@@ -153,7 +153,7 @@ type Writer struct {
 
 	modelRefs []*asserts.Ref
 
-	// XXX optionsSnaps []*OptionSnap
+	// XXX optionsSnaps []*OptionsSnap
 
 	byNameOptSnaps *naming.SnapSet
 
@@ -293,8 +293,8 @@ func (w *Writer) checkStep(thisStep writerStep) error {
 	return nil
 }
 
-// SetOptionsSnaps accepts options-referred snaps represented as OptionSnap.
-func (w *Writer) SetOptionsSnaps(optSnaps []*OptionSnap) error {
+// SetOptionsSnaps accepts options-referred snaps represented as OptionsSnap.
+func (w *Writer) SetOptionsSnaps(optSnaps []*OptionsSnap) error {
 	if err := w.checkStep(setOptionsSnapsStep); err != nil {
 		return err
 	}
@@ -381,9 +381,17 @@ func (w *Writer) Start(db asserts.RODatabase, newFetcher NewFetcherFunc) (RefAss
 		return nil, fmt.Errorf("cannot fetch and check prerequisites for the model assertion: %v", err)
 	}
 
-	w.modelRefs = f.Refs()
+	// fetch device store assertion (and prereqs) if available
+	if w.model.Store() != "" {
+		err := snapasserts.FetchStore(f, w.model.Store())
+		if err != nil {
+			if nfe, ok := err.(*asserts.NotFoundError); !ok || nfe.Type != asserts.StoreType {
+				return nil, err
+			}
+		}
+	}
 
-	// XXX get if needed the store assertion
+	w.modelRefs = f.Refs()
 
 	if err := w.tree.mkFixedDirs(); err != nil {
 		return nil, err
@@ -428,7 +436,7 @@ func (w *Writer) InfoDerived() error {
 		}
 
 		// in case, merge channel given by name separately
-		optSnap, _ := w.byNameOptSnaps.Lookup(sn).(*OptionSnap)
+		optSnap, _ := w.byNameOptSnaps.Lookup(sn).(*OptionsSnap)
 		if optSnap != nil && optSnap.Channel != "" {
 			if sn.optionSnap.Channel != "" {
 				if sn.optionSnap.Channel != optSnap.Channel {
@@ -470,10 +478,10 @@ const (
 
 func (w *Writer) modelSnapToSeed(modSnap *asserts.ModelSnap) (*SeedSnap, error) {
 	sn, _ := w.byRefLocalSnaps.Lookup(modSnap).(*SeedSnap)
-	var optSnap *OptionSnap
+	var optSnap *OptionsSnap
 	if sn == nil {
 		// not local, to download
-		optSnap, _ = w.byNameOptSnaps.Lookup(modSnap).(*OptionSnap)
+		optSnap, _ = w.byNameOptSnaps.Lookup(modSnap).(*OptionsSnap)
 		sn = &SeedSnap{
 			SnapRef: modSnap,
 
@@ -556,7 +564,7 @@ func (w *Writer) SnapsToDownload() (snaps []*SeedSnap, err error) {
 	// early as possible
 }
 
-func (w *Writer) resolveChannel(whichSnap string, modSnap *asserts.ModelSnap, optSnap *OptionSnap) (string, error) {
+func (w *Writer) resolveChannel(whichSnap string, modSnap *asserts.ModelSnap, optSnap *OptionsSnap) (string, error) {
 	var optChannel string
 	if optSnap != nil {
 		optChannel = optSnap.Channel
