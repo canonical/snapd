@@ -101,7 +101,7 @@ func baseUsedBy(st *state.State, baseName string) ([]string, error) {
 				if typ := snapInfo.GetType(); typ != snap.TypeApp && typ != snap.TypeGadget {
 					continue
 				}
-				if baseName != snapInfo.Base && !(alsoCore16 && snapInfo.Base == "core16") {
+				if !(baseName == snapInfo.Base || (alsoCore16 && snapInfo.Base == "core16")) {
 					continue
 				}
 				usedBy = append(usedBy, snapInfo.InstanceName())

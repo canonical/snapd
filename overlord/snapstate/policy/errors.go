@@ -21,6 +21,7 @@ package policy
 
 import (
 	"errors"
+	"strconv"
 	"strings"
 )
 
@@ -40,7 +41,9 @@ func (e inUseByErr) Error() string {
 		return "snap is being used"
 	case 1:
 		return "snap is being used by snap " + e[0] + "."
-	default:
+	case 2, 3, 4, 5:
 		return "snap is being used by snaps " + strings.Join(e[:len(e)-1], ", ") + " and " + e[len(e)-1] + "."
+	default:
+		return "snap is being used by snaps " + strings.Join(e[:5], ", ") + " and " + strconv.Itoa(len(e)-5) + " more."
 	}
 }
