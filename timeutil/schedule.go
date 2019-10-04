@@ -251,8 +251,14 @@ func (ws WeekSpan) Match(t time.Time) bool {
 // monthNext returns the first day of the next month relative to t
 func monthNext(t time.Time) time.Time {
 	n := t
+	// advance by 28 days at most, so that we don't skip a 28 day February
+	n = n.AddDate(0, 0, 28)
 	for n.Month() == t.Month() {
 		n = n.Add(24 * time.Hour)
+	}
+	if n.Day() != 1 {
+		// backtrack if we didn't land on the first day yet
+		n = n.AddDate(0, 0, -n.Day()+1)
 	}
 	return n
 }

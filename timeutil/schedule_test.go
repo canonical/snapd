@@ -1214,3 +1214,29 @@ func (ts *timeutilSuite) TestTimeZero(c *C) {
 		c.Check(timeutil.Includes(sch, zero.Add(2*24*time.Hour)), Equals, false)
 	}
 }
+
+func (ts *timeutilSuite) TestMonthNext(c *C) {
+	const shortForm = "2006-01-02"
+	for _, t := range []struct {
+		when, next string
+	}{
+		{"2018-07-01", "2018-08-01"},
+		{"2018-07-31", "2018-08-01"},
+		{"2018-07-20", "2018-08-01"},
+		{"2018-02-01", "2018-03-01"},
+		{"2018-02-28", "2018-03-01"},
+		{"2018-01-31", "2018-02-01"},
+		// in 2020 Feb is 29 days
+		{"2020-01-31", "2020-02-01"},
+		{"2020-02-01", "2020-03-01"},
+		{"2020-02-14", "2020-03-01"},
+	} {
+		when, err := time.ParseInLocation(shortForm, t.when, time.Local)
+		c.Assert(err, IsNil)
+		c.Logf("when: %v expecting: %v", when, t.next)
+
+		next := timeutil.MonthNext(when)
+		c.Check(next.Format(shortForm), Equals, t.next)
+	}
+
+}
