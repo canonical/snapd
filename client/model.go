@@ -21,6 +21,7 @@ package client
 
 import (
 	"bytes"
+	"context"
 	"encoding/json"
 	"fmt"
 	"net/url"
@@ -77,7 +78,9 @@ func (client *Client) CurrentSerialAssertion() (*asserts.Serial, error) {
 func currentAssertion(client *Client, path string) (asserts.Assertion, error) {
 	q := url.Values{}
 
-	response, err := client.raw("GET", path, q, nil, nil)
+	ctx, cancel := context.WithTimeout(context.Background(), doTimeout)
+	defer cancel()
+	response, err := client.raw(ctx, "GET", path, q, nil, nil)
 	if err != nil {
 		return nil, fmt.Errorf("failed to query current assertion: %v", err)
 	}

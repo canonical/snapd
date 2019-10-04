@@ -102,6 +102,15 @@ func MockLogger() (buf *bytes.Buffer, restore func()) {
 	}
 }
 
+// WithLoggerLock invokes f with the global logger lock, useful for
+// tests involving goroutines with MockLogger.
+func WithLoggerLock(f func()) {
+	lock.Lock()
+	defer lock.Unlock()
+
+	f()
+}
+
 // SetLogger sets the global logger to the given one
 func SetLogger(l Logger) {
 	lock.Lock()

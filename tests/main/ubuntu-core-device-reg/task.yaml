@@ -31,6 +31,9 @@ execute: |
         ubuntu-core-18-64)
             snap known serial | MATCH "model: ubuntu-core-18-amd64"
             ;;
+        ubuntu-core-18-arm-*)
+            snap known serial | MATCH "model: ubuntu-core-18-$gadget_name"
+            ;;
         ubuntu-core-16-64)
             snap known serial | MATCH "model: pc"
             ;;

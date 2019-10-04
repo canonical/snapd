@@ -32,6 +32,7 @@ import (
 	"github.com/snapcore/snapd/snap"
 	"github.com/snapcore/snapd/snap/channel"
 	"github.com/snapcore/snapd/snap/naming"
+	"github.com/snapcore/snapd/strutil"
 )
 
 type policy16 struct {
@@ -52,25 +53,27 @@ func (pol *policy16) checkSnapChannel(_ channel.Channel, whichSnap string) error
 	return nil
 }
 
+func makeSystemSnap(snapName string) *asserts.ModelSnap {
+	// TODO: set SnapID too
+	return &asserts.ModelSnap{
+		Name:           snapName,
+		SnapType:       snapName, // same as snapName for core, snapd
+		Modes:          []string{"run"},
+		DefaultChannel: "stable",
+		Presence:       "required",
+	}
+}
+
 func (pol *policy16) systemSnap() *asserts.ModelSnap {
 	if pol.model.Classic() {
 		// no predefined system snap, infer later
 		return nil
 	}
 	snapName := "core"
-	snapType := "core"
 	if pol.model.Base() != "" {
 		snapName = "snapd"
-		snapType = "snapd"
 	}
-	// TODO: set SnapID too
-	return &asserts.ModelSnap{
-		Name:           snapName,
-		SnapType:       snapType,
-		Modes:          []string{"run"},
-		DefaultChannel: "stable",
-		Presence:       "required",
-	}
+	return makeSystemSnap(snapName)
 }
 
 func (pol *policy16) checkBase(info *snap.Info, availableSnaps *naming.SnapSet) error {
@@ -108,6 +111,35 @@ func (pol *policy16) checkBase(info *snap.Info, availableSnaps *naming.SnapSet) 
 	return fmt.Errorf("cannot add snap %q without also adding its base %q explicitly", info.SnapName(), info.Base)
 }
 
+func (pol *policy16) needsImplicitSnaps(availableSnaps *naming.SnapSet) (bool, error) {
+	// do we need to add implicitly either snapd (or core)
+	hasCore := availableSnaps.Contains(naming.Snap("core"))
+	if len(pol.needsCore) != 0 && !hasCore {
+		// XXX warning on Core 18
+		return true, nil
+	}
+
+	if len(pol.needsCore16) != 0 && !hasCore {
+		return false, fmt.Errorf(`cannot use %s requiring base "core16" without adding "core16" (or "core") explicitly`, strutil.Quoted(pol.needsCore16))
+	}
+
+	if pol.model.Classic() && !availableSnaps.Empty() {
+		return true, nil
+	}
+
+	return false, nil
+}
+
+func (pol *policy16) implicitSnaps(availableSnaps *naming.SnapSet) []*asserts.ModelSnap {
+	if len(pol.needsCore) != 0 && !availableSnaps.Contains(naming.Snap("core")) {
+		return []*asserts.ModelSnap{makeSystemSnap("core")}
+	}
+	if pol.model.Classic() && !availableSnaps.Empty() {
+		return []*asserts.ModelSnap{makeSystemSnap("snapd")}
+	}
+	return nil
+}
+
 type tree16 struct {
 	opts *Options
 
@@ -121,6 +153,10 @@ func (tr *tree16) mkFixedDirs() error {
 
 func (tr *tree16) snapsDir() string {
 	return tr.snapsDirPath
+}
+
+func (tr *tree16) localSnapPath(sn *SeedSnap) string {
+	return filepath.Join(tr.snapsDirPath, filepath.Base(sn.Info.MountFile()))
 }
 
 func (tr *tree16) writeAssertions(db asserts.RODatabase, modelRefs []*asserts.Ref, snapsFromModel []*SeedSnap) error {

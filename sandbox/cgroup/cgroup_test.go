@@ -27,18 +27,24 @@ import (
 
 	. "gopkg.in/check.v1"
 
-	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/sandbox/cgroup"
+	"github.com/snapcore/snapd/testutil"
 )
 
-type cgroupSuite struct{}
+type cgroupSuite struct {
+	testutil.BaseTest
+	rootDir string
+}
 
 var _ = Suite(&cgroupSuite{})
 
 func TestCgroup(t *testing.T) { TestingT(t) }
 
-func (s *cgroupSuite) TearDownTest(c *C) {
-	dirs.SetRootDir("/")
+func (s *cgroupSuite) SetUpTest(c *C) {
+	s.BaseTest.SetUpTest(c)
+
+	s.rootDir = c.MkDir()
+	s.AddCleanup(cgroup.MockFsRootPath(s.rootDir))
 }
 
 func (s *cgroupSuite) TestIsUnified(c *C) {
@@ -57,7 +63,7 @@ func (s *cgroupSuite) TestIsUnified(c *C) {
 
 func (s *cgroupSuite) TestProbeVersion2(c *C) {
 	restore := cgroup.MockFsTypeForPath(func(p string) (int64, error) {
-		c.Assert(p, Equals, filepath.Join(dirs.GlobalRootDir, "/sys/fs/cgroup"))
+		c.Assert(p, Equals, filepath.Join(s.rootDir, "/sys/fs/cgroup"))
 		return int64(cgroup.Cgroup2SuperMagic), nil
 	})
 	defer restore()
@@ -69,7 +75,7 @@ func (s *cgroupSuite) TestProbeVersion2(c *C) {
 func (s *cgroupSuite) TestProbeVersion1(c *C) {
 	const TMPFS_MAGIC = 0x1021994
 	restore := cgroup.MockFsTypeForPath(func(p string) (int64, error) {
-		c.Assert(p, Equals, filepath.Join(dirs.GlobalRootDir, "/sys/fs/cgroup"))
+		c.Assert(p, Equals, filepath.Join(s.rootDir, "/sys/fs/cgroup"))
 		return TMPFS_MAGIC, nil
 	})
 	defer restore()
@@ -80,7 +86,7 @@ func (s *cgroupSuite) TestProbeVersion1(c *C) {
 
 func (s *cgroupSuite) TestProbeVersionUnhappy(c *C) {
 	restore := cgroup.MockFsTypeForPath(func(p string) (int64, error) {
-		c.Assert(p, Equals, filepath.Join(dirs.GlobalRootDir, "/sys/fs/cgroup"))
+		c.Assert(p, Equals, filepath.Join(s.rootDir, "/sys/fs/cgroup"))
 		return 0, errors.New("statfs fail")
 	})
 	defer restore()
@@ -116,13 +122,13 @@ func (s *cgroupSuite) TestVersion(c *C) {
 }
 
 func (s *cgroupSuite) TestProcPidPath(c *C) {
-	c.Assert(cgroup.ProcPidPath(1), Equals, filepath.Join(dirs.GlobalRootDir, "/proc/1/cgroup"))
-	c.Assert(cgroup.ProcPidPath(1234), Equals, filepath.Join(dirs.GlobalRootDir, "/proc/1234/cgroup"))
+	c.Assert(cgroup.ProcPidPath(1), Equals, filepath.Join(s.rootDir, "/proc/1/cgroup"))
+	c.Assert(cgroup.ProcPidPath(1234), Equals, filepath.Join(s.rootDir, "/proc/1234/cgroup"))
 }
 
 func (s *cgroupSuite) TestControllerPathV1(c *C) {
-	c.Assert(cgroup.ControllerPathV1("freezer"), Equals, filepath.Join(dirs.GlobalRootDir, "/sys/fs/cgroup/freezer"))
-	c.Assert(cgroup.ControllerPathV1("memory"), Equals, filepath.Join(dirs.GlobalRootDir, "/sys/fs/cgroup/memory"))
+	c.Assert(cgroup.ControllerPathV1("freezer"), Equals, filepath.Join(s.rootDir, "/sys/fs/cgroup/freezer"))
+	c.Assert(cgroup.ControllerPathV1("memory"), Equals, filepath.Join(s.rootDir, "/sys/fs/cgroup/memory"))
 }
 
 var mockCgroup = []byte(`
@@ -140,12 +146,9 @@ var mockCgroup = []byte(`
 `)
 
 func (s *cgroupSuite) TestProgGroupHappy(c *C) {
-	root := c.MkDir()
-	dirs.SetRootDir(root)
-
-	err := os.MkdirAll(filepath.Join(root, "proc/333"), 0755)
+	err := os.MkdirAll(filepath.Join(s.rootDir, "proc/333"), 0755)
 	c.Assert(err, IsNil)
-	err = ioutil.WriteFile(filepath.Join(root, "proc/333/cgroup"), mockCgroup, 0755)
+	err = ioutil.WriteFile(filepath.Join(s.rootDir, "proc/333/cgroup"), mockCgroup, 0755)
 	c.Assert(err, IsNil)
 
 	group, err := cgroup.ProcGroup(333, "freezer")
@@ -158,10 +161,7 @@ func (s *cgroupSuite) TestProgGroupHappy(c *C) {
 }
 
 func (s *cgroupSuite) TestProgGroupMissingFile(c *C) {
-	root := c.MkDir()
-	dirs.SetRootDir(root)
-
-	err := os.MkdirAll(filepath.Join(root, "proc/333"), 0755)
+	err := os.MkdirAll(filepath.Join(s.rootDir, "proc/333"), 0755)
 	c.Assert(err, IsNil)
 
 	group, err := cgroup.ProcGroup(333, "freezer")
@@ -174,12 +174,9 @@ func (s *cgroupSuite) TestProgGroupMissingGroup(c *C) {
 10:devices:/user.slice
 `)
 
-	root := c.MkDir()
-	dirs.SetRootDir(root)
-
-	err := os.MkdirAll(filepath.Join(root, "proc/333"), 0755)
+	err := os.MkdirAll(filepath.Join(s.rootDir, "proc/333"), 0755)
 	c.Assert(err, IsNil)
-	err = ioutil.WriteFile(filepath.Join(root, "proc/333/cgroup"), noFreezerCgroup, 0755)
+	err = ioutil.WriteFile(filepath.Join(s.rootDir, "proc/333/cgroup"), noFreezerCgroup, 0755)
 	c.Assert(err, IsNil)
 
 	group, err := cgroup.ProcGroup(333, "freezer")
@@ -193,12 +190,9 @@ var mockCgroupConfusingCpu = []byte(`
 `)
 
 func (s *cgroupSuite) TestProgGroupConfusingCpu(c *C) {
-	root := c.MkDir()
-	dirs.SetRootDir(root)
-
-	err := os.MkdirAll(filepath.Join(root, "proc/333"), 0755)
+	err := os.MkdirAll(filepath.Join(s.rootDir, "proc/333"), 0755)
 	c.Assert(err, IsNil)
-	err = ioutil.WriteFile(filepath.Join(root, "proc/333/cgroup"), mockCgroupConfusingCpu, 0755)
+	err = ioutil.WriteFile(filepath.Join(s.rootDir, "proc/333/cgroup"), mockCgroupConfusingCpu, 0755)
 	c.Assert(err, IsNil)
 
 	group, err := cgroup.ProcGroup(333, "cpu")
