@@ -1,7 +1,7 @@
 #!/bin/sh
 # shellcheck disable=SC2124
 args=$@
-echo "$0: $@" > /dev/kmsg
+echo "$0:" "$@" > /dev/kmsg
 
 profiles=0
 while [ -n "$1" ]; do
