@@ -525,8 +525,8 @@ func (s *backendSuite) TestSetupManyApparmorBatchProcessingPermanentError(c *C) 
 		// two errors expected: SetupMany failure on multiple snaps falls back to one-by-one apparmor invocations. Both fail on apparmor_parser again and we only see
 		// individual failures. Error from batch run is only logged.
 		c.Assert(errs, HasLen, 2)
-		c.Check(errs[0], ErrorMatches, ".*failed to setup profiles for snap \"samba\".*\napparmor_parser output:\npermanent failure\n")
-		c.Check(errs[1], ErrorMatches, ".*failed to setup profiles for snap \"some-snap\".*\napparmor_parser output:\npermanent failure\n")
+		c.Check(errs[0], ErrorMatches, ".*cannot setup profiles for snap \"samba\".*\napparmor_parser output:\npermanent failure\n")
+		c.Check(errs[1], ErrorMatches, ".*cannot setup profiles for snap \"some-snap\".*\napparmor_parser output:\npermanent failure\n")
 		c.Check(log.String(), Matches, ".*failed to batch-reload unchanged profiles: cannot load apparmor profiles: exit status 1\n.*\n.*\n")
 
 		s.RemoveSnap(c, snapInfo1)
@@ -591,7 +591,7 @@ func (s *backendSuite) TestSetupManyApparmorBatchProcessingErrorWithFallbackPart
 		c.Check(log.String(), Matches, ".* failed to batch-reload unchanged profiles: cannot load apparmor profiles: exit status 1\napparmor_parser output:\nfailure: snap.samba.smbd\n")
 		// and we also fail when running that profile in fallback mode
 		c.Assert(errs, HasLen, 1)
-		c.Assert(errs[0], ErrorMatches, "failed to setup profiles for snap \"samba\": cannot load apparmor profiles: exit status 1\n.*apparmor_parser output:\nfailure: snap.samba.smbd\n")
+		c.Assert(errs[0], ErrorMatches, "cannot setup profiles for snap \"samba\": cannot load apparmor profiles: exit status 1\n.*apparmor_parser output:\nfailure: snap.samba.smbd\n")
 
 		s.RemoveSnap(c, snapInfo1)
 		s.RemoveSnap(c, snapInfo2)

@@ -33,7 +33,7 @@ func SetupMany(repo *Repository, backend SecurityBackend, snaps []*snap.Info, co
 	profilesOk := true
 	// use .SetupMany() if implemented by the backend, otherwise fall back to .Setup()
 	if setupManyInterface, ok := backend.(SecurityBackendSetupMany); ok {
-		timings.Run(tm, "setup-security-backend", fmt.Sprintf("setup security backend %q", backend.Name()), func(nesttm timings.Measurer) {
+		timings.Run(tm, "setup-security-backend[many]", fmt.Sprintf("setup security backend %q for %d snaps", backend.Name(), len(snaps)), func(nesttm timings.Measurer) {
 			if errors := setupManyInterface.SetupMany(snaps, confinementOpts, repo, nesttm); errors != nil {
 				profilesOk = false
 				// Let's log this but carry on without writing the system key.

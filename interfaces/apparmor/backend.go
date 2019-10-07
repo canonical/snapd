@@ -468,12 +468,12 @@ func (b *Backend) SetupMany(snaps []*snap.Info, confinement func(snapName string
 
 	if !fallback {
 		var errReloadChanged error
-		timings.Run(tm, "load-profiles-many[changed]", fmt.Sprintf("load changed security profiles of %d snaps", len(snaps)), func(nesttm timings.Measurer) {
+		timings.Run(tm, "load-profiles[changed-many]", fmt.Sprintf("load changed security profiles of %d snaps", len(snaps)), func(nesttm timings.Measurer) {
 			errReloadChanged = loadProfiles(allChangedPaths, dirs.AppArmorCacheDir, skipReadCache|conserveCPU)
 		})
 
 		var errReloadOther error
-		timings.Run(tm, "load-profiles-many[unchanged]", fmt.Sprintf("load unchanged security profiles %d snaps", len(snaps)), func(nesttm timings.Measurer) {
+		timings.Run(tm, "load-profiles[unchanged-many]", fmt.Sprintf("load unchanged security profiles %d snaps", len(snaps)), func(nesttm timings.Measurer) {
 			errReloadOther = loadProfiles(allUnchangedPaths, dirs.AppArmorCacheDir, conserveCPU)
 		})
 
@@ -498,7 +498,7 @@ func (b *Backend) SetupMany(snaps []*snap.Info, confinement func(snapName string
 		for _, snapInfo := range snaps {
 			opts := confinement(snapInfo.InstanceName())
 			if err := b.Setup(snapInfo, opts, repo, tm); err != nil {
-				errors = append(errors, fmt.Errorf("failed to setup profiles for snap %q: %s", snapInfo.InstanceName(), err))
+				errors = append(errors, fmt.Errorf("cannot setup profiles for snap %q: %s", snapInfo.InstanceName(), err))
 			}
 		}
 	}
