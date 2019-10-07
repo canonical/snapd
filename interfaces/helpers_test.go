@@ -27,7 +27,6 @@ import (
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/interfaces"
 	"github.com/snapcore/snapd/interfaces/ifacetest"
-	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/snap"
 	"github.com/snapcore/snapd/snap/snaptest"
 	"github.com/snapcore/snapd/testutil"
@@ -95,8 +94,8 @@ func (s *HelpersSuite) TestSetupManyRunsSetupManyIfImplemented(c *C) {
 		},
 	}
 
-	status := interfaces.SetupMany(s.repo, backend, []*snap.Info{s.snap1, s.snap2}, confinementOpts, s.tm)
-	c.Check(status, Equals, true)
+	errs := interfaces.SetupMany(s.repo, backend, []*snap.Info{s.snap1, s.snap2}, confinementOpts, s.tm)
+	c.Check(errs, HasLen, 0)
 	c.Check(setupManyCalls, Equals, 1)
 	c.Check(setupCalls, Equals, 0)
 }
@@ -118,16 +117,13 @@ func (s *HelpersSuite) TestSetupManyRunsSetupIfSetupManyNotImplemented(c *C) {
 		return interfaces.ConfinementOptions{}
 	}
 
-	status := interfaces.SetupMany(s.repo, backend, []*snap.Info{s.snap1, s.snap2}, confinementOpts, s.tm)
-	c.Check(status, Equals, true)
+	errs := interfaces.SetupMany(s.repo, backend, []*snap.Info{s.snap1, s.snap2}, confinementOpts, s.tm)
+	c.Check(errs, HasLen, 0)
 	c.Check(setupCalls, Equals, 2)
 	c.Check(confinementOptsCalls, Equals, 2)
 }
 
 func (s *HelpersSuite) TestSetupManySetupManyNotOK(c *C) {
-	log, restore := logger.MockLogger()
-	defer restore()
-
 	confinementOpts := func(snapName string) interfaces.ConfinementOptions {
 		return interfaces.ConfinementOptions{}
 	}
@@ -150,17 +146,13 @@ func (s *HelpersSuite) TestSetupManySetupManyNotOK(c *C) {
 		},
 	}
 
-	status := interfaces.SetupMany(s.repo, backend, []*snap.Info{s.snap1, s.snap2}, confinementOpts, s.tm)
-	c.Check(status, Equals, false)
+	errs := interfaces.SetupMany(s.repo, backend, []*snap.Info{s.snap1, s.snap2}, confinementOpts, s.tm)
+	c.Check(errs, HasLen, 2)
 	c.Check(setupManyCalls, Equals, 1)
 	c.Check(setupCalls, Equals, 0)
-	c.Check(log.String(), Matches, ".*cannot regenerate fake profiles\n.*error1\n.*error2\n")
 }
 
 func (s *HelpersSuite) TestSetupManySetupNotOK(c *C) {
-	log, restore := logger.MockLogger()
-	defer restore()
-
 	confinementOpts := func(snapName string) interfaces.ConfinementOptions {
 		return interfaces.ConfinementOptions{}
 	}
@@ -174,8 +166,7 @@ func (s *HelpersSuite) TestSetupManySetupNotOK(c *C) {
 		},
 	}
 
-	status := interfaces.SetupMany(s.repo, backend, []*snap.Info{s.snap1, s.snap2}, confinementOpts, s.tm)
-	c.Check(status, Equals, false)
+	errs := interfaces.SetupMany(s.repo, backend, []*snap.Info{s.snap1, s.snap2}, confinementOpts, s.tm)
+	c.Check(errs, HasLen, 2)
 	c.Check(setupCalls, Equals, 2)
-	c.Check(log.String(), Matches, `.*cannot regenerate fake profile for snap "some-snap": error 1\n.*cannot regenerate fake profile for snap "other-snap": error 2\n`)
 }

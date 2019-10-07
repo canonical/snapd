@@ -151,7 +151,11 @@ func (m *InterfaceManager) regenerateAllSecurityProfiles(tm timings.Measurer) er
 		if backend.Name() == "" {
 			continue // Test backends have no name, skip them to simplify testing.
 		}
-		if ok := interfaces.SetupMany(m.repo, backend, snaps, confinementOpts, tm); !ok {
+		if errors := interfaces.SetupMany(m.repo, backend, snaps, confinementOpts, tm); len(errors) > 0 {
+			logger.Noticef("cannot regenerate %s profiles", backend.Name())
+			for _, err := range errors {
+				logger.Noticef(err.Error())
+			}
 			shouldWriteSystemKey = false
 		}
 	}

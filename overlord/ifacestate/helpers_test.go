@@ -40,7 +40,6 @@ import (
 	"github.com/snapcore/snapd/overlord/state"
 	"github.com/snapcore/snapd/snap"
 	"github.com/snapcore/snapd/snap/snaptest"
-	"github.com/snapcore/snapd/testutil"
 	"github.com/snapcore/snapd/timings"
 )
 
@@ -360,7 +359,7 @@ func (s *helpersSuite) TestSystemKeyAndFailingProfileRegeneration(c *C) {
 	backend := &ifacetest.TestSecurityBackend{
 		BackendName: "BROKEN",
 		SetupCallback: func(snapInfo *snap.Info, opts interfaces.ConfinementOptions, repo *interfaces.Repository) error {
-			return errors.New("cannot setup security profile")
+			return errors.New("FAILED")
 		},
 	}
 	restore := ifacestate.MockSecurityBackends([]interfaces.SecurityBackend{backend})
@@ -414,7 +413,7 @@ apps:
 	c.Assert(err, IsNil)
 
 	// Check that system key is not on disk.
-	c.Check(log.String(), testutil.Contains, `cannot regenerate BROKEN profile for snap "test-snapd-canary": cannot setup security profile`)
+	c.Check(log.String(), Matches, `.*cannot regenerate BROKEN profiles\n.*FAILED.*\n`)
 	c.Check(osutil.FileExists(dirs.SnapSystemKeyFile), Equals, false)
 }
 
