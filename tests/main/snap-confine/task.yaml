@@ -43,6 +43,10 @@ execute: |
 
     echo "Ensure apparmor profile for snap-confine is parsable"
     for f in /etc/apparmor.d/usr.lib.snapd.snap-confine*; do
+        # Breake the loop when the file does not exist
+        if [ ! -f "$f" ]; then
+            break
+        fi
         if command -v apparmor_parser 2>/dev/null; then
             apparmor_parser -QTK "$f"
         fi
