@@ -31,7 +31,7 @@
  * allows us to track processes belonging to a given snap. This makes the
  * measurement "are any processes of this snap still alive" very simple.
  *
- * The "tasks" file belonging to the cgroup contains the set of all the
+ * The "cgroup.procs" file belonging to the cgroup contains the set of all the
  * processes that originate from the given snap. Examining that file one can
  * reliably determine if the set is empty or not.
  *
