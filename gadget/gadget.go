@@ -53,7 +53,7 @@ const (
 	// ImplicitSystemDataLabel is the implicit filesystem label of structure
 	// of system-data role
 	ImplicitSystemDataLabel = "writable"
-	SystemDataLabel         = "ubuntu-data"
+	UbuntuSystemDataLabel   = "ubuntu-data"
 )
 
 var (
@@ -364,8 +364,8 @@ func fmtIndexAndName(idx int, name string) string {
 }
 
 type validationState struct {
-	SystemSeed      bool
-	SystemDataLabel string
+	SystemSeed *VolumeStructure
+	SystemData *VolumeStructure
 }
 
 func validateVolume(name string, vol *Volume, constraints *ModelConstraints) error {
@@ -386,7 +386,7 @@ func validateVolume(name string, vol *Volume, constraints *ModelConstraints) err
 	state := &validationState{}
 	previousEnd := Size(0)
 	for idx, s := range vol.Structure {
-		if err := validateVolumeStructure(&s, vol, constraints, state); err != nil {
+		if err := validateVolumeStructure(&s, vol, constraints); err != nil {
 			return fmt.Errorf("invalid structure %v: %v", fmtIndexAndName(idx, s.Name), err)
 		}
 		var start Size
@@ -416,19 +416,24 @@ func validateVolume(name string, vol *Volume, constraints *ModelConstraints) err
 			knownFsLabels[s.Label] = true
 		}
 
+		switch s.Role {
+		case SystemSeed:
+			if state.SystemSeed != nil {
+				return fmt.Errorf("cannot have more than one system-seed role")
+			}
+			state.SystemSeed = &vol.Structure[idx]
+		case SystemData:
+			if state.SystemData != nil {
+				return fmt.Errorf("cannot have more than one system-seed role")
+			}
+			state.SystemData = &vol.Structure[idx]
+		}
+
 		previousEnd = end
 	}
 
-	if constraints == nil {
-		// gadget must be auto-consistent if constraints are not specified
-		if err := ensureVolumeConsistency(state); err != nil {
-			return err
-		}
-	} else {
-		// error if we have a SystemSeed constraint but no actual system-seed structure
-		if constraints.SystemSeed && !state.SystemSeed {
-			return fmt.Errorf("system seed constraint set but no system-seed structure found")
-		}
+	if err := ensureVolumeConsistency(state, constraints); err != nil {
+		return err
 	}
 
 	// sort by starting offset
@@ -437,16 +442,44 @@ func validateVolume(name string, vol *Volume, constraints *ModelConstraints) err
 	return validateCrossVolumeStructure(structures, knownStructures)
 }
 
-func ensureVolumeConsistency(state *validationState) error {
-	if state.SystemSeed {
-		if state.SystemDataLabel != SystemDataLabel {
-			return fmt.Errorf("role of this kind must have label %q, not %q",
-				SystemDataLabel, state.SystemDataLabel)
+func ensureVolumeConsistency(state *validationState, constraints *ModelConstraints) error {
+	if constraints == nil {
+		if state.SystemData != nil {
+			// gadget must be auto-consistent if constraints are not specified
+			if state.SystemSeed != nil {
+				if state.SystemData.Label != UbuntuSystemDataLabel {
+					return fmt.Errorf("system-data structure must have label %q, not %q",
+						UbuntuSystemDataLabel, state.SystemData.Label)
+				}
+			} else {
+				if state.SystemData.Label != "" && state.SystemData.Label != ImplicitSystemDataLabel {
+					return fmt.Errorf("system-data structure must have an implicit label or %q, not %q",
+						ImplicitSystemDataLabel, state.SystemData.Label)
+				}
+			}
+		}
+		return nil
+	}
+
+	if state.SystemSeed != nil {
+		// error if we don't have the SystemSeed constraint but we have a system-seed structure
+		if !constraints.SystemSeed {
+			return fmt.Errorf("model does not support the system-seed role")
+		}
+		// with SystemSeed, system-data label must be ubuntu-data
+		if state.SystemData != nil && state.SystemData.Label != UbuntuSystemDataLabel {
+			return fmt.Errorf("system-data structure must have label %q, not %q",
+				UbuntuSystemDataLabel, state.SystemData.Label)
 		}
 	} else {
-		if state.SystemDataLabel != "" && state.SystemDataLabel != ImplicitSystemDataLabel {
-			return fmt.Errorf("role of this kind must have an implicit label or %q, not %q",
-				ImplicitSystemDataLabel, state.SystemDataLabel)
+		// error if we have the SystemSeed constraint but no actual system-seed structure
+		if constraints.SystemSeed {
+			return fmt.Errorf("model requires system-seed structure, but none was found")
+		}
+		// without SystemSeed, system-data label must be implicit or writable
+		if state.SystemData != nil && state.SystemData.Label != "" && state.SystemData.Label != ImplicitSystemDataLabel {
+			return fmt.Errorf("system-data structure must have an implicit label or %q, not %q",
+				ImplicitSystemDataLabel, state.SystemData.Label)
 		}
 	}
 
@@ -498,14 +531,14 @@ func validateCrossVolumeStructure(structures []LaidOutStructure, knownStructures
 	return nil
 }
 
-func validateVolumeStructure(vs *VolumeStructure, vol *Volume, constraints *ModelConstraints, state *validationState) error {
+func validateVolumeStructure(vs *VolumeStructure, vol *Volume, constraints *ModelConstraints) error {
 	if vs.Size == 0 {
 		return errors.New("missing size")
 	}
 	if err := validateStructureType(vs.Type, vol); err != nil {
 		return fmt.Errorf("invalid type %q: %v", vs.Type, err)
 	}
-	if err := validateRole(vs, vol, constraints, state); err != nil {
+	if err := validateRole(vs, vol, constraints); err != nil {
 		var what string
 		if vs.Role != "" {
 			what = fmt.Sprintf("role %q", vs.Role)
@@ -604,7 +637,7 @@ func validateStructureType(s string, vol *Volume) error {
 	return nil
 }
 
-func validateRole(vs *VolumeStructure, vol *Volume, constraints *ModelConstraints, state *validationState) error {
+func validateRole(vs *VolumeStructure, vol *Volume, constraints *ModelConstraints) error {
 	if vs.Type == "bare" {
 		if vs.Role != "" && vs.Role != MBR {
 			return fmt.Errorf("conflicting type: %q", vs.Type)
@@ -620,19 +653,9 @@ func validateRole(vs *VolumeStructure, vol *Volume, constraints *ModelConstraint
 	}
 
 	switch vsRole {
-	case SystemData:
-		if constraints == nil {
-			// store label for consistency check
-			state.SystemDataLabel = vs.Label
-		} else {
-			dataLabel := ImplicitSystemDataLabel
-			if constraints.SystemSeed {
-				dataLabel = SystemDataLabel
-			}
-			if vs.Label != "" && vs.Label != dataLabel {
-				return fmt.Errorf(`role of this kind must have an implicit label or %q, not %q`, dataLabel, vs.Label)
-			}
-		}
+	case SystemData, SystemSeed:
+		// roles have cross dependencies, consistency checks are done at
+		// the volume level
 	case MBR:
 		if vs.Size > SizeMBR {
 			return errors.New("mbr structures cannot be larger than 446 bytes")
@@ -648,19 +671,6 @@ func validateRole(vs *VolumeStructure, vol *Volume, constraints *ModelConstraint
 		}
 	case SystemBoot, BootImage, BootSelect, "":
 		// noop
-	case SystemSeed:
-		// If constraints is nil, accept the system-seed role but ensure we're
-		// consistent, i.e. writable label should be ubuntu-data. Otherwise the
-		// system-seed role should be accepted only if the constraint allows it.
-		if constraints == nil {
-			if state != nil {
-				state.SystemSeed = true
-			}
-		} else if constraints.SystemSeed {
-			state.SystemSeed = true
-		} else {
-			return fmt.Errorf("unsupported role")
-		}
 	default:
 		return fmt.Errorf("unsupported role")
 	}

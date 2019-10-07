@@ -716,7 +716,7 @@ func (s *gadgetYamlTestSuite) TestValidateStructureType(c *C) {
 	} {
 		c.Logf("tc: %v %q", i, tc.s)
 
-		err := gadget.ValidateVolumeStructure(&gadget.VolumeStructure{Type: tc.s, Size: 123}, &gadget.Volume{Schema: tc.schema}, nil, nil)
+		err := gadget.ValidateVolumeStructure(&gadget.VolumeStructure{Type: tc.s, Size: 123}, &gadget.Volume{Schema: tc.schema}, nil)
 		if tc.err != "" {
 			c.Check(err, ErrorMatches, tc.err)
 		} else {
@@ -739,16 +739,6 @@ size: 1023
 `
 	bareType := `
 type: bare
-`
-	invalidSystemDataLabel := uuidType + `
-role: system-data
-filesystem-label: foobar
-size: 123M
-`
-	core20SystemDataLabel := uuidType + `
-role: system-data
-filesystem-label: ubuntu-data
-size: 123M
 `
 	mbrTooLarge := bareType + `
 role: mbr
@@ -817,14 +807,8 @@ size: 447`
 		{mustParseStructure(c, bogusRole), vol, nil, `invalid role "foobar": unsupported role`},
 		// the system-seed role
 		{mustParseStructure(c, validSystemSeed), vol, nil, ""},
-		{mustParseStructure(c, validSystemSeed), vol, &gadget.ModelConstraints{Classic: false, SystemSeed: false}, `invalid role "system-seed": unsupported role`},
 		{mustParseStructure(c, validSystemSeed), vol, &gadget.ModelConstraints{Classic: false, SystemSeed: true}, ""},
-		{mustParseStructure(c, validSystemSeed), vol, &gadget.ModelConstraints{Classic: true, SystemSeed: false}, `invalid role "system-seed": unsupported role`},
 		{mustParseStructure(c, validSystemSeed), vol, &gadget.ModelConstraints{Classic: true, SystemSeed: true}, ""},
-		// system-data, but improper label
-		{mustParseStructure(c, invalidSystemDataLabel), vol, &gadget.ModelConstraints{}, `invalid role "system-data": role of this kind must have an implicit label or "writable", not "foobar"`},
-		// system-data, core20 label
-		{mustParseStructure(c, core20SystemDataLabel), vol, &gadget.ModelConstraints{}, `invalid role "system-data": role of this kind must have an implicit label or "writable", not "ubuntu-data"`},
 		// mbr
 		{mustParseStructure(c, mbrTooLarge), mbrVol, nil, `invalid role "mbr": mbr structures cannot be larger than 446 bytes`},
 		{mustParseStructure(c, mbrBadOffset), mbrVol, nil, `invalid role "mbr": mbr structure must start at offset 0`},
@@ -842,9 +826,7 @@ size: 447`
 	} {
 		c.Logf("tc: %v %+v", i, tc.s)
 
-		state := &gadget.ValidationState{}
-		err := gadget.ValidateVolumeStructure(tc.s, tc.v, tc.c, state)
-		c.Logf("resulting state: %+v", state)
+		err := gadget.ValidateVolumeStructure(tc.s, tc.v, tc.c)
 		if tc.err != "" {
 			c.Check(err, ErrorMatches, tc.err)
 		} else {
@@ -865,8 +847,7 @@ func (s *gadgetYamlTestSuite) TestValidateFilesystem(c *C) {
 	} {
 		c.Logf("tc: %v %+v", i, tc.s)
 
-		err := gadget.ValidateVolumeStructure(&gadget.VolumeStructure{Filesystem: tc.s, Type: "21686148-6449-6E6F-744E-656564454649", Size: 123},
-			&gadget.Volume{}, nil, nil)
+		err := gadget.ValidateVolumeStructure(&gadget.VolumeStructure{Filesystem: tc.s, Type: "21686148-6449-6E6F-744E-656564454649", Size: 123}, &gadget.Volume{}, nil)
 		if tc.err != "" {
 			c.Check(err, ErrorMatches, tc.err)
 		} else {
@@ -954,8 +935,8 @@ func (s *gadgetYamlTestSuite) TestValidateVolumeDuplicateFsLabel(c *C) {
 		errMsg     string
 	}{
 		{false, "writable", `filesystem label "writable" is not unique`},
-		{false, "ubuntu-data", `.* implicit label or "writable", not "ubuntu-data"`},
-		{true, "writable", `.* implicit label or "ubuntu-data", not "writable"`},
+		{false, "ubuntu-data", `filesystem label "ubuntu-data" is not unique`},
+		{true, "writable", `filesystem label "writable" is not unique`},
 		{true, "ubuntu-data", `filesystem label "ubuntu-data" is not unique`},
 	} {
 		for _, constraints := range []*gadget.ModelConstraints{
@@ -1083,7 +1064,7 @@ content:
 	} {
 		c.Logf("tc: %v %+v", i, tc.s)
 
-		err := gadget.ValidateVolumeStructure(tc.s, &gadget.Volume{}, nil, nil)
+		err := gadget.ValidateVolumeStructure(tc.s, &gadget.Volume{}, nil)
 		if tc.err != "" {
 			c.Check(err, ErrorMatches, tc.err)
 		} else {
@@ -1145,14 +1126,14 @@ func (s *gadgetYamlTestSuite) TestValidateStructureUpdatePreserveOnlyForFs(c *C)
 		Type:   "bare",
 		Update: gadget.VolumeUpdate{Preserve: []string{"foo"}},
 		Size:   512,
-	}, gv, nil, nil)
+	}, gv, nil)
 	c.Check(err, ErrorMatches, "preserving files during update is not supported for non-filesystem structures")
 
 	err = gadget.ValidateVolumeStructure(&gadget.VolumeStructure{
 		Type:   "21686148-6449-6E6F-744E-656564454649",
 		Update: gadget.VolumeUpdate{Preserve: []string{"foo"}},
 		Size:   512,
-	}, gv, nil, nil)
+	}, gv, nil)
 	c.Check(err, ErrorMatches, "preserving files during update is not supported for non-filesystem structures")
 
 	err = gadget.ValidateVolumeStructure(&gadget.VolumeStructure{
@@ -1160,7 +1141,7 @@ func (s *gadgetYamlTestSuite) TestValidateStructureUpdatePreserveOnlyForFs(c *C)
 		Filesystem: "vfat",
 		Update:     gadget.VolumeUpdate{Preserve: []string{"foo"}},
 		Size:       512,
-	}, gv, nil, nil)
+	}, gv, nil)
 	c.Check(err, IsNil)
 }
 
@@ -1172,7 +1153,7 @@ func (s *gadgetYamlTestSuite) TestValidateStructureUpdatePreserveDuplicates(c *C
 		Filesystem: "vfat",
 		Update:     gadget.VolumeUpdate{Edition: 1, Preserve: []string{"foo", "bar"}},
 		Size:       512,
-	}, gv, nil, nil)
+	}, gv, nil)
 	c.Check(err, IsNil)
 
 	err = gadget.ValidateVolumeStructure(&gadget.VolumeStructure{
@@ -1180,7 +1161,7 @@ func (s *gadgetYamlTestSuite) TestValidateStructureUpdatePreserveDuplicates(c *C
 		Filesystem: "vfat",
 		Update:     gadget.VolumeUpdate{Edition: 1, Preserve: []string{"foo", "bar", "foo"}},
 		Size:       512,
-	}, gv, nil, nil)
+	}, gv, nil)
 	c.Check(err, ErrorMatches, `duplicate "preserve" entry "foo"`)
 }
 
@@ -1191,14 +1172,14 @@ func (s *gadgetYamlTestSuite) TestValidateStructureSizeRequired(c *C) {
 	err := gadget.ValidateVolumeStructure(&gadget.VolumeStructure{
 		Type:   "bare",
 		Update: gadget.VolumeUpdate{Preserve: []string{"foo"}},
-	}, gv, nil, nil)
+	}, gv, nil)
 	c.Check(err, ErrorMatches, "missing size")
 
 	err = gadget.ValidateVolumeStructure(&gadget.VolumeStructure{
 		Type:       "21686148-6449-6E6F-744E-656564454649",
 		Filesystem: "vfat",
 		Update:     gadget.VolumeUpdate{Preserve: []string{"foo"}},
-	}, gv, nil, nil)
+	}, gv, nil)
 	c.Check(err, ErrorMatches, "missing size")
 
 	err = gadget.ValidateVolumeStructure(&gadget.VolumeStructure{
@@ -1206,7 +1187,7 @@ func (s *gadgetYamlTestSuite) TestValidateStructureSizeRequired(c *C) {
 		Filesystem: "vfat",
 		Size:       mustParseGadgetSize(c, "123M"),
 		Update:     gadget.VolumeUpdate{Preserve: []string{"foo"}},
-	}, gv, nil, nil)
+	}, gv, nil)
 	c.Check(err, IsNil)
 }
 
@@ -1362,25 +1343,38 @@ func (s *gadgetTestSuite) TestEffectiveFilesystemLabel(c *C) {
 }
 
 func (s *gadgetYamlTestSuite) TestEnsureVolumeConsistency(c *C) {
+	state := func(seed bool, label string) *gadget.ValidationState {
+		systemDataVolume := &gadget.VolumeStructure{Label: label}
+		systemSeedVolume := (*gadget.VolumeStructure)(nil)
+		if seed {
+			systemSeedVolume = &gadget.VolumeStructure{}
+		}
+		return &gadget.ValidationState{
+			SystemSeed: systemSeedVolume,
+			SystemData: systemDataVolume,
+		}
+	}
+
 	for i, tc := range []struct {
 		s   *gadget.ValidationState
 		err string
 	}{
+
 		// we have the system-seed role
-		{&gadget.ValidationState{SystemSeed: true, SystemDataLabel: ""}, `.* must have label "ubuntu-data", not ""`},
-		{&gadget.ValidationState{SystemSeed: true, SystemDataLabel: "foobar"}, `.* must have label "ubuntu-data", not "foobar"`},
-		{&gadget.ValidationState{SystemSeed: true, SystemDataLabel: "writable"}, `.* must have label "ubuntu-data", not "writable"`},
-		{&gadget.ValidationState{SystemSeed: true, SystemDataLabel: "ubuntu-data"}, ""},
+		{state(true, ""), `.* must have label "ubuntu-data", not ""`},
+		{state(true, "foobar"), `.* must have label "ubuntu-data", not "foobar"`},
+		{state(true, "writable"), `.* must have label "ubuntu-data", not "writable"`},
+		{state(true, "ubuntu-data"), ""},
 
 		// we don't have the system-seed role (old systems)
-		{&gadget.ValidationState{SystemSeed: false, SystemDataLabel: ""}, ""}, // implicit is ok
-		{&gadget.ValidationState{SystemSeed: false, SystemDataLabel: "foobar"}, `.* must have an implicit label or "writable", not "foobar"`},
-		{&gadget.ValidationState{SystemSeed: false, SystemDataLabel: "writable"}, ""},
-		{&gadget.ValidationState{SystemSeed: false, SystemDataLabel: "ubuntu-data"}, `.* must have an implicit label or "writable", not "ubuntu-data"`},
+		{state(false, ""), ""}, // implicit is ok
+		{state(false, "foobar"), `.* must have an implicit label or "writable", not "foobar"`},
+		{state(false, "writable"), ""},
+		{state(false, "ubuntu-data"), `.* must have an implicit label or "writable", not "ubuntu-data"`},
 	} {
-		c.Logf("tc: %v %+v", i, tc.s)
+		c.Logf("tc: %v %p %v", i, tc.s.SystemSeed, tc.s.SystemData.Label)
 
-		err := gadget.EnsureVolumeConsistency(tc.s)
+		err := gadget.EnsureVolumeConsistency(tc.s, nil)
 		if tc.err != "" {
 			c.Assert(err, ErrorMatches, tc.err)
 		} else {
@@ -1450,13 +1444,13 @@ func (s *gadgetYamlTestSuite) TestGadgetConsistencyWithConstraints(c *C) {
 	}{
 		// when constraints are nil, the system-seed role and ubuntu-data label on the
 		// system-data structure should be consistent
-		{"system-seed", "writable", true, `.* must have an implicit label or "ubuntu-data", not "writable"`},
-		{"system-seed", "writable", false, `.* invalid role "system-seed": unsupported role`},
+		{"system-seed", "writable", true, `.* must have label "ubuntu-data", not "writable"`},
+		{"system-seed", "writable", false, `.* model does not support the system-seed role`},
 		{"system-seed", "ubuntu-data", true, ""},
-		{"system-seed", "ubuntu-data", false, `.* invalid role "system-seed": unsupported role`},
-		{"", "writable", true, `.* must have an implicit label or "ubuntu-data", not "writable"`},
+		{"system-seed", "ubuntu-data", false, `.* model does not support the system-seed role`},
+		{"", "writable", true, `.* model requires system-seed structure, but none was found`},
 		{"", "writable", false, ""},
-		{"", "ubuntu-data", true, `.* no system-seed structure found`},
+		{"", "ubuntu-data", true, `.* model requires system-seed structure, but none was found`},
 		{"", "ubuntu-data", false, `.* must have an implicit label or "writable", not "ubuntu-data"`},
 	} {
 		c.Logf("tc: %v %v %v %v", i, tc.role, tc.label, tc.systemSeed)
