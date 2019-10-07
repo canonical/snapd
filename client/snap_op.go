@@ -21,6 +21,7 @@ package client
 
 import (
 	"bytes"
+	"context"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -341,7 +342,9 @@ func (client *Client) Download(name string, options *SnapOptions) (suggestedFile
 		"Content-Type": "application/json",
 	}
 
-	rsp, err := client.raw("POST", "/v2/download", nil, headers, bytes.NewBuffer(data))
+	// no deadline for downloads
+	ctx := context.Background()
+	rsp, err := client.raw(ctx, "POST", "/v2/download", nil, headers, bytes.NewBuffer(data))
 	if err != nil {
 		return "", nil, err
 	}
