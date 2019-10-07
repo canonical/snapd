@@ -153,11 +153,17 @@ type Writer struct {
 
 	modelRefs []*asserts.Ref
 
-	// XXX optionsSnaps []*OptionsSnap
+	optionsSnaps []*OptionsSnap
+	// consumedOptSnapNum counts which options snaps have been consumed
+	// by either cross matching or matching with a model snap
+	consumedOptSnapNum int
+	// extraSnapsGuessNum is essentially #(optionsSnaps) -
+	// consumedOptSnapNum
+	extraSnapsGuessNum int
 
 	byNameOptSnaps *naming.SnapSet
 
-	localSnaps      []*SeedSnap
+	localSnaps      map[*OptionsSnap]*SeedSnap
 	byRefLocalSnaps *naming.SnapSet
 
 	availableSnaps *naming.SnapSet
@@ -181,6 +187,7 @@ type policy interface {
 
 	needsImplicitSnaps(*naming.SnapSet) (bool, error)
 	implicitSnaps(*naming.SnapSet) []*asserts.ModelSnap
+	implicitExtraSnaps(*naming.SnapSet) []*OptionsSnap
 }
 
 type tree interface {
@@ -191,9 +198,9 @@ type tree interface {
 
 	localSnapPath(*SeedSnap) string
 
-	writeAssertions(db asserts.RODatabase, modelRefs []*asserts.Ref, snapsFromModel []*SeedSnap) error
+	writeAssertions(db asserts.RODatabase, modelRefs []*asserts.Ref, snapsFromModel []*SeedSnap, extraSnaps []*SeedSnap) error
 
-	writeMeta(snapsFromModel []*SeedSnap) error
+	writeMeta(snapsFromModel []*SeedSnap, extraSnaps []*SeedSnap) error
 }
 
 // New returns a Writer to write a seed for the given model and using
@@ -343,15 +350,21 @@ func (w *Writer) SetOptionsSnaps(optSnaps []*OptionsSnap) error {
 			}
 		}
 		if local {
-			w.localSnaps = append(w.localSnaps, &SeedSnap{
+			if w.localSnaps == nil {
+				w.localSnaps = make(map[*OptionsSnap]*SeedSnap)
+			}
+			w.localSnaps[sn] = &SeedSnap{
 				SnapRef: nil,
 				Path:    sn.Path,
 
 				local:      true,
 				optionSnap: sn,
-			})
+			}
 		}
 	}
+
+	// used later to determine extra snaps
+	w.optionsSnaps = optSnaps
 
 	return nil
 }
@@ -410,7 +423,17 @@ func (w *Writer) LocalSnaps() ([]*SeedSnap, error) {
 		return nil, err
 	}
 
-	return w.localSnaps, nil
+	if len(w.localSnaps) == 0 {
+		return nil, nil
+	}
+
+	lsnaps := make([]*SeedSnap, 0, len(w.localSnaps))
+	for _, optSnap := range w.optionsSnaps {
+		if sn := w.localSnaps[optSnap]; sn != nil {
+			lsnaps = append(lsnaps, sn)
+		}
+	}
+	return lsnaps, nil
 }
 
 // InfoDerived checks the local snaps metadata provided via setting it
@@ -420,7 +443,13 @@ func (w *Writer) InfoDerived() error {
 		return err
 	}
 
-	for _, sn := range w.localSnaps {
+	// loop this way to process for consistency in the same order
+	// as LocalSnaps result
+	for _, optSnap := range w.optionsSnaps {
+		sn := w.localSnaps[optSnap]
+		if sn == nil {
+			continue
+		}
 		if sn.Info == nil {
 			return fmt.Errorf("internal error: before seedwriter.Writer.InfoDerived snap %q Info should have been set", sn.Path)
 		}
@@ -437,6 +466,9 @@ func (w *Writer) InfoDerived() error {
 
 		// in case, merge channel given by name separately
 		optSnap, _ := w.byNameOptSnaps.Lookup(sn).(*OptionsSnap)
+		if optSnap != nil {
+			w.consumedOptSnapNum++
+		}
 		if optSnap != nil && optSnap.Channel != "" {
 			if sn.optionSnap.Channel != "" {
 				if sn.optionSnap.Channel != optSnap.Channel {
@@ -472,8 +504,8 @@ type snapsToDownloadSet int
 const (
 	toDownloadModel snapsToDownloadSet = iota
 	toDownloadImplicit
-	// toDownloadExtra
-	// toDownloadExtraImplicit
+	toDownloadExtra
+	toDownloadExtraImplicit
 )
 
 func (w *Writer) modelSnapToSeed(modSnap *asserts.ModelSnap) (*SeedSnap, error) {
@@ -516,9 +548,13 @@ func (w *Writer) modelSnapsToDownload(modSnaps []*asserts.ModelSnap) (toDownload
 		if !sn.local {
 			toDownload = append(toDownload, sn)
 		}
+		if sn.optionSnap != nil {
+			w.consumedOptSnapNum++
+		}
 		w.snapsFromModel = append(w.snapsFromModel, sn)
 	}
 	w.toDownloadConsideredNum = len(w.snapsFromModel) - alreadyConsidered
+	w.extraSnapsGuessNum = len(w.optionsSnaps) - w.consumedOptSnapNum
 
 	return toDownload, nil
 }
@@ -541,6 +577,66 @@ func (w *Writer) modSnaps() []*asserts.ModelSnap {
 	return modSnaps
 }
 
+func (w *Writer) optExtraSnaps() []*OptionsSnap {
+	extra := make([]*OptionsSnap, 0, w.extraSnapsGuessNum)
+	for _, optSnap := range w.optionsSnaps {
+		var snapRef naming.SnapRef = optSnap
+		if sn := w.localSnaps[optSnap]; sn != nil {
+			snapRef = sn
+		}
+		if w.availableSnaps.Contains(snapRef) {
+			continue
+		}
+		extra = append(extra, optSnap)
+	}
+	return extra
+}
+
+func (w *Writer) extraSnapToSeed(optSnap *OptionsSnap) (*SeedSnap, error) {
+	sn := w.localSnaps[optSnap]
+	if sn == nil {
+		// not local, to download
+		sn = &SeedSnap{
+			SnapRef: optSnap,
+
+			local:      false,
+			optionSnap: optSnap,
+		}
+	}
+	if sn.SnapName() == "" {
+		return nil, fmt.Errorf("internal error: option extra snap has no associated name: %#v %#v", optSnap, sn)
+	}
+
+	channel, err := w.resolveChannel(sn.SnapName(), nil, optSnap)
+	if err != nil {
+		return nil, err
+	}
+	sn.Channel = channel
+	return sn, nil
+}
+
+func (w *Writer) extraSnapsToDownload(extraSnaps []*OptionsSnap) (toDownload []*SeedSnap, err error) {
+	if w.extraSnaps == nil {
+		w.extraSnaps = make([]*SeedSnap, 0, len(extraSnaps))
+	}
+	toDownload = make([]*SeedSnap, 0, len(extraSnaps))
+
+	alreadyConsidered := len(w.extraSnaps)
+	for _, optSnap := range extraSnaps {
+		sn, err := w.extraSnapToSeed(optSnap)
+		if err != nil {
+			return nil, err
+		}
+		if !sn.local {
+			toDownload = append(toDownload, sn)
+		}
+		w.extraSnaps = append(w.extraSnaps, sn)
+	}
+	w.toDownloadConsideredNum = len(w.extraSnaps) - alreadyConsidered
+
+	return toDownload, nil
+}
+
 // SnapsToDownload returns a list of seed snaps to download. Once that
 // is done and their SeedSnaps Info with SetInfo and ARefs fields are
 // set, Downloaded should be called next.
@@ -549,19 +645,19 @@ func (w *Writer) SnapsToDownload() (snaps []*SeedSnap, err error) {
 		return nil, err
 	}
 
-	// XXX extra snaps
-
 	switch w.toDownload {
 	case toDownloadModel:
+		// XXX check early if policy is ok with extra snaps
 		return w.modelSnapsToDownload(w.modSnaps())
 	case toDownloadImplicit:
 		return w.modelSnapsToDownload(w.policy.implicitSnaps(w.availableSnaps))
+	case toDownloadExtra:
+		return w.extraSnapsToDownload(w.optExtraSnaps())
+	case toDownloadExtraImplicit:
+		return w.extraSnapsToDownload(w.policy.implicitExtraSnaps(w.availableSnaps))
 	default:
 		panic(fmt.Sprintf("unknown to-download set: %d", w.toDownload))
 	}
-
-	// XXX compute extra snaps (up to implicit snaps) to error as
-	// early as possible
 }
 
 func (w *Writer) resolveChannel(whichSnap string, modSnap *asserts.ModelSnap, optSnap *OptionsSnap) (string, error) {
@@ -669,7 +765,20 @@ func (w *Writer) Downloaded() (complete bool, err error) {
 
 	// TODO: w.policy.resetChecks()
 
-	considered := w.snapsFromModel
+	var considered []*SeedSnap
+	switch w.toDownload {
+	default:
+		panic(fmt.Sprintf("unknown to-download set: %d", w.toDownload))
+	case toDownloadImplicit:
+		fallthrough
+	case toDownloadModel:
+		considered = w.snapsFromModel
+	case toDownloadExtraImplicit:
+		fallthrough
+	case toDownloadExtra:
+		considered = w.extraSnaps
+	}
+
 	considered = considered[len(considered)-w.toDownloadConsideredNum:]
 	err = w.downloaded(considered)
 	if err != nil {
@@ -687,8 +796,27 @@ func (w *Writer) Downloaded() (complete bool, err error) {
 			w.expectedStep = snapsToDownloadStep
 			return false, nil
 		}
+		fallthrough
 	case toDownloadImplicit:
-		// nothing more to do
+		if w.extraSnapsGuessNum > 0 {
+			w.toDownload = toDownloadExtra
+			w.expectedStep = snapsToDownloadStep
+			return false, nil
+		}
+	case toDownloadExtra:
+		implicitNeeded, err := w.policy.needsImplicitSnaps(w.availableSnaps)
+		if err != nil {
+			return false, err
+		}
+		if implicitNeeded {
+			w.toDownload = toDownloadExtraImplicit
+			w.expectedStep = snapsToDownloadStep
+			return false, nil
+		}
+	case toDownloadExtraImplicit:
+		// nothing to do
+		// TODO: consider generalizing the logic and optionally asking
+		// the policy again
 	default:
 		panic(fmt.Sprintf("unknown to-download set: %d", w.toDownload))
 	}
@@ -744,25 +872,35 @@ func (w *Writer) SeedSnaps(copySnap func(name, src, dst string) error) error {
 
 	snapsDir := w.tree.snapsDir()
 
-	for _, sn := range w.snapsFromModel {
-		info := sn.Info
-		if !sn.local {
-			expectedPath := filepath.Join(snapsDir, filepath.Base(info.MountFile()))
-			if sn.Path != expectedPath {
-				return fmt.Errorf("internal error: before seedwriter.Writer.SeedSnaps snap %q Path should have been set to %q", sn.SnapName(), expectedPath)
+	seedSnaps := func(snaps []*SeedSnap) error {
+		for _, sn := range snaps {
+			info := sn.Info
+			if !sn.local {
+				expectedPath := filepath.Join(snapsDir, filepath.Base(info.MountFile()))
+				if sn.Path != expectedPath {
+					return fmt.Errorf("internal error: before seedwriter.Writer.SeedSnaps snap %q Path should have been set to %q", sn.SnapName(), expectedPath)
+				}
+				if !osutil.FileExists(expectedPath) {
+					return fmt.Errorf("internal error: before seedwriter.Writer.SeedSnaps snap file %q should exist", expectedPath)
+				}
+			} else {
+				dst := w.tree.localSnapPath(sn)
+				err := copySnap(info.SnapName(), sn.Path, dst)
+				if err != nil {
+					return err
+				}
+				// record final destination path
+				sn.Path = dst
 			}
-			if !osutil.FileExists(expectedPath) {
-				return fmt.Errorf("internal error: before seedwriter.Writer.SeedSnaps snap file %q should exist", expectedPath)
-			}
-		} else {
-			dst := w.tree.localSnapPath(sn)
-			err := copySnap(info.SnapName(), sn.Path, dst)
-			if err != nil {
-				return err
-			}
-			// record final destination path
-			sn.Path = dst
 		}
+		return nil
+	}
+
+	if err := seedSnaps(w.snapsFromModel); err != nil {
+		return err
+	}
+	if err := seedSnaps(w.extraSnaps); err != nil {
+		return err
 	}
 
 	return nil
@@ -775,10 +913,11 @@ func (w *Writer) WriteMeta() error {
 	}
 
 	snapsFromModel := w.snapsFromModel
+	extraSnaps := w.extraSnaps
 
-	if err := w.tree.writeAssertions(w.db, w.modelRefs, snapsFromModel); err != nil {
+	if err := w.tree.writeAssertions(w.db, w.modelRefs, snapsFromModel, extraSnaps); err != nil {
 		return err
 	}
 
-	return w.tree.writeMeta(snapsFromModel)
+	return w.tree.writeMeta(snapsFromModel, extraSnaps)
 }
