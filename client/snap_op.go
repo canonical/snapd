@@ -314,9 +314,8 @@ type snapRevisionOptions struct {
 }
 
 type downloadAction struct {
-	Action  string                `json:"action"`
-	Snaps   []string              `json:"snaps,omitempty"`
-	Options []snapRevisionOptions `json:"options,omitempty"`
+	SnapName string              `json:"snap-name,omitempty"`
+	Options  snapRevisionOptions `json:"options,omitempty"`
 }
 
 // Download will stream the given snap to the client
@@ -330,9 +329,8 @@ func (client *Client) Download(name string, options *SnapOptions) (suggestedFile
 		Revision:  options.Revision,
 	}
 	action := downloadAction{
-		Action:  "download",
-		Snaps:   []string{name},
-		Options: []snapRevisionOptions{dlOpts},
+		SnapName: name,
+		Options:  dlOpts,
 	}
 	data, err := json.Marshal(&action)
 	if err != nil {
