@@ -452,7 +452,7 @@ func (cs *clientSuite) TestClientOpDownload(c *check.C) {
 	c.Assert(cs.req.Header.Get("Content-Type"), check.Equals, "application/json")
 	body, err := ioutil.ReadAll(cs.req.Body)
 	c.Assert(err, check.IsNil)
-	var jsonBody client.DownloadData
+	var jsonBody client.DownloadAction
 	err = json.Unmarshal(body, &jsonBody)
 	c.Assert(err, check.IsNil)
 	c.Check(jsonBody.Action, check.Equals, "download")

@@ -50,4 +50,4 @@ func UnmarshalSnapshotAction(body io.Reader) (act snapshotAction, err error) {
 	return
 }
 
-type DownloadData downloadData
+type DownloadAction = downloadAction

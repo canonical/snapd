@@ -312,7 +312,7 @@ type snapRevisionOptions struct {
 	CohortKey string `json:"cohort-key,omitempty"`
 }
 
-type downloadData struct {
+type downloadAction struct {
 	Action  string                `json:"action"`
 	Snaps   []string              `json:"snaps,omitempty"`
 	Options []snapRevisionOptions `json:"options,omitempty"`
@@ -328,7 +328,7 @@ func (client *Client) Download(name string, options *SnapOptions) (suggestedFile
 		CohortKey: options.CohortKey,
 		Revision:  options.Revision,
 	}
-	action := downloadData{
+	action := downloadAction{
 		Action:  "download",
 		Snaps:   []string{name},
 		Options: []snapRevisionOptions{dlOpts},
