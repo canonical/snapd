@@ -140,6 +140,9 @@ func (cs *clientSuite) TestClientOpSnap(c *check.C) {
 
 		c.Assert(cs.req.Header.Get("Content-Type"), check.Equals, "application/json", check.Commentf(s.action))
 
+		_, ok := cs.req.Context().Deadline()
+		c.Check(ok, check.Equals, true)
+
 		body, err := ioutil.ReadAll(cs.req.Body)
 		c.Assert(err, check.IsNil, check.Commentf(s.action))
 		jsonBody := make(map[string]string)
@@ -233,6 +236,8 @@ func (cs *clientSuite) TestClientOpInstallPath(c *check.C) {
 	c.Check(cs.req.Method, check.Equals, "POST")
 	c.Check(cs.req.URL.Path, check.Equals, fmt.Sprintf("/v2/snaps"))
 	c.Assert(cs.req.Header.Get("Content-Type"), check.Matches, "multipart/form-data; boundary=.*")
+	_, ok := cs.req.Context().Deadline()
+	c.Assert(ok, check.Equals, false)
 	c.Check(id, check.Equals, "66b3")
 }
 
