@@ -25,13 +25,17 @@ import (
 	"net"
 	"net/http"
 	"os"
+	"sync"
+	"syscall"
 	"time"
 
 	"github.com/gorilla/mux"
 	"gopkg.in/tomb.v2"
 
 	"github.com/snapcore/snapd/dirs"
+	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/netutil"
+	"github.com/snapcore/snapd/osutil/sys"
 	"github.com/snapcore/snapd/systemd"
 )
 
@@ -41,6 +45,9 @@ type SessionAgent struct {
 	serve    *http.Server
 	tomb     tomb.Tomb
 	router   *mux.Router
+
+	idle        *idleTracker
+	IdleTimeout time.Duration
 }
 
 // A ResponseFunc handles one of the individual verbs for a method
@@ -79,6 +86,70 @@ func (c *Command) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	rsp.ServeHTTP(w, r)
 }
 
+type idleTracker struct {
+	mu         sync.Mutex
+	active     map[net.Conn]struct{}
+	lastActive time.Time
+}
+
+var sysGetsockoptUcred = syscall.GetsockoptUcred
+
+func getUcred(conn net.Conn) (*syscall.Ucred, error) {
+	if uconn, ok := conn.(*net.UnixConn); ok {
+		f, err := uconn.File()
+		if err != nil {
+			return nil, err
+		}
+		defer f.Close()
+		return sysGetsockoptUcred(int(f.Fd()), syscall.SOL_SOCKET, syscall.SO_PEERCRED)
+	}
+	return nil, fmt.Errorf("expected a net.UnixConn, but got a %T", conn)
+}
+
+func (it *idleTracker) trackConn(conn net.Conn, state http.ConnState) {
+	// Perform peer credentials check
+	if state == http.StateNew {
+		ucred, err := getUcred(conn)
+		if err != nil {
+			logger.Noticef("Failed to retrieve peer credentials: %v", err)
+			conn.Close()
+			return
+		}
+		if ucred.Uid != 0 && ucred.Uid != uint32(sys.Geteuid()) {
+			logger.Noticef("Blocking request from user ID %v", ucred.Uid)
+			conn.Close()
+			return
+		}
+	}
+
+	it.mu.Lock()
+	defer it.mu.Unlock()
+	oldActive := len(it.active)
+	if state == http.StateNew || state == http.StateActive {
+		it.active[conn] = struct{}{}
+	} else {
+		delete(it.active, conn)
+	}
+	if len(it.active) == 0 && oldActive != 0 {
+		it.lastActive = time.Now()
+	}
+}
+
+// idleDuration returns the duration of time the server has been idle
+func (it *idleTracker) idleDuration() time.Duration {
+	it.mu.Lock()
+	defer it.mu.Unlock()
+	if len(it.active) != 0 {
+		return 0
+	}
+	return time.Now().Sub(it.lastActive)
+}
+
+const (
+	defaultIdleTimeout = 30 * time.Second
+	shutdownTimeout    = 5 * time.Second
+)
+
 func (s *SessionAgent) Init() error {
 	listenerMap, err := netutil.ActivationListeners()
 	if err != nil {
@@ -88,8 +159,16 @@ func (s *SessionAgent) Init() error {
 	if s.listener, err = netutil.GetListener(agentSocket, listenerMap); err != nil {
 		return fmt.Errorf("cannot listen on socket %s: %v", agentSocket, err)
 	}
+	s.idle = &idleTracker{
+		active:     make(map[net.Conn]struct{}),
+		lastActive: time.Now(),
+	}
+	s.IdleTimeout = defaultIdleTimeout
 	s.addRoutes()
-	s.serve = &http.Server{Handler: s.router}
+	s.serve = &http.Server{
+		Handler:   s.router,
+		ConnState: s.idle.trackConn,
+	}
 	return nil
 }
 
@@ -113,12 +192,30 @@ func (s *SessionAgent) Start() {
 		}
 		return nil
 	})
+	s.tomb.Go(s.exitOnIdle)
 	systemd.SdNotify("READY=1")
 }
 
-var (
-	shutdownTimeout = 5 * time.Second
-)
+func (s *SessionAgent) exitOnIdle() error {
+	timer := time.NewTimer(s.IdleTimeout)
+Loop:
+	for {
+		select {
+		case <-s.tomb.Dying():
+			break Loop
+		case <-timer.C:
+			// Have we been idle
+			idleDuration := s.idle.idleDuration()
+			if idleDuration >= s.IdleTimeout {
+				s.tomb.Kill(nil)
+				break Loop
+			} else {
+				timer.Reset(s.IdleTimeout - idleDuration)
+			}
+		}
+	}
+	return nil
+}
 
 // Stop performs a graceful shutdown of the session agent and waits up to 5
 // seconds for it to complete.

@@ -20,6 +20,7 @@
 package daemon
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"errors"
@@ -32,6 +33,7 @@ import (
 	"net/http"
 	"net/url"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"sort"
 	"strconv"
@@ -41,6 +43,7 @@ import (
 	"github.com/gorilla/mux"
 	"github.com/jessevdk/go-flags"
 
+	"github.com/snapcore/snapd/arch"
 	"github.com/snapcore/snapd/asserts"
 	"github.com/snapcore/snapd/asserts/snapasserts"
 	"github.com/snapcore/snapd/client"
@@ -229,11 +232,17 @@ var (
 	buildID = "unknown"
 )
 
+var systemdVirt = ""
+
 func init() {
 	// cache the build-id on startup to ensure that changes in
 	// the underlying binary do not affect us
 	if bid, err := osutil.MyBuildID(); err == nil {
 		buildID = bid
+	}
+	// cache systemd-detect-virt output as it's unlikely to change :-)
+	if buf, err := exec.Command("systemd-detect-virt").CombinedOutput(); err == nil {
+		systemdVirt = string(bytes.TrimSpace(buf))
 	}
 }
 
@@ -288,8 +297,13 @@ func sysInfo(c *Command, r *http.Request, user *auth.UserState) Response {
 			"snap-mount-dir": dirs.SnapMountDir,
 			"snap-bin-dir":   dirs.SnapBinariesDir,
 		},
-		"refresh": refreshInfo,
+		"refresh":      refreshInfo,
+		"architecture": arch.DpkgArchitecture(),
 	}
+	if systemdVirt != "" {
+		m["virtualization"] = systemdVirt
+	}
+
 	// NOTE: Right now we don't have a good way to differentiate if we
 	// only have partial confinement (ala AppArmor disabled and Seccomp
 	// enabled) or no confinement at all. Once we have a better system

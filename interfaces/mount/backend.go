@@ -95,7 +95,7 @@ func (b *Backend) Remove(snapName string) error {
 // addMountProfile adds a mount profile with the given name, based on the given entries.
 //
 // If there are no entries no profile is generated.
-func addMountProfile(content map[string]*osutil.FileState, fname string, entries []osutil.MountEntry) {
+func addMountProfile(content map[string]osutil.FileState, fname string, entries []osutil.MountEntry) {
 	if len(entries) == 0 {
 		return
 	}
@@ -103,12 +103,12 @@ func addMountProfile(content map[string]*osutil.FileState, fname string, entries
 	for _, entry := range entries {
 		fmt.Fprintf(&buffer, "%s\n", entry)
 	}
-	content[fname] = &osutil.FileState{Content: buffer.Bytes(), Mode: 0644}
+	content[fname] = &osutil.MemoryFileState{Content: buffer.Bytes(), Mode: 0644}
 }
 
 // deriveContent computes .fstab tables based on requests made to the specification.
-func deriveContent(spec *Specification, snapInfo *snap.Info) map[string]*osutil.FileState {
-	content := make(map[string]*osutil.FileState, 2)
+func deriveContent(spec *Specification, snapInfo *snap.Info) map[string]osutil.FileState {
+	content := make(map[string]osutil.FileState, 2)
 	snapName := snapInfo.InstanceName()
 	// Add the per-snap fstab file.
 	// This file is read by snap-update-ns in the global pass.

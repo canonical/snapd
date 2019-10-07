@@ -37,9 +37,8 @@ var snapDownloadCmd = &Command{
 
 // SnapDownloadAction is used to request a snap download
 type snapDownloadAction struct {
-	Action  string                `json:"action"`
-	Snaps   []string              `json:"snaps,omitempty"`
-	Options []snapRevisionOptions `json:"options,omitempty"`
+	SnapName string              `json:"snap-name,omitempty"`
+	Options  snapRevisionOptions `json:"options,omitempty"`
 }
 
 func postSnapDownload(c *Command, r *http.Request, user *auth.UserState) Response {
@@ -52,33 +51,11 @@ func postSnapDownload(c *Command, r *http.Request, user *auth.UserState) Respons
 		return BadRequest("extra content found after download operation")
 	}
 
-	if len(action.Snaps) == 0 {
+	if action.SnapName == "" {
 		return BadRequest("download operation requires one snap name")
 	}
 
-	if len(action.Snaps) != 1 {
-		return BadRequest("download operation supports only one snap")
-	}
-
-	if action.Action == "" {
-		return BadRequest("download operation requires action")
-	}
-
-	var opts *snapRevisionOptions
-	if len(action.Options) == 1 {
-		opts = &action.Options[0]
-	}
-	if len(action.Options) > 1 {
-		return BadRequest("download operation supports at most one option")
-	}
-
-	switch action.Action {
-	case "download":
-		snapName := action.Snaps[0]
-		return streamOneSnap(c, user, snapName, opts)
-	default:
-		return BadRequest("unknown download operation %q", action.Action)
-	}
+	return streamOneSnap(c, user, action.SnapName, &action.Options)
 }
 
 func streamOneSnap(c *Command, user *auth.UserState, snapName string, dlOpts *snapRevisionOptions) Response {
@@ -95,6 +72,9 @@ func streamOneSnap(c *Command, user *auth.UserState, snapName string, dlOpts *sn
 	snaps, err := getStore(c).SnapAction(context.TODO(), nil, actions, user, nil)
 	if err != nil {
 		return SnapNotFound(snapName, err)
+	}
+	if len(snaps) != 1 {
+		return InternalError("internal error: unexpected number %v of results for a single download", len(snaps))
 	}
 	info := snaps[0]
 

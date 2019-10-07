@@ -1010,6 +1010,12 @@ func (s *apiSuite) TestRootCmd(c *check.C) {
 	c.Check(rsp.Result, check.DeepEquals, expected)
 }
 
+func mockSystemdVirt(newVirt string) (restore func()) {
+	oldVirt := systemdVirt
+	systemdVirt = newVirt
+	return func() { systemdVirt = oldVirt }
+}
+
 func (s *apiSuite) TestSysInfo(c *check.C) {
 	// check it only does GET
 	c.Check(sysInfoCmd.PUT, check.IsNil)
@@ -1040,6 +1046,8 @@ func (s *apiSuite) TestSysInfo(c *check.C) {
 	defer restore()
 	// reload dirs for release info to have effect
 	dirs.SetRootDir(dirs.GlobalRootDir)
+	restore = mockSystemdVirt("magic")
+	defer restore()
 
 	buildID := "this-is-my-build-id"
 	restore = MockBuildID(buildID)
@@ -1069,6 +1077,8 @@ func (s *apiSuite) TestSysInfo(c *check.C) {
 		},
 		"confinement":      "partial",
 		"sandbox-features": map[string]interface{}{"confinement-options": []interface{}{"classic", "devmode"}},
+		"architecture":     arch.DpkgArchitecture(),
+		"virtualization":   "magic",
 	}
 	var rsp resp
 	c.Assert(json.Unmarshal(rec.Body.Bytes(), &rsp), check.IsNil)
@@ -1092,6 +1102,8 @@ func (s *apiSuite) TestSysInfoLegacyRefresh(c *check.C) {
 	restore = release.MockOnClassic(true)
 	defer restore()
 	restore = release.MockForcedDevmode(true)
+	defer restore()
+	restore = mockSystemdVirt("kvm")
 	defer restore()
 	// reload dirs for release info to have effect
 	dirs.SetRootDir(dirs.GlobalRootDir)
@@ -1143,6 +1155,8 @@ func (s *apiSuite) TestSysInfoLegacyRefresh(c *check.C) {
 			"apparmor":            []interface{}{"feature-1", "feature-2"},
 			"confinement-options": []interface{}{"classic", "devmode"}, // we know it's this because of the release.Mock... calls above
 		},
+		"architecture":   arch.DpkgArchitecture(),
+		"virtualization": "kvm",
 	}
 	var rsp resp
 	c.Assert(json.Unmarshal(rec.Body.Bytes(), &rsp), check.IsNil)

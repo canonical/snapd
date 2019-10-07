@@ -132,29 +132,9 @@ func (s *snapDownloadSuite) TestDownloadSnapErrors(c *check.C) {
 
 	for _, scen := range []scenario{
 		{
-			dataJSON: `{"action": "download"}`,
+			dataJSON: `{"snap-name": ""}`,
 			status:   400,
 			err:      "download operation requires one snap name",
-		},
-		{
-			dataJSON: `{"action": "foo", "snaps": ["foo"]}`,
-			status:   400,
-			err:      `unknown download operation "foo"`,
-		},
-		{
-			dataJSON: `{"snaps": ["foo"]}`,
-			status:   400,
-			err:      `download operation requires action`,
-		},
-		{
-			dataJSON: `{"action": "foo", "snaps": ["foo", "bar"]}`,
-			status:   400,
-			err:      `download operation supports only one snap`,
-		},
-		{
-			dataJSON: `{"action": "foo", "snaps": ["foo"], "options": [{"channel":"edge"},{"revision":"2"}]}`,
-			status:   400,
-			err:      `download operation supports at most one option`,
 		},
 		{
 			dataJSON: `{"}`,
@@ -189,24 +169,26 @@ func (s *snapDownloadSuite) TestStreamOneSnap(c *check.C) {
 
 	for _, s := range []scenario{
 		{
-			dataJSON: `{"action": "download", "snaps": ["doom"]}`,
+			snapName: "doom",
+			dataJSON: `{"snap-name": "doom"}`,
 			status:   404,
 			err:      "snap not found",
 		},
 		{
-			dataJSON: `{"action": "download", "snaps": ["download-error-trigger-snap"]}`,
+			snapName: "download-error-trigger-snap",
+			dataJSON: `{"snap-name": "download-error-trigger-snap"}`,
 			status:   500,
 			err:      "unexpected error",
 		},
 		{
 			snapName: "bar",
-			dataJSON: `{"action": "download", "snaps": ["bar"]}`,
+			dataJSON: `{"snap-name": "bar"}`,
 			status:   200,
 			err:      "",
 		},
 		{
 			snapName: "edge-bar",
-			dataJSON: `{"action": "download", "snaps": ["edge-bar"], "options": [{"channel":"edge"}]}`,
+			dataJSON: `{"snap-name": "edge-bar", "options": {"channel":"edge"}}`,
 			status:   200,
 			err:      "",
 		},
@@ -216,11 +198,11 @@ func (s *snapDownloadSuite) TestStreamOneSnap(c *check.C) {
 		rsp := daemon.SnapDownloadCmd.POST(daemon.SnapDownloadCmd, req, nil)
 
 		if s.err != "" {
-			c.Assert(rsp.(*daemon.Resp).Status, check.Equals, s.status)
+			c.Check(rsp.(*daemon.Resp).Status, check.Equals, s.status, check.Commentf("unexpected result for %v", s.dataJSON))
 			result := rsp.(*daemon.Resp).Result
-			c.Check(result.(*daemon.ErrorResult).Message, check.Matches, s.err)
+			c.Check(result.(*daemon.ErrorResult).Message, check.Matches, s.err, check.Commentf("unexpected result for %v", s.dataJSON))
 		} else {
-			c.Assert(rsp.(daemon.FileStream).SnapName, check.Equals, s.snapName)
+			c.Assert(rsp.(daemon.FileStream).SnapName, check.Equals, s.snapName, check.Commentf("invalid result %v for %v", rsp, s.dataJSON))
 			c.Assert(rsp.(daemon.FileStream).Info.Size, check.Equals, int64(len(content)))
 
 			w := httptest.NewRecorder()
