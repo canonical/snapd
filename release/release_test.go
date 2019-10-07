@@ -178,7 +178,8 @@ func (s *ReleaseTestSuite) TestForceDevMode(c *C) {
 
 func (s *ReleaseTestSuite) TestMockForceDevMode(c *C) {
 	for _, devmode := range []bool{true, false} {
-		defer release.MockForcedDevmode(devmode)()
+		restore := release.MockForcedDevmode(devmode)
+		defer restore()
 		c.Assert(release.ReleaseInfo.ForceDevMode(), Equals, devmode, Commentf("wrong result for %#v", devmode))
 	}
 }
