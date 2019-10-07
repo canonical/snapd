@@ -329,6 +329,34 @@ required-snaps:
 	c.Check(s.Stderr(), check.Equals, "")
 }
 
+func (s *SnapSuite) TestModelVerboseDisplayName(c *check.C) {
+	s.RedirectClientToTestServer(
+		makeHappyTestServerHandler(
+			c,
+			simpleHappyResponder(happyModelWithDisplayNameAssertionResponse),
+			simpleHappyResponder(happySerialAssertionResponse),
+			simpleAssertionAccountResponder(happyAccountAssertionResponse),
+		))
+	rest, err := snap.Parser(snap.Client()).ParseArgs([]string{"model", "--verbose", "--abs-time"})
+	c.Assert(err, check.IsNil)
+	c.Assert(rest, check.DeepEquals, []string{})
+	c.Check(s.Stdout(), check.Equals, `
+brand-id:        mememe
+model:           test-model
+serial:          serialserial
+architecture:    amd64
+base:            core18
+display-name:    Model Name
+gadget:          pc=18
+kernel:          pc-kernel=18
+timestamp:       2017-07-27T00:00:00Z
+required-snaps:  
+  - core
+  - hello-world
+`[1:])
+	c.Check(s.Stderr(), check.Equals, "")
+}
+
 func (s *SnapSuite) TestModelVerboseNoSerialYet(c *check.C) {
 	s.RedirectClientToTestServer(
 		makeHappyTestServerHandler(
