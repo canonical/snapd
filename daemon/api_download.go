@@ -68,7 +68,7 @@ func streamOneSnap(c *Command, action snapDownloadAction, user *auth.UserState) 
 	}}
 	snaps, err := getStore(c).SnapAction(context.TODO(), nil, actions, user, nil)
 	if err != nil {
-		return SnapNotFound(action.SnapName, err)
+		return errToResponse(err, []string{action.SnapName}, InternalError, "cannot download snap: %v")
 	}
 	if len(snaps) != 1 {
 		return InternalError("internal error: unexpected number %v of results for a single download", len(snaps))
