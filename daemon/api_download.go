@@ -37,8 +37,8 @@ var snapDownloadCmd = &Command{
 
 // SnapDownloadAction is used to request a snap download
 type snapDownloadAction struct {
-	SnapName string              `json:"snap-name,omitempty"`
-	Options  snapRevisionOptions `json:"options,omitempty"`
+	SnapName string `json:"snap-name,omitempty"`
+	snapRevisionOptions
 }
 
 func postSnapDownload(c *Command, r *http.Request, user *auth.UserState) Response {
@@ -55,23 +55,20 @@ func postSnapDownload(c *Command, r *http.Request, user *auth.UserState) Respons
 		return BadRequest("download operation requires one snap name")
 	}
 
-	return streamOneSnap(c, user, action.SnapName, &action.Options)
+	return streamOneSnap(c, user, action)
 }
 
-func streamOneSnap(c *Command, user *auth.UserState, snapName string, dlOpts *snapRevisionOptions) Response {
-	if dlOpts == nil {
-		dlOpts = &snapRevisionOptions{}
-	}
+func streamOneSnap(c *Command, user *auth.UserState, opts snapDownloadAction) Response {
 	actions := []*store.SnapAction{{
 		Action:       "download",
-		InstanceName: snapName,
-		Revision:     dlOpts.Revision,
-		CohortKey:    dlOpts.CohortKey,
-		Channel:      dlOpts.Channel,
+		InstanceName: opts.SnapName,
+		Revision:     opts.Revision,
+		CohortKey:    opts.CohortKey,
+		Channel:      opts.Channel,
 	}}
 	snaps, err := getStore(c).SnapAction(context.TODO(), nil, actions, user, nil)
 	if err != nil {
-		return SnapNotFound(snapName, err)
+		return SnapNotFound(opts.SnapName, err)
 	}
 	if len(snaps) != 1 {
 		return InternalError("internal error: unexpected number %v of results for a single download", len(snaps))
@@ -79,13 +76,13 @@ func streamOneSnap(c *Command, user *auth.UserState, snapName string, dlOpts *sn
 	info := snaps[0]
 
 	downloadInfo := info.DownloadInfo
-	r, err := getStore(c).DownloadStream(context.TODO(), snapName, &downloadInfo, user)
+	r, err := getStore(c).DownloadStream(context.TODO(), opts.SnapName, &downloadInfo, user)
 	if err != nil {
 		return InternalError(err.Error())
 	}
 
 	return fileStream{
-		SnapName: snapName,
+		SnapName: opts.SnapName,
 		Filename: filepath.Base(info.MountFile()),
 		Info:     downloadInfo,
 		stream:   r,
