@@ -42,11 +42,7 @@ execute: |
     not test -f /run/udev/tags/snap_test-snapd-tools_echo/+module:nvidia_modeset
 
     echo "Ensure apparmor profile for snap-confine is parsable"
-    for f in /etc/apparmor.d/usr.lib.snapd.snap-confine*; do
-        # Breake the loop when the file does not exist
-        if [ ! -f "$f" ]; then
-            break
-        fi
+    for f in $(find /etc/apparmor.d -name usr.lib.snapd.snap-confine*); do
         if command -v apparmor_parser 2>/dev/null; then
             apparmor_parser -QTK "$f"
         fi
@@ -54,4 +50,3 @@ execute: |
             aa-enforce "$f"
         fi
     done
-
