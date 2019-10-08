@@ -320,6 +320,9 @@ func postDebug(c *Command, r *http.Request, user *auth.UserState) Response {
 		return SyncResponse(devicestate.CanManageRefreshes(st), nil)
 	case "connectivity":
 		return checkConnectivity(st)
+	case "prune":
+		st.Prune(0, 0, 0)
+		return SyncResponse(true, nil)
 	default:
 		return BadRequest("unknown debug action: %v", a.Action)
 	}

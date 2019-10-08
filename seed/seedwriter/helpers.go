@@ -23,6 +23,7 @@ import (
 	"fmt"
 
 	"github.com/snapcore/snapd/asserts"
+	"github.com/snapcore/snapd/asserts/snapasserts"
 	"github.com/snapcore/snapd/snap"
 )
 
@@ -63,34 +64,45 @@ func MakeRefAssertsFetcher(newFetcher NewFetcherFunc) RefAssertsFetcher {
 	return &rrf
 }
 
+func whichModelSnap(modSnap *asserts.ModelSnap, model *asserts.Model) string {
+	switch modSnap.SnapType {
+	case "snapd":
+		return "snapd snap"
+	case "core":
+		return "core snap"
+	case "base":
+		what := fmt.Sprintf("base %q", modSnap.SnapName())
+		if modSnap.SnapName() == model.Base() {
+			what = "boot " + what
+		}
+		return what
+	case "kernel":
+		return fmt.Sprintf("kernel %q", modSnap.SnapName())
+	case "gadget":
+		return fmt.Sprintf("gadget %q", modSnap.SnapName())
+	default:
+		return fmt.Sprintf("snap %q", modSnap.SnapName())
+	}
+}
+
 func checkType(sn *SeedSnap, model *asserts.Model) error {
 	if sn.modelSnap == nil {
 		return nil
 	}
 	expectedType := snap.TypeApp
-	what := ""
 	switch sn.modelSnap.SnapType {
 	case "snapd":
 		expectedType = snap.TypeSnapd
-		what = "snapd snap"
 	case "core":
 		expectedType = snap.TypeOS
-		what = "core snap"
 	case "base":
 		expectedType = snap.TypeBase
-		what = fmt.Sprintf("base %q", sn.SnapName())
-		if sn.SnapName() == model.Base() {
-			what = "boot " + what
-		}
 	case "kernel":
 		expectedType = snap.TypeKernel
-		what = fmt.Sprintf("kernel %q", sn.SnapName())
 	case "gadget":
 		expectedType = snap.TypeGadget
-		what = fmt.Sprintf("gadget %q", sn.SnapName())
 	case "app":
 		expectedType = snap.TypeApp
-		what = fmt.Sprintf("snap %q", sn.SnapName())
 	case "":
 		// ModelSnap for Core 16/18 "required-snaps" have
 		// SnapType not set given the model assertion does not
@@ -102,6 +114,7 @@ func checkType(sn *SeedSnap, model *asserts.Model) error {
 		return nil
 	}
 	if sn.Info.GetType() != expectedType {
+		what := whichModelSnap(sn.modelSnap, model)
 		return fmt.Errorf("%s has unexpected type: %s", what, sn.Info.GetType())
 	}
 	return nil
@@ -113,4 +126,38 @@ func (s seedSnapsByType) Len() int      { return len(s) }
 func (s seedSnapsByType) Swap(i, j int) { s[i], s[j] = s[j], s[i] }
 func (s seedSnapsByType) Less(i, j int) bool {
 	return s[i].Info.GetType().SortsBefore(s[j].Info.GetType())
+}
+
+// finderFromFetcher exposes an assertion Finder interface out of a Fetcher.
+type finderFromFetcher struct {
+	f  asserts.Fetcher
+	db asserts.RODatabase
+}
+
+func (fnd *finderFromFetcher) Find(assertionType *asserts.AssertionType, headers map[string]string) (asserts.Assertion, error) {
+	pk, err := asserts.PrimaryKeyFromHeaders(assertionType, headers)
+	if err != nil {
+		return nil, err
+	}
+	ref := &asserts.Ref{
+		Type:       assertionType,
+		PrimaryKey: pk,
+	}
+	if err := fnd.f.Fetch(ref); err != nil {
+		return nil, err
+	}
+	return fnd.db.Find(assertionType, headers)
+}
+
+// DeriveSideInfo tries to construct a SideInfo for the given snap
+// using its digest to fetch the relevant snap assertions. It will
+// fail with an asserts.NotFoundError if it cannot find them.
+func DeriveSideInfo(snapPath string, rf RefAssertsFetcher, db asserts.RODatabase) (*snap.SideInfo, []*asserts.Ref, error) {
+	fnd := &finderFromFetcher{f: rf, db: db}
+	prev := len(rf.Refs())
+	si, err := snapasserts.DeriveSideInfo(snapPath, fnd)
+	if err != nil {
+		return nil, nil, err
+	}
+	return si, rf.Refs()[prev:], nil
 }

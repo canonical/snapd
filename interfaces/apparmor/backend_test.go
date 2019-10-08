@@ -763,8 +763,8 @@ func (s *backendSuite) TestSnapConfineProfile(c *C) {
 	c.Assert(err, IsNil)
 	c.Assert(dir, Equals, expectedProfileDir)
 	c.Assert(glob, Equals, expectedProfileGlob)
-	c.Assert(content, DeepEquals, map[string]*osutil.FileState{
-		expectedProfileName: {
+	c.Assert(content, DeepEquals, map[string]osutil.FileState{
+		expectedProfileName: &osutil.MemoryFileState{
 			Content: []byte(expectedProfileText),
 			Mode:    0644,
 		},
@@ -798,8 +798,8 @@ func (s *backendSuite) TestSnapConfineProfileFromSnapdSnap(c *C) {
 	c.Assert(err, IsNil)
 	c.Assert(dir, Equals, expectedProfileDir)
 	c.Assert(glob, Equals, expectedProfileGlob)
-	c.Assert(content, DeepEquals, map[string]*osutil.FileState{
-		expectedProfileName: {
+	c.Assert(content, DeepEquals, map[string]osutil.FileState{
+		expectedProfileName: &osutil.MemoryFileState{
 			Content: []byte(expectedProfileText),
 			Mode:    0644,
 		},
@@ -820,7 +820,7 @@ func (s *backendSuite) TestSnapConfineFromSnapProfileCreatesAllDirs(c *C) {
 func (s *backendSuite) TestSetupHostSnapConfineApparmorForReexecCleans(c *C) {
 	restorer := release.MockOnClassic(true)
 	defer restorer()
-	restorer = release.MockForcedDevmode(false)
+	restorer = apparmor_sandbox.MockLevel(apparmor_sandbox.Full)
 	defer restorer()
 
 	coreInfo := snaptest.MockInfo(c, coreYaml, &snap.SideInfo{Revision: snap.R(111)})
@@ -842,7 +842,7 @@ func (s *backendSuite) TestSetupHostSnapConfineApparmorForReexecCleans(c *C) {
 func (s *backendSuite) TestSetupHostSnapConfineApparmorForReexecWritesNew(c *C) {
 	restorer := release.MockOnClassic(true)
 	defer restorer()
-	restorer = release.MockForcedDevmode(false)
+	restorer = apparmor_sandbox.MockLevel(apparmor_sandbox.Full)
 	defer restorer()
 
 	coreInfo := snaptest.MockInfo(c, coreYaml, &snap.SideInfo{Revision: snap.R(111)})

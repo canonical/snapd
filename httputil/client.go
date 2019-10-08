@@ -45,6 +45,7 @@ func NewHTTPClient(opts *ClientOptions) *http.Client {
 	if opts.Proxy != nil {
 		transport.Proxy = opts.Proxy
 	}
+	transport.ProxyConnectHeader = http.Header{"User-Agent": []string{UserAgent()}}
 
 	return &http.Client{
 		Transport: &LoggedTransport{

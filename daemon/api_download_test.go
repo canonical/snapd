@@ -71,6 +71,10 @@ func (s *snapDownloadSuite) SnapInfo(ctx context.Context, spec store.SnapSpec, u
 	switch spec.Name {
 	case "bar":
 		return &snap.Info{
+			SideInfo: snap.SideInfo{
+				RealName: "bar",
+				Revision: snap.R(1),
+			},
 			DownloadInfo: snap.DownloadInfo{
 				Size:            int64(len(content)),
 				AnonDownloadURL: "http://localhost/bar",
@@ -104,24 +108,9 @@ func (s *snapDownloadSuite) TestDownloadSnapErrors(c *check.C) {
 
 	for _, scen := range []scenario{
 		{
-			dataJSON: `{"action": "download"}`,
+			dataJSON: `{"snap-name": ""}`,
 			status:   400,
 			err:      "download operation requires one snap name",
-		},
-		{
-			dataJSON: `{"action": "foo", "snaps": ["foo"]}`,
-			status:   400,
-			err:      `unknown download operation "foo"`,
-		},
-		{
-			dataJSON: `{"snaps": ["foo"]}`,
-			status:   400,
-			err:      `download operation requires action`,
-		},
-		{
-			dataJSON: `{"action": "foo", "snaps": ["foo", "bar"]}`,
-			status:   400,
-			err:      `download operation supports only one snap`,
 		},
 		{
 			dataJSON: `{"}`,
@@ -155,17 +144,17 @@ func (s *snapDownloadSuite) TestStreamOneSnap(c *check.C) {
 
 	for _, s := range []scenario{
 		{
-			dataJSON: `{"action": "download", "snaps": ["doom"]}`,
+			dataJSON: `{"snap-name": "doom"}`,
 			status:   404,
 			err:      "snap not found",
 		},
 		{
-			dataJSON: `{"action": "download", "snaps": ["download-error-trigger-snap"]}`,
+			dataJSON: `{"snap-name": "download-error-trigger-snap"}`,
 			status:   500,
 			err:      "unexpected error",
 		},
 		{
-			dataJSON: `{"action": "download", "snaps": ["bar"]}`,
+			dataJSON: `{"snap-name": "bar"}`,
 			status:   200,
 			err:      "",
 		},
@@ -175,9 +164,9 @@ func (s *snapDownloadSuite) TestStreamOneSnap(c *check.C) {
 		rsp := daemon.SnapDownloadCmd.POST(daemon.SnapDownloadCmd, req, nil)
 
 		if s.err != "" {
-			c.Assert(rsp.(*daemon.Resp).Status, check.Equals, s.status)
+			c.Check(rsp.(*daemon.Resp).Status, check.Equals, s.status, check.Commentf("unexpected result for %v", s.dataJSON))
 			result := rsp.(*daemon.Resp).Result
-			c.Check(result.(*daemon.ErrorResult).Message, check.Matches, s.err)
+			c.Check(result.(*daemon.ErrorResult).Message, check.Matches, s.err, check.Commentf("unexpected result for %v", s.dataJSON))
 		} else {
 			c.Assert(rsp.(daemon.FileStream).SnapName, check.Equals, "bar")
 			c.Assert(rsp.(daemon.FileStream).Info.Size, check.Equals, int64(len(content)))
@@ -190,7 +179,7 @@ func (s *snapDownloadSuite) TestStreamOneSnap(c *check.C) {
 			c.Assert(w.Code, check.Equals, s.status)
 			c.Assert(w.Header().Get("Content-Length"), check.Equals, expectedLength)
 			c.Assert(w.Header().Get("Content-Type"), check.Equals, "application/octet-stream")
-			c.Assert(w.Header().Get("Content-Disposition"), check.Equals, "attachment; filename=bar")
+			c.Assert(w.Header().Get("Content-Disposition"), check.Equals, "attachment; filename=bar_1.snap")
 			c.Assert(w.Body.String(), check.Equals, "SNAP")
 		}
 	}

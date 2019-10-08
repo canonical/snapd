@@ -29,8 +29,13 @@ const openvswitchBaseDeclarationSlots = `
     deny-auto-connection: true
 `
 
+// List of sockets we want to allow access to. This list currently includes
+// sockets needed by ovs-vsctl and ovs-ofctl commands. The latter requires
+// access to per-bridge sockets e.g. for bridge br-data you would need access
+// to /run/openvswitch/br-data.mgmt.
 const openvswitchConnectedPlugAppArmor = `
 /run/openvswitch/db.sock rw,
+/run/openvswitch/*.mgmt rw,
 `
 
 func init() {
