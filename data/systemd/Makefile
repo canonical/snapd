@@ -21,7 +21,12 @@ SYSTEMDSYSTEMUNITDIR := /lib/systemd/system
 
 SYSTEMD_UNITS_GENERATED := $(wildcard *.in)
 # NOTE: sort removes duplicates so this gives us all the units, generated or otherwise
-SYSTEMD_UNITS = $(sort $(SYSTEMD_UNITS_GENERATED:.in=) $(wildcard *.service) $(wildcard *.timer) $(wildcard *.socket))
+SYSTEMD_UNITS = $(sort $(SYSTEMD_UNITS_GENERATED:.in=) \
+	$(wildcard *.service) \
+	$(wildcard *.timer) \
+	$(wildcard *.socket) \
+	$(wildcard *.mount))
+SNAP_MOUNT_UNIT = $(shell systemd-escape -p $(SNAP_MOUNT_DIR))
 
 .PHONY: all
 all: $(SYSTEMD_UNITS) check
@@ -34,7 +39,8 @@ check: snapd.run-from-snap snapd.core-fixup.sh
 install: $(SYSTEMD_UNITS)
 	# NOTE: old (e.g. 14.04) GNU coreutils doesn't -D with -t
 	install -d -m 0755 $(DESTDIR)/$(SYSTEMDSYSTEMUNITDIR)
-	install -m 0644 -t $(DESTDIR)/$(SYSTEMDSYSTEMUNITDIR) $^
+	install -m 0644 -t $(DESTDIR)/$(SYSTEMDSYSTEMUNITDIR) $(filter-out snap.mount, $^)
+	install -m 0644 snap.mount $(DESTDIR)/$(SYSTEMDSYSTEMUNITDIR)/$(SNAP_MOUNT_UNIT).mount
 	install -d -m 0755 $(DESTDIR)/$(LIBEXECDIR)/snapd
 	install -m 0755 -t $(DESTDIR)/$(LIBEXECDIR)/snapd snapd.core-fixup.sh
 	install -m 0755 -t $(DESTDIR)/$(LIBEXECDIR)/snapd snapd.run-from-snap
