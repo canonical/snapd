@@ -122,7 +122,8 @@ func (w Week) String() string {
 // WeekSpan represents a span of weekdays between Start and End days, which may
 // be a single day. WeekSpan may wrap around the week, eg. fri-mon is a span
 // from Friday to Monday, mon1-fri is a span from the first Monday to the
-// following Friday, while mon1-mon1 represents the 1st Monday of a month.
+// following Friday, while mon1 (internally, an equal start and end range)
+// represents the 1st Monday of a month.
 type WeekSpan struct {
 	Start Week
 	End   Week
@@ -135,6 +136,7 @@ func (ws WeekSpan) String() string {
 	return ws.Start.String()
 }
 
+// findNthWeekDay finds the nth occurrence of a given weekday in the month of t
 func findNthWeekDay(t time.Time, weekday time.Weekday, nthInMonth uint) time.Time {
 	// move to the beginning of the month
 	t = t.AddDate(0, 0, -t.Day()+1)
@@ -152,6 +154,7 @@ func findNthWeekDay(t time.Time, weekday time.Weekday, nthInMonth uint) time.Tim
 	return t
 }
 
+// findLastWeekDay finds the last occurrence of a given weekday in the month of t
 func findLastWeekDay(t time.Time, weekday time.Weekday) time.Time {
 	n := monthNext(t).Add(-24 * time.Hour)
 	for n.Weekday() != weekday {
