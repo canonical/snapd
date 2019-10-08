@@ -107,6 +107,18 @@ type debugTimings struct {
 	ChangeTimings map[string]*changeTimings `json:"change-timings,omitempty"`
 }
 
+// minLane determines the lowest lane number for the task
+func minLane(t *state.Task) int {
+	lanes := t.Lanes()
+	minLane := lanes[0]
+	for _, l := range lanes[1:] {
+		if l < minLane {
+			minLane = l
+		}
+	}
+	return minLane
+}
+
 func collectChangeTimings(st *state.State, changeID string) (map[string]*changeTimings, error) {
 	chg := st.Change(changeID)
 	if chg == nil {
@@ -137,18 +149,11 @@ func collectChangeTimings(st *state.State, changeID string) (map[string]*changeT
 
 	m := map[string]*changeTimings{}
 	for _, t := range chg.Tasks() {
-		lane := 0
-		// determine lowest lane number, we are only interested in a single lane here
-		for _, l := range t.Lanes() {
-			if l < lane {
-				lane = l
-			}
-		}
 		m[t.ID()] = &changeTimings{
 			Kind:           t.Kind(),
 			Status:         t.Status().String(),
 			Summary:        t.Summary(),
-			Lane:           lane,
+			Lane:           minLane(t),
 			ReadyTime:      t.ReadyTime(),
 			DoingTime:      t.DoingTime(),
 			UndoingTime:    t.UndoingTime(),

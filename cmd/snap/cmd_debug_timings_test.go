@@ -320,14 +320,14 @@ func (s *SnapSuite) TestSortTimingsTasks(c *C) {
 		},
 		Expected: []string{"7", "2", "5", "1", "3", "6", "4", "8"},
 	}, {
-		// pathological case: lane 0 task "3" has ready-time between lane 1 tasks
+		// pathological case: lane 0 tasks have ready-time between lane 1 tasks
 		ChangeTimings: map[string]main.ChangeTimings{
 			"1": {Lane: 1, ReadyTime: mkTime("2019-01-20T00:00:00Z")},
 			"2": {Lane: 1, ReadyTime: mkTime("2019-01-30T00:00:00Z")},
-			"3": {Lane: 0, ReadyTime: mkTime("2019-01-25T00:00:00Z")},
-			"4": {Lane: 0, ReadyTime: mkTime("2019-01-18T00:00:00Z")},
+			"3": {Lane: 0, ReadyTime: mkTime("2019-01-27T00:00:00Z")},
+			"4": {Lane: 0, ReadyTime: mkTime("2019-01-25T00:00:00Z")},
 		},
-		Expected: []string{"4", "1", "2", "3"},
+		Expected: []string{"1", "2", "4", "3"},
 	}}
 
 	for _, data := range testData {

@@ -102,18 +102,15 @@ func printTaskTiming(w io.Writer, t *Timing, verbose, doing bool) {
 func sortTimingsTasks(timings map[string]changeTimings) []string {
 	tasks := make([]string, 0, len(timings))
 
-	var minReadyTime, maxReadyTime time.Time
+	var minReadyTime time.Time
+	// determine min ready time from all non-zero lane tasks
 	for taskID, taskData := range timings {
 		if taskData.Lane > 0 {
 			if minReadyTime.IsZero() {
 				minReadyTime = taskData.ReadyTime
-				maxReadyTime = taskData.ReadyTime
 			}
 			if taskData.ReadyTime.Before(minReadyTime) {
 				minReadyTime = taskData.ReadyTime
-			}
-			if taskData.ReadyTime.After(maxReadyTime) {
-				maxReadyTime = taskData.ReadyTime
 			}
 		}
 		tasks = append(tasks, taskID)
@@ -123,14 +120,18 @@ func sortTimingsTasks(timings map[string]changeTimings) []string {
 		t1 := timings[tasks[i]]
 		t2 := timings[tasks[j]]
 		if t1.Lane != t2.Lane {
+			// if either t1 or t2 is from lane 0, then it comes before or after non-zero lane tasks
 			if t1.Lane == 0 {
 				return t1.ReadyTime.Before(minReadyTime)
 			}
 			if t2.Lane == 0 {
-				return t2.ReadyTime.After(maxReadyTime)
+				return t2.ReadyTime.After(minReadyTime)
 			}
+			// different lanes (but neither of them is 0), order by lane
 			return t1.Lane < t2.Lane
 		}
+
+		// same lane - order by ready time
 		return t1.ReadyTime.Before(t2.ReadyTime)
 	})
 
