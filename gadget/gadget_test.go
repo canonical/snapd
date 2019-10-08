@@ -1360,10 +1360,10 @@ func (s *gadgetYamlTestSuite) TestEnsureVolumeConsistency(c *C) {
 	}{
 
 		// we have the system-seed role
-		{state(true, ""), `.* must have label "ubuntu-data", not ""`},
-		{state(true, "foobar"), `.* must have label "ubuntu-data", not "foobar"`},
-		{state(true, "writable"), `.* must have label "ubuntu-data", not "writable"`},
-		{state(true, "ubuntu-data"), ""},
+		{state(true, ""), ""},
+		{state(true, "foobar"), "system-data structure must not have a label"},
+		{state(true, "writable"), "system-data structure must not have a label"},
+		{state(true, "ubuntu-data"), "system-data structure must not have a label"},
 
 		// we don't have the system-seed role (old systems)
 		{state(false, ""), ""}, // implicit is ok
@@ -1390,8 +1390,10 @@ func (s *gadgetYamlTestSuite) TestGadgetConsistencyWithoutConstraints(c *C) {
 	}{
 		// when constraints are nil, the system-seed role and ubuntu-data label on the
 		// system-data structure should be consistent
-		{"system-seed", "writable", `.* must have label "ubuntu-data", not "writable"`},
-		{"system-seed", "ubuntu-data", ""},
+		{"system-seed", "", ""},
+		{"system-seed", "writable", ".* system-data structure must not have a label"},
+		{"system-seed", "ubuntu-data", ".* system-data structure must not have a label"},
+		{"", "", ""},
 		{"", "writable", ""},
 		{"", "ubuntu-data", `.* must have an implicit label or "writable", not "ubuntu-data"`},
 	} {
@@ -1443,9 +1445,11 @@ func (s *gadgetYamlTestSuite) TestGadgetConsistencyWithConstraints(c *C) {
 	}{
 		// when constraints are nil, the system-seed role and ubuntu-data label on the
 		// system-data structure should be consistent
-		{"system-seed", "writable", true, `.* must have label "ubuntu-data", not "writable"`},
+		{"system-seed", "", true, ""},
+		{"system-seed", "", false, `.* model does not support the system-seed role`},
+		{"system-seed", "writable", true, ".* system-data structure must not have a label"},
 		{"system-seed", "writable", false, `.* model does not support the system-seed role`},
-		{"system-seed", "ubuntu-data", true, ""},
+		{"system-seed", "ubuntu-data", true, ".* system-data structure must not have a label"},
 		{"system-seed", "ubuntu-data", false, `.* model does not support the system-seed role`},
 		{"", "writable", true, `.* model requires system-seed structure, but none was found`},
 		{"", "writable", false, ""},

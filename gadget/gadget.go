@@ -53,7 +53,6 @@ const (
 	// ImplicitSystemDataLabel is the implicit filesystem label of structure
 	// of system-data role
 	ImplicitSystemDataLabel = "writable"
-	UbuntuSystemDataLabel   = "ubuntu-data"
 )
 
 var (
@@ -450,9 +449,8 @@ func ensureVolumeConsistency(state *validationState, constraints *ModelConstrain
 
 		// gadget must be auto-consistent if constraints are not specified
 		if state.SystemSeed != nil {
-			if state.SystemData.Label != UbuntuSystemDataLabel {
-				return fmt.Errorf("system-data structure must have label %q, not %q",
-					UbuntuSystemDataLabel, state.SystemData.Label)
+			if state.SystemData.Label != "" {
+				return fmt.Errorf("system-data structure must not have a label")
 			}
 		} else {
 			if state.SystemData.Label != "" && state.SystemData.Label != ImplicitSystemDataLabel {
@@ -468,10 +466,9 @@ func ensureVolumeConsistency(state *validationState, constraints *ModelConstrain
 		if !constraints.SystemSeed {
 			return fmt.Errorf("model does not support the system-seed role")
 		}
-		// with SystemSeed, system-data label must be ubuntu-data
-		if state.SystemData != nil && state.SystemData.Label != UbuntuSystemDataLabel {
-			return fmt.Errorf("system-data structure must have label %q, not %q",
-				UbuntuSystemDataLabel, state.SystemData.Label)
+		// with SystemSeed, system-data label must not be set
+		if state.SystemData != nil && state.SystemData.Label != "" {
+			return fmt.Errorf("system-data structure must not have a label")
 		}
 	} else {
 		// error if we have the SystemSeed constraint but no actual system-seed structure
