@@ -79,7 +79,7 @@ type systemKey struct {
 }
 
 // IMPORTANT: when adding/removing/changing inputs bump this
-const systemKeyVersion = 9
+const systemKeyVersion = 10
 
 var (
 	isHomeUsingNFS  = osutil.IsHomeUsingNFS

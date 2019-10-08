@@ -260,5 +260,6 @@ func (s *systemKeySuite) TestStaticVersion(c *C) {
 		"OverlayRoot:",
 		"SecCompActions:[]",
 		"SeccompCompilerVersion:",
+		"CgroupVersion:",
 	}, " ")+"}")
 }
