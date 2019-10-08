@@ -318,6 +318,7 @@ brand-id:        mememe
 model:           test-model
 serial:          serialserial
 architecture:    amd64
+authority-id:    mememe
 base:            core18
 gadget:          pc=18
 kernel:          pc-kernel=18
@@ -345,6 +346,7 @@ brand-id:        mememe
 model:           test-model
 serial:          serialserial
 architecture:    amd64
+authority-id:    mememe
 base:            core18
 display-name:    Model Name
 gadget:          pc=18
@@ -373,6 +375,7 @@ brand-id:        mememe
 model:           test-model
 serial:          -- (device not registered yet)
 architecture:    amd64
+authority-id:    mememe
 base:            core18
 gadget:          pc=18
 kernel:          pc-kernel=18
@@ -443,10 +446,11 @@ func (s *SnapSuite) TestSerialVerbose(c *check.C) {
 	c.Assert(err, check.IsNil)
 	c.Assert(rest, check.DeepEquals, []string{})
 	c.Check(s.Stdout(), check.Equals, `
-brand-id:   my-brand
-model:      my-old-model
-serial:     serialserial
-timestamp:  2019-08-26T16:34:21-05:00
+brand-id:      my-brand
+model:         my-old-model
+serial:        serialserial
+authority-id:  my-brand
+timestamp:     2019-08-26T16:34:21-05:00
 device-key-sha3-384: |
   iqLo9doLzK8De9925UrdUyuvPbBad72OTWVE9YJXqd6nz9dKvwJ_lHP5bVxrl3VO
 device-key: |

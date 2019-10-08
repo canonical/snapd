@@ -54,14 +54,15 @@ model assertion.
 	errNoVerboseAssertion = errors.New(i18n.G("cannot use --verbose with --assertion"))
 
 	// this list is a "nice" "human" "readable" "ordering" of headers to print
-	// off, sorted in lexographical order with meta headers and primary key
-	// headers removed, and big nasty keys such as device-key-sha3-384 and
-	// device-key at the bottom
-	// it also contains both serial and model assertion headers, but we
-	// follow the same code path for both assertion types and some of the
-	// headers are shared between the two, so it still works out correctly
+	// off, sorted in lexographical order with primary key headers, some meta
+	// key headers removed, and big nasty keys such as device-key-sha3-384 and
+	// device-key at the end it also contains both serial and model assertion
+	// headers, but we follow the same code path for both assertion types and
+	// some of the headers are shared between the two, so it still works out
+	// correctly
 	niceOrdering = [...]string{
 		"architecture",
+		"authority-id",
 		"base",
 		"classic",
 		"display-name",
