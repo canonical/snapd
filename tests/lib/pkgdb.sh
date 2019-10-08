@@ -487,6 +487,13 @@ distro_install_build_snapd(){
         # shellcheck disable=SC2086
         distro_install_local_package $packages
 
+        mount_unit=snap.mount
+        case "$SPREAD_SYSTEM" in
+            fedora-*|centos-*|amazon-*|arch-*)
+                mount_unit=var-lib-snapd-snap.mount
+                ;;
+        esac
+
         case "$SPREAD_SYSTEM" in
             fedora-*|centos-*)
                 # We need to wait until the man db cache is updated before do daemon-reexec
@@ -516,6 +523,10 @@ distro_install_build_snapd(){
             if systemctl show -p ActiveState apparmor.service | MATCH 'ActiveState=active'; then
                 systemctl restart apparmor.service
             fi
+        fi
+
+        if ! systemctl is-active "$mount_unit"; then
+            systemctl start "$mount_unit"
         fi
 
         # On some distributions the snapd.socket is not yet automatically
