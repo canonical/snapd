@@ -406,6 +406,7 @@ exclude:
     - cmd/snapd/snapd
     - cmd/snapctl/snapctl
     - cmd/snap-exec/snap-exec
+    - cmd/autom4te.cache
     - "*.o"
     - "*.a"
 

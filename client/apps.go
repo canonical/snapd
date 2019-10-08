@@ -22,6 +22,7 @@ package client
 import (
 	"bufio"
 	"bytes"
+	"context"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -119,7 +120,7 @@ func (client *Client) Logs(names []string, opts LogOptions) (<-chan Log, error) 
 		query.Set("follow", strconv.FormatBool(opts.Follow))
 	}
 
-	rsp, err := client.raw("GET", "/v2/logs", query, nil, nil)
+	rsp, err := client.raw(context.Background(), "GET", "/v2/logs", query, nil, nil)
 	if err != nil {
 		return nil, err
 	}
