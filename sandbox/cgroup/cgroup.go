@@ -109,9 +109,85 @@ func Version() (int, error) {
 	return probeVersion, probeErr
 }
 
+// GroupSelector specifies the criteria for selecting the cgroup of a given
+// process. All options are exclusive and cannot be combined, consult
+// cgroups(7).
+type GroupSelector struct {
+	// Unified indicates a unified cgroup v2 hierarchy
+	Unified bool
+	// Controller name in a cgroup v1 hierarchy
+	Controller string
+	// Name of a named cgroup v1 hierarchy
+	Name string
+}
+
+func (g GroupSelector) Valid() error {
+	if g == (GroupSelector{}) {
+		fmt.Errorf("an empty cgroup selector")
+	}
+	// error out on cases that are invalid as described in cgroups(7)
+	if g.Unified {
+		if g.Controller != "" {
+			return fmt.Errorf("controller %q with a unified hierarchy", g.Controller)
+		}
+		if g.Name != "" {
+			return fmt.Errorf("named hierarchy %q with a unified one", g.Name)
+		}
+	} else {
+		if g.Name != "" && g.Controller != "" {
+			return fmt.Errorf("named hierarchy %q with a controller %q", g.Name, g.Controller)
+		}
+	}
+	return nil
+}
+
+func (g GroupSelector) String() string {
+	if g.Controller != "" {
+		return fmt.Sprintf("controller %q", g.Controller)
+	}
+	if g.Name != "" {
+		return fmt.Sprintf("named hierarchy %q", g.Name)
+	}
+	if g.Unified {
+		return "unified hierarchy"
+	}
+	return "invalid selector"
+}
+
+// Match checks whether provided id, controllers list tumple matches the
+// selector
+func (g GroupSelector) Match(id, maybeControllers string) bool {
+	if g.Unified {
+		// unified hierarchy format is always 0::<path>
+		if id != "0" || maybeControllers != "" {
+			return false
+		}
+	}
+	if g.Controller != "" {
+		controllerList := strings.Split(maybeControllers, ",")
+		if !strutil.ListContains(controllerList, g.Controller) {
+			return false
+		}
+	}
+	if g.Name != "" {
+		if !strings.HasPrefix(maybeControllers, "name=") {
+			return false
+		}
+		name := strings.TrimPrefix(maybeControllers, "name=")
+		if name != g.Name {
+			return false
+		}
+	}
+	return true
+}
+
 // ProcGroup finds the path of a given cgroup controller for provided process
 // id.
-func ProcGroup(pid int, controller string) (string, error) {
+func ProcGroup(pid int, selector GroupSelector) (string, error) {
+	if err := selector.Valid(); err != nil {
+		return "", fmt.Errorf("invalid group selector: %v", err)
+	}
+
 	f, err := os.Open(ProcPidPath(pid))
 	if err != nil {
 		return "", err
@@ -125,15 +201,17 @@ func ProcGroup(pid int, controller string) (string, error) {
 		//   <id>:<controller[,controller]>:/<path>
 		//   7:freezer:/snap.hello-world
 		//   ...
-		// See cgroup(7) for details about the /proc/[pid]/cgroup
+		// See cgroups(7) for details about the /proc/[pid]/cgroup
 		// format.
 		l := strings.Split(scanner.Text(), ":")
 		if len(l) < 3 {
 			continue
 		}
-		controllerList := strings.Split(l[1], ",")
+		id := l[0]
+		maybeControllerList := l[1]
 		cgroupPath := l[2]
-		if !strutil.ListContains(controllerList, controller) {
+
+		if !selector.Match(id, maybeControllerList) {
 			continue
 		}
 
@@ -143,7 +221,7 @@ func ProcGroup(pid int, controller string) (string, error) {
 		return "", scanner.Err()
 	}
 
-	return "", fmt.Errorf("cannot find cgroup controller %q path for pid %v", controller, pid)
+	return "", fmt.Errorf("cannot find %v cgroup path for pid %v", selector, pid)
 }
 
 // MockVersion sets the reported version of cgroup support. For use in testing only
