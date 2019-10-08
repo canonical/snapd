@@ -32,6 +32,7 @@ import (
 	"github.com/snapcore/snapd/interfaces"
 	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/sandbox/apparmor"
+	"github.com/snapcore/snapd/sandbox/cgroup"
 	"github.com/snapcore/snapd/sandbox/seccomp"
 	"github.com/snapcore/snapd/testutil"
 )
@@ -87,6 +88,9 @@ func (s *systemKeySuite) testInterfaceWriteSystemKey(c *C, nfsHome bool) {
 	})
 	defer restore()
 
+	restore = cgroup.MockVersion(1, nil)
+	defer restore()
+
 	err := interfaces.WriteSystemKey()
 	c.Assert(err, IsNil)
 
@@ -118,7 +122,7 @@ func (s *systemKeySuite) testInterfaceWriteSystemKey(c *C, nfsHome bool) {
 
 	overlayRoot, err := osutil.IsRootWritableOverlay()
 	c.Assert(err, IsNil)
-	c.Check(string(systemKey), Equals, fmt.Sprintf(`{"version":1,"build-id":"%s","apparmor-features":%s,"apparmor-parser-mtime":%s,"apparmor-parser-features":%s,"nfs-home":%v,"overlay-root":%q,"seccomp-features":%s,"seccomp-compiler-version":"%s"}`, s.buildID, apparmorFeaturesStr, apparmorParserMtime, apparmorParserFeaturesStr, nfsHome, overlayRoot, seccompActionsStr, seccompCompilerVersion))
+	c.Check(string(systemKey), Equals, fmt.Sprintf(`{"version":1,"build-id":"%s","apparmor-features":%s,"apparmor-parser-mtime":%s,"apparmor-parser-features":%s,"nfs-home":%v,"overlay-root":%q,"seccomp-features":%s,"seccomp-compiler-version":"%s","cgroup-version":"1"}`, s.buildID, apparmorFeaturesStr, apparmorParserMtime, apparmorParserFeaturesStr, nfsHome, overlayRoot, seccompActionsStr, seccompCompilerVersion))
 }
 
 func (s *systemKeySuite) TestInterfaceWriteSystemKeyNoNFS(c *C) {
