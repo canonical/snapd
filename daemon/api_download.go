@@ -37,8 +37,7 @@ var snapDownloadCmd = &Command{
 
 // SnapDownloadAction is used to request a snap download
 type snapDownloadAction struct {
-	Action string   `json:"action"`
-	Snaps  []string `json:"snaps,omitempty"`
+	SnapName string `json:"snap-name,omitempty"`
 }
 
 func postSnapDownload(c *Command, r *http.Request, user *auth.UserState) Response {
@@ -51,25 +50,11 @@ func postSnapDownload(c *Command, r *http.Request, user *auth.UserState) Respons
 		return BadRequest("extra content found after download operation")
 	}
 
-	if len(action.Snaps) == 0 {
+	if action.SnapName == "" {
 		return BadRequest("download operation requires one snap name")
 	}
 
-	if len(action.Snaps) != 1 {
-		return BadRequest("download operation supports only one snap")
-	}
-
-	if action.Action == "" {
-		return BadRequest("download operation requires action")
-	}
-
-	switch action.Action {
-	case "download":
-		snapName := action.Snaps[0]
-		return streamOneSnap(c, user, snapName)
-	default:
-		return BadRequest("unknown download operation %q", action.Action)
-	}
+	return streamOneSnap(c, user, action.SnapName)
 }
 
 func streamOneSnap(c *Command, user *auth.UserState, snapName string) Response {

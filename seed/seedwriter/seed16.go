@@ -140,6 +140,13 @@ func (pol *policy16) implicitSnaps(availableSnaps *naming.SnapSet) []*asserts.Mo
 	return nil
 }
 
+func (pol *policy16) implicitExtraSnaps(availableSnaps *naming.SnapSet) []*OptionsSnap {
+	if len(pol.needsCore) != 0 && !availableSnaps.Contains(naming.Snap("core")) {
+		return []*OptionsSnap{{Name: "core", Channel: "stable"}}
+	}
+	return nil
+}
+
 type tree16 struct {
 	opts *Options
 
@@ -159,7 +166,7 @@ func (tr *tree16) localSnapPath(sn *SeedSnap) string {
 	return filepath.Join(tr.snapsDirPath, filepath.Base(sn.Info.MountFile()))
 }
 
-func (tr *tree16) writeAssertions(db asserts.RODatabase, modelRefs []*asserts.Ref, snapsFromModel []*SeedSnap) error {
+func (tr *tree16) writeAssertions(db asserts.RODatabase, modelRefs []*asserts.Ref, snapsFromModel []*SeedSnap, extraSnaps []*SeedSnap) error {
 	seedAssertsDir := filepath.Join(tr.opts.SeedDir, "assertions")
 	if err := os.MkdirAll(seedAssertsDir, 0755); err != nil {
 		return err
@@ -195,14 +202,21 @@ func (tr *tree16) writeAssertions(db asserts.RODatabase, modelRefs []*asserts.Re
 		}
 	}
 
+	for _, sn := range extraSnaps {
+		if err := writeRefs(sn.ARefs); err != nil {
+			return err
+		}
+	}
+
 	return nil
 }
 
-func (tr *tree16) writeMeta(snapsFromModel []*SeedSnap) error {
+func (tr *tree16) writeMeta(snapsFromModel []*SeedSnap, extraSnaps []*SeedSnap) error {
 	var seedYaml seed.Seed16
 
-	seedSnaps := make(seedSnapsByType, len(snapsFromModel))
+	seedSnaps := make(seedSnapsByType, len(snapsFromModel)+len(extraSnaps))
 	copy(seedSnaps, snapsFromModel)
+	copy(seedSnaps[len(snapsFromModel):], extraSnaps)
 
 	sort.Stable(seedSnaps)
 
