@@ -24,6 +24,7 @@ import (
 
 	. "gopkg.in/check.v1"
 
+	"github.com/snapcore/snapd/sandbox/cgroup"
 	"github.com/snapcore/snapd/usersession/userd"
 )
 
@@ -32,9 +33,9 @@ type helpersSuite struct{}
 var _ = Suite(&helpersSuite{})
 
 func (s *helpersSuite) TestSnapFromPidHappy(c *C) {
-	restore := userd.MockProcGroup(func(pid int, controller string) (string, error) {
+	restore := userd.MockProcGroup(func(pid int, sel cgroup.GroupSelector) (string, error) {
 		c.Assert(pid, Equals, 333)
-		c.Assert(controller, Equals, "freezer")
+		c.Assert(sel, DeepEquals, cgroup.GroupSelector{Controller: "freezer"})
 		return "/snap.hello-world", nil
 	})
 	defer restore()
@@ -44,9 +45,9 @@ func (s *helpersSuite) TestSnapFromPidHappy(c *C) {
 }
 
 func (s *helpersSuite) TestSnapFromPidUnhappy(c *C) {
-	restore := userd.MockProcGroup(func(pid int, controller string) (string, error) {
+	restore := userd.MockProcGroup(func(pid int, sel cgroup.GroupSelector) (string, error) {
 		c.Assert(pid, Equals, 333)
-		c.Assert(controller, Equals, "freezer")
+		c.Assert(sel, DeepEquals, cgroup.GroupSelector{Controller: "freezer"})
 		return "", errors.New("nada")
 	})
 	defer restore()
