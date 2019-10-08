@@ -51,3 +51,5 @@ func UnmarshalSnapshotAction(body io.Reader) (act snapshotAction, err error) {
 	err = json.NewDecoder(body).Decode(&act)
 	return
 }
+
+type DownloadAction = downloadAction

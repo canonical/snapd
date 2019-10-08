@@ -21,6 +21,7 @@ package client
 
 import (
 	"bytes"
+	"context"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -304,4 +305,59 @@ func sendSnapFile(snapPath string, snapFile *os.File, pw *io.PipeWriter, mw *mul
 
 	mw.Close()
 	pw.Close()
+}
+
+type snapRevisionOptions struct {
+	Channel   string `json:"channel,omitempty"`
+	Revision  string `json:"revision,omitempty"`
+	CohortKey string `json:"cohort-key,omitempty"`
+}
+
+type downloadAction struct {
+	SnapName string `json:"snap-name,omitempty"`
+	snapRevisionOptions
+}
+
+// Download will stream the given snap to the client
+func (client *Client) Download(name string, options *SnapOptions) (suggestedFileName string, r io.ReadCloser, err error) {
+	if options == nil {
+		options = &SnapOptions{}
+	}
+	action := downloadAction{
+		SnapName: name,
+		snapRevisionOptions: snapRevisionOptions{
+			Channel:   options.Channel,
+			CohortKey: options.CohortKey,
+			Revision:  options.Revision,
+		},
+	}
+	data, err := json.Marshal(&action)
+	if err != nil {
+		return "", nil, fmt.Errorf("cannot marshal snap action: %s", err)
+	}
+	headers := map[string]string{
+		"Content-Type": "application/json",
+	}
+
+	// no deadline for downloads
+	ctx := context.Background()
+	rsp, err := client.raw(ctx, "POST", "/v2/download", nil, headers, bytes.NewBuffer(data))
+	if err != nil {
+		return "", nil, err
+	}
+
+	if rsp.StatusCode != 200 {
+		var r response
+		defer rsp.Body.Close()
+		if err := decodeInto(rsp.Body, &r); err != nil {
+			return "", nil, err
+		}
+		return "", nil, r.err(client, rsp.StatusCode)
+	}
+	matches := contentDispositionMatcher(rsp.Header.Get("Content-Disposition"))
+	if matches == nil || matches[1] == "" {
+		return "", nil, fmt.Errorf("cannot determine filename")
+	}
+
+	return matches[1], rsp.Body, nil
 }
