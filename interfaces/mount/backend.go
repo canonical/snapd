@@ -37,6 +37,7 @@ import (
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/interfaces"
 	"github.com/snapcore/snapd/osutil"
+	"github.com/snapcore/snapd/sandbox/cgroup"
 	"github.com/snapcore/snapd/snap"
 	"github.com/snapcore/snapd/timings"
 )
@@ -126,8 +127,7 @@ func (b *Backend) NewSpecification() interfaces.Specification {
 
 // SandboxFeatures returns the list of features supported by snapd for composing mount namespaces.
 func (b *Backend) SandboxFeatures() []string {
-	return []string{
-		"freezer-cgroup-v1",       /* Snapd creates a freezer cgroup (v1) for each snap */
+	commonFeatures := []string{
 		"layouts",                 /* Mount profiles take layout data into account */
 		"mount-namespace",         /* Snapd creates a mount namespace for each snap */
 		"per-snap-persistency",    /* Per-snap profiles are persisted across invocations */
@@ -136,4 +136,15 @@ func (b *Backend) SandboxFeatures() []string {
 		"per-snap-user-profiles",  /* Per-snap profiles allow changing mount namespace of a given snap for a given user */
 		"stale-base-invalidation", /* Mount namespaces that go stale because base snap changes are automatically invalidated */
 	}
+	cgroupv1Features := []string{
+		"freezer-cgroup-v1", /* Snapd creates a freezer cgroup (v1) for each snap */
+	}
+
+	if cgroup.IsUnified() {
+		// TODO: update we get feature parity on cgroup v2
+		return commonFeatures
+	}
+
+	features := append(commonFeatures, cgroupv1Features...)
+	return features
 }

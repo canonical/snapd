@@ -820,7 +820,7 @@ func (s *backendSuite) TestSnapConfineFromSnapProfileCreatesAllDirs(c *C) {
 func (s *backendSuite) TestSetupHostSnapConfineApparmorForReexecCleans(c *C) {
 	restorer := release.MockOnClassic(true)
 	defer restorer()
-	restorer = release.MockForcedDevmode(false)
+	restorer = apparmor_sandbox.MockLevel(apparmor_sandbox.Full)
 	defer restorer()
 
 	coreInfo := snaptest.MockInfo(c, coreYaml, &snap.SideInfo{Revision: snap.R(111)})
@@ -842,7 +842,7 @@ func (s *backendSuite) TestSetupHostSnapConfineApparmorForReexecCleans(c *C) {
 func (s *backendSuite) TestSetupHostSnapConfineApparmorForReexecWritesNew(c *C) {
 	restorer := release.MockOnClassic(true)
 	defer restorer()
-	restorer = release.MockForcedDevmode(false)
+	restorer = apparmor_sandbox.MockLevel(apparmor_sandbox.Full)
 	defer restorer()
 
 	coreInfo := snaptest.MockInfo(c, coreYaml, &snap.SideInfo{Revision: snap.R(111)})
