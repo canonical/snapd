@@ -249,7 +249,12 @@ func (s *systemKeySuite) TestStaticVersion(c *C) {
 	//
 	// *** IF THIS FAILS, YOU NEED TO BUMP THE VERSION BEFORE "FIXING" THIS ***
 	var sk interfaces.SystemKey
+
+	// XXX: this checks needs to become smarter once we remove or change
+	// existing fields, in which case the version will gets a bump but the
+	// number of fields decreases or remains unchanged
 	c.Check(reflect.ValueOf(sk).NumField(), Equals, interfaces.SystemKeyVersion)
+
 	c.Check(fmt.Sprintf("%+v", sk), Equals, "{"+strings.Join([]string{
 		"Version:0",
 		"BuildID:",
