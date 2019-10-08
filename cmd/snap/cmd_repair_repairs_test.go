@@ -52,6 +52,14 @@ func (s *SnapSuite) TestSnapShowRepair(c *C) {
 	})
 }
 
+func (s *SnapSuite) TestSnapShowRepairNoArgs(c *C) {
+	restore := release.MockOnClassic(false)
+	defer restore()
+
+	_, err := snap.Parser(snap.Client()).ParseArgs([]string{"repair"})
+	c.Assert(err, ErrorMatches, "no `<repair-id>` given, did you mean 'snap repairs' to list all repairs\\?")
+}
+
 func (s *SnapSuite) TestSnapListRepairs(c *C) {
 	restore := release.MockOnClassic(false)
 	defer restore()

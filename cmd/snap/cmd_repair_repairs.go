@@ -69,6 +69,10 @@ func init() {
 }
 
 func (x *cmdShowRepair) Execute(args []string) error {
+	if len(x.Positional.Repair) == 0 {
+		return fmt.Errorf("no `<repair-id>` given, did you mean 'snap repairs' to list all repairs?")
+	}
+
 	return runSnapRepair("show", x.Positional.Repair)
 }
 
