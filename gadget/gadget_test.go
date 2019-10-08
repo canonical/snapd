@@ -716,7 +716,7 @@ func (s *gadgetYamlTestSuite) TestValidateStructureType(c *C) {
 	} {
 		c.Logf("tc: %v %q", i, tc.s)
 
-		err := gadget.ValidateVolumeStructure(&gadget.VolumeStructure{Type: tc.s, Size: 123}, &gadget.Volume{Schema: tc.schema}, nil)
+		err := gadget.ValidateVolumeStructure(&gadget.VolumeStructure{Type: tc.s, Size: 123}, &gadget.Volume{Schema: tc.schema})
 		if tc.err != "" {
 			c.Check(err, ErrorMatches, tc.err)
 		} else {
@@ -797,36 +797,35 @@ size: 447`
 	for i, tc := range []struct {
 		s   *gadget.VolumeStructure
 		v   *gadget.Volume
-		c   *gadget.ModelConstraints
 		err string
 	}{
-		{mustParseStructure(c, validSystemBoot), vol, nil, ""},
+		{mustParseStructure(c, validSystemBoot), vol, ""},
 		// empty, ok too
-		{mustParseStructure(c, emptyRole), vol, nil, ""},
+		{mustParseStructure(c, emptyRole), vol, ""},
 		// invalid role name
-		{mustParseStructure(c, bogusRole), vol, nil, `invalid role "foobar": unsupported role`},
+		{mustParseStructure(c, bogusRole), vol, `invalid role "foobar": unsupported role`},
 		// the system-seed role
-		{mustParseStructure(c, validSystemSeed), vol, nil, ""},
-		{mustParseStructure(c, validSystemSeed), vol, &gadget.ModelConstraints{Classic: false, SystemSeed: true}, ""},
-		{mustParseStructure(c, validSystemSeed), vol, &gadget.ModelConstraints{Classic: true, SystemSeed: true}, ""},
+		{mustParseStructure(c, validSystemSeed), vol, ""},
+		{mustParseStructure(c, validSystemSeed), vol, ""},
+		{mustParseStructure(c, validSystemSeed), vol, ""},
 		// mbr
-		{mustParseStructure(c, mbrTooLarge), mbrVol, nil, `invalid role "mbr": mbr structures cannot be larger than 446 bytes`},
-		{mustParseStructure(c, mbrBadOffset), mbrVol, nil, `invalid role "mbr": mbr structure must start at offset 0`},
-		{mustParseStructure(c, mbrBadID), mbrVol, nil, `invalid role "mbr": mbr structure must not specify partition ID`},
-		{mustParseStructure(c, mbrBadFilesystem), mbrVol, nil, `invalid role "mbr": mbr structures must not specify a file system`},
+		{mustParseStructure(c, mbrTooLarge), mbrVol, `invalid role "mbr": mbr structures cannot be larger than 446 bytes`},
+		{mustParseStructure(c, mbrBadOffset), mbrVol, `invalid role "mbr": mbr structure must start at offset 0`},
+		{mustParseStructure(c, mbrBadID), mbrVol, `invalid role "mbr": mbr structure must not specify partition ID`},
+		{mustParseStructure(c, mbrBadFilesystem), mbrVol, `invalid role "mbr": mbr structures must not specify a file system`},
 		// filesystem: none is ok for MBR
-		{mustParseStructure(c, mbrNoneFilesystem), mbrVol, nil, ""},
+		{mustParseStructure(c, mbrNoneFilesystem), mbrVol, ""},
 		// legacy, type: mbr treated like role: mbr
-		{mustParseStructure(c, legacyMBR), mbrVol, nil, ""},
-		{mustParseStructure(c, legacyTypeMatchingRole), mbrVol, nil, ""},
-		{mustParseStructure(c, legacyTypeAsMBRTooLarge), mbrVol, nil, `invalid implicit role "mbr": mbr structures cannot be larger than 446 bytes`},
-		{mustParseStructure(c, legacyTypeConflictsRole), vol, nil, `invalid role "system-data": conflicting legacy type: "mbr"`},
+		{mustParseStructure(c, legacyMBR), mbrVol, ""},
+		{mustParseStructure(c, legacyTypeMatchingRole), mbrVol, ""},
+		{mustParseStructure(c, legacyTypeAsMBRTooLarge), mbrVol, `invalid implicit role "mbr": mbr structures cannot be larger than 446 bytes`},
+		{mustParseStructure(c, legacyTypeConflictsRole), vol, `invalid role "system-data": conflicting legacy type: "mbr"`},
 		// conflicting type/role
-		{mustParseStructure(c, typeConflictsRole), vol, nil, `invalid role "system-data": conflicting type: "bare"`},
+		{mustParseStructure(c, typeConflictsRole), vol, `invalid role "system-data": conflicting type: "bare"`},
 	} {
 		c.Logf("tc: %v %+v", i, tc.s)
 
-		err := gadget.ValidateVolumeStructure(tc.s, tc.v, tc.c)
+		err := gadget.ValidateVolumeStructure(tc.s, tc.v)
 		if tc.err != "" {
 			c.Check(err, ErrorMatches, tc.err)
 		} else {
@@ -847,7 +846,7 @@ func (s *gadgetYamlTestSuite) TestValidateFilesystem(c *C) {
 	} {
 		c.Logf("tc: %v %+v", i, tc.s)
 
-		err := gadget.ValidateVolumeStructure(&gadget.VolumeStructure{Filesystem: tc.s, Type: "21686148-6449-6E6F-744E-656564454649", Size: 123}, &gadget.Volume{}, nil)
+		err := gadget.ValidateVolumeStructure(&gadget.VolumeStructure{Filesystem: tc.s, Type: "21686148-6449-6E6F-744E-656564454649", Size: 123}, &gadget.Volume{})
 		if tc.err != "" {
 			c.Check(err, ErrorMatches, tc.err)
 		} else {
@@ -1064,7 +1063,7 @@ content:
 	} {
 		c.Logf("tc: %v %+v", i, tc.s)
 
-		err := gadget.ValidateVolumeStructure(tc.s, &gadget.Volume{}, nil)
+		err := gadget.ValidateVolumeStructure(tc.s, &gadget.Volume{})
 		if tc.err != "" {
 			c.Check(err, ErrorMatches, tc.err)
 		} else {
@@ -1126,14 +1125,14 @@ func (s *gadgetYamlTestSuite) TestValidateStructureUpdatePreserveOnlyForFs(c *C)
 		Type:   "bare",
 		Update: gadget.VolumeUpdate{Preserve: []string{"foo"}},
 		Size:   512,
-	}, gv, nil)
+	}, gv)
 	c.Check(err, ErrorMatches, "preserving files during update is not supported for non-filesystem structures")
 
 	err = gadget.ValidateVolumeStructure(&gadget.VolumeStructure{
 		Type:   "21686148-6449-6E6F-744E-656564454649",
 		Update: gadget.VolumeUpdate{Preserve: []string{"foo"}},
 		Size:   512,
-	}, gv, nil)
+	}, gv)
 	c.Check(err, ErrorMatches, "preserving files during update is not supported for non-filesystem structures")
 
 	err = gadget.ValidateVolumeStructure(&gadget.VolumeStructure{
@@ -1141,7 +1140,7 @@ func (s *gadgetYamlTestSuite) TestValidateStructureUpdatePreserveOnlyForFs(c *C)
 		Filesystem: "vfat",
 		Update:     gadget.VolumeUpdate{Preserve: []string{"foo"}},
 		Size:       512,
-	}, gv, nil)
+	}, gv)
 	c.Check(err, IsNil)
 }
 
@@ -1153,7 +1152,7 @@ func (s *gadgetYamlTestSuite) TestValidateStructureUpdatePreserveDuplicates(c *C
 		Filesystem: "vfat",
 		Update:     gadget.VolumeUpdate{Edition: 1, Preserve: []string{"foo", "bar"}},
 		Size:       512,
-	}, gv, nil)
+	}, gv)
 	c.Check(err, IsNil)
 
 	err = gadget.ValidateVolumeStructure(&gadget.VolumeStructure{
@@ -1161,7 +1160,7 @@ func (s *gadgetYamlTestSuite) TestValidateStructureUpdatePreserveDuplicates(c *C
 		Filesystem: "vfat",
 		Update:     gadget.VolumeUpdate{Edition: 1, Preserve: []string{"foo", "bar", "foo"}},
 		Size:       512,
-	}, gv, nil)
+	}, gv)
 	c.Check(err, ErrorMatches, `duplicate "preserve" entry "foo"`)
 }
 
@@ -1172,14 +1171,14 @@ func (s *gadgetYamlTestSuite) TestValidateStructureSizeRequired(c *C) {
 	err := gadget.ValidateVolumeStructure(&gadget.VolumeStructure{
 		Type:   "bare",
 		Update: gadget.VolumeUpdate{Preserve: []string{"foo"}},
-	}, gv, nil)
+	}, gv)
 	c.Check(err, ErrorMatches, "missing size")
 
 	err = gadget.ValidateVolumeStructure(&gadget.VolumeStructure{
 		Type:       "21686148-6449-6E6F-744E-656564454649",
 		Filesystem: "vfat",
 		Update:     gadget.VolumeUpdate{Preserve: []string{"foo"}},
-	}, gv, nil)
+	}, gv)
 	c.Check(err, ErrorMatches, "missing size")
 
 	err = gadget.ValidateVolumeStructure(&gadget.VolumeStructure{
@@ -1187,7 +1186,7 @@ func (s *gadgetYamlTestSuite) TestValidateStructureSizeRequired(c *C) {
 		Filesystem: "vfat",
 		Size:       mustParseGadgetSize(c, "123M"),
 		Update:     gadget.VolumeUpdate{Preserve: []string{"foo"}},
-	}, gv, nil)
+	}, gv)
 	c.Check(err, IsNil)
 }
 

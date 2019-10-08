@@ -386,7 +386,7 @@ func validateVolume(name string, vol *Volume, constraints *ModelConstraints) err
 	state := &validationState{}
 	previousEnd := Size(0)
 	for idx, s := range vol.Structure {
-		if err := validateVolumeStructure(&s, vol, constraints); err != nil {
+		if err := validateVolumeStructure(&s, vol); err != nil {
 			return fmt.Errorf("invalid structure %v: %v", fmtIndexAndName(idx, s.Name), err)
 		}
 		var start Size
@@ -444,18 +444,20 @@ func validateVolume(name string, vol *Volume, constraints *ModelConstraints) err
 
 func ensureVolumeConsistency(state *validationState, constraints *ModelConstraints) error {
 	if constraints == nil {
-		if state.SystemData != nil {
-			// gadget must be auto-consistent if constraints are not specified
-			if state.SystemSeed != nil {
-				if state.SystemData.Label != UbuntuSystemDataLabel {
-					return fmt.Errorf("system-data structure must have label %q, not %q",
-						UbuntuSystemDataLabel, state.SystemData.Label)
-				}
-			} else {
-				if state.SystemData.Label != "" && state.SystemData.Label != ImplicitSystemDataLabel {
-					return fmt.Errorf("system-data structure must have an implicit label or %q, not %q",
-						ImplicitSystemDataLabel, state.SystemData.Label)
-				}
+		if state.SystemData == nil {
+			return nil
+		}
+
+		// gadget must be auto-consistent if constraints are not specified
+		if state.SystemSeed != nil {
+			if state.SystemData.Label != UbuntuSystemDataLabel {
+				return fmt.Errorf("system-data structure must have label %q, not %q",
+					UbuntuSystemDataLabel, state.SystemData.Label)
+			}
+		} else {
+			if state.SystemData.Label != "" && state.SystemData.Label != ImplicitSystemDataLabel {
+				return fmt.Errorf("system-data structure must have an implicit label or %q, not %q",
+					ImplicitSystemDataLabel, state.SystemData.Label)
 			}
 		}
 		return nil
@@ -531,14 +533,14 @@ func validateCrossVolumeStructure(structures []LaidOutStructure, knownStructures
 	return nil
 }
 
-func validateVolumeStructure(vs *VolumeStructure, vol *Volume, constraints *ModelConstraints) error {
+func validateVolumeStructure(vs *VolumeStructure, vol *Volume) error {
 	if vs.Size == 0 {
 		return errors.New("missing size")
 	}
 	if err := validateStructureType(vs.Type, vol); err != nil {
 		return fmt.Errorf("invalid type %q: %v", vs.Type, err)
 	}
-	if err := validateRole(vs, vol, constraints); err != nil {
+	if err := validateRole(vs, vol); err != nil {
 		var what string
 		if vs.Role != "" {
 			what = fmt.Sprintf("role %q", vs.Role)
@@ -637,7 +639,7 @@ func validateStructureType(s string, vol *Volume) error {
 	return nil
 }
 
-func validateRole(vs *VolumeStructure, vol *Volume, constraints *ModelConstraints) error {
+func validateRole(vs *VolumeStructure, vol *Volume) error {
 	if vs.Type == "bare" {
 		if vs.Role != "" && vs.Role != MBR {
 			return fmt.Errorf("conflicting type: %q", vs.Type)
