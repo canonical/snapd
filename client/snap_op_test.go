@@ -449,6 +449,7 @@ func (cs *clientSuite) TestClientOpDownload(c *check.C) {
 
 	fname, rc, err := cs.cli.Download("foo", &client.SnapOptions{
 		Revision: "2",
+		Channel:  "edge",
 	})
 	c.Check(err, check.IsNil)
 	c.Check(fname, check.Equals, "foo_2.snap")
@@ -461,7 +462,8 @@ func (cs *clientSuite) TestClientOpDownload(c *check.C) {
 	err = json.Unmarshal(body, &jsonBody)
 	c.Assert(err, check.IsNil)
 	c.Check(jsonBody.SnapName, check.DeepEquals, "foo")
-	c.Check(jsonBody.Options.Revision, check.Equals, "2")
+	c.Check(jsonBody.Revision, check.Equals, "2")
+	c.Check(jsonBody.Channel, check.Equals, "edge")
 
 	// ensure we can read the response
 	content, err := ioutil.ReadAll(rc)
