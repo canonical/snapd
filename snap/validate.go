@@ -102,10 +102,6 @@ func ValidateVersion(version string) error {
 		}
 		// now we know it's a non-empty ASCII string, we can get serious
 		var reasons []string
-		// ... too long?
-		if len(version) > 32 {
-			reasons = append(reasons, fmt.Sprintf("cannot be longer than 32 characters (got: %d)", len(version)))
-		}
 		// started with a symbol?
 		if isInvalidFirstVersionChar(version) {
 			// note that we can only say version[0] because we know it's ASCII :-)
