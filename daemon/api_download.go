@@ -55,20 +55,20 @@ func postSnapDownload(c *Command, r *http.Request, user *auth.UserState) Respons
 		return BadRequest("download operation requires one snap name")
 	}
 
-	return streamOneSnap(c, user, action)
+	return streamOneSnap(c, action, user)
 }
 
-func streamOneSnap(c *Command, user *auth.UserState, opts snapDownloadAction) Response {
+func streamOneSnap(c *Command, action snapDownloadAction, user *auth.UserState) Response {
 	actions := []*store.SnapAction{{
 		Action:       "download",
-		InstanceName: opts.SnapName,
-		Revision:     opts.Revision,
-		CohortKey:    opts.CohortKey,
-		Channel:      opts.Channel,
+		InstanceName: action.SnapName,
+		Revision:     action.Revision,
+		CohortKey:    action.CohortKey,
+		Channel:      action.Channel,
 	}}
 	snaps, err := getStore(c).SnapAction(context.TODO(), nil, actions, user, nil)
 	if err != nil {
-		return SnapNotFound(opts.SnapName, err)
+		return SnapNotFound(action.SnapName, err)
 	}
 	if len(snaps) != 1 {
 		return InternalError("internal error: unexpected number %v of results for a single download", len(snaps))
@@ -76,13 +76,13 @@ func streamOneSnap(c *Command, user *auth.UserState, opts snapDownloadAction) Re
 	info := snaps[0]
 
 	downloadInfo := info.DownloadInfo
-	r, err := getStore(c).DownloadStream(context.TODO(), opts.SnapName, &downloadInfo, user)
+	r, err := getStore(c).DownloadStream(context.TODO(), action.SnapName, &downloadInfo, user)
 	if err != nil {
 		return InternalError(err.Error())
 	}
 
 	return fileStream{
-		SnapName: opts.SnapName,
+		SnapName: action.SnapName,
 		Filename: filepath.Base(info.MountFile()),
 		Info:     downloadInfo,
 		stream:   r,
