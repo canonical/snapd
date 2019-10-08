@@ -58,7 +58,7 @@ var (
 // Note that this key gets generated on *each* `snap run` - so it
 // *must* be cheap to calculate it (no hashes of big binaries etc).
 type systemKey struct {
-	// IMPORTANT: when adding new inputs bump this version
+	// IMPORTANT: when adding/removing/changing inputs bump this version (see below)
 	Version int `json:"version"`
 
 	// This is the build-id of the snapd that generated the profiles.
@@ -78,6 +78,9 @@ type systemKey struct {
 	CgroupVersion          string   `json:"cgroup-version"`
 }
 
+// IMPORTANT: when adding/removing/changing inputs bump this
+const systemKeyVersion = 9
+
 var (
 	isHomeUsingNFS  = osutil.IsHomeUsingNFS
 	mockedSystemKey *systemKey
@@ -96,7 +99,7 @@ func generateSystemKey() (*systemKey, error) {
 	}
 
 	sk := &systemKey{
-		Version: 1,
+		Version: systemKeyVersion,
 	}
 	snapdPath, err := cmd.InternalToolPath("snapd")
 	if err != nil {
