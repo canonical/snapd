@@ -47,11 +47,17 @@ const (
 
 	SystemBoot = "system-boot"
 	SystemData = "system-data"
-	BootImage  = "bootimg"
-	BootSelect = "bootselect"
+
+	BootImage  = "system-boot-image"
+	BootSelect = "system-boot-select"
+
 	// ImplicitSystemDataLabel is the implicit filesystem label of structure
 	// of system-data role
 	ImplicitSystemDataLabel = "writable"
+
+	// only supported for legacy reasons
+	LegacyBootImage  = "bootimg"
+	LegacyBootSelect = "bootselect"
 )
 
 var (
@@ -595,6 +601,10 @@ func validateRole(vs *VolumeStructure, vol *Volume) error {
 		}
 	case SystemBoot, BootImage, BootSelect, "":
 		// noop
+	case LegacyBootImage, LegacyBootSelect:
+		// noop
+		// legacy role names were added in 2.42 can be removed
+		// on snapd epoch bump
 	default:
 		return fmt.Errorf("unsupported role")
 	}

@@ -200,6 +200,42 @@ volumes:
     structure:
       - name: BOOTIMG1
         size: 25165824
+        role: system-boot-image
+        type: 27
+        content:
+          - image: boot.img
+      - name: BOOTIMG2
+        size: 25165824
+        role: system-boot-image
+        type: 27
+      - name: snapbootsel
+        size: 131072
+        role: system-boot-select
+        type: B2
+        content:
+          - image: snapbootsel.bin
+      - name: snapbootselbak
+        size: 131072
+        role: system-boot-select
+        type: B2
+        content:
+          - image: snapbootsel.bin
+      - name: writable
+        type: 83
+        filesystem: ext4
+        filesystem-label: writable
+        size: 500M
+        role: system-data
+`)
+
+var gadgetYamlLkLegacy = []byte(`
+volumes:
+  volumename:
+    schema: mbr
+    bootloader: lk
+    structure:
+      - name: BOOTIMG1
+        size: 25165824
         role: bootimg
         type: 27
         content:
@@ -621,6 +657,14 @@ func (s *gadgetYamlTestSuite) TestReadGadgetYamlRPiHappy(c *C) {
 
 func (s *gadgetYamlTestSuite) TestReadGadgetYamlLkHappy(c *C) {
 	err := ioutil.WriteFile(s.gadgetYamlPath, gadgetYamlLk, 0644)
+	c.Assert(err, IsNil)
+
+	_, err = gadget.ReadInfo(s.dir, false)
+	c.Assert(err, IsNil)
+}
+
+func (s *gadgetYamlTestSuite) TestReadGadgetYamlLkLegacyHappy(c *C) {
+	err := ioutil.WriteFile(s.gadgetYamlPath, gadgetYamlLkLegacy, 0644)
 	c.Assert(err, IsNil)
 
 	_, err = gadget.ReadInfo(s.dir, false)
