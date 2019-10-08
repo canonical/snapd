@@ -28,6 +28,7 @@ import (
 	. "gopkg.in/check.v1"
 
 	"github.com/snapcore/snapd/asserts"
+	"github.com/snapcore/snapd/client"
 	"github.com/snapcore/snapd/snap"
 )
 
@@ -64,6 +65,13 @@ func (cs *clientSuite) TestClientAssertsCallsEndpoint(c *C) {
 	_, _ = cs.cli.Known("snap-revision", nil)
 	c.Check(cs.req.Method, Equals, "GET")
 	c.Check(cs.req.URL.Path, Equals, "/v2/assertions/snap-revision")
+}
+
+func (cs *clientSuite) TestClientAssertsOptsCallsEndpoint(c *C) {
+	_, _ = cs.cli.KnownOpts("snap-revision", nil, &client.KnownOptions{Remote: true})
+	c.Check(cs.req.Method, Equals, "GET")
+	c.Check(cs.req.URL.Path, Equals, "/v2/assertions/snap-revision")
+	c.Check(cs.req.URL.Query()["remote"], DeepEquals, []string{"true"})
 }
 
 func (cs *clientSuite) TestClientAssertsCallsEndpointWithFilter(c *C) {

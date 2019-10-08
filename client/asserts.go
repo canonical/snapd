@@ -57,8 +57,23 @@ func (client *Client) AssertionTypes() ([]string, error) {
 	return types.Types, nil
 }
 
+// KnownOptions represent the options of the Known call.
+type KnownOptions struct {
+	// If Remote is true, the store is queried to find the assertion
+	Remote bool
+}
+
 // Known queries assertions with type assertTypeName and matching assertion headers.
 func (client *Client) Known(assertTypeName string, headers map[string]string) ([]asserts.Assertion, error) {
+	return client.KnownOpts(assertTypeName, headers, nil)
+}
+
+// KnownOpts queries assertions with type assertTypeName and matching assertion headers and the given options.
+func (client *Client) KnownOpts(assertTypeName string, headers map[string]string, opts *KnownOptions) ([]asserts.Assertion, error) {
+	if opts == nil {
+		opts = &KnownOptions{}
+	}
+
 	path := fmt.Sprintf("/v2/assertions/%s", assertTypeName)
 	q := url.Values{}
 
@@ -66,6 +81,9 @@ func (client *Client) Known(assertTypeName string, headers map[string]string) ([
 		for k, v := range headers {
 			q.Set(k, v)
 		}
+	}
+	if opts.Remote {
+		q.Set("remote", "true")
 	}
 
 	ctx, cancel := context.WithTimeout(context.Background(), doTimeout)
