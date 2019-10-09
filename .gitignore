@@ -1,10 +1,10 @@
-share
 tags
 .coverage
 cmd/version_generated.go
 cmd/VERSION
 *~
 *.swp
+.*.swp
 vendor/*/
 .spread-reuse*.yaml
 po/snappy.pot
@@ -12,9 +12,6 @@ po/snappy.pot
 # snap-confine bits
 *.a
 *.o
-*~
-.*.swp
-.*.swp
 .dirstamp
 # Locally built binaries
 cmd/decode-mount-opts/decode-mount-opts
@@ -28,7 +25,6 @@ cmd/snap-gdb-shim/snap-gdb-shim
 cmd/snap-mgmt/snap-mgmt
 cmd/snap-seccomp/snap-seccomp
 cmd/snap-update-ns/snap-update-ns
-cmd/snap-update-ns/unit-tests
 cmd/snapd-env-generator/snapd-env-generator
 cmd/snapd-generator/snapd-generator
 cmd/system-shutdown/system-shutdown
