@@ -23,13 +23,14 @@ import (
 	"fmt"
 	"strings"
 
+	"github.com/jessevdk/go-flags"
+	"golang.org/x/xerrors"
+
 	"github.com/snapcore/snapd/asserts"
 	"github.com/snapcore/snapd/client"
 	"github.com/snapcore/snapd/i18n"
 	"github.com/snapcore/snapd/overlord/auth"
 	"github.com/snapcore/snapd/store"
-
-	"github.com/jessevdk/go-flags"
 )
 
 type cmdKnown struct {
@@ -116,6 +117,10 @@ func (x *cmdKnown) Execute(args []string) error {
 	case x.Remote && !x.Direct:
 		// --remote will query snapd
 		assertions, err = x.client.Known(string(x.KnownOptions.AssertTypeName), headers, &client.KnownOptions{Remote: true})
+		// if snapd is unavailable automatically fallback
+		if xerrors.Is(err, client.ConnectionError{}) {
+			assertions, err = downloadAssertion(string(x.KnownOptions.AssertTypeName), headers)
+		}
 	case x.Direct:
 		// --direct will always go direct, with or without --remote
 		assertions, err = downloadAssertion(string(x.KnownOptions.AssertTypeName), headers)

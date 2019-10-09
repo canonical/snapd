@@ -27,6 +27,8 @@ import (
 	"net/url"
 	"strconv"
 
+	"golang.org/x/xerrors"
+
 	"github.com/snapcore/snapd/asserts" // for parsing
 	"github.com/snapcore/snapd/snap"
 )
@@ -85,7 +87,7 @@ func (client *Client) Known(assertTypeName string, headers map[string]string, op
 	defer cancel()
 	response, err := client.raw(ctx, "GET", path, q, nil, nil)
 	if err != nil {
-		return nil, fmt.Errorf("failed to query assertions: %v", err)
+		return nil, xerrors.Errorf("failed to query assertions: %w", err)
 	}
 
 	defer response.Body.Close()

@@ -28,6 +28,7 @@ import (
 	"github.com/jessevdk/go-flags"
 	"gopkg.in/check.v1"
 
+	"github.com/snapcore/snapd/client"
 	"github.com/snapcore/snapd/store"
 
 	snap "github.com/snapcore/snapd/cmd/snap"
@@ -106,6 +107,45 @@ func (s *SnapSuite) TestKnownRemoteDirect(c *check.C) {
 	}))
 
 	rest, err := snap.Parser(snap.Client()).ParseArgs([]string{"known", "--remote", "--direct", "model", "series=16", "brand-id=canonical", "model=pi99"})
+	c.Assert(err, check.IsNil)
+	c.Assert(rest, check.DeepEquals, []string{})
+	c.Check(s.Stdout(), check.Equals, mockModelAssertion)
+	c.Check(s.Stderr(), check.Equals, "")
+}
+
+func (s *SnapSuite) TestKnownRemoteAutoFallback(c *check.C) {
+	var server *httptest.Server
+
+	restorer := snap.MockStoreNew(func(cfg *store.Config, stoCtx store.DeviceAndAuthContext) *store.Store {
+		if cfg == nil {
+			cfg = store.DefaultConfig()
+		}
+		serverURL, _ := url.Parse(server.URL)
+		cfg.AssertionsBaseURL = serverURL
+		return store.New(cfg, stoCtx)
+	})
+	defer restorer()
+
+	n := 0
+	server = httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		c.Assert(r.URL.Path, check.Matches, ".*/assertions/.*") // sanity check request
+		switch n {
+		case 0:
+			c.Check(r.Method, check.Equals, "GET")
+			c.Check(r.URL.Path, check.Equals, "/api/v1/snaps/assertions/model/16/canonical/pi99")
+			fmt.Fprintln(w, mockModelAssertion)
+		default:
+			c.Fatalf("expected to get 1 requests, now on %d", n+1)
+		}
+		n++
+	}))
+
+	cli := snap.Client()
+	cli.Hijack(func(*http.Request) (*http.Response, error) {
+		return nil, client.ConnectionError{fmt.Errorf("no snapd")}
+	})
+
+	rest, err := snap.Parser(cli).ParseArgs([]string{"known", "--remote", "model", "series=16", "brand-id=canonical", "model=pi99"})
 	c.Assert(err, check.IsNil)
 	c.Assert(rest, check.DeepEquals, []string{})
 	c.Check(s.Stdout(), check.Equals, mockModelAssertion)
