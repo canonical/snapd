@@ -195,6 +195,14 @@ func (e ConnectionError) Error() string {
 	return fmt.Sprintf("cannot communicate with server: %s", errStr)
 }
 
+func IsConnectionError(err error) bool {
+	if _, ok := err.(ConnectionError); ok {
+		return true
+	}
+	_, ok := err.(*ConnectionError)
+	return ok
+}
+
 // AllowInteractionHeader is the HTTP request header used to indicate
 // that the client is willing to allow interaction.
 const AllowInteractionHeader = "X-Allow-Interaction"
@@ -256,7 +264,7 @@ func (client *Client) rawWithTimeout(ctx context.Context, method, urlpath string
 	rsp, err := client.raw(ctx, method, urlpath, query, headers, body)
 	if err != nil && ctx.Err() != nil {
 		cancel()
-		return nil, nil, &ConnectionError{ctx.Err()}
+		return nil, nil, ConnectionError{ctx.Err()}
 	}
 
 	return rsp, cancel, err
