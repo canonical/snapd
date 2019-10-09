@@ -3565,8 +3565,9 @@ version: 1.0`
 
 	// setup model assertion
 	devicestatetest.SetDevice(st, &auth.DeviceState{
-		Brand: "can0nical",
-		Model: "my-model",
+		Brand:  "can0nical",
+		Model:  "my-model",
+		Serial: "serialserialserial",
 	})
 	err := assertstate.Add(st, model)
 	c.Assert(err, IsNil)
@@ -3621,6 +3622,13 @@ version: 1.0`
 	// ensure that we only have the tasks we checked (plus the one
 	// extra "set-model" task)
 	c.Assert(tasks, HasLen, i+1)
+
+	// ensure we did not try device registration
+	for _, t := range st.Tasks() {
+		if t.Kind() == "request-serial" {
+			c.Fatalf("test should not create a request-serial task but did")
+		}
+	}
 }
 
 func (s *mgrsSuite) TestRemodelStoreSwitch(c *C) {
