@@ -321,3 +321,11 @@ func MockSignalNotify(newSignalNotify func(sig ...os.Signal) (chan os.Signal, fu
 }
 
 type ServiceName = serviceName
+
+func MockSnapNameFromPid(newSnapNameFromPid func(pid int) (string, error)) (restore func()) {
+	old := snapNameFromPid
+	snapNameFromPid = newSnapNameFromPid
+	return func() {
+		snapNameFromPid = old
+	}
+}
