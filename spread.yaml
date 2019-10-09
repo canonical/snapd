@@ -400,16 +400,8 @@ backends:
 
 path: /home/gopath/src/github.com/snapcore/snapd
 
-exclude:
-    - .git
-    - cmd/snap/snap
-    - cmd/snapd/snapd
-    - cmd/snapctl/snapctl
-    - cmd/snap-exec/snap-exec
-    - cmd/autom4te.cache
-    - "*.o"
-    - "*.a"
-    - ./vendor
+# See https://github.com/snapcore/spread/pull/89 for context.
+include: [.]
 
 debug-each: |
     if [ "$SPREAD_DEBUG_EACH" = 1 ]; then
