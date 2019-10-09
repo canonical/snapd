@@ -1,7 +1,7 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
 
 /*
- * Copyright (C) 2016 Canonical Ltd
+ * Copyright (C) 2019 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -20,28 +20,30 @@
 package snap
 
 import (
+	"fmt"
+	"path/filepath"
+	"strings"
+
 	"github.com/snapcore/snapd/sandbox/cgroup"
 )
 
-var (
-	ValidateSocketName           = validateSocketName
-	ValidateDescription          = validateDescription
-	ValidateTitle                = validateTitle
-	InfoFromSnapYamlWithSideInfo = infoFromSnapYamlWithSideInfo
-)
+var cgroupProcGroup = cgroup.ProcGroup
 
-func (info *Info) ForceRenamePlug(oldName, newName string) {
-	info.forceRenamePlug(oldName, newName)
-}
-
-func NewScopedTracker() *scopedTracker {
-	return new(scopedTracker)
-}
-
-func MockProcGroup(f func(pid int, match cgroup.GroupMatcher) (string, error)) (restore func()) {
-	old := cgroupProcGroup
-	cgroupProcGroup = f
-	return func() {
-		cgroupProcGroup = old
+func NameFromPid(pid int) (string, error) {
+	if cgroup.IsUnified() {
+		// not supported
+		return "", fmt.Errorf("not supported")
 	}
+
+	group, err := cgroupProcGroup(pid, cgroup.MatchV1Controller("freezer"))
+	if err != nil {
+		return "", fmt.Errorf("cannot determine cgroup path of pid %v: %v", pid, err)
+	}
+
+	if strings.HasPrefix(group, "/snap.") {
+		snap := strings.SplitN(filepath.Base(group), ".", 2)[1]
+		return snap, nil
+	}
+
+	return "", fmt.Errorf("cannot find a snap for pid %v", pid)
 }

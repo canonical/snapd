@@ -17,7 +17,7 @@
  *
  */
 
-package userd_test
+package snap_test
 
 import (
 	"errors"
@@ -25,35 +25,35 @@ import (
 	. "gopkg.in/check.v1"
 
 	"github.com/snapcore/snapd/sandbox/cgroup"
-	"github.com/snapcore/snapd/usersession/userd"
+	"github.com/snapcore/snapd/snap"
 )
 
-type helpersSuite struct{}
+type processInfoSuite struct{}
 
-var _ = Suite(&helpersSuite{})
+var _ = Suite(&processInfoSuite{})
 
-func (s *helpersSuite) TestSnapFromPidHappy(c *C) {
-	restore := userd.MockProcGroup(func(pid int, matcher cgroup.GroupMatcher) (string, error) {
+func (s *processInfoSuite) TestSnapFromPidHappy(c *C) {
+	restore := snap.MockProcGroup(func(pid int, matcher cgroup.GroupMatcher) (string, error) {
 		c.Assert(pid, Equals, 333)
 		c.Assert(matcher, NotNil)
 		c.Assert(matcher.String(), Equals, `controller "freezer"`)
 		return "/snap.hello-world", nil
 	})
 	defer restore()
-	snap, err := userd.SnapFromPid(333)
+	snap, err := snap.NameFromPid(333)
 	c.Assert(err, IsNil)
 	c.Check(snap, Equals, "hello-world")
 }
 
-func (s *helpersSuite) TestSnapFromPidUnhappy(c *C) {
-	restore := userd.MockProcGroup(func(pid int, matcher cgroup.GroupMatcher) (string, error) {
+func (s *processInfoSuite) TestSnapFromPidUnhappy(c *C) {
+	restore := snap.MockProcGroup(func(pid int, matcher cgroup.GroupMatcher) (string, error) {
 		c.Assert(pid, Equals, 333)
 		c.Assert(matcher, NotNil)
 		c.Assert(matcher.String(), Equals, `controller "freezer"`)
 		return "", errors.New("nada")
 	})
 	defer restore()
-	snap, err := userd.SnapFromPid(333)
+	snap, err := snap.NameFromPid(333)
 	c.Assert(err, ErrorMatches, "cannot determine cgroup path of pid 333: nada")
 	c.Check(snap, Equals, "")
 }

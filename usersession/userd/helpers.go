@@ -21,12 +21,10 @@ package userd
 
 import (
 	"fmt"
-	"path/filepath"
-	"strings"
 
 	"github.com/godbus/dbus"
 
-	"github.com/snapcore/snapd/sandbox/cgroup"
+	"github.com/snapcore/snapd/snap"
 )
 
 var snapFromSender = snapFromSenderImpl
@@ -36,7 +34,7 @@ func snapFromSenderImpl(conn *dbus.Conn, sender dbus.Sender) (string, error) {
 	if err != nil {
 		return "", fmt.Errorf("cannot get connection pid: %v", err)
 	}
-	snap, err := snapFromPid(pid)
+	snap, err := snap.NameFromPid(pid)
 	if err != nil {
 		return "", fmt.Errorf("cannot find snap for connection: %v", err)
 	}
@@ -67,26 +65,4 @@ func nameHasOwner(conn *dbus.Conn, sender dbus.Sender) bool {
 	var hasOwner bool
 	call.Store(&hasOwner)
 	return hasOwner
-}
-
-var cgroupProcGroup = cgroup.ProcGroup
-
-// FIXME: move to osutil?
-func snapFromPid(pid int) (string, error) {
-	if cgroup.IsUnified() {
-		// not supported
-		return "", fmt.Errorf("not supported")
-	}
-
-	group, err := cgroupProcGroup(pid, cgroup.MatchV1Controller("freezer"))
-	if err != nil {
-		return "", fmt.Errorf("cannot determine cgroup path of pid %v: %v", pid, err)
-	}
-
-	if strings.HasPrefix(group, "/snap.") {
-		snap := strings.SplitN(filepath.Base(group), ".", 2)[1]
-		return snap, nil
-	}
-
-	return "", fmt.Errorf("cannot find a snap for pid %v", pid)
 }
