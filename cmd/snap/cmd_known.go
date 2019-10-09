@@ -24,6 +24,7 @@ import (
 	"strings"
 
 	"github.com/snapcore/snapd/asserts"
+	"github.com/snapcore/snapd/client"
 	"github.com/snapcore/snapd/i18n"
 	"github.com/snapcore/snapd/overlord/auth"
 	"github.com/snapcore/snapd/store"
@@ -40,6 +41,7 @@ type cmdKnown struct {
 	} `positional-args:"true" required:"true"`
 
 	Remote bool `long:"remote"`
+	Direct bool `long:"direct"`
 }
 
 var shortKnownHelp = i18n.G("Show known assertions of the provided type")
@@ -110,10 +112,17 @@ func (x *cmdKnown) Execute(args []string) error {
 
 	var assertions []asserts.Assertion
 	var err error
-	if x.Remote {
+	switch {
+	case x.Remote && !x.Direct:
+		// --remote will query snapd
+		assertions, err = x.client.Known(string(x.KnownOptions.AssertTypeName), headers, &client.KnownOptions{Remote: true})
+	case x.Direct:
+		// --direct will always go direct, with or without --remote
 		assertions, err = downloadAssertion(string(x.KnownOptions.AssertTypeName), headers)
-	} else {
+	default:
+		// default is to look only local
 		assertions, err = x.client.Known(string(x.KnownOptions.AssertTypeName), headers, nil)
+
 	}
 	if err != nil {
 		return err

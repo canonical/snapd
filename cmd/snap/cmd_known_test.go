@@ -49,7 +49,35 @@ sign-key-sha3-384: 9tydnLa6MTJ-jaQTFUXEwHl1yRx7ZS4K5cyFDhYDcPzhS7uyEkDxdUjg9g08B
 AcLorsomethingthatlooksvaguelylikeasignature==
 `
 
-func (s *SnapSuite) TestKnownRemote(c *check.C) {
+func (s *SnapSuite) TestKnownRemoteViaSnapd(c *check.C) {
+	n := 0
+	s.RedirectClientToTestServer(func(w http.ResponseWriter, r *http.Request) {
+		switch n {
+		case 0:
+			c.Check(r.URL.Path, check.Equals, "/v2/assertions/model")
+			c.Check(r.URL.Query(), check.DeepEquals, url.Values{
+				"series":   []string{"16"},
+				"brand-id": []string{"canonical"},
+				"model":    []string{"pi99"},
+				"remote":   []string{"true"},
+			})
+			w.Header().Set("X-Ubuntu-Assertions-Count", "1")
+			fmt.Fprintln(w, mockModelAssertion)
+		default:
+			c.Fatalf("expected to get 1 requests, now on %d", n+1)
+		}
+		n++
+	})
+
+	rest, err := snap.Parser(snap.Client()).ParseArgs([]string{"known", "--remote", "model", "series=16", "brand-id=canonical", "model=pi99"})
+	c.Assert(err, check.IsNil)
+	c.Assert(rest, check.DeepEquals, []string{})
+	c.Check(s.Stdout(), check.Equals, mockModelAssertion)
+	c.Check(s.Stderr(), check.Equals, "")
+	c.Check(n, check.Equals, 1)
+}
+
+func (s *SnapSuite) TestKnownRemoteDirect(c *check.C) {
 	var server *httptest.Server
 
 	restorer := snap.MockStoreNew(func(cfg *store.Config, stoCtx store.DeviceAndAuthContext) *store.Store {
@@ -77,7 +105,7 @@ func (s *SnapSuite) TestKnownRemote(c *check.C) {
 		n++
 	}))
 
-	rest, err := snap.Parser(snap.Client()).ParseArgs([]string{"known", "--remote", "model", "series=16", "brand-id=canonical", "model=pi99"})
+	rest, err := snap.Parser(snap.Client()).ParseArgs([]string{"known", "--remote", "--direct", "model", "series=16", "brand-id=canonical", "model=pi99"})
 	c.Assert(err, check.IsNil)
 	c.Assert(rest, check.DeepEquals, []string{})
 	c.Check(s.Stdout(), check.Equals, mockModelAssertion)
@@ -85,7 +113,7 @@ func (s *SnapSuite) TestKnownRemote(c *check.C) {
 }
 
 func (s *SnapSuite) TestKnownRemoteMissingPrimaryKey(c *check.C) {
-	_, err := snap.Parser(snap.Client()).ParseArgs([]string{"known", "--remote", "model", "series=16", "brand-id=canonical"})
+	_, err := snap.Parser(snap.Client()).ParseArgs([]string{"known", "--remote", "--direct", "model", "series=16", "brand-id=canonical"})
 	c.Assert(err, check.ErrorMatches, `cannot query remote assertion: must provide primary key: model`)
 }
 
@@ -105,4 +133,5 @@ func (s *SnapSuite) TestAssertTypeNameCompletion(c *check.C) {
 	})
 
 	c.Check(snap.AssertTypeNameCompletion("v"), check.DeepEquals, []flags.Completion{{Item: "validation"}})
+	c.Check(n, check.Equals, 1)
 }
