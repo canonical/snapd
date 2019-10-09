@@ -75,7 +75,7 @@ execute: |
     snap wait system seed.loaded
 
     echo "We have a model assertion"
-    snap model --assertion|MATCH "model: my-classic-w-gadget"
+    snap model --verbose|MATCH "model:\s* my-classic-w-gadget"
 
     echo "Wait for device initialisation to be done"
     while ! snap changes | grep -q "Done.*Initialize device"; do sleep 1; done

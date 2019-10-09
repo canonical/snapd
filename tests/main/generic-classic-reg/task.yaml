@@ -13,7 +13,7 @@ execute: |
     echo "We have a model assertion"
     snap model --assertion|MATCH "series: 16"
 
-    if ! snap model --assertion|grep "brand-id: generic" ; then
+    if ! snap model --verbose|grep "brand-id:\s* generic" ; then
        echo "Not a generic model. Skipping."
        exit 0
     fi

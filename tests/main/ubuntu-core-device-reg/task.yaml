@@ -16,7 +16,7 @@ execute: |
     echo "We have a model assertion"
     snap model --assertion | MATCH "series: 16"
 
-    if ! snap model --assertion | grep "brand-id: canonical" ; then
+    if ! snap model --verbose | grep "brand-id:\s+ canonical" ; then
        echo "Not a canonical model. Skipping."
        exit 0
     fi
