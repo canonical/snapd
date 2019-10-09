@@ -6,12 +6,15 @@ details: |
 environment:
     NETPLAN: io.netplan.Netplan
 
-# run on all classic ubuntu LTS and current dev systems 16.04+
-systems: 
-    - ubuntu-16*
-    - ubuntu-18*
-    - ubuntu-19*
-    - ubuntu-20*
+# don't run on non-ubuntu systems where we won't have netplan
+systems:
+    - -debian-*
+    - -fedora-*
+    - -ubuntu-14*
+    - -opensuse-*
+    - -arch-*
+    - -amazon-*
+    - -centos-*
 
 prepare: |
     #shellcheck source=tests/lib/snaps.sh
@@ -37,7 +40,7 @@ prepare: |
     cat << EOF > /usr/share/dbus-1/system-services/$NETPLAN.service
     [D-BUS Service]
     Name=$NETPLAN
-    Exec=$(pwd)/fake-netplan-apply-service.py $(pwd)/dbus-netplan-apply.log
+    Exec=$(pwd)/fake-netplan-service.py $(pwd)/dbus-netplan-apply.log
     User=root
     AssumedAppArmorLabel=unconfined
     EOF
@@ -47,8 +50,8 @@ prepare: |
 restore: |
     # kill the dbus service if it is running 
     set +e
-    if [ -n "$(pgrep --full fake-netplan-apply-service.py)" ]; then
-        for pid in $(pgrep --full fake-netplan-apply-service.py); do
+    if [ -n "$(pgrep --full fake-netplan-service.py)" ]; then
+        for pid in $(pgrep --full fake-netplan-service.py); do
             kill -9 "$pid"
         done
     fi
@@ -62,7 +65,7 @@ restore: |
     done
 
 execute: |
-    echo "The interface is disconnected by default"
+    echo "The network-setup-control interface is disconnected by default"
     snap connections test-snapd-netplan-apply | MATCH 'network-setup-control +test-snapd-netplan-apply:network-setup-control +- +-'
 
     echo "Running netplan apply without network-setup-control fails"
@@ -85,3 +88,31 @@ execute: |
 
     echo "And the D-Bus service was activated"
     MATCH "Apply called" < dbus-netplan-apply.log
+
+    echo "clearing the log for the info test"
+    rm dbus-netplan-apply.log
+    touch dbus-netplan-apply.log
+
+    echo "The network-setup-observe interface is disconnected by default"
+    snap connections test-snapd-netplan-apply | MATCH 'network-setup-observe +test-snapd-netplan-apply:network-setup-observe +- +-'
+
+    echo "Running netplan info via D-Bus without network-setup-observe fails"
+    if test-snapd-netplan-apply.info; then
+        echo "Expected access denied error for netplan info via D-Bus"
+        exit 1
+    fi
+
+    echo "The D-Bus service was not activated"
+    not MATCH "Info called" < dbus-netplan-apply.log
+
+    echo "When the interface is connected"
+    snap connect test-snapd-netplan-apply:network-setup-observe
+
+    echo "Running netplan info via D-Bus now works"
+    if ! test-snapd-netplan-apply.info; then
+        echo "Unexpected error running netplan info via D-Bus"
+        exit 1
+    fi
+
+    echo "And the D-Bus service was activated"
+    MATCH "Info called" < dbus-netplan-apply.log
