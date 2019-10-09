@@ -266,7 +266,11 @@ func (s *gadgetYamlTestSuite) TearDownTest(c *C) {
 }
 
 func (s *gadgetYamlTestSuite) TestReadGadgetYamlMissing(c *C) {
+	// if constraints are nil, we allow a missing yaml
 	_, err := gadget.ReadInfo("bogus-path", nil)
+	c.Assert(err, IsNil)
+
+	_, err = gadget.ReadInfo("bogus-path", &gadget.ModelConstraints{})
 	c.Assert(err, ErrorMatches, ".*meta/gadget.yaml: no such file or directory")
 }
 
@@ -1380,6 +1384,34 @@ func (s *gadgetYamlTestSuite) TestEnsureVolumeConsistency(c *C) {
 			c.Check(err, IsNil)
 		}
 	}
+
+	// Check system-seed label
+	for i, tc := range []struct {
+		l   string
+		err string
+	}{
+		{"", ""},
+		{"foobar", "system-seed structure must not have a label"},
+		{"ubuntu-seed", "system-seed structure must not have a label"},
+	} {
+		c.Logf("tc: %v %v", i, tc.l)
+		s := state(true, "")
+		s.SystemSeed.Label = tc.l
+		err := gadget.EnsureVolumeConsistency(s, nil)
+		if tc.err != "" {
+			c.Assert(err, ErrorMatches, tc.err)
+		} else {
+			c.Check(err, IsNil)
+		}
+	}
+
+	// Check system-seed without system-data
+	vs := &gadget.ValidationState{}
+	err := gadget.EnsureVolumeConsistency(vs, nil)
+	c.Assert(err, IsNil)
+	vs.SystemSeed = &gadget.VolumeStructure{}
+	err = gadget.EnsureVolumeConsistency(vs, nil)
+	c.Assert(err, ErrorMatches, "the system-seed role requires system-data to be defined")
 }
 
 func (s *gadgetYamlTestSuite) TestGadgetConsistencyWithoutConstraints(c *C) {
@@ -1412,8 +1444,7 @@ volumes:
       - name: Recovery
         size: 10M
         type: 83
-        role: system-seed
-        filesystem-label: ubuntu-seed`)
+        role: system-seed`)
 		}
 
 		fmt.Fprintf(b, `
@@ -1471,8 +1502,7 @@ volumes:
       - name: Recovery
         size: 10M
         type: 83
-        role: system-seed
-        filesystem-label: ubuntu-seed`)
+        role: system-seed`)
 		}
 
 		fmt.Fprintf(b, `

@@ -74,7 +74,7 @@ type Info struct {
 type ModelConstraints struct {
 	// Classic rules (i.e. content/presence of gadget.yaml is fully optional)
 	Classic bool
-	// System seeding is enabled (Core 20)
+	// A system-seed partition (aka recovery partion) is expected (Core 20)
 	SystemSeed bool
 }
 
@@ -290,7 +290,7 @@ func ReadInfo(gadgetSnapRootDir string, constraints *ModelConstraints) (*Info, e
 
 	gadgetYamlFn := filepath.Join(gadgetSnapRootDir, "meta", "gadget.yaml")
 	gmeta, err := ioutil.ReadFile(gadgetYamlFn)
-	if constraints != nil && constraints.Classic && os.IsNotExist(err) {
+	if (constraints == nil || constraints.Classic) && os.IsNotExist(err) {
 		// gadget.yaml is optional for classic gadgets
 		return &gi, nil
 	}
@@ -418,7 +418,7 @@ func validateVolume(name string, vol *Volume, constraints *ModelConstraints) err
 		switch s.Role {
 		case SystemSeed:
 			if state.SystemSeed != nil {
-				return fmt.Errorf("cannot have more than one system-seed role")
+				return fmt.Errorf("cannot have more than one system-data role")
 			}
 			state.SystemSeed = &vol.Structure[idx]
 		case SystemData:
@@ -442,6 +442,11 @@ func validateVolume(name string, vol *Volume, constraints *ModelConstraints) err
 }
 
 func ensureVolumeConsistency(state *validationState, constraints *ModelConstraints) error {
+	// system-seed also requires system-data
+	if state.SystemSeed != nil && state.SystemData == nil {
+		return fmt.Errorf("the system-seed role requires system-data to be defined")
+	}
+
 	if constraints == nil {
 		if state.SystemData == nil {
 			return nil
@@ -449,8 +454,8 @@ func ensureVolumeConsistency(state *validationState, constraints *ModelConstrain
 
 		// gadget must be auto-consistent if constraints are not specified
 		if state.SystemSeed != nil {
-			if state.SystemData.Label != "" {
-				return fmt.Errorf("system-data structure must not have a label")
+			if err := ensureSeedDataLabelsUnset(state); err != nil {
+				return err
 			}
 		} else {
 			if state.SystemData.Label != "" && state.SystemData.Label != ImplicitSystemDataLabel {
@@ -466,9 +471,8 @@ func ensureVolumeConsistency(state *validationState, constraints *ModelConstrain
 		if !constraints.SystemSeed {
 			return fmt.Errorf("model does not support the system-seed role")
 		}
-		// with SystemSeed, system-data label must not be set
-		if state.SystemData != nil && state.SystemData.Label != "" {
-			return fmt.Errorf("system-data structure must not have a label")
+		if err := ensureSeedDataLabelsUnset(state); err != nil {
+			return err
 		}
 	} else {
 		// error if we have the SystemSeed constraint but no actual system-seed structure
@@ -480,6 +484,17 @@ func ensureVolumeConsistency(state *validationState, constraints *ModelConstrain
 			return fmt.Errorf("system-data structure must have an implicit label or %q, not %q",
 				ImplicitSystemDataLabel, state.SystemData.Label)
 		}
+	}
+
+	return nil
+}
+
+func ensureSeedDataLabelsUnset(state *validationState) error {
+	if state.SystemData.Label != "" {
+		return fmt.Errorf("system-data structure must not have a label")
+	}
+	if state.SystemSeed.Label != "" {
+		return fmt.Errorf("system-seed structure must not have a label")
 	}
 
 	return nil
