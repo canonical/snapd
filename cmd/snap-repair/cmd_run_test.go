@@ -39,6 +39,8 @@ func (r *repairSuite) TestNonRoot(c *C) {
 	restore = release.MockOnClassic(false)
 	defer restore()
 
+	origArgs := os.Args
+	defer func() { os.Args = origArgs }()
 	os.Args = []string{"snap-repair", "run"}
 	err := repair.Run()
 	c.Assert(err, ErrorMatches, "must be run as root")
