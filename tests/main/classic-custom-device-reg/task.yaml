@@ -71,13 +71,13 @@ execute: |
     echo "Wait for seeding to be done"
     while ! snap changes | grep -q "Done.*Initialize system state"; do sleep 1; done
     echo "We have a model assertion"
-    snap known model|MATCH "model: my-classic-w-gadget"
+    snap model --verbose | MATCH "model:\s* my-classic-w-gadget"
 
     echo "Wait for device initialisation to be done"
     while ! snap changes | grep -q "Done.*Initialize device"; do sleep 1; done
 
     echo "Check we have a serial"
-    snap known serial|MATCH "authority-id: developer1"
-    snap known serial|MATCH "brand-id: developer1"
-    snap known serial|MATCH "model: my-classic-w-gadget"
-    snap known serial|MATCH "serial: 7777"
+    snap model --serial --assertion|MATCH "authority-id: developer1"
+    snap model --serial --assertion|MATCH "brand-id: developer1"
+    snap model --serial --assertion|MATCH "model: my-classic-w-gadget"
+    snap model --serial --assertion|MATCH "serial: 7777"
