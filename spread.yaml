@@ -446,6 +446,9 @@ debug-each: |
         cat "$RUNTIME_STATE_PATH/runs" || true
         echo '# free space'
         df -h || true
+        echo '# mounts'
+        # use ascii output to prevent travis from messing up the encoding
+        findmnt --ascii -o+PROPAGATION || true
     fi
 
 rename:
