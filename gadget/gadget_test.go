@@ -710,8 +710,10 @@ func (s *gadgetYamlTestSuite) TestReadGadgetYamlLkLegacyHappy(c *C) {
 	err := ioutil.WriteFile(s.gadgetYamlPath, gadgetYamlLkLegacy, 0644)
 	c.Assert(err, IsNil)
 
-	_, err = gadget.ReadInfo(s.dir, false)
-	c.Assert(err, IsNil)
+	for _, constraints := range classicModelConstraints {
+		_, err = gadget.ReadInfo(s.dir, constraints)
+		c.Assert(err, IsNil)
+	}
 }
 
 func (s *gadgetYamlTestSuite) TestValidateStructureType(c *C) {
