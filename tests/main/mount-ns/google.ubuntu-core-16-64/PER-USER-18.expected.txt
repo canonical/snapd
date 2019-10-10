@@ -95,6 +95,9 @@
 2:31 / /tmp rw,relatime master:84 - tmpfs tmpfs rw
 2:31 /snap.test-snapd-mountinfo-core18/tmp /tmp rw,relatime - tmpfs tmpfs rw
 0:0 /usr/lib/snapd /usr/lib/snapd ro,relatime master:1 - squashfs /dev/loop0 ro
+2:34 / /usr/share/gdb rw,relatime - tmpfs tmpfs rw,mode=755
+0:3 /usr/share/gdb/auto-load /usr/share/gdb/auto-load ro,nodev,relatime master:61 - squashfs /dev/loop3 ro
+2:35 / /usr/share/gdb/test rw,relatime - tmpfs tmpfs rw
 0:0 /usr/src /usr/src ro,relatime master:1 - squashfs /dev/loop0 ro
 1:1 /system-data/var/lib/extrausers /var/lib/extrausers rw,relatime master:15 - ext4 /dev/sda3 rw,data=ordered
 1:1 /system-data/var/lib/snapd /var/lib/snapd rw,relatime master:15 - ext4 /dev/sda3 rw,data=ordered
@@ -186,14 +189,6 @@
 1:1 /system-data/var/log /var/lib/snapd/hostfs/var/log rw,relatime master:15 - ext4 /dev/sda3 rw,data=ordered
 1:1 /system-data/var/snap /var/lib/snapd/hostfs/var/snap rw,relatime master:15 - ext4 /dev/sda3 rw,data=ordered
 1:1 /system-data/var/tmp /var/lib/snapd/hostfs/var/tmp rw,relatime master:15 - ext4 /dev/sda3 rw,data=ordered
-1:1 / /var/lib/snapd/hostfs/writable rw,relatime master:15 - ext4 /dev/sda3 rw,data=ordered
-0:2 / /var/lib/snapd/hostfs/writable/system-data/snap/core/1 ro,nodev,relatime master:60 - squashfs /dev/loop2 ro
-0:3 / /var/lib/snapd/hostfs/writable/system-data/snap/core18/1 ro,nodev,relatime master:61 - squashfs /dev/loop3 ro
-0:4 / /var/lib/snapd/hostfs/writable/system-data/snap/pc-kernel/1 ro,nodev,relatime master:62 - squashfs /dev/loop4 ro
-0:5 / /var/lib/snapd/hostfs/writable/system-data/snap/pc/1 ro,nodev,relatime master:63 - squashfs /dev/loop5 ro
-0:6 / /var/lib/snapd/hostfs/writable/system-data/snap/test-snapd-mountinfo-core16/1 ro,nodev,relatime master:64 - squashfs /dev/loop6 ro
-0:7 / /var/lib/snapd/hostfs/writable/system-data/snap/test-snapd-mountinfo-core18/1 ro,nodev,relatime master:65 - squashfs /dev/loop7 ro
-0:8 / /var/lib/snapd/hostfs/writable/system-data/snap/test-snapd-rsync/1 ro,nodev,relatime master:66 - squashfs /dev/loop8 ro
 1:1 /system-data/var/log /var/log rw,relatime master:15 - ext4 /dev/sda3 rw,data=ordered
 1:1 /system-data/var/snap /var/snap rw,relatime master:15 - ext4 /dev/sda3 rw,data=ordered
 1:1 /system-data/var/tmp /var/tmp rw,relatime master:15 - ext4 /dev/sda3 rw,data=ordered

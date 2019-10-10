@@ -501,7 +501,8 @@ prepare_suite_each() {
     echo -n "$SPREAD_JOB " >> "$RUNTIME_STATE_PATH/runs"
     # shellcheck source=tests/lib/reset.sh
     "$TESTSLIB"/reset.sh --reuse-core
-    # Reset systemd journal cursor.
+    # Restart journal log and reset systemd journal cursor.
+    systemctl restart systemd-journald.service
     start_new_journalctl_log
 
     echo "Install the snaps profiler snap"

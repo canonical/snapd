@@ -53,6 +53,7 @@ import (
 	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/release"
+	apparmor_sandbox "github.com/snapcore/snapd/sandbox/apparmor"
 	"github.com/snapcore/snapd/snap"
 	"github.com/snapcore/snapd/strutil"
 	"github.com/snapcore/snapd/timings"
@@ -62,8 +63,8 @@ var (
 	procSelfExe           = "/proc/self/exe"
 	isHomeUsingNFS        = osutil.IsHomeUsingNFS
 	isRootWritableOverlay = osutil.IsRootWritableOverlay
-	kernelFeatures        = release.AppArmorKernelFeatures
-	parserFeatures        = release.AppArmorParserFeatures
+	kernelFeatures        = apparmor_sandbox.KernelFeatures
+	parserFeatures        = apparmor_sandbox.ParserFeatures
 )
 
 // Backend is responsible for maintaining apparmor profiles for snaps and parts of snapd.
@@ -100,7 +101,7 @@ func (b *Backend) Initialize() error {
 
 	// Location of the generated policy.
 	glob := "*"
-	policy := make(map[string]*osutil.FileState)
+	policy := make(map[string]osutil.FileState)
 
 	// Check if NFS is mounted at or under $HOME. Because NFS is not
 	// transparent to apparmor we must alter our profile to counter that and
@@ -108,7 +109,7 @@ func (b *Backend) Initialize() error {
 	if nfs, err := isHomeUsingNFS(); err != nil {
 		logger.Noticef("cannot determine if NFS is in use: %v", err)
 	} else if nfs {
-		policy["nfs-support"] = &osutil.FileState{
+		policy["nfs-support"] = &osutil.MemoryFileState{
 			Content: []byte(nfsSnippet),
 			Mode:    0644,
 		}
@@ -121,7 +122,7 @@ func (b *Backend) Initialize() error {
 		logger.Noticef("cannot determine if root filesystem on overlay: %v", err)
 	} else if overlayRoot != "" {
 		snippet := strings.Replace(overlayRootSnippet, "###UPPERDIR###", overlayRoot, -1)
-		policy["overlay-root"] = &osutil.FileState{
+		policy["overlay-root"] = &osutil.MemoryFileState{
 			Content: []byte(snippet),
 			Mode:    0644,
 		}
@@ -181,7 +182,7 @@ func (b *Backend) Initialize() error {
 
 // snapConfineFromSnapProfile returns the apparmor profile for
 // snap-confine in the given core/snapd snap.
-func snapConfineFromSnapProfile(info *snap.Info) (dir, glob string, content map[string]*osutil.FileState, err error) {
+func snapConfineFromSnapProfile(info *snap.Info) (dir, glob string, content map[string]osutil.FileState, err error) {
 	// Find the vanilla apparmor profile for snap-confine as present in the given core snap.
 
 	// We must test the ".real" suffix first, this is a workaround for
@@ -213,8 +214,8 @@ func snapConfineFromSnapProfile(info *snap.Info) (dir, glob string, content map[
 	patchedProfileGlob := fmt.Sprintf("snap-confine.%s.*", info.InstanceName())
 
 	// Return information for EnsureDirState that describes the re-exec profile for snap-confine.
-	content = map[string]*osutil.FileState{
-		patchedProfileName: {
+	content = map[string]osutil.FileState{
+		patchedProfileName: &osutil.MemoryFileState{
 			Content: []byte(patchedProfileText),
 			Mode:    0644,
 		},
@@ -332,7 +333,7 @@ func (b *Backend) Setup(snapInfo *snap.Info, opts interfaces.ConfinementOptions,
 	spec.(*Specification).AddLayout(snapInfo)
 
 	// core on classic is special
-	if snapName == "core" && release.OnClassic && release.AppArmorLevel() != release.NoAppArmor {
+	if snapName == "core" && release.OnClassic && apparmor_sandbox.ProbedLevel() != apparmor_sandbox.Unsupported {
 		if err := setupSnapConfineReexec(snapInfo); err != nil {
 			return fmt.Errorf("cannot create host snap-confine apparmor configuration: %s", err)
 		}
@@ -341,7 +342,7 @@ func (b *Backend) Setup(snapInfo *snap.Info, opts interfaces.ConfinementOptions,
 	// Deal with the "snapd" snap - we do the setup slightly differently
 	// here because this will run both on classic and on Ubuntu Core 18
 	// systems but /etc/apparmor.d is not writable on core18 systems
-	if snapInfo.GetType() == snap.TypeSnapd && release.AppArmorLevel() != release.NoAppArmor {
+	if snapInfo.GetType() == snap.TypeSnapd && apparmor_sandbox.ProbedLevel() != apparmor_sandbox.Unsupported {
 		if err := setupSnapConfineReexec(snapInfo); err != nil {
 			return fmt.Errorf("cannot create host snap-confine apparmor configuration: %s", err)
 		}
@@ -448,8 +449,8 @@ const (
 	attachComplain = "(attach_disconnected,mediate_deleted,complain)"
 )
 
-func (b *Backend) deriveContent(spec *Specification, snapInfo *snap.Info, opts interfaces.ConfinementOptions) (content map[string]*osutil.FileState, err error) {
-	content = make(map[string]*osutil.FileState, len(snapInfo.Apps)+len(snapInfo.Hooks)+1)
+func (b *Backend) deriveContent(spec *Specification, snapInfo *snap.Info, opts interfaces.ConfinementOptions) (content map[string]osutil.FileState, err error) {
+	content = make(map[string]osutil.FileState, len(snapInfo.Apps)+len(snapInfo.Hooks)+1)
 
 	// Add profile for each app.
 	for _, appInfo := range snapInfo.Apps {
@@ -477,7 +478,7 @@ func (b *Backend) deriveContent(spec *Specification, snapInfo *snap.Info, opts i
 // This profile exists so that snap-update-ns doens't need to carry very wide, open permissions
 // that are suitable for poking holes (and writing) in nearly arbitrary places. Instead the profile
 // contains just the permissions needed to poke a hole and write to the layout-specific paths.
-func addUpdateNSProfile(snapInfo *snap.Info, opts interfaces.ConfinementOptions, snippets string, content map[string]*osutil.FileState) {
+func addUpdateNSProfile(snapInfo *snap.Info, opts interfaces.ConfinementOptions, snippets string, content map[string]osutil.FileState) {
 	// Compute the template by injecting special updateNS snippets.
 	policy := templatePattern.ReplaceAllStringFunc(updateNSTemplate, func(placeholder string) string {
 		switch placeholder {
@@ -494,7 +495,7 @@ func addUpdateNSProfile(snapInfo *snap.Info, opts interfaces.ConfinementOptions,
 
 	// Ensure that the snap-update-ns profile is on disk.
 	profileName := nsProfile(snapInfo.InstanceName())
-	content[profileName] = &osutil.FileState{
+	content[profileName] = &osutil.MemoryFileState{
 		Content: []byte(policy),
 		Mode:    0644,
 	}
@@ -517,7 +518,7 @@ func downgradeConfinement() bool {
 	return true
 }
 
-func addContent(securityTag string, snapInfo *snap.Info, opts interfaces.ConfinementOptions, snippetForTag string, content map[string]*osutil.FileState, spec *Specification) {
+func addContent(securityTag string, snapInfo *snap.Info, opts interfaces.ConfinementOptions, snippetForTag string, content map[string]osutil.FileState, spec *Specification) {
 	// Normally we use a specific apparmor template for all snap programs.
 	policy := defaultTemplate
 	ignoreSnippets := false
@@ -530,7 +531,7 @@ func addContent(securityTag string, snapInfo *snap.Info, opts interfaces.Confine
 	// When partial AppArmor is detected, use the classic template for now. We could
 	// use devmode, but that could generate confusing log entries for users running
 	// snaps on systems with partial AppArmor support.
-	if release.AppArmorLevel() == release.PartialAppArmor {
+	if apparmor_sandbox.ProbedLevel() == apparmor_sandbox.Partial {
 		// By default, downgrade confinement to the classic template when
 		// partial AppArmor support is detected. We don't want to use strict
 		// in general yet because older versions of the kernel did not
@@ -618,7 +619,7 @@ func addContent(securityTag string, snapInfo *snap.Info, opts interfaces.Confine
 		return ""
 	})
 
-	content[securityTag] = &osutil.FileState{
+	content[securityTag] = &osutil.MemoryFileState{
 		Content: []byte(policy),
 		Mode:    0644,
 	}
@@ -631,7 +632,7 @@ func (b *Backend) NewSpecification() interfaces.Specification {
 
 // SandboxFeatures returns the list of apparmor features supported by the kernel.
 func (b *Backend) SandboxFeatures() []string {
-	if release.AppArmorLevel() == release.NoAppArmor {
+	if apparmor_sandbox.ProbedLevel() == apparmor_sandbox.Unsupported {
 		return nil
 	}
 
@@ -652,7 +653,7 @@ func (b *Backend) SandboxFeatures() []string {
 
 	level := "full"
 	policy := "default"
-	if release.AppArmorLevel() == release.PartialAppArmor {
+	if apparmor_sandbox.ProbedLevel() == apparmor_sandbox.Partial {
 		level = "partial"
 
 		if downgradeConfinement() {

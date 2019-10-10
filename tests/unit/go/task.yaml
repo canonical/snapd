@@ -18,7 +18,18 @@ execute: |
     rm -r /tmp/static-unit-tests/src/github.com/snapcore/snapd/vendor/*/
     rm -rf /tmp/static-unit-tests/src/github.com/snapcore/snapd/cmd/{autom4te.cache,configure,test-driver,config.status,config.guess,config.sub,config.h.in,compile,install-sh,depcomp,build,missing,aclocal.m4,Makefile,Makefile.in}
 
-    su -l -c "cd /tmp/static-unit-tests/src/github.com/snapcore/snapd && PATH=$PATH GOPATH=/tmp/static-unit-tests ./run-checks --static" test
+    if [[ "$SPREAD_SYSTEM" == ubuntu-19.10-* ]]; then
+        # the code is formatted according to gofmt 1.10 rules, but those changed
+        # in later releases; skip gofmt checks on systems where go is known to
+        # be newer and produce incompatible formatting
+        skip='SKIP_GOFMT=1'
+    fi
+
+    su -l -c "cd /tmp/static-unit-tests/src/github.com/snapcore/snapd && \
+        PATH=$PATH GOPATH=/tmp/static-unit-tests \
+        ${skip:-} \
+        ./run-checks --static" test
+
     su -l -c "cd /tmp/static-unit-tests/src/github.com/snapcore/snapd && \
         TRAVIS_BUILD_NUMBER=$TRAVIS_BUILD_NUMBER \
         TRAVIS_BRANCH=$TRAVIS_BRANCH \

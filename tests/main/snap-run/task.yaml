@@ -19,6 +19,13 @@ execute: |
     echo "Test that snap run use environments"
     basic-run.echo-data | MATCH ^/var/snap
 
+    if command -v gdb; then
+       echo "Test snap run --gdb works"
+       echo "c" | snap run --gdb test-snapd-tools.echo hello > stdout
+       MATCH 'Continuing.' < stdout
+       MATCH hello < stdout
+    fi
+
     # the strace on 14.04 is too old
     if grep -q 'VERSION_ID="14.04"' /etc/os-release; then
         snap install strace-static
@@ -31,6 +38,23 @@ execute: |
     if ! command -v strace; then
         snap install strace-static
     fi
+
+    echo "Test snap --strace invalid works"
+    if snap run --strace="invalid" test-snapd-tools.echo hello 2>stderr ; then
+        echo "snap run with an invalid strace option should fail but it did not"
+        exit 1
+    fi
+    MATCH "Can't stat 'invalid': No such file or directory" < stderr
+
+    if [[ "$SPREAD_SYSTEM" == arch-linux-* ]]; then
+        # Arch runs the mainline kernel, strace (with event filter or not) *may*
+        # randomly get stuck on the kernel side, see:
+        # - proposed patch: https://lore.kernel.org/patchwork/patch/719314/
+        # - snap-exec & strace stuck: https://paste.ubuntu.com/p/8nVzj8Sqfq/
+        echo "SKIP further tests due to know kernel/strace problems"
+        exit 0
+    fi
+    # XXX: any tests that execute strace should be added below this point
 
     echo "Test snap run --strace"
     snap run --strace test-snapd-tools.echo "hello-world" >stdout 2>stderr
@@ -46,20 +70,6 @@ execute: |
     snap run --strace="-V" test-snapd-tools.echo "hello-world" >stdout 2>stderr
     MATCH "strace -- version" < stdout
     [ ! -s stderr ]
-
-    echo "Test snap --strace invalid works"
-    if snap run --strace="invalid" test-snapd-tools.echo hello 2>stderr ; then
-        echo "snap run with an invalid strace option should fail but it did not"
-        exit 1
-    fi
-    MATCH "Can't stat 'invalid': No such file or directory" < stderr
-
-    if command -v gdb; then
-       echo "Test snap run --gdb works"
-       echo "c" | snap run --gdb test-snapd-tools.echo hello > stdout
-       MATCH 'Continuing.' < stdout
-       MATCH hello < stdout
-    fi
 
     snap run --trace-exec test-snapd-tools.echo hello 2> stderr
     MATCH "Slowest [0-9]+ exec calls during snap run" < stderr
