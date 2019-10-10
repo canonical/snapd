@@ -1,4 +1,4 @@
-share
+./share
 tags
 .coverage
 cmd/version_generated.go
