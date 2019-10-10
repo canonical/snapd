@@ -70,6 +70,8 @@ reset_classic() {
         mounts="$(systemctl list-unit-files --full | grep "^${escaped_snap_mount_dir}[-.].*\\.mount" | cut -f1 -d ' ')"
         services="$(systemctl list-unit-files --full | grep "^${escaped_snap_mount_dir}[-.].*\\.service" | cut -f1 -d ' ')"
         systemctl daemon-reload # Workaround for http://paste.ubuntu.com/17735820/
+        # start the main mount unit
+        systemctl start "${escaped_snap_mount_dir}.mount"
         for unit in $mounts $services; do
             systemctl start "$unit"
         done
