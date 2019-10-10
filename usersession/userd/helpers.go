@@ -78,7 +78,7 @@ func snapFromPid(pid int) (string, error) {
 		return "", fmt.Errorf("not supported")
 	}
 
-	group, err := cgroupProcGroup(pid, "freezer")
+	group, err := cgroupProcGroup(pid, cgroup.MatchV1Controller("freezer"))
 	if err != nil {
 		return "", fmt.Errorf("cannot determine cgroup path of pid %v: %v", pid, err)
 	}

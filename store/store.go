@@ -386,7 +386,7 @@ func New(cfg *Config, dauthCtx DeviceAndAuthContext) *Store {
 
 // API endpoint paths
 const (
-	// see https://wiki.ubuntu.com/AppStore/Interfaces/ClickPackageIndex
+	// see https://dashboard.snapcraft.io/docs/
 	// XXX: Repeating "api/" here is cumbersome, but the next generation
 	// of store APIs will probably drop that prefix (since it now
 	// duplicates the hostname), and we may want to switch to v2 APIs
@@ -1642,9 +1642,9 @@ func (s *Store) DownloadStream(ctx context.Context, name string, downloadInfo *s
 	return resp.Body, nil
 }
 
-var doDownloadReq = doDowloadReqImpl
+var doDownloadReq = doDownloadReqImpl
 
-func doDowloadReqImpl(ctx context.Context, storeURL *url.URL, cdnHeader string, s *Store, user *auth.UserState) (*http.Response, error) {
+func doDownloadReqImpl(ctx context.Context, storeURL *url.URL, cdnHeader string, s *Store, user *auth.UserState) (*http.Response, error) {
 	reqOptions := downloadReqOpts(storeURL, cdnHeader, nil)
 	return s.doRequest(ctx, httputil.NewHTTPClient(&httputil.ClientOptions{Proxy: s.proxy}), reqOptions, user)
 }

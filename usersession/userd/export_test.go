@@ -21,6 +21,8 @@ package userd
 
 import (
 	"github.com/godbus/dbus"
+
+	"github.com/snapcore/snapd/sandbox/cgroup"
 )
 
 var (
@@ -35,7 +37,7 @@ func MockSnapFromSender(f func(*dbus.Conn, dbus.Sender) (string, error)) func() 
 	}
 }
 
-func MockProcGroup(f func(pid int, ctrl string) (string, error)) (restore func()) {
+func MockProcGroup(f func(pid int, match cgroup.GroupMatcher) (string, error)) (restore func()) {
 	old := cgroupProcGroup
 	cgroupProcGroup = f
 	return func() {
