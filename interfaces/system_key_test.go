@@ -34,6 +34,7 @@ import (
 	"github.com/snapcore/snapd/interfaces"
 	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/sandbox/apparmor"
+	"github.com/snapcore/snapd/sandbox/cgroup"
 	"github.com/snapcore/snapd/sandbox/seccomp"
 	"github.com/snapcore/snapd/testutil"
 )
@@ -89,6 +90,9 @@ func (s *systemKeySuite) testInterfaceWriteSystemKey(c *C, nfsHome bool) {
 	})
 	defer restore()
 
+	restore = cgroup.MockVersion(1, nil)
+	defer restore()
+
 	err := interfaces.WriteSystemKey()
 	c.Assert(err, IsNil)
 
@@ -120,7 +124,7 @@ func (s *systemKeySuite) testInterfaceWriteSystemKey(c *C, nfsHome bool) {
 
 	overlayRoot, err := osutil.IsRootWritableOverlay()
 	c.Assert(err, IsNil)
-	c.Check(string(systemKey), testutil.EqualsWrapped, fmt.Sprintf(`{"version":%d,"build-id":"%s","apparmor-features":%s,"apparmor-parser-mtime":%s,"apparmor-parser-features":%s,"nfs-home":%v,"overlay-root":%q,"seccomp-features":%s,"seccomp-compiler-version":"%s"}`,
+	c.Check(string(systemKey), testutil.EqualsWrapped, fmt.Sprintf(`{"version":%d,"build-id":"%s","apparmor-features":%s,"apparmor-parser-mtime":%s,"apparmor-parser-features":%s,"nfs-home":%v,"overlay-root":%q,"seccomp-features":%s,"seccomp-compiler-version":"%s","cgroup-version":"1"}`,
 		interfaces.SystemKeyVersion,
 		s.buildID,
 		apparmorFeaturesStr,
@@ -245,7 +249,12 @@ func (s *systemKeySuite) TestStaticVersion(c *C) {
 	//
 	// *** IF THIS FAILS, YOU NEED TO BUMP THE VERSION BEFORE "FIXING" THIS ***
 	var sk interfaces.SystemKey
+
+	// XXX: this checks needs to become smarter once we remove or change
+	// existing fields, in which case the version will gets a bump but the
+	// number of fields decreases or remains unchanged
 	c.Check(reflect.ValueOf(sk).NumField(), Equals, interfaces.SystemKeyVersion)
+
 	c.Check(fmt.Sprintf("%+v", sk), Equals, "{"+strings.Join([]string{
 		"Version:0",
 		"BuildID:",
@@ -256,5 +265,6 @@ func (s *systemKeySuite) TestStaticVersion(c *C) {
 		"OverlayRoot:",
 		"SecCompActions:[]",
 		"SeccompCompilerVersion:",
+		"CgroupVersion:",
 	}, " ")+"}")
 }
