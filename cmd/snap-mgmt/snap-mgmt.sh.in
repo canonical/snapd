@@ -130,6 +130,11 @@ purge() {
         umount -l /run/snapd/ns/ || true
     fi
 
+    if systemctl is-active "$SNAP_UNIT_PREFIX".mount; then
+        echo "Stopping $SNAP_UNIT_PREFIX.mount"
+        systemctl stop "$SNAP_UNIT_PREFIX".mount
+    fi
+
     echo "Removing downloaded snaps"
     rm -rf /var/lib/snapd/snaps/*
 
