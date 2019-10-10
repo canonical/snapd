@@ -142,7 +142,7 @@ func (it *idleTracker) idleDuration() time.Duration {
 	if len(it.active) != 0 {
 		return 0
 	}
-	return time.Now().Sub(it.lastActive)
+	return time.Since(it.lastActive)
 }
 
 const (
