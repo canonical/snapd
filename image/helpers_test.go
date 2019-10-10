@@ -31,7 +31,7 @@ import (
 	"github.com/snapcore/snapd/snap"
 )
 
-func (s *imageSuite) TestDownloadpOtionsString(c *check.C) {
+func (s *imageSuite) TestDownloadpOptionsString(c *check.C) {
 	tests := []struct {
 		opts image.DownloadOptions
 		str  string

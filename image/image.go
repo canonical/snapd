@@ -281,7 +281,7 @@ func setupSeed(tsto *ToolingStore, model *asserts.Model, opts *Options) error {
 		for _, sn := range toDownload {
 			fmt.Fprintf(Stdout, "Fetching %s\n", sn.SnapName())
 
-			targetFunc := func(info *snap.Info) (string, error) {
+			targetPathFunc := func(info *snap.Info) (string, error) {
 				if err := w.SetInfo(sn, info); err != nil {
 					return "", err
 				}
@@ -289,8 +289,8 @@ func setupSeed(tsto *ToolingStore, model *asserts.Model, opts *Options) error {
 			}
 
 			dlOpts := DownloadOptions{
-				TargetFunc: targetFunc,
-				Channel:    sn.Channel,
+				TargetPathFunc: targetPathFunc,
+				Channel:        sn.Channel,
 			}
 			fn, info, err := tsto.DownloadSnap(sn.SnapName(), dlOpts) // TODO|XXX make this take the SnapRef really
 			if err != nil {
