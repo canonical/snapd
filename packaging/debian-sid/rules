@@ -269,3 +269,11 @@ override_dh_auto_clean:
 
 override_dh_gencontrol:
 	dh_gencontrol -- -VBuilt-Using="$(BUILT_USING)"
+
+override_dh_systemd_start:
+	# same order as automatically discovered units, but make sure snap.mount is
+	# handled externally
+	dh_systemd_start \
+		snapd.seeded.service \
+		snapd.service \
+		snapd.socket
