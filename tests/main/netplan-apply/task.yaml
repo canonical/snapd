@@ -7,10 +7,13 @@ environment:
     NETPLAN: io.netplan.Netplan
 
 # don't run on non-ubuntu systems where we won't have netplan
+# and also don't run on ubuntu-core where we can't create the fake netplan D-Bus
+# service
 systems:
     - -debian-*
     - -fedora-*
     - -ubuntu-14*
+    - -ubuntu-core-*
     - -opensuse-*
     - -arch-*
     - -amazon-*
