@@ -139,10 +139,12 @@ var mockCgroup = []byte(`
 6:perf_event:/
 5:pids:/user.slice/user-1000.slice/user@1000.service
 4:cpu,cpuacct:/
-3:memory:/
+3:memory:/memory/group
 2:blkio:/
 1:name=systemd:/user.slice/user-1000.slice/user@1000.service/gnome-terminal-server.service
-0::/user.slice/user-1000.slice/user@1000.service/gnome-terminal-server.service
+0:foo:/illegal/unified/entry
+0::/systemd/unified
+11:name=snapd:/snap.foo.bar
 `)
 
 func (s *cgroupSuite) TestProgGroupHappy(c *C) {
@@ -151,20 +153,32 @@ func (s *cgroupSuite) TestProgGroupHappy(c *C) {
 	err = ioutil.WriteFile(filepath.Join(s.rootDir, "proc/333/cgroup"), mockCgroup, 0755)
 	c.Assert(err, IsNil)
 
-	group, err := cgroup.ProcGroup(333, "freezer")
+	group, err := cgroup.ProcGroup(333, cgroup.MatchV1Controller("freezer"))
 	c.Assert(err, IsNil)
 	c.Check(group, Equals, "/snap.hello-world")
 
-	group, err = cgroup.ProcGroup(333, "name=systemd")
+	group, err = cgroup.ProcGroup(333, cgroup.MatchV1Controller("memory"))
+	c.Assert(err, IsNil)
+	c.Check(group, Equals, "/memory/group")
+
+	group, err = cgroup.ProcGroup(333, cgroup.MatchV1NamedHierarchy("systemd"))
 	c.Assert(err, IsNil)
 	c.Check(group, Equals, "/user.slice/user-1000.slice/user@1000.service/gnome-terminal-server.service")
+
+	group, err = cgroup.ProcGroup(333, cgroup.MatchV1NamedHierarchy("snapd"))
+	c.Assert(err, IsNil)
+	c.Check(group, Equals, "/snap.foo.bar")
+
+	group, err = cgroup.ProcGroup(333, cgroup.MatchUnifiedHierarchy())
+	c.Assert(err, IsNil)
+	c.Check(group, Equals, "/systemd/unified")
 }
 
 func (s *cgroupSuite) TestProgGroupMissingFile(c *C) {
 	err := os.MkdirAll(filepath.Join(s.rootDir, "proc/333"), 0755)
 	c.Assert(err, IsNil)
 
-	group, err := cgroup.ProcGroup(333, "freezer")
+	group, err := cgroup.ProcGroup(333, cgroup.MatchV1Controller("freezer"))
 	c.Assert(err, ErrorMatches, "open .*/proc/333/cgroup: no such file or directory")
 	c.Check(group, Equals, "")
 }
@@ -179,8 +193,16 @@ func (s *cgroupSuite) TestProgGroupMissingGroup(c *C) {
 	err = ioutil.WriteFile(filepath.Join(s.rootDir, "proc/333/cgroup"), noFreezerCgroup, 0755)
 	c.Assert(err, IsNil)
 
-	group, err := cgroup.ProcGroup(333, "freezer")
-	c.Assert(err, ErrorMatches, `cannot find cgroup controller "freezer" path for pid 333`)
+	group, err := cgroup.ProcGroup(333, cgroup.MatchV1Controller("freezer"))
+	c.Assert(err, ErrorMatches, `cannot find controller "freezer" cgroup path for pid 333`)
+	c.Check(group, Equals, "")
+
+	group, err = cgroup.ProcGroup(333, cgroup.MatchUnifiedHierarchy())
+	c.Assert(err, ErrorMatches, `cannot find unified hierarchy cgroup path for pid 333`)
+	c.Check(group, Equals, "")
+
+	group, err = cgroup.ProcGroup(333, cgroup.MatchV1NamedHierarchy("snapd"))
+	c.Assert(err, ErrorMatches, `cannot find named hierarchy "snapd" cgroup path for pid 333`)
 	c.Check(group, Equals, "")
 }
 
@@ -195,15 +217,21 @@ func (s *cgroupSuite) TestProgGroupConfusingCpu(c *C) {
 	err = ioutil.WriteFile(filepath.Join(s.rootDir, "proc/333/cgroup"), mockCgroupConfusingCpu, 0755)
 	c.Assert(err, IsNil)
 
-	group, err := cgroup.ProcGroup(333, "cpu")
+	group, err := cgroup.ProcGroup(333, cgroup.MatchV1Controller("cpu"))
 	c.Assert(err, IsNil)
 	c.Check(group, Equals, "/foo.many-cpu")
 
-	group, err = cgroup.ProcGroup(333, "cpuacct")
+	group, err = cgroup.ProcGroup(333, cgroup.MatchV1Controller("cpuacct"))
 	c.Assert(err, IsNil)
 	c.Check(group, Equals, "/foo.cpuacct")
 
-	group, err = cgroup.ProcGroup(333, "cpuset")
+	group, err = cgroup.ProcGroup(333, cgroup.MatchV1Controller("cpuset"))
 	c.Assert(err, IsNil)
 	c.Check(group, Equals, "/foo.many-cpu")
+}
+
+func (s *cgroupSuite) TestProgGroupBadSelector(c *C) {
+	group, err := cgroup.ProcGroup(333, nil)
+	c.Assert(err, ErrorMatches, `internal error: cgroup matcher is nil`)
+	c.Check(group, Equals, "")
 }
