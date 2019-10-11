@@ -46,6 +46,7 @@ const opticalDriveConnectedPlugAppArmor = `
 # Allow read access to optical drives
 /dev/sr[0-9]* r,
 /dev/scd[0-9]* r,
+owner /var/lib/snapd/hostfs/media/*/DVDVolume/{,**} r,
 # allow all generic scsi devices here and use the device cgroup to
 # differentiate optical drives
 /dev/sg[0-9]* r,
