@@ -740,7 +740,7 @@ func generateOnCalendarSchedules(schedule []*timeutil.Schedule) []string {
 			// mon1 - Mon *-*-1..7 (Monday during the first 7 days)
 			// fri1 - Fri *-*-1..7 (Friday during the first 7 days)
 
-			// entries below are will make systemd timer expire more
+			// entries below will make systemd timer expire more
 			// frequently than the schedule suggests, however snap
 			// runner evaluates current time and gates the actual
 			// action
@@ -769,11 +769,11 @@ func generateOnCalendarSchedules(schedule []*timeutil.Schedule) []string {
 			// be enumerated like so:
 			// Mon *-*-1..7 -> Mon *-*-1,2,3,4,5,6,7
 			//
-			// XXX: old systemd versions do not suppor the last n
+			// XXX: old systemd versions do not support the last n
 			// days syntax eg, *-*~1, thus the range needs to be
 			// generated in more verbose way like so:
-			// Mon *-*~1..7 -> Mon *-*-21,22,23,24,25,26,27,28,29,30,31
-			// (21-28 is the last week, but the month can have
+			// Mon *-*~1..7 -> Mon *-*-22,23,24,25,26,27,28,29,30,31
+			// (22-28 is the last week, but the month can have
 			// anywhere from 28 to 31 days)
 			//
 			startPos := week.Start.Pos
@@ -789,7 +789,7 @@ func generateOnCalendarSchedules(schedule []*timeutil.Schedule) []string {
 				// single day, can use the 'weekday' filter
 				if startPos == timeutil.LastWeek {
 					// last week of a month, which can be
-					// 21-28 in case of February, while
+					// 22-28 in case of February, while
 					// month can have between 28 and 31 days
 					days = append(days,
 						fmt.Sprintf("%s *-*-%s", abbrev, daysRange(22, 31)))
