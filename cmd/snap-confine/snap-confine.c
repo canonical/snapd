@@ -353,13 +353,10 @@ int main(int argc, char **argv)
 			die("cannot set effective group id to %d", real_gid);
 		}
 	}
-#ifndef CAPS_OVER_SETUID
-	// this code always needs to run as root for the cgroup/udev setup,
-	// however for the tests we allow it to run as non-root
-	if (geteuid() != 0 && secure_getenv("SNAP_CONFINE_NO_ROOT") == NULL) {
+	// This code always needs to run as root for the cgroup/udev setup.
+	if (geteuid() != 0) {
 		die("need to run as root or suid");
 	}
-#endif
 
 	char *snap_context SC_CLEANUP(sc_cleanup_string) = NULL;
 	// Do no get snap context value if running a hook (we don't want to overwrite hook's SNAP_COOKIE)
