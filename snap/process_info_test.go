@@ -94,7 +94,7 @@ func (s *processInfoSuite) TestDecodeAppArmorLabelUnrecognisedSnapLabel(c *C) {
 	c.Assert(err, ErrorMatches, `unknown snap related security label "snap.weird"`)
 }
 
-func (s *processInfoSuite) TestSnapFromPidHappy(c *C) {
+func (s *processInfoSuite) TestNameFromPidHappy(c *C) {
 	restore := snap.MockProcGroup(func(pid int, matcher cgroup.GroupMatcher) (string, error) {
 		c.Assert(pid, Equals, 333)
 		c.Assert(matcher, NotNil)
@@ -102,12 +102,39 @@ func (s *processInfoSuite) TestSnapFromPidHappy(c *C) {
 		return "/snap.hello-world", nil
 	})
 	defer restore()
-	snap, err := snap.NameFromPid(333)
+	restore = snap.MockAppArmorLabelForPid(func(pid int) (string, error) {
+		c.Assert(pid, Equals, 333)
+		return "snap.hello-world.app", nil
+	})
+	defer restore()
+	info, err := snap.NameFromPid(333)
 	c.Assert(err, IsNil)
-	c.Check(snap, Equals, "hello-world")
+	c.Check(info.InstanceName, Equals, "hello-world")
+	c.Check(info.AppName, Equals, "app")
+	c.Check(info.HookName, Equals, "")
 }
 
-func (s *processInfoSuite) TestSnapFromPidUnhappy(c *C) {
+func (s *processInfoSuite) TestNameFromPidNoAppArmor(c *C) {
+	restore := snap.MockProcGroup(func(pid int, matcher cgroup.GroupMatcher) (string, error) {
+		c.Assert(pid, Equals, 333)
+		c.Assert(matcher, NotNil)
+		c.Assert(matcher.String(), Equals, `controller "freezer"`)
+		return "/snap.hello-world", nil
+	})
+	defer restore()
+	restore = snap.MockAppArmorLabelForPid(func(pid int) (string, error) {
+		c.Assert(pid, Equals, 333)
+		return "", errors.New("no label")
+	})
+	defer restore()
+	info, err := snap.NameFromPid(333)
+	c.Assert(err, IsNil)
+	c.Check(info.InstanceName, Equals, "hello-world")
+	c.Check(info.AppName, Equals, "")
+	c.Check(info.HookName, Equals, "")
+}
+
+func (s *processInfoSuite) TestNameFromPidUnhappy(c *C) {
 	restore := snap.MockProcGroup(func(pid int, matcher cgroup.GroupMatcher) (string, error) {
 		c.Assert(pid, Equals, 333)
 		c.Assert(matcher, NotNil)
@@ -115,7 +142,12 @@ func (s *processInfoSuite) TestSnapFromPidUnhappy(c *C) {
 		return "", errors.New("nada")
 	})
 	defer restore()
-	snap, err := snap.NameFromPid(333)
+	restore = snap.MockAppArmorLabelForPid(func(pid int) (string, error) {
+		c.Error("unexpected appArmorLabelForPid call")
+		return "", errors.New("no label")
+	})
+	defer restore()
+	info, err := snap.NameFromPid(333)
 	c.Assert(err, ErrorMatches, "cannot determine cgroup path of pid 333: nada")
-	c.Check(snap, Equals, "")
+	c.Check(info, DeepEquals, snap.ProcessInfo{})
 }

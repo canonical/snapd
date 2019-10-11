@@ -26,12 +26,13 @@ import (
 	. "gopkg.in/check.v1"
 
 	snap "github.com/snapcore/snapd/cmd/snap"
+	snapdsnap "github.com/snapcore/snapd/snap"
 )
 
 func (s *SnapSuite) TestPortalInfo(c *C) {
-	snap.MockSnapNameFromPid(func(pid int) (string, error) {
+	snap.MockSnapNameFromPid(func(pid int) (snapdsnap.ProcessInfo, error) {
 		c.Check(pid, Equals, 42)
-		return "hello", nil
+		return snapdsnap.ProcessInfo{"hello", "app", ""}, nil
 	})
 	s.RedirectClientToTestServer(func(w http.ResponseWriter, r *http.Request) {
 		c.Check(r.Method, Equals, "GET")

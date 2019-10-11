@@ -66,11 +66,11 @@ func (x *cmdRoutinePortalInfo) Execute(args []string) error {
 		return ErrExtraArgs
 	}
 
-	snapName, err := snapNameFromPid(x.PortalInfoOptions.Pid)
+	procInfo, err := snapNameFromPid(x.PortalInfoOptions.Pid)
 	if err != nil {
 		return err
 	}
-	snap, _, err := x.client.Snap(snapName)
+	snap, _, err := x.client.Snap(procInfo.InstanceName)
 	if err != nil {
 		return err
 	}

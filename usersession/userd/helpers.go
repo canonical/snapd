@@ -34,7 +34,7 @@ func snapFromSenderImpl(conn *dbus.Conn, sender dbus.Sender) (string, error) {
 	if err != nil {
 		return "", fmt.Errorf("cannot get connection pid: %v", err)
 	}
-	snap, err := snap.NameFromPid(pid)
+	info, err := snap.NameFromPid(pid)
 	if err != nil {
 		return "", fmt.Errorf("cannot find snap for connection: %v", err)
 	}
@@ -45,7 +45,7 @@ func snapFromSenderImpl(conn *dbus.Conn, sender dbus.Sender) (string, error) {
 	if !nameHasOwner(conn, sender) {
 		return "", fmt.Errorf("sender is no longer connected to the bus")
 	}
-	return snap, nil
+	return info.InstanceName, nil
 }
 
 func connectionPid(conn *dbus.Conn, sender dbus.Sender) (pid int, err error) {

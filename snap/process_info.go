@@ -27,6 +27,7 @@ import (
 	"strings"
 
 	"github.com/snapcore/snapd/dirs"
+	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/sandbox/cgroup"
 )
 
@@ -78,22 +79,36 @@ func decodeAppArmorLabel(label string) (ProcessInfo, error) {
 
 var cgroupProcGroup = cgroup.ProcGroup
 
-func NameFromPid(pid int) (string, error) {
+func NameFromPid(pid int) (ProcessInfo, error) {
 	if cgroup.IsUnified() {
 		// not supported
-		return "", fmt.Errorf("not supported")
+		return ProcessInfo{}, fmt.Errorf("not supported")
 	}
 
 	group, err := cgroupProcGroup(pid, cgroup.MatchV1Controller("freezer"))
 	if err != nil {
-		return "", fmt.Errorf("cannot determine cgroup path of pid %v: %v", pid, err)
+		return ProcessInfo{}, fmt.Errorf("cannot determine cgroup path of pid %v: %v", pid, err)
 	}
 
 	if !strings.HasPrefix(group, "/snap.") {
-		return "", fmt.Errorf("cannot find a snap for pid %v", pid)
+		return ProcessInfo{}, fmt.Errorf("cannot find a snap for pid %v", pid)
 	}
 
 	snapName := strings.SplitN(filepath.Base(group), ".", 2)[1]
 
-	return snapName, nil
+	// If the process is confined by AppArmor, we can determine
+	// more information about it.  We trust the label if it looks
+	// like one snapd created and the snap name matches what we
+	// got from the freezer cgroup.
+	if label, err := appArmorLabelForPid(pid); err == nil {
+		if info, err := decodeAppArmorLabel(label); err == nil {
+			if info.InstanceName == snapName {
+				return info, nil
+			} else {
+				logger.Noticef("AppArmor label %q does not match snap name %q", label, snapName)
+			}
+		}
+	}
+
+	return ProcessInfo{InstanceName: snapName}, nil
 }
