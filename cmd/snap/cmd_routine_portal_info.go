@@ -20,6 +20,7 @@
 package main
 
 import (
+	"fmt"
 	"text/template"
 
 	"github.com/jessevdk/go-flags"
@@ -63,6 +64,7 @@ AppName={{.App.Name}}
 DesktopFile={{.App.DesktopFile}}
 {{- end}}
 {{- end}}
+HasNetwork={{.HasNetwork}}
 `
 
 var snapNameFromPid = snap.NameFromPid
@@ -78,7 +80,7 @@ func (x *cmdRoutinePortalInfo) Execute(args []string) error {
 	}
 	snap, _, err := x.client.Snap(procInfo.InstanceName)
 	if err != nil {
-		return err
+		return fmt.Errorf("cannot retrieve info for snap %q: %v", procInfo.InstanceName, err)
 	}
 
 	// If we were able to identify the application for the pid, use that.
@@ -101,13 +103,31 @@ func (x *cmdRoutinePortalInfo) Execute(args []string) error {
 		}
 	}
 
+	// Determine whether the snap has access to the network
+	connections, err := x.client.Connections(&client.ConnectionOptions{
+		Snap:      snap.Name,
+		Interface: "network",
+	})
+	if err != nil {
+		return fmt.Errorf("cannot get connections for snap %q: %v", snap.Name, err)
+	}
+	var hasNetwork bool
+	for _, conn := range connections.Established {
+		if conn.Plug.Snap == snap.Name && conn.Interface == "network" {
+			hasNetwork = true
+			break
+		}
+	}
+
 	t := template.Must(template.New("portal-info").Parse(portalInfoTemplate))
 	data := struct {
-		Snap *client.Snap
-		App  *client.AppInfo
+		Snap       *client.Snap
+		App        *client.AppInfo
+		HasNetwork bool
 	}{
-		Snap: snap,
-		App:  app,
+		Snap:       snap,
+		App:        app,
+		HasNetwork: hasNetwork,
 	}
 	return t.Execute(Stdout, data)
 	return nil

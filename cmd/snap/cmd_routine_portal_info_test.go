@@ -22,9 +22,11 @@ package main_test
 import (
 	"fmt"
 	"net/http"
+	"net/url"
 
 	. "gopkg.in/check.v1"
 
+	"github.com/snapcore/snapd/client"
 	snap "github.com/snapcore/snapd/cmd/snap"
 	snapdsnap "github.com/snapcore/snapd/snap"
 )
@@ -84,10 +86,37 @@ func (s *SnapSuite) TestPortalInfo(c *C) {
 		c.Check(pid, Equals, 42)
 		return snapdsnap.ProcessInfo{"hello", "universe", ""}, nil
 	})
+	n := 0
 	s.RedirectClientToTestServer(func(w http.ResponseWriter, r *http.Request) {
-		c.Check(r.Method, Equals, "GET")
-		c.Check(r.URL.Path, Equals, "/v2/snaps/hello")
-		fmt.Fprintln(w, mockInfoJSONWithApps)
+		switch n {
+		case 0:
+			c.Check(r.Method, Equals, "GET")
+			c.Check(r.URL.Path, Equals, "/v2/snaps/hello")
+			fmt.Fprintln(w, mockInfoJSONWithApps)
+		case 1:
+			c.Check(r.Method, Equals, "GET")
+			c.Check(r.URL.Path, Equals, "/v2/connections")
+			c.Check(r.URL.Query(), DeepEquals, url.Values{
+				"snap":      []string{"hello"},
+				"interface": []string{"network"},
+			})
+			result := client.Connections{
+				Established: []client.Connection{
+					{
+						Slot:      client.SlotRef{"core", "network"},
+						Plug:      client.PlugRef{"hello", "network"},
+						Interface: "network",
+					},
+				},
+			}
+			EncodeResponseBody(c, w, map[string]interface{}{
+				"type":   "sync",
+				"result": result,
+			})
+		default:
+			c.Fatalf("expected to get 2 requests, now on %d (%v)", n+1, r)
+		}
+		n++
 	})
 	_, err := snap.Parser(snap.Client()).ParseArgs([]string{"routine", "portal-info", "42"})
 	c.Assert(err, IsNil)
@@ -95,6 +124,7 @@ func (s *SnapSuite) TestPortalInfo(c *C) {
 InstanceName=hello
 AppName=universe
 DesktopFile=/path/to/hello_universe.desktop
+HasNetwork=true
 `)
 	c.Check(s.Stderr(), Equals, "")
 }
@@ -106,10 +136,29 @@ func (s *SnapSuite) TestPortalInfoNoAppInfo(c *C) {
 		// distinguish different apps within the snap.
 		return snapdsnap.ProcessInfo{"hello", "", ""}, nil
 	})
+	n := 0
 	s.RedirectClientToTestServer(func(w http.ResponseWriter, r *http.Request) {
-		c.Check(r.Method, Equals, "GET")
-		c.Check(r.URL.Path, Equals, "/v2/snaps/hello")
-		fmt.Fprintln(w, mockInfoJSONWithApps)
+		switch n {
+		case 0:
+			c.Check(r.Method, Equals, "GET")
+			c.Check(r.URL.Path, Equals, "/v2/snaps/hello")
+			fmt.Fprintln(w, mockInfoJSONWithApps)
+		case 1:
+			c.Check(r.Method, Equals, "GET")
+			c.Check(r.URL.Path, Equals, "/v2/connections")
+			c.Check(r.URL.Query(), DeepEquals, url.Values{
+				"snap":      []string{"hello"},
+				"interface": []string{"network"},
+			})
+			result := client.Connections{}
+			EncodeResponseBody(c, w, map[string]interface{}{
+				"type":   "sync",
+				"result": result,
+			})
+		default:
+			c.Fatalf("expected to get 2 requests, now on %d (%v)", n+1, r)
+		}
+		n++
 	})
 	_, err := snap.Parser(snap.Client()).ParseArgs([]string{"routine", "portal-info", "42"})
 	c.Assert(err, IsNil)
@@ -117,6 +166,7 @@ func (s *SnapSuite) TestPortalInfoNoAppInfo(c *C) {
 InstanceName=hello
 AppName=hello
 DesktopFile=/path/to/hello_hello.desktop
+HasNetwork=false
 `)
 	c.Check(s.Stderr(), Equals, "")
 }
