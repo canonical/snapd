@@ -217,6 +217,11 @@ func SnapSeedDirUnder(rootdir string) string {
 	return filepath.Join(rootdir, snappyDir, "seed")
 }
 
+// SnapStateFileUnder returns the path to snapd state file under rootdir.
+func SnapStateFileUnder(rootdir string) string {
+	return filepath.Join(rootdir, snappyDir, "state.json")
+}
+
 // SetRootDir allows settings a new global root directory, this is useful
 // for e.g. chroot operations
 func SetRootDir(rootdir string) {
@@ -261,7 +266,7 @@ func SetRootDir(rootdir string) {
 	SnapAssertsSpoolDir = filepath.Join(rootdir, "run/snapd/auto-import")
 	SnapSeqDir = filepath.Join(rootdir, snappyDir, "sequence")
 
-	SnapStateFile = filepath.Join(rootdir, snappyDir, "state.json")
+	SnapStateFile = SnapStateFileUnder(rootdir)
 	SnapSystemKeyFile = filepath.Join(rootdir, snappyDir, "system-key")
 
 	SnapCacheDir = filepath.Join(rootdir, "/var/cache/snapd")

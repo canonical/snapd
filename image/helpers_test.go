@@ -31,7 +31,7 @@ import (
 	"github.com/snapcore/snapd/snap"
 )
 
-func (s *imageSuite) TestDownloadpOtionsString(c *check.C) {
+func (s *imageSuite) TestDownloadpOptionsString(c *check.C) {
 	tests := []struct {
 		opts image.DownloadOptions
 		str  string
@@ -114,8 +114,7 @@ func (s *imageSuite) TestDownloadSnap(c *check.C) {
 	logbuf, restore := logger.MockLogger()
 	defer restore()
 
-	gadgetUnpackDir := c.MkDir()
-	s.setupSnaps(c, gadgetUnpackDir, map[string]string{
+	s.setupSnaps(c, map[string]string{
 		"core": "canonical",
 	})
 

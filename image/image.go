@@ -144,13 +144,13 @@ func unpackGadget(gadgetFname, gadgetUnpackDir string) error {
 	return snap.Unpack("*", gadgetUnpackDir)
 }
 
-func installCloudConfig(gadgetDir string) error {
+func installCloudConfig(rootDir, gadgetDir string) error {
 	cloudConfig := filepath.Join(gadgetDir, "cloud.conf")
 	if !osutil.FileExists(cloudConfig) {
 		return nil
 	}
 
-	cloudDir := filepath.Join(dirs.GlobalRootDir, "/etc/cloud")
+	cloudDir := filepath.Join(rootDir, "/etc/cloud")
 	if err := os.MkdirAll(cloudDir, 0755); err != nil {
 		return err
 	}
@@ -173,15 +173,9 @@ func setupSeed(tsto *ToolingStore, model *asserts.Model, opts *Options) error {
 		return fmt.Errorf("internal error: classic model but classic mode not set")
 	}
 
-	// TODO|XXX: try to avoid doing this
-	if opts.RootDir != "" {
-		dirs.SetRootDir(opts.RootDir)
-		defer dirs.SetRootDir("/")
-	}
-
 	// sanity check target
-	if osutil.FileExists(dirs.SnapStateFile) {
-		return fmt.Errorf("cannot prepare seed over existing system or an already booted image, detected state file %s", dirs.SnapStateFile)
+	if osutil.FileExists(dirs.SnapStateFileUnder(opts.RootDir)) {
+		return fmt.Errorf("cannot prepare seed over existing system or an already booted image, detected state file %s", dirs.SnapStateFileUnder(opts.RootDir))
 	}
 	if snaps, _ := filepath.Glob(filepath.Join(dirs.SnapBlobDirUnder(opts.RootDir), "*.snap")); len(snaps) > 0 {
 		return fmt.Errorf("need an empty snap dir in rootdir, got: %v", snaps)
@@ -281,7 +275,7 @@ func setupSeed(tsto *ToolingStore, model *asserts.Model, opts *Options) error {
 		for _, sn := range toDownload {
 			fmt.Fprintf(Stdout, "Fetching %s\n", sn.SnapName())
 
-			targetFunc := func(info *snap.Info) (string, error) {
+			targetPathFunc := func(info *snap.Info) (string, error) {
 				if err := w.SetInfo(sn, info); err != nil {
 					return "", err
 				}
@@ -289,8 +283,8 @@ func setupSeed(tsto *ToolingStore, model *asserts.Model, opts *Options) error {
 			}
 
 			dlOpts := DownloadOptions{
-				TargetFunc: targetFunc,
-				Channel:    sn.Channel,
+				TargetPathFunc: targetPathFunc,
+				Channel:        sn.Channel,
 			}
 			fn, info, err := tsto.DownloadSnap(sn.SnapName(), dlOpts) // TODO|XXX make this take the SnapRef really
 			if err != nil {
@@ -364,27 +358,25 @@ func setupSeed(tsto *ToolingStore, model *asserts.Model, opts *Options) error {
 		return err
 	}
 
-	// find the gadget file
-	gadgetFname := ""
-	// find the snap.Info for kernel/os/base so
-	// that boot.MakeBootable can DTRT
-	downloadedSnapsInfoForBootConfig := make(map[string]*snap.Info, 2)
-	for _, sn := range bootSnaps {
-		// TODO|XXX: ultimately change the signature of MakeBootable
-		// to make it more forward compatible and avoid this
-		if sn.Info.GetType() == snap.TypeSnapd {
-			// filter this out
-			continue
-		}
-		if sn.Info.GetType() == snap.TypeGadget {
-			gadgetFname = sn.Path
-			continue
-		}
-		downloadedSnapsInfoForBootConfig[sn.Path] = sn.Info
+	bootWith := &boot.BootableSet{
+		UnpackedGadgetDir: opts.GadgetUnpackDir,
 	}
 
-	if len(downloadedSnapsInfoForBootConfig) != 2 {
-		return fmt.Errorf("internal error: expected 2 snaps in downloadedSnapsInfoForBootConfig, boot base|core and kernel")
+	// find the gadget file
+	// find the snap.Info/path for kernel/os/base so
+	// that boot.MakeBootable can DTRT
+	gadgetFname := ""
+	for _, sn := range bootSnaps {
+		switch sn.Info.GetType() {
+		case snap.TypeGadget:
+			gadgetFname = sn.Path
+		case snap.TypeOS, snap.TypeBase:
+			bootWith.Base = sn.Info
+			bootWith.BasePath = sn.Path
+		case snap.TypeKernel:
+			bootWith.Kernel = sn.Info
+			bootWith.KernelPath = sn.Path
+		}
 	}
 
 	// unpacking the gadget for core models
@@ -392,12 +384,12 @@ func setupSeed(tsto *ToolingStore, model *asserts.Model, opts *Options) error {
 		return err
 	}
 
-	if err := boot.MakeBootable(model, opts.RootDir, downloadedSnapsInfoForBootConfig, opts.GadgetUnpackDir); err != nil {
+	if err := boot.MakeBootable(model, opts.RootDir, bootWith); err != nil {
 		return err
 	}
 
 	// and the cloud-init things
-	if err := installCloudConfig(opts.GadgetUnpackDir); err != nil {
+	if err := installCloudConfig(opts.RootDir, opts.GadgetUnpackDir); err != nil {
 		return err
 	}
 

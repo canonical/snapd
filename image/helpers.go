@@ -209,8 +209,11 @@ func NewToolingStore() (*ToolingStore, error) {
 
 // DownloadOptions carries options for downloading snaps plus assertions.
 type DownloadOptions struct {
-	TargetDir  string
-	TargetFunc func(*snap.Info) (string, error)
+	TargetDir string
+	// if TargetPathFunc is not nil it will be invoked
+	// to compute the target path for the download and TargetDir is
+	// ignored
+	TargetPathFunc func(*snap.Info) (string, error)
 
 	Revision  snap.Revision
 	Channel   string
@@ -266,7 +269,7 @@ func (tsto *ToolingStore) DownloadSnap(name string, opts DownloadOptions) (targe
 	}
 	sto := tsto.sto
 
-	if opts.TargetFunc == nil && opts.TargetDir == "" {
+	if opts.TargetPathFunc == nil && opts.TargetDir == "" {
 		pwd, err := os.Getwd()
 		if err != nil {
 			return "", nil, err
@@ -296,7 +299,7 @@ func (tsto *ToolingStore) DownloadSnap(name string, opts DownloadOptions) (targe
 	}
 	snap := snaps[0]
 
-	if opts.TargetFunc == nil {
+	if opts.TargetPathFunc == nil {
 		baseName := opts.Basename
 		if baseName == "" {
 			baseName = filepath.Base(snap.MountFile())
@@ -306,7 +309,7 @@ func (tsto *ToolingStore) DownloadSnap(name string, opts DownloadOptions) (targe
 		targetFn = filepath.Join(opts.TargetDir, baseName)
 	} else {
 		var err error
-		targetFn, err = opts.TargetFunc(snap)
+		targetFn, err = opts.TargetPathFunc(snap)
 		if err != nil {
 			return "", nil, err
 		}
