@@ -28,6 +28,9 @@ var (
 	ValidateDescription          = validateDescription
 	ValidateTitle                = validateTitle
 	InfoFromSnapYamlWithSideInfo = infoFromSnapYamlWithSideInfo
+
+	AppArmorLabelForPidImpl = appArmorLabelForPidImpl
+	DecodeAppArmorLabel     = decodeAppArmorLabel
 )
 
 func (info *Info) ForceRenamePlug(oldName, newName string) {
@@ -36,6 +39,14 @@ func (info *Info) ForceRenamePlug(oldName, newName string) {
 
 func NewScopedTracker() *scopedTracker {
 	return new(scopedTracker)
+}
+
+func MockAppArmorLabelForPid(f func(pid int) (string, error)) (restore func()) {
+	old := appArmorLabelForPid
+	appArmorLabelForPid = f
+	return func() {
+		appArmorLabelForPid = old
+	}
 }
 
 func MockProcGroup(f func(pid int, match cgroup.GroupMatcher) (string, error)) (restore func()) {
