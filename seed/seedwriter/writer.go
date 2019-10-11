@@ -35,14 +35,13 @@ import (
 
 // Options holds the options for a Writer.
 type Options struct {
-	RootDir string
 	SeedDir string
 
 	DefaultChannel string
 
-	// Architecture to use if none is specified by the model,
-	// useful only for classic mode. If set must match the model otherwise.
-	Architecture string
+	// TestSkipCopyUnverifiedModel is set to support naive tests
+	// using an unverified model, the resulting image is broken
+	TestSkipCopyUnverifiedModel bool
 }
 
 // OptionsSnap represents an options-referred snap with its option values.
@@ -136,9 +135,6 @@ derived from the snap at SeedSnap.Path, then InfoDerived is called.
                       |
                       v
                   WriteMeta
-                      |
-                      v
-                  XXX gadget stuff ...
 
 */
 type Writer struct {
@@ -146,6 +142,11 @@ type Writer struct {
 	opts   *Options
 	policy policy
 	tree   tree
+
+	// warnings keep a list of warnings produced during the
+	// process, no more warnings should be produced after
+	// Downloaded signaled complete
+	warnings []string
 
 	db asserts.RODatabase
 
@@ -209,7 +210,18 @@ func New(model *asserts.Model, opts *Options) (*Writer, error) {
 	if opts == nil {
 		return nil, fmt.Errorf("internal error: Writer *Options is nil")
 	}
-	pol := &policy16{model: model, opts: opts}
+	w := &Writer{
+		model: model,
+		opts:  opts,
+		tree:  &tree16{opts: opts},
+
+		expectedStep: setOptionsSnapsStep,
+
+		byNameOptSnaps:  naming.NewSnapSet(nil),
+		byRefLocalSnaps: naming.NewSnapSet(nil),
+	}
+
+	pol := &policy16{model: model, opts: opts, warningf: w.warningf}
 
 	if opts.DefaultChannel != "" {
 		deflCh, err := channel.ParseVerbatim(opts.DefaultChannel, "_")
@@ -221,17 +233,8 @@ func New(model *asserts.Model, opts *Options) (*Writer, error) {
 		}
 	}
 
-	return &Writer{
-		model:  model,
-		opts:   opts,
-		policy: pol,
-		tree:   &tree16{opts: opts},
-
-		expectedStep: setOptionsSnapsStep,
-
-		byNameOptSnaps:  naming.NewSnapSet(nil),
-		byRefLocalSnaps: naming.NewSnapSet(nil),
-	}, nil
+	w.policy = pol
+	return w, nil
 }
 
 type writerStep int
@@ -298,6 +301,11 @@ func (w *Writer) checkStep(thisStep writerStep) error {
 	}
 	w.expectedStep = thisStep + 1
 	return nil
+}
+
+// warningf adds a warning that can be later retrieved via Warnings.
+func (w *Writer) warningf(format string, a ...interface{}) {
+	w.warnings = append(w.warnings, fmt.Sprintf(format, a...))
 }
 
 // SetOptionsSnaps accepts options-referred snaps represented as OptionsSnap.
@@ -389,9 +397,15 @@ func (w *Writer) Start(db asserts.RODatabase, newFetcher NewFetcherFunc) (RefAss
 
 	f := MakeRefAssertsFetcher(newFetcher)
 
-	// XXX support UBUNTU_IMAGE_SKIP_COPY_UNVERIFIED_MODEL ?
 	if err := f.Save(w.model); err != nil {
-		return nil, fmt.Errorf("cannot fetch and check prerequisites for the model assertion: %v", err)
+		const msg = "cannot fetch and check prerequisites for the model assertion: %v"
+		if !w.opts.TestSkipCopyUnverifiedModel {
+			return nil, fmt.Errorf(msg, err)
+		}
+		// Some naive tests including ubuntu-image ones use
+		// unverified models
+		w.warningf(msg, err)
+		f.ResetRefs()
 	}
 
 	// fetch device store assertion (and prereqs) if available
@@ -864,6 +878,12 @@ func (w *Writer) snapDecl(sn *SeedSnap) (*asserts.SnapDeclaration, error) {
 	return nil, fmt.Errorf("internal error: snap %q has no snap-declaration set", sn.SnapName())
 }
 
+// Warnings returns the warning messages produced so far. No warnings
+// should be generated after Downloaded signaled complete.
+func (w *Writer) Warnings() []string {
+	return w.warnings
+}
+
 // SeedSnaps checks seed snaps and copies local snaps into the seed using copySnap.
 func (w *Writer) SeedSnaps(copySnap func(name, src, dst string) error) error {
 	if err := w.checkStep(seedSnapsStep); err != nil {
@@ -920,4 +940,59 @@ func (w *Writer) WriteMeta() error {
 	}
 
 	return w.tree.writeMeta(snapsFromModel, extraSnaps)
+}
+
+// query accessors
+
+func (w *Writer) checkSnapsAccessor() error {
+	if w.expectedStep < seedSnapsStep {
+		return fmt.Errorf("internal error: seedwriter.Writer cannot query seed snaps before Downloaded signaled complete")
+	}
+	return nil
+}
+
+// BootSnaps returns the seed snaps involved in the boot process.
+// It can be invoked only after Downloaded returns complete ==
+// true. It returns an error for classic models as for those no snaps
+// participate in boot before user space.
+func (w *Writer) BootSnaps() ([]*SeedSnap, error) {
+	if err := w.checkSnapsAccessor(); err != nil {
+		return nil, err
+	}
+	if w.model.Classic() {
+		return nil, fmt.Errorf("no snaps participating in boot on classic")
+	}
+	var bootSnaps []*SeedSnap
+	for _, sn := range w.snapsFromModel {
+		bootSnaps = append(bootSnaps, sn)
+		if sn.Info.GetType() == snap.TypeGadget {
+			break
+
+		}
+	}
+	return bootSnaps, nil
+}
+
+// UnassertedSnaps returns references for all unasserted snaps in the seed.
+// It can be invoked only after Downloaded returns complete ==
+// true.
+func (w *Writer) UnassertedSnaps() ([]naming.SnapRef, error) {
+	if err := w.checkSnapsAccessor(); err != nil {
+		return nil, err
+	}
+	var res []naming.SnapRef
+	for _, sn := range w.snapsFromModel {
+		if sn.Info.ID() != "" {
+			continue
+		}
+		res = append(res, sn.SnapRef)
+	}
+
+	for _, sn := range w.extraSnaps {
+		if sn.Info.ID() != "" {
+			continue
+		}
+		res = append(res, sn.SnapRef)
+	}
+	return res, nil
 }
