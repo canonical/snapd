@@ -57,6 +57,12 @@ func init() {
 
 const portalInfoTemplate = `[Snap Info]
 InstanceName={{.Snap.Name}}
+{{- if .App}}
+AppName={{.App.Name}}
+{{- if .App.DesktopFile}}
+DesktopFile={{.App.DesktopFile}}
+{{- end}}
+{{- end}}
 `
 
 var snapNameFromPid = snap.NameFromPid
@@ -75,11 +81,33 @@ func (x *cmdRoutinePortalInfo) Execute(args []string) error {
 		return err
 	}
 
+	// If we were able to identify the application for the pid, use that.
+	var app *client.AppInfo
+	if procInfo.AppName != "" {
+		for i := range snap.Apps {
+			if snap.Apps[i].Name == procInfo.AppName {
+				app = &snap.Apps[i]
+				break
+			}
+		}
+	}
+	// As a fallback, pick an app with a desktop file, favouring
+	// the app named identically to the snap.
+	if app == nil {
+		for i := range snap.Apps {
+			if snap.Apps[i].DesktopFile != "" && (app == nil || snap.Apps[i].Name == snap.Name) {
+				app = &snap.Apps[i]
+			}
+		}
+	}
+
 	t := template.Must(template.New("portal-info").Parse(portalInfoTemplate))
 	data := struct {
 		Snap *client.Snap
+		App  *client.AppInfo
 	}{
 		Snap: snap,
+		App:  app,
 	}
 	return t.Execute(Stdout, data)
 	return nil
