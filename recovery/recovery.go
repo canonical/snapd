@@ -21,7 +21,6 @@
 package recovery
 
 import (
-	"bytes"
 	"crypto/rand"
 	"fmt"
 	"io/ioutil"
@@ -227,15 +226,11 @@ func mountFilesystem(label string, mountpoint string) error {
 	return nil
 }
 
-func storeKeyfile(tpm tpm2.TPMContext, dir string, buffer []byte) error {
+func storeKeyfile(tpm *tpm2.TPMContext, dir string, buffer []byte) error {
 	// Seal keyfile
-	var k bytes.Buffer
-	if err := fdeutil.SealKeyToTPM(tpm, &k, buffer); err != nil {
+	keyfile := path.Join(dir, "keyfile")
+	if err := fdeutil.SealKeyToTPM(tpm, keyfile, fdeutil.Create, nil, buffer); err != nil {
 		logger.Noticef("sealing failed: %s", err)
-		return err
-	}
-
-	if err := ioutil.WriteFile(path.Join(dir, "keyfile"), k.Bytes(), 0400); err != nil {
 		return err
 	}
 

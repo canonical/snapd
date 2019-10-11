@@ -7,22 +7,34 @@
 			"revision": ""
 		},
 		{
-			"checksumSHA1": "IOYNZxtW/NhFmYCPNKPeafVwHJU=",
+			"checksumSHA1": "Yd2wlPZh7SaZ2qX124KOJGgGmXI=",
 			"path": "github.com/chrisccoulson/go-tpm2",
-			"revision": "24a62e9bb51191ee7a0ccca6d7bc01dbb413f572",
-			"revisionTime": "2019-08-14T14:54:33Z"
+			"revision": "faa9de1f782451feb3d5592e4687c29d9bf50a7d",
+			"revisionTime": "2019-09-26T23:26:24Z"
 		},
 		{
-			"checksumSHA1": "QdrT6GNvHqZhYmx8G8P8zGQ26E4=",
+			"checksumSHA1": "PivTtD46tIChYSQcCe153L56W4Y=",
+			"path": "github.com/chrisccoulson/tcglog-parser",
+			"revision": "822d31beb246f9f3283345db965b97a5b5083abe",
+			"revisionTime": "2019-10-02T12:18:04Z"
+		},
+		{
+			"checksumSHA1": "dIdirj3IElMmMKqFz2jnHopiozw=",
 			"path": "github.com/chrisccoulson/ubuntu-core-fde-utils",
-			"revision": "74b2ac214763e19a3b13bb44435266f2753d763d",
-			"revisionTime": "2019-08-07T20:13:30Z"
+			"revision": "d41f63d0cae4333c51e337ac39a2da285dc00318",
+			"revisionTime": "2019-10-03T21:25:31Z"
 		},
 		{
 			"checksumSHA1": "zg16zjZTQ9R89+UOLmEZxHgxDtM=",
 			"path": "github.com/coreos/go-systemd/activation",
 			"revision": "39ca1b05acc7ad1220e09f133283b8859a8b71ab",
 			"revisionTime": "2018-05-11T13:34:05Z"
+		},
+		{
+			"checksumSHA1": "geYdDku3kun0ydzoz9mO4S14kYg=",
+			"path": "github.com/fullsailor/pkcs7",
+			"revision": "d7302db945fa6ea264fb79d8e13e931ea514a602",
+			"revisionTime": "2019-01-30T07:39:14Z"
 		},
 		{
 			"checksumSHA1": "h77tT8kVh8x/J5ikkZReONPUjU0=",

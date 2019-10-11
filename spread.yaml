@@ -99,6 +99,7 @@ backends:
                 workers: 6
             - arch-linux-64:
                 workers: 6
+                manual: true
 
             - amazon-linux-2-64:
                 workers: 6
@@ -107,6 +108,7 @@ backends:
             - centos-7-64:
                 workers: 6
                 image: centos-7-64
+                manual: true
 
     google-sru:
         type: google
