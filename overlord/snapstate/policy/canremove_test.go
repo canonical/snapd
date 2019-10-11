@@ -9,6 +9,7 @@ import (
 	"github.com/snapcore/snapd/overlord/snapstate"
 	"github.com/snapcore/snapd/overlord/snapstate/policy"
 	"github.com/snapcore/snapd/overlord/state"
+	"github.com/snapcore/snapd/release"
 	"github.com/snapcore/snapd/snap"
 	"github.com/snapcore/snapd/snap/snaptest"
 	"github.com/snapcore/snapd/testutil"
@@ -328,4 +329,42 @@ func (s *canRemoveSuite) TestBaseInUseOtherRevision(c *check.C) {
 	snapst.Sequence[0].RealName = "core"
 	// but revision 2 requires core
 	c.Check(policy.NewOSPolicy("core18").CanRemove(s.st, snapst, snap.R(0)), check.DeepEquals, policy.InUseByErr("some-snap"))
+}
+
+func (s *canRemoveSuite) TestSnapdTypePolicy(c *check.C) {
+	s.st.Lock()
+	defer s.st.Unlock()
+
+	si := &snap.SideInfo{Revision: snap.R(1), RealName: "snapd"}
+	snapst := &snapstate.SnapState{
+		Current:  snap.R(1),
+		Sequence: []*snap.SideInfo{si},
+	}
+
+	// pretend we are on core
+	restore := release.MockOnClassic(false)
+	defer restore()
+
+	// snapd cannot be removed on core
+	c.Check(policy.NewSnapdPolicy("core18").CanRemove(s.st, snapst, snap.R(0)), check.Equals, policy.ErrNotRemovable)
+	c.Check(policy.NewSnapdPolicy("").CanRemove(s.st, snapst, snap.R(0)), check.Equals, policy.ErrNotRemovable)
+
+	// but single revisions can be removed
+	c.Check(policy.NewSnapdPolicy("").CanRemove(s.st, snapst, snap.R(1)), check.IsNil)
+
+	// snapd *can* be removed on classic if its the last snap
+	restore = release.MockOnClassic(true)
+	defer restore()
+	snapstate.Set(s.st, "snapd", &snapstate.SnapState{
+		Current:  snap.R(1),
+		Sequence: []*snap.SideInfo{si},
+	})
+	c.Check(policy.NewSnapdPolicy("").CanRemove(s.st, snapst, snap.R(0)), check.IsNil)
+
+	// but it cannot be removed when there are more snaps installed
+	snapstate.Set(s.st, "other-snap", &snapstate.SnapState{
+		Current:  snap.R(1),
+		Sequence: []*snap.SideInfo{&snap.SideInfo{Revision: snap.R(1), RealName: "other-snap"}},
+	})
+	c.Check(policy.NewSnapdPolicy("").CanRemove(s.st, snapst, snap.R(0)), check.Equals, policy.ErrNotRemovable)
 }

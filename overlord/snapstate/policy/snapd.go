@@ -17,46 +17,42 @@
  *
  */
 
-// Package policy implements fine grained decision-making for snapstate
 package policy
 
 import (
-	"github.com/snapcore/snapd/asserts"
 	"github.com/snapcore/snapd/overlord/snapstate"
 	"github.com/snapcore/snapd/overlord/state"
+	"github.com/snapcore/snapd/release"
 	"github.com/snapcore/snapd/snap"
 )
 
-func init() {
-	snapstate.PolicyFor = For
+type snapdPolicy struct {
+	modelBase string
 }
 
-func For(typ snap.Type, model *asserts.Model) snapstate.Policy {
-	switch typ {
-	case snap.TypeKernel:
-		return &kernelPolicy{modelKernel: model.Kernel()}
-	case snap.TypeGadget:
-		return &gadgetPolicy{modelGadget: model.Gadget()}
-	case snap.TypeOS:
-		return &osPolicy{modelBase: model.Base()}
-	case snap.TypeBase:
-		return &basePolicy{modelBase: model.Base()}
-	case snap.TypeSnapd:
-		return &snapdPolicy{modelBase: model.Base()}
-	default:
-		return appPolicy{}
+func (p *snapdPolicy) CanRemove(st *state.State, snapst *snapstate.SnapState, rev snap.Revision) error {
+	name := snapst.InstanceName()
+	if name == "" {
+		// not installed, or something. What are you even trying to do.
+		return errNoName
 	}
-}
 
-type appPolicy struct{}
-
-func (appPolicy) CanRemove(_ *state.State, snapst *snapstate.SnapState, rev snap.Revision) error {
 	if !rev.Unset() {
 		return nil
 	}
 
-	if snapst.Required {
-		return errRequired
+	// snapd cannot be removed on core
+	if !release.OnClassic {
+		return errNotRemovable
+	}
+
+	// only allow snapd removal if its the last snap on a (classic) system
+	numSnaps, err := snapstate.NumSnaps(st)
+	if err != nil {
+		return err
+	}
+	if numSnaps > 1 {
+		return errNotRemovable
 	}
 
 	return nil

@@ -25,6 +25,7 @@ func (s *policySuite) TestFor(c *check.C) {
 		snap.TypeGadget: policy.NewGadgetPolicy(""),
 		snap.TypeKernel: policy.NewKernelPolicy(""),
 		snap.TypeOS:     policy.NewOSPolicy(""),
+		snap.TypeSnapd:  policy.NewSnapdPolicy(""),
 	} {
 		c.Check(policy.For(typ, &asserts.Model{}), check.FitsTypeOf, pol)
 	}
