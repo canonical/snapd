@@ -32,6 +32,7 @@ package seed
 import (
 	"fmt"
 	"path/filepath"
+	"sync"
 
 	"github.com/snapcore/snapd/asserts"
 	"github.com/snapcore/snapd/asserts/snapasserts"
@@ -142,8 +143,6 @@ func (s *seed16) addSnap(sn *Snap16, tm timings.Measurer) (*Snap, error) {
 
 	seedSnap.SideInfo = &sideInfo
 
-	s.snaps = append(s.snaps, seedSnap)
-
 	return seedSnap, nil
 }
 
@@ -169,7 +168,6 @@ func (s *seed16) LoadMeta(tm timings.Measurer) error {
 	for _, sn := range yamlSnaps {
 		seeding[sn.Name] = sn
 	}
-	added := make(map[string]bool, 3)
 	classic := model.Classic()
 	_, s.usesSnapdSnap = seeding["snapd"]
 
@@ -185,12 +183,23 @@ func (s *seed16) LoadMeta(tm timings.Measurer) error {
 		baseSnap = ""
 	}
 
+	// + 4 is for essential snaps (base, snapd, kernel, gadget)
+	errors := make(chan error, len(yamlSnaps)+4)
+	snaps := make(map[string]*Snap, len(yamlSnaps)+4)
+	var seedingOrder []string
+
+	// find snap name in ordered snaps
+	findOrderedSnapName := func(name string) bool {
+		for _, n := range seedingOrder {
+			if n == name {
+				return true
+			}
+		}
+		return false
+	}
+
 	// add the essential snaps
 	addEssential := func(snapName string) (*Snap, error) {
-		// be idempotent
-		if added[snapName] {
-			return nil, nil
-		}
 		yamlSnap := seeding[snapName]
 		if yamlSnap == nil {
 			return nil, fmt.Errorf("essential snap %q required by the model is missing in the seed", snapName)
@@ -203,33 +212,43 @@ func (s *seed16) LoadMeta(tm timings.Measurer) error {
 
 		seedSnap.Essential = true
 		seedSnap.Required = true
-		added[snapName] = true
+		snaps[snapName] = seedSnap
 
 		return seedSnap, nil
+	}
+
+	var wg sync.WaitGroup
+
+	addEssentialAsync := func(snapName string, errors chan<- error) {
+		defer wg.Done()
+		_, err := addEssential(snapName)
+		errors <- err
 	}
 
 	// if there are snaps to seed, core/base needs to be seeded too
 	if len(yamlSnaps) != 0 {
 		// ensure "snapd" snap is installed first
 		if model.Base() != "" || classicWithSnapd {
-			if _, err := addEssential("snapd"); err != nil {
-				return err
-			}
+			seedingOrder = append(seedingOrder, "snapd")
+			wg.Add(1)
+			go addEssentialAsync("snapd", errors)
 		}
 		if !classicWithSnapd {
-			if _, err := addEssential(baseSnap); err != nil {
-				return err
-			}
+			seedingOrder = append(seedingOrder, baseSnap)
+			wg.Add(1)
+			go addEssentialAsync(baseSnap, errors)
 		}
 	}
 
 	if kernelName := model.Kernel(); kernelName != "" {
-		if _, err := addEssential(kernelName); err != nil {
-			return err
-		}
+		seedingOrder = append(seedingOrder, kernelName)
+		wg.Add(1)
+		go addEssentialAsync(kernelName, errors)
 	}
 
 	if gadgetName := model.Gadget(); gadgetName != "" {
+		// gadgets are small, it's ok to run them straight
+		seedingOrder = append(seedingOrder, gadgetName)
 		gadget, err := addEssential(gadgetName)
 		if err != nil {
 			return err
@@ -254,27 +273,55 @@ func (s *seed16) LoadMeta(tm timings.Measurer) error {
 		if baseSnap != "" && gadgetBase != baseSnap {
 			return fmt.Errorf("cannot use gadget snap because its base %q is different from model base %q", gadgetBase, model.Base())
 		}
-		if _, err = addEssential(gadgetBase); err != nil {
-			return err
+		if !findOrderedSnapName(gadgetBase) {
+			seedingOrder = append(seedingOrder, gadgetBase)
+			wg.Add(1)
+			go addEssentialAsync(gadgetBase, errors)
 		}
 	}
 
-	s.essentialSnapsNum = len(s.snaps)
+	s.essentialSnapsNum = len(seedingOrder)
 
-	// the rest of the snaps
-	for _, sn := range yamlSnaps {
-		if added[sn.Name] {
-			continue
-		}
+	addSnapAsync := func(errors chan<- error, sn *Snap16, wg *sync.WaitGroup) {
+		defer wg.Done()
 		seedSnap, err := s.addSnap(sn, tm)
+		errors <- err
 		if err != nil {
-			return err
+			return
 		}
+		snaps[sn.Name] = seedSnap
 		if required.Contains(seedSnap) {
 			seedSnap.Required = true
 		}
 	}
 
+	// the rest of the snaps
+	for _, sn := range yamlSnaps {
+		if !findOrderedSnapName(sn.Name) {
+			seedingOrder = append(seedingOrder, sn.Name)
+			wg.Add(1)
+			go addSnapAsync(errors, sn, &wg)
+		}
+	}
+
+	wg.Wait()
+	close(errors)
+
+	// if there was any error, return first one
+	for e := range errors {
+		if e != nil {
+			return e
+		}
+	}
+
+	// populate s.snaps in right order
+	for _, sn := range seedingOrder {
+		snap := snaps[sn]
+		if snap == nil {
+			return fmt.Errorf("missing snap %s to be added", sn)
+		}
+		s.snaps = append(s.snaps, snap)
+	}
 	return nil
 }
 
