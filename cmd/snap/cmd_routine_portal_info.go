@@ -21,6 +21,7 @@ package main
 
 import (
 	"fmt"
+	"path/filepath"
 	"text/template"
 
 	"github.com/jessevdk/go-flags"
@@ -60,9 +61,9 @@ const portalInfoTemplate = `[Snap Info]
 InstanceName={{.Snap.Name}}
 {{- if .App}}
 AppName={{.App.Name}}
-{{- if .App.DesktopFile}}
-DesktopFile={{.App.DesktopFile}}
 {{- end}}
+{{- if .DesktopFile}}
+DesktopFile={{.DesktopFile}}
 {{- end}}
 HasNetwork={{.HasNetwork}}
 `
@@ -103,6 +104,11 @@ func (x *cmdRoutinePortalInfo) Execute(args []string) error {
 		}
 	}
 
+	var desktopFile string
+	if app != nil {
+		desktopFile = filepath.Base(app.DesktopFile)
+	}
+
 	// Determine whether the snap has access to the network
 	connections, err := x.client.Connections(&client.ConnectionOptions{
 		Snap:      snap.Name,
@@ -121,13 +127,15 @@ func (x *cmdRoutinePortalInfo) Execute(args []string) error {
 
 	t := template.Must(template.New("portal-info").Parse(portalInfoTemplate))
 	data := struct {
-		Snap       *client.Snap
-		App        *client.AppInfo
-		HasNetwork bool
+		Snap        *client.Snap
+		App         *client.AppInfo
+		DesktopFile string
+		HasNetwork  bool
 	}{
-		Snap:       snap,
-		App:        app,
-		HasNetwork: hasNetwork,
+		Snap:        snap,
+		App:         app,
+		DesktopFile: desktopFile,
+		HasNetwork:  hasNetwork,
 	}
 	return t.Execute(Stdout, data)
 	return nil

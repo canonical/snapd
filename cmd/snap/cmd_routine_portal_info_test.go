@@ -123,7 +123,7 @@ func (s *SnapSuite) TestPortalInfo(c *C) {
 	c.Check(s.Stdout(), Equals, `[Snap Info]
 InstanceName=hello
 AppName=universe
-DesktopFile=/path/to/hello_universe.desktop
+DesktopFile=hello_universe.desktop
 HasNetwork=true
 `)
 	c.Check(s.Stderr(), Equals, "")
@@ -165,7 +165,7 @@ func (s *SnapSuite) TestPortalInfoNoAppInfo(c *C) {
 	c.Check(s.Stdout(), Equals, `[Snap Info]
 InstanceName=hello
 AppName=hello
-DesktopFile=/path/to/hello_hello.desktop
+DesktopFile=hello_hello.desktop
 HasNetwork=false
 `)
 	c.Check(s.Stderr(), Equals, "")
