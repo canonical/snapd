@@ -138,5 +138,4 @@ func (x *cmdRoutinePortalInfo) Execute(args []string) error {
 		HasNetwork:  hasNetwork,
 	}
 	return t.Execute(Stdout, data)
-	return nil
 }

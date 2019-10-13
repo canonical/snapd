@@ -84,7 +84,11 @@ const mockInfoJSONWithApps = `
 func (s *SnapSuite) TestPortalInfo(c *C) {
 	snap.MockSnapNameFromPid(func(pid int) (snapdsnap.ProcessInfo, error) {
 		c.Check(pid, Equals, 42)
-		return snapdsnap.ProcessInfo{"hello", "universe", ""}, nil
+		return snapdsnap.ProcessInfo{
+			InstanceName: "hello",
+			AppName:      "universe",
+			HookName:     "",
+		}, nil
 	})
 	n := 0
 	s.RedirectClientToTestServer(func(w http.ResponseWriter, r *http.Request) {
@@ -103,8 +107,14 @@ func (s *SnapSuite) TestPortalInfo(c *C) {
 			result := client.Connections{
 				Established: []client.Connection{
 					{
-						Slot:      client.SlotRef{"core", "network"},
-						Plug:      client.PlugRef{"hello", "network"},
+						Slot: client.SlotRef{
+							Snap: "core",
+							Name: "network",
+						},
+						Plug: client.PlugRef{
+							Snap: "hello",
+							Name: "network",
+						},
 						Interface: "network",
 					},
 				},
@@ -134,7 +144,11 @@ func (s *SnapSuite) TestPortalInfoNoAppInfo(c *C) {
 		c.Check(pid, Equals, 42)
 		// On systems without AppArmor support, we can't
 		// distinguish different apps within the snap.
-		return snapdsnap.ProcessInfo{"hello", "", ""}, nil
+		return snapdsnap.ProcessInfo{
+			InstanceName: "hello",
+			AppName:      "",
+			HookName:     "",
+		}, nil
 	})
 	n := 0
 	s.RedirectClientToTestServer(func(w http.ResponseWriter, r *http.Request) {
