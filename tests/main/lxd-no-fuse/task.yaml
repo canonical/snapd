@@ -44,4 +44,5 @@ execute: |
     MATCH 'The "fuse" filesystem is required' < err.txt
 
 restore: |
+    snap remove lxd
     lxd-tool undo-lxd-mount-changes

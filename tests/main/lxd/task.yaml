@@ -31,6 +31,9 @@ restore: |
     lxd.lxc stop my-ubuntu --force
     lxd.lxc delete my-ubuntu
 
+    # remove lxd now, since later remove --purge step may not be able to stop the daemon
+    snap remove lxd
+
     lxd-tool undo-lxd-mount-changes
 
 debug: |
