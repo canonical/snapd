@@ -31,7 +31,7 @@
 bool verify_security_tag(const char *security_tag, const char *snap_name)
 {
 	const char *whitelist_re =
-	    "^snap\\.([a-z0-9](-?[a-z0-9])*(_[a-z0-9]{1,10})?)\\.([a-zA-Z0-9](-?[a-zA-Z0-9])*|hook\\.[a-z](-?[a-z])*)$";
+	    "^snap\\.([a-z0-9](-?[a-z0-9])*(_[a-z0-9]{1,10})?)\\.([a-zA-Z0-9](-?[a-zA-Z0-9])*|hook\\.[a-z](-?[a-z0-9])*)$";
 	regex_t re;
 	if (regcomp(&re, whitelist_re, REG_EXTENDED) != 0)
 		die("can not compile regex %s", whitelist_re);
@@ -252,7 +252,7 @@ void sc_snap_name_validate(const char *snap_name, sc_error ** errorp)
 				    "snap name must be longer than 1 character");
 		goto out;
 	}
-	if (n > 40) {
+	if (n > SNAP_NAME_LEN) {
 		err = sc_error_init(SC_SNAP_DOMAIN, SC_SNAP_INVALID_NAME,
 				    "snap name must be shorter than 40 characters");
 		goto out;

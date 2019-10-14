@@ -19,6 +19,7 @@
 #define SC_CGROUP_SUPPORT_H
 
 #include <fcntl.h>
+#include <stdbool.h>
 
 /**
  * sc_cgroup_create_and_join joins, perhaps creating, a cgroup hierarchy.
@@ -29,5 +30,11 @@
  * moved there.
  **/
 void sc_cgroup_create_and_join(const char *parent, const char *name, pid_t pid);
+
+/**
+ * sc_cgroup_is_v2() returns true if running on cgroups v2
+ *
+ **/
+bool sc_cgroup_is_v2(void);
 
 #endif

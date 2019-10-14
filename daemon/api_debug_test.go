@@ -238,6 +238,7 @@ func (s *postDebugSuite) TestGetDebugTimingsEnsureLatest(c *check.C) {
 	tmData := dataJSON[0].(map[string]interface{})
 	c.Check(tmData["change-id"], check.DeepEquals, "2")
 	c.Check(tmData["change-timings"], check.NotNil)
+	c.Check(tmData["total-duration"], check.NotNil)
 }
 
 func (s *postDebugSuite) TestGetDebugTimingsEnsureAll(c *check.C) {
@@ -247,10 +248,12 @@ func (s *postDebugSuite) TestGetDebugTimingsEnsureAll(c *check.C) {
 	tmData := dataJSON[0].(map[string]interface{})
 	c.Check(tmData["change-id"], check.DeepEquals, "1")
 	c.Check(tmData["change-timings"], check.NotNil)
+	c.Check(tmData["total-duration"], check.NotNil)
 
 	tmData = dataJSON[1].(map[string]interface{})
 	c.Check(tmData["change-id"], check.DeepEquals, "2")
 	c.Check(tmData["change-timings"], check.NotNil)
+	c.Check(tmData["total-duration"], check.NotNil)
 }
 
 func (s *postDebugSuite) TestGetDebugTimingsError(c *check.C) {

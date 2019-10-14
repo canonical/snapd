@@ -71,8 +71,9 @@ func Update(old, new GadgetData, rollbackDirPath string) error {
 		return err
 	}
 
-	// layout old
-	pOld, err := LayoutVolume(old.RootDir, oldVol, defaultConstraints)
+	// layout old partially, without going deep into the layout of structure
+	// content
+	pOld, err := LayoutVolumePartially(oldVol, defaultConstraints)
 	if err != nil {
 		return fmt.Errorf("cannot lay out the old volume: %v", err)
 	}
@@ -200,7 +201,7 @@ func canUpdateStructure(from *LaidOutStructure, to *LaidOutStructure) error {
 	return nil
 }
 
-func canUpdateVolume(from *LaidOutVolume, to *LaidOutVolume) error {
+func canUpdateVolume(from *PartiallyLaidOutVolume, to *LaidOutVolume) error {
 	if from.ID != to.ID {
 		return fmt.Errorf("cannot change volume ID from %q to %q", from.ID, to.ID)
 	}
@@ -218,7 +219,7 @@ type updatePair struct {
 	to   *LaidOutStructure
 }
 
-func resolveUpdate(oldVol *LaidOutVolume, newVol *LaidOutVolume) (updates []updatePair, err error) {
+func resolveUpdate(oldVol *PartiallyLaidOutVolume, newVol *LaidOutVolume) (updates []updatePair, err error) {
 	if len(oldVol.LaidOutStructure) != len(newVol.LaidOutStructure) {
 		return nil, errors.New("internal error: the number of structures in new and old volume definitions is different")
 	}

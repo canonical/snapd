@@ -9,4 +9,3 @@ execute: |
 
     echo "There is timing data available for it"
     snap debug timings --last=install | MATCH 'Done +[0-9]+'
-

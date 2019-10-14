@@ -48,7 +48,7 @@ execute: |
     mount --bind /tmp/old-info $SNAP_MOUNT_DIR/core/current/usr/lib/snapd/info
     systemctl start snapd.service snapd.socket
     snap list
-    check_journalctl_log 'core snap \(at .*\) is older \(.*\) than distribution package'
+    check_journalctl_log 'snap \(at .*\) is older \(.*\) than distribution package'
 
     echo "Revert back to normal"
     systemctl stop snapd.service snapd.socket

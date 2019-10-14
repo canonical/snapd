@@ -776,7 +776,7 @@ func (run *Runner) Applicable(headers map[string]interface{}) bool {
 	if err != nil {
 		return false
 	}
-	if len(archs) != 0 && !strutil.ListContains(archs, arch.UbuntuArchitecture()) {
+	if len(archs) != 0 && !strutil.ListContains(archs, arch.DpkgArchitecture()) {
 		return false
 	}
 	brandModel := fmt.Sprintf("%s/%s", run.state.Device.Brand, run.state.Device.Model)
@@ -984,6 +984,9 @@ func (run *Runner) Verify(repair *asserts.Repair, aux []asserts.Assertion) error
 		trustedBS.Put(asserts.AccountKeyType, t)
 	}
 	for _, t := range sysdb.Trusted() {
+		// we do *not* add the defalt sysdb trusted account
+		// keys here because the repair assertions have their
+		// own *dedicated* root of trust
 		if t.Type() == asserts.AccountType {
 			trustedBS.Put(asserts.AccountType, t)
 		}

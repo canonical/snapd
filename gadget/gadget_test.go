@@ -121,6 +121,17 @@ defaults:
       bar: baz
 `)
 
+var mockClassicGadgetMultilineDefaultsYaml = []byte(`
+defaults:
+  system:
+    something: true
+  otheridididididididididididididi:
+    foosnap:
+      multiline: |
+        foo
+        bar
+`)
+
 var mockVolumeUpdateGadgetYaml = []byte(`
 volumes:
   bootloader:
@@ -192,6 +203,78 @@ volumes:
             target: /
 `)
 
+var gadgetYamlLk = []byte(`
+volumes:
+  volumename:
+    schema: mbr
+    bootloader: lk
+    structure:
+      - name: BOOTIMG1
+        size: 25165824
+        role: system-boot-image
+        type: 27
+        content:
+          - image: boot.img
+      - name: BOOTIMG2
+        size: 25165824
+        role: system-boot-image
+        type: 27
+      - name: snapbootsel
+        size: 131072
+        role: system-boot-select
+        type: B2
+        content:
+          - image: snapbootsel.bin
+      - name: snapbootselbak
+        size: 131072
+        role: system-boot-select
+        type: B2
+        content:
+          - image: snapbootsel.bin
+      - name: writable
+        type: 83
+        filesystem: ext4
+        filesystem-label: writable
+        size: 500M
+        role: system-data
+`)
+
+var gadgetYamlLkLegacy = []byte(`
+volumes:
+  volumename:
+    schema: mbr
+    bootloader: lk
+    structure:
+      - name: BOOTIMG1
+        size: 25165824
+        role: bootimg
+        type: 27
+        content:
+          - image: boot.img
+      - name: BOOTIMG2
+        size: 25165824
+        role: bootimg
+        type: 27
+      - name: snapbootsel
+        size: 131072
+        role: bootselect
+        type: B2
+        content:
+          - image: snapbootsel.bin
+      - name: snapbootselbak
+        size: 131072
+        role: bootselect
+        type: B2
+        content:
+          - image: snapbootsel.bin
+      - name: writable
+        type: 83
+        filesystem: ext4
+        filesystem-label: writable
+        size: 500M
+        role: system-data
+`)
+
 func TestRun(t *testing.T) { TestingT(t) }
 
 func mustParseGadgetSize(c *C, s string) gadget.Size {
@@ -251,6 +334,22 @@ func (s *gadgetYamlTestSuite) TestReadGadgetYamlOnClassicOnylDefaultsIsValid(c *
 			// keep this comment so that gofmt 1.10+ does not
 			// realign this, thus breaking our gofmt 1.9 checks
 			"otheridididididididididididididi": {"foo": map[string]interface{}{"bar": "baz"}},
+		},
+	})
+}
+
+func (s *gadgetYamlTestSuite) TestReadGadgetDefaultsMultiline(c *C) {
+	err := ioutil.WriteFile(s.gadgetYamlPath, mockClassicGadgetMultilineDefaultsYaml, 0644)
+	c.Assert(err, IsNil)
+
+	ginfo, err := gadget.ReadInfo(s.dir, true)
+	c.Assert(err, IsNil)
+	c.Assert(ginfo, DeepEquals, &gadget.Info{
+		Defaults: map[string]map[string]interface{}{
+			"system": {"something": true},
+			// keep this comment so that gofmt 1.10+ does not
+			// realign this, thus breaking our gofmt 1.9 checks
+			"otheridididididididididididididi": {"foosnap": map[string]interface{}{"multiline": "foo\nbar\n"}},
 		},
 	})
 }
@@ -374,7 +473,7 @@ volumes:
 	c.Assert(err, IsNil)
 
 	_, err = gadget.ReadInfo(s.dir, false)
-	c.Assert(err, ErrorMatches, "bootloader must be one of grub, u-boot or android-boot")
+	c.Assert(err, ErrorMatches, "bootloader must be one of grub, u-boot, android-boot or lk")
 }
 
 func (s *gadgetYamlTestSuite) TestReadGadgetYamlEmptyBootloader(c *C) {
@@ -577,6 +676,22 @@ func (s *gadgetYamlTestSuite) TestReadGadgetYamlPCHappy(c *C) {
 
 func (s *gadgetYamlTestSuite) TestReadGadgetYamlRPiHappy(c *C) {
 	err := ioutil.WriteFile(s.gadgetYamlPath, gadgetYamlRPi, 0644)
+	c.Assert(err, IsNil)
+
+	_, err = gadget.ReadInfo(s.dir, false)
+	c.Assert(err, IsNil)
+}
+
+func (s *gadgetYamlTestSuite) TestReadGadgetYamlLkHappy(c *C) {
+	err := ioutil.WriteFile(s.gadgetYamlPath, gadgetYamlLk, 0644)
+	c.Assert(err, IsNil)
+
+	_, err = gadget.ReadInfo(s.dir, false)
+	c.Assert(err, IsNil)
+}
+
+func (s *gadgetYamlTestSuite) TestReadGadgetYamlLkLegacyHappy(c *C) {
+	err := ioutil.WriteFile(s.gadgetYamlPath, gadgetYamlLkLegacy, 0644)
 	c.Assert(err, IsNil)
 
 	_, err = gadget.ReadInfo(s.dir, false)

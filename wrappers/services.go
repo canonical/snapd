@@ -34,6 +34,7 @@ import (
 	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/osutil/sys"
 	"github.com/snapcore/snapd/snap"
+	"github.com/snapcore/snapd/strutil"
 	"github.com/snapcore/snapd/systemd"
 	"github.com/snapcore/snapd/timeout"
 	"github.com/snapcore/snapd/timeutil"
@@ -199,9 +200,20 @@ func StartServices(apps []*snap.AppInfo, inter interacter, tm timings.Measurer) 
 }
 
 // AddSnapServices adds service units for the applications from the snap which are services.
-func AddSnapServices(s *snap.Info, inter interacter) (err error) {
+func AddSnapServices(s *snap.Info, disabledSvcs []string, inter interacter) (err error) {
 	if s.GetType() == snap.TypeSnapd {
 		return writeSnapdServicesOnCore(s, inter)
+	}
+
+	// check if any previously disabled services are now no longer services and
+	// log messages about that
+	for _, svc := range disabledSvcs {
+		app, ok := s.Apps[svc]
+		if !ok {
+			logger.Noticef("previously disabled service %s no longer exists", svc)
+		} else if !app.IsService() {
+			logger.Noticef("previously disabled service %s is now an app and not a service", svc)
+		}
 	}
 
 	sysd := systemd.New(dirs.GlobalRootDir, systemd.SystemMode, inter)
@@ -277,6 +289,12 @@ func AddSnapServices(s *snap.Info, inter interacter) (err error) {
 		}
 
 		svcName := app.ServiceName()
+
+		if strutil.ListContains(disabledSvcs, app.Name) {
+			// service is disabled, nothing to do
+			continue
+		}
+
 		if err := sysd.Enable(svcName); err != nil {
 			return err
 		}
@@ -335,7 +353,27 @@ func StopServices(apps []*snap.AppInfo, reason snap.ServiceStopReason, inter int
 	}
 
 	return nil
+}
 
+// ServicesEnableState returns a map of service names from the given snap,
+// together with their enable/disable status.
+func ServicesEnableState(s *snap.Info, inter interacter) (map[string]bool, error) {
+	sysd := systemd.New(dirs.GlobalRootDir, systemd.SystemMode, inter)
+
+	// loop over all services in the snap, querying systemd for the current
+	// systemd state of the snaps
+	snapSvcsState := make(map[string]bool, len(s.Apps))
+	for name, app := range s.Apps {
+		if !app.IsService() {
+			continue
+		}
+		state, err := sysd.IsEnabled(app.ServiceName())
+		if err != nil {
+			return nil, err
+		}
+		snapSvcsState[name] = state
+	}
+	return snapSvcsState, nil
 }
 
 // RemoveSnapServices disables and removes service units for the applications from the snap which are services.

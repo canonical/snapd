@@ -21,6 +21,7 @@ package client
 
 import (
 	"bytes"
+	"context"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -182,7 +183,16 @@ func (e AuthorizationError) Error() string {
 type ConnectionError struct{ error }
 
 func (e ConnectionError) Error() string {
-	return fmt.Sprintf("cannot communicate with server: %v", e.error)
+	var errStr string
+	switch e.error {
+	case context.DeadlineExceeded:
+		errStr = "timeout exceeded while waiting for response"
+	case context.Canceled:
+		errStr = "request canceled"
+	default:
+		errStr = e.error.Error()
+	}
+	return fmt.Sprintf("cannot communicate with server: %s", errStr)
 }
 
 // AllowInteractionHeader is the HTTP request header used to indicate
@@ -192,7 +202,7 @@ const AllowInteractionHeader = "X-Allow-Interaction"
 // raw performs a request and returns the resulting http.Response and
 // error you usually only need to call this directly if you expect the
 // response to not be JSON, otherwise you'd call Do(...) instead.
-func (client *Client) raw(method, urlpath string, query url.Values, headers map[string]string, body io.Reader) (*http.Response, error) {
+func (client *Client) raw(ctx context.Context, method, urlpath string, query url.Values, headers map[string]string, body io.Reader) (*http.Response, error) {
 	// fake a url to keep http.Client happy
 	u := client.baseURL
 	u.Path = path.Join(client.baseURL.Path, urlpath)
@@ -221,6 +231,10 @@ func (client *Client) raw(method, urlpath string, query url.Values, headers map[
 		req.Header.Set(AllowInteractionHeader, "true")
 	}
 
+	if ctx != nil {
+		req = req.WithContext(ctx)
+	}
+
 	rsp, err := client.doer.Do(req)
 	if err != nil {
 		return nil, ConnectionError{err}
@@ -229,13 +243,36 @@ func (client *Client) raw(method, urlpath string, query url.Values, headers map[
 	return rsp, nil
 }
 
+// rawWithTimeout is like raw(), but sets a timeout for the whole of request and
+// response (including rsp.Body() read) round trip. The caller is responsible
+// for canceling the internal context to release the resources associated with
+// the request by calling the returned cancel function.
+func (client *Client) rawWithTimeout(ctx context.Context, method, urlpath string, query url.Values, headers map[string]string, body io.Reader, timeout time.Duration) (*http.Response, context.CancelFunc, error) {
+	if timeout == 0 {
+		return nil, nil, fmt.Errorf("internal error: timeout not set for rawWithTimeout")
+	}
+
+	ctx, cancel := context.WithTimeout(ctx, timeout)
+	rsp, err := client.raw(ctx, method, urlpath, query, headers, body)
+	if err != nil && ctx.Err() != nil {
+		cancel()
+		return nil, nil, &ConnectionError{ctx.Err()}
+	}
+
+	return rsp, cancel, err
+}
+
 var (
-	doRetry   = 250 * time.Millisecond
-	doTimeout = 5 * time.Second
+	doRetry = 250 * time.Millisecond
+	// snapd may need to reach out to the store, where it uses a fixed 10s
+	// timeout for the whole of a single request to complete, requests are
+	// retried for up to 38s in total, make sure that the client timeout is
+	// not shorter than that
+	doTimeout = 50 * time.Second
 )
 
-// MockDoRetry mocks the delays used by the do retry loop.
-func MockDoRetry(retry, timeout time.Duration) (restore func()) {
+// MockDoTimings mocks the delay used by the do retry loop and request timeout.
+func MockDoTimings(retry, timeout time.Duration) (restore func()) {
 	oldRetry := doRetry
 	oldTimeout := doTimeout
 	doRetry = retry
@@ -259,23 +296,41 @@ func (client *Client) Hijack(f func(*http.Request) (*http.Response, error)) {
 	client.doer = hijacked{f}
 }
 
+type doFlags struct {
+	NoTimeout bool
+}
+
 // do performs a request and decodes the resulting json into the given
 // value. It's low-level, for testing/experimenting only; you should
 // usually use a higher level interface that builds on this.
-func (client *Client) do(method, path string, query url.Values, headers map[string]string, body io.Reader, v interface{}) (statusCode int, err error) {
+func (client *Client) do(method, path string, query url.Values, headers map[string]string, body io.Reader, v interface{}, flags doFlags) (statusCode int, err error) {
 	retry := time.NewTicker(doRetry)
 	defer retry.Stop()
-	timeout := time.After(doTimeout)
+	timeout := time.NewTimer(doTimeout)
+	defer timeout.Stop()
+
 	var rsp *http.Response
+	var ctx context.Context = context.Background()
 	for {
-		rsp, err = client.raw(method, path, query, headers, body)
+		if flags.NoTimeout {
+			rsp, err = client.raw(ctx, method, path, query, headers, body)
+		} else {
+			var cancel context.CancelFunc
+			// use the same timeout as for the whole of the retry
+			// loop to error out the whole do() call when a single
+			// request exceeds the deadline
+			rsp, cancel, err = client.rawWithTimeout(ctx, method, path, query, headers, body, doTimeout)
+			if err == nil {
+				defer cancel()
+			}
+		}
 		if err == nil || method != "GET" {
 			break
 		}
 		select {
 		case <-retry.C:
 			continue
-		case <-timeout:
+		case <-timeout.C:
 		}
 		break
 	}
@@ -312,7 +367,7 @@ func decodeInto(reader io.Reader, v interface{}) error {
 // which produces json.Numbers instead of float64 types for numbers.
 func (client *Client) doSync(method, path string, query url.Values, headers map[string]string, body io.Reader, v interface{}) (*ResultInfo, error) {
 	var rsp response
-	statusCode, err := client.do(method, path, query, headers, body, &rsp)
+	statusCode, err := client.do(method, path, query, headers, body, &rsp, doFlags{})
 	if err != nil {
 		return nil, err
 	}
@@ -336,13 +391,18 @@ func (client *Client) doSync(method, path string, query url.Values, headers map[
 }
 
 func (client *Client) doAsync(method, path string, query url.Values, headers map[string]string, body io.Reader) (changeID string, err error) {
-	_, changeID, err = client.doAsyncFull(method, path, query, headers, body)
+	_, changeID, err = client.doAsyncFull(method, path, query, headers, body, doFlags{})
 	return
 }
 
-func (client *Client) doAsyncFull(method, path string, query url.Values, headers map[string]string, body io.Reader) (result json.RawMessage, changeID string, err error) {
+func (client *Client) doAsyncNoTimeout(method, path string, query url.Values, headers map[string]string, body io.Reader) (changeID string, err error) {
+	_, changeID, err = client.doAsyncFull(method, path, query, headers, body, doFlags{NoTimeout: true})
+	return changeID, err
+}
+
+func (client *Client) doAsyncFull(method, path string, query url.Values, headers map[string]string, body io.Reader, flags doFlags) (result json.RawMessage, changeID string, err error) {
 	var rsp response
-	statusCode, err := client.do(method, path, query, headers, body, &rsp)
+	statusCode, err := client.do(method, path, query, headers, body, &rsp, flags)
 	if err != nil {
 		return nil, "", err
 	}
@@ -369,7 +429,9 @@ type ServerVersion struct {
 	OSVersionID string
 	OnClassic   bool
 
-	KernelVersion string
+	KernelVersion  string
+	Architecture   string
+	Virtualization string
 }
 
 func (client *Client) ServerVersion() (*ServerVersion, error) {
@@ -385,7 +447,9 @@ func (client *Client) ServerVersion() (*ServerVersion, error) {
 		OSVersionID: sysInfo.OSRelease.VersionID,
 		OnClassic:   sysInfo.OnClassic,
 
-		KernelVersion: sysInfo.KernelVersion,
+		KernelVersion:  sysInfo.KernelVersion,
+		Architecture:   sysInfo.Architecture,
+		Virtualization: sysInfo.Virtualization,
 	}, nil
 }
 
@@ -528,7 +592,9 @@ type SysInfo struct {
 	OnClassic bool      `json:"on-classic"`
 	Managed   bool      `json:"managed"`
 
-	KernelVersion string `json:"kernel-version,omitempty"`
+	KernelVersion  string `json:"kernel-version,omitempty"`
+	Architecture   string `json:"architecture,omitempty"`
+	Virtualization string `json:"virtualization,omitempty"`
 
 	Refresh         RefreshInfo         `json:"refresh,omitempty"`
 	Confinement     string              `json:"confinement"`

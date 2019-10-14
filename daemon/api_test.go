@@ -1010,6 +1010,12 @@ func (s *apiSuite) TestRootCmd(c *check.C) {
 	c.Check(rsp.Result, check.DeepEquals, expected)
 }
 
+func mockSystemdVirt(newVirt string) (restore func()) {
+	oldVirt := systemdVirt
+	systemdVirt = newVirt
+	return func() { systemdVirt = oldVirt }
+}
+
 func (s *apiSuite) TestSysInfo(c *check.C) {
 	// check it only does GET
 	c.Check(sysInfoCmd.PUT, check.IsNil)
@@ -1040,6 +1046,8 @@ func (s *apiSuite) TestSysInfo(c *check.C) {
 	defer restore()
 	// reload dirs for release info to have effect
 	dirs.SetRootDir(dirs.GlobalRootDir)
+	restore = mockSystemdVirt("magic")
+	defer restore()
 
 	buildID := "this-is-my-build-id"
 	restore = MockBuildID(buildID)
@@ -1069,6 +1077,8 @@ func (s *apiSuite) TestSysInfo(c *check.C) {
 		},
 		"confinement":      "partial",
 		"sandbox-features": map[string]interface{}{"confinement-options": []interface{}{"classic", "devmode"}},
+		"architecture":     arch.DpkgArchitecture(),
+		"virtualization":   "magic",
 	}
 	var rsp resp
 	c.Assert(json.Unmarshal(rec.Body.Bytes(), &rsp), check.IsNil)
@@ -1092,6 +1102,8 @@ func (s *apiSuite) TestSysInfoLegacyRefresh(c *check.C) {
 	restore = release.MockOnClassic(true)
 	defer restore()
 	restore = release.MockForcedDevmode(true)
+	defer restore()
+	restore = mockSystemdVirt("kvm")
 	defer restore()
 	// reload dirs for release info to have effect
 	dirs.SetRootDir(dirs.GlobalRootDir)
@@ -1143,6 +1155,8 @@ func (s *apiSuite) TestSysInfoLegacyRefresh(c *check.C) {
 			"apparmor":            []interface{}{"feature-1", "feature-2"},
 			"confinement-options": []interface{}{"classic", "devmode"}, // we know it's this because of the release.Mock... calls above
 		},
+		"architecture":   arch.DpkgArchitecture(),
+		"virtualization": "kvm",
 	}
 	var rsp resp
 	c.Assert(json.Unmarshal(rec.Body.Bytes(), &rsp), check.IsNil)
@@ -3851,9 +3865,11 @@ func (s *apiSuite) TestRefreshCohort(c *check.C) {
 
 	d := s.daemon(c)
 	inst := &snapInstruction{
-		Action:    "refresh",
-		CohortKey: "xyzzy",
-		Snaps:     []string{"some-snap"},
+		Action: "refresh",
+		Snaps:  []string{"some-snap"},
+		snapRevisionOptions: snapRevisionOptions{
+			CohortKey: "xyzzy",
+		},
 	}
 
 	st := d.overlord.State()
@@ -3881,9 +3897,9 @@ func (s *apiSuite) TestRefreshLeaveCohort(c *check.C) {
 
 	d := s.daemon(c)
 	inst := &snapInstruction{
-		Action:      "refresh",
-		LeaveCohort: true,
-		Snaps:       []string{"some-snap"},
+		Action:              "refresh",
+		snapRevisionOptions: snapRevisionOptions{LeaveCohort: true},
+		Snaps:               []string{"some-snap"},
 	}
 
 	st := d.overlord.State()
@@ -3929,11 +3945,13 @@ func (s *apiSuite) TestSwitchInstruction(c *check.C) {
 		cohort, channel = "", ""
 		leave = nil
 		inst := &snapInstruction{
-			Action:      "switch",
-			CohortKey:   t.cohort,
-			Channel:     t.channel,
-			Snaps:       []string{"some-snap"},
-			LeaveCohort: t.leave,
+			Action: "switch",
+			snapRevisionOptions: snapRevisionOptions{
+				CohortKey:   t.cohort,
+				LeaveCohort: t.leave,
+				Channel:     t.channel,
+			},
+			Snaps: []string{"some-snap"},
 		}
 
 		st.Lock()
@@ -4233,9 +4251,11 @@ func (s *apiSuite) TestInstallCohort(c *check.C) {
 
 	d := s.daemon(c)
 	inst := &snapInstruction{
-		Action:    "install",
-		CohortKey: "To the legion of the lost ones, to the cohort of the damned.",
-		Snaps:     []string{"fake"},
+		Action: "install",
+		snapRevisionOptions: snapRevisionOptions{
+			CohortKey: "To the legion of the lost ones, to the cohort of the damned.",
+		},
+		Snaps: []string{"fake"},
 	}
 
 	st := d.overlord.State()
@@ -4403,19 +4423,19 @@ func (s *apiSuite) TestRevertSnapClassic(c *check.C) {
 }
 
 func (s *apiSuite) TestRevertSnapToRevision(c *check.C) {
-	s.testRevertSnap(&snapInstruction{Revision: snap.R(1)}, c)
+	s.testRevertSnap(&snapInstruction{snapRevisionOptions: snapRevisionOptions{Revision: snap.R(1)}}, c)
 }
 
 func (s *apiSuite) TestRevertSnapToRevisionDevMode(c *check.C) {
-	s.testRevertSnap(&snapInstruction{Revision: snap.R(1), DevMode: true}, c)
+	s.testRevertSnap(&snapInstruction{snapRevisionOptions: snapRevisionOptions{Revision: snap.R(1)}, DevMode: true}, c)
 }
 
 func (s *apiSuite) TestRevertSnapToRevisionJailMode(c *check.C) {
-	s.testRevertSnap(&snapInstruction{Revision: snap.R(1), JailMode: true}, c)
+	s.testRevertSnap(&snapInstruction{snapRevisionOptions: snapRevisionOptions{Revision: snap.R(1)}, JailMode: true}, c)
 }
 
 func (s *apiSuite) TestRevertSnapToRevisionClassic(c *check.C) {
-	s.testRevertSnap(&snapInstruction{Revision: snap.R(1), Classic: true}, c)
+	s.testRevertSnap(&snapInstruction{snapRevisionOptions: snapRevisionOptions{Revision: snap.R(1)}, Classic: true}, c)
 }
 
 func snapList(rawSnaps interface{}) []map[string]interface{} {
@@ -7125,7 +7145,7 @@ func (s *apiSuite) TestErrToResponseNoSnapsDoesNotPanic(c *check.C) {
 func (s *apiSuite) TestErrToResponseForRevisionNotAvailable(c *check.C) {
 	si := &snapInstruction{Action: "frobble", Snaps: []string{"foo"}}
 
-	thisArch := arch.UbuntuArchitecture()
+	thisArch := arch.DpkgArchitecture()
 
 	err := &store.RevisionNotAvailableError{
 		Action:  "install",
