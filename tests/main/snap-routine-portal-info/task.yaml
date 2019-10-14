@@ -1,0 +1,35 @@
+summary: The portal-info command provides information about a confined process
+
+prepare: |
+    #shellcheck source=tests/lib/snaps.sh
+    . "$TESTSLIB"/snaps.sh
+    install_local test-snapd-desktop
+
+restore: |
+    rm -f output.txt
+
+execute: |
+    trap 'killall test-snapd-desktop.cmd || true' EXIT
+
+    # Start a "sleep" process in the background
+    #shellcheck disable=SC2016
+    test-snapd-desktop.cmd sh -c 'touch $SNAP_DATA/1.stamp && exec sleep 1h' &
+    pid1=$!
+    # Ensure that snap-confine has finished its task and that the snap process
+    # is active. Note that we don't want to wait forever either.
+    for _ in $(seq 30); do
+        test -e /var/snap/test-snapd-desktop/current/1.stamp && break
+        sleep 0.1
+    done
+
+    snap routine portal-info "$pid1" > output.txt
+    diff -u output.txt - << \EOF
+    [Snap Info]
+    InstanceName=test-snapd-desktop
+    AppName=cmd
+    DesktopFile=test-snapd-desktop_cmd.desktop
+    HasNetwork=false
+    EOF
+
+    kill "$pid1"
+    wait "$pid1" || true
