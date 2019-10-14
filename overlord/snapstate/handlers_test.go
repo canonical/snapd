@@ -114,3 +114,108 @@ func (s *handlersSuite) TestSetTaskSnapSetupLaterTask(c *C) {
 	c.Assert(err, IsNil)
 	c.Assert(newsnapsup.Channel, Equals, snapsup.Channel)
 }
+
+func (s *handlersSuite) TestComputeMissingDisabledServices(c *C) {
+	for _, tt := range []struct {
+		stDisabledSvcsList []string
+		missing            []string
+		found              []string
+		err                error
+		apps               map[string]*snap.AppInfo
+		comment            string
+	}{
+		// no apps
+		{
+			[]string{},
+			[]string{},
+			[]string{},
+			nil,
+			nil,
+			"no apps",
+		},
+		// only apps, no services
+		{
+			[]string{},
+			[]string{},
+			[]string{},
+			nil,
+			map[string]*snap.AppInfo{
+				"app": {
+					Daemon: "",
+				},
+			},
+			"no services",
+		},
+		// services in snap, but not disabled
+		{
+			[]string{},
+			[]string{},
+			[]string{},
+			nil,
+			map[string]*snap.AppInfo{
+				"svc1": {
+					Daemon: "simple",
+				},
+			},
+			"no disabled services",
+		},
+		// all disabled services, but not present in snap
+		{
+			[]string{"svc1"},
+			[]string{"svc1"},
+			[]string{},
+			nil,
+			nil,
+			"all missing disabled services",
+		},
+		// all disabled services, and found in snap
+		{
+			[]string{"svc1"},
+			[]string{},
+			[]string{"svc1"},
+			nil,
+			map[string]*snap.AppInfo{
+				"svc1": {
+					Daemon: "simple",
+				},
+			},
+			"all found disabled services",
+		},
+		// some disabled services, some missing, some present in snap
+		{
+			[]string{"svc1", "svc2"},
+			[]string{"svc2"},
+			[]string{"svc1"},
+			nil,
+			map[string]*snap.AppInfo{
+				"svc1": {
+					Daemon: "simple",
+				},
+			},
+			"some missing, some found disabled services",
+		},
+		// some disabled services, but is app not service
+		{
+			[]string{"svc1"},
+			[]string{"svc1"},
+			[]string{},
+			nil,
+			map[string]*snap.AppInfo{
+				"svc1": {
+					Daemon: "",
+				},
+			},
+			"some disabled services that are now apps",
+		},
+	} {
+		st := &snapstate.SnapState{
+			LastActiveDisabledServices: tt.stDisabledSvcsList,
+		}
+		info := &snap.Info{Apps: tt.apps}
+
+		missing, found, err := snapstate.ComputeMissingDisabledServices(st, info)
+		c.Assert(missing, DeepEquals, tt.missing, Commentf(tt.comment))
+		c.Assert(found, DeepEquals, tt.found, Commentf(tt.comment))
+		c.Assert(err, Equals, tt.err, Commentf(tt.comment))
+	}
+}
