@@ -377,13 +377,8 @@ install-data-local::
 	install -d -m 111 $(DESTDIR)/var/lib/snapd/void
 
 install-exec-hook::
-if CAPS_OVER_SETUID
-# Ensure that snap-confine has CAP_SYS_ADMIN capability
-	setcap cap_sys_admin=pe $(DESTDIR)$(libexecdir)/snap-confine
-else
 # Ensure that snap-confine is u+s,g+s (setuid and setgid)
 	chmod 6755 $(DESTDIR)$(libexecdir)/snap-confine
-endif
 
 ##
 ## snap-mgmt

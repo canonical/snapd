@@ -134,7 +134,7 @@ func (s *sessionAgentSuite) TestExitOnIdle(c *C) {
 	case <-time.After(2 * time.Second):
 		c.Fatal("agent did not exit after idle timeout expired")
 	}
-	elapsed := time.Now().Sub(startTime)
+	elapsed := time.Since(startTime)
 	if elapsed < 175*time.Millisecond || elapsed > 250*time.Millisecond {
 		// The idle timeout should have been extended when we
 		// issued a second request after 25ms.

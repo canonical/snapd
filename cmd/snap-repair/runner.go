@@ -984,6 +984,9 @@ func (run *Runner) Verify(repair *asserts.Repair, aux []asserts.Assertion) error
 		trustedBS.Put(asserts.AccountKeyType, t)
 	}
 	for _, t := range sysdb.Trusted() {
+		// we do *not* add the defalt sysdb trusted account
+		// keys here because the repair assertions have their
+		// own *dedicated* root of trust
 		if t.Type() == asserts.AccountType {
 			trustedBS.Put(asserts.AccountType, t)
 		}
