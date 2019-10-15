@@ -79,7 +79,6 @@ func (s *writerSuite) SetUpTest(c *C) {
 	c.Assert(err, IsNil)
 
 	s.opts = &seedwriter.Options{
-		RootDir: "not-root",
 		SeedDir: seedDir,
 	}
 
@@ -356,6 +355,13 @@ func (s *writerSuite) TestDownloadedCore16(c *C) {
 	complete, err := w.Downloaded()
 	c.Assert(err, IsNil)
 	c.Check(complete, Equals, true)
+
+	essSnaps, err := w.BootSnaps()
+	c.Assert(err, IsNil)
+	c.Check(essSnaps, DeepEquals, snaps[:3])
+	c.Check(naming.SameSnap(essSnaps[2], naming.Snap("pc")), Equals, true)
+	c.Check(essSnaps[2].Channel, Equals, "edge")
+
 }
 
 func (s *writerSuite) TestDownloadedCore18(c *C) {
@@ -400,6 +406,12 @@ func (s *writerSuite) TestDownloadedCore18(c *C) {
 	complete, err := w.Downloaded()
 	c.Assert(err, IsNil)
 	c.Check(complete, Equals, true)
+
+	essSnaps, err := w.BootSnaps()
+	c.Assert(err, IsNil)
+	c.Check(essSnaps, DeepEquals, snaps[:4])
+
+	c.Check(w.Warnings(), HasLen, 0)
 }
 
 func (s *writerSuite) TestSnapsToDownloadCore18IncompatibleTrack(c *C) {
@@ -551,6 +563,13 @@ func (s *writerSuite) TestOutOfOrder(c *C) {
 	c.Assert(err, IsNil)
 	_, err = w.Downloaded()
 	c.Check(err, ErrorMatches, "internal error: seedwriter.Writer expected SnapToDownload|LocalSnaps to be invoked on it at this point, not Downloaded")
+
+	_, err = w.BootSnaps()
+	c.Check(err, ErrorMatches, "internal error: seedwriter.Writer cannot query seed snaps before Downloaded signaled complete")
+
+	_, err = w.UnassertedSnaps()
+	c.Check(err, ErrorMatches, "internal error: seedwriter.Writer cannot query seed snaps before Downloaded signaled complete")
+
 }
 
 func (s *writerSuite) TestOutOfOrderWithLocalSnaps(c *C) {
@@ -962,7 +981,7 @@ func (s *writerSuite) TestLocalSnaps(c *C) {
 	c.Check(localSnaps[3].Path, Equals, contConsumerFn)
 }
 
-func (s *writerSuite) TestLocalSnapsFullUse(c *C) {
+func (s *writerSuite) TestLocalSnapsCore18FullUse(c *C) {
 	model := s.Brands.Model("my-brand", "my-model", map[string]interface{}{
 		"display-name":   "my model",
 		"architecture":   "amd64",
@@ -1064,12 +1083,9 @@ func (s *writerSuite) TestLocalSnapsFullUse(c *C) {
 		p := filepath.Join(s.opts.SeedDir, "snaps", fn)
 		c.Check(p, testutil.FilePresent)
 
-		channel := "stable"
-		switch name {
-		case "pc-kernel":
-			channel = "18/candidate"
-		case "pc":
-			channel = "18/edge"
+		channel := ""
+		if !unasserted {
+			channel = "stable"
 		}
 
 		c.Check(seedYaml.Snaps[i], DeepEquals, &seed.Snap16{
@@ -1099,6 +1115,14 @@ func (s *writerSuite) TestLocalSnapsFullUse(c *C) {
 		c.Assert(rev, HasLen, 1)
 		c.Check(rev[0].Type(), Equals, asserts.SnapRevisionType)
 		c.Check(rev[0].HeaderString("snap-id"), Equals, s.AssertedSnapID(snapName))
+	}
+
+	unassertedSnaps, err := w.UnassertedSnaps()
+	c.Assert(err, IsNil)
+	c.Check(unassertedSnaps, HasLen, 4)
+	unassertedSet := naming.NewSnapSet(unassertedSnaps)
+	for _, snapName := range []string{"core18", "pc-kernel", "pc", "cont-consumer"} {
+		c.Check(unassertedSet.Contains(naming.Snap(snapName)), Equals, true)
 	}
 }
 
@@ -1249,6 +1273,9 @@ func (s *writerSuite) TestSeedSnapsWriteMetaClassicWithCore(c *C) {
 	complete, err = w.Downloaded()
 	c.Assert(err, IsNil)
 	c.Check(complete, Equals, true)
+
+	_, err = w.BootSnaps()
+	c.Check(err, ErrorMatches, "no snaps participating in boot on classic")
 
 	err = w.SeedSnaps(nil)
 	c.Assert(err, IsNil)
@@ -1470,6 +1497,10 @@ func (s *writerSuite) TestSeedSnapsWriteMetaExtraSnaps(c *C) {
 		c.Check(rev[0].Type(), Equals, asserts.SnapRevisionType)
 		c.Check(rev[0].HeaderString("snap-id"), Equals, s.AssertedSnapID(snapName))
 	}
+
+	c.Check(w.Warnings(), DeepEquals, []string{
+		`model has base "core18" but some snaps ("required") require "core" as base as well, for compatibility it was added implicitly, adding "core" explicitly is recommended`,
+	})
 }
 
 func (s *writerSuite) TestSeedSnapsWriteMetaLocalExtraSnaps(c *C) {
@@ -1583,10 +1614,14 @@ func (s *writerSuite) TestSeedSnapsWriteMetaLocalExtraSnaps(c *C) {
 		p := filepath.Join(s.opts.SeedDir, "snaps", fn)
 		c.Check(osutil.FileExists(p), Equals, true)
 
-		channel := "stable"
-		switch name {
-		case "pc-kernel", "pc":
-			channel = "18"
+		channel := ""
+		if !unasserted {
+			switch name {
+			case "pc-kernel", "pc":
+				channel = "18"
+			default:
+				channel = "stable"
+			}
 		}
 
 		c.Check(seedYaml.Snaps[i], DeepEquals, &seed.Snap16{
@@ -1602,4 +1637,9 @@ func (s *writerSuite) TestSeedSnapsWriteMetaLocalExtraSnaps(c *C) {
 	l, err := ioutil.ReadDir(filepath.Join(s.opts.SeedDir, "snaps"))
 	c.Assert(err, IsNil)
 	c.Check(l, HasLen, 8)
+
+	unassertedSnaps, err := w.UnassertedSnaps()
+	c.Assert(err, IsNil)
+	c.Check(unassertedSnaps, HasLen, 1)
+	c.Check(naming.SameSnap(unassertedSnaps[0], naming.Snap("required")), Equals, true)
 }
