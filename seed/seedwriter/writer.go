@@ -184,6 +184,9 @@ type policy interface {
 
 	systemSnap() *asserts.ModelSnap
 
+	modelSnapDefaultChannel() string
+	extraSnapDefaultChannel() string
+
 	checkBase(*snap.Info, *naming.SnapSet) error
 
 	needsImplicitSnaps(*naming.SnapSet) (bool, error)
@@ -683,31 +686,34 @@ func (w *Writer) resolveChannel(whichSnap string, modSnap *asserts.ModelSnap, op
 		optChannel = w.opts.DefaultChannel
 	}
 
-	if modSnap == nil {
-		if optChannel == "" {
-			return "stable", nil
-		}
-		return optChannel, nil
-	}
-
-	if modSnap.Track != "" {
-		resChannel, err := channel.ResolveLocked(modSnap.Track, optChannel)
-		if err == channel.ErrLockedTrackSwitch {
-			return "", fmt.Errorf("option channel %q for %s has a track incompatible with the track from model assertion: %s", optChannel, whichModelSnap(modSnap, w.model), modSnap.Track)
+	if modSnap != nil && modSnap.PinnedTrack != "" {
+		resChannel, err := channel.ResolvePinned(modSnap.PinnedTrack, optChannel)
+		if err == channel.ErrPinnedTrackSwitch {
+			return "", fmt.Errorf("option channel %q for %s has a track incompatible with the pinned track from model assertion: %s", optChannel, whichModelSnap(modSnap, w.model), modSnap.PinnedTrack)
 		}
 		if err != nil {
 			// shouldn't happen given that we check that
 			// the inputs parse before
-			return "", fmt.Errorf("internal error: cannot resolve locked track %q and option channel %q for snap %q", modSnap.Track, optChannel, whichSnap)
+			return "", fmt.Errorf("internal error: cannot resolve pinned track %q and option channel %q for snap %q", modSnap.PinnedTrack, optChannel, whichSnap)
 		}
 		return resChannel, nil
 	}
 
-	resChannel, err := channel.Resolve(modSnap.DefaultChannel, optChannel)
+	var defaultChannel string
+	if modSnap != nil {
+		defaultChannel = modSnap.DefaultChannel
+		if defaultChannel == "" {
+			defaultChannel = w.policy.modelSnapDefaultChannel()
+		}
+	} else {
+		defaultChannel = w.policy.extraSnapDefaultChannel()
+	}
+
+	resChannel, err := channel.Resolve(defaultChannel, optChannel)
 	if err != nil {
 		// shouldn't happen given that we check that
 		// the inputs parse before
-		return "", fmt.Errorf("internal error: cannot resolve model default channel %q and option channel %q for snap %q", modSnap.DefaultChannel, optChannel, whichSnap)
+		return "", fmt.Errorf("internal error: cannot resolve model default channel %q and option channel %q for snap %q", defaultChannel, optChannel, whichSnap)
 	}
 	return resChannel, nil
 }
