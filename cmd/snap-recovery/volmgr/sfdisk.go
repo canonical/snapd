@@ -106,8 +106,8 @@ func (sf *SFDisk) CreatePartitions(pv *gadget.LaidOutVolume, usedPartitions []bo
 		return deviceMap, osutil.OutputErr(output, err)
 	}
 
-	// Reload the partition table
-	if output, err := exec.Command("partx", "-u", sf.device).CombinedOutput(); err != nil {
+	// Reload the partition table using blockdev which is part of the initramfs
+	if output, err := exec.Command("blockdev", "--rereadpt", sf.device).CombinedOutput(); err != nil {
 		return deviceMap, osutil.OutputErr(output, fmt.Errorf("cannot update partition table: %s", err))
 	}
 

@@ -267,8 +267,8 @@ func (s *volmgrTestSuite) TestCreatePartitions(c *C) {
 	cmdLsblk := testutil.MockCommand(c, "lsblk", lsblkMockScript)
 	defer cmdLsblk.Restore()
 
-	cmdPartx := testutil.MockCommand(c, "partx", "exit 0")
-	defer cmdPartx.Restore()
+	cmdBlockdev := testutil.MockCommand(c, "blockdev", "exit 0")
+	defer cmdBlockdev.Restore()
 
 	gadgetRoot := path.Join(c.MkDir(), "gadget")
 	err := createGadget(gadgetRoot, gadgetContent)
@@ -293,7 +293,7 @@ func (s *volmgrTestSuite) TestCreatePartitions(c *C) {
 	})
 
 	// Check partition table reload
-	c.Assert(cmdPartx.Calls(), DeepEquals, [][]string{{"partx", "-u", "/dev/node"}})
+	c.Assert(cmdBlockdev.Calls(), DeepEquals, [][]string{{"blockdev", "--rereadpt", "/dev/node"}})
 }
 
 func (s *volmgrTestSuite) TestFilesystemInfo(c *C) {
