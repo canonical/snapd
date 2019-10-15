@@ -31,8 +31,6 @@ import (
 
 var (
 	sectorSize gadget.Size = 512
-
-	_ partitionTool = (*SFDisk)(nil)
 )
 
 // sfdiskDeviceDump represents the sfdisk --dump JSON output format.
