@@ -75,10 +75,10 @@ func createGadget(gadgetRoot, gadgetContent string) error {
 	if err := ioutil.WriteFile(path.Join(gadgetRoot, "meta", "gadget.yaml"), []byte(gadgetContent), 0644); err != nil {
 		return err
 	}
-	if err := ioutil.WriteFile(path.Join(gadgetRoot, "pc-boot.img"), []byte{}, 0644); err != nil {
+	if err := ioutil.WriteFile(path.Join(gadgetRoot, "pc-boot.img"), nil, 0644); err != nil {
 		return err
 	}
-	if err := ioutil.WriteFile(path.Join(gadgetRoot, "grubx64.efi"), []byte{}, 0644); err != nil {
+	if err := ioutil.WriteFile(path.Join(gadgetRoot, "grubx64.efi"), nil, 0644); err != nil {
 		return err
 	}
 
