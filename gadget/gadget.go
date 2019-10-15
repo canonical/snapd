@@ -468,6 +468,9 @@ func ensureVolumeConsistencyNoConstraints(state *validationState, constraints *M
 func ensureVolumeConsistencyWithConstraints(state *validationState, constraints *ModelConstraints) error {
 	switch {
 	case state.SystemSeed == nil && state.SystemData == nil:
+		if constraints.SystemSeed {
+			return fmt.Errorf("model requires system-seed partition, but no system-seed or system-data partition found")
+		}
 		return nil
 	case state.SystemSeed != nil && state.SystemData == nil:
 		return fmt.Errorf("the system-seed role requires system-data to be defined")

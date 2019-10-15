@@ -1514,6 +1514,13 @@ volumes:
 }
 
 func (s *gadgetYamlTestSuite) TestGadgetConsistencyWithConstraints(c *C) {
+	bloader := `
+volumes:
+  pc:
+    bootloader: grub
+    schema: mbr
+    structure:`
+
 	for i, tc := range []struct {
 		role       string
 		label      string
@@ -1536,13 +1543,7 @@ func (s *gadgetYamlTestSuite) TestGadgetConsistencyWithConstraints(c *C) {
 		c.Logf("tc: %v %v %v %v", i, tc.role, tc.label, tc.systemSeed)
 		b := &bytes.Buffer{}
 
-		fmt.Fprintf(b, `
-volumes:
-  pc:
-    bootloader: grub
-    schema: mbr
-    structure:`)
-
+		fmt.Fprintf(b, bloader)
 		if tc.role == "system-seed" {
 			fmt.Fprintf(b, `
       - name: Recovery
@@ -1573,4 +1574,13 @@ volumes:
 			c.Check(err, IsNil)
 		}
 	}
+
+	// test error with no volumes
+	err := ioutil.WriteFile(s.gadgetYamlPath, []byte(bloader), 0644)
+	c.Assert(err, IsNil)
+	constraints := &gadget.ModelConstraints{
+		SystemSeed: true,
+	}
+	_, err = gadget.ReadInfo(s.dir, constraints)
+	c.Assert(err, ErrorMatches, ".*: model requires system-seed partition, but no system-seed or system-data partition found")
 }
