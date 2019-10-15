@@ -68,9 +68,9 @@ func newSFDisk(device string) *SFDisk {
 	}
 }
 
-// DeviceInfo obtains the partitioning and filesystem information from the block
+// Layout obtains the partitioning and filesystem information from the block
 // device and expresses it as a laid out volume.
-func (sf *SFDisk) DeviceInfo() (*gadget.LaidOutVolume, error) {
+func (sf *SFDisk) Layout() (*gadget.LaidOutVolume, error) {
 	output, err := exec.Command("sfdisk", "--json", "-d", sf.device).CombinedOutput()
 	if err != nil {
 		return nil, osutil.OutputErr(output, err)

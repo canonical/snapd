@@ -58,7 +58,7 @@ exit 0`)
 	defer cmdLsblk.Restore()
 
 	sf := partition.NewSFDisk("/dev/node")
-	pv, err := sf.DeviceInfo()
+	pv, err := sf.Layout()
 	c.Assert(cmdSfdisk.Calls(), DeepEquals, [][]string{
 		{"sfdisk", "--json", "-d", "/dev/node"},
 	})
@@ -105,7 +105,7 @@ func (s *partitionTestSuite) TestDeviceInfoNotSectors(c *C) {
 	defer cmdSfdisk.Restore()
 
 	sf := partition.NewSFDisk("/dev/node")
-	_, err := sf.DeviceInfo()
+	_, err := sf.Layout()
 	c.Assert(err, ErrorMatches, "cannot position partitions: unknown unit .*")
 }
 
@@ -129,7 +129,7 @@ func (s *partitionTestSuite) TestDeviceInfoFilesystemInfoError(c *C) {
 	defer cmdLsblk.Restore()
 
 	sf := partition.NewSFDisk("/dev/node")
-	_, err := sf.DeviceInfo()
+	_, err := sf.Layout()
 	c.Assert(err, ErrorMatches, "cannot obtain filesystem information: lsblk error")
 }
 
@@ -138,7 +138,7 @@ func (s *partitionTestSuite) TestDeviceInfoJsonError(c *C) {
 	defer cmd.Restore()
 
 	sf := partition.NewSFDisk("/dev/node")
-	info, err := sf.DeviceInfo()
+	info, err := sf.Layout()
 	c.Assert(err, ErrorMatches, "cannot parse sfdisk output: invalid .*")
 	c.Assert(info, IsNil)
 }
@@ -148,7 +148,7 @@ func (s *partitionTestSuite) TestDeviceInfoError(c *C) {
 	defer cmd.Restore()
 
 	sf := partition.NewSFDisk("/dev/node")
-	info, err := sf.DeviceInfo()
+	info, err := sf.Layout()
 	c.Assert(err, ErrorMatches, "sfdisk: not found")
 	c.Assert(info, IsNil)
 }
@@ -277,7 +277,7 @@ func (s *partitionTestSuite) TestCreatePartitions(c *C) {
 	c.Assert(err, IsNil)
 
 	sf := partition.NewSFDisk("/dev/node")
-	_, err = sf.DeviceInfo()
+	_, err = sf.Layout()
 	c.Assert(err, IsNil)
 	deviceMap, err := sf.CreatePartitions(pv, []bool{true, true, false, false})
 	c.Assert(err, IsNil)
