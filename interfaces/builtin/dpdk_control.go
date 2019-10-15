@@ -46,6 +46,9 @@ owner @{PROC}/@{pid}/pagemap r,
 /sys/devices/pci*{,/**} rw,
 /proc/ioports r,
 /dev/uio[0-9]* rw,
+/dev/vfio/vfio rw,
+/dev/infiniband/rdma_cm rw,
+/dev/infiniband/uverbs[0-9]* rw,
 /sys/bus/pci/drivers{,/**} rw,
 `
 
@@ -54,18 +57,25 @@ const dpdkControlConnectedPlugSecComp = `
 move_pages
 `
 
+// Network drivers with DPDK support used by different vendors.
+var dpdkConnectedPlugKmod = []string{
+	"mlx4_core",
+	"mlx5_core",
+}
+
 var dpdkControlConnectedPlugUDev = []string{`SUBSYSTEM=="uio"`}
 
 func init() {
 	registerIface(&commonInterface{
-		name:                  "dpdk-control",
-		summary:               dpdkControlSummary,
-		implicitOnCore:        true,
-		implicitOnClassic:     true,
-		reservedForOS:         true,
-		baseDeclarationSlots:  dpdkControlBaseDeclarationSlots,
-		connectedPlugAppArmor: dpdkControlConnectedPlugAppArmor,
-		connectedPlugSecComp:  dpdkControlConnectedPlugSecComp,
-		connectedPlugUDev:     dpdkControlConnectedPlugUDev,
+		name:                     "dpdk-control",
+		summary:                  dpdkControlSummary,
+		implicitOnCore:           true,
+		implicitOnClassic:        true,
+		reservedForOS:            true,
+		baseDeclarationSlots:     dpdkControlBaseDeclarationSlots,
+		connectedPlugAppArmor:    dpdkControlConnectedPlugAppArmor,
+		connectedPlugSecComp:     dpdkControlConnectedPlugSecComp,
+		connectedPlugKModModules: dpdkConnectedPlugKmod,
+		connectedPlugUDev:        dpdkControlConnectedPlugUDev,
 	})
 }
