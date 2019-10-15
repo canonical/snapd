@@ -1,7 +1,7 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
 
 /*
- * Copyright (C) 2018 Canonical Ltd
+ * Copyright (C) 2019 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -51,7 +51,7 @@ slots:
 `
 	info := snaptest.MockInfo(c, producerYaml, nil)
 	s.slotInfo = info.Slots["dpdk-control"]
-	s.slot = interfaces.NewConnectedSlot(s.slotInfo, nil)
+	s.slot = interfaces.NewConnectedSlot(s.slotInfo, nil, nil)
 
 	const consumerYaml = `name: consumer
 version: 0
@@ -61,7 +61,7 @@ apps:
 `
 	info = snaptest.MockInfo(c, consumerYaml, nil)
 	s.plugInfo = info.Plugs["dpdk-control"]
-	s.plug = interfaces.NewConnectedPlug(s.plugInfo, nil)
+	s.plug = interfaces.NewConnectedPlug(s.plugInfo, nil, nil)
 }
 
 func (s *DpdkControlSuite) TestName(c *C) {
@@ -70,13 +70,6 @@ func (s *DpdkControlSuite) TestName(c *C) {
 
 func (s *DpdkControlSuite) TestSanitizeSlot(c *C) {
 	c.Assert(interfaces.BeforePrepareSlot(s.iface, s.slotInfo), IsNil)
-	slot := &snap.SlotInfo{
-		Snap:      &snap.Info{SuggestedName: "some-snap"},
-		Name:      "dpdk-control",
-		Interface: "dpdk-control",
-	}
-	c.Assert(interfaces.BeforePrepareSlot(s.iface, slot), ErrorMatches,
-		"dpdk-control slots are reserved for the core snap")
 }
 
 func (s *DpdkControlSuite) TestSanitizePlug(c *C) {
@@ -87,7 +80,8 @@ func (s *DpdkControlSuite) TestAppArmorSpec(c *C) {
 	spec := &apparmor.Specification{}
 	c.Assert(spec.AddConnectedPlug(s.iface, s.plug, s.slot), IsNil)
 	c.Assert(spec.SecurityTags(), DeepEquals, []string{"snap.consumer.app"})
-	c.Assert(spec.SnippetForTag("snap.consumer.app"), testutil.Contains, "/sys/kernel/mm/hugepages/* rw,")
+	c.Assert(spec.SnippetForTag("snap.consumer.app"), testutil.Contains,
+		"/sys/bus/pci/drivers/igb_uio/bind rw,")
 }
 
 func (s *DpdkControlSuite) TestStaticInfo(c *C) {
@@ -100,7 +94,7 @@ func (s *DpdkControlSuite) TestStaticInfo(c *C) {
 
 func (s *DpdkControlSuite) TestAutoConnect(c *C) {
 	// FIXME: fix AutoConnect methods to use ConnectedPlug/Slot
-	c.Assert(s.iface.AutoConnect(&interfaces.Plug{PlugInfo: s.plugInfo}, &interfaces.Slot{SlotInfo: s.slotInfo}), Equals, true)
+	c.Assert(s.iface.AutoConnect(s.plugInfo, s.slotInfo), Equals, true)
 }
 
 func (s *DpdkControlSuite) TestInterfaces(c *C) {
