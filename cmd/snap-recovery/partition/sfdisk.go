@@ -92,9 +92,11 @@ func (sf *SFDisk) Layout() (*gadget.LaidOutVolume, error) {
 	return pv, nil
 }
 
-// CreatePartitions creates the partitions listed in positionedVolume not listed
+// Create creates the partitions listed in positionedVolume not listed
 // in usedPartitions. Return a role to device node map.
-func (sf *SFDisk) CreatePartitions(pv *gadget.LaidOutVolume, usedPartitions []bool) (map[string]string, error) {
+//
+// TODO: see if we can get rid of usedPartitions
+func (sf *SFDisk) Create(pv *gadget.LaidOutVolume, usedPartitions []bool) (map[string]string, error) {
 	buf, deviceMap := buildPartitionList(sf.partitionTable, pv, usedPartitions)
 
 	// Write the partition table

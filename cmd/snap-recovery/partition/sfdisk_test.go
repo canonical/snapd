@@ -279,7 +279,7 @@ func (s *partitionTestSuite) TestCreatePartitions(c *C) {
 	sf := partition.NewSFDisk("/dev/node")
 	_, err = sf.Layout()
 	c.Assert(err, IsNil)
-	deviceMap, err := sf.CreatePartitions(pv, []bool{true, true, false, false})
+	deviceMap, err := sf.Create(pv, []bool{true, true, false, false})
 	c.Assert(err, IsNil)
 	c.Assert(deviceMap, DeepEquals, map[string]string{
 		"system-seed": "/dev/node2",
