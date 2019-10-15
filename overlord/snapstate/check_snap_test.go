@@ -1206,7 +1206,7 @@ version: 2
 	c.Check(err, IsNil)
 }
 
-func (s *checkSnapSuite) TestCheckSnapRemodelGadgetDoesNotWorkYet(c *C) {
+func (s *checkSnapSuite) TestCheckSnapRemodelGadget(c *C) {
 	reset := release.MockOnClassic(false)
 	defer reset()
 
@@ -1253,7 +1253,7 @@ version: 2
 	}
 
 	st.Unlock()
-	err = snapstate.CheckSnap(st, "snap-path", "new-kernel", nil, nil, snapstate.Flags{}, deviceCtx)
+	err = snapstate.CheckSnap(st, "snap-path", "new-gadget", nil, nil, snapstate.Flags{}, deviceCtx)
 	st.Lock()
-	c.Check(err, ErrorMatches, "internal error: cannot remodel gadget yet")
+	c.Check(err, IsNil)
 }
