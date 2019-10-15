@@ -1673,121 +1673,17 @@ func canDisable(si *snap.Info) bool {
 	return true
 }
 
-// baseInUse returns true if the given base is needed by another snap
-func baseInUse(st *state.State, base *snap.Info) bool {
-	snapStates, err := All(st)
-	if err != nil {
-		return false
-	}
-	for name, snapst := range snapStates {
-		for _, si := range snapst.Sequence {
-			if snapInfo, err := snap.ReadInfo(name, si); err == nil {
-				if snapInfo.GetType() != snap.TypeApp {
-					continue
-				}
-				if snapInfo.Base == base.SnapName() {
-					return true
-				}
-			}
-		}
-	}
-	return false
-}
-
-// coreInUse returns true if any snap uses "core" (i.e. does not
-// declare a base
-func coreInUse(st *state.State) bool {
-	snapStates, err := All(st)
-	if err != nil {
-		return false
-	}
-	for name, snapst := range snapStates {
-		for _, si := range snapst.Sequence {
-			if snapInfo, err := snap.ReadInfo(name, si); err == nil {
-				if snapInfo.GetType() != snap.TypeApp || snapInfo.GetType() == snap.TypeSnapd {
-					continue
-				}
-				if snapInfo.Base == "" {
-					return true
-				}
-			}
-		}
-	}
-	return false
-}
-
 // canRemove verifies that a snap can be removed.
 //
 // TODO: canRemove should also return the reason why the snap cannot
 //       be removed to the user
-func canRemove(st *state.State, si *snap.Info, snapst *SnapState, removeAll bool, deviceCtx DeviceContext) bool {
-	// never remove anything that is used for booting
-	if boot.InUse(si.InstanceName(), si.Revision) {
-		return false
-	}
-
-	// removing single revisions is generally allowed
+func canRemove(st *state.State, si *snap.Info, snapst *SnapState, removeAll bool, deviceCtx DeviceContext) error {
+	rev := snap.Revision{}
 	if !removeAll {
-		return true
+		rev = si.Revision
 	}
 
-	// required snaps cannot be removed
-	if snapst.Required {
-		return false
-	}
-
-	// TODO: use Required for these too
-
-	// Gadget snaps should not be removed as they are a key
-	// building block for Gadgets. Do not remove their last
-	// revision left.
-	if si.GetType() == snap.TypeGadget {
-		return false
-	}
-
-	// Allow "ubuntu-core" removals here because we might have two
-	// core snaps installed (ubuntu-core and core). Note that
-	// ideally we would only allow the removal of "ubuntu-core" if
-	// we know that "core" is installed too and if we are part of
-	// the "ubuntu-core->core" transition. But this transition
-	// starts automatically on startup so the window of a user
-	// triggering this manually is very small.
-	//
-	// Once the ubuntu-core -> core transition has landed for some
-	// time we can remove the two lines below.
-	if si.InstanceName() == "ubuntu-core" && si.GetType() == snap.TypeOS {
-		return true
-	}
-
-	// do not allow removal of bases that are in use
-	if si.GetType() == snap.TypeBase && baseInUse(st, si) {
-		return false
-	}
-
-	// Allow snap.TypeOS removals if a different base is in use
-	//
-	// Note that removal of the boot base itself is prevented
-	// via the snapst.Required flag that is set on firstboot.
-	model := deviceCtx.Model()
-	if si.GetType() == snap.TypeOS {
-		if model.Base() != "" && !coreInUse(st) {
-			return true
-		}
-		return false
-	}
-
-	// Because of a Remodel() we may have multiple kernels. Allow
-	// removals of kernel(s) that are not model kernels (anymore).
-	if si.GetType() == snap.TypeKernel {
-		if model.Kernel() != si.InstanceName() {
-			return true
-		}
-		return false
-	}
-
-	// TODO: on classic likely let remove core even if active if it's only snap left.
-
-	return true
+	return PolicyFor(si.GetType(), deviceCtx.Model()).CanRemove(st, snapst, rev)
 }
 
 // RemoveFlags are used to pass additional flags to the Remove operation.
@@ -1848,8 +1744,8 @@ func Remove(st *state.State, name string, revision snap.Revision, flags *RemoveF
 	}
 
 	// check if this is something that can be removed
-	if !canRemove(st, info, &snapst, removeAll, deviceCtx) {
-		return nil, fmt.Errorf("snap %q is not removable", name)
+	if err := canRemove(st, info, &snapst, removeAll, deviceCtx); err != nil {
+		return nil, fmt.Errorf("snap %q is not removable: %v", name, err)
 	}
 
 	// main/current SnapSetup
@@ -1892,9 +1788,7 @@ func Remove(st *state.State, name string, revision snap.Revision, flags *RemoveF
 		removeHook := SetupRemoveHook(st, snapsup.InstanceName())
 		addNext(state.NewTaskSet(removeHook))
 		prev = removeHook
-	}
 
-	if removeAll {
 		// run disconnect hooks
 		disconnect := st.NewTask("auto-disconnect", fmt.Sprintf(i18n.G("Disconnect interfaces of snap %q"), snapsup.InstanceName()))
 		disconnect.Set("snap-setup", snapsup)
@@ -2410,7 +2304,11 @@ func ConfigDefaults(st *state.State, deviceCtx DeviceContext, snapName string) (
 		return nil, state.ErrNoState
 	}
 
-	gadgetInfo, err := gadget.ReadInfo(info.MountDir(), release.OnClassic)
+	constraints := &gadget.ModelConstraints{
+		Classic: release.OnClassic,
+	}
+
+	gadgetInfo, err := gadget.ReadInfo(info.MountDir(), constraints)
 	if err != nil {
 		return nil, err
 	}
@@ -2443,7 +2341,11 @@ func GadgetConnections(st *state.State, deviceCtx DeviceContext) ([]gadget.Conne
 		return nil, err
 	}
 
-	gadgetInfo, err := gadget.ReadInfo(info.MountDir(), release.OnClassic)
+	constraints := &gadget.ModelConstraints{
+		Classic: release.OnClassic,
+	}
+
+	gadgetInfo, err := gadget.ReadInfo(info.MountDir(), constraints)
 	if err != nil {
 		return nil, err
 	}

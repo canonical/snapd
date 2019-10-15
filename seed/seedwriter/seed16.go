@@ -32,11 +32,14 @@ import (
 	"github.com/snapcore/snapd/snap"
 	"github.com/snapcore/snapd/snap/channel"
 	"github.com/snapcore/snapd/snap/naming"
+	"github.com/snapcore/snapd/strutil"
 )
 
 type policy16 struct {
 	model *asserts.Model
 	opts  *Options
+
+	warningf func(format string, a ...interface{})
 
 	needsCore   []string
 	needsCore16 []string
@@ -52,25 +55,27 @@ func (pol *policy16) checkSnapChannel(_ channel.Channel, whichSnap string) error
 	return nil
 }
 
+func makeSystemSnap(snapName string) *asserts.ModelSnap {
+	// TODO: set SnapID too
+	return &asserts.ModelSnap{
+		Name:           snapName,
+		SnapType:       snapName, // same as snapName for core, snapd
+		Modes:          []string{"run"},
+		DefaultChannel: "stable",
+		Presence:       "required",
+	}
+}
+
 func (pol *policy16) systemSnap() *asserts.ModelSnap {
 	if pol.model.Classic() {
 		// no predefined system snap, infer later
 		return nil
 	}
 	snapName := "core"
-	snapType := "core"
 	if pol.model.Base() != "" {
 		snapName = "snapd"
-		snapType = "snapd"
 	}
-	// TODO: set SnapID too
-	return &asserts.ModelSnap{
-		Name:           snapName,
-		SnapType:       snapType,
-		Modes:          []string{"run"},
-		DefaultChannel: "stable",
-		Presence:       "required",
-	}
+	return makeSystemSnap(snapName)
 }
 
 func (pol *policy16) checkBase(info *snap.Info, availableSnaps *naming.SnapSet) error {
@@ -108,6 +113,45 @@ func (pol *policy16) checkBase(info *snap.Info, availableSnaps *naming.SnapSet) 
 	return fmt.Errorf("cannot add snap %q without also adding its base %q explicitly", info.SnapName(), info.Base)
 }
 
+func (pol *policy16) needsImplicitSnaps(availableSnaps *naming.SnapSet) (bool, error) {
+	// do we need to add implicitly either snapd (or core)
+	hasCore := availableSnaps.Contains(naming.Snap("core"))
+	if len(pol.needsCore) != 0 && !hasCore {
+		if pol.model.Base() != "" {
+			// TODO: later turn this into an error? for sure for UC20
+			pol.warningf("model has base %q but some snaps (%s) require \"core\" as base as well, for compatibility it was added implicitly, adding \"core\" explicitly is recommended", pol.model.Base(), strutil.Quoted(pol.needsCore))
+		}
+		return true, nil
+	}
+
+	if len(pol.needsCore16) != 0 && !hasCore {
+		return false, fmt.Errorf(`cannot use %s requiring base "core16" without adding "core16" (or "core") explicitly`, strutil.Quoted(pol.needsCore16))
+	}
+
+	if pol.model.Classic() && !availableSnaps.Empty() {
+		return true, nil
+	}
+
+	return false, nil
+}
+
+func (pol *policy16) implicitSnaps(availableSnaps *naming.SnapSet) []*asserts.ModelSnap {
+	if len(pol.needsCore) != 0 && !availableSnaps.Contains(naming.Snap("core")) {
+		return []*asserts.ModelSnap{makeSystemSnap("core")}
+	}
+	if pol.model.Classic() && !availableSnaps.Empty() {
+		return []*asserts.ModelSnap{makeSystemSnap("snapd")}
+	}
+	return nil
+}
+
+func (pol *policy16) implicitExtraSnaps(availableSnaps *naming.SnapSet) []*OptionsSnap {
+	if len(pol.needsCore) != 0 && !availableSnaps.Contains(naming.Snap("core")) {
+		return []*OptionsSnap{{Name: "core", Channel: "stable"}}
+	}
+	return nil
+}
+
 type tree16 struct {
 	opts *Options
 
@@ -127,7 +171,7 @@ func (tr *tree16) localSnapPath(sn *SeedSnap) string {
 	return filepath.Join(tr.snapsDirPath, filepath.Base(sn.Info.MountFile()))
 }
 
-func (tr *tree16) writeAssertions(db asserts.RODatabase, modelRefs []*asserts.Ref, snapsFromModel []*SeedSnap) error {
+func (tr *tree16) writeAssertions(db asserts.RODatabase, modelRefs []*asserts.Ref, snapsFromModel []*SeedSnap, extraSnaps []*SeedSnap) error {
 	seedAssertsDir := filepath.Join(tr.opts.SeedDir, "assertions")
 	if err := os.MkdirAll(seedAssertsDir, 0755); err != nil {
 		return err
@@ -163,32 +207,46 @@ func (tr *tree16) writeAssertions(db asserts.RODatabase, modelRefs []*asserts.Re
 		}
 	}
 
+	for _, sn := range extraSnaps {
+		if err := writeRefs(sn.ARefs); err != nil {
+			return err
+		}
+	}
+
 	return nil
 }
 
-func (tr *tree16) writeMeta(snapsFromModel []*SeedSnap) error {
+func (tr *tree16) writeMeta(snapsFromModel []*SeedSnap, extraSnaps []*SeedSnap) error {
 	var seedYaml seed.Seed16
 
-	seedSnaps := make(seedSnapsByType, len(snapsFromModel))
+	seedSnaps := make(seedSnapsByType, len(snapsFromModel)+len(extraSnaps))
 	copy(seedSnaps, snapsFromModel)
+	copy(seedSnaps[len(snapsFromModel):], extraSnaps)
 
 	sort.Stable(seedSnaps)
 
 	seedYaml.Snaps = make([]*seed.Snap16, len(seedSnaps))
 	for i, sn := range seedSnaps {
 		info := sn.Info
+		// TODO: with default tracks this might be
+		// redirected by the store during the download
+		channel := sn.Channel
+		unasserted := info.SnapID == ""
+		if unasserted {
+			// Core 16/18 don't set a channel in the seed
+			// for unasserted snaps
+			channel = ""
+		}
 		seedYaml.Snaps[i] = &seed.Snap16{
-			Name:   info.SnapName(),
-			SnapID: info.SnapID, // cross-ref
-			// TODO: with default tracks this might be
-			// redirected by the store during the download
-			Channel: sn.Channel,
+			Name:    info.SnapName(),
+			SnapID:  info.SnapID, // cross-ref
+			Channel: channel,
 			File:    filepath.Base(sn.Path),
 			DevMode: info.NeedsDevMode(),
 			Classic: info.NeedsClassic(),
 			Contact: info.Contact,
 			// no assertions for this snap were put in the seed
-			Unasserted: info.SnapID == "",
+			Unasserted: unasserted,
 		}
 	}
 

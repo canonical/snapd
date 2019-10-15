@@ -160,7 +160,7 @@ func generateWrappers(s *snap.Info) (err error) {
 	cleanupFuncs = append(cleanupFuncs, wrappers.RemoveSnapBinaries)
 
 	// add the daemons from the snap.yaml
-	if err = wrappers.AddSnapServices(s, progress.Null); err != nil {
+	if err = wrappers.AddSnapServices(s, nil, progress.Null); err != nil {
 		return err
 	}
 	cleanupFuncs = append(cleanupFuncs, func(s *snap.Info) error {

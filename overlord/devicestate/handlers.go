@@ -939,8 +939,11 @@ func currentGadgetInfo(snapst *snapstate.SnapState) (*gadget.GadgetData, error) 
 		// no current yet
 		return nil, nil
 	}
-	const onClassic = false
-	gi, err := gadget.ReadInfo(currentInfo.MountDir(), onClassic)
+
+	constraints := &gadget.ModelConstraints{
+		Classic: false,
+	}
+	gi, err := gadget.ReadInfo(currentInfo.MountDir(), constraints)
 	if err != nil {
 		return nil, err
 	}
@@ -952,8 +955,11 @@ func pendingGadgetInfo(snapsup *snapstate.SnapSetup) (*gadget.GadgetData, error)
 	if err != nil {
 		return nil, err
 	}
-	const onClassic = false
-	update, err := gadget.ReadInfo(info.MountDir(), onClassic)
+
+	constraints := &gadget.ModelConstraints{
+		Classic: false,
+	}
+	update, err := gadget.ReadInfo(info.MountDir(), constraints)
 	if err != nil {
 		return nil, err
 	}

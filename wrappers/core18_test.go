@@ -29,6 +29,7 @@ import (
 
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/osutil"
+	"github.com/snapcore/snapd/progress"
 	"github.com/snapcore/snapd/release"
 	"github.com/snapcore/snapd/snap"
 	"github.com/snapcore/snapd/snap/snaptest"
@@ -91,7 +92,7 @@ func (s *servicesTestSuite) TestAddSnapServicesForSnapdOnCore(c *C) {
 
 	info := makeMockSnapdSnap(c)
 	// add the snapd service
-	err := wrappers.AddSnapServices(info, nil)
+	err := wrappers.AddSnapServices(info, nil, progress.Null)
 	c.Assert(err, IsNil)
 
 	// check that snapd.service is created
@@ -170,7 +171,7 @@ func (s *servicesTestSuite) TestAddSnapServicesForSnapdOnClassic(c *C) {
 
 	info := makeMockSnapdSnap(c)
 	// add the snapd service
-	err := wrappers.AddSnapServices(info, nil)
+	err := wrappers.AddSnapServices(info, nil, progress.Null)
 	c.Assert(err, IsNil)
 
 	// check that snapd services were *not* created

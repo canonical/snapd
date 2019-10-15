@@ -208,7 +208,7 @@ void setup_devices_cgroup(const char *security_tag, struct snappy_udev *udev_s)
 	// move ourselves into it
 	char cgroup_file[PATH_MAX] = { 0 };
 	sc_must_snprintf(cgroup_file, sizeof(cgroup_file), "%s%s", cgroup_dir,
-			 "tasks");
+			 "cgroup.procs");
 
 	char buf[128] = { 0 };
 	sc_must_snprintf(buf, sizeof(buf), "%i", getpid());
