@@ -97,6 +97,10 @@ func (sf *SFDisk) Layout() (*gadget.LaidOutVolume, error) {
 //
 // TODO: see if we can get rid of usedPartitions
 func (sf *SFDisk) Create(pv *gadget.LaidOutVolume, usedPartitions []bool) (map[string]string, error) {
+	// Layout() will update sf.partitionTable
+	if _, err := sf.Layout(); err != nil {
+		return nil, err
+	}
 	buf, deviceMap := buildPartitionList(sf.partitionTable, pv, usedPartitions)
 
 	// Write the partition table
