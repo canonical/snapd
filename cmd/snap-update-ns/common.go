@@ -25,6 +25,7 @@ import (
 	"github.com/snapcore/snapd/cmd/snaplock"
 	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/osutil"
+	"github.com/snapcore/snapd/sandbox/cgroup"
 )
 
 type CommonProfileUpdateContext struct {
@@ -78,7 +79,7 @@ func (upCtx *CommonProfileUpdateContext) Lock() (func(), error) {
 	// introduce a symlink that would cause us to mount something other
 	// than what we expected).
 	logger.Debugf("freezing processes of snap %q", instanceName)
-	if err := freezeSnapProcesses(instanceName); err != nil {
+	if err := cgroup.FreezeSnapProcesses(instanceName); err != nil {
 		// If we cannot freeze the processes we should drop the lock.
 		lock.Close()
 		return nil, err
@@ -88,7 +89,7 @@ func (upCtx *CommonProfileUpdateContext) Lock() (func(), error) {
 		logger.Debugf("unlocking mount namespace of snap %q", instanceName)
 		lock.Close()
 		logger.Debugf("thawing processes of snap %q", instanceName)
-		thawSnapProcesses(instanceName)
+		cgroup.ThawSnapProcesses(instanceName)
 	}
 	return unlock, nil
 }
