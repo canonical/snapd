@@ -22,16 +22,60 @@ package osutil
 import (
 	"bytes"
 	"fmt"
+	"io"
 	"io/ioutil"
 	"os"
 	"path/filepath"
 	"sort"
 )
 
-// FileState describes the expected content and meta data of a single file.
-type FileState struct {
+// FileState is an interface for conveying the desired state of a some file.
+type FileState interface {
+	State() (reader io.ReadCloser, size int64, mode os.FileMode, err error)
+}
+
+// FileReference describes the desired content by referencing an existing file.
+type FileReference struct {
+	Path string
+}
+
+// State returns a reader of the referenced file, along with other meta-data.
+func (fref FileReference) State() (io.ReadCloser, int64, os.FileMode, error) {
+	file, err := os.Open(fref.Path)
+	if err != nil {
+		return nil, 0, os.FileMode(0), err
+	}
+	fi, err := file.Stat()
+	if err != nil {
+		return nil, 0, os.FileMode(0), err
+	}
+	return file, fi.Size(), fi.Mode(), nil
+}
+
+// FileReferencePlusMode describes the desired content by referencing an existing file and providing custom mode.
+type FileReferencePlusMode struct {
+	FileReference
+	Mode os.FileMode
+}
+
+// State returns a reader of the referenced file, substituting the mode.
+func (fcref FileReferencePlusMode) State() (io.ReadCloser, int64, os.FileMode, error) {
+	reader, size, _, err := fcref.FileReference.State()
+	if err != nil {
+		return nil, 0, os.FileMode(0), err
+	}
+	return reader, size, fcref.Mode, nil
+}
+
+// MemoryFileState describes the desired content by providing an in-memory copy.
+type MemoryFileState struct {
 	Content []byte
 	Mode    os.FileMode
+}
+
+// State returns a reader of the in-memory contents of a file, along with other meta-data.
+func (blob *MemoryFileState) State() (io.ReadCloser, int64, os.FileMode, error) {
+	return ioutil.NopCloser(bytes.NewReader(blob.Content)), int64(len(blob.Content)), blob.Mode, nil
 }
 
 // ErrSameState is returned when the state of a file has not changed.
@@ -63,7 +107,7 @@ var ErrSameState = fmt.Errorf("file state has not changed")
 // exhausted.
 //
 // In all cases, the function returns the first error it has encountered.
-func EnsureDirStateGlobs(dir string, globs []string, content map[string]*FileState) (changed, removed []string, err error) {
+func EnsureDirStateGlobs(dir string, globs []string, content map[string]FileState) (changed, removed []string, err error) {
 	// Check syntax before doing anything.
 	if _, index, err := matchAny(globs, "foo"); err != nil {
 		return nil, nil, fmt.Errorf("internal error: EnsureDirState got invalid pattern %q: %s", globs[index], err)
@@ -143,36 +187,46 @@ func matchAny(globs []string, path string) (ok bool, index int, err error) {
 // EnsureDirState ensures that directory content matches expectations.
 //
 // This is like EnsureDirStateGlobs but it only supports one glob at a time.
-func EnsureDirState(dir string, glob string, content map[string]*FileState) (changed, removed []string, err error) {
+func EnsureDirState(dir string, glob string, content map[string]FileState) (changed, removed []string, err error) {
 	return EnsureDirStateGlobs(dir, []string{glob}, content)
 }
 
-// Equals returns whether the file exists in the expected state.
-func (fileState *FileState) Equals(filePath string) (bool, error) {
-	stat, err := os.Stat(filePath)
+// fileStateEqualTo returns whether the file exists in the expected state.
+func fileStateEqualTo(filePath string, state FileState) (bool, error) {
+	other := &FileReference{Path: filePath}
+
+	// Open views to both files so that we can compare them.
+	readerA, sizeA, modeA, err := state.State()
+	if err != nil {
+		return false, err
+	}
+	defer readerA.Close()
+
+	readerB, sizeB, modeB, err := other.State()
 	if err != nil {
 		if os.IsNotExist(err) {
-			// not existing is not an error
+			// Not existing is not an error
 			return false, nil
 		}
 		return false, err
 	}
-	if stat.Mode().Perm() == fileState.Mode.Perm() && stat.Size() == int64(len(fileState.Content)) {
-		content, err := ioutil.ReadFile(filePath)
-		if err != nil {
-			return false, err
-		}
-		if bytes.Equal(content, fileState.Content) {
-			return true, nil
-		}
+	defer readerB.Close()
+
+	// If the files have different size or different mode they are not
+	// identical and need to be re-created. Mode change could be optimized to
+	// avoid re-writing the whole file.
+	if modeA.Perm() != modeB.Perm() || sizeA != sizeB {
+		return false, nil
 	}
-	return false, nil
+	// The files have the same size so they might be identical.
+	// Do a block-wise comparison to determine that.
+	return streamsEqualChunked(readerA, readerB, 0), nil
 }
 
-// EnsureFileState ensures that the file is in the expected state. It will not attempt
-// to remove the file if no content is provided.
-func EnsureFileState(filePath string, fileState *FileState) error {
-	equal, err := fileState.Equals(filePath)
+// EnsureFileState ensures that the file is in the expected state. It will not
+// attempt to remove the file if no content is provided.
+func EnsureFileState(filePath string, state FileState) error {
+	equal, err := fileStateEqualTo(filePath, state)
 	if err != nil {
 		return err
 	}
@@ -180,5 +234,9 @@ func EnsureFileState(filePath string, fileState *FileState) error {
 		// Return a special error if the file doesn't need to be changed
 		return ErrSameState
 	}
-	return AtomicWriteFile(filePath, fileState.Content, fileState.Mode, 0)
+	reader, _, mode, err := state.State()
+	if err != nil {
+		return err
+	}
+	return AtomicWrite(filePath, reader, mode, 0)
 }

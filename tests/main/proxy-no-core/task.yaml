@@ -52,4 +52,4 @@ execute: |
 
     # shellcheck source=tests/lib/journalctl.sh
     . "$TESTSLIB/journalctl.sh"
-    check_journalctl_log 'CONNECT fastly.cdn.snapcraft.io' -u tinyproxy
+    check_journalctl_log 'CONNECT .*.cdn.snapcraft.io' -u tinyproxy

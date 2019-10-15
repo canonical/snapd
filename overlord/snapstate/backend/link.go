@@ -143,22 +143,41 @@ func (b Backend) StopServices(apps []*snap.AppInfo, reason snap.ServiceStopReaso
 	return wrappers.StopServices(apps, reason, meter, tm)
 }
 
-func generateWrappers(s *snap.Info) error {
+func generateWrappers(s *snap.Info) (err error) {
+	var cleanupFuncs []func(*snap.Info) error
+	defer func() {
+		if err != nil {
+			for _, cleanup := range cleanupFuncs {
+				cleanup(s)
+			}
+		}
+	}()
+
 	// add the CLI apps from the snap.yaml
-	if err := wrappers.AddSnapBinaries(s); err != nil {
+	if err = wrappers.AddSnapBinaries(s); err != nil {
 		return err
 	}
+	cleanupFuncs = append(cleanupFuncs, wrappers.RemoveSnapBinaries)
+
 	// add the daemons from the snap.yaml
-	if err := wrappers.AddSnapServices(s, progress.Null); err != nil {
-		wrappers.RemoveSnapBinaries(s)
+	if err = wrappers.AddSnapServices(s, nil, progress.Null); err != nil {
 		return err
 	}
+	cleanupFuncs = append(cleanupFuncs, func(s *snap.Info) error {
+		return wrappers.RemoveSnapServices(s, progress.Null)
+	})
+
 	// add the desktop files
-	if err := wrappers.AddSnapDesktopFiles(s); err != nil {
-		wrappers.RemoveSnapServices(s, progress.Null)
-		wrappers.RemoveSnapBinaries(s)
+	if err = wrappers.AddSnapDesktopFiles(s); err != nil {
 		return err
 	}
+	cleanupFuncs = append(cleanupFuncs, wrappers.RemoveSnapDesktopFiles)
+
+	// add the desktop icons
+	if err = wrappers.AddSnapIcons(s); err != nil {
+		return err
+	}
+	cleanupFuncs = append(cleanupFuncs, wrappers.RemoveSnapIcons)
 
 	return nil
 }
@@ -179,7 +198,12 @@ func removeGeneratedWrappers(s *snap.Info, meter progress.Meter) error {
 		logger.Noticef("Cannot remove desktop files for %q: %v", s.InstanceName(), err3)
 	}
 
-	return firstErr(err1, err2, err3)
+	err4 := wrappers.RemoveSnapIcons(s)
+	if err4 != nil {
+		logger.Noticef("Cannot remove desktop icons for %q: %v", s.InstanceName(), err4)
+	}
+
+	return firstErr(err1, err2, err3, err4)
 }
 
 // UnlinkSnap makes the snap unavailable to the system removing wrappers and symlinks.

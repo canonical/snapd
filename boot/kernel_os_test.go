@@ -29,6 +29,7 @@ import (
 	"github.com/snapcore/snapd/boot"
 	"github.com/snapcore/snapd/bootloader"
 	"github.com/snapcore/snapd/bootloader/bootloadertest"
+	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/snap"
@@ -223,10 +224,10 @@ func (s *ubootBootSetSuite) forceUbootBootloader(c *C) bootloader.Bootloader {
 	mockGadgetDir := c.MkDir()
 	err := ioutil.WriteFile(filepath.Join(mockGadgetDir, "uboot.conf"), nil, 0644)
 	c.Assert(err, IsNil)
-	err = bootloader.InstallBootConfig(mockGadgetDir)
+	err = bootloader.InstallBootConfig(mockGadgetDir, dirs.GlobalRootDir)
 	c.Assert(err, IsNil)
 
-	bloader, err := bootloader.Find()
+	bloader, err := bootloader.Find("", nil)
 	c.Assert(err, IsNil)
 	c.Check(bloader, NotNil)
 	bootloader.Force(bloader)
@@ -302,10 +303,10 @@ func (s *grubBootSetSuite) forceGrubBootloader(c *C) bootloader.Bootloader {
 	mockGadgetDir := c.MkDir()
 	err := ioutil.WriteFile(filepath.Join(mockGadgetDir, "grub.conf"), nil, 0644)
 	c.Assert(err, IsNil)
-	err = bootloader.InstallBootConfig(mockGadgetDir)
+	err = bootloader.InstallBootConfig(mockGadgetDir, dirs.GlobalRootDir)
 	c.Assert(err, IsNil)
 
-	bloader, err := bootloader.Find()
+	bloader, err := bootloader.Find("", nil)
 	c.Assert(err, IsNil)
 	c.Check(bloader, NotNil)
 	bloader.SetBootVars(map[string]string{

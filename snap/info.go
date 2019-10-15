@@ -32,6 +32,7 @@ import (
 
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/osutil/sys"
+	"github.com/snapcore/snapd/snap/naming"
 	"github.com/snapcore/snapd/strutil"
 	"github.com/snapcore/snapd/timeout"
 )
@@ -242,7 +243,8 @@ type Info struct {
 
 	Publisher StoreAccount
 
-	Media MediaInfos
+	Media   MediaInfos
+	Website string
 
 	// The flattended channel map with $track/$risk
 	Channels map[string]*ChannelSnapInfo
@@ -336,6 +338,13 @@ func (s *Info) SnapName() string {
 	}
 	return s.SuggestedName
 }
+
+// ID implements naming.SnapRef.
+func (s *Info) ID() string {
+	return s.SnapID
+}
+
+var _ naming.SnapRef = (*Info)(nil)
 
 // Title returns the blessed title for the snap.
 func (s *Info) Title() string {

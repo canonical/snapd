@@ -81,9 +81,9 @@ func (ms *modelSnaps) list() (allSnaps []*ModelSnap, requiredWithEssentialSnaps 
 		}
 	}
 
+	addSnap(ms.kernel, 1)
 	addSnap(ms.base, 1)
 	addSnap(ms.gadget, 1)
-	addSnap(ms.kernel, 1)
 	for _, snap := range ms.snapsNoEssential {
 		addSnap(snap, 0)
 	}
@@ -95,7 +95,7 @@ var (
 	defaultModes       = []string{"run"}
 )
 
-func checkExtendSnaps(extendedSnaps interface{}, base string) (*modelSnaps, error) {
+func checkExtendedSnaps(extendedSnaps interface{}, base string, grade ModelGrade) (*modelSnaps, error) {
 	const wrongHeaderType = `"snaps" header must be a list of maps`
 
 	entries, ok := extendedSnaps.([]interface{})
@@ -112,7 +112,7 @@ func checkExtendSnaps(extendedSnaps interface{}, base string) (*modelSnaps, erro
 		if !ok {
 			return nil, fmt.Errorf(wrongHeaderType)
 		}
-		modelSnap, err := checkModelSnap(snap)
+		modelSnap, err := checkModelSnap(snap, grade)
 		if err != nil {
 			return nil, err
 		}
@@ -178,7 +178,7 @@ var (
 	validSnapPresences = []string{"required", "optional"}
 )
 
-func checkModelSnap(snap map[string]interface{}) (*ModelSnap, error) {
+func checkModelSnap(snap map[string]interface{}, grade ModelGrade) (*ModelSnap, error) {
 	name, err := checkNotEmptyStringWhat(snap, "name", "of snap")
 	if err != nil {
 		return nil, err
@@ -189,9 +189,20 @@ func checkModelSnap(snap map[string]interface{}) (*ModelSnap, error) {
 
 	what := fmt.Sprintf("of snap %q", name)
 
-	snapID, err := checkStringMatchesWhat(snap, "id", what, validSnapID)
-	if err != nil {
-		return nil, err
+	var snapID string
+	_, ok := snap["id"]
+	if ok {
+		var err error
+		snapID, err = checkStringMatchesWhat(snap, "id", what, validSnapID)
+		if err != nil {
+			return nil, err
+		}
+	} else {
+		// snap ids are optional with grade unstable to allow working
+		// with local/not pushed yet to the store snaps
+		if grade != ModelDangerous {
+			return nil, fmt.Errorf(`"id" %s is mandatory for stable model`, what)
+		}
 	}
 
 	typ, err := checkOptionalStringWhat(snap, "type", what)
@@ -234,7 +245,7 @@ func checkModelSnap(snap map[string]interface{}) (*ModelSnap, error) {
 		}
 	} else {
 		trackCh, err := channel.ParseVerbatim(track, "-")
-		if err != nil || trackCh.Track == "" || trackCh.Risk != "" || trackCh.Branch != "" {
+		if err != nil || !trackCh.VerbatimTrackOnly() {
 			return nil, fmt.Errorf("invalid locked track for snap %q: %s", name, track)
 		}
 	}
@@ -323,6 +334,23 @@ func checkRequiredSnap(name string, headerName string, snapType string) (*ModelS
 	}, nil
 }
 
+// ModelGrade characterizes the security of the model which then
+// controls related policy.
+type ModelGrade string
+
+const (
+	ModelGradeUnset ModelGrade = "unset"
+	// ModelSecured implies mandatory full disk encryption and secure boot.
+	ModelSecured ModelGrade = "secured"
+	// ModelSigned implies all seed snaps are signed and mentioned
+	// in the model, i.e. no unasserted or extra snaps.
+	ModelSigned ModelGrade = "signed"
+	// ModelDangerous allows unasserted snaps and extra snaps.
+	ModelDangerous ModelGrade = "dangerous"
+)
+
+var validModelGrades = []string{string(ModelSecured), string(ModelSigned), string(ModelDangerous)}
+
 // Model holds a model assertion, which is a statement by a brand
 // about the properties of a device model.
 type Model struct {
@@ -332,6 +360,8 @@ type Model struct {
 	baseSnap   *ModelSnap
 	gadgetSnap *ModelSnap
 	kernelSnap *ModelSnap
+
+	grade ModelGrade
 
 	allSnaps []*ModelSnap
 	// consumers of this info should care only about snap identity =>
@@ -376,6 +406,12 @@ func (mod *Model) Classic() bool {
 // Architecture returns the archicteture the model is based on.
 func (mod *Model) Architecture() string {
 	return mod.HeaderString("architecture")
+}
+
+// Grade returns the stability grade of the model. Will be ModeGradeUnset
+// for Core 16/18 models.
+func (mod *Model) Grade() ModelGrade {
+	return mod.grade
 }
 
 // GadgetSnap returns the details of the gadget snap the model uses.
@@ -553,8 +589,13 @@ func assembleModel(assert assertionBase) (Assertion, error) {
 				return nil, fmt.Errorf("cannot specify separate %q header once using the extended snaps header", conflicting)
 			}
 		}
+	} else {
+		if _, ok := assert.headers["grade"]; ok {
+			return nil, fmt.Errorf("cannot specify a grade for model without the extended snaps header")
+		}
+	}
 
-	} else if classic {
+	if classic {
 		if _, ok := assert.headers["kernel"]; ok {
 			return nil, fmt.Errorf("cannot specify a kernel with a classic model")
 		}
@@ -602,9 +643,21 @@ func assembleModel(assert assertionBase) (Assertion, error) {
 	}
 
 	var modSnaps *modelSnaps
+	grade := ModelGradeUnset
 	if extended {
-		// TODO: support and consider grade!
-		modSnaps, err = checkExtendSnaps(extendedSnaps, base)
+		gradeStr, err := checkOptionalString(assert.headers, "grade")
+		if err != nil {
+			return nil, err
+		}
+		if gradeStr != "" && !strutil.ListContains(validModelGrades, gradeStr) {
+			return nil, fmt.Errorf("grade for model must be %s, not %q", strings.Join(validModelGrades, "|"), gradeStr)
+		}
+		grade = ModelSigned
+		if gradeStr != "" {
+			grade = ModelGrade(gradeStr)
+		}
+
+		modSnaps, err = checkExtendedSnaps(extendedSnaps, base, grade)
 		if err != nil {
 			return nil, err
 		}
@@ -677,6 +730,7 @@ func assembleModel(assert assertionBase) (Assertion, error) {
 		baseSnap:                   modSnaps.base,
 		gadgetSnap:                 modSnaps.gadget,
 		kernelSnap:                 modSnaps.kernel,
+		grade:                      grade,
 		allSnaps:                   allSnaps,
 		requiredWithEssentialSnaps: requiredWithEssentialSnaps,
 		numEssentialSnaps:          numEssentialSnaps,

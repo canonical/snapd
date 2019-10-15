@@ -159,6 +159,8 @@ func (s *ValidateSuite) TestValidateHookName(c *C) {
 		err := naming.ValidateHook(hook)
 		c.Assert(err, ErrorMatches, `invalid hook name: ".*"`)
 	}
+	// Regression test for https://bugs.launchpad.net/snapd/+bug/1638988
+	c.Assert(naming.ValidateHook("connect-plug-i2c"), IsNil)
 }
 
 func (s *ValidateSuite) TestValidateAppName(c *C) {

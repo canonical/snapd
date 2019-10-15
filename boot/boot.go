@@ -22,10 +22,13 @@ package boot
 import (
 	"errors"
 	"fmt"
+	"os"
 	"path/filepath"
 	"strings"
 
+	"github.com/snapcore/snapd/asserts"
 	"github.com/snapcore/snapd/bootloader"
+	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/snap"
 )
@@ -135,7 +138,7 @@ func applicable(s snap.PlaceInfo, t snap.Type, model Model, onClassic bool) bool
 // InUse checks if the given name/revision is used in the
 // boot environment
 func InUse(name string, rev snap.Revision) bool {
-	bootloader, err := bootloader.Find()
+	bootloader, err := bootloader.Find("", nil)
 	if err != nil {
 		logger.Noticef("cannot get boot settings: %s", err)
 		return false
@@ -182,7 +185,7 @@ func GetCurrentBoot(t snap.Type) (*NameAndRevision, error) {
 		return nil, fmt.Errorf("internal error: cannot find boot revision for snap type %q", t)
 	}
 
-	bloader, err := bootloader.Find()
+	bloader, err := bootloader.Find("", nil)
 	if err != nil {
 		return nil, fmt.Errorf("cannot get boot settings: %s", err)
 	}
@@ -244,7 +247,7 @@ func nameAndRevnoFromSnap(sn string) (*NameAndRevision, error) {
 //   will set snap_mode="" and the system will boot with the known good
 //   values from snap_{core,kernel}
 func MarkBootSuccessful() error {
-	bl, err := bootloader.Find()
+	bl, err := bootloader.Find("", nil)
 	if err != nil {
 		return fmt.Errorf("cannot mark boot successful: %s", err)
 	}
@@ -272,4 +275,90 @@ func MarkBootSuccessful() error {
 	m["snap_mode"] = ""
 
 	return bl.SetBootVars(m)
+}
+
+// BootableSet represents the boot snaps of a system to be made bootable.
+type BootableSet struct {
+	Base       *snap.Info
+	BasePath   string
+	Kernel     *snap.Info
+	KernelPath string
+
+	UnpackedGadgetDir string
+}
+
+// MakeBootable sets up the image filesystem with the given rootdir
+// such that it can be booted. This entails:
+//  - installing the bootloader configuration from the gadget
+//  - creating symlinks for boot snaps from seed to the runtime blob dir
+//  - setting boot env vars pointing to the revisions of the boot snaps to use
+//  - extracting kernel assets as needed by the bootloader
+func MakeBootable(model *asserts.Model, rootdir string, bootWith *BootableSet) error {
+	// install the bootloader configuration from the gadget
+	if err := bootloader.InstallBootConfig(bootWith.UnpackedGadgetDir, rootdir); err != nil {
+		return err
+	}
+
+	// setup symlinks for kernel and boot base from the blob directory
+	// to the seed snaps
+
+	snapBlobDir := dirs.SnapBlobDirUnder(rootdir)
+	if err := os.MkdirAll(snapBlobDir, 0755); err != nil {
+		return err
+	}
+
+	for _, fn := range []string{bootWith.BasePath, bootWith.KernelPath} {
+		dst := filepath.Join(snapBlobDir, filepath.Base(fn))
+		// construct a relative symlink from the blob dir
+		// to the seed snap file
+		relSymlink, err := filepath.Rel(snapBlobDir, fn)
+		if err != nil {
+			return fmt.Errorf("cannot build symlink for boot snap: %v", err)
+		}
+		if err := os.Symlink(relSymlink, dst); err != nil {
+			return err
+		}
+	}
+
+	// Set bootvars for kernel/core snaps so the system boots and
+	// does the first-time initialization. There is also no
+	// mounted kernel/core/base snap, but just the blobs.
+	bl, err := bootloader.Find(rootdir, &bootloader.Options{
+		PrepareImageTime: true,
+	})
+	if err != nil {
+		return fmt.Errorf("cannot set kernel/core boot variables: %s", err)
+	}
+
+	m := map[string]string{
+		"snap_mode":       "",
+		"snap_try_core":   "",
+		"snap_try_kernel": "",
+	}
+	if model.DisplayName() != "" {
+		m["snap_menuentry"] = model.DisplayName()
+	}
+
+	setBoot := func(name, fn string) {
+		m[name] = filepath.Base(fn)
+	}
+	// base
+	setBoot("snap_core", bootWith.BasePath)
+
+	// kernel
+	kernelf, err := snap.Open(bootWith.KernelPath)
+	if err != nil {
+		return err
+	}
+	if err := bl.ExtractKernelAssets(bootWith.Kernel, kernelf); err != nil {
+		return err
+	}
+	setBoot("snap_kernel", bootWith.KernelPath)
+
+	if err := bl.SetBootVars(m); err != nil {
+		return err
+	}
+
+	return nil
+
 }

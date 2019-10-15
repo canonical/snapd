@@ -31,6 +31,7 @@ import (
 	. "gopkg.in/check.v1"
 
 	"github.com/snapcore/snapd/dirs"
+	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/progress"
 	"github.com/snapcore/snapd/snap"
@@ -78,7 +79,7 @@ func (s *servicesTestSuite) TestAddSnapServicesAndRemove(c *C) {
 	info := snaptest.MockSnap(c, packageHello, &snap.SideInfo{Revision: snap.R(12)})
 	svcFile := filepath.Join(s.tempdir, "/etc/systemd/system/snap.hello-snap.svc1.service")
 
-	err := wrappers.AddSnapServices(info, nil)
+	err := wrappers.AddSnapServices(info, nil, progress.Null)
 	c.Assert(err, IsNil)
 	c.Check(s.sysdLog, DeepEquals, [][]string{
 		{"--root", dirs.GlobalRootDir, "enable", filepath.Base(svcFile)},
@@ -131,7 +132,7 @@ func (s *servicesTestSuite) TestRemoveSnapWithSocketsRemovesSocketsService(c *C)
       listen-stream: $SNAP_COMMON/sock2.socket
 `, &snap.SideInfo{Revision: snap.R(12)})
 
-	err := wrappers.AddSnapServices(info, nil)
+	err := wrappers.AddSnapServices(info, nil, progress.Null)
 	c.Assert(err, IsNil)
 
 	err = wrappers.StopServices(info.Services(), "", &progress.Null, s.perfTimings)
@@ -171,7 +172,7 @@ apps:
    daemon: forking
 `, &snap.SideInfo{Revision: snap.R(11)})
 
-	err := wrappers.AddSnapServices(info, nil)
+	err := wrappers.AddSnapServices(info, nil, progress.Null)
 	c.Assert(err, IsNil)
 
 	sysdLog = nil
@@ -186,6 +187,272 @@ apps:
 		// check kill invocations
 		{"kill", svcFName, "-s", "TERM", "--kill-who=all"},
 		{"kill", svcFName, "-s", "KILL", "--kill-who=all"},
+	})
+}
+
+func (s *servicesTestSuite) TestServicesEnableState(c *C) {
+	info := snaptest.MockSnap(c, packageHello+`
+ svc2:
+  command: bin/hello
+  daemon: forking
+`, &snap.SideInfo{Revision: snap.R(12)})
+	svc1File := "snap.hello-snap.svc1.service"
+	svc2File := "snap.hello-snap.svc2.service"
+
+	s.systemctlRestorer()
+	r := testutil.MockCommand(c, "systemctl", `#!/bin/sh
+	if [ "$1" = "--root" ]; then
+		# shifting by 2 also drops the temp dir arg to --root
+	    shift 2
+	fi
+
+	case "$1" in
+		is-enabled)
+			case "$2" in 
+			"snap.hello-snap.svc1.service")
+				echo "disabled"
+				exit 1
+				;;
+			"snap.hello-snap.svc2.service")
+				echo "enabled"
+				exit 0
+				;;
+			*)
+				echo "unexpected is-enabled of service $2"
+				exit 2
+				;;
+			esac
+	        ;;
+	    *)
+	        echo "unexpected op $*"
+	        exit 2
+	esac
+
+	exit 1
+	`)
+	defer r.Restore()
+
+	states, err := wrappers.ServicesEnableState(info, progress.Null)
+	c.Assert(err, IsNil)
+
+	c.Assert(states, DeepEquals, map[string]bool{
+		"svc1": false,
+		"svc2": true,
+	})
+
+	// the calls could be out of order in the list, since iterating over a map
+	// is non-deterministic, so manually check each call
+	c.Assert(r.Calls(), HasLen, 2)
+	for _, call := range r.Calls() {
+		c.Assert(call, HasLen, 5)
+		c.Assert(call[:4], DeepEquals, []string{"systemctl", "--root", s.tempdir, "is-enabled"})
+		switch call[4] {
+		case svc1File, svc2File:
+		default:
+			c.Errorf("unknown service for systemctl call: %s", call[4])
+		}
+	}
+}
+
+func (s *servicesTestSuite) TestServicesEnableStateFail(c *C) {
+	info := snaptest.MockSnap(c, packageHello, &snap.SideInfo{Revision: snap.R(12)})
+	svc1File := "snap.hello-snap.svc1.service"
+
+	s.systemctlRestorer()
+	r := testutil.MockCommand(c, "systemctl", `#!/bin/sh
+	if [ "$1" = "--root" ]; then
+		# shifting by 2 also drops the temp dir arg to --root
+	    shift 2
+	fi
+
+	case "$1" in
+		is-enabled)
+			case "$2" in
+			"snap.hello-snap.svc1.service")
+				echo "whoops"
+				exit 1
+				;;
+			*)
+				echo "unexpected is-enabled of service $2"
+				exit 2
+				;;
+			esac
+	        ;;
+	    *)
+	        echo "unexpected op $*"
+	        exit 2
+	esac
+
+	exit 1
+	`)
+	defer r.Restore()
+
+	_, err := wrappers.ServicesEnableState(info, progress.Null)
+	c.Assert(err, ErrorMatches, ".*is-enabled snap.hello-snap.svc1.service\\] failed with exit status 1: whoops\n.*")
+
+	c.Assert(r.Calls(), DeepEquals, [][]string{
+		{"systemctl", "--root", s.tempdir, "is-enabled", svc1File},
+	})
+}
+
+func (s *servicesTestSuite) TestAddSnapServicesWithDisabledServices(c *C) {
+	info := snaptest.MockSnap(c, packageHello+`
+ svc2:
+  command: bin/hello
+  daemon: forking
+`, &snap.SideInfo{Revision: snap.R(12)})
+
+	s.systemctlRestorer()
+	r := testutil.MockCommand(c, "systemctl", `#!/bin/sh
+	if [ "$1" = "--root" ]; then
+	    shift 2
+	fi
+
+	case "$1" in
+		enable)
+			case "$2" in 
+				"snap.hello-snap.svc1.service")
+					echo "unexpected enable of disabled service $2"
+					exit 1
+					;;
+				"snap.hello-snap.svc2.service")
+					exit 0
+					;;
+				*)
+					echo "unexpected enable of service $2"
+					exit 1
+					;;
+			esac
+			;;
+		daemon-reload)
+			exit 0
+			;;
+	    *)
+	        echo "unexpected op $*"
+	        exit 2
+	esac
+	exit 2
+	`)
+	defer r.Restore()
+
+	// svc1 will be disabled
+	disabledSvcs := []string{"svc1"}
+
+	err := wrappers.AddSnapServices(info, disabledSvcs, progress.Null)
+	c.Assert(err, IsNil)
+
+	// only svc2 should be enabled
+	c.Assert(r.Calls(), DeepEquals, [][]string{
+		{"systemctl", "--root", s.tempdir, "enable", "snap.hello-snap.svc2.service"},
+		{"systemctl", "daemon-reload"},
+	})
+}
+
+func (s *servicesTestSuite) TestAddSnapServicesWithDisabledServicesNowApp(c *C) {
+	info := snaptest.MockSnap(c, packageHello, &snap.SideInfo{Revision: snap.R(12)})
+
+	// mock the logger
+	buf, loggerRestore := logger.MockLogger()
+	defer loggerRestore()
+
+	s.systemctlRestorer()
+	r := testutil.MockCommand(c, "systemctl", `#!/bin/sh
+	if [ "$1" = "--root" ]; then
+	    shift 2
+	fi
+
+	case "$1" in
+		enable)
+			case "$2" in 
+				"snap.hello-snap.svc1.service")
+					exit 0
+					;;
+				*)
+					echo "unexpected enable of service $2"
+					exit 1
+					;;
+			esac
+			;;
+		daemon-reload)
+			exit 0
+			;;
+	    *)
+	        echo "unexpected op $*"
+	        exit 2
+	esac
+	exit 2
+	`)
+	defer r.Restore()
+
+	svcs := []string{"hello"}
+
+	err := wrappers.AddSnapServices(info, svcs, progress.Null)
+	c.Assert(err, IsNil)
+
+	// check the log for the notice
+	c.Assert(buf.String(), Matches, `.*previously disabled service hello is now an app and not a service\n.*`)
+
+	// the cleanup of AddSnapServices will remove written service files and then
+	// call reload, but note that we should catch any non-svc apps before
+	// actually enabling them, so we just see a daemon-reload call and not any
+	// enable calls
+	c.Assert(r.Calls(), DeepEquals, [][]string{
+		{"systemctl", "--root", s.tempdir, "enable", "snap.hello-snap.svc1.service"},
+		{"systemctl", "daemon-reload"},
+	})
+}
+
+func (s *servicesTestSuite) TestAddSnapServicesWithDisabledServicesMissing(c *C) {
+	info := snaptest.MockSnap(c, packageHello, &snap.SideInfo{Revision: snap.R(12)})
+
+	// mock the logger
+	buf, loggerRestore := logger.MockLogger()
+	defer loggerRestore()
+
+	s.systemctlRestorer()
+	r := testutil.MockCommand(c, "systemctl", `#!/bin/sh
+	if [ "$1" = "--root" ]; then
+	    shift 2
+	fi
+
+	case "$1" in
+		enable)
+			case "$2" in 
+				"snap.hello-snap.svc1.service")
+					exit 0
+					;;
+				*)
+					echo "unexpected enable of service $2"
+					exit 1
+					;;
+			esac
+			;;
+		daemon-reload)
+			exit 0
+			;;
+	    *)
+	        echo "unexpected op $*"
+	        exit 2
+	esac
+	exit 2
+	`)
+	defer r.Restore()
+
+	svcs := []string{"old-disabled-svc"}
+
+	err := wrappers.AddSnapServices(info, svcs, progress.Null)
+	c.Assert(err, IsNil)
+
+	// check the log for the notice
+	c.Assert(buf.String(), Matches, `.*previously disabled service old-disabled-svc no longer exists\n.*`)
+
+	// the cleanup of AddSnapServices will remove written service files and then
+	// call reload, but note that we should catch any non-svc apps before
+	// actually enabling them, so we just see a daemon-reload call and not any
+	// enable calls
+	c.Assert(r.Calls(), DeepEquals, [][]string{
+		{"systemctl", "--root", s.tempdir, "enable", "snap.hello-snap.svc1.service"},
+		{"systemctl", "daemon-reload"},
 	})
 }
 
@@ -211,7 +478,7 @@ func (s *servicesTestSuite) TestStopServicesWithSockets(c *C) {
       listen-stream: $SNAP_DATA/sock2.socket
 `, &snap.SideInfo{Revision: snap.R(12)})
 
-	err := wrappers.AddSnapServices(info, nil)
+	err := wrappers.AddSnapServices(info, nil, progress.Null)
 	c.Assert(err, IsNil)
 
 	sysdLog = nil
@@ -282,7 +549,7 @@ func (s *servicesTestSuite) TestAddSnapMultiServicesFailCreateCleanup(c *C) {
   daemon: potato
 `, &snap.SideInfo{Revision: snap.R(12)})
 
-	err := wrappers.AddSnapServices(info, nil)
+	err := wrappers.AddSnapServices(info, nil, progress.Null)
 	c.Assert(err, ErrorMatches, ".*potato.*")
 
 	// the services are cleaned up
@@ -347,7 +614,7 @@ func (s *servicesTestSuite) TestAddSnapMultiServicesFailEnableCleanup(c *C) {
   daemon: simple
 `, &snap.SideInfo{Revision: snap.R(12)})
 
-	err := wrappers.AddSnapServices(info, nil)
+	err := wrappers.AddSnapServices(info, nil, progress.Null)
 	c.Assert(err, ErrorMatches, "failed")
 
 	// the services are cleaned up
@@ -395,7 +662,7 @@ func (s *servicesTestSuite) TestAddSnapMultiServicesStartFailOnSystemdReloadClea
   daemon: simple
 `, &snap.SideInfo{Revision: snap.R(12)})
 
-	err := wrappers.AddSnapServices(info, progress.Null)
+	err := wrappers.AddSnapServices(info, nil, progress.Null)
 	c.Assert(err, ErrorMatches, "failed")
 
 	// the services are cleaned up
@@ -431,7 +698,7 @@ func (s *servicesTestSuite) TestAddSnapSocketFiles(c *C) {
 	sock2File := filepath.Join(s.tempdir, "/etc/systemd/system/snap.hello-snap.svc1.sock2.socket")
 	sock3File := filepath.Join(s.tempdir, "/etc/systemd/system/snap.hello-snap.svc1.sock3.socket")
 
-	err := wrappers.AddSnapServices(info, nil)
+	err := wrappers.AddSnapServices(info, nil, progress.Null)
 	c.Assert(err, IsNil)
 
 	expected := fmt.Sprintf(
@@ -674,7 +941,7 @@ func (s *servicesTestSuite) TestServiceAfterBefore(c *C) {
 		},
 	}}
 
-	err := wrappers.AddSnapServices(info, nil)
+	err := wrappers.AddSnapServices(info, nil, progress.Null)
 	c.Assert(err, IsNil)
 
 	for _, check := range checks {
@@ -714,7 +981,7 @@ func (s *servicesTestSuite) TestServiceWatchdog(c *C) {
 `
 	info := snaptest.MockSnap(c, snapYaml, &snap.SideInfo{Revision: snap.R(12)})
 
-	err := wrappers.AddSnapServices(info, nil)
+	err := wrappers.AddSnapServices(info, nil, progress.Null)
 	c.Assert(err, IsNil)
 
 	content, err := ioutil.ReadFile(filepath.Join(s.tempdir, "/etc/systemd/system/snap.hello-snap.svc2.service"))
@@ -744,7 +1011,7 @@ apps:
 	info := snaptest.MockSnap(c, surviveYaml, &snap.SideInfo{Revision: snap.R(1)})
 	survivorFile := filepath.Join(s.tempdir, "/etc/systemd/system/snap.survive-snap.survivor.service")
 
-	err := wrappers.AddSnapServices(info, nil)
+	err := wrappers.AddSnapServices(info, nil, progress.Null)
 	c.Assert(err, IsNil)
 	c.Check(s.sysdLog, DeepEquals, [][]string{
 		{"--root", dirs.GlobalRootDir, "enable", filepath.Base(survivorFile)},
@@ -796,7 +1063,7 @@ apps:
 		info := snaptest.MockSnap(c, surviveYaml, &snap.SideInfo{Revision: snap.R(1)})
 
 		s.sysdLog = nil
-		err := wrappers.AddSnapServices(info, nil)
+		err := wrappers.AddSnapServices(info, nil, progress.Null)
 		c.Assert(err, IsNil)
 		c.Check(s.sysdLog, DeepEquals, [][]string{
 			{"--root", dirs.GlobalRootDir, "enable", filepath.Base(survivorFile)},
@@ -908,7 +1175,7 @@ func (s *servicesTestSuite) TestAddRemoveSnapWithTimersAddsRemovesTimerFiles(c *
   timer: 10:00-12:00
 `, &snap.SideInfo{Revision: snap.R(12)})
 
-	err := wrappers.AddSnapServices(info, nil)
+	err := wrappers.AddSnapServices(info, nil, progress.Null)
 	c.Assert(err, IsNil)
 
 	app := info.Apps["svc2"]
@@ -955,7 +1222,7 @@ func (s *servicesTestSuite) TestFailedAddSnapCleansUp(c *C) {
 	})
 	defer r()
 
-	err := wrappers.AddSnapServices(info, &progress.Null)
+	err := wrappers.AddSnapServices(info, nil, progress.Null)
 	c.Assert(err, NotNil)
 
 	c.Logf("services dir: %v", dirs.SnapServicesDir)
@@ -997,7 +1264,7 @@ apps:
 
 	for i, info := range []*snap.Info{onlyServices, onlySockets, onlyTimers} {
 		s.sysdLog = nil
-		err := wrappers.AddSnapServices(info, &progress.Null)
+		err := wrappers.AddSnapServices(info, nil, progress.Null)
 		c.Assert(err, IsNil)
 		reloads := 0
 		c.Logf("calls: %v", s.sysdLog)
@@ -1038,7 +1305,7 @@ apps:
 	info := snaptest.MockSnap(c, snapYaml, &snap.SideInfo{Revision: snap.R(12)})
 
 	// fix the apps order to make the test stable
-	err := wrappers.AddSnapServices(info, nil)
+	err := wrappers.AddSnapServices(info, nil, progress.Null)
 	c.Assert(err, IsNil)
 	c.Assert(s.sysdLog, HasLen, 2, Commentf("len: %v calls: %v", len(s.sysdLog), s.sysdLog))
 	c.Check(s.sysdLog, DeepEquals, [][]string{
@@ -1058,7 +1325,7 @@ func (s *servicesTestSuite) TestServiceRestartDelay(c *C) {
 `
 	info := snaptest.MockSnap(c, snapYaml, &snap.SideInfo{Revision: snap.R(12)})
 
-	err := wrappers.AddSnapServices(info, nil)
+	err := wrappers.AddSnapServices(info, nil, progress.Null)
 	c.Assert(err, IsNil)
 
 	content, err := ioutil.ReadFile(filepath.Join(s.tempdir, "/etc/systemd/system/snap.hello-snap.svc2.service"))

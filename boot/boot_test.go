@@ -21,17 +21,22 @@ package boot_test
 
 import (
 	"errors"
+	"io/ioutil"
+	"os"
 	"path/filepath"
 	"testing"
 
 	. "gopkg.in/check.v1"
 
+	"github.com/snapcore/snapd/asserts"
+	"github.com/snapcore/snapd/asserts/assertstest"
 	"github.com/snapcore/snapd/boot"
 	"github.com/snapcore/snapd/bootloader"
 	"github.com/snapcore/snapd/bootloader/bootloadertest"
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/snap"
+	"github.com/snapcore/snapd/snap/snaptest"
 	"github.com/snapcore/snapd/testutil"
 )
 
@@ -358,4 +363,99 @@ func (s *bootSetSuite) TestMarkBootSuccessfulKKernelUpdate(c *C) {
 		// updated
 		"snap_kernel": "k2",
 	})
+}
+
+func (s *bootSetSuite) makeSnap(c *C, name, yaml string, revno snap.Revision) (fn string, info *snap.Info) {
+	si := &snap.SideInfo{
+		RealName: name,
+		Revision: revno,
+	}
+	fn = snaptest.MakeTestSnapWithFiles(c, yaml, nil)
+	snapf, err := snap.Open(fn)
+	c.Assert(err, IsNil)
+	info, err = snap.ReadInfoFromSnapFile(snapf, si)
+	c.Assert(err, IsNil)
+	return fn, info
+}
+
+func (s *bootSetSuite) TestMakeBootable(c *C) {
+	dirs.SetRootDir("")
+
+	headers := map[string]interface{}{
+		"type":         "model",
+		"authority-id": "my-brand",
+		"series":       "16",
+		"brand-id":     "my-brand",
+		"model":        "my-model",
+		"display-name": "My Model",
+		"architecture": "amd64",
+		"base":         "core18",
+		"gadget":       "pc=18",
+		"kernel":       "pc-kernel=18",
+		"timestamp":    "2018-01-01T08:00:00+00:00",
+	}
+	model := assertstest.FakeAssertion(headers).(*asserts.Model)
+
+	grubCfg := []byte("#grub cfg")
+	unpackedGadgetDir := c.MkDir()
+	err := ioutil.WriteFile(filepath.Join(unpackedGadgetDir, "grub.conf"), grubCfg, 0644)
+	c.Assert(err, IsNil)
+
+	rootdir := c.MkDir()
+
+	seedSnapsDirs := filepath.Join(rootdir, "/var/lib/snapd/seed", "snaps")
+	err = os.MkdirAll(seedSnapsDirs, 0755)
+	c.Assert(err, IsNil)
+
+	baseFn, baseInfo := s.makeSnap(c, "core18", `name: core18
+type: base
+version: 4.0
+`, snap.R(3))
+	baseInSeed := filepath.Join(seedSnapsDirs, filepath.Base(baseInfo.MountFile()))
+	err = os.Rename(baseFn, baseInSeed)
+	c.Assert(err, IsNil)
+	kernelFn, kernelInfo := s.makeSnap(c, "pc-kernel", `name: pc-kernel
+type: kernel
+version: 4.0
+`, snap.R(5))
+	kernelInSeed := filepath.Join(seedSnapsDirs, filepath.Base(kernelInfo.MountFile()))
+	err = os.Rename(kernelFn, kernelInSeed)
+	c.Assert(err, IsNil)
+
+	bootWith := &boot.BootableSet{
+		Base:              baseInfo,
+		BasePath:          baseInSeed,
+		Kernel:            kernelInfo,
+		KernelPath:        kernelInSeed,
+		UnpackedGadgetDir: unpackedGadgetDir,
+	}
+
+	err = boot.MakeBootable(model, rootdir, bootWith)
+	c.Assert(err, IsNil)
+
+	// check the bootloader config
+	m, err := s.bootloader.GetBootVars("snap_kernel", "snap_core", "snap_menuentry")
+	c.Assert(err, IsNil)
+	c.Check(m["snap_kernel"], Equals, "pc-kernel_5.snap")
+	c.Check(m["snap_core"], Equals, "core18_3.snap")
+	c.Check(m["snap_menuentry"], Equals, "My Model")
+
+	// kernel was extracted as needed
+	c.Check(s.bootloader.ExtractKernelAssetsCalls, DeepEquals, []snap.PlaceInfo{kernelInfo})
+
+	// check symlinks from snap blob dir
+	kernelBlob := filepath.Join(dirs.SnapBlobDirUnder(rootdir), filepath.Base(kernelInfo.MountFile()))
+	dst, err := os.Readlink(filepath.Join(dirs.SnapBlobDirUnder(rootdir), filepath.Base(kernelInfo.MountFile())))
+	c.Assert(err, IsNil)
+	c.Check(dst, Equals, "../seed/snaps/pc-kernel_5.snap")
+	c.Check(kernelBlob, testutil.FilePresent)
+
+	baseBlob := filepath.Join(dirs.SnapBlobDirUnder(rootdir), filepath.Base(baseInfo.MountFile()))
+	dst, err = os.Readlink(filepath.Join(dirs.SnapBlobDirUnder(rootdir), filepath.Base(baseInfo.MountFile())))
+	c.Assert(err, IsNil)
+	c.Check(dst, Equals, "../seed/snaps/core18_3.snap")
+	c.Check(baseBlob, testutil.FilePresent)
+
+	// check that the bootloader (grub here) configuration was copied
+	c.Check(filepath.Join(rootdir, "boot", "grub/grub.cfg"), testutil.FileEquals, grubCfg)
 }

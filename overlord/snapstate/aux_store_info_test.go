@@ -52,20 +52,24 @@ func (s *auxInfoSuite) TestAuxStoreInfoRoundTrip(c *check.C) {
 	c.Assert(osutil.FileExists(filename), check.Equals, false)
 	c.Check(snapstate.RetrieveAuxStoreInfo(info), check.IsNil)
 	c.Check(info.Media, check.HasLen, 0)
+	c.Check(info.Website, check.Equals, "")
 
-	c.Assert(snapstate.KeepAuxStoreInfo(info.SnapID, &snapstate.AuxStoreInfo{Media: media}), check.IsNil)
+	c.Assert(snapstate.KeepAuxStoreInfo(info.SnapID, &snapstate.AuxStoreInfo{Media: media, Website: "http://example.com/some-snap"}), check.IsNil)
 	c.Check(osutil.FileExists(filename), check.Equals, true)
 
 	c.Assert(snapstate.RetrieveAuxStoreInfo(info), check.IsNil)
 	c.Check(info.Media, check.HasLen, 1)
 	c.Check(info.Media, check.DeepEquals, media)
+	c.Check(info.Website, check.Equals, "http://example.com/some-snap")
 	info.Media = nil
+	info.Website = ""
 
 	c.Assert(snapstate.DiscardAuxStoreInfo(info.SnapID), check.IsNil)
 	c.Assert(osutil.FileExists(filename), check.Equals, false)
 
 	c.Check(snapstate.RetrieveAuxStoreInfo(info), check.IsNil)
 	c.Check(info.Media, check.HasLen, 0)
+	c.Check(info.Website, check.Equals, "")
 
 	c.Check(snapstate.DiscardAuxStoreInfo(info.SnapID), check.IsNil)
 }

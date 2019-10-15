@@ -88,7 +88,7 @@ architectures:
 
 	err = snapstate.CheckSnap(s.st, "snap-path", "hello", nil, nil, snapstate.Flags{}, nil)
 
-	errorMsg := fmt.Sprintf(`snap "hello" supported architectures (yadayada, blahblah) are incompatible with this system (%s)`, arch.UbuntuArchitecture())
+	errorMsg := fmt.Sprintf(`snap "hello" supported architectures (yadayada, blahblah) are incompatible with this system (%s)`, arch.DpkgArchitecture())
 	c.Assert(err.Error(), Equals, errorMsg)
 }
 
@@ -1145,4 +1145,107 @@ system-usernames:
 
 		}
 	}
+}
+
+func (s *checkSnapSuite) TestCheckSnapRemodelKernel(c *C) {
+	reset := release.MockOnClassic(false)
+	defer reset()
+
+	st := state.New(nil)
+	st.Lock()
+	defer st.Unlock()
+
+	si := &snap.SideInfo{RealName: "kernel", Revision: snap.R(2), SnapID: "kernel-id"}
+	snaptest.MockSnap(c, `
+name: kernel
+type: kernel
+version: 1
+`, si)
+	snapstate.Set(st, "kernel", &snapstate.SnapState{
+		SnapType: "kernel",
+		Active:   true,
+		Sequence: []*snap.SideInfo{si},
+		Current:  si.Revision,
+	})
+
+	const yaml = `name: new-kernel
+type: kernel
+version: 2
+`
+
+	info, err := snap.InfoFromSnapYaml([]byte(yaml))
+	info.SnapID = "new-kernel-id"
+	c.Assert(err, IsNil)
+
+	var openSnapFile = func(path string, si *snap.SideInfo) (*snap.Info, snap.Container, error) {
+		return info, emptyContainer(c), nil
+	}
+	restore := snapstate.MockOpenSnapFile(openSnapFile)
+	defer restore()
+
+	// happy case, the new-kernel matches the model
+	deviceCtx := &snapstatetest.TrivialDeviceContext{
+		Remodeling: true,
+		DeviceModel: MakeModel(map[string]interface{}{
+			"kernel": "new-kernel",
+			"gadget": "gadget",
+		}),
+	}
+
+	st.Unlock()
+	err = snapstate.CheckSnap(st, "snap-path", "new-kernel", nil, nil, snapstate.Flags{}, deviceCtx)
+	st.Lock()
+	c.Check(err, IsNil)
+}
+
+func (s *checkSnapSuite) TestCheckSnapRemodelGadgetDoesNotWorkYet(c *C) {
+	reset := release.MockOnClassic(false)
+	defer reset()
+
+	st := state.New(nil)
+	st.Lock()
+	defer st.Unlock()
+
+	si := &snap.SideInfo{RealName: "gadget", Revision: snap.R(2), SnapID: "gadget-id"}
+	snaptest.MockSnap(c, `
+name: gadget
+type: gadget
+version: 1
+`, si)
+	snapstate.Set(st, "gadget", &snapstate.SnapState{
+		SnapType: "gadget",
+		Active:   true,
+		Sequence: []*snap.SideInfo{si},
+		Current:  si.Revision,
+	})
+
+	const yaml = `name: new-gadget
+type: gadget
+version: 2
+`
+
+	info, err := snap.InfoFromSnapYaml([]byte(yaml))
+	info.SnapID = "new-gadget-id"
+	c.Assert(err, IsNil)
+
+	var openSnapFile = func(path string, si *snap.SideInfo) (*snap.Info, snap.Container, error) {
+		return info, emptyContainer(c), nil
+	}
+	restore := snapstate.MockOpenSnapFile(openSnapFile)
+	defer restore()
+
+	// happy case, the new-gadget matches the model but we do not
+	// support this yet
+	deviceCtx := &snapstatetest.TrivialDeviceContext{
+		Remodeling: true,
+		DeviceModel: MakeModel(map[string]interface{}{
+			"kernel": "kernel",
+			"gadget": "new-gadget",
+		}),
+	}
+
+	st.Unlock()
+	err = snapstate.CheckSnap(st, "snap-path", "new-kernel", nil, nil, snapstate.Flags{}, deviceCtx)
+	st.Lock()
+	c.Check(err, ErrorMatches, "internal error: cannot remodel gadget yet")
 }

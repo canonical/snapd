@@ -21,8 +21,10 @@ package daemon
 
 import (
 	"errors"
+	"fmt"
 	"net/http"
 	"net/url"
+	"strconv"
 
 	"github.com/snapcore/snapd/asserts"
 	"github.com/snapcore/snapd/overlord/assertstate"
@@ -48,19 +50,29 @@ var (
 // a helper type for parsing the options specified to /v2/assertions and other
 // such endpoints that can either do JSON or assertion depending on the value
 // of the the URL query parameters
-type daemonAssertFormatOptions struct {
+type daemonAssertOptions struct {
 	jsonResult  bool
 	headersOnly bool
+	remote      bool
 	headers     map[string]string
 }
 
 // helper for parsing url query options into formatting option vars
-func parseHeadersFormatOptionsFromURL(q url.Values) (*daemonAssertFormatOptions, error) {
-	res := daemonAssertFormatOptions{}
+func parseHeadersFormatOptionsFromURL(q url.Values) (*daemonAssertOptions, error) {
+	res := daemonAssertOptions{}
 	res.headers = make(map[string]string)
 	for k := range q {
-		if k == "json" {
-			switch q.Get(k) {
+		v := q.Get(k)
+		switch k {
+		case "remote":
+			switch v {
+			case "true", "false":
+				res.remote, _ = strconv.ParseBool(v)
+			default:
+				return nil, errors.New(`"remote" query parameter when used must be set to "true" or "false" or left unset`)
+			}
+		case "json":
+			switch v {
 			case "false":
 				res.jsonResult = false
 			case "headers":
@@ -71,9 +83,9 @@ func parseHeadersFormatOptionsFromURL(q url.Values) (*daemonAssertFormatOptions,
 			default:
 				return nil, errors.New(`"json" query parameter when used must be set to "true" or "headers"`)
 			}
-			continue
+		default:
+			res.headers[k] = v
 		}
-		res.headers[k] = q.Get(k)
 	}
 
 	return &res, nil
@@ -108,6 +120,29 @@ func doAssert(c *Command, r *http.Request, user *auth.UserState) Response {
 	}
 }
 
+func assertsFindOneRemote(c *Command, at *asserts.AssertionType, headers map[string]string, user *auth.UserState) ([]asserts.Assertion, error) {
+	primaryKeys, err := asserts.PrimaryKeyFromHeaders(at, headers)
+	if err != nil {
+		return nil, fmt.Errorf("cannot query remote assertion: %v", err)
+	}
+	sto := getStore(c)
+	as, err := sto.Assertion(at, primaryKeys, user)
+	if err != nil {
+		return nil, err
+	}
+
+	return []asserts.Assertion{as}, nil
+}
+
+func assertsFindManyInState(c *Command, at *asserts.AssertionType, headers map[string]string, opts *daemonAssertOptions) ([]asserts.Assertion, error) {
+	state := c.d.overlord.State()
+	state.Lock()
+	db := assertstate.DB(state)
+	state.Unlock()
+
+	return db.FindMany(at, opts.headers)
+}
+
 func assertsFindMany(c *Command, r *http.Request, user *auth.UserState) Response {
 	assertTypeName := muxVars(r)["assertType"]
 	assertType := asserts.Type(assertTypeName)
@@ -118,12 +153,13 @@ func assertsFindMany(c *Command, r *http.Request, user *auth.UserState) Response
 	if err != nil {
 		return BadRequest(err.Error())
 	}
-	state := c.d.overlord.State()
-	state.Lock()
-	db := assertstate.DB(state)
-	state.Unlock()
 
-	assertions, err := db.FindMany(assertType, opts.headers)
+	var assertions []asserts.Assertion
+	if opts.remote {
+		assertions, err = assertsFindOneRemote(c, assertType, opts.headers, user)
+	} else {
+		assertions, err = assertsFindManyInState(c, assertType, opts.headers, opts)
+	}
 	if err != nil && !asserts.IsNotFound(err) {
 		return InternalError("searching assertions failed: %v", err)
 	}

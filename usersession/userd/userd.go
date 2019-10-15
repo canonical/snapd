@@ -72,6 +72,16 @@ func (ud *Userd) Init() error {
 		&Settings{ud.conn},
 	}
 	for _, iface := range ud.dbusIfaces {
+		// export the interfaces at the godbus API level first to avoid
+		// the race between being able to handle a call to an interface
+		// at the object level and the actual well-known object name
+		// becoming available on the bus
+		xml := "<node>" + iface.IntrospectionData() + introspect.IntrospectDataString + "</node>"
+		ud.conn.Export(iface, iface.BasePath(), iface.Name())
+		ud.conn.Export(introspect.Introspectable(xml), iface.BasePath(), "org.freedesktop.DBus.Introspectable")
+
+		// beyond this point the name is available and all handlers must
+		// have been set up
 		reply, err := ud.conn.RequestName(iface.Name(), dbus.NameFlagDoNotQueue)
 		if err != nil {
 			return err
@@ -80,10 +90,6 @@ func (ud *Userd) Init() error {
 		if reply != dbus.RequestNameReplyPrimaryOwner {
 			return fmt.Errorf("cannot obtain bus name '%s'", iface.Name())
 		}
-
-		xml := "<node>" + iface.IntrospectionData() + introspect.IntrospectDataString + "</node>"
-		ud.conn.Export(iface, iface.BasePath(), iface.Name())
-		ud.conn.Export(introspect.Introspectable(xml), iface.BasePath(), "org.freedesktop.DBus.Introspectable")
 	}
 	return nil
 }
@@ -94,10 +100,9 @@ func (ud *Userd) Start() {
 	ud.tomb.Go(func() error {
 		// Listen to keep our thread up and running. All DBus bits
 		// are running in the background
-		select {
-		case <-ud.tomb.Dying():
-			ud.conn.Close()
-		}
+		<-ud.tomb.Dying()
+		ud.conn.Close()
+
 		err := ud.tomb.Err()
 		if err != nil && err != tomb.ErrStillAlive {
 			return err

@@ -320,7 +320,7 @@ func validateInfoAndFlags(info *snap.Info, snapst *SnapState, flags Flags) error
 
 	// verify we have a valid architecture
 	if !arch.IsSupportedArchitecture(info.Architectures) {
-		return fmt.Errorf("snap %q supported architectures (%s) are incompatible with this system (%s)", info.InstanceName(), strings.Join(info.Architectures, ", "), arch.UbuntuArchitecture())
+		return fmt.Errorf("snap %q supported architectures (%s) are incompatible with this system (%s)", info.InstanceName(), strings.Join(info.Architectures, ", "), arch.DpkgArchitecture())
 	}
 
 	// check assumes
@@ -480,11 +480,22 @@ func checkGadgetOrKernel(st *state.State, snapInfo, curInfo *snap.Info, flags Fl
 
 	currentSnap, err := infoForDeviceSnap(st, deviceCtx, kind, whichName)
 	if err == state.ErrNoState {
-		// TODO: remodeling logic
-		return fmt.Errorf("internal error: cannot remodel kernel/gadget yet")
+		// check if we are in the remodel case
+		if deviceCtx != nil && deviceCtx.ForRemodeling() {
+			model := deviceCtx.Model()
+			if model.Kernel() == snapInfo.InstanceName() {
+				return nil
+			}
+		}
+
+		return fmt.Errorf("internal error: cannot remodel gadget yet")
 	}
 	if err != nil {
 		return fmt.Errorf("cannot find original %s snap: %v", kind, err)
+	}
+
+	if currentSnap.SnapID != "" && snapInfo.SnapID == "" {
+		return fmt.Errorf("cannot replace signed %s snap with an unasserted one", kind)
 	}
 
 	if currentSnap.SnapID != "" && snapInfo.SnapID != "" {
@@ -493,10 +504,6 @@ func checkGadgetOrKernel(st *state.State, snapInfo, curInfo *snap.Info, flags Fl
 			return nil
 		}
 		return fmt.Errorf("cannot replace %s snap with a different one", kind)
-	}
-
-	if currentSnap.SnapID != "" && snapInfo.SnapID == "" {
-		return fmt.Errorf("cannot replace signed %s snap with an unasserted one", kind)
 	}
 
 	if currentSnap.InstanceName() != snapInfo.InstanceName() {

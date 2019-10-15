@@ -495,12 +495,12 @@ func (u *updateTestSuite) TestCanUpdateBareOrFilesystem(c *C) {
 func (u *updateTestSuite) TestCanUpdateVolume(c *C) {
 
 	for idx, tc := range []struct {
-		from gadget.LaidOutVolume
+		from gadget.PartiallyLaidOutVolume
 		to   gadget.LaidOutVolume
 		err  string
 	}{
 		{
-			from: gadget.LaidOutVolume{
+			from: gadget.PartiallyLaidOutVolume{
 				Volume: &gadget.Volume{Schema: ""},
 			},
 			to: gadget.LaidOutVolume{
@@ -508,7 +508,7 @@ func (u *updateTestSuite) TestCanUpdateVolume(c *C) {
 			},
 			err: `cannot change volume schema from "gpt" to "mbr"`,
 		}, {
-			from: gadget.LaidOutVolume{
+			from: gadget.PartiallyLaidOutVolume{
 				Volume: &gadget.Volume{Schema: "gpt"},
 			},
 			to: gadget.LaidOutVolume{
@@ -516,7 +516,7 @@ func (u *updateTestSuite) TestCanUpdateVolume(c *C) {
 			},
 			err: `cannot change volume schema from "gpt" to "mbr"`,
 		}, {
-			from: gadget.LaidOutVolume{
+			from: gadget.PartiallyLaidOutVolume{
 				Volume: &gadget.Volume{ID: "00000000-0000-0000-0000-0000deadbeef"},
 			},
 			to: gadget.LaidOutVolume{
@@ -524,7 +524,7 @@ func (u *updateTestSuite) TestCanUpdateVolume(c *C) {
 			},
 			err: `cannot change volume ID from "00000000-0000-0000-0000-0000deadbeef" to "00000000-0000-0000-0000-0000deadcafe"`,
 		}, {
-			from: gadget.LaidOutVolume{
+			from: gadget.PartiallyLaidOutVolume{
 				Volume: &gadget.Volume{},
 				LaidOutStructure: []gadget.LaidOutStructure{
 					{}, {},
@@ -539,7 +539,7 @@ func (u *updateTestSuite) TestCanUpdateVolume(c *C) {
 			err: `cannot change the number of structures within volume from 2 to 1`,
 		}, {
 			// valid, implicit schema
-			from: gadget.LaidOutVolume{
+			from: gadget.PartiallyLaidOutVolume{
 				Volume: &gadget.Volume{Schema: ""},
 				LaidOutStructure: []gadget.LaidOutStructure{
 					{}, {},
@@ -554,7 +554,7 @@ func (u *updateTestSuite) TestCanUpdateVolume(c *C) {
 			err: ``,
 		}, {
 			// valid
-			from: gadget.LaidOutVolume{
+			from: gadget.PartiallyLaidOutVolume{
 				Volume: &gadget.Volume{Schema: "mbr"},
 				LaidOutStructure: []gadget.LaidOutStructure{
 					{}, {},
@@ -787,7 +787,6 @@ func (u *updateTestSuite) TestUpdateApplyErrorLayout(c *C) {
 		},
 	}
 	bareStructUpdate := bareStruct
-	bareStructUpdate.Update.Edition = 1
 	oldInfo := &gadget.Info{
 		Volumes: map[string]gadget.Volume{
 			"foo": {
@@ -815,15 +814,17 @@ func (u *updateTestSuite) TestUpdateApplyErrorLayout(c *C) {
 
 	rollbackDir := c.MkDir()
 
-	// cannot lay out the old volume without bare struct data
+	// both old and new bare struct data is missing
+
+	// cannot lay out the new volume when bare struct data is missing
 	err := gadget.Update(oldData, newData, rollbackDir)
-	c.Assert(err, ErrorMatches, `cannot lay out the old volume: cannot lay out structure #0 \("foo"\): content "first.img": .* no such file or directory`)
-
-	makeSizedFile(c, filepath.Join(oldRootDir, "first.img"), gadget.SizeMiB, nil)
-
-	// cannot lay out the new volume
-	err = gadget.Update(oldData, newData, rollbackDir)
 	c.Assert(err, ErrorMatches, `cannot lay out the new volume: cannot lay out structure #0 \("foo"\): content "first.img": .* no such file or directory`)
+
+	makeSizedFile(c, filepath.Join(newRootDir, "first.img"), gadget.SizeMiB, nil)
+
+	// Update does not error out when when the bare struct data of the old volume is missing
+	err = gadget.Update(oldData, newData, rollbackDir)
+	c.Assert(err, Equals, gadget.ErrNoUpdate)
 }
 
 func (u *updateTestSuite) TestUpdateApplyErrorIllegalVolumeUpdate(c *C) {

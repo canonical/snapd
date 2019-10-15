@@ -101,13 +101,13 @@ func (m *DeviceManager) doSetModel(t *state.Task, _ *tomb.Tomb) error {
 	}
 	for snapName, snapst := range snapStates {
 		// TODO: remove this type restriction once we remodel
-		//       kernels/gadgets and add tests that ensure
+		//       gadgets and add tests that ensure
 		//       that the required flag is properly set/unset
 		typ, err := snapst.Type()
 		if err != nil {
 			return err
 		}
-		if typ != snap.TypeApp && typ != snap.TypeBase {
+		if typ != snap.TypeApp && typ != snap.TypeBase && typ != snap.TypeKernel {
 			continue
 		}
 		// clean required flag if no-longer needed
@@ -939,8 +939,11 @@ func currentGadgetInfo(snapst *snapstate.SnapState) (*gadget.GadgetData, error) 
 		// no current yet
 		return nil, nil
 	}
-	const onClassic = false
-	gi, err := gadget.ReadInfo(currentInfo.MountDir(), onClassic)
+
+	constraints := &gadget.ModelConstraints{
+		Classic: false,
+	}
+	gi, err := gadget.ReadInfo(currentInfo.MountDir(), constraints)
 	if err != nil {
 		return nil, err
 	}
@@ -952,8 +955,11 @@ func pendingGadgetInfo(snapsup *snapstate.SnapSetup) (*gadget.GadgetData, error)
 	if err != nil {
 		return nil, err
 	}
-	const onClassic = false
-	update, err := gadget.ReadInfo(info.MountDir(), onClassic)
+
+	constraints := &gadget.ModelConstraints{
+		Classic: false,
+	}
+	update, err := gadget.ReadInfo(info.MountDir(), constraints)
 	if err != nil {
 		return nil, err
 	}
