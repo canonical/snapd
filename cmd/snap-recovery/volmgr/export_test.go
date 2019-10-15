@@ -18,8 +18,10 @@
  */
 package volmgr
 
-type LsblkFilesystemInfo lsblkFilesystemInfo
-type LsblkBlockDevice lsblkBlockDevice
+type LsblkFilesystemInfo = lsblkFilesystemInfo
+type LsblkBlockDevice = lsblkBlockDevice
+type SFDiskPartitionTable = sfdiskPartitionTable
+type SFDiskPartition = sfdiskPartition
 
 var (
 	// sfdisk

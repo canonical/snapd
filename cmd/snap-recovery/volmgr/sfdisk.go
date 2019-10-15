@@ -35,22 +35,22 @@ var (
 	_ partitionTool = (*SFDisk)(nil)
 )
 
-// SFDiskDeviceDump represents the sfdisk --dump JSON output format.
-type SFDiskDeviceDump struct {
-	PartitionTable SFDiskPartitionTable `json:"partitiontable"`
+// sfdiskDeviceDump represents the sfdisk --dump JSON output format.
+type sfdiskDeviceDump struct {
+	PartitionTable sfdiskPartitionTable `json:"partitiontable"`
 }
 
-type SFDiskPartitionTable struct {
+type sfdiskPartitionTable struct {
 	Label      string            `json:"label"`
 	ID         string            `json:"id"`
 	Device     string            `json:"device"`
 	Unit       string            `json:"unit"`
 	FirstLBA   uint64            `json:"firstlba"`
 	LastLBA    uint64            `json:"lastlba"`
-	Partitions []SFDiskPartition `json:"partitions"`
+	Partitions []sfdiskPartition `json:"partitions"`
 }
 
-type SFDiskPartition struct {
+type sfdiskPartition struct {
 	Node  string `json:"node"`
 	Start uint64 `json:"start"`
 	Size  uint64 `json:"size"`
@@ -61,7 +61,7 @@ type SFDiskPartition struct {
 
 type SFDisk struct {
 	device         string
-	partitionTable *SFDiskPartitionTable
+	partitionTable *sfdiskPartitionTable
 }
 
 func newSFDisk(device string) *SFDisk {
@@ -78,7 +78,7 @@ func (sf *SFDisk) DeviceInfo() (*gadget.LaidOutVolume, error) {
 		return nil, osutil.OutputErr(output, err)
 	}
 
-	var dump SFDiskDeviceDump
+	var dump sfdiskDeviceDump
 	if err := json.Unmarshal(output, &dump); err != nil {
 		return nil, fmt.Errorf("cannot parse sfdisk output: %v", err)
 	}
@@ -116,7 +116,7 @@ func (sf *SFDisk) CreatePartitions(pv *gadget.LaidOutVolume, usedPartitions []bo
 
 // positionedVolumeFromDump takes an sfdisk dump format and returns the partitioning
 // information as a laid out volume.
-func positionedVolumeFromDump(dump *SFDiskDeviceDump) (*gadget.LaidOutVolume, error) {
+func positionedVolumeFromDump(dump *sfdiskDeviceDump) (*gadget.LaidOutVolume, error) {
 	ptable := dump.PartitionTable
 
 	if ptable.Unit != "sectors" {
@@ -179,7 +179,7 @@ func deviceName(name string, index int) string {
 // buildPartitionList builds a list of partitions based on the current device contents
 // and gadget structure list, in sfdisk dump format. Return a partitioning description
 // suitable for sfdisk input and a role to device node map.
-func buildPartitionList(ptable *SFDiskPartitionTable, pv *gadget.LaidOutVolume, usedPartitions []bool) (*bytes.Buffer, map[string]string) {
+func buildPartitionList(ptable *sfdiskPartitionTable, pv *gadget.LaidOutVolume, usedPartitions []bool) (*bytes.Buffer, map[string]string) {
 	buf := &bytes.Buffer{}
 	deviceMap := map[string]string{}
 
