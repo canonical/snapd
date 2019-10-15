@@ -131,8 +131,11 @@ func positionedVolumeFromDump(dump *SFDiskDeviceDump) (*gadget.LaidOutVolume, er
 		if err != nil {
 			return nil, fmt.Errorf("cannot obtain filesystem information: %v", err)
 		}
-		if len(info.BlockDevices) < 1 {
+		switch {
+		case len(info.BlockDevices) == 0:
 			continue
+		case len(info.BlockDevices) > 1:
+			return nil, fmt.Errorf("unexpected number of blockdevices for node %q: %v", p.Node, info.BlockDevices)
 		}
 		bd := info.BlockDevices[0]
 
