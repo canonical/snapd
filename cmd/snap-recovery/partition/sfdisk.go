@@ -62,7 +62,7 @@ type SFDisk struct {
 	partitionTable *sfdiskPartitionTable
 }
 
-func newSFDisk(device string) *SFDisk {
+func NewSFDisk(device string) *SFDisk {
 	return &SFDisk{
 		device: device,
 	}

@@ -24,8 +24,6 @@ type SFDiskPartitionTable = sfdiskPartitionTable
 type SFDiskPartition = sfdiskPartition
 
 var (
-	// sfdisk
-	NewSFDisk          = newSFDisk
 	FilesystemInfo     = filesystemInfo
 	BuildPartitionList = buildPartitionList
 )
