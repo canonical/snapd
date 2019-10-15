@@ -23,7 +23,7 @@ import (
 
 	. "gopkg.in/check.v1"
 
-	"github.com/snapcore/snapd/cmd/recovery-tool/volmgr"
+	"github.com/snapcore/snapd/cmd/snap-recovery/volmgr"
 	"github.com/snapcore/snapd/gadget"
 	"github.com/snapcore/snapd/testutil"
 )
@@ -172,7 +172,6 @@ const gadgetContent = `volumes:
         filesystem: vfat
         # UEFI will boot the ESP partition by default first
         type: EF,C12A7328-F81F-11D2-BA4B-00A0C93EC93B
-        filesystem-label: ubuntu-seed
         size: 1200M
         content:
           - source: grubx64.efi
@@ -181,7 +180,6 @@ const gadgetContent = `volumes:
         role: system-data
         filesystem: ext4
         type: 83,0FC63DAF-8483-4772-8E79-3D69D8477DE4
-        filesystem-label: ubuntu-data
         size: 1200M
 `
 

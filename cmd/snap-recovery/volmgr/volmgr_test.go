@@ -32,13 +32,12 @@ import (
 
 func TestVolMgr(t *testing.T) { TestingT(t) }
 
-type volmgrTestSuite struct {
-}
+type volmgrTestSuite struct{}
 
 var _ = Suite(&volmgrTestSuite{})
 
 func positionedVolumeFromGadget(gadgetRoot string) (*gadget.LaidOutVolume, error) {
-	info, err := gadget.ReadInfo(gadgetRoot, false)
+	info, err := gadget.ReadInfo(gadgetRoot, nil)
 	if err != nil {
 		return nil, err
 	}
