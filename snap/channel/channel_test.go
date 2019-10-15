@@ -245,6 +245,10 @@ func (s *storeChannelSuite) TestFull(c *C) {
 		c.Assert(err, IsNil)
 
 		c.Check(ch.Full(), Equals, t.str)
+
+		can, err := channel.Canonize(t.channel)
+		c.Assert(err, IsNil)
+		c.Check(can, Equals, t.str)
 	}
 }
 

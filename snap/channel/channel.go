@@ -39,6 +39,40 @@ type Channel struct {
 	Branch       string `json:"branch,omitempty"`
 }
 
+func isSlash(r rune) bool { return r == '/' }
+
+func Canonize(s string) (string, error) {
+	if s == "" {
+		return "", nil
+	}
+	// XXX: this is what we *want* to do here:
+	// 	ch, err := Parse(s, "none")
+	// 	if err != nil {
+	// 		return "", err
+	// 	}
+	// 	return ch.Full(), nil
+	// instead, for now, we do this:
+	components := strings.FieldsFunc(s, isSlash)
+	switch len(components) {
+	case 0:
+		return "", nil
+	case 1:
+		if strutil.ListContains(channelRisks, components[0]) {
+			return "latest/" + components[0], nil
+		}
+		return components[0] + "/stable", nil
+	case 2:
+		if strutil.ListContains(channelRisks, components[0]) {
+			return "latest/" + strings.Join(components, "/"), nil
+		}
+		fallthrough
+	case 3:
+		return strings.Join(components, "/"), nil
+	default:
+		return "", errors.New("Invalid channel")
+	}
+}
+
 // ParseVerbatim parses a string representing a store channel and
 // includes the given architecture, if architecture is "" the system
 // architecture is included. The channel representation is not normalized.
