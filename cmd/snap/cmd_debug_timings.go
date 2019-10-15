@@ -125,7 +125,7 @@ func sortTimingsTasks(timings map[string]changeTimings) []string {
 				return t1.ReadyTime.Before(minReadyTime)
 			}
 			if t2.Lane == 0 {
-				return t2.ReadyTime.After(minReadyTime)
+				return !t2.ReadyTime.Before(minReadyTime)
 			}
 			// different lanes (but neither of them is 0), order by lane
 			return t1.Lane < t2.Lane
