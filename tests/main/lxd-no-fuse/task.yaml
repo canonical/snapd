@@ -29,6 +29,7 @@ execute: |
     lxd.lxc exec my-ubuntu -- apt autoremove -y fuse
 
     echo "Install snapd"
+    lxd.lxc exec my-ubuntu -- apt update
     lxd.lxc exec my-ubuntu -- mkdir -p "$GOHOME"
     lxd.lxc file push "$GOHOME"/snapd_*.deb "my-ubuntu/$GOHOME/"
     lxd.lxc exec my-ubuntu -- apt install -y "$GOHOME"/snapd_*.deb
