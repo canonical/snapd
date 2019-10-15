@@ -31,58 +31,69 @@ import (
 	"github.com/snapcore/snapd/snap"
 )
 
-func (s *imageSuite) TestDownloadOptionsString(c *check.C) {
-	for opts, str := range map[image.DownloadOptions]string{
-		{LeavePartialOnError: true}: "",
-		{}:                     "",
-		{TargetDir: "/foo"}:    `in "/foo"`,
-		{Basename: "foo"}:      `to "foo.snap"`,
-		{Channel: "foo"}:       `from channel "foo"`,
-		{Revision: snap.R(42)}: `(42)`,
-		{
+func (s *imageSuite) TestDownloadpOptionsString(c *check.C) {
+	tests := []struct {
+		opts image.DownloadOptions
+		str  string
+	}{
+		{image.DownloadOptions{LeavePartialOnError: true}, ""},
+		{image.DownloadOptions{}, ""},
+		{image.DownloadOptions{TargetDir: "/foo"}, `in "/foo"`},
+		{image.DownloadOptions{Basename: "foo"}, `to "foo.snap"`},
+		{image.DownloadOptions{Channel: "foo"}, `from channel "foo"`},
+		{image.DownloadOptions{Revision: snap.R(42)}, `(42)`},
+		{image.DownloadOptions{
 			CohortKey: "AbCdEfGhIjKlMnOpQrStUvWxYz",
-		}: `from cohort "…rStUvWxYz"`,
-		{
+		}, `from cohort "…rStUvWxYz"`},
+		{image.DownloadOptions{
 			TargetDir: "/foo",
 			Basename:  "bar",
 			Channel:   "baz",
 			Revision:  snap.R(13),
 			CohortKey: "MSBIc3dwOW9PemozYjRtdzhnY0MwMFh0eFduS0g5UWlDUSAxNTU1NDExNDE1IDBjYzJhNTc1ZjNjOTQ3ZDEwMWE1NTNjZWFkNmFmZDE3ZWJhYTYyNjM4ZWQ3ZGMzNjI5YmU4YjQ3NzAwMjdlMDk=",
-		}: `(13) from channel "baz" from cohort "…wMjdlMDk=" to "bar.snap" in "/foo"`, // note this one is not 'valid' so it's ok if the string is a bit wonky
-	} {
-		c.Check(opts.String(), check.Equals, str)
+		}, `(13) from channel "baz" from cohort "…wMjdlMDk=" to "bar.snap" in "/foo"`}, // note this one is not 'valid' so it's ok if the string is a bit wonky
+
+	}
+
+	for _, t := range tests {
+		c.Check(t.opts.String(), check.Equals, t.str)
 	}
 }
 
 func (s *imageSuite) TestDownloadOptionsValid(c *check.C) {
-	for opts, err := range map[image.DownloadOptions]error{
-		{}:                     nil, // might want to error if no targetdir
-		{TargetDir: "foo"}:     nil,
-		{Channel: "foo"}:       nil,
-		{Revision: snap.R(42)}: nil,
-		{
+	tests := []struct {
+		opts image.DownloadOptions
+		err  error
+	}{
+		{image.DownloadOptions{}, nil}, // might want to error if no targetdir
+		{image.DownloadOptions{TargetDir: "foo"}, nil},
+		{image.DownloadOptions{Channel: "foo"}, nil},
+		{image.DownloadOptions{Revision: snap.R(42)}, nil},
+		{image.DownloadOptions{
 			CohortKey: "AbCdEfGhIjKlMnOpQrStUvWxYz",
-		}: nil,
-		{
+		}, nil},
+		{image.DownloadOptions{
 			Channel:  "foo",
 			Revision: snap.R(42),
-		}: nil,
-		{
+		}, nil},
+		{image.DownloadOptions{
 			Channel:   "foo",
 			CohortKey: "bar",
-		}: nil,
-		{
+		}, nil},
+		{image.DownloadOptions{
 			Revision:  snap.R(1),
 			CohortKey: "bar",
-		}: image.ErrRevisionAndCohort,
-		{
+		}, image.ErrRevisionAndCohort},
+		{image.DownloadOptions{
 			Basename: "/foo",
-		}: image.ErrPathInBase,
-	} {
-		opts.LeavePartialOnError = true
-		c.Check(opts.Validate(), check.Equals, err)
-		opts.LeavePartialOnError = false
-		c.Check(opts.Validate(), check.Equals, err)
+		}, image.ErrPathInBase},
+	}
+
+	for _, t := range tests {
+		t.opts.LeavePartialOnError = true
+		c.Check(t.opts.Validate(), check.Equals, t.err)
+		t.opts.LeavePartialOnError = false
+		c.Check(t.opts.Validate(), check.Equals, t.err)
 	}
 }
 
@@ -103,8 +114,7 @@ func (s *imageSuite) TestDownloadSnap(c *check.C) {
 	logbuf, restore := logger.MockLogger()
 	defer restore()
 
-	gadgetUnpackDir := c.MkDir()
-	s.setupSnaps(c, gadgetUnpackDir, map[string]string{
+	s.setupSnaps(c, map[string]string{
 		"core": "canonical",
 	})
 

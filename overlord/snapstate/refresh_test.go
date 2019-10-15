@@ -33,9 +33,11 @@ import (
 	"github.com/snapcore/snapd/overlord/state"
 	"github.com/snapcore/snapd/snap"
 	"github.com/snapcore/snapd/snap/snaptest"
+	"github.com/snapcore/snapd/testutil"
 )
 
 type refreshSuite struct {
+	testutil.BaseTest
 	state *state.State
 	info  *snap.Info
 
@@ -48,7 +50,12 @@ type refreshSuite struct {
 var _ = Suite(&refreshSuite{})
 
 func (s *refreshSuite) SetUpTest(c *C) {
+	s.BaseTest.SetUpTest(c)
+
 	dirs.SetRootDir(c.MkDir())
+	mockPidsCgroupDir := c.MkDir()
+	s.AddCleanup(snapstate.MockPidsCgroupDir(mockPidsCgroupDir))
+
 	yamlText := `
 name: foo
 version: 1
@@ -62,13 +69,14 @@ hooks:
   configure:
 `
 	s.info = snaptest.MockInfo(c, yamlText, nil)
-	s.daemonPath = filepath.Join(dirs.PidsCgroupDir, s.info.Apps["daemon"].SecurityTag())
-	s.appPath = filepath.Join(dirs.PidsCgroupDir, s.info.Apps["app"].SecurityTag())
-	s.hookPath = filepath.Join(dirs.PidsCgroupDir, s.info.Hooks["configure"].SecurityTag())
+	s.daemonPath = filepath.Join(mockPidsCgroupDir, s.info.Apps["daemon"].SecurityTag())
+	s.appPath = filepath.Join(mockPidsCgroupDir, s.info.Apps["app"].SecurityTag())
+	s.hookPath = filepath.Join(mockPidsCgroupDir, s.info.Hooks["configure"].SecurityTag())
 }
 
 func (s *refreshSuite) TearDownTest(c *C) {
 	dirs.SetRootDir("")
+	s.BaseTest.TearDownTest(c)
 }
 
 func writePids(c *C, dir string, pids []int) {

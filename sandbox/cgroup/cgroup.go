@@ -22,8 +22,10 @@ package cgroup
 import (
 	"bufio"
 	"fmt"
+	"io"
 	"os"
 	"path/filepath"
+	"strconv"
 	"strings"
 	"syscall"
 
@@ -109,9 +111,67 @@ func Version() (int, error) {
 	return probeVersion, probeErr
 }
 
+// GroupMatcher attempts to match the cgroup entry
+type GroupMatcher interface {
+	String() string
+	// Match returns true when given tuple of hierarchy-ID and controllers is a match
+	Match(id, maybeControllers string) bool
+}
+
+type unified struct{}
+
+func (u *unified) Match(id, maybeControllers string) bool {
+	return id == "0" && maybeControllers == ""
+}
+func (u *unified) String() string { return "unified hierarchy" }
+
+// MatchUnifiedHierarchy provides matches for unified cgroup hierarchies
+func MatchUnifiedHierarchy() GroupMatcher {
+	return &unified{}
+}
+
+type v1NamedHierarchy struct {
+	name string
+}
+
+func (n *v1NamedHierarchy) Match(_, maybeControllers string) bool {
+	if !strings.HasPrefix(maybeControllers, "name=") {
+		return false
+	}
+	name := strings.TrimPrefix(maybeControllers, "name=")
+	return name == n.name
+}
+
+func (n *v1NamedHierarchy) String() string { return fmt.Sprintf("named hierarchy %q", n.name) }
+
+// MatchV1NamedHierarchy provides a matcher for a given named v1 hierarchy
+func MatchV1NamedHierarchy(hierarchyName string) GroupMatcher {
+	return &v1NamedHierarchy{name: hierarchyName}
+}
+
+type v1Controller struct {
+	controller string
+}
+
+func (n *v1Controller) Match(_, maybeControllers string) bool {
+	controllerList := strings.Split(maybeControllers, ",")
+	return strutil.ListContains(controllerList, n.controller)
+}
+
+func (n *v1Controller) String() string { return fmt.Sprintf("controller %q", n.controller) }
+
+// MatchV1Controller provides a matches for a given v1 controller
+func MatchV1Controller(controller string) GroupMatcher {
+	return &v1Controller{controller: controller}
+}
+
 // ProcGroup finds the path of a given cgroup controller for provided process
 // id.
-func ProcGroup(pid int, controller string) (string, error) {
+func ProcGroup(pid int, matcher GroupMatcher) (string, error) {
+	if matcher == nil {
+		return "", fmt.Errorf("internal error: cgroup matcher is nil")
+	}
+
 	f, err := os.Open(ProcPidPath(pid))
 	if err != nil {
 		return "", err
@@ -125,15 +185,17 @@ func ProcGroup(pid int, controller string) (string, error) {
 		//   <id>:<controller[,controller]>:/<path>
 		//   7:freezer:/snap.hello-world
 		//   ...
-		// See cgroup(7) for details about the /proc/[pid]/cgroup
+		// See cgroups(7) for details about the /proc/[pid]/cgroup
 		// format.
 		l := strings.Split(scanner.Text(), ":")
 		if len(l) < 3 {
 			continue
 		}
-		controllerList := strings.Split(l[1], ",")
+		id := l[0]
+		maybeControllerList := l[1]
 		cgroupPath := l[2]
-		if !strutil.ListContains(controllerList, controller) {
+
+		if !matcher.Match(id, maybeControllerList) {
 			continue
 		}
 
@@ -143,7 +205,50 @@ func ProcGroup(pid int, controller string) (string, error) {
 		return "", scanner.Err()
 	}
 
-	return "", fmt.Errorf("cannot find cgroup controller %q path for pid %v", controller, pid)
+	return "", fmt.Errorf("cannot find %s cgroup path for pid %v", matcher, pid)
+}
+
+// PidsInGroup returns the list of process ID currently registered in a given cgroup
+func PidsInGroup(hierarchyMount, groupPath string) ([]int, error) {
+	// TODO: check whether hierarchyMount looks like a valid cgroup root
+	// (i.e. at cgroup.procs exists)
+	fname := filepath.Join(hierarchyMount, groupPath, "cgroup.procs")
+	file, err := os.Open(fname)
+	if os.IsNotExist(err) {
+		return nil, nil
+	}
+	if err != nil {
+		return nil, err
+	}
+	defer file.Close()
+	return parsePids(bufio.NewReader(file))
+}
+
+// parsePid parses a string as a process identifier.
+func parsePid(text string) (int, error) {
+	pid, err := strconv.Atoi(text)
+	if err != nil || (err == nil && pid <= 0) {
+		return 0, fmt.Errorf("cannot parse pid %q", text)
+	}
+	return pid, err
+}
+
+// parsePids parses a list of pids, one per line, from a reader.
+func parsePids(reader io.Reader) ([]int, error) {
+	scanner := bufio.NewScanner(reader)
+	var pids []int
+	for scanner.Scan() {
+		s := scanner.Text()
+		pid, err := parsePid(s)
+		if err != nil {
+			return nil, err
+		}
+		pids = append(pids, pid)
+	}
+	if err := scanner.Err(); err != nil {
+		return nil, err
+	}
+	return pids, nil
 }
 
 // MockVersion sets the reported version of cgroup support. For use in testing only
