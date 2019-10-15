@@ -68,7 +68,7 @@ func positionedVolumeFromGadget(gadgetRoot string) (*gadget.LaidOutVolume, error
 	return positionedVolume[name], nil
 }
 
-func createGadget(gadgetRoot, gadgetContent string) error {
+func makeMockGadget(gadgetRoot, gadgetContent string) error {
 	if err := os.MkdirAll(path.Join(gadgetRoot, "meta"), 0755); err != nil {
 		return err
 	}

@@ -237,7 +237,7 @@ func (s *volmgrTestSuite) TestBuildPartitionList(c *C) {
 	}
 
 	gadgetRoot := path.Join(c.MkDir(), "gadget")
-	err := createGadget(gadgetRoot, gadgetContent)
+	err := makeMockGadget(gadgetRoot, gadgetContent)
 	c.Assert(err, IsNil)
 	pv, err := positionedVolumeFromGadget(gadgetRoot)
 	c.Assert(err, IsNil)
@@ -271,7 +271,7 @@ func (s *volmgrTestSuite) TestCreatePartitions(c *C) {
 	defer cmdBlockdev.Restore()
 
 	gadgetRoot := path.Join(c.MkDir(), "gadget")
-	err := createGadget(gadgetRoot, gadgetContent)
+	err := makeMockGadget(gadgetRoot, gadgetContent)
 	c.Assert(err, IsNil)
 	pv, err := positionedVolumeFromGadget(gadgetRoot)
 	c.Assert(err, IsNil)
