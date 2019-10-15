@@ -204,7 +204,7 @@ func buildPartitionList(ptable *sfdiskPartitionTable, pv *gadget.LaidOutVolume, 
 			continue
 		}
 		// Skip MBR structure
-		if s.Type == "mbr" {
+		if s.Type == "mbr" || s.Type == "bare" {
 			continue
 		}
 		// Can we use the index here? Get the largest existing partition number and
