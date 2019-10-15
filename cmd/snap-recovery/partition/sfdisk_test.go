@@ -19,7 +19,7 @@
 package partition_test
 
 import (
-	"path"
+	"path/filepath"
 
 	. "gopkg.in/check.v1"
 
@@ -236,7 +236,7 @@ func (s *partitionTestSuite) TestBuildPartitionList(c *C) {
 		},
 	}
 
-	gadgetRoot := path.Join(c.MkDir(), "gadget")
+	gadgetRoot := filepath.Join(c.MkDir(), "gadget")
 	err := makeMockGadget(gadgetRoot, gadgetContent)
 	c.Assert(err, IsNil)
 	pv, err := positionedVolumeFromGadget(gadgetRoot)
@@ -270,7 +270,7 @@ func (s *partitionTestSuite) TestCreatePartitions(c *C) {
 	cmdBlockdev := testutil.MockCommand(c, "blockdev", "exit 0")
 	defer cmdBlockdev.Restore()
 
-	gadgetRoot := path.Join(c.MkDir(), "gadget")
+	gadgetRoot := filepath.Join(c.MkDir(), "gadget")
 	err := makeMockGadget(gadgetRoot, gadgetContent)
 	c.Assert(err, IsNil)
 	pv, err := positionedVolumeFromGadget(gadgetRoot)

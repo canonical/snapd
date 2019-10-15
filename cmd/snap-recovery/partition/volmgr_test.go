@@ -22,7 +22,7 @@ import (
 	"fmt"
 	"io/ioutil"
 	"os"
-	"path"
+	"path/filepath"
 	"testing"
 
 	. "gopkg.in/check.v1"
@@ -69,16 +69,16 @@ func positionedVolumeFromGadget(gadgetRoot string) (*gadget.LaidOutVolume, error
 }
 
 func makeMockGadget(gadgetRoot, gadgetContent string) error {
-	if err := os.MkdirAll(path.Join(gadgetRoot, "meta"), 0755); err != nil {
+	if err := os.MkdirAll(filepath.Join(gadgetRoot, "meta"), 0755); err != nil {
 		return err
 	}
-	if err := ioutil.WriteFile(path.Join(gadgetRoot, "meta", "gadget.yaml"), []byte(gadgetContent), 0644); err != nil {
+	if err := ioutil.WriteFile(filepath.Join(gadgetRoot, "meta", "gadget.yaml"), []byte(gadgetContent), 0644); err != nil {
 		return err
 	}
-	if err := ioutil.WriteFile(path.Join(gadgetRoot, "pc-boot.img"), nil, 0644); err != nil {
+	if err := ioutil.WriteFile(filepath.Join(gadgetRoot, "pc-boot.img"), nil, 0644); err != nil {
 		return err
 	}
-	if err := ioutil.WriteFile(path.Join(gadgetRoot, "grubx64.efi"), nil, 0644); err != nil {
+	if err := ioutil.WriteFile(filepath.Join(gadgetRoot, "grubx64.efi"), nil, 0644); err != nil {
 		return err
 	}
 
