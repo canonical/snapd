@@ -16,14 +16,14 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  *
  */
-package volmgr_test
+package partition_test
 
 import (
 	"path"
 
 	. "gopkg.in/check.v1"
 
-	"github.com/snapcore/snapd/cmd/snap-recovery/volmgr"
+	"github.com/snapcore/snapd/cmd/snap-recovery/partition"
 	"github.com/snapcore/snapd/gadget"
 	"github.com/snapcore/snapd/testutil"
 )
@@ -43,7 +43,7 @@ const mockSfdiskScript = `echo '{
    }
 }'`
 
-func (s *volmgrTestSuite) TestDeviceInfo(c *C) {
+func (s *partitionTestSuite) TestDeviceInfo(c *C) {
 	cmdSfdisk := testutil.MockCommand(c, "sfdisk", mockSfdiskScript)
 	defer cmdSfdisk.Restore()
 
@@ -57,7 +57,7 @@ func (s *volmgrTestSuite) TestDeviceInfo(c *C) {
 exit 0`)
 	defer cmdLsblk.Restore()
 
-	sf := volmgr.NewSFDisk("/dev/node")
+	sf := partition.NewSFDisk("/dev/node")
 	pv, err := sf.DeviceInfo()
 	c.Assert(cmdSfdisk.Calls(), DeepEquals, [][]string{
 		{"sfdisk", "--json", "-d", "/dev/node"},
@@ -88,7 +88,7 @@ exit 0`)
 	})
 }
 
-func (s *volmgrTestSuite) TestDeviceInfoNotSectors(c *C) {
+func (s *partitionTestSuite) TestDeviceInfoNotSectors(c *C) {
 	cmdSfdisk := testutil.MockCommand(c, "sfdisk", `echo '{
    "partitiontable": {
       "label": "gpt",
@@ -104,12 +104,12 @@ func (s *volmgrTestSuite) TestDeviceInfoNotSectors(c *C) {
 }'`)
 	defer cmdSfdisk.Restore()
 
-	sf := volmgr.NewSFDisk("/dev/node")
+	sf := partition.NewSFDisk("/dev/node")
 	_, err := sf.DeviceInfo()
 	c.Assert(err, ErrorMatches, "cannot position partitions: unknown unit .*")
 }
 
-func (s *volmgrTestSuite) TestDeviceInfoFilesystemInfoError(c *C) {
+func (s *partitionTestSuite) TestDeviceInfoFilesystemInfoError(c *C) {
 	cmdSfdisk := testutil.MockCommand(c, "sfdisk", `echo '{
    "partitiontable": {
       "label": "gpt",
@@ -128,26 +128,26 @@ func (s *volmgrTestSuite) TestDeviceInfoFilesystemInfoError(c *C) {
 	cmdLsblk := testutil.MockCommand(c, "lsblk", "echo lsblk error; exit 1")
 	defer cmdLsblk.Restore()
 
-	sf := volmgr.NewSFDisk("/dev/node")
+	sf := partition.NewSFDisk("/dev/node")
 	_, err := sf.DeviceInfo()
 	c.Assert(err, ErrorMatches, "cannot obtain filesystem information: lsblk error")
 }
 
-func (s *volmgrTestSuite) TestDeviceInfoJsonError(c *C) {
+func (s *partitionTestSuite) TestDeviceInfoJsonError(c *C) {
 	cmd := testutil.MockCommand(c, "sfdisk", `echo 'This is not a json'`)
 	defer cmd.Restore()
 
-	sf := volmgr.NewSFDisk("/dev/node")
+	sf := partition.NewSFDisk("/dev/node")
 	info, err := sf.DeviceInfo()
 	c.Assert(err, ErrorMatches, "cannot parse sfdisk output: invalid .*")
 	c.Assert(info, IsNil)
 }
 
-func (s *volmgrTestSuite) TestDeviceInfoError(c *C) {
+func (s *partitionTestSuite) TestDeviceInfoError(c *C) {
 	cmd := testutil.MockCommand(c, "sfdisk", "echo 'sfdisk: not found'; exit 127")
 	defer cmd.Restore()
 
-	sf := volmgr.NewSFDisk("/dev/node")
+	sf := partition.NewSFDisk("/dev/node")
 	info, err := sf.DeviceInfo()
 	c.Assert(err, ErrorMatches, "sfdisk: not found")
 	c.Assert(info, IsNil)
@@ -210,21 +210,21 @@ const lsblkMockScript = `echo '{
     ]
 }'`
 
-func (s *volmgrTestSuite) TestBuildPartitionList(c *C) {
+func (s *partitionTestSuite) TestBuildPartitionList(c *C) {
 	cmdSfdisk := testutil.MockCommand(c, "sfdisk", mockSfdiskScript)
 	defer cmdSfdisk.Restore()
 
 	cmdLsblk := testutil.MockCommand(c, "lsblk", lsblkMockScript)
 	defer cmdLsblk.Restore()
 
-	ptable := &volmgr.SFDiskPartitionTable{
+	ptable := &partition.SFDiskPartitionTable{
 		Label:    "gpt",
 		ID:       "9151F25B-CDF0-48F1-9EDE-68CBD616E2CA",
 		Device:   "/dev/node",
 		Unit:     "sectors",
 		FirstLBA: 34,
 		LastLBA:  8388574,
-		Partitions: []volmgr.SFDiskPartition{
+		Partitions: []partition.SFDiskPartition{
 			{
 				Node:  "/dev/node1",
 				Start: 2048,
@@ -242,7 +242,7 @@ func (s *volmgrTestSuite) TestBuildPartitionList(c *C) {
 	pv, err := positionedVolumeFromGadget(gadgetRoot)
 	c.Assert(err, IsNil)
 
-	plist, deviceMap := volmgr.BuildPartitionList(ptable, pv, []bool{true, true, false, false})
+	plist, deviceMap := partition.BuildPartitionList(ptable, pv, []bool{true, true, false, false})
 	c.Assert(plist.String(), Equals, `label: gpt
 label-id: 9151F25B-CDF0-48F1-9EDE-68CBD616E2CA
 device: /dev/node
@@ -260,7 +260,7 @@ last-lba: 8388574
 	})
 }
 
-func (s *volmgrTestSuite) TestCreatePartitions(c *C) {
+func (s *partitionTestSuite) TestCreatePartitions(c *C) {
 	cmdSfdisk := testutil.MockCommand(c, "sfdisk", mockSfdiskScript)
 	defer cmdSfdisk.Restore()
 
@@ -276,7 +276,7 @@ func (s *volmgrTestSuite) TestCreatePartitions(c *C) {
 	pv, err := positionedVolumeFromGadget(gadgetRoot)
 	c.Assert(err, IsNil)
 
-	sf := volmgr.NewSFDisk("/dev/node")
+	sf := partition.NewSFDisk("/dev/node")
 	_, err = sf.DeviceInfo()
 	c.Assert(err, IsNil)
 	deviceMap, err := sf.CreatePartitions(pv, []bool{true, true, false, false})
@@ -296,7 +296,7 @@ func (s *volmgrTestSuite) TestCreatePartitions(c *C) {
 	c.Assert(cmdBlockdev.Calls(), DeepEquals, [][]string{{"blockdev", "--rereadpt", "/dev/node"}})
 }
 
-func (s *volmgrTestSuite) TestFilesystemInfo(c *C) {
+func (s *partitionTestSuite) TestFilesystemInfo(c *C) {
 	cmd := testutil.MockCommand(c, "lsblk", `echo '{
    "blockdevices": [
       {"name": "loop8p2", "fstype": "vfat", "label": "ubuntu-seed", "uuid": "C1F4-CE43", "mountpoint": null}
@@ -304,7 +304,7 @@ func (s *volmgrTestSuite) TestFilesystemInfo(c *C) {
 }'`)
 	defer cmd.Restore()
 
-	info, err := volmgr.FilesystemInfo("/dev/node")
+	info, err := partition.FilesystemInfo("/dev/node")
 	c.Assert(cmd.Calls(), DeepEquals, [][]string{
 		{"lsblk", "--fs", "--json", "/dev/node"},
 	})
@@ -317,20 +317,20 @@ func (s *volmgrTestSuite) TestFilesystemInfo(c *C) {
 	c.Assert(bd.UUID, Equals, "C1F4-CE43")
 }
 
-func (s *volmgrTestSuite) TestFilesystemInfoJsonError(c *C) {
+func (s *partitionTestSuite) TestFilesystemInfoJsonError(c *C) {
 	cmd := testutil.MockCommand(c, "lsblk", `echo 'This is not a json'`)
 	defer cmd.Restore()
 
-	info, err := volmgr.FilesystemInfo("/dev/node")
+	info, err := partition.FilesystemInfo("/dev/node")
 	c.Assert(err, ErrorMatches, "cannot parse lsblk output: invalid .*")
 	c.Assert(info, IsNil)
 }
 
-func (s *volmgrTestSuite) TestFilesystemInfoError(c *C) {
+func (s *partitionTestSuite) TestFilesystemInfoError(c *C) {
 	cmd := testutil.MockCommand(c, "lsblk", "echo 'lsblk: not found'; exit 127")
 	defer cmd.Restore()
 
-	info, err := volmgr.FilesystemInfo("/dev/node")
+	info, err := partition.FilesystemInfo("/dev/node")
 	c.Assert(err, ErrorMatches, "lsblk: not found")
 	c.Assert(info, IsNil)
 }

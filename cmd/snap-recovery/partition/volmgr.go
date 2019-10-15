@@ -16,16 +16,14 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  *
  */
-package volmgr
+package partition
 
-type LsblkFilesystemInfo = lsblkFilesystemInfo
-type LsblkBlockDevice = lsblkBlockDevice
-type SFDiskPartitionTable = sfdiskPartitionTable
-type SFDiskPartition = sfdiskPartition
-
-var (
-	// sfdisk
-	NewSFDisk          = newSFDisk
-	FilesystemInfo     = filesystemInfo
-	BuildPartitionList = buildPartitionList
+import (
+	"github.com/snapcore/snapd/gadget"
 )
+
+// PartitionTool is used to query and manipulate the device partition table.
+type partitionTool interface {
+	DeviceInfo() (*gadget.LaidOutVolume, error)
+	CreatePartitions(*gadget.LaidOutVolume, []bool) (map[string]string, error)
+}

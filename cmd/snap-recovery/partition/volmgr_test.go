@@ -16,7 +16,7 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  *
  */
-package volmgr_test
+package partition_test
 
 import (
 	"fmt"
@@ -30,11 +30,11 @@ import (
 	"github.com/snapcore/snapd/gadget"
 )
 
-func TestVolMgr(t *testing.T) { TestingT(t) }
+func TestPartition(t *testing.T) { TestingT(t) }
 
-type volmgrTestSuite struct{}
+type partitionTestSuite struct{}
 
-var _ = Suite(&volmgrTestSuite{})
+var _ = Suite(&partitionTestSuite{})
 
 func positionedVolumeFromGadget(gadgetRoot string) (*gadget.LaidOutVolume, error) {
 	info, err := gadget.ReadInfo(gadgetRoot, nil)
