@@ -103,9 +103,8 @@ execute: |
         snap debug model|MATCH "revision: 2"
         echo "and we cannot remove the base snap"
         not snap remove "$NEW_BASE"
-        # TODO: test when keeping the old base
-        echo "but we can remove the old base"
-        snap remove "$OLD_BASE"
+        # TODO: test when keeping the old base, test removing the old base
+        #       (not possible here as the pc gadget uses core18 as its base)
         echo "And we can remodel again and remove the new base"
         snap remodel "$TESTSLIB"/assertions/developer1-pc-18-revno3.model
         REBOOT
