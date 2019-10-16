@@ -58,11 +58,10 @@ func (pol *policy16) checkSnapChannel(_ channel.Channel, whichSnap string) error
 func makeSystemSnap(snapName string) *asserts.ModelSnap {
 	// TODO: set SnapID too
 	return &asserts.ModelSnap{
-		Name:           snapName,
-		SnapType:       snapName, // same as snapName for core, snapd
-		Modes:          []string{"run"},
-		DefaultChannel: "stable",
-		Presence:       "required",
+		Name:     snapName,
+		SnapType: snapName, // same as snapName for core, snapd
+		Modes:    []string{"run"},
+		Presence: "required",
 	}
 }
 
@@ -76,6 +75,16 @@ func (pol *policy16) systemSnap() *asserts.ModelSnap {
 		snapName = "snapd"
 	}
 	return makeSystemSnap(snapName)
+}
+
+func (pol *policy16) modelSnapDefaultChannel() string {
+	// We will use latest or the current default track at image build time
+	return "stable"
+}
+
+func (pol *policy16) extraSnapDefaultChannel() string {
+	// We will use latest or the current default track at image build time
+	return "stable"
 }
 
 func (pol *policy16) checkBase(info *snap.Info, availableSnaps *naming.SnapSet) error {
@@ -147,7 +156,7 @@ func (pol *policy16) implicitSnaps(availableSnaps *naming.SnapSet) []*asserts.Mo
 
 func (pol *policy16) implicitExtraSnaps(availableSnaps *naming.SnapSet) []*OptionsSnap {
 	if len(pol.needsCore) != 0 && !availableSnaps.Contains(naming.Snap("core")) {
-		return []*OptionsSnap{{Name: "core", Channel: "stable"}}
+		return []*OptionsSnap{{Name: "core"}}
 	}
 	return nil
 }

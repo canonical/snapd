@@ -321,6 +321,32 @@ func (s *writerSuite) TestSnapsToDownloadCore16(c *C) {
 	c.Check(naming.SameSnap(snaps[3], naming.Snap("required")), Equals, true)
 }
 
+func (s *writerSuite) TestSnapsToDownloadOptionTrack(c *C) {
+	model := s.Brands.Model("my-brand", "my-model", map[string]interface{}{
+		"display-name":   "my model",
+		"architecture":   "amd64",
+		"gadget":         "pc",
+		"kernel":         "pc-kernel",
+		"required-snaps": []interface{}{"required"},
+	})
+
+	w, err := seedwriter.New(model, s.opts)
+	c.Assert(err, IsNil)
+
+	err = w.SetOptionsSnaps([]*seedwriter.OptionsSnap{{Name: "pc", Channel: "track/edge"}})
+	c.Assert(err, IsNil)
+
+	_, err = w.Start(s.db, s.newFetcher)
+	c.Assert(err, IsNil)
+
+	snaps, err := w.SnapsToDownload()
+	c.Assert(err, IsNil)
+	c.Check(snaps, HasLen, 4)
+
+	c.Check(naming.SameSnap(snaps[2], naming.Snap("pc")), Equals, true)
+	c.Check(snaps[2].Channel, Equals, "track/edge")
+}
+
 func (s *writerSuite) TestDownloadedCore16(c *C) {
 	model := s.Brands.Model("my-brand", "my-model", map[string]interface{}{
 		"display-name":   "my model",
@@ -361,7 +387,6 @@ func (s *writerSuite) TestDownloadedCore16(c *C) {
 	c.Check(essSnaps, DeepEquals, snaps[:3])
 	c.Check(naming.SameSnap(essSnaps[2], naming.Snap("pc")), Equals, true)
 	c.Check(essSnaps[2].Channel, Equals, "edge")
-
 }
 
 func (s *writerSuite) TestDownloadedCore18(c *C) {
@@ -441,7 +466,7 @@ func (s *writerSuite) TestSnapsToDownloadCore18IncompatibleTrack(c *C) {
 	c.Assert(err, IsNil)
 
 	_, err = w.SnapsToDownload()
-	c.Check(err, ErrorMatches, `option channel "18.1" for kernel "pc-kernel" has a track incompatible with the track from model assertion: 18`)
+	c.Check(err, ErrorMatches, `option channel "18.1" for kernel "pc-kernel" has a track incompatible with the pinned track from model assertion: 18`)
 }
 
 func (s *writerSuite) TestSnapsToDownloadDefaultChannel(c *C) {
