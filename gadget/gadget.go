@@ -447,7 +447,7 @@ func validateVolume(name string, vol *Volume, constraints *ModelConstraints) err
 	return validateCrossVolumeStructure(structures, knownStructures)
 }
 
-func ensureVolumeConsistencyNoConstraints(state *validationState, constraints *ModelConstraints) error {
+func ensureVolumeConsistencyNoConstraints(state *validationState) error {
 	switch {
 	case state.SystemSeed == nil && state.SystemData == nil:
 		return nil
@@ -498,7 +498,7 @@ func ensureVolumeConsistencyWithConstraints(state *validationState, constraints 
 
 func ensureVolumeConsistency(state *validationState, constraints *ModelConstraints) error {
 	if constraints == nil {
-		return ensureVolumeConsistencyNoConstraints(state, constraints)
+		return ensureVolumeConsistencyNoConstraints(state)
 	}
 	return ensureVolumeConsistencyWithConstraints(state, constraints)
 }
