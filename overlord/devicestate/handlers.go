@@ -930,6 +930,20 @@ func makeRollbackDir(name string) (string, error) {
 	return rollbackDir, nil
 }
 
+var (
+	coreGadgetConstraints = &gadget.ModelConstraints{
+		Classic: false,
+	}
+)
+
+func gadgetDataFromInfo(info *snap.Info) (*gadget.GadgetData, error) {
+	gi, err := gadget.ReadInfo(info.MountDir(), coreGadgetConstraints)
+	if err != nil {
+		return nil, err
+	}
+	return &gadget.GadgetData{Info: gi, RootDir: info.MountDir()}, nil
+}
+
 func currentGadgetInfo(snapst *snapstate.SnapState) (*gadget.GadgetData, error) {
 	currentInfo, err := snapst.CurrentInfo()
 	if err != nil && err != snapstate.ErrNoCurrent {
@@ -940,14 +954,7 @@ func currentGadgetInfo(snapst *snapstate.SnapState) (*gadget.GadgetData, error) 
 		return nil, nil
 	}
 
-	constraints := &gadget.ModelConstraints{
-		Classic: false,
-	}
-	gi, err := gadget.ReadInfo(currentInfo.MountDir(), constraints)
-	if err != nil {
-		return nil, err
-	}
-	return &gadget.GadgetData{Info: gi, RootDir: currentInfo.MountDir()}, nil
+	return gadgetDataFromInfo(currentInfo)
 }
 
 func pendingGadgetInfo(snapsup *snapstate.SnapSetup) (*gadget.GadgetData, error) {
@@ -956,14 +963,7 @@ func pendingGadgetInfo(snapsup *snapstate.SnapSetup) (*gadget.GadgetData, error)
 		return nil, err
 	}
 
-	constraints := &gadget.ModelConstraints{
-		Classic: false,
-	}
-	update, err := gadget.ReadInfo(info.MountDir(), constraints)
-	if err != nil {
-		return nil, err
-	}
-	return &gadget.GadgetData{Info: update, RootDir: info.MountDir()}, nil
+	return gadgetDataFromInfo(info)
 }
 
 func gadgetCurrentAndUpdate(st *state.State, snapsup *snapstate.SnapSetup) (current *gadget.GadgetData, update *gadget.GadgetData, err error) {
