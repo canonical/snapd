@@ -288,10 +288,10 @@ func systemOrSnapID(s string) bool {
 	return true
 }
 
-// InfoFromMeta reads the provided gadget metadata. If constraints is nil, only the
+// InfoFromGadgetYaml reads the provided gadget metadata. If constraints is nil, only the
 // self-consistency checks are performed, otherwise rules for the classic or
 // system seed cases are enforced.
-func InfoFromMeta(gadgetYaml []byte, constraints *ModelConstraints) (*Info, error) {
+func InfoFromGadgetYaml(gadgetYaml []byte, constraints *ModelConstraints) (*Info, error) {
 	var gi Info
 
 	if err := yaml.Unmarshal(gadgetYaml, &gi); err != nil {
@@ -366,7 +366,7 @@ func ReadInfo(gadgetSnapRootDir string, constraints *ModelConstraints) (*Info, e
 		return nil, err
 	}
 
-	return InfoFromMeta(gmeta, constraints)
+	return InfoFromGadgetYaml(gmeta, constraints)
 }
 
 func fmtIndexAndName(idx int, name string) string {
