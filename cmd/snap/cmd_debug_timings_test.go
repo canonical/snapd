@@ -310,13 +310,13 @@ func (s *SnapSuite) TestSortTimingsTasks(c *C) {
 		// tasks in lanes 0, 1, 2 with tasks from line 0 before and after lanes 1, 2
 		ChangeTimings: map[string]main.ChangeTimings{
 			"1": {Lane: 1, ReadyTime: mkTime("2019-01-21T00:00:00Z")},
-			"8": {Lane: 0, ReadyTime: mkTime("2019-01-27T00:00:00Z")},
 			"2": {Lane: 0, ReadyTime: mkTime("2019-01-19T00:00:00Z")},
 			"3": {Lane: 2, ReadyTime: mkTime("2019-01-20T00:00:00Z")},
 			"4": {Lane: 0, ReadyTime: mkTime("2019-01-25T00:00:00Z")},
 			"5": {Lane: 1, ReadyTime: mkTime("2019-01-20T00:00:00Z")},
 			"6": {Lane: 2, ReadyTime: mkTime("2019-01-21T00:00:00Z")},
 			"7": {Lane: 0, ReadyTime: mkTime("2019-01-18T00:00:00Z")},
+			"8": {Lane: 0, ReadyTime: mkTime("2019-01-27T00:00:00Z")},
 		},
 		Expected: []string{"7", "2", "5", "1", "3", "6", "4", "8"},
 	}, {
