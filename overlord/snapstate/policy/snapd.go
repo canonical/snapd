@@ -43,7 +43,7 @@ func (p *snapdPolicy) CanRemove(st *state.State, snapst *snapstate.SnapState, re
 
 	// snapd cannot be removed on core
 	if !release.OnClassic {
-		return errNotRemovable
+		return errSnapdNotRemovableOnCore
 	}
 
 	// only allow snapd removal if its the last snap on a (classic) system
@@ -52,7 +52,7 @@ func (p *snapdPolicy) CanRemove(st *state.State, snapst *snapstate.SnapState, re
 		return err
 	}
 	if numSnaps > 1 {
-		return errNotRemovable
+		return errSnapdNotYetRemovableOnClassic
 	}
 
 	return nil

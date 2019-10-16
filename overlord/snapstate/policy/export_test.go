@@ -12,7 +12,9 @@ var (
 	ErrInUseForBoot = errInUseForBoot
 	ErrRequired     = errRequired
 	ErrIsModel      = errIsModel
-	ErrNotRemovable = errNotRemovable
+
+	ErrSnapdNotRemovableOnCore       = errSnapdNotRemovableOnCore
+	ErrSnapdNotYetRemovableOnClassic = errSnapdNotYetRemovableOnClassic
 )
 
 func InUseByErr(snaps ...string) error {

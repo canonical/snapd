@@ -30,7 +30,9 @@ var (
 	errInUseForBoot = errors.New("snap is being used for boot")
 	errRequired     = errors.New("snap is required")
 	errIsModel      = errors.New("snap is used by the model")
-	errNotRemovable = errors.New("snap cannot be removed")
+
+	errSnapdNotRemovableOnCore       = errors.New("snapd required on core devices")
+	errSnapdNotYetRemovableOnClassic = errors.New("remove all other snaps first")
 )
 
 type inUseByErr []string

@@ -346,8 +346,8 @@ func (s *canRemoveSuite) TestSnapdTypePolicy(c *check.C) {
 	defer restore()
 
 	// snapd cannot be removed on core
-	c.Check(policy.NewSnapdPolicy("core18").CanRemove(s.st, snapst, snap.R(0)), check.Equals, policy.ErrNotRemovable)
-	c.Check(policy.NewSnapdPolicy("").CanRemove(s.st, snapst, snap.R(0)), check.Equals, policy.ErrNotRemovable)
+	c.Check(policy.NewSnapdPolicy("core18").CanRemove(s.st, snapst, snap.R(0)), check.Equals, policy.ErrSnapdNotRemovableOnCore)
+	c.Check(policy.NewSnapdPolicy("").CanRemove(s.st, snapst, snap.R(0)), check.Equals, policy.ErrSnapdNotRemovableOnCore)
 
 	// but single revisions can be removed
 	c.Check(policy.NewSnapdPolicy("").CanRemove(s.st, snapst, snap.R(1)), check.IsNil)
@@ -366,5 +366,5 @@ func (s *canRemoveSuite) TestSnapdTypePolicy(c *check.C) {
 		Current:  snap.R(1),
 		Sequence: []*snap.SideInfo{{Revision: snap.R(1), RealName: "other-snap"}},
 	})
-	c.Check(policy.NewSnapdPolicy("").CanRemove(s.st, snapst, snap.R(0)), check.Equals, policy.ErrNotRemovable)
+	c.Check(policy.NewSnapdPolicy("").CanRemove(s.st, snapst, snap.R(0)), check.Equals, policy.ErrSnapdNotYetRemovableOnClassic)
 }
