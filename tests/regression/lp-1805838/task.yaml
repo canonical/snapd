@@ -41,6 +41,7 @@ restore: |
 execute: |
     systemctl stop snapd.socket snapd.service
     systemctl start snapd.socket snapd.service
-    journalctl -u snapd | MATCH 'cannot regenerate seccomp profile for snap "network-consumer"'
+    journalctl -u snapd | MATCH 'cannot regenerate seccomp profiles'
+    journalctl -u snapd | MATCH 'cannot compile /var/lib/snapd/seccomp/bpf/snap.network-consumer.network-consumer.src: exit status 1'
     snap list | MATCH "(core|snapd)"
     test ! -e /var/lib/snapd/system-key
