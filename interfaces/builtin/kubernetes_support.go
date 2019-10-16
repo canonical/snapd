@@ -133,26 +133,26 @@ deny ptrace (trace) peer=unconfined,
 # kubelet calls out to systemd-run for some mounts, but not all of them and not
 # unmounts...
 capability sys_admin,
-mount /var/snap/@{SNAP_INSTANCE_NAME}/common/{,**} -> /var/snap/@{SNAP_INSTANCE_NAME}/common/{,**},
-mount options=(rw, rshared) -> /var/snap/@{SNAP_INSTANCE_NAME}/common/{,**},
+mount /var/snap/@{SNAP_INSTANCE_NAME}/*/{,**} -> /var/snap/@{SNAP_INSTANCE_NAME}/*/{,**},
+mount options=(rw, rshared) -> /var/snap/@{SNAP_INSTANCE_NAME}/*/{,**},
 
 /{,usr/}bin/mount ixr,
 /{,usr/}bin/umount ixr,
 deny /run/mount/utab rw,
-umount /var/snap/@{SNAP_INSTANCE_NAME}/common/**,
+umount /var/snap/@{SNAP_INSTANCE_NAME}/*/**,
 `
 
 const kubernetesSupportConnectedPlugAppArmorKubeletSystemdRun = `
   # kubelet mount rules
   capability sys_admin,
   /{,usr/}bin/mount ixr,
-  mount fstype="tmpfs" tmpfs -> /var/snap/@{SNAP_INSTANCE_NAME}/common/**,
+  mount fstype="tmpfs" tmpfs -> /var/snap/@{SNAP_INSTANCE_NAME}/*/**,
   deny /run/mount/utab rw,
 
   # For mounting volume subPaths
-  mount /var/snap/@{SNAP_INSTANCE_NAME}/common/{,**} -> /var/snap/@{SNAP_INSTANCE_NAME}/common/{,**},
-  mount options=(rw, remount, bind) -> /var/snap/@{SNAP_INSTANCE_NAME}/common/{,**},
-  umount /var/snap/@{SNAP_INSTANCE_NAME}/common/**,
+  mount /var/snap/@{SNAP_INSTANCE_NAME}/*/{,**} -> /var/snap/@{SNAP_INSTANCE_NAME}/*/{,**},
+  mount options=(rw, remount, bind) -> /var/snap/@{SNAP_INSTANCE_NAME}/*/{,**},
+  umount /var/snap/@{SNAP_INSTANCE_NAME}/*/**,
   # When mounting a volume subPath, kubelet binds mounts on an open fd (eg,
   # /proc/.../fd/N) which triggers a ptrace 'trace' denial on the parent
   # kubelet peer process from this child profile. Note, this child profile
