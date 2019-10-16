@@ -158,7 +158,7 @@ const kubernetesSupportConnectedPlugAppArmorKubeletSystemdRun = `
   # kubelet peer process from this child profile. Note, this child profile
   # doesn't have 'capability sys_ptrace', so systemd-run is still not able to
   # ptrace this snap's processes.
-  ptrace (trace) peer=snap.@{SNAP_INSTANCE_NAME}.*,
+  ptrace (trace) peer=snap.@{SNAP_INSTANCE_NAME}.@{SNAP_COMMAND_NAME},
 `
 
 const kubernetesSupportConnectedPlugSeccompKubelet = `
