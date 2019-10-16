@@ -1574,3 +1574,39 @@ volumes:
 		}
 	}
 }
+
+func (s *gadgetYamlTestSuite) TestGadgetReadInfoVsFromMeta(c *C) {
+	err := ioutil.WriteFile(s.gadgetYamlPath, gadgetYamlPC, 0644)
+	c.Assert(err, IsNil)
+
+	constraints := &gadget.ModelConstraints{
+		Classic: false,
+	}
+
+	giRead, err := gadget.ReadInfo(s.dir, constraints)
+	c.Check(err, IsNil)
+
+	giMeta, err := gadget.InfoFromMeta(gadgetYamlPC, constraints)
+	c.Check(err, IsNil)
+
+	c.Assert(giRead, DeepEquals, giMeta)
+}
+
+func (s *gadgetYamlTestSuite) TestGadgetFromMetaEmpty(c *C) {
+	classicConstraints := &gadget.ModelConstraints{
+		Classic: true,
+	}
+
+	// this is ok for classic
+	giClassic, err := gadget.InfoFromMeta([]byte(""), classicConstraints)
+	c.Check(err, IsNil)
+	c.Assert(giClassic, DeepEquals, &gadget.Info{})
+
+	coreConstraints := &gadget.ModelConstraints{
+		Classic: false,
+	}
+	// but not so much for core
+	giCore, err := gadget.InfoFromMeta([]byte(""), coreConstraints)
+	c.Check(err, ErrorMatches, "bootloader not declared in any volume")
+	c.Assert(giCore, IsNil)
+}

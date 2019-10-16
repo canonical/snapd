@@ -288,23 +288,13 @@ func systemOrSnapID(s string) bool {
 	return true
 }
 
-// ReadInfo reads the gadget specific metadata from gadget.yaml in the snap. If
-// constraints is nil, ReadInfo will just check for self-consistency, otherwise
-// rules for the classic or system seed cases are enforced.
-func ReadInfo(gadgetSnapRootDir string, constraints *ModelConstraints) (*Info, error) {
+// InfoFromMeta reads the provided gadget metadata. If constraints is nil, only the
+// self-consistency checks are performed, otherwise rules for the classic or
+// system seed cases are enforced.
+func InfoFromMeta(gadgetYaml []byte, constraints *ModelConstraints) (*Info, error) {
 	var gi Info
 
-	gadgetYamlFn := filepath.Join(gadgetSnapRootDir, "meta", "gadget.yaml")
-	gmeta, err := ioutil.ReadFile(gadgetYamlFn)
-	if (constraints == nil || constraints.Classic) && os.IsNotExist(err) {
-		// gadget.yaml is optional for classic gadgets
-		return &gi, nil
-	}
-	if err != nil {
-		return nil, err
-	}
-
-	if err := yaml.Unmarshal(gmeta, &gi); err != nil {
+	if err := yaml.Unmarshal(gadgetYaml, &gi); err != nil {
 		return nil, fmt.Errorf("cannot parse gadget metadata: %v", err)
 	}
 
@@ -359,6 +349,24 @@ func ReadInfo(gadgetSnapRootDir string, constraints *ModelConstraints) (*Info, e
 	}
 
 	return &gi, nil
+}
+
+// ReadInfo reads the gadget specific metadata from meta/gadget.yaml in the snap
+// root directory. If constraints is nil, ReadInfo will just check for
+// self-consistency, otherwise rules for the classic or system seed cases are
+// enforced.
+func ReadInfo(gadgetSnapRootDir string, constraints *ModelConstraints) (*Info, error) {
+	gadgetYamlFn := filepath.Join(gadgetSnapRootDir, "meta", "gadget.yaml")
+	gmeta, err := ioutil.ReadFile(gadgetYamlFn)
+	if (constraints == nil || constraints.Classic) && os.IsNotExist(err) {
+		// gadget.yaml is optional for classic gadgets
+		return &Info{}, nil
+	}
+	if err != nil {
+		return nil, err
+	}
+
+	return InfoFromMeta(gmeta, constraints)
 }
 
 func fmtIndexAndName(idx int, name string) string {
