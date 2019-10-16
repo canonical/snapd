@@ -69,7 +69,7 @@ func Canonize(s string) (string, error) {
 	case 3:
 		return strings.Join(components, "/"), nil
 	default:
-		return "", errors.New("Invalid channel")
+		return "", errors.New("invalid channel")
 	}
 }
 

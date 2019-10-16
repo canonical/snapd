@@ -245,11 +245,38 @@ func (s *storeChannelSuite) TestFull(c *C) {
 		c.Assert(err, IsNil)
 
 		c.Check(ch.Full(), Equals, t.str)
+	}
+}
 
+func (s *storeChannelSuite) TestCanonize(c *C) {
+	tests := []struct {
+		channel string
+		str     string
+	}{
+		{"stable", "latest/stable"},
+		{"latest/stable", "latest/stable"},
+		{"1.0/edge", "1.0/edge"},
+		{"1.0/beta/foo", "1.0/beta/foo"},
+		{"1.0", "1.0/stable"},
+		{"candidate/foo", "latest/candidate/foo"},
+		// store behaviour compat; expect these to fail when we stop accommodating the madness :)
+		{"//stable//", "latest/stable"},
+		// rather weird corner case
+		{"///", ""},
+		// empty string is OK
+		{"", ""},
+	}
+
+	for _, t := range tests {
 		can, err := channel.Canonize(t.channel)
 		c.Assert(err, IsNil)
 		c.Check(can, Equals, t.str)
 	}
+}
+
+func (s *storeChannelSuite) TestCanonizeErr(c *C) {
+	_, err := channel.Canonize("foo/bar/baz/quux")
+	c.Check(err, ErrorMatches, "invalid channel")
 }
 
 func (s *storeChannelSuite) TestMatch(c *C) {
