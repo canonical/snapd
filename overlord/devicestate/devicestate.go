@@ -27,6 +27,7 @@ import (
 	"sync"
 
 	"github.com/snapcore/snapd/asserts"
+	"github.com/snapcore/snapd/gadget"
 	"github.com/snapcore/snapd/i18n"
 	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/netutil"
@@ -181,6 +182,7 @@ func checkGadgetOrKernel(st *state.State, snapInfo, curInfo *snap.Info, _ snap.C
 		return fmt.Errorf("cannot detect original %s snap: %v", kind, err)
 	}
 	if found {
+
 		// already installed, snapstate takes care
 		return nil
 	}
@@ -202,11 +204,51 @@ func checkGadgetOrKernel(st *state.State, snapInfo, curInfo *snap.Info, _ snap.C
 	return nil
 }
 
+var (
+	gadgetIsCompatible = func(current, new *gadget.Info) error { return nil }
+)
+
+func checkGadgetRemodelCompatible(st *state.State, snapInfo, curInfo *snap.Info, snapf snap.Container, flags snapstate.Flags, deviceCtx snapstate.DeviceContext) error {
+	if release.OnClassic {
+		return nil
+	}
+	if curInfo == nil || curInfo.GetType() != snap.TypeGadget {
+		// only interested in snaps that are currently installed and are
+		// gadget snaps
+		return nil
+	}
+	if deviceCtx == nil || !deviceCtx.ForRemodeling() {
+		// in a remodeling scenario
+		return nil
+	}
+
+	newGadgetYaml, err := snapf.ReadFile("meta/gadget.yaml")
+	if err != nil {
+		return fmt.Errorf("cannot read new gadget metadata: %v", err)
+	}
+
+	currentData, err := gadgetDataFromInfo(curInfo)
+	if err != nil {
+		return fmt.Errorf("cannot read current gadget metadata: %v", err)
+	}
+
+	pendingInfo, err := gadget.InfoFromGadgetYaml(newGadgetYaml, coreGadgetConstraints)
+	if err != nil {
+		return fmt.Errorf("cannot load new gadget metadata: %v", err)
+	}
+
+	if err := gadgetIsCompatible(currentData.Info, pendingInfo); err != nil {
+		return fmt.Errorf("cannot remodel to an incompatible gadget: %v", err)
+	}
+	return nil
+}
+
 var once sync.Once
 
 func delayedCrossMgrInit() {
 	once.Do(func() {
 		snapstate.AddCheckSnapCallback(checkGadgetOrKernel)
+		snapstate.AddCheckSnapCallback(checkGadgetRemodelCompatible)
 	})
 	snapstate.CanAutoRefresh = canAutoRefresh
 	snapstate.CanManageRefreshes = CanManageRefreshes

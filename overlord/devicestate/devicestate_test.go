@@ -2011,6 +2011,89 @@ func (s *deviceMgrSuite) TestCheckKernel(c *C) {
 	c.Check(err, ErrorMatches, `cannot install "krnl_foo", parallel installation of kernel or gadget snaps is not supported`)
 }
 
+func (s *deviceMgrSuite) TestCheckGadgetRemodelCompatible(c *C) {
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	currentSnapYaml := `
+name: gadget
+type: gadget
+version: 123
+`
+	remodelSnapYaml := `
+name: new-gadget
+type: gadget
+version: 123
+`
+	mockGadget := `
+type: gadget
+name: gadget
+volumes:
+  volume:
+    schema: gpt
+    bootloader: grub
+`
+	currInfo := snaptest.MockSnapWithFiles(c, currentSnapYaml, &snap.SideInfo{Revision: snap.R(123)}, nil)
+	// so that we get a directory
+	info := snaptest.MockSnapWithFiles(c, remodelSnapYaml, &snap.SideInfo{Revision: snap.R(1)}, nil)
+	snapf, err := snap.Open(info.MountDir())
+	c.Assert(err, IsNil)
+
+	s.setupBrands(c)
+	// model assertion in device context
+	model := fakeMyModel(map[string]interface{}{
+		"architecture": "amd64",
+		"gadget":       "gadget",
+		"kernel":       "krnl",
+	})
+	deviceCtx := &snapstatetest.TrivialDeviceContext{DeviceModel: model}
+	remodelCtx := &snapstatetest.TrivialDeviceContext{DeviceModel: model, Remodeling: true}
+
+	restore := devicestate.MockGadgetIsCompatible(func(current, update *gadget.Info) error {
+		c.Assert(current.Volumes, HasLen, 1)
+		c.Assert(update.Volumes, HasLen, 1)
+		return errors.New("fail")
+	})
+	defer restore()
+
+	// not on classic
+	release.OnClassic = true
+	err = devicestate.CheckGadgetRemodelCompatible(s.state, info, currInfo, snapf, snapstate.Flags{}, deviceCtx)
+	c.Check(err, IsNil)
+	release.OnClassic = false
+
+	// nothing if not remodeling
+	err = devicestate.CheckGadgetRemodelCompatible(s.state, info, currInfo, snapf, snapstate.Flags{}, deviceCtx)
+	c.Check(err, IsNil)
+
+	err = devicestate.CheckGadgetRemodelCompatible(s.state, info, currInfo, snapf, snapstate.Flags{}, remodelCtx)
+	c.Check(err, ErrorMatches, "cannot read new gadget metadata: .*/new-gadget/1/meta/gadget.yaml: no such file or directory")
+
+	// drop gadget.yaml to the new gadget
+	err = ioutil.WriteFile(filepath.Join(info.MountDir(), "meta/gadget.yaml"), []byte(mockGadget), 0644)
+	c.Assert(err, IsNil)
+
+	err = devicestate.CheckGadgetRemodelCompatible(s.state, info, currInfo, snapf, snapstate.Flags{}, remodelCtx)
+	c.Check(err, ErrorMatches, "cannot read current gadget metadata: .*/gadget/123/meta/gadget.yaml: no such file or directory")
+
+	// drop gadget.yaml to the current gadget
+	err = ioutil.WriteFile(filepath.Join(currInfo.MountDir(), "meta/gadget.yaml"), []byte(mockGadget), 0644)
+	c.Assert(err, IsNil)
+
+	err = devicestate.CheckGadgetRemodelCompatible(s.state, info, currInfo, snapf, snapstate.Flags{}, remodelCtx)
+	c.Check(err, ErrorMatches, "cannot remodel to an incompatible gadget: fail")
+
+	restore = devicestate.MockGadgetIsCompatible(func(current, update *gadget.Info) error {
+		c.Assert(current.Volumes, HasLen, 1)
+		c.Assert(update.Volumes, HasLen, 1)
+		return nil
+	})
+	defer restore()
+
+	err = devicestate.CheckGadgetRemodelCompatible(s.state, info, currInfo, snapf, snapstate.Flags{}, remodelCtx)
+	c.Check(err, IsNil)
+}
+
 func (s *deviceMgrSuite) makeModelAssertionInState(c *C, brandID, model string, extras map[string]interface{}) {
 	modelAs := s.brands.Model(brandID, model, extras)
 
