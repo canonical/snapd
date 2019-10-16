@@ -364,7 +364,7 @@ func (s *canRemoveSuite) TestSnapdTypePolicy(c *check.C) {
 	// but it cannot be removed when there are more snaps installed
 	snapstate.Set(s.st, "other-snap", &snapstate.SnapState{
 		Current:  snap.R(1),
-		Sequence: []*snap.SideInfo{&snap.SideInfo{Revision: snap.R(1), RealName: "other-snap"}},
+		Sequence: []*snap.SideInfo{{Revision: snap.R(1), RealName: "other-snap"}},
 	})
 	c.Check(policy.NewSnapdPolicy("").CanRemove(s.st, snapst, snap.R(0)), check.Equals, policy.ErrNotRemovable)
 }
