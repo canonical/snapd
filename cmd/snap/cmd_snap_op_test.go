@@ -100,7 +100,7 @@ type SnapOpSuite struct {
 func (s *SnapOpSuite) SetUpTest(c *check.C) {
 	s.BaseSnapSuite.SetUpTest(c)
 
-	restoreClientRetry := client.MockDoRetry(time.Millisecond, 10*time.Millisecond)
+	restoreClientRetry := client.MockDoTimings(time.Millisecond, 100*time.Millisecond)
 	restorePollTime := snap.MockPollTime(time.Millisecond)
 	s.restoreAll = func() {
 		restoreClientRetry()

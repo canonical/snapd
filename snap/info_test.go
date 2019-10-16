@@ -94,6 +94,7 @@ func (s *infoSuite) TestSideInfoOverrides(c *C) {
 	c.Check(info.Description(), Equals, "fixed desc")
 	c.Check(info.Revision, Equals, snap.R(1))
 	c.Check(info.SnapID, Equals, "snapidsnapidsnapidsnapidsnapidsn")
+	c.Check(info.ID(), Equals, "snapidsnapidsnapidsnapidsnapidsn")
 }
 
 func (s *infoSuite) TestAppInfoSecurityTag(c *C) {

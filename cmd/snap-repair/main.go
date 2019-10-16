@@ -67,9 +67,14 @@ func main() {
 	}
 }
 
+var osGetuid = os.Getuid
+
 func run() error {
 	if release.OnClassic {
 		return errOnClassic
+	}
+	if osGetuid() != 0 {
+		return fmt.Errorf("must be run as root")
 	}
 	httputil.SetUserAgentFromVersion(cmd.Version, "snap-repair")
 

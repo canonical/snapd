@@ -35,7 +35,7 @@ environment:
     SNAPD_CHANNEL: '$(HOST: echo "${SPREAD_SNAPD_CHANNEL:-edge}")'
     REMOTE_STORE: '$(HOST: echo "${SPREAD_REMOTE_STORE:-production}")'
     SNAPPY_USE_STAGING_STORE: '$(HOST: if [ "$SPREAD_REMOTE_STORE" = staging ]; then echo 1; else echo 0; fi)'
-    DELTA_REF: 2.39.1
+    DELTA_REF: 2.42
     DELTA_PREFIX: snapd-$DELTA_REF/
     SNAPD_PUBLISHED_VERSION: '$(HOST: echo "$SPREAD_SNAPD_PUBLISHED_VERSION")'
     HTTP_PROXY: '$(HOST: echo "$SPREAD_HTTP_PROXY")'
@@ -407,9 +407,10 @@ exclude:
     - cmd/snapd/snapd
     - cmd/snapctl/snapctl
     - cmd/snap-exec/snap-exec
+    - cmd/autom4te.cache
     - "*.o"
     - "*.a"
-
+    - ./vendor
 
 debug-each: |
     if [ "$SPREAD_DEBUG_EACH" = 1 ]; then
@@ -446,6 +447,9 @@ debug-each: |
         cat "$RUNTIME_STATE_PATH/runs" || true
         echo '# free space'
         df -h || true
+        echo '# mounts'
+        # use ascii output to prevent travis from messing up the encoding
+        findmnt --ascii -o+PROPAGATION || true
     fi
 
 rename:
@@ -458,7 +462,7 @@ repack: |
     # obtained directly from GitHub. There's nothing special about that reference,
     # other than it will often be in the local repository's history already.
     # The more recent the reference, the smaller the delta.
-    if ! echo "$SPREAD_BACKENDS" | grep linode; then
+    if ! echo "$SPREAD_BACKENDS" | grep -e linode -e google; then
         cat <&3 >&4
     elif ! git show-ref "$DELTA_REF" > /dev/null; then
         cat <&3 >&4

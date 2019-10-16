@@ -532,7 +532,7 @@ func (s *prereqSuite) TestDoPrereqBaseIsNotBase(c *C) {
 			Revision: snap.R(33),
 		},
 		Channel: "beta",
-		Base:    "some-epoch-snap",
+		Base:    "app-snap",
 		Prereq:  []string{"prereq1"},
 	})
 	chg := s.state.NewChange("dummy", "...")
@@ -545,5 +545,90 @@ func (s *prereqSuite) TestDoPrereqBaseIsNotBase(c *C) {
 	s.state.Lock()
 	defer s.state.Unlock()
 	c.Check(chg.Status(), Equals, state.ErrorStatus)
-	c.Check(chg.Err(), ErrorMatches, `cannot perform the following tasks:\n.*- test \(declared snap base "some-epoch-snap" has unexpected type "app", instead of 'base'\)`)
+	c.Check(chg.Err(), ErrorMatches, `cannot perform the following tasks:\n.*- test \(cannot install snap base "app-snap": unexpected snap type "app", instead of 'base'\)`)
+}
+
+func (s *prereqSuite) TestDoPrereqBaseNoRevision(c *C) {
+	os.Setenv("SNAPD_BASES_CHANNEL", "channel-no-revision")
+	defer os.Unsetenv("SNAPD_BASES_CHANNEL")
+
+	s.state.Lock()
+
+	t := s.state.NewTask("prerequisites", "test")
+	t.Set("snap-setup", &snapstate.SnapSetup{
+		SideInfo: &snap.SideInfo{
+			RealName: "foo",
+			Revision: snap.R(33),
+		},
+		Channel: "beta",
+		Base:    "some-base",
+		Prereq:  []string{"prereq1"},
+	})
+	chg := s.state.NewChange("dummy", "...")
+	chg.AddTask(t)
+	s.state.Unlock()
+
+	s.se.Ensure()
+	s.se.Wait()
+
+	s.state.Lock()
+	defer s.state.Unlock()
+	c.Check(chg.Status(), Equals, state.ErrorStatus)
+	c.Check(chg.Err(), ErrorMatches, `cannot perform the following tasks:\n.*- test \(cannot install snap base "some-base": no snap revision available as specified\)`)
+}
+
+func (s *prereqSuite) TestDoPrereqNoRevision(c *C) {
+	os.Setenv("SNAPD_PREREQS_CHANNEL", "channel-no-revision")
+	defer os.Unsetenv("SNAPD_PREREQS_CHANNEL")
+
+	s.state.Lock()
+
+	t := s.state.NewTask("prerequisites", "test")
+	t.Set("snap-setup", &snapstate.SnapSetup{
+		SideInfo: &snap.SideInfo{
+			RealName: "foo",
+			Revision: snap.R(33),
+		},
+		Channel: "beta",
+		Prereq:  []string{"prereq1"},
+	})
+	chg := s.state.NewChange("dummy", "...")
+	chg.AddTask(t)
+	s.state.Unlock()
+
+	s.se.Ensure()
+	s.se.Wait()
+
+	s.state.Lock()
+	defer s.state.Unlock()
+	c.Check(chg.Status(), Equals, state.ErrorStatus)
+	c.Check(chg.Err(), ErrorMatches, `cannot perform the following tasks:\n.*- test \(cannot install prerequisite "prereq1": no snap revision available as specified\)`)
+}
+
+func (s *prereqSuite) TestDoPrereqSnapdNoRevision(c *C) {
+	os.Setenv("SNAPD_SNAPD_CHANNEL", "channel-no-revision")
+	defer os.Unsetenv("SNAPD_SNAPD_CHANNEL")
+
+	s.state.Lock()
+
+	t := s.state.NewTask("prerequisites", "test")
+	t.Set("snap-setup", &snapstate.SnapSetup{
+		SideInfo: &snap.SideInfo{
+			RealName: "foo",
+			Revision: snap.R(33),
+		},
+		Base:    "core18",
+		Channel: "beta",
+	})
+	chg := s.state.NewChange("dummy", "...")
+	chg.AddTask(t)
+	s.state.Unlock()
+
+	s.se.Ensure()
+	s.se.Wait()
+
+	s.state.Lock()
+	defer s.state.Unlock()
+	c.Check(chg.Status(), Equals, state.ErrorStatus)
+	c.Check(chg.Err(), ErrorMatches, `cannot perform the following tasks:\n.*- test \(cannot install system snap "snapd": no snap revision available as specified\)`)
 }
