@@ -1838,7 +1838,7 @@ func (s *deviceMgrSuite) TestCheckGadget(c *C) {
 	})
 	deviceCtx := &snapstatetest.TrivialDeviceContext{DeviceModel: model}
 
-	err := devicestate.CheckGadgetOrKernel(s.state, nil, gadgetInfo, nil, snapstate.Flags{}, deviceCtx)
+	err := devicestate.CheckGadgetOrKernel(s.state, gadgetInfo, nil, nil, snapstate.Flags{}, deviceCtx)
 	c.Check(err, ErrorMatches, `cannot install gadget "other-gadget", model assertion requests "gadget"`)
 
 	// brand gadget
@@ -1857,25 +1857,25 @@ func (s *deviceMgrSuite) TestCheckGadget(c *C) {
 	s.setupSnapDecl(c, otherGadgetInfo, "other-brand")
 
 	// install brand gadget ok
-	err = devicestate.CheckGadgetOrKernel(s.state, nil, brandGadgetInfo, nil, snapstate.Flags{}, deviceCtx)
+	err = devicestate.CheckGadgetOrKernel(s.state, brandGadgetInfo, nil, nil, snapstate.Flags{}, deviceCtx)
 	c.Check(err, IsNil)
 
 	// install canonical gadget ok
-	err = devicestate.CheckGadgetOrKernel(s.state, nil, canonicalGadgetInfo, nil, snapstate.Flags{}, deviceCtx)
+	err = devicestate.CheckGadgetOrKernel(s.state, canonicalGadgetInfo, nil, nil, snapstate.Flags{}, deviceCtx)
 	c.Check(err, IsNil)
 
 	// install other gadget fails
-	err = devicestate.CheckGadgetOrKernel(s.state, nil, otherGadgetInfo, nil, snapstate.Flags{}, deviceCtx)
+	err = devicestate.CheckGadgetOrKernel(s.state, otherGadgetInfo, nil, nil, snapstate.Flags{}, deviceCtx)
 	c.Check(err, ErrorMatches, `cannot install gadget "gadget" published by "other-brand" for model by "my-brand"`)
 
 	// unasserted installation of other works
 	otherGadgetInfo.SnapID = ""
-	err = devicestate.CheckGadgetOrKernel(s.state, nil, otherGadgetInfo, nil, snapstate.Flags{}, deviceCtx)
+	err = devicestate.CheckGadgetOrKernel(s.state, otherGadgetInfo, nil, nil, snapstate.Flags{}, deviceCtx)
 	c.Check(err, IsNil)
 
 	// parallel install fails
 	otherGadgetInfo.InstanceKey = "foo"
-	err = devicestate.CheckGadgetOrKernel(s.state, nil, otherGadgetInfo, nil, snapstate.Flags{}, deviceCtx)
+	err = devicestate.CheckGadgetOrKernel(s.state, otherGadgetInfo, nil, nil, snapstate.Flags{}, deviceCtx)
 	c.Check(err, ErrorMatches, `cannot install "gadget_foo", parallel installation of kernel or gadget snaps is not supported`)
 }
 
@@ -1895,7 +1895,7 @@ func (s *deviceMgrSuite) TestCheckGadgetOnClassic(c *C) {
 	})
 	deviceCtx := &snapstatetest.TrivialDeviceContext{DeviceModel: model}
 
-	err := devicestate.CheckGadgetOrKernel(s.state, nil, gadgetInfo, nil, snapstate.Flags{}, deviceCtx)
+	err := devicestate.CheckGadgetOrKernel(s.state, gadgetInfo, nil, nil, snapstate.Flags{}, deviceCtx)
 	c.Check(err, ErrorMatches, `cannot install gadget "other-gadget", model assertion requests "gadget"`)
 
 	// brand gadget
@@ -1914,20 +1914,20 @@ func (s *deviceMgrSuite) TestCheckGadgetOnClassic(c *C) {
 	s.setupSnapDecl(c, otherGadgetInfo, "other-brand")
 
 	// install brand gadget ok
-	err = devicestate.CheckGadgetOrKernel(s.state, nil, brandGadgetInfo, nil, snapstate.Flags{}, deviceCtx)
+	err = devicestate.CheckGadgetOrKernel(s.state, brandGadgetInfo, nil, nil, snapstate.Flags{}, deviceCtx)
 	c.Check(err, IsNil)
 
 	// install canonical gadget ok
-	err = devicestate.CheckGadgetOrKernel(s.state, nil, canonicalGadgetInfo, nil, snapstate.Flags{}, deviceCtx)
+	err = devicestate.CheckGadgetOrKernel(s.state, canonicalGadgetInfo, nil, nil, snapstate.Flags{}, deviceCtx)
 	c.Check(err, IsNil)
 
 	// install other gadget fails
-	err = devicestate.CheckGadgetOrKernel(s.state, nil, otherGadgetInfo, nil, snapstate.Flags{}, deviceCtx)
+	err = devicestate.CheckGadgetOrKernel(s.state, otherGadgetInfo, nil, nil, snapstate.Flags{}, deviceCtx)
 	c.Check(err, ErrorMatches, `cannot install gadget "gadget" published by "other-brand" for model by "my-brand"`)
 
 	// unasserted installation of other works
 	otherGadgetInfo.SnapID = ""
-	err = devicestate.CheckGadgetOrKernel(s.state, nil, otherGadgetInfo, nil, snapstate.Flags{}, deviceCtx)
+	err = devicestate.CheckGadgetOrKernel(s.state, otherGadgetInfo, nil, nil, snapstate.Flags{}, deviceCtx)
 	c.Check(err, IsNil)
 }
 
@@ -1946,7 +1946,7 @@ func (s *deviceMgrSuite) TestCheckGadgetOnClassicGadgetNotSpecified(c *C) {
 	})
 	deviceCtx := &snapstatetest.TrivialDeviceContext{DeviceModel: model}
 
-	err := devicestate.CheckGadgetOrKernel(s.state, nil, gadgetInfo, nil, snapstate.Flags{}, deviceCtx)
+	err := devicestate.CheckGadgetOrKernel(s.state, gadgetInfo, nil, nil, snapstate.Flags{}, deviceCtx)
 	c.Check(err, ErrorMatches, `cannot install gadget snap on classic if not requested by the model`)
 }
 
@@ -1957,7 +1957,7 @@ func (s *deviceMgrSuite) TestCheckKernel(c *C) {
 
 	// not on classic
 	release.OnClassic = true
-	err := devicestate.CheckGadgetOrKernel(s.state, nil, kernelInfo, nil, snapstate.Flags{}, nil)
+	err := devicestate.CheckGadgetOrKernel(s.state, kernelInfo, nil, nil, snapstate.Flags{}, nil)
 	c.Check(err, ErrorMatches, `cannot install a kernel snap on classic`)
 	release.OnClassic = false
 
@@ -1970,7 +1970,7 @@ func (s *deviceMgrSuite) TestCheckKernel(c *C) {
 	})
 	deviceCtx := &snapstatetest.TrivialDeviceContext{DeviceModel: model}
 
-	err = devicestate.CheckGadgetOrKernel(s.state, nil, kernelInfo, nil, snapstate.Flags{}, deviceCtx)
+	err = devicestate.CheckGadgetOrKernel(s.state, kernelInfo, nil, nil, snapstate.Flags{}, deviceCtx)
 	c.Check(err, ErrorMatches, `cannot install kernel "lnrk", model assertion requests "krnl"`)
 
 	// brand kernel
@@ -1989,25 +1989,25 @@ func (s *deviceMgrSuite) TestCheckKernel(c *C) {
 	s.setupSnapDecl(c, otherKrnlInfo, "other-brand")
 
 	// install brand kernel ok
-	err = devicestate.CheckGadgetOrKernel(s.state, nil, brandKrnlInfo, nil, snapstate.Flags{}, deviceCtx)
+	err = devicestate.CheckGadgetOrKernel(s.state, brandKrnlInfo, nil, nil, snapstate.Flags{}, deviceCtx)
 	c.Check(err, IsNil)
 
 	// install canonical kernel ok
-	err = devicestate.CheckGadgetOrKernel(s.state, nil, canonicalKrnlInfo, nil, snapstate.Flags{}, deviceCtx)
+	err = devicestate.CheckGadgetOrKernel(s.state, canonicalKrnlInfo, nil, nil, snapstate.Flags{}, deviceCtx)
 	c.Check(err, IsNil)
 
 	// install other kernel fails
-	err = devicestate.CheckGadgetOrKernel(s.state, nil, otherKrnlInfo, nil, snapstate.Flags{}, deviceCtx)
+	err = devicestate.CheckGadgetOrKernel(s.state, otherKrnlInfo, nil, nil, snapstate.Flags{}, deviceCtx)
 	c.Check(err, ErrorMatches, `cannot install kernel "krnl" published by "other-brand" for model by "my-brand"`)
 
 	// unasserted installation of other works
 	otherKrnlInfo.SnapID = ""
-	err = devicestate.CheckGadgetOrKernel(s.state, nil, otherKrnlInfo, nil, snapstate.Flags{}, deviceCtx)
+	err = devicestate.CheckGadgetOrKernel(s.state, otherKrnlInfo, nil, nil, snapstate.Flags{}, deviceCtx)
 	c.Check(err, IsNil)
 
 	// parallel install fails
 	otherKrnlInfo.InstanceKey = "foo"
-	err = devicestate.CheckGadgetOrKernel(s.state, nil, otherKrnlInfo, nil, snapstate.Flags{}, deviceCtx)
+	err = devicestate.CheckGadgetOrKernel(s.state, otherKrnlInfo, nil, nil, snapstate.Flags{}, deviceCtx)
 	c.Check(err, ErrorMatches, `cannot install "krnl_foo", parallel installation of kernel or gadget snaps is not supported`)
 }
 
