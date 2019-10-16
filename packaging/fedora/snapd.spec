@@ -471,6 +471,7 @@ sed -e "s:github.com/snapcore/bolt:github.com/boltdb/bolt:g" -i advisor/*.go err
 %gobuild -o bin/snapd $GOFLAGS %{import_path}/cmd/snapd
 %gobuild -o bin/snap $GOFLAGS %{import_path}/cmd/snap
 %gobuild -o bin/snap-failure $GOFLAGS %{import_path}/cmd/snap-failure
+%gobuild -o bin/snap-recovery $GOFLAGS %{import_path}/cmd/snap-recovery
 
 # To ensure things work correctly with base snaps,
 # snap-exec, snap-update-ns, and snapctl need to be built statically
@@ -562,6 +563,7 @@ install -p -m 0755 bin/snap-failure %{buildroot}%{_libexecdir}/snapd
 install -p -m 0755 bin/snapd %{buildroot}%{_libexecdir}/snapd
 install -p -m 0755 bin/snap-update-ns %{buildroot}%{_libexecdir}/snapd
 install -p -m 0755 bin/snap-seccomp %{buildroot}%{_libexecdir}/snapd
+install -p -m 0755 bin/snap-recovery %{buildroot}%{_libexecdir}/snapd
 # Ensure /usr/bin/snapctl is a symlink to /usr/libexec/snapd/snapctl
 install -p -m 0755 bin/snapctl %{buildroot}%{_libexecdir}/snapd/snapctl
 ln -sf %{_libexecdir}/snapd/snapctl %{buildroot}%{_bindir}/snapctl
@@ -706,6 +708,7 @@ popd
 %{_libexecdir}/snapd/snapd
 %{_libexecdir}/snapd/snap-exec
 %{_libexecdir}/snapd/snap-failure
+%{_libexecdir}/snapd/snap-recovery
 %{_libexecdir}/snapd/info
 %{_libexecdir}/snapd/snap-mgmt
 %if 0%{?with_selinux}

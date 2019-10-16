@@ -240,7 +240,7 @@ func (s *partitionTestSuite) TestBuildPartitionList(c *C) {
 	gadgetRoot := filepath.Join(c.MkDir(), "gadget")
 	err := makeMockGadget(gadgetRoot, gadgetContent)
 	c.Assert(err, IsNil)
-	pv, err := positionedVolumeFromGadget(gadgetRoot)
+	pv, err := gadget.PositionedVolumeFromGadget(gadgetRoot)
 	c.Assert(err, IsNil)
 
 	plist, deviceMap := partition.BuildPartitionList(ptable, pv)
@@ -274,7 +274,7 @@ func (s *partitionTestSuite) TestCreatePartitions(c *C) {
 	gadgetRoot := filepath.Join(c.MkDir(), "gadget")
 	err := makeMockGadget(gadgetRoot, gadgetContent)
 	c.Assert(err, IsNil)
-	pv, err := positionedVolumeFromGadget(gadgetRoot)
+	pv, err := gadget.PositionedVolumeFromGadget(gadgetRoot)
 	c.Assert(err, IsNil)
 
 	sf := partition.NewSFDisk("/dev/node")
