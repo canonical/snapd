@@ -108,7 +108,7 @@ const kubernetesSupportConnectedPlugAppArmorKubelet = `
 # Allow tracing our own processes. Note, this allows seccomp sandbox escape on
 # kernels < 4.8
 capability sys_ptrace,
-ptrace (trace) peer=snap.@{SNAP_NAME}.*,
+ptrace (trace) peer=snap.@{SNAP_INSTANCE_NAME}.*,
 
 # Allow ptracing other processes (as part of ps-style process lookups). Note,
 # the peer needs a corresponding tracedby rule. As a special case, disallow
@@ -133,8 +133,8 @@ deny ptrace (trace) peer=unconfined,
 # kubelet calls out to systemd-run for some mounts, but not all of them and not
 # unmounts...
 capability sys_admin,
-mount /var/snap/@{SNAP_NAME}/common/{,**} -> /var/snap/@{SNAP_NAME}/common/{,**},
-mount options=(rw, rshared) -> /var/snap/@{SNAP_NAME}/common/{,**},
+mount /var/snap/@{SNAP_INSTANCE_NAME}/common/{,**} -> /var/snap/@{SNAP_INSTANCE_NAME}/common/{,**},
+mount options=(rw, rshared) -> /var/snap/@{SNAP_INSTANCE_NAME}/common/{,**},
 
 /{,usr/}bin/mount ixr,
 /{,usr/}bin/umount ixr,
