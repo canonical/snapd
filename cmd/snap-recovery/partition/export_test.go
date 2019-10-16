@@ -16,41 +16,14 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  *
  */
-package cgroup
+package partition
 
-import (
-	. "gopkg.in/check.v1"
-)
+type LsblkFilesystemInfo = lsblkFilesystemInfo
+type LsblkBlockDevice = lsblkBlockDevice
+type SFDiskPartitionTable = sfdiskPartitionTable
+type SFDiskPartition = sfdiskPartition
 
 var (
-	Cgroup2SuperMagic  = cgroup2SuperMagic
-	ProbeCgroupVersion = probeCgroupVersion
+	FilesystemInfo     = filesystemInfo
+	BuildPartitionList = buildPartitionList
 )
-
-func MockFsTypeForPath(mock func(string) (int64, error)) (restore func()) {
-	old := fsTypeForPath
-	fsTypeForPath = mock
-	return func() {
-		fsTypeForPath = old
-	}
-}
-
-func MockFsRootPath(p string) (restore func()) {
-	old := rootPath
-	rootPath = p
-	return func() {
-		rootPath = old
-	}
-}
-
-func MockFreezerCgroupDir(c *C) (restore func()) {
-	old := freezerCgroupDir
-	freezerCgroupDir = c.MkDir()
-	return func() {
-		freezerCgroupDir = old
-	}
-}
-
-func FreezerCgroupDir() string {
-	return freezerCgroupDir
-}

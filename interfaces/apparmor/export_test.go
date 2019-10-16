@@ -33,7 +33,16 @@ var (
 	LoadProfiles               = loadProfiles
 	UnloadProfiles             = unloadProfiles
 	SetupSnapConfineReexec     = setupSnapConfineReexec
+	MaybeSetNumberOfJobs       = maybeSetNumberOfJobs
 )
+
+func MockRuntimeNumCPU(new func() int) (restore func()) {
+	old := runtimeNumCPU
+	runtimeNumCPU = new
+	return func() {
+		runtimeNumCPU = old
+	}
+}
 
 // MockIsRootWritableOverlay mocks the real implementation of osutil.IsRootWritableOverlay
 func MockIsRootWritableOverlay(new func() (string, error)) (restore func()) {

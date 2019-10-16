@@ -17,7 +17,7 @@
  *
  */
 
-package main
+package cgroup
 
 import (
 	"bytes"
@@ -30,10 +30,22 @@ import (
 
 var freezerCgroupDir = "/sys/fs/cgroup/freezer"
 
-var (
-	freezeSnapProcesses = freezeSnapProcessesImpl
-	thawSnapProcesses   = thawSnapProcessesImpl
-)
+// FreezeSnapProcessesImpl suspends execution of all the processes belonging to
+// a given snap. Processes remain frozen until ThawSnapProcesses is called,
+// care must be taken not to freezer processes indefinitely.
+//
+// The freeze operation is not instant. Once commenced it proceeds
+// asynchronously. Internally the function waits for the freezing to complete
+// in at most 3000ms. If this time is insufficient then the processes are
+// thawed and an error is returned.
+//
+// This operation can be mocked with MockFreezing
+var FreezeSnapProcesses = freezeSnapProcessesImpl
+
+// ThawSnapProcesses resumes execution of all processes belonging to a given snap.
+//
+// This operation can be mocked with MockFreezing
+var ThawSnapProcesses = thawSnapProcessesImpl
 
 // freezeSnapProcessesImpl freezes all the processes originating from the given snap.
 // Processes are frozen regardless of which particular snap application they
@@ -61,7 +73,7 @@ func freezeSnapProcessesImpl(snapName string) error {
 		return nil
 	}
 	// If we got here then we timed out after seeing FREEZING for too long.
-	thawSnapProcesses(snapName) // ignore the error, this is best-effort.
+	ThawSnapProcesses(snapName) // ignore the error, this is best-effort.
 	return fmt.Errorf("cannot finish freezing processes of snap %q", snapName)
 }
 
@@ -76,4 +88,18 @@ func thawSnapProcessesImpl(snapName string) error {
 		return fmt.Errorf("cannot thaw processes of snap %q", snapName)
 	}
 	return nil
+}
+
+// MockFreezing replaces the real implementation of freeze and thaw.
+func MockFreezing(freeze, thaw func(snapName string) error) (restore func()) {
+	oldFreeze := FreezeSnapProcesses
+	oldThaw := ThawSnapProcesses
+
+	FreezeSnapProcesses = freeze
+	ThawSnapProcesses = thaw
+
+	return func() {
+		FreezeSnapProcesses = oldFreeze
+		ThawSnapProcesses = oldThaw
+	}
 }

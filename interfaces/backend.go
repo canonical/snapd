@@ -96,3 +96,11 @@ type SecurityBackend interface {
 	// SandboxFeatures returns a list of tags that identify sandbox features.
 	SandboxFeatures() []string
 }
+
+// SecurityBackendSetupMany interface may be implemented by backends that can optimize their operations
+// when setting up multiple snaps at once.
+type SecurityBackendSetupMany interface {
+	// SetupMany creates and loads apparmor profiles of multiple snaps. It tries to process all snaps and doesn't interrupt processing
+	// on errors of individual snaps.
+	SetupMany(snaps []*snap.Info, confinement func(snapName string) ConfinementOptions, repo *Repository, tm timings.Measurer) []error
+}

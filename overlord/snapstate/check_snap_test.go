@@ -202,13 +202,20 @@ version: 1.0`
 
 	var openSnapFile = func(path string, si *snap.SideInfo) (*snap.Info, snap.Container, error) {
 		info := snaptest.MockInfo(c, yaml, si)
-		return info, emptyContainer(c), nil
+		snapDir := emptyContainer(c)
+		err := ioutil.WriteFile(filepath.Join(snapDir.Path(), "canary"), []byte("canary"), 0644)
+		c.Assert(err, IsNil)
+		return info, snapDir, nil
 	}
 	r1 := snapstate.MockOpenSnapFile(openSnapFile)
 	defer r1()
 
 	checkCbCalled := false
-	checkCb := func(st *state.State, s, cur *snap.Info, flags snapstate.Flags, deviceCtx snapstate.DeviceContext) error {
+	checkCb := func(st *state.State, s, cur *snap.Info, sf snap.Container, flags snapstate.Flags, deviceCtx snapstate.DeviceContext) error {
+		c.Assert(sf, NotNil)
+		data, err := sf.ReadFile("canary")
+		c.Assert(err, IsNil)
+		c.Assert(data, DeepEquals, []byte("canary"))
 		c.Assert(s.InstanceName(), Equals, "foo")
 		c.Assert(s.SnapID, Equals, "snap-id")
 		checkCbCalled = true
@@ -237,7 +244,7 @@ version: 1.0`
 	defer restore()
 
 	fail := errors.New("bad snap")
-	checkCb := func(st *state.State, s, cur *snap.Info, flags snapstate.Flags, deviceCtx snapstate.DeviceContext) error {
+	checkCb := func(st *state.State, s, cur *snap.Info, _ snap.Container, flags snapstate.Flags, deviceCtx snapstate.DeviceContext) error {
 		return fail
 	}
 	r2 := snapstate.MockCheckSnapCallbacks(nil)
@@ -810,7 +817,8 @@ version: 1.0`
 	defer r1()
 
 	checkCbCalled := false
-	checkCb := func(st *state.State, s, cur *snap.Info, flags snapstate.Flags, deviceCtx snapstate.DeviceContext) error {
+	checkCb := func(st *state.State, s, cur *snap.Info, sf snap.Container, flags snapstate.Flags, deviceCtx snapstate.DeviceContext) error {
+		c.Assert(sf, NotNil)
 		c.Assert(s.InstanceName(), Equals, "foo_instance")
 		c.Assert(s.SnapName(), Equals, "foo")
 		c.Assert(s.SnapID, Equals, "snap-id")
