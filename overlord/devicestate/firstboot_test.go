@@ -59,14 +59,10 @@ import (
 	"github.com/snapcore/snapd/timings"
 )
 
-type firstBoot16Suite struct {
+type firstBootBaseTest struct {
 	testutil.BaseTest
 
 	systemctl *testutil.MockCmd
-
-	// TestingSeed16 helps populating seeds (it provides
-	// MakeAssertedSnap, WriteAssertions etc.) for tests.
-	*seedtest.TestingSeed16
 
 	devAcct *asserts.Account
 
@@ -75,59 +71,70 @@ type firstBoot16Suite struct {
 	perfTimings timings.Measurer
 }
 
-var _ = Suite(&firstBoot16Suite{})
-
-func (s *firstBoot16Suite) SetUpTest(c *C) {
-	s.BaseTest.SetUpTest(c)
+func (t *firstBootBaseTest) setupBaseTest(c *C, s *seedtest.SeedSnaps) {
+	t.BaseTest.SetUpTest(c)
 
 	tempdir := c.MkDir()
 	dirs.SetRootDir(tempdir)
-	s.AddCleanup(func() { dirs.SetRootDir("/") })
+	t.AddCleanup(func() { dirs.SetRootDir("/") })
 
-	s.AddCleanup(release.MockOnClassic(false))
+	t.AddCleanup(release.MockOnClassic(false))
 
 	// mock the world!
 	err := os.MkdirAll(filepath.Join(dirs.SnapSeedDir, "snaps"), 0755)
-	c.Assert(err, IsNil)
-	err = os.MkdirAll(filepath.Join(dirs.SnapSeedDir, "assertions"), 0755)
 	c.Assert(err, IsNil)
 
 	err = os.MkdirAll(dirs.SnapServicesDir, 0755)
 	c.Assert(err, IsNil)
 	os.Setenv("SNAPPY_SQUASHFS_UNPACK_FOR_TESTS", "1")
-	s.AddCleanup(func() { os.Unsetenv("SNAPPY_SQUASHFS_UNPACK_FOR_TESTS") })
-	s.systemctl = testutil.MockCommand(c, "systemctl", "")
-	s.AddCleanup(s.systemctl.Restore)
+	t.AddCleanup(func() { os.Unsetenv("SNAPPY_SQUASHFS_UNPACK_FOR_TESTS") })
+	t.systemctl = testutil.MockCommand(c, "systemctl", "")
+	t.AddCleanup(t.systemctl.Restore)
 
-	err = ioutil.WriteFile(filepath.Join(dirs.SnapSeedDir, "seed.yaml"), nil, 0644)
-	c.Assert(err, IsNil)
-
-	s.TestingSeed16 = &seedtest.TestingSeed16{}
 	s.SetupAssertSigning("canonical")
 	s.Brands.Register("my-brand", brandPrivKey, map[string]interface{}{
 		"verification": "verified",
 	})
 
-	s.SeedDir = dirs.SnapSeedDir
-
-	s.devAcct = assertstest.NewAccount(s.StoreSigning, "developer", map[string]interface{}{
+	t.devAcct = assertstest.NewAccount(s.StoreSigning, "developer", map[string]interface{}{
 		"account-id": "developerid",
 	}, "")
 
-	s.AddCleanup(sysdb.InjectTrusted([]asserts.Assertion{s.StoreSigning.TrustedKey}))
-	s.AddCleanup(ifacestate.MockSecurityBackends(nil))
+	t.AddCleanup(sysdb.InjectTrusted([]asserts.Assertion{s.StoreSigning.TrustedKey}))
+	t.AddCleanup(ifacestate.MockSecurityBackends(nil))
 
 	ovld, err := overlord.New(nil)
 	c.Assert(err, IsNil)
 	ovld.InterfaceManager().DisableUDevMonitor()
-	s.overlord = ovld
+	t.overlord = ovld
 	c.Assert(ovld.StartUp(), IsNil)
 
 	// don't actually try to talk to the store on snapstate.Ensure
 	// needs doing after the call to devicestate.Manager (which happens in overlord.New)
 	snapstate.CanAutoRefresh = nil
 
-	s.perfTimings = timings.New(nil)
+	t.perfTimings = timings.New(nil)
+}
+
+type firstBoot16Suite struct {
+	firstBootBaseTest
+
+	// TestingSeed16 helps populating seeds (it provides
+	// MakeAssertedSnap, WriteAssertions etc.) for tests.
+	*seedtest.TestingSeed16
+}
+
+var _ = Suite(&firstBoot16Suite{})
+
+func (s *firstBoot16Suite) SetUpTest(c *C) {
+	s.TestingSeed16 = &seedtest.TestingSeed16{}
+
+	s.setupBaseTest(c, &s.TestingSeed16.SeedSnaps)
+
+	s.SeedDir = dirs.SnapSeedDir
+
+	err := os.MkdirAll(filepath.Join(dirs.SnapSeedDir, "assertions"), 0755)
+	c.Assert(err, IsNil)
 }
 
 func checkTrivialSeeding(c *C, tsAll []*state.TaskSet) {
@@ -217,9 +224,6 @@ func (s *firstBoot16Suite) TestPopulateFromSeedOnClassicNoSeedYaml(c *C) {
 	assertsChain := s.makeModelAssertionChain(c, "my-model-classic", nil)
 	s.WriteAssertions("model.asserts", assertsChain...)
 
-	err = os.Remove(filepath.Join(dirs.SnapSeedDir, "seed.yaml"))
-	c.Assert(err, IsNil)
-
 	st.Lock()
 	defer st.Unlock()
 
@@ -266,9 +270,6 @@ func (s *firstBoot16Suite) TestPopulateFromSeedOnClassicNoSeedYamlWithCloudInsta
 	assertsChain := s.makeModelAssertionChain(c, "my-model-classic", nil)
 	s.WriteAssertions("model.asserts", assertsChain...)
 
-	err := os.Remove(filepath.Join(dirs.SnapSeedDir, "seed.yaml"))
-	c.Assert(err, IsNil)
-
 	// write cloud instance data
 	const instData = `{
  "v1": {
@@ -279,7 +280,7 @@ func (s *firstBoot16Suite) TestPopulateFromSeedOnClassicNoSeedYamlWithCloudInsta
   "region": "us-east-2"
  }
 }`
-	err = os.MkdirAll(filepath.Dir(dirs.CloudInstanceDataFile), 0755)
+	err := os.MkdirAll(filepath.Dir(dirs.CloudInstanceDataFile), 0755)
 	c.Assert(err, IsNil)
 	err = ioutil.WriteFile(dirs.CloudInstanceDataFile, []byte(instData), 0600)
 	c.Assert(err, IsNil)
