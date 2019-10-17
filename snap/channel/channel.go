@@ -234,18 +234,18 @@ func Resolve(channel, newChannel string) (string, error) {
 	return newChannel, nil
 }
 
-var ErrLockedTrackSwitch = errors.New("cannot switch locked track")
+var ErrPinnedTrackSwitch = errors.New("cannot switch pinned track")
 
-// ResolveLocked resolves newChannel wrt a locked track, newChannel
+// ResolvePinned resolves newChannel wrt a pinned track, newChannel
 // can only be risk/branch-only or have the same track, otherwise
-// ErrLockedTrackSwitch is returned.
-func ResolveLocked(track, newChannel string) (string, error) {
+// ErrPinnedTrackSwitch is returned.
+func ResolvePinned(track, newChannel string) (string, error) {
 	if track == "" {
 		return newChannel, nil
 	}
 	ch, err := ParseVerbatim(track, "-")
 	if err != nil || !ch.VerbatimTrackOnly() {
-		return "", fmt.Errorf("invalid locked track: %s", track)
+		return "", fmt.Errorf("invalid pinned track: %s", track)
 	}
 	if newChannel == "" {
 		return track, nil
@@ -257,8 +257,8 @@ func ResolveLocked(track, newChannel string) (string, error) {
 		return trackPrefix + newChannel, nil
 	}
 	if newChannel != track && !strings.HasPrefix(newChannel, trackPrefix) {
-		// the track is locked/pinned
-		return "", ErrLockedTrackSwitch
+		// the track is pinned
+		return "", ErrPinnedTrackSwitch
 	}
 	return newChannel, nil
 }
