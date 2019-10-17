@@ -538,7 +538,7 @@ func (b *Backend) deriveContent(spec *Specification, snapInfo *snap.Info, opts i
 	// Add profile for each hook.
 	for _, hookInfo := range snapInfo.Hooks {
 		securityTag := hookInfo.SecurityTag()
-		addContent(securityTag, snapInfo, hookInfo.Name, opts, spec.SnippetForTag(securityTag), content, spec)
+		addContent(securityTag, snapInfo, "hook."+hookInfo.Name, opts, spec.SnippetForTag(securityTag), content, spec)
 	}
 	// Add profile for snap-update-ns if we have any apps or hooks.
 	// If we have neither then we don't have any need to create an executing environment.

@@ -864,6 +864,44 @@ profile "snap.samba_foo.smbd" (attach_disconnected,mediate_deleted) {
 	s.RemoveSnap(c, snapInfo)
 }
 
+func (s *backendSuite) TestTemplateVarsWithHook(c *C) {
+	restore := apparmor_sandbox.MockLevel(apparmor_sandbox.Full)
+	defer restore()
+	restore = apparmor.MockIsHomeUsingNFS(func() (bool, error) { return false, nil })
+	defer restore()
+	restore = apparmor.MockIsRootWritableOverlay(func() (string, error) { return "", nil })
+	defer restore()
+	// NOTE: replace the real template with a shorter variant
+	restoreTemplate := apparmor.MockTemplate("\n" +
+		"###VAR###\n" +
+		"###PROFILEATTACH### (attach_disconnected,mediate_deleted) {\n" +
+		"###SNIPPETS###\n" +
+		"}\n")
+	defer restoreTemplate()
+
+	expected := `
+# This is a snap name without the instance key
+@{SNAP_NAME}="foo"
+# This is a snap name with instance key
+@{SNAP_INSTANCE_NAME}="foo"
+@{SNAP_COMMAND_NAME}="hook.configure"
+@{SNAP_REVISION}="1"
+@{PROFILE_DBUS}="snap_2efoo_2ehook_2econfigure"
+@{INSTALL_DIR}="/{,var/lib/snapd/}snap"
+profile "snap.foo.hook.configure" (attach_disconnected,mediate_deleted) {
+
+}
+`
+	snapInfo := s.InstallSnap(c, interfaces.ConfinementOptions{}, "", ifacetest.HookYaml, 1)
+	c.Assert(snapInfo, NotNil)
+	profile := filepath.Join(dirs.SnapAppArmorDir, "snap.foo.hook.configure")
+	stat, err := os.Stat(profile)
+	c.Assert(err, IsNil)
+	c.Check(profile, testutil.FileEquals, expected)
+	c.Check(stat.Mode(), Equals, os.FileMode(0644))
+	s.RemoveSnap(c, snapInfo)
+}
+
 func mockPartalAppArmorOnDistro(c *C, kernelVersion string, releaseID string, releaseIDLike ...string) (restore func()) {
 	restore1 := apparmor_sandbox.MockLevel(apparmor_sandbox.Partial)
 	restore2 := release.MockReleaseInfo(&release.OS{ID: releaseID, IDLike: releaseIDLike})
