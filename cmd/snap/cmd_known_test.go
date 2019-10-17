@@ -142,7 +142,7 @@ func (s *SnapSuite) TestKnownRemoteAutoFallback(c *check.C) {
 
 	cli := snap.Client()
 	cli.Hijack(func(*http.Request) (*http.Response, error) {
-		return nil, client.ConnectionError{fmt.Errorf("no snapd")}
+		return nil, client.ConnectionError{Err: fmt.Errorf("no snapd")}
 	})
 
 	rest, err := snap.Parser(cli).ParseArgs([]string{"known", "--remote", "model", "series=16", "brand-id=canonical", "model=pi99"})

@@ -176,7 +176,7 @@ if [ "$STATIC" = 1 ]; then
 
     # go vet
     echo Running vet
-    go list ./... | grep -v '/vendor/' | xargs go vet
+    go list ./... | grep -v '/vendor/' | xargs go tool vet
 
     echo 'Check for usages of http.Status*'
     got=""

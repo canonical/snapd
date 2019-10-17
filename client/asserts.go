@@ -87,7 +87,10 @@ func (client *Client) Known(assertTypeName string, headers map[string]string, op
 	defer cancel()
 	response, err := client.raw(ctx, "GET", path, q, nil, nil)
 	if err != nil {
-		return nil, xerrors.Errorf("failed to query assertions: %w", err)
+		// workaround for silly go1.9 vet that errors because it
+		// does not know about %w
+		fmt := "failed to query assertions: %w"
+		return nil, xerrors.Errorf(fmt, err)
 	}
 
 	defer response.Body.Close()
