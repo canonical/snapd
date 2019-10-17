@@ -1,0 +1,48 @@
+summary: the snap-{run,confine,exec} chain does not create files with undesired properties.
+prepare: |
+    # Install a snap with opengl and joystick plugs.
+    # This gives us all of the usual snap-confine configuration, along with all
+    # the cgroups that we create. 
+    snap pack test-snapd-app
+    snap install --dangerous ./test-snapd-app_1.0_all.snap
+    snap connect test-snapd-app:opengl
+    snap connect test-snapd-app:joystick
+execute: |
+    # Run the snap as a non-root user.
+    su test -c 'snap run test-snapd-app.sh -c /bin/true'
+
+    # Look for files that are owned by the test user, group owned by the test
+    # user or are world-writable in /run/snapd as well as in /sys/fs/cgroup
+    # trees.
+    for dname in /run/snapd /sys/fs/cgroup; do
+        find "$dname" -user test >> wrong-user.txt
+        find "$dname" -group test >> wrong-group.txt
+        # NOTE: filter out the following elements:
+        # - sockets, we don't create any and there are some that are 777
+        # - symbolic links, those are always 777
+        # - the file cgroup.event_control which is ugo+w for some reason
+        find "$dname" ! -type s ! -type l ! -name cgroup.event_control -perm /o+w >> world-writable.txt
+    done
+
+    # The test fails if any such file is detected
+    ret=0
+    if test -s wrong-user.txt; then
+        echo "the following files should be owned by root"
+        cat wrong-user.txt
+        ret=1
+    fi
+    if test -s wrong-group.txt; then
+        echo "the following files should be group-owned by root"
+        cat wrong-group.txt
+        ret=1
+    fi
+    if test -s world-writable.txt; then
+        echo "the following files should not be world-writable"
+        cat world-writable.txt
+        ret=1
+    fi
+    exit "$ret"
+restore: |
+    snap remove test-snapd-app
+    rm -f test-snapd-app_1.0_all.snap
+    rm -f wrong-*.txt
