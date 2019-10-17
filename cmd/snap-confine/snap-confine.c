@@ -345,18 +345,17 @@ int main(int argc, char **argv)
 	debug("rgid: %d, egid: %d, sgid: %d",
 	      real_gid, effective_gid, saved_gid);
 
-	// snap-confine runs as both setuid root and setgid root.
-	// Temporarily drop group privileges here and reraise later
-	// as needed.
-	if (effective_gid == 0 && real_gid != 0) {
-		if (setegid(real_gid) != 0) {
-			die("cannot set effective group id to %d", real_gid);
-		}
-	}
-	// This code always needs to run as root for the cgroup/udev setup.
-	if (geteuid() != 0) {
+	// snap-confine needs to run as root for cgroup/udev/mount/apparmor/etc setup.
+	if (effective_uid != 0) {
 		die("need to run as root or suid");
 	}
+	// Make the effective group "root". This ensures that various files we
+	// create are not accidentally group-owned by the user invoking
+	// snap-confine.
+	if (setegid(0) != 0) {
+		die("setegid(0) failed");
+	}
+
 
 	char *snap_context SC_CLEANUP(sc_cleanup_string) = NULL;
 	// Do no get snap context value if running a hook (we don't want to overwrite hook's SNAP_COOKIE)
