@@ -21,6 +21,7 @@ package main
 
 import (
 	"fmt"
+	"io"
 	"os"
 	"path/filepath"
 	"strings"
@@ -29,6 +30,7 @@ import (
 
 	"github.com/snapcore/snapd/asserts"
 	"github.com/snapcore/snapd/asserts/sysdb"
+	"github.com/snapcore/snapd/client"
 	"github.com/snapcore/snapd/i18n"
 	"github.com/snapcore/snapd/image"
 	"github.com/snapcore/snapd/snap"
@@ -36,9 +38,12 @@ import (
 
 type cmdDownload struct {
 	channelMixin
+	clientMixin
+
 	Revision  string `long:"revision"`
 	Basename  string `long:"basename"`
 	TargetDir string `long:"target-directory"`
+	Direct    bool   `long:"direct"`
 
 	CohortKey  string `long:"cohort"`
 	Positional struct {
@@ -64,6 +69,8 @@ func init() {
 		"basename": i18n.G("Use this basename for the snap and assertion files (defaults to <snap>_<revision>)"),
 		// TRANSLATORS: This should not start with a lowercase letter.
 		"target-directory": i18n.G("Download to this directory (defaults to the current directory)"),
+		// TRANSLATORS: This should not start with a lowercase letter.
+		"direct": i18n.G("Do not try to connect to snapd to download"),
 	}), []argDesc{{
 		name: "<snap>",
 		// TRANSLATORS: This should not start with a lowercase letter.
@@ -71,7 +78,7 @@ func init() {
 	}})
 }
 
-func fetchSnapAssertions(tsto *image.ToolingStore, snapPath string, snapInfo *snap.Info) (string, error) {
+func fetchSnapAssertions(tsto downloadStore, snapPath string, snapInfo *snap.Info) (string, error) {
 	db, err := asserts.OpenDatabase(&asserts.DatabaseConfig{
 		Backstore: asserts.NewMemoryBackstore(),
 		Trusted:   sysdb.Trusted(),
@@ -97,38 +104,18 @@ func fetchSnapAssertions(tsto *image.ToolingStore, snapPath string, snapInfo *sn
 	return assertPath, err
 }
 
-func (x *cmdDownload) Execute(args []string) error {
-	if strings.ContainsRune(x.Basename, filepath.Separator) {
-		return fmt.Errorf(i18n.G("cannot specify a path in basename (use --target-dir for that)"))
-	}
-	if err := x.setChannelFromCommandline(); err != nil {
-		return err
-	}
+//
+type downloadStore interface {
+	DownloadSnap(name string, opts image.DownloadOptions) (targetFn string, info *snap.Info, err error)
+	AssertionFetcher(db *asserts.Database, save func(asserts.Assertion) error) asserts.Fetcher
+}
 
-	if len(args) > 0 {
-		return ErrExtraArgs
-	}
+var newDownloadStore = func() (downloadStore, error) {
+	return image.NewToolingStore()
+}
 
-	var revision snap.Revision
-	if x.Revision == "" {
-		revision = snap.R(0)
-	} else {
-		if x.Channel != "" {
-			return fmt.Errorf(i18n.G("cannot specify both channel and revision"))
-		}
-		if x.CohortKey != "" {
-			return fmt.Errorf(i18n.G("cannot specify both cohort and revision"))
-		}
-		var err error
-		revision, err = snap.ParseRevision(x.Revision)
-		if err != nil {
-			return err
-		}
-	}
-
-	snapName := string(x.Positional.Snap)
-
-	tsto, err := image.NewToolingStore()
+func (x *cmdDownload) downloadDirect(snapName string, revision snap.Revision) error {
+	tsto, err := newDownloadStore()
 	if err != nil {
 		return err
 	}
@@ -169,4 +156,133 @@ func (x *cmdDownload) Execute(args []string) error {
 `), assertPath, snapPath)
 
 	return nil
+}
+
+func (x *cmdDownload) downloadViaSnapd(snapName string, rev snap.Revision) error {
+	opts := &client.SnapOptions{
+		Channel:   x.Channel,
+		CohortKey: x.CohortKey,
+		Revision:  rev.String(),
+	}
+	fname, stream, err := x.client.Download(snapName, opts)
+	if err != nil {
+		return err
+	}
+	fmt.Fprintf(Stdout, i18n.G("Fetching snap %q\n"), snapName)
+
+	if x.Basename != "" {
+		fname = x.Basename + ".snap"
+	}
+	downloadPath := filepath.Join(x.TargetDir, fname)
+	if err := os.MkdirAll(filepath.Dir(downloadPath), 0755); err != nil {
+		return err
+	}
+	f, err := os.Create(downloadPath)
+	if err != nil {
+		return err
+	}
+	defer f.Close()
+
+	if _, err := io.Copy(f, stream); err != nil {
+		return err
+	}
+
+	fmt.Fprintf(Stdout, i18n.G("Fetching assertions for %q\n"), snapName)
+
+	assertFname := strings.TrimSuffix(downloadPath, filepath.Ext(downloadPath)) + ".assert"
+	sha3_384, _, err := asserts.SnapFileSHA3_384(downloadPath)
+	if err != nil {
+		return err
+	}
+
+	db, err := asserts.OpenDatabase(&asserts.DatabaseConfig{
+		Backstore: asserts.NewMemoryBackstore(),
+		Trusted:   sysdb.Trusted(),
+	})
+	if err != nil {
+		return err
+	}
+	retrieve := func(ref *asserts.Ref) (asserts.Assertion, error) {
+		headers, err := asserts.HeadersFromPrimaryKey(ref.Type, ref.PrimaryKey)
+		if err != nil {
+			return nil, err
+		}
+		asserts, err := x.client.Known(ref.Type.Name, headers, &client.KnownOptions{Remote: true})
+		if err != nil {
+			return nil, err
+		}
+		if len(asserts) != 1 {
+			return nil, fmt.Errorf("unexpected amount of assertions: %q", asserts)
+		}
+		return asserts[0], nil
+	}
+
+	w, err := os.Create(assertFname)
+	if err != nil {
+		return err
+	}
+	defer w.Close()
+
+	encoder := asserts.NewEncoder(w)
+	save := func(a asserts.Assertion) error {
+		encoder.Encode(a)
+		return db.Add(a)
+	}
+	ref := &asserts.Ref{asserts.SnapRevisionType, []string{sha3_384}}
+	fetcher := asserts.NewFetcher(db, retrieve, save)
+	if err := fetcher.Fetch(ref); err != nil {
+		return err
+	}
+	// XXX: cross check?
+
+	return nil
+}
+
+func isErrorKindLoginRequired(e error) bool {
+	if err, ok := e.(*client.Error); ok {
+		return err.Kind == client.ErrorKindLoginRequired
+	}
+	return false
+}
+
+func (x *cmdDownload) Execute(args []string) error {
+	if strings.ContainsRune(x.Basename, filepath.Separator) {
+		return fmt.Errorf(i18n.G("cannot specify a path in basename (use --target-dir for that)"))
+	}
+	if err := x.setChannelFromCommandline(); err != nil {
+		return err
+	}
+
+	if len(args) > 0 {
+		return ErrExtraArgs
+	}
+
+	var revision snap.Revision
+	if x.Revision == "" {
+		revision = snap.R(0)
+	} else {
+		if x.Channel != "" {
+			return fmt.Errorf(i18n.G("cannot specify both channel and revision"))
+		}
+		if x.CohortKey != "" {
+			return fmt.Errorf(i18n.G("cannot specify both cohort and revision"))
+		}
+		var err error
+		revision, err = snap.ParseRevision(x.Revision)
+		if err != nil {
+			return err
+		}
+	}
+	snapName := string(x.Positional.Snap)
+
+	if x.Direct {
+		return x.downloadDirect(snapName, revision)
+	}
+
+	err := x.downloadViaSnapd(snapName, revision)
+	if client.IsConnectionError(err) || isErrorKindLoginRequired(err) {
+		fmt.Fprintf(Stdout, "Cannot connect to the daemon, trying direct download\n")
+		return x.downloadDirect(snapName, revision)
+	}
+	return err
 }

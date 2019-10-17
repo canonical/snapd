@@ -20,16 +20,23 @@
 package main_test
 
 import (
+	"fmt"
+	"net/http"
+
 	"gopkg.in/check.v1"
 
-	snap "github.com/snapcore/snapd/cmd/snap"
+	"github.com/snapcore/snapd/asserts"
+	"github.com/snapcore/snapd/client"
+	snapCmd "github.com/snapcore/snapd/cmd/snap"
+	"github.com/snapcore/snapd/image"
+	"github.com/snapcore/snapd/snap"
 )
 
 // these only cover errors that happen before hitting the network,
 // because we're not (yet!) mocking the tooling store
 
 func (s *SnapSuite) TestDownloadBadBasename(c *check.C) {
-	_, err := snap.Parser(snap.Client()).ParseArgs([]string{
+	_, err := snapCmd.Parser(snapCmd.Client()).ParseArgs([]string{
 		"download", "--basename=/foo", "a-snap",
 	})
 
@@ -37,7 +44,7 @@ func (s *SnapSuite) TestDownloadBadBasename(c *check.C) {
 }
 
 func (s *SnapSuite) TestDownloadBadChannelCombo(c *check.C) {
-	_, err := snap.Parser(snap.Client()).ParseArgs([]string{
+	_, err := snapCmd.Parser(snapCmd.Client()).ParseArgs([]string{
 		"download", "--beta", "--channel=foo", "a-snap",
 	})
 
@@ -45,7 +52,7 @@ func (s *SnapSuite) TestDownloadBadChannelCombo(c *check.C) {
 }
 
 func (s *SnapSuite) TestDownloadCohortAndRevision(c *check.C) {
-	_, err := snap.Parser(snap.Client()).ParseArgs([]string{
+	_, err := snapCmd.Parser(snapCmd.Client()).ParseArgs([]string{
 		"download", "--cohort=what", "--revision=1234", "a-snap",
 	})
 
@@ -53,9 +60,82 @@ func (s *SnapSuite) TestDownloadCohortAndRevision(c *check.C) {
 }
 
 func (s *SnapSuite) TestDownloadChannelAndRevision(c *check.C) {
-	_, err := snap.Parser(snap.Client()).ParseArgs([]string{
+	_, err := snapCmd.Parser(snapCmd.Client()).ParseArgs([]string{
 		"download", "--beta", "--revision=1234", "a-snap",
 	})
 
 	c.Check(err, check.ErrorMatches, "cannot specify both channel and revision")
+}
+
+func (s *SnapSuite) TestDownloadViaSnapd(c *check.C) {
+	n := 0
+	s.RedirectClientToTestServer(func(w http.ResponseWriter, r *http.Request) {
+		switch n {
+		case 0:
+			c.Check(r.URL.Path, check.Equals, "/v2/download")
+			w.Header().Set("Content-Type", "application/octet-stream")
+			w.Header().Set("Content-Disposition", "attachment; filename=a-snap_1.snap")
+			fmt.Fprintln(w, "file-content")
+		case 1:
+			c.Check(r.URL.Path, check.Equals, "/v2/assertions/snap-revision")
+			w.WriteHeader(418)
+		default:
+			c.Fatalf("expected to get 1 requests, now on %d", n+1)
+		}
+		n++
+	})
+
+	// we just test here that we hits the snapd API, testing this fully
+	// would require a full assertion chain
+	tmpdir := c.MkDir()
+	_, err := snapCmd.Parser(snapCmd.Client()).ParseArgs([]string{"download", "a-snap", "--target-directory", tmpdir})
+	c.Assert(err, check.ErrorMatches, `server error: "418 I'm a teapot"`)
+	c.Assert(n, check.Equals, 2)
+}
+
+type mockDownloadStore struct{}
+
+func (m *mockDownloadStore) DownloadSnap(name string, opts image.DownloadOptions) (targetFn string, info *snap.Info, err error) {
+	return "", nil, fmt.Errorf("mockDownloadStore cannot provide snaps")
+}
+
+func (m *mockDownloadStore) AssertionFetcher(db *asserts.Database, save func(asserts.Assertion) error) asserts.Fetcher {
+	retrieve := func(ref *asserts.Ref) (asserts.Assertion, error) {
+		return nil, fmt.Errorf("mockDownloadStore does not have assertions")
+	}
+	return asserts.NewFetcher(db, retrieve, save)
+}
+
+func (s *SnapSuite) TestDownloadDirect(c *check.C) {
+	restore := snapCmd.MockNewDownloadStore(func() (snapCmd.DownloadStore, error) {
+		return &mockDownloadStore{}, nil
+	})
+	defer restore()
+
+	// we just test here that --direct hits our fake tooling store,
+	// mocking the full download is more work, i.e. we need to mock
+	// the assertions download as well
+	_, err := snapCmd.Parser(snapCmd.Client()).ParseArgs([]string{"download", "--direct", "a-snap"})
+	c.Assert(err, check.ErrorMatches, "mockDownloadStore cannot provide snaps")
+}
+
+func (s *SnapSuite) TestDownloadAutoFallback(c *check.C) {
+	restore := snapCmd.MockNewDownloadStore(func() (snapCmd.DownloadStore, error) {
+		return &mockDownloadStore{}, nil
+	})
+	defer restore()
+
+	// we pretend we can't talk to snapd
+	n := 0
+	cli := snapCmd.Client()
+	cli.Hijack(func(*http.Request) (*http.Response, error) {
+		n++
+		return nil, client.ConnectionError{fmt.Errorf("no snapd")}
+	})
+
+	// ensure we hit the tooling store, testing this fully would require
+	// a full assertion chain
+	_, err := snapCmd.Parser(cli).ParseArgs([]string{"download", "a-snap"})
+	c.Assert(err, check.ErrorMatches, "mockDownloadStore cannot provide snaps")
+	c.Assert(n, check.Equals, 1)
 }

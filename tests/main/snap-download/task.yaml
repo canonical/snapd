@@ -3,6 +3,7 @@ summary: Check that snap download works
 restore: |
     rm -f ~test/*.snap
     rm -f ~test/*.assert
+    systemctl start snapd.service snapd.socket
 
 execute: |
     verify_asserts() {
@@ -15,9 +16,6 @@ execute: |
     snap download test-snapd-control-consumer
     ls test-snapd-control-consumer_*.snap
     verify_asserts test-snapd-control-consumer_*.assert
-
-    echo "Snap will use existing files"
-    SNAPD_DEBUG=1 snap download test-snapd-control-consumer 2>&1 | MATCH "not downloading, using existing file"
 
     echo "Snap download understand --edge"
     snap download --edge test-snapd-tools
@@ -51,3 +49,19 @@ execute: |
     snap download --target-directory=foo --basename=bar test-snapd-tools
     ls -l foo/bar.snap
     verify_asserts foo/bar.assert
+
+
+    echo "Snap download also supports --direct"
+    # XXX: how can we test here that we did not auto-fallback?
+    snap download --direct --basename=direct test-snapd-tools
+    ls -l direct.snap
+    verify_asserts direct.assert
+
+    echo "Snap download will work without snapd and auto-fallback to direct"
+    systemctl stop snapd.service snapd.socket
+    snap download  --basename=fallback test-snapd-tools
+    ls -l fallback.snap
+    verify_asserts fallback.assert
+
+    echo "Snap will use existing files"
+    SNAPD_DEBUG=1 snap download --direct test-snapd-control-consumer 2>&1 | MATCH "not downloading, using existing file"
