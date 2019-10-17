@@ -50,6 +50,7 @@ var osi = []string{
 	"CATOSL-1.1",
 	"CUA-OPL-1.0",
 	"EPL-1.0",
+	"EPL-2.0",
 	"ECL-1.0",
 	"ECL-2.0",
 	"EFL-1.0",
