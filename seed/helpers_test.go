@@ -37,7 +37,10 @@ import (
 type helpersSuite struct {
 	testutil.BaseTest
 
-	*seedtest.TestingSeed
+	*seedtest.SeedSnaps
+
+	assertsDir string
+
 	devAcct *asserts.Account
 }
 
@@ -47,22 +50,23 @@ func (s *helpersSuite) SetUpTest(c *C) {
 	s.BaseTest.SetUpTest(c)
 	s.BaseTest.AddCleanup(snap.MockSanitizePlugsSlots(func(snapInfo *snap.Info) {}))
 
-	s.TestingSeed = &seedtest.TestingSeed{}
+	s.SeedSnaps = &seedtest.SeedSnaps{}
 	s.SetupAssertSigning("canonical", s)
 
 	dir := c.MkDir()
-
-	s.SnapsDir = filepath.Join(dir, "snaps")
-	s.AssertsDir = filepath.Join(dir, "assertions")
-	err := os.MkdirAll(s.SnapsDir, 0755)
-	c.Assert(err, IsNil)
-	err = os.MkdirAll(s.AssertsDir, 0755)
+	s.assertsDir = filepath.Join(dir, "assertions")
+	err := os.MkdirAll(s.assertsDir, 0755)
 	c.Assert(err, IsNil)
 
 	s.devAcct = assertstest.NewAccount(s.StoreSigning, "developer", map[string]interface{}{
 		"account-id": "developerid",
 	}, "")
 
+}
+
+func (s *helpersSuite) writeAssertions(fn string, assertions ...asserts.Assertion) {
+	fn = filepath.Join(s.assertsDir, fn)
+	seedtest.WriteAssertions(fn, assertions...)
 }
 
 const fooSnap = `type: app
@@ -76,22 +80,22 @@ version: 2.0
 `
 
 func (s *helpersSuite) TestLoadAssertionsNoAssertions(c *C) {
-	os.Remove(s.AssertsDir)
+	os.Remove(s.assertsDir)
 
-	b, err := seed.LoadAssertions(s.AssertsDir, nil)
+	b, err := seed.LoadAssertions(s.assertsDir, nil)
 	c.Check(err, Equals, seed.ErrNoAssertions)
 	c.Check(b, IsNil)
 }
 
 func (s *helpersSuite) TestLoadAssertions(c *C) {
-	_, fooDecl, fooRev := s.MakeAssertedSnap(c, fooSnap, nil, snap.R(1), "developerid")
-	_, barDecl, barRev := s.MakeAssertedSnap(c, barSnap, nil, snap.R(2), "developerid")
+	fooDecl, fooRev := s.MakeAssertedSnap(c, fooSnap, nil, snap.R(1), "developerid")
+	barDecl, barRev := s.MakeAssertedSnap(c, barSnap, nil, snap.R(2), "developerid")
 
-	s.WriteAssertions("ground.asserts", s.StoreSigning.StoreAccountKey(""))
-	s.WriteAssertions("foo.asserts", s.devAcct, fooDecl, fooRev)
-	s.WriteAssertions("bar.asserts", barDecl, barRev)
+	s.writeAssertions("ground.asserts", s.StoreSigning.StoreAccountKey(""))
+	s.writeAssertions("foo.asserts", s.devAcct, fooDecl, fooRev)
+	s.writeAssertions("bar.asserts", barDecl, barRev)
 
-	b, err := seed.LoadAssertions(s.AssertsDir, nil)
+	b, err := seed.LoadAssertions(s.assertsDir, nil)
 	c.Assert(err, IsNil)
 
 	db, err := asserts.OpenDatabase(&asserts.DatabaseConfig{
@@ -115,12 +119,12 @@ func (s *helpersSuite) TestLoadAssertions(c *C) {
 }
 
 func (s *helpersSuite) TestLoadAssertionsLoadedCallback(c *C) {
-	_, fooDecl, fooRev := s.MakeAssertedSnap(c, fooSnap, nil, snap.R(1), "developerid")
-	_, barDecl, barRev := s.MakeAssertedSnap(c, barSnap, nil, snap.R(2), "developerid")
+	fooDecl, fooRev := s.MakeAssertedSnap(c, fooSnap, nil, snap.R(1), "developerid")
+	barDecl, barRev := s.MakeAssertedSnap(c, barSnap, nil, snap.R(2), "developerid")
 
-	s.WriteAssertions("ground.asserts", s.StoreSigning.StoreAccountKey(""))
-	s.WriteAssertions("foo.asserts", s.devAcct, fooDecl, fooRev)
-	s.WriteAssertions("bar.asserts", barDecl, barRev)
+	s.writeAssertions("ground.asserts", s.StoreSigning.StoreAccountKey(""))
+	s.writeAssertions("foo.asserts", s.devAcct, fooDecl, fooRev)
+	s.writeAssertions("bar.asserts", barDecl, barRev)
 
 	counts := make(map[string]int)
 	seen := make(map[string]bool)
@@ -133,7 +137,7 @@ func (s *helpersSuite) TestLoadAssertionsLoadedCallback(c *C) {
 		return nil
 	}
 
-	_, err := seed.LoadAssertions(s.AssertsDir, loaded)
+	_, err := seed.LoadAssertions(s.assertsDir, loaded)
 	c.Assert(err, IsNil)
 
 	c.Check(seen, DeepEquals, map[string]bool{
@@ -151,13 +155,13 @@ func (s *helpersSuite) TestLoadAssertionsLoadedCallback(c *C) {
 }
 
 func (s *helpersSuite) TestLoadAssertionsLoadedCallbackError(c *C) {
-	s.WriteAssertions("ground.asserts", s.StoreSigning.StoreAccountKey(""))
+	s.writeAssertions("ground.asserts", s.StoreSigning.StoreAccountKey(""))
 
 	loaded := func(ref *asserts.Ref) error {
 		return fmt.Errorf("boom")
 
 	}
 
-	_, err := seed.LoadAssertions(s.AssertsDir, loaded)
+	_, err := seed.LoadAssertions(s.assertsDir, loaded)
 	c.Assert(err, ErrorMatches, "boom")
 }

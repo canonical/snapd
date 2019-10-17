@@ -161,8 +161,12 @@ func (s *TestingSeed) MakeModelAssertionChain(brandID, model string, extras ...m
 }
 
 func (s *TestingSeed) WriteAssertions(fn string, assertions ...asserts.Assertion) {
-	multifn := filepath.Join(s.AssertsDir, fn)
-	f, err := os.OpenFile(multifn, os.O_CREATE|os.O_WRONLY, 0644)
+	fn = filepath.Join(s.AssertsDir, fn)
+	WriteAssertions(fn, assertions...)
+}
+
+func WriteAssertions(fn string, assertions ...asserts.Assertion) {
+	f, err := os.OpenFile(fn, os.O_CREATE|os.O_WRONLY, 0644)
 	if err != nil {
 		panic(err)
 	}
