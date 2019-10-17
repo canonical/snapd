@@ -44,6 +44,8 @@ type SeedSnaps struct {
 
 	snaps map[string]string
 	infos map[string]*snap.Info
+
+	snapRevs map[string]*asserts.SnapRevision
 }
 
 // SetupAssertSigning initializes StoreSigning for storeBrandID and Brands.
@@ -102,13 +104,17 @@ func (ss *SeedSnaps) MakeAssertedSnap(c *C, snapYaml string, files [][]string, r
 	if ss.snaps == nil {
 		ss.snaps = make(map[string]string)
 		ss.infos = make(map[string]*snap.Info)
+		ss.snapRevs = make(map[string]*asserts.SnapRevision)
 	}
 
 	ss.snaps[snapName] = snapFile
 	info.SideInfo.RealName = snapName
 	ss.infos[snapName] = info
+	snapDecl := declA.(*asserts.SnapDeclaration)
+	snapRev := revA.(*asserts.SnapRevision)
+	ss.snapRevs[snapName] = snapRev
 
-	return declA.(*asserts.SnapDeclaration), revA.(*asserts.SnapRevision)
+	return snapDecl, snapRev
 }
 
 func (ss *SeedSnaps) AssertedSnap(snapName string) (snapFile string) {
@@ -117,6 +123,10 @@ func (ss *SeedSnaps) AssertedSnap(snapName string) (snapFile string) {
 
 func (ss *SeedSnaps) AssertedSnapInfo(snapName string) *snap.Info {
 	return ss.infos[snapName]
+}
+
+func (ss *SeedSnaps) AssertedSnapRevision(snapName string) *asserts.SnapRevision {
+	return ss.snapRevs[snapName]
 }
 
 // TestingSeed16 helps setting up a populated Core 16/18 testing seed.

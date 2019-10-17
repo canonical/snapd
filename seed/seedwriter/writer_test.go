@@ -59,8 +59,7 @@ type writerSuite struct {
 
 	devAcct *asserts.Account
 
-	snapRevs map[string]*asserts.SnapRevision
-	aRefs    map[string][]*asserts.Ref
+	aRefs map[string][]*asserts.Ref
 }
 
 var _ = Suite(&writerSuite{})
@@ -87,6 +86,7 @@ func (s *writerSuite) SetUpTest(c *C) {
 	s.Brands.Register("my-brand", brandPrivKey, map[string]interface{}{
 		"verification": "verified",
 	})
+	s.DB = s.StoreSigning.Database
 	assertstest.AddMany(s.StoreSigning, s.Brands.AccountsAndKeys("my-brand")...)
 
 	s.devAcct = assertstest.NewAccount(s.StoreSigning, "developer", map[string]interface{}{
@@ -120,7 +120,6 @@ func (s *writerSuite) SetUpTest(c *C) {
 	}
 	s.rf = seedwriter.MakeRefAssertsFetcher(s.newFetcher)
 
-	s.snapRevs = make(map[string]*asserts.SnapRevision)
 	s.aRefs = make(map[string][]*asserts.Ref)
 }
 
@@ -235,9 +234,7 @@ func (s *writerSuite) makeSnap(c *C, yamlKey, publisher string) {
 	if publisher == "" {
 		publisher = "canonical"
 	}
-	decl, rev := s.MakeAssertedSnap(c, snapYaml[yamlKey], snapFiles[yamlKey], snap.R(1), publisher)
-	assertstest.AddMany(s.StoreSigning, decl, rev)
-	s.snapRevs[decl.SnapName()] = rev
+	s.MakeAssertedSnap(c, snapYaml[yamlKey], snapFiles[yamlKey], snap.R(1), publisher)
 }
 
 func (s *writerSuite) makeLocalSnap(c *C, yamlKey string) (fname string) {
@@ -253,7 +250,7 @@ func (s *writerSuite) doFillMetaDownloadedSnap(c *C, w *seedwriter.Writer, sn *s
 	aRefs := s.aRefs[sn.SnapName()]
 	if aRefs == nil {
 		prev := len(s.rf.Refs())
-		err = s.rf.Fetch(s.snapRevs[sn.SnapName()].Ref())
+		err = s.rf.Fetch(s.AssertedSnapRevision(sn.SnapName()).Ref())
 		c.Assert(err, IsNil)
 		aRefs = s.rf.Refs()[prev:]
 		s.aRefs[sn.SnapName()] = aRefs
@@ -947,7 +944,7 @@ func (s *writerSuite) TestSeedSnapsWriteMetaCore18(c *C) {
 		c.Assert(decl, HasLen, 1)
 		c.Check(decl[0].Type(), Equals, asserts.SnapDeclarationType)
 		c.Check(decl[0].HeaderString("snap-name"), Equals, snapName)
-		p = filepath.Join(seedAssertsDir, fmt.Sprintf("%s.snap-revision", s.snapRevs[snapName].SnapSHA3_384()))
+		p = filepath.Join(seedAssertsDir, fmt.Sprintf("%s.snap-revision", s.AssertedSnapRevision(snapName).SnapSHA3_384()))
 		rev := readAssertions(c, p)
 		c.Assert(rev, HasLen, 1)
 		c.Check(rev[0].Type(), Equals, asserts.SnapRevisionType)
@@ -1164,7 +1161,7 @@ func (s *writerSuite) TestLocalSnapsCore18FullUse(c *C) {
 		c.Assert(decl, HasLen, 1)
 		c.Check(decl[0].Type(), Equals, asserts.SnapDeclarationType)
 		c.Check(decl[0].HeaderString("snap-name"), Equals, snapName)
-		p = filepath.Join(seedAssertsDir, fmt.Sprintf("%s.snap-revision", s.snapRevs[snapName].SnapSHA3_384()))
+		p = filepath.Join(seedAssertsDir, fmt.Sprintf("%s.snap-revision", s.AssertedSnapRevision(snapName).SnapSHA3_384()))
 		rev := readAssertions(c, p)
 		c.Assert(rev, HasLen, 1)
 		c.Check(rev[0].Type(), Equals, asserts.SnapRevisionType)
@@ -1545,7 +1542,7 @@ func (s *writerSuite) TestSeedSnapsWriteMetaExtraSnaps(c *C) {
 		c.Assert(decl, HasLen, 1)
 		c.Check(decl[0].Type(), Equals, asserts.SnapDeclarationType)
 		c.Check(decl[0].HeaderString("snap-name"), Equals, snapName)
-		p = filepath.Join(seedAssertsDir, fmt.Sprintf("%s.snap-revision", s.snapRevs[snapName].SnapSHA3_384()))
+		p = filepath.Join(seedAssertsDir, fmt.Sprintf("%s.snap-revision", s.AssertedSnapRevision(snapName).SnapSHA3_384()))
 		rev := readAssertions(c, p)
 		c.Assert(rev, HasLen, 1)
 		c.Check(rev[0].Type(), Equals, asserts.SnapRevisionType)
