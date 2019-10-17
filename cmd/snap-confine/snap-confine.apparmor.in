@@ -238,7 +238,7 @@
     # pivoting into a whitelisted path.
     pivot_root oldroot=/tmp/snap.rootfs_*/var/lib/snapd/hostfs/ /tmp/snap.rootfs_*/,
     # Explicitly deny creating the old_root directory in case it is
-    # inadvertantly added somewhere else. While this doesn't resolve
+    # inadvertently added somewhere else. While this doesn't resolve
     # LP: #1791711, it provides some hardening.
     audit deny /tmp/snap.rootfs_*/{var/,var/lib/,var/lib/snapd/,var/lib/snapd/hostfs/} w,
 
