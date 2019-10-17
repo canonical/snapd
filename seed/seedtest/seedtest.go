@@ -30,7 +30,6 @@ import (
 
 	"github.com/snapcore/snapd/asserts"
 	"github.com/snapcore/snapd/asserts/assertstest"
-	"github.com/snapcore/snapd/asserts/sysdb"
 	"github.com/snapcore/snapd/snap"
 	"github.com/snapcore/snapd/snap/snaptest"
 )
@@ -47,15 +46,9 @@ type SeedSnaps struct {
 	infos map[string]*snap.Info
 }
 
-type Cleaner interface {
-	AddCleanup(func())
-}
-
 // SetupAssertSigning initializes StoreSigning for storeBrandID and Brands.
-func (ss *SeedSnaps) SetupAssertSigning(storeBrandID string, cleaner Cleaner) {
+func (ss *SeedSnaps) SetupAssertSigning(storeBrandID string) {
 	ss.StoreSigning = assertstest.NewStoreStack(storeBrandID, nil)
-	cleaner.AddCleanup(sysdb.InjectTrusted(ss.StoreSigning.Trusted))
-
 	ss.Brands = assertstest.NewSigningAccounts(ss.StoreSigning)
 }
 

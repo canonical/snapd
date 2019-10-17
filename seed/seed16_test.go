@@ -67,7 +67,7 @@ func (s *seed16Suite) SetUpTest(c *C) {
 	s.AddCleanup(snap.MockSanitizePlugsSlots(func(snapInfo *snap.Info) {}))
 
 	s.TestingSeed16 = &seedtest.TestingSeed16{}
-	s.SetupAssertSigning("canonical", s)
+	s.SetupAssertSigning("canonical")
 	s.Brands.Register("my-brand", brandPrivKey, map[string]interface{}{
 		"verification": "verified",
 	})

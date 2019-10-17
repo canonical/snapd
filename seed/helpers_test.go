@@ -51,7 +51,7 @@ func (s *helpersSuite) SetUpTest(c *C) {
 	s.BaseTest.AddCleanup(snap.MockSanitizePlugsSlots(func(snapInfo *snap.Info) {}))
 
 	s.SeedSnaps = &seedtest.SeedSnaps{}
-	s.SetupAssertSigning("canonical", s)
+	s.SetupAssertSigning("canonical")
 
 	dir := c.MkDir()
 	s.assertsDir = filepath.Join(dir, "assertions")

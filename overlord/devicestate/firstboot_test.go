@@ -33,6 +33,7 @@ import (
 
 	"github.com/snapcore/snapd/asserts"
 	"github.com/snapcore/snapd/asserts/assertstest"
+	"github.com/snapcore/snapd/asserts/sysdb"
 	"github.com/snapcore/snapd/bootloader"
 	"github.com/snapcore/snapd/bootloader/bootloadertest"
 	"github.com/snapcore/snapd/dirs"
@@ -102,7 +103,7 @@ func (s *firstBoot16Suite) SetUpTest(c *C) {
 	c.Assert(err, IsNil)
 
 	s.TestingSeed16 = &seedtest.TestingSeed16{}
-	s.SetupAssertSigning("can0nical", s)
+	s.SetupAssertSigning("canonical")
 	s.Brands.Register("my-brand", brandPrivKey, map[string]interface{}{
 		"verification": "verified",
 	})
@@ -113,6 +114,7 @@ func (s *firstBoot16Suite) SetUpTest(c *C) {
 		"account-id": "developerid",
 	}, "")
 
+	s.AddCleanup(sysdb.InjectTrusted([]asserts.Assertion{s.StoreSigning.TrustedKey}))
 	s.AddCleanup(ifacestate.MockSecurityBackends(nil))
 
 	ovld, err := overlord.New(nil)
