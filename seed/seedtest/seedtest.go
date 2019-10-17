@@ -126,28 +126,35 @@ func (ss *SeedSnaps) AssertedSnapInfo(snapName string) *snap.Info {
 	return ss.infos[snapName]
 }
 
-// TestingSeed helps setting up a populated testing seed.
-type TestingSeed struct {
+// TestingSeed16 helps setting up a populated Core 16/18 testing seed.
+type TestingSeed16 struct {
 	SeedSnaps
 
-	SnapsDir   string
-	AssertsDir string
+	SeedDir string
 }
 
-func (s *TestingSeed) MakeAssertedSnap(c *C, snapYaml string, files [][]string, revision snap.Revision, developerID string) (snapFname string, snapDecl *asserts.SnapDeclaration, snapRev *asserts.SnapRevision) {
+func (s *TestingSeed16) SnapsDir() string {
+	return filepath.Join(s.SeedDir, "snaps")
+}
+
+func (s *TestingSeed16) AssertsDir() string {
+	return filepath.Join(s.SeedDir, "assertions")
+}
+
+func (s *TestingSeed16) MakeAssertedSnap(c *C, snapYaml string, files [][]string, revision snap.Revision, developerID string) (snapFname string, snapDecl *asserts.SnapDeclaration, snapRev *asserts.SnapRevision) {
 	decl, rev := s.SeedSnaps.MakeAssertedSnap(c, snapYaml, files, revision, developerID)
 
 	snapFile := s.snaps[decl.SnapName()]
 
 	snapFname = filepath.Base(snapFile)
-	targetFile := filepath.Join(s.SnapsDir, snapFname)
+	targetFile := filepath.Join(s.SnapsDir(), snapFname)
 	err := os.Rename(snapFile, targetFile)
 	c.Assert(err, IsNil)
 
 	return snapFname, decl, rev
 }
 
-func (s *TestingSeed) MakeModelAssertionChain(brandID, model string, extras ...map[string]interface{}) []asserts.Assertion {
+func (s *TestingSeed16) MakeModelAssertionChain(brandID, model string, extras ...map[string]interface{}) []asserts.Assertion {
 	assertChain := []asserts.Assertion{}
 	modelA := s.Brands.Model(brandID, model, extras...)
 
@@ -160,8 +167,8 @@ func (s *TestingSeed) MakeModelAssertionChain(brandID, model string, extras ...m
 	return assertChain
 }
 
-func (s *TestingSeed) WriteAssertions(fn string, assertions ...asserts.Assertion) {
-	fn = filepath.Join(s.AssertsDir, fn)
+func (s *TestingSeed16) WriteAssertions(fn string, assertions ...asserts.Assertion) {
+	fn = filepath.Join(s.AssertsDir(), fn)
 	WriteAssertions(fn, assertions...)
 }
 

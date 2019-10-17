@@ -63,9 +63,9 @@ type FirstBootTestSuite struct {
 
 	systemctl *testutil.MockCmd
 
-	// TestingSeed helps populating seeds (it provides
+	// TestingSeed16 helps populating seeds (it provides
 	// MakeAssertedSnap, WriteAssertions etc.) for tests.
-	*seedtest.TestingSeed
+	*seedtest.TestingSeed16
 
 	devAcct *asserts.Account
 
@@ -101,14 +101,13 @@ func (s *FirstBootTestSuite) SetUpTest(c *C) {
 	err = ioutil.WriteFile(filepath.Join(dirs.SnapSeedDir, "seed.yaml"), nil, 0644)
 	c.Assert(err, IsNil)
 
-	s.TestingSeed = &seedtest.TestingSeed{}
+	s.TestingSeed16 = &seedtest.TestingSeed16{}
 	s.SetupAssertSigning("can0nical", s)
 	s.Brands.Register("my-brand", brandPrivKey, map[string]interface{}{
 		"verification": "verified",
 	})
 
-	s.SnapsDir = filepath.Join(dirs.SnapSeedDir, "snaps")
-	s.AssertsDir = filepath.Join(dirs.SnapSeedDir, "assertions")
+	s.SeedDir = dirs.SnapSeedDir
 
 	s.devAcct = assertstest.NewAccount(s.StoreSigning, "developer", map[string]interface{}{
 		"account-id": "developerid",
