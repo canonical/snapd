@@ -384,7 +384,7 @@ fi
 %ghost %{_sharedstatedir}/snapd/state.json
 %ghost %{_sharedstatedir}/snapd/system-key
 %ghost %{snap_mount_dir}/README
-%verify(not user group mode) %attr(06755,root,root) %{_libexecdir}/snapd/snap-confine
+%verify(not user group mode) %attr(04755,root,root) %{_libexecdir}/snapd/snap-confine
 %{_bindir}/snap
 %{_bindir}/snapctl
 %{_datadir}/applications/snap-handle-link.desktop
