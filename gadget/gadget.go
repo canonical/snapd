@@ -47,6 +47,7 @@ const (
 
 	SystemBoot = "system-boot"
 	SystemData = "system-data"
+	SystemSeed = "system-seed"
 
 	BootImage  = "system-boot-image"
 	BootSelect = "system-boot-select"
@@ -73,6 +74,14 @@ type Info struct {
 	Defaults map[string]map[string]interface{} `yaml:"defaults,omitempty"`
 
 	Connections []Connection `yaml:"connections"`
+}
+
+// ModelConstraints defines rules to be followed when reading the gadget metadata.
+type ModelConstraints struct {
+	// Classic rules (i.e. content/presence of gadget.yaml is fully optional)
+	Classic bool
+	// A system-seed partition (aka recovery partion) is expected (Core 20)
+	SystemSeed bool
 }
 
 // Volume defines the structure and content for the image to be written into a
@@ -279,23 +288,13 @@ func systemOrSnapID(s string) bool {
 	return true
 }
 
-// ReadInfo reads the gadget specific metadata from gadget.yaml
-// in the snap. classic set to true means classic rules apply,
-// i.e. content/presence of gadget.yaml is fully optional.
-func ReadInfo(gadgetSnapRootDir string, classic bool) (*Info, error) {
+// InfoFromGadgetYaml reads the provided gadget metadata. If constraints is nil, only the
+// self-consistency checks are performed, otherwise rules for the classic or
+// system seed cases are enforced.
+func InfoFromGadgetYaml(gadgetYaml []byte, constraints *ModelConstraints) (*Info, error) {
 	var gi Info
 
-	gadgetYamlFn := filepath.Join(gadgetSnapRootDir, "meta", "gadget.yaml")
-	gmeta, err := ioutil.ReadFile(gadgetYamlFn)
-	if classic && os.IsNotExist(err) {
-		// gadget.yaml is optional for classic gadgets
-		return &gi, nil
-	}
-	if err != nil {
-		return nil, err
-	}
-
-	if err := yaml.Unmarshal(gmeta, &gi); err != nil {
+	if err := yaml.Unmarshal(gadgetYaml, &gi); err != nil {
 		return nil, fmt.Errorf("cannot parse gadget metadata: %v", err)
 	}
 
@@ -320,7 +319,7 @@ func ReadInfo(gadgetSnapRootDir string, classic bool) (*Info, error) {
 		}
 	}
 
-	if classic && len(gi.Volumes) == 0 {
+	if len(gi.Volumes) == 0 && (constraints == nil || constraints.Classic) {
 		// volumes can be left out on classic
 		// can still specify defaults though
 		return &gi, nil
@@ -329,7 +328,7 @@ func ReadInfo(gadgetSnapRootDir string, classic bool) (*Info, error) {
 	// basic validation
 	var bootloadersFound int
 	for name, v := range gi.Volumes {
-		if err := validateVolume(name, &v); err != nil {
+		if err := validateVolume(name, &v, constraints); err != nil {
 			return nil, fmt.Errorf("invalid volume %q: %v", name, err)
 		}
 
@@ -352,6 +351,24 @@ func ReadInfo(gadgetSnapRootDir string, classic bool) (*Info, error) {
 	return &gi, nil
 }
 
+// ReadInfo reads the gadget specific metadata from meta/gadget.yaml in the snap
+// root directory. If constraints is nil, ReadInfo will just check for
+// self-consistency, otherwise rules for the classic or system seed cases are
+// enforced.
+func ReadInfo(gadgetSnapRootDir string, constraints *ModelConstraints) (*Info, error) {
+	gadgetYamlFn := filepath.Join(gadgetSnapRootDir, "meta", "gadget.yaml")
+	gmeta, err := ioutil.ReadFile(gadgetYamlFn)
+	if (constraints == nil || constraints.Classic) && os.IsNotExist(err) {
+		// gadget.yaml is optional for classic gadgets
+		return &Info{}, nil
+	}
+	if err != nil {
+		return nil, err
+	}
+
+	return InfoFromGadgetYaml(gmeta, constraints)
+}
+
 func fmtIndexAndName(idx int, name string) string {
 	if name != "" {
 		return fmt.Sprintf("#%v (%q)", idx, name)
@@ -359,7 +376,12 @@ func fmtIndexAndName(idx int, name string) string {
 	return fmt.Sprintf("#%v", idx)
 }
 
-func validateVolume(name string, vol *Volume) error {
+type validationState struct {
+	SystemSeed *VolumeStructure
+	SystemData *VolumeStructure
+}
+
+func validateVolume(name string, vol *Volume, constraints *ModelConstraints) error {
 	if !validVolumeName.MatchString(name) {
 		return errors.New("invalid name")
 	}
@@ -374,6 +396,7 @@ func validateVolume(name string, vol *Volume) error {
 	// for validating structure overlap
 	structures := make([]LaidOutStructure, len(vol.Structure))
 
+	state := &validationState{}
 	previousEnd := Size(0)
 	for idx, s := range vol.Structure {
 		if err := validateVolumeStructure(&s, vol); err != nil {
@@ -406,13 +429,89 @@ func validateVolume(name string, vol *Volume) error {
 			knownFsLabels[s.Label] = true
 		}
 
+		switch s.Role {
+		case SystemSeed:
+			if state.SystemSeed != nil {
+				return fmt.Errorf("cannot have more than one system-data role")
+			}
+			state.SystemSeed = &vol.Structure[idx]
+		case SystemData:
+			if state.SystemData != nil {
+				return fmt.Errorf("cannot have more than one system-seed role")
+			}
+			state.SystemData = &vol.Structure[idx]
+		}
+
 		previousEnd = end
+	}
+
+	if err := ensureVolumeConsistency(state, constraints); err != nil {
+		return err
 	}
 
 	// sort by starting offset
 	sort.Sort(byStartOffset(structures))
 
 	return validateCrossVolumeStructure(structures, knownStructures)
+}
+
+func ensureVolumeConsistency(state *validationState, constraints *ModelConstraints) error {
+	// system-seed also requires system-data
+	if state.SystemSeed != nil && state.SystemData == nil {
+		return fmt.Errorf("the system-seed role requires system-data to be defined")
+	}
+
+	if constraints == nil {
+		if state.SystemData == nil {
+			return nil
+		}
+
+		// gadget must be auto-consistent if constraints are not specified
+		if state.SystemSeed != nil {
+			if err := ensureSeedDataLabelsUnset(state); err != nil {
+				return err
+			}
+		} else {
+			if state.SystemData.Label != "" && state.SystemData.Label != ImplicitSystemDataLabel {
+				return fmt.Errorf("system-data structure must have an implicit label or %q, not %q",
+					ImplicitSystemDataLabel, state.SystemData.Label)
+			}
+		}
+		return nil
+	}
+
+	if state.SystemSeed != nil {
+		// error if we don't have the SystemSeed constraint but we have a system-seed structure
+		if !constraints.SystemSeed {
+			return fmt.Errorf("model does not support the system-seed role")
+		}
+		if err := ensureSeedDataLabelsUnset(state); err != nil {
+			return err
+		}
+	} else {
+		// error if we have the SystemSeed constraint but no actual system-seed structure
+		if constraints.SystemSeed {
+			return fmt.Errorf("model requires system-seed structure, but none was found")
+		}
+		// without SystemSeed, system-data label must be implicit or writable
+		if state.SystemData != nil && state.SystemData.Label != "" && state.SystemData.Label != ImplicitSystemDataLabel {
+			return fmt.Errorf("system-data structure must have an implicit label or %q, not %q",
+				ImplicitSystemDataLabel, state.SystemData.Label)
+		}
+	}
+
+	return nil
+}
+
+func ensureSeedDataLabelsUnset(state *validationState) error {
+	if state.SystemData.Label != "" {
+		return fmt.Errorf("system-data structure must not have a label")
+	}
+	if state.SystemSeed.Label != "" {
+		return fmt.Errorf("system-seed structure must not have a label")
+	}
+
+	return nil
 }
 
 func validateCrossVolumeStructure(structures []LaidOutStructure, knownStructures map[string]*LaidOutStructure) error {
@@ -582,10 +681,9 @@ func validateRole(vs *VolumeStructure, vol *Volume) error {
 	}
 
 	switch vsRole {
-	case SystemData:
-		if vs.Label != "" && vs.Label != ImplicitSystemDataLabel {
-			return fmt.Errorf(`role of this kind must have an implicit label or %q, not %q`, ImplicitSystemDataLabel, vs.Label)
-		}
+	case SystemData, SystemSeed:
+		// roles have cross dependencies, consistency checks are done at
+		// the volume level
 	case MBR:
 		if vs.Size > SizeMBR {
 			return errors.New("mbr structures cannot be larger than 446 bytes")
