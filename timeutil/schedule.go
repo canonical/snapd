@@ -243,13 +243,11 @@ func (ws WeekSpan) Match(t time.Time) bool {
 			nextMonth := monthNext(t)
 			startDay, endDay = ws.dateRangeAnchoredAt(nextMonth)
 		}
-		// check whether t matches the range that spills from the
-		// previous month or from the next month
-		if t.After(endDay) || t.Before(startDay) {
-			return false
-		}
+		// at this point we will check whether t matches the range that
+		// spills from the previous month or from the next month
 	}
-	return weekdayMatch(t)
+	outside := t.Before(startDay) || t.After(endDay)
+	return !outside
 }
 
 // monthNext returns the first day of the next month relative to t

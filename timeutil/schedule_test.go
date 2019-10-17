@@ -1177,6 +1177,23 @@ func (ts *timeutilSuite) TestWeekSpans(c *C) {
 			// Sunday
 			when:  "2018-07-25",
 			match: true,
+		}, {
+			// first Monday (2.07) to the following Monday (9.07), see July calendar above
+			// includes: 2.07-9.07
+			week: "mon1-mon",
+			// Tuesday
+			when:  "2018-07-03",
+			match: true,
+		}, {
+			week: "mon1-mon",
+			// Monday (the farther edge of the span)
+			when:  "2018-07-09",
+			match: true,
+		}, {
+			week: "mon1-mon",
+			// Tuesday
+			when:  "2018-07-10",
+			match: false,
 		},
 	} {
 		c.Logf("trying %+v", t)
