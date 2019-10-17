@@ -206,7 +206,8 @@ func (ws WeekSpan) Match(t time.Time) bool {
 	// - mon-fri1, week span, end anchored at 1st Friday 3.08, matches
 	// 30.07-03.08, (crossing the month boundary)
 	// - fri4-thu, week span, end anchored at 4th Friday 27.07, matches
-	// 27.07-02.08, (crossing the month boundary)
+	// 27.07-02.08, (crossing the month boundary), but also 24.08-30.08,
+	// which is within a single month
 	//
 	//     July 2018            August 2018
 	// Su Mo Tu We Th Fr Sa  Su Mo Tu We Th Fr Sa
@@ -280,10 +281,10 @@ func (ws WeekSpan) AnchoredAtStart() bool {
 // dateRangeAnchoredAt returns the range of dates that match the week span, with the
 // anchor sharing the same month as t
 func (ws WeekSpan) dateRangeAnchoredAt(t time.Time) (start, end time.Time) {
-	weekPos := ws.Start.Pos
+	weekPos := ws.End.Pos
 	anchoredAtStart := ws.AnchoredAtStart()
-	if !anchoredAtStart {
-		weekPos = ws.End.Pos
+	if anchoredAtStart {
+		weekPos = ws.Start.Pos
 	}
 	// first check the start/end dates in the same month as t
 	if weekPos != LastWeek {
@@ -294,6 +295,7 @@ func (ws WeekSpan) dateRangeAnchoredAt(t time.Time) (start, end time.Time) {
 		end = findLastWeekDay(t, ws.End.Weekday)
 	}
 
+	// eg. mon1-mon span falls under the Equal && !singleDay case
 	if start.After(end) || (start.Equal(end) && !ws.IsSingleDay()) {
 		if anchoredAtStart {
 			end = end.Add(7 * 24 * time.Hour)
@@ -703,6 +705,9 @@ func parseWeekSpan(s string) (span WeekSpan, err error) {
 			// ambiguous case that produces different schedules depending on
 			// the calendar, to avoid the ambiguity, anchor the schedule at
 			// the start of the week span, eg. mon1-tue2 -> mon1-tue
+			//
+			// TODO: error out instead of degrading when a
+			// deprecated span is used under the new rules
 			parsed.End.Pos = EveryWeek
 		}
 	}
