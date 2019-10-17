@@ -268,9 +268,6 @@ func (s *partitionTestSuite) TestCreatePartitions(c *C) {
 	cmdLsblk := testutil.MockCommand(c, "lsblk", mockLsblkScript)
 	defer cmdLsblk.Restore()
 
-	cmdBlockdev := testutil.MockCommand(c, "blockdev", "exit 0")
-	defer cmdBlockdev.Restore()
-
 	gadgetRoot := filepath.Join(c.MkDir(), "gadget")
 	err := makeMockGadget(gadgetRoot, gadgetContent)
 	c.Assert(err, IsNil)
@@ -290,9 +287,6 @@ func (s *partitionTestSuite) TestCreatePartitions(c *C) {
 		{"sfdisk", "--json", "-d", "/dev/node"},
 		{"sfdisk", "/dev/node"},
 	})
-
-	// Check partition table reload
-	c.Assert(cmdBlockdev.Calls(), DeepEquals, [][]string{{"blockdev", "--rereadpt", "/dev/node"}})
 }
 
 func (s *partitionTestSuite) TestFilesystemInfo(c *C) {
