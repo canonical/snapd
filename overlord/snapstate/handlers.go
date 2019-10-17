@@ -848,6 +848,7 @@ func (m *SnapManager) undoUnlinkCurrentSnap(t *state.Task, _ *tomb.Tomb) error {
 		return err
 	}
 
+	// XXX: for undo we need the "old" model assertion
 	model, err := ModelFromTask(t)
 	if err != nil && err != state.ErrNoState {
 		return err
@@ -1231,6 +1232,7 @@ func (m *SnapManager) doLinkSnap(t *state.Task, _ *tomb.Tomb) (err error) {
 func maybeRestart(t *state.Task, info *snap.Info) {
 	st := t.State()
 
+	// XXX: in the undo case we need the old model here
 	model, err := ModelFromTask(t)
 	if err != nil {
 		logger.Noticef("cannot get model assertion: %v", model)
