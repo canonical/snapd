@@ -662,7 +662,7 @@ static void enter_non_classic_execution_environment(sc_invocation * inv,
 		}
 	}
 	// Associate each snap process with dedicated groups under the default
-	// freezer hierarchy (/sys/fs/cgrou/freezer) and a named snapd hierarchy
+	// freezer hierarchy (/sys/fs/cgroup/freezer) and a named snapd hierarchy
 	// (/run/snapd/cgroup). The dedicated group under the freezer hierarchy is
 	// shared by all processes and hooks belonging to one snap. The dedicated
 	// group under the named hierarchy is shared by all processes belonging to
