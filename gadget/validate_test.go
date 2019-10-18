@@ -54,7 +54,7 @@ volumes:
 `
 	makeSizedFile(c, filepath.Join(s.dir, "meta/gadget.yaml"), 0, []byte(gadgetYamlContent))
 
-	err := gadget.Validate(s.dir)
+	err := gadget.Validate(s.dir, nil)
 	c.Assert(err, ErrorMatches, `invalid layout of volume "pc": cannot lay out structure #0 \("foo"\): content "foo.img": stat .*/foo.img: no such file or directory`)
 }
 
@@ -82,7 +82,7 @@ volumes:
 	// only content for the first volume
 	makeSizedFile(c, filepath.Join(s.dir, "first.img"), 1, nil)
 
-	err := gadget.Validate(s.dir)
+	err := gadget.Validate(s.dir, nil)
 	c.Assert(err, ErrorMatches, `invalid layout of volume "second": cannot lay out structure #0 \("second-foo"\): content "second.img": stat .*/second.img: no such file or directory`)
 }
 
@@ -99,7 +99,7 @@ volumes:
 `
 	makeSizedFile(c, filepath.Join(s.dir, "meta/gadget.yaml"), 0, []byte(gadgetYamlContent))
 
-	err := gadget.Validate(s.dir)
+	err := gadget.Validate(s.dir, nil)
 	c.Assert(err, ErrorMatches, `invalid gadget metadata: bootloader must be one of .*`)
 }
 
@@ -120,13 +120,13 @@ volumes:
 `
 	makeSizedFile(c, filepath.Join(s.dir, "meta/gadget.yaml"), 0, []byte(gadgetYamlContent))
 
-	err := gadget.Validate(s.dir)
+	err := gadget.Validate(s.dir, nil)
 	c.Assert(err, ErrorMatches, `invalid volume "bad": structure #0 \("bad-struct"\), content source:foo/: source path does not exist`)
 
 	// make it a file, which conflicts with foo/ as 'source'
 	fooPath := filepath.Join(s.dir, "foo")
 	makeSizedFile(c, fooPath, 1, nil)
-	err = gadget.Validate(s.dir)
+	err = gadget.Validate(s.dir, nil)
 	c.Assert(err, ErrorMatches, `invalid volume "bad": structure #0 \("bad-struct"\), content source:foo/: cannot specify trailing / for a source which is not a directory`)
 
 	// make it a directory
@@ -135,7 +135,7 @@ volumes:
 	err = os.Mkdir(fooPath, 0755)
 	c.Assert(err, IsNil)
 	// validate should no longer complain
-	err = gadget.Validate(s.dir)
+	err = gadget.Validate(s.dir, nil)
 	c.Assert(err, IsNil)
 }
 
@@ -145,6 +145,12 @@ func (s *validateGadgetTestSuite) TestValidateClassic(c *C) {
 `
 	makeSizedFile(c, filepath.Join(s.dir, "meta/gadget.yaml"), 0, []byte(gadgetYamlContent))
 
-	err := gadget.Validate(s.dir)
+	err := gadget.Validate(s.dir, nil)
 	c.Assert(err, IsNil)
+
+	err = gadget.Validate(s.dir, &gadget.ModelConstraints{Classic: true})
+	c.Assert(err, IsNil)
+
+	err = gadget.Validate(s.dir, &gadget.ModelConstraints{Classic: false})
+	c.Assert(err, ErrorMatches, "invalid gadget metadata: bootloader not declared in any volume")
 }
