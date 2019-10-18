@@ -24,16 +24,25 @@ import (
 	"github.com/snapcore/snapd/gadget"
 )
 
-// makeFilesystem will create a filesystem on the given node with
-// the given label and filesystem type. Optionally a directory with
-// filesystem content can be specified and the newly created filesystem
-// will be populated with that.
-func makeFilesystem(node, label, filesystem, content string) error {
+func MakeFilesystems(created map[string]gadget.LaidOutStructure) error {
+	for node, part := range created {
+		if part.VolumeStructure.Filesystem != "" {
+			if err := mkfs(node, part.VolumeStructure.Label, part.VolumeStructure.Filesystem); err != nil {
+				return err
+			}
+		}
+	}
+	return nil
+}
+
+// mkfs will create a single filesystem on the given node with
+// the given label and filesystem type.
+func mkfs(node, label, filesystem string) error {
 	switch filesystem {
 	case "vfat":
-		return gadget.MkfsVfat(node, label, content)
+		return gadget.MkfsVfat(node, label, "")
 	case "ext4":
-		return gadget.MkfsExt4(node, label, content)
+		return gadget.MkfsExt4(node, label, "")
 	default:
 		return fmt.Errorf("cannot create unsupported filesystem %q", filesystem)
 	}

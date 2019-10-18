@@ -42,4 +42,7 @@ execute: |
             size: 500M
     EOF
     /usr/lib/snapd/snap-recovery ./gadget-dir "$LOOP"
-    sfdisk -l "$LOOP" | MATCH '500M\s+Linux filesystem'
+    sfdisk -l "$LOOP" | MATCH '500M\s* Linux filesystem'
+
+    echo "check that the filesystems are created"
+    lsblk --fs "$LOOP" | MATCH 'ext4\s* other-ext'

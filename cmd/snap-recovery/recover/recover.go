@@ -52,11 +52,14 @@ func (r *Recover) Run() error {
 	}
 
 	sfdisk := partition.NewSFDisk(r.device)
-	// XXX: use the output of create to also create filesystems
-	_, err = sfdisk.Create(lv)
+	created, err := sfdisk.Create(lv)
 	if err != nil {
 		return fmt.Errorf("cannot create the partitions: %v", err)
 	}
+	if err := partition.MakeFilesystems(created); err != nil {
+		return err
+	}
+	// XXX: deploy contento
 
 	return nil
 }

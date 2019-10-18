@@ -16,15 +16,4 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  *
  */
-package partition
-
-type LsblkFilesystemInfo = lsblkFilesystemInfo
-type LsblkBlockDevice = lsblkBlockDevice
-type SFDiskPartitionTable = sfdiskPartitionTable
-type SFDiskPartition = sfdiskPartition
-
-var (
-	FilesystemInfo     = filesystemInfo
-	BuildPartitionList = buildPartitionList
-	Mkfs               = mkfs
-)
+package recover

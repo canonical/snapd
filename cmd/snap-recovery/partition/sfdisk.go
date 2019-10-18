@@ -93,22 +93,22 @@ func (sf *SFDisk) Layout() (*gadget.LaidOutVolume, error) {
 }
 
 // Create creates the partitions listed in positionedVolume
-func (sf *SFDisk) Create(pv *gadget.LaidOutVolume) (map[string]string, error) {
+func (sf *SFDisk) Create(pv *gadget.LaidOutVolume) (map[string]gadget.LaidOutStructure, error) {
 	// Layout() will update sf.partitionTable
 	if _, err := sf.Layout(); err != nil {
 		return nil, err
 	}
-	buf, deviceMap := buildPartitionList(sf.partitionTable, pv)
+	buf, created := buildPartitionList(sf.partitionTable, pv)
 
 	// Write the partition table, note that sfdisk will re-read the
 	// partition table by itself: see disk-utils/sfdisk.c:write_changes()
 	cmd := exec.Command("sfdisk", sf.device)
 	cmd.Stdin = buf
 	if output, err := cmd.CombinedOutput(); err != nil {
-		return deviceMap, osutil.OutputErr(output, err)
+		return created, osutil.OutputErr(output, err)
 	}
 
-	return deviceMap, nil
+	return created, nil
 }
 
 // positionedVolumeFromDump takes an sfdisk dump format and returns the partitioning
@@ -173,12 +173,13 @@ func deviceName(name string, index int) string {
 	return fmt.Sprintf("%s%d", name, index)
 }
 
-// buildPartitionList builds a list of partitions based on the current device contents
-// and gadget structure list, in sfdisk dump format. Return a partitioning description
-// suitable for sfdisk input and a role to device node map.
-func buildPartitionList(ptable *sfdiskPartitionTable, pv *gadget.LaidOutVolume) (*bytes.Buffer, map[string]string) {
+// buildPartitionList builds a list of partitions based on the current
+// device contents and gadget structure list, in sfdisk dump
+// format. Return a partitioning description suitable for sfdisk input
+// and a list of the partitions to be created
+func buildPartitionList(ptable *sfdiskPartitionTable, pv *gadget.LaidOutVolume) (sfdiskInput *bytes.Buffer, toBeCreated map[string]gadget.LaidOutStructure) {
 	buf := &bytes.Buffer{}
-	deviceMap := map[string]string{}
+	toBeCreated = make(map[string]gadget.LaidOutStructure, len(pv.LaidOutStructure))
 
 	// Write partition data in sfdisk dump format
 	fmt.Fprintf(buf, "label: %s\nlabel-id: %s\ndevice: %s\nunit: %s\nfirst-lba: %d\nlast-lba: %d\n\n",
@@ -216,10 +217,10 @@ func buildPartitionList(ptable *sfdiskPartitionTable, pv *gadget.LaidOutVolume) 
 			s.Size/sectorSize, partitionType(ptable.Label, p.Type), s.Name)
 
 		// Are roles unique so we can use it to map nodes? Should we use labels instead?
-		deviceMap[s.Role] = node
+		toBeCreated[node] = p
 	}
 
-	return buf, deviceMap
+	return buf, toBeCreated
 }
 
 func partitionType(label, ptype string) string {

@@ -16,15 +16,27 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  *
  */
-package partition
+package recover_test
 
-type LsblkFilesystemInfo = lsblkFilesystemInfo
-type LsblkBlockDevice = lsblkBlockDevice
-type SFDiskPartitionTable = sfdiskPartitionTable
-type SFDiskPartition = sfdiskPartition
+import (
+	"testing"
 
-var (
-	FilesystemInfo     = filesystemInfo
-	BuildPartitionList = buildPartitionList
-	Mkfs               = mkfs
+	. "gopkg.in/check.v1"
+
+	"github.com/snapcore/snapd/cmd/snap-recovery/recover"
 )
+
+func TestRecover(t *testing.T) { TestingT(t) }
+
+type recoverSuite struct{}
+
+var _ = Suite(&recoverSuite{})
+
+// XXX: write a very high level integration like test here that
+// mocks the world (sfdisk,lsblk,mkfs,...)? probably silly as
+// each part inside recovery is tested and we have a spread test
+
+func (s *recoverSuite) TestRecoverSmoke(c *C) {
+	recov := recover.New("", "", nil)
+	c.Assert(recov, NotNil)
+}
