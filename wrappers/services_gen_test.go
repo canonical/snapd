@@ -644,6 +644,11 @@ func (s *servicesWrapperGenSuite) TestTimerGenerateSchedules(c *C) {
 		// filtering of when to run the timer
 		in:       "mon-fri5,10:00",
 		expected: []string{"*-*-29,30,31 10:00", "*-*-22,23,24,25,26,27,28 10:00"},
+	}, {
+		// NOTE: non-representable, assumes that service runner does the
+		// filtering of when to run the timer
+		in:       "mon1-mon,10:00",
+		expected: []string{"*-*-8,9,10,11,12,13,14 10:00", "*-*-1,2,3,4,5,6,7 10:00"},
 	}} {
 		c.Logf("trying %+v", t)
 
