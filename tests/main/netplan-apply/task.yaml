@@ -92,7 +92,7 @@ execute: |
     echo "And the D-Bus service was activated"
     MATCH "Apply called" < dbus-netplan-apply.log
 
-    echo "clearing the log for the info test"
+    echo "clearing the log for the network-setup-observe info test"
     rm dbus-netplan-apply.log
     touch dbus-netplan-apply.log
 
@@ -119,3 +119,25 @@ execute: |
 
     echo "And the D-Bus service was activated"
     MATCH "Info called" < dbus-netplan-apply.log
+
+    echo "clearing the log for the network-setup-control info test"
+    rm dbus-netplan-apply.log
+    touch dbus-netplan-apply.log
+
+    echo "Running netplan info via D-Bus without network-setup-control fails"
+    if test-snapd-netplan-apply.info; then
+        echo "Expected access denied error for netplan info via D-Bus"
+        exit 1
+    fi
+
+    echo "The D-Bus service was not activated"
+    not MATCH "Info called" < dbus-netplan-apply.log
+
+    echo "When the interface is connected"
+    snap connect test-snapd-netplan-apply:network-setup-control
+
+    echo "Running netplan info via D-Bus now works"
+    if ! test-snapd-netplan-apply.info; then
+        echo "Unexpected error running netplan info via D-Bus"
+        exit 1
+    fi

@@ -27,6 +27,7 @@ apps:
       - network
       - network-bind
       - network-setup-observe
+      - network-setup-control
 
 parts:
   info-script:
