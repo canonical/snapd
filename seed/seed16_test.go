@@ -325,10 +325,8 @@ var pcGadgetFiles = [][]string{
 }
 
 var snapFiles = map[string][][]string{
-	"pc":               pcGadgetFiles,
-	"pc=18":            pcGadgetFiles,
-	"classic-gadget":   pcGadgetFiles,
-	"classic-gadget18": pcGadgetFiles,
+	"pc":    pcGadgetFiles,
+	"pc=18": pcGadgetFiles,
 }
 
 var snapPublishers = map[string]string{

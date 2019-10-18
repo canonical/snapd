@@ -1160,12 +1160,14 @@ type: kernel`
 		kernelFname = fname
 	}
 
-	gadgetYaml := `
+	if !opts.classic {
+		gadgetYaml := `
 volumes:
     volume-id:
         bootloader: grub
 `
-	files = append(files, []string{"meta/gadget.yaml", gadgetYaml})
+		files = append(files, []string{"meta/gadget.yaml", gadgetYaml})
+	}
 
 	var gadgetFname string
 	if !opts.classic || opts.gadget {
