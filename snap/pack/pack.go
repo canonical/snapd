@@ -119,7 +119,7 @@ func loadAndValidate(sourceDir string) (*snap.Info, error) {
 	}
 
 	if info.SnapType == snap.TypeGadget {
-		if err := gadget.Validate(sourceDir, &gadget.ModelConstraints{Classic: true}); err != nil {
+		if err := gadget.Validate(sourceDir, nil); err != nil {
 			return nil, err
 		}
 	}
