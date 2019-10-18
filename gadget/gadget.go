@@ -918,7 +918,7 @@ func IsCompatible(current, new *Info) error {
 	// comapatible
 	pCurrent, err := LayoutVolumePartially(currentVol, defaultConstraints)
 	if err != nil {
-		return fmt.Errorf("cannot lay out the old volume: %v", err)
+		return fmt.Errorf("cannot lay out the current volume: %v", err)
 	}
 	pNew, err := LayoutVolumePartially(newVol, defaultConstraints)
 	if err != nil {
