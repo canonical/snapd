@@ -18,13 +18,19 @@
  */
 package partition
 
-type LsblkFilesystemInfo = lsblkFilesystemInfo
-type LsblkBlockDevice = lsblkBlockDevice
-type SFDiskPartitionTable = sfdiskPartitionTable
-type SFDiskPartition = sfdiskPartition
+import (
+	"fmt"
 
-var (
-	FilesystemInfo     = filesystemInfo
-	BuildPartitionList = buildPartitionList
-	MakeFilesystem     = makeFilesystem
+	"github.com/snapcore/snapd/gadget"
 )
+
+func makeFilesystem(node, label, filesystem, content string) error {
+	switch filesystem {
+	case "vfat":
+		return gadget.MkfsVfat(node, label, content)
+	case "ext4":
+		return gadget.MkfsExt4(node, label, content)
+	default:
+		return fmt.Errorf("cannot create unsupported filesystem %q", filesystem)
+	}
+}
