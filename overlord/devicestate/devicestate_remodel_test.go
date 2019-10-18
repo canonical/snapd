@@ -999,3 +999,74 @@ volumes:
 	err = devicestate.CheckGadgetRemodelCompatible(s.state, info, nil, snapf, snapstate.Flags{}, remodelCtx)
 	c.Check(err, IsNil)
 }
+
+func (s *deviceMgrRemodelSuite) TestCheckGadgetRemodelActual(c *C) {
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	currentSnapYaml := `
+name: gadget
+type: gadget
+version: 123
+`
+	remodelSnapYaml := `
+name: new-gadget
+type: gadget
+version: 123
+`
+	mockOkGadget := `
+type: gadget
+name: gadget
+volumes:
+  volume:
+    schema: gpt
+    bootloader: grub
+    structure:
+      - name: foo
+        size: 10M
+        type: 00000000-0000-0000-0000-0000deadbeef
+`
+	mockBadGadget := `
+type: gadget
+name: gadget
+volumes:
+  volume:
+    schema: gpt
+    bootloader: grub
+    structure:
+      - name: foo
+        size: 20M
+        type: 00000000-0000-0000-0000-0000deadbeef
+`
+	currInfo := snaptest.MockSnapWithFiles(c, currentSnapYaml, &snap.SideInfo{Revision: snap.R(123)}, [][]string{
+		{"meta/gadget.yaml", mockOkGadget},
+	})
+	// gadget we're remodeling to is identical
+	info := snaptest.MockSnapWithFiles(c, remodelSnapYaml, &snap.SideInfo{Revision: snap.R(1)}, [][]string{
+		{"meta/gadget.yaml", mockOkGadget},
+	})
+	snapf, err := snap.Open(info.MountDir())
+	c.Assert(err, IsNil)
+
+	s.setupBrands(c)
+	// model assertion in device context
+	model := fakeMyModel(map[string]interface{}{
+		"architecture": "amd64",
+		"gadget":       "gadget",
+		"kernel":       "krnl",
+	})
+	remodelCtx := &snapstatetest.TrivialDeviceContext{DeviceModel: model, Remodeling: true}
+
+	err = devicestate.CheckGadgetRemodelCompatible(s.state, info, currInfo, snapf, snapstate.Flags{}, remodelCtx)
+	c.Check(err, IsNil)
+
+	// try to remodel to an incompatible gadget
+	infoBad := snaptest.MockSnapWithFiles(c, remodelSnapYaml, &snap.SideInfo{Revision: snap.R(1)}, [][]string{
+		{"meta/gadget.yaml", mockBadGadget},
+	})
+	snapfBad, err := snap.Open(infoBad.MountDir())
+	c.Assert(err, IsNil)
+
+	err = devicestate.CheckGadgetRemodelCompatible(s.state, infoBad, currInfo, snapfBad, snapstate.Flags{}, remodelCtx)
+	c.Check(err, ErrorMatches, `cannot remodel to an incompatible gadget: incompatible layout change: incompatible structure #0 \("foo"\) change: cannot change structure size from 10485760 to 20971520`)
+}

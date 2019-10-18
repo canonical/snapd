@@ -148,8 +148,7 @@ var (
 		Classic: false,
 	}
 
-	// TODO: replace with gadget.IsCompatible() once we are ready
-	gadgetIsCompatible = func(current, new *gadget.Info) error { return nil }
+	gadgetIsCompatible = gadget.IsCompatible
 )
 
 func checkGadgetRemodelCompatible(st *state.State, snapInfo, curInfo *snap.Info, snapf snap.Container, flags snapstate.Flags, deviceCtx snapstate.DeviceContext) error {
