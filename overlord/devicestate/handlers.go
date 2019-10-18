@@ -150,11 +150,7 @@ func (m *DeviceManager) doSetModel(t *state.Task, _ *tomb.Tomb) (err error) {
 		return err
 	}
 	// and finish (this will set the new model)
-	if err := remodCtx.Finish(); err != nil {
-		return err
-	}
-
-	return nil
+	return remodCtx.Finish()
 }
 
 func (m *DeviceManager) cleanupRemodel(t *state.Task, _ *tomb.Tomb) error {
