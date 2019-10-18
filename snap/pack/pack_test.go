@@ -288,14 +288,14 @@ volumes:
 
 	// gadget validation fails during layout
 	_, err = pack.Snap(sourceDir, outputDir, absSnapFile)
-	c.Assert(err, ErrorMatches, `cannot validate volume "bad" layout: cannot lay out structure #1 \("bare-struct"\): content "bare.img": stat .*/bare.img: no such file or directory`)
+	c.Assert(err, ErrorMatches, `invalid layout of volume "bad": cannot lay out structure #1 \("bare-struct"\): content "bare.img": stat .*/bare.img: no such file or directory`)
 
 	err = ioutil.WriteFile(filepath.Join(sourceDir, "bare.img"), []byte("foo"), 0644)
 	c.Assert(err, IsNil)
 
 	// gadget validation fails during content presence checks
 	_, err = pack.Snap(sourceDir, outputDir, absSnapFile)
-	c.Assert(err, ErrorMatches, `cannot validate volume "bad": cannot validate structure #0 \("fs-struct"\), content source:foo/: source path does not exist`)
+	c.Assert(err, ErrorMatches, `invalid volume "bad": structure #0 \("fs-struct"\), content source:foo/: source path does not exist`)
 
 	err = os.Mkdir(filepath.Join(sourceDir, "foo"), 0644)
 	c.Assert(err, IsNil)

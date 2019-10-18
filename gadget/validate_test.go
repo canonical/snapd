@@ -55,7 +55,7 @@ volumes:
 	makeSizedFile(c, filepath.Join(s.dir, "meta/gadget.yaml"), 0, []byte(gadgetYamlContent))
 
 	err := gadget.Validate(s.dir)
-	c.Assert(err, ErrorMatches, `cannot validate volume "pc" layout: cannot lay out structure #0 \("foo"\): content "foo.img": stat .*/foo.img: no such file or directory`)
+	c.Assert(err, ErrorMatches, `invalid layout of volume "pc": cannot lay out structure #0 \("foo"\): content "foo.img": stat .*/foo.img: no such file or directory`)
 }
 
 func (s *validateGadgetTestSuite) TestValidateMultiVolumeContent(c *C) {
@@ -83,7 +83,7 @@ volumes:
 	makeSizedFile(c, filepath.Join(s.dir, "first.img"), 1, nil)
 
 	err := gadget.Validate(s.dir)
-	c.Assert(err, ErrorMatches, `cannot validate volume "second" layout: cannot lay out structure #0 \("second-foo"\): content "second.img": stat .*/second.img: no such file or directory`)
+	c.Assert(err, ErrorMatches, `invalid layout of volume "second": cannot lay out structure #0 \("second-foo"\): content "second.img": stat .*/second.img: no such file or directory`)
 }
 
 func (s *validateGadgetTestSuite) TestValidateBorkedMeta(c *C) {
@@ -100,7 +100,7 @@ volumes:
 	makeSizedFile(c, filepath.Join(s.dir, "meta/gadget.yaml"), 0, []byte(gadgetYamlContent))
 
 	err := gadget.Validate(s.dir)
-	c.Assert(err, ErrorMatches, `cannot validate gadget metadata: bootloader must be one of .*`)
+	c.Assert(err, ErrorMatches, `invalid gadget metadata: bootloader must be one of .*`)
 }
 
 func (s *validateGadgetTestSuite) TestValidateFilesystemContent(c *C) {
@@ -121,13 +121,13 @@ volumes:
 	makeSizedFile(c, filepath.Join(s.dir, "meta/gadget.yaml"), 0, []byte(gadgetYamlContent))
 
 	err := gadget.Validate(s.dir)
-	c.Assert(err, ErrorMatches, `cannot validate volume "bad": cannot validate structure #0 \("bad-struct"\), content source:foo/: source path does not exist`)
+	c.Assert(err, ErrorMatches, `invalid volume "bad": structure #0 \("bad-struct"\), content source:foo/: source path does not exist`)
 
 	// make it a file, which conflicts with foo/ as 'source'
 	fooPath := filepath.Join(s.dir, "foo")
 	makeSizedFile(c, fooPath, 1, nil)
 	err = gadget.Validate(s.dir)
-	c.Assert(err, ErrorMatches, `cannot validate volume "bad": cannot validate structure #0 \("bad-struct"\), content source:foo/: cannot specify trailing / for a source which is not a directory`)
+	c.Assert(err, ErrorMatches, `invalid volume "bad": structure #0 \("bad-struct"\), content source:foo/: cannot specify trailing / for a source which is not a directory`)
 
 	// make it a directory
 	err = os.Remove(fooPath)

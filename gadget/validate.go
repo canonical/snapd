@@ -36,12 +36,12 @@ func validateVolumeContentsPresence(gadgetSnapRootDir string, vol *LaidOutVolume
 		for _, c := range s.Content {
 			realSource := filepath.Join(gadgetSnapRootDir, c.Source)
 			if !osutil.FileExists(realSource) {
-				return fmt.Errorf("cannot validate structure %v, content %v: source path does not exist", s, c)
+				return fmt.Errorf("structure %v, content %v: source path does not exist", s, c)
 			}
 			if strings.HasSuffix(c.Source, "/") {
 				// expecting a directory
 				if err := checkSourceIsDir(realSource + "/"); err != nil {
-					return fmt.Errorf("cannot validate structure %v, content %v: %v", s, c, err)
+					return fmt.Errorf("structure %v, content %v: %v", s, c, err)
 				}
 			}
 		}
@@ -55,16 +55,16 @@ func Validate(gadgetSnapRootDir string) error {
 	allowClassic := true
 	info, err := ReadInfo(gadgetSnapRootDir, allowClassic)
 	if err != nil {
-		return fmt.Errorf("cannot validate gadget metadata: %v", err)
+		return fmt.Errorf("invalid gadget metadata: %v", err)
 	}
 
 	for name, vol := range info.Volumes {
 		lv, err := LayoutVolume(gadgetSnapRootDir, &vol, defaultConstraints)
 		if err != nil {
-			return fmt.Errorf("cannot validate volume %q layout: %v", name, err)
+			return fmt.Errorf("invalid layout of volume %q: %v", name, err)
 		}
 		if err := validateVolumeContentsPresence(gadgetSnapRootDir, lv); err != nil {
-			return fmt.Errorf("cannot validate volume %q: %v", name, err)
+			return fmt.Errorf("invalid volume %q: %v", name, err)
 		}
 	}
 
