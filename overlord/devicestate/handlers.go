@@ -95,11 +95,6 @@ func (m *DeviceManager) doSetModel(t *state.Task, _ *tomb.Tomb) (err error) {
 	}
 	new := remodCtx.Model()
 
-	err = assertstate.Add(st, new)
-	if err != nil && !isSameAssertsRevision(err) {
-		return err
-	}
-
 	// unmark no-longer required snaps
 	var cleanedRequiredSnaps []string
 	requiredSnaps := getAllRequiredSnapsForModel(new)
@@ -144,12 +139,22 @@ func (m *DeviceManager) doSetModel(t *state.Task, _ *tomb.Tomb) (err error) {
 		}
 	}()
 
-	// only useful for testing
+	// this will be set only in tests
 	if injectedSetModelError != nil {
 		return injectedSetModelError
 	}
 
-	return remodCtx.Finish()
+	// add the assertion only after everything else was successful
+	err = assertstate.Add(st, new)
+	if err != nil && !isSameAssertsRevision(err) {
+		return err
+	}
+	// and finish (this will set the new model)
+	if err := remodCtx.Finish(); err != nil {
+		return err
+	}
+
+	return nil
 }
 
 func (m *DeviceManager) cleanupRemodel(t *state.Task, _ *tomb.Tomb) error {

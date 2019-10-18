@@ -3389,7 +3389,7 @@ func (s *mgrsSuite) TestRemodelRequiredSnapsAddedUndo(c *C) {
 
 	// create/set custom model assertion
 	assertstatetest.AddMany(st, s.brands.AccountsAndKeys("my-brand")...)
-	model := s.brands.Model("my-brand", "my-model", modelDefaults)
+	curModel := s.brands.Model("my-brand", "my-model", modelDefaults)
 
 	// setup model assertion
 	devicestatetest.SetDevice(st, &auth.DeviceState{
@@ -3397,7 +3397,7 @@ func (s *mgrsSuite) TestRemodelRequiredSnapsAddedUndo(c *C) {
 		Model:  "my-model",
 		Serial: "serialserialserial",
 	})
-	err := assertstate.Add(st, model)
+	err := assertstate.Add(st, curModel)
 	c.Assert(err, IsNil)
 
 	// create a new model
@@ -3437,6 +3437,10 @@ func (s *mgrsSuite) TestRemodelRequiredSnapsAddedUndo(c *C) {
 			c.Assert(t.Status(), Equals, state.UndoneStatus)
 		}
 	}
+
+	model, err := s.o.DeviceManager().Model()
+	c.Assert(err, IsNil)
+	c.Assert(model, DeepEquals, curModel)
 }
 
 func (s *mgrsSuite) TestRemodelDifferentBase(c *C) {
