@@ -28,7 +28,7 @@ import (
 	"github.com/snapcore/snapd/testutil"
 )
 
-const mockSfdiskScript = `echo '{
+const mockSfdiskScriptBiosAndRecovery = `echo '{
    "partitiontable": {
       "label": "gpt",
       "id": "9151F25B-CDF0-48F1-9EDE-68CBD616E2CA",
@@ -43,8 +43,66 @@ const mockSfdiskScript = `echo '{
    }
 }'`
 
+const mockSfdiskScriptBios = `echo '{
+    "partitiontable": {
+        "label": "gpt",
+        "id": "9151F25B-CDF0-48F1-9EDE-68CBD616E2CA",
+        "device": "/dev/node",
+        "unit": "sectors",
+        "firstlba": 34,
+        "lastlba": 8388574,
+        "partitions": [
+            {
+                "node": "/dev/node1",
+                "start": 2048,
+                "size": 2048,
+                "type": "21686148-6449-6E6F-744E-656564454649",
+                "uuid": "2E59D969-52AB-430B-88AC-F83873519F6F",
+                "name": "BIOS Boot"
+            }
+        ]
+    }
+}'`
+
+// XXX: improve mocking later
+const mockLsblkScript = `echo '{
+    "blockdevices": [
+        {"name": "nodeX", "fstype": null, "label": null, "uuid": null, "mountpoint": null}
+    ]
+}'`
+
+const gadgetContent = `volumes:
+  pc:
+    bootloader: grub
+    structure:
+      - name: mbr
+        type: mbr
+        size: 440
+        content:
+          - image: pc-boot.img
+      - name: BIOS Boot
+        type: DA,21686148-6449-6E6F-744E-656564454649
+        size: 1M
+        offset: 1M
+        offset-write: mbr+92
+      - name: Recovery
+        role: system-seed
+        filesystem: vfat
+        # UEFI will boot the ESP partition by default first
+        type: EF,C12A7328-F81F-11D2-BA4B-00A0C93EC93B
+        size: 1200M
+        content:
+          - source: grubx64.efi
+            target: EFI/boot/grubx64.efi
+      - name: Writable
+        role: system-data
+        filesystem: ext4
+        type: 83,0FC63DAF-8483-4772-8E79-3D69D8477DE4
+        size: 1200M
+`
+
 func (s *partitionTestSuite) TestDeviceInfo(c *C) {
-	cmdSfdisk := testutil.MockCommand(c, "sfdisk", mockSfdiskScript)
+	cmdSfdisk := testutil.MockCommand(c, "sfdisk", mockSfdiskScriptBiosAndRecovery)
 	defer cmdSfdisk.Restore()
 
 	cmdLsblk := testutil.MockCommand(c, "lsblk", `
@@ -153,68 +211,11 @@ func (s *partitionTestSuite) TestDeviceInfoError(c *C) {
 	c.Assert(info, IsNil)
 }
 
-const gadgetContent = `volumes:
-  pc:
-    bootloader: grub
-    structure:
-      - name: mbr
-        type: mbr
-        size: 440
-        content:
-          - image: pc-boot.img
-      - name: BIOS Boot
-        type: DA,21686148-6449-6E6F-744E-656564454649
-        size: 1M
-        offset: 1M
-        offset-write: mbr+92
-      - name: Recovery
-        role: system-seed
-        filesystem: vfat
-        # UEFI will boot the ESP partition by default first
-        type: EF,C12A7328-F81F-11D2-BA4B-00A0C93EC93B
-        size: 1200M
-        content:
-          - source: grubx64.efi
-            target: EFI/boot/grubx64.efi
-      - name: Writable
-        role: system-data
-        filesystem: ext4
-        type: 83,0FC63DAF-8483-4772-8E79-3D69D8477DE4
-        size: 1200M
-`
-
-const sfdiskMockScript = `echo '{
-    "partitiontable": {
-        "label": "gpt",
-        "id": "9151F25B-CDF0-48F1-9EDE-68CBD616E2CA",
-        "device": "/dev/node",
-        "unit": "sectors",
-        "firstlba": 34,
-        "lastlba": 8388574,
-        "partitions": [
-            {
-                "node": "/dev/node1",
-                "start": 2048,
-                "size": 2048,
-                "type": "21686148-6449-6E6F-744E-656564454649",
-                "uuid": "2E59D969-52AB-430B-88AC-F83873519F6F",
-                "name": "BIOS Boot"
-            }
-        ]
-    }
-}'`
-
-const lsblkMockScript = `echo '{
-    "blockdevices": [
-        {"name": "node1", "fstype": null, "label": null, "uuid": null, "mountpoint": null}
-    ]
-}'`
-
 func (s *partitionTestSuite) TestBuildPartitionList(c *C) {
-	cmdSfdisk := testutil.MockCommand(c, "sfdisk", mockSfdiskScript)
+	cmdSfdisk := testutil.MockCommand(c, "sfdisk", mockSfdiskScriptBiosAndRecovery)
 	defer cmdSfdisk.Restore()
 
-	cmdLsblk := testutil.MockCommand(c, "lsblk", lsblkMockScript)
+	cmdLsblk := testutil.MockCommand(c, "lsblk", mockLsblkScript)
 	defer cmdLsblk.Restore()
 
 	ptable := &partition.SFDiskPartitionTable{
@@ -242,7 +243,7 @@ func (s *partitionTestSuite) TestBuildPartitionList(c *C) {
 	pv, err := positionedVolumeFromGadget(gadgetRoot)
 	c.Assert(err, IsNil)
 
-	plist, deviceMap := partition.BuildPartitionList(ptable, pv, []bool{true, true, false, false})
+	plist, deviceMap := partition.BuildPartitionList(ptable, pv)
 	c.Assert(plist.String(), Equals, `label: gpt
 label-id: 9151F25B-CDF0-48F1-9EDE-68CBD616E2CA
 device: /dev/node
@@ -261,10 +262,10 @@ last-lba: 8388574
 }
 
 func (s *partitionTestSuite) TestCreatePartitions(c *C) {
-	cmdSfdisk := testutil.MockCommand(c, "sfdisk", mockSfdiskScript)
+	cmdSfdisk := testutil.MockCommand(c, "sfdisk", mockSfdiskScriptBios)
 	defer cmdSfdisk.Restore()
 
-	cmdLsblk := testutil.MockCommand(c, "lsblk", lsblkMockScript)
+	cmdLsblk := testutil.MockCommand(c, "lsblk", mockLsblkScript)
 	defer cmdLsblk.Restore()
 
 	cmdBlockdev := testutil.MockCommand(c, "blockdev", "exit 0")
@@ -277,7 +278,7 @@ func (s *partitionTestSuite) TestCreatePartitions(c *C) {
 	c.Assert(err, IsNil)
 
 	sf := partition.NewSFDisk("/dev/node")
-	deviceMap, err := sf.Create(pv, []bool{true, true, false, false})
+	deviceMap, err := sf.Create(pv)
 	c.Assert(err, IsNil)
 	c.Assert(deviceMap, DeepEquals, map[string]string{
 		"system-seed": "/dev/node2",

@@ -88,15 +88,20 @@ func (u *updateTestSuite) TestResolveVolumeSimple(c *C) {
 }
 
 type canUpdateTestCase struct {
-	from gadget.LaidOutStructure
-	to   gadget.LaidOutStructure
-	err  string
+	from   gadget.LaidOutStructure
+	to     gadget.LaidOutStructure
+	schema string
+	err    string
 }
 
 func (u *updateTestSuite) testCanUpdate(c *C, testCases []canUpdateTestCase) {
 	for idx, tc := range testCases {
 		c.Logf("tc: %v", idx)
-		err := gadget.CanUpdateStructure(&tc.from, &tc.to)
+		schema := tc.schema
+		if schema == "" {
+			schema = gadget.GPT
+		}
+		err := gadget.CanUpdateStructure(&tc.from, &tc.to, schema)
 		if tc.err == "" {
 			c.Check(err, IsNil)
 		} else {
@@ -487,6 +492,32 @@ func (u *updateTestSuite) TestCanUpdateBareOrFilesystem(c *C) {
 				VolumeStructure: &gadget.VolumeStructure{Type: "0C", Filesystem: "ext4", Label: "do-not-touch"},
 			},
 			err: ``,
+		},
+	}
+	u.testCanUpdate(c, cases)
+}
+
+func (u *updateTestSuite) TestCanUpdateName(c *C) {
+
+	cases := []canUpdateTestCase{
+		{
+			from: gadget.LaidOutStructure{
+				VolumeStructure: &gadget.VolumeStructure{Name: "foo", Type: "0C"},
+			},
+			to: gadget.LaidOutStructure{
+				VolumeStructure: &gadget.VolumeStructure{Name: "mbr-ok", Type: "0C"},
+			},
+			err:    ``,
+			schema: gadget.MBR,
+		}, {
+			from: gadget.LaidOutStructure{
+				VolumeStructure: &gadget.VolumeStructure{Name: "foo", Type: "00000000-0000-0000-0000-dd00deadbeef"},
+			},
+			to: gadget.LaidOutStructure{
+				VolumeStructure: &gadget.VolumeStructure{Name: "gpt-unhappy", Type: "00000000-0000-0000-0000-dd00deadbeef"},
+			},
+			err:    `cannot change structure name from "foo" to "gpt-unhappy"`,
+			schema: gadget.GPT,
 		},
 	}
 	u.testCanUpdate(c, cases)
@@ -906,8 +937,7 @@ func (u *updateTestSuite) TestUpdateApplyErrorIllegalStructureUpdate(c *C) {
 			"foo": {
 				Bootloader: "grub",
 				Schema:     gadget.GPT,
-				// more structures than old
-				Structure: []gadget.VolumeStructure{fsStruct},
+				Structure:  []gadget.VolumeStructure{fsStruct},
 			},
 		},
 	}

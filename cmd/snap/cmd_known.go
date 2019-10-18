@@ -127,7 +127,6 @@ func (x *cmdKnown) Execute(args []string) error {
 	default:
 		// default is to look only local
 		assertions, err = x.client.Known(string(x.KnownOptions.AssertTypeName), headers, nil)
-
 	}
 	if err != nil {
 		return err

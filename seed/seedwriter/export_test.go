@@ -17,7 +17,7 @@
  *
  */
 
-package seed
+package seedwriter
 
 import (
 	"github.com/snapcore/snapd/seed/internal"
@@ -25,6 +25,4 @@ import (
 
 type InternalSnap16 = internal.Snap16
 
-var (
-	LoadAssertions = loadAssertions
-)
+var InternalReadSeedYaml = internal.ReadSeedYaml

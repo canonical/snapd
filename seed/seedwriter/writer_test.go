@@ -33,7 +33,6 @@ import (
 	"github.com/snapcore/snapd/asserts"
 	"github.com/snapcore/snapd/asserts/assertstest"
 	"github.com/snapcore/snapd/osutil"
-	"github.com/snapcore/snapd/seed"
 	"github.com/snapcore/snapd/seed/seedtest"
 	"github.com/snapcore/snapd/seed/seedwriter"
 	"github.com/snapcore/snapd/snap"
@@ -860,7 +859,7 @@ func (s *writerSuite) TestSeedSnapsWriteMetaCore18(c *C) {
 	c.Assert(err, IsNil)
 
 	// check seed
-	seedYaml, err := seed.ReadYaml(filepath.Join(s.opts.SeedDir, "seed.yaml"))
+	seedYaml, err := seedwriter.InternalReadSeedYaml(filepath.Join(s.opts.SeedDir, "seed.yaml"))
 	c.Assert(err, IsNil)
 
 	c.Check(seedYaml.Snaps, HasLen, 6)
@@ -881,7 +880,7 @@ func (s *writerSuite) TestSeedSnapsWriteMetaCore18(c *C) {
 			channel = "18/edge"
 		}
 
-		c.Check(seedYaml.Snaps[i], DeepEquals, &seed.Snap16{
+		c.Check(seedYaml.Snaps[i], DeepEquals, &seedwriter.InternalSnap16{
 			Name:    info.SnapName(),
 			SnapID:  info.SnapID,
 			Channel: channel,
@@ -1084,7 +1083,7 @@ func (s *writerSuite) TestLocalSnapsCore18FullUse(c *C) {
 	c.Assert(err, IsNil)
 
 	// check seed
-	seedYaml, err := seed.ReadYaml(filepath.Join(s.opts.SeedDir, "seed.yaml"))
+	seedYaml, err := seedwriter.InternalReadSeedYaml(filepath.Join(s.opts.SeedDir, "seed.yaml"))
 	c.Assert(err, IsNil)
 
 	c.Check(seedYaml.Snaps, HasLen, 6)
@@ -1113,7 +1112,7 @@ func (s *writerSuite) TestLocalSnapsCore18FullUse(c *C) {
 			channel = "stable"
 		}
 
-		c.Check(seedYaml.Snaps[i], DeepEquals, &seed.Snap16{
+		c.Check(seedYaml.Snaps[i], DeepEquals, &seedwriter.InternalSnap16{
 			Name:       info.SnapName(),
 			SnapID:     info.SnapID,
 			Channel:    channel,
@@ -1309,7 +1308,7 @@ func (s *writerSuite) TestSeedSnapsWriteMetaClassicWithCore(c *C) {
 	c.Assert(err, IsNil)
 
 	// check seed
-	seedYaml, err := seed.ReadYaml(filepath.Join(s.opts.SeedDir, "seed.yaml"))
+	seedYaml, err := seedwriter.InternalReadSeedYaml(filepath.Join(s.opts.SeedDir, "seed.yaml"))
 	c.Assert(err, IsNil)
 
 	c.Check(seedYaml.Snaps, HasLen, 3)
@@ -1322,7 +1321,7 @@ func (s *writerSuite) TestSeedSnapsWriteMetaClassicWithCore(c *C) {
 		p := filepath.Join(s.opts.SeedDir, "snaps", fn)
 		c.Check(p, testutil.FilePresent)
 
-		c.Check(seedYaml.Snaps[i], DeepEquals, &seed.Snap16{
+		c.Check(seedYaml.Snaps[i], DeepEquals, &seedwriter.InternalSnap16{
 			Name:    info.SnapName(),
 			SnapID:  info.SnapID,
 			Channel: "stable",
@@ -1366,7 +1365,7 @@ func (s *writerSuite) TestSeedSnapsWriteMetaClassicSnapdOnly(c *C) {
 	c.Assert(err, IsNil)
 
 	// check seed
-	seedYaml, err := seed.ReadYaml(filepath.Join(s.opts.SeedDir, "seed.yaml"))
+	seedYaml, err := seedwriter.InternalReadSeedYaml(filepath.Join(s.opts.SeedDir, "seed.yaml"))
 	c.Assert(err, IsNil)
 	c.Assert(seedYaml.Snaps, HasLen, 4)
 
@@ -1378,7 +1377,7 @@ func (s *writerSuite) TestSeedSnapsWriteMetaClassicSnapdOnly(c *C) {
 		p := filepath.Join(s.opts.SeedDir, "snaps", fn)
 		c.Check(p, testutil.FilePresent)
 
-		c.Check(seedYaml.Snaps[i], DeepEquals, &seed.Snap16{
+		c.Check(seedYaml.Snaps[i], DeepEquals, &seedwriter.InternalSnap16{
 			Name:    info.SnapName(),
 			SnapID:  info.SnapID,
 			Channel: "stable",
@@ -1475,7 +1474,7 @@ func (s *writerSuite) TestSeedSnapsWriteMetaExtraSnaps(c *C) {
 	c.Assert(err, IsNil)
 
 	// check seed
-	seedYaml, err := seed.ReadYaml(filepath.Join(s.opts.SeedDir, "seed.yaml"))
+	seedYaml, err := seedwriter.InternalReadSeedYaml(filepath.Join(s.opts.SeedDir, "seed.yaml"))
 	c.Assert(err, IsNil)
 	c.Assert(seedYaml.Snaps, HasLen, 8)
 
@@ -1495,7 +1494,7 @@ func (s *writerSuite) TestSeedSnapsWriteMetaExtraSnaps(c *C) {
 			channel = "beta"
 		}
 
-		c.Check(seedYaml.Snaps[i], DeepEquals, &seed.Snap16{
+		c.Check(seedYaml.Snaps[i], DeepEquals, &seedwriter.InternalSnap16{
 			Name:    info.SnapName(),
 			SnapID:  info.SnapID,
 			Channel: channel,
@@ -1619,7 +1618,7 @@ func (s *writerSuite) TestSeedSnapsWriteMetaLocalExtraSnaps(c *C) {
 	c.Assert(err, IsNil)
 
 	// check seed
-	seedYaml, err := seed.ReadYaml(filepath.Join(s.opts.SeedDir, "seed.yaml"))
+	seedYaml, err := seedwriter.InternalReadSeedYaml(filepath.Join(s.opts.SeedDir, "seed.yaml"))
 	c.Assert(err, IsNil)
 	c.Assert(seedYaml.Snaps, HasLen, 8)
 
@@ -1649,7 +1648,7 @@ func (s *writerSuite) TestSeedSnapsWriteMetaLocalExtraSnaps(c *C) {
 			}
 		}
 
-		c.Check(seedYaml.Snaps[i], DeepEquals, &seed.Snap16{
+		c.Check(seedYaml.Snaps[i], DeepEquals, &seedwriter.InternalSnap16{
 			Name:       info.SnapName(),
 			SnapID:     info.SnapID,
 			Channel:    channel,

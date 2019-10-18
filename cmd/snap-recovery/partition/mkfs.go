@@ -16,15 +16,21 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  *
  */
-
-package seed
+package partition
 
 import (
-	"github.com/snapcore/snapd/seed/internal"
+	"fmt"
+
+	"github.com/snapcore/snapd/gadget"
 )
 
-type InternalSnap16 = internal.Snap16
-
-var (
-	LoadAssertions = loadAssertions
-)
+func makeFilesystem(node, label, filesystem, content string) error {
+	switch filesystem {
+	case "vfat":
+		return gadget.MkfsVfat(node, label, content)
+	case "ext4":
+		return gadget.MkfsExt4(node, label, content)
+	default:
+		return fmt.Errorf("cannot create unsupported filesystem %q", filesystem)
+	}
+}

@@ -28,7 +28,7 @@ import (
 	"strings"
 
 	"github.com/snapcore/snapd/asserts"
-	"github.com/snapcore/snapd/seed"
+	"github.com/snapcore/snapd/seed/internal"
 	"github.com/snapcore/snapd/snap"
 	"github.com/snapcore/snapd/snap/channel"
 	"github.com/snapcore/snapd/snap/naming"
@@ -226,7 +226,7 @@ func (tr *tree16) writeAssertions(db asserts.RODatabase, modelRefs []*asserts.Re
 }
 
 func (tr *tree16) writeMeta(snapsFromModel []*SeedSnap, extraSnaps []*SeedSnap) error {
-	var seedYaml seed.Seed16
+	var seedYaml internal.Seed16
 
 	seedSnaps := make(seedSnapsByType, len(snapsFromModel)+len(extraSnaps))
 	copy(seedSnaps, snapsFromModel)
@@ -234,7 +234,7 @@ func (tr *tree16) writeMeta(snapsFromModel []*SeedSnap, extraSnaps []*SeedSnap) 
 
 	sort.Stable(seedSnaps)
 
-	seedYaml.Snaps = make([]*seed.Snap16, len(seedSnaps))
+	seedYaml.Snaps = make([]*internal.Snap16, len(seedSnaps))
 	for i, sn := range seedSnaps {
 		info := sn.Info
 		// TODO: with default tracks this might be
@@ -246,7 +246,7 @@ func (tr *tree16) writeMeta(snapsFromModel []*SeedSnap, extraSnaps []*SeedSnap) 
 			// for unasserted snaps
 			channel = ""
 		}
-		seedYaml.Snaps[i] = &seed.Snap16{
+		seedYaml.Snaps[i] = &internal.Snap16{
 			Name:    info.SnapName(),
 			SnapID:  info.SnapID, // cross-ref
 			Channel: channel,

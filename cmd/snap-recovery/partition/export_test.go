@@ -26,4 +26,5 @@ type SFDiskPartition = sfdiskPartition
 var (
 	FilesystemInfo     = filesystemInfo
 	BuildPartitionList = buildPartitionList
+	MakeFilesystem     = makeFilesystem
 )
