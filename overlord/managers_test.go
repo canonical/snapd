@@ -3406,10 +3406,8 @@ func (s *mgrsSuite) TestRemodelRequiredSnapsAddedUndo(c *C) {
 		"revision":       "1",
 	})
 
-	devicestate.InjectSetModel(func(t *state.Task) error {
-		return fmt.Errorf("boom")
-	})
-	defer devicestate.InjectSetModel(nil)
+	devicestate.InjectSetModelError(fmt.Errorf("boom"))
+	defer devicestate.InjectSetModelError(nil)
 
 	chg, err := devicestate.Remodel(st, newModel)
 	c.Assert(err, IsNil)

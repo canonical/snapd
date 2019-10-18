@@ -32,7 +32,6 @@ import (
 	"path/filepath"
 	"strconv"
 	"strings"
-	"sync"
 	"time"
 
 	"gopkg.in/tomb.v2"
@@ -77,18 +76,12 @@ func isSameAssertsRevision(err error) bool {
 	return false
 }
 
-type SetModelInjected func(t *state.Task) error
+var injectedSetModelError error
 
-var (
-	setModelInjected   SetModelInjected
-	setModelInjectedMu sync.Mutex
-)
-
-// InjectedSetModel is only useful for testing
-func InjectSetModel(f SetModelInjected) {
-	setModelInjectedMu.Lock()
-	defer setModelInjectedMu.Unlock()
-	setModelInjected = f
+// InjectSetModelError will trigger the selected error in the doSetModel
+// handler. This is only useful for testing.
+func InjectSetModelError(err error) {
+	injectedSetModelError = err
 }
 
 func (m *DeviceManager) doSetModel(t *state.Task, _ *tomb.Tomb) (err error) {
@@ -151,10 +144,9 @@ func (m *DeviceManager) doSetModel(t *state.Task, _ *tomb.Tomb) (err error) {
 		}
 	}()
 
-	if setModelInjected != nil {
-		if err := setModelInjected(t); err != nil {
-			return err
-		}
+	// only useful for testing
+	if injectedSetModelError != nil {
+		return injectedSetModelError
 	}
 
 	return remodCtx.Finish()
