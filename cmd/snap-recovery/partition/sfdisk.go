@@ -92,16 +92,13 @@ func (sf *SFDisk) Layout() (*gadget.LaidOutVolume, error) {
 	return pv, nil
 }
 
-// Create creates the partitions listed in positionedVolume not listed
-// in usedPartitions. Return a role to device node map.
-//
-// TODO: see if we can get rid of usedPartitions
-func (sf *SFDisk) Create(pv *gadget.LaidOutVolume, usedPartitions []bool) (map[string]string, error) {
+// Create creates the partitions listed in positionedVolume
+func (sf *SFDisk) Create(pv *gadget.LaidOutVolume) (map[string]string, error) {
 	// Layout() will update sf.partitionTable
 	if _, err := sf.Layout(); err != nil {
 		return nil, err
 	}
-	buf, deviceMap := buildPartitionList(sf.partitionTable, pv, usedPartitions)
+	buf, deviceMap := buildPartitionList(sf.partitionTable, pv)
 
 	// Write the partition table
 	cmd := exec.Command("sfdisk", sf.device)
@@ -183,7 +180,7 @@ func deviceName(name string, index int) string {
 // buildPartitionList builds a list of partitions based on the current device contents
 // and gadget structure list, in sfdisk dump format. Return a partitioning description
 // suitable for sfdisk input and a role to device node map.
-func buildPartitionList(ptable *sfdiskPartitionTable, pv *gadget.LaidOutVolume, usedPartitions []bool) (*bytes.Buffer, map[string]string) {
+func buildPartitionList(ptable *sfdiskPartitionTable, pv *gadget.LaidOutVolume) (*bytes.Buffer, map[string]string) {
 	buf := &bytes.Buffer{}
 	deviceMap := map[string]string{}
 
@@ -191,6 +188,8 @@ func buildPartitionList(ptable *sfdiskPartitionTable, pv *gadget.LaidOutVolume, 
 	fmt.Fprintf(buf, "label: %s\nlabel-id: %s\ndevice: %s\nunit: %s\nfirst-lba: %d\nlast-lba: %d\n\n",
 		ptable.Label, ptable.ID, ptable.Device, ptable.Unit, ptable.FirstLBA, ptable.LastLBA)
 
+	// Keep track what partitions we already have on disk
+	seen := map[uint64]bool{}
 	for _, p := range ptable.Partitions {
 		fmt.Fprintf(buf, "%s : start=%12d, size=%12d, type=%s, uuid=%s", p.Node, p.Start,
 			p.Size, p.Type, p.UUID)
@@ -198,17 +197,19 @@ func buildPartitionList(ptable *sfdiskPartitionTable, pv *gadget.LaidOutVolume, 
 			fmt.Fprintf(buf, ", name=%q", p.Name)
 		}
 		fmt.Fprintf(buf, "\n")
+		seen[p.Start] = true
 	}
 
 	// Add missing partitions
-	for i, p := range pv.LaidOutStructure {
+	for _, p := range pv.LaidOutStructure {
 		s := p.VolumeStructure
 		// Skip partitions that are already in the volume
-		if usedPartitions[i] {
-			continue
-		}
 		// Skip MBR structure
 		if s.Type == "mbr" || s.Type == "bare" {
+			continue
+		}
+		start := p.StartOffset / sectorSize
+		if seen[uint64(start)] {
 			continue
 		}
 		// Can we use the index here? Get the largest existing partition number and
