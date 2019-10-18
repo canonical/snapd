@@ -86,6 +86,11 @@ func checkConnectivity(st *state.State) Response {
 }
 
 type changeTimings struct {
+	Status         string                `json:"status,omitempty"`
+	Kind           string                `json:"kind,omitempty"`
+	Summary        string                `json:"summary,omitempty"`
+	Lane           int                   `json:"lane,omitempty"`
+	ReadyTime      time.Time             `json:"ready-time,omitempty"`
 	DoingTime      time.Duration         `json:"doing-time,omitempty"`
 	UndoingTime    time.Duration         `json:"undoing-time,omitempty"`
 	DoingTimings   []*timings.TimingJSON `json:"doing-timings,omitempty"`
@@ -95,10 +100,23 @@ type changeTimings struct {
 type debugTimings struct {
 	ChangeID string `json:"change-id"`
 	// total duration of the activity - present for ensure and startup timings only
-	TotalDuration  time.Duration             `json:"total-duration,omitempty"`
-	EnsureTimings  []*timings.TimingJSON     `json:"ensure-timings,omitempty"`
-	StartupTimings []*timings.TimingJSON     `json:"startup-timings,omitempty"`
-	ChangeTimings  map[string]*changeTimings `json:"change-timings,omitempty"`
+	TotalDuration  time.Duration         `json:"total-duration,omitempty"`
+	EnsureTimings  []*timings.TimingJSON `json:"ensure-timings,omitempty"`
+	StartupTimings []*timings.TimingJSON `json:"startup-timings,omitempty"`
+	// ChangeTimings are indexed by task id
+	ChangeTimings map[string]*changeTimings `json:"change-timings,omitempty"`
+}
+
+// minLane determines the lowest lane number for the task
+func minLane(t *state.Task) int {
+	lanes := t.Lanes()
+	minLane := lanes[0]
+	for _, l := range lanes[1:] {
+		if l < minLane {
+			minLane = l
+		}
+	}
+	return minLane
 }
 
 func collectChangeTimings(st *state.State, changeID string) (map[string]*changeTimings, error) {
@@ -132,6 +150,11 @@ func collectChangeTimings(st *state.State, changeID string) (map[string]*changeT
 	m := map[string]*changeTimings{}
 	for _, t := range chg.Tasks() {
 		m[t.ID()] = &changeTimings{
+			Kind:           t.Kind(),
+			Status:         t.Status().String(),
+			Summary:        t.Summary(),
+			Lane:           minLane(t),
+			ReadyTime:      t.ReadyTime(),
 			DoingTime:      t.DoingTime(),
 			UndoingTime:    t.UndoingTime(),
 			DoingTimings:   doingTimingsByTask[t.ID()],
@@ -297,6 +320,9 @@ func postDebug(c *Command, r *http.Request, user *auth.UserState) Response {
 		return SyncResponse(devicestate.CanManageRefreshes(st), nil)
 	case "connectivity":
 		return checkConnectivity(st)
+	case "prune":
+		st.Prune(0, 0, 0)
+		return SyncResponse(true, nil)
 	default:
 		return BadRequest("unknown debug action: %v", a.Action)
 	}

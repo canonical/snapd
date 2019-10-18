@@ -24,6 +24,7 @@ import (
 	"io/ioutil"
 	"os"
 	"path/filepath"
+	"testing"
 
 	. "gopkg.in/check.v1"
 	"gopkg.in/yaml.v2"
@@ -37,6 +38,8 @@ import (
 	"github.com/snapcore/snapd/testutil"
 	"github.com/snapcore/snapd/timings"
 )
+
+func Test(t *testing.T) { TestingT(t) }
 
 type seed16Suite struct {
 	testutil.BaseTest
@@ -235,7 +238,7 @@ func (s *seed16Suite) TestLoadMetaInvalidSeedYaml(c *C) {
 
 	// create a seed.yaml
 	content, err := yaml.Marshal(map[string]interface{}{
-		"snaps": []*seed.Snap16{{
+		"snaps": []*seed.InternalSnap16{{
 			Name:    "core",
 			Channel: "track/not-a-risk",
 		}},
@@ -333,69 +336,69 @@ var snapPublishers = map[string]string{
 }
 
 var (
-	coreSeed = &seed.Snap16{
+	coreSeed = &seed.InternalSnap16{
 		Name:    "core",
 		Channel: "stable",
 	}
-	kernelSeed = &seed.Snap16{
+	kernelSeed = &seed.InternalSnap16{
 		Name:    "pc-kernel",
 		Channel: "stable",
 	}
-	gadgetSeed = &seed.Snap16{
+	gadgetSeed = &seed.InternalSnap16{
 		Name:    "pc",
 		Channel: "stable",
 	}
-	requiredSeed = &seed.Snap16{
+	requiredSeed = &seed.InternalSnap16{
 		Name:    "required",
 		Channel: "stable",
 	}
 	// Core 18
-	snapdSeed = &seed.Snap16{
+	snapdSeed = &seed.InternalSnap16{
 		Name:    "snapd",
 		Channel: "stable",
 	}
-	core18Seed = &seed.Snap16{
+	core18Seed = &seed.InternalSnap16{
 		Name:    "core18",
 		Channel: "stable",
 	}
-	kernel18Seed = &seed.Snap16{
+	kernel18Seed = &seed.InternalSnap16{
 		Name:    "pc-kernel",
 		Channel: "18",
 	}
-	gadget18Seed = &seed.Snap16{
+	gadget18Seed = &seed.InternalSnap16{
 		Name:    "pc",
 		Channel: "18",
 	}
-	required18Seed = &seed.Snap16{
+	required18Seed = &seed.InternalSnap16{
 		Name:    "required18",
 		Channel: "stable",
 	}
-	classicSnapSeed = &seed.Snap16{
+	classicSnapSeed = &seed.InternalSnap16{
 		Name:    "classic-snap",
 		Channel: "stable",
 		Classic: true,
 	}
-	classicGadgetSeed = &seed.Snap16{
+	classicGadgetSeed = &seed.InternalSnap16{
 		Name:    "classic-gadget",
 		Channel: "stable",
 	}
-	classicGadget18Seed = &seed.Snap16{
+	classicGadget18Seed = &seed.InternalSnap16{
 		Name:    "classic-gadget18",
 		Channel: "stable",
 	}
-	privateSnapSeed = &seed.Snap16{
+	privateSnapSeed = &seed.InternalSnap16{
 		Name:    "private-snap",
 		Channel: "stable",
 		Private: true,
 	}
-	contactableSnapSeed = &seed.Snap16{
+	contactableSnapSeed = &seed.InternalSnap16{
 		Name:    "contactable-snap",
 		Channel: "stable",
 		Contact: "author@example.com",
 	}
 )
 
-func (s *seed16Suite) makeSeed(c *C, modelHeaders map[string]interface{}, seedSnaps ...*seed.Snap16) []*seed.Snap16 {
+func (s *seed16Suite) makeSeed(c *C, modelHeaders map[string]interface{}, seedSnaps ...*seed.InternalSnap16) []*seed.InternalSnap16 {
 	coreHeaders := map[string]interface{}{
 		"architecture": "amd64",
 	}
@@ -414,7 +417,7 @@ func (s *seed16Suite) makeSeed(c *C, modelHeaders map[string]interface{}, seedSn
 	err = os.Mkdir(s.SnapsDir, 0755)
 	c.Assert(err, IsNil)
 
-	var completeSeedSnaps []*seed.Snap16
+	var completeSeedSnaps []*seed.InternalSnap16
 	for _, seedSnap := range seedSnaps {
 		completeSeedSnap := *seedSnap
 		var snapFname string
@@ -442,15 +445,19 @@ func (s *seed16Suite) makeSeed(c *C, modelHeaders map[string]interface{}, seedSn
 		completeSeedSnaps = append(completeSeedSnaps, &completeSeedSnap)
 	}
 
+	s.writeSeed(c, completeSeedSnaps)
+
+	return completeSeedSnaps
+}
+
+func (s *seed16Suite) writeSeed(c *C, seedSnaps []*seed.InternalSnap16) {
 	// create a seed.yaml
 	content, err := yaml.Marshal(map[string]interface{}{
-		"snaps": completeSeedSnaps,
+		"snaps": seedSnaps,
 	})
 	c.Assert(err, IsNil)
 	err = ioutil.WriteFile(filepath.Join(s.seedDir, "seed.yaml"), content, 0644)
 	c.Assert(err, IsNil)
-
-	return completeSeedSnaps
 }
 
 func (s *seed16Suite) expectedPath(snapName string) string {
@@ -890,7 +897,7 @@ func (s *seed16Suite) TestLoadMetaClassicSnapdWithGadget18(c *C) {
 }
 
 func (s *seed16Suite) TestLoadMetaCore18Local(c *C) {
-	localRequired18Seed := &seed.Snap16{
+	localRequired18Seed := &seed.InternalSnap16{
 		Name:       "required18",
 		Unasserted: true,
 		DevMode:    true,
@@ -992,6 +999,68 @@ func (s *seed16Suite) TestLoadMetaCore18StoreInfo(c *C) {
 	})
 }
 
+func (s *seed16Suite) TestLoadMetaCore18EnforcePinnedTracks(c *C) {
+	seedSnaps := s.makeSeed(c, map[string]interface{}{
+		"base":   "core18",
+		"kernel": "pc-kernel=18",
+		"gadget": "pc=18",
+	}, snapdSeed, core18Seed, kernel18Seed, gadget18Seed)
+
+	// tweak channels
+	for _, sn := range seedSnaps {
+		switch sn.Name {
+		case "pc":
+			sn.Channel = "edge"
+		case "pc-kernel":
+			sn.Channel = "latest/candidate"
+		}
+	}
+	s.writeSeed(c, seedSnaps)
+
+	err := s.seed16.LoadAssertions(s.db, s.commitTo)
+	c.Assert(err, IsNil)
+
+	err = s.seed16.LoadMeta(s.perfTimings)
+	c.Assert(err, IsNil)
+
+	c.Check(s.seed16.UsesSnapdSnap(), Equals, true)
+
+	essSnaps := s.seed16.EssentialSnaps()
+	c.Check(essSnaps, HasLen, 4)
+
+	c.Check(essSnaps, DeepEquals, []*seed.Snap{
+		{
+			Path:      s.expectedPath("snapd"),
+			SideInfo:  &s.AssertedSnapInfo("snapd").SideInfo,
+			Essential: true,
+			Required:  true,
+			Channel:   "stable",
+		}, {
+			Path:      s.expectedPath("core18"),
+			SideInfo:  &s.AssertedSnapInfo("core18").SideInfo,
+			Essential: true,
+			Required:  true,
+			Channel:   "stable",
+		}, {
+			Path:      s.expectedPath("pc-kernel"),
+			SideInfo:  &s.AssertedSnapInfo("pc-kernel").SideInfo,
+			Essential: true,
+			Required:  true,
+			Channel:   "18",
+		}, {
+			Path:      s.expectedPath("pc"),
+			SideInfo:  &s.AssertedSnapInfo("pc").SideInfo,
+			Essential: true,
+			Required:  true,
+			Channel:   "18/edge",
+		},
+	})
+
+	runSnaps, err := s.seed16.ModeSnaps("run")
+	c.Assert(err, IsNil)
+	c.Check(runSnaps, HasLen, 0)
+}
+
 func (s *seed16Suite) TestLoadMetaBrokenSeed(c *C) {
 	seedSnap16s := s.makeSeed(c, map[string]interface{}{
 		"base":           "core18",
@@ -1017,9 +1086,9 @@ version: other-base
 	err = s.seed16.LoadAssertions(s.db, s.commitTo)
 	c.Assert(err, IsNil)
 
-	omit := func(which int) func([]*seed.Snap16) []*seed.Snap16 {
-		return func(snaps []*seed.Snap16) []*seed.Snap16 {
-			broken := make([]*seed.Snap16, 0, len(snaps)-1)
+	omit := func(which int) func([]*seed.InternalSnap16) []*seed.InternalSnap16 {
+		return func(snaps []*seed.InternalSnap16) []*seed.InternalSnap16 {
+			broken := make([]*seed.InternalSnap16, 0, len(snaps)-1)
 			for i, sn := range snaps {
 				if i == which {
 					continue
@@ -1029,8 +1098,8 @@ version: other-base
 			return broken
 		}
 	}
-	replaceFile := func(snapName, fname string) func([]*seed.Snap16) []*seed.Snap16 {
-		return func(snaps []*seed.Snap16) []*seed.Snap16 {
+	replaceFile := func(snapName, fname string) func([]*seed.InternalSnap16) []*seed.InternalSnap16 {
+		return func(snaps []*seed.InternalSnap16) []*seed.InternalSnap16 {
 			for i := range snaps {
 				if snaps[i].Name != snapName {
 					continue
@@ -1044,7 +1113,7 @@ version: other-base
 	}
 
 	tests := []struct {
-		breakSeed func([]*seed.Snap16) []*seed.Snap16
+		breakSeed func([]*seed.InternalSnap16) []*seed.InternalSnap16
 		err       string
 	}{
 		{omit(0), `essential snap "snapd" required by the model is missing in the seed`},
@@ -1059,16 +1128,11 @@ version: other-base
 	}
 
 	for _, t := range tests {
-		testSeedSnap16s := make([]*seed.Snap16, 5)
+		testSeedSnap16s := make([]*seed.InternalSnap16, 5)
 		copy(testSeedSnap16s, seedSnap16s)
 
 		testSeedSnap16s = t.breakSeed(testSeedSnap16s)
-		content, err := yaml.Marshal(map[string]interface{}{
-			"snaps": testSeedSnap16s,
-		})
-		c.Assert(err, IsNil)
-		err = ioutil.WriteFile(filepath.Join(s.seedDir, "seed.yaml"), content, 0644)
-		c.Assert(err, IsNil)
+		s.writeSeed(c, testSeedSnap16s)
 
 		c.Check(s.seed16.LoadMeta(s.perfTimings), ErrorMatches, t.err)
 	}

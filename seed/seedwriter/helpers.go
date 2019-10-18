@@ -23,6 +23,7 @@ import (
 	"fmt"
 
 	"github.com/snapcore/snapd/asserts"
+	"github.com/snapcore/snapd/asserts/snapasserts"
 	"github.com/snapcore/snapd/snap"
 )
 
@@ -125,4 +126,38 @@ func (s seedSnapsByType) Len() int      { return len(s) }
 func (s seedSnapsByType) Swap(i, j int) { s[i], s[j] = s[j], s[i] }
 func (s seedSnapsByType) Less(i, j int) bool {
 	return s[i].Info.GetType().SortsBefore(s[j].Info.GetType())
+}
+
+// finderFromFetcher exposes an assertion Finder interface out of a Fetcher.
+type finderFromFetcher struct {
+	f  asserts.Fetcher
+	db asserts.RODatabase
+}
+
+func (fnd *finderFromFetcher) Find(assertionType *asserts.AssertionType, headers map[string]string) (asserts.Assertion, error) {
+	pk, err := asserts.PrimaryKeyFromHeaders(assertionType, headers)
+	if err != nil {
+		return nil, err
+	}
+	ref := &asserts.Ref{
+		Type:       assertionType,
+		PrimaryKey: pk,
+	}
+	if err := fnd.f.Fetch(ref); err != nil {
+		return nil, err
+	}
+	return fnd.db.Find(assertionType, headers)
+}
+
+// DeriveSideInfo tries to construct a SideInfo for the given snap
+// using its digest to fetch the relevant snap assertions. It will
+// fail with an asserts.NotFoundError if it cannot find them.
+func DeriveSideInfo(snapPath string, rf RefAssertsFetcher, db asserts.RODatabase) (*snap.SideInfo, []*asserts.Ref, error) {
+	fnd := &finderFromFetcher{f: rf, db: db}
+	prev := len(rf.Refs())
+	si, err := snapasserts.DeriveSideInfo(snapPath, fnd)
+	if err != nil {
+		return nil, nil, err
+	}
+	return si, rf.Refs()[prev:], nil
 }

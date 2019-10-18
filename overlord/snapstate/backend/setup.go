@@ -25,18 +25,27 @@ import (
 	"path/filepath"
 
 	"github.com/snapcore/snapd/boot"
+	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/progress"
 	"github.com/snapcore/snapd/release"
 	"github.com/snapcore/snapd/snap"
 )
 
+// InstallRecord keeps a record of what installation effectively did as hints
+// about what needs to be undone in case of failure.
+type InstallRecord struct {
+	// TargetSnapExisted indicates that the target .snap file under /var/lib/snapd/snap already existed when the
+	// backend attempted SetupSnap() through squashfs Install() and should be kept.
+	TargetSnapExisted bool `json:"target-snap-existed,omitempty"`
+}
+
 // SetupSnap does prepare and mount the snap for further processing.
-func (b Backend) SetupSnap(snapFilePath, instanceName string, sideInfo *snap.SideInfo, meter progress.Meter) (snapType snap.Type, err error) {
+func (b Backend) SetupSnap(snapFilePath, instanceName string, sideInfo *snap.SideInfo, meter progress.Meter) (snapType snap.Type, installRecord *InstallRecord, err error) {
 	// This assumes that the snap was already verified or --dangerous was used.
 
 	s, snapf, oErr := OpenSnapFile(snapFilePath, sideInfo)
 	if oErr != nil {
-		return snapType, oErr
+		return snapType, nil, oErr
 	}
 
 	// update instance key to what was requested
@@ -48,43 +57,46 @@ func (b Backend) SetupSnap(snapFilePath, instanceName string, sideInfo *snap.Sid
 		if err == nil {
 			return
 		}
-		// XXX: this will also remove the snap from /var/lib/snapd/snaps
-		if e := b.RemoveSnapFiles(s, s.GetType(), meter); e != nil {
+
+		// this may remove the snap from /var/lib/snapd/snaps depending on installRecord
+		if e := b.RemoveSnapFiles(s, s.GetType(), installRecord, meter); e != nil {
 			meter.Notify(fmt.Sprintf("while trying to clean up due to previous failure: %v", e))
 		}
 	}()
 
 	if err := os.MkdirAll(instdir, 0755); err != nil {
-		return snapType, err
+		return snapType, nil, err
 	}
 
 	if s.InstanceKey != "" {
 		err := os.MkdirAll(snap.BaseDir(s.SnapName()), 0755)
 		if err != nil && !os.IsExist(err) {
-			return snapType, err
+			return snapType, nil, err
 		}
 	}
 
-	if err := snapf.Install(s.MountFile(), instdir); err != nil {
-		return snapType, err
+	var didNothing bool
+	if didNothing, err = snapf.Install(s.MountFile(), instdir); err != nil {
+		return snapType, nil, err
 	}
 
 	// generate the mount unit for the squashfs
 	if err := addMountUnit(s, meter); err != nil {
-		return snapType, err
+		return snapType, nil, err
 	}
 
 	t := s.GetType()
 	// TODO: maybe look into passing the model
 	if err := boot.Kernel(s, t, nil, release.OnClassic).ExtractKernelAssets(snapf); err != nil {
-		return snapType, fmt.Errorf("cannot install kernel: %s", err)
+		return snapType, nil, fmt.Errorf("cannot install kernel: %s", err)
 	}
 
-	return t, nil
+	installRecord = &InstallRecord{TargetSnapExisted: didNothing}
+	return t, installRecord, nil
 }
 
 // RemoveSnapFiles removes the snap files from the disk after unmounting the snap.
-func (b Backend) RemoveSnapFiles(s snap.PlaceInfo, typ snap.Type, meter progress.Meter) error {
+func (b Backend) RemoveSnapFiles(s snap.PlaceInfo, typ snap.Type, installRecord *InstallRecord, meter progress.Meter) error {
 	mountDir := s.MountDir()
 
 	// this also ensures that the mount unit stops
@@ -105,9 +117,14 @@ func (b Backend) RemoveSnapFiles(s snap.PlaceInfo, typ snap.Type, meter progress
 			return err
 		}
 
-		// remove the snap
-		if err := os.RemoveAll(snapPath); err != nil {
-			return err
+		// don't remove snap path if it existed before snap installation was attempted
+		// and is a symlink, which is the case with kernel/core snaps during seeding.
+		keepSeededSnap := installRecord != nil && installRecord.TargetSnapExisted && osutil.IsSymlink(snapPath)
+		if !keepSeededSnap {
+			// remove the snap
+			if err := os.RemoveAll(snapPath); err != nil {
+				return err
+			}
 		}
 	}
 
@@ -132,6 +149,6 @@ func (b Backend) RemoveSnapDir(s snap.PlaceInfo, hasOtherInstances bool) error {
 }
 
 // UndoSetupSnap undoes the work of SetupSnap using RemoveSnapFiles.
-func (b Backend) UndoSetupSnap(s snap.PlaceInfo, typ snap.Type, meter progress.Meter) error {
-	return b.RemoveSnapFiles(s, typ, meter)
+func (b Backend) UndoSetupSnap(s snap.PlaceInfo, typ snap.Type, installRecord *InstallRecord, meter progress.Meter) error {
+	return b.RemoveSnapFiles(s, typ, installRecord, meter)
 }

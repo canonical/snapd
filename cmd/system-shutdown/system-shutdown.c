@@ -32,8 +32,9 @@
 #include <sys/syscall.h>	// SYS_reboot
 
 #include "system-shutdown-utils.h"
-#include "../libsnap-confine-private/string-utils.h"
 #include "../libsnap-confine-private/panic.h"
+#include "../libsnap-confine-private/string-utils.h"
+#include "../libsnap-confine-private/utils.h"
 
 static void show_error(const char *fmt, va_list ap, int errno_copy)
 {

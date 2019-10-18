@@ -32,6 +32,7 @@ import (
 	"github.com/snapcore/snapd/interfaces"
 	"github.com/snapcore/snapd/interfaces/apparmor"
 	"github.com/snapcore/snapd/interfaces/ifacetest"
+	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/overlord/state"
 	"github.com/snapcore/snapd/release"
@@ -92,6 +93,66 @@ if [ "$write" = yes ]; then
 fi
 `
 
+// permanently broken apparmor parser
+const fakeBrokenAppArmorParser = `
+echo "permanent failure"
+exit 1
+`
+
+// apparmor parser that fails when processing more than 3 profiles, i.e.
+// when reloading profiles in a batch, but succeeds when run for individual
+// runs for snaps with less profiles.
+const fakeFailingAppArmorParser = `
+profiles="0"
+while [ -n "$1" ]; do
+	case "$1" in
+		--cache-loc=*)
+			;;
+		--write-cache|--quiet|--replace|--remove|-j*)
+			;;
+		-O)
+			# Ignore, discard argument
+			shift
+			;;
+		*)
+			profiles=$(( profiles + 1 ))
+			;;
+	esac
+	shift
+done
+if [ "$profiles" -gt 3 ]; then
+	echo "batch failure ($profiles profiles)"
+	exit 1
+fi
+`
+
+// apparmor parser that fails on snap.samba.smbd profile
+const fakeFailingAppArmorParserOneProfile = `
+profile=""
+while [ -n "$1" ]; do
+	case "$1" in
+		--cache-loc=*)
+			# Ignore
+			;;
+		--quiet|--replace|--remove|--write-cache|-j*)
+			# Ignore
+			;;
+		-O)
+			# Ignore, discard argument
+			shift
+			;;
+		*)
+			profile=$(basename "$1")
+			if [ "$profile" = "snap.samba.smbd" ]; then
+				echo "failure: $profile"
+				exit 1
+			fi
+			;;
+	esac
+	shift
+done
+`
+
 func (s *backendSuite) SetUpTest(c *C) {
 	s.Backend = &apparmor.Backend{}
 	s.BackendSuite.SetUpTest(c)
@@ -104,6 +165,8 @@ func (s *backendSuite) SetUpTest(c *C) {
 	c.Assert(err, IsNil)
 	// Mock away any real apparmor interaction
 	s.parserCmd = testutil.MockCommand(c, "apparmor_parser", fakeAppArmorParser)
+
+	apparmor.MockRuntimeNumCPU(func() int { return 99 })
 }
 
 func (s *backendSuite) TearDownTest(c *C) {
@@ -367,6 +430,171 @@ func (s *backendSuite) TestUpdatingSnapToOneWithFewerHooks(c *C) {
 			{"apparmor_parser", "--replace", "--write-cache", "-O", "no-expr-simplify", fmt.Sprintf("--cache-loc=%s/var/cache/apparmor", s.RootDir), "--quiet", updateNSProfile, nmbdProfile, smbdProfile},
 		})
 		s.RemoveSnap(c, snapInfo)
+	}
+}
+
+// SetupMany tests
+
+func (s *backendSuite) TestSetupManyProfilesAreAlwaysLoaded(c *C) {
+	for _, opts := range testedConfinementOpts {
+		snapInfo1 := s.InstallSnap(c, opts, "", ifacetest.SambaYamlV1, 1)
+		snapInfo2 := s.InstallSnap(c, opts, "", ifacetest.SomeSnapYamlV1, 1)
+		s.parserCmd.ForgetCalls()
+		setupManyInterface, ok := s.Backend.(interfaces.SecurityBackendSetupMany)
+		c.Assert(ok, Equals, true)
+		err := setupManyInterface.SetupMany([]*snap.Info{snapInfo1, snapInfo2}, func(snapName string) interfaces.ConfinementOptions { return opts }, s.Repo, s.meas)
+		c.Assert(err, IsNil)
+		snap1nsProfile := filepath.Join(dirs.SnapAppArmorDir, "snap-update-ns.samba")
+		snap1AAprofile := filepath.Join(dirs.SnapAppArmorDir, "snap.samba.smbd")
+		snap2nsProfile := filepath.Join(dirs.SnapAppArmorDir, "snap-update-ns.some-snap")
+		snap2AAprofile := filepath.Join(dirs.SnapAppArmorDir, "snap.some-snap.someapp")
+		c.Check(s.parserCmd.Calls(), DeepEquals, [][]string{
+			{"apparmor_parser", "--replace", "--write-cache", "-O", "no-expr-simplify", fmt.Sprintf("--cache-loc=%s/var/cache/apparmor", s.RootDir), "-j97", "--quiet", snap1nsProfile, snap1AAprofile, snap2nsProfile, snap2AAprofile},
+		})
+		s.RemoveSnap(c, snapInfo1)
+		s.RemoveSnap(c, snapInfo2)
+	}
+}
+
+func (s *backendSuite) TestSetupManyProfilesWithChanged(c *C) {
+	for _, opts := range testedConfinementOpts {
+		snapInfo1 := s.InstallSnap(c, opts, "", ifacetest.SambaYamlV1, 1)
+		snapInfo2 := s.InstallSnap(c, opts, "", ifacetest.SomeSnapYamlV1, 1)
+		s.parserCmd.ForgetCalls()
+
+		snap1nsProfile := filepath.Join(dirs.SnapAppArmorDir, "snap-update-ns.samba")
+		snap1AAprofile := filepath.Join(dirs.SnapAppArmorDir, "snap.samba.smbd")
+		snap2nsProfile := filepath.Join(dirs.SnapAppArmorDir, "snap-update-ns.some-snap")
+		snap2AAprofile := filepath.Join(dirs.SnapAppArmorDir, "snap.some-snap.someapp")
+
+		// simulate outdated profiles by changing their data on the disk
+		c.Assert(ioutil.WriteFile(snap1AAprofile, []byte("# an outdated profile"), 0644), IsNil)
+		c.Assert(ioutil.WriteFile(snap2AAprofile, []byte("# an outdated profile"), 0644), IsNil)
+
+		setupManyInterface, ok := s.Backend.(interfaces.SecurityBackendSetupMany)
+		c.Assert(ok, Equals, true)
+		err := setupManyInterface.SetupMany([]*snap.Info{snapInfo1, snapInfo2}, func(snapName string) interfaces.ConfinementOptions { return opts }, s.Repo, s.meas)
+		c.Assert(err, IsNil)
+
+		// expect two batch executions - one for changed profiles, second for unchanged profiles.
+		c.Check(s.parserCmd.Calls(), DeepEquals, [][]string{
+			{"apparmor_parser", "--replace", "--write-cache", "-O", "no-expr-simplify", fmt.Sprintf("--cache-loc=%s/var/cache/apparmor", s.RootDir), "-j97", "--skip-read-cache", "--quiet", snap1AAprofile, snap2AAprofile},
+			{"apparmor_parser", "--replace", "--write-cache", "-O", "no-expr-simplify", fmt.Sprintf("--cache-loc=%s/var/cache/apparmor", s.RootDir), "-j97", "--quiet", snap1nsProfile, snap2nsProfile},
+		})
+		s.RemoveSnap(c, snapInfo1)
+		s.RemoveSnap(c, snapInfo2)
+	}
+}
+
+// helper for checking for apparmor parser calls where batch run is expected to fail and is followed by two separate runs for individual snaps.
+func (s *backendSuite) checkSetupManyCallsWithFallback(c *C, cmd *testutil.MockCmd) {
+	snap1nsProfile := filepath.Join(dirs.SnapAppArmorDir, "snap-update-ns.samba")
+	snap1AAprofile := filepath.Join(dirs.SnapAppArmorDir, "snap.samba.smbd")
+	snap2nsProfile := filepath.Join(dirs.SnapAppArmorDir, "snap-update-ns.some-snap")
+	snap2AAprofile := filepath.Join(dirs.SnapAppArmorDir, "snap.some-snap.someapp")
+
+	// We expect three calls to apparmor_parser due to the failure of batch run. First is the failed batch run, followed by succesfull fallback runs.
+	c.Check(cmd.Calls(), DeepEquals, [][]string{
+		{"apparmor_parser", "--replace", "--write-cache", "-O", "no-expr-simplify", fmt.Sprintf("--cache-loc=%s/var/cache/apparmor", s.RootDir), "-j97", "--quiet", snap1nsProfile, snap1AAprofile, snap2nsProfile, snap2AAprofile},
+		{"apparmor_parser", "--replace", "--write-cache", "-O", "no-expr-simplify", fmt.Sprintf("--cache-loc=%s/var/cache/apparmor", s.RootDir), "--quiet", snap1nsProfile, snap1AAprofile},
+		{"apparmor_parser", "--replace", "--write-cache", "-O", "no-expr-simplify", fmt.Sprintf("--cache-loc=%s/var/cache/apparmor", s.RootDir), "--quiet", snap2nsProfile, snap2AAprofile},
+	})
+}
+
+func (s *backendSuite) TestSetupManyApparmorBatchProcessingPermanentError(c *C) {
+	log, restore := logger.MockLogger()
+	defer restore()
+
+	for _, opts := range testedConfinementOpts {
+		log.Reset()
+
+		// note, InstallSnap here uses s.parserCmd which mocks happy apparmor_parser
+		snapInfo1 := s.InstallSnap(c, opts, "", ifacetest.SambaYamlV1, 1)
+		snapInfo2 := s.InstallSnap(c, opts, "", ifacetest.SomeSnapYamlV1, 1)
+		s.parserCmd.ForgetCalls()
+		setupManyInterface, ok := s.Backend.(interfaces.SecurityBackendSetupMany)
+		c.Assert(ok, Equals, true)
+
+		// mock apparmor_parser again with a failing one (and restore immediately for the next iteration of the test)
+		failingParserCmd := testutil.MockCommand(c, "apparmor_parser", fakeBrokenAppArmorParser)
+		errs := setupManyInterface.SetupMany([]*snap.Info{snapInfo1, snapInfo2}, func(snapName string) interfaces.ConfinementOptions { return opts }, s.Repo, s.meas)
+		failingParserCmd.Restore()
+
+		s.checkSetupManyCallsWithFallback(c, failingParserCmd)
+
+		// two errors expected: SetupMany failure on multiple snaps falls back to one-by-one apparmor invocations. Both fail on apparmor_parser again and we only see
+		// individual failures. Error from batch run is only logged.
+		c.Assert(errs, HasLen, 2)
+		c.Check(errs[0], ErrorMatches, ".*cannot setup profiles for snap \"samba\".*\napparmor_parser output:\npermanent failure\n")
+		c.Check(errs[1], ErrorMatches, ".*cannot setup profiles for snap \"some-snap\".*\napparmor_parser output:\npermanent failure\n")
+		c.Check(log.String(), Matches, ".*failed to batch-reload unchanged profiles: cannot load apparmor profiles: exit status 1\n.*\n.*\n")
+
+		s.RemoveSnap(c, snapInfo1)
+		s.RemoveSnap(c, snapInfo2)
+	}
+}
+
+func (s *backendSuite) TestSetupManyApparmorBatchProcessingErrorWithFallbackOK(c *C) {
+	log, restore := logger.MockLogger()
+	defer restore()
+
+	for _, opts := range testedConfinementOpts {
+		log.Reset()
+
+		// note, InstallSnap here uses s.parserCmd which mocks happy apparmor_parser
+		snapInfo1 := s.InstallSnap(c, opts, "", ifacetest.SambaYamlV1, 1)
+		snapInfo2 := s.InstallSnap(c, opts, "", ifacetest.SomeSnapYamlV1, 1)
+		s.parserCmd.ForgetCalls()
+		setupManyInterface, ok := s.Backend.(interfaces.SecurityBackendSetupMany)
+		c.Assert(ok, Equals, true)
+
+		// mock apparmor_parser again with a failing one (and restore immediately for the next iteration of the test)
+		failingParserCmd := testutil.MockCommand(c, "apparmor_parser", fakeFailingAppArmorParser)
+		errs := setupManyInterface.SetupMany([]*snap.Info{snapInfo1, snapInfo2}, func(snapName string) interfaces.ConfinementOptions { return opts }, s.Repo, s.meas)
+		failingParserCmd.Restore()
+
+		s.checkSetupManyCallsWithFallback(c, failingParserCmd)
+
+		// no errors expected: error from batch run is only logged, but individual apparmor parser execution as part of the fallback are successful.
+		// note, tnis scenario is unlikely to happen in real life, because if a profile failed in a batch, it would fail when parsed alone too. It is
+		// tested here just to exercise various execution paths.
+		c.Assert(errs, HasLen, 0)
+		c.Check(log.String(), Matches, ".*failed to batch-reload unchanged profiles: cannot load apparmor profiles: exit status 1\napparmor_parser output:\nbatch failure \\(4 profiles\\)\n")
+
+		s.RemoveSnap(c, snapInfo1)
+		s.RemoveSnap(c, snapInfo2)
+	}
+}
+
+func (s *backendSuite) TestSetupManyApparmorBatchProcessingErrorWithFallbackPartiallyOK(c *C) {
+	log, restore := logger.MockLogger()
+	defer restore()
+
+	for _, opts := range testedConfinementOpts {
+		log.Reset()
+
+		// note, InstallSnap here uses s.parserCmd which mocks happy apparmor_parser
+		snapInfo1 := s.InstallSnap(c, opts, "", ifacetest.SambaYamlV1, 1)
+		snapInfo2 := s.InstallSnap(c, opts, "", ifacetest.SomeSnapYamlV1, 1)
+		s.parserCmd.ForgetCalls()
+		setupManyInterface, ok := s.Backend.(interfaces.SecurityBackendSetupMany)
+		c.Assert(ok, Equals, true)
+
+		// mock apparmor_parser with a failing one
+		failingParserCmd := testutil.MockCommand(c, "apparmor_parser", fakeFailingAppArmorParserOneProfile)
+		errs := setupManyInterface.SetupMany([]*snap.Info{snapInfo1, snapInfo2}, func(snapName string) interfaces.ConfinementOptions { return opts }, s.Repo, s.meas)
+		failingParserCmd.Restore()
+
+		s.checkSetupManyCallsWithFallback(c, failingParserCmd)
+
+		// the batch reload fails because of snap.samba.smbd profile failing
+		c.Check(log.String(), Matches, ".* failed to batch-reload unchanged profiles: cannot load apparmor profiles: exit status 1\napparmor_parser output:\nfailure: snap.samba.smbd\n")
+		// and we also fail when running that profile in fallback mode
+		c.Assert(errs, HasLen, 1)
+		c.Assert(errs[0], ErrorMatches, "cannot setup profiles for snap \"samba\": cannot load apparmor profiles: exit status 1\n.*apparmor_parser output:\nfailure: snap.samba.smbd\n")
+
+		s.RemoveSnap(c, snapInfo1)
+		s.RemoveSnap(c, snapInfo2)
 	}
 }
 
@@ -763,8 +991,8 @@ func (s *backendSuite) TestSnapConfineProfile(c *C) {
 	c.Assert(err, IsNil)
 	c.Assert(dir, Equals, expectedProfileDir)
 	c.Assert(glob, Equals, expectedProfileGlob)
-	c.Assert(content, DeepEquals, map[string]*osutil.FileState{
-		expectedProfileName: {
+	c.Assert(content, DeepEquals, map[string]osutil.FileState{
+		expectedProfileName: &osutil.MemoryFileState{
 			Content: []byte(expectedProfileText),
 			Mode:    0644,
 		},
@@ -798,8 +1026,8 @@ func (s *backendSuite) TestSnapConfineProfileFromSnapdSnap(c *C) {
 	c.Assert(err, IsNil)
 	c.Assert(dir, Equals, expectedProfileDir)
 	c.Assert(glob, Equals, expectedProfileGlob)
-	c.Assert(content, DeepEquals, map[string]*osutil.FileState{
-		expectedProfileName: {
+	c.Assert(content, DeepEquals, map[string]osutil.FileState{
+		expectedProfileName: &osutil.MemoryFileState{
 			Content: []byte(expectedProfileText),
 			Mode:    0644,
 		},
@@ -820,7 +1048,7 @@ func (s *backendSuite) TestSnapConfineFromSnapProfileCreatesAllDirs(c *C) {
 func (s *backendSuite) TestSetupHostSnapConfineApparmorForReexecCleans(c *C) {
 	restorer := release.MockOnClassic(true)
 	defer restorer()
-	restorer = release.MockForcedDevmode(false)
+	restorer = apparmor_sandbox.MockLevel(apparmor_sandbox.Full)
 	defer restorer()
 
 	coreInfo := snaptest.MockInfo(c, coreYaml, &snap.SideInfo{Revision: snap.R(111)})
@@ -842,7 +1070,7 @@ func (s *backendSuite) TestSetupHostSnapConfineApparmorForReexecCleans(c *C) {
 func (s *backendSuite) TestSetupHostSnapConfineApparmorForReexecWritesNew(c *C) {
 	restorer := release.MockOnClassic(true)
 	defer restorer()
-	restorer = release.MockForcedDevmode(false)
+	restorer = apparmor_sandbox.MockLevel(apparmor_sandbox.Full)
 	defer restorer()
 
 	coreInfo := snaptest.MockInfo(c, coreYaml, &snap.SideInfo{Revision: snap.R(111)})
@@ -1834,4 +2062,10 @@ apps:
 	c.Assert(string(data), Not(testutil.Contains), "capability setgid,")
 	c.Assert(string(data), Not(testutil.Contains), "capability chown,")
 	s.RemoveSnap(c, snapInfo)
+}
+
+func (s *backendSuite) TestSetupManySmoke(c *C) {
+	setupManyInterface, ok := s.Backend.(interfaces.SecurityBackendSetupMany)
+	c.Assert(ok, Equals, true)
+	c.Assert(setupManyInterface, NotNil)
 }

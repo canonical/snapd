@@ -34,8 +34,8 @@ import (
 	"github.com/snapcore/snapd/interfaces/ifacetest"
 	"github.com/snapcore/snapd/interfaces/seccomp"
 	"github.com/snapcore/snapd/osutil"
-	"github.com/snapcore/snapd/release"
-	seccomp_compiler "github.com/snapcore/snapd/sandbox/seccomp"
+	apparmor_sandbox "github.com/snapcore/snapd/sandbox/apparmor"
+	seccomp_sandbox "github.com/snapcore/snapd/sandbox/seccomp"
 	"github.com/snapcore/snapd/snap"
 	"github.com/snapcore/snapd/snap/snaptest"
 	"github.com/snapcore/snapd/testutil"
@@ -316,9 +316,9 @@ var combineSnippetsScenarios = []combineSnippetsScenario{{
 }}
 
 func (s *backendSuite) TestCombineSnippets(c *C) {
-	restore := release.MockForcedDevmode(false)
+	restore := apparmor_sandbox.MockLevel(apparmor_sandbox.Full)
 	defer restore()
-	restore = release.MockSecCompActions([]string{"log"})
+	restore = seccomp_sandbox.MockActions([]string{"log"})
 	defer restore()
 	restore = seccomp.MockRequiresSocketcall(func(string) bool { return false })
 	defer restore()
@@ -355,7 +355,7 @@ apps:
 
 // Ensure that combined snippets are sorted
 func (s *backendSuite) TestCombineSnippetsOrdering(c *C) {
-	restore := release.MockForcedDevmode(false)
+	restore := apparmor_sandbox.MockLevel(apparmor_sandbox.Full)
 	defer restore()
 	restore = seccomp.MockRequiresSocketcall(func(string) bool { return false })
 	defer restore()
@@ -384,8 +384,8 @@ func (s *backendSuite) TestCombineSnippetsOrdering(c *C) {
 	c.Check(stat.Mode(), Equals, os.FileMode(0644))
 }
 
-func (s *backendSuite) TestBindIsAddedForForcedDevModeSystems(c *C) {
-	restore := release.MockForcedDevmode(true)
+func (s *backendSuite) TestBindIsAddedForNonFullApparmorSystems(c *C) {
+	restore := apparmor_sandbox.MockLevel(apparmor_sandbox.Partial)
 	defer restore()
 
 	snapInfo := snaptest.MockInfo(c, ifacetest.SambaYamlV1, nil)
@@ -393,7 +393,7 @@ func (s *backendSuite) TestBindIsAddedForForcedDevModeSystems(c *C) {
 	err := s.Backend.Setup(snapInfo, interfaces.ConfinementOptions{}, s.Repo, s.meas)
 	c.Assert(err, IsNil)
 	profile := filepath.Join(dirs.SnapSeccompDir, "snap.samba.smbd")
-	c.Assert(profile+".src", testutil.FileContains, "\nbind\n")
+	c.Assert(profile+".src", testutil.FileContains, "# Add bind() for systems with only Seccomp enabled to workaround\n# LP #1644573\nbind\n")
 }
 
 func (s *backendSuite) TestSocketcallIsAddedWhenRequired(c *C) {
@@ -430,7 +430,7 @@ apps:
   `
 
 func (s *backendSuite) TestSystemKeyRetLogSupported(c *C) {
-	restore := release.MockSecCompActions([]string{"allow", "errno", "kill", "log", "trace", "trap"})
+	restore := seccomp_sandbox.MockActions([]string{"allow", "errno", "kill", "log", "trace", "trap"})
 	defer restore()
 
 	snapInfo := s.InstallSnap(c, interfaces.ConfinementOptions{DevMode: true}, "", ifacetest.SambaYamlV1, 0)
@@ -450,7 +450,7 @@ func (s *backendSuite) TestSystemKeyRetLogSupported(c *C) {
 }
 
 func (s *backendSuite) TestSystemKeyRetLogUnsupported(c *C) {
-	restore := release.MockSecCompActions([]string{"allow", "errno", "kill", "trace", "trap"})
+	restore := seccomp_sandbox.MockActions([]string{"allow", "errno", "kill", "trace", "trap"})
 	defer restore()
 
 	snapInfo := s.InstallSnap(c, interfaces.ConfinementOptions{DevMode: true}, "", ifacetest.SambaYamlV1, 0)
@@ -625,9 +625,9 @@ func (s *backendSuite) TestRequiresSocketcallNotForcedViaBaseSnap(c *C) {
 }
 
 func (s *backendSuite) TestRebuildsWithVersionInfoWhenNeeded(c *C) {
-	restore := release.MockForcedDevmode(false)
+	restore := apparmor_sandbox.MockLevel(apparmor_sandbox.Full)
 	defer restore()
-	restore = release.MockSecCompActions([]string{"log"})
+	restore = seccomp_sandbox.MockActions([]string{"log"})
 	defer restore()
 	restore = seccomp.MockRequiresSocketcall(func(string) bool { return false })
 	defer restore()
@@ -726,7 +726,7 @@ fi`)
 
 	sb, ok := s.Backend.(*seccomp.Backend)
 	c.Assert(ok, Equals, true)
-	c.Check(sb.VersionInfo(), Equals, seccomp_compiler.VersionInfo("2345cdef 2.3.4 2345cdef -"))
+	c.Check(sb.VersionInfo(), Equals, seccomp_sandbox.VersionInfo("2345cdef 2.3.4 2345cdef -"))
 }
 
 func (s *backendSuite) TestCompilerInitUnhappy(c *C) {
