@@ -16,41 +16,7 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  *
  */
-package cgroup
 
-import (
-	. "gopkg.in/check.v1"
-)
-
-var (
-	Cgroup2SuperMagic  = cgroup2SuperMagic
-	ProbeCgroupVersion = probeCgroupVersion
-)
-
-func MockFsTypeForPath(mock func(string) (int64, error)) (restore func()) {
-	old := fsTypeForPath
-	fsTypeForPath = mock
-	return func() {
-		fsTypeForPath = old
-	}
-}
-
-func MockFsRootPath(p string) (restore func()) {
-	old := rootPath
-	rootPath = p
-	return func() {
-		rootPath = old
-	}
-}
-
-func MockFreezerCgroupDir(c *C) (restore func()) {
-	old := freezerCgroupDir
-	freezerCgroupDir = c.MkDir()
-	return func() {
-		freezerCgroupDir = old
-	}
-}
-
-func FreezerCgroupDir() string {
-	return freezerCgroupDir
-}
+// Package internal (of seed) provides types and helpers used
+// internally by both seed and seed/seedwriter.
+package internal

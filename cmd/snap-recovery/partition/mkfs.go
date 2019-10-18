@@ -16,41 +16,21 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  *
  */
-package cgroup
+package partition
 
 import (
-	. "gopkg.in/check.v1"
+	"fmt"
+
+	"github.com/snapcore/snapd/gadget"
 )
 
-var (
-	Cgroup2SuperMagic  = cgroup2SuperMagic
-	ProbeCgroupVersion = probeCgroupVersion
-)
-
-func MockFsTypeForPath(mock func(string) (int64, error)) (restore func()) {
-	old := fsTypeForPath
-	fsTypeForPath = mock
-	return func() {
-		fsTypeForPath = old
+func makeFilesystem(node, label, filesystem, content string) error {
+	switch filesystem {
+	case "vfat":
+		return gadget.MkfsVfat(node, label, content)
+	case "ext4":
+		return gadget.MkfsExt4(node, label, content)
+	default:
+		return fmt.Errorf("cannot create unsupported filesystem %q", filesystem)
 	}
-}
-
-func MockFsRootPath(p string) (restore func()) {
-	old := rootPath
-	rootPath = p
-	return func() {
-		rootPath = old
-	}
-}
-
-func MockFreezerCgroupDir(c *C) (restore func()) {
-	old := freezerCgroupDir
-	freezerCgroupDir = c.MkDir()
-	return func() {
-		freezerCgroupDir = old
-	}
-}
-
-func FreezerCgroupDir() string {
-	return freezerCgroupDir
 }

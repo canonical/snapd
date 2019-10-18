@@ -23,8 +23,6 @@ import (
 	"os"
 	"syscall"
 
-	. "gopkg.in/check.v1"
-
 	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/osutil/sys"
 )
@@ -33,10 +31,6 @@ var (
 	// change
 	ValidateInstanceName = validateInstanceName
 	ProcessArguments     = processArguments
-
-	// freezer
-	FreezeSnapProcesses = freezeSnapProcesses
-	ThawSnapProcesses   = thawSnapProcesses
 
 	// utils
 	PlanWritableMimic = planWritableMimic
@@ -146,31 +140,6 @@ func MockSystemCalls(sc SystemCalls) (restore func()) {
 		sysFstatfs = oldFstatfs
 		sysFchdir = oldSysFchdir
 		sysLstat = oldSysLstat
-	}
-}
-
-func MockFreezerCgroupDir(c *C) (restore func()) {
-	old := freezerCgroupDir
-	freezerCgroupDir = c.MkDir()
-	return func() {
-		freezerCgroupDir = old
-	}
-}
-
-func FreezerCgroupDir() string {
-	return freezerCgroupDir
-}
-
-func MockFreezing(freeze, thaw func(snapName string) error) (restore func()) {
-	oldFreeze := freezeSnapProcesses
-	oldThaw := thawSnapProcesses
-
-	freezeSnapProcesses = freeze
-	thawSnapProcesses = thaw
-
-	return func() {
-		freezeSnapProcesses = oldFreeze
-		thawSnapProcesses = oldThaw
 	}
 }
 

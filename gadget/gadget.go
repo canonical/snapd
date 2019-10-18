@@ -288,23 +288,13 @@ func systemOrSnapID(s string) bool {
 	return true
 }
 
-// ReadInfo reads the gadget specific metadata from gadget.yaml in the snap. If
-// constraints is nil, ReadInfo will just check for self-consistency, otherwise
-// rules for the classic or system seed cases are enforced.
-func ReadInfo(gadgetSnapRootDir string, constraints *ModelConstraints) (*Info, error) {
+// InfoFromGadgetYaml reads the provided gadget metadata. If constraints is nil, only the
+// self-consistency checks are performed, otherwise rules for the classic or
+// system seed cases are enforced.
+func InfoFromGadgetYaml(gadgetYaml []byte, constraints *ModelConstraints) (*Info, error) {
 	var gi Info
 
-	gadgetYamlFn := filepath.Join(gadgetSnapRootDir, "meta", "gadget.yaml")
-	gmeta, err := ioutil.ReadFile(gadgetYamlFn)
-	if (constraints == nil || constraints.Classic) && os.IsNotExist(err) {
-		// gadget.yaml is optional for classic gadgets
-		return &gi, nil
-	}
-	if err != nil {
-		return nil, err
-	}
-
-	if err := yaml.Unmarshal(gmeta, &gi); err != nil {
+	if err := yaml.Unmarshal(gadgetYaml, &gi); err != nil {
 		return nil, fmt.Errorf("cannot parse gadget metadata: %v", err)
 	}
 
@@ -359,6 +349,24 @@ func ReadInfo(gadgetSnapRootDir string, constraints *ModelConstraints) (*Info, e
 	}
 
 	return &gi, nil
+}
+
+// ReadInfo reads the gadget specific metadata from meta/gadget.yaml in the snap
+// root directory. If constraints is nil, ReadInfo will just check for
+// self-consistency, otherwise rules for the classic or system seed cases are
+// enforced.
+func ReadInfo(gadgetSnapRootDir string, constraints *ModelConstraints) (*Info, error) {
+	gadgetYamlFn := filepath.Join(gadgetSnapRootDir, "meta", "gadget.yaml")
+	gmeta, err := ioutil.ReadFile(gadgetYamlFn)
+	if (constraints == nil || constraints.Classic) && os.IsNotExist(err) {
+		// gadget.yaml is optional for classic gadgets
+		return &Info{}, nil
+	}
+	if err != nil {
+		return nil, err
+	}
+
+	return InfoFromGadgetYaml(gmeta, constraints)
 }
 
 func fmtIndexAndName(idx int, name string) string {
@@ -447,40 +455,34 @@ func validateVolume(name string, vol *Volume, constraints *ModelConstraints) err
 	return validateCrossVolumeStructure(structures, knownStructures)
 }
 
-func ensureVolumeConsistency(state *validationState, constraints *ModelConstraints) error {
-	// system-seed also requires system-data
-	if state.SystemSeed != nil && state.SystemData == nil {
-		return fmt.Errorf("the system-seed role requires system-data to be defined")
-	}
-
-	if constraints == nil {
-		if state.SystemData == nil {
-			return nil
-		}
-
-		// gadget must be auto-consistent if constraints are not specified
-		if state.SystemSeed != nil {
-			if err := ensureSeedDataLabelsUnset(state); err != nil {
-				return err
-			}
-		} else {
-			if state.SystemData.Label != "" && state.SystemData.Label != ImplicitSystemDataLabel {
-				return fmt.Errorf("system-data structure must have an implicit label or %q, not %q",
-					ImplicitSystemDataLabel, state.SystemData.Label)
-			}
-		}
+func ensureVolumeConsistencyNoConstraints(state *validationState) error {
+	switch {
+	case state.SystemSeed == nil && state.SystemData == nil:
 		return nil
-	}
-
-	if state.SystemSeed != nil {
-		// error if we don't have the SystemSeed constraint but we have a system-seed structure
-		if !constraints.SystemSeed {
-			return fmt.Errorf("model does not support the system-seed role")
+	case state.SystemSeed != nil && state.SystemData == nil:
+		return fmt.Errorf("the system-seed role requires system-data to be defined")
+	case state.SystemSeed == nil && state.SystemData != nil:
+		if state.SystemData.Label != "" && state.SystemData.Label != ImplicitSystemDataLabel {
+			return fmt.Errorf("system-data structure must have an implicit label or %q, not %q", ImplicitSystemDataLabel, state.SystemData.Label)
 		}
+	case state.SystemSeed != nil && state.SystemData != nil:
 		if err := ensureSeedDataLabelsUnset(state); err != nil {
 			return err
 		}
-	} else {
+	}
+	return nil
+}
+
+func ensureVolumeConsistencyWithConstraints(state *validationState, constraints *ModelConstraints) error {
+	switch {
+	case state.SystemSeed == nil && state.SystemData == nil:
+		if constraints.SystemSeed {
+			return fmt.Errorf("model requires system-seed partition, but no system-seed or system-data partition found")
+		}
+		return nil
+	case state.SystemSeed != nil && state.SystemData == nil:
+		return fmt.Errorf("the system-seed role requires system-data to be defined")
+	case state.SystemSeed == nil && state.SystemData != nil:
 		// error if we have the SystemSeed constraint but no actual system-seed structure
 		if constraints.SystemSeed {
 			return fmt.Errorf("model requires system-seed structure, but none was found")
@@ -490,9 +492,23 @@ func ensureVolumeConsistency(state *validationState, constraints *ModelConstrain
 			return fmt.Errorf("system-data structure must have an implicit label or %q, not %q",
 				ImplicitSystemDataLabel, state.SystemData.Label)
 		}
+	case state.SystemSeed != nil && state.SystemData != nil:
+		// error if we don't have the SystemSeed constraint but we have a system-seed structure
+		if !constraints.SystemSeed {
+			return fmt.Errorf("model does not support the system-seed role")
+		}
+		if err := ensureSeedDataLabelsUnset(state); err != nil {
+			return err
+		}
 	}
-
 	return nil
+}
+
+func ensureVolumeConsistency(state *validationState, constraints *ModelConstraints) error {
+	if constraints == nil {
+		return ensureVolumeConsistencyNoConstraints(state)
+	}
+	return ensureVolumeConsistencyWithConstraints(state, constraints)
 }
 
 func ensureSeedDataLabelsUnset(state *validationState) error {
