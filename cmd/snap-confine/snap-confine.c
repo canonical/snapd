@@ -386,29 +386,25 @@ int main(int argc, char **argv)
 		    " but should be. Refusing to continue to avoid"
 		    " permission escalation attacks");
 	}
-	// TODO: check for similar situation and linux capabilities.
-	if (geteuid() == 0) {
-		if (invocation.classic_confinement) {
-			enter_classic_execution_environment();
-		} else {
-			enter_non_classic_execution_environment(&invocation,
-								&apparmor,
-								real_uid,
-								real_gid,
-								saved_gid);
-		}
-		// The rest does not so temporarily drop privs back to calling
-		// user (we'll permanently drop after loading seccomp)
-		if (setegid(real_gid) != 0)
-			die("setegid failed");
-		if (seteuid(real_uid) != 0)
-			die("seteuid failed");
-
-		if (real_gid != 0 && geteuid() == 0)
-			die("dropping privs did not work");
-		if (real_uid != 0 && getegid() == 0)
-			die("dropping privs did not work");
+	if (invocation.classic_confinement) {
+		enter_classic_execution_environment();
+	} else {
+		enter_non_classic_execution_environment(&invocation,
+							&apparmor,
+							real_uid,
+							real_gid, saved_gid);
 	}
+	// Temporarily drop privs back to calling user (we'll permanently drop
+	// after loading seccomp).
+	if (setegid(real_gid) != 0)
+		die("setegid failed");
+	if (seteuid(real_uid) != 0)
+		die("seteuid failed");
+
+	if (real_gid != 0 && geteuid() == 0)
+		die("dropping privs did not work");
+	if (real_uid != 0 && getegid() == 0)
+		die("dropping privs did not work");
 	// Ensure that the user data path exists.
 	setup_user_data();
 #if 0

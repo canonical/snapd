@@ -269,3 +269,23 @@ func (s *postDebugSuite) TestGetDebugTimingsError(c *check.C) {
 	rsp = getDebug(debugCmd, req, nil).(*resp)
 	c.Check(rsp.Status, check.Equals, 400)
 }
+
+func (s *postDebugSuite) TestMinLane(c *check.C) {
+	st := state.New(nil)
+	st.Lock()
+	defer st.Unlock()
+
+	t := st.NewTask("bar", "")
+	c.Check(MinLane(t), check.Equals, 0)
+
+	lane1 := st.NewLane()
+	t.JoinLane(lane1)
+	c.Check(MinLane(t), check.Equals, lane1)
+
+	lane2 := st.NewLane()
+	t.JoinLane(lane2)
+	c.Check(MinLane(t), check.Equals, lane1)
+
+	// sanity
+	c.Check(t.Lanes(), check.DeepEquals, []int{lane1, lane2})
+}

@@ -22,6 +22,7 @@ package main
 import (
 	"fmt"
 	"io"
+	"sort"
 	"strings"
 	"time"
 
@@ -92,29 +93,71 @@ func printTaskTiming(w io.Writer, t *Timing, verbose, doing bool) {
 	printTiming(w, verbose, t.Level+1, "", "", doingTimeStr, undoingTimeStr, t.Label, t.Summary)
 }
 
-func (x *cmdChangeTimings) printChangeTimings(w io.Writer, timing *timingsData) error {
-	chgid := timing.ChangeID
-	chg, err := x.client.Change(chgid)
-	if err != nil {
-		return err
+// sortTimingsTasks sorts tasks from changeTimings by lane and ready time with special treatment of lane 0 tasks:
+// - tasks from lanes >0 are grouped by lanes and sorted by ready time.
+// - tasks from lane 0 are sorted by ready time and inserted before and after other lanes based on the min/max
+//   ready times of non-zero lanes.
+// - tasks from lane 0 with ready time between non-zero lane tasks are not really expected in our system and will
+//   appear after non-zero lane tasks.
+func sortTimingsTasks(timings map[string]changeTimings) []string {
+	tasks := make([]string, 0, len(timings))
+
+	var minReadyTime time.Time
+	// determine min ready time from all non-zero lane tasks
+	for taskID, taskData := range timings {
+		if taskData.Lane > 0 {
+			if minReadyTime.IsZero() {
+				minReadyTime = taskData.ReadyTime
+			}
+			if taskData.ReadyTime.Before(minReadyTime) {
+				minReadyTime = taskData.ReadyTime
+			}
+		}
+		tasks = append(tasks, taskID)
 	}
 
-	for _, t := range chg.Tasks {
-		doingTime := formatDuration(timing.ChangeTimings[t.ID].DoingTime)
-		if timing.ChangeTimings[t.ID].DoingTime == 0 {
+	sort.Slice(tasks, func(i, j int) bool {
+		t1 := timings[tasks[i]]
+		t2 := timings[tasks[j]]
+		if t1.Lane != t2.Lane {
+			// if either t1 or t2 is from lane 0, then it comes before or after non-zero lane tasks
+			if t1.Lane == 0 {
+				return t1.ReadyTime.Before(minReadyTime)
+			}
+			if t2.Lane == 0 {
+				return !t2.ReadyTime.Before(minReadyTime)
+			}
+			// different lanes (but neither of them is 0), order by lane
+			return t1.Lane < t2.Lane
+		}
+
+		// same lane - order by ready time
+		return t1.ReadyTime.Before(t2.ReadyTime)
+	})
+
+	return tasks
+}
+
+func (x *cmdChangeTimings) printChangeTimings(w io.Writer, timing *timingsData) error {
+	tasks := sortTimingsTasks(timing.ChangeTimings)
+
+	for _, taskID := range tasks {
+		chgTiming := timing.ChangeTimings[taskID]
+		doingTime := formatDuration(timing.ChangeTimings[taskID].DoingTime)
+		if chgTiming.DoingTime == 0 {
 			doingTime = "-"
 		}
-		undoingTime := formatDuration(timing.ChangeTimings[t.ID].UndoingTime)
-		if timing.ChangeTimings[t.ID].UndoingTime == 0 {
+		undoingTime := formatDuration(timing.ChangeTimings[taskID].UndoingTime)
+		if chgTiming.UndoingTime == 0 {
 			undoingTime = "-"
 		}
 
-		printTiming(w, x.Verbose, 0, t.ID, t.Status, doingTime, undoingTime, t.Kind, t.Summary)
-		for _, nested := range timing.ChangeTimings[t.ID].DoingTimings {
+		printTiming(w, x.Verbose, 0, taskID, chgTiming.Status, doingTime, undoingTime, chgTiming.Kind, chgTiming.Summary)
+		for _, nested := range timing.ChangeTimings[taskID].DoingTimings {
 			showDoing := true
 			printTaskTiming(w, &nested, x.Verbose, showDoing)
 		}
-		for _, nested := range timing.ChangeTimings[t.ID].UndoingTimings {
+		for _, nested := range timing.ChangeTimings[taskID].UndoingTimings {
 			showDoing := false
 			printTaskTiming(w, &nested, x.Verbose, showDoing)
 		}
@@ -148,17 +191,25 @@ func (x *cmdChangeTimings) printStartupTimings(w io.Writer, timings []*timingsDa
 	return nil
 }
 
+type changeTimings struct {
+	Status         string        `json:"status,omitempty"`
+	Kind           string        `json:"kind,omitempty"`
+	Summary        string        `json:"summary,omitempty"`
+	Lane           int           `json:"lane,omitempty"`
+	ReadyTime      time.Time     `json:"ready-time,omitempty"`
+	DoingTime      time.Duration `json:"doing-time,omitempty"`
+	UndoingTime    time.Duration `json:"undoing-time,omitempty"`
+	DoingTimings   []Timing      `json:"doing-timings,omitempty"`
+	UndoingTimings []Timing      `json:"undoing-timings,omitempty"`
+}
+
 type timingsData struct {
 	ChangeID       string        `json:"change-id"`
 	EnsureTimings  []Timing      `json:"ensure-timings,omitempty"`
 	StartupTimings []Timing      `json:"startup-timings,omitempty"`
 	TotalDuration  time.Duration `json:"total-duration,omitempty"`
-	ChangeTimings  map[string]struct {
-		DoingTime      time.Duration `json:"doing-time,omitempty"`
-		UndoingTime    time.Duration `json:"undoing-time,omitempty"`
-		DoingTimings   []Timing      `json:"doing-timings,omitempty"`
-		UndoingTimings []Timing      `json:"undoing-timings,omitempty"`
-	} `json:"change-timings,omitempty"`
+	// ChangeTimings are indexed by task id
+	ChangeTimings map[string]changeTimings `json:"change-timings,omitempty"`
 }
 
 func (x *cmdChangeTimings) checkConflictingFlags() error {

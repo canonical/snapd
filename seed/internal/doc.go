@@ -17,14 +17,6 @@
  *
  */
 
-package seed
-
-import (
-	"github.com/snapcore/snapd/seed/internal"
-)
-
-type InternalSnap16 = internal.Snap16
-
-var (
-	LoadAssertions = loadAssertions
-)
+// Package internal (of seed) provides types and helpers used
+// internally by both seed and seed/seedwriter.
+package internal

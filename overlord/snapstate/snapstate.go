@@ -1211,8 +1211,8 @@ func resolveChannel(st *state.State, snapName, newChannel string, deviceCtx Devi
 	// channel name is valid and consist of risk level or
 	// risk/branch only, do the right thing and default to risk (or
 	// risk/branch) within the pinned track
-	resChannel, err := channel.ResolveLocked(pinnedTrack, newChannel)
-	if err == channel.ErrLockedTrackSwitch {
+	resChannel, err := channel.ResolvePinned(pinnedTrack, newChannel)
+	if err == channel.ErrPinnedTrackSwitch {
 		// switching to a different track is not allowed
 		return "", fmt.Errorf("cannot switch from %s track %q as specified for the (device) model to %q", which, pinnedTrack, newChannel)
 

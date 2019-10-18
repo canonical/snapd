@@ -80,7 +80,11 @@ var (
 	InterfacesDeprecationNotice = interfacesDeprecationNotice
 
 	SignalNotify = signalNotify
+
+	SortTimingsTasks = sortTimingsTasks
 )
+
+type ChangeTimings = changeTimings
 
 func NewInfoWriter(w writeflusher) *infoWriter {
 	return &infoWriter{
