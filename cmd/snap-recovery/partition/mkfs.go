@@ -24,6 +24,10 @@ import (
 	"github.com/snapcore/snapd/gadget"
 )
 
+// makeFilesystem will create a filesystem on the given node with
+// the given label and filesystem type. Optionally a directory with
+// filesystem content can be specified and the newly created filesystem
+// will be populated with that.
 func makeFilesystem(node, label, filesystem, content string) error {
 	switch filesystem {
 	case "vfat":
