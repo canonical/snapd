@@ -452,6 +452,12 @@ func (s *imageSuite) TestHappyDecodeModelAssertion(c *C) {
 
 const stableChannel = "stable"
 
+const pcGadgetYaml = `
+ volumes:
+   pc:
+     bootloader: grub
+ `
+
 func (s *imageSuite) setupSnaps(c *C, publishers map[string]string) {
 	if _, ok := publishers["pc"]; ok {
 		s.MakeAssertedSnap(c, packageGadget, [][]string{
@@ -977,7 +983,12 @@ func (s *imageSuite) TestSetupSeedWithBaseWithCloudConf(c *C) {
 		"pc-kernel": "canonical",
 		"snapd":     "canonical",
 	})
-	s.MakeAssertedSnap(c, packageGadgetWithBase, [][]string{{"grub.conf", ""}, {"grub.cfg", "I'm a grub.cfg"}, {"cloud.conf", "# cloud config"}}, snap.R(5), "canonical")
+	s.MakeAssertedSnap(c, packageGadgetWithBase, [][]string{
+		{"grub.conf", ""},
+		{"grub.cfg", "I'm a grub.cfg"},
+		{"cloud.conf", "# cloud config"},
+		{"meta/gadget.yaml", pcGadgetYaml},
+	}, snap.R(5), "canonical")
 
 	opts := &image.Options{
 		RootDir:         rootdir,
