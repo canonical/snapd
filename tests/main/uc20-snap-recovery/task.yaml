@@ -13,7 +13,7 @@ prepare: |
     truncate --size=2GB fake.img
 
     echo "Setup the image as a block device"
-    losetup -fP fake.img
+    losetup -f fake.img
     losetup -a |grep fake.img|cut -f1 -d: > loop.txt
     LOOP="$(cat loop.txt)"
 
