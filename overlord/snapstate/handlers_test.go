@@ -208,12 +208,9 @@ func (s *handlersSuite) TestComputeMissingDisabledServices(c *C) {
 			"some disabled services that are now apps",
 		},
 	} {
-		st := &snapstate.SnapState{
-			LastActiveDisabledServices: tt.stDisabledSvcsList,
-		}
 		info := &snap.Info{Apps: tt.apps}
 
-		missing, found, err := snapstate.ComputeMissingDisabledServices(st, info)
+		missing, found, err := snapstate.MissingDisabledServices(tt.stDisabledSvcsList, info)
 		c.Assert(missing, DeepEquals, tt.missing, Commentf(tt.comment))
 		c.Assert(found, DeepEquals, tt.found, Commentf(tt.comment))
 		c.Assert(err, Equals, tt.err, Commentf(tt.comment))
