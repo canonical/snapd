@@ -182,7 +182,6 @@ func checkGadgetOrKernel(st *state.State, snapInfo, curInfo *snap.Info, _ snap.C
 		return fmt.Errorf("cannot detect original %s snap: %v", kind, err)
 	}
 	if found {
-
 		// already installed, snapstate takes care
 		return nil
 	}
@@ -205,6 +204,7 @@ func checkGadgetOrKernel(st *state.State, snapInfo, curInfo *snap.Info, _ snap.C
 }
 
 var (
+	// TODO: replace with gadget.IsCompatible() once we are ready
 	gadgetIsCompatible = func(current, new *gadget.Info) error { return nil }
 )
 
@@ -213,12 +213,11 @@ func checkGadgetRemodelCompatible(st *state.State, snapInfo, curInfo *snap.Info,
 		return nil
 	}
 	if curInfo == nil || curInfo.GetType() != snap.TypeGadget {
-		// only interested in snaps that are currently installed and are
-		// gadget snaps
+		// We are only interested in installed gadget snaps.
 		return nil
 	}
 	if deviceCtx == nil || !deviceCtx.ForRemodeling() {
-		// in a remodeling scenario
+		// We are only interesting in a remodeling scenario.
 		return nil
 	}
 
