@@ -22,12 +22,11 @@ package policy
 import (
 	"github.com/snapcore/snapd/overlord/snapstate"
 	"github.com/snapcore/snapd/overlord/state"
-	"github.com/snapcore/snapd/release"
 	"github.com/snapcore/snapd/snap"
 )
 
 type snapdPolicy struct {
-	modelBase string
+	onClassic bool
 }
 
 func (p *snapdPolicy) CanRemove(st *state.State, snapst *snapstate.SnapState, rev snap.Revision) error {
@@ -42,7 +41,7 @@ func (p *snapdPolicy) CanRemove(st *state.State, snapst *snapstate.SnapState, re
 	}
 
 	// snapd cannot be removed on core
-	if !release.OnClassic {
+	if !p.onClassic {
 		return errSnapdNotRemovableOnCore
 	}
 

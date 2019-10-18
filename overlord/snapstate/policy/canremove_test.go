@@ -9,7 +9,6 @@ import (
 	"github.com/snapcore/snapd/overlord/snapstate"
 	"github.com/snapcore/snapd/overlord/snapstate/policy"
 	"github.com/snapcore/snapd/overlord/state"
-	"github.com/snapcore/snapd/release"
 	"github.com/snapcore/snapd/snap"
 	"github.com/snapcore/snapd/snap/snaptest"
 	"github.com/snapcore/snapd/testutil"
@@ -341,30 +340,24 @@ func (s *canRemoveSuite) TestSnapdTypePolicy(c *check.C) {
 		Sequence: []*snap.SideInfo{si},
 	}
 
-	// pretend we are on core
-	restore := release.MockOnClassic(false)
-	defer restore()
-
 	// snapd cannot be removed on core
-	c.Check(policy.NewSnapdPolicy("core18").CanRemove(s.st, snapst, snap.R(0)), check.Equals, policy.ErrSnapdNotRemovableOnCore)
-	c.Check(policy.NewSnapdPolicy("").CanRemove(s.st, snapst, snap.R(0)), check.Equals, policy.ErrSnapdNotRemovableOnCore)
-
+	onClassic := false
+	c.Check(policy.NewSnapdPolicy(onClassic).CanRemove(s.st, snapst, snap.R(0)), check.Equals, policy.ErrSnapdNotRemovableOnCore)
 	// but single revisions can be removed
-	c.Check(policy.NewSnapdPolicy("").CanRemove(s.st, snapst, snap.R(1)), check.IsNil)
+	c.Check(policy.NewSnapdPolicy(onClassic).CanRemove(s.st, snapst, snap.R(1)), check.IsNil)
 
 	// snapd *can* be removed on classic if its the last snap
-	restore = release.MockOnClassic(true)
-	defer restore()
+	onClassic = true
 	snapstate.Set(s.st, "snapd", &snapstate.SnapState{
 		Current:  snap.R(1),
 		Sequence: []*snap.SideInfo{si},
 	})
-	c.Check(policy.NewSnapdPolicy("").CanRemove(s.st, snapst, snap.R(0)), check.IsNil)
+	c.Check(policy.NewSnapdPolicy(onClassic).CanRemove(s.st, snapst, snap.R(0)), check.IsNil)
 
 	// but it cannot be removed when there are more snaps installed
 	snapstate.Set(s.st, "other-snap", &snapstate.SnapState{
 		Current:  snap.R(1),
 		Sequence: []*snap.SideInfo{{Revision: snap.R(1), RealName: "other-snap"}},
 	})
-	c.Check(policy.NewSnapdPolicy("").CanRemove(s.st, snapst, snap.R(0)), check.Equals, policy.ErrSnapdNotYetRemovableOnClassic)
+	c.Check(policy.NewSnapdPolicy(onClassic).CanRemove(s.st, snapst, snap.R(0)), check.Equals, policy.ErrSnapdNotYetRemovableOnClassic)
 }
