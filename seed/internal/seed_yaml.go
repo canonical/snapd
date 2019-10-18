@@ -17,7 +17,7 @@
  *
  */
 
-package seed
+package internal
 
 import (
 	"fmt"
@@ -62,7 +62,7 @@ type Seed16 struct {
 	Snaps []*Snap16 `yaml:"snaps"`
 }
 
-func ReadYaml(fn string) (*Seed16, error) {
+func ReadSeedYaml(fn string) (*Seed16, error) {
 	errPrefix := "cannot read seed yaml"
 
 	yamlData, err := ioutil.ReadFile(fn)
