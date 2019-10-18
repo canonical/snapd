@@ -248,59 +248,7 @@ func (s *seed16Suite) TestLoadMetaInvalidSeedYaml(c *C) {
 	c.Check(err, ErrorMatches, `cannot read seed yaml: invalid risk in channel name: track/not-a-risk`)
 }
 
-var snapYaml = map[string]string{
-	"core": `name: core
-type: os
-version: 1.0
-`,
-	"pc-kernel": `name: pc-kernel
-type: kernel
-version: 1.0
-`,
-	"pc": `name: pc
-type: gadget
-version: 1.0
-`,
-	"required": `name: required
-type: app
-version: 1.0
-`,
-	"snapd": `name: snapd
-type: snapd
-version: 1.0
-`,
-	"core18": `name: core18
-type: base
-version: 1.0
-`,
-	"pc-kernel=18": `name: pc-kernel
-type: kernel
-version: 1.0
-`,
-	"pc=18": `name: pc
-type: gadget
-base: core18
-version: 1.0
-`,
-	"required18": `name: required18
-type: app
-base: core18
-version: 1.0
-`,
-	"classic-snap": `name: classic-snap
-type: app
-confinement: classic
-version: 1.0
-`,
-	"classic-gadget": `name: classic-gadget
-type: gadget
-version: 1.0
-`,
-	"classic-gadget18": `name: classic-gadget18
-type: gadget
-base: core18
-version: 1.0
-`,
+var snapYaml = seedtest.MergeSampleSnapYaml(seedtest.SampleSnapYaml, map[string]string{
 	"private-snap": `name: private-snap
 base: core18
 version: 1.0
@@ -309,7 +257,7 @@ version: 1.0
 base: core18
 version: 1.0
 `,
-}
+})
 
 const pcGadgetYaml = `
 volumes:

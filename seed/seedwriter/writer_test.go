@@ -123,46 +123,7 @@ func (s *writerSuite) SetUpTest(c *C) {
 	s.aRefs = make(map[string][]*asserts.Ref)
 }
 
-// TODO: share this with seed over seedtest as Sample* ?
-var snapYaml = map[string]string{
-	"core": `name: core
-type: os
-version: 1.0
-`,
-	"pc-kernel": `name: pc-kernel
-type: kernel
-version: 1.0
-`,
-	"pc": `name: pc
-type: gadget
-version: 1.0
-`,
-	"required": `name: required
-type: app
-version: 1.0
-`,
-	"classic-snap": `name: classic-snap
-type: app
-confinement: classic
-version: 1.0
-`,
-	"snapd": `name: snapd
-type: snapd
-version: 1.0
-`,
-	"core18": `name: core18
-type: base
-version: 1.0
-`,
-	"pc-kernel=18": `name: pc-kernel
-type: kernel
-version: 1.0
-`,
-	"pc=18": `name: pc
-type: gadget
-base: core18
-version: 1.0
-`,
+var snapYaml = seedtest.MergeSampleSnapYaml(seedtest.SampleSnapYaml, map[string]string{
 	"cont-producer": `name: cont-producer
 type: app
 base: core18
@@ -181,39 +142,12 @@ plugs:
      content: cont
      default-provider: cont-producer
 `,
-	"classic-gadget": `name: classic-gadget
-version: 1.0
-type: gadget
-`,
-	"classic-gadget18": `name: classic-gadget18
-version: 1.0
-base: core18
-type: gadget
-`,
-	"required18": `name: required18
-type: app
-base: core18
-version: 1.0
-`,
 	"required-base-core16": `name: required-base-core16
 type: app
 base: core16
 version: 1.0
 `,
-	"core20": `name: core20
-type: base
-version: 1.0
-`,
-	"pc-kernel=20": `name: pc-kernel
-type: kernel
-version: 1.0
-`,
-	"pc=20": `name: pc
-type: gadget
-base: core20
-version: 1.0
-`,
-}
+})
 
 const pcGadgetYaml = `
 volumes:
