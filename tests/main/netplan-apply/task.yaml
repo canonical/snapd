@@ -124,6 +124,9 @@ execute: |
     rm dbus-netplan-apply.log
     touch dbus-netplan-apply.log
 
+    echo "Disconnecting network-setup-observe to test network-setup-control"
+    snap disconnect test-snapd-netplan-apply:network-setup-observe
+
     echo "Running netplan info via D-Bus without network-setup-control fails"
     if test-snapd-netplan-apply.info; then
         echo "Expected access denied error for netplan info via D-Bus"
