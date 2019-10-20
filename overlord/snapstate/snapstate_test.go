@@ -3527,6 +3527,184 @@ func (s *snapmgrTestSuite) TestInstallWithRevisionRunThrough(c *C) {
 	c.Assert(snapst.Required, Equals, false)
 }
 
+func (s *snapmgrTestSuite) TestUnlinkCurrentSnapLastActiveDisabledServicesSet(c *C) {
+	si := snap.SideInfo{
+		RealName: "services-snap",
+		Revision: snap.R(-42),
+	}
+	snaptest.MockSnap(c, `name: services-snap`, &si)
+
+	prevCurrentlyDisabled := s.fakeBackend.servicesCurrentlyDisabled
+	s.fakeBackend.servicesCurrentlyDisabled = []string{"svc1", "svc2"}
+
+	// reset the services to what they were before after the test is done
+	defer func() {
+		s.fakeBackend.servicesCurrentlyDisabled = prevCurrentlyDisabled
+	}()
+
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	snapstate.Set(s.state, "services-snap", &snapstate.SnapState{
+		Active:                     true,
+		Sequence:                   []*snap.SideInfo{&si},
+		Current:                    si.Revision,
+		SnapType:                   "app",
+		Channel:                    "stable",
+		LastActiveDisabledServices: []string{},
+	})
+
+	chg := s.state.NewChange("refresh", "refresh a snap")
+	ts, err := snapstate.Update(s.state, "services-snap", &snapstate.RevisionOptions{Channel: "some-channel"}, s.user.ID, snapstate.Flags{Amend: true})
+
+	c.Assert(err, IsNil)
+	// only add up to unlink-current-snap task
+	for _, t := range ts.Tasks() {
+		chg.AddTask(t)
+		fmt.Println("running", t.Kind())
+		if t.Kind() == "unlink-current-snap" {
+			// don't add any more from this point on
+			break
+		}
+	}
+
+	s.state.Unlock()
+	defer s.se.Stop()
+	s.settle(c)
+	s.state.Lock()
+
+	c.Assert(chg.Err(), IsNil)
+	c.Assert(chg.IsReady(), Equals, true)
+
+	// get the snap state
+	var snapst snapstate.SnapState
+	err = snapstate.Get(s.state, "services-snap", &snapst)
+	c.Assert(err, IsNil)
+
+	// make sure that the disabled services in this snap's state is what we
+	// provided
+	sort.Strings(snapst.LastActiveDisabledServices)
+	c.Assert(snapst.LastActiveDisabledServices, DeepEquals, []string{"svc1", "svc2"})
+}
+
+func (s *snapmgrTestSuite) TestUnlinkCurrentSnapMergedLastActiveDisabledServicesSet(c *C) {
+	si := snap.SideInfo{
+		RealName: "services-snap",
+		Revision: snap.R(-42),
+	}
+	snaptest.MockSnap(c, `name: services-snap`, &si)
+
+	prevCurrentlyDisabled := s.fakeBackend.servicesCurrentlyDisabled
+	s.fakeBackend.servicesCurrentlyDisabled = []string{"svc1", "svc2"}
+
+	// reset the services to what they were before after the test is done
+	defer func() {
+		s.fakeBackend.servicesCurrentlyDisabled = prevCurrentlyDisabled
+	}()
+
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	snapstate.Set(s.state, "services-snap", &snapstate.SnapState{
+		Active:                     true,
+		Sequence:                   []*snap.SideInfo{&si},
+		Current:                    si.Revision,
+		SnapType:                   "app",
+		Channel:                    "stable",
+		LastActiveDisabledServices: []string{"missing-svc3"},
+	})
+
+	chg := s.state.NewChange("refresh", "refresh a snap")
+	ts, err := snapstate.Update(s.state, "services-snap", &snapstate.RevisionOptions{Channel: "some-channel"}, s.user.ID, snapstate.Flags{Amend: true})
+
+	c.Assert(err, IsNil)
+	// only add up to unlink-current-snap task
+	for _, t := range ts.Tasks() {
+		chg.AddTask(t)
+		if t.Kind() == "unlink-current-snap" {
+			// don't add any more from this point on
+			break
+		}
+	}
+
+	s.state.Unlock()
+	defer s.se.Stop()
+	s.settle(c)
+	s.state.Lock()
+
+	c.Assert(chg.Err(), IsNil)
+	c.Assert(chg.IsReady(), Equals, true)
+
+	// get the snap state
+	var snapst snapstate.SnapState
+	err = snapstate.Get(s.state, "services-snap", &snapst)
+	c.Assert(err, IsNil)
+
+	// make sure that the disabled services in this snap's state is what we
+	// provided
+	sort.Strings(snapst.LastActiveDisabledServices)
+	c.Assert(snapst.LastActiveDisabledServices, DeepEquals, []string{"missing-svc3", "svc1", "svc2"})
+}
+
+func (s *snapmgrTestSuite) TestUnlinkCurrentSnapPassthroughLastActiveDisabledServicesSet(c *C) {
+	si := snap.SideInfo{
+		RealName: "services-snap",
+		Revision: snap.R(-42),
+	}
+	snaptest.MockSnap(c, `name: services-snap`, &si)
+
+	prevCurrentlyDisabled := s.fakeBackend.servicesCurrentlyDisabled
+	s.fakeBackend.servicesCurrentlyDisabled = []string{}
+
+	// reset the services to what they were before after the test is done
+	defer func() {
+		s.fakeBackend.servicesCurrentlyDisabled = prevCurrentlyDisabled
+	}()
+
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	snapstate.Set(s.state, "services-snap", &snapstate.SnapState{
+		Active:                     true,
+		Sequence:                   []*snap.SideInfo{&si},
+		Current:                    si.Revision,
+		SnapType:                   "app",
+		Channel:                    "stable",
+		LastActiveDisabledServices: []string{"missing-svc3"},
+	})
+
+	chg := s.state.NewChange("refresh", "refresh a snap")
+	ts, err := snapstate.Update(s.state, "services-snap", &snapstate.RevisionOptions{Channel: "some-channel"}, s.user.ID, snapstate.Flags{Amend: true})
+
+	c.Assert(err, IsNil)
+	// only add up to unlink-current-snap task
+	for _, t := range ts.Tasks() {
+		chg.AddTask(t)
+		if t.Kind() == "unlink-current-snap" {
+			// don't add any more from this point on
+			break
+		}
+	}
+
+	s.state.Unlock()
+	defer s.se.Stop()
+	s.settle(c)
+	s.state.Lock()
+
+	c.Assert(chg.Err(), IsNil)
+	c.Assert(chg.IsReady(), Equals, true)
+
+	// get the snap state
+	var snapst snapstate.SnapState
+	err = snapstate.Get(s.state, "services-snap", &snapst)
+	c.Assert(err, IsNil)
+
+	// make sure that the disabled services in this snap's state is what we
+	// provided
+	sort.Strings(snapst.LastActiveDisabledServices)
+	c.Assert(snapst.LastActiveDisabledServices, DeepEquals, []string{"missing-svc3"})
+}
+
 func (s *snapmgrTestSuite) TestDisableSnapDisabledServicesSaved(c *C) {
 	s.state.Lock()
 	defer s.state.Unlock()
