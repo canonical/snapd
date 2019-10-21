@@ -21,6 +21,9 @@ package strutil
 
 // OrderedSet is a set of strings that maintains the order of insertion.
 //
+// The order of putting items into the set is retained. Putting items "a", "b"
+// and then "a", results in order "a", "b".
+//
 // External synchronization is required for safe concurrent access.
 type OrderedSet struct {
 	positionOf map[string]int
