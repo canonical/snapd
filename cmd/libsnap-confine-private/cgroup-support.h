@@ -40,6 +40,9 @@ bool sc_cgroup_is_v2(void);
 /**
  * sc_cgroup_mount_snapd_hierarchy mounts /run/snapd/cgroup if one is missing.
  *
+ * This hierarchy is designed for tracking processes and associating them with
+ * a given executable portion of a snap (either an application or a hook).
+ *
  * The logic mounts an v1 cgroup hierarchy with name=snapd and without any
  * controllers. Currently no release agent is set and no release notification
  * is enabled.
@@ -66,9 +69,6 @@ void sc_cgroup_mount_snapd_hierarchy(void);
  *
  * This function adds the specified process to the named cgroup named after the
  * snap security tag.
- *
- * This hierarchy is designed for tracking processes and associating them with
- * a given executable portion of a snap (either an application or a hook).
  **/
 void sc_cgroup_snapd_hierarchy_join(const char *snap_security_tag, pid_t pid);
 
