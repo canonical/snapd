@@ -25,6 +25,7 @@ var (
 	ParseClockSpan = parseClockSpan
 	ParseWeekSpan  = parseWeekSpan
 	HumanTimeSince = humanTimeSince
+	MonthNext      = monthNext
 )
 
 func MockTimeNow(f func() time.Time) (restorer func()) {
