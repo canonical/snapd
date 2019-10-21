@@ -314,6 +314,21 @@ version: 1.0
 `,
 }
 
+const pcGadgetYaml = `
+volumes:
+  pc:
+    bootloader: grub
+`
+
+var pcGadgetFiles = [][]string{
+	{"meta/gadget.yaml", pcGadgetYaml},
+}
+
+var snapFiles = map[string][][]string{
+	"pc":    pcGadgetFiles,
+	"pc=18": pcGadgetFiles,
+}
+
 var snapPublishers = map[string]string{
 	"required": "developerid",
 }
@@ -405,7 +420,7 @@ func (s *seed16Suite) makeSeed(c *C, modelHeaders map[string]interface{}, seedSn
 		completeSeedSnap := *seedSnap
 		var snapFname string
 		if seedSnap.Unasserted {
-			mockSnapFile := snaptest.MakeTestSnapWithFiles(c, snapYaml[seedSnap.Name], nil)
+			mockSnapFile := snaptest.MakeTestSnapWithFiles(c, snapYaml[seedSnap.Name], snapFiles[seedSnap.Name])
 			snapFname = filepath.Base(mockSnapFile)
 			err := os.Rename(mockSnapFile, filepath.Join(s.seedDir, "snaps", snapFname))
 			c.Assert(err, IsNil)
@@ -418,7 +433,7 @@ func (s *seed16Suite) makeSeed(c *C, modelHeaders map[string]interface{}, seedSn
 			if seedSnap.Channel != "stable" {
 				whichYaml = whichYaml + "=" + seedSnap.Channel
 			}
-			fname, decl, rev := s.MakeAssertedSnap(c, snapYaml[whichYaml], nil, snap.R(1), publisher)
+			fname, decl, rev := s.MakeAssertedSnap(c, snapYaml[whichYaml], snapFiles[whichYaml], snap.R(1), publisher)
 			acct, err := s.StoreSigning.Find(asserts.AccountType, map[string]string{"account-id": publisher})
 			c.Assert(err, IsNil)
 			s.WriteAssertions(fmt.Sprintf("%s.asserts", seedSnap.Name), rev, decl, acct)
@@ -1063,7 +1078,7 @@ type: gadget
 base: other-base
 version: other-base
 `
-	otherBaseGadgetFname, obgDecl, obgRev := s.MakeAssertedSnap(c, otherBaseGadget, nil, snap.R(3), "canonical")
+	otherBaseGadgetFname, obgDecl, obgRev := s.MakeAssertedSnap(c, otherBaseGadget, snapFiles["pc"], snap.R(3), "canonical")
 	s.WriteAssertions("other-gadget.asserts", obgDecl, obgRev)
 
 	err = s.seed16.LoadAssertions(s.db, s.commitTo)

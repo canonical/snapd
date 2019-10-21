@@ -10,9 +10,10 @@ restore: |
 
 prepare: |
     echo "Create a fake block device image"
-    dd if=/dev/zero of=fake.img bs=1M seek=2000 count=1
+    truncate --size=2GB fake.img
 
     echo "Setup the image as a block device"
+    # without -P this test will not work, then /dev/loop1p? will be missing
     losetup -fP fake.img
     losetup -a |grep fake.img|cut -f1 -d: > loop.txt
     LOOP="$(cat loop.txt)"

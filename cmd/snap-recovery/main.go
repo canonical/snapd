@@ -42,12 +42,7 @@ func run(args []string) error {
 	device := os.Args[2]
 	options := &recover.Options{}
 
-	recov := recover.New(gadgetRoot, device, options)
-	if err := recov.Run(); err != nil {
-		return err
-	}
-
-	return nil
+	return recover.Run(gadgetRoot, device, options)
 }
 
 func main() {

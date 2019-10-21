@@ -29,29 +29,16 @@ type Options struct {
 	// will contain encryption later
 }
 
-type Recover struct {
-	gadgetRoot string
-	device     string
-	options    *Options
-}
+func Run(gadgetRoot, device string, options *Options) error {
 
-func New(gadgetRoot, device string, options *Options) *Recover {
-	return &Recover{
-		gadgetRoot: gadgetRoot,
-		device:     device,
-		options:    options,
-	}
-}
-
-func (r *Recover) Run() error {
 	// XXX: ensure we test that the current partition table is
 	//      compatible with the gadget
-	lv, err := gadget.PositionedVolumeFromGadget(r.gadgetRoot)
+	lv, err := gadget.PositionedVolumeFromGadget(gadgetRoot)
 	if err != nil {
 		return fmt.Errorf("cannot layout the volume: %v", err)
 	}
 
-	sfdisk := partition.NewSFDisk(r.device)
+	sfdisk := partition.NewSFDisk(device)
 	created, err := sfdisk.Create(lv)
 	if err != nil {
 		return fmt.Errorf("cannot create the partitions: %v", err)
@@ -59,7 +46,7 @@ func (r *Recover) Run() error {
 	if err := partition.MakeFilesystems(created); err != nil {
 		return err
 	}
-	// XXX: deploy contento
+	// XXX: deploy content
 
 	return nil
 }
