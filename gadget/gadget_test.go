@@ -1602,21 +1602,226 @@ func (s *gadgetYamlTestSuite) TestGadgetReadInfoVsFromMeta(c *C) {
 	c.Assert(giRead, DeepEquals, giMeta)
 }
 
-func (s *gadgetYamlTestSuite) TestGadgetFromMetaEmpty(c *C) {
-	classicConstraints := &gadget.ModelConstraints{
+var (
+	classicConstraints = &gadget.ModelConstraints{
 		Classic: true,
 	}
+	coreConstraints = &gadget.ModelConstraints{
+		Classic: false,
+	}
+)
 
+func (s *gadgetYamlTestSuite) TestGadgetFromMetaEmpty(c *C) {
 	// this is ok for classic
 	giClassic, err := gadget.InfoFromGadgetYaml([]byte(""), classicConstraints)
 	c.Check(err, IsNil)
 	c.Assert(giClassic, DeepEquals, &gadget.Info{})
 
-	coreConstraints := &gadget.ModelConstraints{
-		Classic: false,
-	}
 	// but not so much for core
 	giCore, err := gadget.InfoFromGadgetYaml([]byte(""), coreConstraints)
 	c.Check(err, ErrorMatches, "bootloader not declared in any volume")
 	c.Assert(giCore, IsNil)
+}
+
+type gadgetCompatibilityTestSuite struct{}
+
+var _ = Suite(&gadgetCompatibilityTestSuite{})
+
+func (s *gadgetCompatibilityTestSuite) TestGadgetIsCompatibleSelf(c *C) {
+	giPC1, err := gadget.InfoFromGadgetYaml(gadgetYamlPC, coreConstraints)
+	c.Assert(err, IsNil)
+	giPC2, err := gadget.InfoFromGadgetYaml(gadgetYamlPC, coreConstraints)
+	c.Assert(err, IsNil)
+
+	err = gadget.IsCompatible(giPC1, giPC2)
+	c.Check(err, IsNil)
+}
+
+func (s *gadgetCompatibilityTestSuite) TestGadgetIsCompatibleBadVolume(c *C) {
+	var mockYaml = []byte(`
+volumes:
+  volumename:
+    schema: mbr
+    bootloader: u-boot
+    id: 0C
+`)
+
+	var mockOtherYaml = []byte(`
+volumes:
+  volumename-other:
+    schema: mbr
+    bootloader: u-boot
+    id: 0C
+`)
+	var mockManyYaml = []byte(`
+volumes:
+  volumename:
+    schema: mbr
+    bootloader: u-boot
+    id: 0C
+  volumename-many:
+    schema: mbr
+    id: 0C
+`)
+	var mockBadIDYaml = []byte(`
+volumes:
+  volumename:
+    schema: mbr
+    bootloader: u-boot
+    id: 0D
+`)
+	var mockSchemaYaml = []byte(`
+volumes:
+  volumename:
+    schema: gpt
+    bootloader: u-boot
+    id: 0C
+`)
+	var mockBootloaderYaml = []byte(`
+volumes:
+  volumename:
+    schema: mbr
+    bootloader: grub
+    id: 0C
+`)
+	var mockBadStructureSizeYaml = []byte(`
+volumes:
+  volumename:
+    schema: mbr
+    bootloader: grub
+    id: 0C
+    structure:
+      - name: bad-size
+        size: 99999
+        type: 0C
+`)
+	for _, tc := range []struct {
+		gadgetYaml []byte
+		err        string
+	}{
+		{mockOtherYaml, `cannot find entry for volume "volumename" in updated gadget info`},
+		{mockManyYaml, "gadgets with multiple volumes are unsupported"},
+		{mockBadStructureSizeYaml, `cannot lay out the new volume: cannot lay out volume, structure #0 \("bad-size"\) size is not a multiple of sector size 512`},
+		{mockBadIDYaml, "incompatible layout change: incompatible ID change from 0C to 0D"},
+		{mockSchemaYaml, "incompatible layout change: incompatible schema change from mbr to gpt"},
+		{mockBootloaderYaml, "incompatible layout change: incompatible bootloader change from u-boot to grub"},
+	} {
+		c.Logf("trying: %v\n", string(tc.gadgetYaml))
+		gi, err := gadget.InfoFromGadgetYaml(mockYaml, coreConstraints)
+		c.Assert(err, IsNil)
+		giNew, err := gadget.InfoFromGadgetYaml(tc.gadgetYaml, coreConstraints)
+		c.Assert(err, IsNil)
+		err = gadget.IsCompatible(gi, giNew)
+		if tc.err == "" {
+			c.Check(err, IsNil)
+		} else {
+			c.Check(err, ErrorMatches, tc.err)
+		}
+
+	}
+}
+
+func (s *gadgetCompatibilityTestSuite) TestGadgetIsCompatibleBadStructure(c *C) {
+	var baseYaml = `
+volumes:
+  volumename:
+    schema: gpt
+    bootloader: grub
+    id: 0C
+    structure:`
+	var mockYaml = baseYaml + `
+      - name: legit
+        size: 2M
+        type: 00000000-0000-0000-0000-0000deadbeef
+        filesystem: ext4
+        filesystem-label: fs-legit
+`
+	var mockBadStructureTypeYaml = baseYaml + `
+      - name: legit
+        size: 2M
+        type: 00000000-0000-0000-0000-0000deadcafe
+        filesystem: ext4
+        filesystem-label: fs-legit
+`
+	var mockBadFsYaml = baseYaml + `
+      - name: legit
+        size: 2M
+        type: 00000000-0000-0000-0000-0000deadbeef
+        filesystem: vfat
+        filesystem-label: fs-legit
+`
+	var mockBadOffsetYaml = baseYaml + `
+      - name: legit
+        size: 2M
+        type: 00000000-0000-0000-0000-0000deadbeef
+        filesystem: ext4
+        offset: 1M
+        filesystem-label: fs-legit
+`
+	var mockBadLabelYaml = baseYaml + `
+      - name: legit
+        size: 2M
+        type: 00000000-0000-0000-0000-0000deadbeef
+        filesystem: ext4
+        filesystem-label: fs-non-legit
+`
+	var mockGPTBadNameYaml = baseYaml + `
+      - name: non-legit
+        size: 2M
+        type: 00000000-0000-0000-0000-0000deadbeef
+        filesystem: ext4
+        filesystem-label: fs-legit
+`
+
+	for i, tc := range []struct {
+		gadgetYaml string
+		err        string
+	}{
+		{mockYaml, ``},
+		{mockBadStructureTypeYaml, `incompatible layout change: incompatible structure #0 \("legit"\) change: cannot change structure type from "00000000-0000-0000-0000-0000deadbeef" to "00000000-0000-0000-0000-0000deadcafe"`},
+		{mockBadFsYaml, `incompatible layout change: incompatible structure #0 \("legit"\) change: cannot change filesystem from "ext4" to "vfat"`},
+		{mockBadOffsetYaml, `incompatible layout change: incompatible structure #0 \("legit"\) change: cannot change structure offset from unspecified to 1048576`},
+		{mockBadLabelYaml, `incompatible layout change: incompatible structure #0 \("legit"\) change: cannot change filesystem label from "fs-legit" to "fs-non-legit"`},
+		{mockGPTBadNameYaml, `incompatible layout change: incompatible structure #0 \("non-legit"\) change: cannot change structure name from "legit" to "non-legit"`},
+	} {
+		c.Logf("trying: %d %v\n", i, string(tc.gadgetYaml))
+		gi, err := gadget.InfoFromGadgetYaml([]byte(mockYaml), coreConstraints)
+		c.Assert(err, IsNil)
+		giNew, err := gadget.InfoFromGadgetYaml([]byte(tc.gadgetYaml), coreConstraints)
+		c.Assert(err, IsNil)
+		err = gadget.IsCompatible(gi, giNew)
+		if tc.err == "" {
+			c.Check(err, IsNil)
+		} else {
+			c.Check(err, ErrorMatches, tc.err)
+		}
+
+	}
+}
+
+func (s *gadgetCompatibilityTestSuite) TestGadgetIsCompatibleStructureNameMBR(c *C) {
+	var baseYaml = `
+volumes:
+  volumename:
+    schema: mbr
+    bootloader: grub
+    id: 0C
+    structure:`
+	var mockYaml = baseYaml + `
+      - name: legit
+        size: 2M
+        type: 0A
+`
+	var mockMBRNameOkYaml = baseYaml + `
+      - name: non-legit
+        size: 2M
+        type: 0A
+`
+
+	gi, err := gadget.InfoFromGadgetYaml([]byte(mockYaml), coreConstraints)
+	c.Assert(err, IsNil)
+	giNew, err := gadget.InfoFromGadgetYaml([]byte(mockMBRNameOkYaml), coreConstraints)
+	c.Assert(err, IsNil)
+	err = gadget.IsCompatible(gi, giNew)
+	c.Check(err, IsNil)
 }

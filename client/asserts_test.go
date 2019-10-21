@@ -28,6 +28,7 @@ import (
 	. "gopkg.in/check.v1"
 
 	"github.com/snapcore/snapd/asserts"
+	"github.com/snapcore/snapd/client"
 	"github.com/snapcore/snapd/snap"
 )
 
@@ -61,16 +62,23 @@ func (cs *clientSuite) TestClientAssertsTypes(c *C) {
 }
 
 func (cs *clientSuite) TestClientAssertsCallsEndpoint(c *C) {
-	_, _ = cs.cli.Known("snap-revision", nil)
+	_, _ = cs.cli.Known("snap-revision", nil, nil)
 	c.Check(cs.req.Method, Equals, "GET")
 	c.Check(cs.req.URL.Path, Equals, "/v2/assertions/snap-revision")
+}
+
+func (cs *clientSuite) TestClientAssertsOptsCallsEndpoint(c *C) {
+	_, _ = cs.cli.Known("snap-revision", nil, &client.KnownOptions{Remote: true})
+	c.Check(cs.req.Method, Equals, "GET")
+	c.Check(cs.req.URL.Path, Equals, "/v2/assertions/snap-revision")
+	c.Check(cs.req.URL.Query()["remote"], DeepEquals, []string{"true"})
 }
 
 func (cs *clientSuite) TestClientAssertsCallsEndpointWithFilter(c *C) {
 	_, _ = cs.cli.Known("snap-revision", map[string]string{
 		"snap-id":       "snap-id-1",
 		"snap-sha3-384": "sha3-384...",
-	})
+	}, nil)
 	u, err := url.ParseRequestURI(cs.req.URL.String())
 	c.Assert(err, IsNil)
 	c.Check(u.Path, Equals, "/v2/assertions/snap-revision")
@@ -82,7 +90,7 @@ func (cs *clientSuite) TestClientAssertsCallsEndpointWithFilter(c *C) {
 
 func (cs *clientSuite) TestClientAssertsHttpError(c *C) {
 	cs.err = errors.New("fail")
-	_, err := cs.cli.Known("snap-build", nil)
+	_, err := cs.cli.Known("snap-build", nil, nil)
 	c.Assert(err, ErrorMatches, "failed to query assertions: cannot communicate with server: fail")
 }
 
@@ -97,7 +105,7 @@ func (cs *clientSuite) TestClientAssertsJSONError(c *C) {
 			"message": "invalid"
 		}
 	}`
-	_, err := cs.cli.Known("snap-build", nil)
+	_, err := cs.cli.Known("snap-build", nil, nil)
 	c.Assert(err, ErrorMatches, "invalid")
 }
 
@@ -133,7 +141,7 @@ sign-key-sha3-384: Jv8_JiHiIzJVcO9M55pPdqSDWUvuhfDIBJUS-3VW7F_idjix7Ffn5qMxB21ZQ
 openpgp ...
 `
 
-	a, err := cs.cli.Known("snap-revision", nil)
+	a, err := cs.cli.Known("snap-revision", nil, nil)
 	c.Assert(err, IsNil)
 	c.Check(a, HasLen, 2)
 
@@ -145,7 +153,7 @@ func (cs *clientSuite) TestClientAssertsNoAssertions(c *C) {
 	cs.header.Add("X-Ubuntu-Assertions-Count", "0")
 	cs.rsp = ""
 	cs.status = 200
-	a, err := cs.cli.Known("snap-revision", nil)
+	a, err := cs.cli.Known("snap-revision", nil, nil)
 	c.Assert(err, IsNil)
 	c.Check(a, HasLen, 0)
 }
@@ -155,7 +163,7 @@ func (cs *clientSuite) TestClientAssertsMissingAssertions(c *C) {
 	cs.header.Add("X-Ubuntu-Assertions-Count", "4")
 	cs.rsp = ""
 	cs.status = 200
-	_, err := cs.cli.Known("snap-build", nil)
+	_, err := cs.cli.Known("snap-build", nil, nil)
 	c.Assert(err, ErrorMatches, "response did not have the expected number of assertions")
 }
 
