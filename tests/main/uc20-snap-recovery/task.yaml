@@ -13,7 +13,8 @@ prepare: |
     truncate --size=2GB fake.img
 
     echo "Setup the image as a block device"
-    losetup -f fake.img
+    # without -P this test will not work, then /dev/loop1p? will be missing
+    losetup -fP fake.img
     losetup -a |grep fake.img|cut -f1 -d: > loop.txt
     LOOP="$(cat loop.txt)"
 
