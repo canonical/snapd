@@ -30,6 +30,12 @@ type Options struct {
 }
 
 func Run(gadgetRoot, device string, options *Options) error {
+	if gadgetRoot == "" {
+		return fmt.Errorf("cannot use empty recovery gadget root directory")
+	}
+	if device == "" {
+		return fmt.Errorf("cannot use empty device node")
+	}
 
 	// XXX: ensure we test that the current partition table is
 	//      compatible with the gadget

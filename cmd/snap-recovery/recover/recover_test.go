@@ -36,7 +36,10 @@ var _ = Suite(&recoverSuite{})
 // mocks the world (sfdisk,lsblk,mkfs,...)? probably silly as
 // each part inside recovery is tested and we have a spread test
 
-func (s *recoverSuite) TestRecoverSmoke(c *C) {
-	recov := recover.New("", "", nil)
-	c.Assert(recov, NotNil)
+func (s *recoverSuite) TestRecoverRunError(c *C) {
+	err := recover.Run("", "", nil)
+	c.Assert(err, ErrorMatches, "cannot use empty recovery gadget root directory")
+
+	err = recover.Run("some-dir", "", nil)
+	c.Assert(err, ErrorMatches, "cannot use empty device node")
 }
