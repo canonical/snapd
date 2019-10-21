@@ -105,9 +105,6 @@ bool sc_cgroup_is_v2() {
 static void ensure_dir(const char *dir, mode_t mode) {
     struct stat stat_buf;
 
-    /* The path /run/snapd should be a directory with mode 0655 owned by
-     * root.root. If one is absent it is created. If one is there it is
-     * validated for correct type. */
     if (lstat(dir, &stat_buf) < 0) {
         if (errno != ENOENT) {
             die("cannot lstat %s", dir);
