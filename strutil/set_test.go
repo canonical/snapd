@@ -47,10 +47,6 @@ func (s *orderedSetSuite) TestZeroValueIndexOf(c *C) {
 	c.Check(s.set.Contains("foo"), Equals, false)
 }
 
-func (s *orderedSetSuite) TestZeroValueDel(c *C) {
-	s.set.Del("foo")
-}
-
 func (s *orderedSetSuite) TestZeroValuePut(c *C) {
 	s.set.Put("foo")
 	c.Check(s.set.Contains("foo"), Equals, true)
@@ -62,18 +58,6 @@ func (s *orderedSetSuite) TestZeroValuePut(c *C) {
 
 func (s *orderedSetSuite) TestZeroValueSize(c *C) {
 	c.Assert(s.set.Size(), Equals, 0)
-}
-
-func (s *orderedSetSuite) TestDeletion(c *C) {
-	s.set.Put("foo")
-	s.set.Del("foo")
-
-	c.Assert(s.set.Items(), DeepEquals, []string(nil))
-	c.Check(s.set.Size(), Equals, 0)
-	c.Check(s.set.Contains("foo"), Equals, false)
-	idx, ok := s.set.IndexOf("foo")
-	c.Check(ok, Equals, false)
-	c.Check(idx, Equals, 0)
 }
 
 func (s *orderedSetSuite) TestDeduplication(c *C) {
