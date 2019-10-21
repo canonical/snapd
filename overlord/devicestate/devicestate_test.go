@@ -2033,21 +2033,23 @@ volumes:
     schema: gpt
     bootloader: grub
 `
-	currInfo := snaptest.MockSnapWithFiles(c, currentSnapYaml, &snap.SideInfo{Revision: snap.R(123)}, nil)
+	siCurrent := &snap.SideInfo{Revision: snap.R(123), RealName: "gadget"}
 	// so that we get a directory
+	currInfo := snaptest.MockSnapWithFiles(c, currentSnapYaml, siCurrent, nil)
 	info := snaptest.MockSnapWithFiles(c, remodelSnapYaml, &snap.SideInfo{Revision: snap.R(1)}, nil)
 	snapf, err := snap.Open(info.MountDir())
 	c.Assert(err, IsNil)
 
 	s.setupBrands(c)
+
 	// model assertion in device context
-	model := fakeMyModel(map[string]interface{}{
+	newModel := fakeMyModel(map[string]interface{}{
 		"architecture": "amd64",
-		"gadget":       "gadget",
+		"gadget":       "new-gadget",
 		"kernel":       "krnl",
 	})
-	deviceCtx := &snapstatetest.TrivialDeviceContext{DeviceModel: model}
-	remodelCtx := &snapstatetest.TrivialDeviceContext{DeviceModel: model, Remodeling: true}
+	deviceCtx := &snapstatetest.TrivialDeviceContext{DeviceModel: newModel}
+	remodelCtx := &snapstatetest.TrivialDeviceContext{DeviceModel: newModel, Remodeling: true}
 
 	restore := devicestate.MockGadgetIsCompatible(func(current, update *gadget.Info) error {
 		c.Assert(current.Volumes, HasLen, 1)
@@ -2091,6 +2093,35 @@ volumes:
 	defer restore()
 
 	err = devicestate.CheckGadgetRemodelCompatible(s.state, info, currInfo, snapf, snapstate.Flags{}, remodelCtx)
+	c.Check(err, IsNil)
+
+	// when remodeling to completely new gadget snap, there is no current
+	// snap passed to the check callback
+	err = devicestate.CheckGadgetRemodelCompatible(s.state, info, nil, snapf, snapstate.Flags{}, remodelCtx)
+	c.Check(err, ErrorMatches, "cannot identify the current model")
+
+	// mock data to obtain current gadget info
+	devicestatetest.SetDevice(s.state, &auth.DeviceState{
+		Brand: "canonical",
+		Model: "gadget",
+	})
+	s.makeModelAssertionInState(c, "canonical", "gadget", map[string]interface{}{
+		"architecture": "amd64",
+		"kernel":       "kernel",
+		"gadget":       "gadget",
+	})
+
+	err = devicestate.CheckGadgetRemodelCompatible(s.state, info, nil, snapf, snapstate.Flags{}, remodelCtx)
+	c.Check(err, ErrorMatches, "cannot identify the current gadget snap")
+
+	snapstate.Set(s.state, "gadget", &snapstate.SnapState{
+		SnapType: "gadget",
+		Sequence: []*snap.SideInfo{siCurrent},
+		Current:  siCurrent.Revision,
+		Active:   true,
+	})
+
+	err = devicestate.CheckGadgetRemodelCompatible(s.state, info, nil, snapf, snapstate.Flags{}, remodelCtx)
 	c.Check(err, IsNil)
 }
 

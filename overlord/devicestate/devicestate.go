@@ -212,13 +212,25 @@ func checkGadgetRemodelCompatible(st *state.State, snapInfo, curInfo *snap.Info,
 	if release.OnClassic {
 		return nil
 	}
-	if curInfo == nil || curInfo.GetType() != snap.TypeGadget {
-		// We are only interested in installed gadget snaps.
+	if snapInfo.GetType() != snap.TypeGadget {
+		// We are only interested in gadget snaps.
 		return nil
 	}
 	if deviceCtx == nil || !deviceCtx.ForRemodeling() {
 		// We are only interesting in a remodeling scenario.
 		return nil
+	}
+	if curInfo == nil {
+		// snap isn't installed yet, we are likely remodeling to a new
+		// gadget, identify the old gadget
+		model, err := findModel(st)
+		if err != nil || err == state.ErrNoState {
+			return fmt.Errorf("cannot identify the current model")
+		}
+		curInfo, _ = snapstate.CurrentInfo(st, model.Gadget())
+	}
+	if curInfo == nil {
+		return fmt.Errorf("cannot identify the current gadget snap")
 	}
 
 	newGadgetYaml, err := snapf.ReadFile("meta/gadget.yaml")
