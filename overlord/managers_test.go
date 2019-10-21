@@ -3914,7 +3914,10 @@ version: 2`
 		"snap-name":    "other-pc",
 		"publisher-id": "can0nical",
 	})
-	snapPath, _ := s.makeStoreTestSnap(c, otherPcYaml, "2")
+	snapPath, _ := s.makeStoreTestSnapWithFiles(c, otherPcYaml, "2", [][]string{
+		// use a compatible gadget YAML
+		{"meta/gadget.yaml", gadgetYaml},
+	})
 	s.serveSnap(snapPath, "2")
 
 	// create/set custom model assertion
@@ -3959,6 +3962,101 @@ version: 2`
 	// ensure that we only have the tasks we checked (plus the one
 	// extra "set-model" task)
 	c.Assert(tasks, HasLen, i+1)
+}
+
+func (s *mgrsSuite) TestRemodelSwitchToIncompatibleGadget(c *C) {
+	bloader := bootloadertest.Mock("mock", c.MkDir())
+	bootloader.Force(bloader)
+	defer bootloader.Force(nil)
+	restore := release.MockOnClassic(false)
+	defer restore()
+
+	mockServer := s.mockStore(c)
+	defer mockServer.Close()
+
+	st := s.o.State()
+	st.Lock()
+	defer st.Unlock()
+
+	si := &snap.SideInfo{RealName: "core18", SnapID: fakeSnapID("core18"), Revision: snap.R(1)}
+	snapstate.Set(st, "core18", &snapstate.SnapState{
+		Active:   true,
+		Sequence: []*snap.SideInfo{si},
+		Current:  snap.R(1),
+		SnapType: "base",
+	})
+	si2 := &snap.SideInfo{RealName: "pc", SnapID: fakeSnapID("pc"), Revision: snap.R(1)}
+	gadgetSnapYaml := "name: pc\nversion: 1.0\ntype: gadget"
+	snapstate.Set(st, "pc", &snapstate.SnapState{
+		Active:   true,
+		Sequence: []*snap.SideInfo{si2},
+		Current:  snap.R(1),
+		SnapType: "gadget",
+	})
+	gadgetYaml := `
+volumes:
+    volume-id:
+        bootloader: grub
+        structure:
+          - name: foo
+            type: 00000000-0000-0000-0000-0000deadcafe
+            size: 10M
+`
+	snaptest.MockSnapWithFiles(c, gadgetSnapYaml, si2, [][]string{
+		{"meta/gadget.yaml", gadgetYaml},
+	})
+
+	// add new gadget "other-pc" snap to fake store
+	const otherPcYaml = `name: other-pc
+type: gadget
+version: 2`
+	// new gadget layout is incompatible, a structure that exited before has
+	// a different size now
+	otherGadgetYaml := `
+volumes:
+    volume-id:
+        bootloader: grub
+        structure:
+          - name: foo
+            type: 00000000-0000-0000-0000-0000deadcafe
+            size: 20M
+`
+	s.prereqSnapAssertions(c, map[string]interface{}{
+		"snap-name":    "other-pc",
+		"publisher-id": "can0nical",
+	})
+	snapPath, _ := s.makeStoreTestSnapWithFiles(c, otherPcYaml, "2", [][]string{
+		{"meta/gadget.yaml", otherGadgetYaml},
+	})
+	s.serveSnap(snapPath, "2")
+
+	// create/set custom model assertion
+	model := s.brands.Model("can0nical", "my-model", modelDefaults, map[string]interface{}{
+		"gadget": "pc",
+	})
+
+	// setup model assertion
+	devicestatetest.SetDevice(st, &auth.DeviceState{
+		Brand: "can0nical",
+		Model: "my-model",
+	})
+	err := assertstate.Add(st, model)
+	c.Assert(err, IsNil)
+
+	// create a new model
+	newModel := s.brands.Model("can0nical", "my-model", modelDefaults, map[string]interface{}{
+		"gadget":   "other-pc=18",
+		"revision": "1",
+	})
+
+	chg, err := devicestate.Remodel(st, newModel)
+	c.Assert(err, IsNil)
+
+	st.Unlock()
+	err = s.o.Settle(settleTimeout)
+	st.Lock()
+	c.Assert(err, IsNil)
+	c.Assert(chg.Err(), ErrorMatches, `cannot perform the following tasks:\n.*cannot remodel to an incompatible gadget: .*cannot change structure size.*`)
 }
 
 func (s *mgrsSuite) TestHappyDeviceRegistrationWithPrepareDeviceHook(c *C) {
