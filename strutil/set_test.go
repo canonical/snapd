@@ -48,12 +48,16 @@ func (s *orderedSetSuite) TestZeroValueIndexOf(c *C) {
 }
 
 func (s *orderedSetSuite) TestZeroValuePut(c *C) {
-	s.set.Put("foo")
-	c.Check(s.set.Contains("foo"), Equals, true)
-	c.Check(s.set.Items(), DeepEquals, []string{"foo"})
-	idx, ok := s.set.IndexOf("foo")
-	c.Check(ok, Equals, true)
-	c.Check(idx, Equals, 0)
+	items := []string{"foo", "bar", "froz"}
+	for idx, item := range items {
+		s.set.Put(item)
+		c.Check(s.set.Contains(item), Equals, true)
+		realIdx, ok := s.set.IndexOf(item)
+		c.Check(ok, Equals, true)
+		c.Check(idx, Equals, realIdx)
+		c.Check(s.set.Size(), Equals, idx+1)
+		c.Check(s.set.Items(), DeepEquals, items[:idx+1])
+	}
 }
 
 func (s *orderedSetSuite) TestZeroValueSize(c *C) {
