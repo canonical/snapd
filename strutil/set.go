@@ -47,10 +47,6 @@ func (o *OrderedSet) Items() []string {
 //
 // Contains is O(1) in the size of the set.
 func (o *OrderedSet) Contains(item string) bool {
-	if len(o.positionOf) == 0 {
-		return false
-	}
-
 	_, ok := o.positionOf[item]
 	return ok
 }
