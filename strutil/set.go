@@ -58,20 +58,6 @@ func (o *OrderedSet) IndexOf(item string) (idx int, ok bool) {
 	return idx, ok
 }
 
-// Del removes an item from the set.
-//
-// Del is O(1) in the size of the set.
-func (o *OrderedSet) Del(item string) {
-	if o.positionOf == nil {
-		return
-	}
-
-	delete(o.positionOf, item)
-	if len(o.positionOf) == 0 {
-		o.positionOf = nil
-	}
-}
-
 // Put adds an item into the set.
 //
 // If the item was not present then it is stored and ordered after all existing
