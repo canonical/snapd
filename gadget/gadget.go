@@ -896,6 +896,40 @@ func (s *RelativeOffset) UnmarshalYAML(unmarshal func(interface{}) error) error 
 	return nil
 }
 
+// IsCompatible checks whether the current and an update are compatible. Returns
+// nil or an error describing the incompatibility.
+func IsCompatible(current, new *Info) error {
+	// XXX: the only compatibility we have now is making sure that the new
+	// layout can be used on an existing volume
+	if len(new.Volumes) > 1 {
+		return fmt.Errorf("gadgets with multiple volumes are unsupported")
+	}
+
+	// XXX: the code below errors out with more than 1 volume in the current
+	// gadget, we allow this scenario in update but better bail out here and
+	// have users fix their gadgets
+	currentVol, newVol, err := resolveVolume(current, new)
+	if err != nil {
+		return err
+	}
+
+	// layout both volumes partially, without going deep into the layout of
+	// structure content, we only want to make sure that structures are
+	// comapatible
+	pCurrent, err := LayoutVolumePartially(currentVol, defaultConstraints)
+	if err != nil {
+		return fmt.Errorf("cannot lay out the current volume: %v", err)
+	}
+	pNew, err := LayoutVolumePartially(newVol, defaultConstraints)
+	if err != nil {
+		return fmt.Errorf("cannot lay out the new volume: %v", err)
+	}
+	if err := isLayoutCompatible(pCurrent, pNew); err != nil {
+		return fmt.Errorf("incompatible layout change: %v", err)
+	}
+	return nil
+}
+
 // PositionedVolumeFromGadget takes a gadget rootdir and positions the
 // partitions as specified.
 func PositionedVolumeFromGadget(gadgetRoot string) (*LaidOutVolume, error) {
