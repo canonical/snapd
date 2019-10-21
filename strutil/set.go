@@ -90,7 +90,7 @@ func (o *OrderedSet) Put(item string) {
 	o.positionOf[item] = len(o.positionOf)
 }
 
-// Size returns the size of the set.
+// Size returns the number of elements in the set.
 func (o *OrderedSet) Size() int {
 	return len(o.positionOf)
 }
