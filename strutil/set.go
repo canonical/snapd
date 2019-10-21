@@ -33,7 +33,7 @@ type OrderedSet struct {
 //
 // Items is O(N) in the size of the set.
 func (o *OrderedSet) Items() []string {
-	if o.positionOf == nil {
+	if len(o.positionOf) == 0 {
 		return nil
 	}
 	items := make([]string, len(o.positionOf))
@@ -47,7 +47,7 @@ func (o *OrderedSet) Items() []string {
 //
 // Contains is O(1) in the size of the set.
 func (o *OrderedSet) Contains(item string) bool {
-	if o.positionOf == nil {
+	if len(o.positionOf) == 0 {
 		return false
 	}
 
