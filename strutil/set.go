@@ -60,7 +60,7 @@ func (o *OrderedSet) IndexOf(item string) (idx int, ok bool) {
 
 // Del removes an item from the set.
 //
-// Delete is O(1) in the size of the set.
+// Del is O(1) in the size of the set.
 func (o *OrderedSet) Del(item string) {
 	if o.positionOf == nil {
 		return
