@@ -133,7 +133,8 @@ void sc_cgroup_mount_snapd_hierarchy(void) {
     }
     if (statfs_buf.f_type != CGROUP_SUPER_MAGIC) {
         int mount_flags = MS_NOSUID | MS_NODEV | MS_NOEXEC | MS_RELATIME;
-        // Here "none" indicates that no controllers are enabled.
+        /* Create a cgroup v1 hierarchy with no controllers for tracking
+         * processes by specifying the options "none,name=snapd" */
         const char *mount_opts = "none,name=snapd";
         if (mount("cgroup", snapd_run_cgroup_dir, "cgroup", mount_flags, mount_opts) < 0) {
             die("cannot mount snapd cgroup v1 hierarchy");
