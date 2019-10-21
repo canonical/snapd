@@ -895,3 +895,31 @@ func (s *RelativeOffset) UnmarshalYAML(unmarshal func(interface{}) error) error 
 	*s = *ro
 	return nil
 }
+
+// PositionedVolumeFromGadget takes a gadget rootdir and positions the
+// partitions as specified.
+func PositionedVolumeFromGadget(gadgetRoot string) (*LaidOutVolume, error) {
+	info, err := ReadInfo(gadgetRoot, nil)
+	if err != nil {
+		return nil, err
+	}
+	// Limit ourselves to just one volume for now.
+	if len(info.Volumes) != 1 {
+		return nil, fmt.Errorf("cannot position multiple volumes yet")
+	}
+
+	constraints := LayoutConstraints{
+		NonMBRStartOffset: 1 * SizeMiB,
+		SectorSize:        512,
+	}
+
+	for _, vol := range info.Volumes {
+		pvol, err := LayoutVolume(gadgetRoot, &vol, constraints)
+		if err != nil {
+			return nil, err
+		}
+		// we know  info.Volumes map has size 1 so we can return here
+		return pvol, nil
+	}
+	return nil, fmt.Errorf("internal error in PositionedVolumeFromGadget: this line cannot be reached")
+}
