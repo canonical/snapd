@@ -475,14 +475,12 @@ func (s *imageSuite) setupSnaps(c *C, publishers map[string]string) {
 	if _, ok := publishers["classic-gadget"]; ok {
 		s.MakeAssertedSnap(c, packageClassicGadget, [][]string{
 			{"some-file", "Some file"},
-			{"meta/gadget.yaml", pcGadgetYaml},
 		}, snap.R(5), publishers["classic-gadget"])
 	}
 
 	if _, ok := publishers["classic-gadget18"]; ok {
 		s.MakeAssertedSnap(c, packageClassicGadget18, [][]string{
 			{"some-file", "Some file"},
-			{"meta/gadget.yaml", pcGadgetYaml},
 		}, snap.R(5), publishers["classic-gadget18"])
 	}
 
@@ -1287,7 +1285,8 @@ func (s *imageSuite) TestSetupSeedLocalSnapsWithChannels(c *C) {
 		RootDir:         rootdir,
 		GadgetUnpackDir: gadgetUnpackDir,
 		SnapChannels: map[string]string{
-			"core":                           "candidate",
+			"core": "candidate",
+			// keep this comment for gofmt 1.9
 			s.AssertedSnap("required-snap1"): "edge",
 		},
 	}
