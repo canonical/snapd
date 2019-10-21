@@ -402,7 +402,6 @@ fi
 %{_libexecdir}/snapd/snap-gdb-shim
 %{_libexecdir}/snapd/snap-mgmt
 %{_libexecdir}/snapd/snap-seccomp
-%{_libexecdir}/snapd/snap-recovery
 %{_libexecdir}/snapd/snap-update-ns
 %{_libexecdir}/snapd/snapctl
 %{_libexecdir}/snapd/snapd
