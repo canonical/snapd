@@ -100,16 +100,12 @@ func (sf *SFDisk) Create(pv *gadget.LaidOutVolume) (map[string]string, error) {
 	}
 	buf, deviceMap := buildPartitionList(sf.partitionTable, pv)
 
-	// Write the partition table
+	// Write the partition table, note that sfdisk will re-read the
+	// partition table by itself: see disk-utils/sfdisk.c:write_changes()
 	cmd := exec.Command("sfdisk", sf.device)
 	cmd.Stdin = buf
 	if output, err := cmd.CombinedOutput(); err != nil {
 		return deviceMap, osutil.OutputErr(output, err)
-	}
-
-	// Reload the partition table using blockdev which is part of the initramfs
-	if output, err := exec.Command("blockdev", "--rereadpt", sf.device).CombinedOutput(); err != nil {
-		return deviceMap, osutil.OutputErr(output, fmt.Errorf("cannot update partition table: %s", err))
 	}
 
 	return deviceMap, nil

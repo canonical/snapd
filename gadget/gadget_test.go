@@ -1623,6 +1623,29 @@ func (s *gadgetYamlTestSuite) TestGadgetFromMetaEmpty(c *C) {
 	c.Assert(giCore, IsNil)
 }
 
+func (s *gadgetYamlTestSuite) TestPositionedVolumeFromGadgetMultiVolume(c *C) {
+	err := ioutil.WriteFile(s.gadgetYamlPath, mockMultiVolumeGadgetYaml, 0644)
+	c.Assert(err, IsNil)
+
+	_, err = gadget.PositionedVolumeFromGadget(s.dir)
+	c.Assert(err, ErrorMatches, "cannot position multiple volumes yet")
+}
+
+func (s *gadgetYamlTestSuite) TestPositionedVolumeFromGadgetHappy(c *C) {
+	err := ioutil.WriteFile(s.gadgetYamlPath, gadgetYamlPC, 0644)
+	c.Assert(err, IsNil)
+	for _, fn := range []string{"pc-boot.img", "pc-core.img"} {
+		err = ioutil.WriteFile(filepath.Join(s.dir, fn), nil, 0644)
+		c.Assert(err, IsNil)
+	}
+
+	lv, err := gadget.PositionedVolumeFromGadget(s.dir)
+	c.Assert(err, IsNil)
+	c.Assert(lv.Volume.Bootloader, Equals, "grub")
+	// mbr, bios-boot, efi-system
+	c.Assert(lv.LaidOutStructure, HasLen, 3)
+}
+
 type gadgetCompatibilityTestSuite struct{}
 
 var _ = Suite(&gadgetCompatibilityTestSuite{})
