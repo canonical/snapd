@@ -57,6 +57,12 @@ type sfdiskPartition struct {
 	Name  string `json:"name"`
 }
 
+type deviceStructure struct {
+	gadget.LaidOutStructure
+
+	Node string
+}
+
 type SFDisk struct {
 	device         string
 	partitionTable *sfdiskPartitionTable
@@ -93,7 +99,7 @@ func (sf *SFDisk) Layout() (*gadget.LaidOutVolume, error) {
 }
 
 // Create creates the partitions listed in positionedVolume
-func (sf *SFDisk) Create(pv *gadget.LaidOutVolume) (map[string]gadget.LaidOutStructure, error) {
+func (sf *SFDisk) Create(pv *gadget.LaidOutVolume) ([]deviceStructure, error) {
 	// Layout() will update sf.partitionTable
 	if _, err := sf.Layout(); err != nil {
 		return nil, err
@@ -177,9 +183,8 @@ func deviceName(name string, index int) string {
 // device contents and gadget structure list, in sfdisk dump
 // format. Return a partitioning description suitable for sfdisk input
 // and a list of the partitions to be created
-func buildPartitionList(ptable *sfdiskPartitionTable, pv *gadget.LaidOutVolume) (sfdiskInput *bytes.Buffer, toBeCreated map[string]gadget.LaidOutStructure) {
+func buildPartitionList(ptable *sfdiskPartitionTable, pv *gadget.LaidOutVolume) (sfdiskInput *bytes.Buffer, toBeCreated []deviceStructure) {
 	buf := &bytes.Buffer{}
-	toBeCreated = make(map[string]gadget.LaidOutStructure, len(pv.LaidOutStructure))
 
 	// Write partition data in sfdisk dump format
 	fmt.Fprintf(buf, "label: %s\nlabel-id: %s\ndevice: %s\nunit: %s\nfirst-lba: %d\nlast-lba: %d\n\n",
@@ -217,7 +222,7 @@ func buildPartitionList(ptable *sfdiskPartitionTable, pv *gadget.LaidOutVolume) 
 			s.Size/sectorSize, partitionType(ptable.Label, p.Type), s.Name)
 
 		// Are roles unique so we can use it to map nodes? Should we use labels instead?
-		toBeCreated[node] = p
+		toBeCreated = append(toBeCreated, deviceStructure{p, node})
 	}
 
 	return buf, toBeCreated

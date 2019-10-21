@@ -255,32 +255,39 @@ last-lba: 8388574
 /dev/node2 : start=        4096, size=     2457600, type=C12A7328-F81F-11D2-BA4B-00A0C93EC93B, name="Recovery"
 /dev/node3 : start=     2461696, size=     2457600, type=0FC63DAF-8483-4772-8E79-3D69D8477DE4, name="Writable"
 `)
-	c.Assert(created, DeepEquals, map[string]gadget.LaidOutStructure{
-		"/dev/node2": {VolumeStructure: &gadget.VolumeStructure{
-			Name:       "Recovery",
-			Size:       1258291200,
-			Type:       "EF,C12A7328-F81F-11D2-BA4B-00A0C93EC93B",
-			Role:       "system-seed",
-			Filesystem: "vfat",
-			Content: []gadget.VolumeContent{
-				{
-					Source: "grubx64.efi",
-					Target: "EFI/boot/grubx64.efi",
+	c.Assert(created, DeepEquals, []partition.DeviceStructure{
+		{
+			Node: "/dev/node2",
+			LaidOutStructure: gadget.LaidOutStructure{
+				VolumeStructure: &gadget.VolumeStructure{
+					Name:       "Recovery",
+					Size:       1258291200,
+					Type:       "EF,C12A7328-F81F-11D2-BA4B-00A0C93EC93B",
+					Role:       "system-seed",
+					Filesystem: "vfat",
+					Content: []gadget.VolumeContent{
+						{
+							Source: "grubx64.efi",
+							Target: "EFI/boot/grubx64.efi",
+						},
+					},
 				},
+				StartOffset: 2097152,
+				Index:       2,
 			},
-		},
-			StartOffset: 2097152,
-			Index:       2,
-		},
-		"/dev/node3": {VolumeStructure: &gadget.VolumeStructure{
-			Name:       "Writable",
-			Size:       1258291200,
-			Type:       "83,0FC63DAF-8483-4772-8E79-3D69D8477DE4",
-			Role:       "system-data",
-			Filesystem: "ext4",
-		},
-			StartOffset: 1260388352,
-			Index:       3,
+		}, {
+			Node: "/dev/node3",
+			LaidOutStructure: gadget.LaidOutStructure{
+				VolumeStructure: &gadget.VolumeStructure{
+					Name:       "Writable",
+					Size:       1258291200,
+					Type:       "83,0FC63DAF-8483-4772-8E79-3D69D8477DE4",
+					Role:       "system-data",
+					Filesystem: "ext4",
+				},
+				StartOffset: 1260388352,
+				Index:       3,
+			},
 		},
 	})
 }
@@ -301,32 +308,39 @@ func (s *partitionTestSuite) TestCreatePartitions(c *C) {
 	sf := partition.NewSFDisk("/dev/node")
 	created, err := sf.Create(pv)
 	c.Assert(err, IsNil)
-	c.Assert(created, DeepEquals, map[string]gadget.LaidOutStructure{
-		"/dev/node2": {VolumeStructure: &gadget.VolumeStructure{
-			Name:       "Recovery",
-			Size:       1258291200,
-			Type:       "EF,C12A7328-F81F-11D2-BA4B-00A0C93EC93B",
-			Role:       "system-seed",
-			Filesystem: "vfat",
-			Content: []gadget.VolumeContent{
-				{
-					Source: "grubx64.efi",
-					Target: "EFI/boot/grubx64.efi",
+	c.Assert(created, DeepEquals, []partition.DeviceStructure{
+		{
+			Node: "/dev/node2",
+			LaidOutStructure: gadget.LaidOutStructure{
+				VolumeStructure: &gadget.VolumeStructure{
+					Name:       "Recovery",
+					Size:       1258291200,
+					Type:       "EF,C12A7328-F81F-11D2-BA4B-00A0C93EC93B",
+					Role:       "system-seed",
+					Filesystem: "vfat",
+					Content: []gadget.VolumeContent{
+						{
+							Source: "grubx64.efi",
+							Target: "EFI/boot/grubx64.efi",
+						},
+					},
 				},
+				StartOffset: 2097152,
+				Index:       2,
 			},
-		},
-			StartOffset: 2097152,
-			Index:       2,
-		},
-		"/dev/node3": {VolumeStructure: &gadget.VolumeStructure{
-			Name:       "Writable",
-			Size:       1258291200,
-			Type:       "83,0FC63DAF-8483-4772-8E79-3D69D8477DE4",
-			Role:       "system-data",
-			Filesystem: "ext4",
-		},
-			StartOffset: 1260388352,
-			Index:       3,
+		}, {
+			Node: "/dev/node3",
+			LaidOutStructure: gadget.LaidOutStructure{
+				VolumeStructure: &gadget.VolumeStructure{
+					Name:       "Writable",
+					Size:       1258291200,
+					Type:       "83,0FC63DAF-8483-4772-8E79-3D69D8477DE4",
+					Role:       "system-data",
+					Filesystem: "ext4",
+				},
+				StartOffset: 1260388352,
+				Index:       3,
+			},
 		},
 	})
 

@@ -24,10 +24,10 @@ import (
 	"github.com/snapcore/snapd/gadget"
 )
 
-func MakeFilesystems(created map[string]gadget.LaidOutStructure) error {
-	for node, part := range created {
+func MakeFilesystems(created []deviceStructure) error {
+	for _, part := range created {
 		if part.VolumeStructure.Filesystem != "" {
-			if err := mkfs(node, part.VolumeStructure.Label, part.VolumeStructure.Filesystem); err != nil {
+			if err := mkfs(part.Node, part.VolumeStructure.Label, part.VolumeStructure.Filesystem); err != nil {
 				return err
 			}
 		}
