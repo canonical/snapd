@@ -55,7 +55,12 @@ shown must also have the specified headers matching the provided values.
 func init() {
 	addCommand("known", shortKnownHelp, longKnownHelp, func() flags.Commander {
 		return &cmdKnown{}
-	}, nil, []argDesc{
+	}, map[string]string{
+		// TRANSLATORS: This should not start with a lowercase letter.
+		"remote": i18n.G("Query the store for the assertion via snap"),
+		// TRANSLATORS: This should not start with a lowercase letter.
+		"direct": i18n.G("Query the store directly for the assertion"),
+	}, []argDesc{
 		{
 			// TRANSLATORS: This needs to begin with < and end with >
 			name: i18n.G("<assertion type>"),
