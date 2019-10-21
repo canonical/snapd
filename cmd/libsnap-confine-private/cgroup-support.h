@@ -43,6 +43,21 @@ bool sc_cgroup_is_v2(void);
  * The logic mounts an v1 cgroup hierarchy with name=snapd and without any
  * controllers. Currently no release agent is set and no release notification
  * is enabled.
+ *
+ * NOTE: This function mounts v1 cgroup even on systems that otherwise boot in
+ * v2 mode, where systemd is no longer using cgroup v1 at all. The motivation
+ * for this idea is that snapd needs to track processes belonging to specific
+ * snap execution entry point (apps and hooks).
+ *
+ * In v1 mode system uses several cgroups, each with a set of controllers but
+ * leaves out some others (e.g. freezer is never used). In v2 all controllers
+ * live in a unified tree of which there can be only one instance. In
+ * particular, for managing services, systemd is already using this tree and we
+ * cannot interact with it in a meaningful way.
+ *
+ * By mounting a controller-less v1 tree, for as long as the kernel supports
+ * this feature, we can still track processes without affecting or interfering
+ * with systemd.
  **/
 void sc_cgroup_mount_snapd_hierarchy(void);
 
