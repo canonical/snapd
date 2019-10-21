@@ -118,7 +118,8 @@ func (x *cmdKnown) Execute(args []string) error {
 		// --remote will query snapd
 		assertions, err = x.client.Known(string(x.KnownOptions.AssertTypeName), headers, &client.KnownOptions{Remote: true})
 		// if snapd is unavailable automatically fallback
-		if xerrors.Is(err, client.ConnectionError{}) {
+		var connErr client.ConnectionError
+		if xerrors.As(err, &connErr) {
 			assertions, err = downloadAssertion(string(x.KnownOptions.AssertTypeName), headers)
 		}
 	case x.Direct:

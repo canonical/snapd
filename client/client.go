@@ -195,16 +195,8 @@ func (e ConnectionError) Error() string {
 	return fmt.Sprintf("cannot communicate with server: %s", errStr)
 }
 
-func (e ConnectionError) Is(err error) bool {
-	return IsConnectionError(err)
-}
-
-func IsConnectionError(err error) bool {
-	if _, ok := err.(ConnectionError); ok {
-		return true
-	}
-	_, ok := err.(*ConnectionError)
-	return ok
+func (e ConnectionError) Unwrap() error {
+	return e.Err
 }
 
 // AllowInteractionHeader is the HTTP request header used to indicate

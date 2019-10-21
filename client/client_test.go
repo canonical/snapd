@@ -97,12 +97,6 @@ func (cs *clientSuite) Do(req *http.Request) (*http.Response, error) {
 	return rsp, cs.err
 }
 
-func (cs *clientSuite) TestIsConnectionError(c *C) {
-	c.Check(client.IsConnectionError(fmt.Errorf("other-err")), Equals, false)
-	c.Check(client.IsConnectionError(client.ConnectionError{}), Equals, true)
-	c.Check(client.IsConnectionError(&client.ConnectionError{}), Equals, true)
-}
-
 func (cs *clientSuite) TestNewPanics(c *C) {
 	c.Assert(func() {
 		client.New(&client.Config{BaseURL: ":"})
