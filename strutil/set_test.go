@@ -44,7 +44,8 @@ func (s *orderedSetSuite) TestZeroValueContains(c *C) {
 }
 
 func (s *orderedSetSuite) TestZeroValueIndexOf(c *C) {
-	c.Check(s.set.Contains("foo"), Equals, false)
+	_, ok := s.set.IndexOf("foo")
+	c.Check(ok, Equals, false)
 }
 
 func (s *orderedSetSuite) TestZeroValuePut(c *C) {
