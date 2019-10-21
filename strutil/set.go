@@ -28,7 +28,7 @@ type OrderedSet struct {
 
 // Items returns a slice of strings representing insertion order.
 //
-// Contains is O(N) in the size of the set.
+// Items is O(N) in the size of the set.
 func (o *OrderedSet) Items() []string {
 	if o.positionOf == nil {
 		return nil
