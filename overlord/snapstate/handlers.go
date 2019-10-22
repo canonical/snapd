@@ -785,10 +785,10 @@ func (m *SnapManager) undoMountSnap(t *state.Task, _ *tomb.Tomb) error {
 }
 
 // queryDisabledServices returns a list of all currently disabled snap services
-// in the snap
+// in the snap.
 // note this function takes a snap info rather than snapst because there are
 // situations where we want to call this on non-current snap infos, i.e. in the
-// undo handlers, see undoLinkSnap for an example
+// undo handlers, see undoLinkSnap for an example.
 func (m *SnapManager) queryDisabledServices(info *snap.Info, pb progress.Meter) ([]string, error) {
 	// save the list of services that are in the disabled state before unlinking
 	// and thus removing the snap services
@@ -825,10 +825,10 @@ func (m *SnapManager) doUnlinkCurrentSnap(t *state.Task, _ *tomb.Tomb) error {
 
 	// add to the disabled services list in snapst services which were disabled
 	// when stop-snap-services ran, for usage across changes like in reverting
-	// and enabling after being disabled
+	// and enabling after being disabled.
 	// we keep what's already in the list in snapst because that list is
 	// services which were previously present in the snap and disabled, but are
-	// no longer present
+	// no longer present.
 	snapst.LastActiveDisabledServices = append(
 		snapst.LastActiveDisabledServices,
 		snapsup.LastActiveDisabledServices...,
@@ -892,7 +892,7 @@ func (m *SnapManager) undoUnlinkCurrentSnap(t *state.Task, _ *tomb.Tomb) error {
 	// get the services which LinkSnap should disable when generating wrappers,
 	// as well as the services which are not present in this revision, but were
 	// present and disabled in a previous one and as such should be kept inside
-	// snapst for persistent storage
+	// snapst for persistent storage.
 	svcsToSave, svcsToDisable, err := ComputeMissingDisabledServices(snapst, oldInfo)
 	if err != nil {
 		return err
@@ -1059,9 +1059,9 @@ func writeSeqFile(name string, snapst *SnapState) error {
 // ComputeMissingDisabledServices returns a list of services that were disabled
 // that are currently missing from the specific snap info (i.e. they were
 // renamed in this snap info), as well as a list of disabled services that are
-// present in this snap info
+// present in this snap info.
 // note that the union of the missing and found svc lists should be exactly
-// equal to st.LastActiveDisabledServices
+// equal to st.LastActiveDisabledServices.
 func ComputeMissingDisabledServices(st *SnapState, info *snap.Info) ([]string, []string, error) {
 	// make a copy of all the previously disabled services that we will remove
 	// from, as well as an empty list to add to for the found services
@@ -1659,16 +1659,16 @@ func (m *SnapManager) stopSnapServices(t *state.Task, _ *tomb.Tomb) error {
 		return err
 	}
 
-	// get the disabled services after we stopped all the services
+	// get the disabled services after we stopped all the services.
 	// NOTE: we could probably do this before we stopped all the services (or
 	// later in a different task from this entirely), but the important ordering
 	// for saving the disabled services is that we save the list before we
 	// unlink the snap (and hence destroy systemd's state of what services are
-	// disabled)
+	// disabled).
 	// this list is not meant to save what services are disabled at any given
 	// time, specifically just what services are disabled while systemd loses
 	// track of the services because we need to delete and re-generate the
-	// service units
+	// service units.
 	disabledServices, err := m.queryDisabledServices(currentInfo, pb)
 	if err != nil {
 		return err
@@ -1712,10 +1712,10 @@ func (m *SnapManager) doUnlinkSnap(t *state.Task, _ *tomb.Tomb) error {
 
 	// add to the disabled services list in snapst services which were disabled
 	// when stop-snap-services ran, for usage across changes like in reverting
-	// and enabling after being disabled
+	// and enabling after being disabled.
 	// we keep what's already in the list in snapst because that list is
 	// services which were previously present in the snap and disabled, but are
-	// no longer present
+	// no longer present.
 	snapst.LastActiveDisabledServices = append(
 		snapst.LastActiveDisabledServices,
 		snapsup.LastActiveDisabledServices...,
