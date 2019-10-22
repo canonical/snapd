@@ -41,7 +41,7 @@ type Channel struct {
 
 func isSlash(r rune) bool { return r == '/' }
 
-// TODO: currently there's some overlap between the toplvel Full, and
+// TODO: currently there's some overlap between the toplevel Full, and
 //       methods Clean, String, and Full. Needs further refactoring.
 
 func Full(s string) (string, error) {
