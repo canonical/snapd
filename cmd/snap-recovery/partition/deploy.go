@@ -59,16 +59,28 @@ func deployFilesystemContent(part DeviceStructure, gadgetRoot string) error {
 	return nil
 }
 
-func deployBareContent(part DeviceStructure, gadgetRoot string) error {
-	// XXX: implement using gadget.NewRawStructure{Writer,Updater}
-	return fmt.Errorf("cannot deploy raw conent yet")
+func deployNonFSContent(part DeviceStructure, gadgetRoot string) error {
+	f, err := os.OpenFile(part.Node, os.O_RDWR, 0644)
+	if err != nil {
+		return fmt.Errorf("cannot deploy bare content for %q: %v", part.Node, err)
+	}
+	defer f.Close()
+
+	l := gadget.ShiftStructureTo(part.LaidOutStructure, 0)
+	raw, err := gadget.NewRawStructureWriter(gadgetRoot, &l)
+	if err != nil {
+		return err
+	}
+	return raw.Write(f)
 }
 
 func DeployContent(created []DeviceStructure, gadgetRoot string) error {
 	for _, part := range created {
 		switch {
-		case part.IsBare():
-			if err := deployBareContent(part, gadgetRoot); err != nil {
+		case part.Type == "bare":
+			return fmt.Errorf("cannot deploy type 'bare' yet")
+		case part.Filesystem == "":
+			if err := deployNonFSContent(part, gadgetRoot); err != nil {
 				return err
 			}
 		case part.Filesystem != "":

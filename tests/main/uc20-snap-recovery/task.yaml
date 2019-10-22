@@ -34,12 +34,22 @@ execute: |
     sfdisk -l "$LOOP" | MATCH '1M\s+BIOS boot'
     sfdisk -l "$LOOP" | MATCH '50M\s+EFI System'
 
-    echo "Check that the content was deployed
+    echo "Check that the non-fs content was deployed"
+    dd if="${LOOP}p1" of=bios-boot.img
+    # the bios-boot.img is 1Mb
+    test "$(stat --printf="%s" ./bios-boot.img)" = 1048576
+    # we truncate it to the size of pc-core.img
+    truncate --size="$(stat --printf="%s" ./gadget-dir/pc-core.img)" bios-boot.img
+    # and verify that its the same
+    cmp bios-boot.img ./gadget-dir/pc-core.img
+
+    echo "Check that the filesystem content was deployed"
     mkdir -p ./mnt
     mount "${LOOP}p2" ./mnt
     ls ./mnt/EFI/boot/grubx64.efi
     ls ./mnt/EFI/boot/bootx64.efi
     ls ./mnt/EFI/ubuntu/grub.cfg
+    umount ./mnt
 
     echo "now add a partition"
     cat >> gadget-dir/meta/gadget.yaml <<EOF

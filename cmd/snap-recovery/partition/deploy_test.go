@@ -20,11 +20,13 @@ package partition_test
 
 import (
 	"fmt"
+	"io/ioutil"
 	"path/filepath"
 
 	. "gopkg.in/check.v1"
 
 	"github.com/snapcore/snapd/cmd/snap-recovery/partition"
+	"github.com/snapcore/snapd/gadget"
 	"github.com/snapcore/snapd/testutil"
 )
 
@@ -84,4 +86,31 @@ func (s *deploySuite) TestDeployMountedContent(c *C) {
 
 	c.Check(filepath.Join(node2MountPoint, "EFI/boot/grubx64.efi"), testutil.FilePresent)
 	c.Assert(err, IsNil)
+}
+
+func (s *deploySuite) TestDeployRawContent(c *C) {
+	mockNode := filepath.Join(c.MkDir(), "mock-node")
+	err := ioutil.WriteFile(mockNode, nil, 0644)
+	c.Assert(err, IsNil)
+
+	// copy existing mock
+	m := mockDeviceStructureBiosBoot
+	m.Node = mockNode
+	m.LaidOutContent = []gadget.LaidOutContent{
+		{
+			VolumeContent: &gadget.VolumeContent{
+				Image: "pc-core.img",
+			},
+			StartOffset: 2,
+			Size:        gadget.Size(len("pc-core.img content")),
+		},
+	}
+
+	err = partition.DeployContent([]partition.DeviceStructure{m}, s.gadgetRoot)
+	c.Assert(err, IsNil)
+
+	content, err := ioutil.ReadFile(m.Node)
+	c.Assert(err, IsNil)
+	// note the 2 zero byte start offset
+	c.Check(string(content), Equals, "\x00\x00pc-core.img content")
 }

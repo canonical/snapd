@@ -36,6 +36,24 @@ type partitionTestSuite struct{}
 
 var _ = Suite(&partitionTestSuite{})
 
+var mockDeviceStructureBiosBoot = partition.DeviceStructure{
+	Node: "/dev/node1",
+	LaidOutStructure: gadget.LaidOutStructure{
+		VolumeStructure: &gadget.VolumeStructure{
+			Name: "BIOS Boot",
+			Size: 1 * 1024 * 1024,
+			Type: "DA,21686148-6449-6E6F-744E-656564454649",
+			Content: []gadget.VolumeContent{
+				{
+					Image: "pc-core.img",
+				},
+			},
+		},
+		StartOffset: 0,
+		Index:       1,
+	},
+}
+
 var mockDeviceStructureSystemSeed = partition.DeviceStructure{
 	Node: "/dev/node2",
 	LaidOutStructure: gadget.LaidOutStructure{
@@ -79,10 +97,13 @@ func makeMockGadget(gadgetRoot, gadgetContent string) error {
 	if err := ioutil.WriteFile(filepath.Join(gadgetRoot, "meta", "gadget.yaml"), []byte(gadgetContent), 0644); err != nil {
 		return err
 	}
-	if err := ioutil.WriteFile(filepath.Join(gadgetRoot, "pc-boot.img"), nil, 0644); err != nil {
+	if err := ioutil.WriteFile(filepath.Join(gadgetRoot, "pc-boot.img"), []byte("pc-boot.img content"), 0644); err != nil {
 		return err
 	}
-	if err := ioutil.WriteFile(filepath.Join(gadgetRoot, "grubx64.efi"), nil, 0644); err != nil {
+	if err := ioutil.WriteFile(filepath.Join(gadgetRoot, "pc-core.img"), []byte("pc-core.img content"), 0644); err != nil {
+		return err
+	}
+	if err := ioutil.WriteFile(filepath.Join(gadgetRoot, "grubx64.efi"), []byte("grubx64.efi content"), 0644); err != nil {
 		return err
 	}
 
