@@ -227,7 +227,7 @@ func (s *storeChannelSuite) TestString(c *C) {
 	}
 }
 
-func (s *storeChannelSuite) TestFull(c *C) {
+func (s *storeChannelSuite) TestChannelFull(c *C) {
 	tests := []struct {
 		channel string
 		str     string
@@ -248,7 +248,7 @@ func (s *storeChannelSuite) TestFull(c *C) {
 	}
 }
 
-func (s *storeChannelSuite) TestCanonize(c *C) {
+func (s *storeChannelSuite) TestFuncFull(c *C) {
 	tests := []struct {
 		channel string
 		str     string
@@ -268,14 +268,14 @@ func (s *storeChannelSuite) TestCanonize(c *C) {
 	}
 
 	for _, t := range tests {
-		can, err := channel.Canonize(t.channel)
+		can, err := channel.Full(t.channel)
 		c.Assert(err, IsNil)
 		c.Check(can, Equals, t.str)
 	}
 }
 
-func (s *storeChannelSuite) TestCanonizeErr(c *C) {
-	_, err := channel.Canonize("foo/bar/baz/quux")
+func (s *storeChannelSuite) TestFuncFullErr(c *C) {
+	_, err := channel.Full("foo/bar/baz/quux")
 	c.Check(err, ErrorMatches, "invalid channel")
 }
 

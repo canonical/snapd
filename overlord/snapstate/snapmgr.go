@@ -170,7 +170,7 @@ type SnapState struct {
 }
 
 func (snapst *SnapState) SetTrackingChannel(s string) error {
-	s, err := channel.Canonize(s)
+	s, err := channel.Full(s)
 	if err != nil {
 		return err
 	}
