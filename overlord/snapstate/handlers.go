@@ -1009,7 +1009,7 @@ func writeSeqFile(name string, snapst *SnapState) error {
 // missingDisabledServices returns a list of services that were disabled
 // that are currently missing from the specific snap info (i.e. they were
 // renamed in this snap info), as well as a list of disabled services that are
-// present in this snap info
+// present in this snap info.
 // the first arg is the disabled services when the snap was last active
 func missingDisabledServices(svcs []string, info *snap.Info) ([]string, []string, error) {
 	// make a copy of all the previously disabled services that we will remove

@@ -194,7 +194,7 @@ func (s *handlersSuite) TestComputeMissingDisabledServices(c *C) {
 			},
 			"some missing, some found disabled services",
 		},
-		// some disabled services, but is app not service
+		// some disabled services, but app is not service
 		{
 			[]string{"svc1"},
 			[]string{"svc1"},
