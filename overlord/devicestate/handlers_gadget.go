@@ -53,7 +53,11 @@ func makeRollbackDir(name string) (string, error) {
 	return rollbackDir, nil
 }
 
-func currentGadgetInfo(snapst *snapstate.SnapState) (*gadget.GadgetData, error) {
+func currentGadgetInfo(st *state.State, currentName string) (*gadget.GadgetData, error) {
+	snapst, err := snapState(st, currentName)
+	if err != nil {
+		return nil, err
+	}
 	currentInfo, err := snapst.CurrentInfo()
 	if err != nil && err != snapstate.ErrNoCurrent {
 		return nil, err
@@ -63,53 +67,24 @@ func currentGadgetInfo(snapst *snapstate.SnapState) (*gadget.GadgetData, error) 
 		return nil, nil
 	}
 
-	constraints := &gadget.ModelConstraints{
-		Classic: false,
-	}
-	gi, err := gadget.ReadInfo(currentInfo.MountDir(), constraints)
+	ci, err := gadgetDataFromInfo(currentInfo, coreGadgetConstraints)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("cannot read current gadget snap details: %v", err)
 	}
-	return &gadget.GadgetData{Info: gi, RootDir: currentInfo.MountDir()}, nil
+	return ci, nil
 }
 
 func pendingGadgetInfo(snapsup *snapstate.SnapSetup) (*gadget.GadgetData, error) {
 	info, err := snap.ReadInfo(snapsup.InstanceName(), snapsup.SideInfo)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("cannot read candidate gadget snap details: %v", err)
 	}
 
-	constraints := &gadget.ModelConstraints{
-		Classic: false,
-	}
-	update, err := gadget.ReadInfo(info.MountDir(), constraints)
+	gi, err := gadgetDataFromInfo(info, coreGadgetConstraints)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("cannot read candidate snap gadget metadata: %v", err)
 	}
-	return &gadget.GadgetData{Info: update, RootDir: info.MountDir()}, nil
-}
-
-func gadgetCurrentAndUpdate(st *state.State, snapsup *snapstate.SnapSetup) (current *gadget.GadgetData, update *gadget.GadgetData, err error) {
-	snapst, err := snapState(st, snapsup.InstanceName())
-	if err != nil {
-		return nil, nil, err
-	}
-
-	currentData, err := currentGadgetInfo(snapst)
-	if err != nil {
-		return nil, nil, fmt.Errorf("cannot read current gadget snap details: %v", err)
-	}
-	if currentData == nil {
-		// don't bother reading update if there is no current
-		return nil, nil, nil
-	}
-
-	newData, err := pendingGadgetInfo(snapsup)
-	if err != nil {
-		return nil, nil, fmt.Errorf("cannot read candidate gadget snap details: %v", err)
-	}
-
-	return currentData, newData, nil
+	return gi, nil
 }
 
 var (
@@ -130,7 +105,28 @@ func (m *DeviceManager) doUpdateGadgetAssets(t *state.Task, _ *tomb.Tomb) error 
 		return err
 	}
 
-	currentData, updateData, err := gadgetCurrentAndUpdate(t.State(), snapsup)
+	remodelCtx, err := remodelCtxFromTask(t)
+	if err != nil && err != state.ErrNoState {
+		return err
+	}
+	isRemodel := remodelCtx != nil && remodelCtx.ForRemodeling()
+
+	updateData, err := pendingGadgetInfo(snapsup)
+	if err != nil {
+		return err
+	}
+
+	currentGadgetName := snapsup.InstanceName()
+	if isRemodel {
+		// snap isn't installed yet, we are likely remodeling to a new
+		// gadget, identify the old gadget
+		groundDeviceCtx, err := DeviceCtx(st, nil, nil)
+		if err != nil || err == state.ErrNoState {
+			return fmt.Errorf("cannot identify the current model")
+		}
+		currentGadgetName = groundDeviceCtx.Model().Gadget()
+	}
+	currentData, err := currentGadgetInfo(t.State(), currentGadgetName)
 	if err != nil {
 		return err
 	}
@@ -144,8 +140,16 @@ func (m *DeviceManager) doUpdateGadgetAssets(t *state.Task, _ *tomb.Tomb) error 
 		return fmt.Errorf("cannot prepare update rollback directory: %v", err)
 	}
 
+	var updatePolicy gadget.UpdatePolicyFunc = nil
+
+	if isRemodel {
+		// use the remodel policy which triggers an update of all
+		// structures
+		updatePolicy = gadget.RemodelUpdatePolicy
+	}
+
 	st.Unlock()
-	err = gadgetUpdate(*currentData, *updateData, snapRollbackDir, nil)
+	err = gadgetUpdate(*currentData, *updateData, snapRollbackDir, updatePolicy)
 	st.Lock()
 	if err != nil {
 		if err == gadget.ErrNoUpdate {

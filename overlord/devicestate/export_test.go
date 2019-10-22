@@ -160,8 +160,9 @@ var (
 	CleanupRemodelCtx = cleanupRemodelCtx
 	CachedRemodelCtx  = cachedRemodelCtx
 
-	GadgetUpdateBlocked    = gadgetUpdateBlocked
-	GadgetCurrentAndUpdate = gadgetCurrentAndUpdate
+	GadgetUpdateBlocked = gadgetUpdateBlocked
+	CurrentGadgetInfo   = currentGadgetInfo
+	PendingGadgetInfo   = pendingGadgetInfo
 )
 
 func MockGadgetUpdate(mock func(current, update gadget.GadgetData, path string, policy gadget.UpdatePolicyFunc) error) (restore func()) {

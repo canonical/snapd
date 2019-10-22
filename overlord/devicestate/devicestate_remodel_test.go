@@ -25,8 +25,10 @@ import (
 	"fmt"
 	"io/ioutil"
 	"path/filepath"
+	"reflect"
 
 	. "gopkg.in/check.v1"
+	"gopkg.in/tomb.v2"
 
 	"github.com/snapcore/snapd/asserts"
 	"github.com/snapcore/snapd/asserts/assertstest"
@@ -1107,4 +1109,137 @@ volumes:
 
 	err = devicestate.CheckGadgetRemodelCompatible(s.state, infoBad, currInfo, snapfBad, snapstate.Flags{}, remodelCtx)
 	c.Check(err, ErrorMatches, `cannot remodel to an incompatible gadget: incompatible layout change: incompatible structure #0 \("foo"\) change: cannot change structure size from 10485760 to 20971520`)
+}
+
+func (s *deviceMgrRemodelSuite) TestRemodelGadgetAssetsUpdate(c *C) {
+	s.state.Lock()
+	s.state.Set("seeded", true)
+	s.state.Set("refresh-privacy-key", "some-privacy-key")
+
+	nopHandler := func(task *state.Task, _ *tomb.Tomb) error {
+		return nil
+	}
+	s.o.TaskRunner().AddHandler("fake-download", nopHandler, nil)
+	s.o.TaskRunner().AddHandler("validate-snap", nopHandler, nil)
+	s.o.TaskRunner().AddHandler("set-model", nopHandler, nil)
+
+	// set a model assertion we remodel from
+	s.makeModelAssertionInState(c, "canonical", "pc-model", map[string]interface{}{
+		"architecture": "amd64",
+		"kernel":       "pc-kernel",
+		"gadget":       "pc",
+		"base":         "core18",
+	})
+	devicestatetest.SetDevice(s.state, &auth.DeviceState{
+		Brand: "canonical",
+		Model: "pc-model",
+	})
+
+	// the target model
+	new := s.brands.Model("canonical", "pc-model", map[string]interface{}{
+		"architecture": "amd64",
+		"kernel":       "pc-kernel",
+		"base":         "core18",
+		"revision":     "1",
+		// remodel to new gadget
+		"gadget": "new-gadget",
+	})
+
+	// current gadget
+	siModelGadget := &snap.SideInfo{
+		RealName: "pc",
+		Revision: snap.R(33),
+		SnapID:   "foo-id",
+	}
+	currentGadgetInfo := snaptest.MockSnapWithFiles(c, snapYaml, siModelGadget, [][]string{
+		{"meta/gadget.yaml", gadgetYaml},
+	})
+	snapstate.Set(s.state, "pc", &snapstate.SnapState{
+		SnapType: "gadget",
+		Sequence: []*snap.SideInfo{siModelGadget},
+		Current:  siModelGadget.Revision,
+		Active:   true,
+	})
+
+	// new gadget snap
+	siNewModelGadget := &snap.SideInfo{
+		RealName: "new-gadget",
+		Revision: snap.R(34),
+	}
+	newGadgetInfo := snaptest.MockSnapWithFiles(c, snapYaml, siNewModelGadget, [][]string{
+		{"meta/gadget.yaml", gadgetYaml},
+	})
+
+	restore := devicestate.MockSnapstateInstallWithDeviceContext(func(ctx context.Context, st *state.State, name string, opts *snapstate.RevisionOptions, userID int, flags snapstate.Flags, deviceCtx snapstate.DeviceContext, fromChange string) (*state.TaskSet, error) {
+		tDownload := s.state.NewTask("fake-download", fmt.Sprintf("Download %s", name))
+		tValidate := s.state.NewTask("validate-snap", fmt.Sprintf("Validate %s", name))
+		tValidate.WaitFor(tDownload)
+		tGadgetUpdate := s.state.NewTask("update-gadget-assets", fmt.Sprintf("Update gadget %s", name))
+		tGadgetUpdate.Set("snap-setup", &snapstate.SnapSetup{
+			SideInfo: siNewModelGadget,
+			Type:     snap.TypeGadget,
+		})
+		tGadgetUpdate.WaitFor(tValidate)
+		ts := state.NewTaskSet(tDownload, tValidate, tGadgetUpdate)
+		ts.MarkEdge(tValidate, snapstate.DownloadAndChecksDoneEdge)
+		return ts, nil
+	})
+	defer restore()
+	restore = release.MockOnClassic(false)
+	defer restore()
+
+	gadgetUpdateCalled := false
+	restore = devicestate.MockGadgetUpdate(func(current, update gadget.GadgetData, path string, policy gadget.UpdatePolicyFunc) error {
+		gadgetUpdateCalled = true
+		c.Check(policy, NotNil)
+		c.Check(reflect.ValueOf(policy).Pointer(), Equals, reflect.ValueOf(gadget.RemodelUpdatePolicy).Pointer())
+		c.Check(current, DeepEquals, gadget.GadgetData{
+			Info: &gadget.Info{
+				Volumes: map[string]gadget.Volume{
+					"pc": {
+						Bootloader: "grub",
+					},
+				},
+			},
+			RootDir: currentGadgetInfo.MountDir(),
+		})
+		c.Check(update, DeepEquals, gadget.GadgetData{
+			Info: &gadget.Info{
+				Volumes: map[string]gadget.Volume{
+					"pc": {
+						Bootloader: "grub",
+					},
+				},
+			},
+			RootDir: newGadgetInfo.MountDir(),
+		})
+		return nil
+	})
+	defer restore()
+
+	chg, err := devicestate.Remodel(s.state, new)
+	c.Check(err, IsNil)
+
+	s.state.Unlock()
+
+	// we only want to see the update-gadget-assets task run, not the whole
+	// restart cycle
+	for i := 0; i < 50; i++ {
+		s.se.Ensure()
+		s.se.Wait()
+
+		s.state.Lock()
+		ready := chg.IsReady()
+		s.state.Unlock()
+		if ready {
+			break
+		}
+	}
+
+	s.state.Lock()
+	defer s.state.Unlock()
+	c.Check(chg.IsReady(), Equals, true)
+	c.Check(chg.Err(), IsNil)
+	c.Check(gadgetUpdateCalled, Equals, true)
+	c.Check(s.restartRequests, DeepEquals, []state.RestartType{state.RestartSystem})
 }
