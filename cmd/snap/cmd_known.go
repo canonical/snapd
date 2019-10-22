@@ -57,7 +57,7 @@ func init() {
 		return &cmdKnown{}
 	}, map[string]string{
 		// TRANSLATORS: This should not start with a lowercase letter.
-		"remote": i18n.G("Query the store for the assertion via snap"),
+		"remote": i18n.G("Query the store for the assertion via snapd"),
 		// TRANSLATORS: This should not start with a lowercase letter.
 		"direct": i18n.G("Query the store directly for the assertion"),
 	}, []argDesc{
