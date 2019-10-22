@@ -34,6 +34,13 @@ execute: |
     sfdisk -l "$LOOP" | MATCH '1M\s+BIOS boot'
     sfdisk -l "$LOOP" | MATCH '50M\s+EFI System'
 
+    echo "Check that the content was deployed
+    mkdir -p ./mnt
+    mount "${LOOP}p2" ./mnt
+    ls ./mnt/EFI/boot/grubx64.efi
+    ls ./mnt/EFI/boot/bootx64.efi
+    ls ./mnt/EFI/ubuntu/grub.cfg
+
     echo "now add a partition"
     cat >> gadget-dir/meta/gadget.yaml <<EOF
           - name: Other ext4
