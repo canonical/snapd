@@ -744,7 +744,6 @@ func (s *baseDeclSuite) TestConnection(c *C) {
 	noconnect := map[string]bool{
 		"content":                   true,
 		"docker":                    true,
-		"fwupd":                     true,
 		"location-control":          true,
 		"location-observe":          true,
 		"lxd":                       true,

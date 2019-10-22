@@ -37,7 +37,8 @@ const fwupdBaseDeclarationSlots = `
       slot-snap-type:
         - app
         - core
-    deny-connection: true
+    deny-connection:
+      on-classic: false
     deny-auto-connection: true
 `
 
@@ -250,7 +251,11 @@ func (iface *fwupdInterface) AppArmorConnectedPlug(spec *apparmor.Specification,
 }
 
 func (iface *fwupdInterface) AppArmorPermanentSlot(spec *apparmor.Specification, slot *snap.SlotInfo) error {
-	spec.AddSnippet(fwupdPermanentSlotAppArmor)
+	// Only apply slot snippet when running as application snap on
+	// classic, slot side can be system or application
+	if !implicitSystemPermanentSlot(slot) {
+		spec.AddSnippet(fwupdPermanentSlotAppArmor)
+	}
 	return nil
 }
 
