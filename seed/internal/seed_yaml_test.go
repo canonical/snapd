@@ -17,7 +17,7 @@
  *
  */
 
-package seed_test
+package internal_test
 
 import (
 	"io/ioutil"
@@ -26,7 +26,7 @@ import (
 
 	. "gopkg.in/check.v1"
 
-	"github.com/snapcore/snapd/seed"
+	"github.com/snapcore/snapd/seed/internal"
 )
 
 func Test(t *testing.T) { TestingT(t) }
@@ -52,10 +52,10 @@ func (s *seedYamlTestSuite) TestSimple(c *C) {
 	err := ioutil.WriteFile(fn, mockSeedYaml, 0644)
 	c.Assert(err, IsNil)
 
-	seedYaml, err := seed.ReadYaml(fn)
+	seedYaml, err := internal.ReadSeedYaml(fn)
 	c.Assert(err, IsNil)
 	c.Assert(seedYaml.Snaps, HasLen, 2)
-	c.Assert(seedYaml.Snaps[0], DeepEquals, &seed.Snap16{
+	c.Assert(seedYaml.Snaps[0], DeepEquals, &internal.Snap16{
 		File:   "foo_1.0_all.snap",
 		Name:   "foo",
 		SnapID: "snapidsnapidsnapid",
@@ -63,7 +63,7 @@ func (s *seedYamlTestSuite) TestSimple(c *C) {
 		Channel: "stable",
 		DevMode: true,
 	})
-	c.Assert(seedYaml.Snaps[1], DeepEquals, &seed.Snap16{
+	c.Assert(seedYaml.Snaps[1], DeepEquals, &internal.Snap16{
 		File:       "local.snap",
 		Name:       "local",
 		Unasserted: true,
@@ -81,7 +81,7 @@ func (s *seedYamlTestSuite) TestNoPathAllowed(c *C) {
 	err := ioutil.WriteFile(fn, badMockSeedYaml, 0644)
 	c.Assert(err, IsNil)
 
-	_, err = seed.ReadYaml(fn)
+	_, err = internal.ReadSeedYaml(fn)
 	c.Assert(err, ErrorMatches, `cannot read seed yaml: "foo/bar.snap" must be a filename, not a path`)
 }
 
@@ -98,7 +98,7 @@ snaps:
 `), 0644)
 	c.Assert(err, IsNil)
 
-	_, err = seed.ReadYaml(fn)
+	_, err = internal.ReadSeedYaml(fn)
 	c.Assert(err, ErrorMatches, `cannot read seed yaml: snap name "foo" must be unique`)
 }
 
@@ -111,7 +111,7 @@ snaps:
 `), 0644)
 	c.Assert(err, IsNil)
 
-	_, err = seed.ReadYaml(fn)
+	_, err = internal.ReadSeedYaml(fn)
 	c.Assert(err, ErrorMatches, `cannot read seed yaml: invalid risk in channel name: invalid/channel/`)
 }
 
@@ -124,7 +124,7 @@ snaps:
 `), 0644)
 	c.Assert(err, IsNil)
 
-	_, err = seed.ReadYaml(fn)
+	_, err = internal.ReadSeedYaml(fn)
 	c.Assert(err, ErrorMatches, `cannot read seed yaml: invalid snap name: "invalid--name"`)
 }
 
@@ -137,7 +137,7 @@ snaps:
 `), 0644)
 	c.Assert(err, IsNil)
 
-	_, err = seed.ReadYaml(fn)
+	_, err = internal.ReadSeedYaml(fn)
 	c.Assert(err, ErrorMatches, `cannot read seed yaml: invalid snap name: "foo_1"`)
 }
 
@@ -149,7 +149,7 @@ snaps:
 `), 0644)
 	c.Assert(err, IsNil)
 
-	_, err = seed.ReadYaml(fn)
+	_, err = internal.ReadSeedYaml(fn)
 	c.Assert(err, ErrorMatches, `cannot read seed yaml: invalid snap name: ""`)
 }
 
@@ -161,6 +161,6 @@ snaps:
 `), 0644)
 	c.Assert(err, IsNil)
 
-	_, err = seed.ReadYaml(fn)
+	_, err = internal.ReadSeedYaml(fn)
 	c.Assert(err, ErrorMatches, `cannot read seed yaml: "file" attribute for "foo" cannot be empty`)
 }

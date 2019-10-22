@@ -43,10 +43,12 @@ func MkfsExt4(img, label, contentsRootDir string) error {
 		"-O", "-metadata_csum",
 		// allow uninitialized block groups
 		"-O", "uninit_bg",
+	}
+	if contentsRootDir != "" {
 		// mkfs.ext4 can populate the filesystem with contents of given
 		// root directory
 		// TODO: support e2fsprogs 1.42 without -d in Ubuntu 16.04
-		"-d", contentsRootDir,
+		mkfsArgs = append(mkfsArgs, "-d", contentsRootDir)
 	}
 	if label != "" {
 		mkfsArgs = append(mkfsArgs, "-L", label)
@@ -83,6 +85,11 @@ func MkfsVfat(img, label, contentsRootDir string) error {
 	out, err := cmd.CombinedOutput()
 	if err != nil {
 		return osutil.OutputErr(out, err)
+	}
+
+	// if there is no content to copy we are done now
+	if contentsRootDir == "" {
+		return nil
 	}
 
 	// mkfs.vfat does not know how to populate the filesystem with contents,

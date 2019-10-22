@@ -3565,8 +3565,9 @@ version: 1.0`
 
 	// setup model assertion
 	devicestatetest.SetDevice(st, &auth.DeviceState{
-		Brand: "can0nical",
-		Model: "my-model",
+		Brand:  "can0nical",
+		Model:  "my-model",
+		Serial: "serialserialserial",
 	})
 	err := assertstate.Add(st, model)
 	c.Assert(err, IsNil)
@@ -3593,6 +3594,19 @@ version: 1.0`
 	c.Assert(t, NotNil)
 	c.Assert(t.Status(), Equals, state.DoingStatus)
 
+	// check that the system tries to boot the new brand kernel
+	state.MockRestarting(st, state.RestartUnset)
+	c.Assert(bloader.BootVars, DeepEquals, map[string]string{
+		"snap_core":       "core_1.snap",
+		"snap_kernel":     "pc-kernel_1.snap",
+		"snap_try_kernel": "brand-kernel_2.snap",
+		"snap_mode":       "try",
+	})
+	// simulate successful system-restart bootenv updates (those
+	// vars will be cleared by snapd on a restart)
+	bloader.BootVars["snap_try_kernel"] = ""
+	bloader.BootVars["snap_mode"] = ""
+
 	// simulate successful restart happened
 	state.MockRestarting(st, state.RestartUnset)
 
@@ -3604,6 +3618,14 @@ version: 1.0`
 	c.Assert(err, IsNil)
 
 	c.Assert(chg.Status(), Equals, state.DoneStatus, Commentf("upgrade-snap change failed with: %v", chg.Err()))
+
+	// bootvars are as expected
+	c.Assert(bloader.BootVars, DeepEquals, map[string]string{
+		"snap_core":       "core_1.snap",
+		"snap_kernel":     "pc-kernel_1.snap",
+		"snap_try_kernel": "",
+		"snap_mode":       "",
+	})
 
 	// ensure tasks were run in the right order
 	tasks := chg.Tasks()
@@ -3621,6 +3643,13 @@ version: 1.0`
 	// ensure that we only have the tasks we checked (plus the one
 	// extra "set-model" task)
 	c.Assert(tasks, HasLen, i+1)
+
+	// ensure we did not try device registration
+	for _, t := range st.Tasks() {
+		if t.Kind() == "request-serial" {
+			c.Fatalf("test should not create a request-serial task but did")
+		}
+	}
 }
 
 func (s *mgrsSuite) TestRemodelStoreSwitch(c *C) {

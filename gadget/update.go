@@ -100,7 +100,7 @@ func Update(old, new GadgetData, rollbackDirPath string) error {
 
 	// can update old layout to new layout
 	for _, update := range updates {
-		if err := canUpdateStructure(update.from, update.to); err != nil {
+		if err := canUpdateStructure(update.from, update.to, pNew.EffectiveSchema()); err != nil {
 			return fmt.Errorf("cannot update volume structure %v: %v", update.to, err)
 		}
 	}
@@ -155,7 +155,11 @@ func isLegacyMBRTransition(from *LaidOutStructure, to *LaidOutStructure) bool {
 	return from.Type == MBR && to.EffectiveRole() == MBR
 }
 
-func canUpdateStructure(from *LaidOutStructure, to *LaidOutStructure) error {
+func canUpdateStructure(from *LaidOutStructure, to *LaidOutStructure, schema string) error {
+	if schema == GPT && from.Name != to.Name {
+		// partition names are only effective when GPT is used
+		return fmt.Errorf("cannot change structure name from %q to %q", from.Name, to.Name)
+	}
 	if from.Size != to.Size {
 		return fmt.Errorf("cannot change structure size from %v to %v", from.Size, to.Size)
 	}

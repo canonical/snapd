@@ -33,7 +33,6 @@ import (
 	"github.com/snapcore/snapd/asserts"
 	"github.com/snapcore/snapd/asserts/assertstest"
 	"github.com/snapcore/snapd/osutil"
-	"github.com/snapcore/snapd/seed"
 	"github.com/snapcore/snapd/seed/seedtest"
 	"github.com/snapcore/snapd/seed/seedwriter"
 	"github.com/snapcore/snapd/snap"
@@ -203,11 +202,26 @@ version: 1.0
 `,
 }
 
+const pcGadgetYaml = `
+volumes:
+  pc:
+    bootloader: grub
+`
+
+var snapFiles = map[string][][]string{
+	"pc": {
+		{"meta/gadget.yaml", pcGadgetYaml},
+	},
+	"pc=18": {
+		{"meta/gadget.yaml", pcGadgetYaml},
+	},
+}
+
 func (s *writerSuite) makeSnap(c *C, yamlKey, publisher string) {
 	if publisher == "" {
 		publisher = "canonical"
 	}
-	decl, rev := s.MakeAssertedSnap(c, snapYaml[yamlKey], nil, snap.R(1), publisher)
+	decl, rev := s.MakeAssertedSnap(c, snapYaml[yamlKey], snapFiles[yamlKey], snap.R(1), publisher)
 	assertstest.AddMany(s.StoreSigning, decl, rev)
 	s.snapRevs[decl.SnapName()] = rev
 }
@@ -321,6 +335,32 @@ func (s *writerSuite) TestSnapsToDownloadCore16(c *C) {
 	c.Check(naming.SameSnap(snaps[3], naming.Snap("required")), Equals, true)
 }
 
+func (s *writerSuite) TestSnapsToDownloadOptionTrack(c *C) {
+	model := s.Brands.Model("my-brand", "my-model", map[string]interface{}{
+		"display-name":   "my model",
+		"architecture":   "amd64",
+		"gadget":         "pc",
+		"kernel":         "pc-kernel",
+		"required-snaps": []interface{}{"required"},
+	})
+
+	w, err := seedwriter.New(model, s.opts)
+	c.Assert(err, IsNil)
+
+	err = w.SetOptionsSnaps([]*seedwriter.OptionsSnap{{Name: "pc", Channel: "track/edge"}})
+	c.Assert(err, IsNil)
+
+	_, err = w.Start(s.db, s.newFetcher)
+	c.Assert(err, IsNil)
+
+	snaps, err := w.SnapsToDownload()
+	c.Assert(err, IsNil)
+	c.Check(snaps, HasLen, 4)
+
+	c.Check(naming.SameSnap(snaps[2], naming.Snap("pc")), Equals, true)
+	c.Check(snaps[2].Channel, Equals, "track/edge")
+}
+
 func (s *writerSuite) TestDownloadedCore16(c *C) {
 	model := s.Brands.Model("my-brand", "my-model", map[string]interface{}{
 		"display-name":   "my model",
@@ -361,7 +401,6 @@ func (s *writerSuite) TestDownloadedCore16(c *C) {
 	c.Check(essSnaps, DeepEquals, snaps[:3])
 	c.Check(naming.SameSnap(essSnaps[2], naming.Snap("pc")), Equals, true)
 	c.Check(essSnaps[2].Channel, Equals, "edge")
-
 }
 
 func (s *writerSuite) TestDownloadedCore18(c *C) {
@@ -441,7 +480,7 @@ func (s *writerSuite) TestSnapsToDownloadCore18IncompatibleTrack(c *C) {
 	c.Assert(err, IsNil)
 
 	_, err = w.SnapsToDownload()
-	c.Check(err, ErrorMatches, `option channel "18.1" for kernel "pc-kernel" has a track incompatible with the track from model assertion: 18`)
+	c.Check(err, ErrorMatches, `option channel "18.1" for kernel "pc-kernel" has a track incompatible with the pinned track from model assertion: 18`)
 }
 
 func (s *writerSuite) TestSnapsToDownloadDefaultChannel(c *C) {
@@ -835,7 +874,7 @@ func (s *writerSuite) TestSeedSnapsWriteMetaCore18(c *C) {
 	c.Assert(err, IsNil)
 
 	// check seed
-	seedYaml, err := seed.ReadYaml(filepath.Join(s.opts.SeedDir, "seed.yaml"))
+	seedYaml, err := seedwriter.InternalReadSeedYaml(filepath.Join(s.opts.SeedDir, "seed.yaml"))
 	c.Assert(err, IsNil)
 
 	c.Check(seedYaml.Snaps, HasLen, 6)
@@ -856,7 +895,7 @@ func (s *writerSuite) TestSeedSnapsWriteMetaCore18(c *C) {
 			channel = "18/edge"
 		}
 
-		c.Check(seedYaml.Snaps[i], DeepEquals, &seed.Snap16{
+		c.Check(seedYaml.Snaps[i], DeepEquals, &seedwriter.InternalSnap16{
 			Name:    info.SnapName(),
 			SnapID:  info.SnapID,
 			Channel: channel,
@@ -1059,7 +1098,7 @@ func (s *writerSuite) TestLocalSnapsCore18FullUse(c *C) {
 	c.Assert(err, IsNil)
 
 	// check seed
-	seedYaml, err := seed.ReadYaml(filepath.Join(s.opts.SeedDir, "seed.yaml"))
+	seedYaml, err := seedwriter.InternalReadSeedYaml(filepath.Join(s.opts.SeedDir, "seed.yaml"))
 	c.Assert(err, IsNil)
 
 	c.Check(seedYaml.Snaps, HasLen, 6)
@@ -1088,7 +1127,7 @@ func (s *writerSuite) TestLocalSnapsCore18FullUse(c *C) {
 			channel = "stable"
 		}
 
-		c.Check(seedYaml.Snaps[i], DeepEquals, &seed.Snap16{
+		c.Check(seedYaml.Snaps[i], DeepEquals, &seedwriter.InternalSnap16{
 			Name:       info.SnapName(),
 			SnapID:     info.SnapID,
 			Channel:    channel,
@@ -1284,7 +1323,7 @@ func (s *writerSuite) TestSeedSnapsWriteMetaClassicWithCore(c *C) {
 	c.Assert(err, IsNil)
 
 	// check seed
-	seedYaml, err := seed.ReadYaml(filepath.Join(s.opts.SeedDir, "seed.yaml"))
+	seedYaml, err := seedwriter.InternalReadSeedYaml(filepath.Join(s.opts.SeedDir, "seed.yaml"))
 	c.Assert(err, IsNil)
 
 	c.Check(seedYaml.Snaps, HasLen, 3)
@@ -1297,7 +1336,7 @@ func (s *writerSuite) TestSeedSnapsWriteMetaClassicWithCore(c *C) {
 		p := filepath.Join(s.opts.SeedDir, "snaps", fn)
 		c.Check(p, testutil.FilePresent)
 
-		c.Check(seedYaml.Snaps[i], DeepEquals, &seed.Snap16{
+		c.Check(seedYaml.Snaps[i], DeepEquals, &seedwriter.InternalSnap16{
 			Name:    info.SnapName(),
 			SnapID:  info.SnapID,
 			Channel: "stable",
@@ -1341,7 +1380,7 @@ func (s *writerSuite) TestSeedSnapsWriteMetaClassicSnapdOnly(c *C) {
 	c.Assert(err, IsNil)
 
 	// check seed
-	seedYaml, err := seed.ReadYaml(filepath.Join(s.opts.SeedDir, "seed.yaml"))
+	seedYaml, err := seedwriter.InternalReadSeedYaml(filepath.Join(s.opts.SeedDir, "seed.yaml"))
 	c.Assert(err, IsNil)
 	c.Assert(seedYaml.Snaps, HasLen, 4)
 
@@ -1353,7 +1392,7 @@ func (s *writerSuite) TestSeedSnapsWriteMetaClassicSnapdOnly(c *C) {
 		p := filepath.Join(s.opts.SeedDir, "snaps", fn)
 		c.Check(p, testutil.FilePresent)
 
-		c.Check(seedYaml.Snaps[i], DeepEquals, &seed.Snap16{
+		c.Check(seedYaml.Snaps[i], DeepEquals, &seedwriter.InternalSnap16{
 			Name:    info.SnapName(),
 			SnapID:  info.SnapID,
 			Channel: "stable",
@@ -1450,7 +1489,7 @@ func (s *writerSuite) TestSeedSnapsWriteMetaExtraSnaps(c *C) {
 	c.Assert(err, IsNil)
 
 	// check seed
-	seedYaml, err := seed.ReadYaml(filepath.Join(s.opts.SeedDir, "seed.yaml"))
+	seedYaml, err := seedwriter.InternalReadSeedYaml(filepath.Join(s.opts.SeedDir, "seed.yaml"))
 	c.Assert(err, IsNil)
 	c.Assert(seedYaml.Snaps, HasLen, 8)
 
@@ -1470,7 +1509,7 @@ func (s *writerSuite) TestSeedSnapsWriteMetaExtraSnaps(c *C) {
 			channel = "beta"
 		}
 
-		c.Check(seedYaml.Snaps[i], DeepEquals, &seed.Snap16{
+		c.Check(seedYaml.Snaps[i], DeepEquals, &seedwriter.InternalSnap16{
 			Name:    info.SnapName(),
 			SnapID:  info.SnapID,
 			Channel: channel,
@@ -1594,7 +1633,7 @@ func (s *writerSuite) TestSeedSnapsWriteMetaLocalExtraSnaps(c *C) {
 	c.Assert(err, IsNil)
 
 	// check seed
-	seedYaml, err := seed.ReadYaml(filepath.Join(s.opts.SeedDir, "seed.yaml"))
+	seedYaml, err := seedwriter.InternalReadSeedYaml(filepath.Join(s.opts.SeedDir, "seed.yaml"))
 	c.Assert(err, IsNil)
 	c.Assert(seedYaml.Snaps, HasLen, 8)
 
@@ -1624,7 +1663,7 @@ func (s *writerSuite) TestSeedSnapsWriteMetaLocalExtraSnaps(c *C) {
 			}
 		}
 
-		c.Check(seedYaml.Snaps[i], DeepEquals, &seed.Snap16{
+		c.Check(seedYaml.Snaps[i], DeepEquals, &seedwriter.InternalSnap16{
 			Name:       info.SnapName(),
 			SnapID:     info.SnapID,
 			Channel:    channel,
