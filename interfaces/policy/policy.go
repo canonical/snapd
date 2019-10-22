@@ -176,7 +176,7 @@ func (connc *ConnectCandidate) slotPublisherID() string {
 	return "" // never a valid publisher-id
 }
 
-func (connc *ConnectCandidate) checkPlugRule(kind string, rule *asserts.PlugRule, snapRule bool) error {
+func (connc *ConnectCandidate) checkPlugRule(kind string, rule *asserts.PlugRule, snapRule bool) (interfaces.SideArity, error) {
 	context := ""
 	if snapRule {
 		context = fmt.Sprintf(" for %q snap", connc.PlugSnapDeclaration.SnapName())
@@ -187,16 +187,18 @@ func (connc *ConnectCandidate) checkPlugRule(kind string, rule *asserts.PlugRule
 		denyConst = rule.DenyAutoConnection
 		allowConst = rule.AllowAutoConnection
 	}
-	if checkPlugConnectionAltConstraints(connc, denyConst) == nil {
-		return fmt.Errorf("%s denied by plug rule of interface %q%s", kind, connc.Plug.Interface(), context)
+	if _, err := checkPlugConnectionAltConstraints(connc, denyConst); err == nil {
+		return nil, fmt.Errorf("%s denied by plug rule of interface %q%s", kind, connc.Plug.Interface(), context)
 	}
-	if checkPlugConnectionAltConstraints(connc, allowConst) != nil {
-		return fmt.Errorf("%s not allowed by plug rule of interface %q%s", kind, connc.Plug.Interface(), context)
+
+	allowedConstraints, err := checkPlugConnectionAltConstraints(connc, allowConst)
+	if err != nil {
+		return nil, fmt.Errorf("%s not allowed by plug rule of interface %q%s", kind, connc.Plug.Interface(), context)
 	}
-	return nil
+	return sideArity{allowedConstraints.SlotsPerPlug}, nil
 }
 
-func (connc *ConnectCandidate) checkSlotRule(kind string, rule *asserts.SlotRule, snapRule bool) error {
+func (connc *ConnectCandidate) checkSlotRule(kind string, rule *asserts.SlotRule, snapRule bool) (interfaces.SideArity, error) {
 	context := ""
 	if snapRule {
 		context = fmt.Sprintf(" for %q snap", connc.SlotSnapDeclaration.SnapName())
@@ -207,25 +209,27 @@ func (connc *ConnectCandidate) checkSlotRule(kind string, rule *asserts.SlotRule
 		denyConst = rule.DenyAutoConnection
 		allowConst = rule.AllowAutoConnection
 	}
-	if checkSlotConnectionAltConstraints(connc, denyConst) == nil {
-		return fmt.Errorf("%s denied by slot rule of interface %q%s", kind, connc.Plug.Interface(), context)
+	if _, err := checkSlotConnectionAltConstraints(connc, denyConst); err == nil {
+		return nil, fmt.Errorf("%s denied by slot rule of interface %q%s", kind, connc.Plug.Interface(), context)
 	}
-	if checkSlotConnectionAltConstraints(connc, allowConst) != nil {
-		return fmt.Errorf("%s not allowed by slot rule of interface %q%s", kind, connc.Plug.Interface(), context)
+
+	allowedConstraints, err := checkSlotConnectionAltConstraints(connc, allowConst)
+	if err != nil {
+		return nil, fmt.Errorf("%s not allowed by slot rule of interface %q%s", kind, connc.Plug.Interface(), context)
 	}
-	return nil
+	return sideArity{allowedConstraints.SlotsPerPlug}, nil
 }
 
-func (connc *ConnectCandidate) check(kind string) error {
+func (connc *ConnectCandidate) check(kind string) (interfaces.SideArity, error) {
 	baseDecl := connc.BaseDeclaration
 	if baseDecl == nil {
-		return fmt.Errorf("internal error: improperly initialized ConnectCandidate")
+		return nil, fmt.Errorf("internal error: improperly initialized ConnectCandidate")
 	}
 
 	iface := connc.Plug.Interface()
 
 	if connc.Slot.Interface() != iface {
-		return fmt.Errorf("cannot connect mismatched plug interface %q to slot interface %q", iface, connc.Slot.Interface())
+		return nil, fmt.Errorf("cannot connect mismatched plug interface %q to slot interface %q", iface, connc.Slot.Interface())
 	}
 
 	if plugDecl := connc.PlugSnapDeclaration; plugDecl != nil {
@@ -244,17 +248,26 @@ func (connc *ConnectCandidate) check(kind string) error {
 	if rule := baseDecl.SlotRule(iface); rule != nil {
 		return connc.checkSlotRule(kind, rule, false)
 	}
-	return nil
+	return nil, nil
 }
 
 // Check checks whether the connection is allowed.
 func (connc *ConnectCandidate) Check() error {
-	return connc.check("connection")
+	_, err := connc.check("connection")
+	return err
 }
 
 // CheckAutoConnect checks whether the connection is allowed to auto-connect.
-func (connc *ConnectCandidate) CheckAutoConnect() error {
-	return connc.check("auto-connection")
+func (connc *ConnectCandidate) CheckAutoConnect() (interfaces.SideArity, error) {
+	arity, err := connc.check("auto-connection")
+	if err != nil {
+		return nil, err
+	}
+	if arity == nil {
+		// shouldn't happen but be safe
+		arity = sideArity{asserts.SideArityConstraint{N: 1}}
+	}
+	return arity, nil
 }
 
 // InstallCandidateMinimalCheck represents a candidate snap installed with --dangerous flag that should pass minimum checks
