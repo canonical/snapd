@@ -235,9 +235,12 @@ func (iface *desktopInterface) AppArmorConnectedPlug(spec *apparmor.Specificatio
 
 	// Allow mounting document portal
 	var buf bytes.Buffer
-	fmt.Fprintf(&buf, "  # Mount the document portal\n")
-	fmt.Fprintf(&buf, "  mount options=(bind) /run/user/[0-9]*/doc/by-app/snap.%s/ -> /run/user/[0-9]*/doc/,\n", plug.Snap().InstanceName())
-	fmt.Fprintf(&buf, "  umount /run/user/[0-9]*/doc/,\n\n")
+	emit := func(f string, args ...interface{}) {
+		fmt.Fprintf(&buf, f, args...)
+	}
+	emit("  # Mount the document portal\n")
+	emit("  mount options=(bind) /run/user/[0-9]*/doc/by-app/snap.%s/ -> /run/user/[0-9]*/doc/,\n", plug.Snap().InstanceName())
+	emit("  umount /run/user/[0-9]*/doc/,\n\n")
 	spec.AddUpdateNS(buf.String())
 
 	if !release.OnClassic {
@@ -247,13 +250,16 @@ func (iface *desktopInterface) AppArmorConnectedPlug(spec *apparmor.Specificatio
 
 	// Allow mounting fonts
 	for _, dir := range iface.fontconfigDirs() {
-		var buf bytes.Buffer
 		source := "/var/lib/snapd/hostfs" + dir
 		target := dirs.StripRootDir(dir)
-		fmt.Fprintf(&buf, "  # Read-only access to %s\n", target)
-		fmt.Fprintf(&buf, "  mount options=(bind) %s/ -> %s/,\n", source, target)
-		fmt.Fprintf(&buf, "  remount options=(bind, ro) %s/,\n", target)
-		fmt.Fprintf(&buf, "  umount %s/,\n\n", target)
+		var buf bytes.Buffer
+		emit := func(f string, args ...interface{}) {
+			fmt.Fprintf(&buf, f, args...)
+		}
+		emit("  # Read-only access to %s\n", target)
+		emit("  mount options=(bind) %s/ -> %s/,\n", source, target)
+		emit("  remount options=(bind, ro) %s/,\n", target)
+		emit("  umount %s/,\n\n", target)
 		spec.AddUpdateNS(buf.String())
 	}
 
