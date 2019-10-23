@@ -35,7 +35,7 @@ var (
 	sysUnmount = syscall.Unmount
 )
 
-func deployFilesystemContent(part DeviceStructure, gadgetRoot string) error {
+func deployFilesystemContent(part DeviceStructure, gadgetRoot string) (err error) {
 	mountpoint := filepath.Join(deployMountpoint, strconv.Itoa(part.Index))
 	if err := os.MkdirAll(mountpoint, 0755); err != nil {
 		return err
@@ -45,14 +45,20 @@ func deployFilesystemContent(part DeviceStructure, gadgetRoot string) error {
 	if err := sysMount(part.Node, mountpoint, part.Filesystem, 0, ""); err != nil {
 		return fmt.Errorf("cannot mount filesystem %q to %q: %v", part.Node, mountpoint, err)
 	}
-	defer sysUnmount(mountpoint, 0)
+	defer func() {
+		errUnmount := sysUnmount(mountpoint, 0)
+		if err == nil {
+			err = errUnmount
+		}
+	}()
 
 	fs, err := gadget.NewMountedFilesystemWriter(gadgetRoot, &part.LaidOutStructure)
 	if err != nil {
 		return fmt.Errorf("cannot create filesystem image writer: %v", err)
 	}
 
-	if err := fs.Write(mountpoint, []string{}); err != nil {
+	var preserveFiles []string
+	if err := fs.Write(mountpoint, preserveFiles); err != nil {
 		return fmt.Errorf("cannot create filesystem image: %v", err)
 	}
 
@@ -66,6 +72,9 @@ func deployNonFSContent(part DeviceStructure, gadgetRoot string) error {
 	}
 	defer f.Close()
 
+	// Laid out structures start relative to the beginning of the
+	// volume, shift the structure offsets to 0, so that it starts
+	// at the beginning of the partition
 	l := gadget.ShiftStructureTo(part.LaidOutStructure, 0)
 	raw, err := gadget.NewRawStructureWriter(gadgetRoot, &l)
 	if err != nil {
@@ -77,13 +86,13 @@ func deployNonFSContent(part DeviceStructure, gadgetRoot string) error {
 func DeployContent(created []DeviceStructure, gadgetRoot string) error {
 	for _, part := range created {
 		switch {
-		case part.Type == "bare":
-			return fmt.Errorf("cannot deploy type 'bare' yet")
-		case part.Filesystem == "":
+		case !part.IsPartition():
+			return fmt.Errorf("cannot deploy non-partitions yet")
+		case !part.HasFilesystem():
 			if err := deployNonFSContent(part, gadgetRoot); err != nil {
 				return err
 			}
-		case part.Filesystem != "":
+		case part.HasFilesystem():
 			if err := deployFilesystemContent(part, gadgetRoot); err != nil {
 				return err
 			}
