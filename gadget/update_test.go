@@ -1041,13 +1041,47 @@ func (u *updateTestSuite) TestUpdateApplyUpdatesAreOptInWithDefaultPolicy(c *C) 
 	c.Assert(err, Equals, gadget.ErrNoUpdate)
 }
 
+func policyDataSet(c *C) (oldData gadget.GadgetData, newData gadget.GadgetData, rollbackDir string) {
+	oldData, newData, rollbackDir = updateDataSet(c)
+	noPartitionStruct := gadget.VolumeStructure{
+		Name: "no-partition",
+		Type: "bare",
+		Size: 5 * gadget.SizeMiB,
+		Content: []gadget.VolumeContent{
+			{Image: "first.img"},
+		},
+	}
+	mbrStruct := gadget.VolumeStructure{
+		Name:   "mbr",
+		Role:   "mbr",
+		Size:   446,
+		Offset: asSizePtr(0),
+	}
+
+	oldVol := oldData.Info.Volumes["foo"]
+	oldVol.Structure = append(oldVol.Structure, noPartitionStruct, mbrStruct)
+	oldData.Info.Volumes["foo"] = oldVol
+
+	newVol := newData.Info.Volumes["foo"]
+	newVol.Structure = append(newVol.Structure, noPartitionStruct, mbrStruct)
+	newData.Info.Volumes["foo"] = newVol
+
+	c.Assert(oldData.Info.Volumes["foo"].Structure, HasLen, 5)
+	c.Assert(newData.Info.Volumes["foo"].Structure, HasLen, 5)
+	return oldData, newData, rollbackDir
+}
+
 func (u *updateTestSuite) TestUpdateApplyUpdatesArePolicyControlled(c *C) {
-	oldData, newData, rollbackDir := updateDataSet(c)
+	oldData, newData, rollbackDir := policyDataSet(c)
+	c.Assert(oldData.Info.Volumes["foo"].Structure, HasLen, 5)
+	c.Assert(newData.Info.Volumes["foo"].Structure, HasLen, 5)
 	// all structures have higher Edition, thus all would be updated under
 	// the default policy
 	newData.Info.Volumes["foo"].Structure[0].Update.Edition = 1
 	newData.Info.Volumes["foo"].Structure[1].Update.Edition = 1
 	newData.Info.Volumes["foo"].Structure[2].Update.Edition = 3
+	newData.Info.Volumes["foo"].Structure[3].Update.Edition = 4
+	newData.Info.Volumes["foo"].Structure[4].Update.Edition = 5
 
 	toUpdate := map[string]int{}
 	restore := gadget.MockUpdaterForStructure(func(ps *gadget.LaidOutStructure, psRootDir, psRollbackDir string) (gadget.Updater, error) {
@@ -1063,9 +1097,11 @@ func (u *updateTestSuite) TestUpdateApplyUpdatesArePolicyControlled(c *C) {
 	})
 	c.Assert(err, Equals, gadget.ErrNoUpdate)
 	c.Assert(policySeen, DeepEquals, map[string]int{
-		"first":  1,
-		"second": 1,
-		"third":  1,
+		"first":        1,
+		"second":       1,
+		"third":        1,
+		"no-partition": 1,
+		"mbr":          1,
 	})
 	c.Assert(toUpdate, DeepEquals, map[string]int{})
 
@@ -1077,9 +1113,11 @@ func (u *updateTestSuite) TestUpdateApplyUpdatesArePolicyControlled(c *C) {
 	})
 	c.Assert(err, IsNil)
 	c.Assert(policySeen, DeepEquals, map[string]int{
-		"first":  1,
-		"second": 1,
-		"third":  1,
+		"first":        1,
+		"second":       1,
+		"third":        1,
+		"no-partition": 1,
+		"mbr":          1,
 	})
 	c.Assert(toUpdate, DeepEquals, map[string]int{
 		"second": 1,
@@ -1087,32 +1125,14 @@ func (u *updateTestSuite) TestUpdateApplyUpdatesArePolicyControlled(c *C) {
 }
 
 func (u *updateTestSuite) TestUpdateApplyUpdatesRemodelPolicy(c *C) {
-	oldData, newData, rollbackDir := updateDataSet(c)
-	noPartitionStruct := gadget.VolumeStructure{
-		Name: "no-partition",
-		Type: "bare",
-		Size: 5 * gadget.SizeMiB,
-		Content: []gadget.VolumeContent{
-			{Image: "first.img"},
-		},
-	}
-
-	oldVol := oldData.Info.Volumes["foo"]
-	oldVol.Structure = append(oldVol.Structure, noPartitionStruct)
-	oldData.Info.Volumes["foo"] = oldVol
-
-	newVol := newData.Info.Volumes["foo"]
-	newVol.Structure = append(newVol.Structure, noPartitionStruct)
-	newData.Info.Volumes["foo"] = newVol
-
-	c.Assert(oldData.Info.Volumes["foo"].Structure, HasLen, 4)
-	c.Assert(newData.Info.Volumes["foo"].Structure, HasLen, 4)
+	oldData, newData, rollbackDir := policyDataSet(c)
 
 	// old structures have higher Edition, no update would occur under the default policy
 	oldData.Info.Volumes["foo"].Structure[0].Update.Edition = 1
 	oldData.Info.Volumes["foo"].Structure[1].Update.Edition = 1
 	oldData.Info.Volumes["foo"].Structure[2].Update.Edition = 3
 	oldData.Info.Volumes["foo"].Structure[3].Update.Edition = 4
+	oldData.Info.Volumes["foo"].Structure[4].Update.Edition = 5
 
 	toUpdate := map[string]int{}
 	restore := gadget.MockUpdaterForStructure(func(ps *gadget.LaidOutStructure, psRootDir, psRollbackDir string) (gadget.Updater, error) {
@@ -1124,10 +1144,11 @@ func (u *updateTestSuite) TestUpdateApplyUpdatesRemodelPolicy(c *C) {
 	err := gadget.Update(oldData, newData, rollbackDir, gadget.RemodelUpdatePolicy)
 	c.Assert(err, IsNil)
 	c.Assert(toUpdate, DeepEquals, map[string]int{
-		"first":  1,
-		"second": 1,
-		"third":  1,
-		// no-partition is skipped by the remodel update
+		"first":        1,
+		"second":       1,
+		"third":        1,
+		"no-partition": 1,
+		// 'mbr' is skipped by the remodel update
 	})
 }
 
