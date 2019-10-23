@@ -11,8 +11,6 @@ systems:
     - ubuntu-core-*
 
 prepare: |
-    #shellcheck source=tests/lib/snaps.sh
-    . "$TESTSLIB"/snaps.sh
     snap install test-snapd-netplan-apply --edge
 
 execute: |
