@@ -351,3 +351,34 @@ func ShiftStructureTo(ps LaidOutStructure, offset Size) LaidOutStructure {
 	}
 	return newPs
 }
+
+func isLayoutCompatible(current, new *PartiallyLaidOutVolume) error {
+	if current.ID != new.ID {
+		return fmt.Errorf("incompatible ID change from %v to %v", current.ID, new.ID)
+	}
+	if current.EffectiveSchema() != new.EffectiveSchema() {
+		return fmt.Errorf("incompatible schema change from %v to %v",
+			current.EffectiveSchema(), new.EffectiveSchema())
+	}
+	if current.Bootloader != new.Bootloader {
+		return fmt.Errorf("incompatible bootloader change from %v to %v",
+			current.Bootloader, new.Bootloader)
+	}
+
+	// XXX: the code below asssumes both volumes have the same number of
+	// structures, this limitation may be lifter later
+	if len(current.LaidOutStructure) != len(new.LaidOutStructure) {
+		return fmt.Errorf("incompatible change in the number of structures from %v to %v",
+			len(current.LaidOutStructure), len(new.LaidOutStructure))
+	}
+
+	// at the structure level we expect the volume to be identical
+	for i := range current.LaidOutStructure {
+		from := &current.LaidOutStructure[i]
+		to := &new.LaidOutStructure[i]
+		if err := canUpdateStructure(from, to, new.EffectiveSchema()); err != nil {
+			return fmt.Errorf("incompatible structure %v change: %v", to, err)
+		}
+	}
+	return nil
+}

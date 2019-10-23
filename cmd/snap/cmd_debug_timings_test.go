@@ -23,6 +23,7 @@ import (
 	"fmt"
 	"net/http"
 	"strings"
+	"time"
 
 	. "gopkg.in/check.v1"
 
@@ -57,21 +58,30 @@ var timingsTests = []timingsCmdArgs{{
 }, {
 	args: "debug timings --last=install",
 	stdout: "ID   Status        Doing      Undoing  Summary\n" +
-		"40   Doing         910ms            -  task bar summary\n" +
+		"40   Doing         910ms            -  lane 0 task bar summary\n" +
 		" ^                   1ms            -    foo summary\n" +
-		"  ^                  1ms            -      bar summary\n\n",
+		"  ^                  1ms            -      bar summary\n" +
+		"41   Done          210ms            -  lane 1 task baz summary\n" +
+		"42   Done          310ms            -  lane 1 task boo summary\n" +
+		"43   Done          310ms            -  lane 0 task doh summary\n\n",
 }, {
 	args: "debug timings 1",
 	stdout: "ID   Status        Doing      Undoing  Summary\n" +
-		"40   Doing         910ms            -  task bar summary\n" +
+		"40   Doing         910ms            -  lane 0 task bar summary\n" +
 		" ^                   1ms            -    foo summary\n" +
-		"  ^                  1ms            -      bar summary\n\n",
+		"  ^                  1ms            -      bar summary\n" +
+		"41   Done          210ms            -  lane 1 task baz summary\n" +
+		"42   Done          310ms            -  lane 1 task boo summary\n" +
+		"43   Done          310ms            -  lane 0 task doh summary\n\n",
 }, {
 	args: "debug timings 1 --verbose",
 	stdout: "ID   Status        Doing      Undoing  Label  Summary\n" +
-		"40   Doing         910ms            -  bar    task bar summary\n" +
+		"40   Doing         910ms            -  bar    lane 0 task bar summary\n" +
 		" ^                   1ms            -  foo      foo summary\n" +
-		"  ^                  1ms            -  bar        bar summary\n\n",
+		"  ^                  1ms            -  bar        bar summary\n" +
+		"41   Done          210ms            -  baz    lane 1 task baz summary\n" +
+		"42   Done          310ms            -  boo    lane 1 task boo summary\n" +
+		"43   Done          310ms            -  doh    lane 0 task doh summary\n\n",
 }, {
 	args: "debug timings --ensure=seed",
 	stdout: "ID    Status        Doing      Undoing  Summary\n" +
@@ -163,13 +173,18 @@ func (s *SnapSuite) mockCmdTimingsAPI(c *C) {
 
 			switch {
 			case changeID == "1":
+				// lane 0 and lane 1 tasks, interleaved
 				fmt.Fprintln(w, `{"type":"sync","status-code":200,"status":"OK","result":[
 				{"change-id":"1", "change-timings":{
-					"40":{"doing-time":910000000,
+					"41":{"doing-time":210000000, "status": "Done", "lane": 1, "ready-time": "2016-04-22T01:02:04Z", "kind": "baz", "summary": "lane 1 task baz summary"},
+					"43":{"doing-time":310000000, "status": "Done", "ready-time": "2016-04-25T01:02:04Z", "kind": "doh", "summary": "lane 0 task doh summary"},
+					"40":{"doing-time":910000000, "status": "Doing", "ready-time": "2016-04-20T00:00:00Z", "kind": "bar", "summary": "lane 0 task bar summary",
 						"doing-timings":[
 							{"label":"foo", "summary": "foo summary", "duration": 1000001},
 							{"level":1, "label":"bar", "summary": "bar summary", "duration": 1000002}
-				]}}}]}`)
+						]},
+					"42":{"doing-time":310000000, "status": "Done", "lane": 1, "ready-time": "2016-04-23T01:02:04Z", "kind": "boo", "summary": "lane 1 task boo summary"}
+				}}]}`)
 			case ensure == "seed" && all == "false":
 				fmt.Fprintln(w, `{"type":"sync","status-code":200,"status":"OK","result":[
 					{"change-id":"1",
@@ -179,7 +194,7 @@ func (s *SnapSuite) mockCmdTimingsAPI(c *C) {
 								{"level":1, "label":"booze", "summary": "booze summary", "duration": 8000002}
 							],
 						"change-timings":{
-							"40":{"doing-time":910000000,
+							"40":{"doing-time":910000000, "status": "Doing", "kind": "bar", "summary": "task bar summary",
 								"doing-timings":[
 									{"label":"foo", "summary": "foo summary", "duration": 1000001},
 									{"level":1, "label":"bar", "summary": "bar summary", "duration": 1000002}
@@ -193,7 +208,7 @@ func (s *SnapSuite) mockCmdTimingsAPI(c *C) {
 									{"label":"abc", "summary": "bar summary 2", "duration": 8000002}
 								],
 							"change-timings":{
-								"40":{"doing-time":910000000,
+								"40":{"doing-time":910000000, "status": "Doing", "kind": "bar", "summary": "task bar summary",
 									"doing-timings":[
 										{"label":"foo", "summary": "foo summary", "duration": 1000001},
 										{"level":1, "label":"bar", "summary": "bar summary", "duration": 1000002}
@@ -202,7 +217,7 @@ func (s *SnapSuite) mockCmdTimingsAPI(c *C) {
 							"total-duration": 7000002,
 							"ensure-timings": [{"label":"ghi", "summary": "baz summary 2", "duration": 7000002}],
 							"change-timings":{
-								"60":{"doing-time":910000000,
+								"60":{"doing-time":910000000, "status": "Doing", "kind": "bar", "summary": "task bar summary",
 									"doing-timings":[
 										{"label":"foo", "summary": "foo summary", "duration": 1000001},
 										{"level":1, "label":"bar", "summary": "bar summary", "duration": 1000002}
@@ -241,35 +256,82 @@ func (s *SnapSuite) mockCmdTimingsAPI(c *C) {
 			  }]}`)
 			return
 		}
-
-		// request for specific change
-		if r.URL.Path == "/v2/changes/1" {
-			fmt.Fprintln(w, `{"type":"sync","status-code":200,"status":"OK","result":{
-				"id":   "1",
-				"kind": "foo",
-				"summary": "a",
-				"status": "Doing",
-				"ready": false,
-				"spawn-time": "2016-04-21T01:02:03Z",
-				"ready-time": "2016-04-21T01:02:04Z",
-				"tasks": [{"id":"40", "kind": "bar", "summary": "task bar summary", "status": "Doing", "progress": {"done": 0, "total": 1}, "spawn-time": "2016-04-21T01:02:03Z", "ready-time": "2016-04-21T01:02:04Z"}]
-			  }}`)
-			return
-		}
-		if r.URL.Path == "/v2/changes/2" {
-			fmt.Fprintln(w, `{"type":"sync","status-code":200,"status":"OK","result":{
-				"id":   "2",
-				"kind": "fee",
-				"summary": "b",
-				"status": "Doing",
-				"ready": false,
-				"spawn-time": "2017-04-21T01:02:03Z",
-				"ready-time": "2017-04-21T01:02:04Z",
-				"tasks": [{"id":"60", "kind": "bar", "summary": "task bar summary", "status": "Doing", "progress": {"done": 0, "total": 1}, "spawn-time": "2016-04-21T01:02:03Z", "ready-time": "2016-04-21T01:02:04Z"}]
-			  }}`)
-			return
-		}
-
 		c.Errorf("unexpected path %q", r.URL.Path)
 	})
+}
+
+type TaskDef struct {
+	TaskID    string
+	Lane      int
+	ReadyTime time.Time
+}
+
+func (s *SnapSuite) TestSortTimingsTasks(c *C) {
+	mkTime := func(timeStr string) time.Time {
+		t, err := time.Parse(time.RFC3339, timeStr)
+		c.Assert(err, IsNil)
+		return t
+	}
+
+	testData := []struct {
+		ChangeTimings map[string]main.ChangeTimings
+		Expected      []string
+	}{{
+		// nothing to do
+		ChangeTimings: map[string]main.ChangeTimings{},
+		Expected:      []string{},
+	}, {
+		ChangeTimings: map[string]main.ChangeTimings{
+			// tasks in lane 0 only
+			"1": {ReadyTime: mkTime("2019-04-21T00:00:00Z")},
+			"2": {ReadyTime: mkTime("2019-05-21T00:00:00Z")},
+			"3": {ReadyTime: mkTime("2019-02-21T00:00:00Z")},
+			"4": {ReadyTime: mkTime("2019-03-21T00:00:00Z")},
+			"5": {ReadyTime: mkTime("2019-01-21T00:00:00Z")},
+		},
+		Expected: []string{"5", "3", "4", "1", "2"},
+	}, {
+		// task in lane 1 with a task in lane 0 before and after it
+		ChangeTimings: map[string]main.ChangeTimings{
+			"1": {Lane: 1, ReadyTime: mkTime("2019-01-21T00:00:00Z")},
+			"2": {Lane: 0, ReadyTime: mkTime("2019-01-20T00:00:00Z")},
+			"3": {Lane: 0, ReadyTime: mkTime("2019-01-22T00:00:00Z")},
+		},
+		Expected: []string{"2", "1", "3"},
+	}, {
+		// tasks in lane 1 only
+		ChangeTimings: map[string]main.ChangeTimings{
+			"1": {Lane: 1, ReadyTime: mkTime("2019-01-21T00:00:00Z")},
+			"2": {Lane: 1, ReadyTime: mkTime("2019-01-20T00:00:00Z")},
+			"3": {Lane: 1, ReadyTime: mkTime("2019-01-16T00:00:00Z")},
+		},
+		Expected: []string{"3", "2", "1"},
+	}, {
+		// tasks in lanes 0, 1, 2 with tasks from line 0 before and after lanes 1, 2
+		ChangeTimings: map[string]main.ChangeTimings{
+			"1": {Lane: 1, ReadyTime: mkTime("2019-01-21T00:00:00Z")},
+			"2": {Lane: 0, ReadyTime: mkTime("2019-01-19T00:00:00Z")},
+			"3": {Lane: 2, ReadyTime: mkTime("2019-01-20T00:00:00Z")},
+			"4": {Lane: 0, ReadyTime: mkTime("2019-01-25T00:00:00Z")},
+			"5": {Lane: 1, ReadyTime: mkTime("2019-01-20T00:00:00Z")},
+			"6": {Lane: 2, ReadyTime: mkTime("2019-01-21T00:00:00Z")},
+			"7": {Lane: 0, ReadyTime: mkTime("2019-01-18T00:00:00Z")},
+			"8": {Lane: 0, ReadyTime: mkTime("2019-01-27T00:00:00Z")},
+		},
+		Expected: []string{"7", "2", "5", "1", "3", "6", "4", "8"},
+	}, {
+		// pathological case: lane 0 tasks have ready-time between lane 1 tasks
+		ChangeTimings: map[string]main.ChangeTimings{
+			"1": {Lane: 1, ReadyTime: mkTime("2019-01-20T00:00:00Z")},
+			"2": {Lane: 1, ReadyTime: mkTime("2019-01-30T00:00:00Z")},
+			"3": {Lane: 0, ReadyTime: mkTime("2019-01-27T00:00:00Z")},
+			"4": {Lane: 0, ReadyTime: mkTime("2019-01-25T00:00:00Z")},
+		},
+		Expected: []string{"1", "2", "4", "3"},
+	}}
+
+	for _, data := range testData {
+		tasks := main.SortTimingsTasks(data.ChangeTimings)
+		c.Check(tasks, DeepEquals, data.Expected)
+	}
 }

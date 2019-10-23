@@ -26,6 +26,7 @@ import (
 	"os"
 	"path/filepath"
 
+	"github.com/snapcore/snapd/gadget"
 	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/snap"
 	"github.com/snapcore/snapd/snap/snapdir"
@@ -115,6 +116,12 @@ func loadAndValidate(sourceDir string) (*snap.Info, error) {
 
 	if err := snap.ValidateContainer(snapdir.New(sourceDir), info, logger.Noticef); err != nil {
 		return nil, err
+	}
+
+	if info.SnapType == snap.TypeGadget {
+		if err := gadget.Validate(sourceDir, nil); err != nil {
+			return nil, err
+		}
 	}
 	return info, nil
 }
