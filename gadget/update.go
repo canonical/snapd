@@ -184,8 +184,8 @@ func canUpdateStructure(from *LaidOutStructure, to *LaidOutStructure, schema str
 	if from.ID != to.ID {
 		return fmt.Errorf("cannot change structure ID from %q to %q", from.ID, to.ID)
 	}
-	if !to.IsBare() {
-		if from.IsBare() {
+	if to.HasFilesystem() {
+		if !from.HasFilesystem() {
 			return fmt.Errorf("cannot change a bare structure to filesystem one")
 		}
 		if from.Filesystem != to.Filesystem {
@@ -197,7 +197,7 @@ func canUpdateStructure(from *LaidOutStructure, to *LaidOutStructure, schema str
 				from.Label, to.Label)
 		}
 	} else {
-		if !from.IsBare() {
+		if from.HasFilesystem() {
 			return fmt.Errorf("cannot change a filesystem structure to a bare one")
 		}
 	}
@@ -303,7 +303,7 @@ var updaterForStructure = updaterForStructureImpl
 func updaterForStructureImpl(ps *LaidOutStructure, newRootDir, rollbackDir string) (Updater, error) {
 	var updater Updater
 	var err error
-	if ps.IsBare() {
+	if !ps.HasFilesystem() {
 		updater, err = NewRawStructureUpdater(newRootDir, ps, rollbackDir, FindDeviceForStructureWithFallback)
 	} else {
 		updater, err = NewMountedFilesystemUpdater(newRootDir, ps, rollbackDir, FindMountPointForStructure)

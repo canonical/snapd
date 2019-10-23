@@ -714,8 +714,9 @@ func (u *updateTestSuite) TestUpdateApplyHappy(c *C) {
 		switch updaterForStructureCalls {
 		case 0:
 			c.Check(ps.Name, Equals, "first")
-			c.Check(ps.IsBare(), Equals, true)
+			c.Check(ps.HasFilesystem(), Equals, false)
 			c.Check(ps.Size, Equals, 5*gadget.SizeMiB)
+			c.Check(ps.IsPartition(), Equals, true)
 			// non MBR start offset defaults to 1MiB
 			c.Check(ps.StartOffset, Equals, 1*gadget.SizeMiB)
 			c.Assert(ps.LaidOutContent, HasLen, 1)
@@ -723,8 +724,9 @@ func (u *updateTestSuite) TestUpdateApplyHappy(c *C) {
 			c.Check(ps.LaidOutContent[0].Size, Equals, 900*gadget.SizeKiB)
 		case 1:
 			c.Check(ps.Name, Equals, "second")
-			c.Check(ps.IsBare(), Equals, false)
+			c.Check(ps.HasFilesystem(), Equals, true)
 			c.Check(ps.Filesystem, Equals, "ext4")
+			c.Check(ps.IsPartition(), Equals, true)
 			c.Check(ps.Size, Equals, 10*gadget.SizeMiB)
 			// foo's start offset + foo's size
 			c.Check(ps.StartOffset, Equals, (1+5)*gadget.SizeMiB)
