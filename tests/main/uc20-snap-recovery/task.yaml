@@ -33,6 +33,8 @@ execute: |
     echo "And check that the partitions are created"
     sfdisk -l "$LOOP" | MATCH '1M\s+BIOS boot'
     sfdisk -l "$LOOP" | MATCH '50M\s+EFI System'
+    # add a very small delay here until udev(?) has caught up
+    retry-tool lsblk --fs "$LOOP" | MATCH 'vfat\s* system-boot'
 
     echo "now add a partition"
     cat >> gadget-dir/meta/gadget.yaml <<EOF
@@ -43,4 +45,8 @@ execute: |
             size: 500M
     EOF
     /usr/lib/snapd/snap-recovery ./gadget-dir "$LOOP"
-    sfdisk -l "$LOOP" | MATCH '500M\s+Linux filesystem'
+    sfdisk -l "$LOOP" | MATCH '500M\s* Linux filesystem'
+
+    echo "check that the filesystems are created"
+    # add a very small delay here until udev(?) has caught up
+    retry-tool lsblk --fs "$LOOP" | MATCH 'ext4\s* other-ext'
