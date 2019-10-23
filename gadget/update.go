@@ -237,7 +237,10 @@ func defaultPolicy(from, to *LaidOutStructure) bool {
 }
 
 // RemodelUpdatePolicy implements the update policy of a remodel scenario.
-func RemodelUpdatePolicy(_, _ *LaidOutStructure) bool {
+func RemodelUpdatePolicy(from, _ *LaidOutStructure) bool {
+	if !from.IsPartition() {
+		return false
+	}
 	return true
 }
 

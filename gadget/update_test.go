@@ -1088,10 +1088,31 @@ func (u *updateTestSuite) TestUpdateApplyUpdatesArePolicyControlled(c *C) {
 
 func (u *updateTestSuite) TestUpdateApplyUpdatesRemodelPolicy(c *C) {
 	oldData, newData, rollbackDir := updateDataSet(c)
+	noPartitionStruct := gadget.VolumeStructure{
+		Name: "no-partition",
+		Type: "bare",
+		Size: 5 * gadget.SizeMiB,
+		Content: []gadget.VolumeContent{
+			{Image: "first.img"},
+		},
+	}
+
+	oldVol := oldData.Info.Volumes["foo"]
+	oldVol.Structure = append(oldVol.Structure, noPartitionStruct)
+	oldData.Info.Volumes["foo"] = oldVol
+
+	newVol := newData.Info.Volumes["foo"]
+	newVol.Structure = append(newVol.Structure, noPartitionStruct)
+	newData.Info.Volumes["foo"] = newVol
+
+	c.Assert(oldData.Info.Volumes["foo"].Structure, HasLen, 4)
+	c.Assert(newData.Info.Volumes["foo"].Structure, HasLen, 4)
+
 	// old structures have higher Edition, no update would occur under the default policy
 	oldData.Info.Volumes["foo"].Structure[0].Update.Edition = 1
 	oldData.Info.Volumes["foo"].Structure[1].Update.Edition = 1
 	oldData.Info.Volumes["foo"].Structure[2].Update.Edition = 3
+	oldData.Info.Volumes["foo"].Structure[3].Update.Edition = 4
 
 	toUpdate := map[string]int{}
 	restore := gadget.MockUpdaterForStructure(func(ps *gadget.LaidOutStructure, psRootDir, psRollbackDir string) (gadget.Updater, error) {
@@ -1106,6 +1127,7 @@ func (u *updateTestSuite) TestUpdateApplyUpdatesRemodelPolicy(c *C) {
 		"first":  1,
 		"second": 1,
 		"third":  1,
+		// no-partition is skipped by the remodel update
 	})
 }
 
