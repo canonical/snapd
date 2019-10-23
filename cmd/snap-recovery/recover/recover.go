@@ -30,6 +30,12 @@ type Options struct {
 }
 
 func Run(gadgetRoot, device string, options *Options) error {
+	if gadgetRoot == "" {
+		return fmt.Errorf("cannot use empty recovery gadget root directory")
+	}
+	if device == "" {
+		return fmt.Errorf("cannot use empty device node")
+	}
 
 	// XXX: ensure we test that the current partition table is
 	//      compatible with the gadget
@@ -39,11 +45,14 @@ func Run(gadgetRoot, device string, options *Options) error {
 	}
 
 	sfdisk := partition.NewSFDisk(device)
-	// XXX: use the output of create to also create filesystems
-	_, err = sfdisk.Create(lv)
+	created, err := sfdisk.Create(lv)
 	if err != nil {
 		return fmt.Errorf("cannot create the partitions: %v", err)
 	}
+	if err := partition.MakeFilesystems(created); err != nil {
+		return err
+	}
+	// XXX: deploy content
 
 	return nil
 }
