@@ -21,10 +21,12 @@ package client_test
 
 import (
 	"encoding/json"
+	"errors"
 	"fmt"
 	"net/url"
 	"time"
 
+	"golang.org/x/xerrors"
 	"gopkg.in/check.v1"
 
 	"github.com/snapcore/snapd/client"
@@ -357,4 +359,25 @@ func (cs *clientSuite) TestAppInfoDaemonIsService(c *check.C) {
 	c.Assert(json.Unmarshal([]byte(`{"name": "hello", "daemon": "x"}`), &app), check.IsNil)
 	c.Check(app.Name, check.Equals, "hello")
 	c.Check(app.IsService(), check.Equals, true)
+}
+
+func (cs *clientSuite) TestClientSectionsErrIsWrapped(c *check.C) {
+	cs.err = errors.New("boom")
+	_, err := cs.cli.Sections()
+	var e xerrors.Wrapper
+	c.Assert(err, check.Implements, &e)
+}
+
+func (cs *clientSuite) TestClientFindOneErrIsWrapped(c *check.C) {
+	cs.err = errors.New("boom")
+	_, _, err := cs.cli.FindOne("snap")
+	var e xerrors.Wrapper
+	c.Assert(err, check.Implements, &e)
+}
+
+func (cs *clientSuite) TestClientSnapErrIsWrapped(c *check.C) {
+	cs.err = errors.New("boom")
+	_, _, err := cs.cli.Snap("snap")
+	var e xerrors.Wrapper
+	c.Assert(err, check.Implements, &e)
 }
