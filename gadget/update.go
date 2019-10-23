@@ -45,8 +45,8 @@ type GadgetData struct {
 	RootDir string
 }
 
-// UpdatePolicyFunc is a callback that evaluates provided pair of structures and
-// returns true when the pair should be part of an update.
+// UpdatePolicyFunc is a callback that evaluates the provided pair of structures
+// and returns true when the pair should be part of an update.
 type UpdatePolicyFunc func(from, to *LaidOutStructure) bool
 
 // Update applies the gadget update given the gadget information and data from
@@ -237,7 +237,7 @@ func defaultPolicy(from, to *LaidOutStructure) bool {
 }
 
 // RemodelUpdatePolicy implements the update policy of a remodel scenario.
-func RemodelUpdatePolicy(_, _o *LaidOutStructure) bool {
+func RemodelUpdatePolicy(_, _ *LaidOutStructure) bool {
 	return true
 }
 
