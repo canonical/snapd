@@ -43,7 +43,7 @@ bool sc_cgroup_is_v2(void);
  * This hierarchy is designed for tracking processes and associating them with
  * a given executable portion of a snap (either an application or a hook).
  *
- * The logic mounts an v1 cgroup hierarchy with name=snapd and without any
+ * The logic mounts a v1 cgroup hierarchy with name=snapd and without any
  * controllers. Currently no release agent is set and no release notification
  * is enabled.
  *
