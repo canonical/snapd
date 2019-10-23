@@ -59,7 +59,7 @@ matrix:
         # override the default install for language:go
         - true
       script:
-        - ./run-checks --spread-ubuntu
+        - sh -x ./run-checks --spread-ubuntu
     - stage: integration
       name: Debian, Fedora, CentOS, Amazon Linux 2, openSUSE, Arch
       dist: xenial
@@ -71,7 +71,7 @@ matrix:
         # override the default install for language:go
         - true
       script:
-        - ./run-checks --spread-no-ubuntu
+        - sh -x ./run-checks --spread-no-ubuntu
     - stage: integration
       name: Unstable systems
       dist: xenial
