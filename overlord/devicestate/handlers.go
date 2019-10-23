@@ -1022,7 +1022,8 @@ func (m *DeviceManager) doUpdateGadgetAssets(t *state.Task, _ *tomb.Tomb) error 
 	}
 
 	st.Unlock()
-	err = gadgetUpdate(*currentData, *updateData, snapRollbackDir)
+	// use the default update policy
+	err = gadgetUpdate(*currentData, *updateData, snapRollbackDir, nil)
 	st.Lock()
 	if err != nil {
 		if err == gadget.ErrNoUpdate {
