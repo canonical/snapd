@@ -252,7 +252,7 @@ func getImageSize(path string) (Size, error) {
 }
 
 func layOutStructureContent(gadgetRootDir string, ps *LaidOutStructure, known map[string]*LaidOutStructure) ([]LaidOutContent, error) {
-	if !ps.IsBare() {
+	if ps.HasFilesystem() {
 		// structures with a filesystem do not need any extra layout
 		return nil, nil
 	}
