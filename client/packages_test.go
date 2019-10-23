@@ -23,7 +23,9 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"io/ioutil"
 	"net/url"
+	"os"
 	"time"
 
 	"golang.org/x/xerrors"
@@ -376,8 +378,28 @@ func (cs *clientSuite) TestClientFindOneErrIsWrapped(c *check.C) {
 }
 
 func (cs *clientSuite) TestClientSnapErrIsWrapped(c *check.C) {
+	// setting cs.err will trigger a "client.ClientError"
 	cs.err = errors.New("boom")
 	_, _, err := cs.cli.Snap("snap")
 	var e xerrors.Wrapper
 	c.Assert(err, check.Implements, &e)
+}
+
+func (cs *clientSuite) TestClientFindFromPathErrIsWrapped(c *check.C) {
+	var e client.AuthorizationError
+
+	// this will trigger a "client.AuthorizationError"
+	err := ioutil.WriteFile(client.TestStoreAuthFilename(os.Getenv("HOME")), []byte("rubbish"), 0644)
+	c.Assert(err, check.IsNil)
+
+	// check that all the functions that use snapsFromPath() get a
+	// wrapped error
+	_, _, err = cs.cli.FindOne("snap")
+	c.Assert(xerrors.As(err, &e), check.Equals, true)
+
+	_, _, err = cs.cli.Find(nil)
+	c.Assert(xerrors.As(err, &e), check.Equals, true)
+
+	_, err = cs.cli.List([]string{"snap"}, nil)
+	c.Assert(xerrors.As(err, &e), check.Equals, true)
 }

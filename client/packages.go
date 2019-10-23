@@ -249,7 +249,8 @@ func (client *Client) snapsFromPath(path string, query url.Values) ([]*Snap, *Re
 		return nil, nil, e
 	}
 	if err != nil {
-		return nil, nil, fmt.Errorf("cannot list snaps: %s", err)
+		fmt := "cannot list snaps: %w"
+		return nil, nil, xerrors.Errorf(fmt, err)
 	}
 	return snaps, ri, nil
 }
