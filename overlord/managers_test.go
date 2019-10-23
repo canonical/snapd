@@ -3604,6 +3604,7 @@ version: 1.0`
 	})
 	// simulate successful system-restart bootenv updates (those
 	// vars will be cleared by snapd on a restart)
+	bloader.BootVars["snap_kernel"] = "brand-kernel_2.snap"
 	bloader.BootVars["snap_try_kernel"] = ""
 	bloader.BootVars["snap_mode"] = ""
 
@@ -3619,10 +3620,11 @@ version: 1.0`
 
 	c.Assert(chg.Status(), Equals, state.DoneStatus, Commentf("upgrade-snap change failed with: %v", chg.Err()))
 
-	// bootvars are as expected
+	// bootvars are as expected (i.e. nothing has changed since this
+	// test simulated that we booted successfully)
 	c.Assert(bloader.BootVars, DeepEquals, map[string]string{
 		"snap_core":       "core_1.snap",
-		"snap_kernel":     "pc-kernel_1.snap",
+		"snap_kernel":     "brand-kernel_2.snap",
 		"snap_try_kernel": "",
 		"snap_mode":       "",
 	})
