@@ -96,6 +96,9 @@ execute: |
     rm dbus-netplan-apply.log
     touch dbus-netplan-apply.log
 
+    echo "Disconnecting network-setup-control to test network-setup-observe"
+    snap disconnect test-snapd-netplan-apply:network-setup-control
+
     echo "The network-setup-observe interface is disconnected by default"
     snap connections test-snapd-netplan-apply | MATCH 'network-setup-observe +test-snapd-netplan-apply:network-setup-observe +- +-'
 
