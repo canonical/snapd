@@ -20,7 +20,7 @@ execute: |
   # TODO: expand this test to install GNU time or find a suitable replacement.
   if snap debug sandbox-features --required apparmor:kernel:mount && [ "$(command -v time)" != time ]; then
     # Re-compile the apparmor profile for snap-update-ns for the
-    # gnome-system-monitor snap while ensuring that the profile is not loaded
+    # test-snapd-app snap while ensuring that the profile is not loaded
     # into kernel memory and that the compiler is not using any existing caches.
     # Use time(1) to record the maximum resident memory usage and store it in a
     # file.
