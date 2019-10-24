@@ -111,10 +111,9 @@ func (ts *HTestSuite) TestUserForClassicConfinement(c *C) {
 	env := userEnv(mockClassicSnapInfo, "/root")
 
 	c.Assert(env, DeepEquals, map[string]string{
-		// NOTE HOME Is absent! we no longer override it
+		// NOTE: Both HOME and XDG_RUMTIME_DIR are not defined here.
 		"SNAP_USER_COMMON": "/root/snap/foo/common",
 		"SNAP_USER_DATA":   "/root/snap/foo/17",
-		"XDG_RUNTIME_DIR":  fmt.Sprintf("/run/user/%d/snap.foo", sys.Geteuid()),
 	})
 }
 
@@ -222,10 +221,8 @@ func (ts *HTestSuite) TestParallelInstallUserForClassicConfinement(c *C) {
 	env := userEnv(&info, "/root")
 
 	c.Assert(env, DeepEquals, map[string]string{
-		// NOTE HOME Is absent! we no longer override it
 		"SNAP_USER_COMMON": "/root/snap/foo_bar/common",
 		"SNAP_USER_DATA":   "/root/snap/foo_bar/17",
-		"XDG_RUNTIME_DIR":  fmt.Sprintf("/run/user/%d/snap.foo_bar", sys.Geteuid()),
 	})
 }
 

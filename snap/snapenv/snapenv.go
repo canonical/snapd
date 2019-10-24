@@ -129,11 +129,11 @@ func userEnv(info *snap.Info, home string) map[string]string {
 	result := map[string]string{
 		"SNAP_USER_COMMON": info.UserCommonDataDir(home),
 		"SNAP_USER_DATA":   info.UserDataDir(home),
-		"XDG_RUNTIME_DIR":  info.UserXdgRuntimeDir(sys.Geteuid()),
 	}
 	// For non-classic snaps, we set HOME but on classic allow snaps to see real HOME
 	if !info.NeedsClassic() {
 		result["HOME"] = info.UserDataDir(home)
+		result["XDG_RUNTIME_DIR"] = info.UserXdgRuntimeDir(sys.Geteuid())
 	}
 	return result
 }
