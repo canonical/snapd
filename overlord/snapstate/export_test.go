@@ -72,6 +72,12 @@ func MockPrerequisitesRetryTimeout(d time.Duration) (restore func()) {
 	return func() { prerequisitesRetryTimeout = old }
 }
 
+func MockOsutilEnsureUserGroup(mock func(name string, id uint32, extraUsers bool) error) (restore func()) {
+	old := osutilEnsureUserGroup
+	osutilEnsureUserGroup = mock
+	return func() { osutilEnsureUserGroup = old }
+}
+
 var (
 	CoreInfoInternal       = coreInfo
 	CheckSnap              = checkSnap
@@ -201,3 +207,11 @@ var (
 )
 
 type AuxStoreInfo = auxStoreInfo
+
+func MockPidsCgroupDir(dir string) (restore func()) {
+	old := pidsCgroupDir
+	pidsCgroupDir = dir
+	return func() {
+		pidsCgroupDir = old
+	}
+}

@@ -32,9 +32,7 @@ import (
 
 func Test(t *testing.T) { TestingT(t) }
 
-type zenitySuite struct {
-	mock *testutil.MockCmd
-}
+type zenitySuite struct{}
 
 var _ = Suite(&zenitySuite{})
 

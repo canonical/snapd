@@ -27,7 +27,7 @@ import (
 
 	"github.com/snapcore/snapd/asserts"
 	"github.com/snapcore/snapd/asserts/sysdb"
-	"github.com/snapcore/snapd/bootloader"
+	"github.com/snapcore/snapd/boot"
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/i18n"
 	"github.com/snapcore/snapd/overlord/assertstate"
@@ -438,11 +438,7 @@ func (m *DeviceManager) ensureBootOk() error {
 	}
 
 	if !m.bootOkRan {
-		loader, err := bootloader.Find()
-		if err != nil {
-			return fmt.Errorf(i18n.G("cannot mark boot successful: %s"), err)
-		}
-		if err := bootloader.MarkBootSuccessful(loader); err != nil {
+		if err := boot.MarkBootSuccessful(); err != nil {
 			return err
 		}
 		m.bootOkRan = true

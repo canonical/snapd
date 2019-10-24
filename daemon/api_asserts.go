@@ -20,7 +20,11 @@
 package daemon
 
 import (
+	"errors"
+	"fmt"
 	"net/http"
+	"net/url"
+	"strconv"
 
 	"github.com/snapcore/snapd/asserts"
 	"github.com/snapcore/snapd/overlord/assertstate"
@@ -43,6 +47,50 @@ var (
 	}
 )
 
+// a helper type for parsing the options specified to /v2/assertions and other
+// such endpoints that can either do JSON or assertion depending on the value
+// of the the URL query parameters
+type daemonAssertOptions struct {
+	jsonResult  bool
+	headersOnly bool
+	remote      bool
+	headers     map[string]string
+}
+
+// helper for parsing url query options into formatting option vars
+func parseHeadersFormatOptionsFromURL(q url.Values) (*daemonAssertOptions, error) {
+	res := daemonAssertOptions{}
+	res.headers = make(map[string]string)
+	for k := range q {
+		v := q.Get(k)
+		switch k {
+		case "remote":
+			switch v {
+			case "true", "false":
+				res.remote, _ = strconv.ParseBool(v)
+			default:
+				return nil, errors.New(`"remote" query parameter when used must be set to "true" or "false" or left unset`)
+			}
+		case "json":
+			switch v {
+			case "false":
+				res.jsonResult = false
+			case "headers":
+				res.headersOnly = true
+				fallthrough
+			case "true":
+				res.jsonResult = true
+			default:
+				return nil, errors.New(`"json" query parameter when used must be set to "true" or "headers"`)
+			}
+		default:
+			res.headers[k] = v
+		}
+	}
+
+	return &res, nil
+}
+
 func getAssertTypeNames(c *Command, r *http.Request, user *auth.UserState) Response {
 	return SyncResponse(map[string][]string{
 		"types": asserts.TypeNames(),
@@ -50,7 +98,7 @@ func getAssertTypeNames(c *Command, r *http.Request, user *auth.UserState) Respo
 }
 
 func doAssert(c *Command, r *http.Request, user *auth.UserState) Response {
-	batch := assertstate.NewBatch()
+	batch := asserts.NewBatch(nil)
 	_, err := batch.AddStream(r.Body)
 	if err != nil {
 		return BadRequest("cannot decode request body into assertions: %v", err)
@@ -60,7 +108,9 @@ func doAssert(c *Command, r *http.Request, user *auth.UserState) Response {
 	state.Lock()
 	defer state.Unlock()
 
-	if err := batch.Commit(state); err != nil {
+	if err := assertstate.AddBatch(state, batch, &asserts.CommitOptions{
+		Precheck: true,
+	}); err != nil {
 		return BadRequest("assert failed: %v", err)
 	}
 	// TODO: what more info do we want to return on success?
@@ -70,52 +120,58 @@ func doAssert(c *Command, r *http.Request, user *auth.UserState) Response {
 	}
 }
 
+func assertsFindOneRemote(c *Command, at *asserts.AssertionType, headers map[string]string, user *auth.UserState) ([]asserts.Assertion, error) {
+	primaryKeys, err := asserts.PrimaryKeyFromHeaders(at, headers)
+	if err != nil {
+		return nil, fmt.Errorf("cannot query remote assertion: %v", err)
+	}
+	sto := getStore(c)
+	as, err := sto.Assertion(at, primaryKeys, user)
+	if err != nil {
+		return nil, err
+	}
+
+	return []asserts.Assertion{as}, nil
+}
+
+func assertsFindManyInState(c *Command, at *asserts.AssertionType, headers map[string]string, opts *daemonAssertOptions) ([]asserts.Assertion, error) {
+	state := c.d.overlord.State()
+	state.Lock()
+	db := assertstate.DB(state)
+	state.Unlock()
+
+	return db.FindMany(at, opts.headers)
+}
+
 func assertsFindMany(c *Command, r *http.Request, user *auth.UserState) Response {
 	assertTypeName := muxVars(r)["assertType"]
 	assertType := asserts.Type(assertTypeName)
 	if assertType == nil {
 		return BadRequest("invalid assert type: %q", assertTypeName)
 	}
-	jsonResult := false
-	headersOnly := false
-	headers := map[string]string{}
-	q := r.URL.Query()
-	for k := range q {
-		if k == "json" {
-			switch q.Get(k) {
-			case "false":
-				jsonResult = false
-			case "headers":
-				headersOnly = true
-				fallthrough
-			case "true":
-				jsonResult = true
-			default:
-				return BadRequest(`"json" query parameter when used must be set to "true" or "headers"`)
-			}
-			continue
-		}
-		headers[k] = q.Get(k)
+	opts, err := parseHeadersFormatOptionsFromURL(r.URL.Query())
+	if err != nil {
+		return BadRequest(err.Error())
 	}
 
-	state := c.d.overlord.State()
-	state.Lock()
-	db := assertstate.DB(state)
-	state.Unlock()
-
-	assertions, err := db.FindMany(assertType, headers)
+	var assertions []asserts.Assertion
+	if opts.remote {
+		assertions, err = assertsFindOneRemote(c, assertType, opts.headers, user)
+	} else {
+		assertions, err = assertsFindManyInState(c, assertType, opts.headers, opts)
+	}
 	if err != nil && !asserts.IsNotFound(err) {
 		return InternalError("searching assertions failed: %v", err)
 	}
 
-	if jsonResult {
+	if opts.jsonResult {
 		assertsJSON := make([]struct {
 			Headers map[string]interface{} `json:"headers,omitempty"`
 			Body    string                 `json:"body,omitempty"`
 		}, len(assertions))
 		for i := range assertions {
 			assertsJSON[i].Headers = assertions[i].Headers()
-			if !headersOnly {
+			if !opts.headersOnly {
 				assertsJSON[i].Body = string(assertions[i].Body())
 			}
 		}

@@ -35,7 +35,7 @@ import (
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/osutil/squashfs"
-	"github.com/snapcore/snapd/release"
+	"github.com/snapcore/snapd/sandbox/selinux"
 	"github.com/snapcore/snapd/testutil"
 
 	. "github.com/snapcore/snapd/systemd"
@@ -99,7 +99,7 @@ func (s *SystemdTestSuite) SetUpTest(c *C) {
 
 	s.rep = new(testreporter)
 
-	s.restoreSELinux = release.MockSELinuxIsEnabled(func() (bool, error) { return false, nil })
+	s.restoreSELinux = selinux.MockIsEnabled(func() (bool, error) { return false, nil })
 }
 
 func (s *SystemdTestSuite) TearDownTest(c *C) {
@@ -505,7 +505,7 @@ func makeMockFile(c *C, path string) {
 func (s *SystemdTestSuite) TestAddMountUnit(c *C) {
 	rootDir := dirs.GlobalRootDir
 
-	restore := squashfs.MockUseFuse(false)
+	restore := squashfs.MockNeedsFuse(false)
 	defer restore()
 
 	mockSnapPath := filepath.Join(c.MkDir(), "/var/lib/snappy/snaps/foo_1.0.snap")
@@ -525,6 +525,7 @@ What=%s
 Where=/snap/snapname/123
 Type=squashfs
 Options=nodev,ro,x-gdu.hide
+LazyUnmount=yes
 
 [Install]
 WantedBy=multi-user.target
@@ -538,7 +539,7 @@ WantedBy=multi-user.target
 }
 
 func (s *SystemdTestSuite) TestAddMountUnitForDirs(c *C) {
-	restore := squashfs.MockUseFuse(false)
+	restore := squashfs.MockNeedsFuse(false)
 	defer restore()
 
 	// a directory instead of a file produces a different output
@@ -557,6 +558,7 @@ What=%s
 Where=/snap/snapname/x1
 Type=none
 Options=nodev,ro,x-gdu.hide,bind
+LazyUnmount=yes
 
 [Install]
 WantedBy=multi-user.target
@@ -570,9 +572,9 @@ WantedBy=multi-user.target
 }
 
 func (s *SystemdTestSuite) TestWriteSELinuxMountUnit(c *C) {
-	restore := release.MockSELinuxIsEnabled(func() (bool, error) { return true, nil })
+	restore := selinux.MockIsEnabled(func() (bool, error) { return true, nil })
 	defer restore()
-	restore = squashfs.MockUseFuse(false)
+	restore = squashfs.MockNeedsFuse(false)
 	defer restore()
 
 	mockSnapPath := filepath.Join(c.MkDir(), "/var/lib/snappy/snaps/foo_1.0.snap")
@@ -595,6 +597,7 @@ What=%s
 Where=/snap/snapname/123
 Type=squashfs
 Options=nodev,ro,x-gdu.hide,context=system_u:object_r:snappy_snap_t:s0
+LazyUnmount=yes
 
 [Install]
 WantedBy=multi-user.target
@@ -637,6 +640,7 @@ What=%s
 Where=/snap/snapname/123
 Type=fuse.squashfuse
 Options=nodev,ro,x-gdu.hide,allow_other
+LazyUnmount=yes
 
 [Install]
 WantedBy=multi-user.target
@@ -675,6 +679,7 @@ What=%s
 Where=/snap/snapname/123
 Type=squashfs
 Options=nodev,ro,x-gdu.hide
+LazyUnmount=yes
 
 [Install]
 WantedBy=multi-user.target

@@ -35,7 +35,7 @@ import (
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/i18n"
 	"github.com/snapcore/snapd/osutil"
-	"github.com/snapcore/snapd/snap"
+	"github.com/snapcore/snapd/snap/channel"
 	"github.com/snapcore/snapd/strutil"
 )
 
@@ -281,14 +281,14 @@ func isSameRisk(tracking, current string) (bool, error) {
 	}
 	var trackingRisk, currentRisk string
 	if tracking != "" {
-		traCh, err := snap.ParseChannel(tracking, "")
+		traCh, err := channel.Parse(tracking, "")
 		if err != nil {
 			return false, err
 		}
 		trackingRisk = traCh.Risk
 	}
 	if current != "" {
-		curCh, err := snap.ParseChannel(current, "")
+		curCh, err := channel.Parse(current, "")
 		if err != nil {
 			return false, err
 		}
@@ -372,10 +372,12 @@ func showDone(cli *client.Client, names []string, op string, opts *client.SnapOp
 		default:
 			fmt.Fprintf(Stdout, "internal error: unknown op %q", op)
 		}
-		if snap.TrackingChannel != snap.Channel && snap.Channel != "" {
-			if sameRisk, err := isSameRisk(snap.TrackingChannel, snap.Channel); err == nil && !sameRisk {
-				// TRANSLATORS: first %s is a channel name, following %s is a snap name, last %s is a channel name again.
-				fmt.Fprintf(Stdout, i18n.G("Channel %s for %s is closed; temporarily forwarding to %s.\n"), snap.TrackingChannel, snap.Name, snap.Channel)
+		if op == "install" || op == "refresh" {
+			if snap.TrackingChannel != snap.Channel && snap.Channel != "" {
+				if sameRisk, err := isSameRisk(snap.TrackingChannel, snap.Channel); err == nil && !sameRisk {
+					// TRANSLATORS: first %s is a channel name, following %s is a snap name, last %s is a channel name again.
+					fmt.Fprintf(Stdout, i18n.G("Channel %s for %s is closed; temporarily forwarding to %s.\n"), snap.TrackingChannel, snap.Name, snap.Channel)
+				}
 			}
 		}
 	}

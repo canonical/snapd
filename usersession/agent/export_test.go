@@ -20,6 +20,7 @@
 package agent
 
 import (
+	"syscall"
 	"time"
 )
 
@@ -36,5 +37,15 @@ func MockStopTimeouts(stop, kill time.Duration) (restore func()) {
 	return func() {
 		stopTimeout = oldStopTimeout
 		killWait = oldKillWait
+	}
+}
+
+func MockUcred(ucred *syscall.Ucred, err error) (restore func()) {
+	old := sysGetsockoptUcred
+	sysGetsockoptUcred = func(fd, level, opt int) (*syscall.Ucred, error) {
+		return ucred, err
+	}
+	return func() {
+		sysGetsockoptUcred = old
 	}
 }

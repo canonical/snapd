@@ -209,11 +209,18 @@ func NewToolingStore() (*ToolingStore, error) {
 
 // DownloadOptions carries options for downloading snaps plus assertions.
 type DownloadOptions struct {
-	Revision  snap.Revision
 	TargetDir string
+	// if TargetPathFunc is not nil it will be invoked
+	// to compute the target path for the download and TargetDir is
+	// ignored
+	TargetPathFunc func(*snap.Info) (string, error)
+
+	Revision  snap.Revision
 	Channel   string
 	CohortKey string
 	Basename  string
+
+	LeavePartialOnError bool
 }
 
 var (
@@ -262,7 +269,7 @@ func (tsto *ToolingStore) DownloadSnap(name string, opts DownloadOptions) (targe
 	}
 	sto := tsto.sto
 
-	if opts.TargetDir == "" {
+	if opts.TargetPathFunc == nil && opts.TargetDir == "" {
 		pwd, err := os.Getwd()
 		if err != nil {
 			return "", nil, err
@@ -292,13 +299,21 @@ func (tsto *ToolingStore) DownloadSnap(name string, opts DownloadOptions) (targe
 	}
 	snap := snaps[0]
 
-	baseName := opts.Basename
-	if baseName == "" {
-		baseName = filepath.Base(snap.MountFile())
+	if opts.TargetPathFunc == nil {
+		baseName := opts.Basename
+		if baseName == "" {
+			baseName = filepath.Base(snap.MountFile())
+		} else {
+			baseName += ".snap"
+		}
+		targetFn = filepath.Join(opts.TargetDir, baseName)
 	} else {
-		baseName += ".snap"
+		var err error
+		targetFn, err = opts.TargetPathFunc(snap)
+		if err != nil {
+			return "", nil, err
+		}
 	}
-	targetFn = filepath.Join(opts.TargetDir, baseName)
 
 	// check if we already have the right file
 	if osutil.FileExists(targetFn) {
@@ -322,7 +337,8 @@ func (tsto *ToolingStore) DownloadSnap(name string, opts DownloadOptions) (targe
 		os.Exit(1)
 	}()
 
-	if err = sto.Download(context.TODO(), name, targetFn, &snap.DownloadInfo, pb, tsto.user, nil); err != nil {
+	dlOpts := &store.DownloadOptions{LeavePartialOnError: opts.LeavePartialOnError}
+	if err = sto.Download(context.TODO(), name, targetFn, &snap.DownloadInfo, pb, tsto.user, dlOpts); err != nil {
 		return "", nil, err
 	}
 

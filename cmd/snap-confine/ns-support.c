@@ -39,6 +39,7 @@
 #include <unistd.h>
 
 #include "../libsnap-confine-private/cgroup-freezer-support.h"
+#include "../libsnap-confine-private/cgroup-support.h"
 #include "../libsnap-confine-private/classic.h"
 #include "../libsnap-confine-private/cleanup-funcs.h"
 #include "../libsnap-confine-private/infofile.h"
@@ -486,6 +487,11 @@ static int sc_inspect_and_maybe_discard_stale_ns(int mnt_fd,
 		debug("preserved mount is not stale, reusing");
 		return 0;
 	case SC_DISCARD_SHOULD:
+		if (sc_cgroup_is_v2()) {
+			debug
+			    ("WARNING: cgroup v2 detected, preserved mount namespace process presence check unsupported, discarding");
+			break;
+		}
 		if (sc_cgroup_freezer_occupied(inv->snap_instance)) {
 			// Some processes are still using the namespace so we cannot discard it
 			// as that would fracture the view that the set of processes inside
@@ -873,9 +879,19 @@ void sc_store_ns_info(const sc_invocation * inv)
 	char info_path[PATH_MAX] = { 0 };
 	sc_must_snprintf(info_path, sizeof info_path,
 			 "/run/snapd/ns/snap.%s.info", inv->snap_instance);
-	stream = fopen(info_path, "w");
-	if (stream == NULL) {
+	int fd = -1;
+	fd = open(info_path,
+		  O_WRONLY | O_CREAT | O_TRUNC | O_CLOEXEC | O_NOFOLLOW, 0644);
+	if (fd < 0) {
 		die("cannot open %s", info_path);
+	}
+	if (fchown(fd, 0, 0) < 0) {
+		die("cannot chown %s to root.root", info_path);
+	}
+	// The stream now owns the file descriptor.
+	stream = fdopen(fd, "w");
+	if (stream == NULL) {
+		die("cannot get stream from file descriptor");
 	}
 	fprintf(stream, "base-snap-name=%s\n", inv->orig_base_snap_name);
 	if (ferror(stream) != 0) {

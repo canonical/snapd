@@ -150,6 +150,14 @@ slots:
         interface: iface
 `
 
+const SomeSnapYamlV1 = `
+name: some-snap
+version: 1
+developer: acme
+apps:
+    someapp:
+`
+
 // Support code for tests
 
 // InstallSnap "installs" a snap from YAML.

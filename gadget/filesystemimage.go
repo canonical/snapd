@@ -37,27 +37,27 @@ var (
 )
 
 // FilesystemImageWriter is capable of creating filesystem images described by
-// positioned structures.
+// laid out structures.
 type FilesystemImageWriter struct {
 	contentDir string
-	ps         *PositionedStructure
+	ps         *LaidOutStructure
 	workDir    string
 }
 
 // PostStageFunc is called after the filesystem contents for the given structure
 // have been staged at a temporary location, but before the filesystem image is
 // created. The function can be used to manipulate the staged data.
-type PostStageFunc func(rootDir string, ps *PositionedStructure) error
+type PostStageFunc func(rootDir string, ps *LaidOutStructure) error
 
 // NewFilesystemImageWriter returns a writer capable of creating filesystem
 // images corresponding to the provided structure, with content from the given
 // content directory. A staging directory will be created in either, the
 // optionally provided work directory, or the default temp location.
-func NewFilesystemImageWriter(contentDir string, ps *PositionedStructure, workDir string) (*FilesystemImageWriter, error) {
+func NewFilesystemImageWriter(contentDir string, ps *LaidOutStructure, workDir string) (*FilesystemImageWriter, error) {
 	if ps == nil {
-		return nil, fmt.Errorf("internal error: *PositionedStructure is nil")
+		return nil, fmt.Errorf("internal error: *LaidOutStructure is nil")
 	}
-	if ps.IsBare() {
+	if !ps.HasFilesystem() {
 		return nil, fmt.Errorf("internal error: structure has no filesystem")
 	}
 	if contentDir == "" {

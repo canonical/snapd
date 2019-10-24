@@ -25,7 +25,9 @@ import (
 	"github.com/snapcore/snapd/interfaces"
 	"github.com/snapcore/snapd/interfaces/apparmor"
 	"github.com/snapcore/snapd/interfaces/seccomp"
+	"github.com/snapcore/snapd/interfaces/udev"
 	"github.com/snapcore/snapd/release"
+	apparmor_sandbox "github.com/snapcore/snapd/sandbox/apparmor"
 	"github.com/snapcore/snapd/snap"
 )
 
@@ -71,8 +73,10 @@ const dockerSupportConnectedPlugAppArmor = `
 /{,var/}run/runc/**     mrwklix,
 
 # Allow sockets/etc for containerd
-/run/containerd/{,runc/,runc/k8s.io/,runc/k8s.io/*/} rw,
-/run/containerd/runc/k8s.io/*/** rwk,
+/{,var/}run/containerd/{,runc/,runc/k8s.io/,runc/k8s.io/*/} rw,
+/{,var/}run/containerd/runc/k8s.io/*/** rwk,
+/{,var/}run/containerd/{io.containerd*/,io.containerd*/k8s.io/,io.containerd*/k8s.io/*/} rw,
+/{,var/}run/containerd/io.containerd*/*/** rwk,
 
 # Limit ipam-state to k8s
 /run/ipam-state/k8s-** rw,
@@ -173,7 +177,22 @@ ptrace (read, trace) peer=cri-containerd.apparmor.d,
 # For details see https://bugs.launchpad.net/apparmor/+bug/1820344
 / ix,
 /bin/runc ixr,
+
 /pause ixr,
+/bin/busybox ixr,
+
+# When kubernetes drives containerd, containerd needs access to CNI services,
+# like flanneld's subnet.env for DNS. This would ideally be snap-specific (it
+# could if the control plane was a snap), but in deployments where the control
+# plane is not a snap, it will tell flannel to use this path.
+/run/flannel/{,**} rk,
+
+# When kubernetes drives containerd, containerd needs access to various
+# secrets for the pods which are overlayed at /run/secrets/....
+# This would ideally be snap-specific (it could if the control plane was a
+# snap), but in deployments where the control plane is not a snap, it will tell
+# containerd to use this path for various account information for pods.
+/run/secrets/kubernetes.io/{,**} rk,
 `
 
 const dockerSupportConnectedPlugSecComp = `
@@ -608,8 +627,14 @@ func (iface *dockerSupportInterface) StaticInfo() interfaces.StaticInfo {
 }
 
 var (
-	parserFeatures = release.AppArmorParserFeatures
+	parserFeatures = apparmor_sandbox.ParserFeatures
 )
+
+func (iface *dockerSupportInterface) UDevConnectedPlug(spec *udev.Specification, plug *interfaces.ConnectedPlug, slot *interfaces.ConnectedSlot) error {
+	spec.SetControlsDeviceCgroup()
+
+	return nil
+}
 
 func (iface *dockerSupportInterface) AppArmorConnectedPlug(spec *apparmor.Specification, plug *interfaces.ConnectedPlug, slot *interfaces.ConnectedSlot) error {
 	var privileged bool

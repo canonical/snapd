@@ -38,8 +38,7 @@ import (
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/osutil/squashfs"
-	"github.com/snapcore/snapd/release"
-	"github.com/snapcore/snapd/selinux"
+	"github.com/snapcore/snapd/sandbox/selinux"
 )
 
 var (
@@ -654,7 +653,7 @@ func (s *systemd) AddMountUnitFile(snapName, revision, what, where, fstype strin
 		}
 		options = append(options, newOptions...)
 		fstype = newFsType
-		if release.SELinuxLevel() != release.NoSELinux {
+		if selinux.ProbedLevel() != selinux.Unsupported {
 			if mountCtx := selinux.SnapMountContext(); mountCtx != "" {
 				options = append(options, "context="+mountCtx)
 			}
@@ -674,6 +673,7 @@ What=%s
 Where=%s
 Type=%s
 Options=%s
+LazyUnmount=yes
 
 [Install]
 WantedBy=multi-user.target

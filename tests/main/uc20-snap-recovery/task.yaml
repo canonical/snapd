@@ -1,0 +1,52 @@
+summary: Integration tests for the snap-recovery binary
+
+# one system is enough, its a very specialized test for now
+systems: [ubuntu-18.04-64]
+
+restore: |
+    if [ -f loop.txt ]; then
+        losetup -d "$(cat loop.txt)"
+    fi
+
+prepare: |
+    echo "Create a fake block device image"
+    truncate --size=2GB fake.img
+
+    echo "Setup the image as a block device"
+    # without -P this test will not work, then /dev/loop1p? will be missing
+    losetup -fP fake.img
+    losetup -a |grep fake.img|cut -f1 -d: > loop.txt
+    LOOP="$(cat loop.txt)"
+
+    echo "Create an empty partition header"
+    echo "label: gpt" | sfdisk "$LOOP"
+
+    echo "Get the UC16 gadget"
+    snap download pc
+    unsquashfs -d gadget-dir pc_*.snap
+
+execute: |
+    LOOP="$(cat loop.txt)"
+    echo "Run the snap-recovery tool"
+    /usr/lib/snapd/snap-recovery ./gadget-dir "$LOOP"
+
+    echo "And check that the partitions are created"
+    sfdisk -l "$LOOP" | MATCH '1M\s+BIOS boot'
+    sfdisk -l "$LOOP" | MATCH '50M\s+EFI System'
+    # add a very small delay here until udev(?) has caught up
+    retry-tool lsblk --fs "$LOOP" | MATCH 'vfat\s* system-boot'
+
+    echo "now add a partition"
+    cat >> gadget-dir/meta/gadget.yaml <<EOF
+          - name: Other ext4
+            type: 83,0FC63DAF-8483-4772-8E79-3D69D8477DE4
+            filesystem: ext4
+            filesystem-label: other-ext4
+            size: 500M
+    EOF
+    /usr/lib/snapd/snap-recovery ./gadget-dir "$LOOP"
+    sfdisk -l "$LOOP" | MATCH '500M\s* Linux filesystem'
+
+    echo "check that the filesystems are created"
+    # add a very small delay here until udev(?) has caught up
+    retry-tool lsblk --fs "$LOOP" | MATCH 'ext4\s* other-ext'

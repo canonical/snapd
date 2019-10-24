@@ -72,6 +72,7 @@ profile systemd_run (attach_disconnected,mediate_deleted) {
   owner @{PROC}/@{pid}/environ r,
   @{PROC}/cmdline r,
   @{PROC}/sys/kernel/osrelease r,
+  @{PROC}/1/sched r,
 
   # setsockopt()
   capability net_admin,
@@ -79,6 +80,7 @@ profile systemd_run (attach_disconnected,mediate_deleted) {
   # ptrace 'trace' is coarse and not required for using the systemd private
   # socket, and while the child profile omits 'capability sys_ptrace', skip
   # for now since it isn't strictly required.
+  ptrace read peer=unconfined,
   deny ptrace trace peer=unconfined,
   /run/systemd/private rw,
 
@@ -94,13 +96,19 @@ const kubernetesSupportConnectedPlugAppArmorKubelet = `
 # Ideally this would be snap-specific
 /run/dockershim.sock rw,
 
+# Ideally this would be snap-specific (it could if the control plane was a
+# snap), but in deployments where the control plane is not a snap, it will tell
+# flannel to use this path.
+/run/flannel/{,**} rw,
+/run/flannel/** k,
+
 # allow managing pods' cgroups
 /sys/fs/cgroup/*/kubepods/{,**} rw,
 
 # Allow tracing our own processes. Note, this allows seccomp sandbox escape on
 # kernels < 4.8
 capability sys_ptrace,
-ptrace (trace) peer=snap.@{SNAP_NAME}.*,
+ptrace (trace) peer=snap.@{SNAP_INSTANCE_NAME}.*,
 
 # Allow ptracing other processes (as part of ps-style process lookups). Note,
 # the peer needs a corresponding tracedby rule. As a special case, disallow
@@ -125,10 +133,11 @@ deny ptrace (trace) peer=unconfined,
 # kubelet calls out to systemd-run for some mounts, but not all of them and not
 # unmounts...
 capability sys_admin,
-mount /var/snap/@{SNAP_NAME}/common/{,**} -> /var/snap/@{SNAP_NAME}/common/{,**},
-mount options=(rw, rshared) -> /var/snap/@{SNAP_NAME}/common/{,**},
+mount /var/snap/@{SNAP_INSTANCE_NAME}/common/{,**} -> /var/snap/@{SNAP_INSTANCE_NAME}/common/{,**},
+mount options=(rw, rshared) -> /var/snap/@{SNAP_INSTANCE_NAME}/common/{,**},
 
-/bin/umount ixr,
+/{,usr/}bin/mount ixr,
+/{,usr/}bin/umount ixr,
 deny /run/mount/utab rw,
 umount /var/snap/@{SNAP_INSTANCE_NAME}/common/**,
 `
@@ -136,9 +145,20 @@ umount /var/snap/@{SNAP_INSTANCE_NAME}/common/**,
 const kubernetesSupportConnectedPlugAppArmorKubeletSystemdRun = `
   # kubelet mount rules
   capability sys_admin,
-  /bin/mount ixr,
+  /{,usr/}bin/mount ixr,
   mount fstype="tmpfs" tmpfs -> /var/snap/@{SNAP_INSTANCE_NAME}/common/**,
   deny /run/mount/utab rw,
+
+  # For mounting volume subPaths
+  mount /var/snap/@{SNAP_INSTANCE_NAME}/common/{,**} -> /var/snap/@{SNAP_INSTANCE_NAME}/common/{,**},
+  mount options=(rw, remount, bind) -> /var/snap/@{SNAP_INSTANCE_NAME}/common/{,**},
+  umount /var/snap/@{SNAP_INSTANCE_NAME}/common/**,
+  # When mounting a volume subPath, kubelet binds mounts on an open fd (eg,
+  # /proc/.../fd/N) which triggers a ptrace 'trace' denial on the parent
+  # kubelet peer process from this child profile. Note, this child profile
+  # doesn't have 'capability sys_ptrace', so systemd-run is still not able to
+  # ptrace this snap's processes.
+  ptrace (trace) peer=snap.@{SNAP_INSTANCE_NAME}.@{SNAP_COMMAND_NAME},
 `
 
 const kubernetesSupportConnectedPlugSeccompKubelet = `

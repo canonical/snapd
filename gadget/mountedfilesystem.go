@@ -59,16 +59,16 @@ func checkContent(content *VolumeContent) error {
 // mounted filesystem.
 type MountedFilesystemWriter struct {
 	contentDir string
-	ps         *PositionedStructure
+	ps         *LaidOutStructure
 }
 
 // NewMountedFilesystemWriter returns a writer capable of writing provided
 // structure, with content of the structure stored in the given root directory.
-func NewMountedFilesystemWriter(contentDir string, ps *PositionedStructure) (*MountedFilesystemWriter, error) {
+func NewMountedFilesystemWriter(contentDir string, ps *LaidOutStructure) (*MountedFilesystemWriter, error) {
 	if ps == nil {
-		return nil, fmt.Errorf("internal error: *PositionedStructure is nil")
+		return nil, fmt.Errorf("internal error: *LaidOutStructure is nil")
 	}
-	if ps.IsBare() {
+	if !ps.HasFilesystem() {
 		return nil, fmt.Errorf("structure %v has no filesystem", ps)
 	}
 	if contentDir == "" {
@@ -242,7 +242,7 @@ func makeStamp(stamp string) error {
 	return f.Commit()
 }
 
-type mountLookupFunc func(ps *PositionedStructure) (string, error)
+type mountLookupFunc func(ps *LaidOutStructure) (string, error)
 
 // MountedFilesystemUpdater assits in applying updates to a mounted filesystem.
 //
@@ -268,7 +268,7 @@ type MountedFilesystemUpdater struct {
 // structure, with structure content coming from provided root directory. The
 // mount is located by calling a mount lookup helper. The backup directory
 // contains backup state information for use during rollback.
-func NewMountedFilesystemUpdater(rootDir string, ps *PositionedStructure, backupDir string, mountLookup mountLookupFunc) (*MountedFilesystemUpdater, error) {
+func NewMountedFilesystemUpdater(rootDir string, ps *LaidOutStructure, backupDir string, mountLookup mountLookupFunc) (*MountedFilesystemUpdater, error) {
 	fw, err := NewMountedFilesystemWriter(rootDir, ps)
 	if err != nil {
 		return nil, err
@@ -287,7 +287,7 @@ func NewMountedFilesystemUpdater(rootDir string, ps *PositionedStructure, backup
 	return fu, nil
 }
 
-func fsStructBackupPath(backupDir string, ps *PositionedStructure) string {
+func fsStructBackupPath(backupDir string, ps *LaidOutStructure) string {
 	return filepath.Join(backupDir, fmt.Sprintf("struct-%v", ps.Index))
 }
 

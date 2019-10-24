@@ -56,25 +56,24 @@
     capability dac_read_search,
     capability dac_override,
     /sys/fs/cgroup/devices/snap{,py}.*/ w,
-    /sys/fs/cgroup/devices/snap{,py}.*/tasks w,
+    /sys/fs/cgroup/devices/snap{,py}.*/cgroup.procs w,
     /sys/fs/cgroup/devices/snap{,py}.*/devices.{allow,deny} w,
 
     # cgroup: freezer
     # Allow creating per-snap cgroup freezers and adding snap command (task)
     # invocations to the freezer. This allows for reliably enumerating all
-    # running tasks for the snap. In addition, allow enumerating processes in
-    # the cgroup to determine if it is occupied.
+    # running processes for the snap. In addition, allow enumerating processes
+    # in the cgroup to determine if it is occupied.
     /sys/fs/cgroup/freezer/ r,
     /sys/fs/cgroup/freezer/snap.*/ w,
-    /sys/fs/cgroup/freezer/snap.*/tasks w,
-    /sys/fs/cgroup/freezer/snap.*/cgroup.procs r,
+    /sys/fs/cgroup/freezer/snap.*/cgroup.procs rw,
 
     # cgroup: pids
     # allow creating per snap-security-tag hierarchy and adding snap command (task)
     # invocations to the controller.
     /sys/fs/cgroup/pids/ r,
     /sys/fs/cgroup/pids/snap.*/ w,
-    /sys/fs/cgroup/pids/snap.*/tasks w,
+    /sys/fs/cgroup/pids/snap.*/cgroup.procs w,
 
     # querying udev
     /etc/udev/udev.conf r,
@@ -232,14 +231,27 @@
     # pivot_root preparation and execution
     mount options=(rw bind) /tmp/snap.rootfs_*/var/lib/snapd/hostfs/ -> /tmp/snap.rootfs_*/var/lib/snapd/hostfs/,
     mount options=(rw private) -> /tmp/snap.rootfs_*/var/lib/snapd/hostfs/,
-    # pivot_root mediation in AppArmor is not complete. See LP: #1791711
-    pivot_root,
+
+    # pivot_root mediation in AppArmor is not complete. See LP: #1791711.
+    # However, we can mediate the new_root and put_old to be what we expect,
+    # and then deny directory creation within old_root to prevent trivial
+    # pivoting into a whitelisted path.
+    pivot_root oldroot=/tmp/snap.rootfs_*/var/lib/snapd/hostfs/ /tmp/snap.rootfs_*/,
+    # Explicitly deny creating the old_root directory in case it is
+    # inadvertently added somewhere else. While this doesn't resolve
+    # LP: #1791711, it provides some hardening.
+    audit deny /tmp/snap.rootfs_*/{var/,var/lib/,var/lib/snapd/,var/lib/snapd/hostfs/} w,
+
     # cleanup
     umount /var/lib/snapd/hostfs/tmp/snap.rootfs_*/,
     umount /var/lib/snapd/hostfs/sys/,
     umount /var/lib/snapd/hostfs/dev/,
     umount /var/lib/snapd/hostfs/proc/,
     mount options=(rw rslave) -> /var/lib/snapd/hostfs/,
+
+    # Hide /writable from view of snaps.
+    mount options=(rprivate) -> /{,var/lib/snapd/hostfs/}writable/,
+    umount /{,var/lib/snapd/hostfs/}writable/,
 
     # set up user mount namespace
     mount options=(rslave) -> /,

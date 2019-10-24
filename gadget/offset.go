@@ -28,7 +28,7 @@ import (
 // and its content at locations defined by offset-write property. structures and
 // their content.
 type OffsetWriter struct {
-	ps         *PositionedStructure
+	ps         *LaidOutStructure
 	sectorSize Size
 }
 
@@ -47,9 +47,9 @@ func offsetWrite(out io.WriteSeeker, offset Size, value uint32) error {
 }
 
 // NewOffsetWriter returns a writer for given structure.
-func NewOffsetWriter(ps *PositionedStructure, sectorSize Size) (*OffsetWriter, error) {
+func NewOffsetWriter(ps *LaidOutStructure, sectorSize Size) (*OffsetWriter, error) {
 	if ps == nil {
-		return nil, fmt.Errorf("internal error: *PositionedStructure is nil")
+		return nil, fmt.Errorf("internal error: *LaidOutStructure is nil")
 	}
 	if sectorSize == 0 {
 		return nil, fmt.Errorf("internal error: sector size cannot be 0")
@@ -65,24 +65,24 @@ func NewOffsetWriter(ps *PositionedStructure, sectorSize Size) (*OffsetWriter, e
 // structure, at the locations defined by offset-writer property of respective
 // element, in the format of LBA pointer.
 func (w *OffsetWriter) Write(out io.WriteSeeker) error {
-	// positioning guarantees that start offset is aligned to sector size
+	// layout step guarantees that start offset is aligned to sector size
 
-	if w.ps.PositionedOffsetWrite != nil {
-		if err := offsetWrite(out, *w.ps.PositionedOffsetWrite, asLBA(w.ps.StartOffset, w.sectorSize)); err != nil {
+	if w.ps.AbsoluteOffsetWrite != nil {
+		if err := offsetWrite(out, *w.ps.AbsoluteOffsetWrite, asLBA(w.ps.StartOffset, w.sectorSize)); err != nil {
 			return err
 		}
 	}
 
-	if !w.ps.IsBare() {
+	if w.ps.HasFilesystem() {
 		// only raw content uses offset-writes
 		return nil
 	}
 
-	for _, pc := range w.ps.PositionedContent {
-		if pc.PositionedOffsetWrite == nil {
+	for _, pc := range w.ps.LaidOutContent {
+		if pc.AbsoluteOffsetWrite == nil {
 			continue
 		}
-		if err := offsetWrite(out, *pc.PositionedOffsetWrite, asLBA(pc.StartOffset, w.sectorSize)); err != nil {
+		if err := offsetWrite(out, *pc.AbsoluteOffsetWrite, asLBA(pc.StartOffset, w.sectorSize)); err != nil {
 			return err
 		}
 	}

@@ -15,3 +15,11 @@ execute: |
     # When a feature that is not exported is enabled, a file is not created.
     snap set core experimental.layouts=true
     test ! -f /var/lib/snapd/features/layouts
+
+    # Features are exported when snapd starts up
+    snap set core experimental.parallel-instances=true
+    test -f /var/lib/snapd/features/parallel-instances
+    systemctl stop snapd
+    rm /var/lib/snapd/features/parallel-instances
+    systemctl start snapd
+    test -f /var/lib/snapd/features/parallel-instances

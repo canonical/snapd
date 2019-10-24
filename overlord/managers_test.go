@@ -43,8 +43,8 @@ import (
 	"github.com/snapcore/snapd/asserts"
 	"github.com/snapcore/snapd/asserts/assertstest"
 	"github.com/snapcore/snapd/asserts/sysdb"
-	"github.com/snapcore/snapd/boot/boottest"
 	"github.com/snapcore/snapd/bootloader"
+	"github.com/snapcore/snapd/bootloader/bootloadertest"
 	"github.com/snapcore/snapd/client"
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/interfaces"
@@ -1529,8 +1529,8 @@ func findKind(chg *state.Change, kind string) *state.Task {
 }
 
 func (s *mgrsSuite) TestInstallCoreSnapUpdatesBootloaderAndSplitsAcrossRestart(c *C) {
-	loader := boottest.NewMockBootloader("mock", c.MkDir())
-	bootloader.Force(loader)
+	bloader := bootloadertest.Mock("mock", c.MkDir())
+	bootloader.Force(bloader)
 	defer bootloader.Force(nil)
 
 	restore := release.MockOnClassic(false)
@@ -1579,15 +1579,15 @@ type: os
 	c.Assert(t.Status(), Equals, state.DoingStatus, Commentf("install-snap change failed with: %v", chg.Err()))
 
 	// this is already set
-	c.Assert(loader.BootVars, DeepEquals, map[string]string{
+	c.Assert(bloader.BootVars, DeepEquals, map[string]string{
 		"snap_try_core": "core_x1.snap",
 		"snap_mode":     "try",
 	})
 
 	// simulate successful restart happened
 	state.MockRestarting(st, state.RestartUnset)
-	loader.BootVars["snap_mode"] = ""
-	boottest.SetBootBase("core_x1.snap", loader)
+	bloader.BootVars["snap_mode"] = ""
+	bloader.SetBootBase("core_x1.snap")
 
 	st.Unlock()
 	err = s.o.Settle(settleTimeout)
@@ -1599,8 +1599,8 @@ type: os
 }
 
 func (s *mgrsSuite) TestInstallKernelSnapUpdatesBootloader(c *C) {
-	loader := boottest.NewMockBootloader("mock", c.MkDir())
-	bootloader.Force(loader)
+	bloader := bootloadertest.Mock("mock", c.MkDir())
+	bootloader.Force(bloader)
 	defer bootloader.Force(nil)
 
 	restore := release.MockOnClassic(false)
@@ -1659,7 +1659,7 @@ type: kernel`
 
 	c.Assert(chg.Status(), Equals, state.DoneStatus, Commentf("install-snap change failed with: %v", chg.Err()))
 
-	c.Assert(loader.BootVars, DeepEquals, map[string]string{
+	c.Assert(bloader.BootVars, DeepEquals, map[string]string{
 		"snap_try_kernel": "pc-kernel_x1.snap",
 		"snap_mode":       "try",
 	})
@@ -2614,8 +2614,11 @@ func (s *mgrsSuite) testTwoInstalls(c *C, snapName1, snapYaml1, snapName2, snapY
 	c.Assert(chg.Status(), Equals, state.DoneStatus, Commentf("install-snap change failed with: %v", chg.Err()))
 
 	tasks := chg.Tasks()
-	connectTask := tasks[len(tasks)-1]
+	connectTask := tasks[len(tasks)-2]
 	c.Assert(connectTask.Kind(), Equals, "connect")
+
+	setupProfilesTask := tasks[len(tasks)-1]
+	c.Assert(setupProfilesTask.Kind(), Equals, "setup-profiles")
 
 	// verify connect task data
 	var plugRef interfaces.PlugRef
@@ -3399,10 +3402,10 @@ type: base`
 }
 
 func (s *mgrsSuite) TestRemodelSwitchKernelTrack(c *C) {
-	loader := boottest.NewMockBootloader("mock", c.MkDir())
-	boottest.SetBootKernel("pc-kernel_1.snap", loader)
-	boottest.SetBootBase("core_1.snap", loader)
-	bootloader.Force(loader)
+	bloader := bootloadertest.Mock("mock", c.MkDir())
+	bloader.SetBootKernel("pc-kernel_1.snap")
+	bloader.SetBootBase("core_1.snap")
+	bootloader.Force(bloader)
 	defer bootloader.Force(nil)
 
 	restore := release.MockOnClassic(false)
@@ -3493,6 +3496,160 @@ version: 2.0`
 	// ensure that we only have the tasks we checked (plus the one
 	// extra "set-model" task)
 	c.Assert(tasks, HasLen, i+1)
+}
+
+func (ms *mgrsSuite) TestRemodelSwitchToDifferentKernel(c *C) {
+	bloader := bootloadertest.Mock("mock", c.MkDir())
+	bootloader.Force(bloader)
+	defer bootloader.Force(nil)
+
+	restore := release.MockOnClassic(false)
+	defer restore()
+
+	mockServer := ms.mockStore(c)
+	defer mockServer.Close()
+
+	st := ms.o.State()
+	st.Lock()
+	defer st.Unlock()
+
+	si := &snap.SideInfo{RealName: "pc-kernel", SnapID: fakeSnapID("pc-kernel"), Revision: snap.R(1)}
+	snapstate.Set(st, "pc-kernel", &snapstate.SnapState{
+		Active:   true,
+		Sequence: []*snap.SideInfo{si},
+		Current:  snap.R(1),
+		SnapType: "kernel",
+	})
+	bloader.SetBootVars(map[string]string{
+		"snap_mode":   "",
+		"snap_core":   "core_1.snap",
+		"snap_kernel": "pc-kernel_1.snap",
+	})
+	si2 := &snap.SideInfo{RealName: "pc", SnapID: fakeSnapID("pc"), Revision: snap.R(1)}
+	gadgetSnapYaml := "name: pc\nversion: 1.0\ntype: gadget"
+	snapstate.Set(st, "pc", &snapstate.SnapState{
+		Active:   true,
+		Sequence: []*snap.SideInfo{si2},
+		Current:  snap.R(1),
+		SnapType: "gadget",
+	})
+	gadgetYaml := `
+volumes:
+    volume-id:
+        bootloader: grub
+`
+	snaptest.MockSnapWithFiles(c, gadgetSnapYaml, si2, [][]string{
+		{"meta/gadget.yaml", gadgetYaml},
+	})
+
+	// add "brand-kernel" snap to fake store
+	const brandKernelYaml = `name: brand-kernel
+type: kernel
+version: 1.0`
+	ms.prereqSnapAssertions(c, map[string]interface{}{
+		"snap-name":    "brand-kernel",
+		"publisher-id": "can0nical",
+	})
+	snapPath, _ := ms.makeStoreTestSnap(c, brandKernelYaml, "2")
+	ms.serveSnap(snapPath, "2")
+
+	// add "foo" snap to fake store
+	ms.prereqSnapAssertions(c, map[string]interface{}{
+		"snap-name": "foo",
+	})
+	snapPath, _ = ms.makeStoreTestSnap(c, `{name: "foo", version: 1.0}`, "1")
+	ms.serveSnap(snapPath, "1")
+
+	// create/set custom model assertion
+	model := ms.brands.Model("can0nical", "my-model", modelDefaults)
+
+	// setup model assertion
+	devicestatetest.SetDevice(st, &auth.DeviceState{
+		Brand:  "can0nical",
+		Model:  "my-model",
+		Serial: "serialserialserial",
+	})
+	err := assertstate.Add(st, model)
+	c.Assert(err, IsNil)
+
+	// create a new model
+	newModel := ms.brands.Model("can0nical", "my-model", modelDefaults, map[string]interface{}{
+		"kernel":         "brand-kernel",
+		"revision":       "1",
+		"required-snaps": []interface{}{"foo"},
+	})
+
+	chg, err := devicestate.Remodel(st, newModel)
+	c.Assert(err, IsNil)
+
+	st.Unlock()
+	// regular settleTimeout is not enough on arm buildds :/
+	err = ms.o.Settle(4 * settleTimeout)
+	st.Lock()
+	c.Assert(err, IsNil)
+	c.Assert(chg.Err(), IsNil)
+
+	// system waits for a restart because of the new kernel
+	t := findKind(chg, "auto-connect")
+	c.Assert(t, NotNil)
+	c.Assert(t.Status(), Equals, state.DoingStatus)
+
+	// check that the system tries to boot the new brand kernel
+	state.MockRestarting(st, state.RestartUnset)
+	c.Assert(bloader.BootVars, DeepEquals, map[string]string{
+		"snap_core":       "core_1.snap",
+		"snap_kernel":     "pc-kernel_1.snap",
+		"snap_try_kernel": "brand-kernel_2.snap",
+		"snap_mode":       "try",
+	})
+	// simulate successful system-restart bootenv updates (those
+	// vars will be cleared by snapd on a restart)
+	bloader.BootVars["snap_try_kernel"] = ""
+	bloader.BootVars["snap_mode"] = ""
+
+	// simulate successful restart happened
+	state.MockRestarting(st, state.RestartUnset)
+
+	// continue
+	st.Unlock()
+	// regular settleTimeout is not enough on arm buildds :/
+	err = ms.o.Settle(4 * settleTimeout)
+	st.Lock()
+	c.Assert(err, IsNil)
+
+	c.Assert(chg.Status(), Equals, state.DoneStatus, Commentf("upgrade-snap change failed with: %v", chg.Err()))
+
+	// bootvars are as expected
+	c.Assert(bloader.BootVars, DeepEquals, map[string]string{
+		"snap_core":       "core_1.snap",
+		"snap_kernel":     "pc-kernel_1.snap",
+		"snap_try_kernel": "",
+		"snap_mode":       "",
+	})
+
+	// ensure tasks were run in the right order
+	tasks := chg.Tasks()
+	sort.Sort(byReadyTime(tasks))
+
+	// first all downloads/checks in sequential order
+	var i int
+	i += validateDownloadCheckTasks(c, tasks[i:], "brand-kernel", "2", "stable")
+	i += validateDownloadCheckTasks(c, tasks[i:], "foo", "1", "stable")
+
+	// then all installs in sequential order
+	i += validateInstallTasks(c, tasks[i:], "brand-kernel", "2")
+	i += validateInstallTasks(c, tasks[i:], "foo", "1")
+
+	// ensure that we only have the tasks we checked (plus the one
+	// extra "set-model" task)
+	c.Assert(tasks, HasLen, i+1)
+
+	// ensure we did not try device registration
+	for _, t := range st.Tasks() {
+		if t.Kind() == "request-serial" {
+			c.Fatalf("test should not create a request-serial task but did")
+		}
+	}
 }
 
 func (s *mgrsSuite) TestRemodelStoreSwitch(c *C) {
@@ -3628,13 +3785,14 @@ func (s *mgrsSuite) TestHappyDeviceRegistrationWithPrepareDeviceHook(c *C) {
 	err = assertstate.Add(st, model)
 	c.Assert(err, IsNil)
 
-	signSerial := func(c *C, bhv *devicestatetest.DeviceServiceBehavior, headers map[string]interface{}, body []byte) (asserts.Assertion, error) {
+	signSerial := func(c *C, bhv *devicestatetest.DeviceServiceBehavior, headers map[string]interface{}, body []byte) (serial asserts.Assertion, ancillary []asserts.Assertion, err error) {
 		brandID := headers["brand-id"].(string)
 		model := headers["model"].(string)
 		c.Check(brandID, Equals, "my-brand")
 		c.Check(model, Equals, "my-model")
 		headers["authority-id"] = brandID
-		return s.brands.Signing("my-brand").Sign(asserts.SerialType, headers, body, "")
+		a, err := s.brands.Signing("my-brand").Sign(asserts.SerialType, headers, body, "")
+		return a, nil, err
 	}
 
 	bhv := &devicestatetest.DeviceServiceBehavior{
@@ -3768,13 +3926,14 @@ func (s *mgrsSuite) TestRemodelReregistration(c *C) {
 	err = assertstate.Add(st, serial)
 	c.Assert(err, IsNil)
 
-	signSerial := func(c *C, bhv *devicestatetest.DeviceServiceBehavior, headers map[string]interface{}, body []byte) (asserts.Assertion, error) {
+	signSerial := func(c *C, bhv *devicestatetest.DeviceServiceBehavior, headers map[string]interface{}, body []byte) (serial asserts.Assertion, ancillary []asserts.Assertion, err error) {
 		brandID := headers["brand-id"].(string)
 		model := headers["model"].(string)
 		c.Check(brandID, Equals, "my-brand")
 		c.Check(model, Equals, "other-model")
 		headers["authority-id"] = brandID
-		return s.brands.Signing("my-brand").Sign(asserts.SerialType, headers, body, "")
+		a, err := s.brands.Signing("my-brand").Sign(asserts.SerialType, headers, body, "")
+		return a, nil, err
 	}
 
 	bhv := &devicestatetest.DeviceServiceBehavior{
@@ -3848,4 +4007,97 @@ func (s *mgrsSuite) TestRemodelReregistration(c *C) {
 
 	// we have a session with the new store
 	c.Check(device.SessionMacaroon, Equals, "other-store-session")
+}
+
+func (s *mgrsSuite) TestCheckRefreshFailureWithConcurrentRemoveOfConnectedSnap(c *C) {
+	hookMgr := s.o.HookManager()
+	c.Assert(hookMgr, NotNil)
+
+	// force configure hook failure for some-snap.
+	hookMgr.RegisterHijack("configure", "some-snap", func(ctx *hookstate.Context) error {
+		return fmt.Errorf("failing configure hook")
+	})
+
+	snapPath, _ := s.makeStoreTestSnap(c, someSnapYaml, "40")
+	s.serveSnap(snapPath, "40")
+	snapPath, _ = s.makeStoreTestSnap(c, otherSnapYaml, "50")
+	s.serveSnap(snapPath, "50")
+
+	mockServer := s.mockStore(c)
+	defer mockServer.Close()
+
+	st := s.o.State()
+	st.Lock()
+	defer st.Unlock()
+
+	st.Set("conns", map[string]interface{}{
+		"other-snap:media-hub some-snap:media-hub": map[string]interface{}{"interface": "media-hub", "auto": false},
+	})
+
+	si := &snap.SideInfo{RealName: "some-snap", SnapID: fakeSnapID("some-snap"), Revision: snap.R(1)}
+	snapInfo := snaptest.MockSnap(c, someSnapYaml, si)
+
+	oi := &snap.SideInfo{RealName: "other-snap", SnapID: fakeSnapID("other-snap"), Revision: snap.R(1)}
+	otherInfo := snaptest.MockSnap(c, otherSnapYaml, oi)
+
+	snapstate.Set(st, "some-snap", &snapstate.SnapState{
+		Active:   true,
+		Sequence: []*snap.SideInfo{si},
+		Current:  snap.R(1),
+		SnapType: "app",
+	})
+	snapstate.Set(st, "other-snap", &snapstate.SnapState{
+		Active:   true,
+		Sequence: []*snap.SideInfo{oi},
+		Current:  snap.R(1),
+		SnapType: "app",
+	})
+
+	// add snaps to the repo and connect them
+	repo := s.o.InterfaceManager().Repository()
+	c.Assert(repo.AddSnap(snapInfo), IsNil)
+	c.Assert(repo.AddSnap(otherInfo), IsNil)
+	_, err := repo.Connect(&interfaces.ConnRef{
+		PlugRef: interfaces.PlugRef{Snap: "other-snap", Name: "media-hub"},
+		SlotRef: interfaces.SlotRef{Snap: "some-snap", Name: "media-hub"},
+	}, nil, nil, nil, nil, nil)
+	c.Assert(err, IsNil)
+
+	// refresh all
+	c.Assert(assertstate.RefreshSnapDeclarations(st, 0), IsNil)
+
+	ts, err := snapstate.Update(st, "some-snap", nil, 0, snapstate.Flags{})
+	c.Assert(err, IsNil)
+	chg := st.NewChange("refresh", "...")
+	chg.AddAll(ts)
+
+	// remove other-snap
+	ts2, err := snapstate.Remove(st, "other-snap", snap.R(0), nil)
+	c.Assert(err, IsNil)
+	chg2 := st.NewChange("remove-snap", "...")
+	chg2.AddAll(ts2)
+
+	st.Unlock()
+	err = s.o.Settle(settleTimeout)
+	st.Lock()
+
+	c.Check(err, IsNil)
+
+	// the refresh change has failed due to configure hook error
+	c.Check(chg.Err(), ErrorMatches, `cannot perform the following tasks:\n.*failing configure hook.*`)
+	c.Check(chg.Status(), Equals, state.ErrorStatus)
+
+	// download-snap is one of the first tasks in the refresh change, check that it was undone
+	var downloadSnapStatus state.Status
+	for _, t := range chg.Tasks() {
+		if t.Kind() == "download-snap" {
+			downloadSnapStatus = t.Status()
+			break
+		}
+	}
+	c.Check(downloadSnapStatus, Equals, state.UndoneStatus)
+
+	// the remove change succeeded
+	c.Check(chg2.Err(), IsNil)
+	c.Check(chg2.Status(), Equals, state.DoneStatus)
 }

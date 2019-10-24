@@ -45,6 +45,7 @@ import (
 	"github.com/snapcore/snapd/overlord/state"
 	"github.com/snapcore/snapd/release"
 	"github.com/snapcore/snapd/snap"
+	"github.com/snapcore/snapd/snap/channel"
 	"github.com/snapcore/snapd/store"
 	"github.com/snapcore/snapd/strutil"
 )
@@ -77,6 +78,15 @@ func isParallelInstallable(snapsup *SnapSetup) error {
 	return fmt.Errorf("cannot install snap of type %v as %q", snapsup.Type, snapsup.InstanceName())
 }
 
+func optedIntoSnapdSnap(st *state.State) (bool, error) {
+	tr := config.NewTransaction(st)
+	experimentalAllowSnapd, err := config.GetFeatureFlag(tr, features.SnapdSnap)
+	if err != nil && !config.IsNoOption(err) {
+		return false, err
+	}
+	return experimentalAllowSnapd, nil
+}
+
 func doInstall(st *state.State, snapst *SnapState, snapsup *SnapSetup, flags int, fromChange string) (*state.TaskSet, error) {
 	// NB: we should strive not to need or propagate deviceCtx
 	// here, the resulting effects/changes were not pleasant at
@@ -90,7 +100,6 @@ func doInstall(st *state.State, snapst *SnapState, snapsup *SnapSetup, flags int
 	if snapsup.InstanceName() == "system" {
 		return nil, fmt.Errorf("cannot install reserved snap name 'system'")
 	}
-
 	if snapst.IsInstalled() && !snapst.Active {
 		return nil, fmt.Errorf("cannot update disabled snap %q", snapsup.InstanceName())
 	}
@@ -437,7 +446,7 @@ func WaitRestart(task *state.Task, snapsup *SnapSetup) (err error) {
 		}
 
 		current, err := boot.GetCurrentBoot(typ)
-		if err == boot.ErrBootNameAndRevisionAgain {
+		if err == boot.ErrBootNameAndRevisionNotReady {
 			return &state.Retry{After: 5 * time.Second}
 		}
 		if err != nil {
@@ -538,16 +547,8 @@ func checkInstallPreconditions(st *state.State, info *snap.Info, flags Flags, sn
 	// Check if the snapd can be installed on Ubuntu Core systems, it is
 	// always ok to install on classic
 	if info.GetType() == snap.TypeSnapd && !release.OnClassic {
-		tr := config.NewTransaction(st)
-		experimentalAllowSnapd, err := config.GetFeatureFlag(tr, features.SnapdSnap)
-		if err != nil && !config.IsNoOption(err) {
-			return err
-		}
-
 		if deviceCtx.Model().Base() == "" {
-			if !experimentalAllowSnapd {
-				return fmt.Errorf("cannot install snapd snap on a model without a base snap yet")
-			}
+			return fmt.Errorf("cannot install snapd snap on a model without a base snap yet")
 		}
 	}
 
@@ -712,7 +713,7 @@ func InstallWithDeviceContext(ctx context.Context, st *state.State, name string,
 	}
 
 	if flags.RequireTypeBase && info.GetType() != snap.TypeBase && info.GetType() != snap.TypeOS {
-		return nil, fmt.Errorf("declared snap base %q has unexpected type %q, instead of 'base'", name, info.GetType())
+		return nil, fmt.Errorf("unexpected snap type %q, instead of 'base'", info.GetType())
 	}
 
 	if flags.Classic && !info.NeedsClassic() {
@@ -736,7 +737,8 @@ func InstallWithDeviceContext(ctx context.Context, st *state.State, name string,
 		PlugsOnly:    len(info.Slots) == 0,
 		InstanceKey:  info.InstanceKey,
 		auxStoreInfo: auxStoreInfo{
-			Media: info.Media,
+			Media:   info.Media,
+			Website: info.Website,
 		},
 		CohortKey: opts.CohortKey,
 	}
@@ -996,7 +998,8 @@ func doUpdate(ctx context.Context, st *state.State, names []string, updates []*s
 			PlugsOnly:    len(update.Slots) == 0,
 			InstanceKey:  update.InstanceKey,
 			auxStoreInfo: auxStoreInfo{
-				Media: update.Media,
+				Website: update.Website,
+				Media:   update.Media,
 			},
 		}
 
@@ -1193,24 +1196,11 @@ func resolveChannel(st *state.State, snapName, newChannel string, deviceCtx Devi
 	model := deviceCtx.Model()
 
 	var pinnedTrack, which string
-	switch {
-	case snapName == model.Kernel() && model.KernelTrack() != "":
+	if snapName == model.Kernel() && model.KernelTrack() != "" {
 		pinnedTrack, which = model.KernelTrack(), "kernel"
-	case snapName == model.Gadget() && model.GadgetTrack() != "":
+	}
+	if snapName == model.Gadget() && model.GadgetTrack() != "" {
 		pinnedTrack, which = model.GadgetTrack(), "gadget"
-	default:
-		var snapst SnapState
-		err := Get(st, snapName, &snapst)
-		if err != nil && err != state.ErrNoState {
-			return "", err
-		}
-		if snapst.IsInstalled() && snapst.Channel != "" {
-			ch, err := snap.ParseChannel(snapst.Channel, "")
-			if err != nil {
-				return "", err
-			}
-			pinnedTrack = ch.Track
-		}
 	}
 
 	if pinnedTrack == "" {
@@ -1218,24 +1208,19 @@ func resolveChannel(st *state.State, snapName, newChannel string, deviceCtx Devi
 		return newChannel, nil
 	}
 
-	nch, err := snap.ParseChannelVerbatim(newChannel, "")
+	// channel name is valid and consist of risk level or
+	// risk/branch only, do the right thing and default to risk (or
+	// risk/branch) within the pinned track
+	resChannel, err := channel.ResolvePinned(pinnedTrack, newChannel)
+	if err == channel.ErrPinnedTrackSwitch {
+		// switching to a different track is not allowed
+		return "", fmt.Errorf("cannot switch from %s track %q as specified for the (device) model to %q", which, pinnedTrack, newChannel)
+
+	}
 	if err != nil {
 		return "", err
 	}
-
-	if nch.Track == "" {
-		// channel name is valid and consist of risk level or
-		// risk/branch only, do the right thing and default to risk (or
-		// risk/branch) within the pinned track
-		return pinnedTrack + "/" + newChannel, nil
-	}
-	if nch.Track != "" && nch.Track != pinnedTrack && which != "" {
-		// switching to a different track is not allowed
-		return "", fmt.Errorf("cannot switch from %s track %q as specified for the (device) model to %q", which, pinnedTrack, nch.Clean().String())
-
-	}
-
-	return newChannel, nil
+	return resChannel, nil
 }
 
 var errRevisionSwitch = errors.New("cannot switch revision")
@@ -1688,121 +1673,17 @@ func canDisable(si *snap.Info) bool {
 	return true
 }
 
-// baseInUse returns true if the given base is needed by another snap
-func baseInUse(st *state.State, base *snap.Info) bool {
-	snapStates, err := All(st)
-	if err != nil {
-		return false
-	}
-	for name, snapst := range snapStates {
-		for _, si := range snapst.Sequence {
-			if snapInfo, err := snap.ReadInfo(name, si); err == nil {
-				if snapInfo.GetType() != snap.TypeApp {
-					continue
-				}
-				if snapInfo.Base == base.SnapName() {
-					return true
-				}
-			}
-		}
-	}
-	return false
-}
-
-// coreInUse returns true if any snap uses "core" (i.e. does not
-// declare a base
-func coreInUse(st *state.State) bool {
-	snapStates, err := All(st)
-	if err != nil {
-		return false
-	}
-	for name, snapst := range snapStates {
-		for _, si := range snapst.Sequence {
-			if snapInfo, err := snap.ReadInfo(name, si); err == nil {
-				if snapInfo.GetType() != snap.TypeApp || snapInfo.GetType() == snap.TypeSnapd {
-					continue
-				}
-				if snapInfo.Base == "" {
-					return true
-				}
-			}
-		}
-	}
-	return false
-}
-
 // canRemove verifies that a snap can be removed.
 //
 // TODO: canRemove should also return the reason why the snap cannot
 //       be removed to the user
-func canRemove(st *state.State, si *snap.Info, snapst *SnapState, removeAll bool, deviceCtx DeviceContext) bool {
-	// never remove anything that is used for booting
-	if boot.InUse(si.InstanceName(), si.Revision) {
-		return false
-	}
-
-	// removing single revisions is generally allowed
+func canRemove(st *state.State, si *snap.Info, snapst *SnapState, removeAll bool, deviceCtx DeviceContext) error {
+	rev := snap.Revision{}
 	if !removeAll {
-		return true
+		rev = si.Revision
 	}
 
-	// required snaps cannot be removed
-	if snapst.Required {
-		return false
-	}
-
-	// TODO: use Required for these too
-
-	// Gadget snaps should not be removed as they are a key
-	// building block for Gadgets. Do not remove their last
-	// revision left.
-	if si.GetType() == snap.TypeGadget {
-		return false
-	}
-
-	// Allow "ubuntu-core" removals here because we might have two
-	// core snaps installed (ubuntu-core and core). Note that
-	// ideally we would only allow the removal of "ubuntu-core" if
-	// we know that "core" is installed too and if we are part of
-	// the "ubuntu-core->core" transition. But this transition
-	// starts automatically on startup so the window of a user
-	// triggering this manually is very small.
-	//
-	// Once the ubuntu-core -> core transition has landed for some
-	// time we can remove the two lines below.
-	if si.InstanceName() == "ubuntu-core" && si.GetType() == snap.TypeOS {
-		return true
-	}
-
-	// do not allow removal of bases that are in use
-	if si.GetType() == snap.TypeBase && baseInUse(st, si) {
-		return false
-	}
-
-	// Allow snap.TypeOS removals if a different base is in use
-	//
-	// Note that removal of the boot base itself is prevented
-	// via the snapst.Required flag that is set on firstboot.
-	model := deviceCtx.Model()
-	if si.GetType() == snap.TypeOS {
-		if model.Base() != "" && !coreInUse(st) {
-			return true
-		}
-		return false
-	}
-
-	// Because of a Remodel() we may have multiple kernels. Allow
-	// removals of kernel(s) that are not model kernels (anymore).
-	if si.GetType() == snap.TypeKernel {
-		if model.Kernel() != si.InstanceName() {
-			return true
-		}
-		return false
-	}
-
-	// TODO: on classic likely let remove core even if active if it's only snap left.
-
-	return true
+	return PolicyFor(si.GetType(), deviceCtx.Model()).CanRemove(st, snapst, rev)
 }
 
 // RemoveFlags are used to pass additional flags to the Remove operation.
@@ -1863,8 +1744,8 @@ func Remove(st *state.State, name string, revision snap.Revision, flags *RemoveF
 	}
 
 	// check if this is something that can be removed
-	if !canRemove(st, info, &snapst, removeAll, deviceCtx) {
-		return nil, fmt.Errorf("snap %q is not removable", name)
+	if err := canRemove(st, info, &snapst, removeAll, deviceCtx); err != nil {
+		return nil, fmt.Errorf("snap %q is not removable: %v", name, err)
 	}
 
 	// main/current SnapSetup
@@ -1907,9 +1788,7 @@ func Remove(st *state.State, name string, revision snap.Revision, flags *RemoveF
 		removeHook := SetupRemoveHook(st, snapsup.InstanceName())
 		addNext(state.NewTaskSet(removeHook))
 		prev = removeHook
-	}
 
-	if removeAll {
 		// run disconnect hooks
 		disconnect := st.NewTask("auto-disconnect", fmt.Sprintf(i18n.G("Disconnect interfaces of snap %q"), snapsup.InstanceName()))
 		disconnect.Set("snap-setup", snapsup)
@@ -2425,7 +2304,11 @@ func ConfigDefaults(st *state.State, deviceCtx DeviceContext, snapName string) (
 		return nil, state.ErrNoState
 	}
 
-	gadgetInfo, err := gadget.ReadInfo(info.MountDir(), release.OnClassic)
+	constraints := &gadget.ModelConstraints{
+		Classic: release.OnClassic,
+	}
+
+	gadgetInfo, err := gadget.ReadInfo(info.MountDir(), constraints)
 	if err != nil {
 		return nil, err
 	}
@@ -2458,7 +2341,11 @@ func GadgetConnections(st *state.State, deviceCtx DeviceContext) ([]gadget.Conne
 		return nil, err
 	}
 
-	gadgetInfo, err := gadget.ReadInfo(info.MountDir(), release.OnClassic)
+	constraints := &gadget.ModelConstraints{
+		Classic: release.OnClassic,
+	}
+
+	gadgetInfo, err := gadget.ReadInfo(info.MountDir(), constraints)
 	if err != nil {
 		return nil, err
 	}

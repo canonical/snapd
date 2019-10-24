@@ -20,15 +20,13 @@
 package userd
 
 import (
-	"bufio"
 	"fmt"
-	"os"
 	"path/filepath"
 	"strings"
 
 	"github.com/godbus/dbus"
 
-	"github.com/snapcore/snapd/dirs"
+	"github.com/snapcore/snapd/sandbox/cgroup"
 )
 
 var snapFromSender = snapFromSenderImpl
@@ -71,38 +69,23 @@ func nameHasOwner(conn *dbus.Conn, sender dbus.Sender) bool {
 	return hasOwner
 }
 
+var cgroupProcGroup = cgroup.ProcGroup
+
 // FIXME: move to osutil?
 func snapFromPid(pid int) (string, error) {
-	f, err := os.Open(fmt.Sprintf("%s/proc/%d/cgroup", dirs.GlobalRootDir, pid))
-	if err != nil {
-		return "", err
+	if cgroup.IsUnified() {
+		// not supported
+		return "", fmt.Errorf("not supported")
 	}
-	defer f.Close()
 
-	scanner := bufio.NewScanner(f)
-	for scanner.Scan() {
-		// we need to find a string like:
-		//   ...
-		//   7:freezer:/snap.hello-world
-		//   ...
-		// See cgroup(7) for details about the /proc/[pid]/cgroup
-		// format.
-		l := strings.Split(scanner.Text(), ":")
-		if len(l) < 3 {
-			continue
-		}
-		controllerList := l[1]
-		cgroupPath := l[2]
-		if !strings.Contains(controllerList, "freezer") {
-			continue
-		}
-		if strings.HasPrefix(cgroupPath, "/snap.") {
-			snap := strings.SplitN(filepath.Base(cgroupPath), ".", 2)[1]
-			return snap, nil
-		}
+	group, err := cgroupProcGroup(pid, cgroup.MatchV1Controller("freezer"))
+	if err != nil {
+		return "", fmt.Errorf("cannot determine cgroup path of pid %v: %v", pid, err)
 	}
-	if scanner.Err() != nil {
-		return "", scanner.Err()
+
+	if strings.HasPrefix(group, "/snap.") {
+		snap := strings.SplitN(filepath.Base(group), ".", 2)[1]
+		return snap, nil
 	}
 
 	return "", fmt.Errorf("cannot find a snap for pid %v", pid)

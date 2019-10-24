@@ -1,7 +1,7 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
 
 /*
- * Copyright (C) 2018 Canonical Ltd
+ * Copyright (C) 2018-2019 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -26,14 +26,16 @@ import (
 	"os"
 	"path/filepath"
 	"reflect"
+	"strconv"
 	"strings"
 
 	"github.com/snapcore/snapd/cmd"
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/osutil"
-	"github.com/snapcore/snapd/release"
-	seccomp_compiler "github.com/snapcore/snapd/sandbox/seccomp"
+	"github.com/snapcore/snapd/sandbox/apparmor"
+	"github.com/snapcore/snapd/sandbox/cgroup"
+	"github.com/snapcore/snapd/sandbox/seccomp"
 )
 
 // ErrSystemKeyIncomparableVersions indicates that the system-key
@@ -56,7 +58,7 @@ var (
 // Note that this key gets generated on *each* `snap run` - so it
 // *must* be cheap to calculate it (no hashes of big binaries etc).
 type systemKey struct {
-	// IMPORTANT: when adding new inputs bump this version
+	// IMPORTANT: when adding/removing/changing inputs bump this version (see below)
 	Version int `json:"version"`
 
 	// This is the build-id of the snapd that generated the profiles.
@@ -73,23 +75,21 @@ type systemKey struct {
 	OverlayRoot            string   `json:"overlay-root"`
 	SecCompActions         []string `json:"seccomp-features"`
 	SeccompCompilerVersion string   `json:"seccomp-compiler-version"`
+	CgroupVersion          string   `json:"cgroup-version"`
 }
+
+// IMPORTANT: when adding/removing/changing inputs bump this
+const systemKeyVersion = 10
 
 var (
 	isHomeUsingNFS  = osutil.IsHomeUsingNFS
 	mockedSystemKey *systemKey
 
-	seccompCompilerVersionInfo = seccompCompilerVersionInfoImpl
-
 	readBuildID = osutil.ReadBuildID
 )
 
-func seccompCompilerVersionInfoImpl(path string) (string, error) {
-	compiler, err := seccomp_compiler.New(func(name string) (string, error) { return path, nil })
-	if err != nil {
-		return "", err
-	}
-	return compiler.VersionInfo()
+func seccompCompilerVersionInfo(path string) (seccomp.VersionInfo, error) {
+	return seccomp.CompilerVersionInfo(func(name string) (string, error) { return filepath.Join(path, name), nil })
 }
 
 func generateSystemKey() (*systemKey, error) {
@@ -99,7 +99,7 @@ func generateSystemKey() (*systemKey, error) {
 	}
 
 	sk := &systemKey{
-		Version: 1,
+		Version: systemKeyVersion,
 	}
 	snapdPath, err := cmd.InternalToolPath("snapd")
 	if err != nil {
@@ -112,10 +112,10 @@ func generateSystemKey() (*systemKey, error) {
 	sk.BuildID = buildID
 
 	// Add apparmor-features (which is already sorted)
-	sk.AppArmorFeatures, _ = release.AppArmorKernelFeatures()
+	sk.AppArmorFeatures, _ = apparmor.KernelFeatures()
 
 	// Add apparmor-parser-mtime
-	sk.AppArmorParserMtime = release.AppArmorParserMtime()
+	sk.AppArmorParserMtime = apparmor.ParserMtime()
 
 	// Add if home is using NFS, if so we need to have a different
 	// security profile and if this changes we need to change our
@@ -137,14 +137,21 @@ func generateSystemKey() (*systemKey, error) {
 	}
 
 	// Add seccomp-features
-	sk.SecCompActions = release.SecCompActions()
+	sk.SecCompActions = seccomp.Actions()
 
-	versionInfo, err := seccompCompilerVersionInfo(filepath.Join(filepath.Dir(snapdPath), "snap-seccomp"))
+	versionInfo, err := seccompCompilerVersionInfo(filepath.Dir(snapdPath))
 	if err != nil {
 		logger.Noticef("cannot determine seccomp compiler version in generateSystemKey: %v", err)
 		return nil, err
 	}
-	sk.SeccompCompilerVersion = versionInfo
+	sk.SeccompCompilerVersion = string(versionInfo)
+
+	cgv, err := cgroup.Version()
+	if err != nil {
+		logger.Noticef("cannot determine cgroup version: %v", err)
+		return nil, err
+	}
+	sk.CgroupVersion = strconv.FormatInt(int64(cgv), 10)
 
 	return sk, nil
 }
@@ -159,7 +166,7 @@ func WriteSystemKey() error {
 	// We only want to calculate this when the mtime of the parser changes.
 	// Since we calculate the mtime() as part of generateSystemKey, we can
 	// simply unconditionally write this out here.
-	sk.AppArmorParserFeatures, _ = release.AppArmorParserFeatures()
+	sk.AppArmorParserFeatures, _ = apparmor.ParserFeatures()
 
 	sks, err := json.Marshal(sk)
 	if err != nil {
@@ -255,12 +262,4 @@ func MockSystemKey(s string) func() {
 	}
 	mockedSystemKey = &sk
 	return func() { mockedSystemKey = nil }
-}
-
-func MockSeccompCompilerVersionInfo(s func(p string) (string, error)) (restore func()) {
-	old := seccompCompilerVersionInfo
-	seccompCompilerVersionInfo = s
-	return func() {
-		seccompCompilerVersionInfo = old
-	}
 }

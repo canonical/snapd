@@ -35,6 +35,7 @@ import (
 	"github.com/snapcore/snapd/interfaces/ifacetest"
 	"github.com/snapcore/snapd/interfaces/mount"
 	"github.com/snapcore/snapd/osutil"
+	"github.com/snapcore/snapd/sandbox/cgroup"
 	"github.com/snapcore/snapd/snap"
 	"github.com/snapcore/snapd/testutil"
 )
@@ -220,8 +221,22 @@ func (s *backendSuite) TestParallelInstanceSetup(c *C) {
 }
 
 func (s *backendSuite) TestSandboxFeatures(c *C) {
+	restore := cgroup.MockVersion(cgroup.V1, nil)
+	defer restore()
 	c.Assert(s.Backend.SandboxFeatures(), DeepEquals, []string{
+		"layouts",
+		"mount-namespace",
+		"per-snap-persistency",
+		"per-snap-profiles",
+		"per-snap-updates",
+		"per-snap-user-profiles",
+		"stale-base-invalidation",
 		"freezer-cgroup-v1",
+	})
+
+	restore = cgroup.MockVersion(cgroup.V2, nil)
+	defer restore()
+	c.Assert(s.Backend.SandboxFeatures(), DeepEquals, []string{
 		"layouts",
 		"mount-namespace",
 		"per-snap-persistency",

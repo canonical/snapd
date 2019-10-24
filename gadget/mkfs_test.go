@@ -88,6 +88,24 @@ func (m *mkfsSuite) TestMkfsExt4Happy(c *C) {
 			"foo.img",
 		},
 	})
+
+	cmd.ForgetCalls()
+
+	// no content
+	err = gadget.MkfsExt4("foo.img", "my-label", "")
+	c.Assert(err, IsNil)
+	c.Check(cmd.Calls(), DeepEquals, [][]string{
+		{
+			"fakeroot",
+			"mkfs.ext4",
+			"-T", "default",
+			"-O", "-metadata_csum",
+			"-O", "uninit_bg",
+			"-L", "my-label",
+			"foo.img",
+		},
+	})
+
 }
 
 func (m *mkfsSuite) TestMkfsExt4Error(c *C) {
@@ -187,4 +205,18 @@ func (m *mkfsSuite) TestMkfsVfatErrorInMcopy(c *C) {
 	c.Assert(err, ErrorMatches, "cannot populate vfat filesystem with contents: hard fail")
 	c.Assert(cmdMkfs.Calls(), HasLen, 1)
 	c.Assert(cmdMcopy.Calls(), HasLen, 1)
+}
+
+func (m *mkfsSuite) TestMkfsVfatHappyNoContents(c *C) {
+	cmdMkfs := testutil.MockCommand(c, "mkfs.vfat", "")
+	defer cmdMkfs.Restore()
+
+	cmdMcopy := testutil.MockCommand(c, "mcopy", "")
+	defer cmdMcopy.Restore()
+
+	err := gadget.MkfsVfat("foo.img", "my-label", "")
+	c.Assert(err, IsNil)
+	c.Assert(cmdMkfs.Calls(), HasLen, 1)
+	// mcopy was not called
+	c.Assert(cmdMcopy.Calls(), HasLen, 0)
 }
