@@ -3,6 +3,9 @@ summary: Integration tests for the snap-recovery binary
 # one system is enough, its a very specialized test for now
 systems: [ubuntu-18.04-64]
 
+debug: |
+    cat /proc/partitions
+
 restore: |
     if [ -f loop.txt ]; then
         losetup -d "$(cat loop.txt)"
@@ -33,8 +36,12 @@ execute: |
     echo "And check that the partitions are created"
     sfdisk -l "$LOOP" | MATCH '1M\s+BIOS boot'
     sfdisk -l "$LOOP" | MATCH '50M\s+EFI System'
-    # add a very small delay here until udev(?) has caught up
-    retry-tool lsblk --fs "$LOOP" | MATCH 'vfat\s* system-boot'
+    # we used "lsblk --fs" here but it was unreliable
+    mkdir -p ./mnt
+    mount "${LOOP}p2" ./mnt
+    df -T "${LOOP}p2" | MATCH vfat
+    umount ./mnt
+    file -s "${LOOP}p2" | MATCH 'label: "system-boot"'
 
     echo "Check that the non-fs content was deployed"
     dd if="${LOOP}p1" of=bios-boot.img
@@ -65,5 +72,8 @@ execute: |
     sfdisk -l "$LOOP" | MATCH '500M\s* Linux filesystem'
 
     echo "check that the filesystems are created"
-    # add a very small delay here until udev(?) has caught up
-    retry-tool lsblk --fs "$LOOP" | MATCH 'ext4\s* other-ext'
+    mkdir -p ./mnt
+    mount "${LOOP}p3" ./mnt
+    df -T "${LOOP}p3" | MATCH ext4
+    umount ./mnt
+    file -s "${LOOP}p3" | MATCH 'volume name "other-ext4"'
