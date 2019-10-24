@@ -36,11 +36,12 @@ execute: |
     echo "And check that the partitions are created"
     sfdisk -l "$LOOP" | MATCH '1M\s+BIOS boot'
     sfdisk -l "$LOOP" | MATCH '50M\s+EFI System'
-    # lsblk is unreliable here for some reason
+    # "lsblk --fs" is unrelaible here
     mkdir -p ./mnt
     mount "${LOOP}p2" ./mnt
     df -T "${LOOP}p2" | MATCH vfat
     umount ./mnt
+    file -s "${LOOP}p2" | MATCH 'label: "system-boot"'
 
     echo "now add a partition"
     cat >> gadget-dir/meta/gadget.yaml <<EOF
@@ -58,3 +59,4 @@ execute: |
     mount "${LOOP}p3" ./mnt
     df -T "${LOOP}p3" | MATCH ext4
     umount ./mnt
+    file -s "${LOOP}p2" | MATCH 'volume name "other-ext4"'
