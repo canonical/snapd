@@ -302,7 +302,5 @@ func (s *restSuite) TestServicesStopFallbackToKill(c *C) {
 	c.Check(sysdLog, DeepEquals, [][]string{
 		{"--user", "stop", "snap.foo.service"},
 		{"--user", "stop", "snap.bar.service"},
-		{"--user", "kill", "snap.bar.service", "-s", "TERM", "--kill-who=all"},
-		{"--user", "kill", "snap.bar.service", "-s", "KILL", "--kill-who=all"},
 	})
 }

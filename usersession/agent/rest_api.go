@@ -71,17 +71,6 @@ var (
 	killWait    = 5 * time.Second
 )
 
-func stopOneService(service string, sysd systemd.Systemd) error {
-	err := sysd.Stop(service, stopTimeout)
-	if err != nil && systemd.IsTimeout(err) {
-		// ignore errors for kill; nothing we'd do differently at this point
-		sysd.Kill(service, "TERM", "")
-		time.Sleep(killWait)
-		sysd.Kill(service, "KILL", "")
-	}
-	return err
-}
-
 func serviceStart(inst *serviceInstruction, sysd systemd.Systemd) Response {
 	// Refuse to start non-snap services
 	for _, service := range inst.Services {
@@ -102,7 +91,7 @@ func serviceStart(inst *serviceInstruction, sysd systemd.Systemd) Response {
 	// If we got any failures, attempt to stop the services we started.
 	if len(startErrors) != 0 {
 		for _, service := range started {
-			if err := stopOneService(service, sysd); err != nil {
+			if err := sysd.Stop(service, stopTimeout); err != nil {
 				startErrors[service] = err.Error()
 			}
 		}
@@ -131,7 +120,7 @@ func serviceStop(inst *serviceInstruction, sysd systemd.Systemd) Response {
 
 	stopErrors := make(map[string]string)
 	for _, service := range inst.Services {
-		if err := stopOneService(service, sysd); err != nil {
+		if err := sysd.Stop(service, stopTimeout); err != nil {
 			stopErrors[service] = err.Error()
 		}
 	}
