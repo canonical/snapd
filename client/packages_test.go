@@ -259,7 +259,8 @@ func (cs *clientSuite) TestClientSnap(c *check.C) {
                         ],
                         "cohort-key": "some-long-cohort-key",
                         "website": "http://example.com/funky",
-                        "common-ids": ["org.funky.snap"]
+                        "common-ids": ["org.funky.snap"],
+                        "store-url": "https://snapcraft.io/chatroom"
 		}
 	}`
 	pkg, _, err := cs.cli.Snap(pkgName)
@@ -304,6 +305,7 @@ func (cs *clientSuite) TestClientSnap(c *check.C) {
 		CommonIDs: []string{"org.funky.snap"},
 		CohortKey: "some-long-cohort-key",
 		Website:   "http://example.com/funky",
+		StoreURL:  "https://snapcraft.io/chatroom",
 	})
 }
 

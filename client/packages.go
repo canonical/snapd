@@ -42,6 +42,7 @@ type Snap struct {
 	InstallDate   time.Time          `json:"install-date,omitempty"`
 	Name          string             `json:"name"`
 	Publisher     *snap.StoreAccount `json:"publisher,omitempty"`
+	StoreURL      string             `json:"store-url,omitempty"`
 	// Developer is also the publisher's username for historic reasons.
 	Developer        string        `json:"developer"`
 	Status           string        `json:"status"`
