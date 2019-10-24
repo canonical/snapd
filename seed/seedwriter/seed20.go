@@ -206,16 +206,15 @@ func (tr *tree20) writeAssertions(db asserts.RODatabase, modelRefs []*asserts.Re
 		}
 	}
 
-	modelRefsGen := func(model bool) func(stop <-chan struct{}) <-chan *asserts.Ref {
+	modelOnly := func(aRef *asserts.Ref) bool { return aRef.Type == asserts.ModelType }
+	excludeModel := func(aRef *asserts.Ref) bool { return aRef.Type != asserts.ModelType }
+
+	modelRefsGen := func(include func(*asserts.Ref) bool) func(stop <-chan struct{}) <-chan *asserts.Ref {
 		return func(stop <-chan struct{}) <-chan *asserts.Ref {
 			refs := make(chan *asserts.Ref)
 			go func() {
 				for _, aRef := range modelRefs {
-					isModel := aRef.Type == asserts.ModelType
-					if model && !isModel {
-						continue
-					}
-					if !model && isModel {
+					if !include(aRef) {
 						continue
 					}
 					if !pushRef(refs, aRef, stop) {
@@ -228,11 +227,11 @@ func (tr *tree20) writeAssertions(db asserts.RODatabase, modelRefs []*asserts.Re
 		}
 	}
 
-	if err := writeByRefs("../model", modelRefsGen(true)); err != nil {
+	if err := writeByRefs("../model", modelRefsGen(modelOnly)); err != nil {
 		return err
 	}
 
-	if err := writeByRefs("model-etc", modelRefsGen(false)); err != nil {
+	if err := writeByRefs("model-etc", modelRefsGen(excludeModel)); err != nil {
 		return err
 	}
 
