@@ -233,10 +233,10 @@ func New(model *asserts.Model, opts *Options) (*Writer, error) {
 	if model.Grade() != asserts.ModelGradeUnset {
 		// Core 20
 		if opts.Label == "" {
-			return nil, fmt.Errorf("internal error: cannot write Core 20 seed with Options.Label unset")
+			return nil, fmt.Errorf("internal error: cannot write Core 20 seed without Options.Label set")
 		}
-		if !validSystemLabel.MatchString(opts.Label) {
-			return nil, fmt.Errorf("system label contains invalid characters: %s", opts.Label)
+		if err := validateSystemLabel(opts.Label); err != nil {
+			return err
 		}
 		pol = &policy20{model: model, opts: opts, warningf: w.warningf}
 		treeImpl = &tree20{opts: opts}

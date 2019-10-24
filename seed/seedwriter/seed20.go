@@ -35,6 +35,13 @@ import (
 
 var validSystemLabel = regexp.MustCompile("^[a-zA-Z0-9]+(?:-[a-zA-Z0-9]+)*$")
 
+func validateSystemLabel(label string) error {
+	if !validSystemLabel.MatchString(label) {
+		return fmt.Errorf("system label contains invalid characters: %s", label)
+	}
+	return nil
+}
+
 type policy20 struct {
 	model *asserts.Model
 	opts  *Options
