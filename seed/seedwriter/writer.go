@@ -236,7 +236,7 @@ func New(model *asserts.Model, opts *Options) (*Writer, error) {
 			return nil, fmt.Errorf("internal error: cannot write Core 20 seed without Options.Label set")
 		}
 		if err := validateSystemLabel(opts.Label); err != nil {
-			return err
+			return nil, err
 		}
 		pol = &policy20{model: model, opts: opts, warningf: w.warningf}
 		treeImpl = &tree20{opts: opts}
