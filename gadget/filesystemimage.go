@@ -57,7 +57,7 @@ func NewFilesystemImageWriter(contentDir string, ps *LaidOutStructure, workDir s
 	if ps == nil {
 		return nil, fmt.Errorf("internal error: *LaidOutStructure is nil")
 	}
-	if ps.IsBare() {
+	if !ps.HasFilesystem() {
 		return nil, fmt.Errorf("internal error: structure has no filesystem")
 	}
 	if contentDir == "" {

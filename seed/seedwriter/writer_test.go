@@ -216,11 +216,26 @@ version: 1.0
 `,
 }
 
+const pcGadgetYaml = `
+volumes:
+  pc:
+    bootloader: grub
+`
+
+var snapFiles = map[string][][]string{
+	"pc": {
+		{"meta/gadget.yaml", pcGadgetYaml},
+	},
+	"pc=18": {
+		{"meta/gadget.yaml", pcGadgetYaml},
+	},
+}
+
 func (s *writerSuite) makeSnap(c *C, yamlKey, publisher string) {
 	if publisher == "" {
 		publisher = "canonical"
 	}
-	decl, rev := s.MakeAssertedSnap(c, snapYaml[yamlKey], nil, snap.R(1), publisher)
+	decl, rev := s.MakeAssertedSnap(c, snapYaml[yamlKey], snapFiles[yamlKey], snap.R(1), publisher)
 	assertstest.AddMany(s.StoreSigning, decl, rev)
 	s.snapRevs[decl.SnapName()] = rev
 }

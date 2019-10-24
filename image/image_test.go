@@ -452,20 +452,36 @@ func (s *imageSuite) TestHappyDecodeModelAssertion(c *C) {
 
 const stableChannel = "stable"
 
+const pcGadgetYaml = `
+ volumes:
+   pc:
+     bootloader: grub
+ `
+
 func (s *imageSuite) setupSnaps(c *C, publishers map[string]string) {
 	if _, ok := publishers["pc"]; ok {
-		s.MakeAssertedSnap(c, packageGadget, [][]string{{"grub.conf", ""}, {"grub.cfg", "I'm a grub.cfg"}}, snap.R(1), publishers["pc"])
+		s.MakeAssertedSnap(c, packageGadget, [][]string{
+			{"grub.conf", ""}, {"grub.cfg", "I'm a grub.cfg"},
+			{"meta/gadget.yaml", pcGadgetYaml},
+		}, snap.R(1), publishers["pc"])
 	}
 	if _, ok := publishers["pc18"]; ok {
-		s.MakeAssertedSnap(c, packageGadgetWithBase, [][]string{{"grub.conf", ""}, {"grub.cfg", "I'm a grub.cfg"}}, snap.R(4), publishers["pc18"])
+		s.MakeAssertedSnap(c, packageGadgetWithBase, [][]string{
+			{"grub.conf", ""}, {"grub.cfg", "I'm a grub.cfg"},
+			{"meta/gadget.yaml", pcGadgetYaml},
+		}, snap.R(4), publishers["pc18"])
 	}
 
 	if _, ok := publishers["classic-gadget"]; ok {
-		s.MakeAssertedSnap(c, packageClassicGadget, [][]string{{"some-file", "Some file"}}, snap.R(5), publishers["classic-gadget"])
+		s.MakeAssertedSnap(c, packageClassicGadget, [][]string{
+			{"some-file", "Some file"},
+		}, snap.R(5), publishers["classic-gadget"])
 	}
 
 	if _, ok := publishers["classic-gadget18"]; ok {
-		s.MakeAssertedSnap(c, packageClassicGadget18, [][]string{{"some-file", "Some file"}}, snap.R(5), publishers["classic-gadget18"])
+		s.MakeAssertedSnap(c, packageClassicGadget18, [][]string{
+			{"some-file", "Some file"},
+		}, snap.R(5), publishers["classic-gadget18"])
 	}
 
 	if _, ok := publishers["pc-kernel"]; ok {
@@ -965,7 +981,12 @@ func (s *imageSuite) TestSetupSeedWithBaseWithCloudConf(c *C) {
 		"pc-kernel": "canonical",
 		"snapd":     "canonical",
 	})
-	s.MakeAssertedSnap(c, packageGadgetWithBase, [][]string{{"grub.conf", ""}, {"grub.cfg", "I'm a grub.cfg"}, {"cloud.conf", "# cloud config"}}, snap.R(5), "canonical")
+	s.MakeAssertedSnap(c, packageGadgetWithBase, [][]string{
+		{"grub.conf", ""},
+		{"grub.cfg", "I'm a grub.cfg"},
+		{"cloud.conf", "# cloud config"},
+		{"meta/gadget.yaml", pcGadgetYaml},
+	}, snap.R(5), "canonical")
 
 	opts := &image.Options{
 		RootDir:         rootdir,
@@ -1265,6 +1286,7 @@ func (s *imageSuite) TestSetupSeedLocalSnapsWithChannels(c *C) {
 		GadgetUnpackDir: gadgetUnpackDir,
 		SnapChannels: map[string]string{
 			"core": "candidate",
+			// keep this comment for gofmt 1.9
 			s.AssertedSnap("required-snap1"): "edge",
 		},
 	}

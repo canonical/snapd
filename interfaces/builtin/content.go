@@ -227,16 +227,19 @@ func (iface *contentInterface) AppArmorConnectedPlug(spec *apparmor.Specificatio
 				resolveSpecialVariable(w, slot.Snap()))
 			source, target := sourceTarget(plug, slot, w)
 			var buf bytes.Buffer
-			fmt.Fprintf(&buf, "  # Read-write content sharing %s -> %s (w#%d)\n", plug.Ref(), slot.Ref(), i)
-			fmt.Fprintf(&buf, "  mount options=(bind, rw) %s/ -> %s/,\n", source, target)
-			fmt.Fprintf(&buf, "  mount options=(rprivate) -> %s/,\n", target)
-			fmt.Fprintf(&buf, "  umount %s/,\n", target)
+			emit := func(f string, args ...interface{}) {
+				fmt.Fprintf(&buf, f, args...)
+			}
+			emit("  # Read-write content sharing %s -> %s (w#%d)\n", plug.Ref(), slot.Ref(), i)
+			emit("  mount options=(bind, rw) %s/ -> %s/,\n", source, target)
+			emit("  mount options=(rprivate) -> %s/,\n", target)
+			emit("  umount %s/,\n", target)
 			// TODO: The assumed prefix depth could be optimized to be more
 			// precise since content sharing can only take place in a fixed
 			// list of places with well-known paths (well, constrained set of
 			// paths). This can be done when the prefix is actually consumed.
-			apparmor.WritableProfile(&buf, source, 1)
-			apparmor.WritableProfile(&buf, target, 1)
+			apparmor.GenWritableProfile(emit, source, 1)
+			apparmor.GenWritableProfile(emit, target, 1)
 			spec.AddUpdateNS(buf.String())
 		}
 	}
@@ -254,14 +257,17 @@ func (iface *contentInterface) AppArmorConnectedPlug(spec *apparmor.Specificatio
 
 			source, target := sourceTarget(plug, slot, r)
 			var buf bytes.Buffer
-			fmt.Fprintf(&buf, "  # Read-only content sharing %s -> %s (r#%d)\n", plug.Ref(), slot.Ref(), i)
-			fmt.Fprintf(&buf, "  mount options=(bind) %s/ -> %s/,\n", source, target)
-			fmt.Fprintf(&buf, "  remount options=(bind, ro) %s/,\n", target)
-			fmt.Fprintf(&buf, "  mount options=(rprivate) -> %s/,\n", target)
-			fmt.Fprintf(&buf, "  umount %s/,\n", target)
+			emit := func(f string, args ...interface{}) {
+				fmt.Fprintf(&buf, f, args...)
+			}
+			emit("  # Read-only content sharing %s -> %s (r#%d)\n", plug.Ref(), slot.Ref(), i)
+			emit("  mount options=(bind) %s/ -> %s/,\n", source, target)
+			emit("  remount options=(bind, ro) %s/,\n", target)
+			emit("  mount options=(rprivate) -> %s/,\n", target)
+			emit("  umount %s/,\n", target)
 			// Look at the TODO comment above.
-			apparmor.WritableProfile(&buf, source, 1)
-			apparmor.WritableProfile(&buf, target, 1)
+			apparmor.GenWritableProfile(emit, source, 1)
+			apparmor.GenWritableProfile(emit, target, 1)
 			spec.AddUpdateNS(buf.String())
 		}
 	}

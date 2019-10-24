@@ -170,6 +170,8 @@ override_dh_install:
 	rm -f ${CURDIR}/debian/tmp/usr/bin/toolbelt
 	# we do not like /usr/bin/snappy anymore
 	rm -f ${CURDIR}/debian/tmp/usr/bin/snappy
+	# snap-recovery is only useful on core (and we don't have a 14.04 core)
+	rm -f ${CURDIR}/debian/tmp/usr/bin/snap-recovery
 	# i18n stuff
 	mkdir -p debian/snapd/usr/share
 	if [ -d share/locale ]; then \

@@ -57,6 +57,12 @@ type sfdiskPartition struct {
 	Name  string `json:"name"`
 }
 
+type deviceStructure struct {
+	gadget.LaidOutStructure
+
+	Node string
+}
+
 type SFDisk struct {
 	device         string
 	partitionTable *sfdiskPartitionTable
@@ -92,30 +98,23 @@ func (sf *SFDisk) Layout() (*gadget.LaidOutVolume, error) {
 	return pv, nil
 }
 
-// Create creates the partitions listed in positionedVolume not listed
-// in usedPartitions. Return a role to device node map.
-//
-// TODO: see if we can get rid of usedPartitions
-func (sf *SFDisk) Create(pv *gadget.LaidOutVolume, usedPartitions []bool) (map[string]string, error) {
+// Create creates the partitions listed in positionedVolume
+func (sf *SFDisk) Create(pv *gadget.LaidOutVolume) ([]deviceStructure, error) {
 	// Layout() will update sf.partitionTable
 	if _, err := sf.Layout(); err != nil {
 		return nil, err
 	}
-	buf, deviceMap := buildPartitionList(sf.partitionTable, pv, usedPartitions)
+	buf, created := buildPartitionList(sf.partitionTable, pv)
 
-	// Write the partition table
+	// Write the partition table, note that sfdisk will re-read the
+	// partition table by itself: see disk-utils/sfdisk.c:write_changes()
 	cmd := exec.Command("sfdisk", sf.device)
 	cmd.Stdin = buf
 	if output, err := cmd.CombinedOutput(); err != nil {
-		return deviceMap, osutil.OutputErr(output, err)
+		return created, osutil.OutputErr(output, err)
 	}
 
-	// Reload the partition table using blockdev which is part of the initramfs
-	if output, err := exec.Command("blockdev", "--rereadpt", sf.device).CombinedOutput(); err != nil {
-		return deviceMap, osutil.OutputErr(output, fmt.Errorf("cannot update partition table: %s", err))
-	}
-
-	return deviceMap, nil
+	return created, nil
 }
 
 // positionedVolumeFromDump takes an sfdisk dump format and returns the partitioning
@@ -180,17 +179,19 @@ func deviceName(name string, index int) string {
 	return fmt.Sprintf("%s%d", name, index)
 }
 
-// buildPartitionList builds a list of partitions based on the current device contents
-// and gadget structure list, in sfdisk dump format. Return a partitioning description
-// suitable for sfdisk input and a role to device node map.
-func buildPartitionList(ptable *sfdiskPartitionTable, pv *gadget.LaidOutVolume, usedPartitions []bool) (*bytes.Buffer, map[string]string) {
+// buildPartitionList builds a list of partitions based on the current
+// device contents and gadget structure list, in sfdisk dump
+// format. Return a partitioning description suitable for sfdisk input
+// and a list of the partitions to be created
+func buildPartitionList(ptable *sfdiskPartitionTable, pv *gadget.LaidOutVolume) (sfdiskInput *bytes.Buffer, toBeCreated []deviceStructure) {
 	buf := &bytes.Buffer{}
-	deviceMap := map[string]string{}
 
 	// Write partition data in sfdisk dump format
 	fmt.Fprintf(buf, "label: %s\nlabel-id: %s\ndevice: %s\nunit: %s\nfirst-lba: %d\nlast-lba: %d\n\n",
 		ptable.Label, ptable.ID, ptable.Device, ptable.Unit, ptable.FirstLBA, ptable.LastLBA)
 
+	// Keep track what partitions we already have on disk
+	seen := map[uint64]bool{}
 	for _, p := range ptable.Partitions {
 		fmt.Fprintf(buf, "%s : start=%12d, size=%12d, type=%s, uuid=%s", p.Node, p.Start,
 			p.Size, p.Type, p.UUID)
@@ -198,17 +199,19 @@ func buildPartitionList(ptable *sfdiskPartitionTable, pv *gadget.LaidOutVolume, 
 			fmt.Fprintf(buf, ", name=%q", p.Name)
 		}
 		fmt.Fprintf(buf, "\n")
+		seen[p.Start] = true
 	}
 
 	// Add missing partitions
-	for i, p := range pv.LaidOutStructure {
+	for _, p := range pv.LaidOutStructure {
 		s := p.VolumeStructure
 		// Skip partitions that are already in the volume
-		if usedPartitions[i] {
-			continue
-		}
 		// Skip MBR structure
 		if s.Type == "mbr" || s.Type == "bare" {
+			continue
+		}
+		start := p.StartOffset / sectorSize
+		if seen[uint64(start)] {
 			continue
 		}
 		// Can we use the index here? Get the largest existing partition number and
@@ -219,10 +222,10 @@ func buildPartitionList(ptable *sfdiskPartitionTable, pv *gadget.LaidOutVolume, 
 			s.Size/sectorSize, partitionType(ptable.Label, p.Type), s.Name)
 
 		// Are roles unique so we can use it to map nodes? Should we use labels instead?
-		deviceMap[s.Role] = node
+		toBeCreated = append(toBeCreated, deviceStructure{p, node})
 	}
 
-	return buf, deviceMap
+	return buf, toBeCreated
 }
 
 func partitionType(label, ptype string) string {
