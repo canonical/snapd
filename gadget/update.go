@@ -237,7 +237,7 @@ func defaultPolicy(from, to *LaidOutStructure) bool {
 }
 
 // RemodelUpdatePolicy implements the update policy of a remodel scenario. The
-// policy select all non-MBR structures for the update.
+// policy selects all non-MBR structures for the update.
 func RemodelUpdatePolicy(from, _ *LaidOutStructure) bool {
 	if from.EffectiveRole() == MBR {
 		return false
