@@ -27,7 +27,6 @@ import (
 	"sync"
 
 	"github.com/snapcore/snapd/asserts"
-	"github.com/snapcore/snapd/gadget"
 	"github.com/snapcore/snapd/i18n"
 	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/netutil"
@@ -200,57 +199,6 @@ func checkGadgetOrKernel(st *state.State, snapInfo, curInfo *snap.Info, _ snap.C
 		return fmt.Errorf("cannot install %s %q, model assertion requests %q", kind, snapInfo.InstanceName(), expectedName)
 	}
 
-	return nil
-}
-
-var (
-	// TODO: replace with gadget.IsCompatible() once we are ready
-	gadgetIsCompatible = func(current, new *gadget.Info) error { return nil }
-)
-
-func checkGadgetRemodelCompatible(st *state.State, snapInfo, curInfo *snap.Info, snapf snap.Container, flags snapstate.Flags, deviceCtx snapstate.DeviceContext) error {
-	if release.OnClassic {
-		return nil
-	}
-	if snapInfo.GetType() != snap.TypeGadget {
-		// We are only interested in gadget snaps.
-		return nil
-	}
-	if deviceCtx == nil || !deviceCtx.ForRemodeling() {
-		// We are only interesting in a remodeling scenario.
-		return nil
-	}
-	if curInfo == nil {
-		// snap isn't installed yet, we are likely remodeling to a new
-		// gadget, identify the old gadget
-		model, err := findModel(st)
-		if err != nil || err == state.ErrNoState {
-			return fmt.Errorf("cannot identify the current model")
-		}
-		curInfo, _ = snapstate.CurrentInfo(st, model.Gadget())
-	}
-	if curInfo == nil {
-		return fmt.Errorf("cannot identify the current gadget snap")
-	}
-
-	newGadgetYaml, err := snapf.ReadFile("meta/gadget.yaml")
-	if err != nil {
-		return fmt.Errorf("cannot read new gadget metadata: %v", err)
-	}
-
-	currentData, err := gadgetDataFromInfo(curInfo)
-	if err != nil {
-		return fmt.Errorf("cannot read current gadget metadata: %v", err)
-	}
-
-	pendingInfo, err := gadget.InfoFromGadgetYaml(newGadgetYaml, coreGadgetConstraints)
-	if err != nil {
-		return fmt.Errorf("cannot load new gadget metadata: %v", err)
-	}
-
-	if err := gadgetIsCompatible(currentData.Info, pendingInfo); err != nil {
-		return fmt.Errorf("cannot remodel to an incompatible gadget: %v", err)
-	}
 	return nil
 }
 

@@ -1623,6 +1623,67 @@ func (s *gadgetYamlTestSuite) TestGadgetFromMetaEmpty(c *C) {
 	c.Assert(giCore, IsNil)
 }
 
+func (s *gadgetYamlTestSuite) TestPositionedVolumeFromGadgetMultiVolume(c *C) {
+	err := ioutil.WriteFile(s.gadgetYamlPath, mockMultiVolumeGadgetYaml, 0644)
+	c.Assert(err, IsNil)
+
+	_, err = gadget.PositionedVolumeFromGadget(s.dir)
+	c.Assert(err, ErrorMatches, "cannot position multiple volumes yet")
+}
+
+func (s *gadgetYamlTestSuite) TestPositionedVolumeFromGadgetHappy(c *C) {
+	err := ioutil.WriteFile(s.gadgetYamlPath, gadgetYamlPC, 0644)
+	c.Assert(err, IsNil)
+	for _, fn := range []string{"pc-boot.img", "pc-core.img"} {
+		err = ioutil.WriteFile(filepath.Join(s.dir, fn), nil, 0644)
+		c.Assert(err, IsNil)
+	}
+
+	lv, err := gadget.PositionedVolumeFromGadget(s.dir)
+	c.Assert(err, IsNil)
+	c.Assert(lv.Volume.Bootloader, Equals, "grub")
+	// mbr, bios-boot, efi-system
+	c.Assert(lv.LaidOutStructure, HasLen, 3)
+}
+
+func (s *gadgetYamlTestSuite) TestStructureBareFilesystem(c *C) {
+	bareType := `
+type: bare
+size: 1M`
+	mbr := `
+role: mbr
+size: 446`
+	mbrLegacy := `
+type: mbr
+size: 446`
+	fs := `
+type: 21686148-6449-6E6F-744E-656564454649
+filesystem: vfat`
+	rawFsNoneExplicit := `
+type: 21686148-6449-6E6F-744E-656564454649
+filesystem: none
+size: 1M`
+	raw := `
+type: 21686148-6449-6E6F-744E-656564454649
+size: 1M`
+	for i, tc := range []struct {
+		s           *gadget.VolumeStructure
+		hasFs       bool
+		isPartition bool
+	}{
+		{mustParseStructure(c, bareType), false, false},
+		{mustParseStructure(c, mbr), false, false},
+		{mustParseStructure(c, mbrLegacy), false, false},
+		{mustParseStructure(c, fs), true, true},
+		{mustParseStructure(c, rawFsNoneExplicit), false, true},
+		{mustParseStructure(c, raw), false, true},
+	} {
+		c.Logf("tc: %v %+v", i, tc.s)
+		c.Check(tc.s.HasFilesystem(), Equals, tc.hasFs)
+		c.Check(tc.s.IsPartition(), Equals, tc.isPartition)
+	}
+}
+
 type gadgetCompatibilityTestSuite struct{}
 
 var _ = Suite(&gadgetCompatibilityTestSuite{})

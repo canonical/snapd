@@ -30,7 +30,7 @@ func validateVolumeContentsPresence(gadgetSnapRootDir string, vol *LaidOutVolume
 	// bare structure content is checked to exist during layout
 	// make sure that filesystem content source paths exist as well
 	for _, s := range vol.LaidOutStructure {
-		if s.IsBare() {
+		if !s.HasFilesystem() {
 			continue
 		}
 		for _, c := range s.Content {

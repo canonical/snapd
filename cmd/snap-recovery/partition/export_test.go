@@ -22,9 +22,10 @@ type LsblkFilesystemInfo = lsblkFilesystemInfo
 type LsblkBlockDevice = lsblkBlockDevice
 type SFDiskPartitionTable = sfdiskPartitionTable
 type SFDiskPartition = sfdiskPartition
+type DeviceStructure = deviceStructure
 
 var (
 	FilesystemInfo     = filesystemInfo
 	BuildPartitionList = buildPartitionList
-	MakeFilesystem     = makeFilesystem
+	Mkfs               = mkfs
 )

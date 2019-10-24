@@ -2,6 +2,12 @@ summary: Check that the refresh data copy works.
 
 systems: [-ubuntu-core-*]
 
+environment:
+    # an empty $topsrcdir/tests/go.mod seems to break importing or building go
+    # packages referenced by their import paths while under the tests directory,
+    # need to disable go modules supportfor this test
+    GO111MODULE: off
+
 prepare: |
     useradd --uid "$(( (1<<32)-2 ))" --shell /bin/sh hightest
 
