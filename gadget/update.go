@@ -45,18 +45,24 @@ type GadgetData struct {
 	RootDir string
 }
 
+// UpdatePolicyFunc is a callback that evaluates the provided pair of structures
+// and returns true when the pair should be part of an update.
+type UpdatePolicyFunc func(from, to *LaidOutStructure) bool
+
 // Update applies the gadget update given the gadget information and data from
 // old and new revisions. It errors out when the update is not possible or
 // illegal, or a failure occurs at any of the steps. When there is no update, a
 // special error ErrNoUpdate is returned.
 //
-// Updates are opt-in, and are only applied to structures with a higher value of
-// Edition field in the new gadget definition.
+// Only structures selected by the update policy are part of the update. When
+// the policy is nil, a default one is used. The default policy selects
+// structures in an opt-in manner, only tructures with a higher value of Edition
+// field in the new gadget definition are part of the update.
 //
 // Data that would be modified during the update is first backed up inside the
 // rollback directory. Should the apply step fail, the modified data is
 // recovered.
-func Update(old, new GadgetData, rollbackDirPath string) error {
+func Update(old, new GadgetData, rollbackDirPath string, updatePolicy UpdatePolicyFunc) error {
 	// TODO: support multi-volume gadgets. But for now we simply
 	//       do not do any gadget updates on those. We cannot error
 	//       here because this would break refreshes of gadgets even
@@ -88,8 +94,11 @@ func Update(old, new GadgetData, rollbackDirPath string) error {
 		return fmt.Errorf("cannot apply update to volume: %v", err)
 	}
 
+	if updatePolicy == nil {
+		updatePolicy = defaultPolicy
+	}
 	// now we know which structure is which, find which ones need an update
-	updates, err := resolveUpdate(pOld, pNew)
+	updates, err := resolveUpdate(pOld, pNew, updatePolicy)
 	if err != nil {
 		return err
 	}
@@ -184,8 +193,8 @@ func canUpdateStructure(from *LaidOutStructure, to *LaidOutStructure, schema str
 	if from.ID != to.ID {
 		return fmt.Errorf("cannot change structure ID from %q to %q", from.ID, to.ID)
 	}
-	if !to.IsBare() {
-		if from.IsBare() {
+	if to.HasFilesystem() {
+		if !from.HasFilesystem() {
 			return fmt.Errorf("cannot change a bare structure to filesystem one")
 		}
 		if from.Filesystem != to.Filesystem {
@@ -197,7 +206,7 @@ func canUpdateStructure(from *LaidOutStructure, to *LaidOutStructure, schema str
 				from.Label, to.Label)
 		}
 	} else {
-		if !from.IsBare() {
+		if from.HasFilesystem() {
 			return fmt.Errorf("cannot change a filesystem structure to a bare one")
 		}
 	}
@@ -223,7 +232,16 @@ type updatePair struct {
 	to   *LaidOutStructure
 }
 
-func resolveUpdate(oldVol *PartiallyLaidOutVolume, newVol *LaidOutVolume) (updates []updatePair, err error) {
+func defaultPolicy(from, to *LaidOutStructure) bool {
+	return to.Update.Edition > from.Update.Edition
+}
+
+// RemodelUpdatePolicy implements the update policy of a remodel scenario.
+func RemodelUpdatePolicy(_, _ *LaidOutStructure) bool {
+	return true
+}
+
+func resolveUpdate(oldVol *PartiallyLaidOutVolume, newVol *LaidOutVolume, policy UpdatePolicyFunc) (updates []updatePair, err error) {
 	if len(oldVol.LaidOutStructure) != len(newVol.LaidOutStructure) {
 		return nil, errors.New("internal error: the number of structures in new and old volume definitions is different")
 	}
@@ -233,7 +251,7 @@ func resolveUpdate(oldVol *PartiallyLaidOutVolume, newVol *LaidOutVolume) (updat
 		// assets are assumed to be backwards compatible, once deployed
 		// are not rolled back or replaced unless a higher edition is
 		// available
-		if newStruct.Update.Edition > oldStruct.Update.Edition {
+		if policy(&oldStruct, &newStruct) {
 			updates = append(updates, updatePair{
 				from: &oldVol.LaidOutStructure[j],
 				to:   &newVol.LaidOutStructure[j],
@@ -303,7 +321,7 @@ var updaterForStructure = updaterForStructureImpl
 func updaterForStructureImpl(ps *LaidOutStructure, newRootDir, rollbackDir string) (Updater, error) {
 	var updater Updater
 	var err error
-	if ps.IsBare() {
+	if !ps.HasFilesystem() {
 		updater, err = NewRawStructureUpdater(newRootDir, ps, rollbackDir, FindDeviceForStructureWithFallback)
 	} else {
 		updater, err = NewMountedFilesystemUpdater(newRootDir, ps, rollbackDir, FindMountPointForStructure)
