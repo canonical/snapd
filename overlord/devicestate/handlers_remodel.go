@@ -147,17 +147,10 @@ var (
 	coreGadgetConstraints = &gadget.ModelConstraints{
 		Classic: false,
 	}
+
 	// TODO: replace with gadget.IsCompatible() once we are ready
 	gadgetIsCompatible = func(current, new *gadget.Info) error { return nil }
 )
-
-func gadgetDataFromInfo(info *snap.Info) (*gadget.GadgetData, error) {
-	gi, err := gadget.ReadInfo(info.MountDir(), coreGadgetConstraints)
-	if err != nil {
-		return nil, err
-	}
-	return &gadget.GadgetData{Info: gi, RootDir: info.MountDir()}, nil
-}
 
 func checkGadgetRemodelCompatible(st *state.State, snapInfo, curInfo *snap.Info, snapf snap.Container, flags snapstate.Flags, deviceCtx snapstate.DeviceContext) error {
 	if release.OnClassic {
@@ -174,11 +167,11 @@ func checkGadgetRemodelCompatible(st *state.State, snapInfo, curInfo *snap.Info,
 	if curInfo == nil {
 		// snap isn't installed yet, we are likely remodeling to a new
 		// gadget, identify the old gadget
-		model, err := findModel(st)
+		groundDeviceCtx, err := DeviceCtx(st, nil, nil)
 		if err != nil || err == state.ErrNoState {
 			return fmt.Errorf("cannot identify the current model")
 		}
-		curInfo, _ = snapstate.CurrentInfo(st, model.Gadget())
+		curInfo, _ = snapstate.GadgetInfo(st, groundDeviceCtx)
 	}
 	if curInfo == nil {
 		return fmt.Errorf("cannot identify the current gadget snap")
@@ -189,7 +182,7 @@ func checkGadgetRemodelCompatible(st *state.State, snapInfo, curInfo *snap.Info,
 		return fmt.Errorf("cannot read new gadget metadata: %v", err)
 	}
 
-	currentData, err := gadgetDataFromInfo(curInfo)
+	currentData, err := gadgetDataFromInfo(curInfo, coreGadgetConstraints)
 	if err != nil {
 		return fmt.Errorf("cannot read current gadget metadata: %v", err)
 	}

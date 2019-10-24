@@ -911,13 +911,19 @@ volumes:
 
 	s.setupBrands(c)
 
+	oldModel := fakeMyModel(map[string]interface{}{
+		"architecture": "amd64",
+		"gadget":       "gadget",
+		"kernel":       "kernel",
+	})
+	deviceCtx := &snapstatetest.TrivialDeviceContext{DeviceModel: oldModel}
+
 	// model assertion in device context
 	newModel := fakeMyModel(map[string]interface{}{
 		"architecture": "amd64",
 		"gadget":       "new-gadget",
-		"kernel":       "krnl",
+		"kernel":       "kernel",
 	})
-	deviceCtx := &snapstatetest.TrivialDeviceContext{DeviceModel: newModel}
 	remodelCtx := &snapstatetest.TrivialDeviceContext{DeviceModel: newModel, Remodeling: true}
 
 	restore := devicestate.MockGadgetIsCompatible(func(current, update *gadget.Info) error {
@@ -929,7 +935,7 @@ volumes:
 
 	// not on classic
 	release.OnClassic = true
-	err = devicestate.CheckGadgetRemodelCompatible(s.state, info, currInfo, snapf, snapstate.Flags{}, deviceCtx)
+	err = devicestate.CheckGadgetRemodelCompatible(s.state, info, currInfo, snapf, snapstate.Flags{}, remodelCtx)
 	c.Check(err, IsNil)
 	release.OnClassic = false
 
