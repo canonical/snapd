@@ -168,7 +168,7 @@ func (tr *tree20) writeAssertions(db asserts.RODatabase, modelRefs []*asserts.Re
 		return err
 	}
 
-	writeRefs := func(fname string, refsGen func(stop <-chan struct{}) <-chan *asserts.Ref) error {
+	writeByRefs := func(fname string, refsGen func(stop <-chan struct{}) <-chan *asserts.Ref) error {
 		f, err := os.OpenFile(filepath.Join(assertsDir, fname), os.O_WRONLY|os.O_CREATE|os.O_EXCL, 0644)
 		if err != nil {
 			return err
@@ -228,11 +228,11 @@ func (tr *tree20) writeAssertions(db asserts.RODatabase, modelRefs []*asserts.Re
 		}
 	}
 
-	if err := writeRefs("../model", modelRefsGen(true)); err != nil {
+	if err := writeByRefs("../model", modelRefsGen(true)); err != nil {
 		return err
 	}
 
-	if err := writeRefs("model-etc", modelRefsGen(false)); err != nil {
+	if err := writeByRefs("model-etc", modelRefsGen(false)); err != nil {
 		return err
 	}
 
@@ -253,12 +253,12 @@ func (tr *tree20) writeAssertions(db asserts.RODatabase, modelRefs []*asserts.Re
 		}
 	}
 
-	if err := writeRefs("snaps", snapsRefGen(snapsFromModel)); err != nil {
+	if err := writeByRefs("snaps", snapsRefGen(snapsFromModel)); err != nil {
 		return err
 	}
 
 	if len(extraSnaps) != 0 {
-		if err := writeRefs("extra-snaps", snapsRefGen(extraSnaps)); err != nil {
+		if err := writeByRefs("extra-snaps", snapsRefGen(extraSnaps)); err != nil {
 			return err
 		}
 	}

@@ -179,7 +179,7 @@ func (tr *tree16) writeAssertions(db asserts.RODatabase, modelRefs []*asserts.Re
 		return err
 	}
 
-	writeRefs := func(aRefs []*asserts.Ref) error {
+	writeByRefs := func(aRefs []*asserts.Ref) error {
 		for _, aRef := range aRefs {
 			var afn string
 			// the names don't matter in practice as long as they don't conflict
@@ -199,18 +199,18 @@ func (tr *tree16) writeAssertions(db asserts.RODatabase, modelRefs []*asserts.Re
 		return nil
 	}
 
-	if err := writeRefs(modelRefs); err != nil {
+	if err := writeByRefs(modelRefs); err != nil {
 		return err
 	}
 
 	for _, sn := range snapsFromModel {
-		if err := writeRefs(sn.ARefs); err != nil {
+		if err := writeByRefs(sn.ARefs); err != nil {
 			return err
 		}
 	}
 
 	for _, sn := range extraSnaps {
-		if err := writeRefs(sn.ARefs); err != nil {
+		if err := writeByRefs(sn.ARefs); err != nil {
 			return err
 		}
 	}
