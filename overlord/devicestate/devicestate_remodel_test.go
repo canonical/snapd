@@ -118,19 +118,19 @@ func (s *deviceMgrRemodelSuite) TestRemodelUnhappy(c *C) {
 	}
 }
 
-func (s *deviceMgrSuite) TestRemodelTasksSwitchGadgetTrack(c *C) {
+func (s *deviceMgrRemodelSuite) TestRemodelTasksSwitchGadgetTrack(c *C) {
 	s.testRemodelTasksSwitchTrack(c, "pc", map[string]interface{}{
 		"gadget": "pc=18",
 	})
 }
 
-func (s *deviceMgrSuite) TestRemodelTasksSwitchKernelTrack(c *C) {
+func (s *deviceMgrRemodelSuite) TestRemodelTasksSwitchKernelTrack(c *C) {
 	s.testRemodelTasksSwitchTrack(c, "pc-kernel", map[string]interface{}{
 		"kernel": "pc-kernel=18",
 	})
 }
 
-func (s *deviceMgrSuite) testRemodelTasksSwitchTrack(c *C, whatRefreshes string, newModelOverrides map[string]interface{}) {
+func (s *deviceMgrRemodelSuite) testRemodelTasksSwitchTrack(c *C, whatRefreshes string, newModelOverrides map[string]interface{}) {
 	s.state.Lock()
 	defer s.state.Unlock()
 	s.state.Set("seeded", true)
@@ -209,19 +209,19 @@ func (s *deviceMgrSuite) testRemodelTasksSwitchTrack(c *C, whatRefreshes string,
 	c.Assert(tss, HasLen, 4)
 }
 
-func (s *deviceMgrSuite) TestRemodelTasksSwitchGadget(c *C) {
+func (s *deviceMgrRemodelSuite) TestRemodelTasksSwitchGadget(c *C) {
 	s.testRemodelSwitchTasks(c, "other-gadget", "18", map[string]interface{}{
 		"gadget": "other-gadget=18",
 	})
 }
 
-func (s *deviceMgrSuite) TestRemodelTasksSwitchKernel(c *C) {
+func (s *deviceMgrRemodelSuite) TestRemodelTasksSwitchKernel(c *C) {
 	s.testRemodelSwitchTasks(c, "other-kernel", "18", map[string]interface{}{
 		"kernel": "other-kernel=18",
 	})
 }
 
-func (s *deviceMgrSuite) testRemodelSwitchTasks(c *C, whatsNew, whatNewTrack string, newModelOverrides map[string]interface{}) {
+func (s *deviceMgrRemodelSuite) testRemodelSwitchTasks(c *C, whatsNew, whatNewTrack string, newModelOverrides map[string]interface{}) {
 	s.state.Lock()
 	defer s.state.Unlock()
 	s.state.Set("seeded", true)
