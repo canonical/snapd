@@ -294,6 +294,24 @@ dbus (receive, send)
     peer=(label=###SLOT_SECURITY_TAGS###),
 `
 
+const networkManagerSendIntrospectionSnippet = `
+# Allow us to introspect the network-manager providing snap
+dbus (send)
+    bus=system
+    interface="org.freedesktop.DBus.Introspectable"
+    member="Introspect"
+    peer=(label=###SLOT_SECURITY_TAGS###),
+`
+
+const networkManagerRecvIntrospectionSnippet = `
+# Allow plugs to introspect us
+dbus (receive)
+    bus=system
+    interface="org.freedesktop.DBus.Introspectable"
+    member="Introspect"
+    peer=(label=###PLUG_SECURITY_TAGS###),
+`
+
 const networkManagerConnectedPlugSecComp = `
 # Description: This is needed to talk to the network-manager service
 socket AF_NETLINK - NETLINK_KOBJECT_UEVENT
@@ -481,6 +499,11 @@ func (iface *networkManagerInterface) AppArmorConnectedPlug(spec *apparmor.Speci
 	}
 	snippet := strings.Replace(networkManagerConnectedPlugAppArmor, old, new, -1)
 	spec.AddSnippet(snippet)
+	if !release.OnClassic {
+		// See https://bugs.launchpad.net/snapd/+bug/1849291 for details.
+		snippet := strings.Replace(networkManagerSendIntrospectionSnippet, old, new, -1)
+		spec.AddSnippet(snippet)
+	}
 	return nil
 }
 
@@ -489,6 +512,11 @@ func (iface *networkManagerInterface) AppArmorConnectedSlot(spec *apparmor.Speci
 	new := plugAppLabelExpr(plug)
 	snippet := strings.Replace(networkManagerConnectedSlotAppArmor, old, new, -1)
 	spec.AddSnippet(snippet)
+	if !release.OnClassic {
+		// See https://bugs.launchpad.net/snapd/+bug/1849291 for details.
+		snippet := strings.Replace(networkManagerRecvIntrospectionSnippet, old, new, -1)
+		spec.AddSnippet(snippet)
+	}
 	return nil
 }
 
