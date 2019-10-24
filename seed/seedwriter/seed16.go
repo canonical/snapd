@@ -28,7 +28,7 @@ import (
 	"strings"
 
 	"github.com/snapcore/snapd/asserts"
-	"github.com/snapcore/snapd/seed"
+	"github.com/snapcore/snapd/seed/internal"
 	"github.com/snapcore/snapd/snap"
 	"github.com/snapcore/snapd/snap/channel"
 	"github.com/snapcore/snapd/snap/naming"
@@ -58,11 +58,10 @@ func (pol *policy16) checkSnapChannel(_ channel.Channel, whichSnap string) error
 func makeSystemSnap(snapName string) *asserts.ModelSnap {
 	// TODO: set SnapID too
 	return &asserts.ModelSnap{
-		Name:           snapName,
-		SnapType:       snapName, // same as snapName for core, snapd
-		Modes:          []string{"run"},
-		DefaultChannel: "stable",
-		Presence:       "required",
+		Name:     snapName,
+		SnapType: snapName, // same as snapName for core, snapd
+		Modes:    []string{"run"},
+		Presence: "required",
 	}
 }
 
@@ -76,6 +75,16 @@ func (pol *policy16) systemSnap() *asserts.ModelSnap {
 		snapName = "snapd"
 	}
 	return makeSystemSnap(snapName)
+}
+
+func (pol *policy16) modelSnapDefaultChannel() string {
+	// We will use latest or the current default track at image build time
+	return "stable"
+}
+
+func (pol *policy16) extraSnapDefaultChannel() string {
+	// We will use latest or the current default track at image build time
+	return "stable"
 }
 
 func (pol *policy16) checkBase(info *snap.Info, availableSnaps *naming.SnapSet) error {
@@ -147,7 +156,7 @@ func (pol *policy16) implicitSnaps(availableSnaps *naming.SnapSet) []*asserts.Mo
 
 func (pol *policy16) implicitExtraSnaps(availableSnaps *naming.SnapSet) []*OptionsSnap {
 	if len(pol.needsCore) != 0 && !availableSnaps.Contains(naming.Snap("core")) {
-		return []*OptionsSnap{{Name: "core", Channel: "stable"}}
+		return []*OptionsSnap{{Name: "core"}}
 	}
 	return nil
 }
@@ -217,7 +226,7 @@ func (tr *tree16) writeAssertions(db asserts.RODatabase, modelRefs []*asserts.Re
 }
 
 func (tr *tree16) writeMeta(snapsFromModel []*SeedSnap, extraSnaps []*SeedSnap) error {
-	var seedYaml seed.Seed16
+	var seedYaml internal.Seed16
 
 	seedSnaps := make(seedSnapsByType, len(snapsFromModel)+len(extraSnaps))
 	copy(seedSnaps, snapsFromModel)
@@ -225,7 +234,7 @@ func (tr *tree16) writeMeta(snapsFromModel []*SeedSnap, extraSnaps []*SeedSnap) 
 
 	sort.Stable(seedSnaps)
 
-	seedYaml.Snaps = make([]*seed.Snap16, len(seedSnaps))
+	seedYaml.Snaps = make([]*internal.Snap16, len(seedSnaps))
 	for i, sn := range seedSnaps {
 		info := sn.Info
 		// TODO: with default tracks this might be
@@ -237,7 +246,7 @@ func (tr *tree16) writeMeta(snapsFromModel []*SeedSnap, extraSnaps []*SeedSnap) 
 			// for unasserted snaps
 			channel = ""
 		}
-		seedYaml.Snaps[i] = &seed.Snap16{
+		seedYaml.Snaps[i] = &internal.Snap16{
 			Name:    info.SnapName(),
 			SnapID:  info.SnapID, // cross-ref
 			Channel: channel,

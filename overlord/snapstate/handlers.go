@@ -893,7 +893,7 @@ func (m *SnapManager) undoUnlinkCurrentSnap(t *state.Task, _ *tomb.Tomb) error {
 	// as well as the services which are not present in this revision, but were
 	// present and disabled in a previous one and as such should be kept inside
 	// snapst for persistent storage.
-	svcsToSave, svcsToDisable, err := ComputeMissingDisabledServices(snapst, oldInfo)
+	svcsToSave, svcsToDisable, err := missingDisabledServices(snapst.LastActiveDisabledServices, oldInfo)
 	if err != nil {
 		return err
 	}
@@ -1056,13 +1056,12 @@ func writeSeqFile(name string, snapst *SnapState) error {
 	return osutil.AtomicWriteFile(p, b, 0644, 0)
 }
 
-// ComputeMissingDisabledServices returns a list of services that were disabled
+// missingDisabledServices returns a list of services that were disabled
 // that are currently missing from the specific snap info (i.e. they were
 // renamed in this snap info), as well as a list of disabled services that are
 // present in this snap info.
-// note that the union of the missing and found svc lists should be exactly
-// equal to st.LastActiveDisabledServices.
-func ComputeMissingDisabledServices(st *SnapState, info *snap.Info) ([]string, []string, error) {
+// the first arg is the disabled services when the snap was last active
+func missingDisabledServices(svcs []string, info *snap.Info) ([]string, []string, error) {
 	// make a copy of all the previously disabled services that we will remove
 	// from, as well as an empty list to add to for the found services
 	missingSvcs := []string{}
@@ -1070,7 +1069,7 @@ func ComputeMissingDisabledServices(st *SnapState, info *snap.Info) ([]string, [
 
 	// for all the previously disabled services, check if they are in the
 	// current snap info revision as services or not
-	for _, disabledSvcName := range st.LastActiveDisabledServices {
+	for _, disabledSvcName := range svcs {
 		// check if the service is an app _and_ is a service
 		if app, ok := info.Apps[disabledSvcName]; ok && app.IsService() {
 			foundSvcs = append(foundSvcs, disabledSvcName)
@@ -1168,7 +1167,7 @@ func (m *SnapManager) doLinkSnap(t *state.Task, _ *tomb.Tomb) (err error) {
 	// as well as the services which are not present in this revision, but were
 	// present and disabled in a previous one and as such should be kept inside
 	// snapst for persistent storage
-	svcsToSave, svcsToDisable, err := ComputeMissingDisabledServices(snapst, newInfo)
+	svcsToSave, svcsToDisable, err := missingDisabledServices(snapst.LastActiveDisabledServices, newInfo)
 	if err != nil {
 		return err
 	}

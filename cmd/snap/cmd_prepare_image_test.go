@@ -47,7 +47,6 @@ func (s *SnapPrepareImageSuite) TestPrepareImageCore(c *C) {
 
 	c.Check(opts, DeepEquals, &image.Options{
 		ModelFile:       "model",
-		Channel:         "stable",
 		RootDir:         "root-dir/image",
 		GadgetUnpackDir: "root-dir/gadget",
 	})
@@ -69,7 +68,6 @@ func (s *SnapPrepareImageSuite) TestPrepareImageClassic(c *C) {
 	c.Check(opts, DeepEquals, &image.Options{
 		Classic:   true,
 		ModelFile: "model",
-		Channel:   "stable",
 		RootDir:   "root-dir",
 	})
 }
@@ -91,7 +89,6 @@ func (s *SnapPrepareImageSuite) TestPrepareImageClassicArch(c *C) {
 		Classic:      true,
 		Architecture: "i386",
 		ModelFile:    "model",
-		Channel:      "stable",
 		RootDir:      "root-dir",
 	})
 }
@@ -105,13 +102,13 @@ func (s *SnapPrepareImageSuite) TestPrepareImageExtraSnaps(c *C) {
 	r := snap.MockImagePrepare(prep)
 	defer r()
 
-	rest, err := snap.Parser(snap.Client()).ParseArgs([]string{"prepare-image", "model", "root-dir", "--snap", "foo", "--snap", "bar=t/edge", "--snap", "local.snap", "--extra-snaps", "local2.snap", "--extra-snaps", "store-snap"})
+	rest, err := snap.Parser(snap.Client()).ParseArgs([]string{"prepare-image", "model", "root-dir", "--channel", "candidate", "--snap", "foo", "--snap", "bar=t/edge", "--snap", "local.snap", "--extra-snaps", "local2.snap", "--extra-snaps", "store-snap"})
 	c.Assert(err, IsNil)
 	c.Assert(rest, DeepEquals, []string{})
 
 	c.Check(opts, DeepEquals, &image.Options{
 		ModelFile:       "model",
-		Channel:         "stable",
+		Channel:         "candidate",
 		RootDir:         "root-dir/image",
 		GadgetUnpackDir: "root-dir/gadget",
 		Snaps:           []string{"foo", "bar", "local.snap", "local2.snap", "store-snap"},

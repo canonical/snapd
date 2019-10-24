@@ -138,14 +138,14 @@ type SnapState struct {
 
 	// LastActiveDisabledServices is a list of services that were disabled in
 	// this snap when it was last active - i.e. when it was disabled, before
-	// it was reverted, or before a refresh happens
+	// it was reverted, or before a refresh happens.
 	// It is set during unlink-snap and unlink-current-snap and reset during
 	// link-snap since it is only meant to be saved when snapd needs to remove
-	// systemd units
+	// systemd units.
 	// Note that to handle potential service renames, only services that exist
 	// in the snap are removed from this list on link-snap, so that we can
 	// remember services that were disabled in another revision and then renamed
-	// or otherwise removed from the snap in a future refresh
+	// or otherwise removed from the snap in a future refresh.
 	LastActiveDisabledServices []string `json:"last-active-disabled-services,omitempty"`
 
 	// Current indicates the current active revision if Active is

@@ -117,103 +117,102 @@ func (s *handlersSuite) TestSetTaskSnapSetupLaterTask(c *C) {
 
 func (s *handlersSuite) TestComputeMissingDisabledServices(c *C) {
 	for _, tt := range []struct {
+		// inputs
 		stDisabledSvcsList []string
-		missing            []string
-		found              []string
-		err                error
 		apps               map[string]*snap.AppInfo
-		comment            string
+		// outputs
+		missing []string
+		found   []string
+		err     error
+		comment string
 	}{
 		// no apps
 		{
 			[]string{},
-			[]string{},
-			[]string{},
 			nil,
+			[]string{},
+			[]string{},
 			nil,
 			"no apps",
 		},
 		// only apps, no services
 		{
 			[]string{},
-			[]string{},
-			[]string{},
-			nil,
 			map[string]*snap.AppInfo{
 				"app": {
 					Daemon: "",
 				},
 			},
+			[]string{},
+			[]string{},
+			nil,
 			"no services",
 		},
 		// services in snap, but not disabled
 		{
 			[]string{},
-			[]string{},
-			[]string{},
-			nil,
 			map[string]*snap.AppInfo{
 				"svc1": {
 					Daemon: "simple",
 				},
 			},
+			[]string{},
+			[]string{},
+			nil,
 			"no disabled services",
 		},
 		// all disabled services, but not present in snap
 		{
 			[]string{"svc1"},
+			nil,
 			[]string{"svc1"},
 			[]string{},
-			nil,
 			nil,
 			"all missing disabled services",
 		},
 		// all disabled services, and found in snap
 		{
 			[]string{"svc1"},
-			[]string{},
-			[]string{"svc1"},
-			nil,
 			map[string]*snap.AppInfo{
 				"svc1": {
 					Daemon: "simple",
 				},
 			},
+			[]string{},
+			[]string{"svc1"},
+			nil,
 			"all found disabled services",
 		},
 		// some disabled services, some missing, some present in snap
 		{
 			[]string{"svc1", "svc2"},
-			[]string{"svc2"},
-			[]string{"svc1"},
-			nil,
 			map[string]*snap.AppInfo{
 				"svc1": {
 					Daemon: "simple",
 				},
 			},
+			[]string{"svc2"},
+			[]string{"svc1"},
+			nil,
 			"some missing, some found disabled services",
 		},
-		// some disabled services, but is app not service
+		// some disabled services, but app is not service
 		{
 			[]string{"svc1"},
-			[]string{"svc1"},
-			[]string{},
-			nil,
 			map[string]*snap.AppInfo{
 				"svc1": {
 					Daemon: "",
 				},
 			},
+			[]string{"svc1"},
+			[]string{},
+			nil,
 			"some disabled services that are now apps",
 		},
 	} {
-		st := &snapstate.SnapState{
-			LastActiveDisabledServices: tt.stDisabledSvcsList,
-		}
 		info := &snap.Info{Apps: tt.apps}
 
-		missing, found, err := snapstate.ComputeMissingDisabledServices(st, info)
+		missing, found, err := snapstate.MissingDisabledServices(tt.stDisabledSvcsList, info)
 		c.Assert(missing, DeepEquals, tt.missing, Commentf(tt.comment))
 		c.Assert(found, DeepEquals, tt.found, Commentf(tt.comment))
 		c.Assert(err, Equals, tt.err, Commentf(tt.comment))
