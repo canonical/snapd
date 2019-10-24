@@ -294,7 +294,7 @@ dbus (receive, send)
     peer=(label=###SLOT_SECURITY_TAGS###),
 `
 
-const networkManagerSendIntrospectionSnippet = `
+const networkManagerConnectedPlugIntrospectionSnippet = `
 # Allow us to introspect the network-manager providing snap
 dbus (send)
     bus=system
@@ -303,7 +303,7 @@ dbus (send)
     peer=(label=###SLOT_SECURITY_TAGS###),
 `
 
-const networkManagerRecvIntrospectionSnippet = `
+const networkManagerConnectedSlotIntrospectionSnippet = `
 # Allow plugs to introspect us
 dbus (receive)
     bus=system
@@ -501,7 +501,7 @@ func (iface *networkManagerInterface) AppArmorConnectedPlug(spec *apparmor.Speci
 	spec.AddSnippet(snippet)
 	if !release.OnClassic {
 		// See https://bugs.launchpad.net/snapd/+bug/1849291 for details.
-		snippet := strings.Replace(networkManagerSendIntrospectionSnippet, old, new, -1)
+		snippet := strings.Replace(networkManagerConnectedPlugIntrospectionSnippet, old, new, -1)
 		spec.AddSnippet(snippet)
 	}
 	return nil
@@ -514,7 +514,7 @@ func (iface *networkManagerInterface) AppArmorConnectedSlot(spec *apparmor.Speci
 	spec.AddSnippet(snippet)
 	if !release.OnClassic {
 		// See https://bugs.launchpad.net/snapd/+bug/1849291 for details.
-		snippet := strings.Replace(networkManagerRecvIntrospectionSnippet, old, new, -1)
+		snippet := strings.Replace(networkManagerConnectedSlotIntrospectionSnippet, old, new, -1)
 		spec.AddSnippet(snippet)
 	}
 	return nil
