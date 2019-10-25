@@ -1795,7 +1795,7 @@ func (s *writerSuite) TestSeedSnapsWriteMetaCore20(c *C) {
 	c.Check(systemDir, testutil.FilePresent)
 
 	// check the snaps are in place
-	for _, name := range []string{"snapd", "pc-kernel", "core18", "pc", "cont-consumer", "cont-producer"} {
+	for _, name := range []string{"snapd", "pc-kernel", "core20", "pc", "core18", "cont-consumer", "cont-producer"} {
 		info := s.AssertedSnapInfo(name)
 
 		fn := filepath.Base(info.MountFile())
