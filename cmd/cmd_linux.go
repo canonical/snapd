@@ -77,8 +77,8 @@ func distroSupportsReExec() bool {
 // Ensure we do not use older version of snapd, look for info file and ignore
 // version of core that do not yet have it.
 func coreSupportsReExec(coreOrSnapdPath string) bool {
-	fullInfo := filepath.Join(coreOrSnapdPath, filepath.Join(dirs.CoreLibExecDir, "info"))
-	ver, err := cmdutil.SnapdVersionFromInfoFile(fullInfo)
+	infoPath := filepath.Join(coreOrSnapdPath, filepath.Join(dirs.CoreLibExecDir, "info"))
+	ver, err := cmdutil.SnapdVersionFromInfoFile(infoPath)
 	if err != nil {
 		logger.Noticef("%v", err)
 		return false
