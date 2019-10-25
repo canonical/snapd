@@ -214,7 +214,7 @@ func mountEntry(plug *interfaces.ConnectedPlug, slot *interfaces.ConnectedSlot, 
 func (iface *contentInterface) AppArmorConnectedPlug(spec *apparmor.Specification, plug *interfaces.ConnectedPlug, slot *interfaces.ConnectedSlot) error {
 	contentSnippet := bytes.NewBuffer(nil)
 	writePaths := iface.path(slot, "write")
-	emit := spec.EmitUpdateNSFunc()
+	emit := spec.AddUpdateNSf
 	if len(writePaths) > 0 {
 		fmt.Fprintf(contentSnippet, `
 # In addition to the bind mount, add any AppArmor rules so that
