@@ -955,11 +955,15 @@ func ValidateSystemUsernames(info *Info) error {
 // neededDefaultProviders returns the names of all default-providers for
 // the content plugs that the given snap.Info needs.
 func NeededDefaultProviders(info *Info) (cps []string) {
+	// XXX: unify with the other places that parse default-providers
 	for _, plug := range info.Plugs {
 		if plug.Interface == "content" {
 			var dprovider string
 			if err := plug.Attr("default-provider", &dprovider); err == nil && dprovider != "" {
-				cps = append(cps, dprovider)
+				// usage can be "snap:slot" but we only check
+				// the snap here
+				name := strings.Split(dprovider, ":")[0]
+				cps = append(cps, name)
 			}
 		}
 	}
