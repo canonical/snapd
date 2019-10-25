@@ -3676,6 +3676,19 @@ version: 1.0`
 	c.Assert(t, NotNil)
 	c.Assert(t.Status(), Equals, state.DoingStatus)
 
+	// check that the system tries to boot the new brand kernel
+	state.MockRestarting(st, state.RestartUnset)
+	c.Assert(bloader.BootVars, DeepEquals, map[string]string{
+		"snap_core":       "core_1.snap",
+		"snap_kernel":     "pc-kernel_1.snap",
+		"snap_try_kernel": "brand-kernel_2.snap",
+		"snap_mode":       "try",
+	})
+	// simulate successful system-restart bootenv updates (those
+	// vars will be cleared by snapd on a restart)
+	bloader.BootVars["snap_try_kernel"] = ""
+	bloader.BootVars["snap_mode"] = ""
+
 	// simulate successful restart happened
 	state.MockRestarting(st, state.RestartUnset)
 
@@ -3687,6 +3700,14 @@ version: 1.0`
 	c.Assert(err, IsNil)
 
 	c.Assert(chg.Status(), Equals, state.DoneStatus, Commentf("upgrade-snap change failed with: %v", chg.Err()))
+
+	// bootvars are as expected
+	c.Assert(bloader.BootVars, DeepEquals, map[string]string{
+		"snap_core":       "core_1.snap",
+		"snap_kernel":     "pc-kernel_1.snap",
+		"snap_try_kernel": "",
+		"snap_mode":       "",
+	})
 
 	// ensure tasks were run in the right order
 	tasks := chg.Tasks()

@@ -114,3 +114,107 @@ func (s *handlersSuite) TestSetTaskSnapSetupLaterTask(c *C) {
 	c.Assert(err, IsNil)
 	c.Assert(newsnapsup.Channel, Equals, snapsup.Channel)
 }
+
+func (s *handlersSuite) TestComputeMissingDisabledServices(c *C) {
+	for _, tt := range []struct {
+		// inputs
+		stDisabledSvcsList []string
+		apps               map[string]*snap.AppInfo
+		// outputs
+		missing []string
+		found   []string
+		err     error
+		comment string
+	}{
+		// no apps
+		{
+			[]string{},
+			nil,
+			[]string{},
+			[]string{},
+			nil,
+			"no apps",
+		},
+		// only apps, no services
+		{
+			[]string{},
+			map[string]*snap.AppInfo{
+				"app": {
+					Daemon: "",
+				},
+			},
+			[]string{},
+			[]string{},
+			nil,
+			"no services",
+		},
+		// services in snap, but not disabled
+		{
+			[]string{},
+			map[string]*snap.AppInfo{
+				"svc1": {
+					Daemon: "simple",
+				},
+			},
+			[]string{},
+			[]string{},
+			nil,
+			"no disabled services",
+		},
+		// all disabled services, but not present in snap
+		{
+			[]string{"svc1"},
+			nil,
+			[]string{"svc1"},
+			[]string{},
+			nil,
+			"all missing disabled services",
+		},
+		// all disabled services, and found in snap
+		{
+			[]string{"svc1"},
+			map[string]*snap.AppInfo{
+				"svc1": {
+					Daemon: "simple",
+				},
+			},
+			[]string{},
+			[]string{"svc1"},
+			nil,
+			"all found disabled services",
+		},
+		// some disabled services, some missing, some present in snap
+		{
+			[]string{"svc1", "svc2"},
+			map[string]*snap.AppInfo{
+				"svc1": {
+					Daemon: "simple",
+				},
+			},
+			[]string{"svc2"},
+			[]string{"svc1"},
+			nil,
+			"some missing, some found disabled services",
+		},
+		// some disabled services, but app is not service
+		{
+			[]string{"svc1"},
+			map[string]*snap.AppInfo{
+				"svc1": {
+					Daemon: "",
+				},
+			},
+			[]string{"svc1"},
+			[]string{},
+			nil,
+			"some disabled services that are now apps",
+		},
+	} {
+		info := &snap.Info{Apps: tt.apps}
+
+		missing, found, err := snapstate.MissingDisabledServices(tt.stDisabledSvcsList, info)
+		c.Assert(missing, DeepEquals, tt.missing, Commentf(tt.comment))
+		c.Assert(found, DeepEquals, tt.found, Commentf(tt.comment))
+		c.Assert(err, Equals, tt.err, Commentf(tt.comment))
+	}
+}
