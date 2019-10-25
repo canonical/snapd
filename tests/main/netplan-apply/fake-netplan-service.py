@@ -23,6 +23,15 @@ class NetplanApplyService(dbus.service.Object):
             fp.write("Apply called\n")
         return True
 
+    @dbus.service.method(dbus_interface=DOC_IFACE, in_signature="",
+                         out_signature="a(sv)")
+    def Info(self):
+        # log that we were called and always return a dbus struct (i.e. python
+        # tuple) with Features in it
+        with open(self._logfile, "a+") as fp:
+            fp.write("Info called\n")
+        return [("Features", ["dhcp-use-domains", "ipv6-mtu"])]
+
 
 def main(argv):
     logfile = argv[1]

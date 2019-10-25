@@ -24,7 +24,7 @@ import (
 	"github.com/snapcore/snapd/gadget"
 )
 
-func MakeFilesystems(created []deviceStructure) error {
+func MakeFilesystems(created []DeviceStructure) error {
 	for _, part := range created {
 		if part.VolumeStructure.Filesystem != "" {
 			if err := mkfs(part.Node, part.VolumeStructure.Label, part.VolumeStructure.Filesystem); err != nil {

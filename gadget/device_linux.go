@@ -103,7 +103,7 @@ func FindDeviceForStructure(ps *LaidOutStructure) (string, error) {
 // Returns the device name and an offset at which the structure content starts
 // within the device or an error.
 func FindDeviceForStructureWithFallback(ps *LaidOutStructure) (dev string, offs Size, err error) {
-	if !ps.IsBare() {
+	if ps.HasFilesystem() {
 		return "", 0, fmt.Errorf("internal error: cannot use with filesystem structures")
 	}
 
@@ -158,7 +158,7 @@ func encodeLabel(in string) string {
 // given structure. The structure must have a filesystem defined, otherwise an
 // error is raised.
 func FindMountPointForStructure(ps *LaidOutStructure) (string, error) {
-	if ps.IsBare() {
+	if !ps.HasFilesystem() {
 		return "", ErrNoFilesystemDefined
 	}
 
