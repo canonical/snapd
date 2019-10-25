@@ -221,11 +221,10 @@ func (tr *tree20) writeAssertions(db asserts.RODatabase, modelRefs []*asserts.Re
 			refs := make(chan *asserts.Ref)
 			go func() {
 				for _, aRef := range modelRefs {
-					if !include(aRef) {
-						continue
-					}
-					if !pushRef(refs, aRef, stop) {
-						return
+					if include(aRef) {
+						if !pushRef(refs, aRef, stop) {
+							return
+						}
 					}
 				}
 				close(refs)
