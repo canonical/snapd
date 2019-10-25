@@ -28,7 +28,7 @@ import (
 	"github.com/jessevdk/go-flags"
 	. "gopkg.in/check.v1"
 
-	"github.com/snapcore/snapd/cmd/snap-start-preseed"
+	"github.com/snapcore/snapd/cmd/snap-preseed"
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/testutil"
 )
