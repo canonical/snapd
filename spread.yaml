@@ -505,6 +505,10 @@ prepare: |
         #
         # https://forum.snapcraft.io/t/issues-with-the-fedora-mirror-network/3489/
         sed -i -s -E -e 's@^#?baseurl=http://download.fedoraproject.org/@baseurl=http://dl.fedoraproject.org/@g' -e 's@^metalink=@#metalink@g' /etc/yum.repos.d/fedora*.repo
+
+        # TODO: disable once golang-x-xerrors is available in F30
+        dnf copr enable bboozzoo/snapd-devel-deps -y
+
         dnf --refresh -y makecache
 
         # enable audit daemon
