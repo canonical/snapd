@@ -40,6 +40,7 @@
 #include "../libsnap-confine-private/apparmor-support.h"
 #include "../libsnap-confine-private/classic.h"
 #include "../libsnap-confine-private/cleanup-funcs.h"
+#include "../libsnap-confine-private/feature.h"
 #include "../libsnap-confine-private/mount-opt.h"
 #include "../libsnap-confine-private/mountinfo.h"
 #include "../libsnap-confine-private/snap.h"
@@ -511,6 +512,12 @@ static void sc_bootstrap_mount_namespace(const struct sc_mount_config *config)
 	// mount table and software inspecting the mount table may become confused.
 	sc_must_snprintf(src, sizeof src, "%s/proc", SC_HOSTFS_DIR);
 	sc_do_umount(src, UMOUNT_NOFOLLOW | MNT_DETACH);
+	// When the refresh-app-awareness feature is enabled then detach the additional
+	// tracking cgroup (name=snapd) that some applications can choke on.
+	if (sc_feature_enabled(SC_FEATURE_REFRESH_APP_AWARENESS)) {
+		sc_must_snprintf(src, sizeof src, "%s/run/snapd/cgroup", SC_HOSTFS_DIR);
+		sc_do_umount(src, UMOUNT_NOFOLLOW | MNT_DETACH);
+	}
 	// Detach both views of /writable: the one from hostfs and the one directly
 	// visible in /writable. Interfaces don't grant access to this directory
 	// and it has a large duplicated view of many mount points.  Note that this

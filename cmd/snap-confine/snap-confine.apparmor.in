@@ -252,6 +252,7 @@
     umount /var/lib/snapd/hostfs/sys/,
     umount /var/lib/snapd/hostfs/dev/,
     umount /var/lib/snapd/hostfs/proc/,
+    umount /var/lib/snapd/hostfs/run/snapd/cgroup/,
     mount options=(rw rslave) -> /var/lib/snapd/hostfs/,
 
     # Hide /writable from view of snaps.
