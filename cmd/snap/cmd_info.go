@@ -402,11 +402,20 @@ func (iw *infoWriter) printSummary() {
 }
 
 func (iw *infoWriter) maybePrintStoreURL() {
-	if iw.remoteSnap == nil || iw.remoteSnap.StoreURL == "" {
-		// no store page for snaps that don't come from the store
+	storeURL := ""
+	// XXX: store-url for local snaps comes from aux data, but that gets
+	// updated only when the snap is refreshed, be smart and poke remote
+	// snap info if available
+	switch {
+	case iw.theSnap.StoreURL != "":
+		storeURL = iw.theSnap.StoreURL
+	case iw.remoteSnap != nil && iw.remoteSnap.StoreURL != "":
+		storeURL = iw.remoteSnap.StoreURL
+	}
+	if storeURL == "" {
 		return
 	}
-	fmt.Fprintf(iw, "store-url:\t%s\n", iw.remoteSnap.StoreURL)
+	fmt.Fprintf(iw, "store-url:\t%s\n", storeURL)
 }
 
 func (iw *infoWriter) maybePrintPublisher() {
