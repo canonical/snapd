@@ -22,16 +22,17 @@ import (
 	"bytes"
 	"fmt"
 	"io/ioutil"
-	"path/filepath"
-
-	"github.com/snapcore/snapd/dirs"
 )
 
-func SnapdVersionFromInfoFile(rootDir string) (string, error) {
-	fullInfo := filepath.Join(rootDir, filepath.Join(dirs.CoreLibExecDir, "info"))
-	content, err := ioutil.ReadFile(fullInfo)
+// SnapdVersionFromInfoFile returns snapd version read for the
+// given info" file, pointed by infoPath.
+// The format of the "info" file is a single line with "VERSION=..."
+// in it. The file is produced by mkversion.sh and normally installed
+// along snapd binary in /usr/lib/snapd.
+func SnapdVersionFromInfoFile(infoPath string) (string, error) {
+	content, err := ioutil.ReadFile(infoPath)
 	if err != nil {
-		return "", fmt.Errorf("cannot open snapd info file %q: %s", fullInfo, err)
+		return "", fmt.Errorf("cannot open snapd info file %q: %s", infoPath, err)
 	}
 
 	if !bytes.HasPrefix(content, []byte("VERSION=")) {
