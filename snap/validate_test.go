@@ -1592,6 +1592,23 @@ func (s *ValidateSuite) TestNeededDefaultProviders(c *C) {
 	c.Check(dps, DeepEquals, []string{"gtk-common-themes"})
 }
 
+const yamlNeedDfWithSlot = `name: need-df
+version: 1.0
+plugs:
+  gtk-3-themes:
+    interface: content
+    default-provider: gtk-common-themes2:with-slot
+`
+
+func (s *ValidateSuite) TestNeededDefaultProvidersLegacyColonSyntax(c *C) {
+	strk := NewScopedTracker()
+	info, err := InfoFromSnapYamlWithSideInfo([]byte(yamlNeedDfWithSlot), nil, strk)
+	c.Assert(err, IsNil)
+
+	dps := NeededDefaultProviders(info)
+	c.Check(dps, DeepEquals, []string{"gtk-common-themes2"})
+}
+
 func (s *validateSuite) TestValidateSnapMissingCore(c *C) {
 	const yaml = `name: some-snap
 version: 1.0`
