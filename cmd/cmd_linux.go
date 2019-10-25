@@ -20,14 +20,13 @@
 package cmd
 
 import (
-	"bytes"
-	"io/ioutil"
 	"log"
 	"os"
 	"path/filepath"
 	"strings"
 	"syscall"
 
+	"github.com/snapcore/snapd/cmd/cmdutil"
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/osutil"
@@ -79,28 +78,12 @@ func distroSupportsReExec() bool {
 // version of core that do not yet have it.
 func coreSupportsReExec(coreOrSnapdPath string) bool {
 	fullInfo := filepath.Join(coreOrSnapdPath, filepath.Join(dirs.CoreLibExecDir, "info"))
-	content, err := ioutil.ReadFile(fullInfo)
+	ver, err := cmdutil.SnapdVersionFromInfoFile(fullInfo)
 	if err != nil {
-		if !os.IsNotExist(err) {
-			logger.Noticef("cannot open snapd info file %q: %s", fullInfo, err)
-		}
+		logger.Noticef("%v", err)
 		return false
 	}
 
-	if !bytes.HasPrefix(content, []byte("VERSION=")) {
-		idx := bytes.Index(content, []byte("\nVERSION="))
-		if idx < 0 {
-			logger.Noticef("cannot find snapd version information in %q", content)
-			return false
-		}
-		content = content[idx+1:]
-	}
-	content = content[8:]
-	idx := bytes.IndexByte(content, '\n')
-	if idx > -1 {
-		content = content[:idx]
-	}
-	ver := string(content)
 	// > 0 means our Version is bigger than the version of snapd in core
 	res, err := strutil.VersionCompare(Version, ver)
 	if err != nil {
