@@ -117,7 +117,7 @@ func (s *startPreseedSuite) TestChrootFailure(c *C) {
 	c.Check(main.Run(parser, []string{tmpDir}), ErrorMatches, fmt.Sprintf("cannot chroot into %s: FAIL: %s", tmpDir, tmpDir))
 }
 
-func (s *startPreseedSuite) TestStartPrebakeHappy(c *C) {
+func (s *startPreseedSuite) TestRunPreseedHappy(c *C) {
 	tmpDir := c.MkDir()
 	dirs.SetRootDir(tmpDir)
 	mockChrootDirs(c, tmpDir)
