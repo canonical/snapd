@@ -20,8 +20,6 @@
 package builtin
 
 import (
-	"bytes"
-	"fmt"
 	"path/filepath"
 
 	"github.com/snapcore/snapd/dirs"
@@ -77,10 +75,7 @@ func (iface *appstreamMetadataInterface) AppArmorConnectedPlug(spec *apparmor.Sp
 	spec.AddSnippet(appstreamMetadataConnectedPlugAppArmor)
 
 	// Generate rules to allow snap-update-ns to do its thing
-	var buf bytes.Buffer
-	emit := func(f string, args ...interface{}) {
-		fmt.Fprintf(&buf, f, args...)
-	}
+	emit := spec.EmitUpdateNSFunc()
 	for _, target := range appstreamMetadataDirs {
 		source := "/var/lib/snapd/hostfs" + target
 		emit("  # Read-only access to %s\n", target)
@@ -92,7 +87,6 @@ func (iface *appstreamMetadataInterface) AppArmorConnectedPlug(spec *apparmor.Sp
 		// and /usr/share (or equivalents under /var).
 		apparmor.GenWritableProfile(emit, target, 3)
 	}
-	spec.AddUpdateNS(buf.String())
 	return nil
 }
 

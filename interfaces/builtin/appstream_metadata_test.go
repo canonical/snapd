@@ -83,8 +83,7 @@ func (s *AppstreamMetadataInterfaceSuite) TestAppArmorConnectedPlug(c *C) {
 	c.Assert(spec.AddConnectedPlug(s.iface, s.plug, s.slot), IsNil)
 	c.Assert(spec.SecurityTags(), HasLen, 1)
 	c.Check(spec.SnippetForTag("snap.consumer.app"), testutil.Contains, `/var/cache/app-info/** r,`)
-	c.Assert(spec.UpdateNS(), HasLen, 1)
-	c.Check(spec.UpdateNS()[0], testutil.Contains, `# Read-only access to /usr/share/metainfo`)
+	c.Check(spec.UpdateNS(), testutil.Contains, "  # Read-only access to /usr/share/metainfo\n")
 }
 
 func (s *AppstreamMetadataInterfaceSuite) TestMountConnectedPlug(c *C) {
