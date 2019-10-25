@@ -21,7 +21,7 @@ package partition_test
 import (
 	. "gopkg.in/check.v1"
 
-	"github.com/snapcore/snapd/cmd/snap-recovery/partition"
+	"github.com/snapcore/snapd/cmd/snap-bootstrap/partition"
 	"github.com/snapcore/snapd/gadget"
 	"github.com/snapcore/snapd/testutil"
 )

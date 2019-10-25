@@ -16,12 +16,12 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  *
  */
-package recover
+package bootstrap
 
 import (
 	"fmt"
 
-	"github.com/snapcore/snapd/cmd/snap-recovery/partition"
+	"github.com/snapcore/snapd/cmd/snap-bootstrap/partition"
 	"github.com/snapcore/snapd/gadget"
 )
 
@@ -31,7 +31,7 @@ type Options struct {
 
 func Run(gadgetRoot, device string, options *Options) error {
 	if gadgetRoot == "" {
-		return fmt.Errorf("cannot use empty recovery gadget root directory")
+		return fmt.Errorf("cannot use empty gadget root directory")
 	}
 	if device == "" {
 		return fmt.Errorf("cannot use empty device node")

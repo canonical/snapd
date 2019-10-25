@@ -16,30 +16,30 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  *
  */
-package recover_test
+package bootstrap_test
 
 import (
 	"testing"
 
 	. "gopkg.in/check.v1"
 
-	"github.com/snapcore/snapd/cmd/snap-recovery/recover"
+	"github.com/snapcore/snapd/cmd/snap-bootstrap/bootstrap"
 )
 
-func TestRecover(t *testing.T) { TestingT(t) }
+func TestBootstrap(t *testing.T) { TestingT(t) }
 
-type recoverSuite struct{}
+type bootstrapSuite struct{}
 
-var _ = Suite(&recoverSuite{})
+var _ = Suite(&bootstrapSuite{})
 
 // XXX: write a very high level integration like test here that
 // mocks the world (sfdisk,lsblk,mkfs,...)? probably silly as
-// each part inside recovery is tested and we have a spread test
+// each part inside bootstrap is tested and we have a spread test
 
-func (s *recoverSuite) TestRecoverRunError(c *C) {
-	err := recover.Run("", "", nil)
-	c.Assert(err, ErrorMatches, "cannot use empty recovery gadget root directory")
+func (s *bootstrapSuite) TestBootstrapRunError(c *C) {
+	err := bootstrap.Run("", "", nil)
+	c.Assert(err, ErrorMatches, "cannot use empty gadget root directory")
 
-	err = recover.Run("some-dir", "", nil)
+	err = bootstrap.Run("some-dir", "", nil)
 	c.Assert(err, ErrorMatches, "cannot use empty device node")
 }
