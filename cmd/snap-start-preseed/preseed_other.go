@@ -24,16 +24,16 @@ import (
 	"fmt"
 )
 
-func checkChroot(prebakeChroot string) error {
-	return fmt.Errorf("image-prebaking not available for systems other than linux")
+func checkChroot(preseedChroot string) error {
+	return fmt.Errorf("preseed mode not available for systems other than linux")
 }
 
-func prepareChroot(prebakeChroot string) (func(), error) {
-	return nil, fmt.Errorf("image-prebaking not available for systems other than linux")
+func prepareChroot(preseedChroot string) (func(), error) {
+	return nil, fmt.Errorf("preseed mode not available for systems other than linux")
 }
 
-func startPrebakeMode(rootDir string) error {
-	return fmt.Errorf("image-prebaking not available for systems other than linux")
+func runPreseedMode(rootDir string) error {
+	return fmt.Errorf("preseed mode not available for systems other than linux")
 }
 
 func cleanup() {}

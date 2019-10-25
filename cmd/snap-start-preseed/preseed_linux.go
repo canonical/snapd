@@ -35,7 +35,7 @@ import (
 
 var (
 	// mountPath is where target core/snapd is going to be mounted in the target chroot
-	mountPath     = "/snapd-prebake"
+	mountPath     = "/snapd-preseed"
 	syscallMount  = syscall.Mount
 	syscallChroot = syscall.Chroot
 )
@@ -43,20 +43,20 @@ var (
 // checkChroot does a basic sanity check of the target chroot environment, e.g. makes
 // sure critical virtual filesystems (such as proc) are mounted. This is not meant to
 // be exhaustive check, but one that prevents running the tool against a wrong directory
-// by an accident, which would lead to hard to understand errors from snapd in pre-bake
+// by an accident, which would lead to hard to understand errors from snapd in preseed
 // mode.
-func checkChroot(prebakeChroot string) error {
-	exists, isDir, err := osutil.DirExists(prebakeChroot)
+func checkChroot(preseedChroot string) error {
+	exists, isDir, err := osutil.DirExists(preseedChroot)
 	if err != nil {
-		return fmt.Errorf("cannot verify target chroot directory %s: %v", prebakeChroot, err)
+		return fmt.Errorf("cannot verify target chroot directory %s: %v", preseedChroot, err)
 	}
 	if !exists || !isDir {
-		return fmt.Errorf("target chroot directory %s doesn't exist or is not a directory", prebakeChroot)
+		return fmt.Errorf("target chroot directory %s doesn't exist or is not a directory", preseedChroot)
 	}
 
 	// sanity checks of the critical mountpoints inside chroot directory
 	for _, p := range []string{"/sys/kernel/security/apparmor", "/proc/self", "/dev/mem"} {
-		path := filepath.Join(prebakeChroot, p)
+		path := filepath.Join(preseedChroot, p)
 		if exists := osutil.FileExists(path); !exists {
 			return fmt.Errorf("target chroot directory validation error: %s doesn't exist", path)
 		}
@@ -97,9 +97,9 @@ var systemSnapFromSeeds = func(rootDir string) (string, error) {
 	return coreSnapPath, nil
 }
 
-func prepareChroot(prebakeChroot string) (func(), error) {
-	if err := syscallChroot(prebakeChroot); err != nil {
-		return nil, fmt.Errorf("cannot chroot into %s: %v", prebakeChroot, err)
+func prepareChroot(preseedChroot string) (func(), error) {
+	if err := syscallChroot(preseedChroot); err != nil {
+		return nil, fmt.Errorf("cannot chroot into %s: %v", preseedChroot, err)
 	}
 
 	// GlobalRootDir is now relative to chroot env
@@ -130,7 +130,7 @@ func prepareChroot(prebakeChroot string) (func(), error) {
 	cmd := exec.Command("mount", "-t", "squashfs", coreSnapPath, where)
 	if err := cmd.Run(); err != nil {
 		removeMountpoint()
-		return nil, fmt.Errorf("cannot mount %s at %s in pre-bake mode: %v ", coreSnapPath, where, err)
+		return nil, fmt.Errorf("cannot mount %s at %s in preseed mode: %v ", coreSnapPath, where, err)
 	}
 
 	// TODO: check snapd version
@@ -149,23 +149,23 @@ func prepareChroot(prebakeChroot string) (func(), error) {
 	}, nil
 }
 
-// startPrebakeMode runs snapd in a prebake mode. It assumes running in a chroot.
+// runPreseedMode runs snapd in a preseed mode. It assumes running in a chroot.
 // The chroot is expected to be set-up and ready to use (critical system directories mounted).
-func startPrebakeMode(prebakeChroot string) error {
-	// exec snapd relative to new chroot, e.g. /snapd-prebake/usr/lib/snapd/snapd
+func runPreseedMode(preseedChroot string) error {
+	// exec snapd relative to new chroot, e.g. /snapd-preseed/usr/lib/snapd/snapd
 	path := filepath.Join(mountPath, "/usr/lib/snapd/snapd")
 
-	// run snapd in pre-baking mode
+	// run snapd in preseed mode
 	cmd := exec.Command(path)
 	cmd.Env = os.Environ()
-	cmd.Env = append(cmd.Env, "SNAPD_PREBAKE_IMAGE=1")
+	cmd.Env = append(cmd.Env, "SNAPD_PRESEED=1")
 	cmd.Stderr = Stderr
 	cmd.Stdout = Stdout
 
-	fmt.Printf("starting pre-baking mode: %s\n", prebakeChroot)
+	fmt.Fprintf(Stdout, "starting preseed: %s\n", preseedChroot)
 
 	if err := cmd.Run(); err != nil {
-		return fmt.Errorf("image-prebaking error: %v\n", err)
+		return fmt.Errorf("error running snapd in preseed mode: %v\n", err)
 	}
 
 	return nil

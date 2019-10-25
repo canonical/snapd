@@ -143,8 +143,8 @@ func (s *startPreseedSuite) TestStartPrebakeHappy(c *C) {
 
 	c.Assert(os.MkdirAll(filepath.Join(targetSnapdRoot, "usr/lib/snapd/"), 0755), IsNil)
 	mockTargetSnapd := testutil.MockCommand(c, filepath.Join(targetSnapdRoot, "usr/lib/snapd/snapd"), `#!/bin/sh
-	# the expression below ensures SNAPD_PREBAKE_IMAGE env var is set
-	exit "$(( 1 - "$SNAPD_PREBAKE_IMAGE" ))"
+	# the expression below ensures SNAPD_PRESEED env var is set
+	exit "$(( 1 - "$SNAPD_PRESEED" ))"
 `)
 	defer mockTargetSnapd.Restore()
 
