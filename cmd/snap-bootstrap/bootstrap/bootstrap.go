@@ -52,7 +52,10 @@ func Run(gadgetRoot, device string, options *Options) error {
 	if err := partition.MakeFilesystems(created); err != nil {
 		return err
 	}
-	// XXX: deploy content
+
+	if err := partition.DeployContent(created, gadgetRoot); err != nil {
+		return err
+	}
 
 	return nil
 }

@@ -22,10 +22,33 @@ type LsblkFilesystemInfo = lsblkFilesystemInfo
 type LsblkBlockDevice = lsblkBlockDevice
 type SFDiskPartitionTable = sfdiskPartitionTable
 type SFDiskPartition = sfdiskPartition
-type DeviceStructure = deviceStructure
 
 var (
 	FilesystemInfo     = filesystemInfo
 	BuildPartitionList = buildPartitionList
 	Mkfs               = mkfs
 )
+
+func MockDeployMountpoint(new string) (restore func()) {
+	old := deployMountpoint
+	deployMountpoint = new
+	return func() {
+		deployMountpoint = old
+	}
+}
+
+func MockSysMount(f func(source, target, fstype string, flags uintptr, data string) error) (restore func()) {
+	old := sysMount
+	sysMount = f
+	return func() {
+		sysMount = old
+	}
+}
+
+func MockSysUnmount(f func(target string, flags int) error) (restore func()) {
+	old := sysUnmount
+	sysUnmount = f
+	return func() {
+		sysUnmount = old
+	}
+}

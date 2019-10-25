@@ -57,7 +57,7 @@ type sfdiskPartition struct {
 	Name  string `json:"name"`
 }
 
-type deviceStructure struct {
+type DeviceStructure struct {
 	gadget.LaidOutStructure
 
 	Node string
@@ -99,7 +99,7 @@ func (sf *SFDisk) Layout() (*gadget.LaidOutVolume, error) {
 }
 
 // Create creates the partitions listed in positionedVolume
-func (sf *SFDisk) Create(pv *gadget.LaidOutVolume) ([]deviceStructure, error) {
+func (sf *SFDisk) Create(pv *gadget.LaidOutVolume) ([]DeviceStructure, error) {
 	// Layout() will update sf.partitionTable
 	if _, err := sf.Layout(); err != nil {
 		return nil, err
@@ -183,7 +183,7 @@ func deviceName(name string, index int) string {
 // device contents and gadget structure list, in sfdisk dump
 // format. Return a partitioning description suitable for sfdisk input
 // and a list of the partitions to be created
-func buildPartitionList(ptable *sfdiskPartitionTable, pv *gadget.LaidOutVolume) (sfdiskInput *bytes.Buffer, toBeCreated []deviceStructure) {
+func buildPartitionList(ptable *sfdiskPartitionTable, pv *gadget.LaidOutVolume) (sfdiskInput *bytes.Buffer, toBeCreated []DeviceStructure) {
 	buf := &bytes.Buffer{}
 
 	// Write partition data in sfdisk dump format
@@ -222,7 +222,7 @@ func buildPartitionList(ptable *sfdiskPartitionTable, pv *gadget.LaidOutVolume) 
 			s.Size/sectorSize, partitionType(ptable.Label, p.Type), s.Name)
 
 		// Are roles unique so we can use it to map nodes? Should we use labels instead?
-		toBeCreated = append(toBeCreated, deviceStructure{p, node})
+		toBeCreated = append(toBeCreated, DeviceStructure{p, node})
 	}
 
 	return buf, toBeCreated
