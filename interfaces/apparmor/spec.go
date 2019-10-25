@@ -95,11 +95,9 @@ func (spec *Specification) AddUpdateNS(snippet string) {
 	spec.updateNS.Put(snippet)
 }
 
-// EmitUpdateNSFunc returns a function for emitting update-ns snippets.
-func (spec *Specification) EmitUpdateNSFunc() func(f string, args ...interface{}) {
-	return func(f string, args ...interface{}) {
-		spec.AddUpdateNS(fmt.Sprintf(f, args...))
-	}
+// AddUpdateNSf formats and adds a new apparmor snippet for the snap-update-ns program.
+func (spec *Specification) AddUpdateNSf(f string, args ...interface{}) {
+	spec.AddUpdateNS(fmt.Sprintf(f, args...))
 }
 
 // UpdateNSIndexOf returns the index of a previously added snippet.
@@ -158,7 +156,7 @@ func (spec *Specification) AddLayout(si *snap.Info) {
 		sort.Strings(spec.snippets[tag])
 	}
 
-	emit := spec.EmitUpdateNSFunc()
+	emit := spec.AddUpdateNSf
 
 	// Append update-ns snippets that allow constructing the layout.
 	for _, path := range paths {
