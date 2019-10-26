@@ -39,6 +39,16 @@ case "$1" in
             done
         fi
 
+        # In commit 0dce4704a5d (2017-03-28, snapd v2.23.6) we renamed
+        # /etc/apparmor.d/usr.lib.snap-confine to usr.lib.snap-confine.real
+        # to fix LP: #1673247 - however some people (developers?) still have
+        # the old usr.lib.snap-confine file. This seems to be loaded instead
+        # of the correct usr.lib.snap-confine.real profile. To fix this we
+        # use the rather blunt approach to rename the file forcefully.
+        if test -f /etc/apparmor.d/usr.lib.snapd.snap-confine && test -f /etc/apparmor.d/usr.lib.snapd.snap-confine.real; then
+            mv /etc/apparmor.d/usr.lib.snapd.snap-confine /etc/apparmor.d/usr.lib.snapd.snap-confine.dpkg-bak
+        fi
+
         # Ensure that the void directory has correct permissions.
         chmod 111 /var/lib/snapd/void
 esac
