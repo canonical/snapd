@@ -24,12 +24,25 @@ import (
 	"github.com/snapcore/snapd/gadget"
 )
 
-func makeFilesystem(node, label, filesystem, content string) error {
+func MakeFilesystems(created []DeviceStructure) error {
+	for _, part := range created {
+		if part.VolumeStructure.Filesystem != "" {
+			if err := mkfs(part.Node, part.VolumeStructure.Label, part.VolumeStructure.Filesystem); err != nil {
+				return err
+			}
+		}
+	}
+	return nil
+}
+
+// mkfs will create a single filesystem on the given node with
+// the given label and filesystem type.
+func mkfs(node, label, filesystem string) error {
 	switch filesystem {
 	case "vfat":
-		return gadget.MkfsVfat(node, label, content)
+		return gadget.MkfsVfat(node, label, "")
 	case "ext4":
-		return gadget.MkfsExt4(node, label, content)
+		return gadget.MkfsExt4(node, label, "")
 	default:
 		return fmt.Errorf("cannot create unsupported filesystem %q", filesystem)
 	}

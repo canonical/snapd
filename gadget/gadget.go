@@ -142,9 +142,15 @@ type VolumeStructure struct {
 	Update  VolumeUpdate    `yaml:"update"`
 }
 
-// IsBare returns true if the structure is not using a filesystem.
-func (vs *VolumeStructure) IsBare() bool {
-	return vs.Filesystem == "none" || vs.Filesystem == ""
+// HasFilesystem returns true if the structure is using a filesystem.
+func (vs *VolumeStructure) HasFilesystem() bool {
+	return vs.Filesystem != "none" && vs.Filesystem != ""
+}
+
+// IsPartition returns true when the structure describes a partition in a block
+// device.
+func (vs *VolumeStructure) IsPartition() bool {
+	return vs.Type != "bare" && vs.EffectiveRole() != MBR
 }
 
 // EffectiveRole returns the role of given structure
@@ -549,7 +555,7 @@ func validateCrossVolumeStructure(structures []LaidOutStructure, knownStructures
 		}
 		previousEnd = ps.StartOffset + ps.Size
 
-		if !ps.IsBare() {
+		if ps.HasFilesystem() {
 			// content relative offset only possible if it's a bare structure
 			continue
 		}
@@ -589,7 +595,7 @@ func validateVolumeStructure(vs *VolumeStructure, vol *Volume) error {
 
 	var contentChecker func(*VolumeContent) error
 
-	if vs.IsBare() {
+	if !vs.HasFilesystem() {
 		contentChecker = validateBareContent
 	} else {
 		contentChecker = validateFilesystemContent
@@ -738,7 +744,7 @@ func validateFilesystemContent(vc *VolumeContent) error {
 }
 
 func validateStructureUpdate(up *VolumeUpdate, vs *VolumeStructure) error {
-	if vs.IsBare() && len(vs.Update.Preserve) > 0 {
+	if !vs.HasFilesystem() && len(vs.Update.Preserve) > 0 {
 		return errors.New("preserving files during update is not supported for non-filesystem structures")
 	}
 
@@ -928,4 +934,32 @@ func IsCompatible(current, new *Info) error {
 		return fmt.Errorf("incompatible layout change: %v", err)
 	}
 	return nil
+}
+
+// PositionedVolumeFromGadget takes a gadget rootdir and positions the
+// partitions as specified.
+func PositionedVolumeFromGadget(gadgetRoot string) (*LaidOutVolume, error) {
+	info, err := ReadInfo(gadgetRoot, nil)
+	if err != nil {
+		return nil, err
+	}
+	// Limit ourselves to just one volume for now.
+	if len(info.Volumes) != 1 {
+		return nil, fmt.Errorf("cannot position multiple volumes yet")
+	}
+
+	constraints := LayoutConstraints{
+		NonMBRStartOffset: 1 * SizeMiB,
+		SectorSize:        512,
+	}
+
+	for _, vol := range info.Volumes {
+		pvol, err := LayoutVolume(gadgetRoot, &vol, constraints)
+		if err != nil {
+			return nil, err
+		}
+		// we know  info.Volumes map has size 1 so we can return here
+		return pvol, nil
+	}
+	return nil, fmt.Errorf("internal error in PositionedVolumeFromGadget: this line cannot be reached")
 }

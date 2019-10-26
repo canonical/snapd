@@ -53,7 +53,8 @@ func (client *Client) AssertionTypes() ([]string, error) {
 	}
 	_, err := client.doSync("GET", "/v2/assertions", nil, nil, nil, &types)
 	if err != nil {
-		return nil, fmt.Errorf("cannot get assertion type names: %v", err)
+		fmt := "cannot get assertion type names: %w"
+		return nil, xerrors.Errorf(fmt, err)
 	}
 
 	return types.Types, nil
@@ -87,8 +88,6 @@ func (client *Client) Known(assertTypeName string, headers map[string]string, op
 	defer cancel()
 	response, err := client.raw(ctx, "GET", path, q, nil, nil)
 	if err != nil {
-		// workaround for silly go1.9 vet that errors because it
-		// does not know about %w
 		fmt := "failed to query assertions: %w"
 		return nil, xerrors.Errorf(fmt, err)
 	}

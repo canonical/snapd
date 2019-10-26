@@ -25,6 +25,21 @@ disable_kernel_rate_limiting() {
     #sysctl -w kernel.printk_ratelimit=0
 }
 
+disable_journald_rate_limiting() {
+    # Disable journald rate limiting
+    mkdir -p /etc/systemd/journald.conf.d
+    # The RateLimitIntervalSec key is not supported on some systemd versions causing
+    # the journal rate limit could be considered as not valid and discarded in concecuence.
+    # RateLimitInterval key is supported in old systemd versions and in new ones as well,
+    # maintaining backward compatibility.
+    cat <<-EOF > /etc/systemd/journald.conf.d/no-rate-limit.conf
+    [Journal]
+    RateLimitInterval=0
+    RateLimitBurst=0
+EOF
+    systemctl restart systemd-journald.service
+}
+
 ensure_jq() {
     if command -v jq; then
         return
@@ -597,6 +612,8 @@ prepare_ubuntu_core() {
         setup_reflash_magic
         REBOOT
     fi
+
+    disable_journald_rate_limiting
 
     # verify after the first reboot that we are now in core18 world
     if [ "$SPREAD_REBOOT" = 1 ]; then

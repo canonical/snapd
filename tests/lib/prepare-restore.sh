@@ -446,18 +446,13 @@ prepare_project() {
     go get ./tests/lib/fakedevicesvc
     go get ./tests/lib/systemd-escape
 
-    # Disable journald rate limiting
-    mkdir -p /etc/systemd/journald.conf.d
-    # The RateLimitIntervalSec key is not supported on some systemd versions causing
-    # the journal rate limit could be considered as not valid and discarded in concecuence.
-    # RateLimitInterval key is supported in old systemd versions and in new ones as well,
-    # maintaining backward compatibility.
-    cat <<-EOF > /etc/systemd/journald.conf.d/no-rate-limit.conf
-    [Journal]
-    RateLimitInterval=0
-    RateLimitBurst=0
-EOF
-    systemctl restart systemd-journald.service
+    # On core systems, the journal service is configured once the final core system
+    # is created and booted what is done during the first test suite preparation
+    if is_classic_system; then
+        # shellcheck source=tests/lib/prepare.sh
+        . "$TESTSLIB"/prepare.sh
+        disable_journald_rate_limiting
+    fi
 }
 
 prepare_project_each() {

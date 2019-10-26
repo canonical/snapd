@@ -26,5 +26,29 @@ type SFDiskPartition = sfdiskPartition
 var (
 	FilesystemInfo     = filesystemInfo
 	BuildPartitionList = buildPartitionList
-	MakeFilesystem     = makeFilesystem
+	Mkfs               = mkfs
 )
+
+func MockDeployMountpoint(new string) (restore func()) {
+	old := deployMountpoint
+	deployMountpoint = new
+	return func() {
+		deployMountpoint = old
+	}
+}
+
+func MockSysMount(f func(source, target, fstype string, flags uintptr, data string) error) (restore func()) {
+	old := sysMount
+	sysMount = f
+	return func() {
+		sysMount = old
+	}
+}
+
+func MockSysUnmount(f func(target string, flags int) error) (restore func()) {
+	old := sysUnmount
+	sysUnmount = f
+	return func() {
+		sysUnmount = old
+	}
+}

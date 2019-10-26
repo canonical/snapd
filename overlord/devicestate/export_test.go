@@ -145,10 +145,11 @@ func RemodelDeviceBackend(remodCtx remodelContext) storecontext.DeviceBackend {
 }
 
 var (
-	ImportAssertionsFromSeed = importAssertionsFromSeed
-	CheckGadgetOrKernel      = checkGadgetOrKernel
-	CanAutoRefresh           = canAutoRefresh
-	NewEnoughProxy           = newEnoughProxy
+	ImportAssertionsFromSeed     = importAssertionsFromSeed
+	CheckGadgetOrKernel          = checkGadgetOrKernel
+	CheckGadgetRemodelCompatible = checkGadgetRemodelCompatible
+	CanAutoRefresh               = canAutoRefresh
+	NewEnoughProxy               = newEnoughProxy
 
 	IncEnsureOperationalAttempts = incEnsureOperationalAttempts
 	EnsureOperationalAttempts    = ensureOperationalAttempts
@@ -163,10 +164,18 @@ var (
 	GadgetCurrentAndUpdate = gadgetCurrentAndUpdate
 )
 
-func MockGadgetUpdate(mock func(current, update gadget.GadgetData, path string) error) (restore func()) {
+func MockGadgetUpdate(mock func(current, update gadget.GadgetData, path string, policy gadget.UpdatePolicyFunc) error) (restore func()) {
 	old := gadgetUpdate
 	gadgetUpdate = mock
 	return func() {
 		gadgetUpdate = old
+	}
+}
+
+func MockGadgetIsCompatible(mock func(current, update *gadget.Info) error) (restore func()) {
+	old := gadgetIsCompatible
+	gadgetIsCompatible = mock
+	return func() {
+		gadgetIsCompatible = old
 	}
 }
