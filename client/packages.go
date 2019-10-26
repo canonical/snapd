@@ -27,6 +27,8 @@ import (
 	"strings"
 	"time"
 
+	"golang.org/x/xerrors"
+
 	"github.com/snapcore/snapd/snap"
 )
 
@@ -181,7 +183,8 @@ func (client *Client) Sections() ([]string, error) {
 	var sections []string
 	_, err := client.doSync("GET", "/v2/sections", nil, nil, nil, &sections)
 	if err != nil {
-		return nil, fmt.Errorf("cannot get snap sections: %s", err)
+		fmt := "cannot get snap sections: %w"
+		return nil, xerrors.Errorf(fmt, err)
 	}
 	return sections, nil
 }
@@ -229,7 +232,8 @@ func (client *Client) FindOne(name string) (*Snap, *ResultInfo, error) {
 
 	snaps, ri, err := client.snapsFromPath("/v2/find", q)
 	if err != nil {
-		return nil, nil, fmt.Errorf("cannot find snap %q: %s", name, err)
+		fmt := "cannot find snap %q: %w"
+		return nil, nil, xerrors.Errorf(fmt, name, err)
 	}
 
 	if len(snaps) == 0 {
@@ -246,7 +250,8 @@ func (client *Client) snapsFromPath(path string, query url.Values) ([]*Snap, *Re
 		return nil, nil, e
 	}
 	if err != nil {
-		return nil, nil, fmt.Errorf("cannot list snaps: %s", err)
+		fmt := "cannot list snaps: %w"
+		return nil, nil, xerrors.Errorf(fmt, err)
 	}
 	return snaps, ri, nil
 }
@@ -258,7 +263,8 @@ func (client *Client) Snap(name string) (*Snap, *ResultInfo, error) {
 	path := fmt.Sprintf("/v2/snaps/%s", name)
 	ri, err := client.doSync("GET", path, nil, nil, nil, &snap)
 	if err != nil {
-		return nil, nil, fmt.Errorf("cannot retrieve snap %q: %s", name, err)
+		fmt := "cannot retrieve snap %q: %w"
+		return nil, nil, xerrors.Errorf(fmt, name, err)
 	}
 	return snap, ri, nil
 }

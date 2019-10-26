@@ -21,10 +21,14 @@ package client_test
 
 import (
 	"encoding/json"
+	"errors"
 	"fmt"
+	"io/ioutil"
 	"net/url"
+	"os"
 	"time"
 
+	"golang.org/x/xerrors"
 	"gopkg.in/check.v1"
 
 	"github.com/snapcore/snapd/client"
@@ -359,4 +363,45 @@ func (cs *clientSuite) TestAppInfoDaemonIsService(c *check.C) {
 	c.Assert(json.Unmarshal([]byte(`{"name": "hello", "daemon": "x"}`), &app), check.IsNil)
 	c.Check(app.Name, check.Equals, "hello")
 	c.Check(app.IsService(), check.Equals, true)
+}
+
+func (cs *clientSuite) TestClientSectionsErrIsWrapped(c *check.C) {
+	cs.err = errors.New("boom")
+	_, err := cs.cli.Sections()
+	var e xerrors.Wrapper
+	c.Assert(err, check.Implements, &e)
+}
+
+func (cs *clientSuite) TestClientFindOneErrIsWrapped(c *check.C) {
+	cs.err = errors.New("boom")
+	_, _, err := cs.cli.FindOne("snap")
+	var e xerrors.Wrapper
+	c.Assert(err, check.Implements, &e)
+}
+
+func (cs *clientSuite) TestClientSnapErrIsWrapped(c *check.C) {
+	// setting cs.err will trigger a "client.ClientError"
+	cs.err = errors.New("boom")
+	_, _, err := cs.cli.Snap("snap")
+	var e xerrors.Wrapper
+	c.Assert(err, check.Implements, &e)
+}
+
+func (cs *clientSuite) TestClientFindFromPathErrIsWrapped(c *check.C) {
+	var e client.AuthorizationError
+
+	// this will trigger a "client.AuthorizationError"
+	err := ioutil.WriteFile(client.TestStoreAuthFilename(os.Getenv("HOME")), []byte("rubbish"), 0644)
+	c.Assert(err, check.IsNil)
+
+	// check that all the functions that use snapsFromPath() get a
+	// wrapped error
+	_, _, err = cs.cli.FindOne("snap")
+	c.Assert(xerrors.As(err, &e), check.Equals, true)
+
+	_, _, err = cs.cli.Find(nil)
+	c.Assert(xerrors.As(err, &e), check.Equals, true)
+
+	_, err = cs.cli.List([]string{"snap"}, nil)
+	c.Assert(xerrors.As(err, &e), check.Equals, true)
 }
