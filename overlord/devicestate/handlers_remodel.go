@@ -64,7 +64,7 @@ func (m *DeviceManager) doSetModel(t *state.Task, _ *tomb.Tomb) (err error) {
 	// unmark no-longer required snaps
 	var cleanedRequiredSnaps []string
 	requiredSnaps := getAllRequiredSnapsForModel(new)
-	// TODO:XXX: have AllByRef
+	// TODO|XXX: have AllByRef
 	snapStates, err := snapstate.All(st)
 	if err != nil {
 		return err
