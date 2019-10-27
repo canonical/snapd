@@ -276,7 +276,7 @@ func (s *SnapOpSuite) TestInstallSameRiskInTrack(c *check.C) {
 		c.Check(r.URL.Path, check.Equals, "/v2/snaps/foo")
 		c.Check(DecodedRequestBody(c, r), check.DeepEquals, map[string]interface{}{
 			"action":  "install",
-			"channel": "latest/stable",
+			"channel": "stable",
 		})
 		s.srv.channel = "stable"
 		s.srv.trackingChannel = "latest/stable"
@@ -662,21 +662,11 @@ error: snap "foo" is not available on this architecture (arm64) but exists on
 
 func (s *SnapOpSuite) TestInstallSnapRevisionNotAvailableInvalidChannel(c *check.C) {
 	s.RedirectClientToTestServer(func(w http.ResponseWriter, r *http.Request) {
-		fmt.Fprintln(w, `{"type": "error", "result": {"message": "no snap revision on specified channel", "value": {
-  "snap-name": "foo",
-  "action": "install",
-  "architecture": "amd64",
-  "channel": "a/b/c/d",
-  "releases": [{"architecture": "amd64", "channel": "stable"}]
-}, "kind": "snap-channel-not-available"}, "status-code": 404}`)
+		c.Fatal("unexpected call to server")
 	})
 
 	_, err := snap.Parser(snap.Client()).ParseArgs([]string{"install", "--channel=a/b/c/d", "foo"})
-	c.Assert(err, check.NotNil)
-	c.Check(fmt.Sprintf("\nerror: %v\n", err), check.Equals, `
-error: requested channel "a/b/c/d" is not valid (see 'snap info foo' for valid
-       ones)
-`)
+	c.Assert(err, check.ErrorMatches, "channel name has too many components: a/b/c/d")
 
 	c.Check(s.Stdout(), check.Equals, "")
 	c.Check(s.Stderr(), check.Equals, "")
@@ -1299,6 +1289,25 @@ func (s *SnapOpSuite) TestRefreshOneRebooting(c *check.C) {
 	c.Check(err, check.IsNil)
 	c.Check(s.Stderr(), check.Equals, "snapd is about to reboot the system\n")
 
+}
+
+func (s *SnapOpSuite) TestRefreshOneChanDeprecated(c *check.C) {
+	var in, out string
+	s.RedirectClientToTestServer(func(w http.ResponseWriter, r *http.Request) {
+		c.Check(DecodedRequestBody(c, r), check.DeepEquals, map[string]interface{}{"action": "refresh", "channel": out})
+		fmt.Fprintln(w, `{"type": "error", "result": {"message": "snap not found", "value": "foo", "kind": "snap-not-found"}, "status-code": 404}`)
+	})
+
+	for in, out = range map[string]string{
+		"/foo":            "foo/stable",
+		"/stable":         "latest/stable",
+		"///foo/stable//": "foo/stable",
+	} {
+		s.stderr.Reset()
+		_, err := snap.Parser(snap.Client()).ParseArgs([]string{"refresh", "--channel=" + in, "one"})
+		c.Assert(err, check.ErrorMatches, "snap \"one\" not found")
+		c.Check(s.Stderr(), testutil.EqualsWrapped, `Warning: Specifying a channel "`+in+`" is relying on undefined behaviour. Interpreting it as "`+out+`" for now, but this will change.`)
+	}
 }
 
 func (s *SnapOpSuite) TestRefreshOneModeErr(c *check.C) {
