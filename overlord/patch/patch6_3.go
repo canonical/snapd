@@ -22,7 +22,6 @@ package patch
 import (
 	"encoding/json"
 	"fmt"
-	"strings"
 
 	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/overlord/state"
@@ -32,17 +31,12 @@ import (
 // normChan will take a potentially unclean channel from the state
 // (with leading or trailing extra "/") and return a cleaned version.
 func normChan(in string) string {
-	// we need to do basic sanitation first or channel.Parse will fail
-	cleanIn := strings.Join(strings.FieldsFunc(in, func(r rune) bool { return r == '/' }), "/")
-
-	// now we clean the channel
-	ch, err := channel.Parse(cleanIn, "")
+	out, err := channel.Full(in)
 	if err != nil {
-		// now what?
-		logger.Noticef("cannot parse cleaned channel string %q", cleanIn)
+		logger.Noticef("cannot parse channel string %q: %v", in, err)
 		return in
 	}
-	return ch.Full()
+	return out
 }
 
 // patch6_3:

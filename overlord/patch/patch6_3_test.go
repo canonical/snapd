@@ -244,7 +244,7 @@ func (s *patch63Suite) TestPatch63(c *C) {
 	c.Check(all, HasLen, 4)
 	c.Check(all["prefix-postfix-slashes"], NotNil)
 	// our patch changed this
-	c.Check(all["prefix-postfix-slashes"].Channel, Equals, "latest/edge")
+	c.Check(all["prefix-postfix-slashes"].TrackingChannel, Equals, "latest/edge")
 	// none of the other information has changed
 	c.Check(all["prefix-postfix-slashes"], DeepEquals, &snapstate.SnapState{
 		SnapType: "app",
@@ -263,17 +263,17 @@ func (s *patch63Suite) TestPatch63(c *C) {
 				EditedTitle: "some-title",
 			},
 		},
-		Active:  true,
-		Current: snap.R(32),
-		Channel: "latest/edge",
-		UserID:  1,
+		Active:          true,
+		Current:         snap.R(32),
+		TrackingChannel: "latest/edge",
+		UserID:          1,
 	})
 	// another transition
-	c.Check(all["one-prefix-slash"].Channel, Equals, "latest/stable")
+	c.Check(all["one-prefix-slash"].TrackingChannel, Equals, "latest/stable")
 	// full
-	c.Check(all["track-with-risk"].Channel, Equals, "latest/stable")
+	c.Check(all["track-with-risk"].TrackingChannel, Equals, "latest/stable")
 	// unchanged
-	c.Check(all["track-with-risk-branch"].Channel, Equals, "1.0/stable/branch")
+	c.Check(all["track-with-risk-branch"].TrackingChannel, Equals, "1.0/stable/branch")
 
 	// check tasks
 	task := st.Task("1")
