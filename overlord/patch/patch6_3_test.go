@@ -40,6 +40,23 @@ var statePatch6_3JSON = []byte(`
 	"data": {
 		"patch-level": 6,
 		"snaps": {
+                  "local-install": {
+			"type": "app",
+			"sequence": [
+			  {
+				"name": "local-install",
+                                "snap-id": "",
+				"revision": "x1"
+			  },
+			  {
+				"name": "local-install",
+				"snap-id": "",
+				"revision": "x2"
+			  }
+			],
+			"active": true,
+			"current": "x2"
+                  },
 		  "prefix-postfix-slashes": {
 			"type": "app",
 			"sequence": [
@@ -120,8 +137,15 @@ var statePatch6_3JSON = []byte(`
                                "status": 4,
                                "clean": true,
                                "task-ids": ["10"]
+                       },
+                       "99": {
+                               "id": "99",
+                               "kind": "install",
+                               "summary": "...",
+                               "status": 0,
+                               "clean": true,
+                               "task-ids": ["99"]
                        }
-                  
          },
          "tasks": {
                "1": {
@@ -217,6 +241,24 @@ var statePatch6_3JSON = []byte(`
                           }
                        },
                        "change": "9"
+                 },
+                 "99": {
+                       "id": "99",
+                       "kind": "prepare-snap",
+                       "summary": "",
+                       "status": 0,
+                       "data": {
+                         "snap-setup": {
+                               "type": "app",
+                               "snap-path": "/path",
+                               "side-info": {
+                                 "name": "local-snap",
+                                 "snap-id": "",
+                                 "revision": "unset"
+                               }
+                          }
+                       },
+                       "change": "99"
                  }
         }
 }`)
@@ -241,7 +283,7 @@ func (s *patch63Suite) TestPatch63(c *C) {
 	all, err := snapstate.All(st)
 	c.Assert(err, IsNil)
 	// our mocks are ok
-	c.Check(all, HasLen, 4)
+	c.Check(all, HasLen, 5)
 	c.Check(all["prefix-postfix-slashes"], NotNil)
 	// our patch changed this
 	c.Check(all["prefix-postfix-slashes"].TrackingChannel, Equals, "latest/edge")
@@ -274,6 +316,8 @@ func (s *patch63Suite) TestPatch63(c *C) {
 	c.Check(all["track-with-risk"].TrackingChannel, Equals, "latest/stable")
 	// unchanged
 	c.Check(all["track-with-risk-branch"].TrackingChannel, Equals, "1.0/stable/branch")
+	// also unchanged
+	c.Check(all["local-install"].TrackingChannel, Equals, "")
 
 	// check tasks
 	task := st.Task("1")

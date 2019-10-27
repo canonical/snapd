@@ -54,7 +54,7 @@ func patch6_3(st *state.State) error {
 		if err := json.Unmarshal([]byte(*raw), &snapst); err != nil {
 			return err
 		}
-		ch := snapst["channel"].(string)
+		ch, _ := snapst["channel"].(string)
 		if ch != "" {
 			normed := normChan(ch)
 			if normed != ch {
@@ -87,19 +87,23 @@ func patch6_3(st *state.State) error {
 			return fmt.Errorf("internal error: cannot get snap-setup of task %s: %s", task.ID(), err)
 		}
 		if err == nil {
-			ch := snapsup["channel"].(string)
-			normed := normChan(ch)
-			if normed != ch {
-				snapsup["channel"] = normed
-				task.Set("snap-setup", snapsup)
+			ch, _ := snapsup["channel"].(string)
+			if ch != "" {
+				normed := normChan(ch)
+				if normed != ch {
+					snapsup["channel"] = normed
+					task.Set("snap-setup", snapsup)
+				}
 			}
 		}
 		// check tasks "old-channel" data
 		var oldCh string
 		task.Get("old-channel", &oldCh)
-		normed := normChan(oldCh)
-		if normed != oldCh {
-			task.Set("old-channel", normed)
+		if oldCh != "" {
+			normed := normChan(oldCh)
+			if normed != oldCh {
+				task.Set("old-channel", normed)
+			}
 		}
 	}
 
