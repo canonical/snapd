@@ -55,8 +55,7 @@ type Options struct {
 	Snaps        []string
 	SnapChannels map[string]string
 
-	RootDir         string
-	GadgetUnpackDir string
+	PrepareDir string
 
 	// Architecture to use if none is specified by the model,
 	// useful only for classic mode. If set must match the model otherwise.
@@ -85,9 +84,6 @@ func Prepare(opts *Options) error {
 	} else {
 		if !model.Classic() {
 			return fmt.Errorf("cannot prepare the image for a core model with --classic mode specified")
-		}
-		if opts.GadgetUnpackDir != "" {
-			return fmt.Errorf("internal error: no gadget unpacking is performed for classic models but directory specified")
 		}
 		if model.Architecture() == "" && classicHasSnaps(model, opts) && opts.Architecture == "" {
 			return fmt.Errorf("cannot have snaps for a classic image without an architecture in the model or from --arch")
@@ -173,11 +169,13 @@ func setupSeed(tsto *ToolingStore, model *asserts.Model, opts *Options) error {
 		return fmt.Errorf("internal error: classic model but classic mode not set")
 	}
 
+	rootDir := filepath.Join(opts.PrepareDir, "image")
+
 	// sanity check target
-	if osutil.FileExists(dirs.SnapStateFileUnder(opts.RootDir)) {
-		return fmt.Errorf("cannot prepare seed over existing system or an already booted image, detected state file %s", dirs.SnapStateFileUnder(opts.RootDir))
+	if osutil.FileExists(dirs.SnapStateFileUnder(rootDir)) {
+		return fmt.Errorf("cannot prepare seed over existing system or an already booted image, detected state file %s", dirs.SnapStateFileUnder(rootDir))
 	}
-	if snaps, _ := filepath.Glob(filepath.Join(dirs.SnapBlobDirUnder(opts.RootDir), "*.snap")); len(snaps) > 0 {
+	if snaps, _ := filepath.Glob(filepath.Join(dirs.SnapBlobDirUnder(rootDir), "*.snap")); len(snaps) > 0 {
 		return fmt.Errorf("need an empty snap dir in rootdir, got: %v", snaps)
 	}
 
@@ -191,7 +189,7 @@ func setupSeed(tsto *ToolingStore, model *asserts.Model, opts *Options) error {
 		return err
 	}
 
-	seedDir := dirs.SnapSeedDirUnder(opts.RootDir)
+	seedDir := dirs.SnapSeedDirUnder(rootDir)
 	wOpts := &seedwriter.Options{
 		SeedDir:        seedDir,
 		DefaultChannel: opts.Channel,
@@ -221,10 +219,12 @@ func setupSeed(tsto *ToolingStore, model *asserts.Model, opts *Options) error {
 		return err
 	}
 
+	var gadgetUnpackDir string
 	// create directory for later unpacking the gadget in
 	if !opts.Classic {
-		if err := os.MkdirAll(opts.GadgetUnpackDir, 0755); err != nil {
-			return fmt.Errorf("cannot create gadget unpack dir %q: %s", opts.GadgetUnpackDir, err)
+		gadgetUnpackDir = filepath.Join(opts.PrepareDir, "gadget")
+		if err := os.MkdirAll(gadgetUnpackDir, 0755); err != nil {
+			return fmt.Errorf("cannot create gadget unpack dir %q: %s", gadgetUnpackDir, err)
 		}
 	}
 
@@ -359,7 +359,7 @@ func setupSeed(tsto *ToolingStore, model *asserts.Model, opts *Options) error {
 	}
 
 	bootWith := &boot.BootableSet{
-		UnpackedGadgetDir: opts.GadgetUnpackDir,
+		UnpackedGadgetDir: gadgetUnpackDir,
 	}
 
 	// find the gadget file
@@ -380,16 +380,16 @@ func setupSeed(tsto *ToolingStore, model *asserts.Model, opts *Options) error {
 	}
 
 	// unpacking the gadget for core models
-	if err := unpackGadget(gadgetFname, opts.GadgetUnpackDir); err != nil {
+	if err := unpackGadget(gadgetFname, gadgetUnpackDir); err != nil {
 		return err
 	}
 
-	if err := boot.MakeBootable(model, opts.RootDir, bootWith); err != nil {
+	if err := boot.MakeBootable(model, rootDir, bootWith); err != nil {
 		return err
 	}
 
 	// and the cloud-init things
-	if err := installCloudConfig(opts.RootDir, opts.GadgetUnpackDir); err != nil {
+	if err := installCloudConfig(rootDir, gadgetUnpackDir); err != nil {
 		return err
 	}
 

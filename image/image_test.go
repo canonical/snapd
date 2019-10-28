@@ -544,17 +544,15 @@ func (s *imageSuite) TestSetupSeed(c *C) {
 	restore := image.MockTrusted(s.StoreSigning.Trusted)
 	defer restore()
 
-	rootdir := filepath.Join(c.MkDir(), "imageroot")
+	rootdir := filepath.Join(c.MkDir(), "image")
 	blobdir := filepath.Join(rootdir, "var/lib/snapd/snaps")
-	gadgetUnpackDir := c.MkDir()
 	s.setupSnaps(c, map[string]string{
 		"pc":        "canonical",
 		"pc-kernel": "canonical",
 	})
 
 	opts := &image.Options{
-		RootDir:         rootdir,
-		GadgetUnpackDir: gadgetUnpackDir,
+		PrepareDir: filepath.Dir(rootdir),
 	}
 
 	err := image.SetupSeed(s.tsto, s.model, opts)
@@ -666,8 +664,7 @@ func (s *imageSuite) TestSetupSeedLocalCoreBrandKernel(c *C) {
 	restore := image.MockTrusted(s.StoreSigning.Trusted)
 	defer restore()
 
-	rootdir := filepath.Join(c.MkDir(), "imageroot")
-	gadgetUnpackDir := c.MkDir()
+	rootdir := filepath.Join(c.MkDir(), "image")
 	s.setupSnaps(c, map[string]string{
 		"pc":        "canonical",
 		"pc-kernel": "my-brand",
@@ -681,8 +678,7 @@ func (s *imageSuite) TestSetupSeedLocalCoreBrandKernel(c *C) {
 			coreFn,
 			requiredSnap1Fn,
 		},
-		RootDir:         rootdir,
-		GadgetUnpackDir: gadgetUnpackDir,
+		PrepareDir: filepath.Dir(rootdir),
 	}
 
 	err := image.SetupSeed(s.tsto, s.model, opts)
@@ -758,8 +754,7 @@ func (s *imageSuite) TestSetupSeedDevmodeSnap(c *C) {
 	restore := image.MockTrusted(s.StoreSigning.Trusted)
 	defer restore()
 
-	rootdir := filepath.Join(c.MkDir(), "imageroot")
-	gadgetUnpackDir := c.MkDir()
+	rootdir := filepath.Join(c.MkDir(), "image")
 	s.setupSnaps(c, map[string]string{
 		"pc":        "canonical",
 		"pc-kernel": "canonical",
@@ -770,9 +765,8 @@ func (s *imageSuite) TestSetupSeedDevmodeSnap(c *C) {
 	opts := &image.Options{
 		Snaps: []string{snapFile},
 
-		RootDir:         rootdir,
-		GadgetUnpackDir: gadgetUnpackDir,
-		Channel:         "beta",
+		PrepareDir: filepath.Dir(rootdir),
+		Channel:    "beta",
 	}
 
 	err := image.SetupSeed(s.tsto, s.model, opts)
@@ -819,8 +813,7 @@ func (s *imageSuite) TestSetupSeedWithClassicSnapFails(c *C) {
 	restore := image.MockTrusted(s.StoreSigning.Trusted)
 	defer restore()
 
-	rootdir := filepath.Join(c.MkDir(), "imageroot")
-	gadgetUnpackDir := c.MkDir()
+	rootdir := filepath.Join(c.MkDir(), "image")
 	s.setupSnaps(c, map[string]string{
 		"pc":        "canonical",
 		"pc-kernel": "canonical",
@@ -831,9 +824,8 @@ func (s *imageSuite) TestSetupSeedWithClassicSnapFails(c *C) {
 	opts := &image.Options{
 		Snaps: []string{s.AssertedSnap("classic-snap")},
 
-		RootDir:         rootdir,
-		GadgetUnpackDir: gadgetUnpackDir,
-		Channel:         "beta",
+		PrepareDir: filepath.Dir(rootdir),
+		Channel:    "beta",
 	}
 
 	err := image.SetupSeed(s.tsto, s.model, opts)
@@ -853,9 +845,8 @@ func (s *imageSuite) TestSetupSeedWithBase(c *C) {
 		"required-snaps": []interface{}{"other-base"},
 	})
 
-	rootdir := filepath.Join(c.MkDir(), "imageroot")
+	rootdir := filepath.Join(c.MkDir(), "image")
 	blobdir := filepath.Join(rootdir, "/var/lib/snapd/snaps")
-	gadgetUnpackDir := c.MkDir()
 	s.setupSnaps(c, map[string]string{
 		"core18":     "canonical",
 		"pc18":       "canonical",
@@ -865,8 +856,7 @@ func (s *imageSuite) TestSetupSeedWithBase(c *C) {
 	})
 
 	opts := &image.Options{
-		RootDir:         rootdir,
-		GadgetUnpackDir: gadgetUnpackDir,
+		PrepareDir: filepath.Dir(rootdir),
 	}
 
 	err := image.SetupSeed(s.tsto, model, opts)
@@ -977,8 +967,7 @@ func (s *imageSuite) TestSetupSeedWithBaseWithCloudConf(c *C) {
 		"base":         "core18",
 	})
 
-	rootdir := filepath.Join(c.MkDir(), "imageroot")
-	gadgetUnpackDir := c.MkDir()
+	rootdir := filepath.Join(c.MkDir(), "image")
 	s.setupSnaps(c, map[string]string{
 		"core18":    "canonical",
 		"pc-kernel": "canonical",
@@ -992,8 +981,7 @@ func (s *imageSuite) TestSetupSeedWithBaseWithCloudConf(c *C) {
 	}, snap.R(5), "canonical")
 
 	opts := &image.Options{
-		RootDir:         rootdir,
-		GadgetUnpackDir: gadgetUnpackDir,
+		PrepareDir: filepath.Dir(rootdir),
 	}
 
 	err := image.SetupSeed(s.tsto, model, opts)
@@ -1018,8 +1006,7 @@ func (s *imageSuite) TestSetupSeedWithBaseLegacySnap(c *C) {
 	// required-snap1 needs core, for backward compatibility
 	// we will add it implicitly but warn about this
 
-	rootdir := filepath.Join(c.MkDir(), "imageroot")
-	gadgetUnpackDir := c.MkDir()
+	rootdir := filepath.Join(c.MkDir(), "image")
 	s.setupSnaps(c, map[string]string{
 		"core18":    "canonical",
 		"pc18":      "canonical",
@@ -1028,8 +1015,7 @@ func (s *imageSuite) TestSetupSeedWithBaseLegacySnap(c *C) {
 	})
 
 	opts := &image.Options{
-		RootDir:         rootdir,
-		GadgetUnpackDir: gadgetUnpackDir,
+		PrepareDir: filepath.Dir(rootdir),
 	}
 
 	err := image.SetupSeed(s.tsto, model, opts)
@@ -1102,16 +1088,14 @@ func (s *imageSuite) TestSetupSeedKernelPublisherMismatch(c *C) {
 	restore := image.MockTrusted(s.StoreSigning.Trusted)
 	defer restore()
 
-	rootdir := filepath.Join(c.MkDir(), "imageroot")
-	gadgetUnpackDir := c.MkDir()
+	rootdir := filepath.Join(c.MkDir(), "image")
 	s.setupSnaps(c, map[string]string{
 		"pc":        "canonical",
 		"pc-kernel": "other",
 	})
 
 	opts := &image.Options{
-		RootDir:         rootdir,
-		GadgetUnpackDir: gadgetUnpackDir,
+		PrepareDir: filepath.Dir(rootdir),
 	}
 
 	err := image.SetupSeed(s.tsto, s.model, opts)
@@ -1183,8 +1167,7 @@ func (s *imageSuite) TestSetupSeedLocalSnapsWithStoreAsserts(c *C) {
 	restore := image.MockTrusted(s.StoreSigning.Trusted)
 	defer restore()
 
-	rootdir := filepath.Join(c.MkDir(), "imageroot")
-	gadgetUnpackDir := c.MkDir()
+	rootdir := filepath.Join(c.MkDir(), "image")
 	s.setupSnaps(c, map[string]string{
 		"pc":        "canonical",
 		"pc-kernel": "my-brand",
@@ -1195,8 +1178,7 @@ func (s *imageSuite) TestSetupSeedLocalSnapsWithStoreAsserts(c *C) {
 			s.AssertedSnap("core"),
 			s.AssertedSnap("required-snap1"),
 		},
-		RootDir:         rootdir,
-		GadgetUnpackDir: gadgetUnpackDir,
+		PrepareDir: filepath.Dir(rootdir),
 	}
 
 	err := image.SetupSeed(s.tsto, s.model, opts)
@@ -1273,8 +1255,7 @@ func (s *imageSuite) TestSetupSeedLocalSnapsWithChannels(c *C) {
 	restore := image.MockTrusted(s.StoreSigning.Trusted)
 	defer restore()
 
-	rootdir := filepath.Join(c.MkDir(), "imageroot")
-	gadgetUnpackDir := c.MkDir()
+	rootdir := filepath.Join(c.MkDir(), "image")
 	s.setupSnaps(c, map[string]string{
 		"pc":        "canonical",
 		"pc-kernel": "my-brand",
@@ -1285,8 +1266,7 @@ func (s *imageSuite) TestSetupSeedLocalSnapsWithChannels(c *C) {
 			"core",
 			s.AssertedSnap("required-snap1"),
 		},
-		RootDir:         rootdir,
-		GadgetUnpackDir: gadgetUnpackDir,
+		PrepareDir: filepath.Dir(rootdir),
 		SnapChannels: map[string]string{
 			"core": "candidate",
 			// keep this comment for gofmt 1.9
@@ -1348,16 +1328,17 @@ func (s *imageSuite) TestSetupSeedLocalSnapsWithChannels(c *C) {
 	c.Check(runSnaps[0].Path, testutil.FilePresent)
 }
 
-func (s *imageSuite) TestMissingGadgetUnpackDir(c *C) {
+func (s *imageSuite) TestCannotCreateGadgetUnpackDir(c *C) {
 	fn := filepath.Join(c.MkDir(), "model.assertion")
 	err := ioutil.WriteFile(fn, asserts.Encode(s.model), 0644)
 	c.Assert(err, IsNil)
 
 	err = image.Prepare(&image.Options{
-		ModelFile: fn,
-		Channel:   "stable",
+		ModelFile:  fn,
+		Channel:    "stable",
+		PrepareDir: "/no-where",
 	})
-	c.Assert(err, ErrorMatches, `cannot create gadget unpack dir "": mkdir : no such file or directory`)
+	c.Assert(err, ErrorMatches, `cannot create gadget unpack dir "/no-where/gadget": mkdir .*`)
 }
 
 func (s *imageSuite) TestNoLocalParallelSnapInstances(c *C) {
@@ -1478,8 +1459,7 @@ func (s *imageSuite) TestSetupSeedWithKernelAndGadgetTrack(c *C) {
 		"kernel":       "pc-kernel=18",
 	})
 
-	rootdir := filepath.Join(c.MkDir(), "imageroot")
-	gadgetUnpackDir := c.MkDir()
+	rootdir := filepath.Join(c.MkDir(), "image")
 	s.setupSnaps(c, map[string]string{
 		"core":      "canonical",
 		"pc":        "canonical",
@@ -1487,9 +1467,8 @@ func (s *imageSuite) TestSetupSeedWithKernelAndGadgetTrack(c *C) {
 	})
 
 	opts := &image.Options{
-		RootDir:         rootdir,
-		GadgetUnpackDir: gadgetUnpackDir,
-		Channel:         "stable",
+		PrepareDir: filepath.Dir(rootdir),
+		Channel:    "stable",
 	}
 
 	err := image.SetupSeed(s.tsto, model, opts)
@@ -1554,18 +1533,16 @@ func (s *imageSuite) TestSetupSeedWithKernelTrackWithDefaultChannel(c *C) {
 		"kernel":       "pc-kernel=18",
 	})
 
-	gadgetUnpackDir := c.MkDir()
 	s.setupSnaps(c, map[string]string{
 		"core":      "canonical",
 		"pc":        "canonical",
 		"pc-kernel": "canonical",
 	})
 
-	rootdir := c.MkDir()
+	rootdir := filepath.Join(c.MkDir(), "image")
 	opts := &image.Options{
-		RootDir:         rootdir,
-		GadgetUnpackDir: gadgetUnpackDir,
-		Channel:         "edge",
+		PrepareDir: filepath.Dir(rootdir),
+		Channel:    "edge",
 	}
 
 	err := image.SetupSeed(s.tsto, model, opts)
@@ -1612,8 +1589,7 @@ func (s *imageSuite) TestSetupSeedWithKernelTrackOnLocalSnap(c *C) {
 		"kernel":       "pc-kernel=18",
 	})
 
-	rootdir := filepath.Join(c.MkDir(), "imageroot")
-	gadgetUnpackDir := c.MkDir()
+	rootdir := filepath.Join(c.MkDir(), "image")
 	s.setupSnaps(c, map[string]string{
 		"core":      "canonical",
 		"pc":        "canonical",
@@ -1624,10 +1600,9 @@ func (s *imageSuite) TestSetupSeedWithKernelTrackOnLocalSnap(c *C) {
 	cfn := s.AssertedSnap("core")
 	kfn := s.AssertedSnap("pc-kernel")
 	opts := &image.Options{
-		RootDir:         rootdir,
-		GadgetUnpackDir: gadgetUnpackDir,
-		Snaps:           []string{kfn, cfn},
-		Channel:         "beta",
+		PrepareDir: filepath.Dir(rootdir),
+		Snaps:      []string{kfn, cfn},
+		Channel:    "beta",
 	}
 
 	err := image.SetupSeed(s.tsto, model, opts)
@@ -1669,8 +1644,7 @@ func (s *imageSuite) TestSetupSeedWithBaseAndLocalLegacyCoreOrdering(c *C) {
 		"required-snaps": []interface{}{"required-snap1"},
 	})
 
-	rootdir := filepath.Join(c.MkDir(), "imageroot")
-	gadgetUnpackDir := c.MkDir()
+	rootdir := filepath.Join(c.MkDir(), "image")
 	s.setupSnaps(c, map[string]string{
 		"core18":    "canonical",
 		"pc18":      "canonical",
@@ -1680,8 +1654,7 @@ func (s *imageSuite) TestSetupSeedWithBaseAndLocalLegacyCoreOrdering(c *C) {
 	coreFn := snaptest.MakeTestSnapWithFiles(c, packageCore, [][]string{{"local", ""}})
 
 	opts := &image.Options{
-		RootDir:         rootdir,
-		GadgetUnpackDir: gadgetUnpackDir,
+		PrepareDir: filepath.Dir(rootdir),
 		Snaps: []string{
 			coreFn,
 		},
@@ -1719,8 +1692,7 @@ func (s *imageSuite) TestSetupSeedWithBaseAndLegacyCoreOrdering(c *C) {
 		"required-snaps": []interface{}{"required-snap1", "core"},
 	})
 
-	rootdir := filepath.Join(c.MkDir(), "imageroot")
-	gadgetUnpackDir := c.MkDir()
+	rootdir := filepath.Join(c.MkDir(), "image")
 	s.setupSnaps(c, map[string]string{
 		"core18":    "canonical",
 		"core":      "canonical",
@@ -1729,8 +1701,7 @@ func (s *imageSuite) TestSetupSeedWithBaseAndLegacyCoreOrdering(c *C) {
 	})
 
 	opts := &image.Options{
-		RootDir:         rootdir,
-		GadgetUnpackDir: gadgetUnpackDir,
+		PrepareDir: filepath.Dir(rootdir),
 	}
 
 	err := image.SetupSeed(s.tsto, model, opts)
@@ -1765,16 +1736,14 @@ func (s *imageSuite) TestSetupSeedGadgetBaseModelBaseMismatch(c *C) {
 		"required-snaps": []interface{}{"required-snap1"},
 	})
 
-	rootdir := filepath.Join(c.MkDir(), "imageroot")
-	gadgetUnpackDir := c.MkDir()
+	rootdir := filepath.Join(c.MkDir(), "image")
 	s.setupSnaps(c, map[string]string{
 		"core18":    "canonical",
 		"pc":        "canonical",
 		"pc-kernel": "canonical",
 	})
 	opts := &image.Options{
-		RootDir:         rootdir,
-		GadgetUnpackDir: gadgetUnpackDir,
+		PrepareDir: filepath.Dir(rootdir),
 	}
 
 	err := image.SetupSeed(s.tsto, model, opts)
@@ -1791,8 +1760,7 @@ func (s *imageSuite) TestSetupSeedSnapReqBase(c *C) {
 		"required-snaps": []interface{}{"snap-req-other-base"},
 	})
 
-	rootdir := filepath.Join(c.MkDir(), "imageroot")
-	gadgetUnpackDir := c.MkDir()
+	rootdir := filepath.Join(c.MkDir(), "image")
 	s.setupSnaps(c, map[string]string{
 		"core":                "canonical",
 		"pc":                  "canonical",
@@ -1800,8 +1768,7 @@ func (s *imageSuite) TestSetupSeedSnapReqBase(c *C) {
 		"snap-req-other-base": "canonical",
 	})
 	opts := &image.Options{
-		RootDir:         rootdir,
-		GadgetUnpackDir: gadgetUnpackDir,
+		PrepareDir: filepath.Dir(rootdir),
 	}
 
 	err := image.SetupSeed(s.tsto, model, opts)
@@ -1818,8 +1785,7 @@ func (s *imageSuite) TestSetupSeedBaseNone(c *C) {
 		"required-snaps": []interface{}{"snap-base-none"},
 	})
 
-	rootdir := filepath.Join(c.MkDir(), "imageroot")
-	gadgetUnpackDir := c.MkDir()
+	rootdir := filepath.Join(c.MkDir(), "image")
 	s.setupSnaps(c, map[string]string{
 		"core":           "canonical",
 		"pc":             "canonical",
@@ -1827,8 +1793,7 @@ func (s *imageSuite) TestSetupSeedBaseNone(c *C) {
 		"snap-base-none": "canonical",
 	})
 	opts := &image.Options{
-		RootDir:         rootdir,
-		GadgetUnpackDir: gadgetUnpackDir,
+		PrepareDir: filepath.Dir(rootdir),
 	}
 
 	c.Assert(image.SetupSeed(s.tsto, model, opts), IsNil)
@@ -1844,8 +1809,7 @@ func (s *imageSuite) TestSetupSeedSnapCoreSatisfiesCore16(c *C) {
 		"required-snaps": []interface{}{"snap-req-core16-base"},
 	})
 
-	rootdir := filepath.Join(c.MkDir(), "imageroot")
-	gadgetUnpackDir := c.MkDir()
+	rootdir := filepath.Join(c.MkDir(), "image")
 	s.setupSnaps(c, map[string]string{
 		"core":                "canonical",
 		"pc":                  "canonical",
@@ -1853,8 +1817,7 @@ func (s *imageSuite) TestSetupSeedSnapCoreSatisfiesCore16(c *C) {
 		"snap-req-other-base": "canonical",
 	})
 	opts := &image.Options{
-		RootDir:         rootdir,
-		GadgetUnpackDir: gadgetUnpackDir,
+		PrepareDir: filepath.Dir(rootdir),
 	}
 
 	err := image.SetupSeed(s.tsto, model, opts)
@@ -1871,16 +1834,14 @@ func (s *imageSuite) TestSetupSeedStoreAssertionMissing(c *C) {
 		"store":        "my-store",
 	})
 
-	rootdir := filepath.Join(c.MkDir(), "imageroot")
-	gadgetUnpackDir := c.MkDir()
+	rootdir := filepath.Join(c.MkDir(), "image")
 	s.setupSnaps(c, map[string]string{
 		"core":      "canonical",
 		"pc":        "canonical",
 		"pc-kernel": "canonical",
 	})
 	opts := &image.Options{
-		RootDir:         rootdir,
-		GadgetUnpackDir: gadgetUnpackDir,
+		PrepareDir: filepath.Dir(rootdir),
 	}
 
 	err := image.SetupSeed(s.tsto, model, opts)
@@ -1908,16 +1869,14 @@ func (s *imageSuite) TestSetupSeedStoreAssertionFetched(c *C) {
 		"store":        "my-store",
 	})
 
-	rootdir := filepath.Join(c.MkDir(), "imageroot")
-	gadgetUnpackDir := c.MkDir()
+	rootdir := filepath.Join(c.MkDir(), "image")
 	s.setupSnaps(c, map[string]string{
 		"core":      "canonical",
 		"pc":        "canonical",
 		"pc-kernel": "canonical",
 	})
 	opts := &image.Options{
-		RootDir:         rootdir,
-		GadgetUnpackDir: gadgetUnpackDir,
+		PrepareDir: filepath.Dir(rootdir),
 	}
 
 	err = image.SetupSeed(s.tsto, model, opts)
@@ -1948,8 +1907,7 @@ func (s *imageSuite) TestSetupSeedSnapReqBaseFromLocal(c *C) {
 		"required-snaps": []interface{}{"other-base", "snap-req-other-base"},
 	})
 
-	rootdir := filepath.Join(c.MkDir(), "imageroot")
-	gadgetUnpackDir := c.MkDir()
+	rootdir := filepath.Join(c.MkDir(), "image")
 	s.setupSnaps(c, map[string]string{
 		"core":                "canonical",
 		"pc":                  "canonical",
@@ -1959,9 +1917,8 @@ func (s *imageSuite) TestSetupSeedSnapReqBaseFromLocal(c *C) {
 	})
 	bfn := s.AssertedSnap("other-base")
 	opts := &image.Options{
-		RootDir:         rootdir,
-		GadgetUnpackDir: gadgetUnpackDir,
-		Snaps:           []string{bfn},
+		PrepareDir: filepath.Dir(rootdir),
+		Snaps:      []string{bfn},
 	}
 
 	err := image.SetupSeed(s.tsto, model, opts)
@@ -1978,8 +1935,7 @@ func (s *imageSuite) TestSetupSeedSnapReqBaseFromExtraFails(c *C) {
 		"required-snaps": []interface{}{"snap-req-other-base"},
 	})
 
-	rootdir := filepath.Join(c.MkDir(), "imageroot")
-	gadgetUnpackDir := c.MkDir()
+	rootdir := filepath.Join(c.MkDir(), "image")
 	s.setupSnaps(c, map[string]string{
 		"core":                "canonical",
 		"pc":                  "canonical",
@@ -1989,9 +1945,8 @@ func (s *imageSuite) TestSetupSeedSnapReqBaseFromExtraFails(c *C) {
 	})
 	bfn := s.AssertedSnap("other-base")
 	opts := &image.Options{
-		RootDir:         rootdir,
-		GadgetUnpackDir: gadgetUnpackDir,
-		Snaps:           []string{bfn},
+		PrepareDir: filepath.Dir(rootdir),
+		Snaps:      []string{bfn},
 	}
 
 	err := image.SetupSeed(s.tsto, model, opts)
@@ -2008,8 +1963,7 @@ func (s *imageSuite) TestSetupSeedMissingContentProvider(c *C) {
 		"required-snaps": []interface{}{"snap-req-content-provider"},
 	})
 
-	rootdir := filepath.Join(c.MkDir(), "imageroot")
-	gadgetUnpackDir := c.MkDir()
+	rootdir := filepath.Join(c.MkDir(), "image")
 	s.setupSnaps(c, map[string]string{
 		"core":                  "canonical",
 		"pc":                    "canonical",
@@ -2017,8 +1971,7 @@ func (s *imageSuite) TestSetupSeedMissingContentProvider(c *C) {
 		"snap-req-content-snap": "canonical",
 	})
 	opts := &image.Options{
-		RootDir:         rootdir,
-		GadgetUnpackDir: gadgetUnpackDir,
+		PrepareDir: filepath.Dir(rootdir),
 	}
 
 	err := image.SetupSeed(s.tsto, model, opts)
@@ -2037,14 +1990,14 @@ func (s *imageSuite) TestSetupSeedClassic(c *C) {
 		"required-snaps": []interface{}{"required-snap1"},
 	})
 
-	rootdir := filepath.Join(c.MkDir(), "classic-image-root")
+	rootdir := filepath.Join(c.MkDir(), "image")
 	s.setupSnaps(c, map[string]string{
 		"classic-gadget": "my-brand",
 	})
 
 	opts := &image.Options{
-		Classic: true,
-		RootDir: rootdir,
+		Classic:    true,
+		PrepareDir: filepath.Dir(rootdir),
 	}
 
 	err := image.SetupSeed(s.tsto, model, opts)
@@ -2111,15 +2064,15 @@ func (s *imageSuite) TestSetupSeedClassicWithLocalClassicSnap(c *C) {
 		"architecture": "amd64",
 	})
 
-	rootdir := filepath.Join(c.MkDir(), "classic-image-root")
+	rootdir := filepath.Join(c.MkDir(), "image")
 	s.setupSnaps(c, nil)
 
 	snapFile := snaptest.MakeTestSnapWithFiles(c, classicSnap, nil)
 
 	opts := &image.Options{
-		Classic: true,
-		Snaps:   []string{snapFile},
-		RootDir: rootdir,
+		Classic:    true,
+		Snaps:      []string{snapFile},
+		PrepareDir: filepath.Dir(rootdir),
 	}
 
 	err := image.SetupSeed(s.tsto, model, opts)
@@ -2175,14 +2128,14 @@ func (s *imageSuite) TestSetupSeedClassicSnapdOnly(c *C) {
 		"required-snaps": []interface{}{"core18", "required-snap18"},
 	})
 
-	rootdir := filepath.Join(c.MkDir(), "classic-image-root")
+	rootdir := filepath.Join(c.MkDir(), "image")
 	s.setupSnaps(c, map[string]string{
 		"classic-gadget18": "my-brand",
 	})
 
 	opts := &image.Options{
-		Classic: true,
-		RootDir: rootdir,
+		Classic:    true,
+		PrepareDir: filepath.Dir(rootdir),
 	}
 
 	err := image.SetupSeed(s.tsto, model, opts)
@@ -2246,11 +2199,11 @@ func (s *imageSuite) TestSetupSeedClassicNoSnaps(c *C) {
 		"classic": "true",
 	})
 
-	rootdir := filepath.Join(c.MkDir(), "classic-image-root")
+	rootdir := filepath.Join(c.MkDir(), "image")
 
 	opts := &image.Options{
-		Classic: true,
-		RootDir: rootdir,
+		Classic:    true,
+		PrepareDir: filepath.Dir(rootdir),
 	}
 
 	err := image.SetupSeed(s.tsto, model, opts)
@@ -2292,14 +2245,14 @@ func (s *imageSuite) TestSetupSeedClassicSnapdOnlyMissingCore16(c *C) {
 		"required-snaps": []interface{}{"core18", "snap-req-core16-base"},
 	})
 
-	rootdir := filepath.Join(c.MkDir(), "classic-image-root")
+	rootdir := filepath.Join(c.MkDir(), "image")
 	s.setupSnaps(c, map[string]string{
 		"classic-gadget18": "my-brand",
 	})
 
 	opts := &image.Options{
-		Classic: true,
-		RootDir: rootdir,
+		Classic:    true,
+		PrepareDir: filepath.Dir(rootdir),
 	}
 
 	err := image.SetupSeed(s.tsto, model, opts)
@@ -2318,8 +2271,7 @@ func (s *imageSuite) TestSetupSeedLocalSnapd(c *C) {
 		"base":         "core18",
 	})
 
-	rootdir := filepath.Join(c.MkDir(), "imageroot")
-	gadgetUnpackDir := c.MkDir()
+	rootdir := filepath.Join(c.MkDir(), "image")
 	s.setupSnaps(c, map[string]string{
 		"pc18":      "canonical",
 		"pc-kernel": "canonical",
@@ -2334,8 +2286,7 @@ func (s *imageSuite) TestSetupSeedLocalSnapd(c *C) {
 			core18Fn,
 		},
 
-		RootDir:         rootdir,
-		GadgetUnpackDir: gadgetUnpackDir,
+		PrepareDir: filepath.Dir(rootdir),
 	}
 
 	err := image.SetupSeed(s.tsto, model, opts)
