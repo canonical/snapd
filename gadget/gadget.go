@@ -142,9 +142,15 @@ type VolumeStructure struct {
 	Update  VolumeUpdate    `yaml:"update"`
 }
 
-// IsBare returns true if the structure is not using a filesystem.
-func (vs *VolumeStructure) IsBare() bool {
-	return vs.Filesystem == "none" || vs.Filesystem == ""
+// HasFilesystem returns true if the structure is using a filesystem.
+func (vs *VolumeStructure) HasFilesystem() bool {
+	return vs.Filesystem != "none" && vs.Filesystem != ""
+}
+
+// IsPartition returns true when the structure describes a partition in a block
+// device.
+func (vs *VolumeStructure) IsPartition() bool {
+	return vs.Type != "bare" && vs.EffectiveRole() != MBR
 }
 
 // EffectiveRole returns the role of given structure
@@ -549,7 +555,7 @@ func validateCrossVolumeStructure(structures []LaidOutStructure, knownStructures
 		}
 		previousEnd = ps.StartOffset + ps.Size
 
-		if !ps.IsBare() {
+		if ps.HasFilesystem() {
 			// content relative offset only possible if it's a bare structure
 			continue
 		}
@@ -589,7 +595,7 @@ func validateVolumeStructure(vs *VolumeStructure, vol *Volume) error {
 
 	var contentChecker func(*VolumeContent) error
 
-	if vs.IsBare() {
+	if !vs.HasFilesystem() {
 		contentChecker = validateBareContent
 	} else {
 		contentChecker = validateFilesystemContent
@@ -738,7 +744,7 @@ func validateFilesystemContent(vc *VolumeContent) error {
 }
 
 func validateStructureUpdate(up *VolumeUpdate, vs *VolumeStructure) error {
-	if vs.IsBare() && len(vs.Update.Preserve) > 0 {
+	if !vs.HasFilesystem() && len(vs.Update.Preserve) > 0 {
 		return errors.New("preserving files during update is not supported for non-filesystem structures")
 	}
 

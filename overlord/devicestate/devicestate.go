@@ -207,6 +207,7 @@ var once sync.Once
 func delayedCrossMgrInit() {
 	once.Do(func() {
 		snapstate.AddCheckSnapCallback(checkGadgetOrKernel)
+		snapstate.AddCheckSnapCallback(checkGadgetRemodelCompatible)
 	})
 	snapstate.CanAutoRefresh = canAutoRefresh
 	snapstate.CanManageRefreshes = CanManageRefreshes
