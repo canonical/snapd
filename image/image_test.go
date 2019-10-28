@@ -158,6 +158,7 @@ func (s *imageSuite) Assertion(assertType *asserts.AssertionType, primaryKey []s
 	return ref.Resolve(s.StoreSigning.Find)
 }
 
+// TODO: use seedtest.SampleSnapYaml for some of these
 const packageGadget = `
 name: pc
 version: 1.0
@@ -514,7 +515,16 @@ func (s *imageSuite) setupSnaps(c *C, publishers map[string]string) {
 }
 
 func (s *imageSuite) loadSeed(c *C, seeddir string) (essSnaps []*seed.Snap, runSnaps []*seed.Snap, roDB asserts.RODatabase) {
-	seed, err := seed.Open(seeddir, "")
+	label := ""
+	systems, err := filepath.Glob(filepath.Join(seeddir, "systems", "*"))
+	c.Assert(err, IsNil)
+	if len(systems) > 1 {
+		c.Fatal("expected at most 1 Core 20 recovery system")
+	} else if len(systems) == 1 {
+		label = filepath.Base(systems[0])
+	}
+
+	seed, err := seed.Open(seeddir, label)
 	c.Assert(err, IsNil)
 
 	db, err := asserts.OpenDatabase(&asserts.DatabaseConfig{
@@ -2292,6 +2302,135 @@ func (s *imageSuite) TestSetupSeedLocalSnapd(c *C) {
 	err := image.SetupSeed(s.tsto, model, opts)
 	c.Assert(err, IsNil)
 	c.Assert(s.stdout.String(), Matches, `(?ms).*Copying ".*/snapd_3.14_all.snap" \(snapd\)`)
+}
+
+func (s *imageSuite) TestCore20MakeLabel(c *C) {
+	c.Check(image.MakeLabel(time.Date(2019, 10, 30, 0, 0, 0, 0, time.UTC)), Equals, "20191030")
+}
+
+func (s *imageSuite) makeSnap(c *C, yamlKey string, files [][]string, revno snap.Revision, publisher string) {
+	if publisher == "" {
+		publisher = "canonical"
+	}
+	s.MakeAssertedSnap(c, seedtest.SampleSnapYaml[yamlKey], files, revno, publisher)
+}
+
+func (s *imageSuite) TestSetupSeedCore20(c *C) {
+	restore := image.MockTrusted(s.StoreSigning.Trusted)
+	defer restore()
+
+	// a model that uses core20
+	model := s.Brands.Model("my-brand", "my-model", map[string]interface{}{
+		"display-name": "my model",
+		"architecture": "amd64",
+		"base":         "core20",
+		"snaps": []interface{}{
+			map[string]interface{}{
+				"name":            "pc-kernel",
+				"id":              s.AssertedSnapID("pc-kernel"),
+				"type":            "kernel",
+				"default-channel": "20",
+			},
+			map[string]interface{}{
+				"name":            "pc",
+				"id":              s.AssertedSnapID("pc"),
+				"type":            "gadget",
+				"default-channel": "20",
+			},
+			map[string]interface{}{
+				"name": "required20",
+				"id":   s.AssertedSnapID("required20"),
+			}},
+	})
+
+	prepareDir := c.MkDir()
+
+	s.makeSnap(c, "snapd", nil, snap.R(1), "")
+	s.makeSnap(c, "core20", nil, snap.R(20), "")
+	s.makeSnap(c, "pc-kernel=20", nil, snap.R(1), "")
+	s.makeSnap(c, "pc=20", [][]string{{"grub.conf", ""}, {"grub.cfg", "I'm a grub.cfg"}}, snap.R(22), "") // XXX likely don't need grub.cfg there
+	s.makeSnap(c, "required20", nil, snap.R(21), "other")
+
+	opts := &image.Options{
+		PrepareDir: prepareDir,
+	}
+
+	err := image.SetupSeed(s.tsto, model, opts)
+	c.Assert(err, IsNil)
+
+	// check seed
+	seeddir := filepath.Join(prepareDir, "system-seed")
+	seedsnapsdir := filepath.Join(seeddir, "snaps")
+	essSnaps, runSnaps, _ := s.loadSeed(c, seeddir)
+	c.Check(essSnaps, HasLen, 4)
+	c.Check(runSnaps, HasLen, 1)
+
+	stableChannel := "latest/stable"
+
+	// check the files are in place
+	for i, name := range []string{"snapd", "pc-kernel", "core20", "pc"} {
+		info := s.AssertedSnapInfo(name)
+
+		channel := stableChannel
+		switch name {
+		case "pc", "pc-kernel":
+			channel = "20"
+		}
+
+		fn := filepath.Base(info.MountFile())
+		p := filepath.Join(seedsnapsdir, fn)
+		c.Check(p, testutil.FilePresent)
+		c.Check(essSnaps[i], DeepEquals, &seed.Snap{
+			Path:      p,
+			SideInfo:  &info.SideInfo,
+			Essential: true,
+			Required:  true,
+			Channel:   channel,
+		})
+	}
+	c.Check(runSnaps[0], DeepEquals, &seed.Snap{
+		Path:     filepath.Join(seedsnapsdir, "required20_21.snap"),
+		SideInfo: &s.AssertedSnapInfo("required20").SideInfo,
+		Required: true,
+		Channel:  stableChannel,
+	})
+	c.Check(runSnaps[0].Path, testutil.FilePresent)
+
+	l, err := ioutil.ReadDir(seedsnapsdir)
+	c.Assert(err, IsNil)
+	c.Check(l, HasLen, 5)
+
+	// TODO|XXX: test recovery boot env
+
+	c.Check(s.stderr.String(), Equals, "")
+
+	// check the downloads
+	c.Check(s.storeActions, HasLen, 5)
+	c.Check(s.storeActions[0], DeepEquals, &store.SnapAction{
+		Action:       "download",
+		InstanceName: "snapd",
+		Channel:      stableChannel,
+	})
+	c.Check(s.storeActions[1], DeepEquals, &store.SnapAction{
+		Action:       "download",
+		InstanceName: "pc-kernel",
+		Channel:      "20",
+	})
+	c.Check(s.storeActions[2], DeepEquals, &store.SnapAction{
+		Action:       "download",
+		InstanceName: "core20",
+		Channel:      stableChannel,
+	})
+	c.Check(s.storeActions[3], DeepEquals, &store.SnapAction{
+		Action:       "download",
+		InstanceName: "pc",
+		Channel:      "20",
+	})
+	c.Check(s.storeActions[4], DeepEquals, &store.SnapAction{
+		Action:       "download",
+		InstanceName: "required20",
+		Channel:      stableChannel,
+	})
 }
 
 type toolingStoreContextSuite struct {

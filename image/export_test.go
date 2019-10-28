@@ -30,6 +30,7 @@ func MockToolingStore(sto Store) *ToolingStore {
 
 var (
 	DecodeModelAssertion = decodeModelAssertion
+	MakeLabel            = makeLabel
 	SetupSeed            = setupSeed
 	InstallCloudConfig   = installCloudConfig
 )
