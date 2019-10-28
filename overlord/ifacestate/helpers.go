@@ -269,12 +269,23 @@ func (m *InterfaceManager) reloadConnections(snapName string) ([]string, error) 
 			continue
 		}
 
+		plugInfo := m.repo.Plug(connRef.PlugRef.Snap, connRef.PlugRef.Name)
+		slotInfo := m.repo.Slot(connRef.SlotRef.Snap, connRef.SlotRef.Name)
+
+		// After snap refresh a plug may no longer be present. It should be removed from state as long
+		// as it's an auto-connect interface, is not done by gadget and wasn't disconnected manually
+		// (i.e. has undesired flag set); note that undesired flag is take care of above, at the
+		// beginning of the loop.
+		if plugInfo == nil && connState.Auto && !connState.ByGadget {
+			delete(conns, connId)
+			connStateChanged = true
+			continue
+		}
+
 		// Some versions of snapd may have left stray connections that don't
 		// have the corresponding plug or slot anymore. Before we choose how to
 		// deal with this data we want to silently ignore that error not to
 		// worry the users.
-		plugInfo := m.repo.Plug(connRef.PlugRef.Snap, connRef.PlugRef.Name)
-		slotInfo := m.repo.Slot(connRef.SlotRef.Snap, connRef.SlotRef.Name)
 		if plugInfo == nil || slotInfo == nil {
 			continue
 		}
