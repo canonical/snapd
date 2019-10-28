@@ -127,8 +127,8 @@ prepare: |
     snap connect test-snapd-mountinfo-core16:mount-observe
     snap connect test-snapd-mountinfo-core18:mount-observe
 
-    echo "Collect mountinfo from the host before the test"
-    echo "but make sure that persistent mount namespaces don't clobber the output"
+    echo "Collect mountinfo from the host before running apps"
+    # "make sure that persistent mount namespaces don't clobber the output"
     if mountinfo-tool /run/snapd/ns; then
         umount /run/snapd/ns
     fi
@@ -148,8 +148,8 @@ prepare: |
     su root -c "snap run test-snapd-mountinfo-core18" >PER-SNAP-18.raw.txt
     su test -c "snap run test-snapd-mountinfo-core18" >PER-USER-18.raw.txt
 
-    echo "Collect mountinfo from the host after the test"
-    echo "but make sure that persistent mount namespaces don't clobber the output"
+    echo "Collect mountinfo from the host after running apps"
+    # "make sure that persistent mount namespaces don't clobber the output"
     snap-tool snap-discard-ns test-snapd-mountinfo-classic
     snap-tool snap-discard-ns test-snapd-mountinfo-core16
     snap-tool snap-discard-ns test-snapd-mountinfo-core18
