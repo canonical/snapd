@@ -1398,6 +1398,7 @@ func (m *SnapManager) undoLinkSnap(t *state.Task, _ *tomb.Tomb) error {
 		}
 	}
 	pb := NewTaskProgressAdapterLocked(t)
+	// XXX: undo .SetNextBoot() here too (that may have happend in link-snap)
 	err = m.backend.UnlinkSnap(newInfo, pb)
 	if err != nil {
 		return err

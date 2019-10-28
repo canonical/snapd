@@ -25,6 +25,7 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"io/ioutil"
@@ -38,6 +39,7 @@ import (
 	"time"
 
 	. "gopkg.in/check.v1"
+	"gopkg.in/tomb.v2"
 	"gopkg.in/yaml.v2"
 
 	"github.com/snapcore/snapd/asserts"
@@ -320,6 +322,12 @@ func (s *mgrsSuite) SetUpTest(c *C) {
 	snapstate.CanAutoRefresh = nil
 
 	st.Set("refresh-privacy-key", "privacy-key")
+
+	// For triggering errors
+	erroringHandler := func(task *state.Task, _ *tomb.Tomb) error {
+		return errors.New("error out")
+	}
+	s.o.TaskRunner().AddHandler("error-trigger", erroringHandler, nil)
 }
 
 var settleTimeout = 15 * time.Second
@@ -1595,7 +1603,6 @@ type: os
 	c.Assert(err, IsNil)
 
 	c.Assert(chg.Status(), Equals, state.DoneStatus, Commentf("install-snap change failed with: %v", chg.Err()))
-
 }
 
 func (s *mgrsSuite) TestInstallKernelSnapUpdatesBootloader(c *C) {
@@ -1663,6 +1670,115 @@ type: kernel`
 		"snap_try_kernel": "pc-kernel_x1.snap",
 		"snap_mode":       "try",
 	})
+}
+
+func (s *mgrsSuite) TestInstallKernelSnapUndoUpdatesBootloader(c *C) {
+	bloader := bootloadertest.Mock("mock", c.MkDir())
+	bootloader.Force(bloader)
+	defer bootloader.Force(nil)
+
+	restore := release.MockOnClassic(false)
+	defer restore()
+
+	model := s.brands.Model("my-brand", "my-model", modelDefaults)
+
+	const packageKernel = `
+name: pc-kernel
+version: 4.0-1
+type: kernel`
+
+	files := [][]string{
+		{"kernel.img", "I'm a kernel"},
+		{"initrd.img", "...and I'm an initrd"},
+		{"meta/kernel.yaml", "version: 4.2"},
+	}
+	snapPath := snaptest.MakeTestSnapWithFiles(c, packageKernel, files)
+
+	st := s.o.State()
+	st.Lock()
+	defer st.Unlock()
+
+	// pretend we have core18/pc-kernel
+	bloader.BootVars = map[string]string{
+		"snap_core":   "core18_2.snap",
+		"snap_kernel": "pc-kernel_123.snap",
+		"snap_mode":   "",
+	}
+	si1 := &snap.SideInfo{RealName: "pc-kernel", Revision: snap.R(123)}
+	snapstate.Set(st, "pc-kernel", &snapstate.SnapState{
+		SnapType: "kernel",
+		Active:   true,
+		Sequence: []*snap.SideInfo{si1},
+		Current:  si1.Revision,
+	})
+	snaptest.MockSnapWithFiles(c, packageKernel, si1, [][]string{
+		{"meta/kernel.yaml", ""},
+	})
+	si2 := &snap.SideInfo{RealName: "core18", Revision: snap.R(2)}
+	snapstate.Set(st, "core18", &snapstate.SnapState{
+		SnapType: "base",
+		Active:   true,
+		Sequence: []*snap.SideInfo{si2},
+		Current:  si2.Revision,
+	})
+
+	// setup model assertion
+	assertstatetest.AddMany(st, s.brands.AccountsAndKeys("my-brand")...)
+	devicestatetest.SetDevice(st, &auth.DeviceState{
+		Brand:  "my-brand",
+		Model:  "my-model",
+		Serial: "serialserialserial",
+	})
+	err := assertstate.Add(st, model)
+	c.Assert(err, IsNil)
+
+	ts, _, err := snapstate.InstallPath(st, &snap.SideInfo{RealName: "pc-kernel"}, snapPath, "", "", snapstate.Flags{})
+	c.Assert(err, IsNil)
+
+	terr := st.NewTask("error-trigger", "provoking total undo")
+	terr.WaitFor(ts.Tasks()[len(ts.Tasks())-1])
+	ts.AddTask(terr)
+	chg := st.NewChange("install-snap", "...")
+	chg.AddAll(ts)
+
+	// run, this will trigger a wait for the restart
+	st.Unlock()
+	err = s.o.Settle(settleTimeout)
+	st.Lock()
+	c.Assert(err, IsNil)
+
+	c.Assert(bloader.BootVars, DeepEquals, map[string]string{
+		"snap_core":       "core18_2.snap",
+		"snap_kernel":     "pc-kernel_123.snap",
+		"snap_try_kernel": "pc-kernel_x1.snap",
+		"snap_mode":       "try",
+	})
+
+	// we are in restarting state and the change is not done yet
+	restarting, _ := st.Restarting()
+	c.Check(restarting, Equals, true)
+	c.Check(chg.Status(), Equals, state.DoingStatus)
+	// pretend we restarted
+	state.MockRestarting(st, state.RestartUnset)
+	bloader.BootVars["snap_kernel"] = "pc-kernel_x1.snap"
+	bloader.BootVars["snap_mode"] = ""
+
+	st.Unlock()
+	err = s.o.Settle(settleTimeout)
+	st.Lock()
+	c.Assert(err, IsNil)
+
+	c.Assert(chg.Status(), Equals, state.ErrorStatus)
+
+	// and we undo the bootvars and trigger a reboot
+	c.Check(bloader.BootVars, DeepEquals, map[string]string{
+		"snap_core":       "core18_2.snap",
+		"snap_try_kernel": "pc-kernel_123.snap",
+		"snap_kernel":     "pc-kernel_x1.snap",
+		"snap_mode":       "try",
+	})
+	restarting, _ = st.Restarting()
+	c.Check(restarting, Equals, true)
 }
 
 func (s *mgrsSuite) installLocalTestSnap(c *C, snapYamlContent string) *snap.Info {
