@@ -68,6 +68,7 @@ import (
 	"github.com/snapcore/snapd/progress"
 	"github.com/snapcore/snapd/release"
 	"github.com/snapcore/snapd/snap"
+	"github.com/snapcore/snapd/snap/channel"
 	"github.com/snapcore/snapd/store"
 	"github.com/snapcore/snapd/strutil"
 	"github.com/snapcore/snapd/systemd"
@@ -1188,6 +1189,14 @@ func postSnap(c *Command, r *http.Request, user *auth.UserState) Response {
 		return BadRequest("cannot decode request body into snap instruction: %v", err)
 	}
 	inst.ctx = r.Context()
+
+	if inst.Channel != "" {
+		ch, err := channel.Parse(inst.Channel, "-")
+		if err != nil {
+			return BadRequest("%v", err)
+		}
+		inst.Channel = ch.Name
+	}
 
 	state := c.d.overlord.State()
 	state.Lock()
