@@ -41,39 +41,35 @@ prepare: |
 
   echo "Build the snaps"
   cp -r "$TESTSLIB/snaps/disabled-svcs-kept/" ./disabled-svcs-kept1/
-  sed -i \
+  sed \
     -e s@THEVERSION@1.0@ \
     -e s@THESVCNAME@svc@ \
     -e "s@THEDAEMON@daemon: simple@" \
-    disabled-svcs-kept1/meta/snap.yaml.in
-  mv disabled-svcs-kept1/meta/snap.yaml.in disabled-svcs-kept1/meta/snap.yaml
+    disabled-svcs-kept1/meta/snap.yaml.in > disabled-svcs-kept1/meta/snap.yaml
   snap pack ./disabled-svcs-kept1
 
   cp -r "$TESTSLIB/snaps/disabled-svcs-kept/" ./disabled-svcs-kept2/
-  sed -i \
+  sed \
     -e s@THEVERSION@2.0@ \
     -e s@THESVCNAME@svc2@ \
     -e "s@THEDAEMON@daemon: simple@" \
-    disabled-svcs-kept2/meta/snap.yaml.in
-  mv disabled-svcs-kept2/meta/snap.yaml.in disabled-svcs-kept2/meta/snap.yaml
+    disabled-svcs-kept2/meta/snap.yaml.in > disabled-svcs-kept2/meta/snap.yaml
   snap pack ./disabled-svcs-kept2
 
   cp -r "$TESTSLIB/snaps/disabled-svcs-kept/" ./disabled-svcs-kept3/
-  sed -i \
+  sed \
     -e s@THEVERSION@3.0@ \
     -e s@THESVCNAME@svc2@ \
     -e "s@THEDAEMON@@" \
-    disabled-svcs-kept3/meta/snap.yaml.in
-  mv disabled-svcs-kept3/meta/snap.yaml.in disabled-svcs-kept3/meta/snap.yaml
+    disabled-svcs-kept3/meta/snap.yaml.in > disabled-svcs-kept3/meta/snap.yaml
   snap pack ./disabled-svcs-kept3
 
   cp -r "$TESTSLIB/snaps/disabled-svcs-kept/" ./disabled-svcs-kept4/
-  sed -i \
+  sed \
     -e s@THEVERSION@4.0@ \
     -e s@THESVCNAME@app@ \
     -e "s@THEDAEMON@@" \
-    disabled-svcs-kept4/meta/snap.yaml.in
-  mv disabled-svcs-kept4/meta/snap.yaml.in disabled-svcs-kept4/meta/snap.yaml
+    disabled-svcs-kept4/meta/snap.yaml.in > disabled-svcs-kept4/meta/snap.yaml
   snap pack ./disabled-svcs-kept4
 
 restore: |
@@ -94,8 +90,7 @@ execute: |
   snap stop --disable disabled-svcs-kept.svc
 
   echo "Check that it was actually disabled"
-  sleep 2
-  snap services disabled-svcs-kept | MATCH "disabled-svcs-kept\\.svc\\s+disabled\\s+inactive"
+  retry-tool -n 10 --wait 1 snap services disabled-svcs-kept | MATCH "disabled-svcs-kept\\.svc\\s+disabled\\s+inactive"
 
   echo "Trigger a failing configure hook"
   touch /root/disabled-svcs-kept-fail
