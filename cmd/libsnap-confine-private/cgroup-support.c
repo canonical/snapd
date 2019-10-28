@@ -39,6 +39,17 @@ static const char *snapd_run_dir = "/run/snapd";
 static const char *snapd_run_cgroup_dir = "/run/snapd/cgroup";
 
 void sc_cgroup_create_and_join(const char *parent, const char *name, pid_t pid) {
+    // Verify that we are operating on a cgroup in the first place. This may
+    // not be true if a container manager has dome some heavy lifting that
+    // breaks our assumptions.
+    struct statfs statfs_buf;
+    if (statfs(parent, &statfs_buf) < 0) {
+        die("cannot statfs %s", parent);
+    }
+    if (statfs_buf.f_type != CGROUP_SUPER_MAGIC) {
+        die("precondition failed: expected %s to host a cgroup v1", parent);
+    }
+
     int parent_fd SC_CLEANUP(sc_cleanup_close) = -1;
     parent_fd = open(parent, O_PATH | O_DIRECTORY | O_NOFOLLOW | O_CLOEXEC);
     if (parent_fd < 0) {
