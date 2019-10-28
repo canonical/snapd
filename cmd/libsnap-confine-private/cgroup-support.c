@@ -105,19 +105,33 @@ bool sc_cgroup_is_v2() {
 static void ensure_dir(const char *dir, mode_t mode) {
     struct stat stat_buf;
 
+    /* Stat the directory name */
     if (lstat(dir, &stat_buf) < 0) {
         if (errno != ENOENT) {
             die("cannot lstat %s", dir);
         }
+        /* If the directory is missing then create it and stat again. */
         if (mkdir(dir, mode) < 0) {
             die("cannot mkdir %s", dir);
         }
+        if (lstat(dir, &stat_buf) < 0) {
+            die("cannot lstat %s", dir);
+        }
+    }
+    /* Ensure it is a directory. */
+    if ((stat_buf.st_mode & S_IFMT) != S_IFDIR) {
+        die("cannot proceed: %s must be a directory", dir);
+    }
+    /* Ensure the owner is root.root. */
+    if (stat_buf.st_uid != 0 || stat_buf.st_gid != 0) {
         if (chown(dir, 0, 0) < 0) {
             die("cannot chown %s to root.root", dir);
         }
-    } else {
-        if ((stat_buf.st_mode & S_IFMT) != S_IFDIR) {
-            die("cannot proceed: %s must be a directory", dir);
+    }
+    /* Ensure the mode is what was requested. */
+    if ((stat_buf.st_mode & ALLPERMS) != mode) {
+        if (chmod(dir, mode) < 0) {
+            die("cannot chmod %s to %#o", dir, mode);
         }
     }
 }
