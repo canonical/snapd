@@ -527,6 +527,9 @@ func (c *autoConnectChecker) check(plug *interfaces.ConnectedPlug, slot *interfa
 	return ic.CheckAutoConnect() == nil, nil
 }
 
+// filterUbuntuCoreSlots filters out any ubuntu-core slots,
+// if there are both ubuntu-core and core slots. This would occur
+// during a ubuntu-core -> core transition.
 func filterUbuntuCoreSlots(candidates []*snap.SlotInfo) []*snap.SlotInfo {
 	hasCore := false
 	hasUbuntuCore := false
@@ -622,7 +625,7 @@ func (c *autoConnectChecker) addAutoConnections(newconns map[string]*interfaces.
 				retry, _ := err.(*state.Retry)
 				return conflictError(retry, err)
 			}
-			newconns[connRef.ID()] = connRef
+			newconns[key] = connRef
 		}
 	}
 
