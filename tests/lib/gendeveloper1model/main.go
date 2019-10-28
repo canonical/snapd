@@ -22,26 +22,25 @@
 // outputs a model assertion, signed by the test key to stdout.
 //
 // Usage:
-//       gendevmodel < headers.json > assertion.model
+//       gendeveloper1model < headers.json > assertion.model
 //
 // Example input:
+//
 // {
-// 	"type": "model",
-// 	"series": "16",
-// 	"brand-id": "developer1",
-// 	"model": "my-model",
-// 	"architecture": "amd64",
-// 	"gadget": "test-snapd-pc",
-// 	"kernel": "pc-kernel=18",
-// 	"timestamp": "2018-09-11T22:00:00+00:00"
+//     "type": "model",
+//     "series": "16",
+//     "brand-id": "developer1",
+//     "model": "my-model",
+//     "architecture": "amd64",
+//     "gadget": "test-snapd-pc",
+//     "kernel": "pc-kernel=18",
+//     "timestamp": "2018-09-11T22:00:00+00:00"
 // }
 //
-
 package main
 
 import (
 	"encoding/json"
-	"fmt"
 	"log"
 	"os"
 
@@ -63,5 +62,5 @@ func main() {
 	if err != nil {
 		log.Fatalf("failed to sign the model: %v", err)
 	}
-	fmt.Printf("%s", asserts.Encode(clModel))
+	os.Stdout.Write(asserts.Encode(clModel))
 }
