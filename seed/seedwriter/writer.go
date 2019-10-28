@@ -35,14 +35,16 @@ import (
 
 // Options holds the options for a Writer.
 type Options struct {
-	RootDir string
 	SeedDir string
 
 	DefaultChannel string
 
-	// Architecture to use if none is specified by the model,
-	// useful only for classic mode. If set must match the model otherwise.
-	Architecture string
+	// The label for the recovery system for Core20 models
+	Label string
+
+	// TestSkipCopyUnverifiedModel is set to support naive tests
+	// using an unverified model, the resulting image is broken
+	TestSkipCopyUnverifiedModel bool
 }
 
 // OptionsSnap represents an options-referred snap with its option values.
@@ -136,9 +138,6 @@ derived from the snap at SeedSnap.Path, then InfoDerived is called.
                       |
                       v
                   WriteMeta
-                      |
-                      v
-                  XXX gadget stuff ...
 
 */
 type Writer struct {
@@ -146,6 +145,11 @@ type Writer struct {
 	opts   *Options
 	policy policy
 	tree   tree
+
+	// warnings keep a list of warnings produced during the
+	// process, no more warnings should be produced after
+	// Downloaded signaled complete
+	warnings []string
 
 	db asserts.RODatabase
 
@@ -178,10 +182,15 @@ type Writer struct {
 }
 
 type policy interface {
+	allowsDangerousFeatures() error
+
 	checkDefaultChannel(channel.Channel) error
 	checkSnapChannel(ch channel.Channel, whichSnap string) error
 
 	systemSnap() *asserts.ModelSnap
+
+	modelSnapDefaultChannel() string
+	extraSnapDefaultChannel() string
 
 	checkBase(*snap.Info, *naming.SnapSet) error
 
@@ -209,7 +218,32 @@ func New(model *asserts.Model, opts *Options) (*Writer, error) {
 	if opts == nil {
 		return nil, fmt.Errorf("internal error: Writer *Options is nil")
 	}
-	pol := &policy16{model: model, opts: opts}
+	w := &Writer{
+		model: model,
+		opts:  opts,
+
+		expectedStep: setOptionsSnapsStep,
+
+		byNameOptSnaps:  naming.NewSnapSet(nil),
+		byRefLocalSnaps: naming.NewSnapSet(nil),
+	}
+
+	var treeImpl tree
+	var pol policy
+	if model.Grade() != asserts.ModelGradeUnset {
+		// Core 20
+		if opts.Label == "" {
+			return nil, fmt.Errorf("internal error: cannot write Core 20 seed without Options.Label set")
+		}
+		if err := validateSystemLabel(opts.Label); err != nil {
+			return nil, err
+		}
+		pol = &policy20{model: model, opts: opts, warningf: w.warningf}
+		treeImpl = &tree20{opts: opts}
+	} else {
+		pol = &policy16{model: model, opts: opts, warningf: w.warningf}
+		treeImpl = &tree16{opts: opts}
+	}
 
 	if opts.DefaultChannel != "" {
 		deflCh, err := channel.ParseVerbatim(opts.DefaultChannel, "_")
@@ -221,17 +255,9 @@ func New(model *asserts.Model, opts *Options) (*Writer, error) {
 		}
 	}
 
-	return &Writer{
-		model:  model,
-		opts:   opts,
-		policy: pol,
-		tree:   &tree16{opts: opts},
-
-		expectedStep: setOptionsSnapsStep,
-
-		byNameOptSnaps:  naming.NewSnapSet(nil),
-		byRefLocalSnaps: naming.NewSnapSet(nil),
-	}, nil
+	w.tree = treeImpl
+	w.policy = pol
+	return w, nil
 }
 
 type writerStep int
@@ -300,13 +326,27 @@ func (w *Writer) checkStep(thisStep writerStep) error {
 	return nil
 }
 
+// warningf adds a warning that can be later retrieved via Warnings.
+func (w *Writer) warningf(format string, a ...interface{}) {
+	w.warnings = append(w.warnings, fmt.Sprintf(format, a...))
+}
+
 // SetOptionsSnaps accepts options-referred snaps represented as OptionsSnap.
 func (w *Writer) SetOptionsSnaps(optSnaps []*OptionsSnap) error {
 	if err := w.checkStep(setOptionsSnapsStep); err != nil {
 		return err
 	}
 
-	// XXX check with policy if local snaps are ok
+	if len(optSnaps) == 0 {
+		return nil
+	}
+
+	// TODO: relax or allow flags to relax this?
+	// * allow local asserted snaps for >=signed Core 20 models?
+	// * allow some level of channel override for >=signed Core 20 models?
+	if err := w.policy.allowsDangerousFeatures(); err != nil {
+		return err
+	}
 
 	for _, sn := range optSnaps {
 		var whichSnap string
@@ -389,9 +429,15 @@ func (w *Writer) Start(db asserts.RODatabase, newFetcher NewFetcherFunc) (RefAss
 
 	f := MakeRefAssertsFetcher(newFetcher)
 
-	// XXX support UBUNTU_IMAGE_SKIP_COPY_UNVERIFIED_MODEL ?
 	if err := f.Save(w.model); err != nil {
-		return nil, fmt.Errorf("cannot fetch and check prerequisites for the model assertion: %v", err)
+		const msg = "cannot fetch and check prerequisites for the model assertion: %v"
+		if !w.opts.TestSkipCopyUnverifiedModel {
+			return nil, fmt.Errorf(msg, err)
+		}
+		// Some naive tests including ubuntu-image ones use
+		// unverified models
+		w.warningf(msg, err)
+		f.ResetRefs()
 	}
 
 	// fetch device store assertion (and prereqs) if available
@@ -453,6 +499,15 @@ func (w *Writer) InfoDerived() error {
 		if sn.Info == nil {
 			return fmt.Errorf("internal error: before seedwriter.Writer.InfoDerived snap %q Info should have been set", sn.Path)
 		}
+
+		if sn.Info.ID() == "" {
+			// this check is here in case we relax the checks in
+			// SetOptionsSnaps
+			if err := w.policy.allowsDangerousFeatures(); err != nil {
+				return err
+			}
+		}
+
 		sn.SnapRef = sn.Info
 
 		// local snap gets local revision
@@ -647,8 +702,19 @@ func (w *Writer) SnapsToDownload() (snaps []*SeedSnap, err error) {
 
 	switch w.toDownload {
 	case toDownloadModel:
-		// XXX check early if policy is ok with extra snaps
-		return w.modelSnapsToDownload(w.modSnaps())
+		// TODO|XXX: support Core 20 models optional snaps correctly
+		toDownload, err := w.modelSnapsToDownload(w.modSnaps())
+		if err != nil {
+			return nil, err
+		}
+		if w.extraSnapsGuessNum > 0 {
+			// this check is here in case we relax the checks in
+			// SetOptionsSnaps
+			if err := w.policy.allowsDangerousFeatures(); err != nil {
+				return nil, err
+			}
+		}
+		return toDownload, nil
 	case toDownloadImplicit:
 		return w.modelSnapsToDownload(w.policy.implicitSnaps(w.availableSnaps))
 	case toDownloadExtra:
@@ -669,33 +735,52 @@ func (w *Writer) resolveChannel(whichSnap string, modSnap *asserts.ModelSnap, op
 		optChannel = w.opts.DefaultChannel
 	}
 
-	if modSnap == nil {
-		if optChannel == "" {
-			return "stable", nil
-		}
-		return optChannel, nil
-	}
-
-	if modSnap.Track != "" {
-		resChannel, err := channel.ResolveLocked(modSnap.Track, optChannel)
-		if err == channel.ErrLockedTrackSwitch {
-			return "", fmt.Errorf("option channel %q for %s has a track incompatible with the track from model assertion: %s", optChannel, whichModelSnap(modSnap, w.model), modSnap.Track)
+	if modSnap != nil && modSnap.PinnedTrack != "" {
+		resChannel, err := channel.ResolvePinned(modSnap.PinnedTrack, optChannel)
+		if err == channel.ErrPinnedTrackSwitch {
+			return "", fmt.Errorf("option channel %q for %s has a track incompatible with the pinned track from model assertion: %s", optChannel, whichModelSnap(modSnap, w.model), modSnap.PinnedTrack)
 		}
 		if err != nil {
 			// shouldn't happen given that we check that
 			// the inputs parse before
-			return "", fmt.Errorf("internal error: cannot resolve locked track %q and option channel %q for snap %q", modSnap.Track, optChannel, whichSnap)
+			return "", fmt.Errorf("internal error: cannot resolve pinned track %q and option channel %q for snap %q", modSnap.PinnedTrack, optChannel, whichSnap)
 		}
 		return resChannel, nil
 	}
 
-	resChannel, err := channel.Resolve(modSnap.DefaultChannel, optChannel)
+	var defaultChannel string
+	if modSnap != nil {
+		defaultChannel = modSnap.DefaultChannel
+		if defaultChannel == "" {
+			defaultChannel = w.policy.modelSnapDefaultChannel()
+		}
+	} else {
+		defaultChannel = w.policy.extraSnapDefaultChannel()
+	}
+
+	resChannel, err := channel.Resolve(defaultChannel, optChannel)
 	if err != nil {
 		// shouldn't happen given that we check that
 		// the inputs parse before
-		return "", fmt.Errorf("internal error: cannot resolve model default channel %q and option channel %q for snap %q", modSnap.DefaultChannel, optChannel, whichSnap)
+		return "", fmt.Errorf("internal error: cannot resolve model default channel %q and option channel %q for snap %q", defaultChannel, optChannel, whichSnap)
 	}
 	return resChannel, nil
+}
+
+func (w *Writer) checkBase(info *snap.Info) error {
+	// Sanity check, note that we could support this case
+	// if we have a use-case but it requires changes in the
+	// devicestate/firstboot.go ordering code.
+	if info.GetType() == snap.TypeGadget && !w.model.Classic() && info.Base != w.model.Base() {
+		return fmt.Errorf("cannot use gadget snap because its base %q is different from model base %q", info.Base, w.model.Base())
+	}
+
+	// snap explicitly listed as not needing a base snap (e.g. a content-only snap)
+	if info.Base == "none" {
+		return nil
+	}
+
+	return w.policy.checkBase(info, w.availableSnaps)
 }
 
 func (w *Writer) downloaded(seedSnaps []*SeedSnap) error {
@@ -735,7 +820,7 @@ func (w *Writer) downloaded(seedSnaps []*SeedSnap) error {
 			return fmt.Errorf("cannot use classic snap %q in a core system", info.SnapName())
 		}
 
-		if err := w.policy.checkBase(info, w.availableSnaps); err != nil {
+		if err := w.checkBase(info); err != nil {
 			return err
 		}
 		// error about missing default providers
@@ -864,6 +949,12 @@ func (w *Writer) snapDecl(sn *SeedSnap) (*asserts.SnapDeclaration, error) {
 	return nil, fmt.Errorf("internal error: snap %q has no snap-declaration set", sn.SnapName())
 }
 
+// Warnings returns the warning messages produced so far. No warnings
+// should be generated after Downloaded signaled complete.
+func (w *Writer) Warnings() []string {
+	return w.warnings
+}
+
 // SeedSnaps checks seed snaps and copies local snaps into the seed using copySnap.
 func (w *Writer) SeedSnaps(copySnap func(name, src, dst string) error) error {
 	if err := w.checkStep(seedSnapsStep); err != nil {
@@ -920,4 +1011,59 @@ func (w *Writer) WriteMeta() error {
 	}
 
 	return w.tree.writeMeta(snapsFromModel, extraSnaps)
+}
+
+// query accessors
+
+func (w *Writer) checkSnapsAccessor() error {
+	if w.expectedStep < seedSnapsStep {
+		return fmt.Errorf("internal error: seedwriter.Writer cannot query seed snaps before Downloaded signaled complete")
+	}
+	return nil
+}
+
+// BootSnaps returns the seed snaps involved in the boot process.
+// It can be invoked only after Downloaded returns complete ==
+// true. It returns an error for classic models as for those no snaps
+// participate in boot before user space.
+func (w *Writer) BootSnaps() ([]*SeedSnap, error) {
+	if err := w.checkSnapsAccessor(); err != nil {
+		return nil, err
+	}
+	if w.model.Classic() {
+		return nil, fmt.Errorf("no snaps participating in boot on classic")
+	}
+	var bootSnaps []*SeedSnap
+	for _, sn := range w.snapsFromModel {
+		bootSnaps = append(bootSnaps, sn)
+		if sn.Info.GetType() == snap.TypeGadget {
+			break
+
+		}
+	}
+	return bootSnaps, nil
+}
+
+// UnassertedSnaps returns references for all unasserted snaps in the seed.
+// It can be invoked only after Downloaded returns complete ==
+// true.
+func (w *Writer) UnassertedSnaps() ([]naming.SnapRef, error) {
+	if err := w.checkSnapsAccessor(); err != nil {
+		return nil, err
+	}
+	var res []naming.SnapRef
+	for _, sn := range w.snapsFromModel {
+		if sn.Info.ID() != "" {
+			continue
+		}
+		res = append(res, sn.SnapRef)
+	}
+
+	for _, sn := range w.extraSnaps {
+		if sn.Info.ID() != "" {
+			continue
+		}
+		res = append(res, sn.SnapRef)
+	}
+	return res, nil
 }

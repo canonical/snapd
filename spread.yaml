@@ -34,7 +34,7 @@ environment:
     SNAPD_CHANNEL: '$(HOST: echo "${SPREAD_SNAPD_CHANNEL:-edge}")'
     REMOTE_STORE: '$(HOST: echo "${SPREAD_REMOTE_STORE:-production}")'
     SNAPPY_USE_STAGING_STORE: '$(HOST: if [ "$SPREAD_REMOTE_STORE" = staging ]; then echo 1; else echo 0; fi)'
-    DELTA_REF: 2.39.1
+    DELTA_REF: 2.42
     DELTA_PREFIX: snapd-$DELTA_REF/
     SNAPD_PUBLISHED_VERSION: '$(HOST: echo "$SPREAD_SNAPD_PUBLISHED_VERSION")'
     HTTP_PROXY: '$(HOST: echo "$SPREAD_HTTP_PROXY")'
@@ -66,6 +66,8 @@ backends:
             - ubuntu-18.04-64:
                 workers: 8
             - ubuntu-19.04-64:
+                workers: 6
+            - ubuntu-19.10-64:
                 workers: 6
             - ubuntu-core-16-64:
                 image: ubuntu-16.04-64
@@ -107,8 +109,6 @@ backends:
         location: computeengine/us-east1-b
         halt-timeout: 2h
         systems:
-            - ubuntu-19.10-64:
-                workers: 6
             - centos-7-64:
                 workers: 6
                 image: centos-7-64
@@ -409,7 +409,7 @@ exclude:
     - cmd/autom4te.cache
     - "*.o"
     - "*.a"
-
+    - ./vendor
 
 debug-each: |
     if [ "$SPREAD_DEBUG_EACH" = 1 ]; then
@@ -446,6 +446,9 @@ debug-each: |
         cat "$RUNTIME_STATE_PATH/runs" || true
         echo '# free space'
         df -h || true
+        echo '# mounts'
+        # use ascii output to prevent travis from messing up the encoding
+        findmnt --ascii -o+PROPAGATION || true
     fi
 
 rename:
@@ -458,7 +461,7 @@ repack: |
     # obtained directly from GitHub. There's nothing special about that reference,
     # other than it will often be in the local repository's history already.
     # The more recent the reference, the smaller the delta.
-    if ! echo "$SPREAD_BACKENDS" | grep linode; then
+    if ! echo "$SPREAD_BACKENDS" | grep -e linode -e google; then
         cat <&3 >&4
     elif ! git show-ref "$DELTA_REF" > /dev/null; then
         cat <&3 >&4
@@ -502,6 +505,10 @@ prepare: |
         #
         # https://forum.snapcraft.io/t/issues-with-the-fedora-mirror-network/3489/
         sed -i -s -E -e 's@^#?baseurl=http://download.fedoraproject.org/@baseurl=http://dl.fedoraproject.org/@g' -e 's@^metalink=@#metalink@g' /etc/yum.repos.d/fedora*.repo
+
+        # TODO: disable once golang-x-xerrors is available in F30
+        dnf copr enable bboozzoo/snapd-devel-deps -y
+
         dnf --refresh -y makecache
 
         # enable audit daemon

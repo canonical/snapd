@@ -1,6 +1,6 @@
 name: test-snapd-netplan-apply
 base: core18
-version: git
+adopt-info: netplan
 summary: Backend-agnostic network configuration in YAML
 description: |
   Netplan is a utility for easily configuring networking on a linux system.
@@ -20,8 +20,20 @@ apps:
       - network
       - network-bind
       - network-setup-control
+  info:
+    command: netplan-info.sh
+    adapter: full
+    plugs:
+      - network
+      - network-bind
+      - network-setup-observe
+      - network-setup-control
 
 parts:
+  info-script:
+    plugin: dump
+    source: .
+    stage: [netplan-info.sh]
   netplan:
     source: https://github.com/CanonicalLtd/netplan.git
     plugin: make
@@ -48,3 +60,15 @@ parts:
       - python3-yaml
       - systemd
       - libatm1
+    override-pull: |
+      snapcraftctl pull
+      last_committed_tag="$(git tag -l | grep -v v | sort -rV | head -n1)"
+      last_committed_tag_ver="$(echo ${last_committed_tag} | sed 's/n//')"
+      last_released_tag="$(snap info $SNAPCRAFT_PROJECT_NAME | awk '$1 == "beta:" { print $2 }')"
+      # If the latest tag from the upstream project has not been released to
+      # beta, build that tag instead of master.
+      if [ "${last_committed_tag_ver}" != "${last_released_tag}" ]; then
+        git fetch
+        git checkout "${last_committed_tag}"
+      fi
+      snapcraftctl set-version "$last_committed_tag_ver"

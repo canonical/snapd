@@ -29,19 +29,13 @@ func MockToolingStore(sto Store) *ToolingStore {
 }
 
 var (
-	LocalSnaps           = localSnaps
 	DecodeModelAssertion = decodeModelAssertion
 	SetupSeed            = setupSeed
 	InstallCloudConfig   = installCloudConfig
-	SnapChannel          = snapChannel
 )
 
 func (tsto *ToolingStore) User() *auth.UserState {
 	return tsto.user
-}
-
-func (ls *localInfos) NameToPath() map[string]string {
-	return ls.nameToPath
 }
 
 func ToolingStoreContext() store.DeviceAndAuthContext {

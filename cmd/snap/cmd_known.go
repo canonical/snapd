@@ -113,7 +113,7 @@ func (x *cmdKnown) Execute(args []string) error {
 	if x.Remote {
 		assertions, err = downloadAssertion(string(x.KnownOptions.AssertTypeName), headers)
 	} else {
-		assertions, err = x.client.Known(string(x.KnownOptions.AssertTypeName), headers)
+		assertions, err = x.client.Known(string(x.KnownOptions.AssertTypeName), headers, nil)
 	}
 	if err != nil {
 		return err

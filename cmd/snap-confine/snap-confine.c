@@ -353,13 +353,10 @@ int main(int argc, char **argv)
 			die("cannot set effective group id to %d", real_gid);
 		}
 	}
-#ifndef CAPS_OVER_SETUID
-	// this code always needs to run as root for the cgroup/udev setup,
-	// however for the tests we allow it to run as non-root
-	if (geteuid() != 0 && secure_getenv("SNAP_CONFINE_NO_ROOT") == NULL) {
+	// This code always needs to run as root for the cgroup/udev setup.
+	if (geteuid() != 0) {
 		die("need to run as root or suid");
 	}
-#endif
 
 	char *snap_context SC_CLEANUP(sc_cleanup_string) = NULL;
 	// Do no get snap context value if running a hook (we don't want to overwrite hook's SNAP_COOKIE)
@@ -389,62 +386,58 @@ int main(int argc, char **argv)
 		    " but should be. Refusing to continue to avoid"
 		    " permission escalation attacks");
 	}
-	// TODO: check for similar situation and linux capabilities.
-	if (geteuid() == 0) {
-		/* perform global initialization of mount namespace support for confined
-		 * snaps only, or both when parallel-instances feature is enabled */
-		if (!invocation.classic_confinement ||
-		    sc_feature_enabled(SC_FEATURE_PARALLEL_INSTANCES)) {
 
-			/* snap-confine uses privately-shared /run/snapd/ns to store bind-mounted
-			 * mount namespaces of each snap. In the case that snap-confine is invoked
-			 * from the mount namespace it typically constructs, the said directory
-			 * does not contain mount entries for preserved namespaces as those are
-			 * only visible in the main, outer namespace.
-			 *
-			 * In order to operate in such an environment snap-confine must first
-			 * re-associate its own process with another namespace in which the
-			 * /run/snapd/ns directory is visible. The most obvious candidate is pid
-			 * one, which definitely doesn't run in a snap-specific namespace, has a
-			 * predictable PID and is long lived.
-			 */
-			sc_reassociate_with_pid1_mount_ns();
-			// Do global initialization:
-			int global_lock_fd = sc_lock_global();
-			// Ensure that "/" or "/snap" is mounted with the
-			// "shared" option on legacy systems, see LP:#1668659
-			debug("ensuring that snap mount directory is shared");
-			sc_ensure_shared_snap_mount();
-			unsigned int experimental_features = 0;
-			if (sc_feature_enabled(SC_FEATURE_PARALLEL_INSTANCES)) {
-				experimental_features |=
-				    SC_FEATURE_PARALLEL_INSTANCES;
-			}
-			sc_initialize_mount_ns(experimental_features);
-			sc_unlock(global_lock_fd);
+	/* perform global initialization of mount namespace support for confined
+	 * snaps only, or both when parallel-instances feature is enabled */
+	if (!invocation.classic_confinement ||
+	    sc_feature_enabled(SC_FEATURE_PARALLEL_INSTANCES)) {
+
+		/* snap-confine uses privately-shared /run/snapd/ns to store bind-mounted
+		 * mount namespaces of each snap. In the case that snap-confine is invoked
+		 * from the mount namespace it typically constructs, the said directory
+		 * does not contain mount entries for preserved namespaces as those are
+		 * only visible in the main, outer namespace.
+		 *
+		 * In order to operate in such an environment snap-confine must first
+		 * re-associate its own process with another namespace in which the
+		 * /run/snapd/ns directory is visible. The most obvious candidate is pid
+		 * one, which definitely doesn't run in a snap-specific namespace, has a
+		 * predictable PID and is long lived.
+		 */
+		sc_reassociate_with_pid1_mount_ns();
+		// Do global initialization:
+		int global_lock_fd = sc_lock_global();
+		// Ensure that "/" or "/snap" is mounted with the
+		// "shared" option on legacy systems, see LP:#1668659
+		debug("ensuring that snap mount directory is shared");
+		sc_ensure_shared_snap_mount();
+		unsigned int experimental_features = 0;
+		if (sc_feature_enabled(SC_FEATURE_PARALLEL_INSTANCES)) {
+			experimental_features |= SC_FEATURE_PARALLEL_INSTANCES;
 		}
-
-		if (invocation.classic_confinement) {
-			enter_classic_execution_environment(&invocation);
-		} else {
-			enter_non_classic_execution_environment(&invocation,
-								&apparmor,
-								real_uid,
-								real_gid,
-								saved_gid);
-		}
-		// The rest does not so temporarily drop privs back to calling
-		// user (we'll permanently drop after loading seccomp)
-		if (setegid(real_gid) != 0)
-			die("setegid failed");
-		if (seteuid(real_uid) != 0)
-			die("seteuid failed");
-
-		if (real_gid != 0 && geteuid() == 0)
-			die("dropping privs did not work");
-		if (real_uid != 0 && getegid() == 0)
-			die("dropping privs did not work");
+		sc_initialize_mount_ns(experimental_features);
+		sc_unlock(global_lock_fd);
 	}
+
+	if (invocation.classic_confinement) {
+		enter_classic_execution_environment(&invocation);
+	} else {
+		enter_non_classic_execution_environment(&invocation,
+							&apparmor,
+							real_uid,
+							real_gid, saved_gid);
+	}
+	// Temporarily drop privs back to calling user (we'll permanently drop
+	// after loading seccomp).
+	if (setegid(real_gid) != 0)
+		die("setegid failed");
+	if (seteuid(real_uid) != 0)
+		die("seteuid failed");
+
+	if (real_gid != 0 && geteuid() == 0)
+		die("dropping privs did not work");
+	if (real_uid != 0 && getegid() == 0)
+		die("dropping privs did not work");
 	// Ensure that the user data path exists.
 	setup_user_data();
 #if 0

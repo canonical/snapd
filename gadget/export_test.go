@@ -19,6 +19,8 @@
 
 package gadget
 
+type ValidationState = validationState
+
 var (
 	ValidateStructureType   = validateStructureType
 	ValidateVolumeStructure = validateVolumeStructure
@@ -37,6 +39,8 @@ var (
 	RawContentBackupPath = rawContentBackupPath
 
 	UpdaterForStructure = updaterForStructure
+
+	EnsureVolumeConsistency = ensureVolumeConsistency
 )
 
 func MockEvalSymlinks(mock func(path string) (string, error)) (restore func()) {
