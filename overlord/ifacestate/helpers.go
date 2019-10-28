@@ -274,9 +274,9 @@ func (m *InterfaceManager) reloadConnections(snapName string) ([]string, error) 
 
 		// After snap refresh a plug may no longer be present. It should be removed from state as long
 		// as it's an auto-connect interface, is not done by gadget and wasn't disconnected manually
-		// (i.e. has undesired flag set); note that undesired flag is take care of above, at the
+		// (i.e. has undesired flag set); note that undesired flag is taken care of above, at the
 		// beginning of the loop.
-		if plugInfo == nil && connState.Auto && !connState.ByGadget && connState.Interface != "core-support" {
+		if (plugInfo == nil || slotInfo == nil) && connState.Auto && !connState.ByGadget && connState.Interface != "core-support" {
 			delete(conns, connId)
 			connStateChanged = true
 			continue

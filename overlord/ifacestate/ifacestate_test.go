@@ -1870,6 +1870,9 @@ var coreSnapYaml = `
 name: core
 version: 1
 type: os
+slots:
+ unrelated:
+   interface: unrelated
 `
 
 var sampleSnapYaml = `
@@ -2009,6 +2012,30 @@ apps:
  app:
    command: foo
 plugs:
+ test2:
+  interface: test2
+`
+
+var refreshedSnapYaml2 = `
+name: snap
+version: 2
+apps:
+ app:
+   command: foo
+plugs:
+ test1:
+  interface: test1
+ test2:
+  interface: test2
+`
+
+var slotSnapYaml = `
+name: snap2
+version: 2
+apps:
+ app:
+   command: bar
+slots:
  test2:
   interface: test2
 `
@@ -3159,17 +3186,17 @@ func (s *interfaceManagerSuite) TestSetupProfilesUsesFreshSnapInfo(c *C) {
 	c.Check(s.secBackend.SetupCalls[1].SnapInfo.Revision, Equals, coreSnapInfo.Revision)
 }
 
-func (s *interfaceManagerSuite) TestSetupProfilesRemovesMissingAutoconnectedPlugs(c *C) {
-	s.testAutoconnectionsRemovedForMissingPlugs(c, false, false, map[string]interface{}{
-		"snap:test2 ubuntu-core:test2": map[string]interface{}{"interface": "test2", "auto": true},
-	})
-}
-
-func (s *interfaceManagerSuite) TestSetupProfilesKeepsMissingUndesiredAutoconnectedPlugs(c *C) {
+func (s *interfaceManagerSuite) TestSetupProfilesKeepsUndesiredConnection(c *C) {
 	undesired := true
 	byGadget := false
 	s.testAutoconnectionsRemovedForMissingPlugs(c, undesired, byGadget, map[string]interface{}{
 		"snap:test1 ubuntu-core:test1": map[string]interface{}{"interface": "test1", "auto": true, "undesired": true},
+		"snap:test2 ubuntu-core:test2": map[string]interface{}{"interface": "test2", "auto": true},
+	})
+}
+
+func (s *interfaceManagerSuite) TestSetupProfilesRemovesMissingAutoconnectedPlugs(c *C) {
+	s.testAutoconnectionsRemovedForMissingPlugs(c, false, false, map[string]interface{}{
 		"snap:test2 ubuntu-core:test2": map[string]interface{}{"interface": "test2", "auto": true},
 	})
 }
@@ -3189,7 +3216,7 @@ func (s *interfaceManagerSuite) testAutoconnectionsRemovedForMissingPlugs(c *C, 
 	// Mock the interface that will be used by the test
 	s.mockIfaces(c, &ifacetest.TestInterface{InterfaceName: "test1"}, &ifacetest.TestInterface{InterfaceName: "test2"})
 
-	// Put the OS and the sample snaps in place.
+	// Put the OS and the sample snap in place.
 	_ = s.mockSnap(c, ubuntuCoreSnapYaml2)
 	newSnapInfo := s.mockSnap(c, refreshedSnapYaml)
 
@@ -3206,6 +3233,52 @@ func (s *interfaceManagerSuite) testAutoconnectionsRemovedForMissingPlugs(c *C, 
 		SideInfo: &snap.SideInfo{
 			RealName: newSnapInfo.SnapName(),
 			Revision: newSnapInfo.Revision,
+		},
+	})
+	s.settle(c)
+
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	// Ensure that the task succeeded.
+	c.Assert(change.Err(), IsNil)
+	c.Check(change.Status(), Equals, state.DoneStatus)
+
+	// Verify that old connection is gone and new one got connected
+	var conns map[string]interface{}
+	c.Assert(s.state.Get("conns", &conns), IsNil)
+	c.Check(conns, DeepEquals, expectedConns)
+}
+
+func (s *interfaceManagerSuite) TestSetupProfilesRemovesMissingAutoconnectedSlots(c *C) {
+	s.testAutoconnectionsRemovedForMissingSlots(c, map[string]interface{}{
+		"snap:test2 snap2:test2": map[string]interface{}{"interface": "test2", "auto": true},
+	})
+}
+
+func (s *interfaceManagerSuite) testAutoconnectionsRemovedForMissingSlots(c *C, expectedConns map[string]interface{}) {
+	s.MockModel(c, nil)
+
+	// Mock the interface that will be used by the test
+	s.mockIfaces(c, &ifacetest.TestInterface{InterfaceName: "test1"}, &ifacetest.TestInterface{InterfaceName: "test2"})
+
+	// Put sample snaps in place.
+	newSnapInfo1 := s.mockSnap(c, refreshedSnapYaml2)
+	_ = s.mockSnap(c, slotSnapYaml)
+
+	s.state.Lock()
+	s.state.Set("conns", map[string]interface{}{
+		"snap:test1 snap2:test1": map[string]interface{}{"interface": "test1", "auto": true},
+	})
+	s.state.Unlock()
+
+	_ = s.manager(c)
+
+	// Run the setup-profiles task for the new revision and let it finish.
+	change := s.addSetupSnapSecurityChange(c, &snapstate.SnapSetup{
+		SideInfo: &snap.SideInfo{
+			RealName: newSnapInfo1.SnapName(),
+			Revision: newSnapInfo1.Revision,
 		},
 	})
 	s.settle(c)
