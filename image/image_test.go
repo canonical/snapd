@@ -96,7 +96,6 @@ func (s *imageSuite) SetUpTest(c *C) {
 		"verification": "verified",
 	})
 	assertstest.AddMany(s.StoreSigning, s.Brands.AccountsAndKeys("my-brand")...)
-	s.DB = s.StoreSigning.Database
 
 	s.model = s.Brands.Model("my-brand", "my-model", map[string]interface{}{
 		"display-name":   "my display name",
@@ -448,6 +447,10 @@ func (s *imageSuite) TestHappyDecodeModelAssertion(c *C) {
 	})
 	c.Assert(err, IsNil)
 	c.Check(a.Type(), Equals, asserts.ModelType)
+}
+
+func (s *imageSuite) MakeAssertedSnap(c *C, snapYaml string, files [][]string, revision snap.Revision, developerID string) {
+	s.SeedSnaps.MakeAssertedSnap(c, snapYaml, files, revision, developerID, s.StoreSigning.Database)
 }
 
 const stableChannel = "stable"

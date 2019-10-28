@@ -86,7 +86,6 @@ func (s *writerSuite) SetUpTest(c *C) {
 	s.Brands.Register("my-brand", brandPrivKey, map[string]interface{}{
 		"verification": "verified",
 	})
-	s.DB = s.StoreSigning.Database
 	assertstest.AddMany(s.StoreSigning, s.Brands.AccountsAndKeys("my-brand")...)
 
 	s.devAcct = assertstest.NewAccount(s.StoreSigning, "developer", map[string]interface{}{
@@ -168,7 +167,7 @@ func (s *writerSuite) makeSnap(c *C, yamlKey, publisher string) {
 	if publisher == "" {
 		publisher = "canonical"
 	}
-	s.MakeAssertedSnap(c, snapYaml[yamlKey], snapFiles[yamlKey], snap.R(1), publisher)
+	s.MakeAssertedSnap(c, snapYaml[yamlKey], snapFiles[yamlKey], snap.R(1), publisher, s.StoreSigning.Database)
 }
 
 func (s *writerSuite) makeLocalSnap(c *C, yamlKey string) (fname string) {

@@ -39,9 +39,6 @@ type SeedSnaps struct {
 	StoreSigning *assertstest.StoreStack
 	Brands       *assertstest.SigningAccounts
 
-	// DB will be populated with snap assertions if not nil
-	DB *asserts.Database
-
 	snaps map[string]string
 	infos map[string]*snap.Info
 
@@ -59,7 +56,7 @@ func (ss *SeedSnaps) AssertedSnapID(snapName string) string {
 	return (cleanedName + strings.Repeat("id", 16)[len(cleanedName):])
 }
 
-func (ss *SeedSnaps) MakeAssertedSnap(c *C, snapYaml string, files [][]string, revision snap.Revision, developerID string) (*asserts.SnapDeclaration, *asserts.SnapRevision) {
+func (ss *SeedSnaps) MakeAssertedSnap(c *C, snapYaml string, files [][]string, revision snap.Revision, developerID string, dbs ...*asserts.Database) (*asserts.SnapDeclaration, *asserts.SnapRevision) {
 	info, err := snap.InfoFromSnapYaml([]byte(snapYaml))
 	c.Assert(err, IsNil)
 	snapName := info.SnapName()
@@ -94,10 +91,10 @@ func (ss *SeedSnaps) MakeAssertedSnap(c *C, snapYaml string, files [][]string, r
 		info.Revision = revision
 	}
 
-	if ss.DB != nil {
-		err := ss.DB.Add(declA)
+	for _, db := range dbs {
+		err := db.Add(declA)
 		c.Assert(err, IsNil)
-		err = ss.DB.Add(revA)
+		err = db.Add(revA)
 		c.Assert(err, IsNil)
 	}
 
