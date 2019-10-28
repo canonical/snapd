@@ -74,7 +74,7 @@
     /run/snapd/cgroup/ rw,
     mount fstype=cgroup options=(rw nosuid nodev noexec relatime) cgroup -> /run/snapd/cgroup/,
     /run/snapd/cgroup/release_agent rw,
-    /run/snapd/cgroup/notify_on_release rw,
+    /run/snapd/cgroup/notify_on_release w,
     # allow creating per snap-security-tag hierarchy and adding snap command (task)
     # invocations to the controller.
     /run/snapd/cgroup/snap.*/ w,
