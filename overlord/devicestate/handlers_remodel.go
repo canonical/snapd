@@ -42,7 +42,15 @@ func isSameAssertsRevision(err error) bool {
 	return false
 }
 
-func (m *DeviceManager) doSetModel(t *state.Task, _ *tomb.Tomb) error {
+var injectedSetModelError error
+
+// InjectSetModelError will trigger the selected error in the doSetModel
+// handler. This is only useful for testing.
+func InjectSetModelError(err error) {
+	injectedSetModelError = err
+}
+
+func (m *DeviceManager) doSetModel(t *state.Task, _ *tomb.Tomb) (err error) {
 	st := t.State()
 	st.Lock()
 	defer st.Unlock()
@@ -53,14 +61,10 @@ func (m *DeviceManager) doSetModel(t *state.Task, _ *tomb.Tomb) error {
 	}
 	new := remodCtx.Model()
 
-	err = assertstate.Add(st, new)
-	if err != nil && !isSameAssertsRevision(err) {
-		return err
-	}
-
 	// unmark no-longer required snaps
+	var cleanedRequiredSnaps []string
 	requiredSnaps := getAllRequiredSnapsForModel(new)
-	// TODO:XXX: have AllByRef
+	// TODO|XXX: have AllByRef
 	snapStates, err := snapstate.All(st)
 	if err != nil {
 		return err
@@ -80,12 +84,38 @@ func (m *DeviceManager) doSetModel(t *state.Task, _ *tomb.Tomb) error {
 		if snapst.Flags.Required && !requiredSnaps.Contains(naming.Snap(snapName)) {
 			snapst.Flags.Required = false
 			snapstate.Set(st, snapName, snapst)
+			cleanedRequiredSnaps = append(cleanedRequiredSnaps, snapName)
 		}
 		// TODO: clean "required" flag of "core" if a remodel
 		//       moves from the "core" snap to a different
 		//       bootable base snap.
 	}
+	// ensure  we undo the cleanedRequiredSnaps if e.g. remodCtx
+	defer func() {
+		if err == nil {
+			return
+		}
+		var snapst snapstate.SnapState
+		for _, snapName := range cleanedRequiredSnaps {
+			if err := snapstate.Get(st, snapName, &snapst); err == nil {
+				snapst.Flags.Required = true
+				snapstate.Set(st, snapName, &snapst)
+			}
+		}
+	}()
 
+	// only useful for testing
+	if injectedSetModelError != nil {
+		return injectedSetModelError
+	}
+
+	// add the assertion only after everything else was successful
+	err = assertstate.Add(st, new)
+	if err != nil && !isSameAssertsRevision(err) {
+		return err
+	}
+
+	// and finish (this will set the new model)
 	return remodCtx.Finish()
 }
 

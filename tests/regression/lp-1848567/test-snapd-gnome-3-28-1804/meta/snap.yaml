@@ -1,0 +1,12 @@
+name: test-snapd-gnome-3-28-1804
+version: 1
+base: core18
+architectures: [all]
+confinement: strict
+grade: stable
+slots:
+  gnome-3-28-1804:
+    interface: content
+    content: test-snapd-gnome-3-28-1804
+    read:
+    - /

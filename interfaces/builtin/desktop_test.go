@@ -22,6 +22,7 @@ package builtin_test
 import (
 	"os"
 	"path/filepath"
+	"strings"
 
 	. "gopkg.in/check.v1"
 
@@ -103,12 +104,12 @@ func (s *DesktopInterfaceSuite) TestAppArmorSpec(c *C) {
 	// On an all-snaps system, the only UpdateNS rule is for the
 	// document portal.
 	updateNS := spec.UpdateNS()
-	c.Assert(updateNS, HasLen, 1)
-	c.Check(updateNS[0], Equals, `  # Mount the document portal
+	profile0 := `  # Mount the document portal
   mount options=(bind) /run/user/[0-9]*/doc/by-app/snap.consumer/ -> /run/user/[0-9]*/doc/,
   umount /run/user/[0-9]*/doc/,
 
-`)
+`
+	c.Assert(strings.Join(updateNS, ""), Equals, profile0)
 
 	// On a classic system, there are UpdateNS rules for the host
 	// system font mounts
@@ -117,11 +118,10 @@ func (s *DesktopInterfaceSuite) TestAppArmorSpec(c *C) {
 	spec = &apparmor.Specification{}
 	c.Assert(spec.AddConnectedPlug(s.iface, s.plug, s.coreSlot), IsNil)
 	updateNS = spec.UpdateNS()
-	c.Assert(updateNS, HasLen, 4)
-	c.Check(updateNS[0], testutil.Contains, "# Mount the document portal")
-	c.Check(updateNS[1], testutil.Contains, "# Read-only access to /usr/share/fonts")
-	c.Check(updateNS[2], testutil.Contains, "# Read-only access to /usr/local/share/fonts")
-	c.Check(updateNS[3], testutil.Contains, "# Read-only access to /var/cache/fontconfig")
+	c.Check(updateNS, testutil.Contains, "  # Mount the document portal\n")
+	c.Check(updateNS, testutil.Contains, "  # Read-only access to /usr/share/fonts\n")
+	c.Check(updateNS, testutil.Contains, "  # Read-only access to /usr/local/share/fonts\n")
+	c.Check(updateNS, testutil.Contains, "  # Read-only access to /var/cache/fontconfig\n")
 
 	// connected plug to core slot
 	spec = &apparmor.Specification{}

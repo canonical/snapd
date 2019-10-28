@@ -1,4 +1,4 @@
-summary: Integration tests for the snap-recovery binary
+summary: Integration tests for the snap-bootstrap binary
 
 # one system is enough, its a very specialized test for now
 systems: [ubuntu-18.04-64]
@@ -30,8 +30,8 @@ prepare: |
 
 execute: |
     LOOP="$(cat loop.txt)"
-    echo "Run the snap-recovery tool"
-    /usr/lib/snapd/snap-recovery ./gadget-dir "$LOOP"
+    echo "Run the snap-bootstrap tool"
+    /usr/lib/snapd/snap-bootstrap ./gadget-dir "$LOOP"
 
     echo "And check that the partitions are created"
     sfdisk -l "$LOOP" | MATCH '1M\s+BIOS boot'
@@ -68,7 +68,7 @@ execute: |
             filesystem-label: other-ext4
             size: 500M
     EOF
-    /usr/lib/snapd/snap-recovery ./gadget-dir "$LOOP"
+    /usr/lib/snapd/snap-bootstrap ./gadget-dir "$LOOP"
     sfdisk -l "$LOOP" | MATCH '500M\s* Linux filesystem'
 
     echo "check that the filesystems are created"

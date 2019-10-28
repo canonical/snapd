@@ -214,6 +214,7 @@ func mountEntry(plug *interfaces.ConnectedPlug, slot *interfaces.ConnectedSlot, 
 func (iface *contentInterface) AppArmorConnectedPlug(spec *apparmor.Specification, plug *interfaces.ConnectedPlug, slot *interfaces.ConnectedSlot) error {
 	contentSnippet := bytes.NewBuffer(nil)
 	writePaths := iface.path(slot, "write")
+	emit := spec.AddUpdateNSf
 	if len(writePaths) > 0 {
 		fmt.Fprintf(contentSnippet, `
 # In addition to the bind mount, add any AppArmor rules so that
@@ -226,10 +227,6 @@ func (iface *contentInterface) AppArmorConnectedPlug(spec *apparmor.Specificatio
 			fmt.Fprintf(contentSnippet, "%s/** mrwklix,\n",
 				resolveSpecialVariable(w, slot.Snap()))
 			source, target := sourceTarget(plug, slot, w)
-			var buf bytes.Buffer
-			emit := func(f string, args ...interface{}) {
-				fmt.Fprintf(&buf, f, args...)
-			}
 			emit("  # Read-write content sharing %s -> %s (w#%d)\n", plug.Ref(), slot.Ref(), i)
 			emit("  mount options=(bind, rw) %s/ -> %s/,\n", source, target)
 			emit("  mount options=(rprivate) -> %s/,\n", target)
@@ -240,7 +237,6 @@ func (iface *contentInterface) AppArmorConnectedPlug(spec *apparmor.Specificatio
 			// paths). This can be done when the prefix is actually consumed.
 			apparmor.GenWritableProfile(emit, source, 1)
 			apparmor.GenWritableProfile(emit, target, 1)
-			spec.AddUpdateNS(buf.String())
 		}
 	}
 
@@ -256,10 +252,6 @@ func (iface *contentInterface) AppArmorConnectedPlug(spec *apparmor.Specificatio
 				resolveSpecialVariable(r, slot.Snap()))
 
 			source, target := sourceTarget(plug, slot, r)
-			var buf bytes.Buffer
-			emit := func(f string, args ...interface{}) {
-				fmt.Fprintf(&buf, f, args...)
-			}
 			emit("  # Read-only content sharing %s -> %s (r#%d)\n", plug.Ref(), slot.Ref(), i)
 			emit("  mount options=(bind) %s/ -> %s/,\n", source, target)
 			emit("  remount options=(bind, ro) %s/,\n", target)
@@ -268,7 +260,6 @@ func (iface *contentInterface) AppArmorConnectedPlug(spec *apparmor.Specificatio
 			// Look at the TODO comment above.
 			apparmor.GenWritableProfile(emit, source, 1)
 			apparmor.GenWritableProfile(emit, target, 1)
-			spec.AddUpdateNS(buf.String())
 		}
 	}
 
