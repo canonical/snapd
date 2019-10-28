@@ -57,9 +57,9 @@ func init() {
 		return &cmdKnown{}
 	}, map[string]string{
 		// TRANSLATORS: This should not start with a lowercase letter.
-		"remote": i18n.G("Query the store for the assertion via snapd"),
+		"remote": i18n.G("Query the store for the assertion, via snapd if possible"),
 		// TRANSLATORS: This should not start with a lowercase letter.
-		"direct": i18n.G("Query the store directly for the assertion"),
+		"direct": i18n.G("Query the store for the assertion, without attempting to go via snapd"),
 	}, []argDesc{
 		{
 			// TRANSLATORS: This needs to begin with < and end with >
@@ -128,7 +128,7 @@ func (x *cmdKnown) Execute(args []string) error {
 			assertions, err = downloadAssertion(string(x.KnownOptions.AssertTypeName), headers)
 		}
 	case x.Direct:
-		// --direct will always go direct, with or without --remote
+		// --direct implies remote
 		assertions, err = downloadAssertion(string(x.KnownOptions.AssertTypeName), headers)
 	default:
 		// default is to look only local
