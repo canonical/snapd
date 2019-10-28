@@ -166,11 +166,7 @@ void sc_initialize_mount_ns(unsigned int experimental_features)
 		}
 	}
 
-	if (!experimental_features) {
-		return;
-	}
 	/* code that follows is experimental */
-
 	if (experimental_features & SC_FEATURE_PARALLEL_INSTANCES) {
 		// Ensure that SNAP_MOUNT_DIR and /var/snap are shared mount points
 		debug
