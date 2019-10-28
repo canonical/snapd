@@ -22,7 +22,7 @@ import (
 	"fmt"
 	"os"
 
-	"github.com/snapcore/snapd/cmd/snap-recovery/recover"
+	"github.com/snapcore/snapd/cmd/snap-bootstrap/bootstrap"
 	"github.com/snapcore/snapd/osutil"
 )
 
@@ -40,9 +40,9 @@ func run(args []string) error {
 
 	gadgetRoot := os.Args[1]
 	device := os.Args[2]
-	options := &recover.Options{}
+	options := &bootstrap.Options{}
 
-	return recover.Run(gadgetRoot, device, options)
+	return bootstrap.Run(gadgetRoot, device, options)
 }
 
 func main() {

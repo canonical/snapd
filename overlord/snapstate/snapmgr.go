@@ -40,6 +40,7 @@ import (
 	"github.com/snapcore/snapd/overlord/state"
 	"github.com/snapcore/snapd/release"
 	"github.com/snapcore/snapd/snap"
+	"github.com/snapcore/snapd/snap/channel"
 	"github.com/snapcore/snapd/store"
 	"github.com/snapcore/snapd/strutil"
 )
@@ -146,8 +147,8 @@ type SnapState struct {
 	// Current indicates the current active revision if Active is
 	// true or the last active revision if Active is false
 	// (usually while a snap is being operated on or disabled)
-	Current snap.Revision `json:"current"`
-	Channel string        `json:"channel,omitempty"`
+	Current         snap.Revision `json:"current"`
+	TrackingChannel string        `json:"channel,omitempty"`
 	Flags
 	// aliases, see aliasesv2.go
 	Aliases             map[string]*AliasTarget `json:"aliases,omitempty"`
@@ -166,6 +167,15 @@ type SnapState struct {
 	// attempted but inhibited because the snap was busy. This value is
 	// reset on each successful refresh.
 	RefreshInhibitedTime *time.Time `json:"refresh-inhibited-time,omitempty"`
+}
+
+func (snapst *SnapState) SetTrackingChannel(s string) error {
+	s, err := channel.Full(s)
+	if err != nil {
+		return err
+	}
+	snapst.TrackingChannel = s
+	return nil
 }
 
 // Type returns the type of the snap or an error.
@@ -629,7 +639,7 @@ func (m *SnapManager) ensureSnapdSnapTransition() error {
 	if err != nil && err != state.ErrNoState {
 		return err
 	}
-	coreChannel := snapst.Channel
+	coreChannel := snapst.TrackingChannel
 	// snapd/core are never blocked on auth so we don't need to copy
 	// the userID from the snapst here
 	userID := 0
