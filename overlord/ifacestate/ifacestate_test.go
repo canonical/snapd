@@ -1855,6 +1855,17 @@ version: 1
 type: os
 `
 
+var ubuntuCoreSnapYaml2 = `
+name: ubuntu-core
+version: 1
+type: os
+slots:
+ test1:
+   interface: test1
+ test2:
+   interface: test2
+`
+
 var coreSnapYaml = `
 name: core
 version: 1
@@ -1870,6 +1881,8 @@ apps:
 plugs:
  network:
   interface: network
+ unrelated:
+  interface: unrelated
 `
 
 var sampleSnapYamlManyPlugs = `
@@ -1987,6 +2000,17 @@ hooks:
  unprepare-slot-slot:
  connect-slot-slot:
  disconnect-slot-slot:
+`
+
+var refreshedSnapYaml = `
+name: snap
+version: 2
+apps:
+ app:
+   command: foo
+plugs:
+ test2:
+  interface: test2
 `
 
 // The auto-connect task will not auto-connect a plug that was previously
@@ -3133,6 +3157,70 @@ func (s *interfaceManagerSuite) TestSetupProfilesUsesFreshSnapInfo(c *C) {
 	// The OS snap was setup (because it was affected).
 	c.Check(s.secBackend.SetupCalls[1].SnapInfo.InstanceName(), Equals, coreSnapInfo.InstanceName())
 	c.Check(s.secBackend.SetupCalls[1].SnapInfo.Revision, Equals, coreSnapInfo.Revision)
+}
+
+func (s *interfaceManagerSuite) TestSetupProfilesRemovesMissingAutoconnectedPlugs(c *C) {
+	s.testAutoconnectionsRemovedForMissingPlugs(c, false, false, map[string]interface{}{
+		"snap:test2 ubuntu-core:test2": map[string]interface{}{"interface": "test2", "auto": true},
+	})
+}
+
+func (s *interfaceManagerSuite) TestSetupProfilesKeepsMissingUndesiredAutoconnectedPlugs(c *C) {
+	undesired := true
+	byGadget := false
+	s.testAutoconnectionsRemovedForMissingPlugs(c, undesired, byGadget, map[string]interface{}{
+		"snap:test1 ubuntu-core:test1": map[string]interface{}{"interface": "test1", "auto": true, "undesired": true},
+		"snap:test2 ubuntu-core:test2": map[string]interface{}{"interface": "test2", "auto": true},
+	})
+}
+
+func (s *interfaceManagerSuite) TestSetupProfilesKeepsMissingGadgetAutoconnectedPlugs(c *C) {
+	undesired := false
+	byGadget := true
+	s.testAutoconnectionsRemovedForMissingPlugs(c, undesired, byGadget, map[string]interface{}{
+		"snap:test1 ubuntu-core:test1": map[string]interface{}{"interface": "test1", "auto": true, "by-gadget": true},
+		"snap:test2 ubuntu-core:test2": map[string]interface{}{"interface": "test2", "auto": true},
+	})
+}
+
+func (s *interfaceManagerSuite) testAutoconnectionsRemovedForMissingPlugs(c *C, undesired, byGadget bool, expectedConns map[string]interface{}) {
+	s.MockModel(c, nil)
+
+	// Mock the interface that will be used by the test
+	s.mockIfaces(c, &ifacetest.TestInterface{InterfaceName: "test1"}, &ifacetest.TestInterface{InterfaceName: "test2"})
+
+	// Put the OS and the sample snaps in place.
+	_ = s.mockSnap(c, ubuntuCoreSnapYaml2)
+	newSnapInfo := s.mockSnap(c, refreshedSnapYaml)
+
+	s.state.Lock()
+	s.state.Set("conns", map[string]interface{}{
+		"snap:test1 ubuntu-core:test1": map[string]interface{}{"interface": "test1", "auto": true, "undesired": undesired, "by-gadget": byGadget},
+	})
+	s.state.Unlock()
+
+	_ = s.manager(c)
+
+	// Run the setup-profiles task for the new revision and let it finish.
+	change := s.addSetupSnapSecurityChange(c, &snapstate.SnapSetup{
+		SideInfo: &snap.SideInfo{
+			RealName: newSnapInfo.SnapName(),
+			Revision: newSnapInfo.Revision,
+		},
+	})
+	s.settle(c)
+
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	// Ensure that the task succeeded.
+	c.Assert(change.Err(), IsNil)
+	c.Check(change.Status(), Equals, state.DoneStatus)
+
+	// Verify that old connection is gone and new one got connected
+	var conns map[string]interface{}
+	c.Assert(s.state.Get("conns", &conns), IsNil)
+	c.Check(conns, DeepEquals, expectedConns)
 }
 
 // auto-connect needs to setup security for connected slots after autoconnection
@@ -4381,6 +4469,8 @@ func (s *interfaceManagerSuite) TestManagerTransitionConnectionsCoreUndo(c *C) {
 // Test "core-support" connections that loop back to core is
 // renamed to match the rename of the plug.
 func (s *interfaceManagerSuite) TestCoreConnectionsRenamed(c *C) {
+	s.mockIfaces(c, &ifacetest.TestInterface{InterfaceName: "unrelated"})
+
 	// Put state with old connection data.
 	s.state.Lock()
 	s.state.Set("conns", map[string]interface{}{
