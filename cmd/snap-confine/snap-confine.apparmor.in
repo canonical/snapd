@@ -71,7 +71,7 @@
     # cgroup: snapd
     # allow creating and configuring the snapd hierarchy
     /run/snapd/ rw,
-    /run/snapd/cgroup/ rw,
+    /run/snapd/cgroup/ w,
     mount fstype=cgroup options=(rw nosuid nodev noexec relatime) cgroup -> /run/snapd/cgroup/,
     /run/snapd/cgroup/release_agent rw,
     /run/snapd/cgroup/notify_on_release w,
