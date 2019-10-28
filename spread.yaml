@@ -468,7 +468,7 @@ repack: |
     else
         trap "rm -f delta-ref.tar current.delta" EXIT
         git archive -o delta-ref.tar --format=tar --prefix="$DELTA_PREFIX" "$DELTA_REF"
-        xdelta3 -s delta-ref.tar <&3 > current.delta
+        xdelta3 -S none -s delta-ref.tar <&3 > current.delta
         tar c current.delta >&4
     fi
 
