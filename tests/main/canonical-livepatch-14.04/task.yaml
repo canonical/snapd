@@ -18,7 +18,7 @@ execute: |
     echo "Keep a copy of the core snap with our latest snapd"
     cp /var/lib/snapd/snaps/core_*.snap .
 
-    echo "And then install the snapd package from the trusty archvie"
+    echo "And then install the snapd package from the trusty archive"
     #shellcheck source=tests/lib/pkgdb.sh
     . "$TESTSLIB"/pkgdb.sh
     distro_purge_package snapd
