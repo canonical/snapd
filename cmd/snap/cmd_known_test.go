@@ -106,11 +106,23 @@ func (s *SnapSuite) TestKnownRemoteDirect(c *check.C) {
 		n++
 	}))
 
+	// first test "--remote --direct"
 	rest, err := snap.Parser(snap.Client()).ParseArgs([]string{"known", "--remote", "--direct", "model", "series=16", "brand-id=canonical", "model=pi99"})
 	c.Assert(err, check.IsNil)
 	c.Assert(rest, check.DeepEquals, []string{})
 	c.Check(s.Stdout(), check.Equals, mockModelAssertion)
 	c.Check(s.Stderr(), check.Equals, "")
+	c.Check(n, check.Equals, 1)
+
+	// "--direct" behave the same as "--remote --direct"
+	s.stdout.Reset()
+	n = 0
+	rest, err = snap.Parser(snap.Client()).ParseArgs([]string{"known", "--direct", "model", "series=16", "brand-id=canonical", "model=pi99"})
+	c.Assert(err, check.IsNil)
+	c.Assert(rest, check.DeepEquals, []string{})
+	c.Check(s.Stdout(), check.Equals, mockModelAssertion)
+	c.Check(s.Stderr(), check.Equals, "")
+	c.Check(n, check.Equals, 1)
 }
 
 func (s *SnapSuite) TestKnownRemoteAutoFallback(c *check.C) {
