@@ -215,8 +215,8 @@ func markForNoCompletion(ci *cmdInfo) {
 	}
 }
 
-// completionHandler filters out unwanted completions before dumping them
-// to stdout based on the noCompletion map.
+// completionHandler filters out unwanted completions based on
+// the noCompletion map before dumping them to stdout.
 func completionHandler(comps []flags.Completion) {
 	for _, comp := range comps {
 		if noCompletion[comp.Description] {
@@ -252,10 +252,9 @@ func Parser(cli *client.Client) *flags.Parser {
 	addHelp(parser)
 
 	seen := make(map[string]bool, len(commands)+len(debugCommands))
-
 	checkUnique := func(ci *cmdInfo, kind string) {
 		if seen[ci.shortHelp] && ci.shortHelp != "Internal" && ci.shortHelp != "Deprecated (hidden)" {
-			logger.Panicf(`%scommand %q has an already seen description != "Internal"|"Deprecated (hidden)": %s`, kind, ci.name, ci.shortHelp)
+			logger.Panicf(`%scommand %q has an already employed description != "Internal"|"Deprecated (hidden)": %s`, kind, ci.name, ci.shortHelp)
 		}
 		seen[ci.shortHelp] = true
 	}
