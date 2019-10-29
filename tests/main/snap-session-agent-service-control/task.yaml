@@ -63,7 +63,7 @@ execute: |
     curl --unix-socket "${USER_RUNTIME_DIR}/snapd-session-agent.socket" \
         -D- -X POST -H "Content-Type: application/json" \
         -d '{"action": "daemon-reload"}' \
-        http://localhost/v1/services | MATCH "HTTP/1.1 200 OK"
+        http://localhost/v1/service-control | MATCH "HTTP/1.1 200 OK"
 
     echo "The service is now visible but not active"
     systemctl_user show --property=LoadState snap.test-service.service |
@@ -75,7 +75,7 @@ execute: |
     curl --unix-socket "${USER_RUNTIME_DIR}/snapd-session-agent.socket" \
         -D- -X POST -H "Content-Type: application/json" \
         -d '{"action": "start", "services": ["snap.test-service.service"]}' \
-        http://localhost/v1/services | MATCH "HTTP/1.1 200 OK"
+        http://localhost/v1/service-control | MATCH "HTTP/1.1 200 OK"
     systemctl_user show --property=ActiveState snap.test-service.service |
         MATCH ActiveState=active
 
@@ -83,6 +83,6 @@ execute: |
     curl --unix-socket "${USER_RUNTIME_DIR}/snapd-session-agent.socket" \
         -D- -X POST -H "Content-Type: application/json" \
         -d '{"action": "stop", "services": ["snap.test-service.service"]}' \
-        http://localhost/v1/services | MATCH "HTTP/1.1 200 OK"
+        http://localhost/v1/service-control | MATCH "HTTP/1.1 200 OK"
     systemctl_user show --property=ActiveState snap.test-service.service |
         MATCH ActiveState=inactive
