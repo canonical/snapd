@@ -59,6 +59,8 @@ var (
 	// See https://github.com/systemd/systemd/issues/10872 for the
 	// upstream systemd bug
 	daemonReloadLock extMutex
+
+	osutilIsMounted = osutil.IsMounted
 )
 
 // mu is a sync.Mutex that also supports to check if the lock is taken
@@ -205,6 +207,11 @@ func New(rootDir string, mode InstanceMode, rep reporter) Systemd {
 	return &systemd{rootDir: rootDir, mode: mode, reporter: rep}
 }
 
+// New returns a Systemd that runs in preseed mode and uses the given rootDir
+func NewWithPreseedMode(rootDir string, mode InstanceMode, rep reporter) Systemd {
+	return &systemd{rootDir: rootDir, mode: mode, preseed: true, reporter: rep}
+}
+
 // InstanceMode determines which instance of systemd to control.
 //
 // SystemMode refers to the system instance (i.e. pid 1).  UserMode
@@ -227,6 +234,7 @@ type systemd struct {
 	rootDir  string
 	reporter reporter
 	mode     InstanceMode
+	preseed  bool
 }
 
 func (s *systemd) systemctl(args ...string) ([]byte, error) {
@@ -685,6 +693,21 @@ WantedBy=multi-user.target
 		return "", err
 	}
 
+	// In preseed mode mount the target but do not trigger systemd
+	if s.preseed {
+		cmd := exec.Command("mount", "-t", fstype, what, where, "-o", strings.Join(options, ","))
+		if out, err := cmd.CombinedOutput(); err != nil {
+			return "", fmt.Errorf("cannot mount %s (%s) at %s in pre-bake mode: %s; %s", what, where, fstype, err, string(out))
+		}
+
+		// cannot call systemd, so manually enable the unit by symlinking into multi-user.target.wants
+		enableUnitPath := filepath.Join(dirs.SnapServicesDir, "multi-user.target.wants", mountUnitName)
+		if err := os.Symlink(mu, enableUnitPath); err != nil {
+			return "", fmt.Errorf("cannot enable mount unit %s: %v", mountUnitName, err)
+		}
+		return mountUnitName, nil
+	}
+
 	// we need to do a daemon-reload here to ensure that systemd really
 	// knows about this new mount unit file
 	if err := s.daemonReloadNoLock(); err != nil {
@@ -714,7 +737,7 @@ func (s *systemd) RemoveMountUnitFile(mountedDir string) error {
 	// can be unmounted.
 	// note that the long option --lazy is not supported on trusty.
 	// the explicit -d is only needed on trusty.
-	isMounted, err := osutil.IsMounted(mountedDir)
+	isMounted, err := osutilIsMounted(mountedDir)
 	if err != nil {
 		return err
 	}
@@ -723,16 +746,32 @@ func (s *systemd) RemoveMountUnitFile(mountedDir string) error {
 			return osutil.OutputErr(output, err)
 		}
 
-		if err := s.Stop(filepath.Base(unit), time.Duration(1*time.Second)); err != nil {
+		if !s.preseed {
+			if err := s.Stop(filepath.Base(unit), time.Duration(1*time.Second)); err != nil {
+				return err
+			}
+		}
+	}
+
+	if s.preseed {
+		enableUnitPathSymlink := filepath.Join(dirs.SnapServicesDir, "multi-user.target.wants", filepath.Base(unit))
+		if err := os.Remove(enableUnitPathSymlink); err != nil {
+			return err
+		}
+	} else {
+		if err := s.Disable(filepath.Base(unit)); err != nil {
 			return err
 		}
 	}
-	if err := s.Disable(filepath.Base(unit)); err != nil {
-		return err
-	}
+
 	if err := os.Remove(unit); err != nil {
 		return err
 	}
+
+	if s.preseed {
+		return nil
+	}
+
 	// daemon-reload to ensure that systemd actually really
 	// forgets about this mount unit
 	if err := s.daemonReloadNoLock(); err != nil {
