@@ -27,6 +27,7 @@ import (
 	"strings"
 
 	"github.com/jessevdk/go-flags"
+	"golang.org/x/xerrors"
 
 	"github.com/snapcore/snapd/asserts"
 	"github.com/snapcore/snapd/asserts/sysdb"
@@ -245,6 +246,11 @@ func isErrorKindLoginRequired(e error) bool {
 	return false
 }
 
+func isConnectionError(err error) bool {
+	var connErr client.ConnectionError
+	return xerrors.As(err, &connErr)
+}
+
 func (x *cmdDownload) Execute(args []string) error {
 	if strings.ContainsRune(x.Basename, filepath.Separator) {
 		return fmt.Errorf(i18n.G("cannot specify a path in basename (use --target-dir for that)"))
@@ -280,7 +286,7 @@ func (x *cmdDownload) Execute(args []string) error {
 	}
 
 	err := x.downloadViaSnapd(snapName, revision)
-	if client.IsConnectionError(err) || isErrorKindLoginRequired(err) {
+	if isConnectionError(err) || isErrorKindLoginRequired(err) {
 		fmt.Fprintf(Stdout, "Cannot connect to the daemon, trying direct download\n")
 		return x.downloadDirect(snapName, revision)
 	}
