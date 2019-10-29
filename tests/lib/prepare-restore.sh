@@ -452,6 +452,7 @@ prepare_project() {
         # shellcheck source=tests/lib/prepare.sh
         . "$TESTSLIB"/prepare.sh
         disable_journald_rate_limiting
+        disable_journald_start_limiting
     fi
 }
 
@@ -498,8 +499,7 @@ prepare_suite_each() {
     "$TESTSLIB"/reset.sh --reuse-core
     # Restart journal log and reset systemd journal cursor.
     if ! systemctl restart systemd-journald.service; then
-        systemctl status systemd-journald.service
-        journalctl -xe
+        systemctl status systemd-journald.service || true
         echo "Failed to restart systemd-journald.service, exiting..."
         exit 1
     fi
