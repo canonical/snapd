@@ -1,4 +1,4 @@
-summary: Ensure that netplan apply works on Ubuntu Core with network-setup-control
+summary: Ensure that netplan works on Ubuntu Core with network-setup-{control,observe}
 
 details: |
     Netplan apply is used to apply network configuration to the system
