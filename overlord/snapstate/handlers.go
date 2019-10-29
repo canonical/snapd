@@ -1281,33 +1281,19 @@ func daemonRestartReason(st *state.State, typ snap.Type) string {
 // will switch the bootloader to the new kernel but if the change is later
 // undone we need to switch back to the kernel of the old model.
 func maybeUndoRemodelBootChanges(t *state.Task, undoInfo *snap.Info) error {
-	var oldModelStr string
-	err := t.Change().Get("old-model", &oldModelStr)
-	// old-model is only set if we are in a remodel change
-	if err == state.ErrNoState {
+	// get the new and the old model
+	deviceCtx, err := DeviceCtx(t.State(), t, nil)
+	if err != nil {
+		return err
+	}
+	// we only have an old model if we are in a remodel situation
+	oldModel := deviceCtx.OldModel()
+	if oldModel == nil {
 		return nil
 	}
-	if err != nil {
-		return err
-	}
-
-	// get the new model
-	newModel, err := ModelFromTask(t)
-	if err != nil {
-		return err
-	}
+	newModel := deviceCtx.Model()
 	if undoInfo.InstanceName() != newModel.Kernel() {
 		return nil
-	}
-
-	// get the old model
-	as, err := asserts.Decode([]byte(oldModelStr))
-	if err != nil {
-		return fmt.Errorf("internal error: cannot decode model assertion %q: %v", oldModelStr, err)
-	}
-	oldModel, ok := as.(*asserts.Model)
-	if !ok {
-		return fmt.Errorf("internal error: old model assertion is of type %T", as)
 	}
 
 	// check type
