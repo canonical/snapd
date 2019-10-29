@@ -272,10 +272,9 @@ func (m *InterfaceManager) reloadConnections(snapName string) ([]string, error) 
 		plugInfo := m.repo.Plug(connRef.PlugRef.Snap, connRef.PlugRef.Name)
 		slotInfo := m.repo.Slot(connRef.SlotRef.Snap, connRef.SlotRef.Name)
 
-		// After snap refresh a plug may no longer be present. It should be removed from state as long
-		// as it's an auto-connect interface, is not done by gadget and wasn't disconnected manually
-		// (i.e. has undesired flag set); note that undesired flag is taken care of above, at the
-		// beginning of the loop.
+		// After snap refresh a plug/slot may no longer be present. Connection should be removed from
+		// the state as long as it's an auto-connect and wasn't disconnected manually; note that undesired
+		// flag is taken care of at the beginning of the loop.
 		if (plugInfo == nil || slotInfo == nil) && connState.Auto && !connState.ByGadget && connState.Interface != "core-support" {
 			delete(conns, connId)
 			connStateChanged = true
