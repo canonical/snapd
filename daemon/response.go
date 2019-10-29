@@ -265,7 +265,7 @@ func (s fileStream) ServeHTTP(w http.ResponseWriter, _ *http.Request) {
 
 	size := fmt.Sprintf("%d", s.Info.Size)
 	hdr.Set("Content-Length", size)
-	hdr.Set("X-Sha3-384", s.Info.Sha3_384)
+	hdr.Set("Snap-Sha3-384", s.Info.Sha3_384)
 
 	defer s.stream.Close()
 	bytesCopied, err := io.Copy(w, s.stream)

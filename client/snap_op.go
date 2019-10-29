@@ -368,7 +368,7 @@ func (client *Client) Download(name string, options *SnapOptions) (dlInfo *Downl
 	dlInfo = &DownloadInfo{
 		SuggestedFileName: matches[1],
 		Size:              rsp.ContentLength,
-		Sha3_384:          rsp.Header.Get("X-Sha3-384"),
+		Sha3_384:          rsp.Header.Get("Snap-Sha3-384"),
 	}
 
 	return dlInfo, rsp.Body, nil

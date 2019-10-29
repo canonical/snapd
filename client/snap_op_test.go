@@ -445,7 +445,7 @@ func (cs *clientSuite) TestClientOpDownload(c *check.C) {
 	cs.status = 200
 	cs.header = http.Header{
 		"Content-Disposition": {"attachment; filename=foo_2.snap"},
-		"X-Sha3-384":          {"sha3sha3sha3"},
+		"Snap-Sha3-384":       {"sha3sha3sha3"},
 	}
 	cs.contentLength = 1234
 
