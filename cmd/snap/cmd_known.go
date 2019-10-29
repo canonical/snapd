@@ -21,6 +21,7 @@ package main
 
 import (
 	"fmt"
+	"runtime"
 	"strings"
 
 	"github.com/jessevdk/go-flags"
@@ -104,6 +105,10 @@ func downloadAssertion(typeName string, headers map[string]string) ([]asserts.As
 func (x *cmdKnown) Execute(args []string) error {
 	if len(args) > 0 {
 		return ErrExtraArgs
+	}
+	// "snap known" works only in --direct mode on non-linux
+	if runtime.GOOS != "linux" {
+		x.Direct = true
 	}
 
 	// TODO: share this kind of parsing once it's clearer how often is used in snap

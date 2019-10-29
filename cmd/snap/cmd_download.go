@@ -24,6 +24,7 @@ import (
 	"io"
 	"os"
 	"path/filepath"
+	"runtime"
 	"strings"
 
 	"github.com/jessevdk/go-flags"
@@ -261,6 +262,10 @@ func (x *cmdDownload) Execute(args []string) error {
 
 	if len(args) > 0 {
 		return ErrExtraArgs
+	}
+	// "snap download" works only in --direct mode on non-linux
+	if runtime.GOOS != "linux" {
+		x.Direct = true
 	}
 
 	var revision snap.Revision
