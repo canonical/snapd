@@ -4398,8 +4398,6 @@ func (s *snapmgrTestSuite) TestUpdateRunThrough(c *C) {
 		CohortKey: "some-cohort",
 		UserID:    s.user.ID,
 
-		LastActiveDisabledServices: []string{},
-
 		SnapPath: filepath.Join(dirs.SnapBlobDir, "services-snap_11.snap"),
 		DownloadInfo: &snap.DownloadInfo{
 			DownloadURL: "https://some-server.com/some/path.snap",
@@ -4624,8 +4622,6 @@ func (s *snapmgrTestSuite) TestParallelInstanceUpdateRunThrough(c *C) {
 	c.Assert(snapsup, DeepEquals, snapstate.SnapSetup{
 		Channel: "some-channel",
 		UserID:  s.user.ID,
-
-		LastActiveDisabledServices: []string{},
 
 		SnapPath: filepath.Join(dirs.SnapBlobDir, "services-snap_instance_11.snap"),
 		DownloadInfo: &snap.DownloadInfo{
