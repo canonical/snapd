@@ -20,12 +20,15 @@
 package main
 
 import (
+	"crypto"
 	"fmt"
 	"io"
 	"os"
+	"os/signal"
 	"path/filepath"
 	"runtime"
 	"strings"
+	"syscall"
 
 	"github.com/jessevdk/go-flags"
 	"golang.org/x/xerrors"
@@ -35,6 +38,7 @@ import (
 	"github.com/snapcore/snapd/client"
 	"github.com/snapcore/snapd/i18n"
 	"github.com/snapcore/snapd/image"
+	"github.com/snapcore/snapd/progress"
 	"github.com/snapcore/snapd/snap"
 )
 
@@ -166,7 +170,7 @@ func (x *cmdDownload) downloadViaSnapd(snapName string, rev snap.Revision) error
 		CohortKey: x.CohortKey,
 		Revision:  rev.String(),
 	}
-	fname, stream, err := x.client.Download(snapName, opts)
+	fname, dlSize, stream, err := x.client.Download(snapName, opts)
 	if err != nil {
 		return err
 	}
@@ -185,14 +189,32 @@ func (x *cmdDownload) downloadViaSnapd(snapName string, rev snap.Revision) error
 	}
 	defer f.Close()
 
-	if _, err := io.Copy(f, stream); err != nil {
+	// ensure we have progress
+	pbar := progress.MakeProgressBar()
+	pbar.Start(snapName, float64(dlSize))
+	defer pbar.Finished()
+
+	// Intercept sigint
+	c := make(chan os.Signal, 3)
+	signal.Notify(c, syscall.SIGINT)
+	go func() {
+		<-c
+		pbar.Finished()
+		stream.Close()
+	}()
+	defer signal.Reset(syscall.SIGINT)
+
+	h := crypto.SHA3_384.New()
+	mw := io.MultiWriter(f, h, pbar)
+	if _, err := io.Copy(mw, stream); err != nil {
 		return err
 	}
+	pbar.Finished()
 
 	fmt.Fprintf(Stdout, i18n.G("Fetching assertions for %q\n"), snapName)
 
 	assertFname := strings.TrimSuffix(downloadPath, filepath.Ext(downloadPath)) + ".assert"
-	sha3_384, _, err := asserts.SnapFileSHA3_384(downloadPath)
+	sha3_384, err := asserts.EncodeDigest(crypto.SHA3_384, h.Sum(nil))
 	if err != nil {
 		return err
 	}

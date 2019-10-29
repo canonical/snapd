@@ -319,7 +319,7 @@ type downloadAction struct {
 }
 
 // Download will stream the given snap to the client
-func (client *Client) Download(name string, options *SnapOptions) (suggestedFileName string, r io.ReadCloser, err error) {
+func (client *Client) Download(name string, options *SnapOptions) (suggestedFileName string, size int64, r io.ReadCloser, err error) {
 	if options == nil {
 		options = &SnapOptions{}
 	}
@@ -333,7 +333,7 @@ func (client *Client) Download(name string, options *SnapOptions) (suggestedFile
 	}
 	data, err := json.Marshal(&action)
 	if err != nil {
-		return "", nil, fmt.Errorf("cannot marshal snap action: %s", err)
+		return "", 0, nil, fmt.Errorf("cannot marshal snap action: %s", err)
 	}
 	headers := map[string]string{
 		"Content-Type": "application/json",
@@ -343,21 +343,21 @@ func (client *Client) Download(name string, options *SnapOptions) (suggestedFile
 	ctx := context.Background()
 	rsp, err := client.raw(ctx, "POST", "/v2/download", nil, headers, bytes.NewBuffer(data))
 	if err != nil {
-		return "", nil, err
+		return "", 0, nil, err
 	}
 
 	if rsp.StatusCode != 200 {
 		var r response
 		defer rsp.Body.Close()
 		if err := decodeInto(rsp.Body, &r); err != nil {
-			return "", nil, err
+			return "", 0, nil, err
 		}
-		return "", nil, r.err(client, rsp.StatusCode)
+		return "", 0, nil, r.err(client, rsp.StatusCode)
 	}
 	matches := contentDispositionMatcher(rsp.Header.Get("Content-Disposition"))
 	if matches == nil || matches[1] == "" {
-		return "", nil, fmt.Errorf("cannot determine filename")
+		return "", 0, nil, fmt.Errorf("cannot determine filename")
 	}
 
-	return matches[1], rsp.Body, nil
+	return matches[1], rsp.ContentLength, rsp.Body, nil
 }
