@@ -447,7 +447,9 @@ func (cs *clientSuite) TestClientOpDownload(c *check.C) {
 
 	cs.rsp = `lots-of-foo-data`
 
-	fname, rc, err := cs.cli.Download("foo", &client.SnapOptions{
+	// XXX: the "size" value after fname will be tested with
+	// https://github.com/snapcore/snapd/pull/7689
+	fname, _, rc, err := cs.cli.Download("foo", &client.SnapOptions{
 		Revision: "2",
 		Channel:  "edge",
 	})
