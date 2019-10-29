@@ -27,8 +27,8 @@ execute: |
     fi
 
     echo "Count how many network service restarts happened before calling netplan apply"
-    wait_for_network_config_stopped_before="$(get_journalctl_log -u systemd-networkd | grep -c 'Stopped Network Service.' || true)"
-    wait_for_network_config_started_before="$(get_journalctl_log -u systemd-networkd | grep -c 'Started Network Service.' || true)"
+    stopped_before="$(get_journalctl_log -u systemd-networkd | grep -c 'Stopped Network Service.' || true)"
+    started_before="$(get_journalctl_log -u systemd-networkd | grep -c 'Started Network Service.' || true)"
 
     echo "When the interface is connected"
     snap connect test-snapd-netplan-apply:network-setup-control
@@ -41,18 +41,17 @@ execute: |
 
     echo "Ensure that network config was stopped and restarted from netplan"
     for _ in $(seq 60); do
-        wait_for_network_config_stopped_after="$(get_journalctl_log -u systemd-networkd | grep -c 'Stopped Network Service.' || true)"
-        wait_for_network_config_started_after="$(get_journalctl_log -u systemd-networkd | grep -c 'Started Network Service.' || true)"
-        if [ "$wait_for_network_config_stopped_after" -gt "$wait_for_network_config_stopped_before" ] && \
-           [ "$wait_for_network_config_started_after" -gt "$wait_for_network_config_started_before" ] ; then
+        stopped_after="$(get_journalctl_log -u systemd-networkd | grep -c 'Stopped Network Service.' || true)"
+        started_after="$(get_journalctl_log -u systemd-networkd | grep -c 'Started Network Service.' || true)"
+        if [ "$stopped_after" -gt "$stopped_before" ] && \
+           [ "$started_after" -gt "$started_before" ] ; then
             break
         fi
         sleep 1
     done
 
     echo "Ensure that the number of network restarts is greater after netplan apply was run"
-    [ "$wait_for_network_config_stopped_after" -gt "$wait_for_network_config_stopped_before" ] && \
-        [ "$wait_for_network_config_started_after" -gt "$wait_for_network_config_started_before" ]
+    [ "$stopped_after" -gt "$stopped_before" ] && [ "$started_after" -gt "$started_before" ]
 
     echo "Disconnecting network-setup-control to test network-setup-observe"
     snap disconnect test-snapd-netplan-apply:network-setup-control
