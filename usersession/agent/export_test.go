@@ -25,8 +25,8 @@ import (
 )
 
 var (
-	SessionInfoCmd = sessionInfoCmd
-	ServicesCmd    = servicesCmd
+	SessionInfoCmd    = sessionInfoCmd
+	ServiceControlCmd = serviceControlCmd
 )
 
 func MockStopTimeouts(stop, kill time.Duration) (restore func()) {

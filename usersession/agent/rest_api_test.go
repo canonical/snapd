@@ -96,25 +96,25 @@ func (s *restSuite) TestSessionInfo(c *C) {
 	})
 }
 
-func (s *restSuite) TestServices(c *C) {
+func (s *restSuite) TestServiceControl(c *C) {
 	// the agent.Services end point only supports POST requests
-	c.Assert(agent.ServicesCmd.GET, IsNil)
-	c.Check(agent.ServicesCmd.PUT, IsNil)
-	c.Check(agent.ServicesCmd.POST, NotNil)
-	c.Check(agent.ServicesCmd.DELETE, IsNil)
+	c.Assert(agent.ServiceControlCmd.GET, IsNil)
+	c.Check(agent.ServiceControlCmd.PUT, IsNil)
+	c.Check(agent.ServiceControlCmd.POST, NotNil)
+	c.Check(agent.ServiceControlCmd.DELETE, IsNil)
 
-	c.Check(agent.ServicesCmd.Path, Equals, "/v1/services")
+	c.Check(agent.ServiceControlCmd.Path, Equals, "/v1/service-control")
 }
 
-func (s *restSuite) TestServicesDaemonReload(c *C) {
+func (s *restSuite) TestServiceControlDaemonReload(c *C) {
 	_, err := agent.New()
 	c.Assert(err, IsNil)
 
-	req, err := http.NewRequest("POST", "/v1/services", bytes.NewBufferString(`{"action":"daemon-reload"}`))
+	req, err := http.NewRequest("POST", "/v1/service-control", bytes.NewBufferString(`{"action":"daemon-reload"}`))
 	req.Header.Set("Content-Type", "application/json")
 	c.Assert(err, IsNil)
 	rec := httptest.NewRecorder()
-	agent.ServicesCmd.POST(agent.ServicesCmd, req).ServeHTTP(rec, req)
+	agent.ServiceControlCmd.POST(agent.ServiceControlCmd, req).ServeHTTP(rec, req)
 	c.Check(rec.Code, Equals, 200)
 	c.Check(rec.HeaderMap.Get("Content-Type"), Equals, "application/json")
 
@@ -128,15 +128,15 @@ func (s *restSuite) TestServicesDaemonReload(c *C) {
 	})
 }
 
-func (s *restSuite) TestServicesStart(c *C) {
+func (s *restSuite) TestServiceControlStart(c *C) {
 	_, err := agent.New()
 	c.Assert(err, IsNil)
 
-	req, err := http.NewRequest("POST", "/v1/services", bytes.NewBufferString(`{"action":"start","services":["snap.foo.service", "snap.bar.service"]}`))
+	req, err := http.NewRequest("POST", "/v1/service-control", bytes.NewBufferString(`{"action":"start","services":["snap.foo.service", "snap.bar.service"]}`))
 	req.Header.Set("Content-Type", "application/json")
 	c.Assert(err, IsNil)
 	rec := httptest.NewRecorder()
-	agent.ServicesCmd.POST(agent.ServicesCmd, req).ServeHTTP(rec, req)
+	agent.ServiceControlCmd.POST(agent.ServiceControlCmd, req).ServeHTTP(rec, req)
 	c.Check(rec.Code, Equals, 200)
 	c.Check(rec.HeaderMap.Get("Content-Type"), Equals, "application/json")
 
@@ -155,11 +155,11 @@ func (s *restSuite) TestServicesStartNonSnap(c *C) {
 	_, err := agent.New()
 	c.Assert(err, IsNil)
 
-	req, err := http.NewRequest("POST", "/v1/services", bytes.NewBufferString(`{"action":"start","services":["snap.foo.service", "not-snap.bar.service"]}`))
+	req, err := http.NewRequest("POST", "/v1/service-control", bytes.NewBufferString(`{"action":"start","services":["snap.foo.service", "not-snap.bar.service"]}`))
 	req.Header.Set("Content-Type", "application/json")
 	c.Assert(err, IsNil)
 	rec := httptest.NewRecorder()
-	agent.ServicesCmd.POST(agent.ServicesCmd, req).ServeHTTP(rec, req)
+	agent.ServiceControlCmd.POST(agent.ServiceControlCmd, req).ServeHTTP(rec, req)
 	c.Check(rec.Code, Equals, 500)
 	c.Check(rec.HeaderMap.Get("Content-Type"), Equals, "application/json")
 
@@ -188,11 +188,11 @@ func (s *restSuite) TestServicesStartFailureStopsServices(c *C) {
 	_, err := agent.New()
 	c.Assert(err, IsNil)
 
-	req, err := http.NewRequest("POST", "/v1/services", bytes.NewBufferString(`{"action":"start","services":["snap.foo.service", "snap.bar.service"]}`))
+	req, err := http.NewRequest("POST", "/v1/service-control", bytes.NewBufferString(`{"action":"start","services":["snap.foo.service", "snap.bar.service"]}`))
 	req.Header.Set("Content-Type", "application/json")
 	c.Assert(err, IsNil)
 	rec := httptest.NewRecorder()
-	agent.ServicesCmd.POST(agent.ServicesCmd, req).ServeHTTP(rec, req)
+	agent.ServiceControlCmd.POST(agent.ServiceControlCmd, req).ServeHTTP(rec, req)
 	c.Check(rec.Code, Equals, 500)
 	c.Check(rec.HeaderMap.Get("Content-Type"), Equals, "application/json")
 
@@ -203,7 +203,10 @@ func (s *restSuite) TestServicesStartFailureStopsServices(c *C) {
 		"message": "some services failed to start",
 		"kind":    "service-control",
 		"value": map[string]interface{}{
-			"snap.bar.service": "start failure",
+			"start-errors": map[string]interface{}{
+				"snap.bar.service": "start failure",
+			},
+			"stop-errors": map[string]interface{}{},
 		},
 	})
 
@@ -215,15 +218,63 @@ func (s *restSuite) TestServicesStartFailureStopsServices(c *C) {
 	})
 }
 
+func (s *restSuite) TestServicesStartFailureReportsStopFailures(c *C) {
+	var sysdLog [][]string
+	restore := systemd.MockSystemctl(func(cmd ...string) ([]byte, error) {
+		sysdLog = append(sysdLog, cmd)
+		if cmd[0] == "--user" && cmd[1] == "start" && cmd[2] == "snap.bar.service" {
+			return nil, fmt.Errorf("start failure")
+		}
+		if cmd[0] == "--user" && cmd[1] == "stop" && cmd[2] == "snap.foo.service" {
+			return nil, fmt.Errorf("stop failure")
+		}
+		return []byte("ActiveState=inactive\n"), nil
+	})
+	defer restore()
+
+	_, err := agent.New()
+	c.Assert(err, IsNil)
+
+	req, err := http.NewRequest("POST", "/v1/service-control", bytes.NewBufferString(`{"action":"start","services":["snap.foo.service", "snap.bar.service"]}`))
+	req.Header.Set("Content-Type", "application/json")
+	c.Assert(err, IsNil)
+	rec := httptest.NewRecorder()
+	agent.ServiceControlCmd.POST(agent.ServiceControlCmd, req).ServeHTTP(rec, req)
+	c.Check(rec.Code, Equals, 500)
+	c.Check(rec.HeaderMap.Get("Content-Type"), Equals, "application/json")
+
+	var rsp resp
+	c.Assert(json.Unmarshal(rec.Body.Bytes(), &rsp), IsNil)
+	c.Check(rsp.Type, Equals, agent.ResponseTypeError)
+	c.Check(rsp.Result, DeepEquals, map[string]interface{}{
+		"message": "some services failed to start",
+		"kind":    "service-control",
+		"value": map[string]interface{}{
+			"start-errors": map[string]interface{}{
+				"snap.bar.service": "start failure",
+			},
+			"stop-errors": map[string]interface{}{
+				"snap.foo.service": "stop failure",
+			},
+		},
+	})
+
+	c.Check(sysdLog, DeepEquals, [][]string{
+		{"--user", "start", "snap.foo.service"},
+		{"--user", "start", "snap.bar.service"},
+		{"--user", "stop", "snap.foo.service"},
+	})
+}
+
 func (s *restSuite) TestServicesStop(c *C) {
 	_, err := agent.New()
 	c.Assert(err, IsNil)
 
-	req, err := http.NewRequest("POST", "/v1/services", bytes.NewBufferString(`{"action":"stop","services":["snap.foo.service", "snap.bar.service"]}`))
+	req, err := http.NewRequest("POST", "/v1/service-control", bytes.NewBufferString(`{"action":"stop","services":["snap.foo.service", "snap.bar.service"]}`))
 	req.Header.Set("Content-Type", "application/json")
 	c.Assert(err, IsNil)
 	rec := httptest.NewRecorder()
-	agent.ServicesCmd.POST(agent.ServicesCmd, req).ServeHTTP(rec, req)
+	agent.ServiceControlCmd.POST(agent.ServiceControlCmd, req).ServeHTTP(rec, req)
 	c.Check(rec.Code, Equals, 200)
 	c.Check(rec.HeaderMap.Get("Content-Type"), Equals, "application/json")
 
@@ -244,11 +295,11 @@ func (s *restSuite) TestServicesStopNonSnap(c *C) {
 	_, err := agent.New()
 	c.Assert(err, IsNil)
 
-	req, err := http.NewRequest("POST", "/v1/services", bytes.NewBufferString(`{"action":"stop","services":["snap.foo.service", "not-snap.bar.service"]}`))
+	req, err := http.NewRequest("POST", "/v1/service-control", bytes.NewBufferString(`{"action":"stop","services":["snap.foo.service", "not-snap.bar.service"]}`))
 	req.Header.Set("Content-Type", "application/json")
 	c.Assert(err, IsNil)
 	rec := httptest.NewRecorder()
-	agent.ServicesCmd.POST(agent.ServicesCmd, req).ServeHTTP(rec, req)
+	agent.ServiceControlCmd.POST(agent.ServiceControlCmd, req).ServeHTTP(rec, req)
 	c.Check(rec.Code, Equals, 500)
 	c.Check(rec.HeaderMap.Get("Content-Type"), Equals, "application/json")
 
@@ -263,7 +314,7 @@ func (s *restSuite) TestServicesStopNonSnap(c *C) {
 	c.Check(s.sysdLog, HasLen, 0)
 }
 
-func (s *restSuite) TestServicesStopFallbackToKill(c *C) {
+func (s *restSuite) TestServicesStopReportsTimeout(c *C) {
 	var sysdLog [][]string
 	restore := systemd.MockSystemctl(func(cmd ...string) ([]byte, error) {
 		// Ignore "show" spam
@@ -280,11 +331,11 @@ func (s *restSuite) TestServicesStopFallbackToKill(c *C) {
 	_, err := agent.New()
 	c.Assert(err, IsNil)
 
-	req, err := http.NewRequest("POST", "/v1/services", bytes.NewBufferString(`{"action":"stop","services":["snap.foo.service", "snap.bar.service"]}`))
+	req, err := http.NewRequest("POST", "/v1/service-control", bytes.NewBufferString(`{"action":"stop","services":["snap.foo.service", "snap.bar.service"]}`))
 	req.Header.Set("Content-Type", "application/json")
 	c.Assert(err, IsNil)
 	rec := httptest.NewRecorder()
-	agent.ServicesCmd.POST(agent.ServicesCmd, req).ServeHTTP(rec, req)
+	agent.ServiceControlCmd.POST(agent.ServiceControlCmd, req).ServeHTTP(rec, req)
 	c.Check(rec.Code, Equals, 500)
 	c.Check(rec.HeaderMap.Get("Content-Type"), Equals, "application/json")
 
@@ -295,7 +346,9 @@ func (s *restSuite) TestServicesStopFallbackToKill(c *C) {
 		"message": "some services failed to stop",
 		"kind":    "service-control",
 		"value": map[string]interface{}{
-			"snap.bar.service": "snap.bar.service failed to stop: timeout",
+			"stop-errors": map[string]interface{}{
+				"snap.bar.service": "snap.bar.service failed to stop: timeout",
+			},
 		},
 	})
 

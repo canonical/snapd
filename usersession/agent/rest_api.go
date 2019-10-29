@@ -34,7 +34,7 @@ import (
 var restApi = []*Command{
 	rootCmd,
 	sessionInfoCmd,
-	servicesCmd,
+	serviceControlCmd,
 }
 
 var (
@@ -48,9 +48,9 @@ var (
 		GET:  sessionInfo,
 	}
 
-	servicesCmd = &Command{
-		Path: "/v1/services",
-		POST: postServices,
+	serviceControlCmd = &Command{
+		Path: "/v1/service-control",
+		POST: postServiceControl,
 	}
 )
 
@@ -89,10 +89,11 @@ func serviceStart(inst *serviceInstruction, sysd systemd.Systemd) Response {
 		started = append(started, service)
 	}
 	// If we got any failures, attempt to stop the services we started.
+	stopErrors := make(map[string]string)
 	if len(startErrors) != 0 {
 		for _, service := range started {
 			if err := sysd.Stop(service, stopTimeout); err != nil {
-				startErrors[service] = err.Error()
+				stopErrors[service] = err.Error()
 			}
 		}
 	}
@@ -105,13 +106,16 @@ func serviceStart(inst *serviceInstruction, sysd systemd.Systemd) Response {
 		Result: &errorResult{
 			Message: "some services failed to start",
 			Kind:    errorKindServiceControl,
-			Value:   startErrors,
+			Value: map[string]interface{}{
+				"start-errors": startErrors,
+				"stop-errors":  stopErrors,
+			},
 		},
 	})
 }
 
 func serviceStop(inst *serviceInstruction, sysd systemd.Systemd) Response {
-	// Refuse to start non-snap services
+	// Refuse to stop non-snap services
 	for _, service := range inst.Services {
 		if !strings.HasPrefix(service, "snap.") {
 			return InternalError("cannot stop non-snap service %v", service)
@@ -133,7 +137,9 @@ func serviceStop(inst *serviceInstruction, sysd systemd.Systemd) Response {
 		Result: &errorResult{
 			Message: "some services failed to stop",
 			Kind:    errorKindServiceControl,
-			Value:   stopErrors,
+			Value: map[string]interface{}{
+				"stop-errors": stopErrors,
+			},
 		},
 	})
 }
@@ -160,7 +166,7 @@ type dummyReporter struct{}
 
 func (dummyReporter) Notify(string) {}
 
-func postServices(c *Command, r *http.Request) Response {
+func postServiceControl(c *Command, r *http.Request) Response {
 	if contentType := r.Header.Get("Content-Type"); contentType != "application/json" {
 		return BadRequest("unknown content type: %s", contentType)
 	}
