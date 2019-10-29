@@ -552,6 +552,7 @@ func Remodel(st *state.State, new *asserts.Model) (*state.Change, error) {
 	}
 
 	chg := st.NewChange("remodel", msg)
+	chg.Set("old-model", string(asserts.Encode(current)))
 	remodCtx.Init(chg)
 	for _, ts := range tss {
 		chg.AddAll(ts)
