@@ -25,6 +25,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"sort"
 	"strconv"
 	"strings"
 	"time"
@@ -805,6 +806,9 @@ func (m *SnapManager) queryDisabledServices(info *snap.Info, pb progress.Meter) 
 		}
 	}
 
+	// sort for easier testing
+	sort.Strings(disabledSnapSvcs)
+
 	return disabledSnapSvcs, nil
 }
 
@@ -1077,6 +1081,10 @@ func missingDisabledServices(svcs []string, info *snap.Info) ([]string, []string
 			missingSvcs = append(missingSvcs, disabledSvcName)
 		}
 	}
+
+	// sort the lists for easier testing
+	sort.Strings(missingSvcs)
+	sort.Strings(foundSvcs)
 
 	return missingSvcs, foundSvcs, nil
 }
