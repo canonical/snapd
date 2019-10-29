@@ -64,7 +64,8 @@ type fakeOp struct {
 
 	otherInstances bool
 
-	services []string
+	services         []string
+	disabledServices []string
 }
 
 type fakeOps []fakeOp
@@ -813,7 +814,7 @@ func (f *fakeSnappyBackend) LinkSnap(info *snap.Info, model *asserts.Model, disa
 
 	// only add the services to the op if there's something to add
 	if len(disabledSvcs) != 0 {
-		op.services = disabledSvcs
+		op.disabledServices = disabledSvcs
 	}
 
 	if info.MountDir() == f.linkSnapFailTrigger {
@@ -865,8 +866,8 @@ func (f *fakeSnappyBackend) ServicesEnableState(info *snap.Info, meter progress.
 	}
 
 	f.appendOp(&fakeOp{
-		op:       "current-snap-service-states",
-		services: f.servicesCurrentlyDisabled,
+		op:               "current-snap-service-states",
+		disabledServices: f.servicesCurrentlyDisabled,
 	})
 
 	return m, nil
