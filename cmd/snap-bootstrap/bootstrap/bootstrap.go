@@ -69,21 +69,24 @@ func Run(gadgetRoot, device string, options *Options) error {
 }
 
 func ensureLayoutCompatibility(gadgetLayout, diskLayout *gadget.LaidOutVolume) error {
-	// Check if all existing device partitions are also in gadget
-	for _, ds := range diskLayout.LaidOutStructure {
+	eq := func(ds, gs gadget.LaidOutStructure) bool {
 		dv := ds.VolumeStructure
-		found := false
-		for _, gs := range gadgetLayout.LaidOutStructure {
-			gv := gs.VolumeStructure
-			if dv.Name == gv.Name && dv.Role == gv.Role && ds.StartOffset == gs.StartOffset &&
-				dv.Size == gv.Size && dv.Filesystem == gv.Filesystem {
-				found = true
-				break
+		gv := gs.VolumeStructure
+		return dv.Name == gv.Name && dv.Role == gv.Role && ds.StartOffset == gs.StartOffset && dv.Size == gv.Size && dv.Filesystem == gv.Filesystem
+	}
+	contains := func(haystack []gadget.LaidOutStructure, needle gadget.LaidOutStructure) bool {
+		for _, h := range haystack {
+			if eq(needle, h) {
+				return true
 			}
 		}
+		return false
+	}
 
-		if !found {
-			return fmt.Errorf("cannot find disk partition %q (starting at %d) in gadget", dv.Label, ds.StartOffset)
+	// Check if all existing device partitions are also in gadget
+	for _, ds := range diskLayout.LaidOutStructure {
+		if !contains(gadgetLayout.LaidOutStructure, ds) {
+			return fmt.Errorf("cannot find disk partition %q (starting at %d) in gadget", ds.VolumeStructure.Label, ds.StartOffset)
 		}
 	}
 
