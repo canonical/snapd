@@ -36,6 +36,10 @@ func (dc *TrivialDeviceContext) Model() *asserts.Model {
 	return dc.DeviceModel
 }
 
+func (dc *TrivialDeviceContext) OldModel() *asserts.Model {
+	return nil
+}
+
 func (dc *TrivialDeviceContext) Store() snapstate.StoreService {
 	return dc.CtxStore
 }
