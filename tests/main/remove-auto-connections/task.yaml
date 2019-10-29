@@ -5,6 +5,7 @@ details: |
       is no longer present in the refreshed snap.
 
 prepare: |
+  snap install jq
   snap pack test-snap-v1
   snap pack test-snap-v2
 
@@ -13,11 +14,21 @@ execute: |
 
   snap install --dangerous simplesnap_1.0_all.snap
   snap connections simplesnap | MATCH "home *simplesnap:home *:home *- *"
+
+  inspect_connection() {
+    cat /var/lib/snapd/state.json | jq -r '.data["conns"] | has("simplesnap:home core:home")'
+  }
+
+  # sanity
+  inspect_connection | MATCH "true"
+
   snap remove simplesnap
     if snap connections simplesnap | MATCH "home"; then
     echo "Expected simplesnap:home to be gone after snap got removed"
     exit 1
   fi
+
+  inspect_connection | MATCH "false"
 
   echo "Checking that 'home' connection is not reported after refresh to a revision that doesn't have home plug"
 
@@ -29,3 +40,4 @@ execute: |
     exit 1
   fi
 
+  inspect_connection | MATCH "false"
