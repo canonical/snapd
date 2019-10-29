@@ -274,8 +274,6 @@ func (s *partitionTestSuite) TestCreatePartitions(c *C) {
 	c.Assert(err, IsNil)
 
 	sf := partition.NewSFDisk("/dev/node")
-	_, err = sf.Layout()
-	c.Assert(err, IsNil)
 	created, err := sf.Create(pv)
 	c.Assert(err, IsNil)
 	c.Assert(created, DeepEquals, []partition.DeviceStructure{

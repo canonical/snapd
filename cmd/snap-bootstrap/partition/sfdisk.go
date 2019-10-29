@@ -100,7 +100,13 @@ func (sf *SFDisk) Layout() (*gadget.LaidOutVolume, error) {
 
 // Create creates the partitions listed in positionedVolume
 func (sf *SFDisk) Create(pv *gadget.LaidOutVolume) ([]DeviceStructure, error) {
-	// sf.partitionTable is updated by a previous Layout() call
+	// Obtain the partition table if not previously set by a Layout() call
+	if sf.partitionTable == nil {
+		if _, err := sf.Layout(); err != nil {
+			return nil, err
+		}
+	}
+
 	buf, created := buildPartitionList(sf.partitionTable, pv)
 
 	// Write the partition table, note that sfdisk will re-read the
