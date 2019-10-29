@@ -207,9 +207,9 @@ func New(rootDir string, mode InstanceMode, rep reporter) Systemd {
 	return &systemd{rootDir: rootDir, mode: mode, reporter: rep}
 }
 
-// New returns a Systemd that runs in preseed mode and uses the given rootDir
-func NewWithPreseedMode(rootDir string, mode InstanceMode, rep reporter) Systemd {
-	return &systemd{rootDir: rootDir, mode: mode, preseed: true, reporter: rep}
+// New returns a Systemd that runs with preseed enabled in SystemMode and uses the given rootDir
+func NewWithPreseedMode(rootDir string, rep reporter) Systemd {
+	return &systemd{rootDir: rootDir, mode: SystemMode, preseed: true, reporter: rep}
 }
 
 // InstanceMode determines which instance of systemd to control.
