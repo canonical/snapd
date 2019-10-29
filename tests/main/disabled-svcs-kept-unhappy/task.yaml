@@ -77,6 +77,9 @@ restore: |
   rm -rf disabled-svcs-kept*
 
 execute: |
+  # shellcheck source=tests/lib/disabled-svcs.sh
+  . "$TESTSLIB/disabled-svcs.sh"
+
   ########################################
   ############### CASE 1 #################
   ########################################
@@ -108,11 +111,7 @@ execute: |
   snap services disabled-svcs-kept | MATCH "disabled-svcs-kept\\.svc\\s+disabled\\s+inactive"
 
   echo "Check that state.json doesn't contain last-active-disabled-services"
-  if [ "$(jq -r '.data.snaps."disabled-svcs-kept" | ."last-active-disabled-services"?' < /var/lib/snapd/state.json)" != "null" ]; then
-    echo "state.json has invalid last-active-disabled-services in it:"
-    jq -r '.data.snaps."disabled-svcs-kept"."last-active-disabled-services"' < /var/lib/snapd/state.json
-    exit 1
-  fi
+  check_state_json_no_disabled_svcs
 
   ########################################
   ############### CASE 2 #################
@@ -136,11 +135,7 @@ execute: |
   snap services disabled-svcs-kept | MATCH "disabled-svcs-kept\\.svc\\s+disabled\\s+inactive"
 
   echo "Check that state.json doesn't contain last-active-disabled-services"
-  if [ "$(jq -r '.data.snaps."disabled-svcs-kept" | ."last-active-disabled-services"?' < /var/lib/snapd/state.json)" != "null" ]; then
-    echo "state.json has invalid last-active-disabled-services in it:"
-    jq -r '.data.snaps."disabled-svcs-kept"."last-active-disabled-services"' < /var/lib/snapd/state.json
-    exit 1
-  fi
+  check_state_json_no_disabled_svcs
 
   ########################################
   ############### CASE 3 #################
@@ -168,11 +163,7 @@ execute: |
   snap services disabled-svcs-kept | MATCH "disabled-svcs-kept\\.svc\\s+disabled\\s+inactive"
 
   echo "Check that state.json doesn't contain last-active-disabled-services"
-  if [ "$(jq -r '.data.snaps."disabled-svcs-kept" | ."last-active-disabled-services"?' < /var/lib/snapd/state.json)" != "null" ]; then
-    echo "state.json has invalid last-active-disabled-services in it:"
-    jq -r '.data.snaps."disabled-svcs-kept"."last-active-disabled-services"' < /var/lib/snapd/state.json
-    exit 1
-  fi
+  check_state_json_no_disabled_svcs
 
   ########################################
   ############### CASE 4 #################
@@ -193,11 +184,7 @@ execute: |
   rm /root/disabled-svcs-kept-fail
 
   echo "Check that state.json doesn't contain last-active-disabled-services"
-  if [ "$(jq -r '.data.snaps."disabled-svcs-kept" | ."last-active-disabled-services"?' < /var/lib/snapd/state.json)" != "null" ]; then
-    echo "state.json has invalid last-active-disabled-services in it:"
-    jq -r '.data.snaps."disabled-svcs-kept"."last-active-disabled-services"' < /var/lib/snapd/state.json
-    exit 1
-  fi
+  check_state_json_no_disabled_svcs
 
   echo "Check that the service is still disabled"
   snap services disabled-svcs-kept | MATCH "disabled-svcs-kept\\.svc\\s+disabled\\s+inactive"
@@ -234,11 +221,7 @@ execute: |
   snap services disabled-svcs-kept | MATCH "disabled-svcs-kept\\.svc2\\s+disabled\\s+inactive"
 
   echo "Check that state.json still contains the old service in last-active-disabled-services"
-  if [ "$(jq -r '.data.snaps."disabled-svcs-kept" | ."last-active-disabled-services"? | .[]' < /var/lib/snapd/state.json)" != "svc" ]; then
-    echo "state.json is missing last-active-disabled-services in it:"
-    jq -r '.data.snaps."disabled-svcs-kept"' < /var/lib/snapd/state.json
-    exit 1
-  fi
+  check_state_json_specific_disabled_svc svc
 
   ########################################
   ############### CASE 6 #################
@@ -262,11 +245,7 @@ execute: |
   snap services disabled-svcs-kept | MATCH "disabled-svcs-kept\\.svc2\\s+disabled\\s+inactive"
 
   echo "Check that state.json still contains the old service in last-active-disabled-services"
-  if [ "$(jq -r '.data.snaps."disabled-svcs-kept" | ."last-active-disabled-services"? | .[]' < /var/lib/snapd/state.json)" != "svc" ]; then
-    echo "state.json is missing last-active-disabled-services in it:"
-    jq -r '.data.snaps."disabled-svcs-kept"' < /var/lib/snapd/state.json
-    exit 1
-  fi
+  check_state_json_specific_disabled_svc svc
 
   ########################################
   ############### CASE 7 #################
@@ -284,11 +263,7 @@ execute: |
   fi
 
   echo "Check that state.json still contains the old service in last-active-disabled-services"
-  if [ "$(jq -r '.data.snaps."disabled-svcs-kept" | ."last-active-disabled-services"? | .[]' < /var/lib/snapd/state.json)" != "svc" ]; then
-    echo "state.json is missing last-active-disabled-services in it:"
-    jq -r '.data.snaps."disabled-svcs-kept"' < /var/lib/snapd/state.json
-    exit 1
-  fi
+  check_state_json_specific_disabled_svc svc
 
   echo "Check that the new service is still disabled"
   snap services disabled-svcs-kept | MATCH "disabled-svcs-kept\\.svc2\\s+disabled\\s+inactive"
