@@ -425,9 +425,11 @@ func (s *SnapSuite) TestSetsUserAgent(c *C) {
 }
 
 func (s *SnapSuite) TestCompletionHandlerSkipsHidden(c *C) {
+	snap.MarkForNoCompletion(snap.HiddenCmd("bar yadda yack", false))
+	snap.MarkForNoCompletion(snap.HiddenCmd("bar yack yack yack", true))
 	snap.CompletionHandler([]flags.Completion{
 		{Item: "foo", Description: "foo yadda yadda"},
-		{Item: "bar", Description: "bar yadda yack (hidden)"},
+		{Item: "bar", Description: "bar yadda yack"},
 		{Item: "baz", Description: "bar yack yack yack"},
 	})
 	c.Check(s.Stdout(), Equals, "foo\nbaz\n")

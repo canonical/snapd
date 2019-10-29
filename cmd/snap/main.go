@@ -88,10 +88,13 @@ type cmdInfo struct {
 	name, shortHelp, longHelp string
 	builder                   func() flags.Commander
 	hidden                    bool
-	optDescs                  map[string]string
-	argDescs                  []argDesc
-	alias                     string
-	extra                     func(*flags.Command)
+	// autocompletHidden set to true forces autocompletion even of
+	// a hidden command
+	autocompletHidden bool
+	optDescs          map[string]string
+	argDescs          []argDesc
+	alias             string
+	extra             func(*flags.Command)
 }
 
 // commands holds information about all non-debug commands.
@@ -202,19 +205,21 @@ func firstNonOptionIsRun() bool {
 	return false
 }
 
+// noCompletion marks command descriptions of commands that should not
+// be auto-completed
+var noCompletion = make(map[string]bool)
+
+func markForNoCompletion(ci *cmdInfo) {
+	if ci.hidden && !ci.autocompletHidden {
+		noCompletion[ci.shortHelp] = true
+	}
+}
+
 // completionHandler filters out unwanted completions before dumping them
-// to stdout.
-//
-//  NOTE for a command or option not to appear in completions its short
-//       help or description (respectively) must contain the string
-//       "(hidden)". This is independent of it being set as a hidden
-//       command or option.  Also note this is not i18n'ed, as the
-//       expectation is that all hidden-from-completion things will also be
-//       actually hidden (ie not shown in help nor manpage nor anything)
-//       and thus not i18n'ed.
+// to stdout based on the noCompletion map.
 func completionHandler(comps []flags.Completion) {
 	for _, comp := range comps {
-		if strings.Contains(comp.Description, "(hidden)") {
+		if noCompletion[comp.Description] {
 			continue
 		}
 		fmt.Fprintln(Stdout, comp.Item)
@@ -246,8 +251,20 @@ func Parser(cli *client.Client) *flags.Parser {
 	// add --help like what go-flags would do for us, but hidden
 	addHelp(parser)
 
+	seen := make(map[string]bool, len(commands)+len(debugCommands))
+
+	checkUnique := func(ci *cmdInfo, kind string) {
+		if seen[ci.shortHelp] && ci.shortHelp != "Internal" && ci.shortHelp != "Deprecated (hidden)" {
+			logger.Panicf(`%scommand %q has an already seen description != "Internal"|"Deprecated (hidden)": %s`, kind, ci.name, ci.shortHelp)
+		}
+		seen[ci.shortHelp] = true
+	}
+
 	// Add all regular commands
 	for _, c := range commands {
+		checkUnique(c, "")
+		markForNoCompletion(c)
+
 		obj := c.builder()
 		if x, ok := obj.(clientSetter); ok {
 			x.setClient(cli)
@@ -311,6 +328,9 @@ func Parser(cli *client.Client) *flags.Parser {
 	}
 	// Add all the sub-commands of the debug command
 	for _, c := range debugCommands {
+		checkUnique(c, "debug ")
+		markForNoCompletion(c)
+
 		obj := c.builder()
 		if x, ok := obj.(clientSetter); ok {
 			x.setClient(cli)
