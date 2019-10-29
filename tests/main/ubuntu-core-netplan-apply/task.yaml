@@ -53,3 +53,24 @@ execute: |
     echo "Ensure that the number of network restarts is greater after netplan apply was run"
     [ "$wait_for_network_config_stopped_after" -gt "$wait_for_network_config_stopped_before" ] && \
         [ "$wait_for_network_config_started_after" -gt "$wait_for_network_config_started_before" ]
+
+    echo "Disconnecting network-setup-control to test network-setup-observe"
+    snap disconnect test-snapd-netplan-apply:network-setup-control
+
+    echo "The network-setup-observe interface is disconnected by default"
+    snap connections test-snapd-netplan-apply | MATCH 'network-setup-observe +test-snapd-netplan-apply:network-setup-observe +- +-'
+
+    echo "Running netplan info via D-Bus without network-setup-observe fails"
+    if test-snapd-netplan-apply.info; then
+        echo "Expected access denied error for netplan info via D-Bus"
+        exit 1
+    fi
+
+    echo "When the interface is connected"
+    snap connect test-snapd-netplan-apply:network-setup-observe
+
+    echo "Running netplan info via D-Bus now works"
+    if ! test-snapd-netplan-apply.info; then
+        echo "Unexpected error running netplan info via D-Bus"
+        exit 1
+    fi
