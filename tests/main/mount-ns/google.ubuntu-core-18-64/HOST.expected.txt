@@ -40,7 +40,6 @@
 2:10 / /run rw,nosuid,noexec,relatime shared:34 - tmpfs tmpfs rw,size=VARIABLE,mode=755
 2:5 / /run rw,nosuid,noexec,relatime shared:35 - tmpfs tmpfs rw,mode=755
 2:11 / /run/lock rw,nosuid,nodev,noexec,relatime shared:36 - tmpfs tmpfs rw,size=VARIABLE
-2:10 /snapd/ns /run/snapd/ns rw,nosuid,noexec,relatime - tmpfs tmpfs rw,size=VARIABLE,mode=755
 2:12 / /run/user/0 rw,nosuid,nodev,relatime shared:37 - tmpfs tmpfs rw,size=VARIABLE,mode=700
 1:1 /system-data/snap /snap rw,relatime shared:13 - ext4 /dev/sda3 rw,data=ordered
 0:2 / /snap/core/1 ro,nodev,relatime shared:38 - squashfs /dev/loop2 ro

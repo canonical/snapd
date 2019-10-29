@@ -158,6 +158,42 @@ func (s *NetworkManagerInterfaceSuite) TestConnectedPlugSnippedUsesUnconfinedLab
 	c.Assert(apparmorSpec.SnippetForTag("snap.network-manager-client.nmcli"), testutil.Contains, "peer=(label=unconfined),")
 }
 
+func (s *NetworkManagerInterfaceSuite) TestConnectedPlugIntrospectionOnCore(c *C) {
+	release.OnClassic = false
+	apparmorSpec := &apparmor.Specification{}
+	err := apparmorSpec.AddConnectedPlug(s.iface, s.plug, s.slot)
+	c.Assert(err, IsNil)
+	c.Assert(apparmorSpec.SecurityTags(), DeepEquals, []string{"snap.network-manager-client.nmcli"})
+	c.Assert(apparmorSpec.SnippetForTag("snap.network-manager-client.nmcli"), testutil.Contains, "Allow us to introspect the network-manager providing snap")
+}
+
+func (s *NetworkManagerInterfaceSuite) TestConnectedSlotIntrospectionOnCore(c *C) {
+	release.OnClassic = false
+	apparmorSpec := &apparmor.Specification{}
+	err := apparmorSpec.AddConnectedSlot(s.iface, s.plug, s.slot)
+	c.Assert(err, IsNil)
+	c.Assert(apparmorSpec.SecurityTags(), DeepEquals, []string{"snap.network-manager.nm"})
+	c.Assert(apparmorSpec.SnippetForTag("snap.network-manager.nm"), testutil.Contains, "# Allow plugs to introspect us")
+}
+
+func (s *NetworkManagerInterfaceSuite) TestConnectedPlugIntrospectionOnClassic(c *C) {
+	release.OnClassic = true
+	apparmorSpec := &apparmor.Specification{}
+	err := apparmorSpec.AddConnectedPlug(s.iface, s.plug, s.slot)
+	c.Assert(err, IsNil)
+	c.Assert(apparmorSpec.SecurityTags(), DeepEquals, []string{"snap.network-manager-client.nmcli"})
+	c.Assert(apparmorSpec.SnippetForTag("snap.network-manager-client.nmcli"), Not(testutil.Contains), "Allow us to introspect the network-manager providing snap")
+}
+
+func (s *NetworkManagerInterfaceSuite) TestConnectedSlotIntrospectionOnClassic(c *C) {
+	release.OnClassic = true
+	apparmorSpec := &apparmor.Specification{}
+	err := apparmorSpec.AddConnectedSlot(s.iface, s.plug, s.slot)
+	c.Assert(err, IsNil)
+	c.Assert(apparmorSpec.SecurityTags(), DeepEquals, []string{"snap.network-manager.nm"})
+	c.Assert(apparmorSpec.SnippetForTag("snap.network-manager.nm"), Not(testutil.Contains), "# Allow plugs to introspect us")
+}
+
 func (s *NetworkManagerInterfaceSuite) TestConnectedSlotSnippetAppArmor(c *C) {
 	apparmorSpec := &apparmor.Specification{}
 	err := apparmorSpec.AddConnectedSlot(s.iface, s.plug, s.slot)

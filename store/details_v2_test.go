@@ -71,6 +71,7 @@ const (
   },
   "revision": 3887,
   "snap-id": "99T7MUlRhtI3U0QFgl5mXXESAiSwt776",
+  "store-url": "https://snapcraft.io/core",
   "summary": "snapd runtime environment",
   "title": "core",
   "type": "os",
@@ -121,6 +122,7 @@ const (
   "revision": 21,
   "snap-id": "XYZEfjn4WJYnm0FzDKwqqRZZI77awQEV",
   "snap-yaml": "name: test-snapd-content-plug\nversion: 1.0\napps:\n    content-plug:\n        command: bin/content-plug\n        plugs: [shared-content-plug]\nplugs:\n    shared-content-plug:\n        interface: content\n        target: import\n        content: mylib\n        default-provider: test-snapd-content-slot\nslots:\n    shared-content-slot:\n        interface: content\n        content: mylib\n        read:\n            - /\n",
+  "store-url": "https://snapcraft.io/thingy",
   "summary": "useful thingy",
   "title": "This Is The Most Fantastical Snap of Thingy",
   "type": "app",
@@ -180,9 +182,10 @@ func (s *detailsV2Suite) TestInfoFromStoreSnapSimple(c *C) {
 			Sha3_384:    "b691f6dde3d8022e4db563840f0ef82320cb824b6292ffd027dbc838535214dac31c3512c619beaf73f1aeaf35ac62d5",
 			Size:        85291008,
 		},
-		Plugs:   make(map[string]*snap.PlugInfo),
-		Slots:   make(map[string]*snap.SlotInfo),
-		Website: "http://example.com/core",
+		Plugs:    make(map[string]*snap.PlugInfo),
+		Slots:    make(map[string]*snap.SlotInfo),
+		Website:  "http://example.com/core",
+		StoreURL: "https://snapcraft.io/core",
 	})
 }
 
@@ -253,6 +256,7 @@ func (s *detailsV2Suite) TestInfoFromStoreSnap(c *C) {
 		},
 		CommonIDs: []string{"org.thingy"},
 		Website:   "http://example.com/thingy",
+		StoreURL:  "https://snapcraft.io/thingy",
 	})
 
 	// validate the plugs/slots
