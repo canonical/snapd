@@ -240,9 +240,10 @@ func (x *cmdDownload) downloadViaSnapd(snapName string, rev snap.Revision) error
 	return nil
 }
 
-func isErrorKindLoginRequired(e error) bool {
-	if err, ok := e.(*client.Error); ok {
-		return err.Kind == client.ErrorKindLoginRequired
+func isErrorKindLoginRequired(err error) bool {
+	var clientErr *client.Error
+	if xerrors.As(err, &clientErr) {
+		return clientErr.Kind == client.ErrorKindLoginRequired
 	}
 	return false
 }
