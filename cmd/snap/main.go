@@ -88,13 +88,13 @@ type cmdInfo struct {
 	name, shortHelp, longHelp string
 	builder                   func() flags.Commander
 	hidden                    bool
-	// autocompletHidden set to true forces autocompletion even of
+	// completeHidden set to true forces completion even of
 	// a hidden command
-	autocompletHidden bool
-	optDescs          map[string]string
-	argDescs          []argDesc
-	alias             string
-	extra             func(*flags.Command)
+	completeHidden bool
+	optDescs       map[string]string
+	argDescs       []argDesc
+	alias          string
+	extra          func(*flags.Command)
 }
 
 // commands holds information about all non-debug commands.
@@ -206,11 +206,11 @@ func firstNonOptionIsRun() bool {
 }
 
 // noCompletion marks command descriptions of commands that should not
-// be auto-completed
+// be completed
 var noCompletion = make(map[string]bool)
 
 func markForNoCompletion(ci *cmdInfo) {
-	if ci.hidden && !ci.autocompletHidden {
+	if ci.hidden && !ci.completeHidden {
 		noCompletion[ci.shortHelp] = true
 	}
 }

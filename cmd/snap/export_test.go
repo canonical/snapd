@@ -86,11 +86,11 @@ var (
 	SortTimingsTasks = sortTimingsTasks
 )
 
-func HiddenCmd(descr string, autocompletHidden bool) *cmdInfo {
+func HiddenCmd(descr string, completeHidden bool) *cmdInfo {
 	return &cmdInfo{
-		shortHelp:         descr,
-		hidden:            true,
-		autocompletHidden: autocompletHidden,
+		shortHelp:      descr,
+		hidden:         true,
+		completeHidden: completeHidden,
 	}
 }
 
