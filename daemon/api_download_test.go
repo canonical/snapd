@@ -76,6 +76,7 @@ var storeSnaps = map[string]*snap.Info{
 		DownloadInfo: snap.DownloadInfo{
 			Size:            int64(len(snapContent)),
 			AnonDownloadURL: "http://localhost/bar",
+			Sha3_384:        "sha3sha3sha3",
 		},
 	},
 	"edge-bar": {
@@ -88,6 +89,7 @@ var storeSnaps = map[string]*snap.Info{
 		DownloadInfo: snap.DownloadInfo{
 			Size:            int64(len(snapContent)),
 			AnonDownloadURL: "http://localhost/edge-bar",
+			Sha3_384:        "sha3sha3sha3",
 		},
 	},
 	"rev7-bar": {
@@ -99,12 +101,14 @@ var storeSnaps = map[string]*snap.Info{
 		DownloadInfo: snap.DownloadInfo{
 			Size:            int64(len(snapContent)),
 			AnonDownloadURL: "http://localhost/rev7-bar",
+			Sha3_384:        "sha3sha3sha3",
 		},
 	},
 	"download-error-trigger-snap": {
 		DownloadInfo: snap.DownloadInfo{
 			Size:            100,
 			AnonDownloadURL: "http://localhost/foo",
+			Sha3_384:        "sha3sha3sha3",
 		},
 	},
 }
@@ -238,6 +242,7 @@ func (s *snapDownloadSuite) TestStreamOneSnap(c *check.C) {
 			c.Assert(w.Header().Get("Content-Length"), check.Equals, expectedLength)
 			c.Assert(w.Header().Get("Content-Type"), check.Equals, "application/octet-stream")
 			c.Assert(w.Header().Get("Content-Disposition"), check.Equals, fmt.Sprintf("attachment; filename=%s_%s.snap", s.snapName, info.Revision))
+			c.Assert(w.Header().Get("X-Sha3-384"), check.Equals, "sha3sha3sha3", check.Commentf("invalid sha3 for %v", s.snapName))
 			c.Assert(w.Body.String(), check.Equals, "SNAP")
 		}
 	}
