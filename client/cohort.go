@@ -23,6 +23,8 @@ import (
 	"bytes"
 	"encoding/json"
 	"fmt"
+
+	"golang.org/x/xerrors"
 )
 
 type CohortAction struct {
@@ -39,7 +41,8 @@ func (client *Client) CreateCohorts(snaps []string) (map[string]string, error) {
 	var cohorts map[string]string
 
 	if _, err := client.doSync("POST", "/v2/cohorts", nil, nil, bytes.NewReader(data), &cohorts); err != nil {
-		return nil, fmt.Errorf("cannot create cohorts: %v", err)
+		fmt := "cannot create cohorts: %w"
+		return nil, xerrors.Errorf(fmt, err)
 	}
 
 	return cohorts, nil

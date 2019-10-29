@@ -21,12 +21,15 @@ package client_test
 
 import (
 	"encoding/json"
+	"errors"
 	"io/ioutil"
 	"net/http"
 
-	"github.com/snapcore/snapd/asserts"
+	"golang.org/x/xerrors"
 
 	. "gopkg.in/check.v1"
+
+	"github.com/snapcore/snapd/asserts"
 )
 
 const happyModelAssertionResponse = `type: model
@@ -163,4 +166,11 @@ func (cs *clientSuite) TestClientGetSerialHappy(c *C) {
 	expectedAssert, err := asserts.Decode([]byte(happySerialAssertionResponse))
 	c.Assert(err, IsNil)
 	c.Assert(serialAssertion, DeepEquals, expectedAssert)
+}
+
+func (cs *clientSuite) TestClientCurrentModelAssertionErrIsWrapped(c *C) {
+	cs.err = errors.New("boom")
+	_, err := cs.cli.CurrentModelAssertion()
+	var e xerrors.Wrapper
+	c.Assert(err, Implements, &e)
 }

@@ -106,6 +106,11 @@ var u2fDevices = []u2fDevice{
 		VendorIDPattern:  "0483",
 		ProductIDPattern: "cdab",
 	},
+	{
+		Name:             "OnlyKey",
+		VendorIDPattern:  "1d50",
+		ProductIDPattern: "60fc",
+	},
 }
 
 const u2fDevicesConnectedPlugAppArmor = `

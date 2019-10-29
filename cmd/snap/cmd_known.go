@@ -55,7 +55,12 @@ shown must also have the specified headers matching the provided values.
 func init() {
 	addCommand("known", shortKnownHelp, longKnownHelp, func() flags.Commander {
 		return &cmdKnown{}
-	}, nil, []argDesc{
+	}, map[string]string{
+		// TRANSLATORS: This should not start with a lowercase letter.
+		"remote": i18n.G("Query the store for the assertion, via snapd if possible"),
+		// TRANSLATORS: This should not start with a lowercase letter.
+		"direct": i18n.G("Query the store for the assertion, without attempting to go via snapd"),
+	}, []argDesc{
 		{
 			// TRANSLATORS: This needs to begin with < and end with >
 			name: i18n.G("<assertion type>"),
@@ -118,16 +123,16 @@ func (x *cmdKnown) Execute(args []string) error {
 		// --remote will query snapd
 		assertions, err = x.client.Known(string(x.KnownOptions.AssertTypeName), headers, &client.KnownOptions{Remote: true})
 		// if snapd is unavailable automatically fallback
-		if xerrors.Is(err, client.ConnectionError{}) {
+		var connErr client.ConnectionError
+		if xerrors.As(err, &connErr) {
 			assertions, err = downloadAssertion(string(x.KnownOptions.AssertTypeName), headers)
 		}
 	case x.Direct:
-		// --direct will always go direct, with or without --remote
+		// --direct implies remote
 		assertions, err = downloadAssertion(string(x.KnownOptions.AssertTypeName), headers)
 	default:
 		// default is to look only local
 		assertions, err = x.client.Known(string(x.KnownOptions.AssertTypeName), headers, nil)
-
 	}
 	if err != nil {
 		return err
