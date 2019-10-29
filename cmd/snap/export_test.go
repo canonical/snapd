@@ -49,6 +49,7 @@ var (
 	PrintDescr         = printDescr
 	WrapFlow           = wrapFlow
 	TrueishJSON        = trueishJSON
+	CompletionHandler  = completionHandler
 
 	CanUnicode           = canUnicode
 	ColorTable           = colorTable

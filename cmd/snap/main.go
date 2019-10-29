@@ -202,6 +202,25 @@ func firstNonOptionIsRun() bool {
 	return false
 }
 
+// completionHandler filters out unwanted completions before dumping them
+// to stdout.
+//
+//  NOTE for a command or option not to appear in completions its short
+//       help or description (respectively) must contain the string
+//       "(hidden)". This is independent of it being set as a hidden
+//       command or option.  Also note this is not i18n'ed, as the
+//       expectation is that all hidden-from-completion things will also be
+//       actually hidden (ie not shown in help nor manpage nor anything)
+//       and thus not i18n'ed.
+func completionHandler(comps []flags.Completion) {
+	for _, comp := range comps {
+		if strings.Contains(comp.Description, "(hidden)") {
+			continue
+		}
+		fmt.Fprintln(Stdout, comp.Item)
+	}
+}
+
 // Parser creates and populates a fresh parser.
 // Since commands have local state a fresh parser is required to isolate tests
 // from each other.
@@ -215,6 +234,7 @@ func Parser(cli *client.Client) *flags.Parser {
 		flagopts |= flags.PassAfterNonOption
 	}
 	parser := flags.NewParser(&optionsData, flagopts)
+	parser.CompletionHandler = completionHandler
 	parser.ShortDescription = i18n.G("Tool to interact with snaps")
 	parser.LongDescription = longSnapDescription
 	// hide the unhelpful "[OPTIONS]" from help output
