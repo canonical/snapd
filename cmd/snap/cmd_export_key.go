@@ -54,6 +54,7 @@ imported by other systems.
 			desc: i18n.G("Name of key to export"),
 		}})
 	cmd.hidden = true
+	cmd.completeHidden = true
 }
 
 func (x *cmdExportKey) Execute(args []string) error {
