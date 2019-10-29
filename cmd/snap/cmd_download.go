@@ -174,6 +174,7 @@ func (x *cmdDownload) downloadViaSnapd(snapName string, rev snap.Revision) error
 	if err != nil {
 		return err
 	}
+	defer stream.Close()
 	fmt.Fprintf(Stdout, i18n.G("Fetching snap %q\n"), snapName)
 
 	if x.Basename != "" {
@@ -213,12 +214,13 @@ func (x *cmdDownload) downloadViaSnapd(snapName string, rev snap.Revision) error
 
 	fmt.Fprintf(Stdout, i18n.G("Fetching assertions for %q\n"), snapName)
 
-	assertFname := strings.TrimSuffix(downloadPath, filepath.Ext(downloadPath)) + ".assert"
+	// TODO: compare with what the store told us to expect
 	sha3_384, err := asserts.EncodeDigest(crypto.SHA3_384, h.Sum(nil))
 	if err != nil {
 		return err
 	}
 
+	assertFname := strings.TrimSuffix(downloadPath, filepath.Ext(downloadPath)) + ".assert"
 	db, err := asserts.OpenDatabase(&asserts.DatabaseConfig{
 		Backstore: asserts.NewMemoryBackstore(),
 		Trusted:   sysdb.Trusted(),
