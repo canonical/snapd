@@ -10,11 +10,18 @@ details: |
 environment:
     SNAP_NAME: bluez
 
+restore: |
+    if [ -e installed-bluez ]; then
+        snap remove bluez
+        rm -f installed-bluez
+    fi
+
 execute: |
     if ! snap list --unicode=never bluez &> /dev/null ; then
         echo "Installing bluez snap from the store ..."
         expected="(?s)$SNAP_NAME .* from Canonical\\* installed\\n"
         snap install "$SNAP_NAME" | grep -Pzq "$expected"
+        touch installed-bluez
     fi
 
     echo "Connecting bluez snap plugs/slots ..."
