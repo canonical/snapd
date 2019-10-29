@@ -6989,11 +6989,11 @@ func (s *interfaceManagerSuite) TestTransitionConnectionsCoreMigration(c *C) {
 	repo := mgr.Repository()
 	snapstate.Set(st, "core", nil)
 	snapstate.Set(st, "ubuntu-core", &snapstate.SnapState{
-		Active:   true,
-		Sequence: []*snap.SideInfo{{RealName: "ubuntu-core", SnapID: "ubuntu-core-snap-id", Revision: snap.R(1)}},
-		Current:  snap.R(1),
-		SnapType: "os",
-		Channel:  "beta",
+		Active:          true,
+		Sequence:        []*snap.SideInfo{{RealName: "ubuntu-core", SnapID: "ubuntu-core-snap-id", Revision: snap.R(1)}},
+		Current:         snap.R(1),
+		SnapType:        "os",
+		TrackingChannel: "beta",
 	})
 
 	si := snap.SideInfo{RealName: "some-snap", Revision: snap.R(-42)}

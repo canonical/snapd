@@ -46,10 +46,10 @@ func (ic *InstallCandidate) checkSlotRule(slot *snap.SlotInfo, rule *asserts.Slo
 	if snapRule {
 		context = fmt.Sprintf(" for %q snap", ic.SnapDeclaration.SnapName())
 	}
-	if checkSlotInstallationConstraints(ic, slot, rule.DenyInstallation) == nil {
+	if checkSlotInstallationAltConstraints(ic, slot, rule.DenyInstallation) == nil {
 		return fmt.Errorf("installation denied by %q slot rule of interface %q%s", slot.Name, slot.Interface, context)
 	}
-	if checkSlotInstallationConstraints(ic, slot, rule.AllowInstallation) != nil {
+	if checkSlotInstallationAltConstraints(ic, slot, rule.AllowInstallation) != nil {
 		return fmt.Errorf("installation not allowed by %q slot rule of interface %q%s", slot.Name, slot.Interface, context)
 	}
 	return nil
@@ -60,10 +60,10 @@ func (ic *InstallCandidate) checkPlugRule(plug *snap.PlugInfo, rule *asserts.Plu
 	if snapRule {
 		context = fmt.Sprintf(" for %q snap", ic.SnapDeclaration.SnapName())
 	}
-	if checkPlugInstallationConstraints(ic, plug, rule.DenyInstallation) == nil {
+	if checkPlugInstallationAltConstraints(ic, plug, rule.DenyInstallation) == nil {
 		return fmt.Errorf("installation denied by %q plug rule of interface %q%s", plug.Name, plug.Interface, context)
 	}
-	if checkPlugInstallationConstraints(ic, plug, rule.AllowInstallation) != nil {
+	if checkPlugInstallationAltConstraints(ic, plug, rule.AllowInstallation) != nil {
 		return fmt.Errorf("installation not allowed by %q plug rule of interface %q%s", plug.Name, plug.Interface, context)
 	}
 	return nil
@@ -187,10 +187,10 @@ func (connc *ConnectCandidate) checkPlugRule(kind string, rule *asserts.PlugRule
 		denyConst = rule.DenyAutoConnection
 		allowConst = rule.AllowAutoConnection
 	}
-	if checkPlugConnectionConstraints(connc, denyConst) == nil {
+	if checkPlugConnectionAltConstraints(connc, denyConst) == nil {
 		return fmt.Errorf("%s denied by plug rule of interface %q%s", kind, connc.Plug.Interface(), context)
 	}
-	if checkPlugConnectionConstraints(connc, allowConst) != nil {
+	if checkPlugConnectionAltConstraints(connc, allowConst) != nil {
 		return fmt.Errorf("%s not allowed by plug rule of interface %q%s", kind, connc.Plug.Interface(), context)
 	}
 	return nil
@@ -207,10 +207,10 @@ func (connc *ConnectCandidate) checkSlotRule(kind string, rule *asserts.SlotRule
 		denyConst = rule.DenyAutoConnection
 		allowConst = rule.AllowAutoConnection
 	}
-	if checkSlotConnectionConstraints(connc, denyConst) == nil {
+	if checkSlotConnectionAltConstraints(connc, denyConst) == nil {
 		return fmt.Errorf("%s denied by slot rule of interface %q%s", kind, connc.Plug.Interface(), context)
 	}
-	if checkSlotConnectionConstraints(connc, allowConst) != nil {
+	if checkSlotConnectionAltConstraints(connc, allowConst) != nil {
 		return fmt.Errorf("%s not allowed by slot rule of interface %q%s", kind, connc.Plug.Interface(), context)
 	}
 	return nil
@@ -267,12 +267,12 @@ type InstallCandidateMinimalCheck struct {
 }
 
 func (ic *InstallCandidateMinimalCheck) checkSlotRule(slot *snap.SlotInfo, rule *asserts.SlotRule) error {
-	if hasConstraints, err := checkMinimalSlotInstallationConstraints(ic, slot, rule.DenyInstallation); hasConstraints && err == nil {
+	if hasConstraints, err := checkMinimalSlotInstallationAltConstraints(ic, slot, rule.DenyInstallation); hasConstraints && err == nil {
 		return fmt.Errorf("installation denied by %q slot rule of interface %q", slot.Name, slot.Interface)
 	}
 
 	// TODO check that the snap is an app or gadget if allow-installation had no slot-snap-type constraints
-	if _, err := checkMinimalSlotInstallationConstraints(ic, slot, rule.AllowInstallation); err != nil {
+	if _, err := checkMinimalSlotInstallationAltConstraints(ic, slot, rule.AllowInstallation); err != nil {
 		return fmt.Errorf("installation not allowed by %q slot rule of interface %q", slot.Name, slot.Interface)
 	}
 	return nil

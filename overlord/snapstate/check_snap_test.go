@@ -211,7 +211,7 @@ version: 1.0`
 	defer r1()
 
 	checkCbCalled := false
-	checkCb := func(st *state.State, sf snap.Container, s, cur *snap.Info, flags snapstate.Flags, deviceCtx snapstate.DeviceContext) error {
+	checkCb := func(st *state.State, s, cur *snap.Info, sf snap.Container, flags snapstate.Flags, deviceCtx snapstate.DeviceContext) error {
 		c.Assert(sf, NotNil)
 		data, err := sf.ReadFile("canary")
 		c.Assert(err, IsNil)
@@ -244,7 +244,7 @@ version: 1.0`
 	defer restore()
 
 	fail := errors.New("bad snap")
-	checkCb := func(st *state.State, _ snap.Container, s, cur *snap.Info, flags snapstate.Flags, deviceCtx snapstate.DeviceContext) error {
+	checkCb := func(st *state.State, s, cur *snap.Info, _ snap.Container, flags snapstate.Flags, deviceCtx snapstate.DeviceContext) error {
 		return fail
 	}
 	r2 := snapstate.MockCheckSnapCallbacks(nil)
@@ -817,7 +817,7 @@ version: 1.0`
 	defer r1()
 
 	checkCbCalled := false
-	checkCb := func(st *state.State, sf snap.Container, s, cur *snap.Info, flags snapstate.Flags, deviceCtx snapstate.DeviceContext) error {
+	checkCb := func(st *state.State, s, cur *snap.Info, sf snap.Container, flags snapstate.Flags, deviceCtx snapstate.DeviceContext) error {
 		c.Assert(sf, NotNil)
 		c.Assert(s.InstanceName(), Equals, "foo_instance")
 		c.Assert(s.SnapName(), Equals, "foo")

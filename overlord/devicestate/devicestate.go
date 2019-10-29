@@ -139,7 +139,7 @@ func canAutoRefresh(st *state.State) (bool, error) {
 	return true, nil
 }
 
-func checkGadgetOrKernel(st *state.State, _ snap.Container, snapInfo, curInfo *snap.Info, flags snapstate.Flags, deviceCtx snapstate.DeviceContext) error {
+func checkGadgetOrKernel(st *state.State, snapInfo, curInfo *snap.Info, _ snap.Container, flags snapstate.Flags, deviceCtx snapstate.DeviceContext) error {
 	kind := ""
 	var snapType snap.Type
 	var getName func(*asserts.Model) string
@@ -207,6 +207,7 @@ var once sync.Once
 func delayedCrossMgrInit() {
 	once.Do(func() {
 		snapstate.AddCheckSnapCallback(checkGadgetOrKernel)
+		snapstate.AddCheckSnapCallback(checkGadgetRemodelCompatible)
 	})
 	snapstate.CanAutoRefresh = canAutoRefresh
 	snapstate.CanManageRefreshes = CanManageRefreshes

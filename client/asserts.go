@@ -27,6 +27,8 @@ import (
 	"net/url"
 	"strconv"
 
+	"golang.org/x/xerrors"
+
 	"github.com/snapcore/snapd/asserts" // for parsing
 	"github.com/snapcore/snapd/snap"
 )
@@ -51,14 +53,25 @@ func (client *Client) AssertionTypes() ([]string, error) {
 	}
 	_, err := client.doSync("GET", "/v2/assertions", nil, nil, nil, &types)
 	if err != nil {
-		return nil, fmt.Errorf("cannot get assertion type names: %v", err)
+		fmt := "cannot get assertion type names: %w"
+		return nil, xerrors.Errorf(fmt, err)
 	}
 
 	return types.Types, nil
 }
 
+// KnownOptions represent the options of the Known call.
+type KnownOptions struct {
+	// If Remote is true, the store is queried to find the assertion
+	Remote bool
+}
+
 // Known queries assertions with type assertTypeName and matching assertion headers.
-func (client *Client) Known(assertTypeName string, headers map[string]string) ([]asserts.Assertion, error) {
+func (client *Client) Known(assertTypeName string, headers map[string]string, opts *KnownOptions) ([]asserts.Assertion, error) {
+	if opts == nil {
+		opts = &KnownOptions{}
+	}
+
 	path := fmt.Sprintf("/v2/assertions/%s", assertTypeName)
 	q := url.Values{}
 
@@ -67,13 +80,18 @@ func (client *Client) Known(assertTypeName string, headers map[string]string) ([
 			q.Set(k, v)
 		}
 	}
+	if opts.Remote {
+		q.Set("remote", "true")
+	}
 
 	ctx, cancel := context.WithTimeout(context.Background(), doTimeout)
 	defer cancel()
 	response, err := client.raw(ctx, "GET", path, q, nil, nil)
 	if err != nil {
-		return nil, fmt.Errorf("failed to query assertions: %v", err)
+		fmt := "failed to query assertions: %w"
+		return nil, xerrors.Errorf(fmt, err)
 	}
+
 	defer response.Body.Close()
 	if response.StatusCode != 200 {
 		return nil, parseError(response)
@@ -109,7 +127,7 @@ func (client *Client) Known(assertTypeName string, headers map[string]string) ([
 
 // StoreAccount returns the full store account info for the specified accountID
 func (client *Client) StoreAccount(accountID string) (*snap.StoreAccount, error) {
-	assertions, err := client.Known("account", map[string]string{"account-id": accountID})
+	assertions, err := client.Known("account", map[string]string{"account-id": accountID}, nil)
 	if err != nil {
 		return nil, err
 	}
