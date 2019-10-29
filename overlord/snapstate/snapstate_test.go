@@ -3561,7 +3561,6 @@ func (s *snapmgrTestSuite) TestUnlinkCurrentSnapLastActiveDisabledServicesSet(c 
 	// only add up to unlink-current-snap task
 	for _, t := range ts.Tasks() {
 		chg.AddTask(t)
-		fmt.Println("running", t.Kind())
 		if t.Kind() == "unlink-current-snap" {
 			// don't add any more from this point on
 			break
