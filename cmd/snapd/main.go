@@ -32,6 +32,7 @@ import (
 	"github.com/snapcore/snapd/httputil"
 	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/osutil"
+	"github.com/snapcore/snapd/release"
 	"github.com/snapcore/snapd/sanity"
 	"github.com/snapcore/snapd/systemd"
 )
@@ -52,7 +53,7 @@ func init() {
 
 func main() {
 	// In preseed mode re-exec is not used
-	if osutil.PreseedMode() {
+	if release.PreseedMode {
 		logger.Noticef("running in preseed mode")
 	} else {
 		cmd.ExecInSnapdOrCoreSnap()
