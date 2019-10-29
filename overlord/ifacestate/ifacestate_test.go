@@ -3106,6 +3106,20 @@ func (s *interfaceManagerSuite) TestSetupProfilesSetupManyError(c *C) {
 	c.Check(change.Err(), ErrorMatches, `cannot perform the following tasks:\n-  \(fail\)`)
 }
 
+func (s *interfaceManagerSuite) TestSetupSecurityByBackendInvalidNumberOfSnaps(c *C) {
+	mgr := s.manager(c)
+
+	st := s.state
+	st.Lock()
+	defer st.Unlock()
+
+	task := st.NewTask("foo", "")
+	snaps := []*snap.Info{}
+	opts := []interfaces.ConfinementOptions{{}}
+	err := mgr.SetupSecurityByBackend(task, snaps, opts, nil)
+	c.Check(err, ErrorMatches, `internal error: setupSecurityByBackend received an unexpected number of snaps.*`)
+}
+
 // setup-profiles uses the new snap.Info when setting up security for the new
 // snap when it had prior connections and DisconnectSnap() returns it as a part
 // of the affected set.
