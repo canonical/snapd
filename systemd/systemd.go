@@ -207,9 +207,11 @@ func New(rootDir string, mode InstanceMode, rep reporter) Systemd {
 	return &systemd{rootDir: rootDir, mode: mode, reporter: rep}
 }
 
-// New returns a Systemd that runs with preseed enabled in SystemMode and uses the given rootDir
-func NewWithPreseedMode(rootDir string, rep reporter) Systemd {
-	return &systemd{rootDir: rootDir, mode: SystemMode, preseed: true, reporter: rep}
+// NewEmulationMode returns a Systemd that runs in emulation mode where
+// systemd is not really called, but instead its functions are emulated
+// by other means.
+func NewEmulationMode(rootDir string, rep reporter) Systemd {
+	return &systemd{rootDir: rootDir, mode: SystemMode, emulation: true, reporter: rep}
 }
 
 // InstanceMode determines which instance of systemd to control.
@@ -231,10 +233,10 @@ const (
 )
 
 type systemd struct {
-	rootDir  string
-	reporter reporter
-	mode     InstanceMode
-	preseed  bool
+	rootDir   string
+	reporter  reporter
+	mode      InstanceMode
+	emulation bool
 }
 
 func (s *systemd) systemctl(args ...string) ([]byte, error) {
@@ -693,8 +695,8 @@ WantedBy=multi-user.target
 		return "", err
 	}
 
-	// In preseed mode mount the target but do not trigger systemd
-	if s.preseed {
+	// In emulation mode mount the target but do not trigger systemd
+	if s.emulation {
 		cmd := exec.Command("mount", "-t", fstype, what, where, "-o", strings.Join(options, ","))
 		if out, err := cmd.CombinedOutput(); err != nil {
 			return "", fmt.Errorf("cannot mount %s (%s) at %s in pre-bake mode: %s; %s", what, where, fstype, err, string(out))
@@ -746,14 +748,14 @@ func (s *systemd) RemoveMountUnitFile(mountedDir string) error {
 			return osutil.OutputErr(output, err)
 		}
 
-		if !s.preseed {
+		if !s.emulation {
 			if err := s.Stop(filepath.Base(unit), time.Duration(1*time.Second)); err != nil {
 				return err
 			}
 		}
 	}
 
-	if s.preseed {
+	if s.emulation {
 		enableUnitPathSymlink := filepath.Join(dirs.SnapServicesDir, "multi-user.target.wants", filepath.Base(unit))
 		if err := os.Remove(enableUnitPathSymlink); err != nil {
 			return err
@@ -768,7 +770,7 @@ func (s *systemd) RemoveMountUnitFile(mountedDir string) error {
 		return err
 	}
 
-	if s.preseed {
+	if s.emulation {
 		return nil
 	}
 

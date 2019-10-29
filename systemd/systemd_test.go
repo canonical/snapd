@@ -834,7 +834,7 @@ func (s *SystemdTestSuite) TestGlobalUserMode(c *C) {
 
 func (s *SystemdTestSuite) TestPreseedModeAddMountUnit(c *C) {
 	rootDir := dirs.GlobalRootDir
-	sysd := NewWithPreseedMode(rootDir, nil)
+	sysd := NewEmulationMode(rootDir, nil)
 
 	restore := squashfs.MockNeedsFuse(false)
 	defer restore()
@@ -884,7 +884,7 @@ func (s *SystemdTestSuite) TestPreseedModeRemoveMountUnit(c *C) {
 	mockUmountCmd := testutil.MockCommand(c, "umount", "")
 	defer mockUmountCmd.Restore()
 
-	sysd := NewWithPreseedMode(dirs.GlobalRootDir, nil)
+	sysd := NewEmulationMode(dirs.GlobalRootDir, nil)
 
 	mountUnit := makeMockMountUnit(c, mountDir)
 	symlinkPath := filepath.Join(dirs.SnapServicesDir, "multi-user.target.wants", filepath.Base(mountUnit))
@@ -913,7 +913,7 @@ func (s *SystemdTestSuite) TestPreseedModeRemoveMountUnitUnmounted(c *C) {
 	mockUmountCmd := testutil.MockCommand(c, "umount", "")
 	defer mockUmountCmd.Restore()
 
-	sysd := NewWithPreseedMode(dirs.GlobalRootDir, nil)
+	sysd := NewEmulationMode(dirs.GlobalRootDir, nil)
 	mountUnit := makeMockMountUnit(c, mountDir)
 	symlinkPath := filepath.Join(dirs.SnapServicesDir, "multi-user.target.wants", filepath.Base(mountUnit))
 	c.Assert(os.Symlink(mountUnit, symlinkPath), IsNil)
