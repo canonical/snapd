@@ -3498,6 +3498,17 @@ version: 2.0`
 	c.Assert(tasks, HasLen, i+1)
 }
 
+func (ms *mgrsSuite) mockSuccessfulSystemRestart(c *C, bloader *bootloadertest.MockBootloader) {
+	st := ms.o.State()
+	state.MockRestarting(st, state.RestartUnset)
+	bloader.SetTrying()
+	ms.o.DeviceManager().ResetBootOk()
+	st.Unlock()
+	defer st.Lock()
+	err := ms.o.DeviceManager().Ensure()
+	c.Assert(err, IsNil)
+}
+
 func (ms *mgrsSuite) TestRemodelSwitchToDifferentKernel(c *C) {
 	bloader := bootloadertest.Mock("mock", c.MkDir())
 	bootloader.Force(bloader)
@@ -3595,7 +3606,6 @@ version: 1.0`
 	c.Assert(t.Status(), Equals, state.DoingStatus)
 
 	// check that the system tries to boot the new brand kernel
-	state.MockRestarting(st, state.RestartUnset)
 	c.Assert(bloader.BootVars, DeepEquals, map[string]string{
 		"snap_core":       "core_1.snap",
 		"snap_kernel":     "pc-kernel_1.snap",
@@ -3604,12 +3614,15 @@ version: 1.0`
 	})
 	// simulate successful system-restart bootenv updates (those
 	// vars will be cleared by snapd on a restart)
-	bloader.BootVars["snap_kernel"] = "brand-kernel_2.snap"
-	bloader.BootVars["snap_try_kernel"] = ""
-	bloader.BootVars["snap_mode"] = ""
-
-	// simulate successful restart happened
-	state.MockRestarting(st, state.RestartUnset)
+	ms.mockSuccessfulSystemRestart(c, bloader)
+	// bootvars are as expected
+	c.Assert(bloader.BootVars, DeepEquals, map[string]string{
+		"snap_core":       "core_1.snap",
+		"snap_kernel":     "brand-kernel_2.snap",
+		"snap_try_core":   "",
+		"snap_try_kernel": "",
+		"snap_mode":       "",
+	})
 
 	// continue
 	st.Unlock()
@@ -3626,6 +3639,7 @@ version: 1.0`
 		"snap_core":       "core_1.snap",
 		"snap_kernel":     "brand-kernel_2.snap",
 		"snap_try_kernel": "",
+		"snap_try_core":   "",
 		"snap_mode":       "",
 	})
 

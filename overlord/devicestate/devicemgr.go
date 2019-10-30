@@ -429,6 +429,11 @@ func (m *DeviceManager) ensureSeedYaml() error {
 	return nil
 }
 
+// ResetBootOk is only useful for integration testing
+func (m *DeviceManager) ResetBootOk() {
+	m.bootOkRan = false
+}
+
 func (m *DeviceManager) ensureBootOk() error {
 	m.state.Lock()
 	defer m.state.Unlock()

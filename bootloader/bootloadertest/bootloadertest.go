@@ -97,3 +97,7 @@ func (b *MockBootloader) SetBootKernel(kernel string) {
 func (b *MockBootloader) SetBootBase(base string) {
 	b.SetBootVars(map[string]string{"snap_core": base})
 }
+
+func (b *MockBootloader) SetTrying() {
+	b.BootVars["snap_mode"] = "trying"
+}
