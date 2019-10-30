@@ -1759,9 +1759,7 @@ type: kernel`
 	c.Check(restarting, Equals, true)
 	c.Check(chg.Status(), Equals, state.DoingStatus)
 	// pretend we restarted
-	state.MockRestarting(st, state.RestartUnset)
-	bloader.BootVars["snap_kernel"] = "pc-kernel_x1.snap"
-	bloader.BootVars["snap_mode"] = ""
+	s.mockSuccessfulSystemRestart(c, bloader)
 
 	st.Unlock()
 	err = s.o.Settle(settleTimeout)
@@ -1773,6 +1771,7 @@ type: kernel`
 	// and we undo the bootvars and trigger a reboot
 	c.Check(bloader.BootVars, DeepEquals, map[string]string{
 		"snap_core":       "core18_2.snap",
+		"snap_try_core":   "",
 		"snap_try_kernel": "pc-kernel_123.snap",
 		"snap_kernel":     "pc-kernel_x1.snap",
 		"snap_mode":       "try",
@@ -3981,10 +3980,7 @@ version: 1.0`
 		"snap_try_kernel": "brand-kernel_2.snap",
 		"snap_mode":       "try",
 	})
-	// smulate successful restart
-	bloader.BootVars["snap_kernel"] = "brand-kernel_2.snap"
-	bloader.BootVars["snap_try_kernel"] = ""
-	bloader.BootVars["snap_mode"] = ""
+	ms.mockSuccessfulSystemRestart(c, bloader)
 
 	// continue
 	st.Unlock()
@@ -4004,6 +4000,7 @@ version: 1.0`
 	// and the undo gave us our old kernel back
 	c.Assert(bloader.BootVars, DeepEquals, map[string]string{
 		"snap_core":       "core_1.snap",
+		"snap_try_core":   "",
 		"snap_try_kernel": "pc-kernel_1.snap",
 		"snap_kernel":     "brand-kernel_2.snap",
 		"snap_mode":       "try",
