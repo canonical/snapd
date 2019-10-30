@@ -17,6 +17,9 @@ execute: |
     # shellcheck source=tests/lib/journalctl.sh
     . "$TESTSLIB/journalctl.sh"
 
+    # shellcheck source=tests/lib/systems.sh
+    . "$TESTSLIB/systems.sh"
+
     echo "The interface is disconnected by default"
     snap connections test-snapd-netplan-apply | MATCH 'network-setup-control +test-snapd-netplan-apply:network-setup-control +- +-'
 
@@ -52,6 +55,11 @@ execute: |
 
     echo "Ensure that the number of network restarts is greater after netplan apply was run"
     [ "$stopped_after" -gt "$stopped_before" ] && [ "$started_after" -gt "$started_before" ]
+
+    if is_core16_system; then
+        echo "Skipping Ubuntu Core 16 which does not have Info D-Bus method"
+        exit 0
+    fi
 
     echo "Disconnecting network-setup-control to test network-setup-observe"
     snap disconnect test-snapd-netplan-apply:network-setup-control
