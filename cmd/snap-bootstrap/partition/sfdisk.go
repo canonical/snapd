@@ -24,6 +24,7 @@ import (
 	"fmt"
 	"os/exec"
 	"strings"
+	"time"
 
 	"github.com/snapcore/snapd/gadget"
 	"github.com/snapcore/snapd/osutil"
@@ -116,6 +117,9 @@ func (sf *SFDisk) Create(pv *gadget.LaidOutVolume) ([]DeviceStructure, error) {
 	if output, err := cmd.CombinedOutput(); err != nil {
 		return created, osutil.OutputErr(output, err)
 	}
+
+	// Add an extra delay to prevent reads to take place immediately
+	time.Sleep(250 * time.Millisecond)
 
 	return created, nil
 }
