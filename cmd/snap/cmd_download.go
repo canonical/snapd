@@ -170,13 +170,14 @@ func (x *cmdDownload) downloadViaSnapd(snapName string, rev snap.Revision) error
 		CohortKey: x.CohortKey,
 		Revision:  rev.String(),
 	}
-	fname, dlSize, stream, err := x.client.Download(snapName, opts)
+	dlInfo, stream, err := x.client.Download(snapName, opts)
 	if err != nil {
 		return err
 	}
 	defer stream.Close()
 	fmt.Fprintf(Stdout, i18n.G("Fetching snap %q\n"), snapName)
 
+	fname := dlInfo.SuggestedFileName
 	if x.Basename != "" {
 		fname = x.Basename + ".snap"
 	}
@@ -184,15 +185,21 @@ func (x *cmdDownload) downloadViaSnapd(snapName string, rev snap.Revision) error
 	if err := os.MkdirAll(filepath.Dir(downloadPath), 0755); err != nil {
 		return err
 	}
-	f, err := os.Create(downloadPath)
+
+	// TODO: support resume of exiting files and not download if the
+	//       file is already there with the right hash
+	f, err := os.OpenFile(downloadPath, os.O_RDWR|os.O_CREATE, 0600)
 	if err != nil {
 		return err
 	}
 	defer f.Close()
 
+	// TODO: we have similar code like this in ToolingStore.DownloadSnap
+	// and store.downloadImpl
+
 	// ensure we have progress
 	pbar := progress.MakeProgressBar()
-	pbar.Start(snapName, float64(dlSize))
+	pbar.Start(snapName, float64(dlInfo.Size))
 	defer pbar.Finished()
 
 	// Intercept sigint
@@ -211,15 +218,11 @@ func (x *cmdDownload) downloadViaSnapd(snapName string, rev snap.Revision) error
 		return err
 	}
 	pbar.Finished()
-
-	fmt.Fprintf(Stdout, i18n.G("Fetching assertions for %q\n"), snapName)
-
-	// TODO: compare with what the store told us to expect
-	sha3_384, err := asserts.EncodeDigest(crypto.SHA3_384, h.Sum(nil))
-	if err != nil {
-		return err
+	if dlInfo.Sha3_384 != "" && dlInfo.Sha3_384 != fmt.Sprintf("%x", h.Sum(nil)) {
+		return fmt.Errorf("unexpected sha3-384 for %s", fname)
 	}
 
+	fmt.Fprintf(Stdout, i18n.G("Fetching assertions for %q\n"), snapName)
 	assertFname := strings.TrimSuffix(downloadPath, filepath.Ext(downloadPath)) + ".assert"
 	db, err := asserts.OpenDatabase(&asserts.DatabaseConfig{
 		Backstore: asserts.NewMemoryBackstore(),
@@ -254,7 +257,15 @@ func (x *cmdDownload) downloadViaSnapd(snapName string, rev snap.Revision) error
 		encoder.Encode(a)
 		return db.Add(a)
 	}
-	ref := &asserts.Ref{asserts.SnapRevisionType, []string{sha3_384}}
+
+	sha3_384, err := asserts.EncodeDigest(crypto.SHA3_384, h.Sum(nil))
+	if err != nil {
+		return err
+	}
+	ref := &asserts.Ref{
+		Type:       asserts.SnapRevisionType,
+		PrimaryKey: []string{sha3_384},
+	}
 	fetcher := asserts.NewFetcher(db, retrieve, save)
 	if err := fetcher.Fetch(ref); err != nil {
 		return err

@@ -130,7 +130,7 @@ func (s *SnapSuite) TestDownloadAutoFallback(c *check.C) {
 	cli := snapCmd.Client()
 	cli.Hijack(func(*http.Request) (*http.Response, error) {
 		n++
-		return nil, client.ConnectionError{fmt.Errorf("no snapd")}
+		return nil, client.ConnectionError{Err: fmt.Errorf("no snapd")}
 	})
 
 	// ensure we hit the tooling store, testing this fully would require
