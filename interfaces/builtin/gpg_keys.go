@@ -42,12 +42,9 @@ owner @{HOME}/.gnupg/{,**} r,
 # trustdb. For now, silence the denial since no other policy references this
 deny @{HOME}/.gnupg/trustdb.gpg w,
 
-# The intended use for this extra socket is to setup a Unix domain socket forwarding
-# from a remote snap to this socket on the local machine. A gpg running on the 
-# remote machine may then connect to the local gpg-agent and use its private keys. 
-# This enables decrypting or signing data on a remote machine without exposing the 
-# private keys to the remote machine. 
-owner /run/user/[0-9]*/gnupg/S.gpg-agent.extra r,
+# This is needed to enable access to the gpg-agent running on the host.
+# With this, the snap can access private keys and decrypt files.
+owner /run/user/[0-9]*/gnupg/S.gpg-agent rw,
 
 # 'wk' is required for gpg encrypt and sign unless --no-random-seed-file is
 # used. Ideally we would not allow this access, but denying it causes gpg to
