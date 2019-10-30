@@ -443,18 +443,24 @@ func (cs *clientSuite) TestSnapOptionsSerialises(c *check.C) {
 
 func (cs *clientSuite) TestClientOpDownload(c *check.C) {
 	cs.status = 200
-	cs.header = http.Header{"Content-Disposition": {"attachment; filename=foo_2.snap"}}
+	cs.header = http.Header{
+		"Content-Disposition": {"attachment; filename=foo_2.snap"},
+		"Snap-Sha3-384":       {"sha3sha3sha3"},
+	}
+	cs.contentLength = 1234
 
 	cs.rsp = `lots-of-foo-data`
 
-	// XXX: the "size" value after fname will be tested with
-	// https://github.com/snapcore/snapd/pull/7689
-	fname, _, rc, err := cs.cli.Download("foo", &client.SnapOptions{
+	dlInfo, rc, err := cs.cli.Download("foo", &client.SnapOptions{
 		Revision: "2",
 		Channel:  "edge",
 	})
 	c.Check(err, check.IsNil)
-	c.Check(fname, check.Equals, "foo_2.snap")
+	c.Check(dlInfo, check.DeepEquals, &client.DownloadInfo{
+		SuggestedFileName: "foo_2.snap",
+		Size:              1234,
+		Sha3_384:          "sha3sha3sha3",
+	})
 
 	// check we posted the right stuff
 	c.Assert(cs.req.Header.Get("Content-Type"), check.Equals, "application/json")
