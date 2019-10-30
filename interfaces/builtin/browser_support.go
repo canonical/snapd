@@ -230,6 +230,9 @@ owner /{dev,run}/shm/WK2SharedMemory.* mrw,
 
 # Chromium content api on (at least) later versions of Ubuntu just use this
 owner /{dev,run}/shm/shmfd-* mrw,
+
+# Allow monitoring process memory utilization (used by chromium)
+owner @{PROC}/@{pid}/clear_refs w,
 `
 
 const browserSupportConnectedPlugSecComp = `
