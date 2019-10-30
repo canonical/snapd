@@ -20,6 +20,7 @@
 package main_test
 
 import (
+	"crypto"
 	"fmt"
 	"net/http"
 
@@ -75,7 +76,11 @@ func (s *SnapSuite) TestDownloadViaSnapd(c *check.C) {
 			c.Check(r.URL.Path, check.Equals, "/v2/download")
 			w.Header().Set("Content-Type", "application/octet-stream")
 			w.Header().Set("Content-Disposition", "attachment; filename=a-snap_1.snap")
-			fmt.Fprintln(w, "file-content")
+			mockContent := []byte("file-content\n")
+			h := crypto.SHA3_384.New()
+			h.Write(mockContent)
+			w.Header().Set("Snap-Sha3-384", fmt.Sprintf("%x", h.Sum(nil)))
+			w.Write(mockContent)
 		case 1:
 			c.Check(r.URL.Path, check.Equals, "/v2/assertions/snap-revision")
 			w.WriteHeader(418)

@@ -21,6 +21,7 @@ package main
 
 import (
 	"crypto"
+	"encoding/hex"
 	"fmt"
 	"io"
 	"os"
@@ -84,7 +85,23 @@ func init() {
 	}})
 }
 
-func fetchSnapAssertions(tsto downloadStore, snapPath string, snapInfo *snap.Info) (string, error) {
+func printInstallHint(assertPath, snapPath string) {
+	// simplify paths
+	wd, _ := os.Getwd()
+	if p, err := filepath.Rel(wd, assertPath); err == nil {
+		assertPath = p
+	}
+	if p, err := filepath.Rel(wd, snapPath); err == nil {
+		snapPath = p
+	}
+	// add a hint what to do with the downloaded snap (LP:1676707)
+	fmt.Fprintf(Stdout, i18n.G(`Install the snap with:
+   snap ack %s
+   snap install %s
+`), assertPath, snapPath)
+}
+
+func fetchSnapAssertionsDirect(tsto downloadStore, snapPath string, snapInfo *snap.Info) (string, error) {
 	db, err := asserts.OpenDatabase(&asserts.DatabaseConfig{
 		Backstore: asserts.NewMemoryBackstore(),
 		Trusted:   sysdb.Trusted(),
@@ -142,50 +159,15 @@ func (x *cmdDownload) downloadDirect(snapName string, revision snap.Revision) er
 	}
 
 	fmt.Fprintf(Stdout, i18n.G("Fetching assertions for %q\n"), snapName)
-	assertPath, err := fetchSnapAssertions(tsto, snapPath, snapInfo)
+	assertPath, err := fetchSnapAssertionsDirect(tsto, snapPath, snapInfo)
 	if err != nil {
 		return err
 	}
-
-	// simplify paths
-	wd, _ := os.Getwd()
-	if p, err := filepath.Rel(wd, assertPath); err == nil {
-		assertPath = p
-	}
-	if p, err := filepath.Rel(wd, snapPath); err == nil {
-		snapPath = p
-	}
-	// add a hint what to do with the downloaded snap (LP:1676707)
-	fmt.Fprintf(Stdout, i18n.G(`Install the snap with:
-   snap ack %s
-   snap install %s
-`), assertPath, snapPath)
-
+	printInstallHint(assertPath, snapPath)
 	return nil
 }
 
-func (x *cmdDownload) downloadViaSnapd(snapName string, rev snap.Revision) error {
-	opts := &client.SnapOptions{
-		Channel:   x.Channel,
-		CohortKey: x.CohortKey,
-		Revision:  rev.String(),
-	}
-	dlInfo, stream, err := x.client.Download(snapName, opts)
-	if err != nil {
-		return err
-	}
-	defer stream.Close()
-	fmt.Fprintf(Stdout, i18n.G("Fetching snap %q\n"), snapName)
-
-	fname := dlInfo.SuggestedFileName
-	if x.Basename != "" {
-		fname = x.Basename + ".snap"
-	}
-	downloadPath := filepath.Join(x.TargetDir, fname)
-	if err := os.MkdirAll(filepath.Dir(downloadPath), 0755); err != nil {
-		return err
-	}
-
+func downloadSnapFromStreamWithProgress(downloadPath string, stream io.ReadCloser, dlInfo *client.DownloadInfo) error {
 	// TODO: support resume of exiting files and not download if the
 	//       file is already there with the right hash
 	f, err := os.OpenFile(downloadPath, os.O_RDWR|os.O_CREATE, 0600)
@@ -197,9 +179,8 @@ func (x *cmdDownload) downloadViaSnapd(snapName string, rev snap.Revision) error
 	// TODO: we have similar code like this in ToolingStore.DownloadSnap
 	// and store.downloadImpl
 
-	// ensure we have progress
 	pbar := progress.MakeProgressBar()
-	pbar.Start(snapName, float64(dlInfo.Size))
+	pbar.Start(filepath.Base(downloadPath), float64(dlInfo.Size))
 	defer pbar.Finished()
 
 	// Intercept sigint
@@ -217,13 +198,15 @@ func (x *cmdDownload) downloadViaSnapd(snapName string, rev snap.Revision) error
 	if _, err := io.Copy(mw, stream); err != nil {
 		return err
 	}
-	pbar.Finished()
+
 	if dlInfo.Sha3_384 != "" && dlInfo.Sha3_384 != fmt.Sprintf("%x", h.Sum(nil)) {
-		return fmt.Errorf("unexpected sha3-384 for %s", fname)
+		return fmt.Errorf("unexpected sha3-384 for %s", downloadPath)
 	}
 
-	fmt.Fprintf(Stdout, i18n.G("Fetching assertions for %q\n"), snapName)
-	assertFname := strings.TrimSuffix(downloadPath, filepath.Ext(downloadPath)) + ".assert"
+	return nil
+}
+
+func fetchSnapAssertionsViaSnapd(cli *client.Client, assertFname, hexSha3_384 string) error {
 	db, err := asserts.OpenDatabase(&asserts.DatabaseConfig{
 		Backstore: asserts.NewMemoryBackstore(),
 		Trusted:   sysdb.Trusted(),
@@ -236,7 +219,7 @@ func (x *cmdDownload) downloadViaSnapd(snapName string, rev snap.Revision) error
 		if err != nil {
 			return nil, err
 		}
-		asserts, err := x.client.Known(ref.Type.Name, headers, &client.KnownOptions{Remote: true})
+		asserts, err := cli.Known(ref.Type.Name, headers, &client.KnownOptions{Remote: true})
 		if err != nil {
 			return nil, err
 		}
@@ -258,7 +241,11 @@ func (x *cmdDownload) downloadViaSnapd(snapName string, rev snap.Revision) error
 		return db.Add(a)
 	}
 
-	sha3_384, err := asserts.EncodeDigest(crypto.SHA3_384, h.Sum(nil))
+	rawSha3, err := hex.DecodeString(hexSha3_384)
+	if err != nil {
+		return err
+	}
+	sha3_384, err := asserts.EncodeDigest(crypto.SHA3_384, rawSha3)
 	if err != nil {
 		return err
 	}
@@ -270,7 +257,42 @@ func (x *cmdDownload) downloadViaSnapd(snapName string, rev snap.Revision) error
 	if err := fetcher.Fetch(ref); err != nil {
 		return err
 	}
+
 	// XXX: cross check?
+	return nil
+}
+
+func (x *cmdDownload) downloadViaSnapd(snapName string, rev snap.Revision) error {
+	opts := &client.SnapOptions{
+		Channel:   x.Channel,
+		CohortKey: x.CohortKey,
+		Revision:  rev.String(),
+	}
+	dlInfo, stream, err := x.client.Download(snapName, opts)
+	if err != nil {
+		return err
+	}
+	defer stream.Close()
+
+	fmt.Fprintf(Stdout, i18n.G("Fetching snap %q\n"), snapName)
+	fname := dlInfo.SuggestedFileName
+	if x.Basename != "" {
+		fname = x.Basename + ".snap"
+	}
+	downloadPath := filepath.Join(x.TargetDir, fname)
+	if err := os.MkdirAll(filepath.Dir(downloadPath), 0755); err != nil {
+		return err
+	}
+	if err := downloadSnapFromStreamWithProgress(fname, stream, dlInfo); err != nil {
+		return err
+	}
+
+	fmt.Fprintf(Stdout, i18n.G("Fetching assertions for %q\n"), snapName)
+	assertFname := strings.TrimSuffix(downloadPath, filepath.Ext(downloadPath)) + ".assert"
+	if err := fetchSnapAssertionsViaSnapd(x.client, assertFname, dlInfo.Sha3_384); err != nil {
+		return err
+	}
+	printInstallHint(downloadPath, assertFname)
 
 	return nil
 }
