@@ -357,22 +357,27 @@ func (m *InterfaceManager) removeConnections(snapName string) error {
 }
 
 func (m *InterfaceManager) setupSecurityByBackend(task *state.Task, snaps []*snap.Info, opts []interfaces.ConfinementOptions, tm timings.Measurer) error {
+	if len(snaps) != len(opts) {
+		return fmt.Errorf("internal error: setupSecurityByBackend received an unexpected number of snaps (expected: %d, got %d)", len(opts), len(snaps))
+	}
+	confOpts := make(map[string]interfaces.ConfinementOptions, len(snaps))
+	for i, snapInfo := range snaps {
+		confOpts[snapInfo.InstanceName()] = opts[i]
+	}
+
 	st := task.State()
+	st.Unlock()
+	defer st.Lock()
 
 	// Setup all affected snaps, start with the most important security
 	// backend and run it for all snaps. See LP: 1802581
 	for _, backend := range m.repo.Backends() {
-		for i, snapInfo := range snaps {
-			st.Unlock()
-			var err error
-			timings.Run(tm, "setup-security-backend", fmt.Sprintf("setup security backend %q for snap %q", backend.Name(), snapInfo.InstanceName()), func(nesttm timings.Measurer) {
-				err = backend.Setup(snapInfo, opts[i], m.repo, nesttm)
-			})
-			st.Lock()
-			if err != nil {
-				task.Errorf("cannot setup %s for snap %q: %s", backend.Name(), snapInfo.InstanceName(), err)
-				return err
-			}
+		errs := interfaces.SetupMany(m.repo, backend, snaps, func(snapName string) interfaces.ConfinementOptions {
+			return confOpts[snapName]
+		}, tm)
+		if len(errs) > 0 {
+			// SetupMany processes all profiles and returns all encountered errors; report just the first one
+			return errs[0]
 		}
 	}
 
