@@ -41,6 +41,7 @@ import (
 	"github.com/snapcore/snapd/client"
 	"github.com/snapcore/snapd/dbusutil"
 	"github.com/snapcore/snapd/dirs"
+	"github.com/snapcore/snapd/features"
 	"github.com/snapcore/snapd/i18n"
 	"github.com/snapcore/snapd/interfaces"
 	"github.com/snapcore/snapd/logger"
@@ -208,6 +209,16 @@ func (x *cmdRun) Execute(args []string) error {
 	}
 	snapApp := args[0]
 	args = args[1:]
+
+	// If the snap is inhibited from being used then postpone running it until
+	// that condition passes. Inhibition UI can be dismissed by the user, in
+	// which case we don't run the application at all.
+	if features.RefreshAppAwareness.IsEnabled() {
+		snapName, _ := snap.SplitSnapApp(snapApp)
+		if err := waitWhileInhibited(snapName); err != nil {
+			return err
+		}
+	}
 
 	// Catch some invalid parameter combinations, provide helpful errors
 	optionsSet := 0
