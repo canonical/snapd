@@ -34,15 +34,6 @@ import (
 	"github.com/snapcore/snapd/snap"
 )
 
-func snapState(st *state.State, name string) (*snapstate.SnapState, error) {
-	var snapst snapstate.SnapState
-	err := snapstate.Get(st, name, &snapst)
-	if err != nil && err != state.ErrNoState {
-		return nil, err
-	}
-	return &snapst, nil
-}
-
 func makeRollbackDir(name string) (string, error) {
 	rollbackDir := filepath.Join(dirs.SnapRollbackDir, name)
 
@@ -53,13 +44,9 @@ func makeRollbackDir(name string) (string, error) {
 	return rollbackDir, nil
 }
 
-func currentGadgetInfo(st *state.State, currentName string) (*gadget.GadgetData, error) {
-	snapst, err := snapState(st, currentName)
-	if err != nil {
-		return nil, err
-	}
-	currentInfo, err := snapst.CurrentInfo()
-	if err != nil && err != snapstate.ErrNoCurrent {
+func currentGadgetInfo(st *state.State, deviceCtx snapstate.DeviceContext) (*gadget.GadgetData, error) {
+	currentInfo, err := snapstate.GadgetInfo(st, deviceCtx)
+	if err != nil && err != state.ErrNoState {
 		return nil, err
 	}
 	if currentInfo == nil {
@@ -116,17 +103,11 @@ func (m *DeviceManager) doUpdateGadgetAssets(t *state.Task, _ *tomb.Tomb) error 
 		return err
 	}
 
-	currentGadgetName := snapsup.InstanceName()
-	if isRemodel {
-		// snap isn't installed yet, we are likely remodeling to a new
-		// gadget, identify the old gadget
-		groundDeviceCtx, err := DeviceCtx(st, nil, nil)
-		if err != nil || err == state.ErrNoState {
-			return fmt.Errorf("cannot identify the current model")
-		}
-		currentGadgetName = groundDeviceCtx.Model().Gadget()
+	groundDeviceCtx, err := DeviceCtx(st, nil, nil)
+	if err != nil || err == state.ErrNoState {
+		return fmt.Errorf("cannot identify the current model")
 	}
-	currentData, err := currentGadgetInfo(t.State(), currentGadgetName)
+	currentData, err := currentGadgetInfo(t.State(), groundDeviceCtx)
 	if err != nil {
 		return err
 	}
