@@ -20,8 +20,6 @@
 package builtin
 
 import (
-	"bytes"
-	"fmt"
 	"path/filepath"
 
 	"github.com/snapcore/snapd/dirs"
@@ -77,19 +75,18 @@ func (iface *appstreamMetadataInterface) AppArmorConnectedPlug(spec *apparmor.Sp
 	spec.AddSnippet(appstreamMetadataConnectedPlugAppArmor)
 
 	// Generate rules to allow snap-update-ns to do its thing
-	var buf bytes.Buffer
+	emit := spec.EmitUpdateNSFunc()
 	for _, target := range appstreamMetadataDirs {
 		source := "/var/lib/snapd/hostfs" + target
-		fmt.Fprintf(&buf, "  # Read-only access to %s\n", target)
-		fmt.Fprintf(&buf, "  mount options=(bind) %s/ -> %s/,\n", source, target)
-		fmt.Fprintf(&buf, "  remount options=(bind, ro) %s/,\n", target)
-		fmt.Fprintf(&buf, "  umount %s/,\n\n", target)
+		emit("  # Read-only access to %s\n", target)
+		emit("  mount options=(bind) %s/ -> %s/,\n", source, target)
+		emit("  remount options=(bind, ro) %s/,\n", target)
+		emit("  umount %s/,\n\n", target)
 		// Allow constructing writable mimic to mount point We
 		// expect three components to already exist: /, /usr,
 		// and /usr/share (or equivalents under /var).
-		apparmor.WritableProfile(&buf, target, 3)
+		apparmor.GenWritableProfile(emit, target, 3)
 	}
-	spec.AddUpdateNS(buf.String())
 	return nil
 }
 
