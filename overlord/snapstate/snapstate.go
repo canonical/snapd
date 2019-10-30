@@ -421,6 +421,7 @@ func WaitRestart(task *state.Task, snapsup *SnapSetup) (err error) {
 	// can be triggered by:
 	// - core (old core16 world, system-reboot)
 	// - bootable base snap (new core18 world, system-reboot)
+	// - kernel
 	//
 	// TODO: Detect "snapd" snap daemon-restarts here that
 	//       fallback into the old version (once we have
@@ -435,15 +436,16 @@ func WaitRestart(task *state.Task, snapsup *SnapSetup) (err error) {
 			return err
 		}
 		bootName := "core"
-		typ := snap.TypeOS
 		if model.Base() != "" {
 			bootName = model.Base()
-			typ = snap.TypeBase
 		}
-		// if it is not a bootable snap we are not interested
-		if snapsup.InstanceName() != bootName {
+		bootKernel := model.Kernel()
+		// if it is not a snap related to our booting we are not
+		// interessted
+		if snapsup.InstanceName() != bootName && snapsup.InstanceName() != bootKernel {
 			return nil
 		}
+		typ := snapsup.Type
 
 		current, err := boot.GetCurrentBoot(typ)
 		if err == boot.ErrBootNameAndRevisionNotReady {

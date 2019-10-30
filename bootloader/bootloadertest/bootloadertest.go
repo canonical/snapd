@@ -101,3 +101,9 @@ func (b *MockBootloader) SetBootBase(base string) {
 func (b *MockBootloader) SetTrying() {
 	b.BootVars["snap_mode"] = "trying"
 }
+
+func (b *MockBootloader) SetRollbackAccrossReboot() {
+	b.BootVars["snap_mode"] = ""
+	b.BootVars["snap_try_core"] = ""
+	b.BootVars["snap_try_kernel"] = ""
+}
