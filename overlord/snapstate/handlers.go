@@ -77,6 +77,32 @@ func TaskSnapSetup(t *state.Task) (*SnapSetup, error) {
 	return &snapsup, nil
 }
 
+// SetTaskSnapSetup writes the given SnapSetup to the provided task's
+// snap-setup-task Task, or to the task itself if the task does not have a
+// snap-setup-task (i.e. it _is_ the snap-setup-task)
+func SetTaskSnapSetup(t *state.Task, snapsup *SnapSetup) error {
+	if t.Has("snap-setup") {
+		// this is the snap-setup-task so just write to the task directly
+		t.Set("snap-setup", snapsup)
+	} else {
+		// this task isn't the snap-setup-task, so go get that and write to that
+		// one
+		var id string
+		err := t.Get("snap-setup-task", &id)
+		if err != nil {
+			return err
+		}
+
+		ts := t.State().Task(id)
+		if ts == nil {
+			return fmt.Errorf("internal error: tasks are being pruned")
+		}
+		ts.Set("snap-setup", snapsup)
+	}
+
+	return nil
+}
+
 func snapSetupAndState(t *state.Task) (*SnapSetup, *SnapState, error) {
 	snapsup, err := TaskSnapSetup(t)
 	if err != nil {
@@ -281,7 +307,7 @@ func (m *SnapManager) installPrereqs(t *state.Task, base string, prereq []string
 			ts, err = m.installOneBaseOrRequired(st, prereqName, noTypeBaseCheck, defaultPrereqSnapsChannel(), onInFlightErr, userID)
 		})
 		if err != nil {
-			return err
+			return prereqError("prerequisite", prereqName, err)
 		}
 		if ts == nil {
 			continue
@@ -301,7 +327,7 @@ func (m *SnapManager) installPrereqs(t *state.Task, base string, prereq []string
 			tsBase, err = m.installOneBaseOrRequired(st, base, requireTypeBase, defaultBaseSnapsChannel(), onInFlightErr, userID)
 		})
 		if err != nil {
-			return err
+			return prereqError("snap base", base, err)
 		}
 	}
 
@@ -322,7 +348,7 @@ func (m *SnapManager) installPrereqs(t *state.Task, base string, prereq []string
 			tsSnapd, err = m.installOneBaseOrRequired(st, "snapd", noTypeBaseCheck, defaultSnapdSnapsChannel(), onInFlightErr, userID)
 		})
 		if err != nil {
-			return err
+			return prereqError("system snap", "snapd", err)
 		}
 	}
 
@@ -355,6 +381,13 @@ func (m *SnapManager) installPrereqs(t *state.Task, base string, prereq []string
 	t.SetStatus(state.DoneStatus)
 
 	return nil
+}
+
+func prereqError(what, snapName string, err error) error {
+	if _, ok := err.(*state.Retry); ok {
+		return err
+	}
+	return fmt.Errorf("cannot install %s %q: %v", what, snapName, err)
 }
 
 func (m *SnapManager) doPrepareSnap(t *state.Task, _ *tomb.Tomb) error {
@@ -643,8 +676,9 @@ func (m *SnapManager) doMountSnap(t *state.Task, _ *tomb.Tomb) error {
 	// TODO Use snapsup.Revision() to obtain the right info to mount
 	//      instead of assuming the candidate is the right one.
 	var snapType snap.Type
+	var installRecord *backend.InstallRecord
 	timings.Run(perfTimings, "setup-snap", fmt.Sprintf("setup snap %q", snapsup.InstanceName()), func(timings.Measurer) {
-		snapType, err = m.backend.SetupSnap(snapsup.SnapPath, snapsup.InstanceName(), snapsup.SideInfo, pb)
+		snapType, installRecord, err = m.backend.SetupSnap(snapsup.SnapPath, snapsup.InstanceName(), snapsup.SideInfo, pb)
 	})
 	if err != nil {
 		cleanup()
@@ -671,7 +705,7 @@ func (m *SnapManager) doMountSnap(t *state.Task, _ *tomb.Tomb) error {
 	}
 	if readInfoErr != nil {
 		timings.Run(perfTimings, "undo-setup-snap", fmt.Sprintf("Undo setup of snap %q", snapsup.InstanceName()), func(timings.Measurer) {
-			err = m.backend.UndoSetupSnap(snapsup.placeInfo(), snapType, pb)
+			err = m.backend.UndoSetupSnap(snapsup.placeInfo(), snapType, installRecord, pb)
 		})
 		if err != nil {
 			st.Lock()
@@ -686,6 +720,9 @@ func (m *SnapManager) doMountSnap(t *state.Task, _ *tomb.Tomb) error {
 	st.Lock()
 	// set snapst type for undoMountSnap
 	t.Set("snap-type", snapType)
+	if installRecord != nil {
+		t.Set("install-record", installRecord)
+	}
 	st.Unlock()
 
 	if snapsup.Flags.RemoveSnapPath {
@@ -721,8 +758,17 @@ func (m *SnapManager) undoMountSnap(t *state.Task, _ *tomb.Tomb) error {
 		return err
 	}
 
+	var installRecord backend.InstallRecord
+	st.Lock()
+	// install-record is optional (e.g. not present in tasks from older snapd)
+	err = t.Get("install-record", &installRecord)
+	st.Unlock()
+	if err != nil && err != state.ErrNoState {
+		return err
+	}
+
 	pb := NewTaskProgressAdapterUnlocked(t)
-	if err := m.backend.UndoSetupSnap(snapsup.placeInfo(), typ, pb); err != nil {
+	if err := m.backend.UndoSetupSnap(snapsup.placeInfo(), typ, &installRecord, pb); err != nil {
 		return err
 	}
 
@@ -960,6 +1006,31 @@ func writeSeqFile(name string, snapst *SnapState) error {
 	return osutil.AtomicWriteFile(p, b, 0644, 0)
 }
 
+// missingDisabledServices returns a list of services that were disabled
+// that are currently missing from the specific snap info (i.e. they were
+// renamed in this snap info), as well as a list of disabled services that are
+// present in this snap info.
+// the first arg is the disabled services when the snap was last active
+func missingDisabledServices(svcs []string, info *snap.Info) ([]string, []string, error) {
+	// make a copy of all the previously disabled services that we will remove
+	// from, as well as an empty list to add to for the found services
+	missingSvcs := []string{}
+	foundSvcs := []string{}
+
+	// for all the previously disabled services, check if they are in the
+	// current snap info revision as services or not
+	for _, disabledSvcName := range svcs {
+		// check if the service is an app _and_ is a service
+		if app, ok := info.Apps[disabledSvcName]; ok && app.IsService() {
+			foundSvcs = append(foundSvcs, disabledSvcName)
+		} else {
+			missingSvcs = append(missingSvcs, disabledSvcName)
+		}
+	}
+
+	return missingSvcs, foundSvcs, nil
+}
+
 func (m *SnapManager) doLinkSnap(t *state.Task, _ *tomb.Tomb) (err error) {
 	st := t.State()
 	st.Lock()
@@ -992,9 +1063,12 @@ func (m *SnapManager) doLinkSnap(t *state.Task, _ *tomb.Tomb) (err error) {
 	oldCurrent := snapst.Current
 	snapst.Current = cand.Revision
 	snapst.Active = true
-	oldChannel := snapst.Channel
+	oldChannel := snapst.TrackingChannel
 	if snapsup.Channel != "" {
-		snapst.Channel = snapsup.Channel
+		err := snapst.SetTrackingChannel(snapsup.Channel)
+		if err != nil {
+			return err
+		}
 	}
 	oldIgnoreValidation := snapst.IgnoreValidation
 	snapst.IgnoreValidation = snapsup.IgnoreValidation
@@ -1094,7 +1168,10 @@ func (m *SnapManager) doLinkSnap(t *state.Task, _ *tomb.Tomb) (err error) {
 
 	if cand.SnapID != "" {
 		// write the auxiliary store info
-		aux := &auxStoreInfo{Media: snapsup.Media}
+		aux := &auxStoreInfo{
+			Media:   snapsup.Media,
+			Website: snapsup.Website,
+		}
 		if err := keepAuxStoreInfo(cand.SnapID, aux); err != nil {
 			return err
 		}
@@ -1299,7 +1376,7 @@ func (m *SnapManager) undoLinkSnap(t *state.Task, _ *tomb.Tomb) error {
 	}
 	snapst.Current = oldCurrent
 	snapst.Active = false
-	snapst.Channel = oldChannel
+	snapst.TrackingChannel = oldChannel
 	snapst.IgnoreValidation = oldIgnoreValidation
 	snapst.TryMode = oldTryMode
 	snapst.DevMode = oldDevMode
@@ -1374,7 +1451,9 @@ func (m *SnapManager) genericDoSwitchSnap(t *state.Task, flags doSwitchFlags) er
 	}
 
 	// switched the tracked channel
-	snapst.Channel = snapsup.Channel
+	if err := snapst.SetTrackingChannel(snapsup.Channel); err != nil {
+		return err
+	}
 	snapst.CohortKey = snapsup.CohortKey
 	if flags.switchCurrentChannel {
 		// optionally support switching the current snap channel too, e.g.
@@ -1582,7 +1661,7 @@ func (m *SnapManager) doDiscardSnap(t *state.Task, _ *tomb.Tomb) error {
 	if err != nil {
 		return err
 	}
-	err = m.backend.RemoveSnapFiles(snapsup.placeInfo(), typ, pb)
+	err = m.backend.RemoveSnapFiles(snapsup.placeInfo(), typ, nil, pb)
 	if err != nil {
 		t.Errorf("cannot remove snap file %q, will retry in 3 mins: %s", snapsup.InstanceName(), err)
 		return &state.Retry{After: 3 * time.Minute}

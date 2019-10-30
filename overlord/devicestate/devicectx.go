@@ -60,6 +60,10 @@ func (dc modelDeviceContext) Model() *asserts.Model {
 	return dc.model
 }
 
+func (dc modelDeviceContext) OldModel() *asserts.Model {
+	return nil
+}
+
 func (dc modelDeviceContext) Store() snapstate.StoreService {
 	return nil
 }

@@ -53,8 +53,8 @@ func (s *SnapDir) Size() (size int64, err error) {
 	return totalSize, nil
 }
 
-func (s *SnapDir) Install(targetPath, mountDir string) error {
-	return os.Symlink(s.path, targetPath)
+func (s *SnapDir) Install(targetPath, mountDir string) (bool, error) {
+	return false, os.Symlink(s.path, targetPath)
 }
 
 func (s *SnapDir) ReadFile(file string) (content []byte, err error) {

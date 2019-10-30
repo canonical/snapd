@@ -121,7 +121,7 @@ func (s *linkSnapSuite) TestDoLinkSnapSuccess(c *C) {
 	c.Check(snapst.Active, Equals, true)
 	c.Check(snapst.Sequence, HasLen, 1)
 	c.Check(snapst.Current, Equals, snap.R(33))
-	c.Check(snapst.Channel, Equals, "beta")
+	c.Check(snapst.TrackingChannel, Equals, "latest/beta")
 	c.Check(snapst.UserID, Equals, 2)
 	c.Check(snapst.CohortKey, Equals, "")
 	c.Check(t.Status(), Equals, state.DoneStatus)
@@ -169,7 +169,7 @@ func (s *linkSnapSuite) TestDoLinkSnapSuccessWithCohort(c *C) {
 	c.Check(snapst.Active, Equals, true)
 	c.Check(snapst.Sequence, HasLen, 1)
 	c.Check(snapst.Current, Equals, snap.R(33))
-	c.Check(snapst.Channel, Equals, "beta")
+	c.Check(snapst.TrackingChannel, Equals, "latest/beta")
 	c.Check(snapst.UserID, Equals, 2)
 	c.Check(snapst.CohortKey, Equals, "wobbling")
 	c.Check(t.Status(), Equals, state.DoneStatus)
@@ -960,9 +960,12 @@ func (s *linkSnapSuite) TestDoUnlinkSnapRefreshHardCheckOff(c *C) {
 func (s *linkSnapSuite) testDoUnlinkSnapRefreshAwareness(c *C) *state.Change {
 	restore := release.MockOnClassic(true)
 	defer restore()
+	mockPidsCgroupDir := c.MkDir()
+	restore = snapstate.MockPidsCgroupDir(mockPidsCgroupDir)
+	defer restore()
 
 	// mock that "some-snap" has an app and that this app has pids running
-	writePids(c, filepath.Join(dirs.PidsCgroupDir, "snap.some-snap.some-app"), []int{1234})
+	writePids(c, filepath.Join(mockPidsCgroupDir, "snap.some-snap.some-app"), []int{1234})
 	snapstate.MockSnapReadInfo(func(name string, si *snap.SideInfo) (*snap.Info, error) {
 		info := &snap.Info{SuggestedName: name, SideInfo: *si, SnapType: snap.TypeApp}
 		info.Apps = map[string]*snap.AppInfo{

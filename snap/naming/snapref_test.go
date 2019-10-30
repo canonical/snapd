@@ -63,10 +63,13 @@ func (s *snapRefSuite) TestSameSnap(c *C) {
 
 func (s *snapRefSuite) TestSnapSet(c *C) {
 	ss := naming.NewSnapSet(nil)
+	c.Check(ss.Empty(), Equals, true)
+
 	fooRef := naming.NewSnapRef("foo", "foo-id")
 	fooNameOnlyRef := naming.Snap("foo")
 
 	ss.Add(fooRef)
+	c.Check(ss.Empty(), Equals, false)
 	ss.Add(fooNameOnlyRef)
 
 	altFooRef := naming.NewSnapRef("foo-proj", "foo-id")
@@ -81,6 +84,7 @@ func (s *snapRefSuite) TestSnapSet(c *C) {
 
 	// weaker behavior but expected
 	ss1 := naming.NewSnapSet([]naming.SnapRef{fooNameOnlyRef})
+	c.Check(ss.Empty(), Equals, false)
 	ss1.Add(fooRef)
 	c.Check(ss1.Lookup(fooRef), Equals, fooNameOnlyRef)
 	c.Check(ss1.Lookup(altFooRef), Equals, nil)

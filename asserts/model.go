@@ -43,11 +43,12 @@ type ModelSnap struct {
 	SnapType string
 	// Modes in which the snap must be made available
 	Modes []string
-	// DefaultChannel is the initial tracking channel, default is stable
+	// DefaultChannel is the initial tracking channel,
+	// default is latest/stable in an extended model
 	DefaultChannel string
-	// Track is a locked track for the snap, if set DefaultChannel
-	// cannot be set at the same time
-	Track string
+	// PinnedTrack is a pinned track for the snap, if set DefaultChannel
+	// cannot be set at the same time (Core 18 models feature)
+	PinnedTrack string
 	// Presence is one of: required|optional
 	Presence string
 }
@@ -81,9 +82,9 @@ func (ms *modelSnaps) list() (allSnaps []*ModelSnap, requiredWithEssentialSnaps 
 		}
 	}
 
+	addSnap(ms.kernel, 1)
 	addSnap(ms.base, 1)
 	addSnap(ms.gadget, 1)
-	addSnap(ms.kernel, 1)
 	for _, snap := range ms.snapsNoEssential {
 		addSnap(snap, 0)
 	}
@@ -95,7 +96,7 @@ var (
 	defaultModes       = []string{"run"}
 )
 
-func checkExtendedSnaps(extendedSnaps interface{}, base string) (*modelSnaps, error) {
+func checkExtendedSnaps(extendedSnaps interface{}, base string, grade ModelGrade) (*modelSnaps, error) {
 	const wrongHeaderType = `"snaps" header must be a list of maps`
 
 	entries, ok := extendedSnaps.([]interface{})
@@ -112,7 +113,7 @@ func checkExtendedSnaps(extendedSnaps interface{}, base string) (*modelSnaps, er
 		if !ok {
 			return nil, fmt.Errorf(wrongHeaderType)
 		}
-		modelSnap, err := checkModelSnap(snap)
+		modelSnap, err := checkModelSnap(snap, grade)
 		if err != nil {
 			return nil, err
 		}
@@ -178,7 +179,7 @@ var (
 	validSnapPresences = []string{"required", "optional"}
 )
 
-func checkModelSnap(snap map[string]interface{}) (*ModelSnap, error) {
+func checkModelSnap(snap map[string]interface{}, grade ModelGrade) (*ModelSnap, error) {
 	name, err := checkNotEmptyStringWhat(snap, "name", "of snap")
 	if err != nil {
 		return nil, err
@@ -189,9 +190,20 @@ func checkModelSnap(snap map[string]interface{}) (*ModelSnap, error) {
 
 	what := fmt.Sprintf("of snap %q", name)
 
-	snapID, err := checkStringMatchesWhat(snap, "id", what, validSnapID)
-	if err != nil {
-		return nil, err
+	var snapID string
+	_, ok := snap["id"]
+	if ok {
+		var err error
+		snapID, err = checkStringMatchesWhat(snap, "id", what, validSnapID)
+		if err != nil {
+			return nil, err
+		}
+	} else {
+		// snap ids are optional with grade unstable to allow working
+		// with local/not pushed yet to the store snaps
+		if grade != ModelDangerous {
+			return nil, fmt.Errorf(`"id" %s is mandatory for stable model`, what)
+		}
 	}
 
 	typ, err := checkOptionalStringWhat(snap, "type", what)
@@ -214,29 +226,15 @@ func checkModelSnap(snap map[string]interface{}) (*ModelSnap, error) {
 	if err != nil {
 		return nil, err
 	}
-	// TODO: final name of this
-	track, err := checkOptionalStringWhat(snap, "track", what)
+	if defaultChannel == "" {
+		defaultChannel = "latest/stable"
+	}
+	defCh, err := channel.ParseVerbatim(defaultChannel, "-")
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("invalid default channel for snap %q: %v", name, err)
 	}
-
-	if defaultChannel != "" && track != "" {
-		return nil, fmt.Errorf("snap %q cannot specify both default channel and locked track", name)
-	}
-	if track == "" && defaultChannel == "" {
-		defaultChannel = "stable"
-	}
-
-	if defaultChannel != "" {
-		_, err := channel.Parse(defaultChannel, "-")
-		if err != nil {
-			return nil, fmt.Errorf("invalid default channel for snap %q: %v", name, err)
-		}
-	} else {
-		trackCh, err := channel.ParseVerbatim(track, "-")
-		if err != nil || !trackCh.VerbatimTrackOnly() {
-			return nil, fmt.Errorf("invalid locked track for snap %q: %s", name, track)
-		}
+	if defCh.Track == "" {
+		return nil, fmt.Errorf("default channel for snap %q must specify a track", name)
 	}
 
 	presence, err := checkOptionalStringWhat(snap, "presence", what)
@@ -253,7 +251,6 @@ func checkModelSnap(snap map[string]interface{}) (*ModelSnap, error) {
 		SnapType:       typ,
 		Modes:          modes, // can be empty
 		DefaultChannel: defaultChannel,
-		Track:          track,
 		Presence:       presence, // can be empty
 	}, nil
 }
@@ -287,18 +284,12 @@ func checkSnapWithTrack(headers map[string]interface{}, which string) (*ModelSna
 		}
 	}
 
-	defaultChannel := ""
-	if track == "" {
-		defaultChannel = "stable"
-	}
-
 	return &ModelSnap{
-		Name:           name,
-		SnapType:       which,
-		Modes:          defaultModes,
-		DefaultChannel: defaultChannel,
-		Track:          track,
-		Presence:       "required",
+		Name:        name,
+		SnapType:    which,
+		Modes:       defaultModes,
+		PinnedTrack: track,
+		Presence:    "required",
 	}, nil
 }
 
@@ -315,13 +306,29 @@ func checkRequiredSnap(name string, headerName string, snapType string) (*ModelS
 	}
 
 	return &ModelSnap{
-		Name:           name,
-		SnapType:       snapType,
-		Modes:          defaultModes,
-		DefaultChannel: "stable",
-		Presence:       "required",
+		Name:     name,
+		SnapType: snapType,
+		Modes:    defaultModes,
+		Presence: "required",
 	}, nil
 }
+
+// ModelGrade characterizes the security of the model which then
+// controls related policy.
+type ModelGrade string
+
+const (
+	ModelGradeUnset ModelGrade = "unset"
+	// ModelSecured implies mandatory full disk encryption and secure boot.
+	ModelSecured ModelGrade = "secured"
+	// ModelSigned implies all seed snaps are signed and mentioned
+	// in the model, i.e. no unasserted or extra snaps.
+	ModelSigned ModelGrade = "signed"
+	// ModelDangerous allows unasserted snaps and extra snaps.
+	ModelDangerous ModelGrade = "dangerous"
+)
+
+var validModelGrades = []string{string(ModelSecured), string(ModelSigned), string(ModelDangerous)}
 
 // Model holds a model assertion, which is a statement by a brand
 // about the properties of a device model.
@@ -332,6 +339,8 @@ type Model struct {
 	baseSnap   *ModelSnap
 	gadgetSnap *ModelSnap
 	kernelSnap *ModelSnap
+
+	grade ModelGrade
 
 	allSnaps []*ModelSnap
 	// consumers of this info should care only about snap identity =>
@@ -378,6 +387,12 @@ func (mod *Model) Architecture() string {
 	return mod.HeaderString("architecture")
 }
 
+// Grade returns the stability grade of the model. Will be ModeGradeUnset
+// for Core 16/18 models.
+func (mod *Model) Grade() ModelGrade {
+	return mod.grade
+}
+
 // GadgetSnap returns the details of the gadget snap the model uses.
 func (mod *Model) GadgetSnap() *ModelSnap {
 	return mod.gadgetSnap
@@ -397,7 +412,7 @@ func (mod *Model) GadgetTrack() string {
 	if mod.gadgetSnap == nil {
 		return ""
 	}
-	return mod.gadgetSnap.Track
+	return mod.gadgetSnap.PinnedTrack
 }
 
 // KernelSnap returns the details of the kernel snap the model uses.
@@ -420,7 +435,7 @@ func (mod *Model) KernelTrack() string {
 	if mod.kernelSnap == nil {
 		return ""
 	}
-	return mod.kernelSnap.Track
+	return mod.kernelSnap.PinnedTrack
 }
 
 // Base returns the base snap the model uses.
@@ -553,8 +568,13 @@ func assembleModel(assert assertionBase) (Assertion, error) {
 				return nil, fmt.Errorf("cannot specify separate %q header once using the extended snaps header", conflicting)
 			}
 		}
+	} else {
+		if _, ok := assert.headers["grade"]; ok {
+			return nil, fmt.Errorf("cannot specify a grade for model without the extended snaps header")
+		}
+	}
 
-	} else if classic {
+	if classic {
 		if _, ok := assert.headers["kernel"]; ok {
 			return nil, fmt.Errorf("cannot specify a kernel with a classic model")
 		}
@@ -602,9 +622,21 @@ func assembleModel(assert assertionBase) (Assertion, error) {
 	}
 
 	var modSnaps *modelSnaps
+	grade := ModelGradeUnset
 	if extended {
-		// TODO: support and consider grade!
-		modSnaps, err = checkExtendedSnaps(extendedSnaps, base)
+		gradeStr, err := checkOptionalString(assert.headers, "grade")
+		if err != nil {
+			return nil, err
+		}
+		if gradeStr != "" && !strutil.ListContains(validModelGrades, gradeStr) {
+			return nil, fmt.Errorf("grade for model must be %s, not %q", strings.Join(validModelGrades, "|"), gradeStr)
+		}
+		grade = ModelSigned
+		if gradeStr != "" {
+			grade = ModelGrade(gradeStr)
+		}
+
+		modSnaps, err = checkExtendedSnaps(extendedSnaps, base, grade)
 		if err != nil {
 			return nil, err
 		}
@@ -621,6 +653,7 @@ func assembleModel(assert assertionBase) (Assertion, error) {
 			// essentially fixed
 			modSnaps.base = baseSnap
 			modSnaps.base.Modes = essentialSnapModes
+			modSnaps.base.DefaultChannel = "latest/stable"
 		}
 	} else {
 		modSnaps = &modelSnaps{
@@ -677,6 +710,7 @@ func assembleModel(assert assertionBase) (Assertion, error) {
 		baseSnap:                   modSnaps.base,
 		gadgetSnap:                 modSnaps.gadget,
 		kernelSnap:                 modSnaps.kernel,
+		grade:                      grade,
 		allSnaps:                   allSnaps,
 		requiredWithEssentialSnaps: requiredWithEssentialSnaps,
 		numEssentialSnaps:          numEssentialSnaps,

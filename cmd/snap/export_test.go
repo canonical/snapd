@@ -28,7 +28,7 @@ import (
 
 	"github.com/snapcore/snapd/client"
 	"github.com/snapcore/snapd/image"
-	"github.com/snapcore/snapd/selinux"
+	"github.com/snapcore/snapd/sandbox/selinux"
 	"github.com/snapcore/snapd/store"
 )
 
@@ -80,7 +80,11 @@ var (
 	InterfacesDeprecationNotice = interfacesDeprecationNotice
 
 	SignalNotify = signalNotify
+
+	SortTimingsTasks = sortTimingsTasks
 )
+
+type ChangeTimings = changeTimings
 
 func NewInfoWriter(w writeflusher) *infoWriter {
 	return &infoWriter{

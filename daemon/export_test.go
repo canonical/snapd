@@ -28,6 +28,8 @@ import (
 type Resp = resp
 type ErrorResult = errorResult
 
+var MinLane = minLane
+
 func NewWithOverlord(o *overlord.Overlord) *Daemon {
 	d := &Daemon{overlord: o}
 	d.addRoutes()

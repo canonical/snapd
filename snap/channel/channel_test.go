@@ -227,7 +227,7 @@ func (s *storeChannelSuite) TestString(c *C) {
 	}
 }
 
-func (s *storeChannelSuite) TestFull(c *C) {
+func (s *storeChannelSuite) TestChannelFull(c *C) {
 	tests := []struct {
 		channel string
 		str     string
@@ -246,6 +246,37 @@ func (s *storeChannelSuite) TestFull(c *C) {
 
 		c.Check(ch.Full(), Equals, t.str)
 	}
+}
+
+func (s *storeChannelSuite) TestFuncFull(c *C) {
+	tests := []struct {
+		channel string
+		str     string
+	}{
+		{"stable", "latest/stable"},
+		{"latest/stable", "latest/stable"},
+		{"1.0/edge", "1.0/edge"},
+		{"1.0/beta/foo", "1.0/beta/foo"},
+		{"1.0", "1.0/stable"},
+		{"candidate/foo", "latest/candidate/foo"},
+		// store behaviour compat; expect these to fail when we stop accommodating the madness :)
+		{"//stable//", "latest/stable"},
+		// rather weird corner case
+		{"///", ""},
+		// empty string is OK
+		{"", ""},
+	}
+
+	for _, t := range tests {
+		can, err := channel.Full(t.channel)
+		c.Assert(err, IsNil)
+		c.Check(can, Equals, t.str)
+	}
+}
+
+func (s *storeChannelSuite) TestFuncFullErr(c *C) {
+	_, err := channel.Full("foo/bar/baz/quux")
+	c.Check(err, ErrorMatches, "invalid channel")
 }
 
 func (s *storeChannelSuite) TestMatch(c *C) {
@@ -322,7 +353,7 @@ func (s *storeChannelSuite) TestResolve(c *C) {
 	}
 }
 
-func (s *storeChannelSuite) TestResolveLocked(c *C) {
+func (s *storeChannelSuite) TestResolvePinned(c *C) {
 	tests := []struct {
 		track  string
 		new    string
@@ -331,7 +362,7 @@ func (s *storeChannelSuite) TestResolveLocked(c *C) {
 	}{
 		{"", "", "", ""},
 		{"", "anytrack/stable", "anytrack/stable", ""},
-		{"track/foo", "", "", "invalid locked track: track/foo"},
+		{"track/foo", "", "", "invalid pinned track: track/foo"},
 		{"track", "", "track", ""},
 		{"track", "track", "track", ""},
 		{"track", "beta", "track/beta", ""},
@@ -339,11 +370,11 @@ func (s *storeChannelSuite) TestResolveLocked(c *C) {
 		{"track", "track/edge/branch", "track/edge/branch", ""},
 		{"track", "track/candidate", "track/candidate", ""},
 		{"track", "track/stable/branch", "track/stable/branch", ""},
-		{"track1", "track2/stable", "track2/stable", "cannot switch locked track"},
-		{"track1", "track2/stable/branch", "track2/stable/branch", "cannot switch locked track"},
+		{"track1", "track2/stable", "track2/stable", "cannot switch pinned track"},
+		{"track1", "track2/stable/branch", "track2/stable/branch", "cannot switch pinned track"},
 	}
 	for _, t := range tests {
-		r, err := channel.ResolveLocked(t.track, t.new)
+		r, err := channel.ResolvePinned(t.track, t.new)
 		tcomm := Commentf("%#v", t)
 		if t.expErr == "" {
 			c.Assert(err, IsNil, tcomm)
