@@ -224,6 +224,7 @@ func (s *deviceMgrRemodelSuite) TestRemodelTasksSwitchKernel(c *C) {
 }
 
 func (s *deviceMgrRemodelSuite) testRemodelSwitchTasks(c *C, whatsNew, whatNewTrack string, newModelOverrides map[string]interface{}) {
+	c.Check(newModelOverrides, HasLen, 1, Commentf("test expects a single model property to change"))
 	s.state.Lock()
 	defer s.state.Unlock()
 	s.state.Set("seeded", true)
@@ -280,7 +281,7 @@ func (s *deviceMgrRemodelSuite) testRemodelSwitchTasks(c *C, whatsNew, whatNewTr
 
 	tss, err := devicestate.RemodelTasks(context.Background(), s.state, current, new, testDeviceCtx, "99")
 	c.Assert(err, IsNil)
-	// 1 switch to a new base plus the remodel task
+	// 1 of switch-kernel/base/gadget plus the remodel task
 	c.Assert(tss, HasLen, 2)
 	// API was hit
 	c.Assert(snapstateInstallWithDeviceContextCalled, Equals, 1)
@@ -1040,7 +1041,7 @@ volumes:
 	c.Check(err, IsNil)
 }
 
-func (s *deviceMgrRemodelSuite) TestCheckGadgetRemodelActual(c *C) {
+func (s *deviceMgrRemodelSuite) TestCheckGadgetRemodelCompatibleWithYaml(c *C) {
 	s.state.Lock()
 	defer s.state.Unlock()
 
@@ -1112,6 +1113,44 @@ volumes:
 }
 
 func (s *deviceMgrRemodelSuite) TestRemodelGadgetAssetsUpdate(c *C) {
+	var currentGadgetYaml = `
+volumes:
+  pc:
+    bootloader: grub
+    structure:
+       - name: foo
+         type: 00000000-0000-0000-0000-0000deadcafe
+         filesystem: ext4
+         size: 10M
+         content:
+            - source: foo-content
+              target: /
+       - name: bare-one
+         type: bare
+         size: 1M
+         content:
+            - image: bare.img
+`
+
+	var remodelGadgetYaml = `
+volumes:
+  pc:
+    bootloader: grub
+    structure:
+       - name: foo
+         type: 00000000-0000-0000-0000-0000deadcafe
+         filesystem: ext4
+         size: 10M
+         content:
+            - source: new-foo-content
+              target: /
+       - name: bare-one
+         type: bare
+         size: 1M
+         content:
+            - image: new-bare-content.img
+`
+
 	s.state.Lock()
 	s.state.Set("seeded", true)
 	s.state.Set("refresh-privacy-key", "some-privacy-key")
@@ -1131,8 +1170,9 @@ func (s *deviceMgrRemodelSuite) TestRemodelGadgetAssetsUpdate(c *C) {
 		"base":         "core18",
 	})
 	devicestatetest.SetDevice(s.state, &auth.DeviceState{
-		Brand: "canonical",
-		Model: "pc-model",
+		Brand:  "canonical",
+		Model:  "pc-model",
+		Serial: "serial",
 	})
 
 	// the target model
@@ -1152,7 +1192,7 @@ func (s *deviceMgrRemodelSuite) TestRemodelGadgetAssetsUpdate(c *C) {
 		SnapID:   "foo-id",
 	}
 	currentGadgetInfo := snaptest.MockSnapWithFiles(c, snapYaml, siModelGadget, [][]string{
-		{"meta/gadget.yaml", gadgetYaml},
+		{"meta/gadget.yaml", currentGadgetYaml},
 	})
 	snapstate.Set(s.state, "pc", &snapstate.SnapState{
 		SnapType: "gadget",
@@ -1167,7 +1207,7 @@ func (s *deviceMgrRemodelSuite) TestRemodelGadgetAssetsUpdate(c *C) {
 		Revision: snap.R(34),
 	}
 	newGadgetInfo := snaptest.MockSnapWithFiles(c, snapYaml, siNewModelGadget, [][]string{
-		{"meta/gadget.yaml", gadgetYaml},
+		{"meta/gadget.yaml", remodelGadgetYaml},
 	})
 
 	restore := devicestate.MockSnapstateInstallWithDeviceContext(func(ctx context.Context, st *state.State, name string, opts *snapstate.RevisionOptions, userID int, flags snapstate.Flags, deviceCtx snapstate.DeviceContext, fromChange string) (*state.TaskSet, error) {
@@ -1198,6 +1238,22 @@ func (s *deviceMgrRemodelSuite) TestRemodelGadgetAssetsUpdate(c *C) {
 				Volumes: map[string]gadget.Volume{
 					"pc": {
 						Bootloader: "grub",
+						Structure: []gadget.VolumeStructure{{
+							Name:       "foo",
+							Type:       "00000000-0000-0000-0000-0000deadcafe",
+							Size:       10 * gadget.SizeMiB,
+							Filesystem: "ext4",
+							Content: []gadget.VolumeContent{
+								{Source: "foo-content", Target: "/"},
+							},
+						}, {
+							Name: "bare-one",
+							Type: "bare",
+							Size: gadget.SizeMiB,
+							Content: []gadget.VolumeContent{
+								{Image: "bare.img"},
+							},
+						}},
 					},
 				},
 			},
@@ -1208,6 +1264,22 @@ func (s *deviceMgrRemodelSuite) TestRemodelGadgetAssetsUpdate(c *C) {
 				Volumes: map[string]gadget.Volume{
 					"pc": {
 						Bootloader: "grub",
+						Structure: []gadget.VolumeStructure{{
+							Name:       "foo",
+							Type:       "00000000-0000-0000-0000-0000deadcafe",
+							Size:       10 * gadget.SizeMiB,
+							Filesystem: "ext4",
+							Content: []gadget.VolumeContent{
+								{Source: "new-foo-content", Target: "/"},
+							},
+						}, {
+							Name: "bare-one",
+							Type: "bare",
+							Size: gadget.SizeMiB,
+							Content: []gadget.VolumeContent{
+								{Image: "new-bare-content.img"},
+							},
+						}},
 					},
 				},
 			},
@@ -1219,22 +1291,9 @@ func (s *deviceMgrRemodelSuite) TestRemodelGadgetAssetsUpdate(c *C) {
 
 	chg, err := devicestate.Remodel(s.state, new)
 	c.Check(err, IsNil)
-
 	s.state.Unlock()
 
-	// we only want to see the update-gadget-assets task run, not the whole
-	// restart cycle
-	for i := 0; i < 50; i++ {
-		s.se.Ensure()
-		s.se.Wait()
-
-		s.state.Lock()
-		ready := chg.IsReady()
-		s.state.Unlock()
-		if ready {
-			break
-		}
-	}
+	s.settle(c)
 
 	s.state.Lock()
 	defer s.state.Unlock()
