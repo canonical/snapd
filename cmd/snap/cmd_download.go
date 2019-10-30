@@ -224,7 +224,7 @@ func fetchSnapAssertionsViaSnapd(cli *client.Client, assertFname, hexSha3_384 st
 			return nil, err
 		}
 		if len(asserts) != 1 {
-			return nil, fmt.Errorf("unexpected amount of assertions: %q", asserts)
+			return nil, fmt.Errorf("unexpected number of assertions: expected 1, got %d", len(asserts))
 		}
 		return asserts[0], nil
 	}
