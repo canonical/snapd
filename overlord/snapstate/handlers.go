@@ -1121,9 +1121,12 @@ func (m *SnapManager) doLinkSnap(t *state.Task, _ *tomb.Tomb) (err error) {
 	oldCurrent := snapst.Current
 	snapst.Current = cand.Revision
 	snapst.Active = true
-	oldChannel := snapst.Channel
+	oldChannel := snapst.TrackingChannel
 	if snapsup.Channel != "" {
-		snapst.Channel = snapsup.Channel
+		err := snapst.SetTrackingChannel(snapsup.Channel)
+		if err != nil {
+			return err
+		}
 	}
 	oldIgnoreValidation := snapst.IgnoreValidation
 	snapst.IgnoreValidation = snapsup.IgnoreValidation
@@ -1460,7 +1463,7 @@ func (m *SnapManager) undoLinkSnap(t *state.Task, _ *tomb.Tomb) error {
 	}
 	snapst.Current = oldCurrent
 	snapst.Active = false
-	snapst.Channel = oldChannel
+	snapst.TrackingChannel = oldChannel
 	snapst.IgnoreValidation = oldIgnoreValidation
 	snapst.TryMode = oldTryMode
 	snapst.DevMode = oldDevMode
@@ -1563,7 +1566,9 @@ func (m *SnapManager) genericDoSwitchSnap(t *state.Task, flags doSwitchFlags) er
 	}
 
 	// switched the tracked channel
-	snapst.Channel = snapsup.Channel
+	if err := snapst.SetTrackingChannel(snapsup.Channel); err != nil {
+		return err
+	}
 	snapst.CohortKey = snapsup.CohortKey
 	if flags.switchCurrentChannel {
 		// optionally support switching the current snap channel too, e.g.

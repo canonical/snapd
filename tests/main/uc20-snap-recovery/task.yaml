@@ -1,4 +1,4 @@
-summary: Integration tests for the snap-recovery binary
+summary: Integration tests for the snap-bootstrap binary
 
 # one system is enough, its a very specialized test for now
 systems: [ubuntu-18.04-64]
@@ -30,8 +30,8 @@ prepare: |
 
 execute: |
     LOOP="$(cat loop.txt)"
-    echo "Run the snap-recovery tool"
-    /usr/lib/snapd/snap-recovery ./gadget-dir "$LOOP"
+    echo "Run the snap-bootstrap tool"
+    /usr/lib/snapd/snap-bootstrap ./gadget-dir "$LOOP"
 
     echo "And check that the partitions are created"
     sfdisk -l "$LOOP" | MATCH '1M\s+BIOS boot'
@@ -43,6 +43,23 @@ execute: |
     umount ./mnt
     file -s "${LOOP}p2" | MATCH 'label: "system-boot"'
 
+    echo "Check that the non-fs content was deployed"
+    dd if="${LOOP}p1" of=bios-boot.img
+    # the bios-boot.img is 1Mb
+    test "$(stat --printf="%s" ./bios-boot.img)" = 1048576
+    # we truncate it to the size of pc-core.img
+    truncate --size="$(stat --printf="%s" ./gadget-dir/pc-core.img)" bios-boot.img
+    # and verify that its the same
+    cmp bios-boot.img ./gadget-dir/pc-core.img
+
+    echo "Check that the filesystem content was deployed"
+    mkdir -p ./mnt
+    mount "${LOOP}p2" ./mnt
+    ls ./mnt/EFI/boot/grubx64.efi
+    ls ./mnt/EFI/boot/bootx64.efi
+    ls ./mnt/EFI/ubuntu/grub.cfg
+    umount ./mnt
+
     echo "now add a partition"
     cat >> gadget-dir/meta/gadget.yaml <<EOF
           - name: Other ext4
@@ -51,7 +68,7 @@ execute: |
             filesystem-label: other-ext4
             size: 500M
     EOF
-    /usr/lib/snapd/snap-recovery ./gadget-dir "$LOOP"
+    /usr/lib/snapd/snap-bootstrap ./gadget-dir "$LOOP"
     sfdisk -l "$LOOP" | MATCH '500M\s* Linux filesystem'
 
     echo "check that the filesystems are created"

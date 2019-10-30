@@ -24,9 +24,11 @@ import (
 	"gopkg.in/tomb.v2"
 
 	"github.com/snapcore/snapd/asserts"
+	"github.com/snapcore/snapd/gadget"
 	"github.com/snapcore/snapd/overlord/assertstate"
 	"github.com/snapcore/snapd/overlord/snapstate"
 	"github.com/snapcore/snapd/overlord/state"
+	"github.com/snapcore/snapd/release"
 	"github.com/snapcore/snapd/snap"
 	"github.com/snapcore/snapd/snap/naming"
 )
@@ -40,7 +42,15 @@ func isSameAssertsRevision(err error) bool {
 	return false
 }
 
-func (m *DeviceManager) doSetModel(t *state.Task, _ *tomb.Tomb) error {
+var injectedSetModelError error
+
+// InjectSetModelError will trigger the selected error in the doSetModel
+// handler. This is only useful for testing.
+func InjectSetModelError(err error) {
+	injectedSetModelError = err
+}
+
+func (m *DeviceManager) doSetModel(t *state.Task, _ *tomb.Tomb) (err error) {
 	st := t.State()
 	st.Lock()
 	defer st.Unlock()
@@ -51,14 +61,10 @@ func (m *DeviceManager) doSetModel(t *state.Task, _ *tomb.Tomb) error {
 	}
 	new := remodCtx.Model()
 
-	err = assertstate.Add(st, new)
-	if err != nil && !isSameAssertsRevision(err) {
-		return err
-	}
-
 	// unmark no-longer required snaps
+	var cleanedRequiredSnaps []string
 	requiredSnaps := getAllRequiredSnapsForModel(new)
-	// TODO:XXX: have AllByRef
+	// TODO|XXX: have AllByRef
 	snapStates, err := snapstate.All(st)
 	if err != nil {
 		return err
@@ -78,12 +84,38 @@ func (m *DeviceManager) doSetModel(t *state.Task, _ *tomb.Tomb) error {
 		if snapst.Flags.Required && !requiredSnaps.Contains(naming.Snap(snapName)) {
 			snapst.Flags.Required = false
 			snapstate.Set(st, snapName, snapst)
+			cleanedRequiredSnaps = append(cleanedRequiredSnaps, snapName)
 		}
 		// TODO: clean "required" flag of "core" if a remodel
 		//       moves from the "core" snap to a different
 		//       bootable base snap.
 	}
+	// ensure  we undo the cleanedRequiredSnaps if e.g. remodCtx
+	defer func() {
+		if err == nil {
+			return
+		}
+		var snapst snapstate.SnapState
+		for _, snapName := range cleanedRequiredSnaps {
+			if err := snapstate.Get(st, snapName, &snapst); err == nil {
+				snapst.Flags.Required = true
+				snapstate.Set(st, snapName, &snapst)
+			}
+		}
+	}()
 
+	// only useful for testing
+	if injectedSetModelError != nil {
+		return injectedSetModelError
+	}
+
+	// add the assertion only after everything else was successful
+	err = assertstate.Add(st, new)
+	if err != nil && !isSameAssertsRevision(err) {
+		return err
+	}
+
+	// and finish (this will set the new model)
 	return remodCtx.Finish()
 }
 
@@ -138,5 +170,60 @@ func (m *DeviceManager) doPrepareRemodeling(t *state.Task, tmb *tomb.Tomb) error
 	st.EnsureBefore(0)
 	t.SetStatus(state.DoneStatus)
 
+	return nil
+}
+
+var (
+	coreGadgetConstraints = &gadget.ModelConstraints{
+		Classic: false,
+	}
+
+	// TODO: replace with gadget.IsCompatible() once we are ready
+	gadgetIsCompatible = func(current, new *gadget.Info) error { return nil }
+)
+
+func checkGadgetRemodelCompatible(st *state.State, snapInfo, curInfo *snap.Info, snapf snap.Container, flags snapstate.Flags, deviceCtx snapstate.DeviceContext) error {
+	if release.OnClassic {
+		return nil
+	}
+	if snapInfo.GetType() != snap.TypeGadget {
+		// We are only interested in gadget snaps.
+		return nil
+	}
+	if deviceCtx == nil || !deviceCtx.ForRemodeling() {
+		// We are only interesting in a remodeling scenario.
+		return nil
+	}
+	if curInfo == nil {
+		// snap isn't installed yet, we are likely remodeling to a new
+		// gadget, identify the old gadget
+		groundDeviceCtx, err := DeviceCtx(st, nil, nil)
+		if err != nil || err == state.ErrNoState {
+			return fmt.Errorf("cannot identify the current model")
+		}
+		curInfo, _ = snapstate.GadgetInfo(st, groundDeviceCtx)
+	}
+	if curInfo == nil {
+		return fmt.Errorf("cannot identify the current gadget snap")
+	}
+
+	newGadgetYaml, err := snapf.ReadFile("meta/gadget.yaml")
+	if err != nil {
+		return fmt.Errorf("cannot read new gadget metadata: %v", err)
+	}
+
+	currentData, err := gadgetDataFromInfo(curInfo, coreGadgetConstraints)
+	if err != nil {
+		return fmt.Errorf("cannot read current gadget metadata: %v", err)
+	}
+
+	pendingInfo, err := gadget.InfoFromGadgetYaml(newGadgetYaml, coreGadgetConstraints)
+	if err != nil {
+		return fmt.Errorf("cannot load new gadget metadata: %v", err)
+	}
+
+	if err := gadgetIsCompatible(currentData.Info, pendingInfo); err != nil {
+		return fmt.Errorf("cannot remodel to an incompatible gadget: %v", err)
+	}
 	return nil
 }

@@ -21,13 +21,23 @@ package devicestate
 
 import (
 	"github.com/snapcore/snapd/asserts"
+	"github.com/snapcore/snapd/gadget"
 	"github.com/snapcore/snapd/overlord/auth"
 	"github.com/snapcore/snapd/overlord/devicestate/internal"
 	"github.com/snapcore/snapd/overlord/state"
+	"github.com/snapcore/snapd/snap"
 )
 
 func setDeviceFromModelAssertion(st *state.State, device *auth.DeviceState, model *asserts.Model) error {
 	device.Brand = model.BrandID()
 	device.Model = model.Model()
 	return internal.SetDevice(st, device)
+}
+
+func gadgetDataFromInfo(info *snap.Info, constraints *gadget.ModelConstraints) (*gadget.GadgetData, error) {
+	gi, err := gadget.ReadInfo(info.MountDir(), coreGadgetConstraints)
+	if err != nil {
+		return nil, err
+	}
+	return &gadget.GadgetData{Info: gi, RootDir: info.MountDir()}, nil
 }

@@ -509,7 +509,7 @@ version: %s
 	snapst.Active = active
 	snapst.Sequence = append(snapst.Sequence, &snapInfo.SideInfo)
 	snapst.Current = snapInfo.SideInfo.Revision
-	snapst.Channel = "stable"
+	snapst.TrackingChannel = "stable"
 	snapst.InstanceKey = instanceKey
 
 	snapstate.Set(st, instanceName, &snapst)
@@ -683,7 +683,7 @@ UnitFileState=enabled
 	c.Assert(err, check.IsNil)
 
 	// modify state
-	snapst.Channel = "beta"
+	snapst.TrackingChannel = "beta"
 	snapst.IgnoreValidation = true
 	snapst.CohortKey = "some-long-cohort-key"
 	st.Lock()
@@ -916,9 +916,9 @@ func (s *apiSuite) TestMapLocalFields(c *check.C) {
 	about := aboutSnap{
 		info: info,
 		snapst: &snapstate.SnapState{
-			Active:  true,
-			Channel: "flaky/beta",
-			Current: snap.R(7),
+			Active:          true,
+			TrackingChannel: "flaky/beta",
+			Current:         snap.R(7),
 			Flags: snapstate.Flags{
 				IgnoreValidation: true,
 				DevMode:          true,

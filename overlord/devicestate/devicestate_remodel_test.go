@@ -21,12 +21,16 @@ package devicestate_test
 
 import (
 	"context"
+	"errors"
 	"fmt"
+	"io/ioutil"
+	"path/filepath"
 
 	. "gopkg.in/check.v1"
 
 	"github.com/snapcore/snapd/asserts"
 	"github.com/snapcore/snapd/asserts/assertstest"
+	"github.com/snapcore/snapd/gadget"
 	"github.com/snapcore/snapd/overlord/assertstate"
 	"github.com/snapcore/snapd/overlord/assertstate/assertstatetest"
 	"github.com/snapcore/snapd/overlord/auth"
@@ -36,6 +40,9 @@ import (
 	"github.com/snapcore/snapd/overlord/snapstate/snapstatetest"
 	"github.com/snapcore/snapd/overlord/state"
 	"github.com/snapcore/snapd/overlord/storecontext"
+	"github.com/snapcore/snapd/release"
+	"github.com/snapcore/snapd/snap"
+	"github.com/snapcore/snapd/snap/snaptest"
 	"github.com/snapcore/snapd/store/storetest"
 )
 
@@ -871,4 +878,124 @@ func (s *deviceMgrRemodelSuite) TestDeviceCtxProvided(c *C) {
 	deviceCtx1, err := devicestate.DeviceCtx(s.state, nil, deviceCtx)
 	c.Assert(err, IsNil)
 	c.Assert(deviceCtx1, Equals, deviceCtx)
+}
+
+func (s *deviceMgrRemodelSuite) TestCheckGadgetRemodelCompatible(c *C) {
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	currentSnapYaml := `
+name: gadget
+type: gadget
+version: 123
+`
+	remodelSnapYaml := `
+name: new-gadget
+type: gadget
+version: 123
+`
+	mockGadget := `
+type: gadget
+name: gadget
+volumes:
+  volume:
+    schema: gpt
+    bootloader: grub
+`
+	siCurrent := &snap.SideInfo{Revision: snap.R(123), RealName: "gadget"}
+	// so that we get a directory
+	currInfo := snaptest.MockSnapWithFiles(c, currentSnapYaml, siCurrent, nil)
+	info := snaptest.MockSnapWithFiles(c, remodelSnapYaml, &snap.SideInfo{Revision: snap.R(1)}, nil)
+	snapf, err := snap.Open(info.MountDir())
+	c.Assert(err, IsNil)
+
+	s.setupBrands(c)
+
+	oldModel := fakeMyModel(map[string]interface{}{
+		"architecture": "amd64",
+		"gadget":       "gadget",
+		"kernel":       "kernel",
+	})
+	deviceCtx := &snapstatetest.TrivialDeviceContext{DeviceModel: oldModel}
+
+	// model assertion in device context
+	newModel := fakeMyModel(map[string]interface{}{
+		"architecture": "amd64",
+		"gadget":       "new-gadget",
+		"kernel":       "kernel",
+	})
+	remodelCtx := &snapstatetest.TrivialDeviceContext{DeviceModel: newModel, Remodeling: true}
+
+	restore := devicestate.MockGadgetIsCompatible(func(current, update *gadget.Info) error {
+		c.Assert(current.Volumes, HasLen, 1)
+		c.Assert(update.Volumes, HasLen, 1)
+		return errors.New("fail")
+	})
+	defer restore()
+
+	// not on classic
+	release.OnClassic = true
+	err = devicestate.CheckGadgetRemodelCompatible(s.state, info, currInfo, snapf, snapstate.Flags{}, remodelCtx)
+	c.Check(err, IsNil)
+	release.OnClassic = false
+
+	// nothing if not remodeling
+	err = devicestate.CheckGadgetRemodelCompatible(s.state, info, currInfo, snapf, snapstate.Flags{}, deviceCtx)
+	c.Check(err, IsNil)
+
+	err = devicestate.CheckGadgetRemodelCompatible(s.state, info, currInfo, snapf, snapstate.Flags{}, remodelCtx)
+	c.Check(err, ErrorMatches, "cannot read new gadget metadata: .*/new-gadget/1/meta/gadget.yaml: no such file or directory")
+
+	// drop gadget.yaml to the new gadget
+	err = ioutil.WriteFile(filepath.Join(info.MountDir(), "meta/gadget.yaml"), []byte(mockGadget), 0644)
+	c.Assert(err, IsNil)
+
+	err = devicestate.CheckGadgetRemodelCompatible(s.state, info, currInfo, snapf, snapstate.Flags{}, remodelCtx)
+	c.Check(err, ErrorMatches, "cannot read current gadget metadata: .*/gadget/123/meta/gadget.yaml: no such file or directory")
+
+	// drop gadget.yaml to the current gadget
+	err = ioutil.WriteFile(filepath.Join(currInfo.MountDir(), "meta/gadget.yaml"), []byte(mockGadget), 0644)
+	c.Assert(err, IsNil)
+
+	err = devicestate.CheckGadgetRemodelCompatible(s.state, info, currInfo, snapf, snapstate.Flags{}, remodelCtx)
+	c.Check(err, ErrorMatches, "cannot remodel to an incompatible gadget: fail")
+
+	restore = devicestate.MockGadgetIsCompatible(func(current, update *gadget.Info) error {
+		c.Assert(current.Volumes, HasLen, 1)
+		c.Assert(update.Volumes, HasLen, 1)
+		return nil
+	})
+	defer restore()
+
+	err = devicestate.CheckGadgetRemodelCompatible(s.state, info, currInfo, snapf, snapstate.Flags{}, remodelCtx)
+	c.Check(err, IsNil)
+
+	// when remodeling to completely new gadget snap, there is no current
+	// snap passed to the check callback
+	err = devicestate.CheckGadgetRemodelCompatible(s.state, info, nil, snapf, snapstate.Flags{}, remodelCtx)
+	c.Check(err, ErrorMatches, "cannot identify the current model")
+
+	// mock data to obtain current gadget info
+	devicestatetest.SetDevice(s.state, &auth.DeviceState{
+		Brand: "canonical",
+		Model: "gadget",
+	})
+	s.makeModelAssertionInState(c, "canonical", "gadget", map[string]interface{}{
+		"architecture": "amd64",
+		"kernel":       "kernel",
+		"gadget":       "gadget",
+	})
+
+	err = devicestate.CheckGadgetRemodelCompatible(s.state, info, nil, snapf, snapstate.Flags{}, remodelCtx)
+	c.Check(err, ErrorMatches, "cannot identify the current gadget snap")
+
+	snapstate.Set(s.state, "gadget", &snapstate.SnapState{
+		SnapType: "gadget",
+		Sequence: []*snap.SideInfo{siCurrent},
+		Current:  siCurrent.Revision,
+		Active:   true,
+	})
+
+	err = devicestate.CheckGadgetRemodelCompatible(s.state, info, nil, snapf, snapstate.Flags{}, remodelCtx)
+	c.Check(err, IsNil)
 }
