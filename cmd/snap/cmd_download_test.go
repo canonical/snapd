@@ -23,6 +23,7 @@ import (
 	"crypto"
 	"fmt"
 	"net/http"
+	"path/filepath"
 
 	"gopkg.in/check.v1"
 
@@ -31,6 +32,7 @@ import (
 	snapCmd "github.com/snapcore/snapd/cmd/snap"
 	"github.com/snapcore/snapd/image"
 	"github.com/snapcore/snapd/snap"
+	"github.com/snapcore/snapd/testutil"
 )
 
 // these only cover errors that happen before hitting the network,
@@ -96,6 +98,7 @@ func (s *SnapSuite) TestDownloadViaSnapd(c *check.C) {
 	_, err := snapCmd.Parser(snapCmd.Client()).ParseArgs([]string{"download", "a-snap", "--target-directory", tmpdir})
 	c.Assert(err, check.ErrorMatches, `server error: "418 I'm a teapot"`)
 	c.Assert(n, check.Equals, 2)
+	c.Assert(filepath.Join(tmpdir, "a-snap_1.snap"), testutil.FilePresent)
 }
 
 type mockDownloadStore struct{}

@@ -283,7 +283,7 @@ func (x *cmdDownload) downloadViaSnapd(snapName string, rev snap.Revision) error
 	if err := os.MkdirAll(filepath.Dir(downloadPath), 0755); err != nil {
 		return err
 	}
-	if err := downloadSnapFromStreamWithProgress(fname, stream, dlInfo); err != nil {
+	if err := downloadSnapFromStreamWithProgress(downloadPath, stream, dlInfo); err != nil {
 		return err
 	}
 
