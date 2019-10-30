@@ -47,6 +47,7 @@ import (
 	"github.com/snapcore/snapd/bootloader/bootloadertest"
 	"github.com/snapcore/snapd/client"
 	"github.com/snapcore/snapd/dirs"
+	"github.com/snapcore/snapd/gadget"
 	"github.com/snapcore/snapd/interfaces"
 	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/overlord"
@@ -3950,6 +3951,14 @@ volumes:
 	c.Assert(tasks, HasLen, i+1)
 }
 
+type mockUpdater struct{}
+
+func (m *mockUpdater) Backup() error { return nil }
+
+func (m *mockUpdater) Rollback() error { return nil }
+
+func (m *mockUpdater) Update() error { return nil }
+
 func (s *mgrsSuite) TestRemodelSwitchToDifferentGadget(c *C) {
 	bloader := bootloadertest.Mock("mock", c.MkDir())
 	bootloader.Force(bloader)
@@ -3983,9 +3992,16 @@ func (s *mgrsSuite) TestRemodelSwitchToDifferentGadget(c *C) {
 volumes:
     volume-id:
         bootloader: grub
+        structure:
+          - name: foo
+            type: bare
+            size: 1M
+            content:
+              - image: foo.img
 `
 	snaptest.MockSnapWithFiles(c, gadgetSnapYaml, si2, [][]string{
 		{"meta/gadget.yaml", gadgetYaml},
+		{"foo.img", "foo"},
 	})
 
 	// add new gadget "other-pc" snap to fake store
@@ -3996,11 +4012,31 @@ version: 2`
 		"snap-name":    "other-pc",
 		"publisher-id": "can0nical",
 	})
+	otherGadgetYaml := `
+volumes:
+    volume-id:
+        bootloader: grub
+        structure:
+          - name: foo
+            type: bare
+            size: 1M
+            content:
+              - image: new-foo.img
+`
 	snapPath, _ := s.makeStoreTestSnapWithFiles(c, otherPcYaml, "2", [][]string{
 		// use a compatible gadget YAML
-		{"meta/gadget.yaml", gadgetYaml},
+		{"meta/gadget.yaml", otherGadgetYaml},
+		{"new-foo.img", "new foo"},
 	})
 	s.serveSnap(snapPath, "2")
+
+	updaterForStructureCalls := 0
+	restore = gadget.MockUpdaterForStructure(func(ps *gadget.LaidOutStructure, rootDir, rollbackDir string) (gadget.Updater, error) {
+		updaterForStructureCalls++
+		c.Assert(ps.Name, Equals, "foo")
+		return &mockUpdater{}, nil
+	})
+	defer restore()
 
 	// create/set custom model assertion
 	model := s.brands.Model("can0nical", "my-model", modelDefaults, map[string]interface{}{
@@ -4029,6 +4065,21 @@ version: 2`
 	st.Lock()
 	c.Assert(err, IsNil)
 	c.Assert(chg.Err(), IsNil)
+
+	// gadget updater was set up
+	c.Check(updaterForStructureCalls, Equals, 1)
+
+	// gadget update requests a restart
+	restarting, _ := st.Restarting()
+	c.Check(restarting, Equals, true)
+
+	// simulate successful restart happened
+	state.MockRestarting(st, state.RestartUnset)
+
+	st.Unlock()
+	err = s.o.Settle(settleTimeout)
+	st.Lock()
+	c.Assert(err, IsNil)
 
 	// ensure tasks were run in the right order
 	tasks := chg.Tasks()
