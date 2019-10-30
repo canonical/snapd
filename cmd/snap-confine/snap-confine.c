@@ -387,8 +387,9 @@ int main(int argc, char **argv)
 		    " permission escalation attacks");
 	}
 
-	/* perform global initialization of mount namespace support for confined
-	 * snaps only, or both when parallel-instances feature is enabled */
+	/* perform global initialization of mount namespace support for non-classic
+	 * snaps or both classic and non-classic when parallel-instances feature is
+	 * enabled */
 	if (!invocation.classic_confinement ||
 	    sc_feature_enabled(SC_FEATURE_PARALLEL_INSTANCES)) {
 
@@ -544,6 +545,9 @@ int main(int argc, char **argv)
 
 static void enter_classic_execution_environment(const sc_invocation * inv)
 {
+	/* with parallel-instances enabled, main() reassociated with the mount ns of
+	 * PID 1 to make /run/snapd/ns visible */
+
 	/* 'classic confinement' is designed to run without the sandbox inside the
 	 * shared namespace. Specifically:
 	 * - snap-confine skips using the snap-specific, private, mount namespace
@@ -570,10 +574,10 @@ static void enter_classic_execution_environment(const sc_invocation * inv)
 	 * - convert SNAP_MOUNT_DIR into a mount point (global init)
 	 * - convert /var/snap into a mount point (global init)
 	 * - always create a new mount namespace
-	 * - for parallel instances of classic snaps only:
-	 *   - set slave propagation on SNAP_MOUNT_DIR and /var/snap
-	 *   - mount SNAP_MOUNT_DIR/<snap>_<key> on top of SNAP_MOUNT_DIR/<snap>
-	 *   - mount /var/snap/<snap>_<key> on top of /var/snap/<snap>
+	 * - for snaps with non empty instance key:
+	 *   - set slave propagation recursively on SNAP_MOUNT_DIR and /var/snap
+	 *   - recursively bind mount SNAP_MOUNT_DIR/<snap>_<key> on top of SNAP_MOUNT_DIR/<snap>
+	 *   - recursively bind mount /var/snap/<snap>_<key> on top of /var/snap/<snap>
 	 *
 	 * The destination directories /var/snap/<snap> and SNAP_MOUNT_DIR/<snap>
 	 * are guaranteed to exist and were created during installation of a given
@@ -602,6 +606,9 @@ static void enter_non_classic_execution_environment(sc_invocation * inv,
 						    gid_t real_gid,
 						    gid_t saved_gid)
 {
+	// main() reassociated with the mount ns of PID 1 to make /run/snapd/ns
+	// visible
+
 	// Find and open snap-update-ns and snap-discard-ns from the same
 	// path as where we (snap-confine) were called.
 	int snap_update_ns_fd SC_CLEANUP(sc_cleanup_close) = -1;
