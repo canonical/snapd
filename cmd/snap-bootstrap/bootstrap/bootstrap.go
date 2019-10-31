@@ -72,7 +72,7 @@ func ensureLayoutCompatibility(gadgetLayout, diskLayout *gadget.LaidOutVolume) e
 	eq := func(ds, gs gadget.LaidOutStructure) bool {
 		dv := ds.VolumeStructure
 		gv := gs.VolumeStructure
-		return dv.Name == gv.Name && dv.Role == gv.Role && ds.StartOffset == gs.StartOffset && dv.Size == gv.Size && dv.Filesystem == gv.Filesystem
+		return dv.Name == gv.Name && ds.StartOffset == gs.StartOffset && dv.Size == gv.Size && dv.Filesystem == gv.Filesystem
 	}
 	contains := func(haystack []gadget.LaidOutStructure, needle gadget.LaidOutStructure) bool {
 		for _, h := range haystack {
