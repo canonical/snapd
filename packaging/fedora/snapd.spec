@@ -92,7 +92,7 @@
 %endif
 
 Name:           snapd
-Version:        2.42
+Version:        2.42.1
 Release:        0%{?dist}
 Summary:        A transactional software package manager
 License:        GPLv3
@@ -874,6 +874,20 @@ fi
 
 
 %changelog
+* Wed Oct 30 2019 Michael Vogt <mvo@ubuntu.com>
+- New upstream release 2.42.1
+ - interfaces: de-duplicate emitted update-ns profiles
+ - packaging: tweak handling of usr.lib.snapd.snap-confine
+ - interfaces: allow introspecting network-manager on core
+ - tests/main/interfaces-contacts-service: disable on openSUSE
+   Tumbleweed
+ - tests/lib/lxd-snapfuse: restore mount changes introduced by LXD
+ - snap: fix default-provider in seed validation
+ - tests: update system-usernames test now that opensuse-15.1 works
+ - overlord: set fake sertial in TestRemodelSwitchToDifferentKernel
+ - gadget: rename "boot{select,img}" -> system-boot-{select,image}
+ - tests: listing test, make accepted snapd/core versions consistent
+
 * Tue Oct 01 2019 Michael Vogt <mvo@ubuntu.com>
 - New upstream release 2.42
  - tests: disable {contacts,calendar}-service tests on debian-sid
