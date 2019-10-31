@@ -754,7 +754,12 @@ void sc_ensure_snap_dir_shared_mounts(void)
 			 * recursively bind mount it, then recursively share it so that
 			 * changes to the host are seen in the snap and vice-versa. This
 			 * allows us to fine-tune propagation events elsewhere for this new
-			 * mountpoint. */
+			 * mountpoint.
+			 *
+			 * Not using MS_SLAVE because it's too late for SNAP_MOUNT_DIR,
+			 * since snaps are already mounted, and it's not needed for
+			 * /var/snap.
+			 */
 			sc_do_mount(dir, dir, "none", MS_BIND | MS_REC, 0);
 			sc_do_mount("none", dir, NULL, MS_REC | MS_SHARED,
 				    NULL);
