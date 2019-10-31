@@ -212,7 +212,7 @@ var noCompletion = make(map[string]bool)
 func markForNoCompletion(ci *cmdInfo) {
 	if ci.hidden && !ci.completeHidden {
 		if ci.shortHelp == "" {
-			logger.Panicf("%d missing short help", ci.name)
+			logger.Panicf("%q missing short help", ci.name)
 		}
 		noCompletion[ci.shortHelp] = true
 	}
