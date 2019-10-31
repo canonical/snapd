@@ -10,8 +10,6 @@ prepare: |
     rm -rf /var/snap/test-snapd-classic-confinement
     rm -rf /var/snap/test-snapd-classic-confinement_foo
 
-    #shellcheck source=tests/lib/snaps.sh
-    . "$TESTSLIB"/snaps.sh
     #shellcheck source=tests/lib/dirs.sh
     . "$TESTSLIB"/dirs.sh
     snap pack "$TESTSLIB/snaps/test-snapd-classic-confinement/"
@@ -28,7 +26,7 @@ prepare: |
     snap set system experimental.parallel-instances=true
 
 restore:
-    snap set system experimental.parallel-instances=null
+    snap unset system experimental.parallel-instances
 
     case "$SPREAD_SYSTEM" in
         fedora-*|arch-*|centos-*)
@@ -43,21 +41,21 @@ execute: |
     install_local test-snapd-classic-confinement --classic
     install_local_as test-snapd-classic-confinement test-snapd-classic-confinement_foo --classic
 
-    su -l -c '! test -d ~/snap/test-snapd-classic-confinement' test
-    su -l -c '! test -d ~/snap/test-snapd-classic-confinement_foo' test
+    su test -l -c '! test -d ~/snap/test-snapd-classic-confinement'
+    su test -l -c '! test -d ~/snap/test-snapd-classic-confinement_foo'
     not test -d ~/snap/test-snapd-classic-confinement
     not test -d ~/snap/test-snapd-classic-confinement_foo
 
     # running the snap as a user works
-    su -l -c "test-snapd-classic-confinement_foo.sh -c 'echo foo'" test | MATCH foo
+    su test -l -c "test-snapd-classic-confinement_foo.sh -c 'echo foo'" | MATCH foo
     # user directory was created
-    su -l -c 'test -d ~/snap/test-snapd-classic-confinement_foo' test
+    su test -l -c 'test -d ~/snap/test-snapd-classic-confinement_foo'
 
     # running as root works
     test-snapd-classic-confinement_foo.sh -c "echo foo" | MATCH foo
 
     # instance environment variables are correctly set up
-    su -l -c 'test-snapd-classic-confinement_foo.sh -c env' test > snap_foo-env.txt
+    su test -l -c 'test-snapd-classic-confinement_foo.sh -c env' > snap_foo-env.txt
     MATCH 'SNAP_INSTANCE_NAME=test-snapd-classic-confinement_foo'                      < snap_foo-env.txt
     MATCH 'SNAP_NAME=test-snapd-classic-confinement'                                   < snap_foo-env.txt
     MATCH 'SNAP_INSTANCE_KEY=foo'                                                      < snap_foo-env.txt
@@ -74,15 +72,15 @@ execute: |
     echo canary-regular-rev > /var/snap/test-snapd-classic-confinement/x1/data
 
     # instance can read and write data
-    su -l -c "test-snapd-classic-confinement_foo.sh -c 'cat \$SNAP_COMMON/data'" test | MATCH canary-instance-common
-    su -l -c "test-snapd-classic-confinement_foo.sh -c 'cat \$SNAP_DATA/data'" test | MATCH canary-instance-rev
+    su test -l -c "test-snapd-classic-confinement_foo.sh -c 'cat \$SNAP_COMMON/data'" | MATCH canary-instance-common
+    su test -l -c "test-snapd-classic-confinement_foo.sh -c 'cat \$SNAP_DATA/data'" | MATCH canary-instance-rev
     # shellcheck disable=SC2016
     test-snapd-classic-confinement_foo.sh -c "echo \"hello from instance \$SNAP_INSTANCE_NAME\" > \$SNAP_DATA/hello"
     MATCH 'hello from instance test-snapd-classic-confinement_foo' < /var/snap/test-snapd-classic-confinement_foo/x1/hello
 
     # non-instance sees the right data
-    su -l -c "test-snapd-classic-confinement.sh -c 'cat \$SNAP_COMMON/data'" test | MATCH canary-regular-common
-    su -l -c "test-snapd-classic-confinement.sh -c 'cat \$SNAP_DATA/data'" test | MATCH canary-regular-rev
+    su test -l -c "test-snapd-classic-confinement.sh -c 'cat \$SNAP_COMMON/data'" | MATCH canary-regular-common
+    su test -l -c "test-snapd-classic-confinement.sh -c 'cat \$SNAP_DATA/data'" | MATCH canary-regular-rev
     # and does not see instance specific data
     # shellcheck disable=SC2016
     not test-snapd-classic-confinement.sh -c "test -e \$SNAP_COMMON/foobar/hello"
