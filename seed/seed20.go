@@ -288,10 +288,12 @@ func (s *seed20) lookupVerifiedRevision(snapRef naming.SnapRef) (snapPath string
 func (s *seed20) addModelSnap(modelSnap *asserts.ModelSnap, essential bool, tm timings.Measurer) (*Snap, error) {
 	// TODO|XXX: support optional snaps correctly
 
-	optSnap, _ := s.nextOptSnap(modelSnap)
-	// TODO|XXX: consider optSnap.Channel
-
 	channel := modelSnap.DefaultChannel
+
+	optSnap, _ := s.nextOptSnap(modelSnap)
+	if optSnap != nil && optSnap.Channel != "" {
+		channel = optSnap.Channel
+	}
 
 	var path string
 	var sideInfo *snap.SideInfo
