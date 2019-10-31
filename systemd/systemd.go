@@ -59,6 +59,10 @@ var (
 	// See https://github.com/systemd/systemd/issues/10872 for the
 	// upstream systemd bug
 	daemonReloadLock extMutex
+
+	osutilIsMounted = osutil.IsMounted
+
+	osSymlink = os.Symlink
 )
 
 // mu is a sync.Mutex that also supports to check if the lock is taken
@@ -205,6 +209,13 @@ func New(rootDir string, mode InstanceMode, rep reporter) Systemd {
 	return &systemd{rootDir: rootDir, mode: mode, reporter: rep}
 }
 
+// NewEmulationMode returns a Systemd that runs in emulation mode where
+// systemd is not really called, but instead its functions are emulated
+// by other means.
+func NewEmulationMode(rootDir string, rep reporter) Systemd {
+	return &systemd{rootDir: rootDir, mode: SystemMode, emulation: true, reporter: rep}
+}
+
 // InstanceMode determines which instance of systemd to control.
 //
 // SystemMode refers to the system instance (i.e. pid 1).  UserMode
@@ -224,9 +235,10 @@ const (
 )
 
 type systemd struct {
-	rootDir  string
-	reporter reporter
-	mode     InstanceMode
+	rootDir   string
+	reporter  reporter
+	mode      InstanceMode
+	emulation bool
 }
 
 func (s *systemd) systemctl(args ...string) ([]byte, error) {
@@ -685,6 +697,21 @@ WantedBy=multi-user.target
 		return "", err
 	}
 
+	// In emulation mode mount the target but do not trigger systemd
+	if s.emulation {
+		cmd := exec.Command("mount", "-t", fstype, what, where, "-o", strings.Join(options, ","))
+		if out, err := cmd.CombinedOutput(); err != nil {
+			return "", fmt.Errorf("cannot mount %s (%s) at %s in pre-bake mode: %s; %s", what, where, fstype, err, string(out))
+		}
+
+		// cannot call systemd, so manually enable the unit by symlinking into multi-user.target.wants
+		enableUnitPath := filepath.Join(dirs.SnapServicesDir, "multi-user.target.wants", mountUnitName)
+		if err := osSymlink(mu, enableUnitPath); err != nil {
+			return "", fmt.Errorf("cannot enable mount unit %s: %v", mountUnitName, err)
+		}
+		return mountUnitName, nil
+	}
+
 	// we need to do a daemon-reload here to ensure that systemd really
 	// knows about this new mount unit file
 	if err := s.daemonReloadNoLock(); err != nil {
@@ -714,7 +741,7 @@ func (s *systemd) RemoveMountUnitFile(mountedDir string) error {
 	// can be unmounted.
 	// note that the long option --lazy is not supported on trusty.
 	// the explicit -d is only needed on trusty.
-	isMounted, err := osutil.IsMounted(mountedDir)
+	isMounted, err := osutilIsMounted(mountedDir)
 	if err != nil {
 		return err
 	}
@@ -723,16 +750,32 @@ func (s *systemd) RemoveMountUnitFile(mountedDir string) error {
 			return osutil.OutputErr(output, err)
 		}
 
-		if err := s.Stop(filepath.Base(unit), time.Duration(1*time.Second)); err != nil {
+		if !s.emulation {
+			if err := s.Stop(filepath.Base(unit), time.Duration(1*time.Second)); err != nil {
+				return err
+			}
+		}
+	}
+
+	if s.emulation {
+		enableUnitPathSymlink := filepath.Join(dirs.SnapServicesDir, "multi-user.target.wants", filepath.Base(unit))
+		if err := os.Remove(enableUnitPathSymlink); err != nil {
+			return err
+		}
+	} else {
+		if err := s.Disable(filepath.Base(unit)); err != nil {
 			return err
 		}
 	}
-	if err := s.Disable(filepath.Base(unit)); err != nil {
-		return err
-	}
+
 	if err := os.Remove(unit); err != nil {
 		return err
 	}
+
+	if s.emulation {
+		return nil
+	}
+
 	// daemon-reload to ensure that systemd actually really
 	// forgets about this mount unit
 	if err := s.daemonReloadNoLock(); err != nil {
@@ -740,4 +783,12 @@ func (s *systemd) RemoveMountUnitFile(mountedDir string) error {
 	}
 
 	return nil
+}
+
+func MockOsSymlink(f func(oldPath, newPath string) error) func() {
+	old := osSymlink
+	osSymlink = f
+	return func() {
+		osSymlink = old
+	}
 }
