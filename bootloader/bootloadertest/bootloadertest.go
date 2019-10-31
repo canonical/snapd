@@ -20,6 +20,7 @@
 package bootloadertest
 
 import (
+	"fmt"
 	"path/filepath"
 
 	"github.com/snapcore/snapd/bootloader"
@@ -98,12 +99,21 @@ func (b *MockBootloader) SetBootBase(base string) {
 	b.SetBootVars(map[string]string{"snap_core": base})
 }
 
-func (b *MockBootloader) SetTrying() {
+func (b *MockBootloader) SetTryingDuringReboot() error {
+	if b.BootVars["snap_mode"] != "try" {
+		return fmt.Errorf("bootloader must be in 'try' mode")
+	}
 	b.BootVars["snap_mode"] = "trying"
+	return nil
 }
 
-func (b *MockBootloader) SetRollbackAccrossReboot() {
+func (b *MockBootloader) SetRollbackAccrossReboot() error {
+	if b.BootVars["snap_mode"] != "try" {
+		return fmt.Errorf("rollback can only be simulated in 'try' mode")
+	}
+	// clean try bootvars and snap_mode
 	b.BootVars["snap_mode"] = ""
 	b.BootVars["snap_try_core"] = ""
 	b.BootVars["snap_try_kernel"] = ""
+	return nil
 }

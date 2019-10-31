@@ -1598,6 +1598,29 @@ type: os
 
 }
 
+func (s *mgrsSuite) mockSuccessfulReboot(c *C, bloader *bootloadertest.MockBootloader) {
+	st := s.o.State()
+	state.MockRestarting(st, state.RestartUnset)
+	err := bloader.SetTryingDuringReboot()
+	c.Assert(err, IsNil)
+	s.o.DeviceManager().ResetBootOk()
+	st.Unlock()
+	defer st.Lock()
+	err = s.o.DeviceManager().Ensure()
+	c.Assert(err, IsNil)
+}
+
+func (s *mgrsSuite) mockRollbackAccrossReboot(c *C, bloader *bootloadertest.MockBootloader) {
+	st := s.o.State()
+	state.MockRestarting(st, state.RestartUnset)
+	err := bloader.SetRollbackAccrossReboot()
+	c.Assert(err, IsNil)
+	s.o.DeviceManager().ResetBootOk()
+	st.Unlock()
+	s.o.Settle(settleTimeout)
+	st.Lock()
+}
+
 func (s *mgrsSuite) TestInstallKernelSnapUpdatesBootloader(c *C) {
 	bloader := bootloadertest.Mock("mock", c.MkDir())
 	bootloader.Force(bloader)
@@ -1680,7 +1703,7 @@ type: kernel`
 		"snap_mode":       "try",
 	})
 	// pretend we restarted
-	s.mockSuccessfulSystemRestart(c, bloader)
+	s.mockSuccessfulReboot(c, bloader)
 
 	st.Unlock()
 	err = s.o.Settle(settleTimeout)
@@ -3495,7 +3518,7 @@ version: 2.0`
 	c.Assert(t.Status(), Equals, state.DoingStatus)
 
 	// simulate successful restart happened
-	s.mockSuccessfulSystemRestart(c, bloader)
+	s.mockSuccessfulReboot(c, bloader)
 
 	// continue
 	st.Unlock()
@@ -3521,27 +3544,6 @@ version: 2.0`
 	// ensure that we only have the tasks we checked (plus the one
 	// extra "set-model" task)
 	c.Assert(tasks, HasLen, i+1)
-}
-
-func (ms *mgrsSuite) mockSuccessfulSystemRestart(c *C, bloader *bootloadertest.MockBootloader) {
-	st := ms.o.State()
-	state.MockRestarting(st, state.RestartUnset)
-	bloader.SetTrying()
-	ms.o.DeviceManager().ResetBootOk()
-	st.Unlock()
-	defer st.Lock()
-	err := ms.o.DeviceManager().Ensure()
-	c.Assert(err, IsNil)
-}
-
-func (ms *mgrsSuite) mockRollbackAccrossReboot(c *C, bloader *bootloadertest.MockBootloader) {
-	st := ms.o.State()
-	state.MockRestarting(st, state.RestartUnset)
-	bloader.SetRollbackAccrossReboot()
-	ms.o.DeviceManager().ResetBootOk()
-	st.Unlock()
-	ms.o.Settle(settleTimeout)
-	st.Lock()
 }
 
 func (ms *mgrsSuite) TestRemodelSwitchToDifferentKernel(c *C) {
@@ -3649,7 +3651,7 @@ version: 1.0`
 	})
 	// simulate successful system-restart bootenv updates (those
 	// vars will be cleared by snapd on a restart)
-	ms.mockSuccessfulSystemRestart(c, bloader)
+	ms.mockSuccessfulReboot(c, bloader)
 	// bootvars are as expected
 	c.Assert(bloader.BootVars, DeepEquals, map[string]string{
 		"snap_core":       "core_1.snap",
