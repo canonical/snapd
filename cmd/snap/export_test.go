@@ -82,6 +82,8 @@ var (
 	SignalNotify = signalNotify
 
 	SortTimingsTasks = sortTimingsTasks
+
+	PrintInstallHint = printInstallHint
 )
 
 type ChangeTimings = changeTimings
