@@ -61,6 +61,8 @@ var (
 	daemonReloadLock extMutex
 
 	osutilIsMounted = osutil.IsMounted
+
+	osSymlink = os.Symlink
 )
 
 // mu is a sync.Mutex that also supports to check if the lock is taken
@@ -704,7 +706,7 @@ WantedBy=multi-user.target
 
 		// cannot call systemd, so manually enable the unit by symlinking into multi-user.target.wants
 		enableUnitPath := filepath.Join(dirs.SnapServicesDir, "multi-user.target.wants", mountUnitName)
-		if err := os.Symlink(mu, enableUnitPath); err != nil {
+		if err := osSymlink(mu, enableUnitPath); err != nil {
 			return "", fmt.Errorf("cannot enable mount unit %s: %v", mountUnitName, err)
 		}
 		return mountUnitName, nil
@@ -781,4 +783,12 @@ func (s *systemd) RemoveMountUnitFile(mountedDir string) error {
 	}
 
 	return nil
+}
+
+func MockOsSymlink(f func(oldPath, newPath string) error) func() {
+	old := osSymlink
+	osSymlink = f
+	return func() {
+		osSymlink = old
+	}
 }
