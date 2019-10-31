@@ -20,19 +20,36 @@
 package main_test
 
 import (
+	"fmt"
 	"os"
 	"path/filepath"
 
 	"gopkg.in/check.v1"
 
-	snap "github.com/snapcore/snapd/cmd/snap"
+	"github.com/snapcore/snapd/asserts"
+	snapCmd "github.com/snapcore/snapd/cmd/snap"
+	"github.com/snapcore/snapd/image"
+	"github.com/snapcore/snapd/snap"
 )
 
-// these only cover errors that happen before hitting the network,
-// because we're not (yet!) mocking the tooling store
+// mockDownloadStore is a helper that can mock a store. It does not provide
+// more support than errors right now. To be a fully functional store it
+// needs full assertion mocking.
+type mockDownloadStore struct{}
+
+func (m *mockDownloadStore) DownloadSnap(name string, opts image.DownloadOptions) (targetFn string, info *snap.Info, err error) {
+	return "", nil, fmt.Errorf("mockDownloadStore cannot provide snaps")
+}
+
+func (m *mockDownloadStore) AssertionFetcher(db *asserts.Database, save func(asserts.Assertion) error) asserts.Fetcher {
+	retrieve := func(ref *asserts.Ref) (asserts.Assertion, error) {
+		return nil, fmt.Errorf("mockDownloadStore does not have assertions")
+	}
+	return asserts.NewFetcher(db, retrieve, save)
+}
 
 func (s *SnapSuite) TestDownloadBadBasename(c *check.C) {
-	_, err := snap.Parser(snap.Client()).ParseArgs([]string{
+	_, err := snapCmd.Parser(snapCmd.Client()).ParseArgs([]string{
 		"download", "--basename=/foo", "a-snap",
 	})
 
@@ -40,7 +57,7 @@ func (s *SnapSuite) TestDownloadBadBasename(c *check.C) {
 }
 
 func (s *SnapSuite) TestDownloadBadChannelCombo(c *check.C) {
-	_, err := snap.Parser(snap.Client()).ParseArgs([]string{
+	_, err := snapCmd.Parser(snapCmd.Client()).ParseArgs([]string{
 		"download", "--beta", "--channel=foo", "a-snap",
 	})
 
@@ -48,7 +65,7 @@ func (s *SnapSuite) TestDownloadBadChannelCombo(c *check.C) {
 }
 
 func (s *SnapSuite) TestDownloadCohortAndRevision(c *check.C) {
-	_, err := snap.Parser(snap.Client()).ParseArgs([]string{
+	_, err := snapCmd.Parser(snapCmd.Client()).ParseArgs([]string{
 		"download", "--cohort=what", "--revision=1234", "a-snap",
 	})
 
@@ -56,7 +73,7 @@ func (s *SnapSuite) TestDownloadCohortAndRevision(c *check.C) {
 }
 
 func (s *SnapSuite) TestDownloadChannelAndRevision(c *check.C) {
-	_, err := snap.Parser(snap.Client()).ParseArgs([]string{
+	_, err := snapCmd.Parser(snapCmd.Client()).ParseArgs([]string{
 		"download", "--beta", "--revision=1234", "a-snap",
 	})
 
@@ -64,7 +81,7 @@ func (s *SnapSuite) TestDownloadChannelAndRevision(c *check.C) {
 }
 
 func (s *SnapSuite) TestPrintInstalHint(c *check.C) {
-	snap.PrintInstallHint("foo_1.assert", "foo_1.snap")
+	snapCmd.PrintInstallHint("foo_1.assert", "foo_1.snap")
 	c.Check(s.Stdout(), check.Equals, `Install the snap with:
    snap ack foo_1.assert
    snap install foo_1.snap
@@ -75,10 +92,23 @@ func (s *SnapSuite) TestPrintInstalHint(c *check.C) {
 	c.Assert(err, check.IsNil)
 	as := filepath.Join(cwd, "some-dir/foo_1.assert")
 	sn := filepath.Join(cwd, "some-dir/foo_1.snap")
-	snap.PrintInstallHint(as, sn)
+	snapCmd.PrintInstallHint(as, sn)
 	c.Check(s.Stdout(), check.Equals, `Install the snap with:
    snap ack some-dir/foo_1.assert
    snap install some-dir/foo_1.snap
 `)
 
+}
+
+func (s *SnapSuite) TestDownloadDirectStoreError(c *check.C) {
+	restore := snapCmd.MockNewDownloadStore(func() (snapCmd.DownloadStore, error) {
+		return &mockDownloadStore{}, nil
+	})
+	defer restore()
+
+	// we just test here we hit our fake tooling store, mocking
+	// the full download is more work, i.e. we need to mock the
+	// assertions download as well
+	_, err := snapCmd.Parser(snapCmd.Client()).ParseArgs([]string{"download", "a-snap"})
+	c.Assert(err, check.ErrorMatches, "mockDownloadStore cannot provide snaps")
 }

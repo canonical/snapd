@@ -313,3 +313,13 @@ func MockSignalNotify(newSignalNotify func(sig ...os.Signal) (chan os.Signal, fu
 }
 
 type ServiceName = serviceName
+
+type DownloadStore = downloadStore
+
+func MockNewDownloadStore(f func() (downloadStore, error)) (restore func()) {
+	old := newDownloadStore
+	newDownloadStore = f
+	return func() {
+		newDownloadStore = old
+	}
+}

@@ -71,7 +71,17 @@ func init() {
 	}})
 }
 
-func fetchSnapAssertions(tsto *image.ToolingStore, snapPath string, snapInfo *snap.Info) (string, error) {
+// downloadStore is enough to support direct snap downloads
+type downloadStore interface {
+	DownloadSnap(name string, opts image.DownloadOptions) (targetFn string, info *snap.Info, err error)
+	AssertionFetcher(db *asserts.Database, save func(asserts.Assertion) error) asserts.Fetcher
+}
+
+var newDownloadStore = func() (downloadStore, error) {
+	return image.NewToolingStore()
+}
+
+func fetchSnapAssertions(tsto downloadStore, snapPath string, snapInfo *snap.Info) (string, error) {
 	db, err := asserts.OpenDatabase(&asserts.DatabaseConfig{
 		Backstore: asserts.NewMemoryBackstore(),
 		Trusted:   sysdb.Trusted(),
@@ -144,7 +154,7 @@ func (x *cmdDownload) Execute(args []string) error {
 
 	snapName := string(x.Positional.Snap)
 
-	tsto, err := image.NewToolingStore()
+	tsto, err := newDownloadStore()
 	if err != nil {
 		return err
 	}
