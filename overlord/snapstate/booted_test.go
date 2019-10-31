@@ -275,7 +275,7 @@ func (bs *bootedSuite) TestWaitRestartCore(c *C) {
 	c.Check(err, IsNil)
 
 	si = &snap.SideInfo{RealName: "core"}
-	snapsup := &snapstate.SnapSetup{SideInfo: si}
+	snapsup := &snapstate.SnapSetup{SideInfo: si, Type: snap.TypeOS}
 
 	// core snap, restarting ... wait
 	state.MockRestarting(st, state.RestartSystem)
@@ -323,11 +323,11 @@ func (bs *bootedSuite) TestWaitRestartBootableBase(c *C) {
 	// core snap but we are on a model with a different base
 	si = &snap.SideInfo{RealName: "core"}
 	snaptest.MockSnap(c, "name: core\ntype: os\nversion: 1", si)
-	err = snapstate.WaitRestart(task, &snapstate.SnapSetup{SideInfo: si})
+	err = snapstate.WaitRestart(task, &snapstate.SnapSetup{SideInfo: si, Type: snap.TypeOS})
 	c.Check(err, IsNil)
 
 	si = &snap.SideInfo{RealName: "core18"}
-	snapsup := &snapstate.SnapSetup{SideInfo: si}
+	snapsup := &snapstate.SnapSetup{SideInfo: si, Type: snap.TypeBase}
 	snaptest.MockSnap(c, "name: core18\ntype: base\nversion: 1", si)
 	// core snap, restarting ... wait
 	state.MockRestarting(st, state.RestartSystem)
