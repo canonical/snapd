@@ -54,6 +54,7 @@ var SeccompSyscalls = []string{
 	"clock_adjtime",
 	"clock_adjtime64",
 	"clock_getres",
+	"clock_getres_time64",
 	"clock_gettime",
 	"clock_gettime64",
 	"clock_nanosleep",
