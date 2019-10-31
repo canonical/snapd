@@ -53,6 +53,24 @@ func installSeedSnap(st *state.State, sn *seed.Snap, flags snapstate.Flags) (*st
 	return snapstate.InstallPath(st, sn.SideInfo, sn.Path, "", sn.Channel, flags)
 }
 
+func criticalTaskEdges(ts *state.TaskSet) (prereqEdge, aliasesEdge, hooksEdge *state.Task) {
+	var err error
+	prereqEdge, err = ts.Edge(snapstate.PrerequisitesEdge)
+	if err != nil {
+		return nil, nil, nil
+	}
+	aliasesEdge, err = ts.Edge(snapstate.SetupAliasesEdge)
+	if err != nil {
+		return nil, nil, nil
+	}
+	hooksEdge, err = ts.Edge(snapstate.InstallHookEdge)
+	if err != nil {
+		return nil, nil, nil
+	}
+
+	return prereqEdge, aliasesEdge, hooksEdge
+}
+
 func trivialSeeding(st *state.State, markSeeded *state.Task) []*state.TaskSet {
 	// give the internal core config a chance to run (even if core is
 	// not used at all we put system configuration there)
@@ -61,7 +79,7 @@ func trivialSeeding(st *state.State, markSeeded *state.Task) []*state.TaskSet {
 	return []*state.TaskSet{configTs, state.NewTaskSet(markSeeded)}
 }
 
-func populateStateFromSeedImpl(st *state.State, tm timings.Measurer) ([]*state.TaskSet, error) {
+func populateStateFromSeedImpl(st *state.State, preseed bool, tm timings.Measurer) ([]*state.TaskSet, error) {
 	// check that the state is empty
 	var seeded bool
 	err := st.Get("seeded", &seeded)
@@ -72,6 +90,10 @@ func populateStateFromSeedImpl(st *state.State, tm timings.Measurer) ([]*state.T
 		return nil, fmt.Errorf("cannot populate state: already seeded")
 	}
 
+	var preseedDone *state.Task
+	if preseed {
+		preseedDone = st.NewTask("preseed-done", i18n.G("Image preseed barrier"))
+	}
 	markSeeded := st.NewTask("mark-seeded", i18n.G("Mark system seeded"))
 
 	deviceSeed, err := seed.Open(dirs.SnapSeedDir)
@@ -111,10 +133,31 @@ func populateStateFromSeedImpl(st *state.State, tm timings.Measurer) ([]*state.T
 
 	tsAll := []*state.TaskSet{}
 	configTss := []*state.TaskSet{}
+
+	var lastPrereqTask, lastPreliminarySetupTask *state.Task
+
 	chainTs := func(all []*state.TaskSet, ts *state.TaskSet) []*state.TaskSet {
 		n := len(all)
-		if n != 0 {
-			ts.WaitAll(all[n-1])
+		if preseed {
+			// preseed-barrier task needs to be inserted between preliminary setup and hook tasks
+			prereqTask, preliminarySetup, hookTask := criticalTaskEdges(ts)
+			if prereqTask != nil {
+				hookTask.WaitFor(preseedDone)
+				if lastPreliminarySetupTask != nil {
+					prereqTask.WaitFor(lastPreliminarySetupTask)
+				}
+				preseedDone.WaitFor(preliminarySetup)
+				lastPrereqTask = prereqTask
+				lastPreliminarySetupTask = preliminarySetup
+			} else {
+				if n != 0 {
+					ts.WaitAll(all[n-1])
+				}
+			}
+		} else {
+			if n != 0 {
+				ts.WaitAll(all[n-1])
+			}
 		}
 		return append(all, ts)
 	}
@@ -145,6 +188,7 @@ func populateStateFromSeedImpl(st *state.State, tm timings.Measurer) ([]*state.T
 			// wait for the previous configTss
 			configTss = chainTs(configTss, configTs)
 		}
+
 		essInfos = append(essInfos, info)
 		essInfoToTs[info] = ts
 		allSnapInfos[info.SnapName()] = info
@@ -156,6 +200,9 @@ func populateStateFromSeedImpl(st *state.State, tm timings.Measurer) ([]*state.T
 	// chain together configuring core, kernel, and gadget after
 	// installing them so that defaults are availabble from gadget
 	if len(configTss) > 0 {
+		if preseed {
+			configTss[0].WaitFor(preseedDone)
+		}
 		configTss[0].WaitAll(tsAll[len(tsAll)-1])
 		tsAll = append(tsAll, configTss...)
 	}
@@ -196,10 +243,24 @@ func populateStateFromSeedImpl(st *state.State, tm timings.Measurer) ([]*state.T
 		// we have a gadget that could have interface
 		// connection instructions
 		gadgetConnect := st.NewTask("gadget-connect", "Connect plugs and slots as instructed by the gadget")
-		gadgetConnect.WaitAll(ts)
+		if preseed {
+			if lastPreliminarySetupTask != nil {
+				gadgetConnect.WaitFor(lastPreliminarySetupTask)
+			}
+		} else {
+			gadgetConnect.WaitAll(ts)
+		}
 		endTs.AddTask(gadgetConnect)
 		ts = endTs
+		if preseed {
+			preseedDone.WaitFor(gadgetConnect)
+		}
 	}
+
+	if preseed {
+		endTs.AddTask(preseedDone)
+	}
+
 	markSeeded.WaitAll(ts)
 	endTs.AddTask(markSeeded)
 	tsAll = append(tsAll, endTs)

@@ -66,7 +66,7 @@ type firstBootBaseTest struct {
 
 	devAcct *asserts.Account
 
-	overlord *overlord.Overlord
+	o *overlord.Overlord
 
 	perfTimings timings.Measurer
 }
@@ -103,17 +103,26 @@ func (t *firstBootBaseTest) setupBaseTest(c *C, s *seedtest.SeedSnaps) {
 	t.AddCleanup(sysdb.InjectTrusted([]asserts.Assertion{s.StoreSigning.TrustedKey}))
 	t.AddCleanup(ifacestate.MockSecurityBackends(nil))
 
-	ovld, err := overlord.New(nil)
-	c.Assert(err, IsNil)
-	ovld.InterfaceManager().DisableUDevMonitor()
-	t.overlord = ovld
-	c.Assert(ovld.StartUp(), IsNil)
-
-	// don't actually try to talk to the store on snapstate.Ensure
-	// needs doing after the call to devicestate.Manager (which happens in overlord.New)
-	snapstate.CanAutoRefresh = nil
+	// overlord initialization is delayed via overlord() on first use so that preseed mode
+	// can be mocked in some tests before all managers are up.
+	t.o = nil
 
 	t.perfTimings = timings.New(nil)
+}
+
+func (t *firstBootBaseTest) overlord(c *C) *overlord.Overlord {
+	if t.o == nil {
+		ovld, err := overlord.New(nil)
+		c.Assert(err, IsNil)
+		ovld.InterfaceManager().DisableUDevMonitor()
+		t.o = ovld
+		c.Assert(ovld.StartUp(), IsNil)
+
+		// don't actually try to talk to the store on snapstate.Ensure
+		// needs doing after the call to devicestate.Manager (which happens in overlord.New)
+		snapstate.CanAutoRefresh = nil
+	}
+	return t.o
 }
 
 type firstBoot16Suite struct {
@@ -182,14 +191,14 @@ func (s *firstBoot16Suite) TestPopulateFromSeedOnClassicNoop(c *C) {
 	restore := release.MockOnClassic(true)
 	defer restore()
 
-	st := s.overlord.State()
+	st := s.overlord(c).State()
 	st.Lock()
 	defer st.Unlock()
 
 	err := os.Remove(filepath.Join(dirs.SnapSeedDir, "assertions"))
 	c.Assert(err, IsNil)
 
-	tsAll, err := devicestate.PopulateStateFromSeedImpl(st, s.perfTimings)
+	tsAll, err := devicestate.PopulateStateFromSeedImpl(st, false, s.perfTimings)
 	c.Assert(err, IsNil)
 	checkTrivialSeeding(c, tsAll)
 
@@ -227,7 +236,7 @@ func (s *firstBoot16Suite) TestPopulateFromSeedOnClassicNoSeedYaml(c *C) {
 	st.Lock()
 	defer st.Unlock()
 
-	tsAll, err := devicestate.PopulateStateFromSeedImpl(st, s.perfTimings)
+	tsAll, err := devicestate.PopulateStateFromSeedImpl(st, false, s.perfTimings)
 	c.Assert(err, IsNil)
 	checkTrivialSeeding(c, tsAll)
 
@@ -256,7 +265,7 @@ func (s *firstBoot16Suite) TestPopulateFromSeedOnClassicEmptySeedYaml(c *C) {
 	st.Lock()
 	defer st.Unlock()
 
-	_, err = devicestate.PopulateStateFromSeedImpl(st, s.perfTimings)
+	_, err = devicestate.PopulateStateFromSeedImpl(st, false, s.perfTimings)
 	c.Assert(err, ErrorMatches, "cannot proceed, no snaps to seed")
 }
 
@@ -264,7 +273,7 @@ func (s *firstBoot16Suite) TestPopulateFromSeedOnClassicNoSeedYamlWithCloudInsta
 	restore := release.MockOnClassic(true)
 	defer restore()
 
-	st := s.overlord.State()
+	st := s.overlord(c).State()
 
 	// add the model assertion and its chain
 	assertsChain := s.makeModelAssertionChain(c, "my-model-classic", nil)
@@ -288,7 +297,7 @@ func (s *firstBoot16Suite) TestPopulateFromSeedOnClassicNoSeedYamlWithCloudInsta
 	st.Lock()
 	defer st.Unlock()
 
-	tsAll, err := devicestate.PopulateStateFromSeedImpl(st, s.perfTimings)
+	tsAll, err := devicestate.PopulateStateFromSeedImpl(st, false, s.perfTimings)
 	c.Assert(err, IsNil)
 	checkTrivialSeeding(c, tsAll)
 
@@ -310,7 +319,7 @@ func (s *firstBoot16Suite) TestPopulateFromSeedOnClassicNoSeedYamlWithCloudInsta
 	chg1.SetStatus(state.DoingStatus)
 
 	st.Unlock()
-	err = s.overlord.Settle(settleTimeout)
+	err = s.overlord(c).Settle(settleTimeout)
 	st.Lock()
 	c.Assert(chg.Err(), IsNil)
 	c.Assert(err, IsNil)
@@ -332,12 +341,12 @@ func (s *firstBoot16Suite) TestPopulateFromSeedOnClassicNoSeedYamlWithCloudInsta
 }
 
 func (s *firstBoot16Suite) TestPopulateFromSeedErrorsOnState(c *C) {
-	st := s.overlord.State()
+	st := s.overlord(c).State()
 	st.Lock()
 	defer st.Unlock()
 	st.Set("seeded", true)
 
-	_, err := devicestate.PopulateStateFromSeedImpl(st, s.perfTimings)
+	_, err := devicestate.PopulateStateFromSeedImpl(st, false, s.perfTimings)
 	c.Assert(err, ErrorMatches, "cannot populate state: already seeded")
 }
 
@@ -419,7 +428,22 @@ func checkSeedTasks(c *C, tsAll []*state.TaskSet) {
 	c.Check(markSeededTask.WaitTasks(), DeepEquals, []*state.Task{gadgetConnectTask})
 }
 
-func (s *firstBoot16Suite) makeSeedChange(c *C, st *state.State) *state.Change {
+func checkPreseedTasks(c *C, tsAll []*state.TaskSet) {
+	// the tasks of the last taskset must be gadget-connect, preseed-done, mark-seeded
+	lastTasks := tsAll[len(tsAll)-1].Tasks()
+	c.Check(lastTasks, HasLen, 3)
+	gadgetConnectTask := lastTasks[0]
+	preseedTask := lastTasks[1]
+	markSeededTask := lastTasks[2]
+	c.Check(gadgetConnectTask.Kind(), Equals, "gadget-connect")
+	c.Check(preseedTask.Kind(), Equals, "preseed-done")
+	c.Check(markSeededTask.Kind(), Equals, "mark-seeded")
+
+	// mark-seeded waits for preseed-done and gadget-connect
+	c.Check(markSeededTask.WaitTasks(), DeepEquals, []*state.Task{gadgetConnectTask, preseedTask})
+}
+
+func (s *firstBoot16Suite) makeSeedChange(c *C, st *state.State, preseed bool) *state.Change {
 	coreFname, kernelFname, gadgetFname := s.makeCoreSnaps(c, "")
 
 	s.WriteAssertions("developer.account", s.devAcct)
@@ -468,11 +492,19 @@ snaps:
 	// run the firstboot stuff
 	st.Lock()
 	defer st.Unlock()
-	tsAll, err := devicestate.PopulateStateFromSeedImpl(st, s.perfTimings)
+	tsAll, err := devicestate.PopulateStateFromSeedImpl(st, preseed, s.perfTimings)
 	c.Assert(err, IsNil)
 
-	checkOrder(c, tsAll, "core", "pc-kernel", "pc", "foo", "local")
-	checkSeedTasks(c, tsAll)
+	// XXX: order is more convoluted in preseed mode; implement a check for it.
+	if !preseed {
+		checkOrder(c, tsAll, "core", "pc-kernel", "pc", "foo", "local")
+	}
+
+	if preseed {
+		checkPreseedTasks(c, tsAll)
+	} else {
+		checkSeedTasks(c, tsAll)
+	}
 
 	// now run the change and check the result
 	// use the expected kind otherwise settle with start another one
@@ -496,9 +528,9 @@ func (s *firstBoot16Suite) TestPopulateFromSeedHappy(c *C) {
 	bloader.SetBootKernel("pc-kernel_1.snap")
 	bloader.SetBootBase("core_1.snap")
 
-	st := s.overlord.State()
-	chg := s.makeSeedChange(c, st)
-	err := s.overlord.Settle(settleTimeout)
+	st := s.overlord(c).State()
+	chg := s.makeSeedChange(c, st, false)
+	err := s.overlord(c).Settle(settleTimeout)
 	c.Assert(err, IsNil)
 
 	st.Lock()
@@ -575,7 +607,7 @@ func (s *firstBoot16Suite) TestPopulateFromSeedHappy(c *C) {
 }
 
 func (s *firstBoot16Suite) TestPopulateFromSeedMissingBootloader(c *C) {
-	st0 := s.overlord.State()
+	st0 := s.overlord(c).State()
 	st0.Lock()
 	db := assertstate.DB(st0)
 	st0.Unlock()
@@ -599,7 +631,7 @@ func (s *firstBoot16Suite) TestPopulateFromSeedMissingBootloader(c *C) {
 
 	o.AddManager(o.TaskRunner())
 
-	chg := s.makeSeedChange(c, st)
+	chg := s.makeSeedChange(c, st, false)
 
 	se := o.StateEngine()
 	// we cannot use Settle because the Change will not become Clean
@@ -657,11 +689,11 @@ snaps:
 	c.Assert(err, IsNil)
 
 	// run the firstboot stuff
-	st := s.overlord.State()
+	st := s.overlord(c).State()
 	st.Lock()
 	defer st.Unlock()
 
-	tsAll, err := devicestate.PopulateStateFromSeedImpl(st, s.perfTimings)
+	tsAll, err := devicestate.PopulateStateFromSeedImpl(st, false, s.perfTimings)
 	c.Assert(err, IsNil)
 	// use the expected kind otherwise settle with start another one
 	chg := st.NewChange("seed", "run the populate from seed changes")
@@ -675,7 +707,7 @@ snaps:
 	chg1.SetStatus(state.DoingStatus)
 
 	st.Unlock()
-	err = s.overlord.Settle(settleTimeout)
+	err = s.overlord(c).Settle(settleTimeout)
 	st.Lock()
 	c.Assert(chg.Err(), IsNil)
 	c.Assert(err, IsNil)
@@ -762,10 +794,10 @@ snaps:
 	c.Assert(err, IsNil)
 
 	// run the firstboot stuff
-	st := s.overlord.State()
+	st := s.overlord(c).State()
 	st.Lock()
 	defer st.Unlock()
-	tsAll, err := devicestate.PopulateStateFromSeedImpl(st, s.perfTimings)
+	tsAll, err := devicestate.PopulateStateFromSeedImpl(st, false, s.perfTimings)
 	c.Assert(err, IsNil)
 
 	checkSeedTasks(c, tsAll)
@@ -805,7 +837,7 @@ snaps:
 	chg1.SetStatus(state.DoingStatus)
 
 	st.Unlock()
-	err = s.overlord.Settle(settleTimeout)
+	err = s.overlord(c).Settle(settleTimeout)
 	st.Lock()
 	c.Assert(chg.Err(), IsNil)
 	c.Assert(err, IsNil)
@@ -909,10 +941,10 @@ snaps:
 	c.Assert(err, IsNil)
 
 	// run the firstboot stuff
-	st := s.overlord.State()
+	st := s.overlord(c).State()
 	st.Lock()
 	defer st.Unlock()
-	tsAll, err := devicestate.PopulateStateFromSeedImpl(st, s.perfTimings)
+	tsAll, err := devicestate.PopulateStateFromSeedImpl(st, false, s.perfTimings)
 	c.Assert(err, IsNil)
 
 	checkSeedTasks(c, tsAll)
@@ -930,7 +962,7 @@ snaps:
 	chg1.SetStatus(state.DoingStatus)
 
 	st.Unlock()
-	err = s.overlord.Settle(settleTimeout)
+	err = s.overlord(c).Settle(settleTimeout)
 	st.Lock()
 	c.Assert(chg.Err(), IsNil)
 	c.Assert(err, IsNil)
@@ -1064,7 +1096,7 @@ func (s *firstBoot16Suite) TestImportAssertionsFromSeedHappy(c *C) {
 }
 
 func (s *firstBoot16Suite) TestImportAssertionsFromSeedMissingSig(c *C) {
-	st := s.overlord.State()
+	st := s.overlord(c).State()
 	st.Lock()
 	defer st.Unlock()
 
@@ -1087,7 +1119,7 @@ func (s *firstBoot16Suite) TestImportAssertionsFromSeedMissingSig(c *C) {
 }
 
 func (s *firstBoot16Suite) TestImportAssertionsFromSeedTwoModelAsserts(c *C) {
-	st := s.overlord.State()
+	st := s.overlord(c).State()
 	st.Lock()
 	defer st.Unlock()
 
@@ -1108,7 +1140,7 @@ func (s *firstBoot16Suite) TestImportAssertionsFromSeedTwoModelAsserts(c *C) {
 }
 
 func (s *firstBoot16Suite) TestImportAssertionsFromSeedNoModelAsserts(c *C) {
-	st := s.overlord.State()
+	st := s.overlord(c).State()
 	st.Lock()
 	defer st.Unlock()
 
@@ -1126,6 +1158,70 @@ func (s *firstBoot16Suite) TestImportAssertionsFromSeedNoModelAsserts(c *C) {
 	// missing
 	_, err = devicestate.ImportAssertionsFromSeed(st, deviceSeed)
 	c.Assert(err, ErrorMatches, "seed must have a model assertion")
+}
+
+func checkPressedTaskStates(c *C, st *state.State) {
+	doneTasks := map[string]bool{
+		"prerequisites":        true,
+		"prepare-snap":         true,
+		"link-snap":            true,
+		"mount-snap":           true,
+		"setup-profiles":       true,
+		"update-gadget-assets": true,
+		"copy-snap-data":       true,
+		"set-auto-aliases":     true,
+		"setup-aliases":        true,
+		"gadget-connect":       true,
+		"auto-connect":         true,
+	}
+	doTasks := map[string]bool{
+		"run-hook":            true,
+		"mark-seeded":         true,
+		"start-snap-services": true,
+	}
+	for _, t := range st.Tasks() {
+		switch {
+		case doneTasks[t.Kind()]:
+			c.Check(t.Status(), Equals, state.DoneStatus, Commentf("task: %s", t.Kind()))
+		case t.Kind() == "preseed-done":
+			c.Check(t.Status(), Equals, state.DoingStatus, Commentf("task: %s", t.Kind()))
+		case doTasks[t.Kind()]:
+			c.Check(t.Status(), Equals, state.DoStatus, Commentf("task: %s", t.Kind()))
+		default:
+			c.Fatalf("unhandled task kind %s", t.Kind())
+		}
+	}
+}
+
+func (s *firstBoot16Suite) TestPreseedHappy(c *C) {
+	restore := release.MockPreseedMode(true)
+	defer restore()
+
+	mockMountCmd := testutil.MockCommand(c, "mount", "")
+	defer mockMountCmd.Restore()
+
+	mockUmountCmd := testutil.MockCommand(c, "umount", "")
+	defer mockUmountCmd.Restore()
+
+	systemd.MockOsSymlink(func(string, string) error { return nil })
+
+	bloader := bootloadertest.Mock("mock", c.MkDir())
+	bootloader.Force(bloader)
+	defer bootloader.Force(nil)
+	bloader.SetBootKernel("pc-kernel_1.snap")
+	bloader.SetBootBase("core_1.snap")
+
+	st := s.overlord(c).State()
+	chg := s.makeSeedChange(c, st, true)
+	err := s.overlord(c).Settle(settleTimeout)
+
+	st.Lock()
+	defer st.Unlock()
+
+	c.Assert(err, IsNil)
+	c.Assert(chg.Err(), IsNil)
+
+	checkPressedTaskStates(c, st)
 }
 
 type core18SnapsOpts struct {
@@ -1224,10 +1320,10 @@ snaps:
 	c.Assert(err, IsNil)
 
 	// run the firstboot stuff
-	st := s.overlord.State()
+	st := s.overlord(c).State()
 	st.Lock()
 	defer st.Unlock()
-	tsAll, err := devicestate.PopulateStateFromSeedImpl(st, s.perfTimings)
+	tsAll, err := devicestate.PopulateStateFromSeedImpl(st, false, s.perfTimings)
 	c.Assert(err, IsNil)
 
 	checkOrder(c, tsAll, "snapd", "pc-kernel", "core18", "pc")
@@ -1248,7 +1344,7 @@ snaps:
 
 	// run change until it wants to restart
 	st.Unlock()
-	err = s.overlord.Settle(settleTimeout)
+	err = s.overlord(c).Settle(settleTimeout)
 	st.Lock()
 	c.Assert(err, IsNil)
 
@@ -1257,7 +1353,7 @@ snaps:
 	c.Assert(chg.Status(), Equals, state.DoingStatus)
 	state.MockRestarting(st, state.RestartUnset)
 	st.Unlock()
-	err = s.overlord.Settle(settleTimeout)
+	err = s.overlord(c).Settle(settleTimeout)
 	st.Lock()
 	c.Assert(err, IsNil)
 	c.Assert(chg.Status(), Equals, state.DoneStatus)
@@ -1346,10 +1442,10 @@ snaps:
 	c.Assert(err, IsNil)
 
 	// run the firstboot stuff
-	st := s.overlord.State()
+	st := s.overlord(c).State()
 	st.Lock()
 	defer st.Unlock()
-	tsAll, err := devicestate.PopulateStateFromSeedImpl(st, s.perfTimings)
+	tsAll, err := devicestate.PopulateStateFromSeedImpl(st, false, s.perfTimings)
 	c.Assert(err, IsNil)
 
 	checkOrder(c, tsAll, "snapd", "pc-kernel", "core18", "pc", "other-base", "snap-req-other-base")
@@ -1382,11 +1478,11 @@ snaps:
 	c.Assert(err, IsNil)
 
 	// run the firstboot stuff
-	st := s.overlord.State()
+	st := s.overlord(c).State()
 	st.Lock()
 	defer st.Unlock()
 
-	_, err = devicestate.PopulateStateFromSeedImpl(st, s.perfTimings)
+	_, err = devicestate.PopulateStateFromSeedImpl(st, false, s.perfTimings)
 	c.Assert(err, ErrorMatches, `cannot use gadget snap because its base "core" is different from model base "core18"`)
 }
 
@@ -1446,11 +1542,11 @@ snaps:
 	c.Assert(err, IsNil)
 
 	// run the firstboot stuff
-	st := s.overlord.State()
+	st := s.overlord(c).State()
 	st.Lock()
 	defer st.Unlock()
 
-	tsAll, err := devicestate.PopulateStateFromSeedImpl(st, s.perfTimings)
+	tsAll, err := devicestate.PopulateStateFromSeedImpl(st, false, s.perfTimings)
 	c.Assert(err, IsNil)
 	// use the expected kind otherwise settle with start another one
 	chg := st.NewChange("seed", "run the populate from seed changes")
@@ -1464,7 +1560,7 @@ snaps:
 	chg1.SetStatus(state.DoingStatus)
 
 	st.Unlock()
-	err = s.overlord.Settle(settleTimeout)
+	err = s.overlord(c).Settle(settleTimeout)
 	st.Lock()
 
 	c.Assert(chg.Err(), IsNil)
@@ -1517,10 +1613,10 @@ snaps:
 	c.Assert(ioutil.WriteFile(filepath.Join(dirs.SnapSeedDir, "seed.yaml"), content, 0644), IsNil)
 
 	// run the firstboot stuff
-	st := s.overlord.State()
+	st := s.overlord(c).State()
 	st.Lock()
 	defer st.Unlock()
-	_, err := devicestate.PopulateStateFromSeedImpl(st, s.perfTimings)
+	_, err := devicestate.PopulateStateFromSeedImpl(st, false, s.perfTimings)
 	c.Assert(err, ErrorMatches, `cannot use snap "local": base "foo" is missing`)
 }
 
@@ -1565,10 +1661,10 @@ snaps:
 	c.Assert(err, IsNil)
 
 	// run the firstboot stuff
-	st := s.overlord.State()
+	st := s.overlord(c).State()
 	st.Lock()
 	defer st.Unlock()
-	tsAll, err := devicestate.PopulateStateFromSeedImpl(st, s.perfTimings)
+	tsAll, err := devicestate.PopulateStateFromSeedImpl(st, false, s.perfTimings)
 	c.Assert(err, IsNil)
 
 	checkOrder(c, tsAll, "snapd", "core18", "foo")
@@ -1589,7 +1685,7 @@ snaps:
 
 	// run change until it wants to restart
 	st.Unlock()
-	err = s.overlord.Settle(settleTimeout)
+	err = s.overlord(c).Settle(settleTimeout)
 	st.Lock()
 	c.Assert(err, IsNil)
 
@@ -1598,7 +1694,7 @@ snaps:
 	c.Assert(chg.Status(), Equals, state.DoingStatus)
 	state.MockRestarting(st, state.RestartUnset)
 	st.Unlock()
-	err = s.overlord.Settle(settleTimeout)
+	err = s.overlord(c).Settle(settleTimeout)
 	st.Lock()
 	c.Assert(err, IsNil)
 	c.Assert(chg.Status(), Equals, state.DoneStatus)
@@ -1677,10 +1773,10 @@ snaps:
 	c.Assert(err, IsNil)
 
 	// run the firstboot stuff
-	st := s.overlord.State()
+	st := s.overlord(c).State()
 	st.Lock()
 	defer st.Unlock()
-	tsAll, err := devicestate.PopulateStateFromSeedImpl(st, s.perfTimings)
+	tsAll, err := devicestate.PopulateStateFromSeedImpl(st, false, s.perfTimings)
 	c.Assert(err, IsNil)
 
 	checkOrder(c, tsAll, "snapd", "core18", "pc", "foo")
@@ -1701,7 +1797,7 @@ snaps:
 
 	// run change until it wants to restart
 	st.Unlock()
-	err = s.overlord.Settle(settleTimeout)
+	err = s.overlord(c).Settle(settleTimeout)
 	st.Lock()
 	c.Assert(err, IsNil)
 
@@ -1710,7 +1806,7 @@ snaps:
 	c.Assert(chg.Status(), Equals, state.DoingStatus)
 	state.MockRestarting(st, state.RestartUnset)
 	st.Unlock()
-	err = s.overlord.Settle(settleTimeout)
+	err = s.overlord(c).Settle(settleTimeout)
 	st.Lock()
 	c.Assert(err, IsNil)
 	c.Assert(chg.Status(), Equals, state.DoneStatus, Commentf("%s", chg.Err()))
