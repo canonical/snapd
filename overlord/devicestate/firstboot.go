@@ -134,26 +134,21 @@ func populateStateFromSeedImpl(st *state.State, preseed bool, tm timings.Measure
 	tsAll := []*state.TaskSet{}
 	configTss := []*state.TaskSet{}
 
-	var lastPrereqTask, lastPreliminarySetupTask *state.Task
+	var lastPrereqTask, lastAliasesTask *state.Task
+	var chainTs func(all []*state.TaskSet, ts *state.TaskSet) []*state.TaskSet
 
-	chainTs := func(all []*state.TaskSet, ts *state.TaskSet) []*state.TaskSet {
+	chainTsPreseeding := func(all []*state.TaskSet, ts *state.TaskSet) []*state.TaskSet {
 		n := len(all)
-		if preseed {
-			// preseed-barrier task needs to be inserted between preliminary setup and hook tasks
-			prereqTask, preliminarySetup, hookTask := criticalTaskEdges(ts)
-			if prereqTask != nil {
-				hookTask.WaitFor(preseedDone)
-				if lastPreliminarySetupTask != nil {
-					prereqTask.WaitFor(lastPreliminarySetupTask)
-				}
-				preseedDone.WaitFor(preliminarySetup)
-				lastPrereqTask = prereqTask
-				lastPreliminarySetupTask = preliminarySetup
-			} else {
-				if n != 0 {
-					ts.WaitAll(all[n-1])
-				}
+		// mark-preseeded task needs to be inserted between preliminary setup and hook tasks
+		prereqTask, aliasesTask, hookTask := criticalTaskEdges(ts)
+		if prereqTask != nil {
+			hookTask.WaitFor(preseedDone)
+			if lastAliasesTask != nil {
+				prereqTask.WaitFor(lastAliasesTask)
 			}
+			preseedDone.WaitFor(aliasesTask)
+			lastPrereqTask = prereqTask
+			lastAliasesTask = aliasesTask
 		} else {
 			if n != 0 {
 				ts.WaitAll(all[n-1])
@@ -161,6 +156,21 @@ func populateStateFromSeedImpl(st *state.State, preseed bool, tm timings.Measure
 		}
 		return append(all, ts)
 	}
+
+	chainTsNormalSeeding := func(all []*state.TaskSet, ts *state.TaskSet) []*state.TaskSet {
+		n := len(all)
+		if n != 0 {
+			ts.WaitAll(all[n-1])
+		}
+		return append(all, ts)
+	}
+
+	if preseed {
+		chainTs = chainTsPreseeding
+	} else {
+		chainTs = chainTsNormalSeeding
+	}
+
 	chainSorted := func(infos []*snap.Info, infoToTs map[*snap.Info]*state.TaskSet) {
 		sort.Stable(snap.ByType(infos))
 		for _, info := range infos {
@@ -244,8 +254,8 @@ func populateStateFromSeedImpl(st *state.State, preseed bool, tm timings.Measure
 		// connection instructions
 		gadgetConnect := st.NewTask("gadget-connect", "Connect plugs and slots as instructed by the gadget")
 		if preseed {
-			if lastPreliminarySetupTask != nil {
-				gadgetConnect.WaitFor(lastPreliminarySetupTask)
+			if lastAliasesTask != nil {
+				gadgetConnect.WaitFor(lastAliasesTask)
 			}
 		} else {
 			gadgetConnect.WaitAll(ts)
