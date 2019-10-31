@@ -77,14 +77,17 @@ type downloadStore interface {
 	AssertionFetcher(db *asserts.Database, save func(asserts.Assertion) error) asserts.Fetcher
 }
 
-var newDownloadStore = func() (downloadStore, error) {
-	return image.NewToolingStore()
-}
+var (
+	cmdDownloadTrusted = sysdb.Trusted()
+	newDownloadStore   = func() (downloadStore, error) {
+		return image.NewToolingStore()
+	}
+)
 
 func fetchSnapAssertions(tsto downloadStore, snapPath string, snapInfo *snap.Info) (string, error) {
 	db, err := asserts.OpenDatabase(&asserts.DatabaseConfig{
 		Backstore: asserts.NewMemoryBackstore(),
-		Trusted:   sysdb.Trusted(),
+		Trusted:   cmdDownloadTrusted,
 	})
 	if err != nil {
 		return "", err
@@ -97,9 +100,11 @@ func fetchSnapAssertions(tsto downloadStore, snapPath string, snapInfo *snap.Inf
 	}
 	defer w.Close()
 
-	encoder := asserts.NewEncoder(w)
 	save := func(a asserts.Assertion) error {
-		return encoder.Encode(a)
+		if err := db.Add(a); err != nil && !asserts.IsUnaccceptedUpdate(err) {
+			return err
+		}
+		return nil
 	}
 	f := tsto.AssertionFetcher(db, save)
 
