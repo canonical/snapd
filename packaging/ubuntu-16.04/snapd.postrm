@@ -24,7 +24,7 @@ systemctl_stop() {
 }
 
 if [ "$1" = "purge" ]; then
-    # undo any bind mounts to /snap and /var/snap that resulted from parallel
+    # Undo any bind mounts to /snap and /var/snap that resulted from parallel
     # installs for classic snaps or LP:#1668659 (for /snap only, that bug can't
     # happen in trusty -- and doing this would mess up snap.mount.service there)
     for mp in /snap /var/snap; do
