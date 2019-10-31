@@ -1613,7 +1613,7 @@ func (s *mgrsSuite) mockSuccessfulReboot(c *C, bloader *bootloadertest.MockBootl
 func (s *mgrsSuite) mockRollbackAccrossReboot(c *C, bloader *bootloadertest.MockBootloader) {
 	st := s.o.State()
 	state.MockRestarting(st, state.RestartUnset)
-	err := bloader.SetRollbackAccrossReboot()
+	err := bloader.SetRollbackAcrossReboot()
 	c.Assert(err, IsNil)
 	s.o.DeviceManager().ResetBootOk()
 	st.Unlock()
