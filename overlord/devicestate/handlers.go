@@ -19,6 +19,7 @@
 package devicestate
 
 import (
+	"fmt"
 	"os/exec"
 	"time"
 
@@ -83,9 +84,8 @@ func (m *DeviceManager) doMarkSeeded(t *state.Task, _ *tomb.Tomb) error {
 	st.Lock()
 	defer st.Unlock()
 
-	// XXX: is this needed?
 	if m.preseed {
-		return &state.Retry{Reason: "waiting for pre-bake mode to finish"}
+		return fmt.Errorf("internal error: mark-seeded task not expected in pre-seeding mode")
 	}
 
 	st.Set("seed-time", time.Now())
