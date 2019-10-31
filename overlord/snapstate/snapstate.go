@@ -441,7 +441,7 @@ func WaitRestart(task *state.Task, snapsup *SnapSetup) (err error) {
 		}
 		bootKernel := model.Kernel()
 		// if it is not a snap related to our booting we are not
-		// interessted
+		// interested
 		if snapsup.InstanceName() != bootName && snapsup.InstanceName() != bootKernel {
 			return nil
 		}
