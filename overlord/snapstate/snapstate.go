@@ -64,6 +64,9 @@ const (
 
 const (
 	DownloadAndChecksDoneEdge = state.TaskSetEdge("download-and-checks-done")
+	PrerequisitesEdge         = state.TaskSetEdge("prerequisites-edge")
+	SetupAliasesEdge          = state.TaskSetEdge("setup-aliases-edge")
+	InstallHookEdge           = state.TaskSetEdge("install-hook-edge")
 )
 
 var ErrNothingToDo = errors.New("nothing to do")
@@ -192,6 +195,8 @@ func doInstall(st *state.State, snapst *SnapState, snapsup *SnapSetup, flags int
 		prev = mount
 	}
 
+	preseedMode := release.PreseedMode
+
 	// run refresh hooks when updating existing snap, otherwise run install hook further down.
 	runRefreshHooks := (snapst.IsInstalled() && !snapsup.Flags.Revert)
 	if runRefreshHooks {
@@ -260,9 +265,10 @@ func doInstall(st *state.State, snapst *SnapState, snapsup *SnapSetup, flags int
 		prev = postRefreshHook
 	}
 
+	var installHook *state.Task
 	// only run install hook if installing the snap for the first time
 	if !snapst.IsInstalled() {
-		installHook := SetupInstallHook(st, snapsup.InstanceName())
+		installHook = SetupInstallHook(st, snapsup.InstanceName())
 		addTask(installHook)
 		prev = installHook
 	}
@@ -335,6 +341,25 @@ func doInstall(st *state.State, snapst *SnapState, snapsup *SnapSetup, flags int
 	ts.AddAll(installSet)
 	if checkAsserts != nil {
 		ts.MarkEdge(checkAsserts, DownloadAndChecksDoneEdge)
+	}
+
+	if preseedMode {
+		if installHook == nil {
+			panic("install hook not set")
+		}
+		if prereq == nil {
+			panic("prereq task not set")
+		}
+
+		if flags&skipConfigure != 0 {
+			installSet.MarkEdge(prereq, PrerequisitesEdge)
+			installSet.MarkEdge(installHook, InstallHookEdge)
+			installSet.MarkEdge(setupAliases, SetupAliasesEdge)
+		} else {
+			ts.MarkEdge(prereq, PrerequisitesEdge)
+			ts.MarkEdge(installHook, InstallHookEdge)
+			ts.MarkEdge(setupAliases, SetupAliasesEdge)
+		}
 	}
 
 	if flags&skipConfigure != 0 {
