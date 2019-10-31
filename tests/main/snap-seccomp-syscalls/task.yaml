@@ -36,4 +36,4 @@ execute: |
 
     # both lists should be identical, otherwise we need an update in
     # snap-seccomp
-    diff -up syscalls.uniq syscalls.known
+    diff -up syscalls.known syscalls.uniq
