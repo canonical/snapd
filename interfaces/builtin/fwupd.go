@@ -37,8 +37,7 @@ const fwupdBaseDeclarationSlots = `
       slot-snap-type:
         - app
         - core
-    deny-connection:
-      on-classic: false
+    deny-connection: true
     deny-auto-connection: true
 `
 
