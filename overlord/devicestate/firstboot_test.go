@@ -429,17 +429,17 @@ func checkSeedTasks(c *C, tsAll []*state.TaskSet) {
 }
 
 func checkPreseedTasks(c *C, tsAll []*state.TaskSet) {
-	// the tasks of the last taskset must be gadget-connect, preseed-done, mark-seeded
+	// the tasks of the last taskset must be gadget-connect, mark-preseeded, mark-seeded
 	lastTasks := tsAll[len(tsAll)-1].Tasks()
 	c.Check(lastTasks, HasLen, 3)
 	gadgetConnectTask := lastTasks[0]
 	preseedTask := lastTasks[1]
 	markSeededTask := lastTasks[2]
 	c.Check(gadgetConnectTask.Kind(), Equals, "gadget-connect")
-	c.Check(preseedTask.Kind(), Equals, "preseed-done")
+	c.Check(preseedTask.Kind(), Equals, "mark-preseeded")
 	c.Check(markSeededTask.Kind(), Equals, "mark-seeded")
 
-	// mark-seeded waits for preseed-done and gadget-connect
+	// mark-seeded waits for mark-preseeded and gadget-connect
 	c.Check(markSeededTask.WaitTasks(), DeepEquals, []*state.Task{gadgetConnectTask, preseedTask})
 }
 
@@ -1183,7 +1183,7 @@ func checkPressedTaskStates(c *C, st *state.State) {
 		switch {
 		case doneTasks[t.Kind()]:
 			c.Check(t.Status(), Equals, state.DoneStatus, Commentf("task: %s", t.Kind()))
-		case t.Kind() == "preseed-done":
+		case t.Kind() == "mark-preseeded":
 			c.Check(t.Status(), Equals, state.DoingStatus, Commentf("task: %s", t.Kind()))
 		case doTasks[t.Kind()]:
 			c.Check(t.Status(), Equals, state.DoStatus, Commentf("task: %s", t.Kind()))

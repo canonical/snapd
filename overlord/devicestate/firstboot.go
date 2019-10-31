@@ -92,7 +92,7 @@ func populateStateFromSeedImpl(st *state.State, preseed bool, tm timings.Measure
 
 	var preseedDone *state.Task
 	if preseed {
-		preseedDone = st.NewTask("preseed-done", i18n.G("Image preseed barrier"))
+		preseedDone = st.NewTask("mark-preseeded", i18n.G("Mark system pre-seeded"))
 	}
 	markSeeded := st.NewTask("mark-seeded", i18n.G("Mark system seeded"))
 

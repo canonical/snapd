@@ -31,7 +31,7 @@ import (
 	"github.com/snapcore/snapd/wrappers"
 )
 
-func (m *DeviceManager) doPreseedDone(t *state.Task, _ *tomb.Tomb) error {
+func (m *DeviceManager) doMarkPreseeded(t *state.Task, _ *tomb.Tomb) error {
 	st := t.State()
 	st.Lock()
 	defer st.Unlock()
@@ -58,7 +58,7 @@ func (m *DeviceManager) doPreseedDone(t *state.Task, _ *tomb.Tomb) error {
 		// could start). Let this task finish after snapd restart when prebake mode is off.
 		st.RequestRestart(state.StopSnapd)
 
-		return &state.Retry{Reason: "preseed-done will be marked done when snapd is executed in normal mode"}
+		return &state.Retry{Reason: "mark-preseeded will be marked done when snapd is executed in normal mode"}
 	}
 
 	// normal snapd run after snapd restart (not in pre-bake mode anymore)
