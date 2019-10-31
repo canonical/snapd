@@ -60,6 +60,8 @@ type DeviceManager struct {
 	becomeOperationalBackoff     time.Duration
 	registered                   bool
 	reg                          chan struct{}
+
+	preseed bool
 }
 
 // Manager returns a new device manager.
@@ -77,6 +79,7 @@ func Manager(s *state.State, hookManager *hookstate.HookManager, runner *state.T
 		keypairMgr: keypairMgr,
 		newStore:   newStore,
 		reg:        make(chan struct{}),
+		preseed:    release.PreseedMode,
 	}
 
 	s.Lock()
@@ -91,6 +94,7 @@ func Manager(s *state.State, hookManager *hookstate.HookManager, runner *state.T
 
 	runner.AddHandler("generate-device-key", m.doGenerateDeviceKey, nil)
 	runner.AddHandler("request-serial", m.doRequestSerial, nil)
+	runner.AddHandler("preseed-done", m.doPreseedDone, nil)
 	runner.AddHandler("mark-seeded", m.doMarkSeeded, nil)
 	runner.AddHandler("prepare-remodeling", m.doPrepareRemodeling, nil)
 	runner.AddCleanup("prepare-remodeling", m.cleanupRemodel)
@@ -408,7 +412,7 @@ func (m *DeviceManager) ensureSeedYaml() error {
 
 	var tsAll []*state.TaskSet
 	timings.Run(perfTimings, "state-from-seed", "populate state from seed", func(tm timings.Measurer) {
-		tsAll, err = populateStateFromSeed(m.state, tm)
+		tsAll, err = populateStateFromSeed(m.state, m.preseed, tm)
 	})
 	if err != nil {
 		return err
@@ -521,16 +525,19 @@ func (m *DeviceManager) Ensure() error {
 	if err := m.ensureSeedYaml(); err != nil {
 		errs = append(errs, err)
 	}
-	if err := m.ensureOperational(); err != nil {
-		errs = append(errs, err)
-	}
 
-	if err := m.ensureBootOk(); err != nil {
-		errs = append(errs, err)
-	}
+	if !m.preseed {
+		if err := m.ensureOperational(); err != nil {
+			errs = append(errs, err)
+		}
 
-	if err := m.ensureSeedInConfig(); err != nil {
-		errs = append(errs, err)
+		if err := m.ensureBootOk(); err != nil {
+			errs = append(errs, err)
+		}
+
+		if err := m.ensureSeedInConfig(); err != nil {
+			errs = append(errs, err)
+		}
 	}
 
 	if len(errs) > 0 {

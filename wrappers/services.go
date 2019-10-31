@@ -34,6 +34,7 @@ import (
 	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/osutil/sys"
+	"github.com/snapcore/snapd/release"
 	"github.com/snapcore/snapd/snap"
 	"github.com/snapcore/snapd/strutil"
 	"github.com/snapcore/snapd/systemd"
@@ -241,6 +242,8 @@ func AddSnapServices(s *snap.Info, disabledSvcs []string, inter interacter) (err
 		}
 	}()
 
+	preseedMode := release.PreseedMode
+
 	for _, app := range s.Apps {
 		if !app.IsService() {
 			continue
@@ -296,18 +299,35 @@ func AddSnapServices(s *snap.Info, disabledSvcs []string, inter interacter) (err
 			continue
 		}
 
-		if err := sysd.Enable(svcName); err != nil {
-			return err
+		if !preseedMode {
+			if err := sysd.Enable(svcName); err != nil {
+				return err
+			}
 		}
 		enabled = append(enabled, svcName)
 	}
 
-	if len(written) > 0 {
+	if len(written) > 0 && !preseedMode {
 		if err := sysd.DaemonReload(); err != nil {
 			return err
 		}
 	}
 
+	return nil
+}
+
+// EnableSnapServices enables all services of the snap; the main use case for this is
+// the first boot of a pre-baked image with service files already in place but not enabled.
+func EnableSnapServices(s *snap.Info, inter interacter) (err error) {
+	sysd := systemd.New(dirs.GlobalRootDir, systemd.SystemMode, inter)
+	for _, app := range s.Apps {
+		if app.IsService() {
+			svcName := app.ServiceName()
+			if err := sysd.Enable(svcName); err != nil {
+				return err
+			}
+		}
+	}
 	return nil
 }
 
