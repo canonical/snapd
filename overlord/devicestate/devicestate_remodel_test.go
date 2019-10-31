@@ -1302,3 +1302,94 @@ volumes:
 	c.Check(gadgetUpdateCalled, Equals, true)
 	c.Check(s.restartRequests, DeepEquals, []state.RestartType{state.RestartSystem})
 }
+
+func (s *deviceMgrRemodelSuite) TestRemodelGadgetAssetsParanoidCheck(c *C) {
+	s.state.Lock()
+	s.state.Set("seeded", true)
+	s.state.Set("refresh-privacy-key", "some-privacy-key")
+
+	nopHandler := func(task *state.Task, _ *tomb.Tomb) error {
+		return nil
+	}
+	s.o.TaskRunner().AddHandler("fake-download", nopHandler, nil)
+	s.o.TaskRunner().AddHandler("validate-snap", nopHandler, nil)
+	s.o.TaskRunner().AddHandler("set-model", nopHandler, nil)
+
+	// set a model assertion we remodel from
+	s.makeModelAssertionInState(c, "canonical", "pc-model", map[string]interface{}{
+		"architecture": "amd64",
+		"kernel":       "pc-kernel",
+		"gadget":       "pc",
+		"base":         "core18",
+	})
+	devicestatetest.SetDevice(s.state, &auth.DeviceState{
+		Brand:  "canonical",
+		Model:  "pc-model",
+		Serial: "serial",
+	})
+
+	// the target model
+	new := s.brands.Model("canonical", "pc-model", map[string]interface{}{
+		"architecture": "amd64",
+		"kernel":       "pc-kernel",
+		"base":         "core18",
+		"revision":     "1",
+		// remodel to new gadget
+		"gadget": "new-gadget",
+	})
+
+	// current gadget
+	siModelGadget := &snap.SideInfo{
+		RealName: "pc",
+		Revision: snap.R(33),
+		SnapID:   "foo-id",
+	}
+	snapstate.Set(s.state, "pc", &snapstate.SnapState{
+		SnapType: "gadget",
+		Sequence: []*snap.SideInfo{siModelGadget},
+		Current:  siModelGadget.Revision,
+		Active:   true,
+	})
+
+	// new gadget snap, name does not match the new model
+	siUnexpectedModelGadget := &snap.SideInfo{
+		RealName: "new-gadget-unexpected",
+		Revision: snap.R(34),
+	}
+	restore := devicestate.MockSnapstateInstallWithDeviceContext(func(ctx context.Context, st *state.State, name string, opts *snapstate.RevisionOptions, userID int, flags snapstate.Flags, deviceCtx snapstate.DeviceContext, fromChange string) (*state.TaskSet, error) {
+		tDownload := s.state.NewTask("fake-download", fmt.Sprintf("Download %s", name))
+		tValidate := s.state.NewTask("validate-snap", fmt.Sprintf("Validate %s", name))
+		tValidate.WaitFor(tDownload)
+		tGadgetUpdate := s.state.NewTask("update-gadget-assets", fmt.Sprintf("Update gadget %s", name))
+		tGadgetUpdate.Set("snap-setup", &snapstate.SnapSetup{
+			SideInfo: siUnexpectedModelGadget,
+			Type:     snap.TypeGadget,
+		})
+		tGadgetUpdate.WaitFor(tValidate)
+		ts := state.NewTaskSet(tDownload, tValidate, tGadgetUpdate)
+		ts.MarkEdge(tValidate, snapstate.DownloadAndChecksDoneEdge)
+		return ts, nil
+	})
+	defer restore()
+	restore = release.MockOnClassic(false)
+	defer restore()
+
+	gadgetUpdateCalled := false
+	restore = devicestate.MockGadgetUpdate(func(current, update gadget.GadgetData, path string, policy gadget.UpdatePolicyFunc) error {
+		return errors.New("unexpected call")
+	})
+	defer restore()
+
+	chg, err := devicestate.Remodel(s.state, new)
+	c.Check(err, IsNil)
+	s.state.Unlock()
+
+	s.settle(c)
+
+	s.state.Lock()
+	defer s.state.Unlock()
+	c.Check(chg.IsReady(), Equals, true)
+	c.Assert(chg.Err(), ErrorMatches, `(?s).*\(cannot apply gadget assets update from non-model gadget snap "new-gadget-unexpected", expected "new-gadget" snap\)`)
+	c.Check(gadgetUpdateCalled, Equals, false)
+	c.Check(s.restartRequests, HasLen, 0)
+}

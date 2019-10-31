@@ -92,21 +92,32 @@ func (m *DeviceManager) doUpdateGadgetAssets(t *state.Task, _ *tomb.Tomb) error 
 		return err
 	}
 
-	remodelCtx, err := remodelCtxFromTask(t)
+	remodelCtx, err := DeviceCtx(st, t, nil)
 	if err != nil && err != state.ErrNoState {
 		return err
 	}
 	isRemodel := remodelCtx != nil && remodelCtx.ForRemodeling()
+
+	groundDeviceCtx, err := DeviceCtx(st, nil, nil)
+	if err != nil || err == state.ErrNoState {
+		return fmt.Errorf("cannot identify the current model")
+	}
+
+	// be extra paranoid when checking we are installing the right gadget
+	expectedGadgetSnap := groundDeviceCtx.Model().Gadget()
+	if isRemodel {
+		expectedGadgetSnap = remodelCtx.Model().Gadget()
+	}
+	if snapsup.InstanceName() != expectedGadgetSnap {
+		return fmt.Errorf("cannot apply gadget assets update from non-model gadget snap %q, expected %q snap",
+			snapsup.InstanceName(), expectedGadgetSnap)
+	}
 
 	updateData, err := pendingGadgetInfo(snapsup)
 	if err != nil {
 		return err
 	}
 
-	groundDeviceCtx, err := DeviceCtx(st, nil, nil)
-	if err != nil || err == state.ErrNoState {
-		return fmt.Errorf("cannot identify the current model")
-	}
 	currentData, err := currentGadgetInfo(t.State(), groundDeviceCtx)
 	if err != nil {
 		return err

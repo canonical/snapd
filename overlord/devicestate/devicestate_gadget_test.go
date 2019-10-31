@@ -68,8 +68,9 @@ func (s *deviceMgrGadgetSuite) setupModelWithGadget(c *C, gadget string) {
 		"base":         "core18",
 	})
 	devicestatetest.SetDevice(s.state, &auth.DeviceState{
-		Brand: "canonical",
-		Model: "pc-model",
+		Brand:  "canonical",
+		Model:  "pc-model",
+		Serial: "serial",
 	})
 }
 
@@ -296,6 +297,8 @@ func (s *deviceMgrGadgetSuite) TestUpdateGadgetOnCoreBadGadgetYaml(c *C) {
 
 	s.state.Lock()
 
+	s.setupModelWithGadget(c, "foo-gadget")
+
 	snapstate.Set(s.state, "foo-gadget", &snapstate.SnapState{
 		SnapType: "gadget",
 		Sequence: []*snap.SideInfo{siCurrent},
@@ -325,6 +328,56 @@ func (s *deviceMgrGadgetSuite) TestUpdateGadgetOnCoreBadGadgetYaml(c *C) {
 	c.Check(t.Status(), Equals, state.ErrorStatus)
 	rollbackDir := filepath.Join(dirs.SnapRollbackDir, "foo-gadget")
 	c.Check(osutil.IsDirectory(rollbackDir), Equals, false)
+	c.Check(s.restartRequests, HasLen, 0)
+}
+
+func (s *deviceMgrGadgetSuite) TestUpdateGadgetOnCoreParanoidChecks(c *C) {
+	restore := devicestate.MockGadgetUpdate(func(current, update gadget.GadgetData, path string, policy gadget.UpdatePolicyFunc) error {
+		return errors.New("unexpected call")
+	})
+	defer restore()
+	siCurrent := &snap.SideInfo{
+		RealName: "foo-gadget",
+		Revision: snap.R(33),
+		SnapID:   "foo-id",
+	}
+	si := &snap.SideInfo{
+		RealName: "foo-gadget-unexpected",
+		Revision: snap.R(34),
+		SnapID:   "foo-id",
+	}
+
+	s.state.Lock()
+
+	s.setupModelWithGadget(c, "foo-gadget")
+
+	snapstate.Set(s.state, "foo-gadget", &snapstate.SnapState{
+		SnapType: "gadget",
+		Sequence: []*snap.SideInfo{siCurrent},
+		Current:  siCurrent.Revision,
+		Active:   true,
+	})
+
+	t := s.state.NewTask("update-gadget-assets", "update gadget")
+	t.Set("snap-setup", &snapstate.SnapSetup{
+		SideInfo: si,
+		Type:     snap.TypeGadget,
+	})
+	chg := s.state.NewChange("dummy", "...")
+	chg.AddTask(t)
+
+	s.state.Unlock()
+
+	for i := 0; i < 6; i++ {
+		s.se.Ensure()
+		s.se.Wait()
+	}
+
+	s.state.Lock()
+	defer s.state.Unlock()
+	c.Assert(chg.IsReady(), Equals, true)
+	c.Assert(chg.Err(), ErrorMatches, `(?s).*\(cannot apply gadget assets update from non-model gadget snap "foo-gadget-unexpected", expected "foo-gadget" snap\)`)
+	c.Check(t.Status(), Equals, state.ErrorStatus)
 	c.Check(s.restartRequests, HasLen, 0)
 }
 
