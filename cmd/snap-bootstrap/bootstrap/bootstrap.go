@@ -42,8 +42,7 @@ func Run(gadgetRoot, device string, options *Options) error {
 		return fmt.Errorf("cannot layout the volume: %v", err)
 	}
 
-	sfdisk := partition.NewSFDisk(device)
-	diskLayout, err := sfdisk.Layout()
+	diskLayout, err := partition.NewDeviceLayout(device)
 	if err != nil {
 		return fmt.Errorf("cannot read %v partitions: %v", device, err)
 	}
@@ -53,7 +52,7 @@ func Run(gadgetRoot, device string, options *Options) error {
 		return fmt.Errorf("gadget and %v partition table not compatible: %v", device, err)
 	}
 
-	created, err := sfdisk.Create(lv)
+	created, err := diskLayout.Create(lv)
 	if err != nil {
 		return fmt.Errorf("cannot create the partitions: %v", err)
 	}
@@ -68,13 +67,13 @@ func Run(gadgetRoot, device string, options *Options) error {
 	return nil
 }
 
-func ensureLayoutCompatibility(gadgetLayout, diskLayout *gadget.LaidOutVolume) error {
-	eq := func(ds, gs gadget.LaidOutStructure) bool {
+func ensureLayoutCompatibility(gadgetLayout *gadget.LaidOutVolume, diskLayout *partition.DeviceLayout) error {
+	eq := func(ds partition.DeviceStructure, gs gadget.LaidOutStructure) bool {
 		dv := ds.VolumeStructure
 		gv := gs.VolumeStructure
 		return dv.Name == gv.Name && ds.StartOffset == gs.StartOffset && dv.Size == gv.Size && dv.Filesystem == gv.Filesystem
 	}
-	contains := func(haystack []gadget.LaidOutStructure, needle gadget.LaidOutStructure) bool {
+	contains := func(haystack []gadget.LaidOutStructure, needle partition.DeviceStructure) bool {
 		for _, h := range haystack {
 			if eq(needle, h) {
 				return true
@@ -84,7 +83,7 @@ func ensureLayoutCompatibility(gadgetLayout, diskLayout *gadget.LaidOutVolume) e
 	}
 
 	// Check if all existing device partitions are also in gadget
-	for _, ds := range diskLayout.LaidOutStructure {
+	for _, ds := range diskLayout.Structure {
 		if !contains(gadgetLayout.LaidOutStructure, ds) {
 			return fmt.Errorf("cannot find disk partition %q (starting at %d) in gadget", ds.VolumeStructure.Label, ds.StartOffset)
 		}

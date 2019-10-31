@@ -27,6 +27,7 @@ import (
 	. "gopkg.in/check.v1"
 
 	"github.com/snapcore/snapd/cmd/snap-bootstrap/bootstrap"
+	"github.com/snapcore/snapd/cmd/snap-bootstrap/partition"
 	"github.com/snapcore/snapd/gadget"
 )
 
@@ -71,21 +72,63 @@ const mockExtraStructure = `
         size: 1200M
 `
 
+var mockDeviceLayout = partition.DeviceLayout{
+	Structure: []partition.DeviceStructure{
+		{
+			LaidOutStructure: gadget.LaidOutStructure{
+				VolumeStructure: &gadget.VolumeStructure{
+					Name: "mbr",
+					Size: 440,
+				},
+				StartOffset: 0,
+			},
+			Node: "/dev/node1",
+		},
+		{
+			LaidOutStructure: gadget.LaidOutStructure{
+				VolumeStructure: &gadget.VolumeStructure{
+					Name: "BIOS Boot",
+					Size: 1 * gadget.SizeMiB,
+				},
+				StartOffset: 1 * gadget.SizeMiB,
+			},
+			Node: "/dev/node2",
+		},
+	},
+	ID:         "anything",
+	Device:     "/dev/node",
+	Size:       0x500000,
+	SectorSize: 512,
+}
+
 func (s *bootstrapSuite) TestLayoutCompatibility(c *C) {
 	// same contents
-	layout1 := layoutFromYaml(c, mockGadgetYaml, "pc")
-	layout2 := layoutFromYaml(c, mockGadgetYaml, "pc")
-	err := bootstrap.EnsureLayoutCompatibility(layout1, layout2)
+	gadgetLayout := layoutFromYaml(c, mockGadgetYaml, "pc")
+	err := bootstrap.EnsureLayoutCompatibility(gadgetLayout, &mockDeviceLayout)
 	c.Assert(err, IsNil)
 
 	// missing structure (that's ok)
-	layout1 = layoutFromYaml(c, mockGadgetYaml+mockExtraStructure, "pc")
-	err = bootstrap.EnsureLayoutCompatibility(layout1, layout2)
+	gadgetLayoutWithExtras := layoutFromYaml(c, mockGadgetYaml+mockExtraStructure, "pc")
+	err = bootstrap.EnsureLayoutCompatibility(gadgetLayoutWithExtras, &mockDeviceLayout)
 	c.Assert(err, IsNil)
 
+	deviceLayoutWithExtras := mockDeviceLayout
+	deviceLayoutWithExtras.Structure = append(deviceLayoutWithExtras.Structure,
+		partition.DeviceStructure{
+			LaidOutStructure: gadget.LaidOutStructure{
+				VolumeStructure: &gadget.VolumeStructure{
+					Name:  "Extra partition",
+					Size:  10 * gadget.SizeMiB,
+					Label: "extra",
+				},
+				StartOffset: 2 * gadget.SizeMiB,
+			},
+			Node: "/dev/node3",
+		},
+	)
 	// extra structure (should fail)
-	err = bootstrap.EnsureLayoutCompatibility(layout2, layout1)
-	c.Assert(err, ErrorMatches, `cannot find disk partition "writable".* in gadget`)
+	err = bootstrap.EnsureLayoutCompatibility(gadgetLayout, &deviceLayoutWithExtras)
+	c.Assert(err, ErrorMatches, `cannot find disk partition "extra".* in gadget`)
 }
 
 func layoutFromYaml(c *C, gadgetYaml, volume string) *gadget.LaidOutVolume {
