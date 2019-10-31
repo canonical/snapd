@@ -50,7 +50,7 @@ execute: |
     elif [ "$SRU_VALIDATION" = "1" ] || [ -n "$PPA_VALIDATION_NAME" ]; then
         echo "When either sru or ppa validation is done the core snap is installed from the store"
         VERSION=$FINAL_VERSION
-        TRACKING=(latest/)?stable
+        TRACKING="(latest/)?stable"
 
     elif [ "$SPREAD_BACKEND" = "external" ] && [[ "$SPREAD_SYSTEM" == ubuntu-core-16-* ]]; then
         echo "On the external device the core snap tested could be in any track"
@@ -64,7 +64,7 @@ execute: |
         NOTES=snapd
 
     else
-        TRACKING=(latest/)?$CORE_CHANNEL
+        TRACKING="(latest/)?$CORE_CHANNEL"
     fi
 
     expected="^$NAME +$VERSION +$REV +$TRACKING +$PUBLISHER +$NOTES.*$"
