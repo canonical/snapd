@@ -107,9 +107,17 @@ func (b *MockBootloader) SetTryingDuringReboot() error {
 	return nil
 }
 
+// SetRollbackAccrossReboot will simulate a rollback accross reboots. This
+// means that the bootloader had "snap_try_{core,kernel}" set but this
+// boot failed. In this case the bootloader will clear
+// "snap_try_{core,kernel}" and "snap_mode" which means the "old" kernel,core
+// in "snap_{core,kernel}" will be used.
 func (b *MockBootloader) SetRollbackAccrossReboot() error {
 	if b.BootVars["snap_mode"] != "try" {
 		return fmt.Errorf("rollback can only be simulated in 'try' mode")
+	}
+	if b.BootVars["snap_core"] == "" && b.BootVars["snap_kernel"] == "" {
+		return fmt.Errorf("rollback can only be simulated if either snap_core or snap_kernel is set")
 	}
 	// clean try bootvars and snap_mode
 	b.BootVars["snap_mode"] = ""
