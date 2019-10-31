@@ -74,7 +74,7 @@ func populateStateFromSeedImpl(st *state.State, tm timings.Measurer) ([]*state.T
 
 	markSeeded := st.NewTask("mark-seeded", i18n.G("Mark system seeded"))
 
-	deviceSeed, err := seed.Open(dirs.SnapSeedDir)
+	deviceSeed, err := seed.Open(dirs.SnapSeedDir, "") // XXX label should be passed in?
 	if err != nil {
 		return nil, err
 	}

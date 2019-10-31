@@ -85,6 +85,11 @@ type: gadget
 base: core20
 version: 1.0
 `,
+	"required20": `name: required20
+type: app
+base: core20
+version: 1.0
+`,
 }
 
 func MergeSampleSnapYaml(snapYaml ...map[string]string) map[string]string {
