@@ -498,10 +498,11 @@ prepare_suite_each() {
     # shellcheck source=tests/lib/reset.sh
     "$TESTSLIB"/reset.sh --reuse-core
     # Restart journal log and reset systemd journal cursor.
-    # It is not being used the restart command to avoid reaching the start-limit
-    systemctl stop systemd-journald.service
-    sync
-        systemctl start systemd-journald.service
+    if ! systemctl restart systemd-journald.service; then
+        systemctl status systemd-journald.service || true
+        echo "Failed to restart systemd-journald.service, exiting..."
+        exit 1
+    fi
     start_new_journalctl_log
 
     echo "Install the snaps profiler snap"
