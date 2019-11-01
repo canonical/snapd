@@ -849,7 +849,6 @@ func (m *SnapManager) undoUnlinkCurrentSnap(t *state.Task, _ *tomb.Tomb) error {
 		return err
 	}
 
-	// XXX: for undo we need the "old" model assertion
 	model, err := ModelFromTask(t)
 	if err != nil && err != state.ErrNoState {
 		return err
