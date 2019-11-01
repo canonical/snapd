@@ -1306,7 +1306,7 @@ func (s *SnapOpSuite) TestRefreshOneChanDeprecated(c *check.C) {
 		s.stderr.Reset()
 		_, err := snap.Parser(snap.Client()).ParseArgs([]string{"refresh", "--channel=" + in, "one"})
 		c.Assert(err, check.ErrorMatches, "snap \"one\" not found")
-		c.Check(s.Stderr(), testutil.EqualsWrapped, `Warning: Specifying a channel "`+in+`" is relying on undefined behaviour. Interpreting it as "`+out+`" for now, but this will change.`)
+		c.Check(s.Stderr(), testutil.EqualsWrapped, `Warning: Specifying a channel "`+in+`" is relying on undefined behaviour. Interpreting it as "`+out+`" for now, but this will be an error later.`)
 	}
 }
 
