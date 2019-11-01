@@ -81,6 +81,23 @@ execute: |
     . /etc/os-release
     lxd.lxc launch "ubuntu:${VERSION_ID}" my-ubuntu
 
+    # XXX: work-around the fact that LXD currently doesn't give snapd running
+    # inside a container to mount the cgroup. Before this is sorted out, add
+    # this part manually.
+    if [ "$REFRESH_APP_AWARENESS_INNER" = true ]; then
+        f=/var/snap/lxd/common/lxd/security/apparmor/profiles/lxd-my-ubuntu
+        truncate --size=-2 "$f"  # Remove trailing }\n
+        (
+            echo "### Feature: cgroup namespace"
+            echo "  mount fstype=cgroup -> /sys/fs/cgroup/**,"
+            echo "  mount fstype=cgroup2 -> /sys/fs/cgroup/**,"
+            echo "  # allow snapd to manage its own tracking cgroup"
+            echo "  mount fstype=cgroup options=(rw, nosuid, nodev, noexec, relatime) cgroup -> /run/snapd/cgroup/,"
+            echo "}"
+        ) >> "$f"
+        apparmor_parser -r "$f"
+    fi
+
     echo "Ensure we can run things inside"
     lxd.lxc exec my-ubuntu echo hello | MATCH hello
 
