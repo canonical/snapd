@@ -361,9 +361,9 @@ func (c *AttributeConstraints) Check(attrer Attrer, ctx AttrMatchContext) error 
 }
 
 // SideArityConstraint specifies a constraint for the overall arity of
-// the opposite connected set of slots for a plug, respectively plugs
-// for a slot.
-// It is used to express parsed slots-per-plug, respectively plugs-per-slot
+// the set of connected slots for a given plug or the set of
+// connected plugs for a given slot.
+// It is used to express parsed slots-per-plug and plugs-per-slot
 // constraints.
 // See https://forum.snapcraft.io/t/plug-slot-declaration-rules-greedy-plugs/12438
 type SideArityConstraint struct {
@@ -387,7 +387,7 @@ func compileSideArityConstraint(context *subruleContext, which string, v interfa
 		return a, fmt.Errorf("%s cannot specify a %s constraint, they apply only to allow-*connection", context, which)
 	}
 	x, ok := v.(string)
-	if !ok {
+	if !ok || len(x) == 0 {
 		return a, fmt.Errorf("%s in %s must be an integer >=1 or *", which, context)
 	}
 	if x == "*" {
@@ -413,7 +413,7 @@ func normalizeSideArityConstraints(context *subruleContext, c sideArityConstrain
 		return
 	}
 	any := SideArityConstraint{N: -1}
-	// normalized plugs-per-slots is always *
+	// normalized plugs-per-slot is always *
 	c.setPlugsPerSlot(any)
 	slotsPerPlug := c.slotsPerPlug()
 	if context.autoConnection() {
