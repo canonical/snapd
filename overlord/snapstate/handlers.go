@@ -1292,20 +1292,30 @@ func maybeUndoRemodelBootChanges(t *state.Task, undoInfo *snap.Info) error {
 		return nil
 	}
 	newModel := deviceCtx.Model()
-	if undoInfo.InstanceName() != newModel.Kernel() {
-		return nil
-	}
 
 	// check type
-	var snapName string
+	var snapName, newSnapName string
 	switch undoInfo.GetType() {
 	case snap.TypeKernel:
 		snapName = oldModel.Kernel()
+		newSnapName = newModel.Kernel()
 	case snap.TypeOS, snap.TypeBase:
+		// XXX: add support for "core"
 		snapName = oldModel.Base()
+		newSnapName = newModel.Base()
 	default:
 		return nil
 	}
+	// we can stop if the kernel/base has not changed
+	if snapName == newSnapName {
+		return nil
+	}
+	// we can stop if the snap we are looking at is not a kernel/base
+	// of the new model
+	if undoInfo.InstanceName() != newSnapName {
+		return nil
+	}
+
 	// get info for old kernel/base/core and see if we need to reboot
 	var snapst SnapState
 	if err = Get(t.State(), snapName, &snapst); err != nil {
