@@ -1613,11 +1613,11 @@ func (s *mgrsSuite) mockSuccessfulReboot(c *C, bloader *bootloadertest.MockBootl
 	c.Assert(err, IsNil)
 }
 
-func (s *mgrsSuite) mockRollbackAccrossReboot(c *C, bloader *bootloadertest.MockBootloader) {
+func (s *mgrsSuite) mockRollbackAcrossReboot(c *C, bloader *bootloadertest.MockBootloader) {
 	st := s.o.State()
 	restarting, restartType := st.Restarting()
-	c.Assert(restarting, Equals, true, Commentf("mockRollbackAccrossReboot called when there was no pending restart"))
-	c.Assert(restartType, Equals, state.RestartSystem, Commentf("mockRollbackAccrossReboot called but restartType is not SystemRestart but %v", restartType))
+	c.Assert(restarting, Equals, true, Commentf("mockRollbackAcrossReboot called when there was no pending restart"))
+	c.Assert(restartType, Equals, state.RestartSystem, Commentf("mockRollbackAcrossReboot called but restartType is not SystemRestart but %v", restartType))
 	state.MockRestarting(st, state.RestartUnset)
 	err := bloader.SetRollbackAcrossReboot()
 	c.Assert(err, IsNil)
@@ -4326,7 +4326,7 @@ type: kernel`
 	restarting, _ := st.Restarting()
 	c.Check(restarting, Equals, true)
 	c.Check(chg.Status(), Equals, state.DoingStatus)
-	s.mockRollbackAccrossReboot(c, bloader)
+	s.mockRollbackAcrossReboot(c, bloader)
 
 	// the kernel revision got rolled back
 	var snapst snapstate.SnapState
