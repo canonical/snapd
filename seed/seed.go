@@ -22,6 +22,7 @@ package seed
 
 import (
 	"errors"
+	"path/filepath"
 
 	"github.com/snapcore/snapd/asserts"
 	"github.com/snapcore/snapd/snap"
@@ -92,7 +93,13 @@ type Seed interface {
 }
 
 // Open returns a Seed implementation for the seed at seedDir.
-// TODO: more parameters for the Core20 case
-func Open(seedDir string) (Seed, error) {
+// label if not empty is used to identify a Core 20 recovery system seed.
+func Open(seedDir, label string) (Seed, error) {
+	if label != "" {
+		return &seed20{systemDir: filepath.Join(seedDir, "systems", label)}, nil
+	}
+	// TODO: consider if systems is present to open the Core 20
+	// system if there is only one, or the lexicographically
+	// highest label one?
 	return &seed16{seedDir: seedDir}, nil
 }

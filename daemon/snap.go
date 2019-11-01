@@ -303,7 +303,7 @@ func mapLocal(about aboutSnap) *client.Snap {
 		result.Status = "active"
 	}
 
-	result.TrackingChannel = snapst.Channel
+	result.TrackingChannel = snapst.TrackingChannel
 	result.IgnoreValidation = snapst.IgnoreValidation
 	result.CohortKey = snapst.CohortKey
 	result.DevMode = snapst.DevMode

@@ -893,7 +893,7 @@ func updateManyFiltered(ctx context.Context, st *state.State, names []string, us
 		}
 		// setting options to what's in state as multi-refresh doesn't let you change these
 		opts := &RevisionOptions{
-			Channel:   snapst.Channel,
+			Channel:   snapst.TrackingChannel,
 			CohortKey: snapst.CohortKey,
 		}
 		return opts, snapst.Flags, snapst
@@ -1321,7 +1321,7 @@ func Switch(st *state.State, name string, opts *RevisionOptions) (*state.TaskSet
 		InstanceKey: snapst.InstanceKey,
 		// set the from state (i.e. no change), they are overridden from opts as needed below
 		CohortKey: snapst.CohortKey,
-		Channel:   snapst.Channel,
+		Channel:   snapst.TrackingChannel,
 	}
 
 	if opts.Channel != "" {
@@ -1334,7 +1334,7 @@ func Switch(st *state.State, name string, opts *RevisionOptions) (*state.TaskSet
 		snapsup.CohortKey = ""
 	}
 
-	summary := switchSummary(snapsup.InstanceName(), snapst.Channel, snapsup.Channel, snapst.CohortKey, snapsup.CohortKey)
+	summary := switchSummary(snapsup.InstanceName(), snapst.TrackingChannel, snapsup.Channel, snapst.CohortKey, snapsup.CohortKey)
 	switchSnap := st.NewTask("switch-snap", summary)
 	switchSnap.Set("snap-setup", &snapsup)
 
@@ -1394,7 +1394,7 @@ func UpdateWithDeviceContext(st *state.State, name string, opts *RevisionOptions
 
 	if opts.Channel == "" {
 		// default to tracking the same channel
-		opts.Channel = snapst.Channel
+		opts.Channel = snapst.TrackingChannel
 	}
 	if opts.CohortKey == "" {
 		// default to being in the same cohort
@@ -1436,7 +1436,7 @@ func UpdateWithDeviceContext(st *state.State, name string, opts *RevisionOptions
 	}
 
 	// see if we need to switch the channel or cohort, or toggle ignore-validation
-	switchChannel := snapst.Channel != opts.Channel
+	switchChannel := snapst.TrackingChannel != opts.Channel
 	switchCohortKey := snapst.CohortKey != opts.CohortKey
 	toggleIgnoreValidation := snapst.IgnoreValidation != flags.IgnoreValidation
 	if infoErr == store.ErrNoUpdateAvailable && (switchChannel || switchCohortKey || toggleIgnoreValidation) {
@@ -1462,7 +1462,7 @@ func UpdateWithDeviceContext(st *state.State, name string, opts *RevisionOptions
 			// the UI displays the right values.
 			snapsup.SideInfo.Channel = opts.Channel
 
-			summary := switchSummary(snapsup.InstanceName(), snapst.Channel, opts.Channel, snapst.CohortKey, opts.CohortKey)
+			summary := switchSummary(snapsup.InstanceName(), snapst.TrackingChannel, opts.Channel, snapst.CohortKey, opts.CohortKey)
 			switchSnap := st.NewTask("switch-snap-channel", summary)
 			switchSnap.Set("snap-setup", &snapsup)
 
@@ -1981,14 +1981,14 @@ func TransitionCore(st *state.State, oldName, newName string) ([]*state.TaskSet,
 	}
 	if !newSnapst.IsInstalled() {
 		var userID int
-		newInfo, err := installInfo(context.TODO(), st, newName, &RevisionOptions{Channel: oldSnapst.Channel}, userID, nil)
+		newInfo, err := installInfo(context.TODO(), st, newName, &RevisionOptions{Channel: oldSnapst.TrackingChannel}, userID, nil)
 		if err != nil {
 			return nil, err
 		}
 
 		// start by installing the new snap
 		tsInst, err := doInstall(st, &newSnapst, &SnapSetup{
-			Channel:      oldSnapst.Channel,
+			Channel:      oldSnapst.TrackingChannel,
 			DownloadInfo: &newInfo.DownloadInfo,
 			SideInfo:     &newInfo.SideInfo,
 			Type:         newInfo.GetType(),
