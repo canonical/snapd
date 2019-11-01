@@ -1295,7 +1295,6 @@ func maybeUndoRemodelBootChanges(t *state.Task, undoInfo *snap.Info) error {
 	if undoInfo.InstanceName() != newModel.Kernel() {
 		return nil
 	}
-
 	// check type
 	var snapName string
 	switch undoInfo.GetType() {
@@ -1306,6 +1305,7 @@ func maybeUndoRemodelBootChanges(t *state.Task, undoInfo *snap.Info) error {
 	default:
 		return nil
 	}
+
 	// get info for old kernel/base/core and see if we need to reboot
 	var snapst SnapState
 	if err = Get(t.State(), snapName, &snapst); err != nil {
