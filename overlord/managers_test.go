@@ -1811,7 +1811,7 @@ type: kernel`
 	c.Check(restarting, Equals, true)
 	c.Check(chg.Status(), Equals, state.DoingStatus)
 	// pretend we restarted
-	s.mockSuccessfulSystemRestart(c, bloader)
+	s.mockSuccessfulReboot(c, bloader)
 
 	st.Unlock()
 	err = s.o.Settle(settleTimeout)
@@ -4014,14 +4014,7 @@ version: 1.0`
 	c.Assert(t.Status(), Equals, state.DoingStatus)
 
 	// simulate successful restart happened
-	state.MockRestarting(st, state.RestartUnset)
-	c.Assert(bloader.BootVars, DeepEquals, map[string]string{
-		"snap_core":       "core_1.snap",
-		"snap_kernel":     "pc-kernel_1.snap",
-		"snap_try_kernel": "brand-kernel_2.snap",
-		"snap_mode":       "try",
-	})
-	ms.mockSuccessfulSystemRestart(c, bloader)
+	ms.mockSuccessfulReboot(c, bloader)
 
 	// continue
 	st.Unlock()
