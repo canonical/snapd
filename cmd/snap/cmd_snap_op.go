@@ -262,10 +262,10 @@ func (mx *channelMixin) setChannelFromCommandline() error {
 
 			// TODO: get escapes in here so we can bold the Warning
 			head := i18n.G("Warning:")
-			msg := i18n.G("Specifying a channel %q is relying on undefined behaviour. Interpreting it as %q for now, but this will change.\n")
+			msg := i18n.G("Specifying a channel %q is relying on undefined behaviour. Interpreting it as %q for now, but this will be an error later.\n")
 			warn := fill(fmt.Sprintf(msg, mx.Channel, full), utf8.RuneCountInString(head)+1) // +1 for the space
 			fmt.Fprint(Stderr, head, " ", warn, "\n\n")
-			mx.Channel = full
+			mx.Channel = full // so a malformed-but-eh channel will always be full, i.e. //stable// -> latest/stable
 		} else {
 			// because snap.ParseChannel calls Clean() on the channel,
 			// the name will be the short form name that we want

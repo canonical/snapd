@@ -205,6 +205,7 @@ func (s storeChannelSuite) TestParseErrors(c *C) {
 		_, err = channel.ParseVerbatim(tc.channel, "")
 		c.Check(err, ErrorMatches, tc.err)
 		if tc.full != "" {
+			// testing Full behavior on the malformed channel
 			full, err := channel.Full(tc.channel)
 			c.Check(err, IsNil)
 			c.Check(full, Equals, tc.full)
