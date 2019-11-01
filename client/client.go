@@ -180,19 +180,23 @@ func (e AuthorizationError) Error() string {
 	return fmt.Sprintf("cannot add authorization: %v", e.error)
 }
 
-type ConnectionError struct{ error }
+type ConnectionError struct{ Err error }
 
 func (e ConnectionError) Error() string {
 	var errStr string
-	switch e.error {
+	switch e.Err {
 	case context.DeadlineExceeded:
 		errStr = "timeout exceeded while waiting for response"
 	case context.Canceled:
 		errStr = "request canceled"
 	default:
-		errStr = e.error.Error()
+		errStr = e.Err.Error()
 	}
 	return fmt.Sprintf("cannot communicate with server: %s", errStr)
+}
+
+func (e ConnectionError) Unwrap() error {
+	return e.Err
 }
 
 // AllowInteractionHeader is the HTTP request header used to indicate
@@ -256,7 +260,7 @@ func (client *Client) rawWithTimeout(ctx context.Context, method, urlpath string
 	rsp, err := client.raw(ctx, method, urlpath, query, headers, body)
 	if err != nil && ctx.Err() != nil {
 		cancel()
-		return nil, nil, &ConnectionError{ctx.Err()}
+		return nil, nil, ConnectionError{ctx.Err()}
 	}
 
 	return rsp, cancel, err

@@ -61,13 +61,7 @@ func (pol *policy16) checkSnapChannel(_ channel.Channel, whichSnap string) error
 }
 
 func makeSystemSnap(snapName string) *asserts.ModelSnap {
-	// TODO: set SnapID too
-	return &asserts.ModelSnap{
-		Name:     snapName,
-		SnapType: snapName, // same as snapName for core, snapd
-		Modes:    []string{"run"},
-		Presence: "required",
-	}
+	return internal.MakeSystemSnap(snapName, "", []string{"run"})
 }
 
 func (pol *policy16) systemSnap() *asserts.ModelSnap {

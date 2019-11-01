@@ -316,10 +316,10 @@ slots:
 
 	updateNS := apparmorSpec.UpdateNS()
 	profile0 := `  # Read-only content sharing consumer:content -> producer:content (r#0)
-  mount options=(bind) /snap/producer/5/export/ -> /snap/consumer/7/import/,
-  remount options=(bind, ro) /snap/consumer/7/import/,
-  mount options=(rprivate) -> /snap/consumer/7/import/,
-  umount /snap/consumer/7/import/,
+  mount options=(bind) /snap/producer/5/export/ -> /snap/consumer/7/import{,-[0-9]*}/,
+  remount options=(bind, ro) /snap/consumer/7/import{,-[0-9]*}/,
+  mount options=(rprivate) -> /snap/consumer/7/import{,-[0-9]*}/,
+  umount /snap/consumer/7/import{,-[0-9]*}/,
   # Writable mimic /snap/producer/5
   # .. permissions for traversing the prefix that is assumed to exist
   # .. variant with mimic at /
@@ -499,9 +499,9 @@ slots:
 
 	updateNS := apparmorSpec.UpdateNS()
 	profile0 := `  # Read-write content sharing consumer:content -> producer:content (w#0)
-  mount options=(bind, rw) /var/snap/producer/5/export/ -> /var/snap/consumer/7/import/,
-  mount options=(rprivate) -> /var/snap/consumer/7/import/,
-  umount /var/snap/consumer/7/import/,
+  mount options=(bind, rw) /var/snap/producer/5/export/ -> /var/snap/consumer/7/import{,-[0-9]*}/,
+  mount options=(rprivate) -> /var/snap/consumer/7/import{,-[0-9]*}/,
+  umount /var/snap/consumer/7/import{,-[0-9]*}/,
   # Writable directory /var/snap/producer/5/export
   /var/snap/producer/5/export/ rw,
   /var/snap/producer/5/ rw,
@@ -510,6 +510,8 @@ slots:
   /var/snap/consumer/7/import/ rw,
   /var/snap/consumer/7/ rw,
   /var/snap/consumer/ rw,
+  # Writable directory /var/snap/consumer/7/import-[0-9]*
+  /var/snap/consumer/7/import-[0-9]*/ rw,
 `
 	c.Assert(strings.Join(updateNS[:], ""), Equals, profile0)
 }
@@ -562,9 +564,9 @@ slots:
 
 	updateNS := apparmorSpec.UpdateNS()
 	profile0 := `  # Read-write content sharing consumer:content -> producer:content (w#0)
-  mount options=(bind, rw) /var/snap/producer/common/export/ -> /var/snap/consumer/common/import/,
-  mount options=(rprivate) -> /var/snap/consumer/common/import/,
-  umount /var/snap/consumer/common/import/,
+  mount options=(bind, rw) /var/snap/producer/common/export/ -> /var/snap/consumer/common/import{,-[0-9]*}/,
+  mount options=(rprivate) -> /var/snap/consumer/common/import{,-[0-9]*}/,
+  umount /var/snap/consumer/common/import{,-[0-9]*}/,
   # Writable directory /var/snap/producer/common/export
   /var/snap/producer/common/export/ rw,
   /var/snap/producer/common/ rw,
@@ -573,6 +575,8 @@ slots:
   /var/snap/consumer/common/import/ rw,
   /var/snap/consumer/common/ rw,
   /var/snap/consumer/ rw,
+  # Writable directory /var/snap/consumer/common/import-[0-9]*
+  /var/snap/consumer/common/import-[0-9]*/ rw,
 `
 	c.Assert(strings.Join(updateNS[:], ""), Equals, profile0)
 }
@@ -660,9 +664,9 @@ slots:
 
 	updateNS := apparmorSpec.UpdateNS()
 	profile0 := `  # Read-write content sharing consumer:content -> producer:content (w#0)
-  mount options=(bind, rw) /var/snap/producer/common/write-common/ -> /var/snap/consumer/common/import/write-common/,
-  mount options=(rprivate) -> /var/snap/consumer/common/import/write-common/,
-  umount /var/snap/consumer/common/import/write-common/,
+  mount options=(bind, rw) /var/snap/producer/common/write-common/ -> /var/snap/consumer/common/import/write-common{,-[0-9]*}/,
+  mount options=(rprivate) -> /var/snap/consumer/common/import/write-common{,-[0-9]*}/,
+  umount /var/snap/consumer/common/import/write-common{,-[0-9]*}/,
   # Writable directory /var/snap/producer/common/write-common
   /var/snap/producer/common/write-common/ rw,
   /var/snap/producer/common/ rw,
@@ -672,6 +676,8 @@ slots:
   /var/snap/consumer/common/import/ rw,
   /var/snap/consumer/common/ rw,
   /var/snap/consumer/ rw,
+  # Writable directory /var/snap/consumer/common/import/write-common-[0-9]*
+  /var/snap/consumer/common/import/write-common-[0-9]*/ rw,
 `
 	// Find the slice that describes profile0 by looking for the first unique
 	// line of the next profile.
@@ -680,14 +686,16 @@ slots:
 	c.Assert(strings.Join(updateNS[start:end], ""), Equals, profile0)
 
 	profile1 := `  # Read-write content sharing consumer:content -> producer:content (w#1)
-  mount options=(bind, rw) /var/snap/producer/2/write-data/ -> /var/snap/consumer/common/import/write-data/,
-  mount options=(rprivate) -> /var/snap/consumer/common/import/write-data/,
-  umount /var/snap/consumer/common/import/write-data/,
+  mount options=(bind, rw) /var/snap/producer/2/write-data/ -> /var/snap/consumer/common/import/write-data{,-[0-9]*}/,
+  mount options=(rprivate) -> /var/snap/consumer/common/import/write-data{,-[0-9]*}/,
+  umount /var/snap/consumer/common/import/write-data{,-[0-9]*}/,
   # Writable directory /var/snap/producer/2/write-data
   /var/snap/producer/2/write-data/ rw,
   /var/snap/producer/2/ rw,
   # Writable directory /var/snap/consumer/common/import/write-data
   /var/snap/consumer/common/import/write-data/ rw,
+  # Writable directory /var/snap/consumer/common/import/write-data-[0-9]*
+  /var/snap/consumer/common/import/write-data-[0-9]*/ rw,
 `
 	// Find the slice that describes profile1 by looking for the first unique
 	// line of the next profile.
@@ -696,14 +704,16 @@ slots:
 	c.Assert(strings.Join(updateNS[start:end], ""), Equals, profile1)
 
 	profile2 := `  # Read-only content sharing consumer:content -> producer:content (r#0)
-  mount options=(bind) /var/snap/producer/common/read-common/ -> /var/snap/consumer/common/import/read-common/,
-  remount options=(bind, ro) /var/snap/consumer/common/import/read-common/,
-  mount options=(rprivate) -> /var/snap/consumer/common/import/read-common/,
-  umount /var/snap/consumer/common/import/read-common/,
+  mount options=(bind) /var/snap/producer/common/read-common/ -> /var/snap/consumer/common/import/read-common{,-[0-9]*}/,
+  remount options=(bind, ro) /var/snap/consumer/common/import/read-common{,-[0-9]*}/,
+  mount options=(rprivate) -> /var/snap/consumer/common/import/read-common{,-[0-9]*}/,
+  umount /var/snap/consumer/common/import/read-common{,-[0-9]*}/,
   # Writable directory /var/snap/producer/common/read-common
   /var/snap/producer/common/read-common/ rw,
   # Writable directory /var/snap/consumer/common/import/read-common
   /var/snap/consumer/common/import/read-common/ rw,
+  # Writable directory /var/snap/consumer/common/import/read-common-[0-9]*
+  /var/snap/consumer/common/import/read-common-[0-9]*/ rw,
 `
 	// Find the slice that describes profile2 by looking for the first unique
 	// line of the next profile.
@@ -712,14 +722,16 @@ slots:
 	c.Assert(strings.Join(updateNS[start:end], ""), Equals, profile2)
 
 	profile3 := `  # Read-only content sharing consumer:content -> producer:content (r#1)
-  mount options=(bind) /var/snap/producer/2/read-data/ -> /var/snap/consumer/common/import/read-data/,
-  remount options=(bind, ro) /var/snap/consumer/common/import/read-data/,
-  mount options=(rprivate) -> /var/snap/consumer/common/import/read-data/,
-  umount /var/snap/consumer/common/import/read-data/,
+  mount options=(bind) /var/snap/producer/2/read-data/ -> /var/snap/consumer/common/import/read-data{,-[0-9]*}/,
+  remount options=(bind, ro) /var/snap/consumer/common/import/read-data{,-[0-9]*}/,
+  mount options=(rprivate) -> /var/snap/consumer/common/import/read-data{,-[0-9]*}/,
+  umount /var/snap/consumer/common/import/read-data{,-[0-9]*}/,
   # Writable directory /var/snap/producer/2/read-data
   /var/snap/producer/2/read-data/ rw,
   # Writable directory /var/snap/consumer/common/import/read-data
   /var/snap/consumer/common/import/read-data/ rw,
+  # Writable directory /var/snap/consumer/common/import/read-data-[0-9]*
+  /var/snap/consumer/common/import/read-data-[0-9]*/ rw,
 `
 	// Find the slice that describes profile3 by looking for the first unique
 	// line of the next profile.
@@ -728,10 +740,10 @@ slots:
 	c.Assert(strings.Join(updateNS[start:end], ""), Equals, profile3)
 
 	profile4 := `  # Read-only content sharing consumer:content -> producer:content (r#2)
-  mount options=(bind) /snap/producer/2/read-snap/ -> /var/snap/consumer/common/import/read-snap/,
-  remount options=(bind, ro) /var/snap/consumer/common/import/read-snap/,
-  mount options=(rprivate) -> /var/snap/consumer/common/import/read-snap/,
-  umount /var/snap/consumer/common/import/read-snap/,
+  mount options=(bind) /snap/producer/2/read-snap/ -> /var/snap/consumer/common/import/read-snap{,-[0-9]*}/,
+  remount options=(bind, ro) /var/snap/consumer/common/import/read-snap{,-[0-9]*}/,
+  mount options=(rprivate) -> /var/snap/consumer/common/import/read-snap{,-[0-9]*}/,
+  umount /var/snap/consumer/common/import/read-snap{,-[0-9]*}/,
   # Writable mimic /snap/producer/2
   # .. permissions for traversing the prefix that is assumed to exist
   # .. variant with mimic at /
@@ -822,6 +834,8 @@ slots:
   umount /snap/producer/2/*/,
   # Writable directory /var/snap/consumer/common/import/read-snap
   /var/snap/consumer/common/import/read-snap/ rw,
+  # Writable directory /var/snap/consumer/common/import/read-snap-[0-9]*
+  /var/snap/consumer/common/import/read-snap-[0-9]*/ rw,
 `
 	// Find the slice that describes profile4 by looking till the end of the list.
 	start = end

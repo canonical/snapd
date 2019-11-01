@@ -49,6 +49,7 @@ func init() {
 		"k": i18n.G("Name of the key to use, otherwise use the default key"),
 	}, nil)
 	cmd.hidden = true
+	cmd.completeHidden = true
 }
 
 func (x *cmdSign) Execute(args []string) error {
