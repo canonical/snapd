@@ -365,6 +365,7 @@ func (c *AttributeConstraints) Check(attrer Attrer, ctx AttrMatchContext) error 
 // for a slot.
 // It is used to express parsed slots-per-plug, respectively plugs-per-slot
 // constraints.
+// See https://forum.snapcraft.io/t/plug-slot-declaration-rules-greedy-plugs/12438
 type SideArityConstraint struct {
 	// N can be:
 	// =>1
@@ -646,10 +647,21 @@ type constraintsDef struct {
 	invert bool
 }
 
+// subruleContext carries queryable context information about one the
+// {allow,deny}-* subrules that end up compiled as
+// Plug|Slot*Constraints.  The information includes the parent rule,
+// the introductory subrule key ({allow,deny}-*) and which alternative
+// it corresponds to if any.
+// The information is useful for constraints compilation now that we
+// have constraints with different behavior depending on the kind of
+// subrule that hosts them (e.g. slots-per-plug, plugs-per-slot).
 type subruleContext struct {
-	rule    string
+	// rule is the parent rule context description
+	rule string
+	// subrule is the subrule key
 	subrule string
-	alt     int
+	// alt is which alternative this is (if > 0)
+	alt int
 }
 
 func (c *subruleContext) String() string {
@@ -660,14 +672,17 @@ func (c *subruleContext) String() string {
 	return subctxt
 }
 
+// allow returns whether the subrule is an allow-* subrule.
 func (c *subruleContext) allow() bool {
 	return strings.HasPrefix(c.subrule, "allow-")
 }
 
+// installation returns whether the subrule is an *-installation subrule.
 func (c *subruleContext) installation() bool {
 	return strings.HasSuffix(c.subrule, "-installation")
 }
 
+// autoConnection returns whether the subrule is an *-auto-connection subrule.
 func (c *subruleContext) autoConnection() bool {
 	return strings.HasSuffix(c.subrule, "-auto-connection")
 }
