@@ -46,9 +46,10 @@ execute: |
     fi
     MATCH "Can't stat 'invalid': No such file or directory" < stderr
 
-    if [[ "$SPREAD_SYSTEM" == arch-linux-* ]]; then
-        # Arch runs the mainline kernel, strace (with event filter or not) *may*
-        # randomly get stuck on the kernel side, see:
+    if [[ "$SPREAD_SYSTEM" == arch-* || "$SPREAD_SYSTEM" == opensuse-tumbleweed-* ]] ; then
+        # Arch linux and Opensuse tumbleweed run the mainline kernel, strace
+        # (with event filter or not) *may* randomly get stuck on the kernel
+        # side, see:
         # - proposed patch: https://lore.kernel.org/patchwork/patch/719314/
         # - snap-exec & strace stuck: https://paste.ubuntu.com/p/8nVzj8Sqfq/
         echo "SKIP further tests due to know kernel/strace problems"

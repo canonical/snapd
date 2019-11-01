@@ -24,6 +24,8 @@ import (
 	"fmt"
 	"io/ioutil"
 	"regexp"
+
+	"golang.org/x/xerrors"
 )
 
 // Icon represents the icon of an installed snap
@@ -42,7 +44,8 @@ func (c *Client) Icon(pkgID string) (*Icon, error) {
 	defer cancel()
 	response, err := c.raw(ctx, "GET", fmt.Sprintf("/v2/icons/%s/icon", pkgID), nil, nil, nil)
 	if err != nil {
-		return nil, fmt.Errorf("%s: failed to communicate with server: %s", errPrefix, err)
+		fmt := "%s: failed to communicate with server: %w"
+		return nil, xerrors.Errorf(fmt, errPrefix, err)
 	}
 	defer response.Body.Close()
 

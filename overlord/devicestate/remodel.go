@@ -135,12 +135,12 @@ func remodelCtx(st *state.State, oldModel, newModel *asserts.Model) (remodelCont
 	switch kind := ClassifyRemodel(oldModel, newModel); kind {
 	case UpdateRemodel:
 		// simple context for the simple case
-		remodCtx = &updateRemodelContext{baseRemodelContext{newModel}}
+		remodCtx = &updateRemodelContext{baseRemodelContext{newModel, oldModel}}
 	case StoreSwitchRemodel:
-		remodCtx = newNewStoreRemodelContext(st, devMgr, newModel)
+		remodCtx = newNewStoreRemodelContext(st, devMgr, newModel, oldModel)
 	case ReregRemodel:
 		remodCtx = &reregRemodelContext{
-			newStoreRemodelContext: newNewStoreRemodelContext(st, devMgr, newModel),
+			newStoreRemodelContext: newNewStoreRemodelContext(st, devMgr, newModel, oldModel),
 		}
 	default:
 		return nil, fmt.Errorf("unsupported remodel: %s", kind)
@@ -202,7 +202,7 @@ func remodelCtxFromTask(t *state.Task) (remodelContext, error) {
 }
 
 type baseRemodelContext struct {
-	newModel *asserts.Model
+	newModel, oldModel *asserts.Model
 }
 
 func (rc baseRemodelContext) ForRemodeling() bool {
@@ -211,6 +211,10 @@ func (rc baseRemodelContext) ForRemodeling() bool {
 
 func (rc baseRemodelContext) Model() *asserts.Model {
 	return rc.newModel
+}
+
+func (rc baseRemodelContext) OldModel() *asserts.Model {
+	return rc.oldModel
 }
 
 func (rc baseRemodelContext) initialDevice(*auth.DeviceState) error {
@@ -271,9 +275,9 @@ type newStoreRemodelContext struct {
 	deviceMgr *DeviceManager
 }
 
-func newNewStoreRemodelContext(st *state.State, devMgr *DeviceManager, newModel *asserts.Model) *newStoreRemodelContext {
+func newNewStoreRemodelContext(st *state.State, devMgr *DeviceManager, newModel, oldModel *asserts.Model) *newStoreRemodelContext {
 	rc := &newStoreRemodelContext{}
-	rc.baseRemodelContext = baseRemodelContext{newModel}
+	rc.baseRemodelContext = baseRemodelContext{newModel, oldModel}
 	rc.st = st
 	rc.deviceMgr = devMgr
 	rc.store = devMgr.newStore(rc.deviceBackend())

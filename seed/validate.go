@@ -24,12 +24,13 @@ import (
 	"fmt"
 	"path/filepath"
 
+	"github.com/snapcore/snapd/seed/internal"
 	"github.com/snapcore/snapd/snap"
 )
 
 // ValidateFromYaml validates the given seed.yaml file and surrounding seed.
 func ValidateFromYaml(seedYamlFile string) error {
-	seed, err := ReadYaml(seedYamlFile)
+	seed, err := internal.ReadSeedYaml(seedYamlFile)
 	if err != nil {
 		return err
 	}

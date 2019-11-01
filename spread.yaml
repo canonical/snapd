@@ -68,6 +68,8 @@ backends:
                 workers: 8
             - ubuntu-19.04-64:
                 workers: 6
+            - ubuntu-19.10-64:
+                workers: 6
             - ubuntu-core-16-64:
                 image: ubuntu-16.04-64
                 workers: 6
@@ -108,8 +110,6 @@ backends:
         location: computeengine/us-east1-b
         halt-timeout: 2h
         systems:
-            - ubuntu-19.10-64:
-                workers: 6
             - centos-7-64:
                 workers: 6
                 image: centos-7-64
@@ -469,7 +469,7 @@ repack: |
     else
         trap "rm -f delta-ref.tar current.delta" EXIT
         git archive -o delta-ref.tar --format=tar --prefix="$DELTA_PREFIX" "$DELTA_REF"
-        xdelta3 -s delta-ref.tar <&3 > current.delta
+        xdelta3 -S none -s delta-ref.tar <&3 > current.delta
         tar c current.delta >&4
     fi
 
@@ -506,6 +506,10 @@ prepare: |
         #
         # https://forum.snapcraft.io/t/issues-with-the-fedora-mirror-network/3489/
         sed -i -s -E -e 's@^#?baseurl=http://download.fedoraproject.org/@baseurl=http://dl.fedoraproject.org/@g' -e 's@^metalink=@#metalink@g' /etc/yum.repos.d/fedora*.repo
+
+        # TODO: disable once golang-x-xerrors is available in F30
+        dnf copr enable bboozzoo/snapd-devel-deps -y
+
         dnf --refresh -y makecache
 
         # enable audit daemon

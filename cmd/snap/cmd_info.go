@@ -401,6 +401,23 @@ func (iw *infoWriter) printSummary() {
 	wrapFlow(iw, quotedIfNeeded(iw.theSnap.Summary), "summary:\t", iw.termWidth)
 }
 
+func (iw *infoWriter) maybePrintStoreURL() {
+	storeURL := ""
+	// XXX: store-url for local snaps comes from aux data, but that gets
+	// updated only when the snap is refreshed, be smart and poke remote
+	// snap info if available
+	switch {
+	case iw.theSnap.StoreURL != "":
+		storeURL = iw.theSnap.StoreURL
+	case iw.remoteSnap != nil && iw.remoteSnap.StoreURL != "":
+		storeURL = iw.remoteSnap.StoreURL
+	}
+	if storeURL == "" {
+		return
+	}
+	fmt.Fprintf(iw, "store-url:\t%s\n", storeURL)
+}
+
 func (iw *infoWriter) maybePrintPublisher() {
 	if iw.diskSnap != nil {
 		// snaps read from disk won't have a publisher
@@ -717,6 +734,7 @@ func (x *infoCmd) Execute([]string) error {
 		iw.printSummary()
 		iw.maybePrintHealth()
 		iw.maybePrintPublisher()
+		iw.maybePrintStoreURL()
 		iw.maybePrintStandaloneVersion()
 		iw.maybePrintBuildDate()
 		iw.maybePrintContact()

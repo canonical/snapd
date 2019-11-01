@@ -3367,6 +3367,88 @@ func (s *mgrsSuite) TestRemodelRequiredSnapsAdded(c *C) {
 	c.Assert(tasks, HasLen, i+1)
 }
 
+func (s *mgrsSuite) TestRemodelRequiredSnapsAddedUndo(c *C) {
+	for _, name := range []string{"foo", "bar", "baz"} {
+		s.prereqSnapAssertions(c, map[string]interface{}{
+			"snap-name": name,
+		})
+		snapPath, _ := s.makeStoreTestSnap(c, fmt.Sprintf("{name: %s, version: 1.0}", name), "1")
+		s.serveSnap(snapPath, "1")
+	}
+
+	mockServer := s.mockStore(c)
+	defer mockServer.Close()
+
+	st := s.o.State()
+	st.Lock()
+	defer st.Unlock()
+
+	// pretend we have an old required snap installed
+	si1 := &snap.SideInfo{RealName: "old-required-snap-1", Revision: snap.R(1)}
+	snapstate.Set(st, "old-required-snap-1", &snapstate.SnapState{
+		SnapType: "app",
+		Active:   true,
+		Sequence: []*snap.SideInfo{si1},
+		Current:  si1.Revision,
+		Flags:    snapstate.Flags{Required: true},
+	})
+
+	// create/set custom model assertion
+	assertstatetest.AddMany(st, s.brands.AccountsAndKeys("my-brand")...)
+	curModel := s.brands.Model("my-brand", "my-model", modelDefaults)
+
+	// setup model assertion
+	devicestatetest.SetDevice(st, &auth.DeviceState{
+		Brand:  "my-brand",
+		Model:  "my-model",
+		Serial: "serialserialserial",
+	})
+	err := assertstate.Add(st, curModel)
+	c.Assert(err, IsNil)
+
+	// create a new model
+	newModel := s.brands.Model("my-brand", "my-model", modelDefaults, map[string]interface{}{
+		"required-snaps": []interface{}{"foo", "bar", "baz"},
+		"revision":       "1",
+	})
+
+	devicestate.InjectSetModelError(fmt.Errorf("boom"))
+	defer devicestate.InjectSetModelError(nil)
+
+	chg, err := devicestate.Remodel(st, newModel)
+	c.Assert(err, IsNil)
+
+	st.Unlock()
+	err = s.o.Settle(settleTimeout)
+	st.Lock()
+	c.Assert(err, IsNil)
+
+	c.Assert(chg.Status(), Equals, state.ErrorStatus)
+
+	// None of the new snaps got installed
+	var snapst snapstate.SnapState
+	for _, snapName := range []string{"foo", "bar", "baz"} {
+		err = snapstate.Get(st, snapName, &snapst)
+		c.Assert(err, Equals, state.ErrNoState)
+	}
+
+	// old-required-snap-1 is still marked required
+	err = snapstate.Get(st, "old-required-snap-1", &snapst)
+	c.Assert(err, IsNil)
+	c.Check(snapst.Required, Equals, true)
+
+	// check tasks are in undo state
+	for _, t := range chg.Tasks() {
+		if t.Kind() == "link-snap" {
+			c.Assert(t.Status(), Equals, state.UndoneStatus)
+		}
+	}
+
+	model, err := s.o.DeviceManager().Model()
+	c.Assert(err, IsNil)
+	c.Assert(model, DeepEquals, curModel)
+}
+
 func (s *mgrsSuite) TestRemodelDifferentBase(c *C) {
 	// make "core18" snap available in the store
 	s.prereqSnapAssertions(c, map[string]interface{}{
@@ -3714,8 +3796,9 @@ version: 1.0`
 
 	// setup model assertion
 	devicestatetest.SetDevice(st, &auth.DeviceState{
-		Brand: "can0nical",
-		Model: "my-model",
+		Brand:  "can0nical",
+		Model:  "my-model",
+		Serial: "serialserialserial",
 	})
 	err := assertstate.Add(st, model)
 	c.Assert(err, IsNil)
@@ -3742,6 +3825,19 @@ version: 1.0`
 	c.Assert(t, NotNil)
 	c.Assert(t.Status(), Equals, state.DoingStatus)
 
+	// check that the system tries to boot the new brand kernel
+	state.MockRestarting(st, state.RestartUnset)
+	c.Assert(bloader.BootVars, DeepEquals, map[string]string{
+		"snap_core":       "core_1.snap",
+		"snap_kernel":     "pc-kernel_1.snap",
+		"snap_try_kernel": "brand-kernel_2.snap",
+		"snap_mode":       "try",
+	})
+	// simulate successful system-restart bootenv updates (those
+	// vars will be cleared by snapd on a restart)
+	bloader.BootVars["snap_try_kernel"] = ""
+	bloader.BootVars["snap_mode"] = ""
+
 	// simulate successful restart happened
 	state.MockRestarting(st, state.RestartUnset)
 
@@ -3753,6 +3849,14 @@ version: 1.0`
 	c.Assert(err, IsNil)
 
 	c.Assert(chg.Status(), Equals, state.DoneStatus, Commentf("upgrade-snap change failed with: %v", chg.Err()))
+
+	// bootvars are as expected
+	c.Assert(bloader.BootVars, DeepEquals, map[string]string{
+		"snap_core":       "core_1.snap",
+		"snap_kernel":     "pc-kernel_1.snap",
+		"snap_try_kernel": "",
+		"snap_mode":       "",
+	})
 
 	// ensure tasks were run in the right order
 	tasks := chg.Tasks()
@@ -3770,6 +3874,13 @@ version: 1.0`
 	// ensure that we only have the tasks we checked (plus the one
 	// extra "set-model" task)
 	c.Assert(tasks, HasLen, i+1)
+
+	// ensure we did not try device registration
+	for _, t := range st.Tasks() {
+		if t.Kind() == "request-serial" {
+			c.Fatalf("test should not create a request-serial task but did")
+		}
+	}
 }
 
 func (s *mgrsSuite) TestRemodelStoreSwitch(c *C) {

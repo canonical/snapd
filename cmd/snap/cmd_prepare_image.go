@@ -38,7 +38,7 @@ type cmdPrepareImage struct {
 		Rootdir          string
 	} `positional-args:"yes" required:"yes"`
 
-	Channel string `long:"channel" default:"stable"`
+	Channel string `long:"channel"`
 	// TODO: introduce SnapWithChannel?
 	Snaps      []string `long:"snap" value-name:"<snap>[=<channel>]"`
 	ExtraSnaps []string `long:"extra-snaps" hidden:"yes"` // DEPRECATED

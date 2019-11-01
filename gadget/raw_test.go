@@ -241,7 +241,7 @@ func (r *rawTestSuite) TestRawWriterFailWithNonBare(c *C) {
 	}
 
 	rw, err := gadget.NewRawStructureWriter(r.dir, ps)
-	c.Assert(err, ErrorMatches, "internal error: structure #0 is not bare")
+	c.Assert(err, ErrorMatches, "internal error: structure #0 has a filesystem")
 	c.Assert(rw, IsNil)
 }
 
@@ -280,7 +280,7 @@ func (r *rawTestSuite) TestRawUpdaterFailWithNonBare(c *C) {
 		c.Fatalf("unexpected call")
 		return "", 0, nil
 	})
-	c.Assert(err, ErrorMatches, "internal error: structure #0 is not bare")
+	c.Assert(err, ErrorMatches, "internal error: structure #0 has a filesystem")
 	c.Assert(ru, IsNil)
 }
 

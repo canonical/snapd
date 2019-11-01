@@ -41,6 +41,8 @@ func For(typ snap.Type, model *asserts.Model) snapstate.Policy {
 		return &osPolicy{modelBase: model.Base()}
 	case snap.TypeBase:
 		return &basePolicy{modelBase: model.Base()}
+	case snap.TypeSnapd:
+		return &snapdPolicy{onClassic: model.Classic()}
 	default:
 		return appPolicy{}
 	}
