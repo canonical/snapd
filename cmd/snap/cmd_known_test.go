@@ -28,6 +28,7 @@ import (
 	"github.com/jessevdk/go-flags"
 	"gopkg.in/check.v1"
 
+	"github.com/snapcore/snapd/client"
 	"github.com/snapcore/snapd/store"
 
 	snap "github.com/snapcore/snapd/cmd/snap"
@@ -49,7 +50,76 @@ sign-key-sha3-384: 9tydnLa6MTJ-jaQTFUXEwHl1yRx7ZS4K5cyFDhYDcPzhS7uyEkDxdUjg9g08B
 AcLorsomethingthatlooksvaguelylikeasignature==
 `
 
-func (s *SnapSuite) TestKnownRemote(c *check.C) {
+func (s *SnapSuite) TestKnownViaSnapd(c *check.C) {
+	n := 0
+	expectedQuery := url.Values{
+		"series":   []string{"16"},
+		"brand-id": []string{"canonical"},
+		"model":    []string{"pi99"},
+	}
+
+	s.RedirectClientToTestServer(func(w http.ResponseWriter, r *http.Request) {
+		switch n {
+		case 0:
+			c.Check(r.URL.Path, check.Equals, "/v2/assertions/model")
+			c.Check(r.URL.Query(), check.DeepEquals, expectedQuery)
+			w.Header().Set("X-Ubuntu-Assertions-Count", "1")
+			fmt.Fprintln(w, mockModelAssertion)
+		default:
+			c.Fatalf("expected to get 1 requests, now on %d", n+1)
+		}
+		n++
+	})
+
+	// first run "normal"
+	rest, err := snap.Parser(snap.Client()).ParseArgs([]string{"known", "model", "series=16", "brand-id=canonical", "model=pi99"})
+	c.Assert(err, check.IsNil)
+	c.Assert(rest, check.DeepEquals, []string{})
+	c.Check(s.Stdout(), check.Equals, mockModelAssertion)
+	c.Check(s.Stderr(), check.Equals, "")
+	c.Check(n, check.Equals, 1)
+
+	// then with "--remote"
+	n = 0
+	s.stdout.Reset()
+	expectedQuery["remote"] = []string{"true"}
+	rest, err = snap.Parser(snap.Client()).ParseArgs([]string{"known", "--remote", "model", "series=16", "brand-id=canonical", "model=pi99"})
+	c.Assert(err, check.IsNil)
+	c.Assert(rest, check.DeepEquals, []string{})
+	c.Check(s.Stdout(), check.Equals, mockModelAssertion)
+	c.Check(s.Stderr(), check.Equals, "")
+	c.Check(n, check.Equals, 1)
+}
+
+func (s *SnapSuite) TestKnownRemoteViaSnapd(c *check.C) {
+	n := 0
+	s.RedirectClientToTestServer(func(w http.ResponseWriter, r *http.Request) {
+		switch n {
+		case 0:
+			c.Check(r.URL.Path, check.Equals, "/v2/assertions/model")
+			c.Check(r.URL.Query(), check.DeepEquals, url.Values{
+				"series":   []string{"16"},
+				"brand-id": []string{"canonical"},
+				"model":    []string{"pi99"},
+				"remote":   []string{"true"},
+			})
+			w.Header().Set("X-Ubuntu-Assertions-Count", "1")
+			fmt.Fprintln(w, mockModelAssertion)
+		default:
+			c.Fatalf("expected to get 1 requests, now on %d", n+1)
+		}
+		n++
+	})
+
+	rest, err := snap.Parser(snap.Client()).ParseArgs([]string{"known", "--remote", "model", "series=16", "brand-id=canonical", "model=pi99"})
+	c.Assert(err, check.IsNil)
+	c.Assert(rest, check.DeepEquals, []string{})
+	c.Check(s.Stdout(), check.Equals, mockModelAssertion)
+	c.Check(s.Stderr(), check.Equals, "")
+	c.Check(n, check.Equals, 1)
+}
+
+func (s *SnapSuite) TestKnownRemoteDirect(c *check.C) {
 	var server *httptest.Server
 
 	restorer := snap.MockStoreNew(func(cfg *store.Config, stoCtx store.DeviceAndAuthContext) *store.Store {
@@ -77,7 +147,58 @@ func (s *SnapSuite) TestKnownRemote(c *check.C) {
 		n++
 	}))
 
-	rest, err := snap.Parser(snap.Client()).ParseArgs([]string{"known", "--remote", "model", "series=16", "brand-id=canonical", "model=pi99"})
+	// first test "--remote --direct"
+	rest, err := snap.Parser(snap.Client()).ParseArgs([]string{"known", "--remote", "--direct", "model", "series=16", "brand-id=canonical", "model=pi99"})
+	c.Assert(err, check.IsNil)
+	c.Assert(rest, check.DeepEquals, []string{})
+	c.Check(s.Stdout(), check.Equals, mockModelAssertion)
+	c.Check(s.Stderr(), check.Equals, "")
+	c.Check(n, check.Equals, 1)
+
+	// "--direct" behave the same as "--remote --direct"
+	s.stdout.Reset()
+	n = 0
+	rest, err = snap.Parser(snap.Client()).ParseArgs([]string{"known", "--direct", "model", "series=16", "brand-id=canonical", "model=pi99"})
+	c.Assert(err, check.IsNil)
+	c.Assert(rest, check.DeepEquals, []string{})
+	c.Check(s.Stdout(), check.Equals, mockModelAssertion)
+	c.Check(s.Stderr(), check.Equals, "")
+	c.Check(n, check.Equals, 1)
+}
+
+func (s *SnapSuite) TestKnownRemoteAutoFallback(c *check.C) {
+	var server *httptest.Server
+
+	restorer := snap.MockStoreNew(func(cfg *store.Config, stoCtx store.DeviceAndAuthContext) *store.Store {
+		if cfg == nil {
+			cfg = store.DefaultConfig()
+		}
+		serverURL, _ := url.Parse(server.URL)
+		cfg.AssertionsBaseURL = serverURL
+		return store.New(cfg, stoCtx)
+	})
+	defer restorer()
+
+	n := 0
+	server = httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		c.Assert(r.URL.Path, check.Matches, ".*/assertions/.*") // sanity check request
+		switch n {
+		case 0:
+			c.Check(r.Method, check.Equals, "GET")
+			c.Check(r.URL.Path, check.Equals, "/api/v1/snaps/assertions/model/16/canonical/pi99")
+			fmt.Fprintln(w, mockModelAssertion)
+		default:
+			c.Fatalf("expected to get 1 requests, now on %d", n+1)
+		}
+		n++
+	}))
+
+	cli := snap.Client()
+	cli.Hijack(func(*http.Request) (*http.Response, error) {
+		return nil, client.ConnectionError{Err: fmt.Errorf("no snapd")}
+	})
+
+	rest, err := snap.Parser(cli).ParseArgs([]string{"known", "--remote", "model", "series=16", "brand-id=canonical", "model=pi99"})
 	c.Assert(err, check.IsNil)
 	c.Assert(rest, check.DeepEquals, []string{})
 	c.Check(s.Stdout(), check.Equals, mockModelAssertion)
@@ -85,7 +206,7 @@ func (s *SnapSuite) TestKnownRemote(c *check.C) {
 }
 
 func (s *SnapSuite) TestKnownRemoteMissingPrimaryKey(c *check.C) {
-	_, err := snap.Parser(snap.Client()).ParseArgs([]string{"known", "--remote", "model", "series=16", "brand-id=canonical"})
+	_, err := snap.Parser(snap.Client()).ParseArgs([]string{"known", "--remote", "--direct", "model", "series=16", "brand-id=canonical"})
 	c.Assert(err, check.ErrorMatches, `cannot query remote assertion: must provide primary key: model`)
 }
 
@@ -105,4 +226,5 @@ func (s *SnapSuite) TestAssertTypeNameCompletion(c *check.C) {
 	})
 
 	c.Check(snap.AssertTypeNameCompletion("v"), check.DeepEquals, []flags.Completion{{Item: "validation"}})
+	c.Check(n, check.Equals, 1)
 }

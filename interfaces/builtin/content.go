@@ -228,15 +228,16 @@ func (iface *contentInterface) AppArmorConnectedPlug(spec *apparmor.Specificatio
 				resolveSpecialVariable(w, slot.Snap()))
 			source, target := sourceTarget(plug, slot, w)
 			emit("  # Read-write content sharing %s -> %s (w#%d)\n", plug.Ref(), slot.Ref(), i)
-			emit("  mount options=(bind, rw) %s/ -> %s/,\n", source, target)
-			emit("  mount options=(rprivate) -> %s/,\n", target)
-			emit("  umount %s/,\n", target)
+			emit("  mount options=(bind, rw) %s/ -> %s{,-[0-9]*}/,\n", source, target)
+			emit("  mount options=(rprivate) -> %s{,-[0-9]*}/,\n", target)
+			emit("  umount %s{,-[0-9]*}/,\n", target)
 			// TODO: The assumed prefix depth could be optimized to be more
 			// precise since content sharing can only take place in a fixed
 			// list of places with well-known paths (well, constrained set of
 			// paths). This can be done when the prefix is actually consumed.
 			apparmor.GenWritableProfile(emit, source, 1)
 			apparmor.GenWritableProfile(emit, target, 1)
+			apparmor.GenWritableProfile(emit, fmt.Sprintf("%s-[0-9]*", target), 1)
 		}
 	}
 
@@ -253,13 +254,14 @@ func (iface *contentInterface) AppArmorConnectedPlug(spec *apparmor.Specificatio
 
 			source, target := sourceTarget(plug, slot, r)
 			emit("  # Read-only content sharing %s -> %s (r#%d)\n", plug.Ref(), slot.Ref(), i)
-			emit("  mount options=(bind) %s/ -> %s/,\n", source, target)
-			emit("  remount options=(bind, ro) %s/,\n", target)
-			emit("  mount options=(rprivate) -> %s/,\n", target)
-			emit("  umount %s/,\n", target)
+			emit("  mount options=(bind) %s/ -> %s{,-[0-9]*}/,\n", source, target)
+			emit("  remount options=(bind, ro) %s{,-[0-9]*}/,\n", target)
+			emit("  mount options=(rprivate) -> %s{,-[0-9]*}/,\n", target)
+			emit("  umount %s{,-[0-9]*}/,\n", target)
 			// Look at the TODO comment above.
 			apparmor.GenWritableProfile(emit, source, 1)
 			apparmor.GenWritableProfile(emit, target, 1)
+			apparmor.GenWritableProfile(emit, fmt.Sprintf("%s-[0-9]*", target), 1)
 		}
 	}
 
