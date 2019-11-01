@@ -4492,7 +4492,7 @@ func (s *interfaceManagerSuite) TestAutoConnectDuringCoreTransition(c *C) {
 
 	// Add a sample snap with a "network" plug which should be auto-connected.
 	// Normally it would not be auto connected because there are multiple
-	// provides but we have special support for this case so the old
+	// providers but we have special support for this case so the old
 	// ubuntu-core snap is ignored and we pick the new core snap.
 	snapInfo := s.mockSnap(c, sampleSnapYaml)
 
