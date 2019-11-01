@@ -1846,7 +1846,7 @@ plugs:
 	c.Assert(err, IsNil)
 
 	// Both slots could auto-connect
-	seenProcucers := make(map[string]bool)
+	seenProducers := make(map[string]bool)
 	candidateSlots, arities := repo.AutoConnectCandidateSlots("consumer", "auto", policyCheck)
 	c.Assert(candidateSlots, HasLen, 2)
 	c.Assert(arities, HasLen, 2)
@@ -1861,9 +1861,9 @@ plugs:
 		case "producer2":
 			c.Check(arities[i].SlotsPerPlugAny(), Equals, true)
 		}
-		seenProcucers[producerName] = true
+		seenProducers[producerName] = true
 	}
-	c.Check(seenProcucers, DeepEquals, map[string]bool{
+	c.Check(seenProducers, DeepEquals, map[string]bool{
 		"producer1": true,
 		"producer2": true,
 	})

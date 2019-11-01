@@ -1111,6 +1111,9 @@ func (r *Repository) DisconnectSnap(snapName string) ([]string, error) {
 }
 
 // SideArity conveys the arity constraints for an allowed auto-connection.
+// ATM only slots-per-plug might have an interesting non-default
+// value.
+// See: https://forum.snapcraft.io/t/plug-slot-declaration-rules-greedy-plugs/12438
 type SideArity interface {
 	SlotsPerPlugAny() bool
 	// TODO: consider PlugsPerSlot*

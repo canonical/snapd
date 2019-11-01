@@ -304,6 +304,11 @@ func checkPlugInstallationAltConstraints(ic *InstallCandidate, plug *snap.PlugIn
 	return firstErr
 }
 
+// sideArity carries relevant arity constraints for successful
+// allow-auto-connection rules. It implements policy.SideArity.
+// ATM only slots-per-plug might have an interesting non-default
+// value.
+// See: https://forum.snapcraft.io/t/plug-slot-declaration-rules-greedy-plugs/12438
 type sideArity struct {
 	slotsPerPlug asserts.SideArityConstraint
 }

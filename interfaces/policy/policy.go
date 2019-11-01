@@ -264,7 +264,8 @@ func (connc *ConnectCandidate) CheckAutoConnect() (interfaces.SideArity, error) 
 		return nil, err
 	}
 	if arity == nil {
-		// shouldn't happen but be safe
+		// shouldn't happen but be safe, the callers should be able
+		// to assume arity to be non nil
 		arity = sideArity{asserts.SideArityConstraint{N: 1}}
 	}
 	return arity, nil
