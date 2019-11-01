@@ -1,6 +1,6 @@
 summary: Ensure that the audio-playback/record interface works
 
-# Only test on classic Ubuntu amd64 systems
+# Classic Ubuntu is sufficient to test the feature
 systems: [ ubuntu-1*-*64 ]
 
 environment:
@@ -21,16 +21,15 @@ prepare: |
     chown test:test /run/user/12345
 
 restore: |
+    HOME=/home/test XDG_RUNTIME_DIR=/run/user/12345 su -p -c "pulseaudio --kill" test || true
     snap remove test-snapd-audio-record
     apt autoremove --purge -y pulseaudio
 
 execute: |
-    trap 'HOME=/home/test XDG_RUNTIME_DIR=/run/user/12345 su -p -c "pulseaudio --kill" test || true' EXIT
-
     # we need -p so that XDG_RUNTIME_DIR is honored, but that preserves HOME,
     # so specify it too since pulseaudio fails to start otherwise
     echo "Start pulseaudio"
-    HOME=/home/test XDG_RUNTIME_DIR=/run/user/12345 su -p -c "pulseaudio --exit-idle-time=300" test &
+    HOME=/home/test XDG_RUNTIME_DIR=/run/user/12345 su -p -c "pulseaudio --exit-idle-time=30" test &
 
     echo "Then wait for the socket to show up"
     count=0
@@ -49,7 +48,7 @@ execute: |
         echo $count
         count=$((count+1))
         if [ "$count" -gt 10 ]; then
-            echo "'pulseaudio --check' never returned without error"
+            echo "'pulseaudio --check' only returned with error"
             exit 1
         fi
     done
