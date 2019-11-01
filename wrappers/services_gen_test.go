@@ -588,18 +588,19 @@ func (s *servicesWrapperGenSuite) TestTimerGenerateSchedules(c *C) {
 		expected: []string{"Fri,Sat,Sun,Mon *-*-* 10:00"},
 	}, {
 		in:       "mon5,10:00",
-		expected: []string{"Mon *-*~7/1 10:00"},
+		expected: []string{"Mon *-*-22,23,24,25,26,27,28,29,30,31 10:00"},
 	}, {
 		in:       "mon2,10:00",
-		expected: []string{"Mon *-*-8..14/1 10:00"},
+		expected: []string{"Mon *-*-8,9,10,11,12,13,14 10:00"},
 	}, {
 		in:       "mon2,mon1,10:00",
-		expected: []string{"Mon *-*-8..14/1 10:00", "Mon *-*-1..7/1 10:00"},
+		expected: []string{"Mon *-*-8,9,10,11,12,13,14 10:00", "Mon *-*-1,2,3,4,5,6,7 10:00"},
 	}, {
+		// (deprecated syntax, reduced to mon1-mon)
 		// NOTE: non-representable, assumes that service runner does the
 		// filtering of when to run the timer
 		in:       "mon1-mon3,10:00",
-		expected: []string{"*-*-1..21/1 10:00"},
+		expected: []string{"*-*-8,9,10,11,12,13,14 10:00", "*-*-1,2,3,4,5,6,7 10:00"},
 	}, {
 		in:         "mon,10:00~12:00,,fri,15:00",
 		expected:   []string{`Mon \*-\*-\* 1[01]:[0-5][0-9]`, `Fri \*-\*-\* 15:00`},
@@ -618,6 +619,36 @@ func (s *servicesWrapperGenSuite) TestTimerGenerateSchedules(c *C) {
 	}, {
 		in:       "24:00",
 		expected: []string{`*-*-* 00:00`},
+	}, {
+		// NOTE: non-representable, assumes that service runner does the
+		// filtering of when to run the timer
+		in:       "fri-mon1,10:00",
+		expected: []string{"*-*-22,23,24,25,26,27,28,29,30,31 10:00", "*-*-1,2,3,4,5,6,7 10:00"},
+	}, {
+		// NOTE: non-representable, assumes that service runner does the
+		// filtering of when to run the timer
+		in:       "mon5-fri,10:00",
+		expected: []string{"*-*-29,30,31 10:00", "*-*-1,2,3,4,5,6,7 10:00", "*-*-22,23,24,25,26,27,28 10:00"},
+	}, {
+		// NOTE: non-representable, assumes that service runner does the
+		// filtering of when to run the timer
+		in:       "mon4-fri,10:00",
+		expected: []string{"*-*-29,30,31 10:00", "*-*-1,2,3,4,5,6,7 10:00", "*-*-22,23,24,25,26,27,28 10:00"},
+	}, {
+		// NOTE: non-representable, assumes that service runner does the
+		// filtering of when to run the timer
+		in:       "mon-fri2,10:00",
+		expected: []string{"*-*-1,2,3,4,5,6,7 10:00", "*-*-8,9,10,11,12,13,14 10:00"},
+	}, {
+		// NOTE: non-representable, assumes that service runner does the
+		// filtering of when to run the timer
+		in:       "mon-fri5,10:00",
+		expected: []string{"*-*-29,30,31 10:00", "*-*-22,23,24,25,26,27,28 10:00"},
+	}, {
+		// NOTE: non-representable, assumes that service runner does the
+		// filtering of when to run the timer
+		in:       "mon1-mon,10:00",
+		expected: []string{"*-*-8,9,10,11,12,13,14 10:00", "*-*-1,2,3,4,5,6,7 10:00"},
 	}} {
 		c.Logf("trying %+v", t)
 

@@ -20,8 +20,8 @@
 package builtin_test
 
 import (
-	"fmt"
 	"path/filepath"
+	"strings"
 
 	. "gopkg.in/check.v1"
 
@@ -316,10 +316,10 @@ slots:
 
 	updateNS := apparmorSpec.UpdateNS()
 	profile0 := `  # Read-only content sharing consumer:content -> producer:content (r#0)
-  mount options=(bind) /snap/producer/5/export/ -> /snap/consumer/7/import/,
-  remount options=(bind, ro) /snap/consumer/7/import/,
-  mount options=(rprivate) -> /snap/consumer/7/import/,
-  umount /snap/consumer/7/import/,
+  mount options=(bind) /snap/producer/5/export/ -> /snap/consumer/7/import{,-[0-9]*}/,
+  remount options=(bind, ro) /snap/consumer/7/import{,-[0-9]*}/,
+  mount options=(rprivate) -> /snap/consumer/7/import{,-[0-9]*}/,
+  umount /snap/consumer/7/import{,-[0-9]*}/,
   # Writable mimic /snap/producer/5
   # .. permissions for traversing the prefix that is assumed to exist
   # .. variant with mimic at /
@@ -352,28 +352,18 @@ slots:
   umount /*,
   umount /*/,
   # .. variant with mimic at /snap/
-  # Allow reading the mimic directory, it must exist in the first place.
   /snap/ r,
-  # Allow setting the read-only directory aside via a bind mount.
   /tmp/.snap/snap/ rw,
   mount options=(rbind, rw) /snap/ -> /tmp/.snap/snap/,
-  # Allow mounting tmpfs over the read-only directory.
   mount fstype=tmpfs options=(rw) tmpfs -> /snap/,
-  # Allow creating empty files and directories for bind mounting things
-  # to reconstruct the now-writable parent directory.
   /tmp/.snap/snap/*/ rw,
   /snap/*/ rw,
   mount options=(rbind, rw) /tmp/.snap/snap/*/ -> /snap/*/,
   /tmp/.snap/snap/* rw,
   /snap/* rw,
   mount options=(bind, rw) /tmp/.snap/snap/* -> /snap/*,
-  # Allow unmounting the auxiliary directory.
-  # TODO: use fstype=tmpfs here for more strictness (LP: #1613403)
   mount options=(rprivate) -> /tmp/.snap/snap/,
   umount /tmp/.snap/snap/,
-  # Allow unmounting the destination directory as well as anything
-  # inside.  This lets us perform the undo plan in case the writable
-  # mimic fails.
   mount options=(rprivate) -> /snap/,
   mount options=(rprivate) -> /snap/*,
   mount options=(rprivate) -> /snap/*/,
@@ -381,28 +371,18 @@ slots:
   umount /snap/*,
   umount /snap/*/,
   # .. variant with mimic at /snap/producer/
-  # Allow reading the mimic directory, it must exist in the first place.
   /snap/producer/ r,
-  # Allow setting the read-only directory aside via a bind mount.
   /tmp/.snap/snap/producer/ rw,
   mount options=(rbind, rw) /snap/producer/ -> /tmp/.snap/snap/producer/,
-  # Allow mounting tmpfs over the read-only directory.
   mount fstype=tmpfs options=(rw) tmpfs -> /snap/producer/,
-  # Allow creating empty files and directories for bind mounting things
-  # to reconstruct the now-writable parent directory.
   /tmp/.snap/snap/producer/*/ rw,
   /snap/producer/*/ rw,
   mount options=(rbind, rw) /tmp/.snap/snap/producer/*/ -> /snap/producer/*/,
   /tmp/.snap/snap/producer/* rw,
   /snap/producer/* rw,
   mount options=(bind, rw) /tmp/.snap/snap/producer/* -> /snap/producer/*,
-  # Allow unmounting the auxiliary directory.
-  # TODO: use fstype=tmpfs here for more strictness (LP: #1613403)
   mount options=(rprivate) -> /tmp/.snap/snap/producer/,
   umount /tmp/.snap/snap/producer/,
-  # Allow unmounting the destination directory as well as anything
-  # inside.  This lets us perform the undo plan in case the writable
-  # mimic fails.
   mount options=(rprivate) -> /snap/producer/,
   mount options=(rprivate) -> /snap/producer/*,
   mount options=(rprivate) -> /snap/producer/*/,
@@ -410,28 +390,18 @@ slots:
   umount /snap/producer/*,
   umount /snap/producer/*/,
   # .. variant with mimic at /snap/producer/5/
-  # Allow reading the mimic directory, it must exist in the first place.
   /snap/producer/5/ r,
-  # Allow setting the read-only directory aside via a bind mount.
   /tmp/.snap/snap/producer/5/ rw,
   mount options=(rbind, rw) /snap/producer/5/ -> /tmp/.snap/snap/producer/5/,
-  # Allow mounting tmpfs over the read-only directory.
   mount fstype=tmpfs options=(rw) tmpfs -> /snap/producer/5/,
-  # Allow creating empty files and directories for bind mounting things
-  # to reconstruct the now-writable parent directory.
   /tmp/.snap/snap/producer/5/*/ rw,
   /snap/producer/5/*/ rw,
   mount options=(rbind, rw) /tmp/.snap/snap/producer/5/*/ -> /snap/producer/5/*/,
   /tmp/.snap/snap/producer/5/* rw,
   /snap/producer/5/* rw,
   mount options=(bind, rw) /tmp/.snap/snap/producer/5/* -> /snap/producer/5/*,
-  # Allow unmounting the auxiliary directory.
-  # TODO: use fstype=tmpfs here for more strictness (LP: #1613403)
   mount options=(rprivate) -> /tmp/.snap/snap/producer/5/,
   umount /tmp/.snap/snap/producer/5/,
-  # Allow unmounting the destination directory as well as anything
-  # inside.  This lets us perform the undo plan in case the writable
-  # mimic fails.
   mount options=(rprivate) -> /snap/producer/5/,
   mount options=(rprivate) -> /snap/producer/5/*,
   mount options=(rprivate) -> /snap/producer/5/*/,
@@ -439,88 +409,19 @@ slots:
   umount /snap/producer/5/*,
   umount /snap/producer/5/*/,
   # Writable mimic /snap/consumer/7
-  # .. permissions for traversing the prefix that is assumed to exist
-  # .. variant with mimic at /
-  # Allow reading the mimic directory, it must exist in the first place.
-  / r,
-  # Allow setting the read-only directory aside via a bind mount.
-  /tmp/.snap/ rw,
-  mount options=(rbind, rw) / -> /tmp/.snap/,
-  # Allow mounting tmpfs over the read-only directory.
-  mount fstype=tmpfs options=(rw) tmpfs -> /,
-  # Allow creating empty files and directories for bind mounting things
-  # to reconstruct the now-writable parent directory.
-  /tmp/.snap/*/ rw,
-  /*/ rw,
-  mount options=(rbind, rw) /tmp/.snap/*/ -> /*/,
-  /tmp/.snap/* rw,
-  /* rw,
-  mount options=(bind, rw) /tmp/.snap/* -> /*,
-  # Allow unmounting the auxiliary directory.
-  # TODO: use fstype=tmpfs here for more strictness (LP: #1613403)
-  mount options=(rprivate) -> /tmp/.snap/,
-  umount /tmp/.snap/,
-  # Allow unmounting the destination directory as well as anything
-  # inside.  This lets us perform the undo plan in case the writable
-  # mimic fails.
-  mount options=(rprivate) -> /,
-  mount options=(rprivate) -> /*,
-  mount options=(rprivate) -> /*/,
-  umount /,
-  umount /*,
-  umount /*/,
-  # .. variant with mimic at /snap/
-  # Allow reading the mimic directory, it must exist in the first place.
-  /snap/ r,
-  # Allow setting the read-only directory aside via a bind mount.
-  /tmp/.snap/snap/ rw,
-  mount options=(rbind, rw) /snap/ -> /tmp/.snap/snap/,
-  # Allow mounting tmpfs over the read-only directory.
-  mount fstype=tmpfs options=(rw) tmpfs -> /snap/,
-  # Allow creating empty files and directories for bind mounting things
-  # to reconstruct the now-writable parent directory.
-  /tmp/.snap/snap/*/ rw,
-  /snap/*/ rw,
-  mount options=(rbind, rw) /tmp/.snap/snap/*/ -> /snap/*/,
-  /tmp/.snap/snap/* rw,
-  /snap/* rw,
-  mount options=(bind, rw) /tmp/.snap/snap/* -> /snap/*,
-  # Allow unmounting the auxiliary directory.
-  # TODO: use fstype=tmpfs here for more strictness (LP: #1613403)
-  mount options=(rprivate) -> /tmp/.snap/snap/,
-  umount /tmp/.snap/snap/,
-  # Allow unmounting the destination directory as well as anything
-  # inside.  This lets us perform the undo plan in case the writable
-  # mimic fails.
-  mount options=(rprivate) -> /snap/,
-  mount options=(rprivate) -> /snap/*,
-  mount options=(rprivate) -> /snap/*/,
-  umount /snap/,
-  umount /snap/*,
-  umount /snap/*/,
   # .. variant with mimic at /snap/consumer/
-  # Allow reading the mimic directory, it must exist in the first place.
   /snap/consumer/ r,
-  # Allow setting the read-only directory aside via a bind mount.
   /tmp/.snap/snap/consumer/ rw,
   mount options=(rbind, rw) /snap/consumer/ -> /tmp/.snap/snap/consumer/,
-  # Allow mounting tmpfs over the read-only directory.
   mount fstype=tmpfs options=(rw) tmpfs -> /snap/consumer/,
-  # Allow creating empty files and directories for bind mounting things
-  # to reconstruct the now-writable parent directory.
   /tmp/.snap/snap/consumer/*/ rw,
   /snap/consumer/*/ rw,
   mount options=(rbind, rw) /tmp/.snap/snap/consumer/*/ -> /snap/consumer/*/,
   /tmp/.snap/snap/consumer/* rw,
   /snap/consumer/* rw,
   mount options=(bind, rw) /tmp/.snap/snap/consumer/* -> /snap/consumer/*,
-  # Allow unmounting the auxiliary directory.
-  # TODO: use fstype=tmpfs here for more strictness (LP: #1613403)
   mount options=(rprivate) -> /tmp/.snap/snap/consumer/,
   umount /tmp/.snap/snap/consumer/,
-  # Allow unmounting the destination directory as well as anything
-  # inside.  This lets us perform the undo plan in case the writable
-  # mimic fails.
   mount options=(rprivate) -> /snap/consumer/,
   mount options=(rprivate) -> /snap/consumer/*,
   mount options=(rprivate) -> /snap/consumer/*/,
@@ -528,28 +429,18 @@ slots:
   umount /snap/consumer/*,
   umount /snap/consumer/*/,
   # .. variant with mimic at /snap/consumer/7/
-  # Allow reading the mimic directory, it must exist in the first place.
   /snap/consumer/7/ r,
-  # Allow setting the read-only directory aside via a bind mount.
   /tmp/.snap/snap/consumer/7/ rw,
   mount options=(rbind, rw) /snap/consumer/7/ -> /tmp/.snap/snap/consumer/7/,
-  # Allow mounting tmpfs over the read-only directory.
   mount fstype=tmpfs options=(rw) tmpfs -> /snap/consumer/7/,
-  # Allow creating empty files and directories for bind mounting things
-  # to reconstruct the now-writable parent directory.
   /tmp/.snap/snap/consumer/7/*/ rw,
   /snap/consumer/7/*/ rw,
   mount options=(rbind, rw) /tmp/.snap/snap/consumer/7/*/ -> /snap/consumer/7/*/,
   /tmp/.snap/snap/consumer/7/* rw,
   /snap/consumer/7/* rw,
   mount options=(bind, rw) /tmp/.snap/snap/consumer/7/* -> /snap/consumer/7/*,
-  # Allow unmounting the auxiliary directory.
-  # TODO: use fstype=tmpfs here for more strictness (LP: #1613403)
   mount options=(rprivate) -> /tmp/.snap/snap/consumer/7/,
   umount /tmp/.snap/snap/consumer/7/,
-  # Allow unmounting the destination directory as well as anything
-  # inside.  This lets us perform the undo plan in case the writable
-  # mimic fails.
   mount options=(rprivate) -> /snap/consumer/7/,
   mount options=(rprivate) -> /snap/consumer/7/*,
   mount options=(rprivate) -> /snap/consumer/7/*/,
@@ -557,8 +448,7 @@ slots:
   umount /snap/consumer/7/*,
   umount /snap/consumer/7/*/,
 `
-	c.Assert(updateNS[0], Equals, profile0)
-	c.Assert(updateNS, DeepEquals, []string{profile0})
+	c.Assert(strings.Join(updateNS[:], ""), Equals, profile0)
 }
 
 // Check that sharing of writable data is possible
@@ -609,9 +499,9 @@ slots:
 
 	updateNS := apparmorSpec.UpdateNS()
 	profile0 := `  # Read-write content sharing consumer:content -> producer:content (w#0)
-  mount options=(bind, rw) /var/snap/producer/5/export/ -> /var/snap/consumer/7/import/,
-  mount options=(rprivate) -> /var/snap/consumer/7/import/,
-  umount /var/snap/consumer/7/import/,
+  mount options=(bind, rw) /var/snap/producer/5/export/ -> /var/snap/consumer/7/import{,-[0-9]*}/,
+  mount options=(rprivate) -> /var/snap/consumer/7/import{,-[0-9]*}/,
+  umount /var/snap/consumer/7/import{,-[0-9]*}/,
   # Writable directory /var/snap/producer/5/export
   /var/snap/producer/5/export/ rw,
   /var/snap/producer/5/ rw,
@@ -620,9 +510,10 @@ slots:
   /var/snap/consumer/7/import/ rw,
   /var/snap/consumer/7/ rw,
   /var/snap/consumer/ rw,
+  # Writable directory /var/snap/consumer/7/import-[0-9]*
+  /var/snap/consumer/7/import-[0-9]*/ rw,
 `
-	c.Assert(updateNS[0], Equals, profile0)
-	c.Assert(updateNS, DeepEquals, []string{profile0})
+	c.Assert(strings.Join(updateNS[:], ""), Equals, profile0)
 }
 
 // Check that sharing of writable common data is possible
@@ -673,9 +564,9 @@ slots:
 
 	updateNS := apparmorSpec.UpdateNS()
 	profile0 := `  # Read-write content sharing consumer:content -> producer:content (w#0)
-  mount options=(bind, rw) /var/snap/producer/common/export/ -> /var/snap/consumer/common/import/,
-  mount options=(rprivate) -> /var/snap/consumer/common/import/,
-  umount /var/snap/consumer/common/import/,
+  mount options=(bind, rw) /var/snap/producer/common/export/ -> /var/snap/consumer/common/import{,-[0-9]*}/,
+  mount options=(rprivate) -> /var/snap/consumer/common/import{,-[0-9]*}/,
+  umount /var/snap/consumer/common/import{,-[0-9]*}/,
   # Writable directory /var/snap/producer/common/export
   /var/snap/producer/common/export/ rw,
   /var/snap/producer/common/ rw,
@@ -684,9 +575,10 @@ slots:
   /var/snap/consumer/common/import/ rw,
   /var/snap/consumer/common/ rw,
   /var/snap/consumer/ rw,
+  # Writable directory /var/snap/consumer/common/import-[0-9]*
+  /var/snap/consumer/common/import-[0-9]*/ rw,
 `
-	c.Assert(updateNS[0], Equals, profile0)
-	c.Assert(updateNS, DeepEquals, []string{profile0})
+	c.Assert(strings.Join(updateNS[:], ""), Equals, profile0)
 }
 
 func (s *ContentSuite) TestInterfaces(c *C) {
@@ -769,12 +661,12 @@ slots:
 /snap/producer/2/read-snap/** mrkix,
 `
 	c.Assert(apparmorSpec.SnippetForTag("snap.consumer.app"), Equals, expected)
-	fmt.Printf("")
+
 	updateNS := apparmorSpec.UpdateNS()
 	profile0 := `  # Read-write content sharing consumer:content -> producer:content (w#0)
-  mount options=(bind, rw) /var/snap/producer/common/write-common/ -> /var/snap/consumer/common/import/write-common/,
-  mount options=(rprivate) -> /var/snap/consumer/common/import/write-common/,
-  umount /var/snap/consumer/common/import/write-common/,
+  mount options=(bind, rw) /var/snap/producer/common/write-common/ -> /var/snap/consumer/common/import/write-common{,-[0-9]*}/,
+  mount options=(rprivate) -> /var/snap/consumer/common/import/write-common{,-[0-9]*}/,
+  umount /var/snap/consumer/common/import/write-common{,-[0-9]*}/,
   # Writable directory /var/snap/producer/common/write-common
   /var/snap/producer/common/write-common/ rw,
   /var/snap/producer/common/ rw,
@@ -784,64 +676,74 @@ slots:
   /var/snap/consumer/common/import/ rw,
   /var/snap/consumer/common/ rw,
   /var/snap/consumer/ rw,
+  # Writable directory /var/snap/consumer/common/import/write-common-[0-9]*
+  /var/snap/consumer/common/import/write-common-[0-9]*/ rw,
 `
-	c.Assert(updateNS[0], Equals, profile0)
+	// Find the slice that describes profile0 by looking for the first unique
+	// line of the next profile.
+	start := 0
+	end, _ := apparmorSpec.UpdateNSIndexOf("  # Read-write content sharing consumer:content -> producer:content (w#1)\n")
+	c.Assert(strings.Join(updateNS[start:end], ""), Equals, profile0)
 
 	profile1 := `  # Read-write content sharing consumer:content -> producer:content (w#1)
-  mount options=(bind, rw) /var/snap/producer/2/write-data/ -> /var/snap/consumer/common/import/write-data/,
-  mount options=(rprivate) -> /var/snap/consumer/common/import/write-data/,
-  umount /var/snap/consumer/common/import/write-data/,
+  mount options=(bind, rw) /var/snap/producer/2/write-data/ -> /var/snap/consumer/common/import/write-data{,-[0-9]*}/,
+  mount options=(rprivate) -> /var/snap/consumer/common/import/write-data{,-[0-9]*}/,
+  umount /var/snap/consumer/common/import/write-data{,-[0-9]*}/,
   # Writable directory /var/snap/producer/2/write-data
   /var/snap/producer/2/write-data/ rw,
   /var/snap/producer/2/ rw,
-  /var/snap/producer/ rw,
   # Writable directory /var/snap/consumer/common/import/write-data
   /var/snap/consumer/common/import/write-data/ rw,
-  /var/snap/consumer/common/import/ rw,
-  /var/snap/consumer/common/ rw,
-  /var/snap/consumer/ rw,
+  # Writable directory /var/snap/consumer/common/import/write-data-[0-9]*
+  /var/snap/consumer/common/import/write-data-[0-9]*/ rw,
 `
-	c.Assert(updateNS[1], Equals, profile1)
+	// Find the slice that describes profile1 by looking for the first unique
+	// line of the next profile.
+	start = end
+	end, _ = apparmorSpec.UpdateNSIndexOf("  # Read-only content sharing consumer:content -> producer:content (r#0)\n")
+	c.Assert(strings.Join(updateNS[start:end], ""), Equals, profile1)
 
 	profile2 := `  # Read-only content sharing consumer:content -> producer:content (r#0)
-  mount options=(bind) /var/snap/producer/common/read-common/ -> /var/snap/consumer/common/import/read-common/,
-  remount options=(bind, ro) /var/snap/consumer/common/import/read-common/,
-  mount options=(rprivate) -> /var/snap/consumer/common/import/read-common/,
-  umount /var/snap/consumer/common/import/read-common/,
+  mount options=(bind) /var/snap/producer/common/read-common/ -> /var/snap/consumer/common/import/read-common{,-[0-9]*}/,
+  remount options=(bind, ro) /var/snap/consumer/common/import/read-common{,-[0-9]*}/,
+  mount options=(rprivate) -> /var/snap/consumer/common/import/read-common{,-[0-9]*}/,
+  umount /var/snap/consumer/common/import/read-common{,-[0-9]*}/,
   # Writable directory /var/snap/producer/common/read-common
   /var/snap/producer/common/read-common/ rw,
-  /var/snap/producer/common/ rw,
-  /var/snap/producer/ rw,
   # Writable directory /var/snap/consumer/common/import/read-common
   /var/snap/consumer/common/import/read-common/ rw,
-  /var/snap/consumer/common/import/ rw,
-  /var/snap/consumer/common/ rw,
-  /var/snap/consumer/ rw,
+  # Writable directory /var/snap/consumer/common/import/read-common-[0-9]*
+  /var/snap/consumer/common/import/read-common-[0-9]*/ rw,
 `
-	c.Assert(updateNS[2], Equals, profile2)
+	// Find the slice that describes profile2 by looking for the first unique
+	// line of the next profile.
+	start = end
+	end, _ = apparmorSpec.UpdateNSIndexOf("  # Read-only content sharing consumer:content -> producer:content (r#1)\n")
+	c.Assert(strings.Join(updateNS[start:end], ""), Equals, profile2)
 
 	profile3 := `  # Read-only content sharing consumer:content -> producer:content (r#1)
-  mount options=(bind) /var/snap/producer/2/read-data/ -> /var/snap/consumer/common/import/read-data/,
-  remount options=(bind, ro) /var/snap/consumer/common/import/read-data/,
-  mount options=(rprivate) -> /var/snap/consumer/common/import/read-data/,
-  umount /var/snap/consumer/common/import/read-data/,
+  mount options=(bind) /var/snap/producer/2/read-data/ -> /var/snap/consumer/common/import/read-data{,-[0-9]*}/,
+  remount options=(bind, ro) /var/snap/consumer/common/import/read-data{,-[0-9]*}/,
+  mount options=(rprivate) -> /var/snap/consumer/common/import/read-data{,-[0-9]*}/,
+  umount /var/snap/consumer/common/import/read-data{,-[0-9]*}/,
   # Writable directory /var/snap/producer/2/read-data
   /var/snap/producer/2/read-data/ rw,
-  /var/snap/producer/2/ rw,
-  /var/snap/producer/ rw,
   # Writable directory /var/snap/consumer/common/import/read-data
   /var/snap/consumer/common/import/read-data/ rw,
-  /var/snap/consumer/common/import/ rw,
-  /var/snap/consumer/common/ rw,
-  /var/snap/consumer/ rw,
+  # Writable directory /var/snap/consumer/common/import/read-data-[0-9]*
+  /var/snap/consumer/common/import/read-data-[0-9]*/ rw,
 `
-	c.Assert(updateNS[3], Equals, profile3)
+	// Find the slice that describes profile3 by looking for the first unique
+	// line of the next profile.
+	start = end
+	end, _ = apparmorSpec.UpdateNSIndexOf("  # Read-only content sharing consumer:content -> producer:content (r#2)\n")
+	c.Assert(strings.Join(updateNS[start:end], ""), Equals, profile3)
 
 	profile4 := `  # Read-only content sharing consumer:content -> producer:content (r#2)
-  mount options=(bind) /snap/producer/2/read-snap/ -> /var/snap/consumer/common/import/read-snap/,
-  remount options=(bind, ro) /var/snap/consumer/common/import/read-snap/,
-  mount options=(rprivate) -> /var/snap/consumer/common/import/read-snap/,
-  umount /var/snap/consumer/common/import/read-snap/,
+  mount options=(bind) /snap/producer/2/read-snap/ -> /var/snap/consumer/common/import/read-snap{,-[0-9]*}/,
+  remount options=(bind, ro) /var/snap/consumer/common/import/read-snap{,-[0-9]*}/,
+  mount options=(rprivate) -> /var/snap/consumer/common/import/read-snap{,-[0-9]*}/,
+  umount /var/snap/consumer/common/import/read-snap{,-[0-9]*}/,
   # Writable mimic /snap/producer/2
   # .. permissions for traversing the prefix that is assumed to exist
   # .. variant with mimic at /
@@ -874,28 +776,18 @@ slots:
   umount /*,
   umount /*/,
   # .. variant with mimic at /snap/
-  # Allow reading the mimic directory, it must exist in the first place.
   /snap/ r,
-  # Allow setting the read-only directory aside via a bind mount.
   /tmp/.snap/snap/ rw,
   mount options=(rbind, rw) /snap/ -> /tmp/.snap/snap/,
-  # Allow mounting tmpfs over the read-only directory.
   mount fstype=tmpfs options=(rw) tmpfs -> /snap/,
-  # Allow creating empty files and directories for bind mounting things
-  # to reconstruct the now-writable parent directory.
   /tmp/.snap/snap/*/ rw,
   /snap/*/ rw,
   mount options=(rbind, rw) /tmp/.snap/snap/*/ -> /snap/*/,
   /tmp/.snap/snap/* rw,
   /snap/* rw,
   mount options=(bind, rw) /tmp/.snap/snap/* -> /snap/*,
-  # Allow unmounting the auxiliary directory.
-  # TODO: use fstype=tmpfs here for more strictness (LP: #1613403)
   mount options=(rprivate) -> /tmp/.snap/snap/,
   umount /tmp/.snap/snap/,
-  # Allow unmounting the destination directory as well as anything
-  # inside.  This lets us perform the undo plan in case the writable
-  # mimic fails.
   mount options=(rprivate) -> /snap/,
   mount options=(rprivate) -> /snap/*,
   mount options=(rprivate) -> /snap/*/,
@@ -903,28 +795,18 @@ slots:
   umount /snap/*,
   umount /snap/*/,
   # .. variant with mimic at /snap/producer/
-  # Allow reading the mimic directory, it must exist in the first place.
   /snap/producer/ r,
-  # Allow setting the read-only directory aside via a bind mount.
   /tmp/.snap/snap/producer/ rw,
   mount options=(rbind, rw) /snap/producer/ -> /tmp/.snap/snap/producer/,
-  # Allow mounting tmpfs over the read-only directory.
   mount fstype=tmpfs options=(rw) tmpfs -> /snap/producer/,
-  # Allow creating empty files and directories for bind mounting things
-  # to reconstruct the now-writable parent directory.
   /tmp/.snap/snap/producer/*/ rw,
   /snap/producer/*/ rw,
   mount options=(rbind, rw) /tmp/.snap/snap/producer/*/ -> /snap/producer/*/,
   /tmp/.snap/snap/producer/* rw,
   /snap/producer/* rw,
   mount options=(bind, rw) /tmp/.snap/snap/producer/* -> /snap/producer/*,
-  # Allow unmounting the auxiliary directory.
-  # TODO: use fstype=tmpfs here for more strictness (LP: #1613403)
   mount options=(rprivate) -> /tmp/.snap/snap/producer/,
   umount /tmp/.snap/snap/producer/,
-  # Allow unmounting the destination directory as well as anything
-  # inside.  This lets us perform the undo plan in case the writable
-  # mimic fails.
   mount options=(rprivate) -> /snap/producer/,
   mount options=(rprivate) -> /snap/producer/*,
   mount options=(rprivate) -> /snap/producer/*/,
@@ -932,28 +814,18 @@ slots:
   umount /snap/producer/*,
   umount /snap/producer/*/,
   # .. variant with mimic at /snap/producer/2/
-  # Allow reading the mimic directory, it must exist in the first place.
   /snap/producer/2/ r,
-  # Allow setting the read-only directory aside via a bind mount.
   /tmp/.snap/snap/producer/2/ rw,
   mount options=(rbind, rw) /snap/producer/2/ -> /tmp/.snap/snap/producer/2/,
-  # Allow mounting tmpfs over the read-only directory.
   mount fstype=tmpfs options=(rw) tmpfs -> /snap/producer/2/,
-  # Allow creating empty files and directories for bind mounting things
-  # to reconstruct the now-writable parent directory.
   /tmp/.snap/snap/producer/2/*/ rw,
   /snap/producer/2/*/ rw,
   mount options=(rbind, rw) /tmp/.snap/snap/producer/2/*/ -> /snap/producer/2/*/,
   /tmp/.snap/snap/producer/2/* rw,
   /snap/producer/2/* rw,
   mount options=(bind, rw) /tmp/.snap/snap/producer/2/* -> /snap/producer/2/*,
-  # Allow unmounting the auxiliary directory.
-  # TODO: use fstype=tmpfs here for more strictness (LP: #1613403)
   mount options=(rprivate) -> /tmp/.snap/snap/producer/2/,
   umount /tmp/.snap/snap/producer/2/,
-  # Allow unmounting the destination directory as well as anything
-  # inside.  This lets us perform the undo plan in case the writable
-  # mimic fails.
   mount options=(rprivate) -> /snap/producer/2/,
   mount options=(rprivate) -> /snap/producer/2/*,
   mount options=(rprivate) -> /snap/producer/2/*/,
@@ -962,12 +834,13 @@ slots:
   umount /snap/producer/2/*/,
   # Writable directory /var/snap/consumer/common/import/read-snap
   /var/snap/consumer/common/import/read-snap/ rw,
-  /var/snap/consumer/common/import/ rw,
-  /var/snap/consumer/common/ rw,
-  /var/snap/consumer/ rw,
+  # Writable directory /var/snap/consumer/common/import/read-snap-[0-9]*
+  /var/snap/consumer/common/import/read-snap-[0-9]*/ rw,
 `
-	c.Assert(updateNS[4], Equals, profile4)
-	c.Assert(updateNS, DeepEquals, []string{profile0, profile1, profile2, profile3, profile4})
+	// Find the slice that describes profile4 by looking till the end of the list.
+	start = end
+	c.Assert(strings.Join(updateNS[start:], ""), Equals, profile4)
+	c.Assert(strings.Join(updateNS, ""), DeepEquals, strings.Join([]string{profile0, profile1, profile2, profile3, profile4}, ""))
 }
 
 func (s *ContentSuite) TestModernContentInterfacePlugins(c *C) {

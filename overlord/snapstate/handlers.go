@@ -1006,6 +1006,31 @@ func writeSeqFile(name string, snapst *SnapState) error {
 	return osutil.AtomicWriteFile(p, b, 0644, 0)
 }
 
+// missingDisabledServices returns a list of services that were disabled
+// that are currently missing from the specific snap info (i.e. they were
+// renamed in this snap info), as well as a list of disabled services that are
+// present in this snap info.
+// the first arg is the disabled services when the snap was last active
+func missingDisabledServices(svcs []string, info *snap.Info) ([]string, []string, error) {
+	// make a copy of all the previously disabled services that we will remove
+	// from, as well as an empty list to add to for the found services
+	missingSvcs := []string{}
+	foundSvcs := []string{}
+
+	// for all the previously disabled services, check if they are in the
+	// current snap info revision as services or not
+	for _, disabledSvcName := range svcs {
+		// check if the service is an app _and_ is a service
+		if app, ok := info.Apps[disabledSvcName]; ok && app.IsService() {
+			foundSvcs = append(foundSvcs, disabledSvcName)
+		} else {
+			missingSvcs = append(missingSvcs, disabledSvcName)
+		}
+	}
+
+	return missingSvcs, foundSvcs, nil
+}
+
 func (m *SnapManager) doLinkSnap(t *state.Task, _ *tomb.Tomb) (err error) {
 	st := t.State()
 	st.Lock()
@@ -1038,9 +1063,12 @@ func (m *SnapManager) doLinkSnap(t *state.Task, _ *tomb.Tomb) (err error) {
 	oldCurrent := snapst.Current
 	snapst.Current = cand.Revision
 	snapst.Active = true
-	oldChannel := snapst.Channel
+	oldChannel := snapst.TrackingChannel
 	if snapsup.Channel != "" {
-		snapst.Channel = snapsup.Channel
+		err := snapst.SetTrackingChannel(snapsup.Channel)
+		if err != nil {
+			return err
+		}
 	}
 	oldIgnoreValidation := snapst.IgnoreValidation
 	snapst.IgnoreValidation = snapsup.IgnoreValidation
@@ -1348,7 +1376,7 @@ func (m *SnapManager) undoLinkSnap(t *state.Task, _ *tomb.Tomb) error {
 	}
 	snapst.Current = oldCurrent
 	snapst.Active = false
-	snapst.Channel = oldChannel
+	snapst.TrackingChannel = oldChannel
 	snapst.IgnoreValidation = oldIgnoreValidation
 	snapst.TryMode = oldTryMode
 	snapst.DevMode = oldDevMode
@@ -1423,7 +1451,9 @@ func (m *SnapManager) genericDoSwitchSnap(t *state.Task, flags doSwitchFlags) er
 	}
 
 	// switched the tracked channel
-	snapst.Channel = snapsup.Channel
+	if err := snapst.SetTrackingChannel(snapsup.Channel); err != nil {
+		return err
+	}
 	snapst.CohortKey = snapsup.CohortKey
 	if flags.switchCurrentChannel {
 		// optionally support switching the current snap channel too, e.g.

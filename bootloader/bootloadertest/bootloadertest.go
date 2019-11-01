@@ -20,6 +20,7 @@
 package bootloadertest
 
 import (
+	"fmt"
 	"path/filepath"
 
 	"github.com/snapcore/snapd/bootloader"
@@ -96,4 +97,31 @@ func (b *MockBootloader) SetBootKernel(kernel string) {
 // like "core_1234.snap".
 func (b *MockBootloader) SetBootBase(base string) {
 	b.SetBootVars(map[string]string{"snap_core": base})
+}
+
+func (b *MockBootloader) SetTryingDuringReboot() error {
+	if b.BootVars["snap_mode"] != "try" {
+		return fmt.Errorf("bootloader must be in 'try' mode")
+	}
+	b.BootVars["snap_mode"] = "trying"
+	return nil
+}
+
+// SetRollbackAcrossReboot will simulate a rollback across reboots. This
+// means that the bootloader had "snap_try_{core,kernel}" set but this
+// boot failed. In this case the bootloader will clear
+// "snap_try_{core,kernel}" and "snap_mode" which means the "old" kernel,core
+// in "snap_{core,kernel}" will be used.
+func (b *MockBootloader) SetRollbackAcrossReboot() error {
+	if b.BootVars["snap_mode"] != "try" {
+		return fmt.Errorf("rollback can only be simulated in 'try' mode")
+	}
+	if b.BootVars["snap_core"] == "" && b.BootVars["snap_kernel"] == "" {
+		return fmt.Errorf("rollback can only be simulated if either snap_core or snap_kernel is set")
+	}
+	// clean try bootvars and snap_mode
+	b.BootVars["snap_mode"] = ""
+	b.BootVars["snap_try_core"] = ""
+	b.BootVars["snap_try_kernel"] = ""
+	return nil
 }

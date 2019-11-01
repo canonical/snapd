@@ -408,11 +408,6 @@ func WaitRestart(task *state.Task, snapsup *SnapSetup) (err error) {
 		return &state.Retry{}
 	}
 
-	snapInfo, err := snap.ReadInfo(snapsup.InstanceName(), snapsup.SideInfo)
-	if err != nil {
-		return err
-	}
-
 	if snapsup.Type == snap.TypeSnapd && os.Getenv("SNAPD_REVERT_TO_REV") != "" {
 		return fmt.Errorf("there was a snapd rollback across the restart")
 	}
@@ -421,6 +416,7 @@ func WaitRestart(task *state.Task, snapsup *SnapSetup) (err error) {
 	// can be triggered by:
 	// - core (old core16 world, system-reboot)
 	// - bootable base snap (new core18 world, system-reboot)
+	// - kernel
 	//
 	// TODO: Detect "snapd" snap daemon-restarts here that
 	//       fallback into the old version (once we have
@@ -434,26 +430,39 @@ func WaitRestart(task *state.Task, snapsup *SnapSetup) (err error) {
 		if err != nil {
 			return err
 		}
-		bootName := "core"
-		typ := snap.TypeOS
-		if model.Base() != "" {
-			bootName = model.Base()
-			typ = snap.TypeBase
+
+		// get the name of the name relevant for booting
+		// based on the given type
+		var bootName string
+		switch snapsup.Type {
+		case snap.TypeKernel:
+			bootName = model.Kernel()
+		case snap.TypeOS, snap.TypeBase:
+			bootName = "core"
+			if model.Base() != "" {
+				bootName = model.Base()
+			}
+		default:
+			return nil
 		}
-		// if it is not a bootable snap we are not interested
+		// if it is not a snap related to our booting we are not
+		// interested
 		if snapsup.InstanceName() != bootName {
 			return nil
 		}
 
-		current, err := boot.GetCurrentBoot(typ)
+		// compare what we think is "current" for snapd with what
+		// actually booted. The bootloader may revert on a failed
+		// boot from a bad os/base/kernel to a good one and in this
+		// case we need to catch this and error accordingly
+		current, err := boot.GetCurrentBoot(snapsup.Type)
 		if err == boot.ErrBootNameAndRevisionNotReady {
 			return &state.Retry{After: 5 * time.Second}
 		}
 		if err != nil {
 			return err
 		}
-
-		if snapsup.InstanceName() != current.Name || snapInfo.Revision != current.Revision {
+		if snapsup.InstanceName() != current.Name || snapsup.SideInfo.Revision != current.Revision {
 			// TODO: make sure this revision gets ignored for
 			//       automatic refreshes
 			return fmt.Errorf("cannot finish %s installation, there was a rollback across reboot", snapsup.InstanceName())
@@ -893,7 +902,7 @@ func updateManyFiltered(ctx context.Context, st *state.State, names []string, us
 		}
 		// setting options to what's in state as multi-refresh doesn't let you change these
 		opts := &RevisionOptions{
-			Channel:   snapst.Channel,
+			Channel:   snapst.TrackingChannel,
 			CohortKey: snapst.CohortKey,
 		}
 		return opts, snapst.Flags, snapst
@@ -1211,8 +1220,8 @@ func resolveChannel(st *state.State, snapName, newChannel string, deviceCtx Devi
 	// channel name is valid and consist of risk level or
 	// risk/branch only, do the right thing and default to risk (or
 	// risk/branch) within the pinned track
-	resChannel, err := channel.ResolveLocked(pinnedTrack, newChannel)
-	if err == channel.ErrLockedTrackSwitch {
+	resChannel, err := channel.ResolvePinned(pinnedTrack, newChannel)
+	if err == channel.ErrPinnedTrackSwitch {
 		// switching to a different track is not allowed
 		return "", fmt.Errorf("cannot switch from %s track %q as specified for the (device) model to %q", which, pinnedTrack, newChannel)
 
@@ -1321,7 +1330,7 @@ func Switch(st *state.State, name string, opts *RevisionOptions) (*state.TaskSet
 		InstanceKey: snapst.InstanceKey,
 		// set the from state (i.e. no change), they are overridden from opts as needed below
 		CohortKey: snapst.CohortKey,
-		Channel:   snapst.Channel,
+		Channel:   snapst.TrackingChannel,
 	}
 
 	if opts.Channel != "" {
@@ -1334,7 +1343,7 @@ func Switch(st *state.State, name string, opts *RevisionOptions) (*state.TaskSet
 		snapsup.CohortKey = ""
 	}
 
-	summary := switchSummary(snapsup.InstanceName(), snapst.Channel, snapsup.Channel, snapst.CohortKey, snapsup.CohortKey)
+	summary := switchSummary(snapsup.InstanceName(), snapst.TrackingChannel, snapsup.Channel, snapst.CohortKey, snapsup.CohortKey)
 	switchSnap := st.NewTask("switch-snap", summary)
 	switchSnap.Set("snap-setup", &snapsup)
 
@@ -1394,7 +1403,7 @@ func UpdateWithDeviceContext(st *state.State, name string, opts *RevisionOptions
 
 	if opts.Channel == "" {
 		// default to tracking the same channel
-		opts.Channel = snapst.Channel
+		opts.Channel = snapst.TrackingChannel
 	}
 	if opts.CohortKey == "" {
 		// default to being in the same cohort
@@ -1436,7 +1445,7 @@ func UpdateWithDeviceContext(st *state.State, name string, opts *RevisionOptions
 	}
 
 	// see if we need to switch the channel or cohort, or toggle ignore-validation
-	switchChannel := snapst.Channel != opts.Channel
+	switchChannel := snapst.TrackingChannel != opts.Channel
 	switchCohortKey := snapst.CohortKey != opts.CohortKey
 	toggleIgnoreValidation := snapst.IgnoreValidation != flags.IgnoreValidation
 	if infoErr == store.ErrNoUpdateAvailable && (switchChannel || switchCohortKey || toggleIgnoreValidation) {
@@ -1462,7 +1471,7 @@ func UpdateWithDeviceContext(st *state.State, name string, opts *RevisionOptions
 			// the UI displays the right values.
 			snapsup.SideInfo.Channel = opts.Channel
 
-			summary := switchSummary(snapsup.InstanceName(), snapst.Channel, opts.Channel, snapst.CohortKey, opts.CohortKey)
+			summary := switchSummary(snapsup.InstanceName(), snapst.TrackingChannel, opts.Channel, snapst.CohortKey, opts.CohortKey)
 			switchSnap := st.NewTask("switch-snap-channel", summary)
 			switchSnap.Set("snap-setup", &snapsup)
 
@@ -1981,14 +1990,14 @@ func TransitionCore(st *state.State, oldName, newName string) ([]*state.TaskSet,
 	}
 	if !newSnapst.IsInstalled() {
 		var userID int
-		newInfo, err := installInfo(context.TODO(), st, newName, &RevisionOptions{Channel: oldSnapst.Channel}, userID, nil)
+		newInfo, err := installInfo(context.TODO(), st, newName, &RevisionOptions{Channel: oldSnapst.TrackingChannel}, userID, nil)
 		if err != nil {
 			return nil, err
 		}
 
 		// start by installing the new snap
 		tsInst, err := doInstall(st, &newSnapst, &SnapSetup{
-			Channel:      oldSnapst.Channel,
+			Channel:      oldSnapst.TrackingChannel,
 			DownloadInfo: &newInfo.DownloadInfo,
 			SideInfo:     &newInfo.SideInfo,
 			Type:         newInfo.GetType(),
