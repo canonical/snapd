@@ -47,6 +47,7 @@ assertions.
 			"json": i18n.G("Output results in JSON format"),
 		}, nil)
 	cmd.hidden = true
+	cmd.completeHidden = true
 }
 
 // Key represents a key that can be used for signing assertions.
