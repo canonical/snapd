@@ -452,6 +452,7 @@ prepare_project() {
         # shellcheck source=tests/lib/prepare.sh
         . "$TESTSLIB"/prepare.sh
         disable_journald_rate_limiting
+        disable_journald_start_limiting
     fi
 }
 
@@ -500,7 +501,7 @@ prepare_suite_each() {
     # It is not being used the restart command to avoid reaching the start-limit
     systemctl stop systemd-journald.service
     sync
-    systemctl start systemd-journald.service
+        systemctl start systemd-journald.service
     start_new_journalctl_log
 
     echo "Install the snaps profiler snap"
