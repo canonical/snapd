@@ -514,7 +514,7 @@ func (s *imageSuite) setupSnaps(c *C, publishers map[string]string) {
 }
 
 func (s *imageSuite) loadSeed(c *C, seeddir string) (essSnaps []*seed.Snap, runSnaps []*seed.Snap, roDB asserts.RODatabase) {
-	seed, err := seed.Open(seeddir)
+	seed, err := seed.Open(seeddir, "")
 	c.Assert(err, IsNil)
 
 	db, err := asserts.OpenDatabase(&asserts.DatabaseConfig{

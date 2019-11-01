@@ -990,7 +990,7 @@ func (s *firstBoot16Suite) TestImportAssertionsFromSeedClassicModelMismatch(c *C
 	st.Lock()
 	defer st.Unlock()
 
-	deviceSeed, err := seed.Open(dirs.SnapSeedDir)
+	deviceSeed, err := seed.Open(dirs.SnapSeedDir, "")
 	c.Assert(err, IsNil)
 
 	_, err = devicestate.ImportAssertionsFromSeed(st, deviceSeed)
@@ -1010,7 +1010,7 @@ func (s *firstBoot16Suite) TestImportAssertionsFromSeedAllSnapsModelMismatch(c *
 	st.Lock()
 	defer st.Unlock()
 
-	deviceSeed, err := seed.Open(dirs.SnapSeedDir)
+	deviceSeed, err := seed.Open(dirs.SnapSeedDir, "")
 	c.Assert(err, IsNil)
 
 	_, err = devicestate.ImportAssertionsFromSeed(st, deviceSeed)
@@ -1036,7 +1036,7 @@ func (s *firstBoot16Suite) TestImportAssertionsFromSeedHappy(c *C) {
 	st.Lock()
 	defer st.Unlock()
 
-	deviceSeed, err := seed.Open(dirs.SnapSeedDir)
+	deviceSeed, err := seed.Open(dirs.SnapSeedDir, "")
 	c.Assert(err, IsNil)
 
 	model, err := devicestate.ImportAssertionsFromSeed(st, deviceSeed)
@@ -1077,7 +1077,7 @@ func (s *firstBoot16Suite) TestImportAssertionsFromSeedMissingSig(c *C) {
 		}
 	}
 
-	deviceSeed, err := seed.Open(dirs.SnapSeedDir)
+	deviceSeed, err := seed.Open(dirs.SnapSeedDir, "")
 	c.Assert(err, IsNil)
 
 	// try import and verify that its rejects because other assertions are
@@ -1098,7 +1098,7 @@ func (s *firstBoot16Suite) TestImportAssertionsFromSeedTwoModelAsserts(c *C) {
 	model2 := s.Brands.Model("my-brand", "my-second-model", s.modelHeaders("my-second-model"))
 	s.WriteAssertions("model2", model2)
 
-	deviceSeed, err := seed.Open(dirs.SnapSeedDir)
+	deviceSeed, err := seed.Open(dirs.SnapSeedDir, "")
 	c.Assert(err, IsNil)
 
 	// try import and verify that its rejects because other assertions are
@@ -1119,7 +1119,7 @@ func (s *firstBoot16Suite) TestImportAssertionsFromSeedNoModelAsserts(c *C) {
 		}
 	}
 
-	deviceSeed, err := seed.Open(dirs.SnapSeedDir)
+	deviceSeed, err := seed.Open(dirs.SnapSeedDir, "")
 	c.Assert(err, IsNil)
 
 	// try import and verify that its rejects because other assertions are
