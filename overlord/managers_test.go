@@ -1528,7 +1528,7 @@ func findKind(chg *state.Change, kind string) *state.Task {
 	return nil
 }
 
-func (s *mgrsSuite) TestInstallCoreSnapUpdatesBootloaderAndSplitsAcrossRestart(c *C) {
+func (s *mgrsSuite) TestInstallCoreSnapUpdatesBootloaderEnvAndSplitsAcrossRestart(c *C) {
 	bloader := bootloadertest.Mock("mock", c.MkDir())
 	bootloader.Force(bloader)
 	defer bootloader.Force(nil)
@@ -1627,7 +1627,7 @@ func (s *mgrsSuite) mockRollbackAcrossReboot(c *C, bloader *bootloadertest.MockB
 	st.Lock()
 }
 
-func (s *mgrsSuite) TestInstallKernelSnapUpdatesBootloader(c *C) {
+func (s *mgrsSuite) TestInstallKernelSnapUpdatesBootloaderEnv(c *C) {
 	bloader := bootloadertest.Mock("mock", c.MkDir())
 	bootloader.Force(bloader)
 	defer bootloader.Force(nil)
@@ -4243,7 +4243,7 @@ func (s *mgrsSuite) TestCheckRefreshFailureWithConcurrentRemoveOfConnectedSnap(c
 	c.Check(chg2.Status(), Equals, state.DoneStatus)
 }
 
-func (s *mgrsSuite) TestInstallKernelSnapRollbackUpdatesBootloader(c *C) {
+func (s *mgrsSuite) TestInstallKernelSnapRollbackUpdatesBootloaderEnv(c *C) {
 	bloader := bootloadertest.Mock("mock", c.MkDir())
 	bootloader.Force(bloader)
 	defer bootloader.Force(nil)
