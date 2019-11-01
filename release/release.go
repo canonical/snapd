@@ -136,8 +136,12 @@ func isWSL() bool {
 }
 
 // PreseedMode states whether snapd is running in a presseding mode
-// where some functions and subsystems should alter their behavior.
-var PreseedMode bool // TODO: handle via devicestate, similar to DeviceContext.
+// to perform a partial first boot and touch only filesystem state
+// inside a chroot.
+// TODO: handle via devicestate, similar to DeviceContext.
+var PreseedMode = func() bool {
+	return os.Getenv("SNAPD_PRESEED") != ""
+}
 
 // OnClassic states whether the process is running inside a
 // classic Ubuntu system or a native Ubuntu Core image.
@@ -156,12 +160,10 @@ func init() {
 	OnClassic = (ReleaseInfo.ID != "ubuntu-core")
 
 	OnWSL = isWSL()
-
-	PreseedMode = os.Getenv("SNAPD_PRESEED") != ""
 }
 
 // MockPreseedMode fakes preseed mode.
-func MockPreseedMode(preseedMode bool) (restore func()) {
+func MockPreseedMode(preseedMode func() bool) (restore func()) {
 	old := PreseedMode
 	PreseedMode = preseedMode
 	return func() { PreseedMode = old }
