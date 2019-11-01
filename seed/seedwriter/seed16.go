@@ -45,6 +45,11 @@ type policy16 struct {
 	needsCore16 []string
 }
 
+func (pol *policy16) allowsDangerousFeatures() error {
+	// Core 16/18 have allowed dangerous features without constraints
+	return nil
+}
+
 func (pol *policy16) checkDefaultChannel(channel.Channel) error {
 	// Core 16 has no constraints on the default channel
 	return nil
@@ -56,13 +61,7 @@ func (pol *policy16) checkSnapChannel(_ channel.Channel, whichSnap string) error
 }
 
 func makeSystemSnap(snapName string) *asserts.ModelSnap {
-	// TODO: set SnapID too
-	return &asserts.ModelSnap{
-		Name:     snapName,
-		SnapType: snapName, // same as snapName for core, snapd
-		Modes:    []string{"run"},
-		Presence: "required",
-	}
+	return internal.MakeSystemSnap(snapName, "", []string{"run"})
 }
 
 func (pol *policy16) systemSnap() *asserts.ModelSnap {
@@ -88,24 +87,12 @@ func (pol *policy16) extraSnapDefaultChannel() string {
 }
 
 func (pol *policy16) checkBase(info *snap.Info, availableSnaps *naming.SnapSet) error {
-	// Sanity check, note that we could support this case
-	// if we have a use-case but it requires changes in the
-	// devicestate/firstboot.go ordering code.
-	if info.GetType() == snap.TypeGadget && !pol.model.Classic() && info.Base != pol.model.Base() {
-		return fmt.Errorf("cannot use gadget snap because its base %q is different from model base %q", info.Base, pol.model.Base())
-	}
-
 	// snap needs no base (or it simply needs core which is never listed explicitly): nothing to do
 	if info.Base == "" {
 		if info.GetType() == snap.TypeGadget || info.GetType() == snap.TypeApp {
 			// remember to make sure we have core installed
 			pol.needsCore = append(pol.needsCore, info.SnapName())
 		}
-		return nil
-	}
-
-	// snap explicitly listed as not needing a base snap (e.g. a content-only snap)
-	if info.Base == "none" {
 		return nil
 	}
 
@@ -186,7 +173,7 @@ func (tr *tree16) writeAssertions(db asserts.RODatabase, modelRefs []*asserts.Re
 		return err
 	}
 
-	writeRefs := func(aRefs []*asserts.Ref) error {
+	writeByRefs := func(aRefs []*asserts.Ref) error {
 		for _, aRef := range aRefs {
 			var afn string
 			// the names don't matter in practice as long as they don't conflict
@@ -206,18 +193,18 @@ func (tr *tree16) writeAssertions(db asserts.RODatabase, modelRefs []*asserts.Re
 		return nil
 	}
 
-	if err := writeRefs(modelRefs); err != nil {
+	if err := writeByRefs(modelRefs); err != nil {
 		return err
 	}
 
 	for _, sn := range snapsFromModel {
-		if err := writeRefs(sn.ARefs); err != nil {
+		if err := writeByRefs(sn.ARefs); err != nil {
 			return err
 		}
 	}
 
 	for _, sn := range extraSnaps {
-		if err := writeRefs(sn.ARefs); err != nil {
+		if err := writeByRefs(sn.ARefs); err != nil {
 			return err
 		}
 	}

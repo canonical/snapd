@@ -3078,6 +3078,48 @@ func (s *interfaceManagerSuite) TestSetupProfilesHonorsDevMode(c *C) {
 	c.Check(s.secBackend.SetupCalls[0].Options, Equals, interfaces.ConfinementOptions{DevMode: true})
 }
 
+func (s *interfaceManagerSuite) TestSetupProfilesSetupManyError(c *C) {
+	s.secBackend.SetupCallback = func(snapInfo *snap.Info, opts interfaces.ConfinementOptions, repo *interfaces.Repository) error {
+		return fmt.Errorf("fail")
+	}
+
+	s.MockModel(c, nil)
+
+	// Put the OS snap in place.
+	_ = s.manager(c)
+
+	snapInfo := s.mockSnap(c, sampleSnapYaml)
+
+	// Run the setup-profiles task and let it finish.
+	change := s.addSetupSnapSecurityChange(c, &snapstate.SnapSetup{
+		SideInfo: &snap.SideInfo{
+			RealName: snapInfo.SnapName(),
+			Revision: snapInfo.Revision,
+		},
+	})
+	s.settle(c)
+
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	c.Check(change.Status(), Equals, state.ErrorStatus)
+	c.Check(change.Err(), ErrorMatches, `cannot perform the following tasks:\n-  \(fail\)`)
+}
+
+func (s *interfaceManagerSuite) TestSetupSecurityByBackendInvalidNumberOfSnaps(c *C) {
+	mgr := s.manager(c)
+
+	st := s.state
+	st.Lock()
+	defer st.Unlock()
+
+	task := st.NewTask("foo", "")
+	snaps := []*snap.Info{}
+	opts := []interfaces.ConfinementOptions{{}}
+	err := mgr.SetupSecurityByBackend(task, snaps, opts, nil)
+	c.Check(err, ErrorMatches, `internal error: setupSecurityByBackend received an unexpected number of snaps.*`)
+}
+
 // setup-profiles uses the new snap.Info when setting up security for the new
 // snap when it had prior connections and DisconnectSnap() returns it as a part
 // of the affected set.
@@ -4450,7 +4492,7 @@ func (s *interfaceManagerSuite) TestAutoConnectDuringCoreTransition(c *C) {
 
 	// Add a sample snap with a "network" plug which should be auto-connected.
 	// Normally it would not be auto connected because there are multiple
-	// provides but we have special support for this case so the old
+	// providers but we have special support for this case so the old
 	// ubuntu-core snap is ignored and we pick the new core snap.
 	snapInfo := s.mockSnap(c, sampleSnapYaml)
 
@@ -6961,11 +7003,11 @@ func (s *interfaceManagerSuite) TestTransitionConnectionsCoreMigration(c *C) {
 	repo := mgr.Repository()
 	snapstate.Set(st, "core", nil)
 	snapstate.Set(st, "ubuntu-core", &snapstate.SnapState{
-		Active:   true,
-		Sequence: []*snap.SideInfo{{RealName: "ubuntu-core", SnapID: "ubuntu-core-snap-id", Revision: snap.R(1)}},
-		Current:  snap.R(1),
-		SnapType: "os",
-		Channel:  "beta",
+		Active:          true,
+		Sequence:        []*snap.SideInfo{{RealName: "ubuntu-core", SnapID: "ubuntu-core-snap-id", Revision: snap.R(1)}},
+		Current:         snap.R(1),
+		SnapType:        "os",
+		TrackingChannel: "beta",
 	})
 
 	si := snap.SideInfo{RealName: "some-snap", Revision: snap.R(-42)}

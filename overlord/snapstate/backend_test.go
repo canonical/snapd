@@ -323,11 +323,11 @@ func (f *fakeStore) lookupRefresh(cand refreshCand) (*snap.Info, error) {
 	}
 	confinement := snap.StrictConfinement
 	switch cand.channel {
-	case "channel-for-7":
+	case "channel-for-7/stable":
 		revno = snap.R(7)
-	case "channel-for-classic":
+	case "channel-for-classic/stable":
 		confinement = snap.ClassicConfinement
-	case "channel-for-devmode":
+	case "channel-for-devmode/stable":
 		confinement = snap.DevModeConfinement
 	}
 	if name == "some-snap-now-classic" {
@@ -351,7 +351,7 @@ func (f *fakeStore) lookupRefresh(cand refreshCand) (*snap.Info, error) {
 		Epoch:         epoch,
 	}
 	switch cand.channel {
-	case "channel-for-layout":
+	case "channel-for-layout/stable":
 		info.Layout = map[string]*snap.Layout{
 			"/usr": {
 				Snap:    info,
@@ -359,7 +359,7 @@ func (f *fakeStore) lookupRefresh(cand refreshCand) (*snap.Info, error) {
 				Symlink: "$SNAP/usr",
 			},
 		}
-	case "channel-for-base":
+	case "channel-for-base/stable":
 		info.Base = "some-base"
 	}
 

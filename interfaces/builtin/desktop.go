@@ -20,9 +20,6 @@
 package builtin
 
 import (
-	"bytes"
-	"fmt"
-
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/interfaces"
 	"github.com/snapcore/snapd/interfaces/apparmor"
@@ -234,14 +231,10 @@ func (iface *desktopInterface) AppArmorConnectedPlug(spec *apparmor.Specificatio
 	spec.AddSnippet(desktopConnectedPlugAppArmor)
 
 	// Allow mounting document portal
-	var buf bytes.Buffer
-	emit := func(f string, args ...interface{}) {
-		fmt.Fprintf(&buf, f, args...)
-	}
+	emit := spec.AddUpdateNSf
 	emit("  # Mount the document portal\n")
 	emit("  mount options=(bind) /run/user/[0-9]*/doc/by-app/snap.%s/ -> /run/user/[0-9]*/doc/,\n", plug.Snap().InstanceName())
 	emit("  umount /run/user/[0-9]*/doc/,\n\n")
-	spec.AddUpdateNS(buf.String())
 
 	if !release.OnClassic {
 		// We only need the font mount rules on classic systems
@@ -252,15 +245,10 @@ func (iface *desktopInterface) AppArmorConnectedPlug(spec *apparmor.Specificatio
 	for _, dir := range iface.fontconfigDirs() {
 		source := "/var/lib/snapd/hostfs" + dir
 		target := dirs.StripRootDir(dir)
-		var buf bytes.Buffer
-		emit := func(f string, args ...interface{}) {
-			fmt.Fprintf(&buf, f, args...)
-		}
 		emit("  # Read-only access to %s\n", target)
 		emit("  mount options=(bind) %s/ -> %s/,\n", source, target)
 		emit("  remount options=(bind, ro) %s/,\n", target)
 		emit("  umount %s/,\n\n", target)
-		spec.AddUpdateNS(buf.String())
 	}
 
 	return nil

@@ -3413,6 +3413,88 @@ func (s *mgrsSuite) TestRemodelRequiredSnapsAdded(c *C) {
 	c.Assert(tasks, HasLen, i+1)
 }
 
+func (s *mgrsSuite) TestRemodelRequiredSnapsAddedUndo(c *C) {
+	for _, name := range []string{"foo", "bar", "baz"} {
+		s.prereqSnapAssertions(c, map[string]interface{}{
+			"snap-name": name,
+		})
+		snapPath, _ := s.makeStoreTestSnap(c, fmt.Sprintf("{name: %s, version: 1.0}", name), "1")
+		s.serveSnap(snapPath, "1")
+	}
+
+	mockServer := s.mockStore(c)
+	defer mockServer.Close()
+
+	st := s.o.State()
+	st.Lock()
+	defer st.Unlock()
+
+	// pretend we have an old required snap installed
+	si1 := &snap.SideInfo{RealName: "old-required-snap-1", Revision: snap.R(1)}
+	snapstate.Set(st, "old-required-snap-1", &snapstate.SnapState{
+		SnapType: "app",
+		Active:   true,
+		Sequence: []*snap.SideInfo{si1},
+		Current:  si1.Revision,
+		Flags:    snapstate.Flags{Required: true},
+	})
+
+	// create/set custom model assertion
+	assertstatetest.AddMany(st, s.brands.AccountsAndKeys("my-brand")...)
+	curModel := s.brands.Model("my-brand", "my-model", modelDefaults)
+
+	// setup model assertion
+	devicestatetest.SetDevice(st, &auth.DeviceState{
+		Brand:  "my-brand",
+		Model:  "my-model",
+		Serial: "serialserialserial",
+	})
+	err := assertstate.Add(st, curModel)
+	c.Assert(err, IsNil)
+
+	// create a new model
+	newModel := s.brands.Model("my-brand", "my-model", modelDefaults, map[string]interface{}{
+		"required-snaps": []interface{}{"foo", "bar", "baz"},
+		"revision":       "1",
+	})
+
+	devicestate.InjectSetModelError(fmt.Errorf("boom"))
+	defer devicestate.InjectSetModelError(nil)
+
+	chg, err := devicestate.Remodel(st, newModel)
+	c.Assert(err, IsNil)
+
+	st.Unlock()
+	err = s.o.Settle(settleTimeout)
+	st.Lock()
+	c.Assert(err, IsNil)
+
+	c.Assert(chg.Status(), Equals, state.ErrorStatus)
+
+	// None of the new snaps got installed
+	var snapst snapstate.SnapState
+	for _, snapName := range []string{"foo", "bar", "baz"} {
+		err = snapstate.Get(st, snapName, &snapst)
+		c.Assert(err, Equals, state.ErrNoState)
+	}
+
+	// old-required-snap-1 is still marked required
+	err = snapstate.Get(st, "old-required-snap-1", &snapst)
+	c.Assert(err, IsNil)
+	c.Check(snapst.Required, Equals, true)
+
+	// check tasks are in undo state
+	for _, t := range chg.Tasks() {
+		if t.Kind() == "link-snap" {
+			c.Assert(t.Status(), Equals, state.UndoneStatus)
+		}
+	}
+
+	model, err := s.o.DeviceManager().Model()
+	c.Assert(err, IsNil)
+	c.Assert(model, DeepEquals, curModel)
+}
+
 func (s *mgrsSuite) TestRemodelDifferentBase(c *C) {
 	// make "core18" snap available in the store
 	s.prereqSnapAssertions(c, map[string]interface{}{

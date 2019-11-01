@@ -23,6 +23,8 @@ import (
 	"github.com/snapcore/snapd/interfaces"
 	"github.com/snapcore/snapd/overlord/ifacestate/udevmonitor"
 	"github.com/snapcore/snapd/overlord/state"
+	"github.com/snapcore/snapd/snap"
+	"github.com/snapcore/snapd/timings"
 )
 
 var (
@@ -161,4 +163,8 @@ func MockWriteSystemKey(fn func() error) func() {
 
 func (m *InterfaceManager) TransitionConnectionsCoreMigration(st *state.State, oldName, newName string) error {
 	return m.transitionConnectionsCoreMigration(st, oldName, newName)
+}
+
+func (m *InterfaceManager) SetupSecurityByBackend(task *state.Task, snaps []*snap.Info, opts []interfaces.ConfinementOptions, tm timings.Measurer) error {
+	return m.setupSecurityByBackend(task, snaps, opts, tm)
 }

@@ -91,12 +91,11 @@ func (s *imageSuite) SetUpTest(c *C) {
 	s.tsto = image.MockToolingStore(s)
 
 	s.SeedSnaps = &seedtest.SeedSnaps{}
-	s.SetupAssertSigning("canonical", s)
+	s.SetupAssertSigning("canonical")
 	s.Brands.Register("my-brand", brandPrivKey, map[string]interface{}{
 		"verification": "verified",
 	})
 	assertstest.AddMany(s.StoreSigning, s.Brands.AccountsAndKeys("my-brand")...)
-	s.DB = s.StoreSigning.Database
 
 	s.model = s.Brands.Model("my-brand", "my-model", map[string]interface{}{
 		"display-name":   "my display name",
@@ -450,6 +449,10 @@ func (s *imageSuite) TestHappyDecodeModelAssertion(c *C) {
 	c.Check(a.Type(), Equals, asserts.ModelType)
 }
 
+func (s *imageSuite) MakeAssertedSnap(c *C, snapYaml string, files [][]string, revision snap.Revision, developerID string) {
+	s.SeedSnaps.MakeAssertedSnap(c, snapYaml, files, revision, developerID, s.StoreSigning.Database)
+}
+
 const stableChannel = "stable"
 
 const pcGadgetYaml = `
@@ -511,7 +514,7 @@ func (s *imageSuite) setupSnaps(c *C, publishers map[string]string) {
 }
 
 func (s *imageSuite) loadSeed(c *C, seeddir string) (essSnaps []*seed.Snap, runSnaps []*seed.Snap, roDB asserts.RODatabase) {
-	seed, err := seed.Open(seeddir)
+	seed, err := seed.Open(seeddir, "")
 	c.Assert(err, IsNil)
 
 	db, err := asserts.OpenDatabase(&asserts.DatabaseConfig{
