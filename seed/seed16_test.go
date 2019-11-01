@@ -79,7 +79,7 @@ func (s *seed16Suite) SetUpTest(c *C) {
 	}, "")
 	assertstest.AddMany(s.StoreSigning, s.devAcct)
 
-	seed16, err := seed.Open(s.SeedDir)
+	seed16, err := seed.Open(s.SeedDir, "")
 	c.Assert(err, IsNil)
 	s.seed16 = seed16
 
