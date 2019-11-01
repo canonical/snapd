@@ -387,7 +387,7 @@ func (s *linkSnapSuite) TestDoLinkSnapTryToCleanupOnError(c *C) {
 	c.Assert(err, Equals, state.ErrNoState)
 
 	// tried to cleanup
-	c.Check(s.fakeBackend.ops, DeepEquals, fakeOps{
+	expected := fakeOps{
 		{
 			op:    "candidate",
 			sinfo: *si,
@@ -400,7 +400,11 @@ func (s *linkSnapSuite) TestDoLinkSnapTryToCleanupOnError(c *C) {
 			op:   "unlink-snap",
 			path: filepath.Join(dirs.SnapMountDir, "foo/35"),
 		},
-	})
+	}
+
+	// start with an easier-to-read error if this fails:
+	c.Check(s.fakeBackend.ops.Ops(), DeepEquals, expected.Ops())
+	c.Check(s.fakeBackend.ops, DeepEquals, expected)
 }
 
 func (s *linkSnapSuite) TestDoLinkSnapSuccessCoreRestarts(c *C) {
@@ -956,9 +960,12 @@ func (s *linkSnapSuite) TestDoUnlinkSnapRefreshHardCheckOff(c *C) {
 func (s *linkSnapSuite) testDoUnlinkSnapRefreshAwareness(c *C) *state.Change {
 	restore := release.MockOnClassic(true)
 	defer restore()
+	mockPidsCgroupDir := c.MkDir()
+	restore = snapstate.MockPidsCgroupDir(mockPidsCgroupDir)
+	defer restore()
 
 	// mock that "some-snap" has an app and that this app has pids running
-	writePids(c, filepath.Join(dirs.PidsCgroupDir, "snap.some-snap.some-app"), []int{1234})
+	writePids(c, filepath.Join(mockPidsCgroupDir, "snap.some-snap.some-app"), []int{1234})
 	snapstate.MockSnapReadInfo(func(name string, si *snap.SideInfo) (*snap.Info, error) {
 		info := &snap.Info{SuggestedName: name, SideInfo: *si, SnapType: snap.TypeApp}
 		info.Apps = map[string]*snap.AppInfo{

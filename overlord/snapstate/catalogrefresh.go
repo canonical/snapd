@@ -33,6 +33,7 @@ import (
 	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/overlord/auth"
 	"github.com/snapcore/snapd/overlord/state"
+	"github.com/snapcore/snapd/store"
 	"github.com/snapcore/snapd/timings"
 )
 
@@ -88,9 +89,13 @@ func (r *catalogRefresh) Ensure() error {
 	logger.Debugf("Catalog refresh starting now; next scheduled for %s.", next)
 
 	err := refreshCatalogs(r.state, theStore)
-	if err == nil {
+	switch err {
+	case nil:
 		logger.Debugf("Catalog refresh succeeded.")
-	} else {
+	case store.ErrTooManyRequests:
+		logger.Debugf("Catalog refresh postponed.")
+		err = nil
+	default:
 		logger.Debugf("Catalog refresh failed: %v.", err)
 	}
 	return err

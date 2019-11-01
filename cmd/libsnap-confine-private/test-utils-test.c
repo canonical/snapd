@@ -39,7 +39,31 @@ static void test_rm_rf_tmp(void)
 	g_test_trap_assert_failed();
 }
 
+static void test_test_argc_argv(void)
+{
+	// Check that test_argc_argv() correctly stores data
+	int argc = 0;
+	char **argv = NULL;
+
+	test_argc_argv(&argc, &argv, NULL);
+	g_assert_cmpint(argc, ==, 0);
+	g_assert_nonnull(argv);
+	g_assert_null(argv[0]);
+
+	argc = 0;
+	argv = NULL;
+
+	test_argc_argv(&argc, &argv, "zero", "one", "two", NULL);
+	g_assert_cmpint(argc, ==, 3);
+	g_assert_nonnull(argv);
+	g_assert_cmpstr(argv[0], ==, "zero");
+	g_assert_cmpstr(argv[1], ==, "one");
+	g_assert_cmpstr(argv[2], ==, "two");
+	g_assert_null(argv[3]);
+}
+
 static void __attribute__((constructor)) init(void)
 {
 	g_test_add_func("/test-utils/rm_rf_tmp", test_rm_rf_tmp);
+	g_test_add_func("/test-utils/test_argc_argv", test_test_argc_argv);
 }

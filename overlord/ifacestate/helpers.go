@@ -138,32 +138,25 @@ func (m *InterfaceManager) regenerateAllSecurityProfiles(tm timings.Measurer) er
 	shouldWriteSystemKey := true
 	os.Remove(dirs.SnapSystemKeyFile)
 
-	// For each snap:
-	for _, snapInfo := range snaps {
-		snapName := snapInfo.InstanceName()
-		// Get the state of the snap so we can compute the confinement option
+	confinementOpts := func(snapName string) interfaces.ConfinementOptions {
 		var snapst snapstate.SnapState
 		if err := snapstate.Get(m.state, snapName, &snapst); err != nil {
 			logger.Noticef("cannot get state of snap %q: %s", snapName, err)
 		}
+		return confinementOptions(snapst.Flags)
+	}
 
-		// Compute confinement options
-		opts := confinementOptions(snapst.Flags)
-
-		// For each backend:
-		for _, backend := range securityBackends {
-			if backend.Name() == "" {
-				continue // Test backends have no name, skip them to simplify testing.
+	// For each backend:
+	for _, backend := range securityBackends {
+		if backend.Name() == "" {
+			continue // Test backends have no name, skip them to simplify testing.
+		}
+		if errors := interfaces.SetupMany(m.repo, backend, snaps, confinementOpts, tm); len(errors) > 0 {
+			logger.Noticef("cannot regenerate %s profiles", backend.Name())
+			for _, err := range errors {
+				logger.Noticef(err.Error())
 			}
-			// Refresh security of this snap and backend
-			timings.Run(tm, "setup-security-backend", fmt.Sprintf("setup security backend %q for snap %q", backend.Name(), snapInfo.InstanceName()), func(nesttm timings.Measurer) {
-				if err := backend.Setup(snapInfo, opts, m.repo, nesttm); err != nil {
-					// Let's log this but carry on without writing the system key.
-					logger.Noticef("cannot regenerate %s profile for snap %q: %s",
-						backend.Name(), snapName, err)
-					shouldWriteSystemKey = false
-				}
-			})
+			shouldWriteSystemKey = false
 		}
 	}
 
@@ -387,22 +380,7 @@ func (m *InterfaceManager) setupSecurityByBackend(task *state.Task, snaps []*sna
 }
 
 func (m *InterfaceManager) setupSnapSecurity(task *state.Task, snapInfo *snap.Info, opts interfaces.ConfinementOptions, tm timings.Measurer) error {
-	st := task.State()
-	instanceName := snapInfo.InstanceName()
-
-	for _, backend := range m.repo.Backends() {
-		st.Unlock()
-		var err error
-		timings.Run(tm, "setup-security-backend", fmt.Sprintf("setup security backend %q for snap %q", backend.Name(), snapInfo.InstanceName()), func(nesttm timings.Measurer) {
-			err = backend.Setup(snapInfo, opts, m.repo, nesttm)
-		})
-		st.Lock()
-		if err != nil {
-			task.Errorf("cannot setup %s for snap %q: %s", backend.Name(), instanceName, err)
-			return err
-		}
-	}
-	return nil
+	return m.setupSecurityByBackend(task, []*snap.Info{snapInfo}, []interfaces.ConfinementOptions{opts}, tm)
 }
 
 func (m *InterfaceManager) removeSnapSecurity(task *state.Task, instanceName string) error {

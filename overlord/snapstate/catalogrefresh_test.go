@@ -43,7 +43,8 @@ import (
 type catalogStore struct {
 	storetest.Store
 
-	ops []string
+	ops     []string
+	tooMany bool
 }
 
 func (r *catalogStore) WriteCatalogs(ctx context.Context, w io.Writer, a store.SnapAdder) error {
@@ -51,6 +52,9 @@ func (r *catalogStore) WriteCatalogs(ctx context.Context, w io.Writer, a store.S
 		panic("Ensure marked context required")
 	}
 	r.ops = append(r.ops, "write-catalog")
+	if r.tooMany {
+		return store.ErrTooManyRequests
+	}
 	w.Write([]byte("pkg1\npkg2"))
 	a.AddSnap("foo", "1.0", "foo summary", []string{"foo", "meh"})
 	a.AddSnap("bar", "2.0", "bar summray", []string{"bar", "meh"})
@@ -62,6 +66,9 @@ func (r *catalogStore) Sections(ctx context.Context, _ *auth.UserState) ([]strin
 		panic("Ensure marked context required")
 	}
 	r.ops = append(r.ops, "sections")
+	if r.tooMany {
+		return nil, store.ErrTooManyRequests
+	}
 	return []string{"section1", "section2"}, nil
 }
 
@@ -124,6 +131,29 @@ func (s *catalogRefreshTestSuite) TestCatalogRefresh(c *C) {
 		"bar": `[{"snap":"bar","version":"2.0"}]`,
 		"meh": `[{"snap":"foo","version":"1.0"},{"snap":"bar","version":"2.0"}]`,
 	})
+}
+
+func (s *catalogRefreshTestSuite) TestCatalogRefreshTooMany(c *C) {
+	s.store.tooMany = true
+
+	cr7 := snapstate.NewCatalogRefresh(s.state)
+	// next is initially zero
+	c.Check(snapstate.NextCatalogRefresh(cr7).IsZero(), Equals, true)
+	t0 := time.Now()
+
+	err := cr7.Ensure()
+	c.Check(err, IsNil) // !!
+
+	// next now has a delta (next refresh is not before t0 + delta)
+	c.Check(snapstate.NextCatalogRefresh(cr7).Before(t0.Add(snapstate.CatalogRefreshDelayWithDelta)), Equals, false)
+
+	// it tried one endpoint and bailed at the first 429
+	c.Check(s.store.ops, HasLen, 1)
+
+	// nothing got created
+	c.Check(osutil.FileExists(dirs.SnapSectionsFile), Equals, false)
+	c.Check(osutil.FileExists(dirs.SnapNamesFile), Equals, false)
+	c.Check(osutil.FileExists(dirs.SnapCommandsDB), Equals, false)
 }
 
 func (s *catalogRefreshTestSuite) TestCatalogRefreshNotNeeded(c *C) {

@@ -132,6 +132,7 @@ var defaultTemplate = `
   /{,usr/}bin/bzgrep ixr,
   /{,usr/}bin/bzip2 ixr,
   /{,usr/}bin/cat ixr,
+  /{,usr/}bin/chgrp ixr,
   /{,usr/}bin/chmod ixr,
   /{,usr/}bin/chown ixr,
   /{,usr/}bin/clear ixr,
@@ -510,6 +511,65 @@ var defaultTemplate = `
 }
 `
 
+// Template for privilege drop and chown operations. The specific setuid,
+// setgid and chown operations are controlled via seccomp.
+//
+// To expand on the policy comment below: "this is not a problem in practice":
+// access to sockets is mediated by file and unix AppArmor rules. When the
+// access is allowed, the snap is expected to be able to use the socket. Some
+// service listeners will employ additional checks, such as 'is the connecting
+// (snap) process root' or 'is the connecting non-root (snap) process in a
+// particular group', etc. Since snapd daemons start as root and because the
+// service listeners typically let the root process do anything, the snap
+// doesn't gain anything from being able to forge a uid since it has full
+// access to the socket API already. A snap could forge a check to bypass the
+// theoretical case of the service listener wanting to limit root to something
+// less than another user, but in practice service listeners won't do this
+// because it is ineffective against unconfined root processes which can
+// manipulate the service listener in other ways to subvert a check like this.
+//
+// For CAP_KILL, AppArmor mediates signals and the default policy allows
+// sending signals only to processes with a security label that matches the
+// snap, but AppArmor does not currently mediate the uid/gid of the
+// sender/receiver to finely mediate what non-root uid/gids a root process may
+// send to, so we have always required the process-control interface for snaps
+// to send signals to other users (even within the same snap). We want to
+// maintain this with our privilege dropping rules, so we omit 'capability
+// kill' since snaps can work within the system without 'capability kill':
+// - root parent can drop, spawn a child and later (dropped) parent can send a
+//   signal
+// - root parent can spawn a child that drops, then later temporarily drop
+//   (ie, seteuid/setegid), send the signal, then reraise
+var privDropAndChownRules = `
+  # allow setuid, setgid and chown for privilege dropping (mediation is done
+  # via seccomp). Note: CAP_SETUID allows (and CAP_SETGID is the same, but
+  # for gid operations):
+  # - forging of UIDs when passing passing socket credentials via UNIX domain
+  #   sockets and we don't currently mediate socket credentials, between
+  #   mediating socket access in general and the execve() boundary that drops
+  #   the capability for non-root commands, this is not a problem in practice.
+  # - accessing the persistent keyring via keyctl, but keyctl is mediated via
+  #   seccomp.
+  # - writing a user ID mapping in a user namespace, but we mediate access to
+  #   /proc/*/uid_map with AppArmor
+  #
+  # CAP_DAC_OVERRIDE and CAP_DAC_READ_SEARCH are intentionally omitted from the
+  # policy since we want traditional DAC to be enforced for root. It is
+  # expected that a program that is dropping privileges, etc will create/modify
+  # files in a way that doesn't require these capabilities.
+  capability setuid,
+  capability setgid,
+  capability chown,
+  #capability dac_override,
+  #capability dac_read_search,
+
+  # Similarly, CAP_KILL is intentionally omitted since we want traditional
+  # DAC to be enforced for root. It is expected that a program that is spawning
+  # processes that ultimately run as non-root will send signals to those
+  # processes as the matching non-root user.
+  #capability kill,
+`
+
 // classicTemplate contains apparmor template used for snaps with classic
 // confinement. This template was Designed by jdstrand:
 // https://github.com/snapcore/snapd/pull/2366#discussion_r90101320
@@ -698,6 +758,7 @@ profile snap-update-ns.###SNAP_INSTANCE_NAME### (attach_disconnected) {
 
   # Allow the content interface to bind fonts from the host filesystem
   mount options=(ro bind) /var/lib/snapd/hostfs/usr/share/fonts/ -> /snap/###SNAP_INSTANCE_NAME###/*/**,
+  mount options=(rw private) -> /snap/###SNAP_INSTANCE_NAME###/*/**,
   umount /snap/###SNAP_INSTANCE_NAME###/*/**,
 
   # set up user mount namespace

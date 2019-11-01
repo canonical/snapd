@@ -75,6 +75,7 @@ const (
   "title": "core",
   "type": "os",
   "version": "16-2.30",
+  "website": "http://example.com/core",
   "media": []
 }`
 
@@ -124,6 +125,7 @@ const (
   "title": "This Is The Most Fantastical Snap of Thingy",
   "type": "app",
   "version": "9.50",
+  "website": "http://example.com/thingy",
   "media": [
      {"type": "icon", "url": "https://dashboard.snapcraft.io/site_media/appmedia/2017/12/Thingy.png"},
      {"type": "screenshot", "url": "https://dashboard.snapcraft.io/site_media/appmedia/2018/01/Thingy_01.png"},
@@ -178,8 +180,9 @@ func (s *detailsV2Suite) TestInfoFromStoreSnapSimple(c *C) {
 			Sha3_384:    "b691f6dde3d8022e4db563840f0ef82320cb824b6292ffd027dbc838535214dac31c3512c619beaf73f1aeaf35ac62d5",
 			Size:        85291008,
 		},
-		Plugs: make(map[string]*snap.PlugInfo),
-		Slots: make(map[string]*snap.SlotInfo),
+		Plugs:   make(map[string]*snap.PlugInfo),
+		Slots:   make(map[string]*snap.SlotInfo),
+		Website: "http://example.com/core",
 	})
 }
 
@@ -249,6 +252,7 @@ func (s *detailsV2Suite) TestInfoFromStoreSnap(c *C) {
 			{Type: "screenshot", URL: "https://dashboard.snapcraft.io/site_media/appmedia/2018/01/Thingy_02.png", Width: 600, Height: 200},
 		},
 		CommonIDs: []string{"org.thingy"},
+		Website:   "http://example.com/thingy",
 	})
 
 	// validate the plugs/slots
@@ -298,6 +302,7 @@ func (s *detailsV2Suite) TestInfoFromStoreSnap(c *C) {
 		"Layout",
 		"SideInfo.Channel",
 		"DownloadInfo.AnonDownloadURL", // TODO: going away at some point
+		"SystemUsernames",
 	}
 	var checker func(string, reflect.Value)
 	checker = func(pfx string, x reflect.Value) {

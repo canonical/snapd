@@ -16,6 +16,7 @@
  */
 
 #include "test-utils.h"
+#include "string-utils.h"
 
 #include "error.h"
 #include "utils.h"
@@ -70,4 +71,38 @@ void rm_rf_tmp(const char *dir)
 	g_free(argv[2]);
 	g_free(argv[3]);
 	g_free(argv);
+}
+
+void
+    __attribute__((sentinel)) test_argc_argv(int *argcp, char ***argvp, ...)
+{
+	int argc = 0;
+	char **argv = NULL;
+	va_list ap;
+
+	/* find out how many elements there are */
+	va_start(ap, argvp);
+	while (NULL != va_arg(ap, const char *)) {
+		argc += 1;
+	}
+	va_end(ap);
+
+	/* argc + terminating NULL entry */
+	argv = calloc(argc + 1, sizeof argv[0]);
+	g_assert_nonnull(argv);
+
+	va_start(ap, argvp);
+	for (int i = 0; i < argc; i++) {
+		const char *arg = va_arg(ap, const char *);
+		char *arg_copy = sc_strdup(arg);
+		g_test_queue_free(arg_copy);
+		argv[i] = arg_copy;
+	}
+	va_end(ap);
+
+	/* free argv last, so that entries do not leak */
+	g_test_queue_free(argv);
+
+	*argcp = argc;
+	*argvp = argv;
 }

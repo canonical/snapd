@@ -57,9 +57,7 @@ restore: |
     lxc delete --force xenial || true
 
     snap remove lxd
-
-    # LXD alters the configuration of the cpuset cgroup. Restore the original state.
-    echo 0 > /sys/fs/cgroup/cpuset/cgroup.clone_children
+    lxd-tool undo-lxd-mount-changes
 
 execute: |
     # Run python0 with a hello.py script and redirect the logs to /var/lib/test/hello.log

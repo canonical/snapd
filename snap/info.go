@@ -32,6 +32,7 @@ import (
 
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/osutil/sys"
+	"github.com/snapcore/snapd/snap/naming"
 	"github.com/snapcore/snapd/strutil"
 	"github.com/snapcore/snapd/timeout"
 )
@@ -242,7 +243,8 @@ type Info struct {
 
 	Publisher StoreAccount
 
-	Media MediaInfos
+	Media   MediaInfos
+	Website string
 
 	// The flattended channel map with $track/$risk
 	Channels map[string]*ChannelSnapInfo
@@ -254,6 +256,10 @@ type Info struct {
 
 	// The list of common-ids from all apps of the snap
 	CommonIDs []string
+
+	// List of system users (usernames) this snap may use. The group
+	// of the same name must also exist.
+	SystemUsernames map[string]*SystemUsernameInfo
 }
 
 // StoreAccount holds information about a store account, for example
@@ -332,6 +338,13 @@ func (s *Info) SnapName() string {
 	}
 	return s.SuggestedName
 }
+
+// ID implements naming.SnapRef.
+func (s *Info) ID() string {
+	return s.SnapID
+}
+
+var _ naming.SnapRef = (*Info)(nil)
 
 // Title returns the blessed title for the snap.
 func (s *Info) Title() string {
@@ -799,6 +812,21 @@ type HookInfo struct {
 	CommandChain []string
 
 	Explicit bool
+}
+
+// SystemUsernameInfo provides information about a system username (ie, a
+// UNIX user and group with the same name). The scope defines visibility of the
+// username wrt the snap and the system. Defined scopes:
+// - shared    static, snapd-managed user/group shared between host and all
+//             snaps
+// - private   static, snapd-managed user/group private to a particular snap
+//             (currently not implemented)
+// - external  dynamic user/group shared between host and all snaps (currently
+//             not implented)
+type SystemUsernameInfo struct {
+	Name  string
+	Scope string
+	Attrs map[string]interface{}
 }
 
 // File returns the path to the *.socket file

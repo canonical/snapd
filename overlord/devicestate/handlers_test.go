@@ -33,6 +33,7 @@ import (
 	"github.com/snapcore/snapd/overlord/snapstate"
 	"github.com/snapcore/snapd/overlord/state"
 	"github.com/snapcore/snapd/overlord/storecontext"
+	"github.com/snapcore/snapd/snap"
 )
 
 // TODO: should we move this into a new handlers suite?
@@ -43,18 +44,54 @@ func (s *deviceMgrSuite) TestSetModelHandlerNewRevision(c *C) {
 		Model: "pc-model",
 	})
 	s.makeModelAssertionInState(c, "canonical", "pc-model", map[string]interface{}{
-		"architecture": "amd64",
-		"kernel":       "pc-kernel",
-		"gadget":       "pc",
-		"revision":     "1",
+		"architecture":   "amd64",
+		"kernel":         "pc-kernel",
+		"gadget":         "pc",
+		"revision":       "1",
+		"required-snaps": []interface{}{"foo", "bar"},
+	})
+	// foo and bar
+	fooSI := &snap.SideInfo{
+		RealName: "foo",
+		Revision: snap.R(1),
+	}
+	barSI := &snap.SideInfo{
+		RealName: "foo",
+		Revision: snap.R(1),
+	}
+	pcKernelSI := &snap.SideInfo{
+		RealName: "pc-kernel",
+		Revision: snap.R(1),
+	}
+	snapstate.Set(s.state, "foo", &snapstate.SnapState{
+		SnapType: "app",
+		Active:   true,
+		Sequence: []*snap.SideInfo{fooSI},
+		Current:  fooSI.Revision,
+		Flags:    snapstate.Flags{Required: true},
+	})
+	snapstate.Set(s.state, "bar", &snapstate.SnapState{
+		SnapType: "app",
+		Active:   true,
+		Sequence: []*snap.SideInfo{barSI},
+		Current:  barSI.Revision,
+		Flags:    snapstate.Flags{Required: true},
+	})
+	snapstate.Set(s.state, "pc-kernel", &snapstate.SnapState{
+		SnapType: "kernel",
+		Active:   true,
+		Sequence: []*snap.SideInfo{pcKernelSI},
+		Current:  pcKernelSI.Revision,
+		Flags:    snapstate.Flags{Required: true},
 	})
 	s.state.Unlock()
 
 	newModel := s.brands.Model("canonical", "pc-model", map[string]interface{}{
-		"architecture": "amd64",
-		"kernel":       "pc-kernel",
-		"gadget":       "pc",
-		"revision":     "2",
+		"architecture":   "amd64",
+		"kernel":         "other-kernel",
+		"gadget":         "pc",
+		"revision":       "2",
+		"required-snaps": []interface{}{"foo"},
 	})
 
 	s.state.Lock()
@@ -75,6 +112,21 @@ func (s *deviceMgrSuite) TestSetModelHandlerNewRevision(c *C) {
 	c.Assert(m, DeepEquals, newModel)
 
 	c.Assert(chg.Err(), IsNil)
+
+	// check required
+	var fooState snapstate.SnapState
+	var barState snapstate.SnapState
+	err = snapstate.Get(s.state, "foo", &fooState)
+	c.Assert(err, IsNil)
+	err = snapstate.Get(s.state, "bar", &barState)
+	c.Assert(err, IsNil)
+	c.Check(fooState.Flags.Required, Equals, true)
+	c.Check(barState.Flags.Required, Equals, false)
+	// the kernel is no longer required
+	var kernelState snapstate.SnapState
+	err = snapstate.Get(s.state, "pc-kernel", &kernelState)
+	c.Assert(err, IsNil)
+	c.Check(kernelState.Flags.Required, Equals, false)
 }
 
 func (s *deviceMgrSuite) TestSetModelHandlerSameRevisionNoError(c *C) {

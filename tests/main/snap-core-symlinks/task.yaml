@@ -1,12 +1,20 @@
 summary: Check that the seed symlinks work
 
-systems: [ubuntu-core-16-*]
+systems: [ubuntu-core-1*]
 
 execute: |
-    echo "Ensure that the core snap is a symlink into the seed"
-    core_symlink="$(readlink -f /var/lib/snapd/snaps/core_*.snap)"
+    # shellcheck source=tests/lib/systems.sh
+    . "$TESTSLIB/systems.sh"
+
+    TARGET_SNAP=core
+    if is_core18_system; then
+        TARGET_SNAP=core18
+    fi
+
+    echo "Ensure that the $TARGET_SNAP snap is a symlink into the seed"
+    core_symlink="$(readlink -f /var/lib/snapd/snaps/${TARGET_SNAP}_*.snap)"
     if [[ "${core_symlink}" != /var/lib/snapd/seed/snaps/* ]]; then
-        echo "The initial core snap should symlink into the seed directory"
+        echo "The initial $TARGET_SNAP snap should symlink into the seed directory"
         echo "but it does not."
         exit 1
     fi

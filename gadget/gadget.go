@@ -47,9 +47,18 @@ const (
 
 	SystemBoot = "system-boot"
 	SystemData = "system-data"
+	SystemSeed = "system-seed"
+
+	BootImage  = "system-boot-image"
+	BootSelect = "system-boot-select"
+
 	// ImplicitSystemDataLabel is the implicit filesystem label of structure
 	// of system-data role
 	ImplicitSystemDataLabel = "writable"
+
+	// only supported for legacy reasons
+	LegacyBootImage  = "bootimg"
+	LegacyBootSelect = "bootselect"
 )
 
 var (
@@ -65,6 +74,14 @@ type Info struct {
 	Defaults map[string]map[string]interface{} `yaml:"defaults,omitempty"`
 
 	Connections []Connection `yaml:"connections"`
+}
+
+// ModelConstraints defines rules to be followed when reading the gadget metadata.
+type ModelConstraints struct {
+	// Classic rules (i.e. content/presence of gadget.yaml is fully optional)
+	Classic bool
+	// A system-seed partition (aka recovery partion) is expected (Core 20)
+	SystemSeed bool
 }
 
 // Volume defines the structure and content for the image to be written into a
@@ -112,7 +129,7 @@ type VolumeStructure struct {
 	// structure is treated as if it is of role 'mbr'.
 	Type string `yaml:"type"`
 	// Role describes the role of given structure, can be one of 'mbr',
-	// 'system-data', 'system-boot'. Structures of type 'mbr', must have a
+	// 'system-data', 'system-boot', 'bootimg', 'bootselect'. Structures of type 'mbr', must have a
 	// size of 446 bytes and must start at 0 offset.
 	Role string `yaml:"role"`
 	// ID is the GPT partition ID
@@ -271,15 +288,15 @@ func systemOrSnapID(s string) bool {
 	return true
 }
 
-// ReadInfo reads the gadget specific metadata from gadget.yaml
-// in the snap. classic set to true means classic rules apply,
-// i.e. content/presence of gadget.yaml is fully optional.
-func ReadInfo(gadgetSnapRootDir string, classic bool) (*Info, error) {
+// ReadInfo reads the gadget specific metadata from gadget.yaml in the snap. If
+// constraints is nil, ReadInfo will just check for self-consistency, otherwise
+// rules for the classic or system seed cases are enforced.
+func ReadInfo(gadgetSnapRootDir string, constraints *ModelConstraints) (*Info, error) {
 	var gi Info
 
 	gadgetYamlFn := filepath.Join(gadgetSnapRootDir, "meta", "gadget.yaml")
 	gmeta, err := ioutil.ReadFile(gadgetYamlFn)
-	if classic && os.IsNotExist(err) {
+	if (constraints == nil || constraints.Classic) && os.IsNotExist(err) {
 		// gadget.yaml is optional for classic gadgets
 		return &gi, nil
 	}
@@ -312,7 +329,7 @@ func ReadInfo(gadgetSnapRootDir string, classic bool) (*Info, error) {
 		}
 	}
 
-	if classic && len(gi.Volumes) == 0 {
+	if len(gi.Volumes) == 0 && (constraints == nil || constraints.Classic) {
 		// volumes can be left out on classic
 		// can still specify defaults though
 		return &gi, nil
@@ -321,17 +338,17 @@ func ReadInfo(gadgetSnapRootDir string, classic bool) (*Info, error) {
 	// basic validation
 	var bootloadersFound int
 	for name, v := range gi.Volumes {
-		if err := validateVolume(name, &v); err != nil {
+		if err := validateVolume(name, &v, constraints); err != nil {
 			return nil, fmt.Errorf("invalid volume %q: %v", name, err)
 		}
 
 		switch v.Bootloader {
 		case "":
 			// pass
-		case "grub", "u-boot", "android-boot":
+		case "grub", "u-boot", "android-boot", "lk":
 			bootloadersFound += 1
 		default:
-			return nil, errors.New("bootloader must be one of grub, u-boot or android-boot")
+			return nil, errors.New("bootloader must be one of grub, u-boot, android-boot or lk")
 		}
 	}
 	switch {
@@ -351,7 +368,12 @@ func fmtIndexAndName(idx int, name string) string {
 	return fmt.Sprintf("#%v", idx)
 }
 
-func validateVolume(name string, vol *Volume) error {
+type validationState struct {
+	SystemSeed *VolumeStructure
+	SystemData *VolumeStructure
+}
+
+func validateVolume(name string, vol *Volume, constraints *ModelConstraints) error {
 	if !validVolumeName.MatchString(name) {
 		return errors.New("invalid name")
 	}
@@ -360,12 +382,13 @@ func validateVolume(name string, vol *Volume) error {
 	}
 
 	// named structures, for cross-referencing relative offset-write names
-	knownStructures := make(map[string]*PositionedStructure, len(vol.Structure))
+	knownStructures := make(map[string]*LaidOutStructure, len(vol.Structure))
 	// for uniqueness of filesystem labels
 	knownFsLabels := make(map[string]bool, len(vol.Structure))
 	// for validating structure overlap
-	structures := make([]PositionedStructure, len(vol.Structure))
+	structures := make([]LaidOutStructure, len(vol.Structure))
 
+	state := &validationState{}
 	previousEnd := Size(0)
 	for idx, s := range vol.Structure {
 		if err := validateVolumeStructure(&s, vol); err != nil {
@@ -378,7 +401,7 @@ func validateVolume(name string, vol *Volume) error {
 			start = previousEnd
 		}
 		end := start + s.Size
-		ps := PositionedStructure{
+		ps := LaidOutStructure{
 			VolumeStructure: &vol.Structure[idx],
 			StartOffset:     start,
 			Index:           idx,
@@ -398,7 +421,24 @@ func validateVolume(name string, vol *Volume) error {
 			knownFsLabels[s.Label] = true
 		}
 
+		switch s.Role {
+		case SystemSeed:
+			if state.SystemSeed != nil {
+				return fmt.Errorf("cannot have more than one system-data role")
+			}
+			state.SystemSeed = &vol.Structure[idx]
+		case SystemData:
+			if state.SystemData != nil {
+				return fmt.Errorf("cannot have more than one system-seed role")
+			}
+			state.SystemData = &vol.Structure[idx]
+		}
+
 		previousEnd = end
+	}
+
+	if err := ensureVolumeConsistency(state, constraints); err != nil {
+		return err
 	}
 
 	// sort by starting offset
@@ -407,12 +447,71 @@ func validateVolume(name string, vol *Volume) error {
 	return validateCrossVolumeStructure(structures, knownStructures)
 }
 
-func validateCrossVolumeStructure(structures []PositionedStructure, knownStructures map[string]*PositionedStructure) error {
+func ensureVolumeConsistency(state *validationState, constraints *ModelConstraints) error {
+	// system-seed also requires system-data
+	if state.SystemSeed != nil && state.SystemData == nil {
+		return fmt.Errorf("the system-seed role requires system-data to be defined")
+	}
+
+	if constraints == nil {
+		if state.SystemData == nil {
+			return nil
+		}
+
+		// gadget must be auto-consistent if constraints are not specified
+		if state.SystemSeed != nil {
+			if err := ensureSeedDataLabelsUnset(state); err != nil {
+				return err
+			}
+		} else {
+			if state.SystemData.Label != "" && state.SystemData.Label != ImplicitSystemDataLabel {
+				return fmt.Errorf("system-data structure must have an implicit label or %q, not %q",
+					ImplicitSystemDataLabel, state.SystemData.Label)
+			}
+		}
+		return nil
+	}
+
+	if state.SystemSeed != nil {
+		// error if we don't have the SystemSeed constraint but we have a system-seed structure
+		if !constraints.SystemSeed {
+			return fmt.Errorf("model does not support the system-seed role")
+		}
+		if err := ensureSeedDataLabelsUnset(state); err != nil {
+			return err
+		}
+	} else {
+		// error if we have the SystemSeed constraint but no actual system-seed structure
+		if constraints.SystemSeed {
+			return fmt.Errorf("model requires system-seed structure, but none was found")
+		}
+		// without SystemSeed, system-data label must be implicit or writable
+		if state.SystemData != nil && state.SystemData.Label != "" && state.SystemData.Label != ImplicitSystemDataLabel {
+			return fmt.Errorf("system-data structure must have an implicit label or %q, not %q",
+				ImplicitSystemDataLabel, state.SystemData.Label)
+		}
+	}
+
+	return nil
+}
+
+func ensureSeedDataLabelsUnset(state *validationState) error {
+	if state.SystemData.Label != "" {
+		return fmt.Errorf("system-data structure must not have a label")
+	}
+	if state.SystemSeed.Label != "" {
+		return fmt.Errorf("system-seed structure must not have a label")
+	}
+
+	return nil
+}
+
+func validateCrossVolumeStructure(structures []LaidOutStructure, knownStructures map[string]*LaidOutStructure) error {
 	previousEnd := Size(0)
 	// cross structure validation:
 	// - relative offsets that reference other structures by name
-	// - positioned structure overlap
-	// use structures positioned within the volume
+	// - laid out structure overlap
+	// use structures laid out within the volume
 	for pidx, ps := range structures {
 		if ps.EffectiveRole() == MBR {
 			if ps.StartOffset != 0 {
@@ -574,10 +673,9 @@ func validateRole(vs *VolumeStructure, vol *Volume) error {
 	}
 
 	switch vsRole {
-	case SystemData:
-		if vs.Label != "" && vs.Label != ImplicitSystemDataLabel {
-			return fmt.Errorf(`role of this kind must have an implicit label or %q, not %q`, ImplicitSystemDataLabel, vs.Label)
-		}
+	case SystemData, SystemSeed:
+		// roles have cross dependencies, consistency checks are done at
+		// the volume level
 	case MBR:
 		if vs.Size > SizeMBR {
 			return errors.New("mbr structures cannot be larger than 446 bytes")
@@ -591,8 +689,12 @@ func validateRole(vs *VolumeStructure, vol *Volume) error {
 		if vs.Filesystem != "" && vs.Filesystem != "none" {
 			return errors.New("mbr structures must not specify a file system")
 		}
-	case SystemBoot, "":
+	case SystemBoot, BootImage, BootSelect, "":
 		// noop
+	case LegacyBootImage, LegacyBootSelect:
+		// noop
+		// legacy role names were added in 2.42 can be removed
+		// on snapd epoch bump
 	default:
 		return fmt.Errorf("unsupported role")
 	}

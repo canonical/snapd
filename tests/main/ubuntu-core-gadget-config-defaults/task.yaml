@@ -34,7 +34,7 @@ prepare: |
         TEST_SNAP_ID=aLcJorEJZgJNUGL2GMb3WR9SoVyHUNAd
     fi
 
-    # Update hte gadget config file
+    # Update the gadget config file
     cat "$GADGET_FILE" >> squashfs-root/meta/gadget.yaml
     sed -i -e "s/TEST_SNAP_ID/$TEST_SNAP_ID/" squashfs-root/meta/gadget.yaml
 
@@ -115,7 +115,7 @@ execute: |
     echo "Wait for first boot to be done"
     while ! snap changes | grep -q "Done.*Initialize system state"; do sleep 1; done
     echo "We have a model assertion"
-    snap known model|MATCH "model: my-model-w-config"
+    snap model --verbose|MATCH "model:\s* my-model-w-config"
 
     echo "The configurable snap was installed"
     snap list|MATCH "test-snapd-with-configure"

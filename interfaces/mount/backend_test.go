@@ -35,6 +35,7 @@ import (
 	"github.com/snapcore/snapd/interfaces/ifacetest"
 	"github.com/snapcore/snapd/interfaces/mount"
 	"github.com/snapcore/snapd/osutil"
+	"github.com/snapcore/snapd/sandbox/cgroup"
 	"github.com/snapcore/snapd/snap"
 	"github.com/snapcore/snapd/testutil"
 )
@@ -57,13 +58,12 @@ func (s *backendSuite) SetUpTest(c *C) {
 
 	c.Assert(s.Repo.AddBackend(s.Backend), IsNil)
 
-	err := os.MkdirAll(dirs.SnapMountPolicyDir, 0700)
-	c.Assert(err, IsNil)
+	c.Assert(os.MkdirAll(dirs.SnapMountPolicyDir, 0700), IsNil)
+	c.Assert(os.MkdirAll(dirs.SnapRunNsDir, 0700), IsNil)
 
 	// add second iface so that we actually test combining snippets
 	s.iface2 = &ifacetest.TestInterface{InterfaceName: "iface2"}
-	err = s.Repo.AddInterface(s.iface2)
-	c.Assert(err, IsNil)
+	c.Assert(s.Repo.AddInterface(s.iface2), IsNil)
 }
 
 func (s *backendSuite) TearDownTest(c *C) {
@@ -95,6 +95,18 @@ func (s *backendSuite) TestRemove(c *C) {
 	err = ioutil.WriteFile(snapCanaryToStay, []byte("stay!"), 0644)
 	c.Assert(err, IsNil)
 
+	// Write the .mnt file, the logic for discarding mount namespaces uses it
+	// as a canary file to look for to even attempt to run the mount discard
+	// tool.
+	mntFile := filepath.Join(dirs.SnapRunNsDir, "hello-world.mnt")
+	err = ioutil.WriteFile(mntFile, []byte(""), 0644)
+	c.Assert(err, IsNil)
+
+	// Mock snap-discard-ns and allow tweak distro libexec dir so that it is used.
+	cmd := testutil.MockCommand(c, "snap-discard-ns", "")
+	defer cmd.Restore()
+	dirs.DistroLibExecDir = cmd.BinDir()
+
 	err = s.Backend.Remove("hello-world")
 	c.Assert(err, IsNil)
 
@@ -103,6 +115,7 @@ func (s *backendSuite) TestRemove(c *C) {
 	c.Assert(osutil.FileExists(hookCanaryToGo), Equals, false)
 	c.Assert(appCanaryToStay, testutil.FileEquals, "stay!")
 	c.Assert(snapCanaryToStay, testutil.FileEquals, "stay!")
+	c.Assert(cmd.Calls(), DeepEquals, [][]string{{"snap-discard-ns", "hello-world"}})
 }
 
 var mockSnapYaml = `name: snap-name
@@ -208,8 +221,22 @@ func (s *backendSuite) TestParallelInstanceSetup(c *C) {
 }
 
 func (s *backendSuite) TestSandboxFeatures(c *C) {
+	restore := cgroup.MockVersion(cgroup.V1, nil)
+	defer restore()
 	c.Assert(s.Backend.SandboxFeatures(), DeepEquals, []string{
+		"layouts",
+		"mount-namespace",
+		"per-snap-persistency",
+		"per-snap-profiles",
+		"per-snap-updates",
+		"per-snap-user-profiles",
+		"stale-base-invalidation",
 		"freezer-cgroup-v1",
+	})
+
+	restore = cgroup.MockVersion(cgroup.V2, nil)
+	defer restore()
+	c.Assert(s.Backend.SandboxFeatures(), DeepEquals, []string{
 		"layouts",
 		"mount-namespace",
 		"per-snap-persistency",

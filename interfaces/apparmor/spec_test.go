@@ -183,6 +183,7 @@ func (s *specSuite) TestApparmorSnippetsFromLayout(c *C) {
 
 	profile0 := `  # Layout /etc/foo.conf: bind-file $SNAP/foo.conf
   mount options=(bind, rw) /snap/vanguard/42/foo.conf -> /etc/foo.conf,
+  mount options=(rprivate) -> /etc/foo.conf,
   umount /etc/foo.conf,
   # Writable mimic /etc
   # .. permissions for traversing the prefix that is assumed to exist
@@ -205,10 +206,14 @@ func (s *specSuite) TestApparmorSnippetsFromLayout(c *C) {
   mount options=(bind, rw) /tmp/.snap/etc/* -> /etc/*,
   # Allow unmounting the auxiliary directory.
   # TODO: use fstype=tmpfs here for more strictness (LP: #1613403)
+  mount options=(rprivate) -> /tmp/.snap/etc/,
   umount /tmp/.snap/etc/,
   # Allow unmounting the destination directory as well as anything
   # inside.  This lets us perform the undo plan in case the writable
   # mimic fails.
+  mount options=(rprivate) -> /etc/,
+  mount options=(rprivate) -> /etc/*,
+  mount options=(rprivate) -> /etc/*/,
   umount /etc/,
   umount /etc/*,
   umount /etc/*/,
@@ -235,10 +240,14 @@ func (s *specSuite) TestApparmorSnippetsFromLayout(c *C) {
   mount options=(bind, rw) /tmp/.snap/snap/vanguard/42/* -> /snap/vanguard/42/*,
   # Allow unmounting the auxiliary directory.
   # TODO: use fstype=tmpfs here for more strictness (LP: #1613403)
+  mount options=(rprivate) -> /tmp/.snap/snap/vanguard/42/,
   umount /tmp/.snap/snap/vanguard/42/,
   # Allow unmounting the destination directory as well as anything
   # inside.  This lets us perform the undo plan in case the writable
   # mimic fails.
+  mount options=(rprivate) -> /snap/vanguard/42/,
+  mount options=(rprivate) -> /snap/vanguard/42/*,
+  mount options=(rprivate) -> /snap/vanguard/42/*/,
   umount /snap/vanguard/42/,
   umount /snap/vanguard/42/*,
   umount /snap/vanguard/42/*/,
@@ -247,6 +256,7 @@ func (s *specSuite) TestApparmorSnippetsFromLayout(c *C) {
 
 	profile1 := `  # Layout /usr/foo: bind $SNAP/usr/foo
   mount options=(rbind, rw) /snap/vanguard/42/usr/foo/ -> /usr/foo/,
+  mount options=(rprivate) -> /usr/foo/,
   umount /usr/foo/,
   # Writable mimic /usr
   # .. permissions for traversing the prefix that is assumed to exist
@@ -269,10 +279,14 @@ func (s *specSuite) TestApparmorSnippetsFromLayout(c *C) {
   mount options=(bind, rw) /tmp/.snap/usr/* -> /usr/*,
   # Allow unmounting the auxiliary directory.
   # TODO: use fstype=tmpfs here for more strictness (LP: #1613403)
+  mount options=(rprivate) -> /tmp/.snap/usr/,
   umount /tmp/.snap/usr/,
   # Allow unmounting the destination directory as well as anything
   # inside.  This lets us perform the undo plan in case the writable
   # mimic fails.
+  mount options=(rprivate) -> /usr/,
+  mount options=(rprivate) -> /usr/*,
+  mount options=(rprivate) -> /usr/*/,
   umount /usr/,
   umount /usr/*,
   umount /usr/*/,
@@ -299,10 +313,14 @@ func (s *specSuite) TestApparmorSnippetsFromLayout(c *C) {
   mount options=(bind, rw) /tmp/.snap/snap/vanguard/42/* -> /snap/vanguard/42/*,
   # Allow unmounting the auxiliary directory.
   # TODO: use fstype=tmpfs here for more strictness (LP: #1613403)
+  mount options=(rprivate) -> /tmp/.snap/snap/vanguard/42/,
   umount /tmp/.snap/snap/vanguard/42/,
   # Allow unmounting the destination directory as well as anything
   # inside.  This lets us perform the undo plan in case the writable
   # mimic fails.
+  mount options=(rprivate) -> /snap/vanguard/42/,
+  mount options=(rprivate) -> /snap/vanguard/42/*,
+  mount options=(rprivate) -> /snap/vanguard/42/*/,
   umount /snap/vanguard/42/,
   umount /snap/vanguard/42/*,
   umount /snap/vanguard/42/*/,
@@ -324,10 +342,14 @@ func (s *specSuite) TestApparmorSnippetsFromLayout(c *C) {
   mount options=(bind, rw) /tmp/.snap/snap/vanguard/42/usr/* -> /snap/vanguard/42/usr/*,
   # Allow unmounting the auxiliary directory.
   # TODO: use fstype=tmpfs here for more strictness (LP: #1613403)
+  mount options=(rprivate) -> /tmp/.snap/snap/vanguard/42/usr/,
   umount /tmp/.snap/snap/vanguard/42/usr/,
   # Allow unmounting the destination directory as well as anything
   # inside.  This lets us perform the undo plan in case the writable
   # mimic fails.
+  mount options=(rprivate) -> /snap/vanguard/42/usr/,
+  mount options=(rprivate) -> /snap/vanguard/42/usr/*,
+  mount options=(rprivate) -> /snap/vanguard/42/usr/*/,
   umount /snap/vanguard/42/usr/,
   umount /snap/vanguard/42/usr/*,
   umount /snap/vanguard/42/usr/*/,
@@ -357,10 +379,14 @@ func (s *specSuite) TestApparmorSnippetsFromLayout(c *C) {
   mount options=(bind, rw) /tmp/.snap/var/* -> /var/*,
   # Allow unmounting the auxiliary directory.
   # TODO: use fstype=tmpfs here for more strictness (LP: #1613403)
+  mount options=(rprivate) -> /tmp/.snap/var/,
   umount /tmp/.snap/var/,
   # Allow unmounting the destination directory as well as anything
   # inside.  This lets us perform the undo plan in case the writable
   # mimic fails.
+  mount options=(rprivate) -> /var/,
+  mount options=(rprivate) -> /var/*,
+  mount options=(rprivate) -> /var/*/,
   umount /var/,
   umount /var/*,
   umount /var/*/,
@@ -382,10 +408,14 @@ func (s *specSuite) TestApparmorSnippetsFromLayout(c *C) {
   mount options=(bind, rw) /tmp/.snap/var/cache/* -> /var/cache/*,
   # Allow unmounting the auxiliary directory.
   # TODO: use fstype=tmpfs here for more strictness (LP: #1613403)
+  mount options=(rprivate) -> /tmp/.snap/var/cache/,
   umount /tmp/.snap/var/cache/,
   # Allow unmounting the destination directory as well as anything
   # inside.  This lets us perform the undo plan in case the writable
   # mimic fails.
+  mount options=(rprivate) -> /var/cache/,
+  mount options=(rprivate) -> /var/cache/*,
+  mount options=(rprivate) -> /var/cache/*/,
   umount /var/cache/,
   umount /var/cache/*,
   umount /var/cache/*/,
@@ -394,6 +424,7 @@ func (s *specSuite) TestApparmorSnippetsFromLayout(c *C) {
 
 	profile3 := `  # Layout /var/tmp: type tmpfs, mode: 01777
   mount fstype=tmpfs tmpfs -> /var/tmp/,
+  mount options=(rprivate) -> /var/tmp/,
   umount /var/tmp/,
   # Writable mimic /var
   # .. permissions for traversing the prefix that is assumed to exist
@@ -416,10 +447,14 @@ func (s *specSuite) TestApparmorSnippetsFromLayout(c *C) {
   mount options=(bind, rw) /tmp/.snap/var/* -> /var/*,
   # Allow unmounting the auxiliary directory.
   # TODO: use fstype=tmpfs here for more strictness (LP: #1613403)
+  mount options=(rprivate) -> /tmp/.snap/var/,
   umount /tmp/.snap/var/,
   # Allow unmounting the destination directory as well as anything
   # inside.  This lets us perform the undo plan in case the writable
   # mimic fails.
+  mount options=(rprivate) -> /var/,
+  mount options=(rprivate) -> /var/*,
+  mount options=(rprivate) -> /var/*/,
   umount /var/,
   umount /var/*,
   umount /var/*/,

@@ -25,7 +25,9 @@ import (
 	"github.com/snapcore/snapd/interfaces"
 	"github.com/snapcore/snapd/interfaces/apparmor"
 	"github.com/snapcore/snapd/interfaces/seccomp"
+	"github.com/snapcore/snapd/interfaces/udev"
 	"github.com/snapcore/snapd/release"
+	apparmor_sandbox "github.com/snapcore/snapd/sandbox/apparmor"
 	"github.com/snapcore/snapd/snap"
 )
 
@@ -46,17 +48,16 @@ const dockerSupportBaseDeclarationSlots = `
 `
 
 const dockerSupportConnectedPlugAppArmorCore = `
-# these accesses are necessary for Ubuntu Core 16 and 18, likely due to the version 
-# of apparmor or the kernel which doesn't resolve the upper layer of an 
-# overlayfs mount correctly
-# the accesses show up as runc trying to read from
+# These accesses are necessary for Ubuntu Core 16 and 18, likely due to the
+# version of apparmor or the kernel which doesn't resolve the upper layer of an
+# overlayfs mount correctly the accesses show up as runc trying to read from
 # /system-data/var/snap/docker/common/var-lib-docker/overlay2/$SHA/diff/
 /system-data/var/snap/{@{SNAP_NAME},@{SNAP_INSTANCE_NAME}}/common/{,**/} rwl,
 /system-data/var/snap/{@{SNAP_NAME},@{SNAP_INSTANCE_NAME}}/@{SNAP_REVISION}/{,**/} rwl,
 `
 
 const dockerSupportConnectedPlugAppArmor = `
-# Description: allow operating as the Docker daemon. This policy is
+# Description: allow operating as the Docker daemon/containerd. This policy is
 # intentionally not restrictive and is here to help guard against programming
 # errors and not for security confinement. The Docker daemon by design requires
 # extensive access to the system and cannot be effectively confined against
@@ -64,15 +65,26 @@ const dockerSupportConnectedPlugAppArmor = `
 
 #include <abstractions/dbus-strict>
 
-# Allow sockets
+# Allow sockets/etc for docker
 /{,var/}run/docker.sock rw,
 /{,var/}run/docker/     rw,
 /{,var/}run/docker/**   mrwklix,
 /{,var/}run/runc/       rw,
 /{,var/}run/runc/**     mrwklix,
 
+# Allow sockets/etc for containerd
+/{,var/}run/containerd/{,runc/,runc/k8s.io/,runc/k8s.io/*/} rw,
+/{,var/}run/containerd/runc/k8s.io/*/** rwk,
+/{,var/}run/containerd/{io.containerd*/,io.containerd*/k8s.io/,io.containerd*/k8s.io/*/} rw,
+/{,var/}run/containerd/io.containerd*/*/** rwk,
+
+# Limit ipam-state to k8s
+/run/ipam-state/k8s-** rw,
+/run/ipam-state/k8s-*/lock k,
+
 # Socket for docker-container-shim
 unix (bind,listen) type=stream addr="@/containerd-shim/moby/*/shim.sock\x00",
+unix (bind,listen) type=stream addr="@/containerd-shim/k8s.io/*/shim.sock\x00",
 
 /{,var/}run/mount/utab r,
 
@@ -138,9 +150,16 @@ pivot_root,
 /sys/kernel/security/apparmor/{,**} r,
 
 # use 'privileged-containers: true' to support --security-opts
+
+# defaults for docker-default
 change_profile unsafe /** -> docker-default,
 signal (send) peer=docker-default,
 ptrace (read, trace) peer=docker-default,
+
+# defaults for containerd
+change_profile unsafe /** -> cri-containerd.apparmor.d,
+signal (send) peer=cri-containerd.apparmor.d,
+ptrace (read, trace) peer=cri-containerd.apparmor.d,
 
 # Graph (storage) driver bits
 /{dev,run}/shm/aufs.xino mrw,
@@ -157,7 +176,23 @@ ptrace (read, trace) peer=docker-default,
 # needed by runc for mitigation of CVE-2019-5736
 # For details see https://bugs.launchpad.net/apparmor/+bug/1820344
 / ix,
-/bin/runc rix,
+/bin/runc ixr,
+
+/pause ixr,
+/bin/busybox ixr,
+
+# When kubernetes drives containerd, containerd needs access to CNI services,
+# like flanneld's subnet.env for DNS. This would ideally be snap-specific (it
+# could if the control plane was a snap), but in deployments where the control
+# plane is not a snap, it will tell flannel to use this path.
+/run/flannel/{,**} rk,
+
+# When kubernetes drives containerd, containerd needs access to various
+# secrets for the pods which are overlayed at /run/secrets/....
+# This would ideally be snap-specific (it could if the control plane was a
+# snap), but in deployments where the control plane is not a snap, it will tell
+# containerd to use this path for various account information for pods.
+/run/secrets/kubernetes.io/{,**} rk,
 `
 
 const dockerSupportConnectedPlugSecComp = `
@@ -592,8 +627,14 @@ func (iface *dockerSupportInterface) StaticInfo() interfaces.StaticInfo {
 }
 
 var (
-	parserFeatures = release.AppArmorParserFeatures
+	parserFeatures = apparmor_sandbox.ParserFeatures
 )
+
+func (iface *dockerSupportInterface) UDevConnectedPlug(spec *udev.Specification, plug *interfaces.ConnectedPlug, slot *interfaces.ConnectedSlot) error {
+	spec.SetControlsDeviceCgroup()
+
+	return nil
+}
 
 func (iface *dockerSupportInterface) AppArmorConnectedPlug(spec *apparmor.Specification, plug *interfaces.ConnectedPlug, slot *interfaces.ConnectedSlot) error {
 	var privileged bool
@@ -609,7 +650,7 @@ func (iface *dockerSupportInterface) AppArmorConnectedPlug(spec *apparmor.Specif
 	if !release.OnClassic {
 		spec.AddSnippet(dockerSupportConnectedPlugAppArmorCore)
 	}
-	spec.UsesPtraceTrace()
+	spec.SetUsesPtraceTrace()
 	return nil
 }
 

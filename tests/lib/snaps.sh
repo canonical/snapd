@@ -72,21 +72,8 @@ install_generic_consumer() {
 }
 
 is_classic_confinement_supported() {
-    case "$SPREAD_SYSTEM" in
-        ubuntu-core-*)
-            return 1
-            ;;
-        ubuntu-*|debian-*)
-            return 0
-            ;;
-        fedora-*|centos-*)
-            return 1
-            ;;
-        opensuse-*)
-            return 0
-            ;;
-        *)
-            return 0
-            ;;
-    esac
+    if snap debug sandbox-features --required=confinement-options:classic; then
+        return 0
+    fi
+    return 1
 }

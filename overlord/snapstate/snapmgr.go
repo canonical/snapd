@@ -20,9 +20,11 @@
 package snapstate
 
 import (
+	"context"
 	"errors"
 	"fmt"
 	"io"
+	"math/rand"
 	"os"
 	"strings"
 	"time"
@@ -40,6 +42,10 @@ import (
 	"github.com/snapcore/snapd/snap"
 	"github.com/snapcore/snapd/store"
 	"github.com/snapcore/snapd/strutil"
+)
+
+var (
+	snapdTransitionDelayWithRandomess = 3*time.Hour + time.Duration(rand.Int63n(int64(4*time.Hour)))
 )
 
 // overridden in the tests
@@ -303,6 +309,14 @@ func (snapst *SnapState) CurrentInfo() (*snap.Info, error) {
 	return readInfo(name, cur, withAuxStoreInfo)
 }
 
+func (snapst *SnapState) InstanceName() string {
+	cur := snapst.CurrentSideInfo()
+	if cur == nil {
+		return ""
+	}
+	return snap.InstanceName(cur.RealName, snapst.InstanceKey)
+}
+
 func revisionInSequence(snapst *SnapState, needle snap.Revision) bool {
 	for _, si := range snapst.Sequence {
 		if si.Revision == needle {
@@ -540,6 +554,110 @@ func (m *SnapManager) ensureForceDevmodeDropsDevmodeFromState() error {
 	return nil
 }
 
+// changeInFlight returns true if there is any change in the state
+// in non-ready state.
+func changeInFlight(st *state.State) bool {
+	for _, chg := range st.Changes() {
+		if !chg.IsReady() {
+			// another change already in motion
+			return true
+		}
+	}
+	return false
+}
+
+// ensureSnapdSnapTransition will migrate systems to use the "snapd" snap
+func (m *SnapManager) ensureSnapdSnapTransition() error {
+	m.state.Lock()
+	defer m.state.Unlock()
+
+	// we only auto-transition people on classic systems, for core we
+	// will need to do a proper re-model
+	if !release.OnClassic {
+		return nil
+	}
+
+	// check if snapd snap is installed
+	var snapst SnapState
+	err := Get(m.state, "snapd", &snapst)
+	if err != nil && err != state.ErrNoState {
+		return err
+	}
+	// nothing to do
+	if snapst.IsInstalled() {
+		return nil
+	}
+
+	// check if the user opts into the snapd snap
+	optedIntoSnapdTransition, err := optedIntoSnapdSnap(m.state)
+	if err != nil {
+		return err
+	}
+	// nothing to do: the user does not want the snapd snap yet
+	if !optedIntoSnapdTransition {
+		return nil
+	}
+
+	// ensure we only transition systems that have snaps already
+	installedSnaps, err := NumSnaps(m.state)
+	if err != nil {
+		return err
+	}
+	// no installed snaps (yet): do nothing (fresh classic install)
+	if installedSnaps == 0 {
+		return nil
+	}
+
+	// get current core snap and use same channel/user for the snapd snap
+	err = Get(m.state, "core", &snapst)
+	// Note that state.ErrNoState should never happen in practise. However
+	// if it *does* happen we still want to fix those systems by installing
+	// the snapd snap.
+	if err != nil && err != state.ErrNoState {
+		return err
+	}
+	coreChannel := snapst.Channel
+	// snapd/core are never blocked on auth so we don't need to copy
+	// the userID from the snapst here
+	userID := 0
+
+	if changeInFlight(m.state) {
+		// check that there is no change in flight already, this is a
+		// precaution to ensure the snapd transition is safe
+		return nil
+	}
+
+	// ensure we limit the retries in case something goes wrong
+	var lastSnapdTransitionAttempt time.Time
+	err = m.state.Get("snapd-transition-last-retry-time", &lastSnapdTransitionAttempt)
+	if err != nil && err != state.ErrNoState {
+		return err
+	}
+	now := time.Now()
+	if !lastSnapdTransitionAttempt.IsZero() && lastSnapdTransitionAttempt.Add(snapdTransitionDelayWithRandomess).After(now) {
+		return nil
+	}
+	m.state.Set("snapd-transition-last-retry-time", now)
+
+	var retryCount int
+	err = m.state.Get("snapd-transition-retry", &retryCount)
+	if err != nil && err != state.ErrNoState {
+		return err
+	}
+	m.state.Set("snapd-transition-retry", retryCount+1)
+
+	ts, err := Install(context.Background(), m.state, "snapd", &RevisionOptions{Channel: coreChannel}, userID, Flags{})
+	if err != nil {
+		return err
+	}
+
+	msg := i18n.G("Transition to the snapd snap")
+	chg := m.state.NewChange("transition-to-snapd-snap", msg)
+	chg.AddAll(ts)
+
+	return nil
+}
+
 // ensureUbuntuCoreTransition will migrate systems that use "ubuntu-core"
 // to the new "core" snap
 func (m *SnapManager) ensureUbuntuCoreTransition() error {
@@ -557,11 +675,9 @@ func (m *SnapManager) ensureUbuntuCoreTransition() error {
 
 	// check that there is no change in flight already, this is a
 	// precaution to ensure the core transition is safe
-	for _, chg := range m.state.Changes() {
-		if !chg.Status().Ready() {
-			// another change already in motion
-			return nil
-		}
+	if changeInFlight(m.state) {
+		// another change already in motion
+		return nil
 	}
 
 	// ensure we limit the retries in case something goes wrong
@@ -686,6 +802,7 @@ func (m *SnapManager) Ensure() error {
 		m.ensureAliasesV2(),
 		m.ensureForceDevmodeDropsDevmodeFromState(),
 		m.ensureUbuntuCoreTransition(),
+		m.ensureSnapdSnapTransition(),
 		// we should check for full regular refreshes before
 		// considering issuing a hint only refresh request
 		m.autoRefresh.Ensure(),

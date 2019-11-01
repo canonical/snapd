@@ -13,10 +13,10 @@
 			"revisionTime": "2018-05-11T13:34:05Z"
 		},
 		{
-			"checksumSHA1": "h77tT8kVh8x/J5ikkZReONPUjU0=",
+			"checksumSHA1": "qwK75TRXmR/k8CiegYaeqaCDek4=",
 			"path": "github.com/godbus/dbus",
-			"revision": "97646858c46433e4afb3432ad28c12e968efa298",
-			"revisionTime": "2017-08-22T15:24:03Z"
+			"revision": "4481cbc300e2df0c0b3cecc18b6c16c6c0bb885d",
+			"revisionTime": "2019-07-26T02:52:47Z"
 		},
 		{
 			"checksumSHA1": "NrP46FPoALgKz3FY6puL3syMAAI=",
@@ -67,23 +67,23 @@
 			"revisionTime": "2018-03-08T15:25:21Z"
 		},
 		{
-			"checksumSHA1": "lG6diF/yE9cGgQIKRAlsaeYAjO4=",
-			"path": "github.com/ojii/gettext.go",
-			"revision": "95289a7e0ac17c76737a5ceca3c9471c0adf70c7",
-			"revisionTime": "2016-07-14T06:47:45Z"
-		},
-		{
-			"checksumSHA1": "j5FytTwC2nAqSrDR7V7O7E4cHKM=",
-			"path": "github.com/ojii/gettext.go/pluralforms",
-			"revision": "95289a7e0ac17c76737a5ceca3c9471c0adf70c7",
-			"revisionTime": "2016-07-14T06:47:45Z"
-		},
-		{
 			"checksumSHA1": "XEtWdIrRbRSFBR9q+SOATOuy7vM=",
 			"comment": "fork of boltdb/bolt to fix build failure on ppc. upstream: https://github.com/boltdb/bolt/pull/740 and https://github.com/coreos/bbolt/pull/73",
 			"path": "github.com/snapcore/bolt",
 			"revision": "9eca199504ee1299394669820724322b5bfc070a",
 			"revisionTime": "2018-01-18T17:01:45Z"
+		},
+		{
+			"checksumSHA1": "CSPV27Mm4+WBlyGFT/lKz1la/VI=",
+			"path": "github.com/snapcore/go-gettext",
+			"revision": "6598fb28bb07cb32298324b4958677c2f00cacd9",
+			"revisionTime": "2017-09-28T14:21:59Z"
+		},
+		{
+			"checksumSHA1": "ZHYmaLRlCMJfx0+Ppr8dZ/+KtAc=",
+			"path": "github.com/snapcore/go-gettext/pluralforms",
+			"revision": "6598fb28bb07cb32298324b4958677c2f00cacd9",
+			"revisionTime": "2017-09-28T14:21:59Z"
 		},
 		{
 			"checksumSHA1": "3AmEm18mKj8XxBuru/ix4OOpRkE=",

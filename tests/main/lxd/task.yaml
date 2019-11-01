@@ -31,8 +31,7 @@ restore: |
     lxd.lxc stop my-ubuntu --force
     lxd.lxc delete my-ubuntu
 
-    # LXD alters the configuration of the cpuset cgroup. Restore the original state.
-    echo 0 > /sys/fs/cgroup/cpuset/cgroup.clone_children
+    lxd-tool undo-lxd-mount-changes
 
 debug: |
     # shellcheck source=tests/lib/journalctl.sh
@@ -73,6 +72,9 @@ execute: |
 
     echo "Cleanup container"
     lxd.lxc exec my-ubuntu -- apt autoremove --purge -y snapd ubuntu-core-launcher
+
+    echo "Ensure apt is up-to-date"
+    lxd.lxc exec my-ubuntu -- apt update
 
     echo "Install snapd"
     lxd.lxc exec my-ubuntu -- mkdir -p "$GOHOME"
