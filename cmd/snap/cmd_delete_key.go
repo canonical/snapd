@@ -48,6 +48,7 @@ the given name.
 			desc: i18n.G("Name of key to delete"),
 		}})
 	cmd.hidden = true
+	cmd.completeHidden = true
 }
 
 func (x *cmdDeleteKey) Execute(args []string) error {
