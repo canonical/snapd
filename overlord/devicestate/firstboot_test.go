@@ -162,7 +162,7 @@ func checkTrivialSeeding(c *C, tsAll []*state.TaskSet) {
 	c.Check(tasks[0].Kind(), Equals, "mark-seeded")
 }
 
-func (s *firstBoot16Suite) modelHeaders(modelStr string, reqSnaps ...string) map[string]interface{} {
+func modelHeaders(modelStr string, reqSnaps ...string) map[string]interface{} {
 	headers := map[string]interface{}{
 		"architecture": "amd64",
 		"store":        "canonical",
@@ -184,7 +184,7 @@ func (s *firstBoot16Suite) modelHeaders(modelStr string, reqSnaps ...string) map
 }
 
 func (s *firstBoot16Suite) makeModelAssertionChain(c *C, modName string, extraHeaders map[string]interface{}, reqSnaps ...string) []asserts.Assertion {
-	return s.MakeModelAssertionChain("my-brand", modName, s.modelHeaders(modName, reqSnaps...), extraHeaders)
+	return s.MakeModelAssertionChain("my-brand", modName, modelHeaders(modName, reqSnaps...), extraHeaders)
 }
 
 func (s *firstBoot16Suite) TestPopulateFromSeedOnClassicNoop(c *C) {
@@ -428,22 +428,7 @@ func checkSeedTasks(c *C, tsAll []*state.TaskSet) {
 	c.Check(markSeededTask.WaitTasks(), DeepEquals, []*state.Task{gadgetConnectTask})
 }
 
-func checkPreseedTasks(c *C, tsAll []*state.TaskSet) {
-	// the tasks of the last taskset must be gadget-connect, mark-preseeded, mark-seeded
-	lastTasks := tsAll[len(tsAll)-1].Tasks()
-	c.Check(lastTasks, HasLen, 3)
-	gadgetConnectTask := lastTasks[0]
-	preseedTask := lastTasks[1]
-	markSeededTask := lastTasks[2]
-	c.Check(gadgetConnectTask.Kind(), Equals, "gadget-connect")
-	c.Check(preseedTask.Kind(), Equals, "mark-preseeded")
-	c.Check(markSeededTask.Kind(), Equals, "mark-seeded")
-
-	// mark-seeded waits for mark-preseeded and gadget-connect
-	c.Check(markSeededTask.WaitTasks(), DeepEquals, []*state.Task{gadgetConnectTask, preseedTask})
-}
-
-func (s *firstBoot16Suite) makeSeedChange(c *C, st *state.State, preseed bool) *state.Change {
+func (s *firstBoot16Suite) makeSeedChange(c *C, st *state.State) *state.Change {
 	coreFname, kernelFname, gadgetFname := s.makeCoreSnaps(c, "")
 
 	s.WriteAssertions("developer.account", s.devAcct)
@@ -492,19 +477,12 @@ snaps:
 	// run the firstboot stuff
 	st.Lock()
 	defer st.Unlock()
-	tsAll, err := devicestate.PopulateStateFromSeedImpl(st, preseed, s.perfTimings)
+	tsAll, err := devicestate.PopulateStateFromSeedImpl(st, false, s.perfTimings)
 	c.Assert(err, IsNil)
 
-	// XXX: order is more convoluted in preseed mode; implement a check for it.
-	if !preseed {
-		checkOrder(c, tsAll, "core", "pc-kernel", "pc", "foo", "local")
-	}
+	checkOrder(c, tsAll, "core", "pc-kernel", "pc", "foo", "local")
 
-	if preseed {
-		checkPreseedTasks(c, tsAll)
-	} else {
-		checkSeedTasks(c, tsAll)
-	}
+	checkSeedTasks(c, tsAll)
 
 	// now run the change and check the result
 	// use the expected kind otherwise settle with start another one
@@ -529,7 +507,7 @@ func (s *firstBoot16Suite) TestPopulateFromSeedHappy(c *C) {
 	bloader.SetBootBase("core_1.snap")
 
 	st := s.overlord(c).State()
-	chg := s.makeSeedChange(c, st, false)
+	chg := s.makeSeedChange(c, st)
 	err := s.overlord(c).Settle(settleTimeout)
 	c.Assert(err, IsNil)
 
@@ -631,7 +609,7 @@ func (s *firstBoot16Suite) TestPopulateFromSeedMissingBootloader(c *C) {
 
 	o.AddManager(o.TaskRunner())
 
-	chg := s.makeSeedChange(c, st, false)
+	chg := s.makeSeedChange(c, st)
 
 	se := o.StateEngine()
 	// we cannot use Settle because the Change will not become Clean
@@ -1124,10 +1102,10 @@ func (s *firstBoot16Suite) TestImportAssertionsFromSeedTwoModelAsserts(c *C) {
 	defer st.Unlock()
 
 	// write out two model assertions
-	model := s.Brands.Model("my-brand", "my-model", s.modelHeaders("my-model"))
+	model := s.Brands.Model("my-brand", "my-model", modelHeaders("my-model"))
 	s.WriteAssertions("model", model)
 
-	model2 := s.Brands.Model("my-brand", "my-second-model", s.modelHeaders("my-second-model"))
+	model2 := s.Brands.Model("my-brand", "my-second-model", modelHeaders("my-second-model"))
 	s.WriteAssertions("model2", model2)
 
 	deviceSeed, err := seed.Open(dirs.SnapSeedDir)
@@ -1191,37 +1169,6 @@ func checkPressedTaskStates(c *C, st *state.State) {
 			c.Fatalf("unhandled task kind %s", t.Kind())
 		}
 	}
-}
-
-func (s *firstBoot16Suite) TestPreseedHappy(c *C) {
-	restore := release.MockPreseedMode(true)
-	defer restore()
-
-	mockMountCmd := testutil.MockCommand(c, "mount", "")
-	defer mockMountCmd.Restore()
-
-	mockUmountCmd := testutil.MockCommand(c, "umount", "")
-	defer mockUmountCmd.Restore()
-
-	systemd.MockOsSymlink(func(string, string) error { return nil })
-
-	bloader := bootloadertest.Mock("mock", c.MkDir())
-	bootloader.Force(bloader)
-	defer bootloader.Force(nil)
-	bloader.SetBootKernel("pc-kernel_1.snap")
-	bloader.SetBootBase("core_1.snap")
-
-	st := s.overlord(c).State()
-	chg := s.makeSeedChange(c, st, true)
-	err := s.overlord(c).Settle(settleTimeout)
-
-	st.Lock()
-	defer st.Unlock()
-
-	c.Assert(err, IsNil)
-	c.Assert(chg.Err(), IsNil)
-
-	checkPressedTaskStates(c, st)
 }
 
 type core18SnapsOpts struct {
