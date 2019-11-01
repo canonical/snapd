@@ -321,10 +321,14 @@ func (x *cmdDownload) Execute(args []string) error {
 	if len(args) > 0 {
 		return ErrExtraArgs
 	}
+
 	// "snap download" works only in --direct mode on non-linux
 	if runtime.GOOS != "linux" {
 		x.Direct = true
 	}
+	// ensure we do not do a polkit prompt here (we will auto-fallback
+	// to direct if needed)
+	x.client.SetInteractive(false)
 
 	var revision snap.Revision
 	if x.Revision == "" {

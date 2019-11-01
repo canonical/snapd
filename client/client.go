@@ -131,6 +131,11 @@ func (client *Client) Maintenance() error {
 	return client.maintenance
 }
 
+// SetInteractive switches if the client runs in "interactive" mode.
+func (client *Client) SetInteractive(interactive bool) {
+	client.interactive = interactive
+}
+
 // WarningsSummary returns the number of warnings that are ready to be shown to
 // the user, and the timestamp of the most recently added warning (useful for
 // silencing the warning alerts, and OKing the returned warnings).
