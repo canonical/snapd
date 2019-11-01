@@ -180,9 +180,14 @@ func setupSeed(tsto *ToolingStore, model *asserts.Model, opts *Options) error {
 	var seedDir string
 	var label string
 	if !core20 {
-		// Core 16/28,  writing for the writeable partion
-		rootDir = filepath.Join(opts.PrepareDir, "image")
-		bootRootDir = rootDir
+		if opts.Classic {
+			// Classic, PrepareDir is the root dir itself
+			rootDir = opts.PrepareDir
+		} else {
+			// Core 16/20,  writing for the writeable partion
+			rootDir = filepath.Join(opts.PrepareDir, "image")
+			bootRootDir = rootDir
+		}
 		seedDir = dirs.SnapSeedDirUnder(rootDir)
 
 		// sanity check target

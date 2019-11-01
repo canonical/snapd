@@ -2000,14 +2000,14 @@ func (s *imageSuite) TestSetupSeedClassic(c *C) {
 		"required-snaps": []interface{}{"required-snap1"},
 	})
 
-	rootdir := filepath.Join(c.MkDir(), "image")
+	rootdir := c.MkDir()
 	s.setupSnaps(c, map[string]string{
 		"classic-gadget": "my-brand",
 	})
 
 	opts := &image.Options{
 		Classic:    true,
-		PrepareDir: filepath.Dir(rootdir),
+		PrepareDir: rootdir,
 	}
 
 	err := image.SetupSeed(s.tsto, model, opts)
@@ -2074,7 +2074,7 @@ func (s *imageSuite) TestSetupSeedClassicWithLocalClassicSnap(c *C) {
 		"architecture": "amd64",
 	})
 
-	rootdir := filepath.Join(c.MkDir(), "image")
+	rootdir := c.MkDir()
 	s.setupSnaps(c, nil)
 
 	snapFile := snaptest.MakeTestSnapWithFiles(c, classicSnap, nil)
@@ -2082,7 +2082,7 @@ func (s *imageSuite) TestSetupSeedClassicWithLocalClassicSnap(c *C) {
 	opts := &image.Options{
 		Classic:    true,
 		Snaps:      []string{snapFile},
-		PrepareDir: filepath.Dir(rootdir),
+		PrepareDir: rootdir,
 	}
 
 	err := image.SetupSeed(s.tsto, model, opts)
@@ -2138,14 +2138,14 @@ func (s *imageSuite) TestSetupSeedClassicSnapdOnly(c *C) {
 		"required-snaps": []interface{}{"core18", "required-snap18"},
 	})
 
-	rootdir := filepath.Join(c.MkDir(), "image")
+	rootdir := c.MkDir()
 	s.setupSnaps(c, map[string]string{
 		"classic-gadget18": "my-brand",
 	})
 
 	opts := &image.Options{
 		Classic:    true,
-		PrepareDir: filepath.Dir(rootdir),
+		PrepareDir: rootdir,
 	}
 
 	err := image.SetupSeed(s.tsto, model, opts)
@@ -2209,11 +2209,11 @@ func (s *imageSuite) TestSetupSeedClassicNoSnaps(c *C) {
 		"classic": "true",
 	})
 
-	rootdir := filepath.Join(c.MkDir(), "image")
+	rootdir := c.MkDir()
 
 	opts := &image.Options{
 		Classic:    true,
-		PrepareDir: filepath.Dir(rootdir),
+		PrepareDir: rootdir,
 	}
 
 	err := image.SetupSeed(s.tsto, model, opts)
@@ -2255,14 +2255,14 @@ func (s *imageSuite) TestSetupSeedClassicSnapdOnlyMissingCore16(c *C) {
 		"required-snaps": []interface{}{"core18", "snap-req-core16-base"},
 	})
 
-	rootdir := filepath.Join(c.MkDir(), "image")
+	rootdir := c.MkDir()
 	s.setupSnaps(c, map[string]string{
 		"classic-gadget18": "my-brand",
 	})
 
 	opts := &image.Options{
 		Classic:    true,
-		PrepareDir: filepath.Dir(rootdir),
+		PrepareDir: rootdir,
 	}
 
 	err := image.SetupSeed(s.tsto, model, opts)
