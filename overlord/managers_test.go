@@ -1600,8 +1600,9 @@ type: os
 
 func (s *mgrsSuite) mockSuccessfulReboot(c *C, bloader *bootloadertest.MockBootloader) {
 	st := s.o.State()
-	restarting, _ := st.Restarting()
-	c.Check(restarting, Equals, true, Commentf("mockSuccessfulReboot called when there was no pending restart"))
+	restarting, restartType := st.Restarting()
+	c.Assert(restarting, Equals, true, Commentf("mockSuccessfulReboot called when there was no pending restart"))
+	c.Assert(restartType, Equals, state.RestartSystem, Commentf("mockSuccessfulReboot called but restartType is not SystemRestart but %v", restartType))
 	state.MockRestarting(st, state.RestartUnset)
 	err := bloader.SetTryingDuringReboot()
 	c.Assert(err, IsNil)
@@ -1614,8 +1615,9 @@ func (s *mgrsSuite) mockSuccessfulReboot(c *C, bloader *bootloadertest.MockBootl
 
 func (s *mgrsSuite) mockRollbackAccrossReboot(c *C, bloader *bootloadertest.MockBootloader) {
 	st := s.o.State()
-	restarting, _ := st.Restarting()
-	c.Check(restarting, Equals, true, Commentf("mockRollbackAccrossReboot called when there was no pending restart"))
+	restarting, restartType := st.Restarting()
+	c.Assert(restarting, Equals, true, Commentf("mockRollbackAccrossReboot called when there was no pending restart"))
+	c.Assert(restartType, Equals, state.RestartSystem, Commentf("mockRollbackAccrossReboot called but restartType is not SystemRestart but %v", restartType))
 	state.MockRestarting(st, state.RestartUnset)
 	err := bloader.SetRollbackAcrossReboot()
 	c.Assert(err, IsNil)
