@@ -2,6 +2,7 @@
 set -e
 
 if [ -n "$XDG_RUNTIME_DIR" ] && [ ! -d "$XDG_RUNTIME_DIR" ]; then
+    # shellcheck disable=SC2174
     mkdir -m 700 -p "$XDG_RUNTIME_DIR"
 fi
 

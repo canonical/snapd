@@ -17,6 +17,7 @@ prepare: |
     apt-get install -y pulseaudio
 
     echo "Create XDG_RUNTIME_DIR=/run/user/12345"
+    # shellcheck disable=SC2174
     mkdir -m 700 -p /run/user/12345 || true
     chown test:test /run/user/12345
 
