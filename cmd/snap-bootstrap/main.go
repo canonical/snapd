@@ -22,6 +22,8 @@ import (
 	"fmt"
 	"os"
 
+	"github.com/jessevdk/go-flags"
+
 	"github.com/snapcore/snapd/cmd/snap-bootstrap/bootstrap"
 	"github.com/snapcore/snapd/osutil"
 )
@@ -33,16 +35,25 @@ func run(args []string) error {
 	if os.Getuid() != 0 {
 		return fmt.Errorf("please run as root")
 	}
-	if len(os.Args) < 3 {
-		// XXX: slightly ugly to return usage as an error but ok for now
-		return fmt.Errorf("usage: %s <gadget root> <block device>\n", os.Args[0])
+
+	var opts struct {
+		WithEncryption bool `long:"with-encryption" description:"Encrypt the data partition"`
+
+		Args struct {
+			GadgetRoot string `positional-arg-name:"gadget-root"`
+			Device     string `positional-arg-name:"block-device"`
+		} `positional-args:"yes" required:"yes"`
 	}
 
-	gadgetRoot := os.Args[1]
-	device := os.Args[2]
-	options := &bootstrap.Options{}
+	if _, err := flags.ParseArgs(&opts, args[1:]); err != nil {
+		os.Exit(1)
+	}
 
-	return bootstrap.Run(gadgetRoot, device, options)
+	options := &bootstrap.Options{
+		EncryptDataPartition: opts.WithEncryption,
+	}
+
+	return bootstrap.Run(opts.Args.GadgetRoot, opts.Args.Device, options)
 }
 
 func main() {
