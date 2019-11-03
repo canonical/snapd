@@ -18,6 +18,10 @@
  */
 package partition
 
+import (
+	"os"
+)
+
 type LsblkFilesystemInfo = lsblkFilesystemInfo
 type LsblkBlockDevice = lsblkBlockDevice
 type SFDiskPartitionTable = sfdiskPartitionTable
@@ -27,6 +31,7 @@ var (
 	FilesystemInfo     = filesystemInfo
 	BuildPartitionList = buildPartitionList
 	Mkfs               = mkfs
+	TempFile           = tempFile
 )
 
 func MockDeployMountpoint(new string) (restore func()) {
@@ -50,5 +55,13 @@ func MockSysUnmount(f func(target string, flags int) error) (restore func()) {
 	sysUnmount = f
 	return func() {
 		sysUnmount = old
+	}
+}
+
+func MockTempFile(f func(dir, pattern string) (*os.File, error)) (restore func()) {
+	old := tempFile
+	tempFile = f
+	return func() {
+		tempFile = old
 	}
 }

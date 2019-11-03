@@ -25,8 +25,13 @@ import (
 	"github.com/snapcore/snapd/gadget"
 )
 
+const (
+	systemDataLabel = "ubuntu-data"
+)
+
 type Options struct {
-	// will contain encryption later
+	EncryptDataPartition bool
+	KeyFile              string
 }
 
 func Run(gadgetRoot, device string, options *Options) error {
@@ -35,6 +40,9 @@ func Run(gadgetRoot, device string, options *Options) error {
 	}
 	if device == "" {
 		return fmt.Errorf("cannot use empty device node")
+	}
+	if options == nil {
+		options = &Options{}
 	}
 
 	lv, err := gadget.PositionedVolumeFromGadget(gadgetRoot)
@@ -56,12 +64,43 @@ func Run(gadgetRoot, device string, options *Options) error {
 	if err != nil {
 		return fmt.Errorf("cannot create the partitions: %v", err)
 	}
-	if err := partition.MakeFilesystems(created); err != nil {
-		return err
+
+	// generate key externally so multiple encrypted partitions can use the same key
+	var key partition.EncryptionKey
+	if options.EncryptDataPartition {
+		key, err = partition.NewEncryptionKey()
+		if err != nil {
+			return fmt.Errorf("cannot create encryption key: %v", err)
+		}
 	}
 
-	if err := partition.DeployContent(created, gadgetRoot); err != nil {
-		return err
+	for _, part := range created {
+		if options.EncryptDataPartition && part.Role == "system-data" {
+			// system-data roles are always called ubuntu-data for now
+			part.VolumeStructure.Label = systemDataLabel
+			dataPart := partition.NewEncryptedDevice(&part, systemDataLabel)
+			if err := dataPart.Encrypt(key); err != nil {
+				return err
+			}
+			// update the encrypted device node
+			part.Node = dataPart.Node
+		}
+
+		if err := partition.MakeFilesystem(part); err != nil {
+			return err
+		}
+
+		if err := partition.DeployContent(part, gadgetRoot); err != nil {
+			return err
+		}
+	}
+
+	// store the encryption key as the last part of the process to reduce the
+	// possiblity of exiting with an error after we provision the TPM
+	if options.EncryptDataPartition {
+		if err := key.Store(options.KeyFile); err != nil {
+			return err
+		}
 	}
 
 	return nil

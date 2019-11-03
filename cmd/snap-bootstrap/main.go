@@ -37,7 +37,8 @@ func run(args []string) error {
 	}
 
 	var opts struct {
-		WithEncryption bool `long:"with-encryption" description:"Encrypt the data partition"`
+		WithEncryption bool   `long:"with-encryption" description:"Encrypt the data partition"`
+		KeyFile        string `long:"key-file" value-name:"name" description:"Where the key file will be stored"`
 
 		Args struct {
 			GadgetRoot string `positional-arg-name:"gadget-root"`
@@ -49,8 +50,13 @@ func run(args []string) error {
 		os.Exit(1)
 	}
 
+	if opts.WithEncryption && opts.KeyFile == "" {
+		return fmt.Errorf("if encrypting, the output key file must be specified")
+	}
+
 	options := &bootstrap.Options{
 		EncryptDataPartition: opts.WithEncryption,
+		KeyFile:              opts.KeyFile,
 	}
 
 	return bootstrap.Run(opts.Args.GadgetRoot, opts.Args.Device, options)

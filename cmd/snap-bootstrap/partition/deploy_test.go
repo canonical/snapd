@@ -70,12 +70,12 @@ func (s *deploySuite) TestDeployMountedContentErr(c *C) {
 	s.mockMountErr = fmt.Errorf("boom")
 
 	node2MountPoint := filepath.Join(s.mockMountPoint, "2")
-	err := partition.DeployContent([]partition.DeviceStructure{mockDeviceStructureSystemSeed}, s.gadgetRoot)
+	err := partition.DeployContent(mockDeviceStructureSystemSeed, s.gadgetRoot)
 	c.Assert(err, ErrorMatches, fmt.Sprintf(`cannot mount filesystem "/dev/node2" to %q: boom`, node2MountPoint))
 }
 
 func (s *deploySuite) TestDeployMountedContent(c *C) {
-	err := partition.DeployContent([]partition.DeviceStructure{mockDeviceStructureSystemSeed}, s.gadgetRoot)
+	err := partition.DeployContent(mockDeviceStructureSystemSeed, s.gadgetRoot)
 	c.Assert(err, IsNil)
 
 	node2MountPoint := filepath.Join(s.mockMountPoint, "2")
@@ -106,7 +106,7 @@ func (s *deploySuite) TestDeployRawContent(c *C) {
 		},
 	}
 
-	err = partition.DeployContent([]partition.DeviceStructure{m}, s.gadgetRoot)
+	err = partition.DeployContent(m, s.gadgetRoot)
 	c.Assert(err, IsNil)
 
 	content, err := ioutil.ReadFile(m.Node)

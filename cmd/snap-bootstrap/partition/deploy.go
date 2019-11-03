@@ -83,19 +83,17 @@ func deployNonFSContent(part DeviceStructure, gadgetRoot string) error {
 	return raw.Write(f)
 }
 
-func DeployContent(created []DeviceStructure, gadgetRoot string) error {
-	for _, part := range created {
-		switch {
-		case !part.IsPartition():
-			return fmt.Errorf("cannot deploy non-partitions yet")
-		case !part.HasFilesystem():
-			if err := deployNonFSContent(part, gadgetRoot); err != nil {
-				return err
-			}
-		case part.HasFilesystem():
-			if err := deployFilesystemContent(part, gadgetRoot); err != nil {
-				return err
-			}
+func DeployContent(part DeviceStructure, gadgetRoot string) error {
+	switch {
+	case !part.IsPartition():
+		return fmt.Errorf("cannot deploy non-partitions yet")
+	case !part.HasFilesystem():
+		if err := deployNonFSContent(part, gadgetRoot); err != nil {
+			return err
+		}
+	case part.HasFilesystem():
+		if err := deployFilesystemContent(part, gadgetRoot); err != nil {
+			return err
 		}
 	}
 
