@@ -1,6 +1,6 @@
 summary: Ensure that the audio-playback/record interface works
 
-# Classic Ubuntu is sufficient to test the feature
+# Only classic Ubuntu has the pulseaudio mediation patches
 systems: [ ubuntu-1*-*64 ]
 
 environment:
@@ -81,22 +81,20 @@ execute: |
     echo "When the audio-record plug is disconnected"
     snap disconnect test-snapd-audio-record:audio-record
 
-    ok_to_fail="no"
+    mediating_pa="yes"
     for regex in $EXFAIL ; do
         if echo "$SPREAD_SYSTEM" | grep -Eq "$regex" ; then
-            ok_to_fail="yes"
+            mediating_pa="no"
             break
         fi
     done
 
     echo "Then the snap command is not able to record audio"
-    if ! su -l -c "test-snapd-audio-record.record" test ; then
-        if [ "$ok_to_fail" = "yes" ]; then
-            echo "Could not record audio. '$SPREAD_SYSTEM' now has support. Please update this test"
-            exit 1
-        fi
-    elif [ "$ok_to_fail" = "no" ]; then
-        echo "could record audio!"
+    if [ "$mediating_pa" = "no" ] && ! su -l -c "test-snapd-audio-record.recsimple" test ; then
+        echo "Could not record audio. Does '$SPREAD_SYSTEM' have mediation patches?"
+        exit 1
+    elif [ "$mediating_pa" = "yes" ] && su -l -c "test-snapd-audio-record.recsimple" test ; then
+        echo "Could record audio even though '$SPREAD_SYSTEM' should have mediation patches"
         exit 1
     fi
 
