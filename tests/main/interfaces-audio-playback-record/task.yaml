@@ -14,7 +14,7 @@ prepare: |
     snap install --edge test-snapd-audio-record
 
     apt-get update
-    apt-get install -y pulseaudio
+    apt-get install -y pulseaudio pulseaudio-utils
 
     echo "Create XDG_RUNTIME_DIR=/run/user/12345"
     # shellcheck disable=SC2174
@@ -24,7 +24,7 @@ prepare: |
 restore: |
     HOME=/home/test XDG_RUNTIME_DIR=/run/user/12345 su -p -c "pulseaudio --kill" test || true
     snap remove test-snapd-audio-record
-    apt autoremove --purge -y pulseaudio
+    apt-get autoremove --purge -y pulseaudio pulseaudio-utils
 
 execute: |
     # we need -p so that XDG_RUNTIME_DIR is honored, but that preserves HOME,
@@ -53,6 +53,12 @@ execute: |
             exit 1
         fi
     done
+
+    echo "The unconfined user can play audio"
+    HOME=/home/test XDG_RUNTIME_DIR=/run/user/12345 su -p -c "/usr/bin/paplay $PLAY_FILE" test
+
+    echo "The unconfined user can record audio"
+    HOME=/home/test XDG_RUNTIME_DIR=/run/user/12345 su -p -c "/snap/test-snapd-audio-record/current/bin/parec-simple" test
 
     echo "The audio-playback interface is connected by default"
     snap interfaces -i audio-playback | MATCH ":audio-playback .*test-snapd-audio-record"
