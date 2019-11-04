@@ -849,7 +849,6 @@ func (m *SnapManager) undoUnlinkCurrentSnap(t *state.Task, _ *tomb.Tomb) error {
 		return err
 	}
 
-	// XXX: for undo we need the "old" model assertion
 	model, err := ModelFromTask(t)
 	if err != nil && err != state.ErrNoState {
 		return err
@@ -1280,7 +1279,7 @@ func daemonRestartReason(st *state.State, typ snap.Type) string {
 // bootloader. This can happen if e.g. a new kernel gets installed. This
 // will switch the bootloader to the new kernel but if the change is later
 // undone we need to switch back to the kernel of the old model.
-func maybeUndoRemodelBootChanges(t *state.Task, undoInfo *snap.Info) error {
+func maybeUndoRemodelBootChanges(t *state.Task) error {
 	// get the new and the old model
 	deviceCtx, err := DeviceCtx(t.State(), t, nil)
 	if err != nil {
@@ -1293,9 +1292,14 @@ func maybeUndoRemodelBootChanges(t *state.Task, undoInfo *snap.Info) error {
 	}
 	newModel := deviceCtx.Model()
 
-	// check type
-	var snapName, newSnapName string
-	switch undoInfo.GetType() {
+	// check type of the snap we are undoing, only kernel/base/core are
+	// relevant
+	snapsup, _, err := snapSetupAndState(t)
+	if err != nil {
+		return err
+	}
+	var newSnapName, snapName string
+	switch snapsup.Type {
 	case snap.TypeKernel:
 		snapName = oldModel.Kernel()
 		newSnapName = newModel.Kernel()
@@ -1312,11 +1316,11 @@ func maybeUndoRemodelBootChanges(t *state.Task, undoInfo *snap.Info) error {
 	}
 	// we can stop if the snap we are looking at is not a kernel/base
 	// of the new model
-	if undoInfo.InstanceName() != newSnapName {
+	if snapsup.InstanceName() != newSnapName {
 		return nil
 	}
-
-	// get info for old kernel/base/core and see if we need to reboot
+	// get info for *old* kernel/base/core and see if we need to reboot
+	// TODO: we may need something like infoForDeviceSnap here
 	var snapst SnapState
 	if err = Get(t.State(), snapName, &snapst); err != nil {
 		return err
@@ -1459,7 +1463,7 @@ func (m *SnapManager) undoLinkSnap(t *state.Task, _ *tomb.Tomb) error {
 		return err
 	}
 
-	if err := maybeUndoRemodelBootChanges(t, newInfo); err != nil {
+	if err := maybeUndoRemodelBootChanges(t); err != nil {
 		return err
 	}
 
