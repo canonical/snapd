@@ -113,10 +113,12 @@ snaps:
 	err = ioutil.WriteFile(filepath.Join(dirs.SnapSeedDir, "seed.yaml"), content, 0644)
 	c.Assert(err, IsNil)
 
+	opts := &devicestate.PopulateStateFromSeedOptions{Preseed: true, Mode: "run"}
+
 	// run the firstboot stuff
 	st.Lock()
 	defer st.Unlock()
-	tsAll, err := devicestate.PopulateStateFromSeedImpl(st, true, s.perfTimings)
+	tsAll, err := devicestate.PopulateStateFromSeedImpl(st, opts, s.perfTimings)
 	c.Assert(err, IsNil)
 
 	// XXX: order is more convoluted in preseed mode; implement a check for it.

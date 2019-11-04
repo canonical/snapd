@@ -54,4 +54,20 @@ void sc_ensure_shared_snap_mount(void);
 void sc_setup_user_mounts(struct sc_apparmor *apparmor, int snap_update_ns_fd,
 			  const char *snap_name);
 
+/**
+ * Ensure that SNAP_MOUNT_DIR and /var/snap are mount points.
+ *
+ * Create bind mounts and set up shared propagation for SNAP_MOUNT_DIR and
+ * /var/snap as needed. This allows for further propagation changes after the
+ * initial mount namespace is unshared.
+ */
+void sc_ensure_snap_dir_shared_mounts(void);
+
+/**
+ * Set up mount namespace for parallel installed classic snap
+ *
+ * Create bind mounts from instance specific locations to non-instance ones.
+ */
+void sc_setup_parallel_instance_classic_mounts(const char *snap_name,
+					       const char *snap_instance_name);
 #endif

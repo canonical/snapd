@@ -20,7 +20,6 @@
 package main
 
 import (
-	"path/filepath"
 	"strings"
 
 	"github.com/jessevdk/go-flags"
@@ -35,7 +34,7 @@ type cmdPrepareImage struct {
 
 	Positional struct {
 		ModelAssertionFn string
-		Rootdir          string
+		TargetDir        string
 	} `positional-args:"yes" required:"yes"`
 
 	Channel string `long:"channel"`
@@ -75,7 +74,7 @@ For preparing classic images it supports a --classic mode`),
 				desc: i18n.G("The model assertion name"),
 			}, {
 				// TRANSLATORS: This needs to begin with < and end with >
-				name: i18n.G("<root-dir>"),
+				name: i18n.G("<target-dir>"),
 				// TRANSLATORS: This should not start with a lowercase letter.
 				desc: i18n.G("The target directory"),
 			},
@@ -111,13 +110,8 @@ func (x *cmdPrepareImage) Execute(args []string) error {
 		opts.SnapChannels = snapChannels
 	}
 
-	if x.Classic {
-		opts.Classic = true
-		opts.RootDir = x.Positional.Rootdir
-	} else {
-		opts.RootDir = filepath.Join(x.Positional.Rootdir, "image")
-		opts.GadgetUnpackDir = filepath.Join(x.Positional.Rootdir, "gadget")
-	}
+	opts.PrepareDir = x.Positional.TargetDir
+	opts.Classic = x.Classic
 
 	return imagePrepare(opts)
 }

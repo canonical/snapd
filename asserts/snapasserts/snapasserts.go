@@ -114,13 +114,16 @@ func DeriveSideInfo(snapPath string, db Finder) (*snap.SideInfo, error) {
 		return nil, err
 	}
 
-	name := snapDecl.SnapName()
+	return SideInfoFromSnapAssertions(snapDecl, snapRev), nil
+}
 
+// SideInfoFromSnapAssertions returns a *snap.SideInfo reflecting the given snap assertions.
+func SideInfoFromSnapAssertions(snapDecl *asserts.SnapDeclaration, snapRev *asserts.SnapRevision) *snap.SideInfo {
 	return &snap.SideInfo{
-		RealName: name,
-		SnapID:   snapID,
+		RealName: snapDecl.SnapName(),
+		SnapID:   snapDecl.SnapID(),
 		Revision: snap.R(snapRev.SnapRevision()),
-	}, nil
+	}
 }
 
 // FetchSnapAssertions fetches the assertions matching the snap file digest using the given fetcher.
