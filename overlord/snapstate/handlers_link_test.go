@@ -28,6 +28,8 @@ import (
 
 	. "gopkg.in/check.v1"
 
+	"github.com/snapcore/snapd/bootloader"
+	"github.com/snapcore/snapd/bootloader/bootloadertest"
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/overlord/auth"
 	"github.com/snapcore/snapd/overlord/configstate/config"
@@ -36,6 +38,7 @@ import (
 	"github.com/snapcore/snapd/overlord/state"
 	"github.com/snapcore/snapd/release"
 	"github.com/snapcore/snapd/snap"
+	"github.com/snapcore/snapd/snap/snaptest"
 	"github.com/snapcore/snapd/testutil"
 )
 
@@ -999,4 +1002,112 @@ func (s *linkSnapSuite) testDoUnlinkSnapRefreshAwareness(c *C) *state.Change {
 	}
 
 	return chg
+}
+
+func (s *linkSnapSuite) setMockKernelRemodelCtx(c *C, oldKernel, newKernel string) {
+	newModel := MakeModel(map[string]interface{}{"kernel": newKernel})
+	oldModel := MakeModel(map[string]interface{}{"kernel": oldKernel})
+	mockRemodelCtx := &snapstatetest.TrivialDeviceContext{
+		DeviceModel:    newModel,
+		OldDeviceModel: oldModel,
+	}
+	restore := snapstatetest.MockDeviceContext(mockRemodelCtx)
+	s.AddCleanup(restore)
+}
+
+func (s *linkSnapSuite) TestMaybeUndoRemodelBootChangesNoUndoInfo(c *C) {
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	s.setMockKernelRemodelCtx(c, "kernel", "other-kernel")
+
+	t := s.state.NewTask("link-snap", "...")
+	err := snapstate.MaybeUndoRemodelBootChanges(t, nil)
+	c.Assert(err, ErrorMatches, `internal-error: maybeUndoRemodelBootChanges called without undoInfo`)
+}
+
+func (s *linkSnapSuite) TestMaybeUndoRemodelBootChangesUnrelatedAppDoesNothing(c *C) {
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	s.setMockKernelRemodelCtx(c, "kernel", "new-kernel")
+	undoInfo := &snap.Info{
+		SideInfo: snap.SideInfo{
+			RealName: "unrelated-app",
+		},
+	}
+
+	t := s.state.NewTask("link-snap", "...")
+	err := snapstate.MaybeUndoRemodelBootChanges(t, undoInfo)
+	c.Assert(err, IsNil)
+}
+
+func (s *linkSnapSuite) TestMaybeUndoRemodelBootChangesNeedsUndo(c *C) {
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	// undoing remodel bootenv changes is only relevant on !classic
+	restore := release.MockOnClassic(false)
+	defer restore()
+
+	// using "snaptest.MockSnap()" is more convenient here so we avoid
+	// the (default) mocking of snapReadInfo()
+	restore = snapstate.MockSnapReadInfo(snap.ReadInfo)
+	defer restore()
+
+	// we need to init the boot-id
+	err := s.state.VerifyReboot("some-boot-id")
+	c.Assert(err, IsNil)
+
+	// we pretend we do a remodel from kernel -> new-kernel
+	s.setMockKernelRemodelCtx(c, "kernel", "new-kernel")
+
+	// and we pretend that we booted into the "new-kernel" already
+	// and now that needs to be undone
+	bloader := bootloadertest.Mock("mock", c.MkDir())
+	bootloader.Force(bloader)
+	bloader.SetBootKernel("new-kernel_1.snap")
+
+	// both kernel and new-kernel are instaleld at this point
+	si := &snap.SideInfo{RealName: "kernel", Revision: snap.R(1)}
+	snapstate.Set(s.state, "kernel", &snapstate.SnapState{
+		Sequence: []*snap.SideInfo{si},
+		SnapType: "kernel",
+		Current:  snap.R(1),
+	})
+	snaptest.MockSnap(c, "name: kernel\ntype: kernel\nversion: 1.0", si)
+	si2 := &snap.SideInfo{RealName: "new-kernel", Revision: snap.R(1)}
+	snapstate.Set(s.state, "new-kernel", &snapstate.SnapState{
+		Sequence: []*snap.SideInfo{si2},
+		SnapType: "kernel",
+		Current:  snap.R(1),
+	})
+	snaptest.MockSnap(c, "name: new-kernel\ntype: kernel\nversion: 1.0", si)
+
+	// undoSnapInfo refers to the snap info that is being undone
+	undoSnapInfo := &snap.Info{
+		SideInfo: snap.SideInfo{
+			RealName: "new-kernel",
+		},
+		SnapType: snap.TypeKernel,
+	}
+	t := s.state.NewTask("link-snap", "...")
+	t.Set("snap-setup", &snapstate.SnapSetup{
+		SideInfo: &snap.SideInfo{
+			RealName: "new-kernel",
+			Revision: snap.R(1),
+			SnapID:   "new-kernel-id",
+		},
+		Type: "kernel",
+	})
+
+	err = snapstate.MaybeUndoRemodelBootChanges(t, undoSnapInfo)
+	c.Assert(err, IsNil)
+
+	c.Assert(bloader.BootVars, DeepEquals, map[string]string{
+		"snap_mode":       "try",
+		"snap_kernel":     "new-kernel_1.snap",
+		"snap_try_kernel": "kernel_1.snap",
+	})
+	c.Check(s.stateBackend.restartRequested, HasLen, 1)
 }

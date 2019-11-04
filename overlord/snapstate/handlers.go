@@ -1291,20 +1291,34 @@ func maybeUndoRemodelBootChanges(t *state.Task, undoInfo *snap.Info) error {
 		return nil
 	}
 	newModel := deviceCtx.Model()
-	// XXX: this will also look at bases, see
-	// https://github.com/snapcore/snapd/pulls
-	if undoInfo.InstanceName() != newModel.Kernel() {
-		return nil
+
+	if undoInfo == nil {
+		return fmt.Errorf("internal-error: maybeUndoRemodelBootChanges called without undoInfo")
 	}
 
+	// XXX: insead of undoInfo just use:
+	// snapsup, snapst, err := snapSetupAndState(t)
+
 	// check type
-	var snapName string
+	var newSnapName, snapName string
 	switch undoInfo.GetType() {
 	case snap.TypeKernel:
 		snapName = oldModel.Kernel()
+		newSnapName = newModel.Kernel()
 	case snap.TypeOS, snap.TypeBase:
+		// XXX: add support for "core"
 		snapName = oldModel.Base()
+		newSnapName = newModel.Base()
 	default:
+		return nil
+	}
+	// we can stop if the kernel/base has not changed
+	if snapName == newSnapName {
+		return nil
+	}
+	// we can stop if the snap we are looking at is not a kernel/base
+	// of the new model
+	if undoInfo.InstanceName() != newSnapName {
 		return nil
 	}
 	// get info for old kernel/base/core and see if we need to reboot
@@ -1313,6 +1327,7 @@ func maybeUndoRemodelBootChanges(t *state.Task, undoInfo *snap.Info) error {
 	if err = Get(t.State(), snapName, &snapst); err != nil {
 		return err
 	}
+
 	info, err := snapst.CurrentInfo()
 	if err != nil && err != ErrNoCurrent {
 		return err
