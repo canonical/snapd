@@ -1295,6 +1295,9 @@ func maybeUndoRemodelBootChanges(t *state.Task) error {
 	// check type of the snap we are undoing, only kernel/base/core are
 	// relevant
 	snapsup, _, err := snapSetupAndState(t)
+	if err != nil {
+		return err
+	}
 	var newSnapName, snapName string
 	switch snapsup.Type {
 	case snap.TypeKernel:
