@@ -1726,7 +1726,7 @@ type: kernel`
 	c.Assert(chg.Status(), Equals, state.DoneStatus, Commentf("install-snap change failed with: %v", chg.Err()))
 }
 
-func (s *mgrsSuite) TestInstallKernelSnapUndoUpdatesBootloader(c *C) {
+func (s *mgrsSuite) TestInstallKernelSnapUndoUpdatesBootloaderEnv(c *C) {
 	bloader := bootloadertest.Mock("mock", c.MkDir())
 	bootloader.Force(bloader)
 	defer bootloader.Force(nil)
@@ -4151,7 +4151,7 @@ version: 1.0`
 	c.Assert(t.Status(), Equals, state.DoingStatus)
 
 	// simulate rollback of the kernel during reboot
-	ms.mockRollbackAccrossReboot(c, bloader)
+	ms.mockRollbackAcrossReboot(c, bloader)
 
 	// continue
 	st.Unlock()
