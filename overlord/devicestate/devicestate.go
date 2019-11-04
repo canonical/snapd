@@ -477,6 +477,8 @@ func remodelTasks(ctx context.Context, st *state.State, current, new *asserts.Mo
 // - Reapply gadget connections as needed
 // - Check all relevant snaps exist in new store
 //   (need to check that even unchanged snaps are accessible)
+// - Make sure this works with Core 20 as well, in the Core 20 case
+//   we must enforce the default-channels from the model as well
 func Remodel(st *state.State, new *asserts.Model) (*state.Change, error) {
 	var seeded bool
 	err := st.Get("seeded", &seeded)
