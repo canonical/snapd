@@ -1015,31 +1015,41 @@ func (s *linkSnapSuite) setMockKernelRemodelCtx(c *C, oldKernel, newKernel strin
 	s.AddCleanup(restore)
 }
 
-func (s *linkSnapSuite) TestMaybeUndoRemodelBootChangesNoUndoInfo(c *C) {
-	s.state.Lock()
-	defer s.state.Unlock()
-
-	s.setMockKernelRemodelCtx(c, "kernel", "other-kernel")
-
-	t := s.state.NewTask("link-snap", "...")
-	err := snapstate.MaybeUndoRemodelBootChanges(t, nil)
-	c.Assert(err, ErrorMatches, `internal-error: maybeUndoRemodelBootChanges called without undoInfo`)
-}
-
 func (s *linkSnapSuite) TestMaybeUndoRemodelBootChangesUnrelatedAppDoesNothing(c *C) {
 	s.state.Lock()
 	defer s.state.Unlock()
 
 	s.setMockKernelRemodelCtx(c, "kernel", "new-kernel")
-	undoInfo := &snap.Info{
-		SideInfo: snap.SideInfo{
-			RealName: "unrelated-app",
-		},
-	}
-
 	t := s.state.NewTask("link-snap", "...")
-	err := snapstate.MaybeUndoRemodelBootChanges(t, undoInfo)
+	t.Set("snap-setup", &snapstate.SnapSetup{
+		SideInfo: &snap.SideInfo{
+			RealName: "some-app",
+			Revision: snap.R(1),
+		},
+	})
+
+	err := snapstate.MaybeUndoRemodelBootChanges(t)
 	c.Assert(err, IsNil)
+	c.Check(s.stateBackend.restartRequested, HasLen, 0)
+}
+
+func (s *linkSnapSuite) TestMaybeUndoRemodelBootChangesSameKernel(c *C) {
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	s.setMockKernelRemodelCtx(c, "kernel", "kernel")
+	t := s.state.NewTask("link-snap", "...")
+	t.Set("snap-setup", &snapstate.SnapSetup{
+		SideInfo: &snap.SideInfo{
+			RealName: "kernel",
+			Revision: snap.R(1),
+		},
+		Type: "kernel",
+	})
+
+	err := snapstate.MaybeUndoRemodelBootChanges(t)
+	c.Assert(err, IsNil)
+	c.Check(s.stateBackend.restartRequested, HasLen, 0)
 }
 
 func (s *linkSnapSuite) TestMaybeUndoRemodelBootChangesNeedsUndo(c *C) {
@@ -1084,13 +1094,6 @@ func (s *linkSnapSuite) TestMaybeUndoRemodelBootChangesNeedsUndo(c *C) {
 	})
 	snaptest.MockSnap(c, "name: new-kernel\ntype: kernel\nversion: 1.0", si)
 
-	// undoSnapInfo refers to the snap info that is being undone
-	undoSnapInfo := &snap.Info{
-		SideInfo: snap.SideInfo{
-			RealName: "new-kernel",
-		},
-		SnapType: snap.TypeKernel,
-	}
 	t := s.state.NewTask("link-snap", "...")
 	t.Set("snap-setup", &snapstate.SnapSetup{
 		SideInfo: &snap.SideInfo{
@@ -1101,13 +1104,16 @@ func (s *linkSnapSuite) TestMaybeUndoRemodelBootChangesNeedsUndo(c *C) {
 		Type: "kernel",
 	})
 
-	err = snapstate.MaybeUndoRemodelBootChanges(t, undoSnapInfo)
+	// now we simulate that the new kernel is getting undone
+	err = snapstate.MaybeUndoRemodelBootChanges(t)
 	c.Assert(err, IsNil)
 
+	// that will schedule a boot into the previous kernel
 	c.Assert(bloader.BootVars, DeepEquals, map[string]string{
 		"snap_mode":       "try",
 		"snap_kernel":     "new-kernel_1.snap",
 		"snap_try_kernel": "kernel_1.snap",
 	})
 	c.Check(s.stateBackend.restartRequested, HasLen, 1)
+	c.Check(s.stateBackend.restartRequested[0], Equals, state.RestartSystem)
 }
