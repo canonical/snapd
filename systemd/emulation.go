@@ -21,8 +21,16 @@ package systemd
 
 import (
 	"errors"
+	"fmt"
 	"io"
+	"os"
+	"os/exec"
+	"path/filepath"
+	"strings"
 	"time"
+
+	"github.com/snapcore/snapd/dirs"
+	"github.com/snapcore/snapd/osutil"
 )
 
 type emulation struct {
@@ -80,12 +88,52 @@ func (s *emulation) LogReader(services []string, n int, follow bool) (io.ReadClo
 	return nil, errNotImplemented
 }
 
-func (s *emulation) AddMountUnitFile(name, revision, what, where, fstype string) (string, error) {
-	return "", errNotImplemented
+func (s *emulation) AddMountUnitFile(snapName, revision, what, where, fstype string) (string, error) {
+	mountUnitName, options, err := writeMountUnitFile(snapName, revision, what, where, fstype)
+	if err != nil {
+		return "", err
+	}
+
+	cmd := exec.Command("mount", "-t", fstype, what, where, "-o", strings.Join(options, ","))
+	if out, err := cmd.CombinedOutput(); err != nil {
+		return "", fmt.Errorf("cannot mount %s (%s) at %s in pre-bake mode: %s; %s", what, where, fstype, err, string(out))
+	}
+
+	// cannot call systemd, so manually enable the unit by symlinking into multi-user.target.wants
+	mu := MountUnitPath(where)
+	enableUnitPath := filepath.Join(dirs.SnapServicesDir, "multi-user.target.wants", mountUnitName)
+	if err := osSymlink(mu, enableUnitPath); err != nil {
+		return "", fmt.Errorf("cannot enable mount unit %s: %v", mountUnitName, err)
+	}
+	return mountUnitName, nil
 }
 
-func (s *emulation) RemoveMountUnitFile(baseDir string) error {
-	return errNotImplemented
+func (s *emulation) RemoveMountUnitFile(mountedDir string) error {
+	unit := MountUnitPath(dirs.StripRootDir(mountedDir))
+	if !osutil.FileExists(unit) {
+		return nil
+	}
+
+	isMounted, err := osutilIsMounted(mountedDir)
+	if err != nil {
+		return err
+	}
+	if isMounted {
+		if output, err := exec.Command("umount", "-d", "-l", mountedDir).CombinedOutput(); err != nil {
+			return osutil.OutputErr(output, err)
+		}
+	}
+
+	enableUnitPathSymlink := filepath.Join(dirs.SnapServicesDir, "multi-user.target.wants", filepath.Base(unit))
+	if err := os.Remove(enableUnitPathSymlink); err != nil {
+		return err
+	}
+
+	if err := os.Remove(unit); err != nil {
+		return err
+	}
+
+	return nil
 }
 
 func (s *emulation) Mask(service string) error {

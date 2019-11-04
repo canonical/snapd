@@ -213,7 +213,7 @@ func New(rootDir string, mode InstanceMode, rep reporter) Systemd {
 // systemd is not really called, but instead its functions are emulated
 // by other means.
 func NewEmulationMode(rootDir string, rep reporter) Systemd {
-	return &systemd{rootDir: rootDir, mode: SystemMode, emulation: true, reporter: rep}
+	return &emulation{rootDir: rootDir, reporter: rep}
 }
 
 // InstanceMode determines which instance of systemd to control.
@@ -235,10 +235,9 @@ const (
 )
 
 type systemd struct {
-	rootDir   string
-	reporter  reporter
-	mode      InstanceMode
-	emulation bool
+	rootDir  string
+	reporter reporter
+	mode     InstanceMode
 }
 
 func (s *systemd) systemctl(args ...string) ([]byte, error) {
@@ -652,16 +651,12 @@ func MountUnitPath(baseDir string) string {
 	return filepath.Join(dirs.SnapServicesDir, escapedPath+".mount")
 }
 
-// AddMountUnitFile adds/enables/starts a mount unit.
-func (s *systemd) AddMountUnitFile(snapName, revision, what, where, fstype string) (string, error) {
-	daemonReloadLock.Lock()
-	defer daemonReloadLock.Unlock()
-
+func writeMountUnitFile(snapName, revision, what, where, fstype string) (string, []string, error) {
 	options := []string{"nodev"}
 	if fstype == "squashfs" {
 		newFsType, newOptions, err := squashfs.FsType()
 		if err != nil {
-			return "", err
+			return "", nil, err
 		}
 		options = append(options, newOptions...)
 		fstype = newFsType
@@ -694,22 +689,20 @@ WantedBy=multi-user.target
 	mu := MountUnitPath(where)
 	mountUnitName, err := filepath.Base(mu), osutil.AtomicWriteFile(mu, []byte(c), 0644, 0)
 	if err != nil {
-		return "", err
+		return "", nil, err
 	}
 
-	// In emulation mode mount the target but do not trigger systemd
-	if s.emulation {
-		cmd := exec.Command("mount", "-t", fstype, what, where, "-o", strings.Join(options, ","))
-		if out, err := cmd.CombinedOutput(); err != nil {
-			return "", fmt.Errorf("cannot mount %s (%s) at %s in pre-bake mode: %s; %s", what, where, fstype, err, string(out))
-		}
+	return mountUnitName, options, err
+}
 
-		// cannot call systemd, so manually enable the unit by symlinking into multi-user.target.wants
-		enableUnitPath := filepath.Join(dirs.SnapServicesDir, "multi-user.target.wants", mountUnitName)
-		if err := osSymlink(mu, enableUnitPath); err != nil {
-			return "", fmt.Errorf("cannot enable mount unit %s: %v", mountUnitName, err)
-		}
-		return mountUnitName, nil
+// AddMountUnitFile adds/enables/starts a mount unit.
+func (s *systemd) AddMountUnitFile(snapName, revision, what, where, fstype string) (string, error) {
+	daemonReloadLock.Lock()
+	defer daemonReloadLock.Unlock()
+
+	mountUnitName, _, err := writeMountUnitFile(snapName, revision, what, where, fstype)
+	if err != nil {
+		return "", err
 	}
 
 	// we need to do a daemon-reload here to ensure that systemd really
@@ -750,30 +743,17 @@ func (s *systemd) RemoveMountUnitFile(mountedDir string) error {
 			return osutil.OutputErr(output, err)
 		}
 
-		if !s.emulation {
-			if err := s.Stop(filepath.Base(unit), time.Duration(1*time.Second)); err != nil {
-				return err
-			}
+		if err := s.Stop(filepath.Base(unit), time.Duration(1*time.Second)); err != nil {
+			return err
 		}
 	}
 
-	if s.emulation {
-		enableUnitPathSymlink := filepath.Join(dirs.SnapServicesDir, "multi-user.target.wants", filepath.Base(unit))
-		if err := os.Remove(enableUnitPathSymlink); err != nil {
-			return err
-		}
-	} else {
-		if err := s.Disable(filepath.Base(unit)); err != nil {
-			return err
-		}
+	if err := s.Disable(filepath.Base(unit)); err != nil {
+		return err
 	}
 
 	if err := os.Remove(unit); err != nil {
 		return err
-	}
-
-	if s.emulation {
-		return nil
 	}
 
 	// daemon-reload to ensure that systemd actually really
