@@ -3827,7 +3827,7 @@ func (ms *kernelSuite) TestRemodelSwitchToDifferentKernel(c *C) {
 	c.Assert(err, IsNil)
 
 	st.Unlock()
-	// regular settleTimeout is not enough on arm buildds :/
+	// regular settleTimeout is not enough on arm builds :/
 	err = ms.o.Settle(4 * settleTimeout)
 	st.Lock()
 	c.Assert(err, IsNil)
@@ -3859,7 +3859,7 @@ func (ms *kernelSuite) TestRemodelSwitchToDifferentKernel(c *C) {
 
 	// continue
 	st.Unlock()
-	// regular settleTimeout is not enough on arm buildds :/
+	// regular settleTimeout is not enough on arm builds :/
 	err = ms.o.Settle(4 * settleTimeout)
 	st.Lock()
 	c.Assert(err, IsNil)
@@ -3920,7 +3920,7 @@ func (ms *kernelSuite) TestRemodelSwitchToDifferentKernelUndo(c *C) {
 	c.Assert(err, IsNil)
 
 	st.Unlock()
-	// regular settleTimeout is not enough on arm buildds :/
+	// regular settleTimeout is not enough on arm builds :/
 	err = ms.o.Settle(4 * settleTimeout)
 	st.Lock()
 	c.Assert(err, IsNil)
@@ -3936,7 +3936,7 @@ func (ms *kernelSuite) TestRemodelSwitchToDifferentKernelUndo(c *C) {
 
 	// continue
 	st.Unlock()
-	// regular settleTimeout is not enough on arm buildds :/
+	// regular settleTimeout is not enough on arm builds :/
 	err = ms.o.Settle(4 * settleTimeout)
 	st.Lock()
 	c.Assert(err, IsNil)
@@ -3978,7 +3978,7 @@ func (ms *kernelSuite) TestRemodelSwitchToDifferentKernelUndoOnRollback(c *C) {
 	c.Assert(err, IsNil)
 
 	st.Unlock()
-	// regular settleTimeout is not enough on arm buildds :/
+	// regular settleTimeout is not enough on arm builds :/
 	err = ms.o.Settle(4 * settleTimeout)
 	st.Lock()
 	c.Assert(err, IsNil)
@@ -3994,7 +3994,7 @@ func (ms *kernelSuite) TestRemodelSwitchToDifferentKernelUndoOnRollback(c *C) {
 
 	// continue
 	st.Unlock()
-	// regular settleTimeout is not enough on arm buildds :/
+	// regular settleTimeout is not enough on arm builds :/
 	err = ms.o.Settle(4 * settleTimeout)
 	st.Lock()
 	c.Assert(err, IsNil)
