@@ -140,3 +140,11 @@ func (s *emulation) Mask(service string) error {
 func (s *emulation) Unmask(service string) error {
 	return errNotImplemented
 }
+
+func MockOsSymlink(f func(oldPath, newPath string) error) func() {
+	old := osSymlink
+	osSymlink = f
+	return func() {
+		osSymlink = old
+	}
+}

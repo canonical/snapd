@@ -704,7 +704,6 @@ func (s *systemd) AddMountUnitFile(snapName, revision, what, where, fstype strin
 	if err != nil {
 		return "", err
 	}
-
 	// we need to do a daemon-reload here to ensure that systemd really
 	// knows about this new mount unit file
 	if err := s.daemonReloadNoLock(); err != nil {
@@ -747,15 +746,12 @@ func (s *systemd) RemoveMountUnitFile(mountedDir string) error {
 			return err
 		}
 	}
-
 	if err := s.Disable(filepath.Base(unit)); err != nil {
 		return err
 	}
-
 	if err := os.Remove(unit); err != nil {
 		return err
 	}
-
 	// daemon-reload to ensure that systemd actually really
 	// forgets about this mount unit
 	if err := s.daemonReloadNoLock(); err != nil {
@@ -763,12 +759,4 @@ func (s *systemd) RemoveMountUnitFile(mountedDir string) error {
 	}
 
 	return nil
-}
-
-func MockOsSymlink(f func(oldPath, newPath string) error) func() {
-	old := osSymlink
-	osSymlink = f
-	return func() {
-		osSymlink = old
-	}
 }
