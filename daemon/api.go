@@ -68,6 +68,7 @@ import (
 	"github.com/snapcore/snapd/progress"
 	"github.com/snapcore/snapd/release"
 	"github.com/snapcore/snapd/snap"
+	"github.com/snapcore/snapd/snap/channel"
 	"github.com/snapcore/snapd/store"
 	"github.com/snapcore/snapd/strutil"
 	"github.com/snapcore/snapd/systemd"
@@ -753,6 +754,26 @@ type snapRevisionOptions struct {
 	LeaveCohort bool   `json:"leave-cohort"`
 }
 
+func (ropt *snapRevisionOptions) validate() error {
+	if ropt.CohortKey != "" {
+		if ropt.LeaveCohort {
+			return fmt.Errorf("cannot specify both cohort-key and leave-cohort")
+		}
+		if !ropt.Revision.Unset() {
+			return fmt.Errorf("cannot specify both cohort-key and revision")
+		}
+	}
+
+	if ropt.Channel != "" {
+		ch, err := channel.Parse(ropt.Channel, "-")
+		if err != nil {
+			return err
+		}
+		ropt.Channel = ch.Name
+	}
+	return nil
+}
+
 type snapInstruction struct {
 	progress.NullMeter
 
@@ -799,6 +820,30 @@ func (inst *snapInstruction) installFlags() (snapstate.Flags, error) {
 		flags.Unaliased = true
 	}
 	return flags, nil
+}
+
+func (inst *snapInstruction) validate() error {
+	if inst.CohortKey != "" {
+		if inst.Action != "install" && inst.Action != "refresh" && inst.Action != "switch" {
+			return fmt.Errorf("cohort-key can only be specified for install, refresh, or switch")
+		}
+	}
+	if inst.LeaveCohort {
+		if inst.Action != "refresh" && inst.Action != "switch" {
+			return fmt.Errorf("leave-cohort can only be specified for refresh or switch")
+		}
+	}
+	if inst.Action == "install" {
+		for _, snapName := range inst.Snaps {
+			// FIXME: alternatively we could simply mutate *inst
+			//        and s/ubuntu-core/core/ ?
+			if snapName == "ubuntu-core" {
+				return fmt.Errorf(`cannot install "ubuntu-core", please use "core" instead`)
+			}
+		}
+	}
+
+	return inst.snapRevisionOptions.validate()
 }
 
 type snapInstructionResult struct {
@@ -894,37 +939,6 @@ func snapUpdateMany(inst *snapInstruction, st *state.State) (*snapInstructionRes
 		Affected: updated,
 		Tasksets: tasksets,
 	}, nil
-}
-
-func verifySnapInstructions(inst *snapInstruction) error {
-	if inst.CohortKey != "" {
-		if inst.LeaveCohort {
-			return fmt.Errorf("cannot specify both cohort-key and leave-cohort")
-		}
-		if !inst.Revision.Unset() {
-			return fmt.Errorf("cannot specify both cohort-key and revision")
-		}
-		if inst.Action != "install" && inst.Action != "refresh" && inst.Action != "switch" {
-			return fmt.Errorf("cohort-key can only be specified for install, refresh, or switch")
-		}
-	}
-	if inst.LeaveCohort {
-		if inst.Action != "refresh" && inst.Action != "switch" {
-			return fmt.Errorf("leave-cohort can only be specified for refresh or switch")
-		}
-	}
-	switch inst.Action {
-	case "install":
-		for _, snapName := range inst.Snaps {
-			// FIXME: alternatively we could simply mutate *inst
-			//        and s/ubuntu-core/core/ ?
-			if snapName == "ubuntu-core" {
-				return fmt.Errorf(`cannot install "ubuntu-core", please use "core" instead`)
-			}
-		}
-	}
-
-	return nil
 }
 
 func snapInstallMany(inst *snapInstruction, st *state.State) (*snapInstructionResult, error) {
@@ -1200,7 +1214,7 @@ func postSnap(c *Command, r *http.Request, user *auth.UserState) Response {
 	vars := muxVars(r)
 	inst.Snaps = []string{vars["name"]}
 
-	if err := verifySnapInstructions(&inst); err != nil {
+	if err := inst.validate(); err != nil {
 		return BadRequest("%s", err)
 	}
 
@@ -1305,7 +1319,7 @@ func snapsOp(c *Command, r *http.Request, user *auth.UserState) Response {
 	if inst.Channel != "" || !inst.Revision.Unset() || inst.DevMode || inst.JailMode || inst.CohortKey != "" || inst.LeaveCohort {
 		return BadRequest("unsupported option provided for multi-snap operation")
 	}
-	if err := verifySnapInstructions(&inst); err != nil {
+	if err := inst.validate(); err != nil {
 		return BadRequest("%v", err)
 	}
 
