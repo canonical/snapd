@@ -591,7 +591,7 @@ var (
 		"core-support":            {"core"},
 		"dbus":                    {"app"},
 		"docker-support":          {"core"},
-		"fwupd":                   {"app"},
+		"fwupd":                   {"app", "core"},
 		"gpio":                    {"core", "gadget"},
 		"gpio-control":            {"core"},
 		"greengrass-support":      {"core"},

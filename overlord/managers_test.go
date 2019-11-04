@@ -1553,7 +1553,7 @@ func findKind(chg *state.Change, kind string) *state.Task {
 	return nil
 }
 
-func (s *mgrsSuite) TestInstallCoreSnapUpdatesBootloaderAndSplitsAcrossRestart(c *C) {
+func (s *mgrsSuite) TestInstallCoreSnapUpdatesBootloaderEnvAndSplitsAcrossRestart(c *C) {
 	bloader := bootloadertest.Mock("mock", c.MkDir())
 	bootloader.Force(bloader)
 	defer bootloader.Force(nil)
@@ -1624,8 +1624,9 @@ type: os
 
 func (s *baseMgrsSuite) mockSuccessfulReboot(c *C, bloader *bootloadertest.MockBootloader) {
 	st := s.o.State()
-	restarting, _ := st.Restarting()
-	c.Check(restarting, Equals, true, Commentf("mockSuccessfulReboot called when there was no pending restart"))
+	restarting, restartType := st.Restarting()
+	c.Assert(restarting, Equals, true, Commentf("mockSuccessfulReboot called when there was no pending restart"))
+	c.Assert(restartType, Equals, state.RestartSystem, Commentf("mockSuccessfulReboot called but restartType is not SystemRestart but %v", restartType))
 	state.MockRestarting(st, state.RestartUnset)
 	err := bloader.SetTryingDuringReboot()
 	c.Assert(err, IsNil)
@@ -1636,10 +1637,11 @@ func (s *baseMgrsSuite) mockSuccessfulReboot(c *C, bloader *bootloadertest.MockB
 	c.Assert(err, IsNil)
 }
 
-func (s *baseMgrsSuite) mockRollbackAccrossReboot(c *C, bloader *bootloadertest.MockBootloader) {
+func (s *baseMgrsSuite) mockRollbackAcrossReboot(c *C, bloader *bootloadertest.MockBootloader) {
 	st := s.o.State()
-	restarting, _ := st.Restarting()
-	c.Check(restarting, Equals, true, Commentf("mockRollbackAccrossReboot called when there was no pending restart"))
+	restarting, restartType := st.Restarting()
+	c.Assert(restarting, Equals, true, Commentf("mockRollbackAcrossReboot called when there was no pending restart"))
+	c.Assert(restartType, Equals, state.RestartSystem, Commentf("mockRollbackAcrossReboot called but restartType is not SystemRestart but %v", restartType))
 	state.MockRestarting(st, state.RestartUnset)
 	err := bloader.SetRollbackAcrossReboot()
 	c.Assert(err, IsNil)
@@ -1649,7 +1651,7 @@ func (s *baseMgrsSuite) mockRollbackAccrossReboot(c *C, bloader *bootloadertest.
 	st.Lock()
 }
 
-func (s *mgrsSuite) TestInstallKernelSnapUpdatesBootloader(c *C) {
+func (s *mgrsSuite) TestInstallKernelSnapUpdatesBootloaderEnv(c *C) {
 	bloader := bootloadertest.Mock("mock", c.MkDir())
 	bootloader.Force(bloader)
 	defer bootloader.Force(nil)
@@ -3988,7 +3990,7 @@ func (ms *kernelSuite) TestRemodelSwitchToDifferentKernelUndoOnRollback(c *C) {
 	c.Assert(t.Status(), Equals, state.DoingStatus)
 
 	// simulate rollback of the kernel during reboot
-	ms.mockRollbackAccrossReboot(c, ms.bloader)
+	ms.mockRollbackAcrossReboot(c, ms.bloader)
 
 	// continue
 	st.Unlock()
@@ -4464,7 +4466,7 @@ func (s *mgrsSuite) TestCheckRefreshFailureWithConcurrentRemoveOfConnectedSnap(c
 	c.Check(chg2.Status(), Equals, state.DoneStatus)
 }
 
-func (s *mgrsSuite) TestInstallKernelSnapRollbackUpdatesBootloader(c *C) {
+func (s *mgrsSuite) TestInstallKernelSnapRollbackUpdatesBootloaderEnv(c *C) {
 	bloader := bootloadertest.Mock("mock", c.MkDir())
 	bootloader.Force(bloader)
 	defer bootloader.Force(nil)
@@ -4547,7 +4549,7 @@ type: kernel`
 	restarting, _ := st.Restarting()
 	c.Check(restarting, Equals, true)
 	c.Check(chg.Status(), Equals, state.DoingStatus)
-	s.mockRollbackAccrossReboot(c, bloader)
+	s.mockRollbackAcrossReboot(c, bloader)
 
 	// the kernel revision got rolled back
 	var snapst snapstate.SnapState

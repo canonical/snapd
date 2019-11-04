@@ -34,7 +34,7 @@ var authors []string
 
 func init() {
 	cmd := addCommand("blame",
-		"",
+		"(hidden)",
 		"",
 		func() flags.Commander {
 			return &cmdBlame{}

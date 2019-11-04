@@ -40,7 +40,7 @@ const lxdSupportConnectedPlugAppArmor = `
 # giving access to all resources of the system so LXD may manage what to give
 # to its containers. This gives device ownership to connected snaps.
 @{PROC}/**/attr/current r,
-/usr/sbin/aa-exec ux,
+/{,usr/}{,s}bin/aa-exec ux,
 
 # Allow discovering the os-release of the host
 /var/lib/snapd/hostfs/{etc,usr/lib}/os-release r,
