@@ -27,6 +27,7 @@ import (
 	"path/filepath"
 	"strings"
 	"syscall"
+	"time"
 
 	"github.com/snapcore/snapd/asserts"
 	"github.com/snapcore/snapd/asserts/sysdb"
@@ -55,8 +56,7 @@ type Options struct {
 	Snaps        []string
 	SnapChannels map[string]string
 
-	RootDir         string
-	GadgetUnpackDir string
+	PrepareDir string
 
 	// Architecture to use if none is specified by the model,
 	// useful only for classic mode. If set must match the model otherwise.
@@ -85,9 +85,6 @@ func Prepare(opts *Options) error {
 	} else {
 		if !model.Classic() {
 			return fmt.Errorf("cannot prepare the image for a core model with --classic mode specified")
-		}
-		if opts.GadgetUnpackDir != "" {
-			return fmt.Errorf("internal error: no gadget unpacking is performed for classic models but directory specified")
 		}
 		if model.Architecture() == "" && classicHasSnaps(model, opts) && opts.Architecture == "" {
 			return fmt.Errorf("cannot have snaps for a classic image without an architecture in the model or from --arch")
@@ -168,17 +165,49 @@ func MockTrusted(mockTrusted []asserts.Assertion) (restore func()) {
 	}
 }
 
+func makeLabel(now time.Time) string {
+	return now.UTC().Format("20060102")
+}
+
 func setupSeed(tsto *ToolingStore, model *asserts.Model, opts *Options) error {
 	if model.Classic() != opts.Classic {
 		return fmt.Errorf("internal error: classic model but classic mode not set")
 	}
 
-	// sanity check target
-	if osutil.FileExists(dirs.SnapStateFileUnder(opts.RootDir)) {
-		return fmt.Errorf("cannot prepare seed over existing system or an already booted image, detected state file %s", dirs.SnapStateFileUnder(opts.RootDir))
-	}
-	if snaps, _ := filepath.Glob(filepath.Join(dirs.SnapBlobDirUnder(opts.RootDir), "*.snap")); len(snaps) > 0 {
-		return fmt.Errorf("need an empty snap dir in rootdir, got: %v", snaps)
+	core20 := model.Grade() != asserts.ModelGradeUnset
+	var rootDir string
+	var bootRootDir string
+	var seedDir string
+	var label string
+	if !core20 {
+		if opts.Classic {
+			// Classic, PrepareDir is the root dir itself
+			rootDir = opts.PrepareDir
+		} else {
+			// Core 16/18,  writing for the writeable partion
+			rootDir = filepath.Join(opts.PrepareDir, "image")
+			bootRootDir = rootDir
+		}
+		seedDir = dirs.SnapSeedDirUnder(rootDir)
+
+		// sanity check target
+		if osutil.FileExists(dirs.SnapStateFileUnder(rootDir)) {
+			return fmt.Errorf("cannot prepare seed over existing system or an already booted image, detected state file %s", dirs.SnapStateFileUnder(rootDir))
+		}
+		if snaps, _ := filepath.Glob(filepath.Join(dirs.SnapBlobDirUnder(rootDir), "*.snap")); len(snaps) > 0 {
+			return fmt.Errorf("expected empty snap dir in rootdir, got: %v", snaps)
+		}
+
+	} else {
+		// Core 20, writing for the system-seed partition
+		seedDir = filepath.Join(opts.PrepareDir, "system-seed")
+		label = makeLabel(time.Now())
+		bootRootDir = seedDir
+
+		// sanity check target
+		if systems, _ := filepath.Glob(filepath.Join(seedDir, "systems", "*")); len(systems) > 0 {
+			return fmt.Errorf("expected empty systems dir in system-seed, got: %v", systems)
+		}
 	}
 
 	// TODO: developer database in home or use snapd (but need
@@ -191,9 +220,9 @@ func setupSeed(tsto *ToolingStore, model *asserts.Model, opts *Options) error {
 		return err
 	}
 
-	seedDir := dirs.SnapSeedDirUnder(opts.RootDir)
 	wOpts := &seedwriter.Options{
 		SeedDir:        seedDir,
+		Label:          label,
 		DefaultChannel: opts.Channel,
 
 		TestSkipCopyUnverifiedModel: osutil.GetenvBool("UBUNTU_IMAGE_SKIP_COPY_UNVERIFIED_MODEL"),
@@ -221,10 +250,12 @@ func setupSeed(tsto *ToolingStore, model *asserts.Model, opts *Options) error {
 		return err
 	}
 
+	var gadgetUnpackDir string
 	// create directory for later unpacking the gadget in
 	if !opts.Classic {
-		if err := os.MkdirAll(opts.GadgetUnpackDir, 0755); err != nil {
-			return fmt.Errorf("cannot create gadget unpack dir %q: %s", opts.GadgetUnpackDir, err)
+		gadgetUnpackDir = filepath.Join(opts.PrepareDir, "gadget")
+		if err := os.MkdirAll(gadgetUnpackDir, 0755); err != nil {
+			return fmt.Errorf("cannot create gadget unpack dir %q: %s", gadgetUnpackDir, err)
 		}
 	}
 
@@ -338,6 +369,7 @@ func setupSeed(tsto *ToolingStore, model *asserts.Model, opts *Options) error {
 	}
 
 	if opts.Classic {
+		// TODO: consider Core 20 extended models vs classic
 		seedFn := filepath.Join(seedDir, "seed.yaml")
 		// warn about ownership if not root:root
 		fi, err := os.Stat(seedFn)
@@ -359,7 +391,7 @@ func setupSeed(tsto *ToolingStore, model *asserts.Model, opts *Options) error {
 	}
 
 	bootWith := &boot.BootableSet{
-		UnpackedGadgetDir: opts.GadgetUnpackDir,
+		UnpackedGadgetDir: gadgetUnpackDir,
 	}
 
 	// find the gadget file
@@ -380,17 +412,22 @@ func setupSeed(tsto *ToolingStore, model *asserts.Model, opts *Options) error {
 	}
 
 	// unpacking the gadget for core models
-	if err := unpackGadget(gadgetFname, opts.GadgetUnpackDir); err != nil {
+	if err := unpackGadget(gadgetFname, gadgetUnpackDir); err != nil {
 		return err
 	}
 
-	if err := boot.MakeBootable(model, opts.RootDir, bootWith); err != nil {
+	// TODO|XXX: change MakeBootable/pass right info Core 20 case
+	// (setting up recovery, not run bootenv)
+	if err := boot.MakeBootable(model, bootRootDir, bootWith); err != nil {
 		return err
 	}
 
-	// and the cloud-init things
-	if err := installCloudConfig(opts.RootDir, opts.GadgetUnpackDir); err != nil {
-		return err
+	// cloud-init config (done at install for Core 20)
+	if !core20 {
+		// and the cloud-init things
+		if err := installCloudConfig(rootDir, gadgetUnpackDir); err != nil {
+			return err
+		}
 	}
 
 	return nil
