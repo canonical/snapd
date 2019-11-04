@@ -33,10 +33,7 @@ import (
 	"github.com/snapcore/snapd/osutil"
 )
 
-type emulation struct {
-	rootDir  string
-	reporter reporter
-}
+type emulation struct{}
 
 var errNotImplemented = errors.New("not implemented in emulation mode")
 

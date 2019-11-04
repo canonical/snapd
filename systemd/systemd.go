@@ -212,8 +212,8 @@ func New(rootDir string, mode InstanceMode, rep reporter) Systemd {
 // NewEmulationMode returns a Systemd that runs in emulation mode where
 // systemd is not really called, but instead its functions are emulated
 // by other means.
-func NewEmulationMode(rootDir string, rep reporter) Systemd {
-	return &emulation{rootDir: rootDir, reporter: rep}
+func NewEmulationMode() Systemd {
+	return &emulation{}
 }
 
 // InstanceMode determines which instance of systemd to control.
