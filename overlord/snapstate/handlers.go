@@ -1291,6 +1291,8 @@ func maybeUndoRemodelBootChanges(t *state.Task, undoInfo *snap.Info) error {
 		return nil
 	}
 	newModel := deviceCtx.Model()
+	// XXX: this will also look at bases, see
+	// https://github.com/snapcore/snapd/pulls
 	if undoInfo.InstanceName() != newModel.Kernel() {
 		return nil
 	}
@@ -1306,6 +1308,7 @@ func maybeUndoRemodelBootChanges(t *state.Task, undoInfo *snap.Info) error {
 		return nil
 	}
 	// get info for old kernel/base/core and see if we need to reboot
+	// TODO: we may need something like infoForDeviceSnap here
 	var snapst SnapState
 	if err = Get(t.State(), snapName, &snapst); err != nil {
 		return err
