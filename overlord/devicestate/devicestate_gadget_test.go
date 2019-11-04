@@ -132,10 +132,11 @@ func (s *deviceMgrGadgetSuite) TestUpdateGadgetOnCoreSimple(c *C) {
 
 	chg, t := s.setupGadgetUpdate(c)
 
-	for i := 0; i < 6; i++ {
-		s.se.Ensure()
-		s.se.Wait()
-	}
+	s.state.Lock()
+	s.state.Set("seeded", true)
+	s.state.Unlock()
+
+	s.settle(c)
 
 	s.state.Lock()
 	defer s.state.Unlock()
@@ -190,10 +191,11 @@ func (s *deviceMgrGadgetSuite) TestUpdateGadgetOnCoreRollbackDirCreateFailed(c *
 	err := os.MkdirAll(dirs.SnapRollbackDir, 0000)
 	c.Assert(err, IsNil)
 
-	for i := 0; i < 6; i++ {
-		s.se.Ensure()
-		s.se.Wait()
-	}
+	s.state.Lock()
+	s.state.Set("seeded", true)
+	s.state.Unlock()
+
+	s.settle(c)
 
 	s.state.Lock()
 	defer s.state.Unlock()
@@ -211,10 +213,11 @@ func (s *deviceMgrGadgetSuite) TestUpdateGadgetOnCoreUpdateFailed(c *C) {
 	defer restore()
 	chg, t := s.setupGadgetUpdate(c)
 
-	for i := 0; i < 6; i++ {
-		s.se.Ensure()
-		s.se.Wait()
-	}
+	s.state.Lock()
+	s.state.Set("seeded", true)
+	s.state.Unlock()
+
+	s.settle(c)
 
 	s.state.Lock()
 	defer s.state.Unlock()
@@ -245,6 +248,8 @@ func (s *deviceMgrGadgetSuite) TestUpdateGadgetOnCoreNotDuringFirstboot(c *C) {
 	})
 
 	s.state.Lock()
+	s.state.Set("seeded", true)
+
 	s.setupModelWithGadget(c, "foo-gadget")
 
 	t := s.state.NewTask("update-gadget-assets", "update gadget")
@@ -257,10 +262,7 @@ func (s *deviceMgrGadgetSuite) TestUpdateGadgetOnCoreNotDuringFirstboot(c *C) {
 
 	s.state.Unlock()
 
-	for i := 0; i < 6; i++ {
-		s.se.Ensure()
-		s.se.Wait()
-	}
+	s.settle(c)
 
 	s.state.Lock()
 	defer s.state.Unlock()
@@ -296,6 +298,7 @@ func (s *deviceMgrGadgetSuite) TestUpdateGadgetOnCoreBadGadgetYaml(c *C) {
 	})
 
 	s.state.Lock()
+	s.state.Set("seeded", true)
 
 	s.setupModelWithGadget(c, "foo-gadget")
 
@@ -316,10 +319,7 @@ func (s *deviceMgrGadgetSuite) TestUpdateGadgetOnCoreBadGadgetYaml(c *C) {
 
 	s.state.Unlock()
 
-	for i := 0; i < 6; i++ {
-		s.se.Ensure()
-		s.se.Wait()
-	}
+	s.settle(c)
 
 	s.state.Lock()
 	defer s.state.Unlock()
@@ -349,6 +349,8 @@ func (s *deviceMgrGadgetSuite) TestUpdateGadgetOnCoreParanoidChecks(c *C) {
 
 	s.state.Lock()
 
+	s.state.Set("seeded", true)
+
 	s.setupModelWithGadget(c, "foo-gadget")
 
 	snapstate.Set(s.state, "foo-gadget", &snapstate.SnapState{
@@ -368,10 +370,7 @@ func (s *deviceMgrGadgetSuite) TestUpdateGadgetOnCoreParanoidChecks(c *C) {
 
 	s.state.Unlock()
 
-	for i := 0; i < 6; i++ {
-		s.se.Ensure()
-		s.se.Wait()
-	}
+	s.settle(c)
 
 	s.state.Lock()
 	defer s.state.Unlock()
@@ -392,25 +391,15 @@ func (s *deviceMgrGadgetSuite) TestUpdateGadgetOnClassicErrorsOut(c *C) {
 
 	s.state.Lock()
 
+	s.state.Set("seeded", true)
+
 	t := s.state.NewTask("update-gadget-assets", "update gadget")
 	chg := s.state.NewChange("dummy", "...")
 	chg.AddTask(t)
 
 	s.state.Unlock()
 
-	// we cannot use "s.o.Settle()" here because this change has an
-	// error which means that the settle will never converge
-	for i := 0; i < 50; i++ {
-		s.se.Ensure()
-		s.se.Wait()
-
-		s.state.Lock()
-		ready := chg.IsReady()
-		s.state.Unlock()
-		if ready {
-			break
-		}
-	}
+	s.settle(c)
 
 	s.state.Lock()
 	defer s.state.Unlock()
@@ -486,6 +475,8 @@ volumes:
 	defer restore()
 
 	s.state.Lock()
+	s.state.Set("seeded", true)
+
 	s.setupModelWithGadget(c, "foo-gadget")
 
 	snapstate.Set(s.state, "foo-gadget", &snapstate.SnapState{
@@ -505,10 +496,7 @@ volumes:
 
 	s.state.Unlock()
 
-	for i := 0; i < 6; i++ {
-		s.se.Ensure()
-		s.se.Wait()
-	}
+	s.settle(c)
 
 	s.state.Lock()
 	defer s.state.Unlock()
