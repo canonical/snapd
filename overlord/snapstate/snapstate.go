@@ -64,9 +64,9 @@ const (
 
 const (
 	DownloadAndChecksDoneEdge = state.TaskSetEdge("download-and-checks-done")
-	PrerequisitesEdge         = state.TaskSetEdge("prerequisites-edge")
-	SetupAliasesEdge          = state.TaskSetEdge("setup-aliases-edge")
-	InstallHookEdge           = state.TaskSetEdge("install-hook-edge")
+	PrerequisitesEdge         = state.TaskSetEdge("prerequisites")
+	SetupAliasesEdge          = state.TaskSetEdge("setup-aliases")
+	InstallHookEdge           = state.TaskSetEdge("install-hook")
 )
 
 var ErrNothingToDo = errors.New("nothing to do")
@@ -344,13 +344,6 @@ func doInstall(st *state.State, snapst *SnapState, snapsup *SnapSetup, flags int
 	}
 
 	if preseedMode {
-		if installHook == nil {
-			panic("install hook not set")
-		}
-		if prereq == nil {
-			panic("prereq task not set")
-		}
-
 		if flags&skipConfigure != 0 {
 			installSet.MarkEdge(prereq, PrerequisitesEdge)
 			installSet.MarkEdge(installHook, InstallHookEdge)
