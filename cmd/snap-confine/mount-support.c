@@ -743,3 +743,50 @@ void sc_setup_user_mounts(struct sc_apparmor *apparmor, int snap_update_ns_fd,
 	sc_do_mount("none", "/", NULL, MS_REC | MS_SLAVE, NULL);
 	sc_call_snap_update_ns_as_user(snap_update_ns_fd, snap_name, apparmor);
 }
+
+void sc_ensure_snap_dir_shared_mounts(void)
+{
+	const char *dirs[] = { SNAP_MOUNT_DIR, "/var/snap", NULL };
+	for (int i = 0; dirs[i] != NULL; i++) {
+		const char *dir = dirs[i];
+		if (!is_mounted_with_shared_option(dir)) {
+			/* Since this directory isn't yet shared (but it should be),
+			 * recursively bind mount it, then recursively share it so that
+			 * changes to the host are seen in the snap and vice-versa. This
+			 * allows us to fine-tune propagation events elsewhere for this new
+			 * mountpoint.
+			 *
+			 * Not using MS_SLAVE because it's too late for SNAP_MOUNT_DIR,
+			 * since snaps are already mounted, and it's not needed for
+			 * /var/snap.
+			 */
+			sc_do_mount(dir, dir, "none", MS_BIND | MS_REC, 0);
+			sc_do_mount("none", dir, NULL, MS_REC | MS_SHARED,
+				    NULL);
+		}
+	}
+}
+
+void sc_setup_parallel_instance_classic_mounts(const char *snap_name,
+					       const char *snap_instance_name)
+{
+	char src[PATH_MAX] = { 0 };
+	char dst[PATH_MAX] = { 0 };
+
+	const char *dirs[] = { SNAP_MOUNT_DIR, "/var/snap", NULL };
+	for (int i = 0; dirs[i] != NULL; i++) {
+		const char *dir = dirs[i];
+		sc_do_mount("none", dir, NULL, MS_REC | MS_SLAVE, NULL);
+	}
+
+	/* Mount SNAP_MOUNT_DIR/<snap>_<key> on SNAP_MOUNT_DIR/<snap> */
+	sc_must_snprintf(src, sizeof src, "%s/%s", SNAP_MOUNT_DIR,
+			 snap_instance_name);
+	sc_must_snprintf(dst, sizeof dst, "%s/%s", SNAP_MOUNT_DIR, snap_name);
+	sc_do_mount(src, dst, "none", MS_BIND | MS_REC, 0);
+
+	/* Mount /var/snap/<snap>_<key> on /var/snap/<snap> */
+	sc_must_snprintf(src, sizeof src, "/var/snap/%s", snap_instance_name);
+	sc_must_snprintf(dst, sizeof dst, "/var/snap/%s", snap_name);
+	sc_do_mount(src, dst, "none", MS_BIND | MS_REC, 0);
+}

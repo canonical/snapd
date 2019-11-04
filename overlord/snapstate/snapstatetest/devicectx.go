@@ -27,13 +27,18 @@ import (
 )
 
 type TrivialDeviceContext struct {
-	DeviceModel *asserts.Model
-	Remodeling  bool
-	CtxStore    snapstate.StoreService
+	DeviceModel    *asserts.Model
+	OldDeviceModel *asserts.Model
+	Remodeling     bool
+	CtxStore       snapstate.StoreService
 }
 
 func (dc *TrivialDeviceContext) Model() *asserts.Model {
 	return dc.DeviceModel
+}
+
+func (dc *TrivialDeviceContext) OldModel() *asserts.Model {
+	return dc.OldDeviceModel
 }
 
 func (dc *TrivialDeviceContext) Store() snapstate.StoreService {
