@@ -1,0 +1,16 @@
+summary: Check that the the docker snap works basically
+
+# only run on ubuntus for now, the docker snap has issues on non-ubuntu ATM
+systems:
+  - ubuntu-*
+
+debug: |
+  journalctl -u snap.docker.dockerd
+
+execute: |
+  if ! snap install docker; then
+    echo "failed to install the docker snap!"
+    exit 1
+  fi
+
+  retry-tool -n 30 --wait 1 docker run hello-world | MATCH "installation appears to be working correctly"
