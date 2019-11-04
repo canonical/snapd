@@ -53,8 +53,8 @@ class XBuildDeb(snapcraft.BasePlugin):
             # disable running the tests during the build when run as root
             # because quite a few of them will break
             env["DEB_BUILD_OPTIONS"] = "nocheck"
-        # run the real build
-        self.run(["dpkg-buildpackage"], env=env)
+        # run the real build (but just build the binary package, and don't bother compressing it too much)
+        self.run(["dpkg-buildpackage", "-b", "-Zgzip", "-zfast"], env=env)
         # and "install" into the right place
         snapd_deb = glob.glob(os.path.join(self.partdir, "snapd_*.deb"))[0]
         self.run(["dpkg-deb", "-x", os.path.abspath(snapd_deb), self.installdir])

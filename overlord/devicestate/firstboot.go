@@ -61,7 +61,18 @@ func trivialSeeding(st *state.State, markSeeded *state.Task) []*state.TaskSet {
 	return []*state.TaskSet{configTs, state.NewTaskSet(markSeeded)}
 }
 
-func populateStateFromSeedImpl(st *state.State, tm timings.Measurer) ([]*state.TaskSet, error) {
+type populateStateFromSeedOptions struct {
+	Label string
+	Mode  string
+}
+
+func populateStateFromSeedImpl(st *state.State, opts *populateStateFromSeedOptions, tm timings.Measurer) ([]*state.TaskSet, error) {
+	mode := "run"
+	sysLabel := ""
+	if opts != nil {
+		mode = opts.Mode
+		sysLabel = opts.Label
+	}
 	// check that the state is empty
 	var seeded bool
 	err := st.Get("seeded", &seeded)
@@ -74,7 +85,7 @@ func populateStateFromSeedImpl(st *state.State, tm timings.Measurer) ([]*state.T
 
 	markSeeded := st.NewTask("mark-seeded", i18n.G("Mark system seeded"))
 
-	deviceSeed, err := seed.Open(dirs.SnapSeedDir, "") // XXX label should be passed in?
+	deviceSeed, err := seed.Open(dirs.SnapSeedDir, sysLabel)
 	if err != nil {
 		return nil, err
 	}
@@ -101,7 +112,7 @@ func populateStateFromSeedImpl(st *state.State, tm timings.Measurer) ([]*state.T
 	}
 
 	essentialSeedSnaps := deviceSeed.EssentialSnaps()
-	seedSnaps, err := deviceSeed.ModeSnaps("run") // XXX mode should be passed in
+	seedSnaps, err := deviceSeed.ModeSnaps(mode)
 	if err != nil {
 		return nil, err
 	}
