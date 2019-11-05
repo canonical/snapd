@@ -635,9 +635,6 @@ func (s *snapmgrTestSuite) TestInstallTasks(c *C) {
 }
 
 func (s *snapmgrTestSuite) TestInstallTaskEdgesForPreseeding(c *C) {
-	restore := release.MockPreseedMode(true)
-	defer restore()
-
 	s.state.Lock()
 	defer s.state.Unlock()
 
