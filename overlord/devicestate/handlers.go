@@ -28,8 +28,6 @@ import (
 	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/overlord/snapstate"
 	"github.com/snapcore/snapd/overlord/state"
-	"github.com/snapcore/snapd/progress"
-	"github.com/snapcore/snapd/wrappers"
 )
 
 func (m *DeviceManager) doMarkPreseeded(t *state.Task, _ *tomb.Tomb) error {
@@ -63,19 +61,6 @@ func (m *DeviceManager) doMarkPreseeded(t *state.Task, _ *tomb.Tomb) error {
 	}
 
 	// normal snapd run after snapd restart (not in pre-bake mode anymore)
-
-	// enable all services generated as part of pre-baking, but not enabled
-	// XXX: this should go away once the problem of install & services is fixed.
-	for _, snapSt := range snaps {
-		inf, err := snapSt.CurrentInfo()
-		if err != nil {
-			return err
-		}
-		if err := wrappers.EnableSnapServices(inf, progress.Null); err != nil {
-			return err
-		}
-	}
-
 	return nil
 }
 
