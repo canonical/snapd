@@ -174,7 +174,7 @@ func checkExtendedSnaps(extendedSnaps interface{}, base string, grade ModelGrade
 }
 
 var (
-	validSnapTypes     = []string{"app", "base", "gadget", "kernel", "core"}
+	validSnapTypes     = []string{"app", "base", "gadget", "kernel", "core", "snapd"}
 	validSnapMode      = regexp.MustCompile("^[a-z][-a-z]+$")
 	validSnapPresences = []string{"required", "optional"}
 )
@@ -214,7 +214,7 @@ func checkModelSnap(snap map[string]interface{}, grade ModelGrade) (*ModelSnap, 
 		typ = "app"
 	}
 	if !strutil.ListContains(validSnapTypes, typ) {
-		return nil, fmt.Errorf("type of snap %q must be one of app|base|gadget|kernel|core", name)
+		return nil, fmt.Errorf("type of snap %q must be one of app|base|gadget|kernel|core|snapd", name)
 	}
 
 	modes, err := checkStringListInMap(snap, "modes", fmt.Sprintf("%q %s", "modes", what), validSnapMode)
