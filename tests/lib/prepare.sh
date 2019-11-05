@@ -40,6 +40,16 @@ EOF
     systemctl restart systemd-journald.service
 }
 
+disable_journald_start_limiting() {
+    # Disable journald start limiting
+    mkdir -p /etc/systemd/system/systemd-journald.service.d
+    cat <<-EOF > /etc/systemd/system/systemd-journald.service.d/no-start-limit.conf
+    [Unit]
+    StartLimitBurst=0
+EOF
+    systemctl daemon-reload
+}
+
 ensure_jq() {
     if command -v jq; then
         return
@@ -614,6 +624,7 @@ prepare_ubuntu_core() {
     fi
 
     disable_journald_rate_limiting
+    disable_journald_start_limiting
 
     # verify after the first reboot that we are now in core18 world
     if [ "$SPREAD_REBOOT" = 1 ]; then
