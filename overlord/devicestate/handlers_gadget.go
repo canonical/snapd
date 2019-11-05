@@ -99,7 +99,7 @@ func (m *DeviceManager) doUpdateGadgetAssets(t *state.Task, _ *tomb.Tomb) error 
 	isRemodel := remodelCtx != nil && remodelCtx.ForRemodeling()
 
 	groundDeviceCtx, err := DeviceCtx(st, nil, nil)
-	if err != nil || err == state.ErrNoState {
+	if err != nil {
 		return fmt.Errorf("cannot identify the current model")
 	}
 
