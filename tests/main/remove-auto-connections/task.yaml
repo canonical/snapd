@@ -12,7 +12,7 @@ prepare: |
 execute: |
   echo "Checking that 'home' connection is not reported after removing the test snap"
 
-  snap install --dangerous simplesnap_1.0_all.snap
+  snap install --dangerous simplesnap_1_all.snap
   snap connections simplesnap | MATCH "home *simplesnap:home *:home *- *"
 
   inspect_connection() {
@@ -32,9 +32,9 @@ execute: |
 
   echo "Checking that 'home' connection is not reported after refresh to a revision that doesn't have home plug"
 
-  snap install --dangerous simplesnap_1.0_all.snap
+  snap install --dangerous simplesnap_1_all.snap
   snap connections simplesnap | MATCH "home *simplesnap:home *:home *- *"
-  snap install --dangerous simplesnap_2.0_all.snap
+  snap install --dangerous simplesnap_2_all.snap
   if snap connections simplesnap | MATCH "home"; then
     echo "Expected simplesnap:home to be gone"
     exit 1
