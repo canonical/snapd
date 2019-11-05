@@ -258,7 +258,7 @@ func (ts *HTestSuite) TestParallelInstallUserForClassicConfinement(c *C) {
 	c.Assert(ioutil.WriteFile(f.ControlFile(), nil, 0644), IsNil)
 	env = userEnv(&info, "/root")
 	c.Assert(env, DeepEquals, map[string]string{
-		// NOTE: Both HOME and XDG_RUMTIME_DIR are not defined here.
+		// NOTE: Both HOME and XDG_RUNTIME_DIR are not defined here.
 		"SNAP_USER_COMMON": "/root/snap/foo_bar/common",
 		"SNAP_USER_DATA":   "/root/snap/foo_bar/17",
 	})
