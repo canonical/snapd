@@ -23,7 +23,7 @@ prepare: |
     cp "$TESTSLIB"/assertions/testrootorg-store.account-key /var/lib/snapd/seed/assertions
     # kick first boot again
     systemctl start snapd.service snapd.socket
-    while ! snap changes | grep -q "Done.*Initialize system state"; do sleep 1; done
+    retry-tool -n 60 --wait 5 sh -c 'snap changes | grep -q "Done.*Initialize system state"'
 
 restore: |
     if [ "$TRUST_TEST_KEYS" = "false" ]; then
@@ -40,7 +40,7 @@ restore: |
     rm -f /var/lib/snapd/seed/assertions/developer1.account-key
     rm -f /var/lib/snapd/seed/assertions/developer1-pc-18.model
     rm -f /var/lib/snapd/seed/assertions/testrootorg-store.account-key
-    cp model.bak /var/lib/snapd/seed/assertions/model
+    mv model.bak /var/lib/snapd/seed/assertions/model
     rm -f ./*.bak
     # kick first boot again
     systemctl start snapd.service snapd.socket
@@ -48,7 +48,7 @@ restore: |
     snap wait system seed.loaded
     # cleanup the canary file
     rm -f /boot/efi/canary.txt
-    while ! snap changes | grep -q "Done.*Initialize system state"; do sleep 1; done
+    retry-tool -n 60 --wait 5 sh -c 'snap changes | grep -q "Done.*Initialize system state"'
     # extra paranoia because failure to cleanup earlier took us a long time
     # to find
     if [ -e /var/snap/$NEW_GADGET/current ]; then
@@ -69,7 +69,7 @@ execute: |
     wait_change_done() {
         chg_summary="$1"
         for _ in $(seq 10); do
-            if snap changes | grep -qE "[0-9]+\\ +Done\\ +.* $chg_summary"; then
+            if snap changes | MATCH "[0-9]+\\ +Done\\ +.* $chg_summary"; then
                 break
             fi
             # some debug output
@@ -77,7 +77,7 @@ execute: |
             # wait a bit
             sleep 5
         done
-        snap changes | MATCH "$chg_summary"
+        snap changes | MATCH "[0-9]+\\ +Done\\ +.* $chg_summary"
     }
     # initial boot with the current model
     if [ "$SPREAD_REBOOT" = 0 ]; then
