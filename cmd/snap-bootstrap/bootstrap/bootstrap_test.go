@@ -152,8 +152,9 @@ func (s *bootstrapSuite) TestSchemaCompatibility(c *C) {
 		{"gpt", "dos", error_msg},
 		{"gpt", "gpt", ""},
 		{"gpt", "xxx", error_msg},
+		// XXX: "mbr,gpt" is currently unsupported
 		{"mbr,gpt", "dos", error_msg},
-		{"mbr,gpt", "gpt", ""},
+		{"mbr,gpt", "gpt", error_msg},
 		{"mbr,gpt", "xxx", error_msg},
 	} {
 		c.Logf("%d: %q %q\n", i, tc.gs, tc.ds)

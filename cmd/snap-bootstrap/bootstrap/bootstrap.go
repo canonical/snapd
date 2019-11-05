@@ -102,7 +102,8 @@ func ensureLayoutCompatibility(gadgetLayout *gadget.LaidOutVolume, diskLayout *p
 
 func isCompatibleSchema(gadgetSchema, diskSchema string) bool {
 	switch gadgetSchema {
-	case "", "gpt", "mbr,gpt":
+	// XXX: "mbr,gpt" is currently unsupported
+	case "", "gpt":
 		return diskSchema == "gpt"
 	case "mbr":
 		return diskSchema == "dos"
