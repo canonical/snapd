@@ -29,6 +29,7 @@ import (
 	"github.com/snapcore/snapd/bootloader/bootloadertest"
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/overlord/devicestate"
+	"github.com/snapcore/snapd/overlord/snapstate"
 	"github.com/snapcore/snapd/overlord/state"
 	"github.com/snapcore/snapd/release"
 	"github.com/snapcore/snapd/seed/seedtest"
@@ -92,6 +93,53 @@ func checkPressedTaskStates(c *C, st *state.State) {
 }
 
 func checkPreseedOrder(c *C, tsAll []*state.TaskSet, snaps ...string) {
+	matched := 0
+	markSeeded := 0
+	markPreseeded := 0
+	markPreseededWaitingForAliases := 0
+
+	for _, ts := range tsAll {
+		for _, t := range ts.Tasks() {
+			switch t.Kind() {
+			case "mark-seeded":
+				// nothing waits for mark-seeded
+				c.Check(t.HaltTasks(), HasLen, 0)
+				markSeeded++
+			case "mark-preseeded":
+				for _, wt := range t.WaitTasks() {
+					if wt.Kind() == "setup-aliases" {
+						markPreseededWaitingForAliases++
+					}
+				}
+				markPreseeded++
+			}
+		}
+	}
+
+	c.Check(markSeeded, Equals, 1)
+	c.Check(markPreseeded, Equals, 1)
+	c.Check(markPreseededWaitingForAliases, Equals, len(snaps))
+
+	for i, ts := range tsAll {
+		task0 := ts.Tasks()[0]
+		waitTasks := task0.WaitTasks()
+		if task0.Kind() != "prerequisites" {
+			continue
+		}
+		snapsup, err := snapstate.TaskSnapSetup(task0)
+		c.Assert(err, IsNil, Commentf("%#v", task0))
+		c.Check(snapsup.InstanceName(), Equals, snaps[matched])
+		matched++
+		if i == 0 {
+			c.Check(waitTasks, HasLen, 0)
+		} else {
+			c.Assert(waitTasks, HasLen, 1)
+			// prerequisites task waits for setup-aliases of previous snap
+			c.Check(waitTasks[0].Kind(), Equals, "setup-aliases")
+		}
+	}
+
+	c.Check(matched, Equals, len(snaps))
 }
 
 func (s *firstbootPreseed16Suite) SetUpTest(c *C) {
