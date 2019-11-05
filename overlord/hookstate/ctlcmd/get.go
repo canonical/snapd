@@ -55,13 +55,12 @@ The get command prints configuration options for the current snap.
     $ snapctl get username
     frank
 
-If multiple option names are provided, a document is returned:
+If multiple option names are provided, the corresponding values are returned:
 
     $ snapctl get username password
-    {
-        "username": "frank",
-        "password": "..."
-    }
+    Key       Value
+    username  frank
+    password  ...
 
 Nested values may be retrieved via a dotted path:
 
