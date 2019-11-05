@@ -16,6 +16,7 @@ execute: |
   snap connections simplesnap | MATCH "home *simplesnap:home *:home *- *"
 
   inspect_connection() {
+    # shellcheck disable=SC2002
     cat /var/lib/snapd/state.json | jq -r '.data["conns"] | has("simplesnap:home core:home")'
   }
 
