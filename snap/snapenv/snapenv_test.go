@@ -118,7 +118,7 @@ func (ts *HTestSuite) TestUserForClassicConfinement(c *C) {
 	// per-user environment contains an override for XDG_RUNTIME_DIR.
 	env := userEnv(mockClassicSnapInfo, "/root")
 	c.Assert(env, DeepEquals, map[string]string{
-		// NOTE: Both HOME and XDG_RUMTIME_DIR are not defined here.
+		// NOTE: Both HOME and XDG_RUNTIME_DIR are not defined here.
 		"SNAP_USER_COMMON": "/root/snap/foo/common",
 		"SNAP_USER_DATA":   "/root/snap/foo/17",
 		"XDG_RUNTIME_DIR":  fmt.Sprintf(dirs.GlobalRootDir+"/run/user/%d/snap.foo", sys.Geteuid()),
