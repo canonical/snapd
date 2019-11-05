@@ -6,8 +6,8 @@ details: |
 
 prepare: |
   snap install jq
-  snap pack test-snap-v1
-  snap pack test-snap-v2
+  snap pack simplesnap.v1
+  snap pack simplesnap.v2
 
 execute: |
   echo "Checking that 'home' connection is not reported after removing the test snap"
@@ -41,3 +41,7 @@ execute: |
   fi
 
   inspect_connection | MATCH "false"
+
+restore: |
+  snap remove simplesnap
+  rm -f simplesnap_*_all.snap
