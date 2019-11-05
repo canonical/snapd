@@ -117,7 +117,7 @@ func (s *partitionTestSuite) TestDeviceInfo(c *C) {
 exit 0`)
 	defer cmdLsblk.Restore()
 
-	dl, err := partition.NewDeviceLayout("/dev/node")
+	dl, err := partition.DeviceLayoutFromDisk("/dev/node")
 	c.Assert(err, IsNil)
 	c.Assert(cmdSfdisk.Calls(), DeepEquals, [][]string{
 		{"sfdisk", "--json", "-d", "/dev/node"},
@@ -179,7 +179,7 @@ func (s *partitionTestSuite) TestDeviceInfoNotSectors(c *C) {
 }'`)
 	defer cmdSfdisk.Restore()
 
-	_, err := partition.NewDeviceLayout("/dev/node")
+	_, err := partition.DeviceLayoutFromDisk("/dev/node")
 	c.Assert(err, ErrorMatches, "cannot position partitions: unknown unit .*")
 }
 
@@ -202,7 +202,7 @@ func (s *partitionTestSuite) TestDeviceInfoFilesystemInfoError(c *C) {
 	cmdLsblk := testutil.MockCommand(c, "lsblk", "echo lsblk error; exit 1")
 	defer cmdLsblk.Restore()
 
-	_, err := partition.NewDeviceLayout("/dev/node")
+	_, err := partition.DeviceLayoutFromDisk("/dev/node")
 	c.Assert(err, ErrorMatches, "cannot obtain filesystem information: lsblk error")
 }
 
@@ -210,7 +210,7 @@ func (s *partitionTestSuite) TestDeviceInfoJsonError(c *C) {
 	cmd := testutil.MockCommand(c, "sfdisk", `echo 'This is not a json'`)
 	defer cmd.Restore()
 
-	dl, err := partition.NewDeviceLayout("/dev/node")
+	dl, err := partition.DeviceLayoutFromDisk("/dev/node")
 	c.Assert(err, ErrorMatches, "cannot parse sfdisk output: invalid .*")
 	c.Assert(dl, IsNil)
 }
@@ -219,7 +219,7 @@ func (s *partitionTestSuite) TestDeviceInfoError(c *C) {
 	cmd := testutil.MockCommand(c, "sfdisk", "echo 'sfdisk: not found'; exit 127")
 	defer cmd.Restore()
 
-	dl, err := partition.NewDeviceLayout("/dev/node")
+	dl, err := partition.DeviceLayoutFromDisk("/dev/node")
 	c.Assert(err, ErrorMatches, "sfdisk: not found")
 	c.Assert(dl, IsNil)
 }
@@ -284,9 +284,9 @@ func (s *partitionTestSuite) TestCreatePartitions(c *C) {
 	pv, err := gadget.PositionedVolumeFromGadget(gadgetRoot)
 	c.Assert(err, IsNil)
 
-	dl, err := partition.NewDeviceLayout("/dev/node")
+	dl, err := partition.DeviceLayoutFromDisk("/dev/node")
 	c.Assert(err, IsNil)
-	created, err := dl.Create(pv)
+	created, err := dl.CreateMissing(pv)
 	c.Assert(err, IsNil)
 	c.Assert(created, DeepEquals, []partition.DeviceStructure{
 		mockDeviceStructureSystemSeed,

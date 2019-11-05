@@ -75,7 +75,7 @@ type DeviceStructure struct {
 
 // NewDeviceLayout obtains the partitioning and filesystem information from the
 // block device.
-func NewDeviceLayout(device string) (*DeviceLayout, error) {
+func DeviceLayoutFromDisk(device string) (*DeviceLayout, error) {
 	output, err := exec.Command("sfdisk", "--json", "-d", device).CombinedOutput()
 	if err != nil {
 		return nil, osutil.OutputErr(output, err)
@@ -95,8 +95,9 @@ func NewDeviceLayout(device string) (*DeviceLayout, error) {
 	return dl, nil
 }
 
-// Create creates the partitions listed in the positioned volume pv.
-func (dl *DeviceLayout) Create(pv *gadget.LaidOutVolume) ([]DeviceStructure, error) {
+// CreateMissing creates the partitions listed in the positioned volume pv
+// that are missing from the existing device layout.
+func (dl *DeviceLayout) CreateMissing(pv *gadget.LaidOutVolume) ([]DeviceStructure, error) {
 	buf, created := buildPartitionList(dl.partitionTable, pv)
 
 	// Write the partition table, note that sfdisk will re-read the

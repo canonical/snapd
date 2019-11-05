@@ -42,7 +42,7 @@ func Run(gadgetRoot, device string, options *Options) error {
 		return fmt.Errorf("cannot layout the volume: %v", err)
 	}
 
-	diskLayout, err := partition.NewDeviceLayout(device)
+	diskLayout, err := partition.DeviceLayoutFromDisk(device)
 	if err != nil {
 		return fmt.Errorf("cannot read %v partitions: %v", device, err)
 	}
@@ -52,7 +52,7 @@ func Run(gadgetRoot, device string, options *Options) error {
 		return fmt.Errorf("gadget and %v partition table not compatible: %v", device, err)
 	}
 
-	created, err := diskLayout.Create(lv)
+	created, err := diskLayout.CreateMissing(lv)
 	if err != nil {
 		return fmt.Errorf("cannot create the partitions: %v", err)
 	}
