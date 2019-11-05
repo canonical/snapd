@@ -62,6 +62,7 @@ type DeviceLayout struct {
 	Structure      []DeviceStructure
 	ID             string
 	Device         string
+	Schema         string
 	Size           gadget.Size
 	SectorSize     gadget.Size
 	partitionTable *sfdiskPartitionTable
@@ -160,6 +161,7 @@ func deviceLayoutFromDump(dump *sfdiskDeviceDump) (*DeviceLayout, error) {
 		Structure:      ds,
 		ID:             ptable.ID,
 		Device:         ptable.Device,
+		Schema:         ptable.Label,
 		Size:           gadget.Size(ptable.LastLBA),
 		SectorSize:     sectorSize,
 		partitionTable: &ptable,

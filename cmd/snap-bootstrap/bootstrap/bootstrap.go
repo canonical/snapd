@@ -82,6 +82,14 @@ func ensureLayoutCompatibility(gadgetLayout *gadget.LaidOutVolume, diskLayout *p
 		return false
 	}
 
+	// Check if top level properties match
+	if !isCompatibleSchema(gadgetLayout.Volume.Schema, diskLayout.Schema) {
+		return fmt.Errorf("disk partitioning schema %q doesn't match gadget schema %q", diskLayout.Schema, gadgetLayout.Volume.Schema)
+	}
+	if gadgetLayout.Volume.ID != "" && gadgetLayout.Volume.ID != diskLayout.ID {
+		return fmt.Errorf("disk ID %q doesn't match gadget volume ID %q", diskLayout.ID, gadgetLayout.Volume.ID)
+	}
+
 	// Check if all existing device partitions are also in gadget
 	for _, ds := range diskLayout.Structure {
 		if !contains(gadgetLayout.LaidOutStructure, ds) {
@@ -90,4 +98,15 @@ func ensureLayoutCompatibility(gadgetLayout *gadget.LaidOutVolume, diskLayout *p
 	}
 
 	return nil
+}
+
+func isCompatibleSchema(gadgetSchema, diskSchema string) bool {
+	switch gadgetSchema {
+	case "", "gpt", "mbr,gpt":
+		return diskSchema == "gpt"
+	case "mbr":
+		return diskSchema == "dos"
+	default:
+		return false
+	}
 }

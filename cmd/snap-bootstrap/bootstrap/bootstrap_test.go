@@ -97,6 +97,7 @@ var mockDeviceLayout = partition.DeviceLayout{
 	},
 	ID:         "anything",
 	Device:     "/dev/node",
+	Schema:     "gpt",
 	Size:       0x500000,
 	SectorSize: 512,
 }
@@ -129,6 +130,72 @@ func (s *bootstrapSuite) TestLayoutCompatibility(c *C) {
 	// extra structure (should fail)
 	err = bootstrap.EnsureLayoutCompatibility(gadgetLayout, &deviceLayoutWithExtras)
 	c.Assert(err, ErrorMatches, `cannot find disk partition "extra".* in gadget`)
+}
+
+func (s *bootstrapSuite) TestSchemaCompatibility(c *C) {
+	gadgetLayout := layoutFromYaml(c, mockGadgetYaml, "pc")
+	deviceLayout := mockDeviceLayout
+
+	error_msg := "disk partitioning.* doesn't match gadget.*"
+
+	for i, tc := range []struct {
+		gs string
+		ds string
+		e  string
+	}{
+		{"", "dos", error_msg},
+		{"", "gpt", ""},
+		{"", "xxx", error_msg},
+		{"mbr", "dos", ""},
+		{"mbr", "gpt", error_msg},
+		{"mbr", "xxx", error_msg},
+		{"gpt", "dos", error_msg},
+		{"gpt", "gpt", ""},
+		{"gpt", "xxx", error_msg},
+		{"mbr,gpt", "dos", error_msg},
+		{"mbr,gpt", "gpt", ""},
+		{"mbr,gpt", "xxx", error_msg},
+	} {
+		c.Logf("%d: %q %q\n", i, tc.gs, tc.ds)
+		gadgetLayout.Volume.Schema = tc.gs
+		deviceLayout.Schema = tc.ds
+		err := bootstrap.EnsureLayoutCompatibility(gadgetLayout, &deviceLayout)
+		if tc.e == "" {
+			c.Assert(err, IsNil)
+		} else {
+			c.Assert(err, ErrorMatches, tc.e)
+		}
+	}
+	c.Logf("-----")
+}
+
+func (s *bootstrapSuite) TestIDCompatibility(c *C) {
+	gadgetLayout := layoutFromYaml(c, mockGadgetYaml, "pc")
+	deviceLayout := mockDeviceLayout
+
+	error_msg := "disk ID.* doesn't match gadget volume ID.*"
+
+	for i, tc := range []struct {
+		gid string
+		did string
+		e   string
+	}{
+		{"", "", ""},
+		{"", "123", ""},
+		{"123", "345", error_msg},
+		{"123", "123", ""},
+	} {
+		c.Logf("%d: %q %q\n", i, tc.gid, tc.did)
+		gadgetLayout.Volume.ID = tc.gid
+		deviceLayout.ID = tc.did
+		err := bootstrap.EnsureLayoutCompatibility(gadgetLayout, &deviceLayout)
+		if tc.e == "" {
+			c.Assert(err, IsNil)
+		} else {
+			c.Assert(err, ErrorMatches, tc.e)
+		}
+	}
+	c.Logf("-----")
 }
 
 func layoutFromYaml(c *C, gadgetYaml, volume string) *gadget.LaidOutVolume {
