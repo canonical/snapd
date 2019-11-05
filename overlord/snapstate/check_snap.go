@@ -486,7 +486,7 @@ func checkGadgetOrKernel(st *state.State, snapInfo, curInfo *snap.Info, _ snap.C
 				return nil
 			}
 		}
-		return fmt.Errorf("internal error: unknown device snap %q", snapInfo.InstanceName())
+		return fmt.Errorf("internal error: no state for %s snap %q", kind, snapInfo.InstanceName())
 	}
 	if err != nil {
 		return fmt.Errorf("cannot find original %s snap: %v", kind, err)

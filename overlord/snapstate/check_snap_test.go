@@ -665,6 +665,50 @@ version: 2
 	c.Check(err, ErrorMatches, "cannot replace kernel snap with a different one")
 }
 
+func (s *checkSnapSuite) TestCheckSnapNoStateInfoInternalError(c *C) {
+	reset := release.MockOnClassic(false)
+	defer reset()
+
+	st := state.New(nil)
+	st.Lock()
+	defer st.Unlock()
+
+	si := &snap.SideInfo{RealName: "other-kernel", Revision: snap.R(2), SnapID: "kernel-id"}
+	snaptest.MockSnap(c, `
+name: other-kernel
+type: kernel
+version: 1
+`, si)
+	// we have a state information for snap of type kernel, but it's a
+	// different snap
+	snapstate.Set(st, "other-kernel", &snapstate.SnapState{
+		SnapType: "kernel",
+		Active:   true,
+		Sequence: []*snap.SideInfo{si},
+		Current:  si.Revision,
+	})
+
+	const yaml = `name: kernel
+type: kernel
+version: 2
+`
+
+	info, err := snap.InfoFromSnapYaml([]byte(yaml))
+	info.SnapID = "kernel-id"
+	c.Assert(err, IsNil)
+
+	var openSnapFile = func(path string, si *snap.SideInfo) (*snap.Info, snap.Container, error) {
+		return info, emptyContainer(c), nil
+	}
+	restore := snapstate.MockOpenSnapFile(openSnapFile)
+	defer restore()
+
+	st.Unlock()
+	err = snapstate.CheckSnap(st, "snap-path", "kernel", nil, nil, snapstate.Flags{}, s.deviceCtx)
+	st.Lock()
+	c.Check(err, ErrorMatches, "internal error: no state for kernel snap \"kernel\"")
+}
+
 func (s *checkSnapSuite) TestCheckSnapBasesErrorsIfMissing(c *C) {
 	st := state.New(nil)
 	st.Lock()
