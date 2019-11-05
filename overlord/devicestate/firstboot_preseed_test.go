@@ -20,12 +20,8 @@
 package devicestate_test
 
 import (
-	"fmt"
-	"io/ioutil"
 	"os"
 	"path/filepath"
-	"strconv"
-	"strings"
 
 	. "gopkg.in/check.v1"
 
@@ -36,18 +32,13 @@ import (
 	"github.com/snapcore/snapd/overlord/state"
 	"github.com/snapcore/snapd/release"
 	"github.com/snapcore/snapd/seed/seedtest"
-	"github.com/snapcore/snapd/snap"
-	"github.com/snapcore/snapd/snap/snaptest"
 	"github.com/snapcore/snapd/systemd"
 	"github.com/snapcore/snapd/testutil"
 )
 
 type firstbootPreseed16Suite struct {
 	firstBootBaseTest
-
-	// TestingSeed16 helps populating seeds (it provides
-	// MakeAssertedSnap, WriteAssertions etc.) for tests.
-	*seedtest.TestingSeed16
+	firstBoot16BaseTest
 }
 
 var _ = Suite(&firstbootPreseed16Suite{})
@@ -67,117 +58,40 @@ func checkPreseedTasks(c *C, tsAll []*state.TaskSet) {
 	c.Check(markSeededTask.WaitTasks(), DeepEquals, []*state.Task{gadgetConnectTask, preseedTask})
 }
 
-func (s *firstbootPreseed16Suite) makeSeedChange(c *C, st *state.State) *state.Change {
-	coreFname, kernelFname, gadgetFname := s.makeCoreSnaps(c, "")
-
-	s.WriteAssertions("developer.account", s.devAcct)
-
-	// put a firstboot snap into the SnapBlobDir
-	snapYaml := `name: foo
-version: 1.0`
-	fooFname, fooDecl, fooRev := s.MakeAssertedSnap(c, snapYaml, nil, snap.R(128), "developerid")
-	s.WriteAssertions("foo.snap-declaration", fooDecl)
-	s.WriteAssertions("foo.snap-revision", fooRev)
-
-	// put a firstboot local snap into the SnapBlobDir
-	snapYaml = `name: local
-version: 1.0`
-	mockSnapFile := snaptest.MakeTestSnapWithFiles(c, snapYaml, nil)
-	targetSnapFile2 := filepath.Join(dirs.SnapSeedDir, "snaps", filepath.Base(mockSnapFile))
-	err := os.Rename(mockSnapFile, targetSnapFile2)
-	c.Assert(err, IsNil)
-
-	// add a model assertion and its chain
-	assertsChain := s.MakeModelAssertionChain("my-brand", "my-model", modelHeaders("my-model", "foo"), nil)
-	for i, as := range assertsChain {
-		s.WriteAssertions(strconv.Itoa(i), as)
+func checkPressedTaskStates(c *C, st *state.State) {
+	doneTasks := map[string]bool{
+		"prerequisites":        true,
+		"prepare-snap":         true,
+		"link-snap":            true,
+		"mount-snap":           true,
+		"setup-profiles":       true,
+		"update-gadget-assets": true,
+		"copy-snap-data":       true,
+		"set-auto-aliases":     true,
+		"setup-aliases":        true,
+		"gadget-connect":       true,
+		"auto-connect":         true,
 	}
-
-	// create a seed.yaml
-	content := []byte(fmt.Sprintf(`
-snaps:
- - name: core
-   file: %s
- - name: pc-kernel
-   file: %s
- - name: pc
-   file: %s
- - name: foo
-   file: %s
-   devmode: true
-   contact: mailto:some.guy@example.com
- - name: local
-   unasserted: true
-   file: %s
-`, coreFname, kernelFname, gadgetFname, fooFname, filepath.Base(targetSnapFile2)))
-	err = ioutil.WriteFile(filepath.Join(dirs.SnapSeedDir, "seed.yaml"), content, 0644)
-	c.Assert(err, IsNil)
-
-	opts := &devicestate.PopulateStateFromSeedOptions{Preseed: true, Mode: "run"}
-
-	// run the firstboot stuff
-	st.Lock()
-	defer st.Unlock()
-	tsAll, err := devicestate.PopulateStateFromSeedImpl(st, opts, s.perfTimings)
-	c.Assert(err, IsNil)
-
-	// XXX: order is more convoluted in preseed mode; implement a check for it.
-	//checkOrder(c, tsAll, "core", "pc-kernel", "pc", "foo", "local")
-
-	checkPreseedTasks(c, tsAll)
-
-	// now run the change and check the result
-	// use the expected kind otherwise settle with start another one
-	chg := st.NewChange("seed", "run the populate from seed changes")
-	for _, ts := range tsAll {
-		chg.AddAll(ts)
+	doTasks := map[string]bool{
+		"run-hook":            true,
+		"mark-seeded":         true,
+		"start-snap-services": true,
 	}
-	c.Assert(st.Changes(), HasLen, 1)
-
-	// avoid device reg
-	chg1 := st.NewChange("become-operational", "init device")
-	chg1.SetStatus(state.DoingStatus)
-
-	return chg
+	for _, t := range st.Tasks() {
+		switch {
+		case doneTasks[t.Kind()]:
+			c.Check(t.Status(), Equals, state.DoneStatus, Commentf("task: %s", t.Kind()))
+		case t.Kind() == "mark-preseeded":
+			c.Check(t.Status(), Equals, state.DoingStatus, Commentf("task: %s", t.Kind()))
+		case doTasks[t.Kind()]:
+			c.Check(t.Status(), Equals, state.DoStatus, Commentf("task: %s", t.Kind()))
+		default:
+			c.Fatalf("unhandled task kind %s", t.Kind())
+		}
+	}
 }
 
-func (s *firstbootPreseed16Suite) makeCoreSnaps(c *C, extraGadgetYaml string) (coreFname, kernelFname, gadgetFname string) {
-	files := [][]string{}
-	if strings.Contains(extraGadgetYaml, "defaults:") {
-		files = [][]string{{"meta/hooks/configure", ""}}
-	}
-
-	// put core snap into the SnapBlobDir
-	snapYaml := `name: core
-version: 1.0
-type: os`
-	coreFname, coreDecl, coreRev := s.MakeAssertedSnap(c, snapYaml, files, snap.R(1), "canonical")
-	s.WriteAssertions("core.asserts", coreRev, coreDecl)
-
-	// put kernel snap into the SnapBlobDir
-	snapYaml = `name: pc-kernel
-version: 1.0
-type: kernel`
-	kernelFname, kernelDecl, kernelRev := s.MakeAssertedSnap(c, snapYaml, files, snap.R(1), "canonical")
-	s.WriteAssertions("kernel.asserts", kernelRev, kernelDecl)
-
-	gadgetYaml := `
-volumes:
-    volume-id:
-        bootloader: grub
-`
-	gadgetYaml += extraGadgetYaml
-
-	// put gadget snap into the SnapBlobDir
-	files = append(files, []string{"meta/gadget.yaml", gadgetYaml})
-
-	snapYaml = `name: pc
-version: 1.0
-type: gadget`
-	gadgetFname, gadgetDecl, gadgetRev := s.MakeAssertedSnap(c, snapYaml, files, snap.R(1), "canonical")
-	s.WriteAssertions("gadget.asserts", gadgetRev, gadgetDecl)
-
-	return coreFname, kernelFname, gadgetFname
+func checkPreseedOrder(c *C, tsAll []*state.TaskSet, snaps ...string) {
 }
 
 func (s *firstbootPreseed16Suite) SetUpTest(c *C) {
@@ -211,7 +125,8 @@ func (s *firstbootPreseed16Suite) TestPreseedHappy(c *C) {
 
 	o := s.createOverlord(c)
 	st := o.State()
-	chg := s.makeSeedChange(c, st)
+	opts := &devicestate.PopulateStateFromSeedOptions{Preseed: true}
+	chg := s.makeSeedChange(c, st, opts, s.devAcct, checkPreseedTasks, checkPreseedOrder)
 	err := o.Settle(settleTimeout)
 
 	st.Lock()

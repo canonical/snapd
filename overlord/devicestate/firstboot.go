@@ -90,7 +90,9 @@ func populateStateFromSeedImpl(st *state.State, opts *populateStateFromSeedOptio
 	sysLabel := ""
 	preseed := false
 	if opts != nil {
-		mode = opts.Mode
+		if opts.Mode != "" {
+			mode = opts.Mode
+		}
 		sysLabel = opts.Label
 		preseed = opts.Preseed
 	}
