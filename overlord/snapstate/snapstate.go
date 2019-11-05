@@ -195,8 +195,6 @@ func doInstall(st *state.State, snapst *SnapState, snapsup *SnapSetup, flags int
 		prev = mount
 	}
 
-	preseedMode := release.PreseedMode
-
 	// run refresh hooks when updating existing snap, otherwise run install hook further down.
 	runRefreshHooks := (snapst.IsInstalled() && !snapsup.Flags.Revert)
 	if runRefreshHooks {
@@ -343,16 +341,18 @@ func doInstall(st *state.State, snapst *SnapState, snapsup *SnapSetup, flags int
 		ts.MarkEdge(checkAsserts, DownloadAndChecksDoneEdge)
 	}
 
-	if preseedMode {
-		if flags&skipConfigure != 0 {
-			installSet.MarkEdge(prereq, PrerequisitesEdge)
+	if flags&skipConfigure != 0 {
+		if installHook != nil {
 			installSet.MarkEdge(installHook, InstallHookEdge)
-			installSet.MarkEdge(setupAliases, SetupAliasesEdge)
-		} else {
-			ts.MarkEdge(prereq, PrerequisitesEdge)
-			ts.MarkEdge(installHook, InstallHookEdge)
-			ts.MarkEdge(setupAliases, SetupAliasesEdge)
 		}
+		installSet.MarkEdge(prereq, PrerequisitesEdge)
+		installSet.MarkEdge(setupAliases, SetupAliasesEdge)
+	} else {
+		if installHook != nil {
+			ts.MarkEdge(installHook, InstallHookEdge)
+		}
+		ts.MarkEdge(prereq, PrerequisitesEdge)
+		ts.MarkEdge(setupAliases, SetupAliasesEdge)
 	}
 
 	if flags&skipConfigure != 0 {
