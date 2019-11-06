@@ -75,6 +75,11 @@
     /sys/fs/cgroup/pids/snap.*/ w,
     /sys/fs/cgroup/pids/snap.*/cgroup.procs w,
 
+    # cgroup: unified/v2
+    @{PROC}/*/cgroup r,
+    /sys/fs/cgroup/{,unified/}**/snap.*/ w,
+    /sys/fs/cgroup/{,unified/}**/snap.*/cgroup.procs w,
+
     # querying udev
     /etc/udev/udev.conf r,
     /sys/**/uevent r,
