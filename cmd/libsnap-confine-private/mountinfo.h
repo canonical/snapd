@@ -18,7 +18,7 @@
 #define SNAP_CONFINE_MOUNTINFO_H
 
 /**
- * Structure describing a single entry in /proc/self/sc_mountinfo
+ * Structure describing a single entry in /proc/self/mountinfo
  **/
 typedef struct sc_mountinfo_entry {
 	/**
