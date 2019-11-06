@@ -69,10 +69,16 @@ void sc_cgroup_create_and_join(const char *parent, const char *name, pid_t pid) 
 }
 
 static const char *cgroup_dir = "/sys/fs/cgroup";
+static const char *cgroup_unified_dir = "/sys/fs/cgroup/unified";
+static const char *cgroup_systemd_dir = "/sys/fs/cgroup/systemd";
 
 // from statfs(2)
 #ifndef CGRUOP2_SUPER_MAGIC
 #define CGROUP2_SUPER_MAGIC 0x63677270
+#endif
+
+#ifndef CGROUP_SUPER_MAGIC
+#define CGROUP_SUPER_MAGIC 0x27e0eb
 #endif
 
 // Detect if we are running in cgroup v2 unified mode (as opposed to
@@ -99,11 +105,18 @@ bool sc_cgroup_is_v2() {
 }
 
 /**
- * sc_find_unified_hierarchy produces the full /sys/fs/cgroup/ path of the v2
- * hierarchy of the given process. The result is written to path buffer. If the
- * location cannot be found or any other error occurs, the process dies.
+ * sc_find_tracking_hierarchy produces the full /sys/fs/cgroup/ path the
+ * selected cgroup hierarchy of the given process. The result is written to
+ * path buffer. If the location cannot be found or any other error occurs, the
+ * process dies.
+ *
+ * The hierarchy selected can be used for process tracking. It is picked based
+ * on the following criteria:
+ *
+ * 1) A unified or v2 cgroup is preferred. If one exists it is selected.
+ * 2) A tracking name=systemd v1 cgroup is supported.
  **/
-static void sc_find_unified_hierarchy(pid_t pid, char *path, size_t path_size) {
+static void sc_find_tracking_hierarchy(pid_t pid, char *path, size_t path_size) {
     /* Find the path of the unified hierarchy of the given process. */
     char proc_pid_cgroup[PATH_MAX + 1] = {};
     sc_must_snprintf(proc_pid_cgroup, sizeof proc_pid_cgroup, "/proc/%d/cgroup", (int)pid);
@@ -123,7 +136,7 @@ static void sc_find_unified_hierarchy(pid_t pid, char *path, size_t path_size) {
     char *line = NULL;
     size_t size = 0;
     bool found = false;
-    while (!found) {
+    while (true) {
         /* Read the next line, chomp the trailing newline and parse it. */
         errno = 0;
         ssize_t len = getline(&line, &size, stream);
@@ -162,32 +175,69 @@ static void sc_find_unified_hierarchy(pid_t pid, char *path, size_t path_size) {
 
         debug("cgroup presence: id:%s, controllers:%s, path:%s", attr_id, attr_ctrl_list, attr_path);
 
-        /* Ignore all entires that describe v1 cgroup hierarchies. They have
-         * non-zero identifiers. Only v2 uses the id of zero. */
-        if (strcmp(attr_id, "0") != 0) {
-            continue;
+        /* Find preferred tracking cgroup, either v1 name=systemd or v2. */
+        if (strcmp(attr_id, "0") == 0) {
+            /* We found it but is it mounted for us to see?
+             *
+             * Note that in reality we ought to parse /proc/self/mountinfo and
+             * look but in practice it's either only /sys/fs/cgroup in pure v2
+             * mode or /sys/fs/cgroup/unified in hybrid mode (available since
+             * kernel 4.5). */
+            struct statfs stat_buf;
+            if (statfs(cgroup_dir, &stat_buf) < 0) {
+                if (errno != ENOENT) {
+                    die("cannot statfs %s", cgroup_dir);
+                }
+            } else {
+                if (stat_buf.f_type == CGROUP2_SUPER_MAGIC) {
+                    sc_must_snprintf(path, path_size, "%s%s", cgroup_dir, attr_path);
+                    found = true;
+                    debug("cgroup pure v2 path is %s (preferred)", path);
+                    break;
+                }
+            }
+
+            if (statfs(cgroup_unified_dir, &stat_buf) < 0) {
+                if (errno != ENOENT) {
+                    die("cannot statfs %s", cgroup_unified_dir);
+                }
+            } else {
+                if (stat_buf.f_type == CGROUP2_SUPER_MAGIC) {
+                    sc_must_snprintf(path, path_size, "%s%s", cgroup_unified_dir, attr_path);
+                    debug("cgroup hybrid v2 path is %s (preferred)", path);
+                    found = true;
+                    break;
+                }
+            }
+
+            /* v2 is preferred, don't look more if we found it. */
+            break;
+        } else if (strcmp(attr_ctrl_list, "name=systemd") == 0) {
+            /* We found it but is it mounted for us to see? */
+            struct statfs stat_buf;
+            if (statfs(cgroup_systemd_dir, &stat_buf) < 0) {
+                if (errno != ENOENT) {
+                    die("cannot statfs %s", cgroup_systemd_dir);
+                }
+            } else {
+                if (stat_buf.f_type == CGROUP_SUPER_MAGIC) {
+                    sc_must_snprintf(path, path_size, "%s%s", cgroup_systemd_dir, attr_path);
+                    debug("cgroup v1 name=systemd is %s", path);
+                    found = true;
+                    /* keep looking, maybe there is more */
+                }
+            }
         }
-        if (attr_path[0] == '/') {
-            attr_path++;
-        }
-        /* TODO: parse mountinfo and find the mount point instead of assuming common sense. */
-        if (sc_cgroup_is_v2()) {
-            sc_must_snprintf(path, path_size, "/sys/fs/cgroup/%s", attr_path);
-        } else {
-            sc_must_snprintf(path, path_size, "/sys/fs/cgroup/unified/%s", attr_path);
-        }
-        found = true;
-        debug("unified/v2 cgroup path is %s", path);
     }
     free(line);
     fclose(stream);
     if (!found) {
-        die("cannot find cgroup v2 path");
+        die("cannot find tracking cgroup path");
     }
 }
 
 void sc_join_sub_cgroup(const char *security_tag, pid_t pid) {
     char current_hierarchy_path[PATH_MAX + 1] = {};
-    sc_find_unified_hierarchy(pid, current_hierarchy_path, sizeof current_hierarchy_path);
+    sc_find_tracking_hierarchy(pid, current_hierarchy_path, sizeof current_hierarchy_path);
     sc_cgroup_create_and_join(current_hierarchy_path, security_tag, pid);
 }
