@@ -37,4 +37,13 @@ void sc_cgroup_create_and_join(const char *parent, const char *name, pid_t pid);
  **/
 bool sc_cgroup_is_v2(void);
 
+/**
+ * sc_join_sub_cgroup() joins a leaf v2 hierarchy named after the security tag.
+ *
+ * The code scans /proc/[pid]/cgroup, finds the location in the unified
+ * hierarchy and moves the given process to a new leaf sub-hierarchy named
+ * like the security tag.
+ **/
+void sc_join_sub_cgroup(const char *security_tag, pid_t pid);
+
 #endif
