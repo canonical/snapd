@@ -4,14 +4,15 @@ details: |
       Automatic connection gets removed and not reported by connections if respective plug
       is no longer present in the refreshed snap.
 
+# home is not auto-connected on core, the test relies on this
+systems: [-ubuntu-core-*]
+
 prepare: |
   snap install jq
   snap pack simplesnap.v1
   snap pack simplesnap.v2
 
 execute: |
-  echo "Checking that 'home' connection is not reported after removing the test snap"
-
   snap install --dangerous simplesnap_1_all.snap
   snap connections simplesnap | MATCH "home *simplesnap:home *:home *- *"
 
@@ -23,10 +24,11 @@ execute: |
   # sanity
   inspect_connection | MATCH "true"
 
+  echo "Checking that 'home' connection is not reported after removing the test snap"
   snap remove simplesnap
     if snap connections simplesnap | MATCH "home"; then
-    echo "Expected simplesnap:home to be gone after snap got removed"
-    exit 1
+      echo "Expected simplesnap:home to be gone after snap got removed"
+      exit 1
   fi
 
   inspect_connection | MATCH "false"
