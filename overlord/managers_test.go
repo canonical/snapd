@@ -49,6 +49,7 @@ import (
 	"github.com/snapcore/snapd/bootloader/bootloadertest"
 	"github.com/snapcore/snapd/client"
 	"github.com/snapcore/snapd/dirs"
+	"github.com/snapcore/snapd/gadget"
 	"github.com/snapcore/snapd/interfaces"
 	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/overlord"
@@ -305,18 +306,6 @@ func (s *baseMgrsSuite) SetUpTest(c *C) {
 	c.Assert(assertstate.Add(st, a6), IsNil)
 	c.Assert(s.storeSigning.Add(a6), IsNil)
 
-	// add core itself
-	snapstate.Set(st, "core", &snapstate.SnapState{
-		Active: true,
-		Sequence: []*snap.SideInfo{
-			{RealName: "core", SnapID: fakeSnapID("core"), Revision: snap.R(1)},
-		},
-		Current:  snap.R(1),
-		SnapType: "os",
-		Flags: snapstate.Flags{
-			Required: true,
-		},
-	})
 	// add pc snap declaration
 	headers = map[string]interface{}{
 		"series":       "16",
@@ -329,6 +318,19 @@ func (s *baseMgrsSuite) SetUpTest(c *C) {
 	c.Assert(err, IsNil)
 	c.Assert(assertstate.Add(st, a7), IsNil)
 	c.Assert(s.storeSigning.Add(a7), IsNil)
+
+	// add core itself
+	snapstate.Set(st, "core", &snapstate.SnapState{
+		Active: true,
+		Sequence: []*snap.SideInfo{
+			{RealName: "core", SnapID: fakeSnapID("core"), Revision: snap.R(1)},
+		},
+		Current:  snap.R(1),
+		SnapType: "os",
+		Flags: snapstate.Flags{
+			Required: true,
+		},
+	})
 
 	// don't actually try to talk to the store on snapstate.Ensure
 	// needs doing after the call to devicestate.Manager (which happens in overlord.New)
@@ -349,17 +351,20 @@ type mgrsSuite struct {
 
 var settleTimeout = 15 * time.Second
 
-func makeTestSnap(c *C, snapYamlContent string) string {
+func makeTestSnapWithFiles(c *C, snapYamlContent string, files [][]string) string {
 	info, err := snap.InfoFromSnapYaml([]byte(snapYamlContent))
 	c.Assert(err, IsNil)
 
-	var files [][]string
 	for _, app := range info.Apps {
 		// files is a list of (filename, content)
 		files = append(files, []string{app.Command, ""})
 	}
 
 	return snaptest.MakeTestSnapWithFiles(c, snapYamlContent, files)
+}
+
+func makeTestSnap(c *C, snapYamlContent string) string {
+	return makeTestSnapWithFiles(c, snapYamlContent, nil)
 }
 
 func (s *mgrsSuite) TestHappyLocalInstall(c *C) {
@@ -513,11 +518,11 @@ func (s *baseMgrsSuite) prereqSnapAssertions(c *C, extraHeaders ...map[string]in
 	return snapDecl
 }
 
-func (s *baseMgrsSuite) makeStoreTestSnap(c *C, snapYaml string, revno string) (path, digest string) {
+func (s *baseMgrsSuite) makeStoreTestSnapWithFiles(c *C, snapYaml string, revno string, files [][]string) (path, digest string) {
 	info, err := snap.InfoFromSnapYaml([]byte(snapYaml))
 	c.Assert(err, IsNil)
 
-	snapPath := makeTestSnap(c, snapYaml)
+	snapPath := makeTestSnapWithFiles(c, snapYaml, files)
 
 	snapDigest, size, err := asserts.SnapFileSHA3_384(snapPath)
 	c.Assert(err, IsNil)
@@ -536,6 +541,10 @@ func (s *baseMgrsSuite) makeStoreTestSnap(c *C, snapYaml string, revno string) (
 	c.Assert(err, IsNil)
 
 	return snapPath, snapDigest
+}
+
+func (s *baseMgrsSuite) makeStoreTestSnap(c *C, snapYaml string, revno string) (path, digest string) {
+	return s.makeStoreTestSnapWithFiles(c, snapYaml, revno, nil)
 }
 
 func (s *baseMgrsSuite) pathFor(name, revno string) string {
@@ -3376,10 +3385,19 @@ func validateDownloadCheckTasks(c *C, tasks []*state.Task, name, revno, channel 
 	return i
 }
 
-func validateInstallTasks(c *C, tasks []*state.Task, name, revno string) int {
+const (
+	noConfigure = 1 << iota
+	isGadget
+)
+
+func validateInstallTasks(c *C, tasks []*state.Task, name, revno string, flags int) int {
 	var i int
 	c.Assert(tasks[i].Summary(), Equals, fmt.Sprintf(`Mount snap "%s" (%s)`, name, revno))
 	i++
+	if flags&isGadget != 0 {
+		c.Assert(tasks[i].Summary(), Equals, fmt.Sprintf(`Update assets from gadget "%s" (%s)`, name, revno))
+		i++
+	}
 	c.Assert(tasks[i].Summary(), Equals, fmt.Sprintf(`Copy snap "%s" data`, name))
 	i++
 	c.Assert(tasks[i].Summary(), Equals, fmt.Sprintf(`Setup snap "%s" (%s) security profiles`, name, revno))
@@ -3403,7 +3421,7 @@ func validateInstallTasks(c *C, tasks []*state.Task, name, revno string) int {
 	return i
 }
 
-func validateRefreshTasks(c *C, tasks []*state.Task, name, revno string) int {
+func validateRefreshTasks(c *C, tasks []*state.Task, name, revno string, flags int) int {
 	var i int
 	c.Assert(tasks[i].Summary(), Equals, fmt.Sprintf(`Mount snap "%s" (%s)`, name, revno))
 	i++
@@ -3415,6 +3433,11 @@ func validateRefreshTasks(c *C, tasks []*state.Task, name, revno string) int {
 	i++
 	c.Assert(tasks[i].Summary(), Equals, fmt.Sprintf(`Make current revision for snap "%s" unavailable`, name))
 	i++
+	if flags&isGadget != 0 {
+		c.Assert(tasks[i].Summary(), Equals, fmt.Sprintf(`Update assets from gadget %q (%s)`, name, revno))
+		i++
+
+	}
 	c.Assert(tasks[i].Summary(), Equals, fmt.Sprintf(`Copy snap "%s" data`, name))
 	i++
 	c.Assert(tasks[i].Summary(), Equals, fmt.Sprintf(`Setup snap "%s" (%s) security profiles`, name, revno))
@@ -3540,7 +3563,7 @@ func (s *mgrsSuite) TestRemodelRequiredSnapsAdded(c *C) {
 	}
 	// then all installs in sequential order
 	for _, name := range []string{"foo", "bar", "baz"} {
-		i += validateInstallTasks(c, tasks[i:], name, "1")
+		i += validateInstallTasks(c, tasks[i:], name, "1", 0)
 	}
 	// ensure that we only have the tasks we checked (plus the one
 	// extra "set-model" task)
@@ -3803,8 +3826,8 @@ func (s *kernelSuite) TestRemodelSwitchKernelTrack(c *C) {
 	i += validateDownloadCheckTasks(c, tasks[i:], "foo", "1", "stable")
 
 	// then all installs in sequential order
-	i += validateRefreshTasks(c, tasks[i:], "pc-kernel", "2")
-	i += validateInstallTasks(c, tasks[i:], "foo", "1")
+	i += validateRefreshTasks(c, tasks[i:], "pc-kernel", "2", 0)
+	i += validateInstallTasks(c, tasks[i:], "foo", "1", 0)
 
 	// ensure that we only have the tasks we checked (plus the one
 	// extra "set-model" task)
@@ -3886,8 +3909,8 @@ func (ms *kernelSuite) TestRemodelSwitchToDifferentKernel(c *C) {
 	i += validateDownloadCheckTasks(c, tasks[i:], "foo", "1", "stable")
 
 	// then all installs in sequential order
-	i += validateInstallTasks(c, tasks[i:], "brand-kernel", "2")
-	i += validateInstallTasks(c, tasks[i:], "foo", "1")
+	i += validateInstallTasks(c, tasks[i:], "brand-kernel", "2", 0)
+	i += validateInstallTasks(c, tasks[i:], "foo", "1", 0)
 
 	// ensure that we only have the tasks we checked (plus the one
 	// extra "set-model" task)
@@ -4118,6 +4141,325 @@ func (s *mgrsSuite) TestRemodelStoreSwitch(c *C) {
 	c.Assert(err, IsNil)
 	c.Check(device.Serial, Equals, "store-switch-serial")
 	c.Check(device.SessionMacaroon, Equals, "switched-store-session")
+}
+
+func (s *mgrsSuite) TestRemodelSwitchGadgetTrack(c *C) {
+	bloader := bootloadertest.Mock("mock", c.MkDir())
+	bootloader.Force(bloader)
+	defer bootloader.Force(nil)
+
+	restore := release.MockOnClassic(false)
+	defer restore()
+
+	mockServer := s.mockStore(c)
+	defer mockServer.Close()
+
+	st := s.o.State()
+	st.Lock()
+	defer st.Unlock()
+
+	si := &snap.SideInfo{RealName: "pc", SnapID: fakeSnapID("pc"), Revision: snap.R(1)}
+	snapstate.Set(st, "pc", &snapstate.SnapState{
+		Active:   true,
+		Sequence: []*snap.SideInfo{si},
+		Current:  snap.R(1),
+		SnapType: "gadget",
+	})
+	gadgetSnapYaml := "name: pc\nversion: 2.0\ntype: gadget"
+	gadgetYaml := `
+volumes:
+    volume-id:
+        bootloader: grub
+`
+	snaptest.MockSnapWithFiles(c, gadgetSnapYaml, si, [][]string{
+		{"meta/gadget.yaml", gadgetYaml},
+	})
+	snapPath, _ := s.makeStoreTestSnapWithFiles(c, gadgetSnapYaml, "2", [][]string{
+		{"meta/gadget.yaml", gadgetYaml},
+	})
+	s.serveSnap(snapPath, "2")
+
+	// create/set custom model assertion
+	model := s.brands.Model("can0nical", "my-model", modelDefaults)
+
+	// setup model assertion
+	devicestatetest.SetDevice(st, &auth.DeviceState{
+		Brand: "can0nical",
+		Model: "my-model",
+	})
+	err := assertstate.Add(st, model)
+	c.Assert(err, IsNil)
+
+	// create a new model
+	newModel := s.brands.Model("can0nical", "my-model", modelDefaults, map[string]interface{}{
+		"gadget":   "pc=18",
+		"revision": "1",
+	})
+
+	chg, err := devicestate.Remodel(st, newModel)
+	c.Assert(err, IsNil)
+
+	st.Unlock()
+	err = s.o.Settle(settleTimeout)
+	st.Lock()
+	c.Assert(err, IsNil)
+	c.Assert(chg.Err(), IsNil)
+
+	// ensure tasks were run in the right order
+	tasks := chg.Tasks()
+	sort.Sort(byReadyTime(tasks))
+
+	// first all downloads/checks in sequential order
+	var i int
+	i += validateDownloadCheckTasks(c, tasks[i:], "pc", "2", "18")
+
+	// then all installs in sequential order
+	i += validateRefreshTasks(c, tasks[i:], "pc", "2", isGadget)
+
+	// ensure that we only have the tasks we checked (plus the one
+	// extra "set-model" task)
+	c.Assert(tasks, HasLen, i+1)
+}
+
+type mockUpdater struct{}
+
+func (m *mockUpdater) Backup() error { return nil }
+
+func (m *mockUpdater) Rollback() error { return nil }
+
+func (m *mockUpdater) Update() error { return nil }
+
+func (s *mgrsSuite) TestRemodelSwitchToDifferentGadget(c *C) {
+	bloader := bootloadertest.Mock("mock", c.MkDir())
+	bootloader.Force(bloader)
+	defer bootloader.Force(nil)
+	restore := release.MockOnClassic(false)
+	defer restore()
+
+	mockServer := s.mockStore(c)
+	defer mockServer.Close()
+
+	st := s.o.State()
+	st.Lock()
+	defer st.Unlock()
+
+	si := &snap.SideInfo{RealName: "core18", SnapID: fakeSnapID("core18"), Revision: snap.R(1)}
+	snapstate.Set(st, "core18", &snapstate.SnapState{
+		Active:   true,
+		Sequence: []*snap.SideInfo{si},
+		Current:  snap.R(1),
+		SnapType: "base",
+	})
+	si2 := &snap.SideInfo{RealName: "pc", SnapID: fakeSnapID("pc"), Revision: snap.R(1)}
+	gadgetSnapYaml := "name: pc\nversion: 1.0\ntype: gadget"
+	snapstate.Set(st, "pc", &snapstate.SnapState{
+		Active:   true,
+		Sequence: []*snap.SideInfo{si2},
+		Current:  snap.R(1),
+		SnapType: "gadget",
+	})
+	gadgetYaml := `
+volumes:
+    volume-id:
+        bootloader: grub
+        structure:
+          - name: foo
+            type: bare
+            size: 1M
+            content:
+              - image: foo.img
+`
+	snaptest.MockSnapWithFiles(c, gadgetSnapYaml, si2, [][]string{
+		{"meta/gadget.yaml", gadgetYaml},
+		{"foo.img", "foo"},
+	})
+
+	// add new gadget "other-pc" snap to fake store
+	const otherPcYaml = `name: other-pc
+type: gadget
+version: 2`
+	s.prereqSnapAssertions(c, map[string]interface{}{
+		"snap-name":    "other-pc",
+		"publisher-id": "can0nical",
+	})
+	otherGadgetYaml := `
+volumes:
+    volume-id:
+        bootloader: grub
+        structure:
+          - name: foo
+            type: bare
+            size: 1M
+            content:
+              - image: new-foo.img
+`
+	snapPath, _ := s.makeStoreTestSnapWithFiles(c, otherPcYaml, "2", [][]string{
+		// use a compatible gadget YAML
+		{"meta/gadget.yaml", otherGadgetYaml},
+		{"new-foo.img", "new foo"},
+	})
+	s.serveSnap(snapPath, "2")
+
+	updaterForStructureCalls := 0
+	restore = gadget.MockUpdaterForStructure(func(ps *gadget.LaidOutStructure, rootDir, rollbackDir string) (gadget.Updater, error) {
+		updaterForStructureCalls++
+		c.Assert(ps.Name, Equals, "foo")
+		return &mockUpdater{}, nil
+	})
+	defer restore()
+
+	// create/set custom model assertion
+	model := s.brands.Model("can0nical", "my-model", modelDefaults, map[string]interface{}{
+		"gadget": "pc",
+	})
+
+	// setup model assertion
+	devicestatetest.SetDevice(st, &auth.DeviceState{
+		Brand: "can0nical",
+		Model: "my-model",
+	})
+	err := assertstate.Add(st, model)
+	c.Assert(err, IsNil)
+
+	// create a new model
+	newModel := s.brands.Model("can0nical", "my-model", modelDefaults, map[string]interface{}{
+		"gadget":   "other-pc=18",
+		"revision": "1",
+	})
+
+	chg, err := devicestate.Remodel(st, newModel)
+	c.Assert(err, IsNil)
+
+	st.Unlock()
+	err = s.o.Settle(settleTimeout)
+	st.Lock()
+	c.Assert(err, IsNil)
+	c.Assert(chg.Err(), IsNil)
+
+	// gadget updater was set up
+	c.Check(updaterForStructureCalls, Equals, 1)
+
+	// gadget update requests a restart
+	restarting, _ := st.Restarting()
+	c.Check(restarting, Equals, true)
+
+	// simulate successful restart happened
+	state.MockRestarting(st, state.RestartUnset)
+
+	st.Unlock()
+	err = s.o.Settle(settleTimeout)
+	st.Lock()
+	c.Assert(err, IsNil)
+
+	// ensure tasks were run in the right order
+	tasks := chg.Tasks()
+	sort.Sort(byReadyTime(tasks))
+
+	// first all downloads/checks
+	var i int
+	i += validateDownloadCheckTasks(c, tasks[i:], "other-pc", "2", "18")
+
+	// then all installs
+	i += validateInstallTasks(c, tasks[i:], "other-pc", "2", isGadget)
+
+	// ensure that we only have the tasks we checked (plus the one
+	// extra "set-model" task)
+	c.Assert(tasks, HasLen, i+1)
+}
+
+func (s *mgrsSuite) TestRemodelSwitchToIncompatibleGadget(c *C) {
+	bloader := bootloadertest.Mock("mock", c.MkDir())
+	bootloader.Force(bloader)
+	defer bootloader.Force(nil)
+	restore := release.MockOnClassic(false)
+	defer restore()
+
+	mockServer := s.mockStore(c)
+	defer mockServer.Close()
+
+	st := s.o.State()
+	st.Lock()
+	defer st.Unlock()
+
+	si := &snap.SideInfo{RealName: "core18", SnapID: fakeSnapID("core18"), Revision: snap.R(1)}
+	snapstate.Set(st, "core18", &snapstate.SnapState{
+		Active:   true,
+		Sequence: []*snap.SideInfo{si},
+		Current:  snap.R(1),
+		SnapType: "base",
+	})
+	si2 := &snap.SideInfo{RealName: "pc", SnapID: fakeSnapID("pc"), Revision: snap.R(1)}
+	gadgetSnapYaml := "name: pc\nversion: 1.0\ntype: gadget"
+	snapstate.Set(st, "pc", &snapstate.SnapState{
+		Active:   true,
+		Sequence: []*snap.SideInfo{si2},
+		Current:  snap.R(1),
+		SnapType: "gadget",
+	})
+	gadgetYaml := `
+volumes:
+    volume-id:
+        bootloader: grub
+        structure:
+          - name: foo
+            type: 00000000-0000-0000-0000-0000deadcafe
+            size: 10M
+`
+	snaptest.MockSnapWithFiles(c, gadgetSnapYaml, si2, [][]string{
+		{"meta/gadget.yaml", gadgetYaml},
+	})
+
+	// add new gadget "other-pc" snap to fake store
+	const otherPcYaml = `name: other-pc
+type: gadget
+version: 2`
+	// new gadget layout is incompatible, a structure that exited before has
+	// a different size now
+	otherGadgetYaml := `
+volumes:
+    volume-id:
+        bootloader: grub
+        structure:
+          - name: foo
+            type: 00000000-0000-0000-0000-0000deadcafe
+            size: 20M
+`
+	s.prereqSnapAssertions(c, map[string]interface{}{
+		"snap-name":    "other-pc",
+		"publisher-id": "can0nical",
+	})
+	snapPath, _ := s.makeStoreTestSnapWithFiles(c, otherPcYaml, "2", [][]string{
+		{"meta/gadget.yaml", otherGadgetYaml},
+	})
+	s.serveSnap(snapPath, "2")
+
+	// create/set custom model assertion
+	model := s.brands.Model("can0nical", "my-model", modelDefaults, map[string]interface{}{
+		"gadget": "pc",
+	})
+
+	// setup model assertion
+	devicestatetest.SetDevice(st, &auth.DeviceState{
+		Brand: "can0nical",
+		Model: "my-model",
+	})
+	err := assertstate.Add(st, model)
+	c.Assert(err, IsNil)
+
+	// create a new model
+	newModel := s.brands.Model("can0nical", "my-model", modelDefaults, map[string]interface{}{
+		"gadget":   "other-pc=18",
+		"revision": "1",
+	})
+
+	chg, err := devicestate.Remodel(st, newModel)
+	c.Assert(err, IsNil)
+
+	st.Unlock()
+	err = s.o.Settle(settleTimeout)
+	st.Lock()
+	c.Assert(err, IsNil)
+	c.Assert(chg.Err(), ErrorMatches, `cannot perform the following tasks:\n.*cannot remodel to an incompatible gadget: .*cannot change structure size.*`)
 }
 
 func (s *mgrsSuite) TestHappyDeviceRegistrationWithPrepareDeviceHook(c *C) {

@@ -482,13 +482,11 @@ func checkGadgetOrKernel(st *state.State, snapInfo, curInfo *snap.Info, _ snap.C
 	if err == state.ErrNoState {
 		// check if we are in the remodel case
 		if deviceCtx != nil && deviceCtx.ForRemodeling() {
-			model := deviceCtx.Model()
-			if model.Kernel() == snapInfo.InstanceName() {
+			if whichName(deviceCtx.Model()) == snapInfo.InstanceName() {
 				return nil
 			}
 		}
-
-		return fmt.Errorf("internal error: cannot remodel gadget yet")
+		return fmt.Errorf("internal error: no state for %s snap %q", kind, snapInfo.InstanceName())
 	}
 	if err != nil {
 		return fmt.Errorf("cannot find original %s snap: %v", kind, err)
