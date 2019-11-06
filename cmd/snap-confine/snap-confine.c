@@ -794,7 +794,10 @@ static void maybe_join_tracking_cgroup(const sc_invocation * inv,
 	}
 	if (!sc_cgroup_is_v2()) {
 		if (sc_feature_enabled(SC_FEATURE_REFRESH_APP_AWARENESS)) {
-			sc_cgroup_pids_join(inv->security_tag, getpid());
+			pid_t pid = getpid();
+			/* TODO: stop using pids cgroup after snapd side is adjusted. */
+			sc_cgroup_pids_join(inv->security_tag, pid);
+			sc_join_sub_cgroup(inv->security_tag, pid);
 		}
 	}
 	if (geteuid() == 0 && real_gid != 0) {
