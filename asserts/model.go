@@ -214,7 +214,7 @@ func checkModelSnap(snap map[string]interface{}, grade ModelGrade) (*ModelSnap, 
 		typ = "app"
 	}
 	if !strutil.ListContains(validSnapTypes, typ) {
-		return nil, fmt.Errorf("type of snap %q must be one of app|base|gadget|kernel|core|snapd", name)
+		return nil, fmt.Errorf("type of snap %q must be one of %s", name, strings.Join(validSnapTypes, "|"))
 	}
 
 	modes, err := checkStringListInMap(snap, "modes", fmt.Sprintf("%q %s", "modes", what), validSnapMode)
