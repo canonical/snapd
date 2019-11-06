@@ -67,7 +67,7 @@ execute: |
     wait_change_done() {
         chg_summary="$1"
         for _ in $(seq 10); do
-            if snap changes | grep -qE "[0-9]+\\ +Done\\ +.* $chg_summary"; then
+            if snap changes | MATCH "[0-9]+\\ +Done\\ +.* $chg_summary"; then
                 break
             fi
             # some debug output
@@ -75,7 +75,7 @@ execute: |
             # wait a bit
             sleep 5
         done
-        snap changes | MATCH "$chg_summary"
+        snap changes | MATCH "[0-9]+\\ +Done\\ +.* $chg_summary"
     }
     # initial boot with the current model 
     if [ "$SPREAD_REBOOT" = 0 ]; then
