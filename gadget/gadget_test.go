@@ -732,12 +732,16 @@ func (s *gadgetYamlTestSuite) TestValidateStructureType(c *C) {
 		{"21686148-6449-6E6F-744E-656564454649", "", gadget.GPT},
 		// GPT UUID (lowercase)
 		{"21686148-6449-6e6f-744e-656564454649", "", gadget.GPT},
-		// hybrid ID
+		// hybrid ID with implicit GPT schema
 		{"EF,21686148-6449-6E6F-744E-656564454649", "", ""},
 		// hybrid ID (UUID lowercase)
 		{"EF,21686148-6449-6e6f-744e-656564454649", "", ""},
 		// hybrid, partially lowercase UUID
 		{"EF,aa686148-6449-6e6f-744E-656564454649", "", ""},
+		// hybrid ID with MBR schema
+		{"EF,21686148-6449-6e6f-744e-656564454649", "", gadget.MBR},
+		// hybrid ID with hybrid schema
+		{"EF,21686148-6449-6e6f-744e-656564454649", "", gadget.Hybrid},
 		// GPT UUID, partially lowercase
 		{"aa686148-6449-6e6f-744E-656564454649", "", ""},
 		// no type specified
@@ -763,6 +767,10 @@ func (s *gadgetYamlTestSuite) TestValidateStructureType(c *C) {
 		{"EF,AAAA686148-6449-6E6F-744E-656564454649", `invalid type "EF,AAAA686148-6449-6E6F-744E-656564454649": invalid format of hybrid type`, ""},
 		// GPT schema with non GPT type
 		{"EF,AAAA686148-6449-6E6F-744E-656564454649", `invalid type "EF,AAAA686148-6449-6E6F-744E-656564454649": invalid format of hybrid type`, gadget.GPT},
+		// solely GPT UUID with hybrid schema
+		{"21686148-6449-6E6F-744E-656564454649", `invalid type "21686148-6449-6E6F-744E-656564454649": non-hybrid type with a hybrid schema`, gadget.Hybrid},
+		// solely MBR type with a hybrid schema
+		{"0C", `invalid type "0C": non-hybrid type with a hybrid schema`, gadget.Hybrid},
 	} {
 		c.Logf("tc: %v %q", i, tc.s)
 
@@ -912,6 +920,7 @@ func (s *gadgetYamlTestSuite) TestValidateVolumeSchema(c *C) {
 	}{
 		{gadget.GPT, ""},
 		{gadget.MBR, ""},
+		{gadget.Hybrid, ""},
 		// implicit GPT
 		{"", ""},
 		// invalid

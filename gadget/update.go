@@ -165,7 +165,7 @@ func isLegacyMBRTransition(from *LaidOutStructure, to *LaidOutStructure) bool {
 }
 
 func canUpdateStructure(from *LaidOutStructure, to *LaidOutStructure, schema string) error {
-	if schema == GPT && from.Name != to.Name {
+	if (schema == GPT || schema == Hybrid) && from.Name != to.Name {
 		// partition names are only effective when GPT is used
 		return fmt.Errorf("cannot change structure name from %q to %q", from.Name, to.Name)
 	}

@@ -44,6 +44,8 @@ const (
 	MBR = "mbr"
 	// GPT identifies a GUID Partition Table partitioning schema
 	GPT = "gpt"
+	// Hybrid identifies a hybrid MBR/GPT schema
+	Hybrid = "mbr,gpt"
 
 	SystemBoot = "system-boot"
 	SystemData = "system-data"
@@ -391,7 +393,7 @@ func validateVolume(name string, vol *Volume, constraints *ModelConstraints) err
 	if !validVolumeName.MatchString(name) {
 		return errors.New("invalid name")
 	}
-	if vol.Schema != "" && vol.Schema != GPT && vol.Schema != MBR {
+	if !validateSchema(vol.Schema) {
 		return fmt.Errorf("invalid schema %q", vol.Schema)
 	}
 
@@ -646,7 +648,7 @@ func validateStructureType(s string, vol *Volume) error {
 		return nil
 	}
 
-	var isGPT, isMBR bool
+	var isGPT, isMBR, isHybrid bool
 
 	idx := strings.IndexRune(s, ',')
 	if idx == -1 {
@@ -660,6 +662,7 @@ func validateStructureType(s string, vol *Volume) error {
 			return fmt.Errorf("invalid format")
 		}
 	} else {
+		isHybrid = true
 		// hybrid ID
 		code := s[:idx]
 		guid := s[idx+1:]
@@ -668,12 +671,17 @@ func validateStructureType(s string, vol *Volume) error {
 		}
 	}
 
-	if schema != GPT && isGPT {
+	// hybrid schema requires a hybrid type, but GPT/MBR schemas accept both
+	// schema specific type or a hybrid one, in the latter case the schema
+	// specific part of the hybrid type is relevant
+	switch {
+	case schema == Hybrid && !isHybrid:
+		return fmt.Errorf("non-hybrid type with a hybrid schema")
+	case schema == GPT && isMBR:
+		return fmt.Errorf("MBR structure type with non-MBR schema %q", vol.Schema)
+	case schema == MBR && isGPT:
 		// type: <uuid> is only valid for GPT volumes
 		return fmt.Errorf("GUID structure type with non-GPT schema %q", vol.Schema)
-	}
-	if schema != MBR && isMBR {
-		return fmt.Errorf("MBR structure type with non-MBR schema %q", vol.Schema)
 	}
 
 	return nil
@@ -756,6 +764,14 @@ func validateStructureUpdate(up *VolumeUpdate, vs *VolumeStructure) error {
 		names[n] = true
 	}
 	return nil
+}
+
+func validateSchema(schema string) bool {
+	switch schema {
+	case "", GPT, MBR, Hybrid:
+		return true
+	}
+	return false
 }
 
 type editionNumber uint32

@@ -518,6 +518,15 @@ func (u *updateTestSuite) TestCanUpdateName(c *C) {
 			},
 			err:    `cannot change structure name from "foo" to "gpt-unhappy"`,
 			schema: gadget.GPT,
+		}, {
+			from: gadget.LaidOutStructure{
+				VolumeStructure: &gadget.VolumeStructure{Name: "foo", Type: "00000000-0000-0000-0000-dd00deadbeef"},
+			},
+			to: gadget.LaidOutStructure{
+				VolumeStructure: &gadget.VolumeStructure{Name: "gpt-unhappy", Type: "00000000-0000-0000-0000-dd00deadbeef"},
+			},
+			err:    `cannot change structure name from "foo" to "gpt-unhappy"`,
+			schema: gadget.Hybrid,
 		},
 	}
 	u.testCanUpdate(c, cases)
