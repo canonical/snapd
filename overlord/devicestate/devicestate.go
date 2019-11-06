@@ -319,6 +319,15 @@ func extractDownloadInstallEdgesFromTs(ts *state.TaskSet) (firstDl, lastDl, firs
 	return firstDl, tasks[edgeTaskIndex], tasks[edgeTaskIndex+1], lastInst, nil
 }
 
+func notInstalled(st *state.State, name string) (bool, error) {
+	_, err := snapstate.CurrentInfo(st, name)
+	_, isNotInstalled := err.(*snap.NotInstalledError)
+	if isNotInstalled {
+		return true, nil
+	}
+	return false, err
+}
+
 func remodelTasks(ctx context.Context, st *state.State, current, new *asserts.Model, deviceCtx snapstate.DeviceContext, fromChange string) ([]*state.TaskSet, error) {
 	userID := 0
 	var tss []*state.TaskSet
@@ -331,14 +340,33 @@ func remodelTasks(ctx context.Context, st *state.State, current, new *asserts.Mo
 		}
 		tss = append(tss, ts)
 	}
+
+	var ts *state.TaskSet
 	if current.Kernel() != new.Kernel() {
-		// TODO: we need to support corner cases here like:
-		//  0. start with "old-kernel"
-		//  1. remodel to "new-kernel"
-		//  2. remodel back to "old-kernel"
-		// In step (2) we will get a "already-installed" error
-		// here right now (workaround: remove "old-kernel")
-		ts, err := snapstateInstallWithDeviceContext(ctx, st, new.Kernel(), &snapstate.RevisionOptions{Channel: new.KernelTrack()}, userID, snapstate.Flags{}, deviceCtx, fromChange)
+		needsInstall, err := notInstalled(st, new.Kernel())
+		if err != nil {
+			return nil, err
+		}
+		if needsInstall {
+			ts, err = snapstateInstallWithDeviceContext(ctx, st, new.Kernel(), &snapstate.RevisionOptions{Channel: new.KernelTrack()}, userID, snapstate.Flags{}, deviceCtx, fromChange)
+		} else {
+			ts, err = snapstate.LinkNewBaseOrKernel(st, new.Base())
+		}
+		if err != nil {
+			return nil, err
+		}
+		tss = append(tss, ts)
+	}
+	if current.Base() != new.Base() {
+		needsInstall, err := notInstalled(st, new.Base())
+		if err != nil {
+			return nil, err
+		}
+		if needsInstall {
+			ts, err = snapstateInstallWithDeviceContext(ctx, st, new.Base(), nil, userID, snapstate.Flags{}, deviceCtx, fromChange)
+		} else {
+			ts, err = snapstate.LinkNewBaseOrKernel(st, new.Base())
+		}
 		if err != nil {
 			return nil, err
 		}
@@ -365,16 +393,17 @@ func remodelTasks(ctx context.Context, st *state.State, current, new *asserts.Mo
 	for _, snapRef := range new.RequiredNoEssentialSnaps() {
 		// TODO|XXX: have methods that take refs directly
 		// to respect the snap ids
-		_, err := snapstate.CurrentInfo(st, snapRef.SnapName())
-		// If the snap is not installed we need to install it now.
-		if _, ok := err.(*snap.NotInstalledError); ok {
+		needsInstall, err := notInstalled(st, snapRef.SnapName())
+		if err != nil {
+			return nil, err
+		}
+		if needsInstall {
+			// If the snap is not installed we need to install it now.
 			ts, err := snapstateInstallWithDeviceContext(ctx, st, snapRef.SnapName(), nil, userID, snapstate.Flags{Required: true}, deviceCtx, fromChange)
 			if err != nil {
 				return nil, err
 			}
 			tss = append(tss, ts)
-		} else if err != nil {
-			return nil, err
 		}
 	}
 	// TODO: Validate that all bases and default-providers are part
@@ -490,9 +519,9 @@ func Remodel(st *state.State, new *asserts.Model) (*state.Change, error) {
 	}
 
 	// calculate snap differences between the two models
-	// FIXME: this needs work to switch the base to boot as well
-	if current.Base() != new.Base() {
-		return nil, fmt.Errorf("cannot remodel to different bases yet")
+	// FIXME: this needs work to switch from core->bases
+	if current.Base() == "" && new.Base() != "" {
+		return nil, fmt.Errorf("cannot remodel from core to bases yet")
 	}
 
 	// TODO: should we run a remodel only while no other change is
