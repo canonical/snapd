@@ -34,7 +34,6 @@
 
 #include "../libsnap-confine-private/apparmor-support.h"
 #include "../libsnap-confine-private/cgroup-freezer-support.h"
-#include "../libsnap-confine-private/cgroup-pids-support.h"
 #include "../libsnap-confine-private/cgroup-support.h"
 #include "../libsnap-confine-private/classic.h"
 #include "../libsnap-confine-private/cleanup-funcs.h"
@@ -792,13 +791,8 @@ static void maybe_join_tracking_cgroup(const sc_invocation * inv,
 			die("cannot set effective group id to root");
 		}
 	}
-	if (!sc_cgroup_is_v2()) {
-		if (sc_feature_enabled(SC_FEATURE_REFRESH_APP_AWARENESS)) {
-			pid_t pid = getpid();
-			/* TODO: stop using pids cgroup after snapd side is adjusted. */
-			sc_cgroup_pids_join(inv->security_tag, pid);
-			sc_join_sub_cgroup(inv->security_tag, pid);
-		}
+	if (sc_feature_enabled(SC_FEATURE_REFRESH_APP_AWARENESS)) {
+		sc_join_sub_cgroup(inv->security_tag, getpid());
 	}
 	if (geteuid() == 0 && real_gid != 0) {
 		if (setegid(real_gid) != 0) {

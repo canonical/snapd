@@ -21,17 +21,87 @@ package snapstate
 
 import (
 	"fmt"
+	"os"
+	"path/filepath"
 	"sort"
 	"strings"
 
 	"github.com/snapcore/snapd/cmd/snaplock"
+	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/sandbox/cgroup"
 	"github.com/snapcore/snapd/snap"
 )
 
-var (
-	pidsCgroupDir = cgroup.ControllerPathV1("pids")
-)
+// pidsOfSnap returns the association of security tags to PIDs.
+//
+// NOTE: This function returns non-empty result only if refresh-app-awareness
+// is enabled.
+//
+// The return value is a snapshot of the pids of a given snap, grouped by
+// security tag. The result may be immediately stale as processes fork and
+// exit but it has the following guarantee.
+//
+// If the per-snap lock is held while computing the set, then the following
+// guarantee is true: If a security tag is not among the result then no such
+// tag can come into existence while the lock is held.
+//
+// This can be used to classify the activity of a given snap into activity
+// classes, based on the nature of the security tags encountered.
+//
+// TODO: move this to sandbox/cgroup later.
+func pidsOfSnap(snapInfo *snap.Info) (map[string][]int, error) {
+	// pidsByTag maps security tag to a list of pids.
+	pidsByTag := make(map[string][]int, len(snapInfo.Apps)+len(snapInfo.Hooks))
+
+	// TODO: de-duplicate this with interfaces.SecurityTagGlob
+	// securityTagGlob is a glob matching all the security tags of the snap.
+	securityTagGlob := snap.AppSecurityTag(snapInfo.InstanceName(), "*")
+	walkFunc := func(path string, fileInfo os.FileInfo, err error) error {
+		// We are only interested in files and don't want to analyze parent errors.
+		if err != nil || fileInfo.IsDir() {
+			return err
+		}
+		// We are only interested in cgroup.procs files.
+		if filepath.Base(path) != "cgroup.procs" {
+			println("not cgroup.procs: " + path)
+			return nil
+		}
+		// We are only interested in things matching our security tag glob.
+		parent, _ := filepath.Split(path)
+		securityTag := filepath.Base(parent)
+		if matched, err := filepath.Match(securityTagGlob, securityTag); err != nil || !matched {
+			return err
+		}
+		// Now that we know it is interesting parse the pids and put them into
+		// a bin of the exact security tag.
+		pids, err := cgroup.PidsInFile(path)
+		if err != nil {
+			return err
+		}
+		pidsByTag[securityTag] = append(pidsByTag[securityTag], pids...)
+		return nil
+	}
+
+	// TODO: Currently we walk the entire cgroup tree. We could be more precise
+	// if we knew which of the fundamental two modes are used.
+	//
+	// In v2 mode, when /sys/fs/cgroup is a cgroup2 mount then the code is
+	// correct as-is.  In v1 mode, either with hybrid or without, we could walk
+	// a more scoped subset, specifically /sys/fs/cgroup/unified in hybrid
+	// mode, if one exists, or /sys/fs/cgroup/systemd as last-resort fallback.
+	//
+	// NOTE: Walk is internally performed in lexical order so the output is
+	// deterministic and we don't need to sort the returned aggregated PIDs.
+	if err := filepath.Walk(dirs.CgroupDir, walkFunc); err != nil {
+		if os.IsNotExist(err) {
+			return nil, nil
+		}
+		return nil, err
+	}
+
+	return pidsByTag, nil
+
+}
 
 func genericRefreshCheck(info *snap.Info, canAppRunDuringRefresh func(app *snap.AppInfo) bool) error {
 	// Grab per-snap lock to prevent new processes from starting. This is
@@ -47,6 +117,11 @@ func genericRefreshCheck(info *snap.Info, canAppRunDuringRefresh func(app *snap.
 	if err := lock.Lock(); err != nil {
 		return err
 	}
+	knownPids, err := pidsOfSnap(info)
+	if err != nil {
+		return err
+	}
+	lock.Unlock()
 
 	var busyAppNames []string
 	var busyHookNames []string
@@ -63,11 +138,7 @@ func genericRefreshCheck(info *snap.Info, canAppRunDuringRefresh func(app *snap.
 		if canAppRunDuringRefresh(app) {
 			continue
 		}
-		PIDs, err := cgroup.PidsInGroup(pidsCgroupDir, app.SecurityTag())
-		if err != nil {
-			return err
-		}
-		if len(PIDs) > 0 {
+		if PIDs := knownPids[app.SecurityTag()]; len(PIDs) > 0 {
 			busyAppNames = append(busyAppNames, name)
 			busyPIDs = append(busyPIDs, PIDs...)
 		}
@@ -77,11 +148,7 @@ func genericRefreshCheck(info *snap.Info, canAppRunDuringRefresh func(app *snap.
 		if canHookRunDuringRefresh(hook) {
 			continue
 		}
-		PIDs, err := cgroup.PidsInGroup(pidsCgroupDir, hook.SecurityTag())
-		if err != nil {
-			return err
-		}
-		if len(PIDs) > 0 {
+		if PIDs := knownPids[hook.SecurityTag()]; len(PIDs) > 0 {
 			busyHookNames = append(busyHookNames, name)
 			busyPIDs = append(busyPIDs, PIDs...)
 		}

@@ -10,11 +10,7 @@ prepare: |
 restore: |
     snap remove test-snapd-refresh
     rm -f test-snapd-refresh-{1,2}_all.snap
-    rmdir /sys/fs/cgroup/pids/snap.test-snapd-refresh.sh || true
-    rmdir /sys/fs/cgroup/pids/snap.test-snapd-refresh.version || true
-    # TODO: There is currently no way to unset configuration options.
-    # Once this is fixed please uncomment this line:
-    # snap unset core experimental.refresh-app-awareness
+    snap unset core experimental.refresh-app-awareness
     rm -f install.log
 execute: |
     # Install v1 and see that it runs as expected.
@@ -30,14 +26,7 @@ execute: |
 
     # Ensure that snap-confine has finished its task and that the snap process
     # is active. Note that we don't want to wait forever either.
-    wait_for_stamp() {
-        for _ in $(seq 30); do
-            test -e "$1" && break
-            sleep 0.1
-        done
-    }
-
-    wait_for_stamp /var/snap/test-snapd-refresh/current/stamp
+    retry-tool -n 30 --wait 0.1 test -e /var/snap/test-snapd-refresh/current/stamp
 
     # Try to install v2, it should fail because v1 is running. Snapd is kind
     # enough to tell us what is preventing the install from working.
