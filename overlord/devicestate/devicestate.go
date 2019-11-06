@@ -340,24 +340,22 @@ func remodelTasks(ctx context.Context, st *state.State, current, new *asserts.Mo
 		}
 		tss = append(tss, ts)
 	}
+
+	var ts *state.TaskSet
 	if current.Kernel() != new.Kernel() {
 		needsInstall, err := notInstalled(st, new.Kernel())
 		if err != nil {
 			return nil, err
 		}
 		if needsInstall {
-			ts, err := snapstateInstallWithDeviceContext(ctx, st, new.Kernel(), &snapstate.RevisionOptions{Channel: new.KernelTrack()}, userID, snapstate.Flags{}, deviceCtx, fromChange)
-			if err != nil {
-				return nil, err
-			}
-			tss = append(tss, ts)
+			ts, err = snapstateInstallWithDeviceContext(ctx, st, new.Kernel(), &snapstate.RevisionOptions{Channel: new.KernelTrack()}, userID, snapstate.Flags{}, deviceCtx, fromChange)
 		} else {
-			ts, err := snapstate.LinkNewBaseOrKernel(st, new.Base())
-			if err != nil {
-				return nil, err
-			}
-			tss = append(tss, ts)
+			ts, err = snapstate.LinkNewBaseOrKernel(st, new.Base())
 		}
+		if err != nil {
+			return nil, err
+		}
+		tss = append(tss, ts)
 	}
 	if current.Base() != new.Base() {
 		needsInstall, err := notInstalled(st, new.Base())
@@ -365,18 +363,14 @@ func remodelTasks(ctx context.Context, st *state.State, current, new *asserts.Mo
 			return nil, err
 		}
 		if needsInstall {
-			ts, err := snapstateInstallWithDeviceContext(ctx, st, new.Base(), nil, userID, snapstate.Flags{}, deviceCtx, fromChange)
-			if err != nil {
-				return nil, err
-			}
-			tss = append(tss, ts)
+			ts, err = snapstateInstallWithDeviceContext(ctx, st, new.Base(), nil, userID, snapstate.Flags{}, deviceCtx, fromChange)
 		} else {
-			ts, err := snapstate.LinkNewBaseOrKernel(st, new.Base())
-			if err != nil {
-				return nil, err
-			}
-			tss = append(tss, ts)
+			ts, err = snapstate.LinkNewBaseOrKernel(st, new.Base())
 		}
+		if err != nil {
+			return nil, err
+		}
+		tss = append(tss, ts)
 	}
 	// gadget
 	if current.Gadget() == new.Gadget() && current.GadgetTrack() != new.GadgetTrack() {
