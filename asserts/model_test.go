@@ -686,6 +686,41 @@ func (mods *modelSuite) TestCore20ExplictBootBase(c *C) {
 	})
 }
 
+func (mods *modelSuite) TestCore20ExplictSnapd(c *C) {
+	encoded := strings.Replace(core20ModelExample, "TSLINE", mods.tsLine, 1)
+	encoded = strings.Replace(encoded, "OTHER", `  -
+    name: snapd
+    id: snapdidididididididididididididd
+    type: snapd
+    modes:
+      - run
+      - ephemeral
+    default-channel: latest/edge
+`, 1)
+	a, err := asserts.Decode([]byte(encoded))
+	c.Assert(err, IsNil)
+	c.Check(a.Type(), Equals, asserts.ModelType)
+	model := a.(*asserts.Model)
+	find := func(snapName string, haystack []*asserts.ModelSnap) *asserts.ModelSnap {
+		for _, s := range haystack {
+			if s.Name == snapName {
+				return s
+			}
+		}
+		return nil
+	}
+	snapdSnap := find("snapd", model.AllSnaps())
+	c.Assert(snapdSnap, NotNil)
+	c.Check(snapdSnap, DeepEquals, &asserts.ModelSnap{
+		Name:           "snapd",
+		SnapID:         "snapdidididididididididididididd",
+		SnapType:       "snapd",
+		Modes:          []string{"run", "ephemeral"},
+		DefaultChannel: "latest/edge",
+		Presence:       "required",
+	})
+}
+
 func (mods *modelSuite) TestCore20GradeOptionalDefaultSigned(c *C) {
 	encoded := strings.Replace(core20ModelExample, "TSLINE", mods.tsLine, 1)
 	encoded = strings.Replace(encoded, "OTHER", "", 1)
