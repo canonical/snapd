@@ -28,6 +28,7 @@ import (
 
 	"github.com/snapcore/snapd/arch"
 	"github.com/snapcore/snapd/dirs"
+	"github.com/snapcore/snapd/features"
 	"github.com/snapcore/snapd/osutil/sys"
 	"github.com/snapcore/snapd/snap"
 )
@@ -129,11 +130,18 @@ func userEnv(info *snap.Info, home string) map[string]string {
 	result := map[string]string{
 		"SNAP_USER_COMMON": info.UserCommonDataDir(home),
 		"SNAP_USER_DATA":   info.UserDataDir(home),
-		"XDG_RUNTIME_DIR":  info.UserXdgRuntimeDir(sys.Geteuid()),
 	}
-	// For non-classic snaps, we set HOME but on classic allow snaps to see real HOME
-	if !info.NeedsClassic() {
+	if info.NeedsClassic() {
+		// Snaps using classic confinement don't have an override for
+		// HOME but may have an override for XDG_RUNTIME_DIR.
+		if !features.ClassicPreservesXdgRuntimeDir.IsEnabled() {
+			result["XDG_RUNTIME_DIR"] = info.UserXdgRuntimeDir(sys.Geteuid())
+		}
+	} else {
+		// Snaps using strict or devmode confinement get an override for both
+		// HOME and XDG_RUNTIME_DIR.
 		result["HOME"] = info.UserDataDir(home)
+		result["XDG_RUNTIME_DIR"] = info.UserXdgRuntimeDir(sys.Geteuid())
 	}
 	return result
 }

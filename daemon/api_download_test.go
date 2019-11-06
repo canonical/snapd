@@ -162,6 +162,11 @@ func (s *snapDownloadSuite) TestDownloadSnapErrors(c *check.C) {
 			status:   400,
 			err:      `cannot decode request body into download operation: unexpected EOF`,
 		},
+		{
+			dataJSON: `{"snap-name": "doom","channel":"latest/potato"}`,
+			status:   400,
+			err:      `invalid risk in channel name: latest/potato`,
+		},
 	} {
 		var err error
 		data := []byte(scen.dataJSON)
