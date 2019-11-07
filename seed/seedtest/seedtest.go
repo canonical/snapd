@@ -21,6 +21,7 @@ package seedtest
 
 import (
 	"fmt"
+	"io"
 	"os"
 	"path/filepath"
 	"strings"
@@ -30,6 +31,7 @@ import (
 
 	"github.com/snapcore/snapd/asserts"
 	"github.com/snapcore/snapd/asserts/assertstest"
+	"github.com/snapcore/snapd/seed/seedwriter"
 	"github.com/snapcore/snapd/snap"
 	"github.com/snapcore/snapd/snap/snaptest"
 )
@@ -185,4 +187,98 @@ func WriteAssertions(fn string, assertions ...asserts.Assertion) {
 			panic(err)
 		}
 	}
+}
+
+func ReadAssertions(c *C, fn string) []asserts.Assertion {
+	f, err := os.Open(fn)
+	c.Assert(err, IsNil)
+
+	var as []asserts.Assertion
+	dec := asserts.NewDecoder(f)
+	for {
+		a, err := dec.Decode()
+		if err == io.EOF {
+			break
+		}
+		c.Assert(err, IsNil)
+		as = append(as, a)
+	}
+
+	return as
+}
+
+// TestingSeed20 helps setting up a populated Core 20 testing seed directory.
+type TestingSeed20 struct {
+	SeedSnaps
+
+	SeedDir string
+}
+
+func (s *TestingSeed20) MakeSeed(c *C, label, brandID, modelID string, modelHeaders map[string]interface{} /* XXX []OptionsSnap*/) {
+	model := s.Brands.Model(brandID, modelID, modelHeaders)
+
+	db, err := asserts.OpenDatabase(&asserts.DatabaseConfig{
+		Backstore: asserts.NewMemoryBackstore(),
+		Trusted:   s.StoreSigning.Trusted,
+	})
+	c.Assert(err, IsNil)
+
+	retrieve := func(ref *asserts.Ref) (asserts.Assertion, error) {
+		return ref.Resolve(s.StoreSigning.Find)
+	}
+	newFetcher := func(save func(asserts.Assertion) error) asserts.Fetcher {
+		save2 := func(a asserts.Assertion) error {
+			// for checking
+			err := db.Add(a)
+			if err != nil {
+				if _, ok := err.(*asserts.RevisionError); ok {
+					return nil
+				}
+				return err
+			}
+			return save(a)
+		}
+		return asserts.NewFetcher(db, retrieve, save2)
+	}
+	assertstest.AddMany(s.StoreSigning, s.Brands.AccountsAndKeys("my-brand")...)
+
+	opts := seedwriter.Options{
+		SeedDir: s.SeedDir,
+		Label:   label,
+	}
+	w, err := seedwriter.New(model, &opts)
+	c.Assert(err, IsNil)
+
+	rf, err := w.Start(db, newFetcher)
+	c.Assert(err, IsNil)
+
+	snaps, err := w.SnapsToDownload()
+	c.Assert(err, IsNil)
+
+	for _, sn := range snaps {
+		name := sn.SnapName()
+
+		info := s.AssertedSnapInfo(name)
+		c.Assert(info, NotNil, Commentf("%s", name))
+		err := w.SetInfo(sn, info)
+		c.Assert(err, IsNil)
+
+		prev := len(rf.Refs())
+		err = rf.Save(s.snapRevs[name])
+		c.Assert(err, IsNil)
+		sn.ARefs = rf.Refs()[prev:]
+
+		err = os.Rename(s.AssertedSnap(name), sn.Path)
+		c.Assert(err, IsNil)
+	}
+
+	complete, err := w.Downloaded()
+	c.Assert(err, IsNil)
+	c.Check(complete, Equals, true)
+
+	err = w.SeedSnaps(nil)
+	c.Assert(err, IsNil)
+
+	err = w.WriteMeta()
+	c.Assert(err, IsNil)
 }

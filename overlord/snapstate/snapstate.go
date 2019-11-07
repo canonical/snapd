@@ -408,11 +408,6 @@ func WaitRestart(task *state.Task, snapsup *SnapSetup) (err error) {
 		return &state.Retry{}
 	}
 
-	snapInfo, err := snap.ReadInfo(snapsup.InstanceName(), snapsup.SideInfo)
-	if err != nil {
-		return err
-	}
-
 	if snapsup.Type == snap.TypeSnapd && os.Getenv("SNAPD_REVERT_TO_REV") != "" {
 		return fmt.Errorf("there was a snapd rollback across the restart")
 	}
@@ -421,6 +416,7 @@ func WaitRestart(task *state.Task, snapsup *SnapSetup) (err error) {
 	// can be triggered by:
 	// - core (old core16 world, system-reboot)
 	// - bootable base snap (new core18 world, system-reboot)
+	// - kernel
 	//
 	// TODO: Detect "snapd" snap daemon-restarts here that
 	//       fallback into the old version (once we have
@@ -434,26 +430,39 @@ func WaitRestart(task *state.Task, snapsup *SnapSetup) (err error) {
 		if err != nil {
 			return err
 		}
-		bootName := "core"
-		typ := snap.TypeOS
-		if model.Base() != "" {
-			bootName = model.Base()
-			typ = snap.TypeBase
+
+		// get the name of the name relevant for booting
+		// based on the given type
+		var bootName string
+		switch snapsup.Type {
+		case snap.TypeKernel:
+			bootName = model.Kernel()
+		case snap.TypeOS, snap.TypeBase:
+			bootName = "core"
+			if model.Base() != "" {
+				bootName = model.Base()
+			}
+		default:
+			return nil
 		}
-		// if it is not a bootable snap we are not interested
+		// if it is not a snap related to our booting we are not
+		// interested
 		if snapsup.InstanceName() != bootName {
 			return nil
 		}
 
-		current, err := boot.GetCurrentBoot(typ)
+		// compare what we think is "current" for snapd with what
+		// actually booted. The bootloader may revert on a failed
+		// boot from a bad os/base/kernel to a good one and in this
+		// case we need to catch this and error accordingly
+		current, err := boot.GetCurrentBoot(snapsup.Type)
 		if err == boot.ErrBootNameAndRevisionNotReady {
 			return &state.Retry{After: 5 * time.Second}
 		}
 		if err != nil {
 			return err
 		}
-
-		if snapsup.InstanceName() != current.Name || snapInfo.Revision != current.Revision {
+		if snapsup.InstanceName() != current.Name || snapsup.SideInfo.Revision != current.Revision {
 			// TODO: make sure this revision gets ignored for
 			//       automatic refreshes
 			return fmt.Errorf("cannot finish %s installation, there was a rollback across reboot", snapsup.InstanceName())
@@ -1550,6 +1559,55 @@ func AutoRefresh(ctx context.Context, st *state.State) ([]string, []*state.TaskS
 	}
 
 	return UpdateMany(ctx, st, nil, userID, &Flags{IsAutoRefresh: true})
+}
+
+// LinkNewBaseOrKernel will create prepare/link-snap tasks for a remodel
+func LinkNewBaseOrKernel(st *state.State, name string) (*state.TaskSet, error) {
+	var snapst SnapState
+	err := Get(st, name, &snapst)
+	if err == state.ErrNoState {
+		return nil, &snap.NotInstalledError{Snap: name}
+	}
+	if err != nil {
+		return nil, err
+	}
+
+	if err := CheckChangeConflict(st, name, nil); err != nil {
+		return nil, err
+	}
+
+	info, err := snapst.CurrentInfo()
+	if err != nil {
+		return nil, err
+	}
+
+	switch info.GetType() {
+	case snap.TypeOS, snap.TypeBase, snap.TypeKernel:
+		// good
+	default:
+		// bad
+		return nil, fmt.Errorf("cannot link type %v", info.GetType())
+	}
+
+	snapsup := &SnapSetup{
+		SideInfo:    snapst.CurrentSideInfo(),
+		Flags:       snapst.Flags.ForSnapSetup(),
+		Type:        info.GetType(),
+		PlugsOnly:   len(info.Slots) == 0,
+		InstanceKey: snapst.InstanceKey,
+	}
+
+	prepareSnap := st.NewTask("prepare-snap", fmt.Sprintf(i18n.G("Prepare snap %q (%s) for remodel"), snapsup.InstanceName(), snapst.Current))
+	prepareSnap.Set("snap-setup", &snapsup)
+
+	linkSnap := st.NewTask("link-snap", fmt.Sprintf(i18n.G("Make snap %q (%s) available to the system during remodel"), snapsup.InstanceName(), snapst.Current))
+	linkSnap.Set("snap-setup-task", prepareSnap.ID())
+	linkSnap.WaitFor(prepareSnap)
+
+	// we need this for remodel
+	ts := state.NewTaskSet(prepareSnap, linkSnap)
+	ts.MarkEdge(prepareSnap, DownloadAndChecksDoneEdge)
+	return ts, nil
 }
 
 // Enable sets a snap to the active state

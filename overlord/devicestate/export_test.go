@@ -113,7 +113,9 @@ func EnsureSeedYaml(m *DeviceManager) error {
 
 var PopulateStateFromSeedImpl = populateStateFromSeedImpl
 
-func MockPopulateStateFromSeed(f func(*state.State, timings.Measurer) ([]*state.TaskSet, error)) (restore func()) {
+type PopulateStateFromSeedOptions = populateStateFromSeedOptions
+
+func MockPopulateStateFromSeed(f func(*state.State, *PopulateStateFromSeedOptions, timings.Measurer) ([]*state.TaskSet, error)) (restore func()) {
 	old := populateStateFromSeed
 	populateStateFromSeed = f
 	return func() {
@@ -160,8 +162,9 @@ var (
 	CleanupRemodelCtx = cleanupRemodelCtx
 	CachedRemodelCtx  = cachedRemodelCtx
 
-	GadgetUpdateBlocked    = gadgetUpdateBlocked
-	GadgetCurrentAndUpdate = gadgetCurrentAndUpdate
+	GadgetUpdateBlocked = gadgetUpdateBlocked
+	CurrentGadgetInfo   = currentGadgetInfo
+	PendingGadgetInfo   = pendingGadgetInfo
 )
 
 func MockGadgetUpdate(mock func(current, update gadget.GadgetData, path string, policy gadget.UpdatePolicyFunc) error) (restore func()) {

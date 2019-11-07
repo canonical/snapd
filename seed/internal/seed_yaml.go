@@ -31,10 +31,9 @@ import (
 	"github.com/snapcore/snapd/snap/naming"
 )
 
-// Snap points to a snap in the seed to install, together with
+// Snap16 points to a snap in the seed to install, together with
 // assertions (or alone if unasserted is true) it will be used to
 // drive the installation and ultimately set SideInfo/SnapState for it.
-// TODO: make this internal
 type Snap16 struct {
 	Name string `yaml:"name"`
 
@@ -55,8 +54,6 @@ type Snap16 struct {
 
 	File string `yaml:"file"`
 }
-
-// TODO: make all of this internal only
 
 type Seed16 struct {
 	Snaps []*Snap16 `yaml:"snaps"`

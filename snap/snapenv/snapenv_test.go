@@ -21,6 +21,7 @@ package snapenv
 
 import (
 	"fmt"
+	"io/ioutil"
 	"os"
 	"os/user"
 	"strings"
@@ -30,6 +31,7 @@ import (
 
 	"github.com/snapcore/snapd/arch"
 	"github.com/snapcore/snapd/dirs"
+	"github.com/snapcore/snapd/features"
 	"github.com/snapcore/snapd/osutil/sys"
 	"github.com/snapcore/snapd/snap"
 	"github.com/snapcore/snapd/testutil"
@@ -108,14 +110,31 @@ func (ts *HTestSuite) TestUser(c *C) {
 }
 
 func (ts *HTestSuite) TestUserForClassicConfinement(c *C) {
-	env := userEnv(mockClassicSnapInfo, "/root")
+	dirs.SetRootDir(c.MkDir())
+	defer dirs.SetRootDir("/")
+	c.Assert(os.MkdirAll(dirs.FeaturesDir, 0755), IsNil)
 
+	// With the classic-preserves-xdg-runtime-dir feature disabled the snap
+	// per-user environment contains an override for XDG_RUNTIME_DIR.
+	env := userEnv(mockClassicSnapInfo, "/root")
 	c.Assert(env, DeepEquals, map[string]string{
-		// NOTE HOME Is absent! we no longer override it
+		// NOTE: Both HOME and XDG_RUNTIME_DIR are not defined here.
 		"SNAP_USER_COMMON": "/root/snap/foo/common",
 		"SNAP_USER_DATA":   "/root/snap/foo/17",
-		"XDG_RUNTIME_DIR":  fmt.Sprintf("/run/user/%d/snap.foo", sys.Geteuid()),
+		"XDG_RUNTIME_DIR":  fmt.Sprintf(dirs.GlobalRootDir+"/run/user/%d/snap.foo", sys.Geteuid()),
 	})
+
+	// With the classic-preserves-xdg-runtime-dir feature enabled the snap
+	// per-user environment contains no overrides for XDG_RUNTIME_DIR.
+	f := features.ClassicPreservesXdgRuntimeDir
+	c.Assert(ioutil.WriteFile(f.ControlFile(), nil, 0644), IsNil)
+	env = userEnv(mockClassicSnapInfo, "/root")
+	c.Assert(env, DeepEquals, map[string]string{
+		// NOTE: Both HOME and XDG_RUNTIME_DIR are not defined here.
+		"SNAP_USER_COMMON": "/root/snap/foo/common",
+		"SNAP_USER_DATA":   "/root/snap/foo/17",
+	})
+
 }
 
 func (s *HTestSuite) TestSnapRunSnapExecEnv(c *C) {
@@ -217,15 +236,31 @@ func (ts *HTestSuite) TestParallelInstallUser(c *C) {
 }
 
 func (ts *HTestSuite) TestParallelInstallUserForClassicConfinement(c *C) {
+	dirs.SetRootDir(c.MkDir())
+	defer dirs.SetRootDir("/")
+	c.Assert(os.MkdirAll(dirs.FeaturesDir, 0755), IsNil)
+
 	info := *mockClassicSnapInfo
 	info.InstanceKey = "bar"
-	env := userEnv(&info, "/root")
 
+	// With the classic-preserves-xdg-runtime-dir feature disabled the snap
+	// per-user environment contains an override for XDG_RUNTIME_DIR.
+	env := userEnv(&info, "/root")
 	c.Assert(env, DeepEquals, map[string]string{
-		// NOTE HOME Is absent! we no longer override it
 		"SNAP_USER_COMMON": "/root/snap/foo_bar/common",
 		"SNAP_USER_DATA":   "/root/snap/foo_bar/17",
-		"XDG_RUNTIME_DIR":  fmt.Sprintf("/run/user/%d/snap.foo_bar", sys.Geteuid()),
+		"XDG_RUNTIME_DIR":  fmt.Sprintf(dirs.GlobalRootDir+"/run/user/%d/snap.foo_bar", sys.Geteuid()),
+	})
+
+	// With the classic-preserves-xdg-runtime-dir feature enabled the snap
+	// per-user environment contains no overrides for XDG_RUNTIME_DIR.
+	f := features.ClassicPreservesXdgRuntimeDir
+	c.Assert(ioutil.WriteFile(f.ControlFile(), nil, 0644), IsNil)
+	env = userEnv(&info, "/root")
+	c.Assert(env, DeepEquals, map[string]string{
+		// NOTE: Both HOME and XDG_RUNTIME_DIR are not defined here.
+		"SNAP_USER_COMMON": "/root/snap/foo_bar/common",
+		"SNAP_USER_DATA":   "/root/snap/foo_bar/17",
 	})
 }
 
