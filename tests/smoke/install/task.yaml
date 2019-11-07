@@ -20,9 +20,11 @@ execute: |
         # snap-confine issues a warning on a cgroupv2 system
         [[ "$(cat stderr.log)" == 'WARNING: cgroup v2 is not fully supported yet, proceeding with partial confinement' ]]
     else
-        echo "stderr.log must be empty but it is not: (run as root)"
-        cat stderr.log
-        exit 1
+       if [ -s stderr.log ]; then
+           echo "stderr.log must be empty but it is not: (run as root)"
+           cat stderr.log
+           exit 1
+       fi
     fi
 
     echo "Ensure that the snap can be run as the user"
@@ -32,9 +34,11 @@ execute: |
         # snap-confine issues a warning on a cgroupv2 system
         [[ "$(cat stderr.log)" == 'WARNING: cgroup v2 is not fully supported yet, proceeding with partial confinement' ]]
     else
-        echo "stderr.log must be empty but it is not: (run as user)"
-        cat stderr.log
-        exit 1
+       if [ -s stderr.log ]; then
+           echo "stderr.log must be empty but it is not: (run as user)"
+           cat stderr.log
+           exit 1
+       fi
     fi
 
     echo "Ensure the snap is listed"
