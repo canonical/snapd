@@ -61,7 +61,9 @@ func (key EncryptionKey) Store(filename string) error {
 
 // EncryptedDevice represents a LUKS-backed encrypted block device.
 type EncryptedDevice struct {
-	Node          string
+	// Node is the mapped, unencrypted device node
+	Node string
+	// encryptedNode is the parent, encrypted device node
 	encryptedNode string
 	name          string
 }

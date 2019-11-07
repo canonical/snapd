@@ -54,7 +54,7 @@ func run(args []string) error {
 		return fmt.Errorf("if encrypting, the output key file must be specified")
 	}
 
-	options := &bootstrap.Options{
+	options := bootstrap.Options{
 		EncryptDataPartition: opts.WithEncryption,
 		KeyFile:              opts.KeyFile,
 	}

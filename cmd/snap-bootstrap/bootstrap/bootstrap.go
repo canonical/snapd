@@ -26,23 +26,21 @@ import (
 )
 
 const (
-	systemDataLabel = "ubuntu-data"
+	ubuntuDataLabel = "ubuntu-data"
 )
 
 type Options struct {
 	EncryptDataPartition bool
-	KeyFile              string
+	// KeyFile is the location where the encryption key is written to
+	KeyFile string
 }
 
-func Run(gadgetRoot, device string, options *Options) error {
+func Run(gadgetRoot, device string, options Options) error {
 	if gadgetRoot == "" {
 		return fmt.Errorf("cannot use empty gadget root directory")
 	}
 	if device == "" {
 		return fmt.Errorf("cannot use empty device node")
-	}
-	if options == nil {
-		options = &Options{}
 	}
 
 	lv, err := gadget.PositionedVolumeFromGadget(gadgetRoot)
@@ -77,8 +75,8 @@ func Run(gadgetRoot, device string, options *Options) error {
 	for _, part := range created {
 		if options.EncryptDataPartition && part.Role == "system-data" {
 			// system-data roles are always called ubuntu-data for now
-			part.VolumeStructure.Label = systemDataLabel
-			dataPart := partition.NewEncryptedDevice(&part, systemDataLabel)
+			part.VolumeStructure.Label = ubuntuDataLabel
+			dataPart := partition.NewEncryptedDevice(&part, ubuntuDataLabel)
 			if err := dataPart.Encrypt(key); err != nil {
 				return err
 			}
