@@ -22,6 +22,8 @@ execute: |
     . "$TESTSLIB/dirs.sh"
     #shellcheck source=tests/lib/snaps.sh
     . "$TESTSLIB/snaps.sh"
+    #shellcheck source=tests/lib/systems.sh
+    . "$TESTSLIB"/systems.sh
 
     install_local test-snapd-xdg-settings
 
@@ -68,6 +70,14 @@ execute: |
     # ensure zenity answers "yes"
     touch /usr/bin/zenity
     mount --bind /bin/true /usr/bin/zenity
+
+    if is_cgroupv2 ; then
+        # we are expecting the test to fail on a cgroup v2 system
+        not ensure_xdg_settings_output "set" "default-web-browser" "browser.desktop"
+        MATCH 'WARNING: cgroup v2 is not fully supported yet, proceeding with partial confinement' < stderr.log
+        MATCH 'cannot find snap for connection: not supported' < stderr.log
+        exit 0
+    fi
 
     ensure_xdg_settings_output "set" "default-web-browser" "browser.desktop"
 
