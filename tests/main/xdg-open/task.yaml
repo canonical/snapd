@@ -75,7 +75,10 @@ execute: |
 
     if is_cgroupv2 ; then
         # we are expecting the test to fail on a cgroup v2 system
-        not ensure_xdg_open_output "http://smoke-test-cgroupv2.com" 2> stderr.log
+        if ensure_xdg_open_output "http://smoke-test-cgroupv2.com" 2> stderr.log ; then
+            echo "expected failure, but none happened"
+            exit 1
+        fi
         MATCH 'WARNING: cgroup v2 is not fully supported yet, proceeding with partial confinement' < stderr.log
         MATCH 'cannot find snap for connection: not supported' < stderr.log
         exit 0
