@@ -269,13 +269,20 @@ func (m *InterfaceManager) reloadConnections(snapName string) ([]string, error) 
 			continue
 		}
 
-		// Some versions of snapd may have left stray connections that don't
-		// have the corresponding plug or slot anymore. Before we choose how to
-		// deal with this data we want to silently ignore that error not to
-		// worry the users.
 		plugInfo := m.repo.Plug(connRef.PlugRef.Snap, connRef.PlugRef.Name)
 		slotInfo := m.repo.Slot(connRef.SlotRef.Snap, connRef.SlotRef.Name)
+
+		// The connection refers to a plug or slot that doesn't exist anymore, e.g. because of a refresh
+		// to a new snap revision that doesn't have the given plug/slot.
 		if plugInfo == nil || slotInfo == nil {
+			// automatic connection can simply be removed (it will be re-created automatically if needed)
+			// as long as it wasn't disconnected manually; note that undesired flag is taken care of at
+			// the beginning of the loop.
+			if connState.Auto && !connState.ByGadget && connState.Interface != "core-support" {
+				delete(conns, connId)
+				connStateChanged = true
+			}
+			// otherwise keep it and silently ignore, e.g. in case of a revert.
 			continue
 		}
 
