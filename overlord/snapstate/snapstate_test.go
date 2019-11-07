@@ -922,7 +922,7 @@ func (s snapmgrTestSuite) TestInstallFailsOnBusySnap(c *C) {
 	})
 
 	// And with cgroup v1 information indicating the app has a process with pid 1234.
-	writePids(c, filepath.Join(dirs.CgroupDir, "irrelevant", "snap.some-snap.app"), []int{1234})
+	writePids(c, filepath.Join(dirs.CgroupDir, "irrelevant", "snap.some-snap.app.scope"), []int{1234})
 
 	// Attempt to install revision 2 of the snap.
 	snapsup := &snapstate.SnapSetup{

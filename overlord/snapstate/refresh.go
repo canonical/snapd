@@ -53,9 +53,9 @@ func pidsOfSnap(snapInfo *snap.Info) (map[string][]int, error) {
 	// pidsByTag maps security tag to a list of pids.
 	pidsByTag := make(map[string][]int, len(snapInfo.Apps)+len(snapInfo.Hooks))
 
-	// TODO: de-duplicate this with interfaces.SecurityTagGlob
-	// securityTagGlob is a glob matching all the security tags of the snap.
-	securityTagGlob := snap.AppSecurityTag(snapInfo.InstanceName(), "*")
+	// scopeTag is a glob matching all the systemd scopes used by the snap. The
+	// scope is related to security tag and simply has the suffix ".scope".
+	scopeGlob := snap.AppSecurityTag(snapInfo.InstanceName(), "*") + ".scope"
 	walkFunc := func(path string, fileInfo os.FileInfo, err error) error {
 		// We are only interested in files and don't want to analyze parent errors.
 		if err != nil || fileInfo.IsDir() {
@@ -63,15 +63,20 @@ func pidsOfSnap(snapInfo *snap.Info) (map[string][]int, error) {
 		}
 		// We are only interested in cgroup.procs files.
 		if filepath.Base(path) != "cgroup.procs" {
-			println("not cgroup.procs: " + path)
 			return nil
 		}
-		// We are only interested in things matching our security tag glob.
+		// We are only interested in scopes.
 		parent, _ := filepath.Split(path)
-		securityTag := filepath.Base(parent)
-		if matched, err := filepath.Match(securityTagGlob, securityTag); err != nil || !matched {
+		if !strings.HasSuffix(parent, ".scope/") {
+			return nil
+		}
+		scope := filepath.Base(parent)
+		// We are only interested in things matching our security tag glob.
+		if matched, err := filepath.Match(scopeGlob, scope); err != nil || !matched {
 			return err
 		}
+		securityTag := strings.TrimSuffix(scope, ".scope")
+
 		// Now that we know it is interesting parse the pids and put them into
 		// a bin of the exact security tag.
 		pids, err := cgroup.PidsInFile(path)

@@ -968,7 +968,7 @@ func (s *linkSnapSuite) testDoUnlinkSnapRefreshAwareness(c *C) *state.Change {
 	defer dirs.SetRootDir("/")
 
 	// mock that "some-snap" has an app and that this app has pids running
-	writePids(c, filepath.Join(dirs.CgroupDir, "irrelevant", "snap.some-snap.some-app"), []int{1234})
+	writePids(c, filepath.Join(dirs.CgroupDir, "irrelevant", "snap.some-snap.some-app.scope"), []int{1234})
 	snapstate.MockSnapReadInfo(func(name string, si *snap.SideInfo) (*snap.Info, error) {
 		info := &snap.Info{SuggestedName: name, SideInfo: *si, SnapType: snap.TypeApp}
 		info.Apps = map[string]*snap.AppInfo{

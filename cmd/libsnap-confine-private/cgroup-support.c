@@ -69,8 +69,10 @@ void sc_cgroup_create_and_join(const char *parent, const char *name, pid_t pid) 
 }
 
 static const char *cgroup_dir = "/sys/fs/cgroup";
+#if 0
 static const char *cgroup_unified_dir = "/sys/fs/cgroup/unified";
 static const char *cgroup_systemd_dir = "/sys/fs/cgroup/systemd";
+#endif
 
 // from statfs(2)
 #ifndef CGRUOP2_SUPER_MAGIC
@@ -104,6 +106,7 @@ bool sc_cgroup_is_v2() {
     return false;
 }
 
+#if 0
 /**
  * sc_find_tracking_hierarchy produces the full /sys/fs/cgroup/ path the
  * selected cgroup hierarchy of the given process. The result is written to
@@ -235,9 +238,31 @@ static void sc_find_tracking_hierarchy(pid_t pid, char *path, size_t path_size) 
         die("cannot find tracking cgroup path");
     }
 }
+#endif
 
 void sc_join_sub_cgroup(const char *security_tag, pid_t pid) {
+#if 0
     char current_hierarchy_path[PATH_MAX + 1] = {};
     sc_find_tracking_hierarchy(pid, current_hierarchy_path, sizeof current_hierarchy_path);
     sc_cgroup_create_and_join(current_hierarchy_path, security_tag, pid);
+#else
+    // TODO: reimplement this in C
+    char cmd[1000];
+    for (int attempt=0; attempt<3; ++attempt) {
+        snprintf(cmd, sizeof cmd, "busctl %s call org.freedesktop.systemd1 /org/freedesktop/systemd1 org.freedesktop.systemd1.Manager StartTransientUnit 'ssa(sv)a(sa(sv))' %s.scope fail 2 PIDs au 1 %d Delegate b true 0",
+                getuid() == 0 ? "--system" : "--user", security_tag, pid);
+        debug("staring: %s", cmd);
+        if (system(cmd) == 0) {
+            return;
+        }
+
+        snprintf(cmd, sizeof cmd, "busctl %s call org.freedesktop.systemd1 /org/freedesktop/systemd1 org.freedesktop.systemd1.Manager AttachProcessesToUnit 'ssau' %s.scope '' 1 %d",
+                getuid() == 0 ? "--system" : "--user", security_tag, pid);
+        debug("staring: %s", cmd);
+        if (system(cmd) == 0) {
+            return;
+        }
+    }
+    die("cannot start or join transient unit");
+#endif
 }

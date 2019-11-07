@@ -41,6 +41,16 @@
     # Needed to run /usr/bin/sh for snap-device-helper.
     /{,usr/}lib{,32,64,x32}/{,@{multiarch}/}libtinfo.so* mr,
 
+    # for busctl
+    /bin/{,da,ba}sh Ux,  # drop this
+
+    dbus send
+        bus={system,session}
+        path="/org/freedesktop/systemd1"
+        interface="org.freedesktop.systemd1.Manager"
+        member="{StartTransientUnit,AttachProcessesToUnit}"
+        peer=(name="org.freedesktop.systemd1" label=unconfined),
+
     @LIBEXECDIR@/snap-confine mr,
 
     /dev/null rw,

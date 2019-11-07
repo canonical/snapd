@@ -62,9 +62,9 @@ hooks:
 `
 	s.info = snaptest.MockInfo(c, yamlText, nil)
 	dirs.SetRootDir(c.MkDir())
-	s.daemonPath = filepath.Join(dirs.CgroupDir, "intermediate", s.info.Apps["daemon"].SecurityTag())
-	s.appPath = filepath.Join(dirs.CgroupDir, "intermediate", s.info.Apps["app"].SecurityTag())
-	s.hookPath = filepath.Join(dirs.CgroupDir, "intermediate", s.info.Hooks["configure"].SecurityTag())
+	s.daemonPath = filepath.Join(dirs.CgroupDir, "intermediate", s.info.Apps["daemon"].SecurityTag()+".scope")
+	s.appPath = filepath.Join(dirs.CgroupDir, "intermediate", s.info.Apps["app"].SecurityTag()+".scope")
+	s.hookPath = filepath.Join(dirs.CgroupDir, "intermediate", s.info.Hooks["configure"].SecurityTag()+".scope")
 }
 
 func (s *refreshSuite) TearDownTest(c *C) {
@@ -109,9 +109,9 @@ func (s *refreshSuite) TestPidsOfSnapSecurityTags(c *C) {
 	c.Assert(s.info.SnapName(), Equals, "foo")
 
 	// Pids are collected and assigned to bins by security tag
-	path := filepath.Join(dirs.CgroupDir, "system.slice", "snap.foo.service", "snap.foo.hook.configure")
+	path := filepath.Join(dirs.CgroupDir, "system.slice", "snap.foo.service", "snap.foo.hook.configure.scope")
 	writePids(c, path, []int{1})
-	path = filepath.Join(dirs.CgroupDir, "system.slice", "snap.foo.service", "snap.foo.foo")
+	path = filepath.Join(dirs.CgroupDir, "system.slice", "snap.foo.service", "snap.foo.foo.scope")
 	writePids(c, path, []int{2})
 
 	pids, err := snapstate.PidsOfSnap(s.info)
@@ -127,11 +127,11 @@ func (s *refreshSuite) TestPidsOfInstances(c *C) {
 	c.Assert(s.info.SnapName(), Equals, "foo")
 
 	// Instances are not confused between themselves and between the non-instance version.
-	path := filepath.Join(dirs.CgroupDir, "system.slice", "snap.foo_prod.foo.service", "snap.foo_prod.foo")
+	path := filepath.Join(dirs.CgroupDir, "system.slice", "snap.foo_prod.foo.service", "snap.foo_prod.foo.scope")
 	writePids(c, path, []int{1})
-	path = filepath.Join(dirs.CgroupDir, "system.slice", "snap.foo_devel.foo.service", "snap.foo_devel.foo")
+	path = filepath.Join(dirs.CgroupDir, "system.slice", "snap.foo_devel.foo.service", "snap.foo_devel.foo.scope")
 	writePids(c, path, []int{2})
-	path = filepath.Join(dirs.CgroupDir, "system.slice", "snap.foo.foo.service", "snap.foo.foo")
+	path = filepath.Join(dirs.CgroupDir, "system.slice", "snap.foo.foo.service", "snap.foo.foo.scope")
 	writePids(c, path, []int{3})
 
 	// The main one
@@ -164,9 +164,9 @@ func (s *refreshSuite) TestPidsOfAggregation(c *C) {
 
 	// A single snap may be invoked by multiple users in different sessions.
 	// All of their PIDs are collected though.
-	path := filepath.Join(dirs.CgroupDir, "user.slice", "user-1000.slice", "user@1000.service", "gnome-shell-wayland.service", "snap.foo.foo")
+	path := filepath.Join(dirs.CgroupDir, "user.slice", "user-1000.slice", "user@1000.service", "gnome-shell-wayland.service", "snap.foo.foo.scope")
 	writePids(c, path, []int{1})
-	path = filepath.Join(dirs.CgroupDir, "user.slice", "user-1001.slice", "user@1001.service", "gnome-shell-wayland.service", "snap.foo.foo")
+	path = filepath.Join(dirs.CgroupDir, "user.slice", "user-1001.slice", "user@1001.service", "gnome-shell-wayland.service", "snap.foo.foo.scope")
 	writePids(c, path, []int{2})
 
 	pids, err := snapstate.PidsOfSnap(s.info)
@@ -181,11 +181,11 @@ func (s *refreshSuite) TestPidsOfUnrelated(c *C) {
 	c.Assert(s.info.SnapName(), Equals, "foo")
 
 	// We are not confusing snaps with other snaps and with non-snap hierarchies.
-	path := filepath.Join(dirs.CgroupDir, "user.slice", "...", "snap.foo.foo")
+	path := filepath.Join(dirs.CgroupDir, "user.slice", "...", "snap.foo.foo.scope")
 	writePids(c, path, []int{1})
-	path = filepath.Join(dirs.CgroupDir, "user.slice", "...", "snap.bar.bar")
+	path = filepath.Join(dirs.CgroupDir, "user.slice", "...", "snap.bar.bar.scope")
 	writePids(c, path, []int{2})
-	path = filepath.Join(dirs.CgroupDir, "user.slice", "...", "foo.service")
+	path = filepath.Join(dirs.CgroupDir, "user.slice", "...", "foo.service.scope")
 	writePids(c, path, []int{3})
 
 	pids, err := snapstate.PidsOfSnap(s.info)
