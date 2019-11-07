@@ -7224,3 +7224,195 @@ func (s *interfaceManagerSuite) TestTransitionConnectionsCoreMigration(c *C) {
 	c.Assert(err, IsNil)
 	c.Assert(repoConns, HasLen, 0)
 }
+
+func (s *interfaceManagerSuite) TestDoSetupSnapSecurityAutoConnectsDeclBasedAnySlotsPerPlugPlugSide(c *C) {
+	s.MockModel(c, nil)
+
+	// the producer snap
+	s.MockSnapDecl(c, "theme1", "one-publisher", nil)
+
+	// 2nd producer snap
+	s.MockSnapDecl(c, "theme2", "one-publisher", nil)
+
+	// the consumer
+	s.MockSnapDecl(c, "theme-consumer", "one-publisher", map[string]interface{}{
+		"format": "1",
+		"plugs": map[string]interface{}{
+			"content": map[string]interface{}{
+				"allow-auto-connection": map[string]interface{}{
+					"slots-per-plug": "*",
+				},
+			},
+		},
+	})
+
+	check := func(conns map[string]interface{}, repoConns []*interfaces.ConnRef) {
+		c.Check(repoConns, HasLen, 2)
+
+		c.Check(conns, DeepEquals, map[string]interface{}{
+			"theme-consumer:plug theme1:slot": map[string]interface{}{
+				"auto":        true,
+				"interface":   "content",
+				"plug-static": map[string]interface{}{"content": "themes"},
+				"slot-static": map[string]interface{}{"content": "themes"},
+			},
+			"theme-consumer:plug theme2:slot": map[string]interface{}{
+				"auto":        true,
+				"interface":   "content",
+				"plug-static": map[string]interface{}{"content": "themes"},
+				"slot-static": map[string]interface{}{"content": "themes"},
+			},
+		})
+	}
+
+	s.testDoSetupSnapSecurityAutoConnectsDeclBasedAnySlotsPerPlug(c, check)
+}
+
+func (s *interfaceManagerSuite) testDoSetupSnapSecurityAutoConnectsDeclBasedAnySlotsPerPlug(c *C, check func(map[string]interface{}, []*interfaces.ConnRef)) {
+	const theme1Yaml = `
+name: theme1
+version: 1
+slots:
+  slot:
+    interface: content
+    content: themes
+`
+	s.mockSnap(c, theme1Yaml)
+	const theme2Yaml = `
+name: theme2
+version: 1
+slots:
+  slot:
+    interface: content
+    content: themes
+`
+	s.mockSnap(c, theme2Yaml)
+
+	mgr := s.manager(c)
+
+	const themeConsumerYaml = `
+name: theme-consumer
+version: 1
+plugs:
+  plug:
+    interface: content
+    content: themes
+`
+	snapInfo := s.mockSnap(c, themeConsumerYaml)
+
+	// Run the setup-snap-security task and let it finish.
+	change := s.addSetupSnapSecurityChange(c, &snapstate.SnapSetup{
+		SideInfo: &snap.SideInfo{
+			RealName: snapInfo.SnapName(),
+			SnapID:   snapInfo.SnapID,
+			Revision: snapInfo.Revision,
+		},
+	})
+	s.settle(c)
+
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	// Ensure that the task succeeded.
+	c.Assert(change.Status(), Equals, state.DoneStatus)
+
+	var conns map[string]interface{}
+	_ = s.state.Get("conns", &conns)
+
+	repo := mgr.Repository()
+	plug := repo.Plug("theme-consumer", "plug")
+	c.Assert(plug, Not(IsNil))
+
+	check(conns, repo.Interfaces().Connections)
+}
+
+func (s *interfaceManagerSuite) TestDoSetupSnapSecurityAutoConnectsDeclBasedAnySlotsPerPlugSlotSide(c *C) {
+	s.MockModel(c, nil)
+
+	// the producer snap
+	s.MockSnapDecl(c, "theme1", "one-publisher", map[string]interface{}{
+		"format": "1",
+		"slots": map[string]interface{}{
+			"content": map[string]interface{}{
+				"allow-auto-connection": map[string]interface{}{
+					"slots-per-plug": "*",
+				},
+			},
+		},
+	})
+
+	// 2nd producer snap
+	s.MockSnapDecl(c, "theme2", "one-publisher", map[string]interface{}{
+		"format": "1",
+		"slots": map[string]interface{}{
+			"content": map[string]interface{}{
+				"allow-auto-connection": map[string]interface{}{
+					"slots-per-plug": "*",
+				},
+			},
+		},
+	})
+
+	// the consumer
+	s.MockSnapDecl(c, "theme-consumer", "one-publisher", nil)
+
+	check := func(conns map[string]interface{}, repoConns []*interfaces.ConnRef) {
+		c.Check(repoConns, HasLen, 2)
+
+		c.Check(conns, DeepEquals, map[string]interface{}{
+			"theme-consumer:plug theme1:slot": map[string]interface{}{
+				"auto":        true,
+				"interface":   "content",
+				"plug-static": map[string]interface{}{"content": "themes"},
+				"slot-static": map[string]interface{}{"content": "themes"},
+			},
+			"theme-consumer:plug theme2:slot": map[string]interface{}{
+				"auto":        true,
+				"interface":   "content",
+				"plug-static": map[string]interface{}{"content": "themes"},
+				"slot-static": map[string]interface{}{"content": "themes"},
+			},
+		})
+	}
+
+	s.testDoSetupSnapSecurityAutoConnectsDeclBasedAnySlotsPerPlug(c, check)
+}
+
+func (s *interfaceManagerSuite) TestDoSetupSnapSecurityAutoConnectsDeclBasedAnySlotsPerPlugAmbiguity(c *C) {
+	s.MockModel(c, nil)
+
+	// the producer snap
+	s.MockSnapDecl(c, "theme1", "one-publisher", map[string]interface{}{
+		"format": "1",
+		"slots": map[string]interface{}{
+			"content": map[string]interface{}{
+				"allow-auto-connection": map[string]interface{}{
+					"slots-per-plug": "*",
+				},
+			},
+		},
+	})
+
+	// 2nd producer snap
+	s.MockSnapDecl(c, "theme2", "one-publisher", map[string]interface{}{
+		"format": "1",
+		"slots": map[string]interface{}{
+			"content": map[string]interface{}{
+				"allow-auto-connection": map[string]interface{}{
+					"slots-per-plug": "1",
+				},
+			},
+		},
+	})
+
+	// the consumer
+	s.MockSnapDecl(c, "theme-consumer", "one-publisher", nil)
+
+	check := func(conns map[string]interface{}, repoConns []*interfaces.ConnRef) {
+		// slots-per-plug were ambigous, nothing was connected
+		c.Check(repoConns, HasLen, 0)
+		c.Check(conns, HasLen, 0)
+	}
+
+	s.testDoSetupSnapSecurityAutoConnectsDeclBasedAnySlotsPerPlug(c, check)
+}
