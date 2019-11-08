@@ -291,12 +291,17 @@ static void sc_cleanup_preserved_process_state(sc_preserved_process_state *
 	sc_cleanup_close(&proc_state->orig_cwd_fd);
 }
 
-static void enter_classic_execution_environment(const sc_invocation * inv);
+static void enter_classic_execution_environment(const sc_invocation * inv,
+						gid_t real_gid,
+						gid_t saved_gid);
 static void enter_non_classic_execution_environment(sc_invocation * inv,
 						    struct sc_apparmor *aa,
 						    uid_t real_uid,
 						    gid_t real_gid,
 						    gid_t saved_gid);
+
+static void maybe_join_tracking_cgroup(const sc_invocation * inv,
+				       gid_t real_gid, gid_t saved_gid);
 
 int main(int argc, char **argv)
 {
@@ -421,13 +426,15 @@ int main(int argc, char **argv)
 	}
 
 	if (invocation.classic_confinement) {
-		enter_classic_execution_environment(&invocation);
+		enter_classic_execution_environment(&invocation, real_gid,
+						    saved_gid);
 	} else {
 		enter_non_classic_execution_environment(&invocation,
 							&apparmor,
 							real_uid,
 							real_gid, saved_gid);
 	}
+
 	// Temporarily drop privs back to calling user (we'll permanently drop
 	// after loading seccomp).
 	if (setegid(real_gid) != 0)
@@ -543,7 +550,8 @@ int main(int argc, char **argv)
 	return 1;
 }
 
-static void enter_classic_execution_environment(const sc_invocation * inv)
+static void enter_classic_execution_environment(const sc_invocation * inv,
+						gid_t real_gid, gid_t saved_gid)
 {
 	/* with parallel-instances enabled, main() reassociated with the mount ns of
 	 * PID 1 to make /run/snapd/ns visible */
@@ -555,8 +563,12 @@ static void enter_classic_execution_environment(const sc_invocation * inv)
 	 * - snapd sets up a lenient AppArmor profile for snap-confine to use
 	 * - snapd sets up a lenient seccomp profile for snap-confine to use
 	 */
+	debug("preparing classic execution environment");
 
-	debug("skipping sandbox setup, classic confinement in use");
+	/* Join a tracking cgroup if appropriate feature is enabled. */
+	int snap_lock_fd = sc_lock_snap(inv->snap_instance);
+	maybe_join_tracking_cgroup(inv, real_gid, saved_gid);
+	sc_unlock(snap_lock_fd);
 
 	if (!sc_feature_enabled(SC_FEATURE_PARALLEL_INSTANCES)) {
 		return;
@@ -733,15 +745,14 @@ static void enter_non_classic_execution_environment(sc_invocation * inv,
 	}
 	if (!sc_cgroup_is_v2()) {
 		sc_cgroup_freezer_join(inv->snap_instance, getpid());
-		if (sc_feature_enabled(SC_FEATURE_REFRESH_APP_AWARENESS)) {
-			sc_cgroup_pids_join(inv->security_tag, getpid());
-		}
 	}
 	if (geteuid() == 0 && real_gid != 0) {
 		if (setegid(real_gid) != 0) {
 			die("cannot set effective group id to %d", real_gid);
 		}
 	}
+
+	maybe_join_tracking_cgroup(inv, real_gid, saved_gid);
 
 	sc_unlock(snap_lock_fd);
 
@@ -768,6 +779,27 @@ static void enter_non_classic_execution_environment(sc_invocation * inv,
 	for (i = 0; tmpd[i] != NULL; i++) {
 		if (setenv(tmpd[i], "/tmp", 1) != 0) {
 			die("cannot set environment variable '%s'", tmpd[i]);
+		}
+	}
+}
+
+static void maybe_join_tracking_cgroup(const sc_invocation * inv,
+				       gid_t real_gid, gid_t saved_gid)
+{
+	if (getegid() != 0 && saved_gid == 0) {
+		/* Temporarily raise egid so we can chown the cgroup under LXD. */
+		if (setegid(0) != 0) {
+			die("cannot set effective group id to root");
+		}
+	}
+	if (!sc_cgroup_is_v2()) {
+		if (sc_feature_enabled(SC_FEATURE_REFRESH_APP_AWARENESS)) {
+			sc_cgroup_pids_join(inv->security_tag, getpid());
+		}
+	}
+	if (geteuid() == 0 && real_gid != 0) {
+		if (setegid(real_gid) != 0) {
+			die("cannot set effective group id to %d", real_gid);
 		}
 	}
 }

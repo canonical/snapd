@@ -152,19 +152,19 @@ func checkPlugConnectionConstraints1(connc *ConnectCandidate, constraints *asser
 	return nil
 }
 
-func checkPlugConnectionAltConstraints(connc *ConnectCandidate, altConstraints []*asserts.PlugConnectionConstraints) error {
+func checkPlugConnectionAltConstraints(connc *ConnectCandidate, altConstraints []*asserts.PlugConnectionConstraints) (*asserts.PlugConnectionConstraints, error) {
 	var firstErr error
 	// OR of constraints
 	for _, constraints := range altConstraints {
 		err := checkPlugConnectionConstraints1(connc, constraints)
 		if err == nil {
-			return nil
+			return constraints, nil
 		}
 		if firstErr == nil {
 			firstErr = err
 		}
 	}
-	return firstErr
+	return nil, firstErr
 }
 
 func checkSlotConnectionConstraints1(connc *ConnectCandidate, constraints *asserts.SlotConnectionConstraints) error {
@@ -195,19 +195,19 @@ func checkSlotConnectionConstraints1(connc *ConnectCandidate, constraints *asser
 	return nil
 }
 
-func checkSlotConnectionAltConstraints(connc *ConnectCandidate, altConstraints []*asserts.SlotConnectionConstraints) error {
+func checkSlotConnectionAltConstraints(connc *ConnectCandidate, altConstraints []*asserts.SlotConnectionConstraints) (*asserts.SlotConnectionConstraints, error) {
 	var firstErr error
 	// OR of constraints
 	for _, constraints := range altConstraints {
 		err := checkSlotConnectionConstraints1(connc, constraints)
 		if err == nil {
-			return nil
+			return constraints, nil
 		}
 		if firstErr == nil {
 			firstErr = err
 		}
 	}
-	return firstErr
+	return nil, firstErr
 }
 
 func checkSnapTypeSlotInstallationConstraints1(ic *InstallCandidateMinimalCheck, slot *snap.SlotInfo, constraints *asserts.SlotInstallationConstraints) error {
@@ -302,4 +302,21 @@ func checkPlugInstallationAltConstraints(ic *InstallCandidate, plug *snap.PlugIn
 		}
 	}
 	return firstErr
+}
+
+// sideArity carries relevant arity constraints for successful
+// allow-auto-connection rules. It implements policy.SideArity.
+// ATM only slots-per-plug might have an interesting non-default
+// value.
+// See: https://forum.snapcraft.io/t/plug-slot-declaration-rules-greedy-plugs/12438
+type sideArity struct {
+	slotsPerPlug asserts.SideArityConstraint
+}
+
+func (a sideArity) SlotsPerPlugOne() bool {
+	return a.slotsPerPlug.N == 1
+}
+
+func (a sideArity) SlotsPerPlugAny() bool {
+	return a.slotsPerPlug.Any()
 }
