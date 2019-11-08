@@ -525,6 +525,8 @@ distro_install_build_snapd(){
             fi
         fi
 
+        # The mount unit is not activated automatically by post-install
+        # snippets, but needs to be stated before we install any snaps
         if ! systemctl is-active "$mount_unit"; then
             systemctl start "$mount_unit"
         fi
