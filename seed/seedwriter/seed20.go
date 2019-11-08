@@ -28,6 +28,7 @@ import (
 	"regexp"
 
 	"github.com/snapcore/snapd/asserts"
+	"github.com/snapcore/snapd/seed/internal"
 	"github.com/snapcore/snapd/snap"
 	"github.com/snapcore/snapd/snap/channel"
 	"github.com/snapcore/snapd/snap/naming"
@@ -75,7 +76,7 @@ func (pol *policy20) checkSnapChannel(ch channel.Channel, whichSnap string) erro
 }
 
 func (pol *policy20) systemSnap() *asserts.ModelSnap {
-	return makeSystemSnap("snapd")
+	return internal.MakeSystemSnap("snapd", "", []string{"run", "ephemeral"})
 }
 
 func (pol *policy20) modelSnapDefaultChannel() string {
@@ -271,21 +272,16 @@ func (tr *tree20) writeAssertions(db asserts.RODatabase, modelRefs []*asserts.Re
 	return nil
 }
 
-type auxInfo20 struct {
-	Private bool   `json:"private,omitempty"`
-	Contact string `json:"contact,omitempty"`
-}
-
 func (tr *tree20) writeMeta(snapsFromModel []*SeedSnap, extraSnaps []*SeedSnap) error {
 	// TODO|XXX: produce an options.yaml if needed (grade dangerous)
 
-	auxInfos := make(map[string]*auxInfo20)
+	auxInfos := make(map[string]*internal.AuxInfo20)
 
 	addAuxInfos := func(seedSnaps []*SeedSnap) {
 		for _, sn := range seedSnaps {
 			if sn.Info.ID() != "" {
 				if sn.Info.Contact != "" || sn.Info.Private {
-					auxInfos[sn.Info.ID()] = &auxInfo20{
+					auxInfos[sn.Info.ID()] = &internal.AuxInfo20{
 						Private: sn.Info.Private,
 						Contact: sn.Info.Contact,
 					}

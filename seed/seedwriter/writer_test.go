@@ -22,7 +22,6 @@ package seedwriter_test
 import (
 	"encoding/json"
 	"fmt"
-	"io"
 	"io/ioutil"
 	"os"
 	"path/filepath"
@@ -59,8 +58,7 @@ type writerSuite struct {
 
 	devAcct *asserts.Account
 
-	snapRevs map[string]*asserts.SnapRevision
-	aRefs    map[string][]*asserts.Ref
+	aRefs map[string][]*asserts.Ref
 }
 
 var _ = Suite(&writerSuite{})
@@ -83,7 +81,7 @@ func (s *writerSuite) SetUpTest(c *C) {
 	}
 
 	s.SeedSnaps = &seedtest.SeedSnaps{}
-	s.SetupAssertSigning("canonical", s)
+	s.SetupAssertSigning("canonical")
 	s.Brands.Register("my-brand", brandPrivKey, map[string]interface{}{
 		"verification": "verified",
 	})
@@ -120,50 +118,10 @@ func (s *writerSuite) SetUpTest(c *C) {
 	}
 	s.rf = seedwriter.MakeRefAssertsFetcher(s.newFetcher)
 
-	s.snapRevs = make(map[string]*asserts.SnapRevision)
 	s.aRefs = make(map[string][]*asserts.Ref)
 }
 
-// TODO: share this with seed over seedtest as Sample* ?
-var snapYaml = map[string]string{
-	"core": `name: core
-type: os
-version: 1.0
-`,
-	"pc-kernel": `name: pc-kernel
-type: kernel
-version: 1.0
-`,
-	"pc": `name: pc
-type: gadget
-version: 1.0
-`,
-	"required": `name: required
-type: app
-version: 1.0
-`,
-	"classic-snap": `name: classic-snap
-type: app
-confinement: classic
-version: 1.0
-`,
-	"snapd": `name: snapd
-type: snapd
-version: 1.0
-`,
-	"core18": `name: core18
-type: base
-version: 1.0
-`,
-	"pc-kernel=18": `name: pc-kernel
-type: kernel
-version: 1.0
-`,
-	"pc=18": `name: pc
-type: gadget
-base: core18
-version: 1.0
-`,
+var snapYaml = seedtest.MergeSampleSnapYaml(seedtest.SampleSnapYaml, map[string]string{
 	"cont-producer": `name: cont-producer
 type: app
 base: core18
@@ -182,39 +140,12 @@ plugs:
      content: cont
      default-provider: cont-producer
 `,
-	"classic-gadget": `name: classic-gadget
-version: 1.0
-type: gadget
-`,
-	"classic-gadget18": `name: classic-gadget18
-version: 1.0
-base: core18
-type: gadget
-`,
-	"required18": `name: required18
-type: app
-base: core18
-version: 1.0
-`,
 	"required-base-core16": `name: required-base-core16
 type: app
 base: core16
 version: 1.0
 `,
-	"core20": `name: core20
-type: base
-version: 1.0
-`,
-	"pc-kernel=20": `name: pc-kernel
-type: kernel
-version: 1.0
-`,
-	"pc=20": `name: pc
-type: gadget
-base: core20
-version: 1.0
-`,
-}
+})
 
 const pcGadgetYaml = `
 volumes:
@@ -235,9 +166,7 @@ func (s *writerSuite) makeSnap(c *C, yamlKey, publisher string) {
 	if publisher == "" {
 		publisher = "canonical"
 	}
-	decl, rev := s.MakeAssertedSnap(c, snapYaml[yamlKey], snapFiles[yamlKey], snap.R(1), publisher)
-	assertstest.AddMany(s.StoreSigning, decl, rev)
-	s.snapRevs[decl.SnapName()] = rev
+	s.MakeAssertedSnap(c, snapYaml[yamlKey], snapFiles[yamlKey], snap.R(1), publisher, s.StoreSigning.Database)
 }
 
 func (s *writerSuite) makeLocalSnap(c *C, yamlKey string) (fname string) {
@@ -253,7 +182,7 @@ func (s *writerSuite) doFillMetaDownloadedSnap(c *C, w *seedwriter.Writer, sn *s
 	aRefs := s.aRefs[sn.SnapName()]
 	if aRefs == nil {
 		prev := len(s.rf.Refs())
-		err = s.rf.Fetch(s.snapRevs[sn.SnapName()].Ref())
+		err = s.rf.Fetch(s.AssertedSnapRevision(sn.SnapName()).Ref())
 		c.Assert(err, IsNil)
 		aRefs = s.rf.Refs()[prev:]
 		s.aRefs[sn.SnapName()] = aRefs
@@ -825,24 +754,6 @@ func (s *writerSuite) TestDownloadedCheckTypeCore(c *C) {
 	c.Check(err, ErrorMatches, `core snap has unexpected type: base`)
 }
 
-func readAssertions(c *C, fn string) []asserts.Assertion {
-	f, err := os.Open(fn)
-	c.Assert(err, IsNil)
-
-	var as []asserts.Assertion
-	dec := asserts.NewDecoder(f)
-	for {
-		a, err := dec.Decode()
-		if err == io.EOF {
-			break
-		}
-		c.Assert(err, IsNil)
-		as = append(as, a)
-	}
-
-	return as
-}
-
 func (s *writerSuite) TestSeedSnapsWriteMetaCore18(c *C) {
 	model := s.Brands.Model("my-brand", "my-model", map[string]interface{}{
 		"display-name":   "my model",
@@ -935,7 +846,7 @@ func (s *writerSuite) TestSeedSnapsWriteMetaCore18(c *C) {
 
 	c.Check(filepath.Join(seedAssertsDir, "model"), testutil.FileEquals, asserts.Encode(model))
 
-	acct := readAssertions(c, filepath.Join(seedAssertsDir, "my-brand.account"))
+	acct := seedtest.ReadAssertions(c, filepath.Join(seedAssertsDir, "my-brand.account"))
 	c.Assert(acct, HasLen, 1)
 	c.Check(acct[0].Type(), Equals, asserts.AccountType)
 	c.Check(acct[0].HeaderString("account-id"), Equals, "my-brand")
@@ -943,12 +854,12 @@ func (s *writerSuite) TestSeedSnapsWriteMetaCore18(c *C) {
 	// check the snap assertions are also in place
 	for _, snapName := range []string{"snapd", "pc-kernel", "core18", "pc", "cont-consumer", "cont-producer"} {
 		p := filepath.Join(seedAssertsDir, fmt.Sprintf("16,%s.snap-declaration", s.AssertedSnapID(snapName)))
-		decl := readAssertions(c, p)
+		decl := seedtest.ReadAssertions(c, p)
 		c.Assert(decl, HasLen, 1)
 		c.Check(decl[0].Type(), Equals, asserts.SnapDeclarationType)
 		c.Check(decl[0].HeaderString("snap-name"), Equals, snapName)
-		p = filepath.Join(seedAssertsDir, fmt.Sprintf("%s.snap-revision", s.snapRevs[snapName].SnapSHA3_384()))
-		rev := readAssertions(c, p)
+		p = filepath.Join(seedAssertsDir, fmt.Sprintf("%s.snap-revision", s.AssertedSnapRevision(snapName).SnapSHA3_384()))
+		rev := seedtest.ReadAssertions(c, p)
 		c.Assert(rev, HasLen, 1)
 		c.Check(rev[0].Type(), Equals, asserts.SnapRevisionType)
 		c.Check(rev[0].HeaderString("snap-id"), Equals, s.AssertedSnapID(snapName))
@@ -1160,12 +1071,12 @@ func (s *writerSuite) TestLocalSnapsCore18FullUse(c *C) {
 	seedAssertsDir := filepath.Join(s.opts.SeedDir, "assertions")
 	for _, snapName := range []string{"snapd", "cont-producer"} {
 		p := filepath.Join(seedAssertsDir, fmt.Sprintf("16,%s.snap-declaration", s.AssertedSnapID(snapName)))
-		decl := readAssertions(c, p)
+		decl := seedtest.ReadAssertions(c, p)
 		c.Assert(decl, HasLen, 1)
 		c.Check(decl[0].Type(), Equals, asserts.SnapDeclarationType)
 		c.Check(decl[0].HeaderString("snap-name"), Equals, snapName)
-		p = filepath.Join(seedAssertsDir, fmt.Sprintf("%s.snap-revision", s.snapRevs[snapName].SnapSHA3_384()))
-		rev := readAssertions(c, p)
+		p = filepath.Join(seedAssertsDir, fmt.Sprintf("%s.snap-revision", s.AssertedSnapRevision(snapName).SnapSHA3_384()))
+		rev := seedtest.ReadAssertions(c, p)
 		c.Assert(rev, HasLen, 1)
 		c.Check(rev[0].Type(), Equals, asserts.SnapRevisionType)
 		c.Check(rev[0].HeaderString("snap-id"), Equals, s.AssertedSnapID(snapName))
@@ -1541,12 +1452,12 @@ func (s *writerSuite) TestSeedSnapsWriteMetaExtraSnaps(c *C) {
 	seedAssertsDir := filepath.Join(s.opts.SeedDir, "assertions")
 	for _, snapName := range []string{"snapd", "core", "pc-kernel", "core18", "pc", "cont-consumer", "cont-producer", "required"} {
 		p := filepath.Join(seedAssertsDir, fmt.Sprintf("16,%s.snap-declaration", s.AssertedSnapID(snapName)))
-		decl := readAssertions(c, p)
+		decl := seedtest.ReadAssertions(c, p)
 		c.Assert(decl, HasLen, 1)
 		c.Check(decl[0].Type(), Equals, asserts.SnapDeclarationType)
 		c.Check(decl[0].HeaderString("snap-name"), Equals, snapName)
-		p = filepath.Join(seedAssertsDir, fmt.Sprintf("%s.snap-revision", s.snapRevs[snapName].SnapSHA3_384()))
-		rev := readAssertions(c, p)
+		p = filepath.Join(seedAssertsDir, fmt.Sprintf("%s.snap-revision", s.AssertedSnapRevision(snapName).SnapSHA3_384()))
+		rev := seedtest.ReadAssertions(c, p)
 		c.Assert(rev, HasLen, 1)
 		c.Check(rev[0].Type(), Equals, asserts.SnapRevisionType)
 		c.Check(rev[0].HeaderString("snap-id"), Equals, s.AssertedSnapID(snapName))
@@ -1811,7 +1722,7 @@ func (s *writerSuite) TestSeedSnapsWriteMetaCore20(c *C) {
 	c.Check(filepath.Join(systemDir, "model"), testutil.FileEquals, asserts.Encode(model))
 
 	assertsDir := filepath.Join(systemDir, "assertions")
-	modelEtc := readAssertions(c, filepath.Join(assertsDir, "model-etc"))
+	modelEtc := seedtest.ReadAssertions(c, filepath.Join(assertsDir, "model-etc"))
 	c.Check(modelEtc, HasLen, 4)
 
 	keyPKs := make(map[string]bool)
@@ -1833,7 +1744,7 @@ func (s *writerSuite) TestSeedSnapsWriteMetaCore20(c *C) {
 	})
 
 	// check snap assertions
-	snapAsserts := readAssertions(c, filepath.Join(assertsDir, "snaps"))
+	snapAsserts := seedtest.ReadAssertions(c, filepath.Join(assertsDir, "snaps"))
 	seen := make(map[string]bool)
 
 	for _, a := range snapAsserts {

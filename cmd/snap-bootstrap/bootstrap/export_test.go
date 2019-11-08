@@ -17,3 +17,7 @@
  *
  */
 package bootstrap
+
+var (
+	EnsureLayoutCompatibility = ensureLayoutCompatibility
+)

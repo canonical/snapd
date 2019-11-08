@@ -43,16 +43,17 @@ import (
 func Test(t *testing.T) { TestingT(t) }
 
 type clientSuite struct {
-	cli     *client.Client
-	req     *http.Request
-	reqs    []*http.Request
-	rsp     string
-	rsps    []string
-	err     error
-	doCalls int
-	header  http.Header
-	status  int
-	restore func()
+	cli           *client.Client
+	req           *http.Request
+	reqs          []*http.Request
+	rsp           string
+	rsps          []string
+	err           error
+	doCalls       int
+	header        http.Header
+	status        int
+	contentLength int64
+	restore       func()
 }
 
 var _ = Suite(&clientSuite{})
@@ -70,6 +71,7 @@ func (cs *clientSuite) SetUpTest(c *C) {
 	cs.header = nil
 	cs.status = 200
 	cs.doCalls = 0
+	cs.contentLength = 0
 
 	dirs.SetRootDir(c.MkDir())
 
@@ -89,9 +91,10 @@ func (cs *clientSuite) Do(req *http.Request) (*http.Response, error) {
 		body = cs.rsps[cs.doCalls]
 	}
 	rsp := &http.Response{
-		Body:       ioutil.NopCloser(strings.NewReader(body)),
-		Header:     cs.header,
-		StatusCode: cs.status,
+		Body:          ioutil.NopCloser(strings.NewReader(body)),
+		Header:        cs.header,
+		StatusCode:    cs.status,
+		ContentLength: cs.contentLength,
 	}
 	cs.doCalls++
 	return rsp, cs.err

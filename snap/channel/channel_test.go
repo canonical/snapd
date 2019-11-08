@@ -189,20 +189,27 @@ func (s storeChannelSuite) TestParseErrors(c *C) {
 	for _, tc := range []struct {
 		channel string
 		err     string
+		full    string
 	}{
-		{"", "channel name cannot be empty"},
-		{"1.0////", "channel name has too many components: 1.0////"},
-		{"1.0/cand", "invalid risk in channel name: 1.0/cand"},
-		{"fix//hotfix", "invalid risk in channel name: fix//hotfix"},
-		{"/stable/", "invalid track in channel name: /stable/"},
-		{"//stable", "invalid risk in channel name: //stable"},
-		{"stable/", "invalid branch in channel name: stable/"},
-		{"/stable", "invalid track in channel name: /stable"},
+		{"", "channel name cannot be empty", ""},
+		{"1.0////", "channel name has too many components: 1.0////", "1.0/stable"},
+		{"1.0/cand", "invalid risk in channel name: 1.0/cand", ""},
+		{"fix//hotfix", "invalid risk in channel name: fix//hotfix", ""},
+		{"/stable/", "invalid track in channel name: /stable/", "latest/stable"},
+		{"//stable", "invalid risk in channel name: //stable", "latest/stable"},
+		{"stable/", "invalid branch in channel name: stable/", "latest/stable"},
+		{"/stable", "invalid track in channel name: /stable", "latest/stable"},
 	} {
 		_, err := channel.Parse(tc.channel, "")
 		c.Check(err, ErrorMatches, tc.err)
 		_, err = channel.ParseVerbatim(tc.channel, "")
 		c.Check(err, ErrorMatches, tc.err)
+		if tc.full != "" {
+			// testing Full behavior on the malformed channel
+			full, err := channel.Full(tc.channel)
+			c.Check(err, IsNil)
+			c.Check(full, Equals, tc.full)
+		}
 	}
 }
 

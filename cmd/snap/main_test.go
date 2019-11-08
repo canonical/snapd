@@ -31,9 +31,9 @@ import (
 	"strings"
 	"testing"
 
-	. "gopkg.in/check.v1"
-
+	"github.com/jessevdk/go-flags"
 	"golang.org/x/crypto/ssh/terminal"
+	. "gopkg.in/check.v1"
 
 	"github.com/snapcore/snapd/cmd"
 	"github.com/snapcore/snapd/dirs"
@@ -422,4 +422,15 @@ func (s *SnapSuite) TestSetsUserAgent(c *C) {
 
 	_ = snap.RunMain()
 	c.Assert(testServerHit, Equals, true)
+}
+
+func (s *SnapSuite) TestCompletionHandlerSkipsHidden(c *C) {
+	snap.MarkForNoCompletion(snap.HiddenCmd("bar yadda yack", false))
+	snap.MarkForNoCompletion(snap.HiddenCmd("bar yack yack yack", true))
+	snap.CompletionHandler([]flags.Completion{
+		{Item: "foo", Description: "foo yadda yadda"},
+		{Item: "bar", Description: "bar yadda yack"},
+		{Item: "baz", Description: "bar yack yack yack"},
+	})
+	c.Check(s.Stdout(), Equals, "foo\nbaz\n")
 }
