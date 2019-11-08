@@ -1,5 +1,6 @@
 name: test-snapd-refresh
 version: 2
+confinement: @CONFINEMENT@
 apps:
     # NOTE: the v2 version of the application does not have the "sh"
     # application anymore. This is so that we are correctly looking at the

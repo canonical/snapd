@@ -465,7 +465,10 @@ func (m *InterfaceManager) doConnect(task *state.Task, _ *tomb.Tomb) error {
 		if err != nil {
 			return err
 		}
-		policyChecker = autochecker.check
+		policyChecker = func(plug *interfaces.ConnectedPlug, slot *interfaces.ConnectedSlot) (bool, error) {
+			ok, _, err := autochecker.check(plug, slot)
+			return ok, err
+		}
 	} else {
 		policyCheck, err := newConnectChecker(st, deviceCtx)
 		if err != nil {
