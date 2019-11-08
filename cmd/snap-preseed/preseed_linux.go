@@ -67,7 +67,7 @@ func checkChroot(preseedChroot string) error {
 
 var systemSnapFromSeeds = func(rootDir string) (string, error) {
 	seedDir := filepath.Join(dirs.SnapSeedDirUnder(rootDir))
-	seed, err := seed.Open(seedDir)
+	seed, err := seed.Open(seedDir, "")
 	if err != nil {
 		return "", err
 	}
