@@ -47,7 +47,7 @@ execute: |
     check_stderr() {
         test -n "$1"
         if is_cgroupv2; then
-            [[ "$(cat "$1")" == "WARNING: cgroup v2 is not fully supported yet, proceeding with partial confinement" ]]
+            [ "$(cat "$1")" = "WARNING: cgroup v2 is not fully supported yet, proceeding with partial confinement" ]
         else
             [ "$(wc -c < "$1")" -eq 0 ]
         fi
