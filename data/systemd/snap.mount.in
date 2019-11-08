@@ -1,6 +1,6 @@
 # trusty needs this to make /snap rshared
 [Unit]
-Description=Mount unit for @SNAP_MOUNT_DIR@
+Description=Special mount event propagation for @SNAP_MOUNT_DIR@
 
 [Mount]
 What=@SNAP_MOUNT_DIR@

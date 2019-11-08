@@ -40,6 +40,7 @@ install: $(SYSTEMD_UNITS)
 	# NOTE: old (e.g. 14.04) GNU coreutils doesn't -D with -t
 	install -d -m 0755 $(DESTDIR)/$(SYSTEMDSYSTEMUNITDIR)
 	install -m 0644 -t $(DESTDIR)/$(SYSTEMDSYSTEMUNITDIR) $(filter-out snap.mount, $^)
+	# The mount unit name must reflect the actual path of snap mount directory
 	install -m 0644 snap.mount $(DESTDIR)/$(SYSTEMDSYSTEMUNITDIR)/$(SNAP_MOUNT_UNIT).mount
 	install -d -m 0755 $(DESTDIR)/$(LIBEXECDIR)/snapd
 	install -m 0755 -t $(DESTDIR)/$(LIBEXECDIR)/snapd snapd.core-fixup.sh
