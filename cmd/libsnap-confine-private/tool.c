@@ -87,7 +87,7 @@ void sc_call_snap_update_ns(int snap_update_ns_fd, const char *snap_name,
 		"--from-snap-confine",
 		snap_name_copy, NULL
 	};
-	char *envp[] = { "SNAPD_DEBUG=x", NULL };
+	char *envp[] = { "SNAPD_DEBUG=x", "SNAP_EXPLAIN=x", NULL };
 	sc_call_snapd_tool_with_apparmor(snap_update_ns_fd,
 					 "snap-update-ns", apparmor,
 					 aa_profile, argv, envp);
@@ -124,6 +124,10 @@ void sc_call_snap_update_ns_as_user(int snap_update_ns_fd,
 		 * with either SNAPD_DEBUG=0 or SNAPD_DEBUG=1, see that function
 		 * for details. */
 		"SNAPD_DEBUG=x",
+		/* SNAP_EXPLAIN=x is replaced by sc_call_snapd_tool_with_apparmor
+		 * with either SNAP_EXPLAIN=0 or SNAP_EXPLAIN=1, see that function
+		 * for details. */
+		"SNAP_EXPLAIN=x",
 		xdg_runtime_dir_env, NULL
 	};
 	sc_call_snapd_tool_with_apparmor(snap_update_ns_fd,
@@ -144,7 +148,7 @@ void sc_call_snap_discard_ns(int snap_discard_ns_fd, const char *snap_name)
 	    { "snap-discard-ns", "--from-snap-confine", snap_name_copy, NULL };
 	/* SNAPD_DEBUG=x is replaced by sc_call_snapd_tool_with_apparmor with
 	 * either SNAPD_DEBUG=0 or SNAPD_DEBUG=1, see that function for details. */
-	char *envp[] = { "SNAPD_DEBUG=x", NULL };
+	char *envp[] = { "SNAPD_DEBUG=x", "SNAP_EXPLAIN=x", NULL };
 	sc_call_snapd_tool(snap_discard_ns_fd, "snap-discard-ns", argv, envp);
 }
 
@@ -203,6 +207,13 @@ static void sc_call_snapd_tool_with_apparmor(int tool_fd, const char *tool_name,
 				char *entry = sc_strdup(*env);
 				entry[strlen("SNAPD_DEBUG=x") - 1] =
 				    sc_is_debug_enabled()? '1' : '0';
+				*env = entry;
+			}
+			if (sc_streq(*env, "SNAP_EXPLAIN=x")) {
+				/* NOTE: this is not released, on purpose. */
+				char *entry = sc_strdup(*env);
+				entry[strlen("SNAP_EXPLAIN=x") - 1] =
+				    sc_is_explain_enabled()? '1' : '0';
 				*env = entry;
 			}
 		}

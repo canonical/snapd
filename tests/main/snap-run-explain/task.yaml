@@ -1,0 +1,15 @@
+summary: snap run --explain produces additional output
+# The canned output contains some variable segments that differ on LSM
+# configuration and path where snap-confine is picked up from.
+systems: [ubuntu-16.04-64, ubuntu-18.04-64, ubuntu-20.04-64]
+prepare: |
+  #shellcheck source=tests/lib/snaps.sh
+  . "$TESTSLIB"/snaps.sh
+  install_local test-snapd-sh
+  sed -e "s/@CORE_REV@/$(readlink /snap/core/current)/g" expected.in > expected
+execute: |
+  snap run --explain test-snapd-sh -c /bin/true > output
+  diff -u output expected
+restore: |
+  rm -f output
+  rm -f expected

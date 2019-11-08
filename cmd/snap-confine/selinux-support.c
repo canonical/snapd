@@ -46,8 +46,10 @@ static void sc_context_free(context_t *ctx) {
 int sc_selinux_set_snap_execcon(void) {
     if (is_selinux_enabled() < 1) {
         debug("SELinux not enabled");
+        sc_explain("  - SELinux: disabled in the kernel");
         return 0;
     }
+    sc_explain("  - SELinux: enabled in the kernel");
 
     char *ctx_str SC_CLEANUP(sc_freecon) = NULL;
     if (getcon(&ctx_str) < 0) {
@@ -90,6 +92,7 @@ int sc_selinux_set_snap_execcon(void) {
             die("cannot set SELinux exec context to %s", new_ctx_str);
         }
         debug("SELinux context after next exec: %s", new_ctx_str);
+        sc_explain("    SELinux context: %s", new_ctx_str);
     }
 
     return 0;

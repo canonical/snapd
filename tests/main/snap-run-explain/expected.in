@@ -1,0 +1,79 @@
+The extra output from snap run --explain is not suitable for parsing.
+
+<< snap run >>
+
+Invoked as "snap"
+Inferred application details:
+  snap name: test-snapd-sh
+  app name: test-snapd-sh
+  confinement: strict
+  base: core (implicit)
+Will exec through the following tools:
+  - snap-confine (execution environment and sandboxing)
+  - snap-exec (command chain and environment variables)
+Creating user data directories:
+  - ~/snap/test-snapd-sh/x1
+  - ~/snap/test-snapd-sh/common
+Creating symbolic link "x1" -> "/root/snap/test-snapd-sh/current"
+Executing snap-confine /snap/core/@CORE_REV@/usr/lib/snapd/snap-confine
+  with arguments: snap.test-snapd-sh.test-snapd-sh /usr/lib/snapd/snap-exec test-snapd-sh -c /bin/true
+  with environment additions:
+    HOME: /root/snap/test-snapd-sh/x1
+    SNAP: /snap/test-snapd-sh/x1
+    SNAP_ARCH: amd64
+    SNAP_COMMON: /var/snap/test-snapd-sh/common
+    SNAP_DATA: /var/snap/test-snapd-sh/x1
+    SNAP_INSTANCE_NAME: test-snapd-sh
+    SNAP_LIBRARY_PATH: /var/lib/snapd/lib/gl:/var/lib/snapd/lib/gl32:/var/lib/snapd/void
+    SNAP_NAME: test-snapd-sh
+    SNAP_REVISION: x1
+    SNAP_USER_COMMON: /root/snap/test-snapd-sh/common
+    SNAP_USER_DATA: /root/snap/test-snapd-sh/x1
+    SNAP_VERSION: 1.0
+    XDG_RUNTIME_DIR: /run/user/0/snap.test-snapd-sh
+
+<< snap-confine (execution environment and sandboxing) >>
+
+Execution environment:
+  - Root file system is /snap/core/current
+  - Creating new per-snap mount namespace
+      desired mount profile: /var/lib/snapd/mount/snap.test-snapd-sh.fstab
+      effective mount profile: /run/snapd/ns/snap.test-snapd-sh.fstab
+      info file: /run/snapd/ns/snap.test-snapd-sh.info
+  - Using private /tmp directory
+  - Apparmor profile: snap-update-ns.test-snapd-sh
+      source: /var/lib/snapd/apparmor/profiles/snap-update-ns.test-snapd-sh
+      binary: (loaded into the kernel, cached by the platform)
+  - Apparmor not compiled into snap-confine
+
+<< snap-update-ns (mount namespace) >>
+
+Configuring mount namespace according to mount profile
+  - Freezer cgroup v1: supported
+      path: /sys/fs/cgroup/freezer/test-snapd-sh
+  - Setting PATH to /usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin:/usr/games:/usr/local/games
+  - Setting TMPDIR to /tmp
+  - Setting TEMPDIR to /tmp
+
+<< ... snap-confine >>
+
+Sandbox overview:
+  - Apparmor profile: snap.test-snapd-sh.test-snapd-sh
+      source: /var/lib/snapd/apparmor/profiles/snap.test-snapd-sh.test-snapd-sh
+      binary: (loaded into the kernel, cached by the platform)
+  - Apparmor not compiled into snap-confine
+  - Applied seccomp profile: snap.test-snapd-sh.test-snapd-sh
+      source: /var/lib/snapd/seccomp/bpf/snap.test-snapd-sh.test-snapd-sh.src
+      binary: /var/lib/snapd/seccomp/bpf/snap.test-snapd-sh.test-snapd-sh.bin (built with snap-seccomp)
+  - Applied seccomp profile: global profile for all snaps
+      binary: /var/lib/snapd/seccomp/bpf/global.bin
+
+Executing /usr/lib/snapd/snap-exec
+
+<< snap exec (command chain and environment variables) >>
+
+Executing command: /snap/test-snapd-sh/x1/bin/sh
+  with arguments: -c /bin/true
+
+<< test-snapd-sh.test-snapd-sh (snap app) >>
+

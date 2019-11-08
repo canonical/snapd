@@ -23,11 +23,13 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"sort"
 	"strings"
 	"syscall"
 
 	"github.com/jessevdk/go-flags"
 
+	"github.com/snapcore/snapd/cmd/explain"
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/snap"
@@ -50,6 +52,10 @@ func init() {
 }
 
 func main() {
+	if osutil.GetenvBool("SNAP_EXPLAIN") {
+		explain.Enable()
+	}
+	explain.Header("snap exec (command chain and environment variables)")
 	if err := run(); err != nil {
 		fmt.Fprintf(os.Stderr, "cannot snap-exec: %s\n", err)
 		os.Exit(1)
@@ -226,6 +232,35 @@ func execApp(snapApp, revision, command string, args []string) error {
 	fullCmd = append(fullCmd, args...)
 
 	fullCmd = append(absoluteCommandChain(app.Snap, app.CommandChain), fullCmd...)
+
+	explain.Do(func() {
+		if len(app.CommandChain) > 0 {
+			explain.Say("Will transition through command chain:")
+			for _, chainCmd := range app.CommandChain {
+				explain.Say("\t- %s", chainCmd)
+			}
+		}
+		explain.Say("Executing command: %s", fullCmd[0])
+		if len(fullCmd) > 1 {
+			explain.Say("\twith arguments: %s", strings.Join(fullCmd[1:], " "))
+		}
+		header := false
+		envCopy := make([]string, len(env))
+		copy(envCopy, env)
+		sort.Strings(envCopy)
+		for _, envItem := range envCopy {
+			keyValue := strings.SplitN(envItem, "=", 2)
+			key, value := keyValue[0], keyValue[1]
+			if os.Getenv(key) != value {
+				if !header {
+					explain.Say("\twith environment additions:")
+					header = true
+				}
+				explain.Say("\t\t%s: %s", key, value)
+			}
+		}
+	})
+	explain.Header(fmt.Sprintf("%s.%s (snap app)", app.Snap.SnapName(), app.Name))
 
 	if err := syscallExec(fullCmd[0], fullCmd, env); err != nil {
 		return fmt.Errorf("cannot exec %q: %s", fullCmd[0], err)

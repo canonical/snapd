@@ -120,6 +120,7 @@ static void setup_private_mount(const char *snap_name)
 	}
 	sc_do_mount(tmp_dir, "/tmp", NULL, MS_BIND, NULL);
 	sc_do_mount("none", "/tmp", NULL, MS_PRIVATE, NULL);
+	sc_explain("  - Using private /tmp directory\n");
 }
 
 // TODO: fold this into bootstrap

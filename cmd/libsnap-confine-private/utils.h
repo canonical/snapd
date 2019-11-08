@@ -28,6 +28,23 @@ __attribute__((format(printf, 1, 2)))
 void debug(const char *fmt, ...);
 
 /**
+ * sc_explain prints additional explanatory output to stdout.
+ *
+ * This function has effects only if explain mode is in effect.
+ * See sc_is_explain_enabled for details.
+ **/
+__attribute__((format(printf, 1, 2)))
+void sc_explain(const char *fmt, ...);
+
+/**
+ * sc_explain_header prints an explain-style header to stdout.
+ *
+ * This function has effects only if explain mode is in effect.
+ * See sc_is_explain_enabled for details.
+ **/
+void sc_explain_header(const char *name);
+
+/**
  * Return true if debugging is enabled.
  *
  * This can used to avoid costly computation that is only useful for debugging.
@@ -38,6 +55,11 @@ bool sc_is_debug_enabled(void);
  * Return true if re-execution is enabled.
  **/
 bool sc_is_reexec_enabled(void);
+
+/**
+ * sc_is_explain_enabled returns true if snap run --explain mode is enabled.
+ **/
+bool sc_is_explain_enabled(void);
 
 void write_string_to_file(const char *filepath, const char *buf);
 

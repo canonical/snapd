@@ -27,6 +27,7 @@ import (
 	"strings"
 	"syscall"
 
+	"github.com/snapcore/snapd/cmd/explain"
 	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/osutil/sys"
@@ -482,7 +483,7 @@ func planWritableMimic(dir, neededBy string) ([]*Change, error) {
 			// The undo logic handles rbind mounts and adds x-snapd.unbind
 			// flag to them, which in turns translates to MNT_DETACH on
 			// umount2(2) system call.
-			Name: dir, Dir: safeKeepingDir, Options: []string{"rbind"}},
+			Name: dir, Dir: safeKeepingDir, Options: []string{"rbind", osutil.XSnapdSynthetic(), osutil.XSnapdNeededBy(neededBy)}},
 	})
 
 	// Mount tmpfs over the original directory, hiding its contents.
@@ -569,6 +570,9 @@ type FatalError struct {
 // returned. If the undo plan fails the function returns a FatalError as it
 // cannot fix the system from an inconsistent state.
 func execWritableMimic(plan []*Change, as *Assumptions) ([]*Change, error) {
+	if len(plan) == 0 {
+		return nil, nil
+	}
 	undoChanges := make([]*Change, 0, len(plan)-2)
 	for i, change := range plan {
 		if _, err := change.Perform(as); err != nil {
@@ -639,6 +643,9 @@ func execWritableMimic(plan []*Change, as *Assumptions) ([]*Change, error) {
 		}
 		undoChanges = append(undoChanges, undoChange)
 	}
+	// The very first item in the plan is a "stashing" bind mount that
+	// describes where we create the mimic.
+	explain.Say("  - Altered %s (writable mimic using %d operations)", plan[0].Entry.Name, len(plan))
 	return undoChanges, nil
 }
 

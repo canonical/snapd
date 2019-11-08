@@ -57,6 +57,10 @@
 #include "selinux-support.h"
 #endif
 
+const char *fixed_path = "/usr/local/sbin:"
+    "/usr/local/bin:"
+    "/usr/sbin:" "/usr/bin:" "/sbin:" "/bin:" "/usr/games:" "/usr/local/games";
+
 // sc_maybe_fixup_permissions fixes incorrect permissions
 // inside the mount namespace for /var/lib. Before 1ccce4
 // this directory was created with permissions 1777.
@@ -315,6 +319,8 @@ int main(int argc, char **argv)
 	args = sc_nonfatal_parse_args(&argc, &argv, &err);
 	sc_die_on_error(err);
 
+	sc_explain_header("snap-confine (execution environment and sandboxing)");
+
 	// Remember certain properties of the process that are clobbered by
 	// snap-confine during execution. Those are restored just before calling
 	// execv.
@@ -451,6 +457,8 @@ int main(int argc, char **argv)
 #if 0
 	setup_user_xdg_runtime_dir();
 #endif
+	sc_explain_header("... snap-confine");
+	sc_explain("Sandbox overview:\n");
 	// https://wiki.ubuntu.com/SecurityTeam/Specifications/SnappyConfinement
 	sc_maybe_aa_change_onexec(&apparmor, invocation.security_tag);
 #ifdef HAVE_SELINUX
@@ -523,9 +531,20 @@ int main(int argc, char **argv)
 	// Now that we've dropped and regained SYS_ADMIN, we can load the
 	// seccomp profiles.
 	if (sc_apply_seccomp_profile_for_security_tag(invocation.security_tag)) {
+		sc_explain("  - Applied seccomp profile: %s\n",
+			   invocation.security_tag);
+		sc_explain("      source: /var/lib/snapd/seccomp/bpf/%s.src\n",
+			   invocation.security_tag);
+		sc_explain("      binary: /var/lib/snapd/seccomp/bpf/%s.bin "
+			   "(built with snap-seccomp)\n",
+			   invocation.security_tag);
 		// If the process is not explicitly unconfined then load the
 		// global profile as well.
 		sc_apply_global_seccomp_profile();
+		sc_explain("  - Applied seccomp profile: "
+			   "global profile for all snaps\n");
+		sc_explain("      binary: /var/lib/snapd/seccomp/bpf/global.bin\n");
+		sc_explain("\n");
 	}
 	// Even though we set inheritable to 0, let's clear SYS_ADMIN
 	// explicitly
@@ -545,6 +564,7 @@ int main(int argc, char **argv)
 	}
 	// Restore process state that was recorded earlier.
 	sc_restore_process_state(&proc_state);
+	sc_explain("Executing %s\n", invocation.executable);
 	execv(invocation.executable, (char *const *)&argv[0]);
 	perror("execv failed");
 	return 1;
@@ -618,6 +638,7 @@ static void enter_non_classic_execution_environment(sc_invocation * inv,
 						    gid_t real_gid,
 						    gid_t saved_gid)
 {
+	sc_explain("Execution environment:\n");
 	// main() reassociated with the mount ns of PID 1 to make /run/snapd/ns
 	// visible
 
@@ -636,12 +657,24 @@ static void enter_non_classic_execution_environment(sc_invocation * inv,
 
 	// Init and check rootfs_dir, apply any fallback behaviors.
 	sc_check_rootfs_dir(inv);
+	sc_explain("  - Root file system is %s\n", inv->rootfs_dir);
 
 	/** Populate and join the device control group. */
 	struct snappy_udev udev_s;
 	if (snappy_udev_init(inv->security_tag, &udev_s) == 0) {
-		if (!sc_cgroup_is_v2()) {
+		if (sc_cgroup_is_v2()) {
+			sc_explain("  - Device cgroup v1: "
+				   "unsupported, system in v2 mode\n");
+		} else {
 			setup_devices_cgroup(inv->security_tag, &udev_s);
+			sc_explain("  - Device cgroup v1: %s\n",
+				   inv->security_tag);
+			sc_explain("      path: /sys/fs/cgroup/devices/%s\n",
+				   inv->security_tag);
+			// TODO: this needs changes once improved device cgroup
+			// configuration is merged. Right now we only ever use device cgroup v1
+			// when we are in restrictive mode.
+			sc_explain("      mode: restricted\n");
 		}
 	}
 	snappy_udev_cleanup(&udev_s);
@@ -689,11 +722,22 @@ static void enter_non_classic_execution_environment(sc_invocation * inv,
 		if (unshare(CLONE_NEWNS) < 0) {
 			die("cannot unshare the mount namespace");
 		}
+		sc_explain("  - Creating new per-snap mount namespace\n");
+		sc_explain("      desired mount profile: "
+			   "/var/lib/snapd/mount/snap.%s.fstab\n",
+			   inv->snap_instance);
+		sc_explain("      effective mount profile: "
+			   "/run/snapd/ns/snap.%s.fstab\n", inv->snap_instance);
+		sc_explain("      info file: " "/run/snapd/ns/snap.%s.info\n",
+			   inv->snap_instance);
 		sc_populate_mount_ns(aa, snap_update_ns_fd, inv);
 		sc_store_ns_info(inv);
 
 		/* Preserve the mount namespace. */
 		sc_preserve_populated_mount_ns(group);
+	} else {
+		sc_explain("  - Reused per-snap mount namespace "
+			   "/run/snapd/ns/%s.mnt\n", inv->snap_instance);
 	}
 
 	/* Older versions of snap-confine created incorrect 777 permissions
@@ -708,12 +752,18 @@ static void enter_non_classic_execution_environment(sc_invocation * inv,
 		retval =
 		    sc_join_preserved_per_user_ns(group, inv->snap_instance);
 		if (retval == ESRCH) {
+			sc_explain_header("snap-confine");
+			sc_explain("  - Creating new per-user mount namespace\n");
+			sc_explain("      desired user mount profile "
+				   "/var/lib/snapd/mount/snap.%s.user-fstab\n",
+				   inv->snap_instance);
 			debug("unsharing the mount namespace (per-user)");
 			if (unshare(CLONE_NEWNS) < 0) {
 				die("cannot unshare the mount namespace");
 			}
 			sc_setup_user_mounts(aa, snap_update_ns_fd,
 					     inv->snap_instance);
+			sc_explain_header("snap-confine");
 			/* Preserve the mount per-user namespace. But only if the
 			 * experimental feature is enabled. This way if the feature is
 			 * disabled user mount namespaces will still exist but will be
@@ -723,10 +773,17 @@ static void enter_non_classic_execution_environment(sc_invocation * inv,
 			if (sc_feature_enabled
 			    (SC_FEATURE_PER_USER_MOUNT_NAMESPACE)) {
 				sc_preserve_populated_per_user_mount_ns(group);
+				sc_explain("    effective user fstab "
+					   "/run/snapd/ns/snap.%s.%d.fstab\n",
+					   inv->snap_instance, getuid());
 			} else {
 				debug
 				    ("NOT preserving per-user mount namespace");
 			}
+		} else {
+			sc_explain("  - Reused per-user mount namespace "
+				   "/run/snapd/ns/%s.%d.mnt\n",
+				   inv->snap_instance, (int)getuid());
 		}
 	}
 	// Associate each snap process with a dedicated snap freezer cgroup and
@@ -743,8 +800,14 @@ static void enter_non_classic_execution_environment(sc_invocation * inv,
 			die("cannot set effective group id to root");
 		}
 	}
-	if (!sc_cgroup_is_v2()) {
+	if (sc_cgroup_is_v2()) {
+		sc_explain("  - Freezer cgroup v1: "
+			   "unsupported, system in v2 mode\n");
+	} else {
+		sc_explain("  - Freezer cgroup v1: supported\n");
 		sc_cgroup_freezer_join(inv->snap_instance, getpid());
+		sc_explain("      path: /sys/fs/cgroup/freezer/%s\n",
+			   inv->snap_instance);
 	}
 	if (geteuid() == 0 && real_gid != 0) {
 		if (setegid(real_gid) != 0) {
@@ -764,12 +827,8 @@ static void enter_non_classic_execution_environment(sc_invocation * inv,
 	// directories are explicitly left out as they are not part of the core
 	// snap.
 	debug("resetting PATH to values in sync with core snap");
-	setenv("PATH",
-	       "/usr/local/sbin:"
-	       "/usr/local/bin:"
-	       "/usr/sbin:"
-	       "/usr/bin:"
-	       "/sbin:" "/bin:" "/usr/games:" "/usr/local/games", 1);
+	sc_explain("  - Setting PATH to %s\n", fixed_path);
+	setenv("PATH", fixed_path, 1);
 	// Ensure we set the various TMPDIRs to /tmp. One of the parts of setting
 	// up the mount namespace is to create a private /tmp directory (this is
 	// done in sc_populate_mount_ns() above). The host environment may point to
@@ -777,6 +836,7 @@ static void enter_non_classic_execution_environment(sc_invocation * inv,
 	const char *tmpd[] = { "TMPDIR", "TEMPDIR", NULL };
 	int i;
 	for (i = 0; tmpd[i] != NULL; i++) {
+		sc_explain("  - Setting %s to /tmp\n", tmpd[i]);
 		if (setenv(tmpd[i], "/tmp", 1) != 0) {
 			die("cannot set environment variable '%s'", tmpd[i]);
 		}
@@ -792,9 +852,15 @@ static void maybe_join_tracking_cgroup(const sc_invocation * inv,
 			die("cannot set effective group id to root");
 		}
 	}
-	if (!sc_cgroup_is_v2()) {
+	if (sc_cgroup_is_v2()) {
+		sc_explain
+		    ("  - Pids cgroup v1: unsupported, system in v2 mode");
+	} else {
 		if (sc_feature_enabled(SC_FEATURE_REFRESH_APP_AWARENESS)) {
+			sc_explain("  - Pids cgroup v1: supported\n");
 			sc_cgroup_pids_join(inv->security_tag, getpid());
+			sc_explain("      path: /sys/fs/cgroup/pids/%s\n",
+				   inv->snap_instance);
 		}
 	}
 	if (geteuid() == 0 && real_gid != 0) {

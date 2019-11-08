@@ -111,16 +111,22 @@ sc_maybe_aa_change_onexec(struct sc_apparmor *apparmor, const char *profile)
 {
 #ifdef HAVE_APPARMOR
 	if (apparmor->mode == SC_AA_NOT_APPLICABLE) {
+		sc_explain("  - Apparmor disabled in the kernel\n");
 		return;
 	}
 	debug("requesting changing of apparmor profile on next exec to %s",
 	      profile);
+	sc_explain("  - Apparmor profile: %s\n", profile);
+	sc_explain("      source: /var/lib/snapd/apparmor/profiles/%s\n", profile);
+	sc_explain("      binary: (loaded into the kernel,"
+		   " cached by the platform)\n");
 	if (aa_change_onexec(profile) < 0) {
 		if (secure_getenv("SNAPPY_LAUNCHER_INSIDE_TESTS") == NULL) {
 			die("cannot change profile for the next exec call");
 		}
 	}
 #endif				// ifdef HAVE_APPARMOR
+	sc_explain("  - Apparmor not compiled into snap-confine\n");
 }
 
 void

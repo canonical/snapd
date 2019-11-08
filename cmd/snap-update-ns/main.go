@@ -25,7 +25,9 @@ import (
 
 	"github.com/jessevdk/go-flags"
 
+	"github.com/snapcore/snapd/cmd/explain"
 	"github.com/snapcore/snapd/logger"
+	"github.com/snapcore/snapd/osutil"
 )
 
 var opts struct {
@@ -42,6 +44,9 @@ var opts struct {
 // snap-confine.
 
 func main() {
+	if osutil.GetenvBool("SNAP_EXPLAIN") {
+		explain.Enable()
+	}
 	logger.SimpleSetup()
 	if err := run(); err != nil {
 		fmt.Printf("cannot update snap namespace: %s\n", err)
@@ -80,9 +85,12 @@ func run() error {
 	}
 	var upCtx MountProfileUpdateContext
 	if opts.UserMounts {
+		explain.Header("snap-update-ns (per-user mount namespace)")
 		upCtx = NewUserProfileUpdateContext(opts.Positionals.SnapName, opts.FromSnapConfine, os.Getuid())
 	} else {
+		explain.Header("snap-update-ns (mount namespace)")
 		upCtx = NewSystemProfileUpdateContext(opts.Positionals.SnapName, opts.FromSnapConfine)
 	}
+	explain.Say("Configuring mount namespace according to mount profile")
 	return executeMountProfileUpdate(upCtx)
 }

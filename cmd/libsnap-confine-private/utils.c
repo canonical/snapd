@@ -114,6 +114,11 @@ bool sc_is_reexec_enabled(void)
 	return getenv_bool("SNAP_REEXEC", true);
 }
 
+bool sc_is_explain_enabled(void)
+{
+	return getenv_bool("SNAP_EXPLAIN", false);
+}
+
 void debug(const char *msg, ...)
 {
 	if (sc_is_debug_enabled()) {
@@ -123,6 +128,25 @@ void debug(const char *msg, ...)
 		vfprintf(stderr, msg, va);
 		fprintf(stderr, "\n");
 		va_end(va);
+	}
+}
+
+void sc_explain(const char *fmt, ...)
+{
+	if (sc_is_explain_enabled()) {
+		va_list ap;
+		va_start(ap, fmt);
+		vprintf(fmt, ap);
+		va_end(ap);
+		fflush(stdout);
+	}
+}
+
+void sc_explain_header(const char *name)
+{
+	if (sc_is_explain_enabled()) {
+		printf("\n<< %s >>\n\n", name);
+		fflush(stdout);
 	}
 }
 
