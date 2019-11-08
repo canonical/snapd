@@ -90,6 +90,8 @@ backends:
                 manual: true
             - fedora-30-64:
                 workers: 6
+            - fedora-31-64:
+                workers: 6
             - opensuse-15.0-64:
                 workers: 6
                 manual: true
@@ -113,8 +115,6 @@ backends:
             - centos-7-64:
                 workers: 6
                 image: centos-7-64
-            - fedora-31-64:
-                workers: 6
 
     google-sru:
         type: google
