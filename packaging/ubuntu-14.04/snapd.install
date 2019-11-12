@@ -6,6 +6,7 @@ usr/bin/snap-repair /usr/lib/snapd/
 usr/bin/snap-failure /usr/lib/snapd/
 usr/bin/snap-update-ns /usr/lib/snapd/
 usr/bin/snapd /usr/lib/snapd/
+usr/bin/snap-preseed /usr/lib/snapd/
 usr/bin/snap-seccomp /usr/lib/snapd/
 
 # bash completion
