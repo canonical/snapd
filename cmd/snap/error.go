@@ -244,6 +244,7 @@ func snapRevisionNotAvailableMessage(kind, snapName, action, arch, snapChannel s
 	// as reported by the store through the daemon
 	req, err := channel.Parse(snapChannel, arch)
 	if err != nil {
+		// XXX: this is no longer possible (should be caught before hitting the store), unless the state itself has an invalid channel
 		// TRANSLATORS: %q is the invalid request channel, %s is the snap name
 		msg := fmt.Sprintf(i18n.G("requested channel %q is not valid (see 'snap info %s' for valid ones)"), snapChannel, snapName)
 		return msg

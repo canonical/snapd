@@ -269,13 +269,20 @@ func (m *InterfaceManager) reloadConnections(snapName string) ([]string, error) 
 			continue
 		}
 
-		// Some versions of snapd may have left stray connections that don't
-		// have the corresponding plug or slot anymore. Before we choose how to
-		// deal with this data we want to silently ignore that error not to
-		// worry the users.
 		plugInfo := m.repo.Plug(connRef.PlugRef.Snap, connRef.PlugRef.Name)
 		slotInfo := m.repo.Slot(connRef.SlotRef.Snap, connRef.SlotRef.Name)
+
+		// The connection refers to a plug or slot that doesn't exist anymore, e.g. because of a refresh
+		// to a new snap revision that doesn't have the given plug/slot.
 		if plugInfo == nil || slotInfo == nil {
+			// automatic connection can simply be removed (it will be re-created automatically if needed)
+			// as long as it wasn't disconnected manually; note that undesired flag is taken care of at
+			// the beginning of the loop.
+			if connState.Auto && !connState.ByGadget && connState.Interface != "core-support" {
+				delete(conns, connId)
+				connStateChanged = true
+			}
+			// otherwise keep it and silently ignore, e.g. in case of a revert.
 			continue
 		}
 
@@ -449,19 +456,24 @@ type connState struct {
 }
 
 type autoConnectChecker struct {
-	st        *state.State
+	st   *state.State
+	task *state.Task
+	repo *interfaces.Repository
+
 	deviceCtx snapstate.DeviceContext
 	cache     map[string]*asserts.SnapDeclaration
 	baseDecl  *asserts.BaseDeclaration
 }
 
-func newAutoConnectChecker(s *state.State, deviceCtx snapstate.DeviceContext) (*autoConnectChecker, error) {
+func newAutoConnectChecker(s *state.State, task *state.Task, repo *interfaces.Repository, deviceCtx snapstate.DeviceContext) (*autoConnectChecker, error) {
 	baseDecl, err := assertstate.BaseDeclaration(s)
 	if err != nil {
 		return nil, fmt.Errorf("internal error: cannot find base declaration: %v", err)
 	}
 	return &autoConnectChecker{
 		st:        s,
+		task:      task,
+		repo:      repo,
 		deviceCtx: deviceCtx,
 		cache:     make(map[string]*asserts.SnapDeclaration),
 		baseDecl:  baseDecl,
@@ -481,7 +493,7 @@ func (c *autoConnectChecker) snapDeclaration(snapID string) (*asserts.SnapDeclar
 	return snapDecl, nil
 }
 
-func (c *autoConnectChecker) check(plug *interfaces.ConnectedPlug, slot *interfaces.ConnectedSlot) (bool, error) {
+func (c *autoConnectChecker) check(plug *interfaces.ConnectedPlug, slot *interfaces.ConnectedSlot) (bool, interfaces.SideArity, error) {
 	modelAs := c.deviceCtx.Model()
 
 	var storeAs *asserts.Store
@@ -489,7 +501,7 @@ func (c *autoConnectChecker) check(plug *interfaces.ConnectedPlug, slot *interfa
 		var err error
 		storeAs, err = assertstate.Store(c.st, modelAs.Store())
 		if err != nil && !asserts.IsNotFound(err) {
-			return false, err
+			return false, nil, err
 		}
 	}
 
@@ -499,7 +511,7 @@ func (c *autoConnectChecker) check(plug *interfaces.ConnectedPlug, slot *interfa
 		plugDecl, err = c.snapDeclaration(plug.Snap().SnapID)
 		if err != nil {
 			logger.Noticef("error: cannot find snap declaration for %q: %v", plug.Snap().InstanceName(), err)
-			return false, nil
+			return false, nil, nil
 		}
 	}
 
@@ -509,7 +521,7 @@ func (c *autoConnectChecker) check(plug *interfaces.ConnectedPlug, slot *interfa
 		slotDecl, err = c.snapDeclaration(slot.Snap().SnapID)
 		if err != nil {
 			logger.Noticef("error: cannot find snap declaration for %q: %v", slot.Snap().InstanceName(), err)
-			return false, nil
+			return false, nil, nil
 		}
 	}
 
@@ -524,7 +536,127 @@ func (c *autoConnectChecker) check(plug *interfaces.ConnectedPlug, slot *interfa
 		Store:               storeAs,
 	}
 
-	return ic.CheckAutoConnect() == nil, nil
+	arity, err := ic.CheckAutoConnect()
+	if err == nil {
+		return true, arity, nil
+	}
+
+	return false, nil, nil
+}
+
+// filterUbuntuCoreSlots filters out any ubuntu-core slots,
+// if there are both ubuntu-core and core slots. This would occur
+// during a ubuntu-core -> core transition.
+func filterUbuntuCoreSlots(candidates []*snap.SlotInfo, arities []interfaces.SideArity) ([]*snap.SlotInfo, []interfaces.SideArity) {
+	hasCore := false
+	hasUbuntuCore := false
+	var withoutUbuntuCore []*snap.SlotInfo
+	var withoutUbuntuCoreArities []interfaces.SideArity
+	for i, candSlot := range candidates {
+		switch candSlot.Snap.InstanceName() {
+		case "ubuntu-core":
+			if !hasUbuntuCore {
+				hasUbuntuCore = true
+				withoutUbuntuCore = append(withoutUbuntuCore, candidates[:i]...)
+				withoutUbuntuCoreArities = append(withoutUbuntuCoreArities, arities[:i]...)
+			}
+		case "core":
+			hasCore = true
+			fallthrough
+		default:
+			if hasUbuntuCore {
+				withoutUbuntuCore = append(withoutUbuntuCore, candSlot)
+				withoutUbuntuCoreArities = append(withoutUbuntuCoreArities, arities[i])
+			}
+		}
+	}
+	if hasCore && hasUbuntuCore {
+		candidates = withoutUbuntuCore
+		arities = withoutUbuntuCoreArities
+	}
+	return candidates, arities
+}
+
+// addAutoConnections adds to newconns any applicable auto-connections
+// from the given plugs to corresponding candidates slots after
+// filtering them with optional filter and against preexisting
+// conns. cannotAutoConnectLog is called to build a log message in
+// case no applicable pair was found. conflictError is called
+// to handle checkAutoconnectConflicts errors.
+func (c *autoConnectChecker) addAutoConnections(newconns map[string]*interfaces.ConnRef, plugs []*snap.PlugInfo, filter func([]*snap.SlotInfo) []*snap.SlotInfo, conns map[string]*connState, cannotAutoConnectLog func(plug *snap.PlugInfo, candRefs []string) string, conflictError func(*state.Retry, error) error) error {
+	for _, plug := range plugs {
+		candSlots, arities := c.repo.AutoConnectCandidateSlots(plug.Snap.InstanceName(), plug.Name, c.check)
+
+		if len(candSlots) == 0 {
+			continue
+		}
+
+		// If we are in a core transition we may have both the
+		// old ubuntu-core snap and the new core snap
+		// providing the same interface. In that situation we
+		// want to ignore any candidates in ubuntu-core and
+		// simply go with those from the new core snap.
+		candSlots, arities = filterUbuntuCoreSlots(candSlots, arities)
+
+		applicable := candSlots
+		// candidate arity check
+		for _, arity := range arities {
+			if !arity.SlotsPerPlugAny() {
+				// ATM not any (*) => none or exactly one
+				if len(candSlots) != 1 {
+					applicable = nil
+				}
+				break
+			}
+		}
+
+		if filter != nil {
+			applicable = filter(applicable)
+		}
+
+		if len(applicable) == 0 {
+			crefs := make([]string, len(candSlots))
+			for i, candidate := range candSlots {
+				crefs[i] = candidate.String()
+			}
+			c.task.Logf(cannotAutoConnectLog(plug, crefs))
+			continue
+		}
+
+		for _, slot := range applicable {
+			connRef := interfaces.NewConnRef(plug, slot)
+			key := connRef.ID()
+			if _, ok := conns[key]; ok {
+				// Suggested connection already exist (or has
+				// Undesired flag set) so don't clobber it.
+				// NOTE: we don't log anything here as this is
+				// a normal and common condition.
+				continue
+			}
+			if _, ok := newconns[key]; ok {
+				continue
+			}
+
+			if c.task.Kind() == "auto-connect" {
+				ignore, err := findSymmetricAutoconnectTask(c.st, plug.Snap.InstanceName(), slot.Snap.InstanceName(), c.task)
+				if err != nil {
+					return err
+				}
+
+				if ignore {
+					continue
+				}
+			}
+
+			if err := checkAutoconnectConflicts(c.st, c.task, plug.Snap.InstanceName(), slot.Snap.InstanceName()); err != nil {
+				retry, _ := err.(*state.Retry)
+				return conflictError(retry, err)
+			}
+			newconns[key] = connRef
+		}
+	}
+
+	return nil
 }
 
 type connectChecker struct {

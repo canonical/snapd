@@ -70,6 +70,7 @@ var ErrNoMatchingSnaps = errors.New(i18n.G("no matching snaps installed"))
 // snapd will give us  and we want
 // "" (local snap)     "-"
 // risk                risk
+// latest/risk         risk
 // track               track        (not yet returned by snapd)
 // track/stable        track
 // track/risk          track/risk
@@ -86,6 +87,9 @@ func fmtChannel(ch string) string {
 		return ch
 	}
 	first, rest := ch[:idx], ch[idx+1:]
+	if first == "latest" {
+		return fmtChannel(rest)
+	}
 	if rest == "stable" && first != "" {
 		// track/stable -> track
 		return first

@@ -1,0 +1,37 @@
+summary: Ensure that the fwupd interface grants access to the host fwupd
+
+systems:
+    # The fwupd interface is only implicit on classic distros
+    - -ubuntu-core-*
+    # Fwupd is not available in the Ubuntu 14.04 archive.
+    - -ubuntu-14.04-*
+    # Fwupd errors out with "FuMain: failed to get USB context: failed
+    # to init libusb: Other error [-99]"
+    - -ubuntu-16.04-32
+    # Amazon Linux does not appear to have a functional fwupd
+    - -amazon-linux-2-*
+
+prepare: |
+
+execute: |
+    #shellcheck source=tests/lib/snaps.sh
+    . "$TESTSLIB"/snaps.sh
+
+    echo "Install the test-snapd-fwupd" interface
+    install_local test-snapd-fwupd
+
+    echo "The fwupd plug is disconnected by default"
+    snap connections test-snapd-fwupd | MATCH "fwupd +test-snapd-fwupd:fwupd +- +-"
+    echo "The plug can be connected"
+    snap connect test-snapd-fwupd:fwupd
+    snap connections test-snapd-fwupd | MATCH "fwupd +test-snapd-fwupd:fwupd +:fwupd +manual"
+
+    if [ "$(snap debug confinement)" = strict ] &&
+       ! grep -q AssumeAppArmorLabel /usr/share/dbus-1/system-services/org.freedesktop.fwupd.service; then
+       # We are running with strict confinement, but fwupd's D-Bus
+       # service activation file has not been annotated with
+       # AssumeAppArmorLabel=unconfined
+       systemctl start fwupd.service
+    fi
+    echo "With the plug connected, we can talk to fwupd"
+    test-snapd-fwupd.get-version | MATCH 'variant +string "[0-9.]+"'
