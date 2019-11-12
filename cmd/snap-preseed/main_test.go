@@ -143,8 +143,9 @@ func (s *startPreseedSuite) TestRunPreseedHappy(c *C) {
 
 	c.Assert(os.MkdirAll(filepath.Join(targetSnapdRoot, "usr/lib/snapd/"), 0755), IsNil)
 	mockTargetSnapd := testutil.MockCommand(c, filepath.Join(targetSnapdRoot, "usr/lib/snapd/snapd"), `#!/bin/sh
-	# the expression below ensures SNAPD_PRESEED env var is set
-	exit "$(( 1 - "$SNAPD_PRESEED" ))"
+	if [ "$SNAPD_PRESEED" != "1" ]; then
+		exit 1
+	fi
 `)
 	defer mockTargetSnapd.Restore()
 
