@@ -14,6 +14,7 @@ restore: |
     . "$TESTSLIB/pkgdb.sh"
     umount -f /usr/bin/xdg-settings || true
     umount -f /usr/bin/zenity || true
+    rm -f stderr.log
 
 execute: |
     #shellcheck source=tests/lib/pkgdb.sh

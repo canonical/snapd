@@ -6,6 +6,10 @@ debug: |
         cat stderr.log
     fi
 
+restore: |
+    rm -f stderr.log
+    rm -f stdout.log
+
 execute: |
     #shellcheck source=tests/lib/systems.sh
     . "$TESTSLIB"/systems.sh
