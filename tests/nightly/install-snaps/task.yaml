@@ -62,7 +62,6 @@ environment:
     SNAP/go: go
     SNAP/juju: juju
     SNAP/neutron: neutron
-    SNAP/nova: nova
     SNAP/snapcraft: snapcraft
     SNAP/solc: solc
     SNAP/vault: vault
