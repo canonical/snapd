@@ -25,6 +25,7 @@ import (
 	"path/filepath"
 
 	"github.com/snapcore/snapd/boot"
+	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/progress"
 	"github.com/snapcore/snapd/release"
@@ -75,13 +76,29 @@ func (b Backend) SetupSnap(snapFilePath, instanceName string, sideInfo *snap.Sid
 		}
 	}
 
+	if osutil.GetenvBool("SNAPD_EXTRACT_SNAPS") {
+		logger.Noticef("extracted snaps mode")
+		extractDir := s.ExtractedDir()
+		logger.Noticef("extracting to: %v", extractDir)
+		if err := os.MkdirAll(extractDir, 0755); err != nil {
+			return snapType, nil, err
+		}
+		if err := snapf.Unpack("*", extractDir); err != nil {
+			return snapType, nil, err
+		}
+	}
+
 	var didNothing bool
 	if didNothing, err = snapf.Install(s.MountFile(), instdir); err != nil {
 		return snapType, nil, err
 	}
 
+	addUnit := addMountUnit
+	if osutil.GetenvBool("SNAPD_EXTRACT_SNAPS") {
+		addUnit = addBindMountUnit
+	}
 	// generate the mount unit for the squashfs
-	if err := addMountUnit(s, meter); err != nil {
+	if err := addUnit(s, meter); err != nil {
 		return snapType, nil, err
 	}
 
@@ -106,6 +123,18 @@ func (b Backend) RemoveSnapFiles(s snap.PlaceInfo, typ snap.Type, installRecord 
 
 	if err := os.RemoveAll(mountDir); err != nil {
 		return err
+	}
+
+	if osutil.GetenvBool("SNAPD_EXTRACT_SNAPS") {
+		logger.Noticef("extracted snaps mode")
+		extractDir := s.ExtractedDir()
+		if osutil.IsDirectory(extractDir) {
+			logger.Noticef("removing extracted snap path: %v", extractDir)
+			if err := os.RemoveAll(extractDir); err != nil {
+				logger.Noticef("failed to remove: %v", err)
+				return err
+			}
+		}
 	}
 
 	// snapPath may either be a file or a (broken) symlink to a dir

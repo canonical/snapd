@@ -21,6 +21,7 @@ package backend
 
 import (
 	"github.com/snapcore/snapd/dirs"
+	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/progress"
 	"github.com/snapcore/snapd/snap"
 	"github.com/snapcore/snapd/systemd"
@@ -32,6 +33,17 @@ func addMountUnit(s *snap.Info, meter progress.Meter) error {
 
 	sysd := systemd.New(dirs.GlobalRootDir, systemd.SystemMode, meter)
 	_, err := sysd.AddMountUnitFile(s.InstanceName(), s.Revision.String(), squashfsPath, whereDir, "squashfs")
+	return err
+}
+
+func addBindMountUnit(s *snap.Info, meter progress.Meter) error {
+	extractedPath := s.ExtractedDir()
+	whereDir := dirs.StripRootDir(s.MountDir())
+
+	logger.Noticef("adding bind mount unit %s -> %s", extractedPath, whereDir)
+
+	sysd := systemd.New(dirs.GlobalRootDir, systemd.SystemMode, meter)
+	_, err := sysd.AddMountUnitFile(s.InstanceName(), s.Revision.String(), extractedPath, whereDir, "")
 	return err
 }
 

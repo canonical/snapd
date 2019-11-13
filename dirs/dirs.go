@@ -38,6 +38,7 @@ var (
 	DistroLibExecDir string
 
 	SnapBlobDir               string
+	SnapExtractedBlobDir      string
 	SnapDataDir               string
 	SnapDataHomeGlob          string
 	SnapDownloadCacheDir      string
@@ -248,6 +249,7 @@ func SetRootDir(rootdir string) {
 	SnapMountPolicyDir = filepath.Join(rootdir, snappyDir, "mount")
 	SnapMetaDir = filepath.Join(rootdir, snappyDir, "meta")
 	SnapBlobDir = SnapBlobDirUnder(rootdir)
+	SnapExtractedBlobDir = filepath.Join(rootdir, snappyDir, "extracted")
 	// ${snappyDir}/desktop is added to $XDG_DATA_DIRS.
 	// Subdirectories are interpreted according to the relevant
 	// freedesktop.org specifications

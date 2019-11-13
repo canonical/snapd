@@ -52,6 +52,8 @@ type PlaceInfo interface {
 	// MountFile returns the path where the snap file that is mounted is installed.
 	MountFile() string
 
+	ExtractedDir() string
+
 	// HooksDir returns the directory containing the snap's hooks.
 	HooksDir() string
 
@@ -387,6 +389,10 @@ func (s *Info) MountDir() string {
 // MountFile returns the path where the snap file that is mounted is installed.
 func (s *Info) MountFile() string {
 	return MountFile(s.InstanceName(), s.Revision)
+}
+
+func (s *Info) ExtractedDir() string {
+	return filepath.Join(dirs.SnapExtractedBlobDir, s.InstanceName(), s.Revision.String())
 }
 
 // HooksDir returns the directory containing the snap's hooks.
