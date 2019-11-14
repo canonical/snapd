@@ -124,7 +124,7 @@ func Run(context *hookstate.Context, args []string, uid uint32) (stdout, stderr 
 		var data interface{}
 		// commands listed here will be allowed for regular users
 		// note: commands still need valid context and snaps can only access own config.
-		if uid == 0 || name == "get" || name == "services" || name == "set-health" {
+		if uid == 0 || name == "get" || name == "services" || name == "set-health" || name == "is-connected" {
 			cmd := cmdInfo.generator()
 			cmd.setStdout(&stdoutBuffer)
 			cmd.setStderr(&stderrBuffer)
