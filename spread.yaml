@@ -29,6 +29,7 @@ environment:
     TRUST_TEST_KEYS: '$(HOST: echo "${SPREAD_TRUST_TEST_KEYS:-true}")'
     MANAGED_DEVICE: "false"
     CORE_CHANNEL: '$(HOST: echo "${SPREAD_CORE_CHANNEL:-edge}")'
+    BASE_CHANNEL: '$(HOST: echo "${SPREAD_BASE_CHANNEL:-edge}")'
     KERNEL_CHANNEL: '$(HOST: echo "${SPREAD_KERNEL_CHANNEL:-edge}")'
     GADGET_CHANNEL: '$(HOST: echo "${SPREAD_GADGET_CHANNEL:-edge}")'
     SNAPD_CHANNEL: '$(HOST: echo "${SPREAD_SNAPD_CHANNEL:-edge}")'
@@ -94,8 +95,6 @@ backends:
                 manual: true
             - opensuse-15.1-64:
                 workers: 6
-            - opensuse-tumbleweed-64:
-                workers: 6
             - arch-linux-64:
                 workers: 6
 
@@ -112,6 +111,9 @@ backends:
             - centos-7-64:
                 workers: 6
                 image: centos-7-64
+            # zypper either segfaults or hangs installing snapd build dependencies
+            - opensuse-tumbleweed-64:
+                workers: 6
 
     google-sru:
         type: google

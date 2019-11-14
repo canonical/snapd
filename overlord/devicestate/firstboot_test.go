@@ -1,7 +1,7 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
 
 /*
- * Copyright (C) 2015-2018 Canonical Ltd
+ * Copyright (C) 2015-2019 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -189,7 +189,7 @@ func (s *firstBoot16Suite) TestPopulateFromSeedOnClassicNoop(c *C) {
 	err := os.Remove(filepath.Join(dirs.SnapSeedDir, "assertions"))
 	c.Assert(err, IsNil)
 
-	tsAll, err := devicestate.PopulateStateFromSeedImpl(st, s.perfTimings)
+	tsAll, err := devicestate.PopulateStateFromSeedImpl(st, nil, s.perfTimings)
 	c.Assert(err, IsNil)
 	checkTrivialSeeding(c, tsAll)
 
@@ -227,7 +227,7 @@ func (s *firstBoot16Suite) TestPopulateFromSeedOnClassicNoSeedYaml(c *C) {
 	st.Lock()
 	defer st.Unlock()
 
-	tsAll, err := devicestate.PopulateStateFromSeedImpl(st, s.perfTimings)
+	tsAll, err := devicestate.PopulateStateFromSeedImpl(st, nil, s.perfTimings)
 	c.Assert(err, IsNil)
 	checkTrivialSeeding(c, tsAll)
 
@@ -256,7 +256,7 @@ func (s *firstBoot16Suite) TestPopulateFromSeedOnClassicEmptySeedYaml(c *C) {
 	st.Lock()
 	defer st.Unlock()
 
-	_, err = devicestate.PopulateStateFromSeedImpl(st, s.perfTimings)
+	_, err = devicestate.PopulateStateFromSeedImpl(st, nil, s.perfTimings)
 	c.Assert(err, ErrorMatches, "cannot proceed, no snaps to seed")
 }
 
@@ -288,7 +288,7 @@ func (s *firstBoot16Suite) TestPopulateFromSeedOnClassicNoSeedYamlWithCloudInsta
 	st.Lock()
 	defer st.Unlock()
 
-	tsAll, err := devicestate.PopulateStateFromSeedImpl(st, s.perfTimings)
+	tsAll, err := devicestate.PopulateStateFromSeedImpl(st, nil, s.perfTimings)
 	c.Assert(err, IsNil)
 	checkTrivialSeeding(c, tsAll)
 
@@ -337,7 +337,7 @@ func (s *firstBoot16Suite) TestPopulateFromSeedErrorsOnState(c *C) {
 	defer st.Unlock()
 	st.Set("seeded", true)
 
-	_, err := devicestate.PopulateStateFromSeedImpl(st, s.perfTimings)
+	_, err := devicestate.PopulateStateFromSeedImpl(st, nil, s.perfTimings)
 	c.Assert(err, ErrorMatches, "cannot populate state: already seeded")
 }
 
@@ -468,7 +468,7 @@ snaps:
 	// run the firstboot stuff
 	st.Lock()
 	defer st.Unlock()
-	tsAll, err := devicestate.PopulateStateFromSeedImpl(st, s.perfTimings)
+	tsAll, err := devicestate.PopulateStateFromSeedImpl(st, nil, s.perfTimings)
 	c.Assert(err, IsNil)
 
 	checkOrder(c, tsAll, "core", "pc-kernel", "pc", "foo", "local")
@@ -661,7 +661,7 @@ snaps:
 	st.Lock()
 	defer st.Unlock()
 
-	tsAll, err := devicestate.PopulateStateFromSeedImpl(st, s.perfTimings)
+	tsAll, err := devicestate.PopulateStateFromSeedImpl(st, nil, s.perfTimings)
 	c.Assert(err, IsNil)
 	// use the expected kind otherwise settle with start another one
 	chg := st.NewChange("seed", "run the populate from seed changes")
@@ -765,7 +765,7 @@ snaps:
 	st := s.overlord.State()
 	st.Lock()
 	defer st.Unlock()
-	tsAll, err := devicestate.PopulateStateFromSeedImpl(st, s.perfTimings)
+	tsAll, err := devicestate.PopulateStateFromSeedImpl(st, nil, s.perfTimings)
 	c.Assert(err, IsNil)
 
 	checkSeedTasks(c, tsAll)
@@ -912,7 +912,7 @@ snaps:
 	st := s.overlord.State()
 	st.Lock()
 	defer st.Unlock()
-	tsAll, err := devicestate.PopulateStateFromSeedImpl(st, s.perfTimings)
+	tsAll, err := devicestate.PopulateStateFromSeedImpl(st, nil, s.perfTimings)
 	c.Assert(err, IsNil)
 
 	checkSeedTasks(c, tsAll)
@@ -990,7 +990,7 @@ func (s *firstBoot16Suite) TestImportAssertionsFromSeedClassicModelMismatch(c *C
 	st.Lock()
 	defer st.Unlock()
 
-	deviceSeed, err := seed.Open(dirs.SnapSeedDir)
+	deviceSeed, err := seed.Open(dirs.SnapSeedDir, "")
 	c.Assert(err, IsNil)
 
 	_, err = devicestate.ImportAssertionsFromSeed(st, deviceSeed)
@@ -1010,7 +1010,7 @@ func (s *firstBoot16Suite) TestImportAssertionsFromSeedAllSnapsModelMismatch(c *
 	st.Lock()
 	defer st.Unlock()
 
-	deviceSeed, err := seed.Open(dirs.SnapSeedDir)
+	deviceSeed, err := seed.Open(dirs.SnapSeedDir, "")
 	c.Assert(err, IsNil)
 
 	_, err = devicestate.ImportAssertionsFromSeed(st, deviceSeed)
@@ -1036,7 +1036,7 @@ func (s *firstBoot16Suite) TestImportAssertionsFromSeedHappy(c *C) {
 	st.Lock()
 	defer st.Unlock()
 
-	deviceSeed, err := seed.Open(dirs.SnapSeedDir)
+	deviceSeed, err := seed.Open(dirs.SnapSeedDir, "")
 	c.Assert(err, IsNil)
 
 	model, err := devicestate.ImportAssertionsFromSeed(st, deviceSeed)
@@ -1077,7 +1077,7 @@ func (s *firstBoot16Suite) TestImportAssertionsFromSeedMissingSig(c *C) {
 		}
 	}
 
-	deviceSeed, err := seed.Open(dirs.SnapSeedDir)
+	deviceSeed, err := seed.Open(dirs.SnapSeedDir, "")
 	c.Assert(err, IsNil)
 
 	// try import and verify that its rejects because other assertions are
@@ -1098,7 +1098,7 @@ func (s *firstBoot16Suite) TestImportAssertionsFromSeedTwoModelAsserts(c *C) {
 	model2 := s.Brands.Model("my-brand", "my-second-model", s.modelHeaders("my-second-model"))
 	s.WriteAssertions("model2", model2)
 
-	deviceSeed, err := seed.Open(dirs.SnapSeedDir)
+	deviceSeed, err := seed.Open(dirs.SnapSeedDir, "")
 	c.Assert(err, IsNil)
 
 	// try import and verify that its rejects because other assertions are
@@ -1119,7 +1119,7 @@ func (s *firstBoot16Suite) TestImportAssertionsFromSeedNoModelAsserts(c *C) {
 		}
 	}
 
-	deviceSeed, err := seed.Open(dirs.SnapSeedDir)
+	deviceSeed, err := seed.Open(dirs.SnapSeedDir, "")
 	c.Assert(err, IsNil)
 
 	// try import and verify that its rejects because other assertions are
@@ -1227,7 +1227,7 @@ snaps:
 	st := s.overlord.State()
 	st.Lock()
 	defer st.Unlock()
-	tsAll, err := devicestate.PopulateStateFromSeedImpl(st, s.perfTimings)
+	tsAll, err := devicestate.PopulateStateFromSeedImpl(st, nil, s.perfTimings)
 	c.Assert(err, IsNil)
 
 	checkOrder(c, tsAll, "snapd", "pc-kernel", "core18", "pc")
@@ -1349,7 +1349,7 @@ snaps:
 	st := s.overlord.State()
 	st.Lock()
 	defer st.Unlock()
-	tsAll, err := devicestate.PopulateStateFromSeedImpl(st, s.perfTimings)
+	tsAll, err := devicestate.PopulateStateFromSeedImpl(st, nil, s.perfTimings)
 	c.Assert(err, IsNil)
 
 	checkOrder(c, tsAll, "snapd", "pc-kernel", "core18", "pc", "other-base", "snap-req-other-base")
@@ -1386,7 +1386,7 @@ snaps:
 	st.Lock()
 	defer st.Unlock()
 
-	_, err = devicestate.PopulateStateFromSeedImpl(st, s.perfTimings)
+	_, err = devicestate.PopulateStateFromSeedImpl(st, nil, s.perfTimings)
 	c.Assert(err, ErrorMatches, `cannot use gadget snap because its base "core" is different from model base "core18"`)
 }
 
@@ -1450,7 +1450,7 @@ snaps:
 	st.Lock()
 	defer st.Unlock()
 
-	tsAll, err := devicestate.PopulateStateFromSeedImpl(st, s.perfTimings)
+	tsAll, err := devicestate.PopulateStateFromSeedImpl(st, nil, s.perfTimings)
 	c.Assert(err, IsNil)
 	// use the expected kind otherwise settle with start another one
 	chg := st.NewChange("seed", "run the populate from seed changes")
@@ -1520,7 +1520,7 @@ snaps:
 	st := s.overlord.State()
 	st.Lock()
 	defer st.Unlock()
-	_, err := devicestate.PopulateStateFromSeedImpl(st, s.perfTimings)
+	_, err := devicestate.PopulateStateFromSeedImpl(st, nil, s.perfTimings)
 	c.Assert(err, ErrorMatches, `cannot use snap "local": base "foo" is missing`)
 }
 
@@ -1568,7 +1568,7 @@ snaps:
 	st := s.overlord.State()
 	st.Lock()
 	defer st.Unlock()
-	tsAll, err := devicestate.PopulateStateFromSeedImpl(st, s.perfTimings)
+	tsAll, err := devicestate.PopulateStateFromSeedImpl(st, nil, s.perfTimings)
 	c.Assert(err, IsNil)
 
 	checkOrder(c, tsAll, "snapd", "core18", "foo")
@@ -1680,7 +1680,7 @@ snaps:
 	st := s.overlord.State()
 	st.Lock()
 	defer st.Unlock()
-	tsAll, err := devicestate.PopulateStateFromSeedImpl(st, s.perfTimings)
+	tsAll, err := devicestate.PopulateStateFromSeedImpl(st, nil, s.perfTimings)
 	c.Assert(err, IsNil)
 
 	checkOrder(c, tsAll, "snapd", "core18", "pc", "foo")

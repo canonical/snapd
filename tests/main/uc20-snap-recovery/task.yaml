@@ -24,6 +24,7 @@ prepare: |
     echo "Create an empty partition header"
     echo "label: gpt" | sfdisk "$LOOP"
 
+    # XXX: update to the UC20 gadget when it's available
     echo "Get the UC16 gadget"
     snap download pc
     unsquashfs -d gadget-dir pc_*.snap
