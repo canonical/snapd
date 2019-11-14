@@ -787,7 +787,7 @@ func (m *SnapManager) undoMountSnap(t *state.Task, _ *tomb.Tomb) error {
 
 // queryDisabledServices returns a list of all currently disabled snap services
 // in the snap.
-// note this function takes a snap info rather than snapst because there are
+// Note this function takes a snap info rather than snapst because there are
 // situations where we want to call this on non-current snap infos, i.e. in the
 // undo handlers, see undoLinkSnap for an example.
 func (m *SnapManager) queryDisabledServices(info *snap.Info, pb progress.Meter) ([]string, error) {
