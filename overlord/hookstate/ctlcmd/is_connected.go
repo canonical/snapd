@@ -66,10 +66,15 @@ func (c *isConnectedCommand) Execute(args []string) error {
 		return fmt.Errorf("cannot get connections: %s", err)
 	}
 
+	// XXX should we check if plug/slot exists? We don't differentiate between non-connected/not-existing at the moment.
+
 	// snapName is the name of the snap executing snapctl command, it's obtained from the context (ephemeral if run by apps, or full if run by hooks).
 	// plug and slot names are unique within a snap, so there is no ambiguity when matching.
 	var connected bool
-	for refStr, _ := range conns {
+	for refStr, connState := range conns {
+		if connState.Undesired || connState.HotplugGone {
+			continue
+		}
 		connRef, err := interfaces.ParseConnRef(refStr)
 		if err != nil {
 			return fmt.Errorf("internal error: %s", err)

@@ -1,0 +1,22 @@
+summary: Ensure that snapctl is-connected command works.
+
+prepare: |
+  snap pack test-snap
+  snap install --dangerous test-snap_1_all.snap
+
+restore: |
+  snap remove test-snap
+
+execute: |
+  # network is connected by default
+  test-snap.checkconn network
+
+  snap disconnect test-snap:network
+
+  if test-snap.checkconn network; then
+    echo "expected network to be disconnected"
+  fi
+
+  if test-snap.checkconn home; then
+    echo "home is not expected"
+  fi
