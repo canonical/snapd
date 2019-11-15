@@ -149,7 +149,7 @@ func maybeWaitForSecurityProfileRegeneration(cli *client.Client) error {
 		if _, err := cli.SysInfo(); err == nil {
 			return nil
 		}
-		// sleep a litte bit for good measure
+		// sleep a little bit for good measure
 		time.Sleep(1 * time.Second)
 	}
 

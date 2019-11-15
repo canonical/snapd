@@ -53,7 +53,7 @@ func init() {
 
 func main() {
 	// In preseed mode re-exec is not used
-	if release.PreseedMode {
+	if release.PreseedMode() {
 		logger.Noticef("running in preseed mode")
 	} else {
 		cmd.ExecInSnapdOrCoreSnap()

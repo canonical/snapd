@@ -21,6 +21,7 @@ package seedtest
 
 import (
 	"fmt"
+	"io"
 	"os"
 	"path/filepath"
 	"strings"
@@ -186,6 +187,24 @@ func WriteAssertions(fn string, assertions ...asserts.Assertion) {
 			panic(err)
 		}
 	}
+}
+
+func ReadAssertions(c *C, fn string) []asserts.Assertion {
+	f, err := os.Open(fn)
+	c.Assert(err, IsNil)
+
+	var as []asserts.Assertion
+	dec := asserts.NewDecoder(f)
+	for {
+		a, err := dec.Decode()
+		if err == io.EOF {
+			break
+		}
+		c.Assert(err, IsNil)
+		as = append(as, a)
+	}
+
+	return as
 }
 
 // TestingSeed20 helps setting up a populated Core 20 testing seed directory.
