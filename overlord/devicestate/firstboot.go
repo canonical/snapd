@@ -53,22 +53,22 @@ func installSeedSnap(st *state.State, sn *seed.Snap, flags snapstate.Flags) (*st
 	return snapstate.InstallPath(st, sn.SideInfo, sn.Path, "", sn.Channel, flags)
 }
 
-func criticalTaskEdges(ts *state.TaskSet) (prereqEdge, aliasesEdge, hooksEdge *state.Task) {
-	var err error
+func criticalTaskEdges(ts *state.TaskSet) (prereqEdge, aliasesEdge, hooksEdge *state.Task, err error) {
+	// we expect all three edges, or none (the latter is the case with config tasks).
 	prereqEdge, err = ts.Edge(snapstate.PrerequisitesEdge)
 	if err != nil {
-		return nil, nil, nil
+		return nil, nil, nil, nil
 	}
 	aliasesEdge, err = ts.Edge(snapstate.SetupAliasesEdge)
 	if err != nil {
-		return nil, nil, nil
+		return nil, nil, nil, err
 	}
 	hooksEdge, err = ts.Edge(snapstate.InstallHookEdge)
 	if err != nil {
-		return nil, nil, nil
+		return nil, nil, nil, err
 	}
 
-	return prereqEdge, aliasesEdge, hooksEdge
+	return prereqEdge, aliasesEdge, hooksEdge, nil
 }
 
 func trivialSeeding(st *state.State, markSeeded *state.Task) []*state.TaskSet {
@@ -157,7 +157,11 @@ func populateStateFromSeedImpl(st *state.State, opts *populateStateFromSeedOptio
 	chainTsPreseeding := func(all []*state.TaskSet, ts *state.TaskSet) []*state.TaskSet {
 		n := len(all)
 		// mark-preseeded task needs to be inserted between preliminary setup and hook tasks
-		prereqTask, aliasesTask, hookTask := criticalTaskEdges(ts)
+		prereqTask, aliasesTask, hookTask, err := criticalTaskEdges(ts)
+		if err != nil {
+			// XXX: internal error?
+			panic(err)
+		}
 		if prereqTask != nil {
 			hookTask.WaitFor(preseedDone)
 			if lastAliasesTask != nil {
