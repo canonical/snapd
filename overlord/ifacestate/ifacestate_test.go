@@ -2094,6 +2094,44 @@ func (s *interfaceManagerSuite) TestDoSetupSnapSecurityHonorsUndesiredFlag(c *C)
 	c.Assert(ifaces.Connections, HasLen, 0)
 }
 
+func (s *interfaceManagerSuite) TestBadInterfacesWarning(c *C) {
+	restoreSanitize := snap.MockSanitizePlugsSlots(func(inf *snap.Info) {
+		inf.BadInterfaces["a"] = "b"
+	})
+	defer restoreSanitize()
+
+	s.MockModel(c, nil)
+
+	_ = s.manager(c)
+
+	// sampleSnapYaml is valid but that's irrelevant for the test as we are
+	// injecting the desired behavior via mocked SanitizePlugsSlots above.
+	snapInfo := s.mockSnap(c, sampleSnapYaml)
+
+	// Run the setup-snap-security task and let it finish.
+	change := s.addSetupSnapSecurityChange(c, &snapstate.SnapSetup{
+		SideInfo: &snap.SideInfo{
+			RealName: snapInfo.SnapName(),
+			Revision: snapInfo.Revision,
+		},
+	})
+	s.settle(c)
+
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	c.Assert(change.Status(), Equals, state.DoneStatus)
+
+	warns := s.state.AllWarnings()
+	c.Assert(warns, HasLen, 1)
+	c.Check(warns[0].String(), Matches, `snap "snap" has bad plugs or slots: a \(b\)`)
+
+	// sanity, bad interfaces are logged in the task log.
+	task := change.Tasks()[0]
+	c.Assert(task.Kind(), Equals, "setup-profiles")
+	c.Check(strings.Join(task.Log(), ""), Matches, `.* snap "snap" has bad plugs or slots: a \(b\)`)
+}
+
 // The auto-connect task will auto-connect plugs with viable candidates.
 func (s *interfaceManagerSuite) TestDoSetupSnapSecurityAutoConnectsPlugs(c *C) {
 	s.MockModel(c, nil)
