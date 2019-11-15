@@ -112,7 +112,6 @@ backends:
             # zypper either segfaults or hangs installing snapd build dependencies
             - opensuse-tumbleweed-64:
                 workers: 6
-            # google-compute engine package is broken
             - arch-linux-64:
                 workers: 6
 
