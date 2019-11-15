@@ -106,13 +106,15 @@ backends:
         location: computeengine/us-east1-b
         halt-timeout: 2h
         systems:
+            # google-compute-engine package is broken
+            - arch-linux-64:
+                workers: 6
+            # Systemd failing when daemon-reload is called
             - centos-7-64:
                 workers: 6
                 image: centos-7-64
             # zypper either segfaults or hangs installing snapd build dependencies
             - opensuse-tumbleweed-64:
-                workers: 6
-            - arch-linux-64:
                 workers: 6
 
     google-sru:
