@@ -201,7 +201,7 @@ func populateStateFromSeedImpl(st *state.State, opts *populateStateFromSeedOptio
 
 	if len(essentialSeedSnaps) != 0 {
 		// we *always* configure "core" here even if bases are used
-		// for booting. "core" if where the system config lives.
+		// for booting. "core" is where the system config lives.
 		configTss = chainTs(configTss, snapstate.ConfigureSnap(st, "core", snapstate.UseConfigDefaults))
 	}
 

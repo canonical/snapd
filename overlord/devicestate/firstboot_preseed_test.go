@@ -92,6 +92,18 @@ func checkPressedTaskStates(c *C, st *state.State) {
 	}
 }
 
+func markPreseededInWaitChain(t *state.Task) bool {
+	for _, wt := range t.WaitTasks() {
+		if wt.Kind() == "mark-preseeded" {
+			return true
+		}
+		if markPreseededInWaitChain(wt) {
+			return true
+		}
+	}
+	return false
+}
+
 func checkPreseedOrder(c *C, tsAll []*state.TaskSet, snaps ...string) {
 	matched := 0
 	markSeeded := 0
@@ -101,6 +113,8 @@ func checkPreseedOrder(c *C, tsAll []*state.TaskSet, snaps ...string) {
 	for _, ts := range tsAll {
 		for _, t := range ts.Tasks() {
 			switch t.Kind() {
+			case "run-hook":
+				c.Check(markPreseededInWaitChain(t), Equals, true)
 			case "mark-seeded":
 				// nothing waits for mark-seeded
 				c.Check(t.HaltTasks(), HasLen, 0)
