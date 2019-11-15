@@ -144,6 +144,7 @@ func (m *InterfaceManager) setupProfilesForSnap(task *state.Task, _ *tomb.Tomb, 
 	}
 	if len(snapInfo.BadInterfaces) > 0 {
 		task.Logf("%s", snap.BadInterfacesSummary(snapInfo))
+		st.Warnf("%s", snap.BadInterfacesSummary(snapInfo))
 	}
 
 	// Reload the connections and compute the set of affected snaps. The set
