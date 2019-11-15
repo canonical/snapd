@@ -95,8 +95,6 @@ backends:
                 manual: true
             - opensuse-15.1-64:
                 workers: 6
-            - arch-linux-64:
-                workers: 6
 
             - amazon-linux-2-64:
                 workers: 6
@@ -113,6 +111,9 @@ backends:
                 image: centos-7-64
             # zypper either segfaults or hangs installing snapd build dependencies
             - opensuse-tumbleweed-64:
+                workers: 6
+            # gce package is broken causing errors when rebooting and on tests
+            - arch-linux-64:
                 workers: 6
 
     google-sru:
