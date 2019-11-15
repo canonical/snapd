@@ -79,7 +79,7 @@ func Manager(s *state.State, hookManager *hookstate.HookManager, runner *state.T
 		keypairMgr: keypairMgr,
 		newStore:   newStore,
 		reg:        make(chan struct{}),
-		preseed:    release.PreseedMode,
+		preseed:    release.PreseedMode(),
 	}
 
 	s.Lock()

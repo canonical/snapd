@@ -299,7 +299,7 @@ func AddSnapServices(s *snap.Info, disabledSvcs []string, inter interacter) (err
 			continue
 		}
 
-		if !preseedMode {
+		if !preseedMode() {
 			if err := sysd.Enable(svcName); err != nil {
 				return err
 			}
@@ -307,7 +307,7 @@ func AddSnapServices(s *snap.Info, disabledSvcs []string, inter interacter) (err
 		enabled = append(enabled, svcName)
 	}
 
-	if len(written) > 0 && !preseedMode {
+	if len(written) > 0 && !preseedMode() {
 		if err := sysd.DaemonReload(); err != nil {
 			return err
 		}

@@ -154,7 +154,7 @@ func (s *firstbootPreseed16Suite) SetUpTest(c *C) {
 }
 
 func (s *firstbootPreseed16Suite) TestPreseedHappy(c *C) {
-	restore := release.MockPreseedMode(true)
+	restore := release.MockPreseedMode(func() bool { return true })
 	defer restore()
 
 	mockMountCmd := testutil.MockCommand(c, "mount", "")

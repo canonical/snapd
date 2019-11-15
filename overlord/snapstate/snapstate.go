@@ -343,7 +343,7 @@ func doInstall(st *state.State, snapst *SnapState, snapsup *SnapSetup, flags int
 		ts.MarkEdge(checkAsserts, DownloadAndChecksDoneEdge)
 	}
 
-	if preseedMode {
+	if preseedMode() {
 		if installHook == nil {
 			panic("install hook not set")
 		}
