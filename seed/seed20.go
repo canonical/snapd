@@ -102,6 +102,10 @@ func (s *seed20) LoadAssertions(db asserts.RODatabase, commitTo func(*asserts.Ba
 	}
 	modelRef := refs[0]
 
+	if len(declRefs) != len(revRefs) {
+		return fmt.Errorf("system unexpectedly holds a different number of snap-declaration than snap-revision assertions")
+	}
+
 	// this also verifies the consistency of all of them
 	if err := commitTo(batch); err != nil {
 		return err
@@ -217,7 +221,7 @@ func (s *seed20) lookupVerifiedRevision(snapRef naming.SnapRef) (snapPath string
 
 	snapRev = s.snapRevsByID[snapID]
 	if snapRev == nil {
-		return "", nil, nil, fmt.Errorf("cannot find snap-revision for snap-id: %s", snapID)
+		return "", nil, nil, fmt.Errorf("internal error: cannot find snap-revision for snap-id: %s", snapID)
 	}
 
 	snapName := snapDecl.SnapName()
@@ -225,11 +229,11 @@ func (s *seed20) lookupVerifiedRevision(snapRef naming.SnapRef) (snapPath string
 
 	fi, err := os.Stat(snapPath)
 	if err != nil {
-		return "", nil, nil, fmt.Errorf("cannot stat snap %q: %v", snapPath, err)
+		return "", nil, nil, fmt.Errorf("cannot stat snap: %v", err)
 	}
 
 	if fi.Size() != int64(snapRev.SnapSize()) {
-		return "", nil, nil, fmt.Errorf("cannot validate snap %q for snap %q (snap-id %q), wrong size", snapPath, snapName, snapID)
+		return "", nil, nil, fmt.Errorf("cannot validate %q for snap %q (snap-id %q), wrong size", snapPath, snapName, snapID)
 	}
 
 	snapSHA3_384, _, err := asserts.SnapFileSHA3_384(snapPath)
@@ -238,7 +242,7 @@ func (s *seed20) lookupVerifiedRevision(snapRef naming.SnapRef) (snapPath string
 	}
 
 	if snapSHA3_384 != snapRev.SnapSHA3_384() {
-		return "", nil, nil, fmt.Errorf("cannot validate snap %q for snap %q (snap-id %q), hash mismatch with snap-revision", snapPath, snapName, snapID)
+		return "", nil, nil, fmt.Errorf("cannot validate %q for snap %q (snap-id %q), hash mismatch with snap-revision", snapPath, snapName, snapID)
 
 	}
 

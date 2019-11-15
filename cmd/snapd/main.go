@@ -51,7 +51,12 @@ func init() {
 }
 
 func main() {
-	cmd.ExecInSnapdOrCoreSnap()
+	// In preseed mode re-exec is not used
+	if release.PreseedMode() {
+		logger.Noticef("running in preseed mode")
+	} else {
+		cmd.ExecInSnapdOrCoreSnap()
+	}
 
 	ch := make(chan os.Signal, 2)
 	signal.Notify(ch, syscall.SIGINT, syscall.SIGTERM)

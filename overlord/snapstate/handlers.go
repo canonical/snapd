@@ -31,6 +31,7 @@ import (
 
 	"gopkg.in/tomb.v2"
 
+	"github.com/snapcore/snapd/asserts"
 	"github.com/snapcore/snapd/boot"
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/features"
@@ -864,7 +865,7 @@ func (m *SnapManager) undoUnlinkCurrentSnap(t *state.Task, _ *tomb.Tomb) error {
 
 	// if we just put back a previous a core snap, request a restart
 	// so that we switch executing its snapd
-	maybeRestart(t, oldInfo)
+	maybeRestart(t, oldInfo, model)
 
 	return nil
 }
@@ -1221,21 +1222,15 @@ func (m *SnapManager) doLinkSnap(t *state.Task, _ *tomb.Tomb) (err error) {
 
 	// if we just installed a core snap, request a restart
 	// so that we switch executing its snapd
-	maybeRestart(t, newInfo)
+	maybeRestart(t, newInfo, model)
 
 	return nil
 }
 
 // maybeRestart will schedule a reboot or restart as needed for the
 // just linked snap with info if it's a core or snapd or kernel snap.
-func maybeRestart(t *state.Task, info *snap.Info) {
+func maybeRestart(t *state.Task, info *snap.Info, model *asserts.Model) {
 	st := t.State()
-
-	model, err := ModelFromTask(t)
-	if err != nil {
-		logger.Noticef("cannot get model assertion: %v", model)
-		return
-	}
 
 	typ := info.GetType()
 	bp := boot.Participant(info, typ, model, release.OnClassic)
@@ -1278,6 +1273,71 @@ func daemonRestartReason(st *state.State, typ snap.Type) string {
 	}
 
 	return "Requested daemon restart (snapd snap)."
+}
+
+// maybeUndoRemodelBootChanges will check if an undo needs to update the
+// bootloader. This can happen if e.g. a new kernel gets installed. This
+// will switch the bootloader to the new kernel but if the change is later
+// undone we need to switch back to the kernel of the old model.
+func maybeUndoRemodelBootChanges(t *state.Task) error {
+	// get the new and the old model
+	deviceCtx, err := DeviceCtx(t.State(), t, nil)
+	if err != nil {
+		return err
+	}
+	// we only have an old model if we are in a remodel situation
+	oldModel := deviceCtx.OldModel()
+	if oldModel == nil {
+		return nil
+	}
+	newModel := deviceCtx.Model()
+
+	// check type of the snap we are undoing, only kernel/base/core are
+	// relevant
+	snapsup, _, err := snapSetupAndState(t)
+	if err != nil {
+		return err
+	}
+	var newSnapName, snapName string
+	switch snapsup.Type {
+	case snap.TypeKernel:
+		snapName = oldModel.Kernel()
+		newSnapName = newModel.Kernel()
+	case snap.TypeOS, snap.TypeBase:
+		// XXX: add support for "core"
+		snapName = oldModel.Base()
+		newSnapName = newModel.Base()
+	default:
+		return nil
+	}
+	// we can stop if the kernel/base has not changed
+	if snapName == newSnapName {
+		return nil
+	}
+	// we can stop if the snap we are looking at is not a kernel/base
+	// of the new model
+	if snapsup.InstanceName() != newSnapName {
+		return nil
+	}
+	// get info for *old* kernel/base/core and see if we need to reboot
+	// TODO: we may need something like infoForDeviceSnap here
+	var snapst SnapState
+	if err = Get(t.State(), snapName, &snapst); err != nil {
+		return err
+	}
+	info, err := snapst.CurrentInfo()
+	if err != nil && err != ErrNoCurrent {
+		return err
+	}
+	bp := boot.Participant(info, info.GetType(), oldModel, release.OnClassic)
+	if err := bp.SetNextBoot(); err != nil {
+		return err
+	}
+	// we may just have switch back to the old kernel/base/core so
+	// we may need to restart
+	maybeRestart(t, info, oldModel)
+
+	return nil
 }
 
 func (m *SnapManager) undoLinkSnap(t *state.Task, _ *tomb.Tomb) error {
@@ -1400,6 +1460,10 @@ func (m *SnapManager) undoLinkSnap(t *state.Task, _ *tomb.Tomb) error {
 	pb := NewTaskProgressAdapterLocked(t)
 	err = m.backend.UnlinkSnap(newInfo, pb)
 	if err != nil {
+		return err
+	}
+
+	if err := maybeUndoRemodelBootChanges(t); err != nil {
 		return err
 	}
 
