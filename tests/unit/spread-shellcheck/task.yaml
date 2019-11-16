@@ -7,7 +7,7 @@ prepare: |
     # need to install shellcheck in devmode, the tests are run by 'root', the
     # source code is under /home/gopath, all file accesses to the source code
     # will end up getting DENIED even though shellcheck uses home interface
-    snap install --edge --devmode shellcheck
+    snap install --beta --devmode shellcheck
 
 execute: |
     testdir=$PWD
