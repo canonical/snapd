@@ -278,6 +278,9 @@ func (s *partitionTestSuite) TestCreatePartitions(c *C) {
 	cmdLsblk := testutil.MockCommand(c, "lsblk", mockLsblkScript)
 	defer cmdLsblk.Restore()
 
+	cmdPartx := testutil.MockCommand(c, "partx", "")
+	defer cmdPartx.Restore()
+
 	gadgetRoot := filepath.Join(c.MkDir(), "gadget")
 	err := makeMockGadget(gadgetRoot, gadgetContent)
 	c.Assert(err, IsNil)
@@ -296,7 +299,11 @@ func (s *partitionTestSuite) TestCreatePartitions(c *C) {
 	// Check partition table read and write
 	c.Assert(cmdSfdisk.Calls(), DeepEquals, [][]string{
 		{"sfdisk", "--json", "-d", "/dev/node"},
-		{"sfdisk", "/dev/node"},
+		{"sfdisk", "--force", "/dev/node"},
+	})
+
+	c.Assert(cmdPartx.Calls(), DeepEquals, [][]string{
+		{"partx", "-u", "/dev/node"},
 	})
 }
 
