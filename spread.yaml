@@ -647,7 +647,7 @@ suites:
         debug: |
             if [ "$SPREAD_DEBUG_EACH" = 1 ]; then
                 systemctl status snapd.socket || true
-                journalctl -xe
+                journalctl -e
             fi
     tests/core18/:
         summary: Subset of core18 specific tests
