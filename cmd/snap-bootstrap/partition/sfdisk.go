@@ -31,8 +31,6 @@ import (
 )
 
 const (
-	systemBootRole  = "system-boot"
-	systemDataRole  = "system-data"
 	ubuntuBootLabel = "ubuntu-boot"
 	ubuntuDataLabel = "ubuntu-data"
 
@@ -229,9 +227,9 @@ func buildPartitionList(ptable *sfdiskPartitionTable, pv *gadget.LaidOutVolume) 
 
 		// Set expected labels based on role
 		switch s.Role {
-		case systemBootRole:
+		case gadget.SystemBoot:
 			s.Label = ubuntuBootLabel
-		case systemDataRole:
+		case gadget.SystemData:
 			s.Label = ubuntuDataLabel
 		}
 
