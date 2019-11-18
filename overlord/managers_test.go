@@ -4608,8 +4608,9 @@ volumes:
 
 	// setup model assertion
 	devicestatetest.SetDevice(st, &auth.DeviceState{
-		Brand: "can0nical",
-		Model: "my-model",
+		Brand:  "can0nical",
+		Model:  "my-model",
+		Serial: "serialserialserial",
 	})
 	err := assertstate.Add(st, model)
 	c.Assert(err, IsNil)
@@ -4739,8 +4740,9 @@ volumes:
 
 	// setup model assertion
 	devicestatetest.SetDevice(st, &auth.DeviceState{
-		Brand: "can0nical",
-		Model: "my-model",
+		Brand:  "can0nical",
+		Model:  "my-model",
+		Serial: "serialserialserial",
 	})
 	err := assertstate.Add(st, model)
 	c.Assert(err, IsNil)
@@ -4864,8 +4866,9 @@ volumes:
 
 	// setup model assertion
 	devicestatetest.SetDevice(st, &auth.DeviceState{
-		Brand: "can0nical",
-		Model: "my-model",
+		Brand:  "can0nical",
+		Model:  "my-model",
+		Serial: "serialserialserial",
 	})
 	err := assertstate.Add(st, model)
 	c.Assert(err, IsNil)
