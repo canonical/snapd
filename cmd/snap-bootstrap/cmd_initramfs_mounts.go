@@ -55,7 +55,7 @@ var (
 	procCmdline = "/proc/cmdline"
 
 	// Stdout - can be overridden in tests
-	stdout = io.Writer(os.Stdout)
+	stdout io.Writer = os.Stdout
 )
 
 var (
@@ -101,6 +101,7 @@ func generateMountsModeInstall() error {
 		if err != nil {
 			return err
 		}
+		// load assertions into a temporary database
 		if err := deviceSeed.LoadAssertions(nil, nil); err != nil {
 			return err
 		}
@@ -153,6 +154,34 @@ func generateMountsModeRun() error {
 	return fmt.Errorf("run mode mount generation not implemented yet")
 }
 
+func isInstallMode(content []byte) bool {
+	// XXX: improve detection
+	if !bytes.Contains(content, []byte("root=LABEL=ubuntu-seed")) {
+		return false
+	}
+	if bytes.Contains(content, []byte("snap_recovery_mode=install")) {
+		return true
+	}
+	// no snap_recovery_mode var set -> assume install mode
+	if !bytes.Contains(content, []byte("snap_recovery_mode=")) {
+		return true
+	}
+	return false
+}
+
+func isRecoverMode(content []byte) bool {
+	// XXX: improve detection
+	if !bytes.Contains(content, []byte("root=LABEL=ubuntu-seed")) {
+		return false
+	}
+	return bytes.Contains(content, []byte("snap_recovery_mode=recover"))
+}
+
+func isRunMode(content []byte) bool {
+	// XXX: improve detection
+	return bytes.Contains(content, []byte("root=LABEL=ubuntu-data"))
+}
+
 func generateInitramfsMounts() error {
 	content, err := ioutil.ReadFile(procCmdline)
 	if err != nil {
@@ -160,15 +189,11 @@ func generateInitramfsMounts() error {
 	}
 	// XXX: should we always look at snap_recovery_mode=... here?
 	switch {
-	case bytes.Contains(content, []byte("root=LABEL=ubuntu-seed")):
-		// install or recover mode, figure out which one
-		if bytes.Contains(content, []byte("snap_recovery_mode=recover")) {
-			return generateMountsModeRecover()
-		}
-		// assume install mode if no further info is found
+	case isRecoverMode(content):
+		return generateMountsModeRecover()
+	case isInstallMode(content):
 		return generateMountsModeInstall()
-	case bytes.Contains(content, []byte("root=LABEL=ubuntu-data")):
-		// run mode
+	case isRunMode(content):
 		return generateMountsModeRun()
 	default:
 		return fmt.Errorf("cannot detect if in run,install,recover mode")
