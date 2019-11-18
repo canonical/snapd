@@ -73,7 +73,7 @@ func generateMountsModeInstall() error {
 		return err
 	}
 	if !isMounted {
-		fmt.Fprintf(stdout, "LABEL=ubuntu-seed %s\n", filepath.Join(runMnt, "ubuntu-seed"))
+		fmt.Fprintf(stdout, "/dev/disk/by-label/ubuntu-seed %s\n", filepath.Join(runMnt, "ubuntu-seed"))
 		return nil
 	}
 	// XXX: how do we select a different recover system from the cmdline?
