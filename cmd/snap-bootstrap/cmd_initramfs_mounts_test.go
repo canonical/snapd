@@ -123,7 +123,7 @@ func (s *initramfsMountsSuite) TestInitramfsMountsNoModeError(c *C) {
 }
 
 func (s *initramfsMountsSuite) TestInitramfsMountsNoRunModeYet(c *C) {
-	s.mockProcCmdlineContent(c, "root=LABEL=ubuntu-data")
+	s.mockProcCmdlineContent(c, "snapd_recovery_mode=run")
 
 	_, err := main.Parser.ParseArgs([]string{"initramfs-mounts"})
 	c.Assert(err, ErrorMatches, "run mode mount generation not implemented yet")
@@ -131,7 +131,7 @@ func (s *initramfsMountsSuite) TestInitramfsMountsNoRunModeYet(c *C) {
 
 func (s *initramfsMountsSuite) TestInitramfsMountsInstallModeStep1(c *C) {
 	n := 0
-	s.mockProcCmdlineContent(c, "root=LABEL=ubuntu-seed")
+	s.mockProcCmdlineContent(c, "snapd_recovery_mode=")
 
 	restore := main.MockOsutilIsMounted(func(path string) (bool, error) {
 		n++
@@ -152,7 +152,7 @@ func (s *initramfsMountsSuite) TestInitramfsMountsInstallModeStep1(c *C) {
 
 func (s *initramfsMountsSuite) TestInitramfsMountsInstallModeStep2(c *C) {
 	n := 0
-	s.mockProcCmdlineContent(c, "root=LABEL=ubuntu-seed")
+	s.mockProcCmdlineContent(c, "snapd_recovery_mode=")
 
 	restore := main.MockOsutilIsMounted(func(path string) (bool, error) {
 		n++
@@ -178,7 +178,7 @@ func (s *initramfsMountsSuite) TestInitramfsMountsInstallModeStep2(c *C) {
 
 func (s *initramfsMountsSuite) TestInitramfsMountsInstallModeStep3(c *C) {
 	n := 0
-	s.mockProcCmdlineContent(c, "root=LABEL=ubuntu-seed")
+	s.mockProcCmdlineContent(c, "snapd_recovery_mode=install")
 
 	restore := main.MockOsutilIsMounted(func(path string) (bool, error) {
 		n++

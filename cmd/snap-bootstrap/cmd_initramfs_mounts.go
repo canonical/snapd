@@ -155,31 +155,25 @@ func generateMountsModeRun() error {
 }
 
 func isInstallMode(content []byte) bool {
-	// XXX: improve detection
-	if !bytes.Contains(content, []byte("root=LABEL=ubuntu-seed")) {
-		return false
-	}
-	if bytes.Contains(content, []byte("snap_recovery_mode=install")) {
+	// XXX: deal with whitespace
+	if bytes.Contains(content, []byte("snapd_recovery_mode=install")) {
 		return true
 	}
-	// no snap_recovery_mode var set -> assume install mode
-	if !bytes.Contains(content, []byte("snap_recovery_mode=")) {
+	// no snapd_recovery_mode var set -> assume install mode
+	if bytes.Contains(content, []byte("snapd_recovery_mode= ")) || bytes.HasSuffix(content, []byte("snapd_recovery_mode=")) {
 		return true
 	}
 	return false
 }
 
 func isRecoverMode(content []byte) bool {
-	// XXX: improve detection
-	if !bytes.Contains(content, []byte("root=LABEL=ubuntu-seed")) {
-		return false
-	}
-	return bytes.Contains(content, []byte("snap_recovery_mode=recover"))
+	// XXX: deal with whitespace
+	return bytes.Contains(content, []byte("snapd_recovery_mode=recover"))
 }
 
 func isRunMode(content []byte) bool {
-	// XXX: improve detection
-	return bytes.Contains(content, []byte("root=LABEL=ubuntu-data"))
+	// XXX: deal with whitespace
+	return bytes.Contains(content, []byte("snapd_recovery_mode=run"))
 }
 
 func generateInitramfsMounts() error {
@@ -187,7 +181,6 @@ func generateInitramfsMounts() error {
 	if err != nil {
 		return err
 	}
-	// XXX: should we always look at snap_recovery_mode=... here?
 	switch {
 	case isRecoverMode(content):
 		return generateMountsModeRecover()
