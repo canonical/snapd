@@ -94,6 +94,10 @@ func (m *InterfaceManager) doSetupProfiles(task *state.Task, tomb *tomb.Tomb) er
 		return err
 	}
 
+	if len(snapInfo.BadInterfaces) > 0 {
+		task.State().Warnf("%s", snap.BadInterfacesSummary(snapInfo))
+	}
+
 	// We no longer do/need core-phase-2, see
 	//   https://github.com/snapcore/snapd/pull/5301
 	// This code is just here to deal with old state that may still
@@ -144,7 +148,6 @@ func (m *InterfaceManager) setupProfilesForSnap(task *state.Task, _ *tomb.Tomb, 
 	}
 	if len(snapInfo.BadInterfaces) > 0 {
 		task.Logf("%s", snap.BadInterfacesSummary(snapInfo))
-		st.Warnf("%s", snap.BadInterfacesSummary(snapInfo))
 	}
 
 	// Reload the connections and compute the set of affected snaps. The set
