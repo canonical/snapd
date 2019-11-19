@@ -27,6 +27,8 @@ var (
 	CheckCgroup         = checkCgroup
 
 	CheckFuse = firstCheckFuse
+
+	CheckLoopControl = checkLoopControl
 )
 
 func Checks() []func() error {
@@ -54,5 +56,21 @@ func MockFuseBinary(new string) (restore func()) {
 	fuseBinary = new
 	return func() {
 		fuseBinary = oldFuseBinary
+	}
+}
+
+func MockLoopControlPath(new string) (restore func()) {
+	old := loopControlPath
+	loopControlPath = new
+	return func() {
+		loopControlPath = old
+	}
+}
+
+func MockMajorMinor(new func(rdev int) (maj, min int)) (restore func()) {
+	old := majorMinor
+	majorMinor = new
+	return func() {
+		majorMinor = old
 	}
 }
