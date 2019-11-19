@@ -21,6 +21,7 @@ package interfaces_test
 
 import (
 	"fmt"
+	"strings"
 
 	. "gopkg.in/check.v1"
 
@@ -1683,6 +1684,14 @@ func (s *RepositorySuite) TestSnapSpecificationFailureWithPermanentSnippets(c *C
 	c.Assert(spec, IsNil)
 }
 
+type testSideArity struct {
+	sideSnapName string
+}
+
+func (a *testSideArity) SlotsPerPlugAny() bool {
+	return strings.HasSuffix(a.sideSnapName, "2")
+}
+
 func (s *RepositorySuite) TestAutoConnectCandidatePlugsAndSlots(c *C) {
 	// Add two interfaces, one with automatic connections, one with manual
 	repo := s.emptyRepo
@@ -1691,8 +1700,8 @@ func (s *RepositorySuite) TestAutoConnectCandidatePlugsAndSlots(c *C) {
 	err = repo.AddInterface(&ifacetest.TestInterface{InterfaceName: "manual"})
 	c.Assert(err, IsNil)
 
-	policyCheck := func(plug *ConnectedPlug, slot *ConnectedSlot) (bool, error) {
-		return slot.Interface() == "auto", nil
+	policyCheck := func(plug *ConnectedPlug, slot *ConnectedSlot) (bool, SideArity, error) {
+		return slot.Interface() == "auto", &testSideArity{plug.Snap().InstanceName()}, nil
 	}
 
 	// Add a pair of snaps with plugs/slots using those two interfaces
@@ -1716,11 +1725,13 @@ slots:
 	err = repo.AddSnap(consumer)
 	c.Assert(err, IsNil)
 
-	candidateSlots := repo.AutoConnectCandidateSlots("consumer", "auto", policyCheck)
+	candidateSlots, arities := repo.AutoConnectCandidateSlots("consumer", "auto", policyCheck)
 	c.Assert(candidateSlots, HasLen, 1)
 	c.Check(candidateSlots[0].Snap.InstanceName(), Equals, "producer")
 	c.Check(candidateSlots[0].Interface, Equals, "auto")
 	c.Check(candidateSlots[0].Name, Equals, "auto")
+	c.Assert(arities, HasLen, 1)
+	c.Check(arities[0].SlotsPerPlugAny(), Equals, false)
 
 	candidatePlugs := repo.AutoConnectCandidatePlugs("producer", "auto", policyCheck)
 	c.Assert(candidatePlugs, HasLen, 1)
@@ -1735,8 +1746,8 @@ func (s *RepositorySuite) TestAutoConnectCandidatePlugsAndSlotsSymmetry(c *C) {
 	err := repo.AddInterface(&ifacetest.TestInterface{InterfaceName: "auto"})
 	c.Assert(err, IsNil)
 
-	policyCheck := func(plug *ConnectedPlug, slot *ConnectedSlot) (bool, error) {
-		return slot.Interface() == "auto", nil
+	policyCheck := func(plug *ConnectedPlug, slot *ConnectedSlot) (bool, SideArity, error) {
+		return slot.Interface() == "auto", &testSideArity{plug.Snap().InstanceName()}, nil
 	}
 
 	// Add a producer snap for "auto"
@@ -1773,22 +1784,89 @@ plugs:
 	c.Assert(err, IsNil)
 
 	// Both can auto-connect
-	candidateSlots := repo.AutoConnectCandidateSlots("consumer1", "auto", policyCheck)
+	candidateSlots, arities := repo.AutoConnectCandidateSlots("consumer1", "auto", policyCheck)
 	c.Assert(candidateSlots, HasLen, 1)
 	c.Check(candidateSlots[0].Snap.InstanceName(), Equals, "producer")
 	c.Check(candidateSlots[0].Interface, Equals, "auto")
 	c.Check(candidateSlots[0].Name, Equals, "auto")
+	c.Assert(arities, HasLen, 1)
+	c.Check(arities[0].SlotsPerPlugAny(), Equals, false)
 
-	candidateSlots = repo.AutoConnectCandidateSlots("consumer2", "auto", policyCheck)
+	candidateSlots, arities = repo.AutoConnectCandidateSlots("consumer2", "auto", policyCheck)
 	c.Assert(candidateSlots, HasLen, 1)
 	c.Check(candidateSlots[0].Snap.InstanceName(), Equals, "producer")
 	c.Check(candidateSlots[0].Interface, Equals, "auto")
 	c.Check(candidateSlots[0].Name, Equals, "auto")
+	c.Assert(arities, HasLen, 1)
+	c.Check(arities[0].SlotsPerPlugAny(), Equals, true)
 
 	// Plugs candidates seen from the producer (for example if
 	// it's installed after) should be the same
 	candidatePlugs := repo.AutoConnectCandidatePlugs("producer", "auto", policyCheck)
 	c.Assert(candidatePlugs, HasLen, 2)
+}
+
+func (s *RepositorySuite) TestAutoConnectCandidateSlotsSideArity(c *C) {
+	repo := s.emptyRepo
+	// Add a "auto" interface
+	err := repo.AddInterface(&ifacetest.TestInterface{InterfaceName: "auto"})
+	c.Assert(err, IsNil)
+
+	policyCheck := func(plug *ConnectedPlug, slot *ConnectedSlot) (bool, SideArity, error) {
+		return slot.Interface() == "auto", &testSideArity{slot.Snap().InstanceName()}, nil
+	}
+
+	// Add two producer snaps for "auto"
+	producer1 := snaptest.MockInfo(c, `
+name: producer1
+version: 0
+slots:
+    auto:
+`, nil)
+	err = repo.AddSnap(producer1)
+	c.Assert(err, IsNil)
+
+	producer2 := snaptest.MockInfo(c, `
+name: producer2
+version: 0
+slots:
+    auto:
+`, nil)
+	err = repo.AddSnap(producer2)
+	c.Assert(err, IsNil)
+
+	// Add a consumer snap for "auto"
+	consumer := snaptest.MockInfo(c, `
+name: consumer
+version: 0
+plugs:
+    auto:
+`, nil)
+	err = repo.AddSnap(consumer)
+	c.Assert(err, IsNil)
+
+	// Both slots could auto-connect
+	seenProducers := make(map[string]bool)
+	candidateSlots, arities := repo.AutoConnectCandidateSlots("consumer", "auto", policyCheck)
+	c.Assert(candidateSlots, HasLen, 2)
+	c.Assert(arities, HasLen, 2)
+	for i, candSlot := range candidateSlots {
+		c.Check(candSlot.Interface, Equals, "auto")
+		c.Check(candSlot.Name, Equals, "auto")
+		producerName := candSlot.Snap.InstanceName()
+		// SideArities match
+		switch producerName {
+		case "producer1":
+			c.Check(arities[i].SlotsPerPlugAny(), Equals, false)
+		case "producer2":
+			c.Check(arities[i].SlotsPerPlugAny(), Equals, true)
+		}
+		seenProducers[producerName] = true
+	}
+	c.Check(seenProducers, DeepEquals, map[string]bool{
+		"producer1": true,
+		"producer2": true,
+	})
 }
 
 // Tests for AddSnap and RemoveSnap
@@ -2064,8 +2142,8 @@ func (s *DisconnectSnapSuite) TestParallelInstances(c *C) {
 	c.Check(affected, testutil.Contains, "s2_instance")
 }
 
-func contentPolicyCheck(plug *ConnectedPlug, slot *ConnectedSlot) (bool, error) {
-	return plug.Snap().Publisher.ID == slot.Snap().Publisher.ID, nil
+func contentPolicyCheck(plug *ConnectedPlug, slot *ConnectedSlot) (bool, SideArity, error) {
+	return plug.Snap().Publisher.ID == slot.Snap().Publisher.ID, nil, nil
 }
 
 func contentAutoConnect(plug *snap.PlugInfo, slot *snap.SlotInfo) bool {
@@ -2106,7 +2184,7 @@ slots:
 
 func (s *RepositorySuite) TestAutoConnectContentInterfaceSimple(c *C) {
 	repo, _, _ := makeContentConnectionTestSnaps(c, "mylib", "mylib")
-	candidateSlots := repo.AutoConnectCandidateSlots("content-plug-snap", "imported-content", contentPolicyCheck)
+	candidateSlots, _ := repo.AutoConnectCandidateSlots("content-plug-snap", "imported-content", contentPolicyCheck)
 	c.Assert(candidateSlots, HasLen, 1)
 	c.Check(candidateSlots[0].Name, Equals, "exported-content")
 	candidatePlugs := repo.AutoConnectCandidatePlugs("content-slot-snap", "exported-content", contentPolicyCheck)
@@ -2118,7 +2196,7 @@ func (s *RepositorySuite) TestAutoConnectContentInterfaceOSWorksCorrectly(c *C) 
 	repo, _, slotSnap := makeContentConnectionTestSnaps(c, "mylib", "otherlib")
 	slotSnap.SnapType = snap.TypeOS
 
-	candidateSlots := repo.AutoConnectCandidateSlots("content-plug-snap", "imported-content", contentPolicyCheck)
+	candidateSlots, _ := repo.AutoConnectCandidateSlots("content-plug-snap", "imported-content", contentPolicyCheck)
 	c.Check(candidateSlots, HasLen, 0)
 	candidatePlugs := repo.AutoConnectCandidatePlugs("content-slot-snap", "exported-content", contentPolicyCheck)
 	c.Assert(candidatePlugs, HasLen, 0)
@@ -2126,7 +2204,7 @@ func (s *RepositorySuite) TestAutoConnectContentInterfaceOSWorksCorrectly(c *C) 
 
 func (s *RepositorySuite) TestAutoConnectContentInterfaceNoMatchingContent(c *C) {
 	repo, _, _ := makeContentConnectionTestSnaps(c, "mylib", "otherlib")
-	candidateSlots := repo.AutoConnectCandidateSlots("content-plug-snap", "imported-content", contentPolicyCheck)
+	candidateSlots, _ := repo.AutoConnectCandidateSlots("content-plug-snap", "imported-content", contentPolicyCheck)
 	c.Check(candidateSlots, HasLen, 0)
 	candidatePlugs := repo.AutoConnectCandidatePlugs("content-slot-snap", "exported-content", contentPolicyCheck)
 	c.Assert(candidatePlugs, HasLen, 0)
@@ -2138,7 +2216,7 @@ func (s *RepositorySuite) TestAutoConnectContentInterfaceNoMatchingDeveloper(c *
 	plugSnap.Publisher.ID = "fooid"
 	slotSnap.Publisher.ID = "barid"
 
-	candidateSlots := repo.AutoConnectCandidateSlots("content-plug-snap", "imported-content", contentPolicyCheck)
+	candidateSlots, _ := repo.AutoConnectCandidateSlots("content-plug-snap", "imported-content", contentPolicyCheck)
 	c.Check(candidateSlots, HasLen, 0)
 	candidatePlugs := repo.AutoConnectCandidatePlugs("content-slot-snap", "exported-content", contentPolicyCheck)
 	c.Assert(candidatePlugs, HasLen, 0)
