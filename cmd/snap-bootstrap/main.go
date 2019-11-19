@@ -30,8 +30,8 @@ import (
 var (
 	shortHelp = "Bootstrap a Ubuntu Core system"
 	longHelp  = `
-snap-bootstrap is a tool to bootstrap a Ubuntu Core
-system in initramfs and from an ephemeral system.
+snap-bootstrap is a tool to bootstrap Ubuntu Core from ephemeral systems
+such as initramfs.
 `
 
 	opts   struct{}
