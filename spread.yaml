@@ -29,6 +29,7 @@ environment:
     TRUST_TEST_KEYS: '$(HOST: echo "${SPREAD_TRUST_TEST_KEYS:-true}")'
     MANAGED_DEVICE: "false"
     CORE_CHANNEL: '$(HOST: echo "${SPREAD_CORE_CHANNEL:-edge}")'
+    BASE_CHANNEL: '$(HOST: echo "${SPREAD_BASE_CHANNEL:-edge}")'
     KERNEL_CHANNEL: '$(HOST: echo "${SPREAD_KERNEL_CHANNEL:-edge}")'
     GADGET_CHANNEL: '$(HOST: echo "${SPREAD_GADGET_CHANNEL:-edge}")'
     SNAPD_CHANNEL: '$(HOST: echo "${SPREAD_SNAPD_CHANNEL:-edge}")'
@@ -94,8 +95,6 @@ backends:
                 manual: true
             - opensuse-15.1-64:
                 workers: 6
-            - opensuse-tumbleweed-64:
-                workers: 6
             - arch-linux-64:
                 workers: 6
 
@@ -112,6 +111,9 @@ backends:
             - centos-7-64:
                 workers: 6
                 image: centos-7-64
+            # zypper either segfaults or hangs installing snapd build dependencies
+            - opensuse-tumbleweed-64:
+                workers: 6
 
     google-sru:
         type: google
@@ -622,7 +624,7 @@ suites:
     # These tests are executed on all other plattforms as they
     # are designed to run on pristine systems
     tests/smoke/:
-        summary: Essenial system level tests for snapd
+        summary: Essential system level tests for snapd
         prepare: |
             "$TESTSLIB"/prepare-restore.sh --prepare-suite
         prepare-each: |
@@ -645,7 +647,7 @@ suites:
         debug: |
             if [ "$SPREAD_DEBUG_EACH" = 1 ]; then
                 systemctl status snapd.socket || true
-                journalctl -xe
+                journalctl -e
             fi
     tests/core18/:
         summary: Subset of core18 specific tests

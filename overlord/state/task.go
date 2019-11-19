@@ -522,6 +522,9 @@ func (ts *TaskSet) AddTask(task *Task) {
 // MarkEdge marks the given task as a specific edge. Any pre-existing
 // edge mark will be overridden.
 func (ts *TaskSet) MarkEdge(task *Task, edge TaskSetEdge) {
+	if task == nil {
+		panic(fmt.Sprintf("cannot set edge %q with nil task", edge))
+	}
 	if ts.edges == nil {
 		ts.edges = make(map[TaskSetEdge]*Task)
 	}

@@ -56,6 +56,9 @@ type seed20 struct {
 
 	snapRevsByID map[string]*asserts.SnapRevision
 
+	optSnaps    []*internal.Snap20
+	optSnapsIdx int
+
 	auxInfos map[string]*internal.AuxInfo20
 
 	snaps             []*Snap
@@ -101,6 +104,10 @@ func (s *seed20) LoadAssertions(db asserts.RODatabase, commitTo func(*asserts.Ba
 		return fmt.Errorf("system model assertion file must contain exactly the model assertion")
 	}
 	modelRef := refs[0]
+
+	if len(declRefs) != len(revRefs) {
+		return fmt.Errorf("system unexpectedly holds a different number of snap-declaration than snap-revision assertions")
+	}
 
 	// this also verifies the consistency of all of them
 	if err := commitTo(batch); err != nil {
@@ -177,6 +184,39 @@ func (s *seed20) UsesSnapdSnap() bool {
 	return true
 }
 
+func (s *seed20) loadOptions() error {
+	if s.model.Grade() != asserts.ModelDangerous {
+		// options.yaml is not supported for grade > dangerous
+		return nil
+	}
+	optionsFn := filepath.Join(s.systemDir, "options.yaml")
+	if !osutil.FileExists(optionsFn) {
+		// missing
+		return nil
+	}
+	options20, err := internal.ReadOptions20(optionsFn)
+	if err != nil {
+		return err
+	}
+	s.optSnaps = options20.Snaps
+	return nil
+}
+
+func (s *seed20) nextOptSnap(modSnap *asserts.ModelSnap) (optSnap *internal.Snap20, done bool) {
+	// we can merge model snaps and options snaps because
+	// both seed20.go and writer.go follow the order:
+	// system snap, model.AllSnaps()...
+	if s.optSnapsIdx == len(s.optSnaps) {
+		return nil, true
+	}
+	next := s.optSnaps[s.optSnapsIdx]
+	if modSnap == nil || naming.SameSnap(next, modSnap) {
+		s.optSnapsIdx++
+		return next, false
+	}
+	return nil, false
+}
+
 func (s *seed20) loadAuxInfos() error {
 	auxInfoFn := filepath.Join(s.systemDir, "snaps", "aux-info.json")
 	if !osutil.FileExists(auxInfoFn) {
@@ -217,7 +257,7 @@ func (s *seed20) lookupVerifiedRevision(snapRef naming.SnapRef) (snapPath string
 
 	snapRev = s.snapRevsByID[snapID]
 	if snapRev == nil {
-		return "", nil, nil, fmt.Errorf("cannot find snap-revision for snap-id: %s", snapID)
+		return "", nil, nil, fmt.Errorf("internal error: cannot find snap-revision for snap-id: %s", snapID)
 	}
 
 	snapName := snapDecl.SnapName()
@@ -225,11 +265,11 @@ func (s *seed20) lookupVerifiedRevision(snapRef naming.SnapRef) (snapPath string
 
 	fi, err := os.Stat(snapPath)
 	if err != nil {
-		return "", nil, nil, fmt.Errorf("cannot stat snap %q: %v", snapPath, err)
+		return "", nil, nil, fmt.Errorf("cannot stat snap: %v", err)
 	}
 
 	if fi.Size() != int64(snapRev.SnapSize()) {
-		return "", nil, nil, fmt.Errorf("cannot validate snap %q for snap %q (snap-id %q), wrong size", snapPath, snapName, snapID)
+		return "", nil, nil, fmt.Errorf("cannot validate %q for snap %q (snap-id %q), wrong size", snapPath, snapName, snapID)
 	}
 
 	snapSHA3_384, _, err := asserts.SnapFileSHA3_384(snapPath)
@@ -238,7 +278,7 @@ func (s *seed20) lookupVerifiedRevision(snapRef naming.SnapRef) (snapPath string
 	}
 
 	if snapSHA3_384 != snapRev.SnapSHA3_384() {
-		return "", nil, nil, fmt.Errorf("cannot validate snap %q for snap %q (snap-id %q), hash mismatch with snap-revision", snapPath, snapName, snapID)
+		return "", nil, nil, fmt.Errorf("cannot validate %q for snap %q (snap-id %q), hash mismatch with snap-revision", snapPath, snapName, snapID)
 
 	}
 
@@ -247,21 +287,36 @@ func (s *seed20) lookupVerifiedRevision(snapRef naming.SnapRef) (snapPath string
 
 func (s *seed20) addModelSnap(modelSnap *asserts.ModelSnap, essential bool, tm timings.Measurer) (*Snap, error) {
 	// TODO|XXX: support optional snaps correctly
-	// XXX consider options.yaml for grade dangerous
-	// XXX unasserted case
+
+	optSnap, _ := s.nextOptSnap(modelSnap)
+	// TODO|XXX: consider optSnap.Channel
+
+	channel := modelSnap.DefaultChannel
+
 	var path string
 	var sideInfo *snap.SideInfo
-	var err error
-	timings.Run(tm, "derive-side-info", fmt.Sprintf("hash and derive side info for snap %q", modelSnap.SnapName()), func(nested timings.Measurer) {
-		var snapRev *asserts.SnapRevision
-		var snapDecl *asserts.SnapDeclaration
-		path, snapRev, snapDecl, err = s.lookupVerifiedRevision(modelSnap)
-		if err == nil {
-			sideInfo = snapasserts.SideInfoFromSnapAssertions(snapDecl, snapRev)
+	if optSnap != nil && optSnap.Unasserted != "" {
+		path = filepath.Join(s.systemDir, "snaps", optSnap.Unasserted)
+		info, err := readInfo(path, nil)
+		if err != nil {
+			return nil, fmt.Errorf("cannot read unasserted snap: %v", err)
 		}
-	})
-	if err != nil {
-		return nil, err
+		sideInfo = &snap.SideInfo{RealName: info.SnapName()}
+		// suppress channel
+		channel = ""
+	} else {
+		var err error
+		timings.Run(tm, "derive-side-info", fmt.Sprintf("hash and derive side info for snap %q", modelSnap.SnapName()), func(nested timings.Measurer) {
+			var snapRev *asserts.SnapRevision
+			var snapDecl *asserts.SnapDeclaration
+			path, snapRev, snapDecl, err = s.lookupVerifiedRevision(modelSnap)
+			if err == nil {
+				sideInfo = snapasserts.SideInfoFromSnapAssertions(snapDecl, snapRev)
+			}
+		})
+		if err != nil {
+			return nil, err
+		}
 	}
 
 	// complement with aux-info.json information
@@ -279,7 +334,7 @@ func (s *seed20) addModelSnap(modelSnap *asserts.ModelSnap, essential bool, tm t
 		Essential: essential,
 		Required:  essential || modelSnap.Presence == "required",
 
-		Channel: modelSnap.DefaultChannel,
+		Channel: channel,
 	}
 
 	s.snaps = append(s.snaps, seedSnap)
@@ -293,6 +348,10 @@ func (s *seed20) addModelSnap(modelSnap *asserts.ModelSnap, essential bool, tm t
 func (s *seed20) LoadMeta(tm timings.Measurer) error {
 	model, err := s.Model()
 	if err != nil {
+		return err
+	}
+
+	if err := s.loadOptions(); err != nil {
 		return err
 	}
 
@@ -313,11 +372,7 @@ func (s *seed20) LoadMeta(tm timings.Measurer) error {
 		}
 		if modelSnap.SnapType == "gadget" {
 			// sanity
-			snapf, err := snap.Open(seedSnap.Path)
-			if err != nil {
-				return err
-			}
-			info, err := snap.ReadInfoFromSnapFile(snapf, seedSnap.SideInfo)
+			info, err := readInfo(seedSnap.Path, seedSnap.SideInfo)
 			if err != nil {
 				return err
 			}

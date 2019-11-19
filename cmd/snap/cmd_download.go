@@ -97,6 +97,22 @@ func fetchSnapAssertions(tsto *image.ToolingStore, snapPath string, snapInfo *sn
 	return assertPath, err
 }
 
+func printInstallHint(assertPath, snapPath string) {
+	// simplify paths
+	wd, _ := os.Getwd()
+	if p, err := filepath.Rel(wd, assertPath); err == nil {
+		assertPath = p
+	}
+	if p, err := filepath.Rel(wd, snapPath); err == nil {
+		snapPath = p
+	}
+	// add a hint what to do with the downloaded snap (LP:1676707)
+	fmt.Fprintf(Stdout, i18n.G(`Install the snap with:
+   snap ack %s
+   snap install %s
+`), assertPath, snapPath)
+}
+
 func (x *cmdDownload) Execute(args []string) error {
 	if strings.ContainsRune(x.Basename, filepath.Separator) {
 		return fmt.Errorf(i18n.G("cannot specify a path in basename (use --target-dir for that)"))
@@ -153,20 +169,7 @@ func (x *cmdDownload) Execute(args []string) error {
 	if err != nil {
 		return err
 	}
-
-	// simplify paths
-	wd, _ := os.Getwd()
-	if p, err := filepath.Rel(wd, assertPath); err == nil {
-		assertPath = p
-	}
-	if p, err := filepath.Rel(wd, snapPath); err == nil {
-		snapPath = p
-	}
-	// add a hint what to do with the downloaded snap (LP:1676707)
-	fmt.Fprintf(Stdout, i18n.G(`Install the snap with:
-   snap ack %s
-   snap install %s
-`), assertPath, snapPath)
+	printInstallHint(assertPath, snapPath)
 
 	return nil
 }

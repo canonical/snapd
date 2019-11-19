@@ -361,10 +361,11 @@ func (c *AttributeConstraints) Check(attrer Attrer, ctx AttrMatchContext) error 
 }
 
 // SideArityConstraint specifies a constraint for the overall arity of
-// the opposite connected set of slots for a plug, respectively plugs
-// for a slot.
-// It is used to express parsed slots-per-plug, respectively plugs-per-slot
+// the set of connected slots for a given plug or the set of
+// connected plugs for a given slot.
+// It is used to express parsed slots-per-plug and plugs-per-slot
 // constraints.
+// See https://forum.snapcraft.io/t/plug-slot-declaration-rules-greedy-plugs/12438
 type SideArityConstraint struct {
 	// N can be:
 	// =>1
@@ -386,7 +387,7 @@ func compileSideArityConstraint(context *subruleContext, which string, v interfa
 		return a, fmt.Errorf("%s cannot specify a %s constraint, they apply only to allow-*connection", context, which)
 	}
 	x, ok := v.(string)
-	if !ok {
+	if !ok || len(x) == 0 {
 		return a, fmt.Errorf("%s in %s must be an integer >=1 or *", which, context)
 	}
 	if x == "*" {
@@ -412,7 +413,7 @@ func normalizeSideArityConstraints(context *subruleContext, c sideArityConstrain
 		return
 	}
 	any := SideArityConstraint{N: -1}
-	// normalized plugs-per-slots is always *
+	// normalized plugs-per-slot is always *
 	c.setPlugsPerSlot(any)
 	slotsPerPlug := c.slotsPerPlug()
 	if context.autoConnection() {
@@ -646,10 +647,21 @@ type constraintsDef struct {
 	invert bool
 }
 
+// subruleContext carries queryable context information about one the
+// {allow,deny}-* subrules that end up compiled as
+// Plug|Slot*Constraints.  The information includes the parent rule,
+// the introductory subrule key ({allow,deny}-*) and which alternative
+// it corresponds to if any.
+// The information is useful for constraints compilation now that we
+// have constraints with different behavior depending on the kind of
+// subrule that hosts them (e.g. slots-per-plug, plugs-per-slot).
 type subruleContext struct {
-	rule    string
+	// rule is the parent rule context description
+	rule string
+	// subrule is the subrule key
 	subrule string
-	alt     int
+	// alt is which alternative this is (if > 0)
+	alt int
 }
 
 func (c *subruleContext) String() string {
@@ -660,14 +672,17 @@ func (c *subruleContext) String() string {
 	return subctxt
 }
 
+// allow returns whether the subrule is an allow-* subrule.
 func (c *subruleContext) allow() bool {
 	return strings.HasPrefix(c.subrule, "allow-")
 }
 
+// installation returns whether the subrule is an *-installation subrule.
 func (c *subruleContext) installation() bool {
 	return strings.HasSuffix(c.subrule, "-installation")
 }
 
+// autoConnection returns whether the subrule is an *-auto-connection subrule.
 func (c *subruleContext) autoConnection() bool {
 	return strings.HasSuffix(c.subrule, "-auto-connection")
 }

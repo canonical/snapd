@@ -497,6 +497,11 @@ func checkAttrs(c *C, attrs *asserts.AttributeConstraints, witness, expected str
 	c.Check(attrs.Check(plug, nil), IsNil)
 }
 
+var (
+	sideArityAny = asserts.SideArityConstraint{N: -1}
+	sideArityOne = asserts.SideArityConstraint{N: 1}
+)
+
 func checkBoolPlugConnConstraints(c *C, subrule string, cstrs []*asserts.PlugConnectionConstraints, always bool) {
 	expected := asserts.NeverMatchAttributes
 	if always {
@@ -511,13 +516,11 @@ func checkBoolPlugConnConstraints(c *C, subrule string, cstrs []*asserts.PlugCon
 		c.Check(cstrs1.SlotsPerPlug, Equals, undef)
 		c.Check(cstrs1.PlugsPerSlot, Equals, undef)
 	} else {
-		any := asserts.SideArityConstraint{N: -1}
-		one := asserts.SideArityConstraint{N: 1}
-		c.Check(cstrs1.PlugsPerSlot, Equals, any)
+		c.Check(cstrs1.PlugsPerSlot, Equals, sideArityAny)
 		if strings.HasSuffix(subrule, "-auto-connection") {
-			c.Check(cstrs1.SlotsPerPlug, Equals, one)
+			c.Check(cstrs1.SlotsPerPlug, Equals, sideArityOne)
 		} else {
-			c.Check(cstrs1.SlotsPerPlug, Equals, any)
+			c.Check(cstrs1.SlotsPerPlug, Equals, sideArityAny)
 		}
 	}
 	c.Check(cstrs1.SlotSnapIDs, HasLen, 0)
@@ -539,13 +542,11 @@ func checkBoolSlotConnConstraints(c *C, subrule string, cstrs []*asserts.SlotCon
 		c.Check(cstrs1.SlotsPerPlug, Equals, undef)
 		c.Check(cstrs1.PlugsPerSlot, Equals, undef)
 	} else {
-		any := asserts.SideArityConstraint{N: -1}
-		one := asserts.SideArityConstraint{N: 1}
-		c.Check(cstrs1.PlugsPerSlot, Equals, any)
+		c.Check(cstrs1.PlugsPerSlot, Equals, sideArityAny)
 		if strings.HasSuffix(subrule, "-auto-connection") {
-			c.Check(cstrs1.SlotsPerPlug, Equals, one)
+			c.Check(cstrs1.SlotsPerPlug, Equals, sideArityOne)
 		} else {
-			c.Check(cstrs1.SlotsPerPlug, Equals, any)
+			c.Check(cstrs1.SlotsPerPlug, Equals, sideArityAny)
 		}
 	}
 	c.Check(cstrs1.PlugSnapIDs, HasLen, 0)
@@ -1000,7 +1001,9 @@ func (s *plugSlotRulesSuite) TestCompilePlugRuleConnectionConstraintsSideArityCo
 	c.Check(rule.AllowConnection[0].SlotsPerPlug.Any(), Equals, true)
 	c.Check(rule.AllowConnection[0].PlugsPerSlot.Any(), Equals, true)
 
-	// allow-connection => *
+	// test that the arity constraints get normalized away to any
+	// under allow-connection
+	// see https://forum.snapcraft.io/t/plug-slot-declaration-rules-greedy-plugs/12438
 	allowConnTests := []string{
 		`iface:
   allow-connection:
@@ -1027,23 +1030,26 @@ func (s *plugSlotRulesSuite) TestCompilePlugRuleConnectionConstraintsSideArityCo
 		c.Check(rule.AllowConnection[0].PlugsPerSlot.Any(), Equals, true)
 	}
 
-	// allow-auto-connection => *
+	// test that under allow-auto-connection:
+	// slots-per-plug can be * (any) or otherwise gets normalized to 1
+	// plugs-per-slot gets normalized to any (*)
+	// see https://forum.snapcraft.io/t/plug-slot-declaration-rules-greedy-plugs/12438
 	allowAutoConnTests := []struct {
 		rule         string
-		slotsPerPlug int
+		slotsPerPlug asserts.SideArityConstraint
 	}{
 		{`iface:
   allow-auto-connection:
     slots-per-plug: 1
-    plugs-per-slot: 2`, 1},
+    plugs-per-slot: 2`, sideArityOne},
 		{`iface:
   allow-auto-connection:
     slots-per-plug: *
-    plugs-per-slot: 1`, -1},
+    plugs-per-slot: 1`, sideArityAny},
 		{`iface:
   allow-auto-connection:
     slots-per-plug: 2
-    plugs-per-slot: *`, 1},
+    plugs-per-slot: *`, sideArityOne},
 	}
 
 	for _, t := range allowAutoConnTests {
@@ -1053,7 +1059,7 @@ func (s *plugSlotRulesSuite) TestCompilePlugRuleConnectionConstraintsSideArityCo
 		rule, err = asserts.CompilePlugRule("iface", m["iface"].(map[string]interface{}))
 		c.Assert(err, IsNil)
 
-		c.Check(rule.AllowAutoConnection[0].SlotsPerPlug, Equals, asserts.SideArityConstraint{N: t.slotsPerPlug})
+		c.Check(rule.AllowAutoConnection[0].SlotsPerPlug, Equals, t.slotsPerPlug)
 		c.Check(rule.AllowAutoConnection[0].PlugsPerSlot.Any(), Equals, true)
 	}
 }
@@ -1706,7 +1712,9 @@ func (s *plugSlotRulesSuite) TestCompileSlotRuleConnectionConstraintsSideArityCo
 	c.Check(rule.AllowConnection[0].SlotsPerPlug.Any(), Equals, true)
 	c.Check(rule.AllowConnection[0].PlugsPerSlot.Any(), Equals, true)
 
-	// allow-connection => *
+	// test that the arity constraints get normalized away to any
+	// under allow-connection
+	// see https://forum.snapcraft.io/t/plug-slot-declaration-rules-greedy-plugs/12438
 	allowConnTests := []string{
 		`iface:
   allow-connection:
@@ -1733,23 +1741,26 @@ func (s *plugSlotRulesSuite) TestCompileSlotRuleConnectionConstraintsSideArityCo
 		c.Check(rule.AllowConnection[0].PlugsPerSlot.Any(), Equals, true)
 	}
 
-	// allow-auto-connection => *
+	// test that under allow-auto-connection:
+	// slots-per-plug can be * (any) or otherwise gets normalized to 1
+	// plugs-per-slot gets normalized to any (*)
+	// see https://forum.snapcraft.io/t/plug-slot-declaration-rules-greedy-plugs/12438
 	allowAutoConnTests := []struct {
 		rule         string
-		slotsPerPlug int
+		slotsPerPlug asserts.SideArityConstraint
 	}{
 		{`iface:
   allow-auto-connection:
     slots-per-plug: 1
-    plugs-per-slot: 2`, 1},
+    plugs-per-slot: 2`, sideArityOne},
 		{`iface:
   allow-auto-connection:
     slots-per-plug: *
-    plugs-per-slot: 1`, -1},
+    plugs-per-slot: 1`, sideArityAny},
 		{`iface:
   allow-auto-connection:
     slots-per-plug: 2
-    plugs-per-slot: *`, 1},
+    plugs-per-slot: *`, sideArityOne},
 	}
 
 	for _, t := range allowAutoConnTests {
@@ -1759,7 +1770,7 @@ func (s *plugSlotRulesSuite) TestCompileSlotRuleConnectionConstraintsSideArityCo
 		rule, err = asserts.CompileSlotRule("iface", m["iface"].(map[string]interface{}))
 		c.Assert(err, IsNil)
 
-		c.Check(rule.AllowAutoConnection[0].SlotsPerPlug, Equals, asserts.SideArityConstraint{N: t.slotsPerPlug})
+		c.Check(rule.AllowAutoConnection[0].SlotsPerPlug, Equals, t.slotsPerPlug)
 		c.Check(rule.AllowAutoConnection[0].PlugsPerSlot.Any(), Equals, true)
 	}
 }

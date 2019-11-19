@@ -1,7 +1,7 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
 
 /*
- * Copyright (C) 2019 Canonical Ltd
+ * Copyright (C) 2016-2019 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -17,18 +17,20 @@
  *
  */
 
-package seedwriter
+package main
 
 import (
-	"github.com/snapcore/snapd/seed/internal"
-)
-
-type (
-	InternalSnap16 = internal.Snap16
-	InternalSnap20 = internal.Snap20
+	"github.com/snapcore/snapd/cmd/snap-bootstrap/bootstrap"
 )
 
 var (
-	InternalReadSeedYaml  = internal.ReadSeedYaml
-	InternalReadOptions20 = internal.ReadOptions20
+	Parser = parser
 )
+
+func MockBootstrapRun(f func(string, string, *bootstrap.Options) error) (restore func()) {
+	oldBootstrapRun := bootstrapRun
+	bootstrapRun = f
+	return func() {
+		bootstrapRun = oldBootstrapRun
+	}
+}

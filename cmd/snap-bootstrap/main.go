@@ -23,10 +23,27 @@ import (
 	"os"
 
 	"github.com/jessevdk/go-flags"
-
-	"github.com/snapcore/snapd/cmd/snap-bootstrap/bootstrap"
 	"github.com/snapcore/snapd/osutil"
 )
+
+var (
+	shortHelp = "Bootstrap a Ubuntu Core system"
+	longHelp  = `
+snap-bootstrap is a tool to bootstrap Ubuntu Core from ephemeral systems
+such as initramfs.
+`
+
+	opts   struct{}
+	parser *flags.Parser = flags.NewParser(&opts, flags.HelpFlag|flags.PassDoubleDash|flags.PassAfterNonOption)
+)
+
+func main() {
+	err := run(os.Args[1:])
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "error: %s\n", err)
+		os.Exit(1)
+	}
+}
 
 func run(args []string) error {
 	if !osutil.GetenvBool("SNAPPY_TESTING") {
@@ -36,36 +53,13 @@ func run(args []string) error {
 		return fmt.Errorf("please run as root")
 	}
 
-	var opts struct {
-		WithEncryption bool   `long:"with-encryption" description:"Encrypt the data partition"`
-		KeyFile        string `long:"key-file" value-name:"name" description:"Where the key file will be stored"`
-
-		Args struct {
-			GadgetRoot string `positional-arg-name:"gadget-root"`
-			Device     string `positional-arg-name:"block-device"`
-		} `positional-args:"yes" required:"yes"`
-	}
-
-	if _, err := flags.ParseArgs(&opts, args[1:]); err != nil {
-		os.Exit(1)
-	}
-
-	if opts.WithEncryption && opts.KeyFile == "" {
-		return fmt.Errorf("if encrypting, the output key file must be specified")
-	}
-
-	options := bootstrap.Options{
-		EncryptDataPartition: opts.WithEncryption,
-		KeyFile:              opts.KeyFile,
-	}
-
-	return bootstrap.Run(opts.Args.GadgetRoot, opts.Args.Device, options)
+	return parseArgs(args)
 }
 
-func main() {
-	err := run(os.Args)
-	if err != nil {
-		fmt.Fprintf(os.Stderr, "error: %s\n", err)
-		os.Exit(1)
-	}
+func parseArgs(args []string) error {
+	parser.ShortDescription = shortHelp
+	parser.LongDescription = longHelp
+
+	_, err := parser.ParseArgs(args)
+	return err
 }
