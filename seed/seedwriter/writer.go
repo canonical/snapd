@@ -205,7 +205,7 @@ type tree interface {
 	// XXX might need to differentiate for extra snaps
 	snapsDir() string
 
-	localSnapPath(*SeedSnap) string
+	localSnapPath(*SeedSnap) (string, error)
 
 	writeAssertions(db asserts.RODatabase, modelRefs []*asserts.Ref, snapsFromModel []*SeedSnap, extraSnaps []*SeedSnap) error
 
@@ -975,9 +975,11 @@ func (w *Writer) SeedSnaps(copySnap func(name, src, dst string) error) error {
 					return fmt.Errorf("internal error: before seedwriter.Writer.SeedSnaps snap file %q should exist", expectedPath)
 				}
 			} else {
-				dst := w.tree.localSnapPath(sn)
-				err := copySnap(info.SnapName(), sn.Path, dst)
+				dst, err := w.tree.localSnapPath(sn)
 				if err != nil {
+					return err
+				}
+				if err := copySnap(info.SnapName(), sn.Path, dst); err != nil {
 					return err
 				}
 				// record final destination path

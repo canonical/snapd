@@ -1,9 +1,5 @@
 summary: Check that the system is not in "degraded" state
 
-# 20191115: arch has a broken google-cloud package and all services
-# fails to start there
-systems: [-arch-*]
-
 # run this early to ensure no test created failed units yet
 priority: 500
 
