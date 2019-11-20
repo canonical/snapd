@@ -107,8 +107,8 @@ func MockSnapstateUpdateWithDeviceContext(f func(st *state.State, name string, o
 	}
 }
 
-func EnsureSeedYaml(m *DeviceManager) error {
-	return m.ensureSeedYaml()
+func EnsureSeeded(m *DeviceManager) error {
+	return m.ensureSeeded()
 }
 
 var PopulateStateFromSeedImpl = populateStateFromSeedImpl

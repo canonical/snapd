@@ -260,7 +260,7 @@ func (s *deviceMgrSuite) TearDownTest(c *C) {
 	s.deviceMgrBaseSuite.TearDownTest(c)
 }
 
-func (s *deviceMgrSuite) TestDeviceManagerEnsureSeedYamlAlreadySeeded(c *C) {
+func (s *deviceMgrSuite) TestDeviceManagerEnsureSeededAlreadySeeded(c *C) {
 	s.state.Lock()
 	s.state.Set("seeded", true)
 	s.state.Unlock()
@@ -272,12 +272,12 @@ func (s *deviceMgrSuite) TestDeviceManagerEnsureSeedYamlAlreadySeeded(c *C) {
 	})
 	defer restore()
 
-	err := devicestate.EnsureSeedYaml(s.mgr)
+	err := devicestate.EnsureSeeded(s.mgr)
 	c.Assert(err, IsNil)
 	c.Assert(called, Equals, false)
 }
 
-func (s *deviceMgrSuite) TestDeviceManagerEnsureSeedYamlChangeInFlight(c *C) {
+func (s *deviceMgrSuite) TestDeviceManagerEnsureSeededChangeInFlight(c *C) {
 	s.state.Lock()
 	chg := s.state.NewChange("seed", "just for testing")
 	chg.AddTask(s.state.NewTask("test-task", "the change needs a task"))
@@ -290,12 +290,12 @@ func (s *deviceMgrSuite) TestDeviceManagerEnsureSeedYamlChangeInFlight(c *C) {
 	})
 	defer restore()
 
-	err := devicestate.EnsureSeedYaml(s.mgr)
+	err := devicestate.EnsureSeeded(s.mgr)
 	c.Assert(err, IsNil)
 	c.Assert(called, Equals, false)
 }
 
-func (s *deviceMgrSuite) TestDeviceManagerEnsureSeedYamlAlsoOnClassic(c *C) {
+func (s *deviceMgrSuite) TestDeviceManagerEnsureSeededAlsoOnClassic(c *C) {
 	release.OnClassic = true
 
 	called := false
@@ -305,12 +305,12 @@ func (s *deviceMgrSuite) TestDeviceManagerEnsureSeedYamlAlsoOnClassic(c *C) {
 	})
 	defer restore()
 
-	err := devicestate.EnsureSeedYaml(s.mgr)
+	err := devicestate.EnsureSeeded(s.mgr)
 	c.Assert(err, IsNil)
 	c.Assert(called, Equals, true)
 }
 
-func (s *deviceMgrSuite) TestDeviceManagerEnsureSeedYamlHappy(c *C) {
+func (s *deviceMgrSuite) TestDeviceManagerEnsureSeededHappy(c *C) {
 	restore := devicestate.MockPopulateStateFromSeed(func(*state.State, *devicestate.PopulateStateFromSeedOptions, timings.Measurer) (ts []*state.TaskSet, err error) {
 		t := s.state.NewTask("test-task", "a random task")
 		ts = append(ts, state.NewTaskSet(t))
@@ -318,7 +318,7 @@ func (s *deviceMgrSuite) TestDeviceManagerEnsureSeedYamlHappy(c *C) {
 	})
 	defer restore()
 
-	err := devicestate.EnsureSeedYaml(s.mgr)
+	err := devicestate.EnsureSeeded(s.mgr)
 	c.Assert(err, IsNil)
 
 	s.state.Lock()
