@@ -22,6 +22,7 @@ package devicestate_test
 import (
 	"errors"
 	"fmt"
+	"io/ioutil"
 	"net/http/httptest"
 	"os"
 	"testing"
@@ -260,7 +261,7 @@ func (s *deviceMgrSuite) TearDownTest(c *C) {
 	s.deviceMgrBaseSuite.TearDownTest(c)
 }
 
-func (s *deviceMgrSuite) TestDeviceManagerEnsureSeedYamlAlreadySeeded(c *C) {
+func (s *deviceMgrSuite) TestDeviceManagerEnsureSeededAlreadySeeded(c *C) {
 	s.state.Lock()
 	s.state.Set("seeded", true)
 	s.state.Unlock()
@@ -272,12 +273,12 @@ func (s *deviceMgrSuite) TestDeviceManagerEnsureSeedYamlAlreadySeeded(c *C) {
 	})
 	defer restore()
 
-	err := devicestate.EnsureSeedYaml(s.mgr)
+	err := devicestate.EnsureSeeded(s.mgr)
 	c.Assert(err, IsNil)
 	c.Assert(called, Equals, false)
 }
 
-func (s *deviceMgrSuite) TestDeviceManagerEnsureSeedYamlChangeInFlight(c *C) {
+func (s *deviceMgrSuite) TestDeviceManagerEnsureSeededChangeInFlight(c *C) {
 	s.state.Lock()
 	chg := s.state.NewChange("seed", "just for testing")
 	chg.AddTask(s.state.NewTask("test-task", "the change needs a task"))
@@ -290,12 +291,12 @@ func (s *deviceMgrSuite) TestDeviceManagerEnsureSeedYamlChangeInFlight(c *C) {
 	})
 	defer restore()
 
-	err := devicestate.EnsureSeedYaml(s.mgr)
+	err := devicestate.EnsureSeeded(s.mgr)
 	c.Assert(err, IsNil)
 	c.Assert(called, Equals, false)
 }
 
-func (s *deviceMgrSuite) TestDeviceManagerEnsureSeedYamlAlsoOnClassic(c *C) {
+func (s *deviceMgrSuite) TestDeviceManagerEnsureSeededAlsoOnClassic(c *C) {
 	release.OnClassic = true
 
 	called := false
@@ -305,26 +306,58 @@ func (s *deviceMgrSuite) TestDeviceManagerEnsureSeedYamlAlsoOnClassic(c *C) {
 	})
 	defer restore()
 
-	err := devicestate.EnsureSeedYaml(s.mgr)
+	err := devicestate.EnsureSeeded(s.mgr)
 	c.Assert(err, IsNil)
 	c.Assert(called, Equals, true)
 }
 
-func (s *deviceMgrSuite) TestDeviceManagerEnsureSeedYamlHappy(c *C) {
-	restore := devicestate.MockPopulateStateFromSeed(func(*state.State, *devicestate.PopulateStateFromSeedOptions, timings.Measurer) (ts []*state.TaskSet, err error) {
+func (s *deviceMgrSuite) TestDeviceManagerEnsureSeededHappy(c *C) {
+	restore := devicestate.MockPopulateStateFromSeed(func(st *state.State, opts *devicestate.PopulateStateFromSeedOptions, tm timings.Measurer) (ts []*state.TaskSet, err error) {
+		c.Assert(opts, IsNil)
 		t := s.state.NewTask("test-task", "a random task")
 		ts = append(ts, state.NewTaskSet(t))
 		return ts, nil
 	})
 	defer restore()
 
-	err := devicestate.EnsureSeedYaml(s.mgr)
+	err := devicestate.EnsureSeeded(s.mgr)
 	c.Assert(err, IsNil)
 
 	s.state.Lock()
 	defer s.state.Unlock()
 
 	c.Check(s.state.Changes(), HasLen, 1)
+}
+
+func (s *deviceMgrSuite) TestDeviceManagerEnsureSeededHappyWithModeenv(c *C) {
+	n := 0
+	restore := devicestate.MockPopulateStateFromSeed(func(st *state.State, opts *devicestate.PopulateStateFromSeedOptions, tm timings.Measurer) (ts []*state.TaskSet, err error) {
+		c.Assert(opts, NotNil)
+		c.Check(opts.Label, Equals, "20191120")
+		c.Check(opts.Mode, Equals, "install")
+
+		t := s.state.NewTask("test-task", "a random task")
+		ts = append(ts, state.NewTaskSet(t))
+
+		n++
+		return ts, nil
+	})
+	defer restore()
+
+	// mock the modeenv file
+	modeEnv := `recovery_system=20191120
+mode=install`
+	err := ioutil.WriteFile(dirs.SnapModeenvFile, []byte(modeEnv), 0644)
+	c.Assert(err, IsNil)
+
+	err = devicestate.EnsureSeeded(s.mgr)
+	c.Assert(err, IsNil)
+
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	c.Check(s.state.Changes(), HasLen, 1)
+	c.Check(n, Equals, 1)
 }
 
 func (s *deviceMgrSuite) TestDeviceManagerEnsureBootOkSkippedOnClassic(c *C) {
