@@ -30,7 +30,8 @@ import (
 const (
 	shortHelp = "Prerun the first boot seeding of snaps in a chroot with a snapd seed."
 	longHelp  = `
-	Prerun the first boot seeding of snaps in an Ubuntu-based chroot directory with a snapd seed (/var/lib/snapd/seed directory set up for seeding).
+	Prerun the first boot seeding of snaps in an Ubuntu-based chroot directory
+	with a snapd seed (/var/lib/snapd/seed directory set up for seeding).
 `
 )
 
@@ -81,6 +82,7 @@ func run(parser *flags.Parser, args []string) error {
 		return err
 	}
 
+	// executing inside the chroot
 	err = runPreseedMode(chrootDir)
 	cleanup()
 	return err

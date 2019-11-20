@@ -72,6 +72,7 @@ var systemSnapFromSeeds = func(rootDir string) (string, error) {
 		return "", err
 	}
 
+	// load assertions into temporary database
 	if err := seed.LoadAssertions(nil, nil); err != nil {
 		return "", err
 	}
@@ -100,6 +101,10 @@ var systemSnapFromSeeds = func(rootDir string) (string, error) {
 func prepareChroot(preseedChroot string) (func(), error) {
 	if err := syscallChroot(preseedChroot); err != nil {
 		return nil, fmt.Errorf("cannot chroot into %s: %v", preseedChroot, err)
+	}
+
+	if err := os.Chdir("/"); err != nil {
+		return nil, fmt.Errorf("cannot chdir to /: %v", err)
 	}
 
 	// GlobalRootDir is now relative to chroot env
