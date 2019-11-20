@@ -41,6 +41,10 @@ type Options struct {
 	// used at prepare-image time, that means not on a runtime
 	// system.
 	PrepareImageTime bool
+
+	// Recovery indicates use a recovery bootloader. Note that
+	// UC16/UC18 do not have a recovery system.
+	Recovery bool
 }
 
 // Bootloader provides an interface to interact with the system
@@ -106,6 +110,10 @@ var (
 
 // Find returns the bootloader for the system
 // or an error if no bootloader is found.
+//
+// The rootdir option is useful for image creation operations. It
+// can also be used to find the recvoery bootloader, e.g. on uc20:
+//   bootloader.Find("/run/mnt/ubuntu-seed")
 func Find(rootdir string, opts *Options) (Bootloader, error) {
 	if forcedBootloader != nil || forcedError != nil {
 		return forcedBootloader, forcedError
@@ -124,7 +132,7 @@ func Find(rootdir string, opts *Options) (Bootloader, error) {
 	}
 
 	// no, try grub
-	if grub := newGrub(rootdir); grub != nil {
+	if grub := newGrub(rootdir, opts); grub != nil {
 		return grub, nil
 	}
 
