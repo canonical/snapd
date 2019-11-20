@@ -91,6 +91,8 @@ var (
 	SnapDesktopIconsDir string
 	SnapBusPolicyDir    string
 
+	SnapModeenvFile string
+
 	SystemApparmorDir      string
 	SystemApparmorCacheDir string
 
@@ -277,6 +279,8 @@ func SetRootDir(rootdir string) {
 
 	SnapSeedDir = SnapSeedDirUnder(rootdir)
 	SnapDeviceDir = filepath.Join(rootdir, snappyDir, "device")
+
+	SnapModeenvFile = filepath.Join(rootdir, snappyDir, "modeenv")
 
 	SnapRepairDir = filepath.Join(rootdir, snappyDir, "repair")
 	SnapRepairStateFile = filepath.Join(SnapRepairDir, "repair.json")

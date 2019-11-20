@@ -21,6 +21,7 @@ package devicestate
 
 import (
 	"fmt"
+	"os"
 	"regexp"
 	"strings"
 	"time"
@@ -385,6 +386,18 @@ func (m *DeviceManager) ensureOperational() error {
 
 var populateStateFromSeed = populateStateFromSeedImpl
 
+func getPopulateStateFromSeedOptions() (*populateStateFromSeedOptions, error) {
+	modeEnv, err := boot.ReadModeenv()
+	if os.IsNotExist(err) {
+		return nil, nil
+	}
+	return &populateStateFromSeedOptions{
+		Label: modeEnv.RecoverySystemLabel,
+		Mode:  modeEnv.Mode,
+	}, nil
+
+}
+
 // ensureSeeded makes sure that the snaps from seed.yaml get installed
 // with the matching assertions
 func (m *DeviceManager) ensureSeeded() error {
@@ -406,11 +419,13 @@ func (m *DeviceManager) ensureSeeded() error {
 		return nil
 	}
 
-	// TODO: Core 20: how do we establish whether this is a Core 20
-	// system, how do we receive mode here and also how to pick a label?
+	opts, err := getPopulateStateFromSeedOptions()
+	if err != nil {
+		return err
+	}
 	var tsAll []*state.TaskSet
 	timings.Run(perfTimings, "state-from-seed", "populate state from seed", func(tm timings.Measurer) {
-		tsAll, err = populateStateFromSeed(m.state, nil, tm)
+		tsAll, err = populateStateFromSeed(m.state, opts, tm)
 	})
 	if err != nil {
 		return err
