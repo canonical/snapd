@@ -2,7 +2,6 @@ summary: Ensure that lxd works
 
 # Only run this on ubuntu 16+, lxd will not work on !ubuntu systems
 # currently nor on ubuntu 14.04
-# No ubuntu 18.10 imaga available so far
 systems: [ubuntu-16*, ubuntu-18.04*, ubuntu-2*, ubuntu-core-*]
 
 # autopkgtest run only a subset of tests that deals with the integration
@@ -15,6 +14,16 @@ kill-timeout: 25m
 # Start before anything else as it can take a really long time.
 priority: 1000
 
+environment:
+    REFRESH_APP_AWARENESS_OUTER/snapd_cgroup_just_inside: false
+    REFRESH_APP_AWARENESS_INNER/snapd_cgroup_just_inside: true
+    REFRESH_APP_AWARENESS_OUTER/snapd_cgroup_just_outside: true
+    REFRESH_APP_AWARENESS_INNER/snapd_cgroup_just_outside: false
+    REFRESH_APP_AWARENESS_OUTER/snapd_cgroup_both: true
+    REFRESH_APP_AWARENESS_INNER/snapd_cgroup_both: true
+    REFRESH_APP_AWARENESS_OUTER/snapd_cgroup_neither: false
+    REFRESH_APP_AWARENESS_INNER/snapd_cgroup_neither: false
+
 prepare: |
     # using apt here is ok because this test only runs on ubuntu
     echo "Remove any installed debs (some images carry them) to ensure we test the snap"
@@ -22,6 +31,9 @@ prepare: |
     if command -v apt && apt -v; then
         apt autoremove -y lxd
     fi
+    # Depending on test variant, enable refresh-app-awareness outside to test
+    # the interaction between lxd and cgroup at /run/snapd/cgroup
+    snap set system experimental.refresh-app-awareness=$REFRESH_APP_AWARENESS_OUTER
 
 restore: |
     if  [[ "$(find "$GOHOME" -name 'snapd_*.deb' | wc -l || echo 0)" -eq 0 ]]; then
@@ -32,6 +44,7 @@ restore: |
     lxd.lxc delete my-ubuntu
 
     lxd-tool undo-lxd-mount-changes
+    snap unset system experimental.refresh-app-awareness
 
 debug: |
     # shellcheck source=tests/lib/journalctl.sh
@@ -88,6 +101,9 @@ execute: |
     if [ -n "${https_proxy:-}" ]; then
         lxd.lxc exec my-ubuntu -- sh -c "echo https_proxy=$https_proxy >> /etc/environment"
     fi
+    # Depending on test variant, enable refresh-app-awareness _inside_ to test
+    # the interaction between lxd and cgroup at /run/snapd/cgroup
+    lxd.lxc exec my-ubuntu -- snap set system experimental.refresh-app-awareness=$REFRESH_APP_AWARENESS_INNER
     lxd.lxc exec my-ubuntu -- systemctl daemon-reload
     lxd.lxc exec my-ubuntu -- systemctl restart snapd.service
     lxd.lxc exec my-ubuntu -- snap wait system seed.loaded
@@ -98,8 +114,11 @@ execute: |
 
     echo "Ensure we can use snapd inside lxd"
     lxd.lxc exec my-ubuntu snap install test-snapd-tools
-    echo "And we can run snaps as regular users"
-    lxd.lxc exec my-ubuntu -- su -c "/snap/bin/test-snapd-tools.echo from-the-inside" ubuntu | MATCH from-the-inside
+    echo "And we can run snaps as regular users, assuming session bus is available"
+    lxd.lxc exec my-ubuntu -- apt-get update
+    lxd.lxc exec my-ubuntu -- apt-get install -y dbus-user-session
+    lxd.lxc exec my-ubuntu -- su -l ubuntu -c "systemctl --user enable dbus.socket"
+    lxd.lxc exec my-ubuntu -- su -l ubuntu -c "/snap/bin/test-snapd-tools.echo from-the-inside" | MATCH from-the-inside
     echo "And as root"
     lxd.lxc exec my-ubuntu -- test-snapd-tools.echo from-the-inside | MATCH from-the-inside
     echo "We can also remove snaps successfully"

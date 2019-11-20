@@ -39,6 +39,7 @@ import (
 
 	"github.com/snapcore/snapd/client"
 	"github.com/snapcore/snapd/dirs"
+	"github.com/snapcore/snapd/features"
 	"github.com/snapcore/snapd/i18n"
 	"github.com/snapcore/snapd/interfaces"
 	"github.com/snapcore/snapd/logger"
@@ -944,6 +945,14 @@ func (x *cmdRun) runSnapConfine(info *snap.Info, securityTag, snapApp, hook stri
 	}
 	env := snapenv.ExecEnv(info, extraEnv)
 
+	// If we are running an app that is not a service (or if we are running a
+	// hook) then the application process is placed in a transient scope.
+	if app := info.Apps[snapApp]; app == nil || !app.IsService() {
+		logger.Debugf("creating transient scope %s", securityTag)
+		if err := createTransientScope(securityTag); err != nil {
+			return err
+		}
+	}
 	if x.TraceExec {
 		return x.runCmdWithTraceExec(cmd, env)
 	} else if x.Gdb {
@@ -953,4 +962,62 @@ func (x *cmdRun) runSnapConfine(info *snap.Info, securityTag, snapApp, hook stri
 	} else {
 		return syscallExec(cmd[0], cmd, env)
 	}
+}
+
+func randomUUID() (string, error) {
+	uuidBytes, err := ioutil.ReadFile("/proc/sys/kernel/random/uuid")
+	return strings.TrimSpace(string(uuidBytes)), err
+}
+
+var createTransientScope = func(securityTag string) error {
+	if !features.RefreshAppAwareness.IsEnabled() {
+		return nil
+	}
+
+	// The scope is created with a DBus call to systemd running either on
+	// system or session bus, depending on if we are starting a program as root
+	// or as a regular user.
+	var conn *dbus.Conn
+	var err error
+	if os.Getuid() == 0 {
+		conn, err = dbus.SystemBus()
+	} else {
+		conn, err = dbus.SessionBus()
+	}
+	if err != nil {
+		return err
+	}
+
+	type property struct {
+		Name  string
+		Value interface{}
+	}
+	type auxUnit struct {
+		Name  string
+		Props []property
+	}
+
+	// We ask the kernel for a random UUID. We need one because each transient
+	// scope needs a unique name. The unique name is comprosed of said UUID and
+	// the snap security tag.
+	uuid, err := randomUUID()
+	if err != nil {
+		return err
+	}
+	unitName := fmt.Sprintf("snap.%s.%s.scope", uuid, strings.TrimPrefix(securityTag, "snap."))
+	mode := "fail"
+	properties := []property{{"PIDs", []uint{uint(os.Getpid())}}}
+	aux := []auxUnit(nil)
+	var job dbus.ObjectPath
+	systemd := conn.Object("org.freedesktop.systemd1", "/org/freedesktop/systemd1")
+	if err := systemd.Call("org.freedesktop.systemd1.Manager.StartTransientUnit", 0,
+		unitName, mode, properties, aux).Store(&job); err != nil {
+		if dbusErr, ok := err.(dbus.Error); ok && dbusErr.Name == "org.freedesktop.DBus.Error.UnknownMethod" {
+			// The DBus API is not supported on this system. This can happen on
+			// very old versions of Systemd, for instance on Ubuntu 14.04.
+			return nil
+		}
+		return fmt.Errorf("cannot create transient scope: %s", err)
+	}
+	return nil
 }

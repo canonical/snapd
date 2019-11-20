@@ -1,0 +1,104 @@
+summary: Each snap app and hook is tracked via cgroups
+# Ubuntu 14.04's special version of systemd doesn't have StartTransientUnit API.
+systems: [-ubuntu-14.04-*]
+details: |
+    This test creates a snap process that suspends itself and ensures that it
+    placed into the appropriate hierarchy.
+prepare: |
+    # This feature depends on the release-app-awareness feature
+    snap set core experimental.refresh-app-awareness=true
+
+    #shellcheck source=tests/lib/snaps.sh
+    . "$TESTSLIB"/snaps.sh
+    install_local test-snapd-sh
+
+restore: |
+    snap unset core experimental.refresh-app-awareness
+
+execute: |
+    # TODO: add a variant that runs as an user
+    # TODO: add a variant that uses a service
+
+    # This test varies between Ubuntu 16.04, Ubuntu 18.04 and Fedora 31.
+    # This combination exercises each of the three cases below.
+    echo "Find the path and id of the cgroup snapd uses for tracking."
+    if grep -q -F "0::" < /proc/self/cgroup; then
+        # Hybrid or pure v2 mode available.
+        if [ "$(stat -f --print=%T /sys/fs/cgroup)" = "cgroup2fs" ]; then
+            base_cg_path=/sys/fs/cgroup
+        else
+            base_cg_path=/sys/fs/cgroup/unified
+        fi
+        base_cg_id=0
+    else
+        # Only name=systemd available
+        base_cg_path=/sys/fs/cgroup/systemd
+        base_cg_id="$(grep -F 'name=systemd' < /proc/self/cgroup | cut -d : -f 1)"
+    fi
+
+    echo "Sanity check, base directory of selected cgroup exists."
+    test -d "$base_cg_path"
+
+    echo "Start a \"sleep\" process in the background"
+    #shellcheck disable=SC2016
+    test-snapd-sh -c 'touch $SNAP_DATA/1.stamp && exec sleep 3m' &
+    pid1=$!
+    trap 'killall sleep || true' EXIT
+    echo "Ensure that snap-confine has finished its task and that the snap process"
+    echo "is active. Note that we don't want to wait forever either."
+    retry-tool -n 30 --wait 0.1 test -e /var/snap/test-snapd-sh/current/1.stamp
+
+    echo "During startup snap-confine has asked systemd to move the process to a"
+    echo "new transient scope. The scope name is \"snap.\$random.test-snapd-sh.test-snapd-sh\"."
+    echo "Let's verify that."
+    pid1_tracking_cg_path="$(grep -E "^$base_cg_id:" < "/proc/$pid1/cgroup" | cut -d : -f 3)"
+    echo "$pid1_tracking_cg_path" | MATCH '.*/snap\.[0-9a-f-]+\.test-snapd-sh\.test-snapd-sh\.scope'
+
+    echo "Sanity check, cgroup associated with the scope exists."
+    test -d "${base_cg_path}${pid1_tracking_cg_path}"
+
+    echo "While the process is alive its PID can be seen in the cgroup.procs file"
+    MATCH "$pid1" < "${base_cg_path}${pid1_tracking_cg_path}/cgroup.procs"
+
+    echo "Start a second process so that we can check each scope is independent."
+    #shellcheck disable=SC2016
+    test-snapd-sh -c 'touch $SNAP_DATA/2.stamp && exec sleep 2m' &
+    pid2=$!
+    retry-tool -n 30 --wait 0.1 test -e /var/snap/test-snapd-sh/current/2.stamp
+    pid2_tracking_cg_path="$(grep -E "^$base_cg_id:" < "/proc/$pid2/cgroup" | cut -d : -f 3)"
+    echo "$pid2_tracking_cg_path" | MATCH '.*/snap\.[0-9a-f-]+\.test-snapd-sh\.test-snapd-sh\.scope'
+    MATCH "$pid2" < "${base_cg_path}${pid2_tracking_cg_path}/cgroup.procs"
+
+    echo "Each invocation uses a new transient scope, so a new cgroup path."
+    test "$pid1_tracking_cg_path" != "$pid2_tracking_cg_path"
+
+    echo "When the process terminates the control group it used to exist in is"
+    echo "automatically removed by systemdi, though perhaps not instantly"
+    kill "$pid1"
+    wait "$pid1" || true  # wait returns the exit code and we kill the process
+    retry-tool -n 10 test ! -e "${base_cg_path}${pid1_tracking_cg_path}"
+
+    kill "$pid2"
+    wait "$pid2" || true  # same as above
+    retry-tool -n 10 test ! -e "${base_cg_path}${pid2_tracking_cg_path}"
+
+    echo "If a snap command forks a child process it is also tracked."
+    #shellcheck disable=SC2016
+    test-snapd-sh -c 'touch $SNAP_DATA/3.stamp && sleep 1m' &
+    pid3=$!
+    retry-tool -n 30 --wait 0.1 test -e /var/snap/test-snapd-sh/current/3.stamp
+    pid3_tracking_cg_path="$(grep -E "^$base_cg_id:" < "/proc/$pid3/cgroup" | cut -d : -f 3)"
+    MATCH "$pid3" < "${base_cg_path}${pid3_tracking_cg_path}/cgroup.procs"
+
+    echo "Because the script above used \"sleep 1m\" instead of \"exec sleep 1m\" there"
+    echo "are now two processes: the shell and sleep."
+    test "$(wc -l < "${base_cg_path}${pid3_tracking_cg_path}/cgroup.procs")" -eq 2
+    kill "$pid3"
+    test "$(wc -l < "${base_cg_path}${pid3_tracking_cg_path}/cgroup.procs")" -eq 1
+
+    echo "Kill the remaining cgroup process."
+    while read -r pid; do
+        kill "$pid"
+    done < "${base_cg_path}${pid3_tracking_cg_path}/cgroup.procs"
+    wait "$pid3" || true  # same as above
+    retry-tool -n 10 test ! -e "${base_cg_path}${pid3_tracking_cg_path}"

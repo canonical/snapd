@@ -1,6 +1,6 @@
 summary: Ensure that foreground applications block app refresh.
-# fedora-31: uses cgroupv2, which we don't support
-systems: [ -fedora-31-*]
+# Ubuntu 14.04's special version of systemd doesn't have StartTransientUnit API.
+systems: [-ubuntu-14.04-*]
 details: |
     When the refresh-app-awareness feature is enabled running snap processes,
     mainly foreground applications, will block the refresh of said snap.
@@ -18,11 +18,7 @@ restore: |
     snap remove test-snapd-refresh
     rm -f test-snapd-refresh-{1,2}_all.snap
     rm -f test-snapd-refresh.*/meta/snap.yaml
-    rmdir /sys/fs/cgroup/pids/snap.test-snapd-refresh.sh || true
-    rmdir /sys/fs/cgroup/pids/snap.test-snapd-refresh.version || true
-    # TODO: There is currently no way to unset configuration options.
-    # Once this is fixed please uncomment this line:
-    # snap unset core experimental.refresh-app-awareness
+    snap unset core experimental.refresh-app-awareness
     rm -f install.log
 execute: |
     if ! snap debug sandbox-features --required "confinement-options:$CONFINEMENT"; then
@@ -46,6 +42,10 @@ execute: |
     test-snapd-refresh.sh -c 'touch $SNAP_DATA/stamp && exec sleep 1h' &
     pid=$!
     trap 'kill '"$pid"' || true' EXIT
+
+    # While the sleeper app is running check that we can still run other
+    # processes.  This checks if we can join an existing slice.
+    test-snapd-refresh.version | MATCH v1
 
     # Ensure that snap-confine has finished its task and that the snap process
     # is active. Note that we don't want to wait forever either.

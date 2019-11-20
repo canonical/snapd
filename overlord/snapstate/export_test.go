@@ -124,6 +124,9 @@ var (
 	NewCatalogRefresh            = newCatalogRefresh
 	CatalogRefreshDelayBase      = catalogRefreshDelayBase
 	CatalogRefreshDelayWithDelta = catalogRefreshDelayWithDelta
+
+	PidsOfSnap                = pidsOfSnap
+	SecurityTagFromCgroupPath = securityTagFromCgroupPath
 )
 
 func MockNextRefresh(ar *autoRefresh, when time.Time) {
@@ -207,14 +210,6 @@ var (
 )
 
 type AuxStoreInfo = auxStoreInfo
-
-func MockPidsCgroupDir(dir string) (restore func()) {
-	old := pidsCgroupDir
-	pidsCgroupDir = dir
-	return func() {
-		pidsCgroupDir = old
-	}
-}
 
 // link, misc handlers
 var (

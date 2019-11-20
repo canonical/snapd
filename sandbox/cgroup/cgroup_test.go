@@ -277,3 +277,15 @@ zebra
 	c.Assert(err, ErrorMatches, `cannot parse pid "zebra"`)
 	c.Assert(pids, IsNil)
 }
+
+func (s *cgroupSuite) TestParsePid(c *C) {
+	pid, err := cgroup.ParsePid("10")
+	c.Assert(err, IsNil)
+	c.Check(pid, Equals, 10)
+
+	_, err = cgroup.ParsePid("")
+	c.Assert(err, ErrorMatches, `cannot parse pid ""`)
+
+	_, err = cgroup.ParsePid("-1")
+	c.Assert(err, ErrorMatches, `cannot parse pid "-1"`)
+}

@@ -81,6 +81,9 @@ func (s *RunSuite) SetUpTest(c *check.C) {
 	s.AddCleanup(snaprun.MockUserCurrent(func() (*user.User, error) {
 		return &user.User{Uid: u.Uid, HomeDir: s.fakeHome}, nil
 	}))
+	s.AddCleanup(snaprun.MockCreateTransientScope(func(string) error {
+		return nil
+	}))
 }
 
 func (s *RunSuite) TestInvalidParameters(c *check.C) {

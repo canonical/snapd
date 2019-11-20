@@ -208,11 +208,8 @@ func ProcGroup(pid int, matcher GroupMatcher) (string, error) {
 	return "", fmt.Errorf("cannot find %s cgroup path for pid %v", matcher, pid)
 }
 
-// PidsInGroup returns the list of process ID currently registered in a given cgroup
-func PidsInGroup(hierarchyMount, groupPath string) ([]int, error) {
-	// TODO: check whether hierarchyMount looks like a valid cgroup root
-	// (i.e. at cgroup.procs exists)
-	fname := filepath.Join(hierarchyMount, groupPath, "cgroup.procs")
+// PidsInFile returns the list of process ID in a given file.
+func PidsInFile(fname string) ([]int, error) {
 	file, err := os.Open(fname)
 	if os.IsNotExist(err) {
 		return nil, nil
@@ -222,6 +219,14 @@ func PidsInGroup(hierarchyMount, groupPath string) ([]int, error) {
 	}
 	defer file.Close()
 	return parsePids(bufio.NewReader(file))
+}
+
+// PidsInGroup returns the list of process ID currently registered in a given cgroup
+func PidsInGroup(hierarchyMount, groupPath string) ([]int, error) {
+	// TODO: check whether hierarchyMount looks like a valid cgroup root
+	// (i.e. at cgroup.procs exists)
+	fname := filepath.Join(hierarchyMount, groupPath, "cgroup.procs")
+	return PidsInFile(fname)
 }
 
 // parsePid parses a string as a process identifier.

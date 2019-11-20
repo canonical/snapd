@@ -33,11 +33,9 @@ import (
 	"github.com/snapcore/snapd/overlord/state"
 	"github.com/snapcore/snapd/snap"
 	"github.com/snapcore/snapd/snap/snaptest"
-	"github.com/snapcore/snapd/testutil"
 )
 
 type refreshSuite struct {
-	testutil.BaseTest
 	state *state.State
 	info  *snap.Info
 
@@ -50,12 +48,6 @@ type refreshSuite struct {
 var _ = Suite(&refreshSuite{})
 
 func (s *refreshSuite) SetUpTest(c *C) {
-	s.BaseTest.SetUpTest(c)
-
-	dirs.SetRootDir(c.MkDir())
-	mockPidsCgroupDir := c.MkDir()
-	s.AddCleanup(snapstate.MockPidsCgroupDir(mockPidsCgroupDir))
-
 	yamlText := `
 name: foo
 version: 1
@@ -69,14 +61,26 @@ hooks:
   configure:
 `
 	s.info = snaptest.MockInfo(c, yamlText, nil)
-	s.daemonPath = filepath.Join(mockPidsCgroupDir, s.info.Apps["daemon"].SecurityTag())
-	s.appPath = filepath.Join(mockPidsCgroupDir, s.info.Apps["app"].SecurityTag())
-	s.hookPath = filepath.Join(mockPidsCgroupDir, s.info.Hooks["configure"].SecurityTag())
+	dirs.SetRootDir(c.MkDir())
+	s.daemonPath = filepath.Join(dirs.CgroupDir, "intermediate", "snap.foo.daemon.service")
+	s.appPath = filepath.Join(dirs.CgroupDir, "intermediate", "snap.$RANDOM2.foo.app.scope")
+	s.hookPath = filepath.Join(dirs.CgroupDir, "intermediate", "snap.$RANDOM2.foo.hook.configure.scope")
 }
 
 func (s *refreshSuite) TearDownTest(c *C) {
 	dirs.SetRootDir("")
-	s.BaseTest.TearDownTest(c)
+}
+
+func (s *refreshSuite) TestSecurityTagFromCgroupPath(c *C) {
+	c.Check(snapstate.SecurityTagFromCgroupPath("/a/b/snap.foo.foo.service"), Equals, "snap.foo.foo")
+	c.Check(snapstate.SecurityTagFromCgroupPath("/a/b/snap.foo.bar.service"), Equals, "snap.foo.bar")
+	c.Check(snapstate.SecurityTagFromCgroupPath("/a/b/snap.$RANDOM.foo.bar.scope"), Equals, "snap.foo.bar")
+	c.Check(snapstate.SecurityTagFromCgroupPath("/a/b/snap.$RANDOM.foo.hook.bar.scope"), Equals, "snap.foo.hook.bar")
+	// We are not confused by snapd things.
+	c.Check(snapstate.SecurityTagFromCgroupPath("/a/b/snap.service"), Equals, "")
+	c.Check(snapstate.SecurityTagFromCgroupPath("/a/b/snapd.service"), Equals, "")
+	// Real data looks like this.
+	c.Check(snapstate.SecurityTagFromCgroupPath("snap.d854bd35-2457-4ac8-b494-06061d74df33.test-snapd-refresh.sh.scope"), Equals, "snap.test-snapd-refresh.sh")
 }
 
 func writePids(c *C, dir string, pids []int) {
@@ -88,6 +92,123 @@ func writePids(c *C, dir string, pids []int) {
 	}
 	err = ioutil.WriteFile(filepath.Join(dir, "cgroup.procs"), buf.Bytes(), 0644)
 	c.Assert(err, IsNil)
+}
+
+func (s *refreshSuite) TestPidsOfSnapEmpty(c *C) {
+	// For context,the snap is called "foo"
+	c.Assert(s.info.SnapName(), Equals, "foo")
+
+	// Not having any cgroup directories is not an error.
+	pids, err := snapstate.PidsOfSnap(s.info)
+	c.Assert(err, IsNil)
+	c.Check(pids, HasLen, 0)
+}
+
+func (s *refreshSuite) TestPidsOfSnapUnrelatedStuff(c *C) {
+	// For context,the snap is called "foo"
+	c.Assert(s.info.SnapName(), Equals, "foo")
+
+	// Things that are not related to the snap are not being picked up.
+	path := filepath.Join(dirs.CgroupDir, "system.slice", "udisks2.service")
+	writePids(c, path, []int{100})
+	pids, err := snapstate.PidsOfSnap(s.info)
+	c.Assert(err, IsNil)
+	c.Check(pids, HasLen, 0)
+}
+
+func (s *refreshSuite) TestPidsOfSnapSecurityTags(c *C) {
+	// For context,the snap is called "foo"
+	c.Assert(s.info.SnapName(), Equals, "foo")
+
+	// Pids are collected and assigned to bins by security tag
+	path := filepath.Join(dirs.CgroupDir, "system.slice", "snap.$RANDOM.foo.hook.configure.scope")
+	writePids(c, path, []int{1})
+	path = filepath.Join(dirs.CgroupDir, "system.slice", "snap.foo.foo.service")
+	writePids(c, path, []int{2})
+
+	pids, err := snapstate.PidsOfSnap(s.info)
+	c.Assert(err, IsNil)
+	c.Check(pids, DeepEquals, map[string][]int{
+		"snap.foo.hook.configure": {1},
+		"snap.foo.foo":            {2},
+	})
+}
+
+func (s *refreshSuite) TestPidsOfInstances(c *C) {
+	// For context,the snap is called "foo"
+	c.Assert(s.info.SnapName(), Equals, "foo")
+
+	// Instances are not confused between themselves and between the non-instance version.
+	path := filepath.Join(dirs.CgroupDir, "system.slice", "snap.foo_prod.foo.service")
+	writePids(c, path, []int{1})
+	path = filepath.Join(dirs.CgroupDir, "system.slice", "snap.foo_devel.foo.service")
+	writePids(c, path, []int{2})
+	path = filepath.Join(dirs.CgroupDir, "system.slice", "snap.foo.foo.service")
+	writePids(c, path, []int{3})
+
+	// The main one
+	pids, err := snapstate.PidsOfSnap(s.info)
+	c.Assert(err, IsNil)
+	c.Check(pids, DeepEquals, map[string][]int{
+		"snap.foo.foo": {3},
+	})
+
+	// The development one
+	s.info.InstanceKey = "devel"
+	pids, err = snapstate.PidsOfSnap(s.info)
+	c.Assert(err, IsNil)
+	c.Check(pids, DeepEquals, map[string][]int{
+		"snap.foo_devel.foo": {2},
+	})
+
+	// The production one
+	s.info.InstanceKey = "prod"
+	pids, err = snapstate.PidsOfSnap(s.info)
+	c.Assert(err, IsNil)
+	c.Check(pids, DeepEquals, map[string][]int{
+		"snap.foo_prod.foo": {1},
+	})
+}
+
+func (s *refreshSuite) TestPidsOfAggregation(c *C) {
+	// For context,the snap is called "foo"
+	c.Assert(s.info.SnapName(), Equals, "foo")
+
+	// A single snap may be invoked by multiple users in different sessions.
+	// All of their PIDs are collected though.
+	path := filepath.Join(dirs.CgroupDir, "user.slice", "user-1000.slice",
+		"user@1000.service", "gnome-shell-wayland.service",
+		"snap.$RANDOM1.foo.foo.scope")
+	writePids(c, path, []int{1})
+	path = filepath.Join(dirs.CgroupDir, "user.slice", "user-1001.slice",
+		"user@1001.service", "gnome-shell-wayland.service",
+		"snap.$RANDOM2.foo.foo.scope")
+	writePids(c, path, []int{2})
+
+	pids, err := snapstate.PidsOfSnap(s.info)
+	c.Assert(err, IsNil)
+	c.Check(pids, DeepEquals, map[string][]int{
+		"snap.foo.foo": {1, 2},
+	})
+}
+
+func (s *refreshSuite) TestPidsOfUnrelated(c *C) {
+	// For context,the snap is called "foo"
+	c.Assert(s.info.SnapName(), Equals, "foo")
+
+	// We are not confusing snaps with other snaps and with non-snap hierarchies.
+	path := filepath.Join(dirs.CgroupDir, "user.slice", "...", "snap.$RANDOM1.foo.foo.scope")
+	writePids(c, path, []int{1})
+	path = filepath.Join(dirs.CgroupDir, "user.slice", "...", "snap.$RANDOM2.bar.bar.scope")
+	writePids(c, path, []int{2})
+	path = filepath.Join(dirs.CgroupDir, "user.slice", "...", "foo.service")
+	writePids(c, path, []int{3})
+
+	pids, err := snapstate.PidsOfSnap(s.info)
+	c.Assert(err, IsNil)
+	c.Check(pids, DeepEquals, map[string][]int{
+		"snap.foo.foo": {1},
+	})
 }
 
 func (s *refreshSuite) TestSoftNothingRunningRefreshCheck(c *C) {
