@@ -104,7 +104,7 @@ func (s *initramfsMountsSuite) SetUpTest(c *C) {
 				"type":            "gadget",
 				"default-channel": "20",
 			}},
-	})
+	}, nil)
 }
 
 func (s *initramfsMountsSuite) mockProcCmdlineContent(c *C, newContent string) {
