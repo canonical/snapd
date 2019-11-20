@@ -20,6 +20,11 @@
 package boot
 
 import (
+	"fmt"
+	"io/ioutil"
+	"os"
+	"path/filepath"
+
 	"github.com/mvo5/goconfigparser"
 
 	"github.com/snapcore/snapd/dirs"
@@ -32,10 +37,11 @@ type Modeenv struct {
 	RecoverySystemLabel string
 }
 
-func ReadModeenv() (*Modeenv, error) {
+func ReadModeenv(rootdir string) (*Modeenv, error) {
+	modeenvPath := filepath.Join(rootdir, dirs.SnapModeenvFile)
 	cfg := goconfigparser.New()
 	cfg.AllowNoSectionHeader = true
-	if err := cfg.ReadFile(dirs.SnapModeenvFile); err != nil {
+	if err := cfg.ReadFile(modeenvPath); err != nil {
 		return nil, err
 	}
 	recoverySystemLabel, _ := cfg.Get("", "recovery_system")
@@ -44,4 +50,19 @@ func ReadModeenv() (*Modeenv, error) {
 		Mode:                mode,
 		RecoverySystemLabel: recoverySystemLabel,
 	}, nil
+}
+
+func (m *Modeenv) Write(rootdir string) error {
+	modeenvPath := filepath.Join(rootdir, dirs.SnapModeenvFile)
+
+	if err := os.MkdirAll(filepath.Dir(modeenvPath), 0755); err != nil {
+		return err
+	}
+	modeEnvContent := fmt.Sprintf(`recovery_system=%s
+mode=%s
+`, m.RecoverySystemLabel, m.Mode)
+	if err := ioutil.WriteFile(modeenvPath, []byte(modeEnvContent), 0644); err != nil {
+		return err
+	}
+	return nil
 }

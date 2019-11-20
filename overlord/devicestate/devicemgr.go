@@ -387,7 +387,7 @@ func (m *DeviceManager) ensureOperational() error {
 var populateStateFromSeed = populateStateFromSeedImpl
 
 func getPopulateStateFromSeedOptions() (*populateStateFromSeedOptions, error) {
-	modeEnv, err := boot.ReadModeenv()
+	modeEnv, err := boot.ReadModeenv("")
 	if os.IsNotExist(err) {
 		return nil, nil
 	}
