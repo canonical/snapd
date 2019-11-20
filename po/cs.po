@@ -1192,7 +1192,7 @@ msgstr "Příkaz get vypíše nastavení a nastavení spojení rozhraní."
 
 #. TRANSLATORS: This should not start with a lowercase letter (unless it's "login.ubuntu.com")
 msgid "The login.ubuntu.com email to login as"
-msgstr "e-mail, kterým se přihlásit k login.ubuntu.com"
+msgstr "E-mail, kterým se přihlásit k login.ubuntu.com"
 
 #. TRANSLATORS: This should not start with a lowercase letter.
 msgid "The model assertion name"

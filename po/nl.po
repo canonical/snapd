@@ -697,7 +697,7 @@ msgstr ""
 
 #. TRANSLATORS: This should not start with a lowercase letter.
 msgid "Name of the key to use, otherwise use the default key"
-msgstr "naam van de te gebruiken sleutel, gebruik anders de standaardsleutel"
+msgstr "Naam van de te gebruiken sleutel, gebruik anders de standaardsleutel"
 
 msgid "Name\tSHA3-384"
 msgstr "Naam\tSHA3-384"
