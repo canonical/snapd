@@ -256,13 +256,18 @@ prepare_classic() {
     # Some systems (google:ubuntu-16.04-64) ship with a broken sshguard
     # unit. Stop the broken unit to not confuse the "degraded-boot" test.
     #
+    # Some other (debian-sid) fail in fwupd-refresh.service
+    #
     # FIXME: fix the ubuntu-16.04-64 image
-    if systemctl list-unit-files | grep sshguard.service; then
-        if ! systemctl status sshguard.service; then
-            systemctl stop sshguard.service
-	    systemctl reset-failed sshguard.service
+    # FIXME2: fix the debian-sid-64 image
+    for svc in fwupd-refresh.service sshguard.service; do
+        if systemctl list-unit-files | grep "$svc"; then
+            if systemctl is-failed "$svc"; then
+                systemctl stop "$svc"
+	        systemctl reset-failed "$svc"
+            fi
         fi
-    fi
+    done
 
     setup_systemd_snapd_overrides
 

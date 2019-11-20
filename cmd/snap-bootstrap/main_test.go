@@ -17,18 +17,24 @@
  *
  */
 
-package seedwriter
+package main_test
 
 import (
-	"github.com/snapcore/snapd/seed/internal"
+	"testing"
+
+	. "gopkg.in/check.v1"
+
+	main "github.com/snapcore/snapd/cmd/snap-bootstrap"
 )
 
-type (
-	InternalSnap16 = internal.Snap16
-	InternalSnap20 = internal.Snap20
-)
+// Hook up check.v1 into the "go test" runner
+func Test(t *testing.T) { TestingT(t) }
 
-var (
-	InternalReadSeedYaml  = internal.ReadSeedYaml
-	InternalReadOptions20 = internal.ReadOptions20
-)
+type cmdSuite struct{}
+
+var _ = Suite(&cmdSuite{})
+
+func (s *cmdSuite) TestNoArgsErrors(c *C) {
+	_, err := main.Parser.ParseArgs(nil)
+	c.Assert(err, ErrorMatches, "Please specify .*")
+}
