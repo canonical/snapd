@@ -17,18 +17,27 @@
  *
  */
 
-package seedwriter
+package main_test
 
 import (
-	"github.com/snapcore/snapd/seed/internal"
+	. "gopkg.in/check.v1"
+
+	main "github.com/snapcore/snapd/cmd/snap-bootstrap"
+	"github.com/snapcore/snapd/cmd/snap-bootstrap/bootstrap"
 )
 
-type (
-	InternalSnap16 = internal.Snap16
-	InternalSnap20 = internal.Snap20
-)
+func (s *cmdSuite) TestCreatePartitionsHappy(c *C) {
+	n := 0
+	restore := main.MockBootstrapRun(func(gadgetRoot, device string, opts *bootstrap.Options) error {
+		c.Check(gadgetRoot, Equals, "gadget-dir")
+		c.Check(device, Equals, "device")
+		n++
+		return nil
+	})
+	defer restore()
 
-var (
-	InternalReadSeedYaml  = internal.ReadSeedYaml
-	InternalReadOptions20 = internal.ReadOptions20
-)
+	rest, err := main.Parser.ParseArgs([]string{"create-partitions", "gadget-dir", "device"})
+	c.Assert(err, IsNil)
+	c.Assert(rest, HasLen, 0)
+	c.Assert(n, Equals, 1)
+}
