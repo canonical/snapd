@@ -202,3 +202,35 @@ func (s *initramfsMountsSuite) TestInitramfsMountsInstallModeStep3(c *C) {
 	c.Assert(n, Equals, 3)
 	c.Check(s.Stdout.String(), Equals, "--type=tmpfs tmpfs /run/mnt/ubuntu-data\n")
 }
+
+func (s *initramfsMountsSuite) TestInitramfsMountsInstallModeStep4(c *C) {
+	n := 0
+	s.mockProcCmdlineContent(c, "snapd_recovery_mode=install")
+
+	restore := main.MockOsutilIsMounted(func(path string) (bool, error) {
+		n++
+		switch n {
+		case 1:
+			c.Check(path, Equals, filepath.Join(s.runMnt, "ubuntu-seed"))
+			return true, nil
+		case 2:
+			c.Check(path, Equals, filepath.Join(s.runMnt, "base"))
+			return true, nil
+		case 3:
+			c.Check(path, Equals, filepath.Join(s.runMnt, "ubuntu-data"))
+			return true, nil
+		case 4:
+			c.Check(path, Equals, filepath.Join(s.runMnt, "ubuntu-data/var/lib/snapd/seed"))
+			return false, nil
+		}
+		return false, fmt.Errorf("unexpected number of calls: %v", n)
+	})
+	defer restore()
+
+	_, err := main.Parser.ParseArgs([]string{"initramfs-mounts"})
+	c.Assert(err, IsNil)
+	c.Assert(n, Equals, 4)
+	c.Check(s.Stdout.String(), Equals, fmt.Sprintf("--bind /run/mnt/ubuntu-seed %s/ubuntu-data/var/lib/snapd/seed\n", s.runMnt))
+	seedDir := filepath.Join(s.runMnt, "/ubuntu-data/var/lib/snapd/seed")
+	c.Check(seedDir, testutil.FilePresent)
+}

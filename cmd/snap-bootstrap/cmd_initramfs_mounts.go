@@ -144,7 +144,25 @@ func generateMountsModeInstall() error {
 		return nil
 	}
 
-	// 4. done, no output, no error indicates to initramfs we are done
+	// 4. make ubuntu-seed available inside
+	//      ${ubuntu_data}/var/lib/snapd/seed
+	//    so that seeding in uc20 works (it expects the seeds there)
+	isMounted, err = osutilIsMounted(filepath.Join(runMnt, "ubuntu-data/var/lib/snapd/seed"))
+	if err != nil {
+		return err
+	}
+	if !isMounted {
+		seedDir := filepath.Join(runMnt, "ubuntu-data/var/lib/snapd/seed")
+		if err := os.MkdirAll(seedDir, 0755); err != nil {
+			return err
+		}
+
+		// XXX: can we do this? should we --move instead?
+		fmt.Fprintf(stdout, "--bind /run/mnt/ubuntu-seed %s\n", seedDir)
+		return nil
+	}
+
+	//    done, no output, no error indicates to initramfs we are done
 	//    with mounting stuff
 	return nil
 }
