@@ -21,6 +21,7 @@ package devicestate
 
 import (
 	"fmt"
+	"os"
 	"regexp"
 	"strings"
 	"time"
@@ -56,10 +57,13 @@ type DeviceManager struct {
 
 	ensureSeedInConfigRan bool
 
+	ensureInstalledRan bool
+
 	lastBecomeOperationalAttempt time.Time
 	becomeOperationalBackoff     time.Duration
 	registered                   bool
 	reg                          chan struct{}
+	recoveryMode                 string
 }
 
 // Manager returns a new device manager.
@@ -79,6 +83,14 @@ func Manager(s *state.State, hookManager *hookstate.HookManager, runner *state.T
 		reg:        make(chan struct{}),
 	}
 
+	modeEnv, err := boot.ReadModeenv()
+	if !os.IsNotExist(err) {
+		return nil, err
+	}
+	if modeEnv != nil {
+		m.recoveryMode = modeEnv.Mode
+	}
+
 	s.Lock()
 	s.Cache(deviceMgrKey{}, m)
 	s.Unlock()
@@ -92,6 +104,7 @@ func Manager(s *state.State, hookManager *hookstate.HookManager, runner *state.T
 	runner.AddHandler("generate-device-key", m.doGenerateDeviceKey, nil)
 	runner.AddHandler("request-serial", m.doRequestSerial, nil)
 	runner.AddHandler("mark-seeded", m.doMarkSeeded, nil)
+	runner.AddHandler("create-partitions", m.doCreatePartitions, nil)
 	runner.AddHandler("prepare-remodeling", m.doPrepareRemodeling, nil)
 	runner.AddCleanup("prepare-remodeling", m.cleanupRemodel)
 	// this *must* always run last and finalizes a remodel
@@ -462,6 +475,43 @@ func (m *DeviceManager) ensureBootOk() error {
 	return nil
 }
 
+func (m *DeviceManager) ensureInstalled() error {
+	m.state.Lock()
+	defer m.state.Unlock()
+
+	if release.OnClassic {
+		return nil
+	}
+
+	if m.ensureInstalledRan {
+		return nil
+	}
+
+	if m.recoveryMode != "install" {
+		return nil
+	}
+
+	var seeded bool
+	err := m.state.Get("seeded", &seeded)
+	if err != nil {
+		return err
+	}
+	if !seeded {
+		return nil
+	}
+
+	m.ensureInstalledRan = true
+
+	tasks := []*state.Task{}
+	createPartitions := m.state.NewTask("create-partitions", i18n.G("Create new partitions"))
+	tasks = append(tasks, createPartitions)
+
+	chg := m.state.NewChange("install-device", i18n.G("Install the device"))
+	chg.AddAll(state.NewTaskSet(tasks...))
+
+	return nil
+}
+
 func markSeededInConfig(st *state.State) error {
 	var seedDone bool
 	tr := config.NewTransaction(st)
@@ -538,6 +588,10 @@ func (m *DeviceManager) Ensure() error {
 	}
 
 	if err := m.ensureSeedInConfig(); err != nil {
+		errs = append(errs, err)
+	}
+
+	if err := m.ensureInstalled(); err != nil {
 		errs = append(errs, err)
 	}
 
