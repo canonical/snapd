@@ -25,11 +25,14 @@ import (
 	"strings"
 	"time"
 
+	"github.com/mvo5/goconfigparser"
+
 	"github.com/snapcore/snapd/asserts"
 	"github.com/snapcore/snapd/asserts/sysdb"
 	"github.com/snapcore/snapd/boot"
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/i18n"
+	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/overlord/assertstate"
 	"github.com/snapcore/snapd/overlord/auth"
 	"github.com/snapcore/snapd/overlord/configstate/config"
@@ -385,6 +388,30 @@ func (m *DeviceManager) ensureOperational() error {
 
 var populateStateFromSeed = populateStateFromSeedImpl
 
+func getPopulateStateFromSeedOptions() (*populateStateFromSeedOptions, error) {
+	if !osutil.FileExists(dirs.SnapModeenvFile) {
+		return nil, nil
+	}
+
+	cfg := goconfigparser.New()
+	cfg.AllowNoSectionHeader = true
+	if err := cfg.ReadFile(dirs.SnapModeenvFile); err != nil {
+		return nil, err
+	}
+	label, err := cfg.Get("", "recovery_system")
+	if err != nil {
+		return nil, err
+	}
+	mode, err := cfg.Get("", "mode")
+	if err != nil {
+		return nil, err
+	}
+	return &populateStateFromSeedOptions{
+		Label: label,
+		Mode:  mode,
+	}, nil
+}
+
 // ensureSeeded makes sure that the snaps from seed.yaml get installed
 // with the matching assertions
 func (m *DeviceManager) ensureSeeded() error {
@@ -406,11 +433,13 @@ func (m *DeviceManager) ensureSeeded() error {
 		return nil
 	}
 
-	// TODO: Core 20: how do we establish whether this is a Core 20
-	// system, how do we receive mode here and also how to pick a label?
+	opts, err := getPopulateStateFromSeedOptions()
+	if err != nil {
+		return err
+	}
 	var tsAll []*state.TaskSet
 	timings.Run(perfTimings, "state-from-seed", "populate state from seed", func(tm timings.Measurer) {
-		tsAll, err = populateStateFromSeed(m.state, nil, tm)
+		tsAll, err = populateStateFromSeed(m.state, opts, tm)
 	})
 	if err != nil {
 		return err

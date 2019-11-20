@@ -22,6 +22,7 @@ package devicestate_test
 import (
 	"errors"
 	"fmt"
+	"io/ioutil"
 	"net/http/httptest"
 	"os"
 	"testing"
@@ -311,7 +312,8 @@ func (s *deviceMgrSuite) TestDeviceManagerEnsureSeededAlsoOnClassic(c *C) {
 }
 
 func (s *deviceMgrSuite) TestDeviceManagerEnsureSeededHappy(c *C) {
-	restore := devicestate.MockPopulateStateFromSeed(func(*state.State, *devicestate.PopulateStateFromSeedOptions, timings.Measurer) (ts []*state.TaskSet, err error) {
+	restore := devicestate.MockPopulateStateFromSeed(func(st *state.State, opts *devicestate.PopulateStateFromSeedOptions, tm timings.Measurer) (ts []*state.TaskSet, err error) {
+		c.Assert(opts, IsNil)
 		t := s.state.NewTask("test-task", "a random task")
 		ts = append(ts, state.NewTaskSet(t))
 		return ts, nil
@@ -325,6 +327,37 @@ func (s *deviceMgrSuite) TestDeviceManagerEnsureSeededHappy(c *C) {
 	defer s.state.Unlock()
 
 	c.Check(s.state.Changes(), HasLen, 1)
+}
+
+func (s *deviceMgrSuite) TestDeviceManagerEnsureSeededHappyWithModeenv(c *C) {
+	n := 0
+	restore := devicestate.MockPopulateStateFromSeed(func(st *state.State, opts *devicestate.PopulateStateFromSeedOptions, tm timings.Measurer) (ts []*state.TaskSet, err error) {
+		c.Assert(opts, NotNil)
+		c.Check(opts.Label, Equals, "20191120")
+		c.Check(opts.Mode, Equals, "install")
+
+		t := s.state.NewTask("test-task", "a random task")
+		ts = append(ts, state.NewTaskSet(t))
+
+		n++
+		return ts, nil
+	})
+	defer restore()
+
+	// mock the modeenv file
+	modeEnv := `recovery_system=20191120
+mode=install`
+	err := ioutil.WriteFile(dirs.SnapModeenvFile, []byte(modeEnv), 0644)
+	c.Assert(err, IsNil)
+
+	err = devicestate.EnsureSeeded(s.mgr)
+	c.Assert(err, IsNil)
+
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	c.Check(s.state.Changes(), HasLen, 1)
+	c.Check(n, Equals, 1)
 }
 
 func (s *deviceMgrSuite) TestDeviceManagerEnsureBootOkSkippedOnClassic(c *C) {

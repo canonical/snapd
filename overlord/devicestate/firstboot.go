@@ -62,6 +62,7 @@ func trivialSeeding(st *state.State, markSeeded *state.Task) []*state.TaskSet {
 }
 
 type populateStateFromSeedOptions struct {
+	// XXX: should this be renamed to something less generic like recoverySystem ?
 	Label string
 	Mode  string
 }
