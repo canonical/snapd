@@ -21,6 +21,7 @@ package backend_test
 
 import (
 	"errors"
+	"fmt"
 	"io/ioutil"
 	"os"
 	"os/exec"
@@ -35,6 +36,7 @@ import (
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/progress"
+	"github.com/snapcore/snapd/release"
 	"github.com/snapcore/snapd/snap"
 	"github.com/snapcore/snapd/snap/snaptest"
 	"github.com/snapcore/snapd/systemd"
@@ -44,7 +46,7 @@ import (
 	"github.com/snapcore/snapd/overlord/snapstate/backend"
 )
 
-type linkSuite struct {
+type linkSuiteCommon struct {
 	be backend.Backend
 
 	systemctlRestorer func()
@@ -52,9 +54,7 @@ type linkSuite struct {
 	perfTimings *timings.Timings
 }
 
-var _ = Suite(&linkSuite{})
-
-func (s *linkSuite) SetUpTest(c *C) {
+func (s *linkSuiteCommon) SetUpTest(c *C) {
 	dirs.SetRootDir(c.MkDir())
 
 	s.perfTimings = timings.New(nil)
@@ -63,10 +63,16 @@ func (s *linkSuite) SetUpTest(c *C) {
 	})
 }
 
-func (s *linkSuite) TearDownTest(c *C) {
+func (s *linkSuiteCommon) TearDownTest(c *C) {
 	dirs.SetRootDir("")
 	s.systemctlRestorer()
 }
+
+type linkSuite struct {
+	linkSuiteCommon
+}
+
+var _ = Suite(&linkSuite{})
 
 func (s *linkSuite) TestLinkSnapGivesLastActiveDisabledServicesToWrappers(c *C) {
 	const yaml = `name: hello
@@ -286,15 +292,111 @@ func (s *linkSuite) TestLinkFailsForUnsetRevision(c *C) {
 	c.Assert(err, ErrorMatches, `cannot link snap "foo" with unset revision`)
 }
 
+func (s *linkSuite) TestLinkSnapdSnapOnCore(c *C) {
+	restore := release.MockOnClassic(false)
+	defer restore()
+
+	const yaml = `name: snapd
+version: 1.0
+type: snapd
+`
+	err := os.MkdirAll(dirs.SnapServicesDir, 0755)
+	c.Assert(err, IsNil)
+	err = os.MkdirAll(dirs.SnapUserServicesDir, 0755)
+	c.Assert(err, IsNil)
+
+	info := snaptest.MockSnapWithFiles(c, yaml, &snap.SideInfo{Revision: snap.R(11)}, [][]string{
+		// system services
+		{"lib/systemd/system/snapd.service", "[Unit]\nExecStart=/usr/lib/snapd/snapd\n# X-Snapd-Snap: do-not-start"},
+		{"lib/systemd/system/snapd.socket", "[Unit]\n[Socket]\nListenStream=/run/snapd.socket"},
+		{"lib/systemd/system/snapd.snap-repair.timer", "[Unit]\n[Timer]\nOnCalendar=*-*-* 5,11,17,23:00"},
+		// user services
+		{"usr/lib/systemd/user/snapd.session-agent.service", "[Unit]\nExecStart=/usr/bin/snap session-agent"},
+		{"usr/lib/systemd/user/snapd.session-agent.socket", "[Unit]\n[Socket]\nListenStream=%t/snap-session.socket"},
+	})
+
+	reboot, err := s.be.LinkSnap(info, mockDev, nil, s.perfTimings)
+	c.Assert(err, IsNil)
+	c.Assert(reboot, Equals, false)
+
+	// system services
+	c.Check(filepath.Join(dirs.SnapServicesDir, "snapd.service"), testutil.FileEquals,
+		fmt.Sprintf("[Unit]\nExecStart=%s/usr/lib/snapd/snapd\n# X-Snapd-Snap: do-not-start", info.MountDir()))
+	c.Check(filepath.Join(dirs.SnapServicesDir, "snapd.socket"), testutil.FileEquals,
+		"[Unit]\n[Socket]\nListenStream=/run/snapd.socket")
+	c.Check(filepath.Join(dirs.SnapServicesDir, "snapd.snap-repair.timer"), testutil.FileEquals,
+		"[Unit]\n[Timer]\nOnCalendar=*-*-* 5,11,17,23:00")
+	// user services
+	c.Check(filepath.Join(dirs.SnapUserServicesDir, "snapd.session-agent.service"), testutil.FileEquals,
+		fmt.Sprintf("[Unit]\nExecStart=%s/usr/bin/snap session-agent", info.MountDir()))
+	c.Check(filepath.Join(dirs.SnapUserServicesDir, "snapd.session-agent.socket"), testutil.FileEquals,
+		"[Unit]\n[Socket]\nListenStream=%t/snap-session.socket")
+	// auxiliary mount unit
+	mountUnit := fmt.Sprintf(`[Unit]
+Description=Make the snapd snap tooling available for the system
+Before=snapd.service
+
+[Mount]
+What=%s/usr/lib/snapd
+Where=/usr/lib/snapd
+Type=none
+Options=bind
+
+[Install]
+WantedBy=snapd.service
+`, info.MountDir())
+	c.Check(filepath.Join(dirs.SnapServicesDir, "usr-lib-snapd.mount"), testutil.FileEquals, mountUnit)
+}
+
+func (s *linkSuite) TestUnlinkSnapdSnapOnCoreDoesNothing(c *C) {
+	restore := release.MockOnClassic(false)
+	defer restore()
+
+	const yaml = `name: snapd
+version: 1.0
+type: snapd
+`
+	err := os.MkdirAll(dirs.SnapServicesDir, 0755)
+	c.Assert(err, IsNil)
+	err = os.MkdirAll(dirs.SnapUserServicesDir, 0755)
+	c.Assert(err, IsNil)
+
+	info := snaptest.MockSnapWithFiles(c, yaml, &snap.SideInfo{Revision: snap.R(11)}, [][]string{
+		// system services
+		{"lib/systemd/system/snapd.service", "mock"},
+		{"lib/systemd/system/snapd.socket", "mock"},
+		{"lib/systemd/system/snapd.snap-repair.timer", "mock"},
+		// user services
+		{"usr/lib/systemd/user/snapd.session-agent.service", "mock"},
+		{"usr/lib/systemd/user/snapd.session-agent.socket", "mock"},
+	})
+
+	units := [][]string{
+		{filepath.Join(dirs.SnapServicesDir, "snapd.service"), "precious"},
+		{filepath.Join(dirs.SnapServicesDir, "snapd.socket"), "precious"},
+		{filepath.Join(dirs.SnapServicesDir, "snapd.snap-repair.timer"), "precious"},
+		{filepath.Join(dirs.SnapServicesDir, "usr-lib-snapd.mount"), "precious"},
+		{filepath.Join(dirs.SnapUserServicesDir, "snapd.session-agent.service"), "precious"},
+		{filepath.Join(dirs.SnapUserServicesDir, "snapd.session-agentsocket"), "precious"},
+	}
+	// content list uses absolute paths already
+	snaptest.PopulateDir("/", units)
+	err = s.be.UnlinkSnap(info, nil)
+	c.Assert(err, IsNil)
+	for _, unit := range units {
+		c.Check(unit[0], testutil.FileEquals, "precious")
+	}
+}
+
 type linkCleanupSuite struct {
-	linkSuite
+	linkSuiteCommon
 	info *snap.Info
 }
 
 var _ = Suite(&linkCleanupSuite{})
 
 func (s *linkCleanupSuite) SetUpTest(c *C) {
-	s.linkSuite.SetUpTest(c)
+	s.linkSuiteCommon.SetUpTest(c)
 
 	const yaml = `name: hello
 version: 1.0
