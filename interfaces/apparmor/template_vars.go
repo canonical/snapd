@@ -27,14 +27,15 @@ import (
 	"github.com/snapcore/snapd/snap"
 )
 
-// templateVariables returns text defining apparmor variables that can be used in the
-// apparmor template and by apparmor snippets.
-func templateVariables(info *snap.Info, securityTag string) string {
+// templateVariables returns text defining apparmor variables that can be used
+// in the apparmor template and by apparmor snippets.
+func templateVariables(info *snap.Info, securityTag string, cmdName string) string {
 	var buf bytes.Buffer
 	fmt.Fprintf(&buf, "# This is a snap name without the instance key\n")
 	fmt.Fprintf(&buf, "@{SNAP_NAME}=\"%s\"\n", info.SnapName())
 	fmt.Fprintf(&buf, "# This is a snap name with instance key\n")
 	fmt.Fprintf(&buf, "@{SNAP_INSTANCE_NAME}=\"%s\"\n", info.InstanceName())
+	fmt.Fprintf(&buf, "@{SNAP_COMMAND_NAME}=\"%s\"\n", cmdName)
 	fmt.Fprintf(&buf, "@{SNAP_REVISION}=\"%s\"\n", info.Revision)
 	fmt.Fprintf(&buf, "@{PROFILE_DBUS}=\"%s\"\n",
 		dbus.SafePath(securityTag))

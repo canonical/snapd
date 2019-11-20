@@ -142,8 +142,9 @@ exec /bin/cp "$@"
 	snap := makeSnap(c, "name: test", "")
 	targetPath := filepath.Join(c.MkDir(), "target.snap")
 	mountDir := c.MkDir()
-	err := snap.Install(targetPath, mountDir)
+	didNothing, err := snap.Install(targetPath, mountDir)
 	c.Assert(err, IsNil)
+	c.Assert(didNothing, Equals, false)
 	c.Check(osutil.FileExists(targetPath), Equals, true)
 	c.Check(linked, Equals, 1)
 	c.Check(cmd.Calls(), HasLen, 0)
@@ -166,12 +167,14 @@ exec /bin/cp "$@"
 	snap := makeSnap(c, "name: test2", "")
 	targetPath := filepath.Join(c.MkDir(), "target.snap")
 	mountDir := c.MkDir()
-	err := snap.Install(targetPath, mountDir)
+	didNothing, err := snap.Install(targetPath, mountDir)
 	c.Assert(err, IsNil)
+	c.Assert(didNothing, Equals, false)
 	c.Check(cmd.Calls(), HasLen, 1)
 
-	err = snap.Install(targetPath, mountDir)
+	didNothing, err = snap.Install(targetPath, mountDir)
 	c.Assert(err, IsNil)
+	c.Assert(didNothing, Equals, true)
 	c.Check(cmd.Calls(), HasLen, 1) // and not 2 \o/
 }
 
@@ -184,9 +187,21 @@ func (s *SquashfsTestSuite) TestInstallSeedNoLink(c *C) {
 	_, err := os.Lstat(targetPath)
 	c.Check(os.IsNotExist(err), Equals, true)
 
-	err = snap.Install(targetPath, c.MkDir())
+	didNothing, err := snap.Install(targetPath, c.MkDir())
 	c.Assert(err, IsNil)
+	c.Assert(didNothing, Equals, false)
 	c.Check(osutil.IsSymlink(targetPath), Equals, true) // \o/
+}
+
+func (s *SquashfsTestSuite) TestInstallNothingToDo(c *C) {
+	snap := makeSnap(c, "name: test2", "")
+
+	targetPath := filepath.Join(c.MkDir(), "foo.snap")
+	c.Assert(os.Symlink(snap.Path(), targetPath), IsNil)
+
+	didNothing, err := snap.Install(targetPath, c.MkDir())
+	c.Assert(err, IsNil)
+	c.Check(didNothing, Equals, true)
 }
 
 func (s *SquashfsTestSuite) TestPath(c *C) {

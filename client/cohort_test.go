@@ -21,7 +21,10 @@ package client_test
 
 import (
 	"encoding/json"
+	"errors"
 	"io/ioutil"
+
+	"golang.org/x/xerrors"
 
 	"gopkg.in/check.v1"
 )
@@ -64,4 +67,11 @@ func (cs *clientSuite) TestClientCreateCohorts(c *check.C) {
 		"action": "create",
 		"snaps":  []interface{}{"foo", "bar"},
 	})
+}
+
+func (cs *clientSuite) TestClientCreateCohortsErrIsWrapped(c *check.C) {
+	cs.err = errors.New("boom")
+	_, err := cs.cli.CreateCohorts([]string{"foo", "bar"})
+	var e xerrors.Wrapper
+	c.Assert(err, check.Implements, &e)
 }

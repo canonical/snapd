@@ -1,0 +1,3 @@
+#!/bin/sh
+mkdir "$SNAP_DATA/package-assets/"
+echo "B" > "$SNAP_DATA/package-assets/asset.txt"
