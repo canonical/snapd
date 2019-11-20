@@ -65,7 +65,7 @@ type installableBootloader interface {
 // InstallBootConfig installs the bootloader config from the gadget
 // snap dir into the right place.
 func InstallBootConfig(gadgetDir, rootDir string) error {
-	for _, bl := range []installableBootloader{&grub{}, &uboot{}, &androidboot{}, &lk{}} {
+	for _, bl := range []installableBootloader{&grub{}, &recoveryGrub{}, &uboot{}, &androidboot{}, &lk{}} {
 		// the bootloader config file has to be root of the gadget snap
 		gadgetFile := filepath.Join(gadgetDir, bl.Name()+".conf")
 		if !osutil.FileExists(gadgetFile) {
@@ -99,6 +99,10 @@ type Options struct {
 
 // Find returns the bootloader for the system
 // or an error if no bootloader is found.
+//
+// The rootdir option is useful for image creation operations. It
+// can also be used to find the recvoery bootloader, e.g. on uc20:
+//   bootloader.Find("/run/mnt/ubuntu-seed")
 func Find(rootdir string, opts *Options) (Bootloader, error) {
 	if forcedBootloader != nil || forcedError != nil {
 		return forcedBootloader, forcedError
@@ -119,6 +123,11 @@ func Find(rootdir string, opts *Options) (Bootloader, error) {
 	// no, try grub
 	if grub := newGrub(rootdir); grub != nil {
 		return grub, nil
+	}
+
+	// no, try recoveryGrub
+	if recoveryGrub := newRecoveryGrub(rootdir); recoveryGrub != nil {
+		return recoveryGrub, nil
 	}
 
 	// no, try androidboot
