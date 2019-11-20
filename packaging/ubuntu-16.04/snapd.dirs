@@ -11,6 +11,7 @@ var/lib/snapd/lib/gl
 var/lib/snapd/lib/gl32
 var/lib/snapd/lib/glvnd
 var/lib/snapd/lib/vulkan
+var/lib/snapd/ssl/snapd-only
 var/lib/snapd/snaps/partial
 var/lib/snapd/void
 var/snap

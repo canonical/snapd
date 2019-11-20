@@ -21,9 +21,16 @@ package httputil
 
 import (
 	"crypto/tls"
+	"crypto/x509"
+	"fmt"
+	"io/ioutil"
 	"net/http"
 	"net/url"
+	"path/filepath"
 	"time"
+
+	"github.com/snapcore/snapd/dirs"
+	"github.com/snapcore/snapd/logger"
 )
 
 type ClientOptions struct {
@@ -31,6 +38,35 @@ type ClientOptions struct {
 	TLSConfig  *tls.Config
 	MayLogBody bool
 	Proxy      func(*http.Request) (*url.URL, error)
+}
+
+func addLocalSslCertificates(conf *tls.Config) (allCAs *x509.CertPool, err error) {
+	if conf != nil && conf.RootCAs != nil {
+		allCAs = conf.RootCAs
+	} else {
+		allCAs, err = x509.SystemCertPool()
+		if err != nil {
+			return nil, fmt.Errorf("cannot read system certificates: %v", err)
+		}
+	}
+	if allCAs == nil {
+		return nil, fmt.Errorf("cannot use empty certificates pool")
+	}
+	extraCertFiles, err := filepath.Glob(filepath.Join(dirs.SnapdExtraSslCertsDir, "*.pem"))
+	if err != nil {
+		return nil, err
+	}
+	for _, p := range extraCertFiles {
+		extraCert, err := ioutil.ReadFile(p)
+		if err != nil {
+			return nil, fmt.Errorf("cannot read extra certificate: %v", err)
+		}
+		// XXX: continue here trying to add others?
+		if ok := allCAs.AppendCertsFromPEM(extraCert); !ok {
+			return nil, fmt.Errorf("cannot append extra ssl certificate: %v", p)
+		}
+	}
+	return allCAs, nil
 }
 
 // NewHTTPCLient returns a new http.Client with a LoggedTransport, a
@@ -46,6 +82,20 @@ func NewHTTPClient(opts *ClientOptions) *http.Client {
 		transport.Proxy = opts.Proxy
 	}
 	transport.ProxyConnectHeader = http.Header{"User-Agent": []string{UserAgent()}}
+
+	// add extra certs
+	certs, err := addLocalSslCertificates(transport.TLSClientConfig)
+	if err != nil {
+		logger.Noticef("cannot add local ssl certificates: %v", err)
+	}
+	if certs != nil {
+		if transport.TLSClientConfig == nil {
+			// c.f. go source: crypto/tls/common.go
+			var emptyConfig tls.Config
+			transport.TLSClientConfig = &emptyConfig
+		}
+		transport.TLSClientConfig.RootCAs = certs
+	}
 
 	return &http.Client{
 		Transport: &LoggedTransport{
