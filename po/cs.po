@@ -14,8 +14,8 @@ msgstr ""
 "MIME-Version: 1.0\n"
 "Content-Type: text/plain; charset=UTF-8\n"
 "Content-Transfer-Encoding: 8bit\n"
-"X-Launchpad-Export-Date: 2018-10-05 14:20+0000\n"
-"X-Generator: Launchpad (build 18785)\n"
+"X-Launchpad-Export-Date: 2019-11-20 06:56+0000\n"
+"X-Generator: Launchpad (build c597c3229eb023b1e626162d5947141bf7befb13)\n"
 
 #, c-format
 msgid ""
@@ -24,18 +24,19 @@ msgid ""
 "Try \"snapcraft prime\" in your project directory, then \"snap try\" again."
 msgstr ""
 
+#. TRANSLATORS: the first %q will be the (quoted) snap name, the second a channel
 #, c-format
 msgid "%q switched to the %q channel\n"
-msgstr ""
+msgstr "%q přepnuto na kanál %q\n"
 
 #. TRANSLATORS: 1. snap name, 2. snap version (keep those together please). the 3rd %s is a path (where it's mounted from).
 #, c-format
 msgid "%s %s mounted from %s\n"
-msgstr ""
+msgstr "%s %s připojeno z %s\n"
 
 #, c-format
 msgid "%s (delta)"
-msgstr ""
+msgstr "%s (rozdíl)"
 
 #. TRANSLATORS: %s is an error message (e.g. “cannot yadda yadda: permission denied”)
 #, c-format
@@ -45,32 +46,32 @@ msgstr ""
 #. TRANSLATORS: %s is an error message (e.g. “cannot yadda yadda: permission denied”)
 #, c-format
 msgid "%s (try with sudo)"
-msgstr ""
+msgstr "%s (zkuste se sudo)"
 
 #, c-format
 msgid "%s already installed\n"
-msgstr ""
+msgstr "%s už je nainstalované\n"
 
 #, c-format
 msgid "%s disabled\n"
-msgstr ""
+msgstr "%s vypnuto\n"
 
 #, c-format
 msgid "%s enabled\n"
-msgstr ""
+msgstr "%s zapnuto\n"
 
 #, c-format
 msgid "%s not installed\n"
-msgstr ""
+msgstr "%s není nainstalováno\n"
 
 #, c-format
 msgid "%s removed\n"
-msgstr ""
+msgstr "%s odstraněno\n"
 
 #. TRANSLATORS: first %s is a snap name, second %s is a revision
 #, c-format
 msgid "%s reverted to %s\n"
-msgstr ""
+msgstr "%s vráceno na %s\n"
 
 #. TRANSLATORS: the args are a snap name optionally followed by a channel, then a version, then the developer name (e.g. "some-snap (beta) 1.3 from 'alice' installed")
 #, c-format
@@ -85,12 +86,12 @@ msgstr ""
 #. TRANSLATORS: the args are a snap name optionally followed by a channel, then a version (e.g. "some-snap (beta) 1.3 installed")
 #, c-format
 msgid "%s%s %s installed\n"
-msgstr ""
+msgstr "%s%s %s nainstalováno\n"
 
 #. TRANSLATORS: the args are a snap name optionally followed by a channel, then a version (e.g. "some-snap (beta) 1.3 refreshed")
 #, c-format
 msgid "%s%s %s refreshed\n"
-msgstr ""
+msgstr "%s%s %s aktualizováno\n"
 
 msgid "--list does not take mode nor channel flags"
 msgstr ""
@@ -99,100 +100,104 @@ msgid "--time does not take mode nor channel flags"
 msgstr ""
 
 msgid "-r can only be used with --hook"
-msgstr ""
+msgstr "-r je možné použít pouze ve spojení s --hook"
 
-#. TRANSLATORS: This needs to be wrapped in <>s.
+#. TRANSLATORS: This needs to begin with < and end with >
 msgid "<alias-or-snap>"
-msgstr ""
+msgstr "<alias-nebo-snap>"
 
-#. TRANSLATORS: This needs to be wrapped in <>s.
+#. TRANSLATORS: This needs to begin with < and end with >
 msgid "<alias>"
-msgstr ""
+msgstr "<alias>"
 
-#. TRANSLATORS: This needs to be wrapped in <>s.
+#. TRANSLATORS: This needs to begin with < and end with >
 msgid "<assertion file>"
-msgstr ""
+msgstr "<soubor tvrzení>"
 
-#. TRANSLATORS: This needs to be wrapped in <>s.
+#. TRANSLATORS: This needs to begin with < and end with >
 msgid "<assertion type>"
-msgstr ""
+msgstr "<typ tvrzení>"
 
-#. TRANSLATORS: This needs to be wrapped in <>s.
+#. TRANSLATORS: This needs to begin with < and end with >
 msgid "<change-id>"
-msgstr ""
+msgstr "<identifikátor-změny>"
 
-#. TRANSLATORS: This needs to be wrapped in <>s.
+#. TRANSLATORS: This needs to begin with < and end with >
 msgid "<conf value>"
-msgstr ""
+msgstr "<nastavovací hodnota>"
 
-#. TRANSLATORS: This is a noun, and it needs to be wrapped in <>s.
-#. TRANSLATORS: This is a noun, and it needs to be wrapped in <>s.
+#. TRANSLATORS: This is a noun, and it needs to begin with < and end with >
+#. TRANSLATORS: This is a noun and it needs to begin with < and end with >
 msgid "<email>"
-msgstr ""
+msgstr "<e-mail>"
 
-#. TRANSLATORS: This needs to be wrapped in <>s.
+#. TRANSLATORS: This needs to begin with < and end with >
 msgid "<filename>"
-msgstr ""
+msgstr "<nazev_souboru>"
 
-#. TRANSLATORS: This needs to be wrapped in <>s.
+#. TRANSLATORS: This needs to begin with < and end with >
 msgid "<header filter>"
-msgstr ""
+msgstr "<filtr hlavičky>"
 
-#. TRANSLATORS: This needs to be wrapped in <>s.
+#. TRANSLATORS: This needs to begin with < and end with >
 msgid "<interface>"
-msgstr ""
+msgstr "<rozhrani>"
 
-#. TRANSLATORS: This needs to be wrapped in <>s.
-#. TRANSLATORS: This needs to be wrapped in <>s.
-#. TRANSLATORS: This needs to be wrapped in <>s.
+#. TRANSLATORS: This needs to begin with < and end with >
+#. TRANSLATORS: This needs to begin with < and end with >
+#. TRANSLATORS: This needs to begin with < and end with >
 msgid "<key-name>"
-msgstr ""
+msgstr "<název-klíče>"
 
-#. TRANSLATORS: This needs to be wrapped in <>s.
-#. TRANSLATORS: This needs to be wrapped in <>s.
+#. TRANSLATORS: This needs to begin with < and end with >
+#. TRANSLATORS: This needs to begin with < and end with >
 msgid "<key>"
-msgstr ""
+msgstr "<klíč>"
 
-#. TRANSLATORS: This needs to be wrapped in <>s.
+#. TRANSLATORS: This needs to begin with < and end with >
 msgid "<model-assertion>"
 msgstr ""
 
-#. TRANSLATORS: This needs to be wrapped in <>s.
+#. TRANSLATORS: This needs to begin with < and end with >
 msgid "<query>"
-msgstr ""
+msgstr "<dotaz>"
 
-#. TRANSLATORS: This needs to be wrapped in <>s.
+#. TRANSLATORS: This needs to begin with < and end with >
 msgid "<root-dir>"
-msgstr ""
+msgstr "<kořenová_složka>"
 
-#. TRANSLATORS: This needs to be wrapped in <>s.
+#. TRANSLATORS: This needs to begin with < and end with >
 msgid "<service>"
-msgstr ""
+msgstr "<služba>"
 
-#. TRANSLATORS: This needs to be wrapped in <>s.
-#. TRANSLATORS: This needs to be wrapped in <>s.
+#. TRANSLATORS: This needs to begin with < and end with >
+#. TRANSLATORS: This needs to begin with < and end with >
 msgid "<snap>:<plug>"
 msgstr ""
 
-#. TRANSLATORS: This needs to be wrapped in <>s.
+#. TRANSLATORS: This needs to begin with < and end with >
 msgid "<snap>:<slot or plug>"
-msgstr ""
+msgstr "<snap>:<slot nebo zástrčka>"
 
-#. TRANSLATORS: This needs to be wrapped in <>s.
-#. TRANSLATORS: This needs to be wrapped in <>s.
+#. TRANSLATORS: This needs to begin with < and end with >
+#. TRANSLATORS: This needs to begin with < and end with >
 msgid "<snap>:<slot>"
 msgstr ""
 
+#. TRANSLATORS: This should not start with a lowercase letter.
 msgid ""
 "A service specification, which can be just a snap name (for all services in "
 "the snap), or <snap>.<app> for a single service."
 msgstr ""
+"Určení služby, která může být pouze název snapu (pro všechny služby ve "
+"snapu), nebo <snap>.<app> pro jedinou službu."
 
 msgid "Abort a pending change"
-msgstr ""
+msgstr "Zrušit neprovedenou změnu"
 
+#. TRANSLATORS: this is used to introduce a list of aliases that were added
 msgid "Added"
-msgstr ""
+msgstr "Přidáno"
 
 msgid "Adds an assertion to the system"
 msgstr ""
@@ -200,133 +205,146 @@ msgstr ""
 msgid "Advise on available snaps."
 msgstr ""
 
+#. TRANSLATORS: This should not start with a lowercase letter.
 msgid "Advise on snaps that provide the given command"
-msgstr ""
+msgstr "Radit snapy které poskytují daný příkaz"
 
+#. TRANSLATORS: This should not start with a lowercase letter.
 msgid "Alias for --dangerous (DEPRECATED)"
-msgstr ""
+msgstr "Alternativní název pro --dangerous (ZASTARALÉ)"
 
 msgid "All snaps up to date."
-msgstr ""
+msgstr "Všechny snapy jsou aktuální"
 
 msgid "Allow opening file?"
-msgstr ""
+msgstr "Umožnit otevřít soubor?"
 
+#. TRANSLATORS: This should not start with a lowercase letter.
 msgid "Allow refresh attempt on snap unknown to the store"
-msgstr ""
+msgstr "Umožnit pokus o aktualizaci snapu, který není obchodu znám"
 
 msgid "Allow settings change?"
-msgstr ""
+msgstr "Umožnit změnu nastavení?"
 
 #, c-format
 msgid "Allow snap %q to change %q to %q ?"
-msgstr ""
+msgstr "Umožnit snapu %q změnit %q na %q ?"
 
 #, c-format
 msgid "Allow snap %q to open file %q?"
-msgstr ""
+msgstr "Umožnit snapu %q otevřít soubor %q?"
 
+#. TRANSLATORS: This should not start with a lowercase letter.
 msgid "Alternative command to run"
-msgstr ""
+msgstr "Který alternativní příkaz spustit"
 
+#. TRANSLATORS: This should not start with a lowercase letter.
 msgid "Always return document, even with single key"
-msgstr ""
+msgstr "Vždy vrátit dokument, i s jediným klíčem"
 
+#. TRANSLATORS: This should not start with a lowercase letter.
 msgid "Always return list, even with single key"
-msgstr ""
+msgstr "Vždy vrátit seznam, i pro jediný klíč"
 
-#. TRANSLATORS: This should probably not start with a lowercase letter. Also, note users on login.ubuntu.com can have multiple email addresses.
+#. TRANSLATORS: This should not start with a lowercase letter (unless it's "login.ubuntu.com"). Also, note users on login.ubuntu.com can have multiple email addresses.
 msgid "An email of a user on login.ubuntu.com"
-msgstr ""
+msgstr "E-mail uživatele na login.ubuntu.com"
 
+#. TRANSLATORS: This should not start with a lowercase letter.
 msgid ""
 "As well as starting the service now, arrange for it to be started on boot."
 msgstr ""
+"Zároveň se spuštěním služby nyní, nastavit aby byla spouštěná při spouštění "
+"systému."
 
+#. TRANSLATORS: This should not start with a lowercase letter.
 msgid ""
 "As well as stopping the service now, arrange for it to no longer be started "
 "on boot."
 msgstr ""
+"Zároveň se zastavením služby nyní, nastavit aby už nebyla spouštěná při "
+"spouštění systému."
 
-#. TRANSLATORS: This should probably not start with a lowercase letter.
+#. TRANSLATORS: This should not start with a lowercase letter.
 msgid "Assertion file"
-msgstr ""
+msgstr "Soubor s tvrzením"
 
-#. TRANSLATORS: This should probably not start with a lowercase letter.
+#. TRANSLATORS: This should not start with a lowercase letter.
 msgid "Assertion type name"
-msgstr ""
+msgstr "Název typu tvrzení"
 
 msgid "Authenticates on snapd and the store"
 msgstr ""
 
 #, c-format
 msgid "Auto-refresh %d snaps"
-msgstr ""
+msgstr "Automaticky aktualizovat %d snapy"
 
 #, c-format
 msgid "Auto-refresh snap %q"
-msgstr ""
+msgstr "Automaticky aktualizovat snap %q"
 
 #. TRANSLATORS: the %s is a comma-separated list of quoted snap names
 #, c-format
 msgid "Auto-refresh snaps %s"
-msgstr ""
+msgstr "Automaticky aktualizovat snapy %s"
 
 #, c-format
 msgid "Automatically connect eligible plugs and slots of snap %q"
-msgstr ""
+msgstr "Automaticky propojit oprávněné zástrčky a sloty snapu %q"
 
 msgid "Bad code. Try again: "
-msgstr ""
+msgstr "Chybný kód. Zkuste to znovu: "
 
 msgid "Buys a snap"
 msgstr ""
 
-#. TRANSLATORS: This should probably not start with a lowercase letter.
+#. TRANSLATORS: This should not start with a lowercase letter.
 msgid "Change ID"
-msgstr ""
+msgstr "Změnit identifikátor"
 
 msgid "Changes configuration options"
-msgstr ""
+msgstr "Změní volby nastavení"
 
 msgid "Command\tAlias\tNotes"
-msgstr ""
+msgstr "Příkaz\tAlternativní název\tPoznámky"
 
-#. TRANSLATORS: This should probably not start with a lowercase letter.
+#. TRANSLATORS: This should not start with a lowercase letter.
 msgid "Configuration value (key=value)"
 msgstr ""
 
 msgid "Confirm passphrase: "
-msgstr ""
+msgstr "Potvrďte heslovou frázi: "
 
 #, c-format
 msgid "Connect %s:%s to %s:%s"
-msgstr ""
+msgstr "Připojit %s:%s k %s:%s"
 
 msgid "Connects a plug to a slot"
 msgstr ""
 
-#. TRANSLATORS: This should probably not start with a lowercase letter.
+#. TRANSLATORS: This should not start with a lowercase letter.
 msgid "Constrain listing to a specific snap or snap:name"
-msgstr ""
+msgstr "Omezit výpis na konkrétní snap nebo snap:name"
 
+#. TRANSLATORS: This should not start with a lowercase letter.
 msgid "Constrain listing to specific interfaces"
-msgstr ""
+msgstr "Omezit výpis na konkrétní rozhraní"
 
-#. TRANSLATORS: This should probably not start with a lowercase letter.
+#. TRANSLATORS: This should not start with a lowercase letter.
 msgid "Constrain listing to those matching header=value"
-msgstr ""
+msgstr "Omezit výpis na ty, odpovídající hlavička=hodnota"
 
 #, c-format
 msgid "Copy snap %q data"
-msgstr ""
+msgstr "Zkopírovat data snapu %q"
 
 msgid ""
 "Create a cryptographic key pair that can be used for signing assertions."
 msgstr ""
 
 msgid "Create cryptographic key pair"
-msgstr ""
+msgstr "Vytvořit dvojici kryptografických klíčů"
 
 msgid "Create snap build assertion"
 msgstr ""
@@ -338,22 +356,22 @@ msgid "Creates a local system user"
 msgstr ""
 
 msgid "Delete cryptographic key pair"
-msgstr ""
+msgstr "Smazat dvojici kryptografických klíčů"
 
 msgid "Delete the local cryptographic key pair with the given name."
 msgstr ""
 
 #, c-format
 msgid "Disable %q snap"
-msgstr ""
+msgstr "Zakázat snap %q"
 
 #, c-format
 msgid "Disable aliases for snap %q"
-msgstr ""
+msgstr "Vypnout alternativní názvy pro snap %q"
 
 #, c-format
 msgid "Disable all aliases for snap %q"
-msgstr ""
+msgstr "Vypnout veškeré alternativní názvy pro snap %q"
 
 msgid "Disables a snap in the system"
 msgstr ""
@@ -364,109 +382,126 @@ msgstr ""
 
 #, c-format
 msgid "Disconnect %s:%s from %s:%s"
-msgstr ""
+msgstr "Odpojit %s:%s od %s:%s"
 
 msgid "Disconnects a plug from a slot"
 msgstr ""
 
+#. TRANSLATORS: This should not start with a lowercase letter.
 msgid "Do not wait for the operation to finish but just print the change id."
-msgstr ""
+msgstr "Nečekat na dokončení operace, ale jen vypsat identifikátor změny."
 
 #, c-format
 msgid "Download snap %q%s from channel %q"
-msgstr ""
+msgstr "Stáhnout snap %q%s z kanálu %q"
 
+#. TRANSLATORS: This should not start with a lowercase letter.
 msgid ""
 "Download the given revision of a snap, to which you must have developer "
 "access"
 msgstr ""
+"Stáhnout danou revizi snapu, ke které je třeba, abyste měli vývojářský "
+"přístup"
 
 msgid "Downloads the given snap"
 msgstr ""
 
 msgid "Email address: "
-msgstr ""
+msgstr "E-mailová adresa: "
 
 #, c-format
 msgid "Enable %q snap"
-msgstr ""
+msgstr "Povolit snap %q"
 
 msgid "Enables a snap in the system"
 msgstr ""
 
 #, c-format
 msgid "Ensure prerequisites for %q are available"
-msgstr ""
+msgstr "Zajistit že přepoklady pro %q jsou k dispozici"
 
 msgid ""
 "Export a public key assertion body that may be imported by other systems."
 msgstr ""
 
 msgid "Export cryptographic public key"
-msgstr ""
+msgstr "Exportovat kryptografický veřejný klíč"
 
 #, c-format
 msgid "Fetch and check assertions for snap %q%s"
-msgstr ""
+msgstr "Stáhnout a zkontrolovat tvrzení pro snap %q%s"
 
 #, c-format
 msgid "Fetching assertions for %q\n"
-msgstr ""
+msgstr "Stahují se tvrzení pro %q\n"
 
 #, c-format
 msgid "Fetching snap %q\n"
-msgstr ""
+msgstr "Stahování snap balíčku %q\n"
 
-#. TRANSLATORS: This should probably not start with a lowercase letter.
+#. TRANSLATORS: This should not start with a lowercase letter.
 msgid "Filename of the snap you want to assert a build for"
-msgstr ""
+msgstr "Název souboru se snapem, pro který chcete tvrdit sestavení"
 
 msgid "Finds packages to install"
 msgstr ""
 
+#. TRANSLATORS: This should not start with a lowercase letter.
 msgid "Force adding the user, even if the device is already managed"
-msgstr ""
+msgstr "Vynutit přidání uživatele, i když je zařízení už spravováno"
 
+#. TRANSLATORS: This should not start with a lowercase letter.
 msgid "Force import on classic systems"
-msgstr ""
+msgstr "Vynutit import na klasických systémech"
 
 msgid ""
 "Format public key material as a request for an account-key for this account-"
 "id"
 msgstr ""
+"Formátovat materiál veřejného klíče jako požadavek pro account-key pro toto "
+"account-id"
 
 msgid "Generate device key"
-msgstr ""
+msgstr "Vytvořit klíč zařízení"
 
+#. TRANSLATORS: This should not start with a lowercase letter.
 msgid "Generate the manpage"
-msgstr ""
+msgstr "Vytvořit manuálovou stránku"
 
+#. TRANSLATORS: This should not start with a lowercase letter.
 msgid "Grade states the build quality of the snap (defaults to 'stable')"
-msgstr ""
+msgstr "Známka vyjadřuje kvalitu sestavení snapu (výchozí je „stable“)"
 
+#. TRANSLATORS: This should not start with a lowercase letter.
 msgid "Grant sudo access to the created user"
-msgstr ""
+msgstr "Udělit vytvořenému uživateli sudo přístup"
 
 msgid "Help"
 msgstr "Nápověda"
 
+#. TRANSLATORS: This should not start with a lowercase letter.
 msgid "Hook to run"
-msgstr ""
+msgstr "Háček který spustit"
 
 msgid "ID\tStatus\tSpawn\tReady\tSummary\n"
-msgstr ""
+msgstr "Identifikátor\tStav\tSpawn\tPřipraveno\tSouhrn\n"
 
+#. TRANSLATORS: This should not start with a lowercase letter.
 msgid "Identifier of the signer"
-msgstr ""
+msgstr "Identifikátor podepisujícího"
 
+#. TRANSLATORS: This should not start with a lowercase letter.
 msgid "Identifier of the snap package associated with the build"
-msgstr ""
+msgstr "Ideentifikátor snap balíčku související se sestavením"
 
+#. TRANSLATORS: This should not start with a lowercase letter.
 msgid "If the service has a reload command, use it instead of restarting."
 msgstr ""
+"Pokud služba má příkaz reload (znovunačíst), použít ho namísto restartování."
 
+#. TRANSLATORS: This should not start with a lowercase letter.
 msgid "Ignore validation by other snaps blocking the refresh"
-msgstr ""
+msgstr "Ignorovat ověření ostatními snapy blokujícími aktualizaci"
 
 #, c-format
 msgid ""
@@ -475,22 +510,27 @@ msgid ""
 "\n"
 "Once completed, return here and run 'snap buy %s' again."
 msgstr ""
+"Pro zakoupení %q, je třeba souhlasit s nejnovějšími všeobecnými podmínkami. "
+"To je možné na https://my.ubuntu.com/payment/edit.\n"
+"\n"
+"Po dokončení se  sem vraťte a spusťte „snap buy %s“ znovu."
 
 msgid "Include a verbose list of a snap's notes (otherwise, summarise notes)"
 msgstr ""
 
+#. TRANSLATORS: This should not start with a lowercase letter.
 msgid "Include unused interfaces"
-msgstr ""
+msgstr "Zahrnout nepoužívaná rozhraní"
 
 msgid "Initialize device"
-msgstr ""
+msgstr "Inicializovat zařízení"
 
 msgid "Inspects devices for actionable information"
 msgstr ""
 
 #, c-format
 msgid "Install %q snap"
-msgstr ""
+msgstr "Nainstalovat snap %q"
 
 #, c-format
 msgid "Install %q snap from %q channel"
@@ -498,45 +538,56 @@ msgstr ""
 
 #, c-format
 msgid "Install %q snap from file"
-msgstr ""
+msgstr "Instalovat snap %q ze souboru"
 
 #, c-format
 msgid "Install %q snap from file %q"
-msgstr ""
+msgstr "Instalovat snap %q ze souboru %q"
 
+#. TRANSLATORS: This should not start with a lowercase letter.
 msgid "Install from the beta channel"
-msgstr ""
+msgstr "Nainstalovat z kanálu testovacích verzí (beta)"
 
+#. TRANSLATORS: This should not start with a lowercase letter.
 msgid "Install from the candidate channel"
-msgstr ""
+msgstr "Nainstalovat z kanálu verzí před vydáním (candidate)"
 
+#. TRANSLATORS: This should not start with a lowercase letter.
 msgid "Install from the edge channel"
-msgstr ""
+msgstr "Nainstalovat z kanálu vývojových verzí (edge)"
 
+#. TRANSLATORS: This should not start with a lowercase letter.
 msgid "Install from the stable channel"
-msgstr ""
+msgstr "Nainstalovat z kanálu stabilních verzí"
 
 #, c-format
 msgid "Install snap %q"
-msgstr ""
+msgstr "Nainstalovat snap balíček %q"
 
 #. TRANSLATORS: the %s is a comma-separated list of quoted snap names
 #, c-format
 msgid "Install snaps %s"
-msgstr ""
+msgstr "Nainstalovat snapy %s"
 
+#. TRANSLATORS: This should not start with a lowercase letter.
 msgid ""
 "Install the given revision of a snap, to which you must have developer access"
 msgstr ""
+"Nainstalovat danou verzi snapu, ke které je třeba mít vývojářský přístup"
 
+#. TRANSLATORS: This should not start with a lowercase letter.
 msgid ""
 "Install the given snap file even if there are no pre-acknowledged signatures "
 "for it, meaning it was not verified and could be dangerous (--devmode "
 "implies this)"
 msgstr ""
+"Nainstalovat daný snap soubor i když zde nejsou žádné předem schválené "
+"podpisy pro něj, což znamená, že nebude ověřen a může být nebezpečný (--"
+"devmode toto zahrnuje)"
 
+#. TRANSLATORS: This should not start with a lowercase letter.
 msgid "Install the given snap without enabling its automatic aliases"
-msgstr ""
+msgstr "Instalovat daný snap bez povolení jeho automatických aliasů"
 
 #, c-format
 msgid ""
@@ -544,35 +595,38 @@ msgid ""
 "   snap ack %s\n"
 "   snap install %s\n"
 msgstr ""
+"Nainstalovat snap pomocí:\n"
+"   snap ack %s\n"
+"   snap install %s\n"
 
 msgid "Installs a snap to the system"
 msgstr ""
 
-#. TRANSLATORS: This should probably not start with a lowercase letter.
-#. TRANSLATORS: This should probably not start with a lowercase letter.
+#. TRANSLATORS: This should not start with a lowercase letter.
+#. TRANSLATORS: This should not start with a lowercase letter.
 msgid "Key of interest within the configuration"
-msgstr ""
+msgstr "Klíče zájmu v nastavení"
 
 msgid "List a change's tasks"
-msgstr ""
+msgstr "Vypsat úkoly změny"
 
 msgid "List cryptographic keys"
-msgstr ""
+msgstr "Vypsat kryptografické klíče"
 
 msgid "List cryptographic keys that can be used for signing assertions."
 msgstr ""
 
 msgid "List installed snaps"
-msgstr ""
+msgstr "Vypsat nainstalované snapy"
 
 msgid "List system changes"
-msgstr ""
+msgstr "Vypsat změny systému"
 
 msgid "Lists aliases in the system"
 msgstr ""
 
 msgid "Lists all repairs"
-msgstr ""
+msgstr "Vypsat všechny opravy"
 
 msgid "Lists interfaces in the system"
 msgstr ""
@@ -584,58 +638,62 @@ msgid "Log out of the store"
 msgstr ""
 
 msgid "Login successful"
-msgstr ""
+msgstr "Přihlášení úspěšné"
 
 #, c-format
 msgid "Make current revision for snap %q unavailable"
-msgstr ""
+msgstr "Učinit stávající revizi pro snap %q nedostupnou"
 
 #, c-format
 msgid "Make snap %q (%s) available to the system"
-msgstr ""
+msgstr "Zpřístupnit snap %q (%s) systému"
 
 #, c-format
 msgid "Make snap %q (%s) unavailable to the system"
-msgstr ""
+msgstr "Učinit snap %q (%s) nedostupný pro systém"
 
 #, c-format
 msgid "Make snap %q unavailable to the system"
-msgstr ""
+msgstr "Učinit snap %q nedostupný pro systém"
 
 #, c-format
 msgid "Make snap %q%s available to the system"
-msgstr ""
+msgstr "Zpřístupnit snap %q%s systému"
 
 msgid "Mark system seeded"
-msgstr ""
+msgstr "Označit systém osazený"
 
 #, c-format
 msgid "Mount snap %q%s"
-msgstr ""
+msgstr "Připojit snap %q%s"
 
-#. TRANSLATORS: This should probably not start with a lowercase letter.
+#. TRANSLATORS: This should not start with a lowercase letter.
 msgid "Name of key to create; defaults to 'default'"
-msgstr ""
+msgstr "Název klíče, který vytvořit – výchozí je „default“"
 
-#. TRANSLATORS: This should probably not start with a lowercase letter.
+#. TRANSLATORS: This should not start with a lowercase letter.
 msgid "Name of key to delete"
-msgstr ""
+msgstr "Název klíče, který smazat"
 
-#. TRANSLATORS: This should probably not start with a lowercase letter.
+#. TRANSLATORS: This should not start with a lowercase letter.
 msgid "Name of key to export"
-msgstr ""
+msgstr "Název klíče, který exportovat"
 
+#. TRANSLATORS: This should not start with a lowercase letter.
 msgid "Name of the GnuPG key to use (defaults to 'default' as key name)"
 msgstr ""
+"Název GnuPG klíče který použít (jinak bude použit výchozí název klíče "
+"„default“)"
 
+#. TRANSLATORS: This should not start with a lowercase letter.
 msgid "Name of the key to use, otherwise use the default key"
-msgstr ""
+msgstr "Název klíče, který použít – jinak použít výchozí klíč"
 
 msgid "Name\tSHA3-384"
-msgstr ""
+msgstr "Název\tSHA3-384"
 
 msgid "Name\tSummary"
-msgstr ""
+msgstr "Název\tSouhrn"
 
 msgid "Name\tVersion\tDeveloper\tNotes\tSummary"
 msgstr ""
@@ -648,62 +706,67 @@ msgstr ""
 
 #, c-format
 msgid "No aliases are currently defined for snap %q.\n"
-msgstr ""
+msgstr "Pro snap %q nejsou momentálně definovány žádné aliasy\n"
 
 msgid "No aliases are currently defined."
-msgstr ""
+msgstr "V tuto chvíli nejsou definovány žádné alternativní názvy"
 
 #, c-format
 msgid "No command %q found, did you mean:\n"
 msgstr ""
 
 msgid "No connections to disconnect"
-msgstr ""
+msgstr "Žádná spojení k odpojení"
 
 #. TRANSLATORS: the %q is the (quoted) name of the section the user entered
 #, c-format
 msgid "No matching section %q, use --section to list existing sections"
 msgstr ""
+"Žádná odpovídající sekce %q, existující sekce si vypíšete pomocí --section"
 
 #. TRANSLATORS: the first %q is the (quoted) query, the
 #. second %q is the (quoted) name of the section the
 #. user entered
 #, c-format
 msgid "No matching snaps for %q in section %q\n"
-msgstr ""
+msgstr "Žádné odpovídající snapy pro %q v sekci %q\n"
 
 #. TRANSLATORS: the %q is the (quoted) query the user entered
 #, c-format
 msgid "No matching snaps for %q\n"
-msgstr ""
+msgstr "%q neodpovídají žádné snapy\n"
 
 msgid ""
 "No search term specified. Here are some interesting snaps:\n"
 "\n"
 msgstr ""
+"Nezadán pojem k vyhledání. Tady je několik zajímavých snap balíčků:\n"
+"\n"
 
 msgid "No section specified. Available sections:\n"
-msgstr ""
+msgstr "Nezadána sekce. Sekce k dispozici:\n"
 
 msgid "No snaps are installed yet. Try \"snap install hello-world\"."
 msgstr ""
 
+#. TRANSLATORS: This should not start with a lowercase letter.
+#. TRANSLATORS: This should not start with a lowercase letter.
 msgid "Output results in JSON format"
-msgstr ""
+msgstr "Výsledky vracet ve formátu JSON"
 
 msgid "Pack the given target dir as a snap"
 msgstr ""
 
 #, c-format
 msgid "Packages matching %q:\n"
-msgstr ""
+msgstr "Balíčky odpovídající %q:\n"
 
 msgid "Passphrase: "
-msgstr ""
+msgstr "Heslová fráze: "
 
 #, c-format
 msgid "Password of %q: "
-msgstr ""
+msgstr "Heslo %q: "
 
 #. TRANSLATORS: %q, %q and %s are the snap name, developer, and price. Please wrap the translation at 80 characters.
 #, c-format
@@ -711,31 +774,33 @@ msgid ""
 "Please re-enter your Ubuntu One password to purchase %q from %q\n"
 "for %s. Press ctrl-c to cancel."
 msgstr ""
+"Pro nákup %q od %q za %s prosím znovu zadejte své heslo do Ubuntu One.\n"
+"Pro zrušení stiskněte ctrl-c."
 
 msgid "Please try: snap find --section=<selected section>\n"
 msgstr ""
 
 #, c-format
 msgid "Prefer aliases for snap %q"
-msgstr ""
+msgstr "Upřednostňovat alternativní názvy pro snap %q"
 
 msgid "Prefer aliases from a snap and disable conflicts"
 msgstr ""
 
 #, c-format
 msgid "Prefer aliases of snap %q"
-msgstr ""
+msgstr "Upřednostňovat alternativní názvy snapu %q"
 
 msgid "Prepare a snappy image"
 msgstr ""
 
 #, c-format
 msgid "Prepare snap %q (%s)"
-msgstr ""
+msgstr "Připravit snap %q (%s)"
 
 #, c-format
 msgid "Prepare snap %q%s"
-msgstr ""
+msgstr "Připravit snap %q%s"
 
 msgid "Print the version and exit"
 msgstr "Vypsat informace o verzi a skončit"
@@ -754,48 +819,53 @@ msgstr ""
 
 #, c-format
 msgid "Prune automatic aliases for snap %q"
-msgstr ""
+msgstr "Ořezat automatické alternativní názvy pro snap %q"
 
+#. TRANSLATORS: This should not start with a lowercase letter.
 msgid "Put snap in classic mode and disable security confinement"
 msgstr ""
+"Přepnout snap do klasického režimu a vypnout bezpečnostní ohraničování"
 
+#. TRANSLATORS: This should not start with a lowercase letter.
 msgid "Put snap in development mode and disable security confinement"
 msgstr ""
+"Přepnout snap do vývojářského režimu a vypnout bezpečnostní ohraničení"
 
+#. TRANSLATORS: This should not start with a lowercase letter.
 msgid "Put snap in enforced confinement mode"
-msgstr ""
+msgstr "Přepnout snap do vynuceného režimu ohraničení"
 
 msgid "Query the status of services"
-msgstr ""
+msgstr "Dotázat na stav služby"
 
 #, c-format
 msgid "Refresh %q snap"
-msgstr ""
+msgstr "Aktualizovat snap %q"
 
 #, c-format
 msgid "Refresh %q snap from %q channel"
-msgstr ""
+msgstr "Aktualizovat snap %q z kanálu %q"
 
 #, c-format
 msgid "Refresh aliases for snap %q"
-msgstr ""
+msgstr "Aktualizovat alternativní názvy pro snap %q"
 
 msgid "Refresh all snaps: no updates"
-msgstr ""
+msgstr "Aktualizovat všechny snapy: žádné aktualizace"
 
 #, c-format
 msgid "Refresh snap %q"
-msgstr ""
+msgstr "Aktualizovat snap %q"
 
 #. TRANSLATORS: the %s is a comma-separated list of quoted snap names
 #, c-format
 msgid "Refresh snaps %s"
-msgstr ""
+msgstr "Aktualizovat snapy %s"
 
 #. TRANSLATORS: the %s is a comma-separated list of quoted snap names
 #, c-format
 msgid "Refresh snaps %s: no updates"
-msgstr ""
+msgstr "Aktualizovat snapy %s: žádné aktualizace"
 
 msgid "Refresh to the given revision"
 msgstr ""
@@ -805,119 +875,125 @@ msgstr ""
 
 #, c-format
 msgid "Remove %q snap"
-msgstr ""
+msgstr "Odebrat snap %q"
 
 #, c-format
 msgid "Remove aliases for snap %q"
-msgstr ""
+msgstr "Odebrat alternativní názvy pro snap %q"
 
 #, c-format
 msgid "Remove data for snap %q (%s)"
-msgstr ""
+msgstr "Odebrat data pro snap %q (%s)"
 
 #, c-format
 msgid "Remove manual alias %q for snap %q"
-msgstr ""
+msgstr "Odebrat ručně přidaný alternativní název %q pro snap %q"
 
+#. TRANSLATORS: This should not start with a lowercase letter.
 msgid "Remove only the given revision"
-msgstr ""
+msgstr "Odebrat pouze danou revizi"
 
 #, c-format
 msgid "Remove security profile for snap %q (%s)"
-msgstr ""
+msgstr "Odebrat profil zabezpečení pro snap %q (%s)"
 
 #, c-format
 msgid "Remove security profiles of snap %q"
-msgstr ""
+msgstr "Odebrat profily zabezpečení snap balíčku %q"
 
 #, c-format
 msgid "Remove snap %q"
-msgstr ""
+msgstr "Odstranit snap %q"
 
 #, c-format
 msgid "Remove snap %q (%s) from the system"
-msgstr ""
+msgstr "Odstranit snap %q (%s) ze systému"
 
 #. TRANSLATORS: the %s is a comma-separated list of quoted snap names
 #, c-format
 msgid "Remove snaps %s"
-msgstr ""
+msgstr "Odstranit snapy %s"
 
+#. TRANSLATORS: this is used to introduce a list of aliases that were removed
 msgid "Removed"
-msgstr ""
+msgstr "Odebráno"
 
 msgid "Removes a snap from the system"
 msgstr ""
 
 msgid "Request device serial"
-msgstr ""
+msgstr "Vyžádat sériové číslo zařízení"
 
 msgid "Restart services"
-msgstr ""
+msgstr "Restartovat služby"
 
 msgid "Restarted.\n"
-msgstr ""
+msgstr "Restartováno.\n"
 
+#. TRANSLATORS: This should not start with a lowercase letter.
 msgid "Restrict the search to a given section"
-msgstr ""
+msgstr "Omezit hledání na danou sekci"
 
 msgid "Retrieve logs of services"
 msgstr ""
 
 #, c-format
 msgid "Revert %q snap"
-msgstr ""
+msgstr "Vrátit zpět %q snap"
 
 msgid "Reverts the given snap to the previous state"
-msgstr ""
+msgstr "Vrátí daný snap balíček do předchozího stavu"
 
+#. TRANSLATORS: This should not start with a lowercase letter.
 msgid "Run a shell instead of the command (useful for debugging)"
-msgstr ""
+msgstr "Spustit shell namísto příkazu (užitečné pro ladění)"
 
+#. TRANSLATORS: This should not start with a lowercase letter.
 msgid "Run as a timer service with given schedule"
-msgstr ""
+msgstr "Spustit jako službu časovače s daným plánem"
 
 #, c-format
 msgid "Run configure hook of %q snap"
-msgstr ""
+msgstr "Spustit háček nastavení snapu %q"
 
 #, c-format
 msgid "Run configure hook of %q snap if present"
-msgstr ""
+msgstr "Spustit háček nastavení snapu %q, pokud je přítomen"
 
 #, c-format
 msgid "Run hook %s of snap %q"
-msgstr ""
+msgstr "Spsutit háček %s snapu %q"
 
 #, c-format
 msgid "Run install hook of %q snap if present"
-msgstr ""
+msgstr "Spustit instalační háček napu %q, pokud přítomen"
 
 #, c-format
 msgid "Run post-refresh hook of %q snap if present"
-msgstr ""
+msgstr "Spustit poaktualizační háček snapu %s, pokud přítomen"
 
 #, c-format
 msgid "Run pre-refresh hook of %q snap if present"
-msgstr ""
+msgstr "Spustit předaktualizační háček snapu %q, pokud přítomen"
 
 msgid "Run prepare-device hook"
-msgstr ""
+msgstr "Spustit háček připravit zařízení"
 
 #, c-format
 msgid "Run remove hook of %q snap if present"
-msgstr ""
+msgstr "Spustit háček odebrat snapu %q, pokud přítomen"
 
 msgid ""
 "Run the command under strace (useful for debugging). Extra strace options "
 "can be specified as well here."
 msgstr ""
 
+#. TRANSLATORS: This should not start with a lowercase letter.
 msgid "Run the command with gdb"
-msgstr ""
+msgstr "Spustit příkaz s gdb"
 
 msgid "Run the given snap command"
-msgstr ""
+msgstr "Spsutit daný snap příkaz"
 
 msgid "Run the given snap command with the right confinement and environment"
 msgstr ""
@@ -925,8 +1001,9 @@ msgstr ""
 msgid "Runs debug commands"
 msgstr ""
 
+#. TRANSLATORS: This should not start with a lowercase letter.
 msgid "Search private snaps"
-msgstr ""
+msgstr "Hledat soukromé snapy"
 
 msgid ""
 "Select last change of given type (install, refresh, remove, try, auto-"
@@ -938,40 +1015,42 @@ msgstr ""
 
 #, c-format
 msgid "Set automatic aliases for snap %q"
-msgstr ""
+msgstr "Nastavit automatické aliasy pro snap %q"
 
 msgid "Sets up a manual alias"
 msgstr ""
 
 #, c-format
 msgid "Setup alias %q => %q for snap %q"
-msgstr ""
+msgstr "Nastavit alias %q => %q pro snap %q"
 
 #, c-format
 msgid "Setup manual alias %q => %q for snap %q"
-msgstr ""
+msgstr "Nastavit ruční alias %q => %q pro snap %q"
 
 #, c-format
 msgid "Setup snap %q (%s) security profiles"
-msgstr ""
+msgstr "Nastavit profily zabezpečení pro snap %q (%s)"
 
 #, c-format
 msgid "Setup snap %q aliases"
-msgstr ""
+msgstr "Nastavit alternativní názvy pro snap %q"
 
 #, c-format
 msgid "Setup snap %q%s security profiles"
-msgstr ""
+msgstr "Nastavit profily zabezpečení pro snap %q%s"
 
 #, c-format
 msgid "Setup snap %q%s security profiles (phase 2)"
 msgstr ""
 
+#. TRANSLATORS: This should not start with a lowercase letter.
 msgid "Show all revisions"
-msgstr ""
+msgstr "Ukázat všechny revize"
 
+#. TRANSLATORS: This should not start with a lowercase letter.
 msgid "Show auto refresh information but do not perform a refresh"
-msgstr ""
+msgstr "Zobrazit informaci o automatické aktualizaci ale neprovádět ji"
 
 msgid "Show available snaps for refresh but do not perform a refresh"
 msgstr ""
@@ -979,15 +1058,17 @@ msgstr ""
 msgid "Show detailed information about a snap"
 msgstr ""
 
-#. TRANSLATORS: This should probably not start with a lowercase letter.
+#. TRANSLATORS: This should not start with a lowercase letter.
 msgid "Show details of a specific interface"
-msgstr ""
+msgstr "Zobrazit podrobnosti o konkrétním rozhraní"
 
+#. TRANSLATORS: This should not start with a lowercase letter.
 msgid "Show interface attributes"
-msgstr ""
+msgstr "Zobrazit atributy rozhraní"
 
+#. TRANSLATORS: This should not start with a lowercase letter.
 msgid "Show only the given number of lines, or 'all'."
-msgstr ""
+msgstr "Zobrazit pouze daný počet řádků, nebo „vše“."
 
 msgid "Shows known assertions of the provided type"
 msgstr ""
@@ -999,7 +1080,7 @@ msgid "Shows version details"
 msgstr ""
 
 msgid "Sign an assertion"
-msgstr ""
+msgstr "Podepsat výrok"
 
 msgid ""
 "Sign an assertion using the specified key, using the input for headers from "
@@ -1008,66 +1089,71 @@ msgid ""
 msgstr ""
 
 msgid "Slot\tPlug"
-msgstr ""
+msgstr "Slot\tZástrčka"
 
 #. TRANSLATORS: first %s is a snap name, following %s is a channel name
 #, c-format
 msgid "Snap %s is no longer tracking %s.\n"
 msgstr ""
 
-#. TRANSLATORS: This should probably not start with a lowercase letter.
-#. TRANSLATORS: This should probably not start with a lowercase letter.
+#. TRANSLATORS: This should not start with a lowercase letter.
+#. TRANSLATORS: This should not start with a lowercase letter.
 msgid "Snap name"
-msgstr ""
+msgstr "Název snap balíčku"
 
 msgid ""
 "Sorry, your payment method has been declined by the issuer. Please review "
 "your\n"
 "payment details at https://my.ubuntu.com/payment/edit and try again."
 msgstr ""
+"Je nám líto, ale vaše platební metoda byla vydavatelem odmítnuta. "
+"Zkontrolujte\n"
+"podrobnosti své platby na https://my.ubuntu.com/payment/edit a zkuste to "
+"znovu."
 
 msgid "Start services"
-msgstr ""
+msgstr "Spustit služby"
 
 #, c-format
 msgid "Start snap %q (%s) services"
-msgstr ""
+msgstr "Spustit služby snap balíčku %q (%s)"
 
 #, c-format
 msgid "Start snap %q%s services"
-msgstr ""
+msgstr "Spustit služby snap balíčku %q%s"
 
 msgid "Start snap services"
-msgstr ""
+msgstr "Spustit služby snap balíčku"
 
 msgid "Start the userd service"
-msgstr ""
+msgstr "Spustit službu userd"
 
 msgid "Started.\n"
-msgstr ""
+msgstr "Spuštěno.\n"
 
 msgid "Status\tSpawn\tReady\tSummary\n"
-msgstr ""
+msgstr "Stav\tSpawn\tPřipraveno\tSouhrn\n"
 
 msgid "Stop services"
-msgstr ""
+msgstr "Zastavit služby"
 
 #, c-format
 msgid "Stop snap %q (%s) services"
-msgstr ""
+msgstr "Zastavit služby snap balíčku %q (%s)"
 
 #, c-format
 msgid "Stop snap %q services"
-msgstr ""
+msgstr "Zastavit služby snap balíčku %q"
 
 msgid "Stop snap services"
-msgstr ""
+msgstr "Zastavit služby snap balíčku"
 
 msgid "Stopped.\n"
-msgstr ""
+msgstr "Zastaveno.\n"
 
+#. TRANSLATORS: This should not start with a lowercase letter.
 msgid "Strict typing with nulls and quoted strings"
-msgstr ""
+msgstr "Striktní typování s nulami a řetězci v uvozovkách"
 
 #, c-format
 msgid "Switch %q snap to %s"
@@ -1082,10 +1168,11 @@ msgid "Switch snap %q to %s"
 msgstr ""
 
 msgid "Switches snap to a different channel"
-msgstr ""
+msgstr "Přepíná snap balíčky na jiný kanál"
 
+#. TRANSLATORS: This should not start with a lowercase letter.
 msgid "Temporarily mount device before inspecting"
-msgstr ""
+msgstr "Dočasně připojit zařízení před inspekcí"
 
 msgid "Tests a snap in the system"
 msgstr ""
@@ -1096,20 +1183,22 @@ msgid ""
 "Thanks for purchasing %q. You may now install it on any of your devices\n"
 "with 'snap install %s'."
 msgstr ""
+"Děkujeme za zakoupení %q. Nyní ho můžete nainstalovat na jakémkoli ze svých\n"
+"zařízení pomocí „snap install %s“."
 
 msgid ""
 "The get command prints configuration and interface connection settings."
-msgstr ""
+msgstr "Příkaz get vypíše nastavení a nastavení spojení rozhraní."
 
-#. TRANSLATORS: This should probably not start with a lowercase letter.
+#. TRANSLATORS: This should not start with a lowercase letter (unless it's "login.ubuntu.com")
 msgid "The login.ubuntu.com email to login as"
-msgstr ""
+msgstr "e-mail, kterým se přihlásit k login.ubuntu.com"
 
-#. TRANSLATORS: This should probably not start with a lowercase letter.
+#. TRANSLATORS: This should not start with a lowercase letter.
 msgid "The model assertion name"
-msgstr ""
+msgstr "Název tvrzení modelu"
 
-#. TRANSLATORS: This should probably not start with a lowercase letter.
+#. TRANSLATORS: This should not start with a lowercase letter.
 msgid "The output directory"
 msgstr ""
 
@@ -1117,13 +1206,14 @@ msgstr ""
 msgid "The program %q can be found in the following snaps:\n"
 msgstr ""
 
-#. TRANSLATORS: This should probably not start with a lowercase letter.
+#. TRANSLATORS: This should not start with a lowercase letter.
+#. TRANSLATORS: This should not start with a lowercase letter.
 msgid "The snap to configure (e.g. hello-world)"
-msgstr ""
+msgstr "Snap který nastavit (např. hello-world)"
 
-#. TRANSLATORS: This should probably not start with a lowercase letter.
+#. TRANSLATORS: This should not start with a lowercase letter.
 msgid "The snap whose conf is being requested"
-msgstr ""
+msgstr "Snap kterého nastavení je požadováno"
 
 msgid "The userd command starts the snap user session service."
 msgstr ""
@@ -1132,46 +1222,49 @@ msgid "This command logs the current user out of the store"
 msgstr ""
 
 msgid "This dialog will close automatically after 5 minutes of inactivity."
-msgstr ""
+msgstr "Tento dialog se sám zavře po pěti minutách nečinnosti."
 
 #, c-format
 msgid "Toggle snap %q flags"
-msgstr ""
+msgstr "Přepnout příznaky snapu %q"
 
 msgid "Tool to interact with snaps"
-msgstr ""
+msgstr "Nástroj pro interakci se snapy"
 
 #, c-format
 msgid "Transition security profiles from %q to %q"
-msgstr ""
+msgstr "Přejít s profilem zabezpečení z %q na %q"
 
 msgid "Transition ubuntu-core to core"
-msgstr ""
+msgstr "Přenést ubuntu-core na core"
 
 #, c-format
 msgid "Try %q snap from %s"
-msgstr ""
+msgstr "Vyzkoušet %q snap z %s"
 
 msgid "Try: snap install <selected snap>\n"
-msgstr ""
+msgstr "Zkuste: snap install <vybraný snap>\n"
 
 msgid "Two-factor code: "
-msgstr ""
+msgstr "Dvostupňový kód: "
 
 msgid "Unalias a manual alias or an entire snap"
 msgstr ""
 
+#. TRANSLATORS: This should not start with a lowercase letter.
 msgid "Use a specific snap revision when running hook"
-msgstr ""
+msgstr "Při spouštění háčku použít konkrétní revizi snapu"
 
+#. TRANSLATORS: This should not start with a lowercase letter.
 msgid "Use known assertions for user creation"
-msgstr ""
+msgstr "Použít známá trvrzení pro vytvoření uživatele"
 
 msgid "Use the given output format (pretty or json)"
 msgstr ""
 
+#. TRANSLATORS: This should not start with a lowercase letter.
 msgid "Use this channel instead of stable"
-msgstr ""
+msgstr "Použít tento kanál namísto toho se stabilními vydáními"
 
 msgid ""
 "WARNING: The output of \"snap get\" will become a list with columns - use -d "
@@ -1180,31 +1273,34 @@ msgstr ""
 
 #, c-format
 msgid "WARNING: failed to activate logging: %v\n"
-msgstr ""
+msgstr "VAROVÁNÍ: nepodařilo se zapnout zaznamenávání událostí: %v\n"
 
+#. TRANSLATORS: This should not start with a lowercase letter.
 msgid "Wait for new lines and print them as they come in."
-msgstr ""
+msgstr "Čekat na nové řádky a vypisovat je, jak přicházejí."
 
 msgid "Waiting for server to restart"
-msgstr ""
+msgstr "Čeká se na restart serveru"
 
 msgid "Watch a change in progress"
-msgstr ""
+msgstr "Sledovat probíhající změnu"
 
 msgid "Wrong again. Once more: "
-msgstr ""
+msgstr "Znovu nesprávně. Znovu: "
 
 #, c-format
 msgid "Xauthority file isn't owned by the current user %s"
-msgstr ""
+msgstr "soubor Xauthority není vlastněn stávajícím uživatelem %s"
 
 msgid "Yes, yes it does."
-msgstr ""
+msgstr "Ano, dělá."
 
 msgid ""
 "You need to be logged in to purchase software. Please run 'snap login' and "
 "try again."
 msgstr ""
+"Pro nakupování software je třeba, abyste byli přihlášeni. Spusťte „snap "
+"login“ a zkuste to znovu."
 
 #, c-format
 msgid ""
@@ -1214,6 +1310,11 @@ msgid ""
 "Once you’ve added your payment details, you just need to run 'snap buy %s' "
 "again."
 msgstr ""
+"Abyste si mohli zakoupit snap, je třeba mít ke svému účtu měli přiřazenou "
+"platební metodu –  navštivte https://my.ubuntu.com/payment/edit a přidejte "
+"nějakou.\n"
+"\n"
+"Jakmile přidáte své platební údaje, je třeba spustit „snap buy %s“ znovu."
 
 #. TRANSLATORS: the %s is the argument given by the user to "snap changes"
 #, c-format
@@ -1245,11 +1346,16 @@ msgid ""
 "\n"
 "Provide a search term for more specific results.\n"
 msgstr ""
+"\n"
+"Pro konkrétnější výsledky zadejte vyhledávaný pojem.\n"
 
 msgid ""
 "\n"
 "The abort command attempts to abort a change that still has pending tasks.\n"
 msgstr ""
+"\n"
+"Příkaz abort se pokusí přerušit změnu, u které úlohy ještě čekají na "
+"zpracování.\n"
 
 msgid ""
 "\n"
@@ -1311,6 +1417,8 @@ msgid ""
 "\n"
 "The buy command buys a snap from the store.\n"
 msgstr ""
+"\n"
+"Příkaz buy koupí snap z obchodu.\n"
 
 msgid ""
 "\n"
@@ -1358,6 +1466,13 @@ msgid ""
 "\n"
 "An account can be setup at https://login.ubuntu.com.\n"
 msgstr ""
+"\n"
+"Příkaz create-user vytvoří uživatele v místním systému s uživatelským jménem "
+"a SSH\n"
+"klíči zaregistrovanými na účtu v obchodu identifikovaný zadanou e-mailovou "
+"adresou.\n"
+"\n"
+"Účet je možné nastavit na https://login.ubuntu.com.\n"
 
 msgid ""
 "\n"
@@ -1366,6 +1481,11 @@ msgid ""
 "Debug commands can be removed without notice and may not work on\n"
 "non-development systems.\n"
 msgstr ""
+"\n"
+"Příkaz debug obsahuje výběr dalších dílčích příkazů.\n"
+"\n"
+"Příkaz debug může být odebrán bez upozornění a nemusí fungovat na\n"
+"nevývojářských systémech.\n"
 
 msgid ""
 "\n"
@@ -1388,6 +1508,18 @@ msgid ""
 "Disconnects everything from the provided plug or slot.\n"
 "The snap name may be omitted for the core snap.\n"
 msgstr ""
+"\n"
+"Příkaz disconnect odpojí zástrčku ze slotu.\n"
+"Je možné ho vyvolat následujícím způsoby:\n"
+"\n"
+"$ snap disconnect <snap>:<plug> <snap>:<slot>\n"
+"\n"
+"Odpojí zadanou zástrčku z konkrétního slotu.\n"
+"\n"
+"$ snap disconnect <snap>:<slot nebo zástrčka>\n"
+"\n"
+"Odpojí vše od zadané zástrčky nebo slotu.\n"
+"Název snapu je možné vynechat pro core snap.\n"
 
 msgid ""
 "\n"
@@ -1400,6 +1532,8 @@ msgid ""
 "\n"
 "The enable command enables a snap that was previously disabled.\n"
 msgstr ""
+"\n"
+"Příkaz enable zapne snap, který byl předtím vypnutý.\n"
 
 msgid ""
 "\n"
@@ -1444,6 +1578,40 @@ msgid ""
 "This requests the \"usb-vendor\" setting from the slot that is connected to "
 "\"myplug\".\n"
 msgstr ""
+"\n"
+"Příkaz get vypíše předvolby nastavení pro stávající snap.\n"
+"\n"
+"    $ snapctl get username\n"
+"    frantisek\n"
+"\n"
+"Pokud jsou zadány názvy vícero voleb, je vrácen dokument:\n"
+"\n"
+"    $ snapctl get username password\n"
+"    {\n"
+"        \"username\": \"frantisek\",\n"
+"        \"password\": \"...\"\n"
+"    }\n"
+"\n"
+"Vnořené hodnoty je možné získat pomocí tečkovaného popisu umístění:\n"
+"\n"
+"    $ snapctl get author.name\n"
+"    frantisek\n"
+"\n"
+"Hodnoty nastavení propojení rozhraní je možné si vypsat pomocí:\n"
+"\n"
+"    $ snapctl get :myplug usb-vendor\n"
+"    $ snapctl get :myslot path\n"
+"\n"
+"Toto vrátí vyjmenovaná nastavení z koncového bodu místního rozhraní, ať už "
+"zásuvky\n"
+"nebo slotu. Vrácení nastavení z připojeného koncového budu snapu je také "
+"možné\n"
+"výslovným vyžádáním prostřednictvím voleb příkazového řádku --plug a --"
+"slot:\n"
+"\n"
+"    $ snapctl get :myplug --slot usb-vendor\n"
+"\n"
+"Toto vyžádá nastavení „usb-vendor“ ze slotu nazvaného „myplug“.\n"
 
 msgid ""
 "\n"
@@ -1489,6 +1657,12 @@ msgid ""
 "If no interface name is provided, a list of interface names with at least\n"
 "one connection is shown, or a list of all interfaces if --all is provided.\n"
 msgstr ""
+"\n"
+"Příkaz interface zobrazí podrobnosti o snap rozhraních.\n"
+"\n"
+"Pokud není zadán název rozhraní, je zobrazen seznam názvů rozhraní\n"
+"s alespoň jedním připojením, nebo seznam všech rozhraní, pokud je\n"
+"zadáno --all.\n"
 
 msgid ""
 "\n"
@@ -1517,6 +1691,11 @@ msgid ""
 "If header=value pairs are provided after the assertion type, the assertions\n"
 "shown must also have the specified headers matching the provided values.\n"
 msgstr ""
+"\n"
+"Příkaz known zobrazí známá tvrzení zadaného typu.\n"
+"Pokud jsou ta typem tvrzení zadány dvojice hlavička=hodnota je třeba,\n"
+"aby zobrazená tvrzení měla také zadané hlavičky, odpovídající daným\n"
+"hodnotám.\n"
 
 msgid ""
 "\n"
@@ -1547,6 +1726,9 @@ msgid ""
 "The managed command will print true or false informing whether\n"
 "snapd has registered users.\n"
 msgstr ""
+"\n"
+"Příkaz managed vypíše true nebo false a informuje tak, zda\n"
+"snapd má registrované uživatele.\n"
 
 msgid ""
 "\n"
@@ -1598,11 +1780,15 @@ msgid ""
 "\n"
 "The repair command shows the details about one or multiple repairs.\n"
 msgstr ""
+"\n"
+"Příkaz repair zobrazí podrobnosti o opravách.\n"
 
 msgid ""
 "\n"
 "The repairs command lists all processed repairs for this device.\n"
 msgstr ""
+"\n"
+"Příkaz repairs vypíše všechny zpracované opravy pro toto zařízení.\n"
 
 msgid ""
 "\n"
@@ -1610,6 +1796,9 @@ msgid ""
 "from the\n"
 "\"configure\" hook, the services will be restarted after the hook finishes."
 msgstr ""
+"\n"
+"Příkaz restart restartuje dané služby snapu. Pokud je vykonáno z háčku\n"
+"„configure“, služba bude po jeho dokončení restartována."
 
 msgid ""
 "\n"
@@ -1675,28 +1864,43 @@ msgid ""
 "the\n"
 "\"configure\" hook, the services will be started after the hook finishes."
 msgstr ""
+"\n"
+"Příkaz start spustí dané služby snapu. Pokud je vykonáno z háčku "
+"„configure“\n"
+"služby budou spuštěny po jeho dokončení."
 
 msgid ""
 "\n"
 "The start command starts, and optionally enables, the given services.\n"
 msgstr ""
+"\n"
+"Příkaz start spouští a volitelně povoluje danou službu.\n"
 
 msgid ""
 "\n"
 "The stop command stops the given services of the snap. If executed from the\n"
 "\"configure\" hook, the services will be stopped after the hook finishes."
 msgstr ""
+"\n"
+"Příkaz stop zastaví dané služby snapu. Pokud je vykonáno z háčku "
+"„configure“\n"
+"služby budou zastaveny po jeho dokončení."
 
 msgid ""
 "\n"
 "The stop command stops, and optionally disables, the given services.\n"
 msgstr ""
+"\n"
+"Příkaz ztop zastavuje (a volitelně vypíná) dané služby.\n"
 
 msgid ""
 "\n"
 "The switch command switches the given snap to a different channel without\n"
 "doing a refresh.\n"
 msgstr ""
+"\n"
+"Příkaz switch přepíná daný snap na jiný kanál (aniž je provedena "
+"aktualizace).\n"
 
 msgid ""
 "\n"
@@ -1719,6 +1923,20 @@ msgid ""
 "be\n"
 "found relative to current working directory.\n"
 msgstr ""
+"\n"
+"Příkaz try (vyzkoušet) nainstaluje rozbalený snap na souborový systém pro "
+"účely testování.\n"
+"Obsah rozbaleného snapu bude nadále použit i po instalaci, takže změny "
+"netýkající se\n"
+"metadat zde okamžitě ožijí. Změny metadat jako ty provedené v snap.yaml "
+"vyžadují pro\n"
+"své uplatnění reinstalaci.\n"
+"\n"
+"Pokud je vynechán argument snap-dir, příkaz try se ho pokusí odvodit pokud "
+"je možné\n"
+"nalézt soubor. yaml a složku prime nebo meta/snap.yaml vztaženo ke složce, "
+"ve které se\n"
+"právě nacházíte.\n"
 
 msgid ""
 "\n"
@@ -1731,6 +1949,9 @@ msgid ""
 "The version command displays the versions of the running client, server,\n"
 "and operating system.\n"
 msgstr ""
+"\n"
+"Příkaz version zobrazí verzi spuštěného klienta, serveru, a operačního "
+"systému.\n"
 
 msgid ""
 "\n"
@@ -1738,6 +1959,9 @@ msgid ""
 "progress\n"
 "(if available).\n"
 msgstr ""
+"\n"
+"Příkaz watch čeká až dané change-id skončí a zobrazí průběh (pokud je k\n"
+"dispozici).\n"
 
 msgid ""
 "\n"
@@ -1756,6 +1980,12 @@ msgid ""
 "If you understand and want to proceed repeat the command including --"
 "classic.\n"
 msgstr ""
+"\n"
+"Tato revize snapu %q byla vydána pomocí klasického ohraničení a proto může\n"
+"provádět libovolné změny v systému mimo ohraničené vyhrazené prostředí, ve\n"
+"které jsou snapy obvykle uzavřeny, což může váš systém ohrozit.\n"
+"\n"
+"Pokud rozumíte a chcete pokračovat, zopakujte příkaz včetně --classic.\n"
 
 msgid ""
 "\n"
@@ -1764,202 +1994,209 @@ msgstr ""
 
 msgid "a single snap name is needed to specify mode or channel flags"
 msgstr ""
+"pro určení režimu nebo příznaků kanálu je třeba zadat právě jeden název snapu"
 
 msgid "a single snap name is needed to specify the revision"
-msgstr ""
+msgstr "pro určení revize je třeba jediný název snap balíčku"
 
 msgid "a single snap name must be specified when ignoring validation"
-msgstr ""
+msgstr "při ignorování ověřování je třeba zadat název jediného snapu"
 
 msgid "active"
-msgstr ""
+msgstr "aktivní"
 
 msgid "auto-refresh: all snaps are up-to-date"
-msgstr ""
+msgstr "auto-refresh: všechny snapy jsou aktuální"
 
 msgid "bought"
-msgstr ""
+msgstr "zakoupeno"
 
 #. TRANSLATORS: if possible, a single short word
 msgid "broken"
-msgstr ""
+msgstr "poškozený"
 
 #, c-format
 msgid "cannot %s without a context"
-msgstr ""
+msgstr "není možné %s bez kontextu"
 
 #, c-format
 msgid "cannot buy snap: %v"
-msgstr ""
+msgstr "není možné zakoupit snap: %v"
 
 msgid "cannot buy snap: invalid characters in name"
-msgstr ""
+msgstr "není možné zakoupit snap: neplatné znaky v názvu"
 
 msgid "cannot buy snap: it has already been bought"
-msgstr ""
+msgstr "není možné zakoupit snap: už byl zakoupen"
 
 #. TRANSLATORS: %q is the directory whose creation failed, %v the error message
 #, c-format
 msgid "cannot create %q: %v"
-msgstr ""
+msgstr "nepodařilo se vytvořit %q: %v"
 
 #, c-format
 msgid "cannot create assertions file: %v"
-msgstr ""
+msgstr "nedaří se vytvořit soubor s tvrzeními: %v"
 
 #. TRANSLATORS: %q gets the snap name, %v gets the resulting error message
 #, c-format
 msgid "cannot extract the snap-name from local file %q: %v"
-msgstr ""
+msgstr "nedaří se vyzískat snap-name z místního soubour %q: %v"
 
 #, c-format
 msgid "cannot find app %q in %q"
-msgstr ""
+msgstr "nedaří se nalézt aplikaci %q v %q"
 
 #, c-format
 msgid "cannot find hook %q in %q"
-msgstr ""
+msgstr "nedaří se nalézt háček %q v %q"
 
 #. TRANSLATORS: %q gets the snap name, %v the list of things found when trying to list it
 #, c-format
 msgid "cannot get data for %q: %v"
-msgstr ""
+msgstr "nedaří se získat data pro %q: %v"
 
 #. TRANSLATORS: %q gets what the user entered, %v gets the resulting error message
 #, c-format
 msgid "cannot get full path for %q: %v"
-msgstr ""
+msgstr "nedaří se získat úplný popis umístění pro %q: %v"
 
 #, c-format
 msgid "cannot get the current user: %s"
-msgstr ""
+msgstr "nedaří se najít stávajícího uživatele: %s"
 
 #, c-format
 msgid "cannot get the current user: %v"
-msgstr ""
+msgstr "nedaří se získat stávajícího uživatele: %s"
 
 #, c-format
 msgid "cannot mark boot successful: %s"
-msgstr ""
+msgstr "nedaří se označit zavedení úspěšné: %s"
 
 #, c-format
 msgid "cannot open the assertions database: %v"
-msgstr ""
+msgstr "nedaří se otevřít databázi tvrzení: %v"
 
 #, c-format
 msgid "cannot read assertion input: %v"
-msgstr ""
+msgstr "nedaří se číst vstup tvrzení: %v"
 
 #. TRANSLATORS: %v the error message
 #, c-format
 msgid "cannot read symlink: %v"
-msgstr ""
+msgstr "nedaří se číst symbolický odkaz: %v"
 
 #, c-format
 msgid "cannot resolve snap app %q: %v"
-msgstr ""
+msgstr "nedaří se přeložit snap app %q: %v"
 
 #, c-format
 msgid "cannot sign assertion: %v"
-msgstr ""
+msgstr "nedaří se podepsat tvrzení: %v"
 
 #, c-format
 msgid "cannot update the 'current' symlink of %q: %v"
-msgstr ""
+msgstr "nedaří se aktualizovat symbolický odkaz „current“ pro %q: %v"
 
 #. TRANSLATORS: %q is the key name, %v the error message
 #, c-format
 msgid "cannot use %q key: %v"
-msgstr ""
+msgstr "není možné použít %q klíč: %v"
 
 msgid "cannot use change ID and type together"
-msgstr ""
+msgstr "není možné použít change ID a type dohromady"
 
 msgid "cannot use devmode and jailmode flags together"
-msgstr ""
+msgstr "není možné použít příznaky devmode a jailmode naráz"
 
 #, c-format
 msgid "cannot validate owner of file %s"
-msgstr ""
+msgstr "není možné ověřit vlastníka souboru %s"
 
 #, c-format
 msgid "cannot write new Xauthority file at %s: %s"
-msgstr ""
+msgstr "nedaří se zapsat nový Xauthority soubor na %s:%s"
 
 #, c-format
 msgid "change finished in status %q with no error message"
-msgstr ""
+msgstr "změna dokončena ve stavu %q bez chybových hlášení"
 
 #, c-format
 msgid ""
 "classic confinement requires snaps under /snap or symlink from /snap to %s"
 msgstr ""
+"klasické ohrazení vyžaduje snapy pod /snap nebo symbolické odkazy ze /snap "
+"do %s"
 
 #, c-format
 msgid "created user %q\n"
-msgstr ""
+msgstr "vytvořen uživatelský účet %q\n"
 
 #. TRANSLATORS: this needs to be a single rune that is understood to mean "days" in e.g. 1d20h
 msgid "d"
-msgstr ""
+msgstr "d"
 
 #. TRANSLATORS: if possible, a single short word
 msgid "disabled"
-msgstr ""
+msgstr "vypnuto"
 
 msgid "email:"
-msgstr ""
+msgstr "e-mail:"
 
 msgid "enabled"
-msgstr ""
+msgstr "zapnuto"
 
 #, c-format
 msgid "error: %v\n"
-msgstr ""
+msgstr "chyba: %v\n"
 
 msgid ""
 "error: the `<snap-dir>` argument was not provided and couldn't be inferred"
-msgstr ""
+msgstr "chyba: argument „<snap-dir>“ nebyl zadán a není možné ho inferred"
 
 msgid "get which option?"
-msgstr ""
+msgstr "jakou volbu získat?"
 
 #. TRANSLATORS: this needs to be a single rune that is understood to mean "hours" in e.g. 1h30m
 msgid "h"
-msgstr ""
+msgstr "h"
 
 msgid "ignore-validation"
 msgstr ""
 
 msgid "inactive"
-msgstr ""
+msgstr "neaktivní"
 
 msgid ""
 "interface attributes can only be read during the execution of interface hooks"
-msgstr ""
+msgstr "atributy rozhraní je možné číst pouze při vykonávání háčků rozhraní"
 
 msgid ""
 "interface attributes can only be set during the execution of prepare hooks"
 msgstr ""
+"atributy rozhraní je možné nastavit pouze při vykonávání přípravných háčků"
 
 #, c-format
 msgid "internal error, please report: running %q failed: %v\n"
-msgstr ""
+msgstr "vnitřní chyba, nahlaste to: spouštění %q se nezdařilo: %v\n"
 
 msgid "internal error: cannot find attrs task"
-msgstr ""
+msgstr "vnitřní chyba: nedaří se nalézt úlohu attrs"
 
 msgid "internal error: cannot find plug or slot data in the appropriate task"
 msgstr ""
+"vnitřní chyba: v příslušné úloze se nedaří nalézt data zástrčky nebo slotu"
 
 #, c-format
 msgid "internal error: cannot get %s from appropriate task"
-msgstr ""
+msgstr "vnitřní chyba: nedaří se získat %s z příslušné úlohy"
 
 msgid ""
 "invalid argument for flag ‘-n’: expected a non-negative integer argument, or "
 "“all”."
 msgstr ""
+"neplatný argument pro příznak „-n“: očekáván nezáporný celočíselný argument, "
+"nebo „all“ (vše)."
 
 #, c-format
 msgid "invalid attribute: %q (want key=value)"
@@ -1967,67 +2204,70 @@ msgstr ""
 
 #, c-format
 msgid "invalid configuration: %q (want key=value)"
-msgstr ""
+msgstr "neplatné nastavení: %q (požaduje klíč=hodnota)"
 
 #, c-format
 msgid "invalid header filter: %q (want key=value)"
-msgstr ""
+msgstr "neplatný filtr hlavičky: %q (vyžaduje klíč=hodnota)"
 
 #, c-format
 msgid "invalid parameter: %q (want key=value)"
-msgstr ""
+msgstr "neplatný parametr: %q (požaduje klíč=hodnota)"
 
 #, c-format
 msgid "invalid value: %q (want snap:name or snap)"
-msgstr ""
+msgstr "neplatná hodnota: %q (požaduje klíč=hodnota)"
 
 #, c-format
 msgid ""
 "key name %q is not valid; only ASCII letters, digits, and hyphens are allowed"
 msgstr ""
+"název klíče %q není platný – povolené jsou pouze písmena z ASCII, číslice a "
+"spojovníky"
 
 #, c-format
 msgid "local snap %q is unknown to the store, use --amend to proceed anyway"
 msgstr ""
+"místní snap %q není obchodu znám – pro pokračování i tak použijte --amend"
 
 #. TRANSLATORS: this needs to be a single rune that is understood to mean "minutes" in e.g. 1m30s
 msgid "m"
-msgstr ""
+msgstr "m"
 
 msgid "missing snap-confine: try updating your snapd package"
 msgstr ""
 
 msgid "need the application to run as argument"
-msgstr ""
+msgstr "jako argument vyžaduje aplikaci, kterou spustit"
 
 msgid "no changes found"
-msgstr ""
+msgstr "nenalezeny žádné změny"
 
 #, c-format
 msgid "no changes of type %q found"
-msgstr ""
+msgstr "nenalezeny žádné změny typu %q"
 
 msgid "no interfaces currently connected"
-msgstr ""
+msgstr "momentálně nejsou připojena žádná rozhraní"
 
 msgid "no interfaces found"
-msgstr ""
+msgstr "nenalezena žádná rozhraní"
 
 msgid "no matching snaps installed"
-msgstr ""
+msgstr "nenainstalovány žádné odpovídající snapy"
 
 msgid "no such interface"
-msgstr ""
+msgstr "žádné takové rozhraní"
 
 msgid "no valid snaps given"
-msgstr ""
+msgstr "nezadány žádné platné snapy"
 
 msgid "please provide change ID or type with --last=<type>"
-msgstr ""
+msgstr "zadejte identifikátor změny nebo napište s --last=<type>"
 
 #. TRANSLATORS: if possible, a single short word
 msgid "private"
-msgstr ""
+msgstr "soukromé"
 
 msgid ""
 "reboot scheduled to update the system - temporarily cancel with 'sudo "
@@ -2035,19 +2275,19 @@ msgid ""
 msgstr ""
 
 msgid "repairs are not available on a classic system"
-msgstr ""
+msgstr "opravy nejsou na klasickém systému k dispozici"
 
 #. TRANSLATORS: this needs to be a single rune that is understood to mean "seconds" in e.g. 1m30s
 #. (I fully expect this to always be "s", given it's a SI unit)
 msgid "s"
-msgstr ""
+msgstr "s"
 
 #, c-format
 msgid "set failed: %v"
-msgstr ""
+msgstr "nastavení se nezdařilo: %v"
 
 msgid "set which option?"
-msgstr ""
+msgstr "kterou volbu nastavit?"
 
 #. TRANSLATORS: %%q will become a %q for the snap name; %q is whatever foo the user used for --revision=foo
 #, c-format
@@ -2061,7 +2301,7 @@ msgstr ""
 
 #, c-format
 msgid "snap %q has no updates available"
-msgstr ""
+msgstr "pro snap %q zatím nebyly vydány žádné nové aktualizace"
 
 #, c-format
 msgid "snap %q is already installed, see \"snap refresh --help\""
@@ -2069,34 +2309,34 @@ msgstr ""
 
 #, c-format
 msgid "snap %q not found"
-msgstr ""
+msgstr "snap %q nenalezen"
 
 #. TRANSLATORS: free as in gratis
 msgid "snap is free"
-msgstr ""
+msgstr "snap je zdarma"
 
 msgid "too many arguments for command"
-msgstr ""
+msgstr "příliš mnoho argumentů pro příkaz"
 
 #. TRANSLATORS: %q is the hook name; %s a space-separated list of extra arguments
 #, c-format
 msgid "too many arguments for hook %q: %s"
-msgstr ""
+msgstr "příliš mnoho argumentů pro háček %q: %s"
 
 #. TRANSLATORS: the %s is the list of extra arguments
 #, c-format
 msgid "too many arguments: %s"
-msgstr ""
+msgstr "příliš mnoho argumentů: %s"
 
 msgid "unable to contact snap store"
-msgstr ""
+msgstr "kontaktování snap store se nezdařilo"
 
 msgid "unavailable"
-msgstr ""
+msgstr "není k dispozici"
 
 #, c-format
 msgid "unknown attribute %q"
-msgstr ""
+msgstr "neznámý atribut %s"
 
 #, c-format
 msgid "unknown command %q, see \"snap --help\""
@@ -2104,19 +2344,19 @@ msgstr ""
 
 #, c-format
 msgid "unknown plug or slot %q"
-msgstr ""
+msgstr "neznámá zástrčka nebo slot %q"
 
 #, c-format
 msgid "unknown service: %q"
-msgstr ""
+msgstr "neznámá služba: %q"
 
 #, c-format
 msgid "warning:\tno snap found for %q\n"
-msgstr ""
+msgstr "varování:\tnenalezen žádný snap pro %q\n"
 
 #. TRANSLATORS: this needs to be a single rune that is understood to mean "years" in e.g. 1y45d
 msgid "y"
-msgstr ""
+msgstr "r"
 
 msgid "Authenticate on snap daemon"
 msgstr "Autentizace na snap démonu"
