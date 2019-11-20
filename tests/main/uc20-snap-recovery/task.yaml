@@ -79,7 +79,7 @@ execute: |
             filesystem: ext4
             size: 130M
     EOF
-    /usr/lib/snapd/snap-bootstrap ./gadget-dir "$LOOP"
+    /usr/lib/snapd/snap-bootstrap create-partitions ./gadget-dir "$LOOP"
     sfdisk -l "$LOOP" | MATCH '110M\s* Linux filesystem'
     sfdisk -l "$LOOP" | MATCH '120M\s* Linux filesystem'
     sfdisk -l "$LOOP" | MATCH '130M\s* Linux filesystem'
