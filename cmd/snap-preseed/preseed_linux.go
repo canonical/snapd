@@ -65,8 +65,8 @@ func checkChroot(preseedChroot string) error {
 	return nil
 }
 
-var systemSnapFromSeeds = func(rootDir string) (string, error) {
-	seedDir := filepath.Join(dirs.SnapSeedDirUnder(rootDir))
+var systemSnapFromSeeds = func() (string, error) {
+	seedDir := filepath.Join(dirs.SnapSeedDir)
 	seed, err := seed.Open(seedDir, "")
 	if err != nil {
 		return "", err
@@ -107,12 +107,11 @@ func prepareChroot(preseedChroot string) (func(), error) {
 		return nil, fmt.Errorf("cannot chdir to /: %v", err)
 	}
 
-	// GlobalRootDir is now relative to chroot env
+	// Set root dir to have SnapSeedDir set; this re-sets dirs.GlobalRootDir if not set yet, otherwise
+	// preserves it which is useful for testing.
+	dirs.SetRootDir(dirs.GlobalRootDir)
 	rootDir := dirs.GlobalRootDir
-	if rootDir == "" {
-		rootDir = "/"
-	}
-	coreSnapPath, err := systemSnapFromSeeds(rootDir)
+	coreSnapPath, err := systemSnapFromSeeds()
 	if err != nil {
 		return nil, err
 	}
