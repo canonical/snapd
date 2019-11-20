@@ -228,7 +228,14 @@ func (s *apiBaseSuite) TearDownSuite(c *check.C) {
 func (s *apiBaseSuite) systemctl(args ...string) (buf []byte, err error) {
 	s.sysctlArgses = append(s.sysctlArgses, args)
 
-	if args[0] != "show" && args[0] != "start" && args[0] != "stop" && args[0] != "restart" {
+	if len(args) > 2 && args[0] == "--root" && args[2] == "is-enabled" {
+		// drop the first 2 args which are "--root some-dir"
+		args = args[2:]
+	}
+
+	switch args[0] {
+	case "show", "start", "stop", "restart", "is-enabled":
+	default:
 		panic(fmt.Sprintf("unexpected systemctl call: %v", args))
 	}
 

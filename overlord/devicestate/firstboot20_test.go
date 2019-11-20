@@ -96,7 +96,7 @@ volumes:
 				"type":            "gadget",
 				"default-channel": "20",
 			}},
-	})
+	}, nil)
 }
 
 func (s *firstBoot20Suite) TestPopulateFromSeedCore20Happy(c *C) {

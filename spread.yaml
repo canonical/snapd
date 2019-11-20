@@ -626,7 +626,7 @@ suites:
     # These tests are executed on all other plattforms as they
     # are designed to run on pristine systems
     tests/smoke/:
-        summary: Essenial system level tests for snapd
+        summary: Essential system level tests for snapd
         prepare: |
             "$TESTSLIB"/prepare-restore.sh --prepare-suite
         prepare-each: |
@@ -649,7 +649,7 @@ suites:
         debug: |
             if [ "$SPREAD_DEBUG_EACH" = 1 ]; then
                 systemctl status snapd.socket || true
-                journalctl -xe
+                journalctl -e
             fi
     tests/core18/:
         summary: Subset of core18 specific tests
