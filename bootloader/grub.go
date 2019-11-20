@@ -30,12 +30,19 @@ import (
 
 type grub struct {
 	rootdir string
+
+	basedir string
 }
 
 // newGrub create a new Grub bootloader object
 func newGrub(rootdir string) Bootloader {
 	g := &grub{rootdir: rootdir}
-	if !osutil.FileExists(g.ConfigFile()) {
+	switch {
+	case osutil.FileExists(filepath.Join(g.rootdir, "/boot/grub/grub.cfg")):
+		g.basedir = "/boot/grub"
+	case osutil.FileExists(filepath.Join(g.rootdir, "/EFI/ubuntu/grub.cfg")):
+		g.basedir = "EFI/ubuntu"
+	default:
 		return nil
 	}
 
@@ -54,7 +61,19 @@ func (g *grub) dir() string {
 	if g.rootdir == "" {
 		panic("internal error: unset rootdir")
 	}
-	return filepath.Join(g.rootdir, "/boot/grub")
+	return filepath.Join(g.rootdir, g.basedir)
+}
+
+func (g *grub) InstallBootConfig(gadgetDir string) (bool, error) {
+	// check if we need special handling
+	recoveryGrubCfg := filepath.Join(gadgetDir, g.Name()+"-recovery.conf")
+	if osutil.FileExists(recoveryGrubCfg) {
+		systemFile := filepath.Join(g.rootdir, "/EFI/ubuntu/grub.cfg")
+		return genericInstallBootConfig(recoveryGrubCfg, systemFile)
+	}
+	gadgetFile := filepath.Join(gadgetDir, g.Name()+".conf")
+	systemFile := filepath.Join(g.rootdir, "/boot/grub/grub.cfg")
+	return genericInstallBootConfig(gadgetFile, systemFile)
 }
 
 func (g *grub) ConfigFile() string {

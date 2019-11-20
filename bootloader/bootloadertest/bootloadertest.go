@@ -73,6 +73,10 @@ func (b *MockBootloader) Name() string {
 	return b.name
 }
 
+func (b *MockBootloader) InstallBootConfig(gadgetDir string) (bool, error) {
+	return false, nil
+}
+
 func (b *MockBootloader) ConfigFile() string {
 	return filepath.Join(b.bootdir, "mockboot/mockboot.cfg")
 }

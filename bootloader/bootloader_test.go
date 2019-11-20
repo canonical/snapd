@@ -108,6 +108,6 @@ func (s *bootenvTestSuite) TestInstallBootloaderConfig(c *C) {
 		err = bootloader.InstallBootConfig(mockGadgetDir, s.rootdir)
 		c.Assert(err, IsNil)
 		fn := filepath.Join(s.rootdir, t.systemFile)
-		c.Assert(osutil.FileExists(fn), Equals, true)
+		c.Check(osutil.FileExists(fn), Equals, true, Commentf("boot config missing for %s", t.gadgetFile))
 	}
 }

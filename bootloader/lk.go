@@ -76,6 +76,12 @@ func (l *lk) dir() string {
 	}
 }
 
+func (l *lk) InstallBootConfig(gadgetDir string) (bool, error) {
+	gadgetFile := filepath.Join(gadgetDir, l.Name()+".conf")
+	systemFile := l.ConfigFile()
+	return genericInstallBootConfig(gadgetFile, systemFile)
+}
+
 func (l *lk) ConfigFile() string {
 	return l.envFile()
 }
