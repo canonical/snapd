@@ -109,6 +109,9 @@ func prepareChroot(preseedChroot string) (func(), error) {
 
 	// GlobalRootDir is now relative to chroot env
 	rootDir := dirs.GlobalRootDir
+	if rootDir == "" {
+		rootDir = "/"
+	}
 	coreSnapPath, err := systemSnapFromSeeds(rootDir)
 	if err != nil {
 		return nil, err
