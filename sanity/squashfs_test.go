@@ -20,6 +20,10 @@
 package sanity_test
 
 import (
+	"fmt"
+	"io/ioutil"
+	"path/filepath"
+
 	. "gopkg.in/check.v1"
 
 	"github.com/snapcore/snapd/osutil/squashfs"
@@ -146,4 +150,72 @@ func (s *sanitySuite) TestCheckFuseNoDevFuseUnhappy(c *C) {
 	defer restore()
 
 	c.Assert(sanity.CheckFuse(), ErrorMatches, `The "fuse" filesystem is required on this system but not available. Please try to install the fuse package.`)
+}
+
+func mockHappySquashFs(c *C) func() {
+	restoreNeedsFuse := squashfs.MockNeedsFuse(false)
+
+	// we create a canary.txt with the same prefix as the real one
+	mockMount := testutil.MockCommand(c, "mount", `echo 'This file is used to check that snapd can read a squashfs image.' > "$4"/canary.txt`)
+
+	mockUmount := testutil.MockCommand(c, "umount", "")
+
+	return func() {
+		restoreNeedsFuse()
+		mockMount.Restore()
+		mockUmount.Restore()
+	}
+}
+
+func (s *sanitySuite) TestCheckLoopControlDeviceHappy(c *C) {
+	restore := mockHappySquashFs(c)
+	defer restore()
+
+	tmp := c.MkDir()
+	path := filepath.Join(tmp, "loop-control")
+	c.Assert(ioutil.WriteFile(path, nil, 0644), IsNil)
+
+	restoreLoopControl := sanity.MockLoopControlPath(path)
+	defer restoreLoopControl()
+
+	restoreMinorMajor := sanity.MockMajorMinor(func(int) (maj int, min int) {
+		return 10, 237
+	})
+	defer restoreMinorMajor()
+
+	c.Check(sanity.CheckSquashfsMount(), IsNil)
+}
+
+func (s *sanitySuite) TestCheckLoopControlNoDevice(c *C) {
+	restore := mockHappySquashFs(c)
+	defer restore()
+
+	restoreLoopControl := sanity.MockLoopControlPath("/some/path")
+	defer restoreLoopControl()
+	c.Check(sanity.CheckSquashfsMount(), ErrorMatches, `cannot stat "/some/path": no such file or directory`)
+}
+
+func (s *sanitySuite) TestCheckLoopControlDeviceWrongMajorMinor(c *C) {
+	restore := mockHappySquashFs(c)
+	defer restore()
+
+	tmp := c.MkDir()
+	path := filepath.Join(tmp, "loop-control")
+	c.Assert(ioutil.WriteFile(path, nil, 0644), IsNil)
+
+	restoreLoopControl := sanity.MockLoopControlPath(path)
+	defer restoreLoopControl()
+
+	major := 1
+	minor := 237
+	restoreMinorMajor := sanity.MockMajorMinor(func(int) (maj int, min int) {
+		return major, minor
+	})
+	defer restoreMinorMajor()
+
+	c.Check(sanity.CheckSquashfsMount(), ErrorMatches, fmt.Sprintf(`unexpected major number for "%s"`, path))
+
+	major = 10
+	minor = 1
+	c.Check(sanity.CheckSquashfsMount(), ErrorMatches, fmt.Sprintf(`unexpected minor number for "%s"`, path))
 }

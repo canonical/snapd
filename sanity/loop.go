@@ -22,10 +22,6 @@ import (
 	"syscall"
 )
 
-func init() {
-	checks = append(checks, checkLoopControl)
-}
-
 var (
 	loopControlPath  = "/dev/loop-control"
 	loopControlMajor = 10
@@ -38,7 +34,7 @@ var majorMinor = func(rdev int) (major, minor int) {
 	return major, minor
 }
 
-func checkLoopControl() error {
+func validateLoopControl() error {
 	var st syscall.Stat_t
 	err := syscall.Stat(loopControlPath, &st)
 	if err != nil {

@@ -27,8 +27,6 @@ var (
 	CheckCgroup         = checkCgroup
 
 	CheckFuse = firstCheckFuse
-
-	CheckLoopControl = checkLoopControl
 )
 
 func Checks() []func() error {

@@ -141,5 +141,9 @@ func checkSquashfsMount() error {
 		return fmt.Errorf("unexpected squashfs canary content: %q", content)
 	}
 
+	// lastly, verify that loop device is usable (which would not be caught by squashfs tests above)
+	if fstype == "squashfs" {
+		return validateLoopControl()
+	}
 	return nil
 }
