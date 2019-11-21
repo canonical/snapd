@@ -361,13 +361,17 @@ func (s *seed20) LoadMeta(tm timings.Measurer) error {
 		return err
 	}
 
-	snapdSnap := internal.MakeSystemSnap("snapd", "latest/stable", []string{"run", "ephemeral"})
-	if _, err := s.addModelSnap(snapdSnap, true, tm); err != nil {
-		return err
+	allSnaps := model.AllSnaps()
+	// an explicit snapd is the first of all of snaps
+	if allSnaps[0].SnapType != "snapd" {
+		snapdSnap := internal.MakeSystemSnap("snapd", "latest/stable", []string{"run", "ephemeral"})
+		if _, err := s.addModelSnap(snapdSnap, true, tm); err != nil {
+			return err
+		}
 	}
 
 	essential := true
-	for _, modelSnap := range model.AllSnaps() {
+	for _, modelSnap := range allSnaps {
 		seedSnap, err := s.addModelSnap(modelSnap, essential, tm)
 		if err != nil {
 			return err

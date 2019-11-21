@@ -2269,3 +2269,94 @@ func (s *writerSuite) TestSeedSnapsWriteMetaCore20ChannelOverrides(c *C) {
 		},
 	})
 }
+
+func (s *writerSuite) TestSeedSnapsWriteMetaCore20ModelOverrideSnapd(c *C) {
+	model := s.Brands.Model("my-brand", "my-model", map[string]interface{}{
+		"display-name": "my model",
+		"architecture": "amd64",
+		"base":         "core20",
+		"snaps": []interface{}{
+			map[string]interface{}{
+				"name":            "snapd",
+				"id":              s.AssertedSnapID("snapd"),
+				"type":            "snapd",
+				"default-channel": "latest/edge",
+			},
+			map[string]interface{}{
+				"name":            "pc-kernel",
+				"id":              s.AssertedSnapID("pc-kernel"),
+				"type":            "kernel",
+				"default-channel": "20",
+			},
+			map[string]interface{}{
+				"name":            "pc",
+				"id":              s.AssertedSnapID("pc"),
+				"type":            "gadget",
+				"default-channel": "20",
+			}},
+	})
+
+	// sanity
+	c.Assert(model.Grade(), Equals, asserts.ModelSigned)
+
+	s.makeSnap(c, "snapd", "")
+	s.makeSnap(c, "core20", "")
+	s.makeSnap(c, "pc-kernel=20", "")
+	s.makeSnap(c, "pc=20", "")
+
+	s.opts.Label = "20191121"
+	w, err := seedwriter.New(model, s.opts)
+	c.Assert(err, IsNil)
+
+	_, err = w.Start(s.db, s.newFetcher)
+	c.Assert(err, IsNil)
+
+	snaps, err := w.SnapsToDownload()
+	c.Assert(err, IsNil)
+	c.Check(snaps, HasLen, 4)
+
+	for _, sn := range snaps {
+		// check the used channel at this level because in the
+		// non-dangerous case is not written anywhere (it
+		// reflects the model or default)
+		channel := "latest/stable"
+		switch sn.SnapName() {
+		case "snapd":
+			channel = "latest/edge"
+		case "pc", "pc-kernel":
+			channel = "20"
+		}
+		c.Check(sn.Channel, Equals, channel)
+		s.fillDownloadedSnap(c, w, sn)
+	}
+
+	complete, err := w.Downloaded()
+	c.Assert(err, IsNil)
+	c.Check(complete, Equals, true)
+
+	err = w.SeedSnaps(nil)
+	c.Assert(err, IsNil)
+
+	err = w.WriteMeta()
+	c.Assert(err, IsNil)
+
+	// check seed
+	systemDir := filepath.Join(s.opts.SeedDir, "systems", s.opts.Label)
+	c.Check(systemDir, testutil.FilePresent)
+
+	// check the snaps are in place
+	for _, name := range []string{"snapd", "pc-kernel", "core20", "pc"} {
+		info := s.AssertedSnapInfo(name)
+
+		fn := filepath.Base(info.MountFile())
+		p := filepath.Join(s.opts.SeedDir, "snaps", fn)
+		c.Check(p, testutil.FilePresent)
+	}
+
+	l, err := ioutil.ReadDir(filepath.Join(s.opts.SeedDir, "snaps"))
+	c.Assert(err, IsNil)
+	c.Check(l, HasLen, 4)
+
+	c.Check(filepath.Join(systemDir, "extra-snaps"), testutil.FileAbsent)
+	c.Check(filepath.Join(systemDir, "options.yaml"), testutil.FileAbsent)
+}

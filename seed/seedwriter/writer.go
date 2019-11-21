@@ -31,6 +31,7 @@ import (
 	"github.com/snapcore/snapd/snap"
 	"github.com/snapcore/snapd/snap/channel"
 	"github.com/snapcore/snapd/snap/naming"
+	"github.com/snapcore/snapd/strutil"
 )
 
 // Options holds the options for a Writer.
@@ -614,14 +615,23 @@ func (w *Writer) modelSnapsToDownload(modSnaps []*asserts.ModelSnap) (toDownload
 	return toDownload, nil
 }
 
-func (w *Writer) modSnaps() []*asserts.ModelSnap {
+func (w *Writer) modSnaps() ([]*asserts.ModelSnap, error) {
 	modSnaps := w.model.AllSnaps()
 	if systemSnap := w.policy.systemSnap(); systemSnap != nil {
 		prepend := true
 		for _, modSnap := range modSnaps {
 			if naming.SameSnap(modSnap, systemSnap) {
 				prepend = false
-				// TODO: sanity check modes
+				modes := modSnap.Modes
+				expectedModes := systemSnap.Modes
+				if len(modes) != len(expectedModes) {
+					return nil, fmt.Errorf("internal error: system snap %q explicitly listed in model carries wrong modes: %q", systemSnap.SnapName(), modes)
+				}
+				for _, mod := range expectedModes {
+					if !strutil.ListContains(modes, mod) {
+						return nil, fmt.Errorf("internal error: system snap %q explicitly listed in model carries wrong modes: %q", systemSnap.SnapName(), modes)
+					}
+				}
 				break
 			}
 		}
@@ -629,7 +639,7 @@ func (w *Writer) modSnaps() []*asserts.ModelSnap {
 			modSnaps = append([]*asserts.ModelSnap{systemSnap}, modSnaps...)
 		}
 	}
-	return modSnaps
+	return modSnaps, nil
 }
 
 func (w *Writer) optExtraSnaps() []*OptionsSnap {
@@ -703,7 +713,11 @@ func (w *Writer) SnapsToDownload() (snaps []*SeedSnap, err error) {
 	switch w.toDownload {
 	case toDownloadModel:
 		// TODO|XXX: support Core 20 models optional snaps correctly
-		toDownload, err := w.modelSnapsToDownload(w.modSnaps())
+		modSnaps, err := w.modSnaps()
+		if err != nil {
+			return nil, err
+		}
+		toDownload, err := w.modelSnapsToDownload(modSnaps)
 		if err != nil {
 			return nil, err
 		}
