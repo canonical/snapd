@@ -1,0 +1,39 @@
+summary: Test snapd install on a UC16 system
+
+# snapd snap is already installed by default on uc18+
+systems: [ubuntu-core-16-*]
+
+prepare: |
+    mkdir -p /etc/systemd/system/snapd.failure.service.d
+    cat <<'EOF' > /etc/systemd/system/snapd.failure.service.d/local.conf
+    [Service]
+    Environment=SNAPD_DEBUG=1
+    EOF
+    systemctl daemon-reload
+
+execute: |
+    snap download snapd
+
+    echo "Break snapd"
+    unsquashfs -d ./snapd-broken snapd_*.snap
+    echo "" > ./snapd-broken/usr/lib/snapd/snapd
+    # pick up snap-failure from the current snapd
+    cp -a /usr/lib/snapd/snap-failure ./snapd-broken/usr/lib/snapd/snap-failure
+    (cd ./snapd-broken && snap pack .)
+    echo "Now install the broken snapd"
+    if snap install --dangerous ./snapd-broken/snapd_*.snap; then
+        echo "installing a broken snapd should not work, test broken"
+        exit 1
+    fi
+
+    echo "And verify that snap commands still work and snapd is reverted"
+    retry-tool -n 30 --wait 5 systemctl is-active snapd.failure.service
+
+    echo "Verify we got the expected error message"
+    snap change --last=install|MATCH "there was a snapd rollback across the restart"
+    echo "No snapd snap is installed"
+    not snap list snapd
+
+    test ! -e /etc/systemd/system/snapd.service
+    test ! -e /etc/systemd/system/usr-lib-snapd.mount
+    test ! -e /snap/snapd/x1
