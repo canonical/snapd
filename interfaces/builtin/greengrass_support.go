@@ -66,6 +66,7 @@ capability kill,
 
 capability sys_resource,
 /sys/kernel/mm/hugepages/ r,
+/sys/kernel/mm/transparent_hugepage/{,**} r,
 owner @{PROC}/[0-9]*/oom_score_adj rw,
 
 capability sys_ptrace,
