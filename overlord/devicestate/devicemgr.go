@@ -500,6 +500,10 @@ func (m *DeviceManager) ensureInstalled() error {
 		return nil
 	}
 
+	if m.changeInFlight("install-device") {
+		return nil
+	}
+
 	m.ensureInstalledRan = true
 
 	tasks := []*state.Task{}
