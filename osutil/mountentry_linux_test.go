@@ -210,6 +210,12 @@ func (s *entrySuite) TestMountOptsToCommonFlags(c *C) {
 	flags, unparsed = osutil.MountOptsToCommonFlags([]string{"x-snapd.foo"})
 	c.Assert(flags, Equals, 0)
 	c.Assert(unparsed, HasLen, 0)
+	// The "rw" flag is recognized but doesn't translate to an actual value
+	// since read-write is the implicit default and there are no kernel level
+	// flags to express it.
+	flags, unparsed = osutil.MountOptsToCommonFlags([]string{"rw"})
+	c.Assert(flags, Equals, 0)
+	c.Assert(unparsed, DeepEquals, []string(nil))
 }
 
 func (s *entrySuite) TestOptStr(c *C) {
