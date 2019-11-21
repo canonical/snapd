@@ -316,6 +316,13 @@ owner /state/server/{,**} rw,
 /etc/ r,
 /etc/debian_version r,
 #include <abstractions/python>
+# additional accesses needed for newer pythons in later bases
+/usr/lib{,32,64}/python3.[0-9]/**.{pyc,so}           mr,
+/usr/lib{,32,64}/python3.[0-9]/**.{egg,py,pth}       r,
+/usr/lib{,32,64}/python3.[0-9]/{site,dist}-packages/ r,
+/usr/lib{,32,64}/python3.[0-9]/lib-dynload/*.so      mr,
+/etc/python3.[0-9]/**                                r,
+/usr/include/python3.[0-9]*/pyconfig.h               r,
 
 # manually add java certs here
 # see also https://bugs.launchpad.net/apparmor/+bug/1816372

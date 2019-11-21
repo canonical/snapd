@@ -64,6 +64,13 @@ var defaultTemplate = `
   # for python apps/services
   #include <abstractions/python>
   /usr/bin/python{,2,2.[0-9]*,3,3.[0-9]*} ixr,
+  # additional accesses needed for newer pythons in later bases
+  /usr/lib{,32,64}/python3.[0-9]/**.{pyc,so}           mr,
+  /usr/lib{,32,64}/python3.[0-9]/**.{egg,py,pth}       r,
+  /usr/lib{,32,64}/python3.[0-9]/{site,dist}-packages/ r,
+  /usr/lib{,32,64}/python3.[0-9]/lib-dynload/*.so      mr,
+  /etc/python3.[0-9]/**                                r,
+  /usr/include/python3.[0-9]*/pyconfig.h               r,
 
   # explicitly deny noisy denials to read-only filesystems (see LP: #1496895
   # for details)
