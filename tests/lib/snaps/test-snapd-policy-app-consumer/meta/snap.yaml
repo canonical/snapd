@@ -308,6 +308,9 @@ apps:
   raw-usb:
     command: bin/run
     plugs: [ raw-usb ]
+  raw-volume:
+    command: bin/run
+    plugs: [ raw-volume ]
   removable-media:
     command: bin/run
     plugs: [ removable-media ]

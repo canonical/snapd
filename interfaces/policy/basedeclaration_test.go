@@ -527,6 +527,24 @@ plugs:
 	c.Check(err, IsNil)
 }
 
+func (s *baseDeclSuite) TestAutoConnectionRawVolumeOverride(c *C) {
+	cand := s.connectCand(c, "raw-volume", "", "")
+	err := cand.CheckAutoConnect()
+	c.Check(err, NotNil)
+	c.Assert(err, ErrorMatches, "auto-connection denied by plug rule of interface \"raw-volume\"")
+
+	plugsSlots := `
+plugs:
+  raw-volume:
+    allow-auto-connection: true
+`
+
+	snapDecl := s.mockSnapDecl(c, "some-snap", "J60k4JY0HppjwOjW8dZdYc8obXKxujRu", "canonical", plugsSlots)
+	cand.PlugSnapDeclaration = snapDecl
+	err = cand.CheckAutoConnect()
+	c.Check(err, IsNil)
+}
+
 func (s *baseDeclSuite) TestAutoConnectionOverrideMultiple(c *C) {
 	plugsSlots := `
 plugs:
@@ -700,6 +718,7 @@ func (s *baseDeclSuite) TestPlugInstallation(c *C) {
 		"multipass-support":     true,
 		"packagekit-control":    true,
 		"personal-files":        true,
+		"raw-volume":            true,
 		"snapd-control":         true,
 		"system-files":          true,
 		"unity8":                true,
@@ -833,6 +852,7 @@ func (s *baseDeclSuite) TestSanity(c *C) {
 		"multipass-support":     true,
 		"packagekit-control":    true,
 		"personal-files":        true,
+		"raw-volume":            true,
 		"snapd-control":         true,
 		"system-files":          true,
 		"udisks2":               true,
