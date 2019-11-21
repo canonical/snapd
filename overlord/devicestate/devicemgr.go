@@ -395,7 +395,6 @@ func getPopulateStateFromSeedOptions() (*populateStateFromSeedOptions, error) {
 		Label: modeEnv.RecoverySystemLabel,
 		Mode:  modeEnv.Mode,
 	}, nil
-
 }
 
 // ensureSeeded makes sure that the snaps from seed.yaml get installed
