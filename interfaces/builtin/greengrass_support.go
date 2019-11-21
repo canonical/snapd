@@ -144,15 +144,17 @@ pivot_root
 /sys/devices/virtual/block/loop[0-9]*/loop/autoclear r,
 /sys/devices/virtual/block/loop[0-9]*/loop/backing_file r,
 
-# greengrassd needs protected hardlinks and symlinks to run securely, but 
-# won't turn them on itself, hence only read access for these things - 
-# the user is clearly informed if these are disabled and so the user can 
+# greengrassd needs protected hardlinks, symlinks, etc to run securely, but
+# won't turn them on itself, hence only read access for these things -
+# the user is clearly informed if these are disabled and so the user can
 # enable these themselves rather than give the snap permission to turn these
 # on
 @{PROC}/sys/fs/protected_hardlinks r,
 @{PROC}/sys/fs/protected_symlinks r,
+@{PROC}/sys/fs/protected_fifos r,
+@{PROC}/sys/fs/protected_regular r,
 
-# mount tries to access this, but it doesn't really need it 
+# mount tries to access this, but it doesn't really need it
 deny /run/mount/utab rw,
 
 # these accesses are needed in order to mount a squashfs file for the rootfs
