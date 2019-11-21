@@ -120,6 +120,9 @@ allow snappy_t proc_t:file { getattr open read };
 dev_read_sysfs(snappy_t)
 dev_search_sysfs(snappy_t)
 
+# Allow snapd to get attributes of /dev/loop-control
+dev_getattr_loop_control(snappy_t)
+
 # This silences a read AVC denial event on the lost+found directory.
 gen_require(`
   type lost_found_t;
