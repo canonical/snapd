@@ -53,7 +53,7 @@ func etcEnvironment() string {
 }
 
 func updateEtcEnvironmentConfig(path string, config map[string]string) error {
-	f, err := os.OpenFile(path, os.O_RDWR|os.O_CREATE, 0644)
+	f, err := os.OpenFile(path, os.O_RDONLY|os.O_CREATE, 0644)
 	if err != nil {
 		return err
 	}
@@ -64,6 +64,8 @@ func updateEtcEnvironmentConfig(path string, config map[string]string) error {
 		return err
 	}
 	if toWrite != nil {
+		// XXX: would be great to atomically write but /etc/environment
+		//      is a single bind mount :/
 		return ioutil.WriteFile(path, []byte(strings.Join(toWrite, "\n")), 0644)
 	}
 
