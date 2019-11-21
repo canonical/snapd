@@ -50,6 +50,18 @@ func (m *DeviceManager) doCreatePartitions(t *state.Task, _ *tomb.Tomb) error {
 	perfTimings := timings.NewForTask(t)
 	defer perfTimings.Save(st)
 
+	// get gadget mountpoint
+	model, err := findModel(st)
+	if err != nil {
+		return fmt.Errorf("cannot find model: %v", err)
+	}
+	info, err := snapstate.CurrentInfo(st, model.GadgetSnap().SnapName())
+	if err != nil {
+		return fmt.Errorf("cannot get gadget info: %v", err)
+	}
+	gadgetDir := info.MountDir()
+	st.Unlock()
+
 	// determine the block device to install
 	// XXX: we're assuming that the gadget has only one volume
 	part, err := partitionFromLabel("ubuntu-seed")
@@ -61,17 +73,6 @@ func (m *DeviceManager) doCreatePartitions(t *state.Task, _ *tomb.Tomb) error {
 		return fmt.Errorf("cannot determine device to install: %v", err)
 	}
 	logger.Noticef("Create partitions on %s", device)
-
-	// get gadget mountpoint
-	model, err := findModel(st)
-	if err != nil {
-		return fmt.Errorf("cannot find model: %v", err)
-	}
-	info, err := snapstate.CurrentInfo(st, model.GadgetSnap().SnapName())
-	if err != nil {
-		return fmt.Errorf("cannot get gadget info: %v", err)
-	}
-	gadgetDir := info.MountDir()
 
 	// XXX: we can create partitions internally instead of executing the utility
 	output, err := exec.Command("/usr/lib/snapd/snap-bootstrap", "create-partitions", gadgetDir, device).CombinedOutput()
@@ -89,6 +90,7 @@ func (m *DeviceManager) doCreatePartitions(t *state.Task, _ *tomb.Tomb) error {
 	}
 
 	// reboot the system
+	st.Lock()
 	st.RequestRestart(state.RestartSystem)
 
 	t.SetStatus(state.DoneStatus)
