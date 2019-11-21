@@ -1,18 +1,9 @@
-summary: Ensure "snapctl core-configure" works
+summary: Ensure "snap set core" works
 
 # the test is only meaningful on core devices
-systems: [ubuntu-core-16-*]
-
-prepare: |
-    cat > new-configure-core  <<EOF
-    #!/bin/sh
-    snapctl internal configure-core
-    EOF
-    chmod +x new-configure-core
-    mount -o bind new-configure-core /snap/core/current/meta/hooks/configure
+systems: [ubuntu-core-*]
 
 restore: |
-    umount /snap/core/current/meta/hooks/configure
     systemctl enable rsyslog.service
     systemctl start rsyslog.service
     rm -f /etc/systemd/login.conf.d/00-snap-core.conf
