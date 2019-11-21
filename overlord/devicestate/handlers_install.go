@@ -29,12 +29,17 @@ import (
 
 	"gopkg.in/tomb.v2"
 
-	"github.com/snapcore/snapd/boot"
+	"github.com/snapcore/snapd/bootloader"
 	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/overlord/snapstate"
 	"github.com/snapcore/snapd/overlord/state"
 	"github.com/snapcore/snapd/timings"
+)
+
+const (
+	recoveryBootloaderPath = "/run/mnt/ubuntu-seed/EFI/ubuntu"
+	recoveryModeBootVar    = "snapd_recovery_mode"
 )
 
 func (m *DeviceManager) doCreatePartitions(t *state.Task, _ *tomb.Tomb) error {
@@ -74,14 +79,13 @@ func (m *DeviceManager) doCreatePartitions(t *state.Task, _ *tomb.Tomb) error {
 		return osutil.OutputErr(output, err)
 	}
 
-	// update recovery mode in modeenv
-	modeEnv, err := boot.ReadModeenv()
+	// update recovery mode in grubenv
+	bl, err := bootloader.Find(recoveryBootloaderPath, nil)
 	if err != nil {
-		return fmt.Errorf("cannot read modeenv: %v", err)
+		return err
 	}
-	modeEnv.Mode = "run"
-	if err := boot.WriteModeenv(modeEnv); err != nil {
-		return fmt.Errorf("cannot write modeenv: %v", err)
+	if err := bl.SetBootVars(map[string]string{recoveryModeBootVar: "run"}); err != nil {
+		return fmt.Errorf("cannot update recovery mode: %v", err)
 	}
 
 	// reboot the system

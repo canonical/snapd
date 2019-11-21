@@ -20,9 +20,6 @@
 package boot
 
 import (
-	"fmt"
-	"io/ioutil"
-
 	"github.com/mvo5/goconfigparser"
 
 	"github.com/snapcore/snapd/dirs"
@@ -47,10 +44,4 @@ func ReadModeenv() (*Modeenv, error) {
 		Mode:                mode,
 		RecoverySystemLabel: recoverySystemLabel,
 	}, nil
-}
-
-func WriteModeenv(m *Modeenv) error {
-	// XXX: goconfigparser currently doesn't offer write functionality
-	data := fmt.Sprintf("mode=%s\nrecovery_system=%s\nmode=%s\n", m.Mode, m.RecoverySystemLabel)
-	return ioutil.WriteFile(dirs.SnapModeenvFile, []byte(data), 0644)
 }
