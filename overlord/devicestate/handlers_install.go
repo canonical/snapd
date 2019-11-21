@@ -20,12 +20,8 @@
 package devicestate
 
 import (
-	"bufio"
 	"fmt"
-	"os"
 	"os/exec"
-	"path/filepath"
-	"strings"
 
 	"gopkg.in/tomb.v2"
 
@@ -96,45 +92,4 @@ func (m *DeviceManager) doCreatePartitions(t *state.Task, _ *tomb.Tomb) error {
 	t.SetStatus(state.DoneStatus)
 
 	return nil
-}
-
-func partitionFromLabel(label string) (string, error) {
-	output, err := exec.Command("findfs", "LABEL="+label).CombinedOutput()
-	if err != nil {
-		return "", osutil.OutputErr(output, err)
-	}
-	dev := strings.TrimSpace(string(output))
-	return dev, nil
-}
-
-func diskFromPartition(part string) (string, error) {
-	sysdev := filepath.Join("/sys/class/block", filepath.Base(part))
-	dev, err := filepath.EvalSymlinks(sysdev)
-	if err != nil {
-		return "", fmt.Errorf("cannot resolve symlink: %s: %s", sysdev, err)
-	}
-
-	devpath := filepath.Join(filepath.Dir(dev), "dev")
-	f, err := os.Open(devpath)
-	if err != nil {
-		return "", fmt.Errorf("cannot open %s: %s", devpath, err)
-	}
-	defer f.Close()
-
-	// Read major and minor block device numbers
-	r := bufio.NewReader(f)
-	line, _, err := r.ReadLine()
-	nums := strings.TrimSpace(string(line))
-	if err != nil {
-		return "", fmt.Errorf("cannot read major and minor numbers: %s", err)
-	}
-
-	// Locate block device based on device numbers
-	blockdev := filepath.Join("/dev/block", nums)
-	voldev, err := filepath.EvalSymlinks(blockdev)
-	if err != nil {
-		return "", fmt.Errorf("cannot resolve symlink: %s: %s", blockdev, err)
-	}
-
-	return voldev, nil
 }

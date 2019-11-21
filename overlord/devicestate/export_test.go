@@ -67,6 +67,22 @@ func MockMaxTentatives(max int) (restore func()) {
 	}
 }
 
+func MockSysClassBlock(dir string) (restore func()) {
+	old := sysClassBlock
+	sysClassBlock = dir
+	return func() {
+		sysClassBlock = old
+	}
+}
+
+func MockDevBlock(dir string) (restore func()) {
+	old := devBlock
+	devBlock = dir
+	return func() {
+		devBlock = old
+	}
+}
+
 func KeypairManager(m *DeviceManager) asserts.KeypairManager {
 	return m.keypairMgr
 }
@@ -165,6 +181,9 @@ var (
 	GadgetUpdateBlocked = gadgetUpdateBlocked
 	CurrentGadgetInfo   = currentGadgetInfo
 	PendingGadgetInfo   = pendingGadgetInfo
+
+	PartitionFromLabel = partitionFromLabel
+	DiskFromPartition  = diskFromPartition
 )
 
 func MockGadgetUpdate(mock func(current, update gadget.GadgetData, path string, policy gadget.UpdatePolicyFunc) error) (restore func()) {
