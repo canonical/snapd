@@ -55,7 +55,7 @@ func etcEnvironment() string {
 func updateEtcEnvironmentConfig(path string, config map[string]string) error {
 	f, err := os.OpenFile(path, os.O_RDWR|os.O_CREATE, 0644)
 	if err != nil {
-		return nil
+		return err
 	}
 	defer f.Close()
 
