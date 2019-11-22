@@ -34,10 +34,29 @@ import (
 	"github.com/snapcore/snapd/release"
 	"github.com/snapcore/snapd/snap"
 	"github.com/snapcore/snapd/systemd"
+	"github.com/snapcore/snapd/timeout"
 )
+
+var snapdServiceStopTimeout = time.Duration(timeout.DefaultTimeout)
 
 // catches units that run /usr/bin/snap (with args), or things in /usr/lib/snapd/
 var execStartRe = regexp.MustCompile(`(?m)^ExecStart=(/usr/bin/snap\s+.*|/usr/lib/snapd/.*)$`)
+
+func snapdSkipStart(content []byte) bool {
+	return bytes.Contains(content, []byte("X-Snapd-Snap: do-not-start"))
+}
+
+func snapdUnitSkipStart(unitPath string) (bool, error) {
+	content, err := ioutil.ReadFile(unitPath)
+	if err != nil {
+		if os.IsNotExist(err) {
+			// no point in starting units that do not exist
+			return true, nil
+		}
+		return false, err
+	}
+	return snapdSkipStart(content), nil
+}
 
 func writeSnapdToolingMountUnit(sysd systemd.Systemd, prefix string) error {
 	// Not using AddMountUnitFile() because we need
@@ -82,6 +101,26 @@ WantedBy=snapd.service
 	}
 
 	return nil
+}
+
+func undoSnapdToolingMountUnit(sysd systemd.Systemd) error {
+	unit := "usr-lib-snapd.mount"
+	mountUnitPath := filepath.Join(dirs.SnapServicesDir, unit)
+
+	if !osutil.FileExists(mountUnitPath) {
+		return nil
+	}
+
+	if err := sysd.Disable(unit); err != nil {
+		return err
+	}
+	// XXX: it is ok to stop the mount unit, the failover handler
+	// executes snapd directly from the previous revision of snapd snap or
+	// the core snap, the handler is running directly from the mounted snapd snap
+	if err := sysd.Stop(unit, snapdServiceStopTimeout); err != nil {
+		return err
+	}
+	return os.Remove(mountUnitPath)
 }
 
 func writeSnapdServicesOnCore(s *snap.Info, inter interacter) error {
@@ -172,7 +211,7 @@ func writeSnapdServicesOnCore(s *snap.Info, inter interacter) error {
 		// Some units (like the snapd.system-shutdown.service) cannot
 		// be started. Others like "snapd.seeded.service" are started
 		// as dependencies of snapd.service.
-		if bytes.Contains(snapdUnits[unit].(*osutil.MemoryFileState).Content, []byte("X-Snapd-Snap: do-not-start")) {
+		if snapdSkipStart(snapdUnits[unit].(*osutil.MemoryFileState).Content) {
 			continue
 		}
 		// Ensure to only restart if the unit was previously
@@ -221,6 +260,75 @@ func writeSnapdServicesOnCore(s *snap.Info, inter interacter) error {
 		return err
 	}
 
+	return nil
+}
+
+func undoSnapdServicesOnCore(s *snap.Info, sysd systemd.Systemd) error {
+	serviceUnits, err := filepath.Glob(filepath.Join(s.MountDir(), "lib/systemd/system/*.service"))
+	if err != nil {
+		return err
+	}
+	socketUnits, err := filepath.Glob(filepath.Join(s.MountDir(), "lib/systemd/system/*.socket"))
+	if err != nil {
+		return err
+	}
+	timerUnits, err := filepath.Glob(filepath.Join(s.MountDir(), "lib/systemd/system/*.timer"))
+	if err != nil {
+		return err
+	}
+	units := append(socketUnits, serviceUnits...)
+	units = append(units, timerUnits...)
+
+	for _, snapdUnit := range units {
+		unit := filepath.Base(snapdUnit)
+		coreUnit := filepath.Join(dirs.GlobalRootDir, "lib/systemd/system", unit)
+
+		writtenUnitPath := filepath.Join(dirs.SnapServicesDir, unit)
+		if !osutil.FileExists(writtenUnitPath) {
+			continue
+		}
+		if err := sysd.Disable(unit); err != nil {
+			logger.Noticef("failed to disable %q: %v", unit, err)
+		}
+		if err := os.Remove(writtenUnitPath); err != nil {
+			return err
+		}
+		// systemd is tracking the unit based on it's internal state
+		if !osutil.FileExists(coreUnit) {
+			// new unit that did not exist on core, stop
+			if err := sysd.Stop(unit, snapdServiceStopTimeout); err != nil {
+				return err
+			}
+			continue
+		}
+		if err := sysd.Enable(unit); err != nil {
+			return err
+		}
+		if unit == "snapd.socket" {
+			// do not start the socket, snap failover handler will
+			// restart it
+			continue
+		}
+		skipStart, err := snapdUnitSkipStart(coreUnit)
+		if err != nil {
+			return err
+		}
+		if !skipStart {
+			isActive, err := sysd.IsActive(unit)
+			if err != nil {
+				return err
+			}
+			if isActive {
+				if err := sysd.Restart(unit, snapdServiceStopTimeout); err != nil {
+					return err
+				}
+			} else {
+				if err := sysd.Start(unit); err != nil {
+					return err
+				}
+			}
+		}
+	}
 	return nil
 }
 
@@ -285,5 +393,66 @@ func writeSnapdUserServicesOnCore(s *snap.Info, inter interacter) error {
 		}
 	}
 
+	return nil
+}
+
+func undoSnapdUserServicesOnCore(s *snap.Info, inter interacter) error {
+	sysd := systemd.New(dirs.GlobalRootDir, systemd.GlobalUserMode, inter)
+
+	serviceUnits, err := filepath.Glob(filepath.Join(s.MountDir(), "usr/lib/systemd/user/*.service"))
+	if err != nil {
+		return err
+	}
+	socketUnits, err := filepath.Glob(filepath.Join(s.MountDir(), "usr/lib/systemd/user/*.socket"))
+	if err != nil {
+		return err
+	}
+	units := append(serviceUnits, socketUnits...)
+
+	for _, srcUnit := range units {
+		unit := filepath.Base(srcUnit)
+		writtenUnitPath := filepath.Join(dirs.SnapUserServicesDir, unit)
+		if !osutil.FileExists(writtenUnitPath) {
+			continue
+		}
+		if err := sysd.Disable(unit); err != nil {
+			logger.Noticef("failed to disable %q: %v", unit, err)
+		}
+		if err := os.Remove(writtenUnitPath); err != nil {
+			return err
+		}
+		if !osutil.FileExists(filepath.Join(dirs.GlobalRootDir, "usr/lib/systemd/user", unit)) {
+			// new unit that did not exist on core
+			continue
+		}
+		if err := sysd.Enable(unit); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+// UndoSnapdServicesOnCore removes the snapd services generated by a prior call
+// to AddSnapServices. The core snap is used as the reference for restoring the
+// system state, making this undo helper suitable for use when reverting the
+// first installation of the snapd snap on a core device.
+func UndoSnapdServicesOnCore(s *snap.Info, inter interacter) error {
+	// nothing to do on classic
+	if release.OnClassic {
+		return nil
+	}
+
+	sysd := systemd.New(dirs.GlobalRootDir, systemd.SystemMode, inter)
+
+	if err := undoSnapdServicesOnCore(s, sysd); err != nil {
+		return err
+	}
+	if err := undoSnapdUserServicesOnCore(s, inter); err != nil {
+		return err
+	}
+	if err := undoSnapdToolingMountUnit(sysd); err != nil {
+		return err
+	}
+	// XXX: reload after all operations?
 	return nil
 }

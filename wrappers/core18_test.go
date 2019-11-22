@@ -185,3 +185,98 @@ func (s *servicesTestSuite) TestAddSnapServicesForSnapdOnClassic(c *C) {
 	// check that no systemctl calls happened
 	c.Check(s.sysdLog, IsNil)
 }
+
+func (s *servicesTestSuite) TestRemoveSnapServicesForSnapdOnCore(c *C) {
+	restore := release.MockOnClassic(false)
+	defer restore()
+
+	restore = release.MockReleaseInfo(&release.OS{ID: "ubuntu"})
+	defer restore()
+
+	// reset root dir
+	dirs.SetRootDir(s.tempdir)
+
+	systemctlRestorer := systemd.MockSystemctl(func(cmd ...string) ([]byte, error) {
+		s.sysdLog = append(s.sysdLog, cmd)
+		if cmd[0] == "show" && cmd[1] == "--property=Id,ActiveState,UnitFileState,Type" {
+			s := fmt.Sprintf("Type=oneshot\nId=%s\nActiveState=inactive\nUnitFileState=enabled\n", cmd[2])
+			return []byte(s), nil
+		}
+		return []byte("ActiveState=inactive\n"), nil
+	})
+	defer systemctlRestorer()
+
+	info := makeMockSnapdSnap(c)
+
+	units := [][]string{
+		{filepath.Join(dirs.SnapServicesDir, "usr-lib-snapd.mount"), "from-snapd"},
+		{filepath.Join(dirs.SnapServicesDir, "snapd.service"), "from-snapd"},
+		{filepath.Join(dirs.SnapServicesDir, "snapd.socket"), "from-snapd"},
+		{filepath.Join(dirs.SnapServicesDir, "snapd.snap-repair.timer"), "from-snapd"},
+		{filepath.Join(dirs.SnapServicesDir, "snapd.autoimport.service"), "from-snapd"},
+		{filepath.Join(dirs.SnapServicesDir, "snapd.system-shutdown.service"), "from-snapd"},
+		{filepath.Join(dirs.SnapUserServicesDir, "snapd.session-agent.service"), "from-snapd"},
+		{filepath.Join(dirs.SnapUserServicesDir, "snapd.session-agent.socket"), "from-snapd"},
+		// extra unit not present in core snap
+		{filepath.Join(dirs.SnapServicesDir, "snapd.not-in-core.service"), "from-snapd"},
+	}
+	// content list uses absolute paths already
+	snaptest.PopulateDir("/", units)
+
+	// add the extra unit to the snap
+	snaptest.PopulateDir("/", [][]string{
+		{filepath.Join(info.MountDir(), "lib/systemd/system/snapd.not-in-core.service"), "from-snapd"},
+	})
+
+	coreUnits := [][]string{
+		{filepath.Join(dirs.GlobalRootDir, "lib/systemd/system/snapd.service"), "# X-Snapd-Snap: do-not-start"},
+		{filepath.Join(dirs.GlobalRootDir, "lib/systemd/system/snapd.socket"), "from-core"},
+		{filepath.Join(dirs.GlobalRootDir, "lib/systemd/system/snapd.snap-repair.timer"), "from-core"},
+		{filepath.Join(dirs.GlobalRootDir, "lib/systemd/system/snapd.autoimport.service"), "from-core"},
+		{filepath.Join(dirs.GlobalRootDir, "lib/systemd/system/snapd.system-shutdown.service"), "# X-Snapd-Snap: do-not-start"},
+		{filepath.Join(dirs.GlobalRootDir, "usr/lib/systemd/user/snapd.session-agent.service"), "from-core"},
+		{filepath.Join(dirs.GlobalRootDir, "usr/lib/systemd/user/snapd.session-agent.socket"), "from-core"},
+	}
+	// content list uses absolute paths already
+	snaptest.PopulateDir("/", coreUnits)
+
+	// remove the snapd service
+	err := wrappers.UndoSnapdServicesOnCore(info, progress.Null)
+	c.Assert(err, IsNil)
+
+	for _, unit := range units {
+		c.Check(unit[0], testutil.FileAbsent)
+	}
+
+	// check the systemctl calls
+	c.Check(s.sysdLog, DeepEquals, [][]string{
+		{"--root", dirs.GlobalRootDir, "disable", "snapd.socket"},
+		{"--root", dirs.GlobalRootDir, "enable", "snapd.socket"},
+		{"--root", dirs.GlobalRootDir, "disable", "snapd.autoimport.service"},
+		{"--root", dirs.GlobalRootDir, "enable", "snapd.autoimport.service"},
+		{"--root", dirs.GlobalRootDir, "is-active", "snapd.autoimport.service"},
+		{"stop", "snapd.autoimport.service"},
+		{"show", "--property=ActiveState", "snapd.autoimport.service"},
+		{"start", "snapd.autoimport.service"},
+		{"--root", dirs.GlobalRootDir, "disable", "snapd.not-in-core.service"},
+		{"stop", "snapd.not-in-core.service"},
+		{"show", "--property=ActiveState", "snapd.not-in-core.service"},
+		{"--root", dirs.GlobalRootDir, "disable", "snapd.service"},
+		{"--root", dirs.GlobalRootDir, "enable", "snapd.service"},
+		{"--root", dirs.GlobalRootDir, "disable", "snapd.system-shutdown.service"},
+		{"--root", dirs.GlobalRootDir, "enable", "snapd.system-shutdown.service"},
+		{"--root", dirs.GlobalRootDir, "disable", "snapd.snap-repair.timer"},
+		{"--root", dirs.GlobalRootDir, "enable", "snapd.snap-repair.timer"},
+		{"--root", dirs.GlobalRootDir, "is-active", "snapd.snap-repair.timer"},
+		{"stop", "snapd.snap-repair.timer"},
+		{"show", "--property=ActiveState", "snapd.snap-repair.timer"},
+		{"start", "snapd.snap-repair.timer"},
+		{"--user", "--global", "--root", dirs.GlobalRootDir, "disable", "snapd.session-agent.service"},
+		{"--user", "--global", "--root", dirs.GlobalRootDir, "enable", "snapd.session-agent.service"},
+		{"--user", "--global", "--root", dirs.GlobalRootDir, "disable", "snapd.session-agent.socket"},
+		{"--user", "--global", "--root", dirs.GlobalRootDir, "enable", "snapd.session-agent.socket"},
+		{"--root", dirs.GlobalRootDir, "disable", "usr-lib-snapd.mount"},
+		{"stop", "usr-lib-snapd.mount"},
+		{"show", "--property=ActiveState", "usr-lib-snapd.mount"},
+	})
+}
