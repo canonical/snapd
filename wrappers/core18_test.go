@@ -150,8 +150,11 @@ WantedBy=snapd.service
 		{"show", "--property=ActiveState", "usr-lib-snapd.mount"},
 		{"start", "usr-lib-snapd.mount"},
 		{"daemon-reload"},
+		{"--root", dirs.GlobalRootDir, "disable", "snapd.autoimport.service"},
 		{"--root", dirs.GlobalRootDir, "enable", "snapd.autoimport.service"},
+		{"--root", dirs.GlobalRootDir, "disable", "snapd.service"},
 		{"--root", dirs.GlobalRootDir, "enable", "snapd.service"},
+		{"--root", dirs.GlobalRootDir, "disable", "snapd.system-shutdown.service"},
 		{"--root", dirs.GlobalRootDir, "enable", "snapd.system-shutdown.service"},
 		{"--root", dirs.GlobalRootDir, "is-active", "snapd.autoimport.service"},
 		{"stop", "snapd.autoimport.service"},
@@ -160,7 +163,9 @@ WantedBy=snapd.service
 		{"start", "snapd.service"},
 		{"start", "--no-block", "snapd.seeded.service"},
 		{"start", "--no-block", "snapd.autoimport.service"},
+		{"--user", "--global", "--root", dirs.GlobalRootDir, "disable", "snapd.session-agent.service"},
 		{"--user", "--global", "--root", dirs.GlobalRootDir, "enable", "snapd.session-agent.service"},
+		{"--user", "--global", "--root", dirs.GlobalRootDir, "disable", "snapd.session-agent.socket"},
 		{"--user", "--global", "--root", dirs.GlobalRootDir, "enable", "snapd.session-agent.socket"},
 	})
 }

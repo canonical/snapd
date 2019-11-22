@@ -127,7 +127,8 @@ func writeSnapdServicesOnCore(s *snap.Info, inter interacter) error {
 			Mode:    st.Mode(),
 		}
 	}
-	changed, removed, err := osutil.EnsureDirStateGlobs(dirs.SnapServicesDir, []string{"snapd.service", "snapd.socket", "snapd.*.service", "snapd.*.timer"}, snapdUnits)
+	globs := []string{"snapd.service", "snapd.socket", "snapd.*.service", "snapd.*.timer"}
+	changed, removed, err := osutil.EnsureDirStateGlobs(dirs.SnapServicesDir, globs, snapdUnits)
 	if err != nil {
 		// TODO: uhhhh, what do we do in this case?
 		return err
@@ -155,6 +156,13 @@ func writeSnapdServicesOnCore(s *snap.Info, inter interacter) error {
 
 	// enable/start all the new services
 	for _, unit := range changed {
+		// enable is not idempotent if the symlink target switches from
+		// /lib to /etc in the multiuser-wantes.d so we need to disable
+		// first (enable --force is not available through the systemd
+		// wrapper)
+		if err := sysd.Disable(unit); err != nil {
+			return err
+		}
 		if err := sysd.Enable(unit); err != nil {
 			return err
 		}
@@ -179,8 +187,12 @@ func writeSnapdServicesOnCore(s *snap.Info, inter interacter) error {
 			return err
 		}
 		if isActive {
-			if err := sysd.Restart(unit, 5*time.Second); err != nil {
-				return err
+			// we can never restart the snapd.socket because
+			// this will also bring down snapd itself
+			if unit != "snapd.socket" {
+				if err := sysd.Restart(unit, 5*time.Second); err != nil {
+					return err
+				}
 			}
 		} else {
 			if err := sysd.Start(unit); err != nil {
@@ -265,6 +277,9 @@ func writeSnapdUserServicesOnCore(s *snap.Info, inter interacter) error {
 
 	// enable/start all the new services
 	for _, unit := range changed {
+		if err := sysd.Disable(unit); err != nil {
+			logger.Noticef("failed to disable %q: %v", unit, err)
+		}
 		if err := sysd.Enable(unit); err != nil {
 			return err
 		}
