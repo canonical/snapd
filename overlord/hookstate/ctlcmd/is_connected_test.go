@@ -125,3 +125,21 @@ func (s *isConnectedSuite) TestNoContextError(c *C) {
 	c.Check(string(stdout), Equals, "")
 	c.Check(string(stderr), Equals, "")
 }
+
+func (s *isConnectedSuite) TestGetRegularUser(c *C) {
+	s.st.Lock()
+
+	s.st.Set("conns", map[string]interface{}{
+		"snap1:plug1 snap2:slot2": map[string]interface{}{},
+	})
+
+	setup := &hookstate.HookSetup{Snap: "snap1", Revision: snap.R(1)}
+
+	s.st.Unlock()
+
+	mockContext, err := hookstate.NewContext(nil, s.st, setup, s.mockHandler, "")
+	c.Assert(err, IsNil)
+	stdout, stderr, err := ctlcmd.Run(mockContext, []string{"is-connected", "plug1"}, 1000)
+	c.Check(string(stdout), Equals, "")
+	c.Check(string(stderr), Equals, "")
+}
