@@ -47,11 +47,11 @@ func (m *DeviceManager) doCreatePartitions(t *state.Task, _ *tomb.Tomb) error {
 	defer perfTimings.Save(st)
 
 	// get gadget mountpoint
-	model, err := findModel(st)
+	deviceCtx, err := DeviceCtx(st, t, nil)
 	if err != nil {
-		return fmt.Errorf("cannot find model: %v", err)
+		return fmt.Errorf("cannot get device context: %v", err)
 	}
-	info, err := snapstate.CurrentInfo(st, model.GadgetSnap().SnapName())
+	info, err := snapstate.GadgetInfo(st, deviceCtx)
 	if err != nil {
 		return fmt.Errorf("cannot get gadget info: %v", err)
 	}
