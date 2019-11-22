@@ -714,6 +714,11 @@ profile snap-update-ns.###SNAP_INSTANCE_NAME### (attach_disconnected) {
   /dev/random r,
   /dev/urandom r,
 
+  # Allow access to the uuidd daemon (this daemon is a thin wrapper around
+  # time and getrandom()/{,u}random and, when available, runs under an
+  # unprivilged, dedicated user).
+  /run/uuidd/request r,
+
   # Allow reading the command line (snap-update-ns uses it in pre-Go bootstrap code).
   @{PROC}/@{pid}/cmdline r,
 
