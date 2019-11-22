@@ -29,6 +29,7 @@ import (
 	"path/filepath"
 
 	"github.com/snapcore/snapd/dirs"
+	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/osutil"
 )
 
@@ -113,21 +114,25 @@ func (c *cmdSnapd) Execute(args []string) error {
 	default:
 		return err
 	}
+	logger.Noticef("stopping snapd socket")
 	// stop the socket unit so that we can start snapd on its own
 	output, err := exec.Command("systemctl", "stop", "snapd.socket").CombinedOutput()
 	if err != nil {
 		return osutil.OutputErr(output, err)
 	}
 
+	logger.Noticef("restoring invoking snapd from: %v", snapdPath)
 	// start previous snapd
 	cmd := exec.Command(snapdPath)
 	cmd.Env = os.Environ()
 	cmd.Env = append(cmd.Env, "SNAPD_REVERT_TO_REV="+prevRev)
-	output, err = cmd.CombinedOutput()
-	if err != nil {
-		return fmt.Errorf("snapd failed: %v", osutil.OutputErr(output, err))
+	cmd.Stdout = Stdout
+	cmd.Stderr = Stderr
+	if err = cmd.Run(); err != nil {
+		return fmt.Errorf("snapd failed: %v", err)
 	}
 
+	logger.Noticef("restarting snapd socket")
 	// at this point our manually started snapd stopped and
 	// removed the /run/snap* sockets (this is a feature of
 	// golang) - we need to restart snapd.socket to make them
