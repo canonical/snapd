@@ -197,6 +197,7 @@ var defaultTemplate = `
   /{,usr/}bin/nohup ixr,
   /{,usr/}bin/od ixr,
   /{,usr/}bin/openssl ixr, # may cause harmless capability block_suspend denial
+  /{,usr/}bin/paste ixr,
   /{,usr/}bin/pgrep ixr,
   /{,usr/}bin/printenv ixr,
   /{,usr/}bin/printf ixr,
