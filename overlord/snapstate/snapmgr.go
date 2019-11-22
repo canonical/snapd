@@ -90,6 +90,11 @@ type SnapSetup struct {
 
 	SnapPath string `json:"snap-path,omitempty"`
 
+	// LastActiveDisabledServices is a list of services that were disabled right
+	// before the snap was unlinked to be used for re-disabling those services
+	// right after re-linking a different revision
+	LastActiveDisabledServices []string `json:"last-active-disabled-services,omitempty"`
+
 	DownloadInfo *snap.DownloadInfo `json:"download-info,omitempty"`
 	SideInfo     *snap.SideInfo     `json:"side-info,omitempty"`
 	auxStoreInfo
