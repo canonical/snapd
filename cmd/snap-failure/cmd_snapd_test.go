@@ -213,7 +213,7 @@ func (r *failureSuite) TestSnapdOutputPassthrough(c *C) {
 		{Revision: snap.R(123)},
 	})
 
-	snapdCmd := mockCommandInDir(c, filepath.Join(dirs.SnapMountDir, "snapd", "100", "/usr/lib/snapd/snapd"), `
+	snapdCmd := testutil.MockCommand(c, filepath.Join(dirs.SnapMountDir, "snapd", "100", "/usr/lib/snapd/snapd"), `
 echo 'stderr: hello from snapd' >&2
 echo 'stdout: hello from snapd'
 exit 123
