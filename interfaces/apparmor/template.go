@@ -60,6 +60,8 @@ var defaultTemplate = `
   /usr/share/terminfo/** k,
   /usr/share/zoneinfo/** k,
   owner @{PROC}/@{pid}/maps k,
+  owner @{HOME}/.Private/ r,
+  owner @{HOMEDIRS}/.ecryptfs/*/.Private/ r,
 
   # for python apps/services
   #include <abstractions/python>
