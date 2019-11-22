@@ -159,8 +159,8 @@ func (tr *tree16) mkFixedDirs() error {
 	return os.MkdirAll(tr.snapsDirPath, 0755)
 }
 
-func (tr *tree16) snapsDir() string {
-	return tr.snapsDirPath
+func (tr *tree16) snapPath(sn *SeedSnap) (string, error) {
+	return filepath.Join(tr.snapsDirPath, filepath.Base(sn.Info.MountFile())), nil
 }
 
 func (tr *tree16) localSnapPath(sn *SeedSnap) (string, error) {

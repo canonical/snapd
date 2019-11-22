@@ -23,7 +23,6 @@ package seedwriter
 import (
 	"errors"
 	"fmt"
-	"path/filepath"
 	"strings"
 
 	"github.com/snapcore/snapd/asserts"
@@ -204,8 +203,7 @@ type policy interface {
 type tree interface {
 	mkFixedDirs() error
 
-	// XXX might need to differentiate for extra snaps
-	snapsDir() string
+	snapPath(*SeedSnap) (string, error)
 
 	localSnapPath(*SeedSnap) (string, error)
 
@@ -544,7 +542,12 @@ func (w *Writer) SetInfo(sn *SeedSnap, info *snap.Info) error {
 		return nil
 	}
 
-	sn.Path = filepath.Join(w.tree.snapsDir(), filepath.Base(info.MountFile()))
+	p, err := w.tree.snapPath(sn)
+	if err != nil {
+		return err
+	}
+
+	sn.Path = p
 	return nil
 }
 
@@ -978,13 +981,14 @@ func (w *Writer) SeedSnaps(copySnap func(name, src, dst string) error) error {
 		return err
 	}
 
-	snapsDir := w.tree.snapsDir()
-
 	seedSnaps := func(snaps []*SeedSnap) error {
 		for _, sn := range snaps {
 			info := sn.Info
 			if !sn.local {
-				expectedPath := filepath.Join(snapsDir, filepath.Base(info.MountFile()))
+				expectedPath, err := w.tree.snapPath(sn)
+				if err != nil {
+					return err
+				}
 				if sn.Path != expectedPath {
 					return fmt.Errorf("internal error: before seedwriter.Writer.SeedSnaps snap %q Path should have been set to %q", sn.SnapName(), expectedPath)
 				}
