@@ -500,7 +500,7 @@ func (m *DeviceManager) ensureInstalled() error {
 		return nil
 	}
 
-	if m.changeInFlight("install-device") {
+	if m.changeInFlight("install-system") {
 		return nil
 	}
 
@@ -510,7 +510,7 @@ func (m *DeviceManager) ensureInstalled() error {
 	createPartitions := m.state.NewTask("create-partitions", i18n.G("Create new partitions"))
 	tasks = append(tasks, createPartitions)
 
-	chg := m.state.NewChange("install-device", i18n.G("Install the device"))
+	chg := m.state.NewChange("install-system", i18n.G("Install the system"))
 	chg.AddAll(state.NewTaskSet(tasks...))
 
 	return nil
