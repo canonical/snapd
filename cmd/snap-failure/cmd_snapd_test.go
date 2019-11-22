@@ -61,12 +61,6 @@ func writeSeqFile(c *C, name string, current snap.Revision, seq []*snap.SideInfo
 	c.Assert(err, IsNil)
 }
 
-func mockCommandInDir(c *C, path, script string) *testutil.MockCmd {
-	err := os.MkdirAll(filepath.Dir(path), 0755)
-	c.Assert(err, IsNil)
-	return testutil.MockCommand(c, path, script)
-}
-
 func (r *failureSuite) TestCallPrevSnapdFromSnap(c *C) {
 	origArgs := os.Args
 	defer func() { os.Args = origArgs }()
@@ -78,7 +72,7 @@ func (r *failureSuite) TestCallPrevSnapdFromSnap(c *C) {
 	})
 
 	// mock snapd command from 'previous' revision
-	snapdCmd := mockCommandInDir(c, filepath.Join(dirs.SnapMountDir, "snapd", "100", "/usr/lib/snapd/snapd"),
+	snapdCmd := testutil.MockCommand(c, filepath.Join(dirs.SnapMountDir, "snapd", "100", "/usr/lib/snapd/snapd"),
 		`test "$SNAPD_REVERT_TO_REV" = "100"`)
 	defer snapdCmd.Restore()
 
@@ -109,7 +103,7 @@ func (r *failureSuite) TestCallPrevSnapdFromCore(c *C) {
 	})
 
 	// mock snapd in the core snap
-	snapdCmd := mockCommandInDir(c, filepath.Join(dirs.SnapMountDir, "core", "current", "/usr/lib/snapd/snapd"),
+	snapdCmd := testutil.MockCommand(c, filepath.Join(dirs.SnapMountDir, "core", "current", "/usr/lib/snapd/snapd"),
 		`test "$SNAPD_REVERT_TO_REV" = "0"`)
 	defer snapdCmd.Restore()
 
@@ -140,7 +134,7 @@ func (r *failureSuite) TestCallPrevSnapdFail(c *C) {
 	})
 
 	// mock snapd in the core snap
-	snapdCmd := mockCommandInDir(c, filepath.Join(dirs.SnapMountDir, "snapd", "100", "/usr/lib/snapd/snapd"),
+	snapdCmd := testutil.MockCommand(c, filepath.Join(dirs.SnapMountDir, "snapd", "100", "/usr/lib/snapd/snapd"),
 		`exit 2`)
 	defer snapdCmd.Restore()
 
@@ -171,7 +165,7 @@ func (r *failureSuite) TestGarbageSeq(c *C) {
 	err = ioutil.WriteFile(seqPath, []byte("this is garbage"), 0644)
 	c.Assert(err, IsNil)
 
-	snapdCmd := mockCommandInDir(c, filepath.Join(dirs.SnapMountDir, "snapd", "100", "/usr/lib/snapd/snapd"),
+	snapdCmd := testutil.MockCommand(c, filepath.Join(dirs.SnapMountDir, "snapd", "100", "/usr/lib/snapd/snapd"),
 		`exit 99`)
 	defer snapdCmd.Restore()
 
@@ -196,7 +190,7 @@ func (r *failureSuite) TestBadSeq(c *C) {
 		// current not in sequence
 	})
 
-	snapdCmd := mockCommandInDir(c, filepath.Join(dirs.SnapMountDir, "snapd", "100", "/usr/lib/snapd/snapd"), "")
+	snapdCmd := testutil.MockCommand(c, filepath.Join(dirs.SnapMountDir, "snapd", "100", "/usr/lib/snapd/snapd"), "")
 	defer snapdCmd.Restore()
 	systemctlCmd := testutil.MockCommand(c, "systemctl", "")
 	defer systemctlCmd.Restore()
