@@ -63,7 +63,7 @@ func (c *isConnectedCommand) Execute(args []string) error {
 
 	conns, err := ifacestate.ConnectionStates(st)
 	if err != nil {
-		return fmt.Errorf("cannot get connections: %s", err)
+		return fmt.Errorf("internal error: cannot get connections: %s", err)
 	}
 
 	// XXX should we check if plug/slot exists? We don't differentiate between non-connected/not-existing at the moment.
@@ -85,8 +85,8 @@ func (c *isConnectedCommand) Execute(args []string) error {
 	}
 
 	if connected {
-		// TODO: output or error status?
 		return nil
 	}
+
 	return fmt.Errorf("%s is not connected", plugOrSlot)
 }
