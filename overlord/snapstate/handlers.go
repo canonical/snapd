@@ -867,7 +867,7 @@ func (m *SnapManager) doUnlinkCurrentSnap(t *state.Task, _ *tomb.Tomb) error {
 	snapst.Active = false
 
 	// do the final unlink
-	err = m.backend.UnlinkSnap(oldInfo, NewTaskProgressAdapterLocked(t))
+	err = m.backend.UnlinkSnap(oldInfo, false, NewTaskProgressAdapterLocked(t))
 	if err != nil {
 		return err
 	}
@@ -1204,7 +1204,9 @@ func (m *SnapManager) doLinkSnap(t *state.Task, _ *tomb.Tomb) (err error) {
 		}
 		// err is not nil, we need to try and unlink the snap to cleanup after
 		// ourselves
-		unlinkErr := m.backend.UnlinkSnap(newInfo, pb)
+		var unlinkErr error
+		isFirstInstall := oldCurrent.Unset()
+		unlinkErr = m.backend.UnlinkSnap(newInfo, isFirstInstall, pb)
 		if unlinkErr != nil {
 			t.Errorf("cannot cleanup failed attempt at making snap %q available to the system: %v", snapsup.InstanceName(), unlinkErr)
 		}
@@ -1591,13 +1593,25 @@ func (m *SnapManager) undoLinkSnap(t *state.Task, _ *tomb.Tomb) error {
 		}
 	}
 
-	err = m.backend.UnlinkSnap(newInfo, NewTaskProgressAdapterLocked(t))
+	pb := NewTaskProgressAdapterLocked(t)
+	isFirstInstall := oldCurrent.Unset()
+	err = m.backend.UnlinkSnap(newInfo, isFirstInstall, pb)
 	if err != nil {
 		return err
 	}
 
 	if err := maybeUndoRemodelBootChanges(t); err != nil {
 		return err
+	}
+
+	if newInfo.GetType() == snap.TypeSnapd {
+		// only way to get
+		deviceCtx, err := DeviceCtx(st, t, nil)
+		if err != nil {
+			return err
+		}
+		const noReboot = false
+		maybeRestart(t, newInfo, noReboot, deviceCtx)
 	}
 
 	// mark as inactive
@@ -1799,7 +1813,7 @@ func (m *SnapManager) doUnlinkSnap(t *state.Task, _ *tomb.Tomb) error {
 	}
 
 	// do the final unlink
-	err = m.backend.UnlinkSnap(info, NewTaskProgressAdapterLocked(t))
+	err = m.backend.UnlinkSnap(info, false, NewTaskProgressAdapterLocked(t))
 	if err != nil {
 		return err
 	}

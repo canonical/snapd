@@ -62,7 +62,8 @@ type fakeOp struct {
 
 	userID int
 
-	otherInstances bool
+	otherInstances         bool
+	unlinkFirstInstallUndo bool
 
 	services         []string
 	disabledServices []string
@@ -908,11 +909,12 @@ func (f *fakeSnappyBackend) UndoCopySnapData(newInfo *snap.Info, oldInfo *snap.I
 	return nil
 }
 
-func (f *fakeSnappyBackend) UnlinkSnap(info *snap.Info, meter progress.Meter) error {
+func (f *fakeSnappyBackend) UnlinkSnap(info *snap.Info, firstInstallUndo bool, meter progress.Meter) error {
 	meter.Notify("unlink")
 	f.appendOp(&fakeOp{
-		op:   "unlink-snap",
-		path: info.MountDir(),
+		op:                     "unlink-snap",
+		path:                   info.MountDir(),
+		unlinkFirstInstallUndo: firstInstallUndo,
 	})
 	return nil
 }
