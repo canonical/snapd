@@ -121,7 +121,7 @@ func (c *cmdSnapd) Execute(args []string) error {
 		return osutil.OutputErr(output, err)
 	}
 
-	logger.Noticef("restoring with snapd from: %v", snapdPath)
+	logger.Noticef("restoring invoking snapd from: %v", snapdPath)
 	// start previous snapd
 	cmd := exec.Command(snapdPath)
 	cmd.Env = os.Environ()
