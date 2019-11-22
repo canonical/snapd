@@ -97,6 +97,9 @@ network netlink raw,
 /sys/kernel/debug/usb/devices r,
 @{PROC}/sys/abi/{,*} r,
 
+# status of hugepages and transparent_hugepage, but not the pages themselves
+/sys/kernel/mm/{hugepages,transparent_hugepage}/{,**} r,
+
 # systemd-detect-virt
 /{,usr/}bin/systemd-detect-virt ixr,
 # VMs
