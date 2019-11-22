@@ -81,7 +81,8 @@ var (
 )
 
 // diskFromPartition returns the node of the disk device that contains the
-// specified partition.
+// specified partition. Note that this requires real disk partitions and won't
+// work with device-mapped block devices.
 func diskFromPartition(part string) (string, error) {
 	sysdev := filepath.Join(sysClassBlock, filepath.Base(part))
 	dev, err := filepath.EvalSymlinks(sysdev)
