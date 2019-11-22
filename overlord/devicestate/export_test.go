@@ -83,6 +83,14 @@ func MockDevBlock(dir string) (restore func()) {
 	}
 }
 
+func MockGadgetFindDeviceForStructure(f func(*gadget.LaidOutStructure) (string, error)) (restore func()) {
+	old := gadgetFindDeviceForStructure
+	gadgetFindDeviceForStructure = f
+	return func() {
+		gadgetFindDeviceForStructure = old
+	}
+}
+
 func KeypairManager(m *DeviceManager) asserts.KeypairManager {
 	return m.keypairMgr
 }

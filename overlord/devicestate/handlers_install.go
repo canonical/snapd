@@ -60,7 +60,7 @@ func (m *DeviceManager) doCreatePartitions(t *state.Task, _ *tomb.Tomb) error {
 
 	// determine the block device to install
 	// XXX: we're assuming that the gadget has only one volume
-	part, err := partitionFromLabel("ubuntu-seed")
+	part, err := partitionFromLabel(gadgetDir, "ubuntu-seed")
 	if err != nil {
 		return fmt.Errorf("cannot find ubuntu-seed partition: %v", err)
 	}

@@ -23,13 +23,11 @@ import (
 	"bufio"
 	"fmt"
 	"os"
-	"os/exec"
 	"path/filepath"
 	"strings"
 
 	"github.com/snapcore/snapd/asserts"
 	"github.com/snapcore/snapd/gadget"
-	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/overlord/auth"
 	"github.com/snapcore/snapd/overlord/devicestate/internal"
 	"github.com/snapcore/snapd/overlord/state"
@@ -50,15 +48,31 @@ func gadgetDataFromInfo(info *snap.Info, constraints *gadget.ModelConstraints) (
 	return &gadget.GadgetData{Info: gi, RootDir: info.MountDir()}, nil
 }
 
+var (
+	gadgetFindDeviceForStructure = gadget.FindDeviceForStructure
+)
+
 // partitionFromLabel returns the node of the block device used by the filesystem
 // with the specified label.
-func partitionFromLabel(label string) (string, error) {
-	output, err := exec.Command("findfs", "LABEL="+label).CombinedOutput()
-	if err != nil {
-		return "", osutil.OutputErr(output, err)
+func partitionFromLabel(gadgetDir, label string) (string, error) {
+	structureFromLabel := func(laidOutStructure []gadget.LaidOutStructure, label string) *gadget.LaidOutStructure {
+		for _, ps := range laidOutStructure {
+			if ps.VolumeStructure.Label == label {
+				return &ps
+			}
+		}
+		return nil
 	}
-	dev := strings.TrimSpace(string(output))
-	return dev, nil
+
+	pv, err := gadget.PositionedVolumeFromGadget(gadgetDir)
+	if err != nil {
+		return "", err
+	}
+	targetStructure := structureFromLabel(pv.LaidOutStructure, label)
+	if targetStructure == nil {
+		return "", fmt.Errorf("cannot find structure with label %q", label)
+	}
+	return gadgetFindDeviceForStructure(targetStructure)
 }
 
 var (
