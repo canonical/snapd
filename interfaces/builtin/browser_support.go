@@ -110,6 +110,14 @@ const browserSupportConnectedPlugAppArmorWithSandbox = `
 # Leaks installed applications
 # TODO: should this be somewhere else?
 /etc/mailcap r,
+# Snaps should be using xdg-open from the runtime instead of reading these
+# files directly since the snap is unable to do anything with these files
+# but these accesses have been allowed for a long time and remain so as not
+# to break existing snaps. These could be changed to explicit deny rules,
+# but that provides a worse debugging experience. Combined, the risks
+# outweigh the benefits of closing this information leak for the small
+# number of snaps allowed to use allow-sandbox: true. Reference:
+# https://forum.snapcraft.io/t/cannot-open-pdf-attachment-with-thunderbird/11845
 /usr/share/applications/{,*} r,
 /var/lib/snapd/desktop/applications/{,*} r,
 owner @{PROC}/@{pid}/fd/[0-9]* w,
