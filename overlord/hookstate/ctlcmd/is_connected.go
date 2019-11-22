@@ -35,8 +35,17 @@ type isConnectedCommand struct {
 	} `positional-args:"yes"`
 }
 
-var shortIsConnectedHelp = i18n.G(`TODO`)
-var longIsConnectedHelp = i18n.G(`TODO`)
+var shortIsConnectedHelp = i18n.G(`The is-connected returns zero if the given plug or slot is connected, and non-zero otherwise`)
+var longIsConnectedHelp = i18n.G(`
+The is-connected returns zero if the given plug or slot of the calling snap is
+connected, and non-zero otherwise.
+
+$ snapctl is-connected plug
+$ echo $?
+1
+
+Snaps can only query their own plugs and slots - snap name is implicit and implied by the snapctl execution context.
+`)
 
 func init() {
 	addCommand("is-connected", shortIsConnectedHelp, longIsConnectedHelp, func() command {
