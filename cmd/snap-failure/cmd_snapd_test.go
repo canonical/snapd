@@ -203,3 +203,33 @@ func (r *failureSuite) TestBadSeq(c *C) {
 	c.Check(snapdCmd.Calls(), HasLen, 0)
 	c.Check(systemctlCmd.Calls(), HasLen, 0)
 }
+
+func (r *failureSuite) TestSnapdOutputPassthrough(c *C) {
+	origArgs := os.Args
+	defer func() { os.Args = origArgs }()
+
+	writeSeqFile(c, "snapd", snap.R(123), []*snap.SideInfo{
+		{Revision: snap.R(100)},
+		{Revision: snap.R(123)},
+	})
+
+	snapdCmd := mockCommandInDir(c, filepath.Join(dirs.SnapMountDir, "snapd", "100", "/usr/lib/snapd/snapd"), `
+echo 'stderr: hello from snapd' >&2
+echo 'stdout: hello from snapd'
+exit 123
+`)
+	defer snapdCmd.Restore()
+	systemctlCmd := testutil.MockCommand(c, "systemctl", "")
+	defer systemctlCmd.Restore()
+
+	os.Args = []string{"snap-failure", "snapd"}
+	err := failure.Run()
+	c.Check(err, ErrorMatches, "snapd failed: exit status 123")
+	c.Check(r.Stderr(), Equals, "stderr: hello from snapd\n")
+	c.Check(r.Stdout(), Equals, "stdout: hello from snapd\n")
+
+	c.Check(snapdCmd.Calls(), HasLen, 1)
+	c.Check(systemctlCmd.Calls(), DeepEquals, [][]string{
+		{"systemctl", "stop", "snapd.socket"},
+	})
+}
