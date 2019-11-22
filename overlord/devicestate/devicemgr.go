@@ -263,6 +263,11 @@ func (m *DeviceManager) ensureOperational() error {
 
 	perfTimings := timings.New(map[string]string{"ensure": "become-operational"})
 
+	if m.recoveryMode == "install" {
+		// avoid doing registration in install mode
+		return nil
+	}
+
 	device, err := m.device()
 	if err != nil {
 		return err
