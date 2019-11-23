@@ -46,11 +46,14 @@ volumes:
       - name: SomeStructure
         type: DA,21686148-6449-6E6F-744E-656564454649
         size: 1M
-        offset: 1M
-        filesystem-label: some-label
+        role: system-seed
+      - name: OtherStructure
+        type: DA,21686148-6449-6E6F-744E-656564454649
+        size: 1M
+        role: system-data
 `
 
-func (s *helpersTestSuite) TestPartitionFromLabel(c *C) {
+func (s *helpersTestSuite) TestPartitionFromRole(c *C) {
 	d := c.MkDir()
 	err := os.MkdirAll(filepath.Join(d, "meta"), 0755)
 	c.Assert(err, IsNil)
@@ -64,8 +67,8 @@ func (s *helpersTestSuite) TestPartitionFromLabel(c *C) {
 	})
 	defer restore()
 
-	// test existing label
-	part, err := devicestate.PartitionFromLabel(d, "some-label")
+	// test existing role
+	part, err := devicestate.PartitionFromRole(d, gadget.SystemSeed)
 	c.Assert(err, IsNil)
 	c.Assert(part, Equals, "some-node")
 }
@@ -79,8 +82,8 @@ func (s *helpersTestSuite) TestPartitionFromLabelError(c *C) {
 	c.Assert(err, IsNil)
 
 	// test non-existing label
-	_, err = devicestate.PartitionFromLabel(d, "doesnt-exist")
-	c.Assert(err, ErrorMatches, `cannot find structure with label "doesnt-exist"`)
+	_, err = devicestate.PartitionFromRole(d, "doesnt-exist")
+	c.Assert(err, ErrorMatches, `cannot find structure with role "doesnt-exist"`)
 }
 
 func (s *helpersTestSuite) TestDiskFromPartition(c *C) {
@@ -123,6 +126,6 @@ func (s *helpersTestSuite) TestDiskFromPartition(c *C) {
 	c.Assert(device, Equals, filepath.Join(d, "dev", "disknode"))
 
 	// test non-existing device
-	device, err = devicestate.DiskFromPartition("/dev/doesnt_exist")
+	_, err = devicestate.DiskFromPartition("/dev/doesnt_exist")
 	c.Assert(err, ErrorMatches, "cannot resolve symlink.*")
 }

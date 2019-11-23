@@ -26,6 +26,7 @@ import (
 	"gopkg.in/tomb.v2"
 
 	"github.com/snapcore/snapd/bootloader"
+	"github.com/snapcore/snapd/gadget"
 	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/overlord/snapstate"
@@ -60,7 +61,7 @@ func (m *DeviceManager) doCreatePartitions(t *state.Task, _ *tomb.Tomb) error {
 
 	// determine the block device to install
 	// XXX: we're assuming that the gadget has only one volume
-	part, err := partitionFromLabel(gadgetDir, "ubuntu-seed")
+	part, err := partitionFromRole(gadgetDir, gadget.SystemSeed)
 	if err != nil {
 		return fmt.Errorf("cannot find ubuntu-seed partition: %v", err)
 	}

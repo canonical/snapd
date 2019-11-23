@@ -52,12 +52,12 @@ var (
 	gadgetFindDeviceForStructure = gadget.FindDeviceForStructure
 )
 
-// partitionFromLabel returns the node of the block device used by the filesystem
-// with the specified label.
-func partitionFromLabel(gadgetDir, label string) (string, error) {
-	structureFromLabel := func(laidOutStructure []gadget.LaidOutStructure, label string) *gadget.LaidOutStructure {
+// partitionFromRole returns the node of the block device used by the structure
+// with the specified role.
+func partitionFromRole(gadgetDir, role string) (string, error) {
+	structureFromRole := func(laidOutStructure []gadget.LaidOutStructure, role string) *gadget.LaidOutStructure {
 		for _, ps := range laidOutStructure {
-			if ps.VolumeStructure.Label == label {
+			if ps.VolumeStructure.Role == role {
 				return &ps
 			}
 		}
@@ -68,9 +68,9 @@ func partitionFromLabel(gadgetDir, label string) (string, error) {
 	if err != nil {
 		return "", err
 	}
-	targetStructure := structureFromLabel(pv.LaidOutStructure, label)
+	targetStructure := structureFromRole(pv.LaidOutStructure, role)
 	if targetStructure == nil {
-		return "", fmt.Errorf("cannot find structure with label %q", label)
+		return "", fmt.Errorf("cannot find structure with role %q", role)
 	}
 	return gadgetFindDeviceForStructure(targetStructure)
 }

@@ -190,8 +190,8 @@ var (
 	CurrentGadgetInfo   = currentGadgetInfo
 	PendingGadgetInfo   = pendingGadgetInfo
 
-	PartitionFromLabel = partitionFromLabel
-	DiskFromPartition  = diskFromPartition
+	PartitionFromRole = partitionFromRole
+	DiskFromPartition = diskFromPartition
 )
 
 func MockGadgetUpdate(mock func(current, update gadget.GadgetData, path string, policy gadget.UpdatePolicyFunc) error) (restore func()) {
