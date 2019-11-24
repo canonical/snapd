@@ -1580,7 +1580,13 @@ version: 1.0
 plugs:
   gtk-3-themes:
     interface: content
+    content: gtk-3-themes
     default-provider: gtk-common-themes
+  icon-themes:
+    interface: content
+    content: icon-themes
+    default-provider: gtk-common-themes
+
 `
 
 func (s *ValidateSuite) TestNeededDefaultProviders(c *C) {
@@ -1589,7 +1595,7 @@ func (s *ValidateSuite) TestNeededDefaultProviders(c *C) {
 	c.Assert(err, IsNil)
 
 	dps := NeededDefaultProviders(info)
-	c.Check(dps, DeepEquals, []string{"gtk-common-themes"})
+	c.Check(dps, DeepEquals, map[string][]string{"gtk-common-themes": {"gtk-3-themes", "icon-themes"}})
 }
 
 const yamlNeedDfWithSlot = `name: need-df
@@ -1606,7 +1612,7 @@ func (s *ValidateSuite) TestNeededDefaultProvidersLegacyColonSyntax(c *C) {
 	c.Assert(err, IsNil)
 
 	dps := NeededDefaultProviders(info)
-	c.Check(dps, DeepEquals, []string{"gtk-common-themes2"})
+	c.Check(dps, DeepEquals, map[string][]string{"gtk-common-themes2": {""}})
 }
 
 func (s *validateSuite) TestValidateSnapMissingCore(c *C) {

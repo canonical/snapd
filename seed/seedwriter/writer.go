@@ -841,7 +841,7 @@ func (w *Writer) downloaded(seedSnaps []*SeedSnap) error {
 			return err
 		}
 		// error about missing default providers
-		for _, dp := range snap.NeededDefaultProviders(info) {
+		for dp := range snap.NeededDefaultProviders(info) {
 			if !w.availableSnaps.Contains(naming.Snap(dp)) {
 				// TODO: have a way to ignore this issue on a snap by snap basis?
 				return fmt.Errorf("cannot use snap %q without its default content provider %q being added explicitly", info.SnapName(), dp)
