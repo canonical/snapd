@@ -70,7 +70,9 @@ type EncryptedDevice struct {
 
 func NewEncryptedDevice(part *DeviceStructure, name string) *EncryptedDevice {
 	dev := &EncryptedDevice{
-		// A new block device is used to access the encrypted data
+		// A new block device is used to access the encrypted data. Note that
+		// you can't open an encrypted device under different names and a name
+		// can't be used in more than one device at the same time.
 		Node:          fmt.Sprintf("/dev/mapper/%s", name),
 		encryptedNode: part.Node,
 		name:          name,
