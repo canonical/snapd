@@ -36,8 +36,9 @@ func ValidateFromYaml(seedYamlFile string) error {
 	}
 
 	var errs []error
-	// read the snaps info
-	snapInfos := make(map[string]*snap.Info)
+	var haveCore, haveSnapd bool
+	// read the snap infos
+	snapInfos := make([]*snap.Info, 0, len(seed.Snaps))
 	for _, seedSnap := range seed.Snaps {
 		fn := filepath.Join(filepath.Dir(seedYamlFile), "snaps", seedSnap.File)
 		snapf, err := snap.Open(fn)
@@ -48,14 +49,18 @@ func ValidateFromYaml(seedYamlFile string) error {
 			if err != nil {
 				errs = append(errs, fmt.Errorf("cannot use snap %s: %v", fn, err))
 			} else {
-				snapInfos[info.InstanceName()] = info
+				switch info.InstanceName() {
+				case "core":
+					haveCore = true
+				case "snapd":
+					haveSnapd = true
+				}
+				snapInfos = append(snapInfos, info)
 			}
 		}
 	}
 
 	// ensure we have either "core" or "snapd"
-	_, haveCore := snapInfos["core"]
-	_, haveSnapd := snapInfos["snapd"]
 	if !(haveCore || haveSnapd) {
 		errs = append(errs, fmt.Errorf("the core or snapd snap must be part of the seed"))
 	}
