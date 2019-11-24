@@ -73,11 +73,9 @@ func Run(gadgetRoot, device string, options Options) error {
 	}
 
 	for _, part := range created {
-		if options.EncryptDataPartition && part.Role == "system-data" {
-			// system-data roles are always called ubuntu-data for now
-			part.VolumeStructure.Label = ubuntuDataLabel
-			dataPart := partition.NewEncryptedDevice(&part, ubuntuDataLabel)
-			if err := dataPart.Encrypt(key); err != nil {
+		if options.EncryptDataPartition && part.Role == gadget.SystemData {
+			dataPart, err := partition.NewEncryptedDevice(&part, key, ubuntuDataLabel)
+			if err != nil {
 				return err
 			}
 			// update the encrypted device node

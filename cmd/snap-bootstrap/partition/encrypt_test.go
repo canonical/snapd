@@ -63,31 +63,31 @@ func (s *encryptionSuite) TestEncryptHappy(c *C) {
 	s.mockCryptsetup = testutil.MockCommand(c, "cryptsetup", "")
 	s.AddCleanup(s.mockCryptsetup.Restore)
 
-	dev := partition.NewEncryptedDevice(&mockDeviceStructure, "some-label")
 	// XXX: create empty key to prevent blocking on lack of system entropy
 	key := partition.EncryptionKey{}
-	err := dev.Encrypt(key)
+	dev, err := partition.NewEncryptedDevice(&mockDeviceStructure, key, "some-label")
 	c.Assert(err, IsNil)
 	c.Assert(dev.Node, Equals, "/dev/mapper/some-label")
-	calls := s.mockCryptsetup.Calls()
 
 	tempFile := filepath.Join(s.tempDir, "tempfile")
-	c.Assert(calls, DeepEquals, [][]string{
-		{"cryptsetup", "-q", "luksFormat", "--type", "luks2", "--pbkdf-memory", "100", "--master-key-file", tempFile, "/dev/node1"},
+	c.Assert(s.mockCryptsetup.Calls(), DeepEquals, [][]string{
+		{"cryptsetup", "-q", "luksFormat", "--type", "luks2", "--pbkdf-memory", "10000", "--master-key-file", tempFile, "/dev/node1"},
 		{"cryptsetup", "open", "--master-key-file", tempFile, "/dev/node1", "some-label"},
 	})
 
 	// test temporary file removal
 	c.Assert(tempFile, Not(testutil.FilePresent))
+
+	err = dev.Close()
+	c.Assert(err, IsNil)
 }
 
 func (s *encryptionSuite) TestEncryptFormatError(c *C) {
 	s.mockCryptsetup = testutil.MockCommand(c, "cryptsetup", `[ "$2" == "luksFormat" ] && exit 127 || exit 0`)
 	s.AddCleanup(s.mockCryptsetup.Restore)
 
-	dev := partition.NewEncryptedDevice(&mockDeviceStructure, "some-label")
 	key := partition.EncryptionKey{}
-	err := dev.Encrypt(key)
+	_, err := partition.NewEncryptedDevice(&mockDeviceStructure, key, "some-label")
 	c.Assert(err, ErrorMatches, "cannot format encrypted device:.*")
 }
 
@@ -95,8 +95,7 @@ func (s *encryptionSuite) TestEncryptOpenError(c *C) {
 	s.mockCryptsetup = testutil.MockCommand(c, "cryptsetup", `[ "$1" == "open" ] && exit 127 || exit 0`)
 	s.AddCleanup(s.mockCryptsetup.Restore)
 
-	dev := partition.NewEncryptedDevice(&mockDeviceStructure, "some-label")
 	key := partition.EncryptionKey{}
-	err := dev.Encrypt(key)
+	_, err := partition.NewEncryptedDevice(&mockDeviceStructure, key, "some-label")
 	c.Assert(err, ErrorMatches, "cannot open encrypted device on /dev/node1:.*")
 }

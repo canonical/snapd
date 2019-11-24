@@ -61,53 +61,52 @@ func (key EncryptionKey) Store(filename string) error {
 
 // EncryptedDevice represents a LUKS-backed encrypted block device.
 type EncryptedDevice struct {
-	// Node is the mapped, unencrypted device node
-	Node string
-	// encryptedNode is the parent, encrypted device node
-	encryptedNode string
-	name          string
+	parent *DeviceStructure
+	name   string
+	Node   string
 }
 
-func NewEncryptedDevice(part *DeviceStructure, name string) *EncryptedDevice {
+// NewEncryptDevice creates an encrypted device in the existing partition using the
+// specified key.
+func NewEncryptedDevice(part *DeviceStructure, key EncryptionKey, name string) (*EncryptedDevice, error) {
 	dev := &EncryptedDevice{
+		parent: part,
+		name:   name,
 		// A new block device is used to access the encrypted data. Note that
 		// you can't open an encrypted device under different names and a name
 		// can't be used in more than one device at the same time.
-		Node:          fmt.Sprintf("/dev/mapper/%s", name),
-		encryptedNode: part.Node,
-		name:          name,
+		Node: fmt.Sprintf("/dev/mapper/%s", name),
 	}
 
-	return dev
-}
-
-// Encrypt creates an encrypted device in the existing partition using the
-// specified key.
-func (dev *EncryptedDevice) Encrypt(key EncryptionKey) error {
 	tempKeyFile, err := tempFile("", "enc")
 	if err != nil {
-		return err
+		return nil, err
 	}
 	defer wipe(tempKeyFile.Name())
 
 	// XXX: Ideally we shouldn't write this key, but cryptsetup
 	// only reads the master key from a file.
 	if _, err := tempKeyFile.Write(key[:]); err != nil {
-		return fmt.Errorf("cannot create key file: %s", err)
+		return nil, fmt.Errorf("cannot create key file: %s", err)
 	}
 
-	if err := cryptsetupFormat(tempKeyFile.Name(), dev.encryptedNode); err != nil {
-		return fmt.Errorf("cannot format encrypted device: %v", err)
-	}
-	if err := cryptsetupOpen(tempKeyFile.Name(), dev.encryptedNode, dev.name); err != nil {
-		return fmt.Errorf("cannot open encrypted device on %s: %s", dev.encryptedNode, err)
+	if err := cryptsetupFormat(tempKeyFile.Name(), part.Node); err != nil {
+		return nil, fmt.Errorf("cannot format encrypted device: %v", err)
 	}
 
-	return nil
+	if err := cryptsetupOpen(tempKeyFile.Name(), part.Node, name); err != nil {
+		return nil, fmt.Errorf("cannot open encrypted device on %s: %s", part.Node, err)
+	}
+
+	return dev, nil
+}
+
+func (dev *EncryptedDevice) Close() error {
+	return cryptsetupClose(dev.name)
 }
 
 func cryptsetupFormat(keyFile, node string) error {
-	cmd := exec.Command("cryptsetup", "-q", "luksFormat", "--type", "luks2", "--pbkdf-memory", "100", "--master-key-file", keyFile, node)
+	cmd := exec.Command("cryptsetup", "-q", "luksFormat", "--type", "luks2", "--pbkdf-memory", "10000", "--master-key-file", keyFile, node)
 	cmd.Stdin = bytes.NewReader([]byte("\n"))
 	if output, err := cmd.CombinedOutput(); err != nil {
 		return osutil.OutputErr(output, err)
@@ -117,6 +116,13 @@ func cryptsetupFormat(keyFile, node string) error {
 
 func cryptsetupOpen(keyFile, node, name string) error {
 	if output, err := exec.Command("cryptsetup", "open", "--master-key-file", keyFile, node, name).CombinedOutput(); err != nil {
+		return osutil.OutputErr(output, err)
+	}
+	return nil
+}
+
+func cryptsetupClose(name string) error {
+	if output, err := exec.Command("cryptsetup", "close", name).CombinedOutput(); err != nil {
 		return osutil.OutputErr(output, err)
 	}
 	return nil
