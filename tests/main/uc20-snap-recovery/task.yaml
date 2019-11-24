@@ -87,7 +87,7 @@ execute: |
             filesystem: ext4
             size: 400M
     EOF
-    /usr/lib/snapd/snap-bootstrap ./gadget-dir "$LOOP" --with-encryption --key-file=keyfile
+    /usr/lib/snapd/snap-bootstrap create-partitions --with-encryption --key-file=keyfile ./gadget-dir "$LOOP"
     echo "and check that the encrypted partition was created and can be mounted"
     sfdisk -l "$LOOP" | MATCH '400M\s* Linux filesystem'
     lsblk --fs "$LOOP" | MATCH 'crypto_LUKS'

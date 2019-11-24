@@ -42,10 +42,10 @@ var _ = Suite(&bootstrapSuite{})
 // each part inside bootstrap is tested and we have a spread test
 
 func (s *bootstrapSuite) TestBootstrapRunError(c *C) {
-	err := bootstrap.Run("", "", nil)
+	err := bootstrap.Run("", "", bootstrap.Options{})
 	c.Assert(err, ErrorMatches, "cannot use empty gadget root directory")
 
-	err = bootstrap.Run("some-dir", "", nil)
+	err = bootstrap.Run("some-dir", "", bootstrap.Options{})
 	c.Assert(err, ErrorMatches, "cannot use empty device node")
 }
 
