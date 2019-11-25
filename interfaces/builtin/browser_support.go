@@ -122,13 +122,6 @@ const browserSupportConnectedPlugAppArmorWithSandbox = `
 /var/lib/snapd/desktop/applications/{,*} r,
 owner @{PROC}/@{pid}/fd/[0-9]* w,
 
-# Clearing the PG_Referenced and ACCESSED/YOUNG bits provides a method to
-# measure approximately how much memory a process is using via /proc/self/smaps
-# (man 5 proc). This access allows the snap to clear references for pids from
-# other snaps and the system, so it is limited to snaps that specify:
-# allow-sandbox: true.
-owner @{PROC}/@{pid}/clear_refs w,
-
 # Various files in /run/udev/data needed by Chrome Settings. Leaks device
 # information.
 # input
@@ -245,6 +238,13 @@ owner /{dev,run}/shm/WK2SharedMemory.* mrw,
 
 # Chromium content api on (at least) later versions of Ubuntu just use this
 owner /{dev,run}/shm/shmfd-* mrw,
+
+# Clearing the PG_Referenced and ACCESSED/YOUNG bits provides a method to
+# measure approximately how much memory a process is using via /proc/self/smaps
+# (man 5 proc). This access allows the snap to clear references for pids from
+# other snaps and the system, so it is limited to snaps that specify:
+# allow-sandbox: true.
+owner @{PROC}/@{pid}/clear_refs w,
 `
 
 const browserSupportConnectedPlugSecComp = `
