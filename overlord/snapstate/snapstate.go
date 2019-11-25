@@ -64,9 +64,9 @@ const (
 
 const (
 	DownloadAndChecksDoneEdge = state.TaskSetEdge("download-and-checks-done")
-	PrerequisitesEdge         = state.TaskSetEdge("prerequisites")
-	SetupAliasesEdge          = state.TaskSetEdge("setup-aliases")
-	InstallHookEdge           = state.TaskSetEdge("install-hook")
+	BeginEdge                 = state.TaskSetEdge("begin")
+	BeforeHooksEdge           = state.TaskSetEdge("before-hooks")
+	HooksEdge                 = state.TaskSetEdge("hooks")
 )
 
 var ErrNothingToDo = errors.New("nothing to do")
@@ -343,18 +343,18 @@ func doInstall(st *state.State, snapst *SnapState, snapsup *SnapSetup, flags int
 
 	if flags&skipConfigure != 0 {
 		if installHook != nil {
-			installSet.MarkEdge(installHook, InstallHookEdge)
+			installSet.MarkEdge(installHook, HooksEdge)
 		}
-		installSet.MarkEdge(prereq, PrerequisitesEdge)
-		installSet.MarkEdge(setupAliases, SetupAliasesEdge)
+		installSet.MarkEdge(prereq, BeginEdge)
+		installSet.MarkEdge(setupAliases, BeforeHooksEdge)
 		return installSet, nil
 	}
 
 	if installHook != nil {
-		ts.MarkEdge(installHook, InstallHookEdge)
+		ts.MarkEdge(installHook, HooksEdge)
 	}
-	ts.MarkEdge(prereq, PrerequisitesEdge)
-	ts.MarkEdge(setupAliases, SetupAliasesEdge)
+	ts.MarkEdge(prereq, BeginEdge)
+	ts.MarkEdge(setupAliases, BeforeHooksEdge)
 
 	var confFlags int
 	if !snapst.IsInstalled() && snapsup.SideInfo != nil && snapsup.SideInfo.SnapID != "" {

@@ -646,15 +646,15 @@ version: 1.0
 		ts, _, err := snapstate.InstallPath(s.state, &snap.SideInfo{RealName: "some-snap", SnapID: "some-snap-id", Revision: snap.R(8)}, mockSnap, "", "", snapstate.Flags{SkipConfigure: skipConfig})
 		c.Assert(err, IsNil)
 
-		te, err := ts.Edge(snapstate.PrerequisitesEdge)
+		te, err := ts.Edge(snapstate.BeginEdge)
 		c.Assert(err, IsNil)
 		c.Check(te.Kind(), Equals, "prerequisites")
 
-		te, err = ts.Edge(snapstate.SetupAliasesEdge)
+		te, err = ts.Edge(snapstate.BeforeHooksEdge)
 		c.Assert(err, IsNil)
 		c.Check(te.Kind(), Equals, "setup-aliases")
 
-		te, err = ts.Edge(snapstate.InstallHookEdge)
+		te, err = ts.Edge(snapstate.HooksEdge)
 		c.Assert(err, IsNil)
 		c.Assert(te.Kind(), Equals, "run-hook")
 	}
