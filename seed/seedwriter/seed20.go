@@ -76,7 +76,7 @@ func (pol *policy20) checkSnapChannel(ch channel.Channel, whichSnap string) erro
 }
 
 func (pol *policy20) systemSnap() *asserts.ModelSnap {
-	return internal.MakeSystemSnap("snapd", "", []string{"run", "ephemeral"})
+	return internal.MakeSystemSnap("snapd", "latest/stable", []string{"run", "ephemeral"})
 }
 
 func (pol *policy20) modelSnapDefaultChannel() string {
@@ -166,8 +166,11 @@ func (tr *tree20) snapsDir() string {
 	return tr.snapsDirPath
 }
 
-func (tr *tree20) localSnapPath(*SeedSnap) string {
-	panic("XXX dangerous features not implemented yet")
+func (tr *tree20) localSnapPath(sn *SeedSnap) (string, error) {
+	if err := tr.ensureSystemSnapsDir(); err != nil {
+		return "", err
+	}
+	return filepath.Join(tr.systemDir, "snaps", fmt.Sprintf("%s_%s.snap", sn.SnapName(), sn.Info.Version)), nil
 }
 
 func (tr *tree20) writeAssertions(db asserts.RODatabase, modelRefs []*asserts.Ref, snapsFromModel []*SeedSnap, extraSnaps []*SeedSnap) error {
@@ -273,7 +276,40 @@ func (tr *tree20) writeAssertions(db asserts.RODatabase, modelRefs []*asserts.Re
 }
 
 func (tr *tree20) writeMeta(snapsFromModel []*SeedSnap, extraSnaps []*SeedSnap) error {
-	// TODO|XXX: produce an options.yaml if needed (grade dangerous)
+	var optionsSnaps []*internal.Snap20
+
+	for _, sn := range snapsFromModel {
+		channelOverride := ""
+		if sn.Channel != sn.modelSnap.DefaultChannel {
+			channelOverride = sn.Channel
+		}
+		if sn.Info.ID() != "" && channelOverride == "" {
+			continue
+		}
+		unasserted := ""
+		if sn.Info.ID() == "" {
+			unasserted = filepath.Base(sn.Path)
+		}
+
+		optionsSnaps = append(optionsSnaps, &internal.Snap20{
+			Name: sn.SnapName(),
+			// even if unasserted != "" SnapID is useful
+			// to cross-ref the model entry
+			SnapID:     sn.modelSnap.ID(),
+			Unasserted: unasserted,
+			Channel:    channelOverride,
+		})
+	}
+
+	// TODO|XXX: optionsSnaps for extra snaps
+
+	if len(optionsSnaps) != 0 {
+		// XXX internal error if we get here and grade != dangerous
+		options20 := &internal.Options20{Snaps: optionsSnaps}
+		if err := options20.Write(filepath.Join(tr.systemDir, "options.yaml")); err != nil {
+			return err
+		}
+	}
 
 	auxInfos := make(map[string]*internal.AuxInfo20)
 

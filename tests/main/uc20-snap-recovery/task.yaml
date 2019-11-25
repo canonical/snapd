@@ -32,7 +32,7 @@ prepare: |
 execute: |
     LOOP="$(cat loop.txt)"
     echo "Run the snap-bootstrap tool"
-    /usr/lib/snapd/snap-bootstrap ./gadget-dir "$LOOP"
+    /usr/lib/snapd/snap-bootstrap create-partitions ./gadget-dir "$LOOP"
 
     echo "And check that the partitions are created"
     sfdisk -l "$LOOP" | MATCH '1M\s+BIOS boot'
@@ -69,7 +69,7 @@ execute: |
             filesystem-label: other-ext4
             size: 500M
     EOF
-    /usr/lib/snapd/snap-bootstrap ./gadget-dir "$LOOP"
+    /usr/lib/snapd/snap-bootstrap create-partitions ./gadget-dir "$LOOP"
     sfdisk -l "$LOOP" | MATCH '500M\s* Linux filesystem'
 
     echo "check that the filesystems are created"
