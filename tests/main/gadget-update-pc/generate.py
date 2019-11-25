@@ -8,29 +8,28 @@ import yaml
 
 def parse_arguments():
     parser = argparse.ArgumentParser(
-        description='gadget yaml generator for tests')
-    parser.add_argument('gadgetyaml', type=argparse.FileType('r'),
-                        help='path to gadget.yaml input file')
-    parser.add_argument('variant', help='test data variant',
-                        choices=['v1', 'v2'])
+        description="pc gadget yaml variant generator for test"
+    )
+    parser.add_argument(
+        "gadgetyaml", type=argparse.FileType("r"), help="path to gadget.yaml input file"
+    )
+    parser.add_argument("variant", help="test data variant", choices=["v1", "v2"])
     return parser.parse_args()
 
 
 def must_find_struct(structs, structure_type):
-    cans = [s for s in structs if s['type'] == structure_type]
-    if len(cans) != 1:
-        raise RuntimeError('unexpected number of structures: {}'.format(cans))
-    return cans[0]
+    structs = [s for s in structs if s["type"] == structure_type]
+    if len(structs) != 1:
+        raise RuntimeError("unexpected number of structures: {}".format(cans))
+    return structs[0]
 
 
 def make_v1(doc):
     # add new files to 'EFI System' partition, add new image file to 'BIOS
     # Boot', bump update edition for both
-    structs = doc['volumes']['pc']['structure']
-    efisystem = must_find_struct(structs,
-                                 'EF,C12A7328-F81F-11D2-BA4B-00A0C93EC93B')
-    biosboot = must_find_struct(structs,
-                                'DA,21686148-6449-6E6F-744E-656564454649')
+    structs = doc["volumes"]["pc"]["structure"]
+    efisystem = must_find_struct(structs, "EF,C12A7328-F81F-11D2-BA4B-00A0C93EC93B")
+    biosboot = must_find_struct(structs, "DA,21686148-6449-6E6F-744E-656564454649")
 
     # - name: EFI System
     #   (not)type: EF,C12A7328-F81F-11D2-BA4B-00A0C93EC93B
@@ -51,8 +50,8 @@ def make_v1(doc):
     #       target: foo.cfg
     #  update:
     #      edition: 1
-    efisystem['content'].append({'source': "foo.cfg", 'target': 'foo.cfg'})
-    efisystem['update'] = {'edition': 1}
+    efisystem["content"].append({"source": "foo.cfg", "target": "foo.cfg"})
+    efisystem["update"] = {"edition": 1}
     # - name: BIOS Boot
     #   (not)type: DA,21686148-6449-6E6F-744E-656564454649
     #   size: 1M
@@ -64,8 +63,8 @@ def make_v1(doc):
     #     - image: foo.img
     #   update:
     #       edition: 1
-    biosboot['content'].append({'image': 'foo.img'})
-    biosboot['update'] = {'edition': 1}
+    biosboot["content"].append({"image": "foo.img"})
+    biosboot["update"] = {"edition": 1}
     return doc
 
 
@@ -75,11 +74,9 @@ def make_v2(doc):
 
     doc = make_v1(doc)
 
-    structs = doc['volumes']['pc']['structure']
-    efisystem = must_find_struct(structs,
-                                 'EF,C12A7328-F81F-11D2-BA4B-00A0C93EC93B')
-    biosboot = must_find_struct(structs,
-                                'DA,21686148-6449-6E6F-744E-656564454649')
+    structs = doc["volumes"]["pc"]["structure"]
+    efisystem = must_find_struct(structs, "EF,C12A7328-F81F-11D2-BA4B-00A0C93EC93B")
+    biosboot = must_find_struct(structs, "DA,21686148-6449-6E6F-744E-656564454649")
     # - name: EFI System
     #   (not)type: EF,C12A7328-F81F-11D2-BA4B-00A0C93EC93B
     #   filesystem: vfat
@@ -102,10 +99,10 @@ def make_v2(doc):
     #  update:
     #      edition: 2
     #      preserve: [foo.cfg, bar.cfg]
-    efisystem['content'].append({'source': 'bar.cfg', 'target': 'bar.cfg'})
-    efisystem['update'] = {
-        'edition': 2,
-        'preserve': ['foo.cfg', 'bar.cfg'],
+    efisystem["content"].append({"source": "bar.cfg", "target": "bar.cfg"})
+    efisystem["update"] = {
+        "edition": 2,
+        "preserve": ["foo.cfg", "bar.cfg"],
     }
     # - name: BIOS Boot
     #   (not)type: DA,21686148-6449-6E6F-744E-656564454649
@@ -118,7 +115,7 @@ def make_v2(doc):
     #     - image: foo.img
     #   update:
     #       edition: 2
-    biosboot['update'] = {'edition': 2}
+    biosboot["update"] = {"edition": 2}
 
     return doc
 
@@ -126,14 +123,14 @@ def make_v2(doc):
 def main(opts):
     doc = yaml.safe_load(opts.gadgetyaml)
 
-    if opts.variant == 'v1':
+    if opts.variant == "v1":
         make_v1(doc)
-    elif opts.variant == 'v2':
+    elif opts.variant == "v2":
         make_v2(doc)
 
     yaml.dump(doc, sys.stdout)
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     opts = parse_arguments()
     main(opts)
