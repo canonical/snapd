@@ -2383,6 +2383,45 @@ func coreInfo(st *state.State) (*snap.Info, error) {
 	return nil, fmt.Errorf("unexpected number of cores, got %d", len(res))
 }
 
+func useSystemDefaults(st *state.State, snapName string) (bool, error) {
+	// there is an implicit configure task for the 'core' snap added even on
+	// systems not using core
+	if snapName != defaultCoreSnapName {
+		return false, nil
+	}
+	hasCore, err := isInstalled(st, "core")
+	if err != nil {
+		return false, err
+	}
+	hasSnapd, err := isInstalled(st, "snapd")
+	if err != nil {
+		return false, err
+	}
+	var seeded bool
+	if err = st.Get("seeded", &seeded); err != nil && err != state.ErrNoState {
+		return false, err
+	}
+	if seeded {
+		// already seeded, will not reapply defaults
+		return false, nil
+	}
+
+	// still seeding
+
+	if hasSnapd && !hasCore {
+		// seeding installs snapd first, it is already installed but no
+		// core is not (yet), snapd is considered a system snap
+		return true, nil
+	}
+
+	if hasCore && !hasSnapd {
+		// no snapd, core is considered a snap with system defaults
+		return true, nil
+	}
+
+	return false, nil
+}
+
 // ConfigDefaults returns the configuration defaults for the snap as
 // specified in the gadget for the given device context.
 // If gadget is absent or the snap has no snap-id it returns
@@ -2393,18 +2432,25 @@ func ConfigDefaults(st *state.State, deviceCtx DeviceContext, snapName string) (
 		return nil, err
 	}
 
-	var snapst SnapState
-	if err := Get(st, snapName, &snapst); err != nil {
+	isSystemDefaults, err := useSystemDefaults(st, snapName)
+	if err != nil {
+		fmt.Printf("use system defaults fail: %v\n", err)
 		return nil, err
 	}
 
-	isCoreDefaults := snapName == defaultCoreSnapName
+	var snapst SnapState
+	if err := Get(st, snapName, &snapst); err != nil && err != state.ErrNoState {
+		return nil, err
+	}
 
-	si := snapst.CurrentSideInfo()
-	// core snaps can be addressed even without a snap-id via the special
-	// "system" value in the config; first-boot always configures the core
-	// snap with UseConfigDefaults
-	if si.SnapID == "" && !isCoreDefaults {
+	var snapID string
+	if snapst.IsInstalled() {
+		snapID = snapst.CurrentSideInfo().SnapID
+	}
+	// system snaps (core and snapd) snaps can be addressed even without a
+	// snap-id via the special "system" value in the config; first-boot
+	// always configures the core snap with UseConfigDefaults
+	if snapID == "" && !isSystemDefaults {
 		return nil, state.ErrNoState
 	}
 
@@ -2414,9 +2460,9 @@ func ConfigDefaults(st *state.State, deviceCtx DeviceContext, snapName string) (
 	}
 
 	// we support setting core defaults via "system"
-	if isCoreDefaults {
+	if isSystemDefaults {
 		if defaults, ok := gadgetInfo.Defaults["system"]; ok {
-			if _, ok := gadgetInfo.Defaults[si.SnapID]; ok && si.SnapID != "" {
+			if _, ok := gadgetInfo.Defaults[snapID]; ok && snapID != "" {
 				logger.Noticef("core snap configuration defaults found under both 'system' key and core-snap-id, preferring 'system'")
 			}
 
@@ -2424,7 +2470,7 @@ func ConfigDefaults(st *state.State, deviceCtx DeviceContext, snapName string) (
 		}
 	}
 
-	defaults, ok := gadgetInfo.Defaults[si.SnapID]
+	defaults, ok := gadgetInfo.Defaults[snapID]
 	if !ok {
 		return nil, state.ErrNoState
 	}
