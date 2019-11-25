@@ -2096,7 +2096,7 @@ func (s *interfaceManagerSuite) TestDoSetupSnapSecurityHonorsUndesiredFlag(c *C)
 
 func (s *interfaceManagerSuite) TestBadInterfacesWarning(c *C) {
 	restoreSanitize := snap.MockSanitizePlugsSlots(func(inf *snap.Info) {
-		inf.BadInterfaces["a"] = "b"
+		inf.BadInterfaces["plug-name"] = "reason-for-bad"
 	})
 	defer restoreSanitize()
 
@@ -2124,12 +2124,12 @@ func (s *interfaceManagerSuite) TestBadInterfacesWarning(c *C) {
 
 	warns := s.state.AllWarnings()
 	c.Assert(warns, HasLen, 1)
-	c.Check(warns[0].String(), Matches, `snap "snap" has bad plugs or slots: a \(b\)`)
+	c.Check(warns[0].String(), Matches, `snap "snap" has bad plugs or slots: plug-name \(reason-for-bad\)`)
 
 	// sanity, bad interfaces are logged in the task log.
 	task := change.Tasks()[0]
 	c.Assert(task.Kind(), Equals, "setup-profiles")
-	c.Check(strings.Join(task.Log(), ""), Matches, `.* snap "snap" has bad plugs or slots: a \(b\)`)
+	c.Check(strings.Join(task.Log(), ""), Matches, `.* snap "snap" has bad plugs or slots: plug-name \(reason-for-bad\)`)
 }
 
 // The auto-connect task will auto-connect plugs with viable candidates.
