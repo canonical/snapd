@@ -657,6 +657,11 @@ version: 1.0
 		te, err = ts.Edge(snapstate.HooksEdge)
 		c.Assert(err, IsNil)
 		c.Assert(te.Kind(), Equals, "run-hook")
+
+		var hsup *hookstate.HookSetup
+		c.Assert(te.Get("hook-setup", &hsup), IsNil)
+		c.Check(hsup.Hook, Equals, "install")
+		c.Check(hsup.Snap, Equals, "some-snap")
 	}
 }
 
@@ -4033,8 +4038,8 @@ func (s *snapmgrTestSuite) TestEnableSnapMissingDisabledServicesMergedAndSaved(c
 		Sequence: []*snap.SideInfo{
 			{RealName: "services-snap", Revision: snap.R(11)},
 		},
-		Current: snap.R(11),
-		Active:  true,
+		Current:                    snap.R(11),
+		Active:                     true,
 		LastActiveDisabledServices: []string{"missing-svc3"},
 	})
 
@@ -4092,8 +4097,8 @@ func (s *snapmgrTestSuite) TestEnableSnapMissingDisabledServicesSaved(c *C) {
 		Sequence: []*snap.SideInfo{
 			{RealName: "services-snap", Revision: snap.R(11)},
 		},
-		Current: snap.R(11),
-		Active:  true,
+		Current:                    snap.R(11),
+		Active:                     true,
 		LastActiveDisabledServices: []string{"missing-svc3"},
 	})
 
