@@ -21,6 +21,7 @@
 package seedwriter
 
 import (
+	"errors"
 	"fmt"
 	"path/filepath"
 	"strings"
@@ -342,13 +343,6 @@ func (w *Writer) SetOptionsSnaps(optSnaps []*OptionsSnap) error {
 		return nil
 	}
 
-	// TODO: relax or allow flags to relax this?
-	// * allow local asserted snaps for >=signed Core 20 models?
-	// * allow some level of channel override for >=signed Core 20 models?
-	if err := w.policy.allowsDangerousFeatures(); err != nil {
-		return err
-	}
-
 	for _, sn := range optSnaps {
 		var whichSnap string
 		local := false
@@ -564,12 +558,19 @@ const (
 	toDownloadExtraImplicit
 )
 
+var errSkipOptional = errors.New("skip")
+
 func (w *Writer) modelSnapToSeed(modSnap *asserts.ModelSnap) (*SeedSnap, error) {
 	sn, _ := w.byRefLocalSnaps.Lookup(modSnap).(*SeedSnap)
 	var optSnap *OptionsSnap
 	if sn == nil {
 		// not local, to download
 		optSnap, _ = w.byNameOptSnaps.Lookup(modSnap).(*OptionsSnap)
+		if modSnap.Presence == "optional" && optSnap == nil {
+			// an optional snap that is not confirmed
+			// by an OptionsSnap entry is skipped
+			return nil, errSkipOptional
+		}
 		sn = &SeedSnap{
 			SnapRef: modSnap,
 
@@ -598,6 +599,9 @@ func (w *Writer) modelSnapsToDownload(modSnaps []*asserts.ModelSnap) (toDownload
 	alreadyConsidered := len(w.snapsFromModel)
 	for _, modSnap := range modSnaps {
 		sn, err := w.modelSnapToSeed(modSnap)
+		if err == errSkipOptional {
+			continue
+		}
 		if err != nil {
 			return nil, err
 		}
@@ -712,7 +716,6 @@ func (w *Writer) SnapsToDownload() (snaps []*SeedSnap, err error) {
 
 	switch w.toDownload {
 	case toDownloadModel:
-		// TODO|XXX: support Core 20 models optional snaps correctly
 		modSnaps, err := w.modSnaps()
 		if err != nil {
 			return nil, err
