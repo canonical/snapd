@@ -282,6 +282,18 @@ func (s *rawVolumeInterfaceSuite) TestUDevSpec(c *C) {
 	c.Assert(spec.Snippets()[0], Equals, `# raw-volume
 KERNEL=="vda1", TAG+="snap_client-snap_app-accessing-1-part"`)
 	c.Assert(spec.Snippets(), testutil.Contains, `TAG=="snap_client-snap_app-accessing-1-part", RUN+="/usr/lib/snapd/snap-device-helper $env{ACTION} snap_client-snap_app-accessing-1-part $devpath $major:$minor"`)
+
+	spec = &udev.Specification{}
+	c.Assert(spec.AddConnectedPlug(s.iface, s.testPlugPort2, s.testUDev2), IsNil)
+	c.Assert(spec.Snippets(), HasLen, 2)
+	c.Assert(spec.Snippets()[0], Equals, `# raw-volume
+KERNEL=="mmcblk0p1", TAG+="snap_client-snap_app-accessing-2-part"`)
+
+	spec = &udev.Specification{}
+	c.Assert(spec.AddConnectedPlug(s.iface, s.testPlugPort3, s.testUDev3), IsNil)
+	c.Assert(spec.Snippets(), HasLen, 2)
+	c.Assert(spec.Snippets()[0], Equals, `# raw-volume
+KERNEL=="i2o/hda1", TAG+="snap_client-snap_app-accessing-3-part"`)
 }
 
 func (s *rawVolumeInterfaceSuite) TestAppArmorSpec(c *C) {
@@ -290,6 +302,18 @@ func (s *rawVolumeInterfaceSuite) TestAppArmorSpec(c *C) {
 	c.Assert(spec.SecurityTags(), DeepEquals, []string{"snap.client-snap.app-accessing-1-part"})
 	c.Assert(spec.SnippetForTag("snap.client-snap.app-accessing-1-part"), testutil.Contains, `/dev/vda1 rw,`)
 	c.Assert(spec.SnippetForTag("snap.client-snap.app-accessing-1-part"), testutil.Contains, `capability sys_admin,`)
+
+	spec = &apparmor.Specification{}
+	c.Assert(spec.AddConnectedPlug(s.iface, s.testPlugPort2, s.testUDev2), IsNil)
+	c.Assert(spec.SecurityTags(), DeepEquals, []string{"snap.client-snap.app-accessing-2-part"})
+	c.Assert(spec.SnippetForTag("snap.client-snap.app-accessing-2-part"), testutil.Contains, `/dev/mmcblk0p1 rw,`)
+	c.Assert(spec.SnippetForTag("snap.client-snap.app-accessing-2-part"), testutil.Contains, `capability sys_admin,`)
+
+	spec = &apparmor.Specification{}
+	c.Assert(spec.AddConnectedPlug(s.iface, s.testPlugPort3, s.testUDev3), IsNil)
+	c.Assert(spec.SecurityTags(), DeepEquals, []string{"snap.client-snap.app-accessing-3-part"})
+	c.Assert(spec.SnippetForTag("snap.client-snap.app-accessing-3-part"), testutil.Contains, `/dev/i2o/hda1 rw,`)
+	c.Assert(spec.SnippetForTag("snap.client-snap.app-accessing-3-part"), testutil.Contains, `capability sys_admin,`)
 }
 
 func (s *rawVolumeInterfaceSuite) TestStaticInfo(c *C) {
