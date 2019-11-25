@@ -236,12 +236,24 @@ func (s *seed20) loadAuxInfos() error {
 	return nil
 }
 
+type NoSnapDeclarationError struct {
+	snapRef naming.SnapRef
+}
+
+func (e *NoSnapDeclarationError) Error() string {
+	snapID := e.snapRef.ID()
+	if snapID != "" {
+		return fmt.Sprintf("cannot find snap-declaration for snap-id: %s", snapID)
+	}
+	return fmt.Sprintf("cannot find snap-declaration for snap name: %s", e.snapRef.SnapName())
+}
+
 func (s *seed20) lookupVerifiedRevision(snapRef naming.SnapRef) (snapPath string, snapRev *asserts.SnapRevision, snapDecl *asserts.SnapDeclaration, err error) {
 	snapID := snapRef.ID()
 	if snapID != "" {
 		snapDecl = s.snapDeclsByID[snapID]
 		if snapDecl == nil {
-			return "", nil, nil, fmt.Errorf("cannot find snap-declaration for snap-id: %s", snapID)
+			return "", nil, nil, &NoSnapDeclarationError{snapRef}
 		}
 	} else {
 		if s.model.Grade() != asserts.ModelDangerous && snapRef.SnapName() != "snapd" && snapRef.SnapName() != s.model.Base() /* TODO: use snap-id for snapd*/ {
@@ -250,7 +262,7 @@ func (s *seed20) lookupVerifiedRevision(snapRef naming.SnapRef) (snapPath string
 		snapName := snapRef.SnapName()
 		snapDecl = s.snapDeclsByName[snapName]
 		if snapDecl == nil {
-			return "", nil, nil, fmt.Errorf("cannot find snap-declaration for snap name: %s", snapName)
+			return "", nil, nil, &NoSnapDeclarationError{snapRef}
 		}
 		snapID = snapDecl.SnapID()
 	}
@@ -286,8 +298,6 @@ func (s *seed20) lookupVerifiedRevision(snapRef naming.SnapRef) (snapPath string
 }
 
 func (s *seed20) addModelSnap(modelSnap *asserts.ModelSnap, essential bool, tm timings.Measurer) (*Snap, error) {
-	// TODO|XXX: support optional snaps correctly
-
 	channel := modelSnap.DefaultChannel
 
 	optSnap, _ := s.nextOptSnap(modelSnap)
@@ -361,15 +371,23 @@ func (s *seed20) LoadMeta(tm timings.Measurer) error {
 		return err
 	}
 
-	snapdSnap := internal.MakeSystemSnap("snapd", "latest/stable", []string{"run", "ephemeral"})
-	if _, err := s.addModelSnap(snapdSnap, true, tm); err != nil {
-		return err
+	allSnaps := model.AllSnaps()
+	// an explicit snapd is the first of all of snaps
+	if allSnaps[0].SnapType != "snapd" {
+		snapdSnap := internal.MakeSystemSnap("snapd", "latest/stable", []string{"run", "ephemeral"})
+		if _, err := s.addModelSnap(snapdSnap, true, tm); err != nil {
+			return err
+		}
 	}
 
 	essential := true
-	for _, modelSnap := range model.AllSnaps() {
+	for _, modelSnap := range allSnaps {
 		seedSnap, err := s.addModelSnap(modelSnap, essential, tm)
 		if err != nil {
+			if _, ok := err.(*NoSnapDeclarationError); ok && modelSnap.Presence == "optional" {
+				// skipped optional snap is ok
+				continue
+			}
 			return err
 		}
 		if modelSnap.SnapType == "gadget" {

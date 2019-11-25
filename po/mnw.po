@@ -1,16 +1,16 @@
-# Dutch translation for snapd
-# Copyright (c) 2018 Rosetta Contributors and Canonical Ltd 2018
+# Mon translation for snapd
+# Copyright (c) 2019 Rosetta Contributors and Canonical Ltd 2019
 # This file is distributed under the same license as the snapd package.
-# FIRST AUTHOR <EMAIL@ADDRESS>, 2018.
+# FIRST AUTHOR <EMAIL@ADDRESS>, 2019.
 #
 msgid ""
 msgstr ""
 "Project-Id-Version: snapd\n"
 "Report-Msgid-Bugs-To: FULL NAME <EMAIL@ADDRESS>\n"
 "POT-Creation-Date: 2018-04-03 12:06+0200\n"
-"PO-Revision-Date: 2018-09-27 14:02+0000\n"
+"PO-Revision-Date: 2019-11-06 00:19+0000\n"
 "Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
-"Language-Team: Dutch <nl@li.org>\n"
+"Language-Team: Mon <mnw@li.org>\n"
 "MIME-Version: 1.0\n"
 "Content-Type: text/plain; charset=UTF-8\n"
 "Content-Transfer-Encoding: 8bit\n"
@@ -23,156 +23,152 @@ msgid ""
 "\n"
 "Try \"snapcraft prime\" in your project directory, then \"snap try\" again."
 msgstr ""
-"%q bevat geen onverpakte snap.\n"
-"\n"
-"Probeer 'snapcraft prime' in uw projectmap en probeer daarna opnieuw 'snap "
-"try'."
 
 #. TRANSLATORS: the first %q will be the (quoted) snap name, the second a channel
 #, c-format
 msgid "%q switched to the %q channel\n"
-msgstr "%q overgeschakeld naar het kanaal %q\n"
+msgstr ""
 
 #. TRANSLATORS: 1. snap name, 2. snap version (keep those together please). the 3rd %s is a path (where it's mounted from).
 #, c-format
 msgid "%s %s mounted from %s\n"
-msgstr "%s %s gekoppeld vanaf %s\n"
+msgstr ""
 
 #, c-format
 msgid "%s (delta)"
-msgstr "%s (delta)"
+msgstr ""
 
 #. TRANSLATORS: %s is an error message (e.g. “cannot yadda yadda: permission denied”)
 #, c-format
 msgid "%s (see \"snap login --help\")"
-msgstr "%s (zie \"snap login --help\")"
+msgstr ""
 
 #. TRANSLATORS: %s is an error message (e.g. “cannot yadda yadda: permission denied”)
 #, c-format
 msgid "%s (try with sudo)"
-msgstr "%s (probeer met sudo)"
+msgstr "%s (ဂစာန် ကေုာံ သူဒို)"
 
 #, c-format
 msgid "%s already installed\n"
-msgstr "%s reeds geïnstalleerd\n"
+msgstr "%s စုတ် လဝ်တုဲတုဲ\n"
 
 #, c-format
 msgid "%s disabled\n"
-msgstr "%s uitgeschakeld\n"
+msgstr "%s ဒှ်ဟွံမာန်\n"
 
 #, c-format
 msgid "%s enabled\n"
-msgstr "%s ingeschakeld\n"
+msgstr "%s ဒှ်မာန်\n"
 
 #, c-format
 msgid "%s not installed\n"
-msgstr "%s niet geïnstalleerd\n"
+msgstr "%s ဟွံ စုတ်လဝ်\n"
 
 #, c-format
 msgid "%s removed\n"
-msgstr "%s verwijderd\n"
+msgstr "%s ပဲါလဝ်\n"
 
 #. TRANSLATORS: first %s is a snap name, second %s is a revision
 #, c-format
 msgid "%s reverted to %s\n"
-msgstr "%s teruggedraaid naar %s\n"
+msgstr "%s ကလေၚ်စွံလဝ် အတိုၚ်ပကတိ ကဵု  %s\n"
 
 #. TRANSLATORS: the args are a snap name optionally followed by a channel, then a version, then the developer name (e.g. "some-snap (beta) 1.3 from 'alice' installed")
 #, c-format
 msgid "%s%s %s from '%s' installed\n"
-msgstr "%s%s %s van '%s' geïnstalleerd\n"
+msgstr ""
 
 #. TRANSLATORS: the args are a snap name optionally followed by a channel, then a version, then the developer name (e.g. "some-snap (beta) 1.3 from 'alice' refreshed")
 #, c-format
 msgid "%s%s %s from '%s' refreshed\n"
-msgstr "%s%s %s van '%s' ververst\n"
+msgstr ""
 
 #. TRANSLATORS: the args are a snap name optionally followed by a channel, then a version (e.g. "some-snap (beta) 1.3 installed")
 #, c-format
 msgid "%s%s %s installed\n"
-msgstr "%s%s %s geïnstalleerd\n"
+msgstr "%s%s %s စုတ်လဝ်\n"
 
 #. TRANSLATORS: the args are a snap name optionally followed by a channel, then a version (e.g. "some-snap (beta) 1.3 refreshed")
 #, c-format
 msgid "%s%s %s refreshed\n"
-msgstr "%s%s %s ververst\n"
+msgstr "%s%s %s ပသောၚ်လဝ်\n"
 
 msgid "--list does not take mode nor channel flags"
-msgstr "--list kent geen modus of kanaalvlaggen"
+msgstr ""
 
 msgid "--time does not take mode nor channel flags"
-msgstr "--list kent geen modus of kanaalvlaggen"
+msgstr ""
 
 msgid "-r can only be used with --hook"
-msgstr "-r kan alleen worden gebruikt met --hook"
+msgstr ""
 
 #. TRANSLATORS: This needs to begin with < and end with >
 msgid "<alias-or-snap>"
-msgstr "<alias-of-snap>"
+msgstr ""
 
 #. TRANSLATORS: This needs to begin with < and end with >
 msgid "<alias>"
-msgstr "<alias>"
+msgstr ""
 
 #. TRANSLATORS: This needs to begin with < and end with >
 msgid "<assertion file>"
-msgstr "<bevestigingsbestand>"
+msgstr "<ဝှာၚ် ခိုၚ်ၚ်ကၠိုက်က်>"
 
 #. TRANSLATORS: This needs to begin with < and end with >
 msgid "<assertion type>"
-msgstr "<bevestigingstype>"
+msgstr "<ဂကူ ခိုၚ်ၚ်ကၠိုက်က်>"
 
 #. TRANSLATORS: This needs to begin with < and end with >
 msgid "<change-id>"
-msgstr "<change-id>"
+msgstr "<သၠာဲ-id>"
 
 #. TRANSLATORS: This needs to begin with < and end with >
 msgid "<conf value>"
-msgstr "<conf value>"
+msgstr "<ၚုဟ်မး conf>"
 
 #. TRANSLATORS: This is a noun, and it needs to begin with < and end with >
 #. TRANSLATORS: This is a noun and it needs to begin with < and end with >
 msgid "<email>"
-msgstr "<email>"
+msgstr "<အဳမေလ်>"
 
 #. TRANSLATORS: This needs to begin with < and end with >
 msgid "<filename>"
-msgstr "<bestandsnaam>"
+msgstr "<ယၟုဝှာၚ်>"
 
 #. TRANSLATORS: This needs to begin with < and end with >
 msgid "<header filter>"
-msgstr "<kopfilter>"
+msgstr ""
 
 #. TRANSLATORS: This needs to begin with < and end with >
 msgid "<interface>"
-msgstr "<apparaat>"
+msgstr ""
 
 #. TRANSLATORS: This needs to begin with < and end with >
 #. TRANSLATORS: This needs to begin with < and end with >
 #. TRANSLATORS: This needs to begin with < and end with >
 msgid "<key-name>"
-msgstr "<key-name>"
+msgstr "<ယၟု-ကဳ>"
 
 #. TRANSLATORS: This needs to begin with < and end with >
 #. TRANSLATORS: This needs to begin with < and end with >
 msgid "<key>"
-msgstr "<sleutel>"
+msgstr "<ကဳ>"
 
 #. TRANSLATORS: This needs to begin with < and end with >
 msgid "<model-assertion>"
-msgstr "<model-assertion>"
+msgstr ""
 
 #. TRANSLATORS: This needs to begin with < and end with >
 msgid "<query>"
-msgstr "<zoekopdracht>"
+msgstr "<ဂၠာဲလ္ၚတ်>"
 
 #. TRANSLATORS: This needs to begin with < and end with >
 msgid "<root-dir>"
-msgstr "<root-dir>"
+msgstr ""
 
 #. TRANSLATORS: This needs to begin with < and end with >
 msgid "<service>"
-msgstr ""
+msgstr "<ရေၚ်တၠုၚ်>"
 
 #. TRANSLATORS: This needs to begin with < and end with >
 #. TRANSLATORS: This needs to begin with < and end with >
@@ -181,12 +177,12 @@ msgstr "<snap>:<plug>"
 
 #. TRANSLATORS: This needs to begin with < and end with >
 msgid "<snap>:<slot or plug>"
-msgstr "<snap>:<slot or plug>"
+msgstr ""
 
 #. TRANSLATORS: This needs to begin with < and end with >
 #. TRANSLATORS: This needs to begin with < and end with >
 msgid "<snap>:<slot>"
-msgstr "<snap>:<slot>"
+msgstr ""
 
 #. TRANSLATORS: This should not start with a lowercase letter.
 msgid ""
@@ -195,14 +191,14 @@ msgid ""
 msgstr ""
 
 msgid "Abort a pending change"
-msgstr "Breek een wachtende verandering af"
+msgstr ""
 
 #. TRANSLATORS: this is used to introduce a list of aliases that were added
 msgid "Added"
-msgstr "Toegevoegd"
+msgstr "ထပ်လဝ်"
 
 msgid "Adds an assertion to the system"
-msgstr "Voegt een bevestiging toe aan het systeem"
+msgstr ""
 
 msgid "Advise on available snaps."
 msgstr ""
@@ -213,20 +209,20 @@ msgstr ""
 
 #. TRANSLATORS: This should not start with a lowercase letter.
 msgid "Alias for --dangerous (DEPRECATED)"
-msgstr "Alias voor --dangerous (VEROUDERD)"
+msgstr ""
 
 msgid "All snaps up to date."
-msgstr "Alle snaps zijn bijgewerkt."
+msgstr ""
 
 msgid "Allow opening file?"
-msgstr ""
+msgstr "ကဵုအခေါၚ် ပံက်ဒၟံၚ် ဝှာၚ်?"
 
 #. TRANSLATORS: This should not start with a lowercase letter.
 msgid "Allow refresh attempt on snap unknown to the store"
 msgstr ""
 
 msgid "Allow settings change?"
-msgstr ""
+msgstr "ကဵုအခေါၚ် ပြံၚ်လှာဲ မဆိၚ်ဒၟံၚ်"
 
 #, c-format
 msgid "Allow snap %q to change %q to %q ?"
@@ -234,23 +230,23 @@ msgstr ""
 
 #, c-format
 msgid "Allow snap %q to open file %q?"
-msgstr ""
+msgstr "ကဵုအခေါၚ် snap %q သ္ဂောံ ပံက် ဝှာၚ် %q?"
 
 #. TRANSLATORS: This should not start with a lowercase letter.
 msgid "Alternative command to run"
-msgstr "Alternatieve opdracht om uit te voeren"
+msgstr ""
 
 #. TRANSLATORS: This should not start with a lowercase letter.
 msgid "Always return document, even with single key"
-msgstr "Toon altijd het document, zelfs met een enkele toets"
+msgstr ""
 
 #. TRANSLATORS: This should not start with a lowercase letter.
 msgid "Always return list, even with single key"
-msgstr "Toon altijd de lijst, zelfs met een enkele toets"
+msgstr ""
 
 #. TRANSLATORS: This should not start with a lowercase letter (unless it's "login.ubuntu.com"). Also, note users on login.ubuntu.com can have multiple email addresses.
 msgid "An email of a user on login.ubuntu.com"
-msgstr "Een e-mail van een gebruiker op login.ubuntu.com"
+msgstr ""
 
 #. TRANSLATORS: This should not start with a lowercase letter.
 msgid ""
@@ -265,69 +261,69 @@ msgstr ""
 
 #. TRANSLATORS: This should not start with a lowercase letter.
 msgid "Assertion file"
-msgstr "Bevestigingsbestand"
+msgstr ""
 
 #. TRANSLATORS: This should not start with a lowercase letter.
 msgid "Assertion type name"
-msgstr "Naam van bevestigingstype"
+msgstr ""
 
 msgid "Authenticates on snapd and the store"
-msgstr "Authenticeert voor snapd en de winkel"
+msgstr ""
 
 #, c-format
 msgid "Auto-refresh %d snaps"
-msgstr "%d snaps automatisch verversen"
+msgstr ""
 
 #, c-format
 msgid "Auto-refresh snap %q"
-msgstr "Snap %q automatisch verversen"
+msgstr ""
 
 #. TRANSLATORS: the %s is a comma-separated list of quoted snap names
 #, c-format
 msgid "Auto-refresh snaps %s"
-msgstr "Snaps %s automatisch verversen"
+msgstr ""
 
 #, c-format
 msgid "Automatically connect eligible plugs and slots of snap %q"
 msgstr ""
 
 msgid "Bad code. Try again: "
-msgstr "Slechte code. Probeer opnieuw: "
+msgstr ""
 
 msgid "Buys a snap"
-msgstr "Koopt een snap"
+msgstr ""
 
 #. TRANSLATORS: This should not start with a lowercase letter.
 msgid "Change ID"
-msgstr "ID veranderen"
+msgstr ""
 
 msgid "Changes configuration options"
-msgstr "Verandert instellingsopties"
+msgstr ""
 
 msgid "Command\tAlias\tNotes"
-msgstr "Opdracht\tAlias\tNotities"
+msgstr ""
 
 #. TRANSLATORS: This should not start with a lowercase letter.
 msgid "Configuration value (key=value)"
-msgstr "Instellingswaarde (key=value)"
+msgstr ""
 
 msgid "Confirm passphrase: "
-msgstr "Wachtwoordzin bevestigen: "
+msgstr ""
 
 #, c-format
 msgid "Connect %s:%s to %s:%s"
-msgstr "Aansluiten van %s: %s aan %s:%s"
+msgstr ""
 
 msgid "Connects a plug to a slot"
-msgstr "Verbindt een stekker met een contact"
+msgstr ""
 
 #. TRANSLATORS: This should not start with a lowercase letter.
 msgid "Constrain listing to a specific snap or snap:name"
-msgstr "Beperk lijstweergave tot een specifieke snap of snap:naam"
+msgstr ""
 
 #. TRANSLATORS: This should not start with a lowercase letter.
 msgid "Constrain listing to specific interfaces"
-msgstr "Beperk lijstweergave tot specifieke apparaten"
+msgstr ""
 
 #. TRANSLATORS: This should not start with a lowercase letter.
 msgid "Constrain listing to those matching header=value"
@@ -340,30 +336,28 @@ msgstr ""
 msgid ""
 "Create a cryptographic key pair that can be used for signing assertions."
 msgstr ""
-"Maak een cryptografisch paar sleutels dat gebruikt kan worden voor het "
-"bevestigen van ondertekeningen."
 
 msgid "Create cryptographic key pair"
-msgstr "Maak een cryptografisch paar sleutels"
+msgstr ""
 
 msgid "Create snap build assertion"
-msgstr "Maak een bevesting voor snapbouwen"
+msgstr ""
 
 msgid "Create snap-build assertion for the provided snap file."
-msgstr "Maak een bevestiging voor snapbouwen voor het geleverde snapbestand."
+msgstr ""
 
 msgid "Creates a local system user"
-msgstr "Een gebruiker maken voor het lokale systeem"
+msgstr ""
 
 msgid "Delete cryptographic key pair"
-msgstr "Verwijder cryptografisch sleutelpaar"
+msgstr ""
 
 msgid "Delete the local cryptographic key pair with the given name."
-msgstr "Verwijder het cryptografische sleutelpaar met de opgegeven naam."
+msgstr ""
 
 #, c-format
 msgid "Disable %q snap"
-msgstr "Schakel %q  snap uit"
+msgstr ""
 
 #, c-format
 msgid "Disable aliases for snap %q"
@@ -371,10 +365,10 @@ msgstr ""
 
 #, c-format
 msgid "Disable all aliases for snap %q"
-msgstr "Schakel alle aliassen uit voor snap %q"
+msgstr ""
 
 msgid "Disables a snap in the system"
-msgstr "Schakelt een snap uit in het systeem"
+msgstr ""
 
 #, c-format
 msgid "Discard interface connections for snap %q (%s)"
@@ -385,13 +379,11 @@ msgid "Disconnect %s:%s from %s:%s"
 msgstr ""
 
 msgid "Disconnects a plug from a slot"
-msgstr "Trekt een stekker uit een contact"
+msgstr ""
 
 #. TRANSLATORS: This should not start with a lowercase letter.
 msgid "Do not wait for the operation to finish but just print the change id."
 msgstr ""
-"Wacht niet totdat de bewerking is voltooid maar druk gewoon de wijzigings-ID "
-"af."
 
 #, c-format
 msgid "Download snap %q%s from channel %q"
@@ -402,21 +394,19 @@ msgid ""
 "Download the given revision of a snap, to which you must have developer "
 "access"
 msgstr ""
-"Haal de opgegeven revisie binnen van een snap, waarvoor u "
-"ontwikkelaarstoegang nodig hebt"
 
 msgid "Downloads the given snap"
-msgstr "Haalt de opgegeven snap binnen"
+msgstr ""
 
 msgid "Email address: "
-msgstr "E-mailadres: "
+msgstr ""
 
 #, c-format
 msgid "Enable %q snap"
-msgstr "Schakel %q snap in"
+msgstr ""
 
 msgid "Enables a snap in the system"
-msgstr "Schakelt een snap in uw systeem in"
+msgstr ""
 
 #, c-format
 msgid "Ensure prerequisites for %q are available"
@@ -427,7 +417,7 @@ msgid ""
 msgstr ""
 
 msgid "Export cryptographic public key"
-msgstr "Exporteer cryptografische publieke sleutel"
+msgstr ""
 
 #, c-format
 msgid "Fetch and check assertions for snap %q%s"
@@ -435,28 +425,26 @@ msgstr ""
 
 #, c-format
 msgid "Fetching assertions for %q\n"
-msgstr "Bevestigingen aan het ophalen voor %q\n"
+msgstr ""
 
 #, c-format
 msgid "Fetching snap %q\n"
-msgstr "Snap %q aan het ophalen\n"
+msgstr ""
 
 #. TRANSLATORS: This should not start with a lowercase letter.
 msgid "Filename of the snap you want to assert a build for"
-msgstr "Bestandsnaam van de snap waar u een bouwsel voor wilt bevestigen"
+msgstr ""
 
 msgid "Finds packages to install"
-msgstr "Zoekt pakketten om te installeren"
+msgstr ""
 
 #. TRANSLATORS: This should not start with a lowercase letter.
 msgid "Force adding the user, even if the device is already managed"
 msgstr ""
-"Dwing toevoegen van de gebruiker af, zelfs indien het apparaat reeds wordt "
-"beheerd"
 
 #. TRANSLATORS: This should not start with a lowercase letter.
 msgid "Force import on classic systems"
-msgstr "Dwing invoeren af op klassieke systemen"
+msgstr ""
 
 msgid ""
 "Format public key material as a request for an account-key for this account-"
@@ -468,18 +456,18 @@ msgstr ""
 
 #. TRANSLATORS: This should not start with a lowercase letter.
 msgid "Generate the manpage"
-msgstr "Maak de hulppagina aan"
+msgstr ""
 
 #. TRANSLATORS: This should not start with a lowercase letter.
 msgid "Grade states the build quality of the snap (defaults to 'stable')"
-msgstr "Graad vermeldt de bouwkwaliteit van de snap (standaard is 'stabiel')"
+msgstr ""
 
 #. TRANSLATORS: This should not start with a lowercase letter.
 msgid "Grant sudo access to the created user"
-msgstr "Verleen sudo-toegang aan de aangemaakte gebruiker"
+msgstr ""
 
 msgid "Help"
-msgstr "Hulp"
+msgstr ""
 
 #. TRANSLATORS: This should not start with a lowercase letter.
 msgid "Hook to run"
@@ -502,7 +490,7 @@ msgstr ""
 
 #. TRANSLATORS: This should not start with a lowercase letter.
 msgid "Ignore validation by other snaps blocking the refresh"
-msgstr "Negeer validatie door andere snaps die de verversing blokkeren"
+msgstr ""
 
 #, c-format
 msgid ""
@@ -511,21 +499,13 @@ msgid ""
 "\n"
 "Once completed, return here and run 'snap buy %s' again."
 msgstr ""
-"Om %q te kopen, moet u akkoord gaan met de nieuwste voorwaarden en "
-"bepalingen. Bezoek a.u.b. https://my.ubuntu.com/payment/edit om dit te "
-"doen.\n"
-"\n"
-"Wanneer dat achter de rug is, kom dan hier terug en voer 'snap buy %s' "
-"opnieuw uit."
 
 msgid "Include a verbose list of a snap's notes (otherwise, summarise notes)"
 msgstr ""
-"Neem een uitgebreide lijst op van de aantekeningen van een snap (zo niet: "
-"vat de aantekeningen samen)"
 
 #. TRANSLATORS: This should not start with a lowercase letter.
 msgid "Include unused interfaces"
-msgstr "Neem ongebruikte apparaten op"
+msgstr ""
 
 msgid "Initialize device"
 msgstr ""
@@ -535,51 +515,49 @@ msgstr ""
 
 #, c-format
 msgid "Install %q snap"
-msgstr "Snap %q installeren"
+msgstr ""
 
 #, c-format
 msgid "Install %q snap from %q channel"
-msgstr "Installeer %q snap vanuit %q kanaal"
+msgstr ""
 
 #, c-format
 msgid "Install %q snap from file"
-msgstr "Snap %q vanuit bestand installeren"
+msgstr ""
 
 #, c-format
 msgid "Install %q snap from file %q"
-msgstr "Snap %q vanuit bestand %q installeren"
+msgstr ""
 
 #. TRANSLATORS: This should not start with a lowercase letter.
 msgid "Install from the beta channel"
-msgstr "Installeren vanuit het bètakanaal"
+msgstr ""
 
 #. TRANSLATORS: This should not start with a lowercase letter.
 msgid "Install from the candidate channel"
-msgstr "Installeren vanuit het kandidatenkanaal"
+msgstr ""
 
 #. TRANSLATORS: This should not start with a lowercase letter.
 msgid "Install from the edge channel"
-msgstr "Installeren vanuit het onstabiele kanaal"
+msgstr ""
 
 #. TRANSLATORS: This should not start with a lowercase letter.
 msgid "Install from the stable channel"
-msgstr "Installeren vanuit het stabiele kanaal"
+msgstr ""
 
 #, c-format
 msgid "Install snap %q"
-msgstr "Snap %q installeren"
+msgstr ""
 
 #. TRANSLATORS: the %s is a comma-separated list of quoted snap names
 #, c-format
 msgid "Install snaps %s"
-msgstr "Snaps %s installeren"
+msgstr ""
 
 #. TRANSLATORS: This should not start with a lowercase letter.
 msgid ""
 "Install the given revision of a snap, to which you must have developer access"
 msgstr ""
-"Installeren van de opgegeven revisie van een snap waarvoor u "
-"ontwikkelaarstoegang nodig heeft"
 
 #. TRANSLATORS: This should not start with a lowercase letter.
 msgid ""
@@ -587,15 +565,10 @@ msgid ""
 "for it, meaning it was not verified and could be dangerous (--devmode "
 "implies this)"
 msgstr ""
-"Het opgegeven snapbestand installeren, zelfs wanneer er geen vooraf erkende "
-"handtekeningen voor zijn, hetgeen betekent dat het niet werd geverifieerd en "
-"dus gevaarlijk zou kunnen zijn (--devmode impliceert dit)"
 
 #. TRANSLATORS: This should not start with a lowercase letter.
 msgid "Install the given snap without enabling its automatic aliases"
 msgstr ""
-"De opgegeven snap installeren zonder zijn automatische aliassen in te "
-"schakelen"
 
 #, c-format
 msgid ""
@@ -603,52 +576,47 @@ msgid ""
 "   snap ack %s\n"
 "   snap install %s\n"
 msgstr ""
-"Installeer de snap met:\n"
-"   snap ack %s\n"
-"   snap install %s\n"
 
 msgid "Installs a snap to the system"
-msgstr "Installeert een snap in uw systeem"
+msgstr ""
 
 #. TRANSLATORS: This should not start with a lowercase letter.
 #. TRANSLATORS: This should not start with a lowercase letter.
 msgid "Key of interest within the configuration"
-msgstr "Sleutel die van belang is binnen de configuratie"
+msgstr ""
 
 msgid "List a change's tasks"
-msgstr "Een lijst maken van de taken van een wijziging"
+msgstr ""
 
 msgid "List cryptographic keys"
-msgstr "Een lijst maken van cryptografische sleutels"
+msgstr ""
 
 msgid "List cryptographic keys that can be used for signing assertions."
 msgstr ""
-"Maak een lijst van cryptografische sleutels die kan worden gebruikt voor het "
-"tekenen van bevestigingen."
 
 msgid "List installed snaps"
-msgstr "Maak een lijst van geïnstalleerde snaps"
+msgstr ""
 
 msgid "List system changes"
-msgstr "Maak een lijst van systeemveranderingen"
+msgstr ""
 
 msgid "Lists aliases in the system"
-msgstr "Maak een lijst van aliassen in het systeem"
+msgstr ""
 
 msgid "Lists all repairs"
-msgstr "Maak een lijst van alle reparaties"
+msgstr ""
 
 msgid "Lists interfaces in the system"
-msgstr "Toon een lijst van apparaten in het systeem"
+msgstr ""
 
 msgid "Lists snap interfaces"
-msgstr "Toon een lijst van snap-apparaten"
+msgstr ""
 
 msgid "Log out of the store"
-msgstr "Meld u af bij de winkel"
+msgstr ""
 
 msgid "Login successful"
-msgstr "Aanmelding succesvol"
+msgstr ""
 
 #, c-format
 msgid "Make current revision for snap %q unavailable"
@@ -679,37 +647,35 @@ msgstr ""
 
 #. TRANSLATORS: This should not start with a lowercase letter.
 msgid "Name of key to create; defaults to 'default'"
-msgstr "Naam van te maken sleutel; valt standaard terug op 'default'"
+msgstr ""
 
 #. TRANSLATORS: This should not start with a lowercase letter.
 msgid "Name of key to delete"
-msgstr "Naam van te wissen sleutel"
+msgstr ""
 
 #. TRANSLATORS: This should not start with a lowercase letter.
 msgid "Name of key to export"
-msgstr "Naam van te exporteren sleutel"
+msgstr ""
 
 #. TRANSLATORS: This should not start with a lowercase letter.
 msgid "Name of the GnuPG key to use (defaults to 'default' as key name)"
 msgstr ""
-"Naam van de te gebruiken sleutel voor GnuPG (valt standaard terug op "
-"'default' als sleutelnaam)"
 
 #. TRANSLATORS: This should not start with a lowercase letter.
 msgid "Name of the key to use, otherwise use the default key"
-msgstr "Naam van de te gebruiken sleutel, gebruik anders de standaardsleutel"
+msgstr ""
 
 msgid "Name\tSHA3-384"
-msgstr "Naam\tSHA3-384"
+msgstr ""
 
 msgid "Name\tSummary"
-msgstr "Naam\tSamenvatting"
+msgstr ""
 
 msgid "Name\tVersion\tDeveloper\tNotes\tSummary"
-msgstr "Naam\tVersie\tOntwikkelaar\tNotities\tSamenvatting"
+msgstr ""
 
 msgid "Name\tVersion\tRev\tDeveloper\tNotes"
-msgstr "Naam\tVersie\tRev\tOntwikkelaar\tNotities"
+msgstr ""
 
 msgid "Name\tVersion\tRev\tTracking\tDeveloper\tNotes"
 msgstr ""
@@ -755,13 +721,11 @@ msgstr ""
 
 msgid "No snaps are installed yet. Try \"snap install hello-world\"."
 msgstr ""
-"Thans zijn er nog geen snaps geïnstalleerd. Probeer 'snap install hello-"
-"world'."
 
 #. TRANSLATORS: This should not start with a lowercase letter.
 #. TRANSLATORS: This should not start with a lowercase letter.
 msgid "Output results in JSON format"
-msgstr "Gefe resulaten weer in JSON-opmaak"
+msgstr ""
 
 msgid "Pack the given target dir as a snap"
 msgstr ""
@@ -771,11 +735,11 @@ msgid "Packages matching %q:\n"
 msgstr ""
 
 msgid "Passphrase: "
-msgstr "Wachtwoordzin: "
+msgstr ""
 
 #, c-format
 msgid "Password of %q: "
-msgstr "Wachtwoord van %q: "
+msgstr ""
 
 #. TRANSLATORS: %q, %q and %s are the snap name, developer, and price. Please wrap the translation at 80 characters.
 #, c-format
@@ -783,8 +747,6 @@ msgid ""
 "Please re-enter your Ubuntu One password to purchase %q from %q\n"
 "for %s. Press ctrl-c to cancel."
 msgstr ""
-"Voer a.u.b. opnieuw uw Ubuntu One wachtwoord in om %q te kopen van %q\n"
-"voor %s. Druk op ctrl-c om af te breken."
 
 msgid "Please try: snap find --section=<selected section>\n"
 msgstr ""
@@ -812,7 +774,7 @@ msgid "Prepare snap %q%s"
 msgstr ""
 
 msgid "Print the version and exit"
-msgstr "Toon de versie en sluit af"
+msgstr ""
 
 msgid "Prints configuration options"
 msgstr ""
@@ -832,57 +794,57 @@ msgstr ""
 
 #. TRANSLATORS: This should not start with a lowercase letter.
 msgid "Put snap in classic mode and disable security confinement"
-msgstr "Zet snap in klassieke modus en schakel veiligheidsbeperking uit"
+msgstr ""
 
 #. TRANSLATORS: This should not start with a lowercase letter.
 msgid "Put snap in development mode and disable security confinement"
-msgstr "Zet snap in ontwikkelingsmodus en schakel veiligheidsbeperking uit"
+msgstr ""
 
 #. TRANSLATORS: This should not start with a lowercase letter.
 msgid "Put snap in enforced confinement mode"
-msgstr "Zet snap in afgedwongen beperkte modus"
+msgstr ""
 
 msgid "Query the status of services"
-msgstr "Doorzoek de status van diensten"
+msgstr ""
 
 #, c-format
 msgid "Refresh %q snap"
-msgstr "ververs %q snap"
+msgstr ""
 
 #, c-format
 msgid "Refresh %q snap from %q channel"
-msgstr "Ververs %q snap vanuit %q kanaal"
+msgstr ""
 
 #, c-format
 msgid "Refresh aliases for snap %q"
 msgstr ""
 
 msgid "Refresh all snaps: no updates"
-msgstr "Ververs alle snaps: geen bijgewerkte pakketten"
+msgstr ""
 
 #, c-format
 msgid "Refresh snap %q"
-msgstr "Ververs snap %q"
+msgstr ""
 
 #. TRANSLATORS: the %s is a comma-separated list of quoted snap names
 #, c-format
 msgid "Refresh snaps %s"
-msgstr "Ververs snaps %s"
+msgstr ""
 
 #. TRANSLATORS: the %s is a comma-separated list of quoted snap names
 #, c-format
 msgid "Refresh snaps %s: no updates"
-msgstr "Ververs snaps %s: geen bijgewerkte pakketten"
+msgstr ""
 
 msgid "Refresh to the given revision"
-msgstr "Ververs naar de opgegeven revisie"
+msgstr ""
 
 msgid "Refreshes a snap in the system"
-msgstr "Ververst een snap in het systeem"
+msgstr ""
 
 #, c-format
 msgid "Remove %q snap"
-msgstr "Verwijder %q snap"
+msgstr ""
 
 #, c-format
 msgid "Remove aliases for snap %q"
@@ -894,11 +856,11 @@ msgstr ""
 
 #, c-format
 msgid "Remove manual alias %q for snap %q"
-msgstr "Verwijder handmatige alias %q voor snap %q"
+msgstr ""
 
 #. TRANSLATORS: This should not start with a lowercase letter.
 msgid "Remove only the given revision"
-msgstr "Verwijder alleen de opgegeven revisie"
+msgstr ""
 
 #, c-format
 msgid "Remove security profile for snap %q (%s)"
@@ -910,7 +872,7 @@ msgstr ""
 
 #, c-format
 msgid "Remove snap %q"
-msgstr "Verwijder snap %q"
+msgstr ""
 
 #, c-format
 msgid "Remove snap %q (%s) from the system"
@@ -919,37 +881,37 @@ msgstr ""
 #. TRANSLATORS: the %s is a comma-separated list of quoted snap names
 #, c-format
 msgid "Remove snaps %s"
-msgstr "Verwijder snaps %s"
+msgstr ""
 
 #. TRANSLATORS: this is used to introduce a list of aliases that were removed
 msgid "Removed"
-msgstr "Verwijderd"
+msgstr ""
 
 msgid "Removes a snap from the system"
-msgstr "Verwijdert een snap uit het systeem"
+msgstr ""
 
 msgid "Request device serial"
 msgstr ""
 
 msgid "Restart services"
-msgstr "Herstart diensten"
+msgstr ""
 
 msgid "Restarted.\n"
-msgstr "Herstart.\n"
+msgstr ""
 
 #. TRANSLATORS: This should not start with a lowercase letter.
 msgid "Restrict the search to a given section"
-msgstr "Beperk de zoekopdracht tot een opgegeven sectie"
+msgstr ""
 
 msgid "Retrieve logs of services"
-msgstr "Haal logboeken op van diensten"
+msgstr ""
 
 #, c-format
 msgid "Revert %q snap"
-msgstr "Draai %q snap terug"
+msgstr ""
 
 msgid "Reverts the given snap to the previous state"
-msgstr "Draait de opgegeven snap terug naar de vorige toestand"
+msgstr ""
 
 #. TRANSLATORS: This should not start with a lowercase letter.
 msgid "Run a shell instead of the command (useful for debugging)"
@@ -1000,24 +962,22 @@ msgid "Run the command with gdb"
 msgstr ""
 
 msgid "Run the given snap command"
-msgstr "Draai de opgegeven snapopdracht"
+msgstr ""
 
 msgid "Run the given snap command with the right confinement and environment"
-msgstr "Draai de opgegeven snapopdracht met de juiste beperking en omgeving"
+msgstr ""
 
 msgid "Runs debug commands"
-msgstr "Draait foutopsporingsopdrachten"
+msgstr ""
 
 #. TRANSLATORS: This should not start with a lowercase letter.
 msgid "Search private snaps"
-msgstr "Doorzoek private snaps"
+msgstr ""
 
 msgid ""
 "Select last change of given type (install, refresh, remove, try, auto-"
 "refresh etc.)"
 msgstr ""
-"Kies de laatste wijziging van opgegeven type (installeren, verversen, "
-"verwijderen, proberen, automatisch verversen enz.)"
 
 msgid "Service\tStartup\tCurrent"
 msgstr ""
@@ -1027,11 +987,11 @@ msgid "Set automatic aliases for snap %q"
 msgstr ""
 
 msgid "Sets up a manual alias"
-msgstr "Stelt een handmatige alias in"
+msgstr ""
 
 #, c-format
 msgid "Setup alias %q => %q for snap %q"
-msgstr "Stel alias in %q => %q voor snap %q"
+msgstr ""
 
 #, c-format
 msgid "Setup manual alias %q => %q for snap %q"
@@ -1055,42 +1015,41 @@ msgstr ""
 
 #. TRANSLATORS: This should not start with a lowercase letter.
 msgid "Show all revisions"
-msgstr "Toon alle revisies"
+msgstr ""
 
 #. TRANSLATORS: This should not start with a lowercase letter.
 msgid "Show auto refresh information but do not perform a refresh"
 msgstr ""
-"Toon automatische verversingsinformatie maar voer geen verversing uit"
 
 msgid "Show available snaps for refresh but do not perform a refresh"
-msgstr "Toon beschikbare snaps voor verversen maar voer geen verversing uit"
+msgstr ""
 
 msgid "Show detailed information about a snap"
 msgstr ""
 
 #. TRANSLATORS: This should not start with a lowercase letter.
 msgid "Show details of a specific interface"
-msgstr "Toon bijzonderheden van een specifiek apparaat"
+msgstr ""
 
 #. TRANSLATORS: This should not start with a lowercase letter.
 msgid "Show interface attributes"
-msgstr "Toon attributen van apparaten"
+msgstr ""
 
 #. TRANSLATORS: This should not start with a lowercase letter.
 msgid "Show only the given number of lines, or 'all'."
 msgstr ""
 
 msgid "Shows known assertions of the provided type"
-msgstr "Toont bekende bevestigingen van het geleverde type"
+msgstr ""
 
 msgid "Shows specific repairs"
-msgstr "Toont specifieke reparaties"
+msgstr ""
 
 msgid "Shows version details"
-msgstr "Toont versiedetails"
+msgstr ""
 
 msgid "Sign an assertion"
-msgstr "Teken een bevestiging"
+msgstr ""
 
 msgid ""
 "Sign an assertion using the specified key, using the input for headers from "
@@ -1109,19 +1068,16 @@ msgstr ""
 #. TRANSLATORS: This should not start with a lowercase letter.
 #. TRANSLATORS: This should not start with a lowercase letter.
 msgid "Snap name"
-msgstr "Naam van snap"
+msgstr ""
 
 msgid ""
 "Sorry, your payment method has been declined by the issuer. Please review "
 "your\n"
 "payment details at https://my.ubuntu.com/payment/edit and try again."
 msgstr ""
-"Helaas, uw betaalmethode werd door de uitgever geweigerd. Bekijk a.u.b. uw\n"
-"betalingsdetails op https://my.ubuntu.com/payment/edit en probeer het "
-"opnieuw."
 
 msgid "Start services"
-msgstr "Start diensten"
+msgstr ""
 
 #, c-format
 msgid "Start snap %q (%s) services"
@@ -1135,16 +1091,16 @@ msgid "Start snap services"
 msgstr ""
 
 msgid "Start the userd service"
-msgstr "Start de dienst userd"
+msgstr ""
 
 msgid "Started.\n"
-msgstr "Gestart.\n"
+msgstr ""
 
 msgid "Status\tSpawn\tReady\tSummary\n"
-msgstr "Status\tSpawn\tKlaar\tSamenvatting\n"
+msgstr ""
 
 msgid "Stop services"
-msgstr "Zet diensten stil"
+msgstr ""
 
 #, c-format
 msgid "Stop snap %q (%s) services"
@@ -1158,11 +1114,11 @@ msgid "Stop snap services"
 msgstr ""
 
 msgid "Stopped.\n"
-msgstr "Stilgezet.\n"
+msgstr ""
 
 #. TRANSLATORS: This should not start with a lowercase letter.
 msgid "Strict typing with nulls and quoted strings"
-msgstr "Strict intikken met nullen en tekenreeksen tussen aanhalingstekens"
+msgstr ""
 
 #, c-format
 msgid "Switch %q snap to %s"
@@ -1177,14 +1133,14 @@ msgid "Switch snap %q to %s"
 msgstr ""
 
 msgid "Switches snap to a different channel"
-msgstr "Schakelt snap om naar een ander kanaal"
+msgstr ""
 
 #. TRANSLATORS: This should not start with a lowercase letter.
 msgid "Temporarily mount device before inspecting"
-msgstr "Koppel het apparaat tijdelijk aan alvorens het te inspecteren"
+msgstr ""
 
 msgid "Tests a snap in the system"
-msgstr "Beproeft een snap in het systeem"
+msgstr ""
 
 #. TRANSLATORS: %q and %s are the same snap name. Please wrap the translation at 80 characters.
 #, c-format
@@ -1192,8 +1148,6 @@ msgid ""
 "Thanks for purchasing %q. You may now install it on any of your devices\n"
 "with 'snap install %s'."
 msgstr ""
-"Bedankt voor het kopen van %q. U kunt hem nu installeren op één van uw\n"
-"apparaten met 'snap install %s'."
 
 msgid ""
 "The get command prints configuration and interface connection settings."
@@ -1201,7 +1155,7 @@ msgstr ""
 
 #. TRANSLATORS: This should not start with a lowercase letter (unless it's "login.ubuntu.com")
 msgid "The login.ubuntu.com email to login as"
-msgstr "Het e-mailadres voor login.ubuntu.com om mee aan te melden"
+msgstr ""
 
 #. TRANSLATORS: This should not start with a lowercase letter.
 msgid "The model assertion name"
@@ -1209,7 +1163,7 @@ msgstr ""
 
 #. TRANSLATORS: This should not start with a lowercase letter.
 msgid "The output directory"
-msgstr "De uitvoermap"
+msgstr ""
 
 #, c-format
 msgid "The program %q can be found in the following snaps:\n"
@@ -1218,17 +1172,17 @@ msgstr ""
 #. TRANSLATORS: This should not start with a lowercase letter.
 #. TRANSLATORS: This should not start with a lowercase letter.
 msgid "The snap to configure (e.g. hello-world)"
-msgstr "De in te stellen snap (bijv. hello-world)"
+msgstr ""
 
 #. TRANSLATORS: This should not start with a lowercase letter.
 msgid "The snap whose conf is being requested"
-msgstr "De snap waarvan de instellingen worden opgevraagd"
+msgstr ""
 
 msgid "The userd command starts the snap user session service."
-msgstr "De opdracht userd start de gebruikerssessiedienst van de snap."
+msgstr ""
 
 msgid "This command logs the current user out of the store"
-msgstr "Deze opdracht meldt de huidige gebruiker af bij de winkel"
+msgstr ""
 
 msgid "This dialog will close automatically after 5 minutes of inactivity."
 msgstr ""
@@ -1238,7 +1192,7 @@ msgid "Toggle snap %q flags"
 msgstr ""
 
 msgid "Tool to interact with snaps"
-msgstr "Hulpmiddel om interactie te plegen met snaps"
+msgstr ""
 
 #, c-format
 msgid "Transition security profiles from %q to %q"
@@ -1249,13 +1203,13 @@ msgstr ""
 
 #, c-format
 msgid "Try %q snap from %s"
-msgstr "Probeer %q snap van %s"
+msgstr ""
 
 msgid "Try: snap install <selected snap>\n"
 msgstr ""
 
 msgid "Two-factor code: "
-msgstr "Twee-factorcode: "
+msgstr ""
 
 msgid "Unalias a manual alias or an entire snap"
 msgstr ""
@@ -1266,14 +1220,14 @@ msgstr ""
 
 #. TRANSLATORS: This should not start with a lowercase letter.
 msgid "Use known assertions for user creation"
-msgstr "Gebruik bekende bevestigingen voor het aanmaken van een gebruiker"
+msgstr ""
 
 msgid "Use the given output format (pretty or json)"
 msgstr ""
 
 #. TRANSLATORS: This should not start with a lowercase letter.
 msgid "Use this channel instead of stable"
-msgstr "Gebruik dit kanaal in plaats van stabiel"
+msgstr ""
 
 msgid ""
 "WARNING: The output of \"snap get\" will become a list with columns - use -d "
@@ -1282,34 +1236,32 @@ msgstr ""
 
 #, c-format
 msgid "WARNING: failed to activate logging: %v\n"
-msgstr "Waarschuwing: kon logboek niet activeren: %v\n"
+msgstr ""
 
 #. TRANSLATORS: This should not start with a lowercase letter.
 msgid "Wait for new lines and print them as they come in."
 msgstr ""
 
 msgid "Waiting for server to restart"
-msgstr "Aan het wachten op het herstarten van de server"
+msgstr ""
 
 msgid "Watch a change in progress"
-msgstr "Bekijk de voortgang van een verandering"
+msgstr ""
 
 msgid "Wrong again. Once more: "
-msgstr "Weer fout. Nog eens: "
+msgstr ""
 
 #, c-format
 msgid "Xauthority file isn't owned by the current user %s"
-msgstr "Bestand Xauthority is geen eigendom van de huidige gebruiker %s"
+msgstr ""
 
 msgid "Yes, yes it does."
-msgstr "Jazeker doet hij dat."
+msgstr ""
 
 msgid ""
 "You need to be logged in to purchase software. Please run 'snap login' and "
 "try again."
 msgstr ""
-"U dient aangemeld te zijn om programmatuur aan te kopen. Draai a.u.b. 'snap "
-"login' en probeer het opnieuw."
 
 #, c-format
 msgid ""
@@ -1319,18 +1271,11 @@ msgid ""
 "Once you’ve added your payment details, you just need to run 'snap buy %s' "
 "again."
 msgstr ""
-"U dient een betalingsmethode te hebben verbonden met uw account ten einde "
-"een snap te kopen, bezoek a.u.b. https://my.ubuntu.com/payment/edit om er "
-"een toe te voegen.\n"
-"\n"
-"Wanneer u uw betalingsgegevens hebt toegevoegd, hoeft u alleen maar 'snap "
-"buy %s' opnieuw te draaien."
 
 #. TRANSLATORS: the %s is the argument given by the user to "snap changes"
 #, c-format
 msgid "\"snap changes\" command expects a snap name, try: \"snap tasks %s\""
 msgstr ""
-"De opdracht 'snap changes' verwacht een snapnaam, probeer: 'snap tasks %s'"
 
 msgid ""
 "\n"
@@ -1342,16 +1287,6 @@ msgid ""
 "This is the CLI for snapd, a background service that takes care of\n"
 "snaps on the system. Start with 'snap list' to see installed snaps.\n"
 msgstr ""
-"\n"
-"Installeer, configureer, ververs en verwijder snap-pakketten. Snaps zijn\n"
-"'universele' pakketten die werken op veel verschillende Linuxsystemen,\n"
-"waardoor veilige distributie mogelijk wordt van de nieuwste hulp-\n"
-"middelen en toepassingen voor wolkdiensten, bureaucomputers,\n"
-"servers en het internet der dingen.\n"
-"\n"
-"Dit is de terminalomgeving voor snapd, een achtergronddienst die\n"
-"zorgt voor snaps in het systeem. Begin met 'snap list' om de\n"
-"geïnstalleerde snaps te zien.\n"
 
 msgid ""
 "\n"
@@ -1362,9 +1297,6 @@ msgid ""
 "\n"
 "The abort command attempts to abort a change that still has pending tasks.\n"
 msgstr ""
-"\n"
-"De afbreekopdracht tracht om een verandering af te breken die nog wachtende "
-"taken heeft.\n"
 
 msgid ""
 "\n"
@@ -1887,17 +1819,17 @@ msgid "a single snap name must be specified when ignoring validation"
 msgstr ""
 
 msgid "active"
-msgstr "actief"
+msgstr ""
 
 msgid "auto-refresh: all snaps are up-to-date"
 msgstr ""
 
 msgid "bought"
-msgstr "gekocht"
+msgstr ""
 
 #. TRANSLATORS: if possible, a single short word
 msgid "broken"
-msgstr "kapot"
+msgstr ""
 
 #, c-format
 msgid "cannot %s without a context"
@@ -1905,18 +1837,18 @@ msgstr ""
 
 #, c-format
 msgid "cannot buy snap: %v"
-msgstr "kan snap niet kopen: %v"
+msgstr ""
 
 msgid "cannot buy snap: invalid characters in name"
-msgstr "kan snap niet kopen: ongeldige tekens in naam"
+msgstr ""
 
 msgid "cannot buy snap: it has already been bought"
-msgstr "kan snap niet kopen: hij is reeds gekocht"
+msgstr ""
 
 #. TRANSLATORS: %q is the directory whose creation failed, %v the error message
 #, c-format
 msgid "cannot create %q: %v"
-msgstr "kan %q niet aanmaken: %v"
+msgstr ""
 
 #, c-format
 msgid "cannot create assertions file: %v"
@@ -1929,7 +1861,7 @@ msgstr ""
 
 #, c-format
 msgid "cannot find app %q in %q"
-msgstr "kan toepassing %q niet vinden in %q"
+msgstr ""
 
 #, c-format
 msgid "cannot find hook %q in %q"
@@ -1938,20 +1870,20 @@ msgstr ""
 #. TRANSLATORS: %q gets the snap name, %v the list of things found when trying to list it
 #, c-format
 msgid "cannot get data for %q: %v"
-msgstr "kan geen gegevens verkrijgen voor %q: %v"
+msgstr ""
 
 #. TRANSLATORS: %q gets what the user entered, %v gets the resulting error message
 #, c-format
 msgid "cannot get full path for %q: %v"
-msgstr "kan volledige pad niet verkrijgen voor %q: %v"
+msgstr ""
 
 #, c-format
 msgid "cannot get the current user: %s"
-msgstr "kan de huidige gebruiker niet verkrijgen: %s"
+msgstr ""
 
 #, c-format
 msgid "cannot get the current user: %v"
-msgstr "kan de huidige gebruiker niet verkrijgen: %v"
+msgstr ""
 
 #, c-format
 msgid "cannot mark boot successful: %s"
@@ -1995,7 +1927,7 @@ msgstr ""
 
 #, c-format
 msgid "cannot validate owner of file %s"
-msgstr "kan de eigenaar van bestand %s niet valideren"
+msgstr ""
 
 #, c-format
 msgid "cannot write new Xauthority file at %s: %s"
@@ -2003,7 +1935,7 @@ msgstr ""
 
 #, c-format
 msgid "change finished in status %q with no error message"
-msgstr "verandering voltooid in status %q met geen enkele foutmelding"
+msgstr ""
 
 #, c-format
 msgid ""
@@ -2012,7 +1944,7 @@ msgstr ""
 
 #, c-format
 msgid "created user %q\n"
-msgstr "gebruiker %q aangemaakt\n"
+msgstr ""
 
 #. TRANSLATORS: this needs to be a single rune that is understood to mean "days" in e.g. 1d20h
 msgid "d"
@@ -2020,17 +1952,17 @@ msgstr ""
 
 #. TRANSLATORS: if possible, a single short word
 msgid "disabled"
-msgstr "uitgeschakeld"
+msgstr ""
 
 msgid "email:"
-msgstr "e-mail:"
+msgstr ""
 
 msgid "enabled"
-msgstr "ingeschakeld"
+msgstr ""
 
 #, c-format
 msgid "error: %v\n"
-msgstr "fout: %v\n"
+msgstr ""
 
 msgid ""
 "error: the `<snap-dir>` argument was not provided and couldn't be inferred"
@@ -2047,7 +1979,7 @@ msgid "ignore-validation"
 msgstr ""
 
 msgid "inactive"
-msgstr "inactief"
+msgstr ""
 
 msgid ""
 "interface attributes can only be read during the execution of interface hooks"
@@ -2116,33 +2048,33 @@ msgid "need the application to run as argument"
 msgstr ""
 
 msgid "no changes found"
-msgstr "geen veranderingen gevonden"
+msgstr ""
 
 #, c-format
 msgid "no changes of type %q found"
-msgstr "geen veranderingen gevonden van type %q"
+msgstr ""
 
 msgid "no interfaces currently connected"
-msgstr "thans geen apparaten verbonden"
+msgstr ""
 
 msgid "no interfaces found"
-msgstr "geen apparaten gevonden"
+msgstr ""
 
 msgid "no matching snaps installed"
-msgstr "geen overeenkomstige snaps geïnstalleerd"
+msgstr ""
 
 msgid "no such interface"
-msgstr "zulk een apparaat is er niet"
+msgstr ""
 
 msgid "no valid snaps given"
-msgstr "geen geldige snaps opgegeven"
+msgstr ""
 
 msgid "please provide change ID or type with --last=<type>"
 msgstr ""
 
 #. TRANSLATORS: if possible, a single short word
 msgid "private"
-msgstr "privé"
+msgstr ""
 
 msgid ""
 "reboot scheduled to update the system - temporarily cancel with 'sudo "
@@ -2150,7 +2082,7 @@ msgid ""
 msgstr ""
 
 msgid "repairs are not available on a classic system"
-msgstr "reparaties zijn niet beschikbaar op een klassiek systeem"
+msgstr ""
 
 #. TRANSLATORS: this needs to be a single rune that is understood to mean "seconds" in e.g. 1m30s
 #. (I fully expect this to always be "s", given it's a SI unit)
@@ -2167,16 +2099,16 @@ msgstr ""
 #. TRANSLATORS: %%q will become a %q for the snap name; %q is whatever foo the user used for --revision=foo
 #, c-format
 msgid "snap %%q not found (at least at revision %q)"
-msgstr "snap %%q niet gevonden (althans revisie %q)"
+msgstr ""
 
 #. TRANSLATORS: %%q will become a %q for the snap name; %q is whatever foo the user used for --channel=foo
 #, c-format
 msgid "snap %%q not found (at least in channel %q)"
-msgstr "snap %%q niet gevonden (althans in kanaal %q)"
+msgstr ""
 
 #, c-format
 msgid "snap %q has no updates available"
-msgstr "snap %q heeft geen bijgewerkte pakketten beschikbaar"
+msgstr ""
 
 #, c-format
 msgid "snap %q is already installed, see \"snap refresh --help\""
@@ -2184,11 +2116,11 @@ msgstr ""
 
 #, c-format
 msgid "snap %q not found"
-msgstr "snap %q niet gevonden"
+msgstr ""
 
 #. TRANSLATORS: free as in gratis
 msgid "snap is free"
-msgstr "snap is gratis"
+msgstr ""
 
 msgid "too many arguments for command"
 msgstr ""
@@ -2201,13 +2133,13 @@ msgstr ""
 #. TRANSLATORS: the %s is the list of extra arguments
 #, c-format
 msgid "too many arguments: %s"
-msgstr "teveel argumenten: %s"
+msgstr ""
 
 msgid "unable to contact snap store"
 msgstr ""
 
 msgid "unavailable"
-msgstr "niet beschikbaar"
+msgstr ""
 
 #, c-format
 msgid "unknown attribute %q"
@@ -2240,16 +2172,13 @@ msgid "Authorization is required to authenticate on the snap daemon"
 msgstr ""
 
 msgid "Install, update, or remove packages"
-msgstr "Pakketten installeren, bijwerken of verwijderen"
+msgstr ""
 
 msgid "Authentication is required to install, update, or remove packages"
 msgstr ""
-"Authenticatie is vereist voor het installeren, bijwerken of verwijderen van "
-"pakketten"
 
 msgid "Connect, disconnect interfaces"
-msgstr "Apparaten verbinden en loskoppelen"
+msgstr ""
 
 msgid "Authentication is required to connect or disconnect interfaces"
 msgstr ""
-"Authenticatie is vereist voor het verbinden of loskoppelen van apparaten"
