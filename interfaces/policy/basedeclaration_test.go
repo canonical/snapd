@@ -527,24 +527,6 @@ plugs:
 	c.Check(err, IsNil)
 }
 
-func (s *baseDeclSuite) TestAutoConnectionRawVolumeOverride(c *C) {
-	cand := s.connectCand(c, "raw-volume", "", "")
-	err := cand.CheckAutoConnect()
-	c.Check(err, NotNil)
-	c.Assert(err, ErrorMatches, "auto-connection denied by plug rule of interface \"raw-volume\"")
-
-	plugsSlots := `
-plugs:
-  raw-volume:
-    allow-auto-connection: true
-`
-
-	snapDecl := s.mockSnapDecl(c, "some-snap", "J60k4JY0HppjwOjW8dZdYc8obXKxujRu", "canonical", plugsSlots)
-	cand.PlugSnapDeclaration = snapDecl
-	err = cand.CheckAutoConnect()
-	c.Check(err, IsNil)
-}
-
 func (s *baseDeclSuite) TestAutoConnectionOverrideMultiple(c *C) {
 	plugsSlots := `
 plugs:
@@ -632,6 +614,7 @@ var (
 		"online-accounts-service": {"app"},
 		"ppp":         {"core"},
 		"pulseaudio":  {"app", "core"},
+		"raw-volume":  {"core", "gadget"},
 		"serial-port": {"core", "gadget"},
 		"spi":         {"core", "gadget"},
 		"storage-framework-service": {"app"},

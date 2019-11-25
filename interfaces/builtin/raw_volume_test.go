@@ -21,23 +21,43 @@ package builtin_test
 
 import (
 	. "gopkg.in/check.v1"
+	"strings"
 
 	"github.com/snapcore/snapd/interfaces"
 	"github.com/snapcore/snapd/interfaces/apparmor"
 	"github.com/snapcore/snapd/interfaces/builtin"
 	"github.com/snapcore/snapd/interfaces/udev"
 	"github.com/snapcore/snapd/snap"
+	"github.com/snapcore/snapd/snap/snaptest"
 	"github.com/snapcore/snapd/testutil"
 )
 
 type rawVolumeInterfaceSuite struct {
 	testutil.BaseTest
+	iface interfaces.Interface
 
-	iface    interfaces.Interface
-	slotInfo *snap.SlotInfo
-	slot     *interfaces.ConnectedSlot
-	plugInfo *snap.PlugInfo
-	plug     *interfaces.ConnectedPlug
+	// OS snap
+	testSlot1     *interfaces.ConnectedSlot
+	testSlot1Info *snap.SlotInfo
+
+	// Gadget snap
+	testUDev1     *interfaces.ConnectedSlot
+	testUDev1Info *snap.SlotInfo
+	testUDev2     *interfaces.ConnectedSlot
+	testUDev2Info *snap.SlotInfo
+	testUDev3     *interfaces.ConnectedSlot
+	testUDev3Info *snap.SlotInfo
+
+	testUDevBadValue1     *interfaces.ConnectedSlot
+	testUDevBadValue1Info *snap.SlotInfo
+
+	// Consuming snap
+	testPlugPort1     *interfaces.ConnectedPlug
+	testPlugPort1Info *snap.PlugInfo
+	testPlugPort2     *interfaces.ConnectedPlug
+	testPlugPort2Info *snap.PlugInfo
+	testPlugPort3     *interfaces.ConnectedPlug
+	testPlugPort3Info *snap.PlugInfo
 }
 
 var _ = Suite(&rawVolumeInterfaceSuite{
@@ -59,51 +79,229 @@ slots:
 `
 
 func (s *rawVolumeInterfaceSuite) SetUpTest(c *C) {
-	s.BaseTest.SetUpTest(c)
+	// Mock for OS snap
+	osSnapInfo := snaptest.MockInfo(c, `
+name: core
+version: 0
+type: os
+slots:
+  test-part-1:
+    interface: raw-volume
+    path: /dev/vda1
+  test-part-2:
+    interface: raw-volume
+    path: /dev/mmcblk0p1
+  test-part-3:
+    interface: raw-volume
+    path: /dev/i2o/hda1
+`, nil)
+	s.testSlot1Info = osSnapInfo.Slots["test-part-1"]
+	s.testSlot1Info = osSnapInfo.Slots["test-part-2"]
+	s.testSlot1Info = osSnapInfo.Slots["test-part-3"]
 
-	s.plug, s.plugInfo = MockConnectedPlug(c, rawVolumeConsumerYaml, nil, "raw-volume")
-	s.slot, s.slotInfo = MockConnectedSlot(c, rawVolumeCoreYaml, nil, "raw-volume")
+	// Mock for Gadget snap
+	gadgetSnapInfo := snaptest.MockInfo(c, `
+name: some-device
+version: 0
+type: gadget
+slots:
+  test-udev-1:
+    interface: raw-volume
+    path: /dev/vda1
+  test-udev-2:
+    interface: raw-volume
+    path: /dev/mmcblk0p1
+  test-udev-3:
+    interface: raw-volume
+    path: /dev/i2o/hda1
+  test-udev-bad-value-1:
+    interface: raw-volume
+    path: /dev/vda0
+`, nil)
+	s.testUDev1Info = gadgetSnapInfo.Slots["test-udev-1"]
+	s.testUDev1 = interfaces.NewConnectedSlot(s.testUDev1Info, nil, nil)
+	s.testUDev2Info = gadgetSnapInfo.Slots["test-udev-2"]
+	s.testUDev2 = interfaces.NewConnectedSlot(s.testUDev2Info, nil, nil)
+	s.testUDev3Info = gadgetSnapInfo.Slots["test-udev-3"]
+	s.testUDev3 = interfaces.NewConnectedSlot(s.testUDev3Info, nil, nil)
+	s.testUDevBadValue1Info = gadgetSnapInfo.Slots["test-udev-bad-value-1"]
+	s.testUDevBadValue1 = interfaces.NewConnectedSlot(s.testUDevBadValue1Info, nil, nil)
+
+	// Mock for consumer snaps
+	consumingSnapInfo := snaptest.MockInfo(c, `
+name: client-snap
+version: 0
+plugs:
+  plug-for-part-1:
+    interface: raw-volume
+  plug-for-part-2:
+    interface: raw-volume
+  plug-for-part-3:
+    interface: raw-volume
+apps:
+  app-accessing-1-part:
+    command: foo
+    plugs:
+    - plug-for-part-1
+  app-accessing-2-part:
+    command: foo
+    plugs:
+    - plug-for-part-2
+  app-accessing-3-part:
+    command: foo
+    plugs:
+    - plug-for-part-3
+`, nil)
+	s.testPlugPort1Info = consumingSnapInfo.Plugs["plug-for-part-1"]
+	s.testPlugPort1 = interfaces.NewConnectedPlug(s.testPlugPort1Info, nil, nil)
+	s.testPlugPort2Info = consumingSnapInfo.Plugs["plug-for-part-2"]
+	s.testPlugPort2 = interfaces.NewConnectedPlug(s.testPlugPort2Info, nil, nil)
+	s.testPlugPort3Info = consumingSnapInfo.Plugs["plug-for-part-3"]
+	s.testPlugPort3 = interfaces.NewConnectedPlug(s.testPlugPort3Info, nil, nil)
 }
 
 func (s *rawVolumeInterfaceSuite) TestName(c *C) {
 	c.Assert(s.iface.Name(), Equals, "raw-volume")
 }
 
-func (s *rawVolumeInterfaceSuite) TestSanitizeSlot(c *C) {
-	c.Assert(interfaces.BeforePrepareSlot(s.iface, s.slotInfo), IsNil)
+func (s *rawVolumeInterfaceSuite) TestSanitizeCoreSnapSlot(c *C) {
+	c.Assert(interfaces.BeforePrepareSlot(s.iface, s.testSlot1Info), IsNil)
 }
 
-func (s *rawVolumeInterfaceSuite) TestSanitizePlug(c *C) {
-	c.Assert(interfaces.BeforePreparePlug(s.iface, s.plugInfo), IsNil)
+func (s *rawVolumeInterfaceSuite) TestSanitizeGadgetSnapSlot(c *C) {
+	c.Assert(interfaces.BeforePrepareSlot(s.iface, s.testUDev1Info), IsNil)
 }
 
-func (s *rawVolumeInterfaceSuite) TestAppArmorSpec(c *C) {
-	spec := &apparmor.Specification{}
-	c.Assert(spec.AddConnectedPlug(s.iface, s.plug, s.slot), IsNil)
-	c.Assert(spec.SecurityTags(), DeepEquals, []string{"snap.consumer.app"})
-	c.Assert(spec.SnippetForTag("snap.consumer.app"), testutil.Contains, `# Description: Allow write access to disk block device partitions.`)
-	c.Assert(spec.SnippetForTag("snap.consumer.app"), testutil.Contains, `/dev/mmcblk[0-9]{,[0-9],[0-9][0-9]}p[1-7] rw,`)
+func (s *rawVolumeInterfaceSuite) TestSanitizeBadGadgetSnapSlot(c *C) {
+	c.Assert(interfaces.BeforePrepareSlot(s.iface, s.testUDevBadValue1Info), ErrorMatches, "raw-volume path attribute must be a valid device node")
+}
+
+func (s *rawVolumeInterfaceSuite) TestSanitizeSlotHappy(c *C) {
+	const mockSnapYaml = `name: raw-volume-slot-snap
+type: gadget
+version: 1.0
+slots:
+  raw-volume:
+    path: $t
+`
+
+	var testCases = []struct {
+		input string
+	}{
+		{`/dev/hda1`},
+		{`/dev/hda63`},
+		{`/dev/hdb42`},
+		{`/dev/hdt63`},
+		{`/dev/sda1`},
+		{`/dev/sda15`},
+		{`/dev/sdb8`},
+		{`/dev/sdc14`},
+		{`/dev/sdde10`},
+		{`/dev/sdiv15`},
+		{`/dev/i2o/hda1`},
+		{`/dev/i2o/hda15`},
+		{`/dev/i2o/hdb8`},
+		{`/dev/i2o/hdc10`},
+		{`/dev/i2o/hdde10`},
+		{`/dev/i2o/hddx15`},
+		{`/dev/mmcblk0p1`},
+		{`/dev/mmcblk0p63`},
+		{`/dev/mmcblk12p42`},
+		{`/dev/mmcblk999p63`},
+		{`/dev/nvme0p1`},
+		{`/dev/nvme0p63`},
+		{`/dev/nvme12p42`},
+		{`/dev/nvme99p63`},
+		{`/dev/nvme0n1p1`},
+		{`/dev/nvme0n1p63`},
+		{`/dev/nvme12n34p42`},
+		{`/dev/nvme99n63p63`},
+		{`/dev/vda1`},
+		{`/dev/vda63`},
+		{`/dev/vdb42`},
+		{`/dev/vdz63`},
+	}
+
+	for _, t := range testCases {
+		yml := strings.Replace(mockSnapYaml, "$t", t.input, -1)
+		info := snaptest.MockInfo(c, yml, nil)
+		slot := info.Slots["raw-volume"]
+
+		c.Check(interfaces.BeforePrepareSlot(s.iface, slot), IsNil, Commentf("unexpected error for %q", t.input))
+	}
+}
+
+func (s *rawVolumeInterfaceSuite) TestSanitizeSlotUnhappy(c *C) {
+	const mockSnapYaml = `name: raw-volume-slot-snap
+type: gadget
+version: 1.0
+slots:
+  raw-volume:
+    path: $t
+`
+
+	var testCases = []struct {
+		input string
+	}{
+		{`/dev/hda0`},
+		{`/dev/hdt64`},
+		{`/dev/hdu1`},
+		{`/dev/sda0`},
+		{`/dev/sdiv16`},
+		{`/dev/sdiw1`},
+		{`/dev/i2o/hda0`},
+		{`/dev/i20/hddx16`},
+		{`/dev/i2o/hddy1`},
+		{`/dev/mmcblk0p0`},
+		{`/dev/mmcblk999p64`},
+		{`/dev/mmcblk1000p1`},
+		{`/dev/nvme0p0`},
+		{`/dev/nvme99p64`},
+		{`/dev/nvme100p1`},
+		{`/dev/nvme0n0p1`},
+		{`/dev/nvme99n64p1`},
+		{`/dev/nvme100n1p1`},
+		{`/dev/vda0`},
+		{`/dev/vdz64`},
+		{`/dev/vdaa1`},
+	}
+
+	for _, t := range testCases {
+		yml := strings.Replace(mockSnapYaml, "$t", t.input, -1)
+		info := snaptest.MockInfo(c, yml, nil)
+		slot := info.Slots["raw-volume"]
+
+		c.Check(interfaces.BeforePrepareSlot(s.iface, slot), ErrorMatches, "raw-volume path attribute must be a valid device node", Commentf("unexpected error for %q", t.input))
+	}
 }
 
 func (s *rawVolumeInterfaceSuite) TestUDevSpec(c *C) {
 	spec := &udev.Specification{}
-	c.Assert(spec.AddConnectedPlug(s.iface, s.plug, s.slot), IsNil)
+	c.Assert(spec.AddConnectedPlug(s.iface, s.testPlugPort1, s.testUDev1), IsNil)
 	c.Assert(spec.Snippets(), HasLen, 2)
 	c.Assert(spec.Snippets()[0], Equals, `# raw-volume
-SUBSYSTEM=="block", TAG+="snap_consumer_app"`)
-	c.Assert(spec.Snippets(), testutil.Contains, `TAG=="snap_consumer_app", RUN+="/usr/lib/snapd/snap-device-helper $env{ACTION} snap_consumer_app $devpath $major:$minor"`)
+KERNEL=="vda1", TAG+="snap_client-snap_app-accessing-1-part"`)
+	c.Assert(spec.Snippets(), testutil.Contains, `TAG=="snap_client-snap_app-accessing-1-part", RUN+="/usr/lib/snapd/snap-device-helper $env{ACTION} snap_client-snap_app-accessing-1-part $devpath $major:$minor"`)
+}
+
+func (s *rawVolumeInterfaceSuite) TestAppArmorSpec(c *C) {
+	spec := &apparmor.Specification{}
+	c.Assert(spec.AddConnectedPlug(s.iface, s.testPlugPort1, s.testUDev1), IsNil)
+	c.Assert(spec.SecurityTags(), DeepEquals, []string{"snap.client-snap.app-accessing-1-part"})
+	c.Assert(spec.SnippetForTag("snap.client-snap.app-accessing-1-part"), testutil.Contains, `/dev/vda1 rw,`)
+	c.Assert(spec.SnippetForTag("snap.client-snap.app-accessing-1-part"), testutil.Contains, `capability sys_admin,`)
 }
 
 func (s *rawVolumeInterfaceSuite) TestStaticInfo(c *C) {
 	si := interfaces.StaticInfoOf(s.iface)
 	c.Assert(si.ImplicitOnCore, Equals, true)
 	c.Assert(si.ImplicitOnClassic, Equals, true)
-	c.Assert(si.Summary, Equals, `allows access to disk block device partitions`)
+	c.Assert(si.Summary, Equals, `allows read/write access to specific disk partition`)
 	c.Assert(si.BaseDeclarationSlots, testutil.Contains, "raw-volume")
 }
 
 func (s *rawVolumeInterfaceSuite) TestAutoConnect(c *C) {
-	c.Assert(s.iface.AutoConnect(s.plugInfo, s.slotInfo), Equals, true)
+	c.Check(s.iface.AutoConnect(nil, nil), Equals, true)
 }
 
 func (s *rawVolumeInterfaceSuite) TestInterfaces(c *C) {
