@@ -33,18 +33,18 @@ import (
 
 const rawVolumeSummary = `allows read/write access to specific disk partition`
 
-const rawVolumeBaseDeclarationPlugs = `
-  raw-volume:
-    allow-installation: false
-    deny-auto-connection: true
-`
-
+// raw-volume grants full access to a particular disk partition. Since the
+// volume is device-specific, it is desirable to limit the plugging snap's
+// connection (eg to avoid situations of intending to grant access to a 'data'
+// disk on one device but granting access to a 'system' disk on another).
+// Therefore, require a snap declaration for connecting the interface at all.
 const rawVolumeBaseDeclarationSlots = `
   raw-volume:
     allow-installation:
       slot-snap-type:
         - core
         - gadget
+    deny-connection: true
     deny-auto-connection: true
 `
 
@@ -75,7 +75,6 @@ func (iface *rawVolumeInterface) Name() string {
 func (iface *rawVolumeInterface) StaticInfo() interfaces.StaticInfo {
 	return interfaces.StaticInfo{
 		Summary:              rawVolumeSummary,
-		BaseDeclarationPlugs: rawVolumeBaseDeclarationPlugs,
 		BaseDeclarationSlots: rawVolumeBaseDeclarationSlots,
 	}
 }

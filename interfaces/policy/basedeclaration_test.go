@@ -701,7 +701,6 @@ func (s *baseDeclSuite) TestPlugInstallation(c *C) {
 		"multipass-support":     true,
 		"packagekit-control":    true,
 		"personal-files":        true,
-		"raw-volume":            true,
 		"snapd-control":         true,
 		"system-files":          true,
 		"unity8":                true,
@@ -753,6 +752,7 @@ func (s *baseDeclSuite) TestConnection(c *C) {
 		"mir":                       true,
 		"network-status":            true,
 		"online-accounts-service":   true,
+		"raw-volume":                true,
 		"storage-framework-service": true,
 		"thumbnailer-service":       true,
 		"ubuntu-download-manager":   true,
@@ -835,7 +835,6 @@ func (s *baseDeclSuite) TestSanity(c *C) {
 		"multipass-support":     true,
 		"packagekit-control":    true,
 		"personal-files":        true,
-		"raw-volume":            true,
 		"snapd-control":         true,
 		"system-files":          true,
 		"udisks2":               true,
@@ -1005,4 +1004,88 @@ plugs:
 	for _, plugYaml := range opts.writableYamls {
 		checkOpticalDriveAutoConnect(plugYaml, NotNil)
 	}
+}
+
+func (s *baseDeclSuite) TestRawVolumeOverride(c *C) {
+	slotYaml := `name: slot-snap
+type: gadget
+version: 0
+slots:
+  raw-volume:
+    path: /dev/mmcblk0p1
+`
+	slotSnap := snaptest.MockInfo(c, slotYaml, nil)
+	// mock a well-formed slot snap decl with SnapID
+	slotSnapDecl := s.mockSnapDecl(c, "slot-snap", "slotsnapidididididididididididid", "canonical", "")
+
+	plugYaml := `name: plug-snap
+version: 0
+plugs:
+  raw-volume:
+`
+	plugSnap := snaptest.MockInfo(c, plugYaml, nil)
+
+	// no plug-side declaration
+	cand := &policy.ConnectCandidate{
+		Plug:                interfaces.NewConnectedPlug(plugSnap.Plugs["raw-volume"], nil, nil),
+		Slot:                interfaces.NewConnectedSlot(slotSnap.Slots["raw-volume"], nil, nil),
+		SlotSnapDeclaration: slotSnapDecl,
+		BaseDeclaration:     s.baseDecl,
+	}
+
+	err := cand.Check()
+	c.Check(err, NotNil)
+	c.Assert(err, ErrorMatches, "connection denied by slot rule of interface \"raw-volume\"")
+	err = cand.CheckAutoConnect()
+	c.Check(err, NotNil)
+	c.Assert(err, ErrorMatches, "auto-connection denied by slot rule of interface \"raw-volume\"")
+
+	// specific plug-side declaration for connection only
+	plugsOverride := `
+plugs:
+  raw-volume:
+    allow-connection:
+      slot-snap-id:
+        - slotsnapidididididididididididid
+    allow-auto-connection: false
+`
+	plugSnapDecl := s.mockSnapDecl(c, "plug-snap", "plugsnapidididididididididididid", "canonical", plugsOverride)
+	cand.PlugSnapDeclaration = plugSnapDecl
+	err = cand.Check()
+	c.Check(err, IsNil)
+	err = cand.CheckAutoConnect()
+	c.Check(err, NotNil)
+	c.Assert(err, ErrorMatches, "auto-connection not allowed by plug rule of interface \"raw-volume\" for \"plug-snap\" snap")
+
+	// specific plug-side declaration for connection and auto-connection
+	plugsOverride = `
+plugs:
+  raw-volume:
+    allow-connection:
+      slot-snap-id:
+        - slotsnapidididididididididididid
+    allow-auto-connection:
+      slot-snap-id:
+        - slotsnapidididididididididididid
+`
+	plugSnapDecl = s.mockSnapDecl(c, "plug-snap", "plugsnapidididididididididididid", "canonical", plugsOverride)
+	cand.PlugSnapDeclaration = plugSnapDecl
+	err = cand.Check()
+	c.Check(err, IsNil)
+	err = cand.CheckAutoConnect()
+	c.Check(err, IsNil)
+
+	// blanket allow for connection and auto-connection to any slotting snap
+	plugsOverride = `
+plugs:
+  raw-volume:
+    allow-connection: true
+    allow-auto-connection: true
+`
+	plugSnapDecl = s.mockSnapDecl(c, "some-snap", "plugsnapidididididididididididid", "canonical", plugsOverride)
+	cand.PlugSnapDeclaration = plugSnapDecl
+	err = cand.Check()
+	c.Check(err, IsNil)
+	err = cand.CheckAutoConnect()
+	c.Check(err, IsNil)
 }
