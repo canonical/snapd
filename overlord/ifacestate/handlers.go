@@ -978,7 +978,13 @@ func (m *InterfaceManager) doAutoConnect(task *state.Task, _ *tomb.Tomb) error {
 
 	// wait for auto-install, started by prerequisites code, for
 	// the default-providers of content ifaces so we can
-	// auto-connect to them
+	// auto-connect to them; snapstate prerequisites does a bit
+	// more filtering than this so defaultProviders here can
+	// contain some more snaps; should not be an issue in practice
+	// given the check below checks for same chain and we don't
+	// forcefully wait for defaultProviders; we just retry for
+	// things in the intersection between defaultProviders here and
+	// snaps with not ready link-snap|setup-profiles tasks
 	defaultProviders := snap.DefaultContentProviders(m.repo.Plugs(snapName))
 	for _, chg := range st.Changes() {
 		if chg.Status().Ready() {

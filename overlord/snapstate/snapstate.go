@@ -504,15 +504,11 @@ func defaultContentPlugProviders(st *state.State, info *snap.Info) []string {
 	avail := contentIfaceAvailable(st)
 	out := []string{}
 	for snapInstance, contentTags := range needed {
-		snapNeeded := false
 		for _, contentTag := range contentTags {
 			if !avail[contentTag] {
-				snapNeeded = true
+				out = append(out, snapInstance)
 				break
 			}
-		}
-		if snapNeeded {
-			out = append(out, snapInstance)
 		}
 	}
 	return out
