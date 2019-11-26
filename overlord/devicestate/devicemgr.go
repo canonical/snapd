@@ -21,6 +21,7 @@ package devicestate
 
 import (
 	"fmt"
+	"os"
 	"regexp"
 	"strings"
 	"time"
@@ -60,6 +61,10 @@ type DeviceManager struct {
 	becomeOperationalBackoff     time.Duration
 	registered                   bool
 	reg                          chan struct{}
+
+	// XXX: is that the best name?
+	// runMode of a UC20 system. "","run","install","recover"
+	runMode string
 }
 
 // Manager returns a new device manager.
@@ -77,6 +82,14 @@ func Manager(s *state.State, hookManager *hookstate.HookManager, runner *state.T
 		keypairMgr: keypairMgr,
 		newStore:   newStore,
 		reg:        make(chan struct{}),
+	}
+
+	modeEnv, err := boot.ReadModeenv("")
+	if err != nil && !os.IsNotExist(err) {
+		return nil, err
+	}
+	if modeEnv != nil {
+		m.runMode = modeEnv.Mode
 	}
 
 	s.Lock()
@@ -247,6 +260,11 @@ func setClassicFallbackModel(st *state.State, device *auth.DeviceState) error {
 func (m *DeviceManager) ensureOperational() error {
 	m.state.Lock()
 	defer m.state.Unlock()
+
+	if m.runMode == "install" {
+		// avoid doing registration in install mode
+		return nil
+	}
 
 	perfTimings := timings.New(map[string]string{"ensure": "become-operational"})
 
