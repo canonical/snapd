@@ -20,6 +20,7 @@
 package boot
 
 import (
+	"bytes"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -58,10 +59,14 @@ func (m *Modeenv) Write(rootdir string) error {
 	if err := os.MkdirAll(filepath.Dir(modeenvPath), 0755); err != nil {
 		return err
 	}
-	modeEnvContent := fmt.Sprintf(`recovery_system=%s
-mode=%s
-`, m.RecoverySystem, m.Mode)
-	if err := osutil.AtomicWriteFile(modeenvPath, []byte(modeEnvContent), 0644, 0); err != nil {
+	buf := bytes.NewBuffer(nil)
+	if m.Mode != "" {
+		fmt.Fprintf(buf, "mode=%s\n", m.Mode)
+	}
+	if m.RecoverySystem != "" {
+		fmt.Fprintf(buf, "recovery_system=%s\n", m.RecoverySystem)
+	}
+	if err := osutil.AtomicWriteFile(modeenvPath, buf.Bytes(), 0644, 0); err != nil {
 		return err
 	}
 	return nil

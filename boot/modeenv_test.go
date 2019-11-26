@@ -35,13 +35,15 @@ import (
 type modeenvSuite struct {
 	testutil.BaseTest
 
-	tmpdir string
+	tmpdir          string
+	mockModeenvPath string
 }
 
 var _ = Suite(&modeenvSuite{})
 
 func (s *modeenvSuite) SetUpTest(c *C) {
 	s.tmpdir = c.MkDir()
+	s.mockModeenvPath = filepath.Join(s.tmpdir, dirs.SnapModeenvFile)
 }
 
 func (s *modeenvSuite) TestReadEmptyErrors(c *C) {
@@ -51,10 +53,9 @@ func (s *modeenvSuite) TestReadEmptyErrors(c *C) {
 }
 
 func (s *modeenvSuite) makeMockModeenvFile(c *C, content string) {
-	mockModeenvPath := filepath.Join(s.tmpdir, dirs.SnapModeenvFile)
-	err := os.MkdirAll(filepath.Dir(mockModeenvPath), 0755)
+	err := os.MkdirAll(filepath.Dir(s.mockModeenvPath), 0755)
 	c.Assert(err, IsNil)
-	err = ioutil.WriteFile(mockModeenvPath, []byte(content), 0644)
+	err = ioutil.WriteFile(s.mockModeenvPath, []byte(content), 0644)
 	c.Assert(err, IsNil)
 }
 
@@ -87,6 +88,16 @@ recovery_system: 20191126
 	c.Check(modeenv.RecoverySystem, Equals, "20191126")
 }
 
+func (s *modeenvSuite) TestWriteNonExisting(c *C) {
+	c.Assert(s.mockModeenvPath, testutil.FileAbsent)
+
+	modeenv := &boot.Modeenv{Mode: "run"}
+	err := modeenv.Write(s.tmpdir)
+	c.Assert(err, IsNil)
+
+	c.Assert(s.mockModeenvPath, testutil.FileEquals, "mode=run\n")
+}
+
 func (s *modeenvSuite) TestWriteExisting(c *C) {
 	s.makeMockModeenvFile(c, "mode: run")
 
@@ -95,4 +106,6 @@ func (s *modeenvSuite) TestWriteExisting(c *C) {
 	modeenv.Mode = "recovery"
 	err = modeenv.Write(s.tmpdir)
 	c.Assert(err, IsNil)
+
+	c.Assert(s.mockModeenvPath, testutil.FileEquals, "mode=recovery\n")
 }
