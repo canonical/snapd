@@ -77,8 +77,6 @@ func (iface *rawVolumeInterface) StaticInfo() interfaces.StaticInfo {
 		Summary:              rawVolumeSummary,
 		BaseDeclarationPlugs: rawVolumeBaseDeclarationPlugs,
 		BaseDeclarationSlots: rawVolumeBaseDeclarationSlots,
-		ImplicitOnCore:       true,
-		ImplicitOnClassic:    true,
 	}
 }
 

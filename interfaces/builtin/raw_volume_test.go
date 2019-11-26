@@ -318,8 +318,8 @@ func (s *rawVolumeInterfaceSuite) TestAppArmorSpec(c *C) {
 
 func (s *rawVolumeInterfaceSuite) TestStaticInfo(c *C) {
 	si := interfaces.StaticInfoOf(s.iface)
-	c.Assert(si.ImplicitOnCore, Equals, true)
-	c.Assert(si.ImplicitOnClassic, Equals, true)
+	c.Assert(si.ImplicitOnCore, Equals, false)
+	c.Assert(si.ImplicitOnClassic, Equals, false)
 	c.Assert(si.Summary, Equals, `allows read/write access to specific disk partition`)
 	c.Assert(si.BaseDeclarationSlots, testutil.Contains, "raw-volume")
 }
