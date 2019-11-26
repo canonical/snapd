@@ -39,6 +39,10 @@ type MockBootloader struct {
 
 	ExtractKernelAssetsCalls []snap.PlaceInfo
 	RemoveKernelAssetsCalls  []snap.PlaceInfo
+
+	InstallBootConfigCalled []string
+	InstallBootConfigResult bool
+	InstallBootConfigErr    error
 }
 
 // ensure MockBootloader implements the Bootloader interface
@@ -124,4 +128,9 @@ func (b *MockBootloader) SetRollbackAcrossReboot() error {
 	b.BootVars["snap_try_core"] = ""
 	b.BootVars["snap_try_kernel"] = ""
 	return nil
+}
+
+func (b *MockBootloader) InstallBootConfig(gadgetDir string, opts *bootloader.Options) (bool, error) {
+	b.InstallBootConfigCalled = append(b.InstallBootConfigCalled, gadgetDir)
+	return b.InstallBootConfigResult, b.InstallBootConfigErr
 }
