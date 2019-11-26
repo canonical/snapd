@@ -21,13 +21,13 @@ package boot
 
 import (
 	"fmt"
-	"io/ioutil"
 	"os"
 	"path/filepath"
 
 	"github.com/mvo5/goconfigparser"
 
 	"github.com/snapcore/snapd/dirs"
+	"github.com/snapcore/snapd/osutil"
 )
 
 // Modeenv is a file on UC20 that provides additional information
@@ -61,7 +61,7 @@ func (m *Modeenv) Write(rootdir string) error {
 	modeEnvContent := fmt.Sprintf(`recovery_system=%s
 mode=%s
 `, m.RecoverySystem, m.Mode)
-	if err := ioutil.WriteFile(modeenvPath, []byte(modeEnvContent), 0644); err != nil {
+	if err := osutil.AtomicWriteFile(modeenvPath, []byte(modeEnvContent), 0644, 0); err != nil {
 		return err
 	}
 	return nil
