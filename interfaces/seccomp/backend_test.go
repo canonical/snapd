@@ -76,8 +76,6 @@ func (s *backendSuite) SetUpTest(c *C) {
 		return filepath.Join(dirs.DistroLibExecDir, "snapd"), nil
 	})
 	snapSeccompPath := filepath.Join(dirs.DistroLibExecDir, "snap-seccomp")
-	err = os.MkdirAll(filepath.Dir(snapSeccompPath), 0755)
-	c.Assert(err, IsNil)
 	s.snapSeccomp = testutil.MockCommand(c, snapSeccompPath, `
 if [ "$1" = "version-info" ]; then
     echo "abcdef 1.2.3 1234abcd -"
@@ -154,15 +152,13 @@ func (s *backendSuite) TestInstallingSnapWritesProfilesWithReexec(c *C) {
 
 	// ensure we have a mocked snap-seccomp on core
 	snapSeccompOnCorePath := filepath.Join(dirs.SnapMountDir, "core/42/usr/lib/snapd/snap-seccomp")
-	err := os.MkdirAll(filepath.Dir(snapSeccompOnCorePath), 0755)
-	c.Assert(err, IsNil)
 	snapSeccompOnCore := testutil.MockCommand(c, snapSeccompOnCorePath, `if [ "$1" = "version-info" ]; then
 echo "2345cdef 2.3.4 2345cdef -"
 fi`)
 	defer snapSeccompOnCore.Restore()
 
 	// rerun initialization
-	err = s.Backend.Initialize()
+	err := s.Backend.Initialize()
 	c.Assert(err, IsNil)
 
 	s.InstallSnap(c, interfaces.ConfinementOptions{}, "", ifacetest.SambaYamlV1, 0)

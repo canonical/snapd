@@ -403,9 +403,9 @@ func (m *DeviceManager) ensureOperational() error {
 
 var populateStateFromSeed = populateStateFromSeedImpl
 
-// ensureSnaps makes sure that the snaps from seed.yaml get installed
+// ensureSeeded makes sure that the snaps from seed.yaml get installed
 // with the matching assertions
-func (m *DeviceManager) ensureSeedYaml() error {
+func (m *DeviceManager) ensureSeeded() error {
 	m.state.Lock()
 	defer m.state.Unlock()
 
@@ -585,7 +585,7 @@ func (e *ensureError) Error() string {
 func (m *DeviceManager) Ensure() error {
 	var errs []error
 
-	if err := m.ensureSeedYaml(); err != nil {
+	if err := m.ensureSeeded(); err != nil {
 		errs = append(errs, err)
 	}
 	if err := m.ensureOperational(); err != nil {

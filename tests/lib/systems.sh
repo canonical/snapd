@@ -72,3 +72,7 @@ get_core_for_system(){
             ;;
     esac
 }
+
+is_cgroupv2() {
+    [[ "$(stat -f -c '%T' /sys/fs/cgroup)" == "cgroup2fs" ]]
+}
