@@ -74,7 +74,6 @@ func init() {
 		name:                  "accounts-service",
 		summary:               accountsServiceSummary,
 		implicitOnClassic:     true,
-		reservedForOS:         true,
 		baseDeclarationSlots:  accountsServiceBaseDeclarationSlots,
 		connectedPlugAppArmor: accountsServiceConnectedPlugAppArmor,
 	})

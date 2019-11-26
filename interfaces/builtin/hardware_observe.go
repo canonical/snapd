@@ -161,6 +161,5 @@ func init() {
 		baseDeclarationSlots:  hardwareObserveBaseDeclarationSlots,
 		connectedPlugAppArmor: hardwareObserveConnectedPlugAppArmor,
 		connectedPlugSecComp:  hardwareObserveConnectedPlugSecComp,
-		reservedForOS:         true,
 	})
 }

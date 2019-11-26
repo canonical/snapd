@@ -48,6 +48,5 @@ func init() {
 		baseDeclarationSlots:  intelMEIBaseDeclarationSlots,
 		connectedPlugAppArmor: intelMEIConnectedPlugAppArmor,
 		connectedPlugUDev:     intelMEIConnectedPlugUDev,
-		reservedForOS:         true,
 	})
 }
