@@ -46,6 +46,10 @@ func (s *mountSuite) TestMountFlagsToOpts(c *C) {
 	opts, unknown = mount.MountFlagsToOpts(1 << 24)
 	c.Check(opts, DeepEquals, []string(nil))
 	c.Check(unknown, Equals, 1<<24)
+	// Known and unknown flags work in tandem.
+	opts, unknown = mount.MountFlagsToOpts(syscall.MS_BIND | 1<<24)
+	c.Check(opts, DeepEquals, []string{"MS_BIND"})
+	c.Check(unknown, Equals, 1<<24)
 }
 
 func (s *mountSuite) TestUnmountFlagsToOpts(c *C) {
@@ -59,5 +63,9 @@ func (s *mountSuite) TestUnmountFlagsToOpts(c *C) {
 	// Unknown flags are retained and returned.
 	opts, unknown = mount.UnmountFlagsToOpts(1 << 24)
 	c.Check(opts, DeepEquals, []string(nil))
+	c.Check(unknown, Equals, 1<<24)
+	// Known and unknown flags work in tandem.
+	opts, unknown = mount.UnmountFlagsToOpts(syscall.MNT_DETACH | 1<<24)
+	c.Check(opts, DeepEquals, []string{"MNT_DETACH"})
 	c.Check(unknown, Equals, 1<<24)
 }
