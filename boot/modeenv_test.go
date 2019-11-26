@@ -69,7 +69,7 @@ func (s *modeenvSuite) TestReadEmpty(c *C) {
 }
 
 func (s *modeenvSuite) TestReadMode(c *C) {
-	s.makeMockModeenvFile(c, "mode: run")
+	s.makeMockModeenvFile(c, "mode=run")
 
 	modeenv, err := boot.ReadModeenv(s.tmpdir)
 	c.Assert(err, IsNil)
@@ -78,8 +78,8 @@ func (s *modeenvSuite) TestReadMode(c *C) {
 }
 
 func (s *modeenvSuite) TestReadModeWithRecoverySystem(c *C) {
-	s.makeMockModeenvFile(c, `mode: recovery
-recovery_system: 20191126
+	s.makeMockModeenvFile(c, `mode=recovery
+recovery_system=20191126
 `)
 
 	modeenv, err := boot.ReadModeenv(s.tmpdir)
@@ -99,7 +99,7 @@ func (s *modeenvSuite) TestWriteNonExisting(c *C) {
 }
 
 func (s *modeenvSuite) TestWriteExisting(c *C) {
-	s.makeMockModeenvFile(c, "mode: run")
+	s.makeMockModeenvFile(c, "mode=run")
 
 	modeenv, err := boot.ReadModeenv(s.tmpdir)
 	c.Assert(err, IsNil)
