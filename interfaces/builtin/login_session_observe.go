@@ -19,7 +19,7 @@
 
 package builtin
 
-const loginSessionObserveSummary = `allows observing login and session information`
+const loginSessionObserveSummary = `allows reading login and session information`
 
 const loginSessionObserveBaseDeclarationSlots = `
   login-session-observe:
@@ -30,7 +30,7 @@ const loginSessionObserveBaseDeclarationSlots = `
 `
 
 const loginSessionObserveConnectedPlugAppArmor = `
-# Allow observing login and session information
+# Allow reading login and session information
 /{,usr/}bin/who  ixr,
 /var/log/wtmp    rk,
 /{,var/}run/utmp rk,
