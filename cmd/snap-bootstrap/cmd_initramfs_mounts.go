@@ -117,6 +117,9 @@ func generateMountsModeInstall() error {
 			return err
 		}
 		perf := timings.New(nil)
+		// XXX: LoadMeta will verify all the snaps in the
+		// seed, that is probably too much. We can expose more
+		// dedicated helpers for this later.
 		if err := deviceSeed.LoadMeta(perf); err != nil {
 			return err
 		}
@@ -199,7 +202,11 @@ func isRecoverMode(content []byte) bool {
 }
 
 func isRunMode(content []byte) bool {
-	// XXX: deal with whitespace
+	// XXX: deal with whitespace XXX2: The "snap-bootstrap
+	// initramfs-mounts" helper will run in both if we run from a
+	// recovery grub or from a normal grub. However in the normal
+	// case we probably have no "snapd_recovery_mode" set. So we
+	// may tweak this later to assume run-mode if nothing is set.
 	return bytes.Contains(content, []byte("snapd_recovery_mode=run"))
 }
 

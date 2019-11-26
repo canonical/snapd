@@ -692,25 +692,13 @@ func (mods *modelSuite) TestCore20ExplictSnapd(c *C) {
     name: snapd
     id: snapdidididididididididididididd
     type: snapd
-    modes:
-      - run
-      - ephemeral
     default-channel: latest/edge
 `, 1)
 	a, err := asserts.Decode([]byte(encoded))
 	c.Assert(err, IsNil)
 	c.Check(a.Type(), Equals, asserts.ModelType)
 	model := a.(*asserts.Model)
-	find := func(snapName string, haystack []*asserts.ModelSnap) *asserts.ModelSnap {
-		for _, s := range haystack {
-			if s.Name == snapName {
-				return s
-			}
-		}
-		return nil
-	}
-	snapdSnap := find("snapd", model.AllSnaps())
-	c.Assert(snapdSnap, NotNil)
+	snapdSnap := model.AllSnaps()[0]
 	c.Check(snapdSnap, DeepEquals, &asserts.ModelSnap{
 		Name:           "snapd",
 		SnapID:         "snapdidididididididididididididd",

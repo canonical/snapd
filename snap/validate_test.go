@@ -1617,7 +1617,7 @@ version: 1.0`
 	info, err := InfoFromSnapYamlWithSideInfo([]byte(yaml), nil, strk)
 	c.Assert(err, IsNil)
 
-	infos := map[string]*Info{"some-snap": info}
+	infos := []*Info{info}
 	errors := ValidateBasesAndProviders(infos)
 	c.Assert(errors, HasLen, 1)
 	c.Assert(errors[0], ErrorMatches, `cannot use snap "some-snap": required snap "core" missing`)
@@ -1632,7 +1632,7 @@ version: 1.0`
 	info, err := InfoFromSnapYamlWithSideInfo([]byte(yaml), nil, strk)
 	c.Assert(err, IsNil)
 
-	infos := map[string]*Info{"some-snap": info}
+	infos := []*Info{info}
 	errors := ValidateBasesAndProviders(infos)
 	c.Assert(errors, HasLen, 1)
 	c.Assert(errors[0], ErrorMatches, `cannot use snap "some-snap": base "some-base" is missing`)
@@ -1650,7 +1650,7 @@ type: os`
 	coreInfo, err := InfoFromSnapYamlWithSideInfo([]byte(coreYaml), nil, strk)
 	c.Assert(err, IsNil)
 
-	infos := map[string]*Info{"some-snap": snapInfo, "core": coreInfo}
+	infos := []*Info{snapInfo, coreInfo}
 	errors := ValidateBasesAndProviders(infos)
 	c.Assert(errors, HasLen, 1)
 	c.Assert(errors[0], ErrorMatches, `cannot use snap "need-df": default provider "gtk-common-themes" is missing`)
@@ -1665,7 +1665,7 @@ version: 1.0`
 	info, err := InfoFromSnapYamlWithSideInfo([]byte(yaml), nil, strk)
 	c.Assert(err, IsNil)
 
-	infos := map[string]*Info{"some-snap": info}
+	infos := []*Info{info}
 	errors := ValidateBasesAndProviders(infos)
 	c.Assert(errors, IsNil)
 }
@@ -1679,7 +1679,7 @@ version: 1.0`
 	info, err := InfoFromSnapYamlWithSideInfo([]byte(yaml), nil, strk)
 	c.Assert(err, IsNil)
 
-	infos := map[string]*Info{"snapd": info}
+	infos := []*Info{info}
 	errors := ValidateBasesAndProviders(infos)
 	c.Assert(errors, IsNil)
 }
