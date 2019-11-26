@@ -35,8 +35,24 @@ import (
 )
 
 const (
+	recoveryModeBootVar = "snapd_recovery_mode"
+)
+
+var (
 	recoveryBootloaderPath = "/run/mnt/ubuntu-seed/EFI/ubuntu"
-	recoveryModeBootVar    = "snapd_recovery_mode"
+)
+
+var bootstrapCreatePartitions = func(gadgetDir, device string) error {
+	// XXX: we can create partitions internally instead of executing the utility
+	output, err := exec.Command("/usr/lib/snapd/snap-bootstrap", "create-partitions", gadgetDir, device).CombinedOutput()
+	if err != nil {
+		return osutil.OutputErr(output, err)
+	}
+	return nil
+}
+
+var (
+	diskFromRole = diskFromRoleImpl
 )
 
 func (m *DeviceManager) doCreatePartitions(t *state.Task, _ *tomb.Tomb) error {
@@ -60,21 +76,14 @@ func (m *DeviceManager) doCreatePartitions(t *state.Task, _ *tomb.Tomb) error {
 	st.Unlock()
 
 	// determine the block device to install
-	// XXX: we're assuming that the gadget has only one volume
-	part, err := partitionFromRole(gadgetDir, gadget.SystemSeed)
+	device, err := diskFromRole(gadgetDir, gadget.SystemSeed)
 	if err != nil {
-		return fmt.Errorf("cannot find ubuntu-seed partition: %v", err)
+		return fmt.Errorf("cannot determine target disk: %v", err)
 	}
-	device, err := diskFromPartition(part)
-	if err != nil {
-		return fmt.Errorf("cannot determine device to install: %v", err)
-	}
-	logger.Noticef("Create partitions on %s", device)
 
-	// XXX: we can create partitions internally instead of executing the utility
-	output, err := exec.Command("/usr/lib/snapd/snap-bootstrap", "create-partitions", gadgetDir, device).CombinedOutput()
-	if err != nil {
-		return osutil.OutputErr(output, err)
+	logger.Noticef("Create partitions on %s", device)
+	if err := bootstrapCreatePartitions(gadgetDir, device); err != nil {
+		return fmt.Errorf("cannot create partitions: %v", err)
 	}
 
 	// update recovery mode in grubenv
@@ -93,4 +102,18 @@ func (m *DeviceManager) doCreatePartitions(t *state.Task, _ *tomb.Tomb) error {
 	t.SetStatus(state.DoneStatus)
 
 	return nil
+}
+
+func diskFromRoleImpl(gadgetDir, role string) (string, error) {
+	// XXX: we're assuming that the gadget has only one volume
+	part, err := partitionFromRole(gadgetDir, gadget.SystemSeed)
+	if err != nil {
+		return "", fmt.Errorf("cannot find ubuntu-seed partition: %v", err)
+	}
+
+	device, err := diskFromPartition(part)
+	if err != nil {
+		return "", fmt.Errorf("cannot find disk for partitions %s: %v", part, err)
+	}
+	return device, nil
 }

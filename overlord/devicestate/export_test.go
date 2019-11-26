@@ -135,6 +135,34 @@ func MockSnapstateUpdateWithDeviceContext(f func(st *state.State, name string, o
 	}
 }
 
+var (
+	RecoveryBootloaderPath = recoveryBootloaderPath
+)
+
+func MockBootstrapCreatePartitions(f func(gadgetDir, device string) error) func() {
+	old := bootstrapCreatePartitions
+	bootstrapCreatePartitions = f
+	return func() {
+		bootstrapCreatePartitions = old
+	}
+}
+
+func MockDiskFromRole(f func(gadgetDir, role string) (string, error)) func() {
+	old := diskFromRole
+	diskFromRole = f
+	return func() {
+		diskFromRole = old
+	}
+}
+
+func MockRecoveryBootloaderPath(p string) func() {
+	old := recoveryBootloaderPath
+	recoveryBootloaderPath = p
+	return func() {
+		recoveryBootloaderPath = old
+	}
+}
+
 func EnsureSeeded(m *DeviceManager) error {
 	return m.ensureSeeded()
 }
