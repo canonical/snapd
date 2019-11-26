@@ -60,6 +60,9 @@ var defaultTemplate = `
   /usr/share/terminfo/** k,
   /usr/share/zoneinfo/** k,
   owner @{PROC}/@{pid}/maps k,
+  # While the base abstraction has rules for encryptfs encrypted home and
+  # private directories, it is missing rules for directory read on the toplevel
+  # directory of the mount (LP: #1848919)
   owner @{HOME}/.Private/ r,
   owner @{HOMEDIRS}/.ecryptfs/*/.Private/ r,
 
