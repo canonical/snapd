@@ -23,13 +23,16 @@ import (
 	"io/ioutil"
 	"path/filepath"
 	"testing"
+	"time"
 
 	. "gopkg.in/check.v1"
 
 	"github.com/snapcore/snapd/asserts"
 	"github.com/snapcore/snapd/asserts/assertstest"
 	"github.com/snapcore/snapd/dirs"
+	"github.com/snapcore/snapd/overlord"
 	"github.com/snapcore/snapd/overlord/configstate"
+	"github.com/snapcore/snapd/overlord/configstate/config"
 	"github.com/snapcore/snapd/overlord/hookstate"
 	"github.com/snapcore/snapd/overlord/hookstate/hooktest"
 	"github.com/snapcore/snapd/overlord/snapstate"
@@ -38,6 +41,7 @@ import (
 	"github.com/snapcore/snapd/release"
 	"github.com/snapcore/snapd/snap"
 	"github.com/snapcore/snapd/snap/snaptest"
+	"github.com/snapcore/snapd/testutil"
 )
 
 func TestConfigState(t *testing.T) { TestingT(t) }
@@ -255,4 +259,180 @@ volumes:
 
 	err = s.handler.Before()
 	c.Check(err, ErrorMatches, `cannot apply gadget config defaults for snap "test-snap", no configure hook`)
+}
+
+type configcoreHandlerSuite struct {
+	testutil.BaseTest
+
+	o     *overlord.Overlord
+	state *state.State
+}
+
+var _ = Suite(&configcoreHandlerSuite{})
+
+func (s *configcoreHandlerSuite) SetUpTest(c *C) {
+	s.BaseTest.SetUpTest(c)
+
+	dirs.SetRootDir(c.MkDir())
+	s.AddCleanup(func() { dirs.SetRootDir("/") })
+
+	s.o = overlord.Mock()
+	s.state = s.o.State()
+
+	restore := snap.MockSanitizePlugsSlots(func(snapInfo *snap.Info) {})
+	s.AddCleanup(restore)
+
+	hookMgr, err := hookstate.Manager(s.state, s.o.TaskRunner())
+	c.Assert(err, IsNil)
+	s.o.AddManager(hookMgr)
+	r := configstate.MockConfigcoreExportExperimentalFlags(func(_ config.Conf) error {
+		return nil
+	})
+	s.AddCleanup(r)
+
+	err = configstate.Init(s.state, hookMgr)
+
+	c.Assert(err, IsNil)
+	s.o.AddManager(s.o.TaskRunner())
+
+	r = snapstatetest.MockDeviceModel(makeModel(map[string]interface{}{
+		"gadget": "canonical-pc",
+	}))
+	s.AddCleanup(r)
+
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	s.state.Set("seeded", true)
+	snapstate.Set(s.state, "canonical-pc", &snapstate.SnapState{
+		Active: true,
+		Sequence: []*snap.SideInfo{
+			{RealName: "canonical-pc", Revision: snap.R(1)},
+		},
+		Current:  snap.R(1),
+		SnapType: "gadget",
+	})
+}
+
+const mockGadgetSnapYaml = `
+name: canonical-pc
+type: gadget
+`
+
+func (s *configcoreHandlerSuite) TestRunsWhenSnapdOnly(c *C) {
+	r := release.MockOnClassic(false)
+	defer r()
+
+	var mockGadgetYaml = `
+defaults:
+  system:
+      foo: bar
+
+volumes:
+    volume-id:
+        bootloader: grub
+`
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	ts := configstate.Configure(s.state, "core", nil, snapstate.UseConfigDefaults)
+	chg := s.state.NewChange("configure-core", "configure core")
+	chg.AddAll(ts)
+
+	snaptest.MockSnapWithFiles(c, mockGadgetSnapYaml, &snap.SideInfo{Revision: snap.R(1)}, [][]string{
+		{"meta/gadget.yaml", mockGadgetYaml},
+	})
+
+	snapstate.Set(s.state, "snapd", &snapstate.SnapState{
+		Active: true,
+		Sequence: []*snap.SideInfo{
+			{RealName: "snapd", Revision: snap.R(1)},
+		},
+		Current:  snap.R(1),
+		SnapType: "snapd",
+	})
+
+	witnessConfigcoreRun := func(conf config.Conf) error {
+		// called with no state lock!
+		conf.State().Lock()
+		defer conf.State().Unlock()
+		var val string
+		err := conf.Get("core", "foo", &val)
+		c.Assert(err, IsNil)
+		c.Check(val, Equals, "bar")
+		return nil
+	}
+	r = configstate.MockConfigcoreRun(witnessConfigcoreRun)
+	defer r()
+
+	s.state.Unlock()
+	err := s.o.Settle(5 * time.Second)
+	s.state.Lock()
+	// Initialize context
+	c.Assert(err, IsNil)
+
+	tr := config.NewTransaction(s.state)
+	var foo string
+	err = tr.Get("core", "foo", &foo)
+	c.Assert(err, IsNil)
+	c.Check(foo, Equals, "bar")
+}
+
+func (s *configcoreHandlerSuite) TestRunsWhenCoreOnly(c *C) {
+	r := release.MockOnClassic(false)
+	defer r()
+
+	var mockGadgetYaml = `
+defaults:
+  system:
+      foo: bar
+
+volumes:
+    volume-id:
+        bootloader: grub
+`
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	ts := configstate.Configure(s.state, "core", nil, snapstate.UseConfigDefaults)
+	chg := s.state.NewChange("configure-core", "configure core")
+	chg.AddAll(ts)
+
+	snaptest.MockSnapWithFiles(c, mockGadgetSnapYaml, &snap.SideInfo{Revision: snap.R(1)}, [][]string{
+		{"meta/gadget.yaml", mockGadgetYaml},
+	})
+
+	snapstate.Set(s.state, "core", &snapstate.SnapState{
+		Active: true,
+		Sequence: []*snap.SideInfo{
+			{RealName: "core", Revision: snap.R(1)},
+		},
+		Current:  snap.R(1),
+		SnapType: "os",
+	})
+
+	witnessConfigcoreRun := func(conf config.Conf) error {
+		// called with no state lock!
+		conf.State().Lock()
+		defer conf.State().Unlock()
+		var val string
+		err := conf.Get("core", "foo", &val)
+		c.Assert(err, IsNil)
+		c.Check(val, Equals, "bar")
+		return nil
+	}
+	r = configstate.MockConfigcoreRun(witnessConfigcoreRun)
+	defer r()
+
+	s.state.Unlock()
+	err := s.o.Settle(5 * time.Second)
+	s.state.Lock()
+	// Initialize context
+	c.Assert(err, IsNil)
+
+	tr := config.NewTransaction(s.state)
+	var foo string
+	err = tr.Get("core", "foo", &foo)
+	c.Assert(err, IsNil)
+	c.Check(foo, Equals, "bar")
 }
