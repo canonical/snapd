@@ -83,7 +83,7 @@ func Manager(s *state.State, hookManager *hookstate.HookManager, runner *state.T
 		reg:        make(chan struct{}),
 	}
 
-	modeEnv, err := boot.ReadModeenv()
+	modeEnv, err := boot.ReadModeenv("")
 	if !os.IsNotExist(err) {
 		return nil, err
 	}
