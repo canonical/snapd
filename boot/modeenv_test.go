@@ -64,7 +64,7 @@ func (s *modeenvSuite) TestReadEmpty(c *C) {
 	modeenv, err := boot.ReadModeenv(s.tmpdir)
 	c.Assert(err, IsNil)
 	c.Check(modeenv.Mode, Equals, "")
-	c.Check(modeenv.RecoverySystemLabel, Equals, "")
+	c.Check(modeenv.RecoverySystem, Equals, "")
 }
 
 func (s *modeenvSuite) TestReadMode(c *C) {
@@ -73,7 +73,7 @@ func (s *modeenvSuite) TestReadMode(c *C) {
 	modeenv, err := boot.ReadModeenv(s.tmpdir)
 	c.Assert(err, IsNil)
 	c.Check(modeenv.Mode, Equals, "run")
-	c.Check(modeenv.RecoverySystemLabel, Equals, "")
+	c.Check(modeenv.RecoverySystem, Equals, "")
 }
 
 func (s *modeenvSuite) TestReadModeWithRecoverySystem(c *C) {
@@ -84,7 +84,7 @@ recovery_system: 20191126
 	modeenv, err := boot.ReadModeenv(s.tmpdir)
 	c.Assert(err, IsNil)
 	c.Check(modeenv.Mode, Equals, "recovery")
-	c.Check(modeenv.RecoverySystemLabel, Equals, "20191126")
+	c.Check(modeenv.RecoverySystem, Equals, "20191126")
 }
 
 func (s *modeenvSuite) TestWriteExisting(c *C) {

@@ -33,8 +33,8 @@ import (
 // Modeenv is a file on UC20 that provides additional information
 // about the current mode (run,recover,install)
 type Modeenv struct {
-	Mode                string
-	RecoverySystemLabel string
+	Mode           string
+	RecoverySystem string
 }
 
 func ReadModeenv(rootdir string) (*Modeenv, error) {
@@ -44,11 +44,11 @@ func ReadModeenv(rootdir string) (*Modeenv, error) {
 	if err := cfg.ReadFile(modeenvPath); err != nil {
 		return nil, err
 	}
-	recoverySystemLabel, _ := cfg.Get("", "recovery_system")
+	recoverySystem, _ := cfg.Get("", "recovery_system")
 	mode, _ := cfg.Get("", "mode")
 	return &Modeenv{
-		Mode:                mode,
-		RecoverySystemLabel: recoverySystemLabel,
+		Mode:           mode,
+		RecoverySystem: recoverySystem,
 	}, nil
 }
 
@@ -60,7 +60,7 @@ func (m *Modeenv) Write(rootdir string) error {
 	}
 	modeEnvContent := fmt.Sprintf(`recovery_system=%s
 mode=%s
-`, m.RecoverySystemLabel, m.Mode)
+`, m.RecoverySystem, m.Mode)
 	if err := ioutil.WriteFile(modeenvPath, []byte(modeEnvContent), 0644); err != nil {
 		return err
 	}
