@@ -122,6 +122,13 @@ func (s *initramfsMountsSuite) TestInitramfsMountsNoModeError(c *C) {
 	c.Assert(err, ErrorMatches, "cannot detect if in run,install,recover mode")
 }
 
+func (s *initramfsMountsSuite) TestInitramfsMountsUnknonwnMode(c *C) {
+	s.mockProcCmdlineContent(c, "snapd_recovery_mode=install-foo")
+
+	_, err := main.Parser.ParseArgs([]string{"initramfs-mounts"})
+	c.Assert(err, ErrorMatches, `cannot use unknown mode "install-foo"`)
+}
+
 func (s *initramfsMountsSuite) TestInitramfsMountsNoRunModeYet(c *C) {
 	s.mockProcCmdlineContent(c, "snapd_recovery_mode=run")
 
