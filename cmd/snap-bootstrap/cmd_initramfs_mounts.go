@@ -20,16 +20,19 @@
 package main
 
 import (
+	"bufio"
 	"bytes"
 	"fmt"
 	"io"
 	"io/ioutil"
 	"os"
 	"path/filepath"
+	"strings"
 
 	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/seed"
 	"github.com/snapcore/snapd/snap"
+	"github.com/snapcore/snapd/strutil"
 	"github.com/snapcore/snapd/timings"
 )
 
@@ -157,30 +160,27 @@ func generateMountsModeRun() error {
 	return fmt.Errorf("run mode mount generation not implemented yet")
 }
 
-func isInstallMode(content []byte) bool {
-	// XXX: deal with whitespace
-	if bytes.Contains(content, []byte("snapd_recovery_mode=install")) {
-		return true
-	}
-	// no snapd_recovery_mode var set -> assume install mode
-	if bytes.Contains(content, []byte("snapd_recovery_mode= ")) || bytes.HasSuffix(content, []byte("snapd_recovery_mode=")) {
-		return true
-	}
-	return false
-}
+var validModes = []string{"install", "recover", "run"}
 
-func isRecoverMode(content []byte) bool {
-	// XXX: deal with whitespace
-	return bytes.Contains(content, []byte("snapd_recovery_mode=recover"))
-}
-
-func isRunMode(content []byte) bool {
-	// XXX: deal with whitespace XXX2: The "snap-bootstrap
-	// initramfs-mounts" helper will run in both if we run from a
-	// recovery grub or from a normal grub. However in the normal
-	// case we probably have no "snapd_recovery_mode" set. So we
-	// may tweak this later to assume run-mode if nothing is set.
-	return bytes.Contains(content, []byte("snapd_recovery_mode=run"))
+func whichMode(content []byte) (string, error) {
+	scanner := bufio.NewScanner(bytes.NewBuffer(content))
+	scanner.Split(bufio.ScanWords)
+	for scanner.Scan() {
+		if strings.HasPrefix(scanner.Text(), "snapd_recovery_mode=") {
+			mode := strings.SplitN(scanner.Text(), "=", 2)[1]
+			if mode == "" {
+				mode = "install"
+			}
+			if !strutil.ListContains(validModes, mode) {
+				return "", fmt.Errorf("cannot use unknown mode %q", mode)
+			}
+			return mode, nil
+		}
+	}
+	if err := scanner.Err(); err != nil {
+		return "", err
+	}
+	return "", fmt.Errorf("cannot detect if in run,install,recover mode")
 }
 
 func generateInitramfsMounts() error {
@@ -188,14 +188,18 @@ func generateInitramfsMounts() error {
 	if err != nil {
 		return err
 	}
-	switch {
-	case isRecoverMode(content):
-		return generateMountsModeRecover()
-	case isInstallMode(content):
-		return generateMountsModeInstall()
-	case isRunMode(content):
-		return generateMountsModeRun()
-	default:
-		return fmt.Errorf("cannot detect if in run,install,recover mode")
+	mode, err := whichMode(content)
+	if err != nil {
+		return err
 	}
+	switch mode {
+	case "recover":
+		return generateMountsModeRecover()
+	case "install":
+		return generateMountsModeInstall()
+	case "run":
+		return generateMountsModeRun()
+	}
+	// this should never be reached
+	return fmt.Errorf("internal error: mode in generateInitramfsMounts not handled")
 }
