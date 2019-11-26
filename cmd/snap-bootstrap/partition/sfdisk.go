@@ -102,7 +102,8 @@ func (dl *DeviceLayout) CreateMissing(pv *gadget.LaidOutVolume) ([]DeviceStructu
 	buf, created := buildPartitionList(dl.partitionTable, pv)
 
 	// Write the partition table, note that sfdisk will re-read the
-	// partition table by itself: see disk-utils/sfdisk.c:write_changes()
+	// partition table by itself: see disk-utils/sfdisk.c:write_changes().
+	// Use --force, we have existing target device partitions mounted.
 	cmd := exec.Command("sfdisk", "--force", dl.Device)
 	cmd.Stdin = buf
 	if output, err := cmd.CombinedOutput(); err != nil {
@@ -112,7 +113,9 @@ func (dl *DeviceLayout) CreateMissing(pv *gadget.LaidOutVolume) ([]DeviceStructu
 	// Add an extra delay to prevent reads to take place immediately
 	time.Sleep(100 * time.Millisecond)
 
-	// Force partition table re-read and create device nodes
+	// XXX: force partition table re-read and create device nodes. Ideally
+	// we should trigger node creation directly instead of relying on a
+	// side effect of using a specific utility.
 	// Note: blockdev --rereadpt doesn't work, partx must be used
 	output, err := exec.Command("partx", "-u", dl.Device).CombinedOutput()
 	if err != nil {
