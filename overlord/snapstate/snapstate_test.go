@@ -11970,7 +11970,7 @@ func (s *snapmgrTestSuite) TestConfigDefaultsNoGadget(c *C) {
 	c.Assert(err, Equals, state.ErrNoState)
 }
 
-func (s *snapmgrTestSuite) TestConfigDefaultsSystemWithCoreNoSnapd(c *C) {
+func (s *snapmgrTestSuite) TestConfigDefaultsSystemWithCore(c *C) {
 	r := release.MockOnClassic(false)
 	defer r()
 
@@ -11979,8 +11979,6 @@ func (s *snapmgrTestSuite) TestConfigDefaultsSystemWithCoreNoSnapd(c *C) {
 
 	s.state.Lock()
 	defer s.state.Unlock()
-
-	s.state.Set("seeded", nil)
 
 	s.prepareGadget(c, `
 defaults:
@@ -12021,8 +12019,6 @@ func (s *snapmgrTestSuite) TestConfigDefaultsSystemWithSnapdNoCore(c *C) {
 	s.state.Lock()
 	defer s.state.Unlock()
 
-	s.state.Set("seeded", nil)
-
 	s.prepareGadget(c, `
 defaults:
     system:
@@ -12056,110 +12052,6 @@ defaults:
 	c.Assert(defls, DeepEquals, map[string]interface{}{"foo": "bar"})
 }
 
-func (s *snapmgrTestSuite) TestConfigDefaultsSystemWithSnapdAndCoreInSeeding(c *C) {
-	r := release.MockOnClassic(false)
-	defer r()
-
-	// using MockSnapReadInfo, we want to read the bits on disk
-	snapstate.MockSnapReadInfo(snap.ReadInfo)
-
-	s.state.Lock()
-	defer s.state.Unlock()
-
-	s.state.Set("seeded", nil)
-
-	s.prepareGadget(c, `
-defaults:
-    system:
-        foo: bar
-`)
-
-	deviceCtx := &snapstatetest.TrivialDeviceContext{
-		DeviceModel: MakeModel(map[string]interface{}{
-			"gadget": "the-gadget",
-			"base":   "the-base",
-		}),
-	}
-
-	// core already configured by test set up
-	snapstate.Set(s.state, "snapd", &snapstate.SnapState{
-		Active: true,
-		Sequence: []*snap.SideInfo{
-			{RealName: "snapd", SnapID: "the-snapd-snapidididididididididi", Revision: snap.R(1)},
-		},
-		Current:  snap.R(1),
-		SnapType: "snapd",
-	})
-
-	snaptest.MockSnap(c, snapdSnapYaml, &snap.SideInfo{
-		RealName: "snapd",
-		Revision: snap.R(1),
-	})
-
-	defls, err := snapstate.ConfigDefaults(s.state, deviceCtx, "core")
-	c.Assert(err, Equals, state.ErrNoState)
-	c.Assert(defls, IsNil)
-}
-
-func (s *snapmgrTestSuite) TestConfigDefaultsSystemSeeded(c *C) {
-	r := release.MockOnClassic(false)
-	defer r()
-
-	// using MockSnapReadInfo, we want to read the bits on disk
-	snapstate.MockSnapReadInfo(snap.ReadInfo)
-
-	s.state.Lock()
-	defer s.state.Unlock()
-
-	s.state.Set("seeded", true)
-
-	s.prepareGadget(c, `
-defaults:
-    system:
-        foo: bar
-`)
-
-	deviceCtx := &snapstatetest.TrivialDeviceContext{
-		DeviceModel: MakeModel(map[string]interface{}{
-			"gadget": "the-gadget",
-		}),
-	}
-
-	snaptest.MockSnap(c, snapdSnapYaml, &snap.SideInfo{
-		RealName: "snapd",
-		Revision: snap.R(1),
-	})
-
-	snapdSnapst := &snapstate.SnapState{
-		Active: true,
-		Sequence: []*snap.SideInfo{
-			{RealName: "snapd", SnapID: "the-snapd-snapidididididididididi", Revision: snap.R(1)},
-		},
-		Current:  snap.R(1),
-		SnapType: "snapd",
-	}
-	// core already configured by test set up
-	snapstate.Set(s.state, "snapd", snapdSnapst)
-
-	defls, err := snapstate.ConfigDefaults(s.state, deviceCtx, "core")
-	c.Assert(err, Equals, state.ErrNoState)
-	c.Assert(defls, IsNil)
-
-	// snapd disappears, core remains
-	snapstate.Set(s.state, "snapd", nil)
-
-	defls, err = snapstate.ConfigDefaults(s.state, deviceCtx, "core")
-	c.Assert(err, Equals, state.ErrNoState)
-	c.Assert(defls, IsNil)
-
-	snapstate.Set(s.state, "core", nil)
-	snapstate.Set(s.state, "snapd", snapdSnapst)
-
-	defls, err = snapstate.ConfigDefaults(s.state, deviceCtx, "core")
-	c.Assert(err, Equals, state.ErrNoState)
-	c.Assert(defls, IsNil)
-}
-
 func (s *snapmgrTestSuite) TestConfigDefaultsSystemConflictsCoreSnapId(c *C) {
 	r := release.MockOnClassic(false)
 	defer r()
@@ -12169,8 +12061,6 @@ func (s *snapmgrTestSuite) TestConfigDefaultsSystemConflictsCoreSnapId(c *C) {
 
 	s.state.Lock()
 	defer s.state.Unlock()
-
-	s.state.Set("seeded", nil)
 
 	s.prepareGadget(c, `
 defaults:
