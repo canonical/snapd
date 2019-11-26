@@ -92,7 +92,6 @@ dbus (send)
 
 type loginSessionObserveInterface struct {
 	commonInterface
-	secCompSnippet string
 }
 
 func init() {
