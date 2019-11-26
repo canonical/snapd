@@ -43,6 +43,8 @@ const (
 	PerUserMountNamespace
 	// RefreshAppAwareness controls refresh being aware of running applications.
 	RefreshAppAwareness
+	// RobustMountNamespaceUpdates controls how snap-update-ns updates existing mount namespaces.
+	RobustMountNamespaceUpdates
 	// lastFeature is the final known feature, it is only used for testing.
 	lastFeature
 )
@@ -65,6 +67,8 @@ var featureNames = map[SnapdFeature]string{
 	SnapdSnap:             "snapd-snap",
 	PerUserMountNamespace: "per-user-mount-namespace",
 	RefreshAppAwareness:   "refresh-app-awareness",
+
+	RobustMountNamespaceUpdates: "robust-mount-namespace-updates",
 }
 
 // featuresEnabledWhenUnset contains a set of features that are enabled when not explicitly configured.
@@ -77,6 +81,8 @@ var featuresExported = map[SnapdFeature]bool{
 	PerUserMountNamespace: true,
 	RefreshAppAwareness:   true,
 	ParallelInstances:     true,
+
+	RobustMountNamespaceUpdates: true,
 }
 
 // String returns the name of a snapd feature.
