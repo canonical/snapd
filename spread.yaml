@@ -129,6 +129,8 @@ backends:
                 workers: 6
             - ubuntu-19.04-64:
                 workers: 6
+            - ubuntu-19.10-64:
+                workers: 6
 
     google-nested:
         type: google
