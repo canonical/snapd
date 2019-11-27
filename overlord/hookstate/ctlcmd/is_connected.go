@@ -31,20 +31,21 @@ type isConnectedCommand struct {
 	baseCommand
 
 	Positional struct {
-		PlugOrSlotSpec string `positional-args:"true" positional-arg-name:":<plug|slot>"`
-	} `positional-args:"yes"`
+		PlugOrSlotSpec string `positional-args:"true" positional-arg-name:"<plug|slot>"`
+	} `positional-args:"true" required:"true"`
 }
 
 var shortIsConnectedHelp = i18n.G(`return success if the given plug or slot is connected, and failure otherwise`)
 var longIsConnectedHelp = i18n.G(`
-The is-connected returns zero if the given plug or slot of the calling snap is
-connected, and non-zero otherwise.
+The is-connected command returns success if the given plug or slot of the
+calling snap is connected, and failure otherwise.
 
 $ snapctl is-connected plug
 $ echo $?
 1
 
-Snaps can only query their own plugs and slots - snap name is implicit and implied by the snapctl execution context.
+Snaps can only query their own plugs and slots - snap name is implicit and
+implied by the snapctl execution context.
 `)
 
 func init() {
@@ -55,9 +56,6 @@ func init() {
 
 func (c *isConnectedCommand) Execute(args []string) error {
 	plugOrSlot := c.Positional.PlugOrSlotSpec
-	if plugOrSlot == "" {
-		return fmt.Errorf(i18n.G("plug or slot name not provided"))
-	}
 
 	context := c.context()
 	if context == nil {
@@ -75,11 +73,13 @@ func (c *isConnectedCommand) Execute(args []string) error {
 		return fmt.Errorf("internal error: cannot get connections: %s", err)
 	}
 
-	// XXX should we check if plug/slot exists? We don't differentiate between non-connected/not-existing at the moment.
+	// XXX should we check if plug/slot exists? We don't differentiate between
+	// non-connected/not-existing at the moment.
 
-	// snapName is the name of the snap executing snapctl command, it's obtained from the context (ephemeral if run by apps, or full if run by hooks).
-	// plug and slot names are unique within a snap, so there is no ambiguity when matching.
-	var connected bool
+	// snapName is the name of the snap executing snapctl command, it's
+	// obtained from the context (ephemeral if run by apps, or full if run by
+	// hooks). plug and slot names are unique within a snap, so there is no
+	// ambiguity when matching.
 	for refStr, connState := range conns {
 		if connState.Undesired || connState.HotplugGone {
 			continue
@@ -89,12 +89,8 @@ func (c *isConnectedCommand) Execute(args []string) error {
 			return fmt.Errorf("internal error: %s", err)
 		}
 		if (connRef.PlugRef.Snap == snapName && connRef.PlugRef.Name == plugOrSlot) || (connRef.SlotRef.Snap == snapName && connRef.SlotRef.Name == plugOrSlot) {
-			connected = true
+			return nil
 		}
-	}
-
-	if connected {
-		return nil
 	}
 
 	return fmt.Errorf("%s is not connected", plugOrSlot)

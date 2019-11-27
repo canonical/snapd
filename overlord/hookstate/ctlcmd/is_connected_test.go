@@ -47,7 +47,7 @@ var isConnectedTests = []struct {
 	args, stdout, stderr, error string
 }{{
 	args:  "is-connected",
-	error: "plug or slot name not provided",
+	error: "the required argument `<plug|slot>` was not provided",
 }, {
 	args: "is-connected plug1",
 }, {
