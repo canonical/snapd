@@ -3,5 +3,6 @@ summary: A no-strings-attached, no-fuss shell for writing tests
 version: 1.0
 
 apps:
-    test-snapd-sh:
+    with-joystick-plug:
         command: bin/sh
+        plugs: [joystick]
