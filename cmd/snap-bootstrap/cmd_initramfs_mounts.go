@@ -66,8 +66,9 @@ var (
 )
 
 // XXX: make this more flexible if there are multiple seeds on disk, i.e.
-// read boot environment in this case
-func findSeed() (seedDir, seedLabel string, err error) {
+// read kernel commandline in this case (bootenv is off limits because
+// it's not measured).
+func findSeed() (recoverySystemDir, recoverySystemLabel string, err error) {
 	l, err := filepath.Glob(filepath.Join(runMnt, "/ubuntu-seed/systems/*"))
 	if err != nil {
 		return "", "", err
@@ -79,9 +80,9 @@ func findSeed() (seedDir, seedLabel string, err error) {
 		return "", "", fmt.Errorf("cannot use multiple recovery systems yet")
 	}
 	// load the seed and generate mounts for kernel/base
-	seedLabel = filepath.Base(l[0])
-	seedDir = filepath.Dir(filepath.Dir(l[0]))
-	return seedDir, seedLabel, nil
+	recoverySystemLabel = filepath.Base(l[0])
+	recoverySystemDir = filepath.Dir(filepath.Dir(l[0]))
+	return recoverySystemDir, recoverySystemLabel, nil
 }
 
 // generateMountsMode* is called multiple times from initramfs until it
@@ -155,7 +156,7 @@ func generateMountsModeInstall() error {
 		return nil
 	}
 
-	// 4. write $(ubuntu_data)/var/lib/snapd/modenv
+	// 4. final step: write $(ubuntu_data)/var/lib/snapd/modenv
 	_, err = boot.ReadModeenv(filepath.Join(runMnt, "ubuntu-data"))
 	if err != nil && !os.IsNotExist(err) {
 		return err
