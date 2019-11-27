@@ -109,3 +109,7 @@ func BenchmarkMountFlagsToOptsAllPresent(b *testing.B) {
 		syscall.MS_SLAVE|syscall.MS_PRIVATE|syscall.MS_UNBINDABLE, b)
 }
 func BenchmarkMountFlagsToOptsMixed(b *testing.B) { benchMount(syscall.MS_BIND|1<<24, b) }
+
+func BenchmarkMountFlagsToOptsTypical(b *testing.B) {
+	benchMount(syscall.MS_BIND, b)
+}

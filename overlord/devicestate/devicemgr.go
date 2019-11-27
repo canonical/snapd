@@ -21,6 +21,7 @@ package devicestate
 
 import (
 	"fmt"
+	"os"
 	"regexp"
 	"strings"
 	"time"
@@ -45,6 +46,9 @@ import (
 // DeviceManager is responsible for managing the device identity and device
 // policies.
 type DeviceManager struct {
+	// operatingMode of a UC20 system. "","run","install","recover"
+	operatingMode string
+
 	state      *state.State
 	keypairMgr asserts.KeypairManager
 
@@ -77,6 +81,14 @@ func Manager(s *state.State, hookManager *hookstate.HookManager, runner *state.T
 		keypairMgr: keypairMgr,
 		newStore:   newStore,
 		reg:        make(chan struct{}),
+	}
+
+	modeEnv, err := boot.ReadModeenv("")
+	if err != nil && !os.IsNotExist(err) {
+		return nil, err
+	}
+	if modeEnv != nil {
+		m.operatingMode = modeEnv.Mode
 	}
 
 	s.Lock()
@@ -247,6 +259,11 @@ func setClassicFallbackModel(st *state.State, device *auth.DeviceState) error {
 func (m *DeviceManager) ensureOperational() error {
 	m.state.Lock()
 	defer m.state.Unlock()
+
+	if m.operatingMode == "install" {
+		// avoid doing registration in install mode
+		return nil
+	}
 
 	perfTimings := timings.New(map[string]string{"ensure": "become-operational"})
 
