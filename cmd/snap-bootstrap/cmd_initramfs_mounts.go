@@ -29,6 +29,7 @@ import (
 	"path/filepath"
 	"strings"
 
+	"github.com/snapcore/snapd/boot"
 	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/seed"
 	"github.com/snapcore/snapd/snap"
@@ -67,6 +68,26 @@ var (
 	osutilIsMounted = osutil.IsMounted
 )
 
+// XXX: make this more flexible if there are multiple seeds on disk, i.e.
+// read kernel commandline in this case (bootenv is off limits because
+// it's not measured).
+func findSeed() (recoverySystemDir, recoverySystemLabel string, err error) {
+	l, err := filepath.Glob(filepath.Join(runMnt, "/ubuntu-seed/systems/*"))
+	if err != nil {
+		return "", "", err
+	}
+	if len(l) == 0 {
+		return "", "", fmt.Errorf("cannot find a recovery system")
+	}
+	if len(l) > 1 {
+		return "", "", fmt.Errorf("cannot use multiple recovery systems yet")
+	}
+	// load the seed and generate mounts for kernel/base
+	recoverySystemLabel = filepath.Base(l[0])
+	recoverySystemDir = filepath.Dir(filepath.Dir(l[0]))
+	return recoverySystemDir, recoverySystemLabel, nil
+}
+
 // generateMountsMode* is called multiple times from initramfs until it
 // no longer generates more mount points and just returns an empty output.
 func generateMountsModeInstall() error {
@@ -87,20 +108,11 @@ func generateMountsModeInstall() error {
 		return err
 	}
 	if !isMounted {
-		l, err := filepath.Glob(filepath.Join(runMnt, "/ubuntu-seed/systems/*"))
+		seedDir, seedLabel, err := findSeed()
 		if err != nil {
 			return err
 		}
-		if len(l) == 0 {
-			return fmt.Errorf("cannot find a recovery system")
-		}
-		if len(l) > 1 {
-			return fmt.Errorf("cannot use multiple recovery systems yet")
-		}
-		// load the seed and generate mounts for kernel/base
-		label := filepath.Base(l[0])
-		seedDir := filepath.Dir(filepath.Dir(l[0]))
-		deviceSeed, err := seed.Open(seedDir, label)
+		deviceSeed, err := seed.Open(seedDir, seedLabel)
 		if err != nil {
 			return err
 		}
@@ -147,7 +159,21 @@ func generateMountsModeInstall() error {
 		return nil
 	}
 
-	// 4. done, no output, no error indicates to initramfs we are done
+	// 4. final step: write $(ubuntu_data)/var/lib/snapd/modeenv - this
+	//    is the tmpfs we just created above
+	_, seedLabel, err := findSeed()
+	if err != nil {
+		return err
+	}
+	modeEnv := &boot.Modeenv{
+		Mode:           "install",
+		RecoverySystem: seedLabel,
+	}
+	if err := modeEnv.Write(filepath.Join(runMnt, "ubuntu-data")); err != nil {
+		return err
+	}
+
+	// 5. done, no output, no error indicates to initramfs we are done
 	//    with mounting stuff
 	return nil
 }
