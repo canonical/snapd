@@ -33,6 +33,7 @@ import (
 	"github.com/snapcore/snapd/asserts"
 	"github.com/snapcore/snapd/asserts/assertstest"
 	"github.com/snapcore/snapd/asserts/sysdb"
+	"github.com/snapcore/snapd/boot"
 	"github.com/snapcore/snapd/bootloader"
 	"github.com/snapcore/snapd/bootloader/bootloadertest"
 	"github.com/snapcore/snapd/dirs"
@@ -1012,4 +1013,16 @@ func (s *deviceMgrSuite) TestDevicemgrCanStandby(c *C) {
 
 	st.Set("seeded", true)
 	c.Check(mgr.CanStandby(), Equals, true)
+}
+
+func (s *deviceMgrSuite) TestDeviceManagerReadsModeenv(c *C) {
+	modeEnv := &boot.Modeenv{Mode: "install"}
+	err := modeEnv.Write("")
+	c.Assert(err, IsNil)
+
+	runner := s.o.TaskRunner()
+	mgr, err := devicestate.Manager(s.state, s.hookMgr, runner, s.newStore)
+	c.Assert(err, IsNil)
+	c.Assert(mgr, NotNil)
+	c.Assert(devicestate.OperatingMode(mgr), Equals, "install")
 }

@@ -32,7 +32,6 @@ import (
 
 	"github.com/snapcore/snapd/asserts"
 	"github.com/snapcore/snapd/asserts/assertstest"
-	"github.com/snapcore/snapd/boot"
 	"github.com/snapcore/snapd/httputil"
 	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/overlord/assertstate"
@@ -1634,18 +1633,6 @@ func (s *deviceMgrSerialSuite) TestDoRequestSerialReregistrationDoubleSerialStre
 
 	c.Check(chg.Status(), Equals, state.ErrorStatus, Commentf("%s", t.Log()))
 	c.Check(chg.Err(), ErrorMatches, `(?ms).*cannot accept more than a single device serial assertion from the device service.*`)
-}
-
-func (s *deviceMgrSerialSuite) TestDeviceManagerReadsModeenv(c *C) {
-	modeEnv := &boot.Modeenv{Mode: "install"}
-	err := modeEnv.Write("")
-	c.Assert(err, IsNil)
-
-	runner := s.o.TaskRunner()
-	mgr, err := devicestate.Manager(s.state, s.hookMgr, runner, s.newStore)
-	c.Assert(err, IsNil)
-	c.Assert(mgr, NotNil)
-	c.Assert(devicestate.OperatingMode(mgr), Equals, "install")
 }
 
 func (s *deviceMgrSerialSuite) TestDeviceRegistrationNotInInstallMode(c *C) {
