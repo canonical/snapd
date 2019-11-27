@@ -140,6 +140,7 @@ func (s *isConnectedSuite) TestGetRegularUser(c *C) {
 	mockContext, err := hookstate.NewContext(nil, s.st, setup, s.mockHandler, "")
 	c.Assert(err, IsNil)
 	stdout, stderr, err := ctlcmd.Run(mockContext, []string{"is-connected", "plug1"}, 1000)
+	c.Check(err, IsNil)
 	c.Check(string(stdout), Equals, "")
 	c.Check(string(stderr), Equals, "")
 }
