@@ -335,6 +335,40 @@ func (s *deviceMgrSuite) TestDeviceManagerEnsureBootOkSkippedOnClassic(c *C) {
 	c.Assert(err, IsNil)
 }
 
+func (s *deviceMgrSuite) TestDeviceManagerEnsureSeededHappyWithModeenv(c *C) {
+	n := 0
+	restore := devicestate.MockPopulateStateFromSeed(func(st *state.State, opts *devicestate.PopulateStateFromSeedOptions, tm timings.Measurer) (ts []*state.TaskSet, err error) {
+		c.Assert(opts, NotNil)
+		c.Check(opts.Label, Equals, "20191127")
+		c.Check(opts.Mode, Equals, "install")
+
+		t := s.state.NewTask("test-task", "a random task")
+		ts = append(ts, state.NewTaskSet(t))
+
+		n++
+		return ts, nil
+	})
+	defer restore()
+
+	// mock the modeenv file
+	devicestate.SetOperatingMode(s.mgr, "install")
+	m := boot.Modeenv{
+		Mode:           "install",
+		RecoverySystem: "20191127",
+	}
+	err := m.Write("")
+	c.Assert(err, IsNil)
+
+	err = devicestate.EnsureSeeded(s.mgr)
+	c.Assert(err, IsNil)
+
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	c.Check(s.state.Changes(), HasLen, 1)
+	c.Check(n, Equals, 1)
+}
+
 func (s *deviceMgrSuite) TestDeviceManagerEnsureBootOkBootloaderHappy(c *C) {
 	s.bootloader.SetBootVars(map[string]string{
 		"snap_mode":     "trying",

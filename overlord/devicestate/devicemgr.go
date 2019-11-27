@@ -400,6 +400,17 @@ func (m *DeviceManager) ensureOperational() error {
 	return nil
 }
 
+func getPopulateStateFromSeedOptions() (*populateStateFromSeedOptions, error) {
+	modeEnv, err := boot.ReadModeenv("")
+	if os.IsNotExist(err) {
+		return nil, nil
+	}
+	return &populateStateFromSeedOptions{
+		Label: modeEnv.RecoverySystem,
+		Mode:  modeEnv.Mode,
+	}, nil
+}
+
 var populateStateFromSeed = populateStateFromSeedImpl
 
 // ensureSeeded makes sure that the snaps from seed.yaml get installed
@@ -423,11 +434,16 @@ func (m *DeviceManager) ensureSeeded() error {
 		return nil
 	}
 
-	// TODO: Core 20: how do we establish whether this is a Core 20
-	// system, how do we receive mode here and also how to pick a label?
+	opts, err := getPopulateStateFromSeedOptions()
+	if err != nil {
+		return err
+	}
+	if opts != nil && m.operatingMode != opts.Mode {
+		return fmt.Errorf("internal error: operatingMode inconsistent with ensureSeeded mode %q != %q", m.operatingMode, opts.Mode)
+	}
 	var tsAll []*state.TaskSet
 	timings.Run(perfTimings, "state-from-seed", "populate state from seed", func(tm timings.Measurer) {
-		tsAll, err = populateStateFromSeed(m.state, nil, tm)
+		tsAll, err = populateStateFromSeed(m.state, opts, tm)
 	})
 	if err != nil {
 		return err
