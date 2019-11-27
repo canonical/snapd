@@ -69,3 +69,43 @@ func (s *mountSuite) TestUnmountFlagsToOpts(c *C) {
 	c.Check(opts, DeepEquals, []string{"MNT_DETACH"})
 	c.Check(unknown, Equals, 1<<24)
 }
+
+var benchResultOpt []string
+var benchResultUnknown int
+
+func benchUnmount(flags int, b *testing.B) {
+	var opts []string
+	var unknown int
+	for n := 0; n < b.N; n++ {
+		opts, unknown = mount.UnmountFlagsToOpts(flags)
+	}
+	benchResultOpt = opts
+	benchResultUnknown = unknown
+}
+
+func benchMount(flags int, b *testing.B) {
+	var opts []string
+	var unknown int
+	for n := 0; n < b.N; n++ {
+		opts, unknown = mount.MountFlagsToOpts(flags)
+	}
+	benchResultOpt = opts
+	benchResultUnknown = unknown
+}
+
+func BenchmarkUnmountFlagsToOptsAllMissing(b *testing.B) { benchUnmount(1<<24, b) }
+func BenchmarkUnmountFlagsToOptsMixed(b *testing.B)      { benchUnmount(syscall.MNT_DETACH|1<<24, b) }
+func BenchmarkUnmountFlagsToOptsAllPresent(b *testing.B) {
+	const UMOUNT_NOFOLLOW = 8
+	benchUnmount(syscall.MNT_FORCE|
+		syscall.MNT_DETACH|syscall.MNT_EXPIRE|UMOUNT_NOFOLLOW, b)
+}
+
+func BenchmarkMountFlagsToOptsAllMissing(b *testing.B) { benchMount(1<<24, b) }
+
+func BenchmarkMountFlagsToOptsAllPresent(b *testing.B) {
+	benchMount(syscall.MS_REMOUNT|
+		syscall.MS_BIND|syscall.MS_REC|syscall.MS_RDONLY|syscall.MS_SHARED|
+		syscall.MS_SLAVE|syscall.MS_PRIVATE|syscall.MS_UNBINDABLE, b)
+}
+func BenchmarkMountFlagsToOptsMixed(b *testing.B) { benchMount(syscall.MS_BIND|1<<24, b) }

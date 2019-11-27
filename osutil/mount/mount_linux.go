@@ -23,61 +23,51 @@ import (
 	"syscall"
 )
 
-// MountFlagsToOpts returns the symbolic representation of mount flags.
-func MountFlagsToOpts(flags int) (opts []string, unknown int) {
-	if f := syscall.MS_REMOUNT; flags&f == f {
-		flags ^= f
-		opts = append(opts, "MS_REMOUNT")
-	}
-	if f := syscall.MS_BIND; flags&f == f {
-		flags ^= f
-		opts = append(opts, "MS_BIND")
-	}
-	if f := syscall.MS_REC; flags&f == f {
-		flags ^= f
-		opts = append(opts, "MS_REC")
-	}
-	if f := syscall.MS_RDONLY; flags&f == f {
-		flags ^= f
-		opts = append(opts, "MS_RDONLY")
-	}
-	if f := syscall.MS_SHARED; flags&f == f {
-		flags ^= f
-		opts = append(opts, "MS_SHARED")
-	}
-	if f := syscall.MS_SLAVE; flags&f == f {
-		flags ^= f
-		opts = append(opts, "MS_SLAVE")
-	}
-	if f := syscall.MS_PRIVATE; flags&f == f {
-		flags ^= f
-		opts = append(opts, "MS_PRIVATE")
-	}
-	if f := syscall.MS_UNBINDABLE; flags&f == f {
-		flags ^= f
-		opts = append(opts, "MS_UNBINDABLE")
+type syscallNumPair struct {
+	str string
+	num int
+}
+
+// UMOUNT_NOFOLLOW is not defined in go's syscall package
+const UMOUNT_NOFOLLOW = 8
+
+var mountSyscalls = []syscallNumPair{
+	{"MS_REMOUNT", syscall.MS_REMOUNT},
+	{"MS_BIND", syscall.MS_BIND},
+	{"MS_REC", syscall.MS_REC},
+	{"MS_RDONLY", syscall.MS_RDONLY},
+	{"MS_SHARED", syscall.MS_SHARED},
+	{"MS_SLAVE", syscall.MS_SLAVE},
+	{"MS_PRIVATE", syscall.MS_PRIVATE},
+	{"MS_UNBINDABLE", syscall.MS_UNBINDABLE},
+}
+
+var unmountSyscalls = []syscallNumPair{
+	{"UMOUNT_NOFOLLOW", UMOUNT_NOFOLLOW},
+	{"MNT_FORCE", syscall.MNT_FORCE},
+	{"MNT_DETACH", syscall.MNT_DETACH},
+	{"MNT_EXPIRE", syscall.MNT_EXPIRE},
+}
+
+func flagOptSearch(flags int, lookupTable []syscallNumPair) (opts []string, unknown int) {
+	var f, i int
+	var sys syscallNumPair
+	for i, sys = range lookupTable {
+		f = sys.num
+		if flags&f == f {
+			flags ^= f
+			opts = append(opts, lookupTable[i].str)
+		}
 	}
 	return opts, flags
 }
 
+// MountFlagsToOpts returns the symbolic representation of mount flags.
+func MountFlagsToOpts(flags int) (opts []string, unknown int) {
+	return flagOptSearch(flags, mountSyscalls)
+}
+
 // UnmountFlagsToOpts returns the symbolic representation of unmount flags.
 func UnmountFlagsToOpts(flags int) (opts []string, unknown int) {
-	const UMOUNT_NOFOLLOW = 8
-	if f := UMOUNT_NOFOLLOW; flags&f == f {
-		flags ^= f
-		opts = append(opts, "UMOUNT_NOFOLLOW")
-	}
-	if f := syscall.MNT_FORCE; flags&f == f {
-		flags ^= f
-		opts = append(opts, "MNT_FORCE")
-	}
-	if f := syscall.MNT_DETACH; flags&f == f {
-		flags ^= f
-		opts = append(opts, "MNT_DETACH")
-	}
-	if f := syscall.MNT_EXPIRE; flags&f == f {
-		flags ^= f
-		opts = append(opts, "MNT_EXPIRE")
-	}
-	return opts, flags
+	return flagOptSearch(flags, unmountSyscalls)
 }
