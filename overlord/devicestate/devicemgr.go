@@ -46,6 +46,9 @@ import (
 // DeviceManager is responsible for managing the device identity and device
 // policies.
 type DeviceManager struct {
+	// operatingMode of a UC20 system. "","run","install","recover"
+	operatingMode string
+
 	state      *state.State
 	keypairMgr asserts.KeypairManager
 
@@ -61,10 +64,6 @@ type DeviceManager struct {
 	becomeOperationalBackoff     time.Duration
 	registered                   bool
 	reg                          chan struct{}
-
-	// XXX: is that the best name?
-	// runMode of a UC20 system. "","run","install","recover"
-	runMode string
 }
 
 // Manager returns a new device manager.
@@ -89,7 +88,7 @@ func Manager(s *state.State, hookManager *hookstate.HookManager, runner *state.T
 		return nil, err
 	}
 	if modeEnv != nil {
-		m.runMode = modeEnv.Mode
+		m.operatingMode = modeEnv.Mode
 	}
 
 	s.Lock()
@@ -261,7 +260,7 @@ func (m *DeviceManager) ensureOperational() error {
 	m.state.Lock()
 	defer m.state.Unlock()
 
-	if m.runMode == "install" {
+	if m.operatingMode == "install" {
 		// avoid doing registration in install mode
 		return nil
 	}

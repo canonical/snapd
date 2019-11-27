@@ -1645,7 +1645,7 @@ func (s *deviceMgrSerialSuite) TestDeviceManagerReadsModeenv(c *C) {
 	mgr, err := devicestate.Manager(s.state, s.hookMgr, runner, s.newStore)
 	c.Assert(err, IsNil)
 	c.Assert(mgr, NotNil)
-	c.Assert(devicestate.RunMode(mgr), Equals, "install")
+	c.Assert(devicestate.OperatingMode(mgr), Equals, "install")
 }
 
 func (s *deviceMgrSerialSuite) TestDeviceRegistrationNotInInstallMode(c *C) {
@@ -1664,7 +1664,7 @@ func (s *deviceMgrSerialSuite) TestDeviceRegistrationNotInInstallMode(c *C) {
 	// mark it as seeded
 	st.Set("seeded", true)
 	// set run mode to "install"
-	devicestate.SetRunMode(s.mgr, "install")
+	devicestate.SetOperatingMode(s.mgr, "install")
 	st.Unlock()
 
 	// runs the whole device registration process

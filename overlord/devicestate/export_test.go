@@ -83,12 +83,12 @@ func SetLastBecomeOperationalAttempt(m *DeviceManager, t time.Time) {
 	m.lastBecomeOperationalAttempt = t
 }
 
-func SetRunMode(m *DeviceManager, mode string) {
-	m.runMode = mode
+func SetOperatingMode(m *DeviceManager, mode string) {
+	m.operatingMode = mode
 }
 
-func RunMode(m *DeviceManager) string {
-	return m.runMode
+func OperatingMode(m *DeviceManager) string {
+	return m.operatingMode
 }
 
 func MockRepeatRequestSerial(label string) (restore func()) {
