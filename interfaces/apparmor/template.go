@@ -60,10 +60,22 @@ var defaultTemplate = `
   /usr/share/terminfo/** k,
   /usr/share/zoneinfo/** k,
   owner @{PROC}/@{pid}/maps k,
+  # While the base abstraction has rules for encryptfs encrypted home and
+  # private directories, it is missing rules for directory read on the toplevel
+  # directory of the mount (LP: #1848919)
+  owner @{HOME}/.Private/ r,
+  owner @{HOMEDIRS}/.ecryptfs/*/.Private/ r,
 
   # for python apps/services
   #include <abstractions/python>
   /usr/bin/python{,2,2.[0-9]*,3,3.[0-9]*} ixr,
+  # additional accesses needed for newer pythons in later bases
+  /usr/lib{,32,64}/python3.[0-9]/**.{pyc,so}           mr,
+  /usr/lib{,32,64}/python3.[0-9]/**.{egg,py,pth}       r,
+  /usr/lib{,32,64}/python3.[0-9]/{site,dist}-packages/ r,
+  /usr/lib{,32,64}/python3.[0-9]/lib-dynload/*.so      mr,
+  /etc/python3.[0-9]/**                                r,
+  /usr/include/python3.[0-9]*/pyconfig.h               r,
 
   # explicitly deny noisy denials to read-only filesystems (see LP: #1496895
   # for details)
@@ -190,6 +202,7 @@ var defaultTemplate = `
   /{,usr/}bin/nohup ixr,
   /{,usr/}bin/od ixr,
   /{,usr/}bin/openssl ixr, # may cause harmless capability block_suspend denial
+  /{,usr/}bin/paste ixr,
   /{,usr/}bin/pgrep ixr,
   /{,usr/}bin/printenv ixr,
   /{,usr/}bin/printf ixr,
@@ -700,6 +713,11 @@ profile snap-update-ns.###SNAP_INSTANCE_NAME### (attach_disconnected) {
   /dev/zero rw,
   /dev/random r,
   /dev/urandom r,
+
+  # Allow access to the uuidd daemon (this daemon is a thin wrapper around
+  # time and getrandom()/{,u}random and, when available, runs under an
+  # unprivilged, dedicated user).
+  /run/uuidd/request r,
 
   # Allow reading the command line (snap-update-ns uses it in pre-Go bootstrap code).
   @{PROC}/@{pid}/cmdline r,

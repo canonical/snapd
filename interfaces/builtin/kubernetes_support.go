@@ -59,6 +59,7 @@ capability sys_resource,
 @{PROC}/@{pid}/oom_score_adj rw,
 @{PROC}/sys/vm/overcommit_memory rw,
 /sys/kernel/mm/hugepages/{,**} r,
+/sys/kernel/mm/transparent_hugepage/{,**} r,
 
 capability dac_override,
 
