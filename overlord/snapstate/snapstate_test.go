@@ -4069,7 +4069,7 @@ func (s *snapmgrTestSuite) TestEnableSnapMissingDisabledServicesSaved(c *C) {
 		},
 		Current: snap.R(11),
 		Active:  true,
-		// keep this tomake gofmt 1.10 happy
+		// keep this to make gofmt 1.10 happy
 		LastActiveDisabledServices: []string{"missing-svc3"},
 	})
 

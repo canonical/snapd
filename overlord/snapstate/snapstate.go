@@ -342,11 +342,14 @@ func doInstall(st *state.State, snapst *SnapState, snapsup *SnapSetup, flags int
 
 	// we do not support configuration for bases or the "snapd" snap yet
 	if snapsup.Type != snap.TypeBase && snapsup.Type != snap.TypeSnapd {
-		var confFlags int
-		if !snapst.IsInstalled() && snapsup.SideInfo != nil && snapsup.SideInfo.SnapID != "" && snapsup.Type != snap.TypeOS {
+		confFlags := 0
+		notCore := snapsup.InstanceName() != "core"
+		hasSnapID := snapsup.SideInfo != nil && snapsup.SideInfo.SnapID != ""
+		if !snapst.IsInstalled() && hasSnapID && notCore {
 			// installation, run configure using the gadget defaults
-			// if available, system config defaults are triggered
-			// only during seeding
+			// if available, system config defaults (attached to
+			// "core") are consumed only during seeding, via an
+			// explicit configure step separate from installing
 			confFlags |= UseConfigDefaults
 		}
 		configSet := ConfigureSnap(st, snapsup.InstanceName(), confFlags)
