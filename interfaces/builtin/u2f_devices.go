@@ -102,9 +102,14 @@ var u2fDevices = []u2fDevice{
 		ProductIDPattern: "5026",
 	},
 	{
-		Name:             "Tomu board + chopstx U2F",
+		Name:             "Tomu board + chopstx U2F + SoloKeys",
 		VendorIDPattern:  "0483",
-		ProductIDPattern: "cdab",
+		ProductIDPattern: "cdab|a2ca",
+	},
+	{
+		Name:             "SoloKeys",
+		VendorIDPattern:  "1209",
+		ProductIDPattern: "5070|50b0",
 	},
 	{
 		Name:             "OnlyKey",
@@ -127,6 +132,7 @@ const u2fDevicesConnectedPlugAppArmor = `
 # misc required accesses
 /run/udev/data/+power_supply:hid* r,
 /run/udev/data/c14:[0-9]* r,
+/sys/devices/**/i2c*/**/report_descriptor r,
 /sys/devices/**/usb*/**/report_descriptor r,
 `
 
