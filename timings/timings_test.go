@@ -404,7 +404,8 @@ func (s *timingsSuite) TestGet(c *C) {
 	c.Assert(err, IsNil)
 	c.Check(tm, DeepEquals, []*timings.TimingsInfo{
 		{
-			Tags: map[string]string{"foo": "1"},
+			Tags:     map[string]string{"foo": "1"},
+			Duration: 3000000,
 			NestedTimings: []*timings.TimingJSON{
 				{Level: 0, Label: "doing something-1", Summary: "...", Duration: 3000000},
 				{Level: 1, Label: "nested measurement", Summary: "...", Duration: 1000000},
@@ -416,19 +417,22 @@ func (s *timingsSuite) TestGet(c *C) {
 	c.Assert(err, IsNil)
 	c.Check(tmOnlyLevel0, DeepEquals, []*timings.TimingsInfo{
 		{
-			Tags: map[string]string{"foo": "0"},
+			Tags:     map[string]string{"foo": "0"},
+			Duration: 3000000,
 			NestedTimings: []*timings.TimingJSON{
 				{Level: 0, Label: "doing something-0", Summary: "...", Duration: 3000000},
 			},
 		},
 		{
-			Tags: map[string]string{"foo": "1"},
+			Tags:     map[string]string{"foo": "1"},
+			Duration: 3000000,
 			NestedTimings: []*timings.TimingJSON{
 				{Level: 0, Label: "doing something-1", Summary: "...", Duration: 3000000},
 			},
 		},
 		{
-			Tags: map[string]string{"foo": "2"},
+			Tags:     map[string]string{"foo": "2"},
+			Duration: 3000000,
 			NestedTimings: []*timings.TimingJSON{
 				{Level: 0, Label: "doing something-2", Summary: "...", Duration: 3000000},
 			},

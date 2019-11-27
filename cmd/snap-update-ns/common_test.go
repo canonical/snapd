@@ -31,6 +31,7 @@ import (
 	"github.com/snapcore/snapd/cmd/snaplock"
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/osutil"
+	"github.com/snapcore/snapd/sandbox/cgroup"
 	"github.com/snapcore/snapd/testutil"
 )
 
@@ -55,7 +56,7 @@ func (s *commonSuite) TestInstanceName(c *C) {
 func (s *commonSuite) TestLock(c *C) {
 	// Mock away real freezer code, allowing test code to return an error when freezing.
 	var freezingError error
-	restore := update.MockFreezing(func(string) error { return freezingError }, func(string) error { return nil })
+	restore := cgroup.MockFreezing(func(string) error { return freezingError }, func(string) error { return nil })
 	defer restore()
 	// Mock system directories, we use the lock directory.
 	dirs.SetRootDir(s.dir)

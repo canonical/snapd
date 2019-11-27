@@ -86,7 +86,7 @@ func (s *compilerSuite) TestVersionInfoValidate(c *C) {
 	} {
 		c.Logf("tc: %v", i)
 		cmd := testutil.MockCommand(c, "snap-seccomp", fmt.Sprintf("echo \"%s\"", tc.v))
-		compiler, err := seccomp.New(fromCmd(c, cmd))
+		compiler, err := seccomp.NewCompiler(fromCmd(c, cmd))
 		c.Assert(err, IsNil)
 
 		v, err := compiler.VersionInfo()
@@ -134,7 +134,7 @@ if [ "$1" = "version-info" ]; then echo "unknown command version-info"; exit 1; 
 exit 0
 `)
 	defer cmd.Restore()
-	compiler, err := seccomp.New(fromCmd(c, cmd))
+	compiler, err := seccomp.NewCompiler(fromCmd(c, cmd))
 	c.Assert(err, IsNil)
 
 	_, err = compiler.VersionInfo()
@@ -150,7 +150,7 @@ if [ "$1" = "compile" ]; then exit 0; fi
 exit 1
 `)
 	defer cmd.Restore()
-	compiler, err := seccomp.New(fromCmd(c, cmd))
+	compiler, err := seccomp.NewCompiler(fromCmd(c, cmd))
 	c.Assert(err, IsNil)
 
 	err = compiler.Compile("foo.src", "foo.bin")
@@ -166,7 +166,7 @@ if [ "$1" = "compile" ]; then echo "i will not"; exit 1; fi
 exit 0
 `)
 	defer cmd.Restore()
-	compiler, err := seccomp.New(fromCmd(c, cmd))
+	compiler, err := seccomp.NewCompiler(fromCmd(c, cmd))
 	c.Assert(err, IsNil)
 
 	err = compiler.Compile("foo.src", "foo.bin")
@@ -177,11 +177,11 @@ exit 0
 }
 
 func (s *compilerSuite) TestCompilerNewUnhappy(c *C) {
-	compiler, err := seccomp.New(func(name string) (string, error) { return "", errors.New("failed") })
+	compiler, err := seccomp.NewCompiler(func(name string) (string, error) { return "", errors.New("failed") })
 	c.Assert(err, ErrorMatches, "failed")
 	c.Assert(compiler, IsNil)
 
-	c.Assert(func() { seccomp.New(nil) }, PanicMatches, "lookup tool func not provided")
+	c.Assert(func() { seccomp.NewCompiler(nil) }, PanicMatches, "lookup tool func not provided")
 }
 
 func (s *compilerSuite) TestLibseccompVersion(c *C) {

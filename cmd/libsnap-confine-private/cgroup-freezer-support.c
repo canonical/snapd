@@ -84,7 +84,7 @@ bool sc_cgroup_freezer_occupied(const char *snap_name)
 	FILE *cgroup_procs SC_CLEANUP(sc_cleanup_file) = NULL;
 	cgroup_procs = fdopen(cgroup_procs_fd, "r");
 	if (cgroup_procs == NULL) {
-		die("cannot convert tasks file descriptor to FILE");
+		die("cannot convert cgroups.procs file descriptor to FILE");
 	}
 	cgroup_procs_fd = -1;	// cgroup_procs_fd will now be closed by fclose.
 

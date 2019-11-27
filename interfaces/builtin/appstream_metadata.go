@@ -75,7 +75,7 @@ func (iface *appstreamMetadataInterface) AppArmorConnectedPlug(spec *apparmor.Sp
 	spec.AddSnippet(appstreamMetadataConnectedPlugAppArmor)
 
 	// Generate rules to allow snap-update-ns to do its thing
-	emit := spec.EmitUpdateNSFunc()
+	emit := spec.AddUpdateNSf
 	for _, target := range appstreamMetadataDirs {
 		source := "/var/lib/snapd/hostfs" + target
 		emit("  # Read-only access to %s\n", target)
@@ -111,7 +111,6 @@ func init() {
 		name:                 "appstream-metadata",
 		summary:              appstreamMetadataSummary,
 		implicitOnClassic:    true,
-		reservedForOS:        true,
 		baseDeclarationSlots: appstreamMetadataBaseDeclarationSlots,
 	}})
 }

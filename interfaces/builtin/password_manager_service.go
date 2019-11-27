@@ -88,6 +88,5 @@ func init() {
 		implicitOnClassic:     true,
 		baseDeclarationSlots:  passwordManagerBaseDeclarationSlots,
 		connectedPlugAppArmor: passwordManagerServiceConnectedPlugAppArmor,
-		reservedForOS:         true,
 	})
 }

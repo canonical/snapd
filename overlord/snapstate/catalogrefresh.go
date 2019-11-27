@@ -62,6 +62,17 @@ func (r *catalogRefresh) Ensure() error {
 		return nil
 	}
 
+	// if system is not seeded yet, it is first boot situation
+	// do not bother refreshing catalog, snap list is empty anyway
+	// beside there is high change device has no internet
+	var seeded bool
+	err := r.state.Get("seeded", &seeded)
+	if err == state.ErrNoState || !seeded {
+		logger.Debugf("CatalogRefresh:Ensure: skipping refresh, system is not seeded yet")
+		// not seeded yet
+		return nil
+	}
+
 	now := time.Now()
 	delay := catalogRefreshDelayBase
 	if r.nextCatalogRefresh.IsZero() {
@@ -88,7 +99,7 @@ func (r *catalogRefresh) Ensure() error {
 
 	logger.Debugf("Catalog refresh starting now; next scheduled for %s.", next)
 
-	err := refreshCatalogs(r.state, theStore)
+	err = refreshCatalogs(r.state, theStore)
 	switch err {
 	case nil:
 		logger.Debugf("Catalog refresh succeeded.")

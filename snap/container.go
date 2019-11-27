@@ -46,8 +46,9 @@ type Container interface {
 	// ListDir returns the content of a single directory inside the snap.
 	ListDir(path string) ([]string, error)
 
-	// Install copies the snap file to targetPath (and possibly unpacks it to mountDir)
-	Install(targetPath, mountDir string) error
+	// Install copies the snap file to targetPath (and possibly unpacks it to mountDir).
+	// The bool return value indicates if the backend had nothing to do on install.
+	Install(targetPath, mountDir string) (bool, error)
 
 	// Unpack unpacks the src parts to the dst directory
 	Unpack(src, dst string) error

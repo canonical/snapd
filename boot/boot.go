@@ -277,21 +277,27 @@ func MarkBootSuccessful() error {
 	return bl.SetBootVars(m)
 }
 
+// BootableSet represents the boot snaps of a system to be made bootable.
+type BootableSet struct {
+	Base       *snap.Info
+	BasePath   string
+	Kernel     *snap.Info
+	KernelPath string
+
+	UnpackedGadgetDir string
+}
+
 // MakeBootable sets up the image filesystem with the given rootdir
-// such that it can be booted. bootWith is a map from the paths in the
-// image seed for kernel and boot base to their snap info. This
-// entails:
+// such that it can be booted. This entails:
 //  - installing the bootloader configuration from the gadget
 //  - creating symlinks for boot snaps from seed to the runtime blob dir
 //  - setting boot env vars pointing to the revisions of the boot snaps to use
 //  - extracting kernel assets as needed by the bootloader
-func MakeBootable(model *asserts.Model, rootdir string, bootWith map[string]*snap.Info, unpackedGadgetDir string) error {
-	if len(bootWith) != 2 {
-		return fmt.Errorf("internal error: MakeBootable can only be called with exactly one kernel and exactly one core/base boot info: %v", bootWith)
-	}
+func MakeBootable(model *asserts.Model, rootdir string, bootWith *BootableSet) error {
+	opts := &bootloader.Options{PrepareImageTime: true}
 
 	// install the bootloader configuration from the gadget
-	if err := bootloader.InstallBootConfig(unpackedGadgetDir, rootdir); err != nil {
+	if err := bootloader.InstallBootConfig(bootWith.UnpackedGadgetDir, rootdir, opts); err != nil {
 		return err
 	}
 
@@ -303,7 +309,7 @@ func MakeBootable(model *asserts.Model, rootdir string, bootWith map[string]*sna
 		return err
 	}
 
-	for fn := range bootWith {
+	for _, fn := range []string{bootWith.BasePath, bootWith.KernelPath} {
 		dst := filepath.Join(snapBlobDir, filepath.Base(fn))
 		// construct a relative symlink from the blob dir
 		// to the seed snap file
@@ -319,9 +325,7 @@ func MakeBootable(model *asserts.Model, rootdir string, bootWith map[string]*sna
 	// Set bootvars for kernel/core snaps so the system boots and
 	// does the first-time initialization. There is also no
 	// mounted kernel/core/base snap, but just the blobs.
-	bl, err := bootloader.Find(rootdir, &bootloader.Options{
-		PrepareImageTime: true,
-	})
+	bl, err := bootloader.Find(rootdir, opts)
 	if err != nil {
 		return fmt.Errorf("cannot set kernel/core boot variables: %s", err)
 	}
@@ -335,29 +339,22 @@ func MakeBootable(model *asserts.Model, rootdir string, bootWith map[string]*sna
 		m["snap_menuentry"] = model.DisplayName()
 	}
 
-	for fn, info := range bootWith {
-		bootvar := ""
-
-		switch info.GetType() {
-		case snap.TypeOS, snap.TypeBase:
-			bootvar = "snap_core"
-		case snap.TypeKernel:
-			snapf, err := snap.Open(fn)
-			if err != nil {
-				return err
-			}
-
-			if err := bl.ExtractKernelAssets(info, snapf); err != nil {
-				return err
-			}
-			bootvar = "snap_kernel"
-		}
-
-		if bootvar != "" {
-			name := filepath.Base(fn)
-			m[bootvar] = name
-		}
+	setBoot := func(name, fn string) {
+		m[name] = filepath.Base(fn)
 	}
+	// base
+	setBoot("snap_core", bootWith.BasePath)
+
+	// kernel
+	kernelf, err := snap.Open(bootWith.KernelPath)
+	if err != nil {
+		return err
+	}
+	if err := bl.ExtractKernelAssets(bootWith.Kernel, kernelf); err != nil {
+		return err
+	}
+	setBoot("snap_kernel", bootWith.KernelPath)
+
 	if err := bl.SetBootVars(m); err != nil {
 		return err
 	}

@@ -385,9 +385,9 @@ func (m *DeviceManager) ensureOperational() error {
 
 var populateStateFromSeed = populateStateFromSeedImpl
 
-// ensureSnaps makes sure that the snaps from seed.yaml get installed
+// ensureSeeded makes sure that the snaps from seed.yaml get installed
 // with the matching assertions
-func (m *DeviceManager) ensureSeedYaml() error {
+func (m *DeviceManager) ensureSeeded() error {
 	m.state.Lock()
 	defer m.state.Unlock()
 
@@ -406,9 +406,11 @@ func (m *DeviceManager) ensureSeedYaml() error {
 		return nil
 	}
 
+	// TODO: Core 20: how do we establish whether this is a Core 20
+	// system, how do we receive mode here and also how to pick a label?
 	var tsAll []*state.TaskSet
 	timings.Run(perfTimings, "state-from-seed", "populate state from seed", func(tm timings.Measurer) {
-		tsAll, err = populateStateFromSeed(m.state, tm)
+		tsAll, err = populateStateFromSeed(m.state, nil, tm)
 	})
 	if err != nil {
 		return err
@@ -427,6 +429,12 @@ func (m *DeviceManager) ensureSeedYaml() error {
 	perfTimings.AddTag("change-id", chg.ID())
 	perfTimings.Save(m.state)
 	return nil
+}
+
+// ResetBootOk is only useful for integration testing
+func (m *DeviceManager) ResetBootOk() {
+	m.bootOkRan = false
+	m.bootRevisionsUpdated = false
 }
 
 func (m *DeviceManager) ensureBootOk() error {
@@ -518,7 +526,7 @@ func (e *ensureError) Error() string {
 func (m *DeviceManager) Ensure() error {
 	var errs []error
 
-	if err := m.ensureSeedYaml(); err != nil {
+	if err := m.ensureSeeded(); err != nil {
 		errs = append(errs, err)
 	}
 	if err := m.ensureOperational(); err != nil {

@@ -20,6 +20,9 @@
 package main_test
 
 import (
+	"os"
+	"path/filepath"
+
 	"gopkg.in/check.v1"
 
 	snap "github.com/snapcore/snapd/cmd/snap"
@@ -58,4 +61,24 @@ func (s *SnapSuite) TestDownloadChannelAndRevision(c *check.C) {
 	})
 
 	c.Check(err, check.ErrorMatches, "cannot specify both channel and revision")
+}
+
+func (s *SnapSuite) TestPrintInstalHint(c *check.C) {
+	snap.PrintInstallHint("foo_1.assert", "foo_1.snap")
+	c.Check(s.Stdout(), check.Equals, `Install the snap with:
+   snap ack foo_1.assert
+   snap install foo_1.snap
+`)
+	s.stdout.Reset()
+
+	cwd, err := os.Getwd()
+	c.Assert(err, check.IsNil)
+	as := filepath.Join(cwd, "some-dir/foo_1.assert")
+	sn := filepath.Join(cwd, "some-dir/foo_1.snap")
+	snap.PrintInstallHint(as, sn)
+	c.Check(s.Stdout(), check.Equals, `Install the snap with:
+   snap ack some-dir/foo_1.assert
+   snap install some-dir/foo_1.snap
+`)
+
 }

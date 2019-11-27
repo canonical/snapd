@@ -20,6 +20,7 @@
 package daemon
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"errors"
@@ -32,6 +33,7 @@ import (
 	"net/http"
 	"net/url"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"sort"
 	"strconv"
@@ -41,6 +43,7 @@ import (
 	"github.com/gorilla/mux"
 	"github.com/jessevdk/go-flags"
 
+	"github.com/snapcore/snapd/arch"
 	"github.com/snapcore/snapd/asserts"
 	"github.com/snapcore/snapd/asserts/snapasserts"
 	"github.com/snapcore/snapd/client"
@@ -65,6 +68,7 @@ import (
 	"github.com/snapcore/snapd/progress"
 	"github.com/snapcore/snapd/release"
 	"github.com/snapcore/snapd/snap"
+	"github.com/snapcore/snapd/snap/channel"
 	"github.com/snapcore/snapd/store"
 	"github.com/snapcore/snapd/strutil"
 	"github.com/snapcore/snapd/systemd"
@@ -229,11 +233,17 @@ var (
 	buildID = "unknown"
 )
 
+var systemdVirt = ""
+
 func init() {
 	// cache the build-id on startup to ensure that changes in
 	// the underlying binary do not affect us
 	if bid, err := osutil.MyBuildID(); err == nil {
 		buildID = bid
+	}
+	// cache systemd-detect-virt output as it's unlikely to change :-)
+	if buf, err := exec.Command("systemd-detect-virt").CombinedOutput(); err == nil {
+		systemdVirt = string(bytes.TrimSpace(buf))
 	}
 }
 
@@ -288,8 +298,13 @@ func sysInfo(c *Command, r *http.Request, user *auth.UserState) Response {
 			"snap-mount-dir": dirs.SnapMountDir,
 			"snap-bin-dir":   dirs.SnapBinariesDir,
 		},
-		"refresh": refreshInfo,
+		"refresh":      refreshInfo,
+		"architecture": arch.DpkgArchitecture(),
 	}
+	if systemdVirt != "" {
+		m["virtualization"] = systemdVirt
+	}
+
 	// NOTE: Right now we don't have a good way to differentiate if we
 	// only have partial confinement (ala AppArmor disabled and Seccomp
 	// enabled) or no confinement at all. Once we have a better system
@@ -731,20 +746,46 @@ func (*licenseData) Error() string {
 	return "license agreement required"
 }
 
+type snapRevisionOptions struct {
+	Channel  string        `json:"channel"`
+	Revision snap.Revision `json:"revision"`
+
+	CohortKey   string `json:"cohort-key"`
+	LeaveCohort bool   `json:"leave-cohort"`
+}
+
+func (ropt *snapRevisionOptions) validate() error {
+	if ropt.CohortKey != "" {
+		if ropt.LeaveCohort {
+			return fmt.Errorf("cannot specify both cohort-key and leave-cohort")
+		}
+		if !ropt.Revision.Unset() {
+			return fmt.Errorf("cannot specify both cohort-key and revision")
+		}
+	}
+
+	if ropt.Channel != "" {
+		ch, err := channel.Parse(ropt.Channel, "-")
+		if err != nil {
+			return err
+		}
+		ropt.Channel = ch.Name
+	}
+	return nil
+}
+
 type snapInstruction struct {
 	progress.NullMeter
-	Action           string        `json:"action"`
-	Amend            bool          `json:"amend"`
-	Channel          string        `json:"channel"`
-	Revision         snap.Revision `json:"revision"`
-	CohortKey        string        `json:"cohort-key"`
-	LeaveCohort      bool          `json:"leave-cohort"`
-	DevMode          bool          `json:"devmode"`
-	JailMode         bool          `json:"jailmode"`
-	Classic          bool          `json:"classic"`
-	IgnoreValidation bool          `json:"ignore-validation"`
-	Unaliased        bool          `json:"unaliased"`
-	Purge            bool          `json:"purge,omitempty"`
+
+	Action string `json:"action"`
+	Amend  bool   `json:"amend"`
+	snapRevisionOptions
+	DevMode          bool `json:"devmode"`
+	JailMode         bool `json:"jailmode"`
+	Classic          bool `json:"classic"`
+	IgnoreValidation bool `json:"ignore-validation"`
+	Unaliased        bool `json:"unaliased"`
+	Purge            bool `json:"purge,omitempty"`
 	// dropping support temporarely until flag confusion is sorted,
 	// this isn't supported by client atm anyway
 	LeaveOld bool         `json:"temp-dropped-leave-old"`
@@ -779,6 +820,30 @@ func (inst *snapInstruction) installFlags() (snapstate.Flags, error) {
 		flags.Unaliased = true
 	}
 	return flags, nil
+}
+
+func (inst *snapInstruction) validate() error {
+	if inst.CohortKey != "" {
+		if inst.Action != "install" && inst.Action != "refresh" && inst.Action != "switch" {
+			return fmt.Errorf("cohort-key can only be specified for install, refresh, or switch")
+		}
+	}
+	if inst.LeaveCohort {
+		if inst.Action != "refresh" && inst.Action != "switch" {
+			return fmt.Errorf("leave-cohort can only be specified for refresh or switch")
+		}
+	}
+	if inst.Action == "install" {
+		for _, snapName := range inst.Snaps {
+			// FIXME: alternatively we could simply mutate *inst
+			//        and s/ubuntu-core/core/ ?
+			if snapName == "ubuntu-core" {
+				return fmt.Errorf(`cannot install "ubuntu-core", please use "core" instead`)
+			}
+		}
+	}
+
+	return inst.snapRevisionOptions.validate()
 }
 
 type snapInstructionResult struct {
@@ -874,37 +939,6 @@ func snapUpdateMany(inst *snapInstruction, st *state.State) (*snapInstructionRes
 		Affected: updated,
 		Tasksets: tasksets,
 	}, nil
-}
-
-func verifySnapInstructions(inst *snapInstruction) error {
-	if inst.CohortKey != "" {
-		if inst.LeaveCohort {
-			return fmt.Errorf("cannot specify both cohort-key and leave-cohort")
-		}
-		if !inst.Revision.Unset() {
-			return fmt.Errorf("cannot specify both cohort-key and revision")
-		}
-		if inst.Action != "install" && inst.Action != "refresh" && inst.Action != "switch" {
-			return fmt.Errorf("cohort-key can only be specified for install, refresh, or switch")
-		}
-	}
-	if inst.LeaveCohort {
-		if inst.Action != "refresh" && inst.Action != "switch" {
-			return fmt.Errorf("leave-cohort can only be specified for refresh or switch")
-		}
-	}
-	switch inst.Action {
-	case "install":
-		for _, snapName := range inst.Snaps {
-			// FIXME: alternatively we could simply mutate *inst
-			//        and s/ubuntu-core/core/ ?
-			if snapName == "ubuntu-core" {
-				return fmt.Errorf(`cannot install "ubuntu-core", please use "core" instead`)
-			}
-		}
-	}
-
-	return nil
 }
 
 func snapInstallMany(inst *snapInstruction, st *state.State) (*snapInstructionResult, error) {
@@ -1180,7 +1214,7 @@ func postSnap(c *Command, r *http.Request, user *auth.UserState) Response {
 	vars := muxVars(r)
 	inst.Snaps = []string{vars["name"]}
 
-	if err := verifySnapInstructions(&inst); err != nil {
+	if err := inst.validate(); err != nil {
 		return BadRequest("%s", err)
 	}
 
@@ -1285,7 +1319,7 @@ func snapsOp(c *Command, r *http.Request, user *auth.UserState) Response {
 	if inst.Channel != "" || !inst.Revision.Unset() || inst.DevMode || inst.JailMode || inst.CohortKey != "" || inst.LeaveCohort {
 		return BadRequest("unsupported option provided for multi-snap operation")
 	}
-	if err := verifySnapInstructions(&inst); err != nil {
+	if err := inst.validate(); err != nil {
 		return BadRequest("%v", err)
 	}
 

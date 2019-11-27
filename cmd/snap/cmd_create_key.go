@@ -52,6 +52,7 @@ used for signing assertions.
 			desc: i18n.G("Name of key to create; defaults to 'default'"),
 		}})
 	cmd.hidden = true
+	cmd.completeHidden = true
 }
 
 func (x *cmdCreateKey) Execute(args []string) error {

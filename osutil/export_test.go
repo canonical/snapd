@@ -32,6 +32,11 @@ import (
 	"github.com/snapcore/snapd/osutil/sys"
 )
 
+var (
+	StreamsEqualChunked  = streamsEqualChunked
+	FilesAreEqualChunked = filesAreEqualChunked
+)
+
 func MockUserLookup(mock func(name string) (*user.User, error)) func() {
 	realUserLookup := userLookup
 	userLookup = mock

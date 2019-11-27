@@ -44,7 +44,7 @@ import (
 	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/osutil/strace"
-	"github.com/snapcore/snapd/selinux"
+	"github.com/snapcore/snapd/sandbox/selinux"
 	"github.com/snapcore/snapd/snap"
 	"github.com/snapcore/snapd/snap/snapenv"
 	"github.com/snapcore/snapd/strutil/shlex"
@@ -149,7 +149,7 @@ func maybeWaitForSecurityProfileRegeneration(cli *client.Client) error {
 		if _, err := cli.SysInfo(); err == nil {
 			return nil
 		}
-		// sleep a litte bit for good measure
+		// sleep a little bit for good measure
 		time.Sleep(1 * time.Second)
 	}
 

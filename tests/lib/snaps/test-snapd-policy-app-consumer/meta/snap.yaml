@@ -338,6 +338,9 @@ apps:
   storage-framework-service:
     command: bin/run
     plugs: [ storage-framework-service ]
+  system-backup:
+    command: bin/run
+    plugs: [ system-backup ]
   system-observe:
     command: bin/run
     plugs: [ system-observe ]

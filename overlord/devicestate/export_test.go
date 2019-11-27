@@ -107,13 +107,15 @@ func MockSnapstateUpdateWithDeviceContext(f func(st *state.State, name string, o
 	}
 }
 
-func EnsureSeedYaml(m *DeviceManager) error {
-	return m.ensureSeedYaml()
+func EnsureSeeded(m *DeviceManager) error {
+	return m.ensureSeeded()
 }
 
 var PopulateStateFromSeedImpl = populateStateFromSeedImpl
 
-func MockPopulateStateFromSeed(f func(*state.State, timings.Measurer) ([]*state.TaskSet, error)) (restore func()) {
+type PopulateStateFromSeedOptions = populateStateFromSeedOptions
+
+func MockPopulateStateFromSeed(f func(*state.State, *PopulateStateFromSeedOptions, timings.Measurer) ([]*state.TaskSet, error)) (restore func()) {
 	old := populateStateFromSeed
 	populateStateFromSeed = f
 	return func() {
@@ -145,10 +147,11 @@ func RemodelDeviceBackend(remodCtx remodelContext) storecontext.DeviceBackend {
 }
 
 var (
-	ImportAssertionsFromSeed = importAssertionsFromSeed
-	CheckGadgetOrKernel      = checkGadgetOrKernel
-	CanAutoRefresh           = canAutoRefresh
-	NewEnoughProxy           = newEnoughProxy
+	ImportAssertionsFromSeed     = importAssertionsFromSeed
+	CheckGadgetOrKernel          = checkGadgetOrKernel
+	CheckGadgetRemodelCompatible = checkGadgetRemodelCompatible
+	CanAutoRefresh               = canAutoRefresh
+	NewEnoughProxy               = newEnoughProxy
 
 	IncEnsureOperationalAttempts = incEnsureOperationalAttempts
 	EnsureOperationalAttempts    = ensureOperationalAttempts
@@ -159,14 +162,23 @@ var (
 	CleanupRemodelCtx = cleanupRemodelCtx
 	CachedRemodelCtx  = cachedRemodelCtx
 
-	GadgetUpdateBlocked    = gadgetUpdateBlocked
-	GadgetCurrentAndUpdate = gadgetCurrentAndUpdate
+	GadgetUpdateBlocked = gadgetUpdateBlocked
+	CurrentGadgetInfo   = currentGadgetInfo
+	PendingGadgetInfo   = pendingGadgetInfo
 )
 
-func MockGadgetUpdate(mock func(current, update gadget.GadgetData, path string) error) (restore func()) {
+func MockGadgetUpdate(mock func(current, update gadget.GadgetData, path string, policy gadget.UpdatePolicyFunc) error) (restore func()) {
 	old := gadgetUpdate
 	gadgetUpdate = mock
 	return func() {
 		gadgetUpdate = old
+	}
+}
+
+func MockGadgetIsCompatible(mock func(current, update *gadget.Info) error) (restore func()) {
+	old := gadgetIsCompatible
+	gadgetIsCompatible = mock
+	return func() {
+		gadgetIsCompatible = old
 	}
 }

@@ -43,6 +43,7 @@ func (*featureSuite) TestName(c *C) {
 	c.Check(features.SnapdSnap.String(), Equals, "snapd-snap")
 	c.Check(features.PerUserMountNamespace.String(), Equals, "per-user-mount-namespace")
 	c.Check(features.RefreshAppAwareness.String(), Equals, "refresh-app-awareness")
+	c.Check(features.ClassicPreservesXdgRuntimeDir.String(), Equals, "classic-preserves-xdg-runtime-dir")
 	c.Check(features.RobustMountNamespaceUpdates.String(), Equals, "robust-mount-namespace-updates")
 	c.Check(func() { _ = features.SnapdFeature(1000).String() }, PanicMatches, "unknown feature flag code 1000")
 }
@@ -64,6 +65,7 @@ func (*featureSuite) TestIsExported(c *C) {
 	c.Check(features.ParallelInstances.IsExported(), Equals, true)
 	c.Check(features.PerUserMountNamespace.IsExported(), Equals, true)
 	c.Check(features.RefreshAppAwareness.IsExported(), Equals, true)
+	c.Check(features.ClassicPreservesXdgRuntimeDir.IsExported(), Equals, true)
 }
 
 func (*featureSuite) TestIsEnabled(c *C) {
@@ -92,6 +94,7 @@ func (*featureSuite) TestIsEnabledWhenUnset(c *C) {
 	c.Check(features.SnapdSnap.IsEnabledWhenUnset(), Equals, false)
 	c.Check(features.PerUserMountNamespace.IsEnabledWhenUnset(), Equals, false)
 	c.Check(features.RefreshAppAwareness.IsEnabledWhenUnset(), Equals, false)
+	c.Check(features.ClassicPreservesXdgRuntimeDir.IsEnabledWhenUnset(), Equals, false)
 	c.Check(features.RobustMountNamespaceUpdates.IsEnabledWhenUnset(), Equals, false)
 }
 

@@ -29,7 +29,7 @@ type cmdInternalFirstBoot struct{}
 
 func init() {
 	cmd := addCommand("firstboot",
-		"Internal",
+		"Deprecated (hidden)",
 		"The firstboot command is only retained for backwards compatibility.",
 		func() flags.Commander {
 			return &cmdInternalFirstBoot{}

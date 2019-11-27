@@ -422,10 +422,15 @@ version: 4.0
 	err = os.Rename(kernelFn, kernelInSeed)
 	c.Assert(err, IsNil)
 
-	err = boot.MakeBootable(model, rootdir, map[string]*snap.Info{
-		kernelInSeed: kernelInfo,
-		baseInSeed:   baseInfo,
-	}, unpackedGadgetDir)
+	bootWith := &boot.BootableSet{
+		Base:              baseInfo,
+		BasePath:          baseInSeed,
+		Kernel:            kernelInfo,
+		KernelPath:        kernelInSeed,
+		UnpackedGadgetDir: unpackedGadgetDir,
+	}
+
+	err = boot.MakeBootable(model, rootdir, bootWith)
 	c.Assert(err, IsNil)
 
 	// check the bootloader config

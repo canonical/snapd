@@ -562,6 +562,9 @@ func (cs *taskSuite) TestTaskSetEdge(c *C) {
 	edge1 := state.TaskSetEdge("on-edge")
 	edge2 := state.TaskSetEdge("eddie")
 
+	// nil task causes panic
+	c.Check(func() { ts.MarkEdge(nil, edge1) }, PanicMatches, `cannot set edge "on-edge" with nil task`)
+
 	// no edge marked yet
 	t, err := ts.Edge(edge1)
 	c.Assert(t, IsNil)

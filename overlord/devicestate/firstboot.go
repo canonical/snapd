@@ -61,7 +61,18 @@ func trivialSeeding(st *state.State, markSeeded *state.Task) []*state.TaskSet {
 	return []*state.TaskSet{configTs, state.NewTaskSet(markSeeded)}
 }
 
-func populateStateFromSeedImpl(st *state.State, tm timings.Measurer) ([]*state.TaskSet, error) {
+type populateStateFromSeedOptions struct {
+	Label string
+	Mode  string
+}
+
+func populateStateFromSeedImpl(st *state.State, opts *populateStateFromSeedOptions, tm timings.Measurer) ([]*state.TaskSet, error) {
+	mode := "run"
+	sysLabel := ""
+	if opts != nil {
+		mode = opts.Mode
+		sysLabel = opts.Label
+	}
 	// check that the state is empty
 	var seeded bool
 	err := st.Get("seeded", &seeded)
@@ -74,7 +85,7 @@ func populateStateFromSeedImpl(st *state.State, tm timings.Measurer) ([]*state.T
 
 	markSeeded := st.NewTask("mark-seeded", i18n.G("Mark system seeded"))
 
-	deviceSeed, err := seed.Open(dirs.SnapSeedDir)
+	deviceSeed, err := seed.Open(dirs.SnapSeedDir, sysLabel)
 	if err != nil {
 		return nil, err
 	}
@@ -101,13 +112,13 @@ func populateStateFromSeedImpl(st *state.State, tm timings.Measurer) ([]*state.T
 	}
 
 	essentialSeedSnaps := deviceSeed.EssentialSnaps()
-	seedSnaps, err := deviceSeed.ModeSnaps("run") // XXX mode should be passed in
+	seedSnaps, err := deviceSeed.ModeSnaps(mode)
 	if err != nil {
 		return nil, err
 	}
 
-	// allSnapInfos are collected for cross-check validation of bases
-	allSnapInfos := make(map[string]*snap.Info, len(essentialSeedSnaps)+len(seedSnaps))
+	// collected snap infos
+	infos := make([]*snap.Info, 0, len(essentialSeedSnaps)+len(seedSnaps))
 
 	tsAll := []*state.TaskSet{}
 	configTss := []*state.TaskSet{}
@@ -126,8 +137,7 @@ func populateStateFromSeedImpl(st *state.State, tm timings.Measurer) ([]*state.T
 		}
 	}
 
-	essInfoToTs := make(map[*snap.Info]*state.TaskSet, len(essentialSeedSnaps))
-	essInfos := make([]*snap.Info, 0, len(essentialSeedSnaps))
+	infoToTs := make(map[*snap.Info]*state.TaskSet, len(essentialSeedSnaps))
 
 	if len(essentialSeedSnaps) != 0 {
 		// we *always* configure "core" here even if bases are used
@@ -145,13 +155,12 @@ func populateStateFromSeedImpl(st *state.State, tm timings.Measurer) ([]*state.T
 			// wait for the previous configTss
 			configTss = chainTs(configTss, configTs)
 		}
-		essInfos = append(essInfos, info)
-		essInfoToTs[info] = ts
-		allSnapInfos[info.SnapName()] = info
+		infos = append(infos, info)
+		infoToTs[info] = ts
 	}
 	// now add/chain the tasksets in the right order based on essential
 	// snap types
-	chainSorted(essInfos, essInfoToTs)
+	chainSorted(infos, infoToTs)
 
 	// chain together configuring core, kernel, and gadget after
 	// installing them so that defaults are availabble from gadget
@@ -161,8 +170,7 @@ func populateStateFromSeedImpl(st *state.State, tm timings.Measurer) ([]*state.T
 	}
 
 	// ensure we install in the right order
-	infoToTs := make(map[*snap.Info]*state.TaskSet, len(seedSnaps))
-	infos := make([]*snap.Info, 0, len(seedSnaps))
+	infoToTs = make(map[*snap.Info]*state.TaskSet, len(seedSnaps))
 
 	for _, seedSnap := range seedSnaps {
 		var flags snapstate.Flags
@@ -172,11 +180,10 @@ func populateStateFromSeedImpl(st *state.State, tm timings.Measurer) ([]*state.T
 		}
 		infos = append(infos, info)
 		infoToTs[info] = ts
-		allSnapInfos[info.SnapName()] = info
 	}
 
 	// validate that all snaps have bases
-	errs := snap.ValidateBasesAndProviders(allSnapInfos)
+	errs := snap.ValidateBasesAndProviders(infos)
 	if errs != nil {
 		// only report the first error encountered
 		return nil, errs[0]
@@ -184,7 +191,7 @@ func populateStateFromSeedImpl(st *state.State, tm timings.Measurer) ([]*state.T
 
 	// now add/chain the tasksets in the right order, note that we
 	// only have tasksets that we did not already seeded
-	chainSorted(infos, infoToTs)
+	chainSorted(infos[len(essentialSeedSnaps):], infoToTs)
 
 	if len(tsAll) == 0 {
 		return nil, fmt.Errorf("cannot proceed, no snaps to seed")
