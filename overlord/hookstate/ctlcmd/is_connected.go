@@ -35,7 +35,7 @@ type isConnectedCommand struct {
 	} `positional-args:"true" required:"true"`
 }
 
-var shortIsConnectedHelp = i18n.G(`return success if the given plug or slot is connected, and failure otherwise`)
+var shortIsConnectedHelp = i18n.G(`Return success if the given plug or slot is connected, and failure otherwise`)
 var longIsConnectedHelp = i18n.G(`
 The is-connected command returns success if the given plug or slot of the
 calling snap is connected, and failure otherwise.
