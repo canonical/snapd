@@ -451,36 +451,36 @@ func (s *SerialPortInterfaceSuite) TestConnectedPlugAppArmorSnippets(c *C) {
 		c.Assert(snippet, DeepEquals, expectedSnippet)
 	}
 
-	expectedSnippet1 := `/dev/ttyS0 rw,`
+	expectedSnippet1 := `/dev/ttyS0 rwk,`
 	checkConnectedPlugSnippet(s.testPlugPort1, s.testSlot1, expectedSnippet1)
-	expectedSnippet2 := `/dev/ttyUSB927 rw,`
+	expectedSnippet2 := `/dev/ttyUSB927 rwk,`
 	checkConnectedPlugSnippet(s.testPlugPort1, s.testSlot2, expectedSnippet2)
 
-	expectedSnippet3 := `/dev/ttyS42 rw,`
+	expectedSnippet3 := `/dev/ttyS42 rwk,`
 	checkConnectedPlugSnippet(s.testPlugPort1, s.testSlot3, expectedSnippet3)
 
-	expectedSnippet4 := `/dev/ttyO0 rw,`
+	expectedSnippet4 := `/dev/ttyO0 rwk,`
 	checkConnectedPlugSnippet(s.testPlugPort1, s.testSlot4, expectedSnippet4)
 
-	expectedSnippet5 := `/dev/ttyACM0 rw,`
+	expectedSnippet5 := `/dev/ttyACM0 rwk,`
 	checkConnectedPlugSnippet(s.testPlugPort1, s.testSlot5, expectedSnippet5)
 
-	expectedSnippet6 := `/dev/ttyAMA0 rw,`
+	expectedSnippet6 := `/dev/ttyAMA0 rwk,`
 	checkConnectedPlugSnippet(s.testPlugPort1, s.testSlot6, expectedSnippet6)
 
-	expectedSnippet7 := `/dev/ttyXRUSB0 rw,`
+	expectedSnippet7 := `/dev/ttyXRUSB0 rwk,`
 	checkConnectedPlugSnippet(s.testPlugPort1, s.testSlot7, expectedSnippet7)
 
-	expectedSnippet8 := `/dev/ttymxc2 rw,`
+	expectedSnippet8 := `/dev/ttymxc2 rwk,`
 	checkConnectedPlugSnippet(s.testPlugPort1, s.testSlot8, expectedSnippet8)
 
-	expectedSnippet9 := `/dev/tty[A-Z]*[0-9] rw,`
+	expectedSnippet9 := `/dev/tty[A-Z]*[0-9] rwk,`
 	checkConnectedPlugSnippet(s.testPlugPort1, s.testUDev1, expectedSnippet9)
 
-	expectedSnippet10 := `/dev/tty[A-Z]*[0-9] rw,`
+	expectedSnippet10 := `/dev/tty[A-Z]*[0-9] rwk,`
 	checkConnectedPlugSnippet(s.testPlugPort2, s.testUDev2, expectedSnippet10)
 
-	expectedSnippet11 := `/dev/tty[A-Z]*[0-9] rw,`
+	expectedSnippet11 := `/dev/tty[A-Z]*[0-9] rwk,`
 	checkConnectedPlugSnippet(s.testPlugPort2, s.testUDev3, expectedSnippet11)
 }
 
