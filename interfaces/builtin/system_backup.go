@@ -57,6 +57,5 @@ func init() {
 		implicitOnClassic:     true,
 		baseDeclarationSlots:  systemBackupBaseDeclarationSlots,
 		connectedPlugAppArmor: systemBackupConnectedPlugAppArmor,
-		reservedForOS:         true,
 	}})
 }

@@ -105,7 +105,6 @@ func init() {
 		name:                  "packagekit-control",
 		summary:               packageKitControlSummary,
 		implicitOnClassic:     true,
-		reservedForOS:         true,
 		baseDeclarationPlugs:  packageKitControlBaseDeclarationPlugs,
 		baseDeclarationSlots:  packageKitControlBaseDeclarationSlots,
 		connectedPlugAppArmor: packageKitControlConnectedPlugAppArmor,

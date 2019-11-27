@@ -70,6 +70,5 @@ func init() {
 		implicitOnClassic:     true,
 		baseDeclarationSlots:  shutdownBaseDeclarationSlots,
 		connectedPlugAppArmor: shutdownConnectedPlugAppArmor,
-		reservedForOS:         true,
 	})
 }
