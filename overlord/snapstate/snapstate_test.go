@@ -12175,6 +12175,43 @@ func (s *snapmgrTestSuite) TestGadgetDefaults(c *C) {
 	c.Assert(m, DeepEquals, map[string]interface{}{"use-defaults": true})
 }
 
+func (s *snapmgrTestSuite) TestGadgetDefaultsNotForOS(c *C) {
+	r := release.MockOnClassic(false)
+	defer r()
+
+	// using MockSnap, we want to read the bits on disk
+	snapstate.MockSnapReadInfo(snap.ReadInfo)
+
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	snapstate.Set(s.state, "core", nil)
+
+	s.prepareGadget(c)
+
+	const coreSnapYaml = `
+name: core
+type: os
+version: 1.0
+`
+	snapPath := makeTestSnap(c, coreSnapYaml)
+
+	ts, _, err := snapstate.InstallPath(s.state, &snap.SideInfo{RealName: "core", SnapID: "core-id", Revision: snap.R(1)}, snapPath, "", "edge", snapstate.Flags{})
+	c.Assert(err, IsNil)
+
+	var m map[string]interface{}
+	runHooks := tasksWithKind(ts, "run-hook")
+
+	c.Assert(taskKinds(runHooks), DeepEquals, []string{
+		"run-hook[install]",
+		"run-hook[configure]",
+		"run-hook[check-health]",
+	})
+	// use-defaults flag is part of hook-context which isn't set
+	err = runHooks[1].Get("hook-context", &m)
+	c.Assert(err, Equals, state.ErrNoState)
+}
+
 func (s *snapmgrTestSuite) TestInstallPathSkipConfigure(c *C) {
 	r := release.MockOnClassic(false)
 	defer r()
