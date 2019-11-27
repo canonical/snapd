@@ -170,6 +170,8 @@ func ParseMountEntry(s string) (MountEntry, error) {
 func MountOptsToCommonFlags(opts []string) (flags int, unparsed []string) {
 	for _, opt := range opts {
 		switch opt {
+		case "rw":
+			// There's no flag for rw
 		case "ro":
 			flags |= syscall.MS_RDONLY
 		case "nosuid":
