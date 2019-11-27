@@ -156,23 +156,18 @@ func generateMountsModeInstall() error {
 		return nil
 	}
 
-	// 4. final step: write $(ubuntu_data)/var/lib/snapd/modenv
-	_, err = boot.ReadModeenv(filepath.Join(runMnt, "ubuntu-data"))
-	if err != nil && !os.IsNotExist(err) {
+	// 4. final step: write $(ubuntu_data)/var/lib/snapd/modeenv - this
+	//    is the tmpfs we just created above
+	_, seedLabel, err := findSeed()
+	if err != nil {
 		return err
 	}
-	if os.IsNotExist(err) {
-		_, seedLabel, err := findSeed()
-		if err != nil {
-			return err
-		}
-		modeEnv := &boot.Modeenv{
-			Mode:           "install",
-			RecoverySystem: seedLabel,
-		}
-		if err := modeEnv.Write(filepath.Join(runMnt, "ubuntu-data")); err != nil {
-			return err
-		}
+	modeEnv := &boot.Modeenv{
+		Mode:           "install",
+		RecoverySystem: seedLabel,
+	}
+	if err := modeEnv.Write(filepath.Join(runMnt, "ubuntu-data")); err != nil {
+		return err
 	}
 
 	// 5. done, no output, no error indicates to initramfs we are done
