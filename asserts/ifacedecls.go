@@ -554,16 +554,6 @@ func baseCompileConstraints(context *subruleContext, cDef constraintsDef, target
 		return nil
 	}
 	defaultUsed := 0
-	for _, field := range idConstraints {
-		lst, err := checkStringListInMap(cMap, field, fmt.Sprintf("%s in %s", field, context), validIDConstraints[field])
-		if err != nil {
-			return err
-		}
-		if lst == nil {
-			defaultUsed++
-		}
-		target.setIDConstraints(field, lst)
-	}
 	for _, field := range attrConstraints {
 		cstrs := AlwaysMatchAttributes
 		v := cMap[field]
@@ -577,6 +567,16 @@ func baseCompileConstraints(context *subruleContext, cDef constraintsDef, target
 			defaultUsed++
 		}
 		target.setAttributeConstraints(field, cstrs)
+	}
+	for _, field := range idConstraints {
+		lst, err := checkStringListInMap(cMap, field, fmt.Sprintf("%s in %s", field, context), validIDConstraints[field])
+		if err != nil {
+			return err
+		}
+		if lst == nil {
+			defaultUsed++
+		}
+		target.setIDConstraints(field, lst)
 	}
 	for _, field := range sideArityConstraints {
 		v := cMap[field]
