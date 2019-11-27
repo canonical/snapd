@@ -155,6 +155,5 @@ func init() {
 		implicitOnClassic:     true,
 		baseDeclarationSlots:  u2fDevicesBaseDeclarationSlots,
 		connectedPlugAppArmor: u2fDevicesConnectedPlugAppArmor,
-		reservedForOS:         true,
 	}})
 }

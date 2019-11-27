@@ -134,7 +134,6 @@ func init() {
 		baseDeclarationSlots:  systemObserveBaseDeclarationSlots,
 		connectedPlugAppArmor: systemObserveConnectedPlugAppArmor,
 		connectedPlugSecComp:  systemObserveConnectedPlugSecComp,
-		reservedForOS:         true,
 		suppressPtraceTrace:   true,
 	})
 }
