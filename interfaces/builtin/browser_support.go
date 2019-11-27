@@ -76,6 +76,10 @@ owner /{dev,run}/shm/.io.nwjs.* mrw,
 # miscellaneous accesses
 @{PROC}/vmstat r,
 
+# Chromium content api sometimes queries about huge pages. Allow status of
+# hugepages and transparent_hugepage, but not the pages themselves.
+/sys/kernel/mm/{hugepages,transparent_hugepage}/{,**} r,
+
 # Chromium content api in gnome-shell reads this
 /etc/opt/chrome/{,**} r,
 /etc/chromium/{,**} r,
