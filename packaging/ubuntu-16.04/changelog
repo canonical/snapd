@@ -1,3 +1,11 @@
+snapd (2.42.4) xenial; urgency=medium
+
+  * New upstream release, LP: #1853244
+    - overlord/snapstate: make sure configuration defaults are applied
+      only once
+
+ -- Michael Vogt <michael.vogt@ubuntu.com>  Thu, 28 Nov 2019 06:48:26 +0100
+
 snapd (2.42.3) xenial; urgency=medium
 
   * New upstream release, LP: #1853244
