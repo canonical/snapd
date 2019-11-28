@@ -2,9 +2,9 @@
 
 make_snap() {
     local SNAP_NAME="$1"
-    local SNAP_DIR="$2"
-    if [ -z "$SNAP_DIR" ]; then
-        SNAP_DIR="$TESTSLIB/snaps/${SNAP_NAME}"
+    local SNAP_DIR="$TESTSLIB/snaps/${SNAP_NAME}"
+    if [ $# -gt 1 ]; then
+        SNAP_DIR="$2"
     fi
     local SNAP_FILE="${SNAP_DIR}/${SNAP_NAME}_1.0_all.snap"
     # assigned in a separate step to avoid hiding a failure
