@@ -89,6 +89,7 @@ type MockCmd struct {
 // - generate \0 to separate args
 // - generate \0\0 to separate commands
 var scriptTpl = `#!/bin/bash
+###LOCK###
 printf "%%s" "$(basename "$0")" >> %[1]q
 printf '\0' >> %[1]q
 
@@ -101,15 +102,9 @@ printf '\0' >> %[1]q
 %s
 `
 
-// MockCommand adds a mocked command. If the basename argument is a command it
-// is added to PATH. If it is an absolute path it is just created there, along
-// with the full prefix. The caller is responsible for the cleanup in this case.
-//
-// The command logs all invocations to a dedicated log file. If script is
-// non-empty then it is used as is and the caller is responsible for how the
-// script behaves (exit code and any extra behavior). If script is empty then
-// the command exits successfully without any other side-effect.
-func MockCommand(c *check.C, basename, script string) *MockCmd {
+var selfLock = `if [ "${FLOCKER}" != "$0" ]; then exec env FLOCKER="$0" flock -e "$0" "$0" "$@" ; fi`
+
+func mockCommand(c *check.C, basename, script, template string) *MockCmd {
 	var wholeScript bytes.Buffer
 	var binDir, exeFile, logFile string
 	if filepath.IsAbs(basename) {
@@ -126,7 +121,7 @@ func MockCommand(c *check.C, basename, script string) *MockCmd {
 		logFile = path.Join(binDir, basename+".log")
 		os.Setenv("PATH", binDir+":"+os.Getenv("PATH"))
 	}
-	fmt.Fprintf(&wholeScript, scriptTpl, logFile, script)
+	fmt.Fprintf(&wholeScript, template, logFile, script)
 	err := ioutil.WriteFile(exeFile, wholeScript.Bytes(), 0700)
 	if err != nil {
 		panic(err)
@@ -135,6 +130,25 @@ func MockCommand(c *check.C, basename, script string) *MockCmd {
 	maybeShellcheck(c, script, &wholeScript)
 
 	return &MockCmd{binDir: binDir, exeFile: exeFile, logFile: logFile}
+}
+
+// MockCommand adds a mocked command. If the basename argument is a command it
+// is added to PATH. If it is an absolute path it is just created there, along
+// with the full prefix. The caller is responsible for the cleanup in this case.
+//
+// The command logs all invocations to a dedicated log file. If script is
+// non-empty then it is used as is and the caller is responsible for how the
+// script behaves (exit code and any extra behavior). If script is empty then
+// the command exits successfully without any other side-effect.
+func MockCommand(c *check.C, basename, script string) *MockCmd {
+	return mockCommand(c, basename, script, strings.Replace(scriptTpl, "###LOCK###", "", 1))
+}
+
+// MockLockCommand is the same as MockCommand(), but the script uses flock to
+// enforce exclusive locking, preventing the call tracking from being corrupted.
+// Thus it is safe to be called in parallel.
+func MockLockedCommand(c *check.C, basename, script string) *MockCmd {
+	return mockCommand(c, basename, script, strings.Replace(scriptTpl, "###LOCK###", selfLock, 1))
 }
 
 // Also mock this command, using the same bindir and log.
