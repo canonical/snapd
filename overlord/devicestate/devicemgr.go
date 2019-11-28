@@ -255,11 +255,15 @@ func setClassicFallbackModel(st *state.State, device *auth.DeviceState) error {
 	return nil
 }
 
+func (m *DeviceManager) operatingMode() string {
+	return m.modeEnv.Mode
+}
+
 func (m *DeviceManager) ensureOperational() error {
 	m.state.Lock()
 	defer m.state.Unlock()
 
-	if m.modeEnv.Mode == "install" {
+	if m.operatingMode() == "install" {
 		// avoid doing registration in install mode
 		return nil
 	}
