@@ -90,7 +90,7 @@ func SetOperatingMode(m *DeviceManager, mode string) {
 // XXX: will become properly exported but we probably want to make
 //      mode a type and not a string before we do that
 func OperatingMode(m *DeviceManager) string {
-	return m.modeEnv.Mode
+	return m.operatingMode()
 }
 
 func MockRepeatRequestSerial(label string) (restore func()) {
