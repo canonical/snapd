@@ -95,6 +95,5 @@ func init() {
 		implicitOnClassic:     true,
 		baseDeclarationSlots:  timeserverControlBaseDeclarationSlots,
 		connectedPlugAppArmor: timeserverControlConnectedPlugAppArmor,
-		reservedForOS:         true,
 	})
 }

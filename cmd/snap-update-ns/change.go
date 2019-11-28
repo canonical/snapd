@@ -28,6 +28,7 @@ import (
 	"strings"
 	"syscall"
 
+	"github.com/snapcore/snapd/features"
 	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/osutil"
 )
@@ -399,6 +400,23 @@ func (c *Change) lowLevelPerform(as *Assumptions) error {
 			if kind == "" && (err == syscall.ENOTEMPTY || err == syscall.EEXIST) {
 				return nil
 			}
+			if features.RobustMountNamespaceUpdates.IsEnabled() {
+				// FIXME: This should not be necessary. It is necessary because
+				// mimic construction code is not considering all layouts in tandem
+				// and doesn't know enough about base file system to construct
+				// mimics in the order that would prevent them from nesting.
+				//
+				// By ignoring EBUSY here and by continuing to tear down the mimic
+				// tmpfs entirely (without any reuse) we guarantee that at the end
+				// of the day the nested mimic case is entirely removed.
+				//
+				// In an ideal world we would model this better and could do
+				// without this edge case.
+				if kind == "" && err == syscall.EBUSY {
+					logger.Debugf("cannot remove busy mount point %q", path)
+					return nil
+				}
+			}
 		}
 		return err
 	case Keep:
@@ -408,16 +426,9 @@ func (c *Change) lowLevelPerform(as *Assumptions) error {
 	return fmt.Errorf("cannot process mount change: unknown action: %q", c.Action)
 }
 
-// NeededChanges computes the changes required to change current to desired mount entries.
-//
-// The current and desired profiles is a fstab like list of mount entries. The
-// lists are processed and a "diff" of mount changes is produced. The mount
-// changes, when applied in order, transform the current profile into the
-// desired profile.
-var NeededChanges = neededChangesImpl
-
-// neededChangesImpl is the real implementation of NeededChanges
-func neededChangesImpl(currentProfile, desiredProfile *osutil.MountProfile) []*Change {
+// neededChangesOld is the real implementation of NeededChanges
+// This function is used when RobustMountNamespaceUpdate is not enabled.
+func neededChangesOld(currentProfile, desiredProfile *osutil.MountProfile) []*Change {
 	// Copy both profiles as we will want to mutate them.
 	current := make([]osutil.MountEntry, len(currentProfile.Entries))
 	copy(current, currentProfile.Entries)
@@ -529,4 +540,84 @@ func neededChangesImpl(currentProfile, desiredProfile *osutil.MountProfile) []*C
 	}
 
 	return changes
+}
+
+// neededChangesNew is the real implementation of NeededChanges
+// This function is used when RobustMountNamespaceUpdate is enabled.
+func neededChangesNew(currentProfile, desiredProfile *osutil.MountProfile) []*Change {
+	// Copy both profiles as we will want to mutate them.
+	current := make([]osutil.MountEntry, len(currentProfile.Entries))
+	copy(current, currentProfile.Entries)
+	desired := make([]osutil.MountEntry, len(desiredProfile.Entries))
+	copy(desired, desiredProfile.Entries)
+
+	// Clean the directory part of both profiles. This is done so that we can
+	// easily test if a given directory is a subdirectory with
+	// strings.HasPrefix coupled with an extra slash character.
+	for i := range current {
+		current[i].Dir = filepath.Clean(current[i].Dir)
+	}
+	for i := range desired {
+		desired[i].Dir = filepath.Clean(desired[i].Dir)
+	}
+
+	// Sort both lists by directory name with implicit trailing slash.
+	sort.Sort(byOriginAndMagicDir(current))
+	sort.Sort(byOriginAndMagicDir(desired))
+
+	// We are now ready to compute the necessary mount changes.
+	var changes []*Change
+
+	// Unmount entries in reverse order, so that the most nested element is
+	// always processed first.
+	for i := len(current) - 1; i >= 0; i-- {
+		var entry osutil.MountEntry = current[i]
+		entry.Options = append([]string(nil), entry.Options...)
+		switch {
+		case entry.XSnapdSynthetic() && entry.Type == "tmpfs":
+			// Synthetic changes are rooted under a tmpfs, detach that tmpfs to
+			// remove them all.
+			if !entry.XSnapdDetach() {
+				entry.Options = append(entry.Options, osutil.XSnapdDetach())
+			}
+		case entry.XSnapdSynthetic():
+			// Consume all other syn ethic entries without emitting either a
+			// mount, unmount or keep change.  This relies on the fact that all
+			// synthetic mounts are created by a mimic underneath a tmpfs that
+			// is detached, as coded above.
+			continue
+		case entry.OptBool("rbind") || entry.Type == "tmpfs":
+			// Recursive bind mounts and non-mimic tmpfs mounts need to be
+			// detached because they can contain other mount points that can
+			// otherwise propagate in a self-conflicting way.
+			if !entry.XSnapdDetach() {
+				entry.Options = append(entry.Options, osutil.XSnapdDetach())
+			}
+		}
+		// Unmount all changes that were not eliminated.
+		changes = append(changes, &Change{Action: Unmount, Entry: entry})
+	}
+
+	// Mount desired entries.
+	for i := range desired {
+		changes = append(changes, &Change{Action: Mount, Entry: desired[i]})
+	}
+
+	return changes
+}
+
+// NeededChanges computes the changes required to change current to desired mount entries.
+//
+// The algorithm differs depending on the value of the robust mount namespace
+// updates feature flag. If the flag is enabled then the current profile is
+// entirely undone and the desired profile is constructed from scratch.
+//
+// If the flag is disabled then a diff-like operation on the mount profile is
+// computed. Some of the mount entries from the current profile may be reused.
+// The diff approach doesn't function correctly in cases of nested mimics.
+var NeededChanges = func(current, desired *osutil.MountProfile) []*Change {
+	if features.RobustMountNamespaceUpdates.IsEnabled() {
+		return neededChangesNew(current, desired)
+	}
+	return neededChangesOld(current, desired)
 }

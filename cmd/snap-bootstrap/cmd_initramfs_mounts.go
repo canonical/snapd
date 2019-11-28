@@ -20,16 +20,20 @@
 package main
 
 import (
+	"bufio"
 	"bytes"
 	"fmt"
 	"io"
 	"io/ioutil"
 	"os"
 	"path/filepath"
+	"strings"
 
+	"github.com/snapcore/snapd/boot"
 	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/seed"
 	"github.com/snapcore/snapd/snap"
+	"github.com/snapcore/snapd/strutil"
 	"github.com/snapcore/snapd/timings"
 )
 
@@ -64,16 +68,36 @@ var (
 	osutilIsMounted = osutil.IsMounted
 )
 
+// XXX: make this more flexible if there are multiple seeds on disk, i.e.
+// read kernel commandline in this case (bootenv is off limits because
+// it's not measured).
+func findRecoverySystem(seedDir string) (systemLabel string, err error) {
+	l, err := filepath.Glob(filepath.Join(seedDir, "systems/*"))
+	if err != nil {
+		return "", err
+	}
+	if len(l) == 0 {
+		return "", fmt.Errorf("cannot find a recovery system")
+	}
+	if len(l) > 1 {
+		return "", fmt.Errorf("cannot use multiple recovery systems yet")
+	}
+	systemLabel = filepath.Base(l[0])
+	return systemLabel, nil
+}
+
 // generateMountsMode* is called multiple times from initramfs until it
 // no longer generates more mount points and just returns an empty output.
 func generateMountsModeInstall() error {
+	seedDir := filepath.Join(runMnt, "ubuntu-seed")
+
 	// 1. always ensure seed partition is mounted
-	isMounted, err := osutilIsMounted(filepath.Join(runMnt, "ubuntu-seed"))
+	isMounted, err := osutilIsMounted(seedDir)
 	if err != nil {
 		return err
 	}
 	if !isMounted {
-		fmt.Fprintf(stdout, "/dev/disk/by-label/ubuntu-seed %s\n", filepath.Join(runMnt, "ubuntu-seed"))
+		fmt.Fprintf(stdout, "/dev/disk/by-label/ubuntu-seed %s\n", seedDir)
 		return nil
 	}
 	// XXX: how do we select a different recover system from the cmdline?
@@ -84,36 +108,28 @@ func generateMountsModeInstall() error {
 		return err
 	}
 	if !isMounted {
-		l, err := filepath.Glob(filepath.Join(runMnt, "/ubuntu-seed/systems/*"))
+		// load the recovery system  and generate mounts for kernel/base
+		systemLabel, err := findRecoverySystem(seedDir)
 		if err != nil {
 			return err
 		}
-		if len(l) == 0 {
-			return fmt.Errorf("cannot find a recovery system")
-		}
-		if len(l) > 1 {
-			return fmt.Errorf("cannot use multiple recovery systems yet")
-		}
-		// load the seed and generate mounts for kernel/base
-		label := filepath.Base(l[0])
-		seedDir := filepath.Dir(filepath.Dir(l[0]))
-		deviceSeed, err := seed.Open(seedDir, label)
+		systemSeed, err := seed.Open(seedDir, systemLabel)
 		if err != nil {
 			return err
 		}
 		// load assertions into a temporary database
-		if err := deviceSeed.LoadAssertions(nil, nil); err != nil {
+		if err := systemSeed.LoadAssertions(nil, nil); err != nil {
 			return err
 		}
 		perf := timings.New(nil)
 		// XXX: LoadMeta will verify all the snaps in the
 		// seed, that is probably too much. We can expose more
 		// dedicated helpers for this later.
-		if err := deviceSeed.LoadMeta(perf); err != nil {
+		if err := systemSeed.LoadMeta(perf); err != nil {
 			return err
 		}
 		// XXX: do we need more cross checks here?
-		for _, essentialSnap := range deviceSeed.EssentialSnaps() {
+		for _, essentialSnap := range systemSeed.EssentialSnaps() {
 			snapf, err := snap.Open(essentialSnap.Path)
 			if err != nil {
 				return err
@@ -144,7 +160,21 @@ func generateMountsModeInstall() error {
 		return nil
 	}
 
-	// 4. done, no output, no error indicates to initramfs we are done
+	// 4. final step: write $(ubuntu_data)/var/lib/snapd/modeenv - this
+	//    is the tmpfs we just created above
+	systemLabel, err := findRecoverySystem(seedDir)
+	if err != nil {
+		return err
+	}
+	modeEnv := &boot.Modeenv{
+		Mode:           "install",
+		RecoverySystem: systemLabel,
+	}
+	if err := modeEnv.Write(filepath.Join(runMnt, "ubuntu-data")); err != nil {
+		return err
+	}
+
+	// 5. done, no output, no error indicates to initramfs we are done
 	//    with mounting stuff
 	return nil
 }
@@ -157,30 +187,27 @@ func generateMountsModeRun() error {
 	return fmt.Errorf("run mode mount generation not implemented yet")
 }
 
-func isInstallMode(content []byte) bool {
-	// XXX: deal with whitespace
-	if bytes.Contains(content, []byte("snapd_recovery_mode=install")) {
-		return true
-	}
-	// no snapd_recovery_mode var set -> assume install mode
-	if bytes.Contains(content, []byte("snapd_recovery_mode= ")) || bytes.HasSuffix(content, []byte("snapd_recovery_mode=")) {
-		return true
-	}
-	return false
-}
+var validModes = []string{"install", "recover", "run"}
 
-func isRecoverMode(content []byte) bool {
-	// XXX: deal with whitespace
-	return bytes.Contains(content, []byte("snapd_recovery_mode=recover"))
-}
-
-func isRunMode(content []byte) bool {
-	// XXX: deal with whitespace XXX2: The "snap-bootstrap
-	// initramfs-mounts" helper will run in both if we run from a
-	// recovery grub or from a normal grub. However in the normal
-	// case we probably have no "snapd_recovery_mode" set. So we
-	// may tweak this later to assume run-mode if nothing is set.
-	return bytes.Contains(content, []byte("snapd_recovery_mode=run"))
+func whichMode(content []byte) (string, error) {
+	scanner := bufio.NewScanner(bytes.NewBuffer(content))
+	scanner.Split(bufio.ScanWords)
+	for scanner.Scan() {
+		if strings.HasPrefix(scanner.Text(), "snapd_recovery_mode=") {
+			mode := strings.SplitN(scanner.Text(), "=", 2)[1]
+			if mode == "" {
+				mode = "install"
+			}
+			if !strutil.ListContains(validModes, mode) {
+				return "", fmt.Errorf("cannot use unknown mode %q", mode)
+			}
+			return mode, nil
+		}
+	}
+	if err := scanner.Err(); err != nil {
+		return "", err
+	}
+	return "", fmt.Errorf("cannot detect if in run,install,recover mode")
 }
 
 func generateInitramfsMounts() error {
@@ -188,14 +215,18 @@ func generateInitramfsMounts() error {
 	if err != nil {
 		return err
 	}
-	switch {
-	case isRecoverMode(content):
-		return generateMountsModeRecover()
-	case isInstallMode(content):
-		return generateMountsModeInstall()
-	case isRunMode(content):
-		return generateMountsModeRun()
-	default:
-		return fmt.Errorf("cannot detect if in run,install,recover mode")
+	mode, err := whichMode(content)
+	if err != nil {
+		return err
 	}
+	switch mode {
+	case "recover":
+		return generateMountsModeRecover()
+	case "install":
+		return generateMountsModeInstall()
+	case "run":
+		return generateMountsModeRun()
+	}
+	// this should never be reached
+	return fmt.Errorf("internal error: mode in generateInitramfsMounts not handled")
 }

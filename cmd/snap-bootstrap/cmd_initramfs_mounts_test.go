@@ -122,6 +122,13 @@ func (s *initramfsMountsSuite) TestInitramfsMountsNoModeError(c *C) {
 	c.Assert(err, ErrorMatches, "cannot detect if in run,install,recover mode")
 }
 
+func (s *initramfsMountsSuite) TestInitramfsMountsUnknonwnMode(c *C) {
+	s.mockProcCmdlineContent(c, "snapd_recovery_mode=install-foo")
+
+	_, err := main.Parser.ParseArgs([]string{"initramfs-mounts"})
+	c.Assert(err, ErrorMatches, `cannot use unknown mode "install-foo"`)
+}
+
 func (s *initramfsMountsSuite) TestInitramfsMountsNoRunModeYet(c *C) {
 	s.mockProcCmdlineContent(c, "snapd_recovery_mode=run")
 
@@ -201,4 +208,35 @@ func (s *initramfsMountsSuite) TestInitramfsMountsInstallModeStep3(c *C) {
 	c.Assert(err, IsNil)
 	c.Assert(n, Equals, 3)
 	c.Check(s.Stdout.String(), Equals, "--type=tmpfs tmpfs /run/mnt/ubuntu-data\n")
+}
+
+func (s *initramfsMountsSuite) TestInitramfsMountsInstallModeStep4(c *C) {
+	n := 0
+	s.mockProcCmdlineContent(c, "snapd_recovery_mode=install")
+
+	restore := main.MockOsutilIsMounted(func(path string) (bool, error) {
+		n++
+		switch n {
+		case 1:
+			c.Check(path, Equals, filepath.Join(s.runMnt, "ubuntu-seed"))
+			return true, nil
+		case 2:
+			c.Check(path, Equals, filepath.Join(s.runMnt, "base"))
+			return true, nil
+		case 3:
+			c.Check(path, Equals, filepath.Join(s.runMnt, "ubuntu-data"))
+			return true, nil
+		}
+		return false, fmt.Errorf("unexpected number of calls: %v", n)
+	})
+	defer restore()
+
+	_, err := main.Parser.ParseArgs([]string{"initramfs-mounts"})
+	c.Assert(err, IsNil)
+	c.Assert(n, Equals, 3)
+	c.Check(s.Stdout.String(), Equals, "")
+	modeEnv := filepath.Join(s.runMnt, "/ubuntu-data/var/lib/snapd/modeenv")
+	c.Check(modeEnv, testutil.FileEquals, `mode=install
+recovery_system=20191118
+`)
 }

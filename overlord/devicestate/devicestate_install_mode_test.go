@@ -109,7 +109,7 @@ func (s *deviceMgrInstallModeSuite) TestInstallModeCreatesChangeHappy(c *C) {
 
 	release.OnClassic = false
 	s.state.Set("seeded", true)
-	devicestate.SetRecoveryMode(s.mgr, "install")
+	devicestate.SetOperatingMode(s.mgr, "install")
 
 	s.state.Unlock()
 	s.settle(c)
@@ -136,7 +136,7 @@ func (s *deviceMgrInstallModeSuite) TestInstallModeNotInstallmodeNoChg(c *C) {
 
 	release.OnClassic = false
 	s.state.Set("seeded", true)
-	devicestate.SetRecoveryMode(s.mgr, "")
+	devicestate.SetOperatingMode(s.mgr, "")
 
 	s.state.Unlock()
 	s.settle(c)
@@ -163,7 +163,7 @@ func (s *deviceMgrInstallModeSuite) TestInstallModeNotSeededNoChg(c *C) {
 
 	release.OnClassic = false
 	s.state.Set("seeded", false)
-	devicestate.SetRecoveryMode(s.mgr, "install")
+	devicestate.SetOperatingMode(s.mgr, "install")
 
 	s.state.Unlock()
 	s.settle(c)
@@ -181,7 +181,7 @@ func (s *deviceMgrInstallModeSuite) TestInstallModeNotClassic(c *C) {
 
 	release.OnClassic = true
 	s.state.Set("seeded", true)
-	devicestate.SetRecoveryMode(s.mgr, "install")
+	devicestate.SetOperatingMode(s.mgr, "install")
 
 	s.state.Unlock()
 	s.settle(c)
