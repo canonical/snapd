@@ -351,12 +351,15 @@ func (s *deviceMgrSuite) TestDeviceManagerEnsureSeededHappyWithModeenv(c *C) {
 	defer restore()
 
 	// mock the modeenv file
-	devicestate.SetOperatingMode(s.mgr, "install")
 	m := boot.Modeenv{
 		Mode:           "install",
 		RecoverySystem: "20191127",
 	}
 	err := m.Write("")
+	c.Assert(err, IsNil)
+
+	// re-create manager so that modeenv file is-read
+	s.mgr, err = devicestate.Manager(s.state, s.hookMgr, s.o.TaskRunner(), s.newStore)
 	c.Assert(err, IsNil)
 
 	err = devicestate.EnsureSeeded(s.mgr)

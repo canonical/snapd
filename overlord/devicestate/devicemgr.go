@@ -46,8 +46,7 @@ import (
 // DeviceManager is responsible for managing the device identity and device
 // policies.
 type DeviceManager struct {
-	// operatingMode of a UC20 system. "","run","install","recover"
-	operatingMode string
+	modeEnv boot.Modeenv
 
 	state      *state.State
 	keypairMgr asserts.KeypairManager
@@ -88,7 +87,7 @@ func Manager(s *state.State, hookManager *hookstate.HookManager, runner *state.T
 		return nil, err
 	}
 	if modeEnv != nil {
-		m.operatingMode = modeEnv.Mode
+		m.modeEnv = *modeEnv
 	}
 
 	s.Lock()
@@ -260,7 +259,7 @@ func (m *DeviceManager) ensureOperational() error {
 	m.state.Lock()
 	defer m.state.Unlock()
 
-	if m.operatingMode == "install" {
+	if m.modeEnv.Mode == "install" {
 		// avoid doing registration in install mode
 		return nil
 	}
@@ -400,17 +399,6 @@ func (m *DeviceManager) ensureOperational() error {
 	return nil
 }
 
-func getPopulateStateFromSeedOptions() (*populateStateFromSeedOptions, error) {
-	modeEnv, err := boot.ReadModeenv("")
-	if os.IsNotExist(err) {
-		return nil, nil
-	}
-	return &populateStateFromSeedOptions{
-		Label: modeEnv.RecoverySystem,
-		Mode:  modeEnv.Mode,
-	}, nil
-}
-
 var populateStateFromSeed = populateStateFromSeedImpl
 
 // ensureSeeded makes sure that the snaps from seed.yaml get installed
@@ -434,12 +422,9 @@ func (m *DeviceManager) ensureSeeded() error {
 		return nil
 	}
 
-	opts, err := getPopulateStateFromSeedOptions()
-	if err != nil {
-		return err
-	}
-	if opts != nil && m.operatingMode != opts.Mode {
-		return fmt.Errorf("internal error: operatingMode inconsistent with ensureSeeded mode %q != %q", m.operatingMode, opts.Mode)
+	opts := &populateStateFromSeedOptions{
+		Label: m.modeEnv.RecoverySystem,
+		Mode:  m.modeEnv.Mode,
 	}
 	var tsAll []*state.TaskSet
 	timings.Run(perfTimings, "state-from-seed", "populate state from seed", func(tm timings.Measurer) {
