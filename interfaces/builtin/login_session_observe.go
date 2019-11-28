@@ -102,6 +102,5 @@ func init() {
 		implicitOnClassic:     true,
 		baseDeclarationSlots:  loginSessionObserveBaseDeclarationSlots,
 		connectedPlugAppArmor: loginSessionObserveConnectedPlugAppArmor,
-		reservedForOS:         true,
 	}})
 }
