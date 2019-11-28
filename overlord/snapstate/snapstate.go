@@ -63,6 +63,9 @@ const (
 
 const (
 	DownloadAndChecksDoneEdge = state.TaskSetEdge("download-and-checks-done")
+	BeginEdge                 = state.TaskSetEdge("begin")
+	BeforeHooksEdge           = state.TaskSetEdge("before-hooks")
+	HooksEdge                 = state.TaskSetEdge("hooks")
 )
 
 var ErrNothingToDo = errors.New("nothing to do")
@@ -259,9 +262,10 @@ func doInstall(st *state.State, snapst *SnapState, snapsup *SnapSetup, flags int
 		prev = postRefreshHook
 	}
 
+	var installHook *state.Task
 	// only run install hook if installing the snap for the first time
 	if !snapst.IsInstalled() {
-		installHook := SetupInstallHook(st, snapsup.InstanceName())
+		installHook = SetupInstallHook(st, snapsup.InstanceName())
 		addTask(installHook)
 		prev = installHook
 	}
@@ -337,8 +341,19 @@ func doInstall(st *state.State, snapst *SnapState, snapsup *SnapSetup, flags int
 	}
 
 	if flags&skipConfigure != 0 {
+		if installHook != nil {
+			installSet.MarkEdge(installHook, HooksEdge)
+		}
+		installSet.MarkEdge(prereq, BeginEdge)
+		installSet.MarkEdge(setupAliases, BeforeHooksEdge)
 		return installSet, nil
 	}
+
+	if installHook != nil {
+		ts.MarkEdge(installHook, HooksEdge)
+	}
+	ts.MarkEdge(prereq, BeginEdge)
+	ts.MarkEdge(setupAliases, BeforeHooksEdge)
 
 	// we do not support configuration for bases or the "snapd" snap yet
 	if snapsup.Type != snap.TypeBase && snapsup.Type != snap.TypeSnapd {
