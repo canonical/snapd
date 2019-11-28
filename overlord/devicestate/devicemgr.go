@@ -426,9 +426,12 @@ func (m *DeviceManager) ensureSeeded() error {
 		return nil
 	}
 
-	opts := &populateStateFromSeedOptions{
-		Label: m.modeEnv.RecoverySystem,
-		Mode:  m.modeEnv.Mode,
+	var opts *populateStateFromSeedOptions
+	if m.operatingMode() != "" {
+		opts = &populateStateFromSeedOptions{
+			Label: m.modeEnv.RecoverySystem,
+			Mode:  m.modeEnv.Mode,
+		}
 	}
 	var tsAll []*state.TaskSet
 	timings.Run(perfTimings, "state-from-seed", "populate state from seed", func(tm timings.Measurer) {
