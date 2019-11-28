@@ -42,17 +42,26 @@ func (s *deviceMgrInstallModeSuite) findInstallSystem() *state.Change {
 	return nil
 }
 
-func (s *deviceMgrInstallModeSuite) TestInstallModeCreatesChangeHappy(c *C) {
+func (s *deviceMgrInstallModeSuite) SetUpTest(c *C) {
+	s.deviceMgrBaseSuite.SetUpTest(c)
+
 	s.state.Lock()
 	defer s.state.Unlock()
-
-	release.OnClassic = false
 	s.state.Set("seeded", true)
-	devicestate.SetOperatingMode(s.mgr, "install")
+}
 
-	s.state.Unlock()
-	s.settle(c)
+func (s *deviceMgrInstallModeSuite) TestInstallModeCreatesChangeHappy(c *C) {
+	restore := release.MockOnClassic(false)
+	defer restore()
+
 	s.state.Lock()
+	devicestate.SetOperatingMode(s.mgr, "install")
+	s.state.Unlock()
+
+	s.settle(c)
+
+	s.state.Lock()
+	defer s.state.Unlock()
 
 	// the install-system change is created
 	createPartitions := s.findInstallSystem()
@@ -60,16 +69,17 @@ func (s *deviceMgrInstallModeSuite) TestInstallModeCreatesChangeHappy(c *C) {
 }
 
 func (s *deviceMgrInstallModeSuite) TestInstallModeNotInstallmodeNoChg(c *C) {
+	restore := release.MockOnClassic(false)
+	defer restore()
+
+	s.state.Lock()
+	devicestate.SetOperatingMode(s.mgr, "")
+	s.state.Unlock()
+
+	s.settle(c)
+
 	s.state.Lock()
 	defer s.state.Unlock()
-
-	release.OnClassic = false
-	s.state.Set("seeded", true)
-	devicestate.SetOperatingMode(s.mgr, "")
-
-	s.state.Unlock()
-	s.settle(c)
-	s.state.Lock()
 
 	// the install-system change is *not* created (not in install mode)
 	createPartitions := s.findInstallSystem()
@@ -77,16 +87,17 @@ func (s *deviceMgrInstallModeSuite) TestInstallModeNotInstallmodeNoChg(c *C) {
 }
 
 func (s *deviceMgrInstallModeSuite) TestInstallModeNotClassic(c *C) {
+	restore := release.MockOnClassic(true)
+	defer restore()
+
+	s.state.Lock()
+	devicestate.SetOperatingMode(s.mgr, "install")
+	s.state.Unlock()
+
+	s.settle(c)
+
 	s.state.Lock()
 	defer s.state.Unlock()
-
-	release.OnClassic = true
-	s.state.Set("seeded", true)
-	devicestate.SetOperatingMode(s.mgr, "install")
-
-	s.state.Unlock()
-	s.settle(c)
-	s.state.Lock()
 
 	// the install-system change is *not* created (we're on classic)
 	createPartitions := s.findInstallSystem()
