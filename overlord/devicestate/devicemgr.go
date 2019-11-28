@@ -106,7 +106,7 @@ func Manager(s *state.State, hookManager *hookstate.HookManager, runner *state.T
 	runner.AddHandler("generate-device-key", m.doGenerateDeviceKey, nil)
 	runner.AddHandler("request-serial", m.doRequestSerial, nil)
 	runner.AddHandler("mark-seeded", m.doMarkSeeded, nil)
-	runner.AddHandler("make-run-system", m.doMakeRunSystem, nil)
+	runner.AddHandler("setup-run-system", m.doSetupRunSystem, nil)
 	runner.AddHandler("prepare-remodeling", m.doPrepareRemodeling, nil)
 	runner.AddCleanup("prepare-remodeling", m.cleanupRemodel)
 	// this *must* always run last and finalizes a remodel
@@ -514,8 +514,8 @@ func (m *DeviceManager) ensureInstalled() error {
 	m.ensureInstalledRan = true
 
 	tasks := []*state.Task{}
-	makeRunSystem := m.state.NewTask("make-run-system", i18n.G("Prepare system for run mode"))
-	tasks = append(tasks, makeRunSystem)
+	setupRunSystem := m.state.NewTask("setup-run-system", i18n.G("Setup system for run mode"))
+	tasks = append(tasks, setupRunSystem)
 
 	chg := m.state.NewChange("install-system", i18n.G("Install the system"))
 	chg.AddAll(state.NewTaskSet(tasks...))

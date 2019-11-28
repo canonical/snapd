@@ -26,7 +26,7 @@ import (
 	"github.com/snapcore/snapd/timings"
 )
 
-func (m *DeviceManager) doMakeRunSystem(t *state.Task, _ *tomb.Tomb) error {
+func (m *DeviceManager) doSetupRunSystem(t *state.Task, _ *tomb.Tomb) error {
 	st := t.State()
 	st.Lock()
 	defer st.Unlock()
