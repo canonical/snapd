@@ -36,7 +36,5 @@ func (m *DeviceManager) doMakeRunSystem(t *state.Task, _ *tomb.Tomb) error {
 
 	// XXX: add handler content
 
-	t.SetStatus(state.DoneStatus)
-
 	return nil
 }
