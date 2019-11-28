@@ -28,6 +28,8 @@ import (
 
 	. "gopkg.in/check.v1"
 
+	"github.com/snapcore/snapd/bootloader"
+	"github.com/snapcore/snapd/bootloader/bootloadertest"
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/overlord/auth"
 	"github.com/snapcore/snapd/overlord/configstate/config"
@@ -36,6 +38,7 @@ import (
 	"github.com/snapcore/snapd/overlord/state"
 	"github.com/snapcore/snapd/release"
 	"github.com/snapcore/snapd/snap"
+	"github.com/snapcore/snapd/snap/snaptest"
 	"github.com/snapcore/snapd/testutil"
 )
 
@@ -121,7 +124,7 @@ func (s *linkSnapSuite) TestDoLinkSnapSuccess(c *C) {
 	c.Check(snapst.Active, Equals, true)
 	c.Check(snapst.Sequence, HasLen, 1)
 	c.Check(snapst.Current, Equals, snap.R(33))
-	c.Check(snapst.Channel, Equals, "beta")
+	c.Check(snapst.TrackingChannel, Equals, "latest/beta")
 	c.Check(snapst.UserID, Equals, 2)
 	c.Check(snapst.CohortKey, Equals, "")
 	c.Check(t.Status(), Equals, state.DoneStatus)
@@ -169,7 +172,7 @@ func (s *linkSnapSuite) TestDoLinkSnapSuccessWithCohort(c *C) {
 	c.Check(snapst.Active, Equals, true)
 	c.Check(snapst.Sequence, HasLen, 1)
 	c.Check(snapst.Current, Equals, snap.R(33))
-	c.Check(snapst.Channel, Equals, "beta")
+	c.Check(snapst.TrackingChannel, Equals, "latest/beta")
 	c.Check(snapst.UserID, Equals, 2)
 	c.Check(snapst.CohortKey, Equals, "wobbling")
 	c.Check(t.Status(), Equals, state.DoneStatus)
@@ -960,9 +963,12 @@ func (s *linkSnapSuite) TestDoUnlinkSnapRefreshHardCheckOff(c *C) {
 func (s *linkSnapSuite) testDoUnlinkSnapRefreshAwareness(c *C) *state.Change {
 	restore := release.MockOnClassic(true)
 	defer restore()
+	mockPidsCgroupDir := c.MkDir()
+	restore = snapstate.MockPidsCgroupDir(mockPidsCgroupDir)
+	defer restore()
 
 	// mock that "some-snap" has an app and that this app has pids running
-	writePids(c, filepath.Join(dirs.PidsCgroupDir, "snap.some-snap.some-app"), []int{1234})
+	writePids(c, filepath.Join(mockPidsCgroupDir, "snap.some-snap.some-app"), []int{1234})
 	snapstate.MockSnapReadInfo(func(name string, si *snap.SideInfo) (*snap.Info, error) {
 		info := &snap.Info{SuggestedName: name, SideInfo: *si, SnapType: snap.TypeApp}
 		info.Apps = map[string]*snap.AppInfo{
@@ -996,4 +1002,118 @@ func (s *linkSnapSuite) testDoUnlinkSnapRefreshAwareness(c *C) *state.Change {
 	}
 
 	return chg
+}
+
+func (s *linkSnapSuite) setMockKernelRemodelCtx(c *C, oldKernel, newKernel string) {
+	newModel := MakeModel(map[string]interface{}{"kernel": newKernel})
+	oldModel := MakeModel(map[string]interface{}{"kernel": oldKernel})
+	mockRemodelCtx := &snapstatetest.TrivialDeviceContext{
+		DeviceModel:    newModel,
+		OldDeviceModel: oldModel,
+	}
+	restore := snapstatetest.MockDeviceContext(mockRemodelCtx)
+	s.AddCleanup(restore)
+}
+
+func (s *linkSnapSuite) TestMaybeUndoRemodelBootChangesUnrelatedAppDoesNothing(c *C) {
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	s.setMockKernelRemodelCtx(c, "kernel", "new-kernel")
+	t := s.state.NewTask("link-snap", "...")
+	t.Set("snap-setup", &snapstate.SnapSetup{
+		SideInfo: &snap.SideInfo{
+			RealName: "some-app",
+			Revision: snap.R(1),
+		},
+	})
+
+	err := snapstate.MaybeUndoRemodelBootChanges(t)
+	c.Assert(err, IsNil)
+	c.Check(s.stateBackend.restartRequested, HasLen, 0)
+}
+
+func (s *linkSnapSuite) TestMaybeUndoRemodelBootChangesSameKernel(c *C) {
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	s.setMockKernelRemodelCtx(c, "kernel", "kernel")
+	t := s.state.NewTask("link-snap", "...")
+	t.Set("snap-setup", &snapstate.SnapSetup{
+		SideInfo: &snap.SideInfo{
+			RealName: "kernel",
+			Revision: snap.R(1),
+		},
+		Type: "kernel",
+	})
+
+	err := snapstate.MaybeUndoRemodelBootChanges(t)
+	c.Assert(err, IsNil)
+	c.Check(s.stateBackend.restartRequested, HasLen, 0)
+}
+
+func (s *linkSnapSuite) TestMaybeUndoRemodelBootChangesNeedsUndo(c *C) {
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	// undoing remodel bootenv changes is only relevant on !classic
+	restore := release.MockOnClassic(false)
+	defer restore()
+
+	// using "snaptest.MockSnap()" is more convenient here so we avoid
+	// the (default) mocking of snapReadInfo()
+	restore = snapstate.MockSnapReadInfo(snap.ReadInfo)
+	defer restore()
+
+	// we need to init the boot-id
+	err := s.state.VerifyReboot("some-boot-id")
+	c.Assert(err, IsNil)
+
+	// we pretend we do a remodel from kernel -> new-kernel
+	s.setMockKernelRemodelCtx(c, "kernel", "new-kernel")
+
+	// and we pretend that we booted into the "new-kernel" already
+	// and now that needs to be undone
+	bloader := bootloadertest.Mock("mock", c.MkDir())
+	bootloader.Force(bloader)
+	bloader.SetBootKernel("new-kernel_1.snap")
+
+	// both kernel and new-kernel are instaleld at this point
+	si := &snap.SideInfo{RealName: "kernel", Revision: snap.R(1)}
+	snapstate.Set(s.state, "kernel", &snapstate.SnapState{
+		Sequence: []*snap.SideInfo{si},
+		SnapType: "kernel",
+		Current:  snap.R(1),
+	})
+	snaptest.MockSnap(c, "name: kernel\ntype: kernel\nversion: 1.0", si)
+	si2 := &snap.SideInfo{RealName: "new-kernel", Revision: snap.R(1)}
+	snapstate.Set(s.state, "new-kernel", &snapstate.SnapState{
+		Sequence: []*snap.SideInfo{si2},
+		SnapType: "kernel",
+		Current:  snap.R(1),
+	})
+	snaptest.MockSnap(c, "name: new-kernel\ntype: kernel\nversion: 1.0", si)
+
+	t := s.state.NewTask("link-snap", "...")
+	t.Set("snap-setup", &snapstate.SnapSetup{
+		SideInfo: &snap.SideInfo{
+			RealName: "new-kernel",
+			Revision: snap.R(1),
+			SnapID:   "new-kernel-id",
+		},
+		Type: "kernel",
+	})
+
+	// now we simulate that the new kernel is getting undone
+	err = snapstate.MaybeUndoRemodelBootChanges(t)
+	c.Assert(err, IsNil)
+
+	// that will schedule a boot into the previous kernel
+	c.Assert(bloader.BootVars, DeepEquals, map[string]string{
+		"snap_mode":       "try",
+		"snap_kernel":     "new-kernel_1.snap",
+		"snap_try_kernel": "kernel_1.snap",
+	})
+	c.Check(s.stateBackend.restartRequested, HasLen, 1)
+	c.Check(s.stateBackend.restartRequested[0], Equals, state.RestartSystem)
 }

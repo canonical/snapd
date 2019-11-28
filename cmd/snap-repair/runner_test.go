@@ -1435,9 +1435,10 @@ summary: repair one
 series:
   - 16
 timestamp: 2017-07-02T12:00:00Z
-body-length: 7
+body-length: 17
 sign-key-sha3-384: KPIl7M4vQ9d4AUjkoU41TGAwtOMLc_bWUCeW8AvdRWD4_xcP60Oo4ABsFNo6BtXj
 
+#!/bin/sh
 exit 0
 
 
@@ -1460,8 +1461,9 @@ AXNpZw==`}
 	rpr, err := runner.Next("canonical")
 	c.Assert(err, IsNil)
 
-	rpr.Run()
-	c.Check(filepath.Join(dirs.SnapRepairRunDir, "canonical", "1", "r0.script"), testutil.FileEquals, "exit 0\n")
+	err = rpr.Run()
+	c.Assert(err, IsNil)
+	c.Check(filepath.Join(dirs.SnapRepairRunDir, "canonical", "1", "r0.script"), testutil.FileEquals, "#!/bin/sh\nexit 0\n")
 }
 
 func makeMockRepair(script string) string {

@@ -71,6 +71,5 @@ func init() {
 		connectedPlugAppArmor: rawusbConnectedPlugAppArmor,
 		connectedPlugSecComp:  rawusbConnectedPlugSecComp,
 		connectedPlugUDev:     rawusbConnectedPlugUDev,
-		reservedForOS:         true,
 	})
 }

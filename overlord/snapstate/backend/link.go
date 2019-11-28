@@ -79,14 +79,14 @@ func hasFontConfigCache(info *snap.Info) bool {
 }
 
 // LinkSnap makes the snap available by generating wrappers and setting the current symlinks.
-func (b Backend) LinkSnap(info *snap.Info, model *asserts.Model, tm timings.Measurer) (e error) {
+func (b Backend) LinkSnap(info *snap.Info, model *asserts.Model, prevDisabledSvcs []string, tm timings.Measurer) (e error) {
 	if info.Revision.Unset() {
 		return fmt.Errorf("cannot link snap %q with unset revision", info.InstanceName())
 	}
 
 	var err error
 	timings.Run(tm, "generate-wrappers", fmt.Sprintf("generate wrappers for snap %s", info.InstanceName()), func(timings.Measurer) {
-		err = generateWrappers(info)
+		err = generateWrappers(info, prevDisabledSvcs)
 	})
 	if err != nil {
 		return err
@@ -143,7 +143,8 @@ func (b Backend) StopServices(apps []*snap.AppInfo, reason snap.ServiceStopReaso
 	return wrappers.StopServices(apps, reason, meter, tm)
 }
 
-func generateWrappers(s *snap.Info) (err error) {
+func generateWrappers(s *snap.Info, disabledSvcs []string) error {
+	var err error
 	var cleanupFuncs []func(*snap.Info) error
 	defer func() {
 		if err != nil {
@@ -160,7 +161,7 @@ func generateWrappers(s *snap.Info) (err error) {
 	cleanupFuncs = append(cleanupFuncs, wrappers.RemoveSnapBinaries)
 
 	// add the daemons from the snap.yaml
-	if err = wrappers.AddSnapServices(s, progress.Null); err != nil {
+	if err = wrappers.AddSnapServices(s, disabledSvcs, progress.Null); err != nil {
 		return err
 	}
 	cleanupFuncs = append(cleanupFuncs, func(s *snap.Info) error {
@@ -216,6 +217,12 @@ func (b Backend) UnlinkSnap(info *snap.Info, meter progress.Meter) error {
 
 	// FIXME: aggregate errors instead
 	return firstErr(err1, err2)
+}
+
+// ServicesEnableState returns the current enabled/disabled states of a snap's
+// services, primarily for committing before snap removal/disable/revert.
+func (b Backend) ServicesEnableState(info *snap.Info, meter progress.Meter) (map[string]bool, error) {
+	return wrappers.ServicesEnableState(info, meter)
 }
 
 func removeCurrentSymlinks(info snap.PlaceInfo) error {

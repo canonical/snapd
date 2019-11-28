@@ -111,6 +111,11 @@ var u2fDevices = []u2fDevice{
 		VendorIDPattern:  "1209",
 		ProductIDPattern: "5070|50b0",
 	},
+	{
+		Name:             "OnlyKey",
+		VendorIDPattern:  "1d50",
+		ProductIDPattern: "60fc",
+	},
 }
 
 const u2fDevicesConnectedPlugAppArmor = `
@@ -150,6 +155,5 @@ func init() {
 		implicitOnClassic:     true,
 		baseDeclarationSlots:  u2fDevicesBaseDeclarationSlots,
 		connectedPlugAppArmor: u2fDevicesConnectedPlugAppArmor,
-		reservedForOS:         true,
 	}})
 }

@@ -35,7 +35,7 @@ import (
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/osutil/squashfs"
-	"github.com/snapcore/snapd/release"
+	"github.com/snapcore/snapd/sandbox/selinux"
 	"github.com/snapcore/snapd/testutil"
 
 	. "github.com/snapcore/snapd/systemd"
@@ -99,7 +99,7 @@ func (s *SystemdTestSuite) SetUpTest(c *C) {
 
 	s.rep = new(testreporter)
 
-	s.restoreSELinux = release.MockSELinuxIsEnabled(func() (bool, error) { return false, nil })
+	s.restoreSELinux = selinux.MockIsEnabled(func() (bool, error) { return false, nil })
 }
 
 func (s *SystemdTestSuite) TearDownTest(c *C) {
@@ -572,7 +572,7 @@ WantedBy=multi-user.target
 }
 
 func (s *SystemdTestSuite) TestWriteSELinuxMountUnit(c *C) {
-	restore := release.MockSELinuxIsEnabled(func() (bool, error) { return true, nil })
+	restore := selinux.MockIsEnabled(func() (bool, error) { return true, nil })
 	defer restore()
 	restore = squashfs.MockNeedsFuse(false)
 	defer restore()

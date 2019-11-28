@@ -70,7 +70,6 @@ func init() {
 		summary:                  broadcomAsicControlSummary,
 		implicitOnCore:           true,
 		implicitOnClassic:        true,
-		reservedForOS:            true,
 		baseDeclarationSlots:     broadcomAsicControlBaseDeclarationSlots,
 		connectedPlugAppArmor:    broadcomAsicControlConnectedPlugAppArmor,
 		connectedPlugKModModules: broadcomAsicControlConnectedPlugKMod,

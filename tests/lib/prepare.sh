@@ -25,6 +25,31 @@ disable_kernel_rate_limiting() {
     #sysctl -w kernel.printk_ratelimit=0
 }
 
+disable_journald_rate_limiting() {
+    # Disable journald rate limiting
+    mkdir -p /etc/systemd/journald.conf.d
+    # The RateLimitIntervalSec key is not supported on some systemd versions causing
+    # the journal rate limit could be considered as not valid and discarded in concecuence.
+    # RateLimitInterval key is supported in old systemd versions and in new ones as well,
+    # maintaining backward compatibility.
+    cat <<-EOF > /etc/systemd/journald.conf.d/no-rate-limit.conf
+    [Journal]
+    RateLimitInterval=0
+    RateLimitBurst=0
+EOF
+    systemctl restart systemd-journald.service
+}
+
+disable_journald_start_limiting() {
+    # Disable journald start limiting
+    mkdir -p /etc/systemd/system/systemd-journald.service.d
+    cat <<-EOF > /etc/systemd/system/systemd-journald.service.d/no-start-limit.conf
+    [Unit]
+    StartLimitBurst=0
+EOF
+    systemctl daemon-reload
+}
+
 ensure_jq() {
     if command -v jq; then
         return
@@ -603,6 +628,9 @@ prepare_ubuntu_core() {
         REBOOT
     fi
 
+    disable_journald_rate_limiting
+    disable_journald_start_limiting
+
     # verify after the first reboot that we are now in core18 world
     if [ "$SPREAD_REBOOT" = 1 ]; then
         echo "Ensure we are now in an all-snap world"
@@ -613,12 +641,14 @@ prepare_ubuntu_core() {
     fi
 
     # Wait for the snap command to become available.
-    for i in $(seq 120); do
-        if [ "$(command -v snap)" = "/usr/bin/snap" ] && snap version | grep -q 'snapd +1337.*'; then
-            break
-        fi
-        sleep 1
-    done
+    if [ "$SPREAD_BACKEND" != "external" ]; then
+        for i in $(seq 120); do
+            if [ "$(command -v snap)" = "/usr/bin/snap" ] && snap version | grep -q 'snapd +1337.*'; then
+                break
+            fi
+            sleep 1
+        done
+    fi
 
     # Wait for seeding to finish.
     snap wait system seed.loaded

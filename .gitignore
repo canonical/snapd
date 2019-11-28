@@ -1,4 +1,4 @@
-share
+./share
 tags
 .coverage
 cmd/version_generated.go
@@ -33,6 +33,8 @@ cmd/snapd-env-generator/snapd-env-generator
 cmd/snapd-generator/snapd-generator
 cmd/system-shutdown/system-shutdown
 cmd/system-shutdown/unit-tests
+cmd/snap/snap
+cmd/snapd/snapd
 
 # manual pages
 cmd/*/*.[1-9]

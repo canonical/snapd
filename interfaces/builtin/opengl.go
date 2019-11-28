@@ -139,6 +139,5 @@ func init() {
 		baseDeclarationSlots:  openglBaseDeclarationSlots,
 		connectedPlugAppArmor: openglConnectedPlugAppArmor,
 		connectedPlugUDev:     openglConnectedPlugUDev,
-		reservedForOS:         true,
 	})
 }

@@ -207,3 +207,18 @@ var (
 )
 
 type AuxStoreInfo = auxStoreInfo
+
+func MockPidsCgroupDir(dir string) (restore func()) {
+	old := pidsCgroupDir
+	pidsCgroupDir = dir
+	return func() {
+		pidsCgroupDir = old
+	}
+}
+
+// link, misc handlers
+var (
+	MissingDisabledServices = missingDisabledServices
+
+	MaybeUndoRemodelBootChanges = maybeUndoRemodelBootChanges
+)

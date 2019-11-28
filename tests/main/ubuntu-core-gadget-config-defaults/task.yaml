@@ -155,7 +155,7 @@ execute: |
     echo "Wait for first boot to be done"
     while ! snap changes | grep -q "Done.*Initialize system state"; do sleep 1; done
     echo "We have a model assertion"
-    snap known model|MATCH "model: my-model-w-config"
+    snap model --verbose|MATCH "model:\s* my-model-w-config"
 
     echo "The configurable snap was installed"
     snap list|MATCH "test-snapd-with-configure${SUFFIX}"

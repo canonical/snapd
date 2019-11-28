@@ -82,7 +82,7 @@ fmt:: $(filter     $(addprefix %,$(new_format)),$(foreach dir,$(subdirs),$(wildc
 fmt:: $(filter-out $(addprefix %,$(new_format)),$(foreach dir,$(subdirs),$(wildcard $(srcdir)/$(dir)/*.[ch])))
 	HOME=$(srcdir) indent $^
 
-# The hack target helps devlopers work on snap-confine on their live system by
+# The hack target helps developers work on snap-confine on their live system by
 # installing a fresh copy of snap confine and the appropriate apparmor profile.
 .PHONY: hack
 hack: snap-confine/snap-confine-debug snap-confine/snap-confine.apparmor snap-update-ns/snap-update-ns snap-seccomp/snap-seccomp snap-discard-ns/snap-discard-ns
@@ -358,7 +358,7 @@ if HAVE_RST2MAN
 endif
 
 snap-confine/snap-confine.apparmor: snap-confine/snap-confine.apparmor.in Makefile
-	sed -e 's,[@]LIBEXECDIR[@],$(libexecdir),g' -e 's,[@]SNAP_MOUNT_DIR[@],$(SNAP_MOUNT_DIR),' <$< >$@
+	sed -e 's,[@]LIBEXECDIR[@],$(libexecdir),g' -e 's,[@]SNAP_MOUNT_DIR[@],$(SNAP_MOUNT_DIR),g' <$< >$@
 
 # Install the apparmor profile
 #
@@ -377,13 +377,8 @@ install-data-local::
 	install -d -m 111 $(DESTDIR)/var/lib/snapd/void
 
 install-exec-hook::
-if CAPS_OVER_SETUID
-# Ensure that snap-confine has CAP_SYS_ADMIN capability
-	setcap cap_sys_admin=pe $(DESTDIR)$(libexecdir)/snap-confine
-else
 # Ensure that snap-confine is u+s,g+s (setuid and setgid)
 	chmod 6755 $(DESTDIR)$(libexecdir)/snap-confine
-endif
 
 ##
 ## snap-mgmt

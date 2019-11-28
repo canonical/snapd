@@ -17,14 +17,13 @@ prepare: |
   snap connect test-snapd-app:icon-themes test-snapd-gtk-common-themes:icon-themes
   snap connect test-snapd-app:sound-themes test-snapd-gtk-common-themes:sound-themes
 execute: |
-  # TODO: expand this test to install GNU time or find a suitable replacement.
-  if snap debug sandbox-features --required apparmor:kernel:mount && [ "$(command -v time)" != time ]; then
+  if snap debug sandbox-features --required apparmor:kernel:mount; then
     # Re-compile the apparmor profile for snap-update-ns for the
     # test-snapd-app snap while ensuring that the profile is not loaded
-    # into kernel memory and that the compiler is not using any existing caches.
-    # Use time(1) to record the maximum resident memory usage and store it in a
-    # file.
-    command time -o memory-kb.txt -f "%M" apparmor_parser \
+    # into kernel memory and that the compiler is not using any existing
+    # caches. Use memory-tool(1) to record the maximum resident memory usage
+    # and store it in a file.
+    memory-tool -o memory-kb.txt apparmor_parser \
       --skip-read-cache --skip-cache --skip-kernel-load -Ono-expr-simplify \
       /var/lib/snapd/apparmor/profiles/snap-update-ns.test-snapd-app
     # Without de-duplicating mount rules the compiler would take about 1.5GB on a

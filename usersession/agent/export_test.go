@@ -19,6 +19,20 @@
 
 package agent
 
+import (
+	"syscall"
+)
+
 var (
 	SessionInfoCmd = sessionInfoCmd
 )
+
+func MockUcred(ucred *syscall.Ucred, err error) (restore func()) {
+	old := sysGetsockoptUcred
+	sysGetsockoptUcred = func(fd, level, opt int) (*syscall.Ucred, error) {
+		return ucred, err
+	}
+	return func() {
+		sysGetsockoptUcred = old
+	}
+}

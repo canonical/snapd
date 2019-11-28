@@ -235,7 +235,7 @@ func (iface *desktopInterface) AppArmorConnectedPlug(spec *apparmor.Specificatio
 	spec.AddSnippet(desktopConnectedPlugAppArmor)
 
 	// Allow mounting document portal
-	emit := spec.EmitUpdateNSFunc()
+	emit := spec.AddUpdateNSf
 	emit("  # Mount the document portal\n")
 	emit("  mount options=(bind) /run/user/[0-9]*/doc/by-app/snap.%s/ -> /run/user/[0-9]*/doc/,\n", plug.Snap().InstanceName())
 	emit("  umount /run/user/[0-9]*/doc/,\n\n")

@@ -28,9 +28,7 @@ import (
 	"github.com/snapcore/snapd/usersession/userd/ui"
 )
 
-type kdialogSuite struct {
-	mock *testutil.MockCmd
-}
+type kdialogSuite struct{}
 
 var _ = Suite(&kdialogSuite{})
 

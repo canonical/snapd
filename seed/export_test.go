@@ -19,6 +19,12 @@
 
 package seed
 
+import (
+	"github.com/snapcore/snapd/seed/internal"
+)
+
+type InternalSnap16 = internal.Snap16
+
 var (
 	LoadAssertions = loadAssertions
 )

@@ -42,6 +42,5 @@ func init() {
 		implicitOnClassic:     true,
 		baseDeclarationSlots:  jack1BaseDeclarationSlots,
 		connectedPlugAppArmor: jack1ConnectedPlugAppArmor,
-		reservedForOS:         true,
 	})
 }
