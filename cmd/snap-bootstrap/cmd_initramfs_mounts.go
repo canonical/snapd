@@ -71,33 +71,33 @@ var (
 // XXX: make this more flexible if there are multiple seeds on disk, i.e.
 // read kernel commandline in this case (bootenv is off limits because
 // it's not measured).
-func findSeed() (recoverySystemDir, recoverySystemLabel string, err error) {
-	l, err := filepath.Glob(filepath.Join(runMnt, "/ubuntu-seed/systems/*"))
+func findRecoverySystem(seedDir string) (systemLabel string, err error) {
+	l, err := filepath.Glob(filepath.Join(seedDir, "systems/*"))
 	if err != nil {
-		return "", "", err
+		return "", err
 	}
 	if len(l) == 0 {
-		return "", "", fmt.Errorf("cannot find a recovery system")
+		return "", fmt.Errorf("cannot find a recovery system")
 	}
 	if len(l) > 1 {
-		return "", "", fmt.Errorf("cannot use multiple recovery systems yet")
+		return "", fmt.Errorf("cannot use multiple recovery systems yet")
 	}
-	// load the seed and generate mounts for kernel/base
-	recoverySystemLabel = filepath.Base(l[0])
-	recoverySystemDir = filepath.Dir(filepath.Dir(l[0]))
-	return recoverySystemDir, recoverySystemLabel, nil
+	systemLabel = filepath.Base(l[0])
+	return systemLabel, nil
 }
 
 // generateMountsMode* is called multiple times from initramfs until it
 // no longer generates more mount points and just returns an empty output.
 func generateMountsModeInstall() error {
+	seedDir := filepath.Join(runMnt, "ubuntu-seed")
+
 	// 1. always ensure seed partition is mounted
-	isMounted, err := osutilIsMounted(filepath.Join(runMnt, "ubuntu-seed"))
+	isMounted, err := osutilIsMounted(seedDir)
 	if err != nil {
 		return err
 	}
 	if !isMounted {
-		fmt.Fprintf(stdout, "/dev/disk/by-label/ubuntu-seed %s\n", filepath.Join(runMnt, "ubuntu-seed"))
+		fmt.Fprintf(stdout, "/dev/disk/by-label/ubuntu-seed %s\n", seedDir)
 		return nil
 	}
 	// XXX: how do we select a different recover system from the cmdline?
@@ -108,27 +108,28 @@ func generateMountsModeInstall() error {
 		return err
 	}
 	if !isMounted {
-		seedDir, seedLabel, err := findSeed()
+		// load the recovery system  and generate mounts for kernel/base
+		systemLabel, err := findRecoverySystem(seedDir)
 		if err != nil {
 			return err
 		}
-		deviceSeed, err := seed.Open(seedDir, seedLabel)
+		systemSeed, err := seed.Open(seedDir, systemLabel)
 		if err != nil {
 			return err
 		}
 		// load assertions into a temporary database
-		if err := deviceSeed.LoadAssertions(nil, nil); err != nil {
+		if err := systemSeed.LoadAssertions(nil, nil); err != nil {
 			return err
 		}
 		perf := timings.New(nil)
 		// XXX: LoadMeta will verify all the snaps in the
 		// seed, that is probably too much. We can expose more
 		// dedicated helpers for this later.
-		if err := deviceSeed.LoadMeta(perf); err != nil {
+		if err := systemSeed.LoadMeta(perf); err != nil {
 			return err
 		}
 		// XXX: do we need more cross checks here?
-		for _, essentialSnap := range deviceSeed.EssentialSnaps() {
+		for _, essentialSnap := range systemSeed.EssentialSnaps() {
 			snapf, err := snap.Open(essentialSnap.Path)
 			if err != nil {
 				return err
@@ -161,13 +162,13 @@ func generateMountsModeInstall() error {
 
 	// 4. final step: write $(ubuntu_data)/var/lib/snapd/modeenv - this
 	//    is the tmpfs we just created above
-	_, seedLabel, err := findSeed()
+	systemLabel, err := findRecoverySystem(seedDir)
 	if err != nil {
 		return err
 	}
 	modeEnv := &boot.Modeenv{
 		Mode:           "install",
-		RecoverySystem: seedLabel,
+		RecoverySystem: systemLabel,
 	}
 	if err := modeEnv.Write(filepath.Join(runMnt, "ubuntu-data")); err != nil {
 		return err
