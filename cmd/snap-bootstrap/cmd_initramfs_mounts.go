@@ -170,7 +170,7 @@ func generateMountsModeInstall() error {
 		Mode:           "install",
 		RecoverySystem: systemLabel,
 	}
-	if err := modeEnv.Write(filepath.Join(runMnt, "ubuntu-data")); err != nil {
+	if err := modeEnv.Write(filepath.Join(runMnt, "ubuntu-data", "system-data")); err != nil {
 		return err
 	}
 
