@@ -65,7 +65,7 @@ func checkChroot(preseedChroot string) error {
 	return nil
 }
 
-var systemSnapFromSeeds = func() (string, error) {
+var systemSnapFromSeed = func() (string, error) {
 	seedDir := filepath.Join(dirs.SnapSeedDir)
 	seed, err := seed.Open(seedDir, "")
 	if err != nil {
@@ -82,15 +82,19 @@ var systemSnapFromSeeds = func() (string, error) {
 		return "", err
 	}
 
+	// TODO: handle core18, snapd snap.
+	if seed.UsesSnapdSnap() {
+		return "", fmt.Errorf("preseeding with snapd snap is not supported yet")
+	}
+
 	var coreSnapPath string
 	ess := seed.EssentialSnaps()
-	// TODO: handle core18, snapd snap.
-	for _, snap := range ess {
-		if snap.SnapName() == "core" {
-			coreSnapPath = snap.Path
-			break
+	if len(ess) > 0 {
+		if ess[0].SnapName() == "core" {
+			coreSnapPath = ess[0].Path
 		}
 	}
+
 	if coreSnapPath == "" {
 		return "", fmt.Errorf("core snap not found")
 	}
@@ -111,7 +115,7 @@ func prepareChroot(preseedChroot string) (func(), error) {
 	// preserves it which is useful for testing.
 	dirs.SetRootDir(dirs.GlobalRootDir)
 	rootDir := dirs.GlobalRootDir
-	coreSnapPath, err := systemSnapFromSeeds()
+	coreSnapPath, err := systemSnapFromSeed()
 	if err != nil {
 		return nil, err
 	}

@@ -138,8 +138,8 @@ func (s *startPreseedSuite) TestRunPreseedHappy(c *C) {
 	restoreMountPath := main.MockMountPath(targetSnapdRoot)
 	defer restoreMountPath()
 
-	restoreSystemSnapFromSeeds := main.MockSystemSnapFromSeeds(func() (string, error) { return "/a/core.snap", nil })
-	defer restoreSystemSnapFromSeeds()
+	restoreSystemSnapFromSeed := main.MockSystemSnapFromSeed(func() (string, error) { return "/a/core.snap", nil })
+	defer restoreSystemSnapFromSeed()
 
 	c.Assert(os.MkdirAll(filepath.Join(targetSnapdRoot, "usr/lib/snapd/"), 0755), IsNil)
 	mockTargetSnapd := testutil.MockCommand(c, filepath.Join(targetSnapdRoot, "usr/lib/snapd/snapd"), `#!/bin/sh
