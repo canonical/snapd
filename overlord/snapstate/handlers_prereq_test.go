@@ -211,35 +211,41 @@ func (s *prereqSuite) TestDoPrereqTalksToStoreAndQueues(c *C) {
 }
 
 func (s *prereqSuite) TestDoPrereqRetryWhenBaseInFlight(c *C) {
-	restore := snapstate.MockPrerequisitesRetryTimeout(5 * time.Millisecond)
+	restore := snapstate.MockPrerequisitesRetryTimeout(1 * time.Millisecond)
 	defer restore()
+
+	var prereqTask *state.Task
 
 	calls := 0
 	s.runner.AddHandler("link-snap",
 		func(task *state.Task, _ *tomb.Tomb) error {
-			if calls == 0 {
-				// retry again later, this forces ordering of
-				// tasks, so that the prerequisites tasks ends
-				// up waiting for this one
-				calls += 1
+			st := task.State()
+			st.Lock()
+			defer st.Unlock()
+
+			calls += 1
+			if calls == 1 {
+				// retry again later, this forces taskrunner
+				// to pick prequisites task.
 				return &state.Retry{After: 1 * time.Millisecond}
 			}
 
 			// setup everything as if the snap is installed
-			st := task.State()
-			st.Lock()
-			defer st.Unlock()
+
 			snapsup, _ := snapstate.TaskSnapSetup(task)
 			var snapst snapstate.SnapState
 			snapstate.Get(st, snapsup.InstanceName(), &snapst)
 			snapst.Current = snapsup.Revision()
 			snapst.Sequence = append(snapst.Sequence, snapsup.SideInfo)
 			snapstate.Set(st, snapsup.InstanceName(), &snapst)
+
+			// check that prerequisites task is not done yet, it must wait for core.
+			// This check guarantees that prerequisites task found link-snap snap
+			// task in flight, and returned a retry error, resulting in DoingStatus.
+			c.Check(prereqTask.Status(), Equals, state.DoingStatus)
+
 			return nil
-		},
-		func(*state.Task, *tomb.Tomb) error {
-			return nil
-		})
+		}, nil)
 	s.state.Lock()
 	tCore := s.state.NewTask("link-snap", "Pretend core gets installed")
 	tCore.Set("snap-setup", &snapstate.SnapSetup{
@@ -250,15 +256,15 @@ func (s *prereqSuite) TestDoPrereqRetryWhenBaseInFlight(c *C) {
 	})
 
 	// pretend foo gets installed and needs core (which is in progress)
-	t := s.state.NewTask("prerequisites", "foo")
-	t.Set("snap-setup", &snapstate.SnapSetup{
+	prereqTask = s.state.NewTask("prerequisites", "foo")
+	prereqTask.Set("snap-setup", &snapstate.SnapSetup{
 		SideInfo: &snap.SideInfo{
 			RealName: "foo",
 		},
 	})
 
 	chg := s.state.NewChange("dummy", "...")
-	chg.AddTask(t)
+	chg.AddTask(prereqTask)
 	chg.AddTask(tCore)
 
 	// NOTE: tasks are iterated on in undefined order, we have fixed the
@@ -266,34 +272,27 @@ func (s *prereqSuite) TestDoPrereqRetryWhenBaseInFlight(c *C) {
 	// 'prerequisites' task handler observing the state of the world we
 	// want, even if 'link-snap' ran first
 
-	for i := 0; i < 10; i++ {
+	// wait, we will hit prereq-retry-timeout eventually
+	// (this can take a while on very slow machines)
+	for i := 0; i < 500; i++ {
 		time.Sleep(1 * time.Millisecond)
 		s.state.Unlock()
 		s.se.Ensure()
 		s.se.Wait()
 		s.state.Lock()
-		if tCore.Status() == state.DoneStatus {
+		if prereqTask.Status() == state.DoneStatus {
 			break
 		}
 	}
 
-	// check that t is not done yet, it must wait for core
-	c.Check(t.Status(), Equals, state.DoingStatus)
+	// sanity check, exactly two calls to link-snap due to retry error on 1st call
+	c.Check(calls, Equals, 2)
+
 	c.Check(tCore.Status(), Equals, state.DoneStatus)
+	c.Check(prereqTask.Status(), Equals, state.DoneStatus)
 
-	// wait, we will hit prereq-retry-timeout eventually
-	// (this can take a while on very slow machines)
-	for i := 0; i < 50; i++ {
-		time.Sleep(10 * time.Millisecond)
-		s.state.Unlock()
-		s.se.Ensure()
-		s.se.Wait()
-		s.state.Lock()
-		if t.Status() == state.DoneStatus {
-			break
-		}
-	}
-	c.Check(t.Status(), Equals, state.DoneStatus)
+	// sanity
+	c.Check(chg.Status(), Equals, state.DoneStatus)
 }
 
 func (s *prereqSuite) TestDoPrereqChannelEnvvars(c *C) {

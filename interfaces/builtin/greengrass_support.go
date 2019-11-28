@@ -66,6 +66,7 @@ capability kill,
 
 capability sys_resource,
 /sys/kernel/mm/hugepages/ r,
+/sys/kernel/mm/transparent_hugepage/{,**} r,
 owner @{PROC}/[0-9]*/oom_score_adj rw,
 
 capability sys_ptrace,
@@ -144,15 +145,17 @@ pivot_root
 /sys/devices/virtual/block/loop[0-9]*/loop/autoclear r,
 /sys/devices/virtual/block/loop[0-9]*/loop/backing_file r,
 
-# greengrassd needs protected hardlinks and symlinks to run securely, but 
-# won't turn them on itself, hence only read access for these things - 
-# the user is clearly informed if these are disabled and so the user can 
+# greengrassd needs protected hardlinks, symlinks, etc to run securely, but
+# won't turn them on itself, hence only read access for these things -
+# the user is clearly informed if these are disabled and so the user can
 # enable these themselves rather than give the snap permission to turn these
 # on
 @{PROC}/sys/fs/protected_hardlinks r,
 @{PROC}/sys/fs/protected_symlinks r,
+@{PROC}/sys/fs/protected_fifos r,
+@{PROC}/sys/fs/protected_regular r,
 
-# mount tries to access this, but it doesn't really need it 
+# mount tries to access this, but it doesn't really need it
 deny /run/mount/utab rw,
 
 # these accesses are needed in order to mount a squashfs file for the rootfs
@@ -313,6 +316,13 @@ owner /state/server/{,**} rw,
 /etc/ r,
 /etc/debian_version r,
 #include <abstractions/python>
+# additional accesses needed for newer pythons in later bases
+/usr/lib{,32,64}/python3.[0-9]/**.{pyc,so}           mr,
+/usr/lib{,32,64}/python3.[0-9]/**.{egg,py,pth}       r,
+/usr/lib{,32,64}/python3.[0-9]/{site,dist}-packages/ r,
+/usr/lib{,32,64}/python3.[0-9]/lib-dynload/*.so      mr,
+/etc/python3.[0-9]/**                                r,
+/usr/include/python3.[0-9]*/pyconfig.h               r,
 
 # manually add java certs here
 # see also https://bugs.launchpad.net/apparmor/+bug/1816372
@@ -388,7 +398,6 @@ func init() {
 		baseDeclarationSlots: greengrassSupportBaseDeclarationSlots,
 		baseDeclarationPlugs: greengrassSupportBaseDeclarationPlugs,
 		connectedPlugSecComp: greengrassSupportConnectedPlugSeccomp,
-		reservedForOS:        true,
 		controlsDeviceCgroup: true,
 	}})
 }

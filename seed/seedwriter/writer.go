@@ -21,6 +21,7 @@
 package seedwriter
 
 import (
+	"errors"
 	"fmt"
 	"path/filepath"
 	"strings"
@@ -31,6 +32,7 @@ import (
 	"github.com/snapcore/snapd/snap"
 	"github.com/snapcore/snapd/snap/channel"
 	"github.com/snapcore/snapd/snap/naming"
+	"github.com/snapcore/snapd/strutil"
 )
 
 // Options holds the options for a Writer.
@@ -341,13 +343,6 @@ func (w *Writer) SetOptionsSnaps(optSnaps []*OptionsSnap) error {
 		return nil
 	}
 
-	// TODO: relax or allow flags to relax this?
-	// * allow local asserted snaps for >=signed Core 20 models?
-	// * allow some level of channel override for >=signed Core 20 models?
-	if err := w.policy.allowsDangerousFeatures(); err != nil {
-		return err
-	}
-
 	for _, sn := range optSnaps {
 		var whichSnap string
 		local := false
@@ -563,12 +558,19 @@ const (
 	toDownloadExtraImplicit
 )
 
+var errSkipOptional = errors.New("skip")
+
 func (w *Writer) modelSnapToSeed(modSnap *asserts.ModelSnap) (*SeedSnap, error) {
 	sn, _ := w.byRefLocalSnaps.Lookup(modSnap).(*SeedSnap)
 	var optSnap *OptionsSnap
 	if sn == nil {
 		// not local, to download
 		optSnap, _ = w.byNameOptSnaps.Lookup(modSnap).(*OptionsSnap)
+		if modSnap.Presence == "optional" && optSnap == nil {
+			// an optional snap that is not confirmed
+			// by an OptionsSnap entry is skipped
+			return nil, errSkipOptional
+		}
 		sn = &SeedSnap{
 			SnapRef: modSnap,
 
@@ -597,6 +599,9 @@ func (w *Writer) modelSnapsToDownload(modSnaps []*asserts.ModelSnap) (toDownload
 	alreadyConsidered := len(w.snapsFromModel)
 	for _, modSnap := range modSnaps {
 		sn, err := w.modelSnapToSeed(modSnap)
+		if err == errSkipOptional {
+			continue
+		}
 		if err != nil {
 			return nil, err
 		}
@@ -614,14 +619,23 @@ func (w *Writer) modelSnapsToDownload(modSnaps []*asserts.ModelSnap) (toDownload
 	return toDownload, nil
 }
 
-func (w *Writer) modSnaps() []*asserts.ModelSnap {
+func (w *Writer) modSnaps() ([]*asserts.ModelSnap, error) {
 	modSnaps := w.model.AllSnaps()
 	if systemSnap := w.policy.systemSnap(); systemSnap != nil {
 		prepend := true
 		for _, modSnap := range modSnaps {
 			if naming.SameSnap(modSnap, systemSnap) {
 				prepend = false
-				// TODO: sanity check modes
+				modes := modSnap.Modes
+				expectedModes := systemSnap.Modes
+				if len(modes) != len(expectedModes) {
+					return nil, fmt.Errorf("internal error: system snap %q explicitly listed in model carries wrong modes: %q", systemSnap.SnapName(), modes)
+				}
+				for _, mod := range expectedModes {
+					if !strutil.ListContains(modes, mod) {
+						return nil, fmt.Errorf("internal error: system snap %q explicitly listed in model carries wrong modes: %q", systemSnap.SnapName(), modes)
+					}
+				}
 				break
 			}
 		}
@@ -629,7 +643,7 @@ func (w *Writer) modSnaps() []*asserts.ModelSnap {
 			modSnaps = append([]*asserts.ModelSnap{systemSnap}, modSnaps...)
 		}
 	}
-	return modSnaps
+	return modSnaps, nil
 }
 
 func (w *Writer) optExtraSnaps() []*OptionsSnap {
@@ -702,8 +716,11 @@ func (w *Writer) SnapsToDownload() (snaps []*SeedSnap, err error) {
 
 	switch w.toDownload {
 	case toDownloadModel:
-		// TODO|XXX: support Core 20 models optional snaps correctly
-		toDownload, err := w.modelSnapsToDownload(w.modSnaps())
+		modSnaps, err := w.modSnaps()
+		if err != nil {
+			return nil, err
+		}
+		toDownload, err := w.modelSnapsToDownload(modSnaps)
 		if err != nil {
 			return nil, err
 		}
@@ -824,7 +841,7 @@ func (w *Writer) downloaded(seedSnaps []*SeedSnap) error {
 			return err
 		}
 		// error about missing default providers
-		for _, dp := range snap.NeededDefaultProviders(info) {
+		for dp := range snap.NeededDefaultProviders(info) {
 			if !w.availableSnaps.Contains(naming.Snap(dp)) {
 				// TODO: have a way to ignore this issue on a snap by snap basis?
 				return fmt.Errorf("cannot use snap %q without its default content provider %q being added explicitly", info.SnapName(), dp)

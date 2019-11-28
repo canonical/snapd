@@ -14,8 +14,8 @@ msgstr ""
 "MIME-Version: 1.0\n"
 "Content-Type: text/plain; charset=UTF-8\n"
 "Content-Transfer-Encoding: 8bit\n"
-"X-Launchpad-Export-Date: 2018-10-05 14:20+0000\n"
-"X-Generator: Launchpad (build 18785)\n"
+"X-Launchpad-Export-Date: 2019-11-20 06:56+0000\n"
+"X-Generator: Launchpad (build c597c3229eb023b1e626162d5947141bf7befb13)\n"
 
 #, c-format
 msgid ""
@@ -27,6 +27,7 @@ msgstr ""
 "\n"
 "Prøv \"snapcraft prime\" i din projektmappe og \"snap try\" igen."
 
+#. TRANSLATORS: the first %q will be the (quoted) snap name, the second a channel
 #, c-format
 msgid "%q switched to the %q channel\n"
 msgstr "%q skiftede til kanalen %q\n"
@@ -104,96 +105,100 @@ msgstr "--time tager hverken tilstands- eller kanalflag"
 msgid "-r can only be used with --hook"
 msgstr "-r kan kun bruges med --hook"
 
-#. TRANSLATORS: This needs to be wrapped in <>s.
+#. TRANSLATORS: This needs to begin with < and end with >
 msgid "<alias-or-snap>"
 msgstr "<alias-eller-snap>"
 
-#. TRANSLATORS: This needs to be wrapped in <>s.
+#. TRANSLATORS: This needs to begin with < and end with >
 msgid "<alias>"
 msgstr "<alias>"
 
-#. TRANSLATORS: This needs to be wrapped in <>s.
+#. TRANSLATORS: This needs to begin with < and end with >
 msgid "<assertion file>"
 msgstr "<assertionsfil>"
 
-#. TRANSLATORS: This needs to be wrapped in <>s.
+#. TRANSLATORS: This needs to begin with < and end with >
 msgid "<assertion type>"
 msgstr "<assertionstype>"
 
-#. TRANSLATORS: This needs to be wrapped in <>s.
+#. TRANSLATORS: This needs to begin with < and end with >
 msgid "<change-id>"
 msgstr "<skift-id>"
 
-#. TRANSLATORS: This needs to be wrapped in <>s.
+#. TRANSLATORS: This needs to begin with < and end with >
 msgid "<conf value>"
 msgstr "<konfigurationsværdi>"
 
-#. TRANSLATORS: This is a noun, and it needs to be wrapped in <>s.
-#. TRANSLATORS: This is a noun, and it needs to be wrapped in <>s.
+#. TRANSLATORS: This is a noun, and it needs to begin with < and end with >
+#. TRANSLATORS: This is a noun and it needs to begin with < and end with >
 msgid "<email>"
 msgstr "<e-mail>"
 
-#. TRANSLATORS: This needs to be wrapped in <>s.
+#. TRANSLATORS: This needs to begin with < and end with >
 msgid "<filename>"
 msgstr "<filnavn>"
 
-#. TRANSLATORS: This needs to be wrapped in <>s.
+#. TRANSLATORS: This needs to begin with < and end with >
 msgid "<header filter>"
 msgstr "<headerfilter>"
 
-#. TRANSLATORS: This needs to be wrapped in <>s.
+#. TRANSLATORS: This needs to begin with < and end with >
 msgid "<interface>"
 msgstr "<grænseflade>"
 
-#. TRANSLATORS: This needs to be wrapped in <>s.
-#. TRANSLATORS: This needs to be wrapped in <>s.
-#. TRANSLATORS: This needs to be wrapped in <>s.
+#. TRANSLATORS: This needs to begin with < and end with >
+#. TRANSLATORS: This needs to begin with < and end with >
+#. TRANSLATORS: This needs to begin with < and end with >
 msgid "<key-name>"
 msgstr "<nøglenavn>"
 
-#. TRANSLATORS: This needs to be wrapped in <>s.
-#. TRANSLATORS: This needs to be wrapped in <>s.
+#. TRANSLATORS: This needs to begin with < and end with >
+#. TRANSLATORS: This needs to begin with < and end with >
 msgid "<key>"
 msgstr "<nøgle>"
 
-#. TRANSLATORS: This needs to be wrapped in <>s.
+#. TRANSLATORS: This needs to begin with < and end with >
 msgid "<model-assertion>"
 msgstr "<modelassertion>"
 
-#. TRANSLATORS: This needs to be wrapped in <>s.
+#. TRANSLATORS: This needs to begin with < and end with >
 msgid "<query>"
 msgstr "<forespørgsel>"
 
-#. TRANSLATORS: This needs to be wrapped in <>s.
+#. TRANSLATORS: This needs to begin with < and end with >
 msgid "<root-dir>"
 msgstr "<rodmappe>"
 
-#. TRANSLATORS: This needs to be wrapped in <>s.
+#. TRANSLATORS: This needs to begin with < and end with >
 msgid "<service>"
-msgstr ""
+msgstr "<tjeneste>"
 
-#. TRANSLATORS: This needs to be wrapped in <>s.
-#. TRANSLATORS: This needs to be wrapped in <>s.
+#. TRANSLATORS: This needs to begin with < and end with >
+#. TRANSLATORS: This needs to begin with < and end with >
 msgid "<snap>:<plug>"
 msgstr "<snap>:<plug>"
 
-#. TRANSLATORS: This needs to be wrapped in <>s.
+#. TRANSLATORS: This needs to begin with < and end with >
 msgid "<snap>:<slot or plug>"
 msgstr "<snap>:<slot eller plug>"
 
-#. TRANSLATORS: This needs to be wrapped in <>s.
-#. TRANSLATORS: This needs to be wrapped in <>s.
+#. TRANSLATORS: This needs to begin with < and end with >
+#. TRANSLATORS: This needs to begin with < and end with >
 msgid "<snap>:<slot>"
 msgstr "<snap>:<slot>"
 
+#. TRANSLATORS: This should not start with a lowercase letter.
 msgid ""
 "A service specification, which can be just a snap name (for all services in "
 "the snap), or <snap>.<app> for a single service."
 msgstr ""
+"Angivelse af en tjeneste som bare kan være navnet på en snap (for alle "
+"tjenester i snappen) eller <snap>.<app> for en enkelt tjeneste."
 
 msgid "Abort a pending change"
 msgstr "Afbryd en ventende ændring"
 
+#. TRANSLATORS: this is used to introduce a list of aliases that were added
 msgid "Added"
 msgstr "Tilføjet"
 
@@ -203,9 +208,11 @@ msgstr "Tilføjer en assertion til systemet"
 msgid "Advise on available snaps."
 msgstr ""
 
+#. TRANSLATORS: This should not start with a lowercase letter.
 msgid "Advise on snaps that provide the given command"
-msgstr ""
+msgstr "Rådgiv om snapper som giver den givne kommando"
 
+#. TRANSLATORS: This should not start with a lowercase letter.
 msgid "Alias for --dangerous (DEPRECATED)"
 msgstr "Alias for --dangerous (FORÆLDET)"
 
@@ -213,49 +220,58 @@ msgid "All snaps up to date."
 msgstr "Alle snaps er opdateret."
 
 msgid "Allow opening file?"
-msgstr ""
+msgstr "Tillad at filen åbnes?"
 
+#. TRANSLATORS: This should not start with a lowercase letter.
 msgid "Allow refresh attempt on snap unknown to the store"
-msgstr ""
+msgstr "Tillad forsøg på genopfriskning af snap, som er ukendt i butikken"
 
 msgid "Allow settings change?"
-msgstr ""
+msgstr "Tillad ændring af indstillinger?"
 
 #, c-format
 msgid "Allow snap %q to change %q to %q ?"
-msgstr ""
+msgstr "Tillad at snap %q ændrer %q til %q?"
 
 #, c-format
 msgid "Allow snap %q to open file %q?"
-msgstr ""
+msgstr "Tillad at snap %q åbner filen %q?"
 
+#. TRANSLATORS: This should not start with a lowercase letter.
 msgid "Alternative command to run"
 msgstr "Alternativ kommando som skal køres"
 
+#. TRANSLATORS: This should not start with a lowercase letter.
 msgid "Always return document, even with single key"
 msgstr "Returnér altid dokumentet endda med enkelt nøgle"
 
+#. TRANSLATORS: This should not start with a lowercase letter.
 msgid "Always return list, even with single key"
 msgstr "Returnér altid listen selv med enkelt nøgle"
 
-#. TRANSLATORS: This should probably not start with a lowercase letter. Also, note users on login.ubuntu.com can have multiple email addresses.
+#. TRANSLATORS: This should not start with a lowercase letter (unless it's "login.ubuntu.com"). Also, note users on login.ubuntu.com can have multiple email addresses.
 msgid "An email of a user on login.ubuntu.com"
 msgstr "En e-mail på en bruger på login.ubuntu.com"
 
+#. TRANSLATORS: This should not start with a lowercase letter.
 msgid ""
 "As well as starting the service now, arrange for it to be started on boot."
 msgstr ""
+"Udover at starte tjenesten nu, sørg også for den starter ved opstart."
 
+#. TRANSLATORS: This should not start with a lowercase letter.
 msgid ""
 "As well as stopping the service now, arrange for it to no longer be started "
 "on boot."
 msgstr ""
+"Udover at stoppe tjenesten nu, sørg også for den ikke længere starter ved "
+"opstart."
 
-#. TRANSLATORS: This should probably not start with a lowercase letter.
+#. TRANSLATORS: This should not start with a lowercase letter.
 msgid "Assertion file"
 msgstr "Assertionsfil"
 
-#. TRANSLATORS: This should probably not start with a lowercase letter.
+#. TRANSLATORS: This should not start with a lowercase letter.
 msgid "Assertion type name"
 msgstr "Navn på asssertionstype"
 
@@ -278,6 +294,7 @@ msgstr ""
 #, c-format
 msgid "Automatically connect eligible plugs and slots of snap %q"
 msgstr ""
+"Forbind automatisk berettigede plugger og slotter tilhørende snappen %q"
 
 msgid "Bad code. Try again: "
 msgstr "Ugyldig kode. Prøv igen: "
@@ -285,7 +302,7 @@ msgstr "Ugyldig kode. Prøv igen: "
 msgid "Buys a snap"
 msgstr "Køber en snap"
 
-#. TRANSLATORS: This should probably not start with a lowercase letter.
+#. TRANSLATORS: This should not start with a lowercase letter.
 msgid "Change ID"
 msgstr "Skift id"
 
@@ -295,7 +312,7 @@ msgstr "Ændrer konfigurationsindstillinger"
 msgid "Command\tAlias\tNotes"
 msgstr "Kommando\tAlias\tNoter"
 
-#. TRANSLATORS: This should probably not start with a lowercase letter.
+#. TRANSLATORS: This should not start with a lowercase letter.
 msgid "Configuration value (key=value)"
 msgstr "Konfigurationsværdi (nøgle=værdi)"
 
@@ -309,14 +326,15 @@ msgstr ""
 msgid "Connects a plug to a slot"
 msgstr "Forbinder en plug til en slot"
 
-#. TRANSLATORS: This should probably not start with a lowercase letter.
+#. TRANSLATORS: This should not start with a lowercase letter.
 msgid "Constrain listing to a specific snap or snap:name"
 msgstr "Begræns oversigt til en specifik snap eller snap:navn"
 
+#. TRANSLATORS: This should not start with a lowercase letter.
 msgid "Constrain listing to specific interfaces"
 msgstr "Begræns oversigt til specifikke grænseflader"
 
-#. TRANSLATORS: This should probably not start with a lowercase letter.
+#. TRANSLATORS: This should not start with a lowercase letter.
 msgid "Constrain listing to those matching header=value"
 msgstr "Begræns oversigt til dem som matcher header=værdi"
 
@@ -372,6 +390,7 @@ msgstr ""
 msgid "Disconnects a plug from a slot"
 msgstr ""
 
+#. TRANSLATORS: This should not start with a lowercase letter.
 msgid "Do not wait for the operation to finish but just print the change id."
 msgstr ""
 "Vent ikke på at handlingen færdiggøres, men udskriv bare ændrings-id'et."
@@ -380,6 +399,7 @@ msgstr ""
 msgid "Download snap %q%s from channel %q"
 msgstr ""
 
+#. TRANSLATORS: This should not start with a lowercase letter.
 msgid ""
 "Download the given revision of a snap, to which you must have developer "
 "access"
@@ -422,17 +442,19 @@ msgstr ""
 msgid "Fetching snap %q\n"
 msgstr "Henter snap %q\n"
 
-#. TRANSLATORS: This should probably not start with a lowercase letter.
+#. TRANSLATORS: This should not start with a lowercase letter.
 msgid "Filename of the snap you want to assert a build for"
 msgstr ""
 
 msgid "Finds packages to install"
 msgstr "Finder pakker til installation"
 
+#. TRANSLATORS: This should not start with a lowercase letter.
 msgid "Force adding the user, even if the device is already managed"
 msgstr ""
 "Gennemtving tilføjelse af bruger også selvom enheden allerede håndteres"
 
+#. TRANSLATORS: This should not start with a lowercase letter.
 msgid "Force import on classic systems"
 msgstr "Gennemtving import på klassiske systemer"
 
@@ -446,33 +468,43 @@ msgstr ""
 msgid "Generate device key"
 msgstr ""
 
+#. TRANSLATORS: This should not start with a lowercase letter.
 msgid "Generate the manpage"
 msgstr "Generér man-side"
 
+#. TRANSLATORS: This should not start with a lowercase letter.
 msgid "Grade states the build quality of the snap (defaults to 'stable')"
 msgstr "Karakteren angiver snap'ens buildkvalitet (som standard \"stable\")"
 
+#. TRANSLATORS: This should not start with a lowercase letter.
 msgid "Grant sudo access to the created user"
 msgstr "Giv sudo-adgang til den oprettede bruger"
 
 msgid "Help"
 msgstr "Hjælp"
 
+#. TRANSLATORS: This should not start with a lowercase letter.
 msgid "Hook to run"
 msgstr "Hook som skal køres"
 
 msgid "ID\tStatus\tSpawn\tReady\tSummary\n"
 msgstr "ID\tStatus\tKald\tKlar\tSammendrag\n"
 
+#. TRANSLATORS: This should not start with a lowercase letter.
 msgid "Identifier of the signer"
 msgstr "Underskriverens identifikator"
 
+#. TRANSLATORS: This should not start with a lowercase letter.
 msgid "Identifier of the snap package associated with the build"
 msgstr "Identifikator for snap-pakken tilknyttet denne version"
 
+#. TRANSLATORS: This should not start with a lowercase letter.
 msgid "If the service has a reload command, use it instead of restarting."
 msgstr ""
+"Brug en genindlæs-kommando, hvis tjenesten har den, i stedet for at "
+"genstarte."
 
+#. TRANSLATORS: This should not start with a lowercase letter.
 msgid "Ignore validation by other snaps blocking the refresh"
 msgstr "Ignorér bekræftelse fra andre snap'er, som blokerer genopfriskningen"
 
@@ -493,6 +525,7 @@ msgstr ""
 "Inkludér en udførlig liste med en snaps noter (i modsat fald vises et "
 "sammendrag)"
 
+#. TRANSLATORS: This should not start with a lowercase letter.
 msgid "Include unused interfaces"
 msgstr "Inkludér ubrugte grænseflader"
 
@@ -518,15 +551,19 @@ msgstr "Installér snap'en %q fra en fil"
 msgid "Install %q snap from file %q"
 msgstr "Installér snap'en %q fra filen %q"
 
+#. TRANSLATORS: This should not start with a lowercase letter.
 msgid "Install from the beta channel"
 msgstr "Installér fra betakanalen"
 
+#. TRANSLATORS: This should not start with a lowercase letter.
 msgid "Install from the candidate channel"
 msgstr "Installér fra kandidatkanalen"
 
+#. TRANSLATORS: This should not start with a lowercase letter.
 msgid "Install from the edge channel"
 msgstr "Installér fra forkantskanalen"
 
+#. TRANSLATORS: This should not start with a lowercase letter.
 msgid "Install from the stable channel"
 msgstr "Installér fra kanalen stable"
 
@@ -539,12 +576,14 @@ msgstr "Installér snap'en %q"
 msgid "Install snaps %s"
 msgstr "Installér snap'erne %s"
 
+#. TRANSLATORS: This should not start with a lowercase letter.
 msgid ""
 "Install the given revision of a snap, to which you must have developer access"
 msgstr ""
 "Installér den angivne version af en snap, som du skal have adgang til som "
 "udvikler"
 
+#. TRANSLATORS: This should not start with a lowercase letter.
 msgid ""
 "Install the given snap file even if there are no pre-acknowledged signatures "
 "for it, meaning it was not verified and could be dangerous (--devmode "
@@ -554,6 +593,7 @@ msgstr ""
 "forhåndsgodkendte signaturer til den, hvilket betyder, den ikke kunne "
 "bekræftes og kan være farlig (--devmode antyder dette)"
 
+#. TRANSLATORS: This should not start with a lowercase letter.
 msgid "Install the given snap without enabling its automatic aliases"
 msgstr ""
 "Installér den angivne snap uden at aktivere dens automatiske aliasser"
@@ -564,12 +604,15 @@ msgid ""
 "   snap ack %s\n"
 "   snap install %s\n"
 msgstr ""
+"Installér snappen med:\n"
+"   snap ack %s\n"
+"   snap install %s\n"
 
 msgid "Installs a snap to the system"
 msgstr "Installerer en snap på systemet"
 
-#. TRANSLATORS: This should probably not start with a lowercase letter.
-#. TRANSLATORS: This should probably not start with a lowercase letter.
+#. TRANSLATORS: This should not start with a lowercase letter.
+#. TRANSLATORS: This should not start with a lowercase letter.
 msgid "Key of interest within the configuration"
 msgstr "Interessant nøgle i konfigurationen"
 
@@ -634,23 +677,25 @@ msgstr ""
 msgid "Mount snap %q%s"
 msgstr ""
 
-#. TRANSLATORS: This should probably not start with a lowercase letter.
+#. TRANSLATORS: This should not start with a lowercase letter.
 msgid "Name of key to create; defaults to 'default'"
 msgstr "Navn på nøglen som skal oprettes; som standard \"default\""
 
-#. TRANSLATORS: This should probably not start with a lowercase letter.
+#. TRANSLATORS: This should not start with a lowercase letter.
 msgid "Name of key to delete"
 msgstr "Navn på nøgle som skal slettes"
 
-#. TRANSLATORS: This should probably not start with a lowercase letter.
+#. TRANSLATORS: This should not start with a lowercase letter.
 msgid "Name of key to export"
 msgstr "Navn på nøglen som skal eksporteres"
 
+#. TRANSLATORS: This should not start with a lowercase letter.
 msgid "Name of the GnuPG key to use (defaults to 'default' as key name)"
 msgstr ""
 "Navn på GnuPG-nøglen som skal bruges (nøglenavnet er som standard "
 "\"default\")"
 
+#. TRANSLATORS: This should not start with a lowercase letter.
 msgid "Name of the key to use, otherwise use the default key"
 msgstr "Navn på nøglen som skal bruges. Ellers bruges standardnøglen"
 
@@ -671,48 +716,54 @@ msgstr ""
 
 #, c-format
 msgid "No aliases are currently defined for snap %q.\n"
-msgstr ""
+msgstr "Der er i øjeblikket ikke defineret nogen aliasser til snappen %q.\n"
 
 msgid "No aliases are currently defined."
-msgstr ""
+msgstr "Der er i øjeblikket ikke defineret nogen aliasser."
 
 #, c-format
 msgid "No command %q found, did you mean:\n"
 msgstr ""
 
 msgid "No connections to disconnect"
-msgstr ""
+msgstr "Ingen forbindelser at afbryde"
 
 #. TRANSLATORS: the %q is the (quoted) name of the section the user entered
 #, c-format
 msgid "No matching section %q, use --section to list existing sections"
 msgstr ""
+"Der er ingen sektion, som matcher %q. Brug --section for at få vist "
+"eksisterende sektioner"
 
 #. TRANSLATORS: the first %q is the (quoted) query, the
 #. second %q is the (quoted) name of the section the
 #. user entered
 #, c-format
 msgid "No matching snaps for %q in section %q\n"
-msgstr ""
+msgstr "Ingen snapper matcher %q i sektionen %q\n"
 
 #. TRANSLATORS: the %q is the (quoted) query the user entered
 #, c-format
 msgid "No matching snaps for %q\n"
-msgstr ""
+msgstr "Ingen snapper matcher %q\n"
 
 msgid ""
 "No search term specified. Here are some interesting snaps:\n"
 "\n"
 msgstr ""
+"Ingen søgeterm angivet. Her er nogle interessante snapper:\n"
+"\n"
 
 msgid "No section specified. Available sections:\n"
-msgstr ""
+msgstr "Ingen sektioner angivet. Tilgængelige sektioner:\n"
 
 msgid "No snaps are installed yet. Try \"snap install hello-world\"."
 msgstr ""
 "Der er endnu ikke installeret nogen snap'er. Prøv \"snap install hello-"
 "world\"."
 
+#. TRANSLATORS: This should not start with a lowercase letter.
+#. TRANSLATORS: This should not start with a lowercase letter.
 msgid "Output results in JSON format"
 msgstr "Outputresultater i JSON-format"
 
@@ -721,7 +772,7 @@ msgstr ""
 
 #, c-format
 msgid "Packages matching %q:\n"
-msgstr ""
+msgstr "Pakker som matcher %q:\n"
 
 msgid "Passphrase: "
 msgstr "Adgangskode: "
@@ -783,12 +834,15 @@ msgstr "Udskriver, om systemet er håndteret"
 msgid "Prune automatic aliases for snap %q"
 msgstr ""
 
+#. TRANSLATORS: This should not start with a lowercase letter.
 msgid "Put snap in classic mode and disable security confinement"
 msgstr "Sæt snap i klassisk tilstand og deaktivér sikkerhedsindeslutning"
 
+#. TRANSLATORS: This should not start with a lowercase letter.
 msgid "Put snap in development mode and disable security confinement"
 msgstr "Sæt snap i udviklingstilstand og deaktivér sikkerhedsindeslutning"
 
+#. TRANSLATORS: This should not start with a lowercase letter.
 msgid "Put snap in enforced confinement mode"
 msgstr "Sæt snap i gennemtvunget, indesluttet tilstand"
 
@@ -846,6 +900,7 @@ msgstr ""
 msgid "Remove manual alias %q for snap %q"
 msgstr "Fjern det manuelle alias %q for snap'en %q"
 
+#. TRANSLATORS: This should not start with a lowercase letter.
 msgid "Remove only the given revision"
 msgstr "Fjern kun den angivne udgave"
 
@@ -870,6 +925,7 @@ msgstr ""
 msgid "Remove snaps %s"
 msgstr "Fjern snap'erne %s"
 
+#. TRANSLATORS: this is used to introduce a list of aliases that were removed
 msgid "Removed"
 msgstr "Fjernet"
 
@@ -885,6 +941,7 @@ msgstr "Genstart tjenester"
 msgid "Restarted.\n"
 msgstr "Genstartet.\n"
 
+#. TRANSLATORS: This should not start with a lowercase letter.
 msgid "Restrict the search to a given section"
 msgstr "Begræns søgningen til et angivent afsnit"
 
@@ -898,11 +955,13 @@ msgstr "Gendan snap'en %q"
 msgid "Reverts the given snap to the previous state"
 msgstr "Gendanner den angivne snap til sin forrige tilstand"
 
+#. TRANSLATORS: This should not start with a lowercase letter.
 msgid "Run a shell instead of the command (useful for debugging)"
 msgstr "Kør en skal i stedet for kommandoen (nyttig til fejlsøgning)"
 
+#. TRANSLATORS: This should not start with a lowercase letter.
 msgid "Run as a timer service with given schedule"
-msgstr ""
+msgstr "Kør som en timertjeneste med given tidsplan"
 
 #, c-format
 msgid "Run configure hook of %q snap"
@@ -926,7 +985,7 @@ msgstr ""
 
 #, c-format
 msgid "Run pre-refresh hook of %q snap if present"
-msgstr ""
+msgstr "Kør præ-genopfriskningshook for snappen %q, hvis tilgængelig"
 
 msgid "Run prepare-device hook"
 msgstr ""
@@ -940,8 +999,9 @@ msgid ""
 "can be specified as well here."
 msgstr ""
 
+#. TRANSLATORS: This should not start with a lowercase letter.
 msgid "Run the command with gdb"
-msgstr ""
+msgstr "Kør kommandoen med gdb"
 
 msgid "Run the given snap command"
 msgstr "Kør den angivne snap-kommando"
@@ -953,6 +1013,7 @@ msgstr ""
 msgid "Runs debug commands"
 msgstr "Kører fejlsøgningskommandoer"
 
+#. TRANSLATORS: This should not start with a lowercase letter.
 msgid "Search private snaps"
 msgstr "Søg private snap'er"
 
@@ -964,7 +1025,7 @@ msgstr ""
 "genopfrisk osv.)"
 
 msgid "Service\tStartup\tCurrent"
-msgstr ""
+msgstr "Tjeneste\tOpstart\tAktuelle"
 
 #, c-format
 msgid "Set automatic aliases for snap %q"
@@ -997,9 +1058,11 @@ msgstr ""
 msgid "Setup snap %q%s security profiles (phase 2)"
 msgstr ""
 
+#. TRANSLATORS: This should not start with a lowercase letter.
 msgid "Show all revisions"
 msgstr "Vis alle udgaver"
 
+#. TRANSLATORS: This should not start with a lowercase letter.
 msgid "Show auto refresh information but do not perform a refresh"
 msgstr ""
 "Vis information om automatisk genopfriskning, men udfør ikke en "
@@ -1013,15 +1076,17 @@ msgstr ""
 msgid "Show detailed information about a snap"
 msgstr ""
 
-#. TRANSLATORS: This should probably not start with a lowercase letter.
+#. TRANSLATORS: This should not start with a lowercase letter.
 msgid "Show details of a specific interface"
 msgstr "Vis detaljer om en specifik grænseflade"
 
+#. TRANSLATORS: This should not start with a lowercase letter.
 msgid "Show interface attributes"
 msgstr "Vis grænsefladeattributer"
 
+#. TRANSLATORS: This should not start with a lowercase letter.
 msgid "Show only the given number of lines, or 'all'."
-msgstr ""
+msgstr "Vis kun det givne antal linjer eller \"all\"."
 
 msgid "Shows known assertions of the provided type"
 msgstr "Viser kendte assertioner af den leverede type"
@@ -1049,8 +1114,8 @@ msgstr "Slot\tPlug"
 msgid "Snap %s is no longer tracking %s.\n"
 msgstr ""
 
-#. TRANSLATORS: This should probably not start with a lowercase letter.
-#. TRANSLATORS: This should probably not start with a lowercase letter.
+#. TRANSLATORS: This should not start with a lowercase letter.
+#. TRANSLATORS: This should not start with a lowercase letter.
 msgid "Snap name"
 msgstr "Snap-navn"
 
@@ -1103,6 +1168,7 @@ msgstr ""
 msgid "Stopped.\n"
 msgstr "Stoppet.\n"
 
+#. TRANSLATORS: This should not start with a lowercase letter.
 msgid "Strict typing with nulls and quoted strings"
 msgstr "Striks indtastning med null'er og strenge i anførselstegn"
 
@@ -1121,6 +1187,7 @@ msgstr ""
 msgid "Switches snap to a different channel"
 msgstr "Skifter snap'en til en anden kanal"
 
+#. TRANSLATORS: This should not start with a lowercase letter.
 msgid "Temporarily mount device before inspecting"
 msgstr "Montér enheden midlertidigt før inspektion"
 
@@ -1140,15 +1207,15 @@ msgid ""
 "The get command prints configuration and interface connection settings."
 msgstr ""
 
-#. TRANSLATORS: This should probably not start with a lowercase letter.
+#. TRANSLATORS: This should not start with a lowercase letter (unless it's "login.ubuntu.com")
 msgid "The login.ubuntu.com email to login as"
 msgstr "E-mailen til login-ubuntu.com der skal logges ind med"
 
-#. TRANSLATORS: This should probably not start with a lowercase letter.
+#. TRANSLATORS: This should not start with a lowercase letter.
 msgid "The model assertion name"
 msgstr "Modellens assertionsnavn"
 
-#. TRANSLATORS: This should probably not start with a lowercase letter.
+#. TRANSLATORS: This should not start with a lowercase letter.
 msgid "The output directory"
 msgstr "Outputmappen"
 
@@ -1156,11 +1223,12 @@ msgstr "Outputmappen"
 msgid "The program %q can be found in the following snaps:\n"
 msgstr ""
 
-#. TRANSLATORS: This should probably not start with a lowercase letter.
+#. TRANSLATORS: This should not start with a lowercase letter.
+#. TRANSLATORS: This should not start with a lowercase letter.
 msgid "The snap to configure (e.g. hello-world)"
 msgstr "Snap'en som skal konfigureres (f.eks. hello-world)"
 
-#. TRANSLATORS: This should probably not start with a lowercase letter.
+#. TRANSLATORS: This should not start with a lowercase letter.
 msgid "The snap whose conf is being requested"
 msgstr "Snap'en hvis konfiguration der spørges om"
 
@@ -1171,11 +1239,11 @@ msgid "This command logs the current user out of the store"
 msgstr "Denne kommando logger den aktuelle bruger ud af butikken"
 
 msgid "This dialog will close automatically after 5 minutes of inactivity."
-msgstr ""
+msgstr "Denne dialog vil automatisk lukkes efter fem minutters inaktivitet."
 
 #, c-format
 msgid "Toggle snap %q flags"
-msgstr ""
+msgstr "Vælg/fravælg flag for snappen %q"
 
 msgid "Tool to interact with snaps"
 msgstr "Værktøj til at interagere med snap'er"
@@ -1192,7 +1260,7 @@ msgid "Try %q snap from %s"
 msgstr "Prøv snap'en %q fra %s"
 
 msgid "Try: snap install <selected snap>\n"
-msgstr ""
+msgstr "Prøv \"snap install <valgte snap>\"\n"
 
 msgid "Two-factor code: "
 msgstr "To-faktorkode: "
@@ -1200,15 +1268,18 @@ msgstr "To-faktorkode: "
 msgid "Unalias a manual alias or an entire snap"
 msgstr "Fjern alias fra et manualt alias eller en hel snap"
 
+#. TRANSLATORS: This should not start with a lowercase letter.
 msgid "Use a specific snap revision when running hook"
 msgstr "Brug en specifik udgave af snap'en, når hook køres"
 
+#. TRANSLATORS: This should not start with a lowercase letter.
 msgid "Use known assertions for user creation"
 msgstr "Brug kendte assertioner til oprettelse af bruger"
 
 msgid "Use the given output format (pretty or json)"
 msgstr ""
 
+#. TRANSLATORS: This should not start with a lowercase letter.
 msgid "Use this channel instead of stable"
 msgstr "Brug denne kanal i stedet for stable"
 
@@ -1223,8 +1294,9 @@ msgstr ""
 msgid "WARNING: failed to activate logging: %v\n"
 msgstr "ADVARSEL: Kunne ikke aktivere logning: %v\n"
 
+#. TRANSLATORS: This should not start with a lowercase letter.
 msgid "Wait for new lines and print them as they come in."
-msgstr ""
+msgstr "Vent på nye linjer og udskriv dem efterhånden, som de kommer ind."
 
 msgid "Waiting for server to restart"
 msgstr "Venter på, at serveren genstarter"
@@ -1294,6 +1366,8 @@ msgid ""
 "\n"
 "Provide a search term for more specific results.\n"
 msgstr ""
+"\n"
+"Angiv en søgeterm for at få mere specifikke resultater.\n"
 
 msgid ""
 "\n"
@@ -1503,7 +1577,7 @@ msgstr ""
 "Kommandoen debug indeholder en samling underkommandoer.\n"
 "\n"
 "Debug-kommandoer kan blive fjernet uden forudgående besked og vil\n"
-"måske ikke virke på ikke-udviklingssystemer.\n"
+"måske ikke virke på ikkeudviklingssystemer.\n"
 
 msgid ""
 "\n"
@@ -1868,6 +1942,8 @@ msgid ""
 "\n"
 "The start command starts, and optionally enables, the given services.\n"
 msgstr ""
+"\n"
+"Kommandoen start starter, og aktiverer eventuelt, de angivne tjenester.\n"
 
 msgid ""
 "\n"
@@ -1879,6 +1955,8 @@ msgid ""
 "\n"
 "The stop command stops, and optionally disables, the given services.\n"
 msgstr ""
+"\n"
+"Kommandoen stop stopper, og deaktiverer eventuelt, de angivne tjenester.\n"
 
 msgid ""
 "\n"
@@ -1907,6 +1985,20 @@ msgid ""
 "be\n"
 "found relative to current working directory.\n"
 msgstr ""
+"\n"
+"Kommandoen try installerer en snap, som ikke er pakket, til afprøvning på "
+"systemet.\n"
+"Indholdet af den ikkepakkede snap bruges selv efter installering, så "
+"ændringer, som\n"
+"ikke vedrører metadata, træder i kraft med det samme. Ændringer i metadata, "
+"som dem der\n"
+"f.eks. sker i snap.yaml, vil kræve geninstallation for at træde i kraft.\n"
+"\n"
+"Hvis argumentet til snap-dir udelades, vil kommandoen try forsøge at udlede "
+"det, hvis\n"
+"enten filen snapcraft.yaml og prime-mappen eller filen meta/snap.yaml kan "
+"findes\n"
+"relativt til den aktuelle arbejdsmappe.\n"
 
 msgid ""
 "\n"
@@ -1963,7 +2055,7 @@ msgid "active"
 msgstr ""
 
 msgid "auto-refresh: all snaps are up-to-date"
-msgstr ""
+msgstr "auto-genopfrisk: alle snapper er opdaterede"
 
 msgid "bought"
 msgstr ""
@@ -2089,7 +2181,7 @@ msgstr ""
 
 #. TRANSLATORS: this needs to be a single rune that is understood to mean "days" in e.g. 1d20h
 msgid "d"
-msgstr ""
+msgstr "d"
 
 #. TRANSLATORS: if possible, a single short word
 msgid "disabled"
@@ -2114,10 +2206,10 @@ msgstr ""
 
 #. TRANSLATORS: this needs to be a single rune that is understood to mean "hours" in e.g. 1h30m
 msgid "h"
-msgstr ""
+msgstr "h"
 
 msgid "ignore-validation"
-msgstr ""
+msgstr "ignore-validation"
 
 msgid "inactive"
 msgstr ""
@@ -2148,6 +2240,8 @@ msgid ""
 "invalid argument for flag ‘-n’: expected a non-negative integer argument, or "
 "“all”."
 msgstr ""
+"ugyldigt argument for flaget \"-n\": forventede et ikkenegativt argument "
+"eller \"all\"."
 
 #, c-format
 msgid "invalid attribute: %q (want key=value)"
@@ -2177,10 +2271,12 @@ msgstr ""
 #, c-format
 msgid "local snap %q is unknown to the store, use --amend to proceed anyway"
 msgstr ""
+"den lokale snap %q kendes ikke i butikken. Brug --amend for alligevel at "
+"fortsætte"
 
 #. TRANSLATORS: this needs to be a single rune that is understood to mean "minutes" in e.g. 1m30s
 msgid "m"
-msgstr ""
+msgstr "m"
 
 msgid "missing snap-confine: try updating your snapd package"
 msgstr ""
@@ -2228,7 +2324,7 @@ msgstr ""
 #. TRANSLATORS: this needs to be a single rune that is understood to mean "seconds" in e.g. 1m30s
 #. (I fully expect this to always be "s", given it's a SI unit)
 msgid "s"
-msgstr ""
+msgstr "s"
 
 #, c-format
 msgid "set failed: %v"
@@ -2277,7 +2373,7 @@ msgid "too many arguments: %s"
 msgstr ""
 
 msgid "unable to contact snap store"
-msgstr ""
+msgstr "kan ikke få forbindelse til Snapbutikken"
 
 msgid "unavailable"
 msgstr ""
@@ -2300,11 +2396,11 @@ msgstr ""
 
 #, c-format
 msgid "warning:\tno snap found for %q\n"
-msgstr ""
+msgstr "advarsel:\tfandt ingen snap for %q\n"
 
 #. TRANSLATORS: this needs to be a single rune that is understood to mean "years" in e.g. 1y45d
 msgid "y"
-msgstr ""
+msgstr "å"
 
 msgid "Authenticate on snap daemon"
 msgstr ""

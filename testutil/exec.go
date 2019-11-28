@@ -101,9 +101,9 @@ printf '\0' >> %[1]q
 %s
 `
 
-// MockCommand adds a mocked command. If the basename argument is a command
-// it is added to PATH. If it is an absolute path it is just created there.
-// the caller is responsible for the cleanup in this case.
+// MockCommand adds a mocked command. If the basename argument is a command it
+// is added to PATH. If it is an absolute path it is just created there, along
+// with the full prefix. The caller is responsible for the cleanup in this case.
 //
 // The command logs all invocations to a dedicated log file. If script is
 // non-empty then it is used as is and the caller is responsible for how the
@@ -114,6 +114,10 @@ func MockCommand(c *check.C, basename, script string) *MockCmd {
 	var binDir, exeFile, logFile string
 	if filepath.IsAbs(basename) {
 		binDir = filepath.Dir(basename)
+		err := os.MkdirAll(binDir, 0755)
+		if err != nil {
+			panic(fmt.Sprintf("cannot create the directory for mocked command %q: %v", basename, err))
+		}
 		exeFile = basename
 		logFile = basename + ".log"
 	} else {

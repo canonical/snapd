@@ -45,6 +45,8 @@ const (
 	RefreshAppAwareness
 	// ClassicPreservesXdgRuntimeDir controls $XDG_RUNTIME_DIR in snaps with classic confinement.
 	ClassicPreservesXdgRuntimeDir
+	// RobustMountNamespaceUpdates controls how snap-update-ns updates existing mount namespaces.
+	RobustMountNamespaceUpdates
 	// lastFeature is the final known feature, it is only used for testing.
 	lastFeature
 )
@@ -69,6 +71,7 @@ var featureNames = map[SnapdFeature]string{
 	RefreshAppAwareness:   "refresh-app-awareness",
 
 	ClassicPreservesXdgRuntimeDir: "classic-preserves-xdg-runtime-dir",
+	RobustMountNamespaceUpdates:   "robust-mount-namespace-updates",
 }
 
 // featuresEnabledWhenUnset contains a set of features that are enabled when not explicitly configured.
@@ -83,6 +86,7 @@ var featuresExported = map[SnapdFeature]bool{
 	ParallelInstances:     true,
 
 	ClassicPreservesXdgRuntimeDir: true,
+	RobustMountNamespaceUpdates:   true,
 }
 
 // String returns the name of a snapd feature.

@@ -120,6 +120,5 @@ func init() {
 		connectedPlugAppArmor: accountControlConnectedPlugAppArmor,
 		// handled by SecCompConnectedPlug
 		connectedPlugSecComp: "",
-		reservedForOS:        true,
 	}})
 }
