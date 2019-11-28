@@ -1,3 +1,18 @@
+snapd (2.42.3) xenial; urgency=medium
+
+  * New upstream release, LP: #1853244
+    - overlord/snapstate: pick up system defaults when seeding the snapd
+      snap
+    - cmd/snap-update-ns: fix overlapping, nested writable mimic
+      handling
+    - interfaces: misc updates for u2f-devices, browser-support,
+      hardware-observe, et al
+    - tests: reset failing "fwupd-refresh.service" if needed
+    - tests/main/gadget-update-pc: use a program to modify gadget yaml
+    - snap-confine: suppress noisy classic snap file_inherit denials
+
+ -- Michael Vogt <michael.vogt@ubuntu.com>  Wed, 27 Nov 2019 12:41:07 +0100
+
 snapd (2.42.2) xenial; urgency=medium
 
   * New upstream release, LP: #1853244

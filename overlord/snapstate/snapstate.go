@@ -27,7 +27,6 @@ import (
 	"fmt"
 	"os"
 	"sort"
-	"strings"
 	"time"
 
 	"github.com/snapcore/snapd/asserts"
@@ -356,15 +355,18 @@ func doInstall(st *state.State, snapst *SnapState, snapsup *SnapSetup, flags int
 	ts.MarkEdge(prereq, BeginEdge)
 	ts.MarkEdge(setupAliases, BeforeHooksEdge)
 
-	var confFlags int
-	if !snapst.IsInstalled() && snapsup.SideInfo != nil && snapsup.SideInfo.SnapID != "" {
-		// installation, run configure using the gadget defaults
-		// if available
-		confFlags |= UseConfigDefaults
-	}
-
 	// we do not support configuration for bases or the "snapd" snap yet
 	if snapsup.Type != snap.TypeBase && snapsup.Type != snap.TypeSnapd {
+		confFlags := 0
+		notCore := snapsup.InstanceName() != "core"
+		hasSnapID := snapsup.SideInfo != nil && snapsup.SideInfo.SnapID != ""
+		if !snapst.IsInstalled() && hasSnapID && notCore {
+			// installation, run configure using the gadget defaults
+			// if available, system config defaults (attached to
+			// "core") are consumed only during seeding, via an
+			// explicit configure step separate from installing
+			confFlags |= UseConfigDefaults
+		}
 		configSet := ConfigureSnap(st, snapsup.InstanceName(), confFlags)
 		configSet.WaitAll(ts)
 		ts.AddAll(configSet)
@@ -496,43 +498,34 @@ func contentAttr(attrer interfaces.Attrer) string {
 	return s
 }
 
-func contentIfaceAvailable(st *state.State, contentTag string) bool {
+func contentIfaceAvailable(st *state.State) map[string]bool {
 	repo := ifacerepo.Get(st)
-	for _, slot := range repo.AllSlots("content") {
-		if contentAttr(slot) == "" {
+	contentSlots := repo.AllSlots("content")
+	avail := make(map[string]bool, len(contentSlots))
+	for _, slot := range contentSlots {
+		contentTag := contentAttr(slot)
+		if contentTag == "" {
 			continue
 		}
-		if contentAttr(slot) == contentTag {
-			return true
-		}
+		avail[contentTag] = true
 	}
-	return false
+	return avail
 }
 
 // defaultContentPlugProviders takes a snap.Info and returns what
 // default providers there are.
 func defaultContentPlugProviders(st *state.State, info *snap.Info) []string {
+	needed := snap.NeededDefaultProviders(info)
+	if len(needed) == 0 {
+		return nil
+	}
+	avail := contentIfaceAvailable(st)
 	out := []string{}
-	seen := map[string]bool{}
-	for _, plug := range info.Plugs {
-		if plug.Interface == "content" {
-			if contentAttr(plug) == "" {
-				continue
-			}
-			if !contentIfaceAvailable(st, contentAttr(plug)) {
-				var dprovider string
-				err := plug.Attr("default-provider", &dprovider)
-				if err != nil || dprovider == "" {
-					continue
-				}
-				// The default-provider is a name. However old
-				// documentation said it is "snapname:ifname",
-				// we deal with this gracefully by just
-				// stripping of the part after the ":"
-				if name := strings.SplitN(dprovider, ":", 2)[0]; !seen[name] {
-					out = append(out, name)
-					seen[name] = true
-				}
+	for snapInstance, contentTags := range needed {
+		for _, contentTag := range contentTags {
+			if !avail[contentTag] {
+				out = append(out, snapInstance)
+				break
 			}
 		}
 	}
@@ -2362,18 +2355,22 @@ func ConfigDefaults(st *state.State, deviceCtx DeviceContext, snapName string) (
 		return nil, err
 	}
 
+	// system configuration is kept under "core" so apply its defaults when
+	// configuring "core"
+	isSystemDefaults := snapName == defaultCoreSnapName
 	var snapst SnapState
-	if err := Get(st, snapName, &snapst); err != nil {
+	if err := Get(st, snapName, &snapst); err != nil && err != state.ErrNoState {
 		return nil, err
 	}
 
-	isCoreDefaults := snapName == defaultCoreSnapName
-
-	si := snapst.CurrentSideInfo()
-	// core snaps can be addressed even without a snap-id via the special
-	// "system" value in the config; first-boot always configures the core
-	// snap with UseConfigDefaults
-	if si.SnapID == "" && !isCoreDefaults {
+	var snapID string
+	if snapst.IsInstalled() {
+		snapID = snapst.CurrentSideInfo().SnapID
+	}
+	// system snaps (core and snapd) snaps can be addressed even without a
+	// snap-id via the special "system" value in the config; first-boot
+	// always configures the core snap with UseConfigDefaults
+	if snapID == "" && !isSystemDefaults {
 		return nil, state.ErrNoState
 	}
 
@@ -2387,9 +2384,9 @@ func ConfigDefaults(st *state.State, deviceCtx DeviceContext, snapName string) (
 	}
 
 	// we support setting core defaults via "system"
-	if isCoreDefaults {
+	if isSystemDefaults {
 		if defaults, ok := gadgetInfo.Defaults["system"]; ok {
-			if _, ok := gadgetInfo.Defaults[si.SnapID]; ok && si.SnapID != "" {
+			if _, ok := gadgetInfo.Defaults[snapID]; ok && snapID != "" {
 				logger.Noticef("core snap configuration defaults found under both 'system' key and core-snap-id, preferring 'system'")
 			}
 
@@ -2397,7 +2394,7 @@ func ConfigDefaults(st *state.State, deviceCtx DeviceContext, snapName string) (
 		}
 	}
 
-	defaults, ok := gadgetInfo.Defaults[si.SnapID]
+	defaults, ok := gadgetInfo.Defaults[snapID]
 	if !ok {
 		return nil, state.ErrNoState
 	}

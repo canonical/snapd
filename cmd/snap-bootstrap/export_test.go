@@ -20,6 +20,8 @@
 package main
 
 import (
+	"io"
+
 	"github.com/snapcore/snapd/cmd/snap-bootstrap/bootstrap"
 )
 
@@ -32,5 +34,37 @@ func MockBootstrapRun(f func(string, string, *bootstrap.Options) error) (restore
 	bootstrapRun = f
 	return func() {
 		bootstrapRun = oldBootstrapRun
+	}
+}
+
+func MockProcCmdline(newPath string) (restore func()) {
+	oldProcCmdline := procCmdline
+	procCmdline = newPath
+	return func() {
+		procCmdline = oldProcCmdline
+	}
+}
+
+func MockStdout(newStdout io.Writer) (restore func()) {
+	oldStdout := stdout
+	stdout = newStdout
+	return func() {
+		stdout = oldStdout
+	}
+}
+
+func MockOsutilIsMounted(f func(path string) (bool, error)) (restore func()) {
+	oldOsutilIsMounted := osutilIsMounted
+	osutilIsMounted = f
+	return func() {
+		osutilIsMounted = oldOsutilIsMounted
+	}
+}
+
+func MockRunMnt(newRunMnt string) (restore func()) {
+	oldRunMnt := runMnt
+	runMnt = newRunMnt
+	return func() {
+		runMnt = oldRunMnt
 	}
 }

@@ -83,6 +83,16 @@ func SetLastBecomeOperationalAttempt(m *DeviceManager, t time.Time) {
 	m.lastBecomeOperationalAttempt = t
 }
 
+func SetOperatingMode(m *DeviceManager, mode string) {
+	m.operatingMode = mode
+}
+
+// XXX: will become properly exported but we probably want to make
+//      mode a type and not a string before we do that
+func OperatingMode(m *DeviceManager) string {
+	return m.operatingMode
+}
+
 func MockRepeatRequestSerial(label string) (restore func()) {
 	old := repeatRequestSerial
 	repeatRequestSerial = label

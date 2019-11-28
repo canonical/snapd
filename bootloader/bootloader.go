@@ -35,6 +35,14 @@ var (
 	ErrBootloader = errors.New("cannot determine bootloader")
 )
 
+// Options carries bootloader options.
+type Options struct {
+	// PrepareImageTime indicates whether the booloader is being
+	// used at prepare-image time, that means not on a runtime
+	// system.
+	PrepareImageTime bool
+}
+
 // Bootloader provides an interface to interact with the system
 // bootloader
 type Bootloader interface {
@@ -50,6 +58,11 @@ type Bootloader interface {
 	// ConfigFile returns the name of the config file
 	ConfigFile() string
 
+	// InstallBootConfig will try to install the boot config in the
+	// given gadgetDir to rootdir. If no boot config for this bootloader
+	// is found ok is false.
+	InstallBootConfig(gadgetDir string, opts *Options) (ok bool, err error)
+
 	// ExtractKernelAssets extracts kernel assets from the given kernel snap
 	ExtractKernelAssets(s snap.PlaceInfo, snapf snap.Container) error
 
@@ -62,23 +75,25 @@ type installableBootloader interface {
 	setRootDir(string)
 }
 
+func genericInstallBootConfig(gadgetFile, systemFile string) (bool, error) {
+	if !osutil.FileExists(gadgetFile) {
+		return false, nil
+	}
+	if err := os.MkdirAll(filepath.Dir(systemFile), 0755); err != nil {
+		return true, err
+	}
+	return true, osutil.CopyFile(gadgetFile, systemFile, osutil.CopyFlagOverwrite)
+}
+
 // InstallBootConfig installs the bootloader config from the gadget
 // snap dir into the right place.
-func InstallBootConfig(gadgetDir, rootDir string) error {
+func InstallBootConfig(gadgetDir, rootDir string, opts *Options) error {
 	for _, bl := range []installableBootloader{&grub{}, &uboot{}, &androidboot{}, &lk{}} {
-		// the bootloader config file has to be root of the gadget snap
-		gadgetFile := filepath.Join(gadgetDir, bl.Name()+".conf")
-		if !osutil.FileExists(gadgetFile) {
-			continue
-		}
-
 		bl.setRootDir(rootDir)
-
-		systemFile := bl.ConfigFile()
-		if err := os.MkdirAll(filepath.Dir(systemFile), 0755); err != nil {
+		ok, err := bl.InstallBootConfig(gadgetDir, opts)
+		if ok {
 			return err
 		}
-		return osutil.CopyFile(gadgetFile, systemFile, osutil.CopyFlagOverwrite)
 	}
 
 	return fmt.Errorf("cannot find boot config in %q", gadgetDir)
@@ -88,14 +103,6 @@ var (
 	forcedBootloader Bootloader
 	forcedError      error
 )
-
-// Options carries bootloader options.
-type Options struct {
-	// PrepareImageTime indicates whether the booloader is being
-	// used at prepare-image time, that means not on a runtime
-	// system.
-	PrepareImageTime bool
-}
 
 // Find returns the bootloader for the system
 // or an error if no bootloader is found.
