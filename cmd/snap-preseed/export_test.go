@@ -41,7 +41,7 @@ func MockMountPath(path string) (restore func()) {
 	return func() { mountPath = oldMountPath }
 }
 
-func MockSystemSnapFromSeed(f func() (string, error)) (restore func()) {
+func MockSystemSnapFromSeed(f func(rootDir string) (string, error)) (restore func()) {
 	oldSystemSnapFromSeed := systemSnapFromSeed
 	systemSnapFromSeed = f
 	return func() { systemSnapFromSeed = oldSystemSnapFromSeed }
