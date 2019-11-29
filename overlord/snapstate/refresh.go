@@ -81,7 +81,7 @@ func pidsOfSnap(snapInfo *snap.Info) (map[string][]int, error) {
 		if filepath.Base(path) != "cgroup.procs" {
 			return nil
 		}
-		cgroupPath, _ := filepath.Split(path)
+		cgroupPath := filepath.Dir(path)
 		cgroupPath = filepath.Clean(cgroupPath) // Drops trailing /
 		securityTag := securityTagFromCgroupPath(cgroupPath)
 		if securityTag == "" {
