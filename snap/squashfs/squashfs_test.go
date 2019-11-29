@@ -27,6 +27,7 @@ import (
 	"os/exec"
 	"path/filepath"
 	"strings"
+	"syscall"
 	"testing"
 	"time"
 
@@ -621,4 +622,39 @@ func (s *SquashfsTestSuite) TestBuildDate(c *C) {
 	// and see it's BuildDate is _now_, not _then_.
 	c.Check(squashfs.BuildDate(filename), Equals, snap.BuildDate())
 	c.Check(math.Abs(now.Sub(snap.BuildDate()).Seconds()) <= 61, Equals, true, Commentf("Unexpected build date %s", snap.BuildDate()))
+}
+
+func (s *SquashfsTestSuite) TestBuildChecksRead(c *C) {
+	if os.Geteuid() == 0 {
+		c.Skip("cannot be tested when running as root")
+	}
+	// make a directory
+	d := c.MkDir()
+
+	err := os.MkdirAll(filepath.Join(d, "ro-dir"), 0755)
+	c.Assert(err, IsNil)
+	err = ioutil.WriteFile(filepath.Join(d, "ro-dir", "in-ro-dir"), []byte("123"), 0664)
+	c.Assert(err, IsNil)
+	err = os.Chmod(filepath.Join(d, "ro-dir"), 0000)
+	c.Assert(err, IsNil)
+	// so that tear down does not complain
+	defer os.Chmod(filepath.Join(d, "ro-dir"), 0755)
+
+	err = ioutil.WriteFile(filepath.Join(d, "ro-file"), []byte("123"), 0000)
+	c.Assert(err, IsNil)
+	err = ioutil.WriteFile(filepath.Join(d, "ro-empty-file"), nil, 0000)
+	c.Assert(err, IsNil)
+
+	err = syscall.Mkfifo(filepath.Join(d, "fifo"), 0000)
+	c.Assert(err, IsNil)
+
+	filename := filepath.Join(c.MkDir(), "foo.snap")
+	snap := squashfs.New(filename)
+	err = snap.Build(d, "app")
+	c.Assert(err, NotNil)
+	c.Assert(err.Error(), Equals, `cannot access the following locations in the snap source directory:
+- ro-file (owner 1000:1000 mode 000)
+- ro-dir (owner 1000:1000 mode 000)
+`)
+
 }
