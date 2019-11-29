@@ -359,7 +359,7 @@ func (e *errPathsNotReadable) Error() string {
 		b.WriteString("\n")
 	}
 	if len(e.paths) == maxErrPaths {
-		b.WriteString("- too many errors, listing fist 10 entries")
+		fmt.Fprintf(&b, "- too many errors, listing first %v entries\n", maxErrPaths)
 	}
 	return b.String()
 }

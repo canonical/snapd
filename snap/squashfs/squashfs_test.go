@@ -21,6 +21,7 @@ package squashfs_test
 
 import (
 	"errors"
+	"fmt"
 	"io/ioutil"
 	"math"
 	"os"
@@ -624,7 +625,7 @@ func (s *SquashfsTestSuite) TestBuildDate(c *C) {
 	c.Check(math.Abs(now.Sub(snap.BuildDate()).Seconds()) <= 61, Equals, true, Commentf("Unexpected build date %s", snap.BuildDate()))
 }
 
-func (s *SquashfsTestSuite) TestBuildChecksRead(c *C) {
+func (s *SquashfsTestSuite) TestBuildChecksReadDifferentFiles(c *C) {
 	if os.Geteuid() == 0 {
 		c.Skip("cannot be tested when running as root")
 	}
@@ -651,10 +652,32 @@ func (s *SquashfsTestSuite) TestBuildChecksRead(c *C) {
 	filename := filepath.Join(c.MkDir(), "foo.snap")
 	snap := squashfs.New(filename)
 	err = snap.Build(d, "app")
-	c.Assert(err, NotNil)
-	c.Assert(err.Error(), Equals, `cannot access the following locations in the snap source directory:
-- ro-file (owner 1000:1000 mode 000)
-- ro-dir (owner 1000:1000 mode 000)
+	c.Assert(err, ErrorMatches, `(?s)cannot access the following locations in the snap source directory:
+- ro-(file|dir) \(owner [0-9]+:[0-9]+ mode 000\)
+- ro-(file|dir) \(owner [0-9]+:[0-9]+ mode 000\)
 `)
 
+}
+
+func (s *SquashfsTestSuite) TestBuildChecksReadErrorLimit(c *C) {
+	if os.Geteuid() == 0 {
+		c.Skip("cannot be tested when running as root")
+	}
+	// make a directory
+	d := c.MkDir()
+
+	// make more than maxErrPaths entries
+	for i := 0; i < squashfs.MaxErrPaths; i++ {
+		p := filepath.Join(d, fmt.Sprintf("0%d", i))
+		err := ioutil.WriteFile(p, []byte("123"), 0000)
+		c.Assert(err, IsNil)
+		err = os.Chmod(p, 0000)
+		c.Assert(err, IsNil)
+	}
+	filename := filepath.Join(c.MkDir(), "foo.snap")
+	snap := squashfs.New(filename)
+	err := snap.Build(d, "app")
+	c.Assert(err, ErrorMatches, `(?s)cannot access the following locations in the snap source directory:
+(- [0-9]+ \(owner [0-9]+:[0-9]+ mode 000.*\).){10}- too many errors, listing first 10 entries
+`)
 }
