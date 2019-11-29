@@ -97,6 +97,16 @@ func IsWritable(path string) bool {
 	return err == nil
 }
 
+// IsReadable checks if the given file/directory can be read by
+// the current user
+func IsReadableAt(dir *os.File, name string) bool {
+	// from "fcntl.h"
+	const R_OK = 4
+
+	err := syscall.Faccessat(int(dir.Fd()), name, R_OK, 0)
+	return err == nil
+}
+
 // IsDirNotExist tells you whether the given error is due to a directory not existing.
 func IsDirNotExist(err error) bool {
 	switch pe := err.(type) {
