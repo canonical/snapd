@@ -71,7 +71,6 @@ func init() {
 		summary:                  dpdkControlSummary,
 		implicitOnCore:           true,
 		implicitOnClassic:        true,
-		reservedForOS:            true,
 		baseDeclarationSlots:     dpdkControlBaseDeclarationSlots,
 		connectedPlugAppArmor:    dpdkControlConnectedPlugAppArmor,
 		connectedPlugSecComp:     dpdkControlConnectedPlugSecComp,
