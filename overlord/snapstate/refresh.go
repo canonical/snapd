@@ -33,7 +33,7 @@ import (
 )
 
 func securityTagFromCgroupPath(path string) (securityTag string) {
-	_, leaf := filepath.Split(path)
+	leaf := filepath.Base(path)
 	if matched, _ := filepath.Match("snap.*.service", leaf); matched {
 		return strings.TrimSuffix(leaf, ".service")
 	}
