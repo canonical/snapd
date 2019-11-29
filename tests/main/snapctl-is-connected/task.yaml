@@ -17,10 +17,17 @@ execute: |
   if test-snap.checkconn network; then
     echo "expected network to be disconnected"
   fi
+
+  # check the output is empty (except for fedora which prints cgroup warning)
   OUT=$(test-snap.checkconn network 2>&1 || true)
-  if [ -n "$OUT" ]; then
-    echo "Expected no output, but got: $OUT"
-    exit 1
+
+  if [[ "$SPREAD_SYSTEM" == fedora-* ]]; then
+    echo "$OUT" | MATCH '^WARNING: cgroup v2 is not fully supported yet, proceeding with partial confinement$'
+  else
+    if [ -n "$OUT" ]; then
+      echo "Expected no output, but got: $OUT"
+      exit 1
+    fi
   fi
 
   if test-snap.checkconn home; then
