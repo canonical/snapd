@@ -44,7 +44,7 @@ execute: |
     trap 'kill '"$pid"' || true' EXIT
 
     # While the sleeper app is running check that we can still run other
-    # processes.  This checks if we can join an existing slice.
+    # processes. This checks if we can spawn a distinct scope.
     test-snapd-refresh.version | MATCH v1
 
     # Ensure that snap-confine has finished its task and that the snap process
