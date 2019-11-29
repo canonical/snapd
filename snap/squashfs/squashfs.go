@@ -392,7 +392,7 @@ func verifyContentAccessWalkDir(source, prefix string) error {
 				// empty files are also recreated
 				continue
 			}
-			if !osutil.IsReadableAt(dir, st.Name()) {
+			if !osutil.IsReadable(filepath.Join(source, st.Name())) {
 				// mksquashfs will not be able to read the contents
 				if err := errPaths.accumulate(filepath.Join(prefix, st.Name()), st); err != nil {
 					return err
