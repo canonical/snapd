@@ -634,6 +634,37 @@ func (s *snapmgrTestSuite) TestInstallTasks(c *C) {
 	c.Assert(s.state.TaskCount(), Equals, len(ts.Tasks()))
 }
 
+func (s *snapmgrTestSuite) TestInstallTaskEdgesForPreseeding(c *C) {
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	mockSnap := makeTestSnap(c, `name: some-snap
+version: 1.0
+`)
+
+	for _, skipConfig := range []bool{false, true} {
+		ts, _, err := snapstate.InstallPath(s.state, &snap.SideInfo{RealName: "some-snap", SnapID: "some-snap-id", Revision: snap.R(8)}, mockSnap, "", "", snapstate.Flags{SkipConfigure: skipConfig})
+		c.Assert(err, IsNil)
+
+		te, err := ts.Edge(snapstate.BeginEdge)
+		c.Assert(err, IsNil)
+		c.Check(te.Kind(), Equals, "prerequisites")
+
+		te, err = ts.Edge(snapstate.BeforeHooksEdge)
+		c.Assert(err, IsNil)
+		c.Check(te.Kind(), Equals, "setup-aliases")
+
+		te, err = ts.Edge(snapstate.HooksEdge)
+		c.Assert(err, IsNil)
+		c.Assert(te.Kind(), Equals, "run-hook")
+
+		var hsup *hookstate.HookSetup
+		c.Assert(te.Get("hook-setup", &hsup), IsNil)
+		c.Check(hsup.Hook, Equals, "install")
+		c.Check(hsup.Snap, Equals, "some-snap")
+	}
+}
+
 func (s *snapmgrTestSuite) TestInstallSnapdSnapType(c *C) {
 	restore := snap.MockSnapdSnapID("snapd-id") // id provided by fakeStore
 	defer restore()

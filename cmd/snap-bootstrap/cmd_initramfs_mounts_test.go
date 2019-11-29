@@ -235,7 +235,7 @@ func (s *initramfsMountsSuite) TestInitramfsMountsInstallModeStep4(c *C) {
 	c.Assert(err, IsNil)
 	c.Assert(n, Equals, 3)
 	c.Check(s.Stdout.String(), Equals, "")
-	modeEnv := filepath.Join(s.runMnt, "/ubuntu-data/var/lib/snapd/modeenv")
+	modeEnv := filepath.Join(s.runMnt, "/ubuntu-data/system-data/var/lib/snapd/modeenv")
 	c.Check(modeEnv, testutil.FileEquals, `mode=install
 recovery_system=20191118
 `)
