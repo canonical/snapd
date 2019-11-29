@@ -6586,6 +6586,32 @@ func (s *apiSuite) TestSnapctlForbiddenError(c *check.C) {
 	c.Assert(rsp.Status, check.Equals, 403)
 }
 
+func (s *apiSuite) TestSnapctlUnsuccesfulError(c *check.C) {
+	_ = s.daemon(c)
+
+	runSnapctlUcrednetGet = func(string) (int32, uint32, string, error) {
+		return 100, 9999, dirs.SnapSocket, nil
+	}
+	defer func() { runSnapctlUcrednetGet = ucrednetGet }()
+
+	ctlcmdRun = func(ctx *hookstate.Context, arg []string, uid uint32) ([]byte, []byte, error) {
+		return nil, nil, &ctlcmd.UnsuccesfulError{ExitCode: 123}
+	}
+	defer func() { ctlcmdRun = ctlcmd.Run }()
+
+	buf := bytes.NewBufferString(fmt.Sprintf(`{"context-id": "some-context", "args": [%q, %q]}`, "is-connected", "plug"))
+	req, err := http.NewRequest("POST", "/v2/snapctl", buf)
+	c.Assert(err, check.IsNil)
+	rsp := runSnapctl(snapctlCmd, req, nil).(*resp)
+	c.Check(rsp.Status, check.Equals, 200)
+	c.Check(rsp.Result.(*errorResult).Kind, check.Equals, errorKindUnsuccesful)
+	c.Check(rsp.Result.(*errorResult).Value, check.DeepEquals, map[string]interface{}{
+		"stdout":    "",
+		"stderr":    "",
+		"exit-code": "123",
+	})
+}
+
 type appSuite struct {
 	apiBaseSuite
 	cmd *testutil.MockCmd

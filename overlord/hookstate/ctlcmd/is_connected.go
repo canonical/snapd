@@ -41,7 +41,6 @@ The is-connected command returns success if the given plug or slot of the
 calling snap is connected, and failure otherwise.
 
 $ snapctl is-connected plug
-plug is not connected
 $ echo $?
 1
 
@@ -94,5 +93,5 @@ func (c *isConnectedCommand) Execute(args []string) error {
 		}
 	}
 
-	return fmt.Errorf("%s is not connected", plugOrSlot)
+	return &UnsuccesfulError{ExitCode: 1}
 }

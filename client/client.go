@@ -526,6 +526,8 @@ const (
 	ErrorKindDaemonRestart = "daemon-restart"
 
 	ErrorKindAssertionNotFound = "assertion-not-found"
+
+	ErrorKindUnsuccesful = "unsuccesful"
 )
 
 // IsRetryable returns true if the given error is an error

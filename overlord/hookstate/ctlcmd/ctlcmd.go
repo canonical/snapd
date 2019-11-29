@@ -94,6 +94,15 @@ func addCommand(name, shortHelp, longHelp string, generator func() command) *com
 	return cmd
 }
 
+// UnsuccesfulError carries a specific error code to be returned to the client
+type UnsuccesfulError struct {
+	ExitCode int
+}
+
+func (e UnsuccesfulError) Error() string {
+	return fmt.Sprintf("error code: %d", e.ExitCode)
+}
+
 // ForbiddenCommandError conveys that a command cannot be invoked in some context
 type ForbiddenCommandError struct {
 	Message string

@@ -45,6 +45,7 @@ func (s *isConnectedSuite) SetUpTest(c *C) {
 
 var isConnectedTests = []struct {
 	args, stdout, stderr, error string
+	exitCode                    int
 }{{
 	args:  "is-connected",
 	error: "the required argument `<plug|slot>` was not provided",
@@ -54,18 +55,18 @@ var isConnectedTests = []struct {
 	args: "is-connected slot1",
 }, {
 	// reported as not connected because of undesired flag
-	args:  "is-connected plug2",
-	error: "plug2 is not connected",
+	args:     "is-connected plug2",
+	exitCode: 1,
 }, {
 	// reported as not connected because of hotplug-gone flag
-	args:  "is-connected plug3",
-	error: "plug3 is not connected",
+	args:     "is-connected plug3",
+	exitCode: 1,
 }, {
-	args:  "is-connected slot2",
-	error: "slot2 is not connected",
+	args:     "is-connected slot2",
+	exitCode: 1,
 }, {
-	args:  "is-connected foo",
-	error: "foo is not connected",
+	args:     "is-connected foo",
+	exitCode: 1,
 }}
 
 func (s *isConnectedSuite) testIsConnected(c *C, context *hookstate.Context) {
@@ -81,11 +82,18 @@ func (s *isConnectedSuite) testIsConnected(c *C, context *hookstate.Context) {
 
 	for _, test := range isConnectedTests {
 		stdout, stderr, err := ctlcmd.Run(context, strings.Fields(test.args), 0)
-		if test.error == "" {
-			c.Check(err, IsNil)
+		if test.exitCode > 0 {
+			unsuccesfulErr, ok := err.(*ctlcmd.UnsuccesfulError)
+			c.Assert(ok, Equals, true)
+			c.Check(unsuccesfulErr.ExitCode, Equals, test.exitCode)
 		} else {
-			c.Check(err, ErrorMatches, test.error)
+			if test.error == "" {
+				c.Check(err, IsNil)
+			} else {
+				c.Check(err, ErrorMatches, test.error)
+			}
 		}
+
 		c.Check(string(stdout), Equals, test.stdout, Commentf("%s\n", test.args))
 		c.Check(string(stderr), Equals, "")
 	}
