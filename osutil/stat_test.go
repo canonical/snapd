@@ -148,32 +148,33 @@ func (s *StatTestSuite) TestIsWritableDir(c *C) {
 	}
 }
 
-func (s *StatTestSuite) TestIsReadableAt(c *C) {
+func (s *StatTestSuite) TestIsReadable(c *C) {
 	d := c.MkDir()
-	dir, err := os.Open(d)
-	c.Assert(err, IsNil)
-	defer dir.Close()
 
-	c.Assert(IsReadableAt(dir, "does-not-exist"), Equals, false)
+	p := filepath.Join(d, "does-not-exist")
+	c.Assert(IsReadable(p), Equals, false)
 
-	err = ioutil.WriteFile(filepath.Join(d, "foo"), nil, 0644)
+	p = filepath.Join(d, "foo")
+	err := ioutil.WriteFile(p, nil, 0644)
 	c.Assert(err, IsNil)
-	c.Assert(IsReadableAt(dir, "foo"), Equals, true)
+	c.Assert(IsReadable(p), Equals, true)
 
-	err = ioutil.WriteFile(filepath.Join(d, "foo-ro"), nil, 0000)
+	p = filepath.Join(d, "foo-ro")
+	err = ioutil.WriteFile(p, nil, 0000)
 	c.Assert(err, IsNil)
-	c.Assert(IsReadableAt(dir, "foo-ro"), Equals, false)
+	c.Assert(IsReadable(p), Equals, false)
 
-	err = os.MkdirAll(filepath.Join(d, "dir"), 0755)
+	p = filepath.Join(d, "dir")
+	err = os.MkdirAll(p, 0755)
 	c.Assert(err, IsNil)
-	c.Assert(IsReadableAt(dir, "dir"), Equals, true)
+	c.Assert(IsReadable(p), Equals, true)
 
-	err = os.MkdirAll(filepath.Join(d, "dir-ro"), 0000)
+	p = filepath.Join(d, "dir-ro")
+	err = os.MkdirAll(p, 0000)
 	c.Assert(err, IsNil)
-	c.Assert(IsReadableAt(dir, "dir-ro"), Equals, false)
+	c.Assert(IsReadable(p), Equals, false)
 
 	defer os.Chmod(filepath.Join(d, "dir-ro"), 0755)
-
 }
 
 func (s *StatTestSuite) TestIsDirNotExist(c *C) {
