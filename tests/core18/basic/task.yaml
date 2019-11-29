@@ -12,9 +12,9 @@ execute: |
     echo "Ensure that the system is fully seeded"
     snap changes | MATCH "Done.*Initialize system state"
 
-    echo "Check that snapd tools for core18 works"
-    snap install test-snapd-tools-core18
-    test-snapd-tools-core18.echo hello | MATCH hello
+    echo "Check that snapd sh for core18 works"
+    snap install test-snapd-sh-core18
+    test-snapd-sh-core18.sh -c 'echo hello' | MATCH hello
 
     if python3 -m json.tool < /var/lib/snapd/system-key | grep '"build-id": ""'; then
         echo "The build-id of snapd must not be empty."
@@ -22,4 +22,4 @@ execute: |
     fi
 
     echo "Ensure passwd/group is available for snaps"
-    test-snapd-tools-core18.cat /var/lib/extrausers/passwd | MATCH test
+    test-snapd-sh-core18.sh -c 'cat /var/lib/extrausers/passwd' | MATCH test
