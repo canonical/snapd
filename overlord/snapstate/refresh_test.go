@@ -109,8 +109,11 @@ func (s *refreshSuite) TestPidsOfSnapUnrelatedStuff(c *C) {
 	c.Assert(s.info.SnapName(), Equals, "foo")
 
 	// Things that are not related to the snap are not being picked up.
-	path := filepath.Join(dirs.CgroupDir, "system.slice", "udisks2.service")
-	writePids(c, path, []int{100})
+	writePids(c, filepath.Join(dirs.CgroupDir, "udisks2.service"), []int{100})
+	writePids(c, filepath.Join(dirs.CgroupDir, "snap..service"), []int{101})
+	writePids(c, filepath.Join(dirs.CgroupDir, "snap..scope"), []int{102})
+	writePids(c, filepath.Join(dirs.CgroupDir, "snap.*.service"), []int{103})
+
 	pids, err := snapstate.PidsOfSnap(s.info)
 	c.Assert(err, IsNil)
 	c.Check(pids, HasLen, 0)
