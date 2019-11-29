@@ -221,14 +221,6 @@ func PidsInFile(fname string) ([]int, error) {
 	return parsePids(bufio.NewReader(file))
 }
 
-// PidsInGroup returns the list of process ID currently registered in a given cgroup
-func PidsInGroup(hierarchyMount, groupPath string) ([]int, error) {
-	// TODO: check whether hierarchyMount looks like a valid cgroup root
-	// (i.e. at cgroup.procs exists)
-	fname := filepath.Join(hierarchyMount, groupPath, "cgroup.procs")
-	return PidsInFile(fname)
-}
-
 // parsePid parses a string as a process identifier.
 func parsePid(text string) (int, error) {
 	pid, err := strconv.Atoi(text)
