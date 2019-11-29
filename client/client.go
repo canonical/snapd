@@ -527,7 +527,7 @@ const (
 
 	ErrorKindAssertionNotFound = "assertion-not-found"
 
-	ErrorKindUnsuccesful = "unsuccesful"
+	ErrorKindUnsuccessful = "unsuccessful"
 )
 
 // IsRetryable returns true if the given error is an error

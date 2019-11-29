@@ -6595,7 +6595,7 @@ func (s *apiSuite) TestSnapctlUnsuccesfulError(c *check.C) {
 	defer func() { runSnapctlUcrednetGet = ucrednetGet }()
 
 	ctlcmdRun = func(ctx *hookstate.Context, arg []string, uid uint32) ([]byte, []byte, error) {
-		return nil, nil, &ctlcmd.UnsuccesfulError{ExitCode: 123}
+		return nil, nil, &ctlcmd.UnsuccessfulError{ExitCode: 123}
 	}
 	defer func() { ctlcmdRun = ctlcmd.Run }()
 
@@ -6604,7 +6604,7 @@ func (s *apiSuite) TestSnapctlUnsuccesfulError(c *check.C) {
 	c.Assert(err, check.IsNil)
 	rsp := runSnapctl(snapctlCmd, req, nil).(*resp)
 	c.Check(rsp.Status, check.Equals, 200)
-	c.Check(rsp.Result.(*errorResult).Kind, check.Equals, errorKindUnsuccesful)
+	c.Check(rsp.Result.(*errorResult).Kind, check.Equals, errorKindUnsuccessful)
 	c.Check(rsp.Result.(*errorResult).Value, check.DeepEquals, map[string]interface{}{
 		"stdout":    "",
 		"stderr":    "",

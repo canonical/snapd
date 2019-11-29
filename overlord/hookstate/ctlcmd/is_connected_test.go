@@ -83,9 +83,9 @@ func (s *isConnectedSuite) testIsConnected(c *C, context *hookstate.Context) {
 	for _, test := range isConnectedTests {
 		stdout, stderr, err := ctlcmd.Run(context, strings.Fields(test.args), 0)
 		if test.exitCode > 0 {
-			unsuccesfulErr, ok := err.(*ctlcmd.UnsuccesfulError)
+			unsuccessfulErr, ok := err.(*ctlcmd.UnsuccessfulError)
 			c.Assert(ok, Equals, true)
-			c.Check(unsuccesfulErr.ExitCode, Equals, test.exitCode)
+			c.Check(unsuccessfulErr.ExitCode, Equals, test.exitCode)
 		} else {
 			if test.error == "" {
 				c.Check(err, IsNil)

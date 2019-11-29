@@ -191,7 +191,7 @@ const (
 
 	errorKindAssertionNotFound = errorKind("assertion-not-found")
 
-	errorKindUnsuccesful = errorKind("unsuccesful")
+	errorKindUnsuccessful = errorKind("unsuccessful")
 )
 
 type errorValue interface{}

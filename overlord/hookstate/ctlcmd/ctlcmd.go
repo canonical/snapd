@@ -94,12 +94,12 @@ func addCommand(name, shortHelp, longHelp string, generator func() command) *com
 	return cmd
 }
 
-// UnsuccesfulError carries a specific error code to be returned to the client
-type UnsuccesfulError struct {
+// UnsuccessfulError carries a specific exit code to be returned to the client
+type UnsuccessfulError struct {
 	ExitCode int
 }
 
-func (e UnsuccesfulError) Error() string {
+func (e UnsuccessfulError) Error() string {
 	return fmt.Sprintf("error code: %d", e.ExitCode)
 }
 

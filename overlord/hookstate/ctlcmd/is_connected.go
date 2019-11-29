@@ -93,5 +93,5 @@ func (c *isConnectedCommand) Execute(args []string) error {
 		}
 	}
 
-	return &UnsuccesfulError{ExitCode: 1}
+	return &UnsuccessfulError{ExitCode: 1}
 }

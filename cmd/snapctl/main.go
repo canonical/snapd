@@ -61,7 +61,7 @@ func main() {
 	if err != nil {
 		if e, ok := err.(*client.Error); ok {
 			switch e.Kind {
-			case client.ErrorKindUnsuccesful:
+			case client.ErrorKindUnsuccessful:
 				if errRes, ok := e.Value.(map[string]interface{}); ok {
 					if stdout, ok := errRes["stdout"].(string); ok {
 						os.Stdout.Write([]byte(stdout))
