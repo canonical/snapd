@@ -96,7 +96,7 @@ execute: |
     kill "$pid3"
     test "$(wc -l < "${base_cg_path}${pid3_tracking_cg_path}/cgroup.procs")" -eq 1
 
-    echo "Kill the remaining cgroup process."
+    echo "Kill the remaining cgroup processes."
     while read -r pid; do
         kill "$pid"
     done < "${base_cg_path}${pid3_tracking_cg_path}/cgroup.procs"
