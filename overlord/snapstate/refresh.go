@@ -116,7 +116,6 @@ func pidsOfSnap(snapInfo *snap.Info) (map[string][]int, error) {
 	}
 
 	return pidsByTag, nil
-
 }
 
 func genericRefreshCheck(info *snap.Info, canAppRunDuringRefresh func(app *snap.AppInfo) bool) error {
