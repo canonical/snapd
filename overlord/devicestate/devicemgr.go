@@ -46,8 +46,7 @@ import (
 // DeviceManager is responsible for managing the device identity and device
 // policies.
 type DeviceManager struct {
-	// operatingMode of a UC20 system. "","run","install","recover"
-	operatingMode string
+	modeEnv boot.Modeenv
 
 	state      *state.State
 	keypairMgr asserts.KeypairManager
@@ -88,7 +87,7 @@ func Manager(s *state.State, hookManager *hookstate.HookManager, runner *state.T
 		return nil, err
 	}
 	if modeEnv != nil {
-		m.operatingMode = modeEnv.Mode
+		m.modeEnv = *modeEnv
 	}
 
 	s.Lock()
@@ -256,11 +255,15 @@ func setClassicFallbackModel(st *state.State, device *auth.DeviceState) error {
 	return nil
 }
 
+func (m *DeviceManager) operatingMode() string {
+	return m.modeEnv.Mode
+}
+
 func (m *DeviceManager) ensureOperational() error {
 	m.state.Lock()
 	defer m.state.Unlock()
 
-	if m.operatingMode == "install" {
+	if m.operatingMode() == "install" {
 		// avoid doing registration in install mode
 		return nil
 	}
@@ -423,11 +426,16 @@ func (m *DeviceManager) ensureSeeded() error {
 		return nil
 	}
 
-	// TODO: Core 20: how do we establish whether this is a Core 20
-	// system, how do we receive mode here and also how to pick a label?
+	var opts *populateStateFromSeedOptions
+	if m.operatingMode() != "" {
+		opts = &populateStateFromSeedOptions{
+			Label: m.modeEnv.RecoverySystem,
+			Mode:  m.modeEnv.Mode,
+		}
+	}
 	var tsAll []*state.TaskSet
 	timings.Run(perfTimings, "state-from-seed", "populate state from seed", func(tm timings.Measurer) {
-		tsAll, err = populateStateFromSeed(m.state, nil, tm)
+		tsAll, err = populateStateFromSeed(m.state, opts, tm)
 	})
 	if err != nil {
 		return err
