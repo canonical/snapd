@@ -21,7 +21,7 @@ execute: |
   # check the output is empty (except for fedora which prints cgroup warning)
   OUT=$(test-snap.checkconn network 2>&1 || true)
 
-  if [[ "$SPREAD_SYSTEM" == fedora-* ]]; then
+  if [[ "$SPREAD_SYSTEM" == fedora-31 ]]; then
     echo "$OUT" | MATCH '^WARNING: cgroup v2 is not fully supported yet, proceeding with partial confinement$'
   else
     if [ -n "$OUT" ]; then
