@@ -681,3 +681,10 @@ func (s *SquashfsTestSuite) TestBuildChecksReadErrorLimit(c *C) {
 (- [0-9]+ \(owner [0-9]+:[0-9]+ mode 000.*\).){10}- too many errors, listing first 10 entries
 `)
 }
+
+func (s *SquashfsTestSuite) TestBuildBadSource(c *C) {
+	filename := filepath.Join(c.MkDir(), "foo.snap")
+	snap := squashfs.New(filename)
+	err := snap.Build("does-not-exist", "app")
+	c.Assert(err, ErrorMatches, ".*does-not-exist/: no such file or directory")
+}

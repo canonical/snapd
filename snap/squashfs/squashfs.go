@@ -350,10 +350,13 @@ func verifyContentAccessibleForBuild(sourceDir string) error {
 	var errPaths errPathsNotReadable
 
 	withSlash := filepath.Clean(sourceDir) + "/"
-	filepath.Walk(withSlash, func(path string, st os.FileInfo, err error) error {
-		if err != nil && !os.IsPermission(err) {
-			// swallow up permission errors
-			return err
+	err := filepath.Walk(withSlash, func(path string, st os.FileInfo, err error) error {
+		if err != nil {
+			if !os.IsPermission(err) {
+				return err
+			}
+			// accumulate permission errors
+			return errPaths.accumulate(strings.TrimPrefix(path, withSlash), st)
 		}
 		mode := st.Mode()
 		if !mode.IsRegular() && !mode.IsDir() {
@@ -364,15 +367,21 @@ func verifyContentAccessibleForBuild(sourceDir string) error {
 			// empty files are also recreated
 			return nil
 		}
-		if !osutil.IsReadable(path) {
-			// mksquashfs will not be able to read the contents
-			if err := errPaths.accumulate(strings.TrimPrefix(path, withSlash), st); err != nil {
+
+		f, err := os.Open(path)
+		if err != nil {
+			if !os.IsPermission(err) {
 				return err
 			}
-			// non-readable directory is already skipped by walk
+			// accumulate permission errors
+			return errPaths.accumulate(strings.TrimPrefix(path, withSlash), st)
 		}
+		f.Close()
 		return nil
 	})
+	if err != nil {
+		return err
+	}
 	return errPaths.asErr()
 }
 
