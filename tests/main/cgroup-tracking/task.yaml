@@ -57,7 +57,7 @@ execute: |
     echo "Sanity check, cgroup associated with the scope exists."
     test -d "${base_cg_path}${pid1_tracking_cg_path}"
 
-    echo "While the process is alive its PID can be seen in the cgroup.procs file"
+    echo "While the process is alive its PID can be seen in the cgroup.procs file."
     MATCH "$pid1" < "${base_cg_path}${pid1_tracking_cg_path}/cgroup.procs"
 
     echo "Start a second process so that we can check each scope is independent."
