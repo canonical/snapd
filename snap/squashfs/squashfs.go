@@ -374,7 +374,15 @@ func verifyContentAccessibleForBuild(sourceDir string) error {
 				return err
 			}
 			// accumulate permission errors
-			return errPaths.accumulate(strings.TrimPrefix(path, withSlash), st)
+			if err = errPaths.accumulate(strings.TrimPrefix(path, withSlash), st); err != nil {
+				return err
+			}
+			// workaround https://github.com/golang/go/issues/21758
+			// in pre 1.10 go versions and explicitly skip directory
+			if mode.IsDir() {
+				return filepath.SkipDir
+			}
+			return nil
 		}
 		f.Close()
 		return nil
