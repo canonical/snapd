@@ -23,13 +23,13 @@ import (
 	"bufio"
 	"bytes"
 	"fmt"
-	"io"
 	"io/ioutil"
 	"os"
 	"os/exec"
 	"path"
 	"path/filepath"
 	"regexp"
+	"strings"
 	"syscall"
 	"time"
 
@@ -322,26 +322,6 @@ func (e *errPathsNotReadable) accumulate(p string, fi os.FileInfo) error {
 	return nil
 }
 
-func (e *errPathsNotReadable) merge(errOther *errPathsNotReadable) error {
-	toTake := maxErrPaths - len(e.paths)
-	if toTake == 0 {
-		return e
-	}
-	if len(errOther.paths) == 0 {
-		return nil
-	}
-	if toTake > len(errOther.paths) {
-		toTake = len(errOther.paths)
-	}
-
-	e.paths = append(e.paths, errOther.paths[0:toTake]...)
-
-	if len(e.paths) == maxErrPaths {
-		return e
-	}
-	return nil
-}
-
 func (e *errPathsNotReadable) asErr() error {
 	if len(e.paths) > 0 {
 		return e
@@ -354,9 +334,9 @@ func (e *errPathsNotReadable) Error() string {
 
 	b.WriteString("cannot access the following locations in the snap source directory:\n")
 	for _, p := range e.paths {
-		b.WriteString("- ")
-		b.WriteString(p)
-		b.WriteString("\n")
+		fmt.Fprintf(&b, "- ")
+		fmt.Fprintf(&b, p)
+		fmt.Fprintf(&b, "\n")
 	}
 	if len(e.paths) == maxErrPaths {
 		fmt.Fprintf(&b, "- too many errors, listing first %v entries\n", maxErrPaths)
@@ -364,62 +344,36 @@ func (e *errPathsNotReadable) Error() string {
 	return b.String()
 }
 
-func verifyContentAccessWalkDir(source, prefix string) error {
-	dir, err := os.Open(source)
-	if err != nil {
-		return err
-	}
-	defer dir.Close()
-
-	var errPaths errPathsNotReadable
-
-	for {
-		sts, err := dir.Readdir(100)
-		if err != nil {
-			if err == io.EOF {
-				break
-			}
-			return err
-		}
-
-		for _, st := range sts {
-			mode := st.Mode()
-			if !mode.IsRegular() && !mode.IsDir() {
-				// device nodes are just recreated by mksquashfs
-				continue
-			}
-			if mode.IsRegular() && st.Size() == 0 {
-				// empty files are also recreated
-				continue
-			}
-			if !osutil.IsReadable(filepath.Join(source, st.Name())) {
-				// mksquashfs will not be able to read the contents
-				if err := errPaths.accumulate(filepath.Join(prefix, st.Name()), st); err != nil {
-					return err
-				}
-				continue
-			}
-			if st.IsDir() {
-				err := verifyContentAccessWalkDir(filepath.Join(source, st.Name()), filepath.Join(prefix, st.Name()))
-				if err == nil {
-					continue
-				}
-				if otherErrPaths, _ := err.(*errPathsNotReadable); otherErrPaths != nil {
-					err = errPaths.merge(otherErrPaths)
-				}
-				if err != nil {
-					return err
-				}
-			}
-		}
-	}
-	return errPaths.asErr()
-}
-
 // verifyContentAccessibleForBuild checks whether the content under source
 // directory is usable to the user and can be represented by mksquashfs.
 func verifyContentAccessibleForBuild(sourceDir string) error {
-	return verifyContentAccessWalkDir(sourceDir, "")
+	var errPaths errPathsNotReadable
+
+	withSlash := filepath.Clean(sourceDir) + "/"
+	filepath.Walk(withSlash, func(path string, st os.FileInfo, err error) error {
+		if err != nil && !os.IsPermission(err) {
+			// swallow up permission errors
+			return err
+		}
+		mode := st.Mode()
+		if !mode.IsRegular() && !mode.IsDir() {
+			// device nodes are just recreated by mksquashfs
+			return nil
+		}
+		if mode.IsRegular() && st.Size() == 0 {
+			// empty files are also recreated
+			return nil
+		}
+		if !osutil.IsReadable(path) {
+			// mksquashfs will not be able to read the contents
+			if err := errPaths.accumulate(strings.TrimPrefix(path, withSlash), st); err != nil {
+				return err
+			}
+			// non-readable directory is already skipped by walk
+		}
+		return nil
+	})
+	return errPaths.asErr()
 }
 
 // Build builds the snap.
