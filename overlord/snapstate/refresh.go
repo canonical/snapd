@@ -38,7 +38,7 @@ func securityTagFromCgroupPath(path string) (securityTag string) {
 		return strings.TrimSuffix(leaf, ".service")
 	}
 	if matched, _ := filepath.Match("snap.*.scope", leaf); matched {
-		// Neither dot1 nor dor2 can be -1 because the match guarantees that at
+		// Neither dot1 nor dot2 can be -1 because the match guarantees that at
 		// least two dots exist.
 		dot1 := strings.IndexRune(leaf, '.')
 		dot2 := strings.IndexRune(leaf[dot1+1:], '.')
