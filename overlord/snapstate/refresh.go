@@ -71,7 +71,7 @@ func pidsOfSnap(snapInfo *snap.Info) (map[string][]int, error) {
 
 	// Walk the cgroup tree and look for "cgroup.procs" files. Having found one
 	// we try to derive the snap security tag from one. If successful and the
-	// tag matches the snap we are interested in we havrvest the snapshot of
+	// tag matches the snap we are interested in we harvest the snapshot of
 	// PIDs that belong to the cgroup and bin them into a bucket associated
 	// with the security tag.
 	walkFunc := func(path string, fileInfo os.FileInfo, err error) error {
