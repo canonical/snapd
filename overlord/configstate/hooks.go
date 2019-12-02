@@ -96,7 +96,9 @@ func (h *configureHandler) Before() error {
 		if err != nil && err != state.ErrNoState {
 			return err
 		}
-		if len(patch) != 0 {
+		// core is handled internally and does not need a configure
+		// hook, for other snaps double check that the hook is present
+		if len(patch) != 0 && instanceName != "core" {
 			// TODO: helper on context?
 			info, err := snapstate.CurrentInfo(st, instanceName)
 			if err != nil {

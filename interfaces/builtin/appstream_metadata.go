@@ -111,7 +111,6 @@ func init() {
 		name:                 "appstream-metadata",
 		summary:              appstreamMetadataSummary,
 		implicitOnClassic:    true,
-		reservedForOS:        true,
 		baseDeclarationSlots: appstreamMetadataBaseDeclarationSlots,
 	}})
 }

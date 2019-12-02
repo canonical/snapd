@@ -130,12 +130,6 @@ update_core_snap_for_classic_reexec() {
     rm squashfs-root/usr/lib/snapd/* squashfs-root/usr/bin/snap
     # and copy in the current libexec
     cp -a "$LIBEXECDIR"/snapd/* squashfs-root/usr/lib/snapd/
-    case "$SPREAD_SYSTEM" in
-        fedora-*|centos-*|amazon-*)
-            # RPM can rewrite shebang to #!/usr/bin/sh
-            sed -i -e '1 s;#!/usr/bin/sh;#!/bin/sh;' squashfs-root/usr/lib/snapd/snap-device-helper
-            ;;
-    esac
     # also the binaries themselves
     cp -a /usr/bin/snap squashfs-root/usr/bin/
     # make sure bin/snapctl is a symlink to lib/
@@ -256,13 +250,18 @@ prepare_classic() {
     # Some systems (google:ubuntu-16.04-64) ship with a broken sshguard
     # unit. Stop the broken unit to not confuse the "degraded-boot" test.
     #
+    # Some other (debian-sid) fail in fwupd-refresh.service
+    #
     # FIXME: fix the ubuntu-16.04-64 image
-    if systemctl list-unit-files | grep sshguard.service; then
-        if ! systemctl status sshguard.service; then
-            systemctl stop sshguard.service
-	    systemctl reset-failed sshguard.service
+    # FIXME2: fix the debian-sid-64 image
+    for svc in fwupd-refresh.service sshguard.service; do
+        if systemctl list-unit-files | grep "$svc"; then
+            if systemctl is-failed "$svc"; then
+                systemctl stop "$svc"
+	        systemctl reset-failed "$svc"
+            fi
         fi
-    fi
+    done
 
     setup_systemd_snapd_overrides
 

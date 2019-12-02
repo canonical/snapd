@@ -30,7 +30,10 @@ import (
 	"github.com/snapcore/snapd/osutil"
 )
 
-var (
+const (
+	ubuntuBootLabel = "ubuntu-boot"
+	ubuntuDataLabel = "ubuntu-data"
+
 	sectorSize gadget.Size = 512
 )
 
@@ -222,7 +225,14 @@ func buildPartitionList(ptable *sfdiskPartitionTable, pv *gadget.LaidOutVolume) 
 		fmt.Fprintf(buf, "%s : start=%12d, size=%12d, type=%s, name=%q\n", node, p.StartOffset/sectorSize,
 			s.Size/sectorSize, partitionType(ptable.Label, p.Type), s.Name)
 
-		// Are roles unique so we can use it to map nodes? Should we use labels instead?
+		// Set expected labels based on role
+		switch s.Role {
+		case gadget.SystemBoot:
+			s.Label = ubuntuBootLabel
+		case gadget.SystemData:
+			s.Label = ubuntuDataLabel
+		}
+
 		toBeCreated = append(toBeCreated, DeviceStructure{p, node})
 	}
 

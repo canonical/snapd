@@ -93,6 +93,5 @@ func init() {
 		baseDeclarationSlots:  blockDevicesBaseDeclarationSlots,
 		connectedPlugAppArmor: blockDevicesConnectedPlugAppArmor,
 		connectedPlugUDev:     blockDevicesConnectedPlugUDev,
-		reservedForOS:         true,
 	}})
 }

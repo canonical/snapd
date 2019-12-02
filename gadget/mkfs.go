@@ -54,8 +54,15 @@ func MkfsExt4(img, label, contentsRootDir string) error {
 		mkfsArgs = append(mkfsArgs, "-L", label)
 	}
 	mkfsArgs = append(mkfsArgs, img)
-	// run through fakeroot so that files are owned by root
-	cmd := exec.Command("fakeroot", mkfsArgs...)
+
+	var cmd *exec.Cmd
+	if os.Geteuid() != 0 {
+		// run through fakeroot so that files are owned by root
+		cmd = exec.Command("fakeroot", mkfsArgs...)
+	} else {
+		// no need to fake it if we're already root
+		cmd = exec.Command(mkfsArgs[0], mkfsArgs[1:]...)
+	}
 	out, err := cmd.CombinedOutput()
 	if err != nil {
 		return osutil.OutputErr(out, err)
