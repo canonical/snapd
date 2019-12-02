@@ -73,7 +73,7 @@ execute: |
     test "$pid1_tracking_cg_path" != "$pid2_tracking_cg_path"
 
     echo "When the process terminates the control group it used to exist in is"
-    echo "automatically removed by systemdi, though perhaps not instantly"
+    echo "automatically removed by systemd, though perhaps not instantly"
     kill "$pid1"
     wait "$pid1" || true  # wait returns the exit code and we kill the process
     retry-tool -n 10 test ! -e "${base_cg_path}${pid1_tracking_cg_path}"
