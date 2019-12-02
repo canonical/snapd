@@ -72,7 +72,7 @@ execute: |
     echo "Each invocation uses a new transient scope and thus a new cgroup path."
     test "$pid1_tracking_cg_path" != "$pid2_tracking_cg_path"
 
-    echo "When the process terminates the control group it used to exist in is"
+    echo "When the process terminates, the control group it used to exist in is"
     echo "automatically removed by systemd, though perhaps not instantly"
     kill "$pid1"
     wait "$pid1" || true  # wait returns the exit code and we kill the process
