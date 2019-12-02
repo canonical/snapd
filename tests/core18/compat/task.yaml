@@ -8,4 +8,4 @@ execute: |
     snap list | MATCH "^core +"
 
     echo "Check test-snapd-sh see the core16 environment"
-    test-snapd-sh -c 'cat /etc/os-release' | MATCH "Ubuntu Core 16"
+    test-snapd-sh.sh -c 'cat /etc/os-release' | MATCH "Ubuntu Core 16"
