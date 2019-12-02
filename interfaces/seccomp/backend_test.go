@@ -22,9 +22,13 @@ package seccomp_test
 import (
 	"bytes"
 	"errors"
+	"fmt"
 	"io/ioutil"
 	"os"
 	"path/filepath"
+	"runtime"
+	"sort"
+	"sync"
 
 	. "gopkg.in/check.v1"
 
@@ -38,6 +42,7 @@ import (
 	seccomp_sandbox "github.com/snapcore/snapd/sandbox/seccomp"
 	"github.com/snapcore/snapd/snap"
 	"github.com/snapcore/snapd/snap/snaptest"
+	"github.com/snapcore/snapd/strutil"
 	"github.com/snapcore/snapd/testutil"
 	"github.com/snapcore/snapd/timings"
 )
@@ -867,4 +872,82 @@ fi
 		smbdProfile + ".src": true,
 	})
 
+}
+
+type mockedSyncedCompiler struct {
+	lock     sync.Mutex
+	profiles []string
+}
+
+func (m *mockedSyncedCompiler) Compile(in, out string) error {
+	m.lock.Lock()
+	m.profiles = append(m.profiles, filepath.Base(in))
+	m.lock.Unlock()
+
+	f, err := os.Create(out)
+	if err != nil {
+		return err
+	}
+	defer f.Close()
+	fmt.Fprintf(f, "done %s", filepath.Base(out))
+	return nil
+}
+
+func (m *mockedSyncedCompiler) VersionInfo() (seccomp_sandbox.VersionInfo, error) {
+	return "", nil
+}
+
+func (s *backendSuite) TestParallelCompileHappy(c *C) {
+	cpus := runtime.NumCPU()
+
+	m := mockedSyncedCompiler{}
+	profiles := make([]string, cpus*3)
+	for i := range profiles {
+		profiles[i] = fmt.Sprintf("profile-%03d", i)
+	}
+	err := seccomp.ParallelCompile(&m, profiles)
+	c.Assert(err, IsNil)
+
+	sort.Strings(m.profiles)
+	c.Assert(m.profiles, DeepEquals, profiles)
+
+	for _, p := range profiles {
+		c.Check(filepath.Join(dirs.SnapSeccompDir, p+".bin"), testutil.FileEquals, "done "+p+".bin")
+	}
+}
+
+type mockedSyncedFailingCompiler struct {
+	mockedSyncedCompiler
+	whichFail []string
+}
+
+func (m *mockedSyncedFailingCompiler) Compile(in, out string) error {
+	if b := filepath.Base(out); strutil.ListContains(m.whichFail, b) {
+		return fmt.Errorf("failed %v", b)
+	}
+	return m.mockedSyncedCompiler.Compile(in, out)
+}
+
+func (s *backendSuite) TestParallelCompileError(c *C) {
+	err := os.MkdirAll(dirs.SnapSeccompDir, 0755)
+	c.Assert(err, IsNil)
+	// 15 profiles
+	profiles := make([]string, 15)
+	for i := range profiles {
+		profiles[i] = fmt.Sprintf("profile-%03d", i)
+	}
+	m := mockedSyncedFailingCompiler{
+		// pretend compilation of those 2 fails
+		whichFail: []string{"profile-005.bin", "profile-009.bin"},
+	}
+	err = seccomp.ParallelCompile(&m, profiles)
+	c.Assert(err, ErrorMatches, "cannot compile .*/bpf/profile-00[59]: failed profile-00[59].bin")
+
+	// make sure all compiled profiles were removed
+	d, err := os.Open(dirs.SnapSeccompDir)
+	c.Assert(err, IsNil)
+	names, err := d.Readdirnames(-1)
+	c.Assert(err, IsNil)
+	// only global profile exists
+	c.Assert(names, DeepEquals, []string{"global.bin"})
 }

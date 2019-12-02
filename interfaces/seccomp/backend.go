@@ -163,6 +163,69 @@ func bpfBinPath(srcName string) string {
 	return filepath.Join(dirs.SnapSeccompDir, strings.TrimSuffix(srcName, ".src")+".bin")
 }
 
+func parallelCompile(compiler Compiler, profiles []string) error {
+	if len(profiles) == 0 {
+		// no profiles, nothing to do
+		return nil
+	}
+
+	profilesQueue := make(chan string, len(profiles))
+	res := make(chan error, len(profiles))
+	cpus := runtime.NumCPU()
+
+	var wg sync.WaitGroup
+	wg.Add(cpus)
+
+	// launch as many workers as we have CPUs
+	for i := 0; i < cpus; i++ {
+		go func() {
+			defer wg.Done()
+			for {
+				profile, ok := <-profilesQueue
+				if !ok {
+					break
+				}
+				in := bpfSrcPath(profile)
+				out := bpfBinPath(profile)
+
+				// snap-seccomp uses AtomicWriteFile internally, on failure the
+				// output file is unlinked
+				if err := compiler.Compile(in, out); err != nil {
+					res <- fmt.Errorf("cannot compile %s: %v", in, err)
+				} else {
+					res <- nil
+				}
+			}
+		}()
+	}
+
+	for _, p := range profiles {
+		profilesQueue <- p
+	}
+	close(profilesQueue)
+	wg.Wait()
+	close(res)
+
+	var firstErr error
+	for err := range res {
+		if err != nil && firstErr == nil {
+			firstErr = err
+		}
+	}
+
+	if firstErr != nil {
+		for _, p := range profiles {
+			out := bpfBinPath(p)
+			// unlink all profiles that could have been successfully
+			// compiled
+			os.Remove(out)
+		}
+
+	}
+	return firstErr
+
+}
+
 // Setup creates seccomp profiles specific to a given snap.
 // The snap can be in developer mode to make security violations non-fatal to
 // the offending application process.
@@ -208,52 +271,7 @@ func (b *Backend) Setup(snapInfo *snap.Info, opts interfaces.ConfinementOptions,
 		}
 	}
 
-	var wg sync.WaitGroup
-	wg.Add(len(changed))
-	res := make(chan error, len(changed))
-	for _, c := range changed {
-		in := bpfSrcPath(c)
-		out := bpfBinPath(c)
-
-		// remove binary profile first
-		err := os.Remove(out)
-		if err != nil && !os.IsNotExist(err) {
-			return err
-		}
-
-		go func(in, out string) {
-			defer wg.Done()
-			// snap-seccomp uses AtomicWriteFile internally, on failure the
-			// output file is unlinked
-			if err := b.snapSeccomp.Compile(in, out); err != nil {
-				res <- fmt.Errorf("cannot compile %s: %v", in, err)
-			} else {
-				res <- nil
-			}
-		}(in, out)
-	}
-
-	wg.Wait()
-	close(res)
-
-	var firstErr error
-	for err := range res {
-		if err != nil && firstErr == nil {
-			firstErr = err
-		}
-	}
-
-	if firstErr != nil {
-		for _, c := range changed {
-			out := bpfBinPath(c)
-			// unlink all profiles that could have been successfuly
-			// compiled
-			os.Remove(out)
-		}
-
-	}
-
-	return firstErr
+	return parallelCompile(b.snapSeccomp, changed)
 }
 
 // Remove removes seccomp profiles of a given snap.
