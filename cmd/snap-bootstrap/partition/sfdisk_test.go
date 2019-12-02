@@ -19,7 +19,10 @@
 package partition_test
 
 import (
+	"fmt"
+	"io/ioutil"
 	"path/filepath"
+	"time"
 
 	. "gopkg.in/check.v1"
 
@@ -272,6 +275,11 @@ last-lba: 8388574
 }
 
 func (s *partitionTestSuite) TestCreatePartitions(c *C) {
+	restore := partition.MockEnsureNodesExist(func(ds []partition.DeviceStructure, timeout time.Duration) error {
+		return nil
+	})
+	defer restore()
+
 	cmdSfdisk := testutil.MockCommand(c, "sfdisk", mockSfdiskScriptBios)
 	defer cmdSfdisk.Restore()
 
@@ -299,7 +307,7 @@ func (s *partitionTestSuite) TestCreatePartitions(c *C) {
 	// Check partition table read and write
 	c.Assert(cmdSfdisk.Calls(), DeepEquals, [][]string{
 		{"sfdisk", "--json", "-d", "/dev/node"},
-		{"sfdisk", "--force", "/dev/node"},
+		{"sfdisk", "--no-reread", "/dev/node"},
 	})
 
 	c.Assert(cmdPartx.Calls(), DeepEquals, [][]string{
@@ -344,4 +352,23 @@ func (s *partitionTestSuite) TestFilesystemInfoError(c *C) {
 	info, err := partition.FilesystemInfo("/dev/node")
 	c.Assert(err, ErrorMatches, "lsblk: not found")
 	c.Assert(info, IsNil)
+}
+
+func (s *partitionTestSuite) TestEnsureNodesExist(c *C) {
+	node := filepath.Join(c.MkDir(), "node")
+	err := ioutil.WriteFile(node, nil, 0644)
+	c.Assert(err, IsNil)
+	ds := []partition.DeviceStructure{{Node: node}}
+	err = partition.EnsureNodesExist(ds, 10*time.Millisecond)
+	c.Assert(err, IsNil)
+}
+
+func (s *partitionTestSuite) TestEnsureNodesExistTimeout(c *C) {
+	node := filepath.Join(c.MkDir(), "node")
+	ds := []partition.DeviceStructure{{Node: node}}
+	t := time.Now()
+	timeout := 1 * time.Second
+	err := partition.EnsureNodesExist(ds, timeout)
+	c.Assert(err, ErrorMatches, fmt.Sprintf("device %s not available", node))
+	c.Assert(time.Since(t) >= timeout, Equals, true)
 }
