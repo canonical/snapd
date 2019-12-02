@@ -69,7 +69,7 @@ execute: |
     echo "$pid2_tracking_cg_path" | MATCH '.*/snap\.[0-9a-f-]+\.test-snapd-sh\.test-snapd-sh\.scope'
     MATCH "$pid2" < "${base_cg_path}${pid2_tracking_cg_path}/cgroup.procs"
 
-    echo "Each invocation uses a new transient scope, so a new cgroup path."
+    echo "Each invocation uses a new transient scope and thus a new cgroup path."
     test "$pid1_tracking_cg_path" != "$pid2_tracking_cg_path"
 
     echo "When the process terminates the control group it used to exist in is"
