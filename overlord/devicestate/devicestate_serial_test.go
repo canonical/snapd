@@ -1634,3 +1634,32 @@ func (s *deviceMgrSerialSuite) TestDoRequestSerialReregistrationDoubleSerialStre
 	c.Check(chg.Status(), Equals, state.ErrorStatus, Commentf("%s", t.Log()))
 	c.Check(chg.Err(), ErrorMatches, `(?ms).*cannot accept more than a single device serial assertion from the device service.*`)
 }
+
+func (s *deviceMgrSerialSuite) TestDeviceRegistrationNotInInstallMode(c *C) {
+	st := s.state
+	// setup state as will be done by first-boot
+	st.Lock()
+	s.makeModelAssertionInState(c, "canonical", "pc", map[string]interface{}{
+		"architecture": "amd64",
+		"kernel":       "pc-kernel",
+		"gadget":       "pc",
+	})
+	devicestatetest.SetDevice(s.state, &auth.DeviceState{
+		Brand: "canonical",
+		Model: "pc",
+	})
+	// mark it as seeded
+	st.Set("seeded", true)
+	// set run mode to "install"
+	devicestate.SetOperatingMode(s.mgr, "install")
+	st.Unlock()
+
+	// runs the whole device registration process
+	// but it will not actually create any changes because
+	s.settle(c)
+
+	st.Lock()
+	defer st.Unlock()
+	becomeOperational := s.findBecomeOperationalChange()
+	c.Assert(becomeOperational, IsNil)
+}

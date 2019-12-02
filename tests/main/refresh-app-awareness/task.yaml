@@ -1,4 +1,6 @@
 summary: Ensure that foreground applications block app refresh.
+# fedora-31: uses cgroupv2, which we don't support
+systems: [ -fedora-31-*]
 details: |
     When the refresh-app-awareness feature is enabled running snap processes,
     mainly foreground applications, will block the refresh of said snap.

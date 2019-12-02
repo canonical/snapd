@@ -84,6 +84,20 @@ PATH="/usr/bin"
 	c.Assert(err, IsNil)
 }
 
+func (s *proxySuite) TestConfigureProxyUnhappy(c *C) {
+	restore := release.MockOnClassic(false)
+	defer restore()
+
+	dirs.SetRootDir(c.MkDir())
+	err := configcore.Run(&mockConf{
+		state: s.state,
+		conf: map[string]interface{}{
+			"proxy.http": "http://example.com",
+		},
+	})
+	c.Assert(err, ErrorMatches, "open .*/etc/environment: no such file or directory")
+}
+
 func (s *proxySuite) TestConfigureProxy(c *C) {
 	restore := release.MockOnClassic(false)
 	defer restore()
