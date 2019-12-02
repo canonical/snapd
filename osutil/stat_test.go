@@ -148,35 +148,6 @@ func (s *StatTestSuite) TestIsWritableDir(c *C) {
 	}
 }
 
-func (s *StatTestSuite) TestIsReadable(c *C) {
-	d := c.MkDir()
-
-	p := filepath.Join(d, "does-not-exist")
-	c.Assert(IsReadable(p), Equals, false)
-
-	p = filepath.Join(d, "foo")
-	err := ioutil.WriteFile(p, nil, 0644)
-	c.Assert(err, IsNil)
-	c.Assert(IsReadable(p), Equals, true)
-
-	p = filepath.Join(d, "foo-ro")
-	err = ioutil.WriteFile(p, nil, 0000)
-	c.Assert(err, IsNil)
-	c.Assert(IsReadable(p), Equals, false)
-
-	p = filepath.Join(d, "dir")
-	err = os.MkdirAll(p, 0755)
-	c.Assert(err, IsNil)
-	c.Assert(IsReadable(p), Equals, true)
-
-	p = filepath.Join(d, "dir-ro")
-	err = os.MkdirAll(p, 0000)
-	c.Assert(err, IsNil)
-	c.Assert(IsReadable(p), Equals, false)
-
-	defer os.Chmod(filepath.Join(d, "dir-ro"), 0755)
-}
-
 func (s *StatTestSuite) TestIsDirNotExist(c *C) {
 	for _, e := range []error{
 		os.ErrNotExist,
