@@ -1,7 +1,7 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
 
 /*
- * Copyright (C) 2017 Canonical Ltd
+ * Copyright (C) 2019 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -17,31 +17,24 @@
  *
  */
 
-package main
+package devicestate
 
 import (
-	"github.com/snapcore/snapd/logger"
-	"github.com/snapcore/snapd/osutil"
+	"gopkg.in/tomb.v2"
+
+	"github.com/snapcore/snapd/overlord/state"
+	"github.com/snapcore/snapd/timings"
 )
 
-func debugShowProfile(profile *osutil.MountProfile, header string) {
-	if len(profile.Entries) > 0 {
-		logger.Debugf("%s:", header)
-		for _, entry := range profile.Entries {
-			logger.Debugf("\t%s", entry)
-		}
-	} else {
-		logger.Debugf("%s: (none)", header)
-	}
-}
+func (m *DeviceManager) doSetupRunSystem(t *state.Task, _ *tomb.Tomb) error {
+	st := t.State()
+	st.Lock()
+	defer st.Unlock()
 
-func debugShowChanges(changes []*Change, header string) {
-	if len(changes) > 0 {
-		logger.Debugf("%s:", header)
-		for _, change := range changes {
-			logger.Debugf("\t%s", change)
-		}
-	} else {
-		logger.Debugf("%s: (none)", header)
-	}
+	perfTimings := timings.NewForTask(t)
+	defer perfTimings.Save(st)
+
+	// XXX: add handler content
+
+	return nil
 }
