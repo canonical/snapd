@@ -92,12 +92,12 @@ check_slot_connected() {
 verify_apparmor_profile() {
     DEVPATH=$1
     for _ in $(seq 10); do
-        if execute_remote "cat /var/lib/snapd/apparmor/profiles/snap.serial-port-hotplug.consumer" | MATCH "$DEVPATH rw,"; then
+        if execute_remote "cat /var/lib/snapd/apparmor/profiles/snap.serial-port-hotplug.consumer" | MATCH "$DEVPATH rwk,"; then
             break
         fi
         sleep 1
     done
-    execute_remote "cat /var/lib/snapd/apparmor/profiles/snap.serial-port-hotplug.consumer" | MATCH "$DEVPATH rw,"
+    execute_remote "cat /var/lib/snapd/apparmor/profiles/snap.serial-port-hotplug.consumer" | MATCH "$DEVPATH rwk,"
 }
 
 wait_for_all_changes() {
