@@ -59,6 +59,8 @@ type DeviceManager struct {
 
 	ensureSeedInConfigRan bool
 
+	ensureInstalledRan bool
+
 	lastBecomeOperationalAttempt time.Time
 	becomeOperationalBackoff     time.Duration
 	registered                   bool
@@ -103,6 +105,7 @@ func Manager(s *state.State, hookManager *hookstate.HookManager, runner *state.T
 	runner.AddHandler("generate-device-key", m.doGenerateDeviceKey, nil)
 	runner.AddHandler("request-serial", m.doRequestSerial, nil)
 	runner.AddHandler("mark-seeded", m.doMarkSeeded, nil)
+	runner.AddHandler("setup-run-system", m.doSetupRunSystem, nil)
 	runner.AddHandler("prepare-remodeling", m.doPrepareRemodeling, nil)
 	runner.AddCleanup("prepare-remodeling", m.cleanupRemodel)
 	// this *must* always run last and finalizes a remodel
@@ -487,6 +490,47 @@ func (m *DeviceManager) ensureBootOk() error {
 	return nil
 }
 
+func (m *DeviceManager) ensureInstalled() error {
+	m.state.Lock()
+	defer m.state.Unlock()
+
+	if release.OnClassic {
+		return nil
+	}
+
+	if m.ensureInstalledRan {
+		return nil
+	}
+
+	if m.operatingMode != "install" {
+		return nil
+	}
+
+	var seeded bool
+	err := m.state.Get("seeded", &seeded)
+	if err != nil {
+		return err
+	}
+	if !seeded {
+		return nil
+	}
+
+	if m.changeInFlight("install-system") {
+		return nil
+	}
+
+	m.ensureInstalledRan = true
+
+	tasks := []*state.Task{}
+	setupRunSystem := m.state.NewTask("setup-run-system", i18n.G("Setup system for run mode"))
+	tasks = append(tasks, setupRunSystem)
+
+	chg := m.state.NewChange("install-system", i18n.G("Install the system"))
+	chg.AddAll(state.NewTaskSet(tasks...))
+
+	return nil
+}
+
 func markSeededInConfig(st *state.State) error {
 	var seedDone bool
 	tr := config.NewTransaction(st)
@@ -563,6 +607,10 @@ func (m *DeviceManager) Ensure() error {
 	}
 
 	if err := m.ensureSeedInConfig(); err != nil {
+		errs = append(errs, err)
+	}
+
+	if err := m.ensureInstalled(); err != nil {
 		errs = append(errs, err)
 	}
 
