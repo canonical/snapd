@@ -39,7 +39,7 @@ func securityTagFromCgroupPath(path string) (securityTag string) {
 		return strings.TrimSuffix(leaf, ".service")
 	}
 	if matched, _ := filepath.Match("snap.*.scope", leaf); matched {
-		// Neither dot1 nor dor2 can be -1 because the match guarantees that at
+		// Neither dot1 nor dot2 can be -1 because the match guarantees that at
 		// least two dots exist.
 		dot1 := strings.IndexRune(leaf, '.')
 		dot2 := strings.IndexRune(leaf[dot1+1:], '.')
@@ -72,7 +72,7 @@ func pidsOfSnap(snapInfo *snap.Info) (map[string][]int, error) {
 
 	// Walk the cgroup tree and look for "cgroup.procs" files. Having found one
 	// we try to derive the snap security tag from one. If successful and the
-	// tag matches the snap we are interested in we havrvest the snapshot of
+	// tag matches the snap we are interested in we harvest the snapshot of
 	// PIDs that belong to the cgroup and bin them into a bucket associated
 	// with the security tag.
 	walkFunc := func(path string, fileInfo os.FileInfo, err error) error {
@@ -116,7 +116,6 @@ func pidsOfSnap(snapInfo *snap.Info) (map[string][]int, error) {
 	}
 
 	return pidsByTag, nil
-
 }
 
 func genericRefreshCheck(info *snap.Info, canAppRunDuringRefresh func(app *snap.AppInfo) bool) error {

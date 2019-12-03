@@ -57,7 +57,7 @@ execute: |
     echo "Sanity check, cgroup associated with the scope exists."
     test -d "${base_cg_path}${pid1_tracking_cg_path}"
 
-    echo "While the process is alive its PID can be seen in the cgroup.procs file"
+    echo "While the process is alive its PID can be seen in the cgroup.procs file."
     MATCH "$pid1" < "${base_cg_path}${pid1_tracking_cg_path}/cgroup.procs"
 
     echo "Start a second process so that we can check each scope is independent."
@@ -69,11 +69,11 @@ execute: |
     echo "$pid2_tracking_cg_path" | MATCH '.*/snap\.[0-9a-f-]+\.test-snapd-sh\.test-snapd-sh\.scope'
     MATCH "$pid2" < "${base_cg_path}${pid2_tracking_cg_path}/cgroup.procs"
 
-    echo "Each invocation uses a new transient scope, so a new cgroup path."
+    echo "Each invocation uses a new transient scope and thus a new cgroup path."
     test "$pid1_tracking_cg_path" != "$pid2_tracking_cg_path"
 
-    echo "When the process terminates the control group it used to exist in is"
-    echo "automatically removed by systemdi, though perhaps not instantly"
+    echo "When the process terminates, the control group it used to exist in is"
+    echo "automatically removed by systemd, though perhaps not instantly"
     kill "$pid1"
     wait "$pid1" || true  # wait returns the exit code and we kill the process
     retry-tool -n 10 test ! -e "${base_cg_path}${pid1_tracking_cg_path}"
@@ -96,7 +96,7 @@ execute: |
     kill "$pid3"
     test "$(wc -l < "${base_cg_path}${pid3_tracking_cg_path}/cgroup.procs")" -eq 1
 
-    echo "Kill the remaining cgroup process."
+    echo "Kill the remaining cgroup processes."
     while read -r pid; do
         kill "$pid"
     done < "${base_cg_path}${pid3_tracking_cg_path}/cgroup.procs"
