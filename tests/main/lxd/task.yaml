@@ -32,7 +32,7 @@ prepare: |
         apt autoremove -y lxd
     fi
     # Depending on test variant, enable refresh-app-awareness outside to test
-    # the interaction between lxd and cgroup at /run/snapd/cgroup
+    # the interaction between lxd and cgroup-based application tracking.
     snap set system experimental.refresh-app-awareness=$REFRESH_APP_AWARENESS_OUTER
 
 restore: |
@@ -102,7 +102,7 @@ execute: |
         lxd.lxc exec my-ubuntu -- sh -c "echo https_proxy=$https_proxy >> /etc/environment"
     fi
     # Depending on test variant, enable refresh-app-awareness _inside_ to test
-    # the interaction between lxd and cgroup at /run/snapd/cgroup
+    # the interaction between lxd and cgroup-based application tracking.
     lxd.lxc exec my-ubuntu -- snap set system experimental.refresh-app-awareness=$REFRESH_APP_AWARENESS_INNER
     lxd.lxc exec my-ubuntu -- systemctl daemon-reload
     lxd.lxc exec my-ubuntu -- systemctl restart snapd.service
