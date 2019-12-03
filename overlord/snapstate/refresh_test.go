@@ -81,6 +81,8 @@ func (s *refreshSuite) TestSecurityTagFromCgroupPath(c *C) {
 	c.Check(snapstate.SecurityTagFromCgroupPath("/a/b/snapd.service"), Equals, "")
 	// Real data looks like this.
 	c.Check(snapstate.SecurityTagFromCgroupPath("snap.d854bd35-2457-4ac8-b494-06061d74df33.test-snapd-refresh.sh.scope"), Equals, "snap.test-snapd-refresh.sh")
+	// Trailing slashes are automatically handled.
+	c.Check(snapstate.SecurityTagFromCgroupPath("/a/b/snap.foo.foo.service/"), Equals, "snap.foo.foo")
 }
 
 func writePids(c *C, dir string, pids []int) {

@@ -32,8 +32,9 @@ import (
 	"github.com/snapcore/snapd/snap"
 )
 
+// securityTagFromCgroupPath returns a security tag from cgroup path.
 func securityTagFromCgroupPath(path string) (securityTag string) {
-	leaf := filepath.Base(path)
+	leaf := filepath.Base(filepath.Clean(path))
 	if matched, _ := filepath.Match("snap.*.service", leaf); matched {
 		return strings.TrimSuffix(leaf, ".service")
 	}
@@ -82,7 +83,6 @@ func pidsOfSnap(snapInfo *snap.Info) (map[string][]int, error) {
 			return nil
 		}
 		cgroupPath := filepath.Dir(path)
-		cgroupPath = filepath.Clean(cgroupPath) // Drops trailing /
 		securityTag := securityTagFromCgroupPath(cgroupPath)
 		if securityTag == "" {
 			return nil
