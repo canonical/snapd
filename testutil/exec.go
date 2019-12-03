@@ -102,7 +102,10 @@ printf '\0' >> %[1]q
 %s
 `
 
-var selfLock = `if [ "${FLOCKER}" != "$0" ]; then exec env FLOCKER="$0" flock -e "$0" "$0" "$@" ; fi`
+// Wrap the script in flock to serialize the calls to the script and prevent the
+// call log from getting corrupted. Workaround 14.04 flock(1) weirdness, that
+// keeps the script file open for writing and execve() fails with ETXTBSY.
+var selfLock = `if [ "${FLOCKER}" != "$0" ]; then exec env FLOCKER="$0" flock -e "$(dirname "$0")" "$0" "$@" ; fi`
 
 func mockCommand(c *check.C, basename, script, template string) *MockCmd {
 	var wholeScript bytes.Buffer
