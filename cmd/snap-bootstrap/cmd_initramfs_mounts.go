@@ -207,6 +207,9 @@ func generateMountsModeRun() error {
 	}
 	// 3. mount base
 	isMounted, err := osutilIsMounted(filepath.Join(runMnt, "base"))
+	if err != nil {
+		return err
+	}
 	if !isMounted {
 		base := filepath.Join(dataDir, "system-data", dirs.SnapBlobDir, modeEnv.Base)
 		fmt.Fprintf(stdout, "%s %s\n", base, filepath.Join(runMnt, "base"))
@@ -214,6 +217,9 @@ func generateMountsModeRun() error {
 	}
 	// 4. mount kernel
 	isMounted, err = osutilIsMounted(filepath.Join(runMnt, "kernel"))
+	if err != nil {
+		return err
+	}
 	if !isMounted {
 		kernel := filepath.Join(dataDir, "system-data", dirs.SnapBlobDir, modeEnv.Kernel)
 		fmt.Fprintf(stdout, "%s %s\n", kernel, filepath.Join(runMnt, "kernel"))
