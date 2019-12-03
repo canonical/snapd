@@ -884,21 +884,10 @@ distro_restore_packages() {
     installed="$before.installed"
     removed="$before.removed"
 
-    # find out what's installed now on systems where we the old list is
-    # not enough
-    case "$SPREAD_SYSTEM" in
-        fedora-*|centos-*|amazon-linux-*|opensuse-*)
-            rpm -qa | sort > "$after"
-            ;;
-        arch-*)
-            # the output format of pacman -Q is:
-            # zsh 5.7.1-1\n
-            pacman -Q | cut -f1 -d' ' | sort > "$after"
-            ;;
-        ubuntu-*|debian-*)
-            dpkg --get-selections > "$after"
-            ;;
-    esac
+    # find out what's installed now on systems where the old list is not enough
+    distro_list_packages "$after"
+    # make sure that the package list is not empty
+    test -s "$after"
 
     if diff -up "$before" "$after"; then
         # system pacakges did not change, nothing to do
