@@ -260,6 +260,8 @@ func MockVersion(mockVersion int, mockErr error) (restore func()) {
 // securityTagFromCgroupPath returns a security tag from cgroup path.
 func securityTagFromCgroupPath(path string) (securityTag string) {
 	leaf := filepath.Base(filepath.Clean(path))
+	// NOTE: The things we are returning need to minimally look like security
+	// tags. They are further refined and looked at below, in PidsOfSnap.
 	if matched, _ := filepath.Match("snap.*.service", leaf); matched {
 		return strings.TrimSuffix(leaf, ".service")
 	}
