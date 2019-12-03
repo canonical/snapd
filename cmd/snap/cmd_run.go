@@ -1008,10 +1008,17 @@ var createTransientScope = func(securityTag string) error {
 	mode := "fail"
 	properties := []property{{"PIDs", []uint{uint(os.Getpid())}}}
 	aux := []auxUnit(nil)
-	var job dbus.ObjectPath
 	systemd := conn.Object("org.freedesktop.systemd1", "/org/freedesktop/systemd1")
-	if err := systemd.Call("org.freedesktop.systemd1.Manager.StartTransientUnit", 0,
-		unitName, mode, properties, aux).Store(&job); err != nil {
+	call := systemd.Call(
+		"org.freedesktop.systemd1.Manager.StartTransientUnit",
+		0, /* call flags */
+		unitName,
+		mode,
+		properties,
+		aux,
+	)
+	var job dbus.ObjectPath
+	if err := call.Store(&job); err != nil {
 		if dbusErr, ok := err.(dbus.Error); ok && dbusErr.Name == "org.freedesktop.DBus.Error.UnknownMethod" {
 			// The DBus API is not supported on this system. This can happen on
 			// very old versions of Systemd, for instance on Ubuntu 14.04.
