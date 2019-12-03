@@ -19,7 +19,9 @@
 package cgroup_test
 
 import (
+	"bytes"
 	"errors"
+	"fmt"
 	"io/ioutil"
 	"os"
 	"path/filepath"
@@ -261,4 +263,117 @@ func (s *cgroupSuite) TestParsePid(c *C) {
 
 	_, err = cgroup.ParsePid("-1")
 	c.Assert(err, ErrorMatches, `cannot parse pid "-1"`)
+}
+
+func (s *cgroupSuite) TestSecurityTagFromCgroupPath(c *C) {
+	c.Check(cgroup.SecurityTagFromCgroupPath("/a/b/snap.foo.foo.service"), Equals, "snap.foo.foo")
+	c.Check(cgroup.SecurityTagFromCgroupPath("/a/b/snap.foo.bar.service"), Equals, "snap.foo.bar")
+	c.Check(cgroup.SecurityTagFromCgroupPath("/a/b/snap.$RANDOM.foo.bar.scope"), Equals, "snap.foo.bar")
+	c.Check(cgroup.SecurityTagFromCgroupPath("/a/b/snap.$RANDOM.foo.hook.bar.scope"), Equals, "snap.foo.hook.bar")
+	// We are not confused by snapd things.
+	c.Check(cgroup.SecurityTagFromCgroupPath("/a/b/snap.service"), Equals, "")
+	c.Check(cgroup.SecurityTagFromCgroupPath("/a/b/snapd.service"), Equals, "")
+	// Real data looks like this.
+	c.Check(cgroup.SecurityTagFromCgroupPath("snap.d854bd35-2457-4ac8-b494-06061d74df33.test-snapd-refresh.sh.scope"), Equals, "snap.test-snapd-refresh.sh")
+	// Trailing slashes are automatically handled.
+	c.Check(cgroup.SecurityTagFromCgroupPath("/a/b/snap.foo.foo.service/"), Equals, "snap.foo.foo")
+}
+
+func (s *cgroupSuite) writePids(c *C, dir string, pids []int) {
+	var buf bytes.Buffer
+	for _, pid := range pids {
+		fmt.Fprintf(&buf, "%d\n", pid)
+	}
+
+	path := filepath.Join(s.rootDir, "/sys/fs/cgroup", dir)
+	err := os.MkdirAll(path, 0755)
+	c.Assert(err, IsNil)
+	err = ioutil.WriteFile(filepath.Join(path, "cgroup.procs"), buf.Bytes(), 0644)
+	c.Assert(err, IsNil)
+}
+
+func (s *cgroupSuite) TestPidsOfSnapEmpty(c *C) {
+	// Not having any cgroup directories is not an error.
+	pids, err := cgroup.PidsOfSnap("pkg")
+	c.Assert(err, IsNil)
+	c.Check(pids, HasLen, 0)
+}
+
+func (s *cgroupSuite) TestPidsOfSnapUnrelatedStuff(c *C) {
+	// Things that are not related to the snap are not being picked up.
+	s.writePids(c, "udisks2.service", []int{100})
+	s.writePids(c, "snap..service", []int{101})
+	s.writePids(c, "snap..scope", []int{102})
+	s.writePids(c, "snap.*.service", []int{103})
+
+	pids, err := cgroup.PidsOfSnap("pkg")
+	c.Assert(err, IsNil)
+	c.Check(pids, HasLen, 0)
+}
+
+func (s *cgroupSuite) TestPidsOfSnapSecurityTags(c *C) {
+	// Pids are collected and assigned to bins by security tag
+	s.writePids(c, "system.slice/snap.$RANDOM.pkg.hook.configure.scope", []int{1})
+	s.writePids(c, "system.slice/snap.pkg.daemon.service", []int{2})
+
+	pids, err := cgroup.PidsOfSnap("pkg")
+	c.Assert(err, IsNil)
+	c.Check(pids, DeepEquals, map[string][]int{
+		"snap.pkg.hook.configure": {1},
+		"snap.pkg.daemon":         {2},
+	})
+}
+
+func (s *cgroupSuite) TestPidsOfInstances(c *C) {
+	// Instances are not confused between themselves and between the non-instance version.
+	s.writePids(c, "system.slice/snap.pkg_prod.daemon.service", []int{1})
+	s.writePids(c, "system.slice/snap.pkg_devel.daemon.service", []int{2})
+	s.writePids(c, "system.slice/snap.pkg.daemon.service", []int{3})
+
+	// The main one
+	pids, err := cgroup.PidsOfSnap("pkg")
+	c.Assert(err, IsNil)
+	c.Check(pids, DeepEquals, map[string][]int{
+		"snap.pkg.daemon": {3},
+	})
+
+	// The development one
+	pids, err = cgroup.PidsOfSnap("pkg_devel")
+	c.Assert(err, IsNil)
+	c.Check(pids, DeepEquals, map[string][]int{
+		"snap.pkg_devel.daemon": {2},
+	})
+
+	// The production one
+	pids, err = cgroup.PidsOfSnap("pkg_prod")
+	c.Assert(err, IsNil)
+	c.Check(pids, DeepEquals, map[string][]int{
+		"snap.pkg_prod.daemon": {1},
+	})
+}
+
+func (s *cgroupSuite) TestPidsOfAggregation(c *C) {
+	// A single snap may be invoked by multiple users in different sessions.
+	// All of their PIDs are collected though.
+	s.writePids(c, "user.slice/user-1000.slice/user@1000.service/gnome-shell-wayland.service/snap.$RANDOM1.pkg.app.scope", []int{1})
+	s.writePids(c, "user.slice/user-1001.slice/user@1001.service/gnome-shell-wayland.service/snap.$RANDOM2.pkg.app.scope", []int{2})
+
+	pids, err := cgroup.PidsOfSnap("pkg")
+	c.Assert(err, IsNil)
+	c.Check(pids, DeepEquals, map[string][]int{
+		"snap.pkg.app": {1, 2},
+	})
+}
+
+func (s *cgroupSuite) TestPidsOfUnrelated(c *C) {
+	// We are not confusing snaps with other snaps and with non-snap hierarchies.
+	s.writePids(c, "user.slice/.../snap.$RANDOM1.pkg.app.scope", []int{1})
+	s.writePids(c, "user.slice/.../snap.$RANDOM2.other.snap.scope", []int{2})
+	s.writePids(c, "user.slice/.../pkg.service", []int{3})
+
+	pids, err := cgroup.PidsOfSnap("pkg")
+	c.Assert(err, IsNil)
+	c.Check(pids, DeepEquals, map[string][]int{
+		"snap.pkg.app": {1},
+	})
 }

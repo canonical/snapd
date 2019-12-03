@@ -23,9 +23,10 @@ import (
 )
 
 var (
-	Cgroup2SuperMagic  = cgroup2SuperMagic
-	ProbeCgroupVersion = probeCgroupVersion
-	ParsePid           = parsePid
+	Cgroup2SuperMagic         = cgroup2SuperMagic
+	ProbeCgroupVersion        = probeCgroupVersion
+	ParsePid                  = parsePid
+	SecurityTagFromCgroupPath = securityTagFromCgroupPath
 )
 
 func MockFsTypeForPath(mock func(string) (int64, error)) (restore func()) {

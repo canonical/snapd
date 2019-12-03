@@ -20,12 +20,6 @@
 package snapstate_test
 
 import (
-	"bytes"
-	"fmt"
-	"io/ioutil"
-	"os"
-	"path/filepath"
-
 	. "gopkg.in/check.v1"
 
 	"github.com/snapcore/snapd/dirs"
@@ -36,20 +30,18 @@ import (
 )
 
 type refreshSuite struct {
-	state *state.State
-	info  *snap.Info
-
-	// paths of the PID cgroup of each app or hook.
-	daemonPath string
-	appPath    string
-	hookPath   string
+	state   *state.State
+	info    *snap.Info
+	pids    map[string][]int
+	restore func()
 }
 
 var _ = Suite(&refreshSuite{})
 
 func (s *refreshSuite) SetUpTest(c *C) {
+	dirs.SetRootDir(c.MkDir())
 	yamlText := `
-name: foo
+name: pkg
 version: 1
 apps:
   daemon:
@@ -61,214 +53,69 @@ hooks:
   configure:
 `
 	s.info = snaptest.MockInfo(c, yamlText, nil)
-	dirs.SetRootDir(c.MkDir())
-	s.daemonPath = filepath.Join(dirs.CgroupDir, "intermediate", "snap.foo.daemon.service")
-	s.appPath = filepath.Join(dirs.CgroupDir, "intermediate", "snap.$RANDOM2.foo.app.scope")
-	s.hookPath = filepath.Join(dirs.CgroupDir, "intermediate", "snap.$RANDOM2.foo.hook.configure.scope")
+	s.pids = nil
+	s.restore = snapstate.MockPidsOfSnap(func(instanceName string) (map[string][]int, error) {
+		c.Assert(instanceName, Equals, s.info.InstanceName())
+		return s.pids, nil
+	})
 }
 
 func (s *refreshSuite) TearDownTest(c *C) {
 	dirs.SetRootDir("")
-}
-
-func (s *refreshSuite) TestSecurityTagFromCgroupPath(c *C) {
-	c.Check(snapstate.SecurityTagFromCgroupPath("/a/b/snap.foo.foo.service"), Equals, "snap.foo.foo")
-	c.Check(snapstate.SecurityTagFromCgroupPath("/a/b/snap.foo.bar.service"), Equals, "snap.foo.bar")
-	c.Check(snapstate.SecurityTagFromCgroupPath("/a/b/snap.$RANDOM.foo.bar.scope"), Equals, "snap.foo.bar")
-	c.Check(snapstate.SecurityTagFromCgroupPath("/a/b/snap.$RANDOM.foo.hook.bar.scope"), Equals, "snap.foo.hook.bar")
-	// We are not confused by snapd things.
-	c.Check(snapstate.SecurityTagFromCgroupPath("/a/b/snap.service"), Equals, "")
-	c.Check(snapstate.SecurityTagFromCgroupPath("/a/b/snapd.service"), Equals, "")
-	// Real data looks like this.
-	c.Check(snapstate.SecurityTagFromCgroupPath("snap.d854bd35-2457-4ac8-b494-06061d74df33.test-snapd-refresh.sh.scope"), Equals, "snap.test-snapd-refresh.sh")
-	// Trailing slashes are automatically handled.
-	c.Check(snapstate.SecurityTagFromCgroupPath("/a/b/snap.foo.foo.service/"), Equals, "snap.foo.foo")
-}
-
-func writePids(c *C, dir string, pids []int) {
-	err := os.MkdirAll(dir, 0755)
-	c.Assert(err, IsNil)
-	var buf bytes.Buffer
-	for _, pid := range pids {
-		fmt.Fprintf(&buf, "%d\n", pid)
-	}
-	err = ioutil.WriteFile(filepath.Join(dir, "cgroup.procs"), buf.Bytes(), 0644)
-	c.Assert(err, IsNil)
-}
-
-func (s *refreshSuite) TestPidsOfSnapEmpty(c *C) {
-	// For context,the snap is called "foo"
-	c.Assert(s.info.SnapName(), Equals, "foo")
-
-	// Not having any cgroup directories is not an error.
-	pids, err := snapstate.PidsOfSnap(s.info)
-	c.Assert(err, IsNil)
-	c.Check(pids, HasLen, 0)
-}
-
-func (s *refreshSuite) TestPidsOfSnapUnrelatedStuff(c *C) {
-	// For context,the snap is called "foo"
-	c.Assert(s.info.SnapName(), Equals, "foo")
-
-	// Things that are not related to the snap are not being picked up.
-	writePids(c, filepath.Join(dirs.CgroupDir, "udisks2.service"), []int{100})
-	writePids(c, filepath.Join(dirs.CgroupDir, "snap..service"), []int{101})
-	writePids(c, filepath.Join(dirs.CgroupDir, "snap..scope"), []int{102})
-	writePids(c, filepath.Join(dirs.CgroupDir, "snap.*.service"), []int{103})
-
-	pids, err := snapstate.PidsOfSnap(s.info)
-	c.Assert(err, IsNil)
-	c.Check(pids, HasLen, 0)
-}
-
-func (s *refreshSuite) TestPidsOfSnapSecurityTags(c *C) {
-	// For context,the snap is called "foo"
-	c.Assert(s.info.SnapName(), Equals, "foo")
-
-	// Pids are collected and assigned to bins by security tag
-	path := filepath.Join(dirs.CgroupDir, "system.slice", "snap.$RANDOM.foo.hook.configure.scope")
-	writePids(c, path, []int{1})
-	path = filepath.Join(dirs.CgroupDir, "system.slice", "snap.foo.foo.service")
-	writePids(c, path, []int{2})
-
-	pids, err := snapstate.PidsOfSnap(s.info)
-	c.Assert(err, IsNil)
-	c.Check(pids, DeepEquals, map[string][]int{
-		"snap.foo.hook.configure": {1},
-		"snap.foo.foo":            {2},
-	})
-}
-
-func (s *refreshSuite) TestPidsOfInstances(c *C) {
-	// For context,the snap is called "foo"
-	c.Assert(s.info.SnapName(), Equals, "foo")
-
-	// Instances are not confused between themselves and between the non-instance version.
-	path := filepath.Join(dirs.CgroupDir, "system.slice", "snap.foo_prod.foo.service")
-	writePids(c, path, []int{1})
-	path = filepath.Join(dirs.CgroupDir, "system.slice", "snap.foo_devel.foo.service")
-	writePids(c, path, []int{2})
-	path = filepath.Join(dirs.CgroupDir, "system.slice", "snap.foo.foo.service")
-	writePids(c, path, []int{3})
-
-	// The main one
-	pids, err := snapstate.PidsOfSnap(s.info)
-	c.Assert(err, IsNil)
-	c.Check(pids, DeepEquals, map[string][]int{
-		"snap.foo.foo": {3},
-	})
-
-	// The development one
-	s.info.InstanceKey = "devel"
-	pids, err = snapstate.PidsOfSnap(s.info)
-	c.Assert(err, IsNil)
-	c.Check(pids, DeepEquals, map[string][]int{
-		"snap.foo_devel.foo": {2},
-	})
-
-	// The production one
-	s.info.InstanceKey = "prod"
-	pids, err = snapstate.PidsOfSnap(s.info)
-	c.Assert(err, IsNil)
-	c.Check(pids, DeepEquals, map[string][]int{
-		"snap.foo_prod.foo": {1},
-	})
-}
-
-func (s *refreshSuite) TestPidsOfAggregation(c *C) {
-	// For context,the snap is called "foo"
-	c.Assert(s.info.SnapName(), Equals, "foo")
-
-	// A single snap may be invoked by multiple users in different sessions.
-	// All of their PIDs are collected though.
-	path := filepath.Join(dirs.CgroupDir, "user.slice", "user-1000.slice",
-		"user@1000.service", "gnome-shell-wayland.service",
-		"snap.$RANDOM1.foo.foo.scope")
-	writePids(c, path, []int{1})
-	path = filepath.Join(dirs.CgroupDir, "user.slice", "user-1001.slice",
-		"user@1001.service", "gnome-shell-wayland.service",
-		"snap.$RANDOM2.foo.foo.scope")
-	writePids(c, path, []int{2})
-
-	pids, err := snapstate.PidsOfSnap(s.info)
-	c.Assert(err, IsNil)
-	c.Check(pids, DeepEquals, map[string][]int{
-		"snap.foo.foo": {1, 2},
-	})
-}
-
-func (s *refreshSuite) TestPidsOfUnrelated(c *C) {
-	// For context,the snap is called "foo"
-	c.Assert(s.info.SnapName(), Equals, "foo")
-
-	// We are not confusing snaps with other snaps and with non-snap hierarchies.
-	path := filepath.Join(dirs.CgroupDir, "user.slice", "...", "snap.$RANDOM1.foo.foo.scope")
-	writePids(c, path, []int{1})
-	path = filepath.Join(dirs.CgroupDir, "user.slice", "...", "snap.$RANDOM2.bar.bar.scope")
-	writePids(c, path, []int{2})
-	path = filepath.Join(dirs.CgroupDir, "user.slice", "...", "foo.service")
-	writePids(c, path, []int{3})
-
-	pids, err := snapstate.PidsOfSnap(s.info)
-	c.Assert(err, IsNil)
-	c.Check(pids, DeepEquals, map[string][]int{
-		"snap.foo.foo": {1},
-	})
+	s.restore()
 }
 
 func (s *refreshSuite) TestSoftNothingRunningRefreshCheck(c *C) {
-	// There are no errors when PID cgroup is absent.
-	err := snapstate.SoftNothingRunningRefreshCheck(s.info)
-	c.Check(err, IsNil)
-
 	// Services are not blocking soft refresh check,
 	// they will be stopped before refresh.
-	writePids(c, s.daemonPath, []int{100})
-	err = snapstate.SoftNothingRunningRefreshCheck(s.info)
+	s.pids = map[string][]int{
+		"snap.pkg.daemon": []int{100},
+	}
+	err := snapstate.SoftNothingRunningRefreshCheck(s.info)
 	c.Check(err, IsNil)
 
 	// Apps are blocking soft refresh check. They are not stopped by
 	// snapd, unless the app is running for longer than the maximum
 	// duration allowed for postponing refreshes.
-	writePids(c, s.daemonPath, []int{100})
-	writePids(c, s.appPath, []int{101})
+	s.pids = map[string][]int{
+		"snap.pkg.daemon": []int{100},
+		"snap.pkg.app":    []int{101},
+	}
 	err = snapstate.SoftNothingRunningRefreshCheck(s.info)
 	c.Assert(err, NotNil)
-	c.Check(err.Error(), Equals, `snap "foo" has running apps (app)`)
+	c.Check(err.Error(), Equals, `snap "pkg" has running apps (app)`)
 	c.Check(err.(*snapstate.BusySnapError).Pids(), DeepEquals, []int{101})
 
 	// Hooks behave just like apps. IDEA: perhaps hooks should not be
 	// killed this way? They have their own life-cycle management.
-	writePids(c, s.daemonPath, []int{})
-	writePids(c, s.appPath, []int{})
-	writePids(c, s.hookPath, []int{105})
+	s.pids = map[string][]int{
+		"snap.pkg.hook.configure": []int{105},
+	}
 	err = snapstate.SoftNothingRunningRefreshCheck(s.info)
 	c.Assert(err, NotNil)
-	c.Check(err.Error(), Equals, `snap "foo" has running hooks (configure)`)
+	c.Check(err.Error(), Equals, `snap "pkg" has running hooks (configure)`)
 	c.Check(err.(*snapstate.BusySnapError).Pids(), DeepEquals, []int{105})
 
 	// Both apps and hooks can be running.
-	writePids(c, s.daemonPath, []int{100})
-	writePids(c, s.appPath, []int{101})
-	writePids(c, s.hookPath, []int{105})
+	s.pids = map[string][]int{
+		"snap.pkg.hook.configure": []int{105},
+		"snap.pkg.app":            []int{106},
+	}
 	err = snapstate.SoftNothingRunningRefreshCheck(s.info)
 	c.Assert(err, NotNil)
-	c.Check(err.Error(), Equals, `snap "foo" has running apps (app) and hooks (configure)`)
-	c.Check(err.(*snapstate.BusySnapError).Pids(), DeepEquals, []int{101, 105})
+	c.Check(err.Error(), Equals, `snap "pkg" has running apps (app) and hooks (configure)`)
+	c.Check(err.(*snapstate.BusySnapError).Pids(), DeepEquals, []int{105, 106})
 }
 
 func (s *refreshSuite) TestHardNothingRunningRefreshCheck(c *C) {
-	// There are no errors when PID cgroup is absent.
-	err := snapstate.HardNothingRunningRefreshCheck(s.info)
-	c.Check(err, IsNil)
-
 	// Regular services are blocking hard refresh check.
 	// We were expecting them to be gone by now.
-	writePids(c, s.daemonPath, []int{100})
-	writePids(c, s.appPath, []int{})
-	err = snapstate.HardNothingRunningRefreshCheck(s.info)
+	s.pids = map[string][]int{
+		"snap.pkg.daemon": []int{100},
+	}
+	err := snapstate.HardNothingRunningRefreshCheck(s.info)
 	c.Assert(err, NotNil)
-	c.Check(err.Error(), Equals, `snap "foo" has running apps (daemon)`)
+	c.Check(err.Error(), Equals, `snap "pkg" has running apps (daemon)`)
 	c.Check(err.(*snapstate.BusySnapError).Pids(), DeepEquals, []int{100})
 
 	// When the service is supposed to endure refreshes it will not be
@@ -279,19 +126,20 @@ func (s *refreshSuite) TestHardNothingRunningRefreshCheck(c *C) {
 	s.info.Apps["daemon"].RefreshMode = ""
 
 	// Applications are also blocking hard refresh check.
-	writePids(c, s.daemonPath, []int{})
-	writePids(c, s.appPath, []int{101})
+	s.pids = map[string][]int{
+		"snap.pkg.app": []int{101},
+	}
 	err = snapstate.HardNothingRunningRefreshCheck(s.info)
 	c.Assert(err, NotNil)
-	c.Check(err.Error(), Equals, `snap "foo" has running apps (app)`)
+	c.Check(err.Error(), Equals, `snap "pkg" has running apps (app)`)
 	c.Check(err.(*snapstate.BusySnapError).Pids(), DeepEquals, []int{101})
 
 	// Hooks are equally blocking hard refresh check.
-	writePids(c, s.daemonPath, []int{})
-	writePids(c, s.appPath, []int{})
-	writePids(c, s.hookPath, []int{105})
+	s.pids = map[string][]int{
+		"snap.pkg.hook.configure": []int{105},
+	}
 	err = snapstate.HardNothingRunningRefreshCheck(s.info)
 	c.Assert(err, NotNil)
-	c.Check(err.Error(), Equals, `snap "foo" has running hooks (configure)`)
+	c.Check(err.Error(), Equals, `snap "pkg" has running hooks (configure)`)
 	c.Check(err.(*snapstate.BusySnapError).Pids(), DeepEquals, []int{105})
 }

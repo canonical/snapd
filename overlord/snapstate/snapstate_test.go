@@ -952,8 +952,14 @@ func (s snapmgrTestSuite) TestInstallFailsOnBusySnap(c *C) {
 		return info, nil
 	})
 
-	// And with cgroup v1 information indicating the app has a process with pid 1234.
-	writePids(c, filepath.Join(dirs.CgroupDir, "irrelevant", "snap.$RANDOM.some-snap.app.scope"), []int{1234})
+	// mock that "some-snap" has an app and that this app has pids running
+	restore := snapstate.MockPidsOfSnap(func(instanceName string) (map[string][]int, error) {
+		c.Assert(instanceName, Equals, "some-snap")
+		return map[string][]int{
+			"snap.some-snap.app": []int{1234},
+		}, nil
+	})
+	defer restore()
 
 	// Attempt to install revision 2 of the snap.
 	snapsup := &snapstate.SnapSetup{
@@ -1007,7 +1013,13 @@ func (s snapmgrTestSuite) TestInstallDespiteBusySnap(c *C) {
 		return info, nil
 	})
 	// And with cgroup information indicating the app has a process with pid 1234.
-	writePids(c, filepath.Join(dirs.CgroupDir, "irrelevant", "snap.$RANDOM.some-snap.app.scope"), []int{1234})
+	restore := snapstate.MockPidsOfSnap(func(instanceName string) (map[string][]int, error) {
+		c.Assert(instanceName, Equals, "some-snap")
+		return map[string][]int{
+			"snap.some-snap.some-app": []int{1234},
+		}, nil
+	})
+	defer restore()
 
 	// Attempt to install revision 2 of the snap.
 	snapsup := &snapstate.SnapSetup{

@@ -124,9 +124,6 @@ var (
 	NewCatalogRefresh            = newCatalogRefresh
 	CatalogRefreshDelayBase      = catalogRefreshDelayBase
 	CatalogRefreshDelayWithDelta = catalogRefreshDelayWithDelta
-
-	PidsOfSnap                = pidsOfSnap
-	SecurityTagFromCgroupPath = securityTagFromCgroupPath
 )
 
 func MockNextRefresh(ar *autoRefresh, when time.Time) {
@@ -217,3 +214,11 @@ var (
 
 	MaybeUndoRemodelBootChanges = maybeUndoRemodelBootChanges
 )
+
+func MockPidsOfSnap(f func(instanceName string) (map[string][]int, error)) func() {
+	old := pidsOfSnap
+	pidsOfSnap = f
+	return func() {
+		pidsOfSnap = old
+	}
+}
