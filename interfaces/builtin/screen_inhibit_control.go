@@ -88,6 +88,5 @@ func init() {
 		implicitOnClassic:     true,
 		baseDeclarationSlots:  screenInhibitBaseDeclarationSlots,
 		connectedPlugAppArmor: screenInhibitControlConnectedPlugAppArmor,
-		reservedForOS:         true,
 	})
 }

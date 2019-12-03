@@ -43,11 +43,12 @@ type ModelSnap struct {
 	SnapType string
 	// Modes in which the snap must be made available
 	Modes []string
-	// DefaultChannel is the initial tracking channel, default is stable
+	// DefaultChannel is the initial tracking channel,
+	// default is latest/stable in an extended model
 	DefaultChannel string
-	// Track is a locked track for the snap, if set DefaultChannel
-	// cannot be set at the same time
-	Track string
+	// PinnedTrack is a pinned track for the snap, if set DefaultChannel
+	// cannot be set at the same time (Core 18 models feature)
+	PinnedTrack string
 	// Presence is one of: required|optional
 	Presence string
 }
@@ -63,6 +64,7 @@ func (s *ModelSnap) ID() string {
 }
 
 type modelSnaps struct {
+	snapd            *ModelSnap
 	base             *ModelSnap
 	gadget           *ModelSnap
 	kernel           *ModelSnap
@@ -81,6 +83,7 @@ func (ms *modelSnaps) list() (allSnaps []*ModelSnap, requiredWithEssentialSnaps 
 		}
 	}
 
+	addSnap(ms.snapd, 1)
 	addSnap(ms.kernel, 1)
 	addSnap(ms.base, 1)
 	addSnap(ms.gadget, 1)
@@ -130,6 +133,13 @@ func checkExtendedSnaps(extendedSnaps interface{}, base string, grade ModelGrade
 
 		essential := false
 		switch {
+		case modelSnap.SnapType == "snapd":
+			// TODO: allow to be explicit only in grade: dangerous?
+			essential = true
+			if modelSnaps.snapd != nil {
+				return nil, fmt.Errorf("cannot specify multiple snapd snaps: %q and %q", modelSnaps.snapd.Name, modelSnap.Name)
+			}
+			modelSnaps.snapd = modelSnap
 		case modelSnap.SnapType == "kernel":
 			essential = true
 			if modelSnaps.kernel != nil {
@@ -173,7 +183,7 @@ func checkExtendedSnaps(extendedSnaps interface{}, base string, grade ModelGrade
 }
 
 var (
-	validSnapTypes     = []string{"app", "base", "gadget", "kernel", "core"}
+	validSnapTypes     = []string{"app", "base", "gadget", "kernel", "core", "snapd"}
 	validSnapMode      = regexp.MustCompile("^[a-z][-a-z]+$")
 	validSnapPresences = []string{"required", "optional"}
 )
@@ -213,7 +223,7 @@ func checkModelSnap(snap map[string]interface{}, grade ModelGrade) (*ModelSnap, 
 		typ = "app"
 	}
 	if !strutil.ListContains(validSnapTypes, typ) {
-		return nil, fmt.Errorf("type of snap %q must be one of app|base|gadget|kernel|core", name)
+		return nil, fmt.Errorf("type of snap %q must be one of %s", name, strings.Join(validSnapTypes, "|"))
 	}
 
 	modes, err := checkStringListInMap(snap, "modes", fmt.Sprintf("%q %s", "modes", what), validSnapMode)
@@ -225,29 +235,15 @@ func checkModelSnap(snap map[string]interface{}, grade ModelGrade) (*ModelSnap, 
 	if err != nil {
 		return nil, err
 	}
-	// TODO: final name of this
-	track, err := checkOptionalStringWhat(snap, "track", what)
+	if defaultChannel == "" {
+		defaultChannel = "latest/stable"
+	}
+	defCh, err := channel.ParseVerbatim(defaultChannel, "-")
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("invalid default channel for snap %q: %v", name, err)
 	}
-
-	if defaultChannel != "" && track != "" {
-		return nil, fmt.Errorf("snap %q cannot specify both default channel and locked track", name)
-	}
-	if track == "" && defaultChannel == "" {
-		defaultChannel = "stable"
-	}
-
-	if defaultChannel != "" {
-		_, err := channel.Parse(defaultChannel, "-")
-		if err != nil {
-			return nil, fmt.Errorf("invalid default channel for snap %q: %v", name, err)
-		}
-	} else {
-		trackCh, err := channel.ParseVerbatim(track, "-")
-		if err != nil || !trackCh.VerbatimTrackOnly() {
-			return nil, fmt.Errorf("invalid locked track for snap %q: %s", name, track)
-		}
+	if defCh.Track == "" {
+		return nil, fmt.Errorf("default channel for snap %q must specify a track", name)
 	}
 
 	presence, err := checkOptionalStringWhat(snap, "presence", what)
@@ -264,7 +260,6 @@ func checkModelSnap(snap map[string]interface{}, grade ModelGrade) (*ModelSnap, 
 		SnapType:       typ,
 		Modes:          modes, // can be empty
 		DefaultChannel: defaultChannel,
-		Track:          track,
 		Presence:       presence, // can be empty
 	}, nil
 }
@@ -298,18 +293,12 @@ func checkSnapWithTrack(headers map[string]interface{}, which string) (*ModelSna
 		}
 	}
 
-	defaultChannel := ""
-	if track == "" {
-		defaultChannel = "stable"
-	}
-
 	return &ModelSnap{
-		Name:           name,
-		SnapType:       which,
-		Modes:          defaultModes,
-		DefaultChannel: defaultChannel,
-		Track:          track,
-		Presence:       "required",
+		Name:        name,
+		SnapType:    which,
+		Modes:       defaultModes,
+		PinnedTrack: track,
+		Presence:    "required",
 	}, nil
 }
 
@@ -326,11 +315,10 @@ func checkRequiredSnap(name string, headerName string, snapType string) (*ModelS
 	}
 
 	return &ModelSnap{
-		Name:           name,
-		SnapType:       snapType,
-		Modes:          defaultModes,
-		DefaultChannel: "stable",
-		Presence:       "required",
+		Name:     name,
+		SnapType: snapType,
+		Modes:    defaultModes,
+		Presence: "required",
 	}, nil
 }
 
@@ -433,7 +421,7 @@ func (mod *Model) GadgetTrack() string {
 	if mod.gadgetSnap == nil {
 		return ""
 	}
-	return mod.gadgetSnap.Track
+	return mod.gadgetSnap.PinnedTrack
 }
 
 // KernelSnap returns the details of the kernel snap the model uses.
@@ -456,7 +444,7 @@ func (mod *Model) KernelTrack() string {
 	if mod.kernelSnap == nil {
 		return ""
 	}
-	return mod.kernelSnap.Track
+	return mod.kernelSnap.PinnedTrack
 }
 
 // Base returns the base snap the model uses.
@@ -674,6 +662,7 @@ func assembleModel(assert assertionBase) (Assertion, error) {
 			// essentially fixed
 			modSnaps.base = baseSnap
 			modSnaps.base.Modes = essentialSnapModes
+			modSnaps.base.DefaultChannel = "latest/stable"
 		}
 	} else {
 		modSnaps = &modelSnaps{

@@ -57,6 +57,12 @@ func (g *grub) dir() string {
 	return filepath.Join(g.rootdir, "/boot/grub")
 }
 
+func (g *grub) InstallBootConfig(gadgetDir string, opts *Options) (bool, error) {
+	gadgetFile := filepath.Join(gadgetDir, g.Name()+".conf")
+	systemFile := filepath.Join(g.rootdir, "/boot/grub/grub.cfg")
+	return genericInstallBootConfig(gadgetFile, systemFile)
+}
+
 func (g *grub) ConfigFile() string {
 	return filepath.Join(g.dir(), "grub.cfg")
 }

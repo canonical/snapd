@@ -38,3 +38,7 @@ execute: |
 
     echo "Verify we got the expected error message"
     snap change --last=install|MATCH "there was a snapd rollback across the restart"
+
+    echo "restart snapd and ensure we can still talk to it"
+    systemctl restart snapd.socket snapd.service
+    snap list | MATCH "^snapd .* $current .*"

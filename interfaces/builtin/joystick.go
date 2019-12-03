@@ -105,6 +105,5 @@ func init() {
 		baseDeclarationSlots:  joystickBaseDeclarationSlots,
 		connectedPlugAppArmor: joystickConnectedPlugAppArmor,
 		connectedPlugUDev:     joystickConnectedPlugUDev,
-		reservedForOS:         true,
 	}})
 }

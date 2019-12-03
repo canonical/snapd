@@ -329,3 +329,35 @@ func (s *canRemoveSuite) TestBaseInUseOtherRevision(c *check.C) {
 	// but revision 2 requires core
 	c.Check(policy.NewOSPolicy("core18").CanRemove(s.st, snapst, snap.R(0)), check.DeepEquals, policy.InUseByErr("some-snap"))
 }
+
+func (s *canRemoveSuite) TestSnapdTypePolicy(c *check.C) {
+	s.st.Lock()
+	defer s.st.Unlock()
+
+	si := &snap.SideInfo{Revision: snap.R(1), RealName: "snapd"}
+	snapst := &snapstate.SnapState{
+		Current:  snap.R(1),
+		Sequence: []*snap.SideInfo{si},
+	}
+
+	// snapd cannot be removed on core
+	onClassic := false
+	c.Check(policy.NewSnapdPolicy(onClassic).CanRemove(s.st, snapst, snap.R(0)), check.Equals, policy.ErrSnapdNotRemovableOnCore)
+	// but single revisions can be removed
+	c.Check(policy.NewSnapdPolicy(onClassic).CanRemove(s.st, snapst, snap.R(1)), check.IsNil)
+
+	// snapd *can* be removed on classic if its the last snap
+	onClassic = true
+	snapstate.Set(s.st, "snapd", &snapstate.SnapState{
+		Current:  snap.R(1),
+		Sequence: []*snap.SideInfo{si},
+	})
+	c.Check(policy.NewSnapdPolicy(onClassic).CanRemove(s.st, snapst, snap.R(0)), check.IsNil)
+
+	// but it cannot be removed when there are more snaps installed
+	snapstate.Set(s.st, "other-snap", &snapstate.SnapState{
+		Current:  snap.R(1),
+		Sequence: []*snap.SideInfo{{Revision: snap.R(1), RealName: "other-snap"}},
+	})
+	c.Check(policy.NewSnapdPolicy(onClassic).CanRemove(s.st, snapst, snap.R(0)), check.Equals, policy.ErrSnapdNotYetRemovableOnClassic)
+}

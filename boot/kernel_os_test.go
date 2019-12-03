@@ -224,7 +224,7 @@ func (s *ubootBootSetSuite) forceUbootBootloader(c *C) bootloader.Bootloader {
 	mockGadgetDir := c.MkDir()
 	err := ioutil.WriteFile(filepath.Join(mockGadgetDir, "uboot.conf"), nil, 0644)
 	c.Assert(err, IsNil)
-	err = bootloader.InstallBootConfig(mockGadgetDir, dirs.GlobalRootDir)
+	err = bootloader.InstallBootConfig(mockGadgetDir, dirs.GlobalRootDir, nil)
 	c.Assert(err, IsNil)
 
 	bloader, err := bootloader.Find("", nil)
@@ -303,7 +303,7 @@ func (s *grubBootSetSuite) forceGrubBootloader(c *C) bootloader.Bootloader {
 	mockGadgetDir := c.MkDir()
 	err := ioutil.WriteFile(filepath.Join(mockGadgetDir, "grub.conf"), nil, 0644)
 	c.Assert(err, IsNil)
-	err = bootloader.InstallBootConfig(mockGadgetDir, dirs.GlobalRootDir)
+	err = bootloader.InstallBootConfig(mockGadgetDir, dirs.GlobalRootDir, nil)
 	c.Assert(err, IsNil)
 
 	bloader, err := bootloader.Find("", nil)

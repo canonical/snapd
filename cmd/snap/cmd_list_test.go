@@ -229,6 +229,7 @@ func (s *SnapSuite) TestFormatChannel(c *check.C) {
 		{"", "-"},
 		{"stable", "stable"},
 		{"edge", "edge"},
+		{"latest/stable", "stable"},
 		{"foo/stable", "foo"},
 		{"foo/edge", "foo/edge"},
 		{"foo", "foo"},
