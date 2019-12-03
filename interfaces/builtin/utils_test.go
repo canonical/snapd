@@ -65,6 +65,45 @@ func (s *utilsSuite) TestImplicitSystemConnectedSlot(c *C) {
 	c.Assert(builtin.ImplicitSystemConnectedSlot(s.conSlotSnapd), Equals, true)
 }
 
+func (s *utilsSuite) TestLabelExpr(c *C) {
+	yaml := `name: test-snap
+version: 1
+apps:
+ app1:
+  command: bin/test1
+  plugs: [home]
+ app2:
+  command: bin/test2
+  plugs: [home]
+hooks:
+ install:
+  plugs: [network,network-manager]
+ post-refresh:
+  plugs: [network,network-manager]
+`
+	info := snaptest.MockInfo(c, yaml, nil)
+
+	// all apps and all hooks
+	label := builtin.LabelExpr(info.Apps, info.Hooks, info)
+	c.Check(label, Equals, `"snap.test-snap.*"`)
+
+	// all apps, no hooks
+	label = builtin.LabelExpr(info.Apps, nil, info)
+	c.Check(label, Equals, `"snap.test-snap.{app1,app2}"`)
+
+	// one app, no hooks
+	label = builtin.LabelExpr(map[string]*snap.AppInfo{"app1": info.Apps["app1"]}, nil, info)
+	c.Check(label, Equals, `"snap.test-snap.app1"`)
+
+	// one app, all hooks
+	label = builtin.LabelExpr(map[string]*snap.AppInfo{"app1": info.Apps["app1"]}, info.Hooks, info)
+	c.Check(label, Equals, `"snap.test-snap.{app1,hook.install,hook.post-refresh}"`)
+
+	// only hooks
+	label = builtin.LabelExpr(nil, info.Hooks, info)
+	c.Check(label, Equals, `"snap.test-snap.{hook.install,hook.post-refresh}"`)
+}
+
 func MockPlug(c *C, yaml string, si *snap.SideInfo, plugName string) *snap.PlugInfo {
 	return builtin.MockPlug(c, yaml, si, plugName)
 }
