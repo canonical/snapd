@@ -12,7 +12,7 @@ execute: |
     echo "Ensure that the system is fully seeded"
     snap changes | MATCH "Done.*Initialize system state"
 
-    echo "Check that snapd sh for core18 works"
+    echo "Check that a simple shell snap"
     snap install test-snapd-sh-core18
     test-snapd-sh-core18.sh -c 'echo hello' | MATCH hello
 
