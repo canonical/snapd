@@ -107,7 +107,7 @@ func makeTestPath(c *C, path string, mode os.FileMode) string {
 	return makeTestPathInDir(c, c.MkDir(), path, mode)
 }
 
-func makeTestPathInDir(c *C, dir string, path string, mode os.FileMode) string {
+func makeTestPathInDir(c *C, dir, path string, mode os.FileMode) string {
 	mkdir := strings.HasSuffix(path, "/")
 	path = filepath.Join(dir, path)
 
@@ -232,5 +232,4 @@ func (s *StatTestSuite) TestIsExecutable(c *C) {
 		c.Assert(err, IsNil)
 		c.Check(IsExecutable(p), Equals, tc.is)
 	}
-
 }
