@@ -31,6 +31,8 @@ type Options struct {
 
 func deviceFromRole(lv *gadget.LaidOutVolume, role string) (device string, err error) {
 	for _, vs := range lv.LaidOutStructure {
+		// XXX: this part of the finding maybe should be a
+		// method on gadget.*Volume
 		if vs.Role == role {
 			device, err = gadget.FindDeviceForStructure(&vs)
 			if err != nil {
