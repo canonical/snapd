@@ -3,8 +3,6 @@ description: |
     Verify that snap pack creates squashfs files or fails in a predictable
     manner.
 
-systems: [-ubuntu-core-*]
-
 execute: |
     #shellcheck source=tests/lib/dirs.sh
     . "$TESTSLIB"/dirs.sh
