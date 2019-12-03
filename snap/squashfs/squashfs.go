@@ -377,8 +377,8 @@ func verifyContentAccessibleForBuild(sourceDir string) error {
 			if err = errPaths.accumulate(strings.TrimPrefix(path, withSlash), st); err != nil {
 				return err
 			}
-			// workaround https://github.com/golang/go/issues/21758
-			// in pre 1.10 go versions and explicitly skip directory
+			// workaround for https://github.com/golang/go/issues/21758
+			// with pre 1.10 go, explicitly skip directory
 			if mode.IsDir() {
 				return filepath.SkipDir
 			}
