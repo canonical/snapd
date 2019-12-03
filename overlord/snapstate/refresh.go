@@ -137,6 +137,23 @@ func genericRefreshCheck(info *snap.Info, canAppRunDuringRefresh func(app *snap.
 	if err != nil {
 		return err
 	}
+	// As soon as the lock is released the guarantee promised by pidsOfSnap is
+	// no longer true. This is an existing limitation. To cite the
+	// documentation of pidsOfSnap:
+	//
+	// > If the per-snap lock is held while computing the set, then the following
+	// > guarantee is true: If a security tag is not among the result then no such
+	// > tag can come into existence while the lock is held.
+	//
+	// This lock will be wrapped by another lock, the snap-inhibition-lock,
+	// which stalls startup of new apps and hooks. Unlike the snap-lock it can
+	// be held for many minutes or longer, enough to complete arbitrary data
+	// copy and download operations. The idea is that this refresh check will
+	// be performed while holding the snap lock (externally, the locking code
+	// will move to the call site), and if successful (the check indicated that
+	// refresh is possible) an inhibition lock will be grabbed before releasing
+	// the snap lock. This will remove the race condition and give the caller a
+	// chance to perform time-consuming operations.
 	lock.Unlock()
 
 	var busyAppNames []string
