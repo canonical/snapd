@@ -49,7 +49,7 @@ func labelExpr(apps map[string]*snap.AppInfo, hooks map[string]*snap.HookInfo, s
 	} else if len(apps) == len(snap.Apps) && len(hooks) == len(snap.Hooks) {
 		buf.WriteByte('*')
 	} else {
-		names := make([]string, 0, len(apps))
+		names := make([]string, 0, len(apps)+len(hooks))
 		for appName := range apps {
 			names = append(names, appName)
 		}
