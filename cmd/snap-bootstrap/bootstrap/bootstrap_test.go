@@ -44,9 +44,6 @@ var _ = Suite(&bootstrapSuite{})
 func (s *bootstrapSuite) TestBootstrapRunError(c *C) {
 	err := bootstrap.Run("", "", nil)
 	c.Assert(err, ErrorMatches, "cannot use empty gadget root directory")
-
-	err = bootstrap.Run("some-dir", "", nil)
-	c.Assert(err, ErrorMatches, "cannot use empty device node")
 }
 
 const mockGadgetYaml = `volumes:

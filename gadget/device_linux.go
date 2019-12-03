@@ -211,13 +211,18 @@ func findDeviceForWritable() (device string, err error) {
 }
 
 func findParentDeviceWithWritableFallback() (string, error) {
-	deviceWritable, err := findDeviceForWritable()
+	partitionWritable, err := findDeviceForWritable()
 	if err != nil {
 		return "", err
 	}
 
+	return DiskFromPartition(partitionWritable)
+}
+
+// XXX: move to something like osutil?
+func DiskFromPartition(partition string) (string, error) {
 	// /dev/sda3 -> sda3
-	devname := filepath.Base(deviceWritable)
+	devname := filepath.Base(partition)
 
 	// do not bother with investigating major/minor devices (inconsistent
 	// across block device types) or mangling strings, but look at sys

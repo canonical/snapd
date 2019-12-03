@@ -29,17 +29,38 @@ type Options struct {
 	// will contain encryption later
 }
 
+func deviceFromRole(lv *gadget.LaidOutVolume, role string) (device string, err error) {
+	for _, vs := range lv.LaidOutStructure {
+		if vs.Role == role {
+			device, err = gadget.FindDeviceForStructure(&vs)
+			if err != nil {
+				return "", err
+			}
+			return gadget.DiskFromPartition(device)
+		}
+	}
+	return "", fmt.Errorf("cannto find role %s in gadget", role)
+}
+
 func Run(gadgetRoot, device string, options *Options) error {
 	if gadgetRoot == "" {
 		return fmt.Errorf("cannot use empty gadget root directory")
-	}
-	if device == "" {
-		return fmt.Errorf("cannot use empty device node")
 	}
 
 	lv, err := gadget.PositionedVolumeFromGadget(gadgetRoot)
 	if err != nil {
 		return fmt.Errorf("cannot layout the volume: %v", err)
+	}
+
+	// XXX: the only situation where auto-detect is not desired is
+	//      in (spread) testing - consider to remove forcing a device
+	//
+	// auto-detect device if no device is forced
+	if device == "" {
+		device, err = deviceFromRole(lv, gadget.SystemSeed)
+		if err != nil {
+			return fmt.Errorf("cannot find device to create partitions on: %v", err)
+		}
 	}
 
 	diskLayout, err := partition.DeviceLayoutFromDisk(device)
