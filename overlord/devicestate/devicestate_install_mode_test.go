@@ -62,9 +62,9 @@ func bootloaderRecoveryMode() (string, error) {
 	}
 	return vars["snapd_recovery_mode"], nil
 }
-
 func (s *deviceMgrInstallModeSuite) SetUpTest(c *C) {
 	s.deviceMgrBaseSuite.SetUpTest(c)
+
 	s.bootstrapCreatePartitionsRestore = devicestate.MockBootstrapCreatePartitions(func(gadgetDir, device string) error {
 		c.Assert(device, Equals, "/dev/node")
 		return nil
@@ -84,6 +84,7 @@ func (s *deviceMgrInstallModeSuite) SetUpTest(c *C) {
 
 	s.state.Lock()
 	defer s.state.Unlock()
+	s.state.Set("seeded", true)
 
 	devicestatetest.SetDevice(s.state, &auth.DeviceState{
 		Brand:  "canonical",
@@ -102,6 +103,25 @@ func (s *deviceMgrInstallModeSuite) TearDownTest(c *C) {
 	s.diskFromRoleRestore()
 	s.bootstrapCreatePartitionsRestore()
 }
+
+/*
+func (s *deviceMgrInstallModeSuite) TestInstallModeNotSeededNoChg(c *C) {
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	release.OnClassic = false
+	s.state.Set("seeded", false)
+	devicestate.SetOperatingMode(s.mgr, "install")
+
+	s.state.Unlock()
+	s.settle(c)
+	s.state.Lock()
+
+	// the install-system change is *not* created (not yet seeded)
+	createPartitions := s.findInstallSystem()
+	c.Assert(createPartitions, IsNil)
+}
+*/
 
 func (s *deviceMgrInstallModeSuite) TestInstallModeCreatesChangeHappy(c *C) {
 	s.state.Lock()
@@ -131,50 +151,22 @@ func (s *deviceMgrInstallModeSuite) TestInstallModeCreatesChangeHappy(c *C) {
 }
 
 func (s *deviceMgrInstallModeSuite) TestInstallModeNotInstallmodeNoChg(c *C) {
+	restore := release.MockOnClassic(false)
+	defer restore()
+
+	s.state.Lock()
+	devicestate.SetOperatingMode(s.mgr, "")
+	s.state.Unlock()
+
+	s.settle(c)
+
 	s.state.Lock()
 	defer s.state.Unlock()
-
-	release.OnClassic = false
-	s.state.Set("seeded", true)
-	devicestate.SetOperatingMode(s.mgr, "")
-
-	s.state.Unlock()
-	s.settle(c)
-	s.state.Lock()
 
 	// the install-system change is *not* created (not in install mode)
 	createPartitions := s.findInstallSystem()
 	c.Assert(createPartitions, IsNil)
-
-	// boot vars shouldn't have been updated
-	mode, err := bootloaderRecoveryMode()
-	c.Assert(err, IsNil)
-	c.Assert(mode, Not(Equals), "run")
-
-	// and the system should not restart
-	ok, _ := s.state.Restarting()
-	c.Check(ok, Equals, false)
 }
-
-/*
-func (s *deviceMgrInstallModeSuite) TestInstallModeNotSeededNoChg(c *C) {
-	s.state.Lock()
-	defer s.state.Unlock()
-
-	release.OnClassic = false
-	s.state.Set("seeded", false)
-	devicestate.SetOperatingMode(s.mgr, "install")
-
-	s.state.Unlock()
-	s.settle(c)
-	s.state.Lock()
-
-	// the install-system change is *not* created (not yet seeded)
-	createPartitions := s.findInstallSystem()
-	c.Assert(createPartitions, IsNil)
-}
-*/
-
 func (s *deviceMgrInstallModeSuite) TestInstallModeNotClassic(c *C) {
 	s.state.Lock()
 	defer s.state.Unlock()

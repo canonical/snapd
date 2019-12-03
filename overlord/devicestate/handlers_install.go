@@ -55,7 +55,7 @@ var (
 	diskFromRole = diskFromRoleImpl
 )
 
-func (m *DeviceManager) doCreatePartitions(t *state.Task, _ *tomb.Tomb) error {
+func (m *DeviceManager) doSetupRunSystem(t *state.Task, _ *tomb.Tomb) error {
 	st := t.State()
 	st.Lock()
 	defer st.Unlock()

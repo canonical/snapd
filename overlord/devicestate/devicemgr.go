@@ -46,8 +46,7 @@ import (
 // DeviceManager is responsible for managing the device identity and device
 // policies.
 type DeviceManager struct {
-	// operatingMode of a UC20 system. "","run","install","recover"
-	operatingMode string
+	modeEnv boot.Modeenv
 
 	state      *state.State
 	keypairMgr asserts.KeypairManager
@@ -90,7 +89,7 @@ func Manager(s *state.State, hookManager *hookstate.HookManager, runner *state.T
 		return nil, err
 	}
 	if modeEnv != nil {
-		m.operatingMode = modeEnv.Mode
+		m.modeEnv = *modeEnv
 	}
 
 	s.Lock()
@@ -106,7 +105,7 @@ func Manager(s *state.State, hookManager *hookstate.HookManager, runner *state.T
 	runner.AddHandler("generate-device-key", m.doGenerateDeviceKey, nil)
 	runner.AddHandler("request-serial", m.doRequestSerial, nil)
 	runner.AddHandler("mark-seeded", m.doMarkSeeded, nil)
-	runner.AddHandler("create-partitions", m.doCreatePartitions, nil)
+	runner.AddHandler("setup-run-system", m.doSetupRunSystem, nil)
 	runner.AddHandler("prepare-remodeling", m.doPrepareRemodeling, nil)
 	runner.AddCleanup("prepare-remodeling", m.cleanupRemodel)
 	// this *must* always run last and finalizes a remodel
@@ -259,18 +258,22 @@ func setClassicFallbackModel(st *state.State, device *auth.DeviceState) error {
 	return nil
 }
 
+func (m *DeviceManager) operatingMode() string {
+	return m.modeEnv.Mode
+}
+
 func (m *DeviceManager) ensureOperational() error {
 	m.state.Lock()
 	defer m.state.Unlock()
 
-	if m.operatingMode == "install" {
+	if m.operatingMode() == "install" {
 		// avoid doing registration in install mode
 		return nil
 	}
 
 	perfTimings := timings.New(map[string]string{"ensure": "become-operational"})
 
-	if m.operatingMode == "install" {
+	if m.operatingMode() == "install" {
 		// avoid doing registration in install mode
 		return nil
 	}
@@ -431,11 +434,16 @@ func (m *DeviceManager) ensureSeeded() error {
 		return nil
 	}
 
-	// TODO: Core 20: how do we establish whether this is a Core 20
-	// system, how do we receive mode here and also how to pick a label?
+	var opts *populateStateFromSeedOptions
+	if m.operatingMode() != "" {
+		opts = &populateStateFromSeedOptions{
+			Label: m.modeEnv.RecoverySystem,
+			Mode:  m.modeEnv.Mode,
+		}
+	}
 	var tsAll []*state.TaskSet
 	timings.Run(perfTimings, "state-from-seed", "populate state from seed", func(tm timings.Measurer) {
-		tsAll, err = populateStateFromSeed(m.state, nil, tm)
+		tsAll, err = populateStateFromSeed(m.state, opts, tm)
 	})
 	if err != nil {
 		return err
@@ -499,7 +507,7 @@ func (m *DeviceManager) ensureInstalled() error {
 		return nil
 	}
 
-	if m.operatingMode != "install" {
+	if m.operatingMode() != "install" {
 		return nil
 	}
 
@@ -519,8 +527,8 @@ func (m *DeviceManager) ensureInstalled() error {
 	m.ensureInstalledRan = true
 
 	tasks := []*state.Task{}
-	createPartitions := m.state.NewTask("create-partitions", i18n.G("Create new partitions"))
-	tasks = append(tasks, createPartitions)
+	setupRunSystem := m.state.NewTask("setup-run-system", i18n.G("Setup system for run mode"))
+	tasks = append(tasks, setupRunSystem)
 
 	chg := m.state.NewChange("install-system", i18n.G("Install the system"))
 	chg.AddAll(state.NewTaskSet(tasks...))
