@@ -88,7 +88,10 @@ func (c *isConnectedCommand) Execute(args []string) error {
 		if err != nil {
 			return fmt.Errorf("internal error: %s", err)
 		}
-		if (connRef.PlugRef.Snap == snapName && connRef.PlugRef.Name == plugOrSlot) || (connRef.SlotRef.Snap == snapName && connRef.SlotRef.Name == plugOrSlot) {
+
+		matchingPlug := connRef.PlugRef.Snap == snapName && connRef.PlugRef.Name == plugOrSlot
+		matchingSlot := connRef.SlotRef.Snap == snapName && connRef.SlotRef.Name == plugOrSlot
+		if matchingPlug || matchingSlot {
 			return nil
 		}
 	}
