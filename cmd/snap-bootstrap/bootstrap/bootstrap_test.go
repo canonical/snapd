@@ -30,11 +30,14 @@ import (
 	"github.com/snapcore/snapd/cmd/snap-bootstrap/partition"
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/gadget"
+	"github.com/snapcore/snapd/testutil"
 )
 
 func TestBootstrap(t *testing.T) { TestingT(t) }
 
 type bootstrapSuite struct {
+	testutil.BaseTest
+
 	dir string
 }
 
@@ -45,8 +48,11 @@ var _ = Suite(&bootstrapSuite{})
 // each part inside bootstrap is tested and we have a spread test
 
 func (s *bootstrapSuite) SetUpTest(c *C) {
+	s.BaseTest.SetUpTest(c)
+
 	s.dir = c.MkDir()
 	dirs.SetRootDir(s.dir)
+	s.AddCleanup(func() { dirs.SetRootDir("/") })
 }
 
 func (s *bootstrapSuite) TestBootstrapRunError(c *C) {
