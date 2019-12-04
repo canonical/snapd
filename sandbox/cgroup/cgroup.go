@@ -320,7 +320,7 @@ func PidsOfSnap(snapInstanceName string) (map[string][]int, error) {
 			return err
 		}
 		pidsByTag[securityTag] = append(pidsByTag[securityTag], pids...)
-		return nil
+		return filepath.SkipDir
 	}
 
 	// TODO: Currently we walk the entire cgroup tree. We could be more precise
