@@ -91,7 +91,7 @@ func (s *bootenvTestSuite) TestForceBootloaderError(c *C) {
 }
 
 func (s *bootenvTestSuite) TestInstallBootloaderConfigNoConfig(c *C) {
-	err := bootloader.InstallBootConfig(c.MkDir(), s.rootdir)
+	err := bootloader.InstallBootConfig(c.MkDir(), s.rootdir, nil)
 	c.Assert(err, ErrorMatches, `cannot find boot config in.*`)
 }
 
@@ -105,9 +105,9 @@ func (s *bootenvTestSuite) TestInstallBootloaderConfig(c *C) {
 		mockGadgetDir := c.MkDir()
 		err := ioutil.WriteFile(filepath.Join(mockGadgetDir, t.gadgetFile), nil, 0644)
 		c.Assert(err, IsNil)
-		err = bootloader.InstallBootConfig(mockGadgetDir, s.rootdir)
+		err = bootloader.InstallBootConfig(mockGadgetDir, s.rootdir, nil)
 		c.Assert(err, IsNil)
 		fn := filepath.Join(s.rootdir, t.systemFile)
-		c.Assert(osutil.FileExists(fn), Equals, true)
+		c.Check(osutil.FileExists(fn), Equals, true, Commentf("boot config missing for %s", t.gadgetFile))
 	}
 }

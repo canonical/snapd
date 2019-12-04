@@ -22,33 +22,40 @@ import (
 	"fmt"
 	"os"
 
-	"github.com/snapcore/snapd/cmd/snap-bootstrap/bootstrap"
-	"github.com/snapcore/snapd/osutil"
+	"github.com/jessevdk/go-flags"
 )
 
-func run(args []string) error {
-	if !osutil.GetenvBool("SNAPPY_TESTING") {
-		return fmt.Errorf("cannot use outside of tests yet")
-	}
-	if os.Getuid() != 0 {
-		return fmt.Errorf("please run as root")
-	}
-	if len(os.Args) < 3 {
-		// XXX: slightly ugly to return usage as an error but ok for now
-		return fmt.Errorf("usage: %s <gadget root> <block device>\n", os.Args[0])
-	}
+var (
+	shortHelp = "Bootstrap a Ubuntu Core system"
+	longHelp  = `
+snap-bootstrap is a tool to bootstrap Ubuntu Core from ephemeral systems
+such as initramfs.
+`
 
-	gadgetRoot := os.Args[1]
-	device := os.Args[2]
-	options := &bootstrap.Options{}
-
-	return bootstrap.Run(gadgetRoot, device, options)
-}
+	opts   struct{}
+	parser *flags.Parser = flags.NewParser(&opts, flags.HelpFlag|flags.PassDoubleDash|flags.PassAfterNonOption)
+)
 
 func main() {
-	err := run(os.Args)
+	err := run(os.Args[1:])
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "error: %s\n", err)
 		os.Exit(1)
 	}
+}
+
+func run(args []string) error {
+	if os.Getuid() != 0 {
+		return fmt.Errorf("please run as root")
+	}
+
+	return parseArgs(args)
+}
+
+func parseArgs(args []string) error {
+	parser.ShortDescription = shortHelp
+	parser.LongDescription = longHelp
+
+	_, err := parser.ParseArgs(args)
+	return err
 }

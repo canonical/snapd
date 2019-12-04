@@ -109,6 +109,5 @@ func init() {
 		baseDeclarationSlots:  kvmBaseDeclarationSlots,
 		connectedPlugAppArmor: kvmConnectedPlugAppArmor,
 		connectedPlugUDev:     kvmConnectedPlugUDev,
-		reservedForOS:         true,
 	}})
 }

@@ -29,9 +29,6 @@ prepare: |
     cp /var/lib/snapd/snaps/pc_*.snap gadget.snap
     unsquashfs -d pc-snap gadget.snap
 
-    # gadget YAMLs should be identical, otherwise the test needs to be updated
-    diff -up pc-gadget.yaml pc-snap/meta/gadget.yaml
-
     # prepare a vanilla version
     sed -i -e 's/^version: \(.*\)/version: \1-1/' pc-snap/meta/snap.yaml
     # pack it
@@ -47,8 +44,10 @@ prepare: |
     new_snap_declaration "$BLOB_DIR" pc_x1.snap --snap-decl-json decl-headers.json
     new_snap_revision "$BLOB_DIR" pc_x1.snap --snap-rev-json rev-headers.json
 
+    cp pc-snap/meta/gadget.yaml gadget.yaml.orig
+
     # prepare first update
-    cp pc-gadget-2.yaml pc-snap/meta/gadget.yaml
+    python3 ./generate.py ./gadget.yaml.orig v1 > pc-snap/meta/gadget.yaml
     echo 'this is foo-x2' > foo-x2.img
     cp foo-x2.img pc-snap/foo.img
     echo 'this is foo.cfg' > pc-snap/foo.cfg
@@ -59,7 +58,7 @@ prepare: |
     EOF
 
     # prepare second update
-    cp pc-gadget-3.yaml pc-snap/meta/gadget.yaml
+    python3 ./generate.py ./gadget.yaml.orig v2 > pc-snap/meta/gadget.yaml
     echo 'this is updated foo-x3' > foo-x3.img
     cp foo-x3.img pc-snap/foo.img
     echo 'this is updated foo.cfg' > pc-snap/foo.cfg
@@ -73,6 +72,7 @@ prepare: |
     snap install pc_x1.snap
 
 restore: |
+    rm -f gadget.yaml.orig
     # external backends do not enable test keys
     if [ "$TRUST_TEST_KEYS" = "false" ]; then
         echo "This test needs test keys to be trusted"
@@ -90,6 +90,13 @@ restore: |
 
     # restore the original gadget snap
     snap install gadget.snap
+
+    # restoring the snapshot of / does not clean up /var/snap/pc/<rev>
+    # directories that were created during the test, given that the state is
+    # restored these directories will not be accounted for
+    for i in $(seq 0 2); do
+        rm -rf "/var/snap/pc/$((START_REVISION+i))"
+    done
 
 execute: |
     # external backends do not enable test keys

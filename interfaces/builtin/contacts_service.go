@@ -154,7 +154,6 @@ func init() {
 		name:                  "contacts-service",
 		summary:               contactsServiceSummary,
 		implicitOnClassic:     !(release.ReleaseInfo.ID == "ubuntu" && release.ReleaseInfo.VersionID == "14.04"),
-		reservedForOS:         true,
 		baseDeclarationSlots:  contactsServiceBaseDeclarationSlots,
 		connectedPlugAppArmor: contactsServiceConnectedPlugAppArmor,
 	})

@@ -20,7 +20,6 @@
 package main_test
 
 import (
-	"os"
 	"path/filepath"
 
 	. "gopkg.in/check.v1"
@@ -32,10 +31,7 @@ import (
 )
 
 func mockSnapRepair(c *C) *testutil.MockCmd {
-	coreLibExecDir := filepath.Join(dirs.GlobalRootDir, dirs.CoreLibExecDir)
-	err := os.MkdirAll(coreLibExecDir, 0755)
-	c.Assert(err, IsNil)
-	return testutil.MockCommand(c, filepath.Join(coreLibExecDir, "snap-repair"), "")
+	return testutil.MockCommand(c, filepath.Join(dirs.GlobalRootDir, dirs.CoreLibExecDir, "snap-repair"), "")
 }
 
 func (s *SnapSuite) TestSnapShowRepair(c *C) {
