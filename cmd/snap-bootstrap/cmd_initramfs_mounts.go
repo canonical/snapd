@@ -46,6 +46,8 @@ func init() {
 	if _, err := parser.AddCommand("initramfs-mounts", short, long, &cmdInitramfsMounts{}); err != nil {
 		panic(err)
 	}
+
+	snap.SanitizePlugsSlots = func(*snap.Info) {}
 }
 
 type cmdInitramfsMounts struct{}
