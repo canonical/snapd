@@ -20,8 +20,6 @@
 package ctlcmd_test
 
 import (
-	"strings"
-
 	"github.com/snapcore/snapd/overlord/hookstate"
 	"github.com/snapcore/snapd/overlord/hookstate/ctlcmd"
 	"github.com/snapcore/snapd/overlord/hookstate/hooktest"
@@ -44,28 +42,29 @@ func (s *isConnectedSuite) SetUpTest(c *C) {
 }
 
 var isConnectedTests = []struct {
-	args, stdout, stderr, error string
-	exitCode                    int
+	args                []string
+	stdout, stderr, err string
+	exitCode            int
 }{{
-	args:  "is-connected",
-	error: "the required argument `<plug|slot>` was not provided",
+	args: []string{"is-connected"},
+	err:  "the required argument `<plug|slot>` was not provided",
 }, {
-	args: "is-connected plug1",
+	args: []string{"is-connected", "plug1"},
 }, {
-	args: "is-connected slot1",
+	args: []string{"is-connected", "slot1"},
 }, {
 	// reported as not connected because of undesired flag
-	args:     "is-connected plug2",
+	args:     []string{"is-connected", "plug2"},
 	exitCode: 1,
 }, {
 	// reported as not connected because of hotplug-gone flag
-	args:     "is-connected plug3",
+	args:     []string{"is-connected", "plug3"},
 	exitCode: 1,
 }, {
-	args:     "is-connected slot2",
+	args:     []string{"is-connected", "slot2"},
 	exitCode: 1,
 }, {
-	args:     "is-connected foo",
+	args:     []string{"is-connected", "foo"},
 	exitCode: 1,
 }}
 
@@ -81,16 +80,16 @@ func (s *isConnectedSuite) testIsConnected(c *C, context *hookstate.Context) {
 	defer s.st.Lock()
 
 	for _, test := range isConnectedTests {
-		stdout, stderr, err := ctlcmd.Run(context, strings.Fields(test.args), 0)
+		stdout, stderr, err := ctlcmd.Run(context, test.args, 0)
 		if test.exitCode > 0 {
 			unsuccessfulErr, ok := err.(*ctlcmd.UnsuccessfulError)
 			c.Assert(ok, Equals, true)
 			c.Check(unsuccessfulErr.ExitCode, Equals, test.exitCode)
 		} else {
-			if test.error == "" {
+			if test.err == "" {
 				c.Check(err, IsNil)
 			} else {
-				c.Check(err, ErrorMatches, test.error)
+				c.Check(err, ErrorMatches, test.err)
 			}
 		}
 
