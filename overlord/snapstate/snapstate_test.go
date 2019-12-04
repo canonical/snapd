@@ -634,6 +634,37 @@ func (s *snapmgrTestSuite) TestInstallTasks(c *C) {
 	c.Assert(s.state.TaskCount(), Equals, len(ts.Tasks()))
 }
 
+func (s *snapmgrTestSuite) TestInstallTaskEdgesForPreseeding(c *C) {
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	mockSnap := makeTestSnap(c, `name: some-snap
+version: 1.0
+`)
+
+	for _, skipConfig := range []bool{false, true} {
+		ts, _, err := snapstate.InstallPath(s.state, &snap.SideInfo{RealName: "some-snap", SnapID: "some-snap-id", Revision: snap.R(8)}, mockSnap, "", "", snapstate.Flags{SkipConfigure: skipConfig})
+		c.Assert(err, IsNil)
+
+		te, err := ts.Edge(snapstate.BeginEdge)
+		c.Assert(err, IsNil)
+		c.Check(te.Kind(), Equals, "prerequisites")
+
+		te, err = ts.Edge(snapstate.BeforeHooksEdge)
+		c.Assert(err, IsNil)
+		c.Check(te.Kind(), Equals, "setup-aliases")
+
+		te, err = ts.Edge(snapstate.HooksEdge)
+		c.Assert(err, IsNil)
+		c.Assert(te.Kind(), Equals, "run-hook")
+
+		var hsup *hookstate.HookSetup
+		c.Assert(te.Get("hook-setup", &hsup), IsNil)
+		c.Check(hsup.Hook, Equals, "install")
+		c.Check(hsup.Snap, Equals, "some-snap")
+	}
+}
+
 func (s *snapmgrTestSuite) TestInstallSnapdSnapType(c *C) {
 	restore := snap.MockSnapdSnapID("snapd-id") // id provided by fakeStore
 	defer restore()
@@ -4009,6 +4040,7 @@ func (s *snapmgrTestSuite) TestEnableSnapMissingDisabledServicesMergedAndSaved(c
 		},
 		Current: snap.R(11),
 		Active:  true,
+		// keep this to make gofmt 1.10 happy
 		LastActiveDisabledServices: []string{"missing-svc3"},
 	})
 
@@ -4068,6 +4100,7 @@ func (s *snapmgrTestSuite) TestEnableSnapMissingDisabledServicesSaved(c *C) {
 		},
 		Current: snap.R(11),
 		Active:  true,
+		// keep this to make gofmt 1.10 happy
 		LastActiveDisabledServices: []string{"missing-svc3"},
 	})
 
@@ -12380,7 +12413,7 @@ func (s *snapmgrTestSuite) TestConfigDefaultsNoGadget(c *C) {
 	c.Assert(err, Equals, state.ErrNoState)
 }
 
-func (s *snapmgrTestSuite) TestConfigDefaultsSystem(c *C) {
+func (s *snapmgrTestSuite) TestConfigDefaultsSystemWithCore(c *C) {
 	r := release.MockOnClassic(false)
 	defer r()
 
@@ -12398,7 +12431,64 @@ defaults:
 
 	deviceCtx := deviceWithGadgetContext("the-gadget")
 
+	snapstate.Set(s.state, "core", &snapstate.SnapState{
+		Active: true,
+		Sequence: []*snap.SideInfo{
+			{RealName: "some-snap", Revision: snap.R(11), SnapID: "the-core-ididididididididididid"},
+		},
+		Current:  snap.R(11),
+		SnapType: "os",
+	})
+
 	makeInstalledMockCoreSnap(c)
+
+	defls, err := snapstate.ConfigDefaults(s.state, deviceCtx, "core")
+	c.Assert(err, IsNil)
+	c.Assert(defls, DeepEquals, map[string]interface{}{"foo": "bar"})
+}
+
+var snapdSnapYaml = `name: snapd
+version: 1.0
+type: snapd
+`
+
+func (s *snapmgrTestSuite) TestConfigDefaultsSystemWithSnapdNoCore(c *C) {
+	r := release.MockOnClassic(false)
+	defer r()
+
+	// using MockSnapReadInfo, we want to read the bits on disk
+	snapstate.MockSnapReadInfo(snap.ReadInfo)
+
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	s.prepareGadget(c, `
+defaults:
+    system:
+        foo: bar
+`)
+
+	deviceCtx := &snapstatetest.TrivialDeviceContext{
+		DeviceModel: MakeModel(map[string]interface{}{
+			"gadget": "the-gadget",
+			"base":   "the-base",
+		}),
+	}
+
+	snapstate.Set(s.state, "core", nil)
+	snapstate.Set(s.state, "snapd", &snapstate.SnapState{
+		Active: true,
+		Sequence: []*snap.SideInfo{
+			{RealName: "snapd", SnapID: "the-snapd-snapidididididididididi", Revision: snap.R(1)},
+		},
+		Current:  snap.R(1),
+		SnapType: "snapd",
+	})
+
+	snaptest.MockSnap(c, snapdSnapYaml, &snap.SideInfo{
+		RealName: "snapd",
+		Revision: snap.R(1),
+	})
 
 	defls, err := snapstate.ConfigDefaults(s.state, deviceCtx, "core")
 	c.Assert(err, IsNil)
@@ -12526,6 +12616,43 @@ func (s *snapmgrTestSuite) TestGadgetDefaults(c *C) {
 	err = runHooks[1].Get("hook-context", &m)
 	c.Assert(err, IsNil)
 	c.Assert(m, DeepEquals, map[string]interface{}{"use-defaults": true})
+}
+
+func (s *snapmgrTestSuite) TestGadgetDefaultsNotForOS(c *C) {
+	r := release.MockOnClassic(false)
+	defer r()
+
+	// using MockSnap, we want to read the bits on disk
+	snapstate.MockSnapReadInfo(snap.ReadInfo)
+
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	snapstate.Set(s.state, "core", nil)
+
+	s.prepareGadget(c)
+
+	const coreSnapYaml = `
+name: core
+type: os
+version: 1.0
+`
+	snapPath := makeTestSnap(c, coreSnapYaml)
+
+	ts, _, err := snapstate.InstallPath(s.state, &snap.SideInfo{RealName: "core", SnapID: "core-id", Revision: snap.R(1)}, snapPath, "", "edge", snapstate.Flags{})
+	c.Assert(err, IsNil)
+
+	var m map[string]interface{}
+	runHooks := tasksWithKind(ts, "run-hook")
+
+	c.Assert(taskKinds(runHooks), DeepEquals, []string{
+		"run-hook[install]",
+		"run-hook[configure]",
+		"run-hook[check-health]",
+	})
+	// use-defaults flag is part of hook-context which isn't set
+	err = runHooks[1].Get("hook-context", &m)
+	c.Assert(err, Equals, state.ErrNoState)
 }
 
 func (s *snapmgrTestSuite) TestInstallPathSkipConfigure(c *C) {

@@ -46,9 +46,6 @@ execute: |
     echo "When the interface is connected"
     snap connect test-snapd-sh:personal-files
 
-    echo "And not other interfaces are connected"
-    snap disconnect test-snapd-sh:home
-
     echo "Then the snap is able to access all the files and dirs in $HOME"
     test-snapd-sh.with-personal-files-plug -c "cat /root/.testfile1" | MATCH "content for /root/.testfile1"
     test-snapd-sh.with-personal-files-plug -c "cat /root/testfile1" | MATCH "content for /root/testfile1"

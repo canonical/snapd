@@ -45,7 +45,7 @@ environment:
     SRU_VALIDATION: '$(HOST: echo "${SPREAD_SRU_VALIDATION:-0}")'
     # use the ppa_validation_name to install snapd from that ppa
     PPA_VALIDATION_NAME: '$(HOST: echo "${SPREAD_PPA_VALIDATION_NAME:-}")'
-    PRE_CACHE_SNAPS: core ubuntu-core test-snapd-tools
+    PRE_CACHE_SNAPS: core ubuntu-core test-snapd-tools test-snapd-sh
     # always skip removing the rsync snap
     SKIP_REMOVE_SNAPS: '$(HOST: echo "${SPREAD_SKIP_REMOVE_SNAPS:-}") test-snapd-rsync test-snapd-rsync-core18'
     # Use the installed snapd and reset the systems without removing snapd
@@ -128,6 +128,8 @@ backends:
             - ubuntu-18.04-64:
                 workers: 6
             - ubuntu-19.04-64:
+                workers: 6
+            - ubuntu-19.10-64:
                 workers: 6
 
     google-nested:

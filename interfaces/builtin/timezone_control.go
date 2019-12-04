@@ -97,6 +97,5 @@ func init() {
 		implicitOnClassic:     true,
 		baseDeclarationSlots:  timezoneControlBaseDeclarationSlots,
 		connectedPlugAppArmor: timezoneControlConnectedPlugAppArmor,
-		reservedForOS:         true,
 	})
 }

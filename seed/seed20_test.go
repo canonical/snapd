@@ -101,7 +101,7 @@ func (s *seed20Suite) TestLoadMetaCore20Minimal(c *C) {
 	s.makeSnap(c, "pc-kernel=20", "")
 	s.makeSnap(c, "pc=20", "")
 
-	sysLabel := "20101018"
+	sysLabel := "20191018"
 	s.MakeSeed(c, sysLabel, "my-brand", "my-model", map[string]interface{}{
 		"display-name": "my model",
 		"architecture": "amd64",
@@ -537,7 +537,7 @@ func (s *seed20Suite) TestLoadMetaCore20(c *C) {
 
 	s.AssertedSnapInfo("required20").Contact = "author@example.com"
 
-	sysLabel := "20101018"
+	sysLabel := "20191018"
 	s.MakeSeed(c, sysLabel, "my-brand", "my-model", map[string]interface{}{
 		"display-name": "my model",
 		"architecture": "amd64",
@@ -627,7 +627,7 @@ func (s *seed20Suite) TestLoadMetaCore20LocalSnaps(c *C) {
 	s.makeSnap(c, "pc=20", "")
 	requiredFn := s.makeLocalSnap(c, "required20")
 
-	sysLabel := "20101030"
+	sysLabel := "20191030"
 	s.MakeSeed(c, sysLabel, "my-brand", "my-model", map[string]interface{}{
 		"display-name": "my model",
 		"architecture": "amd64",
@@ -718,7 +718,7 @@ func (s *seed20Suite) TestLoadMetaCore20ChannelOverride(c *C) {
 
 	s.AssertedSnapInfo("required20").Contact = "author@example.com"
 
-	sysLabel := "20101018"
+	sysLabel := "20191018"
 	s.MakeSeed(c, sysLabel, "my-brand", "my-model", map[string]interface{}{
 		"display-name": "my model",
 		"architecture": "amd64",
@@ -809,7 +809,7 @@ func (s *seed20Suite) TestLoadMetaCore20ChannelOverrideSnapd(c *C) {
 
 	s.AssertedSnapInfo("required20").Contact = "author@example.com"
 
-	sysLabel := "20101121"
+	sysLabel := "20191121"
 	s.MakeSeed(c, sysLabel, "my-brand", "my-model", map[string]interface{}{
 		"display-name": "my model",
 		"architecture": "amd64",
@@ -897,7 +897,7 @@ func (s *seed20Suite) TestLoadMetaCore20LocalSnapd(c *C) {
 	s.makeSnap(c, "pc-kernel=20", "")
 	s.makeSnap(c, "pc=20", "")
 
-	sysLabel := "20101121"
+	sysLabel := "20191121"
 	s.MakeSeed(c, sysLabel, "my-brand", "my-model", map[string]interface{}{
 		"display-name": "my model",
 		"architecture": "amd64",
@@ -972,7 +972,7 @@ func (s *seed20Suite) TestLoadMetaCore20ModelOverrideSnapd(c *C) {
 	s.makeSnap(c, "pc-kernel=20", "")
 	s.makeSnap(c, "pc=20", "")
 
-	sysLabel := "20101121"
+	sysLabel := "20191121"
 	s.MakeSeed(c, sysLabel, "my-brand", "my-model", map[string]interface{}{
 		"display-name": "my model",
 		"architecture": "amd64",

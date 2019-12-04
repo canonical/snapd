@@ -107,6 +107,5 @@ func init() {
 		implicitOnClassic:    true,
 		baseDeclarationSlots: opticalDriveBaseDeclarationSlots,
 		connectedPlugUDev:    opticalDriveConnectedPlugUDev,
-		reservedForOS:        true,
 	}})
 }

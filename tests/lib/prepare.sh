@@ -130,12 +130,6 @@ update_core_snap_for_classic_reexec() {
     rm squashfs-root/usr/lib/snapd/* squashfs-root/usr/bin/snap
     # and copy in the current libexec
     cp -a "$LIBEXECDIR"/snapd/* squashfs-root/usr/lib/snapd/
-    case "$SPREAD_SYSTEM" in
-        fedora-*|centos-*|amazon-*)
-            # RPM can rewrite shebang to #!/usr/bin/sh
-            sed -i -e '1 s;#!/usr/bin/sh;#!/bin/sh;' squashfs-root/usr/lib/snapd/snap-device-helper
-            ;;
-    esac
     # also the binaries themselves
     cp -a /usr/bin/snap squashfs-root/usr/bin/
     # make sure bin/snapctl is a symlink to lib/
@@ -692,7 +686,7 @@ prepare_ubuntu_core() {
             snap list
             exit 1
         fi
-        cache_snaps core
+        cache_snaps core test-snapd-sh-core18
     fi
     echo "Cache the snaps profiler snap"
     if [ "$PROFILE_SNAPS" = 1 ]; then

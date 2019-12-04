@@ -14,7 +14,7 @@ environment:
     NEW_KERNEL_CHANNEL: edge
 
 prepare: |
-    snap install test-snapd-tools
+    snap install test-snapd-sh
 
 debug: |
     grub-editenv list
@@ -35,7 +35,7 @@ execute: |
         # ensure we have a good starting place
     
         # sanity
-        test-snapd-tools.echo hello | MATCH hello
+        test-snapd-sh.sh -c 'echo hello' | MATCH hello
 
         # go to known good starting place
         snap refresh pc-kernel "--${KERNEL_CHANNEL}"
@@ -62,8 +62,8 @@ execute: |
             test "$(bootenv snap_try_kernel)" = "pc-kernel_$(cat nextBoot).snap"
         fi
 
-        # test-snapd-tools works
-        test-snapd-tools.echo hello | MATCH hello
+        # test-snapd-sh works
+        test-snapd-sh.sh -c 'echo hello' | MATCH hello
 
         REBOOT
     elif [  "$SPREAD_REBOOT" = 2 ]; then
@@ -81,8 +81,8 @@ execute: |
             exit 0
         fi
         
-        # test-snapd-tools works
-        test-snapd-tools.echo hello | MATCH hello
+        # test-snapd-sh works
+        test-snapd-sh.sh -c 'echo hello' | MATCH hello
 
         # revert kernel
         snap revert pc-kernel
@@ -102,6 +102,6 @@ execute: |
         echo we are back to the original kernel
         diff -u /proc/version_signature prevKernelSignature
         
-        # test-snapd-tools works
-        test-snapd-tools.echo hello | MATCH hello
+        # test-snapd-sh works
+        test-snapd-sh.sh -c 'echo hello' | MATCH hello
     fi

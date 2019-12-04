@@ -117,8 +117,8 @@ func populateStateFromSeedImpl(st *state.State, opts *populateStateFromSeedOptio
 		return nil, err
 	}
 
-	// allSnapInfos are collected for cross-check validation of bases
-	allSnapInfos := make(map[string]*snap.Info, len(essentialSeedSnaps)+len(seedSnaps))
+	// collected snap infos
+	infos := make([]*snap.Info, 0, len(essentialSeedSnaps)+len(seedSnaps))
 
 	tsAll := []*state.TaskSet{}
 	configTss := []*state.TaskSet{}
@@ -137,8 +137,7 @@ func populateStateFromSeedImpl(st *state.State, opts *populateStateFromSeedOptio
 		}
 	}
 
-	essInfoToTs := make(map[*snap.Info]*state.TaskSet, len(essentialSeedSnaps))
-	essInfos := make([]*snap.Info, 0, len(essentialSeedSnaps))
+	infoToTs := make(map[*snap.Info]*state.TaskSet, len(essentialSeedSnaps))
 
 	if len(essentialSeedSnaps) != 0 {
 		// we *always* configure "core" here even if bases are used
@@ -156,13 +155,12 @@ func populateStateFromSeedImpl(st *state.State, opts *populateStateFromSeedOptio
 			// wait for the previous configTss
 			configTss = chainTs(configTss, configTs)
 		}
-		essInfos = append(essInfos, info)
-		essInfoToTs[info] = ts
-		allSnapInfos[info.SnapName()] = info
+		infos = append(infos, info)
+		infoToTs[info] = ts
 	}
 	// now add/chain the tasksets in the right order based on essential
 	// snap types
-	chainSorted(essInfos, essInfoToTs)
+	chainSorted(infos, infoToTs)
 
 	// chain together configuring core, kernel, and gadget after
 	// installing them so that defaults are availabble from gadget
@@ -172,8 +170,7 @@ func populateStateFromSeedImpl(st *state.State, opts *populateStateFromSeedOptio
 	}
 
 	// ensure we install in the right order
-	infoToTs := make(map[*snap.Info]*state.TaskSet, len(seedSnaps))
-	infos := make([]*snap.Info, 0, len(seedSnaps))
+	infoToTs = make(map[*snap.Info]*state.TaskSet, len(seedSnaps))
 
 	for _, seedSnap := range seedSnaps {
 		var flags snapstate.Flags
@@ -183,11 +180,10 @@ func populateStateFromSeedImpl(st *state.State, opts *populateStateFromSeedOptio
 		}
 		infos = append(infos, info)
 		infoToTs[info] = ts
-		allSnapInfos[info.SnapName()] = info
 	}
 
 	// validate that all snaps have bases
-	errs := snap.ValidateBasesAndProviders(allSnapInfos)
+	errs := snap.ValidateBasesAndProviders(infos)
 	if errs != nil {
 		// only report the first error encountered
 		return nil, errs[0]
@@ -195,7 +191,7 @@ func populateStateFromSeedImpl(st *state.State, opts *populateStateFromSeedOptio
 
 	// now add/chain the tasksets in the right order, note that we
 	// only have tasksets that we did not already seeded
-	chainSorted(infos, infoToTs)
+	chainSorted(infos[len(essentialSeedSnaps):], infoToTs)
 
 	if len(tsAll) == 0 {
 		return nil, fmt.Errorf("cannot proceed, no snaps to seed")

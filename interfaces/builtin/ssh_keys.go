@@ -46,6 +46,5 @@ func init() {
 		implicitOnClassic:     true,
 		baseDeclarationSlots:  sshKeysBaseDeclarationSlots,
 		connectedPlugAppArmor: sshKeysConnectedPlugAppArmor,
-		reservedForOS:         true,
 	})
 }
