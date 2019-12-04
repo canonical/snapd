@@ -215,7 +215,7 @@ func layoutFromYaml(c *C, gadgetYaml string) *gadget.LaidOutVolume {
 	return pv
 }
 
-const mockUc20GadgetYaml = `volumes:
+const mockUC20GadgetYaml = `volumes:
   pc:
     bootloader: grub
     structure:
@@ -259,7 +259,7 @@ func (s *bootstrapSuite) setupMockSysfs(c *C) {
 
 func (s *bootstrapSuite) TestDeviceFromRoleHappy(c *C) {
 	s.setupMockSysfs(c)
-	lv := layoutFromYaml(c, mockUc20GadgetYaml)
+	lv := layoutFromYaml(c, mockUC20GadgetYaml)
 
 	device, err := bootstrap.DeviceFromRole(lv, gadget.SystemSeed)
 	c.Assert(err, IsNil)
@@ -268,7 +268,7 @@ func (s *bootstrapSuite) TestDeviceFromRoleHappy(c *C) {
 
 func (s *bootstrapSuite) TestDeviceFromRoleErrorNoMatchingSysfs(c *C) {
 	// note no sysfs mocking
-	lv := layoutFromYaml(c, mockUc20GadgetYaml)
+	lv := layoutFromYaml(c, mockUC20GadgetYaml)
 
 	_, err := bootstrap.DeviceFromRole(lv, gadget.SystemSeed)
 	c.Assert(err, ErrorMatches, `cannot find device for role "system-seed": device not found`)
