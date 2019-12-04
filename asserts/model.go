@@ -64,6 +64,7 @@ func (s *ModelSnap) ID() string {
 }
 
 type modelSnaps struct {
+	snapd            *ModelSnap
 	base             *ModelSnap
 	gadget           *ModelSnap
 	kernel           *ModelSnap
@@ -82,6 +83,7 @@ func (ms *modelSnaps) list() (allSnaps []*ModelSnap, requiredWithEssentialSnaps 
 		}
 	}
 
+	addSnap(ms.snapd, 1)
 	addSnap(ms.kernel, 1)
 	addSnap(ms.base, 1)
 	addSnap(ms.gadget, 1)
@@ -131,6 +133,13 @@ func checkExtendedSnaps(extendedSnaps interface{}, base string, grade ModelGrade
 
 		essential := false
 		switch {
+		case modelSnap.SnapType == "snapd":
+			// TODO: allow to be explicit only in grade: dangerous?
+			essential = true
+			if modelSnaps.snapd != nil {
+				return nil, fmt.Errorf("cannot specify multiple snapd snaps: %q and %q", modelSnaps.snapd.Name, modelSnap.Name)
+			}
+			modelSnaps.snapd = modelSnap
 		case modelSnap.SnapType == "kernel":
 			essential = true
 			if modelSnaps.kernel != nil {
@@ -174,7 +183,7 @@ func checkExtendedSnaps(extendedSnaps interface{}, base string, grade ModelGrade
 }
 
 var (
-	validSnapTypes     = []string{"app", "base", "gadget", "kernel", "core"}
+	validSnapTypes     = []string{"app", "base", "gadget", "kernel", "core", "snapd"}
 	validSnapMode      = regexp.MustCompile("^[a-z][-a-z]+$")
 	validSnapPresences = []string{"required", "optional"}
 )
@@ -214,7 +223,7 @@ func checkModelSnap(snap map[string]interface{}, grade ModelGrade) (*ModelSnap, 
 		typ = "app"
 	}
 	if !strutil.ListContains(validSnapTypes, typ) {
-		return nil, fmt.Errorf("type of snap %q must be one of app|base|gadget|kernel|core", name)
+		return nil, fmt.Errorf("type of snap %q must be one of %s", name, strings.Join(validSnapTypes, "|"))
 	}
 
 	modes, err := checkStringListInMap(snap, "modes", fmt.Sprintf("%q %s", "modes", what), validSnapMode)

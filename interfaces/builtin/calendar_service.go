@@ -135,7 +135,6 @@ func init() {
 		name:                  "calendar-service",
 		summary:               calendarServiceSummary,
 		implicitOnClassic:     !(release.ReleaseInfo.ID == "ubuntu" && release.ReleaseInfo.VersionID == "14.04"),
-		reservedForOS:         true,
 		baseDeclarationSlots:  calendarServiceBaseDeclarationSlots,
 		connectedPlugAppArmor: calendarServiceConnectedPlugAppArmor,
 	})

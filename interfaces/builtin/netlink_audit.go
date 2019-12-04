@@ -60,6 +60,5 @@ func init() {
 		baseDeclarationSlots:  netlinkAuditBaseDeclarationSlots,
 		connectedPlugSecComp:  netlinkAuditConnectedPlugSecComp,
 		connectedPlugAppArmor: netlinkAuditConnectedPlugAppArmor,
-		reservedForOS:         true,
 	})
 }
