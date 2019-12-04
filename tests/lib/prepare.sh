@@ -283,15 +283,11 @@ prepare_classic() {
 
         # Cache snaps
         # shellcheck disable=SC2086
-        cache_snaps ${PRE_CACHE_SNAPS}
+        cache_snaps core ${PRE_CACHE_SNAPS}
 
         echo "Cache the snaps profiler snap"
         if [ "$PROFILE_SNAPS" = 1 ]; then
-            if is_core18_system; then
-                cache_snaps test-snapd-profiler-core18
-            else
-                cache_snaps test-snapd-profiler
-            fi
+            cache_snaps test-snapd-profiler
         fi
 
         snap list | not grep core || exit 1
@@ -678,6 +674,10 @@ prepare_ubuntu_core() {
         snap alias "$rsync_snap".rsync rsync
     fi
 
+    # Cache snaps
+    # shellcheck disable=SC2086
+    cache_snaps ${PRE_CACHE_SNAPS}
+
     echo "Ensure the core snap is cached"
     # Cache snaps
     if is_core18_system; then
@@ -688,9 +688,14 @@ prepare_ubuntu_core() {
         fi
         cache_snaps core test-snapd-sh-core18
     fi
+
     echo "Cache the snaps profiler snap"
     if [ "$PROFILE_SNAPS" = 1 ]; then
-        cache_snaps test-snapd-profiler
+        if is_core18_system; then
+            cache_snaps test-snapd-profiler-core18
+        else
+            cache_snaps test-snapd-profiler
+        fi
     fi
 
     disable_refreshes
