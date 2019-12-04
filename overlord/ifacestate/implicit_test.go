@@ -20,6 +20,7 @@
 package ifacestate_test
 
 import (
+	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/overlord/ifacestate"
 	"github.com/snapcore/snapd/overlord/state"
 	"github.com/snapcore/snapd/release"
@@ -94,6 +95,36 @@ func (implicitSuite) TestAddImplicitSlotsOnClassic(c *C) {
 	}
 	// Ensure that we have *some* implicit slots
 	c.Assert(len(info.Slots) > 10, Equals, true)
+}
+
+func (implicitSuite) TestAddImplicitSlotsAndImplicitHooks(c *C) {
+	tempdir := c.MkDir()
+	dirs.SetRootDir(tempdir)
+	defer dirs.SetRootDir("")
+
+	restore := release.MockOnClassic(true)
+	defer restore()
+
+	snapPath := snaptest.MakeTestSnapWithFiles(c, "{name: core, type: os, version: 0}", [][]string{{"meta/hooks/configure", ""}})
+	snapf, err := snap.Open(snapPath)
+	c.Assert(err, IsNil)
+
+	info, err := snap.ReadInfoFromSnapFile(snapf, nil)
+	c.Assert(err, IsNil)
+
+	st := state.New(nil)
+	st.Lock()
+	defer st.Unlock()
+
+	c.Assert(ifacestate.AddImplicitSlots(st, info), IsNil)
+
+	// test one of the implicit slots
+	slot := info.Slots["modem-manager"]
+	c.Assert(slot, NotNil)
+	c.Check(slot.Hooks["configure"], NotNil)
+	hook := info.Hooks["configure"]
+	c.Assert(info.Hooks["configure"], NotNil)
+	c.Check(hook.Slots["modem-manager"], NotNil)
 }
 
 func (implicitSuite) TestAddImplicitSlotsErrorSlotExists(c *C) {

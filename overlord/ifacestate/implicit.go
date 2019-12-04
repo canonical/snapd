@@ -87,6 +87,30 @@ func addImplicitSlots(st *state.State, snapInfo *snap.Info) error {
 		}
 	}
 
+	// bind implicit hooks if necessary. note, implicit hooks are bound when reading snap
+	// yaml, but they did't know about implicit slots back then.
+	for _, slot := range snapInfo.Slots {
+		for _, hook := range snapInfo.Hooks {
+			// on core we only have implicit hooks, but no harm in checking
+			if hook.Explicit {
+				continue
+			}
+			// do not overwrite
+			if _, ok := slot.Hooks[hook.Name]; ok {
+				continue
+			}
+			// bind hook and slot
+			if slot.Hooks == nil {
+				slot.Hooks = make(map[string]*snap.HookInfo)
+			}
+			slot.Hooks[hook.Name] = hook
+			if hook.Slots == nil {
+				hook.Slots = make(map[string]*snap.SlotInfo)
+			}
+			hook.Slots[slot.Name] = slot
+		}
+	}
+
 	return nil
 }
 
