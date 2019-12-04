@@ -6,7 +6,7 @@ systems: [ ubuntu-1*-*64 ]
 environment:
     PLAY_FILE: "/snap/test-snapd-audio-record/current/usr/share/sounds/alsa/Noise.wav"
     # today, only 19.04 and 19.10 have a mediating pulseaudio
-    EXFAIL: "ubuntu-14 ubuntu-16 ubuntu-18"
+    EXFAIL: "ubuntu-1[468]"
 
 prepare: |
     #shellcheck source=tests/lib/pkgdb.sh
@@ -66,12 +66,9 @@ execute: |
     snap disconnect test-snapd-audio-record:audio-record
 
     mediating_pa="yes"
-    for regex in $EXFAIL ; do
-        if echo "$SPREAD_SYSTEM" | grep -Eq "$regex" ; then
-            mediating_pa="no"
-            break
-        fi
-    done
+    if echo "$SPREAD_SYSTEM" | grep -Eq "$EXFAIL" ; then
+        mediating_pa="no"
+    fi
 
     echo "Then the snap command is not able to record audio"
     if [ "$mediating_pa" = "no" ] && ! su -l -c "test-snapd-audio-record.recsimple" test ; then
