@@ -2119,14 +2119,13 @@ func (s *writerSuite) TestSeedSnapsWriteMetaCore20LocalSnaps(c *C) {
 	c.Assert(localSnaps, HasLen, 1)
 
 	for _, sn := range localSnaps {
-		si, aRefs, err := seedwriter.DeriveSideInfo(sn.Path, tf, s.db)
-		c.Check(asserts.IsNotFound(err), Equals, true)
+		_, _, err := seedwriter.DeriveSideInfo(sn.Path, tf, s.db)
+		c.Assert(asserts.IsNotFound(err), Equals, true)
 		f, err := snap.Open(sn.Path)
 		c.Assert(err, IsNil)
-		info, err := snap.ReadInfoFromSnapFile(f, si)
+		info, err := snap.ReadInfoFromSnapFile(f, nil)
 		c.Assert(err, IsNil)
 		w.SetInfo(sn, info)
-		sn.ARefs = aRefs
 	}
 
 	err = w.InfoDerived()
@@ -2499,14 +2498,13 @@ func (s *writerSuite) TestSeedSnapsWriteMetaCore20ExtraSnaps(c *C) {
 	c.Assert(localSnaps, HasLen, 1)
 
 	for _, sn := range localSnaps {
-		si, aRefs, err := seedwriter.DeriveSideInfo(sn.Path, tf, s.db)
-		c.Check(asserts.IsNotFound(err), Equals, true)
+		_, _, err := seedwriter.DeriveSideInfo(sn.Path, tf, s.db)
+		c.Assert(asserts.IsNotFound(err), Equals, true)
 		f, err := snap.Open(sn.Path)
 		c.Assert(err, IsNil)
-		info, err := snap.ReadInfoFromSnapFile(f, si)
+		info, err := snap.ReadInfoFromSnapFile(f, nil)
 		c.Assert(err, IsNil)
 		w.SetInfo(sn, info)
-		sn.ARefs = aRefs
 	}
 
 	err = w.InfoDerived()
