@@ -215,12 +215,15 @@ func findParentDeviceWithWritableFallback() (string, error) {
 	if err != nil {
 		return "", err
 	}
-
-	return DiskFromPartition(partitionWritable)
+	return ParentDiskFromPartition(partitionWritable)
 }
 
-// XXX: move to something like osutil?
-func DiskFromPartition(partition string) (string, error) {
+// ParentDiskFromPartition will find the parent disk device for the
+// given partition. E.g. /dev/nvmen0n1p5 -> /dev/nvme0n1
+//
+// Note that this does not work for anything using device mapper (like
+// LUKS/LVM) yet.
+func ParentDiskFromPartition(partition string) (string, error) {
 	// /dev/sda3 -> sda3
 	devname := filepath.Base(partition)
 
