@@ -305,6 +305,7 @@ func (s *cgroupSuite) TestPidsOfSnapUnrelatedStuff(c *C) {
 	s.writePids(c, "snap..service", []int{101})
 	s.writePids(c, "snap..scope", []int{102})
 	s.writePids(c, "snap.*.service", []int{103})
+	s.writePids(c, "snap.*.scope", []int{104})
 
 	pids, err := cgroup.PidsOfSnap("pkg")
 	c.Assert(err, IsNil)
