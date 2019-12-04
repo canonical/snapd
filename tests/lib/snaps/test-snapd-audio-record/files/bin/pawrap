@@ -8,7 +8,7 @@ fi
 
 papath="$XDG_RUNTIME_DIR/../pulse/native"
 if [ ! -e "$papath" ]; then
-    echo "Could not find '$papath'"
+    echo "Cannot not find '$papath'"
     exit 1
 fi
 
