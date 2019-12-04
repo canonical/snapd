@@ -2141,7 +2141,7 @@ func runSnapctl(c *Command, r *http.Request, user *auth.UserState) Response {
 			result := map[string]interface{}{
 				"stdout":    string(stdout),
 				"stderr":    string(stderr),
-				"exit-code": fmt.Sprintf("%d", e.ExitCode), // string to avoid any int/float64 trickery
+				"exit-code": e.ExitCode,
 			}
 			return &resp{
 				Type: ResponseTypeError,

@@ -6608,7 +6608,7 @@ func (s *apiSuite) TestSnapctlUnsuccesfulError(c *check.C) {
 	c.Check(rsp.Result.(*errorResult).Value, check.DeepEquals, map[string]interface{}{
 		"stdout":    "",
 		"stderr":    "",
-		"exit-code": "123",
+		"exit-code": 123,
 	})
 }
 

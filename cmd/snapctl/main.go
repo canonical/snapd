@@ -22,7 +22,6 @@ package main
 import (
 	"fmt"
 	"os"
-	"strconv"
 
 	"github.com/snapcore/snapd/client"
 	"github.com/snapcore/snapd/dirs"
@@ -69,10 +68,8 @@ func main() {
 					if stderr, ok := errRes["stderr"].(string); ok {
 						os.Stderr.Write([]byte(stderr))
 					}
-					if ec, ok := errRes["exit-code"].(string); ok {
-						if errCode, convErr := strconv.Atoi(ec); convErr == nil {
-							os.Exit(errCode)
-						}
+					if errCode, ok := errRes["exit-code"].(float64); ok {
+						os.Exit(int(errCode))
 					}
 				}
 			}

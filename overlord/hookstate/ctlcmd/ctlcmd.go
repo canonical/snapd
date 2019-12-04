@@ -94,7 +94,7 @@ func addCommand(name, shortHelp, longHelp string, generator func() command) *com
 	return cmd
 }
 
-// UnsuccessfulError carries a specific exit code to be returned to the client
+// UnsuccessfulError carries a specific exit code to be returned to the client.
 type UnsuccessfulError struct {
 	ExitCode int
 }
