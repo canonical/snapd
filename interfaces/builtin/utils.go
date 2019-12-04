@@ -41,31 +41,31 @@ const UsbMaxInterfaces = 32
 // - "snap.$snap_instance.*" if all apps/hook are bound to the plug or slot
 func labelExpr(apps map[string]*snap.AppInfo, hooks map[string]*snap.HookInfo, snap *snap.Info) string {
 	var buf bytes.Buffer
+
+	names := make([]string, 0, len(apps)+len(hooks))
+	for appName := range apps {
+		names = append(names, appName)
+	}
+	for hookName := range hooks {
+		names = append(names, fmt.Sprintf("hook.%s", hookName))
+	}
+	sort.Strings(names)
+
 	fmt.Fprintf(&buf, `"snap.%s.`, snap.InstanceName())
-	if len(apps) == 1 && len(hooks) == 0 {
-		for appName := range apps {
-			buf.WriteString(appName)
-		}
+	if len(names) == 1 {
+		buf.WriteString(names[0])
 	} else if len(apps) == len(snap.Apps) && len(hooks) == len(snap.Hooks) {
 		buf.WriteByte('*')
-	} else {
-		names := make([]string, 0, len(apps)+len(hooks))
-		for appName := range apps {
-			names = append(names, appName)
-		}
-		for hookName := range hooks {
-			names = append(names, fmt.Sprintf("hook.%s", hookName))
-		}
-
-		sort.Strings(names)
+	} else if len(names) > 0 {
 		buf.WriteByte('{')
 		for _, name := range names {
 			buf.WriteString(name)
 			buf.WriteByte(',')
 		}
+		// remove trailing comma
 		buf.Truncate(buf.Len() - 1)
 		buf.WriteByte('}')
-	}
+	} // else: len(names)==0, gives "snap.<name>." that doesn't match anything
 	buf.WriteByte('"')
 	return buf.String()
 }

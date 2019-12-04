@@ -95,6 +95,10 @@ hooks:
 	label = builtin.LabelExpr(map[string]*snap.AppInfo{"app1": info.Apps["app1"]}, nil, info)
 	c.Check(label, Equals, `"snap.test-snap.app1"`)
 
+	// no apps, one hook
+	label = builtin.LabelExpr(nil, map[string]*snap.HookInfo{"install": info.Hooks["install"]}, info)
+	c.Check(label, Equals, `"snap.test-snap.hook.install"`)
+
 	// one app, all hooks
 	label = builtin.LabelExpr(map[string]*snap.AppInfo{"app1": info.Apps["app1"]}, info.Hooks, info)
 	c.Check(label, Equals, `"snap.test-snap.{app1,hook.install,hook.post-refresh}"`)
@@ -102,6 +106,10 @@ hooks:
 	// only hooks
 	label = builtin.LabelExpr(nil, info.Hooks, info)
 	c.Check(label, Equals, `"snap.test-snap.{hook.install,hook.post-refresh}"`)
+
+	// nothing
+	label = builtin.LabelExpr(nil, nil, info)
+	c.Check(label, Equals, `"snap.test-snap."`)
 }
 
 func MockPlug(c *C, yaml string, si *snap.SideInfo, plugName string) *snap.PlugInfo {
