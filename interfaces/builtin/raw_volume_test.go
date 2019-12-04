@@ -52,12 +52,12 @@ type rawVolumeInterfaceSuite struct {
 	testUDevBadValue1Info *snap.SlotInfo
 
 	// Consuming snap
-	testPlugPort1     *interfaces.ConnectedPlug
-	testPlugPort1Info *snap.PlugInfo
-	testPlugPort2     *interfaces.ConnectedPlug
-	testPlugPort2Info *snap.PlugInfo
-	testPlugPort3     *interfaces.ConnectedPlug
-	testPlugPort3Info *snap.PlugInfo
+	testPlugPart1     *interfaces.ConnectedPlug
+	testPlugPart1Info *snap.PlugInfo
+	testPlugPart2     *interfaces.ConnectedPlug
+	testPlugPart2Info *snap.PlugInfo
+	testPlugPart3     *interfaces.ConnectedPlug
+	testPlugPart3Info *snap.PlugInfo
 }
 
 var _ = Suite(&rawVolumeInterfaceSuite{
@@ -152,12 +152,12 @@ apps:
     plugs:
     - plug-for-part-3
 `, nil)
-	s.testPlugPort1Info = consumingSnapInfo.Plugs["plug-for-part-1"]
-	s.testPlugPort1 = interfaces.NewConnectedPlug(s.testPlugPort1Info, nil, nil)
-	s.testPlugPort2Info = consumingSnapInfo.Plugs["plug-for-part-2"]
-	s.testPlugPort2 = interfaces.NewConnectedPlug(s.testPlugPort2Info, nil, nil)
-	s.testPlugPort3Info = consumingSnapInfo.Plugs["plug-for-part-3"]
-	s.testPlugPort3 = interfaces.NewConnectedPlug(s.testPlugPort3Info, nil, nil)
+	s.testPlugPart1Info = consumingSnapInfo.Plugs["plug-for-part-1"]
+	s.testPlugPart1 = interfaces.NewConnectedPlug(s.testPlugPart1Info, nil, nil)
+	s.testPlugPart2Info = consumingSnapInfo.Plugs["plug-for-part-2"]
+	s.testPlugPart2 = interfaces.NewConnectedPlug(s.testPlugPart2Info, nil, nil)
+	s.testPlugPart3Info = consumingSnapInfo.Plugs["plug-for-part-3"]
+	s.testPlugPart3 = interfaces.NewConnectedPlug(s.testPlugPart3Info, nil, nil)
 }
 
 func (s *rawVolumeInterfaceSuite) TestName(c *C) {
@@ -277,20 +277,20 @@ slots:
 
 func (s *rawVolumeInterfaceSuite) TestUDevSpec(c *C) {
 	spec := &udev.Specification{}
-	c.Assert(spec.AddConnectedPlug(s.iface, s.testPlugPort1, s.testUDev1), IsNil)
+	c.Assert(spec.AddConnectedPlug(s.iface, s.testPlugPart1, s.testUDev1), IsNil)
 	c.Assert(spec.Snippets(), HasLen, 2)
 	c.Assert(spec.Snippets()[0], Equals, `# raw-volume
 KERNEL=="vda1", TAG+="snap_client-snap_app-accessing-1-part"`)
 	c.Assert(spec.Snippets(), testutil.Contains, `TAG=="snap_client-snap_app-accessing-1-part", RUN+="/usr/lib/snapd/snap-device-helper $env{ACTION} snap_client-snap_app-accessing-1-part $devpath $major:$minor"`)
 
 	spec = &udev.Specification{}
-	c.Assert(spec.AddConnectedPlug(s.iface, s.testPlugPort2, s.testUDev2), IsNil)
+	c.Assert(spec.AddConnectedPlug(s.iface, s.testPlugPart2, s.testUDev2), IsNil)
 	c.Assert(spec.Snippets(), HasLen, 2)
 	c.Assert(spec.Snippets()[0], Equals, `# raw-volume
 KERNEL=="mmcblk0p1", TAG+="snap_client-snap_app-accessing-2-part"`)
 
 	spec = &udev.Specification{}
-	c.Assert(spec.AddConnectedPlug(s.iface, s.testPlugPort3, s.testUDev3), IsNil)
+	c.Assert(spec.AddConnectedPlug(s.iface, s.testPlugPart3, s.testUDev3), IsNil)
 	c.Assert(spec.Snippets(), HasLen, 2)
 	c.Assert(spec.Snippets()[0], Equals, `# raw-volume
 KERNEL=="i2o/hda1", TAG+="snap_client-snap_app-accessing-3-part"`)
@@ -298,19 +298,19 @@ KERNEL=="i2o/hda1", TAG+="snap_client-snap_app-accessing-3-part"`)
 
 func (s *rawVolumeInterfaceSuite) TestAppArmorSpec(c *C) {
 	spec := &apparmor.Specification{}
-	c.Assert(spec.AddConnectedPlug(s.iface, s.testPlugPort1, s.testUDev1), IsNil)
+	c.Assert(spec.AddConnectedPlug(s.iface, s.testPlugPart1, s.testUDev1), IsNil)
 	c.Assert(spec.SecurityTags(), DeepEquals, []string{"snap.client-snap.app-accessing-1-part"})
 	c.Assert(spec.SnippetForTag("snap.client-snap.app-accessing-1-part"), testutil.Contains, `/dev/vda1 rw,`)
 	c.Assert(spec.SnippetForTag("snap.client-snap.app-accessing-1-part"), testutil.Contains, `capability sys_admin,`)
 
 	spec = &apparmor.Specification{}
-	c.Assert(spec.AddConnectedPlug(s.iface, s.testPlugPort2, s.testUDev2), IsNil)
+	c.Assert(spec.AddConnectedPlug(s.iface, s.testPlugPart2, s.testUDev2), IsNil)
 	c.Assert(spec.SecurityTags(), DeepEquals, []string{"snap.client-snap.app-accessing-2-part"})
 	c.Assert(spec.SnippetForTag("snap.client-snap.app-accessing-2-part"), testutil.Contains, `/dev/mmcblk0p1 rw,`)
 	c.Assert(spec.SnippetForTag("snap.client-snap.app-accessing-2-part"), testutil.Contains, `capability sys_admin,`)
 
 	spec = &apparmor.Specification{}
-	c.Assert(spec.AddConnectedPlug(s.iface, s.testPlugPort3, s.testUDev3), IsNil)
+	c.Assert(spec.AddConnectedPlug(s.iface, s.testPlugPart3, s.testUDev3), IsNil)
 	c.Assert(spec.SecurityTags(), DeepEquals, []string{"snap.client-snap.app-accessing-3-part"})
 	c.Assert(spec.SnippetForTag("snap.client-snap.app-accessing-3-part"), testutil.Contains, `/dev/i2o/hda1 rw,`)
 	c.Assert(spec.SnippetForTag("snap.client-snap.app-accessing-3-part"), testutil.Contains, `capability sys_admin,`)
