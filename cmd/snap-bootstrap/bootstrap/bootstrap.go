@@ -36,12 +36,12 @@ func deviceFromRole(lv *gadget.LaidOutVolume, role string) (device string, err e
 		if vs.Role == role {
 			device, err = gadget.FindDeviceForStructure(&vs)
 			if err != nil {
-				return "", err
+				return "", fmt.Errorf("cannot find device for role %q: %v", role, err)
 			}
 			return gadget.DiskFromPartition(device)
 		}
 	}
-	return "", fmt.Errorf("cannto find role %s in gadget", role)
+	return "", fmt.Errorf("cannot find role %s in gadget", role)
 }
 
 func Run(gadgetRoot, device string, options *Options) error {

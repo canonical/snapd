@@ -28,18 +28,26 @@ import (
 
 	"github.com/snapcore/snapd/cmd/snap-bootstrap/bootstrap"
 	"github.com/snapcore/snapd/cmd/snap-bootstrap/partition"
+	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/gadget"
 )
 
 func TestBootstrap(t *testing.T) { TestingT(t) }
 
-type bootstrapSuite struct{}
+type bootstrapSuite struct {
+	dir string
+}
 
 var _ = Suite(&bootstrapSuite{})
 
 // XXX: write a very high level integration like test here that
 // mocks the world (sfdisk,lsblk,mkfs,...)? probably silly as
 // each part inside bootstrap is tested and we have a spread test
+
+func (s *bootstrapSuite) SetUpTest(c *C) {
+	s.dir = c.MkDir()
+	dirs.SetRootDir(s.dir)
+}
 
 func (s *bootstrapSuite) TestBootstrapRunError(c *C) {
 	err := bootstrap.Run("", "", nil)
@@ -101,12 +109,12 @@ var mockDeviceLayout = partition.DeviceLayout{
 
 func (s *bootstrapSuite) TestLayoutCompatibility(c *C) {
 	// same contents
-	gadgetLayout := layoutFromYaml(c, mockGadgetYaml, "pc")
+	gadgetLayout := layoutFromYaml(c, mockGadgetYaml)
 	err := bootstrap.EnsureLayoutCompatibility(gadgetLayout, &mockDeviceLayout)
 	c.Assert(err, IsNil)
 
 	// missing structure (that's ok)
-	gadgetLayoutWithExtras := layoutFromYaml(c, mockGadgetYaml+mockExtraStructure, "pc")
+	gadgetLayoutWithExtras := layoutFromYaml(c, mockGadgetYaml+mockExtraStructure)
 	err = bootstrap.EnsureLayoutCompatibility(gadgetLayoutWithExtras, &mockDeviceLayout)
 	c.Assert(err, IsNil)
 
@@ -130,7 +138,7 @@ func (s *bootstrapSuite) TestLayoutCompatibility(c *C) {
 }
 
 func (s *bootstrapSuite) TestSchemaCompatibility(c *C) {
-	gadgetLayout := layoutFromYaml(c, mockGadgetYaml, "pc")
+	gadgetLayout := layoutFromYaml(c, mockGadgetYaml)
 	deviceLayout := mockDeviceLayout
 
 	error_msg := "disk partitioning.* doesn't match gadget.*"
@@ -168,7 +176,7 @@ func (s *bootstrapSuite) TestSchemaCompatibility(c *C) {
 }
 
 func (s *bootstrapSuite) TestIDCompatibility(c *C) {
-	gadgetLayout := layoutFromYaml(c, mockGadgetYaml, "pc")
+	gadgetLayout := layoutFromYaml(c, mockGadgetYaml)
 	deviceLayout := mockDeviceLayout
 
 	error_msg := "disk ID.* doesn't match gadget volume ID.*"
@@ -196,7 +204,7 @@ func (s *bootstrapSuite) TestIDCompatibility(c *C) {
 	c.Logf("-----")
 }
 
-func layoutFromYaml(c *C, gadgetYaml, volume string) *gadget.LaidOutVolume {
+func layoutFromYaml(c *C, gadgetYaml string) *gadget.LaidOutVolume {
 	gadgetRoot := filepath.Join(c.MkDir(), "gadget")
 	err := os.MkdirAll(filepath.Join(gadgetRoot, "meta"), 0755)
 	c.Assert(err, IsNil)
@@ -205,4 +213,71 @@ func layoutFromYaml(c *C, gadgetYaml, volume string) *gadget.LaidOutVolume {
 	pv, err := gadget.PositionedVolumeFromGadget(gadgetRoot)
 	c.Assert(err, IsNil)
 	return pv
+}
+
+const mockUc20GadgetYaml = `volumes:
+  pc:
+    bootloader: grub
+    structure:
+      - name: mbr
+        type: mbr
+        size: 440
+      - name: BIOS Boot
+        type: DA,21686148-6449-6E6F-744E-656564454649
+        size: 1M
+        offset: 1M
+        offset-write: mbr+92
+      - name: ubuntu-seed
+        role: system-seed
+        filesystem: vfat
+        # UEFI will boot the ESP partition by default first
+        type: EF,C12A7328-F81F-11D2-BA4B-00A0C93EC93B
+        size: 1200M
+      - name: ubuntu-data
+        role: system-data
+        filesystem: ext4
+        type: 83,0FC63DAF-8483-4772-8E79-3D69D8477DE4
+        size: 750M
+`
+
+func (s *bootstrapSuite) setupMockSysfs(c *C) {
+	err := os.MkdirAll(filepath.Join(s.dir, "/dev/disk/by-partlabel"), 0755)
+	c.Assert(err, IsNil)
+
+	err = ioutil.WriteFile(filepath.Join(s.dir, "/dev/fakedevice0p1"), nil, 0644)
+	c.Assert(err, IsNil)
+	err = os.Symlink("../../fakedevice0p1", filepath.Join(s.dir, "/dev/disk/by-partlabel/ubuntu-seed"))
+	c.Assert(err, IsNil)
+
+	// make parent device
+	err = ioutil.WriteFile(filepath.Join(s.dir, "/dev/fakedevice0"), nil, 0644)
+	c.Assert(err, IsNil)
+	// and fake /sys/block structure
+	err = os.MkdirAll(filepath.Join(s.dir, "/sys/block/fakedevice0/fakedevice0p1"), 0755)
+	c.Assert(err, IsNil)
+}
+
+func (s *bootstrapSuite) TestDeviceFromRoleHappy(c *C) {
+	s.setupMockSysfs(c)
+	lv := layoutFromYaml(c, mockUc20GadgetYaml)
+
+	device, err := bootstrap.DeviceFromRole(lv, gadget.SystemSeed)
+	c.Assert(err, IsNil)
+	c.Check(device, Matches, ".*/dev/fakedevice0")
+}
+
+func (s *bootstrapSuite) TestDeviceFromRoleErrorNoMatchingSysfs(c *C) {
+	// note no sysfs mocking
+	lv := layoutFromYaml(c, mockUc20GadgetYaml)
+
+	_, err := bootstrap.DeviceFromRole(lv, gadget.SystemSeed)
+	c.Assert(err, ErrorMatches, `cannot find device for role "system-seed": device not found`)
+}
+
+func (s *bootstrapSuite) TestDeviceFromRoleErrorNoRole(c *C) {
+	s.setupMockSysfs(c)
+	lv := layoutFromYaml(c, mockGadgetYaml)
+
+	_, err := bootstrap.DeviceFromRole(lv, gadget.SystemSeed)
+	c.Assert(err, ErrorMatches, "cannot find role system-seed in gadget")
 }
