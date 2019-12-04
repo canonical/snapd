@@ -1042,7 +1042,7 @@ plugs:
 	err := cand.Check()
 	c.Check(err, NotNil)
 	c.Assert(err, ErrorMatches, "connection denied by slot rule of interface \"raw-volume\"")
-	err = cand.CheckAutoConnect()
+	_, err = cand.CheckAutoConnect()
 	c.Check(err, NotNil)
 	c.Assert(err, ErrorMatches, "auto-connection denied by slot rule of interface \"raw-volume\"")
 
@@ -1059,7 +1059,7 @@ plugs:
 	cand.PlugSnapDeclaration = plugSnapDecl
 	err = cand.Check()
 	c.Check(err, IsNil)
-	err = cand.CheckAutoConnect()
+	_, err = cand.CheckAutoConnect()
 	c.Check(err, NotNil)
 	c.Assert(err, ErrorMatches, "auto-connection not allowed by plug rule of interface \"raw-volume\" for \"plug-snap\" snap")
 
@@ -1078,8 +1078,9 @@ plugs:
 	cand.PlugSnapDeclaration = plugSnapDecl
 	err = cand.Check()
 	c.Check(err, IsNil)
-	err = cand.CheckAutoConnect()
+	arity, err := cand.CheckAutoConnect()
 	c.Check(err, IsNil)
+	c.Check(arity.SlotsPerPlugAny(), Equals, false)
 
 	// blanket allow for connection and auto-connection to any slotting snap
 	plugsOverride = `
@@ -1092,6 +1093,7 @@ plugs:
 	cand.PlugSnapDeclaration = plugSnapDecl
 	err = cand.Check()
 	c.Check(err, IsNil)
-	err = cand.CheckAutoConnect()
+	arity, err = cand.CheckAutoConnect()
 	c.Check(err, IsNil)
+	c.Check(arity.SlotsPerPlugAny(), Equals, false)
 }
