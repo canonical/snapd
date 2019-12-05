@@ -37,6 +37,7 @@ type Modeenv struct {
 	Mode           string
 	RecoverySystem string
 	Base           string
+	Kernel         string
 }
 
 func ReadModeenv(rootdir string) (*Modeenv, error) {
@@ -49,10 +50,12 @@ func ReadModeenv(rootdir string) (*Modeenv, error) {
 	recoverySystem, _ := cfg.Get("", "recovery_system")
 	mode, _ := cfg.Get("", "mode")
 	base, _ := cfg.Get("", "base")
+	kernel, _ := cfg.Get("", "kernel")
 	return &Modeenv{
 		Mode:           mode,
 		RecoverySystem: recoverySystem,
 		Base:           base,
+		Kernel:         kernel,
 	}, nil
 }
 
@@ -71,6 +74,9 @@ func (m *Modeenv) Write(rootdir string) error {
 	}
 	if m.Base != "" {
 		fmt.Fprintf(buf, "base=%s\n", m.Base)
+	}
+	if m.Kernel != "" {
+		fmt.Fprintf(buf, "kernel=%s\n", m.Kernel)
 	}
 	if err := osutil.AtomicWriteFile(modeenvPath, buf.Bytes(), 0644, 0); err != nil {
 		return err
