@@ -953,6 +953,9 @@ func (x *cmdRun) runSnapConfine(info *snap.Info, securityTag, snapApp, hook stri
 		if err := createTransientScope(securityTag); err != nil {
 			return err
 		}
+	} else {
+		// TODO verify that the service is placed in a .service path in one of
+		// the applicable cgroups.
 	}
 	if x.TraceExec {
 		return x.runCmdWithTraceExec(cmd, env)
