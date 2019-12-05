@@ -18,8 +18,11 @@ prepare: |
     # shellcheck disable=SC2174
     mkdir -m 700 -p /run/user/12345 || true
     chown test:test /run/user/12345
-    # shellcheck disable=SC2174
-    mkdir -m 700 -p /home/test/.config/pulse || true
+
+    # ensure we have a clean pulse directory
+    test -d /home/test/.config && mv /home/test/.config /home/test/.config.spread
+    mkdir -m 700 /home/test/.config
+    mkdir -m 700 /home/test/.config/pulse
     chown test:test /home/test/.config /home/test/.config/pulse
 
 restore: |
@@ -27,6 +30,10 @@ restore: |
     snap remove test-snapd-pulseaudio
     apt-get autoremove --purge -y pulseaudio pulseaudio-utils
     rm -rf /run/user/12345 /home/test/.config/pulse
+    if [ -d /home/test/.config.spread ]; then
+        rm -rf /home/test/.config
+        mv /home/test/.config.spread /home/test/.config
+    fi
 
 execute: |
     # we need -p so that XDG_RUNTIME_DIR is honored, but that preserves HOME,
