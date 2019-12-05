@@ -42,8 +42,8 @@ type Options struct {
 	// system.
 	PrepareImageTime bool
 
-	// Recovery indicates use a recovery bootloader. Note that
-	// UC16/UC18 do not have a recovery system.
+	// Recovery indicates to use the recovery bootloader. Note that
+	// UC16/18 do not have a recovery partition.
 	Recovery bool
 }
 
