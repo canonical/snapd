@@ -29,6 +29,7 @@ import (
 	"strings"
 	"syscall"
 
+	"github.com/snapcore/snapd/snap/naming"
 	"github.com/snapcore/snapd/strutil"
 )
 
@@ -270,7 +271,10 @@ func securityTagFromCgroupPath(path string) (securityTag string) {
 		// least two dots exist.
 		dot1 := strings.IndexRune(leaf, '.')
 		dot2 := strings.IndexRune(leaf[dot1+1:], '.')
-		return strings.TrimSuffix(leaf[:dot1]+leaf[dot1+dot2+1:], ".scope")
+		maybeTag := strings.TrimSuffix(leaf[:dot1]+leaf[dot1+dot2+1:], ".scope")
+		if naming.ValidateSecurityTag(maybeTag) == nil {
+			return maybeTag
+		}
 	}
 	return ""
 }
