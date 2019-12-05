@@ -956,7 +956,7 @@ func (s snapmgrTestSuite) TestInstallFailsOnBusySnap(c *C) {
 	restore := snapstate.MockPidsOfSnap(func(instanceName string) (map[string][]int, error) {
 		c.Assert(instanceName, Equals, "some-snap")
 		return map[string][]int{
-			"snap.some-snap.app": []int{1234},
+			"snap.some-snap.app": {1234},
 		}, nil
 	})
 	defer restore()
@@ -1016,7 +1016,7 @@ func (s snapmgrTestSuite) TestInstallDespiteBusySnap(c *C) {
 	restore := snapstate.MockPidsOfSnap(func(instanceName string) (map[string][]int, error) {
 		c.Assert(instanceName, Equals, "some-snap")
 		return map[string][]int{
-			"snap.some-snap.some-app": []int{1234},
+			"snap.some-snap.some-app": {1234},
 		}, nil
 	})
 	defer restore()

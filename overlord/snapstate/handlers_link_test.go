@@ -978,7 +978,7 @@ func (s *linkSnapSuite) testDoUnlinkSnapRefreshAwareness(c *C) *state.Change {
 	restore = snapstate.MockPidsOfSnap(func(instanceName string) (map[string][]int, error) {
 		c.Assert(instanceName, Equals, "some-snap")
 		return map[string][]int{
-			"snap.some-snap.some-app": []int{1234},
+			"snap.some-snap.some-app": {1234},
 		}, nil
 	})
 	defer restore()
