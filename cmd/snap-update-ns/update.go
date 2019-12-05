@@ -52,13 +52,11 @@ func executeMountProfileUpdate(upCtx MountProfileUpdateContext) error {
 	if err != nil {
 		return err
 	}
-	debugShowProfile(desired, "desired mount profile")
 
 	currentBefore, err := upCtx.LoadCurrentProfile()
 	if err != nil {
 		return err
 	}
-	debugShowProfile(currentBefore, "current mount profile (before applying changes)")
 
 	// Synthesize mount changes that were applied before for the purpose of the tmpfs detector.
 	as := upCtx.Assumptions()
@@ -70,20 +68,11 @@ func executeMountProfileUpdate(upCtx MountProfileUpdateContext) error {
 	// needed, collecting those that we managed to perform or that
 	// were performed already.
 	changesNeeded := NeededChanges(currentBefore, desired)
-	debugShowChanges(changesNeeded, "mount changes needed")
 
-	logger.Debugf("performing mount changes:")
 	var changesMade []*Change
 	for _, change := range changesNeeded {
-		logger.Debugf("\t * %s", change)
 		synthesised, err := change.Perform(as)
 		changesMade = append(changesMade, synthesised...)
-		if len(synthesised) > 0 {
-			logger.Debugf("\tsynthesised additional mount changes:")
-			for _, synth := range synthesised {
-				logger.Debugf(" * \t\t%s", synth)
-			}
-		}
 		if err != nil {
 			// We may have done something even if Perform itself has
 			// failed. We need to collect synthesized changes and
@@ -109,6 +98,5 @@ func executeMountProfileUpdate(upCtx MountProfileUpdateContext) error {
 			currentAfter.Entries = append(currentAfter.Entries, change.Entry)
 		}
 	}
-	debugShowProfile(&currentAfter, "current mount profile (after applying changes)")
 	return upCtx.SaveCurrentProfile(&currentAfter)
 }
