@@ -175,6 +175,6 @@ volumes:
 `, role)
 		makeSizedFile(c, filepath.Join(s.dir, "meta/gadget.yaml"), 0, []byte(gadgetYamlContent))
 		err := gadget.Validate(s.dir, nil)
-		c.Assert(err, ErrorMatches, fmt.Sprintf(`invalid gadget metadata: invalid volume "pc": cannot have more than one %s role`, role))
+		c.Assert(err, ErrorMatches, fmt.Sprintf(`invalid gadget metadata: invalid volume "pc": cannot have more than one partition with %s role`, role))
 	}
 }
