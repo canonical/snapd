@@ -275,7 +275,7 @@ func (bs *bootedSuite) TestWaitRestartCore(c *C) {
 	c.Check(err, IsNil)
 
 	si = &snap.SideInfo{RealName: "core"}
-	snapsup := &snapstate.SnapSetup{SideInfo: si}
+	snapsup := &snapstate.SnapSetup{SideInfo: si, Type: snap.TypeOS}
 
 	// core snap, restarting ... wait
 	state.MockRestarting(st, state.RestartSystem)
@@ -323,11 +323,11 @@ func (bs *bootedSuite) TestWaitRestartBootableBase(c *C) {
 	// core snap but we are on a model with a different base
 	si = &snap.SideInfo{RealName: "core"}
 	snaptest.MockSnap(c, "name: core\ntype: os\nversion: 1", si)
-	err = snapstate.WaitRestart(task, &snapstate.SnapSetup{SideInfo: si})
+	err = snapstate.WaitRestart(task, &snapstate.SnapSetup{SideInfo: si, Type: snap.TypeOS})
 	c.Check(err, IsNil)
 
 	si = &snap.SideInfo{RealName: "core18"}
-	snapsup := &snapstate.SnapSetup{SideInfo: si}
+	snapsup := &snapstate.SnapSetup{SideInfo: si, Type: snap.TypeBase}
 	snaptest.MockSnap(c, "name: core18\ntype: base\nversion: 1", si)
 	// core snap, restarting ... wait
 	state.MockRestarting(st, state.RestartSystem)
@@ -354,4 +354,57 @@ func (bs *bootedSuite) TestWaitRestartBootableBase(c *C) {
 	bs.bootloader.SetBootBase("core18_1.snap")
 	err = snapstate.WaitRestart(task, snapsup)
 	c.Check(err, ErrorMatches, `cannot finish core18 installation, there was a rollback across reboot`)
+}
+
+func (bs *bootedSuite) TestWaitRestartKernel(c *C) {
+	r := snapstatetest.MockDeviceModel(DefaultModel())
+	defer r()
+
+	st := bs.state
+	st.Lock()
+	defer st.Unlock()
+
+	task := st.NewTask("auto-connect", "...")
+
+	// not kernel snap
+	si := &snap.SideInfo{RealName: "some-app", Revision: snap.R(1)}
+	snaptest.MockSnap(c, "name: some-app\nversion: 1", si)
+	err := snapstate.WaitRestart(task, &snapstate.SnapSetup{SideInfo: si})
+	c.Check(err, IsNil)
+
+	// different kernel (may happen with remodel)
+	si = &snap.SideInfo{RealName: "other-kernel"}
+	snaptest.MockSnap(c, "name: other-kernel\ntype: kernel\nversion: 1", si)
+	err = snapstate.WaitRestart(task, &snapstate.SnapSetup{SideInfo: si, Type: snap.TypeKernel})
+	c.Check(err, IsNil)
+
+	si = &snap.SideInfo{RealName: "kernel"}
+	snapsup := &snapstate.SnapSetup{SideInfo: si, Type: snap.TypeKernel}
+	snaptest.MockSnap(c, "name: kernel\ntype: kernel\nversion: 1", si)
+	// kernel snap, restarting ... wait
+	state.MockRestarting(st, state.RestartSystem)
+	err = snapstate.WaitRestart(task, snapsup)
+	c.Check(err, FitsTypeOf, &state.Retry{})
+
+	// kernel snap, restarted, waiting for current core revision
+	state.MockRestarting(st, state.RestartUnset)
+	bs.bootloader.BootVars["snap_mode"] = "trying"
+	err = snapstate.WaitRestart(task, snapsup)
+	c.Check(err, DeepEquals, &state.Retry{After: 5 * time.Second})
+
+	// kernel snap updated
+	si.Revision = snap.R(2)
+	snaptest.MockSnap(c, "name: kernel\ntype: kernel\nversion: 2", si)
+
+	// kernel snap, restarted, right kernel revision, no rollback
+	bs.bootloader.BootVars["snap_mode"] = ""
+	bs.bootloader.SetBootKernel("kernel_2.snap")
+	err = snapstate.WaitRestart(task, snapsup)
+	c.Check(err, IsNil)
+
+	// kernel snap, restarted, wrong core revision, rollback!
+	bs.bootloader.SetBootKernel("kernel_1.snap")
+	err = snapstate.WaitRestart(task, snapsup)
+	c.Check(err, ErrorMatches, `cannot finish kernel installation, there was a rollback across reboot`)
+
 }

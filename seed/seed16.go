@@ -36,7 +36,9 @@ import (
 	"github.com/snapcore/snapd/asserts"
 	"github.com/snapcore/snapd/asserts/snapasserts"
 	"github.com/snapcore/snapd/osutil"
+	"github.com/snapcore/snapd/seed/internal"
 	"github.com/snapcore/snapd/snap"
+	"github.com/snapcore/snapd/snap/channel"
 	"github.com/snapcore/snapd/snap/naming"
 	"github.com/snapcore/snapd/timings"
 )
@@ -110,12 +112,20 @@ func (s *seed16) Model() (*asserts.Model, error) {
 	return s.model, nil
 }
 
-func (s *seed16) addSnap(sn *Snap16, tm timings.Measurer) (*Snap, error) {
+func (s *seed16) addSnap(sn *internal.Snap16, pinnedTrack string, tm timings.Measurer) (*Snap, error) {
 	path := filepath.Join(s.seedDir, "snaps", sn.File)
+	snapChannel := sn.Channel
+	if pinnedTrack != "" {
+		var err error
+		snapChannel, err = channel.ResolvePinned(pinnedTrack, snapChannel)
+		if err != nil {
+			// fallback to using the pinned track directly
+			snapChannel = pinnedTrack
+		}
+	}
 	seedSnap := &Snap{
-		Path: path,
-		// TODO|XXX: make sure channel is right for pinned tracks
-		Channel: sn.Channel,
+		Path:    path,
+		Channel: snapChannel,
 		Classic: sn.Classic,
 		DevMode: sn.DevMode,
 	}
@@ -158,14 +168,14 @@ func (s *seed16) LoadMeta(tm timings.Measurer) error {
 		return ErrNoMeta
 	}
 
-	seedYaml, err := ReadYaml(seedYamlFile)
+	seedYaml, err := internal.ReadSeedYaml(seedYamlFile)
 	if err != nil {
 		return err
 	}
 	yamlSnaps := seedYaml.Snaps
 
 	required := naming.NewSnapSet(model.RequiredWithEssentialSnaps())
-	seeding := make(map[string]*Snap16, len(yamlSnaps))
+	seeding := make(map[string]*internal.Snap16, len(yamlSnaps))
 	for _, sn := range yamlSnaps {
 		seeding[sn.Name] = sn
 	}
@@ -186,7 +196,7 @@ func (s *seed16) LoadMeta(tm timings.Measurer) error {
 	}
 
 	// add the essential snaps
-	addEssential := func(snapName string) (*Snap, error) {
+	addEssential := func(snapName string, pinnedTrack string) (*Snap, error) {
 		// be idempotent
 		if added[snapName] {
 			return nil, nil
@@ -196,7 +206,7 @@ func (s *seed16) LoadMeta(tm timings.Measurer) error {
 			return nil, fmt.Errorf("essential snap %q required by the model is missing in the seed", snapName)
 		}
 
-		seedSnap, err := s.addSnap(yamlSnap, tm)
+		seedSnap, err := s.addSnap(yamlSnap, pinnedTrack, tm)
 		if err != nil {
 			return nil, err
 		}
@@ -212,35 +222,31 @@ func (s *seed16) LoadMeta(tm timings.Measurer) error {
 	if len(yamlSnaps) != 0 {
 		// ensure "snapd" snap is installed first
 		if model.Base() != "" || classicWithSnapd {
-			if _, err := addEssential("snapd"); err != nil {
+			if _, err := addEssential("snapd", ""); err != nil {
 				return err
 			}
 		}
 		if !classicWithSnapd {
-			if _, err := addEssential(baseSnap); err != nil {
+			if _, err := addEssential(baseSnap, ""); err != nil {
 				return err
 			}
 		}
 	}
 
 	if kernelName := model.Kernel(); kernelName != "" {
-		if _, err := addEssential(kernelName); err != nil {
+		if _, err := addEssential(kernelName, model.KernelTrack()); err != nil {
 			return err
 		}
 	}
 
 	if gadgetName := model.Gadget(); gadgetName != "" {
-		gadget, err := addEssential(gadgetName)
+		gadget, err := addEssential(gadgetName, model.GadgetTrack())
 		if err != nil {
 			return err
 		}
 
 		// always make sure the base of gadget is installed first
-		snapf, err := snap.Open(gadget.Path)
-		if err != nil {
-			return err
-		}
-		info, err := snap.ReadInfoFromSnapFile(snapf, gadget.SideInfo)
+		info, err := readInfo(gadget.Path, gadget.SideInfo)
 		if err != nil {
 			return err
 		}
@@ -254,7 +260,7 @@ func (s *seed16) LoadMeta(tm timings.Measurer) error {
 		if baseSnap != "" && gadgetBase != baseSnap {
 			return fmt.Errorf("cannot use gadget snap because its base %q is different from model base %q", gadgetBase, model.Base())
 		}
-		if _, err = addEssential(gadgetBase); err != nil {
+		if _, err = addEssential(gadgetBase, ""); err != nil {
 			return err
 		}
 	}
@@ -266,7 +272,7 @@ func (s *seed16) LoadMeta(tm timings.Measurer) error {
 		if added[sn.Name] {
 			continue
 		}
-		seedSnap, err := s.addSnap(sn, tm)
+		seedSnap, err := s.addSnap(sn, "", tm)
 		if err != nil {
 			return err
 		}

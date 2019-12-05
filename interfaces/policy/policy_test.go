@@ -298,6 +298,20 @@ slots:
         - debian
   install-slot-device-scope:
     allow-installation: false
+  slots-arity-default:
+    allow-auto-connection: true
+  slots-arity-slot-any:
+    deny-auto-connection: true
+  slots-arity-plug-any:
+    deny-auto-connection: true
+  slots-arity-slot-any-plug-one:
+    deny-auto-connection: true
+  slots-arity-slot-any-plug-two:
+    deny-auto-connection: true
+  slots-arity-slot-any-plug-default:
+    deny-auto-connection: true
+  slots-arity-slot-one-plug-any:
+    deny-auto-connection: true
 timestamp: 2016-09-30T12:00:00Z
 sign-key-sha3-384: Jv8_JiHiIzJVcO9M55pPdqSDWUvuhfDIBJUS-3VW7F_idjix7Ffn5qMxB21ZQuij
 
@@ -477,6 +491,14 @@ plugs:
    plug-on-classic-true:
    plug-on-classic-distros:
    plug-on-classic-false:
+
+   slots-arity-default:
+   slots-arity-slot-any:
+   slots-arity-plug-any:
+   slots-arity-slot-any-plug-one:
+   slots-arity-slot-any-plug-two:
+   slots-arity-slot-any-plug-default:
+   slots-arity-slot-one-plug-any:
 `, nil)
 
 	s.slotSnap = snaptest.MockInfo(c, `
@@ -642,6 +664,14 @@ slots:
    plug-on-classic-true:
    plug-on-classic-distros:
    plug-on-classic-false:
+
+   slots-arity-default:
+   slots-arity-slot-any:
+   slots-arity-plug-any:
+   slots-arity-slot-any-plug-one:
+   slots-arity-slot-any-plug-two:
+   slots-arity-slot-any-plug-default:
+   slots-arity-slot-one-plug-any:
 `, nil)
 
 	a, err = asserts.Decode([]byte(`type: snap-declaration
@@ -703,6 +733,20 @@ plugs:
       on-model:
         - my-brand/my-model1
         - my-brand-subbrand/my-model2
+  slots-arity-plug-any:
+    allow-auto-connection:
+      slots-per-plug: *
+  slots-arity-slot-any-plug-one:
+    allow-auto-connection:
+      slots-per-plug: 1
+  slots-arity-slot-any-plug-two:
+    allow-auto-connection:
+      slots-per-plug: 2
+  slots-arity-slot-any-plug-default:
+    allow-auto-connection: true
+  slots-arity-slot-one-plug-any:
+    allow-auto-connection:
+      slots-per-plug: *
 timestamp: 2016-09-30T12:00:00Z
 sign-key-sha3-384: Jv8_JiHiIzJVcO9M55pPdqSDWUvuhfDIBJUS-3VW7F_idjix7Ffn5qMxB21ZQuij
 
@@ -767,6 +811,21 @@ slots:
       on-model:
         - my-brand/my-model1
         - my-brand-subbrand/my-model2
+  slots-arity-slot-any:
+    allow-auto-connection:
+      slots-per-plug: *
+  slots-arity-slot-any-plug-one:
+    allow-auto-connection:
+      slots-per-plug: *
+  slots-arity-slot-any-plug-two:
+    allow-auto-connection:
+      slots-per-plug: *
+  slots-arity-slot-any-plug-default:
+    allow-auto-connection:
+      slots-per-plug: *
+  slots-arity-slot-one-plug-any:
+    allow-auto-connection:
+      slots-per-plug: 1
 timestamp: 2016-09-30T12:00:00Z
 sign-key-sha3-384: Jv8_JiHiIzJVcO9M55pPdqSDWUvuhfDIBJUS-3VW7F_idjix7Ffn5qMxB21ZQuij
 
@@ -814,7 +873,9 @@ func (s *policySuite) TestBaselineDefaultIsAllow(c *C) {
 	}
 
 	c.Check(cand.Check(), IsNil)
-	c.Check(cand.CheckAutoConnect(), IsNil)
+	arity, err := cand.CheckAutoConnect()
+	c.Check(err, IsNil)
+	c.Check(arity.SlotsPerPlugAny(), Equals, false)
 }
 
 func (s *policySuite) TestInterfaceMismatch(c *C) {
@@ -896,9 +957,10 @@ func (s *policySuite) TestBaseDeclAllowDenyAutoConnection(c *C) {
 			BaseDeclaration: s.baseDecl,
 		}
 
-		err := cand.CheckAutoConnect()
+		arity, err := cand.CheckAutoConnect()
 		if t.expected == "" {
 			c.Check(err, IsNil)
+			c.Check(arity.SlotsPerPlugAny(), Equals, false)
 		} else {
 			c.Check(err, ErrorMatches, t.expected)
 		}
@@ -968,9 +1030,10 @@ func (s *policySuite) TestSnapDeclAllowDenyAutoConnection(c *C) {
 			BaseDeclaration:     s.baseDecl,
 		}
 
-		err := cand.CheckAutoConnect()
+		arity, err := cand.CheckAutoConnect()
 		if t.expected == "" {
 			c.Check(err, IsNil)
+			c.Check(arity.SlotsPerPlugAny(), Equals, false)
 		} else {
 			c.Check(err, ErrorMatches, t.expected)
 		}
@@ -1866,9 +1929,10 @@ func (s *policySuite) TestPlugDeviceScopeCheckAutoConnection(c *C) {
 
 			Model: t.model,
 		}
-		err := cand.CheckAutoConnect()
+		arity, err := cand.CheckAutoConnect()
 		if t.err == "" {
 			c.Check(err, IsNil)
+			c.Check(arity.SlotsPerPlugAny(), Equals, false)
 		} else {
 			c.Check(err, ErrorMatches, t.err)
 		}
@@ -1900,9 +1964,10 @@ func (s *policySuite) TestPlugDeviceScopeFriendlyStoreCheckAutoConnection(c *C) 
 			Model: t.model,
 			Store: t.store,
 		}
-		err := cand.CheckAutoConnect()
+		arity, err := cand.CheckAutoConnect()
 		if t.err == "" {
 			c.Check(err, IsNil)
+			c.Check(arity.SlotsPerPlugAny(), Equals, false)
 		} else {
 			c.Check(err, ErrorMatches, t.err)
 		}
@@ -1942,9 +2007,10 @@ func (s *policySuite) TestSlotDeviceScopeCheckAutoConnection(c *C) {
 
 			Model: t.model,
 		}
-		err := cand.CheckAutoConnect()
+		arity, err := cand.CheckAutoConnect()
 		if t.err == "" {
 			c.Check(err, IsNil)
+			c.Check(arity.SlotsPerPlugAny(), Equals, false)
 		} else {
 			c.Check(err, ErrorMatches, t.err)
 		}
@@ -1976,9 +2042,10 @@ func (s *policySuite) TestSlotDeviceScopeFriendlyStoreCheckAutoConnection(c *C) 
 			Model: t.model,
 			Store: t.store,
 		}
-		err := cand.CheckAutoConnect()
+		arity, err := cand.CheckAutoConnect()
 		if t.err == "" {
 			c.Check(err, IsNil)
+			c.Check(arity.SlotsPerPlugAny(), Equals, false)
 		} else {
 			c.Check(err, ErrorMatches, t.err)
 		}
@@ -2219,4 +2286,33 @@ func (s *policySuite) TestPlugDollarSlotDynamicAttrConnection(c *C) {
 		BaseDeclaration: s.baseDecl,
 	}
 	c.Check(cand.Check(), IsNil)
+}
+
+func (s *policySuite) TestSlotsArityAutoConnection(c *C) {
+	tests := []struct {
+		iface string
+		any   bool
+	}{
+		{"slots-arity-default", false},
+		{"slots-arity-slot-any", true},
+		{"slots-arity-plug-any", true},
+		{"slots-arity-slot-any-plug-one", false},
+		{"slots-arity-slot-any-plug-two", false},
+		{"slots-arity-slot-any-plug-default", false},
+		{"slots-arity-slot-one-plug-any", true},
+	}
+
+	for _, t := range tests {
+		cand := policy.ConnectCandidate{
+			Plug:                interfaces.NewConnectedPlug(s.plugSnap.Plugs[t.iface], nil, nil),
+			Slot:                interfaces.NewConnectedSlot(s.slotSnap.Slots[t.iface], nil, nil),
+			PlugSnapDeclaration: s.plugDecl,
+			SlotSnapDeclaration: s.slotDecl,
+
+			BaseDeclaration: s.baseDecl,
+		}
+		arity, err := cand.CheckAutoConnect()
+		c.Assert(err, IsNil)
+		c.Check(arity.SlotsPerPlugAny(), Equals, t.any)
+	}
 }

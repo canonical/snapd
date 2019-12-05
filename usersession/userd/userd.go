@@ -100,10 +100,9 @@ func (ud *Userd) Start() {
 	ud.tomb.Go(func() error {
 		// Listen to keep our thread up and running. All DBus bits
 		// are running in the background
-		select {
-		case <-ud.tomb.Dying():
-			ud.conn.Close()
-		}
+		<-ud.tomb.Dying()
+		ud.conn.Close()
+
 		err := ud.tomb.Err()
 		if err != nil && err != tomb.ErrStillAlive {
 			return err

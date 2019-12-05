@@ -73,7 +73,7 @@ func (w *OffsetWriter) Write(out io.WriteSeeker) error {
 		}
 	}
 
-	if !w.ps.IsBare() {
+	if w.ps.HasFilesystem() {
 		// only raw content uses offset-writes
 		return nil
 	}

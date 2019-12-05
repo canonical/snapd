@@ -64,7 +64,8 @@ type fakeOp struct {
 
 	otherInstances bool
 
-	services []string
+	services         []string
+	disabledServices []string
 }
 
 type fakeOps []fakeOp
@@ -323,11 +324,11 @@ func (f *fakeStore) lookupRefresh(cand refreshCand) (*snap.Info, error) {
 	}
 	confinement := snap.StrictConfinement
 	switch cand.channel {
-	case "channel-for-7":
+	case "channel-for-7/stable":
 		revno = snap.R(7)
-	case "channel-for-classic":
+	case "channel-for-classic/stable":
 		confinement = snap.ClassicConfinement
-	case "channel-for-devmode":
+	case "channel-for-devmode/stable":
 		confinement = snap.DevModeConfinement
 	}
 	if name == "some-snap-now-classic" {
@@ -351,7 +352,7 @@ func (f *fakeStore) lookupRefresh(cand refreshCand) (*snap.Info, error) {
 		Epoch:         epoch,
 	}
 	switch cand.channel {
-	case "channel-for-layout":
+	case "channel-for-layout/stable":
 		info.Layout = map[string]*snap.Layout{
 			"/usr": {
 				Snap:    info,
@@ -359,7 +360,7 @@ func (f *fakeStore) lookupRefresh(cand refreshCand) (*snap.Info, error) {
 				Symlink: "$SNAP/usr",
 			},
 		}
-	case "channel-for-base":
+	case "channel-for-base/stable":
 		info.Base = "some-base"
 	}
 
@@ -607,6 +608,8 @@ type fakeSnappyBackend struct {
 	linkSnapFailTrigger     string
 	copySnapDataFailTrigger string
 	emptyContainer          snap.Container
+
+	servicesCurrentlyDisabled []string
 }
 
 func (f *fakeSnappyBackend) OpenSnapFile(snapFilePath string, si *snap.SideInfo) (*snap.Info, snap.Container, error) {
@@ -714,7 +717,7 @@ func (f *fakeSnappyBackend) ReadInfo(name string, si *snap.SideInfo) (*snap.Info
 		info.Epoch = snap.Epoch{}
 	case "some-epoch-snap":
 		info.Epoch = snap.E("13")
-	case "gadget":
+	case "gadget", "brand-gadget":
 		info.SnapType = snap.TypeGadget
 	case "core":
 		info.SnapType = snap.TypeOS
@@ -798,24 +801,29 @@ func (f *fakeSnappyBackend) CopySnapData(newInfo, oldInfo *snap.Info, p progress
 	return nil
 }
 
-func (f *fakeSnappyBackend) LinkSnap(info *snap.Info, model *asserts.Model, tm timings.Measurer) error {
+func (f *fakeSnappyBackend) LinkSnap(info *snap.Info, model *asserts.Model, disabledSvcs []string, tm timings.Measurer) error {
 	if info.MountDir() == f.linkSnapWaitTrigger {
 		f.linkSnapWaitCh <- 1
 		<-f.linkSnapWaitCh
 	}
 
+	op := fakeOp{
+		op:   "link-snap",
+		path: info.MountDir(),
+	}
+
+	// only add the services to the op if there's something to add
+	if len(disabledSvcs) != 0 {
+		op.disabledServices = disabledSvcs
+	}
+
 	if info.MountDir() == f.linkSnapFailTrigger {
-		f.ops = append(f.ops, fakeOp{
-			op:   "link-snap.failed",
-			path: info.MountDir(),
-		})
+		op.op = "link-snap.failed"
+		f.ops = append(f.ops, op)
 		return errors.New("fail")
 	}
 
-	f.appendOp(&fakeOp{
-		op:   "link-snap",
-		path: info.MountDir(),
-	})
+	f.appendOp(&op)
 	return nil
 }
 
@@ -848,6 +856,21 @@ func (f *fakeSnappyBackend) StopServices(svcs []*snap.AppInfo, reason snap.Servi
 		path: svcSnapMountDir(svcs),
 	})
 	return nil
+}
+
+func (f *fakeSnappyBackend) ServicesEnableState(info *snap.Info, meter progress.Meter) (map[string]bool, error) {
+	// return the disabled services as disabled and nothing else
+	m := make(map[string]bool)
+	for _, svc := range f.servicesCurrentlyDisabled {
+		m[svc] = false
+	}
+
+	f.appendOp(&fakeOp{
+		op:               "current-snap-service-states",
+		disabledServices: f.servicesCurrentlyDisabled,
+	})
+
+	return m, nil
 }
 
 func (f *fakeSnappyBackend) UndoSetupSnap(s snap.PlaceInfo, typ snap.Type, installRecord *backend.InstallRecord, p progress.Meter) error {

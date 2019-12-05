@@ -47,6 +47,5 @@ func init() {
 		implicitOnClassic:    true,
 		baseDeclarationPlugs: coreSupportBaseDeclarationPlugs,
 		baseDeclarationSlots: coreSupportBaseDeclarationSlots,
-		reservedForOS:        true,
 	})
 }

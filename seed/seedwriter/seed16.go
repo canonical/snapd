@@ -28,18 +28,26 @@ import (
 	"strings"
 
 	"github.com/snapcore/snapd/asserts"
-	"github.com/snapcore/snapd/seed"
+	"github.com/snapcore/snapd/seed/internal"
 	"github.com/snapcore/snapd/snap"
 	"github.com/snapcore/snapd/snap/channel"
 	"github.com/snapcore/snapd/snap/naming"
+	"github.com/snapcore/snapd/strutil"
 )
 
 type policy16 struct {
 	model *asserts.Model
 	opts  *Options
 
+	warningf func(format string, a ...interface{})
+
 	needsCore   []string
 	needsCore16 []string
+}
+
+func (pol *policy16) allowsDangerousFeatures() error {
+	// Core 16/18 have allowed dangerous features without constraints
+	return nil
 }
 
 func (pol *policy16) checkDefaultChannel(channel.Channel) error {
@@ -52,46 +60,39 @@ func (pol *policy16) checkSnapChannel(_ channel.Channel, whichSnap string) error
 	return nil
 }
 
+func makeSystemSnap(snapName string) *asserts.ModelSnap {
+	return internal.MakeSystemSnap(snapName, "", []string{"run"})
+}
+
 func (pol *policy16) systemSnap() *asserts.ModelSnap {
 	if pol.model.Classic() {
 		// no predefined system snap, infer later
 		return nil
 	}
 	snapName := "core"
-	snapType := "core"
 	if pol.model.Base() != "" {
 		snapName = "snapd"
-		snapType = "snapd"
 	}
-	// TODO: set SnapID too
-	return &asserts.ModelSnap{
-		Name:           snapName,
-		SnapType:       snapType,
-		Modes:          []string{"run"},
-		DefaultChannel: "stable",
-		Presence:       "required",
-	}
+	return makeSystemSnap(snapName)
+}
+
+func (pol *policy16) modelSnapDefaultChannel() string {
+	// We will use latest or the current default track at image build time
+	return "stable"
+}
+
+func (pol *policy16) extraSnapDefaultChannel() string {
+	// We will use latest or the current default track at image build time
+	return "stable"
 }
 
 func (pol *policy16) checkBase(info *snap.Info, availableSnaps *naming.SnapSet) error {
-	// Sanity check, note that we could support this case
-	// if we have a use-case but it requires changes in the
-	// devicestate/firstboot.go ordering code.
-	if info.GetType() == snap.TypeGadget && !pol.model.Classic() && info.Base != pol.model.Base() {
-		return fmt.Errorf("cannot use gadget snap because its base %q is different from model base %q", info.Base, pol.model.Base())
-	}
-
 	// snap needs no base (or it simply needs core which is never listed explicitly): nothing to do
 	if info.Base == "" {
 		if info.GetType() == snap.TypeGadget || info.GetType() == snap.TypeApp {
 			// remember to make sure we have core installed
 			pol.needsCore = append(pol.needsCore, info.SnapName())
 		}
-		return nil
-	}
-
-	// snap explicitly listed as not needing a base snap (e.g. a content-only snap)
-	if info.Base == "none" {
 		return nil
 	}
 
@@ -108,6 +109,45 @@ func (pol *policy16) checkBase(info *snap.Info, availableSnaps *naming.SnapSet) 
 	return fmt.Errorf("cannot add snap %q without also adding its base %q explicitly", info.SnapName(), info.Base)
 }
 
+func (pol *policy16) needsImplicitSnaps(availableSnaps *naming.SnapSet) (bool, error) {
+	// do we need to add implicitly either snapd (or core)
+	hasCore := availableSnaps.Contains(naming.Snap("core"))
+	if len(pol.needsCore) != 0 && !hasCore {
+		if pol.model.Base() != "" {
+			// TODO: later turn this into an error? for sure for UC20
+			pol.warningf("model has base %q but some snaps (%s) require \"core\" as base as well, for compatibility it was added implicitly, adding \"core\" explicitly is recommended", pol.model.Base(), strutil.Quoted(pol.needsCore))
+		}
+		return true, nil
+	}
+
+	if len(pol.needsCore16) != 0 && !hasCore {
+		return false, fmt.Errorf(`cannot use %s requiring base "core16" without adding "core16" (or "core") explicitly`, strutil.Quoted(pol.needsCore16))
+	}
+
+	if pol.model.Classic() && !availableSnaps.Empty() {
+		return true, nil
+	}
+
+	return false, nil
+}
+
+func (pol *policy16) implicitSnaps(availableSnaps *naming.SnapSet) []*asserts.ModelSnap {
+	if len(pol.needsCore) != 0 && !availableSnaps.Contains(naming.Snap("core")) {
+		return []*asserts.ModelSnap{makeSystemSnap("core")}
+	}
+	if pol.model.Classic() && !availableSnaps.Empty() {
+		return []*asserts.ModelSnap{makeSystemSnap("snapd")}
+	}
+	return nil
+}
+
+func (pol *policy16) implicitExtraSnaps(availableSnaps *naming.SnapSet) []*OptionsSnap {
+	if len(pol.needsCore) != 0 && !availableSnaps.Contains(naming.Snap("core")) {
+		return []*OptionsSnap{{Name: "core"}}
+	}
+	return nil
+}
+
 type tree16 struct {
 	opts *Options
 
@@ -119,21 +159,21 @@ func (tr *tree16) mkFixedDirs() error {
 	return os.MkdirAll(tr.snapsDirPath, 0755)
 }
 
-func (tr *tree16) snapsDir() string {
-	return tr.snapsDirPath
+func (tr *tree16) snapPath(sn *SeedSnap) (string, error) {
+	return filepath.Join(tr.snapsDirPath, filepath.Base(sn.Info.MountFile())), nil
 }
 
-func (tr *tree16) localSnapPath(sn *SeedSnap) string {
-	return filepath.Join(tr.snapsDirPath, filepath.Base(sn.Info.MountFile()))
+func (tr *tree16) localSnapPath(sn *SeedSnap) (string, error) {
+	return filepath.Join(tr.snapsDirPath, filepath.Base(sn.Info.MountFile())), nil
 }
 
-func (tr *tree16) writeAssertions(db asserts.RODatabase, modelRefs []*asserts.Ref, snapsFromModel []*SeedSnap) error {
+func (tr *tree16) writeAssertions(db asserts.RODatabase, modelRefs []*asserts.Ref, snapsFromModel []*SeedSnap, extraSnaps []*SeedSnap) error {
 	seedAssertsDir := filepath.Join(tr.opts.SeedDir, "assertions")
 	if err := os.MkdirAll(seedAssertsDir, 0755); err != nil {
 		return err
 	}
 
-	writeRefs := func(aRefs []*asserts.Ref) error {
+	writeByRefs := func(aRefs []*asserts.Ref) error {
 		for _, aRef := range aRefs {
 			var afn string
 			// the names don't matter in practice as long as they don't conflict
@@ -153,12 +193,18 @@ func (tr *tree16) writeAssertions(db asserts.RODatabase, modelRefs []*asserts.Re
 		return nil
 	}
 
-	if err := writeRefs(modelRefs); err != nil {
+	if err := writeByRefs(modelRefs); err != nil {
 		return err
 	}
 
 	for _, sn := range snapsFromModel {
-		if err := writeRefs(sn.ARefs); err != nil {
+		if err := writeByRefs(sn.ARefs); err != nil {
+			return err
+		}
+	}
+
+	for _, sn := range extraSnaps {
+		if err := writeByRefs(sn.ARefs); err != nil {
 			return err
 		}
 	}
@@ -166,29 +212,37 @@ func (tr *tree16) writeAssertions(db asserts.RODatabase, modelRefs []*asserts.Re
 	return nil
 }
 
-func (tr *tree16) writeMeta(snapsFromModel []*SeedSnap) error {
-	var seedYaml seed.Seed16
+func (tr *tree16) writeMeta(snapsFromModel []*SeedSnap, extraSnaps []*SeedSnap) error {
+	var seedYaml internal.Seed16
 
-	seedSnaps := make(seedSnapsByType, len(snapsFromModel))
+	seedSnaps := make(seedSnapsByType, len(snapsFromModel)+len(extraSnaps))
 	copy(seedSnaps, snapsFromModel)
+	copy(seedSnaps[len(snapsFromModel):], extraSnaps)
 
 	sort.Stable(seedSnaps)
 
-	seedYaml.Snaps = make([]*seed.Snap16, len(seedSnaps))
+	seedYaml.Snaps = make([]*internal.Snap16, len(seedSnaps))
 	for i, sn := range seedSnaps {
 		info := sn.Info
-		seedYaml.Snaps[i] = &seed.Snap16{
-			Name:   info.SnapName(),
-			SnapID: info.SnapID, // cross-ref
-			// TODO: with default tracks this might be
-			// redirected by the store during the download
-			Channel: sn.Channel,
+		// TODO: with default tracks this might be
+		// redirected by the store during the download
+		channel := sn.Channel
+		unasserted := info.SnapID == ""
+		if unasserted {
+			// Core 16/18 don't set a channel in the seed
+			// for unasserted snaps
+			channel = ""
+		}
+		seedYaml.Snaps[i] = &internal.Snap16{
+			Name:    info.SnapName(),
+			SnapID:  info.SnapID, // cross-ref
+			Channel: channel,
 			File:    filepath.Base(sn.Path),
 			DevMode: info.NeedsDevMode(),
 			Classic: info.NeedsClassic(),
 			Contact: info.Contact,
 			// no assertions for this snap were put in the seed
-			Unasserted: info.SnapID == "",
+			Unasserted: unasserted,
 		}
 	}
 

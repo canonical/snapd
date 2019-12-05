@@ -32,6 +32,8 @@ var (
 	NewUnsquashfsStderrWriter = newUnsquashfsStderrWriter
 )
 
+const MaxErrPaths = maxErrPaths
+
 func (s stat) User() string  { return s.user }
 func (s stat) Group() string { return s.group }
 

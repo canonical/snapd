@@ -44,6 +44,5 @@ func init() {
 		implicitOnClassic:     true,
 		baseDeclarationSlots:  cupsControlBaseDeclarationSlots,
 		connectedPlugAppArmor: cupsControlConnectedPlugAppArmor,
-		reservedForOS:         true,
 	})
 }

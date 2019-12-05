@@ -26,6 +26,7 @@ import (
 	"os"
 	"path/filepath"
 	"reflect"
+	"strconv"
 	"strings"
 
 	"github.com/snapcore/snapd/cmd"
@@ -33,6 +34,7 @@ import (
 	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/sandbox/apparmor"
+	"github.com/snapcore/snapd/sandbox/cgroup"
 	"github.com/snapcore/snapd/sandbox/seccomp"
 )
 
@@ -56,7 +58,7 @@ var (
 // Note that this key gets generated on *each* `snap run` - so it
 // *must* be cheap to calculate it (no hashes of big binaries etc).
 type systemKey struct {
-	// IMPORTANT: when adding new inputs bump this version
+	// IMPORTANT: when adding/removing/changing inputs bump this version (see below)
 	Version int `json:"version"`
 
 	// This is the build-id of the snapd that generated the profiles.
@@ -73,7 +75,11 @@ type systemKey struct {
 	OverlayRoot            string   `json:"overlay-root"`
 	SecCompActions         []string `json:"seccomp-features"`
 	SeccompCompilerVersion string   `json:"seccomp-compiler-version"`
+	CgroupVersion          string   `json:"cgroup-version"`
 }
+
+// IMPORTANT: when adding/removing/changing inputs bump this
+const systemKeyVersion = 10
 
 var (
 	isHomeUsingNFS  = osutil.IsHomeUsingNFS
@@ -93,7 +99,7 @@ func generateSystemKey() (*systemKey, error) {
 	}
 
 	sk := &systemKey{
-		Version: 1,
+		Version: systemKeyVersion,
 	}
 	snapdPath, err := cmd.InternalToolPath("snapd")
 	if err != nil {
@@ -139,6 +145,13 @@ func generateSystemKey() (*systemKey, error) {
 		return nil, err
 	}
 	sk.SeccompCompilerVersion = string(versionInfo)
+
+	cgv, err := cgroup.Version()
+	if err != nil {
+		logger.Noticef("cannot determine cgroup version: %v", err)
+		return nil, err
+	}
+	sk.CgroupVersion = strconv.FormatInt(int64(cgv), 10)
 
 	return sk, nil
 }

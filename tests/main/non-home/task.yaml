@@ -17,13 +17,13 @@ restore: |
 
 execute: |
     echo "Install a snap"
-    snap install test-snapd-tools
+    snap install test-snapd-sh
 
     echo "Run as the test user (normal home dir)"
-    su -c "snap run test-snapd-tools.echo foo" test | MATCH foo
+    su -c "snap run test-snapd-sh.sh -c 'echo foo'" test | MATCH foo
 
     echo "Run as the non-home user (home dir outside of /home) - this will fail"
-    not su -c "snap run test-snapd-tools.echo foo" "$TUSER" 2>stderr.log
+    not su -c "snap run test-snapd-sh.sh -c 'echo foo'" "$TUSER" 2>stderr.log
 
     echo "Ensure we get a useful error message"
     MATCH "Sorry, home directories outside of /home" < stderr.log

@@ -41,15 +41,13 @@ func (s *SnapPrepareImageSuite) TestPrepareImageCore(c *C) {
 	r := snap.MockImagePrepare(prep)
 	defer r()
 
-	rest, err := snap.Parser(snap.Client()).ParseArgs([]string{"prepare-image", "model", "root-dir"})
+	rest, err := snap.Parser(snap.Client()).ParseArgs([]string{"prepare-image", "model", "prepare-dir"})
 	c.Assert(err, IsNil)
 	c.Assert(rest, DeepEquals, []string{})
 
 	c.Check(opts, DeepEquals, &image.Options{
-		ModelFile:       "model",
-		Channel:         "stable",
-		RootDir:         "root-dir/image",
-		GadgetUnpackDir: "root-dir/gadget",
+		ModelFile:  "model",
+		PrepareDir: "prepare-dir",
 	})
 }
 
@@ -62,15 +60,14 @@ func (s *SnapPrepareImageSuite) TestPrepareImageClassic(c *C) {
 	r := snap.MockImagePrepare(prep)
 	defer r()
 
-	rest, err := snap.Parser(snap.Client()).ParseArgs([]string{"prepare-image", "--classic", "model", "root-dir"})
+	rest, err := snap.Parser(snap.Client()).ParseArgs([]string{"prepare-image", "--classic", "model", "prepare-dir"})
 	c.Assert(err, IsNil)
 	c.Assert(rest, DeepEquals, []string{})
 
 	c.Check(opts, DeepEquals, &image.Options{
-		Classic:   true,
-		ModelFile: "model",
-		Channel:   "stable",
-		RootDir:   "root-dir",
+		Classic:    true,
+		ModelFile:  "model",
+		PrepareDir: "prepare-dir",
 	})
 }
 
@@ -83,7 +80,7 @@ func (s *SnapPrepareImageSuite) TestPrepareImageClassicArch(c *C) {
 	r := snap.MockImagePrepare(prep)
 	defer r()
 
-	rest, err := snap.Parser(snap.Client()).ParseArgs([]string{"prepare-image", "--classic", "--arch", "i386", "model", "root-dir"})
+	rest, err := snap.Parser(snap.Client()).ParseArgs([]string{"prepare-image", "--classic", "--arch", "i386", "model", "prepare-dir"})
 	c.Assert(err, IsNil)
 	c.Assert(rest, DeepEquals, []string{})
 
@@ -91,8 +88,7 @@ func (s *SnapPrepareImageSuite) TestPrepareImageClassicArch(c *C) {
 		Classic:      true,
 		Architecture: "i386",
 		ModelFile:    "model",
-		Channel:      "stable",
-		RootDir:      "root-dir",
+		PrepareDir:   "prepare-dir",
 	})
 }
 
@@ -105,16 +101,15 @@ func (s *SnapPrepareImageSuite) TestPrepareImageExtraSnaps(c *C) {
 	r := snap.MockImagePrepare(prep)
 	defer r()
 
-	rest, err := snap.Parser(snap.Client()).ParseArgs([]string{"prepare-image", "model", "root-dir", "--snap", "foo", "--snap", "bar=t/edge", "--snap", "local.snap", "--extra-snaps", "local2.snap", "--extra-snaps", "store-snap"})
+	rest, err := snap.Parser(snap.Client()).ParseArgs([]string{"prepare-image", "model", "prepare-dir", "--channel", "candidate", "--snap", "foo", "--snap", "bar=t/edge", "--snap", "local.snap", "--extra-snaps", "local2.snap", "--extra-snaps", "store-snap"})
 	c.Assert(err, IsNil)
 	c.Assert(rest, DeepEquals, []string{})
 
 	c.Check(opts, DeepEquals, &image.Options{
-		ModelFile:       "model",
-		Channel:         "stable",
-		RootDir:         "root-dir/image",
-		GadgetUnpackDir: "root-dir/gadget",
-		Snaps:           []string{"foo", "bar", "local.snap", "local2.snap", "store-snap"},
-		SnapChannels:    map[string]string{"bar": "t/edge"},
+		ModelFile:    "model",
+		Channel:      "candidate",
+		PrepareDir:   "prepare-dir",
+		Snaps:        []string{"foo", "bar", "local.snap", "local2.snap", "store-snap"},
+		SnapChannels: map[string]string{"bar": "t/edge"},
 	})
 }

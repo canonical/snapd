@@ -32,6 +32,7 @@ import (
 	"os/exec"
 	"path"
 	"path/filepath"
+	"runtime"
 	"strings"
 
 	"github.com/snapcore/snapd/osutil"
@@ -57,7 +58,29 @@ const (
 	// Note that writing of the cache relies on --write-cache but we pass that
 	// command-line option unconditionally.
 	skipReadCache aaParserFlags = 1 << iota
+
+	// conserveCPU tells apparmor_parser to spare up to two CPUs on multi-core systems to
+	// reduce load when processing many profiles at once.
+	conserveCPU aaParserFlags = 1 << iota
 )
+
+var runtimeNumCPU = runtime.NumCPU
+
+func maybeSetNumberOfJobs() string {
+	cpus := runtimeNumCPU()
+	// Do not use all CPUs as this may have negative impact when booting. Note, -j0 has special meaning
+	// so we don't want to pass it to apparmor parser.
+	if cpus > 1 {
+		if cpus == 2 {
+			// systems with only two CPUs, spare 1
+			return fmt.Sprintf("-j%d", cpus-1)
+		} else {
+			// otherwise spare 2
+			return fmt.Sprintf("-j%d", cpus-2)
+		}
+	}
+	return ""
+}
 
 // loadProfiles loads apparmor profiles from the given files.
 //
@@ -70,6 +93,11 @@ func loadProfiles(fnames []string, cacheDir string, flags aaParserFlags) error {
 
 	// Use no-expr-simplify since expr-simplify is actually slower on armhf (LP: #1383858)
 	args := []string{"--replace", "--write-cache", "-O", "no-expr-simplify", fmt.Sprintf("--cache-loc=%s", cacheDir)}
+	if flags&conserveCPU != 0 {
+		if jobArg := maybeSetNumberOfJobs(); jobArg != "" {
+			args = append(args, jobArg)
+		}
+	}
 	if flags&skipReadCache != 0 {
 		args = append(args, "--skip-read-cache")
 	}

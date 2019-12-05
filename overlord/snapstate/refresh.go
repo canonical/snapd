@@ -20,18 +20,17 @@
 package snapstate
 
 import (
-	"bufio"
 	"fmt"
-	"io"
-	"os"
-	"path/filepath"
 	"sort"
-	"strconv"
 	"strings"
 
 	"github.com/snapcore/snapd/cmd/snaplock"
-	"github.com/snapcore/snapd/dirs"
+	"github.com/snapcore/snapd/sandbox/cgroup"
 	"github.com/snapcore/snapd/snap"
+)
+
+var (
+	pidsCgroupDir = cgroup.ControllerPathV1("pids")
 )
 
 func genericRefreshCheck(info *snap.Info, canAppRunDuringRefresh func(app *snap.AppInfo) bool) error {
@@ -64,7 +63,7 @@ func genericRefreshCheck(info *snap.Info, canAppRunDuringRefresh func(app *snap.
 		if canAppRunDuringRefresh(app) {
 			continue
 		}
-		PIDs, err := pidsOfSecurityTag(app.SecurityTag())
+		PIDs, err := cgroup.PidsInGroup(pidsCgroupDir, app.SecurityTag())
 		if err != nil {
 			return err
 		}
@@ -78,7 +77,7 @@ func genericRefreshCheck(info *snap.Info, canAppRunDuringRefresh func(app *snap.
 		if canHookRunDuringRefresh(hook) {
 			continue
 		}
-		PIDs, err := pidsOfSecurityTag(hook.SecurityTag())
+		PIDs, err := cgroup.PidsInGroup(pidsCgroupDir, hook.SecurityTag())
 		if err != nil {
 			return err
 		}
@@ -171,47 +170,4 @@ func (err *BusySnapError) Error() string {
 // refresh scenario.
 func (err BusySnapError) Pids() []int {
 	return err.pids
-}
-
-// parsePid parses a string as a process identifier.
-func parsePid(text string) (int, error) {
-	pid, err := strconv.Atoi(text)
-	if err == nil && pid <= 0 {
-		return 0, fmt.Errorf("cannot parse pid %q", text)
-	}
-	return pid, err
-}
-
-// parsePids parses a list of pids, one per line, from a reader.
-func parsePids(reader io.Reader) ([]int, error) {
-	scanner := bufio.NewScanner(reader)
-	var pids []int
-	for scanner.Scan() {
-		s := scanner.Text()
-		pid, err := parsePid(s)
-		if err != nil {
-			return nil, err
-		}
-		pids = append(pids, pid)
-	}
-	if err := scanner.Err(); err != nil {
-		return nil, err
-	}
-	return pids, nil
-}
-
-// pidsOfSecurityTag returns a list of PIDs belonging to a given security tag.
-//
-// The list is obtained from a pids cgroup.
-func pidsOfSecurityTag(securityTag string) ([]int, error) {
-	fname := filepath.Join(dirs.PidsCgroupDir, securityTag, "cgroup.procs")
-	file, err := os.Open(fname)
-	if os.IsNotExist(err) {
-		return nil, nil
-	}
-	if err != nil {
-		return nil, err
-	}
-	defer file.Close()
-	return parsePids(bufio.NewReader(file))
 }

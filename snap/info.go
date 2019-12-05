@@ -246,6 +246,8 @@ type Info struct {
 	Media   MediaInfos
 	Website string
 
+	StoreURL string
+
 	// The flattended channel map with $track/$risk
 	Channels map[string]*ChannelSnapInfo
 
@@ -661,6 +663,39 @@ func (slot *SlotInfo) SecurityTags() []string {
 // String returns the representation of the slot as snap:slot string.
 func (slot *SlotInfo) String() string {
 	return fmt.Sprintf("%s:%s", slot.Snap.InstanceName(), slot.Name)
+}
+
+func gatherDefaultContentProvider(providerSnapsToContentTag map[string][]string, plug *PlugInfo) {
+	if plug.Interface == "content" {
+		var dprovider string
+		if err := plug.Attr("default-provider", &dprovider); err == nil && dprovider != "" {
+			// usage can be "snap:slot" but slot
+			// is ignored/unused
+			name := strings.Split(dprovider, ":")[0]
+			var contentTag string
+			plug.Attr("content", &contentTag)
+			tags := providerSnapsToContentTag[name]
+			if tags == nil {
+				tags = []string{contentTag}
+			} else {
+				if !strutil.SortedListContains(tags, contentTag) {
+					tags = append(tags, contentTag)
+					sort.Strings(tags)
+				}
+			}
+			providerSnapsToContentTag[name] = tags
+		}
+	}
+}
+
+// DefaultContentProviders returns the set of default provider snaps
+// requested by the given plugs, mapped to their content tags.
+func DefaultContentProviders(plugs []*PlugInfo) (providerSnapsToContentTag map[string][]string) {
+	providerSnapsToContentTag = make(map[string][]string)
+	for _, plug := range plugs {
+		gatherDefaultContentProvider(providerSnapsToContentTag, plug)
+	}
+	return providerSnapsToContentTag
 }
 
 // SlotInfo provides information about a slot.
