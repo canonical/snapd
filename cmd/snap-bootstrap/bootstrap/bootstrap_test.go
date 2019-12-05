@@ -30,11 +30,14 @@ import (
 	"github.com/snapcore/snapd/cmd/snap-bootstrap/partition"
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/gadget"
+	"github.com/snapcore/snapd/testutil"
 )
 
 func TestBootstrap(t *testing.T) { TestingT(t) }
 
 type bootstrapSuite struct {
+	testutil.BaseTest
+
 	dir string
 }
 
@@ -45,8 +48,11 @@ var _ = Suite(&bootstrapSuite{})
 // each part inside bootstrap is tested and we have a spread test
 
 func (s *bootstrapSuite) SetUpTest(c *C) {
+	s.BaseTest.SetUpTest(c)
+
 	s.dir = c.MkDir()
 	dirs.SetRootDir(s.dir)
+	s.AddCleanup(func() { dirs.SetRootDir("/") })
 }
 
 func (s *bootstrapSuite) TestBootstrapRunError(c *C) {
@@ -215,7 +221,7 @@ func layoutFromYaml(c *C, gadgetYaml string) *gadget.LaidOutVolume {
 	return pv
 }
 
-const mockUc20GadgetYaml = `volumes:
+const mockUC20GadgetYaml = `volumes:
   pc:
     bootloader: grub
     structure:
@@ -259,7 +265,7 @@ func (s *bootstrapSuite) setupMockSysfs(c *C) {
 
 func (s *bootstrapSuite) TestDeviceFromRoleHappy(c *C) {
 	s.setupMockSysfs(c)
-	lv := layoutFromYaml(c, mockUc20GadgetYaml)
+	lv := layoutFromYaml(c, mockUC20GadgetYaml)
 
 	device, err := bootstrap.DeviceFromRole(lv, gadget.SystemSeed)
 	c.Assert(err, IsNil)
@@ -268,7 +274,7 @@ func (s *bootstrapSuite) TestDeviceFromRoleHappy(c *C) {
 
 func (s *bootstrapSuite) TestDeviceFromRoleErrorNoMatchingSysfs(c *C) {
 	// note no sysfs mocking
-	lv := layoutFromYaml(c, mockUc20GadgetYaml)
+	lv := layoutFromYaml(c, mockUC20GadgetYaml)
 
 	_, err := bootstrap.DeviceFromRole(lv, gadget.SystemSeed)
 	c.Assert(err, ErrorMatches, `cannot find device for role "system-seed": device not found`)

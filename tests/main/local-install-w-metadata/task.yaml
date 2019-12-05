@@ -5,19 +5,19 @@ systems: [-ubuntu-core-*]
 
 execute: |
     echo "Get the snap"
-    snap download test-snapd-tools
+    snap download test-snapd-sh
 
     echo "Try to install the snap without assertions"
-    (snap install test-snapd-tools_*.snap 2>&1 || true) | MATCH 'cannot find signatures with metadata for snap "test-snapd-tools.*\.snap"'
+    (snap install test-snapd-sh_*.snap 2>&1 || true) | MATCH 'cannot find signatures with metadata for snap "test-snapd-sh.*\.snap"'
 
     echo "Add its assertions"
-    snap ack test-snapd-tools_*.assert
+    snap ack test-snapd-sh_*.assert
 
     echo "Installing the snap file will use the metadata from assertions"
-    snap install test-snapd-tools_*.snap
+    snap install test-snapd-sh_*.snap
 
     echo "The revision is not a local revision"
-    snap list|MATCH '^test-snapd-tools.* [0-9]+\s+-\s+canonical'
+    snap list|MATCH '^test-snapd-sh.* [0-9]+\s+-\s+cachio'
 
     echo "Test it"
-    test-snapd-tools.success
+    test-snapd-sh.sh -c 'true'
