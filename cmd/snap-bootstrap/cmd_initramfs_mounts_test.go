@@ -55,11 +55,8 @@ var _ = Suite(&initramfsMountsSuite{})
 func (s *initramfsMountsSuite) SetUpTest(c *C) {
 	s.BaseTest.SetUpTest(c)
 
-	restore := snap.MockSanitizePlugsSlots(func(snapInfo *snap.Info) {})
-	s.BaseTest.AddCleanup(restore)
-
 	s.Stdout = bytes.NewBuffer(nil)
-	restore = main.MockStdout(s.Stdout)
+	restore := main.MockStdout(s.Stdout)
 	s.AddCleanup(restore)
 
 	// mock /run/mnt

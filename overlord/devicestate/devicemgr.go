@@ -502,7 +502,7 @@ func (m *DeviceManager) ensureInstalled() error {
 		return nil
 	}
 
-	if m.operatingMode != "install" {
+	if m.operatingMode() != "install" {
 		return nil
 	}
 
