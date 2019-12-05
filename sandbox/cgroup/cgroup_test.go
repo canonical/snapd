@@ -285,7 +285,9 @@ func (s *cgroupSuite) writePids(c *C, dir string, pids []int) {
 		fmt.Fprintf(&buf, "%d\n", pid)
 	}
 
-	path := filepath.Join(s.rootDir, "/sys/fs/cgroup", dir)
+	// The path looks like v1 path but for the purpose of tests it works
+	// in both v1 and v2 modes.
+	path := filepath.Join(s.rootDir, "/sys/fs/cgroup/systemd", dir)
 	err := os.MkdirAll(path, 0755)
 	c.Assert(err, IsNil)
 	err = ioutil.WriteFile(filepath.Join(path, "cgroup.procs"), buf.Bytes(), 0644)

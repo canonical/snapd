@@ -327,17 +327,21 @@ func PidsOfSnap(snapInstanceName string) (map[string][]int, error) {
 		return filepath.SkipDir
 	}
 
-	// TODO: Currently we walk the entire cgroup tree. We could be more precise
-	// if we knew which of the fundamental two modes are used.
-	//
-	// In v2 mode, when /sys/fs/cgroup is a cgroup2 mount then the code is
-	// correct as-is.  In v1 mode, either with hybrid or without, we could walk
-	// a more scoped subset, specifically /sys/fs/cgroup/unified in hybrid
-	// mode, if one exists, or /sys/fs/cgroup/systemd as last-resort fallback.
-	//
+	var cgroupPathToScan string
+	ver, err := Version()
+	if err != nil {
+		return nil, err
+	}
+	if ver == V2 {
+		// In v2 mode scan all of /sys/fs/cgroup
+		cgroupPathToScan = filepath.Join(rootPath, expectedMountPoint)
+	} else {
+		// In v1 mode scan just /sys/fs/cgroup/systemd
+		cgroupPathToScan = filepath.Join(rootPath, expectedMountPoint, "systemd")
+	}
 	// NOTE: Walk is internally performed in lexical order so the output is
 	// deterministic and we don't need to sort the returned aggregated PIDs.
-	if err := filepath.Walk(filepath.Join(rootPath, expectedMountPoint), walkFunc); err != nil {
+	if err := filepath.Walk(cgroupPathToScan, walkFunc); err != nil {
 		if os.IsNotExist(err) {
 			return nil, nil
 		}
