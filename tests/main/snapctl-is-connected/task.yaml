@@ -10,7 +10,7 @@ restore: |
 execute: |
   check_empty() {
     local OUT="$1"
-    if [[ "$SPREAD_SYSTEM" == fedora-31 ]]; then
+    if [[ "$SPREAD_SYSTEM" == fedora-31-* ]]; then
       echo "$OUT" | MATCH '^WARNING: cgroup v2 is not fully supported yet, proceeding with partial confinement$'
     else
       if [ -n "$OUT" ]; then
