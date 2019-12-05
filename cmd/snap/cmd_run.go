@@ -43,6 +43,7 @@ import (
 	"github.com/snapcore/snapd/interfaces"
 	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/osutil"
+	"github.com/snapcore/snapd/osutil/ltrace"
 	"github.com/snapcore/snapd/osutil/strace"
 	"github.com/snapcore/snapd/sandbox/selinux"
 	"github.com/snapcore/snapd/snap"
@@ -73,6 +74,7 @@ type cmdRun struct {
 	// can also carry extra options for strace. This is why there is
 	// "default" and "optional-value" to distinguish this.
 	Strace    string `long:"strace" optional:"true" optional-value:"with-strace" default:"no-strace" default-mask:"-"`
+	Ltrace    string `long:"ltrace" optional:"true" optional-value:"" default:"no-ltrace" default-mask:"-"`
 	Gdb       bool   `long:"gdb"`
 	TraceExec bool   `long:"trace-exec"`
 
@@ -102,6 +104,8 @@ and environment.
 			"shell": i18n.G("Run a shell instead of the command (useful for debugging)"),
 			// TRANSLATORS: This should not start with a lowercase letter.
 			"strace": i18n.G("Run the command under strace (useful for debugging). Extra strace options can be specified as well here. Pass --raw to strace early snap helpers."),
+			// TRANSLATORS: This should not start with a lowercase letter.
+			"ltrace": i18n.G("Run the command under ltrace (useful for debugging). Extra ltrace options can be specified as well here."),
 			// TRANSLATORS: This should not start with a lowercase letter.
 			"gdb": i18n.G("Run the command with gdb"),
 			// TRANSLATORS: This should not start with a lowercase letter.
@@ -402,6 +406,7 @@ func (x *cmdRun) straceOpts() (opts []string, raw bool, err error) {
 		}
 		opts = append(opts, opt)
 	}
+
 	return opts, raw, nil
 }
 
@@ -867,6 +872,25 @@ func (x *cmdRun) runCmdUnderStrace(origCmd, env []string) error {
 	return err
 }
 
+func (x *cmdRun) runCmdUnderLtrace(origCmd, env []string) error {
+	extraLtraceOpts, err := shlex.Split(x.Ltrace)
+	if err != nil {
+		return err
+	}
+
+	cmd, err := ltrace.Command(extraLtraceOpts, origCmd...)
+	if err != nil {
+		return err
+	}
+
+	cmd.Env = env
+	cmd.Stdin = Stdin
+	cmd.Stdout = Stdout
+	cmd.Stderr = Stderr
+
+	return cmd.Run()
+}
+
 func (x *cmdRun) runSnapConfine(info *snap.Info, securityTag, snapApp, hook string, args []string) error {
 	snapConfine, err := snapdHelperPath("snap-confine")
 	if err != nil {
@@ -950,6 +974,8 @@ func (x *cmdRun) runSnapConfine(info *snap.Info, securityTag, snapApp, hook stri
 		return x.runCmdUnderGdb(cmd, env)
 	} else if x.useStrace() {
 		return x.runCmdUnderStrace(cmd, env)
+	} else if x.Ltrace != "no-ltrace" && x.ParserRan == 1 { // FIXME: why ParserRan == 1 ?
+		return x.runCmdUnderLtrace(cmd, env)
 	} else {
 		return syscallExec(cmd[0], cmd, env)
 	}
