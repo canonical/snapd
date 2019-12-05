@@ -361,6 +361,15 @@ func makeBootable16(model *asserts.Model, rootdir string, bootWith *BootableSet,
 }
 
 func makeBootable20(model *asserts.Model, rootdir string, bootWith *BootableSet, opts *bootloader.Options) error {
+	// we can only make a single recovery system bootable right now
+	recoverySystems, err := filepath.Glob(filepath.Join(rootdir, "systems/*"))
+	if err != nil {
+		return fmt.Errorf("cannot validate recovery systems: %v", err)
+	}
+	if len(recoverySystems) > 1 {
+		return fmt.Errorf("cannot make multiple recovery systems bootable yet")
+	}
+
 	// install the bootloader configuration from the gadget
 	if err := bootloader.InstallBootConfig(bootWith.UnpackedGadgetDir, rootdir, opts); err != nil {
 		return err

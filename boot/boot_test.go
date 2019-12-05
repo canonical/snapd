@@ -460,9 +460,7 @@ version: 4.0
 	c.Check(filepath.Join(rootdir, "boot", "grub/grub.cfg"), testutil.FileEquals, grubCfg)
 }
 
-func (s *bootSetSuite) TestMakeBootable20(c *C) {
-	dirs.SetRootDir("")
-
+func makeMockUC20Model() *asserts.Model {
 	headers := map[string]interface{}{
 		"type":         "model",
 		"authority-id": "my-brand",
@@ -487,7 +485,13 @@ func (s *bootSetSuite) TestMakeBootable20(c *C) {
 			},
 		},
 	}
-	model := assertstest.FakeAssertion(headers).(*asserts.Model)
+	return assertstest.FakeAssertion(headers).(*asserts.Model)
+}
+
+func (s *bootSetSuite) TestMakeBootable20(c *C) {
+	dirs.SetRootDir("")
+
+	model := makeMockUC20Model()
 
 	unpackedGadgetDir := c.MkDir()
 	grubRecoveryCfg := []byte("#grub-recovery cfg")
@@ -538,4 +542,20 @@ version: 5.0
 
 	// ensure no /boot was setup
 	c.Check(filepath.Join(rootdir, "boot"), testutil.FileAbsent)
+}
+
+func (s *bootSetSuite) TestMakeBootable20MultipleRecoverySystemsError(c *C) {
+	dirs.SetRootDir("")
+
+	model := makeMockUC20Model()
+
+	bootWith := &boot.BootableSet{}
+	rootdir := c.MkDir()
+	err := os.MkdirAll(filepath.Join(rootdir, "systems/20191204"), 0755)
+	c.Assert(err, IsNil)
+	err = os.MkdirAll(filepath.Join(rootdir, "systems/20191205"), 0755)
+	c.Assert(err, IsNil)
+
+	err = boot.MakeBootable(model, rootdir, bootWith)
+	c.Assert(err, ErrorMatches, "cannot make multiple recovery systems bootable yet")
 }
