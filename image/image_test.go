@@ -2348,7 +2348,7 @@ func (s *imageSuite) TestSetupSeedCore20(c *C) {
 	s.makeSnap(c, "snapd", nil, snap.R(1), "")
 	s.makeSnap(c, "core20", nil, snap.R(20), "")
 	s.makeSnap(c, "pc-kernel=20", nil, snap.R(1), "")
-	s.makeSnap(c, "pc=20", [][]string{{"grub-recovery.conf", "recovery grub.cfg"}, {"grub.cfg", "boot grub.cfg"}}, snap.R(22), "") // XXX likely don't need grub.cfg there
+	s.makeSnap(c, "pc=20", [][]string{{"grub-recovery.conf", "# recovery grub.cfg"}, {"grub.cfg", "boot grub.cfg"}}, snap.R(22), "") // XXX likely don't need grub.cfg there
 	s.makeSnap(c, "required20", nil, snap.R(21), "other")
 
 	opts := &image.Options{
@@ -2357,10 +2357,6 @@ func (s *imageSuite) TestSetupSeedCore20(c *C) {
 
 	err := image.SetupSeed(s.tsto, model, opts)
 	c.Assert(err, IsNil)
-
-	// check boot config
-	grubCfg := filepath.Join(prepareDir, "system-seed", "EFI/ubuntu/grub.cfg")
-	c.Check(grubCfg, testutil.FileMatches, "recovery grub.cfg")
 
 	// check seed
 	seeddir := filepath.Join(prepareDir, "system-seed")
@@ -2404,7 +2400,9 @@ func (s *imageSuite) TestSetupSeedCore20(c *C) {
 	c.Assert(err, IsNil)
 	c.Check(l, HasLen, 5)
 
-	// TODO|XXX: test recovery boot env
+	// check boot config
+	grubCfg := filepath.Join(prepareDir, "system-seed", "EFI/ubuntu/grub.cfg")
+	c.Check(grubCfg, testutil.FileMatches, "# recovery grub.cfg")
 
 	c.Check(s.stderr.String(), Equals, "")
 
