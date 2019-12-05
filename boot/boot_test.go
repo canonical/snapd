@@ -460,7 +460,7 @@ version: 4.0
 	c.Check(filepath.Join(rootdir, "boot", "grub/grub.cfg"), testutil.FileEquals, grubCfg)
 }
 
-func (s *bootSetSuite) TestMakeBootableUc20(c *C) {
+func (s *bootSetSuite) TestMakeBootable20(c *C) {
 	dirs.SetRootDir("")
 
 	headers := map[string]interface{}{
@@ -489,9 +489,12 @@ func (s *bootSetSuite) TestMakeBootableUc20(c *C) {
 	}
 	model := assertstest.FakeAssertion(headers).(*asserts.Model)
 
-	grubRecoveryCfg := []byte("#grub cfg")
 	unpackedGadgetDir := c.MkDir()
+	grubRecoveryCfg := []byte("#grub-recovery cfg")
 	err := ioutil.WriteFile(filepath.Join(unpackedGadgetDir, "grub-recovery.conf"), grubRecoveryCfg, 0644)
+	c.Assert(err, IsNil)
+	grubCfg := []byte("#grub cfg")
+	err = ioutil.WriteFile(filepath.Join(unpackedGadgetDir, "grub.conf"), grubCfg, 0644)
 	c.Assert(err, IsNil)
 
 	rootdir := c.MkDir()
@@ -525,6 +528,11 @@ version: 5.0
 	err = boot.MakeBootable(model, rootdir, bootWith)
 	c.Assert(err, IsNil)
 
-	// check that the bootloader (grub here) configuration was copied
+	// ensure only a single file got copied (the grub.cfg)
+	files, err := filepath.Glob(filepath.Join(rootdir, "EFI/ubuntu/*"))
+	c.Assert(err, IsNil)
+	c.Check(files, HasLen, 1)
+	// check that the recovery bootloader configuration was copied with
+	// the correct content
 	c.Check(filepath.Join(rootdir, "EFI/ubuntu/grub.cfg"), testutil.FileEquals, grubRecoveryCfg)
 }

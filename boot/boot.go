@@ -293,7 +293,7 @@ type BootableSet struct {
 //  - creating symlinks for boot snaps from seed to the runtime blob dir
 //  - setting boot env vars pointing to the revisions of the boot snaps to use
 //  - extracting kernel assets as needed by the bootloader
-func makeBootableUc16Uc18(model *asserts.Model, rootdir string, bootWith *BootableSet, opts *bootloader.Options) error {
+func makeBootable16(model *asserts.Model, rootdir string, bootWith *BootableSet, opts *bootloader.Options) error {
 	// install the bootloader configuration from the gadget
 	if err := bootloader.InstallBootConfig(bootWith.UnpackedGadgetDir, rootdir, opts); err != nil {
 		return err
@@ -360,7 +360,7 @@ func makeBootableUc16Uc18(model *asserts.Model, rootdir string, bootWith *Bootab
 	return nil
 }
 
-func makeBootableUc20(model *asserts.Model, rootdir string, bootWith *BootableSet, opts *bootloader.Options) error {
+func makeBootable20(model *asserts.Model, rootdir string, bootWith *BootableSet, opts *bootloader.Options) error {
 	// install the bootloader configuration from the gadget
 	if err := bootloader.InstallBootConfig(bootWith.UnpackedGadgetDir, rootdir, opts); err != nil {
 		return err
@@ -383,10 +383,10 @@ func MakeBootable(model *asserts.Model, rootdir string, bootWith *BootableSet) e
 	}
 
 	if model.Grade() == asserts.ModelGradeUnset {
-		return makeBootableUc16Uc18(model, rootdir, bootWith, opts)
+		return makeBootable16(model, rootdir, bootWith, opts)
 	}
 
 	// XXX: allow to override this
 	opts.Recovery = true
-	return makeBootableUc20(model, rootdir, bootWith, opts)
+	return makeBootable20(model, rootdir, bootWith, opts)
 }
