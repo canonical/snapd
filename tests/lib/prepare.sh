@@ -130,12 +130,6 @@ update_core_snap_for_classic_reexec() {
     rm squashfs-root/usr/lib/snapd/* squashfs-root/usr/bin/snap
     # and copy in the current libexec
     cp -a "$LIBEXECDIR"/snapd/* squashfs-root/usr/lib/snapd/
-    case "$SPREAD_SYSTEM" in
-        fedora-*|centos-*|amazon-*)
-            # RPM can rewrite shebang to #!/usr/bin/sh
-            sed -i -e '1 s;#!/usr/bin/sh;#!/bin/sh;' squashfs-root/usr/lib/snapd/snap-device-helper
-            ;;
-    esac
     # also the binaries themselves
     cp -a /usr/bin/snap squashfs-root/usr/bin/
     # make sure bin/snapctl is a symlink to lib/
@@ -289,15 +283,11 @@ prepare_classic() {
 
         # Cache snaps
         # shellcheck disable=SC2086
-        cache_snaps ${PRE_CACHE_SNAPS}
+        cache_snaps core ${PRE_CACHE_SNAPS}
 
         echo "Cache the snaps profiler snap"
         if [ "$PROFILE_SNAPS" = 1 ]; then
-            if is_core18_system; then
-                cache_snaps test-snapd-profiler-core18
-            else
-                cache_snaps test-snapd-profiler
-            fi
+            cache_snaps test-snapd-profiler
         fi
 
         snap list | not grep core || exit 1
@@ -684,6 +674,10 @@ prepare_ubuntu_core() {
         snap alias "$rsync_snap".rsync rsync
     fi
 
+    # Cache snaps
+    # shellcheck disable=SC2086
+    cache_snaps ${PRE_CACHE_SNAPS}
+
     echo "Ensure the core snap is cached"
     # Cache snaps
     if is_core18_system; then
@@ -692,11 +686,16 @@ prepare_ubuntu_core() {
             snap list
             exit 1
         fi
-        cache_snaps core
+        cache_snaps core test-snapd-sh-core18
     fi
+
     echo "Cache the snaps profiler snap"
     if [ "$PROFILE_SNAPS" = 1 ]; then
-        cache_snaps test-snapd-profiler
+        if is_core18_system; then
+            cache_snaps test-snapd-profiler-core18
+        else
+            cache_snaps test-snapd-profiler
+        fi
     fi
 
     disable_refreshes

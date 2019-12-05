@@ -70,6 +70,5 @@ func init() {
 		baseDeclarationSlots:  systemTraceBaseDeclarationSlots,
 		connectedPlugAppArmor: systemTraceConnectedPlugAppArmor,
 		connectedPlugSecComp:  systemTraceConnectedPlugSecComp,
-		reservedForOS:         true,
 	})
 }
