@@ -45,6 +45,11 @@ type Options struct {
 	// Recovery indicates to use the recovery bootloader. Note that
 	// UC16/18 do not have a recovery partition.
 	Recovery bool
+
+	// XXX: should this be somewhere else? It's only needed for
+	//      InstallBootConfig
+	RecoverySystem string
+	RecoveryKernel string
 }
 
 // Bootloader provides an interface to interact with the system

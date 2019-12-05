@@ -284,6 +284,8 @@ type BootableSet struct {
 	Kernel     *snap.Info
 	KernelPath string
 
+	RecoverySystem string
+
 	UnpackedGadgetDir string
 }
 
@@ -362,14 +364,13 @@ func makeBootable16(model *asserts.Model, rootdir string, bootWith *BootableSet,
 
 func makeBootable20(model *asserts.Model, rootdir string, bootWith *BootableSet, opts *bootloader.Options) error {
 	// install the bootloader configuration from the gadget
+	opts.RecoverySystem = bootWith.RecoverySystem
+	opts.RecoveryKernel = filepath.Dir(bootWith.KernelPath)
 	if err := bootloader.InstallBootConfig(bootWith.UnpackedGadgetDir, rootdir, opts); err != nil {
 		return err
 	}
 
-	// XXX: extract kernel for e.g. ARM
-	//
-	// XXX2: "pseudo" symlink kernel to /systems/XXXX/kernel and add
-	//       code to grub to read it?
+	// TODO:UC20: extract kernel on e.g. ARM systems
 
 	return nil
 }

@@ -523,6 +523,7 @@ version: 5.0
 		Kernel:            kernelInfo,
 		KernelPath:        kernelInSeed,
 		UnpackedGadgetDir: unpackedGadgetDir,
+		RecoverySystem:    "20191205",
 	}
 
 	err = boot.MakeBootable(model, rootdir, bootWith)

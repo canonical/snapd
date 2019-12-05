@@ -20,6 +20,7 @@
 package bootloader
 
 import (
+	"fmt"
 	"os"
 	"path/filepath"
 
@@ -68,11 +69,34 @@ func (g *grub) InstallBootConfig(gadgetDir string, opts *Options) (bool, error) 
 	if opts != nil && opts.Recovery {
 		recoveryGrubCfg := filepath.Join(gadgetDir, g.Name()+"-recovery.conf")
 		systemFile := filepath.Join(g.rootdir, "/EFI/ubuntu/grub.cfg")
-		return genericInstallBootConfig(recoveryGrubCfg, systemFile)
+		ok, err := genericInstallBootConfig(recoveryGrubCfg, systemFile)
+		if !ok {
+			return false, nil
+		}
+		if err != nil {
+			return true, err
+		}
+		return true, g.setRecoveryKernel(opts.RecoverySystem, opts.RecoveryKernel)
 	}
 	gadgetFile := filepath.Join(gadgetDir, g.Name()+".conf")
 	systemFile := filepath.Join(g.rootdir, "/boot/grub/grub.cfg")
 	return genericInstallBootConfig(gadgetFile, systemFile)
+}
+
+func (g *grub) setRecoveryKernel(recoverySystem, kernel string) error {
+	if recoverySystem == "" {
+		return fmt.Errorf("internal error: cannot use setRecoveryKernel without a recovery system")
+	}
+	if kernel == "" {
+		return fmt.Errorf("internal error: cannot use setRecoveryKernel without a kernel")
+	}
+	recoverySystemGrubEnv := filepath.Join(g.rootdir, "systems", recoverySystem, "grubenv")
+	if err := os.MkdirAll(filepath.Dir(recoverySystemGrubEnv), 0755); err != nil {
+		return err
+	}
+	genv := grubenv.NewEnv(recoverySystemGrubEnv)
+	genv.Set("snapd_recovery_kernel", kernel)
+	return genv.Save()
 }
 
 func (g *grub) ConfigFile() string {
