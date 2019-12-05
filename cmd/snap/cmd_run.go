@@ -945,8 +945,9 @@ func (x *cmdRun) runSnapConfine(info *snap.Info, securityTag, snapApp, hook stri
 	}
 	env := snapenv.ExecEnv(info, extraEnv)
 
-	// If we are running an app that is not a service (or if we are running a
-	// hook) then the application process is placed in a transient scope.
+	// Systemd automatically places services under a unique cgroup encoding the
+	// security tag, for apps and hooks we need to create a transient scope
+	// with similar purpose.
 	if app := info.Apps[snapApp]; app == nil || !app.IsService() {
 		logger.Debugf("creating transient scope %s", securityTag)
 		if err := createTransientScope(securityTag); err != nil {
