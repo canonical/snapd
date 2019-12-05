@@ -113,16 +113,16 @@ execute: |
     #        will only work with an up-to-date xenial kernel (4.4.0-78+)
 
     echo "Ensure we can use snapd inside lxd"
-    lxd.lxc exec my-ubuntu snap install test-snapd-tools
+    lxd.lxc exec my-ubuntu snap install test-snapd-sh
     echo "And we can run snaps as regular users, assuming session bus is available"
     lxd.lxc exec my-ubuntu -- apt-get update
     lxd.lxc exec my-ubuntu -- apt-get install -y dbus-user-session
     lxd.lxc exec my-ubuntu -- su -l ubuntu -c "systemctl --user enable dbus.socket"
-    lxd.lxc exec my-ubuntu -- su -l ubuntu -c "/snap/bin/test-snapd-tools.echo from-the-inside" | MATCH from-the-inside
+    lxd.lxc exec my-ubuntu -- su -l ubuntu -c "/snap/bin/test-snapd-sh.sh -c 'echo from-the-inside'" | MATCH from-the-inside
     echo "And as root"
-    lxd.lxc exec my-ubuntu -- test-snapd-tools.echo from-the-inside | MATCH from-the-inside
+    lxd.lxc exec my-ubuntu -- test-snapd-sh.sh -c 'echo from-the-inside' | MATCH from-the-inside
     echo "We can also remove snaps successfully"
-    lxd.lxc exec my-ubuntu -- snap remove test-snapd-tools
+    lxd.lxc exec my-ubuntu -- snap remove test-snapd-sh
 
     echo "Install lxd-demo server to exercise the lxd interface"
     snap install lxd-demo-server
