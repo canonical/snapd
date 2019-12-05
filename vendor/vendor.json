@@ -67,23 +67,23 @@
 			"revisionTime": "2018-03-08T15:25:21Z"
 		},
 		{
-			"checksumSHA1": "lG6diF/yE9cGgQIKRAlsaeYAjO4=",
-			"path": "github.com/ojii/gettext.go",
-			"revision": "95289a7e0ac17c76737a5ceca3c9471c0adf70c7",
-			"revisionTime": "2016-07-14T06:47:45Z"
-		},
-		{
-			"checksumSHA1": "j5FytTwC2nAqSrDR7V7O7E4cHKM=",
-			"path": "github.com/ojii/gettext.go/pluralforms",
-			"revision": "95289a7e0ac17c76737a5ceca3c9471c0adf70c7",
-			"revisionTime": "2016-07-14T06:47:45Z"
-		},
-		{
 			"checksumSHA1": "XEtWdIrRbRSFBR9q+SOATOuy7vM=",
 			"comment": "fork of boltdb/bolt to fix build failure on ppc. upstream: https://github.com/boltdb/bolt/pull/740 and https://github.com/coreos/bbolt/pull/73",
 			"path": "github.com/snapcore/bolt",
 			"revision": "9eca199504ee1299394669820724322b5bfc070a",
 			"revisionTime": "2018-01-18T17:01:45Z"
+		},
+		{
+			"checksumSHA1": "CSPV27Mm4+WBlyGFT/lKz1la/VI=",
+			"path": "github.com/snapcore/go-gettext",
+			"revision": "6598fb28bb07cb32298324b4958677c2f00cacd9",
+			"revisionTime": "2017-09-28T14:21:59Z"
+		},
+		{
+			"checksumSHA1": "ZHYmaLRlCMJfx0+Ppr8dZ/+KtAc=",
+			"path": "github.com/snapcore/go-gettext/pluralforms",
+			"revision": "6598fb28bb07cb32298324b4958677c2f00cacd9",
+			"revisionTime": "2017-09-28T14:21:59Z"
 		},
 		{
 			"checksumSHA1": "3AmEm18mKj8XxBuru/ix4OOpRkE=",
@@ -165,52 +165,16 @@
 			"revisionTime": "2017-06-28T23:42:41Z"
 		},
 		{
-			"checksumSHA1": "pCY4YtdNKVBYRbNvODjx8hj0hIs=",
-			"path": "golang.org/x/net/http/httpguts",
-			"revision": "74dc4d7220e7acc4e100824340f3e66577424772",
-			"revisionTime": "2019-08-11T06:12:18Z"
+			"checksumSHA1": "fqi5wrtLirDRLeXBetveI1nLg5M=",
+			"path": "golang.org/x/xerrors",
+			"revision": "a985d3407aa71f30cf86696ee0a2f409709f22e1",
+			"revisionTime": "2019-05-16T17:31:01Z"
 		},
 		{
-			"checksumSHA1": "35XpM1XtbNTQ3qYTaxBOOmR9Y6Q=",
-			"path": "golang.org/x/net/http2",
-			"revision": "74dc4d7220e7acc4e100824340f3e66577424772",
-			"revisionTime": "2019-08-11T06:12:18Z"
-		},
-		{
-			"checksumSHA1": "VJwSx33rjMC7O6K2O50Jw6o1vw4=",
-			"path": "golang.org/x/net/http2/hpack",
-			"revision": "74dc4d7220e7acc4e100824340f3e66577424772",
-			"revisionTime": "2019-08-11T06:12:18Z"
-		},
-		{
-			"checksumSHA1": "vL6l4FZWitsxht0uqA/GpDNkNNc=",
-			"path": "golang.org/x/net/idna",
-			"revision": "74dc4d7220e7acc4e100824340f3e66577424772",
-			"revisionTime": "2019-08-11T06:12:18Z"
-		},
-		{
-			"checksumSHA1": "CbpjEkkOeh0fdM/V8xKDdI0AA88=",
-			"path": "golang.org/x/text/secure/bidirule",
-			"revision": "342b2e1fbaa52c93f31447ad2c6abc048c63e475",
-			"revisionTime": "2018-12-15T17:52:45Z"
-		},
-		{
-			"checksumSHA1": "R9iBDY+aPnT+8pyRcqGjXq5QixA=",
-			"path": "golang.org/x/text/transform",
-			"revision": "342b2e1fbaa52c93f31447ad2c6abc048c63e475",
-			"revisionTime": "2018-12-15T17:52:45Z"
-		},
-		{
-			"checksumSHA1": "vv9EDuekZgHxFbh+0jJhB7jLZXY=",
-			"path": "golang.org/x/text/unicode/bidi",
-			"revision": "342b2e1fbaa52c93f31447ad2c6abc048c63e475",
-			"revisionTime": "2018-12-15T17:52:45Z"
-		},
-		{
-			"checksumSHA1": "8fzd6fnxrstdNSVg+Srhf1nKgek=",
-			"path": "golang.org/x/text/unicode/norm",
-			"revision": "342b2e1fbaa52c93f31447ad2c6abc048c63e475",
-			"revisionTime": "2018-12-15T17:52:45Z"
+			"checksumSHA1": "LnzK4nslUNXBIfAt9PbXCJCvMdA=",
+			"path": "golang.org/x/xerrors/internal",
+			"revision": "a985d3407aa71f30cf86696ee0a2f409709f22e1",
+			"revisionTime": "2019-05-16T17:31:01Z"
 		},
 		{
 			"checksumSHA1": "9gypWnVZJEaH3jMK9KqOp4xgQD4=",

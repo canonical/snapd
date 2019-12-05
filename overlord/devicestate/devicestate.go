@@ -39,6 +39,7 @@ import (
 	"github.com/snapcore/snapd/overlord/state"
 	"github.com/snapcore/snapd/release"
 	"github.com/snapcore/snapd/snap"
+	"github.com/snapcore/snapd/snap/naming"
 )
 
 var (
@@ -138,7 +139,7 @@ func canAutoRefresh(st *state.State) (bool, error) {
 	return true, nil
 }
 
-func checkGadgetOrKernel(st *state.State, snapInfo, curInfo *snap.Info, flags snapstate.Flags, deviceCtx snapstate.DeviceContext) error {
+func checkGadgetOrKernel(st *state.State, snapInfo, curInfo *snap.Info, _ snap.Container, flags snapstate.Flags, deviceCtx snapstate.DeviceContext) error {
 	kind := ""
 	var snapType snap.Type
 	var getName func(*asserts.Model) string
@@ -206,6 +207,7 @@ var once sync.Once
 func delayedCrossMgrInit() {
 	once.Do(func() {
 		snapstate.AddCheckSnapCallback(checkGadgetOrKernel)
+		snapstate.AddCheckSnapCallback(checkGadgetRemodelCompatible)
 	})
 	snapstate.CanAutoRefresh = canAutoRefresh
 	snapstate.CanManageRefreshes = CanManageRefreshes
@@ -289,26 +291,9 @@ func CanManageRefreshes(st *state.State) bool {
 	return false
 }
 
-func getAllRequiredSnapsForModel(model *asserts.Model) map[string]bool {
-	reqSnaps := model.RequiredSnaps()
-	// +4 for (snapd, base, gadget, kernel)
-	required := make(map[string]bool, len(reqSnaps)+4)
-	for _, snap := range reqSnaps {
-		required[snap] = true
-	}
-	if model.Base() != "" {
-		required["snapd"] = true
-		required[model.Base()] = true
-	} else {
-		required["core"] = true
-	}
-	if model.Kernel() != "" {
-		required[model.Kernel()] = true
-	}
-	if model.Gadget() != "" {
-		required[model.Gadget()] = true
-	}
-	return required
+func getAllRequiredSnapsForModel(model *asserts.Model) *naming.SnapSet {
+	reqSnaps := model.RequiredWithEssentialSnaps()
+	return naming.NewSnapSet(reqSnaps)
 }
 
 // extractDownloadInstallEdgesFromTs extracts the first, last download
@@ -334,31 +319,91 @@ func extractDownloadInstallEdgesFromTs(ts *state.TaskSet) (firstDl, lastDl, firs
 	return firstDl, tasks[edgeTaskIndex], tasks[edgeTaskIndex+1], lastInst, nil
 }
 
+func notInstalled(st *state.State, name string) (bool, error) {
+	_, err := snapstate.CurrentInfo(st, name)
+	_, isNotInstalled := err.(*snap.NotInstalledError)
+	if isNotInstalled {
+		return true, nil
+	}
+	return false, err
+}
+
 func remodelTasks(ctx context.Context, st *state.State, current, new *asserts.Model, deviceCtx snapstate.DeviceContext, fromChange string) ([]*state.TaskSet, error) {
 	userID := 0
-
-	// adjust kernel track
 	var tss []*state.TaskSet
-	if current.KernelTrack() != new.KernelTrack() {
+
+	// kernel
+	if current.Kernel() == new.Kernel() && current.KernelTrack() != new.KernelTrack() {
 		ts, err := snapstateUpdateWithDeviceContext(st, new.Kernel(), &snapstate.RevisionOptions{Channel: new.KernelTrack()}, userID, snapstate.Flags{NoReRefresh: true}, deviceCtx, fromChange)
 		if err != nil {
 			return nil, err
 		}
 		tss = append(tss, ts)
 	}
+
+	var ts *state.TaskSet
+	if current.Kernel() != new.Kernel() {
+		needsInstall, err := notInstalled(st, new.Kernel())
+		if err != nil {
+			return nil, err
+		}
+		if needsInstall {
+			ts, err = snapstateInstallWithDeviceContext(ctx, st, new.Kernel(), &snapstate.RevisionOptions{Channel: new.KernelTrack()}, userID, snapstate.Flags{}, deviceCtx, fromChange)
+		} else {
+			ts, err = snapstate.LinkNewBaseOrKernel(st, new.Base())
+		}
+		if err != nil {
+			return nil, err
+		}
+		tss = append(tss, ts)
+	}
+	if current.Base() != new.Base() {
+		needsInstall, err := notInstalled(st, new.Base())
+		if err != nil {
+			return nil, err
+		}
+		if needsInstall {
+			ts, err = snapstateInstallWithDeviceContext(ctx, st, new.Base(), nil, userID, snapstate.Flags{}, deviceCtx, fromChange)
+		} else {
+			ts, err = snapstate.LinkNewBaseOrKernel(st, new.Base())
+		}
+		if err != nil {
+			return nil, err
+		}
+		tss = append(tss, ts)
+	}
+	// gadget
+	if current.Gadget() == new.Gadget() && current.GadgetTrack() != new.GadgetTrack() {
+		ts, err := snapstateUpdateWithDeviceContext(st, new.Gadget(), &snapstate.RevisionOptions{Channel: new.GadgetTrack()}, userID, snapstate.Flags{NoReRefresh: true}, deviceCtx, fromChange)
+		if err != nil {
+			return nil, err
+		}
+		tss = append(tss, ts)
+	}
+	if current.Gadget() != new.Gadget() {
+		ts, err := snapstateInstallWithDeviceContext(ctx, st, new.Gadget(), &snapstate.RevisionOptions{Channel: new.GadgetTrack()}, userID, snapstate.Flags{}, deviceCtx, fromChange)
+		if err != nil {
+			return nil, err
+		}
+		tss = append(tss, ts)
+	}
+
 	// add new required-snaps, no longer required snaps will be cleaned
 	// in "set-model"
-	for _, snapName := range new.RequiredSnaps() {
-		_, err := snapstate.CurrentInfo(st, snapName)
-		// If the snap is not installed we need to install it now.
-		if _, ok := err.(*snap.NotInstalledError); ok {
-			ts, err := snapstateInstallWithDeviceContext(ctx, st, snapName, nil, userID, snapstate.Flags{Required: true}, deviceCtx, fromChange)
+	for _, snapRef := range new.RequiredNoEssentialSnaps() {
+		// TODO|XXX: have methods that take refs directly
+		// to respect the snap ids
+		needsInstall, err := notInstalled(st, snapRef.SnapName())
+		if err != nil {
+			return nil, err
+		}
+		if needsInstall {
+			// If the snap is not installed we need to install it now.
+			ts, err := snapstateInstallWithDeviceContext(ctx, st, snapRef.SnapName(), nil, userID, snapstate.Flags{Required: true}, deviceCtx, fromChange)
 			if err != nil {
 				return nil, err
 			}
 			tss = append(tss, ts)
-		} else if err != nil {
-			return nil, err
 		}
 	}
 	// TODO: Validate that all bases and default-providers are part
@@ -440,6 +485,8 @@ func remodelTasks(ctx context.Context, st *state.State, current, new *asserts.Mo
 // - Reapply gadget connections as needed
 // - Check all relevant snaps exist in new store
 //   (need to check that even unchanged snaps are accessible)
+// - Make sure this works with Core 20 as well, in the Core 20 case
+//   we must enforce the default-channels from the model as well
 func Remodel(st *state.State, new *asserts.Model) (*state.Change, error) {
 	var seeded bool
 	err := st.Get("seeded", &seeded)
@@ -472,17 +519,9 @@ func Remodel(st *state.State, new *asserts.Model) (*state.Change, error) {
 	}
 
 	// calculate snap differences between the two models
-	// FIXME: this needs work to switch the base to boot as well
-	if current.Base() != new.Base() {
-		return nil, fmt.Errorf("cannot remodel to different bases yet")
-	}
-	// FIXME: we need to support this soon but right now only a single
-	// snap of type "gadget/kernel" is allowed so this needs work
-	if current.Kernel() != new.Kernel() {
-		return nil, fmt.Errorf("cannot remodel to different kernels yet")
-	}
-	if current.Gadget() != new.Gadget() {
-		return nil, fmt.Errorf("cannot remodel to different gadgets yet")
+	// FIXME: this needs work to switch from core->bases
+	if current.Base() == "" && new.Base() != "" {
+		return nil, fmt.Errorf("cannot remodel from core to bases yet")
 	}
 
 	// TODO: should we run a remodel only while no other change is

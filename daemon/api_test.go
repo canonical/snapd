@@ -228,7 +228,14 @@ func (s *apiBaseSuite) TearDownSuite(c *check.C) {
 func (s *apiBaseSuite) systemctl(args ...string) (buf []byte, err error) {
 	s.sysctlArgses = append(s.sysctlArgses, args)
 
-	if args[0] != "show" && args[0] != "start" && args[0] != "stop" && args[0] != "restart" {
+	if len(args) > 2 && args[0] == "--root" && args[2] == "is-enabled" {
+		// drop the first 2 args which are "--root some-dir"
+		args = args[2:]
+	}
+
+	switch args[0] {
+	case "show", "start", "stop", "restart", "is-enabled":
+	default:
 		panic(fmt.Sprintf("unexpected systemctl call: %v", args))
 	}
 
@@ -502,7 +509,7 @@ version: %s
 	snapst.Active = active
 	snapst.Sequence = append(snapst.Sequence, &snapInfo.SideInfo)
 	snapst.Current = snapInfo.SideInfo.Revision
-	snapst.Channel = "stable"
+	snapst.TrackingChannel = "stable"
 	snapst.InstanceKey = instanceKey
 
 	snapstate.Set(st, instanceName, &snapst)
@@ -676,7 +683,7 @@ UnitFileState=enabled
 	c.Assert(err, check.IsNil)
 
 	// modify state
-	snapst.Channel = "beta"
+	snapst.TrackingChannel = "beta"
 	snapst.IgnoreValidation = true
 	snapst.CohortKey = "some-long-cohort-key"
 	st.Lock()
@@ -909,9 +916,9 @@ func (s *apiSuite) TestMapLocalFields(c *check.C) {
 	about := aboutSnap{
 		info: info,
 		snapst: &snapstate.SnapState{
-			Active:  true,
-			Channel: "flaky/beta",
-			Current: snap.R(7),
+			Active:          true,
+			TrackingChannel: "flaky/beta",
+			Current:         snap.R(7),
 			Flags: snapstate.Flags{
 				IgnoreValidation: true,
 				DevMode:          true,
@@ -1010,6 +1017,12 @@ func (s *apiSuite) TestRootCmd(c *check.C) {
 	c.Check(rsp.Result, check.DeepEquals, expected)
 }
 
+func mockSystemdVirt(newVirt string) (restore func()) {
+	oldVirt := systemdVirt
+	systemdVirt = newVirt
+	return func() { systemdVirt = oldVirt }
+}
+
 func (s *apiSuite) TestSysInfo(c *check.C) {
 	// check it only does GET
 	c.Check(sysInfoCmd.PUT, check.IsNil)
@@ -1040,6 +1053,8 @@ func (s *apiSuite) TestSysInfo(c *check.C) {
 	defer restore()
 	// reload dirs for release info to have effect
 	dirs.SetRootDir(dirs.GlobalRootDir)
+	restore = mockSystemdVirt("magic")
+	defer restore()
 
 	buildID := "this-is-my-build-id"
 	restore = MockBuildID(buildID)
@@ -1069,6 +1084,8 @@ func (s *apiSuite) TestSysInfo(c *check.C) {
 		},
 		"confinement":      "partial",
 		"sandbox-features": map[string]interface{}{"confinement-options": []interface{}{"classic", "devmode"}},
+		"architecture":     arch.DpkgArchitecture(),
+		"virtualization":   "magic",
 	}
 	var rsp resp
 	c.Assert(json.Unmarshal(rec.Body.Bytes(), &rsp), check.IsNil)
@@ -1092,6 +1109,8 @@ func (s *apiSuite) TestSysInfoLegacyRefresh(c *check.C) {
 	restore = release.MockOnClassic(true)
 	defer restore()
 	restore = release.MockForcedDevmode(true)
+	defer restore()
+	restore = mockSystemdVirt("kvm")
 	defer restore()
 	// reload dirs for release info to have effect
 	dirs.SetRootDir(dirs.GlobalRootDir)
@@ -1143,6 +1162,8 @@ func (s *apiSuite) TestSysInfoLegacyRefresh(c *check.C) {
 			"apparmor":            []interface{}{"feature-1", "feature-2"},
 			"confinement-options": []interface{}{"classic", "devmode"}, // we know it's this because of the release.Mock... calls above
 		},
+		"architecture":   arch.DpkgArchitecture(),
+		"virtualization": "kvm",
 	}
 	var rsp resp
 	c.Assert(json.Unmarshal(rec.Body.Bytes(), &rsp), check.IsNil)
@@ -2414,7 +2435,79 @@ func (s *apiSuite) TestPostSnapBadAction(c *check.C) {
 	c.Check(rsp.Result, check.NotNil)
 }
 
+func (s *apiSuite) TestPostSnapBadChannel(c *check.C) {
+	buf := bytes.NewBufferString(`{"channel": "1/2/3/4"}`)
+	req, err := http.NewRequest("POST", "/v2/snaps/hello-world", buf)
+	c.Assert(err, check.IsNil)
+
+	rsp := postSnap(snapCmd, req, nil).(*resp)
+
+	c.Check(rsp.Type, check.Equals, ResponseTypeError)
+	c.Check(rsp.Status, check.Equals, 400)
+	c.Check(rsp.Result, check.NotNil)
+}
+
 func (s *apiSuite) TestPostSnap(c *check.C) {
+	s.testPostSnap(c, false)
+}
+
+func (s *apiSuite) TestPostSnapWithChannel(c *check.C) {
+	s.testPostSnap(c, true)
+}
+
+func (s *apiSuite) testPostSnap(c *check.C, withChannel bool) {
+	d := s.daemonWithOverlordMock(c)
+
+	soon := 0
+	ensureStateSoon = func(st *state.State) {
+		soon++
+		ensureStateSoonImpl(st)
+	}
+
+	s.vars = map[string]string{"name": "foo"}
+
+	snapInstructionDispTable["install"] = func(inst *snapInstruction, _ *state.State) (string, []*state.TaskSet, error) {
+		if withChannel {
+			// channel in -> it was parsed
+			c.Check(inst.Channel, check.Equals, "xyzzy/stable")
+		} else {
+			// no channel in -> no channel out
+			c.Check(inst.Channel, check.Equals, "")
+		}
+		return "foooo", nil, nil
+	}
+	defer func() {
+		snapInstructionDispTable["install"] = snapInstall
+	}()
+
+	var buf *bytes.Buffer
+	if withChannel {
+		buf = bytes.NewBufferString(`{"action": "install", "channel": "xyzzy"}`)
+	} else {
+		buf = bytes.NewBufferString(`{"action": "install"}`)
+	}
+	req, err := http.NewRequest("POST", "/v2/snaps/hello-world", buf)
+	c.Assert(err, check.IsNil)
+
+	rsp := postSnap(snapCmd, req, nil).(*resp)
+
+	c.Check(rsp.Type, check.Equals, ResponseTypeAsync)
+
+	st := d.overlord.State()
+	st.Lock()
+	defer st.Unlock()
+	chg := st.Change(rsp.Change)
+	c.Assert(chg, check.NotNil)
+	c.Check(chg.Summary(), check.Equals, "foooo")
+	var names []string
+	err = chg.Get("snap-names", &names)
+	c.Assert(err, check.IsNil)
+	c.Check(names, check.DeepEquals, []string{"foo"})
+
+	c.Check(soon, check.Equals, 1)
+}
+
+func (s *apiSuite) TestPostSnapChannel(c *check.C) {
 	d := s.daemonWithOverlordMock(c)
 
 	soon := 0
@@ -3851,9 +3944,11 @@ func (s *apiSuite) TestRefreshCohort(c *check.C) {
 
 	d := s.daemon(c)
 	inst := &snapInstruction{
-		Action:    "refresh",
-		CohortKey: "xyzzy",
-		Snaps:     []string{"some-snap"},
+		Action: "refresh",
+		Snaps:  []string{"some-snap"},
+		snapRevisionOptions: snapRevisionOptions{
+			CohortKey: "xyzzy",
+		},
 	}
 
 	st := d.overlord.State()
@@ -3881,9 +3976,9 @@ func (s *apiSuite) TestRefreshLeaveCohort(c *check.C) {
 
 	d := s.daemon(c)
 	inst := &snapInstruction{
-		Action:      "refresh",
-		LeaveCohort: true,
-		Snaps:       []string{"some-snap"},
+		Action:              "refresh",
+		snapRevisionOptions: snapRevisionOptions{LeaveCohort: true},
+		Snaps:               []string{"some-snap"},
 	}
 
 	st := d.overlord.State()
@@ -3929,11 +4024,13 @@ func (s *apiSuite) TestSwitchInstruction(c *check.C) {
 		cohort, channel = "", ""
 		leave = nil
 		inst := &snapInstruction{
-			Action:      "switch",
-			CohortKey:   t.cohort,
-			Channel:     t.channel,
-			Snaps:       []string{"some-snap"},
-			LeaveCohort: t.leave,
+			Action: "switch",
+			snapRevisionOptions: snapRevisionOptions{
+				CohortKey:   t.cohort,
+				LeaveCohort: t.leave,
+				Channel:     t.channel,
+			},
+			Snaps: []string{"some-snap"},
 		}
 
 		st.Lock()
@@ -4233,9 +4330,11 @@ func (s *apiSuite) TestInstallCohort(c *check.C) {
 
 	d := s.daemon(c)
 	inst := &snapInstruction{
-		Action:    "install",
-		CohortKey: "To the legion of the lost ones, to the cohort of the damned.",
-		Snaps:     []string{"fake"},
+		Action: "install",
+		snapRevisionOptions: snapRevisionOptions{
+			CohortKey: "To the legion of the lost ones, to the cohort of the damned.",
+		},
+		Snaps: []string{"fake"},
 	}
 
 	st := d.overlord.State()
@@ -4403,19 +4502,19 @@ func (s *apiSuite) TestRevertSnapClassic(c *check.C) {
 }
 
 func (s *apiSuite) TestRevertSnapToRevision(c *check.C) {
-	s.testRevertSnap(&snapInstruction{Revision: snap.R(1)}, c)
+	s.testRevertSnap(&snapInstruction{snapRevisionOptions: snapRevisionOptions{Revision: snap.R(1)}}, c)
 }
 
 func (s *apiSuite) TestRevertSnapToRevisionDevMode(c *check.C) {
-	s.testRevertSnap(&snapInstruction{Revision: snap.R(1), DevMode: true}, c)
+	s.testRevertSnap(&snapInstruction{snapRevisionOptions: snapRevisionOptions{Revision: snap.R(1)}, DevMode: true}, c)
 }
 
 func (s *apiSuite) TestRevertSnapToRevisionJailMode(c *check.C) {
-	s.testRevertSnap(&snapInstruction{Revision: snap.R(1), JailMode: true}, c)
+	s.testRevertSnap(&snapInstruction{snapRevisionOptions: snapRevisionOptions{Revision: snap.R(1)}, JailMode: true}, c)
 }
 
 func (s *apiSuite) TestRevertSnapToRevisionClassic(c *check.C) {
-	s.testRevertSnap(&snapInstruction{Revision: snap.R(1), Classic: true}, c)
+	s.testRevertSnap(&snapInstruction{snapRevisionOptions: snapRevisionOptions{Revision: snap.R(1)}, Classic: true}, c)
 }
 
 func snapList(rawSnaps interface{}) []map[string]interface{} {
@@ -7125,7 +7224,7 @@ func (s *apiSuite) TestErrToResponseNoSnapsDoesNotPanic(c *check.C) {
 func (s *apiSuite) TestErrToResponseForRevisionNotAvailable(c *check.C) {
 	si := &snapInstruction{Action: "frobble", Snaps: []string{"foo"}}
 
-	thisArch := arch.UbuntuArchitecture()
+	thisArch := arch.DpkgArchitecture()
 
 	err := &store.RevisionNotAvailableError{
 		Action:  "install",

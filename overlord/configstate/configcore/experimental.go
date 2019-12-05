@@ -48,13 +48,13 @@ func validateExperimentalSettings(tr config.Conf) error {
 	return nil
 }
 
-func handleExperimentalFlags(tr config.Conf) error {
+func ExportExperimentalFlags(tr config.Conf) error {
 	dir := dirs.FeaturesDir
 	if err := os.MkdirAll(dir, 0755); err != nil {
 		return err
 	}
 	features := features.KnownFeatures()
-	content := make(map[string]*osutil.FileState, len(features))
+	content := make(map[string]osutil.FileState, len(features))
 	for _, feature := range features {
 		if !feature.IsExported() {
 			continue
@@ -64,7 +64,7 @@ func handleExperimentalFlags(tr config.Conf) error {
 			return err
 		}
 		if isEnabled {
-			content[feature.String()] = &osutil.FileState{Mode: 0644}
+			content[feature.String()] = &osutil.MemoryFileState{Mode: 0644}
 		}
 	}
 	_, _, err := osutil.EnsureDirState(dir, "*", content)

@@ -51,6 +51,8 @@ type storeSnap struct {
 	Title         safejson.String    `json:"title"`
 	Type          snap.Type          `json:"type"`
 	Version       string             `json:"version"`
+	Website       string             `json:"website"`
+	StoreURL      string             `json:"store-url"`
 
 	// TODO: not yet defined: channel map
 
@@ -131,12 +133,11 @@ func infoFromStoreInfo(si *storeInfo) (*snap.Info, error) {
 	seen := make(map[string]bool, len(si.ChannelMap))
 	for _, s := range si.ChannelMap {
 		ch := s.Channel
-		chName := ch.Track + "/" + ch.Risk
-		info.Channels[chName] = &snap.ChannelSnapInfo{
+		info.Channels[ch.Track+"/"+ch.Risk] = &snap.ChannelSnapInfo{
 			Revision:    snap.R(s.Revision),
 			Confinement: snap.ConfinementType(s.Confinement),
 			Version:     s.Version,
-			Channel:     chName,
+			Channel:     ch.Name,
 			Epoch:       s.Epoch,
 			Size:        s.Download.Size,
 			ReleasedAt:  ch.ReleasedAt.UTC(),
@@ -200,6 +201,9 @@ func copyNonZeroFrom(src, dst *storeSnap) {
 	if src.SnapYAML != "" {
 		dst.SnapYAML = src.SnapYAML
 	}
+	if src.StoreURL != "" {
+		dst.StoreURL = src.StoreURL
+	}
 	if src.Summary.Clean() != "" {
 		dst.Summary = src.Summary
 	}
@@ -217,6 +221,9 @@ func copyNonZeroFrom(src, dst *storeSnap) {
 	}
 	if len(src.CommonIDs) > 0 {
 		dst.CommonIDs = src.CommonIDs
+	}
+	if len(src.Website) > 0 {
+		dst.Website = src.Website
 	}
 }
 
@@ -259,6 +266,8 @@ func infoFromStoreSnap(d *storeSnap) (*snap.Info, error) {
 		info.Deltas = deltas
 	}
 	info.CommonIDs = d.CommonIDs
+	info.Website = d.Website
+	info.StoreURL = d.StoreURL
 
 	// fill in the plug/slot data
 	if rawYamlInfo, err := snap.InfoFromSnapYaml([]byte(d.SnapYAML)); err == nil {

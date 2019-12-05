@@ -28,6 +28,8 @@ import (
 // Batch allows to accumulate a set of assertions possibly out of
 // prerequisite order and then add them in one go to an assertion
 // database.
+// Nothing will be committed if there are missing prerequisites, for a full
+// consistency check beforehand there is the Precheck option.
 type Batch struct {
 	bs    Backstore
 	added []Assertion
@@ -113,15 +115,30 @@ func (b *Batch) Fetch(trustedDB RODatabase, retrieve func(*Ref) (Assertion, erro
 	return fetching(f)
 }
 
-// Precheck pre-checks whether adding the batch of assertions to the
-// given assertion database should fully succeed.
-func (b *Batch) Precheck(db *Database) error {
+func (b *Batch) precheck(db *Database) error {
 	db = db.WithStackedBackstore(NewMemoryBackstore())
 	return b.commitTo(db)
 }
 
+type CommitOptions struct {
+	// Precheck indicates whether to do a full consistency check
+	// before starting adding the batch.
+	Precheck bool
+}
+
 // CommitTo adds the batch of assertions to the given assertion database.
-func (b *Batch) CommitTo(db *Database) error {
+// Nothing will be committed if there are missing prerequisites, for a full
+// consistency check beforehand there is the Precheck option.
+func (b *Batch) CommitTo(db *Database, opts *CommitOptions) error {
+	if opts == nil {
+		opts = &CommitOptions{}
+	}
+	if opts.Precheck {
+		if err := b.precheck(db); err != nil {
+			return err
+		}
+	}
+
 	return b.commitTo(db)
 }
 
@@ -162,7 +179,7 @@ func (b *Batch) prereqSort(db *Database) error {
 	}
 
 	// put in prereq order using a fetcher
-	inPrereqOrder := make([]Assertion, 0, len(b.added))
+	ordered := make([]Assertion, 0, len(b.added))
 	retrieve := func(ref *Ref) (Assertion, error) {
 		a, err := b.bs.Get(ref.Type, ref.PrimaryKey, ref.Type.MaxSupportedFormat())
 		if IsNotFound(err) {
@@ -175,7 +192,7 @@ func (b *Batch) prereqSort(db *Database) error {
 		return a, nil
 	}
 	save := func(a Assertion) error {
-		inPrereqOrder = append(inPrereqOrder, a)
+		ordered = append(ordered, a)
 		return nil
 	}
 	f := NewFetcher(db, retrieve, save)
@@ -186,7 +203,7 @@ func (b *Batch) prereqSort(db *Database) error {
 		}
 	}
 
-	b.added = inPrereqOrder
+	b.added = ordered
 	b.inPrereqOrder = true
 	return nil
 }

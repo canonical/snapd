@@ -234,13 +234,22 @@ To get started from a pristine tree you want to do this:
 ./mkversion.sh
 cd cmd/
 autoreconf -i -f
-./configure --prefix=/usr --libexecdir=/usr/lib/snapd
+./configure --prefix=/usr --libexecdir=/usr/lib/snapd --enable-nvidia-multiarch --with-host-arch-triplet=$(dpkg-architecture -qDEB_HOST_MULTIARCH)"
 ```
 
 This will drop makefiles and let you build stuff. You may find the `make hack`
 target, available in `cmd/snap-confine` handy, it installs the locally built
 version on your system and reloads the apparmor profile.
 
+Note, the above configure options assume you are on Ubuntu and are generally
+necessary to run/test graphical applications with your local version of
+snap-confine. The `--with-host-arch-triplet` option sets your specific 
+architecture and `--enable-nvidia-multiarch` allows the host's graphics drivers
+and libraries to be shared with snaps. If you are on a distro other than
+Ubuntu, try `--enable-nvidia-biarch` (though you'll likely need to add further
+system-specific options too).
+
 ## Submitting patches
 
-Please run `make fmt` before sending your patches.
+Please run `(cd cmd; make fmt)` before sending your patches for the "C" part of
+the source code.

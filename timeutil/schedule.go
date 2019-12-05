@@ -119,8 +119,11 @@ func (w Week) String() string {
 	return day + strconv.Itoa(int(w.Pos))
 }
 
-// WeekSpan represents a span of weekdays between Start and End days. WeekSpan
-// may wrap around the week, eg. fri-mon is a span from Friday to Monday
+// WeekSpan represents a span of weekdays between Start and End days, which may
+// be a single day. WeekSpan may wrap around the week, eg. fri-mon is a span
+// from Friday to Monday, mon1-fri is a span from the first Monday to the
+// following Friday, while mon1 (internally, an equal start and end range)
+// represents the 1st Monday of a month.
 type WeekSpan struct {
 	Start Week
 	End   Week
@@ -133,6 +136,7 @@ func (ws WeekSpan) String() string {
 	return ws.Start.String()
 }
 
+// findNthWeekDay finds the nth occurrence of a given weekday in the month of t
 func findNthWeekDay(t time.Time, weekday time.Weekday, nthInMonth uint) time.Time {
 	// move to the beginning of the month
 	t = t.AddDate(0, 0, -t.Day()+1)
@@ -150,34 +154,159 @@ func findNthWeekDay(t time.Time, weekday time.Weekday, nthInMonth uint) time.Tim
 	return t
 }
 
+// findLastWeekDay finds the last occurrence of a given weekday in the month of t
+func findLastWeekDay(t time.Time, weekday time.Weekday) time.Time {
+	n := monthNext(t).Add(-24 * time.Hour)
+	for n.Weekday() != weekday {
+		n = n.Add(-24 * time.Hour)
+	}
+	return n
+}
+
+// matchingWeekdaysInMonth returns the number of occurrences of the weekday of t since
+// the start of the month until t event
+func matchingWeekdaysInMonth(t time.Time) int {
+	month := t.Month()
+	nth := 0
+	for n := t; n.Month() == month; n = n.Add(-7 * 24 * time.Hour) {
+		nth++
+	}
+	return nth
+}
+
 // Match checks if t is within the day span represented by ws.
 func (ws WeekSpan) Match(t time.Time) bool {
 	start, end := ws.Start, ws.End
 	wdStart, wdEnd := start.Weekday, end.Weekday
 
-	if start.Pos != EveryWeek {
-		if start.Pos == LastWeek {
-			// last week of the month
-			if !isLastWeekdayInMonth(t) {
-				return false
-			}
-		} else {
-			startDay := findNthWeekDay(t, start.Weekday, start.Pos)
-			endDay := findNthWeekDay(t, end.Weekday, end.Pos)
+	weekdayMatch := func(t time.Time) bool {
+		if wdStart <= wdEnd {
+			// single day (mon) or start < end (eg. mon-fri)
+			return t.Weekday() >= wdStart && t.Weekday() <= wdEnd
+		}
+		// wraps around the week end, eg. fri-mon
+		return t.Weekday() >= wdStart || t.Weekday() <= wdEnd
+	}
 
-			if t.Day() < startDay.Day() || t.Day() > endDay.Day() {
+	if start.Pos == EveryWeek && end.Pos == EveryWeek {
+		// generic weekday match, eg. mon-fri
+		return weekdayMatch(t)
+	}
+
+	// things that use a numbered weekday
+
+	// fun cases, eg (consider the calendar below):
+	//
+	// - mon1-fri, week span, start anchored at 1st Monday 06.08, matches:
+	// 06.08-10.08
+	// - mon-fri2, week span, end anchored at 2nd Friday 10.08, matches:
+	// 06.08-10.08
+	// - fri1-mon, week span, start anchored at 1st Friday 3.08, matches
+	// 03.08-06.08
+	// - mon-fri1, week span, end anchored at 1st Friday 3.08, matches
+	// 30.07-03.08, (crossing the month boundary)
+	// - fri4-thu, week span, end anchored at 4th Friday 27.07, matches
+	// 27.07-02.08, (crossing the month boundary), but also 24.08-30.08,
+	// which is within a single month
+	//
+	//     July 2018            August 2018
+	// Su Mo Tu We Th Fr Sa  Su Mo Tu We Th Fr Sa
+	//  1  2  3  4  5  6  7            1  2  3  4
+	//  8  9 10 11 12 13 14   5  6  7  8  9 10 11
+	// 15 16 17 18 19 20 21  12 13 14 15 16 17 18
+	// 22 23 24 25 26 27 28  19 20 21 22 23 24 25
+	// 29 30 31              26 27 28 29 30 31
+
+	// find out the range of week span, anchor sharing the same month as t
+	startDay, endDay := ws.dateRangeAnchoredAt(t)
+	anchoredAtStart := ws.AnchoredAtStart()
+
+	if t.After(endDay) || t.Before(startDay) {
+		// outside of dates range of the week span, consider edge cases:
+		// - next month if the span is anchored at the end (eg. mon-fri1 30.07-03.08, t=31.07)
+		// - previous month if the span is anchored at the start (eg. fri4-thu 27.07-02.08, t=01.08)
+
+		if anchoredAtStart {
+			// eg. fri4-thu, range anchored at previous month
+			if matchingWeekdaysInMonth(t) != 1 {
+				// no match if t is not within the first week
 				return false
 			}
-			return true
+			prevMonth := monthPrev(t)
+			startDay, endDay = ws.dateRangeAnchoredAt(prevMonth)
+		} else {
+			// eg. mon-fri1, range anchored at the next month
+			if !isLastWeekdayInMonth(t) {
+				// no match if t is not within the last week
+				return false
+			}
+			nextMonth := monthNext(t)
+			startDay, endDay = ws.dateRangeAnchoredAt(nextMonth)
+		}
+		// at this point we will check whether t matches the range that
+		// spills from the previous month or from the next month
+	}
+	outside := t.Before(startDay) || t.After(endDay)
+	return !outside
+}
+
+// monthNext returns the first day of the next month relative to t
+func monthNext(t time.Time) time.Time {
+	n := t
+	// advance by 28 days at most, so that we don't skip a 28 day February
+	n = n.AddDate(0, 0, 28)
+	for n.Month() == t.Month() {
+		n = n.Add(24 * time.Hour)
+	}
+	if n.Day() != 1 {
+		// backtrack if we didn't land on the first day yet
+		n = n.AddDate(0, 0, -n.Day()+1)
+	}
+	return n
+}
+
+// monthPrev returns the last day of previous month relative to t
+func monthPrev(t time.Time) time.Time {
+	return t.AddDate(0, 0, -1*(t.Day()+1))
+}
+
+// AnchoredAtStart returns true when the week span is anchored at the starting
+// point, or false otherwise
+func (ws WeekSpan) AnchoredAtStart() bool {
+	return ws.Start.Pos != EveryWeek
+}
+
+// dateRangeAnchoredAt returns the range of dates that match the week span, with the
+// anchor sharing the same month as t
+func (ws WeekSpan) dateRangeAnchoredAt(t time.Time) (start, end time.Time) {
+	weekPos := ws.End.Pos
+	anchoredAtStart := ws.AnchoredAtStart()
+	if anchoredAtStart {
+		weekPos = ws.Start.Pos
+	}
+	// first check the start/end dates in the same month as t
+	if weekPos != LastWeek {
+		start = findNthWeekDay(t, ws.Start.Weekday, weekPos)
+		end = findNthWeekDay(t, ws.End.Weekday, weekPos)
+	} else {
+		start = findLastWeekDay(t, ws.Start.Weekday)
+		end = findLastWeekDay(t, ws.End.Weekday)
+	}
+
+	// eg. mon1-mon span falls under the Equal && !singleDay case
+	if start.After(end) || (start.Equal(end) && !ws.IsSingleDay()) {
+		if anchoredAtStart {
+			end = end.Add(7 * 24 * time.Hour)
+		} else {
+			start = start.Add(-7 * 24 * time.Hour)
 		}
 	}
+	return start, end
+}
 
-	if wdStart <= wdEnd {
-		// single day (mon) or start < end (eg. mon-fri)
-		return t.Weekday() >= wdStart && t.Weekday() <= wdEnd
-	}
-	// wraps around the week end, eg. fri-mon
-	return t.Weekday() >= wdStart || t.Weekday() <= wdEnd
+// IsSingleDay returns true when the week span represents a single day
+func (ws WeekSpan) IsSingleDay() bool {
+	return ws.Start == ws.End
 }
 
 // ClockSpan represents a time span within 24h, potentially crossing days. For
@@ -498,9 +627,10 @@ func ParseLegacySchedule(scheduleSpec string) ([]*Schedule, error) {
 //     eventset = wdaylist / timelist / wdaylist "," timelist
 //
 //     wdaylist = wdayset *( "," wdayset )
-//     wdayset = wday / wdayspan
-//     wday =  ( "sun" / "mon" / "tue" / "wed" / "thu" / "fri" / "sat" ) [ DIGIT ]
-//     wdayspan = wday "-" wday
+//     wdayset = wday / wdaynumber / wdayspan
+//     wday =  ( "sun" / "mon" / "tue" / "wed" / "thu" / "fri" / "sat" )
+//     wdaynumber =  ( "sun" / "mon" / "tue" / "wed" / "thu" / "fri" / "sat" ) DIGIT
+//     wdayspan = wday "-" wday / wdaynumber "-" wday / wday "-" wdaynumber
 //
 //     timelist = timeset *( "," timeset )
 //     timeset = time / timespan
@@ -517,6 +647,10 @@ func ParseLegacySchedule(scheduleSpec string) ([]*Schedule, error) {
 //                                  on Wednesday, sometime between 22:00 and 23:00)
 // mon,wed  (Monday and on Wednesday)
 // mon,,wed (same as above)
+// mon1-wed (1st Monday of the month to the following Wednesday)
+// mon-wed1 (from the 1st Wednesday of the month to the prior Monday)
+// mon1 (1st Monday of the month)
+// mon1-mon (from the 1st Monday of the month to the following Monday)
 //
 // Returns a slice of schedules or an error if parsing failed
 func ParseSchedule(scheduleSpec string) ([]*Schedule, error) {
@@ -557,13 +691,23 @@ func parseWeekSpan(s string) (span WeekSpan, err error) {
 		parsed.End = parsed.Start
 	}
 
-	if parsed.End.Pos < parsed.Start.Pos {
-		// eg. mon4-mon1
-		return span, fmt.Errorf("cannot parse %q: unsupported schedule", s)
-	}
+	if (parsed.Start.Pos != EveryWeek) && (parsed.End.Pos != EveryWeek) {
+		// both ends have a week position set
 
-	if (parsed.Start.Pos != EveryWeek) != (parsed.End.Pos != EveryWeek) {
-		return span, fmt.Errorf("cannot parse %q: week number must be present for both weekdays or neither", s)
+		if parsed.End.Pos < parsed.Start.Pos {
+			// eg. mon4-mon1
+			return span, fmt.Errorf("cannot parse %q: unsupported schedule", s)
+		}
+
+		if !parsed.IsSingleDay() {
+			// ambiguous case that produces different schedules depending on
+			// the calendar, to avoid the ambiguity, anchor the schedule at
+			// the start of the week span, eg. mon1-tue2 -> mon1-tue
+			//
+			// TODO: error out instead of degrading when a
+			// deprecated span is used under the new rules
+			parsed.End.Pos = EveryWeek
+		}
 	}
 
 	return parsed, nil

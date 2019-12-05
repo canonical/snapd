@@ -238,6 +238,7 @@ func (s *postDebugSuite) TestGetDebugTimingsEnsureLatest(c *check.C) {
 	tmData := dataJSON[0].(map[string]interface{})
 	c.Check(tmData["change-id"], check.DeepEquals, "2")
 	c.Check(tmData["change-timings"], check.NotNil)
+	c.Check(tmData["total-duration"], check.NotNil)
 }
 
 func (s *postDebugSuite) TestGetDebugTimingsEnsureAll(c *check.C) {
@@ -247,10 +248,12 @@ func (s *postDebugSuite) TestGetDebugTimingsEnsureAll(c *check.C) {
 	tmData := dataJSON[0].(map[string]interface{})
 	c.Check(tmData["change-id"], check.DeepEquals, "1")
 	c.Check(tmData["change-timings"], check.NotNil)
+	c.Check(tmData["total-duration"], check.NotNil)
 
 	tmData = dataJSON[1].(map[string]interface{})
 	c.Check(tmData["change-id"], check.DeepEquals, "2")
 	c.Check(tmData["change-timings"], check.NotNil)
+	c.Check(tmData["total-duration"], check.NotNil)
 }
 
 func (s *postDebugSuite) TestGetDebugTimingsError(c *check.C) {
@@ -265,4 +268,24 @@ func (s *postDebugSuite) TestGetDebugTimingsError(c *check.C) {
 	c.Assert(err, check.IsNil)
 	rsp = getDebug(debugCmd, req, nil).(*resp)
 	c.Check(rsp.Status, check.Equals, 400)
+}
+
+func (s *postDebugSuite) TestMinLane(c *check.C) {
+	st := state.New(nil)
+	st.Lock()
+	defer st.Unlock()
+
+	t := st.NewTask("bar", "")
+	c.Check(MinLane(t), check.Equals, 0)
+
+	lane1 := st.NewLane()
+	t.JoinLane(lane1)
+	c.Check(MinLane(t), check.Equals, lane1)
+
+	lane2 := st.NewLane()
+	t.JoinLane(lane2)
+	c.Check(MinLane(t), check.Equals, lane1)
+
+	// sanity
+	c.Check(t.Lanes(), check.DeepEquals, []int{lane1, lane2})
 }

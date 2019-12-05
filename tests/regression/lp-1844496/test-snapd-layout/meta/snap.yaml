@@ -1,0 +1,11 @@
+name: test-snapd-layout
+version: 1
+base: core18
+apps:
+    sh:
+        command: bin/sh
+layout:
+    /usr/lib/x86_64-linux-gnu/wpe-webkit-1.0:
+        bind: $SNAP/usr/lib/x86_64-linux-gnu/wpe-webkit-1.0 
+    /usr/libexec/wpe-webkit-1.0:
+        bind: $SNAP/usr/wpe-webkit-1.0

@@ -20,6 +20,7 @@
 package channel
 
 import (
+	"errors"
 	"fmt"
 	"strings"
 
@@ -36,6 +37,36 @@ type Channel struct {
 	Track        string `json:"track"`
 	Risk         string `json:"risk"`
 	Branch       string `json:"branch,omitempty"`
+}
+
+func isSlash(r rune) bool { return r == '/' }
+
+// TODO: currently there's some overlap between the toplevel Full, and
+//       methods Clean, String, and Full. Needs further refactoring.
+
+func Full(s string) (string, error) {
+	if s == "" {
+		return "", nil
+	}
+	components := strings.FieldsFunc(s, isSlash)
+	switch len(components) {
+	case 0:
+		return "", nil
+	case 1:
+		if strutil.ListContains(channelRisks, components[0]) {
+			return "latest/" + components[0], nil
+		}
+		return components[0] + "/stable", nil
+	case 2:
+		if strutil.ListContains(channelRisks, components[0]) {
+			return "latest/" + strings.Join(components, "/"), nil
+		}
+		fallthrough
+	case 3:
+		return strings.Join(components, "/"), nil
+	default:
+		return "", errors.New("invalid channel")
+	}
 }
 
 // ParseVerbatim parses a string representing a store channel and
@@ -68,7 +99,7 @@ func ParseVerbatim(s string, architecture string) (Channel, error) {
 	}
 
 	if architecture == "" {
-		architecture = arch.UbuntuArchitecture()
+		architecture = arch.DpkgArchitecture()
 	}
 
 	ch := Channel{
@@ -144,10 +175,23 @@ func (c Channel) String() string {
 
 // Full returns the full name of the channel, inclusive the default track "latest".
 func (c *Channel) Full() string {
-	if c.Track == "" {
-		return "latest/" + c.Name
+	ch := c.String()
+	full, err := Full(ch)
+	if err != nil {
+		// unpossible
+		panic("channel.String() returned a malformed channel: " + ch)
 	}
-	return c.String()
+	return full
+}
+
+// VerbatimTrackOnly returns whether the channel represents a track only.
+func (c *Channel) VerbatimTrackOnly() bool {
+	return c.Track != "" && c.Risk == "" && c.Branch == ""
+}
+
+// VerbatimRiskOnly returns whether the channel represents a risk only.
+func (c *Channel) VerbatimRiskOnly() bool {
+	return c.Track == "" && c.Risk != "" && c.Branch == ""
 }
 
 func riskLevel(risk string) int {
@@ -199,4 +243,55 @@ func (c *Channel) Match(c1 *Channel) ChannelMatch {
 		Track:        c.Track == c1.Track,
 		Risk:         requestedRiskLevel >= rl1,
 	}
+}
+
+// Resolve resolves newChannel wrt channel, this means if newChannel
+// is risk/branch only it will preserve the track of channel. It
+// assumes that if both are not empty, channel is parseable.
+func Resolve(channel, newChannel string) (string, error) {
+	if newChannel == "" {
+		return channel, nil
+	}
+	if channel == "" {
+		return newChannel, nil
+	}
+	ch, err := ParseVerbatim(channel, "-")
+	if err != nil {
+		return "", err
+	}
+	p := strings.Split(newChannel, "/")
+	if strutil.ListContains(channelRisks, p[0]) && ch.Track != "" {
+		// risk/branch inherits the track if any
+		return ch.Track + "/" + newChannel, nil
+	}
+	return newChannel, nil
+}
+
+var ErrPinnedTrackSwitch = errors.New("cannot switch pinned track")
+
+// ResolvePinned resolves newChannel wrt a pinned track, newChannel
+// can only be risk/branch-only or have the same track, otherwise
+// ErrPinnedTrackSwitch is returned.
+func ResolvePinned(track, newChannel string) (string, error) {
+	if track == "" {
+		return newChannel, nil
+	}
+	ch, err := ParseVerbatim(track, "-")
+	if err != nil || !ch.VerbatimTrackOnly() {
+		return "", fmt.Errorf("invalid pinned track: %s", track)
+	}
+	if newChannel == "" {
+		return track, nil
+	}
+	trackPrefix := ch.Track + "/"
+	p := strings.Split(newChannel, "/")
+	if strutil.ListContains(channelRisks, p[0]) && ch.Track != "" {
+		// risk/branch inherits the track if any
+		return trackPrefix + newChannel, nil
+	}
+	if newChannel != track && !strings.HasPrefix(newChannel, trackPrefix) {
+		// the track is pinned
+		return "", ErrPinnedTrackSwitch
+	}
+	return newChannel, nil
 }

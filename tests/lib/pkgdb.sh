@@ -54,6 +54,9 @@ amazon_name_package() {
             xdelta3)
                 echo "xdelta"
                 ;;
+            openvswitch-switch)
+                echo "openvswitch"
+                ;;
             *)
                 echo "$i"
                 ;;
@@ -238,7 +241,7 @@ distro_install_package() {
         ;;
     esac
 
-    # fix dependency issue where libp11-kit0 needs to be downgraded to 
+    # fix dependency issue where libp11-kit0 needs to be downgraded to
     # install gnome-keyring
     case "$SPREAD_SYSTEM" in
         debian-9-*)
@@ -600,6 +603,7 @@ pkg_dependencies_ubuntu_classic(){
             echo "
                 gccgo-6
                 evolution-data-server
+                fwupd
                 gnome-online-accounts
                 packagekit
                 "
@@ -608,6 +612,7 @@ pkg_dependencies_ubuntu_classic(){
         ubuntu-16.04-64)
             echo "
                 evolution-data-server
+                fwupd
                 gccgo-6
                 gnome-online-accounts
                 kpartx
@@ -623,12 +628,14 @@ pkg_dependencies_ubuntu_classic(){
             echo "
                 gccgo-8
                 evolution-data-server
+                fwupd
                 packagekit
                 "
             ;;
-        ubuntu-19.04-64)
+        ubuntu-19.04-64|ubuntu-19.10-64)
             echo "
                 evolution-data-server
+                fwupd
                 packagekit
                 "
             ;;
@@ -641,6 +648,7 @@ pkg_dependencies_ubuntu_classic(){
             echo "
                 eatmydata
                 evolution-data-server
+                fwupd
                 net-tools
                 packagekit
                 sbuild
@@ -677,6 +685,7 @@ pkg_dependencies_fedora(){
         evolution-data-server
         expect
         fontconfig
+        fwupd
         git
         golang
         jq
@@ -704,6 +713,7 @@ pkg_dependencies_amazon(){
         dbus-x11
         expect
         fontconfig
+        fwupd
         git
         golang
         grub2-tools
@@ -731,6 +741,7 @@ pkg_dependencies_opensuse(){
         evolution-data-server
         expect
         fontconfig
+        fwupd
         git
         golang-packaging
         jq
@@ -757,6 +768,7 @@ pkg_dependencies_arch(){
     evolution-data-server
     expect
     fontconfig
+    fwupd
     git
     go
     go-tools

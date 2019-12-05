@@ -38,7 +38,7 @@ import (
 
 var shortFindHelp = i18n.G("Find packages to install")
 var longFindHelp = i18n.G(`
-The find command queries the store for available packages in the stable channel.
+The find command queries the store for available packages.
 
 With the --private flag, which requires the user to be logged-in to the store
 (see 'snap help login'), it instead searches for private snaps that the user
@@ -153,7 +153,7 @@ type cmdFind struct {
 	clientMixin
 	Private    bool        `long:"private"`
 	Narrow     bool        `long:"narrow"`
-	Section    SectionName `long:"section" optional:"true" optional-value:"show-all-sections-please" default:"no-section-specified"`
+	Section    SectionName `long:"section" optional:"true" optional-value:"show-all-sections-please" default:"no-section-specified" default-mask:"-"`
 	Positional struct {
 		Query string
 	} `positional-args:"yes"`
@@ -165,11 +165,11 @@ func init() {
 		return &cmdFind{}
 	}, colorDescs.also(map[string]string{
 		// TRANSLATORS: This should not start with a lowercase letter.
-		"private": i18n.G("Search private snaps"),
+		"private": i18n.G("Search private snaps."),
 		// TRANSLATORS: This should not start with a lowercase letter.
-		"narrow": i18n.G("Only search for snaps in “stable”"),
+		"narrow": i18n.G("Only search for snaps in “stable”."),
 		// TRANSLATORS: This should not start with a lowercase letter.
-		"section": i18n.G("Restrict the search to a given section"),
+		"section": i18n.G("Restrict the search to a given section."),
 	}), []argDesc{{
 		// TRANSLATORS: This needs to begin with < and end with >
 		name: i18n.G("<query>"),

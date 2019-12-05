@@ -84,6 +84,57 @@ const (
 		"sign-key-sha3-384: Jv8_JiHiIzJVcO9M55pPdqSDWUvuhfDIBJUS-3VW7F_idjix7Ffn5qMxB21ZQuij" +
 		"\n\n" +
 		"AXNpZw=="
+
+	core20ModelExample = `type: model
+authority-id: brand-id1
+series: 16
+brand-id: brand-id1
+model: baz-3000
+display-name: Baz 3000
+architecture: amd64
+system-user-authority: *
+base: core20
+store: brand-store
+snaps:
+  -
+    name: baz-linux
+    id: bazlinuxidididididididididididid
+    type: kernel
+    default-channel: 20
+  -
+    name: brand-gadget
+    id: brandgadgetdidididididididididid
+    type: gadget
+  -
+    name: other-base
+    id: otherbasedididididididididididid
+    type: base
+    modes:
+      - run
+    presence: required
+  -
+    name: nm
+    id: nmididididididididididididididid
+    modes:
+      - ephemeral
+      - run
+    default-channel: 1.0
+  -
+    name: myapp
+    id: myappdididididididididididididid
+    type: app
+    default-channel: 2.0
+  -
+    name: myappopt
+    id: myappoptidididididididididididid
+    type: app
+    presence: optional
+OTHERgrade: secured
+` + "TSLINE" +
+		"body-length: 0\n" +
+		"sign-key-sha3-384: Jv8_JiHiIzJVcO9M55pPdqSDWUvuhfDIBJUS-3VW7F_idjix7Ffn5qMxB21ZQuij" +
+		"\n\n" +
+		"AXNpZw=="
 )
 
 func (mods *modelSuite) TestDecodeOK(c *C) {
@@ -99,13 +150,56 @@ func (mods *modelSuite) TestDecodeOK(c *C) {
 	c.Check(model.Model(), Equals, "baz-3000")
 	c.Check(model.DisplayName(), Equals, "Baz 3000")
 	c.Check(model.Architecture(), Equals, "amd64")
+	c.Check(model.GadgetSnap(), DeepEquals, &asserts.ModelSnap{
+		Name:     "brand-gadget",
+		SnapType: "gadget",
+		Modes:    []string{"run"},
+		Presence: "required",
+	})
 	c.Check(model.Gadget(), Equals, "brand-gadget")
 	c.Check(model.GadgetTrack(), Equals, "")
+	c.Check(model.KernelSnap(), DeepEquals, &asserts.ModelSnap{
+		Name:     "baz-linux",
+		SnapType: "kernel",
+		Modes:    []string{"run"},
+		Presence: "required",
+	})
 	c.Check(model.Kernel(), Equals, "baz-linux")
 	c.Check(model.KernelTrack(), Equals, "")
 	c.Check(model.Base(), Equals, "core18")
+	c.Check(model.BaseSnap(), DeepEquals, &asserts.ModelSnap{
+		Name:     "core18",
+		SnapType: "base",
+		Modes:    []string{"run"},
+		Presence: "required",
+	})
 	c.Check(model.Store(), Equals, "brand-store")
-	c.Check(model.RequiredSnaps(), DeepEquals, []string{"foo", "bar"})
+	c.Check(model.Grade(), Equals, asserts.ModelGradeUnset)
+	allSnaps := model.AllSnaps()
+	c.Check(allSnaps, DeepEquals, []*asserts.ModelSnap{
+		model.KernelSnap(),
+		model.BaseSnap(),
+		model.GadgetSnap(),
+		{
+			Name:     "foo",
+			Modes:    []string{"run"},
+			Presence: "required",
+		},
+		{
+			Name:     "bar",
+			Modes:    []string{"run"},
+			Presence: "required",
+		},
+	})
+	// essential snaps included
+	reqSnaps := model.RequiredWithEssentialSnaps()
+	c.Check(reqSnaps, HasLen, len(allSnaps))
+	for i, r := range reqSnaps {
+		c.Check(r.SnapName(), Equals, allSnaps[i].Name)
+		c.Check(r.ID(), Equals, "")
+	}
+	// essential snaps excluded
+	c.Check(model.RequiredNoEssentialSnaps(), DeepEquals, reqSnaps[3:])
 	c.Check(model.SystemUserAuthority(), HasLen, 0)
 }
 
@@ -137,6 +231,7 @@ func (mods *modelSuite) TestDecodeBaseIsOptional(c *C) {
 	c.Assert(err, IsNil)
 	model = a.(*asserts.Model)
 	c.Check(model.Base(), Equals, "")
+	c.Check(model.BaseSnap(), IsNil)
 }
 
 func (mods *modelSuite) TestDecodeDisplayNameIsOptional(c *C) {
@@ -162,7 +257,7 @@ func (mods *modelSuite) TestDecodeRequiredSnapsAreOptional(c *C) {
 	a, err := asserts.Decode([]byte(encoded))
 	c.Assert(err, IsNil)
 	model := a.(*asserts.Model)
-	c.Check(model.RequiredSnaps(), HasLen, 0)
+	c.Check(model.RequiredNoEssentialSnaps(), HasLen, 0)
 }
 
 func (mods *modelSuite) TestDecodeValidatesSnapNames(c *C) {
@@ -275,6 +370,13 @@ func (mods *modelSuite) TestDecodeKernelTrack(c *C) {
 	a, err := asserts.Decode([]byte(encoded))
 	c.Assert(err, IsNil)
 	model := a.(*asserts.Model)
+	c.Check(model.KernelSnap(), DeepEquals, &asserts.ModelSnap{
+		Name:        "baz-linux",
+		SnapType:    "kernel",
+		Modes:       []string{"run"},
+		PinnedTrack: "18",
+		Presence:    "required",
+	})
 	c.Check(model.Kernel(), Equals, "baz-linux")
 	c.Check(model.KernelTrack(), Equals, "18")
 }
@@ -285,6 +387,13 @@ func (mods *modelSuite) TestDecodeGadgetTrack(c *C) {
 	a, err := asserts.Decode([]byte(encoded))
 	c.Assert(err, IsNil)
 	model := a.(*asserts.Model)
+	c.Check(model.GadgetSnap(), DeepEquals, &asserts.ModelSnap{
+		Name:        "brand-gadget",
+		SnapType:    "gadget",
+		Modes:       []string{"run"},
+		PinnedTrack: "18",
+		Presence:    "required",
+	})
 	c.Check(model.Gadget(), Equals, "brand-gadget")
 	c.Check(model.GadgetTrack(), Equals, "18")
 }
@@ -322,6 +431,7 @@ func (mods *modelSuite) TestDecodeInvalid(c *C) {
 		{"kernel: baz-linux\n", "kernel: baz-linux=stable\n", `"kernel" channel selector must be a track name`},
 		{"kernel: baz-linux\n", "kernel: baz-linux=18/beta\n", `"kernel" channel selector must be a track name only`},
 		{"kernel: baz-linux\n", "kernel:\n  - xyz \n", `"kernel" header must be a string`},
+		{"base: core18\n", "base:\n  - xyz \n", `"base" header must be a string`},
 		{"store: brand-store\n", "store:\n  - xyz\n", `"store" header must be a string`},
 		{mods.tsLine, "", `"timestamp" header is mandatory`},
 		{mods.tsLine, "timestamp: \n", `"timestamp" header should not be empty`},
@@ -330,6 +440,7 @@ func (mods *modelSuite) TestDecodeInvalid(c *C) {
 		{reqSnaps, "required-snaps:\n  -\n    - nested\n", `"required-snaps" header must be a list of strings`},
 		{sysUserAuths, "system-user-authority:\n  a: 1\n", `"system-user-authority" header must be '\*' or a list of account ids`},
 		{sysUserAuths, "system-user-authority:\n  - 5_6\n", `"system-user-authority" header must be '\*' or a list of account ids`},
+		{reqSnaps, "grade: dangerous\n", `cannot specify a grade for model without the extended snaps header`},
 	}
 
 	for _, test := range invalidTests {
@@ -387,11 +498,42 @@ func (mods *modelSuite) TestClassicDecodeOK(c *C) {
 	c.Check(model.DisplayName(), Equals, "Baz 3000")
 	c.Check(model.Classic(), Equals, true)
 	c.Check(model.Architecture(), Equals, "amd64")
+	c.Check(model.GadgetSnap(), DeepEquals, &asserts.ModelSnap{
+		Name:     "brand-gadget",
+		SnapType: "gadget",
+		Modes:    []string{"run"},
+		Presence: "required",
+	})
 	c.Check(model.Gadget(), Equals, "brand-gadget")
+	c.Check(model.KernelSnap(), IsNil)
 	c.Check(model.Kernel(), Equals, "")
 	c.Check(model.KernelTrack(), Equals, "")
+	c.Check(model.Base(), Equals, "")
+	c.Check(model.BaseSnap(), IsNil)
 	c.Check(model.Store(), Equals, "brand-store")
-	c.Check(model.RequiredSnaps(), DeepEquals, []string{"foo", "bar"})
+	allSnaps := model.AllSnaps()
+	c.Check(allSnaps, DeepEquals, []*asserts.ModelSnap{
+		model.GadgetSnap(),
+		{
+			Name:     "foo",
+			Modes:    []string{"run"},
+			Presence: "required",
+		},
+		{
+			Name:     "bar",
+			Modes:    []string{"run"},
+			Presence: "required",
+		},
+	})
+	// gadget included
+	reqSnaps := model.RequiredWithEssentialSnaps()
+	c.Check(reqSnaps, HasLen, len(allSnaps))
+	for i, r := range reqSnaps {
+		c.Check(r.SnapName(), Equals, allSnaps[i].Name)
+		c.Check(r.ID(), Equals, "")
+	}
+	// gadget excluded
+	c.Check(model.RequiredNoEssentialSnaps(), DeepEquals, reqSnaps[1:])
 }
 
 func (mods *modelSuite) TestClassicDecodeInvalid(c *C) {
@@ -403,6 +545,7 @@ func (mods *modelSuite) TestClassicDecodeInvalid(c *C) {
 		{"gadget: brand-gadget\n", "gadget:\n  - foo\n", `"gadget" header must be a string`},
 		{"gadget: brand-gadget\n", "kernel: brand-kernel\n", `cannot specify a kernel with a classic model`},
 		{"gadget: brand-gadget\n", "base: some-base\n", `cannot specify a base with a classic model`},
+		{"gadget: brand-gadget\n", "gadget:\n  - xyz\n", `"gadget" header must be a string`},
 	}
 
 	for _, test := range invalidTests {
@@ -422,5 +565,240 @@ func (mods *modelSuite) TestClassicDecodeGadgetAndArchOptional(c *C) {
 	model := a.(*asserts.Model)
 	c.Check(model.Classic(), Equals, true)
 	c.Check(model.Architecture(), Equals, "")
+	c.Check(model.GadgetSnap(), IsNil)
 	c.Check(model.Gadget(), Equals, "")
+	c.Check(model.GadgetTrack(), Equals, "")
+}
+
+func (mods *modelSuite) TestCore20DecodeOK(c *C) {
+	encoded := strings.Replace(core20ModelExample, "TSLINE", mods.tsLine, 1)
+	encoded = strings.Replace(encoded, "OTHER", "", 1)
+	a, err := asserts.Decode([]byte(encoded))
+	c.Assert(err, IsNil)
+	c.Check(a.Type(), Equals, asserts.ModelType)
+	model := a.(*asserts.Model)
+	c.Check(model.AuthorityID(), Equals, "brand-id1")
+	c.Check(model.Timestamp(), Equals, mods.ts)
+	c.Check(model.Series(), Equals, "16")
+	c.Check(model.BrandID(), Equals, "brand-id1")
+	c.Check(model.Model(), Equals, "baz-3000")
+	c.Check(model.DisplayName(), Equals, "Baz 3000")
+	c.Check(model.Architecture(), Equals, "amd64")
+	c.Check(model.GadgetSnap(), DeepEquals, &asserts.ModelSnap{
+		Name:           "brand-gadget",
+		SnapID:         "brandgadgetdidididididididididid",
+		SnapType:       "gadget",
+		Modes:          []string{"run", "ephemeral"},
+		DefaultChannel: "latest/stable",
+		Presence:       "required",
+	})
+	c.Check(model.Gadget(), Equals, "brand-gadget")
+	c.Check(model.GadgetTrack(), Equals, "")
+	c.Check(model.KernelSnap(), DeepEquals, &asserts.ModelSnap{
+		Name:           "baz-linux",
+		SnapID:         "bazlinuxidididididididididididid",
+		SnapType:       "kernel",
+		Modes:          []string{"run", "ephemeral"},
+		DefaultChannel: "20",
+		Presence:       "required",
+	})
+	c.Check(model.Kernel(), Equals, "baz-linux")
+	c.Check(model.KernelTrack(), Equals, "")
+	c.Check(model.Base(), Equals, "core20")
+	c.Check(model.BaseSnap(), DeepEquals, &asserts.ModelSnap{
+		Name:           "core20",
+		SnapType:       "base",
+		Modes:          []string{"run", "ephemeral"},
+		DefaultChannel: "latest/stable",
+		Presence:       "required",
+	})
+	c.Check(model.Store(), Equals, "brand-store")
+	c.Check(model.Grade(), Equals, asserts.ModelSecured)
+	allSnaps := model.AllSnaps()
+	c.Check(allSnaps, DeepEquals, []*asserts.ModelSnap{
+		model.KernelSnap(),
+		model.BaseSnap(),
+		model.GadgetSnap(),
+		{
+			Name:           "other-base",
+			SnapID:         "otherbasedididididididididididid",
+			SnapType:       "base",
+			Modes:          []string{"run"},
+			DefaultChannel: "latest/stable",
+			Presence:       "required",
+		},
+		{
+			Name:           "nm",
+			SnapID:         "nmididididididididididididididid",
+			SnapType:       "app",
+			Modes:          []string{"ephemeral", "run"},
+			DefaultChannel: "1.0",
+			Presence:       "required",
+		},
+		{
+			Name:           "myapp",
+			SnapID:         "myappdididididididididididididid",
+			SnapType:       "app",
+			Modes:          []string{"run"},
+			DefaultChannel: "2.0",
+			Presence:       "required",
+		},
+		{
+			Name:           "myappopt",
+			SnapID:         "myappoptidididididididididididid",
+			SnapType:       "app",
+			Modes:          []string{"run"},
+			DefaultChannel: "latest/stable",
+			Presence:       "optional",
+		},
+	})
+	// essential snaps included
+	reqSnaps := model.RequiredWithEssentialSnaps()
+	c.Check(reqSnaps, HasLen, len(allSnaps)-1)
+	for i, r := range reqSnaps {
+		c.Check(r.SnapName(), Equals, allSnaps[i].Name)
+		c.Check(r.ID(), Equals, allSnaps[i].SnapID)
+	}
+	// essential snaps excluded
+	c.Check(model.RequiredNoEssentialSnaps(), DeepEquals, reqSnaps[3:])
+	c.Check(model.SystemUserAuthority(), HasLen, 0)
+}
+
+func (mods *modelSuite) TestCore20ExplictBootBase(c *C) {
+	encoded := strings.Replace(core20ModelExample, "TSLINE", mods.tsLine, 1)
+	encoded = strings.Replace(encoded, "OTHER", `  -
+    name: core20
+    id: core20ididididididididididididid
+    type: base
+    default-channel: latest/candidate
+`, 1)
+	a, err := asserts.Decode([]byte(encoded))
+	c.Assert(err, IsNil)
+	c.Check(a.Type(), Equals, asserts.ModelType)
+	model := a.(*asserts.Model)
+	c.Check(model.BaseSnap(), DeepEquals, &asserts.ModelSnap{
+		Name:           "core20",
+		SnapID:         "core20ididididididididididididid",
+		SnapType:       "base",
+		Modes:          []string{"run", "ephemeral"},
+		DefaultChannel: "latest/candidate",
+		Presence:       "required",
+	})
+}
+
+func (mods *modelSuite) TestCore20ExplictSnapd(c *C) {
+	encoded := strings.Replace(core20ModelExample, "TSLINE", mods.tsLine, 1)
+	encoded = strings.Replace(encoded, "OTHER", `  -
+    name: snapd
+    id: snapdidididididididididididididd
+    type: snapd
+    default-channel: latest/edge
+`, 1)
+	a, err := asserts.Decode([]byte(encoded))
+	c.Assert(err, IsNil)
+	c.Check(a.Type(), Equals, asserts.ModelType)
+	model := a.(*asserts.Model)
+	snapdSnap := model.AllSnaps()[0]
+	c.Check(snapdSnap, DeepEquals, &asserts.ModelSnap{
+		Name:           "snapd",
+		SnapID:         "snapdidididididididididididididd",
+		SnapType:       "snapd",
+		Modes:          []string{"run", "ephemeral"},
+		DefaultChannel: "latest/edge",
+		Presence:       "required",
+	})
+}
+
+func (mods *modelSuite) TestCore20GradeOptionalDefaultSigned(c *C) {
+	encoded := strings.Replace(core20ModelExample, "TSLINE", mods.tsLine, 1)
+	encoded = strings.Replace(encoded, "OTHER", "", 1)
+	encoded = strings.Replace(encoded, "grade: secured\n", "", 1)
+
+	a, err := asserts.Decode([]byte(encoded))
+	c.Assert(err, IsNil)
+	c.Check(a.Type(), Equals, asserts.ModelType)
+	model := a.(*asserts.Model)
+	c.Check(model.Grade(), Equals, asserts.ModelSigned)
+}
+
+func (mods *modelSuite) TestCore20ValidGrades(c *C) {
+	encoded := strings.Replace(core20ModelExample, "TSLINE", mods.tsLine, 1)
+	encoded = strings.Replace(encoded, "OTHER", "", 1)
+
+	for _, grade := range []string{"signed", "secured", "dangerous"} {
+		ex := strings.Replace(encoded, "grade: secured\n", fmt.Sprintf("grade: %s\n", grade), 1)
+		a, err := asserts.Decode([]byte(ex))
+		c.Assert(err, IsNil)
+		c.Check(a.Type(), Equals, asserts.ModelType)
+		model := a.(*asserts.Model)
+		c.Check(string(model.Grade()), Equals, grade)
+	}
+}
+
+func (mods *modelSuite) TestCore20GradeDangerous(c *C) {
+	encoded := strings.Replace(core20ModelExample, "TSLINE", mods.tsLine, 1)
+	encoded = strings.Replace(encoded, "OTHER", "", 1)
+	encoded = strings.Replace(encoded, "grade: secured\n", "grade: dangerous\n", 1)
+	// snap ids are optional with grade dangerous to allow working
+	// with local/not pushed yet to the store snaps
+	encoded = strings.Replace(encoded, "    id: myappdididididididididididididid\n", "", 1)
+	a, err := asserts.Decode([]byte(encoded))
+	c.Assert(err, IsNil)
+	c.Check(a.Type(), Equals, asserts.ModelType)
+	model := a.(*asserts.Model)
+	c.Check(model.Grade(), Equals, asserts.ModelDangerous)
+	allSnaps := model.AllSnaps()
+	c.Check(allSnaps[len(allSnaps)-2], DeepEquals, &asserts.ModelSnap{
+		Name:           "myapp",
+		SnapType:       "app",
+		Modes:          []string{"run"},
+		DefaultChannel: "2.0",
+		Presence:       "required",
+	})
+}
+
+func (mods *modelSuite) TestCore20DecodeInvalid(c *C) {
+	encoded := strings.Replace(core20ModelExample, "TSLINE", mods.tsLine, 1)
+
+	snapsStanza := encoded[strings.Index(encoded, "snaps:"):strings.Index(encoded, "grade:")]
+
+	invalidTests := []struct{ original, invalid, expectedErr string }{
+		{"base: core20\n", "", `"base" header is mandatory`},
+		{"OTHER", "classic: true\n", `cannot use extended snaps header for a classic model \(yet\)`},
+		{snapsStanza, "snaps: snap\n", `"snaps" header must be a list of maps`},
+		{snapsStanza, "snaps:\n  - snap\n", `"snaps" header must be a list of maps`},
+		{"name: myapp\n", "other: 1\n", `"name" of snap is mandatory`},
+		{"name: myapp\n", "name: myapp_2\n", `invalid snap name "myapp_2"`},
+		{"id: myappdididididididididididididid\n", "id: 2\n", `"id" of snap "myapp" contains invalid characters: "2"`},
+		{"    id: myappdididididididididididididid\n", "", `"id" of snap "myapp" is mandatory for stable model`},
+		{"type: gadget\n", "type:\n      - g\n", `"type" of snap "brand-gadget" must be a string`},
+		{"type: app\n", "type: thing\n", `"type" of snap "myappopt" must be one of must be one of app|base|gadget|kernel|core|snapd`},
+		{"modes:\n      - run\n", "modes: run\n", `"modes" of snap "other-base" must be a list of strings`},
+		{"default-channel: 20\n", "default-channel: edge\n", `default channel for snap "baz-linux" must specify a track`},
+		{"default-channel: 2.0\n", "default-channel:\n      - x\n", `"default-channel" of snap "myapp" must be a string`},
+		{"default-channel: 2.0\n", "default-channel: 2.0/xyz/z\n", `invalid default channel for snap "myapp": invalid risk in channel name: 2.0/xyz/z`},
+		{"presence: optional\n", "presence:\n      - opt\n", `"presence" of snap "myappopt" must be a string`},
+		{"presence: optional\n", "presence: no\n", `"presence" of snap "myappopt" must be one of must be one of required|optional`},
+		{"OTHER", "  -\n    name: myapp\n    id: myappdididididididididididididid\n", `cannot list the same snap "myapp" multiple times`},
+		{"OTHER", "  -\n    name: myapp2\n    id: myappdididididididididididididid\n", `cannot specify the same snap id "myappdididididididididididididid" multiple times, specified for snaps "myapp" and "myapp2"`},
+		{"OTHER", "  -\n    name: kernel2\n    id: kernel2didididididididididididid\n    type: kernel\n", `cannot specify multiple kernel snaps: "baz-linux" and "kernel2"`},
+		{"OTHER", "  -\n    name: gadget2\n    id: gadget2didididididididididididid\n    type: gadget\n", `cannot specify multiple gadget snaps: "brand-gadget" and "gadget2"`},
+		{"type: gadget\n", "type: gadget\n    presence: required\n", `essential snaps are always available, cannot specify modes or presence for snap "brand-gadget"`},
+		{"type: gadget\n", "type: gadget\n    modes:\n      - run\n", `essential snaps are always available, cannot specify modes or presence for snap "brand-gadget"`},
+		{"type: kernel\n", "type: kernel\n    presence: required\n", `essential snaps are always available, cannot specify modes or presence for snap "baz-linux"`},
+		{"OTHER", "  -\n    name: core20\n    id: core20ididididididididididididid\n    type: base\n    presence: optional\n", `essential snaps are always available, cannot specify modes or presence for snap "core20"`},
+		{"type: gadget\n", "type: app\n", `one "snaps" header entry must specify the model gadget`},
+		{"type: kernel\n", "type: app\n", `one "snaps" header entry must specify the model kernel`},
+		{"OTHER", "  -\n    name: core20\n    id: core20ididididididididididididid\n    type: app\n", `boot base "core20" must specify type "base", not "app"`},
+		{"OTHER", "kernel: foo\n", `cannot specify separate "kernel" header once using the extended snaps header`},
+		{"OTHER", "gadget: foo\n", `cannot specify separate "gadget" header once using the extended snaps header`},
+		{"OTHER", "required-snaps:\n  - foo\n", `cannot specify separate "required-snaps" header once using the extended snaps header`},
+		{"grade: secured\n", "grade: foo\n", `grade for model must be secured|signed|dangerous`},
+	}
+	for _, test := range invalidTests {
+		invalid := strings.Replace(encoded, test.original, test.invalid, 1)
+		invalid = strings.Replace(invalid, "OTHER", "", 1)
+		_, err := asserts.Decode([]byte(invalid))
+		c.Check(err, ErrorMatches, modelErrPrefix+test.expectedErr)
+	}
 }

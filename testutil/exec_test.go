@@ -22,6 +22,7 @@ package testutil
 import (
 	"fmt"
 	"io/ioutil"
+	"os"
 	"os/exec"
 	"path/filepath"
 
@@ -115,4 +116,24 @@ func (s *mockCommandSuite) TestMockNoShellchecksWhenNotAvailable(c *check.C) {
 		{"some-command"},
 	})
 	c.Assert(mockShellcheck.Calls(), check.HasLen, 0)
+}
+
+func (s *mockCommandSuite) TestMockCreateAbsPathDir(c *check.C) {
+	// this is an absolute path
+	dir := c.MkDir()
+
+	absPath := filepath.Join(dir, "this/is/nested/command")
+	mock := MockCommand(c, absPath, "")
+
+	c.Assert(exec.Command(absPath).Run(), check.IsNil)
+	c.Assert(mock.Calls(), check.DeepEquals, [][]string{
+		{"command"},
+	})
+
+	binDirRo := filepath.Join(dir, "ro")
+	err := os.MkdirAll(binDirRo, 0000)
+	c.Assert(err, check.IsNil)
+	absPathBad := filepath.Join(binDirRo, "this/fails/command")
+	exp := fmt.Sprintf(`cannot create the directory for mocked command "%[1]s/ro/this/fails/command": mkdir %[1]s/ro/this: permission denied`, dir)
+	c.Assert(func() { MockCommand(c, absPathBad, "") }, check.Panics, exp)
 }

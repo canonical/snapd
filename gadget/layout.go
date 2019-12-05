@@ -50,6 +50,17 @@ type LaidOutVolume struct {
 	RootDir string
 }
 
+// PartiallyLaidOutVolume defines the layout of volume structures, but lacks the
+// details about the layout of raw image content within the bare structures.
+type PartiallyLaidOutVolume struct {
+	*Volume
+	// SectorSize sector size of the volume
+	SectorSize Size
+	// LaidOutStructure is a list of structures within the volume, sorted
+	// by their start offsets
+	LaidOutStructure []LaidOutStructure
+}
+
 // LaidOutStructure describes a VolumeStructure that has been placed within the
 // volume
 type LaidOutStructure struct {
@@ -99,16 +110,13 @@ func (p LaidOutContent) String() string {
 	return fmt.Sprintf("#%v (source:%q)", p.Index, p.Source)
 }
 
-// LayoutVolume attempts to lay out the volume using provided constraints
-func LayoutVolume(gadgetRootDir string, volume *Volume, constraints LayoutConstraints) (*LaidOutVolume, error) {
+func layoutVolumeStructures(volume *Volume, constraints LayoutConstraints) (structures []LaidOutStructure, byName map[string]*LaidOutStructure, err error) {
 	previousEnd := Size(0)
-	farthestEnd := Size(0)
-	fartherstOffsetWrite := Size(0)
-	structures := make([]LaidOutStructure, len(volume.Structure))
-	structuresByName := make(map[string]*LaidOutStructure, len(volume.Structure))
+	structures = make([]LaidOutStructure, len(volume.Structure))
+	byName = make(map[string]*LaidOutStructure, len(volume.Structure))
 
 	if constraints.SectorSize == 0 {
-		return nil, fmt.Errorf("cannot lay out volume, invalid constraints: sector size cannot be 0")
+		return nil, nil, fmt.Errorf("cannot lay out volume, invalid constraints: sector size cannot be 0")
 	}
 
 	for idx, s := range volume.Structure {
@@ -132,20 +140,17 @@ func LayoutVolume(gadgetRootDir string, volume *Volume, constraints LayoutConstr
 
 		if ps.EffectiveRole() != MBR {
 			if s.Size%constraints.SectorSize != 0 {
-				return nil, fmt.Errorf("cannot lay out volume, structure %v size is not a multiple of sector size %v",
+				return nil, nil, fmt.Errorf("cannot lay out volume, structure %v size is not a multiple of sector size %v",
 					ps, constraints.SectorSize)
 			}
 		}
 
 		if ps.Name != "" {
-			structuresByName[ps.Name] = &ps
+			byName[ps.Name] = &ps
 		}
 
 		structures[idx] = ps
 
-		if end > farthestEnd {
-			farthestEnd = end
-		}
 		previousEnd = end
 	}
 
@@ -155,21 +160,55 @@ func LayoutVolume(gadgetRootDir string, volume *Volume, constraints LayoutConstr
 	previousEnd = Size(0)
 	for idx, ps := range structures {
 		if ps.StartOffset < previousEnd {
-			return nil, fmt.Errorf("cannot lay out volume, structure %v overlaps with preceding structure %v", ps, structures[idx-1])
+			return nil, nil, fmt.Errorf("cannot lay out volume, structure %v overlaps with preceding structure %v", ps, structures[idx-1])
 		}
 		previousEnd = ps.StartOffset + ps.Size
 
-		offsetWrite, err := resolveOffsetWrite(ps.OffsetWrite, structuresByName)
+		offsetWrite, err := resolveOffsetWrite(ps.OffsetWrite, byName)
 		if err != nil {
-			return nil, fmt.Errorf("cannot resolve offset-write of structure %v: %v", ps, err)
+			return nil, nil, fmt.Errorf("cannot resolve offset-write of structure %v: %v", ps, err)
 		}
 		structures[idx].AbsoluteOffsetWrite = offsetWrite
+	}
 
-		if offsetWrite != nil && *offsetWrite > fartherstOffsetWrite {
-			fartherstOffsetWrite = *offsetWrite
+	return structures, byName, nil
+}
+
+// LayoutVolumePartially attempts to lay out only the structures in the volume using provided constraints
+func LayoutVolumePartially(volume *Volume, constraints LayoutConstraints) (*PartiallyLaidOutVolume, error) {
+	structures, _, err := layoutVolumeStructures(volume, constraints)
+	if err != nil {
+		return nil, err
+	}
+	vol := &PartiallyLaidOutVolume{
+		Volume:           volume,
+		SectorSize:       constraints.SectorSize,
+		LaidOutStructure: structures,
+	}
+	return vol, nil
+}
+
+// LayoutVolume attempts to completely lay out the volume, that is the
+// structures and their content, using provided constraints
+func LayoutVolume(gadgetRootDir string, volume *Volume, constraints LayoutConstraints) (*LaidOutVolume, error) {
+
+	structures, byName, err := layoutVolumeStructures(volume, constraints)
+	if err != nil {
+		return nil, err
+	}
+
+	farthestEnd := Size(0)
+	fartherstOffsetWrite := Size(0)
+
+	for idx, ps := range structures {
+		if ps.AbsoluteOffsetWrite != nil && *ps.AbsoluteOffsetWrite > fartherstOffsetWrite {
+			fartherstOffsetWrite = *ps.AbsoluteOffsetWrite
+		}
+		if end := ps.StartOffset + ps.Size; end > farthestEnd {
+			farthestEnd = end
 		}
 
-		content, err := layOutStructureContent(gadgetRootDir, &structures[idx], structuresByName)
+		content, err := layOutStructureContent(gadgetRootDir, &structures[idx], byName)
 		if err != nil {
 			return nil, err
 		}
@@ -213,7 +252,7 @@ func getImageSize(path string) (Size, error) {
 }
 
 func layOutStructureContent(gadgetRootDir string, ps *LaidOutStructure, known map[string]*LaidOutStructure) ([]LaidOutContent, error) {
-	if !ps.IsBare() {
+	if ps.HasFilesystem() {
 		// structures with a filesystem do not need any extra layout
 		return nil, nil
 	}
@@ -311,4 +350,35 @@ func ShiftStructureTo(ps LaidOutStructure, offset Size) LaidOutStructure {
 		newPs.LaidOutContent[idx] = newPc
 	}
 	return newPs
+}
+
+func isLayoutCompatible(current, new *PartiallyLaidOutVolume) error {
+	if current.ID != new.ID {
+		return fmt.Errorf("incompatible ID change from %v to %v", current.ID, new.ID)
+	}
+	if current.EffectiveSchema() != new.EffectiveSchema() {
+		return fmt.Errorf("incompatible schema change from %v to %v",
+			current.EffectiveSchema(), new.EffectiveSchema())
+	}
+	if current.Bootloader != new.Bootloader {
+		return fmt.Errorf("incompatible bootloader change from %v to %v",
+			current.Bootloader, new.Bootloader)
+	}
+
+	// XXX: the code below asssumes both volumes have the same number of
+	// structures, this limitation may be lifter later
+	if len(current.LaidOutStructure) != len(new.LaidOutStructure) {
+		return fmt.Errorf("incompatible change in the number of structures from %v to %v",
+			len(current.LaidOutStructure), len(new.LaidOutStructure))
+	}
+
+	// at the structure level we expect the volume to be identical
+	for i := range current.LaidOutStructure {
+		from := &current.LaidOutStructure[i]
+		to := &new.LaidOutStructure[i]
+		if err := canUpdateStructure(from, to, new.EffectiveSchema()); err != nil {
+			return fmt.Errorf("incompatible structure %v change: %v", to, err)
+		}
+	}
+	return nil
 }

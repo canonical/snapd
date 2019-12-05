@@ -213,8 +213,6 @@ func (s *autostartSuite) TestTryAutostartAppValid(c *C) {
 	si := snaptest.MockSnapCurrent(c, mockYaml, &snap.SideInfo{Revision: snap.R("x2")})
 
 	appWrapperPath := si.Apps["foo"].WrapperPath()
-	err := os.MkdirAll(filepath.Dir(appWrapperPath), 0755)
-	c.Assert(err, IsNil)
 
 	appCmd := testutil.MockCommand(c, appWrapperPath, "")
 	defer appCmd.Restore()

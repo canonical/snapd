@@ -74,7 +74,7 @@ func Partition(image string, pv *LaidOutVolume) error {
 	fmt.Fprintf(script, "\n")
 
 	for _, ps := range pv.LaidOutStructure {
-		if ps.Type == "bare" || ps.Type == "mbr" {
+		if !ps.IsPartition() {
 			continue
 		}
 

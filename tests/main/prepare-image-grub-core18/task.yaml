@@ -11,14 +11,14 @@ environment:
 
 restore: |
     rm -rf "$ROOT"
-    
+
 execute: |
     echo Running prepare-image
-    su -c "SNAPPY_USE_STAGING_STORE=$SNAPPY_USE_STAGING_STORE snap prepare-image --channel edge --snap test-snapd-tools $TESTSLIB/assertions/ubuntu-core-18-amd64.model $ROOT" test
+    su -c "SNAPPY_USE_STAGING_STORE=$SNAPPY_USE_STAGING_STORE snap prepare-image --channel edge --snap test-snapd-tools-core18 $TESTSLIB/assertions/ubuntu-core-18-amd64.model $ROOT" test
 
     echo Verifying the result
     ls -lR "$IMAGE"
-    for f in pc pc-kernel core18 snapd test-snapd-tools; do
+    for f in pc pc-kernel core18 snapd test-snapd-tools-core18; do
         ls "$IMAGE"/var/lib/snapd/seed/snaps/"${f}"*.snap
     done
     MATCH snap_core=core18 < "$IMAGE"/boot/grub/grubenv

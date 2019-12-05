@@ -5,6 +5,8 @@ summary: |
 systems: [ubuntu-core-1*]
 
 execute: |
+    #shellcheck source=tests/lib/names.sh
+    . "$TESTSLIB"/names.sh
     #shellcheck source=tests/lib/systems.sh
     . "$TESTSLIB"/systems.sh
 
@@ -12,9 +14,9 @@ execute: |
     while ! snap changes | grep -q "Done.*Initialize system state"; do sleep 1; done
 
     echo "We have a model assertion"
-    snap known model | MATCH "series: 16"    
+    snap model --assertion | MATCH "series: 16"
 
-    if ! snap known model|grep "brand-id: canonical" ; then
+    if ! snap model --verbose | grep "brand-id:\s+ canonical" ; then
        echo "Not a canonical model. Skipping."
        exit 0
     fi
@@ -23,13 +25,21 @@ execute: |
     while ! snap changes | grep -q "Done.*Initialize device"; do sleep 1; done
 
     echo "Check we have a serial"
-    snap known serial|MATCH "authority-id: canonical"
-    snap known serial|MATCH "brand-id: canonical"
-    if is_core18_system; then
-        snap known serial | MATCH "model: ubuntu-core-18-amd64"
-    else
-        snap known serial | MATCH "model: pc"
-    fi
+    snap model --serial --assertion | MATCH "authority-id: canonical"
+    snap model --serial --assertion | MATCH "brand-id: canonical"
+    case "$SPREAD_SYSTEM" in
+        ubuntu-core-18-64)
+            snap model --serial --assertion | MATCH "model: ubuntu-core-18-amd64"
+            ;;
+        ubuntu-core-18-arm-*)
+            snap model --serial --assertion | MATCH "model: ubuntu-core-18-$gadget_name"
+            ;;
+        ubuntu-core-16-64)
+            snap model --serial --assertion | MATCH "model: pc"
+            ;;
+        *)
+            snap model --serial --assertion | MATCH "model: $gadget_name"
+    esac
 
     echo "Make sure we could acquire a session macaroon"
     snap find pc

@@ -127,6 +127,5 @@ func init() {
 		implicitOnCore:       true,
 		implicitOnClassic:    true,
 		baseDeclarationSlots: homeBaseDeclarationSlots,
-		reservedForOS:        true,
 	}})
 }

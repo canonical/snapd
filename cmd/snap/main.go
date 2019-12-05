@@ -87,10 +87,13 @@ type cmdInfo struct {
 	name, shortHelp, longHelp string
 	builder                   func() flags.Commander
 	hidden                    bool
-	optDescs                  map[string]string
-	argDescs                  []argDesc
-	alias                     string
-	extra                     func(*flags.Command)
+	// completeHidden set to true forces completion even of
+	// a hidden command
+	completeHidden bool
+	optDescs       map[string]string
+	argDescs       []argDesc
+	alias          string
+	extra          func(*flags.Command)
 }
 
 // commands holds information about all non-debug commands.
@@ -201,6 +204,30 @@ func firstNonOptionIsRun() bool {
 	return false
 }
 
+// noCompletion marks command descriptions of commands that should not
+// be completed
+var noCompletion = make(map[string]bool)
+
+func markForNoCompletion(ci *cmdInfo) {
+	if ci.hidden && !ci.completeHidden {
+		if ci.shortHelp == "" {
+			logger.Panicf("%q missing short help", ci.name)
+		}
+		noCompletion[ci.shortHelp] = true
+	}
+}
+
+// completionHandler filters out unwanted completions based on
+// the noCompletion map before dumping them to stdout.
+func completionHandler(comps []flags.Completion) {
+	for _, comp := range comps {
+		if noCompletion[comp.Description] {
+			continue
+		}
+		fmt.Fprintln(Stdout, comp.Item)
+	}
+}
+
 // Parser creates and populates a fresh parser.
 // Since commands have local state a fresh parser is required to isolate tests
 // from each other.
@@ -214,6 +241,7 @@ func Parser(cli *client.Client) *flags.Parser {
 		flagopts |= flags.PassAfterNonOption
 	}
 	parser := flags.NewParser(&optionsData, flagopts)
+	parser.CompletionHandler = completionHandler
 	parser.ShortDescription = i18n.G("Tool to interact with snaps")
 	parser.LongDescription = longSnapDescription
 	// hide the unhelpful "[OPTIONS]" from help output
@@ -225,8 +253,19 @@ func Parser(cli *client.Client) *flags.Parser {
 	// add --help like what go-flags would do for us, but hidden
 	addHelp(parser)
 
+	seen := make(map[string]bool, len(commands)+len(debugCommands))
+	checkUnique := func(ci *cmdInfo, kind string) {
+		if seen[ci.shortHelp] && ci.shortHelp != "Internal" && ci.shortHelp != "Deprecated (hidden)" {
+			logger.Panicf(`%scommand %q has an already employed description != "Internal"|"Deprecated (hidden)": %s`, kind, ci.name, ci.shortHelp)
+		}
+		seen[ci.shortHelp] = true
+	}
+
 	// Add all regular commands
 	for _, c := range commands {
+		checkUnique(c, "")
+		markForNoCompletion(c)
+
 		obj := c.builder()
 		if x, ok := obj.(clientSetter); ok {
 			x.setClient(cli)
@@ -290,6 +329,9 @@ func Parser(cli *client.Client) *flags.Parser {
 	}
 	// Add all the sub-commands of the debug command
 	for _, c := range debugCommands {
+		checkUnique(c, "debug ")
+		markForNoCompletion(c)
+
 		obj := c.builder()
 		if x, ok := obj.(clientSetter); ok {
 			x.setClient(cli)

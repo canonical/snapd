@@ -43,16 +43,17 @@ import (
 func Test(t *testing.T) { TestingT(t) }
 
 type clientSuite struct {
-	cli     *client.Client
-	req     *http.Request
-	reqs    []*http.Request
-	rsp     string
-	rsps    []string
-	err     error
-	doCalls int
-	header  http.Header
-	status  int
-	restore func()
+	cli           *client.Client
+	req           *http.Request
+	reqs          []*http.Request
+	rsp           string
+	rsps          []string
+	err           error
+	doCalls       int
+	header        http.Header
+	status        int
+	contentLength int64
+	restore       func()
 }
 
 var _ = Suite(&clientSuite{})
@@ -70,10 +71,11 @@ func (cs *clientSuite) SetUpTest(c *C) {
 	cs.header = nil
 	cs.status = 200
 	cs.doCalls = 0
+	cs.contentLength = 0
 
 	dirs.SetRootDir(c.MkDir())
 
-	cs.restore = client.MockDoRetry(time.Millisecond, 10*time.Millisecond)
+	cs.restore = client.MockDoTimings(time.Millisecond, 10*time.Millisecond)
 }
 
 func (cs *clientSuite) TearDownTest(c *C) {
@@ -89,9 +91,10 @@ func (cs *clientSuite) Do(req *http.Request) (*http.Response, error) {
 		body = cs.rsps[cs.doCalls]
 	}
 	rsp := &http.Response{
-		Body:       ioutil.NopCloser(strings.NewReader(body)),
-		Header:     cs.header,
-		StatusCode: cs.status,
+		Body:          ioutil.NopCloser(strings.NewReader(body)),
+		Header:        cs.header,
+		StatusCode:    cs.status,
+		ContentLength: cs.contentLength,
 	}
 	cs.doCalls++
 	return rsp, cs.err
@@ -105,7 +108,7 @@ func (cs *clientSuite) TestNewPanics(c *C) {
 
 func (cs *clientSuite) TestClientDoReportsErrors(c *C) {
 	cs.err = errors.New("ouchie")
-	_, err := cs.cli.Do("GET", "/", nil, nil, nil)
+	_, err := cs.cli.Do("GET", "/", nil, nil, nil, client.DoFlags{})
 	c.Check(err, ErrorMatches, "cannot communicate with server: ouchie")
 	if cs.doCalls < 2 {
 		c.Fatalf("do did not retry")
@@ -116,7 +119,7 @@ func (cs *clientSuite) TestClientWorks(c *C) {
 	var v []int
 	cs.rsp = `[1,2]`
 	reqBody := ioutil.NopCloser(strings.NewReader(""))
-	statusCode, err := cs.cli.Do("GET", "/this", nil, reqBody, &v)
+	statusCode, err := cs.cli.Do("GET", "/this", nil, reqBody, &v, client.DoFlags{})
 	c.Check(err, IsNil)
 	c.Check(statusCode, Equals, 200)
 	c.Check(v, DeepEquals, []int{1, 2})
@@ -132,7 +135,7 @@ func (cs *clientSuite) TestClientUnderstandsStatusCode(c *C) {
 	cs.status = 202
 	cs.rsp = `[1,2]`
 	reqBody := ioutil.NopCloser(strings.NewReader(""))
-	statusCode, err := cs.cli.Do("GET", "/this", nil, reqBody, &v)
+	statusCode, err := cs.cli.Do("GET", "/this", nil, reqBody, &v, client.DoFlags{})
 	c.Check(err, IsNil)
 	c.Check(statusCode, Equals, 202)
 	c.Check(v, DeepEquals, []int{1, 2})
@@ -148,7 +151,7 @@ func (cs *clientSuite) TestClientDefaultsToNoAuthorization(c *C) {
 	defer os.Unsetenv(client.TestAuthFileEnvKey)
 
 	var v string
-	_, _ = cs.cli.Do("GET", "/this", nil, nil, &v)
+	_, _ = cs.cli.Do("GET", "/this", nil, nil, &v, client.DoFlags{})
 	c.Assert(cs.req, NotNil)
 	authorization := cs.req.Header.Get("Authorization")
 	c.Check(authorization, Equals, "")
@@ -166,7 +169,7 @@ func (cs *clientSuite) TestClientSetsAuthorization(c *C) {
 	c.Assert(err, IsNil)
 
 	var v string
-	_, _ = cs.cli.Do("GET", "/this", nil, nil, &v)
+	_, _ = cs.cli.Do("GET", "/this", nil, nil, &v, client.DoFlags{})
 	authorization := cs.req.Header.Get("Authorization")
 	c.Check(authorization, Equals, `Macaroon root="macaroon", discharge="discharge"`)
 }
@@ -185,7 +188,7 @@ func (cs *clientSuite) TestClientHonorsDisableAuth(c *C) {
 	var v string
 	cli := client.New(&client.Config{DisableAuth: true})
 	cli.SetDoer(cs)
-	_, _ = cli.Do("GET", "/this", nil, nil, &v)
+	_, _ = cli.Do("GET", "/this", nil, nil, &v, client.DoFlags{})
 	authorization := cs.req.Header.Get("Authorization")
 	c.Check(authorization, Equals, "")
 }
@@ -194,13 +197,13 @@ func (cs *clientSuite) TestClientHonorsInteractive(c *C) {
 	var v string
 	cli := client.New(&client.Config{Interactive: false})
 	cli.SetDoer(cs)
-	_, _ = cli.Do("GET", "/this", nil, nil, &v)
+	_, _ = cli.Do("GET", "/this", nil, nil, &v, client.DoFlags{})
 	interactive := cs.req.Header.Get(client.AllowInteractionHeader)
 	c.Check(interactive, Equals, "")
 
 	cli = client.New(&client.Config{Interactive: true})
 	cli.SetDoer(cs)
-	_, _ = cli.Do("GET", "/this", nil, nil, &v)
+	_, _ = cli.Do("GET", "/this", nil, nil, &v, client.DoFlags{})
 	interactive = cs.req.Header.Get(client.AllowInteractionHeader)
 	c.Check(interactive, Equals, "true")
 }
@@ -238,6 +241,8 @@ func (cs *clientSuite) TestClientSysInfo(c *C) {
                       "on-classic": true,
                       "build-id": "1234",
                       "confinement": "strict",
+                      "architecture": "TI-99/4A",
+                      "virtualization": "MESS",
                       "sandbox-features": {"backend": ["feature-1", "feature-2"]}}}`
 	sysInfo, err := cs.cli.SysInfo()
 	c.Check(err, IsNil)
@@ -253,7 +258,9 @@ func (cs *clientSuite) TestClientSysInfo(c *C) {
 		SandboxFeatures: map[string][]string{
 			"backend": {"feature-1", "feature-2"},
 		},
-		BuildID: "1234",
+		BuildID:        "1234",
+		Architecture:   "TI-99/4A",
+		Virtualization: "MESS",
 	})
 }
 
@@ -261,14 +268,19 @@ func (cs *clientSuite) TestServerVersion(c *C) {
 	cs.rsp = `{"type": "sync", "result":
                      {"series": "16",
                       "version": "2",
-                      "os-release": {"id": "zyggy", "version-id": "123"}}}`
+                      "os-release": {"id": "zyggy", "version-id": "123"},
+                      "architecture": "m32",
+                      "virtualization": "qemu"
+}}}`
 	version, err := cs.cli.ServerVersion()
 	c.Check(err, IsNil)
 	c.Check(version, DeepEquals, &client.ServerVersion{
-		Version:     "2",
-		Series:      "16",
-		OSID:        "zyggy",
-		OSVersionID: "123",
+		Version:        "2",
+		Series:         "16",
+		OSID:           "zyggy",
+		OSVersionID:    "123",
+		Architecture:   "m32",
+		Virtualization: "qemu",
 	})
 }
 
@@ -483,7 +495,7 @@ func (cs *clientSuite) TestUserAgent(c *C) {
 	cli.SetDoer(cs)
 
 	var v string
-	_, _ = cli.Do("GET", "/", nil, nil, &v)
+	_, _ = cli.Do("GET", "/", nil, nil, &v, client.DoFlags{})
 	c.Assert(cs.req, NotNil)
 	c.Check(cs.req.Header.Get("User-Agent"), Equals, "some-agent/9.87")
 }
@@ -601,4 +613,25 @@ func (cs *clientSuite) TestDebugGet(c *C) {
 	c.Check(cs.reqs[0].Method, Equals, "GET")
 	c.Check(cs.reqs[0].URL.Path, Equals, "/v2/debug")
 	c.Check(cs.reqs[0].URL.Query(), DeepEquals, url.Values{"aspect": []string{"do-something"}, "foo": []string{"bar"}})
+}
+
+type integrationSuite struct{}
+
+var _ = Suite(&integrationSuite{})
+
+func (cs *integrationSuite) TestClientTimeoutLP1837804(c *C) {
+	restore := client.MockDoTimings(time.Millisecond, 5*time.Millisecond)
+	defer restore()
+
+	testServer := httptest.NewServer(http.HandlerFunc(func(res http.ResponseWriter, req *http.Request) {
+		time.Sleep(25 * time.Millisecond)
+	}))
+	defer func() { testServer.Close() }()
+
+	cli := client.New(&client.Config{BaseURL: testServer.URL})
+	_, err := cli.Do("GET", "/", nil, nil, nil, client.DoFlags{})
+	c.Assert(err, ErrorMatches, `.* timeout exceeded while waiting for response`)
+
+	_, err = cli.Do("POST", "/", nil, nil, nil, client.DoFlags{})
+	c.Assert(err, ErrorMatches, `.* timeout exceeded while waiting for response`)
 }

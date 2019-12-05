@@ -25,6 +25,31 @@ disable_kernel_rate_limiting() {
     #sysctl -w kernel.printk_ratelimit=0
 }
 
+disable_journald_rate_limiting() {
+    # Disable journald rate limiting
+    mkdir -p /etc/systemd/journald.conf.d
+    # The RateLimitIntervalSec key is not supported on some systemd versions causing
+    # the journal rate limit could be considered as not valid and discarded in concecuence.
+    # RateLimitInterval key is supported in old systemd versions and in new ones as well,
+    # maintaining backward compatibility.
+    cat <<-EOF > /etc/systemd/journald.conf.d/no-rate-limit.conf
+    [Journal]
+    RateLimitInterval=0
+    RateLimitBurst=0
+EOF
+    systemctl restart systemd-journald.service
+}
+
+disable_journald_start_limiting() {
+    # Disable journald start limiting
+    mkdir -p /etc/systemd/system/systemd-journald.service.d
+    cat <<-EOF > /etc/systemd/system/systemd-journald.service.d/no-start-limit.conf
+    [Unit]
+    StartLimitBurst=0
+EOF
+    systemctl daemon-reload
+}
+
 ensure_jq() {
     if command -v jq; then
         return
@@ -105,12 +130,6 @@ update_core_snap_for_classic_reexec() {
     rm squashfs-root/usr/lib/snapd/* squashfs-root/usr/bin/snap
     # and copy in the current libexec
     cp -a "$LIBEXECDIR"/snapd/* squashfs-root/usr/lib/snapd/
-    case "$SPREAD_SYSTEM" in
-        fedora-*|centos-*|amazon-*)
-            # RPM can rewrite shebang to #!/usr/bin/sh
-            sed -i -e '1 s;#!/usr/bin/sh;#!/bin/sh;' squashfs-root/usr/lib/snapd/snap-device-helper
-            ;;
-    esac
     # also the binaries themselves
     cp -a /usr/bin/snap squashfs-root/usr/bin/
     # make sure bin/snapctl is a symlink to lib/
@@ -231,13 +250,18 @@ prepare_classic() {
     # Some systems (google:ubuntu-16.04-64) ship with a broken sshguard
     # unit. Stop the broken unit to not confuse the "degraded-boot" test.
     #
+    # Some other (debian-sid) fail in fwupd-refresh.service
+    #
     # FIXME: fix the ubuntu-16.04-64 image
-    if systemctl list-unit-files | grep sshguard.service; then
-        if ! systemctl status sshguard.service; then
-            systemctl stop sshguard.service
-	    systemctl reset-failed sshguard.service
+    # FIXME2: fix the debian-sid-64 image
+    for svc in fwupd-refresh.service sshguard.service; do
+        if systemctl list-unit-files | grep "$svc"; then
+            if systemctl is-failed "$svc"; then
+                systemctl stop "$svc"
+	        systemctl reset-failed "$svc"
+            fi
         fi
-    fi
+    done
 
     setup_systemd_snapd_overrides
 
@@ -259,15 +283,11 @@ prepare_classic() {
 
         # Cache snaps
         # shellcheck disable=SC2086
-        cache_snaps ${PRE_CACHE_SNAPS}
+        cache_snaps core ${PRE_CACHE_SNAPS}
 
         echo "Cache the snaps profiler snap"
         if [ "$PROFILE_SNAPS" = 1 ]; then
-            if is_core18_system; then
-                cache_snaps test-snapd-profiler-core18
-            else
-                cache_snaps test-snapd-profiler
-            fi
+            cache_snaps test-snapd-profiler
         fi
 
         snap list | not grep core || exit 1
@@ -410,7 +430,7 @@ EOF
         # ubuntu-image channel to that of the gadget, so that we don't
         # need to download it
         snap download --channel="$KERNEL_CHANNEL" pc-kernel
-        
+
         EXTRA_FUNDAMENTAL="--extra-snaps $PWD/pc-kernel_*.snap"
         IMAGE_CHANNEL="$GADGET_CHANNEL"
     fi
@@ -438,7 +458,7 @@ EOF
                            "$EXTRA_FUNDAMENTAL" \
                            --extra-snaps "${extra_snap[0]}" \
                            --output "$IMAGE_HOME/$IMAGE"
-    rm -f ./pc-kernel_*.{snap,assert} ./pc_*.{snap,assert}
+    rm -f ./pc-kernel_*.{snap,assert} ./pc_*.{snap,assert} ./snapd_*.{snap,assert}
 
     # mount fresh image and add all our SPREAD_PROJECT data
     kpartx -avs "$IMAGE_HOME/$IMAGE"
@@ -461,7 +481,7 @@ EOF
           --exclude /gopath/bin/govendor \
           --exclude /gopath/pkg/ \
           /home/gopath /mnt/user-data/
-        
+
     # now modify the image
     if is_core18_system; then
         UNPACK_DIR="/tmp/core18-snap"
@@ -509,12 +529,12 @@ EOF
         grep -v "^root:" "$UNPACK_DIR/etc/$f" > /mnt/system-data/root/test-etc/"$f"
         # append this systems root user so that linode can connect
         grep "^root:" /etc/"$f" >> /mnt/system-data/root/test-etc/"$f"
-        
+
         # make sure the group is as expected
         chgrp --reference "$UNPACK_DIR/etc/$f" /mnt/system-data/root/test-etc/"$f"
         # now bind mount read-only those passwd files on boot
         cat >/mnt/system-data/etc/systemd/system/etc-"$f".mount <<EOF
-[Unit]  
+[Unit]
 Description=Mount root/test-etc/$f over system etc/$f
 Before=ssh.service
 
@@ -528,7 +548,7 @@ Options=bind,ro
 WantedBy=multi-user.target
 EOF
         ln -s /etc/systemd/system/etc-"$f".mount /mnt/system-data/etc/systemd/system/multi-user.target.wants/etc-"$f".mount
-        
+
         # create /var/lib/extrausers/$f
         # append ubuntu, test user for the testing
         grep "^test:" /etc/$f >> /mnt/system-data/var/lib/extrausers/"$f"
@@ -547,7 +567,7 @@ EOF
     # inside and outside which is a pain (see 12345 above), but
     # using the ids directly is the wrong kind of fragile
     chown --verbose test:test /mnt/user-data/test
-    
+
     # we do what sync-dirs is normally doing on boot, but because
     # we have subdirs/files in /etc/systemd/system (created below)
     # the writeable-path sync-boot won't work
@@ -598,6 +618,9 @@ prepare_ubuntu_core() {
         REBOOT
     fi
 
+    disable_journald_rate_limiting
+    disable_journald_start_limiting
+
     # verify after the first reboot that we are now in core18 world
     if [ "$SPREAD_REBOOT" = 1 ]; then
         echo "Ensure we are now in an all-snap world"
@@ -608,12 +631,14 @@ prepare_ubuntu_core() {
     fi
 
     # Wait for the snap command to become available.
-    for i in $(seq 120); do
-        if [ "$(command -v snap)" = "/usr/bin/snap" ] && snap version | grep -q 'snapd +1337.*'; then
-            break
-        fi
-        sleep 1
-    done
+    if [ "$SPREAD_BACKEND" != "external" ]; then
+        for i in $(seq 120); do
+            if [ "$(command -v snap)" = "/usr/bin/snap" ] && snap version | grep -q 'snapd +1337.*'; then
+                break
+            fi
+            sleep 1
+        done
+    fi
 
     # Wait for seeding to finish.
     snap wait system seed.loaded
@@ -649,6 +674,10 @@ prepare_ubuntu_core() {
         snap alias "$rsync_snap".rsync rsync
     fi
 
+    # Cache snaps
+    # shellcheck disable=SC2086
+    cache_snaps ${PRE_CACHE_SNAPS}
+
     echo "Ensure the core snap is cached"
     # Cache snaps
     if is_core18_system; then
@@ -657,11 +686,16 @@ prepare_ubuntu_core() {
             snap list
             exit 1
         fi
-        cache_snaps core
+        cache_snaps core test-snapd-sh-core18
     fi
+
     echo "Cache the snaps profiler snap"
     if [ "$PROFILE_SNAPS" = 1 ]; then
-        cache_snaps test-snapd-profiler
+        if is_core18_system; then
+            cache_snaps test-snapd-profiler-core18
+        else
+            cache_snaps test-snapd-profiler
+        fi
     fi
 
     disable_refreshes

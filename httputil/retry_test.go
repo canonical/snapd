@@ -30,8 +30,6 @@ import (
 	"sync"
 	"time"
 
-	"golang.org/x/net/http2"
-
 	. "gopkg.in/check.v1"
 	"gopkg.in/retry.v1"
 
@@ -495,7 +493,7 @@ func (s *retrySuite) TestRetryOnHttp2ProtocolErrors(c *C) {
 		return nil, &url.Error{
 			Op:  "Get",
 			URL: "http://...",
-			Err: http2.StreamError{Code: http2.ErrCodeProtocol},
+			Err: fmt.Errorf("http.http2StreamError{StreamID:0x1, Code:0x1, Cause:error(nil)}"),
 		}
 	}
 	readResponseBody := func(resp *http.Response) error {

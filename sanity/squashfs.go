@@ -34,8 +34,7 @@ import (
 	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/osutil/squashfs"
-	"github.com/snapcore/snapd/release"
-	"github.com/snapcore/snapd/selinux"
+	"github.com/snapcore/snapd/sandbox/selinux"
 )
 
 func init() {
@@ -70,7 +69,22 @@ INcAFWRghMtyMiQn5iUWVeqVVJQIwOVh8QmLJ5aGF8wMsIgfBaNgFIyCUTAKRsEoGAWjYBSMglEw
 bAEA+f+YuAAQAAA=
 `)
 
+var fuseBinary = "mount.fuse"
+
+func firstCheckFuse() error {
+	if squashfs.NeedsFuse() {
+		if _, err := exec.LookPath(fuseBinary); err != nil {
+			return fmt.Errorf(`The "fuse" filesystem is required on this system but not available. Please try to install the fuse package.`)
+		}
+	}
+	return nil
+}
+
 func checkSquashfsMount() error {
+	if err := firstCheckFuse(); err != nil {
+		return err
+	}
+
 	tmpSquashfsFile, err := ioutil.TempFile("", "sanity-squashfs-")
 	if err != nil {
 		return err
@@ -99,7 +113,7 @@ func checkSquashfsMount() error {
 		return err
 	}
 	options := []string{"-t", fstype}
-	if release.SELinuxLevel() != release.NoSELinux {
+	if selinux.ProbedLevel() != selinux.Unsupported {
 		if ctx := selinux.SnapMountContext(); ctx != "" {
 			options = append(options, "-o", "context="+ctx)
 		}

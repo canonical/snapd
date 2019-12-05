@@ -111,17 +111,17 @@ refresh_to_new_core(){
         echo "Refreshing the core/snapd snap"
         if is_classic_nested_system; then
             execute_remote "snap refresh core --${NEW_CHANNEL}"
-            execute_remote "snap info core" | grep -E "^tracking: +${NEW_CHANNEL}"
+            execute_remote "snap info core" | grep -E "^tracking: +latest/${NEW_CHANNEL}"
         fi
 
         if is_core_18_nested_system; then
             execute_remote "snap refresh snapd --${NEW_CHANNEL}"
-            execute_remote "snap info snapd" | grep -E "^tracking: +${NEW_CHANNEL}"
+            execute_remote "snap info snapd" | grep -E "^tracking: +latest/${NEW_CHANNEL}"
         else
             execute_remote "snap refresh core --${NEW_CHANNEL}"
             wait_for_no_ssh
             wait_for_ssh
-            execute_remote "snap info core" | grep -E "^tracking: +${NEW_CHANNEL}"
+            execute_remote "snap info core" | grep -E "^tracking: +latest/${NEW_CHANNEL}"
         fi
     fi
 }

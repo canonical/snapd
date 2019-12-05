@@ -50,6 +50,8 @@
 
 #define MAX_BUF 1000
 
+static void sc_detach_views_of_writable(sc_distro distro, bool normal_mode);
+
 // TODO: simplify this, after all it is just a tmpfs
 // TODO: fold this into bootstrap
 static void setup_private_mount(const char *snap_name)
@@ -241,10 +243,10 @@ static void sc_bootstrap_mount_namespace(const struct sc_mount_config *config)
 	// replicate the state of the root filesystem into the scratch directory.
 	sc_do_mount(config->rootfs_dir, scratch_dir, NULL, MS_REC | MS_BIND,
 		    NULL);
-	// Make the scratch directory recursively private. Nothing done there will
-	// be shared with any peer group, This effectively detaches us from the
-	// original namespace and coupled with pivot_root below serves as the
-	// foundation of the mount sandbox.
+	// Make the scratch directory recursively slave. Nothing done there will be
+	// shared with the initial mount namespace. This effectively detaches us,
+	// in one way, from the original namespace and coupled with pivot_root
+	// below serves as the foundation of the mount sandbox.
 	sc_do_mount("none", scratch_dir, NULL, MS_REC | MS_SLAVE, NULL);
 	// Bind mount certain directories from the host filesystem to the scratch
 	// directory. By default mount events will propagate in both into and out
@@ -406,10 +408,14 @@ static void sc_bootstrap_mount_namespace(const struct sc_mount_config *config)
 	// the this directory on the host filesystem may not match the location in
 	// the desired root filesystem. In the "core" and "ubuntu-core" snaps the
 	// directory is always /snap. On the host it is a build-time configuration
-	// option stored in SNAP_MOUNT_DIR.
-	sc_must_snprintf(dst, sizeof dst, "%s/snap", scratch_dir);
-	sc_do_mount(SNAP_MOUNT_DIR, dst, NULL, MS_BIND | MS_REC, NULL);
-	sc_do_mount("none", dst, NULL, MS_REC | MS_SLAVE, NULL);
+	// option stored in SNAP_MOUNT_DIR. In legacy mode (or in other words, not
+	// in normal mode), we don't need to do this because /snap is fixed and
+	// already contains the correct view of the mounted snaps.
+	if (config->normal_mode) {
+		sc_must_snprintf(dst, sizeof dst, "%s/snap", scratch_dir);
+		sc_do_mount(SNAP_MOUNT_DIR, dst, NULL, MS_BIND | MS_REC, NULL);
+		sc_do_mount("none", dst, NULL, MS_REC | MS_SLAVE, NULL);
+	}
 	// Create the hostfs directory if one is missing. This directory is a part
 	// of packaging now so perhaps this code can be removed later.
 	if (access(SC_HOSTFS_DIR, F_OK) != 0) {
@@ -505,6 +511,43 @@ static void sc_bootstrap_mount_namespace(const struct sc_mount_config *config)
 	// mount table and software inspecting the mount table may become confused.
 	sc_must_snprintf(src, sizeof src, "%s/proc", SC_HOSTFS_DIR);
 	sc_do_umount(src, UMOUNT_NOFOLLOW | MNT_DETACH);
+	// Detach both views of /writable: the one from hostfs and the one directly
+	// visible in /writable. Interfaces don't grant access to this directory
+	// and it has a large duplicated view of many mount points.  Note that this
+	// is only applicable to ubuntu-core systems.
+	sc_detach_views_of_writable(config->distro, config->normal_mode);
+}
+
+static void sc_detach_views_of_writable(sc_distro distro, bool normal_mode)
+{
+	// Note that prior to detaching either mount point we switch the
+	// propagation to private to both limit the change to just this view and to
+	// prevent otherwise occurring event propagation from self-conflicting and
+	// returning EBUSY. A similar approach is used by snap-update-ns and is
+	// documented in umount(2).
+	const char *writable_dir = "/writable";
+	const char *hostfs_writable_dir = "/var/lib/snapd/hostfs/writable";
+
+	// Writable only exists on ubuntu-core.
+	if (distro == SC_DISTRO_CLASSIC) {
+		return;
+	}
+	// On all core distributions we see /var/lib/snapd/hostfs/writable that
+	// exposes writable, with a structure specific to ubuntu-core.
+	debug("detaching %s", hostfs_writable_dir);
+	sc_do_mount("none", hostfs_writable_dir, NULL,
+		    MS_REC | MS_PRIVATE, NULL);
+	sc_do_umount(hostfs_writable_dir, UMOUNT_NOFOLLOW | MNT_DETACH);
+
+	// On ubuntu-core 16, when the executed snap uses core as base we also see
+	// the /writable that we directly inherited from the initial mount
+	// namespace.
+	if (distro == SC_DISTRO_CORE16 && !normal_mode) {
+		debug("detaching %s", writable_dir);
+		sc_do_mount("none", writable_dir, NULL, MS_REC | MS_PRIVATE,
+			    NULL);
+		sc_do_umount(writable_dir, UMOUNT_NOFOLLOW | MNT_DETACH);
+	}
 }
 
 /**
@@ -699,4 +742,51 @@ void sc_setup_user_mounts(struct sc_apparmor *apparmor, int snap_update_ns_fd,
 	// but don't propagate our own changes.
 	sc_do_mount("none", "/", NULL, MS_REC | MS_SLAVE, NULL);
 	sc_call_snap_update_ns_as_user(snap_update_ns_fd, snap_name, apparmor);
+}
+
+void sc_ensure_snap_dir_shared_mounts(void)
+{
+	const char *dirs[] = { SNAP_MOUNT_DIR, "/var/snap", NULL };
+	for (int i = 0; dirs[i] != NULL; i++) {
+		const char *dir = dirs[i];
+		if (!is_mounted_with_shared_option(dir)) {
+			/* Since this directory isn't yet shared (but it should be),
+			 * recursively bind mount it, then recursively share it so that
+			 * changes to the host are seen in the snap and vice-versa. This
+			 * allows us to fine-tune propagation events elsewhere for this new
+			 * mountpoint.
+			 *
+			 * Not using MS_SLAVE because it's too late for SNAP_MOUNT_DIR,
+			 * since snaps are already mounted, and it's not needed for
+			 * /var/snap.
+			 */
+			sc_do_mount(dir, dir, "none", MS_BIND | MS_REC, 0);
+			sc_do_mount("none", dir, NULL, MS_REC | MS_SHARED,
+				    NULL);
+		}
+	}
+}
+
+void sc_setup_parallel_instance_classic_mounts(const char *snap_name,
+					       const char *snap_instance_name)
+{
+	char src[PATH_MAX] = { 0 };
+	char dst[PATH_MAX] = { 0 };
+
+	const char *dirs[] = { SNAP_MOUNT_DIR, "/var/snap", NULL };
+	for (int i = 0; dirs[i] != NULL; i++) {
+		const char *dir = dirs[i];
+		sc_do_mount("none", dir, NULL, MS_REC | MS_SLAVE, NULL);
+	}
+
+	/* Mount SNAP_MOUNT_DIR/<snap>_<key> on SNAP_MOUNT_DIR/<snap> */
+	sc_must_snprintf(src, sizeof src, "%s/%s", SNAP_MOUNT_DIR,
+			 snap_instance_name);
+	sc_must_snprintf(dst, sizeof dst, "%s/%s", SNAP_MOUNT_DIR, snap_name);
+	sc_do_mount(src, dst, "none", MS_BIND | MS_REC, 0);
+
+	/* Mount /var/snap/<snap>_<key> on /var/snap/<snap> */
+	sc_must_snprintf(src, sizeof src, "/var/snap/%s", snap_instance_name);
+	sc_must_snprintf(dst, sizeof dst, "/var/snap/%s", snap_name);
+	sc_do_mount(src, dst, "none", MS_BIND | MS_REC, 0);
 }

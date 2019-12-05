@@ -325,6 +325,8 @@ optional_policy(`
 # snapd runs journalctl to fetch logs
 optional_policy(`
   journalctl_run(snappy_t, snappy_roles)
+  # and kills journalctl once the logs have been fetched
+  allow snappy_t journalctl_t:process sigkill;
 ')
 
 # only pops up in cloud images where cloud-init.target is incorrectly labeled
@@ -340,6 +342,9 @@ files_var_filetrans(snappy_t, fonts_cache_t, dir, "fontconfig")
 libs_manage_lib_dirs(snappy_t)
 libs_manage_lib_files(snappy_t)
 fs_getattr_xattr_fs(snappy_t)
+# probing cgroup version, /sys/fs/cgroup is a tmpfs for v1 or cgroup for v2
+fs_getattr_tmpfs(snappy_t)
+fs_getattr_cgroup(snappy_t)
 # snapd checks whether <snap>.mnt exists before running the mount namespace
 # helper tool
 # fs_getattr_nsfs_files() is not available in selinux devel on CentOS 7.x
@@ -624,6 +629,11 @@ userdom_search_user_tmp_dirs(snappy_cli_t)
 # execute snapd internal tools
 # needed to grab a version information from snap-seccomp
 can_exec(snappy_cli_t, snappy_exec_t)
+
+# probing cgroup version, /sys/fs/cgroup is a tmpfs for v1 or cgroup for v2
+fs_getattr_tmpfs(snappy_cli_t)
+fs_getattr_cgroup(snappy_cli_t)
+
 
 ########################################
 #

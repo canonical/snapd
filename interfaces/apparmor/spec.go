@@ -42,7 +42,7 @@ type Specification struct {
 	snippets map[string][]string
 	// updateNS describe parts of apparmor policy for snap-update-ns executing
 	// on behalf of a given snap.
-	updateNS []string
+	updateNS strutil.OrderedSet
 
 	// AppArmor deny rules cannot be undone by allow rules which makes
 	// deny rules difficult to work with arbitrary combinations of
@@ -92,7 +92,17 @@ func (spec *Specification) AddSnippet(snippet string) {
 
 // AddUpdateNS adds a new apparmor snippet for the snap-update-ns program.
 func (spec *Specification) AddUpdateNS(snippet string) {
-	spec.updateNS = append(spec.updateNS, snippet)
+	spec.updateNS.Put(snippet)
+}
+
+// AddUpdateNSf formats and adds a new apparmor snippet for the snap-update-ns program.
+func (spec *Specification) AddUpdateNSf(f string, args ...interface{}) {
+	spec.AddUpdateNS(fmt.Sprintf(f, args...))
+}
+
+// UpdateNSIndexOf returns the index of a previously added snippet.
+func (spec *Specification) UpdateNSIndexOf(snippet string) (idx int, ok bool) {
+	return spec.updateNS.IndexOf(snippet)
 }
 
 // AddLayout adds apparmor snippets based on the layout of the snap.
@@ -145,40 +155,44 @@ func (spec *Specification) AddLayout(si *snap.Info) {
 		}
 		sort.Strings(spec.snippets[tag])
 	}
+
+	emit := spec.AddUpdateNSf
+
 	// Append update-ns snippets that allow constructing the layout.
 	for _, path := range paths {
-		var buf bytes.Buffer
 		l := si.Layout[path]
-		fmt.Fprintf(&buf, "  # Layout %s\n", l.String())
+		emit("  # Layout %s\n", l.String())
 		path := si.ExpandSnapVariables(l.Path)
 		switch {
 		case l.Bind != "":
 			bind := si.ExpandSnapVariables(l.Bind)
 			// Allow bind mounting the layout element.
-			fmt.Fprintf(&buf, "  mount options=(rbind, rw) %s/ -> %s/,\n", bind, path)
-			fmt.Fprintf(&buf, "  umount %s/,\n", path)
+			emit("  mount options=(rbind, rw) %s/ -> %s/,\n", bind, path)
+			emit("  mount options=(rprivate) -> %s/,\n", path)
+			emit("  umount %s/,\n", path)
 			// Allow constructing writable mimic in both bind-mount source and mount point.
-			WritableProfile(&buf, path, 2) // At least / and /some-top-level-directory
-			WritableProfile(&buf, bind, 4) // At least /, /snap/, /snap/$SNAP_NAME and /snap/$SNAP_NAME/$SNAP_REVISION
+			GenWritableProfile(emit, path, 2) // At least / and /some-top-level-directory
+			GenWritableProfile(emit, bind, 4) // At least /, /snap/, /snap/$SNAP_NAME and /snap/$SNAP_NAME/$SNAP_REVISION
 		case l.BindFile != "":
 			bindFile := si.ExpandSnapVariables(l.BindFile)
 			// Allow bind mounting the layout element.
-			fmt.Fprintf(&buf, "  mount options=(bind, rw) %s -> %s,\n", bindFile, path)
-			fmt.Fprintf(&buf, "  umount %s,\n", path)
+			emit("  mount options=(bind, rw) %s -> %s,\n", bindFile, path)
+			emit("  mount options=(rprivate) -> %s,\n", path)
+			emit("  umount %s,\n", path)
 			// Allow constructing writable mimic in both bind-mount source and mount point.
-			WritableFileProfile(&buf, path, 2)     // At least / and /some-top-level-directory
-			WritableFileProfile(&buf, bindFile, 4) // At least /, /snap/, /snap/$SNAP_NAME and /snap/$SNAP_NAME/$SNAP_REVISION
+			GenWritableFileProfile(emit, path, 2)     // At least / and /some-top-level-directory
+			GenWritableFileProfile(emit, bindFile, 4) // At least /, /snap/, /snap/$SNAP_NAME and /snap/$SNAP_NAME/$SNAP_REVISION
 		case l.Type == "tmpfs":
-			fmt.Fprintf(&buf, "  mount fstype=tmpfs tmpfs -> %s/,\n", path)
-			fmt.Fprintf(&buf, "  umount %s/,\n", path)
+			emit("  mount fstype=tmpfs tmpfs -> %s/,\n", path)
+			emit("  mount options=(rprivate) -> %s/,\n", path)
+			emit("  umount %s/,\n", path)
 			// Allow constructing writable mimic to mount point.
-			WritableProfile(&buf, path, 2) // At least / and /some-top-level-directory
+			GenWritableProfile(emit, path, 2) // At least / and /some-top-level-directory
 		case l.Symlink != "":
 			// Allow constructing writable mimic to symlink parent directory.
-			fmt.Fprintf(&buf, "  %s rw,\n", path)
-			WritableProfile(&buf, path, 2) // At least / and /some-top-level-directory
+			emit("  %s rw,\n", path)
+			GenWritableProfile(emit, path, 2) // At least / and /some-top-level-directory
 		}
-		spec.AddUpdateNS(buf.String())
 	}
 }
 
@@ -217,9 +231,9 @@ func isProbablyPresent(path string) bool {
 	return path == "/" || path == "/snap" || path == "/var" || path == "/var/snap" || path == "/tmp" || path == "/usr" || path == "/etc"
 }
 
-// WritableMimicProfile writes apparmor rules for a writable mimic at the given path.
-func WritableMimicProfile(buf *bytes.Buffer, path string, assumedPrefixDepth int) {
-	fmt.Fprintf(buf, "  # Writable mimic %s\n", path)
+// GenWritableMimicProfile generates apparmor rules for a writable mimic at the given path.
+func GenWritableMimicProfile(emit func(f string, args ...interface{}), path string, assumedPrefixDepth int) {
+	emit("  # Writable mimic %s\n", path)
 
 	iter, err := strutil.NewPathIterator(path)
 	if err != nil {
@@ -227,10 +241,10 @@ func WritableMimicProfile(buf *bytes.Buffer, path string, assumedPrefixDepth int
 	}
 
 	// Handle the prefix that is assumed to exist first.
-	fmt.Fprintf(buf, "  # .. permissions for traversing the prefix that is assumed to exist\n")
+	emit("  # .. permissions for traversing the prefix that is assumed to exist\n")
 	for iter.Next() {
 		if iter.Depth() < assumedPrefixDepth {
-			fmt.Fprintf(buf, "  %s r,\n", iter.CurrentPath())
+			emit("  %s r,\n", iter.CurrentPath())
 		}
 	}
 
@@ -246,64 +260,68 @@ func WritableMimicProfile(buf *bytes.Buffer, path string, assumedPrefixDepth int
 		// directory path semantics.
 		mimicPath := filepath.Join(iter.CurrentBase(), iter.CurrentCleanName()) + "/"
 		mimicAuxPath := filepath.Join("/tmp/.snap", iter.CurrentPath()) + "/"
-		fmt.Fprintf(buf, "  # .. variant with mimic at %s\n", mimicPath)
-		fmt.Fprintf(buf, "  # Allow reading the mimic directory, it must exist in the first place.\n")
-		fmt.Fprintf(buf, "  %s r,\n", mimicPath)
-		fmt.Fprintf(buf, "  # Allow setting the read-only directory aside via a bind mount.\n")
-		fmt.Fprintf(buf, "  %s rw,\n", mimicAuxPath)
-		fmt.Fprintf(buf, "  mount options=(rbind, rw) %s -> %s,\n", mimicPath, mimicAuxPath)
-		fmt.Fprintf(buf, "  # Allow mounting tmpfs over the read-only directory.\n")
-		fmt.Fprintf(buf, "  mount fstype=tmpfs options=(rw) tmpfs -> %s,\n", mimicPath)
-		fmt.Fprintf(buf, "  # Allow creating empty files and directories for bind mounting things\n"+
+		emit("  # .. variant with mimic at %s\n", mimicPath)
+		emit("  # Allow reading the mimic directory, it must exist in the first place.\n")
+		emit("  %s r,\n", mimicPath)
+		emit("  # Allow setting the read-only directory aside via a bind mount.\n")
+		emit("  %s rw,\n", mimicAuxPath)
+		emit("  mount options=(rbind, rw) %s -> %s,\n", mimicPath, mimicAuxPath)
+		emit("  # Allow mounting tmpfs over the read-only directory.\n")
+		emit("  mount fstype=tmpfs options=(rw) tmpfs -> %s,\n", mimicPath)
+		emit("  # Allow creating empty files and directories for bind mounting things\n" +
 			"  # to reconstruct the now-writable parent directory.\n")
-		fmt.Fprintf(buf, "  %s*/ rw,\n", mimicAuxPath)
-		fmt.Fprintf(buf, "  %s*/ rw,\n", mimicPath)
-		fmt.Fprintf(buf, "  mount options=(rbind, rw) %s*/ -> %s*/,\n", mimicAuxPath, mimicPath)
-		fmt.Fprintf(buf, "  %s* rw,\n", mimicAuxPath)
-		fmt.Fprintf(buf, "  %s* rw,\n", mimicPath)
-		fmt.Fprintf(buf, "  mount options=(bind, rw) %s* -> %s*,\n", mimicAuxPath, mimicPath)
-		fmt.Fprintf(buf, "  # Allow unmounting the auxiliary directory.\n"+
+		emit("  %s*/ rw,\n", mimicAuxPath)
+		emit("  %s*/ rw,\n", mimicPath)
+		emit("  mount options=(rbind, rw) %s*/ -> %s*/,\n", mimicAuxPath, mimicPath)
+		emit("  %s* rw,\n", mimicAuxPath)
+		emit("  %s* rw,\n", mimicPath)
+		emit("  mount options=(bind, rw) %s* -> %s*,\n", mimicAuxPath, mimicPath)
+		emit("  # Allow unmounting the auxiliary directory.\n" +
 			"  # TODO: use fstype=tmpfs here for more strictness (LP: #1613403)\n")
-		fmt.Fprintf(buf, "  umount %s,\n", mimicAuxPath)
-		fmt.Fprintf(buf, "  # Allow unmounting the destination directory as well as anything\n"+
-			"  # inside.  This lets us perform the undo plan in case the writable\n"+
+		emit("  mount options=(rprivate) -> %s,\n", mimicAuxPath)
+		emit("  umount %s,\n", mimicAuxPath)
+		emit("  # Allow unmounting the destination directory as well as anything\n" +
+			"  # inside.  This lets us perform the undo plan in case the writable\n" +
 			"  # mimic fails.\n")
-		fmt.Fprintf(buf, "  umount %s,\n", mimicPath)
-		fmt.Fprintf(buf, "  umount %s*,\n", mimicPath)
-		fmt.Fprintf(buf, "  umount %s*/,\n", mimicPath)
+		emit("  mount options=(rprivate) -> %s,\n", mimicPath)
+		emit("  mount options=(rprivate) -> %s*,\n", mimicPath)
+		emit("  mount options=(rprivate) -> %s*/,\n", mimicPath)
+		emit("  umount %s,\n", mimicPath)
+		emit("  umount %s*,\n", mimicPath)
+		emit("  umount %s*/,\n", mimicPath)
 	}
 }
 
-// WritableFileProfile writes a profile for snap-update-ns for making given file writable.
-func WritableFileProfile(buf *bytes.Buffer, path string, assumedPrefixDepth int) {
+// GenWritableFileProfile writes a profile for snap-update-ns for making given file writable.
+func GenWritableFileProfile(emit func(f string, args ...interface{}), path string, assumedPrefixDepth int) {
 	if path == "/" {
 		return
 	}
 	if isProbablyWritable(path) {
-		fmt.Fprintf(buf, "  # Writable file %s\n", path)
-		fmt.Fprintf(buf, "  %s rw,\n", path)
+		emit("  # Writable file %s\n", path)
+		emit("  %s rw,\n", path)
 		for p := parent(path); !isProbablyPresent(p); p = parent(p) {
-			fmt.Fprintf(buf, "  %s/ rw,\n", p)
+			emit("  %s/ rw,\n", p)
 		}
 	} else {
 		parentPath := parent(path)
-		WritableMimicProfile(buf, parentPath, assumedPrefixDepth)
+		GenWritableMimicProfile(emit, parentPath, assumedPrefixDepth)
 	}
 }
 
-// WritableProfile writes a profile for snap-update-ns for making given directory writable.
-func WritableProfile(buf *bytes.Buffer, path string, assumedPrefixDepth int) {
+// GenWritableProfile generates a profile for snap-update-ns for making given directory writable.
+func GenWritableProfile(emit func(f string, args ...interface{}), path string, assumedPrefixDepth int) {
 	if path == "/" {
 		return
 	}
 	if isProbablyWritable(path) {
-		fmt.Fprintf(buf, "  # Writable directory %s\n", path)
+		emit("  # Writable directory %s\n", path)
 		for p := path; !isProbablyPresent(p); p = parent(p) {
-			fmt.Fprintf(buf, "  %s/ rw,\n", p)
+			emit("  %s/ rw,\n", p)
 		}
 	} else {
 		parentPath := parent(path)
-		WritableMimicProfile(buf, parentPath, assumedPrefixDepth)
+		GenWritableMimicProfile(emit, parentPath, assumedPrefixDepth)
 	}
 }
 
@@ -337,9 +355,7 @@ func (spec *Specification) SecurityTags() []string {
 
 // UpdateNS returns a deep copy of all the added snap-update-ns snippets.
 func (spec *Specification) UpdateNS() []string {
-	cp := make([]string, len(spec.updateNS))
-	copy(cp, spec.updateNS)
-	return cp
+	return spec.updateNS.Items()
 }
 
 func snippetFromLayout(layout *snap.Layout) string {

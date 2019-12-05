@@ -103,7 +103,7 @@ func FindDeviceForStructure(ps *LaidOutStructure) (string, error) {
 // Returns the device name and an offset at which the structure content starts
 // within the device or an error.
 func FindDeviceForStructureWithFallback(ps *LaidOutStructure) (dev string, offs Size, err error) {
-	if !ps.IsBare() {
+	if ps.HasFilesystem() {
 		return "", 0, fmt.Errorf("internal error: cannot use with filesystem structures")
 	}
 
@@ -158,7 +158,7 @@ func encodeLabel(in string) string {
 // given structure. The structure must have a filesystem defined, otherwise an
 // error is raised.
 func FindMountPointForStructure(ps *LaidOutStructure) (string, error) {
-	if ps.IsBare() {
+	if !ps.HasFilesystem() {
 		return "", ErrNoFilesystemDefined
 	}
 
@@ -211,13 +211,21 @@ func findDeviceForWritable() (device string, err error) {
 }
 
 func findParentDeviceWithWritableFallback() (string, error) {
-	deviceWritable, err := findDeviceForWritable()
+	partitionWritable, err := findDeviceForWritable()
 	if err != nil {
 		return "", err
 	}
+	return ParentDiskFromPartition(partitionWritable)
+}
 
+// ParentDiskFromPartition will find the parent disk device for the
+// given partition. E.g. /dev/nvmen0n1p5 -> /dev/nvme0n1
+//
+// Note that this does not work for anything using device mapper (like
+// LUKS/LVM) yet.
+func ParentDiskFromPartition(partition string) (string, error) {
 	// /dev/sda3 -> sda3
-	devname := filepath.Base(deviceWritable)
+	devname := filepath.Base(partition)
 
 	// do not bother with investigating major/minor devices (inconsistent
 	// across block device types) or mangling strings, but look at sys

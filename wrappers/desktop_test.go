@@ -482,6 +482,68 @@ func (s *sanitizeDesktopFileSuite) TestLangLang(c *C) {
 	}
 }
 
+func (s *sanitizeDesktopFileSuite) TestRewriteIconLine(c *C) {
+	snap, err := snap.InfoFromSnapYaml([]byte(`
+name: snap
+version: 1.0
+`))
+	c.Assert(err, IsNil)
+
+	newl, err := wrappers.RewriteIconLine(snap, "Icon=${SNAP}/icon.png")
+	c.Check(err, IsNil)
+	c.Check(newl, Equals, "Icon=${SNAP}/icon.png")
+
+	newl, err = wrappers.RewriteIconLine(snap, "Icon=snap.snap.icon")
+	c.Check(err, IsNil)
+	c.Check(newl, Equals, "Icon=snap.snap.icon")
+
+	newl, err = wrappers.RewriteIconLine(snap, "Icon=other-icon")
+	c.Check(err, IsNil)
+	c.Check(newl, Equals, "Icon=other-icon")
+
+	snap.InstanceKey = "bar"
+	newl, err = wrappers.RewriteIconLine(snap, "Icon=snap.snap.icon")
+	c.Check(err, IsNil)
+	c.Check(newl, Equals, "Icon=snap.snap_bar.icon")
+
+	_, err = wrappers.RewriteIconLine(snap, "Icon=snap.othersnap.icon")
+	c.Check(err, ErrorMatches, `invalid icon name: "snap.othersnap.icon", must start with "snap.snap."`)
+
+	_, err = wrappers.RewriteIconLine(snap, "Icon=/etc/passwd")
+	c.Check(err, ErrorMatches, `icon path "/etc/passwd" is not part of the snap`)
+
+	_, err = wrappers.RewriteIconLine(snap, "Icon=${SNAP}/./icon.png")
+	c.Check(err, ErrorMatches, `icon path "\${SNAP}/./icon.png" is not canonicalized, did you mean "\${SNAP}/icon.png"\?`)
+
+	_, err = wrappers.RewriteIconLine(snap, "Icon=${SNAP}/../outside/icon.png")
+	c.Check(err, ErrorMatches, `icon path "\${SNAP}/../outside/icon.png" is not canonicalized, did you mean "outside/icon.png"\?`)
+}
+
+func (s *sanitizeDesktopFileSuite) TestSanitizeParallelInstancesIconName(c *C) {
+	snap, err := snap.InfoFromSnapYaml([]byte(`
+name: snap
+version: 1.0
+apps:
+ app:
+  command: cmd
+`))
+	snap.InstanceKey = "bar"
+	c.Assert(err, IsNil)
+	desktopContent := []byte(`[Desktop Entry]
+Name=foo
+Icon=snap.snap.icon
+Exec=snap.app
+`)
+	df := filepath.Base(snap.Apps["app"].DesktopFile())
+	e := wrappers.SanitizeDesktopFile(snap, df, desktopContent)
+	c.Assert(string(e), Equals, fmt.Sprintf(`[Desktop Entry]
+X-SnapInstanceName=snap_bar
+Name=foo
+Icon=snap.snap_bar.icon
+Exec=env BAMF_DESKTOP_FILE_HINT=snap_bar_app.desktop %s/bin/snap_bar.app
+`, dirs.SnapMountDir))
+}
+
 func (s *desktopSuite) TestAddRemoveDesktopFiles(c *C) {
 	var tests = []struct {
 		instance                string

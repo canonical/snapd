@@ -1574,3 +1574,118 @@ system-usernames:
 	err = Validate(info)
 	c.Assert(err, ErrorMatches, `invalid system username "b@d"`)
 }
+
+const yamlNeedDf = `name: need-df
+version: 1.0
+plugs:
+  gtk-3-themes:
+    interface: content
+    content: gtk-3-themes
+    default-provider: gtk-common-themes
+  icon-themes:
+    interface: content
+    content: icon-themes
+    default-provider: gtk-common-themes
+
+`
+
+func (s *ValidateSuite) TestNeededDefaultProviders(c *C) {
+	strk := NewScopedTracker()
+	info, err := InfoFromSnapYamlWithSideInfo([]byte(yamlNeedDf), nil, strk)
+	c.Assert(err, IsNil)
+
+	dps := NeededDefaultProviders(info)
+	c.Check(dps, DeepEquals, map[string][]string{"gtk-common-themes": {"gtk-3-themes", "icon-themes"}})
+}
+
+const yamlNeedDfWithSlot = `name: need-df
+version: 1.0
+plugs:
+  gtk-3-themes:
+    interface: content
+    default-provider: gtk-common-themes2:with-slot
+`
+
+func (s *ValidateSuite) TestNeededDefaultProvidersLegacyColonSyntax(c *C) {
+	strk := NewScopedTracker()
+	info, err := InfoFromSnapYamlWithSideInfo([]byte(yamlNeedDfWithSlot), nil, strk)
+	c.Assert(err, IsNil)
+
+	dps := NeededDefaultProviders(info)
+	c.Check(dps, DeepEquals, map[string][]string{"gtk-common-themes2": {""}})
+}
+
+func (s *validateSuite) TestValidateSnapMissingCore(c *C) {
+	const yaml = `name: some-snap
+version: 1.0`
+
+	strk := NewScopedTracker()
+	info, err := InfoFromSnapYamlWithSideInfo([]byte(yaml), nil, strk)
+	c.Assert(err, IsNil)
+
+	infos := []*Info{info}
+	errors := ValidateBasesAndProviders(infos)
+	c.Assert(errors, HasLen, 1)
+	c.Assert(errors[0], ErrorMatches, `cannot use snap "some-snap": required snap "core" missing`)
+}
+
+func (s *validateSuite) TestValidateSnapMissingBase(c *C) {
+	const yaml = `name: some-snap
+base: some-base
+version: 1.0`
+
+	strk := NewScopedTracker()
+	info, err := InfoFromSnapYamlWithSideInfo([]byte(yaml), nil, strk)
+	c.Assert(err, IsNil)
+
+	infos := []*Info{info}
+	errors := ValidateBasesAndProviders(infos)
+	c.Assert(errors, HasLen, 1)
+	c.Assert(errors[0], ErrorMatches, `cannot use snap "some-snap": base "some-base" is missing`)
+}
+
+func (s *validateSuite) TestValidateSnapMissingDefaultProvider(c *C) {
+	strk := NewScopedTracker()
+	snapInfo, err := InfoFromSnapYamlWithSideInfo([]byte(yamlNeedDf), nil, strk)
+	c.Assert(err, IsNil)
+
+	var coreYaml = `name: core
+version: 1.0
+type: os`
+
+	coreInfo, err := InfoFromSnapYamlWithSideInfo([]byte(coreYaml), nil, strk)
+	c.Assert(err, IsNil)
+
+	infos := []*Info{snapInfo, coreInfo}
+	errors := ValidateBasesAndProviders(infos)
+	c.Assert(errors, HasLen, 1)
+	c.Assert(errors[0], ErrorMatches, `cannot use snap "need-df": default provider "gtk-common-themes" is missing`)
+}
+
+func (s *validateSuite) TestValidateSnapBaseNoneOK(c *C) {
+	const yaml = `name: some-snap
+base: none
+version: 1.0`
+
+	strk := NewScopedTracker()
+	info, err := InfoFromSnapYamlWithSideInfo([]byte(yaml), nil, strk)
+	c.Assert(err, IsNil)
+
+	infos := []*Info{info}
+	errors := ValidateBasesAndProviders(infos)
+	c.Assert(errors, IsNil)
+}
+
+func (s *validateSuite) TestValidateSnapSnapd(c *C) {
+	const yaml = `name: snapd
+type: snapd
+version: 1.0`
+
+	strk := NewScopedTracker()
+	info, err := InfoFromSnapYamlWithSideInfo([]byte(yaml), nil, strk)
+	c.Assert(err, IsNil)
+
+	infos := []*Info{info}
+	errors := ValidateBasesAndProviders(infos)
+	c.Assert(errors, IsNil)
+}

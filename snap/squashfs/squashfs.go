@@ -21,6 +21,7 @@ package squashfs
 
 import (
 	"bufio"
+	"bytes"
 	"fmt"
 	"io/ioutil"
 	"os"
@@ -28,6 +29,8 @@ import (
 	"path"
 	"path/filepath"
 	"regexp"
+	"strings"
+	"syscall"
 	"time"
 
 	"github.com/snapcore/snapd/cmd/cmdutil"
@@ -57,12 +60,12 @@ func New(snapPath string) *Snap {
 var osLink = os.Link
 var cmdutilCommandFromSystemSnap = cmdutil.CommandFromSystemSnap
 
-func (s *Snap) Install(targetPath, mountDir string) error {
+func (s *Snap) Install(targetPath, mountDir string) (bool, error) {
 
 	// ensure mount-point and blob target dir.
 	for _, dir := range []string{mountDir, filepath.Dir(targetPath)} {
 		if err := os.MkdirAll(dir, 0755); err != nil {
-			return err
+			return false, err
 		}
 	}
 
@@ -72,14 +75,15 @@ func (s *Snap) Install(targetPath, mountDir string) error {
 	// it to the location which is good enough for the tests.
 	if osutil.GetenvBool("SNAPPY_SQUASHFS_UNPACK_FOR_TESTS") {
 		if err := s.Unpack("*", mountDir); err != nil {
-			return err
+			return false, err
 		}
 	}
 
 	// nothing to do, happens on e.g. first-boot when we already
 	// booted with the OS snap but its also in the seed.yaml
 	if s.path == targetPath || osutil.FilesAreEqual(s.path, targetPath) {
-		return nil
+		didNothing := true
+		return didNothing, nil
 	}
 
 	// try to (hard)link the file, but go on to trying to copy it
@@ -89,16 +93,16 @@ func (s *Snap) Install(targetPath, mountDir string) error {
 	// hard links (like vfat), so checking the error here doesn't
 	// make sense vs just trying to copy it.
 	if err := osLink(s.path, targetPath); err == nil {
-		return nil
+		return false, nil
 	}
 
 	// if the file is a seed, but the hardlink failed, symlinking it
 	// saves the copy (which in livecd is expensive) so try that next
 	if filepath.Dir(s.path) == dirs.SnapSeedDir && os.Symlink(s.path, targetPath) == nil {
-		return nil
+		return false, nil
 	}
 
-	return osutil.CopyFile(s.path, targetPath, osutil.CopyFlagPreserveAll|osutil.CopyFlagSync)
+	return false, osutil.CopyFile(s.path, targetPath, osutil.CopyFlagPreserveAll|osutil.CopyFlagSync)
 }
 
 // unsquashfsStderrWriter is a helper that captures errors from
@@ -300,8 +304,101 @@ func (s *Snap) ListDir(dirPath string) ([]string, error) {
 	return directoryContents, nil
 }
 
+const maxErrPaths = 10
+
+type errPathsNotReadable struct {
+	paths []string
+}
+
+func (e *errPathsNotReadable) accumulate(p string, fi os.FileInfo) error {
+	if len(e.paths) >= maxErrPaths {
+		return e
+	}
+	if st, ok := fi.Sys().(*syscall.Stat_t); ok {
+		e.paths = append(e.paths, fmt.Sprintf("%s (owner %v:%v mode %#03o)", p, st.Uid, st.Gid, fi.Mode().Perm()))
+	} else {
+		e.paths = append(e.paths, p)
+	}
+	return nil
+}
+
+func (e *errPathsNotReadable) asErr() error {
+	if len(e.paths) > 0 {
+		return e
+	}
+	return nil
+}
+
+func (e *errPathsNotReadable) Error() string {
+	var b bytes.Buffer
+
+	b.WriteString("cannot access the following locations in the snap source directory:\n")
+	for _, p := range e.paths {
+		fmt.Fprintf(&b, "- ")
+		fmt.Fprintf(&b, p)
+		fmt.Fprintf(&b, "\n")
+	}
+	if len(e.paths) == maxErrPaths {
+		fmt.Fprintf(&b, "- too many errors, listing first %v entries\n", maxErrPaths)
+	}
+	return b.String()
+}
+
+// verifyContentAccessibleForBuild checks whether the content under source
+// directory is usable to the user and can be represented by mksquashfs.
+func verifyContentAccessibleForBuild(sourceDir string) error {
+	var errPaths errPathsNotReadable
+
+	withSlash := filepath.Clean(sourceDir) + "/"
+	err := filepath.Walk(withSlash, func(path string, st os.FileInfo, err error) error {
+		if err != nil {
+			if !os.IsPermission(err) {
+				return err
+			}
+			// accumulate permission errors
+			return errPaths.accumulate(strings.TrimPrefix(path, withSlash), st)
+		}
+		mode := st.Mode()
+		if !mode.IsRegular() && !mode.IsDir() {
+			// device nodes are just recreated by mksquashfs
+			return nil
+		}
+		if mode.IsRegular() && st.Size() == 0 {
+			// empty files are also recreated
+			return nil
+		}
+
+		f, err := os.Open(path)
+		if err != nil {
+			if !os.IsPermission(err) {
+				return err
+			}
+			// accumulate permission errors
+			if err = errPaths.accumulate(strings.TrimPrefix(path, withSlash), st); err != nil {
+				return err
+			}
+			// workaround for https://github.com/golang/go/issues/21758
+			// with pre 1.10 go, explicitly skip directory
+			if mode.IsDir() {
+				return filepath.SkipDir
+			}
+			return nil
+		}
+		f.Close()
+		return nil
+	})
+	if err != nil {
+		return err
+	}
+	return errPaths.asErr()
+}
+
 // Build builds the snap.
 func (s *Snap) Build(sourceDir, snapType string, excludeFiles ...string) error {
+	if err := verifyContentAccessibleForBuild(sourceDir); err != nil {
+		return err
+	}
+
 	fullSnapPath, err := filepath.Abs(s.path)
 	if err != nil {
 		return err

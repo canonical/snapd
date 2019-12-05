@@ -24,6 +24,9 @@ var (
 	CheckKernelVersion  = checkKernelVersion
 	CheckApparmorUsable = checkApparmorUsable
 	CheckWSL            = checkWSL
+	CheckCgroup         = checkCgroup
+
+	CheckFuse = firstCheckFuse
 )
 
 func Checks() []func() error {
@@ -43,5 +46,13 @@ func MockAppArmorProfilesPath(path string) (restorer func()) {
 	apparmorProfilesPath = path
 	return func() {
 		apparmorProfilesPath = old
+	}
+}
+
+func MockFuseBinary(new string) (restore func()) {
+	oldFuseBinary := fuseBinary
+	fuseBinary = new
+	return func() {
+		fuseBinary = oldFuseBinary
 	}
 }

@@ -93,7 +93,7 @@ func (s *batchSuite) TestAddStream(c *C) {
 	err = batch.Add(s.storeSigning.StoreAccountKey(""))
 	c.Assert(err, IsNil)
 
-	err = batch.CommitTo(s.db)
+	err = batch.CommitTo(s.db, nil)
 	c.Assert(err, IsNil)
 
 	devAcct, err := s.db.Find(asserts.AccountType, map[string]string{
@@ -121,7 +121,7 @@ func (s *batchSuite) TestConsiderPreexisting(c *C) {
 	err = batch.Add(s.dev1Acct)
 	c.Assert(err, IsNil)
 
-	err = batch.CommitTo(s.db)
+	err = batch.CommitTo(s.db, nil)
 	c.Assert(err, IsNil)
 
 	devAcct, err := s.db.Find(asserts.AccountType, map[string]string{
@@ -132,26 +132,28 @@ func (s *batchSuite) TestConsiderPreexisting(c *C) {
 }
 
 func (s *batchSuite) TestAddStreamReturnsEffectivelyAddedRefs(c *C) {
+	batch := asserts.NewBatch(nil)
+
+	err := batch.Add(s.storeSigning.StoreAccountKey(""))
+	c.Assert(err, IsNil)
+
 	b := &bytes.Buffer{}
 	enc := asserts.NewEncoder(b)
 	// wrong order is ok
-	err := enc.Encode(s.dev1Acct)
+	err = enc.Encode(s.dev1Acct)
 	c.Assert(err, IsNil)
+	// this was already added to the batch
 	enc.Encode(s.storeSigning.StoreAccountKey(""))
 	c.Assert(err, IsNil)
 
-	batch := asserts.NewBatch(nil)
-
-	err = batch.Add(s.storeSigning.StoreAccountKey(""))
-	c.Assert(err, IsNil)
-
+	// effectively adds only the developer1 account
 	refs, err := batch.AddStream(b)
 	c.Assert(err, IsNil)
 	c.Check(refs, DeepEquals, []*asserts.Ref{
 		{Type: asserts.AccountType, PrimaryKey: []string{s.dev1Acct.AccountID()}},
 	})
 
-	err = batch.CommitTo(s.db)
+	err = batch.CommitTo(s.db, nil)
 	c.Assert(err, IsNil)
 
 	devAcct, err := s.db.Find(asserts.AccountType, map[string]string{
@@ -197,7 +199,7 @@ func (s *batchSuite) TestCommitRefusesSelfSignedKey(c *C) {
 	c.Assert(err, IsNil)
 
 	// this must fail
-	err = batch.CommitTo(s.db)
+	err = batch.CommitTo(s.db, nil)
 	c.Assert(err, ErrorMatches, `circular assertions are not expected:.*`)
 }
 
@@ -299,7 +301,7 @@ func (s *batchSuite) TestCommitPartial(c *C) {
 	err = batch.Add(snapRev)
 	c.Assert(err, IsNil)
 
-	err = batch.CommitTo(s.db)
+	err = batch.CommitTo(s.db, &asserts.CommitOptions{Precheck: false})
 	c.Check(err, ErrorMatches, `(?ms).*validity.*`)
 
 	// snap-declaration was added anyway
@@ -322,7 +324,7 @@ func (s *batchSuite) TestCommitMissing(c *C) {
 	err = batch.Add(snapDeclFoo)
 	c.Assert(err, IsNil)
 
-	err = batch.CommitTo(s.db)
+	err = batch.CommitTo(s.db, nil)
 	c.Check(err, ErrorMatches, `cannot resolve prerequisite assertion: account.*`)
 }
 
@@ -356,7 +358,7 @@ func (s *batchSuite) TestPrecheckPartial(c *C) {
 	err = batch.Add(snapRev)
 	c.Assert(err, IsNil)
 
-	err = batch.Precheck(s.db)
+	err = batch.CommitTo(s.db, &asserts.CommitOptions{Precheck: true})
 	c.Check(err, ErrorMatches, `(?ms).*validity.*`)
 
 	// nothing was added
@@ -397,7 +399,8 @@ func (s *batchSuite) TestPrecheckHappy(c *C) {
 	err = batch.Add(snapRev)
 	c.Assert(err, IsNil)
 
-	err = batch.Precheck(s.db)
+	// test precheck on its own
+	err = batch.DoPrecheck(s.db)
 	c.Assert(err, IsNil)
 
 	// nothing was added yet
@@ -407,8 +410,8 @@ func (s *batchSuite) TestPrecheckHappy(c *C) {
 	})
 	c.Assert(asserts.IsNotFound(err), Equals, true)
 
-	// commit
-	err = batch.CommitTo(s.db)
+	// commit (with precheck)
+	err = batch.CommitTo(s.db, &asserts.CommitOptions{Precheck: true})
 	c.Assert(err, IsNil)
 
 	_, err = s.db.Find(asserts.SnapRevisionType, map[string]string{
@@ -462,7 +465,7 @@ func (s *batchSuite) TestFetch(c *C) {
 	c.Assert(asserts.IsNotFound(err), Equals, true)
 
 	// commit
-	err = batch.CommitTo(s.db)
+	err = batch.CommitTo(s.db, nil)
 	c.Assert(err, IsNil)
 
 	_, err = s.db.Find(asserts.SnapRevisionType, map[string]string{

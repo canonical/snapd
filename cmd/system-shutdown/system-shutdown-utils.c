@@ -33,6 +33,7 @@
 
 #include "../libsnap-confine-private/mountinfo.h"
 #include "../libsnap-confine-private/string-utils.h"
+#include "../libsnap-confine-private/utils.h"
 
 __attribute__((format(printf, 1, 2)))
 void kmsg(const char *fmt, ...)
@@ -51,19 +52,6 @@ void kmsg(const char *fmt, ...)
 	vfprintf(kmsg, fmt, va);
 	fprintf(kmsg, "\n");
 	va_end(va);
-}
-
-__attribute__((noreturn))
-void die(const char *msg)
-{
-	if (errno == 0) {
-		kmsg("*** %s", msg);
-	} else {
-		kmsg("*** %s: %s", msg, strerror(errno));
-	}
-	sync();
-	reboot(RB_HALT_SYSTEM);
-	exit(1);
 }
 
 int sc_read_reboot_arg(char *arg, size_t max_size)

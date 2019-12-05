@@ -252,10 +252,25 @@ func (mx *channelMixin) setChannelFromCommandline() error {
 		mx.Channel = ch.chName
 	}
 
-	if !strings.Contains(mx.Channel, "/") && mx.Channel != "" && mx.Channel != "edge" && mx.Channel != "beta" && mx.Channel != "candidate" && mx.Channel != "stable" {
-		// shortcut to jump to a different track, e.g.
-		// snap install foo --channel=3.4 # implies 3.4/stable
-		mx.Channel += "/stable"
+	if mx.Channel != "" {
+		if ch, err := channel.Parse(mx.Channel, ""); err != nil {
+			full, er := channel.Full(mx.Channel)
+			if er != nil {
+				// the parse error has more detailed info
+				return err
+			}
+
+			// TODO: get escapes in here so we can bold the Warning
+			head := i18n.G("Warning:")
+			msg := i18n.G("Specifying a channel %q is relying on undefined behaviour. Interpreting it as %q for now, but this will be an error later.\n")
+			warn := fill(fmt.Sprintf(msg, mx.Channel, full), utf8.RuneCountInString(head)+1) // +1 for the space
+			fmt.Fprint(Stderr, head, " ", warn, "\n\n")
+			mx.Channel = full // so a malformed-but-eh channel will always be full, i.e. //stable// -> latest/stable
+		} else {
+			// because snap.ParseChannel calls Clean() on the channel,
+			// the name will be the short form name that we want
+			mx.Channel = ch.Name
+		}
 	}
 
 	return nil
@@ -372,10 +387,12 @@ func showDone(cli *client.Client, names []string, op string, opts *client.SnapOp
 		default:
 			fmt.Fprintf(Stdout, "internal error: unknown op %q", op)
 		}
-		if snap.TrackingChannel != snap.Channel && snap.Channel != "" {
-			if sameRisk, err := isSameRisk(snap.TrackingChannel, snap.Channel); err == nil && !sameRisk {
-				// TRANSLATORS: first %s is a channel name, following %s is a snap name, last %s is a channel name again.
-				fmt.Fprintf(Stdout, i18n.G("Channel %s for %s is closed; temporarily forwarding to %s.\n"), snap.TrackingChannel, snap.Name, snap.Channel)
+		if op == "install" || op == "refresh" {
+			if snap.TrackingChannel != snap.Channel && snap.Channel != "" {
+				if sameRisk, err := isSameRisk(snap.TrackingChannel, snap.Channel); err == nil && !sameRisk {
+					// TRANSLATORS: first %s is a channel name, following %s is a snap name, last %s is a channel name again.
+					fmt.Fprintf(Stdout, i18n.G("Channel %s for %s is closed; temporarily forwarding to %s.\n"), snap.TrackingChannel, snap.Name, snap.Channel)
+				}
 			}
 		}
 	}

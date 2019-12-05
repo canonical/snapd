@@ -41,24 +41,9 @@ func Add(s *state.State, a asserts.Assertion) error {
 	return cachedDB(s).Add(a)
 }
 
-type AddBatchOptions struct {
-	// Precheck indicates whether to do a full consistency check
-	// before starting adding the batch.
-	Precheck bool
-}
-
 // AddBatch adds the given assertion batch to the system assertion database.
-func AddBatch(s *state.State, batch *asserts.Batch, opts *AddBatchOptions) error {
-	if opts == nil {
-		opts = &AddBatchOptions{}
-	}
-	db := cachedDB(s)
-	if opts.Precheck {
-		if err := batch.Precheck(db); err != nil {
-			return err
-		}
-	}
-	return batch.CommitTo(cachedDB(s))
+func AddBatch(s *state.State, batch *asserts.Batch, opts *asserts.CommitOptions) error {
+	return batch.CommitTo(cachedDB(s), opts)
 }
 
 func findError(format string, ref *asserts.Ref, err error) error {

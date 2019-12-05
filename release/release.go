@@ -27,11 +27,16 @@ import (
 	"strings"
 	"unicode"
 
+	"github.com/snapcore/snapd/sandbox/apparmor"
+	"github.com/snapcore/snapd/sandbox/cgroup"
 	"github.com/snapcore/snapd/strutil"
 )
 
 // Series holds the Ubuntu Core series for snapd to use.
 var Series = "16"
+
+// For testing only
+var mockedForceDevMode *bool
 
 // OS contains information about the system extracted from /etc/os-release.
 type OS struct {
@@ -43,7 +48,15 @@ type OS struct {
 // ForceDevMode returns true if the distribution doesn't implement required
 // security features for confinement and devmode is forced.
 func (o *OS) ForceDevMode() bool {
-	return AppArmorLevel() != FullAppArmor
+	if mockedForceDevMode != nil {
+		return *mockedForceDevMode
+	}
+
+	apparmorFull := apparmor.ProbedLevel() == apparmor.Full
+	// TODO: update once security backends affected by cgroupv2 are fully
+	// supported
+	cgroupv2 := cgroup.IsUnified()
+	return !apparmorFull || cgroupv2
 }
 
 // DistroLike checks if the distribution ID or ID_LIKE matches one of the given names.
@@ -122,6 +135,14 @@ func isWSL() bool {
 	return false
 }
 
+// PreseedMode states whether snapd is running in a presseding mode
+// to perform a partial first boot and touch only filesystem state
+// inside a chroot.
+// TODO: handle via devicestate, similar to DeviceContext.
+var PreseedMode = func() bool {
+	return os.Getenv("SNAPD_PRESEED") != ""
+}
+
 // OnClassic states whether the process is running inside a
 // classic Ubuntu system or a native Ubuntu Core image.
 var OnClassic bool
@@ -139,6 +160,13 @@ func init() {
 	OnClassic = (ReleaseInfo.ID != "ubuntu-core")
 
 	OnWSL = isWSL()
+}
+
+// MockPreseedMode fakes preseed mode.
+func MockPreseedMode(preseedMode func() bool) (restore func()) {
+	old := PreseedMode
+	PreseedMode = preseedMode
+	return func() { PreseedMode = old }
 }
 
 // MockOnClassic forces the process to appear inside a classic
@@ -160,9 +188,9 @@ func MockReleaseInfo(osRelease *OS) (restore func()) {
 // MockForcedDevmode fake the system to believe its in a distro
 // that is in ForcedDevmode
 func MockForcedDevmode(isDevmode bool) (restore func()) {
-	level := FullAppArmor
-	if isDevmode {
-		level = NoAppArmor
+	old := mockedForceDevMode
+	mockedForceDevMode = &isDevmode
+	return func() {
+		mockedForceDevMode = old
 	}
-	return MockAppArmorLevel(level)
 }

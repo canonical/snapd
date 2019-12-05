@@ -139,3 +139,9 @@ func NewCmdShow(args ...string) *cmdShow {
 	cmdShow.Positional.Repair = args
 	return cmdShow
 }
+
+func MockOsGetuid(f func() int) (restore func()) {
+	origOsGetuid := osGetuid
+	osGetuid = f
+	return func() { osGetuid = origOsGetuid }
+}

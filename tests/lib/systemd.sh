@@ -52,7 +52,7 @@ wait_for_service() {
             return
         fi
         # show debug output every 1min
-        if [ $(( i % 60 )) = 0 ]; then
+        if [ "$i" -gt 0 ] && [ $(( i % 60 )) = 0 ]; then
             systemctl status "$service_name" || true;
         fi
         sleep 1;

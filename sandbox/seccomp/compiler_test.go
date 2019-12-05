@@ -49,16 +49,22 @@ func (s *compilerSuite) TestVersionInfoValidate(c *C) {
 		exp string
 		err string
 	}{
-		// valid
+		// all valid
+		// 20-byte sha1 build ID added by GNU ld
 		{"7ac348ac9c934269214b00d1692dfa50d5d4a157 2.3.3 03e996919907bc7163bc83b95bca0ecab31300f20dfa365ea14047c698340e7c bpf-actlog", "7ac348ac9c934269214b00d1692dfa50d5d4a157 2.3.3 03e996919907bc7163bc83b95bca0ecab31300f20dfa365ea14047c698340e7c bpf-actlog", ""},
 		{"7ac348ac9c934269214b00d1692dfa50d5d4a157 2.3.3 03e996919907bc7163bc83b95bca0ecab31300f20dfa365ea14047c698340e7c foo:bar", "7ac348ac9c934269214b00d1692dfa50d5d4a157 2.3.3 03e996919907bc7163bc83b95bca0ecab31300f20dfa365ea14047c698340e7c foo:bar", ""},
 		{"7ac348ac9c934269214b00d1692dfa50d5d4a157 2.3.3 03e996919907bc7163bc83b95bca0ecab31300f20dfa365ea14047c698340e7c -", "7ac348ac9c934269214b00d1692dfa50d5d4a157 2.3.3 03e996919907bc7163bc83b95bca0ecab31300f20dfa365ea14047c698340e7c -", ""},
+		// 16-byte md5/uuid build ID added by GNU ld
+		{"3817b197e7abe71a952c1245e8bdf8d9 2.3.3 03e996919907bc7163bc83b95bca0ecab31300f20dfa365ea14047c698340e7c -", "3817b197e7abe71a952c1245e8bdf8d9 2.3.3 03e996919907bc7163bc83b95bca0ecab31300f20dfa365ea14047c698340e7c -", ""},
+		// 83-byte Go build ID
+		{"4e444571495f482d30796b5f57307065544e47692f594c61795f384b7a5258362d6a6f4272736e38302f773374475869496e433176527749797a457a4b532f3967324d4f76556f3130323644572d56326e6248 2.3.3 03e996919907bc7163bc83b95bca0ecab31300f20dfa365ea14047c698340e7c -", "4e444571495f482d30796b5f57307065544e47692f594c61795f384b7a5258362d6a6f4272736e38302f773374475869496e433176527749797a457a4b532f3967324d4f76556f3130323644572d56326e6248 2.3.3 03e996919907bc7163bc83b95bca0ecab31300f20dfa365ea14047c698340e7c -", ""},
+		// sanity
 		{"abcdef 0.0.0 abcd bpf-actlog", "abcdef 0.0.0 abcd bpf-actlog", ""},
 		{"abcdef 0.0.0 abcd -", "abcdef 0.0.0 abcd -", ""},
 
 		// invalid all the way down from here
 		// this is over/under the sane length limit for the fields
-		{"00000000000000000000000000000000000000001 2.4.1 0000000000000000000000000000000000000000000000000000000000000000 -", "", "invalid format of version-info: .*"},
+		{"00000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000001 2.4.1 0000000000000000000000000000000000000000000000000000000000000000 -", "", "invalid format of version-info: .*"},
 		{"0000000000000000000000000000000000000000 123456.0.0 0000000000000000000000000000000000000000000000000000000000000000 -", "", "invalid format of version-info: .*"},
 		{"0000000000000000000000000000000000000000 0.123456.0 0000000000000000000000000000000000000000000000000000000000000000 -", "", "invalid format of version-info: .*"},
 		{"0000000000000000000000000000000000000000 0.0.123456 0000000000000000000000000000000000000000000000000000000000000000 -", "", "invalid format of version-info: .*"},
@@ -80,7 +86,7 @@ func (s *compilerSuite) TestVersionInfoValidate(c *C) {
 	} {
 		c.Logf("tc: %v", i)
 		cmd := testutil.MockCommand(c, "snap-seccomp", fmt.Sprintf("echo \"%s\"", tc.v))
-		compiler, err := seccomp.New(fromCmd(c, cmd))
+		compiler, err := seccomp.NewCompiler(fromCmd(c, cmd))
 		c.Assert(err, IsNil)
 
 		v, err := compiler.VersionInfo()
@@ -128,7 +134,7 @@ if [ "$1" = "version-info" ]; then echo "unknown command version-info"; exit 1; 
 exit 0
 `)
 	defer cmd.Restore()
-	compiler, err := seccomp.New(fromCmd(c, cmd))
+	compiler, err := seccomp.NewCompiler(fromCmd(c, cmd))
 	c.Assert(err, IsNil)
 
 	_, err = compiler.VersionInfo()
@@ -144,7 +150,7 @@ if [ "$1" = "compile" ]; then exit 0; fi
 exit 1
 `)
 	defer cmd.Restore()
-	compiler, err := seccomp.New(fromCmd(c, cmd))
+	compiler, err := seccomp.NewCompiler(fromCmd(c, cmd))
 	c.Assert(err, IsNil)
 
 	err = compiler.Compile("foo.src", "foo.bin")
@@ -160,7 +166,7 @@ if [ "$1" = "compile" ]; then echo "i will not"; exit 1; fi
 exit 0
 `)
 	defer cmd.Restore()
-	compiler, err := seccomp.New(fromCmd(c, cmd))
+	compiler, err := seccomp.NewCompiler(fromCmd(c, cmd))
 	c.Assert(err, IsNil)
 
 	err = compiler.Compile("foo.src", "foo.bin")
@@ -171,11 +177,11 @@ exit 0
 }
 
 func (s *compilerSuite) TestCompilerNewUnhappy(c *C) {
-	compiler, err := seccomp.New(func(name string) (string, error) { return "", errors.New("failed") })
+	compiler, err := seccomp.NewCompiler(func(name string) (string, error) { return "", errors.New("failed") })
 	c.Assert(err, ErrorMatches, "failed")
 	c.Assert(compiler, IsNil)
 
-	c.Assert(func() { seccomp.New(nil) }, PanicMatches, "lookup tool func not provided")
+	c.Assert(func() { seccomp.NewCompiler(nil) }, PanicMatches, "lookup tool func not provided")
 }
 
 func (s *compilerSuite) TestLibseccompVersion(c *C) {

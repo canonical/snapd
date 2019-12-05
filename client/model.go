@@ -21,8 +21,14 @@ package client
 
 import (
 	"bytes"
+	"context"
 	"encoding/json"
 	"fmt"
+	"net/url"
+
+	"golang.org/x/xerrors"
+
+	"github.com/snapcore/snapd/asserts"
 )
 
 type remodelData struct {
@@ -42,4 +48,58 @@ func (client *Client) Remodel(b []byte) (changeID string, err error) {
 	}
 
 	return client.doAsync("POST", "/v2/model", nil, headers, bytes.NewReader(data))
+}
+
+// CurrentModelAssertion returns the current model assertion
+func (client *Client) CurrentModelAssertion() (*asserts.Model, error) {
+	assert, err := currentAssertion(client, "/v2/model")
+	if err != nil {
+		return nil, err
+	}
+	modelAssert, ok := assert.(*asserts.Model)
+	if !ok {
+		return nil, fmt.Errorf("unexpected assertion type (%s) returned", assert.Type().Name)
+	}
+	return modelAssert, nil
+}
+
+// CurrentSerialAssertion returns the current serial assertion
+func (client *Client) CurrentSerialAssertion() (*asserts.Serial, error) {
+	assert, err := currentAssertion(client, "/v2/model/serial")
+	if err != nil {
+		return nil, err
+	}
+	serialAssert, ok := assert.(*asserts.Serial)
+	if !ok {
+		return nil, fmt.Errorf("unexpected assertion type (%s) returned", assert.Type().Name)
+	}
+	return serialAssert, nil
+}
+
+// helper function for getting assertions from the daemon via a REST path
+func currentAssertion(client *Client, path string) (asserts.Assertion, error) {
+	q := url.Values{}
+
+	ctx, cancel := context.WithTimeout(context.Background(), doTimeout)
+	defer cancel()
+	response, err := client.raw(ctx, "GET", path, q, nil, nil)
+	if err != nil {
+		fmt := "failed to query current assertion: %w"
+		return nil, xerrors.Errorf(fmt, err)
+	}
+	defer response.Body.Close()
+	if response.StatusCode != 200 {
+		return nil, parseError(response)
+	}
+
+	dec := asserts.NewDecoder(response.Body)
+
+	// only decode a single assertion - we can't ever get more than a single
+	// assertion through these endpoints by design
+	assert, err := dec.Decode()
+	if err != nil {
+		return nil, fmt.Errorf("failed to decode assertions: %v", err)
+	}
+
+	return assert, nil
 }

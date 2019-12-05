@@ -214,6 +214,7 @@ func mountEntry(plug *interfaces.ConnectedPlug, slot *interfaces.ConnectedSlot, 
 func (iface *contentInterface) AppArmorConnectedPlug(spec *apparmor.Specification, plug *interfaces.ConnectedPlug, slot *interfaces.ConnectedSlot) error {
 	contentSnippet := bytes.NewBuffer(nil)
 	writePaths := iface.path(slot, "write")
+	emit := spec.AddUpdateNSf
 	if len(writePaths) > 0 {
 		fmt.Fprintf(contentSnippet, `
 # In addition to the bind mount, add any AppArmor rules so that
@@ -226,17 +227,17 @@ func (iface *contentInterface) AppArmorConnectedPlug(spec *apparmor.Specificatio
 			fmt.Fprintf(contentSnippet, "%s/** mrwklix,\n",
 				resolveSpecialVariable(w, slot.Snap()))
 			source, target := sourceTarget(plug, slot, w)
-			var buf bytes.Buffer
-			fmt.Fprintf(&buf, "  # Read-write content sharing %s -> %s (w#%d)\n", plug.Ref(), slot.Ref(), i)
-			fmt.Fprintf(&buf, "  mount options=(bind, rw) %s/ -> %s/,\n", source, target)
-			fmt.Fprintf(&buf, "  umount %s/,\n", target)
+			emit("  # Read-write content sharing %s -> %s (w#%d)\n", plug.Ref(), slot.Ref(), i)
+			emit("  mount options=(bind, rw) %s/ -> %s{,-[0-9]*}/,\n", source, target)
+			emit("  mount options=(rprivate) -> %s{,-[0-9]*}/,\n", target)
+			emit("  umount %s{,-[0-9]*}/,\n", target)
 			// TODO: The assumed prefix depth could be optimized to be more
 			// precise since content sharing can only take place in a fixed
 			// list of places with well-known paths (well, constrained set of
 			// paths). This can be done when the prefix is actually consumed.
-			apparmor.WritableProfile(&buf, source, 1)
-			apparmor.WritableProfile(&buf, target, 1)
-			spec.AddUpdateNS(buf.String())
+			apparmor.GenWritableProfile(emit, source, 1)
+			apparmor.GenWritableProfile(emit, target, 1)
+			apparmor.GenWritableProfile(emit, fmt.Sprintf("%s-[0-9]*", target), 1)
 		}
 	}
 
@@ -252,15 +253,15 @@ func (iface *contentInterface) AppArmorConnectedPlug(spec *apparmor.Specificatio
 				resolveSpecialVariable(r, slot.Snap()))
 
 			source, target := sourceTarget(plug, slot, r)
-			var buf bytes.Buffer
-			fmt.Fprintf(&buf, "  # Read-only content sharing %s -> %s (r#%d)\n", plug.Ref(), slot.Ref(), i)
-			fmt.Fprintf(&buf, "  mount options=(bind) %s/ -> %s/,\n", source, target)
-			fmt.Fprintf(&buf, "  remount options=(bind, ro) %s/,\n", target)
-			fmt.Fprintf(&buf, "  umount %s/,\n", target)
+			emit("  # Read-only content sharing %s -> %s (r#%d)\n", plug.Ref(), slot.Ref(), i)
+			emit("  mount options=(bind) %s/ -> %s{,-[0-9]*}/,\n", source, target)
+			emit("  remount options=(bind, ro) %s{,-[0-9]*}/,\n", target)
+			emit("  mount options=(rprivate) -> %s{,-[0-9]*}/,\n", target)
+			emit("  umount %s{,-[0-9]*}/,\n", target)
 			// Look at the TODO comment above.
-			apparmor.WritableProfile(&buf, source, 1)
-			apparmor.WritableProfile(&buf, target, 1)
-			spec.AddUpdateNS(buf.String())
+			apparmor.GenWritableProfile(emit, source, 1)
+			apparmor.GenWritableProfile(emit, target, 1)
+			apparmor.GenWritableProfile(emit, fmt.Sprintf("%s-[0-9]*", target), 1)
 		}
 	}
 
