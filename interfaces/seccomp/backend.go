@@ -39,7 +39,6 @@ import (
 	"path/filepath"
 	"runtime"
 	"strings"
-	"sync"
 
 	"github.com/snapcore/snapd/arch"
 	"github.com/snapcore/snapd/cmd"
@@ -170,16 +169,18 @@ func parallelCompile(compiler Compiler, profiles []string) error {
 	}
 
 	profilesQueue := make(chan string, len(profiles))
-	res := make(chan error, len(profiles))
-	cpus := runtime.NumCPU()
-
-	var wg sync.WaitGroup
-	wg.Add(cpus)
+	N := runtime.NumCPU()
+	if N >= 2 {
+		N -= 1
+	}
+	if N > len(profiles) {
+		N = len(profiles)
+	}
+	res := make(chan error, N*2)
 
 	// launch as many workers as we have CPUs
-	for i := 0; i < cpus; i++ {
+	for i := 0; i < N; i++ {
 		go func() {
-			defer wg.Done()
 			for {
 				profile, ok := <-profilesQueue
 				if !ok {
@@ -202,16 +203,20 @@ func parallelCompile(compiler Compiler, profiles []string) error {
 	for _, p := range profiles {
 		profilesQueue <- p
 	}
+	// signal workers to exit
 	close(profilesQueue)
-	wg.Wait()
-	close(res)
 
 	var firstErr error
-	for err := range res {
-		if err != nil && firstErr == nil {
-			firstErr = err
+	for i := 0; i < len(profiles); i++ {
+		maybeErr := <-res
+		if maybeErr != nil && firstErr == nil {
+			firstErr = maybeErr
 		}
+
 	}
+
+	// not expecting any more results
+	close(res)
 
 	if firstErr != nil {
 		for _, p := range profiles {
