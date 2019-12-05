@@ -100,7 +100,7 @@ type UnsuccessfulError struct {
 }
 
 func (e UnsuccessfulError) Error() string {
-	return fmt.Sprintf("error code: %d", e.ExitCode)
+	return fmt.Sprintf("unsuccessful with exit code: %d", e.ExitCode)
 }
 
 // ForbiddenCommandError conveys that a command cannot be invoked in some context
