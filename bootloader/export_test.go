@@ -59,8 +59,8 @@ func MockUbootFiles(c *C, rootdir string) {
 	c.Assert(err, IsNil)
 }
 
-func NewGrub(rootdir string) Bootloader {
-	return newGrub(rootdir, nil)
+func NewGrub(rootdir string, opts *Options) Bootloader {
+	return newGrub(rootdir, opts)
 }
 
 func MockGrubFiles(c *C, rootdir string) {

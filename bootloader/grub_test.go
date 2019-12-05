@@ -21,6 +21,8 @@ package bootloader_test
 
 import (
 	"fmt"
+	"io/ioutil"
+	"os"
 	"os/exec"
 	"path/filepath"
 
@@ -32,6 +34,7 @@ import (
 	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/snap"
 	"github.com/snapcore/snapd/snap/snaptest"
+	"github.com/snapcore/snapd/testutil"
 )
 
 type grubTestSuite struct {
@@ -94,14 +97,14 @@ func (s *grubTestSuite) makeFakeGrubEnv(c *C) {
 }
 
 func (s *grubTestSuite) TestNewGrubNoGrubReturnsNil(c *C) {
-	g := bootloader.NewGrub("/something/not/there")
+	g := bootloader.NewGrub("/something/not/there", nil)
 	c.Assert(g, IsNil)
 }
 
 func (s *grubTestSuite) TestNewGrub(c *C) {
 	s.makeFakeGrubEnv(c)
 
-	g := bootloader.NewGrub(s.rootdir)
+	g := bootloader.NewGrub(s.rootdir, nil)
 	c.Assert(g, NotNil)
 	c.Assert(g.Name(), Equals, "grub")
 }
@@ -129,7 +132,7 @@ func (s *grubTestSuite) TestGetBootVer(c *C) {
 	s.makeFakeGrubEnv(c)
 	s.grubEditenvSet(c, "snap_mode", "regular")
 
-	g := bootloader.NewGrub(s.rootdir)
+	g := bootloader.NewGrub(s.rootdir, nil)
 	v, err := g.GetBootVars("snap_mode")
 	c.Assert(err, IsNil)
 	c.Check(v, HasLen, 1)
@@ -139,7 +142,7 @@ func (s *grubTestSuite) TestGetBootVer(c *C) {
 func (s *grubTestSuite) TestSetBootVer(c *C) {
 	s.makeFakeGrubEnv(c)
 
-	g := bootloader.NewGrub(s.rootdir)
+	g := bootloader.NewGrub(s.rootdir, nil)
 	err := g.SetBootVars(map[string]string{
 		"k1": "v1",
 		"k2": "v2",
@@ -153,7 +156,7 @@ func (s *grubTestSuite) TestSetBootVer(c *C) {
 func (s *grubTestSuite) TestExtractKernelAssetsNoUnpacksKernelForGrub(c *C) {
 	s.makeFakeGrubEnv(c)
 
-	g := bootloader.NewGrub(s.rootdir)
+	g := bootloader.NewGrub(s.rootdir, nil)
 
 	files := [][]string{
 		{"kernel.img", "I'm a kernel"},
@@ -182,7 +185,7 @@ func (s *grubTestSuite) TestExtractKernelAssetsNoUnpacksKernelForGrub(c *C) {
 func (s *grubTestSuite) TestExtractKernelForceWorks(c *C) {
 	s.makeFakeGrubEnv(c)
 
-	g := bootloader.NewGrub(s.rootdir)
+	g := bootloader.NewGrub(s.rootdir, nil)
 	c.Assert(g, NotNil)
 
 	files := [][]string{
@@ -218,4 +221,53 @@ func (s *grubTestSuite) TestExtractKernelForceWorks(c *C) {
 	exists, _, err := osutil.DirExists(filepath.Dir(kernimg))
 	c.Assert(err, IsNil)
 	c.Check(exists, Equals, false)
+}
+
+func (s *grubTestSuite) grubRecoveryDir() string {
+	return filepath.Join(s.rootdir, "EFI/ubuntu")
+}
+
+func (s *grubTestSuite) makeFakeGrubRecoveryEnv(c *C) {
+	err := os.MkdirAll(s.grubRecoveryDir(), 0755)
+	c.Assert(err, IsNil)
+	err = ioutil.WriteFile(filepath.Join(s.grubRecoveryDir(), "grub.cfg"), nil, 0644)
+	c.Assert(err, IsNil)
+}
+
+func (s *grubTestSuite) TestNewGrubWithOptionRecovery(c *C) {
+	s.makeFakeGrubRecoveryEnv(c)
+
+	g := bootloader.NewGrub(s.rootdir, &bootloader.Options{Recovery: true})
+	c.Assert(g, NotNil)
+	c.Assert(g.Name(), Equals, "grub")
+}
+
+func (s *grubTestSuite) TestNewGrubWithOptionRecoveryBootEnv(c *C) {
+	s.makeFakeGrubRecoveryEnv(c)
+	g := bootloader.NewGrub(s.rootdir, &bootloader.Options{Recovery: true})
+
+	// check that setting vars goes to the right place
+	c.Check(filepath.Join(s.grubRecoveryDir(), "grubenv"), testutil.FileAbsent)
+	err := g.SetBootVars(map[string]string{
+		"k1": "v1",
+		"k2": "v2",
+	})
+	c.Assert(err, IsNil)
+	c.Check(filepath.Join(s.grubRecoveryDir(), "grubenv"), testutil.FilePresent)
+
+	env, err := g.GetBootVars("k1", "k2")
+	c.Assert(err, IsNil)
+	c.Check(env, DeepEquals, map[string]string{
+		"k1": "v1",
+		"k2": "v2",
+	})
+}
+
+func (s *grubTestSuite) TestNewGrubWithOptionRecoveryNoEnv(c *C) {
+	// fake a *regular* grub env
+	s.makeFakeGrubEnv(c)
+
+	// we can't create a recovery grub with that
+	g := bootloader.NewGrub(s.rootdir, &bootloader.Options{Recovery: true})
+	c.Assert(g, IsNil)
 }
