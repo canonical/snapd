@@ -140,14 +140,14 @@ apps:
   command: bin/hello-world
   plugs: [potato]
 `)
-	err := pack.FCheckSkeleton(&buf, sourceDir)
+	err := pack.CheckSkeleton(&buf, sourceDir)
 	c.Assert(err, IsNil)
 	c.Check(buf.String(), Equals, "snap \"hello\" has bad plugs or slots: potato (unknown interface \"potato\")\n")
 
 	buf.Reset()
 	c.Assert(os.Remove(filepath.Join(sourceDir, "bin", "hello-world")), IsNil)
 
-	err = pack.FCheckSkeleton(&buf, sourceDir)
+	err = pack.CheckSkeleton(&buf, sourceDir)
 	c.Assert(err, Equals, snap.ErrMissingPaths)
 	c.Check(buf.String(), Equals, "")
 }
