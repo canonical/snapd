@@ -287,7 +287,7 @@ type BootableSet struct {
 	UnpackedGadgetDir string
 }
 
-// makeBootableUc16Uc18 setups the image filesystem for boot with UC16
+// makeBootable16 setups the image filesystem for boot with UC16
 // and UC18 models. This entails:
 //  - installing the bootloader configuration from the gadget
 //  - creating symlinks for boot snaps from seed to the runtime blob dir
@@ -375,7 +375,7 @@ func makeBootable20(model *asserts.Model, rootdir string, bootWith *BootableSet,
 }
 
 // MakeBootable sets up the image filesystem with the given rootdir
-// such that it can be booted
+// such that it can be booted.
 func MakeBootable(model *asserts.Model, rootdir string, bootWith *BootableSet) error {
 	opts := &bootloader.Options{
 		// XXX: allow to override this
