@@ -117,6 +117,28 @@ func (s *deviceMgrInstallModeSuite) TestInstallModeCreatesChangeHappy(c *C) {
 	})
 }
 
+func (s *deviceMgrInstallModeSuite) TestInstallTaskErrors(c *C) {
+	restore := release.MockOnClassic(false)
+	defer restore()
+
+	mockSnapBootstrapCmd := testutil.MockCommand(c, filepath.Join(dirs.DistroLibExecDir, "snap-bootstrap"), `echo "The horror, The horror"; exit 1`)
+	defer mockSnapBootstrapCmd.Restore()
+
+	s.state.Lock()
+	s.makeMockInstalledPcGadget(c)
+	devicestate.SetOperatingMode(s.mgr, "install")
+	s.state.Unlock()
+
+	s.settle(c)
+
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	createPartitions := s.findInstallSystem()
+	c.Check(createPartitions.Err(), ErrorMatches, `(?ms)cannot perform the following tasks:
+- Setup system for run mode \(cannot create partitions: The horror, The horror\)`)
+}
+
 func (s *deviceMgrInstallModeSuite) TestInstallModeNotInstallmodeNoChg(c *C) {
 	restore := release.MockOnClassic(false)
 	defer restore()
