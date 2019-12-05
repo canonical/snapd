@@ -21,6 +21,7 @@
 package naming
 
 import (
+	"errors"
 	"fmt"
 	"regexp"
 	"strings"
@@ -162,4 +163,46 @@ func ValidateSocket(name string) error {
 		return fmt.Errorf("invalid socket name: %q", name)
 	}
 	return nil
+}
+
+var errInvalidSecurityTag = errors.New("invalid security tag")
+
+// ValidateSecurityTag validates known variants of snap security tag.
+//
+// Two forms are recognised, one for apps and one for hooks. Other forms
+// are possible but are not handled here.
+//
+// TODO: handle the weird udev variant.
+func ValidateSecurityTag(tag string) error {
+	parts := strings.Split(tag, ".")
+	switch len(parts) {
+	case 3:
+		snapLiteral, snapName, appName := parts[0], parts[1], parts[2]
+		if snapLiteral != "snap" {
+			return errInvalidSecurityTag
+		}
+		if err := ValidateInstance(snapName); err != nil {
+			return errInvalidSecurityTag
+		}
+		if err := ValidateApp(appName); err != nil {
+			return errInvalidSecurityTag
+		}
+		return nil
+	case 4:
+		snapLiteral, snapName, hookLiteral, hookName := parts[0], parts[1], parts[2], parts[3]
+		if snapLiteral != "snap" {
+			return errInvalidSecurityTag
+		}
+		if err := ValidateInstance(snapName); err != nil {
+			return errInvalidSecurityTag
+		}
+		if hookLiteral != "hook" {
+			return errInvalidSecurityTag
+		}
+		if err := ValidateHook(hookName); err != nil {
+			return errInvalidSecurityTag
+		}
+		return nil
+	}
+	return errInvalidSecurityTag
 }
