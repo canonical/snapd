@@ -20,6 +20,7 @@
 package pack_test
 
 import (
+	"bytes"
 	"fmt"
 	"io/ioutil"
 	"os"
@@ -36,6 +37,9 @@ import (
 	"github.com/snapcore/snapd/snap/pack"
 	"github.com/snapcore/snapd/snap/squashfs"
 	"github.com/snapcore/snapd/testutil"
+
+	// for SanitizePlugsSlots
+	_ "github.com/snapcore/snapd/interfaces/builtin"
 )
 
 func Test(t *testing.T) { TestingT(t) }
@@ -48,7 +52,6 @@ var _ = Suite(&packSuite{})
 
 func (s *packSuite) SetUpTest(c *C) {
 	s.BaseTest.SetUpTest(c)
-	s.BaseTest.AddCleanup(snap.MockSanitizePlugsSlots(func(snapInfo *snap.Info) {}))
 
 	// chdir into a tempdir
 	pwd, err := os.Getwd()
@@ -129,15 +132,24 @@ apps:
 }
 
 func (s *packSuite) TestValidateMissingAppFailsWithErrMissingPaths(c *C) {
+	var buf bytes.Buffer
 	sourceDir := makeExampleSnapSourceDir(c, `name: hello
 version: 0
 apps:
  foo:
   command: bin/hello-world
+  plugs: [potato]
 `)
+	err := pack.CheckSkeleton(&buf, sourceDir)
+	c.Assert(err, IsNil)
+	c.Check(buf.String(), Equals, "snap \"hello\" has bad plugs or slots: potato (unknown interface \"potato\")\n")
+
+	buf.Reset()
 	c.Assert(os.Remove(filepath.Join(sourceDir, "bin", "hello-world")), IsNil)
-	err := pack.CheckSkeleton(sourceDir)
+
+	err = pack.CheckSkeleton(&buf, sourceDir)
 	c.Assert(err, Equals, snap.ErrMissingPaths)
+	c.Check(buf.String(), Equals, "")
 }
 
 func (s *packSuite) TestPackExcludesBackups(c *C) {
