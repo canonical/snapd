@@ -992,6 +992,23 @@ var createTransientScope = func(securityTag string) error {
 		return err
 	}
 
+	// The property and auxUnit types are not documented but can be traced from
+	// systemd source code. Systemd defines the signature of StartTransientUnit
+	// as "ssa(sv)a(sa(sv))". The signature can be decomposed as follows:
+	//
+	// unitName string // name of the unit to start
+	// jobMode string  // corresponds to --job-mode= (see systemctl(1) manual page)
+	// properties []struct{
+	//   Name string
+	//   Value interface{}
+	// } // properties describe properties of the started unit
+	// auxUnits []struct {
+	//   Name string
+	//   Properties []struct{
+	//   	Name string
+	//   	Value interface{}
+	//	 }
+	// } // auxUnits describe any additional units to define.
 	type property struct {
 		Name  string
 		Value interface{}
