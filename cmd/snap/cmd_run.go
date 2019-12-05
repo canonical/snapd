@@ -1025,6 +1025,9 @@ var createTransientScope = func(securityTag string) error {
 	if err != nil {
 		return err
 	}
+	// Instead of enforcing uniqueness we could join an existing scope but this has some limitations:
+	// - the originally started scope must be marked as a delegate, with all consequences.
+	// - the method AttachProcessesToUnit is unavailable on Ubuntu 16.04
 	unitName := fmt.Sprintf("snap.%s.%s.scope", uuid, strings.TrimPrefix(securityTag, "snap."))
 	mode := "fail"
 	properties := []property{{"PIDs", []uint{uint(os.Getpid())}}}
