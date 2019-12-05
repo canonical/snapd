@@ -26,12 +26,16 @@ import (
 
 	"gopkg.in/tomb.v2"
 
+	"github.com/snapcore/snapd/boot"
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/overlord/snapstate"
 	"github.com/snapcore/snapd/overlord/state"
 	"github.com/snapcore/snapd/timings"
 )
+
+// override for tests
+var bootMakeRunnable = boot.MakeRunnable
 
 func (m *DeviceManager) doSetupRunSystem(t *state.Task, _ *tomb.Tomb) error {
 	st := t.State()
@@ -60,8 +64,29 @@ func (m *DeviceManager) doSetupRunSystem(t *state.Task, _ *tomb.Tomb) error {
 		return osutil.OutputErr(output, err)
 	}
 
-	// XXX: update recovery mode in grubenv
-	// XXX2: write correct modeenv
+	// make the system runable
+	model := deviceCtx.Model()
+	baseInfo, err := snapstate.CurrentInfo(m.state, model.Base())
+	if err != nil {
+		return fmt.Errorf("cannot make system runnable: %v", err)
+	}
+	kernelInfo, err := snapstate.CurrentInfo(m.state, model.Kernel())
+	if err != nil {
+		return fmt.Errorf("cannot make system runnable: %v", err)
+	}
+	bootWith := &boot.BootableSet{
+		Base:       baseInfo,
+		BasePath:   baseInfo.MountFile(),
+		Kernel:     kernelInfo,
+		KernelPath: kernelInfo.MountFile(),
+
+		UnpackedGadgetDir: gadgetDir,
+		RecoverySystem:    m.modeEnv.RecoverySystem,
+	}
+	if err := bootMakeRunnable(model, bootWith); err != nil {
+		return fmt.Errorf("cannot make the system runnable: %v", err)
+	}
+	st.RequestRestart(state.RestartSystem)
 
 	return nil
 }

@@ -473,6 +473,11 @@ func (m *DeviceManager) ensureBootOk() error {
 		return nil
 	}
 
+	// XXX: we need a boot-ok for recovery mode
+	if m.operatingMode() == "install" {
+		return nil
+	}
+
 	if !m.bootOkRan {
 		if err := boot.MarkBootSuccessful(); err != nil {
 			return err

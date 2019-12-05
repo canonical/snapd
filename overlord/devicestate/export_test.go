@@ -24,6 +24,7 @@ import (
 	"time"
 
 	"github.com/snapcore/snapd/asserts"
+	"github.com/snapcore/snapd/boot"
 	"github.com/snapcore/snapd/gadget"
 	"github.com/snapcore/snapd/overlord/snapstate"
 	"github.com/snapcore/snapd/overlord/state"
@@ -85,6 +86,10 @@ func SetLastBecomeOperationalAttempt(m *DeviceManager, t time.Time) {
 
 func SetOperatingMode(m *DeviceManager, mode string) {
 	m.modeEnv.Mode = mode
+}
+
+func SetRecoverySystem(m *DeviceManager, recoverySystem string) {
+	m.modeEnv.RecoverySystem = recoverySystem
 }
 
 // XXX: will become properly exported but we probably want to make
@@ -190,5 +195,13 @@ func MockGadgetIsCompatible(mock func(current, update *gadget.Info) error) (rest
 	gadgetIsCompatible = mock
 	return func() {
 		gadgetIsCompatible = old
+	}
+}
+
+func MockBootMakeRunnable(f func(model *asserts.Model, bootWith *boot.BootableSet) error) (restore func()) {
+	old := bootMakeRunnable
+	bootMakeRunnable = f
+	return func() {
+		bootMakeRunnable = old
 	}
 }

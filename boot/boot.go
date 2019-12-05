@@ -284,6 +284,8 @@ type BootableSet struct {
 	Kernel     *snap.Info
 	KernelPath string
 
+	RecoverySystem string
+
 	UnpackedGadgetDir string
 }
 
@@ -361,4 +363,17 @@ func MakeBootable(model *asserts.Model, rootdir string, bootWith *BootableSet) e
 
 	return nil
 
+}
+
+func MakeRunnable(model *asserts.Model, bootWith *BootableSet) error {
+	// XXX: install "run" mode grub.cfg (static, expects static names)
+	//      to /run/mnt/ubuntu-boot
+
+	// XXX: extract kernel to fixed name to /run/mnt/ubuntu-boot
+
+	// XXX: set modeenv to /run/mnt/ubuntu-data with base,kernel,recovery-system to use
+
+	// XXX: set recovery bootloader to "run" mode
+
+	return nil
 }
