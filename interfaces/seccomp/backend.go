@@ -176,7 +176,11 @@ func parallelCompile(compiler Compiler, profiles []string) error {
 	if N > len(profiles) {
 		N = len(profiles)
 	}
-	res := make(chan error, N*2)
+	M := N * 2
+	if M > len(profiles) {
+		M = len(profiles)
+	}
+	res := make(chan error, M)
 
 	// launch as many workers as we have CPUs
 	for i := 0; i < N; i++ {
