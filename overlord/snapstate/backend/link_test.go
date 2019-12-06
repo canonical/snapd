@@ -420,17 +420,11 @@ type: os
 	err := os.Symlink(filepath.Base(mountDirOld), filepath.Join(mountDirOld, "..", "current"))
 	c.Assert(err, IsNil)
 
-	err = os.MkdirAll(filepath.Join(mountDirOld, "bin"), 0755)
-	c.Assert(err, IsNil)
-
 	oldCmdV6 := testutil.MockCommand(c, filepath.Join(mountDirOld, "bin", "fc-cache-v6"), "")
 	oldCmdV7 := testutil.MockCommand(c, filepath.Join(mountDirOld, "bin", "fc-cache-v7"), "")
 
 	infoNew := snaptest.MockSnap(c, yaml, &snap.SideInfo{Revision: snap.R(12)})
 	mountDirNew := infoNew.MountDir()
-
-	err = os.MkdirAll(filepath.Join(mountDirNew, "bin"), 0755)
-	c.Assert(err, IsNil)
 
 	newCmdV6 := testutil.MockCommand(c, filepath.Join(mountDirNew, "bin", "fc-cache-v6"), "")
 	newCmdV7 := testutil.MockCommand(c, filepath.Join(mountDirNew, "bin", "fc-cache-v7"), "")

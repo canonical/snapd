@@ -33,6 +33,7 @@ import (
 	"github.com/snapcore/snapd/asserts"
 	"github.com/snapcore/snapd/asserts/assertstest"
 	"github.com/snapcore/snapd/asserts/sysdb"
+	"github.com/snapcore/snapd/boot"
 	"github.com/snapcore/snapd/bootloader"
 	"github.com/snapcore/snapd/bootloader/bootloadertest"
 	"github.com/snapcore/snapd/dirs"
@@ -311,7 +312,8 @@ func (s *deviceMgrSuite) TestDeviceManagerEnsureSeededAlsoOnClassic(c *C) {
 }
 
 func (s *deviceMgrSuite) TestDeviceManagerEnsureSeededHappy(c *C) {
-	restore := devicestate.MockPopulateStateFromSeed(func(*state.State, *devicestate.PopulateStateFromSeedOptions, timings.Measurer) (ts []*state.TaskSet, err error) {
+	restore := devicestate.MockPopulateStateFromSeed(func(st *state.State, opts *devicestate.PopulateStateFromSeedOptions, tm timings.Measurer) (ts []*state.TaskSet, err error) {
+		c.Assert(opts, IsNil)
 		t := s.state.NewTask("test-task", "a random task")
 		ts = append(ts, state.NewTaskSet(t))
 		return ts, nil
@@ -332,6 +334,43 @@ func (s *deviceMgrSuite) TestDeviceManagerEnsureBootOkSkippedOnClassic(c *C) {
 
 	err := devicestate.EnsureBootOk(s.mgr)
 	c.Assert(err, IsNil)
+}
+
+func (s *deviceMgrSuite) TestDeviceManagerEnsureSeededHappyWithModeenv(c *C) {
+	n := 0
+	restore := devicestate.MockPopulateStateFromSeed(func(st *state.State, opts *devicestate.PopulateStateFromSeedOptions, tm timings.Measurer) (ts []*state.TaskSet, err error) {
+		c.Assert(opts, NotNil)
+		c.Check(opts.Label, Equals, "20191127")
+		c.Check(opts.Mode, Equals, "install")
+
+		t := s.state.NewTask("test-task", "a random task")
+		ts = append(ts, state.NewTaskSet(t))
+
+		n++
+		return ts, nil
+	})
+	defer restore()
+
+	// mock the modeenv file
+	m := boot.Modeenv{
+		Mode:           "install",
+		RecoverySystem: "20191127",
+	}
+	err := m.Write("")
+	c.Assert(err, IsNil)
+
+	// re-create manager so that modeenv file is-read
+	s.mgr, err = devicestate.Manager(s.state, s.hookMgr, s.o.TaskRunner(), s.newStore)
+	c.Assert(err, IsNil)
+
+	err = devicestate.EnsureSeeded(s.mgr)
+	c.Assert(err, IsNil)
+
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	c.Check(s.state.Changes(), HasLen, 1)
+	c.Check(n, Equals, 1)
 }
 
 func (s *deviceMgrSuite) TestDeviceManagerEnsureBootOkBootloaderHappy(c *C) {
@@ -1012,4 +1051,16 @@ func (s *deviceMgrSuite) TestDevicemgrCanStandby(c *C) {
 
 	st.Set("seeded", true)
 	c.Check(mgr.CanStandby(), Equals, true)
+}
+
+func (s *deviceMgrSuite) TestDeviceManagerReadsModeenv(c *C) {
+	modeEnv := &boot.Modeenv{Mode: "install"}
+	err := modeEnv.Write("")
+	c.Assert(err, IsNil)
+
+	runner := s.o.TaskRunner()
+	mgr, err := devicestate.Manager(s.state, s.hookMgr, runner, s.newStore)
+	c.Assert(err, IsNil)
+	c.Assert(mgr, NotNil)
+	c.Assert(devicestate.OperatingMode(mgr), Equals, "install")
 }

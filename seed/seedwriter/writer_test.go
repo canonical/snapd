@@ -1981,7 +1981,7 @@ func (s *writerSuite) TestCore20NonDangerousNoChannelOverride(c *C) {
 	c.Check(err, ErrorMatches, `cannot override channels, add local snaps or extra snaps with a model of grade higher than dangerous`)
 }
 
-func (s *writerSuite) TestCore20NonDangerousNoOptionsSnapsAllowed(c *C) {
+func (s *writerSuite) TestCore20NonDangerousDisallowedOptionsSnaps(c *C) {
 	model := s.Brands.Model("my-brand", "my-model", map[string]interface{}{
 		"display-name": "my model",
 		"architecture": "amd64",
@@ -2003,29 +2003,58 @@ func (s *writerSuite) TestCore20NonDangerousNoOptionsSnapsAllowed(c *C) {
 		},
 	})
 
+	pcFn := s.makeLocalSnap(c, "pc")
+
 	s.opts.Label = "20191107"
 
 	tests := []struct {
-		optSnaps []*seedwriter.OptionsSnap
-		err      bool
+		optSnap *seedwriter.OptionsSnap
 	}{
-		{nil, false},
-		{[]*seedwriter.OptionsSnap{}, false},
-		{[]*seedwriter.OptionsSnap{{Name: "extra"}}, true},
-		{[]*seedwriter.OptionsSnap{{Path: "local.snap"}}, true},
-		{[]*seedwriter.OptionsSnap{{Name: "pc", Channel: "edge"}}, true},
+		{&seedwriter.OptionsSnap{Name: "extra"}},
+		{&seedwriter.OptionsSnap{Path: pcFn}},
+		{&seedwriter.OptionsSnap{Name: "pc", Channel: "edge"}},
 	}
+
+	const expectedErr = `cannot override channels, add local snaps or extra snaps with a model of grade higher than dangerous`
 
 	for _, t := range tests {
 		w, err := seedwriter.New(model, s.opts)
 		c.Assert(err, IsNil)
 
-		err = w.SetOptionsSnaps(t.optSnaps)
-		if t.err {
-			c.Check(err, ErrorMatches, `cannot override channels, add local snaps or extra snaps with a model of grade higher than dangerous`)
-		} else {
-			c.Check(err, IsNil)
+		err = w.SetOptionsSnaps([]*seedwriter.OptionsSnap{t.optSnap})
+		if err != nil {
+			c.Check(err, ErrorMatches, expectedErr)
+			continue
 		}
+
+		tf, err := w.Start(s.db, s.newFetcher)
+		c.Assert(err, IsNil)
+
+		if t.optSnap.Path != "" {
+			localSnaps, err := w.LocalSnaps()
+			c.Assert(err, IsNil)
+			c.Assert(localSnaps, HasLen, 1)
+
+			for _, sn := range localSnaps {
+				si, aRefs, err := seedwriter.DeriveSideInfo(sn.Path, tf, s.db)
+				if !asserts.IsNotFound(err) {
+					c.Assert(err, IsNil)
+				}
+				f, err := snap.Open(sn.Path)
+				c.Assert(err, IsNil)
+				info, err := snap.ReadInfoFromSnapFile(f, si)
+				c.Assert(err, IsNil)
+				w.SetInfo(sn, info)
+				sn.ARefs = aRefs
+			}
+
+			err = w.InfoDerived()
+			c.Check(err, ErrorMatches, expectedErr)
+			continue
+		}
+
+		_, err = w.SnapsToDownload()
+		c.Check(err, ErrorMatches, expectedErr)
 	}
 }
 
@@ -2090,14 +2119,13 @@ func (s *writerSuite) TestSeedSnapsWriteMetaCore20LocalSnaps(c *C) {
 	c.Assert(localSnaps, HasLen, 1)
 
 	for _, sn := range localSnaps {
-		si, aRefs, err := seedwriter.DeriveSideInfo(sn.Path, tf, s.db)
-		c.Check(asserts.IsNotFound(err), Equals, true)
+		_, _, err := seedwriter.DeriveSideInfo(sn.Path, tf, s.db)
+		c.Assert(asserts.IsNotFound(err), Equals, true)
 		f, err := snap.Open(sn.Path)
 		c.Assert(err, IsNil)
-		info, err := snap.ReadInfoFromSnapFile(f, si)
+		info, err := snap.ReadInfoFromSnapFile(f, nil)
 		c.Assert(err, IsNil)
 		w.SetInfo(sn, info)
-		sn.ARefs = aRefs
 	}
 
 	err = w.InfoDerived()
@@ -2266,6 +2294,333 @@ func (s *writerSuite) TestSeedSnapsWriteMetaCore20ChannelOverrides(c *C) {
 			Name:    "required20",
 			SnapID:  s.AssertedSnapID("required20"),
 			Channel: "latest/candidate",
+		},
+	})
+}
+
+func (s *writerSuite) TestSeedSnapsWriteMetaCore20ModelOverrideSnapd(c *C) {
+	model := s.Brands.Model("my-brand", "my-model", map[string]interface{}{
+		"display-name": "my model",
+		"architecture": "amd64",
+		"base":         "core20",
+		"snaps": []interface{}{
+			map[string]interface{}{
+				"name":            "snapd",
+				"id":              s.AssertedSnapID("snapd"),
+				"type":            "snapd",
+				"default-channel": "latest/edge",
+			},
+			map[string]interface{}{
+				"name":            "pc-kernel",
+				"id":              s.AssertedSnapID("pc-kernel"),
+				"type":            "kernel",
+				"default-channel": "20",
+			},
+			map[string]interface{}{
+				"name":            "pc",
+				"id":              s.AssertedSnapID("pc"),
+				"type":            "gadget",
+				"default-channel": "20",
+			}},
+	})
+
+	// sanity
+	c.Assert(model.Grade(), Equals, asserts.ModelSigned)
+
+	s.makeSnap(c, "snapd", "")
+	s.makeSnap(c, "core20", "")
+	s.makeSnap(c, "pc-kernel=20", "")
+	s.makeSnap(c, "pc=20", "")
+
+	s.opts.Label = "20191121"
+	w, err := seedwriter.New(model, s.opts)
+	c.Assert(err, IsNil)
+
+	_, err = w.Start(s.db, s.newFetcher)
+	c.Assert(err, IsNil)
+
+	snaps, err := w.SnapsToDownload()
+	c.Assert(err, IsNil)
+	c.Check(snaps, HasLen, 4)
+
+	for _, sn := range snaps {
+		// check the used channel at this level because in the
+		// non-dangerous case is not written anywhere (it
+		// reflects the model or default)
+		channel := "latest/stable"
+		switch sn.SnapName() {
+		case "snapd":
+			channel = "latest/edge"
+		case "pc", "pc-kernel":
+			channel = "20"
+		}
+		c.Check(sn.Channel, Equals, channel)
+		s.fillDownloadedSnap(c, w, sn)
+	}
+
+	complete, err := w.Downloaded()
+	c.Assert(err, IsNil)
+	c.Check(complete, Equals, true)
+
+	err = w.SeedSnaps(nil)
+	c.Assert(err, IsNil)
+
+	err = w.WriteMeta()
+	c.Assert(err, IsNil)
+
+	// check seed
+	systemDir := filepath.Join(s.opts.SeedDir, "systems", s.opts.Label)
+	c.Check(systemDir, testutil.FilePresent)
+
+	// check the snaps are in place
+	for _, name := range []string{"snapd", "pc-kernel", "core20", "pc"} {
+		info := s.AssertedSnapInfo(name)
+
+		fn := filepath.Base(info.MountFile())
+		p := filepath.Join(s.opts.SeedDir, "snaps", fn)
+		c.Check(p, testutil.FilePresent)
+	}
+
+	l, err := ioutil.ReadDir(filepath.Join(s.opts.SeedDir, "snaps"))
+	c.Assert(err, IsNil)
+	c.Check(l, HasLen, 4)
+
+	c.Check(filepath.Join(systemDir, "extra-snaps"), testutil.FileAbsent)
+	c.Check(filepath.Join(systemDir, "options.yaml"), testutil.FileAbsent)
+}
+
+func (s *writerSuite) TestSnapsToDownloadCore20OptionalSnaps(c *C) {
+	model := s.Brands.Model("my-brand", "my-model", map[string]interface{}{
+		"display-name": "my model",
+		"architecture": "amd64",
+		"base":         "core20",
+		"snaps": []interface{}{
+			map[string]interface{}{
+				"name":            "pc-kernel",
+				"id":              s.AssertedSnapID("pc-kernel"),
+				"type":            "kernel",
+				"default-channel": "20",
+			},
+			map[string]interface{}{
+				"name":            "pc",
+				"id":              s.AssertedSnapID("pc"),
+				"type":            "gadget",
+				"default-channel": "20",
+			},
+			map[string]interface{}{
+				"name": "core18",
+				"id":   s.AssertedSnapID("core18"),
+				"type": "base",
+			},
+			map[string]interface{}{
+				"name":     "optional20-a",
+				"id":       s.AssertedSnapID("optional20-a"),
+				"presence": "optional",
+			},
+			map[string]interface{}{
+				"name":     "optional20-b",
+				"id":       s.AssertedSnapID("optional20-b"),
+				"presence": "optional",
+			}},
+	})
+
+	// sanity
+	c.Assert(model.Grade(), Equals, asserts.ModelSigned)
+
+	s.makeSnap(c, "snapd", "")
+	s.makeSnap(c, "core20", "")
+	s.makeSnap(c, "core18", "")
+	s.makeSnap(c, "pc-kernel=20", "")
+	s.makeSnap(c, "pc=20", "")
+	s.makeSnap(c, "optional20-a", "developerid")
+	s.makeSnap(c, "optional20-b", "developerid")
+
+	s.opts.Label = "20191122"
+	w, err := seedwriter.New(model, s.opts)
+	c.Assert(err, IsNil)
+
+	err = w.SetOptionsSnaps([]*seedwriter.OptionsSnap{{Name: "optional20-b"}})
+	c.Assert(err, IsNil)
+
+	_, err = w.Start(s.db, s.newFetcher)
+	c.Assert(err, IsNil)
+
+	snaps, err := w.SnapsToDownload()
+	c.Assert(err, IsNil)
+	c.Check(snaps, HasLen, 6)
+	c.Check(snaps[5].SnapName(), Equals, "optional20-b")
+}
+
+func (s *writerSuite) TestSeedSnapsWriteMetaCore20ExtraSnaps(c *C) {
+	model := s.Brands.Model("my-brand", "my-model", map[string]interface{}{
+		"display-name": "my model",
+		"architecture": "amd64",
+		"base":         "core20",
+		"grade":        "dangerous",
+		"snaps": []interface{}{
+			map[string]interface{}{
+				"name":            "pc-kernel",
+				"id":              s.AssertedSnapID("pc-kernel"),
+				"type":            "kernel",
+				"default-channel": "20",
+			},
+			map[string]interface{}{
+				"name":            "pc",
+				"id":              s.AssertedSnapID("pc"),
+				"type":            "gadget",
+				"default-channel": "20",
+			}},
+	})
+
+	// sanity
+	c.Assert(model.Grade(), Equals, asserts.ModelDangerous)
+
+	s.makeSnap(c, "snapd", "")
+	s.makeSnap(c, "core20", "")
+	s.makeSnap(c, "pc-kernel=20", "")
+	s.makeSnap(c, "pc=20", "")
+	s.makeSnap(c, "core18", "")
+	s.makeSnap(c, "cont-producer", "developerid")
+	contConsumerFn := s.makeLocalSnap(c, "cont-consumer")
+
+	s.opts.Label = "20191122"
+	w, err := seedwriter.New(model, s.opts)
+	c.Assert(err, IsNil)
+
+	err = w.SetOptionsSnaps([]*seedwriter.OptionsSnap{{Name: "cont-producer", Channel: "edge"}, {Name: "core18"}, {Path: contConsumerFn}})
+	c.Assert(err, IsNil)
+
+	tf, err := w.Start(s.db, s.newFetcher)
+	c.Assert(err, IsNil)
+
+	localSnaps, err := w.LocalSnaps()
+	c.Assert(err, IsNil)
+	c.Assert(localSnaps, HasLen, 1)
+
+	for _, sn := range localSnaps {
+		_, _, err := seedwriter.DeriveSideInfo(sn.Path, tf, s.db)
+		c.Assert(asserts.IsNotFound(err), Equals, true)
+		f, err := snap.Open(sn.Path)
+		c.Assert(err, IsNil)
+		info, err := snap.ReadInfoFromSnapFile(f, nil)
+		c.Assert(err, IsNil)
+		w.SetInfo(sn, info)
+	}
+
+	err = w.InfoDerived()
+	c.Assert(err, IsNil)
+
+	snaps, err := w.SnapsToDownload()
+	c.Assert(err, IsNil)
+	c.Check(snaps, HasLen, 4)
+
+	for _, sn := range snaps {
+		channel := "latest/stable"
+		switch sn.SnapName() {
+		case "pc", "pc-kernel":
+			channel = "20"
+		}
+		c.Check(sn.Channel, Equals, channel)
+		s.fillDownloadedSnap(c, w, sn)
+	}
+
+	complete, err := w.Downloaded()
+	c.Assert(err, IsNil)
+	c.Check(complete, Equals, false)
+
+	snaps, err = w.SnapsToDownload()
+	c.Assert(err, IsNil)
+	c.Assert(snaps, HasLen, 2)
+	c.Check(snaps[0].SnapName(), Equals, "cont-producer")
+	c.Check(snaps[1].SnapName(), Equals, "core18")
+
+	for _, sn := range snaps {
+		channel := "latest/stable"
+		switch sn.SnapName() {
+		case "cont-producer":
+			channel = "latest/edge"
+		}
+		c.Check(sn.Channel, Equals, channel)
+
+		info := s.doFillMetaDownloadedSnap(c, w, sn)
+
+		c.Assert(sn.Path, Equals, filepath.Join(s.opts.SeedDir, "systems", s.opts.Label, "snaps", filepath.Base(info.MountFile())))
+		err := os.Rename(s.AssertedSnap(sn.SnapName()), sn.Path)
+		c.Assert(err, IsNil)
+	}
+
+	complete, err = w.Downloaded()
+	c.Assert(err, IsNil)
+	c.Check(complete, Equals, true)
+
+	copySnap := func(name, src, dst string) error {
+		return osutil.CopyFile(src, dst, 0)
+	}
+
+	err = w.SeedSnaps(copySnap)
+	c.Assert(err, IsNil)
+
+	err = w.WriteMeta()
+	c.Assert(err, IsNil)
+
+	// check seed
+	systemDir := filepath.Join(s.opts.SeedDir, "systems", s.opts.Label)
+	c.Check(systemDir, testutil.FilePresent)
+
+	l, err := ioutil.ReadDir(filepath.Join(s.opts.SeedDir, "snaps"))
+	c.Assert(err, IsNil)
+	c.Check(l, HasLen, 4)
+
+	// extra snaps were put in system snaps dir
+	c.Check(filepath.Join(systemDir, "snaps", "core18_1.snap"), testutil.FilePresent)
+	c.Check(filepath.Join(systemDir, "snaps", "cont-producer_1.snap"), testutil.FilePresent)
+	c.Check(filepath.Join(systemDir, "snaps", "cont-consumer_1.0.snap"), testutil.FilePresent)
+
+	// check extra-snaps in assertions
+	snapAsserts := seedtest.ReadAssertions(c, filepath.Join(systemDir, "assertions", "extra-snaps"))
+	seen := make(map[string]bool)
+
+	for _, a := range snapAsserts {
+		uniq := a.Ref().Unique()
+		if a.Type() == asserts.SnapRevisionType {
+			rev := a.(*asserts.SnapRevision)
+			uniq = fmt.Sprintf("%s@%d", rev.SnapID(), rev.SnapRevision())
+		}
+		seen[uniq] = true
+	}
+
+	snapRevUniq := func(snapName string, revno int) string {
+		return fmt.Sprintf("%s@%d", s.AssertedSnapID(snapName), revno)
+	}
+	snapDeclUniq := func(snapName string) string {
+		return "snap-declaration/16/" + s.AssertedSnapID(snapName)
+	}
+
+	c.Check(seen, DeepEquals, map[string]bool{
+		"account/developerid":           true,
+		snapDeclUniq("core18"):          true,
+		snapDeclUniq("cont-producer"):   true,
+		snapRevUniq("core18", 1):        true,
+		snapRevUniq("cont-producer", 1): true,
+	})
+
+	options20, err := seedwriter.InternalReadOptions20(filepath.Join(systemDir, "options.yaml"))
+	c.Assert(err, IsNil)
+
+	c.Check(options20.Snaps, DeepEquals, []*seedwriter.InternalSnap20{
+		{
+			Name:    "cont-producer",
+			SnapID:  s.AssertedSnapID("cont-producer"),
+			Channel: "latest/edge",
+		},
+		{
+			Name:    "core18",
+			SnapID:  s.AssertedSnapID("core18"),
+			Channel: "latest/stable",
+		},
+		{
+			Name:       "cont-consumer",
+			Unasserted: "cont-consumer_1.0.snap",
 		},
 	})
 }

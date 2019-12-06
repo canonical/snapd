@@ -124,6 +124,5 @@ func init() {
 		baseDeclarationPlugs:  multipassSupportBaseDeclarationPlugs,
 		connectedPlugAppArmor: multipassSupportConnectedPlugAppArmor,
 		connectedPlugSecComp:  multipassSupportConnectedPlugSecComp,
-		reservedForOS:         true,
 	})
 }

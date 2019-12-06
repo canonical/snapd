@@ -94,6 +94,10 @@ func (m *InterfaceManager) doSetupProfiles(task *state.Task, tomb *tomb.Tomb) er
 		return err
 	}
 
+	if len(snapInfo.BadInterfaces) > 0 {
+		task.State().Warnf("%s", snap.BadInterfacesSummary(snapInfo))
+	}
+
 	// We no longer do/need core-phase-2, see
 	//   https://github.com/snapcore/snapd/pull/5301
 	// This code is just here to deal with old state that may still
@@ -696,25 +700,6 @@ var contentLinkRetryTimeout = 30 * time.Second
 // timeout for retrying hotplug-related tasks
 var hotplugRetryTimeout = 300 * time.Millisecond
 
-// defaultContentProviders returns a dict of the default-providers for the
-// content plugs for the given instanceName
-func (m *InterfaceManager) defaultContentProviders(instanceName string) map[string]bool {
-	plugs := m.repo.Plugs(instanceName)
-	defaultProviders := make(map[string]bool, len(plugs))
-	for _, plug := range plugs {
-		if plug.Interface == "content" {
-			var s string
-			if err := plug.Attr("content", &s); err == nil && s != "" {
-				var dprovider string
-				if err := plug.Attr("default-provider", &dprovider); err == nil && dprovider != "" {
-					defaultProviders[dprovider] = true
-				}
-			}
-		}
-	}
-	return defaultProviders
-}
-
 func obsoleteCorePhase2SetupProfiles(kind string, task *state.Task) (bool, error) {
 	if kind != "setup-profiles" {
 		return false, nil
@@ -997,8 +982,14 @@ func (m *InterfaceManager) doAutoConnect(task *state.Task, _ *tomb.Tomb) error {
 
 	// wait for auto-install, started by prerequisites code, for
 	// the default-providers of content ifaces so we can
-	// auto-connect to them
-	defaultProviders := m.defaultContentProviders(snapName)
+	// auto-connect to them; snapstate prerequisites does a bit
+	// more filtering than this so defaultProviders here can
+	// contain some more snaps; should not be an issue in practice
+	// given the check below checks for same chain and we don't
+	// forcefully wait for defaultProviders; we just retry for
+	// things in the intersection between defaultProviders here and
+	// snaps with not ready link-snap|setup-profiles tasks
+	defaultProviders := snap.DefaultContentProviders(m.repo.Plugs(snapName))
 	for _, chg := range st.Changes() {
 		if chg.Status().Ready() {
 			continue
@@ -1014,7 +1005,8 @@ func (m *InterfaceManager) doAutoConnect(task *state.Task, _ *tomb.Tomb) error {
 				// Only retry if the task that installs the
 				// content provider is not waiting for us
 				// (or this will just hang forever).
-				if defaultProviders[snapsup.InstanceName()] && !inSameChangeWaitChain(task, t) {
+				_, ok := defaultProviders[snapsup.InstanceName()]
+				if ok && !inSameChangeWaitChain(task, t) {
 					return &state.Retry{After: contentLinkRetryTimeout}
 				}
 			}

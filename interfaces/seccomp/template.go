@@ -763,4 +763,22 @@ fchown32 - -1 g:###GROUP###
 fchownat - - -1 g:###GROUP###
 lchown - -1 g:###GROUP###
 lchown32 - -1 g:###GROUP###
+
+# allow chown to ###USERNAME###:root
+chown - u:###USERNAME### g:root
+chown32 - u:###USERNAME### g:root
+fchown - u:###USERNAME### g:root
+fchown32 - u:###USERNAME### g:root
+fchownat - - u:###USERNAME### g:root
+lchown - u:###USERNAME### g:root
+lchown32 - u:###USERNAME### g:root
+
+# allow chown to root:###GROUP###
+chown - u:root g:###GROUP###
+chown32 - u:root g:###GROUP###
+fchown - u:root g:###GROUP###
+fchown32 - u:root g:###GROUP###
+fchownat - - u:root g:###GROUP###
+lchown - u:root g:###GROUP###
+lchown32 - u:root g:###GROUP###
 `

@@ -47,6 +47,5 @@ func init() {
 		baseDeclarationSlots:  dvbBaseDeclarationSlots,
 		connectedPlugAppArmor: dvbConnectedPlugAppArmor,
 		connectedPlugUDev:     dvbConnectedPlugUDev,
-		reservedForOS:         true,
 	})
 }
