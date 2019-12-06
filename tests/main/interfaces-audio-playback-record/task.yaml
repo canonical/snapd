@@ -1,7 +1,7 @@
 summary: Ensure that the audio-playback/record interface works
 
 # Only classic Ubuntu has the pulseaudio mediation patches
-systems: [ ubuntu-1*-*64 ]
+systems: [ ubuntu-1*-*64, ubuntu-2*-*64 ]
 
 environment:
     PLAY_FILE: "/snap/test-snapd-audio-record/current/usr/share/sounds/alsa/Noise.wav"

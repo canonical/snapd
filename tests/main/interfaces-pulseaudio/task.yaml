@@ -1,7 +1,7 @@
 summary: Ensure that the pulseaudio interface works
 
 # Classic Ubuntu is sufficient to test the feature
-systems: [ ubuntu-1*-*64 ]
+systems: [ ubuntu-1*-*64, ubuntu-2*-*64 ]
 
 environment:
     PLAY_FILE: "/snap/test-snapd-pulseaudio/current/usr/share/sounds/alsa/Noise.wav"
