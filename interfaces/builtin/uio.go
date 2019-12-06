@@ -138,7 +138,7 @@ func (iface *uioInterface) HotplugKey(di *hotplug.HotplugDeviceInfo) (snap.Hotpl
 	key.Write([]byte{0})
 	key.Write([]byte(parts[4]))
 	key.Write([]byte{0})
-	return snap.HotplugKey(fmt.Sprintf("uio:%x", key.Sum(nil))), nil
+	return snap.HotplugKey(fmt.Sprintf("%x", key.Sum(nil))), nil
 }
 
 func (iface *uioInterface) HandledByGadget(di *hotplug.HotplugDeviceInfo, slot *snap.SlotInfo) bool {
