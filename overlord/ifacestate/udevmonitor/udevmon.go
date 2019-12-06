@@ -95,9 +95,11 @@ func (m *Monitor) Connect() error {
 	// TODO: extend with other criteria based on the hotplug interfaces
 	filter = &netlink.RuleDefinitions{
 		Rules: []netlink.RuleDefinition{
-			{Env: map[string]string{"SUBSYSTEM": "tty"}},
 			{Env: map[string]string{"SUBSYSTEM": "net"}},
-			{Env: map[string]string{"SUBSYSTEM": "usb"}}}}
+			{Env: map[string]string{"SUBSYSTEM": "tty"}},
+			{Env: map[string]string{"SUBSYSTEM": "uio"}},
+			{Env: map[string]string{"SUBSYSTEM": "usb"}},
+		}}
 
 	m.monitorStop = m.netlinkConn.Monitor(m.netlinkEvents, m.netlinkErrors, filter)
 
