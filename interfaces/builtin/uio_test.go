@@ -137,7 +137,7 @@ func (s *uioInterfaceSuite) TestHotplugKey(c *C) {
 	c.Assert(err, IsNil)
 	key, err := keyHandlerIface.HotplugKey(di)
 	c.Assert(err, IsNil)
-	c.Assert(key, DeepEquals, snap.HotplugKey("7920f79e2e547416cd88d4184af1c514578890ec920e307ac992657084f1e48f"))
+	c.Assert(key, DeepEquals, snap.HotplugKey("31b4fa38ba0c084343b59ae3c7de5b00bc9fca90c9a816f8110800700dafd4a7"))
 
 	di, err = hotplug.NewHotplugDeviceInfo(map[string]string{"DEVPATH": "/devices/platform/", "DEVNAME": "/dev/uio0", "ACTION": "add", "SUBSYSTEM": "uio"})
 	c.Assert(err, IsNil)

@@ -130,7 +130,7 @@ func (iface *uioInterface) HotplugKey(di *hotplug.HotplugDeviceInfo) (snap.Hotpl
 		return "", fmt.Errorf("unexpected device path for UIO device: %q", di.DevicePath())
 	}
 	key := sha256.New()
-	key.Write([]byte("version"))
+	key.Write([]byte("scheme"))
 	key.Write([]byte{0})
 	key.Write([]byte("0"))
 	key.Write([]byte{0})
