@@ -30,6 +30,9 @@ prepare: |
     # with socket activation
     install_local socket-activation
 
+    # with socket activation
+    install_local socket-activation
+
     before=$(find ${SNAP_MOUNT_DIR} -type d | wc -l)
     if [ "$before" -lt 2 ]; then
         echo "${SNAP_MOUNT_DIR} empty - test setup broken"
