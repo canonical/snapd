@@ -27,10 +27,10 @@ restore: |
     rm -f stamp enforcing.mode
 
 execute: |
-    snap install test-snapd-tools
-    test-snapd-tools.cmd echo 'hello world'
-    su -c 'test-snapd-tools.cmd echo hello world' test
-    snap remove test-snapd-tools
+    snap install test-snapd-sh
+    test-snapd-sh.sh -c 'echo hello world'
+    su -c 'test-snapd-sh.sh -c "echo hello world"' test
+    snap remove test-snapd-sh
     ausearch -i --checkpoint stamp --start checkpoint -m AVC 2>&1 | MATCH 'no matches'
 
     #shellcheck source=tests/lib/snaps.sh
