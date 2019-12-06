@@ -54,7 +54,8 @@ func init() {
 		noticef = logger.Panicf
 	}
 
-	// plug/slot sanitization not used nor possible from snap command, make it no-op
+	// plug/slot sanitization not used by snap commands (except for snap pack
+	// which re-sets it), make it no-op.
 	snap.SanitizePlugsSlots = func(snapInfo *snap.Info) {}
 }
 

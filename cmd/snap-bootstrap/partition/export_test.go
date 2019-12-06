@@ -18,6 +18,10 @@
  */
 package partition
 
+import (
+	"time"
+)
+
 type LsblkFilesystemInfo = lsblkFilesystemInfo
 type LsblkBlockDevice = lsblkBlockDevice
 type SFDiskPartitionTable = sfdiskPartitionTable
@@ -27,6 +31,7 @@ var (
 	FilesystemInfo     = filesystemInfo
 	BuildPartitionList = buildPartitionList
 	Mkfs               = mkfs
+	EnsureNodesExist   = ensureNodesExist
 )
 
 func MockDeployMountpoint(new string) (restore func()) {
@@ -50,5 +55,13 @@ func MockSysUnmount(f func(target string, flags int) error) (restore func()) {
 	sysUnmount = f
 	return func() {
 		sysUnmount = old
+	}
+}
+
+func MockEnsureNodesExist(f func(ds []DeviceStructure, timeout time.Duration) error) (restore func()) {
+	old := ensureNodesExist
+	ensureNodesExist = f
+	return func() {
+		ensureNodesExist = old
 	}
 }

@@ -22,6 +22,7 @@ package apparmor
 import (
 	"os"
 
+	"github.com/snapcore/snapd/snap"
 	"github.com/snapcore/snapd/testutil"
 )
 
@@ -32,7 +33,6 @@ var (
 	DowngradeConfinement       = downgradeConfinement
 	LoadProfiles               = loadProfiles
 	UnloadProfiles             = unloadProfiles
-	SetupSnapConfineReexec     = setupSnapConfineReexec
 	MaybeSetNumberOfJobs       = maybeSetNumberOfJobs
 )
 
@@ -107,4 +107,8 @@ func MockParserFeatures(f func() ([]string, error)) (resture func()) {
 	return func() {
 		parserFeatures = old
 	}
+}
+
+func (b *Backend) SetupSnapConfineReexec(info *snap.Info) error {
+	return b.setupSnapConfineReexec(info)
 }
