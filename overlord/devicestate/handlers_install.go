@@ -57,7 +57,7 @@ func (m *DeviceManager) doSetupRunSystem(t *state.Task, _ *tomb.Tomb) error {
 	output, err := exec.Command(filepath.Join(dirs.DistroLibExecDir, "snap-bootstrap"), "create-partitions", gadgetDir).CombinedOutput()
 	st.Lock()
 	if err != nil {
-		return osutil.OutputErr(output, err)
+		return fmt.Errorf("cannot create partitions: %v", osutil.OutputErr(output, err))
 	}
 
 	// XXX: update recovery mode in grubenv
