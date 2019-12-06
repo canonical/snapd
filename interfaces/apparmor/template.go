@@ -715,6 +715,9 @@ profile snap-update-ns.###SNAP_INSTANCE_NAME### (attach_disconnected) {
   /dev/random r,
   /dev/urandom r,
 
+  # golang runtime variables
+  /sys/kernel/mm/transparent_hugepage/hpage_pmd_size r,
+
   # Allow access to the uuidd daemon (this daemon is a thin wrapper around
   # time and getrandom()/{,u}random and, when available, runs under an
   # unprivilged, dedicated user).

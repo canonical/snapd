@@ -51,9 +51,6 @@
     /dev/pts/[0-9]* rw,
     /dev/tty rw,
 
-    # golang runtime variables
-    /sys/kernel/mm/transparent_hugepage/hpage_pmd_size r,
-
     # cgroup: devices
     capability sys_admin,
     capability dac_read_search,
