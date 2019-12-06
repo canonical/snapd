@@ -1236,3 +1236,102 @@ func (s *seed20Suite) TestLoadMetaCore20OptionalSnapsLocal(c *C) {
 		},
 	})
 }
+
+func (s *seed20Suite) TestLoadMetaCore20ExtraSnaps(c *C) {
+	s.makeSnap(c, "snapd", "")
+	s.makeSnap(c, "core20", "")
+	s.makeSnap(c, "pc-kernel=20", "")
+	s.makeSnap(c, "pc=20", "")
+	s.makeSnap(c, "core18", "")
+	s.makeSnap(c, "cont-producer", "developerid")
+	contConsumerFn := s.makeLocalSnap(c, "cont-consumer")
+
+	sysLabel := "20191122"
+	s.MakeSeed(c, sysLabel, "my-brand", "my-model", map[string]interface{}{
+		"display-name": "my model",
+		"architecture": "amd64",
+		"base":         "core20",
+		"grade":        "dangerous",
+		"snaps": []interface{}{
+			map[string]interface{}{
+				"name":            "pc-kernel",
+				"id":              s.AssertedSnapID("pc-kernel"),
+				"type":            "kernel",
+				"default-channel": "20",
+			},
+			map[string]interface{}{
+				"name":            "pc",
+				"id":              s.AssertedSnapID("pc"),
+				"type":            "gadget",
+				"default-channel": "20",
+			}},
+	}, []*seedwriter.OptionsSnap{
+		{Name: "cont-producer", Channel: "edge"},
+		{Name: "core18"},
+		{Path: contConsumerFn},
+	})
+
+	seed20, err := seed.Open(s.SeedDir, sysLabel)
+	c.Assert(err, IsNil)
+
+	err = seed20.LoadAssertions(s.db, s.commitTo)
+	c.Assert(err, IsNil)
+
+	err = seed20.LoadMeta(s.perfTimings)
+	c.Assert(err, IsNil)
+
+	c.Check(seed20.UsesSnapdSnap(), Equals, true)
+
+	essSnaps := seed20.EssentialSnaps()
+	c.Check(essSnaps, HasLen, 4)
+
+	c.Check(essSnaps, DeepEquals, []*seed.Snap{
+		{
+			Path:      s.expectedPath("snapd"),
+			SideInfo:  &s.AssertedSnapInfo("snapd").SideInfo,
+			Essential: true,
+			Required:  true,
+			Channel:   "latest/stable",
+		}, {
+			Path:      s.expectedPath("pc-kernel"),
+			SideInfo:  &s.AssertedSnapInfo("pc-kernel").SideInfo,
+			Essential: true,
+			Required:  true,
+			Channel:   "20",
+		}, {
+			Path:      s.expectedPath("core20"),
+			SideInfo:  &s.AssertedSnapInfo("core20").SideInfo,
+			Essential: true,
+			Required:  true,
+			Channel:   "latest/stable",
+		}, {
+			Path:      s.expectedPath("pc"),
+			SideInfo:  &s.AssertedSnapInfo("pc").SideInfo,
+			Essential: true,
+			Required:  true,
+			Channel:   "20",
+		},
+	})
+
+	sysSnapsDir := filepath.Join(s.SeedDir, "systems", sysLabel, "snaps")
+
+	runSnaps, err := seed20.ModeSnaps("run")
+	c.Assert(err, IsNil)
+	c.Check(runSnaps, HasLen, 3)
+	c.Check(runSnaps, DeepEquals, []*seed.Snap{
+		{
+			Path:     filepath.Join(sysSnapsDir, "cont-producer_1.snap"),
+			SideInfo: &s.AssertedSnapInfo("cont-producer").SideInfo,
+			Channel:  "latest/edge",
+		},
+		{
+			Path:     filepath.Join(sysSnapsDir, "core18_1.snap"),
+			SideInfo: &s.AssertedSnapInfo("core18").SideInfo,
+			Channel:  "latest/stable",
+		},
+		{
+			Path:     filepath.Join(sysSnapsDir, "cont-consumer_1.0.snap"),
+			SideInfo: &snap.SideInfo{RealName: "cont-consumer"},
+		},
+	})
+}
