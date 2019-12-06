@@ -1,20 +1,17 @@
 CFLAGS += -g -O0 -Wall -Wstrict-prototypes
 
-# snapcraft will copy anything from here
-INSTALL_DIR := ../../install/bin
+PAREC_SIMPLE = parec-simple
 
-all: parec-simple
+all: $(PAREC_SIMPLE)
 
 parec-simple.o: parec-simple.c
 	${CC} ${CFLAGS} ${LDFLAGS} $< -c ${LDLIBS} $(shell pkg-config --cflags --libs libpulse-simple)
 
-parec-simple: parec-simple.o
+$(PAREC_SIMPLE): parec-simple.o
 	${CC} ${CFLAGS} ${LDFLAGS} $^ -o $@ ${LDLIBS} $(shell pkg-config --cflags --libs libpulse-simple)
 
-install: parec-simple
-	mkdir -p ${INSTALL_DIR}
-	cp -f parec-simple ${INSTALL_DIR}
+install: $(PAREC_SIMPLE)
+	install -D -m755 $(PAREC_SIMPLE) $(DESTDIR)/bin/$(PAREC_SIMPLE)
 
 clean:
-	rm -f ./*.o
-	rm -f parec-simple
+	rm -f ./*.o ./$(PAREC_SIMPLE)
