@@ -622,6 +622,7 @@ var (
 		"pulseaudio":  {"app", "core"},
 		"serial-port": {"core", "gadget"},
 		"spi":         {"core", "gadget"},
+		"uio":         {"core", "gadget"},
 		"storage-framework-service": {"app"},
 		"dummy":                     {"app"},
 		"thumbnailer-service":       {"app"},
