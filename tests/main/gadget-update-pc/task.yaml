@@ -91,6 +91,13 @@ restore: |
     # restore the original gadget snap
     snap install gadget.snap
 
+    # restoring the snapshot of / does not clean up /var/snap/pc/<rev>
+    # directories that were created during the test, given that the state is
+    # restored these directories will not be accounted for
+    for i in $(seq 0 2); do
+        rm -rf "/var/snap/pc/$((START_REVISION+i))"
+    done
+
 execute: |
     # external backends do not enable test keys
     if [ "$TRUST_TEST_KEYS" = "false" ]; then

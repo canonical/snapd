@@ -398,7 +398,6 @@ func init() {
 		baseDeclarationSlots: greengrassSupportBaseDeclarationSlots,
 		baseDeclarationPlugs: greengrassSupportBaseDeclarationPlugs,
 		connectedPlugSecComp: greengrassSupportConnectedPlugSeccomp,
-		reservedForOS:        true,
 		controlsDeviceCgroup: true,
 	}})
 }

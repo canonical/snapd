@@ -49,6 +49,7 @@ type rootTimingsJSON struct {
 type TimingsInfo struct {
 	Tags          map[string]string
 	NestedTimings []*TimingJSON
+	Duration      time.Duration
 }
 
 // Maximum number of timings to keep in state. It can be changed only while holding state lock.
@@ -159,7 +160,8 @@ func Get(st *state.State, maxLevel int, filter func(tags map[string]string) bool
 			continue
 		}
 		res := &TimingsInfo{
-			Tags: tm.Tags,
+			Tags:     tm.Tags,
+			Duration: timeDuration(tm.StartTime, tm.StopTime),
 		}
 		// negative maxLevel means no level filtering, take all nested timings
 		if maxLevel < 0 {

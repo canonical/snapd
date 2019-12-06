@@ -59,3 +59,7 @@ func MockReadBuildID(mock func(p string) (string, error)) (restore func()) {
 		readBuildID = old
 	}
 }
+
+type SystemKey = systemKey
+
+var SystemKeyVersion = systemKeyVersion

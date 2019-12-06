@@ -21,6 +21,7 @@ package client
 
 import (
 	"bytes"
+	"context"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -203,7 +204,7 @@ func (client *Client) doMultiSnapActionFull(actionName string, snaps []string, o
 		"Content-Type": "application/json",
 	}
 
-	return client.doAsyncFull("POST", "/v2/snaps", nil, headers, bytes.NewBuffer(data))
+	return client.doAsyncFull("POST", "/v2/snaps", nil, headers, bytes.NewBuffer(data), doFlags{})
 }
 
 // InstallPath sideloads the snap with the given path under optional provided name,
@@ -229,7 +230,7 @@ func (client *Client) InstallPath(path, name string, options *SnapOptions) (chan
 		"Content-Type": mw.FormDataContentType(),
 	}
 
-	return client.doAsync("POST", "/v2/snaps", nil, headers, pr)
+	return client.doAsyncNoTimeout("POST", "/v2/snaps", nil, headers, pr)
 }
 
 // Try
@@ -304,4 +305,71 @@ func sendSnapFile(snapPath string, snapFile *os.File, pw *io.PipeWriter, mw *mul
 
 	mw.Close()
 	pw.Close()
+}
+
+type snapRevisionOptions struct {
+	Channel   string `json:"channel,omitempty"`
+	Revision  string `json:"revision,omitempty"`
+	CohortKey string `json:"cohort-key,omitempty"`
+}
+
+type downloadAction struct {
+	SnapName string `json:"snap-name,omitempty"`
+	snapRevisionOptions
+}
+
+type DownloadInfo struct {
+	SuggestedFileName string
+	Size              int64
+	Sha3_384          string
+}
+
+// Download will stream the given snap to the client
+func (client *Client) Download(name string, options *SnapOptions) (dlInfo *DownloadInfo, r io.ReadCloser, err error) {
+	if options == nil {
+		options = &SnapOptions{}
+	}
+	action := downloadAction{
+		SnapName: name,
+		snapRevisionOptions: snapRevisionOptions{
+			Channel:   options.Channel,
+			CohortKey: options.CohortKey,
+			Revision:  options.Revision,
+		},
+	}
+	data, err := json.Marshal(&action)
+	if err != nil {
+		return nil, nil, fmt.Errorf("cannot marshal snap action: %s", err)
+	}
+	headers := map[string]string{
+		"Content-Type": "application/json",
+	}
+
+	// no deadline for downloads
+	ctx := context.Background()
+	rsp, err := client.raw(ctx, "POST", "/v2/download", nil, headers, bytes.NewBuffer(data))
+	if err != nil {
+		return nil, nil, err
+	}
+
+	if rsp.StatusCode != 200 {
+		var r response
+		defer rsp.Body.Close()
+		if err := decodeInto(rsp.Body, &r); err != nil {
+			return nil, nil, err
+		}
+		return nil, nil, r.err(client, rsp.StatusCode)
+	}
+	matches := contentDispositionMatcher(rsp.Header.Get("Content-Disposition"))
+	if matches == nil || matches[1] == "" {
+		return nil, nil, fmt.Errorf("cannot determine filename")
+	}
+
+	dlInfo = &DownloadInfo{
+		SuggestedFileName: matches[1],
+		Size:              rsp.ContentLength,
+		Sha3_384:          rsp.Header.Get("Snap-Sha3-384"),
+	}
+
+	return dlInfo, rsp.Body, nil
 }

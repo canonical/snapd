@@ -190,6 +190,8 @@ const (
 	errorKindSystemRestart = errorKind("system-restart")
 
 	errorKindAssertionNotFound = errorKind("assertion-not-found")
+
+	errorKindUnsuccessful = errorKind("unsuccessful")
 )
 
 type errorValue interface{}
@@ -251,6 +253,7 @@ func makeErrorResponder(status int) errorResponder {
 // A FileStream ServeHTTP method streams the snap
 type fileStream struct {
 	SnapName string
+	Filename string
 	Info     snap.DownloadInfo
 	stream   io.ReadCloser
 }
@@ -259,11 +262,12 @@ type fileStream struct {
 func (s fileStream) ServeHTTP(w http.ResponseWriter, _ *http.Request) {
 	hdr := w.Header()
 	hdr.Set("Content-Type", "application/octet-stream")
-	snapname := fmt.Sprintf("attachment; filename=%s", s.SnapName)
+	snapname := fmt.Sprintf("attachment; filename=%s", s.Filename)
 	hdr.Set("Content-Disposition", snapname)
 
 	size := fmt.Sprintf("%d", s.Info.Size)
 	hdr.Set("Content-Length", size)
+	hdr.Set("Snap-Sha3-384", s.Info.Sha3_384)
 
 	defer s.stream.Close()
 	bytesCopied, err := io.Copy(w, s.stream)

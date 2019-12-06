@@ -50,9 +50,9 @@ type Compiler struct {
 	snapSeccomp string
 }
 
-// New returns a wrapper for the compiler binary. The path to the binary is
+// NewCompiler returns a wrapper for the compiler binary. The path to the binary is
 // looked up using the lookupTool helper.
-func New(lookupTool func(name string) (string, error)) (*Compiler, error) {
+func NewCompiler(lookupTool func(name string) (string, error)) (*Compiler, error) {
 	if lookupTool == nil {
 		panic("lookup tool func not provided")
 	}
@@ -86,7 +86,7 @@ func (c *Compiler) VersionInfo() (VersionInfo, error) {
 }
 
 var compilerVersionInfoImpl = func(lookupTool func(name string) (string, error)) (VersionInfo, error) {
-	c, err := New(lookupTool)
+	c, err := NewCompiler(lookupTool)
 	if err != nil {
 		return VersionInfo(""), err
 	}
@@ -112,7 +112,7 @@ func MockCompilerVersionInfo(versionInfo string) (restore func()) {
 
 var errEmptyVersionInfo = errors.New("empty version-info")
 
-// VersionInfo represents information about the seccomp compilter
+// VersionInfo represents information about the seccomp compiler
 type VersionInfo string
 
 // LibseccompVersion parses VersionInfo and provides the libseccomp version

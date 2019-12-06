@@ -21,12 +21,14 @@ package squashfs_test
 
 import (
 	"errors"
+	"fmt"
 	"io/ioutil"
 	"math"
 	"os"
 	"os/exec"
 	"path/filepath"
 	"strings"
+	"syscall"
 	"testing"
 	"time"
 
@@ -142,8 +144,9 @@ exec /bin/cp "$@"
 	snap := makeSnap(c, "name: test", "")
 	targetPath := filepath.Join(c.MkDir(), "target.snap")
 	mountDir := c.MkDir()
-	err := snap.Install(targetPath, mountDir)
+	didNothing, err := snap.Install(targetPath, mountDir)
 	c.Assert(err, IsNil)
+	c.Assert(didNothing, Equals, false)
 	c.Check(osutil.FileExists(targetPath), Equals, true)
 	c.Check(linked, Equals, 1)
 	c.Check(cmd.Calls(), HasLen, 0)
@@ -166,12 +169,14 @@ exec /bin/cp "$@"
 	snap := makeSnap(c, "name: test2", "")
 	targetPath := filepath.Join(c.MkDir(), "target.snap")
 	mountDir := c.MkDir()
-	err := snap.Install(targetPath, mountDir)
+	didNothing, err := snap.Install(targetPath, mountDir)
 	c.Assert(err, IsNil)
+	c.Assert(didNothing, Equals, false)
 	c.Check(cmd.Calls(), HasLen, 1)
 
-	err = snap.Install(targetPath, mountDir)
+	didNothing, err = snap.Install(targetPath, mountDir)
 	c.Assert(err, IsNil)
+	c.Assert(didNothing, Equals, true)
 	c.Check(cmd.Calls(), HasLen, 1) // and not 2 \o/
 }
 
@@ -184,9 +189,21 @@ func (s *SquashfsTestSuite) TestInstallSeedNoLink(c *C) {
 	_, err := os.Lstat(targetPath)
 	c.Check(os.IsNotExist(err), Equals, true)
 
-	err = snap.Install(targetPath, c.MkDir())
+	didNothing, err := snap.Install(targetPath, c.MkDir())
 	c.Assert(err, IsNil)
+	c.Assert(didNothing, Equals, false)
 	c.Check(osutil.IsSymlink(targetPath), Equals, true) // \o/
+}
+
+func (s *SquashfsTestSuite) TestInstallNothingToDo(c *C) {
+	snap := makeSnap(c, "name: test2", "")
+
+	targetPath := filepath.Join(c.MkDir(), "foo.snap")
+	c.Assert(os.Symlink(snap.Path(), targetPath), IsNil)
+
+	didNothing, err := snap.Install(targetPath, c.MkDir())
+	c.Assert(err, IsNil)
+	c.Check(didNothing, Equals, true)
 }
 
 func (s *SquashfsTestSuite) TestPath(c *C) {
@@ -606,4 +623,68 @@ func (s *SquashfsTestSuite) TestBuildDate(c *C) {
 	// and see it's BuildDate is _now_, not _then_.
 	c.Check(squashfs.BuildDate(filename), Equals, snap.BuildDate())
 	c.Check(math.Abs(now.Sub(snap.BuildDate()).Seconds()) <= 61, Equals, true, Commentf("Unexpected build date %s", snap.BuildDate()))
+}
+
+func (s *SquashfsTestSuite) TestBuildChecksReadDifferentFiles(c *C) {
+	if os.Geteuid() == 0 {
+		c.Skip("cannot be tested when running as root")
+	}
+	// make a directory
+	d := c.MkDir()
+
+	err := os.MkdirAll(filepath.Join(d, "ro-dir"), 0755)
+	c.Assert(err, IsNil)
+	err = ioutil.WriteFile(filepath.Join(d, "ro-dir", "in-ro-dir"), []byte("123"), 0664)
+	c.Assert(err, IsNil)
+	err = os.Chmod(filepath.Join(d, "ro-dir"), 0000)
+	c.Assert(err, IsNil)
+	// so that tear down does not complain
+	defer os.Chmod(filepath.Join(d, "ro-dir"), 0755)
+
+	err = ioutil.WriteFile(filepath.Join(d, "ro-file"), []byte("123"), 0000)
+	c.Assert(err, IsNil)
+	err = ioutil.WriteFile(filepath.Join(d, "ro-empty-file"), nil, 0000)
+	c.Assert(err, IsNil)
+
+	err = syscall.Mkfifo(filepath.Join(d, "fifo"), 0000)
+	c.Assert(err, IsNil)
+
+	filename := filepath.Join(c.MkDir(), "foo.snap")
+	snap := squashfs.New(filename)
+	err = snap.Build(d, "app")
+	c.Assert(err, ErrorMatches, `(?s)cannot access the following locations in the snap source directory:
+- ro-(file|dir) \(owner [0-9]+:[0-9]+ mode 000\)
+- ro-(file|dir) \(owner [0-9]+:[0-9]+ mode 000\)
+`)
+
+}
+
+func (s *SquashfsTestSuite) TestBuildChecksReadErrorLimit(c *C) {
+	if os.Geteuid() == 0 {
+		c.Skip("cannot be tested when running as root")
+	}
+	// make a directory
+	d := c.MkDir()
+
+	// make more than maxErrPaths entries
+	for i := 0; i < squashfs.MaxErrPaths; i++ {
+		p := filepath.Join(d, fmt.Sprintf("0%d", i))
+		err := ioutil.WriteFile(p, []byte("123"), 0000)
+		c.Assert(err, IsNil)
+		err = os.Chmod(p, 0000)
+		c.Assert(err, IsNil)
+	}
+	filename := filepath.Join(c.MkDir(), "foo.snap")
+	snap := squashfs.New(filename)
+	err := snap.Build(d, "app")
+	c.Assert(err, ErrorMatches, `(?s)cannot access the following locations in the snap source directory:
+(- [0-9]+ \(owner [0-9]+:[0-9]+ mode 000.*\).){10}- too many errors, listing first 10 entries
+`)
+}
+
+func (s *SquashfsTestSuite) TestBuildBadSource(c *C) {
+	filename := filepath.Join(c.MkDir(), "foo.snap")
+	snap := squashfs.New(filename)
+	err := snap.Build("does-not-exist", "app")
+	c.Assert(err, ErrorMatches, ".*does-not-exist/: no such file or directory")
 }

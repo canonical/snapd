@@ -71,6 +71,5 @@ func init() {
 		baseDeclarationSlots:  autopilotIntrospectionBaseDeclarationSlots,
 		connectedPlugAppArmor: autopilotIntrospectionPlugAppArmor,
 		connectedPlugSecComp:  autopilotIntrospectionPlugSecComp,
-		reservedForOS:         true,
 	})
 }

@@ -251,6 +251,5 @@ func init() {
 		baseDeclarationSlots:  desktopLegacyBaseDeclarationSlots,
 		connectedPlugAppArmor: desktopLegacyConnectedPlugAppArmor,
 		connectedPlugSecComp:  desktopLegacyConnectedPlugSecComp,
-		reservedForOS:         true,
 	})
 }

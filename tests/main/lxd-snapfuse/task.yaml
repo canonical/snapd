@@ -29,7 +29,10 @@ execute: |
         lxd.lxc config set core.proxy_https "$http_proxy"
     fi
 
-    lxd.lxc launch "images:ubuntu/18.04" my-ubuntu
+    # The snapd package we build as part of the tests will only run on the
+    # distro we build on. So we need to launch the right ubuntu version.
+    . /etc/os-release
+    lxd.lxc launch "ubuntu:${VERSION_ID}" my-ubuntu
 
     echo "Install snapd"
     lxd.lxc exec my-ubuntu -- mkdir -p "$GOHOME"
@@ -37,14 +40,14 @@ execute: |
     lxd.lxc exec my-ubuntu -- apt install -y "$GOHOME"/snapd_*.deb
 
     echo "And validate that we can use snaps"
-    lxd.lxc exec my-ubuntu -- snap install test-snapd-tools
+    lxd.lxc exec my-ubuntu -- snap install test-snapd-sh
     echo "And we can run snaps as regular users"
-    lxd.lxc exec my-ubuntu -- su -c "/snap/bin/test-snapd-tools.echo from-the-inside" ubuntu | MATCH from-the-inside
+    lxd.lxc exec my-ubuntu -- su -c "/snap/bin/test-snapd-sh.sh -c 'echo from-the-inside'" ubuntu | MATCH from-the-inside
     echo "And as root"
-    lxd.lxc exec my-ubuntu -- test-snapd-tools.echo from-the-inside | MATCH from-the-inside
+    lxd.lxc exec my-ubuntu -- test-snapd-sh.sh -c 'echo from-the-inside' | MATCH from-the-inside
 
     echo "And snapfuse is actually running"
     ps afx | MATCH snapfuse
 
     echo "We can also remove snaps successfully"
-    lxd.lxc exec my-ubuntu -- snap remove test-snapd-tools
+    lxd.lxc exec my-ubuntu -- snap remove test-snapd-sh

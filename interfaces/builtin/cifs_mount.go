@@ -73,6 +73,5 @@ func init() {
 		baseDeclarationSlots:  cifsMountBaseDeclarationSlots,
 		connectedPlugAppArmor: cifsMountConnectedPlugAppArmor,
 		connectedPlugSecComp:  cifsMountConnectedPlugSecComp,
-		reservedForOS:         true,
 	})
 }

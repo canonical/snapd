@@ -51,18 +51,18 @@ void sc_cgroup_create_and_join(const char *parent, const char *name, pid_t pid) 
     if (fchownat(hierarchy_fd, "", 0, 0, AT_EMPTY_PATH) < 0) {
         die("cannot change owner of cgroup hierarchy %s/%s to root.root", parent, name);
     }
-    // Open the tasks file.
-    int tasks_fd SC_CLEANUP(sc_cleanup_close) = -1;
-    tasks_fd = openat(hierarchy_fd, "tasks", O_WRONLY | O_NOFOLLOW | O_CLOEXEC);
-    if (tasks_fd < 0) {
-        die("cannot open file %s/%s/tasks", parent, name);
+    // Open the cgroup.procs file.
+    int procs_fd SC_CLEANUP(sc_cleanup_close) = -1;
+    procs_fd = openat(hierarchy_fd, "cgroup.procs", O_WRONLY | O_NOFOLLOW | O_CLOEXEC);
+    if (procs_fd < 0) {
+        die("cannot open file %s/%s/cgroup.procs", parent, name);
     }
-    // Write the process (task) number to the tasks file. Linux task IDs are
+    // Write the process (task) number to the procs file. Linux task IDs are
     // limited to 2^29 so a long int is enough to represent it.
     // See include/linux/threads.h in the kernel source tree for details.
     char buf[22] = {0};  // 2^64 base10 + 2 for NUL and '-' for long
     int n = sc_must_snprintf(buf, sizeof buf, "%ld", (long)pid);
-    if (write(tasks_fd, buf, n) < n) {
+    if (write(procs_fd, buf, n) < n) {
         die("cannot move process %ld to cgroup hierarchy %s/%s", (long)pid, parent, name);
     }
     debug("moved process %ld to cgroup hierarchy %s/%s", (long)pid, parent, name);

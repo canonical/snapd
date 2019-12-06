@@ -36,5 +36,5 @@ execute: |
     fi
 
     snap list | MATCH "snapd.*$current "
-    snap install test-snapd-tools-core18
-    test-snapd-tools-core18.echo hello | MATCH hello
+    snap install test-snapd-sh-core18
+    test-snapd-sh-core18.sh -c 'echo hello' | MATCH hello

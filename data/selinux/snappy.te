@@ -160,6 +160,10 @@ optional_policy(`
   allow snappy_t dbusd_etc_t:lnk_file { read };
 ')
 
+# Allow snapd to manage kmod-backend (/etc/modules-load.d/) files
+allow snappy_t etc_t:dir { write remove_name };
+allow snappy_t etc_t:file unlink;
+
 # Allow snapd to manage udev rules for snaps and trigger events
 optional_policy(`
   udev_manage_rules_files(snappy_t)
@@ -342,6 +346,9 @@ files_var_filetrans(snappy_t, fonts_cache_t, dir, "fontconfig")
 libs_manage_lib_dirs(snappy_t)
 libs_manage_lib_files(snappy_t)
 fs_getattr_xattr_fs(snappy_t)
+# probing cgroup version, /sys/fs/cgroup is a tmpfs for v1 or cgroup for v2
+fs_getattr_tmpfs(snappy_t)
+fs_getattr_cgroup(snappy_t)
 # snapd checks whether <snap>.mnt exists before running the mount namespace
 # helper tool
 # fs_getattr_nsfs_files() is not available in selinux devel on CentOS 7.x
@@ -626,6 +633,11 @@ userdom_search_user_tmp_dirs(snappy_cli_t)
 # execute snapd internal tools
 # needed to grab a version information from snap-seccomp
 can_exec(snappy_cli_t, snappy_exec_t)
+
+# probing cgroup version, /sys/fs/cgroup is a tmpfs for v1 or cgroup for v2
+fs_getattr_tmpfs(snappy_cli_t)
+fs_getattr_cgroup(snappy_cli_t)
+
 
 ########################################
 #
