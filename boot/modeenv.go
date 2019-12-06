@@ -37,7 +37,9 @@ type Modeenv struct {
 	Mode           string
 	RecoverySystem string
 	Base           string
-	Kernel         string
+
+	// XXX: we may need to revisit setting the kernel in modeenv
+	Kernel string
 }
 
 func ReadModeenv(rootdir string) (*Modeenv, error) {
