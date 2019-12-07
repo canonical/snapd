@@ -49,7 +49,7 @@ matrix:
         - git fetch --unshallow
         - ./tests/lib/cla_check.py
     - stage: integration
-      name: Ubuntu 14.04, 16.04, 18.04, 18.10, 19.04, Core 16, Core 18
+      name: Ubuntu 14.04, 16.04, 18.04
       dist: xenial
       addons:
         apt:
@@ -59,9 +59,9 @@ matrix:
         # override the default install for language:go
         - true
       script:
-        - ./run-checks --spread-ubuntu
+        - ./run-checks --spread-ubuntu-lts
     - stage: integration
-      name: Debian, Fedora, CentOS, Amazon Linux 2, openSUSE, Arch
+      name: Ubuntu 18.10, 19.04
       dist: xenial
       addons:
         apt:
@@ -71,7 +71,55 @@ matrix:
         # override the default install for language:go
         - true
       script:
-        - ./run-checks --spread-no-ubuntu
+        - ./run-checks --spread-ubuntu-next
+    - stage: integration
+      name: Ubuntu Core 16, Core 18
+      dist: xenial
+      addons:
+        apt:
+          packages:
+          - xdelta3
+      install:
+        # override the default install for language:go
+        - true
+      script:
+        - ./run-checks --spread-ubuntu-core
+    - stage: integration
+      name: Debian
+      dist: xenial
+      addons:
+        apt:
+          packages:
+          - xdelta3
+      install:
+        # override the default install for language:go
+        - true
+      script:
+        - ./run-checks --spread-not-ubuntu-deb
+    - stage: integration
+      name: Fedora, CentOS, openSUSE
+      dist: xenial
+      addons:
+        apt:
+          packages:
+          - xdelta3
+      install:
+        # override the default install for language:go
+        - true
+      script:
+        - ./run-checks --spread-not-ubuntu-rpm
+    - stage: integration
+      name: Amazon Linux 2, Arch
+      dist: xenial
+      addons:
+        apt:
+          packages:
+          - xdelta3
+      install:
+        # override the default install for language:go
+        - true
+      script:
+        - ./run-checks --spread-not-ubuntu-others
     - stage: integration
       name: Unstable systems
       dist: xenial
