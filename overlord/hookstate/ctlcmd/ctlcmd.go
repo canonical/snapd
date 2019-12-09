@@ -94,6 +94,15 @@ func addCommand(name, shortHelp, longHelp string, generator func() command) *com
 	return cmd
 }
 
+// UnsuccessfulError carries a specific exit code to be returned to the client.
+type UnsuccessfulError struct {
+	ExitCode int
+}
+
+func (e UnsuccessfulError) Error() string {
+	return fmt.Sprintf("unsuccessful with exit code: %d", e.ExitCode)
+}
+
 // ForbiddenCommandError conveys that a command cannot be invoked in some context
 type ForbiddenCommandError struct {
 	Message string
@@ -124,7 +133,7 @@ func Run(context *hookstate.Context, args []string, uid uint32) (stdout, stderr 
 		var data interface{}
 		// commands listed here will be allowed for regular users
 		// note: commands still need valid context and snaps can only access own config.
-		if uid == 0 || name == "get" || name == "services" || name == "set-health" {
+		if uid == 0 || name == "get" || name == "services" || name == "set-health" || name == "is-connected" {
 			cmd := cmdInfo.generator()
 			cmd.setStdout(&stdoutBuffer)
 			cmd.setStderr(&stderrBuffer)

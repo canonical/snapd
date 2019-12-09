@@ -248,7 +248,7 @@ func (e *NoSnapDeclarationError) Error() string {
 	return fmt.Sprintf("cannot find snap-declaration for snap name: %s", e.snapRef.SnapName())
 }
 
-func (s *seed20) lookupVerifiedRevision(snapRef naming.SnapRef) (snapPath string, snapRev *asserts.SnapRevision, snapDecl *asserts.SnapDeclaration, err error) {
+func (s *seed20) lookupVerifiedRevision(snapRef naming.SnapRef, snapsDir string) (snapPath string, snapRev *asserts.SnapRevision, snapDecl *asserts.SnapDeclaration, err error) {
 	snapID := snapRef.ID()
 	if snapID != "" {
 		snapDecl = s.snapDeclsByID[snapID]
@@ -273,7 +273,7 @@ func (s *seed20) lookupVerifiedRevision(snapRef naming.SnapRef) (snapPath string
 	}
 
 	snapName := snapDecl.SnapName()
-	snapPath = filepath.Join(s.systemDir, "../../snaps", fmt.Sprintf("%s_%d.snap", snapName, snapRev.SnapRevision()))
+	snapPath = filepath.Join(s.systemDir, snapsDir, fmt.Sprintf("%s_%d.snap", snapName, snapRev.SnapRevision()))
 
 	fi, err := os.Stat(snapPath)
 	if err != nil {
@@ -297,10 +297,7 @@ func (s *seed20) lookupVerifiedRevision(snapRef naming.SnapRef) (snapPath string
 	return snapPath, snapRev, snapDecl, nil
 }
 
-func (s *seed20) addModelSnap(modelSnap *asserts.ModelSnap, essential bool, tm timings.Measurer) (*Snap, error) {
-	channel := modelSnap.DefaultChannel
-
-	optSnap, _ := s.nextOptSnap(modelSnap)
+func (s *seed20) addSnap(snapRef naming.SnapRef, optSnap *internal.Snap20, channel string, snapsDir string, tm timings.Measurer) (*Snap, error) {
 	if optSnap != nil && optSnap.Channel != "" {
 		channel = optSnap.Channel
 	}
@@ -318,10 +315,10 @@ func (s *seed20) addModelSnap(modelSnap *asserts.ModelSnap, essential bool, tm t
 		channel = ""
 	} else {
 		var err error
-		timings.Run(tm, "derive-side-info", fmt.Sprintf("hash and derive side info for snap %q", modelSnap.SnapName()), func(nested timings.Measurer) {
+		timings.Run(tm, "derive-side-info", fmt.Sprintf("hash and derive side info for snap %q", snapRef.SnapName()), func(nested timings.Measurer) {
 			var snapRev *asserts.SnapRevision
 			var snapDecl *asserts.SnapDeclaration
-			path, snapRev, snapDecl, err = s.lookupVerifiedRevision(modelSnap)
+			path, snapRev, snapDecl, err = s.lookupVerifiedRevision(snapRef, snapsDir)
 			if err == nil {
 				sideInfo = snapasserts.SideInfoFromSnapAssertions(snapDecl, snapRev)
 			}
@@ -343,13 +340,23 @@ func (s *seed20) addModelSnap(modelSnap *asserts.ModelSnap, essential bool, tm t
 
 		SideInfo: sideInfo,
 
-		Essential: essential,
-		Required:  essential || modelSnap.Presence == "required",
-
 		Channel: channel,
 	}
 
 	s.snaps = append(s.snaps, seedSnap)
+
+	return seedSnap, nil
+}
+
+func (s *seed20) addModelSnap(modelSnap *asserts.ModelSnap, essential bool, tm timings.Measurer) (*Snap, error) {
+	optSnap, _ := s.nextOptSnap(modelSnap)
+	seedSnap, err := s.addSnap(modelSnap, optSnap, modelSnap.DefaultChannel, "../../snaps", tm)
+	if err != nil {
+		return nil, err
+	}
+
+	seedSnap.Essential = essential
+	seedSnap.Required = essential || modelSnap.Presence == "required"
 	if essential {
 		s.essentialSnapsNum++
 	}
@@ -404,6 +411,19 @@ func (s *seed20) LoadMeta(tm timings.Measurer) error {
 
 			// done with essential snaps
 			essential = false
+		}
+	}
+
+	// extra snaps
+	for {
+		optSnap, done := s.nextOptSnap(nil)
+		if done {
+			break
+		}
+
+		_, err := s.addSnap(optSnap, optSnap, "latest/stable", "snaps", tm)
+		if err != nil {
+			return err
 		}
 	}
 

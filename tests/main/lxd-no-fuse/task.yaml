@@ -37,7 +37,7 @@ execute: |
     lxd.lxc exec my-ubuntu -- apt install -y "$GOHOME"/snapd_*.deb
 
     echo "And validate that we get a useful error"
-    if lxd.lxc exec my-ubuntu snap install test-snapd-tools 2> err.txt; then
+    if lxd.lxc exec my-ubuntu snap install test-snapd-sh 2> err.txt; then
         echo "snap install should fail but it did not?"
         exit 1
     fi

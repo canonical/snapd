@@ -35,11 +35,11 @@ execute: |
 
     find /etc/ssl/ -ls | sort > on-host
 
-    snap install test-snapd-tools
-    test-snapd-tools.echo hello
+    snap install test-snapd-sh
+    test-snapd-sh.sh -c 'echo hello'
 
     mount | not MATCH /etc/ssl-backup
 
-    test-snapd-tools.cmd find /etc/ssl/ -ls | sort > in-snap
+    test-snapd-sh.sh -c 'find /etc/ssl/ -ls' | sort > in-snap
     # same thing is visible in and out
     diff -upw on-host in-snap

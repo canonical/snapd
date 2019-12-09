@@ -1,0 +1,25 @@
+summary: check that snap pack creates squashfs files
+description: |
+    Verify that snap pack creates squashfs files or fails in a predictable
+    manner.
+
+execute: |
+    #shellcheck source=tests/lib/dirs.sh
+    . "$TESTSLIB"/dirs.sh
+
+    echo "Packing a simple snap works"
+    snap pack "$TESTSLIB/snaps/test-snapd-sh" . --filename test-snapd-sh.snap
+    test -e test-snapd-sh.snap
+    unsquashfs -l test-snapd-sh.snap
+
+    snap install core18
+    # the core snap includes files that are not accessible to the user due to
+    # permissions
+    echo "Packing the core snap as root works"
+    snap pack "$SNAP_MOUNT_DIR/core18/current" . --filename core18-as-root.snap
+    unsquashfs -l core18-as-root.snap > /dev/null
+
+    echo "Packing the core snap as a user fails due to permission checks"
+    not su test -c "snap pack "$SNAP_MOUNT_DIR/core18/current" . --filename core18-as-user.snap" 2> stderr.log
+    MATCH 'error: cannot pack ".*core18.*": cannot access the following locations in the snap source directory:' < stderr.log
+    MATCH -- '- etc.* \(owner .* mode .*\)' < stderr.log

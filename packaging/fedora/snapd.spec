@@ -92,7 +92,7 @@
 %endif
 
 Name:           snapd
-Version:        2.42.4
+Version:        2.42.5
 Release:        0%{?dist}
 Summary:        A transactional software package manager
 License:        GPLv3
@@ -875,6 +875,12 @@ fi
 
 
 %changelog
+* Fri Dec 06 2019 Michael Vogt <mvo@ubuntu.com>
+- New upstream release 2.42.5
+ - snap-confine: revert, with comment, explicit unix deny for nested
+   lxd
+ - Disable mount-ns test on 16.04. It is too flaky currently.
+
 * Thu Nov 28 2019 Michael Vogt <mvo@ubuntu.com>
 - New upstream release 2.42.4
  - overlord/snapstate: make sure configuration defaults are applied
