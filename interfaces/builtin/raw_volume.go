@@ -121,7 +121,10 @@ func (iface *rawVolumeInterface) path(slotRef *interfaces.SlotRef, attrs interfa
 	if err := attrs.Attr("path", &path); err != nil || path == "" {
 		return "", fmt.Errorf("slot %q must have a path attribute", slotRef)
 	}
-	path = filepath.Clean(path)
+	cleanPath := filepath.Clean(path)
+	if cleanPath != path {
+		return "", fmt.Errorf(`cannot use slot %q path %q: try %q"`, slotRef, path, cleanPath)
+	}
 	if !rawVolumePartitionPattern.MatchString(path) {
 		return "", fmt.Errorf("slot %q path attribute must be a valid device node", slotRef)
 	}

@@ -98,7 +98,7 @@ type: gadget
 slots:
   test-udev-1:
     interface: raw-volume
-    path: /dev/vda1/
+    path: /dev/vda1
   test-udev-2:
     interface: raw-volume
     path: /dev/mmcblk0p1
@@ -263,6 +263,31 @@ slots:
 		slot := info.Slots["raw-volume"]
 
 		c.Check(interfaces.BeforePrepareSlot(s.iface, slot), ErrorMatches, `slot "raw-volume-slot-snap:raw-volume" path attribute must be a valid device node`, Commentf("unexpected error for %q", t.input))
+	}
+}
+
+func (s *rawVolumeInterfaceSuite) TestSanitizeSlotUnclean(c *C) {
+	const mockSnapYaml = `name: raw-volume-slot-snap
+type: gadget
+version: 1.0
+slots:
+  raw-volume:
+    path: $t
+`
+
+	var testCases = []struct {
+		input string
+	}{
+		{`/dev/hda1/.`},
+		{`/dev/i2o/`},
+		{`/dev/./././mmcblk0p1////`},
+	}
+
+	for _, t := range testCases {
+		yml := strings.Replace(mockSnapYaml, "$t", t.input, -1)
+		info := snaptest.MockInfo(c, yml, nil)
+		slot := info.Slots["raw-volume"]
+		c.Check(interfaces.BeforePrepareSlot(s.iface, slot), ErrorMatches, `cannot use slot "raw-volume-slot-snap:raw-volume" path ".*": try ".*"`, Commentf("unexpected error for %q", t.input))
 	}
 }
 
