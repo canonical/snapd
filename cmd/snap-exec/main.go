@@ -55,7 +55,7 @@ func main() {
 	if osutil.GetenvBool("SNAP_EXPLAIN") {
 		explain.Enable()
 	}
-	explain.Header("snap exec (command chain and environment variables)")
+	explain.Header("snap exec", "command chain and environment variables")
 	if err := run(); err != nil {
 		fmt.Fprintf(os.Stderr, "cannot snap-exec: %s\n", err)
 		os.Exit(1)
@@ -260,7 +260,7 @@ func execApp(snapApp, revision, command string, args []string) error {
 			}
 		}
 	})
-	explain.Header(fmt.Sprintf("%s.%s (snap app)", app.Snap.SnapName(), app.Name))
+	explain.Header(fmt.Sprintf("%s.%s", app.Snap.SnapName(), app.Name), "snap app")
 
 	if err := syscallExec(fullCmd[0], fullCmd, env); err != nil {
 		return fmt.Errorf("cannot exec %q: %s", fullCmd[0], err)

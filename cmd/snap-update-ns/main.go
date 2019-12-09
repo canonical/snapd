@@ -85,10 +85,10 @@ func run() error {
 	}
 	var upCtx MountProfileUpdateContext
 	if opts.UserMounts {
-		explain.Header("snap-update-ns (per-user mount namespace)")
+		explain.Header("snap-update-ns", "per-user mount namespace")
 		upCtx = NewUserProfileUpdateContext(opts.Positionals.SnapName, opts.FromSnapConfine, os.Getuid())
 	} else {
-		explain.Header("snap-update-ns (mount namespace)")
+		explain.Header("snap-update-ns", "mount namespace")
 		upCtx = NewSystemProfileUpdateContext(opts.Positionals.SnapName, opts.FromSnapConfine)
 	}
 	explain.Say("Configuring mount namespace according to mount profile")
