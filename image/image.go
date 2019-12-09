@@ -393,6 +393,9 @@ func setupSeed(tsto *ToolingStore, model *asserts.Model, opts *Options) error {
 	bootWith := &boot.BootableSet{
 		UnpackedGadgetDir: gadgetUnpackDir,
 	}
+	if label != "" {
+		bootWith.RecoverySystem = filepath.Join("/systems/", label)
+	}
 
 	// find the gadget file
 	// find the snap.Info/path for kernel/os/base so
