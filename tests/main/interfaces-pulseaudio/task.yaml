@@ -1,0 +1,82 @@
+summary: Ensure that the pulseaudio interface works
+
+# Classic Ubuntu is sufficient to test the feature
+systems: [ ubuntu-1*-*64, ubuntu-2*-*64 ]
+
+environment:
+    PLAY_FILE: "/snap/test-snapd-pulseaudio/current/usr/share/sounds/alsa/Noise.wav"
+
+prepare: |
+    #shellcheck source=tests/lib/pkgdb.sh
+    . "$TESTSLIB"/pkgdb.sh
+    snap install --edge test-snapd-pulseaudio
+
+    apt-get update
+    apt-get install -y pulseaudio pulseaudio-utils
+
+    echo "Create XDG_RUNTIME_DIR=/run/user/12345"
+    # shellcheck disable=SC2174
+    mkdir -m 700 -p /run/user/12345 || true
+    chown test:test /run/user/12345
+
+    # ensure we have a clean pulse directory
+    test -d /home/test/.config && mv /home/test/.config /home/test/.config.spread
+    mkdir -m 700 /home/test/.config
+    mkdir -m 700 /home/test/.config/pulse
+    chown test:test /home/test/.config /home/test/.config/pulse
+
+restore: |
+    HOME=/home/test XDG_RUNTIME_DIR=/run/user/12345 su -p -c "pulseaudio --kill" test || true
+    snap remove test-snapd-pulseaudio
+    apt-get autoremove --purge -y pulseaudio pulseaudio-utils
+    rm -rf /run/user/12345 /home/test/.config/pulse
+    if [ -d /home/test/.config.spread ]; then
+        rm -rf /home/test/.config
+        mv /home/test/.config.spread /home/test/.config
+    fi
+
+execute: |
+    # we need -p so that XDG_RUNTIME_DIR is honored, but that preserves HOME,
+    # so specify it too since pulseaudio fails to start otherwise
+    echo "Start pulseaudio"
+    HOME=/home/test XDG_RUNTIME_DIR=/run/user/12345 su -p -c "pulseaudio --exit-idle-time=30" test &
+
+    echo "Then wait for the socket to show up"
+    retry-tool -n 10 test -S /run/user/12345/pulse/native
+
+    echo "Check pulseaudio"
+    HOME=/home/test XDG_RUNTIME_DIR=/run/user/12345 retry-tool -n 10 su -p -c "pulseaudio --check" test
+
+    echo "The unconfined user can play audio"
+    HOME=/home/test XDG_RUNTIME_DIR=/run/user/12345 su -p -c "/usr/bin/paplay $PLAY_FILE" test
+
+    echo "The unconfined user can record audio"
+    HOME=/home/test XDG_RUNTIME_DIR=/run/user/12345 su -p -c "/snap/test-snapd-pulseaudio/current/bin/parec-simple" test
+
+    echo "The interface is disconnected by default"
+    snap connections test-snapd-pulseaudio | MATCH "pulseaudio +test-snapd-pulseaudio:pulseaudio +- +-"
+
+    echo "When the plug is connected"
+    snap connect test-snapd-pulseaudio:pulseaudio
+
+    echo "Then the snap can play audio"
+    su -l -c "test-snapd-pulseaudio.play $PLAY_FILE" test
+
+    echo "Then the snap can record audio"
+    if ! su -l -c "test-snapd-pulseaudio.recsimple" test ; then
+        echo "Could not record audio"
+        exit 1
+    fi
+
+    if [ "$(snap debug confinement)" = "partial" ] ; then
+        exit 0
+    fi
+
+    echo "When the plug is disconnected"
+    snap disconnect test-snapd-pulseaudio:pulseaudio
+
+    echo "Then the snap command is not able to connect to the pulseaudio socket"
+    if su -l -c "test-snapd-pulseaudio.play $PLAY_FILE" test ; then
+        echo "Expected error with plug disconnected"
+        exit 1
+    fi

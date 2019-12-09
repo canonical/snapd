@@ -30,6 +30,7 @@ import (
 	"strings"
 
 	"github.com/snapcore/snapd/boot"
+	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/seed"
 	"github.com/snapcore/snapd/snap"
@@ -105,11 +106,15 @@ func generateMountsModeInstall() error {
 	// XXX: how do we select a different recover system from the cmdline?
 
 	// 2. (auto) select recovery system for now
-	isMounted, err = osutilIsMounted(filepath.Join(runMnt, "base"))
+	isBaseMounted, err := osutilIsMounted(filepath.Join(runMnt, "base"))
 	if err != nil {
 		return err
 	}
-	if !isMounted {
+	isKernelMounted, err := osutilIsMounted(filepath.Join(runMnt, "kernel"))
+	if err != nil {
+		return err
+	}
+	if !isBaseMounted || !isKernelMounted {
 		// load the recovery system  and generate mounts for kernel/base
 		systemLabel, err := findRecoverySystem(seedDir)
 		if err != nil {
@@ -142,9 +147,13 @@ func generateMountsModeInstall() error {
 			}
 			switch info.GetType() {
 			case snap.TypeBase:
-				fmt.Fprintf(stdout, "%s %s\n", essentialSnap.Path, filepath.Join(runMnt, "base"))
+				if !isBaseMounted {
+					fmt.Fprintf(stdout, "%s %s\n", essentialSnap.Path, filepath.Join(runMnt, "base"))
+				}
 			case snap.TypeKernel:
-				fmt.Fprintf(stdout, "%s %s\n", essentialSnap.Path, filepath.Join(runMnt, "kernel"))
+				if !isKernelMounted {
+					fmt.Fprintf(stdout, "%s %s\n", essentialSnap.Path, filepath.Join(runMnt, "kernel"))
+				}
 			}
 		}
 
@@ -186,7 +195,48 @@ func generateMountsModeRecover() error {
 }
 
 func generateMountsModeRun() error {
-	return fmt.Errorf("run mode mount generation not implemented yet")
+	seedDir := filepath.Join(runMnt, "ubuntu-seed")
+	bootDir := filepath.Join(runMnt, "ubuntu-boot")
+	dataDir := filepath.Join(runMnt, "ubuntu-data")
+
+	// 1. always ensure basic partitions are mounted
+	for _, d := range []string{seedDir, bootDir, dataDir} {
+		isMounted, err := osutilIsMounted(d)
+		if err != nil {
+			return err
+		}
+		if !isMounted {
+			fmt.Fprintf(stdout, "/dev/disk/by-label/%s %s\n", filepath.Base(d), d)
+			return nil
+		}
+	}
+	// 2. read modeenv
+	modeEnv, err := boot.ReadModeenv(filepath.Join(dataDir, "system-data"))
+	if err != nil {
+		return err
+	}
+	// 3. mount base
+	isMounted, err := osutilIsMounted(filepath.Join(runMnt, "base"))
+	if err != nil {
+		return err
+	}
+	if !isMounted {
+		base := filepath.Join(dataDir, "system-data", dirs.SnapBlobDir, modeEnv.Base)
+		fmt.Fprintf(stdout, "%s %s\n", base, filepath.Join(runMnt, "base"))
+		return nil
+	}
+	// 4. mount kernel
+	isMounted, err = osutilIsMounted(filepath.Join(runMnt, "kernel"))
+	if err != nil {
+		return err
+	}
+	if !isMounted {
+		kernel := filepath.Join(dataDir, "system-data", dirs.SnapBlobDir, modeEnv.Kernel)
+		fmt.Fprintf(stdout, "%s %s\n", kernel, filepath.Join(runMnt, "kernel"))
+		return nil
+	}
+
+	return nil
 }
 
 var validModes = []string{"install", "recover", "run"}

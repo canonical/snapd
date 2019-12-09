@@ -1080,7 +1080,8 @@ func (s *backendSuite) TestSnapConfineFromSnapProfileCreatesAllDirs(c *C) {
 
 	s.writeVanillaSnapConfineProfile(c, coreInfo)
 
-	err := apparmor.SetupSnapConfineReexec(coreInfo)
+	aa := &apparmor.Backend{}
+	err := aa.SetupSnapConfineReexec(coreInfo)
 	c.Assert(err, IsNil)
 	c.Assert(osutil.IsDirectory(dirs.SnapAppArmorDir), Equals, true)
 }
@@ -2108,4 +2109,55 @@ func (s *backendSuite) TestSetupManySmoke(c *C) {
 	setupManyInterface, ok := s.Backend.(interfaces.SecurityBackendSetupMany)
 	c.Assert(ok, Equals, true)
 	c.Assert(setupManyInterface, NotNil)
+}
+
+func (s *backendSuite) TestInstallingSnapInPreseedMode(c *C) {
+	aa, ok := s.Backend.(*apparmor.Backend)
+	c.Assert(ok, Equals, true)
+	aa.SetPreseedMode()
+
+	s.InstallSnap(c, interfaces.ConfinementOptions{}, "", ifacetest.SambaYamlV1, 1)
+	updateNSProfile := filepath.Join(dirs.SnapAppArmorDir, "snap-update-ns.samba")
+	profile := filepath.Join(dirs.SnapAppArmorDir, "snap.samba.smbd")
+	// file called "snap.sambda.smbd" was created
+	_, err := os.Stat(profile)
+	c.Check(err, IsNil)
+	// apparmor_parser was used to load that file
+	c.Check(s.parserCmd.Calls(), DeepEquals, [][]string{
+		{"apparmor_parser", "--replace", "--write-cache", "-O", "no-expr-simplify", fmt.Sprintf("--cache-loc=%s/var/cache/apparmor", s.RootDir), "--skip-kernel-load", "--skip-read-cache", "--quiet", updateNSProfile, profile},
+	})
+}
+
+func (s *backendSuite) TestSetupManyInPreseedMode(c *C) {
+	aa, ok := s.Backend.(*apparmor.Backend)
+	c.Assert(ok, Equals, true)
+	aa.SetPreseedMode()
+
+	for _, opts := range testedConfinementOpts {
+		snapInfo1 := s.InstallSnap(c, opts, "", ifacetest.SambaYamlV1, 1)
+		snapInfo2 := s.InstallSnap(c, opts, "", ifacetest.SomeSnapYamlV1, 1)
+		s.parserCmd.ForgetCalls()
+
+		snap1nsProfile := filepath.Join(dirs.SnapAppArmorDir, "snap-update-ns.samba")
+		snap1AAprofile := filepath.Join(dirs.SnapAppArmorDir, "snap.samba.smbd")
+		snap2nsProfile := filepath.Join(dirs.SnapAppArmorDir, "snap-update-ns.some-snap")
+		snap2AAprofile := filepath.Join(dirs.SnapAppArmorDir, "snap.some-snap.someapp")
+
+		// simulate outdated profiles by changing their data on the disk
+		c.Assert(ioutil.WriteFile(snap1AAprofile, []byte("# an outdated profile"), 0644), IsNil)
+		c.Assert(ioutil.WriteFile(snap2AAprofile, []byte("# an outdated profile"), 0644), IsNil)
+
+		setupManyInterface, ok := s.Backend.(interfaces.SecurityBackendSetupMany)
+		c.Assert(ok, Equals, true)
+		err := setupManyInterface.SetupMany([]*snap.Info{snapInfo1, snapInfo2}, func(snapName string) interfaces.ConfinementOptions { return opts }, s.Repo, s.meas)
+		c.Assert(err, IsNil)
+
+		// expect two batch executions - one for changed profiles, second for unchanged profiles.
+		c.Check(s.parserCmd.Calls(), DeepEquals, [][]string{
+			{"apparmor_parser", "--replace", "--write-cache", "-O", "no-expr-simplify", fmt.Sprintf("--cache-loc=%s/var/cache/apparmor", s.RootDir), "-j97", "--skip-kernel-load", "--skip-read-cache", "--quiet", snap1AAprofile, snap2AAprofile},
+			{"apparmor_parser", "--replace", "--write-cache", "-O", "no-expr-simplify", fmt.Sprintf("--cache-loc=%s/var/cache/apparmor", s.RootDir), "-j97", "--skip-kernel-load", "--quiet", snap1nsProfile, snap2nsProfile},
+		})
+		s.RemoveSnap(c, snapInfo1)
+		s.RemoveSnap(c, snapInfo2)
+	}
 }
