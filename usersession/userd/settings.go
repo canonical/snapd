@@ -27,6 +27,7 @@ import (
 	"time"
 
 	"github.com/godbus/dbus"
+
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/i18n"
 	"github.com/snapcore/snapd/osutil"
@@ -131,7 +132,7 @@ func desktopFile(s *Settings, command string, setting string, desktopValue strin
 	return desktopFile, nil
 }
 
-func outputDesktopFile(s *Settings, output string, sender dbus.Sender) (string, *dbus.Error) {
+func desktopFileFromOutput(s *Settings, output string, sender dbus.Sender) (string, *dbus.Error) {
 	snap, err := safeSnapFromSender(s, sender)
 	if err != nil {
 		return "", err
@@ -270,12 +271,7 @@ func (s *Settings) Get(setting string, sender dbus.Sender) (string, *dbus.Error)
 		return "", err
 	}
 
-	desktopFile, err := outputDesktopFile(s, output, sender)
-	if err != nil {
-		return "", err
-	}
-
-	return strings.TrimSpace(desktopFile), nil
+	return desktopFileFromOutput(s, output, sender)
 }
 
 // GetSub implements the 'GetSub' method of the 'io.snapcraft.Settings'
@@ -294,12 +290,7 @@ func (s *Settings) GetSub(setting string, subproperty string, sender dbus.Sender
 		return "", err
 	}
 
-	desktopFile, err := outputDesktopFile(s, output, sender)
-	if err != nil {
-		return "", err
-	}
-
-	return strings.TrimSpace(desktopFile), nil
+	return desktopFileFromOutput(s, output, sender)
 }
 
 // Set implements the 'Set' method of the 'io.snapcraft.Settings'

@@ -144,15 +144,6 @@ func (s *settingsSuite) TestGetHappy(c *C) {
 	})
 }
 
-func (s *settingsSuite) TestGetHappyUrlScheme(c *C) {
-	defaultSchemeHandler, err := s.settings.GetSub("default-url-scheme-handler", "irc", ":some-dbus-sender")
-	c.Assert(err, IsNil)
-	c.Check(defaultSchemeHandler, Equals, "ircclient.desktop")
-	c.Check(s.mockXdgSettings.Calls(), DeepEquals, [][]string{
-		{"xdg-settings", "get", "default-url-scheme-handler", "irc"},
-	})
-}
-
 func (s *settingsSuite) TestCheckInvalidSetting(c *C) {
 	_, err := s.settings.Check("random-setting", "foo.desktop", ":some-dbus-sender")
 	c.Assert(err, ErrorMatches, `cannot use setting "random-setting": not allowed`)
@@ -192,6 +183,39 @@ func (s *settingsSuite) TestCheckNoDefaultUrlScheme(c *C) {
 	c.Check(isDefault, Equals, "no")
 	c.Check(s.mockXdgSettings.Calls(), DeepEquals, [][]string{
 		{"xdg-settings", "check", "default-url-scheme-handler", "irc", "some-snap_bar.desktop"},
+	})
+}
+
+func (s *settingsSuite) TestNotThisSnap(c *C) {
+	mockXdgSettings := testutil.MockCommand(c, "xdg-settings", `
+if [ "$1" = "get" ] && [ "$2" = "default-web-browser" ]; then
+    echo "other-snap_foo.desktop"
+    exit 0
+fi
+if [ "$1" = "get" ] && [ "$2" = "default-url-scheme-handler" ] && [ "$3" = "irc" ]; then
+    echo "other-snap_foo-irc.desktop"
+    exit 0
+fi
+
+echo "mock called with unsupported argument: $1"
+exit 1
+`)
+	defer mockXdgSettings.Restore()
+
+	defaultBrowser, err := s.settings.Get("default-web-browser", ":some-dbus-sender")
+	c.Assert(err, IsNil)
+	c.Check(defaultBrowser, Equals, "NOT-THIS-SNAP.desktop")
+	c.Check(mockXdgSettings.Calls(), DeepEquals, [][]string{
+		{"xdg-settings", "get", "default-web-browser"},
+	})
+
+	mockXdgSettings.ForgetCalls()
+
+	defaultSchemeHandler, err := s.settings.GetSub("default-url-scheme-handler", "irc", ":some-dbus-sender")
+	c.Assert(err, IsNil)
+	c.Check(defaultSchemeHandler, Equals, "NOT-THIS-SNAP.desktop")
+	c.Check(mockXdgSettings.Calls(), DeepEquals, [][]string{
+		{"xdg-settings", "get", "default-url-scheme-handler", "irc"},
 	})
 }
 
