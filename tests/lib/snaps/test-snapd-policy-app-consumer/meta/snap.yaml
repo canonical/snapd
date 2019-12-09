@@ -380,6 +380,9 @@ apps:
   uhid:
     command: bin/run
     plugs: [ uhid ]
+  uio:
+    command: bin/run
+    plugs: [ uio ]
   unity7:
     command: bin/run
     plugs: [ unity7 ]
