@@ -32,8 +32,8 @@ execute: |
     snap list
     snap find
     echo "And install works as well"
-    snap install test-snapd-tools
-    test-snapd-tools.echo hello | MATCH hello
+    snap install test-snapd-sh
+    test-snapd-sh.sh -c 'echo hello' | MATCH hello
 
     echo "And snapd is running"
     systemctl status snapd.service | MATCH "Active: active"
