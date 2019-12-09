@@ -35,10 +35,10 @@ func MockSyscallChroot(f func(string) error) (restore func()) {
 	return func() { syscallChroot = oldSyscallChroot }
 }
 
-func MockMountPath(path string) (restore func()) {
-	oldMountPath := mountPath
-	mountPath = path
-	return func() { mountPath = oldMountPath }
+func MockSnapdMountPath(path string) (restore func()) {
+	oldMountPath := snapdMountPath
+	snapdMountPath = path
+	return func() { snapdMountPath = oldMountPath }
 }
 
 func MockSystemSnapFromSeed(f func(rootDir string) (string, error)) (restore func()) {

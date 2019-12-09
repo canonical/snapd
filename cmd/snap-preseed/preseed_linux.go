@@ -34,10 +34,10 @@ import (
 )
 
 var (
-	// mountPath is where target core/snapd is going to be mounted in the target chroot
-	mountPath     = "/snapd-preseed"
-	syscallMount  = syscall.Mount
-	syscallChroot = syscall.Chroot
+	// snapdMountPath is where target core/snapd is going to be mounted in the target chroot
+	snapdMountPath = "/tmp/snapd-preseed"
+	syscallMount   = syscall.Mount
+	syscallChroot  = syscall.Chroot
 )
 
 // checkChroot does a basic sanity check of the target chroot environment, e.g. makes
@@ -111,7 +111,8 @@ func prepareChroot(preseedChroot string) (func(), error) {
 		return nil, fmt.Errorf("cannot chdir to /: %v", err)
 	}
 
-	// GlobalRootDir is now relative to chroot env
+	// GlobalRootDir is now relative to chroot env. We assume all paths
+	// inside the chroot to be identical with the host.
 	rootDir := dirs.GlobalRootDir
 	if rootDir == "" {
 		rootDir = "/"
@@ -123,7 +124,7 @@ func prepareChroot(preseedChroot string) (func(), error) {
 	}
 
 	// create mountpoint for core/snapd
-	where := filepath.Join(rootDir, mountPath)
+	where := filepath.Join(rootDir, snapdMountPath)
 	if err := os.MkdirAll(where, 0755); err != nil {
 		return nil, err
 	}
@@ -149,8 +150,8 @@ func prepareChroot(preseedChroot string) (func(), error) {
 	// TODO: check snapd version
 
 	unmount := func() {
-		fmt.Fprintf(Stdout, "unmounting: %s\n", mountPath)
-		cmd := exec.Command("umount", mountPath)
+		fmt.Fprintf(Stdout, "unmounting: %s\n", snapdMountPath)
+		cmd := exec.Command("umount", snapdMountPath)
 		if err := cmd.Run(); err != nil {
 			fmt.Fprintf(Stderr, "%v", err)
 		}
@@ -166,7 +167,7 @@ func prepareChroot(preseedChroot string) (func(), error) {
 // The chroot is expected to be set-up and ready to use (critical system directories mounted).
 func runPreseedMode(preseedChroot string) error {
 	// exec snapd relative to new chroot, e.g. /snapd-preseed/usr/lib/snapd/snapd
-	path := filepath.Join(mountPath, "/usr/lib/snapd/snapd")
+	path := filepath.Join(snapdMountPath, dirs.CoreLibExecDir, "snapd")
 
 	// run snapd in preseed mode
 	cmd := exec.Command(path)

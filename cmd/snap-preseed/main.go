@@ -69,7 +69,7 @@ func run(parser *flags.Parser, args []string) error {
 	}
 
 	if len(rest) == 0 {
-		return fmt.Errorf("need the chroot path as argument")
+		return fmt.Errorf("need chroot path as argument")
 	}
 
 	chrootDir := rest[0]

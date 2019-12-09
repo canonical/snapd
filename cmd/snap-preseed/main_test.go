@@ -80,7 +80,7 @@ func (s *startPreseedSuite) TestMissingArg(c *C) {
 	defer restore()
 
 	parser := testParser(c)
-	c.Check(main.Run(parser, nil), ErrorMatches, `need the chroot path as argument`)
+	c.Check(main.Run(parser, nil), ErrorMatches, `need chroot path as argument`)
 }
 
 func (s *startPreseedSuite) TestChrootDoesntExist(c *C) {
@@ -135,7 +135,7 @@ func (s *startPreseedSuite) TestRunPreseedHappy(c *C) {
 	defer mockUmountCmd.Restore()
 
 	targetSnapdRoot := filepath.Join(tmpDir, "target-core-mounted-here")
-	restoreMountPath := main.MockMountPath(targetSnapdRoot)
+	restoreMountPath := main.MockSnapdMountPath(targetSnapdRoot)
 	defer restoreMountPath()
 
 	restoreSystemSnapFromSeed := main.MockSystemSnapFromSeed(func(string) (string, error) { return "/a/core.snap", nil })
