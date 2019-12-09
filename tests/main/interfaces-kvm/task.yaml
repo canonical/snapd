@@ -13,6 +13,10 @@ prepare: |
     fi
     touch /dev/kvm
 
+    if [[ "$SPREAD_SYSTEM" == fedora-* ]]; then
+        ausearch --checkpoint stamp -m AVC || true
+    fi
+
 restore: |
     rm -f /dev/kvm
 
@@ -44,3 +48,8 @@ execute: |
         exit 1
     fi
     MATCH "Permission denied" < call.error
+
+    if [[ "$SPREAD_SYSTEM" == fedora-* ]]; then
+        # make sure there are no selinux denials on fedora
+        ausearch -i --checkpoint stamp --start checkpoint -m AVC 2>&1 | MATCH 'no matches'
+    fi
