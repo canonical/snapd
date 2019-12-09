@@ -60,26 +60,8 @@ case "${1:-all}" in
     --spread-ubuntu)
         SPREAD=ubuntu-only
         ;;
-    --spread-ubuntu-lts)
-        SPREAD=ubuntu-lts
-        ;;
-    --spread-ubuntu-core)
-        SPREAD=ubuntu-core
-        ;;
-    --spread-ubuntu-next)
-        SPREAD=ubuntu-next
-        ;;
     --spread-no-ubuntu)
         SPREAD=no-ubuntu
-        ;;
-    --spread-no-ubuntu-deb)
-        SPREAD=no-ubuntu-deb
-        ;;
-    --spread-no-ubuntu-rpm)
-        SPREAD=no-ubuntu-rpm
-        ;;
-    --spread-no-ubuntu-others)
-        SPREAD=no-ubuntu-others
         ;;
     --spread-unstable)
         SPREAD=unstable
@@ -315,24 +297,6 @@ if [ -n "$SPREAD" ]; then
             ;;
         ubuntu-only)
             spread "google:[u]...:tests/..."
-            ;;
-        ubuntu-lts)
-            spread "google:[u]...-(14|16|18).04-...:tests/..."
-            ;;
-        ubuntu-core)
-            spread "google:[u]...-core-...:tests/..."
-            ;;
-        ubuntu-next)
-            spread "google:[u]...-(19|20|21)...:tests/..."
-            ;;
-        no-ubuntu-deb)
-            spread "google:debian...:tests/..."
-            ;;
-        no-ubuntu-rpm)
-            spread "google:(fedora|centos|opensuse)...:tests/..."
-            ;;
-        no-ubuntu-others)
-            spread "google:(arch|amazon)...:tests/..."
             ;;
         no-ubuntu)
             spread "google:[^u]...:tests/..."
