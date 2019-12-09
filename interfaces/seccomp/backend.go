@@ -169,21 +169,21 @@ func parallelCompile(compiler Compiler, profiles []string) error {
 	}
 
 	profilesQueue := make(chan string, len(profiles))
-	N := runtime.NumCPU()
-	if N >= 2 {
-		N -= 1
+	numWorkers := runtime.NumCPU()
+	if numWorkers >= 2 {
+		numWorkers -= 1
 	}
-	if N > len(profiles) {
-		N = len(profiles)
+	if numWorkers > len(profiles) {
+		numWorkers = len(profiles)
 	}
-	M := N * 2
-	if M > len(profiles) {
-		M = len(profiles)
+	resultsBufferSize := numWorkers * 2
+	if resultsBufferSize > len(profiles) {
+		resultsBufferSize = len(profiles)
 	}
-	res := make(chan error, M)
+	res := make(chan error, resultsBufferSize)
 
 	// launch as many workers as we have CPUs
-	for i := 0; i < N; i++ {
+	for i := 0; i < numWorkers; i++ {
 		go func() {
 			for {
 				profile, ok := <-profilesQueue
@@ -192,6 +192,13 @@ func parallelCompile(compiler Compiler, profiles []string) error {
 				}
 				in := bpfSrcPath(profile)
 				out := bpfBinPath(profile)
+				// remove the old profile first so that we are
+				// not loading it accidentally should the
+				// compilation fail
+				if err := os.Remove(out); err != nil && !os.IsNotExist(err) {
+					res <- err
+					continue
+				}
 
 				// snap-seccomp uses AtomicWriteFile internally, on failure the
 				// output file is unlinked
@@ -232,7 +239,6 @@ func parallelCompile(compiler Compiler, profiles []string) error {
 
 	}
 	return firstErr
-
 }
 
 // Setup creates seccomp profiles specific to a given snap.

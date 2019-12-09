@@ -951,3 +951,20 @@ func (s *backendSuite) TestParallelCompileError(c *C) {
 	// only global profile exists
 	c.Assert(names, DeepEquals, []string{"global.bin"})
 }
+
+func (s *backendSuite) TestParallelCompileRemovesFirst(c *C) {
+	err := os.MkdirAll(dirs.SnapSeccompDir, 0755)
+	c.Assert(err, IsNil)
+	err = ioutil.WriteFile(filepath.Join(dirs.SnapSeccompDir, "profile-001.bin"), nil, 0755)
+	c.Assert(err, IsNil)
+
+	// make profiles directory non-accessible
+	err = os.Chmod(dirs.SnapSeccompDir, 0000)
+	c.Assert(err, IsNil)
+
+	defer os.Chmod(dirs.SnapSeccompDir, 0755)
+
+	m := mockedSyncedCompiler{}
+	err = seccomp.ParallelCompile(&m, []string{"profile-001"})
+	c.Assert(err, ErrorMatches, "remove .*/profile-001.bin: permission denied")
+}
