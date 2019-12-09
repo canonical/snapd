@@ -2,7 +2,7 @@ The extra output from snap run --explain is not suitable for parsing.
 
 << snap run >>
 
-Invoked as "snap"
+Invoked as "snap run"
 Inferred application details:
   snap name: test-snapd-sh
   app name: test-snapd-sh

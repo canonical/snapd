@@ -173,7 +173,11 @@ func (x *cmdRun) Execute(args []string) error {
 	}
 	explain.Say("The extra output from snap run --explain is not suitable for parsing.")
 	explain.Header("snap run")
-	explain.Say("Invoked as %q", os.Args[0])
+	if os.Args[0] == "snap" {
+		explain.Say("Invoked as %q", "snap run")
+	} else {
+		explain.Say("Invoked as %q", os.Args[0])
+	}
 
 	snapApp := args[0]
 	args = args[1:]
