@@ -38,6 +38,8 @@ type rawVolumeInterfaceSuite struct {
 
 	// OS snap
 	testSlot1Info *snap.SlotInfo
+	testSlot2Info *snap.SlotInfo
+	testSlot3Info *snap.SlotInfo
 
 	// Gadget snap
 	testUDev1     *interfaces.ConnectedSlot
@@ -86,9 +88,17 @@ type: os
 slots:
   test-part-1:
     interface: raw-volume
+    path: /dev/vda1
+  test-part-2:
+    interface: raw-volume
+    path: /dev/mmcblk0p1
+  test-part-3:
+    interface: raw-volume
     path: /dev/i2o/hda1
 `, nil)
 	s.testSlot1Info = osSnapInfo.Slots["test-part-1"]
+	s.testSlot2Info = osSnapInfo.Slots["test-part-2"]
+	s.testSlot3Info = osSnapInfo.Slots["test-part-3"]
 
 	// Mock for Gadget snap
 	gadgetSnapInfo := snaptest.MockInfo(c, `
@@ -157,6 +167,8 @@ func (s *rawVolumeInterfaceSuite) TestName(c *C) {
 
 func (s *rawVolumeInterfaceSuite) TestSanitizeCoreSnapSlot(c *C) {
 	c.Assert(interfaces.BeforePrepareSlot(s.iface, s.testSlot1Info), IsNil)
+	c.Assert(interfaces.BeforePrepareSlot(s.iface, s.testSlot2Info), IsNil)
+	c.Assert(interfaces.BeforePrepareSlot(s.iface, s.testSlot3Info), IsNil)
 }
 
 func (s *rawVolumeInterfaceSuite) TestSanitizeGadgetSnapSlot(c *C) {
