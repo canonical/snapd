@@ -7,6 +7,10 @@ prepare: |
   . "$TESTSLIB"/snaps.sh
   install_local test-snapd-sh
   sed -e "s/@CORE_REV@/$(readlink /snap/core/current)/g" expected.in > expected
+  # The symlink may have been created and retained by prior tests.
+  if [ -h /root/snap/test-snapd-sh/current ]; then
+    rm /root/snap/test-snapd-sh/current
+  fi
 execute: |
   snap run --explain test-snapd-sh -c /bin/true > output
   diff -u output expected
