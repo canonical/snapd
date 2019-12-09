@@ -106,11 +106,15 @@ func generateMountsModeInstall() error {
 	// XXX: how do we select a different recover system from the cmdline?
 
 	// 2. (auto) select recovery system for now
-	isMounted, err = osutilIsMounted(filepath.Join(runMnt, "base"))
+	isBaseMounted, err := osutilIsMounted(filepath.Join(runMnt, "base"))
 	if err != nil {
 		return err
 	}
-	if !isMounted {
+	isKernelMounted, err := osutilIsMounted(filepath.Join(runMnt, "kernel"))
+	if err != nil {
+		return err
+	}
+	if !isBaseMounted || !isKernelMounted {
 		// load the recovery system  and generate mounts for kernel/base
 		systemLabel, err := findRecoverySystem(seedDir)
 		if err != nil {
@@ -143,9 +147,13 @@ func generateMountsModeInstall() error {
 			}
 			switch info.GetType() {
 			case snap.TypeBase:
-				fmt.Fprintf(stdout, "%s %s\n", essentialSnap.Path, filepath.Join(runMnt, "base"))
+				if !isBaseMounted {
+					fmt.Fprintf(stdout, "%s %s\n", essentialSnap.Path, filepath.Join(runMnt, "base"))
+				}
 			case snap.TypeKernel:
-				fmt.Fprintf(stdout, "%s %s\n", essentialSnap.Path, filepath.Join(runMnt, "kernel"))
+				if !isKernelMounted {
+					fmt.Fprintf(stdout, "%s %s\n", essentialSnap.Path, filepath.Join(runMnt, "kernel"))
+				}
 			}
 		}
 
