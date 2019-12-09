@@ -1,0 +1,22 @@
+summary: Ensure that post-refresh hook has permissions for its connected slot.
+
+details: |
+    Ensure that post-refresh hook has permissions of the connected
+    network-manager slot, and can introspect network-manager dbus
+    interface.
+
+systems: [ubuntu-core-*]
+
+prepare: |
+    snap install network-manager
+    snap pack test-snap
+    snap install --dangerous test-snap_1.0_all.snap
+
+execute: |
+    snap connect test-snap:network-manager network-manager
+
+    # simulate refresh
+    snap install --dangerous test-snap_1.0_all.snap
+
+    MATCH "interface name=\"org.freedesktop.DBus.Properties" < /var/snap/test-snap/common/introspect.txt
+
