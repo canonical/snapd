@@ -98,7 +98,7 @@ type: gadget
 slots:
   test-udev-1:
     interface: raw-volume
-    path: /dev/vda1
+    path: /dev/vda1/
   test-udev-2:
     interface: raw-volume
     path: /dev/mmcblk0p1
@@ -164,7 +164,7 @@ func (s *rawVolumeInterfaceSuite) TestSanitizeGadgetSnapSlot(c *C) {
 }
 
 func (s *rawVolumeInterfaceSuite) TestSanitizeBadGadgetSnapSlot(c *C) {
-	c.Assert(interfaces.BeforePrepareSlot(s.iface, s.testUDevBadValue1Info), ErrorMatches, "raw-volume path attribute must be a valid device node")
+	c.Assert(interfaces.BeforePrepareSlot(s.iface, s.testUDevBadValue1Info), ErrorMatches, `slot "some-device:test-udev-bad-value-1" path attribute must be a valid device node`)
 }
 
 func (s *rawVolumeInterfaceSuite) TestSanitizeSlotHappy(c *C) {
@@ -262,7 +262,7 @@ slots:
 		info := snaptest.MockInfo(c, yml, nil)
 		slot := info.Slots["raw-volume"]
 
-		c.Check(interfaces.BeforePrepareSlot(s.iface, slot), ErrorMatches, "raw-volume path attribute must be a valid device node", Commentf("unexpected error for %q", t.input))
+		c.Check(interfaces.BeforePrepareSlot(s.iface, slot), ErrorMatches, `slot "raw-volume-slot-snap:raw-volume" path attribute must be a valid device node`, Commentf("unexpected error for %q", t.input))
 	}
 }
 

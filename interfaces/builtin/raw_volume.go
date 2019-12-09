@@ -116,39 +116,42 @@ const vdPat = `vd[a-z]([1-9]|[1-5][0-9]|6[0-3])`
 
 var rawVolumePartitionPattern = regexp.MustCompile(fmt.Sprintf("^/dev/(%s|%s|%s|%s|%s|%s)$", hdPat, sdPat, i2oPat, mmcPat, nvmePat, vdPat))
 
-// Check validity of the defined slot
-func (iface *rawVolumeInterface) BeforePrepareSlot(slot *snap.SlotInfo) error {
-	path, ok := slot.Attrs["path"].(string)
-	if !ok || path == "" {
-		return fmt.Errorf("%s slot must have a path attribute", iface.Name())
+func (iface *rawVolumeInterface) path(slotRef *interfaces.SlotRef, attrs interfaces.Attrer) (string, error) {
+	var path string
+	if err := attrs.Attr("path", &path); err != nil || path == "" {
+		return "", fmt.Errorf("slot %q must have a path attribute", slotRef)
 	}
 	path = filepath.Clean(path)
 	if !rawVolumePartitionPattern.MatchString(path) {
-		return fmt.Errorf("%s path attribute must be a valid device node", iface.Name())
+		return "", fmt.Errorf("slot %q path attribute must be a valid device node", slotRef)
 	}
 
-	return nil
+	return path, nil
+}
+
+// Check validity of the defined slot
+func (iface *rawVolumeInterface) BeforePrepareSlot(slot *snap.SlotInfo) error {
+	_, err := iface.path(&interfaces.SlotRef{Snap: slot.Snap.InstanceName(), Name: slot.Name}, slot)
+	return err
 }
 
 func (iface *rawVolumeInterface) AppArmorConnectedPlug(spec *apparmor.Specification, plug *interfaces.ConnectedPlug, slot *interfaces.ConnectedSlot) error {
-	var path string
-	if err := slot.Attr("path", &path); err != nil {
+	cleanedPath, err := iface.path(slot.Ref(), slot)
+	if err != nil {
 		return nil
 	}
 
-	cleanedPath := filepath.Clean(path)
 	spec.AddSnippet(fmt.Sprintf(rawVolumeConnectedPlugAppArmorPath, cleanedPath))
 
 	return nil
 }
 
 func (iface *rawVolumeInterface) UDevConnectedPlug(spec *udev.Specification, plug *interfaces.ConnectedPlug, slot *interfaces.ConnectedSlot) error {
-	var path string
-	if err := slot.Attr("path", &path); err != nil {
+	cleanedPath, err := iface.path(slot.Ref(), slot)
+	if err != nil {
 		return nil
 	}
 
-	cleanedPath := filepath.Clean(path)
 	spec.TagDevice(fmt.Sprintf(`KERNEL=="%s"`, strings.TrimPrefix(cleanedPath, "/dev/")))
 
 	return nil
