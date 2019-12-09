@@ -149,28 +149,39 @@ func (tr *tree20) mkFixedDirs() error {
 	return os.MkdirAll(tr.systemDir, 0755)
 }
 
-func (tr *tree20) ensureSystemSnapsDir() error {
-	if tr.systemSnapsDirEnsured {
-		return nil
-	}
+func (tr *tree20) ensureSystemSnapsDir() (string, error) {
 	snapsDir := filepath.Join(tr.systemDir, "snaps")
+	if tr.systemSnapsDirEnsured {
+		return snapsDir, nil
+	}
 	if err := os.MkdirAll(snapsDir, 0755); err != nil {
-		return err
+		return "", err
 	}
 	tr.systemSnapsDirEnsured = true
-	return nil
+	return snapsDir, nil
 }
 
-func (tr *tree20) snapsDir() string {
-	// XXX what about extra snaps?
-	return tr.snapsDirPath
+func (tr *tree20) snapPath(sn *SeedSnap) (string, error) {
+	var snapsDir string
+	if sn.modelSnap != nil {
+		snapsDir = tr.snapsDirPath
+	} else {
+		// extra snap
+		var err error
+		snapsDir, err = tr.ensureSystemSnapsDir()
+		if err != nil {
+			return "", err
+		}
+	}
+	return filepath.Join(snapsDir, filepath.Base(sn.Info.MountFile())), nil
 }
 
 func (tr *tree20) localSnapPath(sn *SeedSnap) (string, error) {
-	if err := tr.ensureSystemSnapsDir(); err != nil {
+	sysSnapsDir, err := tr.ensureSystemSnapsDir()
+	if err != nil {
 		return "", err
 	}
-	return filepath.Join(tr.systemDir, "snaps", fmt.Sprintf("%s_%s.snap", sn.SnapName(), sn.Info.Version)), nil
+	return filepath.Join(sysSnapsDir, fmt.Sprintf("%s_%s.snap", sn.SnapName(), sn.Info.Version)), nil
 }
 
 func (tr *tree20) writeAssertions(db asserts.RODatabase, modelRefs []*asserts.Ref, snapsFromModel []*SeedSnap, extraSnaps []*SeedSnap) error {
@@ -301,7 +312,21 @@ func (tr *tree20) writeMeta(snapsFromModel []*SeedSnap, extraSnaps []*SeedSnap) 
 		})
 	}
 
-	// TODO|XXX: optionsSnaps for extra snaps
+	for _, sn := range extraSnaps {
+		channel := sn.Channel
+		unasserted := ""
+		if sn.Info.ID() == "" {
+			unasserted = filepath.Base(sn.Path)
+			channel = ""
+		}
+
+		optionsSnaps = append(optionsSnaps, &internal.Snap20{
+			Name:       sn.SnapName(),
+			SnapID:     sn.Info.ID(),
+			Unasserted: unasserted,
+			Channel:    channel,
+		})
+	}
 
 	if len(optionsSnaps) != 0 {
 		// XXX internal error if we get here and grade != dangerous
@@ -334,7 +359,7 @@ func (tr *tree20) writeMeta(snapsFromModel []*SeedSnap, extraSnaps []*SeedSnap) 
 		return nil
 	}
 
-	if err := tr.ensureSystemSnapsDir(); err != nil {
+	if _, err := tr.ensureSystemSnapsDir(); err != nil {
 		return err
 	}
 

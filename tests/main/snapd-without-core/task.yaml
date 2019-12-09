@@ -35,10 +35,10 @@ execute: |
     check_journalctl_log  'restarting into "/snap/snapd/'
 
     echo "Now install a core18 based snap and ensure it works"
-    snap install test-snapd-tools-core18
-    test-snapd-tools-core18.echo hello | MATCH hello
+    snap install test-snapd-sh-core18
+    test-snapd-sh-core18.sh -c 'echo hello' | MATCH hello
     echo "No core was installed"
     snap list | not grep ^"core "
 
     echo "Ensure we re-exec to the snapd snap"
-    SNAPD_DEBUG=1 test-snapd-tools-core18.echo 2>&1 | MATCH 'restarting into "/snap/snapd/current'
+    SNAPD_DEBUG=1 test-snapd-sh-core18.sh -c 'true' 2>&1 | MATCH 'restarting into "/snap/snapd/current'
