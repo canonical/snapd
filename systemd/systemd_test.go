@@ -928,3 +928,15 @@ func (s *SystemdTestSuite) TestPreseedModeRemoveMountUnitUnmounted(c *C) {
 	// umount was not called
 	c.Check(mockUmountCmd.Calls(), HasLen, 0)
 }
+
+func (s *SystemdTestSuite) TestPreseedModeBindmountNotSupported(c *C) {
+	sysd := NewEmulationMode()
+
+	restore := squashfs.MockNeedsFuse(false)
+	defer restore()
+
+	mockSnapPath := c.MkDir()
+
+	_, err := sysd.AddMountUnitFile("foo", "42", mockSnapPath, "/snap/snapname/123", "")
+	c.Assert(err, ErrorMatches, `bind-mounted directory is not supported in emulation mode`)
+}

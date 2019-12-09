@@ -651,12 +651,12 @@ func MountUnitPath(baseDir string) string {
 	return filepath.Join(dirs.SnapServicesDir, escapedPath+".mount")
 }
 
-func writeMountUnitFile(snapName, revision, what, where, fstype string) (string, []string, error) {
+func writeMountUnitFile(snapName, revision, what, where, fstype string) (string, string, []string, error) {
 	options := []string{"nodev"}
 	if fstype == "squashfs" {
 		newFsType, newOptions, err := squashfs.FsType()
 		if err != nil {
-			return "", nil, err
+			return "", "", nil, err
 		}
 		options = append(options, newOptions...)
 		fstype = newFsType
@@ -689,10 +689,10 @@ WantedBy=multi-user.target
 	mu := MountUnitPath(where)
 	mountUnitName, err := filepath.Base(mu), osutil.AtomicWriteFile(mu, []byte(c), 0644, 0)
 	if err != nil {
-		return "", nil, err
+		return "", "", nil, err
 	}
 
-	return mountUnitName, options, err
+	return mountUnitName, fstype, options, err
 }
 
 // AddMountUnitFile adds/enables/starts a mount unit.
@@ -700,7 +700,7 @@ func (s *systemd) AddMountUnitFile(snapName, revision, what, where, fstype strin
 	daemonReloadLock.Lock()
 	defer daemonReloadLock.Unlock()
 
-	mountUnitName, _, err := writeMountUnitFile(snapName, revision, what, where, fstype)
+	mountUnitName, _, _, err := writeMountUnitFile(snapName, revision, what, where, fstype)
 	if err != nil {
 		return "", err
 	}

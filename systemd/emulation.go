@@ -86,7 +86,11 @@ func (s *emulation) LogReader(services []string, n int, follow bool) (io.ReadClo
 }
 
 func (s *emulation) AddMountUnitFile(snapName, revision, what, where, fstype string) (string, error) {
-	mountUnitName, options, err := writeMountUnitFile(snapName, revision, what, where, fstype)
+	if osutil.IsDirectory(what) {
+		return "", fmt.Errorf("bind-mounted directory is not supported in emulation mode")
+	}
+
+	mountUnitName, fstype, options, err := writeMountUnitFile(snapName, revision, what, where, fstype)
 	if err != nil {
 		return "", err
 	}
@@ -96,9 +100,14 @@ func (s *emulation) AddMountUnitFile(snapName, revision, what, where, fstype str
 		return "", fmt.Errorf("cannot mount %s (%s) at %s in pre-bake mode: %s; %s", what, where, fstype, err, string(out))
 	}
 
+	multiUserTargetWantsDir := filepath.Join(dirs.SnapServicesDir, "multi-user.target.wants")
+	if err := os.MkdirAll(multiUserTargetWantsDir, 0755); err != nil {
+		return "", err
+	}
+
 	// cannot call systemd, so manually enable the unit by symlinking into multi-user.target.wants
 	mu := MountUnitPath(where)
-	enableUnitPath := filepath.Join(dirs.SnapServicesDir, "multi-user.target.wants", mountUnitName)
+	enableUnitPath := filepath.Join(multiUserTargetWantsDir, mountUnitName)
 	if err := osSymlink(mu, enableUnitPath); err != nil {
 		return "", fmt.Errorf("cannot enable mount unit %s: %v", mountUnitName, err)
 	}
@@ -116,12 +125,14 @@ func (s *emulation) RemoveMountUnitFile(mountedDir string) error {
 		return err
 	}
 	if isMounted {
+		// use detach-loop and lazy unmount
 		if output, err := exec.Command("umount", "-d", "-l", mountedDir).CombinedOutput(); err != nil {
 			return osutil.OutputErr(output, err)
 		}
 	}
 
-	enableUnitPathSymlink := filepath.Join(dirs.SnapServicesDir, "multi-user.target.wants", filepath.Base(unit))
+	multiUserTargetWantsDir := filepath.Join(dirs.SnapServicesDir, "multi-user.target.wants")
+	enableUnitPathSymlink := filepath.Join(multiUserTargetWantsDir, filepath.Base(unit))
 	if err := os.Remove(enableUnitPathSymlink); err != nil {
 		return err
 	}
