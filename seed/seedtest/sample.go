@@ -90,6 +90,15 @@ type: app
 base: core20
 version: 1.0
 `,
+	"optional20-a": `name: optional20-a
+type: app
+base: core20
+version: 1.0
+`,
+	"optional20-b": `name: optional20-b
+type: app
+base: core20
+version: 1.0`,
 }
 
 func MergeSampleSnapYaml(snapYaml ...map[string]string) map[string]string {

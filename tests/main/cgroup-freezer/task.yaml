@@ -1,4 +1,6 @@
 summary: Each snap process is moved to appropriate freezer cgroup
+# fedora-31: uses cgroupv2, which does not support a separate freezer controller
+systems: [ -fedora-31-*]
 
 details: |
     This test creates a snap process that suspends itself and ensures that it

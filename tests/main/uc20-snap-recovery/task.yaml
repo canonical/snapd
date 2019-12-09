@@ -32,7 +32,7 @@ prepare: |
 execute: |
     LOOP="$(cat loop.txt)"
     echo "Run the snap-bootstrap tool"
-    /usr/lib/snapd/snap-bootstrap ./gadget-dir "$LOOP"
+    /usr/lib/snapd/snap-bootstrap create-partitions ./gadget-dir "$LOOP"
 
     echo "And check that the partitions are created"
     sfdisk -l "$LOOP" | MATCH '1M\s+BIOS boot'
@@ -61,20 +61,49 @@ execute: |
     ls ./mnt/EFI/ubuntu/grub.cfg
     umount ./mnt
 
+    # XXX: workaround for device consistency errors
+    udevadm info --query=property "${LOOP}p2" | grep ID_FS_TYPE ||:
+    blockdev --rereadpt "$LOOP"
+    udevadm settle
+    udevadm info --query=property "${LOOP}p2" | grep ID_FS_TYPE ||:
+
     echo "now add a partition"
     cat >> gadget-dir/meta/gadget.yaml <<EOF
           - name: Other ext4
             type: 83,0FC63DAF-8483-4772-8E79-3D69D8477DE4
             filesystem: ext4
             filesystem-label: other-ext4
-            size: 500M
+            size: 110M
+          - name: Boot partition
+            type: 83,0FC63DAF-8483-4772-8E79-3D69D8477DE4
+            role: system-boot
+            filesystem: ext4
+            size: 120M
+          - name: Data partition
+            type: 83,0FC63DAF-8483-4772-8E79-3D69D8477DE4
+            role: system-data
+            filesystem: ext4
+            size: 130M
     EOF
-    /usr/lib/snapd/snap-bootstrap ./gadget-dir "$LOOP"
-    sfdisk -l "$LOOP" | MATCH '500M\s* Linux filesystem'
+    /usr/lib/snapd/snap-bootstrap create-partitions ./gadget-dir "$LOOP"
+    sfdisk -l "$LOOP" | MATCH '110M\s* Linux filesystem'
+    sfdisk -l "$LOOP" | MATCH '120M\s* Linux filesystem'
+    sfdisk -l "$LOOP" | MATCH '130M\s* Linux filesystem'
 
     echo "check that the filesystems are created"
     mkdir -p ./mnt
+
     mount "${LOOP}p3" ./mnt
     df -T "${LOOP}p3" | MATCH ext4
     umount ./mnt
     file -s "${LOOP}p3" | MATCH 'volume name "other-ext4"'
+
+    mount "${LOOP}p4" ./mnt
+    df -T "${LOOP}p4" | MATCH ext4
+    umount ./mnt
+    file -s "${LOOP}p4" | MATCH 'volume name "ubuntu-boot"'
+
+    mount "${LOOP}p5" ./mnt
+    df -T "${LOOP}p5" | MATCH ext4
+    umount ./mnt
+    file -s "${LOOP}p5" | MATCH 'volume name "ubuntu-data"'

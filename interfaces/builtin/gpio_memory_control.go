@@ -49,6 +49,5 @@ func init() {
 		baseDeclarationSlots:  gpioMemoryControlBaseDeclarationSlots,
 		connectedPlugAppArmor: gpioMemoryControlConnectedPlugAppArmor,
 		connectedPlugUDev:     gpioMemoryControlConnectedPlugUDev,
-		reservedForOS:         true,
 	})
 }

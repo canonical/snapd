@@ -294,8 +294,10 @@ type BootableSet struct {
 //  - setting boot env vars pointing to the revisions of the boot snaps to use
 //  - extracting kernel assets as needed by the bootloader
 func MakeBootable(model *asserts.Model, rootdir string, bootWith *BootableSet) error {
+	opts := &bootloader.Options{PrepareImageTime: true}
+
 	// install the bootloader configuration from the gadget
-	if err := bootloader.InstallBootConfig(bootWith.UnpackedGadgetDir, rootdir); err != nil {
+	if err := bootloader.InstallBootConfig(bootWith.UnpackedGadgetDir, rootdir, opts); err != nil {
 		return err
 	}
 
@@ -323,9 +325,7 @@ func MakeBootable(model *asserts.Model, rootdir string, bootWith *BootableSet) e
 	// Set bootvars for kernel/core snaps so the system boots and
 	// does the first-time initialization. There is also no
 	// mounted kernel/core/base snap, but just the blobs.
-	bl, err := bootloader.Find(rootdir, &bootloader.Options{
-		PrepareImageTime: true,
-	})
+	bl, err := bootloader.Find(rootdir, opts)
 	if err != nil {
 		return fmt.Errorf("cannot set kernel/core boot variables: %s", err)
 	}

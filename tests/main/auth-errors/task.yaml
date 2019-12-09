@@ -12,7 +12,7 @@ restore: |
 
 execute: |
     echo "An unauthenticated user cannot install snaps"
-    if su - -c "snap install test-snapd-tools" test 2> install.output; then
+    if su - -c "snap install test-snapd-sh" test 2> install.output; then
         echo "Expected error installing snap from unauthenticated account"
         exit 1
     fi

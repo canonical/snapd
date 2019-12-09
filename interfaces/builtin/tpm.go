@@ -51,6 +51,5 @@ func init() {
 		baseDeclarationSlots:  tpmBaseDeclarationSlots,
 		connectedPlugAppArmor: tpmConnectedPlugAppArmor,
 		connectedPlugUDev:     tpmConnectedPlugUDev,
-		reservedForOS:         true,
 	})
 }

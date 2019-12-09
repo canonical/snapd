@@ -96,6 +96,7 @@ unix (bind,listen) type=stream addr="@/containerd-shim/k8s.io/*/shim.sock\x00",
 
 # Limited read access to specific bits of /sys
 /sys/kernel/mm/hugepages/ r,
+/sys/kernel/mm/transparent_hugepage/{,**} r,
 /sys/fs/cgroup/cpuset/cpuset.cpus r,
 /sys/fs/cgroup/cpuset/cpuset.mems r,
 /sys/module/apparmor/parameters/enabled r,

@@ -257,6 +257,24 @@ version: 1.0
 base: core18
 version: 1.0
 `,
+	"cont-producer": `name: cont-producer
+type: app
+base: core18
+version: 1.1
+slots:
+   cont:
+     interface: content
+     content: cont
+`,
+	"cont-consumer": `name: cont-consumer
+base: core18
+version: 1.0
+plugs:
+   cont:
+     interface: content
+     content: cont
+     default-provider: cont-producer
+`,
 })
 
 const pcGadgetYaml = `
