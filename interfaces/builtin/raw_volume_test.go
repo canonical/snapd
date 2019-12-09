@@ -37,7 +37,6 @@ type rawVolumeInterfaceSuite struct {
 	iface interfaces.Interface
 
 	// OS snap
-	testSlot1     *interfaces.ConnectedSlot
 	testSlot1Info *snap.SlotInfo
 
 	// Gadget snap
@@ -87,17 +86,9 @@ type: os
 slots:
   test-part-1:
     interface: raw-volume
-    path: /dev/vda1
-  test-part-2:
-    interface: raw-volume
-    path: /dev/mmcblk0p1
-  test-part-3:
-    interface: raw-volume
     path: /dev/i2o/hda1
 `, nil)
 	s.testSlot1Info = osSnapInfo.Slots["test-part-1"]
-	s.testSlot1Info = osSnapInfo.Slots["test-part-2"]
-	s.testSlot1Info = osSnapInfo.Slots["test-part-3"]
 
 	// Mock for Gadget snap
 	gadgetSnapInfo := snaptest.MockInfo(c, `
