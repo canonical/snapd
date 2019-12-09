@@ -21,7 +21,9 @@ package builtin
 
 import (
 	"bytes"
+	"path/filepath"
 	"fmt"
+	"regexp"
 	"sort"
 
 	"github.com/snapcore/snapd/interfaces"
@@ -95,4 +97,20 @@ func implicitSystemConnectedSlot(slot *interfaces.ConnectedSlot) bool {
 		return true
 	}
 	return false
+}
+
+// determine if the given slot attribute path matches the regex
+func verifySlotPathAttribute(slotRef *interfaces.SlotRef, attrs interfaces.Attrer, reg *regexp.Regexp, errStr string) (string, error) {
+	var path string
+	if err := attrs.Attr("path", &path); err != nil || path == "" {
+		return "", fmt.Errorf("slot %q must have a path attribute", slotRef)
+	}
+	cleanPath := filepath.Clean(path)
+	if cleanPath != path {
+		return "", fmt.Errorf(`cannot use slot %q path %q: try %q"`, slotRef, path, cleanPath)
+	}
+	if !reg.MatchString(cleanPath) {
+		return "", fmt.Errorf("slot %q path attribute %s", slotRef, errStr)
+	}
+	return cleanPath, nil
 }
