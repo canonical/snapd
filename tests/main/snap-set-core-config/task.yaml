@@ -1,20 +1,33 @@
-summary: Ensure "snapctl core-configure" works
+summary: Ensure "snap set core" works
 
 # the test is only meaningful on core devices
-systems: [ubuntu-core-16-*]
+systems: [ubuntu-core-*]
 
 prepare: |
-    cat > new-configure-core  <<EOF
-    #!/bin/sh
-    snapctl internal configure-core
-    EOF
-    chmod +x new-configure-core
-    mount -o bind new-configure-core /snap/core/current/meta/hooks/configure
+    if systemctl -l | MATCH rsyslog.service; then
+        echo "rsyslog service exists on the system"
+        exit 0
+    fi
+
+    #shellcheck source=tests/lib/systemd.sh
+    . "$TESTSLIB"/systemd.sh
+
+    # start fake rsyslog service
+    systemd_create_and_start_unit rsyslog "/bin/sleep 2h"
+
+    # create a flag to indicate the ryslog service is fake
+    touch rsyslog.fake
 
 restore: |
-    umount /snap/core/current/meta/hooks/configure
-    systemctl enable rsyslog.service
-    systemctl start rsyslog.service
+    if [ -f rsyslog.fake ]; then
+        #shellcheck source=tests/lib/systemd.sh
+        . "$TESTSLIB"/systemd.sh
+        systemd_stop_and_destroy_unit rsyslog
+    else
+        systemctl enable rsyslog.service
+        systemctl start rsyslog.service
+    fi
+
     rm -f /etc/systemd/login.conf.d/00-snap-core.conf
 
 execute: |

@@ -730,7 +730,8 @@ static void enter_non_classic_execution_environment(sc_invocation * inv,
 			   "/run/snapd/ns/snap.%s.fstab\n", inv->snap_instance);
 		sc_explain("      info file: " "/run/snapd/ns/snap.%s.info\n",
 			   inv->snap_instance);
-		sc_populate_mount_ns(aa, snap_update_ns_fd, inv);
+		sc_populate_mount_ns(aa, snap_update_ns_fd, inv, real_gid,
+				     saved_gid);
 		sc_store_ns_info(inv);
 
 		/* Preserve the mount namespace. */

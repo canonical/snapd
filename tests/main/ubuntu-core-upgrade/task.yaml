@@ -36,7 +36,7 @@ prepare: |
     fi
 
     snap list | awk "/^${TARGET_SNAP} / {print(\$3)}" > nextBoot
-    snap install test-snapd-tools
+    snap install test-snapd-sh
 
 execute: |
     #shellcheck source=tests/lib/boot.sh
@@ -93,7 +93,7 @@ execute: |
     while ! journalctl -b -u snapd|grep -q "Waiting for system reboot" ; do sleep 1 ; done
 
     echo "Ensure the test snap still runs"
-    test-snapd-tools.echo hello | MATCH hello
+    test-snapd-sh.sh -c 'echo hello' | MATCH hello
 
     echo "Ensure the bootloader is correct before reboot"
     readlink "/snap/${TARGET_SNAP}/current" > nextBoot

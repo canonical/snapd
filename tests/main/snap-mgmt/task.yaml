@@ -12,8 +12,8 @@ prepare: |
     #shellcheck source=tests/lib/snaps.sh
     . "$TESTSLIB"/snaps.sh
 
-    snap install test-snapd-tools
-    snap list | MATCH test-snapd-tools
+    snap install test-snapd-sh
+    snap list | MATCH test-snapd-sh
 
     # a snap with services
     install_local test-snapd-service
