@@ -37,7 +37,12 @@ var Say = func(f string, args ...interface{}) {}
 // Header prints a spaced header, usually separating subsequent programs.
 //
 // Header  is only effective if Enable was called earlier.
-var Header = func(name string) {}
+// Depending on the number of extras used the format is as follows:
+//
+// Zero: << $name >>
+// One:  << $name ($extra[0]) >>
+// Two:  << $extra[1] $name ($extra[0]) >>
+var Header = func(name string, extras ...string) {}
 
 // Do invokes a function that only serves to explain things.
 //
@@ -54,8 +59,15 @@ func Enable() {
 		fmt.Fprintf(stdout, f, args...)
 		stdout.Sync() // Ignore errors
 	}
-	Header = func(name string) {
-		fmt.Fprintf(stdout, "\n<< %s >>\n\n", name)
+	Header = func(name string, extras ...string) {
+		switch len(extras) {
+		case 0:
+			fmt.Fprintf(stdout, "\n<< %s >>\n\n", name)
+		case 1:
+			fmt.Fprintf(stdout, "\n<< %s (%s) >>\n\n", name, extras[0])
+		case 2:
+			fmt.Fprintf(stdout, "\n<< %s %s (%s) >>\n\n", extras[1], name, extras[0])
+		}
 		stdout.Sync() // Ignore errors
 	}
 	Do = func(f func()) { f() }
@@ -64,7 +76,7 @@ func Enable() {
 
 func Disable() {
 	Say = func(f string, args ...interface{}) {}
-	Header = func(name string) {}
+	Header = func(name string, extras ...string) {}
 	Do = func(f func()) {}
 	os.Unsetenv("SNAP_EXPLAIN")
 }

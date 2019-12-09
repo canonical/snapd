@@ -67,9 +67,27 @@ func (s *explainSuite) TestHeader(c *C) {
 	explain.Header("snap-foo")
 	c.Check(explain.StdoutText(), Equals, "")
 
-	explain.Header("snap-bar")
+	explain.Enable()
 	defer explain.Disable()
-	explain.Say("\n<< snap-bar >>\n\n")
+
+	explain.Header("snap-bar")
+	c.Check(explain.StdoutText(), Equals, "\n<< snap-bar >>\n\n")
+}
+
+func (s *explainSuite) TestHeaderComment(c *C) {
+	explain.Enable()
+	defer explain.Disable()
+
+	explain.Header("name", "comment")
+	c.Check(explain.StdoutText(), Equals, "\n<< name (comment) >>\n\n")
+}
+
+func (s *explainSuite) TestHeaderCommentPrefix(c *C) {
+	explain.Enable()
+	defer explain.Disable()
+
+	explain.Header("name", "comment", "prefix")
+	c.Check(explain.StdoutText(), Equals, "\n<< prefix name (comment) >>\n\n")
 }
 
 func (s *explainSuite) TestDo(c *C) {
