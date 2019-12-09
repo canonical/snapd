@@ -35,12 +35,14 @@ type spiInterfaceSuite struct {
 	testutil.BaseTest
 	iface interfaces.Interface
 
-	slotOs1Info *snap.SlotInfo
-	slotOs1     *interfaces.ConnectedSlot
-	slotOs2Info *snap.SlotInfo
-	slotOs2     *interfaces.ConnectedSlot
-	slotOs3Info *snap.SlotInfo
-	slotOs3     *interfaces.ConnectedSlot
+	slotOs1Info        *snap.SlotInfo
+	slotOs1            *interfaces.ConnectedSlot
+	slotOs2Info        *snap.SlotInfo
+	slotOs2            *interfaces.ConnectedSlot
+	slotOs3Info        *snap.SlotInfo
+	slotOs3            *interfaces.ConnectedSlot
+	slotOsCleanedInfo  *snap.SlotInfo
+	slotOsCleaned      *interfaces.ConnectedSlot
 
 	slotGadget1Info    *snap.SlotInfo
 	slotGadget1        *interfaces.ConnectedSlot
@@ -88,6 +90,9 @@ slots:
   spi-3:
     interface: spi
     path: /dev/spidev33566.0
+  spi-unclean:
+    interface: spi
+    path: /dev/./spidev33567.0
 `, nil)
 	s.slotOs1Info = info.Slots["spi-1"]
 	s.slotOs1 = interfaces.NewConnectedSlot(s.slotOs1Info, nil, nil)
@@ -95,6 +100,8 @@ slots:
 	s.slotOs2 = interfaces.NewConnectedSlot(s.slotOs2Info, nil, nil)
 	s.slotOs3Info = info.Slots["spi-3"]
 	s.slotOs3 = interfaces.NewConnectedSlot(s.slotOs3Info, nil, nil)
+	s.slotOsCleanedInfo = info.Slots["spi-unclean"]
+	s.slotOsCleaned = interfaces.NewConnectedSlot(s.slotOsCleanedInfo, nil, nil)
 
 	info = snaptest.MockInfo(c, `
 name: gadget
@@ -181,6 +188,8 @@ func (s *spiInterfaceSuite) TestSanitizeSlot(c *C) {
 	c.Assert(interfaces.BeforePrepareSlot(s.iface, s.slotOs1Info), IsNil)
 	c.Assert(interfaces.BeforePrepareSlot(s.iface, s.slotOs2Info), IsNil)
 	c.Assert(interfaces.BeforePrepareSlot(s.iface, s.slotOs3Info), IsNil)
+	// Verify historically filepath.Clean()d paths are still valid
+	c.Assert(interfaces.BeforePrepareSlot(s.iface, s.slotOsCleanedInfo), IsNil)
 	c.Assert(interfaces.BeforePrepareSlot(s.iface, s.slotGadget1Info), IsNil)
 	c.Assert(interfaces.BeforePrepareSlot(s.iface, s.slotGadget2Info), IsNil)
 	c.Assert(interfaces.BeforePrepareSlot(s.iface, s.slotGadget3Info), IsNil)
