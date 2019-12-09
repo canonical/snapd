@@ -502,7 +502,8 @@ func (s *bootSetSuite) TestMakeBootable20(c *C) {
 	c.Assert(err, IsNil)
 
 	rootdir := c.MkDir()
-	seedSnapsDirs := filepath.Join(rootdir, "/var/lib/snapd/seed", "snaps")
+	// on uc20 the seed layout if different
+	seedSnapsDirs := filepath.Join(rootdir, "/snaps")
 	err = os.MkdirAll(seedSnapsDirs, 0755)
 	c.Assert(err, IsNil)
 
@@ -521,11 +522,13 @@ version: 5.0
 	err = os.Rename(kernelFn, kernelInSeed)
 	c.Assert(err, IsNil)
 
+	recoverySystem := "/systems/20191209"
 	bootWith := &boot.BootableSet{
 		Base:              baseInfo,
 		BasePath:          baseInSeed,
 		Kernel:            kernelInfo,
 		KernelPath:        kernelInSeed,
+		RecoverySystem:    recoverySystem,
 		UnpackedGadgetDir: unpackedGadgetDir,
 	}
 
@@ -542,6 +545,12 @@ version: 5.0
 
 	// ensure no /boot was setup
 	c.Check(filepath.Join(rootdir, "boot"), testutil.FileAbsent)
+
+	// ensure the correct recovery system configuration was set
+	c.Check(s.bootloader.RecoverySystemDir, Equals, recoverySystem)
+	c.Check(s.bootloader.RecoverySystemBootVars, DeepEquals, map[string]string{
+		"snapd_recovery_kernel": "/snaps/pc-kernel_5.snap",
+	})
 }
 
 func (s *bootSetSuite) TestMakeBootable20MultipleRecoverySystemsError(c *C) {

@@ -59,7 +59,7 @@ func MockUbootFiles(c *C, rootdir string) {
 	c.Assert(err, IsNil)
 }
 
-func NewGrub(rootdir string, opts *Options) Bootloader {
+func NewGrub(rootdir string, opts *Options) RecoveryAwareBootloader {
 	return newGrub(rootdir, opts)
 }
 

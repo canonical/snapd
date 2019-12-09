@@ -43,6 +43,9 @@ type MockBootloader struct {
 	InstallBootConfigCalled []string
 	InstallBootConfigResult bool
 	InstallBootConfigErr    error
+
+	RecoverySystemDir      string
+	RecoverySystemBootVars map[string]string
 }
 
 // ensure MockBootloader implements the Bootloader interface
@@ -133,4 +136,10 @@ func (b *MockBootloader) SetRollbackAcrossReboot() error {
 func (b *MockBootloader) InstallBootConfig(gadgetDir string, opts *bootloader.Options) (bool, error) {
 	b.InstallBootConfigCalled = append(b.InstallBootConfigCalled, gadgetDir)
 	return b.InstallBootConfigResult, b.InstallBootConfigErr
+}
+
+func (b *MockBootloader) SetRecoverySystemEnv(recoverySystemDir string, blVars map[string]string) error {
+	b.RecoverySystemDir = recoverySystemDir
+	b.RecoverySystemBootVars = blVars
+	return nil
 }

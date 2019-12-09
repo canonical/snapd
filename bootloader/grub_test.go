@@ -30,6 +30,7 @@ import (
 	. "gopkg.in/check.v1"
 
 	"github.com/snapcore/snapd/bootloader"
+	"github.com/snapcore/snapd/bootloader/grubenv"
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/snap"
@@ -270,4 +271,26 @@ func (s *grubTestSuite) TestNewGrubWithOptionRecoveryNoEnv(c *C) {
 	// we can't create a recovery grub with that
 	g := bootloader.NewGrub(s.rootdir, &bootloader.Options{Recovery: true})
 	c.Assert(g, IsNil)
+}
+
+func (s *grubTestSuite) TestGrubSetRecoverySystemEnv(c *C) {
+	s.makeFakeGrubRecoveryEnv(c)
+	g := bootloader.NewGrub(s.rootdir, &bootloader.Options{Recovery: true})
+
+	// check that we can set a recovery system specific bootenv
+	bvars := map[string]string{
+		"snapd_recovery_kernel": "/snaps/pc-kernel_1.snap",
+		"other_options":         "are-supported",
+	}
+
+	err := g.SetRecoverySystemEnv("/systems/20191209", bvars)
+	c.Assert(err, IsNil)
+	recoverySystemGrubenv := filepath.Join(s.rootdir, "/systems/20191209/grubenv")
+	c.Assert(recoverySystemGrubenv, testutil.FilePresent)
+
+	genv := grubenv.NewEnv(recoverySystemGrubenv)
+	err = genv.Load()
+	c.Assert(err, IsNil)
+	c.Check(genv.Get("snapd_recovery_kernel"), Equals, "/snaps/pc-kernel_1.snap")
+	c.Check(genv.Get("other_options"), Equals, "are-supported")
 }

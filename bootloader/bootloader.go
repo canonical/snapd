@@ -79,6 +79,11 @@ type installableBootloader interface {
 	setRootDir(string)
 }
 
+type RecoveryAwareBootloader interface {
+	Bootloader
+	SetRecoverySystemEnv(recoverySystemDir string, values map[string]string) error
+}
+
 func genericInstallBootConfig(gadgetFile, systemFile string) (bool, error) {
 	if !osutil.FileExists(gadgetFile) {
 		return false, nil

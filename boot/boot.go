@@ -284,6 +284,8 @@ type BootableSet struct {
 	Kernel     *snap.Info
 	KernelPath string
 
+	RecoverySystem string
+
 	UnpackedGadgetDir string
 }
 
@@ -375,10 +377,27 @@ func makeBootable20(model *asserts.Model, rootdir string, bootWith *BootableSet,
 		return err
 	}
 
-	// XXX: extract kernel for e.g. ARM
-	//
-	// XXX2: "pseudo" symlink kernel to /systems/XXXX/kernel and add
-	//       code to grub to read it?
+	// TODO:UC20: extract kernel for e.g. ARM
+
+	// now install the recovery system specific boot config
+	bl, err := bootloader.Find(rootdir, opts)
+	if err != nil {
+		return fmt.Errorf("internal error: cannot find bootloader: %v", err)
+	}
+	rbl, ok := bl.(bootloader.RecoveryAwareBootloader)
+	if !ok {
+		return fmt.Errorf("cannot use %s bootloader: does not support recovery systems", bl.Name())
+	}
+	kernelPath, err := filepath.Rel(rootdir, bootWith.KernelPath)
+	if err != nil {
+		return fmt.Errorf("cannot construct kernel boot path: %v", err)
+	}
+	blVars := map[string]string{
+		"snapd_recovery_kernel": filepath.Join("/", kernelPath),
+	}
+	if err := rbl.SetRecoverySystemEnv(bootWith.RecoverySystem, blVars); err != nil {
+		return fmt.Errorf("cannot set recovery system environment: %v", err)
+	}
 
 	return nil
 }
