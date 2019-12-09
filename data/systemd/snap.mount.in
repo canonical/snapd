@@ -6,9 +6,10 @@ Description=Special mount event propagation for @SNAP_MOUNT_DIR@
 What=@SNAP_MOUNT_DIR@
 Where=@SNAP_MOUNT_DIR@
 # bind mounts snap-mount-dir on top of snap-mount-dir
+# rbind so that currently mounted snaps remain visible
 # slave so that events do not propagate to the parent namespace
 # shared so that mounts events inside are propagated to further slave namespaces
-Options=bind,slave,shared
+Options=rbind,slave,shared
 LazyUnmount=yes
 
 [Install]
