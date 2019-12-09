@@ -385,6 +385,7 @@ func fmtIndexAndName(idx int, name string) string {
 type validationState struct {
 	SystemSeed *VolumeStructure
 	SystemData *VolumeStructure
+	SystemBoot *VolumeStructure
 }
 
 func validateVolume(name string, vol *Volume, constraints *ModelConstraints) error {
@@ -438,14 +439,19 @@ func validateVolume(name string, vol *Volume, constraints *ModelConstraints) err
 		switch s.Role {
 		case SystemSeed:
 			if state.SystemSeed != nil {
-				return fmt.Errorf("cannot have more than one system-data role")
+				return fmt.Errorf("cannot have more than one partition with system-seed role")
 			}
 			state.SystemSeed = &vol.Structure[idx]
 		case SystemData:
 			if state.SystemData != nil {
-				return fmt.Errorf("cannot have more than one system-seed role")
+				return fmt.Errorf("cannot have more than one partition with system-data role")
 			}
 			state.SystemData = &vol.Structure[idx]
+		case SystemBoot:
+			if state.SystemBoot != nil {
+				return fmt.Errorf("cannot have more than one partition with system-boot role")
+			}
+			state.SystemBoot = &vol.Structure[idx]
 		}
 
 		previousEnd = end

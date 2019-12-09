@@ -20,8 +20,15 @@
 package devicestate
 
 import (
+	"fmt"
+	"os/exec"
+	"path/filepath"
+
 	"gopkg.in/tomb.v2"
 
+	"github.com/snapcore/snapd/dirs"
+	"github.com/snapcore/snapd/osutil"
+	"github.com/snapcore/snapd/overlord/snapstate"
 	"github.com/snapcore/snapd/overlord/state"
 	"github.com/snapcore/snapd/timings"
 )
@@ -34,7 +41,27 @@ func (m *DeviceManager) doSetupRunSystem(t *state.Task, _ *tomb.Tomb) error {
 	perfTimings := timings.NewForTask(t)
 	defer perfTimings.Save(st)
 
-	// XXX: add handler content
+	// get gadget dir
+	deviceCtx, err := DeviceCtx(st, t, nil)
+	if err != nil {
+		return fmt.Errorf("cannot get device context: %v", err)
+	}
+	info, err := snapstate.GadgetInfo(st, deviceCtx)
+	if err != nil {
+		return fmt.Errorf("cannot get gadget info: %v", err)
+	}
+	gadgetDir := info.MountDir()
+
+	// run the create partition code
+	st.Unlock()
+	output, err := exec.Command(filepath.Join(dirs.DistroLibExecDir, "snap-bootstrap"), "create-partitions", gadgetDir).CombinedOutput()
+	st.Lock()
+	if err != nil {
+		return fmt.Errorf("cannot create partitions: %v", osutil.OutputErr(output, err))
+	}
+
+	// XXX: update recovery mode in grubenv
+	// XXX2: write correct modeenv
 
 	return nil
 }
