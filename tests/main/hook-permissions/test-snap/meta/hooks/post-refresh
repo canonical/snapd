@@ -1,7 +1,7 @@
 #!/bin/sh
 
-if snapctl is-connected network-manager; then
-    dbus-send --system --dest=org.freedesktop.NetworkManager --type=method_call   --print-reply   /org/freedesktop/NetworkManager org.freedesktop.DBus.Introspectable.Introspect > "$SNAP_COMMON/introspect.txt"
+if snapctl is-connected upower-observe; then
+    dbus-send --print-reply --system --dest=org.freedesktop.UPower /org/freedesktop/UPower org.freedesktop.UPower.EnumerateDevices 2>&1 > "$SNAP_COMMON/enumerate.txt"
 else
-    echo "network-manager not connected" > "$SNAP_COMMON/introspect.txt"
+    echo "upower-observe not connected" > "$SNAP_COMMON/enumerate.txt"
 fi

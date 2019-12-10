@@ -2,4 +2,4 @@ name: test-snap
 version: 1.0
 hooks:
   post-refresh:
-    plugs: [network-manager]
+    plugs: [upower-observe]

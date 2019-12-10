@@ -1,22 +1,26 @@
 summary: Ensure that post-refresh hook has permissions for its connected slot.
 
+# Note: it is critical for this test to use a slot that requires
+# peer=<plug security tag> expression label for dbus, and not simply
+# label=unconfined on a permanent slot snippet.
 details: |
-    Ensure that post-refresh hook has permissions of the connected
-    network-manager slot, and can introspect network-manager dbus
-    interface.
+    Ensure that post-refresh hook has permissions to query upower-observe slot
+    and enumerate upower devices.
 
-systems: [ubuntu-core-*]
+systems: [-fedora-*, -opensuse-*, -arch-*, -amazon-*, -centos-*]
 
 prepare: |
-    snap install network-manager
+    # shellcheck source=tests/lib/systems.sh
+    . "$TESTSLIB/systems.sh"
+    if is_core_system; then
+        snap install upower
+    fi
     snap pack test-snap
     snap install --dangerous test-snap_1.0_all.snap
 
 execute: |
-    snap connect test-snap:network-manager network-manager
-
     # simulate refresh
     snap install --dangerous test-snap_1.0_all.snap
+    MATCH "array \[" < /var/snap/test-snap/common/enumerate.txt
 
-    MATCH "interface name=\"org.freedesktop.DBus.Properties" < /var/snap/test-snap/common/introspect.txt
 
