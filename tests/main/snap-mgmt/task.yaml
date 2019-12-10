@@ -27,6 +27,9 @@ prepare: |
     snap install test-snapd-network-status-provider
     snap list | MATCH test-snapd-network-status-provider
 
+    # with socket activation
+    install_local socket-activation
+
     before=$(find ${SNAP_MOUNT_DIR} -type d | wc -l)
     if [ "$before" -lt 2 ]; then
         echo "${SNAP_MOUNT_DIR} empty - test setup broken"
@@ -40,6 +43,7 @@ prepare: |
     test "$(find /etc/udev/rules.d -name '*-snap.*.rules' | wc -l)" -gt 0
     test "$(find /etc/dbus-1/system.d -name 'snap.*.conf' | wc -l)" -gt 0
     test "$(find /etc/systemd/system -name 'snap.*.timer' | wc -l)" -gt 0
+    test "$(find /etc/systemd/system -name 'snap.*.socket' | wc -l)" -gt 0
 
 execute: |
     echo "Stop snapd before purging"
@@ -88,3 +92,4 @@ execute: |
     test "$(find /etc/udev/rules.d -name '*-snap.*.rules' | wc -l)" -eq 0
     test "$(find /etc/dbus-1/system.d -name 'snap.*.conf' | wc -l)" -eq 0
     test "$(find /etc/systemd/system -name 'snap.*.timer' | wc -l)" -eq 0
+    test "$(find /etc/systemd/system -name 'snap.*.socket' | wc -l)" -eq 0
