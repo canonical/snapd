@@ -12,6 +12,12 @@ prepare: |
         echo "This test needs test keys to be trusted"
         exit
     fi
+
+    if ! systemctl -l | MATCH "rsyslog.service"; then
+        echo "The service to test does not exist in the system, skipping..."
+        exit
+    fi
+
     #shellcheck source=tests/lib/systemd.sh
     . "$TESTSLIB"/systemd.sh
 
@@ -39,6 +45,11 @@ prepare: |
 restore: |
     if [ "$TRUST_TEST_KEYS" = "false" ]; then
         echo "This test needs test keys to be trusted"
+        exit
+    fi
+
+    if ! systemctl -l | MATCH "rsyslog.service"; then
+        echo "The service to test does not exist in the system, skipping..."
         exit
     fi
 
@@ -77,7 +88,6 @@ restore: |
        rm -f /var/lib/snapd/snaps/pc_x1.snap
        systemctl daemon-reload
     fi
-    rm /var/lib/snapd/seed/snaps/pc_x1.snap
 
     REVNO="$(readlink /snap/$SNAP/current)"
     sysp=$(systemd-escape --path "/snap/$SNAP/$REVNO.mount")
@@ -102,6 +112,11 @@ restore: |
     retry-tool -n 60 --wait 5 sh -c 'snap changes | grep -q "Done.*Initialize system state"'
 
 execute: |
+    if ! systemctl -l | MATCH "rsyslog.service"; then
+        echo "The service to test does not exist in the system, skipping..."
+        exit
+    fi
+
     #shellcheck source=tests/lib/systems.sh
     . "$TESTSLIB"/systems.sh
 

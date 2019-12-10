@@ -4,19 +4,16 @@ summary: Ensure "snap set core" works
 systems: [ubuntu-core-*]
 
 prepare: |
-    if systemctl -l | MATCH rsyslog.service; then
-        echo "rsyslog service exists on the system"
-        exit 0
+    if ! systemctl -l | MATCH rsyslog.service; then
+        #shellcheck source=tests/lib/systemd.sh
+        . "$TESTSLIB"/systemd.sh
+
+        # start fake rsyslog service
+        systemd_create_and_start_unit rsyslog "/bin/sleep 2h"
+
+        # create a flag to indicate the ryslog service is fake
+        touch rsyslog.fake
     fi
-
-    #shellcheck source=tests/lib/systemd.sh
-    . "$TESTSLIB"/systemd.sh
-
-    # start fake rsyslog service
-    systemd_create_and_start_unit rsyslog "/bin/sleep 2h"
-
-    # create a flag to indicate the ryslog service is fake
-    touch rsyslog.fake
 
 restore: |
     if [ -f rsyslog.fake ]; then
