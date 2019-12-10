@@ -34,46 +34,52 @@ import (
 // The maximum number of Usb bInterfaceNumber.
 const UsbMaxInterfaces = 32
 
-// AppLabelExpr returns the specification of the apparmor label describing
-// all the apps bound to a given slot. The result has one of three forms,
+// labelExpr returns the specification of the apparmor label describing
+// given apps and hooks. The result has one of three forms,
 // depending on how apps are bound to the slot:
 //
 // - "snap.$snap_instance.$app" if there is exactly one app bound
-// - "snap.$snap_instance.{$app1,...$appN}" if there are some, but not all, apps bound
-// - "snap.$snap_instance.*" if all apps are bound to the slot
-func appLabelExpr(apps map[string]*snap.AppInfo, snap *snap.Info) string {
+// - "snap.$snap_instance.{$app1,...$appN, $hook1...$hookN}" if there are some, but not all, apps/hooks bound
+// - "snap.$snap_instance.*" if all apps/hook are bound to the plug or slot
+func labelExpr(apps map[string]*snap.AppInfo, hooks map[string]*snap.HookInfo, snap *snap.Info) string {
 	var buf bytes.Buffer
+
+	names := make([]string, 0, len(apps)+len(hooks))
+	for appName := range apps {
+		names = append(names, appName)
+	}
+	for hookName := range hooks {
+		names = append(names, fmt.Sprintf("hook.%s", hookName))
+	}
+	sort.Strings(names)
+
 	fmt.Fprintf(&buf, `"snap.%s.`, snap.InstanceName())
-	if len(apps) == 1 {
-		for appName := range apps {
-			buf.WriteString(appName)
-		}
-	} else if len(apps) == len(snap.Apps) {
+	if len(names) == 1 {
+		buf.WriteString(names[0])
+	} else if len(apps) == len(snap.Apps) && len(hooks) == len(snap.Hooks) {
 		buf.WriteByte('*')
-	} else {
-		appNames := make([]string, 0, len(apps))
-		for appName := range apps {
-			appNames = append(appNames, appName)
-		}
-		sort.Strings(appNames)
+	} else if len(names) > 0 {
 		buf.WriteByte('{')
-		for _, appName := range appNames {
-			buf.WriteString(appName)
+		for _, name := range names {
+			buf.WriteString(name)
 			buf.WriteByte(',')
 		}
+		// remove trailing comma
 		buf.Truncate(buf.Len() - 1)
 		buf.WriteByte('}')
-	}
+	} // else: len(names)==0, gives "snap.<name>." that doesn't match anything
 	buf.WriteByte('"')
 	return buf.String()
 }
 
+// XXX: rename as it includes hooks too
 func slotAppLabelExpr(slot *interfaces.ConnectedSlot) string {
-	return appLabelExpr(slot.Apps(), slot.Snap())
+	return labelExpr(slot.Apps(), slot.Hooks(), slot.Snap())
 }
 
+// XXX: rename as it includes hooks too
 func plugAppLabelExpr(plug *interfaces.ConnectedPlug) string {
-	return appLabelExpr(plug.Apps(), plug.Snap())
+	return labelExpr(plug.Apps(), plug.Hooks(), plug.Snap())
 }
 
 // determine if permanent slot side is provided by the system
