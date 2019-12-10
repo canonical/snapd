@@ -8,13 +8,13 @@ systems: [ubuntu-16*, ubuntu-18*]
 priority: 100
 
 environment:
-    PROFILE: /var/lib/snapd/seccomp/bpf/snap.test-snapd-tools.echo
+    PROFILE: /var/lib/snapd/seccomp/bpf/snap.test-snapd-sh.sh
     SNAP_SECCOMP: /usr/lib/snapd/snap-seccomp
 
 execute: |
-    echo "Install test-snapd-tools and verify it works"
-    snap install test-snapd-tools
-    test-snapd-tools.echo hello | MATCH hello
+    echo "Install test-snapd-sh and verify it works"
+    snap install test-snapd-sh
+    test-snapd-sh.sh -c 'echo hello' | MATCH hello
 
     # FIXME: use dirs.sh in 2.27+
     echo "Ensure snap-seccomp is statically linked"
@@ -32,7 +32,7 @@ execute: |
     EOF
     $SNAP_SECCOMP compile "${PROFILE}.src" "${PROFILE}.bin"
     echo "Ensure the code still runs"
-    test-snapd-tools.echo hello | MATCH hello
+    test-snapd-sh.sh -c 'echo hello' | MATCH hello
 
     # from the old test_complain_missed
     rm -f "${PROFILE}.bin"
@@ -46,7 +46,7 @@ execute: |
     EOF
     $SNAP_SECCOMP compile "${PROFILE}.src" "${PROFILE}.bin"
     echo "Ensure the code cannot not run due to impossible filtering"
-    if test-snapd-tools.echo hello; then
+    if test-snapd-sh.sh -c 'echo hello'; then
         echo "filtering broken: program should have failed to run"
         exit 1
     fi
@@ -60,7 +60,7 @@ execute: |
     EOF
     $SNAP_SECCOMP compile "${PROFILE}.src" "${PROFILE}.bin"
     echo "Ensure the code still runs"
-    test-snapd-tools.echo hello | MATCH hello
+    test-snapd-sh.sh -c 'echo hello' | MATCH hello
 
     # from the old test_unrestricted_missed
     rm -f "${PROFILE}.bin"
@@ -74,7 +74,7 @@ execute: |
     EOF
     $SNAP_SECCOMP compile "${PROFILE}.src" "${PROFILE}.bin"
     echo "Ensure the code cannot not run due to impossible filtering"
-    if test-snapd-tools.echo hello; then
+    if test-snapd-sh.sh -c 'echo hello'; then
         echo "filtering broken: program should have failed to run"
         exit 1
     fi
@@ -82,23 +82,23 @@ execute: |
     # from the old test_noprofile
     rm -f "${PROFILE}.bin"
     echo "Ensure the code cannot not run due to missing filter"
-    if SNAP_CONFINE_MAX_PROFILE_WAIT=3 test-snapd-tools.echo hello; then
+    if SNAP_CONFINE_MAX_PROFILE_WAIT=3 test-snapd-sh.sh -c 'echo hello'; then
         echo "filtering broken: program should have failed to run"
         exit 1
     fi
 
-    echo "Break snapd.test-snapd-tools.bin to ensure (kernel) validation works"
+    echo "Break snapd.test-snapd-sh.bin to ensure (kernel) validation works"
     dd if=/dev/urandom of="${PROFILE}.bin" count=1 bs=1024
-    if output=$(test-snapd-tools.echo hello 2>&1 ); then
-        echo "test-snapd-tools.echo should fail with invalid seccomp profile"
+    if output=$(test-snapd-sh.sh -c 'echo hello' 2>&1 ); then
+        echo "test-snapd-sh.sh should fail with invalid seccomp profile"
         exit 1
     fi
     echo "$output" | MATCH "cannot apply seccomp profile: Invalid argument"
 
-    echo "Add huge snapd.test-snapd-tools.bin to ensure size limit works"
+    echo "Add huge snapd.test-snapd-sh.bin to ensure size limit works"
     dd if=/dev/zero of="${PROFILE}.bin" count=50 bs=1M
-    if output=$(test-snapd-tools.echo hello 2>&1 ); then
-        echo "test-snapd-tools.echo should fail with big seccomp profile"
+    if output=$(test-snapd-sh.sh -c 'echo hello' 2>&1 ); then
+        echo "test-snapd-sh.sh should fail with big seccomp profile"
         exit 1
     fi
     echo "$output" | MATCH "cannot fit .* to memory buffer"
@@ -106,7 +106,7 @@ execute: |
     
     echo "Ensure the code cannot not run with a missing .bin profile"
     rm -f "${PROFILE}.bin"
-    if test-snapd-tools.echo hello; then
+    if test-snapd-sh.sh -c 'echo hello'; then
         echo "filtering broken: program should have failed to run"
         exit 1
     fi
@@ -115,7 +115,7 @@ execute: |
     rm -f "${PROFILE}.bin"
     echo "" > "${PROFILE}.src"
     $SNAP_SECCOMP compile "${PROFILE}.src" "${PROFILE}.bin"
-    if test-snapd-tools.echo hello; then
+    if test-snapd-sh.sh -c 'echo hello'; then
         echo "filtering broken: program should have failed to run"
         exit 1
     fi
@@ -127,7 +127,7 @@ execute: |
     EOF
     ( (sleep 3; $SNAP_SECCOMP compile "${PROFILE}.src" "${PROFILE}.bin") &)
     echo "Ensure the code still runs"
-    test-snapd-tools.echo hello | MATCH hello
+    test-snapd-sh.sh -c 'echo hello' | MATCH hello
 
     if [ "$(uname -p)" = "x86_64" ]; then
         echo "Ensure secondary arch works for amd64 with i386 binaries"

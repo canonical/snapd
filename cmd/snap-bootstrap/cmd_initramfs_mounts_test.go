@@ -150,32 +150,6 @@ func (s *initramfsMountsSuite) TestInitramfsMountsInstallModeStep1(c *C) {
 
 func (s *initramfsMountsSuite) TestInitramfsMountsInstallModeStep2(c *C) {
 	n := 0
-	s.mockProcCmdlineContent(c, "snapd_recovery_mode=")
-
-	restore := main.MockOsutilIsMounted(func(path string) (bool, error) {
-		n++
-		switch n {
-		case 1:
-			c.Check(path, Equals, filepath.Join(s.runMnt, "ubuntu-seed"))
-			return true, nil
-		case 2:
-			c.Check(path, Equals, filepath.Join(s.runMnt, "base"))
-			return false, nil
-		}
-		return false, fmt.Errorf("unexpected number of calls: %v", n)
-	})
-	defer restore()
-
-	_, err := main.Parser.ParseArgs([]string{"initramfs-mounts"})
-	c.Assert(err, IsNil)
-	c.Assert(n, Equals, 2)
-	c.Check(s.Stdout.String(), Equals, fmt.Sprintf(`%[1]s/snaps/pc-kernel_1.snap %[2]s/kernel
-%[1]s/snaps/core20_1.snap %[2]s/base
-`, s.seedDir, s.runMnt))
-}
-
-func (s *initramfsMountsSuite) TestInitramfsMountsInstallModeStep3(c *C) {
-	n := 0
 	s.mockProcCmdlineContent(c, "snapd_recovery_mode=install")
 
 	restore := main.MockOsutilIsMounted(func(path string) (bool, error) {
@@ -186,8 +160,11 @@ func (s *initramfsMountsSuite) TestInitramfsMountsInstallModeStep3(c *C) {
 			return true, nil
 		case 2:
 			c.Check(path, Equals, filepath.Join(s.runMnt, "base"))
-			return true, nil
+			return false, nil
 		case 3:
+			c.Check(path, Equals, filepath.Join(s.runMnt, "kernel"))
+			return false, nil
+		case 4:
 			c.Check(path, Equals, filepath.Join(s.runMnt, "ubuntu-data"))
 			return false, nil
 		}
@@ -197,8 +174,11 @@ func (s *initramfsMountsSuite) TestInitramfsMountsInstallModeStep3(c *C) {
 
 	_, err := main.Parser.ParseArgs([]string{"initramfs-mounts"})
 	c.Assert(err, IsNil)
-	c.Assert(n, Equals, 3)
-	c.Check(s.Stdout.String(), Equals, "--type=tmpfs tmpfs /run/mnt/ubuntu-data\n")
+	c.Assert(n, Equals, 4)
+	c.Check(s.Stdout.String(), Equals, fmt.Sprintf(`%[1]s/snaps/pc-kernel_1.snap %[2]s/kernel
+%[1]s/snaps/core20_1.snap %[2]s/base
+--type=tmpfs tmpfs /run/mnt/ubuntu-data
+`, s.seedDir, s.runMnt))
 }
 
 func (s *initramfsMountsSuite) TestInitramfsMountsInstallModeStep4(c *C) {
@@ -215,6 +195,9 @@ func (s *initramfsMountsSuite) TestInitramfsMountsInstallModeStep4(c *C) {
 			c.Check(path, Equals, filepath.Join(s.runMnt, "base"))
 			return true, nil
 		case 3:
+			c.Check(path, Equals, filepath.Join(s.runMnt, "kernel"))
+			return true, nil
+		case 4:
 			c.Check(path, Equals, filepath.Join(s.runMnt, "ubuntu-data"))
 			return true, nil
 		}
@@ -224,7 +207,7 @@ func (s *initramfsMountsSuite) TestInitramfsMountsInstallModeStep4(c *C) {
 
 	_, err := main.Parser.ParseArgs([]string{"initramfs-mounts"})
 	c.Assert(err, IsNil)
-	c.Assert(n, Equals, 3)
+	c.Assert(n, Equals, 4)
 	c.Check(s.Stdout.String(), Equals, "")
 	modeEnv := filepath.Join(s.runMnt, "/ubuntu-data/system-data/var/lib/snapd/modeenv")
 	c.Check(modeEnv, testutil.FileEquals, `mode=install
