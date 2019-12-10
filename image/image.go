@@ -394,7 +394,7 @@ func setupSeed(tsto *ToolingStore, model *asserts.Model, opts *Options) error {
 		UnpackedGadgetDir: gadgetUnpackDir,
 	}
 	if label != "" {
-		bootWith.RecoverySystem = filepath.Join("/systems/", label)
+		bootWith.RecoverySystemDir = filepath.Join("/systems/", label)
 	}
 
 	// find the gadget file
