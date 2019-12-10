@@ -284,7 +284,7 @@ type BootableSet struct {
 	Kernel     *snap.Info
 	KernelPath string
 
-	RecoverySystem string
+	RecoverySystemDir string
 
 	UnpackedGadgetDir string
 }
@@ -395,7 +395,7 @@ func makeBootable20(model *asserts.Model, rootdir string, bootWith *BootableSet,
 	blVars := map[string]string{
 		"snapd_recovery_kernel": filepath.Join("/", kernelPath),
 	}
-	if err := rbl.SetRecoverySystemEnv(bootWith.RecoverySystem, blVars); err != nil {
+	if err := rbl.SetRecoverySystemEnv(bootWith.RecoverySystemDir, blVars); err != nil {
 		return fmt.Errorf("cannot set recovery system environment: %v", err)
 	}
 

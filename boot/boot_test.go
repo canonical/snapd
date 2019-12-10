@@ -522,13 +522,13 @@ version: 5.0
 	err = os.Rename(kernelFn, kernelInSeed)
 	c.Assert(err, IsNil)
 
-	recoverySystem := "/systems/20191209"
+	recoverySystemDir := "/systems/20191209"
 	bootWith := &boot.BootableSet{
 		Base:              baseInfo,
 		BasePath:          baseInSeed,
 		Kernel:            kernelInfo,
 		KernelPath:        kernelInSeed,
-		RecoverySystem:    recoverySystem,
+		RecoverySystemDir: recoverySystemDir,
 		UnpackedGadgetDir: unpackedGadgetDir,
 	}
 
@@ -547,7 +547,7 @@ version: 5.0
 	c.Check(filepath.Join(rootdir, "boot"), testutil.FileAbsent)
 
 	// ensure the correct recovery system configuration was set
-	c.Check(s.bootloader.RecoverySystemDir, Equals, recoverySystem)
+	c.Check(s.bootloader.RecoverySystemDir, Equals, recoverySystemDir)
 	c.Check(s.bootloader.RecoverySystemBootVars, DeepEquals, map[string]string{
 		"snapd_recovery_kernel": "/snaps/pc-kernel_5.snap",
 	})
