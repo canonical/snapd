@@ -259,6 +259,9 @@ func setClassicFallbackModel(st *state.State, device *auth.DeviceState) error {
 }
 
 func (m *DeviceManager) operatingMode() string {
+	if m.modeEnv.Mode == "" {
+		return "run"
+	}
 	return m.modeEnv.Mode
 }
 
@@ -266,7 +269,7 @@ func (m *DeviceManager) ensureOperational() error {
 	m.state.Lock()
 	defer m.state.Unlock()
 
-	if m.operatingMode() == "install" {
+	if m.operatingMode() != "run" {
 		// avoid doing registration in install mode
 		return nil
 	}
@@ -430,7 +433,8 @@ func (m *DeviceManager) ensureSeeded() error {
 	}
 
 	var opts *populateStateFromSeedOptions
-	if m.operatingMode() != "" {
+	// XXX: should we define something like "modeEnv.Valid()"?
+	if m.modeEnv.Mode != "" {
 		opts = &populateStateFromSeedOptions{
 			Label: m.modeEnv.RecoverySystem,
 			Mode:  m.modeEnv.Mode,
@@ -470,6 +474,11 @@ func (m *DeviceManager) ensureBootOk() error {
 	defer m.state.Unlock()
 
 	if release.OnClassic {
+		return nil
+	}
+
+	// book-ok/update-boot-revision is only relevant in run-mode
+	if m.operatingMode() != "run" {
 		return nil
 	}
 
