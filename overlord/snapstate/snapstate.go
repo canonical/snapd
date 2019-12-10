@@ -614,7 +614,7 @@ func InstallPath(st *state.State, si *snap.SideInfo, path, instanceName, channel
 		}
 	}
 
-	channel, err = resolveChannel(st, instanceName, channel, deviceCtx)
+	channel, err = resolveChannel(st, instanceName, "", channel, deviceCtx)
 	if err != nil {
 		return nil, nil, err
 	}
@@ -1206,8 +1206,7 @@ func autoAliasesUpdate(st *state.State, names []string, updates []*snap.Info) (c
 // resolveChannel returns the effective channel to use, based on the requested
 // channel and constrains set by device model, or an error if switching to
 // requested channel is forbidden.
-func resolveChannel(st *state.State, snapName, newChannel string, deviceCtx DeviceContext) (effectiveChannel string, err error) {
-	// nothing to do
+func resolveChannel(st *state.State, snapName, oldChannel, newChannel string, deviceCtx DeviceContext) (effectiveChannel string, err error) {
 	if newChannel == "" {
 		return "", nil
 	}
@@ -1225,7 +1224,7 @@ func resolveChannel(st *state.State, snapName, newChannel string, deviceCtx Devi
 
 	if pinnedTrack == "" {
 		// no pinned track
-		return newChannel, nil
+		return channel.Resolve(oldChannel, newChannel)
 	}
 
 	// channel name is valid and consist of risk level or
@@ -1331,7 +1330,7 @@ func Switch(st *state.State, name string, opts *RevisionOptions) (*state.TaskSet
 		return nil, err
 	}
 
-	opts.Channel, err = resolveChannel(st, name, opts.Channel, deviceCtx)
+	opts.Channel, err = resolveChannel(st, name, snapst.TrackingChannel, opts.Channel, deviceCtx)
 	if err != nil {
 		return nil, err
 	}
@@ -1407,7 +1406,7 @@ func UpdateWithDeviceContext(st *state.State, name string, opts *RevisionOptions
 		return nil, err
 	}
 
-	opts.Channel, err = resolveChannel(st, name, opts.Channel, deviceCtx)
+	opts.Channel, err = resolveChannel(st, name, snapst.TrackingChannel, opts.Channel, deviceCtx)
 	if err != nil {
 		return nil, err
 	}

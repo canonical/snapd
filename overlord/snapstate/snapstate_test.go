@@ -6495,7 +6495,7 @@ func (s *snapmgrTestSuite) TestUpdateIgnoreValidationSticky(c *C) {
 			Action:       "refresh",
 			InstanceName: "some-snap",
 			SnapID:       "some-snap-id",
-			Channel:      "stable",
+			Channel:      "latest/stable",
 			Flags:        store.SnapActionEnforceValidation,
 		},
 		userID: 1,
@@ -15565,14 +15565,17 @@ func (s *snapmgrTestSuite) TestSnapManagerCanStandby(c *C) {
 }
 
 func (s *snapmgrTestSuite) TestResolveChannelPinnedTrack(c *C) {
-	for _, tc := range []struct {
+	type test struct {
 		snap        string
+		cur         string
 		new         string
 		exp         string
 		kernelTrack string
 		gadgetTrack string
 		err         string
-	}{
+	}
+
+	for i, tc := range []test{
 		// neither kernel nor gadget
 		{snap: "some-snap"},
 		{snap: "some-snap", new: "stable", exp: "stable"},
@@ -15608,10 +15611,13 @@ func (s *snapmgrTestSuite) TestResolveChannelPinnedTrack(c *C) {
 		// risk only defaults to pinned kernel track
 		{snap: "kernel", new: "stable", exp: "17/stable", kernelTrack: "17"},
 		{snap: "kernel", new: "edge", exp: "17/edge", kernelTrack: "17"},
+		// risk only defaults to current track
+		{snap: "some-snap", new: "stable", cur: "stable", exp: "stable"},
+		{snap: "some-snap", new: "stable", cur: "latest/stable", exp: "latest/stable"},
+		{snap: "some-snap", new: "stable", cur: "sometrack/edge", exp: "sometrack/stable"},
 	} {
-		c.Logf("tc: %+v", tc)
 		if tc.kernelTrack != "" && tc.gadgetTrack != "" {
-			c.Fatalf("setting both kernel and gadget tracks is not supported by the test")
+			c.Fatalf("%d: setting both kernel and gadget tracks is not supported by the test", i)
 		}
 		var model *asserts.Model
 		switch {
@@ -15624,13 +15630,14 @@ func (s *snapmgrTestSuite) TestResolveChannelPinnedTrack(c *C) {
 		}
 		deviceCtx := &snapstatetest.TrivialDeviceContext{DeviceModel: model}
 		s.state.Lock()
-		ch, err := snapstate.ResolveChannel(s.state, tc.snap, tc.new, deviceCtx)
+		ch, err := snapstate.ResolveChannel(s.state, tc.snap, tc.cur, tc.new, deviceCtx)
 		s.state.Unlock()
+		comment := Commentf("tc %d: %#v", i, tc)
 		if tc.err != "" {
-			c.Check(err, ErrorMatches, tc.err)
+			c.Check(err, ErrorMatches, tc.err, comment)
 		} else {
-			c.Check(err, IsNil)
-			c.Check(ch, Equals, tc.exp)
+			c.Check(err, IsNil, comment)
+			c.Check(ch, Equals, tc.exp, comment)
 		}
 	}
 }
