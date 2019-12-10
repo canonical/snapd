@@ -88,6 +88,7 @@ restore: |
        rm -f /var/lib/snapd/snaps/pc_x1.snap
        systemctl daemon-reload
     fi
+    rm /var/lib/snapd/seed/snaps/pc_x1.snap
 
     REVNO="$(readlink /snap/$SNAP/current)"
     sysp=$(systemd-escape --path "/snap/$SNAP/$REVNO.mount")

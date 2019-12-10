@@ -18,7 +18,7 @@ prepare: |
         exit
     fi
 
-    if ! systemctl -l | grep -q "$SERVICE.service"; then
+    if ! systemctl -l | MATCH "$SERVICE.service"; then
         echo "The service to test does not exist in the system, skipping..."
         exit
     fi
