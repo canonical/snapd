@@ -17,6 +17,12 @@ prepare: |
         echo "This test needs test keys to be trusted"
         exit
     fi
+
+    if ! systemctl -l | grep -q "$SERVICE.service"; then
+        echo "The service to test does not exist in the system, skipping..."
+        exit
+    fi
+
     #shellcheck source=tests/lib/systemd.sh
     . "$TESTSLIB"/systemd.sh
     #shellcheck source=tests/lib/systems.sh
@@ -82,6 +88,11 @@ restore: |
         exit
     fi
 
+    if ! systemctl -l | MATCH "$SERVICE.service"; then
+        echo "The service to test does not exist in the system, skipping..."
+        exit
+    fi
+
     #shellcheck source=tests/lib/systems.sh
     . "$TESTSLIB"/systems.sh
 
@@ -140,6 +151,11 @@ restore: |
     while ! snap changes | grep -q "Done.*Initialize system state"; do sleep 1; done
 
 execute: |
+    if ! systemctl -l | MATCH "$SERVICE.service"; then
+        echo "The service to test does not exist in the system, skipping..."
+        exit
+    fi
+
     #shellcheck source=tests/lib/systems.sh
     . "$TESTSLIB"/systems.sh
 
