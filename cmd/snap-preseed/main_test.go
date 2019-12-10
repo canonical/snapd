@@ -23,14 +23,19 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+
 	"testing"
 
 	"github.com/jessevdk/go-flags"
 	. "gopkg.in/check.v1"
 
+	"github.com/snapcore/snapd/asserts"
 	"github.com/snapcore/snapd/cmd/snap-preseed"
 	"github.com/snapcore/snapd/dirs"
+	"github.com/snapcore/snapd/seed"
+	"github.com/snapcore/snapd/snap"
 	"github.com/snapcore/snapd/testutil"
+	"github.com/snapcore/snapd/timings"
 )
 
 func Test(t *testing.T) { TestingT(t) }
@@ -159,4 +164,92 @@ func (s *startPreseedSuite) TestRunPreseedHappy(c *C) {
 
 	c.Assert(mockTargetSnapd.Calls(), HasLen, 1)
 	c.Check(mockTargetSnapd.Calls()[0], DeepEquals, []string{"snapd"})
+}
+
+type Fake16Seed struct {
+	Essential         []*seed.Snap
+	LoadMetaErr       error
+	LoadAssertionsErr error
+	UsesSnapd         bool
+}
+
+// Fake implementation of seed.Seed interface
+
+func (fs *Fake16Seed) LoadAssertions(db asserts.RODatabase, commitTo func(*asserts.Batch) error) error {
+	return fs.LoadAssertionsErr
+}
+
+func (fs *Fake16Seed) Model() (*asserts.Model, error) {
+	panic("not implemented")
+}
+
+func (fs *Fake16Seed) LoadMeta(tm timings.Measurer) error {
+	return fs.LoadMetaErr
+}
+
+func (fs *Fake16Seed) UsesSnapdSnap() bool {
+	return fs.UsesSnapd
+}
+
+func (fs *Fake16Seed) EssentialSnaps() []*seed.Snap {
+	return fs.Essential
+}
+
+func (fs *Fake16Seed) ModeSnaps(mode string) ([]*seed.Snap, error) {
+	return nil, nil
+}
+
+func (s *startPreseedSuite) TestSystemSnapFromSeed(c *C) {
+	tmpDir := c.MkDir()
+
+	restore := main.MockSeedOpen(func(rootDir, label string) (seed.Seed, error) {
+		return &Fake16Seed{
+			Essential: []*seed.Snap{&seed.Snap{Path: "/some/path/core", SideInfo: &snap.SideInfo{RealName: "core"}}},
+		}, nil
+	})
+	defer restore()
+
+	path, err := main.SystemSnapFromSeed(tmpDir)
+	c.Assert(err, IsNil)
+	c.Check(path, Equals, "/some/path/core")
+}
+
+func (s *startPreseedSuite) TestSystemSnapFromSeedOpenError(c *C) {
+	tmpDir := c.MkDir()
+
+	restore := main.MockSeedOpen(func(rootDir, label string) (seed.Seed, error) { return nil, fmt.Errorf("fail") })
+	defer restore()
+
+	_, err := main.SystemSnapFromSeed(tmpDir)
+	c.Assert(err, ErrorMatches, "fail")
+}
+
+func (s *startPreseedSuite) TestSystemSnapFromSeedErrors(c *C) {
+	tmpDir := c.MkDir()
+
+	fakeSeed := &Fake16Seed{}
+
+	restore := main.MockSeedOpen(func(rootDir, label string) (seed.Seed, error) { return fakeSeed, nil })
+	defer restore()
+
+	fakeSeed.Essential = []*seed.Snap{&seed.Snap{Path: "", SideInfo: &snap.SideInfo{RealName: "core"}}}
+	_, err := main.SystemSnapFromSeed(tmpDir)
+	c.Assert(err, ErrorMatches, "core snap not found")
+
+	fakeSeed.Essential = []*seed.Snap{&seed.Snap{Path: "/some/path", SideInfo: &snap.SideInfo{RealName: "foosnap"}}}
+	_, err = main.SystemSnapFromSeed(tmpDir)
+	c.Assert(err, ErrorMatches, "core snap not found")
+
+	fakeSeed.UsesSnapd = true
+	_, err = main.SystemSnapFromSeed(tmpDir)
+	c.Assert(err, ErrorMatches, "preseeding with snapd snap is not supported yet")
+
+	fakeSeed.LoadMetaErr = fmt.Errorf("load meta failed")
+	_, err = main.SystemSnapFromSeed(tmpDir)
+	c.Assert(err, ErrorMatches, "load meta failed")
+
+	fakeSeed.LoadMetaErr = nil
+	fakeSeed.LoadAssertionsErr = fmt.Errorf("load assertions failed")
+	_, err = main.SystemSnapFromSeed(tmpDir)
+	c.Assert(err, ErrorMatches, "load assertions failed")
 }

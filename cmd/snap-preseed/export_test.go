@@ -19,8 +19,13 @@
 
 package main
 
+import (
+	"github.com/snapcore/snapd/seed"
+)
+
 var (
-	Run = run
+	Run                = run
+	SystemSnapFromSeed = systemSnapFromSeed
 )
 
 func MockOsGetuid(f func() int) (restore func()) {
@@ -45,4 +50,12 @@ func MockSystemSnapFromSeed(f func(rootDir string) (string, error)) (restore fun
 	oldSystemSnapFromSeed := systemSnapFromSeed
 	systemSnapFromSeed = f
 	return func() { systemSnapFromSeed = oldSystemSnapFromSeed }
+}
+
+func MockSeedOpen(f func(rootDir, label string) (seed.Seed, error)) (restore func()) {
+	oldSeedOpen := seedOpen
+	seedOpen = f
+	return func() {
+		seedOpen = oldSeedOpen
+	}
 }
