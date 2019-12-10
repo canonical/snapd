@@ -241,6 +241,9 @@ prepare_project() {
     # Prepare the state directories for execution
     prepare_state
 
+    # Create runtime logs directory
+    mkdir -p "$RUNTIME_STATE_PATH/logs"
+
     # declare the "quiet" wrapper
 
     if [ "$SPREAD_BACKEND" = external ]; then
@@ -540,18 +543,15 @@ restore_suite_each() {
 
     if [ "$PROFILE_SNAPS" = 1 ]; then
         echo "Save snaps profiler log"
-        local logs_id logs_dir logs_file
-        logs_dir="$RUNTIME_STATE_PATH/logs"
-        logs_id=$(find "$logs_dir" -maxdepth 1 -name '*.journal.log' | wc -l)
-        logs_file=$(echo "${logs_id}_${SPREAD_JOB}" | tr '/' '_' | tr ':' '__')
+        local logs_file
+        logs_file=$(get_logs_file)
 
         profiler_snap="$(get_snap_for_system test-snapd-profiler)"
 
-        mkdir -p "$logs_dir"
         if [ -e "/var/snap/${profiler_snap}/common/profiler.log" ]; then
-            cp -f "/var/snap/${profiler_snap}/common/profiler.log" "${logs_dir}/${logs_file}.profiler.log"
+            cp -f "/var/snap/${profiler_snap}/common/profiler.log" "${logs_file}.profiler.log"
         fi
-        get_journalctl_log > "${logs_dir}/${logs_file}.journal.log"
+        get_journalctl_log > "${logs_file}.journal.log"
     fi
 
     # On Arch it seems that using sudo / su for working with the test user
@@ -565,6 +565,130 @@ restore_suite_each() {
         fi
         sleep 1
     done
+
+    # shellcheck source=tests/lib/reset.sh
+    "$TESTSLIB"/reset.sh --reuse-core
+
+    do_checks
+}
+
+get_logs_file() {
+    logs_dir="$RUNTIME_STATE_PATH/logs"
+    logs_id=$(find "$logs_dir" -maxdepth 1 -name '*.journal.log' | wc -l)
+    logs_file=$(echo "${logs_id}_${SPREAD_JOB}" | tr '/' '_' | tr ':' '__')
+
+    echo "${logs_dir}/${logs_file}"
+}
+
+save_pkgs() {
+    file=$1
+    case "$SPREAD_SYSTEM" in
+        ubuntu-*|debian-*)
+            dpkg -l > "$file"
+            ;;
+        fedora-*|opensuse-*|amazon-*|centos-*)
+            rpm -qa > "$file"
+            ;;
+        arch-*)
+            pacman -Qe > "$file"
+            ;;
+        *)
+            echo "ERROR: No build instructions available for system $SPREAD_SYSTEM"
+            exit 1
+            ;;
+    esac
+}
+
+save_snaps() {
+    file=$1
+    snap list > "$file"
+}
+
+save_mounts() {
+    file=$1
+    mount > "$file"  
+}
+
+save_units() {
+    file=$1
+    systemctl -l --no-pager --no-legend --plain |  awk '{ print $1 }' > "$file"  
+}
+
+do_check_systemd_status() {
+    logs_file=$1
+
+    if systemctl status | grep "State: [d]egraded"; then
+        echo "systemctl reports the system is in degraded mode"
+        # add debug output
+        systemctl --failed > "${logs_file}.systemd.log" 
+        systemctl status >> "${logs_file}.systemd.log"
+    fi
+}
+
+do_check_diff() {
+    logs_file=$1
+    type=$2
+
+    local curr last diff
+    curr="$RUNTIME_STATE_PATH/curr_$type"
+    last="$RUNTIME_STATE_PATH/last_$type"
+    diff="$RUNTIME_STATE_PATH/diff_$type"
+
+    # Call the function which get current data
+    "save_$type" "$curr"
+    
+    # Compares current data with previous data and create diff
+    if [ -f "$last" ]; then
+        if diff "$curr" "$last" > "$diff"; then
+            rm -f "$diff"
+        else
+            mv -f "$diff" "${logs_file}.$type.log"
+        fi
+    fi
+    mv -f "$curr" "$last"
+}
+
+get_diff_types() {
+    echo "pkgs units snaps mounts"
+}
+
+get_log_types() {
+    echo "systemd pkgs units snaps mounts"
+}
+
+do_checks() {
+    local logs_file diff_types
+    logs_file=$(get_logs_file)
+    diff_types=$(get_diff_types)
+    
+    do_check_systemd_status "$logs_file" "systemd"     
+    for diff_type in $diff_types; do
+        do_check_diff "$logs_file" "$diff_type"
+    done
+}
+
+review_execution_checks() {
+    local logs_dir log_types logs_found
+
+    logs_found=0
+    logs_dir="$RUNTIME_STATE_PATH/logs"
+    log_types=$(get_log_types)
+
+    for log_type in $log_types; do
+        logs=$(find "$logs_dir" -maxdepth 1 -name "*.${log_type}.log")
+        if [ -z "$logs" ]; then
+            continue
+        fi
+
+        logs_found=1
+        for log in $logs; do
+            echo "------------"
+            echo "log: $log"
+            cat "$log"
+        done
+    done
+    
+    return $logs_found
 }
 
 restore_suite() {
@@ -656,6 +780,9 @@ restore_project() {
     # Delete the snapd state used to accelerate prepare/restore code in certain suites.
     delete_snapd_state
 
+    local errors_found 
+    errors_found=$(review_execution_checks)
+
     # Remove all of the code we pushed and any build results. This removes
     # stale files and we cannot do incremental builds anyway so there's little
     # point in keeping them.
@@ -665,6 +792,8 @@ restore_project() {
 
     rm -rf /etc/systemd/journald.conf.d/no-rate-limit.conf
     rmdir /etc/systemd/journald.conf.d || true
+
+    return $errors_found
 }
 
 case "$1" in
