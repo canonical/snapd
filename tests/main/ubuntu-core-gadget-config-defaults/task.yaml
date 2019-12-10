@@ -20,6 +20,7 @@ prepare: |
 
     if ! systemctl -l | MATCH "$SERVICE.service"; then
         echo "The service to test does not exist in the system, skipping..."
+        touch "${SERVICE}.skip"
         exit
     fi
 
@@ -88,7 +89,7 @@ restore: |
         exit
     fi
 
-    if ! systemctl -l | MATCH "$SERVICE.service"; then
+    if [ -f "${SERVICE}.skip" ]; then
         echo "The service to test does not exist in the system, skipping..."
         exit
     fi
@@ -151,7 +152,7 @@ restore: |
     while ! snap changes | grep -q "Done.*Initialize system state"; do sleep 1; done
 
 execute: |
-    if ! systemctl -l | MATCH "$SERVICE.service"; then
+    if [ -f "${SERVICE}.skip" ]; then
         echo "The service to test does not exist in the system, skipping..."
         exit
     fi
