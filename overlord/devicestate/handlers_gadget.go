@@ -54,20 +54,20 @@ func currentGadgetInfo(st *state.State, deviceCtx snapstate.DeviceContext) (*gad
 		return nil, nil
 	}
 
-	ci, err := gadgetDataFromInfo(currentInfo, coreGadgetConstraints)
+	ci, err := gadgetDataFromInfo(currentInfo, deviceCtx.Model())
 	if err != nil {
 		return nil, fmt.Errorf("cannot read current gadget snap details: %v", err)
 	}
 	return ci, nil
 }
 
-func pendingGadgetInfo(snapsup *snapstate.SnapSetup) (*gadget.GadgetData, error) {
+func pendingGadgetInfo(snapsup *snapstate.SnapSetup, deviceCtx snapstate.DeviceContext) (*gadget.GadgetData, error) {
 	info, err := snap.ReadInfo(snapsup.InstanceName(), snapsup.SideInfo)
 	if err != nil {
 		return nil, fmt.Errorf("cannot read candidate gadget snap details: %v", err)
 	}
 
-	gi, err := gadgetDataFromInfo(info, coreGadgetConstraints)
+	gi, err := gadgetDataFromInfo(info, deviceCtx.Model())
 	if err != nil {
 		return nil, fmt.Errorf("cannot read candidate snap gadget metadata: %v", err)
 	}
@@ -113,7 +113,7 @@ func (m *DeviceManager) doUpdateGadgetAssets(t *state.Task, _ *tomb.Tomb) error 
 			snapsup.InstanceName(), expectedGadgetSnap)
 	}
 
-	updateData, err := pendingGadgetInfo(snapsup)
+	updateData, err := pendingGadgetInfo(snapsup, remodelCtx)
 	if err != nil {
 		return err
 	}

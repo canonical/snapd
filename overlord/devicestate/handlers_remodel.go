@@ -174,10 +174,6 @@ func (m *DeviceManager) doPrepareRemodeling(t *state.Task, tmb *tomb.Tomb) error
 }
 
 var (
-	coreGadgetConstraints = &gadget.ModelConstraints{
-		Classic: false,
-	}
-
 	gadgetIsCompatible = gadget.IsCompatible
 )
 
@@ -211,12 +207,17 @@ func checkGadgetRemodelCompatible(st *state.State, snapInfo, curInfo *snap.Info,
 		return fmt.Errorf("cannot read new gadget metadata: %v", err)
 	}
 
-	currentData, err := gadgetDataFromInfo(curInfo, coreGadgetConstraints)
+	currentData, err := gadgetDataFromInfo(curInfo, deviceCtx.Model())
 	if err != nil {
 		return fmt.Errorf("cannot read current gadget metadata: %v", err)
 	}
 
-	pendingInfo, err := gadget.InfoFromGadgetYaml(newGadgetYaml, coreGadgetConstraints)
+	model := deviceCtx.Model()
+	constraints := &gadget.ModelConstraints{
+		Classic:    model.Classic(),
+		SystemSeed: model.Grade() != asserts.ModelGradeUnset,
+	}
+	pendingInfo, err := gadget.InfoFromGadgetYaml(newGadgetYaml, constraints)
 	if err != nil {
 		return fmt.Errorf("cannot load new gadget metadata: %v", err)
 	}
