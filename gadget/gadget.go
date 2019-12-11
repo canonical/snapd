@@ -381,7 +381,7 @@ func ReadInfo(gadgetSnapRootDir string, constraints *ModelConstraints) (*Info, e
 }
 
 // ReadInfoFromSnapFile reads the gadget specific metadata from
-// meta/gadget.yaml in the given snapf container. If constraints is
+// meta/gadget.yaml in the given snap container. If constraints is
 // nil, ReadInfo will just check for self-consistency, otherwise rules
 // for the classic or system seed cases are enforced.
 func ReadInfoFromSnapFile(snapf snap.Container, constraints *ModelConstraints) (*Info, error) {
