@@ -37,6 +37,7 @@ import (
 
 	"github.com/snapcore/snapd/asserts"
 	"github.com/snapcore/snapd/asserts/snapasserts"
+	"github.com/snapcore/snapd/gadget"
 	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/seed/internal"
 	"github.com/snapcore/snapd/snap"
@@ -411,6 +412,15 @@ func (s *seed20) LoadMeta(tm timings.Measurer) error {
 			}
 			// TODO: when we allow extend models for classic
 			// we need to add the gadget base here
+
+			// check gadget
+			constraints := &gadget.ModelConstraints{
+				Classic:    model.Classic(),
+				SystemSeed: true,
+			}
+			if _, err := readGadgetInfo(seedSnap.Path, constraints); err != nil {
+				return fmt.Errorf("cannot use gadget snap: %v", err)
+			}
 
 			// done with essential snaps
 			essential = false

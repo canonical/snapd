@@ -27,6 +27,7 @@ import (
 
 	"github.com/snapcore/snapd/asserts"
 	"github.com/snapcore/snapd/asserts/sysdb"
+	"github.com/snapcore/snapd/gadget"
 	"github.com/snapcore/snapd/snap"
 )
 
@@ -99,4 +100,12 @@ func readInfo(snapPath string, si *snap.SideInfo) (*snap.Info, error) {
 		return nil, err
 	}
 	return snap.ReadInfoFromSnapFile(snapf, si)
+}
+
+func readGadgetInfo(snapPath string, constraints *gadget.ModelConstraints) (*gadget.Info, error) {
+	snapf, err := snap.Open(snapPath)
+	if err != nil {
+		return nil, err
+	}
+	return gadget.ReadInfoFromSnapFile(snapf, constraints)
 }

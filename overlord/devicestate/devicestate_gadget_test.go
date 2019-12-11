@@ -547,12 +547,6 @@ func (s *deviceMgrGadgetSuite) TestCurrentAndUpdateInfo(c *C) {
 
 	// mock current first, but gadget.yaml is still missing
 	ci := snaptest.MockSnapWithFiles(c, snapYaml, siCurrent, nil)
-
-	current, err = devicestate.CurrentGadgetInfo(s.state, deviceCtx)
-
-	c.Assert(current, IsNil)
-	c.Assert(err, ErrorMatches, "cannot read current gadget snap details: .*/33/meta/gadget.yaml: no such file or directory")
-
 	// drop gadget.yaml for current snap
 	ioutil.WriteFile(filepath.Join(ci.MountDir(), "meta/gadget.yaml"), []byte(gadgetYaml), 0644)
 
@@ -571,14 +565,10 @@ func (s *deviceMgrGadgetSuite) TestCurrentAndUpdateInfo(c *C) {
 
 	// pending update
 	update, err := devicestate.PendingGadgetInfo(snapsup)
-	c.Assert(update, IsNil)
+	c.Check(update, IsNil)
 	c.Assert(err, ErrorMatches, "cannot read candidate gadget snap details: cannot find installed snap .* .*/34/meta/snap.yaml")
 
 	ui := snaptest.MockSnapWithFiles(c, snapYaml, si, nil)
-
-	update, err = devicestate.PendingGadgetInfo(snapsup)
-	c.Assert(update, IsNil)
-	c.Assert(err, ErrorMatches, "cannot read candidate snap gadget metadata: .*/34/meta/gadget.yaml: no such file or directory")
 
 	var updateGadgetYaml = `
 volumes:

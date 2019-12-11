@@ -54,7 +54,7 @@ func currentGadgetInfo(st *state.State, deviceCtx snapstate.DeviceContext) (*gad
 		return nil, nil
 	}
 
-	ci, err := gadgetDataFromInfo(currentInfo, coreGadgetConstraints)
+	ci, err := gadgetDataFromInfo(currentInfo, nil)
 	if err != nil {
 		return nil, fmt.Errorf("cannot read current gadget snap details: %v", err)
 	}
@@ -67,7 +67,7 @@ func pendingGadgetInfo(snapsup *snapstate.SnapSetup) (*gadget.GadgetData, error)
 		return nil, fmt.Errorf("cannot read candidate gadget snap details: %v", err)
 	}
 
-	gi, err := gadgetDataFromInfo(info, coreGadgetConstraints)
+	gi, err := gadgetDataFromInfo(info, nil)
 	if err != nil {
 		return nil, fmt.Errorf("cannot read candidate snap gadget metadata: %v", err)
 	}
