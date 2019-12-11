@@ -1,11 +1,11 @@
 summary: Ensure that the snap switch command works
 
 execute: |
-    snap install test-snapd-tools
-    snap info test-snapd-tools|MATCH "tracking: +stable"
+    snap install test-snapd-sh
+    snap info test-snapd-sh | MATCH "tracking: +latest/stable"
 
-    snap switch --edge test-snapd-tools > stdout.txt
-    snap info test-snapd-tools|MATCH "tracking: +edge"
+    snap switch --edge test-snapd-sh > stdout.txt
+    snap info test-snapd-sh | MATCH "tracking: +latest/edge"
 
     echo "Ensure we don't print incorrect and confusing information"
     not grep "is closed; temporarily forwarding to stable." < stdout.txt

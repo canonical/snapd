@@ -25,6 +25,31 @@ disable_kernel_rate_limiting() {
     #sysctl -w kernel.printk_ratelimit=0
 }
 
+disable_journald_rate_limiting() {
+    # Disable journald rate limiting
+    mkdir -p /etc/systemd/journald.conf.d
+    # The RateLimitIntervalSec key is not supported on some systemd versions causing
+    # the journal rate limit could be considered as not valid and discarded in concecuence.
+    # RateLimitInterval key is supported in old systemd versions and in new ones as well,
+    # maintaining backward compatibility.
+    cat <<-EOF > /etc/systemd/journald.conf.d/no-rate-limit.conf
+    [Journal]
+    RateLimitInterval=0
+    RateLimitBurst=0
+EOF
+    systemctl restart systemd-journald.service
+}
+
+disable_journald_start_limiting() {
+    # Disable journald start limiting
+    mkdir -p /etc/systemd/system/systemd-journald.service.d
+    cat <<-EOF > /etc/systemd/system/systemd-journald.service.d/no-start-limit.conf
+    [Unit]
+    StartLimitBurst=0
+EOF
+    systemctl daemon-reload
+}
+
 ensure_jq() {
     if command -v jq; then
         return
@@ -105,12 +130,6 @@ update_core_snap_for_classic_reexec() {
     rm squashfs-root/usr/lib/snapd/* squashfs-root/usr/bin/snap
     # and copy in the current libexec
     cp -a "$LIBEXECDIR"/snapd/* squashfs-root/usr/lib/snapd/
-    case "$SPREAD_SYSTEM" in
-        fedora-*|centos-*|amazon-*)
-            # RPM can rewrite shebang to #!/usr/bin/sh
-            sed -i -e '1 s;#!/usr/bin/sh;#!/bin/sh;' squashfs-root/usr/lib/snapd/snap-device-helper
-            ;;
-    esac
     # also the binaries themselves
     cp -a /usr/bin/snap squashfs-root/usr/bin/
     # make sure bin/snapctl is a symlink to lib/
@@ -231,13 +250,18 @@ prepare_classic() {
     # Some systems (google:ubuntu-16.04-64) ship with a broken sshguard
     # unit. Stop the broken unit to not confuse the "degraded-boot" test.
     #
+    # Some other (debian-sid) fail in fwupd-refresh.service
+    #
     # FIXME: fix the ubuntu-16.04-64 image
-    if systemctl list-unit-files | grep sshguard.service; then
-        if ! systemctl status sshguard.service; then
-            systemctl stop sshguard.service
-	    systemctl reset-failed sshguard.service
+    # FIXME2: fix the debian-sid-64 image
+    for svc in fwupd-refresh.service sshguard.service; do
+        if systemctl list-unit-files | grep "$svc"; then
+            if systemctl is-failed "$svc"; then
+                systemctl stop "$svc"
+	        systemctl reset-failed "$svc"
+            fi
         fi
-    fi
+    done
 
     setup_systemd_snapd_overrides
 
@@ -259,15 +283,11 @@ prepare_classic() {
 
         # Cache snaps
         # shellcheck disable=SC2086
-        cache_snaps ${PRE_CACHE_SNAPS}
+        cache_snaps core ${PRE_CACHE_SNAPS}
 
         echo "Cache the snaps profiler snap"
         if [ "$PROFILE_SNAPS" = 1 ]; then
-            if is_core18_system; then
-                cache_snaps test-snapd-profiler-core18
-            else
-                cache_snaps test-snapd-profiler
-            fi
+            cache_snaps test-snapd-profiler
         fi
 
         snap list | not grep core || exit 1
@@ -598,6 +618,9 @@ prepare_ubuntu_core() {
         REBOOT
     fi
 
+    disable_journald_rate_limiting
+    disable_journald_start_limiting
+
     # verify after the first reboot that we are now in core18 world
     if [ "$SPREAD_REBOOT" = 1 ]; then
         echo "Ensure we are now in an all-snap world"
@@ -651,6 +674,10 @@ prepare_ubuntu_core() {
         snap alias "$rsync_snap".rsync rsync
     fi
 
+    # Cache snaps
+    # shellcheck disable=SC2086
+    cache_snaps ${PRE_CACHE_SNAPS}
+
     echo "Ensure the core snap is cached"
     # Cache snaps
     if is_core18_system; then
@@ -659,11 +686,16 @@ prepare_ubuntu_core() {
             snap list
             exit 1
         fi
-        cache_snaps core
+        cache_snaps core test-snapd-sh-core18
     fi
+
     echo "Cache the snaps profiler snap"
     if [ "$PROFILE_SNAPS" = 1 ]; then
-        cache_snaps test-snapd-profiler
+        if is_core18_system; then
+            cache_snaps test-snapd-profiler-core18
+        else
+            cache_snaps test-snapd-profiler
+        fi
     fi
 
     disable_refreshes

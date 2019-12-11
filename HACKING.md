@@ -170,7 +170,7 @@ build a 64-bit Ubuntu 16.04 LTS (Xenial Xerus) VM to run the spread tests on:
 To build an Ubuntu 14.04 (Trusty Tahr) based VM, use:
 
     $ autopkgtest-buildvm-ubuntu-cloud -r trusty --post-command='sudo apt-get install -y --install-recommends linux-generic-lts-xenial && update-grub'
-    $ mv adt-trusty-amd64-cloud.img ubuntu-14.04-64.img
+    $ mv autopkgtest-trusty-amd64.img ubuntu-14.04-64.img
 
 This is because we need at least 4.4+ kernel for snapd to run on Ubuntu 14.04 
 LTS, which is available through the `linux-generic-lts-xenial` package.
@@ -234,12 +234,20 @@ To get started from a pristine tree you want to do this:
 ./mkversion.sh
 cd cmd/
 autoreconf -i -f
-./configure --prefix=/usr --libexecdir=/usr/lib/snapd
+./configure --prefix=/usr --libexecdir=/usr/lib/snapd --enable-nvidia-multiarch --with-host-arch-triplet=$(dpkg-architecture -qDEB_HOST_MULTIARCH)"
 ```
 
 This will drop makefiles and let you build stuff. You may find the `make hack`
 target, available in `cmd/snap-confine` handy, it installs the locally built
 version on your system and reloads the apparmor profile.
+
+Note, the above configure options assume you are on Ubuntu and are generally
+necessary to run/test graphical applications with your local version of
+snap-confine. The `--with-host-arch-triplet` option sets your specific 
+architecture and `--enable-nvidia-multiarch` allows the host's graphics drivers
+and libraries to be shared with snaps. If you are on a distro other than
+Ubuntu, try `--enable-nvidia-biarch` (though you'll likely need to add further
+system-specific options too).
 
 ## Submitting patches
 

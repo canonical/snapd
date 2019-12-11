@@ -4,8 +4,8 @@ summary: Test that snap-confine is run from core on re-exec
 systems: [-ubuntu-core-*, -fedora-*, -opensuse-*, -arch-*, -amazon-*, -centos-*]
 
 prepare: |
-    echo "Installing test-snapd-tools"
-    snap install test-snapd-tools
+    echo "Installing test-snapd-sh"
+    snap install test-snapd-sh
     echo "Breaking host snap-confine"
     chmod 0755 /usr/lib/snapd/snap-confine
 
@@ -30,7 +30,7 @@ execute: |
     check_journalctl_log "DEBUG: restarting into"
 
     echo "Ensure snap-confine from the core snap is run"
-    test-snapd-tools.echo hello
+    test-snapd-sh.sh -c 'echo hello'
 
 
     echo "Check if snap-confine profile generation test is applicable"

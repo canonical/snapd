@@ -96,4 +96,6 @@ var (
 	GlobalProfileLE = globalProfileLE
 	GlobalProfileBE = globalProfileBE
 	IsBigEndian     = isBigEndian
+
+	ParallelCompile = parallelCompile
 )

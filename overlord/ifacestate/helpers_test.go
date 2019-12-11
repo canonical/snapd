@@ -40,7 +40,7 @@ import (
 	"github.com/snapcore/snapd/overlord/state"
 	"github.com/snapcore/snapd/snap"
 	"github.com/snapcore/snapd/snap/snaptest"
-	"github.com/snapcore/snapd/testutil"
+	"github.com/snapcore/snapd/timings"
 )
 
 type helpersSuite struct {
@@ -359,7 +359,7 @@ func (s *helpersSuite) TestSystemKeyAndFailingProfileRegeneration(c *C) {
 	backend := &ifacetest.TestSecurityBackend{
 		BackendName: "BROKEN",
 		SetupCallback: func(snapInfo *snap.Info, opts interfaces.ConfinementOptions, repo *interfaces.Repository) error {
-			return errors.New("cannot setup security profile")
+			return errors.New("FAILED")
 		},
 	}
 	restore := ifacestate.MockSecurityBackends([]interfaces.SecurityBackend{backend})
@@ -413,8 +413,126 @@ apps:
 	c.Assert(err, IsNil)
 
 	// Check that system key is not on disk.
-	c.Check(log.String(), testutil.Contains, `cannot regenerate BROKEN profile for snap "test-snapd-canary": cannot setup security profile`)
+	c.Check(log.String(), Matches, `.*cannot regenerate BROKEN profiles\n.*FAILED.*\n`)
 	c.Check(osutil.FileExists(dirs.SnapSystemKeyFile), Equals, false)
+}
+
+func mockSnaps(c *C, st *state.State) {
+	// Put fake snaps in the state
+	for _, name := range []string{"foo", "bar"} {
+		yamlText := `
+name: %NAME%
+version: 1
+apps:
+  test:
+    command: bin/test
+`
+		si := &snap.SideInfo{Revision: snap.R(1), RealName: name}
+		snapInfo := snaptest.MockSnap(c, strings.Replace(yamlText, "%NAME%", name, -1), si)
+		st.Lock()
+		snapst := &snapstate.SnapState{
+			SnapType: string(snap.TypeApp),
+			Sequence: []*snap.SideInfo{si},
+			Active:   true,
+			Current:  snap.R(1),
+		}
+		snapstate.Set(st, snapInfo.InstanceName(), snapst)
+		st.Unlock()
+	}
+}
+
+func (s *helpersSuite) TestProfileRegenerationSetupMany(c *C) {
+	dirs.SetRootDir(c.MkDir())
+	defer dirs.SetRootDir("")
+
+	var setupManyCalls int
+	var writeKey bool
+
+	// Create a fake security backend
+	backend := &ifacetest.TestSecurityBackendSetupMany{
+		TestSecurityBackend: ifacetest.TestSecurityBackend{BackendName: "fake"},
+		SetupManyCallback: func(snaps []*snap.Info, confinement func(snapName string) interfaces.ConfinementOptions, repo *interfaces.Repository, tm timings.Measurer) []error {
+			c.Check(snaps, HasLen, 2)
+			setupManyCalls++
+			return nil
+		},
+	}
+	restore := ifacestate.MockSecurityBackends([]interfaces.SecurityBackend{backend})
+	defer restore()
+
+	// Create a mock overlord, mainly to have state.
+	ovld := overlord.Mock()
+	st := ovld.State()
+
+	mockSnaps(c, st)
+
+	// Pretend that security profiles are out of date.
+	restore = ifacestate.MockProfilesNeedRegeneration(func() bool { return true })
+	defer restore()
+	restore = ifacestate.MockWriteSystemKey(func() error {
+		writeKey = true
+		return nil
+	})
+	defer restore()
+
+	// Construct and start up the interface manager.
+	mgr, err := ifacestate.Manager(st, nil, ovld.TaskRunner(), nil, nil)
+	c.Assert(err, IsNil)
+	err = mgr.StartUp()
+	c.Assert(err, IsNil)
+
+	c.Check(writeKey, Equals, true)
+	c.Check(setupManyCalls, Equals, 1)
+}
+
+func (s *helpersSuite) TestProfileRegenerationSetupManyFailsSystemKeyNotWritten(c *C) {
+	dirs.SetRootDir(c.MkDir())
+	defer dirs.SetRootDir("")
+
+	var setupManyCalls int
+	var writeKey bool
+
+	// Create a fake security backend
+	backend := &ifacetest.TestSecurityBackendSetupMany{
+		TestSecurityBackend: ifacetest.TestSecurityBackend{BackendName: "fake"},
+		SetupManyCallback: func(snaps []*snap.Info, confinement func(snapName string) interfaces.ConfinementOptions, repo *interfaces.Repository, tm timings.Measurer) []error {
+			c.Check(snaps, HasLen, 2)
+			setupManyCalls++
+			return []error{fmt.Errorf("FAILED")}
+		},
+	}
+	restore := ifacestate.MockSecurityBackends([]interfaces.SecurityBackend{backend})
+	defer restore()
+
+	// Put up a fake logger to capture logged messages.
+	log, restoreLog := logger.MockLogger()
+	defer restoreLog()
+
+	// Create a mock overlord, mainly to have state.
+	ovld := overlord.Mock()
+	st := ovld.State()
+
+	mockSnaps(c, st)
+
+	// Pretend that security profiles are out of date.
+	restore = ifacestate.MockProfilesNeedRegeneration(func() bool { return true })
+	defer restore()
+	restore = ifacestate.MockWriteSystemKey(func() error {
+		writeKey = true
+		return nil
+	})
+	defer restore()
+
+	// Construct and start up the interface manager.
+	mgr, err := ifacestate.Manager(st, nil, ovld.TaskRunner(), nil, nil)
+	c.Assert(err, IsNil)
+	err = mgr.StartUp()
+	c.Assert(err, IsNil)
+
+	// Check that system key is not on disk.
+	c.Check(writeKey, Equals, false)
+	c.Check(setupManyCalls, Equals, 1)
+	c.Check(log.String(), Matches, ".*cannot regenerate fake profiles\n.*FAILED\n")
 }
 
 func (s *helpersSuite) TestIsHotplugChange(c *C) {
