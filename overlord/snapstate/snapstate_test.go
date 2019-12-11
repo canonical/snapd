@@ -12387,6 +12387,55 @@ func (s *snapmgrTestSuite) TestConfigDefaults(c *C) {
 	c.Assert(err, Equals, state.ErrNoState)
 }
 
+func (s *snapmgrTestSuite) TestConfigDefaultsSmokeUC20(c *C) {
+	r := release.MockOnClassic(false)
+	defer r()
+
+	// using MockSnap, we want to read the bits on disk
+	snapstate.MockSnapReadInfo(snap.ReadInfo)
+
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	// provide a uc20 gadget structure
+	s.prepareGadget(c, `
+        bootloader: grub
+        structure:
+        - name: ubuntu-seed
+          role: system-seed
+          filesystem: vfat
+          type: EF,C12A7328-F81F-11D2-BA4B-00A0C93EC93B
+          size: 1200M
+        - name: ubuntu-boot
+          role: system-boot
+          filesystem: ext4
+          type: 83,0FC63DAF-8483-4772-8E79-3D69D8477DE4
+          # whats the appropriate size?
+          size: 750M
+        - name: ubuntu-data
+          role: system-data
+          filesystem: ext4
+          type: 83,0FC63DAF-8483-4772-8E79-3D69D8477DE4
+          size: 1G
+`)
+	// XXX: in reality this will be a UC20 model context
+	deviceCtx := deviceWithGadgetContext("the-gadget")
+
+	snapstate.Set(s.state, "some-snap", &snapstate.SnapState{
+		Active: true,
+		Sequence: []*snap.SideInfo{
+			{RealName: "some-snap", Revision: snap.R(11), SnapID: "some-snap-ididididididididididid"},
+		},
+		Current:  snap.R(11),
+		SnapType: "app",
+	})
+	makeInstalledMockCoreSnap(c)
+
+	defls, err := snapstate.ConfigDefaults(s.state, deviceCtx, "some-snap")
+	c.Assert(err, IsNil)
+	c.Assert(defls, DeepEquals, map[string]interface{}{"key": "value"})
+}
+
 func (s *snapmgrTestSuite) TestConfigDefaultsNoGadget(c *C) {
 	r := release.MockOnClassic(false)
 	defer r()
@@ -15332,6 +15381,50 @@ func (s *snapmgrTestSuite) TestGadgetConnections(c *C) {
 	c.Assert(err, Equals, state.ErrNoState)
 
 	s.prepareGadget(c, `
+connections:
+  - plug: snap1idididididididididididididi:plug
+    slot: snap2idididididididididididididi:slot
+`)
+
+	conns, err := snapstate.GadgetConnections(s.state, deviceCtx)
+	c.Assert(err, IsNil)
+	c.Check(conns, DeepEquals, []gadget.Connection{
+		{Plug: gadget.ConnectionPlug{SnapID: "snap1idididididididididididididi", Plug: "plug"}, Slot: gadget.ConnectionSlot{SnapID: "snap2idididididididididididididi", Slot: "slot"}}})
+}
+
+func (s *snapmgrTestSuite) TestGadgetConnectionsUC20(c *C) {
+	r := release.MockOnClassic(false)
+	defer r()
+
+	// using MockSnap, we want to read the bits on disk
+	snapstate.MockSnapReadInfo(snap.ReadInfo)
+
+	// XXX: in reality this will be a UC20 model context
+	deviceCtx := deviceWithGadgetContext("the-gadget")
+
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	// provide a uc20 gadget structure
+	s.prepareGadget(c, `
+        bootloader: grub
+        structure:
+        - name: ubuntu-seed
+          role: system-seed
+          filesystem: vfat
+          type: EF,C12A7328-F81F-11D2-BA4B-00A0C93EC93B
+          size: 1200M
+        - name: ubuntu-boot
+          role: system-boot
+          filesystem: ext4
+          type: 83,0FC63DAF-8483-4772-8E79-3D69D8477DE4
+          # whats the appropriate size?
+          size: 750M
+        - name: ubuntu-data
+          role: system-data
+          filesystem: ext4
+          type: 83,0FC63DAF-8483-4772-8E79-3D69D8477DE4
+          size: 1G
 connections:
   - plug: snap1idididididididididididididi:plug
     slot: snap2idididididididididididididi:slot
