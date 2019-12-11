@@ -35,14 +35,14 @@ type spiInterfaceSuite struct {
 	testutil.BaseTest
 	iface interfaces.Interface
 
-	slotOs1Info        *snap.SlotInfo
-	slotOs1            *interfaces.ConnectedSlot
-	slotOs2Info        *snap.SlotInfo
-	slotOs2            *interfaces.ConnectedSlot
-	slotOs3Info        *snap.SlotInfo
-	slotOs3            *interfaces.ConnectedSlot
-	slotOsCleanedInfo  *snap.SlotInfo
-	slotOsCleaned      *interfaces.ConnectedSlot
+	slotOs1Info       *snap.SlotInfo
+	slotOs1           *interfaces.ConnectedSlot
+	slotOs2Info       *snap.SlotInfo
+	slotOs2           *interfaces.ConnectedSlot
+	slotOs3Info       *snap.SlotInfo
+	slotOs3           *interfaces.ConnectedSlot
+	slotOsCleanedInfo *snap.SlotInfo
+	slotOsCleaned     *interfaces.ConnectedSlot
 
 	slotGadget1Info    *snap.SlotInfo
 	slotGadget1        *interfaces.ConnectedSlot
