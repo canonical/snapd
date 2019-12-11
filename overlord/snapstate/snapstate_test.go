@@ -12418,7 +12418,7 @@ func (s *snapmgrTestSuite) TestConfigDefaultsSmokeUC20(c *C) {
           type: 83,0FC63DAF-8483-4772-8E79-3D69D8477DE4
           size: 1G
 `)
-
+	// XXX: in reality this will be a UC20 model context
 	deviceCtx := deviceWithGadgetContext("the-gadget")
 
 	snapstate.Set(s.state, "some-snap", &snapstate.SnapState{
@@ -15399,6 +15399,7 @@ func (s *snapmgrTestSuite) TestGadgetConnectionsUC20(c *C) {
 	// using MockSnap, we want to read the bits on disk
 	snapstate.MockSnapReadInfo(snap.ReadInfo)
 
+	// XXX: in reality this will be a UC20 model context
 	deviceCtx := deviceWithGadgetContext("the-gadget")
 
 	s.state.Lock()

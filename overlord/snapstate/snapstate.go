@@ -2374,13 +2374,8 @@ func ConfigDefaults(st *state.State, deviceCtx DeviceContext, snapName string) (
 		return nil, state.ErrNoState
 	}
 
-	needsSystemSeed := deviceCtx.Model().Grade() != asserts.ModelGradeUnset
-	constraints := &gadget.ModelConstraints{
-		Classic:    release.OnClassic,
-		SystemSeed: needsSystemSeed,
-	}
-
-	gadgetInfo, err := gadget.ReadInfo(info.MountDir(), constraints)
+	// at this point we don't need constraints checks, they happend earlier
+	gadgetInfo, err := gadget.ReadInfo(info.MountDir(), nil)
 	if err != nil {
 		return nil, err
 	}
@@ -2413,13 +2408,8 @@ func GadgetConnections(st *state.State, deviceCtx DeviceContext) ([]gadget.Conne
 		return nil, err
 	}
 
-	needsSystemSeed := deviceCtx.Model().Grade() != asserts.ModelGradeUnset
-	constraints := &gadget.ModelConstraints{
-		Classic:    release.OnClassic,
-		SystemSeed: needsSystemSeed,
-	}
-
-	gadgetInfo, err := gadget.ReadInfo(info.MountDir(), constraints)
+	// at this point we don't need constraints checks, they happend earlier
+	gadgetInfo, err := gadget.ReadInfo(info.MountDir(), nil)
 	if err != nil {
 		return nil, err
 	}
