@@ -253,11 +253,10 @@ type ConnectionState struct {
 	HotplugGone      bool
 }
 
-// ConnectionStates return the state of connections tracked by the manager
-func (m *InterfaceManager) ConnectionStates() (connStateByRef map[string]ConnectionState, err error) {
-	m.state.Lock()
-	defer m.state.Unlock()
-	states, err := getConns(m.state)
+// ConnectionStates return the state of connections stored in the state.
+// The state must be locked by the caller.
+func ConnectionStates(st *state.State) (connStateByRef map[string]ConnectionState, err error) {
+	states, err := getConns(st)
 	if err != nil {
 		return nil, err
 	}
@@ -277,6 +276,14 @@ func (m *InterfaceManager) ConnectionStates() (connStateByRef map[string]Connect
 		}
 	}
 	return connStateByRef, nil
+}
+
+// ConnectionStates return the state of connections tracked by the manager
+func (m *InterfaceManager) ConnectionStates() (connStateByRef map[string]ConnectionState, err error) {
+	m.state.Lock()
+	defer m.state.Unlock()
+
+	return ConnectionStates(m.state)
 }
 
 // DisableUDevMonitor disables the instantiation of udev monitor, but has no effect

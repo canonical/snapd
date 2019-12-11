@@ -37,7 +37,8 @@ type Modeenv struct {
 	Mode           string
 	RecoverySystem string
 	Base           string
-	Kernel         string
+	// XXX: we may need to revisit setting the kernel in modeenv
+	Kernel string
 
 	// read is set to true when a modenv was read successfully
 	read bool

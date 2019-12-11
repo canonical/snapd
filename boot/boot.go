@@ -284,18 +284,18 @@ type BootableSet struct {
 	Kernel     *snap.Info
 	KernelPath string
 
+	RecoverySystemDir string
+
 	UnpackedGadgetDir string
 }
 
-// MakeBootable sets up the image filesystem with the given rootdir
-// such that it can be booted. This entails:
+// makeBootable16 setups the image filesystem for boot with UC16
+// and UC18 models. This entails:
 //  - installing the bootloader configuration from the gadget
 //  - creating symlinks for boot snaps from seed to the runtime blob dir
 //  - setting boot env vars pointing to the revisions of the boot snaps to use
 //  - extracting kernel assets as needed by the bootloader
-func MakeBootable(model *asserts.Model, rootdir string, bootWith *BootableSet) error {
-	opts := &bootloader.Options{PrepareImageTime: true}
-
+func makeBootable16(model *asserts.Model, rootdir string, bootWith *BootableSet, opts *bootloader.Options) error {
 	// install the bootloader configuration from the gadget
 	if err := bootloader.InstallBootConfig(bootWith.UnpackedGadgetDir, rootdir, opts); err != nil {
 		return err
@@ -360,5 +360,61 @@ func MakeBootable(model *asserts.Model, rootdir string, bootWith *BootableSet) e
 	}
 
 	return nil
+}
 
+func makeBootable20(model *asserts.Model, rootdir string, bootWith *BootableSet, opts *bootloader.Options) error {
+	// we can only make a single recovery system bootable right now
+	recoverySystems, err := filepath.Glob(filepath.Join(rootdir, "systems/*"))
+	if err != nil {
+		return fmt.Errorf("cannot validate recovery systems: %v", err)
+	}
+	if len(recoverySystems) > 1 {
+		return fmt.Errorf("cannot make multiple recovery systems bootable yet")
+	}
+
+	// install the bootloader configuration from the gadget
+	if err := bootloader.InstallBootConfig(bootWith.UnpackedGadgetDir, rootdir, opts); err != nil {
+		return err
+	}
+
+	// TODO:UC20: extract kernel for e.g. ARM
+
+	// now install the recovery system specific boot config
+	bl, err := bootloader.Find(rootdir, opts)
+	if err != nil {
+		return fmt.Errorf("internal error: cannot find bootloader: %v", err)
+	}
+	rbl, ok := bl.(bootloader.RecoveryAwareBootloader)
+	if !ok {
+		return fmt.Errorf("cannot use %s bootloader: does not support recovery systems", bl.Name())
+	}
+	kernelPath, err := filepath.Rel(rootdir, bootWith.KernelPath)
+	if err != nil {
+		return fmt.Errorf("cannot construct kernel boot path: %v", err)
+	}
+	blVars := map[string]string{
+		"snapd_recovery_kernel": filepath.Join("/", kernelPath),
+	}
+	if err := rbl.SetRecoverySystemEnv(bootWith.RecoverySystemDir, blVars); err != nil {
+		return fmt.Errorf("cannot set recovery system environment: %v", err)
+	}
+
+	return nil
+}
+
+// MakeBootable sets up the image filesystem with the given rootdir
+// such that it can be booted.
+func MakeBootable(model *asserts.Model, rootdir string, bootWith *BootableSet) error {
+	opts := &bootloader.Options{
+		// XXX: allow to override this
+		PrepareImageTime: true,
+	}
+
+	if model.Grade() == asserts.ModelGradeUnset {
+		return makeBootable16(model, rootdir, bootWith, opts)
+	}
+
+	// XXX: allow to override this
+	opts.Recovery = true
+	return makeBootable20(model, rootdir, bootWith, opts)
 }
