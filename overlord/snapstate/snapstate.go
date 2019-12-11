@@ -2374,7 +2374,7 @@ func ConfigDefaults(st *state.State, deviceCtx DeviceContext, snapName string) (
 		return nil, state.ErrNoState
 	}
 
-	// no constraints set: those should have been checked before already
+	// no constraints enforced: those should have been checked before already
 	gadgetInfo, err := gadget.ReadInfo(info.MountDir(), nil)
 	if err != nil {
 		return nil, err
@@ -2408,7 +2408,7 @@ func GadgetConnections(st *state.State, deviceCtx DeviceContext) ([]gadget.Conne
 		return nil, err
 	}
 
-	// no constraints set: those should have been checked before already
+	// no constraints enforced: those should have been checked before already
 	gadgetInfo, err := gadget.ReadInfo(info.MountDir(), nil)
 	if err != nil {
 		return nil, err
