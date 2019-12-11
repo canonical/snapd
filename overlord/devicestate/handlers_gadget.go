@@ -25,6 +25,7 @@ import (
 
 	"gopkg.in/tomb.v2"
 
+	"github.com/snapcore/snapd/asserts"
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/gadget"
 	"github.com/snapcore/snapd/logger"
@@ -54,6 +55,7 @@ func currentGadgetInfo(st *state.State, deviceCtx snapstate.DeviceContext) (*gad
 		return nil, nil
 	}
 
+	coreGadgetConstraints.SystemSeed = deviceCtx.Model().Grade() != asserts.ModelGradeUnset
 	ci, err := gadgetDataFromInfo(currentInfo, coreGadgetConstraints)
 	if err != nil {
 		return nil, fmt.Errorf("cannot read current gadget snap details: %v", err)
@@ -61,12 +63,13 @@ func currentGadgetInfo(st *state.State, deviceCtx snapstate.DeviceContext) (*gad
 	return ci, nil
 }
 
-func pendingGadgetInfo(snapsup *snapstate.SnapSetup) (*gadget.GadgetData, error) {
+func pendingGadgetInfo(snapsup *snapstate.SnapSetup, deviceCtx snapstate.DeviceContext) (*gadget.GadgetData, error) {
 	info, err := snap.ReadInfo(snapsup.InstanceName(), snapsup.SideInfo)
 	if err != nil {
 		return nil, fmt.Errorf("cannot read candidate gadget snap details: %v", err)
 	}
 
+	coreGadgetConstraints.SystemSeed = deviceCtx.Model().Grade() != asserts.ModelGradeUnset
 	gi, err := gadgetDataFromInfo(info, coreGadgetConstraints)
 	if err != nil {
 		return nil, fmt.Errorf("cannot read candidate snap gadget metadata: %v", err)
@@ -113,7 +116,7 @@ func (m *DeviceManager) doUpdateGadgetAssets(t *state.Task, _ *tomb.Tomb) error 
 			snapsup.InstanceName(), expectedGadgetSnap)
 	}
 
-	updateData, err := pendingGadgetInfo(snapsup)
+	updateData, err := pendingGadgetInfo(snapsup, remodelCtx)
 	if err != nil {
 		return err
 	}

@@ -35,7 +35,7 @@ func setDeviceFromModelAssertion(st *state.State, device *auth.DeviceState, mode
 }
 
 func gadgetDataFromInfo(info *snap.Info, constraints *gadget.ModelConstraints) (*gadget.GadgetData, error) {
-	gi, err := gadget.ReadInfo(info.MountDir(), coreGadgetConstraints)
+	gi, err := gadget.ReadInfo(info.MountDir(), constraints)
 	if err != nil {
 		return nil, err
 	}

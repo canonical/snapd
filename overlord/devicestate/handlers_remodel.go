@@ -211,11 +211,13 @@ func checkGadgetRemodelCompatible(st *state.State, snapInfo, curInfo *snap.Info,
 		return fmt.Errorf("cannot read new gadget metadata: %v", err)
 	}
 
+	coreGadgetConstraints.SystemSeed = deviceCtx.Model().Grade() != asserts.ModelGradeUnset
 	currentData, err := gadgetDataFromInfo(curInfo, coreGadgetConstraints)
 	if err != nil {
 		return fmt.Errorf("cannot read current gadget metadata: %v", err)
 	}
 
+	coreGadgetConstraints.SystemSeed = deviceCtx.Model().Grade() != asserts.ModelGradeUnset
 	pendingInfo, err := gadget.InfoFromGadgetYaml(newGadgetYaml, coreGadgetConstraints)
 	if err != nil {
 		return fmt.Errorf("cannot load new gadget metadata: %v", err)

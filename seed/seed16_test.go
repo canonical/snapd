@@ -287,9 +287,30 @@ var pcGadgetFiles = [][]string{
 	{"meta/gadget.yaml", pcGadgetYaml},
 }
 
+const pc20GadgetYaml = `
+volumes:
+  pc:
+    bootloader: grub
+    structure:
+    - name: ubuntu-seed
+      role: system-seed
+      type: EF,C12A7328-F81F-11D2-BA4B-00A0C93EC93B
+      size: 1G
+    - name: ubuntu-data
+      role: system-data
+      type: 83,0FC63DAF-8483-4772-8E79-3D69D8477DE4
+      size: 2G
+`
+
+var pc20GadgetFiles = [][]string{
+	{"meta/gadget.yaml", pc20GadgetYaml},
+}
+
 var snapFiles = map[string][][]string{
-	"pc":    pcGadgetFiles,
-	"pc=18": pcGadgetFiles,
+	"pc":                   pcGadgetFiles,
+	"pc=18":                pcGadgetFiles,
+	"pc=20":                pc20GadgetFiles,
+	"pc=20-gadget-no-seed": pcGadgetFiles,
 }
 
 var snapPublishers = map[string]string{

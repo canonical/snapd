@@ -88,7 +88,7 @@ func (s *seed20Suite) makeSnap(c *C, yamlKey, publisher string) {
 	if publisher == "" {
 		publisher = "canonical"
 	}
-	s.MakeAssertedSnap(c, snapYaml[yamlKey], nil, snap.R(1), publisher, s.StoreSigning.Database)
+	s.MakeAssertedSnap(c, snapYaml[yamlKey], snapFiles[yamlKey], snap.R(1), publisher, s.StoreSigning.Database)
 }
 
 func (s *seed20Suite) expectedPath(snapName string) string {
@@ -619,6 +619,51 @@ func (s *seed20Suite) TestLoadMetaCore20(c *C) {
 	installSnaps, err := seed20.ModeSnaps("install")
 	c.Assert(err, IsNil)
 	c.Check(installSnaps, HasLen, 0)
+}
+
+func (s *seed20Suite) TestLoadMetaCore20ErrorOn16Gadget(c *C) {
+	s.makeSnap(c, "snapd", "")
+	s.makeSnap(c, "core20", "")
+	s.makeSnap(c, "pc-kernel=20", "")
+	// use a pc20 gadget with a gadget.yaml that does not define a seed
+	// partition
+	s.makeSnap(c, "pc=20-gadget-no-seed", "")
+	s.makeSnap(c, "required20", "developerid")
+
+	s.AssertedSnapInfo("required20").Contact = "author@example.com"
+
+	sysLabel := "20191018"
+	s.MakeSeed(c, sysLabel, "my-brand", "my-model", map[string]interface{}{
+		"display-name": "my model",
+		"architecture": "amd64",
+		"base":         "core20",
+		"snaps": []interface{}{
+			map[string]interface{}{
+				"name":            "pc-kernel",
+				"id":              s.AssertedSnapID("pc-kernel"),
+				"type":            "kernel",
+				"default-channel": "20",
+			},
+			map[string]interface{}{
+				"name":            "pc",
+				"id":              s.AssertedSnapID("pc"),
+				"type":            "gadget",
+				"default-channel": "20",
+			},
+			map[string]interface{}{
+				"name": "required20",
+				"id":   s.AssertedSnapID("required20"),
+			}},
+	}, nil)
+
+	seed20, err := seed.Open(s.SeedDir, sysLabel)
+	c.Assert(err, IsNil)
+
+	err = seed20.LoadAssertions(s.db, s.commitTo)
+	c.Assert(err, IsNil)
+
+	err = seed20.LoadMeta(s.perfTimings)
+	c.Assert(err, ErrorMatches, `cannot use gadget snap: invalid volume "pc": model requires system-seed partition, but no system-seed or system-data partition found`)
 }
 
 func (s *seed20Suite) makeLocalSnap(c *C, yamlKey string) (fname string) {

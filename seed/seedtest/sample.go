@@ -85,6 +85,12 @@ type: gadget
 base: core20
 version: 1.0
 `,
+	"pc=20-gadget-no-seed": `name: pc
+type: gadget
+base: core20
+version: 1.0
+`,
+
 	"required20": `name: required20
 type: app
 base: core20
