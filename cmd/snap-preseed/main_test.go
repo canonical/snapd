@@ -204,7 +204,7 @@ func (s *startPreseedSuite) TestSystemSnapFromSeed(c *C) {
 
 	restore := main.MockSeedOpen(func(rootDir, label string) (seed.Seed, error) {
 		return &Fake16Seed{
-			Essential: []*seed.Snap{&seed.Snap{Path: "/some/path/core", SideInfo: &snap.SideInfo{RealName: "core"}}},
+			Essential: []*seed.Snap{{Path: "/some/path/core", SideInfo: &snap.SideInfo{RealName: "core"}}},
 		}, nil
 	})
 	defer restore()
@@ -232,11 +232,11 @@ func (s *startPreseedSuite) TestSystemSnapFromSeedErrors(c *C) {
 	restore := main.MockSeedOpen(func(rootDir, label string) (seed.Seed, error) { return fakeSeed, nil })
 	defer restore()
 
-	fakeSeed.Essential = []*seed.Snap{&seed.Snap{Path: "", SideInfo: &snap.SideInfo{RealName: "core"}}}
+	fakeSeed.Essential = []*seed.Snap{{Path: "", SideInfo: &snap.SideInfo{RealName: "core"}}}
 	_, err := main.SystemSnapFromSeed(tmpDir)
 	c.Assert(err, ErrorMatches, "core snap not found")
 
-	fakeSeed.Essential = []*seed.Snap{&seed.Snap{Path: "/some/path", SideInfo: &snap.SideInfo{RealName: "foosnap"}}}
+	fakeSeed.Essential = []*seed.Snap{{Path: "/some/path", SideInfo: &snap.SideInfo{RealName: "foosnap"}}}
 	_, err = main.SystemSnapFromSeed(tmpDir)
 	c.Assert(err, ErrorMatches, "core snap not found")
 
