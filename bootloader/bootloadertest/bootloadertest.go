@@ -139,6 +139,9 @@ func (b *MockBootloader) InstallBootConfig(gadgetDir string, opts *bootloader.Op
 }
 
 func (b *MockBootloader) SetRecoverySystemEnv(recoverySystemDir string, blVars map[string]string) error {
+	if recoverySystemDir == "" {
+		panic("MockBootloader.SetRecoverySystemEnv called without recoverySystemDir")
+	}
 	b.RecoverySystemDir = recoverySystemDir
 	b.RecoverySystemBootVars = blVars
 	return nil
