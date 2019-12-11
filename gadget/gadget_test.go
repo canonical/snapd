@@ -33,6 +33,8 @@ import (
 
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/gadget"
+	"github.com/snapcore/snapd/snap"
+	"github.com/snapcore/snapd/snap/snaptest"
 )
 
 type gadgetYamlTestSuite struct {
@@ -1682,6 +1684,48 @@ size: 1M`
 		c.Check(tc.s.HasFilesystem(), Equals, tc.hasFs)
 		c.Check(tc.s.IsPartition(), Equals, tc.isPartition)
 	}
+}
+
+var mockSnapYaml = `name: pc
+type: gadget
+version: 1.0
+`
+
+func (s *gadgetYamlTestSuite) TestReadGadgetYamlFromSnapFileMissing(c *C) {
+	snapPath := snaptest.MakeTestSnapWithFiles(c, string(mockSnapYaml), nil)
+	snapf, err := snap.Open(snapPath)
+	c.Assert(err, IsNil)
+
+	// if constraints are nil, we allow a missing gadget.yaml
+	_, err = gadget.ReadInfoFromSnapFile(snapf, nil)
+	c.Assert(err, IsNil)
+
+	_, err = gadget.ReadInfoFromSnapFile(snapf, &gadget.ModelConstraints{})
+	c.Assert(err, ErrorMatches, ".*meta/gadget.yaml: no such file or directory")
+}
+
+var minimalMockGadgetYaml = `
+volumes:
+ pc:
+  bootloader: grub
+`
+
+func (s *gadgetYamlTestSuite) TestReadGadgetYamlFromSnapFileValid(c *C) {
+	snapPath := snaptest.MakeTestSnapWithFiles(c, mockSnapYaml, [][]string{
+		{"meta/gadget.yaml", string(minimalMockGadgetYaml)},
+	})
+	snapf, err := snap.Open(snapPath)
+	c.Assert(err, IsNil)
+
+	ginfo, err := gadget.ReadInfoFromSnapFile(snapf, nil)
+	c.Assert(err, IsNil)
+	c.Assert(ginfo, DeepEquals, &gadget.Info{
+		Volumes: map[string]gadget.Volume{
+			"pc": {
+				Bootloader: "grub",
+			},
+		},
+	})
 }
 
 type gadgetCompatibilityTestSuite struct{}

@@ -33,6 +33,7 @@ import (
 	"gopkg.in/yaml.v2"
 
 	"github.com/snapcore/snapd/metautil"
+	"github.com/snapcore/snapd/snap"
 	"github.com/snapcore/snapd/strutil"
 )
 
@@ -357,13 +358,8 @@ func InfoFromGadgetYaml(gadgetYaml []byte, constraints *ModelConstraints) (*Info
 	return &gi, nil
 }
 
-// ReadInfo reads the gadget specific metadata from meta/gadget.yaml in the snap
-// root directory. If constraints is nil, ReadInfo will just check for
-// self-consistency, otherwise rules for the classic or system seed cases are
-// enforced.
-func ReadInfo(gadgetSnapRootDir string, constraints *ModelConstraints) (*Info, error) {
-	gadgetYamlFn := filepath.Join(gadgetSnapRootDir, "meta", "gadget.yaml")
-	gmeta, err := ioutil.ReadFile(gadgetYamlFn)
+func readInfo(f func(string) ([]byte, error), gadgetYamlFn string, constraints *ModelConstraints) (*Info, error) {
+	gmeta, err := f(gadgetYamlFn)
 	if (constraints == nil || constraints.Classic) && os.IsNotExist(err) {
 		// gadget.yaml is optional for classic gadgets
 		return &Info{}, nil
@@ -373,6 +369,24 @@ func ReadInfo(gadgetSnapRootDir string, constraints *ModelConstraints) (*Info, e
 	}
 
 	return InfoFromGadgetYaml(gmeta, constraints)
+}
+
+// ReadInfo reads the gadget specific metadata from meta/gadget.yaml in the snap
+// root directory. If constraints is nil, ReadInfo will just check for
+// self-consistency, otherwise rules for the classic or system seed cases are
+// enforced.
+func ReadInfo(gadgetSnapRootDir string, constraints *ModelConstraints) (*Info, error) {
+	gadgetYamlFn := filepath.Join(gadgetSnapRootDir, "meta", "gadget.yaml")
+	return readInfo(ioutil.ReadFile, gadgetYamlFn, constraints)
+}
+
+// ReadInfoFromSnapFile reads the gadget specific metadata from
+// meta/gadget.yaml in the given snapf container. If constraints is
+// nil, ReadInfo will just check for self-consistency, otherwise rules
+// for the classic or system seed cases are enforced.
+func ReadInfoFromSnapFile(snapf snap.Container, constraints *ModelConstraints) (*Info, error) {
+	gadgetYamlFn := "meta/gadget.yaml"
+	return readInfo(snapf.ReadFile, gadgetYamlFn, constraints)
 }
 
 func fmtIndexAndName(idx int, name string) string {
