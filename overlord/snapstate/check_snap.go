@@ -480,17 +480,13 @@ func checkGadgetOrKernel(st *state.State, snapInfo, curInfo *snap.Info, snapf sn
 	}
 
 	// do basic constraints check on the gadget
-	model := deviceCtx.Model()
 	if typ == snap.TypeGadget {
-		validateGadgetModelConstraints := func(model *asserts.Model, snapf snap.Container) error {
-			constraints := &gadget.ModelConstraints{
-				Classic:    model.Classic(),
-				SystemSeed: model.Grade() != asserts.ModelGradeUnset,
-			}
-			_, err = gadget.ReadInfoFromSnapFile(snapf, constraints)
-			return err
+		model := deviceCtx.Model()
+		constraints := &gadget.ModelConstraints{
+			Classic:    model.Classic(),
+			SystemSeed: model.Grade() != asserts.ModelGradeUnset,
 		}
-		if err := validateGadgetModelConstraints(model, snapf); err != nil {
+		if _, err = gadget.ReadInfoFromSnapFile(snapf, constraints); err != nil {
 			return err
 		}
 	}
