@@ -156,8 +156,6 @@ func generateMountsModeInstall() error {
 				}
 			}
 		}
-
-		return nil
 	}
 
 	// 3. mount "ubuntu-data" on a tmpfs
