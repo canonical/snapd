@@ -327,6 +327,11 @@ func (s *linkSnapSuite) TestDoLinkSnapSeqFile(c *C) {
 func (s *linkSnapSuite) TestDoUndoLinkSnap(c *C) {
 	s.state.Lock()
 	defer s.state.Unlock()
+	// a hook might have set some config
+	cfg := json.RawMessage(`{"c":true}`)
+	err := config.SetSnapConfig(s.state, "foo", &cfg)
+	c.Assert(err, IsNil)
+
 	si := &snap.SideInfo{
 		RealName: "foo",
 		Revision: snap.R(33),
@@ -352,7 +357,7 @@ func (s *linkSnapSuite) TestDoUndoLinkSnap(c *C) {
 
 	s.state.Lock()
 	var snapst snapstate.SnapState
-	err := snapstate.Get(s.state, "foo", &snapst)
+	err = snapstate.Get(s.state, "foo", &snapst)
 	c.Assert(err, Equals, state.ErrNoState)
 	c.Check(t.Status(), Equals, state.UndoneStatus)
 
@@ -360,6 +365,14 @@ func (s *linkSnapSuite) TestDoUndoLinkSnap(c *C) {
 	seqContent, err := ioutil.ReadFile(filepath.Join(dirs.SnapSeqDir, "foo.json"))
 	c.Assert(err, IsNil)
 	c.Check(string(seqContent), Equals, `{"sequence":[],"current":"unset"}`)
+
+	// nothing in config
+	var config map[string]*json.RawMessage
+	err = s.state.Get("config", &config)
+	c.Assert(err, IsNil)
+	c.Check(config, HasLen, 1)
+	_, ok := config["core"]
+	c.Check(ok, Equals, true)
 }
 
 func (s *linkSnapSuite) TestDoLinkSnapTryToCleanupOnError(c *C) {
