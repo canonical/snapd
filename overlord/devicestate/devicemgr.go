@@ -270,7 +270,7 @@ func (m *DeviceManager) ensureOperational() error {
 	defer m.state.Unlock()
 
 	if m.operatingMode() != "run" {
-		// avoid doing registration in install mode
+		// avoid doing registration in ephemeral mode
 		return nil
 	}
 
@@ -433,8 +433,7 @@ func (m *DeviceManager) ensureSeeded() error {
 	}
 
 	var opts *populateStateFromSeedOptions
-	// XXX: should we define something like "modeEnv.Valid()"?
-	if m.modeEnv.Mode != "" {
+	if !m.modeEnv.Unset() {
 		opts = &populateStateFromSeedOptions{
 			Label: m.modeEnv.RecoverySystem,
 			Mode:  m.modeEnv.Mode,
@@ -511,6 +510,7 @@ func (m *DeviceManager) ensureInstalled() error {
 		return nil
 	}
 
+	// Note: thisalso stop auto-refreshes indirectly
 	if m.operatingMode() != "install" {
 		return nil
 	}
