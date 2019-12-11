@@ -259,6 +259,9 @@ func setClassicFallbackModel(st *state.State, device *auth.DeviceState) error {
 }
 
 func (m *DeviceManager) operatingMode() string {
+	if m.modeEnv.Mode == "" {
+		return "run"
+	}
 	return m.modeEnv.Mode
 }
 
@@ -266,8 +269,8 @@ func (m *DeviceManager) ensureOperational() error {
 	m.state.Lock()
 	defer m.state.Unlock()
 
-	if m.operatingMode() == "install" {
-		// avoid doing registration in install mode
+	if m.operatingMode() != "run" {
+		// avoid doing registration in ephemeral mode
 		return nil
 	}
 
@@ -430,7 +433,7 @@ func (m *DeviceManager) ensureSeeded() error {
 	}
 
 	var opts *populateStateFromSeedOptions
-	if m.operatingMode() != "" {
+	if !m.modeEnv.Unset() {
 		opts = &populateStateFromSeedOptions{
 			Label: m.modeEnv.RecoverySystem,
 			Mode:  m.modeEnv.Mode,
@@ -473,6 +476,11 @@ func (m *DeviceManager) ensureBootOk() error {
 		return nil
 	}
 
+	// book-ok/update-boot-revision is only relevant in run-mode
+	if m.operatingMode() != "run" {
+		return nil
+	}
+
 	if !m.bootOkRan {
 		if err := boot.MarkBootSuccessful(); err != nil {
 			return err
@@ -502,6 +510,7 @@ func (m *DeviceManager) ensureInstalled() error {
 		return nil
 	}
 
+	// Note: thisalso stop auto-refreshes indirectly
 	if m.operatingMode() != "install" {
 		return nil
 	}
