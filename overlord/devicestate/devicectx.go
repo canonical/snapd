@@ -79,6 +79,22 @@ func (dc *groundDeviceContext) OperatingMode() string {
 	return dc.operatingMode
 }
 
+func (dc groundDeviceContext) Classic() bool {
+	return dc.model.Classic()
+}
+
+func (dc groundDeviceContext) Kernel() string {
+	return dc.model.Kernel()
+}
+
+func (dc groundDeviceContext) Base() string {
+	return dc.model.Base()
+}
+
+func (dc groundDeviceContext) RunMode() bool {
+	return dc.operatingMode == "run"
+}
+
 // sanity
 var _ snapstate.DeviceContext = &groundDeviceContext{}
 
