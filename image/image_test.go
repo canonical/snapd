@@ -2315,12 +2315,8 @@ func (s *imageSuite) makeSnap(c *C, yamlKey string, files [][]string, revno snap
 	s.MakeAssertedSnap(c, seedtest.SampleSnapYaml[yamlKey], files, revno, publisher)
 }
 
-func (s *imageSuite) TestSetupSeedCore20(c *C) {
-	restore := image.MockTrusted(s.StoreSigning.Trusted)
-	defer restore()
-
-	// a model that uses core20
-	model := s.Brands.Model("my-brand", "my-model", map[string]interface{}{
+func (s *imageSuite) makeUC20Model(extraHeaders map[string]interface{}) *asserts.Model {
+	headers := map[string]interface{}{
 		"display-name": "my model",
 		"architecture": "amd64",
 		"base":         "core20",
@@ -2341,14 +2337,27 @@ func (s *imageSuite) TestSetupSeedCore20(c *C) {
 				"name": "required20",
 				"id":   s.AssertedSnapID("required20"),
 			}},
-	})
+	}
+	for k, v := range extraHeaders {
+		headers[k] = v
+	}
+
+	return s.Brands.Model("my-brand", "my-model", headers)
+}
+
+func (s *imageSuite) TestSetupSeedCore20(c *C) {
+	restore := image.MockTrusted(s.StoreSigning.Trusted)
+	defer restore()
+
+	// a model that uses core20
+	model := s.makeUC20Model(nil)
 
 	prepareDir := c.MkDir()
 
 	s.makeSnap(c, "snapd", nil, snap.R(1), "")
 	s.makeSnap(c, "core20", nil, snap.R(20), "")
 	s.makeSnap(c, "pc-kernel=20", nil, snap.R(1), "")
-	s.makeSnap(c, "pc=20", [][]string{{"grub.conf", ""}, {"grub.cfg", "I'm a grub.cfg"}}, snap.R(22), "") // XXX likely don't need grub.cfg there
+	s.makeSnap(c, "pc=20", [][]string{{"grub-recovery.conf", "# recovery grub.cfg"}, {"grub.cfg", "boot grub.cfg"}}, snap.R(22), "") // XXX likely don't need grub.cfg there
 	s.makeSnap(c, "required20", nil, snap.R(21), "other")
 
 	opts := &image.Options{
@@ -2400,9 +2409,21 @@ func (s *imageSuite) TestSetupSeedCore20(c *C) {
 	c.Assert(err, IsNil)
 	c.Check(l, HasLen, 5)
 
-	// TODO|XXX: test recovery boot env
+	// check boot config
+	grubCfg := filepath.Join(prepareDir, "system-seed", "EFI/ubuntu/grub.cfg")
+	c.Check(grubCfg, testutil.FileMatches, "# recovery grub.cfg")
 
 	c.Check(s.stderr.String(), Equals, "")
+
+	// check recovery system specific config
+	systems, err := filepath.Glob(filepath.Join(seeddir, "systems", "*"))
+	c.Assert(err, IsNil)
+	c.Assert(systems, HasLen, 1)
+
+	c.Check(s.bootloader.RecoverySystemDir, Equals, fmt.Sprintf("/systems/%s", filepath.Base(systems[0])))
+	c.Check(s.bootloader.RecoverySystemBootVars, DeepEquals, map[string]string{
+		"snapd_recovery_kernel": "/snaps/pc-kernel_1.snap",
+	})
 
 	// check the downloads
 	c.Check(s.storeActions, HasLen, 5)

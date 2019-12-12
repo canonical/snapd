@@ -70,8 +70,8 @@ execute: |
     # my-nesting-ubuntu nesting container
 
     . /etc/os-release
-    lxd.lxc launch "ubuntu:${VERSION_ID}" my-ubuntu
-    lxd.lxc launch "ubuntu:${VERSION_ID}" my-nesting-ubuntu -c security.nesting=true
+    lxd.lxc launch --quiet "ubuntu:${VERSION_ID}" my-ubuntu
+    lxd.lxc launch --quiet "ubuntu:${VERSION_ID}" my-nesting-ubuntu -c security.nesting=true
 
     for cont_name in my-ubuntu my-nesting-ubuntu; do
         echo "Ensure we can run things inside"
@@ -85,7 +85,7 @@ execute: |
 
         echo "Install snapd"
         lxd.lxc exec $cont_name -- mkdir -p "$GOHOME"
-        lxd.lxc file push "$GOHOME"/snapd_*.deb "$cont_name/$GOHOME/"
+        lxd.lxc file push --quiet "$GOHOME"/snapd_*.deb "$cont_name/$GOHOME/"
         lxd.lxc exec $cont_name -- apt install -y "$GOHOME"/snapd_*.deb
 
         echo "Setting up proxy *inside* the container"

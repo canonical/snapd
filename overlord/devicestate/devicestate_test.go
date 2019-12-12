@@ -330,7 +330,16 @@ func (s *deviceMgrSuite) TestDeviceManagerEnsureSeededHappy(c *C) {
 }
 
 func (s *deviceMgrSuite) TestDeviceManagerEnsureBootOkSkippedOnClassic(c *C) {
+	s.bootloader.GetErr = fmt.Errorf("should not be called")
 	release.OnClassic = true
+
+	err := devicestate.EnsureBootOk(s.mgr)
+	c.Assert(err, IsNil)
+}
+
+func (s *deviceMgrSuite) TestDeviceManagerEnsureBootOkSkippedOnNonRunModes(c *C) {
+	s.bootloader.GetErr = fmt.Errorf("should not be called")
+	devicestate.SetOperatingMode(s.mgr, "install")
 
 	err := devicestate.EnsureBootOk(s.mgr)
 	c.Assert(err, IsNil)
@@ -1063,4 +1072,12 @@ func (s *deviceMgrSuite) TestDeviceManagerReadsModeenv(c *C) {
 	c.Assert(err, IsNil)
 	c.Assert(mgr, NotNil)
 	c.Assert(devicestate.OperatingMode(mgr), Equals, "install")
+}
+
+func (s *deviceMgrSuite) TestDeviceManagerEmptyOperatingModeRun(c *C) {
+	// set empty operating mode
+	devicestate.SetOperatingMode(s.mgr, "")
+
+	// empty is returned as "run"
+	c.Check(devicestate.OperatingMode(s.mgr), Equals, "run")
 }

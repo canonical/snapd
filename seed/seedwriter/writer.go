@@ -996,7 +996,15 @@ func (w *Writer) SeedSnaps(copySnap func(name, src, dst string) error) error {
 					return fmt.Errorf("internal error: before seedwriter.Writer.SeedSnaps snap file %q should exist", expectedPath)
 				}
 			} else {
-				dst, err := w.tree.localSnapPath(sn)
+				var snapPath func(*SeedSnap) (string, error)
+				if sn.Info.ID() != "" {
+					// actually asserted
+					snapPath = w.tree.snapPath
+				} else {
+					// purely local
+					snapPath = w.tree.localSnapPath
+				}
+				dst, err := snapPath(sn)
 				if err != nil {
 					return err
 				}

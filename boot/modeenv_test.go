@@ -46,6 +46,11 @@ func (s *modeenvSuite) SetUpTest(c *C) {
 	s.mockModeenvPath = filepath.Join(s.tmpdir, dirs.SnapModeenvFile)
 }
 
+func (s *modeenvSuite) TestUnset(c *C) {
+	modeenv := &boot.Modeenv{}
+	c.Check(modeenv.Unset(), Equals, true)
+}
+
 func (s *modeenvSuite) TestReadEmptyErrors(c *C) {
 	modeenv, err := boot.ReadModeenv("/no/such/file")
 	c.Assert(os.IsNotExist(err), Equals, true)
@@ -66,6 +71,8 @@ func (s *modeenvSuite) TestReadEmpty(c *C) {
 	c.Assert(err, IsNil)
 	c.Check(modeenv.Mode, Equals, "")
 	c.Check(modeenv.RecoverySystem, Equals, "")
+	// an empty modeenv still means the modeenv was set
+	c.Check(modeenv.Unset(), Equals, false)
 }
 
 func (s *modeenvSuite) TestReadMode(c *C) {

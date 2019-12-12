@@ -149,10 +149,10 @@ func (s *validateGadgetTestSuite) TestValidateClassic(c *C) {
 	err := gadget.Validate(s.dir, nil)
 	c.Assert(err, IsNil)
 
-	err = gadget.Validate(s.dir, &gadget.ModelConstraints{Classic: true})
+	err = gadget.Validate(s.dir, &modelConstraints{classic: true})
 	c.Assert(err, IsNil)
 
-	err = gadget.Validate(s.dir, &gadget.ModelConstraints{Classic: false})
+	err = gadget.Validate(s.dir, &modelConstraints{classic: false})
 	c.Assert(err, ErrorMatches, "invalid gadget metadata: bootloader not declared in any volume")
 }
 
