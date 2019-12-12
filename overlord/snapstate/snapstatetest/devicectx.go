@@ -32,17 +32,32 @@ type TrivialDeviceContext struct {
 	Remodeling     bool
 	CtxStore       snapstate.StoreService
 	OpMode         string
+	Ground         bool
 }
 
 func (dc *TrivialDeviceContext) Model() *asserts.Model {
 	return dc.DeviceModel
 }
 
-func (dc *TrivialDeviceContext) OldModel() *asserts.Model {
-	return dc.OldDeviceModel
+func (dc *TrivialDeviceContext) GroundContext() snapstate.DeviceContext {
+	if dc.ForRemodeling() && dc.OldDeviceModel != nil {
+		return &TrivialDeviceContext{
+			DeviceModel: dc.OldDeviceModel,
+			OpMode:      dc.OpMode,
+			Ground:      true,
+		}
+	}
+	return &TrivialDeviceContext{
+		DeviceModel: dc.DeviceModel,
+		OpMode:      dc.OpMode,
+		Ground:      true,
+	}
 }
 
 func (dc *TrivialDeviceContext) Store() snapstate.StoreService {
+	if dc.Ground {
+		panic("retrieved ground context is not intended to drive store operations")
+	}
 	return dc.CtxStore
 }
 

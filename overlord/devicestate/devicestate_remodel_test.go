@@ -898,6 +898,31 @@ func (s *deviceMgrRemodelSuite) TestDeviceCtxNoTask(c *C) {
 	c.Assert(deviceCtx.Model().BrandID(), Equals, "canonical")
 }
 
+func (s *deviceMgrRemodelSuite) TestDeviceCtxGroundContext(c *C) {
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	// have a model assertion
+	model := s.brands.Model("canonical", "pc", map[string]interface{}{
+		"gadget":       "pc",
+		"kernel":       "kernel",
+		"architecture": "amd64",
+	})
+	assertstatetest.AddMany(s.state, model)
+	devicestatetest.SetDevice(s.state, &auth.DeviceState{
+		Brand: "canonical",
+		Model: "pc",
+	})
+
+	deviceCtx, err := devicestate.DeviceCtx(s.state, nil, nil)
+	c.Assert(err, IsNil)
+	c.Assert(deviceCtx.Model().BrandID(), Equals, "canonical")
+	groundCtx := deviceCtx.GroundContext()
+	c.Check(groundCtx.ForRemodeling(), Equals, false)
+	c.Check(groundCtx.Model().Model(), Equals, "pc")
+	c.Check(groundCtx.Store, PanicMatches, `retrieved ground context is not intended to drive store operations`)
+}
+
 func (s *deviceMgrRemodelSuite) TestDeviceCtxProvided(c *C) {
 	s.state.Lock()
 	defer s.state.Unlock()

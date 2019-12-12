@@ -208,7 +208,7 @@ func checkGadgetRemodelCompatible(st *state.State, snapInfo, curInfo *snap.Info,
 		return fmt.Errorf("cannot read new gadget metadata: %v", err)
 	}
 
-	currentData, err := gadgetDataFromInfo(curInfo, deviceCtx.OldModel())
+	currentData, err := gadgetDataFromInfo(curInfo, deviceCtx.GroundContext().Model())
 	if err != nil {
 		return fmt.Errorf("cannot read current gadget metadata: %v", err)
 	}

@@ -48,36 +48,47 @@ func DeviceCtx(st *state.State, task *state.Task, providedDeviceCtx snapstate.De
 	}
 
 	devMgr := deviceMgr(st)
-	return &modelDeviceContext{
+	return &modelDeviceContext{groundDeviceContext{
 		model:         modelAs,
 		operatingMode: devMgr.OperatingMode(),
-	}, nil
+	}}, nil
 }
 
-type modelDeviceContext struct {
+type groundDeviceContext struct {
 	model         *asserts.Model
 	operatingMode string
 }
 
-// sanity
-var _ snapstate.DeviceContext = &modelDeviceContext{}
-
-func (dc *modelDeviceContext) Model() *asserts.Model {
+func (dc *groundDeviceContext) Model() *asserts.Model {
 	return dc.model
 }
 
-func (dc *modelDeviceContext) OldModel() *asserts.Model {
-	return nil
+func (dc *groundDeviceContext) GroundContext() snapstate.DeviceContext {
+	return dc
+}
+
+func (dc *groundDeviceContext) Store() snapstate.StoreService {
+	panic("retrieved ground context is not intended to drive store operations")
+}
+
+func (dc *groundDeviceContext) ForRemodeling() bool {
+	return false
+}
+
+func (dc *groundDeviceContext) OperatingMode() string {
+	return dc.operatingMode
+}
+
+// sanity
+var _ snapstate.DeviceContext = &groundDeviceContext{}
+
+type modelDeviceContext struct {
+	groundDeviceContext
 }
 
 func (dc *modelDeviceContext) Store() snapstate.StoreService {
 	return nil
 }
 
-func (dc *modelDeviceContext) ForRemodeling() bool {
-	return false
-}
-
-func (dc *modelDeviceContext) OperatingMode() string {
-	return dc.operatingMode
-}
+// sanity
+var _ snapstate.DeviceContext = &modelDeviceContext{}

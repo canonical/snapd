@@ -174,6 +174,10 @@ func (s *remodelLogicSuite) TestUpdateRemodelContext(c *C) {
 
 	c.Check(remodCtx.ForRemodeling(), Equals, true)
 	c.Check(remodCtx.Kind(), Equals, devicestate.UpdateRemodel)
+	groundCtx := remodCtx.GroundContext()
+	c.Check(groundCtx.ForRemodeling(), Equals, false)
+	c.Check(groundCtx.Model().Revision(), Equals, 0)
+	c.Check(groundCtx.Store, PanicMatches, `retrieved ground context is not intended to drive store operations`)
 
 	chg := s.state.NewChange("remodel", "...")
 
@@ -212,6 +216,9 @@ func (s *remodelLogicSuite) TestNewStoreRemodelContextInit(c *C) {
 
 	c.Check(remodCtx.ForRemodeling(), Equals, true)
 	c.Check(remodCtx.Kind(), Equals, devicestate.StoreSwitchRemodel)
+	groundCtx := remodCtx.GroundContext()
+	c.Check(groundCtx.ForRemodeling(), Equals, false)
+	c.Check(groundCtx.Model().Revision(), Equals, 0)
 
 	chg := s.state.NewChange("remodel", "...")
 
@@ -763,6 +770,9 @@ func (s *remodelLogicSuite) TestReregRemodelContextInit(c *C) {
 
 	c.Check(remodCtx.ForRemodeling(), Equals, true)
 	c.Check(remodCtx.Kind(), Equals, devicestate.ReregRemodel)
+	groundCtx := remodCtx.GroundContext()
+	c.Check(groundCtx.ForRemodeling(), Equals, false)
+	c.Check(groundCtx.Model().BrandID(), Equals, "my-brand")
 
 	chg := s.state.NewChange("remodel", "...")
 
