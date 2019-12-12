@@ -271,6 +271,7 @@ func (m *DeviceManager) ensureOperational() error {
 
 	if m.OperatingMode() != "run" {
 		// avoid doing registration in ephemeral mode
+		// note: this also stop auto-refreshes indirectly
 		return nil
 	}
 
@@ -476,7 +477,7 @@ func (m *DeviceManager) ensureBootOk() error {
 		return nil
 	}
 
-	// book-ok/update-boot-revision is only relevant in run-mode
+	// boot-ok/update-boot-revision is only relevant in run-mode
 	if m.OperatingMode() != "run" {
 		return nil
 	}
@@ -510,7 +511,6 @@ func (m *DeviceManager) ensureInstalled() error {
 		return nil
 	}
 
-	// Note: thisalso stop auto-refreshes indirectly
 	if m.OperatingMode() != "install" {
 		return nil
 	}

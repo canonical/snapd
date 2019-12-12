@@ -119,6 +119,23 @@ func (s *deviceCtxSuite) TestDevicePastSeedingReady(c *C) {
 	deviceCtx, err := snapstate.DevicePastSeeding(s.st, nil)
 	c.Assert(err, IsNil)
 	c.Check(deviceCtx.Model().Model(), Equals, "baz-3000")
+	c.Check(deviceCtx.OperatingMode(), Equals, "run")
+}
+
+func (s *deviceCtxSuite) TestDevicePastSeedingReadyInstallMode(c *C) {
+	s.st.Lock()
+	defer s.st.Unlock()
+
+	// seeded and model assertion
+	s.st.Set("seeded", true)
+
+	r := snapstatetest.MockDeviceModelAndMode(DefaultModel(), "install")
+	defer r()
+
+	deviceCtx, err := snapstate.DevicePastSeeding(s.st, nil)
+	c.Assert(err, IsNil)
+	c.Check(deviceCtx.Model().Model(), Equals, "baz-3000")
+	c.Check(deviceCtx.OperatingMode(), Equals, "install")
 }
 
 func (s *deviceCtxSuite) TestDevicePastSeedingButRemodeling(c *C) {
@@ -199,19 +216,4 @@ func (s *deviceCtxSuite) TestDeviceCtxFromStateTooEarly(c *C) {
 	s.st.Set("seeded", true)
 	_, err = snapstate.DeviceCtxFromState(s.st, nil)
 	c.Assert(err, DeepEquals, expectedErr)
-}
-
-func (s *deviceCtxSuite) TestDeviceOperatingModeDefaults(c *C) {
-	s.st.Lock()
-	defer s.st.Unlock()
-
-	// seeded and model assertion
-	s.st.Set("seeded", true)
-
-	r := snapstatetest.MockOperatingMode("install")
-	defer r()
-
-	deviceCtx, err := snapstate.DevicePastSeeding(s.st, nil)
-	c.Assert(err, IsNil)
-	c.Check(deviceCtx.OperatingMode(), Equals, "install")
 }

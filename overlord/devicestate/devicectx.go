@@ -34,8 +34,6 @@ func DeviceCtx(st *state.State, task *state.Task, providedDeviceCtx snapstate.De
 	if providedDeviceCtx != nil {
 		return providedDeviceCtx, nil
 	}
-	devMgr := deviceMgr(st)
-
 	// use the remodelContext if the task is part of a remodel change
 	remodCtx, err := remodelCtxFromTask(task)
 	if err == nil {
@@ -49,6 +47,7 @@ func DeviceCtx(st *state.State, task *state.Task, providedDeviceCtx snapstate.De
 		return nil, err
 	}
 
+	devMgr := deviceMgr(st)
 	return modelDeviceContext{
 		model:         modelAs,
 		operatingMode: devMgr.OperatingMode(),

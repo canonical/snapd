@@ -51,7 +51,11 @@ func (dc *TrivialDeviceContext) ForRemodeling() bool {
 }
 
 func (dc *TrivialDeviceContext) OperatingMode() string {
-	return dc.OpMode
+	mode := dc.OpMode
+	if mode == "" {
+		return "run"
+	}
+	return mode
 }
 
 func MockDeviceModel(model *asserts.Model) (restore func()) {
@@ -62,8 +66,8 @@ func MockDeviceModel(model *asserts.Model) (restore func()) {
 	return MockDeviceContext(deviceCtx)
 }
 
-func MockOperatingMode(operatingMode string) (restore func()) {
-	deviceCtx := &TrivialDeviceContext{OpMode: operatingMode}
+func MockDeviceModelAndMode(model *asserts.Model, operatingMode string) (restore func()) {
+	deviceCtx := &TrivialDeviceContext{DeviceModel: model, OpMode: operatingMode}
 	return MockDeviceContext(deviceCtx)
 }
 
