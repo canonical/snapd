@@ -25,7 +25,6 @@ import (
 	"errors"
 	"fmt"
 	"io"
-	"net"
 	"net/http"
 	"net/url"
 	"strconv"
@@ -331,7 +330,7 @@ func prepareSerialRequest(t *state.Task, regCtx registrationContext, privKey ass
 
 	resp, err := client.Do(req)
 	if err != nil {
-		if netErr, ok := err.(net.Error); ok && !netErr.Temporary() {
+		if !httputil.ShouldRetryError(err) {
 			// a non temporary net error, like a DNS no
 			// host, error out and do full retries
 			return "", fmt.Errorf("cannot retrieve request-id for making a request for a serial: %v", err)
