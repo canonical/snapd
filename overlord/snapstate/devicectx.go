@@ -38,6 +38,9 @@ type DeviceContext interface {
 
 	// ForRemodeling returns whether this context is for use over a remodeling.
 	ForRemodeling() bool
+
+	// OperatingMode return the operating mode (run,install,recover,...)
+	OperatingMode() string
 }
 
 // Hook setup by devicestate to pick a device context from state,

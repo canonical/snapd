@@ -135,7 +135,7 @@ func remodelCtx(st *state.State, oldModel, newModel *asserts.Model) (remodelCont
 	switch kind := ClassifyRemodel(oldModel, newModel); kind {
 	case UpdateRemodel:
 		// simple context for the simple case
-		remodCtx = &updateRemodelContext{baseRemodelContext{newModel, oldModel}}
+		remodCtx = &updateRemodelContext{baseRemodelContext{newModel, oldModel, devMgr.OperatingMode()}}
 	case StoreSwitchRemodel:
 		remodCtx = newNewStoreRemodelContext(st, devMgr, newModel, oldModel)
 	case ReregRemodel:
@@ -203,6 +203,7 @@ func remodelCtxFromTask(t *state.Task) (remodelContext, error) {
 
 type baseRemodelContext struct {
 	newModel, oldModel *asserts.Model
+	operatingMode      string
 }
 
 func (rc baseRemodelContext) ForRemodeling() bool {
@@ -228,6 +229,10 @@ func (rc baseRemodelContext) cacheViaChange(chg *state.Change, remodCtx remodelC
 
 func (rc baseRemodelContext) init(chg *state.Change) {
 	chg.Set("new-model", string(asserts.Encode(rc.newModel)))
+}
+
+func (rc baseRemodelContext) OperatingMode() string {
+	return rc.operatingMode
 }
 
 // updateRemodelContext: model assertion revision-only update remodel
@@ -277,7 +282,7 @@ type newStoreRemodelContext struct {
 
 func newNewStoreRemodelContext(st *state.State, devMgr *DeviceManager, newModel, oldModel *asserts.Model) *newStoreRemodelContext {
 	rc := &newStoreRemodelContext{}
-	rc.baseRemodelContext = baseRemodelContext{newModel, oldModel}
+	rc.baseRemodelContext = baseRemodelContext{newModel, oldModel, devMgr.OperatingMode()}
 	rc.st = st
 	rc.deviceMgr = devMgr
 	rc.store = devMgr.newStore(rc.deviceBackend())

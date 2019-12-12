@@ -31,6 +31,7 @@ type TrivialDeviceContext struct {
 	OldDeviceModel *asserts.Model
 	Remodeling     bool
 	CtxStore       snapstate.StoreService
+	OpMode         string
 }
 
 func (dc *TrivialDeviceContext) Model() *asserts.Model {
@@ -49,11 +50,20 @@ func (dc *TrivialDeviceContext) ForRemodeling() bool {
 	return dc.Remodeling
 }
 
+func (dc *TrivialDeviceContext) OperatingMode() string {
+	return dc.OpMode
+}
+
 func MockDeviceModel(model *asserts.Model) (restore func()) {
 	var deviceCtx snapstate.DeviceContext
 	if model != nil {
 		deviceCtx = &TrivialDeviceContext{DeviceModel: model}
 	}
+	return MockDeviceContext(deviceCtx)
+}
+
+func MockOperatingMode(operatingMode string) (restore func()) {
+	deviceCtx := &TrivialDeviceContext{OpMode: operatingMode}
 	return MockDeviceContext(deviceCtx)
 }
 

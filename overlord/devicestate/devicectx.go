@@ -34,6 +34,8 @@ func DeviceCtx(st *state.State, task *state.Task, providedDeviceCtx snapstate.De
 	if providedDeviceCtx != nil {
 		return providedDeviceCtx, nil
 	}
+	devMgr := deviceMgr(st)
+
 	// use the remodelContext if the task is part of a remodel change
 	remodCtx, err := remodelCtxFromTask(task)
 	if err == nil {
@@ -46,11 +48,16 @@ func DeviceCtx(st *state.State, task *state.Task, providedDeviceCtx snapstate.De
 	if err != nil {
 		return nil, err
 	}
-	return modelDeviceContext{model: modelAs}, nil
+
+	return modelDeviceContext{
+		model:         modelAs,
+		operatingMode: devMgr.OperatingMode(),
+	}, nil
 }
 
 type modelDeviceContext struct {
-	model *asserts.Model
+	model         *asserts.Model
+	operatingMode string
 }
 
 // sanity
@@ -70,4 +77,8 @@ func (dc modelDeviceContext) Store() snapstate.StoreService {
 
 func (dc modelDeviceContext) ForRemodeling() bool {
 	return false
+}
+
+func (dc modelDeviceContext) OperatingMode() string {
+	return dc.operatingMode
 }
