@@ -206,32 +206,32 @@ type baseRemodelContext struct {
 	operatingMode      string
 }
 
-func (rc baseRemodelContext) ForRemodeling() bool {
+func (rc *baseRemodelContext) ForRemodeling() bool {
 	return true
 }
 
-func (rc baseRemodelContext) Model() *asserts.Model {
+func (rc *baseRemodelContext) Model() *asserts.Model {
 	return rc.newModel
 }
 
-func (rc baseRemodelContext) OldModel() *asserts.Model {
+func (rc *baseRemodelContext) OldModel() *asserts.Model {
 	return rc.oldModel
 }
 
-func (rc baseRemodelContext) initialDevice(*auth.DeviceState) error {
+func (rc *baseRemodelContext) initialDevice(*auth.DeviceState) error {
 	// do nothing
 	return nil
 }
 
-func (rc baseRemodelContext) cacheViaChange(chg *state.Change, remodCtx remodelContext) {
+func (rc *baseRemodelContext) cacheViaChange(chg *state.Change, remodCtx remodelContext) {
 	chg.State().Cache(remodelCtxKey{chg.ID()}, remodCtx)
 }
 
-func (rc baseRemodelContext) init(chg *state.Change) {
+func (rc *baseRemodelContext) init(chg *state.Change) {
 	chg.Set("new-model", string(asserts.Encode(rc.newModel)))
 }
 
-func (rc baseRemodelContext) OperatingMode() string {
+func (rc *baseRemodelContext) OperatingMode() string {
 	return rc.operatingMode
 }
 

@@ -48,7 +48,7 @@ func DeviceCtx(st *state.State, task *state.Task, providedDeviceCtx snapstate.De
 	}
 
 	devMgr := deviceMgr(st)
-	return modelDeviceContext{
+	return &modelDeviceContext{
 		model:         modelAs,
 		operatingMode: devMgr.OperatingMode(),
 	}, nil
@@ -60,24 +60,24 @@ type modelDeviceContext struct {
 }
 
 // sanity
-var _ snapstate.DeviceContext = modelDeviceContext{}
+var _ snapstate.DeviceContext = &modelDeviceContext{}
 
-func (dc modelDeviceContext) Model() *asserts.Model {
+func (dc *modelDeviceContext) Model() *asserts.Model {
 	return dc.model
 }
 
-func (dc modelDeviceContext) OldModel() *asserts.Model {
+func (dc *modelDeviceContext) OldModel() *asserts.Model {
 	return nil
 }
 
-func (dc modelDeviceContext) Store() snapstate.StoreService {
+func (dc *modelDeviceContext) Store() snapstate.StoreService {
 	return nil
 }
 
-func (dc modelDeviceContext) ForRemodeling() bool {
+func (dc *modelDeviceContext) ForRemodeling() bool {
 	return false
 }
 
-func (dc modelDeviceContext) OperatingMode() string {
+func (dc *modelDeviceContext) OperatingMode() string {
 	return dc.operatingMode
 }
