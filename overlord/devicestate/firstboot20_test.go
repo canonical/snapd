@@ -64,6 +64,15 @@ func (s *firstBoot20Suite) setupCore20Seed(c *C, sysLabel string) {
 volumes:
     volume-id:
         bootloader: grub
+        structure:
+        - name: ubuntu-seed
+          role: system-seed
+          type: EF,C12A7328-F81F-11D2-BA4B-00A0C93EC93B
+          size: 1G
+        - name: ubuntu-data
+          role: system-data
+          type: 83,0FC63DAF-8483-4772-8E79-3D69D8477DE4
+          size: 2G
 `
 
 	makeSnap := func(yamlKey string) {

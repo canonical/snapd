@@ -964,7 +964,7 @@ volumes:
 		"gadget":       "new-gadget",
 		"kernel":       "kernel",
 	})
-	remodelCtx := &snapstatetest.TrivialDeviceContext{DeviceModel: newModel, Remodeling: true}
+	remodelCtx := &snapstatetest.TrivialDeviceContext{DeviceModel: newModel, Remodeling: true, OldDeviceModel: oldModel}
 
 	restore := devicestate.MockGadgetIsCompatible(func(current, update *gadget.Info) error {
 		c.Assert(current.Volumes, HasLen, 1)
@@ -1082,12 +1082,17 @@ version: 123
 
 	s.setupBrands(c)
 	// model assertion in device context
-	model := fakeMyModel(map[string]interface{}{
+	oldModel := fakeMyModel(map[string]interface{}{
 		"architecture": "amd64",
-		"gadget":       "gadget",
+		"gadget":       "new-gadget",
 		"kernel":       "krnl",
 	})
-	remodelCtx := &snapstatetest.TrivialDeviceContext{DeviceModel: model, Remodeling: true}
+	model := fakeMyModel(map[string]interface{}{
+		"architecture": "amd64",
+		"gadget":       "new-gadget",
+		"kernel":       "krnl",
+	})
+	remodelCtx := &snapstatetest.TrivialDeviceContext{DeviceModel: model, Remodeling: true, OldDeviceModel: oldModel}
 
 	err = devicestate.CheckGadgetRemodelCompatible(s.state, info, currInfo, snapf, snapstate.Flags{}, remodelCtx)
 	if expErr == "" {

@@ -28,6 +28,7 @@ import (
 	"github.com/snapcore/snapd/arch"
 	"github.com/snapcore/snapd/asserts"
 	"github.com/snapcore/snapd/cmd"
+	"github.com/snapcore/snapd/gadget"
 	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/overlord/snapstate/backend"
@@ -452,7 +453,7 @@ func checkCoreName(st *state.State, snapInfo, curInfo *snap.Info, _ snap.Contain
 	return nil
 }
 
-func checkGadgetOrKernel(st *state.State, snapInfo, curInfo *snap.Info, _ snap.Container, flags Flags, deviceCtx DeviceContext) error {
+func checkGadgetOrKernel(st *state.State, snapInfo, curInfo *snap.Info, snapf snap.Container, flags Flags, deviceCtx DeviceContext) error {
 	typ := snapInfo.GetType()
 	kind := ""
 	var whichName func(*asserts.Model) string
@@ -476,6 +477,13 @@ func checkGadgetOrKernel(st *state.State, snapInfo, curInfo *snap.Info, _ snap.C
 	// first install rules are in devicestate!
 	if !ok {
 		return nil
+	}
+
+	// do basic constraints check on the gadget
+	if typ == snap.TypeGadget {
+		if _, err = gadget.ReadInfoFromSnapFile(snapf, deviceCtx.Model()); err != nil {
+			return err
+		}
 	}
 
 	currentSnap, err := infoForDeviceSnap(st, deviceCtx, kind, whichName)

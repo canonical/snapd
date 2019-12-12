@@ -286,7 +286,7 @@ version: 2
 	c.Assert(err, IsNil)
 
 	var openSnapFile = func(path string, si *snap.SideInfo) (*snap.Info, snap.Container, error) {
-		return info, emptyContainer(c), nil
+		return info, minimalGadgetContainer(c), nil
 	}
 	restore := snapstate.MockOpenSnapFile(openSnapFile)
 	defer restore()
@@ -328,7 +328,7 @@ version: 2
 	c.Assert(err, IsNil)
 
 	var openSnapFile = func(path string, si *snap.SideInfo) (*snap.Info, snap.Container, error) {
-		return info, emptyContainer(c), nil
+		return info, minimalGadgetContainer(c), nil
 	}
 	restore := snapstate.MockOpenSnapFile(openSnapFile)
 	defer restore()
@@ -369,7 +369,7 @@ version: 2
 	c.Assert(err, IsNil)
 
 	var openSnapFile = func(path string, si *snap.SideInfo) (*snap.Info, snap.Container, error) {
-		return info, emptyContainer(c), nil
+		return info, minimalGadgetContainer(c), nil
 	}
 	restore := snapstate.MockOpenSnapFile(openSnapFile)
 	defer restore()
@@ -410,7 +410,7 @@ version: 2
 	c.Assert(err, IsNil)
 
 	var openSnapFile = func(path string, si *snap.SideInfo) (*snap.Info, snap.Container, error) {
-		return info, emptyContainer(c), nil
+		return info, minimalGadgetContainer(c), nil
 	}
 	restore := snapstate.MockOpenSnapFile(openSnapFile)
 	defer restore()
@@ -452,7 +452,7 @@ version: 2
 	c.Assert(err, IsNil)
 
 	var openSnapFile = func(path string, si *snap.SideInfo) (*snap.Info, snap.Container, error) {
-		return info, emptyContainer(c), nil
+		return info, minimalGadgetContainer(c), nil
 	}
 	restore := snapstate.MockOpenSnapFile(openSnapFile)
 	defer restore()
@@ -805,6 +805,12 @@ func emptyContainer(c *C) *snapdir.SnapDir {
 	c.Assert(os.Mkdir(filepath.Join(d, "meta"), 0755), IsNil)
 	c.Assert(ioutil.WriteFile(filepath.Join(d, "meta", "snap.yaml"), nil, 0444), IsNil)
 	return snapdir.New(d)
+}
+
+func minimalGadgetContainer(c *C) *snapdir.SnapDir {
+	d := emptyContainer(c)
+	c.Assert(ioutil.WriteFile(filepath.Join(d.Path(), "meta", "gadget.yaml"), []byte(gadgetYaml), 0444), IsNil)
+	return d
 }
 
 func (s *checkSnapSuite) TestCheckSnapInstanceName(c *C) {
@@ -1281,7 +1287,7 @@ version: 2
 	c.Assert(err, IsNil)
 
 	var openSnapFile = func(path string, si *snap.SideInfo) (*snap.Info, snap.Container, error) {
-		return info, emptyContainer(c), nil
+		return info, minimalGadgetContainer(c), nil
 	}
 	restore := snapstate.MockOpenSnapFile(openSnapFile)
 	defer restore()
