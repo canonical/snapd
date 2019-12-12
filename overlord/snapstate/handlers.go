@@ -1368,10 +1368,10 @@ func maybeUndoRemodelBootChanges(t *state.Task) error {
 		return err
 	}
 	// we only have an old model if we are in a remodel situation
-	oldModel := deviceCtx.OldModel()
-	if oldModel == nil {
+	if !deviceCtx.ForRemodeling() {
 		return nil
 	}
+	oldModel := deviceCtx.GroundContext().Model()
 	newModel := deviceCtx.Model()
 
 	// check type of the snap we are undoing, only kernel/base/core are

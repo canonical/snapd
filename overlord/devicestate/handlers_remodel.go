@@ -193,11 +193,7 @@ func checkGadgetRemodelCompatible(st *state.State, snapInfo, curInfo *snap.Info,
 	if curInfo == nil {
 		// snap isn't installed yet, we are likely remodeling to a new
 		// gadget, identify the old gadget
-		groundDeviceCtx, err := DeviceCtx(st, nil, nil)
-		if err != nil {
-			return fmt.Errorf("cannot identify the current model")
-		}
-		curInfo, _ = snapstate.GadgetInfo(st, groundDeviceCtx)
+		curInfo, _ = snapstate.GadgetInfo(st, deviceCtx.GroundContext())
 	}
 	if curInfo == nil {
 		return fmt.Errorf("cannot identify the current gadget snap")
@@ -208,7 +204,7 @@ func checkGadgetRemodelCompatible(st *state.State, snapInfo, curInfo *snap.Info,
 		return fmt.Errorf("cannot read new gadget metadata: %v", err)
 	}
 
-	currentData, err := gadgetDataFromInfo(curInfo, deviceCtx.OldModel())
+	currentData, err := gadgetDataFromInfo(curInfo, deviceCtx.GroundContext().Model())
 	if err != nil {
 		return fmt.Errorf("cannot read current gadget metadata: %v", err)
 	}

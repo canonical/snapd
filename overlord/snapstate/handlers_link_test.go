@@ -1010,6 +1010,7 @@ func (s *linkSnapSuite) setMockKernelRemodelCtx(c *C, oldKernel, newKernel strin
 	mockRemodelCtx := &snapstatetest.TrivialDeviceContext{
 		DeviceModel:    newModel,
 		OldDeviceModel: oldModel,
+		Remodeling:     true,
 	}
 	restore := snapstatetest.MockDeviceContext(mockRemodelCtx)
 	s.AddCleanup(restore)

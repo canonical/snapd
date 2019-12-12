@@ -1071,7 +1071,7 @@ func (s *deviceMgrSuite) TestDeviceManagerReadsModeenv(c *C) {
 	mgr, err := devicestate.Manager(s.state, s.hookMgr, runner, s.newStore)
 	c.Assert(err, IsNil)
 	c.Assert(mgr, NotNil)
-	c.Assert(devicestate.OperatingMode(mgr), Equals, "install")
+	c.Assert(mgr.OperatingMode(), Equals, "install")
 }
 
 func (s *deviceMgrSuite) TestDeviceManagerEmptyOperatingModeRun(c *C) {
@@ -1079,5 +1079,5 @@ func (s *deviceMgrSuite) TestDeviceManagerEmptyOperatingModeRun(c *C) {
 	devicestate.SetOperatingMode(s.mgr, "")
 
 	// empty is returned as "run"
-	c.Check(devicestate.OperatingMode(s.mgr), Equals, "run")
+	c.Check(s.mgr.OperatingMode(), Equals, "run")
 }

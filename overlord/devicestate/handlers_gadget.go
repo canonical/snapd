@@ -92,16 +92,12 @@ func (m *DeviceManager) doUpdateGadgetAssets(t *state.Task, _ *tomb.Tomb) error 
 		return err
 	}
 
-	groundDeviceCtx, err := DeviceCtx(st, nil, nil)
-	if err != nil {
-		return fmt.Errorf("cannot identify the current model")
-	}
-
 	remodelCtx, err := DeviceCtx(st, t, nil)
 	if err != nil {
 		return err
 	}
 	isRemodel := remodelCtx.ForRemodeling()
+	groundDeviceCtx := remodelCtx.GroundContext()
 
 	// be extra paranoid when checking we are installing the right gadget
 	expectedGadgetSnap := groundDeviceCtx.Model().Gadget()
