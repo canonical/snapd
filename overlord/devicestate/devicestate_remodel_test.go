@@ -1038,7 +1038,7 @@ volumes:
 	// when remodeling to completely new gadget snap, there is no current
 	// snap passed to the check callback
 	err = devicestate.CheckGadgetRemodelCompatible(s.state, info, nil, snapf, snapstate.Flags{}, remodelCtx)
-	c.Check(err, ErrorMatches, "cannot identify the current model")
+	c.Check(err, ErrorMatches, "cannot identify the current gadget snap")
 
 	// mock data to obtain current gadget info
 	devicestatetest.SetDevice(s.state, &auth.DeviceState{
