@@ -30,33 +30,47 @@ restore: |
 execute: |
     #shellcheck source=tests/lib/snaps.sh
     . "$TESTSLIB"/snaps.sh
+    #shellcheck source=tests/lib/systems.sh
+    . "$TESTSLIB"/systems.sh
 
     # install confined and classic snaps
     install_local test-snapd-sh
-    install_local test-snapd-classic-confinement --classic
+    if is_classic_system ; then
+        install_local test-snapd-classic-confinement --classic
+    fi
 
     snap set system experimental.parallel-instances=true
 
     # regular instances work
     # shellcheck disable=SC2016
     test-snapd-sh -c 'echo confined $SNAP_INSTANCE_NAME works'
-    # shellcheck disable=SC2016
-    test-snapd-classic-confinement.sh -c 'echo classic $SNAP_INSTANCE_NAME works'
+    if is_classic_system ; then
+        # shellcheck disable=SC2016
+        test-snapd-classic-confinement.sh -c 'echo classic $SNAP_INSTANCE_NAME works'
+    fi
 
     # new instances of same snaps
     install_local_as test-snapd-sh test-snapd-sh_foo
-    install_local_as test-snapd-classic-confinement test-snapd-classic-confinement_foo --classic
+    if is_classic_system ; then
+        install_local_as test-snapd-classic-confinement test-snapd-classic-confinement_foo --classic
+    fi
 
     # parallel instances works
     # shellcheck disable=SC2016
     test-snapd-sh_foo -c 'echo confined $SNAP_INSTANCE_NAME works'
-    # shellcheck disable=SC2016
-    test-snapd-classic-confinement_foo.sh -c 'echo classic $SNAP_INSTANCE_NAME works'
+    if is_classic_system ; then
+        # shellcheck disable=SC2016
+        test-snapd-classic-confinement_foo.sh -c 'echo classic $SNAP_INSTANCE_NAME works'
+    fi
 
     # removal of snaps should not fail
     snap remove test-snapd-sh
-    snap remove test-snapd-classic-confinement
+    if is_classic_system ; then
+        snap remove test-snapd-classic-confinement
+    fi
 
     # neither should the removal of instances
     snap remove test-snapd-sh_foo
-    snap remove test-snapd-classic-confinement_foo
+    if is_classic_system ; then
+        snap remove test-snapd-classic-confinement_foo
+    fi
