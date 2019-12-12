@@ -1,0 +1,62 @@
+summary: Checks for parallel installation interfering with non-parallel snaps
+
+description: |
+  Make sure parallel instances do not interfere with other snaps. In particular,
+  parallel instances create a recursive bind mount of $SNAP_MOUNT_DIR. This
+  should not prevent snaps from being unmounted when removed.
+
+prepare: |
+    #shellcheck source=tests/lib/dirs.sh
+    . "$TESTSLIB"/dirs.sh
+
+    case "$SPREAD_SYSTEM" in
+        fedora-*|arch-*|centos-*)
+            # although classic snaps do not work out of the box on fedora,
+            # we still want to verify if the basics do work if the user
+            # symlinks /snap to $SNAP_MOUNT_DIR themselves
+            ln -sf "$SNAP_MOUNT_DIR" /snap
+            ;;
+    esac
+
+restore: |
+    snap unset system experimental.parallel-instances
+
+    case "$SPREAD_SYSTEM" in
+        fedora-*|arch-*|centos-*)
+            rm -f /snap
+            ;;
+    esac
+
+execute: |
+    #shellcheck source=tests/lib/snaps.sh
+    . "$TESTSLIB"/snaps.sh
+
+    # install confined and classic snaps
+    install_local test-snapd-sh
+    install_local test-snapd-classic-confinement --classic
+
+    snap set system experimental.parallel-instances=true
+
+    # regular instances work
+    # shellcheck disable=SC2016
+    test-snapd-sh -c 'echo confined $SNAP_INSTANCE_NAME works'
+    # shellcheck disable=SC2016
+    test-snapd-classic-confinement.sh -c 'echo classic $SNAP_INSTANCE_NAME works'
+
+    # new instances of same snaps
+    install_local_as test-snapd-sh test-snapd-sh_foo
+    install_local_as test-snapd-classic-confinement test-snapd-classic-confinement_foo --classic
+
+    # parallel instances works
+    # shellcheck disable=SC2016
+    test-snapd-sh_foo -c 'echo confined $SNAP_INSTANCE_NAME works'
+    # shellcheck disable=SC2016
+    test-snapd-classic-confinement_foo.sh -c 'echo classic $SNAP_INSTANCE_NAME works'
+
+    # removal of snaps should not fail
+    snap remove test-snapd-sh
+    snap remove test-snapd-classic-confinement
+
+    # neither should the removal of instances
+    snap remove test-snapd-sh_foo
+    snap remove test-snapd-classic-confinement_foo
