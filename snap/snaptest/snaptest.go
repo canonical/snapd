@@ -25,6 +25,7 @@ import (
 	"io/ioutil"
 	"os"
 	"path/filepath"
+	"strings"
 
 	"gopkg.in/check.v1"
 
@@ -182,6 +183,11 @@ func PopulateDir(dir string, files [][]string) {
 			panic(err)
 		}
 	}
+}
+
+func AssertedSnapID(snapName string) string {
+	cleanedName := strings.Replace(snapName, "-", "", -1)
+	return (cleanedName + strings.Repeat("id", 16)[len(cleanedName):])
 }
 
 // MakeTestSnapWithFiles makes a squashfs snap file with the given

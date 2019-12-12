@@ -44,8 +44,8 @@ func makeRollbackDir(name string) (string, error) {
 	return rollbackDir, nil
 }
 
-func currentGadgetInfo(st *state.State, deviceCtx snapstate.DeviceContext) (*gadget.GadgetData, error) {
-	currentInfo, err := snapstate.GadgetInfo(st, deviceCtx)
+func currentGadgetInfo(st *state.State, curDeviceCtx snapstate.DeviceContext) (*gadget.GadgetData, error) {
+	currentInfo, err := snapstate.GadgetInfo(st, curDeviceCtx)
 	if err != nil && err != state.ErrNoState {
 		return nil, err
 	}
@@ -54,20 +54,20 @@ func currentGadgetInfo(st *state.State, deviceCtx snapstate.DeviceContext) (*gad
 		return nil, nil
 	}
 
-	ci, err := gadgetDataFromInfo(currentInfo, coreGadgetConstraints)
+	ci, err := gadgetDataFromInfo(currentInfo, curDeviceCtx.Model())
 	if err != nil {
 		return nil, fmt.Errorf("cannot read current gadget snap details: %v", err)
 	}
 	return ci, nil
 }
 
-func pendingGadgetInfo(snapsup *snapstate.SnapSetup) (*gadget.GadgetData, error) {
+func pendingGadgetInfo(snapsup *snapstate.SnapSetup, pendingDeviceCtx snapstate.DeviceContext) (*gadget.GadgetData, error) {
 	info, err := snap.ReadInfo(snapsup.InstanceName(), snapsup.SideInfo)
 	if err != nil {
 		return nil, fmt.Errorf("cannot read candidate gadget snap details: %v", err)
 	}
 
-	gi, err := gadgetDataFromInfo(info, coreGadgetConstraints)
+	gi, err := gadgetDataFromInfo(info, pendingDeviceCtx.Model())
 	if err != nil {
 		return nil, fmt.Errorf("cannot read candidate snap gadget metadata: %v", err)
 	}
@@ -92,16 +92,16 @@ func (m *DeviceManager) doUpdateGadgetAssets(t *state.Task, _ *tomb.Tomb) error 
 		return err
 	}
 
-	remodelCtx, err := DeviceCtx(st, t, nil)
-	if err != nil && err != state.ErrNoState {
-		return err
-	}
-	isRemodel := remodelCtx != nil && remodelCtx.ForRemodeling()
-
 	groundDeviceCtx, err := DeviceCtx(st, nil, nil)
 	if err != nil {
 		return fmt.Errorf("cannot identify the current model")
 	}
+
+	remodelCtx, err := DeviceCtx(st, t, nil)
+	if err != nil {
+		return err
+	}
+	isRemodel := remodelCtx.ForRemodeling()
 
 	// be extra paranoid when checking we are installing the right gadget
 	expectedGadgetSnap := groundDeviceCtx.Model().Gadget()
@@ -113,7 +113,7 @@ func (m *DeviceManager) doUpdateGadgetAssets(t *state.Task, _ *tomb.Tomb) error 
 			snapsup.InstanceName(), expectedGadgetSnap)
 	}
 
-	updateData, err := pendingGadgetInfo(snapsup)
+	updateData, err := pendingGadgetInfo(snapsup, remodelCtx)
 	if err != nil {
 		return err
 	}
