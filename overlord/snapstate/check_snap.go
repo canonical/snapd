@@ -188,7 +188,7 @@ func checkAssumes(si *snap.Info) error {
 		}
 	}
 	if len(missing) > 0 {
-		hint := "try to refresh the core snap"
+		hint := "try to refresh the core or snapd snaps"
 		if release.OnClassic {
 			hint = "try to update snapd and refresh the core snap"
 		}

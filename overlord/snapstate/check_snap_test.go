@@ -101,7 +101,7 @@ var assumesTests = []struct {
 	assumes: "[common-data-dir]",
 }, {
 	assumes: "[f1, f2]",
-	error:   `snap "foo" assumes unsupported features: f1, f2 \(try to refresh the core snap\)`,
+	error:   `snap "foo" assumes unsupported features: f1, f2 \(try to refresh the core or snapd snaps\)`,
 }, {
 	assumes: "[f1, f2]",
 	classic: true,
