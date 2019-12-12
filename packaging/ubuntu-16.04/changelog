@@ -371,7 +371,6 @@ snapd (2.43~pre1) xenial; urgency=medium
     - docs: Add Code of Conduct
     - store: download propagates options to delta download
     - tests/main/listing: account for dots in ~pre suffix
-    - Addresed review feedback:
 
  -- Michael Vogt <michael.vogt@ubuntu.com>  Thu, 12 Dec 2019 10:20:58 +0100
 
