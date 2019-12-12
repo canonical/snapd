@@ -228,7 +228,14 @@ func (s *apiBaseSuite) TearDownSuite(c *check.C) {
 func (s *apiBaseSuite) systemctl(args ...string) (buf []byte, err error) {
 	s.sysctlArgses = append(s.sysctlArgses, args)
 
-	if args[0] != "show" && args[0] != "start" && args[0] != "stop" && args[0] != "restart" {
+	if len(args) > 2 && args[0] == "--root" && args[2] == "is-enabled" {
+		// drop the first 2 args which are "--root some-dir"
+		args = args[2:]
+	}
+
+	switch args[0] {
+	case "show", "start", "stop", "restart", "is-enabled":
+	default:
 		panic(fmt.Sprintf("unexpected systemctl call: %v", args))
 	}
 
@@ -2428,7 +2435,79 @@ func (s *apiSuite) TestPostSnapBadAction(c *check.C) {
 	c.Check(rsp.Result, check.NotNil)
 }
 
+func (s *apiSuite) TestPostSnapBadChannel(c *check.C) {
+	buf := bytes.NewBufferString(`{"channel": "1/2/3/4"}`)
+	req, err := http.NewRequest("POST", "/v2/snaps/hello-world", buf)
+	c.Assert(err, check.IsNil)
+
+	rsp := postSnap(snapCmd, req, nil).(*resp)
+
+	c.Check(rsp.Type, check.Equals, ResponseTypeError)
+	c.Check(rsp.Status, check.Equals, 400)
+	c.Check(rsp.Result, check.NotNil)
+}
+
 func (s *apiSuite) TestPostSnap(c *check.C) {
+	s.testPostSnap(c, false)
+}
+
+func (s *apiSuite) TestPostSnapWithChannel(c *check.C) {
+	s.testPostSnap(c, true)
+}
+
+func (s *apiSuite) testPostSnap(c *check.C, withChannel bool) {
+	d := s.daemonWithOverlordMock(c)
+
+	soon := 0
+	ensureStateSoon = func(st *state.State) {
+		soon++
+		ensureStateSoonImpl(st)
+	}
+
+	s.vars = map[string]string{"name": "foo"}
+
+	snapInstructionDispTable["install"] = func(inst *snapInstruction, _ *state.State) (string, []*state.TaskSet, error) {
+		if withChannel {
+			// channel in -> it was parsed
+			c.Check(inst.Channel, check.Equals, "xyzzy/stable")
+		} else {
+			// no channel in -> no channel out
+			c.Check(inst.Channel, check.Equals, "")
+		}
+		return "foooo", nil, nil
+	}
+	defer func() {
+		snapInstructionDispTable["install"] = snapInstall
+	}()
+
+	var buf *bytes.Buffer
+	if withChannel {
+		buf = bytes.NewBufferString(`{"action": "install", "channel": "xyzzy"}`)
+	} else {
+		buf = bytes.NewBufferString(`{"action": "install"}`)
+	}
+	req, err := http.NewRequest("POST", "/v2/snaps/hello-world", buf)
+	c.Assert(err, check.IsNil)
+
+	rsp := postSnap(snapCmd, req, nil).(*resp)
+
+	c.Check(rsp.Type, check.Equals, ResponseTypeAsync)
+
+	st := d.overlord.State()
+	st.Lock()
+	defer st.Unlock()
+	chg := st.Change(rsp.Change)
+	c.Assert(chg, check.NotNil)
+	c.Check(chg.Summary(), check.Equals, "foooo")
+	var names []string
+	err = chg.Get("snap-names", &names)
+	c.Assert(err, check.IsNil)
+	c.Check(names, check.DeepEquals, []string{"foo"})
+
+	c.Check(soon, check.Equals, 1)
+}
+
+func (s *apiSuite) TestPostSnapChannel(c *check.C) {
 	d := s.daemonWithOverlordMock(c)
 
 	soon := 0
@@ -6505,6 +6584,32 @@ func (s *apiSuite) TestSnapctlForbiddenError(c *check.C) {
 	c.Assert(err, check.IsNil)
 	rsp := runSnapctl(snapctlCmd, req, nil).(*resp)
 	c.Assert(rsp.Status, check.Equals, 403)
+}
+
+func (s *apiSuite) TestSnapctlUnsuccesfulError(c *check.C) {
+	_ = s.daemon(c)
+
+	runSnapctlUcrednetGet = func(string) (int32, uint32, string, error) {
+		return 100, 9999, dirs.SnapSocket, nil
+	}
+	defer func() { runSnapctlUcrednetGet = ucrednetGet }()
+
+	ctlcmdRun = func(ctx *hookstate.Context, arg []string, uid uint32) ([]byte, []byte, error) {
+		return nil, nil, &ctlcmd.UnsuccessfulError{ExitCode: 123}
+	}
+	defer func() { ctlcmdRun = ctlcmd.Run }()
+
+	buf := bytes.NewBufferString(fmt.Sprintf(`{"context-id": "some-context", "args": [%q, %q]}`, "is-connected", "plug"))
+	req, err := http.NewRequest("POST", "/v2/snapctl", buf)
+	c.Assert(err, check.IsNil)
+	rsp := runSnapctl(snapctlCmd, req, nil).(*resp)
+	c.Check(rsp.Status, check.Equals, 200)
+	c.Check(rsp.Result.(*errorResult).Kind, check.Equals, errorKindUnsuccessful)
+	c.Check(rsp.Result.(*errorResult).Value, check.DeepEquals, map[string]interface{}{
+		"stdout":    "",
+		"stderr":    "",
+		"exit-code": 123,
+	})
 }
 
 type appSuite struct {

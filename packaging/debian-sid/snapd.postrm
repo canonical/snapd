@@ -19,11 +19,13 @@ systemctl_stop() {
 }
 
 if [ "$1" = "purge" ]; then
-    # undo any bind mount to /snap that resulted from LP:#1668659
-    # (that bug can't happen in trusty -- and doing this would mess up snap.mount.service there)
-    if grep -q "/snap /snap" /proc/self/mountinfo; then
-        umount -l /snap || true
-    fi
+    # Undo any bind mounts to ${SNAP_MOUNT_DIR} or /var/snap done by parallel
+    # installs or LP:#1668659
+    for mp in /snap /var/snap; do
+        if grep -q " $mp $mp" /proc/self/mountinfo; then
+            umount -l "$mp" || true
+        fi
+    done
 
     units=$(systemctl list-unit-files --full | grep '^snap[-.]' | cut -f1 -d ' ' | grep -vF snap.mount.service || true)
     mounts=$(echo "$units" | grep '^snap[-.].*\.mount$' || true)
@@ -74,8 +76,8 @@ if [ "$1" = "purge" ]; then
             if [ -d /etc/dbus-1/system.d ]; then
                 find /etc/dbus-1/system.d -name "snap.${snap}.*.conf" -execdir rm -f "{}" \;
             fi
-            # timer files
-            find /etc/systemd/system -name "snap.${snap}.*.timer" | while read -r f; do
+            # timer and socket units
+            find /etc/systemd/system -name "snap.${snap}.*.timer" -o -name "snap.${snap}.*.socket" | while read -r f; do
                 systemctl_stop "$(basename "$f")"
                 rm -f "$f"
             done

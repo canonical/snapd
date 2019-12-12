@@ -1,7 +1,0 @@
-name: test-snapd-refresh
-version: 1
-apps:
-    sh:
-        command: bin/sh
-    version:
-        command: bin/version

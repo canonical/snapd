@@ -1855,10 +1855,24 @@ version: 1
 type: os
 `
 
+var ubuntuCoreSnapYaml2 = `
+name: ubuntu-core
+version: 1
+type: os
+slots:
+ test1:
+   interface: test1
+ test2:
+   interface: test2
+`
+
 var coreSnapYaml = `
 name: core
 version: 1
 type: os
+slots:
+ unrelated:
+   interface: unrelated
 `
 
 var sampleSnapYaml = `
@@ -1870,6 +1884,8 @@ apps:
 plugs:
  network:
   interface: network
+ unrelated:
+  interface: unrelated
 `
 
 var sampleSnapYamlManyPlugs = `
@@ -1989,6 +2005,41 @@ hooks:
  disconnect-slot-slot:
 `
 
+var refreshedSnapYaml = `
+name: snap
+version: 2
+apps:
+ app:
+   command: foo
+plugs:
+ test2:
+  interface: test2
+`
+
+var refreshedSnapYaml2 = `
+name: snap
+version: 2
+apps:
+ app:
+   command: foo
+plugs:
+ test1:
+  interface: test1
+ test2:
+  interface: test2
+`
+
+var slotSnapYaml = `
+name: snap2
+version: 2
+apps:
+ app:
+   command: bar
+slots:
+ test2:
+  interface: test2
+`
+
 // The auto-connect task will not auto-connect a plug that was previously
 // explicitly disconnected by the user.
 func (s *interfaceManagerSuite) TestDoSetupSnapSecurityHonorsUndesiredFlag(c *C) {
@@ -2041,6 +2092,44 @@ func (s *interfaceManagerSuite) TestDoSetupSnapSecurityHonorsUndesiredFlag(c *C)
 	c.Assert(plug, Not(IsNil))
 	ifaces := repo.Interfaces()
 	c.Assert(ifaces.Connections, HasLen, 0)
+}
+
+func (s *interfaceManagerSuite) TestBadInterfacesWarning(c *C) {
+	restoreSanitize := snap.MockSanitizePlugsSlots(func(inf *snap.Info) {
+		inf.BadInterfaces["plug-name"] = "reason-for-bad"
+	})
+	defer restoreSanitize()
+
+	s.MockModel(c, nil)
+
+	_ = s.manager(c)
+
+	// sampleSnapYaml is valid but that's irrelevant for the test as we are
+	// injecting the desired behavior via mocked SanitizePlugsSlots above.
+	snapInfo := s.mockSnap(c, sampleSnapYaml)
+
+	// Run the setup-snap-security task and let it finish.
+	change := s.addSetupSnapSecurityChange(c, &snapstate.SnapSetup{
+		SideInfo: &snap.SideInfo{
+			RealName: snapInfo.SnapName(),
+			Revision: snapInfo.Revision,
+		},
+	})
+	s.settle(c)
+
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	c.Assert(change.Status(), Equals, state.DoneStatus)
+
+	warns := s.state.AllWarnings()
+	c.Assert(warns, HasLen, 1)
+	c.Check(warns[0].String(), Matches, `snap "snap" has bad plugs or slots: plug-name \(reason-for-bad\)`)
+
+	// sanity, bad interfaces are logged in the task log.
+	task := change.Tasks()[0]
+	c.Assert(task.Kind(), Equals, "setup-profiles")
+	c.Check(strings.Join(task.Log(), ""), Matches, `.* snap "snap" has bad plugs or slots: plug-name \(reason-for-bad\)`)
 }
 
 // The auto-connect task will auto-connect plugs with viable candidates.
@@ -3175,6 +3264,116 @@ func (s *interfaceManagerSuite) TestSetupProfilesUsesFreshSnapInfo(c *C) {
 	// The OS snap was setup (because it was affected).
 	c.Check(s.secBackend.SetupCalls[1].SnapInfo.InstanceName(), Equals, coreSnapInfo.InstanceName())
 	c.Check(s.secBackend.SetupCalls[1].SnapInfo.Revision, Equals, coreSnapInfo.Revision)
+}
+
+func (s *interfaceManagerSuite) TestSetupProfilesKeepsUndesiredConnection(c *C) {
+	undesired := true
+	byGadget := false
+	s.testAutoconnectionsRemovedForMissingPlugs(c, undesired, byGadget, map[string]interface{}{
+		"snap:test1 ubuntu-core:test1": map[string]interface{}{"interface": "test1", "auto": true, "undesired": true},
+		"snap:test2 ubuntu-core:test2": map[string]interface{}{"interface": "test2", "auto": true},
+	})
+}
+
+func (s *interfaceManagerSuite) TestSetupProfilesRemovesMissingAutoconnectedPlugs(c *C) {
+	s.testAutoconnectionsRemovedForMissingPlugs(c, false, false, map[string]interface{}{
+		"snap:test2 ubuntu-core:test2": map[string]interface{}{"interface": "test2", "auto": true},
+	})
+}
+
+func (s *interfaceManagerSuite) TestSetupProfilesKeepsMissingGadgetAutoconnectedPlugs(c *C) {
+	undesired := false
+	byGadget := true
+	s.testAutoconnectionsRemovedForMissingPlugs(c, undesired, byGadget, map[string]interface{}{
+		"snap:test1 ubuntu-core:test1": map[string]interface{}{"interface": "test1", "auto": true, "by-gadget": true},
+		"snap:test2 ubuntu-core:test2": map[string]interface{}{"interface": "test2", "auto": true},
+	})
+}
+
+func (s *interfaceManagerSuite) testAutoconnectionsRemovedForMissingPlugs(c *C, undesired, byGadget bool, expectedConns map[string]interface{}) {
+	s.MockModel(c, nil)
+
+	// Mock the interface that will be used by the test
+	s.mockIfaces(c, &ifacetest.TestInterface{InterfaceName: "test1"}, &ifacetest.TestInterface{InterfaceName: "test2"})
+
+	// Put the OS and the sample snap in place.
+	_ = s.mockSnap(c, ubuntuCoreSnapYaml2)
+	newSnapInfo := s.mockSnap(c, refreshedSnapYaml)
+
+	s.state.Lock()
+	s.state.Set("conns", map[string]interface{}{
+		"snap:test1 ubuntu-core:test1": map[string]interface{}{"interface": "test1", "auto": true, "undesired": undesired, "by-gadget": byGadget},
+	})
+	s.state.Unlock()
+
+	_ = s.manager(c)
+
+	// Run the setup-profiles task for the new revision and let it finish.
+	change := s.addSetupSnapSecurityChange(c, &snapstate.SnapSetup{
+		SideInfo: &snap.SideInfo{
+			RealName: newSnapInfo.SnapName(),
+			Revision: newSnapInfo.Revision,
+		},
+	})
+	s.settle(c)
+
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	// Ensure that the task succeeded.
+	c.Assert(change.Err(), IsNil)
+	c.Check(change.Status(), Equals, state.DoneStatus)
+
+	// Verify that old connection is gone and new one got connected
+	var conns map[string]interface{}
+	c.Assert(s.state.Get("conns", &conns), IsNil)
+	c.Check(conns, DeepEquals, expectedConns)
+}
+
+func (s *interfaceManagerSuite) TestSetupProfilesRemovesMissingAutoconnectedSlots(c *C) {
+	s.testAutoconnectionsRemovedForMissingSlots(c, map[string]interface{}{
+		"snap:test2 snap2:test2": map[string]interface{}{"interface": "test2", "auto": true},
+	})
+}
+
+func (s *interfaceManagerSuite) testAutoconnectionsRemovedForMissingSlots(c *C, expectedConns map[string]interface{}) {
+	s.MockModel(c, nil)
+
+	// Mock the interface that will be used by the test
+	s.mockIfaces(c, &ifacetest.TestInterface{InterfaceName: "test1"}, &ifacetest.TestInterface{InterfaceName: "test2"})
+
+	// Put sample snaps in place.
+	newSnapInfo1 := s.mockSnap(c, refreshedSnapYaml2)
+	_ = s.mockSnap(c, slotSnapYaml)
+
+	s.state.Lock()
+	s.state.Set("conns", map[string]interface{}{
+		"snap:test1 snap2:test1": map[string]interface{}{"interface": "test1", "auto": true},
+	})
+	s.state.Unlock()
+
+	_ = s.manager(c)
+
+	// Run the setup-profiles task for the new revision and let it finish.
+	change := s.addSetupSnapSecurityChange(c, &snapstate.SnapSetup{
+		SideInfo: &snap.SideInfo{
+			RealName: newSnapInfo1.SnapName(),
+			Revision: newSnapInfo1.Revision,
+		},
+	})
+	s.settle(c)
+
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	// Ensure that the task succeeded.
+	c.Assert(change.Err(), IsNil)
+	c.Check(change.Status(), Equals, state.DoneStatus)
+
+	// Verify that old connection is gone and new one got connected
+	var conns map[string]interface{}
+	c.Assert(s.state.Get("conns", &conns), IsNil)
+	c.Check(conns, DeepEquals, expectedConns)
 }
 
 // auto-connect needs to setup security for connected slots after autoconnection
@@ -4423,6 +4622,8 @@ func (s *interfaceManagerSuite) TestManagerTransitionConnectionsCoreUndo(c *C) {
 // Test "core-support" connections that loop back to core is
 // renamed to match the rename of the plug.
 func (s *interfaceManagerSuite) TestCoreConnectionsRenamed(c *C) {
+	s.mockIfaces(c, &ifacetest.TestInterface{InterfaceName: "unrelated"})
+
 	// Put state with old connection data.
 	s.state.Lock()
 	s.state.Set("conns", map[string]interface{}{
@@ -7060,4 +7261,196 @@ func (s *interfaceManagerSuite) TestTransitionConnectionsCoreMigration(c *C) {
 	repoConns, err = repo.Connections("core")
 	c.Assert(err, IsNil)
 	c.Assert(repoConns, HasLen, 0)
+}
+
+func (s *interfaceManagerSuite) TestDoSetupSnapSecurityAutoConnectsDeclBasedAnySlotsPerPlugPlugSide(c *C) {
+	s.MockModel(c, nil)
+
+	// the producer snap
+	s.MockSnapDecl(c, "theme1", "one-publisher", nil)
+
+	// 2nd producer snap
+	s.MockSnapDecl(c, "theme2", "one-publisher", nil)
+
+	// the consumer
+	s.MockSnapDecl(c, "theme-consumer", "one-publisher", map[string]interface{}{
+		"format": "1",
+		"plugs": map[string]interface{}{
+			"content": map[string]interface{}{
+				"allow-auto-connection": map[string]interface{}{
+					"slots-per-plug": "*",
+				},
+			},
+		},
+	})
+
+	check := func(conns map[string]interface{}, repoConns []*interfaces.ConnRef) {
+		c.Check(repoConns, HasLen, 2)
+
+		c.Check(conns, DeepEquals, map[string]interface{}{
+			"theme-consumer:plug theme1:slot": map[string]interface{}{
+				"auto":        true,
+				"interface":   "content",
+				"plug-static": map[string]interface{}{"content": "themes"},
+				"slot-static": map[string]interface{}{"content": "themes"},
+			},
+			"theme-consumer:plug theme2:slot": map[string]interface{}{
+				"auto":        true,
+				"interface":   "content",
+				"plug-static": map[string]interface{}{"content": "themes"},
+				"slot-static": map[string]interface{}{"content": "themes"},
+			},
+		})
+	}
+
+	s.testDoSetupSnapSecurityAutoConnectsDeclBasedAnySlotsPerPlug(c, check)
+}
+
+func (s *interfaceManagerSuite) testDoSetupSnapSecurityAutoConnectsDeclBasedAnySlotsPerPlug(c *C, check func(map[string]interface{}, []*interfaces.ConnRef)) {
+	const theme1Yaml = `
+name: theme1
+version: 1
+slots:
+  slot:
+    interface: content
+    content: themes
+`
+	s.mockSnap(c, theme1Yaml)
+	const theme2Yaml = `
+name: theme2
+version: 1
+slots:
+  slot:
+    interface: content
+    content: themes
+`
+	s.mockSnap(c, theme2Yaml)
+
+	mgr := s.manager(c)
+
+	const themeConsumerYaml = `
+name: theme-consumer
+version: 1
+plugs:
+  plug:
+    interface: content
+    content: themes
+`
+	snapInfo := s.mockSnap(c, themeConsumerYaml)
+
+	// Run the setup-snap-security task and let it finish.
+	change := s.addSetupSnapSecurityChange(c, &snapstate.SnapSetup{
+		SideInfo: &snap.SideInfo{
+			RealName: snapInfo.SnapName(),
+			SnapID:   snapInfo.SnapID,
+			Revision: snapInfo.Revision,
+		},
+	})
+	s.settle(c)
+
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	// Ensure that the task succeeded.
+	c.Assert(change.Status(), Equals, state.DoneStatus)
+
+	var conns map[string]interface{}
+	_ = s.state.Get("conns", &conns)
+
+	repo := mgr.Repository()
+	plug := repo.Plug("theme-consumer", "plug")
+	c.Assert(plug, Not(IsNil))
+
+	check(conns, repo.Interfaces().Connections)
+}
+
+func (s *interfaceManagerSuite) TestDoSetupSnapSecurityAutoConnectsDeclBasedAnySlotsPerPlugSlotSide(c *C) {
+	s.MockModel(c, nil)
+
+	// the producer snap
+	s.MockSnapDecl(c, "theme1", "one-publisher", map[string]interface{}{
+		"format": "1",
+		"slots": map[string]interface{}{
+			"content": map[string]interface{}{
+				"allow-auto-connection": map[string]interface{}{
+					"slots-per-plug": "*",
+				},
+			},
+		},
+	})
+
+	// 2nd producer snap
+	s.MockSnapDecl(c, "theme2", "one-publisher", map[string]interface{}{
+		"format": "1",
+		"slots": map[string]interface{}{
+			"content": map[string]interface{}{
+				"allow-auto-connection": map[string]interface{}{
+					"slots-per-plug": "*",
+				},
+			},
+		},
+	})
+
+	// the consumer
+	s.MockSnapDecl(c, "theme-consumer", "one-publisher", nil)
+
+	check := func(conns map[string]interface{}, repoConns []*interfaces.ConnRef) {
+		c.Check(repoConns, HasLen, 2)
+
+		c.Check(conns, DeepEquals, map[string]interface{}{
+			"theme-consumer:plug theme1:slot": map[string]interface{}{
+				"auto":        true,
+				"interface":   "content",
+				"plug-static": map[string]interface{}{"content": "themes"},
+				"slot-static": map[string]interface{}{"content": "themes"},
+			},
+			"theme-consumer:plug theme2:slot": map[string]interface{}{
+				"auto":        true,
+				"interface":   "content",
+				"plug-static": map[string]interface{}{"content": "themes"},
+				"slot-static": map[string]interface{}{"content": "themes"},
+			},
+		})
+	}
+
+	s.testDoSetupSnapSecurityAutoConnectsDeclBasedAnySlotsPerPlug(c, check)
+}
+
+func (s *interfaceManagerSuite) TestDoSetupSnapSecurityAutoConnectsDeclBasedAnySlotsPerPlugAmbiguity(c *C) {
+	s.MockModel(c, nil)
+
+	// the producer snap
+	s.MockSnapDecl(c, "theme1", "one-publisher", map[string]interface{}{
+		"format": "1",
+		"slots": map[string]interface{}{
+			"content": map[string]interface{}{
+				"allow-auto-connection": map[string]interface{}{
+					"slots-per-plug": "*",
+				},
+			},
+		},
+	})
+
+	// 2nd producer snap
+	s.MockSnapDecl(c, "theme2", "one-publisher", map[string]interface{}{
+		"format": "1",
+		"slots": map[string]interface{}{
+			"content": map[string]interface{}{
+				"allow-auto-connection": map[string]interface{}{
+					"slots-per-plug": "1",
+				},
+			},
+		},
+	})
+
+	// the consumer
+	s.MockSnapDecl(c, "theme-consumer", "one-publisher", nil)
+
+	check := func(conns map[string]interface{}, repoConns []*interfaces.ConnRef) {
+		// slots-per-plug were ambigous, nothing was connected
+		c.Check(repoConns, HasLen, 0)
+		c.Check(conns, HasLen, 0)
+	}
+
+	s.testDoSetupSnapSecurityAutoConnectsDeclBasedAnySlotsPerPlug(c, check)
 }

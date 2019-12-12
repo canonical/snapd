@@ -1,5 +1,6 @@
 import sys
 import yaml
+from os import path
 
 with open(sys.argv[1]) as f:
     seed = yaml.load(f)
@@ -17,8 +18,10 @@ while i < len(snaps):
         break
     i += 1
 
+# test-snapd-with-configure_123.snap -> test-snapd-configure
+snapname = path.basename(sys.argv[2]).split('_')[0]
 snaps.append({
-    "name": "test-snapd-with-configure",
+    "name": snapname,
     "channel": "edge",
     "file": sys.argv[2],
 })

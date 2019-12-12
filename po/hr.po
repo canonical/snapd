@@ -14,8 +14,8 @@ msgstr ""
 "MIME-Version: 1.0\n"
 "Content-Type: text/plain; charset=UTF-8\n"
 "Content-Transfer-Encoding: 8bit\n"
-"X-Launchpad-Export-Date: 2018-10-05 14:20+0000\n"
-"X-Generator: Launchpad (build 18785)\n"
+"X-Launchpad-Export-Date: 2019-11-20 06:56+0000\n"
+"X-Generator: Launchpad (build c597c3229eb023b1e626162d5947141bf7befb13)\n"
 
 #, c-format
 msgid ""
@@ -28,6 +28,7 @@ msgstr ""
 "Pokušajte \"snapcraft prime\" u vašem direktoriju projekta, zatim ponovno "
 "\"snap try\"."
 
+#. TRANSLATORS: the first %q will be the (quoted) snap name, the second a channel
 #, c-format
 msgid "%q switched to the %q channel\n"
 msgstr "%q prebačen na %q kanal\n"
@@ -105,88 +106,89 @@ msgstr "--time ne uzima način ni oznake kanala"
 msgid "-r can only be used with --hook"
 msgstr "-r se može samo koristiti s --hook"
 
-#. TRANSLATORS: This needs to be wrapped in <>s.
+#. TRANSLATORS: This needs to begin with < and end with >
 msgid "<alias-or-snap>"
 msgstr "<pseudonim-ili-snap paket>"
 
-#. TRANSLATORS: This needs to be wrapped in <>s.
+#. TRANSLATORS: This needs to begin with < and end with >
 msgid "<alias>"
 msgstr "<pseudonim>"
 
-#. TRANSLATORS: This needs to be wrapped in <>s.
+#. TRANSLATORS: This needs to begin with < and end with >
 msgid "<assertion file>"
 msgstr "<datoteka potvrde>"
 
-#. TRANSLATORS: This needs to be wrapped in <>s.
+#. TRANSLATORS: This needs to begin with < and end with >
 msgid "<assertion type>"
 msgstr "<naziv potvrde>"
 
-#. TRANSLATORS: This needs to be wrapped in <>s.
+#. TRANSLATORS: This needs to begin with < and end with >
 msgid "<change-id>"
 msgstr "<id-promjene>"
 
-#. TRANSLATORS: This needs to be wrapped in <>s.
+#. TRANSLATORS: This needs to begin with < and end with >
 msgid "<conf value>"
 msgstr "<vrijednost podešavanja>"
 
-#. TRANSLATORS: This is a noun, and it needs to be wrapped in <>s.
-#. TRANSLATORS: This is a noun, and it needs to be wrapped in <>s.
+#. TRANSLATORS: This is a noun, and it needs to begin with < and end with >
+#. TRANSLATORS: This is a noun and it needs to begin with < and end with >
 msgid "<email>"
 msgstr "<e-pošta>"
 
-#. TRANSLATORS: This needs to be wrapped in <>s.
+#. TRANSLATORS: This needs to begin with < and end with >
 msgid "<filename>"
 msgstr "<naziv datoteke>"
 
-#. TRANSLATORS: This needs to be wrapped in <>s.
+#. TRANSLATORS: This needs to begin with < and end with >
 msgid "<header filter>"
 msgstr "<filter zaglavlja>"
 
-#. TRANSLATORS: This needs to be wrapped in <>s.
+#. TRANSLATORS: This needs to begin with < and end with >
 msgid "<interface>"
 msgstr "<sučelje>"
 
-#. TRANSLATORS: This needs to be wrapped in <>s.
-#. TRANSLATORS: This needs to be wrapped in <>s.
-#. TRANSLATORS: This needs to be wrapped in <>s.
+#. TRANSLATORS: This needs to begin with < and end with >
+#. TRANSLATORS: This needs to begin with < and end with >
+#. TRANSLATORS: This needs to begin with < and end with >
 msgid "<key-name>"
 msgstr "<naziv-ključa>"
 
-#. TRANSLATORS: This needs to be wrapped in <>s.
-#. TRANSLATORS: This needs to be wrapped in <>s.
+#. TRANSLATORS: This needs to begin with < and end with >
+#. TRANSLATORS: This needs to begin with < and end with >
 msgid "<key>"
 msgstr "<ključ>"
 
-#. TRANSLATORS: This needs to be wrapped in <>s.
+#. TRANSLATORS: This needs to begin with < and end with >
 msgid "<model-assertion>"
 msgstr "<potvrda-modela>"
 
-#. TRANSLATORS: This needs to be wrapped in <>s.
+#. TRANSLATORS: This needs to begin with < and end with >
 msgid "<query>"
 msgstr "<zahtjev>"
 
-#. TRANSLATORS: This needs to be wrapped in <>s.
+#. TRANSLATORS: This needs to begin with < and end with >
 msgid "<root-dir>"
 msgstr "<korijenski-dir>"
 
-#. TRANSLATORS: This needs to be wrapped in <>s.
+#. TRANSLATORS: This needs to begin with < and end with >
 msgid "<service>"
 msgstr ""
 
-#. TRANSLATORS: This needs to be wrapped in <>s.
-#. TRANSLATORS: This needs to be wrapped in <>s.
+#. TRANSLATORS: This needs to begin with < and end with >
+#. TRANSLATORS: This needs to begin with < and end with >
 msgid "<snap>:<plug>"
 msgstr "<snap>:<priključak>"
 
-#. TRANSLATORS: This needs to be wrapped in <>s.
+#. TRANSLATORS: This needs to begin with < and end with >
 msgid "<snap>:<slot or plug>"
 msgstr "<snap>:<priključnica ili priključak>"
 
-#. TRANSLATORS: This needs to be wrapped in <>s.
-#. TRANSLATORS: This needs to be wrapped in <>s.
+#. TRANSLATORS: This needs to begin with < and end with >
+#. TRANSLATORS: This needs to begin with < and end with >
 msgid "<snap>:<slot>"
 msgstr "<snap>:<priključnica>"
 
+#. TRANSLATORS: This should not start with a lowercase letter.
 msgid ""
 "A service specification, which can be just a snap name (for all services in "
 "the snap), or <snap>.<app> for a single service."
@@ -195,6 +197,7 @@ msgstr ""
 msgid "Abort a pending change"
 msgstr "Prekini očekivanu promjenu"
 
+#. TRANSLATORS: this is used to introduce a list of aliases that were added
 msgid "Added"
 msgstr "Dodano"
 
@@ -204,9 +207,11 @@ msgstr "Dodaj potvrde u sustav"
 msgid "Advise on available snaps."
 msgstr ""
 
+#. TRANSLATORS: This should not start with a lowercase letter.
 msgid "Advise on snaps that provide the given command"
 msgstr ""
 
+#. TRANSLATORS: This should not start with a lowercase letter.
 msgid "Alias for --dangerous (DEPRECATED)"
 msgstr "Pseudonim za --dangerous (DEPRECATED)"
 
@@ -216,6 +221,7 @@ msgstr "Svi snap paketi su nadopunjeni."
 msgid "Allow opening file?"
 msgstr ""
 
+#. TRANSLATORS: This should not start with a lowercase letter.
 msgid "Allow refresh attempt on snap unknown to the store"
 msgstr ""
 
@@ -230,35 +236,40 @@ msgstr ""
 msgid "Allow snap %q to open file %q?"
 msgstr ""
 
+#. TRANSLATORS: This should not start with a lowercase letter.
 msgid "Alternative command to run"
 msgstr "Zamjenska naredba za pokretanje"
 
+#. TRANSLATORS: This should not start with a lowercase letter.
 msgid "Always return document, even with single key"
 msgstr "Uvijek vrati dokument, čak i s jednim ključem"
 
+#. TRANSLATORS: This should not start with a lowercase letter.
 msgid "Always return list, even with single key"
 msgstr "Uvijek vrati popis, čak i s jednim ključem"
 
-#. TRANSLATORS: This should probably not start with a lowercase letter. Also, note users on login.ubuntu.com can have multiple email addresses.
+#. TRANSLATORS: This should not start with a lowercase letter (unless it's "login.ubuntu.com"). Also, note users on login.ubuntu.com can have multiple email addresses.
 msgid "An email of a user on login.ubuntu.com"
 msgstr ""
 "Adresa e-pošte korisnika na login.ubuntu.com može sadržvati više adresa e-"
 "pošte"
 
+#. TRANSLATORS: This should not start with a lowercase letter.
 msgid ""
 "As well as starting the service now, arrange for it to be started on boot."
 msgstr ""
 
+#. TRANSLATORS: This should not start with a lowercase letter.
 msgid ""
 "As well as stopping the service now, arrange for it to no longer be started "
 "on boot."
 msgstr ""
 
-#. TRANSLATORS: This should probably not start with a lowercase letter.
+#. TRANSLATORS: This should not start with a lowercase letter.
 msgid "Assertion file"
 msgstr "Datoteka potvrde"
 
-#. TRANSLATORS: This should probably not start with a lowercase letter.
+#. TRANSLATORS: This should not start with a lowercase letter.
 msgid "Assertion type name"
 msgstr "Naziv vrste potvrde"
 
@@ -288,7 +299,7 @@ msgstr "Netočan kôd. Pokušajte ponovno: "
 msgid "Buys a snap"
 msgstr "Kupovanje snap paketa"
 
-#. TRANSLATORS: This should probably not start with a lowercase letter.
+#. TRANSLATORS: This should not start with a lowercase letter.
 msgid "Change ID"
 msgstr "ID promjene"
 
@@ -298,7 +309,7 @@ msgstr "Promjene mogućnosti podešavanja"
 msgid "Command\tAlias\tNotes"
 msgstr "Naredba\tPseudonim\tBilješke"
 
-#. TRANSLATORS: This should probably not start with a lowercase letter.
+#. TRANSLATORS: This should not start with a lowercase letter.
 msgid "Configuration value (key=value)"
 msgstr "Vrijednost podešavanja (ključ=vrijednost)"
 
@@ -312,14 +323,15 @@ msgstr "Povezivanje %s:%s s %s:%s"
 msgid "Connects a plug to a slot"
 msgstr "Povezuje priključak u priključnicu"
 
-#. TRANSLATORS: This should probably not start with a lowercase letter.
+#. TRANSLATORS: This should not start with a lowercase letter.
 msgid "Constrain listing to a specific snap or snap:name"
 msgstr "Ograniči prikazivanje na određeni snap paket ili snap:naziv"
 
+#. TRANSLATORS: This should not start with a lowercase letter.
 msgid "Constrain listing to specific interfaces"
 msgstr "Ograniči prikazivanje na određeno sučelje"
 
-#. TRANSLATORS: This should probably not start with a lowercase letter.
+#. TRANSLATORS: This should not start with a lowercase letter.
 msgid "Constrain listing to those matching header=value"
 msgstr "Ograniči prikazivanje onima koji odgovaraju zaglavlje=vrijednost"
 
@@ -377,6 +389,7 @@ msgstr "Prekidanje povezivanja %s:%s sa %s:%s"
 msgid "Disconnects a plug from a slot"
 msgstr "Prekidanje povezivanja priključka s priključnice"
 
+#. TRANSLATORS: This should not start with a lowercase letter.
 msgid "Do not wait for the operation to finish but just print the change id."
 msgstr "Ne čekaj da radnja završi samo prikaži id promjene."
 
@@ -384,6 +397,7 @@ msgstr "Ne čekaj da radnja završi samo prikaži id promjene."
 msgid "Download snap %q%s from channel %q"
 msgstr "Preuzimam snap paket %q%s s kanala %q"
 
+#. TRANSLATORS: This should not start with a lowercase letter.
 msgid ""
 "Download the given revision of a snap, to which you must have developer "
 "access"
@@ -429,16 +443,18 @@ msgstr "Preuzimanje potvrde za %q\n"
 msgid "Fetching snap %q\n"
 msgstr "Preuzimanje snap paketa %q\n"
 
-#. TRANSLATORS: This should probably not start with a lowercase letter.
+#. TRANSLATORS: This should not start with a lowercase letter.
 msgid "Filename of the snap you want to assert a build for"
 msgstr "Naziv datoteke snap paketa za koji želite potvrditi izgradnju"
 
 msgid "Finds packages to install"
 msgstr "Traži pakete za instalaciju"
 
+#. TRANSLATORS: This should not start with a lowercase letter.
 msgid "Force adding the user, even if the device is already managed"
 msgstr "Prisilno dodavanje korisnika, čak i ako se uređajem već upravlja"
 
+#. TRANSLATORS: This should not start with a lowercase letter.
 msgid "Force import on classic systems"
 msgstr "Prisili uvoz na klasičnim sustavima"
 
@@ -452,33 +468,41 @@ msgstr ""
 msgid "Generate device key"
 msgstr "Generiraj ključ uređaja"
 
+#. TRANSLATORS: This should not start with a lowercase letter.
 msgid "Generate the manpage"
 msgstr "Generieaj man stranice"
 
+#. TRANSLATORS: This should not start with a lowercase letter.
 msgid "Grade states the build quality of the snap (defaults to 'stable')"
 msgstr "Ocjeni stanje kvalitete izgradnje snap paketa (zadano je 'stable')"
 
+#. TRANSLATORS: This should not start with a lowercase letter.
 msgid "Grant sudo access to the created user"
 msgstr "Dopusti sudo pristup stvorenom korisniku"
 
 msgid "Help"
 msgstr "Pomoć"
 
+#. TRANSLATORS: This should not start with a lowercase letter.
 msgid "Hook to run"
 msgstr ""
 
 msgid "ID\tStatus\tSpawn\tReady\tSummary\n"
 msgstr ""
 
+#. TRANSLATORS: This should not start with a lowercase letter.
 msgid "Identifier of the signer"
 msgstr "Identifikator potpisnika"
 
+#. TRANSLATORS: This should not start with a lowercase letter.
 msgid "Identifier of the snap package associated with the build"
 msgstr "Identifikator snap paketa pridružen u izgradnji"
 
+#. TRANSLATORS: This should not start with a lowercase letter.
 msgid "If the service has a reload command, use it instead of restarting."
 msgstr ""
 
+#. TRANSLATORS: This should not start with a lowercase letter.
 msgid "Ignore validation by other snaps blocking the refresh"
 msgstr "Zanemari provjeru od blokiranja osvježvanja drugih snap paketa"
 
@@ -499,6 +523,7 @@ msgid "Include a verbose list of a snap's notes (otherwise, summarise notes)"
 msgstr ""
 "Uključi opširan popis bilješki snap paketa (u suprotnome, sažmi bilješke)"
 
+#. TRANSLATORS: This should not start with a lowercase letter.
 msgid "Include unused interfaces"
 msgstr "Uključi nekorištena sučelja"
 
@@ -524,15 +549,19 @@ msgstr "Instaliraj %q snap paket iz datoteke"
 msgid "Install %q snap from file %q"
 msgstr "Instaliraj %q snap paket iz datoteke %q"
 
+#. TRANSLATORS: This should not start with a lowercase letter.
 msgid "Install from the beta channel"
 msgstr "Instaliraj iz beta kanala"
 
+#. TRANSLATORS: This should not start with a lowercase letter.
 msgid "Install from the candidate channel"
 msgstr "Instaliraj iz candidate kanala"
 
+#. TRANSLATORS: This should not start with a lowercase letter.
 msgid "Install from the edge channel"
 msgstr "Instaliraj iz edge kanala"
 
+#. TRANSLATORS: This should not start with a lowercase letter.
 msgid "Install from the stable channel"
 msgstr "Instaliraj iz stable kanala"
 
@@ -545,12 +574,14 @@ msgstr "Instal snap paket %q"
 msgid "Install snaps %s"
 msgstr "Instaliraj snap pakete %s"
 
+#. TRANSLATORS: This should not start with a lowercase letter.
 msgid ""
 "Install the given revision of a snap, to which you must have developer access"
 msgstr ""
 "Instalirajte zadanu reviziju snap paketa, za koju morate imati "
 "razvijateljski pristup"
 
+#. TRANSLATORS: This should not start with a lowercase letter.
 msgid ""
 "Install the given snap file even if there are no pre-acknowledged signatures "
 "for it, meaning it was not verified and could be dangerous (--devmode "
@@ -560,6 +591,7 @@ msgstr ""
 "za nju, to znači da nije provjerena i može biti opasna (--devmode to "
 "podrazumijeva)"
 
+#. TRANSLATORS: This should not start with a lowercase letter.
 msgid "Install the given snap without enabling its automatic aliases"
 msgstr ""
 "Instaliraj zadan snap paket bez omogućavanja njegovih automatskih pseudonima"
@@ -574,8 +606,8 @@ msgstr ""
 msgid "Installs a snap to the system"
 msgstr "Instalira snap paket na sustav"
 
-#. TRANSLATORS: This should probably not start with a lowercase letter.
-#. TRANSLATORS: This should probably not start with a lowercase letter.
+#. TRANSLATORS: This should not start with a lowercase letter.
+#. TRANSLATORS: This should not start with a lowercase letter.
 msgid "Key of interest within the configuration"
 msgstr "Ključ interesa s podešavanjem"
 
@@ -640,22 +672,24 @@ msgstr "Označi sustav zasijanim"
 msgid "Mount snap %q%s"
 msgstr "Montiram snap paket %q%s"
 
-#. TRANSLATORS: This should probably not start with a lowercase letter.
+#. TRANSLATORS: This should not start with a lowercase letter.
 msgid "Name of key to create; defaults to 'default'"
 msgstr "Naziv ključa za stvaranje; zadano je 'default'"
 
-#. TRANSLATORS: This should probably not start with a lowercase letter.
+#. TRANSLATORS: This should not start with a lowercase letter.
 msgid "Name of key to delete"
 msgstr "Naziv ključa za brisanje"
 
-#. TRANSLATORS: This should probably not start with a lowercase letter.
+#. TRANSLATORS: This should not start with a lowercase letter.
 msgid "Name of key to export"
 msgstr "Naziv ključa za izvoz"
 
+#. TRANSLATORS: This should not start with a lowercase letter.
 msgid "Name of the GnuPG key to use (defaults to 'default' as key name)"
 msgstr ""
 "Naziv GnuPG ključa za korištenje (zadano je 'default' kao naziv ključa)"
 
+#. TRANSLATORS: This should not start with a lowercase letter.
 msgid "Name of the key to use, otherwise use the default key"
 msgstr "Naziv ključa za korištenje, u suprotnome koristi zadani ključ"
 
@@ -717,6 +751,8 @@ msgid "No snaps are installed yet. Try \"snap install hello-world\"."
 msgstr ""
 "Još nema instaliranih snap paketa. Pokušajte \"snap install hello-world\"."
 
+#. TRANSLATORS: This should not start with a lowercase letter.
+#. TRANSLATORS: This should not start with a lowercase letter.
 msgid "Output results in JSON format"
 msgstr "Izlazni rezultati u JSON formatu"
 
@@ -787,12 +823,15 @@ msgstr "Prikaži kako se upravlja sustavom"
 msgid "Prune automatic aliases for snap %q"
 msgstr ""
 
+#. TRANSLATORS: This should not start with a lowercase letter.
 msgid "Put snap in classic mode and disable security confinement"
 msgstr "Postavi snap u klasičan način i onemogući sigurnosno ograničenje"
 
+#. TRANSLATORS: This should not start with a lowercase letter.
 msgid "Put snap in development mode and disable security confinement"
 msgstr "Postavi snap u razvojni način i onemogući sigurnosno ograničenje"
 
+#. TRANSLATORS: This should not start with a lowercase letter.
 msgid "Put snap in enforced confinement mode"
 msgstr "Postavi snap u način prisilne izolacije"
 
@@ -850,6 +889,7 @@ msgstr "Uklanjam podatke za snap paket %q (%s)"
 msgid "Remove manual alias %q for snap %q"
 msgstr "Ukloni ručno pseudonim %q za snap paket %q"
 
+#. TRANSLATORS: This should not start with a lowercase letter.
 msgid "Remove only the given revision"
 msgstr "Uklanjam samo zadanu reviziju"
 
@@ -874,6 +914,7 @@ msgstr "Uklanjam snap paket %q (%s) iz sustava"
 msgid "Remove snaps %s"
 msgstr "Uklanjam snap pakete %s"
 
+#. TRANSLATORS: this is used to introduce a list of aliases that were removed
 msgid "Removed"
 msgstr "Uklonjeno"
 
@@ -889,6 +930,7 @@ msgstr "Ponovno pokreni usluge"
 msgid "Restarted.\n"
 msgstr "Ponovno pokrenuto.\n"
 
+#. TRANSLATORS: This should not start with a lowercase letter.
 msgid "Restrict the search to a given section"
 msgstr "Ograniči pretragu u zadanom odjeljku"
 
@@ -902,9 +944,11 @@ msgstr "Vrati %q snap paket"
 msgid "Reverts the given snap to the previous state"
 msgstr "Vraća zadani snap paket na prijašnje stanje"
 
+#. TRANSLATORS: This should not start with a lowercase letter.
 msgid "Run a shell instead of the command (useful for debugging)"
 msgstr "Pokreni ljusku umjesto naredbe (korisno za otklanjanje grešaka)"
 
+#. TRANSLATORS: This should not start with a lowercase letter.
 msgid "Run as a timer service with given schedule"
 msgstr ""
 
@@ -945,6 +989,7 @@ msgid ""
 "can be specified as well here."
 msgstr ""
 
+#. TRANSLATORS: This should not start with a lowercase letter.
 msgid "Run the command with gdb"
 msgstr ""
 
@@ -958,6 +1003,7 @@ msgstr ""
 msgid "Runs debug commands"
 msgstr "Pokreće naredbe otklanjanja grešaka"
 
+#. TRANSLATORS: This should not start with a lowercase letter.
 msgid "Search private snaps"
 msgstr "Pretraga privatnih snap paketa"
 
@@ -1002,9 +1048,11 @@ msgstr "Postavljam snap paket %q%s sigurnosne profile"
 msgid "Setup snap %q%s security profiles (phase 2)"
 msgstr "Postavljam snap paket %q%s sigurnosne profile (faza 2)"
 
+#. TRANSLATORS: This should not start with a lowercase letter.
 msgid "Show all revisions"
 msgstr "Prikaži sve revizije"
 
+#. TRANSLATORS: This should not start with a lowercase letter.
 msgid "Show auto refresh information but do not perform a refresh"
 msgstr ""
 "Prikaži informacije automatskog osvježavanja ali ne pokreći osvježavanje"
@@ -1016,13 +1064,15 @@ msgstr ""
 msgid "Show detailed information about a snap"
 msgstr ""
 
-#. TRANSLATORS: This should probably not start with a lowercase letter.
+#. TRANSLATORS: This should not start with a lowercase letter.
 msgid "Show details of a specific interface"
 msgstr "Prikaži pojedinosti određenog sučelja"
 
+#. TRANSLATORS: This should not start with a lowercase letter.
 msgid "Show interface attributes"
 msgstr "Prikaži svojstva sučelja"
 
+#. TRANSLATORS: This should not start with a lowercase letter.
 msgid "Show only the given number of lines, or 'all'."
 msgstr ""
 
@@ -1055,8 +1105,8 @@ msgstr "Priključak\tPriključnica"
 msgid "Snap %s is no longer tracking %s.\n"
 msgstr ""
 
-#. TRANSLATORS: This should probably not start with a lowercase letter.
-#. TRANSLATORS: This should probably not start with a lowercase letter.
+#. TRANSLATORS: This should not start with a lowercase letter.
+#. TRANSLATORS: This should not start with a lowercase letter.
 msgid "Snap name"
 msgstr "Naziv snap paketa"
 
@@ -1109,6 +1159,7 @@ msgstr "Zaustavljam snap usluge"
 msgid "Stopped.\n"
 msgstr "Zaustavljeno.\n"
 
+#. TRANSLATORS: This should not start with a lowercase letter.
 msgid "Strict typing with nulls and quoted strings"
 msgstr "Ograniči upisivanje nula i znakova navoda"
 
@@ -1127,6 +1178,7 @@ msgstr "Prebaci snap paket %q na %s"
 msgid "Switches snap to a different channel"
 msgstr "Prebaci snap paket na drugi kanal"
 
+#. TRANSLATORS: This should not start with a lowercase letter.
 msgid "Temporarily mount device before inspecting"
 msgstr "Privremeno montiram uređaj prije provjere"
 
@@ -1148,15 +1200,15 @@ msgid ""
 msgstr ""
 "Za dobivanje podešavanje naredbi prikaza i postavki sučelja povezivanja."
 
-#. TRANSLATORS: This should probably not start with a lowercase letter.
+#. TRANSLATORS: This should not start with a lowercase letter (unless it's "login.ubuntu.com")
 msgid "The login.ubuntu.com email to login as"
 msgstr "Adresa e-pošte pri login.ubuntu.com"
 
-#. TRANSLATORS: This should probably not start with a lowercase letter.
+#. TRANSLATORS: This should not start with a lowercase letter.
 msgid "The model assertion name"
 msgstr "Naziv modela potvrđivanja"
 
-#. TRANSLATORS: This should probably not start with a lowercase letter.
+#. TRANSLATORS: This should not start with a lowercase letter.
 msgid "The output directory"
 msgstr "Izlazni direktorij"
 
@@ -1164,11 +1216,12 @@ msgstr "Izlazni direktorij"
 msgid "The program %q can be found in the following snaps:\n"
 msgstr ""
 
-#. TRANSLATORS: This should probably not start with a lowercase letter.
+#. TRANSLATORS: This should not start with a lowercase letter.
+#. TRANSLATORS: This should not start with a lowercase letter.
 msgid "The snap to configure (e.g. hello-world)"
 msgstr "Snap paket za podešavanje (npr. hello-world)"
 
-#. TRANSLATORS: This should probably not start with a lowercase letter.
+#. TRANSLATORS: This should not start with a lowercase letter.
 msgid "The snap whose conf is being requested"
 msgstr "Snap paket čije je podešavanje zatraženo"
 
@@ -1208,15 +1261,18 @@ msgstr "Dvofaktorni kôd: "
 msgid "Unalias a manual alias or an entire snap"
 msgstr "Ukloni ručni pseudonim ili cjelokupan snap paket"
 
+#. TRANSLATORS: This should not start with a lowercase letter.
 msgid "Use a specific snap revision when running hook"
 msgstr "Koristi određenu snap reviziju pri pokretanju kvačenja"
 
+#. TRANSLATORS: This should not start with a lowercase letter.
 msgid "Use known assertions for user creation"
 msgstr "Koristi poznate potvrde za stvaranje korisnika"
 
 msgid "Use the given output format (pretty or json)"
 msgstr ""
 
+#. TRANSLATORS: This should not start with a lowercase letter.
 msgid "Use this channel instead of stable"
 msgstr "Koristi ovaj kanal umjesto stabilnog"
 
@@ -1231,6 +1287,7 @@ msgstr ""
 msgid "WARNING: failed to activate logging: %v\n"
 msgstr "UPOZORENJE: neuspješno aktiviranje zapisivanje: %v\n"
 
+#. TRANSLATORS: This should not start with a lowercase letter.
 msgid "Wait for new lines and print them as they come in."
 msgstr ""
 

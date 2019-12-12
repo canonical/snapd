@@ -40,7 +40,6 @@ import (
 	"github.com/snapcore/snapd/interfaces"
 	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/osutil"
-	snapdsnap "github.com/snapcore/snapd/snap"
 	"github.com/snapcore/snapd/testutil"
 
 	snap "github.com/snapcore/snapd/cmd/snap"
@@ -84,8 +83,6 @@ func (s *BaseSnapSuite) SetUpTest(c *C) {
 	snap.ReadPassword = s.readPassword
 	s.AuthFile = filepath.Join(c.MkDir(), "json")
 	os.Setenv(TestAuthFileEnvKey, s.AuthFile)
-
-	s.AddCleanup(snapdsnap.MockSanitizePlugsSlots(func(snapInfo *snapdsnap.Info) {}))
 
 	s.AddCleanup(interfaces.MockSystemKey(`
 {

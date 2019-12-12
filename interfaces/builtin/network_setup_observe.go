@@ -62,6 +62,5 @@ func init() {
 		implicitOnClassic:     true,
 		baseDeclarationSlots:  networkSetupObserveBaseDeclarationSlots,
 		connectedPlugAppArmor: networkSetupObserveConnectedPlugAppArmor,
-		reservedForOS:         true,
 	})
 }

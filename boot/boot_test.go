@@ -459,3 +459,112 @@ version: 4.0
 	// check that the bootloader (grub here) configuration was copied
 	c.Check(filepath.Join(rootdir, "boot", "grub/grub.cfg"), testutil.FileEquals, grubCfg)
 }
+
+func makeMockUC20Model() *asserts.Model {
+	headers := map[string]interface{}{
+		"type":         "model",
+		"authority-id": "my-brand",
+		"series":       "16",
+		"brand-id":     "my-brand",
+		"model":        "my-model-uc20",
+		"display-name": "My Model",
+		"architecture": "amd64",
+		"base":         "core20",
+		"grade":        "dangerous",
+		"timestamp":    "2019-11-01T08:00:00+00:00",
+		"snaps": []interface{}{
+			map[string]interface{}{
+				"name": "pc-linux",
+				"id":   "pclinuxdidididididididididididid",
+				"type": "kernel",
+			},
+			map[string]interface{}{
+				"name": "pc",
+				"id":   "pcididididididididididididididid",
+				"type": "gadget",
+			},
+		},
+	}
+	return assertstest.FakeAssertion(headers).(*asserts.Model)
+}
+
+func (s *bootSetSuite) TestMakeBootable20(c *C) {
+	dirs.SetRootDir("")
+
+	model := makeMockUC20Model()
+
+	unpackedGadgetDir := c.MkDir()
+	grubRecoveryCfg := []byte("#grub-recovery cfg")
+	err := ioutil.WriteFile(filepath.Join(unpackedGadgetDir, "grub-recovery.conf"), grubRecoveryCfg, 0644)
+	c.Assert(err, IsNil)
+	grubCfg := []byte("#grub cfg")
+	err = ioutil.WriteFile(filepath.Join(unpackedGadgetDir, "grub.conf"), grubCfg, 0644)
+	c.Assert(err, IsNil)
+
+	rootdir := c.MkDir()
+	// on uc20 the seed layout if different
+	seedSnapsDirs := filepath.Join(rootdir, "/snaps")
+	err = os.MkdirAll(seedSnapsDirs, 0755)
+	c.Assert(err, IsNil)
+
+	baseFn, baseInfo := s.makeSnap(c, "core20", `name: core20
+type: base
+version: 5.0
+`, snap.R(3))
+	baseInSeed := filepath.Join(seedSnapsDirs, filepath.Base(baseInfo.MountFile()))
+	err = os.Rename(baseFn, baseInSeed)
+	c.Assert(err, IsNil)
+	kernelFn, kernelInfo := s.makeSnap(c, "pc-kernel", `name: pc-kernel
+type: kernel
+version: 5.0
+`, snap.R(5))
+	kernelInSeed := filepath.Join(seedSnapsDirs, filepath.Base(kernelInfo.MountFile()))
+	err = os.Rename(kernelFn, kernelInSeed)
+	c.Assert(err, IsNil)
+
+	recoverySystemDir := "/systems/20191209"
+	bootWith := &boot.BootableSet{
+		Base:              baseInfo,
+		BasePath:          baseInSeed,
+		Kernel:            kernelInfo,
+		KernelPath:        kernelInSeed,
+		RecoverySystemDir: recoverySystemDir,
+		UnpackedGadgetDir: unpackedGadgetDir,
+	}
+
+	err = boot.MakeBootable(model, rootdir, bootWith)
+	c.Assert(err, IsNil)
+
+	// ensure only a single file got copied (the grub.cfg)
+	files, err := filepath.Glob(filepath.Join(rootdir, "EFI/ubuntu/*"))
+	c.Assert(err, IsNil)
+	c.Check(files, HasLen, 1)
+	// check that the recovery bootloader configuration was copied with
+	// the correct content
+	c.Check(filepath.Join(rootdir, "EFI/ubuntu/grub.cfg"), testutil.FileEquals, grubRecoveryCfg)
+
+	// ensure no /boot was setup
+	c.Check(filepath.Join(rootdir, "boot"), testutil.FileAbsent)
+
+	// ensure the correct recovery system configuration was set
+	c.Check(s.bootloader.RecoverySystemDir, Equals, recoverySystemDir)
+	c.Check(s.bootloader.RecoverySystemBootVars, DeepEquals, map[string]string{
+		"snapd_recovery_kernel": "/snaps/pc-kernel_5.snap",
+	})
+}
+
+func (s *bootSetSuite) TestMakeBootable20MultipleRecoverySystemsError(c *C) {
+	dirs.SetRootDir("")
+
+	model := makeMockUC20Model()
+
+	bootWith := &boot.BootableSet{}
+	rootdir := c.MkDir()
+	err := os.MkdirAll(filepath.Join(rootdir, "systems/20191204"), 0755)
+	c.Assert(err, IsNil)
+	err = os.MkdirAll(filepath.Join(rootdir, "systems/20191205"), 0755)
+	c.Assert(err, IsNil)
+
+	err = boot.MakeBootable(model, rootdir, bootWith)
+	c.Assert(err, ErrorMatches, "cannot make multiple recovery systems bootable yet")
+}

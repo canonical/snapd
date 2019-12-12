@@ -24,12 +24,16 @@ import (
 	"fmt"
 	"os/exec"
 	"strings"
+	"time"
 
 	"github.com/snapcore/snapd/gadget"
 	"github.com/snapcore/snapd/osutil"
 )
 
-var (
+const (
+	ubuntuBootLabel = "ubuntu-boot"
+	ubuntuDataLabel = "ubuntu-data"
+
 	sectorSize gadget.Size = 512
 )
 
@@ -57,27 +61,26 @@ type sfdiskPartition struct {
 	Name  string `json:"name"`
 }
 
+type DeviceLayout struct {
+	Structure      []DeviceStructure
+	ID             string
+	Device         string
+	Schema         string
+	Size           gadget.Size
+	SectorSize     gadget.Size
+	partitionTable *sfdiskPartitionTable
+}
+
 type DeviceStructure struct {
 	gadget.LaidOutStructure
 
 	Node string
 }
 
-type SFDisk struct {
-	device         string
-	partitionTable *sfdiskPartitionTable
-}
-
-func NewSFDisk(device string) *SFDisk {
-	return &SFDisk{
-		device: device,
-	}
-}
-
-// Layout obtains the partitioning and filesystem information from the block
-// device and expresses it as a laid out volume.
-func (sf *SFDisk) Layout() (*gadget.LaidOutVolume, error) {
-	output, err := exec.Command("sfdisk", "--json", "-d", sf.device).CombinedOutput()
+// NewDeviceLayout obtains the partitioning and filesystem information from the
+// block device.
+func DeviceLayoutFromDisk(device string) (*DeviceLayout, error) {
+	output, err := exec.Command("sfdisk", "--json", "-d", device).CombinedOutput()
 	if err != nil {
 		return nil, osutil.OutputErr(output, err)
 	}
@@ -87,39 +90,75 @@ func (sf *SFDisk) Layout() (*gadget.LaidOutVolume, error) {
 		return nil, fmt.Errorf("cannot parse sfdisk output: %v", err)
 	}
 
-	pv, err := positionedVolumeFromDump(&dump)
+	dl, err := deviceLayoutFromDump(&dump)
 	if err != nil {
 		return nil, err
 	}
+	dl.Device = device
 
-	// Hold the partition table for later use when creating partitions
-	sf.partitionTable = &dump.PartitionTable
-
-	return pv, nil
+	return dl, nil
 }
 
-// Create creates the partitions listed in positionedVolume
-func (sf *SFDisk) Create(pv *gadget.LaidOutVolume) ([]DeviceStructure, error) {
-	// Layout() will update sf.partitionTable
-	if _, err := sf.Layout(); err != nil {
-		return nil, err
-	}
-	buf, created := buildPartitionList(sf.partitionTable, pv)
+var (
+	ensureNodesExist = ensureNodesExistImpl
+)
 
-	// Write the partition table, note that sfdisk will re-read the
-	// partition table by itself: see disk-utils/sfdisk.c:write_changes()
-	cmd := exec.Command("sfdisk", sf.device)
+// CreateMissing creates the partitions listed in the positioned volume pv
+// that are missing from the existing device layout.
+func (dl *DeviceLayout) CreateMissing(pv *gadget.LaidOutVolume) ([]DeviceStructure, error) {
+	buf, created := buildPartitionList(dl.partitionTable, pv)
+
+	// Write the partition table. By default sfdisk will try to re-read the
+	// partition table with the BLKRRPART ioctl but will fail because the
+	// kernel side rescan removes and adds partitions and we have partitions
+	// mounted (so it fails on removal). Use --no-reread to skip this attempt.
+	cmd := exec.Command("sfdisk", "--no-reread", dl.Device)
 	cmd.Stdin = buf
 	if output, err := cmd.CombinedOutput(); err != nil {
 		return created, osutil.OutputErr(output, err)
 	}
 
+	// Re-read the partition table using the BLKPG ioctl, which doesn't
+	// remove existing partitions only appends new partitions with the right
+	// size and offset. As long as we provide consistent partitioning from
+	// userspace we're safe. At this point we also trigger udev to create
+	// the new partition device nodes.
+	output, err := exec.Command("partx", "-u", dl.Device).CombinedOutput()
+	if err != nil {
+		return nil, osutil.OutputErr(output, err)
+	}
+
+	// Make sure the devices for the partitions we created are available
+	if err := ensureNodesExist(created, 5*time.Second); err != nil {
+		return nil, fmt.Errorf("partition not available: %v", err)
+	}
+
 	return created, nil
 }
 
-// positionedVolumeFromDump takes an sfdisk dump format and returns the partitioning
-// information as a laid out volume.
-func positionedVolumeFromDump(dump *sfdiskDeviceDump) (*gadget.LaidOutVolume, error) {
+// ensureNodeExists makes sure the device nodes for all device structures are
+// available within a specified amount of time.
+func ensureNodesExistImpl(ds []DeviceStructure, timeout time.Duration) error {
+	t0 := time.Now()
+	for _, part := range ds {
+		found := false
+		for time.Since(t0) < timeout {
+			if osutil.FileExists(part.Node) {
+				found = true
+				break
+			}
+			time.Sleep(100 * time.Millisecond)
+		}
+		if !found {
+			return fmt.Errorf("device %s not available", part.Node)
+		}
+	}
+	return nil
+}
+
+// deviceLayoutFromDump takes an sfdisk dump format and returns the partitioning
+// information as a device layout.
+func deviceLayoutFromDump(dump *sfdiskDeviceDump) (*DeviceLayout, error) {
 	ptable := dump.PartitionTable
 
 	if ptable.Unit != "sectors" {
@@ -127,7 +166,7 @@ func positionedVolumeFromDump(dump *sfdiskDeviceDump) (*gadget.LaidOutVolume, er
 	}
 
 	structure := make([]gadget.VolumeStructure, len(ptable.Partitions))
-	ps := make([]gadget.LaidOutStructure, len(ptable.Partitions))
+	ds := make([]DeviceStructure, len(ptable.Partitions))
 
 	for i, p := range ptable.Partitions {
 		info, err := filesystemInfo(p.Node)
@@ -149,24 +188,27 @@ func positionedVolumeFromDump(dump *sfdiskDeviceDump) (*gadget.LaidOutVolume, er
 			Type:       p.Type,
 			Filesystem: bd.FSType,
 		}
-		ps[i] = gadget.LaidOutStructure{
-			VolumeStructure: &structure[i],
-			StartOffset:     gadget.Size(p.Start) * sectorSize,
-			Index:           i + 1,
+		ds[i] = DeviceStructure{
+			LaidOutStructure: gadget.LaidOutStructure{
+				VolumeStructure: &structure[i],
+				StartOffset:     gadget.Size(p.Start) * sectorSize,
+				Index:           i + 1,
+			},
+			Node: p.Node,
 		}
 	}
 
-	pv := &gadget.LaidOutVolume{
-		Volume: &gadget.Volume{
-			ID:        ptable.ID,
-			Structure: structure,
-		},
-		Size:             gadget.Size(ptable.LastLBA),
-		SectorSize:       sectorSize,
-		LaidOutStructure: ps,
+	dl := &DeviceLayout{
+		Structure:      ds,
+		ID:             ptable.ID,
+		Device:         ptable.Device,
+		Schema:         ptable.Label,
+		Size:           gadget.Size(ptable.LastLBA),
+		SectorSize:     sectorSize,
+		partitionTable: &ptable,
 	}
 
-	return pv, nil
+	return dl, nil
 }
 
 func deviceName(name string, index int) string {
@@ -221,7 +263,14 @@ func buildPartitionList(ptable *sfdiskPartitionTable, pv *gadget.LaidOutVolume) 
 		fmt.Fprintf(buf, "%s : start=%12d, size=%12d, type=%s, name=%q\n", node, p.StartOffset/sectorSize,
 			s.Size/sectorSize, partitionType(ptable.Label, p.Type), s.Name)
 
-		// Are roles unique so we can use it to map nodes? Should we use labels instead?
+		// Set expected labels based on role
+		switch s.Role {
+		case gadget.SystemBoot:
+			s.Label = ubuntuBootLabel
+		case gadget.SystemData:
+			s.Label = ubuntuDataLabel
+		}
+
 		toBeCreated = append(toBeCreated, DeviceStructure{p, node})
 	}
 

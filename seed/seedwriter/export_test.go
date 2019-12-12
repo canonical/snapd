@@ -23,6 +23,12 @@ import (
 	"github.com/snapcore/snapd/seed/internal"
 )
 
-type InternalSnap16 = internal.Snap16
+type (
+	InternalSnap16 = internal.Snap16
+	InternalSnap20 = internal.Snap20
+)
 
-var InternalReadSeedYaml = internal.ReadSeedYaml
+var (
+	InternalReadSeedYaml  = internal.ReadSeedYaml
+	InternalReadOptions20 = internal.ReadOptions20
+)

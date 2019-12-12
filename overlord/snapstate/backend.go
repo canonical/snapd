@@ -64,9 +64,10 @@ type managerBackend interface {
 	// install related
 	SetupSnap(snapFilePath, instanceName string, si *snap.SideInfo, meter progress.Meter) (snap.Type, *backend.InstallRecord, error)
 	CopySnapData(newSnap, oldSnap *snap.Info, meter progress.Meter) error
-	LinkSnap(info *snap.Info, model *asserts.Model, tm timings.Measurer) error
+	LinkSnap(info *snap.Info, model *asserts.Model, prevDisabledSvcs []string, tm timings.Measurer) error
 	StartServices(svcs []*snap.AppInfo, meter progress.Meter, tm timings.Measurer) error
 	StopServices(svcs []*snap.AppInfo, reason snap.ServiceStopReason, meter progress.Meter, tm timings.Measurer) error
+	ServicesEnableState(info *snap.Info, meter progress.Meter) (map[string]bool, error)
 
 	// the undoers for install
 	UndoSetupSnap(s snap.PlaceInfo, typ snap.Type, installRecord *backend.InstallRecord, meter progress.Meter) error

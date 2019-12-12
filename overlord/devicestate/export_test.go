@@ -83,6 +83,16 @@ func SetLastBecomeOperationalAttempt(m *DeviceManager, t time.Time) {
 	m.lastBecomeOperationalAttempt = t
 }
 
+func SetOperatingMode(m *DeviceManager, mode string) {
+	m.modeEnv.Mode = mode
+}
+
+// XXX: will become properly exported but we probably want to make
+//      mode a type and not a string before we do that
+func OperatingMode(m *DeviceManager) string {
+	return m.operatingMode()
+}
+
 func MockRepeatRequestSerial(label string) (restore func()) {
 	old := repeatRequestSerial
 	repeatRequestSerial = label
@@ -107,13 +117,15 @@ func MockSnapstateUpdateWithDeviceContext(f func(st *state.State, name string, o
 	}
 }
 
-func EnsureSeedYaml(m *DeviceManager) error {
-	return m.ensureSeedYaml()
+func EnsureSeeded(m *DeviceManager) error {
+	return m.ensureSeeded()
 }
 
 var PopulateStateFromSeedImpl = populateStateFromSeedImpl
 
-func MockPopulateStateFromSeed(f func(*state.State, timings.Measurer) ([]*state.TaskSet, error)) (restore func()) {
+type PopulateStateFromSeedOptions = populateStateFromSeedOptions
+
+func MockPopulateStateFromSeed(f func(*state.State, *PopulateStateFromSeedOptions, timings.Measurer) ([]*state.TaskSet, error)) (restore func()) {
 	old := populateStateFromSeed
 	populateStateFromSeed = f
 	return func() {
@@ -160,8 +172,9 @@ var (
 	CleanupRemodelCtx = cleanupRemodelCtx
 	CachedRemodelCtx  = cachedRemodelCtx
 
-	GadgetUpdateBlocked    = gadgetUpdateBlocked
-	GadgetCurrentAndUpdate = gadgetCurrentAndUpdate
+	GadgetUpdateBlocked = gadgetUpdateBlocked
+	CurrentGadgetInfo   = currentGadgetInfo
+	PendingGadgetInfo   = pendingGadgetInfo
 )
 
 func MockGadgetUpdate(mock func(current, update gadget.GadgetData, path string, policy gadget.UpdatePolicyFunc) error) (restore func()) {

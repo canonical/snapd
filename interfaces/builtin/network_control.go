@@ -290,7 +290,6 @@ func init() {
 		connectedPlugAppArmor: networkControlConnectedPlugAppArmor,
 		connectedPlugSecComp:  networkControlConnectedPlugSecComp,
 		connectedPlugUDev:     networkControlConnectedPlugUDev,
-		reservedForOS:         true,
 		suppressPtraceTrace:   true,
 	})
 

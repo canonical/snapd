@@ -41,6 +41,5 @@ func init() {
 		implicitOnClassic:     true,
 		baseDeclarationSlots:  jujuClientObserveBaseDeclarationSlots,
 		connectedPlugAppArmor: jujuClientObserveConnectedPlugAppArmor,
-		reservedForOS:         true,
 	})
 }

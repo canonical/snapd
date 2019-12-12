@@ -29,23 +29,53 @@ type Options struct {
 	// will contain encryption later
 }
 
+func deviceFromRole(lv *gadget.LaidOutVolume, role string) (device string, err error) {
+	for _, vs := range lv.LaidOutStructure {
+		// XXX: this part of the finding maybe should be a
+		// method on gadget.*Volume
+		if vs.Role == role {
+			device, err = gadget.FindDeviceForStructure(&vs)
+			if err != nil {
+				return "", fmt.Errorf("cannot find device for role %q: %v", role, err)
+			}
+			return gadget.ParentDiskFromPartition(device)
+		}
+	}
+	return "", fmt.Errorf("cannot find role %s in gadget", role)
+}
+
 func Run(gadgetRoot, device string, options *Options) error {
 	if gadgetRoot == "" {
 		return fmt.Errorf("cannot use empty gadget root directory")
 	}
-	if device == "" {
-		return fmt.Errorf("cannot use empty device node")
-	}
 
-	// XXX: ensure we test that the current partition table is
-	//      compatible with the gadget
 	lv, err := gadget.PositionedVolumeFromGadget(gadgetRoot)
 	if err != nil {
 		return fmt.Errorf("cannot layout the volume: %v", err)
 	}
 
-	sfdisk := partition.NewSFDisk(device)
-	created, err := sfdisk.Create(lv)
+	// XXX: the only situation where auto-detect is not desired is
+	//      in (spread) testing - consider to remove forcing a device
+	//
+	// auto-detect device if no device is forced
+	if device == "" {
+		device, err = deviceFromRole(lv, gadget.SystemSeed)
+		if err != nil {
+			return fmt.Errorf("cannot find device to create partitions on: %v", err)
+		}
+	}
+
+	diskLayout, err := partition.DeviceLayoutFromDisk(device)
+	if err != nil {
+		return fmt.Errorf("cannot read %v partitions: %v", device, err)
+	}
+
+	// check if the current partition table is compatible with the gadget
+	if err := ensureLayoutCompatibility(lv, diskLayout); err != nil {
+		return fmt.Errorf("gadget and %v partition table not compatible: %v", device, err)
+	}
+
+	created, err := diskLayout.CreateMissing(lv)
 	if err != nil {
 		return fmt.Errorf("cannot create the partitions: %v", err)
 	}
@@ -58,4 +88,49 @@ func Run(gadgetRoot, device string, options *Options) error {
 	}
 
 	return nil
+}
+
+func ensureLayoutCompatibility(gadgetLayout *gadget.LaidOutVolume, diskLayout *partition.DeviceLayout) error {
+	eq := func(ds partition.DeviceStructure, gs gadget.LaidOutStructure) bool {
+		dv := ds.VolumeStructure
+		gv := gs.VolumeStructure
+		return dv.Name == gv.Name && ds.StartOffset == gs.StartOffset && dv.Size == gv.Size && dv.Filesystem == gv.Filesystem
+	}
+	contains := func(haystack []gadget.LaidOutStructure, needle partition.DeviceStructure) bool {
+		for _, h := range haystack {
+			if eq(needle, h) {
+				return true
+			}
+		}
+		return false
+	}
+
+	// Check if top level properties match
+	if !isCompatibleSchema(gadgetLayout.Volume.Schema, diskLayout.Schema) {
+		return fmt.Errorf("disk partitioning schema %q doesn't match gadget schema %q", diskLayout.Schema, gadgetLayout.Volume.Schema)
+	}
+	if gadgetLayout.Volume.ID != "" && gadgetLayout.Volume.ID != diskLayout.ID {
+		return fmt.Errorf("disk ID %q doesn't match gadget volume ID %q", diskLayout.ID, gadgetLayout.Volume.ID)
+	}
+
+	// Check if all existing device partitions are also in gadget
+	for _, ds := range diskLayout.Structure {
+		if !contains(gadgetLayout.LaidOutStructure, ds) {
+			return fmt.Errorf("cannot find disk partition %q (starting at %d) in gadget", ds.VolumeStructure.Label, ds.StartOffset)
+		}
+	}
+
+	return nil
+}
+
+func isCompatibleSchema(gadgetSchema, diskSchema string) bool {
+	switch gadgetSchema {
+	// XXX: "mbr,gpt" is currently unsupported
+	case "", "gpt":
+		return diskSchema == "gpt"
+	case "mbr":
+		return diskSchema == "dos"
+	default:
+		return false
+	}
 }
