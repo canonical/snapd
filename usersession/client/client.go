@@ -94,7 +94,7 @@ func (resp *response) checkError() {
 	}
 }
 
-func (client *Client) do(ctx context.Context, method, urlpath string, query url.Values, headers map[string]string, body []byte) ([]*response, error) {
+func (client *Client) doMany(ctx context.Context, method, urlpath string, query url.Values, headers map[string]string, body []byte) ([]*response, error) {
 	sockets, err := filepath.Glob(filepath.Join(dirs.XdgRuntimeDirGlob, "snapd-session-agent.socket"))
 	if err != nil {
 		return nil, err
@@ -167,7 +167,7 @@ type SessionInfo struct {
 }
 
 func (client *Client) SessionInfo(ctx context.Context) (info map[int]SessionInfo, err error) {
-	responses, err := client.do(ctx, "GET", "/v1/session-info", nil, nil, nil)
+	responses, err := client.doMany(ctx, "GET", "/v1/session-info", nil, nil, nil)
 	if err != nil {
 		return nil, err
 	}
@@ -198,28 +198,47 @@ type ServiceFailure struct {
 	Error   string
 }
 
-func (client *Client) servicesCall(ctx context.Context, action string, services []string) (failures []ServiceFailure, err error) {
+func decodeServiceErrors(uid int, errorValue map[string]interface{}, kind string) []ServiceFailure {
+	errors, ok := errorValue[kind].(map[string]interface{})
+	if !ok {
+		return nil
+	}
+	var failures []ServiceFailure
+	for service, reason := range errors {
+		if reasonString, ok := reason.(string); ok {
+			failures = append(failures, ServiceFailure{
+				Uid:     uid,
+				Service: service,
+				Error:   reasonString,
+			})
+		} else {
+			logger.Noticef("Could not decode %s failure for %q: expected string, but got %T", kind, service, reason)
+		}
+	}
+	return failures
+}
+
+func (client *Client) serviceControlCall(ctx context.Context, action string, services []string) (startFailures, stopFailures []ServiceFailure, err error) {
 	headers := map[string]string{"Content-Type": "application/json"}
 	reqBody, err := json.Marshal(map[string]interface{}{
 		"action":   action,
 		"services": services,
 	})
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
-	responses, err := client.do(ctx, "POST", "/v1/services", nil, headers, reqBody)
+	responses, err := client.doMany(ctx, "POST", "/v1/service-control", nil, headers, reqBody)
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 	for _, resp := range responses {
 		if resp.err == nil {
 			continue
 		}
 		if agentErr, ok := resp.err.(*Error); ok && agentErr.Kind == "service-control" {
-			if errors, ok := agentErr.Value.(map[string]interface{}); ok {
-				for service, failure := range errors {
-					failures = append(failures, ServiceFailure{resp.uid, service, failure.(string)})
-				}
+			if errorValue, ok := agentErr.Value.(map[string]interface{}); ok {
+				startFailures = append(startFailures, decodeServiceErrors(resp.uid, errorValue, "start-errors")...)
+				stopFailures = append(stopFailures, decodeServiceErrors(resp.uid, errorValue, "stop-errors")...)
 				continue
 			}
 		}
@@ -227,18 +246,19 @@ func (client *Client) servicesCall(ctx context.Context, action string, services 
 			err = resp.err
 		}
 	}
-	return failures, err
+	return startFailures, stopFailures, err
 }
 
 func (client *Client) ServicesDaemonReload(ctx context.Context) error {
-	_, err := client.servicesCall(ctx, "daemon-reload", nil)
+	_, _, err := client.serviceControlCall(ctx, "daemon-reload", nil)
 	return err
 }
 
-func (client *Client) ServicesStart(ctx context.Context, services []string) (failures []ServiceFailure, err error) {
-	return client.servicesCall(ctx, "start", services)
+func (client *Client) ServicesStart(ctx context.Context, services []string) (startFailures, stopFailures []ServiceFailure, err error) {
+	return client.serviceControlCall(ctx, "start", services)
 }
 
-func (client *Client) ServicesStop(ctx context.Context, services []string) (failures []ServiceFailure, err error) {
-	return client.servicesCall(ctx, "stop", services)
+func (client *Client) ServicesStop(ctx context.Context, services []string) (stopFailures []ServiceFailure, err error) {
+	_, stopFailures, err = client.serviceControlCall(ctx, "stop", services)
+	return stopFailures, err
 }

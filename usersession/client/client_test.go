@@ -166,9 +166,10 @@ func (s *clientSuite) TestServicesStart(c *C) {
   "result": null
 }`))
 	})
-	failures, err := s.cli.ServicesStart(context.Background(), []string{"service1.service", "service2.service"})
+	startFailures, stopFailures, err := s.cli.ServicesStart(context.Background(), []string{"service1.service", "service2.service"})
 	c.Assert(err, IsNil)
-	c.Check(failures, HasLen, 0)
+	c.Check(startFailures, HasLen, 0)
+	c.Check(stopFailures, HasLen, 0)
 }
 
 func (s *clientSuite) TestServicesStartFailure(c *C) {
@@ -181,26 +182,30 @@ func (s *clientSuite) TestServicesStartFailure(c *C) {
     "kind": "service-control",
     "message": "failed to start services",
     "value": {
-      "service2.service": "failed to start"
+      "start-errors": {
+        "service2.service": "failed to start"
+      }
     }
   }
 }`))
 	})
-	failures, err := s.cli.ServicesStart(context.Background(), []string{"service1.service", "service2.service"})
+	startFailures, stopFailures, err := s.cli.ServicesStart(context.Background(), []string{"service1.service", "service2.service"})
 	c.Assert(err, IsNil)
-	c.Check(failures, HasLen, 2)
-	failure1 := failures[0]
-	failure2 := failures[1]
-	if failure1.Uid == 1000 {
-		failure1, failure2 = failure2, failure1
+	c.Check(startFailures, HasLen, 2)
+	c.Check(stopFailures, HasLen, 0)
+
+	failure0 := startFailures[0]
+	failure1 := startFailures[1]
+	if failure0.Uid == 1000 {
+		failure0, failure1 = failure1, failure0
 	}
-	c.Check(failure1.Uid, Equals, 42)
+	c.Check(failure0.Uid, Equals, 42)
+	c.Check(failure0.Service, Equals, "service2.service")
+	c.Check(failure0.Error, Equals, "failed to start")
+
+	c.Check(failure1.Uid, Equals, 1000)
 	c.Check(failure1.Service, Equals, "service2.service")
 	c.Check(failure1.Error, Equals, "failed to start")
-
-	c.Check(failure2.Uid, Equals, 1000)
-	c.Check(failure2.Service, Equals, "service2.service")
-	c.Check(failure2.Error, Equals, "failed to start")
 }
 
 func (s *clientSuite) TestServicesStop(c *C) {
@@ -227,7 +232,9 @@ func (s *clientSuite) TestServicesStopFailure(c *C) {
     "kind": "service-control",
     "message": "failed to stop services",
     "value": {
-      "service2.service": "failed to stop"
+      "stop-errors": {
+        "service2.service": "failed to stop"
+      }
     }
   }
 }`))
@@ -235,16 +242,16 @@ func (s *clientSuite) TestServicesStopFailure(c *C) {
 	failures, err := s.cli.ServicesStop(context.Background(), []string{"service1.service", "service2.service"})
 	c.Assert(err, IsNil)
 	c.Check(failures, HasLen, 2)
-	failure1 := failures[0]
-	failure2 := failures[1]
-	if failure1.Uid == 1000 {
-		failure1, failure2 = failure2, failure1
+	failure0 := failures[0]
+	failure1 := failures[1]
+	if failure0.Uid == 1000 {
+		failure0, failure1 = failure1, failure0
 	}
-	c.Check(failure1.Uid, Equals, 42)
+	c.Check(failure0.Uid, Equals, 42)
+	c.Check(failure0.Service, Equals, "service2.service")
+	c.Check(failure0.Error, Equals, "failed to stop")
+
+	c.Check(failure1.Uid, Equals, 1000)
 	c.Check(failure1.Service, Equals, "service2.service")
 	c.Check(failure1.Error, Equals, "failed to stop")
-
-	c.Check(failure2.Uid, Equals, 1000)
-	c.Check(failure2.Service, Equals, "service2.service")
-	c.Check(failure2.Error, Equals, "failed to stop")
 }
