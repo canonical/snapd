@@ -60,6 +60,7 @@ import (
 	"github.com/snapcore/snapd/overlord/devicestate"
 	"github.com/snapcore/snapd/overlord/devicestate/devicestatetest"
 	"github.com/snapcore/snapd/overlord/hookstate"
+	"github.com/snapcore/snapd/overlord/hookstate/ctlcmd"
 	"github.com/snapcore/snapd/overlord/ifacestate"
 	"github.com/snapcore/snapd/overlord/snapshotstate"
 	snapshotbackend "github.com/snapcore/snapd/overlord/snapshotstate/backend"
@@ -412,6 +413,91 @@ apps:
 	mup := systemd.MountUnitPath(filepath.Join(dirs.StripRootDir(dirs.SnapMountDir), "foo/x1"))
 	c.Assert(mup, testutil.FileMatches, fmt.Sprintf("(?ms).*^Where=%s/foo/x1", dirs.StripRootDir(dirs.SnapMountDir)))
 	c.Assert(mup, testutil.FileMatches, "(?ms).*^What=/var/lib/snapd/snaps/foo_x1.snap")
+}
+
+func (s *mgrsSuite) TestLocalInstallUndo(c *C) {
+	snapYamlContent := `name: foo
+apps:
+ bar:
+  command: bin/bar
+hooks:
+  install:
+  configure:
+`
+	snapPath := makeTestSnap(c, snapYamlContent+"version: 1.0")
+
+	defer hookstate.MockRunHook(func(ctx *hookstate.Context, _ *tomb.Tomb) ([]byte, error) {
+		switch ctx.HookName() {
+		case "install":
+			_, _, err := ctlcmd.Run(ctx, []string{"set", "installed=true"}, 0)
+			c.Assert(err, IsNil)
+			return nil, nil
+		case "configure":
+			return nil, errors.New("configure failed")
+		}
+		return nil, nil
+	})()
+
+	st := s.o.State()
+	st.Lock()
+	defer st.Unlock()
+
+	ts, _, err := snapstate.InstallPath(st, &snap.SideInfo{RealName: "foo"}, snapPath, "", "", snapstate.Flags{DevMode: true})
+	c.Assert(err, IsNil)
+	chg := st.NewChange("install-snap", "...")
+	chg.AddAll(ts)
+
+	st.Unlock()
+	err = s.o.Settle(settleTimeout)
+	st.Lock()
+	c.Assert(err, IsNil)
+
+	c.Assert(chg.Status(), Equals, state.ErrorStatus, Commentf("install-snap unexpectedly succeeded"))
+
+	// check undo statutes
+	for _, t := range chg.Tasks() {
+		which := t.Kind()
+		expectedStatus := state.UndoneStatus
+		switch t.Kind() {
+		case "prerequisites":
+			expectedStatus = state.DoneStatus
+		case "run-hook":
+			var hs hookstate.HookSetup
+			err := t.Get("hook-setup", &hs)
+			c.Assert(err, IsNil)
+			switch hs.Hook {
+			case "check-health":
+				expectedStatus = state.HoldStatus
+			case "configure":
+				expectedStatus = state.ErrorStatus
+			}
+			which += fmt.Sprintf("[%s]", hs.Hook)
+		}
+		c.Assert(t.Status(), Equals, expectedStatus, Commentf("%s", which))
+	}
+
+	// nothing in snaps
+	all, err := snapstate.All(st)
+	c.Assert(err, IsNil)
+	c.Check(all, HasLen, 1)
+	_, ok := all["core"]
+	c.Check(ok, Equals, true)
+
+	// nothing in config
+	var config map[string]*json.RawMessage
+	err = st.Get("config", &config)
+	c.Assert(err, IsNil)
+	c.Check(config, HasLen, 1)
+	_, ok = config["core"]
+	c.Check(ok, Equals, true)
+
+	snapdirs, err := filepath.Glob(filepath.Join(dirs.SnapMountDir, "*"))
+	c.Assert(err, IsNil)
+	// just README and bin
+	c.Check(snapdirs, HasLen, 2)
+	for _, d := range snapdirs {
+		c.Check(filepath.Base(d), Not(Equals), "foo")
+	}
 }
 
 func (s *mgrsSuite) TestHappyRemove(c *C) {

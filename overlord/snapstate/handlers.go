@@ -1581,6 +1581,12 @@ func (m *SnapManager) undoLinkSnap(t *state.Task, _ *tomb.Tomb) error {
 			snapst.LastActiveDisabledServices,
 			disabledServices...,
 		)
+	} else {
+		// in the case of an install we need to clear any config
+		err = config.DeleteSnapConfig(st, snapsup.InstanceName())
+		if err != nil {
+			return err
+		}
 	}
 
 	err = m.backend.UnlinkSnap(newInfo, NewTaskProgressAdapterLocked(t))
