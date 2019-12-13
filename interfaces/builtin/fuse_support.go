@@ -100,7 +100,6 @@ func init() {
 		implicitOnCore:        true,
 		implicitOnClassic:     !(release.ReleaseInfo.ID == "ubuntu" && release.ReleaseInfo.VersionID == "14.04"),
 		baseDeclarationSlots:  fuseSupportBaseDeclarationSlots,
-		reservedForOS:         true,
 		connectedPlugAppArmor: fuseSupportConnectedPlugAppArmor,
 		connectedPlugSecComp:  fuseSupportConnectedPlugSecComp,
 		connectedPlugUDev:     fuseSupportConnectedPlugUDev,

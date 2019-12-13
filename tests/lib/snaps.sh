@@ -2,11 +2,12 @@
 
 make_snap() {
     local SNAP_NAME="$1"
-    shift;
-    local SNAP_FILE="$TESTSLIB/snaps/${SNAP_NAME}/${SNAP_NAME}_1.0_all.snap"
-    local SNAP_DIR
+    local SNAP_DIR="$TESTSLIB/snaps/${SNAP_NAME}"
+    if [ $# -gt 1 ]; then
+        SNAP_DIR="$2"
+    fi
+    local SNAP_FILE="${SNAP_DIR}/${SNAP_NAME}_1.0_all.snap"
     # assigned in a separate step to avoid hiding a failure
-    SNAP_DIR="$(dirname "$SNAP_FILE")"
     if [ ! -f "$SNAP_FILE" ]; then
         snap pack "$SNAP_DIR" "$SNAP_DIR" >/dev/null || return 1
     fi
@@ -14,14 +15,19 @@ make_snap() {
     if [ -f "$SNAP_FILE" ]; then
         echo "$SNAP_FILE"
     else
-        find "$TESTSLIB/snaps/${SNAP_NAME}" -name '*.snap' | head -n1
+        find "$SNAP_DIR" -name '*.snap' | head -n1
     fi
 }
 
 install_local() {
     local SNAP_NAME="$1"
+    local SNAP_DIR="$TESTSLIB/snaps/${SNAP_NAME}"
     shift
-    SNAP_FILE=$(make_snap "$SNAP_NAME")
+
+    if [ -d "$SNAP_NAME" ]; then
+        SNAP_DIR="$PWD/$SNAP_NAME"
+    fi
+    SNAP_FILE=$(make_snap "$SNAP_NAME" "$SNAP_DIR")
 
     snap install --dangerous "$@" "$SNAP_FILE"
 }

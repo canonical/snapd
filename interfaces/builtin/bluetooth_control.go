@@ -73,6 +73,5 @@ func init() {
 		connectedPlugAppArmor: bluetoothControlConnectedPlugAppArmor,
 		connectedPlugSecComp:  bluetoothControlConnectedPlugSecComp,
 		connectedPlugUDev:     bluetoothControlConnectedPlugUDev,
-		reservedForOS:         true,
 	})
 }

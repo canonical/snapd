@@ -2137,6 +2137,22 @@ func runSnapctl(c *Command, r *http.Request, user *auth.UserState) Response {
 	context, _ := c.d.overlord.HookManager().Context(snapctlOptions.ContextID)
 	stdout, stderr, err := ctlcmdRun(context, snapctlOptions.Args, uid)
 	if err != nil {
+		if e, ok := err.(*ctlcmd.UnsuccessfulError); ok {
+			result := map[string]interface{}{
+				"stdout":    string(stdout),
+				"stderr":    string(stderr),
+				"exit-code": e.ExitCode,
+			}
+			return &resp{
+				Type: ResponseTypeError,
+				Result: &errorResult{
+					Message: e.Error(),
+					Kind:    errorKindUnsuccessful,
+					Value:   result,
+				},
+				Status: 200,
+			}
+		}
 		if e, ok := err.(*ctlcmd.ForbiddenCommandError); ok {
 			return Forbidden(e.Error())
 		}

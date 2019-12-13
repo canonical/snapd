@@ -1,3 +1,41 @@
+snapd (2.43~pre1) xenial; urgency=medium
+
+  * placeholder changelog
+
+ -- Michael Vogt <michael.vogt@ubuntu.com>  Thu, 12 Dec 2019 10:50:39 +0100
+
+snapd (2.42.5) xenial; urgency=medium
+
+  * New upstream release, LP: #1853244
+    - snap-confine: revert, with comment, explicit unix deny for nested
+      lxd
+    - Disable mount-ns test on 16.04. It is too flaky currently.
+
+ -- Michael Vogt <michael.vogt@ubuntu.com>  Fri, 06 Dec 2019 14:10:56 +0100
+
+snapd (2.42.4) xenial; urgency=medium
+
+  * New upstream release, LP: #1853244
+    - overlord/snapstate: make sure configuration defaults are applied
+      only once
+
+ -- Michael Vogt <michael.vogt@ubuntu.com>  Thu, 28 Nov 2019 06:48:26 +0100
+
+snapd (2.42.3) xenial; urgency=medium
+
+  * New upstream release, LP: #1853244
+    - overlord/snapstate: pick up system defaults when seeding the snapd
+      snap
+    - cmd/snap-update-ns: fix overlapping, nested writable mimic
+      handling
+    - interfaces: misc updates for u2f-devices, browser-support,
+      hardware-observe, et al
+    - tests: reset failing "fwupd-refresh.service" if needed
+    - tests/main/gadget-update-pc: use a program to modify gadget yaml
+    - snap-confine: suppress noisy classic snap file_inherit denials
+
+ -- Michael Vogt <michael.vogt@ubuntu.com>  Wed, 27 Nov 2019 12:41:07 +0100
+
 snapd (2.42.2) xenial; urgency=medium
 
   * New upstream release, LP: #1853244

@@ -41,6 +41,7 @@ import (
 	"github.com/snapcore/snapd/seed/internal"
 	"github.com/snapcore/snapd/snap"
 	"github.com/snapcore/snapd/snap/naming"
+	"github.com/snapcore/snapd/strutil"
 	"github.com/snapcore/snapd/timings"
 )
 
@@ -62,6 +63,7 @@ type seed20 struct {
 	auxInfos map[string]*internal.AuxInfo20
 
 	snaps             []*Snap
+	modes             [][]string
 	essentialSnapsNum int
 }
 
@@ -236,12 +238,24 @@ func (s *seed20) loadAuxInfos() error {
 	return nil
 }
 
-func (s *seed20) lookupVerifiedRevision(snapRef naming.SnapRef) (snapPath string, snapRev *asserts.SnapRevision, snapDecl *asserts.SnapDeclaration, err error) {
+type NoSnapDeclarationError struct {
+	snapRef naming.SnapRef
+}
+
+func (e *NoSnapDeclarationError) Error() string {
+	snapID := e.snapRef.ID()
+	if snapID != "" {
+		return fmt.Sprintf("cannot find snap-declaration for snap-id: %s", snapID)
+	}
+	return fmt.Sprintf("cannot find snap-declaration for snap name: %s", e.snapRef.SnapName())
+}
+
+func (s *seed20) lookupVerifiedRevision(snapRef naming.SnapRef, snapsDir string) (snapPath string, snapRev *asserts.SnapRevision, snapDecl *asserts.SnapDeclaration, err error) {
 	snapID := snapRef.ID()
 	if snapID != "" {
 		snapDecl = s.snapDeclsByID[snapID]
 		if snapDecl == nil {
-			return "", nil, nil, fmt.Errorf("cannot find snap-declaration for snap-id: %s", snapID)
+			return "", nil, nil, &NoSnapDeclarationError{snapRef}
 		}
 	} else {
 		if s.model.Grade() != asserts.ModelDangerous && snapRef.SnapName() != "snapd" && snapRef.SnapName() != s.model.Base() /* TODO: use snap-id for snapd*/ {
@@ -250,7 +264,7 @@ func (s *seed20) lookupVerifiedRevision(snapRef naming.SnapRef) (snapPath string
 		snapName := snapRef.SnapName()
 		snapDecl = s.snapDeclsByName[snapName]
 		if snapDecl == nil {
-			return "", nil, nil, fmt.Errorf("cannot find snap-declaration for snap name: %s", snapName)
+			return "", nil, nil, &NoSnapDeclarationError{snapRef}
 		}
 		snapID = snapDecl.SnapID()
 	}
@@ -261,7 +275,7 @@ func (s *seed20) lookupVerifiedRevision(snapRef naming.SnapRef) (snapPath string
 	}
 
 	snapName := snapDecl.SnapName()
-	snapPath = filepath.Join(s.systemDir, "../../snaps", fmt.Sprintf("%s_%d.snap", snapName, snapRev.SnapRevision()))
+	snapPath = filepath.Join(s.systemDir, snapsDir, fmt.Sprintf("%s_%d.snap", snapName, snapRev.SnapRevision()))
 
 	fi, err := os.Stat(snapPath)
 	if err != nil {
@@ -285,12 +299,7 @@ func (s *seed20) lookupVerifiedRevision(snapRef naming.SnapRef) (snapPath string
 	return snapPath, snapRev, snapDecl, nil
 }
 
-func (s *seed20) addModelSnap(modelSnap *asserts.ModelSnap, essential bool, tm timings.Measurer) (*Snap, error) {
-	// TODO|XXX: support optional snaps correctly
-
-	channel := modelSnap.DefaultChannel
-
-	optSnap, _ := s.nextOptSnap(modelSnap)
+func (s *seed20) addSnap(snapRef naming.SnapRef, optSnap *internal.Snap20, modes []string, channel string, snapsDir string, tm timings.Measurer) (*Snap, error) {
 	if optSnap != nil && optSnap.Channel != "" {
 		channel = optSnap.Channel
 	}
@@ -308,10 +317,10 @@ func (s *seed20) addModelSnap(modelSnap *asserts.ModelSnap, essential bool, tm t
 		channel = ""
 	} else {
 		var err error
-		timings.Run(tm, "derive-side-info", fmt.Sprintf("hash and derive side info for snap %q", modelSnap.SnapName()), func(nested timings.Measurer) {
+		timings.Run(tm, "derive-side-info", fmt.Sprintf("hash and derive side info for snap %q", snapRef.SnapName()), func(nested timings.Measurer) {
 			var snapRev *asserts.SnapRevision
 			var snapDecl *asserts.SnapDeclaration
-			path, snapRev, snapDecl, err = s.lookupVerifiedRevision(modelSnap)
+			path, snapRev, snapDecl, err = s.lookupVerifiedRevision(snapRef, snapsDir)
 			if err == nil {
 				sideInfo = snapasserts.SideInfoFromSnapAssertions(snapDecl, snapRev)
 			}
@@ -333,13 +342,24 @@ func (s *seed20) addModelSnap(modelSnap *asserts.ModelSnap, essential bool, tm t
 
 		SideInfo: sideInfo,
 
-		Essential: essential,
-		Required:  essential || modelSnap.Presence == "required",
-
 		Channel: channel,
 	}
 
 	s.snaps = append(s.snaps, seedSnap)
+	s.modes = append(s.modes, modes)
+
+	return seedSnap, nil
+}
+
+func (s *seed20) addModelSnap(modelSnap *asserts.ModelSnap, essential bool, tm timings.Measurer) (*Snap, error) {
+	optSnap, _ := s.nextOptSnap(modelSnap)
+	seedSnap, err := s.addSnap(modelSnap, optSnap, modelSnap.Modes, modelSnap.DefaultChannel, "../../snaps", tm)
+	if err != nil {
+		return nil, err
+	}
+
+	seedSnap.Essential = essential
+	seedSnap.Required = essential || modelSnap.Presence == "required"
 	if essential {
 		s.essentialSnapsNum++
 	}
@@ -361,15 +381,23 @@ func (s *seed20) LoadMeta(tm timings.Measurer) error {
 		return err
 	}
 
-	snapdSnap := internal.MakeSystemSnap("snapd", "latest/stable", []string{"run", "ephemeral"})
-	if _, err := s.addModelSnap(snapdSnap, true, tm); err != nil {
-		return err
+	allSnaps := model.AllSnaps()
+	// an explicit snapd is the first of all of snaps
+	if allSnaps[0].SnapType != "snapd" {
+		snapdSnap := internal.MakeSystemSnap("snapd", "latest/stable", []string{"run", "ephemeral"})
+		if _, err := s.addModelSnap(snapdSnap, true, tm); err != nil {
+			return err
+		}
 	}
 
 	essential := true
-	for _, modelSnap := range model.AllSnaps() {
+	for _, modelSnap := range allSnaps {
 		seedSnap, err := s.addModelSnap(modelSnap, essential, tm)
 		if err != nil {
+			if _, ok := err.(*NoSnapDeclarationError); ok && modelSnap.Presence == "optional" {
+				// skipped optional snap is ok
+				continue
+			}
 			return err
 		}
 		if modelSnap.SnapType == "gadget" {
@@ -389,6 +417,20 @@ func (s *seed20) LoadMeta(tm timings.Measurer) error {
 		}
 	}
 
+	// extra snaps
+	runMode := []string{"run"}
+	for {
+		optSnap, done := s.nextOptSnap(nil)
+		if done {
+			break
+		}
+
+		_, err := s.addSnap(optSnap, optSnap, runMode, "latest/stable", "snaps", tm)
+		if err != nil {
+			return err
+		}
+	}
+
 	return nil
 }
 
@@ -397,9 +439,21 @@ func (s *seed20) EssentialSnaps() []*Snap {
 }
 
 func (s *seed20) ModeSnaps(mode string) ([]*Snap, error) {
-	if mode != "run" {
-		// XXX
-		return nil, fmt.Errorf("internal error: only run mode supported atm")
+	snaps := s.snaps[s.essentialSnapsNum:]
+	modes := s.modes[s.essentialSnapsNum:]
+	nGuess := len(snaps)
+	ephemeral := mode != "run"
+	if ephemeral {
+		nGuess /= 2
 	}
-	return s.snaps[s.essentialSnapsNum:], nil
+	res := make([]*Snap, 0, nGuess)
+	for i, snap := range snaps {
+		if !strutil.ListContains(modes[i], mode) {
+			if !ephemeral || !strutil.ListContains(modes[i], "ephemeral") {
+				continue
+			}
+		}
+		res = append(res, snap)
+	}
+	return res, nil
 }

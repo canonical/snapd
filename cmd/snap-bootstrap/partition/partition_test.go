@@ -83,6 +83,7 @@ var mockDeviceStructureWritable = partition.DeviceStructure{
 			Size:       1258291200,
 			Type:       "83,0FC63DAF-8483-4772-8E79-3D69D8477DE4",
 			Role:       "system-data",
+			Label:      "ubuntu-data",
 			Filesystem: "ext4",
 		},
 		StartOffset: 1260388352,
