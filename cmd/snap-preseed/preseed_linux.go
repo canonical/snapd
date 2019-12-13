@@ -25,7 +25,6 @@ import (
 	"os/exec"
 	"path/filepath"
 	"syscall"
-	"time"
 
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/osutil"
@@ -132,14 +131,8 @@ func prepareChroot(preseedChroot string) (func(), error) {
 	}
 
 	removeMountpoint := func() {
-		for i := 0; i < 5; i++ {
-			err := os.Remove(where)
-			if err != nil {
-				fmt.Fprintf(Stderr, "%v", err)
-			} else {
-				return
-			}
-			time.Sleep(time.Second)
+		if err := os.Remove(where); err != nil {
+			fmt.Fprintf(Stderr, "%v", err)
 		}
 	}
 
