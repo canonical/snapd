@@ -1,21 +1,20 @@
 name: snapd
+# TODO: enable this when the store is ready
+# type: snapd
 summary: Daemon and tooling that enable snap packages
 description: |
- Install, configure, refresh and remove snap packages. Snaps are
- 'universal' packages that work across many different Linux systems,
- enabling secure distribution of the latest apps and utilities for
- cloud, servers, desktops and the internet of things.
- 
- Start with 'snap list' to see installed snaps.
-version: set-by-version-script-thxbye
-version-script: |
-  ./mkversion.sh --output-only
-#FIXME: enable once snapcraft understands this
-#type: snapd
-grade: stable
+  Install, configure, refresh and remove snap packages. Snaps are
+  'universal' packages that work across many different Linux systems,
+  enabling secure distribution of the latest apps and utilities for
+  cloud, servers, desktops and the internet of things.
 
-passthrough:
-  license: GPL-3.0
+  Start with 'snap list' to see installed snaps.
+adopt-info: snapd
+# the base is only needed here for snapcraft to check the ELF sections of
+# binaries inside the snap, which is an unnecessary check for snapcraft itself
+base: core
+grade: stable
+license: GPL-3.0
 
 # Note that this snap is unusual in that it has no "apps" section.
 #
@@ -29,9 +28,29 @@ passthrough:
 # https://forum.snapcraft.io/t/5547/10
 parts:
   snapd:
-    # FIXME: this should probably go upstream
-    plugin: x-builddeb
+    plugin: nil
     source: .
+    build-snaps: [go/1.10/stable]
+    override-pull: |
+      snapcraftctl pull
+      # install build dependencies
+      export DEBIAN_FRONTEND=noninteractive
+      export DEBCONF_NONINTERACTIVE_SEEN=true
+      sudo apt-get build-dep -y ./
+      ./get-deps.sh --skip-unused-check
+      # set version after installing dependencies so we have all the tools here
+      snapcraftctl set-version $(./mkversion.sh --output-only)
+    override-build: |
+      # if we are root, disable tests
+      if [ "$(id -u)" = "0" ]; then
+        DEB_BUILD_OPTIONS=nocheck
+        export DEB_BUILD_OPTIONS
+      fi
+      # run the real build (but just build the binary package, and don't
+      # bother compressing it too much)
+      dpkg-buildpackage -b -Zgzip -zfast
+      dpkg-deb -x $(pwd)/../snapd_*.deb $SNAPCRAFT_PART_INSTALL
+
   # xdelta is used to enable delta downloads (even if the host does not have it)
   xdelta3:
     plugin: nil
@@ -83,20 +102,19 @@ parts:
   fontconfig-xenial:
     plugin: nil
     source: https://github.com/snapcore/fc-cache-static-builder.git
-    build: |
+    override-build: |
       ./build-from-security.py xenial
       mkdir -p $SNAPCRAFT_PART_INSTALL/bin
       cp -a fc-cache-xenial $SNAPCRAFT_PART_INSTALL/bin/fc-cache-v6
-    stage:
+    prime:
       - bin/fc-cache-v6
   # the version in Ubuntu 18.04 (cache v7)
   fontconfig-bionic:
     plugin: nil
     source: https://github.com/snapcore/fc-cache-static-builder.git
-    build: |
+    override-build: |
       ./build-from-security.py bionic
       mkdir -p $SNAPCRAFT_PART_INSTALL/bin
       cp -a fc-cache-bionic $SNAPCRAFT_PART_INSTALL/bin/fc-cache-v7
-    stage:
+    prime:
       - bin/fc-cache-v7
-
