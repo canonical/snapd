@@ -73,12 +73,15 @@ var _ BootParticipant = trivial{}
 // ensure trivial is a Kernel
 var _ BootKernel = trivial{}
 
-// Model carries information about the model that is relevant to boot.
-// Note *asserts.Model implements this, and that's the expected use case.
-type Model interface {
+// Device carries information about the devie model and mode that is
+// relevant to boot.  Note snapstate.DeviceContext implements this, and that's
+// the expected use case.
+type Device interface {
+	RunMode() bool
+	Classic() bool
+
 	Kernel() string
 	Base() string
-	Classic() bool
 }
 
 // Participant figures out what the BootParticipant is for the given
@@ -88,8 +91,8 @@ type Model interface {
 //
 // Currently, on classic, nothing is a boot participant (returned will
 // always be NOP).
-func Participant(s snap.PlaceInfo, t snap.Type, model Model, onClassic bool) BootParticipant {
-	if applicable(s, t, model, onClassic) {
+func Participant(s snap.PlaceInfo, t snap.Type, dev Device) BootParticipant {
+	if applicable(s, t, dev) {
 		return &coreBootParticipant{s: s, t: t}
 	}
 	return trivial{}
@@ -98,15 +101,15 @@ func Participant(s snap.PlaceInfo, t snap.Type, model Model, onClassic bool) Boo
 // Kernel checks that the given arguments refer to a kernel snap
 // that participates in the boot process, and returns the associated
 // BootKernel, or a trivial implementation otherwise.
-func Kernel(s snap.PlaceInfo, t snap.Type, model Model, onClassic bool) BootKernel {
-	if t == snap.TypeKernel && applicable(s, t, model, onClassic) {
+func Kernel(s snap.PlaceInfo, t snap.Type, dev Device) BootKernel {
+	if t == snap.TypeKernel && applicable(s, t, dev) {
 		return &coreKernel{s: s}
 	}
 	return trivial{}
 }
 
-func applicable(s snap.PlaceInfo, t snap.Type, model Model, onClassic bool) bool {
-	if onClassic {
+func applicable(s snap.PlaceInfo, t snap.Type, dev Device) bool {
+	if dev.Classic() {
 		return false
 	}
 	if t != snap.TypeOS && t != snap.TypeKernel && t != snap.TypeBase {
@@ -114,21 +117,19 @@ func applicable(s snap.PlaceInfo, t snap.Type, model Model, onClassic bool) bool
 		return false
 	}
 
-	if model != nil {
-		switch t {
-		case snap.TypeKernel:
-			if s.InstanceName() != model.Kernel() {
-				// a remodel might leave you in this state
-				return false
-			}
-		case snap.TypeBase, snap.TypeOS:
-			base := model.Base()
-			if base == "" {
-				base = "core"
-			}
-			if s.InstanceName() != base {
-				return false
-			}
+	switch t {
+	case snap.TypeKernel:
+		if s.InstanceName() != dev.Kernel() {
+			// a remodel might leave you in this state
+			return false
+		}
+	case snap.TypeBase, snap.TypeOS:
+		base := dev.Base()
+		if base == "" {
+			base = "core"
+		}
+		if s.InstanceName() != base {
+			return false
 		}
 	}
 

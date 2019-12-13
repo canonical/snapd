@@ -54,6 +54,22 @@ func (dc *TrivialDeviceContext) GroundContext() snapstate.DeviceContext {
 	}
 }
 
+func (dc *TrivialDeviceContext) Classic() bool {
+	return dc.DeviceModel.Classic()
+}
+
+func (dc *TrivialDeviceContext) Kernel() string {
+	return dc.DeviceModel.Kernel()
+}
+
+func (dc *TrivialDeviceContext) Base() string {
+	return dc.DeviceModel.Base()
+}
+
+func (dc *TrivialDeviceContext) RunMode() bool {
+	return dc.OperatingMode() == "run"
+}
+
 func (dc *TrivialDeviceContext) Store() snapstate.StoreService {
 	if dc.Ground {
 		panic("retrieved ground context is not intended to drive store operations")

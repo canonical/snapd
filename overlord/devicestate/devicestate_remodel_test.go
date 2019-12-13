@@ -896,6 +896,11 @@ func (s *deviceMgrRemodelSuite) TestDeviceCtxNoTask(c *C) {
 	deviceCtx, err := devicestate.DeviceCtx(s.state, nil, nil)
 	c.Assert(err, IsNil)
 	c.Assert(deviceCtx.Model().BrandID(), Equals, "canonical")
+
+	c.Check(deviceCtx.Classic(), Equals, false)
+	c.Check(deviceCtx.Kernel(), Equals, "kernel")
+	c.Check(deviceCtx.Base(), Equals, "")
+	c.Check(deviceCtx.RunMode(), Equals, true)
 }
 
 func (s *deviceMgrRemodelSuite) TestDeviceCtxGroundContext(c *C) {
