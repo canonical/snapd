@@ -426,9 +426,11 @@ hooks:
 `
 	snapPath := makeTestSnap(c, snapYamlContent+"version: 1.0")
 
+	installHook := false
 	defer hookstate.MockRunHook(func(ctx *hookstate.Context, _ *tomb.Tomb) ([]byte, error) {
 		switch ctx.HookName() {
 		case "install":
+			installHook = true
 			_, _, err := ctlcmd.Run(ctx, []string{"set", "installed=true"}, 0)
 			c.Assert(err, IsNil)
 			return nil, nil
@@ -466,15 +468,20 @@ hooks:
 			err := t.Get("hook-setup", &hs)
 			c.Assert(err, IsNil)
 			switch hs.Hook {
-			case "check-health":
-				expectedStatus = state.HoldStatus
+			case "install":
+				expectedStatus = state.UndoneStatus
 			case "configure":
 				expectedStatus = state.ErrorStatus
+			case "check-health":
+				expectedStatus = state.HoldStatus
 			}
 			which += fmt.Sprintf("[%s]", hs.Hook)
 		}
 		c.Assert(t.Status(), Equals, expectedStatus, Commentf("%s", which))
 	}
+
+	// install hooks was called
+	c.Check(installHook, Equals, true)
 
 	// nothing in snaps
 	all, err := snapstate.All(st)
