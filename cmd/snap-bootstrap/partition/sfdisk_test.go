@@ -260,15 +260,7 @@ func (s *partitionTestSuite) TestBuildPartitionList(c *C) {
 	c.Assert(err, IsNil)
 
 	sfdiskInput, created := partition.BuildPartitionList(ptable, pv)
-	c.Assert(sfdiskInput.String(), Equals, `label: gpt
-label-id: 9151F25B-CDF0-48F1-9EDE-68CBD616E2CA
-device: /dev/node
-unit: sectors
-first-lba: 34
-last-lba: 8388574
-
-/dev/node1 : start=        2048, size=        2048, type=21686148-6449-6E6F-744E-656564454649, uuid=2E59D969-52AB-430B-88AC-F83873519F6F, name="BIOS Boot"
-/dev/node2 : start=        4096, size=     2457600, type=C12A7328-F81F-11D2-BA4B-00A0C93EC93B, name="Recovery"
+	c.Assert(sfdiskInput.String(), Equals, `/dev/node2 : start=        4096, size=     2457600, type=C12A7328-F81F-11D2-BA4B-00A0C93EC93B, name="Recovery"
 /dev/node3 : start=     2461696, size=     2457600, type=0FC63DAF-8483-4772-8E79-3D69D8477DE4, name="Writable"
 `)
 	c.Assert(created, DeepEquals, []partition.DeviceStructure{mockDeviceStructureSystemSeed, mockDeviceStructureWritable})
@@ -307,9 +299,10 @@ func (s *partitionTestSuite) TestCreatePartitions(c *C) {
 	// Check partition table read and write
 	c.Assert(cmdSfdisk.Calls(), DeepEquals, [][]string{
 		{"sfdisk", "--json", "-d", "/dev/node"},
-		{"sfdisk", "--no-reread", "/dev/node"},
+		{"sfdisk", "--append", "--no-reread", "/dev/node"},
 	})
 
+	// Check partition table update
 	c.Assert(cmdPartx.Calls(), DeepEquals, [][]string{
 		{"partx", "-u", "/dev/node"},
 	})
