@@ -593,6 +593,11 @@ func (s *firstBoot16Suite) TestPopulateFromSeedMissingBootloader(c *C) {
 	o.AddManager(ifacemgr)
 	c.Assert(o.StartUp(), IsNil)
 
+	hookMgr, err := hookstate.Manager(st, o.TaskRunner())
+	c.Assert(err, IsNil)
+	_, err = devicestate.Manager(st, hookMgr, o.TaskRunner(), nil)
+	c.Assert(err, IsNil)
+
 	st.Lock()
 	assertstate.ReplaceDB(st, db.(*asserts.Database))
 	st.Unlock()
