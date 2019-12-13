@@ -252,7 +252,9 @@ override_dh_install-arch:
 	rm $(CURDIR)/debian/snapd/$(SYSTEMD_UNITS_DESTDIR)/snapd.system-shutdown.service
 	rm $(CURDIR)/debian/snapd/usr/lib/snapd/snapd.run-from-snap
 
-	# snap-preseed is only useful on ubuntu
+	# snap-preseed is currently only useful on ubuntu and tailored for preseeding
+	# of ubuntu cloud images due to certain assumptions about runtime environment
+	# of the host and of the preseeded image.
 	rm -f ${CURDIR}/debian/tmp/usr/bin/snap-preseed
 
 	dh_install
