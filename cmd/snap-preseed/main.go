@@ -30,9 +30,9 @@ import (
 const (
 	shortHelp = "Prerun the first boot seeding of snaps in a chroot with a snapd seed."
 	longHelp  = `
-	Prerun the first boot seeding of snaps in an Ubuntu-based chroot directory
-	with a snapd seed (/var/lib/snapd/seed directory set up for seeding).
-`
+The snap-preseed command takes a directory with an image filesytem including
+seed snaps (at /var/lib/snapd/seed) and pre-runs as much as possible without
+booting of first boot snap installation to optimize it.`
 )
 
 var (
