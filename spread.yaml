@@ -497,6 +497,7 @@ debug-each: |
         # use ascii output to prevent travis from messing up the encoding
         findmnt --ascii -o+PROPAGATION || true
     fi
+    testbed-tool status
 
 rename:
     # Move content into a directory, so that deltas computed by repack benefit

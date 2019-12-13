@@ -343,9 +343,9 @@ prepare_project() {
 
         quiet eatmydata apt-get install -y software-properties-common
 
-	# FIXME: trusty-proposed disabled because there is an inconsistency
-	#        in the trusty-proposed archive:
-	# linux-generic-lts-xenial : Depends: linux-image-generic-lts-xenial (= 4.4.0.143.124) but 4.4.0.141.121 is to be installed
+    # FIXME: trusty-proposed disabled because there is an inconsistency
+    #        in the trusty-proposed archive:
+    # linux-generic-lts-xenial : Depends: linux-image-generic-lts-xenial (= 4.4.0.143.124) but 4.4.0.141.121 is to be installed
         #echo 'deb http://archive.ubuntu.com/ubuntu/ trusty-proposed main universe' >> /etc/apt/sources.list
         quiet add-apt-repository ppa:snappy-dev/image
         quiet eatmydata apt-get update
@@ -523,7 +523,7 @@ prepare_suite_each() {
 
     # FIXME: Core tests leaks some loopback devices. This needs to be
     # investigated and fixed ahead of using this code there.
-    testbed-tool compare --basic
+    testbed-tool compare
 
     # Reset systemd journal cursor.
     start_new_journalctl_log
@@ -587,9 +587,7 @@ restore_suite_each() {
     # shellcheck source=tests/lib/reset.sh
     "$TESTSLIB"/reset.sh --reuse-core
 
-    if testbed-tool has-baseline; then
-        testbed-tool compare --basic
-    fi
+    testbed-tool compare
 }
 
 restore_suite() {

@@ -1,0 +1,132 @@
+#!/bin/sh
+
+# STATE_DIR stores the persistent state of this invariant tool
+STATE_DIR=""
+for arg in "$@"; do
+    case "$arg" in
+    --state-dir=*)
+        STATE_DIR="$(printf "%s" -- "$arg" | cut -d= -f2-)"
+        ;;
+    esac
+done
+
+if [ -z "$STATE_DIR" ]; then
+    echo "$0: --state-dir= is required" >&2
+    exit 1
+fi
+
+postprocess() {
+    # Rewrite mountinfo table using specific ordering to avoid some pitfalls:
+    # The tuple (mount_point, mount_source) nullifies unpredictability of
+    # concurrent mount operations in hierarchies such as /snap and
+    # /sys/fs/cgroup. The fs_type aids in ordering of automatic mount points
+    # that overlap, for example binfmt_misc.
+    mountinfo-tool \
+        --renumber \
+        --rename \
+        --rewrite-order mount_point \
+        --rewrite-order mount_source \
+        --rewrite-order fs_type \
+        --display-order mount_point \
+        --display-order mount_source \
+        --display-order fs_type \
+        "$@"
+}
+
+measure_current_state() {
+    # Capture the current state of the mount table
+    cat /proc/self/mountinfo >"$STATE_DIR"/current.raw.txt
+    # Compute two sets of deterministic profiles: full and basic.
+    #
+    # The basic one has fewer attributes so it can certainly miss actual
+    # changes but it doesn't have the .mount_id and .parent_id which tend to
+    # produce very verbose diff output.
+    postprocess -f "$STATE_DIR"/baseline.raw.txt .mount_source .mount_point .fs_type .mount_opts .sb_opts >"$STATE_DIR"/baseline.deterministic.basic.txt &
+    postprocess -f "$STATE_DIR"/current.raw.txt  .mount_source .mount_point .fs_type .mount_opts .sb_opts >"$STATE_DIR"/current.deterministic.basic.txt &
+    postprocess -f "$STATE_DIR"/baseline.raw.txt >"$STATE_DIR"/baseline.deterministic.txt &
+    postprocess -f "$STATE_DIR"/current.raw.txt  >"$STATE_DIR"/current.deterministic.txt &
+    wait
+}
+
+cmd_has_baseline() {
+    test -e "$STATE_DIR"/baseline.raw.txt
+}
+
+cmd_set_baseline() {
+    cat /proc/self/mountinfo >"$STATE_DIR"/baseline.raw.txt
+}
+
+cmd_status() {
+    if [ ! -e "$STATE_DIR"/baseline.raw.txt ]; then
+        return 2
+    fi
+    measure_current_state
+    cmp --quiet "$STATE_DIR"/baseline.deterministic.txt "$STATE_DIR"/current.deterministic.txt
+}
+
+cmd_compare() {
+    if [ ! -e "$STATE_DIR"/baseline.raw.txt ]; then
+        echo "baseline state not available" >&2
+        return 2
+    fi
+    measure_current_state
+    if cmp --quiet "$STATE_DIR"/baseline.deterministic.txt "$STATE_DIR"/current.deterministic.txt; then
+        echo "The mount table is the same as baseline"
+        return 0
+    else
+        echo "The mount table has changed since establishing baseline measurement"
+        echo "The following diff may assist in tracking the cause of the change:"
+        if [ "${1:-}" = "--details" ]; then
+            diff -u "$STATE_DIR"/baseline.deterministic.txt "$STATE_DIR"/current.deterministic.txt || true
+        else
+            diff -u --minimal "$STATE_DIR"/baseline.deterministic.basic.txt "$STATE_DIR"/current.deterministic.basic.txt || true
+            echo "NOTE: use --details to show more information about what has changed"
+        fi
+        return 1
+    fi
+}
+
+for arg in "$@"; do
+    case "$arg" in
+        --state-dir=*)
+            # This is handled at the top of the executable.
+            shift
+            ;;
+        status)
+            shift
+            cmd_status "$@"
+            exit $?
+            ;;
+        has-baseline)
+            shift
+            cmd_has_baseline "$@"
+            exit $?
+            ;;
+        set-baseline)
+            shift
+            cmd_set_baseline "$@"
+            exit $?
+            ;;
+        compare)
+            shift
+            cmd_compare "$@"
+            exit $?
+            ;;
+        *)
+            echo "Usage: $0 [GLOBAL-OPTIONS] COMMAND [COMMAND-OPTIONS]"
+            echo
+            echo "Global options:"
+            echo "  --state-dir=DIR      sets DIR as the directory for measurement state"
+            echo
+            echo "Available commands:"
+            echo "  status               assess the status of the system"
+            echo "  set-baseline         sets baseline state of the system"
+            echo "  has-baseline         checks if baseline is present system"
+            echo "  compare              checks for deviations from baseline"
+            echo
+            echo "Command options:"
+            echo "  compare --details    produce larger diff with more details"
+            exit 1
+            ;;
+    esac
+done

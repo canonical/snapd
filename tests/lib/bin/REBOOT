@@ -5,4 +5,6 @@
 # shellcheck source=tests/lib/spread-funcs.sh 
 . "$TESTSLIB/spread-funcs.sh"
 
+testbed-tool log-event "rebooting as requested"
+
 REBOOT "$@"

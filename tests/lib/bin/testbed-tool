@@ -1,138 +1,558 @@
-#!/bin/sh -e
-# This script is meant to monitor the state of the device under test.  It is a
-# convenient place to add detectors for leaky tests. Things that fit into this
-# category are:
-# - leftover mount points (now sporadically captured by tests/main/mount-ns)
-# - leftover processes (especially FUSE things or dbus-daemon)
-# - leftover packages
-# - altered kernel control knobs.
+#!/usr/bin/env any-python
+from __future__ import print_function, absolute_import, unicode_literals
 
-D_mountinfo=/var/tmp/testbed-tool/mountinfo
+import argparse
+import io
+import atexit
+import datetime
+import errno
+import json
+import logging
+import os
+import select
+import subprocess
+import sys
 
-cmd_has_mountinfo() {
-    D="$D_mountinfo"
-    test -e "$D/baseline.raw.txt"
-}
+# PY2 is true when we're running under Python 2.x It is used for appropriate
+# return value selection of __str__ and __repr_ methods, which must both
+# return str, not unicode (in Python 2) and str (in Python 3). In both cases
+# the return type annotation is exactly the same, but due to unicode_literals
+# being in effect, and the fact we often use a format string (which is an
+# unicode string in Python 2), we must encode the it to byte string when
+# running under Python 2.
+PY2 = sys.version_info[0] == 2
 
-cmd_measure_mountinfo() {
-    D="$D_mountinfo"
-    if [ "${1:-}" = "--once" ] && [ -e "$D/baseline.raw.txt" ]; then
-        exit
-    fi
-    mkdir -p "$D"
-    cat /proc/self/mountinfo >"$D"/baseline.raw.txt
-}
+# Define MYPY as False and use it as a conditional for typing import. Despite
+# this declaration mypy will really treat MYPY as True when type-checking.
+# This is required so that we can import typing on Python 2.x without the
+# typing module installed. For more details see:
+# https://mypy.readthedocs.io/en/latest/common_issues.html#import-cycles
+MYPY = False
+if MYPY:
+    from typing import (
+        Any,
+        AnyStr,
+        Dict,
+        IO,
+        Iterator,
+        List,
+        Optional,
+        Sequence,
+        Set,
+        Text,
+        Tuple,
+    )
 
-postprocess_mountinfo() {
-    # Rewrite mountinfo table using specific ordering to avoid some pitfalls:
-    # The tuple (mount_point, mount_source) nullifies unpredictability of
-    # concurrent mount operations in hierarchies such as /snap and
-    # /sys/fs/cgroup. The fs_type aids in ordering of automatic mount points
-    # that overlap, for example binfmt_misc.
-    mountinfo-tool \
-        --renumber \
-        --rename \
-        --rewrite-order mount_point \
-        --rewrite-order mount_source \
-        --rewrite-order fs_type \
-        --display-order mount_point \
-        --display-order mount_source \
-        --display-order fs_type \
-        "$@"
-}
 
-cmd_compare_mountinfo() {
-    D="$D_mountinfo"
-    if [ ! -e "$D"/baseline.raw.txt ]; then
-        echo "baseline state not available" >&2
-        exit 1
-    fi
-    # Capture the current state of the mount table
-    cat /proc/self/mountinfo >"$D"/current.raw.txt
-    # Compute two sets of deterministic profiles: full and basic.
-    #
-    # The basic one has fewer attributes so it can certainly miss actual
-    # changes but it doesn't have the .mount_id and .parent_id which tend to
-    # produce very verbose diff output.
-    postprocess_mountinfo -f "$D"/baseline.raw.txt .mount_source .mount_point .fs_type .mount_opts .sb_opts >"$D"/baseline.deterministic.basic.txt
-    postprocess_mountinfo -f "$D"/current.raw.txt  .mount_source .mount_point .fs_type .mount_opts .sb_opts >"$D"/current.deterministic.basic.txt
-    postprocess_mountinfo -f "$D"/baseline.raw.txt >"$D"/baseline.deterministic.txt
-    postprocess_mountinfo -f "$D"/current.raw.txt  >"$D"/current.deterministic.txt
-    if ! cmp --quiet "$D"/baseline.deterministic.txt "$D"/current.deterministic.txt; then
-        echo "The test has modified the mount table"
-        # If --basic is used then show the shorter diff from the basic variant.
-        if [ "${1:-}" = "--basic" ]; then
-            diff -u --minimal "$D"/baseline.deterministic.basic.txt "$D"/current.deterministic.basic.txt || true
-            echo "WARNING: --basic shows a subset of the mount table attributes,"
-            echo "run 'testbed-tool compare' for the full diff."
-        else
-            diff -u "$D"/baseline.deterministic.txt "$D"/current.deterministic.txt || true
-        fi
-        return 1
-    fi
-}
+def _makedirs(path, mode=0o777, exist_ok=False):
+    # type: (Text, int, bool) -> None
+    try:
+        os.makedirs(path, 0o755)
+    except OSError as exc:
+        if exc.errno == errno.EEXIST and exist_ok:
+            return
+        raise
 
-if [ -d /writable ]; then
-    TOOL_STATE_DIR=/writable/system-data/var/lib/testbed-tool
-else
-    TOOL_STATE_DIR=/var/lib/testbed-tool
-fi
 
-cmd_log_event() {
-    mkdir -p "$TOOL_STATE_DIR"
-        if [ "$SPREAD_REBOOT" -gt 0 ]; then
-            echo "$(date -Iseconds) $* (for job $SPREAD_JOB), reboot $SPREAD_REBOOT" >> "$TOOL_STATE_DIR/event.log"
-        else
-            echo "$(date -Iseconds) $* (for job $SPREAD_JOB)" >> "$TOOL_STATE_DIR/event.log"
-        fi
-}
+def _plain_bytes(s):
+    # type: (Text) -> str
+    if PY2:
+        return s.encode()
+    return s
 
-cmd_show_events() {
-    if [ -e "$TOOL_STATE_DIR/event.log" ]; then
-        cat "$TOOL_STATE_DIR/event.log"
-    fi
-}
 
-case "${1:-}" in
-    has-baseline)
-        shift
-        cmd_has_mountinfo "$@"
-        ;;
-    set-baseline)
-        shift
-        cmd_measure_mountinfo "$@"
-        ;;
-    compare)
-        shift
-        failed=0
-        if ! cmd_compare_mountinfo "$@"; then
-            failed=1
-        fi
-        exit $failed
-        ;;
-    log-event)
-        shift
-        cmd_log_event "$@"
-        ;;
-    show-events)
-        shift
-        cmd_show_events "$@"
-        ;;
-    *)
-        echo "Usage: testbed-tool COMMAND"
-        echo
-        echo "Measured testbed properties:"
-        echo "  mountinfo            mount table of the current process"
-        echo
-        echo "Available commands:"
-        echo "  set-baseline         sets baseline state of the system"
-        echo "  has-baseline         checks if baseline is present system"
-        echo "  compare-to-baseline  checks for deviations from baseline"
-        echo "  log-event            log a test system activity"
-        echo "  show-events          show a log of all activities"
-        echo
-        echo "Command options:"
-        echo "  set-baseline --once  don't set the baseline if one exists"
-        echo "  compare --basic      produce shorter diff, at a cost of some detail"
-        ;;
-esac
+def autopager():
+    # type: () -> None
+    """autopager spawns a pager that displays subsequent output."""
+    if not sys.stdout.isatty():
+        return
+    read_fd, write_fd = os.pipe()
+    if os.fork():
+        # [parent process, exec the pager]
+        # redirect stdin to the read end of the pipe
+        os.dup2(read_fd, sys.stdin.fileno())
+        # close the leftover pipe descriptors
+        os.close(read_fd)
+        os.close(write_fd)
+        # wait until input arrives and spawn the pager
+        select.select((sys.stdin.fileno(),), (), ())
+        pager = os.getenv("PAGER", "less")
+        # stolen from git
+        os.environ[_plain_bytes("LESS")] = _plain_bytes("FRX")
+        os.environ[_plain_bytes("LV")] = _plain_bytes("-c")
+        os.execlp(pager, pager)
+        os.execlp("sh", "sh", "-c", pager)
+    else:
+        # [child process, continue running python]
+        # redired stdout and stderr, if not a tty, to write end of the pipe
+        os.dup2(write_fd, sys.stdout.fileno())
+        if sys.stderr.isatty():
+            os.dup2(write_fd, sys.stderr.fileno())
+        # close the leftover pipe descriptors
+        os.close(read_fd)
+        os.close(write_fd)
+
+        def wait_for_pager():
+            # type: () -> None
+            sys.stdout.close()
+            sys.stderr.close()
+            try:
+                os.waitpid(os.getppid(), 0)
+            except OSError as exc:
+                if exc.errno == errno.ECHILD:
+                    return
+                raise
+
+        atexit.register(wait_for_pager)
+        # return back to python
+
+
+def state_dir():
+    # type: () -> Text
+    """Directory storing persistent state of the measurement tool"""
+    if os.path.isdir("/writable"):
+        return "/writable/system-data/var/lib/testbed-tool"
+    return "/var/lib/testbed-tool"
+
+
+def dirty_marker_file():
+    # type: () -> Text
+    """Path of the marker file indicating persistent dirtiness"""
+    return os.path.join(state_dir(), "dirty")
+
+
+def is_dirty():
+    # type: () -> bool
+    return os.path.exists(dirty_marker_file())
+
+
+def log_file():
+    # type: () -> Text
+    """Path of the log file for test events"""
+    return os.path.join(state_dir(), "event.log")
+
+
+class ToolProtocolError(Exception):
+    def __init__(self, tool, cmd, returncode, stdout, stderr):
+        # type: (InvariantTool, Sequence[Text], int, Text, Text) -> None
+        self.tool = tool
+        self.cmd = cmd
+        self.returncode = returncode
+        self.stdout = stdout
+        self.stderr = stderr
+
+    def describe(self):
+        # type: () -> None
+        print("-- unexpected response from {}".format(self.tool.name))
+        print("-- invoked as: {}".format(" ".join(self.args)))
+        print("-- return code: {}".format(self.returncode))
+        print("-- stdout output")
+        print(self.stdout)
+        print("-- stderr output")
+        print(self.stderr)
+
+
+class InvariantTool(object):
+    def __init__(self, path, name=None):
+        # type: (Text, Optional[Text]) -> None
+        self.path = path
+        if name is None:
+            name = os.path.basename(path)
+        self.name = name
+
+    def _invoke(self, *tool_args):
+        # type: (Text) -> Tuple[subprocess.Popen[str], List[Text]]
+        tool_state_dir = os.path.join(state_dir(), self.name)
+        _makedirs(tool_state_dir, 0o755, exist_ok=True)
+        args = [self.path, "--state-dir={}".format(tool_state_dir)]
+        args.extend(tool_args)
+        proc = subprocess.Popen(
+            args,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+            universal_newlines=True,
+        )
+        return (proc, args)
+
+    def _protocol_error(self, proc, args, stdout, stderr):
+        # type: (subprocess.Popen[str], List[Text], Text, Text) -> ToolProtocolError
+        return ToolProtocolError(self, args, proc.returncode, stdout, stderr)
+
+    def has_baseline(self):
+        # type: () -> bool
+        proc, _ = self._invoke("has-baseline")
+        _, _, = proc.communicate()
+        return proc.returncode == 0
+
+    def set_baseline(self):
+        # type: () -> None
+        proc, args = self._invoke("set-baseline")
+        stdout, stderr = proc.communicate()
+        if proc.returncode != 0:
+            raise self._protocol_error(proc, args, stdout, stderr)
+
+    def status(self):
+        # type: () -> Text
+        """
+        status checks and returns the status of the invariant.
+
+        The return value is one of "upheld", "violated" or "no baseline".
+        If the invariant tool miscommunicates a ToolProtocolError is raised.
+        """
+        proc, args = self._invoke("status")
+        stdout, stderr = proc.communicate()
+        if proc.returncode == 0:
+            return "upheld"
+        elif proc.returncode == 1:
+            return "violated"
+        elif proc.returncode == 2:
+            return "no baseline"
+        else:
+            raise self._protocol_error(proc, args, stdout, stderr)
+
+    def compare(self, details=False):
+        # type: (bool) -> Optional[Text]
+        """
+        compare displays the delta between the current state and baseline.
+
+        Returns an empty string if the invariant is upheld.
+        Returns a non-empty the diff if the invariant has been violated.
+        Returns None if the invariant has not been set.
+        If the invariant tool miscommunicates a ToolProtocolError is raised.
+        """
+        if details:
+            proc, args = self._invoke("compare", "--details")
+        else:
+            proc, args = self._invoke("compare")
+        stdout, stderr = proc.communicate()
+        if proc.returncode == 0:
+            # invariant upheld
+            return ""
+        elif proc.returncode == 1:
+            # invariant violated
+            return stdout
+        elif proc.returncode == 2:
+            # no baseline
+            return None
+        else:
+            raise self._protocol_error(proc, args, stdout, stderr)
+
+
+def invariant_tools():
+    # type: () -> Iterator[InvariantTool]
+    d = "testbed-invariants"
+    dirs = [
+        os.path.join("/run/", d),
+        os.path.join("/usr/local/lib/", d),
+        os.path.join("/usr/lib/", d),
+        os.path.join("/usr/lib/", d),
+    ]
+    # When running inside a spread project allow the project to
+    # distribute additional invatiant tools.
+    spread_path = os.getenv("SPREAD_PATH")
+    if spread_path:
+        dirs.extend(
+            [
+                os.path.join(spread_path, "lib", d),
+                os.path.join(spread_path, "tests/lib", d),
+            ]
+        )
+    seen_names = set()  # type: Set[Text]
+    for dir in dirs:
+        if not os.path.isdir(dir):
+            continue
+        for name in os.listdir(dir):
+            if name in seen_names:
+                continue
+            tool_path = os.path.join(dir, name)
+            if not os.access(tool_path, os.X_OK):
+                continue
+            seen_names.add(name)
+            yield InvariantTool(tool_path)
+
+
+def log_event(msg):
+    # type: (Text) -> None
+    _makedirs(state_dir(), 0o755, exist_ok=True)
+    spread_env = (
+        "SPREAD_SUITE",
+        "SPREAD_TASK",
+        "SPREAD_JOB",
+        "SPREAD_REBOOT",
+        "SPREAD_VARIANT",
+        "SPREAD_SAMPLE",  # What is this?
+    )
+    attrs = {}
+    for name, value in os.environ.items():
+        if name.startswith("SPREAD_"):
+            attrs[name] = value
+    record = {
+        "msg": msg,
+        "ts": datetime.datetime.now().isoformat(),
+        "attrs": attrs,
+    }
+    with open(log_file(), "a") as f:
+        json.dump(record, f)
+        f.write(_plain_bytes("\n"))
+
+
+def task_history():
+    # type: () -> List[Text]
+    try:
+        log = io.open(log_file(), "rt", encoding="utf-8")
+    except OSError as exc:
+        if exc.errno == errno.ENOENT:
+            return []  # Type: List[Text]
+        raise
+    history = []  # Type: List[Text]
+    with log:
+        for event in events_from_file(log):
+            if event.msg == "called prepare-restore.sh --prepare-project-each":
+                if event.attrs is not None:
+                    history.append(event.attrs["SPREAD_TASK"])
+    history.reverse()
+    return history
+
+
+def abbrev_task_history(history):
+    # type: (List[Text]) -> Text
+    chunks = []  # type: List[Text]
+    while len(chunks) < 3 and len(history) > 0:
+        # Scan the _remaining_ history for runs of same test
+        rle = 0
+        for task in history:
+            if task == history[0]:
+                rle += 1
+            else:
+                break
+        if rle > 1:
+            chunks.append("{} x {}".format(rle, history[0]))
+            history = history[rle:]
+        else:
+            chunks.append(history[0])
+            history = history[1:]
+    if len(chunks) == 0:
+        return "no tasks recorded"
+    if len(history):
+        chunks.append("and {} more".format(len(history)))
+    return ", ".join(chunks)
+
+
+def cmd_status():
+    # type: () -> int
+    """Display status of the test machine"""
+    history = task_history()
+    print(
+        "{:>25}: {} (most recent first)".format(
+            "Task History", abbrev_task_history(history)
+        )
+    )
+    print("{:>25}: {}".format("Declared dirty", "yes" if is_dirty() else "no"))
+    failed = False
+    for tool in invariant_tools():
+        print("{:>25}: ".format('Invariant "{}"'.format(tool.name)), end="")
+        sys.stdout.flush()
+        try:
+            status = tool.status()
+            print(status)
+            if status == "violated":
+                failed = True
+        except ToolProtocolError as exc:
+            exc.describe()
+            failed = True
+    return 1 if failed else 0
+
+
+def cmd_set_baseline():
+    # type: () -> int
+    """Set baseline state of the system"""
+    failed = False
+    for tool in invariant_tools():
+        try:
+            if not tool.has_baseline():
+                tool.set_baseline()
+                log_event("computed invariant baseline: {}".format(tool.name))
+        except ToolProtocolError as exc:
+            exc.describe()
+            failed = True
+    return 1 if failed else 0
+
+
+def cmd_compare(details):
+    # type: (bool) -> int
+    """Compare the current state against baseline"""
+    failed = False
+    for tool in invariant_tools():
+        try:
+            diff = tool.compare(details)
+            if diff is None:
+                print("-- {} has no baseline".format(tool.name))
+            elif diff != "":
+                print("-- {} invariant violated".format(tool.name))
+                print(diff)
+                failed = True
+        except ToolProtocolError as exc:
+            exc.describe()
+            failed = True
+    return 1 if failed else 0
+
+
+def cmd_is_dirty():
+    # type: () -> int
+    """Check if the system is marked as dirty"""
+    dirty = is_dirty()
+    if os.isatty(sys.stdout.fileno()):
+        print("testbed is dirty" if dirty else "testbed is clean")
+    return 0 if dirty else 1
+
+
+def cmd_mark_dirty():
+    # type: () -> None
+    """Mark the system as persitently modified"""
+    _makedirs(state_dir(), 0o755, exist_ok=True)
+    with open(dirty_marker_file()) as f:
+        pass
+
+
+def cmd_mark_clean():
+    # type: () -> None
+    """Mark the system as clean"""
+    os.remove(dirty_marker_file())
+
+
+def cmd_log_event(msg):
+    # type: (Text) -> None
+    """Log an event in a test journal"""
+    log_event(msg)
+
+
+class Event(object):
+    def __init__(self, msg=None, ts=None, attrs=None, raw=None):
+        # type: (Optional[Text], Optional[datetime.datetime], Optional[Dict[Text, Text]], Optional[Text]) -> None
+        self.msg = msg
+        self.ts = ts
+        self.attrs = attrs
+        self.raw = raw
+
+
+def events_from_file(log):
+    # type: (IO[Any]) -> Iterator[Event]
+    old_attrs = {}  # type: Dict[Text, Any]
+    for line in log:
+        try:
+            record = json.loads(line)
+        except ValueError:
+            yield Event(raw=line)
+        else:
+            msg = record.get("msg")
+            ts = None
+            try:
+                ts = datetime.datetime.strptime(record["ts"], "%Y-%m-%dT%H:%M:%S.%f")
+            except (KeyError, ValueError):
+                ts = None
+            attrs = record.get("attrs")
+            yield Event(msg=msg, ts=ts, attrs=attrs)
+
+
+def cmd_show_events():
+    # type: () -> None
+    """Display the test journal"""
+    autopager()
+    try:
+        log = io.open(log_file(), "rt", encoding="utf-8")
+    except Exception as exc:
+        print("# {}".format(exc))
+        return
+    with log:
+        old_attrs = {}  # type: Dict[Text, Any]
+        for event in events_from_file(log):
+            if event.raw is not None:
+                print("(unparsed) {}".format(event.raw))
+                continue
+            keys = set(old_attrs.keys())
+            if event.attrs is not None:
+                keys |= set(event.attrs.keys())
+            for attr in sorted(keys):
+                value = event.attrs.get(attr) if event.attrs is not None else None
+                if old_attrs.get(attr) == value:
+                    continue
+                print("-- {}={}".format(attr, value))
+                old_attrs[attr] = value
+            # Display event timestamp and message
+            print(
+                "{:^15}: {}".format(
+                    "{:%H:%M:%S.%f}".format(event.ts)
+                    if event.ts is not None
+                    else "(no timestamp)",
+                    event.msg if event.msg is not None else "(no message",
+                )
+            )
+
+
+def _make_parser():
+    # type: () -> argparse.ArgumentParser
+    parser = argparse.ArgumentParser()
+    sub = parser.add_subparsers(title="sub-commands")
+
+    # set-baseline
+    cmd = sub.add_parser("set-baseline", help=cmd_set_baseline.__doc__)
+    cmd.set_defaults(func=lambda ns: cmd_set_baseline())
+
+    cmd = sub.add_parser("compare", help=cmd_compare.__doc__)
+    cmd.add_argument(
+        "--details",
+        action="store_true",
+        default=False,
+        help="Display larger, more detailed diffs",
+    )
+    cmd.set_defaults(func=lambda ns: cmd_compare(ns.details))
+
+    # is-dirty
+    cmd = sub.add_parser("is-dirty", help=cmd_is_dirty.__doc__)
+    cmd.set_defaults(func=lambda ns: cmd_is_dirty())
+
+    # mark-dirty
+    cmd = sub.add_parser("mark-dirty", help=cmd_mark_dirty.__doc__)
+    cmd.set_defaults(func=lambda ns: cmd_mark_dirty())
+
+    # mark-clean
+    cmd = sub.add_parser("mark-clean", help=cmd_mark_clean.__doc__)
+    cmd.set_defaults(func=lambda ns: cmd_mark_clean())
+
+    # log-event
+    cmd = sub.add_parser("log-event", help=cmd_log_event.__doc__)
+    cmd.add_argument(
+        "msg", metavar="MESSAGE", nargs="+", help="entry to write in the journal"
+    )
+    cmd.set_defaults(func=lambda ns: cmd_log_event(" ".join(ns.msg)))
+
+    # show-events
+    cmd = sub.add_parser("show-events", help=cmd_show_events.__doc__)
+    cmd.set_defaults(func=lambda ns: cmd_show_events())
+
+    # status
+    cmd = sub.add_parser("status", help=cmd_status.__doc__)
+    cmd.set_defaults(func=lambda ns: cmd_status())
+
+    parser.set_defaults(func=lambda ns: cmd_status())
+
+    return parser
+
+
+def main():
+    # type: () -> None
+    parser = _make_parser()
+    ns = parser.parse_args()
+    if not hasattr(ns, "func"):
+        parser.print_usage()
+        parser.exit()
+    try:
+        status = ns.func(ns)
+    except Exception as exc:
+        parser.exit(1, "testbed-tool: {}\n".format(exc))
+    else:
+        parser.exit(status)
+
+
+if __name__ == "__main__":
+    main()
