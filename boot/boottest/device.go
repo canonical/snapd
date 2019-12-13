@@ -25,7 +25,8 @@ import (
 
 // MockDevice implements boot.Device. It wraps a string like
 // <boot-snap-name>[@<mode>], no <boot-snap-name> means classic, no
-// <mode> defaults to "run".
+// <mode> defaults to "run". It returns <boot-snap-name> for both
+// Base and Kernel, for more control mock a DeviceContext.
 type MockDevice string
 
 func (d MockDevice) snapAndMode() []string {
