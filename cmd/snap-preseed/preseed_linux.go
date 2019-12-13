@@ -48,17 +48,17 @@ var (
 func checkChroot(preseedChroot string) error {
 	exists, isDir, err := osutil.DirExists(preseedChroot)
 	if err != nil {
-		return fmt.Errorf("cannot verify target chroot directory %s: %v", preseedChroot, err)
+		return fmt.Errorf("cannot verify %q: %v", preseedChroot, err)
 	}
 	if !exists || !isDir {
-		return fmt.Errorf("target chroot directory %s doesn't exist or is not a directory", preseedChroot)
+		return fmt.Errorf("cannot verify %q: is not a directory", preseedChroot)
 	}
 
 	// sanity checks of the critical mountpoints inside chroot directory
 	for _, p := range []string{"/sys/kernel/security/apparmor", "/proc/self", "/dev/mem"} {
 		path := filepath.Join(preseedChroot, p)
 		if exists := osutil.FileExists(path); !exists {
-			return fmt.Errorf("target chroot directory validation error: %s doesn't exist", path)
+			return fmt.Errorf("cannot pre-seed without access to %q", path)
 		}
 	}
 
