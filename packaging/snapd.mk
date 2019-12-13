@@ -146,6 +146,10 @@ install::
 install::
 	rm -f $(DESTDIR)$(bindir)/ubuntu-core-launcher
 
+# Do not ship snap-preseed, it is only usable on ubuntu.
+install::
+	rm -f $(DESTDIR)$(bindir)/snap-preseed
+
 ifeq ($(with_core_bits),0)
 # Remove systemd units that are only used on core devices.
 install::
