@@ -74,7 +74,7 @@ var _ BootParticipant = trivial{}
 var _ BootKernel = trivial{}
 
 // Device carries information about the devie model and mode that is
-// relevant to boot.  Note snapstate.DeviceContext implements this, and that's
+// relevant to boot. Note snapstate.DeviceContext implements this, and that's
 // the expected use case.
 type Device interface {
 	RunMode() bool
