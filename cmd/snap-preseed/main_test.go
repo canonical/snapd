@@ -93,7 +93,7 @@ func (s *startPreseedSuite) TestChrootDoesntExist(c *C) {
 	defer restore()
 
 	parser := testParser(c)
-	c.Check(main.Run(parser, []string{"/non-existing-dir"}), ErrorMatches, `target chroot directory /non-existing-dir doesn't exist or is not a directory`)
+	c.Check(main.Run(parser, []string{"/non-existing-dir"}), ErrorMatches, `cannot verify "/non-existing-dir": is not a directory`)
 }
 
 func (s *startPreseedSuite) TestChrootValidationUnhappy(c *C) {
@@ -103,7 +103,7 @@ func (s *startPreseedSuite) TestChrootValidationUnhappy(c *C) {
 	tmpDir := c.MkDir()
 
 	parser := testParser(c)
-	c.Check(main.Run(parser, []string{tmpDir}), ErrorMatches, "target chroot directory validation error: .*/sys/kernel/security/apparmor doesn't exist")
+	c.Check(main.Run(parser, []string{tmpDir}), ErrorMatches, `cannot pre-seed without access to ".*sys/kernel/security/apparmor"`)
 }
 
 func (s *startPreseedSuite) TestChrootFailure(c *C) {
