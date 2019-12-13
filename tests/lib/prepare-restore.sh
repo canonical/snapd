@@ -583,6 +583,9 @@ get_logs_file() {
 save_pkgs() {
     file=$1
     case "$SPREAD_SYSTEM" in
+        ubuntu-core-*)
+            cat /dev/null > "$file"
+            ;;
         ubuntu-*|debian-*)
             dpkg -l > "$file"
             ;;
