@@ -146,7 +146,9 @@ install::
 install::
 	rm -f $(DESTDIR)$(bindir)/ubuntu-core-launcher
 
-# Do not ship snap-preseed, it is only usable on ubuntu.
+# Do not ship snap-preseed. It is currently only useful on ubuntu and tailored
+# for preseeding of ubuntu cloud images due to certain assumptions about
+# runtime environment of the host and of the preseeded image.
 install::
 	rm -f $(DESTDIR)$(bindir)/snap-preseed
 
