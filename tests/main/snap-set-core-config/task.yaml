@@ -4,7 +4,7 @@ summary: Ensure "snap set core" works
 systems: [ubuntu-core-*]
 
 prepare: |
-    if ! systemctl -l | MATCH rsyslog.service; then
+    if systemctl -l | MATCH -v rsyslog.service; then
         #shellcheck source=tests/lib/systemd.sh
         . "$TESTSLIB"/systemd.sh
 
