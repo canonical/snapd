@@ -793,6 +793,7 @@ restore_project() {
     rm -rf /etc/systemd/journald.conf.d/no-rate-limit.conf
     rmdir /etc/systemd/journald.conf.d || true
 
+    # shellcheck disable=SC2086
     return $errors_found
 }
 
