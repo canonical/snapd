@@ -213,3 +213,32 @@ func (s *snapTestSuite) TestMockSnapWithFiles(c *C) {
 	c.Check(filepath.Join(snapInfo.MountDir(), "foo/bar"), testutil.FileEquals, "bar")
 	c.Check(filepath.Join(snapInfo.MountDir(), "meta/gadget.yaml"), testutil.FileEquals, "gadget yaml\nmulti line")
 }
+
+func (s *snapTestSuite) TestMockContainerMinimal(c *C) {
+	cont := snaptest.MockContainer(c, nil)
+	err := snap.ValidateContainer(cont, &snap.Info{}, nil)
+	c.Check(err, IsNil)
+}
+
+func (s *snapTestSuite) TestMockContainer(c *C) {
+	defer snap.MockSanitizePlugsSlots(func(snapInfo *snap.Info) {})()
+
+	const snapYaml = `name: gadget
+type: gadget
+version: 1.0`
+	const gadgetYaml = `defaults:
+`
+	cont := snaptest.MockContainer(c, [][]string{
+		{"meta/snap.yaml", snapYaml},
+		{"meta/gadget.yaml", gadgetYaml},
+	})
+
+	info, err := snap.ReadInfoFromSnapFile(cont, nil)
+	c.Assert(err, IsNil)
+	c.Check(info.SnapName(), Equals, "gadget")
+	err = snap.ValidateContainer(cont, info, nil)
+	c.Assert(err, IsNil)
+	readGadgetYaml, err := cont.ReadFile("meta/gadget.yaml")
+	c.Assert(err, IsNil)
+	c.Check(readGadgetYaml, DeepEquals, []byte(gadgetYaml))
+}
