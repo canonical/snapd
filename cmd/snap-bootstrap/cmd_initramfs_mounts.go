@@ -73,7 +73,7 @@ var (
 
 // generateMountsMode* is called multiple times from initramfs until it
 // no longer generates more mount points and just returns an empty output.
-func generateMountsModeInstall(version string) error {
+func generateMountsModeInstall(recoverySystem string) error {
 	seedDir := filepath.Join(runMnt, "ubuntu-seed")
 
 	// 1. always ensure seed partition is mounted
@@ -97,7 +97,7 @@ func generateMountsModeInstall(version string) error {
 	}
 	if !isBaseMounted || !isKernelMounted {
 		// load the recovery system  and generate mounts for kernel/base
-		systemSeed, err := seed.Open(seedDir, version)
+		systemSeed, err := seed.Open(seedDir, recoverySystem)
 		if err != nil {
 			return err
 		}
@@ -150,7 +150,7 @@ func generateMountsModeInstall(version string) error {
 	//    is the tmpfs we just created above
 	modeEnv := &boot.Modeenv{
 		Mode:           "install",
-		RecoverySystem: version,
+		RecoverySystem: recoverySystem,
 	}
 	if err := modeEnv.Write(filepath.Join(runMnt, "ubuntu-data", "system-data")); err != nil {
 		return err
@@ -161,7 +161,7 @@ func generateMountsModeInstall(version string) error {
 	return nil
 }
 
-func generateMountsModeRecover(version string) error {
+func generateMountsModeRecover(recoverySystem string) error {
 	return fmt.Errorf("recover mode mount generation not implemented yet")
 }
 
@@ -211,13 +211,10 @@ func generateMountsModeRun() error {
 }
 
 var validModes = []string{"install", "recover", "run"}
-var versionlessModes = []string{"run"}
 
-func whichMode(content []byte) (string, string, error) {
-	scanner := bufio.NewScanner(bytes.NewBuffer(content))
+func whichModeAndRecoverSystem(cmdline []byte) (mode string, sysLabel string, err error) {
+	scanner := bufio.NewScanner(bytes.NewBuffer(cmdline))
 	scanner.Split(bufio.ScanWords)
-	mode := ""
-	version := ""
 	for scanner.Scan() {
 		if strings.HasPrefix(scanner.Text(), "snapd_recovery_mode=") {
 			mode = strings.SplitN(scanner.Text(), "=", 2)[1]
@@ -227,37 +224,37 @@ func whichMode(content []byte) (string, string, error) {
 			if !strutil.ListContains(validModes, mode) {
 				return "", "", fmt.Errorf("cannot use unknown mode %q", mode)
 			}
-			if strutil.ListContains(versionlessModes, mode) {
-				return mode, "", nil
+			if mode == "run" {
+				return "run", "", nil
 			}
 		}
 		if strings.HasPrefix(scanner.Text(), "snapd_recovery_system=") {
-			version = strings.SplitN(scanner.Text(), "=", 2)[1]
+			sysLabel = strings.SplitN(scanner.Text(), "=", 2)[1]
 		}
-		if mode != "" && version != "" {
-			return mode, version, nil
+		if mode != "" && sysLabel != "" {
+			return mode, sysLabel, nil
 		}
 	}
 	if err := scanner.Err(); err != nil {
 		return "", "", err
 	}
-	return "", "", fmt.Errorf("cannot detect if in run,install,recover mode or version")
+	return "", "", fmt.Errorf("cannot detect mode nor recovery system to use")
 }
 
 func generateInitramfsMounts() error {
-	content, err := ioutil.ReadFile(procCmdline)
+	cmdline, err := ioutil.ReadFile(procCmdline)
 	if err != nil {
 		return err
 	}
-	mode, version, err := whichMode(content)
+	mode, recoverySystem, err := whichModeAndRecoverSystem(cmdline)
 	if err != nil {
 		return err
 	}
 	switch mode {
 	case "recover":
-		return generateMountsModeRecover(version)
+		return generateMountsModeRecover(recoverySystem)
 	case "install":
-		return generateMountsModeInstall(version)
+		return generateMountsModeInstall(recoverySystem)
 	case "run":
 		return generateMountsModeRun()
 	}

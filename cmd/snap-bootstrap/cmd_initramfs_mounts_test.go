@@ -118,7 +118,7 @@ func (s *initramfsMountsSuite) TestInitramfsMountsNoModeError(c *C) {
 	s.mockProcCmdlineContent(c, "nothing-to-see")
 
 	_, err := main.Parser.ParseArgs([]string{"initramfs-mounts"})
-	c.Assert(err, ErrorMatches, "cannot detect if in run,install,recover mode or version")
+	c.Assert(err, ErrorMatches, "cannot detect mode nor recovery system to use")
 }
 
 func (s *initramfsMountsSuite) TestInitramfsMountsUnknonwnMode(c *C) {
