@@ -253,12 +253,6 @@ version: 1.0`
 	c.Check(err, Equals, fail)
 }
 
-func minimalGadgetContainer(c *C) snap.Container {
-	return snaptest.MockContainer(c, [][]string{
-		{"meta/gadget.yaml", gadgetYaml},
-	})
-}
-
 func (s *checkSnapSuite) TestCheckSnapGadgetUpdate(c *C) {
 	reset := release.MockOnClassic(false)
 	defer reset()
@@ -290,7 +284,7 @@ version: 2
 	c.Assert(err, IsNil)
 
 	var openSnapFile = func(path string, si *snap.SideInfo) (*snap.Info, snap.Container, error) {
-		return info, minimalGadgetContainer(c), nil
+		return info, emptyContainer(c), nil
 	}
 	restore := snapstate.MockOpenSnapFile(openSnapFile)
 	defer restore()
@@ -332,7 +326,7 @@ version: 2
 	c.Assert(err, IsNil)
 
 	var openSnapFile = func(path string, si *snap.SideInfo) (*snap.Info, snap.Container, error) {
-		return info, minimalGadgetContainer(c), nil
+		return info, emptyContainer(c), nil
 	}
 	restore := snapstate.MockOpenSnapFile(openSnapFile)
 	defer restore()
@@ -373,7 +367,7 @@ version: 2
 	c.Assert(err, IsNil)
 
 	var openSnapFile = func(path string, si *snap.SideInfo) (*snap.Info, snap.Container, error) {
-		return info, minimalGadgetContainer(c), nil
+		return info, emptyContainer(c), nil
 	}
 	restore := snapstate.MockOpenSnapFile(openSnapFile)
 	defer restore()
@@ -414,7 +408,7 @@ version: 2
 	c.Assert(err, IsNil)
 
 	var openSnapFile = func(path string, si *snap.SideInfo) (*snap.Info, snap.Container, error) {
-		return info, minimalGadgetContainer(c), nil
+		return info, emptyContainer(c), nil
 	}
 	restore := snapstate.MockOpenSnapFile(openSnapFile)
 	defer restore()
@@ -456,7 +450,7 @@ version: 2
 	c.Assert(err, IsNil)
 
 	var openSnapFile = func(path string, si *snap.SideInfo) (*snap.Info, snap.Container, error) {
-		return info, minimalGadgetContainer(c), nil
+		return info, emptyContainer(c), nil
 	}
 	restore := snapstate.MockOpenSnapFile(openSnapFile)
 	defer restore()
@@ -1274,7 +1268,7 @@ version: 2
 	c.Assert(err, IsNil)
 
 	var openSnapFile = func(path string, si *snap.SideInfo) (*snap.Info, snap.Container, error) {
-		return info, minimalGadgetContainer(c), nil
+		return info, emptyContainer(c), nil
 	}
 	restore := snapstate.MockOpenSnapFile(openSnapFile)
 	defer restore()
