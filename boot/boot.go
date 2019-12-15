@@ -288,6 +288,8 @@ type BootableSet struct {
 	RecoverySystemDir string
 
 	UnpackedGadgetDir string
+
+	Recovery bool
 }
 
 // makeBootable16 setups the image filesystem for boot with UC16
@@ -403,12 +405,46 @@ func makeBootable20(model *asserts.Model, rootdir string, bootWith *BootableSet,
 	return nil
 }
 
+func makeBootableRunMode(model *asserts.Model, rootdir string, bootWith *BootableSet, opts *bootloader.Options) error {
+	// XXX: Create correct grub.cfg in ubuntu-boot
+
+	// XXX: Extract the boot kernel to ubuntu-boot
+
+	// Write modeenv in ubuntu-data
+	logger.Noticef("write modeenv")
+	modeenv := &Modeenv{
+		Mode:           "run",
+		RecoverySystem: filepath.Base(bootWith.RecoverySystemDir),
+		Base:           filepath.Base(bootWith.BasePath),
+		Kernel:         filepath.Base(bootWith.KernelPath),
+	}
+	if err := modeenv.Write(filepath.Join(dirs.MountPointDir, "ubuntu-data", "system-data")); err != nil {
+		return fmt.Errorf("cannot write modeenv: %v", err)
+	}
+
+	// Update the recovery mode for the next boot
+	logger.Noticef("update grubenv")
+	bl, err := bootloader.Find(filepath.Join(dirs.MountPointDir, "ubuntu-seed"), opts)
+	if err != nil {
+		return fmt.Errorf("internal error: cannot find bootloader: %v", err)
+	}
+	blVars := map[string]string{
+		"snapd_recovery_mode": "run",
+	}
+	if err := bl.SetBootVars(blVars); err != nil {
+		return fmt.Errorf("cannot set recovery system environment: %v", err)
+	}
+
+	return nil
+}
+
 // MakeBootable sets up the image filesystem with the given rootdir
 // such that it can be booted.
 func MakeBootable(model *asserts.Model, rootdir string, bootWith *BootableSet) error {
-	opts := &bootloader.Options{
-		// XXX: allow to override this
-		PrepareImageTime: true,
+	opts := &bootloader.Options{}
+	// XXX:
+	if !bootWith.Recovery {
+		opts.PrepareImageTime = true
 	}
 
 	if model.Grade() == asserts.ModelGradeUnset {
@@ -417,5 +453,10 @@ func MakeBootable(model *asserts.Model, rootdir string, bootWith *BootableSet) e
 
 	// XXX: allow to override this
 	opts.Recovery = true
+
+	if bootWith.Recovery {
+		return makeBootableRunMode(model, rootdir, bootWith, opts)
+	}
+
 	return makeBootable20(model, rootdir, bootWith, opts)
 }

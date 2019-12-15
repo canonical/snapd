@@ -138,6 +138,9 @@ const (
 	// * in daemon to spool the snap file to <SnapBlobDir>/<LocalInstallBlobTempPrefix>*
 	// * in snapstate to auto-cleans them up using the same prefix
 	LocalInstallBlobTempPrefix = ".local-install-"
+
+	// MountPointDir contains mountpoints based on the filesystem labels.
+	MountPointDir = "/run/mnt"
 )
 
 var (
