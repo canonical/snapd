@@ -405,10 +405,43 @@ func makeBootable20(model *asserts.Model, rootdir string, bootWith *BootableSet,
 	return nil
 }
 
+// XXX: kept this here for now until we have a decision of the file names and locations,
+// then we refactor to integrate this functionality to existing infrastructure. (Currently
+// bootloader.ExtractKernelAssets tests for meta/force-kernel-extraction and
+// bootloader.extractKernelAssetsToBootDir extracts to a subdir)
+func extractKernelAssets(dstDir string, s snap.PlaceInfo, snapf snap.Container) error {
+	dir, err := os.Open(dstDir)
+	if err != nil {
+		return err
+	}
+	defer dir.Close()
+
+	for _, src := range []string{"kernel.img", "initrd.img"} {
+		if err := snapf.Unpack(src, dstDir); err != nil {
+			return err
+		}
+		if err := dir.Sync(); err != nil {
+			return err
+		}
+	}
+	if err := snapf.Unpack("dtbs/*", dstDir); err != nil {
+		return err
+	}
+
+	return dir.Sync()
+}
+
 func makeBootableRunMode(model *asserts.Model, rootdir string, bootWith *BootableSet, opts *bootloader.Options) error {
 	// XXX: Create correct grub.cfg in ubuntu-boot
 
-	// XXX: Extract the boot kernel to ubuntu-boot
+	// Extract the boot kernel to ubuntu-boot
+	kernelf, err := snap.Open(bootWith.KernelPath)
+	if err != nil {
+		return fmt.Errorf("cannot open kernel snap file: %v", err)
+	}
+	if err := extractKernelAssets(rootdir, bootWith.Kernel, kernelf); err != nil {
+		return fmt.Errorf("cannot extract kernel assets: %v", err)
+	}
 
 	// Write modeenv in ubuntu-data
 	logger.Noticef("write modeenv")
