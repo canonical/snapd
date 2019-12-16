@@ -195,12 +195,16 @@ func writeSnapdServicesOnCore(s *snap.Info, inter interacter) error {
 
 	// enable/start all the new services
 	for _, unit := range changed {
-		// enable is not idempotent if the symlink target switches from
-		// /lib to /etc in the multiuser-wantes.d so we need to disable
-		// first (enable --force is not available through the systemd
-		// wrapper)
-		if err := sysd.Disable(unit); err != nil {
+		// systemd looks a the logical units, even if 'enabled' service
+		// symlink points to /lib/systemd/system location, dropping an
+		// identically named service in /etc overrides the other unit,
+		// therefore it is sufficient to enable the new units only
+		enabled, err := sysd.IsEnabled(unit)
+		if err != nil {
 			return err
+		}
+		if enabled {
+			continue
 		}
 		if err := sysd.Enable(unit); err != nil {
 			return err
@@ -282,28 +286,39 @@ func undoSnapdServicesOnCore(s *snap.Info, sysd systemd.Systemd) error {
 	for _, snapdUnit := range units {
 		unit := filepath.Base(snapdUnit)
 		coreUnit := filepath.Join(dirs.GlobalRootDir, "lib/systemd/system", unit)
-
 		writtenUnitPath := filepath.Join(dirs.SnapServicesDir, unit)
 		if !osutil.FileExists(writtenUnitPath) {
 			continue
 		}
-		if err := sysd.Disable(unit); err != nil {
-			logger.Noticef("failed to disable %q: %v", unit, err)
+		existsInCore := osutil.FileExists(coreUnit)
+
+		if !existsInCore {
+			// new unit that did not exist on core, disable and stop
+			if err := sysd.Disable(unit); err != nil {
+				logger.Noticef("failed to disable %q: %v", unit, err)
+			}
+			if err := sysd.Stop(unit, snapdServiceStopTimeout); err != nil {
+				return err
+			}
 		}
 		if err := os.Remove(writtenUnitPath); err != nil {
 			return err
 		}
-		// systemd is tracking the unit based on it's internal state
-		if !osutil.FileExists(coreUnit) {
-			// new unit that did not exist on core, stop
-			if err := sysd.Stop(unit, snapdServiceStopTimeout); err != nil {
-				return err
-			}
+		if !existsInCore {
+			// nothing more to do here
 			continue
 		}
-		if err := sysd.Enable(unit); err != nil {
+
+		isEnabled, err := sysd.IsEnabled(unit)
+		if err != nil {
 			return err
 		}
+		if !isEnabled {
+			if err := sysd.Enable(unit); err != nil {
+				return err
+			}
+		}
+
 		if unit == "snapd.socket" {
 			// do not start the socket, snap failover handler will
 			// restart it
@@ -415,13 +430,16 @@ func undoSnapdUserServicesOnCore(s *snap.Info, inter interacter) error {
 		if !osutil.FileExists(writtenUnitPath) {
 			continue
 		}
+		coreUnit := filepath.Join(dirs.GlobalRootDir, "usr/lib/systemd/user", unit)
+		existsInCore := osutil.FileExists(coreUnit)
+
 		if err := sysd.Disable(unit); err != nil {
 			logger.Noticef("failed to disable %q: %v", unit, err)
 		}
 		if err := os.Remove(writtenUnitPath); err != nil {
 			return err
 		}
-		if !osutil.FileExists(filepath.Join(dirs.GlobalRootDir, "usr/lib/systemd/user", unit)) {
+		if !existsInCore {
 			// new unit that did not exist on core
 			continue
 		}

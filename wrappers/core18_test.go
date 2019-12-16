@@ -58,6 +58,23 @@ func makeMockSnapdSnap(c *C) *snap.Info {
 	return info
 }
 
+type mockSystemctlError struct {
+	msg      string
+	exitCode int
+}
+
+func (m *mockSystemctlError) Msg() []byte {
+	return []byte(m.msg)
+}
+
+func (m *mockSystemctlError) ExitCode() int {
+	return m.exitCode
+}
+
+func (m *mockSystemctlError) Error() string {
+	return fmt.Sprintf("mocked systemctl error: code: %v msg: %q", m.exitCode, m.msg)
+}
+
 func (s *servicesTestSuite) TestAddSnapServicesForSnapdOnCore(c *C) {
 	restore := release.MockOnClassic(false)
 	defer restore()
@@ -73,6 +90,13 @@ func (s *servicesTestSuite) TestAddSnapServicesForSnapdOnCore(c *C) {
 		if cmd[0] == "show" && cmd[1] == "--property=Id,ActiveState,UnitFileState,Type" {
 			s := fmt.Sprintf("Type=oneshot\nId=%s\nActiveState=inactive\nUnitFileState=enabled\n", cmd[2])
 			return []byte(s), nil
+		}
+		if len(cmd) == 4 && cmd[2] == "is-enabled" {
+			// pretend snapd.socket is disabled
+			if cmd[3] == "snapd.socket" {
+				return []byte("disabled"), &mockSystemctlError{msg: "disabled", exitCode: 1}
+			}
+			return []byte("enabled"), nil
 		}
 		return []byte("ActiveState=inactive\n"), nil
 	})
@@ -136,16 +160,13 @@ WantedBy=snapd.service
 		{"show", "--property=ActiveState", "usr-lib-snapd.mount"},
 		{"start", "usr-lib-snapd.mount"},
 		{"daemon-reload"},
-		{"--root", dirs.GlobalRootDir, "disable", "snapd.autoimport.service"},
-		{"--root", dirs.GlobalRootDir, "enable", "snapd.autoimport.service"},
-		{"--root", dirs.GlobalRootDir, "disable", "snapd.service"},
-		{"--root", dirs.GlobalRootDir, "enable", "snapd.service"},
-		{"--root", dirs.GlobalRootDir, "disable", "snapd.snap-repair.timer"},
-		{"--root", dirs.GlobalRootDir, "enable", "snapd.snap-repair.timer"},
-		{"--root", dirs.GlobalRootDir, "disable", "snapd.socket"},
+		{"--root", dirs.GlobalRootDir, "is-enabled", "snapd.autoimport.service"},
+		{"--root", dirs.GlobalRootDir, "is-enabled", "snapd.service"},
+		{"--root", dirs.GlobalRootDir, "is-enabled", "snapd.snap-repair.timer"},
+		// test pretends snapd.socket is disabled and needs enabling
+		{"--root", dirs.GlobalRootDir, "is-enabled", "snapd.socket"},
 		{"--root", dirs.GlobalRootDir, "enable", "snapd.socket"},
-		{"--root", dirs.GlobalRootDir, "disable", "snapd.system-shutdown.service"},
-		{"--root", dirs.GlobalRootDir, "enable", "snapd.system-shutdown.service"},
+		{"--root", dirs.GlobalRootDir, "is-enabled", "snapd.system-shutdown.service"},
 		{"--root", dirs.GlobalRootDir, "is-active", "snapd.autoimport.service"},
 		{"stop", "snapd.autoimport.service"},
 		{"show", "--property=ActiveState", "snapd.autoimport.service"},
@@ -202,6 +223,13 @@ func (s *servicesTestSuite) TestRemoveSnapServicesForSnapdOnCore(c *C) {
 			s := fmt.Sprintf("Type=oneshot\nId=%s\nActiveState=inactive\nUnitFileState=enabled\n", cmd[2])
 			return []byte(s), nil
 		}
+		if len(cmd) == 4 && cmd[2] == "is-enabled" {
+			// pretend snapd.socket is disabled
+			if cmd[3] == "snapd.socket" {
+				return []byte("disabled"), &mockSystemctlError{msg: "disabled", exitCode: 1}
+			}
+			return []byte("enabled"), nil
+		}
 		return []byte("ActiveState=inactive\n"), nil
 	})
 	defer systemctlRestorer()
@@ -250,10 +278,11 @@ func (s *servicesTestSuite) TestRemoveSnapServicesForSnapdOnCore(c *C) {
 
 	// check the systemctl calls
 	c.Check(s.sysdLog, DeepEquals, [][]string{
-		{"--root", dirs.GlobalRootDir, "disable", "snapd.socket"},
+		// pretend snapd socket needs enabling
+		{"--root", dirs.GlobalRootDir, "is-enabled", "snapd.socket"},
 		{"--root", dirs.GlobalRootDir, "enable", "snapd.socket"},
-		{"--root", dirs.GlobalRootDir, "disable", "snapd.autoimport.service"},
-		{"--root", dirs.GlobalRootDir, "enable", "snapd.autoimport.service"},
+
+		{"--root", dirs.GlobalRootDir, "is-enabled", "snapd.autoimport.service"},
 		{"--root", dirs.GlobalRootDir, "is-active", "snapd.autoimport.service"},
 		{"stop", "snapd.autoimport.service"},
 		{"show", "--property=ActiveState", "snapd.autoimport.service"},
@@ -261,12 +290,9 @@ func (s *servicesTestSuite) TestRemoveSnapServicesForSnapdOnCore(c *C) {
 		{"--root", dirs.GlobalRootDir, "disable", "snapd.not-in-core.service"},
 		{"stop", "snapd.not-in-core.service"},
 		{"show", "--property=ActiveState", "snapd.not-in-core.service"},
-		{"--root", dirs.GlobalRootDir, "disable", "snapd.service"},
-		{"--root", dirs.GlobalRootDir, "enable", "snapd.service"},
-		{"--root", dirs.GlobalRootDir, "disable", "snapd.system-shutdown.service"},
-		{"--root", dirs.GlobalRootDir, "enable", "snapd.system-shutdown.service"},
-		{"--root", dirs.GlobalRootDir, "disable", "snapd.snap-repair.timer"},
-		{"--root", dirs.GlobalRootDir, "enable", "snapd.snap-repair.timer"},
+		{"--root", dirs.GlobalRootDir, "is-enabled", "snapd.service"},
+		{"--root", dirs.GlobalRootDir, "is-enabled", "snapd.system-shutdown.service"},
+		{"--root", dirs.GlobalRootDir, "is-enabled", "snapd.snap-repair.timer"},
 		{"--root", dirs.GlobalRootDir, "is-active", "snapd.snap-repair.timer"},
 		{"stop", "snapd.snap-repair.timer"},
 		{"show", "--property=ActiveState", "snapd.snap-repair.timer"},
