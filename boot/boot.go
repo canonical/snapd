@@ -289,7 +289,7 @@ type BootableSet struct {
 
 	UnpackedGadgetDir string
 
-	// Recovery is set to make the recovery system bootable
+	// Recover is set when making the recovery partition bootable.
 	Recovery bool
 }
 
@@ -382,7 +382,7 @@ func makeBootable20(model *asserts.Model, rootdir string, bootWith *BootableSet)
 
 	opts := &bootloader.Options{
 		PrepareImageTime: true,
-		// setup the recovery part of the bootloader
+		// setup the recovery bootloader
 		Recovery: true,
 	}
 
@@ -425,10 +425,10 @@ func makeBootable20RunMode(model *asserts.Model, rootdir string, bootWith *Boota
 	// - extract kernel
 	// - write modeenv
 
-	// update recovery grubs grubenv to indicate that we transition
+	// update recovery grub's grubenv to indicate that we transition
 	// to run mode now
 	opts := &bootloader.Options{
-		// setup the recovery part of the bootloader
+		// setup the recovery bootloader
 		Recovery: true,
 	}
 	bl, err := bootloader.Find(filepath.Join(runMnt, "ubuntu-seed"), opts)
@@ -445,8 +445,12 @@ func makeBootable20RunMode(model *asserts.Model, rootdir string, bootWith *Boota
 	return nil
 }
 
-// MakeBootable sets up the image filesystem with the given rootdir
-// such that it can be booted.
+// MakeBootable sets up the given bootable set and target filesystem
+// such that the system can be booted.
+//
+// rootdir points to an image filesystem (UC 16/18), image recovery
+// filesystem (UC20 at prepare-image time) or ephemeral system (UC20
+// install mode).
 func MakeBootable(model *asserts.Model, rootdir string, bootWith *BootableSet) error {
 	if model.Grade() == asserts.ModelGradeUnset {
 		return makeBootable16(model, rootdir, bootWith)

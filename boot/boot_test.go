@@ -561,7 +561,7 @@ func (s *bootSetSuite) TestMakeBootable20MultipleRecoverySystemsError(c *C) {
 	c.Assert(err, ErrorMatches, "cannot make multiple recovery systems bootable yet")
 }
 
-func (s *bootSetSuite) TestMakeBootable20RecoveryFalse(c *C) {
+func (s *bootSetSuite) TestMakeBootable20RunMode(c *C) {
 	dirs.SetRootDir("")
 
 	model := makeMockUC20Model()
