@@ -197,43 +197,51 @@ func generateMountsModeRun() error {
 	bootDir := filepath.Join(runMnt, "ubuntu-boot")
 	dataDir := filepath.Join(runMnt, "ubuntu-data")
 
-	// 1. always ensure basic partitions are mounted
-	for _, d := range []string{seedDir, bootDir, dataDir} {
+	// 1.1 always ensure basic partitions are mounted
+	for _, d := range []string{seedDir, bootDir} {
 		isMounted, err := osutilIsMounted(d)
 		if err != nil {
 			return err
 		}
 		if !isMounted {
 			fmt.Fprintf(stdout, "/dev/disk/by-label/%s %s\n", filepath.Base(d), d)
-			return nil
 		}
 	}
-	// 2. read modeenv
+
+	// XXX possibly will need to unseal key, and unlock LUKS here before proceeding to mount data
+
+	// 1.2 mount Data, and exit, as it needs to be mounted for us to do step 2
+	isDataMounted, err := osutilIsMounted(dataDir)
+	if err != nil {
+		return err
+	}
+	if !isDataMounted {
+		fmt.Fprintf(stdout, "/dev/disk/by-label/%s %s\n", filepath.Base(dataDir), dataDir)
+		return nil
+	}
+	// 2.1 read modeenv
 	modeEnv, err := boot.ReadModeenv(filepath.Join(dataDir, "system-data"))
 	if err != nil {
 		return err
 	}
-	// 3. mount base
-	isMounted, err := osutilIsMounted(filepath.Join(runMnt, "base"))
+	// 2.2 mount base & kernel
+	isBaseMounted, err := osutilIsMounted(filepath.Join(runMnt, "base"))
 	if err != nil {
 		return err
 	}
-	if !isMounted {
+	if !isBaseMounted {
 		base := filepath.Join(dataDir, "system-data", dirs.SnapBlobDir, modeEnv.Base)
 		fmt.Fprintf(stdout, "%s %s\n", base, filepath.Join(runMnt, "base"))
-		return nil
 	}
-	// 4. mount kernel
-	isMounted, err = osutilIsMounted(filepath.Join(runMnt, "kernel"))
+	isKernelMounted, err := osutilIsMounted(filepath.Join(runMnt, "kernel"))
 	if err != nil {
 		return err
 	}
-	if !isMounted {
+	if !isKernelMounted {
 		kernel := filepath.Join(dataDir, "system-data", dirs.SnapBlobDir, modeEnv.Kernel)
 		fmt.Fprintf(stdout, "%s %s\n", kernel, filepath.Join(runMnt, "kernel"))
-		return nil
 	}
-
+	// 3.1 There is no step 3 =)
 	return nil
 }
 
