@@ -24,6 +24,7 @@ import (
 	"time"
 
 	"github.com/snapcore/snapd/asserts"
+	"github.com/snapcore/snapd/boot"
 	"github.com/snapcore/snapd/gadget"
 	"github.com/snapcore/snapd/overlord/snapstate"
 	"github.com/snapcore/snapd/overlord/state"
@@ -184,5 +185,13 @@ func MockGadgetIsCompatible(mock func(current, update *gadget.Info) error) (rest
 	gadgetIsCompatible = mock
 	return func() {
 		gadgetIsCompatible = old
+	}
+}
+
+func MockBootMakeBootable(f func(model *asserts.Model, rootdir string, bootWith *boot.BootableSet) error) (restore func()) {
+	old := bootMakeBootable
+	bootMakeBootable = f
+	return func() {
+		bootMakeBootable = old
 	}
 }
