@@ -105,6 +105,8 @@ func (s *ctlcmdSuite) TestHiddenCommand(c *C) {
 	// Type as flags.ErrHelp
 	c.Assert(err, FitsTypeOf, &flags.Error{})
 	c.Check(err.(*flags.Error).Type, Equals, flags.ErrHelp)
+	// snapctl is mentioned (not snapd)
+	c.Check(err.Error(), testutil.Contains, "snapctl")
 	// mock-shown is in the help message
 	c.Check(err.Error(), testutil.Contains, "  mock-shown\n")
 	// mock-hidden is not in the help message

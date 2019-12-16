@@ -21,6 +21,7 @@ package snapstate
 
 import (
 	"github.com/snapcore/snapd/asserts"
+	"github.com/snapcore/snapd/boot"
 	"github.com/snapcore/snapd/overlord/state"
 )
 
@@ -44,6 +45,9 @@ type DeviceContext interface {
 
 	// OperatingMode return the operating mode (run,install,recover,...).
 	OperatingMode() string
+
+	// DeviceContext should be usable as boot.Device
+	boot.Device
 }
 
 // Hook setup by devicestate to pick a device context from state,
