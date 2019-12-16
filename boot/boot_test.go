@@ -31,6 +31,7 @@ import (
 	"github.com/snapcore/snapd/asserts"
 	"github.com/snapcore/snapd/asserts/assertstest"
 	"github.com/snapcore/snapd/boot"
+	"github.com/snapcore/snapd/boot/boottest"
 	"github.com/snapcore/snapd/bootloader"
 	"github.com/snapcore/snapd/bootloader/bootloadertest"
 	"github.com/snapcore/snapd/dirs"
@@ -207,7 +208,10 @@ func (s *bootSetSuite) TestParticipant(c *C) {
 	info := &snap.Info{}
 	info.RealName = "some-snap"
 
-	bp := boot.Participant(info, snap.TypeApp, nil, false)
+	coreDev := boottest.MockDevice("some-snap")
+	classicDev := boottest.MockDevice("")
+
+	bp := boot.Participant(info, snap.TypeApp, coreDev)
 	c.Check(bp.IsTrivial(), Equals, true)
 
 	for _, typ := range []snap.Type{
@@ -215,29 +219,22 @@ func (s *bootSetSuite) TestParticipant(c *C) {
 		snap.TypeOS,
 		snap.TypeBase,
 	} {
-		bp = boot.Participant(info, typ, nil, true)
+		bp = boot.Participant(info, typ, classicDev)
 		c.Check(bp.IsTrivial(), Equals, true)
 
-		bp = boot.Participant(info, typ, nil, false)
+		bp = boot.Participant(info, typ, coreDev)
 		c.Check(bp.IsTrivial(), Equals, false)
 
 		c.Check(bp, DeepEquals, boot.NewCoreBootParticipant(info, typ))
 	}
 }
-
-type mockModel string
-
-func (s mockModel) Kernel() string { return string(s) }
-func (s mockModel) Base() string   { return string(s) }
-func (s mockModel) Classic() bool  { return s == "" }
-
 func (s *bootSetSuite) TestParticipantBaseWithModel(c *C) {
 	core := &snap.Info{SideInfo: snap.SideInfo{RealName: "core"}, SnapType: snap.TypeOS}
 	core18 := &snap.Info{SideInfo: snap.SideInfo{RealName: "core18"}, SnapType: snap.TypeBase}
 
 	type tableT struct {
 		with  *snap.Info
-		model mockModel
+		model boottest.MockDevice
 		nop   bool
 	}
 
@@ -245,7 +242,7 @@ func (s *bootSetSuite) TestParticipantBaseWithModel(c *C) {
 		{
 			with:  core,
 			model: "",
-			nop:   false,
+			nop:   true,
 		}, {
 			with:  core,
 			model: "core",
@@ -273,10 +270,7 @@ func (s *bootSetSuite) TestParticipantBaseWithModel(c *C) {
 	}
 
 	for i, t := range table {
-		bp := boot.Participant(t.with, t.with.GetType(), t.model, true)
-		c.Check(bp.IsTrivial(), Equals, true)
-
-		bp = boot.Participant(t.with, t.with.GetType(), t.model, false)
+		bp := boot.Participant(t.with, t.with.GetType(), t.model)
 		c.Check(bp.IsTrivial(), Equals, t.nop, Commentf("%d", i))
 		if !t.nop {
 			c.Check(bp, DeepEquals, boot.NewCoreBootParticipant(t.with, t.with.GetType()))
@@ -290,7 +284,7 @@ func (s *bootSetSuite) TestKernelWithModel(c *C) {
 	expected := boot.NewCoreKernel(info)
 
 	type tableT struct {
-		model mockModel
+		model boottest.MockDevice
 		nop   bool
 		krn   boot.BootKernel
 	}
@@ -312,10 +306,7 @@ func (s *bootSetSuite) TestKernelWithModel(c *C) {
 	}
 
 	for _, t := range table {
-		krn := boot.Kernel(info, snap.TypeKernel, t.model, true)
-		c.Check(krn.IsTrivial(), Equals, true)
-
-		krn = boot.Kernel(info, snap.TypeKernel, t.model, false)
+		krn := boot.Kernel(info, snap.TypeKernel, t.model)
 		c.Check(krn.IsTrivial(), Equals, t.nop)
 		c.Check(krn, DeepEquals, t.krn)
 	}
