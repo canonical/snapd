@@ -107,6 +107,9 @@ var (
 // that are missing from the existing device layout.
 func (dl *DeviceLayout) CreateMissing(pv *gadget.LaidOutVolume) ([]DeviceStructure, error) {
 	buf, created := buildPartitionList(dl.partitionTable, pv)
+	if len(created) == 0 {
+		return created, nil
+	}
 
 	// Write the partition table. By default sfdisk will try to re-read the
 	// partition table with the BLKRRPART ioctl but will fail because the
