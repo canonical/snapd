@@ -427,7 +427,11 @@ func makeBootable20RunMode(model *asserts.Model, rootdir string, bootWith *Boota
 
 	// update recovery grubs grubenv to indicate that we transition
 	// to run mode now
-	bl, err := bootloader.Find(filepath.Join(runMnt, "ubuntu-seed"), nil)
+	opts := &bootloader.Options{
+		// setup the recovery part of the bootloader
+		Recovery: true,
+	}
+	bl, err := bootloader.Find(filepath.Join(runMnt, "ubuntu-seed"), opts)
 	if err != nil {
 		return fmt.Errorf("internal error: cannot find bootloader: %v", err)
 	}
