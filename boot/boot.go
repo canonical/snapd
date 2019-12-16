@@ -288,6 +288,9 @@ type BootableSet struct {
 	RecoverySystemDir string
 
 	UnpackedGadgetDir string
+
+	// Recovery is set to make the recovery system bootable
+	Recovery bool
 }
 
 // makeBootable16 setups the image filesystem for boot with UC16
@@ -296,7 +299,11 @@ type BootableSet struct {
 //  - creating symlinks for boot snaps from seed to the runtime blob dir
 //  - setting boot env vars pointing to the revisions of the boot snaps to use
 //  - extracting kernel assets as needed by the bootloader
-func makeBootable16(model *asserts.Model, rootdir string, bootWith *BootableSet, opts *bootloader.Options) error {
+func makeBootable16(model *asserts.Model, rootdir string, bootWith *BootableSet) error {
+	opts := &bootloader.Options{
+		PrepareImageTime: true,
+	}
+
 	// install the bootloader configuration from the gadget
 	if err := bootloader.InstallBootConfig(bootWith.UnpackedGadgetDir, rootdir, opts); err != nil {
 		return err
@@ -363,7 +370,7 @@ func makeBootable16(model *asserts.Model, rootdir string, bootWith *BootableSet,
 	return nil
 }
 
-func makeBootable20(model *asserts.Model, rootdir string, bootWith *BootableSet, opts *bootloader.Options) error {
+func makeBootable20(model *asserts.Model, rootdir string, bootWith *BootableSet) error {
 	// we can only make a single recovery system bootable right now
 	recoverySystems, err := filepath.Glob(filepath.Join(rootdir, "systems/*"))
 	if err != nil {
@@ -371,6 +378,12 @@ func makeBootable20(model *asserts.Model, rootdir string, bootWith *BootableSet,
 	}
 	if len(recoverySystems) > 1 {
 		return fmt.Errorf("cannot make multiple recovery systems bootable yet")
+	}
+
+	opts := &bootloader.Options{
+		PrepareImageTime: true,
+		// setup the recovery part of the bootloader
+		Recovery: true,
 	}
 
 	// install the bootloader configuration from the gadget
@@ -403,19 +416,40 @@ func makeBootable20(model *asserts.Model, rootdir string, bootWith *BootableSet,
 	return nil
 }
 
+func makeBootable20RunMode(model *asserts.Model, rootdir string, bootWith *BootableSet) error {
+	// XXX: move to dirs ?
+	runMnt := filepath.Join(rootdir, "/run/mnt/")
+
+	// TODO:UC20:
+	// - create grub.cfg instead of using the gadget one
+	// - extract kernel
+	// - write modeenv
+
+	// update recovery grubs grubenv to indicate that we transition
+	// to run mode now
+	bl, err := bootloader.Find(filepath.Join(runMnt, "ubuntu-seed"), nil)
+	if err != nil {
+		return fmt.Errorf("internal error: cannot find bootloader: %v", err)
+	}
+	blVars := map[string]string{
+		"snapd_recovery_mode": "run",
+	}
+	if err := bl.SetBootVars(blVars); err != nil {
+		return fmt.Errorf("cannot set recovery system environment: %v", err)
+	}
+
+	return nil
+}
+
 // MakeBootable sets up the image filesystem with the given rootdir
 // such that it can be booted.
 func MakeBootable(model *asserts.Model, rootdir string, bootWith *BootableSet) error {
-	opts := &bootloader.Options{
-		// XXX: allow to override this
-		PrepareImageTime: true,
-	}
-
 	if model.Grade() == asserts.ModelGradeUnset {
-		return makeBootable16(model, rootdir, bootWith, opts)
+		return makeBootable16(model, rootdir, bootWith)
 	}
 
-	// XXX: allow to override this
-	opts.Recovery = true
-	return makeBootable20(model, rootdir, bootWith, opts)
+	if !bootWith.Recovery {
+		return makeBootable20RunMode(model, rootdir, bootWith)
+	}
+	return makeBootable20(model, rootdir, bootWith)
 }
