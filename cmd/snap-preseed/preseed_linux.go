@@ -171,7 +171,7 @@ func runPreseedMode(preseedChroot string) error {
 	cmd.Stderr = Stderr
 	cmd.Stdout = Stdout
 
-	fmt.Fprintf(Stdout, "starting preseed: %s\n", preseedChroot)
+	fmt.Fprintf(Stdout, "starting to preseed root: %s\n", preseedChroot)
 
 	if err := cmd.Run(); err != nil {
 		return fmt.Errorf("error running snapd in preseed mode: %v\n", err)
