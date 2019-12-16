@@ -569,6 +569,9 @@ restore_suite_each() {
     # shellcheck source=tests/lib/reset.sh
     "$TESTSLIB"/reset.sh --reuse-core
 
+    # Reset failing orphan services before checks
+    systemctl reset-failed
+
     do_checks
 }
 
