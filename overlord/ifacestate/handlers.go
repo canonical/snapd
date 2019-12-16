@@ -902,13 +902,21 @@ func waitChainSearch(startT, searchT *state.Task) bool {
 // The "delayed-setup-profiles" flag is set on the connect tasks to
 // indicate that doConnect handler should not set security backends up
 // because this will be done later by the setup-profiles task.
-func batchConnectTasks(st *state.State, snapsup *snapstate.SnapSetup, conns map[string]*interfaces.ConnRef, autoconnect bool) (*state.TaskSet, error) {
+func batchConnectTasks(st *state.State, snapsup *snapstate.SnapSetup, conns map[string]*interfaces.ConnRef, connOpts map[string]*connectOpts) (*state.TaskSet, error) {
 	setupProfiles := st.NewTask("setup-profiles", fmt.Sprintf(i18n.G("Setup snap %q (%s) security profiles for auto-connections"), snapsup.InstanceName(), snapsup.Revision()))
 	setupProfiles.Set("snap-setup", snapsup)
 
 	ts := state.NewTaskSet()
-	for _, conn := range conns {
-		connectTs, err := connect(st, conn.PlugRef.Snap, conn.PlugRef.Name, conn.SlotRef.Snap, conn.SlotRef.Name, connectOpts{AutoConnect: autoconnect, DelayedSetupProfiles: true})
+	for connID, conn := range conns {
+		var opts connectOpts
+		if providedOpts := connOpts[connID]; providedOpts != nil {
+			opts = *providedOpts
+		} else {
+			// default
+			opts.AutoConnect = true
+		}
+		opts.DelayedSetupProfiles = true
+		connectTs, err := connect(st, conn.PlugRef.Snap, conn.PlugRef.Name, conn.SlotRef.Snap, conn.SlotRef.Name, opts)
 		if err != nil {
 			return nil, fmt.Errorf("internal error: auto-connect of %q failed: %s", conn, err)
 		}
@@ -980,6 +988,8 @@ func (m *InterfaceManager) doAutoConnect(task *state.Task, _ *tomb.Tomb) error {
 		return err
 	}
 
+	gadgectConnect := newGadgetConnect(st, task, m.repo, snapName, deviceCtx)
+
 	// wait for auto-install, started by prerequisites code, for
 	// the default-providers of content ifaces so we can
 	// auto-connect to them; snapstate prerequisites does a bit
@@ -1025,6 +1035,16 @@ func (m *InterfaceManager) doAutoConnect(task *state.Task, _ *tomb.Tomb) error {
 		return fmt.Errorf("auto-connect conflict check failed: %v", err)
 	}
 
+	// Consider gadget connections
+	if err := gadgectConnect.addGadgetConnections(newconns, conns, conflictError); err != nil {
+		return err
+	}
+	connOpts := make(map[string]*connectOpts, len(newconns))
+	byGadgetOpts := &connectOpts{AutoConnect: true, ByGadget: true}
+	for key := range newconns {
+		connOpts[key] = byGadgetOpts
+	}
+
 	// Auto-connect all the plugs
 	cannotAutoConnectLog := func(plug *snap.PlugInfo, candRefs []string) string {
 		return fmt.Sprintf("cannot auto-connect plug %s, candidates found: %s", plug, strings.Join(candRefs, ", "))
@@ -1047,8 +1067,7 @@ func (m *InterfaceManager) doAutoConnect(task *state.Task, _ *tomb.Tomb) error {
 		}
 	}
 
-	autoconnect := true
-	autots, err := batchConnectTasks(st, snapsup, newconns, autoconnect)
+	autots, err := batchConnectTasks(st, snapsup, newconns, connOpts)
 	if err != nil {
 		return err
 	}
@@ -1213,6 +1232,9 @@ func (m *InterfaceManager) doGadgetConnect(task *state.Task, _ *tomb.Tomb) error
 	}
 
 	gconns, err := snapstate.GadgetConnections(st, deviceCtx)
+	if err == state.ErrNoState {
+		return nil
+	}
 	if err != nil {
 		return err
 	}
