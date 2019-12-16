@@ -521,6 +521,7 @@ version: 5.0
 		KernelPath:        kernelInSeed,
 		RecoverySystemDir: recoverySystemDir,
 		UnpackedGadgetDir: unpackedGadgetDir,
+		Recovery:          true,
 	}
 
 	err = boot.MakeBootable(model, rootdir, bootWith)
@@ -549,7 +550,7 @@ func (s *bootSetSuite) TestMakeBootable20MultipleRecoverySystemsError(c *C) {
 
 	model := makeMockUC20Model()
 
-	bootWith := &boot.BootableSet{}
+	bootWith := &boot.BootableSet{Recovery: true}
 	rootdir := c.MkDir()
 	err := os.MkdirAll(filepath.Join(rootdir, "systems/20191204"), 0755)
 	c.Assert(err, IsNil)

@@ -375,6 +375,8 @@ func makeBootable20(model *asserts.Model, rootdir string, bootWith *BootableSet,
 		return fmt.Errorf("cannot make multiple recovery systems bootable yet")
 	}
 
+	opts.Recovery = true
+
 	// install the bootloader configuration from the gadget
 	if err := bootloader.InstallBootConfig(bootWith.UnpackedGadgetDir, rootdir, opts); err != nil {
 		return err
@@ -431,7 +433,7 @@ func extractKernelAssets(dstDir string, s snap.PlaceInfo, snapf snap.Container) 
 	return dir.Sync()
 }
 
-func makeBootableRunMode(model *asserts.Model, rootdir string, bootWith *BootableSet, opts *bootloader.Options) error {
+func makeBootable20RunMode(model *asserts.Model, rootdir string, bootWith *BootableSet, opts *bootloader.Options) error {
 	// XXX: Create correct grub.cfg in ubuntu-boot
 
 	// Extract the boot kernel to ubuntu-boot
@@ -446,10 +448,9 @@ func makeBootableRunMode(model *asserts.Model, rootdir string, bootWith *Bootabl
 	// Write modeenv in ubuntu-data
 	logger.Noticef("write modeenv")
 	modeenv := &Modeenv{
-		Mode:           "run",
-		RecoverySystem: filepath.Base(bootWith.RecoverySystemDir),
-		Base:           filepath.Base(bootWith.BasePath),
-		Kernel:         filepath.Base(bootWith.KernelPath),
+		Mode:   "run",
+		Base:   filepath.Base(bootWith.BasePath),
+		Kernel: filepath.Base(bootWith.KernelPath),
 	}
 	if err := modeenv.Write(filepath.Join(dirs.MountPointDir, "ubuntu-data", "system-data")); err != nil {
 		return fmt.Errorf("cannot write modeenv: %v", err)
@@ -475,20 +476,14 @@ func makeBootableRunMode(model *asserts.Model, rootdir string, bootWith *Bootabl
 // such that it can be booted.
 func MakeBootable(model *asserts.Model, rootdir string, bootWith *BootableSet) error {
 	opts := &bootloader.Options{}
-	// XXX:
-	if !bootWith.Recovery {
-		opts.PrepareImageTime = true
-	}
 
 	if model.Grade() == asserts.ModelGradeUnset {
+		opts.PrepareImageTime = true
 		return makeBootable16(model, rootdir, bootWith, opts)
 	}
 
-	// XXX: allow to override this
-	opts.Recovery = true
-
-	if bootWith.Recovery {
-		return makeBootableRunMode(model, rootdir, bootWith, opts)
+	if !bootWith.Recovery {
+		return makeBootable20RunMode(model, rootdir, bootWith, opts)
 	}
 
 	return makeBootable20(model, rootdir, bootWith, opts)
