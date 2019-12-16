@@ -503,8 +503,6 @@ prepare_suite_each() {
 
     # save the job which is going to be executed in the system
     echo -n "$SPREAD_JOB " >> "$RUNTIME_STATE_PATH/runs"
-    # shellcheck source=tests/lib/reset.sh
-    "$TESTSLIB"/reset.sh --reuse-core
     # Restart journal log and reset systemd journal cursor.
     if ! systemctl restart systemd-journald.service; then
         systemctl status systemd-journald.service || true
@@ -617,7 +615,13 @@ save_mounts() {
 
 save_units() {
     file=$1
-    systemctl -l --no-pager --no-legend --plain |  awk '{ print $1 }' > "$file"  
+    systemctl list-unit-files --no-pager --no-legend --plain |  awk '{ print $1 }' > "$file"
+}
+
+save_loops() {
+    file=$1
+    # not consider core which appears in different loop device with (deleted)
+    losetup -l | awk '{if(NR>1)print}' | awk '!/\/var\/lib\/snapd\/snaps\/core_/' > "$file"
 }
 
 do_check_systemd_status() {
@@ -655,11 +659,11 @@ do_check_diff() {
 }
 
 get_diff_types() {
-    echo "pkgs units snaps mounts"
+    echo "pkgs units snaps mounts loops"
 }
 
 get_log_types() {
-    echo "systemd pkgs units snaps mounts"
+    echo "systemd pkgs units snaps mounts loops"
 }
 
 do_checks() {

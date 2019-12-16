@@ -11,6 +11,11 @@ systems: [-ubuntu-14.04-*,-ubuntu-core-*,-fedora-*, -arch-*, -amazon-*, -opensus
 prepare: |
     snap install test-snapd-openvswitch-support
 
+restore: |
+    if [ -f uuidd.started ]; then
+        systemctl stop uuidd.service
+    fi
+
 execute: |
     echo "The interface is not connected by default"
     #shellcheck disable=SC1117
@@ -22,7 +27,8 @@ execute: |
     # This is to start the uuidd daemon in case it not active. By default in opensuse the
     # daemon is not automatically started as it happens in the other systems.
     if [[ "$SPREAD_SYSTEM" == opensuse-* ]] && ! systemctl is-active uuidd.service; then
-        systemctl start uuidd.service;
+        systemctl start uuidd.service
+        touch uuidd.started 
     fi
 
     echo "Then the snap is able to get a random uuid"

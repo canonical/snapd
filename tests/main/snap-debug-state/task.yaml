@@ -5,13 +5,8 @@ prepare: |
     # The debug commands access state.json directly, snapd should be stopped
     systemctl stop snapd.{socket,service}
 
-    if [[ "$SPREAD_SYSTEM" == ubuntu-1* ]]; then
-        apt install -y graphviz
-    fi
-
 restore: |
     systemctl start snapd.{socket,service}
-    rm -f out.png
 
 execute: |
     echo "Changes can be listed"

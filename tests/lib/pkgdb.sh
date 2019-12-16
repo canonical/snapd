@@ -582,6 +582,7 @@ pkg_dependencies_ubuntu_classic(){
         dbus-x11
         fontconfig
         gnome-keyring
+        graphviz
         jq
         man
         nfs-kernel-server
