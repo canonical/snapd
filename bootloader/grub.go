@@ -40,6 +40,8 @@ type grub struct {
 	rootdir string
 
 	basedir string
+
+	forceKernelExtraction bool
 }
 
 // newGrub create a new Grub bootloader object
@@ -52,6 +54,9 @@ func newGrub(rootdir string, opts *Options) RecoveryAwareBootloader {
 	}
 	if !osutil.FileExists(g.ConfigFile()) {
 		return nil
+	}
+	if opts != nil && opts.ForceKernelExtraction {
+		g.forceKernelExtraction = true
 	}
 
 	return g
@@ -133,7 +138,11 @@ func (g *grub) SetBootVars(values map[string]string) error {
 }
 
 func (g *grub) ExtractKernelAssets(s snap.PlaceInfo, snapf snap.Container) error {
-	// XXX: should we use "kernel.yaml" for this?
+	// force extraction via bootloader
+	if g.forceKernelExtraction {
+		return extractKernelAssetsToBootDir(g.dir(), s, snapf)
+	}
+	// force extraction from the kernel snap
 	if _, err := snapf.ReadFile("meta/force-kernel-extraction"); err == nil {
 		return extractKernelAssetsToBootDir(g.dir(), s, snapf)
 	}

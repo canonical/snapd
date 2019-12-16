@@ -422,7 +422,6 @@ func makeBootable20RunMode(model *asserts.Model, rootdir string, bootWith *Boota
 
 	// TODO:UC20:
 	// - create grub.cfg instead of using the gadget one
-	// - extract kernel
 
 	// write modeenv on the ubuntu-data partition
 	modeenv := &Modeenv{
@@ -443,13 +442,44 @@ func makeBootable20RunMode(model *asserts.Model, rootdir string, bootWith *Boota
 	}
 	bl, err := bootloader.Find(filepath.Join(runMnt, "ubuntu-seed"), opts)
 	if err != nil {
-		return fmt.Errorf("internal error: cannot find bootloader: %v", err)
+		return fmt.Errorf("internal error: cannot find recovery system bootloader: %v", err)
 	}
 	blVars := map[string]string{
 		"snapd_recovery_mode": "run",
 	}
 	if err := bl.SetBootVars(blVars); err != nil {
 		return fmt.Errorf("cannot set recovery system environment: %v", err)
+	}
+
+	// get the ubuntu-boot grub and extrac the kernel there
+	opts = &bootloader.Options{
+		// TODO:UC20: we use "recovery: true" here because on
+		// the partition the file layout of ubuntu-boot looks
+		// the same as ubuntu-seed
+		Recovery:              true,
+		ForceKernelExtraction: true,
+	}
+	bl, err = bootloader.Find(filepath.Join(runMnt, "ubuntu-boot"), opts)
+	if err != nil {
+		return fmt.Errorf("internal error: cannot find run system bootloader: %v", err)
+	}
+	kernelf, err := snap.Open(bootWith.KernelPath)
+	if err != nil {
+		return err
+	}
+	// TODO:UC20: extract in the new "static" image way
+	if err := bl.ExtractKernelAssets(bootWith.Kernel, kernelf); err != nil {
+		return err
+	}
+	// TODO:UC20: no need to set these bootvars here anymore, in the
+	// new UC20 world the good/try kernels have static names
+	blVars = map[string]string{
+		"snap_mode":   "",
+		"snap_kernel": filepath.Base(bootWith.KernelPath),
+		"snap_core":   filepath.Base(bootWith.BasePath),
+	}
+	if err := bl.SetBootVars(blVars); err != nil {
+		return fmt.Errorf("cannot set run system environment: %v", err)
 	}
 
 	return nil
