@@ -136,32 +136,54 @@ func applicable(s snap.PlaceInfo, t snap.Type, dev Device) bool {
 	return true
 }
 
+// bootState exposes the boot state for a type of boot snap.
+type bootState interface {
+	revisions() (snap, try_snap *NameAndRevision, trying bool, err error)
+}
+
+// bootStateFor finds the right bootState implementation of the given
+// snap type and Device, if applicable.
+func bootStateFor(typ snap.Type, dev Device) (s bootState, err error) {
+	if !dev.RunMode() {
+		return nil, fmt.Errorf("internal error: no boot state handling for ephemeral modes")
+	}
+	switch typ {
+	case snap.TypeOS, snap.TypeBase:
+		return newBootState16(snap.TypeBase), nil
+	case snap.TypeKernel:
+		return newBootState16(snap.TypeKernel), nil
+	default:
+		return nil, fmt.Errorf("internal error: no boot state handling for snap type %q", typ)
+	}
+}
+
 // InUse checks if the given name/revision is used in the
 // boot environment
 func InUse(name string, rev snap.Revision, dev Device) bool {
-	if !dev.RunMode() {
-		// TODO:UC20: for now everything is in use in ephemeral mode
-		return true
-	}
-	bootloader, err := bootloader.Find("", nil)
-	if err != nil {
-		logger.Noticef("cannot get boot settings: %s", err)
-		return true
+	cands := make([]*NameAndRevision, 0, 4)
+	for _, t := range []snap.Type{snap.TypeBase, snap.TypeKernel} {
+		s, err := bootStateFor(t, dev)
+		if err != nil {
+			// be pessimistic
+			return true
+		}
+		snap, try_snap, _, err := s.revisions()
+		if err != nil {
+			logger.Noticef("cannot get boot settings: %s", err)
+			return true
+		}
+		cands = append(cands, snap)
+		cands = append(cands, try_snap)
 	}
 
-	bootVars, err := bootloader.GetBootVars("snap_kernel", "snap_try_kernel", "snap_core", "snap_try_core")
-	if err != nil {
-		logger.Noticef("cannot get boot vars: %s", err)
-		return true
-	}
-
-	snapFile := filepath.Base(snap.MountFile(name, rev))
-	for _, bootVar := range bootVars {
-		if bootVar == snapFile {
+	for _, cand := range cands {
+		if cand == nil {
+			continue
+		}
+		if cand.Name == name && cand.Revision == rev {
 			return true
 		}
 	}
-
 	return false
 }
 
