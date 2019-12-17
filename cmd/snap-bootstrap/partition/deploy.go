@@ -25,7 +25,6 @@ import (
 	"strconv"
 	"syscall"
 
-	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/gadget"
 )
 
@@ -103,12 +102,13 @@ func DeployContent(created []DeviceStructure, gadgetRoot string) error {
 	return nil
 }
 
-func MountFilesystems(created []DeviceStructure) error {
+func MountFilesystems(created []DeviceStructure, baseMntPoint string) error {
 	for _, part := range created {
-		if part.Label == "" || part.Filesystem == "" {
+		if part.Label == "" || !part.HasFilesystem() {
 			continue
 		}
-		mountpoint := filepath.Join(dirs.RunMnt, part.Label)
+
+		mountpoint := filepath.Join(baseMntPoint, part.Label)
 		if err := os.MkdirAll(mountpoint, 0755); err != nil {
 			return fmt.Errorf("cannot create mountpoint: %v", err)
 		}

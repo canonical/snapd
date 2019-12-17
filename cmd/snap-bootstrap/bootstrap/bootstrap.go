@@ -88,7 +88,7 @@ func Run(gadgetRoot, device string, options *Options) error {
 		return err
 	}
 
-	if err := partition.MountFilesystems(created); err != nil {
+	if err := partition.MountFilesystems(created, dirs.RunMnt); err != nil {
 		return err
 	}
 
