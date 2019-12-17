@@ -181,7 +181,10 @@ func (s *bootState16) revisions() (snap, try_snap *NameAndRevision, trying bool,
 
 	for _, vName := range vars {
 		v := m[vName]
-		if v == "" {
+		if v == "" && vName != snapVar {
+			// snap_mode & snap_try_<type> can be empty
+			// snap_<type> cannot be! and will fail parsing
+			// below
 			continue
 		}
 

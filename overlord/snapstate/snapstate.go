@@ -672,7 +672,7 @@ func InstallPath(st *state.State, si *snap.SideInfo, path, instanceName, channel
 		InstanceKey: info.InstanceKey,
 	}
 
-	ts, err := doInstall(st, &snapst, snapsup, instFlags, "", inUse(deviceCtx))
+	ts, err := doInstall(st, &snapst, snapsup, instFlags, "", inUse(snapsup.Type, deviceCtx))
 	return ts, info, err
 }
 
@@ -826,7 +826,7 @@ func InstallMany(st *state.State, names []string, userID int) ([]string, []*stat
 			InstanceKey:  info.InstanceKey,
 		}
 
-		ts, err := doInstall(st, &snapst, snapsup, 0, "", inUse(deviceCtx))
+		ts, err := doInstall(st, &snapst, snapsup, 0, "", inUse(snapsup.Type, deviceCtx))
 		if err != nil {
 			return nil, nil, err
 		}
@@ -1024,7 +1024,7 @@ func doUpdate(ctx context.Context, st *state.State, names []string, updates []*s
 			},
 		}
 
-		ts, err := doInstall(st, snapst, snapsup, 0, fromChange, inUse(deviceCtx))
+		ts, err := doInstall(st, snapst, snapsup, 0, fromChange, inUse(snapsup.Type, deviceCtx))
 		if err != nil {
 			if refreshAll {
 				// doing "refresh all", just skip this snap

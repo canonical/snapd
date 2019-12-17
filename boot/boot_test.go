@@ -188,16 +188,16 @@ func (s *bootSetSuite) TestCurrentBootNameAndRevisionUnhappy(c *C) {
 	coreDev := boottest.MockDevice("some-snap")
 
 	_, err := boot.GetCurrentBoot(snap.TypeKernel, coreDev)
-	c.Check(err, ErrorMatches, "cannot get name and revision of boot kernel: boot variable unset")
+	c.Check(err, ErrorMatches, `cannot get name and revision of kernel \(snap_kernel\): boot variable unset`)
 
 	_, err = boot.GetCurrentBoot(snap.TypeOS, coreDev)
-	c.Check(err, ErrorMatches, "cannot get name and revision of boot base: boot variable unset")
+	c.Check(err, ErrorMatches, `cannot get name and revision of boot base \(snap_core\): boot variable unset`)
 
 	_, err = boot.GetCurrentBoot(snap.TypeBase, coreDev)
-	c.Check(err, ErrorMatches, "cannot get name and revision of boot base: boot variable unset")
+	c.Check(err, ErrorMatches, `cannot get name and revision of boot base \(snap_core\): boot variable unset`)
 
 	_, err = boot.GetCurrentBoot(snap.TypeApp, coreDev)
-	c.Check(err, ErrorMatches, "internal error: cannot find boot revision for snap type \"app\"")
+	c.Check(err, ErrorMatches, `internal error: no boot state handling for snap type "app"`)
 
 	// sanity check
 	s.bootloader.BootVars["snap_kernel"] = "kernel_41.snap"

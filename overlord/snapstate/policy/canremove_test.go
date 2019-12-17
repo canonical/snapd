@@ -31,6 +31,8 @@ func (s *canRemoveSuite) SetUpTest(c *check.C) {
 
 	s.bootloader = bootloadertest.Mock("mock", c.MkDir())
 	bootloader.Force(s.bootloader)
+	s.bootloader.SetBootBase("base_99.snap")
+	s.bootloader.SetBootKernel("kernel_99.snap")
 	s.BaseTest.AddCleanup(snap.MockSanitizePlugsSlots(func(snapInfo *snap.Info) {}))
 }
 

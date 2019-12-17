@@ -145,6 +145,10 @@ func applicable(s snap.PlaceInfo, t snap.Type, dev Device) bool {
 
 // bootState exposes the boot state for a type of boot snap.
 type bootState interface {
+	// revisions retrieves the revisions for the current snap
+	// revision (which always be set) and the try snap revision
+	// (which might be not set). it also returns whether the snap
+	// is in "trying" status.
 	revisions() (snap, try_snap *NameAndRevision, trying bool, err error)
 }
 
@@ -167,6 +171,9 @@ func bootStateFor(typ snap.Type, dev Device) (s bootState, err error) {
 // InUse checks if the given name/revision is used in the
 // boot environment
 func InUse(name string, rev snap.Revision, dev Device) bool {
+	// TODO: consider passing the relevant snap type to InUse
+	// also consider returning errors and letting the caller decide
+	// what to do now that canRemove can return errors
 	cands := make([]*NameAndRevision, 0, 4)
 	for _, t := range []snap.Type{snap.TypeBase, snap.TypeKernel} {
 		s, err := bootStateFor(t, dev)
@@ -207,38 +214,21 @@ type NameAndRevision struct {
 // type of snap, which can be snap.TypeBase (or snap.TypeOS), or snap.TypeKernel.
 // Returns ErrBootNameAndRevisionNotReady if the values are temporarily not established.
 func GetCurrentBoot(t snap.Type, dev Device) (*NameAndRevision, error) {
-	var bootVar, errName string
-	switch t {
-	case snap.TypeKernel:
-		bootVar = "snap_kernel"
-		errName = "kernel"
-	case snap.TypeOS, snap.TypeBase:
-		bootVar = "snap_core"
-		errName = "base"
-	default:
-		return nil, fmt.Errorf("internal error: cannot find boot revision for snap type %q", t)
-	}
-
-	bloader, err := bootloader.Find("", nil)
+	s, err := bootStateFor(t, dev)
 	if err != nil {
-		return nil, fmt.Errorf("cannot get boot settings: %s", err)
+		return nil, err
 	}
 
-	m, err := bloader.GetBootVars(bootVar, "snap_mode")
+	snap, _, trying, err := s.revisions()
 	if err != nil {
-		return nil, fmt.Errorf("cannot get boot variables: %s", err)
+		return nil, err
 	}
 
-	if m["snap_mode"] == "trying" {
+	if trying {
 		return nil, ErrBootNameAndRevisionNotReady
 	}
 
-	nameAndRevno, err := nameAndRevnoFromSnap(m[bootVar])
-	if err != nil {
-		return nil, fmt.Errorf("cannot get name and revision of boot %s: %v", errName, err)
-	}
-
-	return nameAndRevno, nil
+	return snap, nil
 }
 
 // nameAndRevnoFromSnap grabs the snap name and revision from the
