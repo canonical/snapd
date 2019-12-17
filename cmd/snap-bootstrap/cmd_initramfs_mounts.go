@@ -129,6 +129,7 @@ func generateMountsModeInstall(recoverySystem string) error {
 				}
 			case snap.TypeKernel:
 				if !isKernelMounted {
+					// XXX: we need to cross-check the kernel path with snapd_recovery_kernel used by grub
 					fmt.Fprintf(stdout, "%s %s\n", essentialSnap.Path, filepath.Join(runMnt, "kernel"))
 				}
 			}
@@ -211,6 +212,7 @@ func generateMountsModeRun() error {
 		return err
 	}
 	if !isKernelMounted {
+		// XXX: do we need to cross-check the booted/running kernel vs the snap?
 		kernel := filepath.Join(dataDir, "system-data", dirs.SnapBlobDir, modeEnv.Kernel)
 		fmt.Fprintf(stdout, "%s %s\n", kernel, filepath.Join(runMnt, "kernel"))
 	}
