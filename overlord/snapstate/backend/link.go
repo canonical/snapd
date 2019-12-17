@@ -76,6 +76,9 @@ func hasFontConfigCache(info *snap.Info) bool {
 	return false
 }
 
+// overriden for tests
+var bootParticipant = boot.Participant
+
 // LinkSnap makes the snap available by generating wrappers and setting the current symlinks.
 func (b Backend) LinkSnap(info *snap.Info, dev boot.Device, prevDisabledSvcs []string, tm timings.Measurer) (e error) {
 	if info.Revision.Unset() {
@@ -111,9 +114,11 @@ func (b Backend) LinkSnap(info *snap.Info, dev boot.Device, prevDisabledSvcs []s
 		})
 	}
 
-	// XXX this is not tested afaict
-	if err := boot.Participant(info, info.GetType(), dev).SetNextBoot(); err != nil {
-		return err
+	// We only to update the bootloader in run-mode.
+	if dev.RunMode() {
+		if err := bootParticipant(info, info.GetType(), dev).SetNextBoot(); err != nil {
+			return err
+		}
 	}
 
 	if err := updateCurrentSymlinks(info); err != nil {

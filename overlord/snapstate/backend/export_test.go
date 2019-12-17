@@ -21,6 +21,9 @@ package backend
 
 import (
 	"os/exec"
+
+	"github.com/snapcore/snapd/boot"
+	"github.com/snapcore/snapd/snap"
 )
 
 var (
@@ -41,5 +44,13 @@ func MockCommandFromSystemSnap(f func(string, ...string) (*exec.Cmd, error)) (re
 	commandFromSystemSnap = f
 	return func() {
 		commandFromSystemSnap = old
+	}
+}
+
+func MockBootParticipant(f func(s snap.PlaceInfo, t snap.Type, dev boot.Device) boot.BootParticipant) (restore func()) {
+	old := bootParticipant
+	bootParticipant = f
+	return func() {
+		bootParticipant = old
 	}
 }

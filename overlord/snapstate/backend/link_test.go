@@ -29,6 +29,7 @@ import (
 	. "gopkg.in/check.v1"
 
 	"github.com/snapcore/snapd/boot"
+	"github.com/snapcore/snapd/boot/boottest"
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/progress"
@@ -260,6 +261,47 @@ func (s *linkSuite) TestLinkFailsForUnsetRevision(c *C) {
 	}
 	err := s.be.LinkSnap(info, mockDev, nil, s.perfTimings)
 	c.Assert(err, ErrorMatches, `cannot link snap "foo" with unset revision`)
+}
+
+func (s *linkSuite) TestLinkDoCallsBootParticipant(c *C) {
+	const yaml = `name: pc-kernel
+version: 1.0
+type: kernel
+`
+	info := snaptest.MockSnap(c, yaml, &snap.SideInfo{Revision: snap.R(11)})
+
+	n := 0
+	mockParticipant := &boottest.MockBootParticipant{}
+	restore := backend.MockBootParticipant(func(s snap.PlaceInfo, t snap.Type, dev boot.Device) boot.BootParticipant {
+		n++
+		return mockParticipant
+	})
+	defer restore()
+
+	err := s.be.LinkSnap(info, mockDev, nil, s.perfTimings)
+	c.Assert(err, IsNil)
+	c.Check(n, Equals, 1)
+	c.Check(mockParticipant.SetNextBootCalled, Equals, 1)
+}
+
+func (s *linkSuite) TestLinkDoSkipsBootParticipantInEphemeralMode(c *C) {
+	const yaml = `name: pc-kernel
+version: 1.0
+type: kernel
+`
+	info := snaptest.MockSnap(c, yaml, &snap.SideInfo{Revision: snap.R(11)})
+
+	n := 0
+	restore := backend.MockBootParticipant(func(s snap.PlaceInfo, t snap.Type, dev boot.Device) boot.BootParticipant {
+		n++
+		panic("boot.Participant() should not be called in ephemeral mode")
+	})
+	defer restore()
+
+	mockDevEphemeralMode := boottest.MockDevice("boot-snap@install")
+	err := s.be.LinkSnap(info, mockDevEphemeralMode, nil, s.perfTimings)
+	c.Assert(err, IsNil)
+	c.Check(n, Equals, 0)
 }
 
 type linkCleanupSuite struct {
