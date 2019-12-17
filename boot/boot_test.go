@@ -153,13 +153,13 @@ func (s *bootSetSuite) TestInUseUnhapy(c *C) {
 
 	// make GetVars fail
 	s.bootloader.GetErr = errors.New("zap")
-	c.Check(boot.InUse("kernel", snap.R(41), coreDev), Equals, false)
+	c.Check(boot.InUse("kernel", snap.R(41), coreDev), Equals, true)
 	c.Check(logbuf.String(), testutil.Contains, "cannot get boot vars: zap")
 	s.bootloader.GetErr = nil
 
 	// make bootloader.Find fail
 	bootloader.ForceError(errors.New("broken bootloader"))
-	c.Check(boot.InUse("kernel", snap.R(41), coreDev), Equals, false)
+	c.Check(boot.InUse("kernel", snap.R(41), coreDev), Equals, true)
 	c.Check(logbuf.String(), testutil.Contains, "cannot get boot settings: broken bootloader")
 }
 
