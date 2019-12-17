@@ -18,12 +18,6 @@ prepare: |
         exit
     fi
 
-    if systemctl -l | MATCH -v "$SERVICE.service"; then
-        echo "The service to test does not exist in the system, skipping..."
-        touch "${SERVICE}.skip"
-        exit
-    fi
-
     #shellcheck source=tests/lib/systemd.sh
     . "$TESTSLIB"/systemd.sh
     #shellcheck source=tests/lib/systems.sh
@@ -32,8 +26,14 @@ prepare: |
     SUFFIX=
     MODEL=developer1-pc-w-config.model
     if is_core18_system; then
-        SUFFIX=-core18
-        MODEL=developer1-pc-18-w-config.model
+        if [ "$SERVICE" = "rsyslog" ]; then
+            echo "The service to test does not exist in the core18 system, skipping..."
+            touch "${SERVICE}.skip"
+            exit
+        else
+            SUFFIX=-core18
+            MODEL=developer1-pc-18-w-config.model
+        fi
     fi
 
     systemctl stop snapd.service snapd.socket
