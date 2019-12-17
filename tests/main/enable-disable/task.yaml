@@ -28,7 +28,7 @@ execute: |
     fi
 
     echo "Enable test-snapd-sh again and ensure it is no longer listed as disabled"
-    snap enable test-snapd-sh | MATCH -v disabled
+    snap enable test-snapd-sh | MATCH enabled
 
     if [ "$(snap debug confinement)" = strict ]; then
         echo "Ensure the test-snapd-sh security profiles are present"
