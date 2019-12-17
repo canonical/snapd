@@ -22,6 +22,7 @@ package policy
 
 import (
 	"github.com/snapcore/snapd/asserts"
+	"github.com/snapcore/snapd/boot"
 	"github.com/snapcore/snapd/overlord/snapstate"
 	"github.com/snapcore/snapd/overlord/state"
 	"github.com/snapcore/snapd/snap"
@@ -50,7 +51,7 @@ func For(typ snap.Type, model *asserts.Model) snapstate.Policy {
 
 type appPolicy struct{}
 
-func (appPolicy) CanRemove(_ *state.State, snapst *snapstate.SnapState, rev snap.Revision) error {
+func (appPolicy) CanRemove(_ *state.State, snapst *snapstate.SnapState, rev snap.Revision, _ boot.Device) error {
 	if !rev.Unset() {
 		return nil
 	}

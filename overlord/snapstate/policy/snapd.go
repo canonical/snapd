@@ -20,6 +20,7 @@
 package policy
 
 import (
+	"github.com/snapcore/snapd/boot"
 	"github.com/snapcore/snapd/overlord/snapstate"
 	"github.com/snapcore/snapd/overlord/state"
 	"github.com/snapcore/snapd/snap"
@@ -29,7 +30,7 @@ type snapdPolicy struct {
 	onClassic bool
 }
 
-func (p *snapdPolicy) CanRemove(st *state.State, snapst *snapstate.SnapState, rev snap.Revision) error {
+func (p *snapdPolicy) CanRemove(st *state.State, snapst *snapstate.SnapState, rev snap.Revision, _ boot.Device) error {
 	name := snapst.InstanceName()
 	if name == "" {
 		// not installed, or something. What are you even trying to do.
