@@ -3,7 +3,8 @@ Description=Ubuntu core (all-snaps) system shutdown helper setup service
 Before=umount.target
 DefaultDependencies=false
 # don't run on classic
-ConditionKernelCommandLine=snap_core
+ConditionKernelCommandLine=|snap_core
+ConditionKernelCommandLine=|snapd_recovery_mode
 # don't run if system-shutdown isn't there
 ConditionPathExists=@libexecdir@/snapd/system-shutdown
 # X-Snapd-Snap: do-not-start

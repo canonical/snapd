@@ -521,6 +521,7 @@ version: 5.0
 		KernelPath:        kernelInSeed,
 		RecoverySystemDir: recoverySystemDir,
 		UnpackedGadgetDir: unpackedGadgetDir,
+		Recovery:          true,
 	}
 
 	err = boot.MakeBootable(model, rootdir, bootWith)
@@ -549,7 +550,7 @@ func (s *bootSetSuite) TestMakeBootable20MultipleRecoverySystemsError(c *C) {
 
 	model := makeMockUC20Model()
 
-	bootWith := &boot.BootableSet{}
+	bootWith := &boot.BootableSet{Recovery: true}
 	rootdir := c.MkDir()
 	err := os.MkdirAll(filepath.Join(rootdir, "systems/20191204"), 0755)
 	c.Assert(err, IsNil)
@@ -558,4 +559,35 @@ func (s *bootSetSuite) TestMakeBootable20MultipleRecoverySystemsError(c *C) {
 
 	err = boot.MakeBootable(model, rootdir, bootWith)
 	c.Assert(err, ErrorMatches, "cannot make multiple recovery systems bootable yet")
+}
+
+func (s *bootSetSuite) TestMakeBootable20RunMode(c *C) {
+	dirs.SetRootDir("")
+
+	model := makeMockUC20Model()
+	rootdir := c.MkDir()
+	seedSnapsDirs := filepath.Join(rootdir, "/snaps")
+	err := os.MkdirAll(seedSnapsDirs, 0755)
+	c.Assert(err, IsNil)
+
+	bootWith := &boot.BootableSet{
+		RecoverySystemDir: "20191216",
+		BasePath:          "core20_123.snap",
+		KernelPath:        "pc-kernel_456.snap",
+		Recovery:          false,
+	}
+
+	err = boot.MakeBootable(model, rootdir, bootWith)
+	c.Assert(err, IsNil)
+
+	// ensure the bootvars got updated the right way
+	c.Check(s.bootloader.BootVars, DeepEquals, map[string]string{
+		"snapd_recovery_mode": "run",
+	})
+	ubuntuDataModeEnvPath := filepath.Join(rootdir, "/run/mnt/ubuntu-data/system-data/var/lib/snapd/modeenv")
+	c.Check(ubuntuDataModeEnvPath, testutil.FileEquals, `mode=run
+recovery_system=20191216
+base=core20_123.snap
+kernel=pc-kernel_456.snap
+`)
 }
