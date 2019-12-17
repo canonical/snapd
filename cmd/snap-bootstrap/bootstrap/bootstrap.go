@@ -22,11 +22,13 @@ import (
 	"fmt"
 
 	"github.com/snapcore/snapd/cmd/snap-bootstrap/partition"
-	"github.com/snapcore/snapd/gadget"
 	"github.com/snapcore/snapd/dirs"
+	"github.com/snapcore/snapd/gadget"
 )
 
 type Options struct {
+	// Also mount the filesystems after creation
+	Mount bool
 	// will contain encryption later
 }
 
@@ -89,8 +91,10 @@ func Run(gadgetRoot, device string, options *Options) error {
 		return err
 	}
 
-	if err := partition.MountFilesystems(created, dirs.RunMnt); err != nil {
-		return err
+	if options.Mount {
+		if err := partition.MountFilesystems(created, dirs.RunMnt); err != nil {
+			return err
+		}
 	}
 
 	return nil
