@@ -108,7 +108,7 @@ func MountFilesystems(created []DeviceStructure) error {
 		if part.Label == "" || part.Filesystem == "" {
 			continue
 		}
-		mountpoint := filepath.Join(dirs.MountPointDir, part.Label)
+		mountpoint := filepath.Join(dirs.RunMnt, part.Label)
 		if err := os.MkdirAll(mountpoint, 0755); err != nil {
 			return fmt.Errorf("cannot create mountpoint: %v", err)
 		}
