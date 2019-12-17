@@ -448,10 +448,11 @@ func WaitRestart(task *state.Task, snapsup *SnapSetup) (err error) {
 		// otherwise this could be just a spurious restart
 		// of snapd
 
-		model, err := ModelFromTask(task)
+		deviceCtx, err := DeviceCtx(task.State(), task, nil)
 		if err != nil {
 			return err
 		}
+		model := deviceCtx.Model()
 
 		// get the name of the name relevant for booting
 		// based on the given type
@@ -477,7 +478,7 @@ func WaitRestart(task *state.Task, snapsup *SnapSetup) (err error) {
 		// actually booted. The bootloader may revert on a failed
 		// boot from a bad os/base/kernel to a good one and in this
 		// case we need to catch this and error accordingly
-		current, err := boot.GetCurrentBoot(snapsup.Type)
+		current, err := boot.GetCurrentBoot(snapsup.Type, deviceCtx)
 		if err == boot.ErrBootNameAndRevisionNotReady {
 			return &state.Retry{After: 5 * time.Second}
 		}
