@@ -46,8 +46,9 @@ type initramfsMountsSuite struct {
 
 	Stdout *bytes.Buffer
 
-	seedDir string
-	runMnt  string
+	seedDir  string
+	runMnt   string
+	sysLabel string
 }
 
 var _ = Suite(&initramfsMountsSuite{})
@@ -84,8 +85,8 @@ func (s *initramfsMountsSuite) SetUpTest(c *C) {
 	seed20.MakeAssertedSnap(c, "name: pc-kernel\nversion: 1\ntype: kernel", nil, snap.R(1), "canonical", seed20.StoreSigning.Database)
 	seed20.MakeAssertedSnap(c, "name: core20\nversion: 1\ntype: base", nil, snap.R(1), "canonical", seed20.StoreSigning.Database)
 
-	sysLabel := "20191118"
-	seed20.MakeSeed(c, sysLabel, "my-brand", "my-model", map[string]interface{}{
+	s.sysLabel = "20191118"
+	seed20.MakeSeed(c, s.sysLabel, "my-brand", "my-model", map[string]interface{}{
 		"display-name": "my model",
 		"architecture": "amd64",
 		"base":         "core20",
@@ -117,7 +118,7 @@ func (s *initramfsMountsSuite) TestInitramfsMountsNoModeError(c *C) {
 	s.mockProcCmdlineContent(c, "nothing-to-see")
 
 	_, err := main.Parser.ParseArgs([]string{"initramfs-mounts"})
-	c.Assert(err, ErrorMatches, "cannot detect if in run,install,recover mode")
+	c.Assert(err, ErrorMatches, "cannot detect mode nor recovery system to use")
 }
 
 func (s *initramfsMountsSuite) TestInitramfsMountsUnknonwnMode(c *C) {
@@ -129,7 +130,7 @@ func (s *initramfsMountsSuite) TestInitramfsMountsUnknonwnMode(c *C) {
 
 func (s *initramfsMountsSuite) TestInitramfsMountsInstallModeStep1(c *C) {
 	n := 0
-	s.mockProcCmdlineContent(c, "snapd_recovery_mode=")
+	s.mockProcCmdlineContent(c, "snapd_recovery_mode= snapd_recovery_system="+s.sysLabel)
 
 	restore := main.MockOsutilIsMounted(func(path string) (bool, error) {
 		n++
@@ -150,7 +151,7 @@ func (s *initramfsMountsSuite) TestInitramfsMountsInstallModeStep1(c *C) {
 
 func (s *initramfsMountsSuite) TestInitramfsMountsInstallModeStep2(c *C) {
 	n := 0
-	s.mockProcCmdlineContent(c, "snapd_recovery_mode=install")
+	s.mockProcCmdlineContent(c, "snapd_recovery_mode=install snapd_recovery_system="+s.sysLabel)
 
 	restore := main.MockOsutilIsMounted(func(path string) (bool, error) {
 		n++
@@ -183,7 +184,7 @@ func (s *initramfsMountsSuite) TestInitramfsMountsInstallModeStep2(c *C) {
 
 func (s *initramfsMountsSuite) TestInitramfsMountsInstallModeStep4(c *C) {
 	n := 0
-	s.mockProcCmdlineContent(c, "snapd_recovery_mode=install")
+	s.mockProcCmdlineContent(c, "snapd_recovery_mode=install snapd_recovery_system="+s.sysLabel)
 
 	restore := main.MockOsutilIsMounted(func(path string) (bool, error) {
 		n++

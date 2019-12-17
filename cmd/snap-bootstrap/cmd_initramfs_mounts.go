@@ -71,27 +71,9 @@ var (
 	osutilIsMounted = osutil.IsMounted
 )
 
-// XXX: make this more flexible if there are multiple seeds on disk, i.e.
-// read kernel commandline in this case (bootenv is off limits because
-// it's not measured).
-func findRecoverySystem(seedDir string) (systemLabel string, err error) {
-	l, err := filepath.Glob(filepath.Join(seedDir, "systems/*"))
-	if err != nil {
-		return "", err
-	}
-	if len(l) == 0 {
-		return "", fmt.Errorf("cannot find a recovery system")
-	}
-	if len(l) > 1 {
-		return "", fmt.Errorf("cannot use multiple recovery systems yet")
-	}
-	systemLabel = filepath.Base(l[0])
-	return systemLabel, nil
-}
-
 // generateMountsMode* is called multiple times from initramfs until it
 // no longer generates more mount points and just returns an empty output.
-func generateMountsModeInstall() error {
+func generateMountsModeInstall(recoverySystem string) error {
 	seedDir := filepath.Join(runMnt, "ubuntu-seed")
 
 	// 1. always ensure seed partition is mounted
@@ -103,7 +85,6 @@ func generateMountsModeInstall() error {
 		fmt.Fprintf(stdout, "/dev/disk/by-label/ubuntu-seed %s\n", seedDir)
 		return nil
 	}
-	// XXX: how do we select a different recover system from the cmdline?
 
 	// 2. (auto) select recovery system for now
 	isBaseMounted, err := osutilIsMounted(filepath.Join(runMnt, "base"))
@@ -116,11 +97,7 @@ func generateMountsModeInstall() error {
 	}
 	if !isBaseMounted || !isKernelMounted {
 		// load the recovery system  and generate mounts for kernel/base
-		systemLabel, err := findRecoverySystem(seedDir)
-		if err != nil {
-			return err
-		}
-		systemSeed, err := seed.Open(seedDir, systemLabel)
+		systemSeed, err := seed.Open(seedDir, recoverySystem)
 		if err != nil {
 			return err
 		}
@@ -171,13 +148,9 @@ func generateMountsModeInstall() error {
 
 	// 4. final step: write $(ubuntu_data)/var/lib/snapd/modeenv - this
 	//    is the tmpfs we just created above
-	systemLabel, err := findRecoverySystem(seedDir)
-	if err != nil {
-		return err
-	}
 	modeEnv := &boot.Modeenv{
 		Mode:           "install",
-		RecoverySystem: systemLabel,
+		RecoverySystem: recoverySystem,
 	}
 	if err := modeEnv.Write(filepath.Join(runMnt, "ubuntu-data", "system-data")); err != nil {
 		return err
@@ -188,7 +161,7 @@ func generateMountsModeInstall() error {
 	return nil
 }
 
-func generateMountsModeRecover() error {
+func generateMountsModeRecover(recoverySystem string) error {
 	return fmt.Errorf("recover mode mount generation not implemented yet")
 }
 
@@ -247,41 +220,49 @@ func generateMountsModeRun() error {
 
 var validModes = []string{"install", "recover", "run"}
 
-func whichMode(content []byte) (string, error) {
-	scanner := bufio.NewScanner(bytes.NewBuffer(content))
+func whichModeAndRecoverSystem(cmdline []byte) (mode string, sysLabel string, err error) {
+	scanner := bufio.NewScanner(bytes.NewBuffer(cmdline))
 	scanner.Split(bufio.ScanWords)
 	for scanner.Scan() {
 		if strings.HasPrefix(scanner.Text(), "snapd_recovery_mode=") {
-			mode := strings.SplitN(scanner.Text(), "=", 2)[1]
+			mode = strings.SplitN(scanner.Text(), "=", 2)[1]
 			if mode == "" {
 				mode = "install"
 			}
 			if !strutil.ListContains(validModes, mode) {
-				return "", fmt.Errorf("cannot use unknown mode %q", mode)
+				return "", "", fmt.Errorf("cannot use unknown mode %q", mode)
 			}
-			return mode, nil
+			if mode == "run" {
+				return "run", "", nil
+			}
+		}
+		if strings.HasPrefix(scanner.Text(), "snapd_recovery_system=") {
+			sysLabel = strings.SplitN(scanner.Text(), "=", 2)[1]
+		}
+		if mode != "" && sysLabel != "" {
+			return mode, sysLabel, nil
 		}
 	}
 	if err := scanner.Err(); err != nil {
-		return "", err
+		return "", "", err
 	}
-	return "", fmt.Errorf("cannot detect if in run,install,recover mode")
+	return "", "", fmt.Errorf("cannot detect mode nor recovery system to use")
 }
 
 func generateInitramfsMounts() error {
-	content, err := ioutil.ReadFile(procCmdline)
+	cmdline, err := ioutil.ReadFile(procCmdline)
 	if err != nil {
 		return err
 	}
-	mode, err := whichMode(content)
+	mode, recoverySystem, err := whichModeAndRecoverSystem(cmdline)
 	if err != nil {
 		return err
 	}
 	switch mode {
 	case "recover":
-		return generateMountsModeRecover()
+		return generateMountsModeRecover(recoverySystem)
 	case "install":
-		return generateMountsModeInstall()
+		return generateMountsModeInstall(recoverySystem)
 	case "run":
 		return generateMountsModeRun()
 	}
