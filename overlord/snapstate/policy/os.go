@@ -37,6 +37,10 @@ func (p *osPolicy) CanRemove(st *state.State, snapst *snapstate.SnapState, rev s
 		return errNoName
 	}
 
+	if ephemeral(dev) {
+		return errEphemeralSnapsNotRemovalable
+	}
+
 	if name == "ubuntu-core" {
 		return nil
 	}

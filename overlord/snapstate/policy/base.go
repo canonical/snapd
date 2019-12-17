@@ -39,6 +39,10 @@ func (p *basePolicy) CanRemove(st *state.State, snapst *snapstate.SnapState, rev
 		return errNoName
 	}
 
+	if ephemeral(dev) {
+		return errEphemeralSnapsNotRemovalable
+	}
+
 	if p.modelBase == name {
 		if !rev.Unset() {
 			// TODO: tweak boot.InUse so that it DTRT when rev.Unset, call
