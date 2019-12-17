@@ -164,6 +164,10 @@ func bootStateFor(typ snap.Type, dev Device) (s bootState, err error) {
 // InUse checks if the given name/revision is used in the
 // boot environment
 func InUse(name string, rev snap.Revision, dev Device) bool {
+	if dev.Classic() {
+		// no boot state on classic
+		return false
+	}
 	// TODO: consider passing the relevant snap type to InUse
 	// also consider returning errors and letting the caller decide
 	// what to do now that canRemove can return errors
