@@ -359,6 +359,7 @@ func SetRootDir(rootdir string) {
 	SysfsDir = filepath.Join(rootdir, "/sys")
 
 	FeaturesDir = filepath.Join(rootdir, snappyDir, "features")
+
 	RunMnt = filepath.Join(rootdir, "/run/mnt")
 }
 
