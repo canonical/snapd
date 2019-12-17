@@ -30,6 +30,7 @@ import (
 	"github.com/snapcore/snapd/bootloader"
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/logger"
+	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/snap"
 )
 
@@ -423,6 +424,19 @@ func makeBootable20RunMode(model *asserts.Model, rootdir string, bootWith *Boota
 	// TODO:UC20:
 	// - create grub.cfg instead of using the gadget one
 	// - extract kernel
+
+	// copy kernel/base into the ubuntu-date partition
+	ubuntuDataMnt := filepath.Join(runMnt, "ubuntu-data")
+	snapBlobDir := dirs.SnapBlobDirUnder(filepath.Join(ubuntuDataMnt, "system-data"))
+	if err := os.MkdirAll(snapBlobDir, 0755); err != nil {
+		return err
+	}
+	for _, fn := range []string{bootWith.BasePath, bootWith.KernelPath} {
+		dst := filepath.Join(snapBlobDir, filepath.Base(fn))
+		if err := osutil.CopyFile(fn, dst, 0); err != nil {
+			return err
+		}
+	}
 
 	// write modeenv on the ubuntu-data partition
 	modeenv := &Modeenv{
