@@ -107,6 +107,16 @@ func BenchmarkNameAndRevno(b *testing.B) {
 	}
 }
 
+func (s *bootSetSuite) TestInUseClassic(c *C) {
+	classicDev := boottest.MockDevice("")
+
+	// make bootloader.Find fail but shouldn't matter
+	bootloader.ForceError(errors.New("broken bootloader"))
+
+	c.Check(boot.InUse("core18", snap.R(41), classicDev), Equals, false)
+
+}
+
 func (s *bootSetSuite) TestInUse(c *C) {
 	coreDev := boottest.MockDevice("some-snap")
 
