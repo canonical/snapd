@@ -76,7 +76,7 @@ func (s *deploySuite) TestDeployMountedContentErr(c *C) {
 
 	node2MountPoint := filepath.Join(s.mockMountPoint, "2")
 	err := partition.DeployContent([]partition.DeviceStructure{mockDeviceStructureSystemSeed}, s.gadgetRoot)
-	c.Assert(err, ErrorMatches, fmt.Sprintf(`cannot mount filesystem "/dev/node2" to %q: boom`, node2MountPoint))
+	c.Assert(err, ErrorMatches, fmt.Sprintf(`cannot mount filesystem "/dev/node2" at %q: boom`, node2MountPoint))
 }
 
 func (s *deploySuite) TestDeployMountedContent(c *C) {

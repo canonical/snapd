@@ -43,7 +43,7 @@ func deployFilesystemContent(part DeviceStructure, gadgetRoot string) (err error
 
 	// temporarily mount the filesystem
 	if err := sysMount(part.Node, mountpoint, part.Filesystem, 0, ""); err != nil {
-		return fmt.Errorf("cannot mount filesystem %q to %q: %v", part.Node, mountpoint, err)
+		return fmt.Errorf("cannot mount filesystem %q at %q: %v", part.Node, mountpoint, err)
 	}
 	defer func() {
 		errUnmount := sysUnmount(mountpoint, 0)
@@ -113,7 +113,7 @@ func MountFilesystems(created []DeviceStructure, baseMntPoint string) error {
 			return fmt.Errorf("cannot create mountpoint: %v", err)
 		}
 		if err := sysMount(part.Node, mountpoint, part.Filesystem, 0, ""); err != nil {
-			return fmt.Errorf("cannot mount filesystem %q to %q: %v", part.Node, mountpoint, err)
+			return fmt.Errorf("cannot mount filesystem %q at %q: %v", part.Node, mountpoint, err)
 		}
 	}
 
