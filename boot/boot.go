@@ -184,7 +184,7 @@ type NameAndRevision struct {
 // GetCurrentBoot returns the currently set name and revision for boot for the given
 // type of snap, which can be snap.TypeBase (or snap.TypeOS), or snap.TypeKernel.
 // Returns ErrBootNameAndRevisionNotReady if the values are temporarily not established.
-func GetCurrentBoot(t snap.Type) (*NameAndRevision, error) {
+func GetCurrentBoot(t snap.Type, dev Device) (*NameAndRevision, error) {
 	var bootVar, errName string
 	switch t {
 	case snap.TypeKernel:
