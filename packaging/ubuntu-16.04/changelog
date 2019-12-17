@@ -1,3 +1,18 @@
+snapd (2.43~pre1) xenial; urgency=medium
+
+  * placeholder changelog
+
+ -- Michael Vogt <michael.vogt@ubuntu.com>  Thu, 12 Dec 2019 10:50:39 +0100
+
+snapd (2.42.5) xenial; urgency=medium
+
+  * New upstream release, LP: #1853244
+    - snap-confine: revert, with comment, explicit unix deny for nested
+      lxd
+    - Disable mount-ns test on 16.04. It is too flaky currently.
+
+ -- Michael Vogt <michael.vogt@ubuntu.com>  Fri, 06 Dec 2019 14:10:56 +0100
+
 snapd (2.42.4) xenial; urgency=medium
 
   * New upstream release, LP: #1853244

@@ -170,7 +170,7 @@ build a 64-bit Ubuntu 16.04 LTS (Xenial Xerus) VM to run the spread tests on:
 To build an Ubuntu 14.04 (Trusty Tahr) based VM, use:
 
     $ autopkgtest-buildvm-ubuntu-cloud -r trusty --post-command='sudo apt-get install -y --install-recommends linux-generic-lts-xenial && update-grub'
-    $ mv adt-trusty-amd64-cloud.img ubuntu-14.04-64.img
+    $ mv autopkgtest-trusty-amd64.img ubuntu-14.04-64.img
 
 This is because we need at least 4.4+ kernel for snapd to run on Ubuntu 14.04 
 LTS, which is available through the `linux-generic-lts-xenial` package.

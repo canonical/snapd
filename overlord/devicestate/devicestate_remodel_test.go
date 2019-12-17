@@ -896,6 +896,36 @@ func (s *deviceMgrRemodelSuite) TestDeviceCtxNoTask(c *C) {
 	deviceCtx, err := devicestate.DeviceCtx(s.state, nil, nil)
 	c.Assert(err, IsNil)
 	c.Assert(deviceCtx.Model().BrandID(), Equals, "canonical")
+
+	c.Check(deviceCtx.Classic(), Equals, false)
+	c.Check(deviceCtx.Kernel(), Equals, "kernel")
+	c.Check(deviceCtx.Base(), Equals, "")
+	c.Check(deviceCtx.RunMode(), Equals, true)
+}
+
+func (s *deviceMgrRemodelSuite) TestDeviceCtxGroundContext(c *C) {
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	// have a model assertion
+	model := s.brands.Model("canonical", "pc", map[string]interface{}{
+		"gadget":       "pc",
+		"kernel":       "kernel",
+		"architecture": "amd64",
+	})
+	assertstatetest.AddMany(s.state, model)
+	devicestatetest.SetDevice(s.state, &auth.DeviceState{
+		Brand: "canonical",
+		Model: "pc",
+	})
+
+	deviceCtx, err := devicestate.DeviceCtx(s.state, nil, nil)
+	c.Assert(err, IsNil)
+	c.Assert(deviceCtx.Model().BrandID(), Equals, "canonical")
+	groundCtx := deviceCtx.GroundContext()
+	c.Check(groundCtx.ForRemodeling(), Equals, false)
+	c.Check(groundCtx.Model().Model(), Equals, "pc")
+	c.Check(groundCtx.Store, PanicMatches, `retrieved ground context is not intended to drive store operations`)
 }
 
 func (s *deviceMgrRemodelSuite) TestDeviceCtxProvided(c *C) {
@@ -964,7 +994,7 @@ volumes:
 		"gadget":       "new-gadget",
 		"kernel":       "kernel",
 	})
-	remodelCtx := &snapstatetest.TrivialDeviceContext{DeviceModel: newModel, Remodeling: true}
+	remodelCtx := &snapstatetest.TrivialDeviceContext{DeviceModel: newModel, Remodeling: true, OldDeviceModel: oldModel}
 
 	restore := devicestate.MockGadgetIsCompatible(func(current, update *gadget.Info) error {
 		c.Assert(current.Volumes, HasLen, 1)
@@ -1013,7 +1043,7 @@ volumes:
 	// when remodeling to completely new gadget snap, there is no current
 	// snap passed to the check callback
 	err = devicestate.CheckGadgetRemodelCompatible(s.state, info, nil, snapf, snapstate.Flags{}, remodelCtx)
-	c.Check(err, ErrorMatches, "cannot identify the current model")
+	c.Check(err, ErrorMatches, "cannot identify the current gadget snap")
 
 	// mock data to obtain current gadget info
 	devicestatetest.SetDevice(s.state, &auth.DeviceState{
@@ -1082,12 +1112,17 @@ version: 123
 
 	s.setupBrands(c)
 	// model assertion in device context
-	model := fakeMyModel(map[string]interface{}{
+	oldModel := fakeMyModel(map[string]interface{}{
 		"architecture": "amd64",
-		"gadget":       "gadget",
+		"gadget":       "new-gadget",
 		"kernel":       "krnl",
 	})
-	remodelCtx := &snapstatetest.TrivialDeviceContext{DeviceModel: model, Remodeling: true}
+	model := fakeMyModel(map[string]interface{}{
+		"architecture": "amd64",
+		"gadget":       "new-gadget",
+		"kernel":       "krnl",
+	})
+	remodelCtx := &snapstatetest.TrivialDeviceContext{DeviceModel: model, Remodeling: true, OldDeviceModel: oldModel}
 
 	err = devicestate.CheckGadgetRemodelCompatible(s.state, info, currInfo, snapf, snapstate.Flags{}, remodelCtx)
 	if expErr == "" {

@@ -1528,7 +1528,7 @@ func downloadImpl(ctx context.Context, name, sha3_384, downloadURL string, user 
 			return fmt.Errorf("The download has been cancelled: %s", ctx.Err())
 		}
 		if finalErr != nil {
-			if httputil.ShouldRetryError(attempt, finalErr) {
+			if httputil.ShouldRetryAttempt(attempt, finalErr) {
 				continue
 			}
 			break
@@ -1565,7 +1565,7 @@ func downloadImpl(ctx context.Context, name, sha3_384, downloadURL string, user 
 		_, finalErr = io.Copy(mw, limiter)
 		pbar.Finished()
 		if finalErr != nil {
-			if httputil.ShouldRetryError(attempt, finalErr) {
+			if httputil.ShouldRetryAttempt(attempt, finalErr) {
 				// error while downloading should resume
 				var seekerr error
 				resume, seekerr = w.Seek(0, os.SEEK_END)
