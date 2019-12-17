@@ -37,6 +37,10 @@ func (p *kernelPolicy) CanRemove(_ *state.State, snapst *snapstate.SnapState, re
 		return errNoName
 	}
 
+	if ephemeral(dev) {
+		return errEphemeralSnapsNotRemovalable
+	}
+
 	if p.modelKernel == name {
 		if !rev.Unset() {
 			// TODO: tweak boot.InUse so that it DTRT when rev.Unset, call

@@ -30,11 +30,15 @@ type gadgetPolicy struct {
 	modelGadget string
 }
 
-func (p *gadgetPolicy) CanRemove(st *state.State, snapst *snapstate.SnapState, rev snap.Revision, _ boot.Device) error {
+func (p *gadgetPolicy) CanRemove(st *state.State, snapst *snapstate.SnapState, rev snap.Revision, dev boot.Device) error {
 	name := snapst.InstanceName()
 	if name == "" {
 		// not installed, or something. What are you even trying to do.
 		return errNoName
+	}
+
+	if ephemeral(dev) {
+		return errEphemeralSnapsNotRemovalable
 	}
 
 	if p.modelGadget != name {

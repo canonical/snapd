@@ -49,9 +49,17 @@ func For(typ snap.Type, model *asserts.Model) snapstate.Policy {
 	}
 }
 
+func ephemeral(dev boot.Device) bool {
+	return !dev.RunMode()
+}
+
 type appPolicy struct{}
 
-func (appPolicy) CanRemove(_ *state.State, snapst *snapstate.SnapState, rev snap.Revision, _ boot.Device) error {
+func (appPolicy) CanRemove(_ *state.State, snapst *snapstate.SnapState, rev snap.Revision, dev boot.Device) error {
+	if ephemeral(dev) {
+		return errEphemeralSnapsNotRemovalable
+	}
+
 	if !rev.Unset() {
 		return nil
 	}
