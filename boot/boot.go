@@ -138,7 +138,11 @@ func applicable(s snap.PlaceInfo, t snap.Type, dev Device) bool {
 
 // InUse checks if the given name/revision is used in the
 // boot environment
-func InUse(name string, rev snap.Revision) bool {
+func InUse(name string, rev snap.Revision, dev Device) bool {
+	if !dev.RunMode() {
+		// TODO:UC20: for now everything is in use in ephemeral mode
+		return true
+	}
 	bootloader, err := bootloader.Find("", nil)
 	if err != nil {
 		logger.Noticef("cannot get boot settings: %s", err)
