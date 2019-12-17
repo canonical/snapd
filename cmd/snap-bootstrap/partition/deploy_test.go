@@ -136,7 +136,7 @@ func (s *deploySuite) TestMountFilesystems(c *C) {
 	}, dirs.RunMnt)
 	c.Assert(err, IsNil)
 
-	// check that just a single call happend and that things got mounted
+	// check that just a single call happened and that things got mounted
 	// to the right mount point
 	node2MountPoint := filepath.Join(dirs.RunMnt, "ubuntu-seed")
 	c.Check(s.mockMountCalls, HasLen, 1)
