@@ -610,18 +610,19 @@ save_snaps() {
 
 save_mounts() {
     file=$1
-    mount > "$file"  
+    # autofs is skipped due to some attributes change for systemd-1
+    mount -l | grep '/snap' | sort > "$file"
 }
 
 save_units() {
     file=$1
-    systemctl list-unit-files --no-pager --no-legend --plain |  awk '{ print $1 }' > "$file"
+    systemctl list-unit-files --no-pager --no-legend --plain |  awk '{ print $1 }' | sort > "$file"
 }
 
 save_loops() {
     file=$1
     # not consider core which appears in different loop device with (deleted)
-    losetup -l | awk '{if(NR>1)print}' | awk '!/\/var\/lib\/snapd\/snaps\/core_/' > "$file"
+    losetup -l | awk '{if(NR>1)print}' | awk '!/\/var\/lib\/snapd\/snaps\/core_/' | sort > "$file"
 }
 
 do_check_systemd_status() {
