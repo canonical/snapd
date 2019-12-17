@@ -23,11 +23,19 @@ func policyForUnset(snap.Type, *asserts.Model) Policy {
 	panic("PolicyFor unset!")
 }
 
-func inUse(dev boot.Device) func(snapName string, rev snap.Revision) bool {
+func inUse(typ snap.Type, dev boot.Device) func(snapName string, rev snap.Revision) bool {
+	// TODO: move this kind of logic under policy
 	if dev == nil {
 		return nil
 	}
-	return func(snapName string, rev snap.Revision) bool {
-		return boot.InUse(snapName, rev, dev)
+	switch typ {
+	case snap.TypeBase, snap.TypeOS, snap.TypeKernel:
+		return func(snapName string, rev snap.Revision) bool {
+			return boot.InUse(snapName, rev, dev)
+		}
+	default:
+		return func(string, snap.Revision) bool {
+			return false
+		}
 	}
 }
