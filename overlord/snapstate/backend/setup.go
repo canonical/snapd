@@ -85,8 +85,10 @@ func (b Backend) SetupSnap(snapFilePath, instanceName string, sideInfo *snap.Sid
 	}
 
 	t := s.GetType()
-	if err := boot.Kernel(s, t, dev).ExtractKernelAssets(snapf); err != nil {
-		return snapType, nil, fmt.Errorf("cannot install kernel: %s", err)
+	if dev.RunMode() {
+		if err := boot.Kernel(s, t, dev).ExtractKernelAssets(snapf); err != nil {
+			return snapType, nil, fmt.Errorf("cannot install kernel: %s", err)
+		}
 	}
 
 	installRecord = &InstallRecord{TargetSnapExisted: didNothing}

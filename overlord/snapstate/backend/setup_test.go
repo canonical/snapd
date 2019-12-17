@@ -192,6 +192,39 @@ type: kernel
 	c.Assert(bloader.RemoveKernelAssetsCalls[0].InstanceName(), Equals, "kernel")
 }
 
+func (s *setupSuite) TestSetupDoKernelSkippedEphemeralMode(c *C) {
+	bloader := bootloadertest.Mock("mock", c.MkDir())
+	bootloader.Force(bloader)
+
+	testFiles := [][]string{
+		{"kernel.img", "kernel"},
+		{"initrd.img", "initrd"},
+	}
+	snapPath := snaptest.MakeTestSnapWithFiles(c, `name: kernel
+version: 1.0
+type: kernel
+`, testFiles)
+
+	si := snap.SideInfo{
+		RealName: "kernel",
+		Revision: snap.R(140),
+	}
+
+	// extraction is skipped in ephemeral mode
+	mockDev = boottest.MockDevice("kernel@install")
+	snapType, _, err := s.be.SetupSnap(snapPath, "kernel", &si, mockDev, progress.Null)
+	c.Assert(err, IsNil)
+	c.Check(snapType, Equals, snap.TypeKernel)
+	c.Assert(bloader.ExtractKernelAssetsCalls, HasLen, 0)
+
+	// extraction is *not* skipped in "run" mode
+	mockDev = boottest.MockDevice("kernel@run")
+	snapType, _, err = s.be.SetupSnap(snapPath, "kernel", &si, mockDev, progress.Null)
+	c.Assert(err, IsNil)
+	c.Check(snapType, Equals, snap.TypeKernel)
+	c.Assert(bloader.ExtractKernelAssetsCalls, HasLen, 1)
+}
+
 func (s *setupSuite) TestSetupDoIdempotent(c *C) {
 	// make sure that a retry wouldn't stumble on partial work
 	// use a kernel because that does and need to do strictly more
