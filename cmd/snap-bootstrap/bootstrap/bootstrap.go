@@ -23,6 +23,7 @@ import (
 
 	"github.com/snapcore/snapd/cmd/snap-bootstrap/partition"
 	"github.com/snapcore/snapd/gadget"
+	"github.com/snapcore/snapd/dirs"
 )
 
 type Options struct {
