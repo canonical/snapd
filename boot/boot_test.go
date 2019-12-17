@@ -141,7 +141,7 @@ func (s *bootSetSuite) TestInUseEphemeral(c *C) {
 	c.Check(boot.InUse("whatever", snap.R(0), coreDev), Equals, true)
 }
 
-func (s *bootSetSuite) TestInUseUnhapy(c *C) {
+func (s *bootSetSuite) TestInUseUnhappy(c *C) {
 	coreDev := boottest.MockDevice("some-snap")
 
 	logbuf, restore := logger.MockLogger()
@@ -154,7 +154,7 @@ func (s *bootSetSuite) TestInUseUnhapy(c *C) {
 	// make GetVars fail
 	s.bootloader.GetErr = errors.New("zap")
 	c.Check(boot.InUse("kernel", snap.R(41), coreDev), Equals, true)
-	c.Check(logbuf.String(), testutil.Contains, "cannot get boot vars: zap")
+	c.Check(logbuf.String(), testutil.Contains, "cannot get boot variables: zap")
 	s.bootloader.GetErr = nil
 
 	// make bootloader.Find fail
