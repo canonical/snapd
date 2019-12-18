@@ -38,48 +38,56 @@ var _ BootParticipant = (*coreBootParticipant)(nil)
 
 func (*coreBootParticipant) IsTrivial() bool { return false }
 
-func (bs *coreBootParticipant) SetNextBoot() error {
+func (bs *coreBootParticipant) SetNextBoot() (rebootRequired bool, err error) {
 	bootloader, err := bootloader.Find("", nil)
 	if err != nil {
-		return fmt.Errorf("cannot set next boot: %s", err)
+		return false, fmt.Errorf("cannot set next boot: %s", err)
 	}
 
-	var nextBoot, goodBoot string
+	var nextBootVar, goodBootVar string
 	switch bs.t {
 	case snap.TypeOS, snap.TypeBase:
-		nextBoot = "snap_try_core"
-		goodBoot = "snap_core"
+		nextBootVar = "snap_try_core"
+		goodBootVar = "snap_core"
 	case snap.TypeKernel:
-		nextBoot = "snap_try_kernel"
-		goodBoot = "snap_kernel"
+		nextBootVar = "snap_try_kernel"
+		goodBootVar = "snap_kernel"
 	}
-	blobName := filepath.Base(bs.s.MountFile())
+	nextBoot := filepath.Base(bs.s.MountFile())
 
 	// check if we actually need to do anything, i.e. the exact same
 	// kernel/core revision got installed again (e.g. firstboot)
 	// and we are not in any special boot mode
-	m, err := bootloader.GetBootVars("snap_mode", goodBoot)
+	m, err := bootloader.GetBootVars("snap_mode", goodBootVar)
 	if err != nil {
-		return fmt.Errorf("cannot set next boot: %s", err)
+		return false, fmt.Errorf("cannot set next boot: %s", err)
 	}
-	if m[goodBoot] == blobName {
+
+	snapMode := "try"
+	rebootRequired = true
+	if m[goodBootVar] == nextBoot {
 		// If we were in anything but default ("") mode before
 		// and now switch to the good core/kernel again, make
 		// sure to clean the snap_mode here. This also
 		// mitigates https://forum.snapcraft.io/t/5253
-		if m["snap_mode"] != "" {
-			return bootloader.SetBootVars(map[string]string{
-				"snap_mode": "",
-				nextBoot:    "",
-			})
+		if m["snap_mode"] == "" {
+			// already clean
+			return false, nil
 		}
-		return nil
+		// clean
+		snapMode = ""
+		nextBoot = ""
+		rebootRequired = false
 	}
 
-	return bootloader.SetBootVars(map[string]string{
-		nextBoot:    blobName,
-		"snap_mode": "try",
-	})
+	if err := bootloader.SetBootVars(map[string]string{
+		"snap_mode": snapMode,
+		nextBootVar: nextBoot,
+	}); err != nil {
+		return false, err
+	}
+
+	return rebootRequired, nil
 }
 
 func (bs *coreBootParticipant) ChangeRequiresReboot() bool {

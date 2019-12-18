@@ -93,11 +93,11 @@ func (s *coreBootSetSuite) TestChangeRequiresRebootError(c *C) {
 
 func (s *coreBootSetSuite) TestSetNextBootError(c *C) {
 	s.bootloader.GetErr = errors.New("zap")
-	err := boot.NewCoreBootParticipant(&snap.Info{}, snap.TypeApp).SetNextBoot()
+	_, err := boot.NewCoreBootParticipant(&snap.Info{}, snap.TypeApp).SetNextBoot()
 	c.Check(err, ErrorMatches, `cannot set next boot: zap`)
 
 	bootloader.ForceError(errors.New("brkn"))
-	err = boot.NewCoreBootParticipant(&snap.Info{}, snap.TypeApp).SetNextBoot()
+	_, err = boot.NewCoreBootParticipant(&snap.Info{}, snap.TypeApp).SetNextBoot()
 	c.Check(err, ErrorMatches, `cannot set next boot: brkn`)
 }
 
@@ -108,7 +108,7 @@ func (s *coreBootSetSuite) TestSetNextBootForCore(c *C) {
 	info.Revision = snap.R(100)
 
 	bs := boot.NewCoreBootParticipant(info, info.GetType())
-	err := bs.SetNextBoot()
+	reboot, err := bs.SetNextBoot()
 	c.Assert(err, IsNil)
 
 	v, err := s.bootloader.GetBootVars("snap_try_core", "snap_mode")
@@ -117,6 +117,8 @@ func (s *coreBootSetSuite) TestSetNextBootForCore(c *C) {
 		"snap_try_core": "core_100.snap",
 		"snap_mode":     "try",
 	})
+
+	c.Check(reboot, Equals, true)
 
 	c.Check(bs.ChangeRequiresReboot(), Equals, true)
 }
@@ -128,7 +130,7 @@ func (s *coreBootSetSuite) TestSetNextBootWithBaseForCore(c *C) {
 	info.Revision = snap.R(1818)
 
 	bs := boot.NewCoreBootParticipant(info, info.GetType())
-	err := bs.SetNextBoot()
+	reboot, err := bs.SetNextBoot()
 	c.Assert(err, IsNil)
 
 	v, err := s.bootloader.GetBootVars("snap_try_core", "snap_mode")
@@ -137,6 +139,8 @@ func (s *coreBootSetSuite) TestSetNextBootWithBaseForCore(c *C) {
 		"snap_try_core": "core18_1818.snap",
 		"snap_mode":     "try",
 	})
+
+	c.Check(reboot, Equals, true)
 
 	c.Check(bs.ChangeRequiresReboot(), Equals, true)
 }
@@ -148,7 +152,7 @@ func (s *coreBootSetSuite) TestSetNextBootForKernel(c *C) {
 	info.Revision = snap.R(42)
 
 	bp := boot.NewCoreBootParticipant(info, snap.TypeKernel)
-	err := bp.SetNextBoot()
+	reboot, err := bp.SetNextBoot()
 	c.Assert(err, IsNil)
 
 	v, err := s.bootloader.GetBootVars("snap_try_kernel", "snap_mode")
@@ -162,7 +166,7 @@ func (s *coreBootSetSuite) TestSetNextBootForKernel(c *C) {
 		"snap_kernel":     "krnl_40.snap",
 		"snap_try_kernel": "krnl_42.snap"}
 	s.bootloader.SetBootVars(bootVars)
-	c.Check(bp.ChangeRequiresReboot(), Equals, true)
+	c.Check(reboot, Equals, true)
 
 	// simulate good boot
 	bootVars = map[string]string{"snap_kernel": "krnl_42.snap"}
@@ -179,7 +183,7 @@ func (s *coreBootSetSuite) TestSetNextBootForKernelForTheSameKernel(c *C) {
 	bootVars := map[string]string{"snap_kernel": "krnl_40.snap"}
 	s.bootloader.SetBootVars(bootVars)
 
-	err := boot.NewCoreBootParticipant(info, snap.TypeKernel).SetNextBoot()
+	reboot, err := boot.NewCoreBootParticipant(info, snap.TypeKernel).SetNextBoot()
 	c.Assert(err, IsNil)
 
 	v, err := s.bootloader.GetBootVars("snap_kernel")
@@ -187,6 +191,8 @@ func (s *coreBootSetSuite) TestSetNextBootForKernelForTheSameKernel(c *C) {
 	c.Assert(v, DeepEquals, map[string]string{
 		"snap_kernel": "krnl_40.snap",
 	})
+
+	c.Check(reboot, Equals, false)
 }
 
 func (s *coreBootSetSuite) TestSetNextBootForKernelForTheSameKernelTryMode(c *C) {
@@ -201,7 +207,7 @@ func (s *coreBootSetSuite) TestSetNextBootForKernelForTheSameKernelTryMode(c *C)
 		"snap_mode":       "try"}
 	s.bootloader.SetBootVars(bootVars)
 
-	err := boot.NewCoreBootParticipant(info, snap.TypeKernel).SetNextBoot()
+	reboot, err := boot.NewCoreBootParticipant(info, snap.TypeKernel).SetNextBoot()
 	c.Assert(err, IsNil)
 
 	v, err := s.bootloader.GetBootVars("snap_kernel", "snap_try_kernel", "snap_mode")
@@ -211,6 +217,8 @@ func (s *coreBootSetSuite) TestSetNextBootForKernelForTheSameKernelTryMode(c *C)
 		"snap_try_kernel": "",
 		"snap_mode":       "",
 	})
+
+	c.Check(reboot, Equals, false)
 }
 
 // ubootBootSetSuite tests the uboot specific code in the bootloader handling
