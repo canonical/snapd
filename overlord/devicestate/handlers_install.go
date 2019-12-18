@@ -73,12 +73,13 @@ func (m *DeviceManager) doSetupRunSystem(t *state.Task, _ *tomb.Tomb) error {
 		return fmt.Errorf("cannot get boot base info: %v", err)
 	}
 
+	recoverySystemDir := filepath.Join("/systems", m.modeEnv.RecoverySystem)
 	bootWith := &boot.BootableSet{
-		Base:       bootBaseInfo,
-		BasePath:   bootBaseInfo.MountFile(),
-		Kernel:     kernelInfo,
-		KernelPath: kernelInfo.MountFile(),
-		// we shouldn't need RecoverySystemDir at this point
+		Base:              bootBaseInfo,
+		BasePath:          bootBaseInfo.MountFile(),
+		Kernel:            kernelInfo,
+		KernelPath:        kernelInfo.MountFile(),
+		RecoverySystemDir: recoverySystemDir,
 	}
 
 	rootdir := dirs.GlobalRootDir

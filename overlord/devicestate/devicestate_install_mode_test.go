@@ -152,6 +152,7 @@ func (s *deviceMgrInstallModeSuite) TestInstallModeRunChange(c *C) {
 		c.Check(rootdir, Equals, dirs.GlobalRootDir)
 		c.Check(bootWith.KernelPath, Matches, ".*/var/lib/snapd/snaps/pc-kernel_1.snap")
 		c.Check(bootWith.BasePath, Matches, ".*/var/lib/snapd/snaps/core20_2.snap")
+		c.Check(bootWith.RecoverySystemDir, Matches, "/systems/20191218")
 		bootMakeBootableCalled++
 		return nil
 	})
