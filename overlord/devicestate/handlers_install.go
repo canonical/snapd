@@ -87,7 +87,7 @@ func (m *DeviceManager) doSetupRunSystem(t *state.Task, _ *tomb.Tomb) error {
 		return fmt.Errorf("cannot make run system bootable: %v", err)
 	}
 
-	// request a restart as the last action after a successful installc
+	// request a restart as the last action after a successful install
 	st.RequestRestart(state.RestartSystem)
 
 	return nil
