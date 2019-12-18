@@ -26,10 +26,10 @@ prepare: |
     snap install test-snapd-auto-aliases
 
 debug: |
-    systemctl --no-legend | grep -E 'snap\..*\.(service|timer|socket)'
+    systemctl --no-legend --full | grep -E 'snap\..*\.(service|timer|socket)'
 
 execute: |
-    systemctl --no-legend | MATCH 'snap\..*\.(service|timer|socket)'
+    systemctl --no-legend --full | MATCH 'snap\..*\.(service|timer|socket)'
 
     #shellcheck source=tests/lib/pkgdb.sh
     . "$TESTSLIB"/pkgdb.sh
@@ -54,8 +54,8 @@ execute: |
 
         # test-snapd-service-refuses-to-stop gets forcefully killed by systemd,
         # account for that
-        systemctl --no-legend | MATCH "snap.test-snapd-service.test-snapd-service-refuses-to-stop.service +not-found +failed"
+        systemctl --full --no-legend | MATCH "snap.test-snapd-service.test-snapd-service-refuses-to-stop.service +not-found +failed"
         systemctl reset-failed snap.test-snapd-service.test-snapd-service-refuses-to-stop.service
     fi
 
-    systemctl --no-legend | not MATCH "snap\..*\.(service|timer|socket)"
+    systemctl --no-legend --full | not MATCH "snap\..*\.(service|timer|socket)"
