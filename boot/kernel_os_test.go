@@ -27,6 +27,7 @@ import (
 	. "gopkg.in/check.v1"
 
 	"github.com/snapcore/snapd/boot"
+	"github.com/snapcore/snapd/boot/boottest"
 	"github.com/snapcore/snapd/bootloader"
 	"github.com/snapcore/snapd/bootloader/bootloadertest"
 	"github.com/snapcore/snapd/dirs"
@@ -74,22 +75,26 @@ func (s *coreBootSetSuite) TestRemoveKernelAssetsError(c *C) {
 }
 
 func (s *coreBootSetSuite) TestSetNextBootError(c *C) {
+	coreDev := boottest.MockDevice("some-snap")
+
 	s.bootloader.GetErr = errors.New("zap")
-	_, err := boot.NewCoreBootParticipant(&snap.Info{}, snap.TypeApp).SetNextBoot()
+	_, err := boot.NewCoreBootParticipant(&snap.Info{}, snap.TypeKernel, coreDev).SetNextBoot()
 	c.Check(err, ErrorMatches, `cannot set next boot: zap`)
 
 	bootloader.ForceError(errors.New("brkn"))
-	_, err = boot.NewCoreBootParticipant(&snap.Info{}, snap.TypeApp).SetNextBoot()
+	_, err = boot.NewCoreBootParticipant(&snap.Info{}, snap.TypeKernel, coreDev).SetNextBoot()
 	c.Check(err, ErrorMatches, `cannot set next boot: brkn`)
 }
 
 func (s *coreBootSetSuite) TestSetNextBootForCore(c *C) {
+	coreDev := boottest.MockDevice("core")
+
 	info := &snap.Info{}
 	info.SnapType = snap.TypeOS
 	info.RealName = "core"
 	info.Revision = snap.R(100)
 
-	bs := boot.NewCoreBootParticipant(info, info.GetType())
+	bs := boot.NewCoreBootParticipant(info, info.GetType(), coreDev)
 	reboot, err := bs.SetNextBoot()
 	c.Assert(err, IsNil)
 
@@ -104,12 +109,14 @@ func (s *coreBootSetSuite) TestSetNextBootForCore(c *C) {
 }
 
 func (s *coreBootSetSuite) TestSetNextBootWithBaseForCore(c *C) {
+	coreDev := boottest.MockDevice("core18")
+
 	info := &snap.Info{}
 	info.SnapType = snap.TypeBase
 	info.RealName = "core18"
 	info.Revision = snap.R(1818)
 
-	bs := boot.NewCoreBootParticipant(info, info.GetType())
+	bs := boot.NewCoreBootParticipant(info, info.GetType(), coreDev)
 	reboot, err := bs.SetNextBoot()
 	c.Assert(err, IsNil)
 
@@ -124,12 +131,14 @@ func (s *coreBootSetSuite) TestSetNextBootWithBaseForCore(c *C) {
 }
 
 func (s *coreBootSetSuite) TestSetNextBootForKernel(c *C) {
+	coreDev := boottest.MockDevice("krnl")
+
 	info := &snap.Info{}
 	info.SnapType = snap.TypeKernel
 	info.RealName = "krnl"
 	info.Revision = snap.R(42)
 
-	bp := boot.NewCoreBootParticipant(info, snap.TypeKernel)
+	bp := boot.NewCoreBootParticipant(info, snap.TypeKernel, coreDev)
 	reboot, err := bp.SetNextBoot()
 	c.Assert(err, IsNil)
 
@@ -156,6 +165,8 @@ func (s *coreBootSetSuite) TestSetNextBootForKernel(c *C) {
 }
 
 func (s *coreBootSetSuite) TestSetNextBootForKernelForTheSameKernel(c *C) {
+	coreDev := boottest.MockDevice("krnl")
+
 	info := &snap.Info{}
 	info.SnapType = snap.TypeKernel
 	info.RealName = "krnl"
@@ -164,7 +175,7 @@ func (s *coreBootSetSuite) TestSetNextBootForKernelForTheSameKernel(c *C) {
 	bootVars := map[string]string{"snap_kernel": "krnl_40.snap"}
 	s.bootloader.SetBootVars(bootVars)
 
-	reboot, err := boot.NewCoreBootParticipant(info, snap.TypeKernel).SetNextBoot()
+	reboot, err := boot.NewCoreBootParticipant(info, snap.TypeKernel, coreDev).SetNextBoot()
 	c.Assert(err, IsNil)
 
 	v, err := s.bootloader.GetBootVars("snap_kernel")
@@ -177,6 +188,8 @@ func (s *coreBootSetSuite) TestSetNextBootForKernelForTheSameKernel(c *C) {
 }
 
 func (s *coreBootSetSuite) TestSetNextBootForKernelForTheSameKernelTryMode(c *C) {
+	coreDev := boottest.MockDevice("krnl")
+
 	info := &snap.Info{}
 	info.SnapType = snap.TypeKernel
 	info.RealName = "krnl"
@@ -188,7 +201,7 @@ func (s *coreBootSetSuite) TestSetNextBootForKernelForTheSameKernelTryMode(c *C)
 		"snap_mode":       "try"}
 	s.bootloader.SetBootVars(bootVars)
 
-	reboot, err := boot.NewCoreBootParticipant(info, snap.TypeKernel).SetNextBoot()
+	reboot, err := boot.NewCoreBootParticipant(info, snap.TypeKernel, coreDev).SetNextBoot()
 	c.Assert(err, IsNil)
 
 	v, err := s.bootloader.GetBootVars("snap_kernel", "snap_try_kernel", "snap_mode")

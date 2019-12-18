@@ -28,8 +28,8 @@ import (
 )
 
 type coreBootParticipant struct {
-	s snap.PlaceInfo
-	t snap.Type
+	s  snap.PlaceInfo
+	bs bootState
 }
 
 // ensure coreBootParticipant is a BootParticipant
@@ -37,55 +37,19 @@ var _ BootParticipant = (*coreBootParticipant)(nil)
 
 func (*coreBootParticipant) IsTrivial() bool { return false }
 
-func (bs *coreBootParticipant) SetNextBoot() (rebootRequired bool, err error) {
-	bootloader, err := bootloader.Find("", nil)
+func (bp *coreBootParticipant) SetNextBoot() (rebootRequired bool, err error) {
+	const errPrefix = "cannot set next boot: %s"
+
+	rebootRequired, u, err := bp.bs.setNext(filepath.Base(bp.s.MountFile()))
 	if err != nil {
-		return false, fmt.Errorf("cannot set next boot: %s", err)
+		return false, fmt.Errorf(errPrefix, err)
 	}
 
-	var nextBootVar, goodBootVar string
-	switch bs.t {
-	case snap.TypeOS, snap.TypeBase:
-		nextBootVar = "snap_try_core"
-		goodBootVar = "snap_core"
-	case snap.TypeKernel:
-		nextBootVar = "snap_try_kernel"
-		goodBootVar = "snap_kernel"
-	}
-	nextBoot := filepath.Base(bs.s.MountFile())
-
-	// check if we actually need to do anything, i.e. the exact same
-	// kernel/core revision got installed again (e.g. firstboot)
-	// and we are not in any special boot mode
-	m, err := bootloader.GetBootVars("snap_mode", goodBootVar)
-	if err != nil {
-		return false, fmt.Errorf("cannot set next boot: %s", err)
-	}
-
-	snapMode := "try"
-	rebootRequired = true
-	if m[goodBootVar] == nextBoot {
-		// If we were in anything but default ("") mode before
-		// and now switch to the good core/kernel again, make
-		// sure to clean the snap_mode here. This also
-		// mitigates https://forum.snapcraft.io/t/5253
-		if m["snap_mode"] == "" {
-			// already clean
-			return false, nil
+	if u != nil {
+		if err := u.commit(); err != nil {
+			return false, fmt.Errorf(errPrefix, err)
 		}
-		// clean
-		snapMode = ""
-		nextBoot = ""
-		rebootRequired = false
 	}
-
-	if err := bootloader.SetBootVars(map[string]string{
-		"snap_mode": snapMode,
-		nextBootVar: nextBoot,
-	}); err != nil {
-		return false, err
-	}
-
 	return rebootRequired, nil
 }
 

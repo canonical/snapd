@@ -150,3 +150,38 @@ func (s *bootState16) markSuccessful(update bootStateUpdate) (bootStateUpdate, e
 
 	return u16, nil
 }
+
+func (s *bootState16) setNext(nextBoot string) (rebootRequired bool, u bootStateUpdate, err error) {
+	nextBootVar := fmt.Sprintf("snap_try_%s", s.varSuffix)
+	goodBootVar := fmt.Sprintf("snap_%s", s.varSuffix)
+
+	u16, err := newBootStateUpdate16(nil, "snap_mode", goodBootVar)
+	if err != nil {
+		return false, nil, err
+	}
+
+	env := u16.env
+	toCommit := u16.toCommit
+
+	snapMode := "try"
+	rebootRequired = true
+	if env[goodBootVar] == nextBoot {
+		// If we were in anything but default ("") mode before
+		// and now switch to the good core/kernel again, make
+		// sure to clean the snap_mode here. This also
+		// mitigates https://forum.snapcraft.io/t/5253
+		if env["snap_mode"] == "" {
+			// already clean
+			return false, nil, nil
+		}
+		// clean
+		snapMode = ""
+		nextBoot = ""
+		rebootRequired = false
+	}
+
+	toCommit["snap_mode"] = snapMode
+	toCommit[nextBootVar] = nextBoot
+
+	return rebootRequired, u16, nil
+}

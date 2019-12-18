@@ -91,7 +91,12 @@ type Device interface {
 // always be NOP).
 func Participant(s snap.PlaceInfo, t snap.Type, dev Device) BootParticipant {
 	if applicable(s, t, dev) {
-		return &coreBootParticipant{s: s, t: t}
+		bs, err := bootStateFor(t, dev)
+		if err != nil {
+			// all internal errors at this point
+			panic(err)
+		}
+		return &coreBootParticipant{s: s, bs: bs}
 	}
 	return trivial{}
 }
@@ -147,6 +152,10 @@ type bootState interface {
 	// whether the snap is in "trying" state.
 	revisions() (snap, try_snap *NameAndRevision, trying bool, err error)
 
+	// setNext lazily implements setting the next boot target for
+	// the boot snap of the type. actually committing the update
+	// is done via the returned bootStateUpdate commit.
+	setNext(nextBoot string) (rebootRequired bool, u bootStateUpdate, err error)
 	// markSuccessful lazily implements marking the boot
 	// successful for the type's boot snap. The actual committing
 	// of the update is done via bootStateUpdate's commit, that
