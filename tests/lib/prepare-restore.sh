@@ -616,7 +616,7 @@ save_mounts() {
 
 save_units() {
     file=$1
-    systemctl list-unit-files --no-pager --no-legend --plain |  awk '{ print $1 }' | sort > "$file"
+    systemctl -t timer -t socket -t service --no-pager --no-legend --plain |  awk '{ print $1 }' | sort > "$file"
 }
 
 save_loops() {
