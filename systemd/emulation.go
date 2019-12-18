@@ -97,7 +97,7 @@ func (s *emulation) AddMountUnitFile(snapName, revision, what, where, fstype str
 
 	cmd := exec.Command("mount", "-t", actualFsType, what, where, "-o", strings.Join(options, ","))
 	if out, err := cmd.CombinedOutput(); err != nil {
-		return "", fmt.Errorf("cannot mount %s (%s) at %s in pre-bake mode: %s; %s", what, where, actualFsType, err, string(out))
+		return "", fmt.Errorf("cannot mount %s (%s) at %s in preseed mode: %s; %s", what, actualFsType, where, err, string(out))
 	}
 
 	multiUserTargetWantsDir := filepath.Join(dirs.SnapServicesDir, "multi-user.target.wants")
@@ -108,7 +108,7 @@ func (s *emulation) AddMountUnitFile(snapName, revision, what, where, fstype str
 	// cannot call systemd, so manually enable the unit by symlinking into multi-user.target.wants
 	mu := MountUnitPath(where)
 	enableUnitPath := filepath.Join(multiUserTargetWantsDir, mountUnitName)
-	if err := osSymlink(mu, enableUnitPath); err != nil {
+	if err := os.Symlink(mu, enableUnitPath); err != nil {
 		return "", fmt.Errorf("cannot enable mount unit %s: %v", mountUnitName, err)
 	}
 	return mountUnitName, nil
@@ -150,12 +150,4 @@ func (s *emulation) Mask(service string) error {
 
 func (s *emulation) Unmask(service string) error {
 	return errNotImplemented
-}
-
-func MockOsSymlink(f func(oldPath, newPath string) error) func() {
-	old := osSymlink
-	osSymlink = f
-	return func() {
-		osSymlink = old
-	}
 }

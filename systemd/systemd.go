@@ -61,8 +61,6 @@ var (
 	daemonReloadLock extMutex
 
 	osutilIsMounted = osutil.IsMounted
-
-	osSymlink = os.Symlink
 )
 
 // mu is a sync.Mutex that also supports to check if the lock is taken

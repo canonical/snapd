@@ -893,6 +893,22 @@ func (s *SystemdTestSuite) TestPreseedModeAddMountUnitWithFuse(c *C) {
 	c.Check(filepath.Join(dirs.SnapServicesDir, mountUnitName), testutil.FileEquals, fmt.Sprintf(unitTemplate[1:], mockSnapPath, "fuse.squashfuse", "nodev,a,b,c"))
 }
 
+func (s *SystemdTestSuite) TestPreseedModeMountError(c *C) {
+	sysd := NewEmulationMode()
+
+	restore := squashfs.MockNeedsFuse(false)
+	defer restore()
+
+	mockMountCmd := testutil.MockCommand(c, "mount", `echo "some failure"; exit 1`)
+	defer mockMountCmd.Restore()
+
+	mockSnapPath := filepath.Join(c.MkDir(), "/var/lib/snappy/snaps/foo_1.0.snap")
+	makeMockFile(c, mockSnapPath)
+
+	_, err := sysd.AddMountUnitFile("foo", "42", mockSnapPath, "/snap/snapname/123", "squashfs")
+	c.Assert(err, ErrorMatches, `cannot mount .*/var/lib/snappy/snaps/foo_1.0.snap \(squashfs\) at /snap/snapname/123 in preseed mode: exit status 1; some failure\n`)
+}
+
 func (s *SystemdTestSuite) TestPreseedModeRemoveMountUnit(c *C) {
 	mountDir := dirs.GlobalRootDir + "/snap/foo/42"
 
