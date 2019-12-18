@@ -41,6 +41,13 @@ parts:
       # set version after installing dependencies so we have all the tools here
       snapcraftctl set-version $(./mkversion.sh --output-only)
     override-build: |
+      # unset the LD_FLAGS and LD_LIBRARY_PATH vars that snapcraft sets for us
+      # as those will point to the $SNAPCRAFT_STAGE which on re-builds will 
+      # contain things like libc and friends that confuse the debian package
+      # build system
+      # TODO: should we unset $PATH to not include $SNAPCRAFT_STAGE too?
+      unset LD_FLAGS
+      unset LD_LIBRARY_PATH
       # if we are root, disable tests
       if [ "$(id -u)" = "0" ]; then
         DEB_BUILD_OPTIONS=nocheck
