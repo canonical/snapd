@@ -601,6 +601,7 @@ func (s *bootSetSuite) TestMakeBootable20RunMode(c *C) {
 	err = os.MkdirAll(filepath.Dir(mockBootGrubCfg), 0755)
 	c.Assert(err, IsNil)
 	err = ioutil.WriteFile(mockBootGrubCfg, nil, 0644)
+	c.Assert(err, IsNil)
 
 	baseFn, baseInfo := s.makeSnap(c, "core20", `name: core20
 type: base
