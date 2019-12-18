@@ -370,7 +370,7 @@ static void sc_probe_nvidia_driver(struct sc_nvidia_driver *driver)
 	// Driver version format is MAJOR.MINOR where both MAJOR and MINOR are
 	// integers. We can use sscanf to parse this data.
 	if (fscanf
-	    (file, "%d.%d", &driver->major_version,
+	    (file, "%d.%d.%d", &driver->major_version,
 	     &driver->minor_version, &driver->micro_version) != 2) {
 		die("cannot parse nvidia driver version string");
 	}
