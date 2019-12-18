@@ -482,7 +482,6 @@ func remodelTasks(ctx context.Context, st *state.State, current, new *asserts.Mo
 //
 // TODO:
 // - Check estimated disk size delta
-// - Reapply gadget connections as needed
 // - Check all relevant snaps exist in new store
 //   (need to check that even unchanged snaps are accessible)
 // - Make sure this works with Core 20 as well, in the Core 20 case
