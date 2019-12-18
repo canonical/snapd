@@ -2315,6 +2315,23 @@ func GadgetInfo(st *state.State, deviceCtx DeviceContext) (*snap.Info, error) {
 	return infoForDeviceSnap(st, deviceCtx, "gadget", (*asserts.Model).Gadget)
 }
 
+// KernelInfo finds the kernel snap's info for the given device context.
+func KernelInfo(st *state.State, deviceCtx DeviceContext) (*snap.Info, error) {
+	return infoForDeviceSnap(st, deviceCtx, "kernel", (*asserts.Model).Kernel)
+}
+
+// BootBaseInfo finds the boot base snap's info for the given device context.
+func BootBaseInfo(st *state.State, deviceCtx DeviceContext) (*snap.Info, error) {
+	baseName := func(mod *asserts.Model) string {
+		base := mod.Base()
+		if base == "" {
+			return "core"
+		}
+		return base
+	}
+	return infoForDeviceSnap(st, deviceCtx, "boot base", baseName)
+}
+
 // TODO: reintroduce a KernelInfo(state.State, DeviceContext) if needed
 // KernelInfo finds the current kernel snap's info.
 

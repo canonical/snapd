@@ -11243,6 +11243,108 @@ version: v1
 	c.Check(info.GetType(), Equals, snap.TypeGadget)
 }
 
+func (s *snapmgrQuerySuite) TestKernelInfo(c *C) {
+	st := s.st
+	st.Lock()
+	defer st.Unlock()
+
+	deviceCtxNoKernel := &snapstatetest.TrivialDeviceContext{
+		DeviceModel: ClassicModel(),
+	}
+	deviceCtx := &snapstatetest.TrivialDeviceContext{
+		DeviceModel: MakeModel(map[string]interface{}{
+			"kernel": "pc-kernel",
+		}),
+	}
+
+	_, err := snapstate.KernelInfo(st, deviceCtxNoKernel)
+	c.Assert(err, Equals, state.ErrNoState)
+
+	_, err = snapstate.KernelInfo(st, deviceCtx)
+	c.Assert(err, Equals, state.ErrNoState)
+
+	sideInfo := &snap.SideInfo{
+		RealName: "pc-kernel",
+		Revision: snap.R(3),
+	}
+	snaptest.MockSnap(c, `
+name: pc-kernel
+type: kernel
+version: v2
+`, sideInfo)
+	snapstate.Set(st, "pc-kernel", &snapstate.SnapState{
+		SnapType: "kernel",
+		Active:   true,
+		Sequence: []*snap.SideInfo{sideInfo},
+		Current:  sideInfo.Revision,
+	})
+
+	info, err := snapstate.KernelInfo(st, deviceCtx)
+	c.Assert(err, IsNil)
+
+	c.Check(info.InstanceName(), Equals, "pc-kernel")
+	c.Check(info.Revision, Equals, snap.R(3))
+	c.Check(info.Version, Equals, "v2")
+	c.Check(info.GetType(), Equals, snap.TypeKernel)
+}
+
+func (s *snapmgrQuerySuite) TestBootBaseInfo(c *C) {
+	st := s.st
+	st.Lock()
+	defer st.Unlock()
+
+	deviceCtxNoBootBase := &snapstatetest.TrivialDeviceContext{
+		DeviceModel: ClassicModel(),
+	}
+	deviceCtx := &snapstatetest.TrivialDeviceContext{
+		DeviceModel: MakeModel20("gadget", map[string]interface{}{
+			"base": "core20",
+		}),
+	}
+
+	// add core18 which is *not* used for booting
+	si := &snap.SideInfo{RealName: "core18", Revision: snap.R(1)}
+	snaptest.MockSnap(c, `
+name: core18
+type: base
+version: v18
+`, si)
+	snapstate.Set(st, "core18", &snapstate.SnapState{
+		SnapType: "base",
+		Active:   true,
+		Sequence: []*snap.SideInfo{si},
+		Current:  si.Revision,
+	})
+
+	_, err := snapstate.BootBaseInfo(st, deviceCtxNoBootBase)
+	c.Assert(err, Equals, state.ErrNoState)
+
+	// no boot-base in the state so ErrNoState
+	_, err = snapstate.BootBaseInfo(st, deviceCtx)
+	c.Assert(err, Equals, state.ErrNoState)
+
+	sideInfo := &snap.SideInfo{RealName: "core20", Revision: snap.R(4)}
+	snaptest.MockSnap(c, `
+name: core20
+type: base
+version: v20
+`, sideInfo)
+	snapstate.Set(st, "core20", &snapstate.SnapState{
+		SnapType: "base",
+		Active:   true,
+		Sequence: []*snap.SideInfo{sideInfo},
+		Current:  sideInfo.Revision,
+	})
+
+	info, err := snapstate.BootBaseInfo(st, deviceCtx)
+	c.Assert(err, IsNil)
+
+	c.Check(info.InstanceName(), Equals, "core20")
+	c.Check(info.Revision, Equals, snap.R(4))
+	c.Check(info.Version, Equals, "v20")
+	c.Check(info.GetType(), Equals, snap.TypeBase)
+}
+
 func (s *snapmgrQuerySuite) TestCoreInfoInternal(c *C) {
 	st := s.st
 	st.Lock()

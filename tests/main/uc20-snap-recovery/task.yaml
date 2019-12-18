@@ -100,12 +100,14 @@ execute: |
     mount | MATCH /run/mnt/other-ext4
     df -T "${LOOP}p3" | MATCH ext4
     file -s "${LOOP}p3" | MATCH 'volume name "other-ext4"'
-
+    umount /run/mnt/other-ext4
 
     mount | MATCH /run/mnt/ubuntu-boot
     df -T "${LOOP}p4" | MATCH ext4
     file -s "${LOOP}p4" | MATCH 'volume name "ubuntu-boot"'
+    umount /run/mnt/ubuntu-boot
 
     mount | MATCH /run/mnt/ubuntu-data
     df -T "${LOOP}p5" | MATCH ext4
     file -s "${LOOP}p5" | MATCH 'volume name "ubuntu-data"'
+    umount /run/mnt/ubuntu-data

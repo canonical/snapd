@@ -33,6 +33,7 @@ import (
 	"github.com/snapcore/snapd/snap"
 	"github.com/snapcore/snapd/snap/channel"
 	"github.com/snapcore/snapd/snap/pack"
+	"github.com/snapcore/snapd/snap/snapdir"
 )
 
 func mockSnap(c *check.C, instanceName, yamlText string, sideInfo *snap.SideInfo) *snap.Info {
@@ -276,4 +277,16 @@ func RenameSlot(snapInfo *snap.Info, oldName, newName string) error {
 	}
 
 	return nil
+}
+
+// MockContainer returns a mock snap.Container with the given content.
+// If files is empty it still produces a minimal container that passes
+// ValidateContainer: / and /meta exist and are 0755, and
+// /meta/snap.yaml is a regular world-readable file.
+func MockContainer(c *check.C, files [][]string) snap.Container {
+	d := c.MkDir()
+	c.Assert(os.Chmod(d, 0755), check.IsNil)
+	files = append([][]string{{"meta/snap.yaml", ""}}, files...)
+	PopulateDir(d, files)
+	return snapdir.New(d)
 }
