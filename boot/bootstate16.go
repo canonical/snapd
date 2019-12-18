@@ -84,3 +84,69 @@ func (s *bootState16) revisions() (snap, try_snap *NameAndRevision, trying bool,
 
 	return snaps[snapVar], snaps[trySnapVar], trying, nil
 }
+
+type bootStateUpdate16 struct {
+	bl       bootloader.Bootloader
+	env      map[string]string
+	toCommit map[string]string
+}
+
+func newBootStateUpdate16(u bootStateUpdate, names ...string) (*bootStateUpdate16, error) {
+	if u != nil {
+		u16, ok := u.(*bootStateUpdate16)
+		if !ok {
+			return nil, fmt.Errorf("internal error: threading unexpected boot state update: %T", u)
+		}
+		return u16, nil
+	}
+	bl, err := bootloader.Find("", nil)
+	if err != nil {
+		return nil, err
+	}
+	m, err := bl.GetBootVars(names...)
+	if err != nil {
+		return nil, err
+	}
+	return &bootStateUpdate16{bl: bl, env: m, toCommit: make(map[string]string)}, nil
+}
+
+func (u16 *bootStateUpdate16) commit() error {
+	if len(u16.toCommit) == 0 {
+		// nothing to do
+		return nil
+	}
+	env := u16.env
+	// TODO: we could just SetBootVars(toCommit) but it's not
+	// fully backward compatible with the preexisting behavior
+	for k, v := range u16.toCommit {
+		env[k] = v
+	}
+	return u16.bl.SetBootVars(env)
+}
+
+func (s *bootState16) markSuccessful(update bootStateUpdate) (bootStateUpdate, error) {
+	u16, err := newBootStateUpdate16(update, "snap_mode", "snap_try_core", "snap_try_kernel")
+	if err != nil {
+		return nil, err
+	}
+
+	env := u16.env
+	toCommit := u16.toCommit
+
+	// snap_mode goes from "" -> "try" -> "trying" -> ""
+	// so if we are not in "trying" mode, nothing to do here
+	if env["snap_mode"] != "trying" {
+		return u16, nil
+	}
+
+	tryBootVar := fmt.Sprintf("snap_try_%s", s.varSuffix)
+	bootVar := fmt.Sprintf("snap_%s", s.varSuffix)
+	// update the boot vars
+	if env[tryBootVar] != "" {
+		toCommit[bootVar] = env[tryBootVar]
+		toCommit[tryBootVar] = ""
+	}
+	toCommit["snap_mode"] = ""
+
+	return u16, nil
+}
