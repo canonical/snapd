@@ -1,7 +1,7 @@
 summary: Integration tests for the snap-bootstrap binary autodetect
 
 # one system is enough, its a very specialized test for now
-systems: [ubuntu-18.04-64]
+systems: [ubuntu-19.10-64]
 
 debug: |
     cat /proc/partitions
