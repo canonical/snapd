@@ -80,7 +80,7 @@ type DeviceStructure struct {
 // NewDeviceLayout obtains the partitioning and filesystem information from the
 // block device.
 func DeviceLayoutFromDisk(device string) (*DeviceLayout, error) {
-	output, err := exec.Command("sfdisk", "--json", "-d", device).CombinedOutput()
+	output, err := exec.Command("sfdisk", "--json", "-d", device).Output()
 	if err != nil {
 		return nil, osutil.OutputErr(output, err)
 	}
