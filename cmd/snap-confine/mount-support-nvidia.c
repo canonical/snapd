@@ -122,7 +122,7 @@ static const size_t nvidia_globs_len =
     sizeof nvidia_globs / sizeof *nvidia_globs;
 
 #define LIBNVIDIA_GLCORE_SO_PATTERN "libnvidia-glcore.so.%d.%d"
-#define LIBNVIDIA_GLCORE_SO_PATTERN_MICRO "libnvidia-glcore.so.%d.%d.%d"
+#define LIBNVIDIA_GLCORE_SO_PATTERN_MICRO "libnvidia-glcore.so.%d.%d.%02d"
 
 #endif				// defined(NVIDIA_BIARCH) || defined(NVIDIA_MULTIARCH)
 
