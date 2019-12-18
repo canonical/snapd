@@ -49,9 +49,13 @@ execute: |
         fi
     done
 
-    # test-snapd-service-refuses-to-stop gets forcefully killed by systemd,
-    # account for that
-    systemctl --no-legend | MATCH "snap.test-snapd-service.test-snapd-service-refuses-to-stop.service +not-found +failed"
-    systemctl reset-failed snap.test-snapd-service.test-snapd-service-refuses-to-stop.service
+    if [[ "$SPREAD_SYSTEM" != ubuntu-14.04-* ]]; then
+        # ubuntu-14.04: systemctl dos not list not-found & failed units properly
+
+        # test-snapd-service-refuses-to-stop gets forcefully killed by systemd,
+        # account for that
+        systemctl --no-legend | MATCH "snap.test-snapd-service.test-snapd-service-refuses-to-stop.service +not-found +failed"
+        systemctl reset-failed snap.test-snapd-service.test-snapd-service-refuses-to-stop.service
+    fi
 
     systemctl --no-legend | not MATCH "snap\..*\.(service|timer|socket)"
