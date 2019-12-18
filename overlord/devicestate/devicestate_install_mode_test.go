@@ -113,7 +113,7 @@ func (s *deviceMgrInstallModeSuite) TestInstallModeCreatesChangeHappy(c *C) {
 	c.Check(createPartitions.Status(), Equals, state.DoneStatus)
 	// in the right way
 	c.Check(mockSnapBootstrapCmd.Calls(), DeepEquals, [][]string{
-		{"snap-bootstrap", "create-partitions", filepath.Join(dirs.SnapMountDir, "/pc/1")},
+		{"snap-bootstrap", "create-partitions", "--mount", filepath.Join(dirs.SnapMountDir, "/pc/1")},
 	})
 }
 

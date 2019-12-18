@@ -54,7 +54,7 @@ func (m *DeviceManager) doSetupRunSystem(t *state.Task, _ *tomb.Tomb) error {
 
 	// run the create partition code
 	st.Unlock()
-	output, err := exec.Command(filepath.Join(dirs.DistroLibExecDir, "snap-bootstrap"), "create-partitions", gadgetDir).CombinedOutput()
+	output, err := exec.Command(filepath.Join(dirs.DistroLibExecDir, "snap-bootstrap"), "create-partitions", "--mount", gadgetDir).CombinedOutput()
 	st.Lock()
 	if err != nil {
 		return fmt.Errorf("cannot create partitions: %v", osutil.OutputErr(output, err))
