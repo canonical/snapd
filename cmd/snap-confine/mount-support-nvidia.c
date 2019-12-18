@@ -15,7 +15,7 @@
  *
  */
 
-#include "config.h"
+#include "../config.h"
 #include "mount-support-nvidia.h"
 
 #include <errno.h>
@@ -122,6 +122,7 @@ static const size_t nvidia_globs_len =
     sizeof nvidia_globs / sizeof *nvidia_globs;
 
 #define LIBNVIDIA_GLCORE_SO_PATTERN "libnvidia-glcore.so.%d.%d"
+#define LIBNVIDIA_GLCORE_SO_PATTERN_MICRO "libnvidia-glcore.so.%d.%d.%d"
 
 #endif				// defined(NVIDIA_BIARCH) || defined(NVIDIA_MULTIARCH)
 
@@ -348,6 +349,7 @@ static void sc_mount_nvidia_driver_biarch(const char *rootfs_dir)
 struct sc_nvidia_driver {
 	int major_version;
 	int minor_version;
+	int micro_version;
 };
 
 static void sc_probe_nvidia_driver(struct sc_nvidia_driver *driver)
@@ -360,6 +362,7 @@ static void sc_probe_nvidia_driver(struct sc_nvidia_driver *driver)
 			debug("nvidia driver version file doesn't exist");
 			driver->major_version = 0;
 			driver->minor_version = 0;
+			driver->micro_version = 0;
 			return;
 		}
 		die("cannot open file describing nvidia driver version");
@@ -368,18 +371,18 @@ static void sc_probe_nvidia_driver(struct sc_nvidia_driver *driver)
 	// integers. We can use sscanf to parse this data.
 	if (fscanf
 	    (file, "%d.%d", &driver->major_version,
-	     &driver->minor_version) != 2) {
+	     &driver->minor_version, &driver->micro_version) != 2) {
 		die("cannot parse nvidia driver version string");
 	}
-	debug("parsed nvidia driver version: %d.%d", driver->major_version,
-	      driver->minor_version);
+	debug("parsed nvidia driver version: %d.%d.%d", driver->major_version,
+	      driver->minor_version, driver->micro_version);
 }
 
 static void sc_mkdir_and_mount_and_bind(const char *rootfs_dir,
 					const char *src_dir,
 					const char *tgt_dir)
 {
-	struct sc_nvidia_driver driver;
+	struct sc_nvidia_driver driver = { 0 };
 
 	// Probe sysfs to get the version of the driver that is currently inserted.
 	sc_probe_nvidia_driver(&driver);
@@ -437,6 +440,15 @@ static int sc_mount_nvidia_is_driver_in_dir(const char *dir)
 	sc_must_snprintf(driver_path, sizeof driver_path,
 			 "%s/" LIBNVIDIA_GLCORE_SO_PATTERN, dir,
 			 driver.major_version, driver.minor_version);
+
+	if (access(driver_path, F_OK) == 0) {
+		debug("nvidia library detected at path %s", driver_path);
+		return 1;
+	}
+
+	sc_must_snprintf(driver_path, sizeof driver_path,
+			 "%s/" LIBNVIDIA_GLCORE_SO_PATTERN_MICRO, dir,
+			 driver.major_version, driver.minor_version, driver.micro_version);
 
 	if (access(driver_path, F_OK) == 0) {
 		debug("nvidia library detected at path %s", driver_path);
