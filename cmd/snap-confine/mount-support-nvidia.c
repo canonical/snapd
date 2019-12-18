@@ -15,7 +15,7 @@
  *
  */
 
-#include "../config.h"
+#include "config.h"
 #include "mount-support-nvidia.h"
 
 #include <errno.h>
