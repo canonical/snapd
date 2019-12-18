@@ -112,6 +112,12 @@ func applicable(s snap.PlaceInfo, t snap.Type, dev Device) bool {
 	if dev.Classic() {
 		return false
 	}
+	// In ephemeral modes we never need to care about updating the boot
+	// config. This will be done via boot.MakeBootable().
+	if !dev.RunMode() {
+		return false
+	}
+
 	if t != snap.TypeOS && t != snap.TypeKernel && t != snap.TypeBase {
 		// note we don't currently have anything useful to do with gadgets
 		return false

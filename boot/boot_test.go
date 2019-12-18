@@ -228,6 +228,7 @@ func (s *bootSetSuite) TestParticipant(c *C) {
 		c.Check(bp, DeepEquals, boot.NewCoreBootParticipant(info, typ))
 	}
 }
+
 func (s *bootSetSuite) TestParticipantBaseWithModel(c *C) {
 	core := &snap.Info{SideInfo: snap.SideInfo{RealName: "core"}, SnapType: snap.TypeOS}
 	core18 := &snap.Info{SideInfo: snap.SideInfo{RealName: "core18"}, SnapType: snap.TypeBase}
@@ -267,6 +268,16 @@ func (s *bootSetSuite) TestParticipantBaseWithModel(c *C) {
 			model: "core18",
 			nop:   false,
 		},
+		{
+			with:  core18,
+			model: "core18@install",
+			nop:   true,
+		},
+		{
+			with:  core,
+			model: "core@install",
+			nop:   true,
+		},
 	}
 
 	for i, t := range table {
@@ -300,6 +311,10 @@ func (s *bootSetSuite) TestKernelWithModel(c *C) {
 			krn:   expected,
 		}, {
 			model: "",
+			nop:   true,
+			krn:   boot.Trivial{},
+		}, {
+			model: "kernel@install",
 			nop:   true,
 			krn:   boot.Trivial{},
 		},
