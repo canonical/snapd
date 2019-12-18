@@ -90,14 +90,14 @@ func (s *emulation) AddMountUnitFile(snapName, revision, what, where, fstype str
 		return "", fmt.Errorf("bind-mounted directory is not supported in emulation mode")
 	}
 
-	mountUnitName, fstype, options, err := writeMountUnitFile(snapName, revision, what, where, fstype)
+	mountUnitName, actualFsType, options, err := writeMountUnitFile(snapName, revision, what, where, fstype)
 	if err != nil {
 		return "", err
 	}
 
-	cmd := exec.Command("mount", "-t", fstype, what, where, "-o", strings.Join(options, ","))
+	cmd := exec.Command("mount", "-t", actualFsType, what, where, "-o", strings.Join(options, ","))
 	if out, err := cmd.CombinedOutput(); err != nil {
-		return "", fmt.Errorf("cannot mount %s (%s) at %s in pre-bake mode: %s; %s", what, where, fstype, err, string(out))
+		return "", fmt.Errorf("cannot mount %s (%s) at %s in pre-bake mode: %s; %s", what, where, actualFsType, err, string(out))
 	}
 
 	multiUserTargetWantsDir := filepath.Join(dirs.SnapServicesDir, "multi-user.target.wants")
