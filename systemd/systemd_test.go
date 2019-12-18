@@ -832,6 +832,22 @@ func (s *SystemdTestSuite) TestGlobalUserMode(c *C) {
 	c.Check(func() { sysd.IsActive("foo") }, Panics, "cannot call is-active with GlobalUserMode")
 }
 
+const unitTemplate = `
+[Unit]
+Description=Mount unit for foo, revision 42
+Before=snapd.service
+
+[Mount]
+What=%s
+Where=/snap/snapname/123
+Type=%s
+Options=%s
+LazyUnmount=yes
+
+[Install]
+WantedBy=multi-user.target
+`
+
 func (s *SystemdTestSuite) TestPreseedModeAddMountUnit(c *C) {
 	sysd := NewEmulationMode()
 
@@ -854,21 +870,27 @@ func (s *SystemdTestSuite) TestPreseedModeAddMountUnit(c *C) {
 	c.Check(mockMountCmd.Calls()[0], DeepEquals, []string{"mount", "-t", "squashfs", mockSnapPath, "/snap/snapname/123", "-o", "nodev,ro,x-gdu.hide"})
 	// unit was enabled with a symlink
 	c.Check(osutil.IsSymlink(filepath.Join(dirs.SnapServicesDir, "multi-user.target.wants", mountUnitName)), Equals, true)
-	c.Check(filepath.Join(dirs.SnapServicesDir, mountUnitName), testutil.FileEquals, fmt.Sprintf(`
-[Unit]
-Description=Mount unit for foo, revision 42
-Before=snapd.service
+	c.Check(filepath.Join(dirs.SnapServicesDir, mountUnitName), testutil.FileEquals, fmt.Sprintf(unitTemplate[1:], mockSnapPath, "squashfs", "nodev,ro,x-gdu.hide"))
+}
 
-[Mount]
-What=%s
-Where=/snap/snapname/123
-Type=squashfs
-Options=nodev,ro,x-gdu.hide
-LazyUnmount=yes
+func (s *SystemdTestSuite) TestPreseedModeAddMountUnitWithFuse(c *C) {
+	sysd := NewEmulationMode()
 
-[Install]
-WantedBy=multi-user.target
-`[1:], mockSnapPath))
+	restore := MockSquashFsType(func() (string, []string, error) { return "fuse.squashfuse", []string{"a,b,c"}, nil })
+	defer restore()
+
+	mockMountCmd := testutil.MockCommand(c, "mount", "")
+	defer mockMountCmd.Restore()
+
+	mockSnapPath := filepath.Join(c.MkDir(), "/var/lib/snappy/snaps/foo_1.0.snap")
+	makeMockFile(c, mockSnapPath)
+
+	mountUnitName, err := sysd.AddMountUnitFile("foo", "42", mockSnapPath, "/snap/snapname/123", "squashfs")
+	c.Assert(err, IsNil)
+	defer os.Remove(mountUnitName)
+
+	c.Check(mockMountCmd.Calls()[0], DeepEquals, []string{"mount", "-t", "fuse.squashfuse", mockSnapPath, "/snap/snapname/123", "-o", "nodev,a,b,c"})
+	c.Check(filepath.Join(dirs.SnapServicesDir, mountUnitName), testutil.FileEquals, fmt.Sprintf(unitTemplate[1:], mockSnapPath, "fuse.squashfuse", "nodev,a,b,c"))
 }
 
 func (s *SystemdTestSuite) TestPreseedModeRemoveMountUnit(c *C) {

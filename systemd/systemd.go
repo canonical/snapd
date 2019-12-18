@@ -651,11 +651,13 @@ func MountUnitPath(baseDir string) string {
 	return filepath.Join(dirs.SnapServicesDir, escapedPath+".mount")
 }
 
+var squashfsFsType = squashfs.FsType
+
 func writeMountUnitFile(snapName, revision, what, where, fstype string) (mountUnitName, actualFsType string, options []string, err error) {
 	options = []string{"nodev"}
 	actualFsType = fstype
 	if fstype == "squashfs" {
-		newFsType, newOptions, err := squashfs.FsType()
+		newFsType, newOptions, err := squashfsFsType()
 		if err != nil {
 			return "", "", nil, err
 		}

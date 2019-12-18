@@ -55,6 +55,14 @@ func MockOsutilIsMounted(f func(path string) (bool, error)) func() {
 	}
 }
 
+func MockSquashFsType(f func() (string, []string, error)) func() {
+	old := squashfsFsType
+	squashfsFsType = f
+	return func() {
+		squashfsFsType = old
+	}
+}
+
 func (e *Error) SetExitCode(i int) {
 	e.exitCode = i
 }
