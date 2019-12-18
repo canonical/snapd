@@ -63,5 +63,8 @@ func (m *DeviceManager) doSetupRunSystem(t *state.Task, _ *tomb.Tomb) error {
 	// XXX: update recovery mode in grubenv
 	// XXX2: write correct modeenv
 
+	// request a restart as the last action after a successful installc
+	st.RequestRestart(state.RestartSystem)
+
 	return nil
 }

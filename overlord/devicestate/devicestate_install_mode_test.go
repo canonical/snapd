@@ -115,6 +115,8 @@ func (s *deviceMgrInstallModeSuite) TestInstallModeCreatesChangeHappy(c *C) {
 	c.Check(mockSnapBootstrapCmd.Calls(), DeepEquals, [][]string{
 		{"snap-bootstrap", "create-partitions", "--mount", filepath.Join(dirs.SnapMountDir, "/pc/1")},
 	})
+
+	c.Check(s.restartRequests, DeepEquals, []state.RestartType{state.RestartSystem})
 }
 
 func (s *deviceMgrInstallModeSuite) TestInstallTaskErrors(c *C) {
@@ -137,6 +139,8 @@ func (s *deviceMgrInstallModeSuite) TestInstallTaskErrors(c *C) {
 	createPartitions := s.findInstallSystem()
 	c.Check(createPartitions.Err(), ErrorMatches, `(?ms)cannot perform the following tasks:
 - Setup system for run mode \(cannot create partitions: The horror, The horror\)`)
+	// no restart request on failure
+	c.Check(s.restartRequests, HasLen, 0)
 }
 
 func (s *deviceMgrInstallModeSuite) TestInstallModeNotInstallmodeNoChg(c *C) {
