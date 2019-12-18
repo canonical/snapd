@@ -24,7 +24,6 @@ import (
 	"path/filepath"
 
 	"github.com/snapcore/snapd/bootloader"
-	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/snap"
 )
 
@@ -88,37 +87,6 @@ func (bs *coreBootParticipant) SetNextBoot() (rebootRequired bool, err error) {
 	}
 
 	return rebootRequired, nil
-}
-
-func (bs *coreBootParticipant) ChangeRequiresReboot() bool {
-	bootloader, err := bootloader.Find("", nil)
-	if err != nil {
-		logger.Noticef("cannot get boot settings: %s", err)
-		return false
-	}
-
-	var nextBoot, goodBoot string
-	switch bs.t {
-	case snap.TypeKernel:
-		nextBoot = "snap_try_kernel"
-		goodBoot = "snap_kernel"
-	case snap.TypeOS, snap.TypeBase:
-		nextBoot = "snap_try_core"
-		goodBoot = "snap_core"
-	}
-
-	m, err := bootloader.GetBootVars(nextBoot, goodBoot)
-	if err != nil {
-		logger.Noticef("cannot get boot variables: %s", err)
-		return false
-	}
-
-	squashfsName := filepath.Base(bs.s.MountFile())
-	if m[nextBoot] == squashfsName && m[goodBoot] != m[nextBoot] {
-		return true
-	}
-
-	return false
 }
 
 type coreKernel struct {

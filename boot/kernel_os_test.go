@@ -30,7 +30,6 @@ import (
 	"github.com/snapcore/snapd/bootloader"
 	"github.com/snapcore/snapd/bootloader/bootloadertest"
 	"github.com/snapcore/snapd/dirs"
-	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/snap"
 	"github.com/snapcore/snapd/snap/snaptest"
@@ -74,23 +73,6 @@ func (s *coreBootSetSuite) TestRemoveKernelAssetsError(c *C) {
 	c.Check(err, ErrorMatches, `cannot remove kernel assets: brkn`)
 }
 
-func (s *coreBootSetSuite) TestChangeRequiresRebootError(c *C) {
-	logbuf, restore := logger.MockLogger()
-	defer restore()
-	bp := boot.NewCoreBootParticipant(&snap.Info{}, snap.TypeBase)
-
-	s.bootloader.GetErr = errors.New("zap")
-
-	c.Check(bp.ChangeRequiresReboot(), Equals, false)
-	c.Check(logbuf.String(), testutil.Contains, `cannot get boot variables: zap`)
-	s.bootloader.GetErr = nil
-	logbuf.Reset()
-
-	bootloader.ForceError(errors.New("brkn"))
-	c.Check(bp.ChangeRequiresReboot(), Equals, false)
-	c.Check(logbuf.String(), testutil.Contains, `cannot get boot settings: brkn`)
-}
-
 func (s *coreBootSetSuite) TestSetNextBootError(c *C) {
 	s.bootloader.GetErr = errors.New("zap")
 	_, err := boot.NewCoreBootParticipant(&snap.Info{}, snap.TypeApp).SetNextBoot()
@@ -119,8 +101,6 @@ func (s *coreBootSetSuite) TestSetNextBootForCore(c *C) {
 	})
 
 	c.Check(reboot, Equals, true)
-
-	c.Check(bs.ChangeRequiresReboot(), Equals, true)
 }
 
 func (s *coreBootSetSuite) TestSetNextBootWithBaseForCore(c *C) {
@@ -141,8 +121,6 @@ func (s *coreBootSetSuite) TestSetNextBootWithBaseForCore(c *C) {
 	})
 
 	c.Check(reboot, Equals, true)
-
-	c.Check(bs.ChangeRequiresReboot(), Equals, true)
 }
 
 func (s *coreBootSetSuite) TestSetNextBootForKernel(c *C) {
@@ -171,7 +149,10 @@ func (s *coreBootSetSuite) TestSetNextBootForKernel(c *C) {
 	// simulate good boot
 	bootVars = map[string]string{"snap_kernel": "krnl_42.snap"}
 	s.bootloader.SetBootVars(bootVars)
-	c.Check(bp.ChangeRequiresReboot(), Equals, false)
+
+	reboot, err = bp.SetNextBoot()
+	c.Assert(err, IsNil)
+	c.Check(reboot, Equals, false)
 }
 
 func (s *coreBootSetSuite) TestSetNextBootForKernelForTheSameKernel(c *C) {

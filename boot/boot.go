@@ -41,10 +41,6 @@ type BootParticipant interface {
 	// Otherwise it returns whether a reboot is required.
 	SetNextBoot() (rebootRequired bool, err error)
 
-	// ChangeRequiresReboot returns whether a reboot is required to switch
-	// to the snap. TODO: return an error too
-	ChangeRequiresReboot() bool
-
 	// Is this a trivial implementation of the interface?
 	IsTrivial() bool
 }
@@ -65,7 +61,6 @@ type BootKernel interface {
 type trivial struct{}
 
 func (trivial) SetNextBoot() (bool, error)               { return false, nil }
-func (trivial) ChangeRequiresReboot() bool               { return false }
 func (trivial) IsTrivial() bool                          { return true }
 func (trivial) RemoveKernelAssets() error                { return nil }
 func (trivial) ExtractKernelAssets(snap.Container) error { return nil }
