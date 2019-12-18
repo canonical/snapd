@@ -425,7 +425,7 @@ func makeBootable20RunMode(model *asserts.Model, rootdir string, bootWith *Boota
 	// - create grub.cfg instead of using the gadget one
 	// - extract kernel
 
-	// copy kernel/base into the ubuntu-date partition
+	// copy kernel/base into the ubuntu-data partition
 	ubuntuDataMnt := filepath.Join(runMnt, "ubuntu-data")
 	snapBlobDir := dirs.SnapBlobDirUnder(filepath.Join(ubuntuDataMnt, "system-data"))
 	if err := os.MkdirAll(snapBlobDir, 0755); err != nil {
