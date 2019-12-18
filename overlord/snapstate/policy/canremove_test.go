@@ -1,6 +1,8 @@
 package policy_test
 
 import (
+	"errors"
+
 	"gopkg.in/check.v1"
 
 	"github.com/snapcore/snapd/boot/boottest"
@@ -168,6 +170,20 @@ func (s *canRemoveSuite) TestKernelBootInUseIsKept(c *check.C) {
 	s.bootloader.SetBootKernel("kernel_1.snap")
 
 	c.Check(policy.NewKernelPolicy("kernel").CanRemove(s.st, snapst, snap.R(1), coreDev), check.Equals, policy.ErrInUseForBoot)
+}
+
+func (s *canRemoveSuite) TestBootInUseError(c *check.C) {
+	s.st.Lock()
+	defer s.st.Unlock()
+
+	snapst := &snapstate.SnapState{
+		Current:  snap.R(1),
+		Sequence: []*snap.SideInfo{{Revision: snap.R(1), RealName: "kernel"}},
+	}
+
+	bootloader.ForceError(errors.New("broken bootloader"))
+
+	c.Check(policy.NewKernelPolicy("kernel").CanRemove(s.st, snapst, snap.R(1), coreDev), check.ErrorMatches, `cannot get boot settings: broken bootloader`)
 }
 
 func (s *canRemoveSuite) TestBaseInUseIsKept(c *check.C) {

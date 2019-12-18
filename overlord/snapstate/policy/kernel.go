@@ -45,8 +45,8 @@ func (p *kernelPolicy) CanRemove(_ *state.State, snapst *snapstate.SnapState, re
 		if !rev.Unset() {
 			// TODO: tweak boot.InUse so that it DTRT when rev.Unset, call
 			// it unconditionally as an extra precaution
-			if boot.InUse(name, rev, dev) {
-				return errInUseForBoot
+			if err := inUse(name, rev, snap.TypeKernel, dev); err != nil {
+				return err
 			}
 			return nil
 		}

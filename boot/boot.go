@@ -29,7 +29,6 @@ import (
 	"github.com/snapcore/snapd/asserts"
 	"github.com/snapcore/snapd/bootloader"
 	"github.com/snapcore/snapd/dirs"
-	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/snap"
 )
@@ -168,41 +167,53 @@ func bootStateFor(typ snap.Type, dev Device) (s bootState, err error) {
 	}
 }
 
-// InUse checks if the given name/revision is used in the
-// boot environment
-func InUse(name string, rev snap.Revision, dev Device) bool {
+type InUseFunc func(name string, rev snap.Revision) bool
+
+func fixedInUse(inUse bool) InUseFunc {
+	return func(string, snap.Revision) bool {
+		return inUse
+	}
+}
+
+// InUse returns a checker for whether a given name/revision is used in the
+// boot environment for snaps of the relevant snap type.
+func InUse(typ snap.Type, dev Device) (InUseFunc, error) {
 	if dev.Classic() {
 		// no boot state on classic
-		return false
+		return fixedInUse(false), nil
 	}
-	// TODO: consider passing the relevant snap type to InUse
-	// also consider returning errors and letting the caller decide
-	// what to do now that canRemove can return errors
-	cands := make([]*NameAndRevision, 0, 4)
-	for _, t := range []snap.Type{snap.TypeBase, snap.TypeKernel} {
-		s, err := bootStateFor(t, dev)
-		if err != nil {
-			// be pessimistic
-			return true
-		}
-		snap, try_snap, _, err := s.revisions()
-		if err != nil {
-			logger.Noticef("cannot get boot settings: %s", err)
-			return true
-		}
-		cands = append(cands, snap)
-		cands = append(cands, try_snap)
+	if !dev.RunMode() {
+		// ephemeral mode, block manipulations for now
+		return fixedInUse(true), nil
+	}
+	switch typ {
+	case snap.TypeKernel, snap.TypeBase, snap.TypeOS:
+		break
+	default:
+		return fixedInUse(false), nil
+	}
+	cands := make([]*NameAndRevision, 0, 2)
+	s, err := bootStateFor(typ, dev)
+	if err != nil {
+		return nil, err
+	}
+	cand, try_cand, _, err := s.revisions()
+	if err != nil {
+		return nil, err
+	}
+	cands = append(cands, cand)
+	if try_cand != nil {
+		cands = append(cands, try_cand)
 	}
 
-	for _, cand := range cands {
-		if cand == nil {
-			continue
+	return func(name string, rev snap.Revision) bool {
+		for _, cand := range cands {
+			if cand.Name == name && cand.Revision == rev {
+				return true
+			}
 		}
-		if cand.Name == name && cand.Revision == rev {
-			return true
-		}
-	}
-	return false
+		return false
+	}, nil
 }
 
 var (

@@ -89,7 +89,7 @@ func optedIntoSnapdSnap(st *state.State) (bool, error) {
 	return experimentalAllowSnapd, nil
 }
 
-func doInstall(st *state.State, snapst *SnapState, snapsup *SnapSetup, flags int, fromChange string, inUse func(snapName string, revision snap.Revision) bool) (*state.TaskSet, error) {
+func doInstall(st *state.State, snapst *SnapState, snapsup *SnapSetup, flags int, fromChange string, inUseCheck func(snap.Type) (boot.InUseFunc, error)) (*state.TaskSet, error) {
 	// NB: we should strive not to need or propagate deviceCtx
 	// here, the resulting effects/changes were not pleasant at
 	// one point
@@ -106,8 +106,8 @@ func doInstall(st *state.State, snapst *SnapState, snapsup *SnapSetup, flags int
 		return nil, fmt.Errorf("cannot update disabled snap %q", snapsup.InstanceName())
 	}
 	if snapst.IsInstalled() && !snapsup.Flags.Revert {
-		if inUse == nil {
-			return nil, fmt.Errorf("internal error: doInstall: inUse not provided for refresh")
+		if inUseCheck == nil {
+			return nil, fmt.Errorf("internal error: doInstall: inUseCheck not provided for refresh")
 		}
 	}
 
@@ -324,7 +324,16 @@ func doInstall(st *state.State, snapst *SnapState, snapsup *SnapSetup, flags int
 		}
 
 		// normal garbage collect
+		var inUse boot.InUseFunc
 		for i := 0; i <= currentIndex-retain; i++ {
+			if inUse == nil {
+				var err error
+				inUse, err = inUseCheck(snapsup.Type)
+				if err != nil {
+					return nil, err
+				}
+			}
+
 			si := seq[i]
 			if inUse(snapsup.InstanceName(), si.Revision) {
 				continue
@@ -672,7 +681,7 @@ func InstallPath(st *state.State, si *snap.SideInfo, path, instanceName, channel
 		InstanceKey: info.InstanceKey,
 	}
 
-	ts, err := doInstall(st, &snapst, snapsup, instFlags, "", inUse(snapsup.Type, deviceCtx))
+	ts, err := doInstall(st, &snapst, snapsup, instFlags, "", inUseFor(deviceCtx))
 	return ts, info, err
 }
 
@@ -826,7 +835,7 @@ func InstallMany(st *state.State, names []string, userID int) ([]string, []*stat
 			InstanceKey:  info.InstanceKey,
 		}
 
-		ts, err := doInstall(st, &snapst, snapsup, 0, "", inUse(snapsup.Type, deviceCtx))
+		ts, err := doInstall(st, &snapst, snapsup, 0, "", inUseFor(deviceCtx))
 		if err != nil {
 			return nil, nil, err
 		}
@@ -1024,7 +1033,7 @@ func doUpdate(ctx context.Context, st *state.State, names []string, updates []*s
 			},
 		}
 
-		ts, err := doInstall(st, snapst, snapsup, 0, fromChange, inUse(snapsup.Type, deviceCtx))
+		ts, err := doInstall(st, snapst, snapsup, 0, fromChange, inUseFor(deviceCtx))
 		if err != nil {
 			if refreshAll {
 				// doing "refresh all", just skip this snap

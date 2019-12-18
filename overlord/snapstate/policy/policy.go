@@ -53,6 +53,17 @@ func ephemeral(dev boot.Device) bool {
 	return !dev.RunMode()
 }
 
+func inUse(name string, rev snap.Revision, typ snap.Type, dev boot.Device) error {
+	check, err := boot.InUse(typ, dev)
+	if err != nil {
+		return err
+	}
+	if check(name, rev) {
+		return errInUseForBoot
+	}
+	return nil
+}
+
 type appPolicy struct{}
 
 func (appPolicy) CanRemove(_ *state.State, snapst *snapstate.SnapState, rev snap.Revision, dev boot.Device) error {
