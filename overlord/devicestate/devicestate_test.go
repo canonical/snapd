@@ -636,6 +636,36 @@ func (s *deviceMgrSuite) TestCheckGadgetOnClassicGadgetNotSpecified(c *C) {
 	c.Check(err, ErrorMatches, `cannot install gadget snap on classic if not requested by the model`)
 }
 
+func (s *deviceMgrSuite) TestCheckGadgetValid(c *C) {
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	// model assertion in device context
+	model := fakeMyModel(map[string]interface{}{
+		"architecture": "amd64",
+		"gadget":       "gadget",
+		"kernel":       "krnl",
+	})
+	deviceCtx := &snapstatetest.TrivialDeviceContext{DeviceModel: model}
+
+	gadgetInfo := snaptest.MockInfo(c, "{type: gadget, name: gadget, version: 0}", nil)
+
+	// valid gadget.yaml
+	cont := snaptest.MockContainer(c, [][]string{
+		{"meta/gadget.yaml", gadgetYaml},
+	})
+	err := devicestate.CheckGadgetValid(s.state, gadgetInfo, nil, cont, snapstate.Flags{}, deviceCtx)
+	c.Check(err, IsNil)
+
+	// invalid gadget.yaml
+	cont = snaptest.MockContainer(c, [][]string{
+		{"meta/gadget.yaml", `defaults:`},
+	})
+	err = devicestate.CheckGadgetValid(s.state, gadgetInfo, nil, cont, snapstate.Flags{}, deviceCtx)
+	c.Check(err, ErrorMatches, `bootloader not declared in any volume`)
+
+}
+
 func (s *deviceMgrSuite) TestCheckKernel(c *C) {
 	s.state.Lock()
 	defer s.state.Unlock()

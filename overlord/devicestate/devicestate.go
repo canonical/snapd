@@ -27,6 +27,7 @@ import (
 	"sync"
 
 	"github.com/snapcore/snapd/asserts"
+	"github.com/snapcore/snapd/gadget"
 	"github.com/snapcore/snapd/i18n"
 	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/netutil"
@@ -202,11 +203,28 @@ func checkGadgetOrKernel(st *state.State, snapInfo, curInfo *snap.Info, _ snap.C
 	return nil
 }
 
+func checkGadgetValid(st *state.State, snapInfo, _ *snap.Info, snapf snap.Container, flags snapstate.Flags, deviceCtx snapstate.DeviceContext) error {
+	if snapInfo.GetType() != snap.TypeGadget {
+		// not a gadget, nothing to do
+		return nil
+	}
+	if deviceCtx.ForRemodeling() {
+		// in this case the gadget is checked by
+		// checkGadgetRemodelCompatible
+		return nil
+	}
+
+	// do basic validity checks on the gadget against its model constraints
+	_, err := gadget.ReadInfoFromSnapFile(snapf, deviceCtx.Model())
+	return err
+}
+
 var once sync.Once
 
 func delayedCrossMgrInit() {
 	once.Do(func() {
 		snapstate.AddCheckSnapCallback(checkGadgetOrKernel)
+		snapstate.AddCheckSnapCallback(checkGadgetValid)
 		snapstate.AddCheckSnapCallback(checkGadgetRemodelCompatible)
 	})
 	snapstate.CanAutoRefresh = canAutoRefresh
