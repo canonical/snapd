@@ -355,15 +355,24 @@ func (s *partitionTestSuite) TestFilesystemInfoError(c *C) {
 }
 
 func (s *partitionTestSuite) TestEnsureNodesExist(c *C) {
+	cmdUdevadm := testutil.MockCommand(c, "udevadm", "")
+	defer cmdUdevadm.Restore()
+
 	node := filepath.Join(c.MkDir(), "node")
 	err := ioutil.WriteFile(node, nil, 0644)
 	c.Assert(err, IsNil)
 	ds := []partition.DeviceStructure{{Node: node}}
 	err = partition.EnsureNodesExist(ds, 10*time.Millisecond)
 	c.Assert(err, IsNil)
+	c.Assert(cmdUdevadm.Calls(), DeepEquals, [][]string{
+		{"udevadm", "trigger", "--settle", node},
+	})
 }
 
 func (s *partitionTestSuite) TestEnsureNodesExistTimeout(c *C) {
+	cmdUdevadm := testutil.MockCommand(c, "udevadm", "")
+	defer cmdUdevadm.Restore()
+
 	node := filepath.Join(c.MkDir(), "node")
 	ds := []partition.DeviceStructure{{Node: node}}
 	t := time.Now()
@@ -371,4 +380,5 @@ func (s *partitionTestSuite) TestEnsureNodesExistTimeout(c *C) {
 	err := partition.EnsureNodesExist(ds, timeout)
 	c.Assert(err, ErrorMatches, fmt.Sprintf("device %s not available", node))
 	c.Assert(time.Since(t) >= timeout, Equals, true)
+	c.Assert(cmdUdevadm.Calls(), HasLen, 0)
 }

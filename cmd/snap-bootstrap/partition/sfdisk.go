@@ -137,7 +137,7 @@ func (dl *DeviceLayout) CreateMissing(pv *gadget.LaidOutVolume) ([]DeviceStructu
 }
 
 // ensureNodeExists makes sure the device nodes for all device structures are
-// available within a specified amount of time.
+// available and notified to udev, within a specified amount of time.
 func ensureNodesExistImpl(ds []DeviceStructure, timeout time.Duration) error {
 	t0 := time.Now()
 	for _, part := range ds {
@@ -149,7 +149,12 @@ func ensureNodesExistImpl(ds []DeviceStructure, timeout time.Duration) error {
 			}
 			time.Sleep(100 * time.Millisecond)
 		}
-		if !found {
+		if found {
+			output, err := exec.Command("udevadm", "trigger", "--settle", part.Node).CombinedOutput()
+			if err != nil {
+				return osutil.OutputErr(output, err)
+			}
+		} else {
 			return fmt.Errorf("device %s not available", part.Node)
 		}
 	}

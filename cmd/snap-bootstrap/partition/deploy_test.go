@@ -26,6 +26,7 @@ import (
 	. "gopkg.in/check.v1"
 
 	"github.com/snapcore/snapd/cmd/snap-bootstrap/partition"
+	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/gadget"
 	"github.com/snapcore/snapd/testutil"
 )
@@ -45,6 +46,10 @@ type deploySuite struct {
 var _ = Suite(&deploySuite{})
 
 func (s *deploySuite) SetUpTest(c *C) {
+	s.mockMountErr = nil
+	s.mockMountCalls = nil
+	s.mockUnmountCalls = nil
+
 	s.gadgetRoot = c.MkDir()
 	err := makeMockGadget(s.gadgetRoot, gadgetContent)
 	c.Assert(err, IsNil)
@@ -71,7 +76,7 @@ func (s *deploySuite) TestDeployMountedContentErr(c *C) {
 
 	node2MountPoint := filepath.Join(s.mockMountPoint, "2")
 	err := partition.DeployContent([]partition.DeviceStructure{mockDeviceStructureSystemSeed}, s.gadgetRoot)
-	c.Assert(err, ErrorMatches, fmt.Sprintf(`cannot mount filesystem "/dev/node2" to %q: boom`, node2MountPoint))
+	c.Assert(err, ErrorMatches, fmt.Sprintf(`cannot mount filesystem "/dev/node2" at %q: boom`, node2MountPoint))
 }
 
 func (s *deploySuite) TestDeployMountedContent(c *C) {
@@ -113,4 +118,30 @@ func (s *deploySuite) TestDeployRawContent(c *C) {
 	c.Assert(err, IsNil)
 	// note the 2 zero byte start offset
 	c.Check(string(content), Equals, "\x00\x00pc-core.img content")
+}
+
+func (s *deploySuite) TestMountFilesystems(c *C) {
+	dirs.SetRootDir(c.MkDir())
+	defer dirs.SetRootDir("")
+
+	// mounting will only happen for devices with a label
+	mockDeviceStructureBiosBoot.Label = "bios-boot"
+	defer func() { mockDeviceStructureBiosBoot.Label = "" }()
+	mockDeviceStructureSystemSeed.Label = "ubuntu-seed"
+	defer func() { mockDeviceStructureSystemSeed.Label = "" }()
+
+	err := partition.MountFilesystems([]partition.DeviceStructure{
+		mockDeviceStructureBiosBoot,
+		mockDeviceStructureSystemSeed,
+	}, dirs.RunMnt)
+	c.Assert(err, IsNil)
+
+	// check that just a single call happened and that things got mounted
+	// to the right mount point
+	node2MountPoint := filepath.Join(dirs.RunMnt, "ubuntu-seed")
+	c.Check(s.mockMountCalls, HasLen, 1)
+	c.Check(s.mockMountCalls, DeepEquals, []struct{ source, target, fstype string }{
+		{"/dev/node2", node2MountPoint, "vfat"},
+	})
+
 }

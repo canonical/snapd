@@ -429,27 +429,30 @@ func WaitRestart(task *state.Task, snapsup *SnapSetup) (err error) {
 		return fmt.Errorf("there was a snapd rollback across the restart")
 	}
 
-	// If not on classic check there was no rollback. A reboot
-	// can be triggered by:
+	deviceCtx, err := DeviceCtx(task.State(), task, nil)
+	if err != nil {
+		return err
+	}
+
+	// Check if there was a rollback. A reboot can be triggered by:
 	// - core (old core16 world, system-reboot)
 	// - bootable base snap (new core18 world, system-reboot)
 	// - kernel
 	//
+	// On classic and in ephemeral run modes (like install, recover)
+	// there can never be a rollback so we can skip the check there.
+	//
 	// TODO: Detect "snapd" snap daemon-restarts here that
 	//       fallback into the old version (once we have
 	//       better snapd rollback support in core18).
-	if !release.OnClassic {
+	if deviceCtx.RunMode() && !release.OnClassic {
 		// TODO: double check that we really rebooted
 		// otherwise this could be just a spurious restart
 		// of snapd
 
-		model, err := ModelFromTask(task)
-		if err != nil {
-			return err
-		}
-
 		// get the name of the name relevant for booting
 		// based on the given type
+		model := deviceCtx.Model()
 		var bootName string
 		switch snapsup.Type {
 		case snap.TypeKernel:
