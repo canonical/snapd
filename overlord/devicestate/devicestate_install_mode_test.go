@@ -41,8 +41,6 @@ import (
 
 type deviceMgrInstallModeSuite struct {
 	deviceMgrBaseSuite
-
-	mockModel *asserts.Model
 }
 
 var _ = Suite(&deviceMgrInstallModeSuite{})
@@ -64,7 +62,7 @@ func (s *deviceMgrInstallModeSuite) SetUpTest(c *C) {
 	s.state.Set("seeded", true)
 }
 
-func (s *deviceMgrInstallModeSuite) makeMockInstalledPcGadget(c *C) {
+func (s *deviceMgrInstallModeSuite) makeMockInstalledPcGadget(c *C) *asserts.Model {
 	const (
 		pcSnapID       = "pcididididididididididididididid"
 		pcKernelSnapID = "pckernelidididididididididididid"
@@ -114,7 +112,7 @@ func (s *deviceMgrInstallModeSuite) makeMockInstalledPcGadget(c *C) {
 	})
 	snaptest.MockSnapWithFiles(c, "name: core20\ntype: base", si, nil)
 
-	s.mockModel = s.makeModelAssertionInState(c, "my-brand", "my-model", map[string]interface{}{
+	mockModel := s.makeModelAssertionInState(c, "my-brand", "my-model", map[string]interface{}{
 		"display-name": "my model",
 		"architecture": "amd64",
 		"base":         "core20",
@@ -137,6 +135,8 @@ func (s *deviceMgrInstallModeSuite) makeMockInstalledPcGadget(c *C) {
 		Model: "my-model",
 		// no serial in install mode
 	})
+
+	return mockModel
 }
 
 func (s *deviceMgrInstallModeSuite) TestInstallModeRunChange(c *C) {
@@ -146,9 +146,13 @@ func (s *deviceMgrInstallModeSuite) TestInstallModeRunChange(c *C) {
 	mockSnapBootstrapCmd := testutil.MockCommand(c, filepath.Join(dirs.DistroLibExecDir, "snap-bootstrap"), "")
 	defer mockSnapBootstrapCmd.Restore()
 
+	s.state.Lock()
+	mockModel := s.makeMockInstalledPcGadget(c)
+	s.state.Unlock()
+
 	bootMakeBootableCalled := 0
 	restore = devicestate.MockBootMakeBootable(func(model *asserts.Model, rootdir string, bootWith *boot.BootableSet) error {
-		c.Check(model, DeepEquals, s.mockModel)
+		c.Check(model, DeepEquals, mockModel)
 		c.Check(rootdir, Equals, dirs.GlobalRootDir)
 		c.Check(bootWith.KernelPath, Matches, ".*/var/lib/snapd/snaps/pc-kernel_1.snap")
 		c.Check(bootWith.BasePath, Matches, ".*/var/lib/snapd/snaps/core20_2.snap")
@@ -157,10 +161,6 @@ func (s *deviceMgrInstallModeSuite) TestInstallModeRunChange(c *C) {
 		return nil
 	})
 	defer restore()
-
-	s.state.Lock()
-	s.makeMockInstalledPcGadget(c)
-	s.state.Unlock()
 
 	devicestate.SetOperatingMode(s.mgr, "install")
 	devicestate.SetRecoverySystem(s.mgr, "20191218")
