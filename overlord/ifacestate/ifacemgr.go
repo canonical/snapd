@@ -95,7 +95,6 @@ func Manager(s *state.State, hookManager *hookstate.HookManager, runner *state.T
 	addHandler("remove-profiles", m.doRemoveProfiles, m.doSetupProfiles)
 	addHandler("discard-conns", m.doDiscardConns, m.undoDiscardConns)
 	addHandler("auto-connect", m.doAutoConnect, m.undoAutoConnect)
-	addHandler("gadget-connect", m.doGadgetConnect, nil)
 	addHandler("auto-disconnect", m.doAutoDisconnect, nil)
 	addHandler("hotplug-add-slot", m.doHotplugAddSlot, nil)
 	addHandler("hotplug-connect", m.doHotplugConnect, nil)

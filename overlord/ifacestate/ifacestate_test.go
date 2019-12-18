@@ -5497,7 +5497,7 @@ func (s *interfaceManagerSuite) TestDisconnectInterfacesRetrySetupProfiles(c *C)
 	s.testDisconnectInterfacesRetry(c, "setup-profiles")
 }
 
-func (s *interfaceManagerSuite) setupGadgetConnect(c *C) {
+func (s *interfaceManagerSuite) setupAutoConnectGadget(c *C) {
 	s.mockIfaces(c, &ifacetest.TestInterface{InterfaceName: "test"})
 
 	r := assertstest.MockBuiltinBaseDeclaration([]byte(`
@@ -5539,11 +5539,11 @@ volumes:
 	s.state.Set("seeded", nil)
 }
 
-func (s *interfaceManagerSuite) TestGadgetConnect(c *C) {
+func (s *interfaceManagerSuite) TestAutoConnectGadget(c *C) {
 	r1 := release.MockOnClassic(false)
 	defer r1()
 
-	s.setupGadgetConnect(c)
+	s.setupAutoConnectGadget(c)
 	s.manager(c)
 
 	s.state.Lock()
@@ -5600,11 +5600,11 @@ func (s *interfaceManagerSuite) TestGadgetConnect(c *C) {
 	c.Assert(gotConnect, Equals, true)
 }
 
-func (s *interfaceManagerSuite) TestGadgetConnectProducer(c *C) {
+func (s *interfaceManagerSuite) TestAutoConnectGadgetProducer(c *C) {
 	r1 := release.MockOnClassic(false)
 	defer r1()
 
-	s.setupGadgetConnect(c)
+	s.setupAutoConnectGadget(c)
 	s.manager(c)
 
 	s.state.Lock()
@@ -5628,11 +5628,11 @@ func (s *interfaceManagerSuite) TestGadgetConnectProducer(c *C) {
 	c.Assert(tasks, HasLen, 7)
 }
 
-func (s *interfaceManagerSuite) TestGadgetConnectRemodeling(c *C) {
+func (s *interfaceManagerSuite) TestAutoConnectGadgetRemodeling(c *C) {
 	r1 := release.MockOnClassic(false)
 	defer r1()
 
-	s.setupGadgetConnect(c)
+	s.setupAutoConnectGadget(c)
 	s.manager(c)
 
 	s.state.Lock()
@@ -5663,11 +5663,11 @@ func (s *interfaceManagerSuite) TestGadgetConnectRemodeling(c *C) {
 	c.Assert(tasks, HasLen, 7)
 }
 
-func (s *interfaceManagerSuite) TestGadgetConnectSeededNoop(c *C) {
+func (s *interfaceManagerSuite) TestAutoConnectGadgetSeededNoop(c *C) {
 	r1 := release.MockOnClassic(false)
 	defer r1()
 
-	s.setupGadgetConnect(c)
+	s.setupAutoConnectGadget(c)
 	s.manager(c)
 
 	s.state.Lock()
@@ -5695,11 +5695,11 @@ func (s *interfaceManagerSuite) TestGadgetConnectSeededNoop(c *C) {
 	c.Assert(tasks, HasLen, 1)
 }
 
-func (s *interfaceManagerSuite) TestGadgetConnectAlreadyConnected(c *C) {
+func (s *interfaceManagerSuite) TestAutoConnectGadgetAlreadyConnected(c *C) {
 	r1 := release.MockOnClassic(false)
 	defer r1()
 
-	s.setupGadgetConnect(c)
+	s.setupAutoConnectGadget(c)
 	s.manager(c)
 
 	s.state.Lock()
@@ -5730,11 +5730,11 @@ func (s *interfaceManagerSuite) TestGadgetConnectAlreadyConnected(c *C) {
 	c.Assert(tasks, HasLen, 1)
 }
 
-func (s *interfaceManagerSuite) TestGadgetConnectConflictRetry(c *C) {
+func (s *interfaceManagerSuite) TestAutoConnectGadgetConflictRetry(c *C) {
 	r1 := release.MockOnClassic(false)
 	defer r1()
 
-	s.setupGadgetConnect(c)
+	s.setupAutoConnectGadget(c)
 	s.manager(c)
 
 	s.state.Lock()
@@ -5770,7 +5770,7 @@ func (s *interfaceManagerSuite) TestGadgetConnectConflictRetry(c *C) {
 	c.Check(t.Log()[0], Matches, `.*Waiting for conflicting change in progress: conflicting snap producer.*`)
 }
 
-func (s *interfaceManagerSuite) TestGadgetConnectSkipUnknown(c *C) {
+func (s *interfaceManagerSuite) TestAutoConnectGadgetSkipUnknown(c *C) {
 	r := assertstest.MockBuiltinBaseDeclaration([]byte(`
 type: base-declaration
 authority-id: canonical
@@ -5839,7 +5839,7 @@ volumes:
 	c.Check(logs[1], Matches, `.* ignoring missing plug unknownididididididididididididi:plug`)
 }
 
-func (s *interfaceManagerSuite) TestGadgetConnectHappyPolicyChecks(c *C) {
+func (s *interfaceManagerSuite) TestAutoConnectGadgetHappyPolicyChecks(c *C) {
 	// network-control does not auto-connect so this test also
 	// checks that the right policy checker (for "*-connection"
 	// rules) is used for gadget connections
