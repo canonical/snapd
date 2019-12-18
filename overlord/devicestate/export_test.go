@@ -87,6 +87,9 @@ func SetLastBecomeOperationalAttempt(m *DeviceManager, t time.Time) {
 func SetOperatingMode(m *DeviceManager, mode string) {
 	m.modeEnv.Mode = mode
 }
+func SetRecoverySystem(m *DeviceManager, d string) {
+	m.modeEnv.RecoverySystem = d
+}
 
 func MockRepeatRequestSerial(label string) (restore func()) {
 	old := repeatRequestSerial

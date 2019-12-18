@@ -571,10 +571,10 @@ func (s *bootSetSuite) TestMakeBootable20RunMode(c *C) {
 	c.Assert(err, IsNil)
 
 	bootWith := &boot.BootableSet{
+		RecoverySystemDir: "20191216",
 		BasePath:          "core20_123.snap",
 		KernelPath:        "pc-kernel_456.snap",
 		Recovery:          false,
-		RecoverySystemDir: "/system/20191218",
 	}
 
 	err = boot.MakeBootable(model, rootdir, bootWith)
@@ -586,7 +586,7 @@ func (s *bootSetSuite) TestMakeBootable20RunMode(c *C) {
 	})
 	ubuntuDataModeEnvPath := filepath.Join(rootdir, "/run/mnt/ubuntu-data/system-data/var/lib/snapd/modeenv")
 	c.Check(ubuntuDataModeEnvPath, testutil.FileEquals, `mode=run
-recovery_system=20191218
+recovery_system=20191216
 base=core20_123.snap
 kernel=pc-kernel_456.snap
 `)

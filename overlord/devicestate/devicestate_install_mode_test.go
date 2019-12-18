@@ -162,6 +162,7 @@ func (s *deviceMgrInstallModeSuite) TestInstallModeRunChange(c *C) {
 	defer s.state.Unlock()
 	s.makeMockInstalledPcGadget(c)
 	devicestate.SetOperatingMode(s.mgr, "install")
+	devicestate.SetRecoverySystem(s.mgr, "20191218")
 
 	s.state.Unlock()
 	s.settle(c)
