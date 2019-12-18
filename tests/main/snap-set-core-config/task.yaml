@@ -4,7 +4,11 @@ summary: Ensure "snap set core" works
 systems: [ubuntu-core-*]
 
 prepare: |
-    if systemctl -l | MATCH -v rsyslog.service; then
+    rc=0
+    systemctl status rsyslog.service || rc=$?
+    if [ $rc = 4 ]; then
+        # systemctl(1) exit code 4: no such unit
+
         #shellcheck source=tests/lib/systemd.sh
         . "$TESTSLIB"/systemd.sh
 
