@@ -433,7 +433,7 @@ func makeBootable20RunMode(model *asserts.Model, rootdir string, bootWith *Boota
 	}
 	for _, fn := range []string{bootWith.BasePath, bootWith.KernelPath} {
 		dst := filepath.Join(snapBlobDir, filepath.Base(fn))
-		if err := osutil.CopyFile(fn, dst, 0); err != nil {
+		if err := osutil.CopyFile(fn, dst, osutil.CopyFlagPreserveAll|osutil.CopyFlagSync); err != nil {
 			return err
 		}
 	}
