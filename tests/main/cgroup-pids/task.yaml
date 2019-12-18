@@ -52,11 +52,11 @@ execute: |
     # longer registers there.
     kill "$pid1"
     wait "$pid1" || true  # wait returns the exit code and we kill the process
-    MATCH -v "$pid1" < /sys/fs/cgroup/pids/snap.test-snapd-sh.test-snapd-sh/cgroup.procs
+    not MATCH "$pid1" < /sys/fs/cgroup/pids/snap.test-snapd-sh.test-snapd-sh/cgroup.procs
 
     kill "$pid2"
     wait "$pid2" || true  # same as above
-    MATCH -v "$pid2" < /sys/fs/cgroup/pids/snap.test-snapd-sh.test-snapd-sh/cgroup.procs
+    not MATCH "$pid2" < /sys/fs/cgroup/pids/snap.test-snapd-sh.test-snapd-sh/cgroup.procs
 
     # If a snap command forks a child process it is also tracked.
     #shellcheck disable=SC2016

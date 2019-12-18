@@ -87,12 +87,6 @@ func SetOperatingMode(m *DeviceManager, mode string) {
 	m.modeEnv.Mode = mode
 }
 
-// XXX: will become properly exported but we probably want to make
-//      mode a type and not a string before we do that
-func OperatingMode(m *DeviceManager) string {
-	return m.operatingMode()
-}
-
 func MockRepeatRequestSerial(label string) (restore func()) {
 	old := repeatRequestSerial
 	repeatRequestSerial = label
@@ -159,6 +153,7 @@ func RemodelDeviceBackend(remodCtx remodelContext) storecontext.DeviceBackend {
 var (
 	ImportAssertionsFromSeed     = importAssertionsFromSeed
 	CheckGadgetOrKernel          = checkGadgetOrKernel
+	CheckGadgetValid             = checkGadgetValid
 	CheckGadgetRemodelCompatible = checkGadgetRemodelCompatible
 	CanAutoRefresh               = canAutoRefresh
 	NewEnoughProxy               = newEnoughProxy

@@ -107,12 +107,15 @@ var (
 // that are missing from the existing device layout.
 func (dl *DeviceLayout) CreateMissing(pv *gadget.LaidOutVolume) ([]DeviceStructure, error) {
 	buf, created := buildPartitionList(dl.partitionTable, pv)
+	if len(created) == 0 {
+		return created, nil
+	}
 
 	// Write the partition table. By default sfdisk will try to re-read the
 	// partition table with the BLKRRPART ioctl but will fail because the
 	// kernel side rescan removes and adds partitions and we have partitions
 	// mounted (so it fails on removal). Use --no-reread to skip this attempt.
-	cmd := exec.Command("sfdisk", "--no-reread", dl.Device)
+	cmd := exec.Command("sfdisk", "--append", "--no-reread", dl.Device)
 	cmd.Stdin = buf
 	if output, err := cmd.CombinedOutput(); err != nil {
 		return created, osutil.OutputErr(output, err)
@@ -137,7 +140,7 @@ func (dl *DeviceLayout) CreateMissing(pv *gadget.LaidOutVolume) ([]DeviceStructu
 }
 
 // ensureNodeExists makes sure the device nodes for all device structures are
-// available within a specified amount of time.
+// available and notified to udev, within a specified amount of time.
 func ensureNodesExistImpl(ds []DeviceStructure, timeout time.Duration) error {
 	t0 := time.Now()
 	for _, part := range ds {
@@ -149,7 +152,12 @@ func ensureNodesExistImpl(ds []DeviceStructure, timeout time.Duration) error {
 			}
 			time.Sleep(100 * time.Millisecond)
 		}
-		if !found {
+		if found {
+			output, err := exec.Command("udevadm", "trigger", "--settle", part.Node).CombinedOutput()
+			if err != nil {
+				return osutil.OutputErr(output, err)
+			}
+		} else {
 			return fmt.Errorf("device %s not available", part.Node)
 		}
 	}
@@ -226,25 +234,14 @@ func deviceName(name string, index int) string {
 // format. Return a partitioning description suitable for sfdisk input
 // and a list of the partitions to be created
 func buildPartitionList(ptable *sfdiskPartitionTable, pv *gadget.LaidOutVolume) (sfdiskInput *bytes.Buffer, toBeCreated []DeviceStructure) {
-	buf := &bytes.Buffer{}
-
-	// Write partition data in sfdisk dump format
-	fmt.Fprintf(buf, "label: %s\nlabel-id: %s\ndevice: %s\nunit: %s\nfirst-lba: %d\nlast-lba: %d\n\n",
-		ptable.Label, ptable.ID, ptable.Device, ptable.Unit, ptable.FirstLBA, ptable.LastLBA)
-
 	// Keep track what partitions we already have on disk
 	seen := map[uint64]bool{}
 	for _, p := range ptable.Partitions {
-		fmt.Fprintf(buf, "%s : start=%12d, size=%12d, type=%s, uuid=%s", p.Node, p.Start,
-			p.Size, p.Type, p.UUID)
-		if p.Name != "" {
-			fmt.Fprintf(buf, ", name=%q", p.Name)
-		}
-		fmt.Fprintf(buf, "\n")
 		seen[p.Start] = true
 	}
 
-	// Add missing partitions
+	// Write new partition data in named-fields format
+	buf := &bytes.Buffer{}
 	for _, p := range pv.LaidOutStructure {
 		s := p.VolumeStructure
 		// Skip partitions that are already in the volume

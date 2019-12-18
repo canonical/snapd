@@ -51,8 +51,8 @@ execute: |
     # show connected only
     snap connections > connected.out
     MATCH 'content\[mylib\] +test-snapd-content-plug:shared-content-plug +test-snapd-content-slot:shared-content-slot +-' < connected.out
-    MATCH -v 'network-consumer' < connected.out
-    MATCH -v 'test-snapd-daemon-notify' < connected.out
+    not MATCH 'network-consumer' < connected.out
+    not MATCH 'test-snapd-daemon-notify' < connected.out
 
     # show all
     snap connections --all > all.out

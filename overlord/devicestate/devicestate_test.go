@@ -330,7 +330,16 @@ func (s *deviceMgrSuite) TestDeviceManagerEnsureSeededHappy(c *C) {
 }
 
 func (s *deviceMgrSuite) TestDeviceManagerEnsureBootOkSkippedOnClassic(c *C) {
+	s.bootloader.GetErr = fmt.Errorf("should not be called")
 	release.OnClassic = true
+
+	err := devicestate.EnsureBootOk(s.mgr)
+	c.Assert(err, IsNil)
+}
+
+func (s *deviceMgrSuite) TestDeviceManagerEnsureBootOkSkippedOnNonRunModes(c *C) {
+	s.bootloader.GetErr = fmt.Errorf("should not be called")
+	devicestate.SetOperatingMode(s.mgr, "install")
 
 	err := devicestate.EnsureBootOk(s.mgr)
 	c.Assert(err, IsNil)
@@ -625,6 +634,36 @@ func (s *deviceMgrSuite) TestCheckGadgetOnClassicGadgetNotSpecified(c *C) {
 
 	err := devicestate.CheckGadgetOrKernel(s.state, gadgetInfo, nil, nil, snapstate.Flags{}, deviceCtx)
 	c.Check(err, ErrorMatches, `cannot install gadget snap on classic if not requested by the model`)
+}
+
+func (s *deviceMgrSuite) TestCheckGadgetValid(c *C) {
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	// model assertion in device context
+	model := fakeMyModel(map[string]interface{}{
+		"architecture": "amd64",
+		"gadget":       "gadget",
+		"kernel":       "krnl",
+	})
+	deviceCtx := &snapstatetest.TrivialDeviceContext{DeviceModel: model}
+
+	gadgetInfo := snaptest.MockInfo(c, "{type: gadget, name: gadget, version: 0}", nil)
+
+	// valid gadget.yaml
+	cont := snaptest.MockContainer(c, [][]string{
+		{"meta/gadget.yaml", gadgetYaml},
+	})
+	err := devicestate.CheckGadgetValid(s.state, gadgetInfo, nil, cont, snapstate.Flags{}, deviceCtx)
+	c.Check(err, IsNil)
+
+	// invalid gadget.yaml
+	cont = snaptest.MockContainer(c, [][]string{
+		{"meta/gadget.yaml", `defaults:`},
+	})
+	err = devicestate.CheckGadgetValid(s.state, gadgetInfo, nil, cont, snapstate.Flags{}, deviceCtx)
+	c.Check(err, ErrorMatches, `bootloader not declared in any volume`)
+
 }
 
 func (s *deviceMgrSuite) TestCheckKernel(c *C) {
@@ -1062,5 +1101,13 @@ func (s *deviceMgrSuite) TestDeviceManagerReadsModeenv(c *C) {
 	mgr, err := devicestate.Manager(s.state, s.hookMgr, runner, s.newStore)
 	c.Assert(err, IsNil)
 	c.Assert(mgr, NotNil)
-	c.Assert(devicestate.OperatingMode(mgr), Equals, "install")
+	c.Assert(mgr.OperatingMode(), Equals, "install")
+}
+
+func (s *deviceMgrSuite) TestDeviceManagerEmptyOperatingModeRun(c *C) {
+	// set empty operating mode
+	devicestate.SetOperatingMode(s.mgr, "")
+
+	// empty is returned as "run"
+	c.Check(s.mgr.OperatingMode(), Equals, "run")
 }

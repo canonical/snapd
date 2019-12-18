@@ -31,17 +31,49 @@ type TrivialDeviceContext struct {
 	OldDeviceModel *asserts.Model
 	Remodeling     bool
 	CtxStore       snapstate.StoreService
+	OpMode         string
+	Ground         bool
 }
 
 func (dc *TrivialDeviceContext) Model() *asserts.Model {
 	return dc.DeviceModel
 }
 
-func (dc *TrivialDeviceContext) OldModel() *asserts.Model {
-	return dc.OldDeviceModel
+func (dc *TrivialDeviceContext) GroundContext() snapstate.DeviceContext {
+	if dc.ForRemodeling() && dc.OldDeviceModel != nil {
+		return &TrivialDeviceContext{
+			DeviceModel: dc.OldDeviceModel,
+			OpMode:      dc.OpMode,
+			Ground:      true,
+		}
+	}
+	return &TrivialDeviceContext{
+		DeviceModel: dc.DeviceModel,
+		OpMode:      dc.OpMode,
+		Ground:      true,
+	}
+}
+
+func (dc *TrivialDeviceContext) Classic() bool {
+	return dc.DeviceModel.Classic()
+}
+
+func (dc *TrivialDeviceContext) Kernel() string {
+	return dc.DeviceModel.Kernel()
+}
+
+func (dc *TrivialDeviceContext) Base() string {
+	return dc.DeviceModel.Base()
+}
+
+func (dc *TrivialDeviceContext) RunMode() bool {
+	return dc.OperatingMode() == "run"
 }
 
 func (dc *TrivialDeviceContext) Store() snapstate.StoreService {
+	if dc.Ground {
+		panic("retrieved ground context is not intended to drive store operations")
+	}
 	return dc.CtxStore
 }
 
@@ -49,11 +81,24 @@ func (dc *TrivialDeviceContext) ForRemodeling() bool {
 	return dc.Remodeling
 }
 
+func (dc *TrivialDeviceContext) OperatingMode() string {
+	mode := dc.OpMode
+	if mode == "" {
+		return "run"
+	}
+	return mode
+}
+
 func MockDeviceModel(model *asserts.Model) (restore func()) {
 	var deviceCtx snapstate.DeviceContext
 	if model != nil {
 		deviceCtx = &TrivialDeviceContext{DeviceModel: model}
 	}
+	return MockDeviceContext(deviceCtx)
+}
+
+func MockDeviceModelAndMode(model *asserts.Model, operatingMode string) (restore func()) {
+	deviceCtx := &TrivialDeviceContext{DeviceModel: model, OpMode: operatingMode}
 	return MockDeviceContext(deviceCtx)
 }
 

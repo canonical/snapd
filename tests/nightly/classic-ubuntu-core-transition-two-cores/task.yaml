@@ -71,7 +71,7 @@ execute: |
         exit 1
     fi
 
-    if ! snap list|MATCH -v ubuntu-core; then
+    if ! snap list ubuntu-core; then
         echo "ubuntu-core still installed, transition failed"
         exit 1
     fi

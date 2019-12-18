@@ -23,6 +23,7 @@ import (
 	. "gopkg.in/check.v1"
 
 	"github.com/snapcore/snapd/overlord/snapstate"
+	"github.com/snapcore/snapd/overlord/snapstate/snapstatetest"
 	"github.com/snapcore/snapd/overlord/state"
 	"github.com/snapcore/snapd/snap"
 )
@@ -32,6 +33,12 @@ type discardSnapSuite struct {
 }
 
 var _ = Suite(&discardSnapSuite{})
+
+func (s *discardSnapSuite) SetUpTest(c *C) {
+	s.setup(c, nil)
+
+	s.AddCleanup(snapstatetest.MockDeviceModel(DefaultModel()))
+}
 
 func (s *discardSnapSuite) TestDoDiscardSnapSuccess(c *C) {
 	s.state.Lock()
