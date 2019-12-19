@@ -43,6 +43,6 @@ execute: |
 
     echo "And check that the partitions are created"
     sfdisk -l "$LOOP" | MATCH '750M Linux filesystem'
-    sfdisk -l "$LOOP" | MATCH '1G Linux filesystem'
+    sfdisk -l "$LOOP" | MATCH '3G Linux filesystem'
     file -s "${LOOP}p3" | MATCH 'ext4 filesystem data,.* volume name "ubuntu-boot"'
     file -s "${LOOP}p4" | MATCH 'ext4 filesystem data,.* volume name "ubuntu-data"'
