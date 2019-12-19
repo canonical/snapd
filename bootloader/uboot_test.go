@@ -155,7 +155,7 @@ func (s *ubootTestSuite) TestExtractKernelAssetsAndRemove(c *C) {
 	info, err := snap.ReadInfoFromSnapFile(snapf, si)
 	c.Assert(err, IsNil)
 
-	err = u.ExtractKernelAssets(info, snapf)
+	err = u.ExtractKernelAssets(info, snapf, nil)
 	c.Assert(err, IsNil)
 
 	// this is where the kernel/initrd is unpacked

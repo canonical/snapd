@@ -175,7 +175,7 @@ func (s *grubTestSuite) TestExtractKernelAssetsNoUnpacksKernelForGrub(c *C) {
 	info, err := snap.ReadInfoFromSnapFile(snapf, si)
 	c.Assert(err, IsNil)
 
-	err = g.ExtractKernelAssets(info, snapf)
+	err = g.ExtractKernelAssets(info, snapf, nil)
 	c.Assert(err, IsNil)
 
 	// kernel is *not* here
@@ -206,7 +206,7 @@ func (s *grubTestSuite) TestExtractKernelForceWorks(c *C) {
 	info, err := snap.ReadInfoFromSnapFile(snapf, si)
 	c.Assert(err, IsNil)
 
-	err = g.ExtractKernelAssets(info, snapf)
+	err = g.ExtractKernelAssets(info, snapf, nil)
 	c.Assert(err, IsNil)
 
 	// kernel is extracted

@@ -45,6 +45,9 @@ type Options struct {
 	// Recovery indicates to use the recovery bootloader. Note that
 	// UC16/18 do not have a recovery partition.
 	Recovery bool
+
+	// KernelExtractionDir is where to extract the kernel assets
+	KernelExtractionDir string
 }
 
 // Bootloader provides an interface to interact with the system
@@ -68,7 +71,7 @@ type Bootloader interface {
 	InstallBootConfig(gadgetDir string, opts *Options) (ok bool, err error)
 
 	// ExtractKernelAssets extracts kernel assets from the given kernel snap
-	ExtractKernelAssets(s snap.PlaceInfo, snapf snap.Container) error
+	ExtractKernelAssets(s snap.PlaceInfo, snapf snap.Container, assets []string) error
 
 	// RemoveKernelAssets removes the assets for the given kernel snap.
 	RemoveKernelAssets(s snap.PlaceInfo) error
@@ -169,10 +172,8 @@ func ForceError(err error) {
 	forcedError = err
 }
 
-func extractKernelAssetsToBootDir(bootDir string, s snap.PlaceInfo, snapf snap.Container) error {
+func extractKernelAssetsToBootDir(dstDir string, s snap.PlaceInfo, snapf snap.Container, assets []string) error {
 	// now do the kernel specific bits
-	blobName := filepath.Base(s.MountFile())
-	dstDir := filepath.Join(bootDir, blobName)
 	if err := os.MkdirAll(dstDir, 0755); err != nil {
 		return err
 	}
@@ -182,7 +183,7 @@ func extractKernelAssetsToBootDir(bootDir string, s snap.PlaceInfo, snapf snap.C
 	}
 	defer dir.Close()
 
-	for _, src := range []string{"kernel.img", "initrd.img"} {
+	for _, src := range assets {
 		if err := snapf.Unpack(src, dstDir); err != nil {
 			return err
 		}
@@ -190,11 +191,7 @@ func extractKernelAssetsToBootDir(bootDir string, s snap.PlaceInfo, snapf snap.C
 			return err
 		}
 	}
-	if err := snapf.Unpack("dtbs/*", dstDir); err != nil {
-		return err
-	}
-
-	return dir.Sync()
+	return nil
 }
 
 func removeKernelAssetsFromBootDir(bootDir string, s snap.PlaceInfo) error {

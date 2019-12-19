@@ -91,7 +91,7 @@ func (a *androidboot) SetBootVars(values map[string]string) error {
 	return env.Save()
 }
 
-func (a *androidboot) ExtractKernelAssets(s snap.PlaceInfo, snapf snap.Container) error {
+func (a *androidboot) ExtractKernelAssets(s snap.PlaceInfo, snapf snap.Container, assets []string) error {
 	return nil
 
 }

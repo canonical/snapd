@@ -40,6 +40,8 @@ type grub struct {
 	rootdir string
 
 	basedir string
+
+	kernelAssetTargetDir string
 }
 
 // newGrub create a new Grub bootloader object
@@ -52,6 +54,9 @@ func newGrub(rootdir string, opts *Options) RecoveryAwareBootloader {
 	}
 	if !osutil.FileExists(g.ConfigFile()) {
 		return nil
+	}
+	if opts != nil {
+		g.kernelAssetTargetDir = opts.KernelExtractionDir
 	}
 
 	return g
@@ -132,10 +137,31 @@ func (g *grub) SetBootVars(values map[string]string) error {
 	return env.Save()
 }
 
-func (g *grub) ExtractKernelAssets(s snap.PlaceInfo, snapf snap.Container) error {
-	// XXX: should we use "kernel.yaml" for this?
-	if _, err := snapf.ReadFile("meta/force-kernel-extraction"); err == nil {
-		return extractKernelAssetsToBootDir(g.dir(), s, snapf)
+func (g *grub) ExtractKernelAssets(s snap.PlaceInfo, snapf snap.Container, assets []string) error {
+	// default kernel assets are:
+	// - kernel.img
+	// - initrd.img
+	// - dtbs/*
+	if len(assets) == 0 {
+		assets = []string{"kernel.img", "initrd.img", "dtbs/*"}
+	}
+	targetDir := ""
+	if g.kernelAssetTargetDir != "" {
+		targetDir = g.kernelAssetTargetDir
+	} else {
+		targetDir = filepath.Join(g.dir(), filepath.Base(s.MountFile()))
+	}
+
+	// extraction can be forced through either a special file in the kernel snap
+	// or through an option in the bootloader
+	_, err := snapf.ReadFile("meta/force-kernel-extraction")
+	if g.kernelAssetTargetDir != "" || err == nil {
+		return extractKernelAssetsToBootDir(
+			targetDir,
+			s,
+			snapf,
+			assets,
+		)
 	}
 	return nil
 }

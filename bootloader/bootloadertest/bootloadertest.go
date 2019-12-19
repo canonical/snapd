@@ -84,7 +84,7 @@ func (b *MockBootloader) ConfigFile() string {
 	return filepath.Join(b.bootdir, "mockboot/mockboot.cfg")
 }
 
-func (b *MockBootloader) ExtractKernelAssets(s snap.PlaceInfo, snapf snap.Container) error {
+func (b *MockBootloader) ExtractKernelAssets(s snap.PlaceInfo, snapf snap.Container, assets []string) error {
 	b.ExtractKernelAssetsCalls = append(b.ExtractKernelAssetsCalls, s)
 	return nil
 }

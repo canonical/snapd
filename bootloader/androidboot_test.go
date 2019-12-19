@@ -85,7 +85,7 @@ func (s *androidBootTestSuite) TestExtractKernelAssetsNoUnpacksKernel(c *C) {
 	info, err := snap.ReadInfoFromSnapFile(snapf, si)
 	c.Assert(err, IsNil)
 
-	err = a.ExtractKernelAssets(info, snapf)
+	err = a.ExtractKernelAssets(info, snapf, nil)
 	c.Assert(err, IsNil)
 
 	// kernel is *not* here

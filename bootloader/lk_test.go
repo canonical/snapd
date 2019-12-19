@@ -105,7 +105,7 @@ func (s *lkTestSuite) TestExtractKernelAssetsUnpacksBootimgImageBuilding(c *C) {
 	info, err := snap.ReadInfoFromSnapFile(snapf, si)
 	c.Assert(err, IsNil)
 
-	err = l.ExtractKernelAssets(info, snapf)
+	err = l.ExtractKernelAssets(info, snapf, nil)
 	c.Assert(err, IsNil)
 
 	// just boot.img and snapbootsel.bin are there, no kernel.img
@@ -156,7 +156,7 @@ func (s *lkTestSuite) TestExtractKernelAssetsUnpacksCustomBootimgImageBuilding(c
 	info, err := snap.ReadInfoFromSnapFile(snapf, si)
 	c.Assert(err, IsNil)
 
-	err = l.ExtractKernelAssets(info, snapf)
+	err = l.ExtractKernelAssets(info, snapf, nil)
 	c.Assert(err, IsNil)
 
 	// boot-2.img is there
@@ -200,7 +200,7 @@ func (s *lkTestSuite) TestExtractKernelAssetsUnpacksAndRemoveInRuntimeMode(c *C)
 	c.Assert(err, IsNil)
 
 	// now extract
-	err = lk.ExtractKernelAssets(info, snapf)
+	err = lk.ExtractKernelAssets(info, snapf, nil)
 	c.Assert(err, IsNil)
 
 	// and validate it went to the "boot_a" partition

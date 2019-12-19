@@ -365,7 +365,7 @@ func makeBootable16(model *asserts.Model, rootdir string, bootWith *BootableSet)
 	if err != nil {
 		return err
 	}
-	if err := bl.ExtractKernelAssets(bootWith.Kernel, kernelf); err != nil {
+	if err := bl.ExtractKernelAssets(bootWith.Kernel, kernelf, nil); err != nil {
 		return err
 	}
 	setBoot("snap_kernel", bootWith.KernelPath)
@@ -429,7 +429,6 @@ func makeBootable20RunMode(model *asserts.Model, rootdir string, bootWith *Boota
 
 	// TODO:UC20:
 	// - create grub.cfg instead of using the gadget one
-	// - extract kernel
 
 	// copy kernel/base into the ubuntu-data partition
 	ubuntuDataMnt := filepath.Join(runMnt, "ubuntu-data")
@@ -455,31 +454,43 @@ func makeBootable20RunMode(model *asserts.Model, rootdir string, bootWith *Boota
 		return fmt.Errorf("cannot write modeenv: %v", err)
 	}
 
-	// get the ubuntu-boot bootloader
+	ubuntuBootPartition := filepath.Join(runMnt, "ubuntu-boot")
+
+	// get the ubuntu-boot grub and extract the kernel there
 	opts := &bootloader.Options{
 		// TODO:UC20: we use "recovery: true" here because on
 		// the partition the file layout of ubuntu-boot looks
 		// the same as ubuntu-seed.
 		// TODO:UC20: need a better name than recovery
 		Recovery: true,
+		// extract kernel assets to the ubuntu-boot partition
+		KernelExtractionDir: ubuntuBootPartition,
 	}
-	bl, err := bootloader.Find(filepath.Join(runMnt, "ubuntu-boot"), opts)
+	bl, err := bootloader.Find(ubuntuBootPartition, opts)
 	if err != nil {
 		return fmt.Errorf("internal error: cannot find run system bootloader: %v", err)
 	}
-	// TODO:UC20: using the UC16/18 grubenv style until we have
-	// a UC20 grub.cfg and corresponding snapd early boot
-	// code
+
+	// extract the kernel first, then mark kernel_status ready in case we get
+	// rebooted in between
+	kernelf, err := snap.Open(bootWith.KernelPath)
+	if err != nil {
+		return err
+	}
+
+	// TODO:UC20: support non uefi kernel assets
+	// for now we will only support kernel.efi
+	err = bl.ExtractKernelAssets(bootWith.Kernel, kernelf, []string{"kernel.efi"})
+	if err != nil {
+		return err
+	}
+
 	blVars := map[string]string{
-		"snap_mode":   "",
-		"snap_kernel": filepath.Base(bootWith.KernelPath),
-		"snap_core":   filepath.Base(bootWith.BasePath),
+		"kernel_status": "",
 	}
 	if err := bl.SetBootVars(blVars); err != nil {
 		return fmt.Errorf("cannot set run system environment: %v", err)
 	}
-	// TODO:UC20: extract kernel here to the static UC20 name
-	// check https://github.com/snapcore/snapd/pull/7913
 
 	// LAST step: update recovery grub's grubenv to indicate that
 	// we transition to run mode now
@@ -489,7 +500,7 @@ func makeBootable20RunMode(model *asserts.Model, rootdir string, bootWith *Boota
 	}
 	bl, err = bootloader.Find(filepath.Join(runMnt, "ubuntu-seed"), opts)
 	if err != nil {
-		return fmt.Errorf("internal error: cannot find bootloader: %v", err)
+		return fmt.Errorf("internal error: cannot find recovery system bootloader: %v", err)
 	}
 	blVars = map[string]string{
 		"snapd_recovery_mode": "run",

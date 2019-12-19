@@ -71,9 +71,8 @@ func (l *lk) dir() string {
 	// at runtime environment is written directly into dedicated partition
 	if l.inRuntimeMode {
 		return filepath.Join(l.rootdir, "/dev/disk/by-partlabel/")
-	} else {
-		return filepath.Join(l.rootdir, "/boot/lk/")
 	}
+	return filepath.Join(l.rootdir, "/boot/lk/")
 }
 
 func (l *lk) InstallBootConfig(gadgetDir string, opts *Options) (bool, error) {
@@ -91,9 +90,8 @@ func (l *lk) envFile() string {
 	if l.inRuntimeMode {
 		// TO-DO: this should be eventually fetched from gadget.yaml
 		return filepath.Join(l.dir(), "snapbootsel")
-	} else {
-		return filepath.Join(l.dir(), "snapbootsel.bin")
 	}
+	return filepath.Join(l.dir(), "snapbootsel.bin")
 }
 
 func (l *lk) GetBootVars(names ...string) (map[string]string, error) {
@@ -141,7 +139,7 @@ func (l *lk) SetBootVars(values map[string]string) error {
 // kernel assets are extracted to other (free) boot partition
 // in case this function is called as part of image creation,
 // boot image is extracted to the file
-func (l *lk) ExtractKernelAssets(s snap.PlaceInfo, snapf snap.Container) error {
+func (l *lk) ExtractKernelAssets(s snap.PlaceInfo, snapf snap.Container, assets []string) error {
 	blobName := filepath.Base(s.MountFile())
 
 	logger.Debugf("ExtractKernelAssets (%s)", blobName)
