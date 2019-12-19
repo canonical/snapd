@@ -122,6 +122,7 @@ static const size_t nvidia_globs_len =
     sizeof nvidia_globs / sizeof *nvidia_globs;
 
 #define LIBNVIDIA_GLCORE_SO_PATTERN "libnvidia-glcore.so.%d.%d"
+//the driver version can be `440.33.01` so the pattern should end with `%02d`
 #define LIBNVIDIA_GLCORE_SO_PATTERN_MICRO "libnvidia-glcore.so.%d.%d.%02d"
 
 #endif				// defined(NVIDIA_BIARCH) || defined(NVIDIA_MULTIARCH)
@@ -350,6 +351,7 @@ struct sc_nvidia_driver {
 	int major_version;
 	int minor_version;
 	int micro_version;
+	char *glcore_pattern;
 };
 
 static void sc_probe_nvidia_driver(struct sc_nvidia_driver *driver)
@@ -363,15 +365,24 @@ static void sc_probe_nvidia_driver(struct sc_nvidia_driver *driver)
 			driver->major_version = 0;
 			driver->minor_version = 0;
 			driver->micro_version = 0;
+			driver->glcore_pattern = NULL;
 			return;
 		}
 		die("cannot open file describing nvidia driver version");
 	}
-	// Driver version format is MAJOR.MINOR where both MAJOR and MINOR are
+	// Driver version format is MAJOR.MINOR[.MICRO], where all elements are 
 	// integers. We can use sscanf to parse this data.
-	if (fscanf
-	    (file, "%d.%d.%d", &driver->major_version,
-	     &driver->minor_version, &driver->micro_version) < 2) {
+	int res = fscanf(file, "%d.%d.%d", &driver->major_version, 
+				&driver->minor_version, 
+				&driver->micro_version);
+	switch (res) {
+	case 3:
+		driver->glcore_pattern = LIBNVIDIA_GLCORE_SO_PATTERN_MICRO;
+		break;
+	case 2:
+		driver->glcore_pattern = LIBNVIDIA_GLCORE_SO_PATTERN;
+		break;
+	default:
 		die("cannot parse nvidia driver version string");
 	}
 	debug("parsed nvidia driver version: %d.%d.%d", driver->major_version,
@@ -436,19 +447,26 @@ static int sc_mount_nvidia_is_driver_in_dir(const char *dir)
 	if (driver.major_version == 0) {
 		return 0;
 	}
-	// Probe if a well known library is found in directory dir
-	sc_must_snprintf(driver_path, sizeof driver_path,
-			 "%s/" LIBNVIDIA_GLCORE_SO_PATTERN, dir,
-			 driver.major_version, driver.minor_version);
-
-	if (access(driver_path, F_OK) == 0) {
-		debug("nvidia library detected at path %s", driver_path);
-		return 1;
+	// Extra sanity check
+	if (driver.glcore_pattern == NULL) {
+		die("libnvidia-glcore pattern is unset");
 	}
 
-	sc_must_snprintf(driver_path, sizeof driver_path,
-			 "%s/" LIBNVIDIA_GLCORE_SO_PATTERN_MICRO, dir,
-			 driver.major_version, driver.minor_version, driver.micro_version);
+	// Probe if a well known library is found in directory dir
+	// cant concat `%s/` and `driver.glcore_pattern` since it's not a constant
+	if (sc_streq(driver.glcore_pattern, LIBNVIDIA_GLCORE_SO_PATTERN)) {
+		sc_must_snprintf(driver_path, sizeof driver_path,
+				"%s/" LIBNVIDIA_GLCORE_SO_PATTERN, dir,
+				driver.major_version, driver.minor_version);
+	} else if (sc_streq(driver.glcore_pattern, LIBNVIDIA_GLCORE_SO_PATTERN_MICRO)) {
+		sc_must_snprintf(driver_path, sizeof driver_path,
+				"%s/" LIBNVIDIA_GLCORE_SO_PATTERN_MICRO, dir,
+				driver.major_version, driver.minor_version, 
+				driver.micro_version);
+	} else {
+		die("unhandled libnvidia-glcore pattern");
+	}
+	
 
 	if (access(driver_path, F_OK) == 0) {
 		debug("nvidia library detected at path %s", driver_path);
