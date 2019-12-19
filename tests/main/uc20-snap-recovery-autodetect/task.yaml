@@ -27,7 +27,9 @@ prepare: |
     start=2048, size=2048, type=21686148-6449-6E6F-744E-656564454649, name="BIOS Boot"
     start=4096, size=2457600, type=C12A7328-F81F-11D2-BA4B-00A0C93EC93B, name="ubuntu-seed"
     EOF
+    udevadm trigger --settle "${LOOP}p2"
     mkfs.vfat "${LOOP}p2"
+    udevadm trigger --settle "${LOOP}p2"
     echo "Double check that we got the expected partitions"
     sfdisk -l "$LOOP" | MATCH 'BIOS boot'
     sfdisk -l "$LOOP" | MATCH 'EFI System'
