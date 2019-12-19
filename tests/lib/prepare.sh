@@ -344,6 +344,104 @@ repack_snapd_snap_with_deb_content() {
     rm -rf "$UNPACK_DIR"
 }
 
+setup_core_for_testing_by_modify_writable() {
+    UNPACK_DIR="$1"
+
+    # create test user and ubuntu user inside the writable partition
+    # so that we can use a stock core in tests
+    mkdir -p /mnt/user-data/test
+
+    # create test user, see the comment in spread.yaml about 12345
+    mkdir -p /mnt/system-data/etc/sudoers.d/
+    echo 'test ALL=(ALL) NOPASSWD:ALL' >> /mnt/system-data/etc/sudoers.d/99-test-user
+    echo 'ubuntu ALL=(ALL) NOPASSWD:ALL' >> /mnt/system-data/etc/sudoers.d/99-ubuntu-user
+    # modify sshd so that we can connect as root
+    mkdir -p /mnt/system-data/etc/ssh
+    cp -a "$UNPACK_DIR"/etc/ssh/* /mnt/system-data/etc/ssh/
+    # core18 is different here than core16
+    sed -i 's/\#\?\(PermitRootLogin\|PasswordAuthentication\)\>.*/\1 yes/' /mnt/system-data/etc/ssh/sshd_config
+    # ensure the setting is correct
+    grep '^PermitRootLogin yes' /mnt/system-data/etc/ssh/sshd_config
+
+    # build the user database - this is complicated because:
+    # - spread on linode wants to login as "root"
+    # - "root" login on the stock core snap is disabled
+    # - uids between classic/core differ
+    # - passwd,shadow on core are read-only
+    # - we cannot add root to extrausers as system passwd is searched first
+    # - we need to add our ubuntu and test users too
+    # So we create the user db we need in /root/test-etc/*:
+    # - take core passwd without "root"
+    # - append root
+    # - make sure the group matches
+    # - bind mount /root/test-etc/* to /etc/* via custom systemd job
+    # We also create /var/lib/extrausers/* and append ubuntu,test there
+    test ! -e /mnt/system-data/root
+    mkdir -m 700 /mnt/system-data/root
+    test -d /mnt/system-data/root
+    mkdir -p /mnt/system-data/root/test-etc
+    mkdir -p /mnt/system-data/var/lib/extrausers/
+    touch /mnt/system-data/var/lib/extrausers/sub{uid,gid}
+    mkdir -p /mnt/system-data/etc/systemd/system/multi-user.target.wants
+    for f in group gshadow passwd shadow; do
+        # the passwd from core without root
+        grep -v "^root:" "$UNPACK_DIR/etc/$f" > /mnt/system-data/root/test-etc/"$f"
+        # append this systems root user so that linode can connect
+        grep "^root:" /etc/"$f" >> /mnt/system-data/root/test-etc/"$f"
+
+        # make sure the group is as expected
+        chgrp --reference "$UNPACK_DIR/etc/$f" /mnt/system-data/root/test-etc/"$f"
+        # now bind mount read-only those passwd files on boot
+        cat >/mnt/system-data/etc/systemd/system/etc-"$f".mount <<EOF
+[Unit]
+Description=Mount root/test-etc/$f over system etc/$f
+Before=ssh.service
+
+[Mount]
+What=/root/test-etc/$f
+Where=/etc/$f
+Type=none
+Options=bind,ro
+
+[Install]
+WantedBy=multi-user.target
+EOF
+        ln -s /etc/systemd/system/etc-"$f".mount /mnt/system-data/etc/systemd/system/multi-user.target.wants/etc-"$f".mount
+
+        # create /var/lib/extrausers/$f
+        # append ubuntu, test user for the testing
+        grep "^test:" /etc/$f >> /mnt/system-data/var/lib/extrausers/"$f"
+        grep "^ubuntu:" /etc/$f >> /mnt/system-data/var/lib/extrausers/"$f"
+        # check test was copied
+        MATCH "^test:" </mnt/system-data/var/lib/extrausers/"$f"
+        MATCH "^ubuntu:" </mnt/system-data/var/lib/extrausers/"$f"
+    done
+
+    # ensure spread -reuse works in the core image as well
+    if [ -e /.spread.yaml ]; then
+        cp -av /.spread.yaml /mnt/system-data
+    fi
+
+    # using symbolic names requires test:test have the same ids
+    # inside and outside which is a pain (see 12345 above), but
+    # using the ids directly is the wrong kind of fragile
+    chown --verbose test:test /mnt/user-data/test
+
+    # we do what sync-dirs is normally doing on boot, but because
+    # we have subdirs/files in /etc/systemd/system (created below)
+    # the writeable-path sync-boot won't work
+    mkdir -p /mnt/system-data/etc/systemd
+
+    # we do not need console-conf, so prevent it from running
+    mkdir -p /mnt/system-data/var/lib/console-conf
+    touch /mnt/system-data/var/lib/console-conf/complete
+
+    (cd /tmp ; unsquashfs -no-progress -v  /var/lib/snapd/snaps/"$core_name"_*.snap etc/systemd/system)
+    cp -avr /tmp/squashfs-root/etc/systemd/system /mnt/system-data/etc/systemd/
+    umount /mnt
+    kpartx -d  "$IMAGE_HOME/$IMAGE"
+}
+
 setup_reflash_magic() {
     # install the stuff we need
     distro_install_package kpartx busybox-static
@@ -488,99 +586,8 @@ EOF
         unsquashfs -no-progress -d "$UNPACK_DIR" /var/lib/snapd/snaps/core18_*.snap
     fi
 
-    # create test user and ubuntu user inside the writable partition
-    # so that we can use a stock core in tests
-    mkdir -p /mnt/user-data/test
-
-    # create test user, see the comment in spread.yaml about 12345
-    mkdir -p /mnt/system-data/etc/sudoers.d/
-    echo 'test ALL=(ALL) NOPASSWD:ALL' >> /mnt/system-data/etc/sudoers.d/99-test-user
-    echo 'ubuntu ALL=(ALL) NOPASSWD:ALL' >> /mnt/system-data/etc/sudoers.d/99-ubuntu-user
-    # modify sshd so that we can connect as root
-    mkdir -p /mnt/system-data/etc/ssh
-    cp -a "$UNPACK_DIR"/etc/ssh/* /mnt/system-data/etc/ssh/
-    # core18 is different here than core16
-    sed -i 's/\#\?\(PermitRootLogin\|PasswordAuthentication\)\>.*/\1 yes/' /mnt/system-data/etc/ssh/sshd_config
-    # ensure the setting is correct
-    grep '^PermitRootLogin yes' /mnt/system-data/etc/ssh/sshd_config
-
-    # build the user database - this is complicated because:
-    # - spread on linode wants to login as "root"
-    # - "root" login on the stock core snap is disabled
-    # - uids between classic/core differ
-    # - passwd,shadow on core are read-only
-    # - we cannot add root to extrausers as system passwd is searched first
-    # - we need to add our ubuntu and test users too
-    # So we create the user db we need in /root/test-etc/*:
-    # - take core passwd without "root"
-    # - append root
-    # - make sure the group matches
-    # - bind mount /root/test-etc/* to /etc/* via custom systemd job
-    # We also create /var/lib/extrausers/* and append ubuntu,test there
-    test ! -e /mnt/system-data/root
-    mkdir -m 700 /mnt/system-data/root
-    test -d /mnt/system-data/root
-    mkdir -p /mnt/system-data/root/test-etc
-    mkdir -p /mnt/system-data/var/lib/extrausers/
-    touch /mnt/system-data/var/lib/extrausers/sub{uid,gid}
-    mkdir -p /mnt/system-data/etc/systemd/system/multi-user.target.wants
-    for f in group gshadow passwd shadow; do
-        # the passwd from core without root
-        grep -v "^root:" "$UNPACK_DIR/etc/$f" > /mnt/system-data/root/test-etc/"$f"
-        # append this systems root user so that linode can connect
-        grep "^root:" /etc/"$f" >> /mnt/system-data/root/test-etc/"$f"
-
-        # make sure the group is as expected
-        chgrp --reference "$UNPACK_DIR/etc/$f" /mnt/system-data/root/test-etc/"$f"
-        # now bind mount read-only those passwd files on boot
-        cat >/mnt/system-data/etc/systemd/system/etc-"$f".mount <<EOF
-[Unit]
-Description=Mount root/test-etc/$f over system etc/$f
-Before=ssh.service
-
-[Mount]
-What=/root/test-etc/$f
-Where=/etc/$f
-Type=none
-Options=bind,ro
-
-[Install]
-WantedBy=multi-user.target
-EOF
-        ln -s /etc/systemd/system/etc-"$f".mount /mnt/system-data/etc/systemd/system/multi-user.target.wants/etc-"$f".mount
-
-        # create /var/lib/extrausers/$f
-        # append ubuntu, test user for the testing
-        grep "^test:" /etc/$f >> /mnt/system-data/var/lib/extrausers/"$f"
-        grep "^ubuntu:" /etc/$f >> /mnt/system-data/var/lib/extrausers/"$f"
-        # check test was copied
-        MATCH "^test:" </mnt/system-data/var/lib/extrausers/"$f"
-        MATCH "^ubuntu:" </mnt/system-data/var/lib/extrausers/"$f"
-    done
-
-    # ensure spread -reuse works in the core image as well
-    if [ -e /.spread.yaml ]; then
-        cp -av /.spread.yaml /mnt/system-data
-    fi
-
-    # using symbolic names requires test:test have the same ids
-    # inside and outside which is a pain (see 12345 above), but
-    # using the ids directly is the wrong kind of fragile
-    chown --verbose test:test /mnt/user-data/test
-
-    # we do what sync-dirs is normally doing on boot, but because
-    # we have subdirs/files in /etc/systemd/system (created below)
-    # the writeable-path sync-boot won't work
-    mkdir -p /mnt/system-data/etc/systemd
-
-    # we do not need console-conf, so prevent it from running
-    mkdir -p /mnt/system-data/var/lib/console-conf
-    touch /mnt/system-data/var/lib/console-conf/complete
-
-    (cd /tmp ; unsquashfs -no-progress -v  /var/lib/snapd/snaps/"$core_name"_*.snap etc/systemd/system)
-    cp -avr /tmp/squashfs-root/etc/systemd/system /mnt/system-data/etc/systemd/
-    umount /mnt
-    kpartx -d  "$IMAGE_HOME/$IMAGE"
+    # modify the writable partition of "core" so that we have the test user
+    setup_core_for_testing_by_modify_writable "$UNPACK_DIR"
 
     # the reflash magic
     # FIXME: ideally in initrd, but this is good enough for now

@@ -31,7 +31,7 @@ execute: |
     snap remove "$SNAP_NAME"
 
     echo And is gone afterwards
-    snap list |MATCH -v "$SNAP_NAME"
+    not snap list "$SNAP_NAME"
 
     #shellcheck source=tests/lib/dirs.sh
     . "$TESTSLIB"/dirs.sh

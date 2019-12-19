@@ -37,6 +37,8 @@ func init() {
 }
 
 type cmdCreatePartitions struct {
+	Mount bool `short:"m" long:"mount" description:"Also mount filesystems after creation" optional:"yes"`
+
 	Positional struct {
 		GadgetRoot string `positional-arg-name:"<gadget-root>"`
 		Device     string `positional-arg-name:"<device>"`
@@ -44,8 +46,9 @@ type cmdCreatePartitions struct {
 }
 
 func (c *cmdCreatePartitions) Execute(args []string) error {
-	// XXX: add options
-	options := &bootstrap.Options{}
+	options := &bootstrap.Options{
+		Mount: c.Mount,
+	}
 
 	return bootstrapRun(c.Positional.GadgetRoot, c.Positional.Device, options)
 }

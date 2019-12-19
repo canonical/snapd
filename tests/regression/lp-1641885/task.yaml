@@ -19,9 +19,9 @@ execute: |
     echo "Ensure that the snap is installed in jailmode"
     snap list | MATCH 'test-snapd-devmode.*jailmode'
     echo "Ensure that the apparmor profile doesn't use the complain mode"
-    grep attach_disconnected /var/lib/snapd/apparmor/profiles/snap.test-snapd-devmode.test-snapd-devmode | MATCH -v complain
+    grep attach_disconnected /var/lib/snapd/apparmor/profiles/snap.test-snapd-devmode.test-snapd-devmode | not MATCH complain
     echo "Ensure that the seccomp profile doesn't use the complain mode"
-    MATCH -v '@complain' < /var/lib/snapd/seccomp/bpf/snap.test-snapd-devmode.test-snapd-devmode.src
+    not MATCH '@complain' < /var/lib/snapd/seccomp/bpf/snap.test-snapd-devmode.test-snapd-devmode.src
 
 debug: |
     echo "Apparmor profile (first 30 lines)"

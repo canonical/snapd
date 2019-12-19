@@ -30,6 +30,7 @@ import (
 	"github.com/snapcore/snapd/bootloader"
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/logger"
+	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/snap"
 )
 
@@ -112,6 +113,12 @@ func applicable(s snap.PlaceInfo, t snap.Type, dev Device) bool {
 	if dev.Classic() {
 		return false
 	}
+	// In ephemeral modes we never need to care about updating the boot
+	// config. This will be done via boot.MakeBootable().
+	if !dev.RunMode() {
+		return false
+	}
+
 	if t != snap.TypeOS && t != snap.TypeKernel && t != snap.TypeBase {
 		// note we don't currently have anything useful to do with gadgets
 		return false
@@ -424,6 +431,19 @@ func makeBootable20RunMode(model *asserts.Model, rootdir string, bootWith *Boota
 	// - create grub.cfg instead of using the gadget one
 	// - extract kernel
 
+	// copy kernel/base into the ubuntu-data partition
+	ubuntuDataMnt := filepath.Join(runMnt, "ubuntu-data")
+	snapBlobDir := dirs.SnapBlobDirUnder(filepath.Join(ubuntuDataMnt, "system-data"))
+	if err := os.MkdirAll(snapBlobDir, 0755); err != nil {
+		return err
+	}
+	for _, fn := range []string{bootWith.BasePath, bootWith.KernelPath} {
+		dst := filepath.Join(snapBlobDir, filepath.Base(fn))
+		if err := osutil.CopyFile(fn, dst, osutil.CopyFlagPreserveAll|osutil.CopyFlagSync); err != nil {
+			return err
+		}
+	}
+
 	// write modeenv on the ubuntu-data partition
 	modeenv := &Modeenv{
 		Mode:           "run",
@@ -435,17 +455,43 @@ func makeBootable20RunMode(model *asserts.Model, rootdir string, bootWith *Boota
 		return fmt.Errorf("cannot write modeenv: %v", err)
 	}
 
-	// update recovery grub's grubenv to indicate that we transition
-	// to run mode now
+	// get the ubuntu-boot bootloader
 	opts := &bootloader.Options{
+		// TODO:UC20: we use "recovery: true" here because on
+		// the partition the file layout of ubuntu-boot looks
+		// the same as ubuntu-seed.
+		// TODO:UC20: need a better name than recovery
+		Recovery: true,
+	}
+	bl, err := bootloader.Find(filepath.Join(runMnt, "ubuntu-boot"), opts)
+	if err != nil {
+		return fmt.Errorf("internal error: cannot find run system bootloader: %v", err)
+	}
+	// TODO:UC20: using the UC16/18 grubenv style until we have
+	// a UC20 grub.cfg and corresponding snapd early boot
+	// code
+	blVars := map[string]string{
+		"snap_mode":   "",
+		"snap_kernel": filepath.Base(bootWith.KernelPath),
+		"snap_core":   filepath.Base(bootWith.BasePath),
+	}
+	if err := bl.SetBootVars(blVars); err != nil {
+		return fmt.Errorf("cannot set run system environment: %v", err)
+	}
+	// TODO:UC20: extract kernel here to the static UC20 name
+	// check https://github.com/snapcore/snapd/pull/7913
+
+	// LAST step: update recovery grub's grubenv to indicate that
+	// we transition to run mode now
+	opts = &bootloader.Options{
 		// setup the recovery bootloader
 		Recovery: true,
 	}
-	bl, err := bootloader.Find(filepath.Join(runMnt, "ubuntu-seed"), opts)
+	bl, err = bootloader.Find(filepath.Join(runMnt, "ubuntu-seed"), opts)
 	if err != nil {
 		return fmt.Errorf("internal error: cannot find bootloader: %v", err)
 	}
-	blVars := map[string]string{
+	blVars = map[string]string{
 		"snapd_recovery_mode": "run",
 	}
 	if err := bl.SetBootVars(blVars); err != nil {

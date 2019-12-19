@@ -199,7 +199,7 @@ func checkGadgetRemodelCompatible(st *state.State, snapInfo, curInfo *snap.Info,
 		return fmt.Errorf("cannot identify the current gadget snap")
 	}
 
-	newGadgetYaml, err := snapf.ReadFile("meta/gadget.yaml")
+	pendingInfo, err := gadget.ReadInfoFromSnapFile(snapf, deviceCtx.Model())
 	if err != nil {
 		return fmt.Errorf("cannot read new gadget metadata: %v", err)
 	}
@@ -207,11 +207,6 @@ func checkGadgetRemodelCompatible(st *state.State, snapInfo, curInfo *snap.Info,
 	currentData, err := gadgetDataFromInfo(curInfo, deviceCtx.GroundContext().Model())
 	if err != nil {
 		return fmt.Errorf("cannot read current gadget metadata: %v", err)
-	}
-
-	pendingInfo, err := gadget.InfoFromGadgetYaml(newGadgetYaml, deviceCtx.Model())
-	if err != nil {
-		return fmt.Errorf("cannot load new gadget metadata: %v", err)
 	}
 
 	if err := gadgetIsCompatible(currentData.Info, pendingInfo); err != nil {

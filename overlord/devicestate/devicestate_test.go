@@ -636,6 +636,36 @@ func (s *deviceMgrSuite) TestCheckGadgetOnClassicGadgetNotSpecified(c *C) {
 	c.Check(err, ErrorMatches, `cannot install gadget snap on classic if not requested by the model`)
 }
 
+func (s *deviceMgrSuite) TestCheckGadgetValid(c *C) {
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	// model assertion in device context
+	model := fakeMyModel(map[string]interface{}{
+		"architecture": "amd64",
+		"gadget":       "gadget",
+		"kernel":       "krnl",
+	})
+	deviceCtx := &snapstatetest.TrivialDeviceContext{DeviceModel: model}
+
+	gadgetInfo := snaptest.MockInfo(c, "{type: gadget, name: gadget, version: 0}", nil)
+
+	// valid gadget.yaml
+	cont := snaptest.MockContainer(c, [][]string{
+		{"meta/gadget.yaml", gadgetYaml},
+	})
+	err := devicestate.CheckGadgetValid(s.state, gadgetInfo, nil, cont, snapstate.Flags{}, deviceCtx)
+	c.Check(err, IsNil)
+
+	// invalid gadget.yaml
+	cont = snaptest.MockContainer(c, [][]string{
+		{"meta/gadget.yaml", `defaults:`},
+	})
+	err = devicestate.CheckGadgetValid(s.state, gadgetInfo, nil, cont, snapstate.Flags{}, deviceCtx)
+	c.Check(err, ErrorMatches, `bootloader not declared in any volume`)
+
+}
+
 func (s *deviceMgrSuite) TestCheckKernel(c *C) {
 	s.state.Lock()
 	defer s.state.Unlock()
@@ -697,11 +727,12 @@ func (s *deviceMgrSuite) TestCheckKernel(c *C) {
 	c.Check(err, ErrorMatches, `cannot install "krnl_foo", parallel installation of kernel or gadget snaps is not supported`)
 }
 
-func (s *deviceMgrBaseSuite) makeModelAssertionInState(c *C, brandID, model string, extras map[string]interface{}) {
+func (s *deviceMgrBaseSuite) makeModelAssertionInState(c *C, brandID, model string, extras map[string]interface{}) *asserts.Model {
 	modelAs := s.brands.Model(brandID, model, extras)
 
 	s.setupBrands(c)
 	assertstatetest.AddMany(s.state, modelAs)
+	return modelAs
 }
 
 func makeSerialAssertionInState(c *C, brands *assertstest.SigningAccounts, st *state.State, brandID, model, serialN string) *asserts.Serial {

@@ -28,11 +28,14 @@ import (
 )
 
 const (
-	shortHelp = "Prerun the first boot seeding of snaps in a chroot with a snapd seed."
+	shortHelp = "Prerun the first boot seeding of snaps in an image filesystem chroot with a snapd seed."
 	longHelp  = `
-The snap-preseed command takes a directory with an image filesytem including
-seed snaps (at /var/lib/snapd/seed) and pre-runs as much as possible without
-booting of first boot snap installation to optimize it.`
+The snap-preseed command takes a directory containing an image, including seed
+snaps (at /var/lib/snapd/seed), and runs through the snapd first-boot process
+up to hook execution. No boot actions unrelated to snapd are performed.
+It creates systemd units for seeded snaps, makes any connections, and generates
+security profiles. The image is updated and consequently optimised to reduce
+first-boot startup time`
 )
 
 var (
