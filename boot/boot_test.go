@@ -619,7 +619,7 @@ version: 5.0
 type: kernel
 version: 5.0
 `, snap.R(5), [][]string{
-		[]string{"kernel.efi", "I'm a kernel.efi"},
+		{"kernel.efi", "I'm a kernel.efi"},
 	})
 	kernelInSeed := filepath.Join(seedSnapsDirs, filepath.Base(kernelInfo.MountFile()))
 	err = os.Rename(kernelFn, kernelInSeed)
