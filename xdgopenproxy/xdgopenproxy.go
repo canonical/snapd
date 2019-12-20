@@ -27,37 +27,95 @@ import (
 	"github.com/godbus/dbus"
 )
 
-func Run(urlOrFile string) error {
-	bus, err := dbus.SessionBus()
-	if err != nil {
-		return err
-	}
-	defer bus.Close()
-	launcher := bus.Object("io.snapcraft.Launcher", "/io/snapcraft/Launcher")
-	return launch(launcher, urlOrFile)
+type bus interface {
+	Object(name string, objectPath dbus.ObjectPath) dbus.BusObject
+	Close() error
 }
 
-func launch(launcher dbus.BusObject, urlOrFile string) error {
-	if u, err := url.Parse(urlOrFile); err == nil {
-		if u.Scheme == "file" {
-			return openFile(launcher, u.Path)
-		} else if u.Scheme != "" {
-			return openUrl(launcher, urlOrFile)
-		}
-	}
-	return openFile(launcher, urlOrFile)
+var sessionBus = func() (bus, error) { return dbus.SessionBus() }
+
+type desktopLauncher interface {
+	openFile(path string) error
+	openURL(url string) error
 }
 
-func openUrl(launcher dbus.BusObject, url string) error {
-	return launcher.Call("io.snapcraft.Launcher.OpenURL", 0, url).Err
+type portalLauncher struct {
+	service dbus.BusObject
 }
 
-func openFile(launcher dbus.BusObject, filename string) error {
+func (p *portalLauncher) openFile(filename string) error {
 	fd, err := syscall.Open(filename, syscall.O_RDONLY, 0)
 	if err != nil {
 		return err
 	}
 	defer syscall.Close(fd)
 
-	return launcher.Call("io.snapcraft.Launcher.OpenFile", 0, "", dbus.UnixFD(fd)).Err
+	return p.service.Call("org.freedesktop.portal.OpenURI.OpenFile", 0, "", dbus.UnixFD(fd),
+		map[string]dbus.Variant{}).Err
+}
+
+func (p *portalLauncher) openURL(path string) error {
+	return p.service.Call("org.freedesktop.portal.OpenURI.OpenURI", 0, "", path,
+		map[string]dbus.Variant{}).Err
+}
+
+func newPortalLauncher(bus bus) (desktopLauncher, error) {
+	obj := bus.Object("org.freedesktop.portal.Desktop", "/org/freedesktop/portal/desktop")
+
+	err := obj.Call("org.freedesktop.DBus.Peer.Ping", 0).Err
+	if err != nil {
+		return nil, err
+	}
+
+	return &portalLauncher{service: obj}, nil
+}
+
+type snapcraftLauncher struct {
+	service dbus.BusObject
+}
+
+func (s *snapcraftLauncher) openFile(filename string) error {
+	fd, err := syscall.Open(filename, syscall.O_RDONLY, 0)
+	if err != nil {
+		return err
+	}
+	defer syscall.Close(fd)
+
+	return s.service.Call("io.snapcraft.Launcher.OpenFile", 0, "", dbus.UnixFD(fd)).Err
+}
+
+func (s *snapcraftLauncher) openURL(path string) error {
+	return s.service.Call("io.snapcraft.Launcher.OpenURL", 0, path).Err
+}
+
+func newSnapcraftLauncher(bus bus) desktopLauncher {
+	obj := bus.Object("io.snapcraft.Launcher", "/io/snapcraft/Launcher")
+
+	return &snapcraftLauncher{service: obj}
+}
+
+func Run(urlOrFile string) error {
+	sbus, err := sessionBus()
+	if err != nil {
+		return err
+	}
+
+	launcher, err := newPortalLauncher(sbus)
+	if err != nil {
+		launcher = newSnapcraftLauncher(sbus)
+	}
+
+	defer sbus.Close()
+	return launch(launcher, urlOrFile)
+}
+
+func launch(l desktopLauncher, urlOrFile string) error {
+	if u, err := url.Parse(urlOrFile); err == nil {
+		if u.Scheme == "file" {
+			return l.openFile(u.Path)
+		} else if u.Scheme != "" {
+			return l.openURL(urlOrFile)
+		}
+	}
+	return l.openFile(urlOrFile)
 }

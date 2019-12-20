@@ -19,4 +19,12 @@
 
 package xdgopenproxy
 
-var Launch = launch
+type Bus = bus
+
+func MockSessionBus(m func() (Bus, error)) (restore func()) {
+	old := sessionBus
+	sessionBus = m
+	return func() {
+		sessionBus = old
+	}
+}
