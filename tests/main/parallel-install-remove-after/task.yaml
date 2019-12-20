@@ -43,7 +43,7 @@ execute: |
 
     # regular instances work
     # shellcheck disable=SC2016
-    test-snapd-sh -c 'echo confined $SNAP_INSTANCE_NAME works'
+    test-snapd-sh.sh -c 'echo confined $SNAP_INSTANCE_NAME works'
     if is_classic_system ; then
         # shellcheck disable=SC2016
         test-snapd-classic-confinement.sh -c 'echo classic $SNAP_INSTANCE_NAME works'
@@ -57,7 +57,7 @@ execute: |
 
     # parallel instances works
     # shellcheck disable=SC2016
-    test-snapd-sh_foo -c 'echo confined $SNAP_INSTANCE_NAME works'
+    test-snapd-sh_foo.sh -c 'echo confined $SNAP_INSTANCE_NAME works'
     if is_classic_system ; then
         # shellcheck disable=SC2016
         test-snapd-classic-confinement_foo.sh -c 'echo classic $SNAP_INSTANCE_NAME works'
