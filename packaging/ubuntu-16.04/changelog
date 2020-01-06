@@ -152,7 +152,7 @@ snapd (2.43~pre1) xenial; urgency=medium
       test
     - cmd/snap-confine: add support for parallel instances of classic
       snaps, global mount ns initialization
-    - overlord: add kernel rollback accross reboots manager test and
+    - overlord: add kernel rollback across reboots manager test and
       fixes
     - o/devicestate: the basics of Core 20 firstboot support with test
     - asserts: support and parsing for slots-per-plug/plugs-per-slotSee
@@ -255,7 +255,7 @@ snapd (2.43~pre1) xenial; urgency=medium
     - overlord: set fake serial in TestRemodelSwitchToDifferentKernel
     - overlord/many: extend check snap callback to take snap container
     - recovery-tool: add sfdisk wrapper
-    - tests: launch the lxd images folowing the pattern
+    - tests: launch the lxd images following the pattern
       ubuntu:${VERSION_ID}
     - sandbox/cgroup: move freeze/thaw code
     - gadget: accept system-seed role and ubuntu-data label
