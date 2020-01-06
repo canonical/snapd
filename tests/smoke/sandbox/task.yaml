@@ -2,6 +2,8 @@ summary: Sandboxing of the snaps works
 
 restore: |
     rm -f /home/test/foo
+    # requied! in autopkgtest no suite restore is run at all
+    snap remove test-snapd-sh
 
 execute: |
     if [ "$(snap debug confinement)" != "strict" ]; then
