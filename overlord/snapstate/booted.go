@@ -55,10 +55,8 @@ func UpdateBootRevisions(st *state.State) error {
 
 	deviceCtx, err := DeviceCtx(st, nil, nil)
 	if err != nil {
-		if err == state.ErrNoState {
-			// too early anyway, no model
-			return nil
-		}
+		// if we have a kernel, we should have a model
+		return err
 	}
 
 	kernel, err := boot.GetCurrentBoot(snap.TypeKernel, deviceCtx)
