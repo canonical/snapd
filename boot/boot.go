@@ -144,10 +144,9 @@ func applicable(s snap.PlaceInfo, t snap.Type, dev Device) bool {
 
 // bootState exposes the boot state for a type of boot snap.
 type bootState interface {
-	// revisions retrieves the revisions for the current snap
-	// revision (which always be set) and the try snap revision
-	// (which might be not set). it also returns whether the snap
-	// is in "trying" status.
+	// revisions retrieves the revisions of the current snap and
+	// the try snap (only the latter might not be set), and
+	// whether the snap is in "trying" state.
 	revisions() (snap, try_snap *NameAndRevision, trying bool, err error)
 }
 
