@@ -2,9 +2,9 @@ summary: Check basic core20 system functionality
 
 execute: |
     echo "Check that the system snaps are there"
-    snap list | MATCH core20
-    snap list | MATCH snapd
-    if snap list | grep '^core +'; then
+    snap list core20
+    snap list snapd
+    if snap list core; then
         echo "The old core snap is installed but should not"
         exit 1
     fi
