@@ -196,14 +196,12 @@ void setup_devices_cgroup(const char *security_tag, struct snappy_udev *udev_s)
 	    || udev_s->tagname[udev_s->tagname_len] != '\0')
 		die("snappy_udev->tagname has invalid length");
 
+	sc_mkdir("/sys/fs/cgroup/devices", security_tag, 0, 0, 0755);
+
 	// create devices cgroup controller
 	char cgroup_dir[PATH_MAX] = { 0 };
-
 	sc_must_snprintf(cgroup_dir, sizeof(cgroup_dir),
 			 "/sys/fs/cgroup/devices/%s/", security_tag);
-
-	if (mkdir(cgroup_dir, 0755) < 0 && errno != EEXIST)
-		die("cannot create cgroup hierarchy %s", cgroup_dir);
 
 	// move ourselves into it
 	char cgroup_file[PATH_MAX] = { 0 };
