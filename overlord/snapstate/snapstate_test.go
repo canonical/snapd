@@ -2162,6 +2162,49 @@ confinement: strict
 	c.Check(snapst.Classic, Equals, false)
 }
 
+func (s *snapmgrTestSuite) TestInstallPathAsRefresh(c *C) {
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	snapstate.Set(s.state, "some-snap", &snapstate.SnapState{
+		Active: true,
+		Flags:  snapstate.Flags{DevMode: true},
+		Sequence: []*snap.SideInfo{
+			{RealName: "some-snap", SnapID: "some-snap-id", Revision: snap.R(1)},
+		},
+		Current:         snap.R(1),
+		SnapType:        "app",
+		TrackingChannel: "wibbly/stable",
+	})
+
+	mockSnap := makeTestSnap(c, `name: some-snap
+version: 1.0
+epoch: 1
+`)
+
+	ts, _, err := snapstate.InstallPath(s.state, &snap.SideInfo{RealName: "some-snap"}, mockSnap, "", "edge", snapstate.Flags{})
+	c.Assert(err, IsNil)
+
+	c.Assert(err, IsNil)
+
+	chg := s.state.NewChange("install", "install snap")
+	chg.AddAll(ts)
+
+	s.state.Unlock()
+	defer s.se.Stop()
+	s.settle(c)
+	s.state.Lock()
+
+	c.Assert(chg.Err(), IsNil)
+	c.Assert(chg.IsReady(), Equals, true)
+
+	// verify snap is *not* classic
+	var snapst snapstate.SnapState
+	err = snapstate.Get(s.state, "some-snap", &snapst)
+	c.Assert(err, IsNil)
+	c.Check(snapst.TrackingChannel, Equals, "wibbly/edge")
+}
+
 func (s *snapmgrTestSuite) TestParallelInstanceInstallNotAllowed(c *C) {
 	s.state.Lock()
 	defer s.state.Unlock()
@@ -6495,7 +6538,7 @@ func (s *snapmgrTestSuite) TestUpdateIgnoreValidationSticky(c *C) {
 			Action:       "refresh",
 			InstanceName: "some-snap",
 			SnapID:       "some-snap-id",
-			Channel:      "stable",
+			Channel:      "latest/stable",
 			Flags:        store.SnapActionEnforceValidation,
 		},
 		userID: 1,
@@ -15565,14 +15608,17 @@ func (s *snapmgrTestSuite) TestSnapManagerCanStandby(c *C) {
 }
 
 func (s *snapmgrTestSuite) TestResolveChannelPinnedTrack(c *C) {
-	for _, tc := range []struct {
+	type test struct {
 		snap        string
+		cur         string
 		new         string
 		exp         string
 		kernelTrack string
 		gadgetTrack string
 		err         string
-	}{
+	}
+
+	for i, tc := range []test{
 		// neither kernel nor gadget
 		{snap: "some-snap"},
 		{snap: "some-snap", new: "stable", exp: "stable"},
@@ -15608,10 +15654,13 @@ func (s *snapmgrTestSuite) TestResolveChannelPinnedTrack(c *C) {
 		// risk only defaults to pinned kernel track
 		{snap: "kernel", new: "stable", exp: "17/stable", kernelTrack: "17"},
 		{snap: "kernel", new: "edge", exp: "17/edge", kernelTrack: "17"},
+		// risk only defaults to current track
+		{snap: "some-snap", new: "stable", cur: "stable", exp: "stable"},
+		{snap: "some-snap", new: "stable", cur: "latest/stable", exp: "latest/stable"},
+		{snap: "some-snap", new: "stable", cur: "sometrack/edge", exp: "sometrack/stable"},
 	} {
-		c.Logf("tc: %+v", tc)
 		if tc.kernelTrack != "" && tc.gadgetTrack != "" {
-			c.Fatalf("setting both kernel and gadget tracks is not supported by the test")
+			c.Fatalf("%d: setting both kernel and gadget tracks is not supported by the test", i)
 		}
 		var model *asserts.Model
 		switch {
@@ -15624,13 +15673,14 @@ func (s *snapmgrTestSuite) TestResolveChannelPinnedTrack(c *C) {
 		}
 		deviceCtx := &snapstatetest.TrivialDeviceContext{DeviceModel: model}
 		s.state.Lock()
-		ch, err := snapstate.ResolveChannel(s.state, tc.snap, tc.new, deviceCtx)
+		ch, err := snapstate.ResolveChannel(s.state, tc.snap, tc.cur, tc.new, deviceCtx)
 		s.state.Unlock()
+		comment := Commentf("tc %d: %#v", i, tc)
 		if tc.err != "" {
-			c.Check(err, ErrorMatches, tc.err)
+			c.Check(err, ErrorMatches, tc.err, comment)
 		} else {
-			c.Check(err, IsNil)
-			c.Check(ch, Equals, tc.exp)
+			c.Check(err, IsNil, comment)
+			c.Check(ch, Equals, tc.exp, comment)
 		}
 	}
 }
