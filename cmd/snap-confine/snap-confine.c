@@ -354,13 +354,12 @@ int main(int argc, char **argv)
 	if (effective_uid != 0) {
 		die("need to run as root or suid");
 	}
-	// Make the effective group "root". This ensures that various files we
-	// create are not accidentally group-owned by the user invoking
-	// snap-confine.
-	if (setegid(0) != 0) {
-		die("setegid(0) failed");
+	// Make the effective group that of the calling user (that is, drop the
+	// setgid-granted root group). We re-raise to root group around specific
+	// operations.
+	if (setegid(real_gid) != 0) {
+		die("setegid(%d) failed", real_gid);
 	}
-
 
 	char *snap_context SC_CLEANUP(sc_cleanup_string) = NULL;
 	// Do no get snap context value if running a hook (we don't want to overwrite hook's SNAP_COOKIE)
