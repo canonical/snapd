@@ -79,11 +79,11 @@ static void setup_private_mount(const char *snap_name)
 	// unconditionally chowns/chmods them to appropriate values.
 	char snap_dir[PATH_MAX] = { 0 };
 	sc_must_snprintf(snap_dir, sizeof(snap_dir), "snap.%s", snap_name);
-	sc_mkdir("/tmp", snap_dir, 0, 0, 0700);
+	sc_mksubdir("/tmp", snap_dir, 0700, 0, 0);
 
 	char base_dir[MAX_BUF] = { 0 };
 	sc_must_snprintf(base_dir, sizeof(base_dir), "/tmp/%s", snap_dir);
-	sc_mkdir(base_dir, "tmp", 0, 0, 01777);
+	sc_mksubdir(base_dir, "tmp", 01777, 0, 0);
 
 	char tmp_dir[MAX_BUF] = { 0 };
 	sc_must_snprintf(tmp_dir, sizeof(tmp_dir), "%s/tmp", base_dir);
