@@ -75,49 +75,18 @@ static void setup_private_mount(const char *snap_name)
 	// is used as a bind-mounted /tmp directory.
 	//
 	// Because the directories are reused across invocations by distinct users
-	// and because the directories are trivially guessable, each invocation
+	// and because the directories are trivially guessable, the implementation
 	// unconditionally chowns/chmods them to appropriate values.
-	char base_dir[MAX_BUF] = { 0 };
-	char tmp_dir[MAX_BUF] = { 0 };
-	int base_dir_fd SC_CLEANUP(sc_cleanup_close) = -1;
-	int tmp_dir_fd SC_CLEANUP(sc_cleanup_close) = -1;
-	sc_must_snprintf(base_dir, sizeof(base_dir), "/tmp/snap.%s", snap_name);
-	sc_must_snprintf(tmp_dir, sizeof(tmp_dir), "%s/tmp", base_dir);
+	char snap_dir[PATH_MAX] = { 0 };
+	sc_must_snprintf(snap_dir, sizeof(snap_dir), "snap.%s", snap_name);
+	sc_mkdir("/tmp", snap_dir, 0, 0, 0700);
 
-	// Create /tmp/snap.$SNAP_NAME/ 0700 root.root. Ignore EEXIST since we want
-	// to reuse and we will open with O_NOFOLLOW, below.
-	if (mkdir(base_dir, 0700) < 0 && errno != EEXIST) {
-		die("cannot create base directory %s", base_dir);
-	}
-	base_dir_fd = open(base_dir,
-			   O_RDONLY | O_DIRECTORY | O_CLOEXEC | O_NOFOLLOW);
-	if (base_dir_fd < 0) {
-		die("cannot open base directory %s", base_dir);
-	}
-	if (fchmod(base_dir_fd, 0700) < 0) {
-		die("cannot chmod base directory %s to 0700", base_dir);
-	}
-	if (fchown(base_dir_fd, 0, 0) < 0) {
-		die("cannot chown base directory %s to root.root", base_dir);
-	}
-	// Create /tmp/snap.$SNAP_NAME/tmp 01777 root.root Ignore EEXIST since we
-	// want to reuse and we will open with O_NOFOLLOW, below.
-	if (mkdirat(base_dir_fd, "tmp", 01777) < 0 && errno != EEXIST) {
-		die("cannot create private tmp directory %s/tmp", base_dir);
-	}
-	tmp_dir_fd = openat(base_dir_fd, "tmp",
-			    O_RDONLY | O_DIRECTORY | O_CLOEXEC | O_NOFOLLOW);
-	if (tmp_dir_fd < 0) {
-		die("cannot open private tmp directory %s/tmp", base_dir);
-	}
-	if (fchmod(tmp_dir_fd, 01777) < 0) {
-		die("cannot chmod private tmp directory %s/tmp to 01777",
-		    base_dir);
-	}
-	if (fchown(tmp_dir_fd, 0, 0) < 0) {
-		die("cannot chown private tmp directory %s/tmp to root.root",
-		    base_dir);
-	}
+	char base_dir[MAX_BUF] = { 0 };
+	sc_must_snprintf(base_dir, sizeof(base_dir), "/tmp/%s", snap_dir);
+	sc_mkdir(base_dir, "tmp", 0, 0, 01777);
+
+	char tmp_dir[MAX_BUF] = { 0 };
+	sc_must_snprintf(tmp_dir, sizeof(tmp_dir), "%s/tmp", base_dir);
 	sc_do_mount(tmp_dir, "/tmp", NULL, MS_BIND, NULL);
 	sc_do_mount("none", "/tmp", NULL, MS_PRIVATE, NULL);
 }
