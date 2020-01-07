@@ -2,7 +2,8 @@
 Description=Automatically fetch and run repair assertions
 Documentation=man:snap(1)
 # don't run on classic
-ConditionKernelCommandLine=snap_core
+ConditionKernelCommandLine=|snap_core
+ConditionKernelCommandLine=|snapd_recovery_mode
 
 [Service]
 Type=oneshot
