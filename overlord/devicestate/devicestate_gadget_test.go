@@ -570,13 +570,13 @@ func (s *deviceMgrGadgetSuite) TestCurrentAndUpdateInfo(c *C) {
 	})
 
 	// pending update
-	update, err := devicestate.PendingGadgetInfo(snapsup)
+	update, err := devicestate.PendingGadgetInfo(snapsup, deviceCtx)
 	c.Assert(update, IsNil)
 	c.Assert(err, ErrorMatches, "cannot read candidate gadget snap details: cannot find installed snap .* .*/34/meta/snap.yaml")
 
 	ui := snaptest.MockSnapWithFiles(c, snapYaml, si, nil)
 
-	update, err = devicestate.PendingGadgetInfo(snapsup)
+	update, err = devicestate.PendingGadgetInfo(snapsup, deviceCtx)
 	c.Assert(update, IsNil)
 	c.Assert(err, ErrorMatches, "cannot read candidate snap gadget metadata: .*/34/meta/gadget.yaml: no such file or directory")
 
@@ -590,7 +590,7 @@ volumes:
 	// drop gadget.yaml for update snap
 	ioutil.WriteFile(filepath.Join(ui.MountDir(), "meta/gadget.yaml"), []byte(updateGadgetYaml), 0644)
 
-	update, err = devicestate.PendingGadgetInfo(snapsup)
+	update, err = devicestate.PendingGadgetInfo(snapsup, deviceCtx)
 	c.Assert(err, IsNil)
 	c.Assert(update, DeepEquals, &gadget.GadgetData{
 		Info: &gadget.Info{

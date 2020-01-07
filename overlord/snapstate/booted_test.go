@@ -406,5 +406,30 @@ func (bs *bootedSuite) TestWaitRestartKernel(c *C) {
 	bs.bootloader.SetBootKernel("kernel_1.snap")
 	err = snapstate.WaitRestart(task, snapsup)
 	c.Check(err, ErrorMatches, `cannot finish kernel installation, there was a rollback across reboot`)
+}
 
+func (bs *bootedSuite) TestWaitRestartEphemeralModeSkipsRollbackDetection(c *C) {
+	r := snapstatetest.MockDeviceModel(DefaultModel())
+	defer r()
+
+	st := bs.state
+	st.Lock()
+	defer st.Unlock()
+
+	task := st.NewTask("auto-connect", "...")
+
+	si := &snap.SideInfo{RealName: "kernel"}
+	snapsup := &snapstate.SnapSetup{SideInfo: si, Type: snap.TypeKernel}
+	snaptest.MockSnap(c, "name: kernel\ntype: kernel\nversion: 1", si)
+	// kernel snap, restarted, wrong core revision, rollback detected!
+	bs.bootloader.SetBootKernel("kernel_1.snap")
+	err := snapstate.WaitRestart(task, snapsup)
+	c.Check(err, ErrorMatches, `cannot finish kernel installation, there was a rollback across reboot`)
+
+	// but *not* in an ephemeral mode like "recover" - we skip the rollback
+	// detection here
+	r = snapstatetest.MockDeviceModelAndMode(DefaultModel(), "install")
+	defer r()
+	err = snapstate.WaitRestart(task, snapsup)
+	c.Check(err, IsNil)
 }

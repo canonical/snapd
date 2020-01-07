@@ -820,12 +820,6 @@ type MediaInfo struct {
 
 type MediaInfos []MediaInfo
 
-const ScreenshotsDeprecationNotice = `'screenshots' is deprecated; use 'media' instead. More info at https://forum.snapcraft.io/t/8086`
-
-func (mis MediaInfos) Screenshots() []ScreenshotInfo {
-	return []ScreenshotInfo{{Note: ScreenshotsDeprecationNotice}}
-}
-
 func (mis MediaInfos) IconURL() string {
 	for _, mi := range mis {
 		if mi.Type == "icon" {

@@ -40,8 +40,10 @@ restore: |
         exit
     fi
 
-    lxd.lxc stop my-ubuntu --force
-    lxd.lxc delete my-ubuntu
+    for cont_name in my-nesting-ubuntu my-ubuntu; do
+        lxd.lxc stop $cont_name --force
+        lxd.lxc delete $cont_name
+    done
 
     lxd-tool undo-lxd-mount-changes
     snap unset system experimental.refresh-app-awareness
@@ -77,37 +79,41 @@ execute: |
 
     # The snapd package we build as part of the tests will only run on the
     # distro we build on. So we need to launch the right ubuntu version.
+    # prep two containers, the my-ubuntu normal container and the 
+    # my-nesting-ubuntu nesting container
+
     . /etc/os-release
-    lxd.lxc launch "ubuntu:${VERSION_ID}" my-ubuntu
+    lxd.lxc launch --quiet "ubuntu:${VERSION_ID}" my-ubuntu
+    lxd.lxc launch --quiet "ubuntu:${VERSION_ID}" my-nesting-ubuntu -c security.nesting=true
 
-    echo "Ensure we can run things inside"
-    lxd.lxc exec my-ubuntu echo hello | MATCH hello
+    for cont_name in my-ubuntu my-nesting-ubuntu; do
+        echo "Ensure we can run things inside"
+        lxd.lxc exec $cont_name echo hello | MATCH hello
 
-    echo "Cleanup container"
-    lxd.lxc exec my-ubuntu -- apt autoremove --purge -y snapd ubuntu-core-launcher
+        echo "Cleanup container"
+        lxd.lxc exec $cont_name -- apt autoremove --purge -y snapd ubuntu-core-launcher
 
-    echo "Ensure apt is up-to-date"
-    lxd.lxc exec my-ubuntu -- apt update
+        echo "Ensure apt is up-to-date"
+        lxd.lxc exec $cont_name -- apt update
 
-    echo "Install snapd"
-    lxd.lxc exec my-ubuntu -- mkdir -p "$GOHOME"
-    lxd.lxc file push "$GOHOME"/snapd_*.deb "my-ubuntu/$GOHOME/"
-    lxd.lxc exec my-ubuntu -- apt install -y "$GOHOME"/snapd_*.deb
+        echo "Install snapd"
+        lxd.lxc exec $cont_name -- mkdir -p "$GOHOME"
+        lxd.lxc file push --quiet "$GOHOME"/snapd_*.deb "$cont_name/$GOHOME/"
+        lxd.lxc exec $cont_name -- apt install -y "$GOHOME"/snapd_*.deb
 
-    echo "Setting up proxy *inside* the container"
-    if [ -n "${http_proxy:-}" ]; then
-        lxd.lxc exec my-ubuntu -- sh -c "echo http_proxy=$http_proxy >> /etc/environment"
-    fi
-    if [ -n "${https_proxy:-}" ]; then
-        lxd.lxc exec my-ubuntu -- sh -c "echo https_proxy=$https_proxy >> /etc/environment"
-    fi
-    # Depending on test variant, enable refresh-app-awareness _inside_ to test
-    # the interaction between lxd and cgroup-based application tracking.
-    lxd.lxc exec my-ubuntu -- snap set system experimental.refresh-app-awareness=$REFRESH_APP_AWARENESS_INNER
-    lxd.lxc exec my-ubuntu -- systemctl daemon-reload
-    lxd.lxc exec my-ubuntu -- systemctl restart snapd.service
-    lxd.lxc exec my-ubuntu -- snap wait system seed.loaded
-    lxd.lxc exec my-ubuntu -- cat /etc/environment
+        echo "Setting up proxy *inside* the container"
+        if [ -n "${http_proxy:-}" ]; then
+            lxd.lxc exec $cont_name -- sh -c "echo http_proxy=$http_proxy >> /etc/environment"
+        fi
+        if [ -n "${https_proxy:-}" ]; then
+            lxd.lxc exec $cont_name -- sh -c "echo https_proxy=$https_proxy >> /etc/environment"
+        fi
+        lxd.lxc exec $cont_name -- snap set system experimental.refresh-app-awareness=$REFRESH_APP_AWARENESS_INNER
+        lxd.lxc exec $cont_name -- systemctl daemon-reload
+        lxd.lxc exec $cont_name -- systemctl restart snapd.service
+        lxd.lxc exec $cont_name -- snap wait system seed.loaded
+        lxd.lxc exec $cont_name -- cat /etc/environment
+    done
 
     # FIXME: ensure that the kernel running is recent enough, this
     #        will only work with an up-to-date xenial kernel (4.4.0-78+)
@@ -123,6 +129,18 @@ execute: |
     lxd.lxc exec my-ubuntu -- test-snapd-sh.sh -c 'echo from-the-inside' | MATCH from-the-inside
     echo "We can also remove snaps successfully"
     lxd.lxc exec my-ubuntu -- snap remove test-snapd-sh
+
+    # Ensure that we can run snapd as a snap inside a nested container
+
+    echo "Ensure we can use lxd as a snap inside lxd"
+    lxd.lxc exec my-nesting-ubuntu -- apt autoremove -y lxd
+    lxd.lxc exec my-nesting-ubuntu -- snap install lxd
+    echo "And we can run lxd containers inside the lxd container"
+    lxd.lxc exec my-nesting-ubuntu -- snap set lxd waitready.timeout=240
+    lxd.lxc exec my-nesting-ubuntu -- lxd waitready
+    lxd.lxc exec my-nesting-ubuntu -- lxd init --auto
+    lxd.lxc exec my-nesting-ubuntu -- lxd.lxc launch "ubuntu:${VERSION_ID}" my-inner-ubuntu
+    lxd.lxc exec my-nesting-ubuntu -- lxd.lxc exec my-inner-ubuntu -- echo "from-the-INSIDE-inside" | MATCH from-the-INSIDE-inside
 
     echo "Install lxd-demo server to exercise the lxd interface"
     snap install lxd-demo-server

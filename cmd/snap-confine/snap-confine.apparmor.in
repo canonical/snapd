@@ -548,6 +548,11 @@
 
     # Suppress noisy file_inherit denials (LP: #1850552) until LP: #1849753 is
     # fixed.
-    deny unix,
     deny /dev/shm/.org.chromium.Chromium.* rw,
+
+    # While snap-confine itself doesn't require unix rules and therefore all
+    # unix rules are implicitly denied, adding an explicit deny for unix to
+    # silence noisy denials breaks nested lxd. Until the cause is determined,
+    # do not use an explicit deny for unix. (LP: #1855355)
+    #deny unix,
 }

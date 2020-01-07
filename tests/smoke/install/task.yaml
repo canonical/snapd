@@ -9,16 +9,18 @@ debug: |
 restore: |
     rm -f stderr.log
     rm -f stdout.log
+    # requied! in autopkgtest no suite restore is run at all
+    snap remove test-snapd-sh
 
 execute: |
     #shellcheck source=tests/lib/systems.sh
     . "$TESTSLIB"/systems.sh
 
     echo "Ensure install from the store works"
-    snap install test-snapd-tools
+    snap install test-snapd-sh
 
     echo "Ensure that the snap can be run as root"
-    test-snapd-tools.echo hello > stdout.log 2> stderr.log
+    test-snapd-sh.sh -c 'echo hello' > stdout.log 2> stderr.log
     MATCH "^hello$" < stdout.log
     if is_cgroupv2; then
         # snap-confine issues a warning on a cgroupv2 system
@@ -32,7 +34,7 @@ execute: |
     fi
 
     echo "Ensure that the snap can be run as the user"
-    su -l -c "test-snapd-tools.echo hello > stdout.log 2> stderr.log" test
+    su -l -c "test-snapd-sh.sh -c 'echo hello' > stdout.log 2> stderr.log" test
     MATCH "^hello$" < stdout.log
     if is_cgroupv2; then
         # snap-confine issues a warning on a cgroupv2 system
@@ -46,7 +48,7 @@ execute: |
     fi
 
     echo "Ensure the snap is listed"
-    snap list | grep ^test-snapd-tools
+    snap list | grep ^test-snapd-sh
 
     echo "Ensure a change was generated for the install"
-    snap changes | MATCH 'Install "test-snapd-tools" snap'
+    snap changes | MATCH 'Install "test-snapd-sh" snap'

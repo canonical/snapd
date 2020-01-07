@@ -28,6 +28,9 @@ import (
 	"github.com/snapcore/snapd/i18n"
 	"github.com/snapcore/snapd/snap"
 	"github.com/snapcore/snapd/snap/pack"
+
+	// for SanitizePlugsSlots
+	"github.com/snapcore/snapd/interfaces/builtin"
 )
 
 type packCmd struct {
@@ -77,6 +80,10 @@ func init() {
 }
 
 func (x *packCmd) Execute([]string) error {
+	// plug/slot sanitization is disabled (no-op) by default at the package level for "snap" command,
+	// for "snap pack" however we want real validation.
+	snap.SanitizePlugsSlots = builtin.SanitizePlugsSlots
+
 	if x.Positional.TargetDir != "" && x.Filename != "" && filepath.IsAbs(x.Filename) {
 		return fmt.Errorf(i18n.G("you can't specify an absolute filename while also specifying target dir."))
 	}
@@ -89,7 +96,7 @@ func (x *packCmd) Execute([]string) error {
 	}
 
 	if x.CheckSkeleton {
-		err := pack.CheckSkeleton(x.Positional.SnapDir)
+		err := pack.CheckSkeleton(Stderr, x.Positional.SnapDir)
 		if err == snap.ErrMissingPaths {
 			return nil
 		}

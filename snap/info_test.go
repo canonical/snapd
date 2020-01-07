@@ -1608,8 +1608,6 @@ func (s *infoSuite) TestSortByTypeAgain(c *C) {
 }
 
 func (s *infoSuite) TestMedia(c *C) {
-	c.Check(snap.MediaInfos{}.Screenshots(), DeepEquals,
-		[]snap.ScreenshotInfo{{Note: snap.ScreenshotsDeprecationNotice}})
 	c.Check(snap.MediaInfos{}.IconURL(), Equals, "")
 
 	media := snap.MediaInfos{
@@ -1628,8 +1626,6 @@ func (s *infoSuite) TestMedia(c *C) {
 	}
 
 	c.Check(media.IconURL(), Equals, "https://example.com/icon.png")
-	c.Check(media.Screenshots(), DeepEquals,
-		[]snap.ScreenshotInfo{{Note: snap.ScreenshotsDeprecationNotice}})
 }
 
 func (s *infoSuite) TestSortApps(c *C) {

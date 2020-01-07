@@ -37,7 +37,11 @@ type Modeenv struct {
 	Mode           string
 	RecoverySystem string
 	Base           string
-	Kernel         string
+	// XXX: we may need to revisit setting the kernel in modeenv
+	Kernel string
+
+	// read is set to true when a modenv was read successfully
+	read bool
 }
 
 func ReadModeenv(rootdir string) (*Modeenv, error) {
@@ -56,7 +60,13 @@ func ReadModeenv(rootdir string) (*Modeenv, error) {
 		RecoverySystem: recoverySystem,
 		Base:           base,
 		Kernel:         kernel,
+		read:           true,
 	}, nil
+}
+
+// Unset returns true if no modeenv file was read (yet)
+func (m *Modeenv) Unset() bool {
+	return !m.read
 }
 
 func (m *Modeenv) Write(rootdir string) error {
