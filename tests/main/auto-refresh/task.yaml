@@ -1,5 +1,8 @@
 summary: Check that auto-refresh works
 
+# TODO:UC20: enable for UC20 once the real model is used
+systems: [-ubuntu-core-2*]
+
 environment:
     SNAP_NAME/regular: test-snapd-tools
     SNAP_NAME/parallel: test-snapd-tools_instance

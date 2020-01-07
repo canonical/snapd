@@ -6,8 +6,7 @@ details: |
     reporting "snapd is about to reboot the system"
 
 # the test is only meaningful on core devices
-# TODO:UC20: enable for UC20
-systems: [ubuntu-core-1*]
+systems: [ubuntu-core-*]
 
 execute: |
     #shellcheck source=tests/lib/journalctl.sh
@@ -18,7 +17,10 @@ execute: |
     TARGET_SNAP_NAME=core
     if is_core18_system; then
         TARGET_SNAP_NAME=core18
-    fi    
+    fi
+    if is_core20_system; then
+        TARGET_SNAP_NAME=core20
+    fi
 
     # After installing a new version of the core/core18 snap the system is rebooted
     if [ "$SPREAD_REBOOT" = 0 ]; then

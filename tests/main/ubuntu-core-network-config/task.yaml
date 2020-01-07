@@ -1,8 +1,7 @@
 summary: Check that `snap set {system,core} network.disable-ipv6` works
 
 # the test is only meaningful on core devices
-# TODO:UC20: enable for UC20
-systems: [ubuntu-core-1*]
+systems: [ubuntu-core-*]
 
 environment:
     snap_nick/system: system

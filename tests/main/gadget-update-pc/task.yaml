@@ -7,8 +7,7 @@ environment:
     START_REVISION: 1000
 
 # the test is only meaningful on core devices
-# TODO:UC20: enable for UC20
-systems: [ubuntu-core-1*]
+systems: [ubuntu-core-*]
 
 prepare: |
     # external backends do not enable test keys

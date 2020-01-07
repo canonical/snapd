@@ -39,7 +39,7 @@ execute: |
         REV=$SIDELOAD_REV
         PUBLISHER=-
 
-    elif [ "$SPREAD_BACKEND" = "google" -o "$SPREAD_BACKEND" == "qemu" ] && [ "$SPREAD_SYSTEM" = "ubuntu-core-18-64" ]; then
+    elif [ "$SPREAD_BACKEND" = "google" -o "$SPREAD_BACKEND" == "qemu" ] && [ "$SPREAD_SYSTEM" = "ubuntu-core-18-64" -o "$SPREAD_SYSTEM" = "ubuntu-core-20-64" ]; then
         echo "With customized images the snapd snap is sideloaded"
         NAME=snapd
         VERSION=$SNAPD_GIT_VERSION
@@ -56,7 +56,7 @@ execute: |
         echo "On the external device the core snap tested could be in any track"
         TRACKING="(latest/)?(edge|beta|candidate|stable)"
 
-    elif [ "$SPREAD_BACKEND" = "external" ] && [[ "$SPREAD_SYSTEM" == ubuntu-core-18-* ]]; then
+    elif [ "$SPREAD_BACKEND" = "external" ] && ([[ "$SPREAD_SYSTEM" == ubuntu-core-18-* ]] || [[ "$SPREAD_SYSTEM" == ubuntu-core-20-* ]]); then
         echo "On the external device the snapd snap tested could be in any track"
         NAME=snapd
         VERSION=$SNAPD_GIT_VERSION

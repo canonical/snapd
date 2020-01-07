@@ -1,6 +1,7 @@
 summary: Check that auto-refresh is retried after a permanent network error
 
-systems: [-ubuntu-14.04-*]
+# TODO:UC20: enable for UC20 once the real model is used
+systems: [-ubuntu-14.04-*, -ubuntu-core-2*]
 
 prepare: |
     snap install --devmode jq

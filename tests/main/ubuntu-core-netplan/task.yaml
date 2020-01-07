@@ -7,8 +7,7 @@ environment:
     NETPLAN: io.netplan.Netplan
 
 # the test is only meaningful on core devices
-# TODO:UC20: enable for UC20
-systems: [ubuntu-core-1*]
+systems: [ubuntu-core-*]
 
 prepare: |
     snap install test-snapd-netplan-apply --edge

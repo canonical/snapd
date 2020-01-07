@@ -3,8 +3,7 @@ summary: |
    for first boot snaps
 
 # the test is only meaningful on core devices
-# TODO:UC20: enable for UC20
-systems: [ubuntu-core-1*]
+systems: [ubuntu-core-*]
 
 environment:
     SERVICE/rsyslog: rsyslog
