@@ -224,9 +224,8 @@ static void sc_bootstrap_mount_namespace(const struct sc_mount_config *config)
 	// disabling the "is_bidirectional" flag as can be seen below.
 	for (const struct sc_mount * mnt = config->mounts; mnt->path != NULL;
 	     mnt++) {
-		if (mnt->is_bidirectional && mkdir(mnt->path, 0755) < 0 &&
-		    errno != EEXIST) {
-			die("cannot create %s", mnt->path);
+		if (mnt->is_bidirectional) {
+			sc_mkdir(mnt->path, 0755, 0, 0);
 		}
 		sc_must_snprintf(dst, sizeof dst, "%s/%s", scratch_dir,
 				 mnt->path);
@@ -389,10 +388,7 @@ static void sc_bootstrap_mount_namespace(const struct sc_mount_config *config)
 	// of packaging now so perhaps this code can be removed later.
 	if (access(SC_HOSTFS_DIR, F_OK) != 0) {
 		debug("creating missing hostfs directory");
-		if (mkdir(SC_HOSTFS_DIR, 0755) != 0) {
-			die("cannot perform operation: mkdir %s",
-			    SC_HOSTFS_DIR);
-		}
+		sc_mkdir(SC_HOSTFS_DIR, 0755, 0, 0);
 	}
 	// Ensure that hostfs isgroup owned by root. We may have (now or earlier)
 	// created the directory as the user who first ran a snap on a given
