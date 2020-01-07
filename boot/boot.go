@@ -365,7 +365,7 @@ func makeBootable16(model *asserts.Model, rootdir string, bootWith *BootableSet)
 	if err != nil {
 		return err
 	}
-	if err := bl.ExtractKernelAssets(bootWith.Kernel, kernelf, nil); err != nil {
+	if err := bl.ExtractKernelAssets(bootWith.Kernel, kernelf); err != nil {
 		return err
 	}
 	setBoot("snap_kernel", bootWith.KernelPath)
@@ -463,8 +463,9 @@ func makeBootable20RunMode(model *asserts.Model, rootdir string, bootWith *Boota
 		// the same as ubuntu-seed.
 		// TODO:UC20: need a better name than recovery
 		Recovery: true,
-		// extract kernel assets to the ubuntu-boot partition
-		KernelExtractionDir: ubuntuBootPartition,
+
+		// extract efi kernel assets to the ubuntu-boot partition
+		ExtractedRunKernelImage: true,
 	}
 	bl, err := bootloader.Find(ubuntuBootPartition, opts)
 	if err != nil {
@@ -478,9 +479,23 @@ func makeBootable20RunMode(model *asserts.Model, rootdir string, bootWith *Boota
 		return err
 	}
 
+	err = bl.ExtractKernelAssets(bootWith.Kernel, kernelf)
+	if err != nil {
+		return err
+	}
+
 	// TODO:UC20: support non uefi kernel assets
-	// for now we will only support kernel.efi
-	err = bl.ExtractKernelAssets(bootWith.Kernel, kernelf, []string{"kernel.efi"})
+	extractedKernelLocation := filepath.Join(
+		"EFI/ubuntu",
+		filepath.Base(bootWith.KernelPath),
+		"kernel.efi",
+	)
+
+	// add symlink from ubuntuBootPartition/kernel.efi to
+	// <ubuntu-boot>/EFI/ubuntu/<snap-name>.snap/kernel.efi
+	// so that we are consistent between uc16/uc18 and uc20 with where we
+	// extract kernels
+	err = os.Symlink(extractedKernelLocation, filepath.Join(ubuntuBootPartition, "kernel.efi"))
 	if err != nil {
 		return err
 	}

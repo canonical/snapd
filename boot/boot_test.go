@@ -653,9 +653,14 @@ version: 5.0
 	// kernel_status=try, which AFAICT this will still match
 	c.Check(mockBootGrubenv, testutil.FileContains, "kernel_status=")
 
-	// check that we have the extracted kernel in the right place
-	extractedKernel := filepath.Join(ubuntuBootPartition, "kernel.efi")
+	// check that we have the extracted kernel in the right places, both in the
+	// old uc16/uc18 location and the new ubuntu-boot partition root
+	extractedKernel := filepath.Join(mockBootGrubDir, "pc-kernel_5.snap", "kernel.efi")
 	c.Check(extractedKernel, testutil.FilePresent)
+
+	// the new uc20 location
+	extractedKernelSymlink := filepath.Join(ubuntuBootPartition, "kernel.efi")
+	c.Check(extractedKernelSymlink, testutil.FilePresent)
 
 	// ensure modeenv looks correct
 	ubuntuDataModeEnvPath := filepath.Join(rootdir, "/run/mnt/ubuntu-data/system-data/var/lib/snapd/modeenv")

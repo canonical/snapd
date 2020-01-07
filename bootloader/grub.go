@@ -41,7 +41,7 @@ type grub struct {
 
 	basedir string
 
-	kernelAssetTargetDir string
+	uefiRunKernelExtraction bool
 }
 
 // newGrub create a new Grub bootloader object
@@ -56,7 +56,7 @@ func newGrub(rootdir string, opts *Options) RecoveryAwareBootloader {
 		return nil
 	}
 	if opts != nil {
-		g.kernelAssetTargetDir = opts.KernelExtractionDir
+		g.uefiRunKernelExtraction = opts.ExtractedRunKernelImage
 	}
 
 	return g
@@ -137,25 +137,23 @@ func (g *grub) SetBootVars(values map[string]string) error {
 	return env.Save()
 }
 
-func (g *grub) ExtractKernelAssets(s snap.PlaceInfo, snapf snap.Container, assets []string) error {
+func (g *grub) ExtractKernelAssets(s snap.PlaceInfo, snapf snap.Container) error {
 	// default kernel assets are:
 	// - kernel.img
 	// - initrd.img
 	// - dtbs/*
-	if len(assets) == 0 {
+	var assets []string
+	if g.uefiRunKernelExtraction {
+		assets = []string{"kernel.efi"}
+	} else {
 		assets = []string{"kernel.img", "initrd.img", "dtbs/*"}
 	}
-	targetDir := ""
-	if g.kernelAssetTargetDir != "" {
-		targetDir = g.kernelAssetTargetDir
-	} else {
-		targetDir = filepath.Join(g.dir(), filepath.Base(s.MountFile()))
-	}
+	targetDir := filepath.Join(g.dir(), filepath.Base(s.MountFile()))
 
 	// extraction can be forced through either a special file in the kernel snap
 	// or through an option in the bootloader
 	_, err := snapf.ReadFile("meta/force-kernel-extraction")
-	if g.kernelAssetTargetDir != "" || err == nil {
+	if g.uefiRunKernelExtraction || err == nil {
 		return extractKernelAssetsToBootDir(
 			targetDir,
 			s,

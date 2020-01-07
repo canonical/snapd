@@ -46,8 +46,8 @@ type Options struct {
 	// UC16/18 do not have a recovery partition.
 	Recovery bool
 
-	// KernelExtractionDir is where to extract the kernel assets
-	KernelExtractionDir string
+	// ExtractedRunKernelImage is whether to force kernel asset extraction
+	ExtractedRunKernelImage bool
 }
 
 // Bootloader provides an interface to interact with the system
@@ -71,7 +71,7 @@ type Bootloader interface {
 	InstallBootConfig(gadgetDir string, opts *Options) (ok bool, err error)
 
 	// ExtractKernelAssets extracts kernel assets from the given kernel snap
-	ExtractKernelAssets(s snap.PlaceInfo, snapf snap.Container, assets []string) error
+	ExtractKernelAssets(s snap.PlaceInfo, snapf snap.Container) error
 
 	// RemoveKernelAssets removes the assets for the given kernel snap.
 	RemoveKernelAssets(s snap.PlaceInfo) error

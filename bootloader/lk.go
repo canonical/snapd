@@ -139,7 +139,7 @@ func (l *lk) SetBootVars(values map[string]string) error {
 // kernel assets are extracted to other (free) boot partition
 // in case this function is called as part of image creation,
 // boot image is extracted to the file
-func (l *lk) ExtractKernelAssets(s snap.PlaceInfo, snapf snap.Container, assets []string) error {
+func (l *lk) ExtractKernelAssets(s snap.PlaceInfo, snapf snap.Container) error {
 	blobName := filepath.Base(s.MountFile())
 
 	logger.Debugf("ExtractKernelAssets (%s)", blobName)

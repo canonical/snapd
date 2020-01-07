@@ -140,5 +140,5 @@ func (k *coreKernel) ExtractKernelAssets(snapf snap.Container) error {
 	}
 
 	// ask bootloader to extract the kernel assets if needed
-	return bootloader.ExtractKernelAssets(k.s, snapf, nil)
+	return bootloader.ExtractKernelAssets(k.s, snapf)
 }
