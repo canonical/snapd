@@ -41,7 +41,8 @@
 // note: if the parent dir changes to something other than
 // the current /var/lib/snapd/lib then sc_mkdir_and_mount_and_bind
 // and sc_mkdir_and_mount_and_bind need updating.
-#define SC_LIB "/var/lib/snapd/lib"
+#define SC_SNAPD_STATE_DIR "/var/lib/snapd"
+#define SC_LIB SC_SNAPD_STATE_DIR "/lib"
 #define SC_LIBGL_DIR   SC_LIB "/gl"
 #define SC_LIBGL32_DIR SC_LIB "/gl32"
 #define SC_VULKAN_DIR  SC_LIB "/vulkan"
@@ -261,15 +262,10 @@ static void sc_mkdir_and_mount_and_glob_files(const char *rootfs_dir,
 	sc_must_snprintf(buf, sizeof(buf), "%s%s", rootfs_dir, tgt_dir);
 	const char *libgl_dir = buf;
 
-	int res = mkdir(libgl_dir, 0755);
-	if (res != 0 && errno != EEXIST) {
-		die("cannot create tmpfs target %s", libgl_dir);
-	}
-	if (res == 0 && (chown(libgl_dir, 0, 0) < 0)) {
-		// Adjust the ownership only if we created the directory.
-		die("cannot change ownership of %s", libgl_dir);
-	}
-
+	/* Note that in practice the target directory is not a full path but indeed
+	 * a single directory. This makes plain, non-recursive mkdir applicable
+	 * here. */
+	sc_mkdir(rootfs_dir, tgt_dir, 0, 0, 0755);
 	debug("mounting tmpfs at %s", libgl_dir);
 	if (mount("none", libgl_dir, "tmpfs", MS_NODEV | MS_NOEXEC, NULL) != 0) {
 		die("cannot mount tmpfs at %s", libgl_dir);
@@ -527,14 +523,7 @@ void sc_mount_nvidia_driver(const char *rootfs_dir)
 		return;
 	}
 
-	int res = mkdir(SC_LIB, 0755);
-	if (res != 0 && errno != EEXIST) {
-		die("cannot create " SC_LIB);
-	}
-	if (res == 0 && (chown(SC_LIB, 0, 0) < 0)) {
-		// Adjust the ownership only if we created the directory.
-		die("cannot change ownership of " SC_LIB);
-	}
+	sc_mkdir(SC_SNAPD_STATE_DIR, "lib", 0, 0, 0755);
 #ifdef NVIDIA_MULTIARCH
 	sc_mount_nvidia_driver_multiarch(rootfs_dir);
 #endif				// ifdef NVIDIA_MULTIARCH
