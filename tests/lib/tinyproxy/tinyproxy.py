@@ -1,4 +1,4 @@
-#!/usr/bin/python3
+#!/usr/bin/python3 -u
 
 # Tiny HTTP Proxy. Based on the work of SUZUKI Hisao.
 #
@@ -23,7 +23,7 @@ class ProxyHandler (http.server.BaseHTTPRequestHandler):
         sys.stderr.flush()
 
     def handle(self):
-        (ip, port) =  self.client_address
+        (ip, port) = self.client_address
         super().handle()
 
     def _connect_to(self, netloc, soc):
@@ -109,8 +109,8 @@ class ProxyHandler (http.server.BaseHTTPRequestHandler):
 
     do_HEAD = do_GET
     do_POST = do_GET
-    do_PUT  = do_GET
-    do_DELETE=do_GET
+    do_PUT = do_GET
+    do_DELETE = do_GET
 
 
 def maybe_sd_notify(s: str) -> None:
@@ -130,6 +130,6 @@ class ThreadingHTTPServer (socketserver.ThreadingMixIn,
 
 
 if __name__ == '__main__':
-    port=3128
+    port = 3128
     print("starting tinyproxy on port {}".format(port))
     http.server.test(ProxyHandler, ThreadingHTTPServer, port=port)

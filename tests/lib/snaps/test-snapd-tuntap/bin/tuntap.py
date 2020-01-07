@@ -11,7 +11,7 @@ from typing import Iterable
 
 def if_open(dev: str) -> int:
     TUNSETIFF = 0x400454ca
-    TUNSETOWNER = TUNSETIFF + 2
+    # TUNSETOWNER = TUNSETIFF + 2
     IFF_TUN = 0x0001
     IFF_TAP = 0x0002
     IFF_NO_PI = 0x1000

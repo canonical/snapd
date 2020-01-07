@@ -11,8 +11,6 @@ import subprocess
 import sys
 import tempfile
 
-from typing import Type
-
 
 def read_gpio_pin(read_fd: int) -> str:
     """

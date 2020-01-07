@@ -7,8 +7,8 @@ import dbus
 import dbus.mainloop.glib
 from gi.repository import GLib
 
-class Client:
 
+class Client:
     def __init__(self, bus, main_loop):
         self._bus = bus
         self._main_loop = main_loop

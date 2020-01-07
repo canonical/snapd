@@ -1,6 +1,5 @@
-#!/usr/bin/python3
+#!/usr/bin/python3 -u
 
-import os
 import sys
 
 import dbus.service
@@ -14,6 +13,7 @@ APP_CHOOSER_IFACE = "org.freedesktop.impl.portal.AppChooser"
 FILE_CHOOSER_IFACE = "org.freedesktop.impl.portal.FileChooser"
 SCREENSHOT_IFACE = "org.freedesktop.impl.portal.Screenshot"
 
+
 class PortalImpl(dbus.service.Object):
     def __init__(self, connection, object_path, config):
         super(PortalImpl, self).__init__(connection, object_path)
@@ -22,14 +22,18 @@ class PortalImpl(dbus.service.Object):
     @dbus.service.method(dbus_interface=FILE_CHOOSER_IFACE,
                          in_signature="osssa{sv}", out_signature="ua{sv}")
     def OpenFile(self, handle, app_id, parent_window, title, options):
-        return (0, dict(uris=dbus.Array(["file:///tmp/file-to-read.txt"], signature="s"),
-                        writable=False))
+        return (0, dict(
+            uris=dbus.Array(["file:///tmp/file-to-read.txt"], signature="s"),
+            writable=False)
+        )
 
     @dbus.service.method(dbus_interface=FILE_CHOOSER_IFACE,
                          in_signature="osssa{sv}", out_signature="ua{sv}")
     def SaveFile(self, handle, app_id, parent_window, title, options):
-        return (0, dict(uris=dbus.Array(["file:///tmp/file-to-write.txt"], signature="s"),
-                        writable=True))
+        return (0, dict(
+            uris=dbus.Array(["file:///tmp/file-to-write.txt"], signature="s"),
+            writable=True)
+        )
 
     @dbus.service.method(dbus_interface=SCREENSHOT_IFACE,
                          in_signature="ossa{sv}", out_signature="ua{sv}")
@@ -65,6 +69,7 @@ def main(argv):
         do_not_queue=True)
 
     main_loop.run()
+
 
 if __name__ == "__main__":
     sys.exit(main(sys.argv))
