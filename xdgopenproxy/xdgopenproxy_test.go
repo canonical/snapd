@@ -28,6 +28,7 @@ import (
 	"path/filepath"
 	"syscall"
 	"testing"
+	"time"
 
 	"github.com/godbus/dbus"
 
@@ -44,46 +45,59 @@ var _ = Suite(&xdgSnapcraftLauncherOpenSuite{})
 
 type busObj struct{ name, path string }
 
-type fakeBus func(name string, objectPath dbus.ObjectPath) dbus.BusObject
+// type fakeBus func(name string, objectPath dbus.ObjectPath) dbus.BusObject
+type fakeBus struct {
+	c       *C
+	mocks   map[busObj]fakeBusObject
+	signals chan chan<- *dbus.Signal
+}
 
 func (b fakeBus) Object(name string, objectPath dbus.ObjectPath) dbus.BusObject {
-	return b(name, objectPath)
+	fbo, ok := b.mocks[busObj{name, string(objectPath)}]
+	b.c.Assert(ok, Equals, true, Commentf("unexpected bus object: %v %v", name, objectPath))
+	return fbo.atPath(string(objectPath))
 }
 
 func (b fakeBus) Close() error { return nil }
 
-func unsupportedFakeBusObject() fakeBusObject {
-	return fakeBusObject(func(method string, args ...interface{}) error {
-		return fmt.Errorf("not supported")
+func (b fakeBus) Signal(ch chan<- *dbus.Signal)                      { b.signals <- ch }
+func (b fakeBus) RemoveSignal(ch chan<- *dbus.Signal)                {}
+func (b fakeBus) AddMatchSignal(option ...dbus.MatchOption) error    { return nil }
+func (b fakeBus) RemoveMatchSignal(option ...dbus.MatchOption) error { return nil }
+
+func noSuchObjectFake() fakeBusObject {
+	return newFakeBusObject(func(method string, args ...interface{}) ([]interface{}, error) {
+		return nil, &dbus.ErrMsgNoObject
 	})
 }
 
-func setupFakeBus(c *C, objs map[busObj]fakeBusObject) (restore func()) {
+func setupFakeBus(c *C, objs map[busObj]fakeBusObject) (fake *fakeBus, restore func()) {
+	f := fakeBus{
+		c:       c,
+		mocks:   objs,
+		signals: make(chan chan<- *dbus.Signal, 1),
+	}
 	restore = xdgopenproxy.MockSessionBus(func() (xdgopenproxy.Bus, error) {
-		return fakeBus(func(name string, objectPath dbus.ObjectPath) dbus.BusObject {
-			fbo, ok := objs[busObj{name, string(objectPath)}]
-			c.Assert(ok, Equals, true, Commentf("unexpected bus object: %v %v", name, objectPath))
-			return fbo
-		}), nil
+		return &f, nil
 	})
-	return restore
+	return &f, restore
 
 }
 
-func setupBusWithSnapcraftLauncher(c *C, obj fakeBusObject) (restore func()) {
+func setupBusWithSnapcraftLauncher(c *C, obj fakeBusObject) (fake *fakeBus, restore func()) {
 	return setupFakeBus(c, map[busObj]fakeBusObject{
 		{"io.snapcraft.Launcher", "/io/snapcraft/Launcher"}:                   obj,
-		{"org.freedesktop.portal.Desktop", "/org/freedesktop/portal/desktop"}: unsupportedFakeBusObject(),
+		{"org.freedesktop.portal.Desktop", "/org/freedesktop/portal/desktop"}: noSuchObjectFake(),
 	})
 }
 
 func (s *xdgSnapcraftLauncherOpenSuite) TestOpenURL(c *C) {
-	launcher := fakeBusObject(func(method string, args ...interface{}) error {
+	launcher := newFakeBusObject(func(method string, args ...interface{}) ([]interface{}, error) {
 		c.Check(method, Equals, "io.snapcraft.Launcher.OpenURL")
 		c.Check(args, DeepEquals, []interface{}{"http://example.org"})
-		return nil
+		return nil, nil
 	})
-	restore := setupBusWithSnapcraftLauncher(c, launcher)
+	_, restore := setupBusWithSnapcraftLauncher(c, launcher)
 	defer restore()
 
 	c.Check(xdgopenproxy.Run("http://example.org"), IsNil)
@@ -94,15 +108,15 @@ func (s *xdgSnapcraftLauncherOpenSuite) TestOpenFile(c *C) {
 	c.Assert(ioutil.WriteFile(path, []byte("Hello world"), 0644), IsNil)
 
 	called := false
-	launcher := fakeBusObject(func(method string, args ...interface{}) error {
+	launcher := newFakeBusObject(func(method string, args ...interface{}) ([]interface{}, error) {
 		c.Check(method, Equals, "io.snapcraft.Launcher.OpenFile")
 		c.Assert(args, HasLen, 2)
 		c.Check(args[0], Equals, "")
 		c.Check(fdMatchesFile(int(args[1].(dbus.UnixFD)), path), IsNil)
 		called = true
-		return nil
+		return nil, nil
 	})
-	restore := setupBusWithSnapcraftLauncher(c, launcher)
+	_, restore := setupBusWithSnapcraftLauncher(c, launcher)
 	defer restore()
 
 	c.Check(xdgopenproxy.Run(path), IsNil)
@@ -114,16 +128,16 @@ func (s *xdgSnapcraftLauncherOpenSuite) TestOpenFileURL(c *C) {
 	c.Assert(ioutil.WriteFile(path, []byte("Hello world"), 0644), IsNil)
 
 	called := false
-	launcher := fakeBusObject(func(method string, args ...interface{}) error {
+	launcher := newFakeBusObject(func(method string, args ...interface{}) ([]interface{}, error) {
 		c.Check(method, Equals, "io.snapcraft.Launcher.OpenFile")
 		c.Assert(args, HasLen, 2)
 		c.Check(args[0], Equals, "")
 		c.Check(fdMatchesFile(int(args[1].(dbus.UnixFD)), path), IsNil)
 		called = true
-		return nil
+		return nil, nil
 	})
 
-	restore := setupBusWithSnapcraftLauncher(c, launcher)
+	_, restore := setupBusWithSnapcraftLauncher(c, launcher)
 	defer restore()
 
 	u := url.URL{Scheme: "file", Path: path}
@@ -135,15 +149,15 @@ func (s *xdgSnapcraftLauncherOpenSuite) TestOpenDir(c *C) {
 	dir := c.MkDir()
 
 	called := false
-	launcher := fakeBusObject(func(method string, args ...interface{}) error {
+	launcher := newFakeBusObject(func(method string, args ...interface{}) ([]interface{}, error) {
 		c.Check(method, Equals, "io.snapcraft.Launcher.OpenFile")
 		c.Assert(args, HasLen, 2)
 		c.Check(args[0], Equals, "")
 		c.Check(fdMatchesFile(int(args[1].(dbus.UnixFD)), dir), IsNil)
 		called = true
-		return nil
+		return nil, nil
 	})
-	restore := setupBusWithSnapcraftLauncher(c, launcher)
+	_, restore := setupBusWithSnapcraftLauncher(c, launcher)
 	defer restore()
 
 	c.Check(xdgopenproxy.Run(dir), IsNil)
@@ -153,11 +167,11 @@ func (s *xdgSnapcraftLauncherOpenSuite) TestOpenDir(c *C) {
 func (s *xdgSnapcraftLauncherOpenSuite) TestOpenMissingFile(c *C) {
 	path := filepath.Join(c.MkDir(), "no-such-file.txt")
 
-	launcher := fakeBusObject(func(method string, args ...interface{}) error {
+	launcher := newFakeBusObject(func(method string, args ...interface{}) ([]interface{}, error) {
 		c.Error("unexpected D-Bus call")
-		return nil
+		return nil, nil
 	})
-	restore := setupBusWithSnapcraftLauncher(c, launcher)
+	_, restore := setupBusWithSnapcraftLauncher(c, launcher)
 	defer restore()
 
 	c.Check(xdgopenproxy.Run(path), ErrorMatches, "no such file or directory")
@@ -172,11 +186,11 @@ func (s *xdgSnapcraftLauncherOpenSuite) TestOpenUnreadableFile(c *C) {
 	c.Assert(ioutil.WriteFile(path, []byte("Hello world"), 0644), IsNil)
 	c.Assert(os.Chmod(path, 0), IsNil)
 
-	launcher := fakeBusObject(func(method string, args ...interface{}) error {
+	launcher := newFakeBusObject(func(method string, args ...interface{}) ([]interface{}, error) {
 		c.Error("unexpected D-Bus call")
-		return nil
+		return nil, nil
 	})
-	restore := setupBusWithSnapcraftLauncher(c, launcher)
+	_, restore := setupBusWithSnapcraftLauncher(c, launcher)
 	defer restore()
 
 	c.Check(xdgopenproxy.Run(path), ErrorMatches, "permission denied")
@@ -200,97 +214,177 @@ type xdgFreedesktopPortalOpenSuite struct{}
 
 var _ = Suite(&xdgFreedesktopPortalOpenSuite{})
 
-func setupBusWithFreedesktopPortal(c *C, obj fakeBusObject) (restore func()) {
+func setupBusWithFreedesktopPortal(c *C, obj, req fakeBusObject) (fake *fakeBus, restore func()) {
 	return setupFakeBus(c, map[busObj]fakeBusObject{
-		{"io.snapcraft.Launcher", "/io/snapcraft/Launcher"}:                   unsupportedFakeBusObject(),
+		{"io.snapcraft.Launcher", "/io/snapcraft/Launcher"}:                   noSuchObjectFake(),
 		{"org.freedesktop.portal.Desktop", "/org/freedesktop/portal/desktop"}: obj,
+		// predefined request object
+		{"org.freedesktop.portal.Desktop", "/org/freedesktop/portal/desktop/request/1"}: req,
 	})
 }
 
 func (s *xdgFreedesktopPortalOpenSuite) TestOpenURL(c *C) {
-	called := false
-	launcher := fakeBusObject(func(method string, args ...interface{}) error {
-		if method == "org.freedesktop.DBus.Peer.Ping" {
-			return nil
-		}
+	launcherCalled := false
+	// signals that launcher OpenURI call is done and the signal can be sent
+	launcherCallDone := make(chan bool, 1)
+	launcher := newFakeBusObject(func(method string, args ...interface{}) ([]interface{}, error) {
+		defer func() { launcherCallDone <- true }()
+
 		c.Check(method, Equals, "org.freedesktop.portal.OpenURI.OpenURI")
 		c.Assert(args, HasLen, 3)
 		c.Check(args[1], Equals, "http://example.org")
-		called = true
-		return nil
+
+		launcherCalled = true
+		// use predefined request object path
+		return []interface{}{dbus.ObjectPath("/org/freedesktop/portal/desktop/request/1")}, nil
 	})
-	restore := setupBusWithFreedesktopPortal(c, launcher)
+	request := newFakeBusObject(func(method string, args ...interface{}) ([]interface{}, error) {
+		c.Fatalf("unexpected call")
+		return nil, nil
+	})
+	fb, restore := setupBusWithFreedesktopPortal(c, launcher, request)
 	defer restore()
 
+	go func() {
+		<-launcherCallDone
+		// launcher was called, mock a signal from the request object
+		sigChannel := <-fb.signals
+		sigChannel <- &dbus.Signal{
+			Path: dbus.ObjectPath("/org/freedesktop/portal/desktop/request/1"),
+			Body: []interface{}{0, map[string]interface{}{}},
+		}
+	}()
+
 	c.Check(xdgopenproxy.Run("http://example.org"), IsNil)
-	c.Check(called, Equals, true)
+	c.Check(launcherCalled, Equals, true)
 }
 
 func (s *xdgFreedesktopPortalOpenSuite) TestOpenFile(c *C) {
 	path := filepath.Join(c.MkDir(), "test.txt")
 	c.Assert(ioutil.WriteFile(path, []byte("Hello world"), 0644), IsNil)
 
-	called := false
-	launcher := fakeBusObject(func(method string, args ...interface{}) error {
-		if method == "org.freedesktop.DBus.Peer.Ping" {
-			return nil
-		}
+	launcherCalled := false
+	// signals that launcher OpenURI call is done and the signal can be sent
+	launcherCallDone := make(chan bool, 1)
+
+	launcher := newFakeBusObject(func(method string, args ...interface{}) ([]interface{}, error) {
+		defer func() { launcherCallDone <- true }()
+
 		c.Check(method, Equals, "org.freedesktop.portal.OpenURI.OpenFile")
 		c.Assert(args, HasLen, 3)
 		c.Check(args[0], Equals, "")
 		c.Check(fdMatchesFile(int(args[1].(dbus.UnixFD)), path), IsNil)
-		called = true
-		return nil
+
+		launcherCalled = true
+		// use predefined request object path
+		return []interface{}{dbus.ObjectPath("/org/freedesktop/portal/desktop/request/1")}, nil
 	})
-	restore := setupBusWithFreedesktopPortal(c, launcher)
+	request := newFakeBusObject(func(method string, args ...interface{}) ([]interface{}, error) {
+		c.Fatalf("unexpected call")
+		return nil, nil
+	})
+
+	fb, restore := setupBusWithFreedesktopPortal(c, launcher, request)
 	defer restore()
 
-	c.Check(xdgopenproxy.Run(path), IsNil)
+	go func() {
+		<-launcherCallDone
+		// launcher was called, mock a signal from the request object
+		sigChannel := <-fb.signals
+		sigChannel <- &dbus.Signal{
+			Path: dbus.ObjectPath("/org/freedesktop/portal/desktop/request/1"),
+			Body: []interface{}{0, map[string]interface{}{}},
+		}
+	}()
+
+	err := xdgopenproxy.Run(path)
+	c.Check(err, IsNil)
+	c.Check(launcherCalled, Equals, true)
+}
+
+func (s *xdgFreedesktopPortalOpenSuite) TestOpenTimeout(c *C) {
+	restore := xdgopenproxy.MockPortalTimeout(5 * time.Millisecond)
+	defer restore()
+
+	called := false
+	launcher := newFakeBusObject(func(method string, args ...interface{}) ([]interface{}, error) {
+		c.Check(method, Equals, "org.freedesktop.portal.OpenURI.OpenURI")
+		c.Assert(args, HasLen, 3)
+		c.Check(args[1], Equals, "http://example.org")
+		called = true
+		return []interface{}{dbus.ObjectPath("/org/freedesktop/portal/desktop/request/1")}, nil
+	})
+	closeCalled := false
+	request := newFakeBusObject(func(method string, args ...interface{}) ([]interface{}, error) {
+		c.Assert(method, Equals, "org.freedesktop.portal.Request.Close")
+		closeCalled = true
+		return nil, nil
+	})
+
+	_, restore = setupBusWithFreedesktopPortal(c, launcher, request)
+	defer restore()
+
+	c.Check(xdgopenproxy.Run("http://example.org"), ErrorMatches, "timeout waiting for user response")
 	c.Check(called, Equals, true)
+	c.Check(closeCalled, Equals, true)
 }
 
 // fakeBusObject is a dbus.BusObject implementation that forwards
 // Call invocations
-type fakeBusObject func(method string, args ...interface{}) error
-
-func (f fakeBusObject) Call(method string, flags dbus.Flags, args ...interface{}) *dbus.Call {
-	err := f(method, args...)
-	return &dbus.Call{Err: err}
+type fakeBusObject struct {
+	path dbus.ObjectPath
+	call func(method string, args ...interface{}) ([]interface{}, error)
 }
 
-func (f fakeBusObject) CallWithContext(ctx context.Context, method string, flags dbus.Flags, args ...interface{}) *dbus.Call {
-	err := f(method, args...)
-	return &dbus.Call{Err: err}
+func newFakeBusObject(call func(method string, args ...interface{}) ([]interface{}, error)) fakeBusObject {
+	return fakeBusObject{call: call}
 }
 
-func (f fakeBusObject) Go(method string, flags dbus.Flags, ch chan *dbus.Call, args ...interface{}) *dbus.Call {
+func (f *fakeBusObject) atPath(path string) *fakeBusObject {
+	return &fakeBusObject{
+		call: f.call,
+		path: dbus.ObjectPath(path),
+	}
+}
+
+func (f *fakeBusObject) Call(method string, flags dbus.Flags, args ...interface{}) *dbus.Call {
+	body, err := f.call(method, args...)
+	return &dbus.Call{Err: err, Body: body}
+}
+
+func (f *fakeBusObject) CallWithContext(ctx context.Context, method string, flags dbus.Flags, args ...interface{}) *dbus.Call {
+	body, err := f.call(method, args...)
+	return &dbus.Call{Err: err, Body: body}
+}
+
+func (f *fakeBusObject) Go(method string, flags dbus.Flags, ch chan *dbus.Call, args ...interface{}) *dbus.Call {
 	return nil
 }
 
-func (f fakeBusObject) GoWithContext(ctx context.Context, method string, flags dbus.Flags, ch chan *dbus.Call, args ...interface{}) *dbus.Call {
+func (f *fakeBusObject) GoWithContext(ctx context.Context, method string, flags dbus.Flags, ch chan *dbus.Call, args ...interface{}) *dbus.Call {
 	return nil
 }
 
-func (f fakeBusObject) AddMatchSignal(iface, member string, options ...dbus.MatchOption) *dbus.Call {
+func (f *fakeBusObject) AddMatchSignal(iface, member string, options ...dbus.MatchOption) *dbus.Call {
 	return nil
 }
 
-func (f fakeBusObject) RemoveMatchSignal(iface, member string, options ...dbus.MatchOption) *dbus.Call {
+func (f *fakeBusObject) RemoveMatchSignal(iface, member string, options ...dbus.MatchOption) *dbus.Call {
 	return nil
 }
 
-func (f fakeBusObject) GetProperty(prop string) (dbus.Variant, error) {
+func (f *fakeBusObject) GetProperty(prop string) (dbus.Variant, error) {
 	return dbus.Variant{}, nil
 }
 
-func (f fakeBusObject) SetProperty(p string, v interface{}) error {
+func (f *fakeBusObject) SetProperty(p string, v interface{}) error {
 	return nil
 }
 
-func (f fakeBusObject) Destination() string {
+func (f *fakeBusObject) Destination() string {
 	return ""
 }
 
-func (f fakeBusObject) Path() dbus.ObjectPath {
-	return ""
+func (f *fakeBusObject) Path() dbus.ObjectPath {
+	return f.path
 }

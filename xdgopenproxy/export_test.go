@@ -19,6 +19,10 @@
 
 package xdgopenproxy
 
+import (
+	"time"
+)
+
 type Bus = bus
 
 func MockSessionBus(m func() (Bus, error)) (restore func()) {
@@ -26,5 +30,13 @@ func MockSessionBus(m func() (Bus, error)) (restore func()) {
 	sessionBus = m
 	return func() {
 		sessionBus = old
+	}
+}
+
+func MockPortalTimeout(t time.Duration) (restore func()) {
+	old := defaultPortalRequestTimeout
+	defaultPortalRequestTimeout = t
+	return func() {
+		defaultPortalRequestTimeout = old
 	}
 }
