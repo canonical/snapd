@@ -69,7 +69,7 @@ func (s *refreshSuite) TestSoftNothingRunningRefreshCheck(c *C) {
 	// Services are not blocking soft refresh check,
 	// they will be stopped before refresh.
 	s.pids = map[string][]int{
-		"snap.pkg.daemon": []int{100},
+		"snap.pkg.daemon": {100},
 	}
 	err := snapstate.SoftNothingRunningRefreshCheck(s.info)
 	c.Check(err, IsNil)
@@ -78,8 +78,8 @@ func (s *refreshSuite) TestSoftNothingRunningRefreshCheck(c *C) {
 	// snapd, unless the app is running for longer than the maximum
 	// duration allowed for postponing refreshes.
 	s.pids = map[string][]int{
-		"snap.pkg.daemon": []int{100},
-		"snap.pkg.app":    []int{101},
+		"snap.pkg.daemon": {100},
+		"snap.pkg.app":    {101},
 	}
 	err = snapstate.SoftNothingRunningRefreshCheck(s.info)
 	c.Assert(err, NotNil)
@@ -89,7 +89,7 @@ func (s *refreshSuite) TestSoftNothingRunningRefreshCheck(c *C) {
 	// Hooks behave just like apps. IDEA: perhaps hooks should not be
 	// killed this way? They have their own life-cycle management.
 	s.pids = map[string][]int{
-		"snap.pkg.hook.configure": []int{105},
+		"snap.pkg.hook.configure": {105},
 	}
 	err = snapstate.SoftNothingRunningRefreshCheck(s.info)
 	c.Assert(err, NotNil)
@@ -98,8 +98,8 @@ func (s *refreshSuite) TestSoftNothingRunningRefreshCheck(c *C) {
 
 	// Both apps and hooks can be running.
 	s.pids = map[string][]int{
-		"snap.pkg.hook.configure": []int{105},
-		"snap.pkg.app":            []int{106},
+		"snap.pkg.hook.configure": {105},
+		"snap.pkg.app":            {106},
 	}
 	err = snapstate.SoftNothingRunningRefreshCheck(s.info)
 	c.Assert(err, NotNil)
@@ -111,7 +111,7 @@ func (s *refreshSuite) TestHardNothingRunningRefreshCheck(c *C) {
 	// Regular services are blocking hard refresh check.
 	// We were expecting them to be gone by now.
 	s.pids = map[string][]int{
-		"snap.pkg.daemon": []int{100},
+		"snap.pkg.daemon": {100},
 	}
 	err := snapstate.HardNothingRunningRefreshCheck(s.info)
 	c.Assert(err, NotNil)
@@ -127,7 +127,7 @@ func (s *refreshSuite) TestHardNothingRunningRefreshCheck(c *C) {
 
 	// Applications are also blocking hard refresh check.
 	s.pids = map[string][]int{
-		"snap.pkg.app": []int{101},
+		"snap.pkg.app": {101},
 	}
 	err = snapstate.HardNothingRunningRefreshCheck(s.info)
 	c.Assert(err, NotNil)
@@ -136,7 +136,7 @@ func (s *refreshSuite) TestHardNothingRunningRefreshCheck(c *C) {
 
 	// Hooks are equally blocking hard refresh check.
 	s.pids = map[string][]int{
-		"snap.pkg.hook.configure": []int{105},
+		"snap.pkg.hook.configure": {105},
 	}
 	err = snapstate.HardNothingRunningRefreshCheck(s.info)
 	c.Assert(err, NotNil)
