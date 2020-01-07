@@ -39,7 +39,7 @@ of the assertion can be specified through a "body" pseudo-header.
 
 type cmdSign struct {
 	Positional struct {
-		Filename flags.Filename `positional-arg-name:"<filename>"`
+		Filename flags.Filename
 	} `positional-args:"yes"`
 
 	KeyName keyName `short:"k" default:"default"`
