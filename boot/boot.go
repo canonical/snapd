@@ -37,11 +37,10 @@ import (
 type BootParticipant interface {
 	// SetNextBoot will schedule the snap to be used in the next boot. For
 	// base snaps it is up to the caller to select the right bootable base
-	// (from the model assertion).
-	SetNextBoot() error
-	// ChangeRequiresReboot returns whether a reboot is required to switch
-	// to the snap. TODO: return an error too
-	ChangeRequiresReboot() bool
+	// (from the model assertion). It is a noop for not relevant snaps.
+	// Otherwise it returns whether a reboot is required.
+	SetNextBoot() (rebootRequired bool, err error)
+
 	// Is this a trivial implementation of the interface?
 	IsTrivial() bool
 }
@@ -61,8 +60,7 @@ type BootKernel interface {
 
 type trivial struct{}
 
-func (trivial) SetNextBoot() error                       { return nil }
-func (trivial) ChangeRequiresReboot() bool               { return false }
+func (trivial) SetNextBoot() (bool, error)               { return false, nil }
 func (trivial) IsTrivial() bool                          { return true }
 func (trivial) RemoveKernelAssets() error                { return nil }
 func (trivial) ExtractKernelAssets(snap.Container) error { return nil }
