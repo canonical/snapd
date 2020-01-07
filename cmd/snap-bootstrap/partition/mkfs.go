@@ -30,6 +30,9 @@ func MakeFilesystems(created []DeviceStructure) error {
 			if err := mkfs(part.Node, part.VolumeStructure.Label, part.VolumeStructure.Filesystem); err != nil {
 				return err
 			}
+			if err := udevTrigger(part.Node); err != nil {
+				return err
+			}
 		}
 	}
 	return nil
