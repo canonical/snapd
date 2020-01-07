@@ -15,7 +15,6 @@
  *
  */
 
-#include "utils.h"
 #include "utils.c"
 
 #include <glib.h>

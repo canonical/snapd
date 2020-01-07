@@ -57,4 +57,23 @@ void write_string_to_file(const char *filepath, const char *buf);
  **/
 __attribute__((warn_unused_result))
 int sc_nonfatal_mkpath(const char *const path, mode_t mode);
+
+/**
+ * sc_mkdir creates a directory with given mode and owner.
+ *
+ * If the directory exists it is only modified to posses the desired ownership
+ * and permissions. If necessary it is created in a way that prevents non-root
+ * users from opening it before the owner is switched to the desired values.
+ **/
+void sc_mkdir(const char *dir, mode_t mode, uid_t uid, gid_t gid);
+
+/**
+ * sc_mksubdir creates a sub-directory with a given mode and owner.
+ *
+ * If the sub-directory exists it is only modified to posses the desired
+ * ownership and permissions. If necessary it is created in a way that prevents
+ * non-root users from opening it before the owner is switched to the desired
+ * values.
+ **/
+void sc_mksubdir(const char *parent, const char *subdir, mode_t mode, uid_t uid, gid_t gid);
 #endif

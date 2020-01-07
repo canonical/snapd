@@ -14,6 +14,9 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  *
  */
+
+#define _GNU_SOURCE
+
 #include <errno.h>
 #include <fcntl.h>
 #include <stdarg.h>
@@ -21,6 +24,7 @@
 #include <stdlib.h>
 #include <string.h>
 #include <sys/stat.h>
+#include <sys/types.h>
 #include <unistd.h>
 
 #include "cleanup-funcs.h"
@@ -199,4 +203,76 @@ int sc_nonfatal_mkpath(const char *const path, mode_t mode)
 		path_segment = strtok_r(NULL, "/", &path_walker);
 	}
 	return 0;
+}
+
+void sc_mkdir(const char *dir, mode_t mode, uid_t uid, gid_t gid)
+{
+	/* If non-root, raise our gid to root. */
+	uid_t ruid = getuid();
+	if (ruid != 0 && setegid(0) != 0) {
+		die("cannot switch to root group");
+	}
+
+	/* Create the directory with permissions 0700, chown then chmod to final to
+	 * avoid races and capability denials. */
+	if (mkdir(dir, 0700) < 0) {
+		/* Allow the directory to exist without shenanigans */
+		if (errno != EEXIST) {
+			die("cannot create directory %s", dir);
+		}
+	}
+	int dir_fd = open(dir, O_DIRECTORY | O_CLOEXEC | O_NOFOLLOW);
+	if (dir_fd < 0) {
+		die("cannot open directory %s", dir);
+	}
+	if (fchown(dir_fd, uid, gid) < 0) {
+		die("cannot chown %s to %d:%d", dir, uid, gid);
+	}
+	if (fchmod(dir_fd, mode) < 0) {
+		die("cannot chmod %s to %#4o", dir, mode);
+	}
+
+	/* If non-root, drop our gid to non-root. */
+	if (ruid != 0 && setgid(getgid()) != 0) {
+		die("cannot switch to non-root group");
+	}
+}
+
+void sc_mksubdir(const char *parent, const char *subdir, mode_t mode, uid_t uid, gid_t gid)
+{
+	/* If non-root, raise our gid to root. */
+	uid_t ruid = getuid();
+	if (ruid != 0 && setegid(0) != 0) {
+		die("cannot switch to root group");
+	}
+
+	int parent_fd =
+	    open(parent, O_PATH | O_DIRECTORY | O_CLOEXEC | O_NOFOLLOW);
+	if (parent_fd < 0) {
+		die("cannot open path of directory %s", parent);
+	}
+	/* Create the directory with permissions 0700, chown then chmod to final to
+	 * avoid races and capability denials. */
+	if (mkdirat(parent_fd, subdir, 0700) < 0) {
+		/* Allow the directory to exist without shenanigans */
+		if (errno != EEXIST) {
+			die("cannot create directory %s/%s", parent, subdir);
+		}
+	}
+	int subdir_fd =
+	    openat(parent_fd, subdir, O_DIRECTORY | O_CLOEXEC | O_NOFOLLOW);
+	if (subdir_fd < 0) {
+		die("cannot open directory %s/%s", parent, subdir);
+	}
+	if (fchown(subdir_fd, uid, gid) < 0) {
+		die("cannot chown %s/%s to %d:%d", parent, subdir, uid, gid);
+	}
+	if (fchmod(subdir_fd, mode) < 0) {
+		die("cannot chmod %s/%s to %#4o", parent, subdir, mode);
+	}
+
+	/* If non-root, drop our gid to non-root. */
+	if (ruid != 0 && setgid(getgid()) != 0) {
+		die("cannot switch to non-root group");
+	}
 }
