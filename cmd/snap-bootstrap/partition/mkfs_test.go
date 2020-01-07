@@ -118,11 +118,12 @@ func (s *mkfsSuite) TestMakefilesystem(c *C) {
 		},
 	}
 
-	for i, part := range created {
+	// single fat partition is created first, then 2 ext4 partitions
+	for n, part := range created {
 		err := partition.MakeFilesystem(part)
 		c.Assert(err, IsNil)
 		c.Assert(s.mockMkfsVfat.Calls(), HasLen, 1)
-		c.Assert(s.mockMkfsExt4.Calls(), HasLen, i)
+		c.Assert(s.mockMkfsExt4.Calls(), HasLen, n)
 	}
 
 	// ensure ordering is correct
