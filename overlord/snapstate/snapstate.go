@@ -614,7 +614,7 @@ func InstallPath(st *state.State, si *snap.SideInfo, path, instanceName, channel
 		}
 	}
 
-	channel, err = resolveChannel(st, instanceName, "", channel, deviceCtx)
+	channel, err = resolveChannel(st, instanceName, snapst.TrackingChannel, channel, deviceCtx)
 	if err != nil {
 		return nil, nil, err
 	}

@@ -2162,6 +2162,49 @@ confinement: strict
 	c.Check(snapst.Classic, Equals, false)
 }
 
+func (s *snapmgrTestSuite) TestInstallPathAsRefresh(c *C) {
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	snapstate.Set(s.state, "some-snap", &snapstate.SnapState{
+		Active: true,
+		Flags:  snapstate.Flags{DevMode: true},
+		Sequence: []*snap.SideInfo{
+			{RealName: "some-snap", SnapID: "some-snap-id", Revision: snap.R(1)},
+		},
+		Current:         snap.R(1),
+		SnapType:        "app",
+		TrackingChannel: "wibbly/stable",
+	})
+
+	mockSnap := makeTestSnap(c, `name: some-snap
+version: 1.0
+epoch: 1
+`)
+
+	ts, _, err := snapstate.InstallPath(s.state, &snap.SideInfo{RealName: "some-snap"}, mockSnap, "", "edge", snapstate.Flags{})
+	c.Assert(err, IsNil)
+
+	c.Assert(err, IsNil)
+
+	chg := s.state.NewChange("install", "install snap")
+	chg.AddAll(ts)
+
+	s.state.Unlock()
+	defer s.se.Stop()
+	s.settle(c)
+	s.state.Lock()
+
+	c.Assert(chg.Err(), IsNil)
+	c.Assert(chg.IsReady(), Equals, true)
+
+	// verify snap is *not* classic
+	var snapst snapstate.SnapState
+	err = snapstate.Get(s.state, "some-snap", &snapst)
+	c.Assert(err, IsNil)
+	c.Check(snapst.TrackingChannel, Equals, "wibbly/edge")
+}
+
 func (s *snapmgrTestSuite) TestParallelInstanceInstallNotAllowed(c *C) {
 	s.state.Lock()
 	defer s.state.Unlock()
