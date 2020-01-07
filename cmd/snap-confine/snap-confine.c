@@ -291,12 +291,17 @@ static void sc_cleanup_preserved_process_state(sc_preserved_process_state *
 	sc_cleanup_close(&proc_state->orig_cwd_fd);
 }
 
-static void enter_classic_execution_environment(void);
+static void enter_classic_execution_environment(const sc_invocation * inv,
+						gid_t real_gid,
+						gid_t saved_gid);
 static void enter_non_classic_execution_environment(sc_invocation * inv,
 						    struct sc_apparmor *aa,
 						    uid_t real_uid,
 						    gid_t real_gid,
 						    gid_t saved_gid);
+
+static void maybe_join_tracking_cgroup(const sc_invocation * inv,
+				       gid_t real_gid, gid_t saved_gid);
 
 int main(int argc, char **argv)
 {
@@ -385,14 +390,50 @@ int main(int argc, char **argv)
 		    " but should be. Refusing to continue to avoid"
 		    " permission escalation attacks");
 	}
+
+	/* perform global initialization of mount namespace support for non-classic
+	 * snaps or both classic and non-classic when parallel-instances feature is
+	 * enabled */
+	if (!invocation.classic_confinement ||
+	    sc_feature_enabled(SC_FEATURE_PARALLEL_INSTANCES)) {
+
+		/* snap-confine uses privately-shared /run/snapd/ns to store bind-mounted
+		 * mount namespaces of each snap. In the case that snap-confine is invoked
+		 * from the mount namespace it typically constructs, the said directory
+		 * does not contain mount entries for preserved namespaces as those are
+		 * only visible in the main, outer namespace.
+		 *
+		 * In order to operate in such an environment snap-confine must first
+		 * re-associate its own process with another namespace in which the
+		 * /run/snapd/ns directory is visible. The most obvious candidate is pid
+		 * one, which definitely doesn't run in a snap-specific namespace, has a
+		 * predictable PID and is long lived.
+		 */
+		sc_reassociate_with_pid1_mount_ns();
+		// Do global initialization:
+		int global_lock_fd = sc_lock_global();
+		// Ensure that "/" or "/snap" is mounted with the
+		// "shared" option on legacy systems, see LP:#1668659
+		debug("ensuring that snap mount directory is shared");
+		sc_ensure_shared_snap_mount();
+		unsigned int experimental_features = 0;
+		if (sc_feature_enabled(SC_FEATURE_PARALLEL_INSTANCES)) {
+			experimental_features |= SC_FEATURE_PARALLEL_INSTANCES;
+		}
+		sc_initialize_mount_ns(experimental_features);
+		sc_unlock(global_lock_fd);
+	}
+
 	if (invocation.classic_confinement) {
-		enter_classic_execution_environment();
+		enter_classic_execution_environment(&invocation, real_gid,
+						    saved_gid);
 	} else {
 		enter_non_classic_execution_environment(&invocation,
 							&apparmor,
 							real_uid,
 							real_gid, saved_gid);
 	}
+
 	// Temporarily drop privs back to calling user (we'll permanently drop
 	// after loading seccomp).
 	if (setegid(real_gid) != 0)
@@ -508,16 +549,66 @@ int main(int argc, char **argv)
 	return 1;
 }
 
-static void enter_classic_execution_environment(void)
+static void enter_classic_execution_environment(const sc_invocation * inv,
+						gid_t real_gid, gid_t saved_gid)
 {
+	/* with parallel-instances enabled, main() reassociated with the mount ns of
+	 * PID 1 to make /run/snapd/ns visible */
+
 	/* 'classic confinement' is designed to run without the sandbox inside the
 	 * shared namespace. Specifically:
-	 * - snap-confine skips using the snap-specific mount namespace
+	 * - snap-confine skips using the snap-specific, private, mount namespace
 	 * - snap-confine skips using device cgroups
 	 * - snapd sets up a lenient AppArmor profile for snap-confine to use
 	 * - snapd sets up a lenient seccomp profile for snap-confine to use
 	 */
-	debug("skipping sandbox setup, classic confinement in use");
+	debug("preparing classic execution environment");
+
+	/* Join a tracking cgroup if appropriate feature is enabled. */
+	int snap_lock_fd = sc_lock_snap(inv->snap_instance);
+	maybe_join_tracking_cgroup(inv, real_gid, saved_gid);
+	sc_unlock(snap_lock_fd);
+
+	if (!sc_feature_enabled(SC_FEATURE_PARALLEL_INSTANCES)) {
+		return;
+	}
+
+	/* all of the following code is experimental and part of parallel instances
+	 * of classic snaps support */
+
+	debug
+	    ("(experimental) unsharing the mount namespace (per-classic-snap)");
+
+	/* Construct a mount namespace where the snap instance directories are
+	 * visible under the regular snap name. In order to do that we will:
+	 *
+	 * - convert SNAP_MOUNT_DIR into a mount point (global init)
+	 * - convert /var/snap into a mount point (global init)
+	 * - always create a new mount namespace
+	 * - for snaps with non empty instance key:
+	 *   - set slave propagation recursively on SNAP_MOUNT_DIR and /var/snap
+	 *   - recursively bind mount SNAP_MOUNT_DIR/<snap>_<key> on top of SNAP_MOUNT_DIR/<snap>
+	 *   - recursively bind mount /var/snap/<snap>_<key> on top of /var/snap/<snap>
+	 *
+	 * The destination directories /var/snap/<snap> and SNAP_MOUNT_DIR/<snap>
+	 * are guaranteed to exist and were created during installation of a given
+	 * instance.
+	 */
+
+	if (unshare(CLONE_NEWNS) < 0) {
+		die("cannot unshare the mount namespace for parallel installed classic snap");
+	}
+
+	/* Parallel installed classic snap get special handling */
+	if (!sc_streq(inv->snap_instance, inv->snap_name)) {
+		debug
+		    ("(experimental) setting up environment for classic snap instance %s",
+		     inv->snap_instance);
+
+		/* set up mappings for snap and data directories */
+		sc_setup_parallel_instance_classic_mounts(inv->snap_name,
+							  inv->snap_instance);
+	}
 }
 
 static void enter_non_classic_execution_environment(sc_invocation * inv,
@@ -526,28 +617,8 @@ static void enter_non_classic_execution_environment(sc_invocation * inv,
 						    gid_t real_gid,
 						    gid_t saved_gid)
 {
-	/* snap-confine uses privately-shared /run/snapd/ns to store bind-mounted
-	 * mount namespaces of each snap. In the case that snap-confine is invoked
-	 * from the mount namespace it typically constructs, the said directory
-	 * does not contain mount entries for preserved namespaces as those are
-	 * only visible in the main, outer namespace.
-	 *
-	 * In order to operate in such an environment snap-confine must first
-	 * re-associate its own process with another namespace in which the
-	 * /run/snapd/ns directory is visible. The most obvious candidate is pid
-	 * one, which definitely doesn't run in a snap-specific namespace, has a
-	 * predictable PID and is long lived.
-	 */
-	sc_reassociate_with_pid1_mount_ns();
-	// Do global initialization:
-	int global_lock_fd = sc_lock_global();
-	// ensure that "/" or "/snap" is mounted with the
-	// "shared" option, see LP:#1668659
-	debug("ensuring that snap mount directory is shared");
-	sc_ensure_shared_snap_mount();
-	debug("unsharing snap namespace directory");
-	sc_initialize_mount_ns();
-	sc_unlock(global_lock_fd);
+	// main() reassociated with the mount ns of PID 1 to make /run/snapd/ns
+	// visible
 
 	// Find and open snap-update-ns and snap-discard-ns from the same
 	// path as where we (snap-confine) were called.
@@ -617,7 +688,8 @@ static void enter_non_classic_execution_environment(sc_invocation * inv,
 		if (unshare(CLONE_NEWNS) < 0) {
 			die("cannot unshare the mount namespace");
 		}
-		sc_populate_mount_ns(aa, snap_update_ns_fd, inv);
+		sc_populate_mount_ns(aa, snap_update_ns_fd, inv, real_gid,
+				     saved_gid);
 		sc_store_ns_info(inv);
 
 		/* Preserve the mount namespace. */
@@ -673,15 +745,14 @@ static void enter_non_classic_execution_environment(sc_invocation * inv,
 	}
 	if (!sc_cgroup_is_v2()) {
 		sc_cgroup_freezer_join(inv->snap_instance, getpid());
-		if (sc_feature_enabled(SC_FEATURE_REFRESH_APP_AWARENESS)) {
-			sc_cgroup_pids_join(inv->security_tag, getpid());
-		}
 	}
 	if (geteuid() == 0 && real_gid != 0) {
 		if (setegid(real_gid) != 0) {
 			die("cannot set effective group id to %d", real_gid);
 		}
 	}
+
+	maybe_join_tracking_cgroup(inv, real_gid, saved_gid);
 
 	sc_unlock(snap_lock_fd);
 
@@ -708,6 +779,27 @@ static void enter_non_classic_execution_environment(sc_invocation * inv,
 	for (i = 0; tmpd[i] != NULL; i++) {
 		if (setenv(tmpd[i], "/tmp", 1) != 0) {
 			die("cannot set environment variable '%s'", tmpd[i]);
+		}
+	}
+}
+
+static void maybe_join_tracking_cgroup(const sc_invocation * inv,
+				       gid_t real_gid, gid_t saved_gid)
+{
+	if (getegid() != 0 && saved_gid == 0) {
+		/* Temporarily raise egid so we can chown the cgroup under LXD. */
+		if (setegid(0) != 0) {
+			die("cannot set effective group id to root");
+		}
+	}
+	if (!sc_cgroup_is_v2()) {
+		if (sc_feature_enabled(SC_FEATURE_REFRESH_APP_AWARENESS)) {
+			sc_cgroup_pids_join(inv->security_tag, getpid());
+		}
+	}
+	if (geteuid() == 0 && real_gid != 0) {
+		if (setegid(real_gid) != 0) {
+			die("cannot set effective group id to %d", real_gid);
 		}
 	}
 }

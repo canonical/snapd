@@ -1,5 +1,7 @@
 summary: The shape of the mount namespace on classic systems for non-classic snaps
-systems: [ubuntu-16.04-64, ubuntu-18.04-64]
+
+# Temporary, exclude on ubuntu-16.04-64 until mount ns changes on 16.04 are understood/fixed
+systems: [ubuntu-18.04-64]
 # The test itself works perfectly fine but in conjunction with our leaky test
 # suite it often fails because it detects cruft left over by other tests in a
 # way that was not detected before. Classic systems should be clear of mount
@@ -127,7 +129,11 @@ prepare: |
     snap connect test-snapd-mountinfo-core16:mount-observe
     snap connect test-snapd-mountinfo-core18:mount-observe
 
-    echo "Collect mountinfo from the host"
+    echo "Collect mountinfo from the host before running apps"
+    # "make sure that persistent mount namespaces don't clobber the output"
+    if mountinfo-tool /run/snapd/ns; then
+        umount /run/snapd/ns
+    fi
     cat /proc/self/mountinfo >HOST.raw.txt
 
     if snap debug sandbox-features --required confinement-options:classic; then
@@ -144,6 +150,14 @@ prepare: |
     su root -c "snap run test-snapd-mountinfo-core18" >PER-SNAP-18.raw.txt
     su test -c "snap run test-snapd-mountinfo-core18" >PER-USER-18.raw.txt
 
+    echo "Collect mountinfo from the host after running apps"
+    # "make sure that persistent mount namespaces don't clobber the output"
+    snap-tool snap-discard-ns test-snapd-mountinfo-classic
+    snap-tool snap-discard-ns test-snapd-mountinfo-core16
+    snap-tool snap-discard-ns test-snapd-mountinfo-core18
+    umount /run/snapd/ns
+    cat /proc/self/mountinfo >HOST-AFTER.raw.txt
+
     echo "Transform mountinfo tables to make them deterministic"
     deterministic-mountinfo-tool                                              -f HOST.raw.txt        >HOST.deterministic.txt
     deterministic-mountinfo-tool --ref HOST.raw.txt                           -f PER-SNAP-16.raw.txt >PER-SNAP-16.deterministic.txt
@@ -154,6 +168,7 @@ prepare: |
         deterministic-mountinfo-tool --ref HOST.raw.txt                           -f PER-SNAP-C7.raw.txt >PER-SNAP-C7.deterministic.txt
         deterministic-mountinfo-tool --ref HOST.raw.txt --ref PER-SNAP-C7.raw.txt -f PER-USER-C7.raw.txt >PER-USER-C7.deterministic.txt
     fi
+    deterministic-mountinfo-tool                                              -f HOST-AFTER.raw.txt  >HOST-AFTER.deterministic.txt
 
     if snap debug sandbox-features --required confinement-options:classic; then
         snap remove test-snapd-mountinfo-classic
@@ -165,6 +180,8 @@ execute: |
         exit 0
     fi
     diff -u "$SPREAD_BACKEND.$SPREAD_SYSTEM/HOST.expected.txt" HOST.deterministic.txt
+    # The before and after host files should be identical.
+    diff -u "$SPREAD_BACKEND.$SPREAD_SYSTEM/HOST.expected.txt" HOST-AFTER.deterministic.txt
     diff -u "$SPREAD_BACKEND.$SPREAD_SYSTEM/PER-SNAP-16.expected.txt" PER-SNAP-16.deterministic.txt
     diff -u "$SPREAD_BACKEND.$SPREAD_SYSTEM/PER-USER-16.expected.txt" PER-USER-16.deterministic.txt
     diff -u "$SPREAD_BACKEND.$SPREAD_SYSTEM/PER-SNAP-18.expected.txt" PER-SNAP-18.deterministic.txt

@@ -72,13 +72,13 @@ func ClientSnapFromSnapInfo(snapInfo *snap.Info) (*client.Snap, error) {
 		Contact:     snapInfo.Contact,
 		Title:       snapInfo.Title(),
 		License:     snapInfo.License,
-		Screenshots: snapInfo.Media.Screenshots(),
 		Media:       snapInfo.Media,
 		Prices:      snapInfo.Prices,
 		Channels:    snapInfo.Channels,
 		Tracks:      snapInfo.Tracks,
 		CommonIDs:   snapInfo.CommonIDs,
 		Website:     snapInfo.Website,
+		StoreURL:    snapInfo.StoreURL,
 	}
 
 	return result, err

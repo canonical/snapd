@@ -1580,7 +1580,13 @@ version: 1.0
 plugs:
   gtk-3-themes:
     interface: content
+    content: gtk-3-themes
     default-provider: gtk-common-themes
+  icon-themes:
+    interface: content
+    content: icon-themes
+    default-provider: gtk-common-themes
+
 `
 
 func (s *ValidateSuite) TestNeededDefaultProviders(c *C) {
@@ -1589,7 +1595,24 @@ func (s *ValidateSuite) TestNeededDefaultProviders(c *C) {
 	c.Assert(err, IsNil)
 
 	dps := NeededDefaultProviders(info)
-	c.Check(dps, DeepEquals, []string{"gtk-common-themes"})
+	c.Check(dps, DeepEquals, map[string][]string{"gtk-common-themes": {"gtk-3-themes", "icon-themes"}})
+}
+
+const yamlNeedDfWithSlot = `name: need-df
+version: 1.0
+plugs:
+  gtk-3-themes:
+    interface: content
+    default-provider: gtk-common-themes2:with-slot
+`
+
+func (s *ValidateSuite) TestNeededDefaultProvidersLegacyColonSyntax(c *C) {
+	strk := NewScopedTracker()
+	info, err := InfoFromSnapYamlWithSideInfo([]byte(yamlNeedDfWithSlot), nil, strk)
+	c.Assert(err, IsNil)
+
+	dps := NeededDefaultProviders(info)
+	c.Check(dps, DeepEquals, map[string][]string{"gtk-common-themes2": {""}})
 }
 
 func (s *validateSuite) TestValidateSnapMissingCore(c *C) {
@@ -1600,7 +1623,7 @@ version: 1.0`
 	info, err := InfoFromSnapYamlWithSideInfo([]byte(yaml), nil, strk)
 	c.Assert(err, IsNil)
 
-	infos := map[string]*Info{"some-snap": info}
+	infos := []*Info{info}
 	errors := ValidateBasesAndProviders(infos)
 	c.Assert(errors, HasLen, 1)
 	c.Assert(errors[0], ErrorMatches, `cannot use snap "some-snap": required snap "core" missing`)
@@ -1615,7 +1638,7 @@ version: 1.0`
 	info, err := InfoFromSnapYamlWithSideInfo([]byte(yaml), nil, strk)
 	c.Assert(err, IsNil)
 
-	infos := map[string]*Info{"some-snap": info}
+	infos := []*Info{info}
 	errors := ValidateBasesAndProviders(infos)
 	c.Assert(errors, HasLen, 1)
 	c.Assert(errors[0], ErrorMatches, `cannot use snap "some-snap": base "some-base" is missing`)
@@ -1633,7 +1656,7 @@ type: os`
 	coreInfo, err := InfoFromSnapYamlWithSideInfo([]byte(coreYaml), nil, strk)
 	c.Assert(err, IsNil)
 
-	infos := map[string]*Info{"some-snap": snapInfo, "core": coreInfo}
+	infos := []*Info{snapInfo, coreInfo}
 	errors := ValidateBasesAndProviders(infos)
 	c.Assert(errors, HasLen, 1)
 	c.Assert(errors[0], ErrorMatches, `cannot use snap "need-df": default provider "gtk-common-themes" is missing`)
@@ -1648,7 +1671,7 @@ version: 1.0`
 	info, err := InfoFromSnapYamlWithSideInfo([]byte(yaml), nil, strk)
 	c.Assert(err, IsNil)
 
-	infos := map[string]*Info{"some-snap": info}
+	infos := []*Info{info}
 	errors := ValidateBasesAndProviders(infos)
 	c.Assert(errors, IsNil)
 }
@@ -1662,7 +1685,7 @@ version: 1.0`
 	info, err := InfoFromSnapYamlWithSideInfo([]byte(yaml), nil, strk)
 	c.Assert(err, IsNil)
 
-	infos := map[string]*Info{"snapd": info}
+	infos := []*Info{info}
 	errors := ValidateBasesAndProviders(infos)
 	c.Assert(errors, IsNil)
 }

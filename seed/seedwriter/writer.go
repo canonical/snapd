@@ -21,8 +21,8 @@
 package seedwriter
 
 import (
+	"errors"
 	"fmt"
-	"path/filepath"
 	"strings"
 
 	"github.com/snapcore/snapd/asserts"
@@ -31,6 +31,7 @@ import (
 	"github.com/snapcore/snapd/snap"
 	"github.com/snapcore/snapd/snap/channel"
 	"github.com/snapcore/snapd/snap/naming"
+	"github.com/snapcore/snapd/strutil"
 )
 
 // Options holds the options for a Writer.
@@ -38,6 +39,9 @@ type Options struct {
 	SeedDir string
 
 	DefaultChannel string
+
+	// The label for the recovery system for Core20 models
+	Label string
 
 	// TestSkipCopyUnverifiedModel is set to support naive tests
 	// using an unverified model, the resulting image is broken
@@ -179,6 +183,8 @@ type Writer struct {
 }
 
 type policy interface {
+	allowsDangerousFeatures() error
+
 	checkDefaultChannel(channel.Channel) error
 	checkSnapChannel(ch channel.Channel, whichSnap string) error
 
@@ -197,10 +203,9 @@ type policy interface {
 type tree interface {
 	mkFixedDirs() error
 
-	// XXX might need to differentiate for extra snaps
-	snapsDir() string
+	snapPath(*SeedSnap) (string, error)
 
-	localSnapPath(*SeedSnap) string
+	localSnapPath(*SeedSnap) (string, error)
 
 	writeAssertions(db asserts.RODatabase, modelRefs []*asserts.Ref, snapsFromModel []*SeedSnap, extraSnaps []*SeedSnap) error
 
@@ -216,7 +221,6 @@ func New(model *asserts.Model, opts *Options) (*Writer, error) {
 	w := &Writer{
 		model: model,
 		opts:  opts,
-		tree:  &tree16{opts: opts},
 
 		expectedStep: setOptionsSnapsStep,
 
@@ -224,7 +228,22 @@ func New(model *asserts.Model, opts *Options) (*Writer, error) {
 		byRefLocalSnaps: naming.NewSnapSet(nil),
 	}
 
-	pol := &policy16{model: model, opts: opts, warningf: w.warningf}
+	var treeImpl tree
+	var pol policy
+	if model.Grade() != asserts.ModelGradeUnset {
+		// Core 20
+		if opts.Label == "" {
+			return nil, fmt.Errorf("internal error: cannot write Core 20 seed without Options.Label set")
+		}
+		if err := validateSystemLabel(opts.Label); err != nil {
+			return nil, err
+		}
+		pol = &policy20{model: model, opts: opts, warningf: w.warningf}
+		treeImpl = &tree20{opts: opts}
+	} else {
+		pol = &policy16{model: model, opts: opts, warningf: w.warningf}
+		treeImpl = &tree16{opts: opts}
+	}
 
 	if opts.DefaultChannel != "" {
 		deflCh, err := channel.ParseVerbatim(opts.DefaultChannel, "_")
@@ -236,6 +255,7 @@ func New(model *asserts.Model, opts *Options) (*Writer, error) {
 		}
 	}
 
+	w.tree = treeImpl
 	w.policy = pol
 	return w, nil
 }
@@ -317,7 +337,9 @@ func (w *Writer) SetOptionsSnaps(optSnaps []*OptionsSnap) error {
 		return err
 	}
 
-	// XXX check with policy if local snaps are ok
+	if len(optSnaps) == 0 {
+		return nil
+	}
 
 	for _, sn := range optSnaps {
 		var whichSnap string
@@ -470,6 +492,15 @@ func (w *Writer) InfoDerived() error {
 		if sn.Info == nil {
 			return fmt.Errorf("internal error: before seedwriter.Writer.InfoDerived snap %q Info should have been set", sn.Path)
 		}
+
+		if sn.Info.ID() == "" {
+			// this check is here in case we relax the checks in
+			// SetOptionsSnaps
+			if err := w.policy.allowsDangerousFeatures(); err != nil {
+				return err
+			}
+		}
+
 		sn.SnapRef = sn.Info
 
 		// local snap gets local revision
@@ -511,7 +542,12 @@ func (w *Writer) SetInfo(sn *SeedSnap, info *snap.Info) error {
 		return nil
 	}
 
-	sn.Path = filepath.Join(w.tree.snapsDir(), filepath.Base(info.MountFile()))
+	p, err := w.tree.snapPath(sn)
+	if err != nil {
+		return err
+	}
+
+	sn.Path = p
 	return nil
 }
 
@@ -525,12 +561,19 @@ const (
 	toDownloadExtraImplicit
 )
 
+var errSkipOptional = errors.New("skip")
+
 func (w *Writer) modelSnapToSeed(modSnap *asserts.ModelSnap) (*SeedSnap, error) {
 	sn, _ := w.byRefLocalSnaps.Lookup(modSnap).(*SeedSnap)
 	var optSnap *OptionsSnap
 	if sn == nil {
 		// not local, to download
 		optSnap, _ = w.byNameOptSnaps.Lookup(modSnap).(*OptionsSnap)
+		if modSnap.Presence == "optional" && optSnap == nil {
+			// an optional snap that is not confirmed
+			// by an OptionsSnap entry is skipped
+			return nil, errSkipOptional
+		}
 		sn = &SeedSnap{
 			SnapRef: modSnap,
 
@@ -559,6 +602,9 @@ func (w *Writer) modelSnapsToDownload(modSnaps []*asserts.ModelSnap) (toDownload
 	alreadyConsidered := len(w.snapsFromModel)
 	for _, modSnap := range modSnaps {
 		sn, err := w.modelSnapToSeed(modSnap)
+		if err == errSkipOptional {
+			continue
+		}
 		if err != nil {
 			return nil, err
 		}
@@ -576,14 +622,23 @@ func (w *Writer) modelSnapsToDownload(modSnaps []*asserts.ModelSnap) (toDownload
 	return toDownload, nil
 }
 
-func (w *Writer) modSnaps() []*asserts.ModelSnap {
+func (w *Writer) modSnaps() ([]*asserts.ModelSnap, error) {
 	modSnaps := w.model.AllSnaps()
 	if systemSnap := w.policy.systemSnap(); systemSnap != nil {
 		prepend := true
 		for _, modSnap := range modSnaps {
 			if naming.SameSnap(modSnap, systemSnap) {
 				prepend = false
-				// TODO: sanity check modes
+				modes := modSnap.Modes
+				expectedModes := systemSnap.Modes
+				if len(modes) != len(expectedModes) {
+					return nil, fmt.Errorf("internal error: system snap %q explicitly listed in model carries wrong modes: %q", systemSnap.SnapName(), modes)
+				}
+				for _, mod := range expectedModes {
+					if !strutil.ListContains(modes, mod) {
+						return nil, fmt.Errorf("internal error: system snap %q explicitly listed in model carries wrong modes: %q", systemSnap.SnapName(), modes)
+					}
+				}
 				break
 			}
 		}
@@ -591,7 +646,7 @@ func (w *Writer) modSnaps() []*asserts.ModelSnap {
 			modSnaps = append([]*asserts.ModelSnap{systemSnap}, modSnaps...)
 		}
 	}
-	return modSnaps
+	return modSnaps, nil
 }
 
 func (w *Writer) optExtraSnaps() []*OptionsSnap {
@@ -664,8 +719,22 @@ func (w *Writer) SnapsToDownload() (snaps []*SeedSnap, err error) {
 
 	switch w.toDownload {
 	case toDownloadModel:
-		// XXX check early if policy is ok with extra snaps
-		return w.modelSnapsToDownload(w.modSnaps())
+		modSnaps, err := w.modSnaps()
+		if err != nil {
+			return nil, err
+		}
+		toDownload, err := w.modelSnapsToDownload(modSnaps)
+		if err != nil {
+			return nil, err
+		}
+		if w.extraSnapsGuessNum > 0 {
+			// this check is here in case we relax the checks in
+			// SetOptionsSnaps
+			if err := w.policy.allowsDangerousFeatures(); err != nil {
+				return nil, err
+			}
+		}
+		return toDownload, nil
 	case toDownloadImplicit:
 		return w.modelSnapsToDownload(w.policy.implicitSnaps(w.availableSnaps))
 	case toDownloadExtra:
@@ -718,6 +787,22 @@ func (w *Writer) resolveChannel(whichSnap string, modSnap *asserts.ModelSnap, op
 	return resChannel, nil
 }
 
+func (w *Writer) checkBase(info *snap.Info) error {
+	// Sanity check, note that we could support this case
+	// if we have a use-case but it requires changes in the
+	// devicestate/firstboot.go ordering code.
+	if info.GetType() == snap.TypeGadget && !w.model.Classic() && info.Base != w.model.Base() {
+		return fmt.Errorf("cannot use gadget snap because its base %q is different from model base %q", info.Base, w.model.Base())
+	}
+
+	// snap explicitly listed as not needing a base snap (e.g. a content-only snap)
+	if info.Base == "none" {
+		return nil
+	}
+
+	return w.policy.checkBase(info, w.availableSnaps)
+}
+
 func (w *Writer) downloaded(seedSnaps []*SeedSnap) error {
 	if w.availableSnaps == nil {
 		w.availableSnaps = naming.NewSnapSet(nil)
@@ -755,11 +840,11 @@ func (w *Writer) downloaded(seedSnaps []*SeedSnap) error {
 			return fmt.Errorf("cannot use classic snap %q in a core system", info.SnapName())
 		}
 
-		if err := w.policy.checkBase(info, w.availableSnaps); err != nil {
+		if err := w.checkBase(info); err != nil {
 			return err
 		}
 		// error about missing default providers
-		for _, dp := range snap.NeededDefaultProviders(info) {
+		for dp := range snap.NeededDefaultProviders(info) {
 			if !w.availableSnaps.Contains(naming.Snap(dp)) {
 				// TODO: have a way to ignore this issue on a snap by snap basis?
 				return fmt.Errorf("cannot use snap %q without its default content provider %q being added explicitly", info.SnapName(), dp)
@@ -896,13 +981,14 @@ func (w *Writer) SeedSnaps(copySnap func(name, src, dst string) error) error {
 		return err
 	}
 
-	snapsDir := w.tree.snapsDir()
-
 	seedSnaps := func(snaps []*SeedSnap) error {
 		for _, sn := range snaps {
 			info := sn.Info
 			if !sn.local {
-				expectedPath := filepath.Join(snapsDir, filepath.Base(info.MountFile()))
+				expectedPath, err := w.tree.snapPath(sn)
+				if err != nil {
+					return err
+				}
 				if sn.Path != expectedPath {
 					return fmt.Errorf("internal error: before seedwriter.Writer.SeedSnaps snap %q Path should have been set to %q", sn.SnapName(), expectedPath)
 				}
@@ -910,9 +996,19 @@ func (w *Writer) SeedSnaps(copySnap func(name, src, dst string) error) error {
 					return fmt.Errorf("internal error: before seedwriter.Writer.SeedSnaps snap file %q should exist", expectedPath)
 				}
 			} else {
-				dst := w.tree.localSnapPath(sn)
-				err := copySnap(info.SnapName(), sn.Path, dst)
+				var snapPath func(*SeedSnap) (string, error)
+				if sn.Info.ID() != "" {
+					// actually asserted
+					snapPath = w.tree.snapPath
+				} else {
+					// purely local
+					snapPath = w.tree.localSnapPath
+				}
+				dst, err := snapPath(sn)
 				if err != nil {
+					return err
+				}
+				if err := copySnap(info.SnapName(), sn.Path, dst); err != nil {
 					return err
 				}
 				// record final destination path

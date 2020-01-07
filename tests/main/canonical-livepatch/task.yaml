@@ -1,7 +1,7 @@
 summary: Ensure canonical-livepatch snap works
 
-# livepatch works only on 16.04/18.04 amd64 systems
-systems: [ubuntu-16.04-64, ubuntu-18.04-64]
+# livepatch works only on LTS amd64 systems
+systems: [ubuntu-14.04-64, ubuntu-16.04-64, ubuntu-18.04-64]
 
 execute: |
     echo "Ensure canonical-livepatch can be installed"

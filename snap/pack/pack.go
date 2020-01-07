@@ -26,6 +26,7 @@ import (
 	"os"
 	"path/filepath"
 
+	"github.com/snapcore/snapd/gadget"
 	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/snap"
 	"github.com/snapcore/snapd/snap/snapdir"
@@ -92,8 +93,14 @@ func debArchitecture(info *snap.Info) string {
 }
 
 // CheckSkeleton attempts to validate snap data in source directory
-func CheckSkeleton(sourceDir string) error {
-	_, err := loadAndValidate(sourceDir)
+func CheckSkeleton(w io.Writer, sourceDir string) error {
+	info, err := loadAndValidate(sourceDir)
+	if err == nil {
+		snap.SanitizePlugsSlots(info)
+		if len(info.BadInterfaces) > 0 {
+			fmt.Fprintln(w, snap.BadInterfacesSummary(info))
+		}
+	}
 	return err
 }
 
@@ -115,6 +122,12 @@ func loadAndValidate(sourceDir string) (*snap.Info, error) {
 
 	if err := snap.ValidateContainer(snapdir.New(sourceDir), info, logger.Noticef); err != nil {
 		return nil, err
+	}
+
+	if info.SnapType == snap.TypeGadget {
+		if err := gadget.Validate(sourceDir, nil); err != nil {
+			return nil, err
+		}
 	}
 	return info, nil
 }

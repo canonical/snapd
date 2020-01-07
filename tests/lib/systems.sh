@@ -7,6 +7,13 @@ is_core_system(){
     return 1
 }
 
+is_core16_system(){
+    if [[ "$SPREAD_SYSTEM" == ubuntu-core-16-* ]]; then
+        return 0
+    fi
+    return 1
+}
+
 is_core18_system(){
     if [[ "$SPREAD_SYSTEM" == ubuntu-core-18-* ]]; then
         return 0
@@ -64,4 +71,8 @@ get_core_for_system(){
             echo "core"
             ;;
     esac
+}
+
+is_cgroupv2() {
+    [[ "$(stat -f -c '%T' /sys/fs/cgroup)" == "cgroup2fs" ]]
 }

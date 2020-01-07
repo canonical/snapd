@@ -3,10 +3,10 @@ summary: Check snap listings
 prepare: |
     #shellcheck source=tests/lib/snaps.sh
     . "$TESTSLIB"/snaps.sh
-    install_local test-snapd-tools
+    install_local test-snapd-sh
 
     snap set system experimental.parallel-instances=true
-    install_local_as test-snapd-tools test-snapd-tools_foo
+    install_local_as test-snapd-sh test-snapd-sh_foo
 
 restore: |
     snap set system experimental.parallel-instances=null
@@ -50,39 +50,39 @@ execute: |
     elif [ "$SRU_VALIDATION" = "1" ] || [ -n "$PPA_VALIDATION_NAME" ]; then
         echo "When either sru or ppa validation is done the core snap is installed from the store"
         VERSION=$FINAL_VERSION
-        TRACKING=stable
+        TRACKING="(latest/)?stable"
 
     elif [ "$SPREAD_BACKEND" = "external" ] && [[ "$SPREAD_SYSTEM" == ubuntu-core-16-* ]]; then
         echo "On the external device the core snap tested could be in any track"
-        TRACKING="(edge|beta|candidate|stable)"
+        TRACKING="(latest/)?(edge|beta|candidate|stable)"
 
     elif [ "$SPREAD_BACKEND" = "external" ] && [[ "$SPREAD_SYSTEM" == ubuntu-core-18-* ]]; then
         echo "On the external device the snapd snap tested could be in any track"
         NAME=snapd
         VERSION=$SNAPD_GIT_VERSION
-        TRACKING="(edge|beta|candidate|stable)"
+        TRACKING="(latest/)?(edge|beta|candidate|stable)"
         NOTES=snapd
 
     else
-        TRACKING=$CORE_CHANNEL
+        TRACKING="(latest/)?$CORE_CHANNEL"
     fi
 
     expected="^$NAME +$VERSION +$REV +$TRACKING +$PUBLISHER +$NOTES.*$"
     snap list --unicode=never | MATCH "$expected"
 
     echo "List prints installed snaps and versions"
-    snap list | MATCH "^test-snapd-tools +$NUMERIC_VERSION +$SIDELOAD_REV +- +- +- *$"
-    snap list | MATCH "^test-snapd-tools_foo +$NUMERIC_VERSION +$SIDELOAD_REV +- +- +- *$"
+    snap list | MATCH "^test-snapd-sh +$NUMERIC_VERSION +$SIDELOAD_REV +- +- +- *$"
+    snap list | MATCH "^test-snapd-sh_foo +$NUMERIC_VERSION +$SIDELOAD_REV +- +- +- *$"
 
-    echo "Install test-snapd-tools again"
+    echo "Install test-snapd-sh again"
     #shellcheck source=tests/lib/snaps.sh
     . "$TESTSLIB"/snaps.sh
-    install_local test-snapd-tools
+    install_local test-snapd-sh
 
     echo "And run snap list --all"
-    output=$(snap list --all | grep 'test-snapd-tools ')
-    if [ "$(grep -c test-snapd-tools <<< "$output")" != "2" ]; then
-        echo "Expected two test-snapd-tools in the output, got:"
+    output=$(snap list --all | grep 'test-snapd-sh ')
+    if [ "$(grep -c test-snapd-sh <<< "$output")" != "2" ]; then
+        echo "Expected two test-snapd-sh in the output, got:"
         echo "$output"
         exit 1
     fi
@@ -92,4 +92,4 @@ execute: |
         exit 1
     fi
 
-    snap list --all | MATCH 'test-snapd-tools_foo '
+    snap list --all | MATCH 'test-snapd-sh_foo '

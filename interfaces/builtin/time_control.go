@@ -130,6 +130,5 @@ func init() {
 		connectedPlugAppArmor: timeControlConnectedPlugAppArmor,
 		connectedPlugSecComp:  timeControlConnectedPlugSecComp,
 		connectedPlugUDev:     timeControlConnectedPlugUDev,
-		reservedForOS:         true,
 	})
 }

@@ -301,7 +301,7 @@ func collectCurrentSnaps(snapStates map[string]*SnapState, consider func(*store.
 			InstanceName: snapInfo.InstanceName(),
 			SnapID:       snapInfo.SnapID,
 			// the desired channel (not snapInfo.Channel!)
-			TrackingChannel:  snapst.Channel,
+			TrackingChannel:  snapst.TrackingChannel,
 			Revision:         snapInfo.Revision,
 			RefreshedDate:    revisionDate(snapInfo),
 			IgnoreValidation: snapst.IgnoreValidation,

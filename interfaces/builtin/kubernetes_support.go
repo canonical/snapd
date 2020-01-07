@@ -59,6 +59,7 @@ capability sys_resource,
 @{PROC}/@{pid}/oom_score_adj rw,
 @{PROC}/sys/vm/overcommit_memory rw,
 /sys/kernel/mm/hugepages/{,**} r,
+/sys/kernel/mm/transparent_hugepage/{,**} r,
 
 capability dac_override,
 
@@ -108,7 +109,7 @@ const kubernetesSupportConnectedPlugAppArmorKubelet = `
 # Allow tracing our own processes. Note, this allows seccomp sandbox escape on
 # kernels < 4.8
 capability sys_ptrace,
-ptrace (trace) peer=snap.@{SNAP_NAME}.*,
+ptrace (trace) peer=snap.@{SNAP_INSTANCE_NAME}.*,
 
 # Allow ptracing other processes (as part of ps-style process lookups). Note,
 # the peer needs a corresponding tracedby rule. As a special case, disallow
@@ -133,8 +134,8 @@ deny ptrace (trace) peer=unconfined,
 # kubelet calls out to systemd-run for some mounts, but not all of them and not
 # unmounts...
 capability sys_admin,
-mount /var/snap/@{SNAP_NAME}/common/{,**} -> /var/snap/@{SNAP_NAME}/common/{,**},
-mount options=(rw, rshared) -> /var/snap/@{SNAP_NAME}/common/{,**},
+mount /var/snap/@{SNAP_INSTANCE_NAME}/common/{,**} -> /var/snap/@{SNAP_INSTANCE_NAME}/common/{,**},
+mount options=(rw, rshared) -> /var/snap/@{SNAP_INSTANCE_NAME}/common/{,**},
 
 /{,usr/}bin/mount ixr,
 /{,usr/}bin/umount ixr,
@@ -148,6 +149,17 @@ const kubernetesSupportConnectedPlugAppArmorKubeletSystemdRun = `
   /{,usr/}bin/mount ixr,
   mount fstype="tmpfs" tmpfs -> /var/snap/@{SNAP_INSTANCE_NAME}/common/**,
   deny /run/mount/utab rw,
+
+  # For mounting volume subPaths
+  mount /var/snap/@{SNAP_INSTANCE_NAME}/common/{,**} -> /var/snap/@{SNAP_INSTANCE_NAME}/common/{,**},
+  mount options=(rw, remount, bind) -> /var/snap/@{SNAP_INSTANCE_NAME}/common/{,**},
+  umount /var/snap/@{SNAP_INSTANCE_NAME}/common/**,
+  # When mounting a volume subPath, kubelet binds mounts on an open fd (eg,
+  # /proc/.../fd/N) which triggers a ptrace 'trace' denial on the parent
+  # kubelet peer process from this child profile. Note, this child profile
+  # doesn't have 'capability sys_ptrace', so systemd-run is still not able to
+  # ptrace this snap's processes.
+  ptrace (trace) peer=snap.@{SNAP_INSTANCE_NAME}.@{SNAP_COMMAND_NAME},
 `
 
 const kubernetesSupportConnectedPlugSeccompKubelet = `

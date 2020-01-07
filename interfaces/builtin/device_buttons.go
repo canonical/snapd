@@ -88,6 +88,5 @@ func init() {
 		baseDeclarationSlots:  deviceButtonsBaseDeclarationSlots,
 		connectedPlugAppArmor: deviceButtonsConnectedPlugAppArmor,
 		connectedPlugUDev:     deviceButtonsConnectedPlugUDev,
-		reservedForOS:         true,
 	}})
 }

@@ -59,6 +59,5 @@ func init() {
 		implicitOnClassic:     true,
 		baseDeclarationSlots:  screencastLegacyBaseDeclarationSlots,
 		connectedPlugAppArmor: screencastLegacyConnectedPlugAppArmor,
-		reservedForOS:         true,
 	})
 }

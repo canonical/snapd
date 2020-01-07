@@ -36,6 +36,7 @@ import (
 	"github.com/snapcore/snapd/asserts"
 	"github.com/snapcore/snapd/asserts/snapasserts"
 	"github.com/snapcore/snapd/osutil"
+	"github.com/snapcore/snapd/seed/internal"
 	"github.com/snapcore/snapd/snap"
 	"github.com/snapcore/snapd/snap/channel"
 	"github.com/snapcore/snapd/snap/naming"
@@ -111,7 +112,7 @@ func (s *seed16) Model() (*asserts.Model, error) {
 	return s.model, nil
 }
 
-func (s *seed16) addSnap(sn *Snap16, pinnedTrack string, tm timings.Measurer) (*Snap, error) {
+func (s *seed16) addSnap(sn *internal.Snap16, pinnedTrack string, tm timings.Measurer) (*Snap, error) {
 	path := filepath.Join(s.seedDir, "snaps", sn.File)
 	snapChannel := sn.Channel
 	if pinnedTrack != "" {
@@ -167,14 +168,14 @@ func (s *seed16) LoadMeta(tm timings.Measurer) error {
 		return ErrNoMeta
 	}
 
-	seedYaml, err := ReadYaml(seedYamlFile)
+	seedYaml, err := internal.ReadSeedYaml(seedYamlFile)
 	if err != nil {
 		return err
 	}
 	yamlSnaps := seedYaml.Snaps
 
 	required := naming.NewSnapSet(model.RequiredWithEssentialSnaps())
-	seeding := make(map[string]*Snap16, len(yamlSnaps))
+	seeding := make(map[string]*internal.Snap16, len(yamlSnaps))
 	for _, sn := range yamlSnaps {
 		seeding[sn.Name] = sn
 	}
@@ -245,11 +246,7 @@ func (s *seed16) LoadMeta(tm timings.Measurer) error {
 		}
 
 		// always make sure the base of gadget is installed first
-		snapf, err := snap.Open(gadget.Path)
-		if err != nil {
-			return err
-		}
-		info, err := snap.ReadInfoFromSnapFile(snapf, gadget.SideInfo)
+		info, err := readInfo(gadget.Path, gadget.SideInfo)
 		if err != nil {
 			return err
 		}

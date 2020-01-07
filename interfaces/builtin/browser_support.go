@@ -76,6 +76,10 @@ owner /{dev,run}/shm/.io.nwjs.* mrw,
 # miscellaneous accesses
 @{PROC}/vmstat r,
 
+# Chromium content api sometimes queries about huge pages. Allow status of
+# hugepages and transparent_hugepage, but not the pages themselves.
+/sys/kernel/mm/{hugepages,transparent_hugepage}/{,**} r,
+
 # Chromium content api in gnome-shell reads this
 /etc/opt/chrome/{,**} r,
 /etc/chromium/{,**} r,
@@ -110,6 +114,14 @@ const browserSupportConnectedPlugAppArmorWithSandbox = `
 # Leaks installed applications
 # TODO: should this be somewhere else?
 /etc/mailcap r,
+# Snaps should be using xdg-open from the runtime instead of reading these
+# files directly since the snap is unable to do anything with these files
+# but these accesses have been allowed for a long time and remain so as not
+# to break existing snaps. These could be changed to explicit deny rules,
+# but that provides a worse debugging experience. Combined, the risks
+# outweigh the benefits of closing this information leak for the small
+# number of snaps allowed to use allow-sandbox: true. Reference:
+# https://forum.snapcraft.io/t/cannot-open-pdf-attachment-with-thunderbird/11845
 /usr/share/applications/{,*} r,
 /var/lib/snapd/desktop/applications/{,*} r,
 owner @{PROC}/@{pid}/fd/[0-9]* w,
@@ -154,6 +166,14 @@ owner @{PROC}/@{pid}/fd/[0-9]* w,
 /sys/devices/**/serial r,
 /sys/devices/**/vendor r,
 /sys/devices/system/node/node[0-9]*/meminfo r,
+
+# Allow getting the manufacturer and model of the
+# computer where Chrome/chromium is currently running.
+# This is going to be used by the upcoming Hardware Platform
+# extension API.
+# https://chromium.googlesource.com/chromium/src.git/+/84618eee98fdf7548905e883e63e4f693800fcfa
+/sys/devices/virtual/dmi/id/product_name r,
+/sys/devices/virtual/dmi/id/sys_vendor r,
 
 # Chromium content api tries to read these. It is an information disclosure
 # since these contain the names of snaps. Chromium operates fine without the
@@ -230,6 +250,13 @@ owner /{dev,run}/shm/WK2SharedMemory.* mrw,
 
 # Chromium content api on (at least) later versions of Ubuntu just use this
 owner /{dev,run}/shm/shmfd-* mrw,
+
+# Clearing the PG_Referenced and ACCESSED/YOUNG bits provides a method to
+# measure approximately how much memory a process is using via /proc/self/smaps
+# (man 5 proc). This access allows the snap to clear references for pids from
+# other snaps and the system, so it is limited to snaps that specify:
+# allow-sandbox: true.
+owner @{PROC}/@{pid}/clear_refs w,
 `
 
 const browserSupportConnectedPlugSecComp = `

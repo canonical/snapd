@@ -21,6 +21,7 @@ package squashfs
 
 import (
 	"bufio"
+	"bytes"
 	"fmt"
 	"io/ioutil"
 	"os"
@@ -28,6 +29,8 @@ import (
 	"path"
 	"path/filepath"
 	"regexp"
+	"strings"
+	"syscall"
 	"time"
 
 	"github.com/snapcore/snapd/cmd/cmdutil"
@@ -177,8 +180,8 @@ func (s *Snap) ReadFile(filePath string) (content []byte, err error) {
 	defer os.RemoveAll(tmpdir)
 
 	unpackDir := filepath.Join(tmpdir, "unpack")
-	if err := exec.Command("unsquashfs", "-n", "-i", "-d", unpackDir, s.path, filePath).Run(); err != nil {
-		return nil, err
+	if output, err := exec.Command("unsquashfs", "-n", "-i", "-d", unpackDir, s.path, filePath).CombinedOutput(); err != nil {
+		return nil, fmt.Errorf("cannot run unsquashfs: %v", osutil.OutputErr(output, err))
 	}
 
 	return ioutil.ReadFile(filepath.Join(unpackDir, filePath))
@@ -301,8 +304,101 @@ func (s *Snap) ListDir(dirPath string) ([]string, error) {
 	return directoryContents, nil
 }
 
+const maxErrPaths = 10
+
+type errPathsNotReadable struct {
+	paths []string
+}
+
+func (e *errPathsNotReadable) accumulate(p string, fi os.FileInfo) error {
+	if len(e.paths) >= maxErrPaths {
+		return e
+	}
+	if st, ok := fi.Sys().(*syscall.Stat_t); ok {
+		e.paths = append(e.paths, fmt.Sprintf("%s (owner %v:%v mode %#03o)", p, st.Uid, st.Gid, fi.Mode().Perm()))
+	} else {
+		e.paths = append(e.paths, p)
+	}
+	return nil
+}
+
+func (e *errPathsNotReadable) asErr() error {
+	if len(e.paths) > 0 {
+		return e
+	}
+	return nil
+}
+
+func (e *errPathsNotReadable) Error() string {
+	var b bytes.Buffer
+
+	b.WriteString("cannot access the following locations in the snap source directory:\n")
+	for _, p := range e.paths {
+		fmt.Fprintf(&b, "- ")
+		fmt.Fprintf(&b, p)
+		fmt.Fprintf(&b, "\n")
+	}
+	if len(e.paths) == maxErrPaths {
+		fmt.Fprintf(&b, "- too many errors, listing first %v entries\n", maxErrPaths)
+	}
+	return b.String()
+}
+
+// verifyContentAccessibleForBuild checks whether the content under source
+// directory is usable to the user and can be represented by mksquashfs.
+func verifyContentAccessibleForBuild(sourceDir string) error {
+	var errPaths errPathsNotReadable
+
+	withSlash := filepath.Clean(sourceDir) + "/"
+	err := filepath.Walk(withSlash, func(path string, st os.FileInfo, err error) error {
+		if err != nil {
+			if !os.IsPermission(err) {
+				return err
+			}
+			// accumulate permission errors
+			return errPaths.accumulate(strings.TrimPrefix(path, withSlash), st)
+		}
+		mode := st.Mode()
+		if !mode.IsRegular() && !mode.IsDir() {
+			// device nodes are just recreated by mksquashfs
+			return nil
+		}
+		if mode.IsRegular() && st.Size() == 0 {
+			// empty files are also recreated
+			return nil
+		}
+
+		f, err := os.Open(path)
+		if err != nil {
+			if !os.IsPermission(err) {
+				return err
+			}
+			// accumulate permission errors
+			if err = errPaths.accumulate(strings.TrimPrefix(path, withSlash), st); err != nil {
+				return err
+			}
+			// workaround for https://github.com/golang/go/issues/21758
+			// with pre 1.10 go, explicitly skip directory
+			if mode.IsDir() {
+				return filepath.SkipDir
+			}
+			return nil
+		}
+		f.Close()
+		return nil
+	})
+	if err != nil {
+		return err
+	}
+	return errPaths.asErr()
+}
+
 // Build builds the snap.
 func (s *Snap) Build(sourceDir, snapType string, excludeFiles ...string) error {
+	if err := verifyContentAccessibleForBuild(sourceDir); err != nil {
+		return err
+	}
+
 	fullSnapPath, err := filepath.Abs(s.path)
 	if err != nil {
 		return err

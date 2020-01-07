@@ -27,6 +27,7 @@ import (
 
 	failure "github.com/snapcore/snapd/cmd/snap-failure"
 	"github.com/snapcore/snapd/dirs"
+	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/testutil"
 )
 
@@ -39,22 +40,38 @@ type failureSuite struct {
 	rootdir string
 
 	stderr *bytes.Buffer
+	stdout *bytes.Buffer
+	log    *bytes.Buffer
 }
 
 func (r *failureSuite) SetUpTest(c *C) {
 	r.stderr = bytes.NewBuffer(nil)
+	r.stdout = bytes.NewBuffer(nil)
 
 	oldStderr := failure.Stderr
-	r.AddCleanup(func() { failure.Stderr = oldStderr })
+	oldStdout := failure.Stdout
+	r.AddCleanup(func() {
+		failure.Stderr = oldStderr
+		failure.Stdout = oldStdout
+	})
 	failure.Stderr = r.stderr
+	failure.Stdout = r.stdout
 
 	r.rootdir = c.MkDir()
 	dirs.SetRootDir(r.rootdir)
 	r.AddCleanup(func() { dirs.SetRootDir("/") })
+
+	log, restore := logger.MockLogger()
+	r.log = log
+	r.AddCleanup(restore)
 }
 
 func (r *failureSuite) Stderr() string {
 	return r.stderr.String()
+}
+
+func (r *failureSuite) Stdout() string {
+	return r.stdout.String()
 }
 
 var _ = Suite(&failureSuite{})

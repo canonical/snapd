@@ -31,8 +31,11 @@ import (
 	. "gopkg.in/check.v1"
 	"gopkg.in/yaml.v2"
 
+	"github.com/snapcore/snapd/asserts"
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/gadget"
+	"github.com/snapcore/snapd/snap"
+	"github.com/snapcore/snapd/snap/snaptest"
 )
 
 type gadgetYamlTestSuite struct {
@@ -301,18 +304,34 @@ func (s *gadgetYamlTestSuite) TearDownTest(c *C) {
 	dirs.SetRootDir("/")
 }
 
+type modelConstraints struct {
+	classic    bool
+	systemSeed bool
+}
+
+func (m *modelConstraints) Classic() bool {
+	return m.classic
+}
+
+func (m *modelConstraints) Grade() asserts.ModelGrade {
+	if m.systemSeed {
+		return asserts.ModelSigned
+	}
+	return asserts.ModelGradeUnset
+}
+
 func (s *gadgetYamlTestSuite) TestReadGadgetYamlMissing(c *C) {
 	// if constraints are nil, we allow a missing yaml
 	_, err := gadget.ReadInfo("bogus-path", nil)
 	c.Assert(err, IsNil)
 
-	_, err = gadget.ReadInfo("bogus-path", &gadget.ModelConstraints{})
+	_, err = gadget.ReadInfo("bogus-path", &modelConstraints{})
 	c.Assert(err, ErrorMatches, ".*meta/gadget.yaml: no such file or directory")
 }
 
 func (s *gadgetYamlTestSuite) TestReadGadgetYamlOnClassicOptional(c *C) {
 	// no meta/gadget.yaml
-	gi, err := gadget.ReadInfo(s.dir, &gadget.ModelConstraints{Classic: true})
+	gi, err := gadget.ReadInfo(s.dir, &modelConstraints{classic: true})
 	c.Assert(err, IsNil)
 	c.Check(gi, NotNil)
 }
@@ -321,7 +340,7 @@ func (s *gadgetYamlTestSuite) TestReadGadgetYamlOnClassicEmptyIsValid(c *C) {
 	err := ioutil.WriteFile(s.gadgetYamlPath, nil, 0644)
 	c.Assert(err, IsNil)
 
-	ginfo, err := gadget.ReadInfo(s.dir, &gadget.ModelConstraints{Classic: true})
+	ginfo, err := gadget.ReadInfo(s.dir, &modelConstraints{classic: true})
 	c.Assert(err, IsNil)
 	c.Assert(ginfo, DeepEquals, &gadget.Info{})
 }
@@ -330,7 +349,7 @@ func (s *gadgetYamlTestSuite) TestReadGadgetYamlOnClassicOnylDefaultsIsValid(c *
 	err := ioutil.WriteFile(s.gadgetYamlPath, mockClassicGadgetYaml, 0644)
 	c.Assert(err, IsNil)
 
-	ginfo, err := gadget.ReadInfo(s.dir, &gadget.ModelConstraints{Classic: true})
+	ginfo, err := gadget.ReadInfo(s.dir, &modelConstraints{classic: true})
 	c.Assert(err, IsNil)
 	c.Assert(ginfo, DeepEquals, &gadget.Info{
 		Defaults: map[string]map[string]interface{}{
@@ -346,7 +365,7 @@ func (s *gadgetYamlTestSuite) TestReadGadgetDefaultsMultiline(c *C) {
 	err := ioutil.WriteFile(s.gadgetYamlPath, mockClassicGadgetMultilineDefaultsYaml, 0644)
 	c.Assert(err, IsNil)
 
-	ginfo, err := gadget.ReadInfo(s.dir, &gadget.ModelConstraints{Classic: true})
+	ginfo, err := gadget.ReadInfo(s.dir, &modelConstraints{classic: true})
 	c.Assert(err, IsNil)
 	c.Assert(ginfo, DeepEquals, &gadget.Info{
 		Defaults: map[string]map[string]interface{}{
@@ -490,7 +509,7 @@ volumes:
 	err := ioutil.WriteFile(s.gadgetYamlPath, mockGadgetYamlBroken, 0644)
 	c.Assert(err, IsNil)
 
-	_, err = gadget.ReadInfo(s.dir, &gadget.ModelConstraints{Classic: false})
+	_, err = gadget.ReadInfo(s.dir, &modelConstraints{classic: false})
 	c.Assert(err, ErrorMatches, "bootloader not declared in any volume")
 }
 
@@ -498,7 +517,7 @@ func (s *gadgetYamlTestSuite) TestReadGadgetYamlMissingBootloader(c *C) {
 	err := ioutil.WriteFile(s.gadgetYamlPath, nil, 0644)
 	c.Assert(err, IsNil)
 
-	_, err = gadget.ReadInfo(s.dir, &gadget.ModelConstraints{Classic: false})
+	_, err = gadget.ReadInfo(s.dir, &modelConstraints{classic: false})
 	c.Assert(err, ErrorMatches, "bootloader not declared in any volume")
 }
 
@@ -670,10 +689,10 @@ func (s *gadgetYamlTestSuite) TestUnmarshalGadgetRelativeOffset(c *C) {
 	}
 }
 
-var classicModelConstraints = []*gadget.ModelConstraints{
+var classicModelConstraints = []gadget.Model{
 	nil,
-	{Classic: false, SystemSeed: false},
-	{Classic: true, SystemSeed: false},
+	&modelConstraints{classic: false, systemSeed: false},
+	&modelConstraints{classic: true, systemSeed: false},
 }
 
 func (s *gadgetYamlTestSuite) TestReadGadgetYamlPCHappy(c *C) {
@@ -988,9 +1007,9 @@ func (s *gadgetYamlTestSuite) TestValidateVolumeDuplicateFsLabel(c *C) {
 		{true, "writable", `filesystem label "writable" is not unique`},
 		{true, "ubuntu-data", `filesystem label "ubuntu-data" is not unique`},
 	} {
-		for _, constraints := range []*gadget.ModelConstraints{
-			{Classic: false, SystemSeed: x.systemSeed},
-			{Classic: true, SystemSeed: x.systemSeed},
+		for _, constraints := range []*modelConstraints{
+			{classic: false, systemSeed: x.systemSeed},
+			{classic: true, systemSeed: x.systemSeed},
 		} {
 			err = gadget.ValidateVolume("name", &gadget.Volume{
 				Structure: []gadget.VolumeStructure{{
@@ -1562,9 +1581,9 @@ volumes:
 		err := ioutil.WriteFile(s.gadgetYamlPath, b.Bytes(), 0644)
 		c.Assert(err, IsNil)
 
-		constraints := &gadget.ModelConstraints{
-			Classic:    false,
-			SystemSeed: tc.systemSeed,
+		constraints := &modelConstraints{
+			classic:    false,
+			systemSeed: tc.systemSeed,
 		}
 
 		_, err = gadget.ReadInfo(s.dir, constraints)
@@ -1578,8 +1597,8 @@ volumes:
 	// test error with no volumes
 	err := ioutil.WriteFile(s.gadgetYamlPath, []byte(bloader), 0644)
 	c.Assert(err, IsNil)
-	constraints := &gadget.ModelConstraints{
-		SystemSeed: true,
+	constraints := &modelConstraints{
+		systemSeed: true,
 	}
 	_, err = gadget.ReadInfo(s.dir, constraints)
 	c.Assert(err, ErrorMatches, ".*: model requires system-seed partition, but no system-seed or system-data partition found")
@@ -1589,8 +1608,8 @@ func (s *gadgetYamlTestSuite) TestGadgetReadInfoVsFromMeta(c *C) {
 	err := ioutil.WriteFile(s.gadgetYamlPath, gadgetYamlPC, 0644)
 	c.Assert(err, IsNil)
 
-	constraints := &gadget.ModelConstraints{
-		Classic: false,
+	constraints := &modelConstraints{
+		classic: false,
 	}
 
 	giRead, err := gadget.ReadInfo(s.dir, constraints)
@@ -1602,21 +1621,329 @@ func (s *gadgetYamlTestSuite) TestGadgetReadInfoVsFromMeta(c *C) {
 	c.Assert(giRead, DeepEquals, giMeta)
 }
 
-func (s *gadgetYamlTestSuite) TestGadgetFromMetaEmpty(c *C) {
-	classicConstraints := &gadget.ModelConstraints{
-		Classic: true,
+var (
+	classicConstraints = &modelConstraints{
+		classic: true,
 	}
+	coreConstraints = &modelConstraints{
+		classic: false,
+	}
+)
 
+func (s *gadgetYamlTestSuite) TestGadgetFromMetaEmpty(c *C) {
 	// this is ok for classic
 	giClassic, err := gadget.InfoFromGadgetYaml([]byte(""), classicConstraints)
 	c.Check(err, IsNil)
 	c.Assert(giClassic, DeepEquals, &gadget.Info{})
 
-	coreConstraints := &gadget.ModelConstraints{
-		Classic: false,
-	}
 	// but not so much for core
 	giCore, err := gadget.InfoFromGadgetYaml([]byte(""), coreConstraints)
 	c.Check(err, ErrorMatches, "bootloader not declared in any volume")
 	c.Assert(giCore, IsNil)
+}
+
+func (s *gadgetYamlTestSuite) TestPositionedVolumeFromGadgetMultiVolume(c *C) {
+	err := ioutil.WriteFile(s.gadgetYamlPath, mockMultiVolumeGadgetYaml, 0644)
+	c.Assert(err, IsNil)
+
+	_, err = gadget.PositionedVolumeFromGadget(s.dir)
+	c.Assert(err, ErrorMatches, "cannot position multiple volumes yet")
+}
+
+func (s *gadgetYamlTestSuite) TestPositionedVolumeFromGadgetHappy(c *C) {
+	err := ioutil.WriteFile(s.gadgetYamlPath, gadgetYamlPC, 0644)
+	c.Assert(err, IsNil)
+	for _, fn := range []string{"pc-boot.img", "pc-core.img"} {
+		err = ioutil.WriteFile(filepath.Join(s.dir, fn), nil, 0644)
+		c.Assert(err, IsNil)
+	}
+
+	lv, err := gadget.PositionedVolumeFromGadget(s.dir)
+	c.Assert(err, IsNil)
+	c.Assert(lv.Volume.Bootloader, Equals, "grub")
+	// mbr, bios-boot, efi-system
+	c.Assert(lv.LaidOutStructure, HasLen, 3)
+}
+
+func (s *gadgetYamlTestSuite) TestStructureBareFilesystem(c *C) {
+	bareType := `
+type: bare
+size: 1M`
+	mbr := `
+role: mbr
+size: 446`
+	mbrLegacy := `
+type: mbr
+size: 446`
+	fs := `
+type: 21686148-6449-6E6F-744E-656564454649
+filesystem: vfat`
+	rawFsNoneExplicit := `
+type: 21686148-6449-6E6F-744E-656564454649
+filesystem: none
+size: 1M`
+	raw := `
+type: 21686148-6449-6E6F-744E-656564454649
+size: 1M`
+	for i, tc := range []struct {
+		s           *gadget.VolumeStructure
+		hasFs       bool
+		isPartition bool
+	}{
+		{mustParseStructure(c, bareType), false, false},
+		{mustParseStructure(c, mbr), false, false},
+		{mustParseStructure(c, mbrLegacy), false, false},
+		{mustParseStructure(c, fs), true, true},
+		{mustParseStructure(c, rawFsNoneExplicit), false, true},
+		{mustParseStructure(c, raw), false, true},
+	} {
+		c.Logf("tc: %v %+v", i, tc.s)
+		c.Check(tc.s.HasFilesystem(), Equals, tc.hasFs)
+		c.Check(tc.s.IsPartition(), Equals, tc.isPartition)
+	}
+}
+
+var mockSnapYaml = `name: pc
+type: gadget
+version: 1.0
+`
+
+func (s *gadgetYamlTestSuite) TestReadGadgetYamlFromSnapFileMissing(c *C) {
+	snapPath := snaptest.MakeTestSnapWithFiles(c, string(mockSnapYaml), nil)
+	snapf, err := snap.Open(snapPath)
+	c.Assert(err, IsNil)
+
+	// if constraints are nil, we allow a missing gadget.yaml
+	_, err = gadget.ReadInfoFromSnapFile(snapf, nil)
+	c.Assert(err, IsNil)
+
+	_, err = gadget.ReadInfoFromSnapFile(snapf, &modelConstraints{})
+	c.Assert(err, ErrorMatches, ".*meta/gadget.yaml: no such file or directory")
+}
+
+var minimalMockGadgetYaml = `
+volumes:
+ pc:
+  bootloader: grub
+`
+
+func (s *gadgetYamlTestSuite) TestReadGadgetYamlFromSnapFileValid(c *C) {
+	snapPath := snaptest.MakeTestSnapWithFiles(c, mockSnapYaml, [][]string{
+		{"meta/gadget.yaml", string(minimalMockGadgetYaml)},
+	})
+	snapf, err := snap.Open(snapPath)
+	c.Assert(err, IsNil)
+
+	ginfo, err := gadget.ReadInfoFromSnapFile(snapf, nil)
+	c.Assert(err, IsNil)
+	c.Assert(ginfo, DeepEquals, &gadget.Info{
+		Volumes: map[string]gadget.Volume{
+			"pc": {
+				Bootloader: "grub",
+			},
+		},
+	})
+}
+
+type gadgetCompatibilityTestSuite struct{}
+
+var _ = Suite(&gadgetCompatibilityTestSuite{})
+
+func (s *gadgetCompatibilityTestSuite) TestGadgetIsCompatibleSelf(c *C) {
+	giPC1, err := gadget.InfoFromGadgetYaml(gadgetYamlPC, coreConstraints)
+	c.Assert(err, IsNil)
+	giPC2, err := gadget.InfoFromGadgetYaml(gadgetYamlPC, coreConstraints)
+	c.Assert(err, IsNil)
+
+	err = gadget.IsCompatible(giPC1, giPC2)
+	c.Check(err, IsNil)
+}
+
+func (s *gadgetCompatibilityTestSuite) TestGadgetIsCompatibleBadVolume(c *C) {
+	var mockYaml = []byte(`
+volumes:
+  volumename:
+    schema: mbr
+    bootloader: u-boot
+    id: 0C
+`)
+
+	var mockOtherYaml = []byte(`
+volumes:
+  volumename-other:
+    schema: mbr
+    bootloader: u-boot
+    id: 0C
+`)
+	var mockManyYaml = []byte(`
+volumes:
+  volumename:
+    schema: mbr
+    bootloader: u-boot
+    id: 0C
+  volumename-many:
+    schema: mbr
+    id: 0C
+`)
+	var mockBadIDYaml = []byte(`
+volumes:
+  volumename:
+    schema: mbr
+    bootloader: u-boot
+    id: 0D
+`)
+	var mockSchemaYaml = []byte(`
+volumes:
+  volumename:
+    schema: gpt
+    bootloader: u-boot
+    id: 0C
+`)
+	var mockBootloaderYaml = []byte(`
+volumes:
+  volumename:
+    schema: mbr
+    bootloader: grub
+    id: 0C
+`)
+	var mockBadStructureSizeYaml = []byte(`
+volumes:
+  volumename:
+    schema: mbr
+    bootloader: grub
+    id: 0C
+    structure:
+      - name: bad-size
+        size: 99999
+        type: 0C
+`)
+	for _, tc := range []struct {
+		gadgetYaml []byte
+		err        string
+	}{
+		{mockOtherYaml, `cannot find entry for volume "volumename" in updated gadget info`},
+		{mockManyYaml, "gadgets with multiple volumes are unsupported"},
+		{mockBadStructureSizeYaml, `cannot lay out the new volume: cannot lay out volume, structure #0 \("bad-size"\) size is not a multiple of sector size 512`},
+		{mockBadIDYaml, "incompatible layout change: incompatible ID change from 0C to 0D"},
+		{mockSchemaYaml, "incompatible layout change: incompatible schema change from mbr to gpt"},
+		{mockBootloaderYaml, "incompatible layout change: incompatible bootloader change from u-boot to grub"},
+	} {
+		c.Logf("trying: %v\n", string(tc.gadgetYaml))
+		gi, err := gadget.InfoFromGadgetYaml(mockYaml, coreConstraints)
+		c.Assert(err, IsNil)
+		giNew, err := gadget.InfoFromGadgetYaml(tc.gadgetYaml, coreConstraints)
+		c.Assert(err, IsNil)
+		err = gadget.IsCompatible(gi, giNew)
+		if tc.err == "" {
+			c.Check(err, IsNil)
+		} else {
+			c.Check(err, ErrorMatches, tc.err)
+		}
+
+	}
+}
+
+func (s *gadgetCompatibilityTestSuite) TestGadgetIsCompatibleBadStructure(c *C) {
+	var baseYaml = `
+volumes:
+  volumename:
+    schema: gpt
+    bootloader: grub
+    id: 0C
+    structure:`
+	var mockYaml = baseYaml + `
+      - name: legit
+        size: 2M
+        type: 00000000-0000-0000-0000-0000deadbeef
+        filesystem: ext4
+        filesystem-label: fs-legit
+`
+	var mockBadStructureTypeYaml = baseYaml + `
+      - name: legit
+        size: 2M
+        type: 00000000-0000-0000-0000-0000deadcafe
+        filesystem: ext4
+        filesystem-label: fs-legit
+`
+	var mockBadFsYaml = baseYaml + `
+      - name: legit
+        size: 2M
+        type: 00000000-0000-0000-0000-0000deadbeef
+        filesystem: vfat
+        filesystem-label: fs-legit
+`
+	var mockBadOffsetYaml = baseYaml + `
+      - name: legit
+        size: 2M
+        type: 00000000-0000-0000-0000-0000deadbeef
+        filesystem: ext4
+        offset: 1M
+        filesystem-label: fs-legit
+`
+	var mockBadLabelYaml = baseYaml + `
+      - name: legit
+        size: 2M
+        type: 00000000-0000-0000-0000-0000deadbeef
+        filesystem: ext4
+        filesystem-label: fs-non-legit
+`
+	var mockGPTBadNameYaml = baseYaml + `
+      - name: non-legit
+        size: 2M
+        type: 00000000-0000-0000-0000-0000deadbeef
+        filesystem: ext4
+        filesystem-label: fs-legit
+`
+
+	for i, tc := range []struct {
+		gadgetYaml string
+		err        string
+	}{
+		{mockYaml, ``},
+		{mockBadStructureTypeYaml, `incompatible layout change: incompatible structure #0 \("legit"\) change: cannot change structure type from "00000000-0000-0000-0000-0000deadbeef" to "00000000-0000-0000-0000-0000deadcafe"`},
+		{mockBadFsYaml, `incompatible layout change: incompatible structure #0 \("legit"\) change: cannot change filesystem from "ext4" to "vfat"`},
+		{mockBadOffsetYaml, `incompatible layout change: incompatible structure #0 \("legit"\) change: cannot change structure offset from unspecified to 1048576`},
+		{mockBadLabelYaml, `incompatible layout change: incompatible structure #0 \("legit"\) change: cannot change filesystem label from "fs-legit" to "fs-non-legit"`},
+		{mockGPTBadNameYaml, `incompatible layout change: incompatible structure #0 \("non-legit"\) change: cannot change structure name from "legit" to "non-legit"`},
+	} {
+		c.Logf("trying: %d %v\n", i, string(tc.gadgetYaml))
+		gi, err := gadget.InfoFromGadgetYaml([]byte(mockYaml), coreConstraints)
+		c.Assert(err, IsNil)
+		giNew, err := gadget.InfoFromGadgetYaml([]byte(tc.gadgetYaml), coreConstraints)
+		c.Assert(err, IsNil)
+		err = gadget.IsCompatible(gi, giNew)
+		if tc.err == "" {
+			c.Check(err, IsNil)
+		} else {
+			c.Check(err, ErrorMatches, tc.err)
+		}
+
+	}
+}
+
+func (s *gadgetCompatibilityTestSuite) TestGadgetIsCompatibleStructureNameMBR(c *C) {
+	var baseYaml = `
+volumes:
+  volumename:
+    schema: mbr
+    bootloader: grub
+    id: 0C
+    structure:`
+	var mockYaml = baseYaml + `
+      - name: legit
+        size: 2M
+        type: 0A
+`
+	var mockMBRNameOkYaml = baseYaml + `
+      - name: non-legit
+        size: 2M
+        type: 0A
+`
+
+	gi, err := gadget.InfoFromGadgetYaml([]byte(mockYaml), coreConstraints)
+	c.Assert(err, IsNil)
+	giNew, err := gadget.InfoFromGadgetYaml([]byte(mockMBRNameOkYaml), coreConstraints)
+	c.Assert(err, IsNil)
+	err = gadget.IsCompatible(gi, giNew)
+	c.Check(err, IsNil)
 }

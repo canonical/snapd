@@ -1380,6 +1380,19 @@ func (s *infoSuite) TestDottedPathPlug(c *C) {
 	c.Assert(ok, Equals, false)
 }
 
+func (s *infoSuite) TestDefaultContentProviders(c *C) {
+	info, err := snap.InfoFromSnapYaml([]byte(yamlNeedDf))
+	c.Assert(err, IsNil)
+
+	plugs := make([]*snap.PlugInfo, 0, len(info.Plugs))
+	for _, plug := range info.Plugs {
+		plugs = append(plugs, plug)
+	}
+
+	dps := snap.DefaultContentProviders(plugs)
+	c.Check(dps, DeepEquals, map[string][]string{"gtk-common-themes": {"gtk-3-themes", "icon-themes"}})
+}
+
 func (s *infoSuite) TestExpandSnapVariables(c *C) {
 	dirs.SetRootDir("")
 	info, err := snap.InfoFromSnapYaml([]byte(`name: foo`))
@@ -1595,8 +1608,6 @@ func (s *infoSuite) TestSortByTypeAgain(c *C) {
 }
 
 func (s *infoSuite) TestMedia(c *C) {
-	c.Check(snap.MediaInfos{}.Screenshots(), DeepEquals,
-		[]snap.ScreenshotInfo{{Note: snap.ScreenshotsDeprecationNotice}})
 	c.Check(snap.MediaInfos{}.IconURL(), Equals, "")
 
 	media := snap.MediaInfos{
@@ -1615,8 +1626,6 @@ func (s *infoSuite) TestMedia(c *C) {
 	}
 
 	c.Check(media.IconURL(), Equals, "https://example.com/icon.png")
-	c.Check(media.Screenshots(), DeepEquals,
-		[]snap.ScreenshotInfo{{Note: snap.ScreenshotsDeprecationNotice}})
 }
 
 func (s *infoSuite) TestSortApps(c *C) {

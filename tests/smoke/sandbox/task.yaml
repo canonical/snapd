@@ -2,6 +2,9 @@ summary: Sandboxing of the snaps works
 
 restore: |
     rm -f /home/test/foo
+    # requied! in autopkgtest no suite restore is run at all
+    snap remove test-snapd-sandbox
+    snap remove test-snapd-hello-multi-arch
 
 execute: |
     if [ "$(snap debug confinement)" != "strict" ]; then
@@ -15,36 +18,36 @@ execute: |
 
     #shellcheck source=tests/lib/snaps.sh
     . "$TESTSLIB/snaps.sh"
-    install_local test-snapd-sh
+    install_local test-snapd-sandbox
 
     # home is not auto-connected on core
     if grep -q ID=ubuntu-core /etc/os-release; then
-        snap connect test-snapd-sh:home
+        snap connect test-snapd-sandbox:home
     fi
 
     ############## APPARMOR
     echo "Ensure the apparmor sandbox for snaps works for root"
     for p in "/root/foo" "/home/foo" "/home/test/foo"; do
         # no writing
-        not test-snapd-sh -c "touch $p" 2>stderr.log
+        not test-snapd-sandbox -c "touch $p" 2>stderr.log
         MATCH <stderr.log 'touch: .* Permission denied'
 
         # no reading
         touch "$p"
-        not test-snapd-sh -c "cat $p" 2>stderr.log
+        not test-snapd-sandbox -c "cat $p" 2>stderr.log
         MATCH <stderr.log 'cat: .* Permission denied'
         rm -f "$p"
     done
 
     echo "Ensure the apparmor sandbox for snaps works for users"
-    not su -l -c 'test-snapd-sh -c "touch /home/test/foo"' test 2>stderr.log
+    not su -l -c 'test-snapd-sandbox -c "touch /home/test/foo"' test 2>stderr.log
     MATCH <stderr.log '.* Permission denied'
 
     echo "But with the right plug the user can put files into home"
-    su -l -c  'test-snapd-sh.with-home-plug -c "echo good >/home/test/foo"' test
+    su -l -c  'test-snapd-sandbox.with-home-plug -c "echo good >/home/test/foo"' test
     test -e /home/test/foo
     echo "and also read them back"
-    su -l -c  'test-snapd-sh.with-home-plug -c "cat /home/test/foo"' test | MATCH good
+    su -l -c  'test-snapd-sandbox.with-home-plug -c "cat /home/test/foo"' test | MATCH good
 
 
     ############## SECCOMP
@@ -71,7 +74,7 @@ execute: |
         python3 sec.py 22082007 | MATCH ENOSYS
     fi
     echo "But in the sandbox we get a EPERM"
-    test-snapd-sh.with-home-plug -c "python3 $(pwd)/sec.py 22082007" | MATCH EPERM
+    test-snapd-sandbox.with-home-plug -c "python3 $(pwd)/sec.py 22082007" | MATCH EPERM
 
     if [ "$(uname -p)" = "x86_64" ]; then
         echo "Ensure secondary arch works for amd64 with i386 binaries"
