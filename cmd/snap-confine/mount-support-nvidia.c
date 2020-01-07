@@ -41,8 +41,7 @@
 // note: if the parent dir changes to something other than
 // the current /var/lib/snapd/lib then sc_mkdir_and_mount_and_bind
 // and sc_mkdir_and_mount_and_bind need updating.
-#define SC_SNAPD_STATE_DIR "/var/lib/snapd"
-#define SC_LIB SC_SNAPD_STATE_DIR "/lib"
+#define SC_LIB "/var/lib/snapd/lib"
 #define SC_LIBGL_DIR   SC_LIB "/gl"
 #define SC_LIBGL32_DIR SC_LIB "/gl32"
 #define SC_VULKAN_DIR  SC_LIB "/vulkan"
@@ -265,7 +264,7 @@ static void sc_mkdir_and_mount_and_glob_files(const char *rootfs_dir,
 	/* Note that in practice the target directory is not a full path but indeed
 	 * a single directory. This makes plain, non-recursive mkdir applicable
 	 * here. */
-	sc_mkdir(rootfs_dir, tgt_dir, 0, 0, 0755);
+	sc_mksubdir(rootfs_dir, tgt_dir, 0755, 0, 0);
 	debug("mounting tmpfs at %s", libgl_dir);
 	if (mount("none", libgl_dir, "tmpfs", MS_NODEV | MS_NOEXEC, NULL) != 0) {
 		die("cannot mount tmpfs at %s", libgl_dir);
@@ -400,14 +399,7 @@ static void sc_mkdir_and_mount_and_bind(const char *rootfs_dir,
 	if (access(src, F_OK) != 0) {
 		return;
 	}
-	int res = mkdir(dst, 0755);
-	if (res != 0 && errno != EEXIST) {
-		die("cannot create directory %s", dst);
-	}
-	if (res == 0 && (chown(dst, 0, 0) < 0)) {
-		// Adjust the ownership only if we created the directory.
-		die("cannot change ownership of %s", dst);
-	}
+	sc_mkdir(dst, 0755, 0, 0);
 	// Bind mount the binary nvidia driver into $tgt_dir (i.e. /var/lib/snapd/lib/gl).
 	debug("bind mounting nvidia driver %s -> %s", src, dst);
 	if (mount(src, dst, NULL, MS_BIND, NULL) != 0) {
@@ -523,7 +515,7 @@ void sc_mount_nvidia_driver(const char *rootfs_dir)
 		return;
 	}
 
-	sc_mkdir(SC_SNAPD_STATE_DIR, "lib", 0, 0, 0755);
+	sc_mkdir(SC_LIB, 0755, 0, 0);
 #ifdef NVIDIA_MULTIARCH
 	sc_mount_nvidia_driver_multiarch(rootfs_dir);
 #endif				// ifdef NVIDIA_MULTIARCH
