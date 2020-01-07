@@ -3,6 +3,8 @@ summary: Check that snapd failure handling works
 debug: |
     # dump failure data
     journalctl -u snapd.failure.service
+    journalctl -u snapd.socket
+    systemctl status snapd.socket
 
 restore: |
     # Stop snapd.failure.service in case it is active
