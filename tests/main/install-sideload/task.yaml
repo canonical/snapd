@@ -71,7 +71,15 @@ execute: |
     test-snapd-tools.success
 
     echo "All snap blobs are 0600"
-    test "$( find /var/lib/snapd/{snaps,cache,seed/snaps}/ -type f -printf '%#m\n' | sort -u | xargs )" = "0600"
+    test "$( find /var/lib/snapd/{snaps,cache}/ -type f -printf '%#m\n' | sort -u | xargs )" = "0600"
+
+    # shellcheck source=tests/lib/systems.sh
+    . "$TESTSLIB/systems.sh"
+    # The "seed/" dir is on a FAT partition on uc20 so the permissions are
+    # different here.
+    if ! is_core20_system; then
+        test "$( find /var/lib/snapd/seed/snaps/ -type f -printf '%#m\n' | sort -u | xargs )" = "0600"
+    fi
 
     # TODO: check we copy the data directory over
 
