@@ -46,14 +46,14 @@ func newBootState16(typ snap.Type) *bootState16 {
 	return &bootState16{varSuffix: varSuffix, errName: errName}
 }
 
-func (s *bootState16) revisions() (snap, try_snap *NameAndRevision, trying bool, err error) {
+func (s16 *bootState16) revisions() (snap, try_snap *NameAndRevision, trying bool, err error) {
 	bloader, err := bootloader.Find("", nil)
 	if err != nil {
 		return nil, nil, false, fmt.Errorf("cannot get boot settings: %s", err)
 	}
 
-	snapVar := "snap_" + s.varSuffix
-	trySnapVar := "snap_try_" + s.varSuffix
+	snapVar := "snap_" + s16.varSuffix
+	trySnapVar := "snap_try_" + s16.varSuffix
 	vars := []string{"snap_mode", snapVar, trySnapVar}
 	snaps := make(map[string]*NameAndRevision, 2)
 
@@ -76,7 +76,7 @@ func (s *bootState16) revisions() (snap, try_snap *NameAndRevision, trying bool,
 		} else {
 			nameAndRevno, err := nameAndRevnoFromSnap(v)
 			if err != nil {
-				return nil, nil, false, fmt.Errorf("cannot get name and revision of %s (%s): %v", s.errName, vName, err)
+				return nil, nil, false, fmt.Errorf("cannot get name and revision of %s (%s): %v", s16.errName, vName, err)
 			}
 			snaps[vName] = nameAndRevno
 		}
@@ -124,7 +124,7 @@ func (u16 *bootStateUpdate16) commit() error {
 	return u16.bl.SetBootVars(env)
 }
 
-func (s *bootState16) markSuccessful(update bootStateUpdate) (bootStateUpdate, error) {
+func (s16 *bootState16) markSuccessful(update bootStateUpdate) (bootStateUpdate, error) {
 	u16, err := newBootStateUpdate16(update, "snap_mode", "snap_try_core", "snap_try_kernel")
 	if err != nil {
 		return nil, err
@@ -139,8 +139,8 @@ func (s *bootState16) markSuccessful(update bootStateUpdate) (bootStateUpdate, e
 		return u16, nil
 	}
 
-	tryBootVar := fmt.Sprintf("snap_try_%s", s.varSuffix)
-	bootVar := fmt.Sprintf("snap_%s", s.varSuffix)
+	tryBootVar := fmt.Sprintf("snap_try_%s", s16.varSuffix)
+	bootVar := fmt.Sprintf("snap_%s", s16.varSuffix)
 	// update the boot vars
 	if env[tryBootVar] != "" {
 		toCommit[bootVar] = env[tryBootVar]
@@ -151,9 +151,9 @@ func (s *bootState16) markSuccessful(update bootStateUpdate) (bootStateUpdate, e
 	return u16, nil
 }
 
-func (s *bootState16) setNext(nextBoot string) (rebootRequired bool, u bootStateUpdate, err error) {
-	nextBootVar := fmt.Sprintf("snap_try_%s", s.varSuffix)
-	goodBootVar := fmt.Sprintf("snap_%s", s.varSuffix)
+func (s16 *bootState16) setNext(nextBoot string) (rebootRequired bool, u bootStateUpdate, err error) {
+	nextBootVar := fmt.Sprintf("snap_try_%s", s16.varSuffix)
+	goodBootVar := fmt.Sprintf("snap_%s", s16.varSuffix)
 
 	u16, err := newBootStateUpdate16(nil, "snap_mode", goodBootVar)
 	if err != nil {
