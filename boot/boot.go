@@ -148,10 +148,9 @@ type bootState interface {
 	revisions() (snap, try_snap *NameAndRevision, trying bool, err error)
 
 	// markSuccessful lazily implements marking the boot
-	// successful for the boot snap of the type. actually
-	// committing the update is done via the threaded
-	// bootStateUpdate commit, that way different bootState
-	// markSuccessful can be chained.
+	// successful for the type's boot snap. The actual committing
+	// of the update is done via bootStateUpdate's commit, that
+	// way different markSuccessful can be folded together.
 	markSuccessful(bootStateUpdate) (bootStateUpdate, error)
 }
 
