@@ -40,6 +40,10 @@ prepare: |
 
 execute: |
     LOOP="$(cat loop.txt)"
+
+    # debug message to see if the udev database is correctly updated
+    udevadm info --query=property "${LOOP}p2" | grep ID_FS_TYPE ||:
+
     echo "Run the snap-bootstrap tool in auto-detect mode"
     /usr/lib/snapd/snap-bootstrap create-partitions ./gadget-dir
 

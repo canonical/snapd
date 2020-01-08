@@ -1659,6 +1659,7 @@ func (s *mgrsSuite) TestInstallCoreSnapUpdatesBootloaderEnvAndSplitsAcrossRestar
 	bloader := bootloadertest.Mock("mock", c.MkDir())
 	bootloader.Force(bloader)
 	defer bootloader.Force(nil)
+	bloader.SetBootBase("core_99.snap")
 
 	restore := release.MockOnClassic(false)
 	defer restore()
@@ -1707,6 +1708,7 @@ type: os
 
 	// this is already set
 	c.Assert(bloader.BootVars, DeepEquals, map[string]string{
+		"snap_core":     "core_99.snap",
 		"snap_try_core": "core_x1.snap",
 		"snap_mode":     "try",
 	})

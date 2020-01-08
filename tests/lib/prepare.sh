@@ -58,6 +58,9 @@ ensure_jq() {
     if is_core18_system; then
         snap install --devmode jq-core18
         snap alias jq-core18.jq jq
+    elif is_core20_system; then
+        snap install --devmode --edge jq-core20
+        snap alias jq-core20.jq jq
     else
         snap install --devmode jq
     fi
@@ -78,7 +81,7 @@ disable_refreshes() {
     snap refresh --time --abs-time | MATCH "last: 2[0-9]{3}"
 
     echo "Ensure jq is gone"
-    snap remove jq jq-core18
+    snap remove jq jq-core18 jq-core20
 }
 
 setup_systemd_snapd_overrides() {
@@ -333,13 +336,98 @@ repack_snapd_snap_with_deb_content() {
 
     local UNPACK_DIR="/tmp/snapd-unpack"
     unsquashfs -no-progress -d "$UNPACK_DIR" snapd_*.snap
-    # clean snap apparmor.d to ensure the put the right snap-confine apparmor
+    # clean snap apparmor.d to ensure we put the right snap-confine apparmor
     # file in place. Its called usr.lib.snapd.snap-confine on 14.04 but
     # usr.lib.snapd.snap-confine.real everywhere else
     rm -f "$UNPACK_DIR"/etc/apparmor.d/*
 
     dpkg-deb -x "$SPREAD_PATH"/../snapd_*.deb "$UNPACK_DIR"
     cp /usr/lib/snapd/info "$UNPACK_DIR"/usr/lib/
+    snap pack "$UNPACK_DIR" "$TARGET"
+    rm -rf "$UNPACK_DIR"
+}
+
+repack_snapd_snap_with_deb_content_and_run_mode_firstboot_tweaks() {
+    local TARGET="$1"
+
+    local UNPACK_DIR="/tmp/snapd-unpack"
+    unsquashfs -no-progress -d "$UNPACK_DIR" snapd_*.snap
+
+    # clean snap apparmor.d to ensure we put the right snap-confine apparmor
+    # file in place. Its called usr.lib.snapd.snap-confine on 14.04 but
+    # usr.lib.snapd.snap-confine.real everywhere else
+    rm -f "$UNPACK_DIR"/etc/apparmor.d/*
+
+    dpkg-deb -x "$SPREAD_PATH"/../snapd_*.deb "$UNPACK_DIR"
+    cp /usr/lib/snapd/info "$UNPACK_DIR"/usr/lib/
+
+    # now install a unit that setups enough so that we can connect
+    cat > "$UNPACK_DIR"/lib/systemd/system/snapd.spread-tests-run-mode-tweaks.service <<'EOF'
+[Unit]
+Description=Tweaks to run mode for spread tests
+Before=snapd.service
+Documentation=man:snap(1)
+
+[Service]
+Type=oneshot
+ExecStart=/usr/lib/snapd/snapd.spread-tests-run-mode-tweaks.sh
+RemainAfterExit=true
+
+[Install]
+WantedBy=multi-user.target
+EOF
+    # XXX: this duplicates a lot of setup_test_user_by_modify_writable()
+    cat > "$UNPACK_DIR"/usr/lib/snapd/snapd.spread-tests-run-mode-tweaks.sh <<'EOF'
+#!/bin/sh
+set -e
+# ensure we don't enable ssh in install mode or spread will get confused
+if ! grep 'snapd_recovery_mode=run' /proc/cmdline; then
+    echo "not in run mode - script not running"
+    exit 0
+fi
+if [ -e /root/spread-setup-done ]; then
+    exit 0
+fi
+
+# extract data from previous stage
+(cd / && tar xvf /run/mnt/ubuntu-seed/run-mode-overlay-data.tar.gz)
+
+# user db - it's complicated
+for f in group gshadow passwd shadow; do
+    # now bind mount read-only those passwd files on boot
+    cat >/etc/systemd/system/etc-"$f".mount <<EOF2
+[Unit]
+Description=Mount root/test-etc/$f over system etc/$f
+Before=ssh.service
+
+[Mount]
+What=/root/test-etc/$f
+Where=/etc/$f
+Type=none
+Options=bind,ro
+
+[Install]
+WantedBy=multi-user.target
+EOF2
+    systemctl enable etc-"$f".mount
+    systemctl start etc-"$f".mount
+done
+
+mkdir -p /home/test
+chown 12345:12345 /home/test
+mkdir -p /home/ubuntu
+chown 1000:1000 /home/ubuntu
+mkdir -p /etc/sudoers.d/
+echo 'test ALL=(ALL) NOPASSWD:ALL' >> /etc/sudoers.d/99-test-user
+echo 'ubuntu ALL=(ALL) NOPASSWD:ALL' >> /etc/sudoers.d/99-ubuntu-user
+sed -i 's/\#\?\(PermitRootLogin\|PasswordAuthentication\)\>.*/\1 yes/' /etc/ssh/sshd_config
+echo "MaxAuthTries 120" >> /etc/ssh/sshd_config
+grep '^PermitRootLogin yes' /etc/ssh/sshd_config
+systemctl reload ssh
+
+touch /root/spread-setup-done
+EOF
+    chmod 0755 "$UNPACK_DIR"/usr/lib/snapd/snapd.spread-tests-run-mode-tweaks.sh
     snap pack "$UNPACK_DIR" "$TARGET"
     rm -rf "$UNPACK_DIR"
 }
@@ -456,6 +544,9 @@ setup_reflash_magic() {
     if is_core18_system; then
         snap download "--channel=${SNAPD_CHANNEL}" snapd
         core_name="core18"
+    elif is_core20_system; then
+        snap download "--channel=${SNAPD_CHANNEL}" snapd
+        core_name="core20"
     fi
     snap install "--channel=${CORE_CHANNEL}" "$core_name"
 
@@ -476,10 +567,14 @@ setup_reflash_magic() {
 
     if is_core18_system; then
         repack_snapd_snap_with_deb_content "$IMAGE_HOME"
-
         # FIXME: fetch directly once its in the assertion service
         cp "$TESTSLIB/assertions/ubuntu-core-18-amd64.model" "$IMAGE_HOME/pc.model"
         IMAGE=core18-amd64.img
+    elif is_core20_system; then
+        repack_snapd_snap_with_deb_content_and_run_mode_firstboot_tweaks "$IMAGE_HOME"
+        # TODO:UC20: use canonical model instead of "mvo" one
+        cp "$TESTSLIB/assertions/ubuntu-core-20-amd64.model" "$IMAGE_HOME/pc.model"
+        IMAGE=core20-amd64.img
     else
         # modify the core snap so that the current root-pw works there
         # for spread to do the first login
@@ -539,7 +634,7 @@ EOF
 
     # on core18 we need to use the modified snapd snap and on core16
     # it is the modified core that contains our freshly build snapd
-    if is_core18_system; then
+    if is_core18_system || is_core20_system; then
         extra_snap=("$IMAGE_HOME"/snapd_*.snap)
     else
         extra_snap=("$IMAGE_HOME"/core_*.snap)
@@ -563,6 +658,9 @@ EOF
     # FIXME: hardcoded mapper location, parse from kpartx
     if is_core18_system; then
         mount /dev/mapper/loop3p3 /mnt
+    elif is_core20_system; then
+        # (ab)use ubuntu-seed
+        mount /dev/mapper/loop3p2 /mnt
     else
         mount /dev/mapper/loop2p3 /mnt
     fi
@@ -572,22 +670,52 @@ EOF
     # - built debs
     # - golang archive files and built packages dir
     # - govendor .cache directory and the binary,
-    rsync -a -C \
+    if is_core16_system || is_core18_system; then
+        rsync -a -C \
           --exclude '*.a' \
           --exclude '*.deb' \
           --exclude /gopath/.cache/ \
           --exclude /gopath/bin/govendor \
           --exclude /gopath/pkg/ \
           /home/gopath /mnt/user-data/
+    elif is_core20_system; then
+        # prepare passwd for run-mode-overlay-data
+        mkdir -p /root/test-etc
+        mkdir -p /var/lib/extrausers
+        touch /var/lib/extrausers/sub{uid,gid}
+        for f in group gshadow passwd shadow; do
+            grep -v "^root:" /etc/"$f" > /root/test-etc/"$f"
+            grep "^root:" /etc/"$f" >> /root/test-etc/"$f"
+            chgrp --reference /etc/"$f" /root/test-etc/"$f"
+            # create /var/lib/extrausers/$f
+            # append ubuntu, test user for the testing
+            grep "^test:" /etc/"$f" >> /var/lib/extrausers/"$f"
+            grep "^ubuntu:" /etc/"$f" >> /var/lib/extrausers/"$f"
+            # check test was copied
+            MATCH "^test:" </var/lib/extrausers/"$f"
+            MATCH "^ubuntu:" </var/lib/extrausers/"$f"
+        done
+        tar -c -z \
+          --exclude '*.a' \
+          --exclude '*.deb' \
+          --exclude /gopath/.cache/ \
+          --exclude /gopath/bin/govendor \
+          --exclude /gopath/pkg/ \
+          -f /mnt/run-mode-overlay-data.tar.gz \
+          /home/gopath /root/test-etc /var/lib/extrausers
+    fi
 
-    # now modify the image
+    # now modify the image writable partition
     if is_core18_system; then
         UNPACK_DIR="/tmp/core18-snap"
         unsquashfs -no-progress -d "$UNPACK_DIR" /var/lib/snapd/snaps/core18_*.snap
     fi
-
-    # modify the writable partition of "core" so that we have the test user
-    setup_core_for_testing_by_modify_writable "$UNPACK_DIR"
+    # modifying "writable" is only possible on uc16/uc18
+    if is_core16_system || is_core18_system; then
+        # modify the writable partition of "core" so that we have the
+        # test user
+        setup_core_for_testing_by_modify_writable "$UNPACK_DIR"
+    fi
 
     # the reflash magic
     # FIXME: ideally in initrd, but this is good enough for now
@@ -598,7 +726,11 @@ cp /bin/busybox /tmp
 cp $IMAGE_HOME/$IMAGE /tmp
 sync
 # blow away everything
-/tmp/busybox dd if=/tmp/$IMAGE of=/dev/sda bs=4M
+OF=/dev/sda
+if [ -e /dev/vda ]; then
+    OF=/dev/vda
+fi
+/tmp/busybox dd if=/tmp/$IMAGE of=\$OF bs=4M
 # and reboot
 /tmp/busybox sync
 /tmp/busybox echo b > /proc/sysrq-trigger
@@ -676,6 +808,8 @@ prepare_ubuntu_core() {
         rsync_snap="test-snapd-rsync"
         if is_core18_system; then
             rsync_snap="test-snapd-rsync-core18"
+        elif is_core20_system; then
+            rsync_snap="test-snapd-rsync-core20"
         fi
         snap install --devmode "$rsync_snap"
         snap alias "$rsync_snap".rsync rsync

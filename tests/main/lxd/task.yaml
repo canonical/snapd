@@ -2,8 +2,8 @@ summary: Ensure that lxd works
 
 # Only run this on ubuntu 16+, lxd will not work on !ubuntu systems
 # currently nor on ubuntu 14.04
-# No ubuntu 18.10 imaga available so far
-systems: [ubuntu-16*, ubuntu-18.04*, ubuntu-2*, ubuntu-core-*]
+# TODO:UC20: enable for UC20
+systems: [ubuntu-16*, ubuntu-18.04*, ubuntu-2*, ubuntu-core-1*]
 
 # autopkgtest run only a subset of tests that deals with the integration
 # with the distro

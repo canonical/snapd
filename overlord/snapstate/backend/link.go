@@ -77,9 +77,9 @@ func hasFontConfigCache(info *snap.Info) bool {
 }
 
 // LinkSnap makes the snap available by generating wrappers and setting the current symlinks.
-func (b Backend) LinkSnap(info *snap.Info, dev boot.Device, prevDisabledSvcs []string, tm timings.Measurer) (e error) {
+func (b Backend) LinkSnap(info *snap.Info, dev boot.Device, prevDisabledSvcs []string, tm timings.Measurer) (rebootRequired bool, e error) {
 	if info.Revision.Unset() {
-		return fmt.Errorf("cannot link snap %q with unset revision", info.InstanceName())
+		return false, fmt.Errorf("cannot link snap %q with unset revision", info.InstanceName())
 	}
 
 	var err error
@@ -87,7 +87,7 @@ func (b Backend) LinkSnap(info *snap.Info, dev boot.Device, prevDisabledSvcs []s
 		err = generateWrappers(info, prevDisabledSvcs)
 	})
 	if err != nil {
-		return err
+		return false, err
 	}
 	defer func() {
 		if e == nil {
@@ -111,13 +111,13 @@ func (b Backend) LinkSnap(info *snap.Info, dev boot.Device, prevDisabledSvcs []s
 		})
 	}
 
-	// XXX this is not tested afaict
-	if err := boot.Participant(info, info.GetType(), dev).SetNextBoot(); err != nil {
-		return err
+	reboot, err := boot.Participant(info, info.GetType(), dev).SetNextBoot()
+	if err != nil {
+		return false, err
 	}
 
 	if err := updateCurrentSymlinks(info); err != nil {
-		return err
+		return false, err
 	}
 	// if anything below here could return error, you need to
 	// somehow clean up whatever updateCurrentSymlinks did
@@ -131,7 +131,8 @@ func (b Backend) LinkSnap(info *snap.Info, dev boot.Device, prevDisabledSvcs []s
 			}
 		})
 	}
-	return nil
+
+	return reboot, nil
 }
 
 func (b Backend) StartServices(apps []*snap.AppInfo, meter progress.Meter, tm timings.Measurer) error {

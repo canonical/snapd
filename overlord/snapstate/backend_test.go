@@ -604,8 +604,9 @@ type fakeSnappyBackend struct {
 
 	linkSnapWaitCh      chan int
 	linkSnapWaitTrigger string
+	linkSnapFailTrigger string
+	linkSnapMaybeReboot bool
 
-	linkSnapFailTrigger     string
 	copySnapDataFailTrigger string
 	emptyContainer          snap.Container
 
@@ -801,7 +802,7 @@ func (f *fakeSnappyBackend) CopySnapData(newInfo, oldInfo *snap.Info, p progress
 	return nil
 }
 
-func (f *fakeSnappyBackend) LinkSnap(info *snap.Info, dev boot.Device, disabledSvcs []string, tm timings.Measurer) error {
+func (f *fakeSnappyBackend) LinkSnap(info *snap.Info, dev boot.Device, disabledSvcs []string, tm timings.Measurer) (rebootRequired bool, err error) {
 	if info.MountDir() == f.linkSnapWaitTrigger {
 		f.linkSnapWaitCh <- 1
 		<-f.linkSnapWaitCh
@@ -820,11 +821,17 @@ func (f *fakeSnappyBackend) LinkSnap(info *snap.Info, dev boot.Device, disabledS
 	if info.MountDir() == f.linkSnapFailTrigger {
 		op.op = "link-snap.failed"
 		f.ops = append(f.ops, op)
-		return errors.New("fail")
+		return false, errors.New("fail")
 	}
 
 	f.appendOp(&op)
-	return nil
+
+	reboot := false
+	if f.linkSnapMaybeReboot {
+		reboot = info.InstanceName() == dev.Base()
+	}
+
+	return reboot, nil
 }
 
 func svcSnapMountDir(svcs []*snap.AppInfo) string {

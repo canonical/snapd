@@ -1,8 +1,8 @@
 summary: Check that the the docker snap works basically
 
 # only run on ubuntus for now, the docker snap has issues on non-ubuntu ATM
-systems:
-  - ubuntu-*
+# TODO:UC20: enable for UC20
+systems: [ubuntu-1*, ubuntu-2*, ubuntu-core-1*]
 
 debug: |
   journalctl -u snap.docker.dockerd

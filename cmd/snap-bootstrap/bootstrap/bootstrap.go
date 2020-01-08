@@ -83,17 +83,19 @@ func Run(gadgetRoot, device string, options *Options) error {
 		return fmt.Errorf("cannot create the partitions: %v", err)
 	}
 
-	if err := partition.MakeFilesystems(created); err != nil {
-		return err
-	}
-
-	if err := partition.DeployContent(created, gadgetRoot); err != nil {
-		return err
-	}
-
-	if options.Mount {
-		if err := partition.MountFilesystems(created, dirs.RunMnt); err != nil {
+	for _, part := range created {
+		if err := partition.MakeFilesystem(part); err != nil {
 			return err
+		}
+
+		if err := partition.DeployContent(part, gadgetRoot); err != nil {
+			return err
+		}
+
+		if options.Mount && part.Label != "" && part.HasFilesystem() {
+			if err := partition.MountFilesystem(part, dirs.RunMnt); err != nil {
+				return err
+			}
 		}
 	}
 
