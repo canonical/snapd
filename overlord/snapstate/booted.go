@@ -53,11 +53,17 @@ func UpdateBootRevisions(st *state.State) error {
 		return nil
 	}
 
-	kernel, err := boot.GetCurrentBoot(snap.TypeKernel)
+	deviceCtx, err := DeviceCtx(st, nil, nil)
+	if err != nil {
+		// if we have a kernel, we should have a model
+		return err
+	}
+
+	kernel, err := boot.GetCurrentBoot(snap.TypeKernel, deviceCtx)
 	if err != nil {
 		return fmt.Errorf(errorPrefix+"%s", err)
 	}
-	base, err := boot.GetCurrentBoot(snap.TypeBase)
+	base, err := boot.GetCurrentBoot(snap.TypeBase, deviceCtx)
 	if err != nil {
 		return fmt.Errorf(errorPrefix+"%s", err)
 	}

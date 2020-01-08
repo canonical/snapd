@@ -336,7 +336,7 @@ repack_snapd_snap_with_deb_content() {
 
     local UNPACK_DIR="/tmp/snapd-unpack"
     unsquashfs -no-progress -d "$UNPACK_DIR" snapd_*.snap
-    # clean snap apparmor.d to ensure the put the right snap-confine apparmor
+    # clean snap apparmor.d to ensure we put the right snap-confine apparmor
     # file in place. Its called usr.lib.snapd.snap-confine on 14.04 but
     # usr.lib.snapd.snap-confine.real everywhere else
     rm -f "$UNPACK_DIR"/etc/apparmor.d/*
@@ -347,13 +347,13 @@ repack_snapd_snap_with_deb_content() {
     rm -rf "$UNPACK_DIR"
 }
 
-repack_snapd_snap_with_deb_content_and_firstboot_tweaks() {
+repack_snapd_snap_with_deb_content_and_run_mode_firstboot_tweaks() {
     local TARGET="$1"
 
     local UNPACK_DIR="/tmp/snapd-unpack"
     unsquashfs -no-progress -d "$UNPACK_DIR" snapd_*.snap
 
-    # clean snap apparmor.d to ensure the put the right snap-confine apparmor
+    # clean snap apparmor.d to ensure we put the right snap-confine apparmor
     # file in place. Its called usr.lib.snapd.snap-confine on 14.04 but
     # usr.lib.snapd.snap-confine.real everywhere else
     rm -f "$UNPACK_DIR"/etc/apparmor.d/*
@@ -390,7 +390,7 @@ if [ -e /root/spread-setup-done ]; then
 fi
 
 # extract data from previous stage
-(cd / && tar xvf /run/mnt/ubuntu-seed/wormhole.tar.gz)
+(cd / && tar xvf /run/mnt/ubuntu-seed/run-mode-overlay-data.tar.gz)
 
 # user db - it's complicated
 for f in group gshadow passwd shadow; do
@@ -571,7 +571,7 @@ setup_reflash_magic() {
         cp "$TESTSLIB/assertions/ubuntu-core-18-amd64.model" "$IMAGE_HOME/pc.model"
         IMAGE=core18-amd64.img
     elif is_core20_system; then
-        repack_snapd_snap_with_deb_content_and_firstboot_tweaks "$IMAGE_HOME"
+        repack_snapd_snap_with_deb_content_and_run_mode_firstboot_tweaks "$IMAGE_HOME"
         # TODO:UC20: use canonical model instead of "mvo" one
         cp "$TESTSLIB/assertions/ubuntu-core-20-amd64.model" "$IMAGE_HOME/pc.model"
         IMAGE=core20-amd64.img
@@ -679,18 +679,18 @@ EOF
           --exclude /gopath/pkg/ \
           /home/gopath /mnt/user-data/
     elif is_core20_system; then
-        # prepare passwd for wormhole
+        # prepare passwd for run-mode-overlay-data
         mkdir -p /root/test-etc
         mkdir -p /var/lib/extrausers
         touch /var/lib/extrausers/sub{uid,gid}
         for f in group gshadow passwd shadow; do
-            grep -v "^root:" "/etc/$f" > /root/test-etc/"$f"
+            grep -v "^root:" /etc/"$f" > /root/test-etc/"$f"
             grep "^root:" /etc/"$f" >> /root/test-etc/"$f"
-            chgrp --reference "/etc/$f" /root/test-etc/"$f"
+            chgrp --reference /etc/"$f" /root/test-etc/"$f"
             # create /var/lib/extrausers/$f
             # append ubuntu, test user for the testing
-            grep "^test:" /etc/$f >> /var/lib/extrausers/"$f"
-            grep "^ubuntu:" /etc/$f >> /var/lib/extrausers/"$f"
+            grep "^test:" /etc/"$f" >> /var/lib/extrausers/"$f"
+            grep "^ubuntu:" /etc/"$f" >> /var/lib/extrausers/"$f"
             # check test was copied
             MATCH "^test:" </var/lib/extrausers/"$f"
             MATCH "^ubuntu:" </var/lib/extrausers/"$f"
@@ -701,7 +701,7 @@ EOF
           --exclude /gopath/.cache/ \
           --exclude /gopath/bin/govendor \
           --exclude /gopath/pkg/ \
-          -f /mnt/wormhole.tar.gz \
+          -f /mnt/run-mode-overlay-data.tar.gz \
           /home/gopath /root/test-etc /var/lib/extrausers
     fi
 
