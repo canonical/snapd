@@ -37,7 +37,7 @@ void setup_user_data(void)
 	}
 
 	debug("creating user data directory: %s", user_data);
-	if (sc_nonfatal_mkpath(user_data, 0755) < 0) {
+	if (sc_nonfatal_mkpath(user_data, 0755, sc_unchanged_ownership()) < 0) {
 		if (errno == EROFS && !sc_startswith(user_data, "/home/")) {
 			// clear errno or it will be displayed in die()
 			errno = 0;
@@ -47,7 +47,7 @@ void setup_user_data(void)
 	};
 }
 
-void setup_user_xdg_runtime_dir(void)
+void setup_user_xdg_runtime_dir()
 {
 	const char *xdg_runtime_dir = getenv("XDG_RUNTIME_DIR");
 
@@ -60,7 +60,8 @@ void setup_user_xdg_runtime_dir(void)
 
 	errno = 0;
 	debug("creating user XDG_RUNTIME_DIR directory: %s", xdg_runtime_dir);
-	if (sc_nonfatal_mkpath(xdg_runtime_dir, 0755) < 0) {
+	if (sc_nonfatal_mkpath(xdg_runtime_dir, 0755, sc_unchanged_ownership())
+	    < 0) {
 		die("cannot create user XDG_RUNTIME_DIR directory: %s",
 		    xdg_runtime_dir);
 	}

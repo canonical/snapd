@@ -184,10 +184,15 @@ static void sc_populate_libgl_with_hostfs_symlinks(const char *libgl_dir,
 			sc_must_snprintf(prefix_dir, sizeof prefix_dir,
 					 "%s%s", libgl_dir,
 					 &directory_name[source_dir_len]);
-			if (sc_nonfatal_mkpath(prefix_dir, 0755) != 0) {
+			sc_identity old =
+			    sc_set_effective_identity(sc_root_group_identity());
+			if (sc_nonfatal_mkpath
+			    (prefix_dir, 0755, sc_unchanged_ownership())
+			    != 0) {
 				die("failed to create prefix path: %s",
 				    prefix_dir);
 			}
+			(void)sc_set_effective_identity(old);
 		}
 
 		struct stat stat_buf;
@@ -264,7 +269,12 @@ static void sc_mkdir_and_mount_and_glob_files(const char *rootfs_dir,
 	/* Note that in practice the target directory is not a full path but indeed
 	 * a single directory. This makes plain, non-recursive mkdir applicable
 	 * here. */
-	sc_mksubdir(rootfs_dir, tgt_dir, 0755, 0, 0);
+	sc_identity root_group = {.uid = -1,.gid = 0 };
+	sc_identity old = sc_set_effective_identity(root_group);
+	sc_ownership ownership = {.uid = -1,.gid = -1 };
+	sc_mksubdir(rootfs_dir, tgt_dir, 0755, ownership);
+	(void)sc_set_effective_identity(old);
+
 	debug("mounting tmpfs at %s", libgl_dir);
 	if (mount("none", libgl_dir, "tmpfs", MS_NODEV | MS_NOEXEC, NULL) != 0) {
 		die("cannot mount tmpfs at %s", libgl_dir);
@@ -399,7 +409,9 @@ static void sc_mkdir_and_mount_and_bind(const char *rootfs_dir,
 	if (access(src, F_OK) != 0) {
 		return;
 	}
-	sc_mkdir(dst, 0755, 0, 0);
+	sc_identity old = sc_set_effective_identity(sc_root_group_identity());
+	sc_mkdir(dst, 0755, sc_root_ownership());
+	(void)sc_set_effective_identity(old);
 	// Bind mount the binary nvidia driver into $tgt_dir (i.e. /var/lib/snapd/lib/gl).
 	debug("bind mounting nvidia driver %s -> %s", src, dst);
 	if (mount(src, dst, NULL, MS_BIND, NULL) != 0) {
@@ -514,8 +526,13 @@ void sc_mount_nvidia_driver(const char *rootfs_dir)
 	if (access(SC_NVIDIA_DRIVER_VERSION_FILE, F_OK) != 0) {
 		return;
 	}
+	sc_identity root_group = {.uid = -1,.gid = 0 };
+	sc_identity old = sc_set_effective_identity(root_group);
+	sc_mkdir(SC_LIB, 0755, (sc_ownership) {
+		 -1, -1}
+	);
+	(void)sc_set_effective_identity(old);
 
-	sc_mkdir(SC_LIB, 0755, 0, 0);
 #ifdef NVIDIA_MULTIARCH
 	sc_mount_nvidia_driver_multiarch(rootfs_dir);
 #endif				// ifdef NVIDIA_MULTIARCH

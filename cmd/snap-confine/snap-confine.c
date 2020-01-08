@@ -432,9 +432,24 @@ int main(int argc, char **argv)
 							real_uid,
 							real_gid, saved_gid);
 	}
+	// Ensure that the user data path exists. When creating it use the identity
+	// of the calling user (by using real user and group identifiers). This
+	// allows the creation of directories inside ~/ on NFS with root_squash
+	// attribute.
+	sc_identity old = sc_set_effective_identity((sc_identity) {.uid =
+						    real_uid,.gid = real_gid
+						    }
+	);
+	setup_user_data();
+#if 0
+	setup_user_xdg_runtime_dir();
+#endif
+	(void)sc_set_effective_identity(old);
 
 	// Temporarily drop privs back to calling user (we'll permanently drop
 	// after loading seccomp).
+
+	// TODO: simplify this given what was done above.
 	if (setegid(real_gid) != 0)
 		die("setegid failed");
 	if (seteuid(real_uid) != 0)
@@ -444,11 +459,6 @@ int main(int argc, char **argv)
 		die("dropping privs did not work");
 	if (real_uid != 0 && getegid() == 0)
 		die("dropping privs did not work");
-	// Ensure that the user data path exists.
-	setup_user_data();
-#if 0
-	setup_user_xdg_runtime_dir();
-#endif
 	// https://wiki.ubuntu.com/SecurityTeam/Specifications/SnappyConfinement
 	sc_maybe_aa_change_onexec(&apparmor, invocation.security_tag);
 #ifdef HAVE_SELINUX

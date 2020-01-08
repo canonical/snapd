@@ -39,6 +39,60 @@ bool sc_is_debug_enabled(void);
  **/
 bool sc_is_reexec_enabled(void);
 
+/**
+ * sc_identity describes the user performing certain operation.
+ *
+ * UID and GID may represent actual user and group accounts. Either value may
+ * also be set to -1 to indicate that a specific identity change should not
+ * be performed.
+**/
+typedef struct sc_identity {
+	uid_t uid;
+	gid_t gid;
+} sc_identity;
+
+static inline sc_identity sc_root_group_identity(void)
+{
+	return (sc_identity) {
+	.uid = -1,.gid = 0};
+}
+
+/**
+ * Set the effective user and group IDs to given values.
+ *
+ * Effective user and group identifiers are applied to the system. The
+ * current values are returned as another identity that can be restored via
+ * another call to sc_set_effective_identity.
+ *
+ * If -1 is used as either user or group ID then the respective change is not
+ * made and the returned old identity will also use -1 as that value.
+**/
+sc_identity sc_set_effective_identity(sc_identity identity);
+
+/**
+ * sc_ownership describes the ownership of filesystem objects.
+ *
+ * Ownership is influenced by identity used during the operation.
+ * Typically either identity is unchanged and ownership is explicit
+ * or identity is explicit and ownership is implied.
+ **/
+typedef struct sc_ownership {
+	uid_t uid;
+	gid_t gid;
+} sc_ownership;
+
+static inline sc_ownership sc_root_ownership(void)
+{
+	return (sc_ownership) {
+	.uid = 0,.gid = 0};
+}
+
+static inline sc_ownership sc_unchanged_ownership(void)
+{
+	return (sc_ownership) {
+	.uid = -1,.gid = -1};
+}
+
 void write_string_to_file(const char *filepath, const char *buf);
 
 /**
@@ -56,7 +110,8 @@ void write_string_to_file(const char *filepath, const char *buf);
  * The function returns -1 in case of any error.
  **/
 __attribute__((warn_unused_result))
-int sc_nonfatal_mkpath(const char *const path, mode_t mode);
+int sc_nonfatal_mkpath(const char *const path, mode_t mode,
+		       sc_ownership ownership);
 
 /**
  * sc_mkdir creates a directory with given mode and owner.
@@ -65,7 +120,7 @@ int sc_nonfatal_mkpath(const char *const path, mode_t mode);
  * and permissions. If necessary it is created in a way that prevents non-root
  * users from opening it before the owner is switched to the desired values.
  **/
-void sc_mkdir(const char *dir, mode_t mode, uid_t uid, gid_t gid);
+void sc_mkdir(const char *dir, mode_t mode, sc_ownership ownership);
 
 /**
  * sc_mksubdir creates a sub-directory with a given mode and owner.
@@ -75,5 +130,7 @@ void sc_mkdir(const char *dir, mode_t mode, uid_t uid, gid_t gid);
  * non-root users from opening it before the owner is switched to the desired
  * values.
  **/
-void sc_mksubdir(const char *parent, const char *subdir, mode_t mode, uid_t uid, gid_t gid);
+void sc_mksubdir(const char *parent, const char *subdir, mode_t mode,
+		 sc_ownership ownership);
+
 #endif

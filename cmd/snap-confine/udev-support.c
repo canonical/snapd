@@ -196,7 +196,10 @@ void setup_devices_cgroup(const char *security_tag, struct snappy_udev *udev_s)
 	    || udev_s->tagname[udev_s->tagname_len] != '\0')
 		die("snappy_udev->tagname has invalid length");
 
-	sc_mksubdir("/sys/fs/cgroup/devices", security_tag, 0755, 0, 0);
+	sc_identity old = sc_set_effective_identity(sc_root_group_identity());
+	sc_mksubdir("/sys/fs/cgroup/devices", security_tag, 0755,
+		    sc_root_ownership());
+	(void)sc_set_effective_identity(old);
 
 	// create devices cgroup controller
 	char cgroup_dir[PATH_MAX] = { 0 };

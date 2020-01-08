@@ -77,13 +77,17 @@ static void setup_private_mount(const char *snap_name)
 	// Because the directories are reused across invocations by distinct users
 	// and because the directories are trivially guessable, the implementation
 	// unconditionally chowns/chmods them to appropriate values.
+	sc_identity old = sc_set_effective_identity(sc_root_group_identity());
+
 	char snap_dir[PATH_MAX] = { 0 };
 	sc_must_snprintf(snap_dir, sizeof(snap_dir), "snap.%s", snap_name);
-	sc_mksubdir("/tmp", snap_dir, 0700, 0, 0);
+	sc_mksubdir("/tmp", snap_dir, 0700, sc_root_ownership());
 
 	char base_dir[MAX_BUF] = { 0 };
 	sc_must_snprintf(base_dir, sizeof(base_dir), "/tmp/%s", snap_dir);
-	sc_mksubdir(base_dir, "tmp", 01777, 0, 0);
+	sc_mksubdir(base_dir, "tmp", 01777, sc_root_ownership());
+
+	(void)sc_set_effective_identity(old);
 
 	char tmp_dir[MAX_BUF] = { 0 };
 	sc_must_snprintf(tmp_dir, sizeof(tmp_dir), "%s/tmp", base_dir);
@@ -225,7 +229,10 @@ static void sc_bootstrap_mount_namespace(const struct sc_mount_config *config)
 	for (const struct sc_mount * mnt = config->mounts; mnt->path != NULL;
 	     mnt++) {
 		if (mnt->is_bidirectional) {
-			sc_mkdir(mnt->path, 0755, 0, 0);
+			sc_identity old =
+			    sc_set_effective_identity(sc_root_group_identity());
+			sc_mkdir(mnt->path, 0755, sc_root_ownership());
+			(void)sc_set_effective_identity(old);
 		}
 		sc_must_snprintf(dst, sizeof dst, "%s/%s", scratch_dir,
 				 mnt->path);
@@ -388,7 +395,10 @@ static void sc_bootstrap_mount_namespace(const struct sc_mount_config *config)
 	// of packaging now so perhaps this code can be removed later.
 	if (access(SC_HOSTFS_DIR, F_OK) != 0) {
 		debug("creating missing hostfs directory");
-		sc_mkdir(SC_HOSTFS_DIR, 0755, 0, 0);
+		sc_identity old =
+		    sc_set_effective_identity(sc_root_group_identity());
+		sc_mkdir(SC_HOSTFS_DIR, 0755, sc_root_ownership());
+		(void)sc_set_effective_identity(old);
 	}
 	// Ensure that hostfs isgroup owned by root. We may have (now or earlier)
 	// created the directory as the user who first ran a snap on a given
@@ -636,28 +646,17 @@ void sc_populate_mount_ns(struct sc_apparmor *apparmor, int snap_update_ns_fd,
 		sc_bootstrap_mount_namespace(&legacy_config);
 	}
 
-	// set up private mounts
-	if (getegid() != 0 && saved_gid == 0) {
-		// Temporarily raise egid so we can create, chmod and chown
-		// the mount without causing a noisy fsetid capability denial
-		if (setegid(0) != 0) {
-			die("cannot set effective group id to root");
-		}
-	}
+	sc_identity old = sc_set_effective_identity(sc_root_group_identity());
+
 	// TODO: rename this and fold it into bootstrap
 	setup_private_mount(inv->snap_instance);
-	if (geteuid() == 0 && real_gid != 0) {
-		if (setegid(real_gid) != 0) {
-			die("cannot set effective group id to %d", real_gid);
-		}
-	}
-
+	// setup the security backend bind mounts
+	sc_call_snap_update_ns(snap_update_ns_fd, inv->snap_instance, apparmor);
 	// set up private /dev/pts
 	// TODO: fold this into bootstrap
 	setup_private_pts();
 
-	// setup the security backend bind mounts
-	sc_call_snap_update_ns(snap_update_ns_fd, inv->snap_instance, apparmor);
+	(void)sc_set_effective_identity(old);
 }
 
 static bool is_mounted_with_shared_option(const char *dir)
