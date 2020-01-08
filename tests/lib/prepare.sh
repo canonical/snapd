@@ -347,7 +347,7 @@ repack_snapd_snap_with_deb_content() {
     rm -rf "$UNPACK_DIR"
 }
 
-repack_snapd_snap_with_deb_content_and_firstboot_tweaks() {
+repack_snapd_snap_with_deb_content_and_run_mode_firstboot_tweaks() {
     local TARGET="$1"
 
     local UNPACK_DIR="/tmp/snapd-unpack"
@@ -560,7 +560,7 @@ setup_reflash_magic() {
         cp "$TESTSLIB/assertions/ubuntu-core-18-amd64.model" "$IMAGE_HOME/pc.model"
         IMAGE=core18-amd64.img
     elif is_core20_system; then
-        repack_snapd_snap_with_deb_content_and_firstboot_tweaks "$IMAGE_HOME"
+        repack_snapd_snap_with_deb_content_and_run_mode_firstboot_tweaks "$IMAGE_HOME"
         # TODO:UC20: use canonical model instead of "mvo" one
         cp "$TESTSLIB/assertions/ubuntu-core-20-amd64.model" "$IMAGE_HOME/pc.model"
         IMAGE=core20-amd64.img
