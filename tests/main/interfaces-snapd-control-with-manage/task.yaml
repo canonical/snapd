@@ -100,14 +100,20 @@ execute: |
     mv /var/lib/snapd/state.json.new /var/lib/snapd/state.json
     systemctl start snapd.socket snapd.service
 
-    echo "Ensure that last-refresh-hit happens"
-    for _ in $(seq 120); do
-        if jq '.data["last-refresh-hints"]' /var/lib/snapd/state.json | grep "$(date +%Y)"; then
-            break
-        fi
-        sleep 1
-    done
-    jq '.data["last-refresh-hints"]' /var/lib/snapd/state.json | grep "$(date +%Y)"
+    # TODO:UC20: enable for UC20 once the real model is used
+    #shellcheck source=tests/lib/systems.sh
+    . "$TESTSLIB"/systems.sh
+
+    if ! is_core20_system; then
+        echo "Ensure that last-refresh-hit happens"
+        for _ in $(seq 120); do
+            if jq '.data["last-refresh-hints"]' /var/lib/snapd/state.json | grep "$(date +%Y)"; then
+                break
+            fi
+            sleep 1
+        done
+        jq '.data["last-refresh-hints"]' /var/lib/snapd/state.json | grep "$(date +%Y)"
+    fi
 
     # prevent refreshes again
     systemctl stop snapd.socket snapd.service
