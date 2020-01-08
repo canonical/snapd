@@ -2460,8 +2460,8 @@ func (s *apiSuite) testPostSnap(c *check.C, withChannel bool) {
 
 	snapInstructionDispTable["install"] = func(inst *snapInstruction, _ *state.State) (string, []*state.TaskSet, error) {
 		if withChannel {
-			// channel in -> it was parsed
-			c.Check(inst.Channel, check.Equals, "xyzzy/stable")
+			// channel in -> channel out
+			c.Check(inst.Channel, check.Equals, "xyzzy")
 		} else {
 			// no channel in -> no channel out
 			c.Check(inst.Channel, check.Equals, "")

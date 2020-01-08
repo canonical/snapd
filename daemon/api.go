@@ -765,11 +765,10 @@ func (ropt *snapRevisionOptions) validate() error {
 	}
 
 	if ropt.Channel != "" {
-		ch, err := channel.Parse(ropt.Channel, "-")
+		_, err := channel.Parse(ropt.Channel, "-")
 		if err != nil {
 			return err
 		}
-		ropt.Channel = ch.Name
 	}
 	return nil
 }

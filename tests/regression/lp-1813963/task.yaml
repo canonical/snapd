@@ -86,7 +86,7 @@ execute: |
     # snap-confine process is the regular "failed" rather than "failed due to
     # signal SIGPIPE".
     set +e
-    test-snapd-sh -c /bin/true
+    test-snapd-sh.sh -c /bin/true
     retcode=$?
     set -e
     test "$retcode" -eq 1
