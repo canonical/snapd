@@ -347,7 +347,7 @@ repack_snapd_snap_with_deb_content() {
     rm -rf "$UNPACK_DIR"
 }
 
-repack_snapd_snap_with_deb_content_and_firstboot_tweaks() {
+repack_snapd_snap_with_deb_content_and_run_mode_firstboot_tweaks() {
     local TARGET="$1"
 
     local UNPACK_DIR="/tmp/snapd-unpack"
@@ -362,11 +362,22 @@ repack_snapd_snap_with_deb_content_and_firstboot_tweaks() {
     cp /usr/lib/snapd/info "$UNPACK_DIR"/usr/lib/
 
     # now install a unit that setups enough so that we can connect
-    
-    # TODO:UC20: use something other than "snapd.core-fixup.sh"
-    # (ok for now because nothing will happen with snapd.core-fixup.sh on UC20)
+    cat > "$UNPACK_DIR"/lib/systemd/system/snapd.spread-tests-run-mode-tweaks.service <<'EOF'
+[Unit]
+Description=Tweaks to run mode for spread tests
+Before=snapd.service
+Documentation=man:snap(1)
+
+[Service]
+Type=oneshot
+ExecStart=/usr/lib/snapd/snapd.spread-tests-run-mode-tweaks.sh
+RemainAfterExit=true
+
+[Install]
+WantedBy=multi-user.target
+EOF
     # XXX: this duplicates a lot of setup_test_user_by_modify_writable()
-    cat > "$UNPACK_DIR"/usr/lib/snapd/snapd.core-fixup.sh <<'EOF'
+    cat > "$UNPACK_DIR"/usr/lib/snapd/snapd.spread-tests-run-mode-tweaks.sh <<'EOF'
 #!/bin/sh
 set -e
 # ensure we don't enable ssh in install mode or spread will get confused
@@ -379,7 +390,7 @@ if [ -e /root/spread-setup-done ]; then
 fi
 
 # extract data from previous stage
-(cd / && tar xvf /run/mnt/ubuntu-seed/wormhole.tar.gz)
+(cd / && tar xvf /run/mnt/ubuntu-seed/run-mode-overlay-data.tar.gz)
 
 # user db - it's complicated
 for f in group gshadow passwd shadow; do
@@ -416,7 +427,7 @@ systemctl reload ssh
 
 touch /root/spread-setup-done
 EOF
-    chmod 0755 "$UNPACK_DIR"/usr/lib/snapd/snapd.core-fixup.sh
+    chmod 0755 "$UNPACK_DIR"/usr/lib/snapd/snapd.spread-tests-run-mode-tweaks.sh
     snap pack "$UNPACK_DIR" "$TARGET"
     rm -rf "$UNPACK_DIR"
 }
@@ -560,7 +571,7 @@ setup_reflash_magic() {
         cp "$TESTSLIB/assertions/ubuntu-core-18-amd64.model" "$IMAGE_HOME/pc.model"
         IMAGE=core18-amd64.img
     elif is_core20_system; then
-        repack_snapd_snap_with_deb_content_and_firstboot_tweaks "$IMAGE_HOME"
+        repack_snapd_snap_with_deb_content_and_run_mode_firstboot_tweaks "$IMAGE_HOME"
         # TODO:UC20: use canonical model instead of "mvo" one
         cp "$TESTSLIB/assertions/ubuntu-core-20-amd64.model" "$IMAGE_HOME/pc.model"
         IMAGE=core20-amd64.img
@@ -668,18 +679,18 @@ EOF
           --exclude /gopath/pkg/ \
           /home/gopath /mnt/user-data/
     elif is_core20_system; then
-        # prepare passwd for wormhole
+        # prepare passwd for run-mode-overlay-data
         mkdir -p /root/test-etc
         mkdir -p /var/lib/extrausers
         touch /var/lib/extrausers/sub{uid,gid}
         for f in group gshadow passwd shadow; do
-            grep -v "^root:" "/etc/$f" > /root/test-etc/"$f"
+            grep -v "^root:" /etc/"$f" > /root/test-etc/"$f"
             grep "^root:" /etc/"$f" >> /root/test-etc/"$f"
-            chgrp --reference "/etc/$f" /root/test-etc/"$f"
+            chgrp --reference /etc/"$f" /root/test-etc/"$f"
             # create /var/lib/extrausers/$f
             # append ubuntu, test user for the testing
-            grep "^test:" /etc/$f >> /var/lib/extrausers/"$f"
-            grep "^ubuntu:" /etc/$f >> /var/lib/extrausers/"$f"
+            grep "^test:" /etc/"$f" >> /var/lib/extrausers/"$f"
+            grep "^ubuntu:" /etc/"$f" >> /var/lib/extrausers/"$f"
             # check test was copied
             MATCH "^test:" </var/lib/extrausers/"$f"
             MATCH "^ubuntu:" </var/lib/extrausers/"$f"
@@ -690,7 +701,7 @@ EOF
           --exclude /gopath/.cache/ \
           --exclude /gopath/bin/govendor \
           --exclude /gopath/pkg/ \
-          -f /mnt/wormhole.tar.gz \
+          -f /mnt/run-mode-overlay-data.tar.gz \
           /home/gopath /root/test-etc /var/lib/extrausers
     fi
 

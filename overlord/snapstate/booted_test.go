@@ -22,6 +22,7 @@ package snapstate_test
 // test the boot related code
 
 import (
+	"errors"
 	"os"
 	"path/filepath"
 	"time"
@@ -196,6 +197,24 @@ func (bs *bootedSuite) TestUpdateBootRevisionsKernelSimple(c *C) {
 	c.Assert(err, IsNil)
 	c.Assert(snapst.Current, Equals, snap.R(2))
 	c.Assert(snapst.Active, Equals, true)
+}
+
+func (bs *bootedSuite) TestUpdateBootRevisionsDeviceCtxErrors(c *C) {
+	st := bs.state
+	st.Lock()
+	defer st.Unlock()
+
+	bs.makeInstalledKernelOS(c, st)
+
+	errBoom := errors.New("boom")
+
+	r := snapstatetest.ReplaceDeviceCtxHook(func(*state.State, *state.Task, snapstate.DeviceContext) (snapstate.DeviceContext, error) {
+		return nil, errBoom
+	})
+	defer r()
+
+	err := snapstate.UpdateBootRevisions(st)
+	c.Assert(err, Equals, errBoom)
 }
 
 func (bs *bootedSuite) TestUpdateBootRevisionsKernelErrorsEarly(c *C) {

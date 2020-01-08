@@ -11,36 +11,32 @@ snaps:
     default-channel: 20/edge
     id: UqFziVZDHLSyO3TqSWgNBoAdHbLI4dAH
     name: pc
-    track: 20
     type: gadget
   -
     default-channel: latest/edge
     id: DLqre5XGLbDqg9jPtiAhRRjDuPVa5X1q
     name: core20
-    track: latest
     type: base
   -
     default-channel: 20/edge
     id: pYVQrBcKmBa0mZ4CCN7ExT6jH8rY1hza
     name: pc-kernel
-    track: 20
     type: kernel
   -
     default-channel: latest/edge
     id: PMrrV4ml8uWuEUDBT8dSGnKUYbevVhc4
     name: snapd
-    track: latest
     type: snapd
 timestamp: 2019-08-26T00:00:00.0Z
 sign-key-sha3-384: 2XxnFfNz1CCA6OZ5v03QjbFaK_A6-FjnNzNYJSMhSm_RC77iriSBh9X_olPNmupv
 
-AcLBcwQAAQoAHRYhBNPJP7iUC6HvARf0BQG87hgg441ZBQJdwpNWAAoJEAG87hgg441ZjKIP/ie8
-TaRMRg72onq8q3xyPqfzBALIkvZV0rN3QNc+CvASMrA5a1K/Tf2LHIjDLNq4SK49yMlehIsB8uVy
-oczPX2eO2cIaxc/LGDVlTOmVY4q2+J0z18ZMEs7UysGq/B+p6r0Bdv409R92fciaYCt0dfCCUyBG
-bO8L8/FDMBNsKY944UxVD3IU5F96jwSU7Zv6M5fzIZLrlElM0MOHLmtG6Qwxc7WfOAXIb3IEGiGz
-Y4hgEyPA8F+Z4HEUYSbQaZ2L0Mh4G5ssIP3W6BGN0uKe+VtrfUZerEoKQCqZk34+INNmPCzVxHmp
-VDKsGS3gDyTJUgkzOa84FH2PYq6t79mBNnqV8WWZIP4tJtf9zyUlptagf1mIbt/2EVNpxxHYhACb
-jxNWoDPgkKsSiAPEpLTztgXlzxhWtirAIgEk+8v/lxSsbPNlZM5yYA57CKh5s/TfK3Mc4oer9/iD
-NTAhmxDpl6MSgKojoJFGhADrmTFs+LZqMhclIrcq9Qm7bNEIpGHFRDxQd6CQc1B/zgEUzkRfAgpl
-440+Z9Vwcd26SdlMhk5C4Oxp4jE+4cAROjxoT7VIxrnqbcYk9oBrfGL8WW5hsYs/qBqVulbesThk
-/pWXzxpIubZT7fdFLHx2dwEIfwLoPcGm3gAbzdVNTFYNCWGHxd4kevGxIPnT4EYqWiksOHoh
+AcLBcwQAAQoAHRYhBNPJP7iUC6HvARf0BQG87hgg441ZBQJeFYBTAAoJEAG87hgg441Zh8EQAKUj
+XYZAf8OlKDRD5uRPjV0eX4RA+UGieu/l392cNWsN18ngEMewFEKtLXltqeLF9SO/mwTVWPVn8jl4
+RbJESfxA8jDKYnfmMNT/kiytRMSxXkOcrxpW54LuFSg9LkZx4vQOQR1Snjic7z2HHLpq3Ain5Pry
+zjWddYi68ew2MDM2Y6jxGa/V651w5B1YTev4rNcmVkvXQFxFuZe5CYaFswpfZMtqk1N6K7pPF2RT
+OQh1Wl9fYA7tBjgt4jFcEr6L9qWj4oQbFXElhlvZGbKkjdv3A0b3BGyqKxA/1ptsAcp9DfWUNcXd
+/ya28u+n3bZkgKxJY/pL5Q9R90DaoIxoDKK4vzzQQ6twVQi/6ug0J7F8obkhuvGrMwhhmEltn2hr
+z5xMO6EZcQY1YxLXsPmH/5uZI4V4wH3+DAmpOBzNMRRFZOQjC8ngJIeKQI1e8rzH9qUzKXNvJRXC
+GMoHE7zqwe9z2lTAN1wHAHpctwepb/XNe+tRIcxxBpo83rbwii6zkikNRhsSF9djk0hUF1OM7dst
+e3wC0wi0wpp3tbmEvKOhWXbCQK0lZywkV6KpASM5uXn4Q4vC+Y8sp6CPhEnXCDCrfM7WolmjUeUC
+KHTZSZjNA94TZ/KUYvqeBWC2G9D9NMhdUVN+77y8AERz9mm9wjbMQuStpUM4dQXw5GEB5fBU

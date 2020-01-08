@@ -11,14 +11,14 @@ restore: |
     rm -rf ~/snap
 execute: |
     # See if umask 777 is respected.
-    ( umask 777 && test-snapd-sh -c /bin/true )
+    ( umask 777 && test-snapd-sh.sh -c /bin/true )
     # shellcheck disable=SC2016
-    ( umask 777 && test-snapd-sh -c 'touch "$SNAP_USER_COMMON"/canary' )
+    ( umask 777 && test-snapd-sh.sh -c 'touch "$SNAP_USER_COMMON"/canary' )
     test "$(stat -c %a "$HOME"/snap/test-snapd-sh/common/canary)" = 0
     rm -rf ~/snap
 
     # See if umask 000 is respected.
-    ( umask 000 && test-snapd-sh -c /bin/true )
+    ( umask 000 && test-snapd-sh.sh -c /bin/true )
     # shellcheck disable=SC2016
-    ( umask 000 && test-snapd-sh -c 'touch "$SNAP_USER_COMMON"/canary' )
+    ( umask 000 && test-snapd-sh.sh -c 'touch "$SNAP_USER_COMMON"/canary' )
     test "$(stat -c %a "$HOME"/snap/test-snapd-sh/common/canary)" = 666
