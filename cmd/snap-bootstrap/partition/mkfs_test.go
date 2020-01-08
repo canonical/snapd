@@ -64,16 +64,16 @@ func (s *mkfsSuite) TestMkfsExt4(c *C) {
 	c.Assert(s.mockMkfsExt4.Calls(), HasLen, 1)
 }
 
-func (s *mkfsSuite) TestMakefilesystemsNothing(c *C) {
-	created := []partition.DeviceStructure{}
-	err := partition.MakeFilesystems(created)
-	c.Assert(err, IsNil)
+func (s *mkfsSuite) TestMakefilesystemNothing(c *C) {
+	part := partition.DeviceStructure{}
+	err := partition.MakeFilesystem(part)
+	c.Assert(err, ErrorMatches, "cannot use incomplete device ")
 	c.Assert(s.mockMkfsExt4.Calls(), HasLen, 0)
 	c.Assert(s.mockMkfsVfat.Calls(), HasLen, 0)
 	c.Assert(s.mockUdevadm.Calls(), HasLen, 0)
 }
 
-func (s *mkfsSuite) TestMakefilesystems(c *C) {
+func (s *mkfsSuite) TestMakefilesystem(c *C) {
 	created := []partition.DeviceStructure{
 		{
 			Node: "/dev/node2",
@@ -121,9 +121,15 @@ func (s *mkfsSuite) TestMakefilesystems(c *C) {
 			},
 		},
 	}
-	err := partition.MakeFilesystems(created)
-	c.Assert(err, IsNil)
-	c.Assert(s.mockMkfsExt4.Calls(), HasLen, 2)
+
+	// single fat partition is created first, then 2 ext4 partitions
+	for n, part := range created {
+		err := partition.MakeFilesystem(part)
+		c.Assert(err, IsNil)
+		c.Assert(s.mockMkfsVfat.Calls(), HasLen, 1)
+		c.Assert(s.mockMkfsExt4.Calls(), HasLen, n)
+	}
+
 	// ensure ordering is correct
 	calls := s.mockMkfsExt4.Calls()[0]
 	c.Assert(calls[len(calls)-1:], DeepEquals, []string{"/dev/node3"})
