@@ -8,11 +8,11 @@ prepare: |
     snap connect test-snapd-app:opengl
     snap connect test-snapd-app:joystick
 execute: |
-    # Run the snap a non-root user.
+    # Run the snap as a non-root user.
     su test -c 'snap run test-snapd-app.sh -c /bin/true'
 
     # Look for files that are owned by the test user, group owned by the test
-    # user or are world-writable in /rub/snapd as well as in /sys/fs/cgroup
+    # user or are world-writable in /run/snapd as well as in /sys/fs/cgroup
     # trees.
     for dname in /run/snapd /sys/fs/cgroup; do
         find "$dname" -user test >> wrong-user.txt
@@ -24,7 +24,7 @@ execute: |
         find "$dname" ! -type s ! -type l ! -name cgroup.event_control -perm /o+w >> world-writable.txt
     done
 
-    # The test fails if any of those files are present
+    # The test fails if any such file is detected
     ret=0
     if test -s wrong-user.txt; then
         echo "the following files should be owned by root"
