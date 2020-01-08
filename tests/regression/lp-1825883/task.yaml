@@ -21,7 +21,7 @@ execute: |
     #shellcheck disable=SC2016
     test-snapd-app.sh -c 'cat $SNAP/things/*/thing' | MATCH THING-B
     #shellcheck disable=SC2016
-    test-snapd-app.sh -c 'cat $SNAP/things/*/thing' | MATCH -v THING-C
+    test-snapd-app.sh -c 'cat $SNAP/things/*/thing' | not MATCH THING-C
 
     # Install the 2nd version of the content snap, it should also provide THING-C
     snap install --dangerous test-snapd-content_2_all.snap

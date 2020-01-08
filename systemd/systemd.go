@@ -59,6 +59,8 @@ var (
 	// See https://github.com/systemd/systemd/issues/10872 for the
 	// upstream systemd bug
 	daemonReloadLock extMutex
+
+	osutilIsMounted = osutil.IsMounted
 )
 
 // mu is a sync.Mutex that also supports to check if the lock is taken
@@ -203,6 +205,13 @@ type reporter interface {
 // New returns a Systemd that uses the given rootDir
 func New(rootDir string, mode InstanceMode, rep reporter) Systemd {
 	return &systemd{rootDir: rootDir, mode: mode, reporter: rep}
+}
+
+// NewEmulationMode returns a Systemd that runs in emulation mode where
+// systemd is not really called, but instead its functions are emulated
+// by other means.
+func NewEmulationMode() Systemd {
+	return &emulation{}
 }
 
 // InstanceMode determines which instance of systemd to control.
@@ -654,19 +663,18 @@ func MountUnitPath(baseDir string) string {
 	return filepath.Join(dirs.SnapServicesDir, escapedPath+".mount")
 }
 
-// AddMountUnitFile adds/enables/starts a mount unit.
-func (s *systemd) AddMountUnitFile(snapName, revision, what, where, fstype string) (string, error) {
-	daemonReloadLock.Lock()
-	defer daemonReloadLock.Unlock()
+var squashfsFsType = squashfs.FsType
 
-	options := []string{"nodev"}
+func writeMountUnitFile(snapName, revision, what, where, fstype string) (mountUnitName, actualFsType string, options []string, err error) {
+	options = []string{"nodev"}
+	actualFsType = fstype
 	if fstype == "squashfs" {
-		newFsType, newOptions, err := squashfs.FsType()
+		newFsType, newOptions, err := squashfsFsType()
 		if err != nil {
-			return "", err
+			return "", "", nil, err
 		}
 		options = append(options, newOptions...)
-		fstype = newFsType
+		actualFsType = newFsType
 		if selinux.ProbedLevel() != selinux.Unsupported {
 			if mountCtx := selinux.SnapMountContext(); mountCtx != "" {
 				options = append(options, "context="+mountCtx)
@@ -675,7 +683,7 @@ func (s *systemd) AddMountUnitFile(snapName, revision, what, where, fstype strin
 	}
 	if osutil.IsDirectory(what) {
 		options = append(options, "bind")
-		fstype = "none"
+		actualFsType = "none"
 	}
 
 	c := fmt.Sprintf(`[Unit]
@@ -691,14 +699,26 @@ LazyUnmount=yes
 
 [Install]
 WantedBy=multi-user.target
-`, snapName, revision, what, where, fstype, strings.Join(options, ","))
+`, snapName, revision, what, where, actualFsType, strings.Join(options, ","))
 
 	mu := MountUnitPath(where)
-	mountUnitName, err := filepath.Base(mu), osutil.AtomicWriteFile(mu, []byte(c), 0644, 0)
+	mountUnitName, err = filepath.Base(mu), osutil.AtomicWriteFile(mu, []byte(c), 0644, 0)
+	if err != nil {
+		return "", "", nil, err
+	}
+
+	return mountUnitName, actualFsType, options, err
+}
+
+// AddMountUnitFile adds/enables/starts a mount unit.
+func (s *systemd) AddMountUnitFile(snapName, revision, what, where, fstype string) (string, error) {
+	daemonReloadLock.Lock()
+	defer daemonReloadLock.Unlock()
+
+	mountUnitName, _, _, err := writeMountUnitFile(snapName, revision, what, where, fstype)
 	if err != nil {
 		return "", err
 	}
-
 	// we need to do a daemon-reload here to ensure that systemd really
 	// knows about this new mount unit file
 	if err := s.daemonReloadNoLock(); err != nil {
@@ -728,7 +748,7 @@ func (s *systemd) RemoveMountUnitFile(mountedDir string) error {
 	// can be unmounted.
 	// note that the long option --lazy is not supported on trusty.
 	// the explicit -d is only needed on trusty.
-	isMounted, err := osutil.IsMounted(mountedDir)
+	isMounted, err := osutilIsMounted(mountedDir)
 	if err != nil {
 		return err
 	}

@@ -1,0 +1,26 @@
+summary: Check basic core20 system functionality
+
+execute: |
+    echo "Check that the system snaps are there"
+    snap list core20
+    snap list snapd
+    if snap list core; then
+        echo "The old core snap is installed but should not"
+        exit 1
+    fi
+
+    echo "Ensure that the system is fully seeded"
+    snap changes | MATCH "Done.*Initialize system state"
+
+    echo "Check that a simple shell snap"
+    # TODO:UC20: add test-snapd-sh-core20
+    snap install test-snapd-sh-core18
+    test-snapd-sh-core18.sh -c 'echo hello' | MATCH hello
+
+    if python3 -m json.tool < /var/lib/snapd/system-key | grep '"build-id": ""'; then
+        echo "The build-id of snapd must not be empty."
+        exit 1
+    fi
+
+    echo "Ensure passwd/group is available for snaps"
+    test-snapd-sh-core18.sh -c 'cat /var/lib/extrausers/passwd' | MATCH test

@@ -1,7 +1,7 @@
 summary: Integration tests for the snap-bootstrap binary autodetect
 
 # one system is enough, its a very specialized test for now
-systems: [ubuntu-18.04-64]
+systems: [ubuntu-19.10-64]
 
 debug: |
     cat /proc/partitions
@@ -27,7 +27,9 @@ prepare: |
     start=2048, size=2048, type=21686148-6449-6E6F-744E-656564454649, name="BIOS Boot"
     start=4096, size=2457600, type=C12A7328-F81F-11D2-BA4B-00A0C93EC93B, name="ubuntu-seed"
     EOF
+    udevadm trigger --settle "${LOOP}p2"
     mkfs.vfat "${LOOP}p2"
+    udevadm trigger --settle "${LOOP}p2"
     echo "Double check that we got the expected partitions"
     sfdisk -l "$LOOP" | MATCH 'BIOS boot'
     sfdisk -l "$LOOP" | MATCH 'EFI System'
@@ -38,11 +40,15 @@ prepare: |
 
 execute: |
     LOOP="$(cat loop.txt)"
+
+    # debug message to see if the udev database is correctly updated
+    udevadm info --query=property "${LOOP}p2" | grep ID_FS_TYPE ||:
+
     echo "Run the snap-bootstrap tool in auto-detect mode"
     /usr/lib/snapd/snap-bootstrap create-partitions ./gadget-dir
 
     echo "And check that the partitions are created"
     sfdisk -l "$LOOP" | MATCH '750M Linux filesystem'
-    sfdisk -l "$LOOP" | MATCH '1G Linux filesystem'
+    sfdisk -l "$LOOP" | MATCH '3G Linux filesystem'
     file -s "${LOOP}p3" | MATCH 'ext4 filesystem data,.* volume name "ubuntu-boot"'
     file -s "${LOOP}p4" | MATCH 'ext4 filesystem data,.* volume name "ubuntu-data"'

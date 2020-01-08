@@ -11,6 +11,11 @@ if ! grep -q "ID=ubuntu-core" /etc/os-release; then
     exit 0
 fi
 
+# No fixe-ups yet on UC20
+if [ -e /var/lib/snapd/modeenv ]; then
+    exit 0
+fi
+
 # Workaround https://forum.snapcraft.io/t/5253
 #
 # We see sometimes corrupted uboot.env files created by fsck.vfat.
@@ -72,6 +77,8 @@ done
 # store permissions after manipulation, this is also used as the stamp file
 # for the systemd service to ensure it is only run once
 find /etc/cloud /var/lib/cloud /var/lib/snapd -printf '%M %U %G %p\n' > /var/lib/snapd/device/ownership-change.after.tmp
+# Note: this find will fail on UC20 seeding because there is no
+# /writable/system-data/boot
 find  /writable/system-data /writable/system-data/var /writable/system-data/var/lib /writable/system-data/boot /writable/system-data/etc -maxdepth 0 -printf '%M %U %G %p\n' >> /var/lib/snapd/device/ownership-change.after.tmp
 mv /var/lib/snapd/device/ownership-change.after.tmp /var/lib/snapd/device/ownership-change.after
 

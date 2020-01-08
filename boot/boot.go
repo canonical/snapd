@@ -29,7 +29,7 @@ import (
 	"github.com/snapcore/snapd/asserts"
 	"github.com/snapcore/snapd/bootloader"
 	"github.com/snapcore/snapd/dirs"
-	"github.com/snapcore/snapd/logger"
+	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/snap"
 )
 
@@ -37,11 +37,10 @@ import (
 type BootParticipant interface {
 	// SetNextBoot will schedule the snap to be used in the next boot. For
 	// base snaps it is up to the caller to select the right bootable base
-	// (from the model assertion).
-	SetNextBoot() error
-	// ChangeRequiresReboot returns whether a reboot is required to switch
-	// to the snap.
-	ChangeRequiresReboot() bool
+	// (from the model assertion). It is a noop for not relevant snaps.
+	// Otherwise it returns whether a reboot is required.
+	SetNextBoot() (rebootRequired bool, err error)
+
 	// Is this a trivial implementation of the interface?
 	IsTrivial() bool
 }
@@ -61,8 +60,7 @@ type BootKernel interface {
 
 type trivial struct{}
 
-func (trivial) SetNextBoot() error                       { return nil }
-func (trivial) ChangeRequiresReboot() bool               { return false }
+func (trivial) SetNextBoot() (bool, error)               { return false, nil }
 func (trivial) IsTrivial() bool                          { return true }
 func (trivial) RemoveKernelAssets() error                { return nil }
 func (trivial) ExtractKernelAssets(snap.Container) error { return nil }
@@ -74,7 +72,7 @@ var _ BootParticipant = trivial{}
 var _ BootKernel = trivial{}
 
 // Device carries information about the devie model and mode that is
-// relevant to boot.  Note snapstate.DeviceContext implements this, and that's
+// relevant to boot. Note snapstate.DeviceContext implements this, and that's
 // the expected use case.
 type Device interface {
 	RunMode() bool
@@ -112,6 +110,12 @@ func applicable(s snap.PlaceInfo, t snap.Type, dev Device) bool {
 	if dev.Classic() {
 		return false
 	}
+	// In ephemeral modes we never need to care about updating the boot
+	// config. This will be done via boot.MakeBootable().
+	if !dev.RunMode() {
+		return false
+	}
+
 	if t != snap.TypeOS && t != snap.TypeKernel && t != snap.TypeBase {
 		// note we don't currently have anything useful to do with gadgets
 		return false
@@ -136,29 +140,77 @@ func applicable(s snap.PlaceInfo, t snap.Type, dev Device) bool {
 	return true
 }
 
-// InUse checks if the given name/revision is used in the
-// boot environment
-func InUse(name string, rev snap.Revision) bool {
-	bootloader, err := bootloader.Find("", nil)
+// bootState exposes the boot state for a type of boot snap.
+type bootState interface {
+	// revisions retrieves the revisions of the current snap and
+	// the try snap (only the latter might not be set), and
+	// whether the snap is in "trying" state.
+	revisions() (snap, try_snap *NameAndRevision, trying bool, err error)
+}
+
+// bootStateFor finds the right bootState implementation of the given
+// snap type and Device, if applicable.
+func bootStateFor(typ snap.Type, dev Device) (s bootState, err error) {
+	if !dev.RunMode() {
+		return nil, fmt.Errorf("internal error: no boot state handling for ephemeral modes")
+	}
+	switch typ {
+	case snap.TypeOS, snap.TypeBase:
+		return newBootState16(snap.TypeBase), nil
+	case snap.TypeKernel:
+		return newBootState16(snap.TypeKernel), nil
+	default:
+		return nil, fmt.Errorf("internal error: no boot state handling for snap type %q", typ)
+	}
+}
+
+type InUseFunc func(name string, rev snap.Revision) bool
+
+func fixedInUse(inUse bool) InUseFunc {
+	return func(string, snap.Revision) bool {
+		return inUse
+	}
+}
+
+// InUse returns a checker for whether a given name/revision is used in the
+// boot environment for snaps of the relevant snap type.
+func InUse(typ snap.Type, dev Device) (InUseFunc, error) {
+	if dev.Classic() {
+		// no boot state on classic
+		return fixedInUse(false), nil
+	}
+	if !dev.RunMode() {
+		// ephemeral mode, block manipulations for now
+		return fixedInUse(true), nil
+	}
+	switch typ {
+	case snap.TypeKernel, snap.TypeBase, snap.TypeOS:
+		break
+	default:
+		return fixedInUse(false), nil
+	}
+	cands := make([]*NameAndRevision, 0, 2)
+	s, err := bootStateFor(typ, dev)
 	if err != nil {
-		logger.Noticef("cannot get boot settings: %s", err)
-		return false
+		return nil, err
+	}
+	cand, try_cand, _, err := s.revisions()
+	if err != nil {
+		return nil, err
+	}
+	cands = append(cands, cand)
+	if try_cand != nil {
+		cands = append(cands, try_cand)
 	}
 
-	bootVars, err := bootloader.GetBootVars("snap_kernel", "snap_try_kernel", "snap_core", "snap_try_core")
-	if err != nil {
-		logger.Noticef("cannot get boot vars: %s", err)
-		return false
-	}
-
-	snapFile := filepath.Base(snap.MountFile(name, rev))
-	for _, bootVar := range bootVars {
-		if bootVar == snapFile {
-			return true
+	return func(name string, rev snap.Revision) bool {
+		for _, cand := range cands {
+			if cand.Name == name && cand.Revision == rev {
+				return true
+			}
 		}
-	}
-
-	return false
+		return false
+	}, nil
 }
 
 var (
@@ -173,39 +225,22 @@ type NameAndRevision struct {
 // GetCurrentBoot returns the currently set name and revision for boot for the given
 // type of snap, which can be snap.TypeBase (or snap.TypeOS), or snap.TypeKernel.
 // Returns ErrBootNameAndRevisionNotReady if the values are temporarily not established.
-func GetCurrentBoot(t snap.Type) (*NameAndRevision, error) {
-	var bootVar, errName string
-	switch t {
-	case snap.TypeKernel:
-		bootVar = "snap_kernel"
-		errName = "kernel"
-	case snap.TypeOS, snap.TypeBase:
-		bootVar = "snap_core"
-		errName = "base"
-	default:
-		return nil, fmt.Errorf("internal error: cannot find boot revision for snap type %q", t)
-	}
-
-	bloader, err := bootloader.Find("", nil)
+func GetCurrentBoot(t snap.Type, dev Device) (*NameAndRevision, error) {
+	s, err := bootStateFor(t, dev)
 	if err != nil {
-		return nil, fmt.Errorf("cannot get boot settings: %s", err)
+		return nil, err
 	}
 
-	m, err := bloader.GetBootVars(bootVar, "snap_mode")
+	snap, _, trying, err := s.revisions()
 	if err != nil {
-		return nil, fmt.Errorf("cannot get boot variables: %s", err)
+		return nil, err
 	}
 
-	if m["snap_mode"] == "trying" {
+	if trying {
 		return nil, ErrBootNameAndRevisionNotReady
 	}
 
-	nameAndRevno, err := nameAndRevnoFromSnap(m[bootVar])
-	if err != nil {
-		return nil, fmt.Errorf("cannot get name and revision of boot %s: %v", errName, err)
-	}
-
-	return nameAndRevno, nil
+	return snap, nil
 }
 
 // nameAndRevnoFromSnap grabs the snap name and revision from the
@@ -288,6 +323,9 @@ type BootableSet struct {
 	RecoverySystemDir string
 
 	UnpackedGadgetDir string
+
+	// Recover is set when making the recovery partition bootable.
+	Recovery bool
 }
 
 // makeBootable16 setups the image filesystem for boot with UC16
@@ -296,7 +334,11 @@ type BootableSet struct {
 //  - creating symlinks for boot snaps from seed to the runtime blob dir
 //  - setting boot env vars pointing to the revisions of the boot snaps to use
 //  - extracting kernel assets as needed by the bootloader
-func makeBootable16(model *asserts.Model, rootdir string, bootWith *BootableSet, opts *bootloader.Options) error {
+func makeBootable16(model *asserts.Model, rootdir string, bootWith *BootableSet) error {
+	opts := &bootloader.Options{
+		PrepareImageTime: true,
+	}
+
 	// install the bootloader configuration from the gadget
 	if err := bootloader.InstallBootConfig(bootWith.UnpackedGadgetDir, rootdir, opts); err != nil {
 		return err
@@ -363,7 +405,7 @@ func makeBootable16(model *asserts.Model, rootdir string, bootWith *BootableSet,
 	return nil
 }
 
-func makeBootable20(model *asserts.Model, rootdir string, bootWith *BootableSet, opts *bootloader.Options) error {
+func makeBootable20(model *asserts.Model, rootdir string, bootWith *BootableSet) error {
 	// we can only make a single recovery system bootable right now
 	recoverySystems, err := filepath.Glob(filepath.Join(rootdir, "systems/*"))
 	if err != nil {
@@ -371,6 +413,12 @@ func makeBootable20(model *asserts.Model, rootdir string, bootWith *BootableSet,
 	}
 	if len(recoverySystems) > 1 {
 		return fmt.Errorf("cannot make multiple recovery systems bootable yet")
+	}
+
+	opts := &bootloader.Options{
+		PrepareImageTime: true,
+		// setup the recovery bootloader
+		Recovery: true,
 	}
 
 	// install the bootloader configuration from the gadget
@@ -403,19 +451,97 @@ func makeBootable20(model *asserts.Model, rootdir string, bootWith *BootableSet,
 	return nil
 }
 
-// MakeBootable sets up the image filesystem with the given rootdir
-// such that it can be booted.
-func MakeBootable(model *asserts.Model, rootdir string, bootWith *BootableSet) error {
+func makeBootable20RunMode(model *asserts.Model, rootdir string, bootWith *BootableSet) error {
+	// XXX: move to dirs ?
+	runMnt := filepath.Join(rootdir, "/run/mnt/")
+
+	// TODO:UC20:
+	// - create grub.cfg instead of using the gadget one
+	// - extract kernel
+
+	// copy kernel/base into the ubuntu-data partition
+	ubuntuDataMnt := filepath.Join(runMnt, "ubuntu-data")
+	snapBlobDir := dirs.SnapBlobDirUnder(filepath.Join(ubuntuDataMnt, "system-data"))
+	if err := os.MkdirAll(snapBlobDir, 0755); err != nil {
+		return err
+	}
+	for _, fn := range []string{bootWith.BasePath, bootWith.KernelPath} {
+		dst := filepath.Join(snapBlobDir, filepath.Base(fn))
+		if err := osutil.CopyFile(fn, dst, osutil.CopyFlagPreserveAll|osutil.CopyFlagSync); err != nil {
+			return err
+		}
+	}
+
+	// write modeenv on the ubuntu-data partition
+	modeenv := &Modeenv{
+		Mode:           "run",
+		RecoverySystem: filepath.Base(bootWith.RecoverySystemDir),
+		Base:           filepath.Base(bootWith.BasePath),
+		Kernel:         filepath.Base(bootWith.KernelPath),
+	}
+	if err := modeenv.Write(filepath.Join(runMnt, "ubuntu-data", "system-data")); err != nil {
+		return fmt.Errorf("cannot write modeenv: %v", err)
+	}
+
+	// get the ubuntu-boot bootloader
 	opts := &bootloader.Options{
-		// XXX: allow to override this
-		PrepareImageTime: true,
+		// TODO:UC20: we use "recovery: true" here because on
+		// the partition the file layout of ubuntu-boot looks
+		// the same as ubuntu-seed.
+		// TODO:UC20: need a better name than recovery
+		Recovery: true,
+	}
+	bl, err := bootloader.Find(filepath.Join(runMnt, "ubuntu-boot"), opts)
+	if err != nil {
+		return fmt.Errorf("internal error: cannot find run system bootloader: %v", err)
+	}
+	// TODO:UC20: using the UC16/18 grubenv style until we have
+	// a UC20 grub.cfg and corresponding snapd early boot
+	// code
+	blVars := map[string]string{
+		"snap_mode":   "",
+		"snap_kernel": filepath.Base(bootWith.KernelPath),
+		"snap_core":   filepath.Base(bootWith.BasePath),
+	}
+	if err := bl.SetBootVars(blVars); err != nil {
+		return fmt.Errorf("cannot set run system environment: %v", err)
+	}
+	// TODO:UC20: extract kernel here to the static UC20 name
+	// check https://github.com/snapcore/snapd/pull/7913
+
+	// LAST step: update recovery grub's grubenv to indicate that
+	// we transition to run mode now
+	opts = &bootloader.Options{
+		// setup the recovery bootloader
+		Recovery: true,
+	}
+	bl, err = bootloader.Find(filepath.Join(runMnt, "ubuntu-seed"), opts)
+	if err != nil {
+		return fmt.Errorf("internal error: cannot find bootloader: %v", err)
+	}
+	blVars = map[string]string{
+		"snapd_recovery_mode": "run",
+	}
+	if err := bl.SetBootVars(blVars); err != nil {
+		return fmt.Errorf("cannot set recovery system environment: %v", err)
 	}
 
+	return nil
+}
+
+// MakeBootable sets up the given bootable set and target filesystem
+// such that the system can be booted.
+//
+// rootdir points to an image filesystem (UC 16/18), image recovery
+// filesystem (UC20 at prepare-image time) or ephemeral system (UC20
+// install mode).
+func MakeBootable(model *asserts.Model, rootdir string, bootWith *BootableSet) error {
 	if model.Grade() == asserts.ModelGradeUnset {
-		return makeBootable16(model, rootdir, bootWith, opts)
+		return makeBootable16(model, rootdir, bootWith)
 	}
 
-	// XXX: allow to override this
-	opts.Recovery = true
-	return makeBootable20(model, rootdir, bootWith, opts)
+	if !bootWith.Recovery {
+		return makeBootable20RunMode(model, rootdir, bootWith)
+	}
+	return makeBootable20(model, rootdir, bootWith)
 }
