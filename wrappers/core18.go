@@ -46,7 +46,9 @@ func snapdSkipStart(content []byte) bool {
 	return bytes.Contains(content, []byte("X-Snapd-Snap: do-not-start"))
 }
 
-func snapdUnitSkipStart(unitPath string) (bool, error) {
+// snapdUnitSkipStart returns true for units that should not be started
+// automatically
+func snapdUnitSkipStart(unitPath string) (skip bool, err error) {
 	content, err := ioutil.ReadFile(unitPath)
 	if err != nil {
 		if os.IsNotExist(err) {
@@ -195,10 +197,15 @@ func writeSnapdServicesOnCore(s *snap.Info, inter interacter) error {
 
 	// enable/start all the new services
 	for _, unit := range changed {
-		// systemd looks a the logical units, even if 'enabled' service
+		// systemd looks at the logical units, even if 'enabled' service
 		// symlink points to /lib/systemd/system location, dropping an
 		// identically named service in /etc overrides the other unit,
 		// therefore it is sufficient to enable the new units only
+		//
+		// Calling sysd.Enable() unconditionally may fail depending on
+		// systemd version, where older versions (eg 229 in 16.04) would
+		// error out unless --force is passed, while new ones remove the
+		// symlink and create a new one.
 		enabled, err := sysd.IsEnabled(unit)
 		if err != nil {
 			return err
@@ -267,7 +274,11 @@ func writeSnapdServicesOnCore(s *snap.Info, inter interacter) error {
 	return nil
 }
 
+// undoSnapdUserServicesOnCore attempts to remove services that were deployed in
+// the filesystem as part of snapd snap installation. This should only be
+// executed as part of a controlled undo path.
 func undoSnapdServicesOnCore(s *snap.Info, sysd systemd.Systemd) error {
+	// list service, socket and timer units present in the snapd snap
 	serviceUnits, err := filepath.Glob(filepath.Join(s.MountDir(), "lib/systemd/system/*.service"))
 	if err != nil {
 		return err
@@ -411,9 +422,13 @@ func writeSnapdUserServicesOnCore(s *snap.Info, inter interacter) error {
 	return nil
 }
 
+// undoSnapdUserServicesOnCore attempts to remove user services that were
+// deployed in the filesystem as part of snapd snap installation. This should
+// only be executed as part of a controlled undo path.
 func undoSnapdUserServicesOnCore(s *snap.Info, inter interacter) error {
 	sysd := systemd.New(dirs.GlobalRootDir, systemd.GlobalUserMode, inter)
 
+	// list user service and socket units present in the snapd snap
 	serviceUnits, err := filepath.Glob(filepath.Join(s.MountDir(), "usr/lib/systemd/user/*.service"))
 	if err != nil {
 		return err
