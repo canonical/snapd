@@ -94,6 +94,12 @@ reset_classic() {
 
 reset_all_snap() {
     # remove all leftover snaps
+
+    # make sure snapd is running before we attempt to remove snaps, in case a test stopped it
+    if ! systemctl status snapd.service snapd.socket >/dev/null; then
+        systemctl start snapd.service snapd.socket
+    fi
+
     # shellcheck source=tests/lib/names.sh
     . "$TESTSLIB/names.sh"
 
@@ -105,10 +111,6 @@ reset_all_snap() {
             "bin" | "$gadget_name" | "$kernel_name" | "$core_name" | "snapd" |README)
                 ;;
             *)
-                # make sure snapd is running before we attempt to remove snaps, in case a test stopped it
-                if ! systemctl status snapd.service snapd.socket >/dev/null; then
-                    systemctl start snapd.service snapd.socket
-                fi
                 # Check if a snap should be kept, there's a list of those in spread.yaml.
                 keep=0
                 for precious_snap in $SKIP_REMOVE_SNAPS; do
