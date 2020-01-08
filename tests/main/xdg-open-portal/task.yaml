@@ -1,0 +1,98 @@
+summary: Verify xdg-open forwarding requests to the desktop portal
+
+# Only enable the test on systems we know portals to function on.
+# Expand as needed.
+systems:
+  - ubuntu-18.04-*
+  - ubuntu-19.10-*
+
+environment:
+    BROWSER_HISTORY: /tmp/browser-history.txt
+    EDITOR_HISTORY: /tmp/editor-history.txt
+
+prepare: |
+    #shellcheck source=tests/lib/desktop-portal.sh
+    . "$TESTSLIB"/desktop-portal.sh
+    setup_portals
+
+    #shellcheck source=tests/lib/snaps.sh
+    . "$TESTSLIB/snaps.sh"
+
+    install_local test-snapd-desktop
+
+    # Configure fake web browser
+    mkdir -p ~test/.local/share/applications
+    cat << EOF > ~test/.local/share/applications/test-browser.desktop
+    [Desktop Entry]
+    Type=Application
+    Name=Test Web Browser
+    Exec=$(pwd)/web-browser.sh %u $BROWSER_HISTORY
+    MimeType=x-scheme-handler/http;
+    EOF
+
+    # Configure a fake editor
+    cat << EOF > ~test/.local/share/applications/test-editor.desktop
+    [Desktop Entry]
+    Type=Application
+    Name=Test Editor
+    Exec=$(pwd)/editor.sh %f $EDITOR_HISTORY
+    MimeType=text/plain;
+    EOF
+
+    # Set up file type handlers
+    mkdir -p ~test/.config
+    cat << EOF > ~test/.config/mimeapps.list
+    [Default Applications]
+    x-scheme-handler/http=test-browser.desktop
+    text/plain=test-editor.desktop
+    EOF
+
+    # Prepare test data for editor
+    commondir=~test/snap/test-snapd-desktop/common
+    testfile="$commondir/test.txt"
+    mkdir -p "$commondir"
+    echo "Hello World" > "$testfile"
+    chown -R test:test ~test/snap
+
+restore: |
+    #shellcheck source=tests/lib/desktop-portal.sh
+    . "$TESTSLIB"/desktop-portal.sh
+    teardown_portals
+
+    rm -f ~test/.config/mimeapps.list
+    rm -f ~test/.local/share/applications/test-browser.desktop
+    rm -f ~test/.local/share/applications/test-editor.desktop
+    rm -f "$EDITOR_HISTORY"
+    rm -f "$BROWSER_HISTORY"
+
+execute: |
+    #shellcheck source=tests/lib/desktop-portal.sh
+    . "$TESTSLIB"/desktop-portal.sh
+    #shellcheck source=tests/lib/files.sh
+    . "$TESTSLIB"/files.sh
+
+    echo "Request is forwarded to the default browser"
+    as_user test-snapd-desktop.cmd xdg-open http://www.example.org
+
+    echo "The test-browser process was invoked with the URL"
+    wait_for_file "$BROWSER_HISTORY" 4 .5
+    MATCH http://www.example.org < "$BROWSER_HISTORY"
+
+    echo "Access the file via URI handler"
+    as_user test-snapd-desktop.cmd xdg-open file:///home/test/snap/test-snapd-desktop/common/test.txt
+    wait_for_file "$EDITOR_HISTORY" 4 .5
+    MATCH /home/test/snap/test-snapd-desktop/common/test.txt < "$EDITOR_HISTORY"
+    rm -f "$EDITOR_HISTORY"
+
+    echo "Access the file directly"
+    as_user test-snapd-desktop.cmd xdg-open /home/test/snap/test-snapd-desktop/common/test.txt
+    wait_for_file "$EDITOR_HISTORY" 4 .5
+    MATCH /home/test/snap/test-snapd-desktop/common/test.txt < "$EDITOR_HISTORY"
+
+debug: |
+    #shellcheck source=tests/lib/desktop-portal.sh
+    . "$TESTSLIB"/desktop-portal.sh
+
+    ls -la "/run/user/$TEST_UID/" || true
+    #shellcheck disable=SC2009
+    ps -ef | grep xdg || true
