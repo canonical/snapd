@@ -340,6 +340,7 @@ func undoSnapdServicesOnCore(s *snap.Info, sysd systemd.Systemd) error {
 			return err
 		}
 		if !skipStart {
+			// TODO: consider using sys.Restart() instead of is-active check
 			isActive, err := sysd.IsActive(unit)
 			if err != nil {
 				return err
