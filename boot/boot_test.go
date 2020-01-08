@@ -366,10 +366,12 @@ func (s *bootSetSuite) TestKernelWithModel(c *C) {
 }
 
 func (s *bootSetSuite) TestMarkBootSuccessfulAllSnap(c *C) {
+	coreDev := boottest.MockDevice("some-snap")
+
 	s.bootloader.BootVars["snap_mode"] = "trying"
 	s.bootloader.BootVars["snap_try_core"] = "os1"
 	s.bootloader.BootVars["snap_try_kernel"] = "k1"
-	err := boot.MarkBootSuccessful()
+	err := boot.MarkBootSuccessful(coreDev)
 	c.Assert(err, IsNil)
 
 	expected := map[string]string{
@@ -384,18 +386,20 @@ func (s *bootSetSuite) TestMarkBootSuccessfulAllSnap(c *C) {
 	c.Assert(s.bootloader.BootVars, DeepEquals, expected)
 
 	// do it again, verify its still valid
-	err = boot.MarkBootSuccessful()
+	err = boot.MarkBootSuccessful(coreDev)
 	c.Assert(err, IsNil)
 	c.Assert(s.bootloader.BootVars, DeepEquals, expected)
 }
 
 func (s *bootSetSuite) TestMarkBootSuccessfulKKernelUpdate(c *C) {
+	coreDev := boottest.MockDevice("some-snap")
+
 	s.bootloader.BootVars["snap_mode"] = "trying"
 	s.bootloader.BootVars["snap_core"] = "os1"
 	s.bootloader.BootVars["snap_kernel"] = "k1"
 	s.bootloader.BootVars["snap_try_core"] = ""
 	s.bootloader.BootVars["snap_try_kernel"] = "k2"
-	err := boot.MarkBootSuccessful()
+	err := boot.MarkBootSuccessful(coreDev)
 	c.Assert(err, IsNil)
 	c.Assert(s.bootloader.BootVars, DeepEquals, map[string]string{
 		// cleared

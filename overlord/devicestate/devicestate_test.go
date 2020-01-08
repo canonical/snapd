@@ -507,7 +507,7 @@ func (s *deviceMgrSuite) TestDeviceManagerEnsureBootOkError(c *C) {
 	devicestate.SetBootOkRan(s.mgr, false)
 
 	err := s.mgr.Ensure()
-	c.Assert(err, ErrorMatches, "devicemgr: bootloader err")
+	c.Assert(err, ErrorMatches, "devicemgr: cannot mark boot successful: bootloader err")
 }
 
 func (s *deviceMgrBaseSuite) setupBrands(c *C) {

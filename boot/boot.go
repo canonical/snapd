@@ -146,6 +146,12 @@ type bootState interface {
 	// the try snap (only the latter might not be set), and
 	// whether the snap is in "trying" state.
 	revisions() (snap, try_snap *NameAndRevision, trying bool, err error)
+
+	// markSuccessful lazily implements marking the boot
+	// successful for the type's boot snap. The actual committing
+	// of the update is done via bootStateUpdate's commit, that
+	// way different markSuccessful can be folded together.
+	markSuccessful(bootStateUpdate) (bootStateUpdate, error)
 }
 
 // bootStateFor finds the right bootState implementation of the given
@@ -262,11 +268,17 @@ func nameAndRevnoFromSnap(sn string) (*NameAndRevision, error) {
 	return &NameAndRevision{Name: name, Revision: rev}, nil
 }
 
+// bootStateUpdate carries the state for an on-going boot state update.
+// At the end it can be used to commit it.
+type bootStateUpdate interface {
+	commit() error
+}
+
 // MarkBootSuccessful marks the current boot as successful. This means
 // that snappy will consider this combination of kernel/os a valid
 // target for rollback.
 //
-// The states that a boot goes through are the following:
+// The states that a boot goes through for UC16/18 are the following:
 // - By default snap_mode is "" in which case the bootloader loads
 //   two squashfs'es denoted by variables snap_core and snap_kernel.
 // - On a refresh of core/kernel snapd will set snap_mode=try and
@@ -282,35 +294,27 @@ func nameAndRevnoFromSnap(sn string) (*NameAndRevision, error) {
 //   means snapd did not start successfully. In this case the bootloader
 //   will set snap_mode="" and the system will boot with the known good
 //   values from snap_{core,kernel}
-func MarkBootSuccessful() error {
-	bl, err := bootloader.Find("", nil)
-	if err != nil {
-		return fmt.Errorf("cannot mark boot successful: %s", err)
-	}
-	m, err := bl.GetBootVars("snap_mode", "snap_try_core", "snap_try_kernel")
-	if err != nil {
-		return err
-	}
+func MarkBootSuccessful(dev Device) error {
+	const errPrefix = "cannot mark boot successful: %s"
 
-	// snap_mode goes from "" -> "try" -> "trying" -> ""
-	// so if we are not in "trying" mode, nothing to do here
-	if m["snap_mode"] != "trying" {
-		return nil
-	}
-
-	// update the boot vars
-	for _, k := range []string{"kernel", "core"} {
-		tryBootVar := fmt.Sprintf("snap_try_%s", k)
-		bootVar := fmt.Sprintf("snap_%s", k)
-		// update the boot vars
-		if m[tryBootVar] != "" {
-			m[bootVar] = m[tryBootVar]
-			m[tryBootVar] = ""
+	var u bootStateUpdate
+	for _, t := range []snap.Type{snap.TypeBase, snap.TypeKernel} {
+		s, err := bootStateFor(t, dev)
+		if err != nil {
+			return err
+		}
+		u, err = s.markSuccessful(u)
+		if err != nil {
+			return fmt.Errorf(errPrefix, err)
 		}
 	}
-	m["snap_mode"] = ""
 
-	return bl.SetBootVars(m)
+	if u != nil {
+		if err := u.commit(); err != nil {
+			return fmt.Errorf(errPrefix, err)
+		}
+	}
+	return nil
 }
 
 // BootableSet represents the boot snaps of a system to be made bootable.
