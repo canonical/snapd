@@ -379,7 +379,7 @@ if [ -e /root/spread-setup-done ]; then
 fi
 
 # extract data from previous stage
-(cd / && tar xvf /run/mnt/ubuntu-seed/wormhole.tar.gz)
+(cd / && tar xvf /run/mnt/ubuntu-seed/run-mode-overlay-data.tar.gz)
 
 # user db - it's complicated
 for f in group gshadow passwd shadow; do
@@ -668,7 +668,7 @@ EOF
           --exclude /gopath/pkg/ \
           /home/gopath /mnt/user-data/
     elif is_core20_system; then
-        # prepare passwd for wormhole
+        # prepare passwd for run-mode-overlay-data
         mkdir -p /root/test-etc
         mkdir -p /var/lib/extrausers
         touch /var/lib/extrausers/sub{uid,gid}
@@ -690,7 +690,7 @@ EOF
           --exclude /gopath/.cache/ \
           --exclude /gopath/bin/govendor \
           --exclude /gopath/pkg/ \
-          -f /mnt/wormhole.tar.gz \
+          -f /mnt/run-mode-overlay-data.tar.gz \
           /home/gopath /root/test-etc /var/lib/extrausers
     fi
 
