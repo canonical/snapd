@@ -12,7 +12,7 @@ if ! grep -q "ID=ubuntu-core" /etc/os-release; then
 fi
 
 # No fixe-ups yet on UC20
-if [ -e /var/lib/snapd/modeenv ]; then
+if grep -q snapd_recovery_mode= /proc/cmdline; then
     exit 0
 fi
 
