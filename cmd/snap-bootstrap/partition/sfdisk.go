@@ -153,9 +153,8 @@ func ensureNodesExistImpl(ds []DeviceStructure, timeout time.Duration) error {
 			time.Sleep(100 * time.Millisecond)
 		}
 		if found {
-			output, err := exec.Command("udevadm", "trigger", "--settle", part.Node).CombinedOutput()
-			if err != nil {
-				return osutil.OutputErr(output, err)
+			if err := udevTrigger(part.Node); err != nil {
+				return err
 			}
 		} else {
 			return fmt.Errorf("device %s not available", part.Node)
@@ -272,6 +271,15 @@ func buildPartitionList(ptable *sfdiskPartitionTable, pv *gadget.LaidOutVolume) 
 	}
 
 	return buf, toBeCreated
+}
+
+// udevTrigger triggers udev for the specified device and waits until
+// all events in the udev queue are handled.
+func udevTrigger(device string) error {
+	if output, err := exec.Command("udevadm", "trigger", "--settle", device).CombinedOutput(); err != nil {
+		return osutil.OutputErr(output, err)
+	}
+	return nil
 }
 
 func partitionType(label, ptype string) string {

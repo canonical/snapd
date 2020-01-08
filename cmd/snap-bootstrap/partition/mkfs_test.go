@@ -31,6 +31,7 @@ type mkfsSuite struct {
 
 	mockMkfsVfat *testutil.MockCmd
 	mockMkfsExt4 *testutil.MockCmd
+	mockUdevadm  *testutil.MockCmd
 }
 
 var _ = Suite(&mkfsSuite{})
@@ -40,6 +41,8 @@ func (s *mkfsSuite) SetUpTest(c *C) {
 	s.AddCleanup(s.mockMkfsVfat.Restore)
 	s.mockMkfsExt4 = testutil.MockCommand(c, "mkfs.ext4", "")
 	s.AddCleanup(s.mockMkfsExt4.Restore)
+	s.mockUdevadm = testutil.MockCommand(c, "udevadm", "")
+	s.AddCleanup(s.mockUdevadm.Restore)
 }
 
 func (s *mkfsSuite) TestMkfsUnhappy(c *C) {
@@ -67,6 +70,7 @@ func (s *mkfsSuite) TestMakefilesystemNothing(c *C) {
 	c.Assert(err, ErrorMatches, "cannot use incomplete device ")
 	c.Assert(s.mockMkfsExt4.Calls(), HasLen, 0)
 	c.Assert(s.mockMkfsVfat.Calls(), HasLen, 0)
+	c.Assert(s.mockUdevadm.Calls(), HasLen, 0)
 }
 
 func (s *mkfsSuite) TestMakefilesystem(c *C) {
@@ -132,4 +136,9 @@ func (s *mkfsSuite) TestMakefilesystem(c *C) {
 	calls = s.mockMkfsExt4.Calls()[1]
 	c.Assert(calls[len(calls)-1:], DeepEquals, []string{"/dev/node4"})
 	c.Assert(s.mockMkfsVfat.Calls(), HasLen, 1)
+	c.Assert(s.mockUdevadm.Calls(), DeepEquals, [][]string{
+		{"udevadm", "trigger", "--settle", "/dev/node2"},
+		{"udevadm", "trigger", "--settle", "/dev/node3"},
+		{"udevadm", "trigger", "--settle", "/dev/node4"},
+	})
 }

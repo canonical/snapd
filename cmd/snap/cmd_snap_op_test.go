@@ -235,7 +235,7 @@ func (s *SnapOpSuite) TestInstallFromTrack(c *check.C) {
 		c.Check(r.URL.Path, check.Equals, "/v2/snaps/foo")
 		c.Check(DecodedRequestBody(c, r), check.DeepEquals, map[string]interface{}{
 			"action":  "install",
-			"channel": "3.4/stable",
+			"channel": "3.4",
 		})
 		s.srv.channel = "3.4/stable"
 	}
@@ -276,7 +276,7 @@ func (s *SnapOpSuite) TestInstallSameRiskInTrack(c *check.C) {
 		c.Check(r.URL.Path, check.Equals, "/v2/snaps/foo")
 		c.Check(DecodedRequestBody(c, r), check.DeepEquals, map[string]interface{}{
 			"action":  "install",
-			"channel": "stable",
+			"channel": "latest/stable",
 		})
 		s.srv.channel = "stable"
 		s.srv.trackingChannel = "latest/stable"
@@ -451,11 +451,7 @@ func (s *SnapOpSuite) TestInstallSnapRevisionNotAvailableOnChannel(c *check.C) {
 	})
 
 	_, err := snap.Parser(snap.Client()).ParseArgs([]string{"install", "--channel=mytrack", "foo"})
-	c.Assert(err, check.NotNil)
-	c.Check(fmt.Sprintf("\nerror: %v\n", err), check.Equals, `
-error: snap "foo" not available on channel "mytrack/stable" (see 'snap info
-       foo')
-`)
+	c.Check(err, check.ErrorMatches, `snap "foo" not available on channel "mytrack" \(see 'snap info foo'\)`)
 
 	c.Check(s.Stdout(), check.Equals, "")
 	c.Check(s.Stderr(), check.Equals, "")

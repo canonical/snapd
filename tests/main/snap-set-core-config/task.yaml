@@ -1,7 +1,8 @@
 summary: Ensure "snap set core" works
 
 # the test is only meaningful on core devices
-systems: [ubuntu-core-*]
+# TODO:UC20: enable for UC20
+systems: [ubuntu-core-1*]
 
 prepare: |
     rc=0
