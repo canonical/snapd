@@ -140,7 +140,7 @@ func (s *bootstrapSuite) TestLayoutCompatibility(c *C) {
 	)
 	// extra structure (should fail)
 	err = bootstrap.EnsureLayoutCompatibility(gadgetLayout, &deviceLayoutWithExtras)
-	c.Assert(err, ErrorMatches, `cannot find disk partition "extra".* in gadget`)
+	c.Assert(err, ErrorMatches, `cannot find disk partition /dev/node3.* in gadget`)
 }
 
 func (s *bootstrapSuite) TestSchemaCompatibility(c *C) {

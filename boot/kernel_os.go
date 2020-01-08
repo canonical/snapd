@@ -24,7 +24,6 @@ import (
 	"path/filepath"
 
 	"github.com/snapcore/snapd/bootloader"
-	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/snap"
 )
 
@@ -38,79 +37,56 @@ var _ BootParticipant = (*coreBootParticipant)(nil)
 
 func (*coreBootParticipant) IsTrivial() bool { return false }
 
-func (bs *coreBootParticipant) SetNextBoot() error {
+func (bs *coreBootParticipant) SetNextBoot() (rebootRequired bool, err error) {
 	bootloader, err := bootloader.Find("", nil)
 	if err != nil {
-		return fmt.Errorf("cannot set next boot: %s", err)
+		return false, fmt.Errorf("cannot set next boot: %s", err)
 	}
 
-	var nextBoot, goodBoot string
+	var nextBootVar, goodBootVar string
 	switch bs.t {
 	case snap.TypeOS, snap.TypeBase:
-		nextBoot = "snap_try_core"
-		goodBoot = "snap_core"
+		nextBootVar = "snap_try_core"
+		goodBootVar = "snap_core"
 	case snap.TypeKernel:
-		nextBoot = "snap_try_kernel"
-		goodBoot = "snap_kernel"
+		nextBootVar = "snap_try_kernel"
+		goodBootVar = "snap_kernel"
 	}
-	blobName := filepath.Base(bs.s.MountFile())
+	nextBoot := filepath.Base(bs.s.MountFile())
 
 	// check if we actually need to do anything, i.e. the exact same
 	// kernel/core revision got installed again (e.g. firstboot)
 	// and we are not in any special boot mode
-	m, err := bootloader.GetBootVars("snap_mode", goodBoot)
+	m, err := bootloader.GetBootVars("snap_mode", goodBootVar)
 	if err != nil {
-		return fmt.Errorf("cannot set next boot: %s", err)
+		return false, fmt.Errorf("cannot set next boot: %s", err)
 	}
-	if m[goodBoot] == blobName {
+
+	snapMode := "try"
+	rebootRequired = true
+	if m[goodBootVar] == nextBoot {
 		// If we were in anything but default ("") mode before
 		// and now switch to the good core/kernel again, make
 		// sure to clean the snap_mode here. This also
 		// mitigates https://forum.snapcraft.io/t/5253
-		if m["snap_mode"] != "" {
-			return bootloader.SetBootVars(map[string]string{
-				"snap_mode": "",
-				nextBoot:    "",
-			})
+		if m["snap_mode"] == "" {
+			// already clean
+			return false, nil
 		}
-		return nil
+		// clean
+		snapMode = ""
+		nextBoot = ""
+		rebootRequired = false
 	}
 
-	return bootloader.SetBootVars(map[string]string{
-		nextBoot:    blobName,
-		"snap_mode": "try",
-	})
-}
-
-func (bs *coreBootParticipant) ChangeRequiresReboot() bool {
-	bootloader, err := bootloader.Find("", nil)
-	if err != nil {
-		logger.Noticef("cannot get boot settings: %s", err)
-		return false
+	if err := bootloader.SetBootVars(map[string]string{
+		"snap_mode": snapMode,
+		nextBootVar: nextBoot,
+	}); err != nil {
+		return false, err
 	}
 
-	var nextBoot, goodBoot string
-	switch bs.t {
-	case snap.TypeKernel:
-		nextBoot = "snap_try_kernel"
-		goodBoot = "snap_kernel"
-	case snap.TypeOS, snap.TypeBase:
-		nextBoot = "snap_try_core"
-		goodBoot = "snap_core"
-	}
-
-	m, err := bootloader.GetBootVars(nextBoot, goodBoot)
-	if err != nil {
-		logger.Noticef("cannot get boot variables: %s", err)
-		return false
-	}
-
-	squashfsName := filepath.Base(bs.s.MountFile())
-	if m[nextBoot] == squashfsName && m[goodBoot] != m[nextBoot] {
-		return true
-	}
-
-	return false
+	return rebootRequired, nil
 }
 
 type coreKernel struct {
@@ -141,4 +117,63 @@ func (k *coreKernel) ExtractKernelAssets(snapf snap.Container) error {
 
 	// ask bootloader to extract the kernel assets if needed
 	return bootloader.ExtractKernelAssets(k.s, snapf)
+}
+
+type bootState16 struct {
+	varSuffix string
+	errName   string
+}
+
+func newBootState16(typ snap.Type) *bootState16 {
+	var varSuffix, errName string
+	switch typ {
+	case snap.TypeKernel:
+		varSuffix = "kernel"
+		errName = "kernel"
+	case snap.TypeBase:
+		varSuffix = "core"
+		errName = "boot base"
+	default:
+		panic(fmt.Sprintf("cannot make a bootState16 for snap type %q", typ))
+	}
+	return &bootState16{varSuffix: varSuffix, errName: errName}
+}
+
+func (s *bootState16) revisions() (snap, try_snap *NameAndRevision, trying bool, err error) {
+	bloader, err := bootloader.Find("", nil)
+	if err != nil {
+		return nil, nil, false, fmt.Errorf("cannot get boot settings: %s", err)
+	}
+
+	snapVar := "snap_" + s.varSuffix
+	trySnapVar := "snap_try_" + s.varSuffix
+	vars := []string{"snap_mode", snapVar, trySnapVar}
+	snaps := make(map[string]*NameAndRevision, 2)
+
+	m, err := bloader.GetBootVars(vars...)
+	if err != nil {
+		return nil, nil, false, fmt.Errorf("cannot get boot variables: %s", err)
+	}
+
+	for _, vName := range vars {
+		v := m[vName]
+		if v == "" && vName != snapVar {
+			// snap_mode & snap_try_<type> can be empty
+			// snap_<type> cannot be! and will fail parsing
+			// below
+			continue
+		}
+
+		if vName == "snap_mode" {
+			trying = v == "trying"
+		} else {
+			nameAndRevno, err := nameAndRevnoFromSnap(v)
+			if err != nil {
+				return nil, nil, false, fmt.Errorf("cannot get name and revision of %s (%s): %v", s.errName, vName, err)
+			}
+			snaps[vName] = nameAndRevno
+		}
+	}
+
+	return snaps[snapVar], snaps[trySnapVar], trying, nil
 }

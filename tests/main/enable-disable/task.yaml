@@ -1,45 +1,45 @@
 summary: Check that enable/disable works
 
 prepare: |
-    echo "Install test-snapd-tools and ensure it runs"
+    echo "Install test-snapd-sh and ensure it runs"
     #shellcheck source=tests/lib/snaps.sh
     . "$TESTSLIB"/snaps.sh
-    install_local test-snapd-tools
-    test-snapd-tools.echo Hello | MATCH Hello
+    install_local test-snapd-sh
+    test-snapd-sh.sh -c 'echo Hello' | MATCH Hello
 
 execute: |
     #shellcheck source=tests/lib/dirs.sh
     . "$TESTSLIB"/dirs.sh
-    echo "Disable test-snapd-tools and ensure it is listed as disabled"
-    snap disable test-snapd-tools|MATCH disabled
+    echo "Disable test-snapd-sh and ensure it is listed as disabled"
+    snap disable test-snapd-sh | MATCH disabled
 
-    echo "Ensure the test-snapd-tools command is no longer there"
-    if ls $SNAP_MOUNT_DIR/bin/test-snapd-tools*; then
-        echo "test-snapd-tools binaries are not disabled"
+    echo "Ensure the test-snapd-sh command is no longer there"
+    if ls $SNAP_MOUNT_DIR/bin/test-snapd-sh*; then
+        echo "test-snapd-sh binaries are not disabled"
         exit 1
     fi
 
     if [ "$(snap debug confinement)" = strict ]; then
-        echo "Ensure the test-snapd-tools security profiles are no longer there"
-        if ls /var/lib/snapd/apparmor/profiles/snap.test-snapd-tools*; then
-            echo "test-snapd-tools securiry profiles are not disabled"
+        echo "Ensure the test-snapd-sh security profiles are no longer there"
+        if ls /var/lib/snapd/apparmor/profiles/snap.test-snapd-sh*; then
+            echo "test-snapd-sh securiry profiles are not disabled"
             exit 1
         fi
     fi
 
-    echo "Enable test-snapd-tools again and ensure it is no longer listed as disabled"
-    snap enable test-snapd-tools | MATCH 'test-snapd-tools enabled'
+    echo "Enable test-snapd-sh again and ensure it is no longer listed as disabled"
+    snap enable test-snapd-sh | MATCH enabled
 
     if [ "$(snap debug confinement)" = strict ]; then
-        echo "Ensure the test-snapd-tools security profiles are present"
-        if ! ls /var/lib/snapd/apparmor/profiles/snap.test-snapd-tools*; then
-            echo "test-snapd-tools securiry profiles are not present"
+        echo "Ensure the test-snapd-sh security profiles are present"
+        if ! ls /var/lib/snapd/apparmor/profiles/snap.test-snapd-sh*; then
+            echo "test-snapd-sh securiry profiles are not present"
             exit 1
         fi
     fi
 
-    echo "Ensure test-snapd-tools runs normally after it was enabled"
-    test-snapd-tools.echo Hello |MATCH Hello
+    echo "Ensure test-snapd-sh runs normally after it was enabled"
+    test-snapd-sh.sh -c 'echo Hello' |MATCH Hello
 
     echo "Ensure the important snaps can not be disabled"
     #shellcheck source=tests/lib/names.sh
