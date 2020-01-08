@@ -21,7 +21,6 @@ package boot
 
 import (
 	"fmt"
-	"path/filepath"
 
 	"github.com/snapcore/snapd/bootloader"
 	"github.com/snapcore/snapd/snap"
@@ -40,7 +39,7 @@ func (*coreBootParticipant) IsTrivial() bool { return false }
 func (bp *coreBootParticipant) SetNextBoot() (rebootRequired bool, err error) {
 	const errPrefix = "cannot set next boot: %s"
 
-	rebootRequired, u, err := bp.bs.setNext(filepath.Base(bp.s.MountFile()))
+	rebootRequired, u, err := bp.bs.setNext(bp.s)
 	if err != nil {
 		return false, fmt.Errorf(errPrefix, err)
 	}

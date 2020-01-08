@@ -21,6 +21,7 @@ package boot
 
 import (
 	"fmt"
+	"path/filepath"
 
 	"github.com/snapcore/snapd/bootloader"
 	"github.com/snapcore/snapd/snap"
@@ -151,7 +152,9 @@ func (s16 *bootState16) markSuccessful(update bootStateUpdate) (bootStateUpdate,
 	return u16, nil
 }
 
-func (s16 *bootState16) setNext(nextBoot string) (rebootRequired bool, u bootStateUpdate, err error) {
+func (s16 *bootState16) setNext(s snap.PlaceInfo) (rebootRequired bool, u bootStateUpdate, err error) {
+	nextBoot := filepath.Base(s.MountFile())
+
 	nextBootVar := fmt.Sprintf("snap_try_%s", s16.varSuffix)
 	goodBootVar := fmt.Sprintf("snap_%s", s16.varSuffix)
 
@@ -167,7 +170,7 @@ func (s16 *bootState16) setNext(nextBoot string) (rebootRequired bool, u bootSta
 	rebootRequired = true
 	if env[goodBootVar] == nextBoot {
 		// If we were in anything but default ("") mode before
-		// and now switch to the good core/kernel again, make
+		// and switched to the good core/kernel again, make
 		// sure to clean the snap_mode here. This also
 		// mitigates https://forum.snapcraft.io/t/5253
 		if env["snap_mode"] == "" {
