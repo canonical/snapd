@@ -673,13 +673,13 @@ EOF
         mkdir -p /var/lib/extrausers
         touch /var/lib/extrausers/sub{uid,gid}
         for f in group gshadow passwd shadow; do
-            grep -v "^root:" "/etc/$f" > /root/test-etc/"$f"
+            grep -v "^root:" /etc/"$f" > /root/test-etc/"$f"
             grep "^root:" /etc/"$f" >> /root/test-etc/"$f"
-            chgrp --reference "/etc/$f" /root/test-etc/"$f"
+            chgrp --reference /etc/"$f" /root/test-etc/"$f"
             # create /var/lib/extrausers/$f
             # append ubuntu, test user for the testing
-            grep "^test:" /etc/$f >> /var/lib/extrausers/"$f"
-            grep "^ubuntu:" /etc/$f >> /var/lib/extrausers/"$f"
+            grep "^test:" /etc/"$f" >> /var/lib/extrausers/"$f"
+            grep "^ubuntu:" /etc/"$f" >> /var/lib/extrausers/"$f"
             # check test was copied
             MATCH "^test:" </var/lib/extrausers/"$f"
             MATCH "^ubuntu:" </var/lib/extrausers/"$f"
