@@ -716,8 +716,6 @@ suites:
 
     tests/regression/:
         summary: Regression tests for snapd
-        # TODO:UC20: enable for uc20
-        systems: [-ubuntu-core-20-*]
         prepare: |
             "$TESTSLIB"/prepare-restore.sh --prepare-suite
         prepare-each: |
