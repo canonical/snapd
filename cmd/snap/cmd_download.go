@@ -53,7 +53,7 @@ type cmdDownload struct {
 
 	// TODO: provide --direct option and make --indirect the default
 	//       We need to add resume to indirect downloads to make this work
-	Indirect bool `long:"indirect"`
+	Indirect bool `long:"indirect" hidden:"true"`
 
 	CohortKey  string `long:"cohort"`
 	Positional struct {
