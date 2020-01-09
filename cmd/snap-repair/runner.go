@@ -569,8 +569,9 @@ func (run *Runner) initState() error {
 	// best-effort remove old
 	os.Remove(dirs.SnapRepairStateFile)
 	run.state = state{}
-	// initialize time lower bound with image built time/seed.yaml time
-	info, err := os.Stat(filepath.Join(dirs.SnapSeedDir, "seed.yaml"))
+	// initialize time lower bound with image built time/seed dir time
+	// (not using seed.yaml here because it's different on UC20).
+	info, err := os.Stat(dirs.SnapSeedDir)
 	if err != nil {
 		return err
 	}
