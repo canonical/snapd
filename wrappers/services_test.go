@@ -106,7 +106,7 @@ func (s *servicesTestSuite) TestAddSnapServicesAndRemove(c *C) {
 	})
 
 	s.sysdLog = nil
-	err = wrappers.RemoveSnapServices(info, progress.Null)
+	err = wrappers.RemoveSnapServices(info, true, progress.Null)
 	c.Assert(err, IsNil)
 	c.Check(osutil.FileExists(svcFile), Equals, false)
 	c.Assert(s.sysdLog, HasLen, 2)
@@ -138,7 +138,7 @@ func (s *servicesTestSuite) TestRemoveSnapWithSocketsRemovesSocketsService(c *C)
 	err = wrappers.StopServices(info.Services(), "", &progress.Null, s.perfTimings)
 	c.Assert(err, IsNil)
 
-	err = wrappers.RemoveSnapServices(info, &progress.Null)
+	err = wrappers.RemoveSnapServices(info, true, &progress.Null)
 	c.Assert(err, IsNil)
 
 	app := info.Apps["svc1"]
@@ -1187,7 +1187,7 @@ func (s *servicesTestSuite) TestAddRemoveSnapWithTimersAddsRemovesTimerFiles(c *
 	err = wrappers.StopServices(info.Services(), "", &progress.Null, s.perfTimings)
 	c.Assert(err, IsNil)
 
-	err = wrappers.RemoveSnapServices(info, &progress.Null)
+	err = wrappers.RemoveSnapServices(info, true, &progress.Null)
 	c.Assert(err, IsNil)
 
 	c.Check(osutil.FileExists(app.Timer.File()), Equals, false)

@@ -207,7 +207,7 @@ func (s *servicesTestSuite) TestAddSnapServicesForSnapdOnClassic(c *C) {
 	c.Check(s.sysdLog, IsNil)
 }
 
-func (s *servicesTestSuite) TestRemoveSnapServicesForSnapdOnCore(c *C) {
+func (s *servicesTestSuite) TestRemoveSnapServicesForFirstInstallSnapdOnCore(c *C) {
 	restore := release.MockOnClassic(false)
 	defer restore()
 
@@ -269,7 +269,8 @@ func (s *servicesTestSuite) TestRemoveSnapServicesForSnapdOnCore(c *C) {
 	snaptest.PopulateDir("/", coreUnits)
 
 	// remove the snapd service
-	err := wrappers.UndoSnapdServicesOnCore(info, progress.Null)
+	firstInstallUndo := true
+	err := wrappers.RemoveSnapServices(info, firstInstallUndo, progress.Null)
 	c.Assert(err, IsNil)
 
 	for _, unit := range units {
@@ -305,4 +306,65 @@ func (s *servicesTestSuite) TestRemoveSnapServicesForSnapdOnCore(c *C) {
 		{"stop", "usr-lib-snapd.mount"},
 		{"show", "--property=ActiveState", "usr-lib-snapd.mount"},
 	})
+}
+
+func (s *servicesTestSuite) TestRemoveSnapServicesForSnapdOnCore(c *C) {
+	restore := release.MockOnClassic(false)
+	defer restore()
+
+	restore = release.MockReleaseInfo(&release.OS{ID: "ubuntu"})
+	defer restore()
+
+	// reset root dir
+	dirs.SetRootDir(s.tempdir)
+
+	systemctlRestorer := systemd.MockSystemctl(func(cmd ...string) ([]byte, error) {
+		s.sysdLog = append(s.sysdLog, cmd)
+		if cmd[0] == "show" && cmd[1] == "--property=Id,ActiveState,UnitFileState,Type" {
+			s := fmt.Sprintf("Type=oneshot\nId=%s\nActiveState=inactive\nUnitFileState=enabled\n", cmd[2])
+			return []byte(s), nil
+		}
+		if len(cmd) == 4 && cmd[2] == "is-enabled" {
+			// pretend snapd.socket is disabled
+			if cmd[3] == "snapd.socket" {
+				return []byte("disabled"), &mockSystemctlError{msg: "disabled", exitCode: 1}
+			}
+			return []byte("enabled"), nil
+		}
+		return []byte("ActiveState=inactive\n"), nil
+	})
+	defer systemctlRestorer()
+
+	info := makeMockSnapdSnap(c)
+
+	units := [][]string{
+		{filepath.Join(dirs.SnapServicesDir, "usr-lib-snapd.mount"), "from-snapd"},
+		{filepath.Join(dirs.SnapServicesDir, "snapd.service"), "from-snapd"},
+		{filepath.Join(dirs.SnapServicesDir, "snapd.socket"), "from-snapd"},
+		{filepath.Join(dirs.SnapServicesDir, "snapd.snap-repair.timer"), "from-snapd"},
+		{filepath.Join(dirs.SnapServicesDir, "snapd.autoimport.service"), "from-snapd"},
+		{filepath.Join(dirs.SnapServicesDir, "snapd.system-shutdown.service"), "from-snapd"},
+		{filepath.Join(dirs.SnapUserServicesDir, "snapd.session-agent.service"), "from-snapd"},
+		{filepath.Join(dirs.SnapUserServicesDir, "snapd.session-agent.socket"), "from-snapd"},
+		// extra unit not present in core snap
+		{filepath.Join(dirs.SnapServicesDir, "snapd.not-in-core.service"), "from-snapd"},
+	}
+	// content list uses absolute paths already
+	snaptest.PopulateDir("/", units)
+
+	// add the extra unit to the snap
+	snaptest.PopulateDir("/", [][]string{
+		{filepath.Join(info.MountDir(), "lib/systemd/system/snapd.not-in-core.service"), "from-snapd"},
+	})
+
+	// actual removal does not happen, units are overwritten
+	err := wrappers.RemoveSnapServices(info, false, progress.Null)
+	c.Assert(err, IsNil)
+
+	for _, unit := range units {
+		c.Check(unit[0], testutil.FilePresent)
+	}
+
+	// no systemctl calls
+	c.Check(s.sysdLog, HasLen, 0)
 }
