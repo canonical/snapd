@@ -125,6 +125,7 @@ static int open_lock(const char *scope, uid_t uid)
 	int dir_fd SC_CLEANUP(sc_cleanup_close) = -1;
 	char lock_fname[PATH_MAX] = { 0 };
 	int lock_fd;
+	sc_identity old = sc_set_effective_identity(sc_root_group_identity());
 
 	dir_fd = get_lock_directory();
 	get_lock_name(lock_fname, sizeof lock_fname, scope, uid);
@@ -136,6 +137,7 @@ static int open_lock(const char *scope, uid_t uid)
 	if (lock_fd < 0) {
 		die("cannot open lock file: %s/%s", sc_lock_dir, lock_fname);
 	}
+	(void)sc_set_effective_identity(old);
 	return lock_fd;
 }
 

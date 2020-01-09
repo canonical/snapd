@@ -255,9 +255,14 @@ static void sc_bootstrap_mount_namespace(const struct sc_mount_config *config)
 	// disabling the "is_bidirectional" flag as can be seen below.
 	for (const struct sc_mount * mnt = config->mounts; mnt->path != NULL;
 	     mnt++) {
-		if (mnt->is_bidirectional && mkdir(mnt->path, 0755) < 0 &&
-		    errno != EEXIST) {
-			die("cannot create %s", mnt->path);
+
+		if (mnt->is_bidirectional) {
+			sc_identity old =
+			    sc_set_effective_identity(sc_root_group_identity());
+			if (mkdir(mnt->path, 0755) < 0 && errno != EEXIST) {
+				die("cannot create %s", mnt->path);
+			}
+			(void)sc_set_effective_identity(old);
 		}
 		sc_must_snprintf(dst, sizeof dst, "%s/%s", scratch_dir,
 				 mnt->path);
@@ -420,10 +425,13 @@ static void sc_bootstrap_mount_namespace(const struct sc_mount_config *config)
 	// of packaging now so perhaps this code can be removed later.
 	if (access(SC_HOSTFS_DIR, F_OK) != 0) {
 		debug("creating missing hostfs directory");
+		sc_identity old =
+		    sc_set_effective_identity(sc_root_group_identity());
 		if (mkdir(SC_HOSTFS_DIR, 0755) != 0) {
 			die("cannot perform operation: mkdir %s",
 			    SC_HOSTFS_DIR);
 		}
+		(void)sc_set_effective_identity(old);
 	}
 	// Ensure that hostfs isgroup owned by root. We may have (now or earlier)
 	// created the directory as the user who first ran a snap on a given
@@ -671,28 +679,16 @@ void sc_populate_mount_ns(struct sc_apparmor *apparmor, int snap_update_ns_fd,
 		sc_bootstrap_mount_namespace(&legacy_config);
 	}
 
-	// set up private mounts
-	if (getegid() != 0 && saved_gid == 0) {
-		// Temporarily raise egid so we can create, chmod and chown
-		// the mount without causing a noisy fsetid capability denial
-		if (setegid(0) != 0) {
-			die("cannot set effective group id to root");
-		}
-	}
+	sc_identity old = sc_set_effective_identity(sc_root_group_identity());
 	// TODO: rename this and fold it into bootstrap
 	setup_private_mount(inv->snap_instance);
-	if (geteuid() == 0 && real_gid != 0) {
-		if (setegid(real_gid) != 0) {
-			die("cannot set effective group id to %d", real_gid);
-		}
-	}
-
 	// set up private /dev/pts
 	// TODO: fold this into bootstrap
 	setup_private_pts();
 
 	// setup the security backend bind mounts
 	sc_call_snap_update_ns(snap_update_ns_fd, inv->snap_instance, apparmor);
+	(void)sc_set_effective_identity(old);
 }
 
 static bool is_mounted_with_shared_option(const char *dir)
@@ -754,7 +750,9 @@ void sc_setup_user_mounts(struct sc_apparmor *apparmor, int snap_update_ns_fd,
 	// to slave mode, so we see changes from the parent namespace
 	// but don't propagate our own changes.
 	sc_do_mount("none", "/", NULL, MS_REC | MS_SLAVE, NULL);
+	sc_identity old = sc_set_effective_identity(sc_root_group_identity());
 	sc_call_snap_update_ns_as_user(snap_update_ns_fd, snap_name, apparmor);
+	(void)sc_set_effective_identity(old);
 }
 
 void sc_ensure_snap_dir_shared_mounts(void)

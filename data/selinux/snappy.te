@@ -423,7 +423,7 @@ gen_require(`
 ')
 allow snappy_mount_t proc_t:filesystem { getattr unmount };
 
-allow snappy_mount_t self:capability { sys_chroot sys_admin };
+allow snappy_mount_t self:capability { sys_chroot sys_admin setgid };
 
 manage_files_pattern(snappy_mount_t, snappy_snap_t, snappy_snap_t)
 manage_dirs_pattern(snappy_mount_t, snappy_snap_t, snappy_snap_t)

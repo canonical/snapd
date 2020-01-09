@@ -140,6 +140,35 @@ void write_string_to_file(const char *filepath, const char *buf)
 		die("fclose failed");
 }
 
+sc_identity sc_set_effective_identity(sc_identity identity)
+{
+	debug("set_effective_identity uid:%d, gid:%d", identity.uid,
+	      identity.gid);
+	sc_identity old = {.uid = (uid_t) (-1),.gid = (gid_t) (-1) };
+
+	if (identity.gid != (gid_t) (-1)) {
+		old.gid = getegid();
+		if (setegid(identity.gid) < 0) {
+			die("cannot set effective group to %d", identity.gid);
+		}
+		if (getegid() != identity.gid) {
+			die("effective group change from %d to %d has failed",
+			    old.gid, identity.gid);
+		}
+	}
+	if (identity.uid != (uid_t) (-1)) {
+		old.uid = geteuid();
+		if (seteuid(identity.uid) < 0) {
+			die("cannot set effective user to %d", identity.uid);
+		}
+		if (geteuid() != identity.uid) {
+			die("effective user change from %d to %d has failed",
+			    old.uid, identity.uid);
+		}
+	}
+	return old;
+}
+
 int sc_nonfatal_mkpath(const char *const path, mode_t mode)
 {
 	// If asked to create an empty path, return immediately.

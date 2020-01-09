@@ -125,9 +125,11 @@ void sc_initialize_mount_ns(unsigned int experimental_features)
 	debug("unsharing snap namespace directory");
 
 	/* Ensure that /run/snapd/ns is a directory. */
+	sc_identity old = sc_set_effective_identity(sc_root_group_identity());
 	if (sc_nonfatal_mkpath(sc_ns_dir, 0755) < 0) {
 		die("cannot create directory %s", sc_ns_dir);
 	}
+	(void)sc_set_effective_identity(old);
 
 	/* Read and analyze the mount table. We need to see whether /run/snapd/ns
 	 * is a mount point with private event propagation. */
@@ -518,7 +520,9 @@ static int sc_inspect_and_maybe_discard_stale_ns(int mnt_fd,
 		    ("preserved mount namespace is stale and base snap has changed, discarding");
 		break;
 	}
+	sc_identity old = sc_set_effective_identity(sc_root_group_identity());
 	sc_call_snap_discard_ns(snap_discard_ns_fd, inv->snap_instance);
+	(void)sc_set_effective_identity(old);
 	return EAGAIN;
 }
 
