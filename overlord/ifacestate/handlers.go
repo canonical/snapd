@@ -1026,6 +1026,7 @@ func (m *InterfaceManager) doAutoConnect(task *state.Task, _ *tomb.Tomb) error {
 	plugs := m.repo.Plugs(snapName)
 	slots := m.repo.Slots(snapName)
 	newconns := make(map[string]*interfaces.ConnRef, len(plugs)+len(slots))
+	var connOpts map[string]*connectOpts
 
 	conflictError := func(retry *state.Retry, err error) error {
 		if retry != nil {
@@ -1035,14 +1036,18 @@ func (m *InterfaceManager) doAutoConnect(task *state.Task, _ *tomb.Tomb) error {
 		return fmt.Errorf("auto-connect conflict check failed: %v", err)
 	}
 
-	// Consider gadget connections
+	// Consider gadget connections, we want to remember them in
+	// any case with "by-gadget" set, so they should be processed
+	// before the auto-connection ones.
 	if err := gadgectConnect.addGadgetConnections(newconns, conns, conflictError); err != nil {
 		return err
 	}
-	connOpts := make(map[string]*connectOpts, len(newconns))
-	byGadgetOpts := &connectOpts{AutoConnect: true, ByGadget: true}
-	for key := range newconns {
-		connOpts[key] = byGadgetOpts
+	if len(newconns) > 0 {
+		connOpts = make(map[string]*connectOpts, len(newconns))
+		byGadgetOpts := &connectOpts{AutoConnect: true, ByGadget: true}
+		for key := range newconns {
+			connOpts[key] = byGadgetOpts
+		}
 	}
 
 	// Auto-connect all the plugs
