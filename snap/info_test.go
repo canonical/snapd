@@ -27,6 +27,7 @@ import (
 	"regexp"
 	"sort"
 	"strings"
+	"testing"
 
 	. "gopkg.in/check.v1"
 	"gopkg.in/yaml.v2"
@@ -1054,6 +1055,19 @@ func (s *infoSuite) testInstanceDirAndFileMethods(c *C, info snap.PlaceInfo) {
 	c.Check(info.XdgRuntimeDirs(), Equals, "/run/user/*/snap.name_instance")
 }
 
+func BenchmarkTestParsePlaceInfoFromSnapFileName(b *testing.B) {
+	for n := 0; n < b.N; n++ {
+		for _, sn := range []string{
+			"core_21.snap",
+			"kernel_41.snap",
+			"some-long-kernel-name-kernel_82.snap",
+			"what-is-this-core_111.snap",
+		} {
+			snap.ParsePlaceInfoFromSnapFileName(sn)
+		}
+	}
+}
+
 func (s *infoSuite) TestParsePlaceInfoFromSnapFileName(c *C) {
 	tt := []struct {
 		sn        string
@@ -1105,7 +1119,6 @@ func (s *infoSuite) TestAppDesktopFile(c *C) {
 	c.Check(snapInfo.InstanceName(), Equals, "sample_instance")
 	c.Check(snapInfo.Apps["app"].DesktopFile(), Matches, `.*/var/lib/snapd/desktop/applications/sample_instance_app.desktop`)
 	c.Check(snapInfo.Apps["sample"].DesktopFile(), Matches, `.*/var/lib/snapd/desktop/applications/sample_instance_sample.desktop`)
-
 }
 
 const coreSnapYaml = `name: core
