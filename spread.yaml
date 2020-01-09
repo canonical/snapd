@@ -649,8 +649,6 @@ suites:
     # All other tests run now and will heavily modify the system.
     tests/main/:
         summary: Full-system tests for snapd
-        # TODO:UC20: enable for uc20
-        systems: [-ubuntu-core-20-*]
         prepare: |
             "$TESTSLIB"/prepare-restore.sh --prepare-suite
         prepare-each: |
