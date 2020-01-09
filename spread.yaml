@@ -78,8 +78,7 @@ backends:
                 workers: 6
             - ubuntu-core-20-64:
                 image: ubuntu-1804-64-uefi-enabled
-                #TODO:UC20: enable more workers once we have more tests
-                workers: 1
+                workers: 6
                 storage: 20G
 
             - debian-9-64:
