@@ -1280,7 +1280,7 @@ func SortServices(apps []*AppInfo) (sorted []*AppInfo, err error) {
 
 	// Kahn:
 	// see https://dl.acm.org/citation.cfm?doid=368996.369025
-	//     https://en.wikipedia.org/wiki/Topological_sorting#Kahn's_algorithm
+	//     https://en.wikipedia.org/wiki/Topological_sorting%23Kahn%27s_algorithm
 	//
 	// Apps without predecessors are 'top' nodes. On each iteration, take
 	// the next 'top' node, and decrease the predecessor count of each
