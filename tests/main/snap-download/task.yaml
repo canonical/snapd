@@ -59,7 +59,12 @@ execute: |
 
     echo "Snap download will work without snapd"
     systemctl stop snapd.service snapd.socket
-    snap download --basename=fallback test-snapd-tools
+    snap download --basename=direct test-snapd-tools
+    ls -l direct.snap
+    verify_asserts direct.assert
+
+    echo "Snap download --indirect will auto-fallback without snapd"
+    snap download --indirect --basename=fallback test-snapd-tools
     ls -l fallback.snap
     verify_asserts fallback.assert
 
