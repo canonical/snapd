@@ -32,6 +32,7 @@ import (
 	"github.com/snapcore/snapd/bootloader"
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/snap"
+	"github.com/snapcore/snapd/snap/snaptest"
 	"github.com/snapcore/snapd/testutil"
 )
 
@@ -44,6 +45,23 @@ var _ = Suite(&makeBootableSuite{})
 func (s *makeBootableSuite) SetUpTest(c *C) {
 	s.baseBootSetSuite.SetUpTest(c)
 	s.bootSetSuite.SetUpTest(c)
+}
+
+func (s *makeBootableSuite) makeSnap(c *C, name, yaml string, revno snap.Revision) (fn string, info *snap.Info) {
+	return s.makeSnapWithFiles(c, name, yaml, revno, nil)
+}
+
+func (s *makeBootableSuite) makeSnapWithFiles(c *C, name, yaml string, revno snap.Revision, files [][]string) (fn string, info *snap.Info) {
+	si := &snap.SideInfo{
+		RealName: name,
+		Revision: revno,
+	}
+	fn = snaptest.MakeTestSnapWithFiles(c, yaml, files)
+	snapf, err := snap.Open(fn)
+	c.Assert(err, IsNil)
+	info, err = snap.ReadInfoFromSnapFile(snapf, si)
+	c.Assert(err, IsNil)
+	return fn, info
 }
 
 func (s *makeBootableSuite) TestMakeBootable(c *C) {

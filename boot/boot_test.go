@@ -32,7 +32,6 @@ import (
 	"github.com/snapcore/snapd/bootloader/bootloadertest"
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/snap"
-	"github.com/snapcore/snapd/snap/snaptest"
 	"github.com/snapcore/snapd/testutil"
 )
 
@@ -407,17 +406,4 @@ func (s *bootSetSuite) TestMarkBootSuccessfulKKernelUpdate(c *C) {
 		// updated
 		"snap_kernel": "k2",
 	})
-}
-
-func (s *bootSetSuite) makeSnap(c *C, name, yaml string, revno snap.Revision) (fn string, info *snap.Info) {
-	si := &snap.SideInfo{
-		RealName: name,
-		Revision: revno,
-	}
-	fn = snaptest.MakeTestSnapWithFiles(c, yaml, nil)
-	snapf, err := snap.Open(fn)
-	c.Assert(err, IsNil)
-	info, err = snap.ReadInfoFromSnapFile(snapf, si)
-	c.Assert(err, IsNil)
-	return fn, info
 }
