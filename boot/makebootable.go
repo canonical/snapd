@@ -46,6 +46,23 @@ type BootableSet struct {
 	Recovery bool
 }
 
+// MakeBootable sets up the given bootable set and target filesystem
+// such that the system can be booted.
+//
+// rootdir points to an image filesystem (UC 16/18), image recovery
+// filesystem (UC20 at prepare-image time) or ephemeral system (UC20
+// install mode).
+func MakeBootable(model *asserts.Model, rootdir string, bootWith *BootableSet) error {
+	if model.Grade() == asserts.ModelGradeUnset {
+		return makeBootable16(model, rootdir, bootWith)
+	}
+
+	if !bootWith.Recovery {
+		return makeBootable20RunMode(model, rootdir, bootWith)
+	}
+	return makeBootable20(model, rootdir, bootWith)
+}
+
 // makeBootable16 setups the image filesystem for boot with UC16
 // and UC18 models. This entails:
 //  - installing the bootloader configuration from the gadget
@@ -245,21 +262,4 @@ func makeBootable20RunMode(model *asserts.Model, rootdir string, bootWith *Boota
 	}
 
 	return nil
-}
-
-// MakeBootable sets up the given bootable set and target filesystem
-// such that the system can be booted.
-//
-// rootdir points to an image filesystem (UC 16/18), image recovery
-// filesystem (UC20 at prepare-image time) or ephemeral system (UC20
-// install mode).
-func MakeBootable(model *asserts.Model, rootdir string, bootWith *BootableSet) error {
-	if model.Grade() == asserts.ModelGradeUnset {
-		return makeBootable16(model, rootdir, bootWith)
-	}
-
-	if !bootWith.Recovery {
-		return makeBootable20RunMode(model, rootdir, bootWith)
-	}
-	return makeBootable20(model, rootdir, bootWith)
 }
