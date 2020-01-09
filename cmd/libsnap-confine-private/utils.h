@@ -81,12 +81,6 @@ typedef struct sc_ownership {
 	gid_t gid;
 } sc_ownership;
 
-static inline sc_ownership sc_root_ownership(void)
-{
-	return (sc_ownership) {
-	.uid = 0,.gid = 0};
-}
-
 static inline sc_ownership sc_unchanged_ownership(void)
 {
 	return (sc_ownership) {

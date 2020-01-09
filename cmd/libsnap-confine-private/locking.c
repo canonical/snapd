@@ -94,7 +94,7 @@ static int get_lock_directory(void)
 {
 	// Create (if required) and open the lock directory.
 	debug("creating lock directory %s (if missing)", sc_lock_dir);
-	if (sc_nonfatal_mkpath(sc_lock_dir, 0755, sc_root_ownership()) < 0) {
+	if (sc_nonfatal_mkpath(sc_lock_dir, 0755, sc_unchanged_ownership()) < 0) {
 		die("cannot create lock directory %s", sc_lock_dir);
 	}
 	debug("opening lock directory %s", sc_lock_dir);

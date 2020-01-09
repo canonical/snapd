@@ -410,7 +410,7 @@ static void sc_mkdir_and_mount_and_bind(const char *rootfs_dir,
 		return;
 	}
 	sc_identity old = sc_set_effective_identity(sc_root_group_identity());
-	sc_mkdir(dst, 0755, sc_root_ownership());
+	sc_mkdir(dst, 0755, sc_unchanged_ownership());
 	(void)sc_set_effective_identity(old);
 	// Bind mount the binary nvidia driver into $tgt_dir (i.e. /var/lib/snapd/lib/gl).
 	debug("bind mounting nvidia driver %s -> %s", src, dst);

@@ -198,7 +198,7 @@ void setup_devices_cgroup(const char *security_tag, struct snappy_udev *udev_s)
 
 	sc_identity old = sc_set_effective_identity(sc_root_group_identity());
 	sc_mksubdir("/sys/fs/cgroup/devices", security_tag, 0755,
-		    sc_root_ownership());
+		    sc_unchanged_ownership());
 	(void)sc_set_effective_identity(old);
 
 	// create devices cgroup controller

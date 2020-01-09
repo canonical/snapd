@@ -19,6 +19,12 @@
 
 #include <glib.h>
 
+static inline sc_ownership sc_root_ownership(void)
+{
+	return (sc_ownership) {
+	.uid = 0,.gid = 0};
+}
+
 static void test_parse_bool(void)
 {
 	int err;

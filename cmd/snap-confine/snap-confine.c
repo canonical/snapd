@@ -410,7 +410,10 @@ int main(int argc, char **argv)
 		 */
 		sc_reassociate_with_pid1_mount_ns();
 		// Do global initialization:
+		sc_identity old =
+		    sc_set_effective_identity(sc_root_group_identity());
 		int global_lock_fd = sc_lock_global();
+		(void)sc_set_effective_identity(old);
 		// Ensure that "/" or "/snap" is mounted with the
 		// "shared" option on legacy systems, see LP:#1668659
 		debug("ensuring that snap mount directory is shared");
