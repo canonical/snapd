@@ -24,7 +24,6 @@ import (
 	"io"
 	"os"
 	"path/filepath"
-	"strings"
 	"time"
 
 	. "gopkg.in/check.v1"
@@ -55,8 +54,7 @@ func (ss *SeedSnaps) SetupAssertSigning(storeBrandID string) {
 }
 
 func (ss *SeedSnaps) AssertedSnapID(snapName string) string {
-	cleanedName := strings.Replace(snapName, "-", "", -1)
-	return (cleanedName + strings.Repeat("id", 16)[len(cleanedName):])
+	return snaptest.AssertedSnapID(snapName)
 }
 
 func (ss *SeedSnaps) MakeAssertedSnap(c *C, snapYaml string, files [][]string, revision snap.Revision, developerID string, dbs ...*asserts.Database) (*asserts.SnapDeclaration, *asserts.SnapRevision) {

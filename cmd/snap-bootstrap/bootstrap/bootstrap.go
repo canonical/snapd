@@ -22,10 +22,13 @@ import (
 	"fmt"
 
 	"github.com/snapcore/snapd/cmd/snap-bootstrap/partition"
+	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/gadget"
 )
 
 type Options struct {
+	// Also mount the filesystems after creation
+	Mount bool
 	// will contain encryption later
 }
 
@@ -79,12 +82,21 @@ func Run(gadgetRoot, device string, options *Options) error {
 	if err != nil {
 		return fmt.Errorf("cannot create the partitions: %v", err)
 	}
-	if err := partition.MakeFilesystems(created); err != nil {
-		return err
-	}
 
-	if err := partition.DeployContent(created, gadgetRoot); err != nil {
-		return err
+	for _, part := range created {
+		if err := partition.MakeFilesystem(part); err != nil {
+			return err
+		}
+
+		if err := partition.DeployContent(part, gadgetRoot); err != nil {
+			return err
+		}
+
+		if options.Mount && part.Label != "" && part.HasFilesystem() {
+			if err := partition.MountFilesystem(part, dirs.RunMnt); err != nil {
+				return err
+			}
+		}
 	}
 
 	return nil
@@ -116,7 +128,7 @@ func ensureLayoutCompatibility(gadgetLayout *gadget.LaidOutVolume, diskLayout *p
 	// Check if all existing device partitions are also in gadget
 	for _, ds := range diskLayout.Structure {
 		if !contains(gadgetLayout.LaidOutStructure, ds) {
-			return fmt.Errorf("cannot find disk partition %q (starting at %d) in gadget", ds.VolumeStructure.Label, ds.StartOffset)
+			return fmt.Errorf("cannot find disk partition %s (starting at %d) in gadget", ds.Node, ds.StartOffset)
 		}
 	}
 

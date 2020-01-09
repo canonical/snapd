@@ -41,3 +41,20 @@ func (s *cmdSuite) TestCreatePartitionsHappy(c *C) {
 	c.Assert(rest, HasLen, 0)
 	c.Assert(n, Equals, 1)
 }
+
+func (s *cmdSuite) TestCreatePartitionsMount(c *C) {
+	n := 0
+	restore := main.MockBootstrapRun(func(gadgetRoot, device string, opts *bootstrap.Options) error {
+		c.Check(gadgetRoot, Equals, "gadget-dir")
+		c.Check(device, Equals, "device")
+		c.Check(opts.Mount, Equals, true)
+		n++
+		return nil
+	})
+	defer restore()
+
+	rest, err := main.Parser.ParseArgs([]string{"create-partitions", "--mount", "gadget-dir", "device"})
+	c.Assert(err, IsNil)
+	c.Assert(rest, HasLen, 0)
+	c.Assert(n, Equals, 1)
+}

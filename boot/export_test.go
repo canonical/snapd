@@ -27,8 +27,12 @@ var (
 	NameAndRevnoFromSnap = nameAndRevnoFromSnap
 )
 
-func NewCoreBootParticipant(s snap.PlaceInfo, t snap.Type) *coreBootParticipant {
-	return &coreBootParticipant{s: s, t: t}
+func NewCoreBootParticipant(s snap.PlaceInfo, t snap.Type, dev Device) *coreBootParticipant {
+	bs, err := bootStateFor(t, dev)
+	if err != nil {
+		panic(err)
+	}
+	return &coreBootParticipant{s: s, bs: bs}
 }
 
 func NewCoreKernel(s snap.PlaceInfo) *coreKernel {

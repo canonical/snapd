@@ -6,7 +6,9 @@ environment:
     PC_SNAP_ID: UqFziVZDHLSyO3TqSWgNBoAdHbLI4dAH
     START_REVISION: 1000
 
-systems: [ubuntu-core-*]
+# the test is only meaningful on core devices
+# TODO:UC20: enable for UC20
+systems: [ubuntu-core-1*]
 
 prepare: |
     # external backends do not enable test keys

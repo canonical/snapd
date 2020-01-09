@@ -13,11 +13,6 @@ prepare: |
         exit
     fi
 
-    if ! systemctl -l | MATCH "rsyslog.service"; then
-        echo "The service to test does not exist in the system, skipping..."
-        exit
-    fi
-
     #shellcheck source=tests/lib/systemd.sh
     . "$TESTSLIB"/systemd.sh
 
@@ -45,11 +40,6 @@ prepare: |
 restore: |
     if [ "$TRUST_TEST_KEYS" = "false" ]; then
         echo "This test needs test keys to be trusted"
-        exit
-    fi
-
-    if ! systemctl -l | MATCH "rsyslog.service"; then
-        echo "The service to test does not exist in the system, skipping..."
         exit
     fi
 
@@ -113,11 +103,6 @@ restore: |
     retry-tool -n 60 --wait 5 sh -c 'snap changes | grep -q "Done.*Initialize system state"'
 
 execute: |
-    if ! systemctl -l | MATCH "rsyslog.service"; then
-        echo "The service to test does not exist in the system, skipping..."
-        exit
-    fi
-
     #shellcheck source=tests/lib/systems.sh
     . "$TESTSLIB"/systems.sh
 
@@ -157,3 +142,8 @@ execute: |
         snap get system "service.$service.disable" | MATCH false
     done
     test ! -e /etc/ssh/sshd_not_to_be_run
+
+    # Unmask rsyslog service on core18
+    if is_core18_system; then
+        systemctl unmask rsyslog
+    fi

@@ -797,12 +797,11 @@ UnitFileState=enabled
 					},
 				},
 			},
-			Broken:      "",
-			Contact:     "",
-			License:     "GPL-3.0",
-			CommonIDs:   []string{"org.foo.cmd"},
-			Screenshots: []snap.ScreenshotInfo{{Note: snap.ScreenshotsDeprecationNotice}},
-			CohortKey:   "some-long-cohort-key",
+			Broken:    "",
+			Contact:   "",
+			License:   "GPL-3.0",
+			CommonIDs: []string{"org.foo.cmd"},
+			CohortKey: "some-long-cohort-key",
 		},
 		Meta: meta,
 	}
@@ -956,7 +955,6 @@ func (s *apiSuite) TestMapLocalFields(c *check.C) {
 		CommonIDs:        []string{"foo", "bar"},
 		MountedFrom:      filepath.Join(dirs.SnapBlobDir, "some-snap_instance_7.snap"),
 		Media:            media,
-		Screenshots:      []snap.ScreenshotInfo{{Note: snap.ScreenshotsDeprecationNotice}},
 		Apps: []client.AppInfo{
 			{Snap: "some-snap_instance", Name: "bar"},
 			{Snap: "some-snap_instance", Name: "foo"},
@@ -1787,7 +1785,6 @@ func (s *apiSuite) TestFind(c *check.C) {
 	c.Assert(snaps, check.HasLen, 1)
 	c.Assert(snaps[0]["name"], check.Equals, "store")
 	c.Check(snaps[0]["prices"], check.IsNil)
-	c.Check(snaps[0]["screenshots"], check.DeepEquals, []interface{}{map[string]interface{}{"note": snap.ScreenshotsDeprecationNotice}})
 	c.Check(snaps[0]["channels"], check.IsNil)
 
 	c.Check(rsp.SuggestedCurrency, check.Equals, "EUR")
@@ -2209,11 +2206,6 @@ func (s *apiSuite) TestFindScreenshotted(c *check.C) {
 	c.Assert(snaps, check.HasLen, 1)
 
 	c.Check(snaps[0]["name"], check.Equals, "test-screenshot")
-	c.Check(snaps[0]["screenshots"], check.DeepEquals, []interface{}{
-		map[string]interface{}{
-			"note": snap.ScreenshotsDeprecationNotice,
-		},
-	})
 	c.Check(snaps[0]["media"], check.DeepEquals, []interface{}{
 		map[string]interface{}{
 			"type":   "screenshot",
@@ -2468,8 +2460,8 @@ func (s *apiSuite) testPostSnap(c *check.C, withChannel bool) {
 
 	snapInstructionDispTable["install"] = func(inst *snapInstruction, _ *state.State) (string, []*state.TaskSet, error) {
 		if withChannel {
-			// channel in -> it was parsed
-			c.Check(inst.Channel, check.Equals, "xyzzy/stable")
+			// channel in -> channel out
+			c.Check(inst.Channel, check.Equals, "xyzzy")
 		} else {
 			// no channel in -> no channel out
 			c.Check(inst.Channel, check.Equals, "")
