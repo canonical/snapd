@@ -46,6 +46,9 @@ type PlaceInfo interface {
 	// SnapName returns the name of the snap.
 	SnapName() string
 
+	// SnapRevision returns the revision of the snap.
+	SnapRevision() Revision
+
 	// MountDir returns the base directory of the snap.
 	MountDir() string
 
@@ -339,6 +342,11 @@ func (s *Info) SnapName() string {
 		return s.RealName
 	}
 	return s.SuggestedName
+}
+
+// SnapRevision returns the revision of the snap.
+func (s *Info) SnapRevision() Revision {
+	return s.Revision
 }
 
 // ID implements naming.SnapRef.

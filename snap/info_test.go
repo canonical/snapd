@@ -993,6 +993,11 @@ func verifyExplicitHook(c *C, info *snap.Info, hookName string, plugNames []stri
 
 }
 
+func (s *infoSuite) TestPlaceInfoRevision(c *C) {
+	info := snap.MinimalPlaceInfo("name", snap.R("1"))
+	c.Check(info.SnapRevision(), Equals, snap.R("1"))
+}
+
 func (s *infoSuite) TestMinimalInfoDirAndFileMethods(c *C) {
 	dirs.SetRootDir("")
 	info := snap.MinimalPlaceInfo("name", snap.R("1"))
