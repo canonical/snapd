@@ -173,6 +173,7 @@ func bootStateFor(typ snap.Type, dev Device) (s bootState, err error) {
 	}
 }
 
+// InUseFunc is a function to check if the snap is in use or not
 type InUseFunc func(name string, rev snap.Revision) bool
 
 func fixedInUse(inUse bool) InUseFunc {
@@ -223,6 +224,8 @@ func InUse(typ snap.Type, dev Device) (InUseFunc, error) {
 }
 
 var (
+	// ErrBootNameAndRevisionNotReady is returned when the boot revision is not
+	// established yet
 	ErrBootNameAndRevisionNotReady = errors.New("boot revision not yet established")
 )
 
