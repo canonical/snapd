@@ -263,7 +263,7 @@ func (s *bootSetSuite) TestParticipant(c *C) {
 		bp = boot.Participant(info, typ, coreDev)
 		c.Check(bp.IsTrivial(), Equals, false)
 
-		c.Check(bp, DeepEquals, boot.NewCoreBootParticipant(info, typ))
+		c.Check(bp, DeepEquals, boot.NewCoreBootParticipant(info, typ, coreDev))
 	}
 }
 
@@ -322,7 +322,7 @@ func (s *bootSetSuite) TestParticipantBaseWithModel(c *C) {
 		bp := boot.Participant(t.with, t.with.GetType(), t.model)
 		c.Check(bp.IsTrivial(), Equals, t.nop, Commentf("%d", i))
 		if !t.nop {
-			c.Check(bp, DeepEquals, boot.NewCoreBootParticipant(t.with, t.with.GetType()))
+			c.Check(bp, DeepEquals, boot.NewCoreBootParticipant(t.with, t.with.GetType(), t.model))
 		}
 	}
 }

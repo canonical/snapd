@@ -21,6 +21,7 @@ package boot
 
 import (
 	"fmt"
+	"path/filepath"
 
 	"github.com/snapcore/snapd/bootloader"
 	"github.com/snapcore/snapd/snap"
@@ -46,14 +47,14 @@ func newBootState16(typ snap.Type) *bootState16 {
 	return &bootState16{varSuffix: varSuffix, errName: errName}
 }
 
-func (s *bootState16) revisions() (snap, try_snap *NameAndRevision, trying bool, err error) {
+func (s16 *bootState16) revisions() (snap, try_snap *NameAndRevision, trying bool, err error) {
 	bloader, err := bootloader.Find("", nil)
 	if err != nil {
 		return nil, nil, false, fmt.Errorf("cannot get boot settings: %s", err)
 	}
 
-	snapVar := "snap_" + s.varSuffix
-	trySnapVar := "snap_try_" + s.varSuffix
+	snapVar := "snap_" + s16.varSuffix
+	trySnapVar := "snap_try_" + s16.varSuffix
 	vars := []string{"snap_mode", snapVar, trySnapVar}
 	snaps := make(map[string]*NameAndRevision, 2)
 
@@ -76,7 +77,7 @@ func (s *bootState16) revisions() (snap, try_snap *NameAndRevision, trying bool,
 		} else {
 			nameAndRevno, err := nameAndRevnoFromSnap(v)
 			if err != nil {
-				return nil, nil, false, fmt.Errorf("cannot get name and revision of %s (%s): %v", s.errName, vName, err)
+				return nil, nil, false, fmt.Errorf("cannot get name and revision of %s (%s): %v", s16.errName, vName, err)
 			}
 			snaps[vName] = nameAndRevno
 		}
@@ -124,7 +125,7 @@ func (u16 *bootStateUpdate16) commit() error {
 	return u16.bl.SetBootVars(env)
 }
 
-func (s *bootState16) markSuccessful(update bootStateUpdate) (bootStateUpdate, error) {
+func (s16 *bootState16) markSuccessful(update bootStateUpdate) (bootStateUpdate, error) {
 	u16, err := newBootStateUpdate16(update, "snap_mode", "snap_try_core", "snap_try_kernel")
 	if err != nil {
 		return nil, err
@@ -139,8 +140,8 @@ func (s *bootState16) markSuccessful(update bootStateUpdate) (bootStateUpdate, e
 		return u16, nil
 	}
 
-	tryBootVar := fmt.Sprintf("snap_try_%s", s.varSuffix)
-	bootVar := fmt.Sprintf("snap_%s", s.varSuffix)
+	tryBootVar := fmt.Sprintf("snap_try_%s", s16.varSuffix)
+	bootVar := fmt.Sprintf("snap_%s", s16.varSuffix)
 	// update the boot vars
 	if env[tryBootVar] != "" {
 		toCommit[bootVar] = env[tryBootVar]
@@ -149,4 +150,41 @@ func (s *bootState16) markSuccessful(update bootStateUpdate) (bootStateUpdate, e
 	toCommit["snap_mode"] = ""
 
 	return u16, nil
+}
+
+func (s16 *bootState16) setNext(s snap.PlaceInfo) (rebootRequired bool, u bootStateUpdate, err error) {
+	nextBoot := filepath.Base(s.MountFile())
+
+	nextBootVar := fmt.Sprintf("snap_try_%s", s16.varSuffix)
+	goodBootVar := fmt.Sprintf("snap_%s", s16.varSuffix)
+
+	u16, err := newBootStateUpdate16(nil, "snap_mode", goodBootVar)
+	if err != nil {
+		return false, nil, err
+	}
+
+	env := u16.env
+	toCommit := u16.toCommit
+
+	snapMode := "try"
+	rebootRequired = true
+	if env[goodBootVar] == nextBoot {
+		// If we were in anything but default ("") mode before
+		// and switched to the good core/kernel again, make
+		// sure to clean the snap_mode here. This also
+		// mitigates https://forum.snapcraft.io/t/5253
+		if env["snap_mode"] == "" {
+			// already clean
+			return false, nil, nil
+		}
+		// clean
+		snapMode = ""
+		nextBoot = ""
+		rebootRequired = false
+	}
+
+	toCommit["snap_mode"] = snapMode
+	toCommit[nextBootVar] = nextBoot
+
+	return rebootRequired, u16, nil
 }
