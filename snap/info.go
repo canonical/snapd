@@ -409,6 +409,9 @@ func (s *Info) Description() string {
 	return s.OriginalDescription
 }
 
+// GetType returns the type of the snap, specifically also returning TypeSnapd
+// if the snap is the snapd snap, regardless of the actual type of the snapd
+// snap
 func (s *Info) GetType() Type {
 	if s.SnapType == TypeApp && IsSnapd(s.SnapID) {
 		return TypeSnapd
@@ -787,6 +790,7 @@ func (st StopModeType) KillSignal() string {
 	return strings.ToUpper(strings.TrimSuffix(string(st), "-all"))
 }
 
+// Validate ensures that the StopModeType has an valid value
 func (st StopModeType) Validate() error {
 	switch st {
 	case "", "sigterm", "sigterm-all", "sighup", "sighup-all", "sigusr1", "sigusr1-all", "sigusr2", "sigusr2-all":
