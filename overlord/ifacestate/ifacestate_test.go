@@ -5539,33 +5539,7 @@ volumes:
 	s.state.Set("seeded", nil)
 }
 
-func (s *interfaceManagerSuite) TestAutoConnectGadget(c *C) {
-	r1 := release.MockOnClassic(false)
-	defer r1()
-
-	s.setupAutoConnectGadget(c)
-	s.manager(c)
-
-	s.state.Lock()
-	defer s.state.Unlock()
-
-	chg := s.state.NewChange("setting-up", "...")
-	t := s.state.NewTask("auto-connect", "gadget connections")
-	t.Set("snap-setup", &snapstate.SnapSetup{
-		SideInfo: &snap.SideInfo{
-			RealName: "consumer"},
-	})
-	chg.AddTask(t)
-
-	s.state.Unlock()
-	s.se.Ensure()
-	s.se.Wait()
-	s.state.Lock()
-
-	c.Assert(chg.Err(), IsNil)
-	tasks := chg.Tasks()
-	c.Assert(tasks, HasLen, 7)
-
+func checkAutoConnectGadgetTasks(c *C, tasks []*state.Task) {
 	gotConnect := false
 	for _, t := range tasks {
 		switch t.Kind() {
@@ -5600,6 +5574,35 @@ func (s *interfaceManagerSuite) TestAutoConnectGadget(c *C) {
 	c.Assert(gotConnect, Equals, true)
 }
 
+func (s *interfaceManagerSuite) TestAutoConnectGadget(c *C) {
+	r1 := release.MockOnClassic(false)
+	defer r1()
+
+	s.setupAutoConnectGadget(c)
+	s.manager(c)
+
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	chg := s.state.NewChange("setting-up", "...")
+	t := s.state.NewTask("auto-connect", "gadget connections")
+	t.Set("snap-setup", &snapstate.SnapSetup{
+		SideInfo: &snap.SideInfo{
+			RealName: "consumer"},
+	})
+	chg.AddTask(t)
+
+	s.state.Unlock()
+	s.se.Ensure()
+	s.se.Wait()
+	s.state.Lock()
+
+	c.Assert(chg.Err(), IsNil)
+	tasks := chg.Tasks()
+	c.Assert(tasks, HasLen, 7)
+	checkAutoConnectGadgetTasks(c, tasks)
+}
+
 func (s *interfaceManagerSuite) TestAutoConnectGadgetProducer(c *C) {
 	r1 := release.MockOnClassic(false)
 	defer r1()
@@ -5626,6 +5629,7 @@ func (s *interfaceManagerSuite) TestAutoConnectGadgetProducer(c *C) {
 	c.Assert(chg.Err(), IsNil)
 	tasks := chg.Tasks()
 	c.Assert(tasks, HasLen, 7)
+	checkAutoConnectGadgetTasks(c, tasks)
 }
 
 func (s *interfaceManagerSuite) TestAutoConnectGadgetRemodeling(c *C) {
@@ -5661,6 +5665,7 @@ func (s *interfaceManagerSuite) TestAutoConnectGadgetRemodeling(c *C) {
 	c.Assert(chg.Err(), IsNil)
 	tasks := chg.Tasks()
 	c.Assert(tasks, HasLen, 7)
+	checkAutoConnectGadgetTasks(c, tasks)
 }
 
 func (s *interfaceManagerSuite) TestAutoConnectGadgetSeededNoop(c *C) {
