@@ -144,7 +144,7 @@ type bootState interface {
 	// revisions retrieves the revisions of the current snap and
 	// the try snap (only the latter might not be set), and
 	// whether the snap is in "trying" state.
-	revisions() (snap, try_snap *NameAndRevision, trying bool, err error)
+	revisions() (snap, trySnap *NameAndRevision, trying bool, err error)
 
 	// setNext lazily implements setting the next boot target for
 	// the type's boot snap. actually committing the update
@@ -203,13 +203,13 @@ func InUse(typ snap.Type, dev Device) (InUseFunc, error) {
 	if err != nil {
 		return nil, err
 	}
-	cand, try_cand, _, err := s.revisions()
+	cand, tryCand, _, err := s.revisions()
 	if err != nil {
 		return nil, err
 	}
 	cands = append(cands, cand)
-	if try_cand != nil {
-		cands = append(cands, try_cand)
+	if tryCand != nil {
+		cands = append(cands, tryCand)
 	}
 
 	return func(name string, rev snap.Revision) bool {
