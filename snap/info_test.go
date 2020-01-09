@@ -1077,10 +1077,10 @@ func (s *infoSuite) TestParsePlaceInfoFromSnapFileName(c *C) {
 	}{
 		{sn: "", expectErr: "empty snap file name"},
 		{sn: "name", expectErr: `snap file name "name" has invalid format \(missing '_'\)`},
-		{sn: "name_", expectErr: `invalid snap revision: ""`},
+		{sn: "name_", expectErr: `cannot parse revision in snap file name "name_": invalid snap revision: ""`},
 		{sn: "name__", expectErr: "too many '_' in snap file name"},
 		{sn: "_name.snap", expectErr: `snap file name \"_name.snap\" has invalid format \(no snap name before '_'\)`},
-		{sn: "name_key.snap", expectErr: `invalid snap revision: "key"`},
+		{sn: "name_key.snap", expectErr: `cannot parse revision in snap file name "name_key.snap": invalid snap revision: "key"`},
 		{sn: "name.snap", expectErr: `snap file name "name.snap" has invalid format \(missing '_'\)`},
 		{sn: "name_12.snap", name: "name", rev: "12"},
 		{sn: "name_key_12.snap", expectErr: "too many '_' in snap file name"},

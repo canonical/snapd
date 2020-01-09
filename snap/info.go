@@ -97,7 +97,7 @@ func ParsePlaceInfoFromSnapFileName(sn string) (PlaceInfo, error) {
 		return nil, fmt.Errorf("empty snap file name")
 	}
 	if strings.Count(sn, "_") > 1 {
-		// too many "_", probabl has an instance key in the filename like in
+		// too many "_", probably has an instance key in the filename like in
 		// snap-name_key_23.snap
 		return nil, fmt.Errorf("too many '_' in snap file name")
 	}
@@ -113,7 +113,7 @@ func ParsePlaceInfoFromSnapFileName(sn string) (PlaceInfo, error) {
 	revnoNSuffix := sn[idx+1:]
 	rev, err := ParseRevision(strings.TrimSuffix(revnoNSuffix, ".snap"))
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("cannot parse revision in snap file name %q: %v", sn, err)
 	}
 	return &Info{SideInfo: SideInfo{RealName: name, Revision: rev}}, nil
 }
