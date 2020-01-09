@@ -53,8 +53,8 @@ typedef struct sc_identity {
 
 static inline sc_identity sc_root_group_identity(void)
 {
-	return (sc_identity) {
-	.uid = -1,.gid = 0};
+	sc_identity id = {.uid = -1,.gid = 0 };
+	return id;
 }
 
 /**
@@ -69,31 +69,16 @@ static inline sc_identity sc_root_group_identity(void)
 **/
 sc_identity sc_set_effective_identity(sc_identity identity);
 
-/**
- * sc_ownership describes the ownership of filesystem objects.
- *
- * Ownership is influenced by identity used during the operation.
- * Typically either identity is unchanged and ownership is explicit
- * or identity is explicit and ownership is implied.
- **/
-typedef struct sc_ownership {
-	uid_t uid;
-	gid_t gid;
-} sc_ownership;
-
-static inline sc_ownership sc_unchanged_ownership(void)
-{
-	return (sc_ownership) {
-	.uid = -1,.gid = -1};
-}
-
 void write_string_to_file(const char *filepath, const char *buf);
 
 /**
  * Safely create a given directory.
  *
- * NOTE: non-fatal functions don't die on errors. It is the responsibility of
- * the caller to call die() or handle the error appropriately.
+ * The ownership of each created directory depends on the current effective
+ * identity of the calling process. Use sc_set_effective_identity() to control
+ * it. This approach is used over explicit change of ownership because it is
+ * unambiguous in case of existing directories that may have different
+ * ownership and mode.
  *
  * This function behaves like "mkdir -p" (recursive mkdir) with the exception
  * that each directory is carefully created in a way that avoids symlink
@@ -101,30 +86,39 @@ void write_string_to_file(const char *filepath, const char *buf);
  * and the next directory is created using mkdirat(2), this sequence continues
  * while there are more directories to process.
  *
+ * NOTE: non-fatal functions don't die on errors. It is the responsibility of
+ * the caller to call die() or handle the error appropriately.
  * The function returns -1 in case of any error.
  **/
 __attribute__((warn_unused_result))
-int sc_nonfatal_mkpath(const char *const path, mode_t mode,
-		       sc_ownership ownership);
+int sc_nonfatal_mkpath(const char *const path, mode_t mode);
 
 /**
- * sc_mkdir creates a directory with given mode and owner.
+ * sc_mkdir creates a directory if it doesn't exist.
  *
- * If the directory exists it is only modified to posses the desired ownership
- * and permissions. If necessary it is created in a way that prevents non-root
- * users from opening it before the owner is switched to the desired values.
+ * The ownership of the directory depends on the current effective identity of
+ * the calling process. Use sc_set_effective_identity() to control it. This
+ * approach is used over explicit change of ownership because it is unambiguous
+ * in case of existing directories that may have different ownership and mode.
+ *
+ * In addition, it removes a surprise difference in behavior over
+ * sc_nonfatal_mkpath(), which creates multiple directories and would have to
+ * refrain from changing mode and ownership of existing files to be practical.
  **/
-void sc_mkdir(const char *dir, mode_t mode, sc_ownership ownership);
+void sc_mkdir(const char *dir, mode_t mode);
 
 /**
- * sc_mksubdir creates a sub-directory with a given mode and owner.
+ * sc_mksubdir creates a sub-directory if it doesn't exist.
  *
- * If the sub-directory exists it is only modified to posses the desired
- * ownership and permissions. If necessary it is created in a way that prevents
- * non-root users from opening it before the owner is switched to the desired
- * values.
+ * The ownership of the directory depends on the current effective identity of
+ * the calling process. Use sc_set_effective_identity() to control it. This
+ * approach is used over explicit change of ownership because it is unambiguous
+ * in case of existing directories that may have different ownership and mode.
+ *
+ * In addition, it removes a surprise difference in behavior over
+ * sc_nonfatal_mkpath(), which creates multiple directories and would have to
+ * refrain from changing mode and ownership of existing files to be practical.
  **/
-void sc_mksubdir(const char *parent, const char *subdir, mode_t mode,
-		 sc_ownership ownership);
+void sc_mksubdir(const char *parent, const char *subdir, mode_t mode);
 
 #endif

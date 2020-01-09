@@ -126,7 +126,7 @@ void sc_initialize_mount_ns(unsigned int experimental_features)
 
 	/* Ensure that /run/snapd/ns is a directory. */
 	sc_identity old = sc_set_effective_identity(sc_root_group_identity());
-	if (sc_nonfatal_mkpath(sc_ns_dir, 0755, sc_unchanged_ownership()) < 0) {
+	if (sc_nonfatal_mkpath(sc_ns_dir, 0755) < 0) {
 		die("cannot create directory %s", sc_ns_dir);
 	}
 	(void)sc_set_effective_identity(old);

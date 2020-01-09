@@ -144,11 +144,6 @@ void write_string_to_file(const char *filepath, const char *buf)
 		die("fclose failed");
 }
 
-static bool sc_is_custom_ownership(sc_ownership ownership)
-{
-	return ownership.uid != (uid_t) (-1) && ownership.gid != (gid_t) (-1);
-}
-
 sc_identity sc_set_effective_identity(sc_identity identity)
 {
 	debug("set_effective_identity uid:%d, gid:%d", identity.uid,
@@ -170,11 +165,9 @@ sc_identity sc_set_effective_identity(sc_identity identity)
 	return old;
 }
 
-int sc_nonfatal_mkpath(const char *const path, mode_t mode,
-		       sc_ownership ownership)
+int sc_nonfatal_mkpath(const char *const path, mode_t mode)
 {
-	debug("sc_nonfatal_mkpath %s %#04o ownership %d/%d",
-	      path, mode, ownership.uid, ownership.gid);
+	debug("sc_nonfatal_mkpath %s %#04o", path, mode);
 
 	int retval = -1;
 
@@ -218,7 +211,7 @@ int sc_nonfatal_mkpath(const char *const path, mode_t mode,
 		// this as it may stay stale (errno is not reset if mkdirat(2) returns
 		// successfully).
 		errno = 0;
-		if (mkdirat(fd, path_segment, 0700) < 0 && errno != EEXIST) {
+		if (mkdirat(fd, path_segment, mode) < 0 && errno != EEXIST) {
 			goto out;
 		}
 		// Open the parent directory we just made (and close the previous one
@@ -232,22 +225,6 @@ int sc_nonfatal_mkpath(const char *const path, mode_t mode,
 		if (fd < 0) {
 			goto out;
 		}
-		if (sc_is_custom_ownership(ownership)) {
-			if (fchown(fd, ownership.uid, ownership.gid) < 0) {
-				die("cannot chown %s to %d:%d", path_segment,
-				    ownership.uid, ownership.gid);
-			}
-		}
-		struct stat file_info;
-		if (fstat(fd, &file_info) < 0) {
-			die("cannot fstat %s", path_segment);
-		}
-		if ((file_info.st_mode & 07777) != mode) {
-			if (fchmod(fd, mode) < 0) {
-				die("cannot chmod %s to %#4o", path_segment,
-				    mode);
-			}
-		}
 		// Obtain the next path segment.
 		path_segment = strtok_r(NULL, "/", &path_walker);
 	}
@@ -257,79 +234,31 @@ int sc_nonfatal_mkpath(const char *const path, mode_t mode,
 	return retval;
 }
 
-void sc_mkdir(const char *dir, mode_t mode, sc_ownership ownership)
+void sc_mkdir(const char *dir, mode_t mode)
 {
-	debug("sc_mkdir %s %#04o ownership %d/%d", dir, mode,
-	      ownership.uid, ownership.gid);
+	debug("sc_mkdir %s %#04o", dir, mode);
 
-	/* Create the directory with permissions 0700, chown then chmod to final to
-	 * avoid races and capability denials. */
-	if (mkdir(dir, 0700) < 0) {
+	if (mkdir(dir, mode) < 0) {
 		/* Allow the directory to exist without shenanigans */
 		if (errno != EEXIST) {
 			die("cannot create directory %s", dir);
 		}
 	}
-	// TODO: remove O_RDONLY
-	int dir_fd = open(dir, O_RDONLY | O_DIRECTORY | O_CLOEXEC | O_NOFOLLOW);
-	if (dir_fd < 0) {
-		die("cannot open directory %s", dir);
-	}
-	if (sc_is_custom_ownership(ownership)) {
-		if (fchown(dir_fd, ownership.uid, ownership.gid) < 0) {
-			die("cannot chown %s to %d:%d", dir, ownership.uid,
-			    ownership.gid);
-		}
-	}
-	struct stat file_info;
-	if (fstat(dir_fd, &file_info) < 0) {
-		die("cannot fstat %s", dir);
-	}
-	if ((file_info.st_mode & 07777) != mode) {
-		if (fchmod(dir_fd, mode) < 0) {
-			die("cannot chmod %s to %#4o", dir, mode);
-		}
-	}
 }
 
-void sc_mksubdir(const char *parent, const char *subdir, mode_t mode,
-		 sc_ownership ownership)
+void sc_mksubdir(const char *parent, const char *subdir, mode_t mode)
 {
-	debug("sc_mksubdir %s/%s %#04o ownership %d/%d", parent,
-	      subdir, mode, ownership.uid, ownership.gid);
+	debug("sc_mksubdir %s/%s %#04o", parent, subdir, mode);
 
 	int parent_fd =
 	    open(parent, O_PATH | O_DIRECTORY | O_CLOEXEC | O_NOFOLLOW);
 	if (parent_fd < 0) {
 		die("cannot open path of directory %s", parent);
 	}
-	/* Create the directory with permissions 0700, chown then chmod to final to
-	 * avoid races and capability denials. */
-	if (mkdirat(parent_fd, subdir, 0700) < 0) {
+	if (mkdirat(parent_fd, subdir, mode) < 0) {
 		/* Allow the directory to exist without shenanigans */
 		if (errno != EEXIST) {
 			die("cannot create directory %s/%s", parent, subdir);
-		}
-	}
-	// TODO: remove O_RDONLY
-	int subdir_fd = openat(parent_fd, subdir,
-			       O_RDONLY | O_DIRECTORY | O_CLOEXEC | O_NOFOLLOW);
-	if (subdir_fd < 0) {
-		die("cannot open directory %s/%s", parent, subdir);
-	}
-	if (sc_is_custom_ownership(ownership)) {
-		if (fchown(subdir_fd, ownership.uid, ownership.gid) < 0) {
-			die("cannot chown %s/%s to %d:%d", parent, subdir,
-			    ownership.uid, ownership.gid);
-		}
-	}
-	struct stat file_info;
-	if (fstat(subdir_fd, &file_info) < 0) {
-		die("cannot fstat %s/%s", parent, subdir);
-	}
-	if ((file_info.st_mode & 07777) != mode) {
-		if (fchmod(subdir_fd, mode) < 0) {
-			die("cannot chmod %s/%s to %#4o", parent, subdir, mode);
 		}
 	}
 }

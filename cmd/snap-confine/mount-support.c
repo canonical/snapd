@@ -81,11 +81,11 @@ static void setup_private_mount(const char *snap_name)
 
 	char snap_dir[PATH_MAX] = { 0 };
 	sc_must_snprintf(snap_dir, sizeof(snap_dir), "snap.%s", snap_name);
-	sc_mksubdir("/tmp", snap_dir, 0700, sc_unchanged_ownership());
+	sc_mksubdir("/tmp", snap_dir, 0700);
 
 	char base_dir[MAX_BUF] = { 0 };
 	sc_must_snprintf(base_dir, sizeof(base_dir), "/tmp/%s", snap_dir);
-	sc_mksubdir(base_dir, "tmp", 01777, sc_unchanged_ownership());
+	sc_mksubdir(base_dir, "tmp", 01777);
 
 	(void)sc_set_effective_identity(old);
 
@@ -231,7 +231,7 @@ static void sc_bootstrap_mount_namespace(const struct sc_mount_config *config)
 		if (mnt->is_bidirectional) {
 			sc_identity old =
 			    sc_set_effective_identity(sc_root_group_identity());
-			sc_mkdir(mnt->path, 0755, sc_unchanged_ownership());
+			sc_mkdir(mnt->path, 0755);
 			(void)sc_set_effective_identity(old);
 		}
 		sc_must_snprintf(dst, sizeof dst, "%s/%s", scratch_dir,
@@ -397,7 +397,7 @@ static void sc_bootstrap_mount_namespace(const struct sc_mount_config *config)
 		debug("creating missing hostfs directory");
 		sc_identity old =
 		    sc_set_effective_identity(sc_root_group_identity());
-		sc_mkdir(SC_HOSTFS_DIR, 0755, sc_unchanged_ownership());
+		sc_mkdir(SC_HOSTFS_DIR, 0755);
 		(void)sc_set_effective_identity(old);
 	}
 	// Ensure that hostfs isgroup owned by root. We may have (now or earlier)
