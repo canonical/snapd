@@ -1,5 +1,9 @@
 summary: Ensure that netplan works on Ubuntu Core with network-setup-{control,observe}
 
+#TODO:UC20: enable, fails right now with: "The permission of the
+#           setuid helper is not correct"
+systems: [-ubuntu-core-20-*]
+
 details: |
     Netplan apply is used to apply network configuration to the system
 
