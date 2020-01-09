@@ -47,9 +47,25 @@ func (s *SnapSuite) TestDownloadBadBasename(c *check.C) {
 	c.Check(err, check.ErrorMatches, "cannot specify a path in basename .use --target-dir for that.")
 }
 
+func (s *SnapSuite) TestDownloadBadBasenameIndirect(c *check.C) {
+	_, err := snapCmd.Parser(snapCmd.Client()).ParseArgs([]string{
+		"download", "--indirect", "--basename=/foo", "a-snap",
+	})
+
+	c.Check(err, check.ErrorMatches, "cannot specify a path in basename .use --target-dir for that.")
+}
+
 func (s *SnapSuite) TestDownloadBadChannelCombo(c *check.C) {
 	_, err := snapCmd.Parser(snapCmd.Client()).ParseArgs([]string{
 		"download", "--beta", "--channel=foo", "a-snap",
+	})
+
+	c.Check(err, check.ErrorMatches, "Please specify a single channel")
+}
+
+func (s *SnapSuite) TestDownloadBadChannelComboIndirect(c *check.C) {
+	_, err := snapCmd.Parser(snapCmd.Client()).ParseArgs([]string{
+		"download", "--indirect", "--beta", "--channel=foo", "a-snap",
 	})
 
 	c.Check(err, check.ErrorMatches, "Please specify a single channel")
@@ -63,9 +79,25 @@ func (s *SnapSuite) TestDownloadCohortAndRevision(c *check.C) {
 	c.Check(err, check.ErrorMatches, "cannot specify both cohort and revision")
 }
 
+func (s *SnapSuite) TestDownloadCohortAndRevisionIndirect(c *check.C) {
+	_, err := snapCmd.Parser(snapCmd.Client()).ParseArgs([]string{
+		"download", "--indirect", "--cohort=what", "--revision=1234", "a-snap",
+	})
+
+	c.Check(err, check.ErrorMatches, "cannot specify both cohort and revision")
+}
+
 func (s *SnapSuite) TestDownloadChannelAndRevision(c *check.C) {
 	_, err := snapCmd.Parser(snapCmd.Client()).ParseArgs([]string{
 		"download", "--beta", "--revision=1234", "a-snap",
+	})
+
+	c.Check(err, check.ErrorMatches, "cannot specify both channel and revision")
+}
+
+func (s *SnapSuite) TestDownloadChannelAndRevisionIndirect(c *check.C) {
+	_, err := snapCmd.Parser(snapCmd.Client()).ParseArgs([]string{
+		"download", "--indirect", "--beta", "--revision=1234", "a-snap",
 	})
 
 	c.Check(err, check.ErrorMatches, "cannot specify both channel and revision")
@@ -96,7 +128,7 @@ func (s *SnapSuite) TestDownloadViaSnapd(c *check.C) {
 	// we just test here that we hits the snapd API, testing this fully
 	// would require a full assertion chain
 	tmpdir := c.MkDir()
-	_, err := snapCmd.Parser(snapCmd.Client()).ParseArgs([]string{"download", "a-snap", "--target-directory", tmpdir})
+	_, err := snapCmd.Parser(snapCmd.Client()).ParseArgs([]string{"download", "--indirect", "a-snap", "--target-directory", tmpdir})
 	c.Assert(err, check.ErrorMatches, `server error: "418 I'm a teapot"`)
 	c.Assert(n, check.Equals, 2)
 	c.Assert(filepath.Join(tmpdir, "a-snap_1.snap"), testutil.FilePresent)
@@ -121,10 +153,10 @@ func (s *SnapSuite) TestDownloadDirect(c *check.C) {
 	})
 	defer restore()
 
-	// we just test here that --direct hits our fake tooling store,
+	// we just test here that direct hits our fake tooling store,
 	// mocking the full download is more work, i.e. we need to mock
 	// the assertions download as well
-	_, err := snapCmd.Parser(snapCmd.Client()).ParseArgs([]string{"download", "--direct", "a-snap"})
+	_, err := snapCmd.Parser(snapCmd.Client()).ParseArgs([]string{"download", "a-snap"})
 	c.Assert(err, check.ErrorMatches, "mockDownloadStore cannot provide snaps")
 }
 
@@ -144,12 +176,12 @@ func (s *SnapSuite) TestDownloadAutoFallback(c *check.C) {
 
 	// ensure we hit the tooling store, testing this fully would require
 	// a full assertion chain
-	_, err := snapCmd.Parser(cli).ParseArgs([]string{"download", "a-snap"})
+	_, err := snapCmd.Parser(cli).ParseArgs([]string{"download", "--indirect", "a-snap"})
 	c.Assert(err, check.ErrorMatches, "mockDownloadStore cannot provide snaps")
 	c.Assert(n, check.Equals, 1)
 }
 
-func (s *SnapSuite) TestPrintInstalHint(c *check.C) {
+func (s *SnapSuite) TestPrintInstallHint(c *check.C) {
 	snapCmd.PrintInstallHint("foo_1.assert", "foo_1.snap")
 	c.Check(s.Stdout(), check.Equals, `Install the snap with:
    snap ack foo_1.assert

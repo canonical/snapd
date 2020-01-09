@@ -50,7 +50,7 @@ type cmdDownload struct {
 	Revision  string `long:"revision"`
 	Basename  string `long:"basename"`
 	TargetDir string `long:"target-directory"`
-	Direct    bool   `long:"direct"`
+	Indirect  bool   `long:"indirect"`
 
 	CohortKey  string `long:"cohort"`
 	Positional struct {
@@ -77,7 +77,7 @@ func init() {
 		// TRANSLATORS: This should not start with a lowercase letter.
 		"target-directory": i18n.G("Download to this directory (defaults to the current directory)"),
 		// TRANSLATORS: This should not start with a lowercase letter.
-		"direct": i18n.G("Do not try to connect to snapd to download"),
+		"indirect": i18n.G("Do try to connect to snapd to download"),
 	}), []argDesc{{
 		name: "<snap>",
 		// TRANSLATORS: This should not start with a lowercase letter.
@@ -322,9 +322,9 @@ func (x *cmdDownload) Execute(args []string) error {
 		return ErrExtraArgs
 	}
 
-	// "snap download" works only in --direct mode on non-linux
+	// "snap download" works only in direct mode on non-linux
 	if runtime.GOOS != "linux" {
-		x.Direct = true
+		x.Indirect = false
 	}
 	// ensure we do not do a polkit prompt here (we will auto-fallback
 	// to direct if needed)
@@ -348,7 +348,7 @@ func (x *cmdDownload) Execute(args []string) error {
 	}
 	snapName := string(x.Positional.Snap)
 
-	if x.Direct {
+	if !x.Indirect {
 		return x.downloadDirect(snapName, revision)
 	}
 	err := x.downloadViaSnapd(snapName, revision)
