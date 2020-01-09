@@ -162,7 +162,7 @@ func Force(booloader Bootloader) {
 	forcedError = nil
 }
 
-// Force can be used to force Find to return an error; use nil to
+// ForceError can be used to force Find to return an error; use nil to
 // reset to normal lookup.
 func ForceError(err error) {
 	forcedBootloader = nil
