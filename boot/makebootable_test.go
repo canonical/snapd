@@ -35,18 +35,18 @@ import (
 	"github.com/snapcore/snapd/testutil"
 )
 
-type makebootableSuite struct {
+type makeBootableSuite struct {
 	bootSetSuite
 }
 
-var _ = Suite(&makebootableSuite{})
+var _ = Suite(&makeBootableSuite{})
 
-func (s *makebootableSuite) SetUpTest(c *C) {
+func (s *makeBootableSuite) SetUpTest(c *C) {
 	s.baseBootSetSuite.SetUpTest(c)
 	s.bootSetSuite.SetUpTest(c)
 }
 
-func (s *makebootableSuite) TestMakeBootable(c *C) {
+func (s *makeBootableSuite) TestMakeBootable(c *C) {
 	dirs.SetRootDir("")
 
 	headers := map[string]interface{}{
@@ -156,7 +156,7 @@ func makeMockUC20Model() *asserts.Model {
 	return assertstest.FakeAssertion(headers).(*asserts.Model)
 }
 
-func (s *makebootableSuite) TestMakeBootable20(c *C) {
+func (s *makeBootableSuite) TestMakeBootable20(c *C) {
 	dirs.SetRootDir("")
 
 	model := makeMockUC20Model()
@@ -222,7 +222,7 @@ version: 5.0
 	})
 }
 
-func (s *makebootableSuite) TestMakeBootable20MultipleRecoverySystemsError(c *C) {
+func (s *makeBootableSuite) TestMakeBootable20MultipleRecoverySystemsError(c *C) {
 	dirs.SetRootDir("")
 
 	model := makeMockUC20Model()
@@ -238,7 +238,7 @@ func (s *makebootableSuite) TestMakeBootable20MultipleRecoverySystemsError(c *C)
 	c.Assert(err, ErrorMatches, "cannot make multiple recovery systems bootable yet")
 }
 
-func (s *makebootableSuite) TestMakeBootable20RunMode(c *C) {
+func (s *makeBootableSuite) TestMakeBootable20RunMode(c *C) {
 	dirs.SetRootDir("")
 	bootloader.Force(nil)
 
