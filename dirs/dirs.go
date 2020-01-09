@@ -91,6 +91,8 @@ var (
 	SnapDesktopIconsDir string
 	SnapBusPolicyDir    string
 
+	SnapModeenvFile string
+
 	SystemApparmorDir      string
 	SystemApparmorCacheDir string
 
@@ -118,6 +120,8 @@ var (
 	SysfsDir        string
 
 	FeaturesDir string
+
+	RunMnt string
 )
 
 const (
@@ -278,6 +282,8 @@ func SetRootDir(rootdir string) {
 	SnapSeedDir = SnapSeedDirUnder(rootdir)
 	SnapDeviceDir = filepath.Join(rootdir, snappyDir, "device")
 
+	SnapModeenvFile = filepath.Join(rootdir, snappyDir, "modeenv")
+
 	SnapRepairDir = filepath.Join(rootdir, snappyDir, "repair")
 	SnapRepairStateFile = filepath.Join(SnapRepairDir, "repair.json")
 	SnapRepairRunDir = filepath.Join(SnapRepairDir, "run")
@@ -353,6 +359,8 @@ func SetRootDir(rootdir string) {
 	SysfsDir = filepath.Join(rootdir, "/sys")
 
 	FeaturesDir = filepath.Join(rootdir, snappyDir, "features")
+
+	RunMnt = filepath.Join(rootdir, "/run/mnt")
 }
 
 // what inside a (non-classic) snap is /usr/lib/snapd, outside can come from different places

@@ -20,6 +20,7 @@
 package bootloader
 
 import (
+	"fmt"
 	"os"
 	"path/filepath"
 
@@ -28,13 +29,27 @@ import (
 	"github.com/snapcore/snapd/snap"
 )
 
+// sanity - grub implements the required interfaces
+var (
+	_ Bootloader              = (*grub)(nil)
+	_ installableBootloader   = (*grub)(nil)
+	_ RecoveryAwareBootloader = (*grub)(nil)
+)
+
 type grub struct {
 	rootdir string
+
+	basedir string
 }
 
 // newGrub create a new Grub bootloader object
-func newGrub(rootdir string) Bootloader {
+func newGrub(rootdir string, opts *Options) RecoveryAwareBootloader {
 	g := &grub{rootdir: rootdir}
+	if opts != nil && opts.Recovery {
+		g.basedir = "/EFI/ubuntu"
+	} else {
+		g.basedir = "/boot/grub"
+	}
 	if !osutil.FileExists(g.ConfigFile()) {
 		return nil
 	}
@@ -54,7 +69,33 @@ func (g *grub) dir() string {
 	if g.rootdir == "" {
 		panic("internal error: unset rootdir")
 	}
-	return filepath.Join(g.rootdir, "/boot/grub")
+	return filepath.Join(g.rootdir, g.basedir)
+}
+
+func (g *grub) InstallBootConfig(gadgetDir string, opts *Options) (bool, error) {
+	if opts != nil && opts.Recovery {
+		recoveryGrubCfg := filepath.Join(gadgetDir, g.Name()+"-recovery.conf")
+		systemFile := filepath.Join(g.rootdir, "/EFI/ubuntu/grub.cfg")
+		return genericInstallBootConfig(recoveryGrubCfg, systemFile)
+	}
+	gadgetFile := filepath.Join(gadgetDir, g.Name()+".conf")
+	systemFile := filepath.Join(g.rootdir, "/boot/grub/grub.cfg")
+	return genericInstallBootConfig(gadgetFile, systemFile)
+}
+
+func (g *grub) SetRecoverySystemEnv(recoverySystemDir string, values map[string]string) error {
+	if recoverySystemDir == "" {
+		return fmt.Errorf("internal error: recoverySystemDir unset")
+	}
+	recoverySystemGrubEnv := filepath.Join(g.rootdir, recoverySystemDir, "grubenv")
+	if err := os.MkdirAll(filepath.Dir(recoverySystemGrubEnv), 0755); err != nil {
+		return err
+	}
+	genv := grubenv.NewEnv(recoverySystemGrubEnv)
+	for k, v := range values {
+		genv.Set(k, v)
+	}
+	return genv.Save()
 }
 
 func (g *grub) ConfigFile() string {

@@ -55,6 +55,5 @@ func init() {
 		implicitOnClassic:     true,
 		baseDeclarationSlots:  kernelModuleObserveBaseDeclarationSlots,
 		connectedPlugAppArmor: kernelModuleObserveConnectedPlugAppArmor,
-		reservedForOS:         true,
 	})
 }

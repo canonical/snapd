@@ -686,6 +686,29 @@ func (mods *modelSuite) TestCore20ExplictBootBase(c *C) {
 	})
 }
 
+func (mods *modelSuite) TestCore20ExplictSnapd(c *C) {
+	encoded := strings.Replace(core20ModelExample, "TSLINE", mods.tsLine, 1)
+	encoded = strings.Replace(encoded, "OTHER", `  -
+    name: snapd
+    id: snapdidididididididididididididd
+    type: snapd
+    default-channel: latest/edge
+`, 1)
+	a, err := asserts.Decode([]byte(encoded))
+	c.Assert(err, IsNil)
+	c.Check(a.Type(), Equals, asserts.ModelType)
+	model := a.(*asserts.Model)
+	snapdSnap := model.AllSnaps()[0]
+	c.Check(snapdSnap, DeepEquals, &asserts.ModelSnap{
+		Name:           "snapd",
+		SnapID:         "snapdidididididididididididididd",
+		SnapType:       "snapd",
+		Modes:          []string{"run", "ephemeral"},
+		DefaultChannel: "latest/edge",
+		Presence:       "required",
+	})
+}
+
 func (mods *modelSuite) TestCore20GradeOptionalDefaultSigned(c *C) {
 	encoded := strings.Replace(core20ModelExample, "TSLINE", mods.tsLine, 1)
 	encoded = strings.Replace(encoded, "OTHER", "", 1)
@@ -749,7 +772,7 @@ func (mods *modelSuite) TestCore20DecodeInvalid(c *C) {
 		{"id: myappdididididididididididididid\n", "id: 2\n", `"id" of snap "myapp" contains invalid characters: "2"`},
 		{"    id: myappdididididididididididididid\n", "", `"id" of snap "myapp" is mandatory for stable model`},
 		{"type: gadget\n", "type:\n      - g\n", `"type" of snap "brand-gadget" must be a string`},
-		{"type: app\n", "type: thing\n", `"type" of snap "myappopt" must be one of must be one of app|base|gadget|kernel|core`},
+		{"type: app\n", "type: thing\n", `"type" of snap "myappopt" must be one of must be one of app|base|gadget|kernel|core|snapd`},
 		{"modes:\n      - run\n", "modes: run\n", `"modes" of snap "other-base" must be a list of strings`},
 		{"default-channel: 20\n", "default-channel: edge\n", `default channel for snap "baz-linux" must specify a track`},
 		{"default-channel: 2.0\n", "default-channel:\n      - x\n", `"default-channel" of snap "myapp" must be a string`},

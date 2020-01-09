@@ -174,6 +174,10 @@ func (s *remodelLogicSuite) TestUpdateRemodelContext(c *C) {
 
 	c.Check(remodCtx.ForRemodeling(), Equals, true)
 	c.Check(remodCtx.Kind(), Equals, devicestate.UpdateRemodel)
+	groundCtx := remodCtx.GroundContext()
+	c.Check(groundCtx.ForRemodeling(), Equals, false)
+	c.Check(groundCtx.Model().Revision(), Equals, 0)
+	c.Check(groundCtx.Store, PanicMatches, `retrieved ground context is not intended to drive store operations`)
 
 	chg := s.state.NewChange("remodel", "...")
 
@@ -212,6 +216,9 @@ func (s *remodelLogicSuite) TestNewStoreRemodelContextInit(c *C) {
 
 	c.Check(remodCtx.ForRemodeling(), Equals, true)
 	c.Check(remodCtx.Kind(), Equals, devicestate.StoreSwitchRemodel)
+	groundCtx := remodCtx.GroundContext()
+	c.Check(groundCtx.ForRemodeling(), Equals, false)
+	c.Check(groundCtx.Model().Revision(), Equals, 0)
 
 	chg := s.state.NewChange("remodel", "...")
 
@@ -606,6 +613,45 @@ func (s *remodelLogicSuite) TestRemodelDeviceBackendKeptSerial(c *C) {
 	c.Check(serial0.Serial(), Equals, "serialserialserial1")
 }
 
+func (s *remodelLogicSuite) TestRemodelContextOperatingModeDefaultRun(c *C) {
+	oldModel := s.brands.Model("my-brand", "my-model", modelDefaults)
+	newModel := s.brands.Model("my-brand", "my-model", modelDefaults, map[string]interface{}{"revision": "2"})
+
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	assertstatetest.AddMany(s.state, oldModel)
+	devicestatetest.SetDevice(s.state, &auth.DeviceState{
+		Brand:  "my-brand",
+		Model:  "my-model",
+		Serial: "serialserialserial",
+	})
+
+	remodCtx, err := devicestate.RemodelCtx(s.state, oldModel, newModel)
+	c.Assert(err, IsNil)
+	c.Check(remodCtx.OperatingMode(), Equals, "run")
+}
+
+func (s *remodelLogicSuite) TestRemodelContextOperatingModeWorks(c *C) {
+	oldModel := s.brands.Model("my-brand", "my-model", modelDefaults)
+	newModel := s.brands.Model("my-brand", "my-model", modelDefaults, map[string]interface{}{"revision": "2"})
+
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	assertstatetest.AddMany(s.state, oldModel)
+	devicestatetest.SetDevice(s.state, &auth.DeviceState{
+		Brand:  "my-brand",
+		Model:  "my-model",
+		Serial: "serialserialserial",
+	})
+	devicestate.SetOperatingMode(s.mgr, "install")
+
+	remodCtx, err := devicestate.RemodelCtx(s.state, oldModel, newModel)
+	c.Assert(err, IsNil)
+	c.Check(remodCtx.OperatingMode(), Equals, "install")
+}
+
 func (s *remodelLogicSuite) TestRemodelContextForTaskAndCaching(c *C) {
 	oldModel := s.brands.Model("my-brand", "my-model", modelDefaults)
 	newModel := s.brands.Model("my-brand", "my-model", modelDefaults, map[string]interface{}{
@@ -724,6 +770,9 @@ func (s *remodelLogicSuite) TestReregRemodelContextInit(c *C) {
 
 	c.Check(remodCtx.ForRemodeling(), Equals, true)
 	c.Check(remodCtx.Kind(), Equals, devicestate.ReregRemodel)
+	groundCtx := remodCtx.GroundContext()
+	c.Check(groundCtx.ForRemodeling(), Equals, false)
+	c.Check(groundCtx.Model().BrandID(), Equals, "my-brand")
 
 	chg := s.state.NewChange("remodel", "...")
 

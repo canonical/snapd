@@ -246,11 +246,7 @@ func (s *seed16) LoadMeta(tm timings.Measurer) error {
 		}
 
 		// always make sure the base of gadget is installed first
-		snapf, err := snap.Open(gadget.Path)
-		if err != nil {
-			return err
-		}
-		info, err := snap.ReadInfoFromSnapFile(snapf, gadget.SideInfo)
+		info, err := readInfo(gadget.Path, gadget.SideInfo)
 		if err != nil {
 			return err
 		}

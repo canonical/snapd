@@ -24,6 +24,7 @@ import (
 	"time"
 
 	"github.com/snapcore/snapd/asserts"
+	"github.com/snapcore/snapd/boot"
 	"github.com/snapcore/snapd/gadget"
 	"github.com/snapcore/snapd/overlord/snapstate"
 	"github.com/snapcore/snapd/overlord/state"
@@ -83,6 +84,13 @@ func SetLastBecomeOperationalAttempt(m *DeviceManager, t time.Time) {
 	m.lastBecomeOperationalAttempt = t
 }
 
+func SetOperatingMode(m *DeviceManager, mode string) {
+	m.modeEnv.Mode = mode
+}
+func SetRecoverySystem(m *DeviceManager, d string) {
+	m.modeEnv.RecoverySystem = d
+}
+
 func MockRepeatRequestSerial(label string) (restore func()) {
 	old := repeatRequestSerial
 	repeatRequestSerial = label
@@ -107,13 +115,15 @@ func MockSnapstateUpdateWithDeviceContext(f func(st *state.State, name string, o
 	}
 }
 
-func EnsureSeedYaml(m *DeviceManager) error {
-	return m.ensureSeedYaml()
+func EnsureSeeded(m *DeviceManager) error {
+	return m.ensureSeeded()
 }
 
 var PopulateStateFromSeedImpl = populateStateFromSeedImpl
 
-func MockPopulateStateFromSeed(f func(*state.State, timings.Measurer) ([]*state.TaskSet, error)) (restore func()) {
+type PopulateStateFromSeedOptions = populateStateFromSeedOptions
+
+func MockPopulateStateFromSeed(f func(*state.State, *PopulateStateFromSeedOptions, timings.Measurer) ([]*state.TaskSet, error)) (restore func()) {
 	old := populateStateFromSeed
 	populateStateFromSeed = f
 	return func() {
@@ -147,6 +157,7 @@ func RemodelDeviceBackend(remodCtx remodelContext) storecontext.DeviceBackend {
 var (
 	ImportAssertionsFromSeed     = importAssertionsFromSeed
 	CheckGadgetOrKernel          = checkGadgetOrKernel
+	CheckGadgetValid             = checkGadgetValid
 	CheckGadgetRemodelCompatible = checkGadgetRemodelCompatible
 	CanAutoRefresh               = canAutoRefresh
 	NewEnoughProxy               = newEnoughProxy
@@ -160,8 +171,9 @@ var (
 	CleanupRemodelCtx = cleanupRemodelCtx
 	CachedRemodelCtx  = cachedRemodelCtx
 
-	GadgetUpdateBlocked    = gadgetUpdateBlocked
-	GadgetCurrentAndUpdate = gadgetCurrentAndUpdate
+	GadgetUpdateBlocked = gadgetUpdateBlocked
+	CurrentGadgetInfo   = currentGadgetInfo
+	PendingGadgetInfo   = pendingGadgetInfo
 )
 
 func MockGadgetUpdate(mock func(current, update gadget.GadgetData, path string, policy gadget.UpdatePolicyFunc) error) (restore func()) {
@@ -177,5 +189,13 @@ func MockGadgetIsCompatible(mock func(current, update *gadget.Info) error) (rest
 	gadgetIsCompatible = mock
 	return func() {
 		gadgetIsCompatible = old
+	}
+}
+
+func MockBootMakeBootable(f func(model *asserts.Model, rootdir string, bootWith *boot.BootableSet) error) (restore func()) {
+	old := bootMakeBootable
+	bootMakeBootable = f
+	return func() {
+		bootMakeBootable = old
 	}
 }

@@ -22,6 +22,7 @@ package daemon
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"net/http"
 	"path/filepath"
 
@@ -41,6 +42,15 @@ type snapDownloadAction struct {
 	snapRevisionOptions
 }
 
+var errDownloadNameRequired = errors.New("download operation requires one snap name")
+
+func (action *snapDownloadAction) validate() error {
+	if action.SnapName == "" {
+		return errDownloadNameRequired
+	}
+	return action.snapRevisionOptions.validate()
+}
+
 func postSnapDownload(c *Command, r *http.Request, user *auth.UserState) Response {
 	var action snapDownloadAction
 	decoder := json.NewDecoder(r.Body)
@@ -51,8 +61,8 @@ func postSnapDownload(c *Command, r *http.Request, user *auth.UserState) Respons
 		return BadRequest("extra content found after download operation")
 	}
 
-	if action.SnapName == "" {
-		return BadRequest("download operation requires one snap name")
+	if err := action.validate(); err != nil {
+		return BadRequest(err.Error())
 	}
 
 	return streamOneSnap(c, action, user)

@@ -53,7 +53,6 @@ type commonInterface struct {
 	connectedPlugAppArmor  string
 	connectedPlugSecComp   string
 	connectedPlugUDev      []string
-	reservedForOS          bool
 	rejectAutoConnectPairs bool
 
 	connectedPlugKModModules []string

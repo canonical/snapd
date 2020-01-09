@@ -219,4 +219,6 @@ func MockPidsCgroupDir(dir string) (restore func()) {
 // link, misc handlers
 var (
 	MissingDisabledServices = missingDisabledServices
+
+	MaybeUndoRemodelBootChanges = maybeUndoRemodelBootChanges
 )

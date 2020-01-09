@@ -45,7 +45,7 @@ execute: |
     while ! execute_remote "snap changes" | MATCH "Done.*Refresh \"core\" snap from \"${CORE_REFRESH_CHANNEL}\" channel"; do
         sleep 1
     done
-    execute_remote "snap info core" | MATCH "tracking: +${CORE_REFRESH_CHANNEL}"
+    execute_remote "snap info core" | MATCH "tracking: +latest/${CORE_REFRESH_CHANNEL}"
     # make sure network-manager is on charge of eth0
     execute_remote "nmcli c" | MATCH eth0
     execute_remote "nmcli d" | MATCH "eth0 +ethernet +connected"
@@ -64,9 +64,9 @@ execute: |
 
     while ! execute_remote "snap changes" | MATCH "Done.*Revert \"core\" snap"; do sleep 1 ; done
     execute_remote "snap aliases" | MATCH "nmcli"
-    execute_remote "snap info core" | MATCH "tracking: +${CORE_REFRESH_CHANNEL}"
+    execute_remote "snap info core" | MATCH "tracking: +latest/${CORE_REFRESH_CHANNEL}"
     execute_remote "ifconfig" | MATCH eth0
 
 
     execute_remote "sudo snap refresh"
-    execute_remote "sudo cat /var/log/syslog" | MATCH -v "hsearch_r failed for.* No such process"
+    execute_remote "sudo cat /var/log/syslog" | not MATCH "hsearch_r failed for.* No such process"

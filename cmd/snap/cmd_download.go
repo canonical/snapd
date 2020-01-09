@@ -351,11 +351,11 @@ func (x *cmdDownload) Execute(args []string) error {
 	if x.Direct {
 		return x.downloadDirect(snapName, revision)
 	}
-
 	err := x.downloadViaSnapd(snapName, revision)
 	if isConnectionError(err) || isErrorKindLoginRequired(err) {
 		fmt.Fprintf(Stderr, i18n.G("Cannot connect to the snapd daemon, trying direct download\n"))
 		return x.downloadDirect(snapName, revision)
 	}
+
 	return err
 }

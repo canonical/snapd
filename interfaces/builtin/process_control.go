@@ -71,6 +71,5 @@ func init() {
 		baseDeclarationSlots:  processControlBaseDeclarationSlots,
 		connectedPlugAppArmor: processControlConnectedPlugAppArmor,
 		connectedPlugSecComp:  processControlConnectedPlugSecComp,
-		reservedForOS:         true,
 	})
 }

@@ -23,6 +23,7 @@ import (
 	"crypto"
 	"fmt"
 	"net/http"
+	"os"
 	"path/filepath"
 
 	"gopkg.in/check.v1"
@@ -146,4 +147,23 @@ func (s *SnapSuite) TestDownloadAutoFallback(c *check.C) {
 	_, err := snapCmd.Parser(cli).ParseArgs([]string{"download", "a-snap"})
 	c.Assert(err, check.ErrorMatches, "mockDownloadStore cannot provide snaps")
 	c.Assert(n, check.Equals, 1)
+}
+
+func (s *SnapSuite) TestPrintInstalHint(c *check.C) {
+	snapCmd.PrintInstallHint("foo_1.assert", "foo_1.snap")
+	c.Check(s.Stdout(), check.Equals, `Install the snap with:
+   snap ack foo_1.assert
+   snap install foo_1.snap
+`)
+	s.stdout.Reset()
+
+	cwd, err := os.Getwd()
+	c.Assert(err, check.IsNil)
+	as := filepath.Join(cwd, "some-dir/foo_1.assert")
+	sn := filepath.Join(cwd, "some-dir/foo_1.snap")
+	snapCmd.PrintInstallHint(as, sn)
+	c.Check(s.Stdout(), check.Equals, `Install the snap with:
+   snap ack some-dir/foo_1.assert
+   snap install some-dir/foo_1.snap
+`)
 }

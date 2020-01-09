@@ -31,6 +31,7 @@ import (
 
 	update "github.com/snapcore/snapd/cmd/snap-update-ns"
 	"github.com/snapcore/snapd/dirs"
+	"github.com/snapcore/snapd/features"
 	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/testutil"
@@ -162,6 +163,9 @@ func (s *mainSuite) TestRemovingSyntheticChanges(c *C) {
 	dirs.SetRootDir(c.MkDir())
 	defer dirs.SetRootDir("/")
 
+	c.Assert(os.MkdirAll(dirs.FeaturesDir, 0755), IsNil)
+	c.Assert(ioutil.WriteFile(features.RobustMountNamespaceUpdates.ControlFile(), []byte(nil), 0644), IsNil)
+
 	// The snap `mysnap` no longer wishes to export it's usr/share/mysnap
 	// directory. All the synthetic changes that were associated with that mount
 	// entry can be discarded.
@@ -191,26 +195,10 @@ func (s *mainSuite) TestRemovingSyntheticChanges(c *C) {
 				Entry: osutil.MountEntry{
 					Name: "/snap/mysnap/42/usr/share/mysnap",
 					Dir:  "/usr/share/mysnap", Type: "none",
-					Options: []string{"bind", "ro", "x-snapd.detach"},
+					Options: []string{"bind", "ro"},
 				},
 			})
 		case 1:
-			c.Assert(chg, DeepEquals, &update.Change{
-				Action: update.Unmount,
-				Entry: osutil.MountEntry{
-					Name: "/usr/share/awk", Dir: "/usr/share/awk", Type: "none",
-					Options: []string{"bind", "ro", "x-snapd.synthetic", "x-snapd.needed-by=/usr/share/mysnap", "x-snapd.detach"},
-				},
-			})
-		case 2:
-			c.Assert(chg, DeepEquals, &update.Change{
-				Action: update.Unmount,
-				Entry: osutil.MountEntry{
-					Name: "/usr/share/adduser", Dir: "/usr/share/adduser", Type: "none",
-					Options: []string{"bind", "ro", "x-snapd.synthetic", "x-snapd.needed-by=/usr/share/mysnap", "x-snapd.detach"},
-				},
-			})
-		case 3:
 			c.Assert(chg, DeepEquals, &update.Change{
 				Action: update.Unmount,
 				Entry: osutil.MountEntry{
