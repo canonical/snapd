@@ -1,6 +1,16 @@
-snapd (2.43~pre1) xenial; urgency=medium
+snapd (2.43) xenial; urgency=medium
 
   * New upstream release, LP: #1856159
+    - snap: default to "--direct" in `snap known`
+    - packaging: ship var/lib/snapd/desktop/applications in the
+      pkg
+    - tests: cherry-pick fixes for  snap-set-core-config/ubuntu-core-
+      config-defaults-once
+    - tests: use test-snapd-sh snap instead of test-snapd-tools
+    - tests: rename "test-snapd-sh" in smoke test to test-snapd-sandbox
+    - tests: fix partition creation test
+    - packaging: fix incorrect changelog entry
+    - Revert "tests: 16.04 and 18.04 now have mediating pulseaudio"
     - tests: 16.04 and 18.04 now have mediating pulseaudio
     - interfaces: include hooks in plug/slot apparmor label
     - interfaces: add raw-volume interface for access to partitions
@@ -372,7 +382,7 @@ snapd (2.43~pre1) xenial; urgency=medium
     - store: download propagates options to delta download
     - tests/main/listing: account for dots in ~pre suffix
 
- -- Michael Vogt <michael.vogt@ubuntu.com>  Thu, 12 Dec 2019 10:20:58 +0100
+ -- Michael Vogt <michael.vogt@ubuntu.com>  Thu, 09 Jan 2020 17:14:51 +0100
 
 snapd (2.42.5) xenial; urgency=medium
 
