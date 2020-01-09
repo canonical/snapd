@@ -1054,6 +1054,34 @@ func (s *infoSuite) testInstanceDirAndFileMethods(c *C, info snap.PlaceInfo) {
 	c.Check(info.XdgRuntimeDirs(), Equals, "/run/user/*/snap.name_instance")
 }
 
+func (s *infoSuite) TestParsePlaceInfoFromSnapFileName(c *C) {
+	tt := []struct {
+		sn        string
+		name      string
+		rev       string
+		expectErr string
+	}{
+		{sn: "", expectErr: "empty snap file name"},
+		{sn: "name", expectErr: `snap file name "name" has invalid format \(missing '_'\)`},
+		{sn: "name_", expectErr: `invalid snap revision: ""`},
+		{sn: "name__", expectErr: "too many '_' in snap file name"},
+		{sn: "_name.snap", expectErr: `snap file name \"_name.snap\" has invalid format \(no snap name before '_'\)`},
+		{sn: "name_key.snap", expectErr: `invalid snap revision: "key"`},
+		{sn: "name.snap", expectErr: `snap file name "name.snap" has invalid format \(missing '_'\)`},
+		{sn: "name_12.snap", name: "name", rev: "12"},
+		{sn: "name_key_12.snap", expectErr: "too many '_' in snap file name"},
+	}
+	for _, t := range tt {
+		p, err := snap.ParsePlaceInfoFromSnapFileName(t.sn)
+		if t.expectErr != "" {
+			c.Check(err, ErrorMatches, t.expectErr)
+		} else {
+			c.Check(p.SnapName(), Equals, t.name)
+			c.Check(p.SnapRevision(), Equals, snap.R(t.rev))
+		}
+	}
+}
+
 func makeFakeDesktopFile(c *C, name, content string) string {
 	df := filepath.Join(dirs.SnapDesktopFilesDir, name)
 	err := os.MkdirAll(filepath.Dir(df), 0755)
