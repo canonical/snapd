@@ -10,6 +10,7 @@ import urllib.request
 
 from html.parser import HTMLParser
 
+
 class InvalidPRTitle(Exception):
     def __init__(self, invalid_title):
         self.invalid_title = invalid_title
@@ -20,10 +21,13 @@ class GithubTitleParser(HTMLParser):
         HTMLParser.__init__(self)
         self._cur_tag = ""
         self.title = ""
+
     def handle_starttag(self, tag, attributes):
         self._cur_tag = tag
+
     def handle_endtag(self, tag):
         self._cur_tag = ""
+
     def handle_data(self, data):
         if self._cur_tag == "title":
             self.title = data
@@ -38,7 +42,9 @@ def check_pr_title(pr_number: int):
     # so instead we just scrape the html title which is unlikely to change
     # radically
     parser = GithubTitleParser()
-    with urllib.request.urlopen('https://github.com/snapcore/snapd/pull/{}'.format(pr_number)) as f:
+    with urllib.request.urlopen(
+        "https://github.com/snapcore/snapd/pull/{}".format(pr_number)
+    ) as f:
         parser.feed(f.read().decode("utf-8"))
     # the title has the format:
     #  "Added api endpoint for downloading snaps by glower · Pull Request #6958 · snapcore/snapd · GitHub"
@@ -51,19 +57,20 @@ def check_pr_title(pr_number: int):
     # package, otherpackage/subpackage: this is a title
     # tests/regression/lp-12341234: foo
     # [RFC] foo: bar
-    if not re.match(r'[a-zA-Z0-9_\-/,. \[\]{}]+: .*', title):
+    if not re.match(r"[a-zA-Z0-9_\-/,. \[\]{}]+: .*", title):
         raise InvalidPRTitle(title)
 
 
 def main():
     parser = argparse.ArgumentParser()
     parser.add_argument(
-        'pr_number', metavar='PR number', help='the github PR number to check')
+        "pr_number", metavar="PR number", help="the github PR number to check"
+    )
     args = parser.parse_args()
     try:
         check_pr_title(args.pr_number)
     except InvalidPRTitle as e:
-        print("Invalid PR title: \"{}\"\n".format(e.invalid_title))
+        print('Invalid PR title: "{}"\n'.format(e.invalid_title))
         print("Please provide a title in the following format:")
         print("module: short description")
         print("E.g.:")
