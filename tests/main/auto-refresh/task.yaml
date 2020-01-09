@@ -1,5 +1,9 @@
 summary: Check that auto-refresh works
 
+# TODO:UC20: enable once we have a real model assertion, currently fails with:
+#   v2/snaps/refresh -> "cannot set device session: no device serial yet"
+systems: [-ubuntu-core-20-*]
+
 environment:
     SNAP_NAME/regular: test-snapd-tools
     SNAP_NAME/parallel: test-snapd-tools_instance
