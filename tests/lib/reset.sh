@@ -21,6 +21,7 @@ reset_classic() {
 
     case "$SPREAD_SYSTEM" in
         ubuntu-*|debian-*)
+            sh -x "${SPREAD_PATH}/debian/snapd.prerm" remove
             sh -x "${SPREAD_PATH}/debian/snapd.postrm" purge
             ;;
         fedora-*|opensuse-*|arch-*|amazon-*|centos-*)
@@ -38,6 +39,9 @@ reset_classic() {
             exit 1
             ;;
     esac
+    # purge has removed units, reload the state now
+    systemctl daemon-reload
+
     # extra purge
     rm -rvf /var/snap "${SNAP_MOUNT_DIR:?}/bin"
     mkdir -p "$SNAP_MOUNT_DIR" /var/snap /var/lib/snapd
@@ -55,6 +59,12 @@ reset_classic() {
             restorecon -F -v -R "$SNAP_MOUNT_DIR" /var/snap /var/lib/snapd
             ;;
     esac
+
+    # systemd retains the failed state of service units, even after they are
+    # removed, we need to reset their 'failed state'
+    systemctl --failed --no-legend --full | awk '/^snap\..*\.service +(error|not-found) +failed/ {print $1}' | while read -r unit; do
+        systemctl reset-failed "$unit" || true
+    done
 
     if [[ "$SPREAD_SYSTEM" == ubuntu-14.04-* ]]; then
         systemctl start snap.mount.service
