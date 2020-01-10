@@ -32,6 +32,7 @@ import (
 
 const (
 	ubuntuBootLabel = "ubuntu-boot"
+	ubuntuSeedLabel = "ubuntu-seed"
 	ubuntuDataLabel = "ubuntu-data"
 
 	sectorSize gadget.Size = 512
@@ -263,6 +264,8 @@ func buildPartitionList(ptable *sfdiskPartitionTable, pv *gadget.LaidOutVolume) 
 		switch s.Role {
 		case gadget.SystemBoot:
 			s.Label = ubuntuBootLabel
+		case gadget.SystemSeed:
+			s.Label = ubuntuSeedLabel
 		case gadget.SystemData:
 			s.Label = ubuntuDataLabel
 		}

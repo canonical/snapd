@@ -136,6 +136,8 @@ func Run(gadgetRoot, device string, options *Options) error {
 }
 
 func ensureLayoutCompatibility(gadgetLayout *gadget.LaidOutVolume, diskLayout *partition.DeviceLayout) error {
+	// XXX: the compatibility tests don't recognize encrypted partitions, so we
+	//      won't be able to add more partitions if we already have LUKS devices.
 	eq := func(ds partition.DeviceStructure, gs gadget.LaidOutStructure) bool {
 		dv := ds.VolumeStructure
 		gv := gs.VolumeStructure
