@@ -404,8 +404,8 @@ allow snappy_mount_t snappy_tmp_t:dir { mounton };
 allow snappy_mount_t snappy_tmp_t:file { mounton };
 admin_pattern(snappy_mount_t, snappy_tmp_t)
 # FIXME: investigate further why transition from user_tmp_t to snappy_tmp_t may
-# not happen
-# should we still end up with user_tmp_t allow acting on it too allow
+# not happen when snap-confine is executed by unconfined_t, should we still end
+# up with user_tmp_t allow acting on it
 allow snappy_mount_t user_tmp_t:dir { mounton rmdir };
 userdom_delete_user_tmp_files(snappy_mount_t)
 
