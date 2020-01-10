@@ -29,6 +29,7 @@ import (
 	"github.com/snapcore/snapd/boot"
 	"github.com/snapcore/snapd/boot/boottest"
 	"github.com/snapcore/snapd/bootloader"
+	"github.com/snapcore/snapd/bootloader/bootloadertest"
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/snap"
@@ -47,12 +48,17 @@ vendor: Someone
 // bootenv setting, error handling etc., for a core BootSet.
 type coreBootSetSuite struct {
 	baseBootSetSuite
+
+	bootloader *bootloadertest.MockBootloader
 }
 
 var _ = Suite(&coreBootSetSuite{})
 
 func (s *coreBootSetSuite) SetUpTest(c *C) {
 	s.baseBootSetSuite.SetUpTest(c)
+
+	s.bootloader = bootloadertest.Mock("mock", c.MkDir())
+	s.forceBootloader(s.bootloader)
 }
 
 func (s *coreBootSetSuite) TestExtractKernelAssetsError(c *C) {
@@ -232,8 +238,7 @@ func (s *ubootBootSetSuite) forceUbootBootloader(c *C) {
 	bloader, err := bootloader.Find("", nil)
 	c.Assert(err, IsNil)
 	c.Check(bloader, NotNil)
-	bootloader.Force(bloader)
-	s.AddCleanup(func() { bootloader.Force(nil) })
+	s.forceBootloader(bloader)
 
 	fn := filepath.Join(s.bootdir, "/uboot/uboot.env")
 	c.Assert(osutil.FileExists(fn), Equals, true)
@@ -318,8 +323,7 @@ func (s *grubBootSetSuite) forceGrubBootloader(c *C) bootloader.Bootloader {
 		"snap_kernel": "kernel_41.snap",
 		"snap_core":   "core_21.snap",
 	})
-	bootloader.Force(bloader)
-	s.AddCleanup(func() { bootloader.Force(nil) })
+	s.forceBootloader(bloader)
 
 	fn := filepath.Join(s.bootdir, "/grub/grub.cfg")
 	c.Assert(osutil.FileExists(fn), Equals, true)

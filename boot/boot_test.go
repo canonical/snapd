@@ -42,8 +42,7 @@ func TestBoot(t *testing.T) { TestingT(t) }
 type baseBootSetSuite struct {
 	testutil.BaseTest
 
-	bootdir    string
-	bootloader *bootloadertest.MockBootloader
+	bootdir string
 }
 
 func (s *baseBootSetSuite) SetUpTest(c *C) {
@@ -55,9 +54,10 @@ func (s *baseBootSetSuite) SetUpTest(c *C) {
 	s.AddCleanup(restore)
 
 	s.bootdir = filepath.Join(dirs.GlobalRootDir, "boot")
+}
 
-	s.bootloader = bootloadertest.Mock("mock", c.MkDir())
-	bootloader.Force(s.bootloader)
+func (s *baseBootSetSuite) forceBootloader(bloader bootloader.Bootloader) {
+	bootloader.Force(bloader)
 	s.AddCleanup(func() { bootloader.Force(nil) })
 }
 
@@ -65,12 +65,17 @@ func (s *baseBootSetSuite) SetUpTest(c *C) {
 // don't depend on a specific BootSet implementation
 type bootSetSuite struct {
 	baseBootSetSuite
+
+	bootloader *bootloadertest.MockBootloader
 }
 
 var _ = Suite(&bootSetSuite{})
 
 func (s *bootSetSuite) SetUpTest(c *C) {
 	s.baseBootSetSuite.SetUpTest(c)
+
+	s.bootloader = bootloadertest.Mock("mock", c.MkDir())
+	s.forceBootloader(s.bootloader)
 }
 
 func (s *bootSetSuite) TestNameAndRevnoFromSnapValid(c *C) {

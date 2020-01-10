@@ -30,6 +30,7 @@ import (
 	"github.com/snapcore/snapd/asserts/assertstest"
 	"github.com/snapcore/snapd/boot"
 	"github.com/snapcore/snapd/bootloader"
+	"github.com/snapcore/snapd/bootloader/bootloadertest"
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/snap"
 	"github.com/snapcore/snapd/snap/snaptest"
@@ -38,12 +39,17 @@ import (
 
 type makeBootableSuite struct {
 	baseBootSetSuite
+
+	bootloader *bootloadertest.MockBootloader
 }
 
 var _ = Suite(&makeBootableSuite{})
 
 func (s *makeBootableSuite) SetUpTest(c *C) {
 	s.baseBootSetSuite.SetUpTest(c)
+
+	s.bootloader = bootloadertest.Mock("mock", c.MkDir())
+	s.forceBootloader(s.bootloader)
 }
 
 func (s *makeBootableSuite) makeSnap(c *C, name, yaml string, revno snap.Revision) (fn string, info *snap.Info) {
