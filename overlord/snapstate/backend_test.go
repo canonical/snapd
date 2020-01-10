@@ -912,8 +912,9 @@ func (f *fakeSnappyBackend) UndoCopySnapData(newInfo *snap.Info, oldInfo *snap.I
 func (f *fakeSnappyBackend) UnlinkSnap(info *snap.Info, firstInstallUndo bool, meter progress.Meter) error {
 	meter.Notify("unlink")
 	f.appendOp(&fakeOp{
-		op:                     "unlink-snap",
-		path:                   info.MountDir(),
+		op:   "unlink-snap",
+		path: info.MountDir(),
+
 		unlinkFirstInstallUndo: firstInstallUndo,
 	})
 	return nil
