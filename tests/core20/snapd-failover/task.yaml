@@ -1,5 +1,9 @@
 summary: Check that snapd failure handling works
 
+#TODO:UC20: remove the manual once the issue with snapd.failure.service is
+#           fixed and the service starts once the broker snapd snap is installed
+manual: true
+
 debug: |
     # dump failure data
     journalctl -u snapd.failure.service
