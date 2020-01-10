@@ -26,13 +26,21 @@ import (
 )
 
 var (
-	stdout = os.Stdout
+	stdout  = os.Stdout
+	enabled = false
 )
 
 // Say prints an explanatory message to standard output.
 //
 // Say is only effective if Enable was called earlier.
-var Say = func(f string, args ...interface{}) {}
+func Say(f string, args ...interface{}) {
+	if !enabled {
+		return
+	}
+	f = strings.Replace(f, "\t", "  ", -1) + "\n"
+	fmt.Fprintf(stdout, f, args...)
+	stdout.Sync() // Ignore errors
+}
 
 // Header prints a spaced header, usually separating subsequent programs.
 //
@@ -42,41 +50,41 @@ var Say = func(f string, args ...interface{}) {}
 // Zero: << $name >>
 // One:  << $name ($extra[0]) >>
 // Two:  << $extra[1] $name ($extra[0]) >>
-var Header = func(name string, extras ...string) {}
+func Header(name string, extras ...string) {
+	if !enabled {
+		return
+	}
+	switch len(extras) {
+	case 0:
+		fmt.Fprintf(stdout, "\n<< %s >>\n\n", name)
+	case 1:
+		fmt.Fprintf(stdout, "\n<< %s (%s) >>\n\n", name, extras[0])
+	case 2:
+		fmt.Fprintf(stdout, "\n<< %s %s (%s) >>\n\n", extras[1], name, extras[0])
+	}
+	stdout.Sync() // Ignore errors
+}
 
 // Do invokes a function that only serves to explain things.
 //
 // Do can be used to contain code that is only necessary in explain mode. Do
 // is only effective if Enable was called earlier.
-var Do = func(f func()) {}
+func Do(f func()) {
+	if !enabled {
+		return
+	}
+	f()
+}
 
 // Enable enables explain mode, making Say and Do effective.
 //
 // Enable also sets the SNAP_EXPLAIN environment variable.
 func Enable() {
-	Say = func(f string, args ...interface{}) {
-		f = strings.Replace(f, "\t", "  ", -1) + "\n"
-		fmt.Fprintf(stdout, f, args...)
-		stdout.Sync() // Ignore errors
-	}
-	Header = func(name string, extras ...string) {
-		switch len(extras) {
-		case 0:
-			fmt.Fprintf(stdout, "\n<< %s >>\n\n", name)
-		case 1:
-			fmt.Fprintf(stdout, "\n<< %s (%s) >>\n\n", name, extras[0])
-		case 2:
-			fmt.Fprintf(stdout, "\n<< %s %s (%s) >>\n\n", extras[1], name, extras[0])
-		}
-		stdout.Sync() // Ignore errors
-	}
-	Do = func(f func()) { f() }
+	enabled = true
 	os.Setenv("SNAP_EXPLAIN", "1")
 }
 
 func Disable() {
-	Say = func(f string, args ...interface{}) {}
-	Header = func(name string, extras ...string) {}
-	Do = func(f func()) {}
+	enabled = false
 	os.Unsetenv("SNAP_EXPLAIN")
 }
