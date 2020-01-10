@@ -19,8 +19,6 @@
 package partition_test
 
 import (
-	"path/filepath"
-
 	. "gopkg.in/check.v1"
 
 	"github.com/snapcore/snapd/cmd/snap-bootstrap/partition"
@@ -63,14 +61,10 @@ func (s *encryptSuite) TestEncryptHappy(c *C) {
 	c.Assert(err, IsNil)
 	c.Assert(dev.Node, Equals, "/dev/mapper/some-label")
 
-	tempFile := filepath.Join(s.tempDir, "tempfile")
 	c.Assert(s.mockCryptsetup.Calls(), DeepEquals, [][]string{
 		{"cryptsetup", "-q", "luksFormat", "--type", "luks2", "--key-file", "-", "--pbkdf", "argon2i", "--iter-time", "1", "/dev/node1"},
 		{"cryptsetup", "open", "--key-file", "-", "/dev/node1", "some-label"},
 	})
-
-	// test temporary file removal
-	c.Assert(tempFile, Not(testutil.FilePresent))
 
 	err = dev.Close()
 	c.Assert(err, IsNil)
