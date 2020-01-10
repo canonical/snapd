@@ -90,7 +90,7 @@ func (b Backend) LinkSnap(info *snap.Info, dev boot.Device, prevDisabledSvcs []s
 	isFirstInstall := isSnapFirstInstall(info)
 	var err error
 	timings.Run(tm, "generate-wrappers", fmt.Sprintf("generate wrappers for snap %s", info.InstanceName()), func(timings.Measurer) {
-		err = generateWrappers(info, isFirstInstall, prevDisabledSvcs)
+		err = generateWrappers(info, prevDisabledSvcs)
 	})
 	if err != nil {
 		return false, err
@@ -149,7 +149,7 @@ func (b Backend) StopServices(apps []*snap.AppInfo, reason snap.ServiceStopReaso
 	return wrappers.StopServices(apps, reason, meter, tm)
 }
 
-func generateWrappers(s *snap.Info, firstInstall bool, disabledSvcs []string) error {
+func generateWrappers(s *snap.Info, disabledSvcs []string) error {
 	var err error
 	var cleanupFuncs []func(*snap.Info) error
 	defer func() {
@@ -159,6 +159,11 @@ func generateWrappers(s *snap.Info, firstInstall bool, disabledSvcs []string) er
 			}
 		}
 	}()
+
+	if s.GetType() == snap.TypeSnapd {
+		// snapd services are handled separately
+		return generateSnapdWrappers(s)
+	}
 
 	// add the CLI apps from the snap.yaml
 	if err = wrappers.AddSnapBinaries(s); err != nil {
@@ -171,7 +176,7 @@ func generateWrappers(s *snap.Info, firstInstall bool, disabledSvcs []string) er
 		return err
 	}
 	cleanupFuncs = append(cleanupFuncs, func(s *snap.Info) error {
-		return wrappers.RemoveSnapServices(s, firstInstall, progress.Null)
+		return wrappers.RemoveSnapServices(s, progress.Null)
 	})
 
 	// add the desktop files
@@ -190,12 +195,16 @@ func generateWrappers(s *snap.Info, firstInstall bool, disabledSvcs []string) er
 }
 
 func removeGeneratedWrappers(s *snap.Info, firstInstallUndo bool, meter progress.Meter) error {
+	if s.GetType() == snap.TypeSnapd {
+		return removeGeneratedSnapdWrappers(s, firstInstallUndo, progress.Null)
+	}
+
 	err1 := wrappers.RemoveSnapBinaries(s)
 	if err1 != nil {
 		logger.Noticef("Cannot remove binaries for %q: %v", s.InstanceName(), err1)
 	}
 
-	err2 := wrappers.RemoveSnapServices(s, firstInstallUndo, meter)
+	err2 := wrappers.RemoveSnapServices(s, meter)
 	if err2 != nil {
 		logger.Noticef("Cannot remove services for %q: %v", s.InstanceName(), err2)
 	}
@@ -211,6 +220,21 @@ func removeGeneratedWrappers(s *snap.Info, firstInstallUndo bool, meter progress
 	}
 
 	return firstErr(err1, err2, err3, err4)
+}
+
+func generateSnapdWrappers(s *snap.Info) error {
+	// snapd services are handled separately via an explicit helper
+	return wrappers.AddSnapdSnapServices(s, progress.Null)
+}
+
+func removeGeneratedSnapdWrappers(s *snap.Info, firstInstall bool, meter progress.Meter) error {
+	if !firstInstall {
+		// snapd service units are only removed during first
+		// installation of the snapd snap, in other scenarios they are
+		// overwritten
+		return nil
+	}
+	return wrappers.RemoveSnapdSnapServicesOnCore(s, meter)
 }
 
 // UnlinkSnap makes the snap unavailable to the system removing wrappers and
