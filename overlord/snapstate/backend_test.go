@@ -802,7 +802,7 @@ func (f *fakeSnappyBackend) CopySnapData(newInfo, oldInfo *snap.Info, p progress
 	return nil
 }
 
-func (f *fakeSnappyBackend) LinkSnap(info *snap.Info, dev boot.Device, disabledSvcs []string, tm timings.Measurer) (rebootRequired bool, err error) {
+func (f *fakeSnappyBackend) LinkSnap(info *snap.Info, dev boot.Device, tm timings.Measurer) (rebootRequired bool, err error) {
 	if info.MountDir() == f.linkSnapWaitTrigger {
 		f.linkSnapWaitCh <- 1
 		<-f.linkSnapWaitCh
@@ -811,11 +811,6 @@ func (f *fakeSnappyBackend) LinkSnap(info *snap.Info, dev boot.Device, disabledS
 	op := fakeOp{
 		op:   "link-snap",
 		path: info.MountDir(),
-	}
-
-	// only add the services to the op if there's something to add
-	if len(disabledSvcs) != 0 {
-		op.disabledServices = disabledSvcs
 	}
 
 	if info.MountDir() == f.linkSnapFailTrigger {
@@ -844,16 +839,21 @@ func svcSnapMountDir(svcs []*snap.AppInfo) string {
 	return svcs[0].Snap.MountDir()
 }
 
-func (f *fakeSnappyBackend) StartServices(svcs []*snap.AppInfo, meter progress.Meter, tm timings.Measurer) error {
+func (f *fakeSnappyBackend) StartServices(svcs []*snap.AppInfo, disabledSvcs []string, enableBeforeStart bool, meter progress.Meter, tm timings.Measurer) error {
 	services := make([]string, 0, len(svcs))
 	for _, svc := range svcs {
 		services = append(services, svc.Name)
 	}
-	f.appendOp(&fakeOp{
+	op := fakeOp{
 		op:       "start-snap-services",
 		path:     svcSnapMountDir(svcs),
 		services: services,
-	})
+	}
+	// only add the services to the op if there's something to add
+	if len(disabledSvcs) != 0 {
+		op.disabledServices = disabledSvcs
+	}
+	f.appendOp(&op)
 	return nil
 }
 

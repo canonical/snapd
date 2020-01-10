@@ -77,14 +77,14 @@ func hasFontConfigCache(info *snap.Info) bool {
 }
 
 // LinkSnap makes the snap available by generating wrappers and setting the current symlinks.
-func (b Backend) LinkSnap(info *snap.Info, dev boot.Device, prevDisabledSvcs []string, tm timings.Measurer) (rebootRequired bool, e error) {
+func (b Backend) LinkSnap(info *snap.Info, dev boot.Device, tm timings.Measurer) (rebootRequired bool, e error) {
 	if info.Revision.Unset() {
 		return false, fmt.Errorf("cannot link snap %q with unset revision", info.InstanceName())
 	}
 
 	var err error
 	timings.Run(tm, "generate-wrappers", fmt.Sprintf("generate wrappers for snap %s", info.InstanceName()), func(timings.Measurer) {
-		err = generateWrappers(info, prevDisabledSvcs)
+		err = generateWrappers(info)
 	})
 	if err != nil {
 		return false, err
@@ -135,15 +135,15 @@ func (b Backend) LinkSnap(info *snap.Info, dev boot.Device, prevDisabledSvcs []s
 	return reboot, nil
 }
 
-func (b Backend) StartServices(apps []*snap.AppInfo, meter progress.Meter, tm timings.Measurer) error {
-	return wrappers.StartServices(apps, meter, tm)
+func (b Backend) StartServices(apps []*snap.AppInfo, disabledSvcs []string, enableBeforeStart bool, meter progress.Meter, tm timings.Measurer) error {
+	return wrappers.StartServices(apps, disabledSvcs, enableBeforeStart, meter, tm)
 }
 
 func (b Backend) StopServices(apps []*snap.AppInfo, reason snap.ServiceStopReason, meter progress.Meter, tm timings.Measurer) error {
 	return wrappers.StopServices(apps, reason, meter, tm)
 }
 
-func generateWrappers(s *snap.Info, disabledSvcs []string) error {
+func generateWrappers(s *snap.Info) error {
 	var err error
 	var cleanupFuncs []func(*snap.Info) error
 	defer func() {
@@ -161,7 +161,7 @@ func generateWrappers(s *snap.Info, disabledSvcs []string) error {
 	cleanupFuncs = append(cleanupFuncs, wrappers.RemoveSnapBinaries)
 
 	// add the daemons from the snap.yaml
-	if err = wrappers.AddSnapServices(s, disabledSvcs, progress.Null); err != nil {
+	if err = wrappers.AddSnapServices(s, progress.Null); err != nil {
 		return err
 	}
 	cleanupFuncs = append(cleanupFuncs, func(s *snap.Info) error {

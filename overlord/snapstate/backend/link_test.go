@@ -74,42 +74,6 @@ type linkSuite struct {
 
 var _ = Suite(&linkSuite{})
 
-func (s *linkSuite) TestLinkSnapGivesLastActiveDisabledServicesToWrappers(c *C) {
-	const yaml = `name: hello
-version: 1.0
-environment:
- KEY: value
-
-apps:
- bin:
-   command: bin
-   daemon: simple
- svc:
-   command: svc
-   daemon: simple
-`
-	info := snaptest.MockSnap(c, yaml, &snap.SideInfo{Revision: snap.R(11)})
-
-	svcsDisabled := []string{}
-	r := systemd.MockSystemctl(func(cmd ...string) ([]byte, error) {
-		// drop --root from the cmd
-		if len(cmd) >= 3 && cmd[0] == "--root" {
-			cmd = cmd[2:]
-		}
-		// if it's an enable, save the service name to check later
-		if len(cmd) >= 2 && cmd[0] == "enable" {
-			svcsDisabled = append(svcsDisabled, cmd[1])
-		}
-		return nil, nil
-	})
-	defer r()
-
-	_, err := s.be.LinkSnap(info, mockDev, []string{"svc"}, s.perfTimings)
-	c.Assert(err, IsNil)
-
-	c.Assert(svcsDisabled, DeepEquals, []string{"snap.hello.bin.service"})
-}
-
 func (s *linkSuite) TestLinkDoUndoGenerateWrappers(c *C) {
 	const yaml = `name: hello
 version: 1.0
@@ -125,7 +89,7 @@ apps:
 `
 	info := snaptest.MockSnap(c, yaml, &snap.SideInfo{Revision: snap.R(11)})
 
-	_, err := s.be.LinkSnap(info, mockDev, nil, s.perfTimings)
+	_, err := s.be.LinkSnap(info, mockDev, s.perfTimings)
 	c.Assert(err, IsNil)
 
 	l, err := filepath.Glob(filepath.Join(dirs.SnapBinariesDir, "*"))
@@ -155,7 +119,7 @@ version: 1.0
 
 	info := snaptest.MockSnap(c, yaml, &snap.SideInfo{Revision: snap.R(11)})
 
-	reboot, err := s.be.LinkSnap(info, mockDev, nil, s.perfTimings)
+	reboot, err := s.be.LinkSnap(info, mockDev, s.perfTimings)
 	c.Assert(err, IsNil)
 
 	c.Check(reboot, Equals, false)
@@ -195,7 +159,7 @@ type: base
 `
 	info := snaptest.MockSnap(c, yaml, &snap.SideInfo{Revision: snap.R(11)})
 
-	reboot, err := s.be.LinkSnap(info, coreDev, nil, s.perfTimings)
+	reboot, err := s.be.LinkSnap(info, coreDev, s.perfTimings)
 	c.Assert(err, IsNil)
 	c.Check(reboot, Equals, true)
 }
@@ -218,10 +182,10 @@ apps:
 
 	info := snaptest.MockSnap(c, yaml, &snap.SideInfo{Revision: snap.R(11)})
 
-	_, err := s.be.LinkSnap(info, mockDev, nil, s.perfTimings)
+	_, err := s.be.LinkSnap(info, mockDev, s.perfTimings)
 	c.Assert(err, IsNil)
 
-	_, err = s.be.LinkSnap(info, mockDev, nil, s.perfTimings)
+	_, err = s.be.LinkSnap(info, mockDev, s.perfTimings)
 	c.Assert(err, IsNil)
 
 	l, err := filepath.Glob(filepath.Join(dirs.SnapBinariesDir, "*"))
@@ -260,7 +224,7 @@ apps:
 
 	info := snaptest.MockSnap(c, yaml, &snap.SideInfo{Revision: snap.R(11)})
 
-	_, err := s.be.LinkSnap(info, mockDev, nil, s.perfTimings)
+	_, err := s.be.LinkSnap(info, mockDev, s.perfTimings)
 	c.Assert(err, IsNil)
 
 	err = s.be.UnlinkSnap(info, progress.Null)
@@ -288,7 +252,7 @@ func (s *linkSuite) TestLinkFailsForUnsetRevision(c *C) {
 	info := &snap.Info{
 		SuggestedName: "foo",
 	}
-	_, err := s.be.LinkSnap(info, mockDev, nil, s.perfTimings)
+	_, err := s.be.LinkSnap(info, mockDev, s.perfTimings)
 	c.Assert(err, ErrorMatches, `cannot link snap "foo" with unset revision`)
 }
 
@@ -315,7 +279,7 @@ type: snapd
 		{"usr/lib/systemd/user/snapd.session-agent.socket", "[Unit]\n[Socket]\nListenStream=%t/snap-session.socket"},
 	})
 
-	reboot, err := s.be.LinkSnap(info, mockDev, nil, s.perfTimings)
+	reboot, err := s.be.LinkSnap(info, mockDev, s.perfTimings)
 	c.Assert(err, IsNil)
 	c.Assert(reboot, Equals, false)
 
@@ -441,7 +405,7 @@ func (s *linkCleanupSuite) testLinkCleanupDirOnFail(c *C, dir string) {
 	c.Assert(os.Chmod(dir, 0), IsNil)
 	defer os.Chmod(dir, 0755)
 
-	_, err := s.be.LinkSnap(s.info, mockDev, nil, s.perfTimings)
+	_, err := s.be.LinkSnap(s.info, mockDev, s.perfTimings)
 	c.Assert(err, NotNil)
 	_, isPathError := err.(*os.PathError)
 	_, isLinkError := err.(*os.LinkError)
@@ -478,7 +442,7 @@ func (s *linkCleanupSuite) TestLinkCleanupOnSystemctlFail(c *C) {
 	})
 	defer r()
 
-	_, err := s.be.LinkSnap(s.info, mockDev, nil, s.perfTimings)
+	_, err := s.be.LinkSnap(s.info, mockDev, s.perfTimings)
 	c.Assert(err, ErrorMatches, "ouchie")
 
 	for _, d := range []string{dirs.SnapBinariesDir, dirs.SnapDesktopFilesDir, dirs.SnapServicesDir} {
@@ -498,7 +462,7 @@ func (s *linkCleanupSuite) TestLinkCleansUpDataDirAndSymlinksOnSymlinkFail(c *C)
 	c.Assert(os.Chmod(d, 0), IsNil)
 	defer os.Chmod(d, 0755)
 
-	_, err := s.be.LinkSnap(s.info, mockDev, nil, s.perfTimings)
+	_, err := s.be.LinkSnap(s.info, mockDev, s.perfTimings)
 	c.Assert(err, ErrorMatches, `(?i).*symlink.*permission denied.*`)
 
 	c.Check(s.info.DataDir(), testutil.FileAbsent)
@@ -518,7 +482,7 @@ func (s *linkCleanupSuite) TestLinkRunsUpdateFontconfigCachesClassic(c *C) {
 		})
 		defer restore()
 
-		_, err := s.be.LinkSnap(s.info, dev, nil, s.perfTimings)
+		_, err := s.be.LinkSnap(s.info, dev, s.perfTimings)
 		c.Assert(err, IsNil)
 		if dev.Classic() {
 			c.Assert(updateFontconfigCaches, Equals, 1)
@@ -557,7 +521,7 @@ type: os
 	})
 	defer restore()
 
-	_, err = s.be.LinkSnap(infoNew, mockClassicDev, nil, s.perfTimings)
+	_, err = s.be.LinkSnap(infoNew, mockClassicDev, s.perfTimings)
 	c.Assert(err, IsNil)
 
 	c.Check(oldCmdV6.Calls(), HasLen, 0)

@@ -1,6 +1,10 @@
 summary: |
   Check that `snapctl stop --disable` actually stops services on post-refresh
 
+# XXX: restore when snapctl service commands are integrated with
+# last-active-disabled-services semantics
+manual: true
+
 execute: |
     # shellcheck source=tests/lib/snaps.sh
     . "$TESTSLIB"/snaps.sh
