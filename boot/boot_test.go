@@ -32,7 +32,6 @@ import (
 	"github.com/snapcore/snapd/bootloader/bootloadertest"
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/snap"
-	"github.com/snapcore/snapd/snap/snaptest"
 	"github.com/snapcore/snapd/testutil"
 )
 
@@ -57,6 +56,11 @@ func (s *baseBootSetSuite) SetUpTest(c *C) {
 	s.bootdir = filepath.Join(dirs.GlobalRootDir, "boot")
 }
 
+func (s *baseBootSetSuite) forceBootloader(bloader bootloader.Bootloader) {
+	bootloader.Force(bloader)
+	s.AddCleanup(func() { bootloader.Force(nil) })
+}
+
 // bootSetSuite tests the abstract BootSet interface, and tools that
 // don't depend on a specific BootSet implementation
 type bootSetSuite struct {
@@ -71,8 +75,7 @@ func (s *bootSetSuite) SetUpTest(c *C) {
 	s.baseBootSetSuite.SetUpTest(c)
 
 	s.bootloader = bootloadertest.Mock("mock", c.MkDir())
-	bootloader.Force(s.bootloader)
-	s.AddCleanup(func() { bootloader.Force(nil) })
+	s.forceBootloader(s.bootloader)
 }
 
 func (s *bootSetSuite) TestInUseClassic(c *C) {
@@ -380,17 +383,4 @@ func (s *bootSetSuite) TestMarkBootSuccessfulKKernelUpdate(c *C) {
 		// updated
 		"snap_kernel": "k2",
 	})
-}
-
-func (s *bootSetSuite) makeSnap(c *C, name, yaml string, revno snap.Revision) (fn string, info *snap.Info) {
-	si := &snap.SideInfo{
-		RealName: name,
-		Revision: revno,
-	}
-	fn = snaptest.MakeTestSnapWithFiles(c, yaml, nil)
-	snapf, err := snap.Open(fn)
-	c.Assert(err, IsNil)
-	info, err = snap.ReadInfoFromSnapFile(snapf, si)
-	c.Assert(err, IsNil)
-	return fn, info
 }

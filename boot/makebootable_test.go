@@ -30,23 +30,46 @@ import (
 	"github.com/snapcore/snapd/asserts/assertstest"
 	"github.com/snapcore/snapd/boot"
 	"github.com/snapcore/snapd/bootloader"
+	"github.com/snapcore/snapd/bootloader/bootloadertest"
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/snap"
+	"github.com/snapcore/snapd/snap/snaptest"
 	"github.com/snapcore/snapd/testutil"
 )
 
-type makebootableSuite struct {
-	bootSetSuite
+type makeBootableSuite struct {
+	baseBootSetSuite
+
+	bootloader *bootloadertest.MockBootloader
 }
 
-var _ = Suite(&makebootableSuite{})
+var _ = Suite(&makeBootableSuite{})
 
-func (s *makebootableSuite) SetUpTest(c *C) {
+func (s *makeBootableSuite) SetUpTest(c *C) {
 	s.baseBootSetSuite.SetUpTest(c)
-	s.bootSetSuite.SetUpTest(c)
+
+	s.bootloader = bootloadertest.Mock("mock", c.MkDir())
+	s.forceBootloader(s.bootloader)
 }
 
-func (s *makebootableSuite) TestMakeBootable(c *C) {
+func (s *makeBootableSuite) makeSnap(c *C, name, yaml string, revno snap.Revision) (fn string, info *snap.Info) {
+	return s.makeSnapWithFiles(c, name, yaml, revno, nil)
+}
+
+func (s *makeBootableSuite) makeSnapWithFiles(c *C, name, yaml string, revno snap.Revision, files [][]string) (fn string, info *snap.Info) {
+	si := &snap.SideInfo{
+		RealName: name,
+		Revision: revno,
+	}
+	fn = snaptest.MakeTestSnapWithFiles(c, yaml, files)
+	snapf, err := snap.Open(fn)
+	c.Assert(err, IsNil)
+	info, err = snap.ReadInfoFromSnapFile(snapf, si)
+	c.Assert(err, IsNil)
+	return fn, info
+}
+
+func (s *makeBootableSuite) TestMakeBootable(c *C) {
 	dirs.SetRootDir("")
 
 	headers := map[string]interface{}{
@@ -156,7 +179,7 @@ func makeMockUC20Model() *asserts.Model {
 	return assertstest.FakeAssertion(headers).(*asserts.Model)
 }
 
-func (s *makebootableSuite) TestMakeBootable20(c *C) {
+func (s *makeBootableSuite) TestMakeBootable20(c *C) {
 	dirs.SetRootDir("")
 
 	model := makeMockUC20Model()
@@ -222,7 +245,7 @@ version: 5.0
 	})
 }
 
-func (s *makebootableSuite) TestMakeBootable20MultipleRecoverySystemsError(c *C) {
+func (s *makeBootableSuite) TestMakeBootable20MultipleRecoverySystemsError(c *C) {
 	dirs.SetRootDir("")
 
 	model := makeMockUC20Model()
@@ -238,7 +261,7 @@ func (s *makebootableSuite) TestMakeBootable20MultipleRecoverySystemsError(c *C)
 	c.Assert(err, ErrorMatches, "cannot make multiple recovery systems bootable yet")
 }
 
-func (s *makebootableSuite) TestMakeBootable20RunMode(c *C) {
+func (s *makeBootableSuite) TestMakeBootable20RunMode(c *C) {
 	dirs.SetRootDir("")
 	bootloader.Force(nil)
 

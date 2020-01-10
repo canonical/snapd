@@ -3,7 +3,8 @@ summary: |
    for first boot snaps
 
 # the test is only meaningful on core devices
-# TODO:UC20: enable for UC20
+# TODO:UC20: enable for UC20, it assumes /var/lib/snapd/seed/assertions/model
+#            which we don't have currently
 systems: [ubuntu-core-1*]
 
 environment:
