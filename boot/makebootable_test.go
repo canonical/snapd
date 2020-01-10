@@ -37,14 +37,13 @@ import (
 )
 
 type makeBootableSuite struct {
-	bootSetSuite
+	baseBootSetSuite
 }
 
 var _ = Suite(&makeBootableSuite{})
 
 func (s *makeBootableSuite) SetUpTest(c *C) {
 	s.baseBootSetSuite.SetUpTest(c)
-	s.bootSetSuite.SetUpTest(c)
 }
 
 func (s *makeBootableSuite) makeSnap(c *C, name, yaml string, revno snap.Revision) (fn string, info *snap.Info) {
