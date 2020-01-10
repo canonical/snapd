@@ -106,7 +106,7 @@ func (s *servicesTestSuite) TestAddSnapServicesAndRemove(c *C) {
 	})
 
 	s.sysdLog = nil
-	err = wrappers.RemoveSnapServices(info, true, progress.Null)
+	err = wrappers.RemoveSnapServices(info, progress.Null)
 	c.Assert(err, IsNil)
 	c.Check(osutil.FileExists(svcFile), Equals, false)
 	c.Assert(s.sysdLog, HasLen, 2)
@@ -138,7 +138,7 @@ func (s *servicesTestSuite) TestRemoveSnapWithSocketsRemovesSocketsService(c *C)
 	err = wrappers.StopServices(info.Services(), "", &progress.Null, s.perfTimings)
 	c.Assert(err, IsNil)
 
-	err = wrappers.RemoveSnapServices(info, true, &progress.Null)
+	err = wrappers.RemoveSnapServices(info, &progress.Null)
 	c.Assert(err, IsNil)
 
 	app := info.Apps["svc1"]
@@ -1187,7 +1187,7 @@ func (s *servicesTestSuite) TestAddRemoveSnapWithTimersAddsRemovesTimerFiles(c *
 	err = wrappers.StopServices(info.Services(), "", &progress.Null, s.perfTimings)
 	c.Assert(err, IsNil)
 
-	err = wrappers.RemoveSnapServices(info, true, &progress.Null)
+	err = wrappers.RemoveSnapServices(info, &progress.Null)
 	c.Assert(err, IsNil)
 
 	c.Check(osutil.FileExists(app.Timer.File()), Equals, false)
@@ -1335,4 +1335,14 @@ func (s *servicesTestSuite) TestServiceRestartDelay(c *C) {
 	content, err = ioutil.ReadFile(filepath.Join(s.tempdir, "/etc/systemd/system/snap.hello-snap.svc3.service"))
 	c.Assert(err, IsNil)
 	c.Check(strings.Contains(string(content), "RestartSec="), Equals, false)
+}
+
+func (s *servicesTestSuite) TestAddRemoveSnapServiceWithSnapd(c *C) {
+	info := makeMockSnapdSnap(c)
+
+	err := wrappers.AddSnapServices(info, nil, progress.Null)
+	c.Assert(err, ErrorMatches, "internal error: cannot add services of snapd snap")
+
+	err = wrappers.RemoveSnapServices(info, progress.Null)
+	c.Assert(err, ErrorMatches, "internal error: cannot remove services of snapd snap")
 }

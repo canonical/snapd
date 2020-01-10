@@ -203,7 +203,7 @@ func StartServices(apps []*snap.AppInfo, inter interacter, tm timings.Measurer) 
 // AddSnapServices adds service units for the applications from the snap which are services.
 func AddSnapServices(s *snap.Info, disabledSvcs []string, inter interacter) (err error) {
 	if s.GetType() == snap.TypeSnapd {
-		return writeSnapdServicesOnCore(s, inter)
+		return fmt.Errorf("internal error: cannot add services of snapd snap")
 	}
 
 	// check if any previously disabled services are now no longer services and
@@ -380,11 +380,9 @@ func ServicesEnableState(s *snap.Info, inter interacter) (map[string]bool, error
 // RemoveSnapServices disables and removes service units for the applications
 // from the snap which are services. The optional flag indicates whether
 // services are removed as part of undoing of first install of a given snap.
-func RemoveSnapServices(s *snap.Info, firstInstall bool, inter interacter) error {
-	if s.GetType() == snap.TypeSnapd && firstInstall {
-		// snapd service units are only removed during first
-		// installation of the snapd snap, in other scenarios they are overwritten
-		return undoFirstInstallSnapdServicesOnCore(s, inter)
+func RemoveSnapServices(s *snap.Info, inter interacter) error {
+	if s.GetType() == snap.TypeSnapd {
+		return fmt.Errorf("internal error: cannot remove services of snapd snap")
 	}
 	sysd := systemd.New(dirs.GlobalRootDir, systemd.SystemMode, inter)
 	nservices := 0
