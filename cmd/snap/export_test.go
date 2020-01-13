@@ -39,16 +39,18 @@ var (
 
 	FirstNonOptionIsRun = firstNonOptionIsRun
 
-	CreateUserDataDirs = createUserDataDirs
-	ResolveApp         = resolveApp
-	SnapdHelperPath    = snapdHelperPath
-	SortByPath         = sortByPath
-	AdviseCommand      = adviseCommand
-	Antialias          = antialias
-	FormatChannel      = fmtChannel
-	PrintDescr         = printDescr
-	WrapFlow           = wrapFlow
-	TrueishJSON        = trueishJSON
+	CreateUserDataDirs  = createUserDataDirs
+	ResolveApp          = resolveApp
+	SnapdHelperPath     = snapdHelperPath
+	SortByPath          = sortByPath
+	AdviseCommand       = adviseCommand
+	Antialias           = antialias
+	FormatChannel       = fmtChannel
+	PrintDescr          = printDescr
+	WrapFlow            = wrapFlow
+	TrueishJSON         = trueishJSON
+	CompletionHandler   = completionHandler
+	MarkForNoCompletion = markForNoCompletion
 
 	CanUnicode           = canUnicode
 	ColorTable           = colorTable
@@ -82,7 +84,17 @@ var (
 	SignalNotify = signalNotify
 
 	SortTimingsTasks = sortTimingsTasks
+
+	PrintInstallHint = printInstallHint
 )
+
+func HiddenCmd(descr string, completeHidden bool) *cmdInfo {
+	return &cmdInfo{
+		shortHelp:      descr,
+		hidden:         true,
+		completeHidden: completeHidden,
+	}
+}
 
 type ChangeTimings = changeTimings
 

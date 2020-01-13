@@ -32,6 +32,7 @@ import (
 
 var (
 	Stderr io.Writer = os.Stderr
+	Stdout io.Writer = os.Stdout
 
 	opts   struct{}
 	parser *flags.Parser = flags.NewParser(&opts, flags.HelpFlag|flags.PassDoubleDash|flags.PassAfterNonOption)

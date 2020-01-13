@@ -57,6 +57,5 @@ func init() {
 		implicitOnClassic:     true,
 		baseDeclarationSlots:  removableMediaBaseDeclarationSlots,
 		connectedPlugAppArmor: removableMediaConnectedPlugAppArmor,
-		reservedForOS:         true,
 	})
 }

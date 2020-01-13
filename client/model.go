@@ -26,6 +26,8 @@ import (
 	"fmt"
 	"net/url"
 
+	"golang.org/x/xerrors"
+
 	"github.com/snapcore/snapd/asserts"
 )
 
@@ -82,7 +84,8 @@ func currentAssertion(client *Client, path string) (asserts.Assertion, error) {
 	defer cancel()
 	response, err := client.raw(ctx, "GET", path, q, nil, nil)
 	if err != nil {
-		return nil, fmt.Errorf("failed to query current assertion: %v", err)
+		fmt := "failed to query current assertion: %w"
+		return nil, xerrors.Errorf(fmt, err)
 	}
 	defer response.Body.Close()
 	if response.StatusCode != 200 {

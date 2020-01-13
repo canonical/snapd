@@ -21,6 +21,7 @@ package snapstate
 
 import (
 	"github.com/snapcore/snapd/asserts"
+	"github.com/snapcore/snapd/boot"
 	"github.com/snapcore/snapd/overlord/state"
 )
 
@@ -29,11 +30,24 @@ import (
 type DeviceContext interface {
 	// Model returns the governing device model assertion for the context.
 	Model() *asserts.Model
+
+	// GroundContext returns a context corresponding to the
+	// original model of the device for a remodel, or a context
+	// equivalent to this one otherwise, except in both cases
+	// Store cannot be used and must panic.
+	GroundContext() DeviceContext
+
 	// Store returns the store service to use under this context or nil if the snapstate store is appropriate.
 	Store() StoreService
 
 	// ForRemodeling returns whether this context is for use over a remodeling.
 	ForRemodeling() bool
+
+	// OperatingMode return the operating mode (run,install,recover,...).
+	OperatingMode() string
+
+	// DeviceContext should be usable as boot.Device
+	boot.Device
 }
 
 // Hook setup by devicestate to pick a device context from state,

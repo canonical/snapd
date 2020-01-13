@@ -22,6 +22,7 @@ package snapstate_test
 import (
 	"github.com/snapcore/snapd/asserts"
 	"github.com/snapcore/snapd/asserts/assertstest"
+	"github.com/snapcore/snapd/snap/snaptest"
 )
 
 func ModelWithBase(baseName string) *asserts.Model {
@@ -51,6 +52,35 @@ func MakeModel(override map[string]interface{}) *asserts.Model {
 		"gadget":       "brand-gadget",
 		"kernel":       "kernel",
 		"timestamp":    "2018-01-01T08:00:00+00:00",
+	}
+	return assertstest.FakeAssertion(model, override).(*asserts.Model)
+}
+
+func MakeModel20(gadgetName string, override map[string]interface{}) *asserts.Model {
+	model := map[string]interface{}{
+		"type":         "model",
+		"authority-id": "brand",
+		"series":       "16",
+		"brand-id":     "brand",
+		"model":        "baz-3000",
+		"architecture": "armhf",
+		"base":         "core20",
+		"grade":        "dangerous",
+		"timestamp":    "2018-01-01T08:00:00+00:00",
+		"snaps": []interface{}{
+			map[string]interface{}{
+				"name":            "kernel",
+				"id":              "kerneldididididididididididididi",
+				"type":            "kernel",
+				"default-channel": "20",
+			},
+			map[string]interface{}{
+				"name":            gadgetName,
+				"id":              snaptest.AssertedSnapID(gadgetName),
+				"type":            "gadget",
+				"default-channel": "20",
+			},
+		},
 	}
 	return assertstest.FakeAssertion(model, override).(*asserts.Model)
 }

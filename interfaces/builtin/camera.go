@@ -65,6 +65,5 @@ func init() {
 		baseDeclarationSlots:  cameraBaseDeclarationSlots,
 		connectedPlugAppArmor: cameraConnectedPlugAppArmor,
 		connectedPlugUDev:     cameraConnectedPlugUDev,
-		reservedForOS:         true,
 	})
 }

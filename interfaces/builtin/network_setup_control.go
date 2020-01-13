@@ -74,6 +74,5 @@ func init() {
 		implicitOnClassic:     true,
 		baseDeclarationSlots:  networkSetupControlBaseDeclarationSlots,
 		connectedPlugAppArmor: networkSetupControlConnectedPlugAppArmor,
-		reservedForOS:         true,
 	})
 }

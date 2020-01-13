@@ -27,14 +27,20 @@ restore: |
     rm -f stamp enforcing.mode
 
 execute: |
-    snap install test-snapd-tools
-    test-snapd-tools.cmd echo 'hello world'
-    su -c 'test-snapd-tools.cmd echo hello world' test
-    snap remove test-snapd-tools
-    ausearch -i --checkpoint stamp --start checkpoint -m AVC 2>&1 | MATCH 'no matches'
-
     #shellcheck source=tests/lib/snaps.sh
     . "$TESTSLIB/snaps.sh"
+
+    install_local test-snapd-desktop
+    test-snapd-desktop.cmd sh -c echo 'hello world'
+    su test -c "test-snapd-desktop.cmd sh -c 'echo hello world'"
+    su test -c "test-snapd-desktop.cmd sh -c 'mkdir \$HOME/foo && echo foo > \$HOME/foo/bar'"
+    ausearch -i --checkpoint stamp --start checkpoint -m AVC 2>&1 | MATCH 'no matches'
+    # another revision triggers copy of snap data
+    install_local test-snapd-desktop
+    ausearch -i --checkpoint stamp --start checkpoint -m AVC 2>&1 | MATCH 'no matches'
+    # removal triggers cleanups
+    snap remove test-snapd-desktop
+    ausearch -i --checkpoint stamp --start checkpoint -m AVC 2>&1 | MATCH 'no matches'
 
     install_local test-snapd-service
     snap stop test-snapd-service
@@ -46,7 +52,7 @@ execute: |
 
     install_local test-snapd-layout
     test-snapd-layout.sh -c 'ls /'
-    su -c "test-snapd-layout.sh -c 'ls /'" test
+    su test -c "test-snapd-layout.sh -c 'ls /'"
     snap remove test-snapd-layout
     ausearch -i --checkpoint stamp --start checkpoint -m AVC 2>&1 | MATCH 'no matches'
 

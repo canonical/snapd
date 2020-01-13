@@ -39,6 +39,36 @@ type Channel struct {
 	Branch       string `json:"branch,omitempty"`
 }
 
+func isSlash(r rune) bool { return r == '/' }
+
+// TODO: currently there's some overlap between the toplevel Full, and
+//       methods Clean, String, and Full. Needs further refactoring.
+
+func Full(s string) (string, error) {
+	if s == "" {
+		return "", nil
+	}
+	components := strings.FieldsFunc(s, isSlash)
+	switch len(components) {
+	case 0:
+		return "", nil
+	case 1:
+		if strutil.ListContains(channelRisks, components[0]) {
+			return "latest/" + components[0], nil
+		}
+		return components[0] + "/stable", nil
+	case 2:
+		if strutil.ListContains(channelRisks, components[0]) {
+			return "latest/" + strings.Join(components, "/"), nil
+		}
+		fallthrough
+	case 3:
+		return strings.Join(components, "/"), nil
+	default:
+		return "", errors.New("invalid channel")
+	}
+}
+
 // ParseVerbatim parses a string representing a store channel and
 // includes the given architecture, if architecture is "" the system
 // architecture is included. The channel representation is not normalized.
@@ -145,10 +175,13 @@ func (c Channel) String() string {
 
 // Full returns the full name of the channel, inclusive the default track "latest".
 func (c *Channel) Full() string {
-	if c.Track == "" {
-		return "latest/" + c.Name
+	ch := c.String()
+	full, err := Full(ch)
+	if err != nil {
+		// unpossible
+		panic("channel.String() returned a malformed channel: " + ch)
 	}
-	return c.String()
+	return full
 }
 
 // VerbatimTrackOnly returns whether the channel represents a track only.

@@ -38,10 +38,10 @@ execute: |
     echo "And a new mount is created"
     #shellcheck source=tests/lib/snaps.sh
     . "$TESTSLIB/snaps.sh"
-    install_local test-snapd-tools
+    install_local test-snapd-sh
 
     echo "Then the new mount info is reachable"
-    expected="$SNAP_MOUNT_DIR/test-snapd-tools"
+    expected="$SNAP_MOUNT_DIR/test-snapd-sh"
     su -l -c "mount-observe-consumer" test | grep -Pq "$expected"
 
     if [ "$(snap debug confinement)" = partial ] ; then

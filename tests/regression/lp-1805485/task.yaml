@@ -9,7 +9,7 @@ details: |
     Make sure that apparmor backend is not disabled on systems where apparmor
     tooling is recent enough.
 
-systems: [ubuntu-*, opensuse-*, arch-linux-*]
+systems: [ubuntu-1*, opensuse-*, arch-linux-*]
 
 execute: |
     snap debug sandbox-features | MATCH "^apparmor:"

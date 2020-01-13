@@ -228,7 +228,14 @@ func (s *apiBaseSuite) TearDownSuite(c *check.C) {
 func (s *apiBaseSuite) systemctl(args ...string) (buf []byte, err error) {
 	s.sysctlArgses = append(s.sysctlArgses, args)
 
-	if args[0] != "show" && args[0] != "start" && args[0] != "stop" && args[0] != "restart" {
+	if len(args) > 2 && args[0] == "--root" && args[2] == "is-enabled" {
+		// drop the first 2 args which are "--root some-dir"
+		args = args[2:]
+	}
+
+	switch args[0] {
+	case "show", "start", "stop", "restart", "is-enabled":
+	default:
 		panic(fmt.Sprintf("unexpected systemctl call: %v", args))
 	}
 
@@ -502,7 +509,7 @@ version: %s
 	snapst.Active = active
 	snapst.Sequence = append(snapst.Sequence, &snapInfo.SideInfo)
 	snapst.Current = snapInfo.SideInfo.Revision
-	snapst.Channel = "stable"
+	snapst.TrackingChannel = "stable"
 	snapst.InstanceKey = instanceKey
 
 	snapstate.Set(st, instanceName, &snapst)
@@ -676,7 +683,7 @@ UnitFileState=enabled
 	c.Assert(err, check.IsNil)
 
 	// modify state
-	snapst.Channel = "beta"
+	snapst.TrackingChannel = "beta"
 	snapst.IgnoreValidation = true
 	snapst.CohortKey = "some-long-cohort-key"
 	st.Lock()
@@ -790,12 +797,11 @@ UnitFileState=enabled
 					},
 				},
 			},
-			Broken:      "",
-			Contact:     "",
-			License:     "GPL-3.0",
-			CommonIDs:   []string{"org.foo.cmd"},
-			Screenshots: []snap.ScreenshotInfo{{Note: snap.ScreenshotsDeprecationNotice}},
-			CohortKey:   "some-long-cohort-key",
+			Broken:    "",
+			Contact:   "",
+			License:   "GPL-3.0",
+			CommonIDs: []string{"org.foo.cmd"},
+			CohortKey: "some-long-cohort-key",
 		},
 		Meta: meta,
 	}
@@ -909,9 +915,9 @@ func (s *apiSuite) TestMapLocalFields(c *check.C) {
 	about := aboutSnap{
 		info: info,
 		snapst: &snapstate.SnapState{
-			Active:  true,
-			Channel: "flaky/beta",
-			Current: snap.R(7),
+			Active:          true,
+			TrackingChannel: "flaky/beta",
+			Current:         snap.R(7),
 			Flags: snapstate.Flags{
 				IgnoreValidation: true,
 				DevMode:          true,
@@ -949,7 +955,6 @@ func (s *apiSuite) TestMapLocalFields(c *check.C) {
 		CommonIDs:        []string{"foo", "bar"},
 		MountedFrom:      filepath.Join(dirs.SnapBlobDir, "some-snap_instance_7.snap"),
 		Media:            media,
-		Screenshots:      []snap.ScreenshotInfo{{Note: snap.ScreenshotsDeprecationNotice}},
 		Apps: []client.AppInfo{
 			{Snap: "some-snap_instance", Name: "bar"},
 			{Snap: "some-snap_instance", Name: "foo"},
@@ -1780,7 +1785,6 @@ func (s *apiSuite) TestFind(c *check.C) {
 	c.Assert(snaps, check.HasLen, 1)
 	c.Assert(snaps[0]["name"], check.Equals, "store")
 	c.Check(snaps[0]["prices"], check.IsNil)
-	c.Check(snaps[0]["screenshots"], check.DeepEquals, []interface{}{map[string]interface{}{"note": snap.ScreenshotsDeprecationNotice}})
 	c.Check(snaps[0]["channels"], check.IsNil)
 
 	c.Check(rsp.SuggestedCurrency, check.Equals, "EUR")
@@ -2202,11 +2206,6 @@ func (s *apiSuite) TestFindScreenshotted(c *check.C) {
 	c.Assert(snaps, check.HasLen, 1)
 
 	c.Check(snaps[0]["name"], check.Equals, "test-screenshot")
-	c.Check(snaps[0]["screenshots"], check.DeepEquals, []interface{}{
-		map[string]interface{}{
-			"note": snap.ScreenshotsDeprecationNotice,
-		},
-	})
 	c.Check(snaps[0]["media"], check.DeepEquals, []interface{}{
 		map[string]interface{}{
 			"type":   "screenshot",
@@ -2428,7 +2427,79 @@ func (s *apiSuite) TestPostSnapBadAction(c *check.C) {
 	c.Check(rsp.Result, check.NotNil)
 }
 
+func (s *apiSuite) TestPostSnapBadChannel(c *check.C) {
+	buf := bytes.NewBufferString(`{"channel": "1/2/3/4"}`)
+	req, err := http.NewRequest("POST", "/v2/snaps/hello-world", buf)
+	c.Assert(err, check.IsNil)
+
+	rsp := postSnap(snapCmd, req, nil).(*resp)
+
+	c.Check(rsp.Type, check.Equals, ResponseTypeError)
+	c.Check(rsp.Status, check.Equals, 400)
+	c.Check(rsp.Result, check.NotNil)
+}
+
 func (s *apiSuite) TestPostSnap(c *check.C) {
+	s.testPostSnap(c, false)
+}
+
+func (s *apiSuite) TestPostSnapWithChannel(c *check.C) {
+	s.testPostSnap(c, true)
+}
+
+func (s *apiSuite) testPostSnap(c *check.C, withChannel bool) {
+	d := s.daemonWithOverlordMock(c)
+
+	soon := 0
+	ensureStateSoon = func(st *state.State) {
+		soon++
+		ensureStateSoonImpl(st)
+	}
+
+	s.vars = map[string]string{"name": "foo"}
+
+	snapInstructionDispTable["install"] = func(inst *snapInstruction, _ *state.State) (string, []*state.TaskSet, error) {
+		if withChannel {
+			// channel in -> channel out
+			c.Check(inst.Channel, check.Equals, "xyzzy")
+		} else {
+			// no channel in -> no channel out
+			c.Check(inst.Channel, check.Equals, "")
+		}
+		return "foooo", nil, nil
+	}
+	defer func() {
+		snapInstructionDispTable["install"] = snapInstall
+	}()
+
+	var buf *bytes.Buffer
+	if withChannel {
+		buf = bytes.NewBufferString(`{"action": "install", "channel": "xyzzy"}`)
+	} else {
+		buf = bytes.NewBufferString(`{"action": "install"}`)
+	}
+	req, err := http.NewRequest("POST", "/v2/snaps/hello-world", buf)
+	c.Assert(err, check.IsNil)
+
+	rsp := postSnap(snapCmd, req, nil).(*resp)
+
+	c.Check(rsp.Type, check.Equals, ResponseTypeAsync)
+
+	st := d.overlord.State()
+	st.Lock()
+	defer st.Unlock()
+	chg := st.Change(rsp.Change)
+	c.Assert(chg, check.NotNil)
+	c.Check(chg.Summary(), check.Equals, "foooo")
+	var names []string
+	err = chg.Get("snap-names", &names)
+	c.Assert(err, check.IsNil)
+	c.Check(names, check.DeepEquals, []string{"foo"})
+
+	c.Check(soon, check.Equals, 1)
+}
+
+func (s *apiSuite) TestPostSnapChannel(c *check.C) {
 	d := s.daemonWithOverlordMock(c)
 
 	soon := 0
@@ -6505,6 +6576,32 @@ func (s *apiSuite) TestSnapctlForbiddenError(c *check.C) {
 	c.Assert(err, check.IsNil)
 	rsp := runSnapctl(snapctlCmd, req, nil).(*resp)
 	c.Assert(rsp.Status, check.Equals, 403)
+}
+
+func (s *apiSuite) TestSnapctlUnsuccesfulError(c *check.C) {
+	_ = s.daemon(c)
+
+	runSnapctlUcrednetGet = func(string) (int32, uint32, string, error) {
+		return 100, 9999, dirs.SnapSocket, nil
+	}
+	defer func() { runSnapctlUcrednetGet = ucrednetGet }()
+
+	ctlcmdRun = func(ctx *hookstate.Context, arg []string, uid uint32) ([]byte, []byte, error) {
+		return nil, nil, &ctlcmd.UnsuccessfulError{ExitCode: 123}
+	}
+	defer func() { ctlcmdRun = ctlcmd.Run }()
+
+	buf := bytes.NewBufferString(fmt.Sprintf(`{"context-id": "some-context", "args": [%q, %q]}`, "is-connected", "plug"))
+	req, err := http.NewRequest("POST", "/v2/snapctl", buf)
+	c.Assert(err, check.IsNil)
+	rsp := runSnapctl(snapctlCmd, req, nil).(*resp)
+	c.Check(rsp.Status, check.Equals, 200)
+	c.Check(rsp.Result.(*errorResult).Kind, check.Equals, errorKindUnsuccessful)
+	c.Check(rsp.Result.(*errorResult).Value, check.DeepEquals, map[string]interface{}{
+		"stdout":    "",
+		"stderr":    "",
+		"exit-code": 123,
+	})
 }
 
 type appSuite struct {

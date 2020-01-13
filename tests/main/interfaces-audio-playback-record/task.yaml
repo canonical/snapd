@@ -1,0 +1,104 @@
+summary: Ensure that the audio-playback/record interface works
+
+# Only classic Ubuntu has the pulseaudio mediation patches
+systems: [ ubuntu-1*-*64, ubuntu-2*-*64 ]
+
+environment:
+    PLAY_FILE: "/snap/test-snapd-audio-record/current/usr/share/sounds/alsa/Noise.wav"
+    # today, only 19.04 and 19.10 have a mediating pulseaudio
+    EXFAIL: "ubuntu-1[468]"
+
+prepare: |
+    #shellcheck source=tests/lib/pkgdb.sh
+    . "$TESTSLIB"/pkgdb.sh
+    snap install --edge test-snapd-audio-record
+
+    apt-get update
+    apt-get install -y pulseaudio pulseaudio-utils
+
+    echo "Create XDG_RUNTIME_DIR=/run/user/12345"
+    # shellcheck disable=SC2174
+    mkdir -m 700 -p /run/user/12345 || true
+    chown test:test /run/user/12345
+
+    # ensure we have a clean pulse directory
+    test -d /home/test/.config && mv /home/test/.config /home/test/.config.spread
+    mkdir -m 700 /home/test/.config
+    mkdir -m 700 /home/test/.config/pulse
+    chown test:test /home/test/.config /home/test/.config/pulse
+
+restore: |
+    HOME=/home/test XDG_RUNTIME_DIR=/run/user/12345 su -p -c "pulseaudio --kill" test || true
+    snap remove --purge test-snapd-audio-record
+    apt-get autoremove --purge -y pulseaudio pulseaudio-utils
+    rm -rf /run/user/12345 /home/test/.config/pulse
+    if [ -d /home/test/.config.spread ]; then
+        rm -rf /home/test/.config
+        mv /home/test/.config.spread /home/test/.config
+    fi
+
+execute: |
+    # we need -p so that XDG_RUNTIME_DIR is honored, but that preserves HOME,
+    # so specify it too since pulseaudio fails to start otherwise
+    echo "Start pulseaudio"
+    HOME=/home/test XDG_RUNTIME_DIR=/run/user/12345 su -p -c "pulseaudio --exit-idle-time=30" test &
+
+    echo "Then wait for the socket to show up"
+    retry-tool -n 10 test -S /run/user/12345/pulse/native
+
+    echo "Check pulseaudio"
+    HOME=/home/test XDG_RUNTIME_DIR=/run/user/12345 retry-tool -n 10 su -p -c "pulseaudio --check" test
+
+    echo "The unconfined user can play audio"
+    HOME=/home/test XDG_RUNTIME_DIR=/run/user/12345 su -p -c "/usr/bin/paplay $PLAY_FILE" test
+
+    echo "The unconfined user can record audio"
+    HOME=/home/test XDG_RUNTIME_DIR=/run/user/12345 su -p -c "/snap/test-snapd-audio-record/current/bin/parec-simple" test
+
+    echo "The audio-playback interface is connected by default"
+    snap connections test-snapd-audio-record | MATCH "audio-playback +test-snapd-audio-record:audio-playback +:audio-playback +-"
+
+    echo "The audio-record interface is disconnected by default"
+    snap connections test-snapd-audio-record | MATCH "audio-record +test-snapd-audio-record:audio-record +- +-"
+
+    echo "When the audio-playback plug is connected"
+    snap connect test-snapd-audio-record:audio-playback
+
+    echo "Then the snap can play audio"
+    su -l -c "test-snapd-audio-record.play $PLAY_FILE" test
+
+    echo "When the audio-record plug is connected"
+    snap connect test-snapd-audio-record:audio-record
+
+    echo "Then the snap can record audio"
+    su -l -c "test-snapd-audio-record.recsimple" test
+
+    echo "When the audio-record plug is disconnected"
+    snap disconnect test-snapd-audio-record:audio-record
+
+    mediating_pa="yes"
+    if echo "$SPREAD_SYSTEM" | grep -Eq "$EXFAIL" ; then
+        mediating_pa="no"
+    fi
+
+    echo "Then the snap command is not able to record audio"
+    if [ "$mediating_pa" = "no" ] && ! su -l -c "test-snapd-audio-record.recsimple" test ; then
+        echo "Could not record audio. Does '$SPREAD_SYSTEM' have mediation patches?"
+        exit 1
+    elif [ "$mediating_pa" = "yes" ] && su -l -c "test-snapd-audio-record.recsimple" test ; then
+        echo "Could record audio even though '$SPREAD_SYSTEM' should have mediation patches"
+        exit 1
+    fi
+
+    if [ "$(snap debug confinement)" = "partial" ] ; then
+        exit 0
+    fi
+
+    echo "When the audio-playback plug is disconnected"
+    snap disconnect test-snapd-audio-record:audio-playback
+
+    echo "Then the snap command is not able to connect to the pulseaudio socket"
+    if su -l -c "test-snapd-audio-record.play $PLAY_FILE" test ; then
+        echo "Expected error with plug disconnected"
+        exit 1
+    fi

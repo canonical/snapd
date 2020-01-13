@@ -85,7 +85,6 @@ func init() {
 		baseDeclarationSlots:  hostnameControlBaseDeclarationSlots,
 		connectedPlugAppArmor: hostnameControlConnectedPlugAppArmor,
 		connectedPlugSecComp:  hostnameControlConnectedPlugSecComp,
-		reservedForOS:         true,
 	})
 
 }

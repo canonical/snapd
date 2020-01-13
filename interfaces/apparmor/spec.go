@@ -42,7 +42,7 @@ type Specification struct {
 	snippets map[string][]string
 	// updateNS describe parts of apparmor policy for snap-update-ns executing
 	// on behalf of a given snap.
-	updateNS []string
+	updateNS strutil.OrderedSet
 
 	// AppArmor deny rules cannot be undone by allow rules which makes
 	// deny rules difficult to work with arbitrary combinations of
@@ -92,7 +92,17 @@ func (spec *Specification) AddSnippet(snippet string) {
 
 // AddUpdateNS adds a new apparmor snippet for the snap-update-ns program.
 func (spec *Specification) AddUpdateNS(snippet string) {
-	spec.updateNS = append(spec.updateNS, snippet)
+	spec.updateNS.Put(snippet)
+}
+
+// AddUpdateNSf formats and adds a new apparmor snippet for the snap-update-ns program.
+func (spec *Specification) AddUpdateNSf(f string, args ...interface{}) {
+	spec.AddUpdateNS(fmt.Sprintf(f, args...))
+}
+
+// UpdateNSIndexOf returns the index of a previously added snippet.
+func (spec *Specification) UpdateNSIndexOf(snippet string) (idx int, ok bool) {
+	return spec.updateNS.IndexOf(snippet)
 }
 
 // AddLayout adds apparmor snippets based on the layout of the snap.
@@ -145,12 +155,11 @@ func (spec *Specification) AddLayout(si *snap.Info) {
 		}
 		sort.Strings(spec.snippets[tag])
 	}
+
+	emit := spec.AddUpdateNSf
+
 	// Append update-ns snippets that allow constructing the layout.
 	for _, path := range paths {
-		var buf bytes.Buffer
-		emit := func(f string, args ...interface{}) {
-			fmt.Fprintf(&buf, f, args...)
-		}
 		l := si.Layout[path]
 		emit("  # Layout %s\n", l.String())
 		path := si.ExpandSnapVariables(l.Path)
@@ -184,7 +193,6 @@ func (spec *Specification) AddLayout(si *snap.Info) {
 			emit("  %s rw,\n", path)
 			GenWritableProfile(emit, path, 2) // At least / and /some-top-level-directory
 		}
-		spec.AddUpdateNS(buf.String())
 	}
 }
 
@@ -347,9 +355,7 @@ func (spec *Specification) SecurityTags() []string {
 
 // UpdateNS returns a deep copy of all the added snap-update-ns snippets.
 func (spec *Specification) UpdateNS() []string {
-	cp := make([]string, len(spec.updateNS))
-	copy(cp, spec.updateNS)
-	return cp
+	return spec.updateNS.Items()
 }
 
 func snippetFromLayout(layout *snap.Layout) string {

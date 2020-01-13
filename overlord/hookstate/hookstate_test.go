@@ -22,7 +22,6 @@ package hookstate_test
 import (
 	"encoding/json"
 	"fmt"
-	"os"
 	"path/filepath"
 	"regexp"
 	"sync/atomic"
@@ -865,8 +864,6 @@ func checkTaskLogContains(c *C, task *state.Task, pattern string) {
 
 func (s *hookManagerSuite) TestHookTaskRunsRightSnapCmd(c *C) {
 	coreSnapCmdPath := filepath.Join(dirs.SnapMountDir, "core/12/usr/bin/snap")
-	err := os.MkdirAll(filepath.Dir(coreSnapCmdPath), 0755)
-	c.Assert(err, IsNil)
 	cmd := testutil.MockCommand(c, coreSnapCmdPath, "")
 	defer cmd.Restore()
 
