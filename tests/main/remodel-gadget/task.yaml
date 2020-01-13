@@ -105,9 +105,9 @@ execute: |
         wait_change_done "Refresh model assertion from revision 0 to 2"
         snap debug model|MATCH "revision: 2"
         echo "and we cannot remove the gadget snap"
-        not snap remove "$NEW_GADGET"
+        not snap remove --purge "$NEW_GADGET"
         echo "but we can remove the old gadget"
-        snap remove "$OLD_GADGET"
+        snap remove --purge "$OLD_GADGET"
         echo "And we can remodel again and remove the new gadget"
         snap remodel "$TESTSLIB"/assertions/developer1-pc-18-revno3.model
         REBOOT
@@ -118,7 +118,7 @@ execute: |
         wait_change_done "Refresh model assertion from revision 2 to 3"
         snap debug model|MATCH "revision: 3"
         echo "cleanup"
-        snap remove "$NEW_GADGET"
+        snap remove --purge "$NEW_GADGET"
         snap refresh --channel="$GADGET_CHANNEL" "$OLD_GADGET"
         REBOOT
     fi

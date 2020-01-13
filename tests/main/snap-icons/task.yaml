@@ -17,7 +17,7 @@ execute: |
     MATCH '^Icon=snap.test-snapd-icon-theme.foo$' < "$desktopfile"
 
     echo "Remove the snap"
-    snap remove test-snapd-icon-theme
+    snap remove --purge test-snapd-icon-theme
 
     echo "The icon has been removed"
     [ ! -f "$iconfile" ]

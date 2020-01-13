@@ -56,7 +56,7 @@ restore: |
     lxc stop xenial --force || true
     lxc delete --force xenial || true
 
-    snap remove lxd
+    snap remove --purge lxd
     lxd-tool undo-lxd-mount-changes
 
 execute: |

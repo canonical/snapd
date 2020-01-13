@@ -7,8 +7,8 @@ prepare: |
     snap pack test-snapd-content.v1
     snap pack test-snapd-content.v2
 restore: |
-    snap remove test-snapd-app
-    snap remove test-snapd-content
+    snap remove --purge test-snapd-app
+    snap remove --purge test-snapd-content
     rm -f test-snapd-content-app_1_all.snap test-snapd-content-{1,2}_all.snap
 execute: |
     snap install --dangerous test-snapd-app_1_all.snap
