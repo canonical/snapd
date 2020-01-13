@@ -7,6 +7,13 @@ debug: |
     cat /proc/partitions
 
 restore: |
+    if [[ -d ./mnt ]]; then
+        umount ./mnt || true
+    fi
+
+    cryptsetup close /dev/mapper/ubuntu-data || true
+    cryptsetup close /dev/mapper/test-udata || true
+
     if [ -f loop.txt ]; then
         losetup -d "$(cat loop.txt)"
     fi
