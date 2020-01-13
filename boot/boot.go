@@ -64,7 +64,7 @@ var _ BootParticipant = trivial{}
 // ensure trivial is a Kernel
 var _ BootKernel = trivial{}
 
-// Device carries information about the devie model and mode that is
+// Device carries information about the device model and mode that is
 // relevant to boot. Note snapstate.DeviceContext implements this, and that's
 // the expected use case.
 type Device interface {
@@ -73,6 +73,8 @@ type Device interface {
 
 	Kernel() string
 	Base() string
+
+	HasModeenv() bool
 }
 
 // Participant figures out what the BootParticipant is for the given
@@ -149,6 +151,7 @@ type bootState interface {
 	// the type's boot snap. actually committing the update
 	// is done via the returned bootStateUpdate's commit.
 	setNext(s snap.PlaceInfo) (rebootRequired bool, u bootStateUpdate, err error)
+
 	// markSuccessful lazily implements marking the boot
 	// successful for the type's boot snap. The actual committing
 	// of the update is done via bootStateUpdate's commit, that

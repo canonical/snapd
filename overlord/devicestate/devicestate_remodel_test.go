@@ -901,6 +901,8 @@ func (s *deviceMgrRemodelSuite) TestDeviceCtxNoTask(c *C) {
 	c.Check(deviceCtx.Kernel(), Equals, "kernel")
 	c.Check(deviceCtx.Base(), Equals, "")
 	c.Check(deviceCtx.RunMode(), Equals, true)
+	// not a uc20 model, so no modeenv
+	c.Check(deviceCtx.HasModeenv(), Equals, false)
 }
 
 func (s *deviceMgrRemodelSuite) TestDeviceCtxGroundContext(c *C) {
