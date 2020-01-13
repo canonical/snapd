@@ -28,7 +28,7 @@ import (
 
 func (s *cmdSuite) TestCreatePartitionsHappy(c *C) {
 	n := 0
-	restore := main.MockBootstrapRun(func(gadgetRoot, device string, opts *bootstrap.Options) error {
+	restore := main.MockBootstrapRun(func(gadgetRoot, device string, opts bootstrap.Options) error {
 		c.Check(gadgetRoot, Equals, "gadget-dir")
 		c.Check(device, Equals, "device")
 		n++
@@ -44,7 +44,7 @@ func (s *cmdSuite) TestCreatePartitionsHappy(c *C) {
 
 func (s *cmdSuite) TestCreatePartitionsMount(c *C) {
 	n := 0
-	restore := main.MockBootstrapRun(func(gadgetRoot, device string, opts *bootstrap.Options) error {
+	restore := main.MockBootstrapRun(func(gadgetRoot, device string, opts bootstrap.Options) error {
 		c.Check(gadgetRoot, Equals, "gadget-dir")
 		c.Check(device, Equals, "device")
 		c.Check(opts.Mount, Equals, true)
@@ -61,7 +61,7 @@ func (s *cmdSuite) TestCreatePartitionsMount(c *C) {
 
 func (s *cmdSuite) TestCreatePartitionsWithEncryption(c *C) {
 	n := 0
-	restore := main.MockBootstrapRun(func(gadgetRoot, device string, opts *bootstrap.Options) error {
+	restore := main.MockBootstrapRun(func(gadgetRoot, device string, opts bootstrap.Options) error {
 		c.Check(gadgetRoot, Equals, "gadget-dir")
 		c.Check(device, Equals, "device")
 		c.Check(opts.Encrypt, Equals, true)

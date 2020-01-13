@@ -20,8 +20,6 @@
 package main
 
 import (
-	"fmt"
-
 	"github.com/snapcore/snapd/cmd/snap-bootstrap/bootstrap"
 )
 
@@ -41,7 +39,7 @@ func init() {
 type cmdCreatePartitions struct {
 	Mount   bool   `short:"m" long:"mount" description:"Also mount filesystems after creation"`
 	Encrypt bool   `long:"encrypt" description:"Encrypt the data partition"`
-	KeyFile string `long:"key-file" value-name:"name" description:"Where the key file will be stored"`
+	KeyFile string `long:"key-file" value-name:"filename" description:"Where the key file will be stored"`
 
 	Positional struct {
 		GadgetRoot string `positional-arg-name:"<gadget-root>"`
@@ -50,11 +48,7 @@ type cmdCreatePartitions struct {
 }
 
 func (c *cmdCreatePartitions) Execute(args []string) error {
-	if c.Encrypt && c.KeyFile == "" {
-		return fmt.Errorf("if encrypting, the output key file must be specified")
-	}
-
-	options := &bootstrap.Options{
+	options := bootstrap.Options{
 		Mount:   c.Mount,
 		Encrypt: c.Encrypt,
 		KeyFile: c.KeyFile,

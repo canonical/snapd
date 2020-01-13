@@ -41,6 +41,7 @@ type EncryptionKey [keySize]byte
 
 func NewEncryptionKey() (EncryptionKey, error) {
 	var key EncryptionKey
+	// rand.Read() is protected against short reads
 	_, err := rand.Read(key[:])
 	// On return, n == len(b) if and only if err == nil
 	return key, err
@@ -94,7 +95,21 @@ func (dev *EncryptedDevice) Close() error {
 func cryptsetupFormat(key EncryptionKey, node string) error {
 	// We use a high entropy keyfile so we can keep the KDF iteration count to
 	// a minimum, longer processing will not increase security.
-	cmd := exec.Command("cryptsetup", "-q", "luksFormat", "--type", "luks2", "--key-file", "-", "--pbkdf", "argon2i", "--iter-time", "1", node)
+	args := []string{
+		// batch processing, no password verification
+		"-q",
+		// formatting a new device
+		"luksFormat",
+		// use LUKS2
+		"--type", "luks2",
+		// key file read from stdin
+		"--key-file", "-",
+		// user Argon2 for PBKDF
+		"--pbkdf", "argon2i", "--iter-time", "1",
+		// device to format
+		node,
+	}
+	cmd := exec.Command("cryptsetup", args...)
 	cmd.Stdin = bytes.NewReader(key[:])
 	if output, err := cmd.CombinedOutput(); err != nil {
 		return osutil.OutputErr(output, err)

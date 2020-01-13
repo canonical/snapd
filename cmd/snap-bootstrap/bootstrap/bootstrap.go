@@ -54,7 +54,11 @@ func deviceFromRole(lv *gadget.LaidOutVolume, role string) (device string, err e
 	return "", fmt.Errorf("cannot find role %s in gadget", role)
 }
 
-func Run(gadgetRoot, device string, options *Options) error {
+func Run(gadgetRoot, device string, options Options) error {
+	if options.Encrypt && options.KeyFile == "" {
+		return fmt.Errorf("key file must be specified when encrypting")
+	}
+
 	if gadgetRoot == "" {
 		return fmt.Errorf("cannot use empty gadget root directory")
 	}
