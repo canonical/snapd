@@ -137,10 +137,35 @@ func (g *grub) SetBootVars(values map[string]string) error {
 	return env.Save()
 }
 
+func (g *grub) extractedKernelDir(prefix string, s snap.PlaceInfo) string {
+	return filepath.Join(
+		prefix,
+		filepath.Base(s.MountFile()),
+	)
+}
+
 func (g *grub) ExtractKernelAssets(s snap.PlaceInfo, snapf snap.Container) error {
-	// XXX: should we use "kernel.yaml" for this?
-	if _, err := snapf.ReadFile("meta/force-kernel-extraction"); err == nil {
-		return extractKernelAssetsToBootDir(g.dir(), s, snapf)
+	// default kernel assets are:
+	// - kernel.img
+	// - initrd.img
+	// - dtbs/*
+	var assets []string
+	if g.uefiRunKernelExtraction {
+		assets = []string{"kernel.efi"}
+	} else {
+		assets = []string{"kernel.img", "initrd.img", "dtbs/*"}
+	}
+
+	// extraction can be forced through either a special file in the kernel snap
+	// or through an option in the bootloader
+	_, err := snapf.ReadFile("meta/force-kernel-extraction")
+	if g.uefiRunKernelExtraction || err == nil {
+		return extractKernelAssetsToBootDir(
+			g.extractedKernelDir(g.dir(), s),
+			s,
+			snapf,
+			assets,
+		)
 	}
 	return nil
 }

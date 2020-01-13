@@ -172,10 +172,8 @@ func ForceError(err error) {
 	forcedError = err
 }
 
-func extractKernelAssetsToBootDir(bootDir string, s snap.PlaceInfo, snapf snap.Container) error {
+func extractKernelAssetsToBootDir(dstDir string, s snap.PlaceInfo, snapf snap.Container, assets []string) error {
 	// now do the kernel specific bits
-	blobName := filepath.Base(s.MountFile())
-	dstDir := filepath.Join(bootDir, blobName)
 	if err := os.MkdirAll(dstDir, 0755); err != nil {
 		return err
 	}
@@ -185,7 +183,7 @@ func extractKernelAssetsToBootDir(bootDir string, s snap.PlaceInfo, snapf snap.C
 	}
 	defer dir.Close()
 
-	for _, src := range []string{"kernel.img", "initrd.img"} {
+	for _, src := range assets {
 		if err := snapf.Unpack(src, dstDir); err != nil {
 			return err
 		}
@@ -193,11 +191,7 @@ func extractKernelAssetsToBootDir(bootDir string, s snap.PlaceInfo, snapf snap.C
 			return err
 		}
 	}
-	if err := snapf.Unpack("dtbs/*", dstDir); err != nil {
-		return err
-	}
-
-	return dir.Sync()
+	return nil
 }
 
 func removeKernelAssetsFromBootDir(bootDir string, s snap.PlaceInfo) error {
