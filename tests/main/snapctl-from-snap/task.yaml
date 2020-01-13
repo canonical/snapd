@@ -93,7 +93,7 @@ execute: |
     check_cookie "$SNAP"
 
     echo "Verify that snap cookie is removed on snap removal"
-    snap remove "$SNAP"
+    snap remove --purge "$SNAP"
     if test -f "$COOKIE_FILE" ; then
         echo "Cookie file $COOKIE_FILE still exists"
         exit 1

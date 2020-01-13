@@ -53,7 +53,7 @@ execute: |
     MATCH "test-snapd-auto-aliases.wellknown2 +test_snapd_wellknown2 +disabled" < aliases.out
 
     echo "Removing the snap should remove the aliases"
-    snap remove test-snapd-auto-aliases_foo
+    snap remove --purge test-snapd-auto-aliases_foo
     test ! -e "$SNAP_MOUNT_DIR/bin/test_snapd_wellknown1"
     test ! -e "$SNAP_MOUNT_DIR/bin/test_snapd_wellknown2"
     snap aliases > aliases.out
@@ -73,7 +73,7 @@ execute: |
     test "$(readlink "$SNAP_MOUNT_DIR"/bin/test_snapd_wellknown2)" = "test-snapd-auto-aliases.wellknown2"
 
     # clean slate
-    snap remove test-snapd-auto-aliases
+    snap remove --purge test-snapd-auto-aliases
 
     echo "When test-snapd-auto-aliases_foo is installed"
     snap install test-snapd-auto-aliases_foo

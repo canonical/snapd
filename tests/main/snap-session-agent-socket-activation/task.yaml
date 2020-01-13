@@ -33,7 +33,7 @@ prepare: |
 
 restore: |
     if snap list test-snapd-curl; then
-        snap remove test-snapd-curl
+        snap remove --purge test-snapd-curl
     fi
     systemctl stop "user@${TEST_UID}.service"
     rm -rf "${USER_RUNTIME_DIR:?}"/* "${USER_RUNTIME_DIR:?}"/.[!.]*
