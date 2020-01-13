@@ -49,8 +49,8 @@ func NewEncryptionKey() (EncryptionKey, error) {
 
 // Store writes the LUKS key in the location specified by filename.
 func (key EncryptionKey) Store(filename string) error {
-	// XXX: must provision the TPM, generate and store the lockout authorization,
-	// and seal the key. Currently we're just storing the unprocessed data.
+	// TODO:UC20: provision the TPM, generate and store the lockout authorization,
+	//            and seal the key. Currently we're just storing the unprocessed data.
 	if err := ioutil.WriteFile(filename, key[:], 0600); err != nil {
 		return fmt.Errorf("cannot store key file: %v", err)
 	}

@@ -84,6 +84,9 @@ func Run(gadgetRoot, device string, options Options) error {
 		return fmt.Errorf("cannot read %v partitions: %v", device, err)
 	}
 
+	// TODO:UC20: if there are partitions on disk that were added during
+	//            a failed install attempt, remove them before proceeding.
+
 	// check if the current partition table is compatible with the gadget
 	if err := ensureLayoutCompatibility(lv, diskLayout); err != nil {
 		return fmt.Errorf("gadget and %v partition table not compatible: %v", device, err)
@@ -140,8 +143,6 @@ func Run(gadgetRoot, device string, options Options) error {
 }
 
 func ensureLayoutCompatibility(gadgetLayout *gadget.LaidOutVolume, diskLayout *partition.DeviceLayout) error {
-	// XXX: the compatibility tests don't recognize encrypted partitions, so we
-	//      won't be able to add more partitions if we already have LUKS devices.
 	eq := func(ds partition.DeviceStructure, gs gadget.LaidOutStructure) bool {
 		dv := ds.VolumeStructure
 		gv := gs.VolumeStructure
