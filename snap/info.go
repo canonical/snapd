@@ -46,6 +46,9 @@ type PlaceInfo interface {
 	// SnapName returns the name of the snap.
 	SnapName() string
 
+	// SnapRevision returns the revision of the snap.
+	SnapRevision() Revision
+
 	// MountDir returns the base directory of the snap.
 	MountDir() string
 
@@ -84,6 +87,35 @@ type PlaceInfo interface {
 func MinimalPlaceInfo(name string, revision Revision) PlaceInfo {
 	storeName, instanceKey := SplitInstanceName(name)
 	return &Info{SideInfo: SideInfo{RealName: storeName, Revision: revision}, InstanceKey: instanceKey}
+}
+
+// ParsePlaceInfoFromSnapFileName returns a PlaceInfo with just the location
+// information for a snap of file name, failing if the snap file name is invalid
+// This explicitly does not support filenames with instance names in them
+func ParsePlaceInfoFromSnapFileName(sn string) (PlaceInfo, error) {
+	if sn == "" {
+		return nil, fmt.Errorf("empty snap file name")
+	}
+	if strings.Count(sn, "_") > 1 {
+		// too many "_", probably has an instance key in the filename like in
+		// snap-name_key_23.snap
+		return nil, fmt.Errorf("too many '_' in snap file name")
+	}
+	idx := strings.IndexByte(sn, '_')
+	switch {
+	case idx < 0:
+		return nil, fmt.Errorf("snap file name %q has invalid format (missing '_')", sn)
+	case idx == 0:
+		return nil, fmt.Errorf("snap file name %q has invalid format (no snap name before '_')", sn)
+	}
+	// ensure that _ is not the last element
+	name := sn[:idx]
+	revnoNSuffix := sn[idx+1:]
+	rev, err := ParseRevision(strings.TrimSuffix(revnoNSuffix, ".snap"))
+	if err != nil {
+		return nil, fmt.Errorf("cannot parse revision in snap file name %q: %v", sn, err)
+	}
+	return &Info{SideInfo: SideInfo{RealName: name, Revision: rev}}, nil
 }
 
 // BaseDir returns the system level directory of given snap.
@@ -339,6 +371,11 @@ func (s *Info) SnapName() string {
 		return s.RealName
 	}
 	return s.SuggestedName
+}
+
+// SnapRevision returns the revision of the snap.
+func (s *Info) SnapRevision() Revision {
+	return s.Revision
 }
 
 // ID implements naming.SnapRef.

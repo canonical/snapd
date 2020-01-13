@@ -58,8 +58,7 @@ func (s *coreBootSetSuite) SetUpTest(c *C) {
 	s.baseBootSetSuite.SetUpTest(c)
 
 	s.bootloader = bootloadertest.Mock("mock", c.MkDir())
-	bootloader.Force(s.bootloader)
-	s.AddCleanup(func() { bootloader.Force(nil) })
+	s.forceBootloader(s.bootloader)
 }
 
 func (s *coreBootSetSuite) TestExtractKernelAssetsError(c *C) {
@@ -222,7 +221,14 @@ type ubootBootSetSuite struct {
 
 var _ = Suite(&ubootBootSetSuite{})
 
-func (s *ubootBootSetSuite) forceUbootBootloader(c *C) bootloader.Bootloader {
+func (s *ubootBootSetSuite) SetUpTest(c *C) {
+	s.baseBootSetSuite.SetUpTest(c)
+	s.forceUbootBootloader(c)
+}
+
+func (s *ubootBootSetSuite) forceUbootBootloader(c *C) {
+	bootloader.Force(nil)
+
 	mockGadgetDir := c.MkDir()
 	err := ioutil.WriteFile(filepath.Join(mockGadgetDir, "uboot.conf"), nil, 0644)
 	c.Assert(err, IsNil)
@@ -232,18 +238,13 @@ func (s *ubootBootSetSuite) forceUbootBootloader(c *C) bootloader.Bootloader {
 	bloader, err := bootloader.Find("", nil)
 	c.Assert(err, IsNil)
 	c.Check(bloader, NotNil)
-	bootloader.Force(bloader)
-	s.AddCleanup(func() { bootloader.Force(nil) })
+	s.forceBootloader(bloader)
 
 	fn := filepath.Join(s.bootdir, "/uboot/uboot.env")
 	c.Assert(osutil.FileExists(fn), Equals, true)
-	return bloader
 }
 
 func (s *ubootBootSetSuite) TestExtractKernelAssetsAndRemoveOnUboot(c *C) {
-	bloader := s.forceUbootBootloader(c)
-	c.Assert(bloader, NotNil)
-
 	files := [][]string{
 		{"kernel.img", "I'm a kernel"},
 		{"initrd.img", "...and I'm an initrd"},
@@ -300,7 +301,14 @@ type grubBootSetSuite struct {
 
 var _ = Suite(&grubBootSetSuite{})
 
+func (s *grubBootSetSuite) SetUpTest(c *C) {
+	s.baseBootSetSuite.SetUpTest(c)
+	s.forceGrubBootloader(c)
+}
+
 func (s *grubBootSetSuite) forceGrubBootloader(c *C) bootloader.Bootloader {
+	bootloader.Force(nil)
+
 	// make mock grub bootenv dir
 	mockGadgetDir := c.MkDir()
 	err := ioutil.WriteFile(filepath.Join(mockGadgetDir, "grub.conf"), nil, 0644)
@@ -315,8 +323,7 @@ func (s *grubBootSetSuite) forceGrubBootloader(c *C) bootloader.Bootloader {
 		"snap_kernel": "kernel_41.snap",
 		"snap_core":   "core_21.snap",
 	})
-	bootloader.Force(bloader)
-	s.AddCleanup(func() { bootloader.Force(nil) })
+	s.forceBootloader(bloader)
 
 	fn := filepath.Join(s.bootdir, "/grub/grub.cfg")
 	c.Assert(osutil.FileExists(fn), Equals, true)
@@ -324,8 +331,6 @@ func (s *grubBootSetSuite) forceGrubBootloader(c *C) bootloader.Bootloader {
 }
 
 func (s *grubBootSetSuite) TestExtractKernelAssetsNoUnpacksKernelForGrub(c *C) {
-	s.forceGrubBootloader(c)
-
 	files := [][]string{
 		{"kernel.img", "I'm a kernel"},
 		{"initrd.img", "...and I'm an initrd"},
@@ -356,8 +361,6 @@ func (s *grubBootSetSuite) TestExtractKernelAssetsNoUnpacksKernelForGrub(c *C) {
 }
 
 func (s *grubBootSetSuite) TestExtractKernelForceWorks(c *C) {
-	s.forceGrubBootloader(c)
-
 	files := [][]string{
 		{"kernel.img", "I'm a kernel"},
 		{"initrd.img", "...and I'm an initrd"},
