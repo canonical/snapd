@@ -417,13 +417,21 @@ func (s *servicesTestSuite) TestStartServices(c *C) {
 	svcFile := filepath.Join(s.tempdir, "/etc/systemd/system/snap.hello-snap.svc1.service")
 
 	enable := true
-	err := wrappers.StartServices(info.Services(), nil, enable, nil, s.perfTimings)
-	c.Assert(err, IsNil)
+	c.Check(wrappers.StartServices(info.Services(), nil, enable, nil, s.perfTimings), IsNil)
 
-	c.Assert(s.sysdLog, DeepEquals, [][]string{
+	c.Check(s.sysdLog, DeepEquals, [][]string{
 		{"--root", s.tempdir, "enable", filepath.Base(svcFile)},
 		{"start", filepath.Base(svcFile)},
 	})
+}
+
+func (s *servicesTestSuite) TestStartServicesEnabledConditional(c *C) {
+	info := snaptest.MockSnap(c, packageHello, &snap.SideInfo{Revision: snap.R(12)})
+	svcFile := filepath.Join(s.tempdir, "/etc/systemd/system/snap.hello-snap.svc1.service")
+
+	enable := false
+	c.Check(wrappers.StartServices(info.Services(), nil, enable, nil, s.perfTimings), IsNil)
+	c.Check(s.sysdLog, DeepEquals, [][]string{{"start", filepath.Base(svcFile)}})
 }
 
 func (s *servicesTestSuite) TestNoStartDisabledServices(c *C) {
