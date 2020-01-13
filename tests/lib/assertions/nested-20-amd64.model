@@ -2,21 +2,41 @@ type: model
 authority-id: BhgbYoDtThegqVkEU7oiZP8GQwCoUIxz
 series: 16
 brand-id: BhgbYoDtThegqVkEU7oiZP8GQwCoUIxz
-model: pc
+model: ubuntu-core-20-nested-amd64
 architecture: amd64
 base: core20
-gadget: pc=20
-kernel: pc-kernel=20
+grade: dangerous
+snaps:
+  -
+    default-channel: 20/edge
+    id: UqFziVZDHLSyO3TqSWgNBoAdHbLI4dAH
+    name: pc
+    type: gadget
+  -
+    default-channel: latest/edge
+    id: DLqre5XGLbDqg9jPtiAhRRjDuPVa5X1q
+    name: core20
+    type: base
+  -
+    default-channel: 20/edge
+    id: pYVQrBcKmBa0mZ4CCN7ExT6jH8rY1hza
+    name: pc-kernel
+    type: kernel
+  -
+    default-channel: latest/edge
+    id: PMrrV4ml8uWuEUDBT8dSGnKUYbevVhc4
+    name: snapd
+    type: snapd
 timestamp: 2020-01-10T10:06:04+00:00
 sign-key-sha3-384: 0u-IKZyVlTxwiBVOv7oT1FNKdfkKJyOSwbEWJPurlvtaGZxX6VrMHSESnIPeaNMC
 
-AcLBcwQAAQoAHRYhBMWWVcwwFvQaEaz9YITG74Zv2rilBQJeGOMqAAoJEITG74Zv2rilhusQAK4e
-lU5nLaVjHy5dQwjjm/putYWVWP7FMDAN+GEejbuEBf9WV+PqwV2nDIEtocqW+fLl0dCEN79IW392
-uMybtFVh7NPOkow85a0pzw+MpCe5Yn/K7KUHNotDCQkCU8I9Lc7zVSD995rKoZECHRULqEBea0Ku
-wbGM4zhF3+z6AMopcQwL0qoiKYDnwTbjGgbp2KIT82AEKLpGp3UGz/D1WeUxSEyWQ5avomv0GzGw
-gPmfYNs4cuiQfL66QeU6ijn4Zl861s3zagu94F3Lra/vW0f5PPxQUBrKQsw8+KrbqUTL5YiAZLMJ
-IKVsRZ/GmktrRbKtyO+7DdiUyDxXn3mSuKp0PtW7OfFYt4X62HPrlCNRFWRG/8N+YN02uli1LxDv
-OIQDyZZJRg2jl87WxSaICG8tEsycT4HlGw6sRx7rJQ2QIS6ElnCCK/AVucDMGzo2Uve0KOhJhZyL
-nDVAMIk7q1F/xd6bo2JYhYTHUR8BBiLRQu1UTgEMVmyJsKMeQsFb+TAUKObpwsZt3aZ3RHcuChZp
-gzqUkRjXAfpG2ay9DvWHL8f13KLdEuRBsu59HoEOP0GgMNnDXQx83ploltjoI57y9PSfLThx/f84
-wVykav+Cg8K5DX6vhcfsJI19GTyur3mXDq3WGM5jtLW0ANztJpRV7YjfDPxHPtsk6GuAZQ2Y
+AcLBcwQAAQoAHRYhBMWWVcwwFvQaEaz9YITG74Zv2rilBQJeHJIkAAoJEITG74Zv2ril6VYQAIRC
+H1tBCBQKwQ7Q05UmWsm8nLo2OjWAWscskinlZQQCz307cRnBVtaIaMyhNivoQnqXW4XpSj4w1i+O
+Jm2Q+3NYaempX/SHijBmATTO7OV5YIGLmD/OLuxRnEsLf2tTyPjiLpuCLII4hlWDg/jLcawE/0Cy
+PojDuIkZ9+l1/jeHen+jJLTX8ZXYj7njw/Y4Lv3TLS0OpHFUFLAfTwZAD2GAw/8tr+s6kIRCgZs5
+DuQdCOySVvg38LIIDpTEH1Av1OpGvEoMtc8FL20cfsiSdzXf3pcHQ4mlhJdpyIoJvEaf371M9X11
+zBVqzwXBlUF/wCNTo2xMQim/FFu8ipMzULgoKv/I1/e+3i0y/ariORGCBsozNuMlLeWAtmSLYfk3
+TGrFzYhb0F6nK4HiNKoX8SnCsNf4+1/fWagph0imUPgC8gq9ZlSAe40XzzTZjC2eGM38hwDaOxl+
+Kl2jZfIlJgDiQLWnItHRYkVQ05cTfaGWuwGExFSa7gGDYilYJ+UXn5szbCpZy/ZV2HAvOF3Qn1/Q
+U1T6zVGKs1RWpypFprWaGH4OtnRuKW4VO6QByXBh4VcCjrV0jhncG+E+EqaXeyTKaij+HorvpGda
+RvXZK6vZqNGbyHZvFDURlMHwzRjSycNIb5LuV7M868+Tly9v26XMIyTtkYbvAt2Jv3DIy/tD

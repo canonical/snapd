@@ -836,6 +836,8 @@ suites:
             . "$TESTSLIB"/pkgdb.sh
             distro_update_package_db
             distro_install_package snapd qemu genisoimage sshpass qemu-kvm cloud-image-utils ubuntu-image
+            # TODO: remove this once 2.43 is stable
+            snap install core --beta
 
             #shellcheck source=tests/lib/nested.sh
             . "$TESTSLIB/nested.sh"
@@ -875,7 +877,9 @@ suites:
             . "$TESTSLIB"/pkgdb.sh
             distro_update_package_db
             distro_install_package snapd qemu genisoimage sshpass qemu-kvm cloud-image-utils ubuntu-image
-
+            # TODO: remove this once 2.43 is stable
+            snap install core --beta
+            
             #shellcheck source=tests/lib/nested.sh
             . "$TESTSLIB/nested.sh"
             create_nested_core_vm
