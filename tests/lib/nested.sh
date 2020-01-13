@@ -57,6 +57,9 @@ get_image_url_for_nested_vm(){
     ubuntu-18.04-64)
         echo "https://cloud-images.ubuntu.com/bionic/current/bionic-server-cloudimg-amd64.img"
         ;;
+    ubuntu-20.04-64)
+        echo "https://cloud-images.ubuntu.com/focal/current/focal-server-cloudimg-amd64.img"
+        ;;
     *)
         echo "unsupported system"
         exit 1
@@ -88,6 +91,13 @@ is_classic_nested_system(){
     return 1
 }
 
+is_core_20_nested_system(){
+    if [ "$SPREAD_SYSTEM" = ubuntu-20.04-64 ]; then
+        return 0
+    fi
+    return 1
+}
+
 is_core_18_nested_system(){
     if [ "$SPREAD_SYSTEM" = ubuntu-18.04-64 ]; then
         return 0
@@ -114,7 +124,7 @@ refresh_to_new_core(){
             execute_remote "snap info core" | grep -E "^tracking: +latest/${NEW_CHANNEL}"
         fi
 
-        if is_core_18_nested_system; then
+        if is_core_18_nested_system || is_core_20_nested_system; then
             execute_remote "snap refresh snapd --${NEW_CHANNEL}"
             execute_remote "snap info snapd" | grep -E "^tracking: +latest/${NEW_CHANNEL}"
         else
@@ -149,6 +159,9 @@ create_nested_core_vm(){
             ;;
         ubuntu-18.04-64)
             NESTED_MODEL="$TESTSLIB/assertions/nested-18-amd64.model"
+            ;;
+        ubuntu-20.04-64)
+            NESTED_MODEL="$TESTSLIB/assertions/nested-20-amd64.model"
             ;;
         *)
             echo "unsupported system"

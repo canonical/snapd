@@ -1,0 +1,12 @@
+{
+    "type": "model",
+    "authority-id": "BhgbYoDtThegqVkEU7oiZP8GQwCoUIxz",
+    "series": "16",
+    "brand-id": "BhgbYoDtThegqVkEU7oiZP8GQwCoUIxz",
+    "model": "pc",
+    "architecture": "amd64",
+    "gadget": "pc=20",
+    "base": "core20",
+    "kernel": "pc-kernel=20",
+    "timestamp": "2020-01-10T10:06:04+00:00"
+}
