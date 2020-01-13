@@ -93,8 +93,9 @@ func (dev *EncryptedDevice) Close() error {
 }
 
 func cryptsetupFormat(key EncryptionKey, node string) error {
-	// We use a high entropy keyfile so we can keep the KDF iteration count to
-	// a minimum, longer processing will not increase security.
+	// We use a keyfile with the same entropy as the derived key so we can
+	// keep the KDF iteration count to a minimum. Longer processing will not
+	// increase security in this case.
 	args := []string{
 		// batch processing, no password verification
 		"-q",
