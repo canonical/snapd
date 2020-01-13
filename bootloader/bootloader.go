@@ -45,6 +45,9 @@ type Options struct {
 	// Recovery indicates to use the recovery bootloader. Note that
 	// UC16/18 do not have a recovery partition.
 	Recovery bool
+
+	// ExtractedRunKernelImage is whether to force kernel asset extraction
+	ExtractedRunKernelImage bool
 }
 
 // Bootloader provides an interface to interact with the system
