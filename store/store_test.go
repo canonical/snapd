@@ -5540,18 +5540,24 @@ func (s *storeTestSuite) TestSnapActionOptions(c *C) {
 }
 
 func (s *storeTestSuite) TestSnapActionInstall(c *C) {
-	s.testSnapActionGet("install", "", c)
+	s.testSnapActionGet("install", "", "", c)
 }
 func (s *storeTestSuite) TestSnapActionInstallWithCohort(c *C) {
-	s.testSnapActionGet("install", "what", c)
+	s.testSnapActionGet("install", "what", "", c)
 }
 func (s *storeTestSuite) TestSnapActionDownload(c *C) {
-	s.testSnapActionGet("download", "", c)
+	s.testSnapActionGet("download", "", "", c)
 }
 func (s *storeTestSuite) TestSnapActionDownloadWithCohort(c *C) {
-	s.testSnapActionGet("download", "here", c)
+	s.testSnapActionGet("download", "here", "", c)
 }
-func (s *storeTestSuite) testSnapActionGet(action, cohort string, c *C) {
+func (s *storeTestSuite) TestSnapActionInstallRedirect(c *C) {
+	s.testSnapActionGet("install", "", "2.0/candidate", c)
+}
+func (s *storeTestSuite) TestSnapActionDownloadRedirect(c *C) {
+	s.testSnapActionGet("download", "", "2.0/candidate", c)
+}
+func (s *storeTestSuite) testSnapActionGet(action, cohort, redirectChannel string, c *C) {
 	// action here is one of install or download
 	restore := release.MockOnClassic(false)
 	defer restore()
@@ -5602,6 +5608,7 @@ func (s *storeTestSuite) testSnapActionGet(action, cohort string, c *C) {
      "snap-id": "buPKUD3TKqCOgLEjjHx5kSiCpIs5cMuQ",
      "name": "hello-world",
      "effective-channel": "candidate",
+     "redirect-channel": "%s",
      "snap": {
        "snap-id": "buPKUD3TKqCOgLEjjHx5kSiCpIs5cMuQ",
        "name": "hello-world",
@@ -5614,7 +5621,7 @@ func (s *storeTestSuite) testSnapActionGet(action, cohort string, c *C) {
        }
      }
   }]
-}`, action)
+}`, action, redirectChannel)
 	}))
 
 	c.Assert(mockServer, NotNil)
@@ -5646,6 +5653,7 @@ func (s *storeTestSuite) testSnapActionGet(action, cohort string, c *C) {
 	c.Assert(results[0].Deltas, HasLen, 0)
 	// effective-channel
 	c.Assert(results[0].Channel, Equals, "candidate")
+	c.Assert(results[0].RedirectChannel, Equals, redirectChannel)
 }
 
 func (s *storeTestSuite) TestSnapActionInstallAmend(c *C) {

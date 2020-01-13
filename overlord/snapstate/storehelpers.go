@@ -82,22 +82,22 @@ func refreshOptions(st *state.State, origOpts *store.RefreshOptions) (*store.Ref
 	return &opts, nil
 }
 
-func installInfo(ctx context.Context, st *state.State, name string, revOpts *RevisionOptions, userID int, deviceCtx DeviceContext) (*snap.Info, error) {
+func installInfo(ctx context.Context, st *state.State, name string, revOpts *RevisionOptions, userID int, deviceCtx DeviceContext) (store.SnapActionResult, error) {
 	// TODO: support ignore-validation?
 
 	curSnaps, err := currentSnaps(st)
 	if err != nil {
-		return nil, err
+		return store.SnapActionResult{}, err
 	}
 
 	user, err := userFromUserID(st, userID)
 	if err != nil {
-		return nil, err
+		return store.SnapActionResult{}, err
 	}
 
 	opts, err := refreshOptions(st, nil)
 	if err != nil {
-		return nil, err
+		return store.SnapActionResult{}, err
 	}
 
 	action := &store.SnapAction{
@@ -167,7 +167,8 @@ func updateInfo(st *state.State, snapst *SnapState, opts *RevisionOptions, userI
 	res, err := theStore.SnapAction(context.TODO(), curSnaps, []*store.SnapAction{action}, user, refreshOpts)
 	st.Lock()
 
-	return singleActionResult(curInfo.InstanceName(), action.Action, res, err)
+	sar, err := singleActionResult(curInfo.InstanceName(), action.Action, res, err)
+	return sar.Info, err
 }
 
 func preUpdateInfo(st *state.State, snapst *SnapState, amend bool, userID int) (*snap.Info, *auth.UserState, error) {
@@ -192,18 +193,18 @@ func preUpdateInfo(st *state.State, snapst *SnapState, amend bool, userID int) (
 
 var ErrMissingExpectedResult = fmt.Errorf("unexpectedly empty response from the server (try again later)")
 
-func singleActionResult(name, action string, results []store.SnapActionResult, e error) (info *snap.Info, err error) {
+func singleActionResult(name, action string, results []store.SnapActionResult, e error) (store.SnapActionResult, error) {
 	if len(results) > 1 {
-		return nil, fmt.Errorf("internal error: multiple store results for a single snap op")
+		return store.SnapActionResult{}, fmt.Errorf("internal error: multiple store results for a single snap op")
 	}
 	if len(results) > 0 {
 		// TODO: if we also have an error log/warn about it
-		return results[0].Info, nil
+		return results[0], nil
 	}
 
 	if saErr, ok := e.(*store.SnapActionError); ok {
 		if len(saErr.Other) != 0 {
-			return nil, saErr
+			return store.SnapActionResult{}, saErr
 		}
 
 		var snapErr error
@@ -214,16 +215,16 @@ func singleActionResult(name, action string, results []store.SnapActionResult, e
 			snapErr = saErr.Install[name]
 		}
 		if snapErr != nil {
-			return nil, snapErr
+			return store.SnapActionResult{}, snapErr
 		}
 
 		// no result, atypical case
 		if saErr.NoResults {
-			return nil, ErrMissingExpectedResult
+			return store.SnapActionResult{}, ErrMissingExpectedResult
 		}
 	}
 
-	return nil, e
+	return store.SnapActionResult{}, e
 }
 
 func updateToRevisionInfo(st *state.State, snapst *SnapState, revision snap.Revision, userID int, deviceCtx DeviceContext) (*snap.Info, error) {
@@ -257,7 +258,8 @@ func updateToRevisionInfo(st *state.State, snapst *SnapState, revision snap.Revi
 	res, err := theStore.SnapAction(context.TODO(), curSnaps, []*store.SnapAction{action}, user, opts)
 	st.Lock()
 
-	return singleActionResult(curInfo.InstanceName(), action.Action, res, err)
+	sar, err := singleActionResult(curInfo.InstanceName(), action.Action, res, err)
+	return sar.Info, err
 }
 
 func currentSnaps(st *state.State) ([]*store.CurrentSnap, error) {
