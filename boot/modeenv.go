@@ -44,7 +44,11 @@ type Modeenv struct {
 	read bool
 }
 
-func ReadModeenv(rootdir string) (*Modeenv, error) {
+var ReadModeenv = readModeenv
+
+// readModeenv will attempt to read the file specified by
+// "rootdir/dirs.SnapModeenvFile" as a Modeenv
+func readModeenv(rootdir string) (*Modeenv, error) {
 	modeenvPath := filepath.Join(rootdir, dirs.SnapModeenvFile)
 	cfg := goconfigparser.New()
 	cfg.AllowNoSectionHeader = true
@@ -69,6 +73,8 @@ func (m *Modeenv) Unset() bool {
 	return !m.read
 }
 
+// Write outputs the modeenv to the file specified by
+// "rootdir/dirs.SnapModeenvFile".
 func (m *Modeenv) Write(rootdir string) error {
 	modeenvPath := filepath.Join(rootdir, dirs.SnapModeenvFile)
 
