@@ -26,6 +26,7 @@ import (
 
 	"gopkg.in/tomb.v2"
 
+	"github.com/snapcore/snapd/asserts"
 	"github.com/snapcore/snapd/boot"
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/osutil"
@@ -55,9 +56,30 @@ func (m *DeviceManager) doSetupRunSystem(t *state.Task, _ *tomb.Tomb) error {
 	}
 	gadgetDir := gadgetInfo.MountDir()
 
+	args := []string{
+		// create partitions missing from the device
+		"create-partitions",
+		// mount filesystems after they're created
+		"--mount",
+	}
+
+	useEncryption, err := checkEncryption(deviceCtx.Model())
+	if err != nil {
+		return fmt.Errorf("cannot encrypt device: %v", err)
+	}
+	if useEncryption {
+		args = append(args,
+			// enable data encryption
+			"--encrypt",
+			// location to store the sealed keyfile
+			"--keyfile", filepath.Join(dirs.RunMnt, "ubuntu-boot", "keyfile"),
+		)
+	}
+	args = append(args, gadgetDir)
+
 	// run the create partition code
 	st.Unlock()
-	output, err := exec.Command(filepath.Join(dirs.DistroLibExecDir, "snap-bootstrap"), "create-partitions", "--mount", gadgetDir).CombinedOutput()
+	output, err := exec.Command(filepath.Join(dirs.DistroLibExecDir, "snap-bootstrap"), args...).CombinedOutput()
 	st.Lock()
 	if err != nil {
 		return fmt.Errorf("cannot create partitions: %v", osutil.OutputErr(output, err))
@@ -91,4 +113,11 @@ func (m *DeviceManager) doSetupRunSystem(t *state.Task, _ *tomb.Tomb) error {
 	st.RequestRestart(state.RestartSystem)
 
 	return nil
+}
+
+func checkEncryption(model *asserts.Model) (bool, error) {
+	encryptionRequested := model.Grade() == asserts.ModelSecured
+	// TODO:UC20: also check if TPM is available, and return an error if the device must be
+	//            encrypted but but we don't have TPM support
+	return encryptionRequested, nil
 }

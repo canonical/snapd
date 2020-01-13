@@ -62,7 +62,7 @@ func (s *deviceMgrInstallModeSuite) SetUpTest(c *C) {
 	s.state.Set("seeded", true)
 }
 
-func (s *deviceMgrInstallModeSuite) makeMockInstalledPcGadget(c *C) *asserts.Model {
+func (s *deviceMgrInstallModeSuite) makeMockInstalledPcGadget(c *C, grade string) *asserts.Model {
 	const (
 		pcSnapID       = "pcididididididididididididididid"
 		pcKernelSnapID = "pckernelidididididididididididid"
@@ -116,6 +116,7 @@ func (s *deviceMgrInstallModeSuite) makeMockInstalledPcGadget(c *C) *asserts.Mod
 		"display-name": "my model",
 		"architecture": "amd64",
 		"base":         "core20",
+		"grade":        grade,
 		"snaps": []interface{}{
 			map[string]interface{}{
 				"name":            "pc-kernel",
@@ -147,7 +148,8 @@ func (s *deviceMgrInstallModeSuite) TestInstallModeRunChange(c *C) {
 	defer mockSnapBootstrapCmd.Restore()
 
 	s.state.Lock()
-	mockModel := s.makeMockInstalledPcGadget(c)
+	// model grades up to signed will not be encrypted
+	mockModel := s.makeMockInstalledPcGadget(c, "signed")
 	s.state.Unlock()
 
 	bootMakeBootableCalled := 0
@@ -192,7 +194,7 @@ func (s *deviceMgrInstallModeSuite) TestInstallTaskErrors(c *C) {
 	defer mockSnapBootstrapCmd.Restore()
 
 	s.state.Lock()
-	s.makeMockInstalledPcGadget(c)
+	s.makeMockInstalledPcGadget(c, "dangerous")
 	devicestate.SetOperatingMode(s.mgr, "install")
 	s.state.Unlock()
 
@@ -242,4 +244,54 @@ func (s *deviceMgrInstallModeSuite) TestInstallModeNotClassic(c *C) {
 	// the install-system change is *not* created (we're on classic)
 	installSystem := s.findInstallSystem()
 	c.Assert(installSystem, IsNil)
+}
+
+func (s *deviceMgrInstallModeSuite) TestInstallModeEncrypted(c *C) {
+	restore := release.MockOnClassic(false)
+	defer restore()
+
+	mockSnapBootstrapCmd := testutil.MockCommand(c, filepath.Join(dirs.DistroLibExecDir, "snap-bootstrap"), "")
+	defer mockSnapBootstrapCmd.Restore()
+
+	s.state.Lock()
+	// model grade secured requires encryption
+	mockModel := s.makeMockInstalledPcGadget(c, "secured")
+	s.state.Unlock()
+
+	bootMakeBootableCalled := 0
+	restore = devicestate.MockBootMakeBootable(func(model *asserts.Model, rootdir string, bootWith *boot.BootableSet) error {
+		c.Check(model, DeepEquals, mockModel)
+		c.Check(rootdir, Equals, dirs.GlobalRootDir)
+		c.Check(bootWith.KernelPath, Matches, ".*/var/lib/snapd/snaps/pc-kernel_1.snap")
+		c.Check(bootWith.BasePath, Matches, ".*/var/lib/snapd/snaps/core20_2.snap")
+		c.Check(bootWith.RecoverySystemDir, Matches, "/systems/20191218")
+		bootMakeBootableCalled++
+		return nil
+	})
+	defer restore()
+
+	devicestate.SetOperatingMode(s.mgr, "install")
+	devicestate.SetRecoverySystem(s.mgr, "20191218")
+
+	s.settle(c)
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	// the install-system change is created
+	installSystem := s.findInstallSystem()
+	c.Assert(installSystem, NotNil)
+
+	// and was run successfully
+	c.Check(installSystem.Err(), IsNil)
+	c.Check(installSystem.Status(), Equals, state.DoneStatus)
+	// in the right way
+	c.Check(mockSnapBootstrapCmd.Calls(), DeepEquals, [][]string{
+		{
+			"snap-bootstrap", "create-partitions", "--mount", "--encrypt",
+			"--keyfile", filepath.Join(dirs.RunMnt, "ubuntu-boot/keyfile"),
+			filepath.Join(dirs.SnapMountDir, "/pc/1"),
+		},
+	})
+	c.Check(bootMakeBootableCalled, Equals, 1)
+	c.Check(s.restartRequests, DeepEquals, []state.RestartType{state.RestartSystem})
 }
