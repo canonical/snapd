@@ -69,7 +69,11 @@ func printVersions(cli *client.Client) error {
 		fmt.Fprintf(w, "kernel\t%s\n", sv.KernelVersion)
 	}
 	if sv.Architecture != "" {
-		fmt.Fprintf(w, "host\t%s %s\n", sv.Architecture, sv.Virtualization)
+		if sv.Virtualization != "" {
+			fmt.Fprintf(w, "host\t%s/%s\n", sv.Architecture, sv.Virtualization)
+		} else {
+			fmt.Fprintf(w, "host\t%s\n", sv.Architecture)
+		}
 	}
 
 	w.Flush()
