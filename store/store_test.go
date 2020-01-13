@@ -1625,6 +1625,7 @@ func (s *storeTestSuite) TestDoRequestSetsExtraHeaders(c *C) {
 		c.Check(r.Header.Get("X-Foo-Header"), Equals, `Bar`)
 		c.Check(r.Header.Get("Content-Type"), Equals, `application/bson`)
 		c.Check(r.Header.Get("Accept"), Equals, `application/hal+bson`)
+		c.Check(r.Header.Get("Snap-Device-Capabilities"), Equals, "default-tracks")
 		io.WriteString(w, "response-data")
 	}))
 	c.Assert(mockServer, NotNil)

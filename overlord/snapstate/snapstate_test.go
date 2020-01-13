@@ -2057,7 +2057,7 @@ func (s *snapmgrTestSuite) TestInstallStrictIgnoresClassic(c *C) {
 	c.Check(snapst.Classic, Equals, false)
 }
 
-func (s *snapmgrTestSuite) TestInstallPotato(c *C) {
+func (s *snapmgrTestSuite) TestInstallSnapWithDefaultTrack(c *C) {
 	restore := maybeMockClassicSupport(c)
 	defer restore()
 
@@ -2066,8 +2066,6 @@ func (s *snapmgrTestSuite) TestInstallPotato(c *C) {
 
 	opts := &snapstate.RevisionOptions{Channel: "candidate"}
 	ts, err := snapstate.Install(context.Background(), s.state, "some-snap-with-default-track", opts, s.user.ID, snapstate.Flags{Classic: true})
-	c.Assert(err, IsNil)
-
 	c.Assert(err, IsNil)
 
 	chg := s.state.NewChange("install", "install snap")
@@ -2086,6 +2084,42 @@ func (s *snapmgrTestSuite) TestInstallPotato(c *C) {
 	err = snapstate.Get(s.state, "some-snap-with-default-track", &snapst)
 	c.Assert(err, IsNil)
 	c.Check(snapst.TrackingChannel, Equals, "2.0/candidate")
+}
+
+func (s *snapmgrTestSuite) TestInstallManySnapOneWithDefaultTrack(c *C) {
+	restore := maybeMockClassicSupport(c)
+	defer restore()
+
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	snapNames := []string{"some-snap", "some-snap-with-default-track"}
+	installed, tss, err := snapstate.InstallMany(s.state, snapNames, s.user.ID)
+	c.Assert(err, IsNil)
+	c.Assert(installed, DeepEquals, snapNames)
+
+	chg := s.state.NewChange("install", "install two snaps")
+	for _, ts := range tss {
+		chg.AddAll(ts)
+	}
+
+	s.state.Unlock()
+	defer s.se.Stop()
+	s.settle(c)
+	s.state.Lock()
+
+	c.Assert(chg.Err(), IsNil)
+	c.Assert(chg.IsReady(), Equals, true)
+
+	// verify snap is in the 2.0 track
+	var snapst snapstate.SnapState
+	err = snapstate.Get(s.state, "some-snap-with-default-track", &snapst)
+	c.Assert(err, IsNil)
+	c.Check(snapst.TrackingChannel, Equals, "2.0/stable")
+
+	err = snapstate.Get(s.state, "some-snap", &snapst)
+	c.Assert(err, IsNil)
+	c.Check(snapst.TrackingChannel, Equals, "latest/stable")
 }
 
 // A sneakyStore changes the state when called

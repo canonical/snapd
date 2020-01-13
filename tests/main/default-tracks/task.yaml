@@ -4,10 +4,13 @@ environment:
     A_SNAP: fooxboo1
     A_TRACK: 2.0
 
+prepare: |
+    snap install http jq
+
 execute: |
     # first, sanity check that the snap has a default track
-    curl -s -H Snap-Device-Series:16 "https://api.snapcraft.io/v2/snaps/info/$A_SNAP" > info
-    test "$( jq -r '."default-track"' < info )" == "$A_TRACK"
+    snap run http GET "https://api.snapcraft.io/v2/snaps/info/$A_SNAP" Snap-Device-Series:16 > info
+    test "$( snap run  jq -r '."default-track"' < info )" == "$A_TRACK"
 
     # TODO: check the output of 'snap info' for the default-track-having snap
     # once that works as expected (order of tracks is wrong right now)
@@ -17,4 +20,4 @@ execute: |
     # now install a snap that has a default track
     snap install --candidate "$A_SNAP" | MATCH "$A_TRACK/candidate"
 
-    test "$( jq -r ".data.snaps.\"$A_SNAP\".channel" /var/lib/snapd/state.json )" = "$A_TRACK/candidate"
+    test "$( snap run  jq -r ".data.snaps.\"$A_SNAP\".channel" < /var/lib/snapd/state.json )" = "$A_TRACK/candidate"
