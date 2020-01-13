@@ -1492,3 +1492,71 @@ func (s *deviceMgrSuite) TestRemodelSwitchBase(c *C) {
 	// API was hit
 	c.Assert(snapstateInstallWithDeviceContextCalled, Equals, 1)
 }
+
+var mockCore20ModelHeaders = map[string]interface{}{
+	"brand":        "canonical",
+	"model":        "pc-model-20",
+	"architecture": "amd64",
+	"grade":        "dangerous",
+	"base":         "core20",
+	"snaps": []interface{}{
+		map[string]interface{}{
+			"name":            "pc-kernel",
+			"id":              "pckernelidididididididididididid",
+			"type":            "kernel",
+			"default-channel": "20",
+		},
+		map[string]interface{}{
+			"name":            "pc",
+			"id":              "pcididididididididididididididid",
+			"type":            "gadget",
+			"default-channel": "20",
+		}},
+}
+
+func (s *deviceMgrRemodelSuite) TestRemodelNoUC20RemodelYet(c *C) {
+	s.state.Lock()
+	defer s.state.Unlock()
+	s.state.Set("seeded", true)
+
+	// set a model assertion
+	cur := mockCore20ModelHeaders
+	s.makeModelAssertionInState(c, cur["brand"].(string), cur["model"].(string), map[string]interface{}{
+		"architecture": cur["architecture"],
+		"base":         cur["base"],
+		"grade":        cur["grade"],
+		"snaps":        cur["snaps"],
+	})
+	devicestatetest.SetDevice(s.state, &auth.DeviceState{
+		Brand: cur["brand"].(string),
+		Model: cur["model"].(string),
+	})
+
+	// ensure all error cases are checked
+	for _, t := range []struct {
+		new    map[string]interface{}
+		errStr string
+	}{
+		// uc20 model
+		{map[string]interface{}{"grade": "signed"}, "cannot remodel Ubuntu Core 20 models yet"},
+		{map[string]interface{}{"base": "core22"}, "cannot remodel Ubuntu Core 20 models yet"},
+		// non-uc20 model
+		{map[string]interface{}{"snaps": nil, "base": "core", "gadget": "pc", "kernel": "pc-kernel"}, "cannot remodel Ubuntu Core 20 models yet"},
+	} {
+		// copy current model unless new model test data is different
+		for k, v := range cur {
+			if t.new[k] != nil {
+				continue
+			}
+			t.new[k] = v
+		}
+		new := s.brands.Model(t.new["brand"].(string), t.new["model"].(string), map[string]interface{}{
+			"architecture": t.new["architecture"],
+			"base":         t.new["base"],
+			"snaps":        t.new["snaps"],
+		})
+		chg, err := devicestate.Remodel(s.state, new)
+		c.Check(chg, IsNil)
+		c.Check(err, ErrorMatches, t.errStr)
+	}
+}
