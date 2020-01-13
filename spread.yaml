@@ -150,7 +150,7 @@ backends:
                 image: ubuntu-1804-64-virt-enabled
                 workers: 1
             - ubuntu-20.04-64:
-                image: ubuntu-2004-64-virt-enabled
+                image: ubuntu-2004-64-virt-uefi-enabled
                 workers: 1
 
     qemu:
