@@ -31,9 +31,10 @@ import (
 
 // sanity - grub implements the required interfaces
 var (
-	_ Bootloader              = (*grub)(nil)
-	_ installableBootloader   = (*grub)(nil)
-	_ RecoveryAwareBootloader = (*grub)(nil)
+	_ Bootloader                        = (*grub)(nil)
+	_ installableBootloader             = (*grub)(nil)
+	_ RecoveryAwareBootloader           = (*grub)(nil)
+	_ ExtractedRunKernelImageBootloader = (*grub)(nil)
 )
 
 type grub struct {
@@ -172,4 +173,86 @@ func (g *grub) ExtractKernelAssets(s snap.PlaceInfo, snapf snap.Container) error
 
 func (g *grub) RemoveKernelAssets(s snap.PlaceInfo) error {
 	return removeKernelAssetsFromBootDir(g.dir(), s)
+}
+
+// ExtractedRunKernelImageBootloader helper methods
+
+func (g *grub) makeKernelEfiSymlink(s snap.PlaceInfo, name string) error {
+	return os.Symlink(
+		// don't use g.dir() because we don't want the rootdir in the symlink
+		// target, we want EFI/ubuntu always, even if grub is really working
+		// from /run/mnt/ubuntu-boot/EFI/ubuntu, etc.
+		filepath.Join(g.extractedKernelDir(g.basedir, s), "kernel.efi"),
+		filepath.Join(g.rootdir, name),
+	)
+}
+
+func (g *grub) unlinkKernelEfiSymlink(name string) error {
+	symlink := filepath.Join(g.rootdir, name)
+	if osutil.FileExists(symlink) {
+		return osutil.UnlinkMany(g.rootdir, []string{name})
+	}
+
+	// return more helpful error if the symlink doesn't exist
+	return fmt.Errorf("cannot disable kernel, symlink %s missing", symlink)
+}
+
+func (g *grub) readKernelSymlink(name string) (snap.PlaceInfo, error) {
+	// read the symlink from <grub-root-dir>/<name> to
+	// <grub-root-dir>/EFI/ubuntu/<snap-name>.snap/<name> and parse the
+	// directory (which is supposed to be the name of the snap)
+	targetKernelEfi, err := os.Readlink(filepath.Join(g.rootdir, "kernel.efi"))
+	if err != nil {
+		return nil, fmt.Errorf("couldn't read kernel.efi symlink: %v", err)
+	}
+	kernelSnapFileName := filepath.Base(filepath.Dir(targetKernelEfi))
+	sn, err := snap.ParsePlaceInfoFromSnapFileName(kernelSnapFileName)
+	if err != nil {
+		return nil, fmt.Errorf(
+			"bad kernel snap file path at %q, unable to parse into snap file name: %v",
+			kernelSnapFileName,
+			err,
+		)
+	}
+	return sn, nil
+}
+
+// actual ExtractedRunKernelImageBootloader methods
+
+func (g *grub) EnableKernel(s snap.PlaceInfo) error {
+	// add symlink from ubuntuBootPartition/kernel.efi to
+	// <ubuntu-boot>/EFI/ubuntu/<snap-name>.snap/kernel.efi
+	// so that we are consistent between uc16/uc18 and uc20 with where we
+	// extract kernels
+	return g.makeKernelEfiSymlink(s, "kernel.efi")
+}
+
+func (g *grub) EnableTryKernel(s snap.PlaceInfo) error {
+	// add symlink from ubuntuBootPartition/kernel.efi to
+	// <ubuntu-boot>/EFI/ubuntu/<snap-name>.snap/kernel.efi
+	// so that we are consistent between uc16/uc18 and uc20 with where we
+	// extract kernels
+	return g.makeKernelEfiSymlink(s, "try-kernel.efi")
+}
+
+func (g *grub) DisableTryKernel() error {
+	return g.unlinkKernelEfiSymlink("try-kernel.efi")
+}
+
+func (g *grub) Kernel() (snap.PlaceInfo, error) {
+	return g.readKernelSymlink("kernel.efi")
+}
+
+func (g *grub) TryKernel() (snap.PlaceInfo, bool, error) {
+	// try to read the symlink from ubuntuBootPartition/try-kernel.efi
+	if osutil.FileExists(filepath.Join(g.rootdir, "try-kernel.efi")) {
+		p, err := g.readKernelSymlink("try-kernel.efi")
+		// if we failed to read the symlink, then the try kernel isn't usable,
+		// so return err because the symlink is there
+		if err != nil {
+			return nil, false, err
+		}
+		return p, true, nil
+	}
+	return nil, false, nil
 }

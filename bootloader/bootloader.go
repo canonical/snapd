@@ -87,6 +87,15 @@ type RecoveryAwareBootloader interface {
 	SetRecoverySystemEnv(recoverySystemDir string, values map[string]string) error
 }
 
+type ExtractedRunKernelImageBootloader interface {
+	Bootloader
+	EnableKernel(snap.PlaceInfo) error        // makes the symlink
+	EnableTryKernel(snap.PlaceInfo) error     // makes the symlink
+	Kernel() (snap.PlaceInfo, error)          // gives the symlink
+	TryKernel() (snap.PlaceInfo, bool, error) // gives the symlink (if exists)
+	DisableTryKernel() error                  // removes the symlink
+}
+
 func genericInstallBootConfig(gadgetFile, systemFile string) (bool, error) {
 	if !osutil.FileExists(gadgetFile) {
 		return false, nil
