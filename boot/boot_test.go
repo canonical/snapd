@@ -386,3 +386,24 @@ func (s *bootSetSuite) TestMarkBootSuccessfulKKernelUpdate(c *C) {
 		"snap_kernel": "k2",
 	})
 }
+func (s *bootSetSuite) TestMarkBootSuccessfulBaseUpdate(c *C) {
+	coreDev := boottest.MockDevice("some-snap")
+
+	s.bootloader.BootVars["snap_mode"] = "trying"
+	s.bootloader.BootVars["snap_core"] = "os1"
+	s.bootloader.BootVars["snap_kernel"] = "k1"
+	s.bootloader.BootVars["snap_try_core"] = "os2"
+	s.bootloader.BootVars["snap_try_kernel"] = ""
+	err := boot.MarkBootSuccessful(coreDev)
+	c.Assert(err, IsNil)
+	c.Assert(s.bootloader.BootVars, DeepEquals, map[string]string{
+		// cleared
+		"snap_mode":     "",
+		"snap_try_core": "",
+		// unchanged
+		"snap_kernel":     "k1",
+		"snap_try_kernel": "",
+		// updated
+		"snap_core": "os2",
+	})
+}
