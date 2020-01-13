@@ -155,8 +155,8 @@ func Find(rootdir string, opts *Options) (Bootloader, error) {
 	return nil, ErrBootloader
 }
 
-// Force can be used to force setting a booloader to that Find will not use the
-// usual lookup process; use nil to reset to normal lookup.
+// Force can be used to force Find to always find the specified bootloader; use
+// nil to reset to normal lookup.
 func Force(booloader Bootloader) {
 	forcedBootloader = booloader
 	forcedError = nil
