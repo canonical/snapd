@@ -200,9 +200,7 @@ type bootStateUpdate20 struct {
 }
 
 func newBootStateUpdate20(u bootStateUpdate, typ snap.Type) (*bootStateUpdate20, error) {
-	// TODO:UC20: can a base snap update be chained with a kernel snap update?
-	//            because this implementation assumes that it _cannot_, so we
-	//            only handle one type per bootStateUpdate20 instance
+	// TODO:UC20: re-factor to handle base snap update as well as kernel snap
 	// TODO:UC20: handle base_status from modeenv as well
 	if u != nil {
 		u20, ok := u.(*bootStateUpdate20)
