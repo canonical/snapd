@@ -119,5 +119,10 @@ func checkEncryption(model *asserts.Model) (bool, error) {
 	// TODO:UC20: also check if TPM is available, and return an error if the device must be
 	//            encrypted but we don't have TPM support
 
+	// Force encryption regardless of grade for developer testing
+	if osutil.FileExists(filepath.Join(dirs.RunMnt, "ubuntu-seed", ".force-encryption")) {
+		return true, nil
+	}
+
 	return model.Grade() == asserts.ModelSecured, nil
 }
