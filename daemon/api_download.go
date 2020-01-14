@@ -76,14 +76,14 @@ func streamOneSnap(c *Command, action snapDownloadAction, user *auth.UserState) 
 		CohortKey:    action.CohortKey,
 		Channel:      action.Channel,
 	}}
-	snaps, err := getStore(c).SnapAction(context.TODO(), nil, actions, user, nil)
+	sars, err := getStore(c).SnapAction(context.TODO(), nil, actions, user, nil)
 	if err != nil {
 		return errToResponse(err, []string{action.SnapName}, InternalError, "cannot download snap: %v")
 	}
-	if len(snaps) != 1 {
-		return InternalError("internal error: unexpected number %v of results for a single download", len(snaps))
+	if len(sars) != 1 {
+		return InternalError("internal error: unexpected number %v of results for a single download", len(sars))
 	}
-	info := snaps[0]
+	info := sars[0].Info
 
 	downloadInfo := info.DownloadInfo
 	r, err := getStore(c).DownloadStream(context.TODO(), action.SnapName, &downloadInfo, user)

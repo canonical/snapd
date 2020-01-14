@@ -814,7 +814,8 @@ func InstallMany(st *state.State, names []string, userID int) ([]string, []*stat
 	}
 
 	tasksets := make([]*state.TaskSet, 0, len(installs))
-	for _, info := range installs {
+	for _, sar := range installs {
+		info := sar.Info
 		var snapst SnapState
 		var flags Flags
 

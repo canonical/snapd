@@ -113,7 +113,7 @@ var storeSnaps = map[string]*snap.Info{
 	},
 }
 
-func (s *snapDownloadSuite) SnapAction(ctx context.Context, currentSnaps []*store.CurrentSnap, actions []*store.SnapAction, user *auth.UserState, opts *store.RefreshOptions) ([]*snap.Info, error) {
+func (s *snapDownloadSuite) SnapAction(ctx context.Context, currentSnaps []*store.CurrentSnap, actions []*store.SnapAction, user *auth.UserState, opts *store.RefreshOptions) ([]store.SnapActionResult, error) {
 	if len(actions) != 1 {
 		panic(fmt.Sprintf("unexpected amount of actions: %v", len(actions)))
 	}
@@ -131,7 +131,7 @@ func (s *snapDownloadSuite) SnapAction(ctx context.Context, currentSnaps []*stor
 	if !action.Revision.Unset() && action.Revision != info.Revision {
 		panic(fmt.Sprintf("unexpected revision %q for %s snap", action.Revision, action.InstanceName))
 	}
-	return []*snap.Info{info}, nil
+	return []store.SnapActionResult{{Info: info}}, nil
 }
 
 func (s *snapDownloadSuite) DownloadStream(ctx context.Context, name string, downloadInfo *snap.DownloadInfo, user *auth.UserState) (io.ReadCloser, error) {
