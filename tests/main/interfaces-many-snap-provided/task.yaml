@@ -85,5 +85,5 @@ restore: |
     if is_core_system; then
         PROVIDER_SNAP="test-snapd-policy-app-provider-core"
     fi
-    snap remove "$PROVIDER_SNAP"
-    snap remove "$CONSUMER_SNAP"
+    snap remove --purge "$PROVIDER_SNAP"
+    snap remove --purge "$CONSUMER_SNAP"

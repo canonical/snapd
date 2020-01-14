@@ -27,7 +27,6 @@ import (
 	"github.com/snapcore/snapd/boot"
 	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/progress"
-	"github.com/snapcore/snapd/release"
 	"github.com/snapcore/snapd/snap"
 )
 
@@ -40,7 +39,7 @@ type InstallRecord struct {
 }
 
 // SetupSnap does prepare and mount the snap for further processing.
-func (b Backend) SetupSnap(snapFilePath, instanceName string, sideInfo *snap.SideInfo, meter progress.Meter) (snapType snap.Type, installRecord *InstallRecord, err error) {
+func (b Backend) SetupSnap(snapFilePath, instanceName string, sideInfo *snap.SideInfo, dev boot.Device, meter progress.Meter) (snapType snap.Type, installRecord *InstallRecord, err error) {
 	// This assumes that the snap was already verified or --dangerous was used.
 
 	s, snapf, oErr := OpenSnapFile(snapFilePath, sideInfo)
@@ -59,7 +58,7 @@ func (b Backend) SetupSnap(snapFilePath, instanceName string, sideInfo *snap.Sid
 		}
 
 		// this may remove the snap from /var/lib/snapd/snaps depending on installRecord
-		if e := b.RemoveSnapFiles(s, s.GetType(), installRecord, meter); e != nil {
+		if e := b.RemoveSnapFiles(s, s.GetType(), installRecord, dev, meter); e != nil {
 			meter.Notify(fmt.Sprintf("while trying to clean up due to previous failure: %v", e))
 		}
 	}()
@@ -86,8 +85,7 @@ func (b Backend) SetupSnap(snapFilePath, instanceName string, sideInfo *snap.Sid
 	}
 
 	t := s.GetType()
-	// TODO: maybe look into passing the model
-	if err := boot.Kernel(s, t, nil, release.OnClassic).ExtractKernelAssets(snapf); err != nil {
+	if err := boot.Kernel(s, t, dev).ExtractKernelAssets(snapf); err != nil {
 		return snapType, nil, fmt.Errorf("cannot install kernel: %s", err)
 	}
 
@@ -96,7 +94,7 @@ func (b Backend) SetupSnap(snapFilePath, instanceName string, sideInfo *snap.Sid
 }
 
 // RemoveSnapFiles removes the snap files from the disk after unmounting the snap.
-func (b Backend) RemoveSnapFiles(s snap.PlaceInfo, typ snap.Type, installRecord *InstallRecord, meter progress.Meter) error {
+func (b Backend) RemoveSnapFiles(s snap.PlaceInfo, typ snap.Type, installRecord *InstallRecord, dev boot.Device, meter progress.Meter) error {
 	mountDir := s.MountDir()
 
 	// this also ensures that the mount unit stops
@@ -112,8 +110,7 @@ func (b Backend) RemoveSnapFiles(s snap.PlaceInfo, typ snap.Type, installRecord 
 	snapPath := s.MountFile()
 	if _, err := os.Lstat(snapPath); err == nil {
 		// remove the kernel assets (if any)
-		// TODO: maybe look into passing the model
-		if err := boot.Kernel(s, typ, nil, release.OnClassic).RemoveKernelAssets(); err != nil {
+		if err := boot.Kernel(s, typ, dev).RemoveKernelAssets(); err != nil {
 			return err
 		}
 
@@ -149,6 +146,6 @@ func (b Backend) RemoveSnapDir(s snap.PlaceInfo, hasOtherInstances bool) error {
 }
 
 // UndoSetupSnap undoes the work of SetupSnap using RemoveSnapFiles.
-func (b Backend) UndoSetupSnap(s snap.PlaceInfo, typ snap.Type, installRecord *InstallRecord, meter progress.Meter) error {
-	return b.RemoveSnapFiles(s, typ, installRecord, meter)
+func (b Backend) UndoSetupSnap(s snap.PlaceInfo, typ snap.Type, installRecord *InstallRecord, dev boot.Device, meter progress.Meter) error {
+	return b.RemoveSnapFiles(s, typ, installRecord, dev, meter)
 }

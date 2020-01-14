@@ -124,7 +124,7 @@ func (f *ForbiddenCommand) Execute(args []string) error {
 
 // Run runs the requested command.
 func Run(context *hookstate.Context, args []string, uid uint32) (stdout, stderr []byte, err error) {
-	parser := flags.NewParser(nil, flags.PassDoubleDash|flags.HelpFlag)
+	parser := flags.NewNamedParser("snapctl", flags.PassDoubleDash|flags.HelpFlag)
 
 	// Create stdout/stderr buffers, and make sure commands use them.
 	var stdoutBuffer bytes.Buffer

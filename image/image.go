@@ -392,6 +392,7 @@ func setupSeed(tsto *ToolingStore, model *asserts.Model, opts *Options) error {
 
 	bootWith := &boot.BootableSet{
 		UnpackedGadgetDir: gadgetUnpackDir,
+		Recovery:          core20,
 	}
 	if label != "" {
 		bootWith.RecoverySystemDir = filepath.Join("/systems/", label)
@@ -419,8 +420,6 @@ func setupSeed(tsto *ToolingStore, model *asserts.Model, opts *Options) error {
 		return err
 	}
 
-	// TODO|XXX: change MakeBootable/pass right info Core 20 case
-	// (setting up recovery, not run bootenv)
 	if err := boot.MakeBootable(model, bootRootDir, bootWith); err != nil {
 		return err
 	}

@@ -70,7 +70,7 @@ execute: |
 
     echo "Verify that remove hook is executed"
     snap set "$NAME" exitcode=0
-    snap remove "$NAME"
+    snap remove --purge "$NAME"
     if ! test -f "$REMOVE_HOOK_FILE"; then
         echo "Remove hook was not executed"
         exit 1

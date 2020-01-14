@@ -2,7 +2,10 @@ summary: |
    Test that config defaults specified in the gadget are picked up
    for first boot snaps
 
-systems: [ubuntu-core-*]
+# the test is only meaningful on core devices
+# TODO:UC20: enable for UC20, it assumes /var/lib/snapd/seed/assertions/model
+#            which we don't have currently
+systems: [ubuntu-core-1*]
 
 environment:
     SERVICE/rsyslog: rsyslog
@@ -17,10 +20,17 @@ prepare: |
         echo "This test needs test keys to be trusted"
         exit
     fi
+
     #shellcheck source=tests/lib/systemd.sh
     . "$TESTSLIB"/systemd.sh
     #shellcheck source=tests/lib/systems.sh
     . "$TESTSLIB"/systems.sh
+
+    if [ "$SERVICE" = "rsyslog" ] && is_core18_system; then
+        echo "The service to test does not exist in the core18 system, skipping..."
+        touch "${SERVICE}.skip"
+        exit
+    fi
 
     SUFFIX=
     MODEL=developer1-pc-w-config.model
@@ -82,6 +92,11 @@ restore: |
         exit
     fi
 
+    if [ -f "${SERVICE}.skip" ]; then
+        echo "The service to test does not exist in the system, skipping..."
+        exit
+    fi
+
     #shellcheck source=tests/lib/systems.sh
     . "$TESTSLIB"/systems.sh
 
@@ -140,6 +155,11 @@ restore: |
     while ! snap changes | grep -q "Done.*Initialize system state"; do sleep 1; done
 
 execute: |
+    if [ -f "${SERVICE}.skip" ]; then
+        echo "The service to test does not exist in the system, skipping..."
+        exit
+    fi
+
     #shellcheck source=tests/lib/systems.sh
     . "$TESTSLIB"/systems.sh
 

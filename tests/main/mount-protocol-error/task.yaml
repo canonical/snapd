@@ -24,5 +24,5 @@ execute: |
     for i in $(seq 10); do
        echo "Install $i"
        snap install "${names[@]}"
-       snap remove "${names[@]}"
+       snap remove --purge "${names[@]}"
     done

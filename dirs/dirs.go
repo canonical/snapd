@@ -120,6 +120,8 @@ var (
 	SysfsDir        string
 
 	FeaturesDir string
+
+	RunMnt string
 )
 
 const (
@@ -357,6 +359,8 @@ func SetRootDir(rootdir string) {
 	SysfsDir = filepath.Join(rootdir, "/sys")
 
 	FeaturesDir = filepath.Join(rootdir, snappyDir, "features")
+
+	RunMnt = filepath.Join(rootdir, "/run/mnt")
 }
 
 // what inside a (non-classic) snap is /usr/lib/snapd, outside can come from different places

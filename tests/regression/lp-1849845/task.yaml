@@ -38,9 +38,9 @@ execute: |
     false
   fi
 restore: |
-  snap remove test-snapd-app
-  snap remove test-snapd-assets-foo
-  snap remove test-snapd-assets-bar
+  snap remove --purge test-snapd-app
+  snap remove --purge test-snapd-assets-foo
+  snap remove --purge test-snapd-assets-bar
 
   rm -f test-snapd-app_1_all.snap
   rm -f test-snapd-assets-foo_1_all.snap
