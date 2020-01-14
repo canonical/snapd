@@ -116,8 +116,8 @@ func (m *DeviceManager) doSetupRunSystem(t *state.Task, _ *tomb.Tomb) error {
 }
 
 func checkEncryption(model *asserts.Model) (bool, error) {
-	encryptionRequested := model.Grade() == asserts.ModelSecured
 	// TODO:UC20: also check if TPM is available, and return an error if the device must be
-	//            encrypted but but we don't have TPM support
-	return encryptionRequested, nil
+	//            encrypted but we don't have TPM support
+
+	return model.Grade() == asserts.ModelSecured, nil
 }
