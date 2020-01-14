@@ -528,6 +528,9 @@ func Remodel(st *state.State, new *asserts.Model) (*state.Change, error) {
 	if current.Grade() != asserts.ModelGradeUnset {
 		return nil, fmt.Errorf("cannot remodel Ubuntu Core 20 models yet")
 	}
+	if new.Grade() != asserts.ModelGradeUnset {
+		return nil, fmt.Errorf("cannot remodel to Ubuntu Core 20 models yet")
+	}
 
 	// TODO: we need dedicated assertion language to permit for
 	// model transitions before we allow cross vault
