@@ -76,8 +76,8 @@ restore: |
     systemctl start snapd.service
     echo "snapd has been started" | systemd-cat
 
-    snap remove test-snapd-sh
-    snap remove test-snapd-simple-service
+    snap remove --purge test-snapd-sh
+    snap remove --purge test-snapd-simple-service
     echo "snaps have been removed" | systemd-cat
 
 execute: |

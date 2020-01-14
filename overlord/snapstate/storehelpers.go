@@ -192,13 +192,13 @@ func preUpdateInfo(st *state.State, snapst *SnapState, amend bool, userID int) (
 
 var ErrMissingExpectedResult = fmt.Errorf("unexpectedly empty response from the server (try again later)")
 
-func singleActionResult(name, action string, results []*snap.Info, e error) (info *snap.Info, err error) {
+func singleActionResult(name, action string, results []store.SnapActionResult, e error) (info *snap.Info, err error) {
 	if len(results) > 1 {
 		return nil, fmt.Errorf("internal error: multiple store results for a single snap op")
 	}
 	if len(results) > 0 {
 		// TODO: if we also have an error log/warn about it
-		return results[0], nil
+		return results[0].Info, nil
 	}
 
 	if saErr, ok := e.(*store.SnapActionError); ok {
@@ -425,7 +425,7 @@ func refreshCandidates(ctx context.Context, st *state.State, names []string, use
 	updates := make([]*snap.Info, 0, nCands)
 	for u, actions := range actionsForUser {
 		st.Unlock()
-		updatesForUser, err := theStore.SnapAction(ctx, curSnaps, actions, u, opts)
+		sarsForUser, err := theStore.SnapAction(ctx, curSnaps, actions, u, opts)
 		st.Lock()
 		if err != nil {
 			saErr, ok := err.(*store.SnapActionError)
@@ -436,13 +436,15 @@ func refreshCandidates(ctx context.Context, st *state.State, names []string, use
 			logger.Noticef("%v", saErr)
 		}
 
-		updates = append(updates, updatesForUser...)
+		for _, sar := range sarsForUser {
+			updates = append(updates, sar.Info)
+		}
 	}
 
 	return updates, stateByInstanceName, ignoreValidationByInstanceName, nil
 }
 
-func installCandidates(st *state.State, names []string, channel string, user *auth.UserState) ([]*snap.Info, error) {
+func installCandidates(st *state.State, names []string, channel string, user *auth.UserState) ([]store.SnapActionResult, error) {
 	curSnaps, err := currentSnaps(st)
 	if err != nil {
 		return nil, err

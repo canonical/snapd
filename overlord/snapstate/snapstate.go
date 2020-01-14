@@ -492,7 +492,7 @@ func WaitRestart(task *state.Task, snapsup *SnapSetup) (err error) {
 		if err != nil {
 			return err
 		}
-		if snapsup.InstanceName() != current.Name || snapsup.SideInfo.Revision != current.Revision {
+		if snapsup.InstanceName() != current.SnapName() || snapsup.SideInfo.Revision != current.SnapRevision() {
 			// TODO: make sure this revision gets ignored for
 			//       automatic refreshes
 			return fmt.Errorf("cannot finish %s installation, there was a rollback across reboot", snapsup.InstanceName())
@@ -806,7 +806,8 @@ func InstallMany(st *state.State, names []string, userID int) ([]string, []*stat
 	}
 
 	tasksets := make([]*state.TaskSet, 0, len(installs))
-	for _, info := range installs {
+	for _, sar := range installs {
+		info := sar.Info
 		var snapst SnapState
 		var flags Flags
 

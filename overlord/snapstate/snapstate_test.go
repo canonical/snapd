@@ -2063,7 +2063,7 @@ type sneakyStore struct {
 	state *state.State
 }
 
-func (s sneakyStore) SnapAction(ctx context.Context, currentSnaps []*store.CurrentSnap, actions []*store.SnapAction, user *auth.UserState, opts *store.RefreshOptions) ([]*snap.Info, error) {
+func (s sneakyStore) SnapAction(ctx context.Context, currentSnaps []*store.CurrentSnap, actions []*store.SnapAction, user *auth.UserState, opts *store.RefreshOptions) ([]store.SnapActionResult, error) {
 	s.state.Lock()
 	snapstate.Set(s.state, "some-snap", &snapstate.SnapState{
 		Active:          true,
@@ -6025,7 +6025,7 @@ type noResultsStore struct {
 	*fakeStore
 }
 
-func (n noResultsStore) SnapAction(ctx context.Context, currentSnaps []*store.CurrentSnap, actions []*store.SnapAction, user *auth.UserState, opts *store.RefreshOptions) ([]*snap.Info, error) {
+func (n noResultsStore) SnapAction(ctx context.Context, currentSnaps []*store.CurrentSnap, actions []*store.SnapAction, user *auth.UserState, opts *store.RefreshOptions) ([]store.SnapActionResult, error) {
 	return nil, &store.SnapActionError{NoResults: true}
 }
 
@@ -13599,7 +13599,7 @@ type unhappyStore struct {
 	*fakeStore
 }
 
-func (s unhappyStore) SnapAction(ctx context.Context, currentSnaps []*store.CurrentSnap, actions []*store.SnapAction, user *auth.UserState, opts *store.RefreshOptions) ([]*snap.Info, error) {
+func (s unhappyStore) SnapAction(ctx context.Context, currentSnaps []*store.CurrentSnap, actions []*store.SnapAction, user *auth.UserState, opts *store.RefreshOptions) ([]store.SnapActionResult, error) {
 
 	return nil, fmt.Errorf("a grumpy store")
 }
@@ -14330,7 +14330,7 @@ type behindYourBackStore struct {
 	chg                  *state.Change
 }
 
-func (s behindYourBackStore) SnapAction(ctx context.Context, currentSnaps []*store.CurrentSnap, actions []*store.SnapAction, user *auth.UserState, opts *store.RefreshOptions) ([]*snap.Info, error) {
+func (s behindYourBackStore) SnapAction(ctx context.Context, currentSnaps []*store.CurrentSnap, actions []*store.SnapAction, user *auth.UserState, opts *store.RefreshOptions) ([]store.SnapActionResult, error) {
 	if len(actions) == 1 && actions[0].Action == "install" && actions[0].InstanceName == "core" {
 		s.state.Lock()
 		if !s.coreInstallRequested {
@@ -14456,15 +14456,15 @@ type contentStore struct {
 	state *state.State
 }
 
-func (s contentStore) SnapAction(ctx context.Context, currentSnaps []*store.CurrentSnap, actions []*store.SnapAction, user *auth.UserState, opts *store.RefreshOptions) ([]*snap.Info, error) {
-	snaps, err := s.fakeStore.SnapAction(ctx, currentSnaps, actions, user, opts)
+func (s contentStore) SnapAction(ctx context.Context, currentSnaps []*store.CurrentSnap, actions []*store.SnapAction, user *auth.UserState, opts *store.RefreshOptions) ([]store.SnapActionResult, error) {
+	sars, err := s.fakeStore.SnapAction(ctx, currentSnaps, actions, user, opts)
 	if err != nil {
 		return nil, err
 	}
-	if len(snaps) != 1 {
+	if len(sars) != 1 {
 		panic("expected to be queried for install of only one snap at a time")
 	}
-	info := snaps[0]
+	info := sars[0].Info
 	switch info.InstanceName() {
 	case "snap-content-plug":
 		info.Plugs = map[string]*snap.PlugInfo{
@@ -14547,7 +14547,7 @@ func (s contentStore) SnapAction(ctx context.Context, currentSnaps []*store.Curr
 		}
 	}
 
-	return []*snap.Info{info}, err
+	return []store.SnapActionResult{{Info: info}}, err
 }
 
 func (s *snapmgrTestSuite) TestInstallDefaultProviderRunThrough(c *C) {

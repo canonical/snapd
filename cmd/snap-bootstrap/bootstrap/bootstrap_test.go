@@ -56,7 +56,7 @@ func (s *bootstrapSuite) SetUpTest(c *C) {
 }
 
 func (s *bootstrapSuite) TestBootstrapRunError(c *C) {
-	err := bootstrap.Run("", "", nil)
+	err := bootstrap.Run("", "", bootstrap.Options{})
 	c.Assert(err, ErrorMatches, "cannot use empty gadget root directory")
 }
 

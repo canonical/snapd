@@ -11,5 +11,5 @@ execute: |
     echo "We can see the canary file in /media"
     [ "$(snapd-hacker-toolbelt.busybox cat /media/canary)" = "test" ]
 restore: |
-    snap remove snapd-hacker-toolbelt
+    snap remove --purge snapd-hacker-toolbelt
     rm -f /media/canary

@@ -23,10 +23,6 @@ import (
 	"github.com/snapcore/snapd/snap"
 )
 
-var (
-	NameAndRevnoFromSnap = nameAndRevnoFromSnap
-)
-
 func NewCoreBootParticipant(s snap.PlaceInfo, t snap.Type, dev Device) *coreBootParticipant {
 	bs, err := bootStateFor(t, dev)
 	if err != nil {

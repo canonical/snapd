@@ -22,7 +22,6 @@ package boot
 import (
 	"errors"
 	"fmt"
-	"strings"
 
 	"github.com/snapcore/snapd/snap"
 )
@@ -144,7 +143,7 @@ type bootState interface {
 	// revisions retrieves the revisions of the current snap and
 	// the try snap (only the latter might not be set), and
 	// whether the snap is in "trying" state.
-	revisions() (snap, trySnap *NameAndRevision, trying bool, err error)
+	revisions() (snap, trySnap snap.PlaceInfo, trying bool, err error)
 
 	// setNext lazily implements setting the next boot target for
 	// the type's boot snap. actually committing the update
@@ -199,7 +198,7 @@ func InUse(typ snap.Type, dev Device) (InUseFunc, error) {
 	default:
 		return fixedInUse(false), nil
 	}
-	cands := make([]*NameAndRevision, 0, 2)
+	cands := make([]snap.PlaceInfo, 0, 2)
 	s, err := bootStateFor(typ, dev)
 	if err != nil {
 		return nil, err
@@ -215,7 +214,7 @@ func InUse(typ snap.Type, dev Device) (InUseFunc, error) {
 
 	return func(name string, rev snap.Revision) bool {
 		for _, cand := range cands {
-			if cand.Name == name && cand.Revision == rev {
+			if cand.SnapName() == name && cand.SnapRevision() == rev {
 				return true
 			}
 		}
@@ -229,15 +228,10 @@ var (
 	ErrBootNameAndRevisionNotReady = errors.New("boot revision not yet established")
 )
 
-type NameAndRevision struct {
-	Name     string
-	Revision snap.Revision
-}
-
 // GetCurrentBoot returns the currently set name and revision for boot for the given
 // type of snap, which can be snap.TypeBase (or snap.TypeOS), or snap.TypeKernel.
 // Returns ErrBootNameAndRevisionNotReady if the values are temporarily not established.
-func GetCurrentBoot(t snap.Type, dev Device) (*NameAndRevision, error) {
+func GetCurrentBoot(t snap.Type, dev Device) (snap.PlaceInfo, error) {
 	s, err := bootStateFor(t, dev)
 	if err != nil {
 		return nil, err
@@ -253,25 +247,6 @@ func GetCurrentBoot(t snap.Type, dev Device) (*NameAndRevision, error) {
 	}
 
 	return snap, nil
-}
-
-// nameAndRevnoFromSnap grabs the snap name and revision from the
-// value of a boot variable. E.g., foo_2.snap -> name "foo", revno 2
-func nameAndRevnoFromSnap(sn string) (*NameAndRevision, error) {
-	if sn == "" {
-		return nil, fmt.Errorf("boot variable unset")
-	}
-	idx := strings.IndexByte(sn, '_')
-	if idx < 1 {
-		return nil, fmt.Errorf("input %q has invalid format (not enough '_')", sn)
-	}
-	name := sn[:idx]
-	revnoNSuffix := sn[idx+1:]
-	rev, err := snap.ParseRevision(strings.TrimSuffix(revnoNSuffix, ".snap"))
-	if err != nil {
-		return nil, err
-	}
-	return &NameAndRevision{Name: name, Revision: rev}, nil
 }
 
 // bootStateUpdate carries the state for an on-going boot state update.

@@ -383,7 +383,7 @@ func (f *fakeStore) lookupRefresh(cand refreshCand) (*snap.Info, error) {
 	return nil, store.ErrNoUpdateAvailable
 }
 
-func (f *fakeStore) SnapAction(ctx context.Context, currentSnaps []*store.CurrentSnap, actions []*store.SnapAction, user *auth.UserState, opts *store.RefreshOptions) ([]*snap.Info, error) {
+func (f *fakeStore) SnapAction(ctx context.Context, currentSnaps []*store.CurrentSnap, actions []*store.SnapAction, user *auth.UserState, opts *store.RefreshOptions) ([]store.SnapActionResult, error) {
 	if ctx == nil {
 		panic("context required")
 	}
@@ -434,7 +434,7 @@ func (f *fakeStore) SnapAction(ctx context.Context, currentSnaps []*store.Curren
 
 	refreshErrors := make(map[string]error)
 	installErrors := make(map[string]error)
-	var res []*snap.Info
+	var res []store.SnapActionResult
 	for _, a := range sorted {
 		if a.Action != "install" && a.Action != "refresh" {
 			panic("not supported")
@@ -467,7 +467,7 @@ func (f *fakeStore) SnapAction(ctx context.Context, currentSnaps []*store.Curren
 				info.Channel = ""
 			}
 			info.InstanceKey = instanceKey
-			res = append(res, info)
+			res = append(res, store.SnapActionResult{Info: info})
 			continue
 		}
 
@@ -519,7 +519,7 @@ func (f *fakeStore) SnapAction(ctx context.Context, currentSnaps []*store.Curren
 			info.Channel = ""
 		}
 		info.InstanceKey = instanceKey
-		res = append(res, info)
+		res = append(res, store.SnapActionResult{Info: info})
 	}
 
 	if len(refreshErrors)+len(installErrors) > 0 || len(res) == 0 {

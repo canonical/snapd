@@ -18,7 +18,7 @@ prepare: |
 
 restore: |
     # make sure this snap is removed in case it was installed
-    snap remove test-snapd-daemon-user || true
+    snap remove --purge test-snapd-daemon-user || true
 
     # snapd will create this for us, but we'll remove it for consistency in
     # test runs
