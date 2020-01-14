@@ -295,3 +295,61 @@ func (s *deviceMgrInstallModeSuite) TestInstallModeEncrypted(c *C) {
 	c.Check(bootMakeBootableCalled, Equals, 1)
 	c.Check(s.restartRequests, DeepEquals, []state.RestartType{state.RestartSystem})
 }
+
+func (s *deviceMgrInstallModeSuite) TestInstallModeForceEncrypted(c *C) {
+	restore := release.MockOnClassic(false)
+	defer restore()
+
+	mockSnapBootstrapCmd := testutil.MockCommand(c, filepath.Join(dirs.DistroLibExecDir, "snap-bootstrap"), "")
+	defer mockSnapBootstrapCmd.Restore()
+
+	s.state.Lock()
+	// model grade dangerous ordinarily doesn't have encryption, but we'll force
+	// it by creating a .force-encryption file in the seed partition
+	mockModel := s.makeMockInstalledPcGadget(c, "dangerous")
+	s.state.Unlock()
+
+	forceEncryptionPath := filepath.Join(dirs.RunMnt, "ubuntu-seed", ".force-encryption")
+	err := os.MkdirAll(filepath.Dir(forceEncryptionPath), 0755)
+	c.Assert(err, IsNil)
+	f, err := os.Create(forceEncryptionPath)
+	c.Assert(err, IsNil)
+	f.Close()
+
+	bootMakeBootableCalled := 0
+	restore = devicestate.MockBootMakeBootable(func(model *asserts.Model, rootdir string, bootWith *boot.BootableSet) error {
+		c.Check(model, DeepEquals, mockModel)
+		c.Check(rootdir, Equals, dirs.GlobalRootDir)
+		c.Check(bootWith.KernelPath, Matches, ".*/var/lib/snapd/snaps/pc-kernel_1.snap")
+		c.Check(bootWith.BasePath, Matches, ".*/var/lib/snapd/snaps/core20_2.snap")
+		c.Check(bootWith.RecoverySystemDir, Matches, "/systems/20191218")
+		bootMakeBootableCalled++
+		return nil
+	})
+	defer restore()
+
+	devicestate.SetOperatingMode(s.mgr, "install")
+	devicestate.SetRecoverySystem(s.mgr, "20191218")
+
+	s.settle(c)
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	// the install-system change is created
+	installSystem := s.findInstallSystem()
+	c.Assert(installSystem, NotNil)
+
+	// and was run successfully
+	c.Check(installSystem.Err(), IsNil)
+	c.Check(installSystem.Status(), Equals, state.DoneStatus)
+	// in the right way
+	c.Check(mockSnapBootstrapCmd.Calls(), DeepEquals, [][]string{
+		{
+			"snap-bootstrap", "create-partitions", "--mount", "--encrypt",
+			"--keyfile", filepath.Join(dirs.RunMnt, "ubuntu-boot/keyfile"),
+			filepath.Join(dirs.SnapMountDir, "/pc/1"),
+		},
+	})
+	c.Check(bootMakeBootableCalled, Equals, 1)
+	c.Check(s.restartRequests, DeepEquals, []state.RestartType{state.RestartSystem})
+}
