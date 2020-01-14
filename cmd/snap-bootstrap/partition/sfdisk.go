@@ -32,6 +32,7 @@ import (
 
 const (
 	ubuntuBootLabel = "ubuntu-boot"
+	ubuntuSeedLabel = "ubuntu-seed"
 	ubuntuDataLabel = "ubuntu-data"
 
 	sectorSize gadget.Size = 512
@@ -259,10 +260,15 @@ func buildPartitionList(ptable *sfdiskPartitionTable, pv *gadget.LaidOutVolume) 
 		fmt.Fprintf(buf, "%s : start=%12d, size=%12d, type=%s, name=%q\n", node, p.StartOffset/sectorSize,
 			s.Size/sectorSize, partitionType(ptable.Label, p.Type), s.Name)
 
+		// TODO:UC20: also add an attribute to mark partitions created at install
+		//            time so they can be removed case the installation fails.
+
 		// Set expected labels based on role
 		switch s.Role {
 		case gadget.SystemBoot:
 			s.Label = ubuntuBootLabel
+		case gadget.SystemSeed:
+			s.Label = ubuntuSeedLabel
 		case gadget.SystemData:
 			s.Label = ubuntuDataLabel
 		}
