@@ -1,8 +1,8 @@
 summary: Check that default tracks work
 
 environment:
-    A_SNAP: fooxboo1
-    A_TRACK: 2.0
+    A_SNAP: test-snapd-default-track
+    A_TRACK: default
 
 prepare: |
     snap install http jq
@@ -18,6 +18,20 @@ execute: |
     # TODO: check error output when trying to install from [default]/stable
 
     # now install a snap that has a default track
+    # (and you got candidate from the default track)
     snap install --candidate "$A_SNAP" | MATCH "$A_TRACK/candidate"
 
     test "$( snap run  jq -r ".data.snaps.\"$A_SNAP\".channel" < /var/lib/snapd/state.json )" = "$A_TRACK/candidate"
+
+    snap remove --purge "$A_SNAP" http jq
+
+    # now try a multi-install
+    snap install "$A_SNAP" "jq"
+    # you get stable from the default track
+    test "$( snap run  jq -r ".data.snaps.\"$A_SNAP\".channel" < /var/lib/snapd/state.json )" = "$A_TRACK/stable"
+
+    # now another
+    snap set core experimental.parallel-instances=true
+    snap install "${A_SNAP}_a" "${A_SNAP}_b"
+    test "$( snap run  jq -r ".data.snaps.\"${A_SNAP}_a\".channel" < /var/lib/snapd/state.json )" = "$A_TRACK/stable"
+    test "$( snap run  jq -r ".data.snaps.\"${A_SNAP}_b\".channel" < /var/lib/snapd/state.json )" = "$A_TRACK/stable"

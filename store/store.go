@@ -2198,6 +2198,8 @@ func genInstanceKey(curSnap *CurrentSnap, salt string) (string, error) {
 	return fmt.Sprintf("%s:%s", curSnap.SnapID, enc), nil
 }
 
+// SnapActionResult encapsulates the non-error result of a single
+// action of the SnapAction call.
 type SnapActionResult struct {
 	*snap.Info
 	RedirectChannel string
