@@ -24,11 +24,9 @@ import (
 	"os"
 	"path/filepath"
 
-	"github.com/snapcore/snapd/asserts"
 	"github.com/snapcore/snapd/boot"
 	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/progress"
-	"github.com/snapcore/snapd/release"
 	"github.com/snapcore/snapd/snap"
 	"github.com/snapcore/snapd/timings"
 	"github.com/snapcore/snapd/wrappers"
@@ -79,9 +77,9 @@ func hasFontConfigCache(info *snap.Info) bool {
 }
 
 // LinkSnap makes the snap available by generating wrappers and setting the current symlinks.
-func (b Backend) LinkSnap(info *snap.Info, model *asserts.Model, prevDisabledSvcs []string, tm timings.Measurer) (e error) {
+func (b Backend) LinkSnap(info *snap.Info, dev boot.Device, prevDisabledSvcs []string, tm timings.Measurer) (rebootRequired bool, e error) {
 	if info.Revision.Unset() {
-		return fmt.Errorf("cannot link snap %q with unset revision", info.InstanceName())
+		return false, fmt.Errorf("cannot link snap %q with unset revision", info.InstanceName())
 	}
 
 	var err error
@@ -89,7 +87,7 @@ func (b Backend) LinkSnap(info *snap.Info, model *asserts.Model, prevDisabledSvc
 		err = generateWrappers(info, prevDisabledSvcs)
 	})
 	if err != nil {
-		return err
+		return false, err
 	}
 	defer func() {
 		if e == nil {
@@ -104,7 +102,7 @@ func (b Backend) LinkSnap(info *snap.Info, model *asserts.Model, prevDisabledSvc
 	// 'snapd' snaps
 	// for non-core snaps, fontconfig cache needs to be updated before the
 	// snap applications are runnable
-	if release.OnClassic && !hasFontConfigCache(info) {
+	if dev.Classic() && !hasFontConfigCache(info) {
 		timings.Run(tm, "update-fc-cache", "update font config caches", func(timings.Measurer) {
 			// XXX: does this need cleaning up? (afaict no)
 			if err := updateFontconfigCaches(); err != nil {
@@ -113,26 +111,28 @@ func (b Backend) LinkSnap(info *snap.Info, model *asserts.Model, prevDisabledSvc
 		})
 	}
 
-	if err := boot.Participant(info, info.GetType(), model, release.OnClassic).SetNextBoot(); err != nil {
-		return err
+	reboot, err := boot.Participant(info, info.GetType(), dev).SetNextBoot()
+	if err != nil {
+		return false, err
 	}
 
 	if err := updateCurrentSymlinks(info); err != nil {
-		return err
+		return false, err
 	}
 	// if anything below here could return error, you need to
 	// somehow clean up whatever updateCurrentSymlinks did
 
 	// for core snap, fontconfig cache can be updated after the snap has
 	// been made available
-	if release.OnClassic && hasFontConfigCache(info) {
+	if dev.Classic() && hasFontConfigCache(info) {
 		timings.Run(tm, "update-fc-cache", "update font config caches", func(timings.Measurer) {
 			if err := updateFontconfigCaches(); err != nil {
 				logger.Noticef("cannot update fontconfig cache: %v", err)
 			}
 		})
 	}
-	return nil
+
+	return reboot, nil
 }
 
 func (b Backend) StartServices(apps []*snap.AppInfo, meter progress.Meter, tm timings.Measurer) error {

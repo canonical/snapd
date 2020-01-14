@@ -5,6 +5,6 @@ execute: |
     . "$TESTSLIB/journalctl.sh"
 
     snap install test-snapd-sh
-    snap remove test-snapd-sh
+    snap remove --purge test-snapd-sh
     snap install test-snapd-sh
     check_journalctl_log 'using cache for .*/test-snapd-sh.*\.snap' -u snapd

@@ -46,6 +46,9 @@ type PlaceInfo interface {
 	// SnapName returns the name of the snap.
 	SnapName() string
 
+	// SnapRevision returns the revision of the snap.
+	SnapRevision() Revision
+
 	// MountDir returns the base directory of the snap.
 	MountDir() string
 
@@ -84,6 +87,35 @@ type PlaceInfo interface {
 func MinimalPlaceInfo(name string, revision Revision) PlaceInfo {
 	storeName, instanceKey := SplitInstanceName(name)
 	return &Info{SideInfo: SideInfo{RealName: storeName, Revision: revision}, InstanceKey: instanceKey}
+}
+
+// ParsePlaceInfoFromSnapFileName returns a PlaceInfo with just the location
+// information for a snap of file name, failing if the snap file name is invalid
+// This explicitly does not support filenames with instance names in them
+func ParsePlaceInfoFromSnapFileName(sn string) (PlaceInfo, error) {
+	if sn == "" {
+		return nil, fmt.Errorf("empty snap file name")
+	}
+	if strings.Count(sn, "_") > 1 {
+		// too many "_", probably has an instance key in the filename like in
+		// snap-name_key_23.snap
+		return nil, fmt.Errorf("too many '_' in snap file name")
+	}
+	idx := strings.IndexByte(sn, '_')
+	switch {
+	case idx < 0:
+		return nil, fmt.Errorf("snap file name %q has invalid format (missing '_')", sn)
+	case idx == 0:
+		return nil, fmt.Errorf("snap file name %q has invalid format (no snap name before '_')", sn)
+	}
+	// ensure that _ is not the last element
+	name := sn[:idx]
+	revnoNSuffix := sn[idx+1:]
+	rev, err := ParseRevision(strings.TrimSuffix(revnoNSuffix, ".snap"))
+	if err != nil {
+		return nil, fmt.Errorf("cannot parse revision in snap file name %q: %v", sn, err)
+	}
+	return &Info{SideInfo: SideInfo{RealName: name, Revision: rev}}, nil
 }
 
 // BaseDir returns the system level directory of given snap.
@@ -341,6 +373,11 @@ func (s *Info) SnapName() string {
 	return s.SuggestedName
 }
 
+// SnapRevision returns the revision of the snap.
+func (s *Info) SnapRevision() Revision {
+	return s.Revision
+}
+
 // ID implements naming.SnapRef.
 func (s *Info) ID() string {
 	return s.SnapID
@@ -372,6 +409,8 @@ func (s *Info) Description() string {
 	return s.OriginalDescription
 }
 
+// GetType returns the type of the snap, including additional snap ID check
+// for the legacy snapd snap definitions.
 func (s *Info) GetType() Type {
 	if s.SnapType == TypeApp && IsSnapd(s.SnapID) {
 		return TypeSnapd
@@ -742,7 +781,7 @@ func (st StopModeType) KillAll() bool {
 }
 
 // KillSignal returns the signal that should be used to kill the process
-// (or an empty string if no signal is needed)
+// (or an empty string if no signal is needed).
 func (st StopModeType) KillSignal() string {
 	if st.Validate() != nil || st == "" {
 		return ""
@@ -750,6 +789,7 @@ func (st StopModeType) KillSignal() string {
 	return strings.ToUpper(strings.TrimSuffix(string(st), "-all"))
 }
 
+// Validate ensures that the StopModeType has an valid value.
 func (st StopModeType) Validate() error {
 	switch st {
 	case "", "sigterm", "sigterm-all", "sighup", "sighup-all", "sigusr1", "sigusr1-all", "sigusr2", "sigusr2-all":
@@ -819,12 +859,6 @@ type MediaInfo struct {
 }
 
 type MediaInfos []MediaInfo
-
-const ScreenshotsDeprecationNotice = `'screenshots' is deprecated; use 'media' instead. More info at https://forum.snapcraft.io/t/8086`
-
-func (mis MediaInfos) Screenshots() []ScreenshotInfo {
-	return []ScreenshotInfo{{Note: ScreenshotsDeprecationNotice}}
-}
 
 func (mis MediaInfos) IconURL() string {
 	for _, mi := range mis {
@@ -1249,7 +1283,7 @@ func SortServices(apps []*AppInfo) (sorted []*AppInfo, err error) {
 
 	// Kahn:
 	// see https://dl.acm.org/citation.cfm?doid=368996.369025
-	//     https://en.wikipedia.org/wiki/Topological_sorting#Kahn's_algorithm
+	//     https://en.wikipedia.org/wiki/Topological_sorting%23Kahn%27s_algorithm
 	//
 	// Apps without predecessors are 'top' nodes. On each iteration, take
 	// the next 'top' node, and decrease the predecessor count of each

@@ -25,7 +25,7 @@ prepare: |
 
     snap set system experimental.parallel-instances=true
 
-restore:
+restore: |
     snap unset system experimental.parallel-instances
 
     case "$SPREAD_SYSTEM" in

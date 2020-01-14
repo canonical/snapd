@@ -29,7 +29,7 @@ execute: |
     fi
 
     echo "Then the snap isn't installed"
-    snap list | MATCH -v test-snapd-sh
+    not snap list test-snapd-sh
 
     echo "And the installation task is reported as an error"
     failed_task_id=$(snap changes | perl -ne 'print $1 if /(\d+) +Error.*?Install \"test-snapd-sh\" snap/')

@@ -87,7 +87,7 @@ execute: |
     echo "And the device is not shown in the snap device list"
     # FIXME: this is, apparently, a layered can of worms. Zyga says he needs to fix it.
     if [ -e /sys/fs/cgroup/devices/snap.test-snapd-sh.sh/devices.list ]; then
-        MATCH -v "$DEVICE_ID" < /sys/fs/cgroup/devices/snap.test-snapd-sh.sh/devices.list
+        not MATCH "$DEVICE_ID" < /sys/fs/cgroup/devices/snap.test-snapd-sh.sh/devices.list
     fi
 
     echo "When a udev rule assigning the device to the snap is added"
@@ -102,7 +102,7 @@ execute: |
     udevadm info "$UDEVADM_PATH" | MATCH "E: TAGS=.*snap_test-snapd-sh_sh"
 
     echo "And other devices are not shown as assigned to the snap"
-    udevadm info "$OTHER_UDEVADM_PATH" | MATCH -v "E: TAGS=.*snap_test-snapd-sh_sh"
+    udevadm info "$OTHER_UDEVADM_PATH" | not MATCH "E: TAGS=.*snap_test-snapd-sh_sh"
 
     echo "When a snap command is called"
     test-snapd-sh.sh -c 'true'
@@ -111,7 +111,7 @@ execute: |
     MATCH "$DEVICE_ID" < /sys/fs/cgroup/devices/snap.test-snapd-sh.sh/devices.list
 
     echo "And other devices are not shown in the snap device list"
-    MATCH -v "$OTHER_DEVICE_ID" < /sys/fs/cgroup/devices/snap.test-snapd-sh.sh/devices.list
+    not MATCH "$OTHER_DEVICE_ID" < /sys/fs/cgroup/devices/snap.test-snapd-sh.sh/devices.list
 
     echo "But existing nvidia devices are in the snap's device cgroup"
     MATCH "c 195:0 rwm" < /sys/fs/cgroup/devices/snap.test-snapd-sh.sh/devices.list
@@ -119,7 +119,7 @@ execute: |
     MATCH "c 247:0 rwm" < /sys/fs/cgroup/devices/snap.test-snapd-sh.sh/devices.list
 
     echo "But nonexisting nvidia devices are not"
-    MATCH -v "c 195:254 rwm" < /sys/fs/cgroup/devices/snap.test-snapd-sh.sh/devices.list
+    not MATCH "c 195:254 rwm" < /sys/fs/cgroup/devices/snap.test-snapd-sh.sh/devices.list
 
     echo "But the existing uhid device is in the snap's device cgroup"
     MATCH "c 10:239 rwm" < /sys/fs/cgroup/devices/snap.test-snapd-sh.sh/devices.list
