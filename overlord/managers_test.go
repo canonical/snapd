@@ -1027,7 +1027,7 @@ func (s *mgrsSuite) TestHappyRemoteInstallAndUpdateWithEpochBump(c *C) {
 	chg.AddAll(ts)
 
 	st.Unlock()
-	err = s.o.Settle(settleTimeout)
+	err = s.o.Settle(2 * settleTimeout)
 	st.Lock()
 	c.Assert(err, IsNil)
 
@@ -1056,7 +1056,7 @@ func (s *mgrsSuite) TestHappyRemoteInstallAndUpdateWithEpochBump(c *C) {
 	chg.AddAll(ts)
 
 	st.Unlock()
-	err = s.o.Settle(settleTimeout)
+	err = s.o.Settle(2 * settleTimeout)
 	st.Lock()
 	c.Assert(err, IsNil)
 
