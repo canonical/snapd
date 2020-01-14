@@ -219,6 +219,9 @@ func (g *grub) readKernelSymlink(name string) (snap.PlaceInfo, error) {
 
 // actual ExtractedRunKernelImageBootloader methods
 
+// EnableKernel will install a kernel.efi symlink on the bootloader pointing
+// to the referenced kernel snap. EnableKernel() will fail if the referenced
+// kernel snap does not exist.
 func (g *grub) EnableKernel(s snap.PlaceInfo) error {
 	// add symlink from ubuntuBootPartition/kernel.efi to
 	// <ubuntu-boot>/EFI/ubuntu/<snap-name>.snap/kernel.efi
@@ -227,6 +230,9 @@ func (g *grub) EnableKernel(s snap.PlaceInfo) error {
 	return g.makeKernelEfiSymlink(s, "kernel.efi")
 }
 
+// EnableTryKernel will install a try-kernel.efi symlink on the bootloader
+// pointing towards the referenced kernel snap. EnableTryKernel() will fail if
+// the referenced kernel snap does not exist.
 func (g *grub) EnableTryKernel(s snap.PlaceInfo) error {
 	// add symlink from ubuntuBootPartition/kernel.efi to
 	// <ubuntu-boot>/EFI/ubuntu/<snap-name>.snap/kernel.efi
@@ -235,16 +241,24 @@ func (g *grub) EnableTryKernel(s snap.PlaceInfo) error {
 	return g.makeKernelEfiSymlink(s, "try-kernel.efi")
 }
 
+// DisableTryKernel will remove the try-kernel.efi symlink if it exists. Note
+// that when performing an update, you should probably first use EnableKernel(),
+// then DisableTryKernel() for maximum safety.
 func (g *grub) DisableTryKernel() error {
 	return g.unlinkKernelEfiSymlink("try-kernel.efi")
 }
 
+// Kernel will return the kernel snap currently installed on the bootloader at
+// the kernel.efi symlink.
 func (g *grub) Kernel() (snap.PlaceInfo, error) {
 	return g.readKernelSymlink("kernel.efi")
 }
 
+// TryKernel will return the kernel snap currently being tried if it exists and
+// false if there is not currently a try-kernel.efi symlink. Note if the symlink
+// exists but does not point to an existing file an error will be returned.
 func (g *grub) TryKernel() (snap.PlaceInfo, bool, error) {
-	// try to read the symlink from ubuntuBootPartition/try-kernel.efi
+	// try to read the symlink from <rootdir>/try-kernel.efi
 	if osutil.FileExists(filepath.Join(g.rootdir, "try-kernel.efi")) {
 		p, err := g.readKernelSymlink("try-kernel.efi")
 		// if we failed to read the symlink, then the try kernel isn't usable,
