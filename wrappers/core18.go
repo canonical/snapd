@@ -128,12 +128,13 @@ func undoSnapdToolingMountUnit(sysd systemd.Systemd) error {
 // AddSnapdSnapServices sets up the services based on a given snapd snap in the
 // system.
 func AddSnapdSnapServices(s *snap.Info, inter interacter) error {
-	// we never write
+	if snapType := s.GetType(); snapType != snap.TypeSnapd {
+		return fmt.Errorf("internal error: adding explicit snapd services for snap %q type %q is unexpected", s.InstanceName(), snapType)
+	}
+
+	// we never write snapd services on classic
 	if release.OnClassic {
 		return nil
-	}
-	if snapType := s.GetType(); snapType != snap.TypeSnapd {
-		return fmt.Errorf("internal error: cannot add snapd services of snap %q type %q", s.InstanceName(), snapType)
 	}
 
 	sysd := systemd.New(dirs.GlobalRootDir, systemd.SystemMode, inter)
@@ -477,13 +478,13 @@ func undoSnapdUserServicesOnCore(s *snap.Info, inter interacter) error {
 // restoring the system state, making this undo helper suitable for use when
 // reverting the first installation of the snapd snap on a core device.
 func RemoveSnapdSnapServicesOnCore(s *snap.Info, inter interacter) error {
-	// nothing to do on classic
-	if release.OnClassic {
-		return nil
+	if snapType := s.GetType(); snapType != snap.TypeSnapd {
+		return fmt.Errorf("internal error: removing explicit snapd services for snap %q type %q is unexpected", s.InstanceName(), snapType)
 	}
 
-	if snapType := s.GetType(); snapType != snap.TypeSnapd {
-		return fmt.Errorf("internal error: cannot remove snapd services of snap %q type %q", s.InstanceName(), snapType)
+	// snapd services are never written on classic, nothing to remove
+	if release.OnClassic {
+		return nil
 	}
 
 	sysd := systemd.New(dirs.GlobalRootDir, systemd.SystemMode, inter)

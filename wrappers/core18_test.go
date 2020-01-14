@@ -216,7 +216,7 @@ func (s *servicesTestSuite) TestAddSnapdServicesWithNonSnapd(c *C) {
 	defer restore()
 
 	err := wrappers.AddSnapdSnapServices(info, progress.Null)
-	c.Assert(err, ErrorMatches, `internal error: cannot add snapd services of snap "foo" type "app"`)
+	c.Assert(err, ErrorMatches, `internal error: adding explicit snapd services for snap "foo" type "app" is unexpected`)
 }
 
 func (s *servicesTestSuite) TestRemoveSnapServicesForFirstInstallSnapdOnCore(c *C) {
@@ -328,5 +328,5 @@ func (s *servicesTestSuite) TestRemoveSnapdServicesWithNonSnapd(c *C) {
 	defer restore()
 
 	err := wrappers.RemoveSnapdSnapServicesOnCore(info, progress.Null)
-	c.Assert(err, ErrorMatches, `internal error: cannot remove snapd services of snap "foo" type "app"`)
+	c.Assert(err, ErrorMatches, `internal error: removing explicit snapd services for snap "foo" type "app" is unexpected`)
 }
