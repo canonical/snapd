@@ -85,6 +85,8 @@ var (
 	SignalNotify = signalNotify
 
 	SortTimingsTasks = sortTimingsTasks
+
+	PrintInstallHint = printInstallHint
 )
 
 func HiddenCmd(descr string, completeHidden bool) *cmdInfo {

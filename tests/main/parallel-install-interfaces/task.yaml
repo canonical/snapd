@@ -57,8 +57,8 @@ execute: |
     snap interfaces | MATCH "$CONTENT_CONNECTED_PATTERN"
 
     # Remove the content snaps so that we can reinstall them the other way around
-    snap remove test-snapd-content-plug_foo
-    snap remove test-snapd-content-slot
+    snap remove --purge test-snapd-content-plug_foo
+    snap remove --purge test-snapd-content-slot
 
     echo "The slot side auto-connects when content snap is installed"
     snap install --edge test-snapd-content-plug_foo
@@ -66,6 +66,6 @@ execute: |
     # snap install --edge test-snapd-content-slot
     snap interfaces | MATCH "$CONTENT_CONNECTED_PATTERN"
     echo "The interface is disconnected when content snap provider is removed"
-    snap remove test-snapd-content-slot
+    snap remove --purge test-snapd-content-slot
 
     snap interfaces | MATCH -- '^-\s+test-snapd-content-plug_foo:shared-content-plug$'

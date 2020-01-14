@@ -93,8 +93,14 @@ func debArchitecture(info *snap.Info) string {
 }
 
 // CheckSkeleton attempts to validate snap data in source directory
-func CheckSkeleton(sourceDir string) error {
-	_, err := loadAndValidate(sourceDir)
+func CheckSkeleton(w io.Writer, sourceDir string) error {
+	info, err := loadAndValidate(sourceDir)
+	if err == nil {
+		snap.SanitizePlugsSlots(info)
+		if len(info.BadInterfaces) > 0 {
+			fmt.Fprintln(w, snap.BadInterfacesSummary(info))
+		}
+	}
 	return err
 }
 

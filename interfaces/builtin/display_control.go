@@ -132,6 +132,5 @@ func init() {
 		implicitOnClassic:     true,
 		baseDeclarationSlots:  displayControlBaseDeclarationSlots,
 		connectedPlugAppArmor: displayControlConnectedPlugAppArmor,
-		reservedForOS:         true,
 	}})
 }

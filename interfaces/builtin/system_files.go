@@ -70,7 +70,6 @@ func init() {
 				implicitOnClassic:    true,
 				baseDeclarationPlugs: systemFilesBaseDeclarationPlugs,
 				baseDeclarationSlots: systemFilesBaseDeclarationSlots,
-				reservedForOS:        true,
 			},
 			apparmorHeader:    systemFilesConnectedPlugAppArmor,
 			extraPathValidate: validateSinglePathSystem,

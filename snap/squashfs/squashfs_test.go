@@ -21,12 +21,14 @@ package squashfs_test
 
 import (
 	"errors"
+	"fmt"
 	"io/ioutil"
 	"math"
 	"os"
 	"os/exec"
 	"path/filepath"
 	"strings"
+	"syscall"
 	"testing"
 	"time"
 
@@ -216,6 +218,15 @@ func (s *SquashfsTestSuite) TestReadFile(c *C) {
 	content, err := snap.ReadFile("meta/snap.yaml")
 	c.Assert(err, IsNil)
 	c.Assert(string(content), Equals, "name: foo")
+}
+
+func (s *SquashfsTestSuite) TestReadFileFail(c *C) {
+	mockUnsquashfs := testutil.MockCommand(c, "unsquashfs", `echo boom; exit 1`)
+	defer mockUnsquashfs.Restore()
+
+	snap := makeSnap(c, "name: foo", "")
+	_, err := snap.ReadFile("meta/snap.yaml")
+	c.Assert(err, ErrorMatches, "cannot run unsquashfs: boom")
 }
 
 func (s *SquashfsTestSuite) TestListDir(c *C) {
@@ -621,4 +632,68 @@ func (s *SquashfsTestSuite) TestBuildDate(c *C) {
 	// and see it's BuildDate is _now_, not _then_.
 	c.Check(squashfs.BuildDate(filename), Equals, snap.BuildDate())
 	c.Check(math.Abs(now.Sub(snap.BuildDate()).Seconds()) <= 61, Equals, true, Commentf("Unexpected build date %s", snap.BuildDate()))
+}
+
+func (s *SquashfsTestSuite) TestBuildChecksReadDifferentFiles(c *C) {
+	if os.Geteuid() == 0 {
+		c.Skip("cannot be tested when running as root")
+	}
+	// make a directory
+	d := c.MkDir()
+
+	err := os.MkdirAll(filepath.Join(d, "ro-dir"), 0755)
+	c.Assert(err, IsNil)
+	err = ioutil.WriteFile(filepath.Join(d, "ro-dir", "in-ro-dir"), []byte("123"), 0664)
+	c.Assert(err, IsNil)
+	err = os.Chmod(filepath.Join(d, "ro-dir"), 0000)
+	c.Assert(err, IsNil)
+	// so that tear down does not complain
+	defer os.Chmod(filepath.Join(d, "ro-dir"), 0755)
+
+	err = ioutil.WriteFile(filepath.Join(d, "ro-file"), []byte("123"), 0000)
+	c.Assert(err, IsNil)
+	err = ioutil.WriteFile(filepath.Join(d, "ro-empty-file"), nil, 0000)
+	c.Assert(err, IsNil)
+
+	err = syscall.Mkfifo(filepath.Join(d, "fifo"), 0000)
+	c.Assert(err, IsNil)
+
+	filename := filepath.Join(c.MkDir(), "foo.snap")
+	snap := squashfs.New(filename)
+	err = snap.Build(d, "app")
+	c.Assert(err, ErrorMatches, `(?s)cannot access the following locations in the snap source directory:
+- ro-(file|dir) \(owner [0-9]+:[0-9]+ mode 000\)
+- ro-(file|dir) \(owner [0-9]+:[0-9]+ mode 000\)
+`)
+
+}
+
+func (s *SquashfsTestSuite) TestBuildChecksReadErrorLimit(c *C) {
+	if os.Geteuid() == 0 {
+		c.Skip("cannot be tested when running as root")
+	}
+	// make a directory
+	d := c.MkDir()
+
+	// make more than maxErrPaths entries
+	for i := 0; i < squashfs.MaxErrPaths; i++ {
+		p := filepath.Join(d, fmt.Sprintf("0%d", i))
+		err := ioutil.WriteFile(p, []byte("123"), 0000)
+		c.Assert(err, IsNil)
+		err = os.Chmod(p, 0000)
+		c.Assert(err, IsNil)
+	}
+	filename := filepath.Join(c.MkDir(), "foo.snap")
+	snap := squashfs.New(filename)
+	err := snap.Build(d, "app")
+	c.Assert(err, ErrorMatches, `(?s)cannot access the following locations in the snap source directory:
+(- [0-9]+ \(owner [0-9]+:[0-9]+ mode 000.*\).){10}- too many errors, listing first 10 entries
+`)
+}
+
+func (s *SquashfsTestSuite) TestBuildBadSource(c *C) {
+	filename := filepath.Join(c.MkDir(), "foo.snap")
+	snap := squashfs.New(filename)
+	err := snap.Build("does-not-exist", "app")
+	c.Assert(err, ErrorMatches, ".*does-not-exist/: no such file or directory")
 }

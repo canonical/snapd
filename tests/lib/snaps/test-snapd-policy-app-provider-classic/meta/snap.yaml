@@ -18,7 +18,6 @@ slots:
     interface: dbus
     bus: system
     name: test.system
-  fwupd: null
   location-control: null
   location-observe: null
   lxd: null

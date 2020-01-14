@@ -20,6 +20,7 @@
 package gadget_test
 
 import (
+	"fmt"
 	"os"
 	"path/filepath"
 
@@ -148,9 +149,32 @@ func (s *validateGadgetTestSuite) TestValidateClassic(c *C) {
 	err := gadget.Validate(s.dir, nil)
 	c.Assert(err, IsNil)
 
-	err = gadget.Validate(s.dir, &gadget.ModelConstraints{Classic: true})
+	err = gadget.Validate(s.dir, &modelConstraints{classic: true})
 	c.Assert(err, IsNil)
 
-	err = gadget.Validate(s.dir, &gadget.ModelConstraints{Classic: false})
+	err = gadget.Validate(s.dir, &modelConstraints{classic: false})
 	c.Assert(err, ErrorMatches, "invalid gadget metadata: bootloader not declared in any volume")
+}
+
+func (s *validateGadgetTestSuite) TestValidateSystemSeedRoleTwice(c *C) {
+
+	for _, role := range []string{"system-seed", "system-data", "system-boot"} {
+		gadgetYamlContent := fmt.Sprintf(`
+volumes:
+  pc:
+    bootloader: grub
+    structure:
+      - name: foo
+        type: DA,21686148-6449-6E6F-744E-656564454649
+        size: 1M
+        role: %[1]s
+      - name: bar
+        type: DA,21686148-6449-6E6F-744E-656564454649
+        size: 1M
+        role: %[1]s
+`, role)
+		makeSizedFile(c, filepath.Join(s.dir, "meta/gadget.yaml"), 0, []byte(gadgetYamlContent))
+		err := gadget.Validate(s.dir, nil)
+		c.Assert(err, ErrorMatches, fmt.Sprintf(`invalid gadget metadata: invalid volume "pc": cannot have more than one partition with %s role`, role))
+	}
 }

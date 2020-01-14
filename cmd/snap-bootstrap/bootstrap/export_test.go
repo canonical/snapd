@@ -17,3 +17,8 @@
  *
  */
 package bootstrap
+
+var (
+	EnsureLayoutCompatibility = ensureLayoutCompatibility
+	DeviceFromRole            = deviceFromRole
+)

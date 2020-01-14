@@ -31,8 +31,11 @@ import (
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/gadget"
 	"github.com/snapcore/snapd/osutil"
+	"github.com/snapcore/snapd/overlord/auth"
 	"github.com/snapcore/snapd/overlord/devicestate"
+	"github.com/snapcore/snapd/overlord/devicestate/devicestatetest"
 	"github.com/snapcore/snapd/overlord/snapstate"
+	"github.com/snapcore/snapd/overlord/snapstate/snapstatetest"
 	"github.com/snapcore/snapd/overlord/state"
 	"github.com/snapcore/snapd/release"
 	"github.com/snapcore/snapd/snap"
@@ -57,7 +60,21 @@ volumes:
     bootloader: grub
 `
 
-func setupGadgetUpdate(c *C, st *state.State) (chg *state.Change, tsk *state.Task) {
+func (s *deviceMgrGadgetSuite) setupModelWithGadget(c *C, gadget string) {
+	s.makeModelAssertionInState(c, "canonical", "pc-model", map[string]interface{}{
+		"architecture": "amd64",
+		"kernel":       "pc-kernel",
+		"gadget":       gadget,
+		"base":         "core18",
+	})
+	devicestatetest.SetDevice(s.state, &auth.DeviceState{
+		Brand:  "canonical",
+		Model:  "pc-model",
+		Serial: "serial",
+	})
+}
+
+func (s *deviceMgrGadgetSuite) setupGadgetUpdate(c *C) (chg *state.Change, tsk *state.Task) {
 	siCurrent := &snap.SideInfo{
 		RealName: "foo-gadget",
 		Revision: snap.R(33),
@@ -75,24 +92,25 @@ func setupGadgetUpdate(c *C, st *state.State) (chg *state.Change, tsk *state.Tas
 		{"meta/gadget.yaml", gadgetYaml},
 	})
 
-	st.Lock()
+	s.state.Lock()
+	defer s.state.Unlock()
 
-	snapstate.Set(st, "foo-gadget", &snapstate.SnapState{
+	s.setupModelWithGadget(c, "foo-gadget")
+
+	snapstate.Set(s.state, "foo-gadget", &snapstate.SnapState{
 		SnapType: "gadget",
 		Sequence: []*snap.SideInfo{siCurrent},
 		Current:  siCurrent.Revision,
 		Active:   true,
 	})
 
-	tsk = st.NewTask("update-gadget-assets", "update gadget")
+	tsk = s.state.NewTask("update-gadget-assets", "update gadget")
 	tsk.Set("snap-setup", &snapstate.SnapSetup{
 		SideInfo: si,
 		Type:     snap.TypeGadget,
 	})
-	chg = st.NewChange("dummy", "...")
+	chg = s.state.NewChange("dummy", "...")
 	chg.AddTask(tsk)
-
-	st.Unlock()
 
 	return chg, tsk
 }
@@ -112,12 +130,13 @@ func (s *deviceMgrGadgetSuite) TestUpdateGadgetOnCoreSimple(c *C) {
 	})
 	defer restore()
 
-	chg, t := setupGadgetUpdate(c, s.state)
+	chg, t := s.setupGadgetUpdate(c)
 
-	for i := 0; i < 6; i++ {
-		s.se.Ensure()
-		s.se.Wait()
-	}
+	s.state.Lock()
+	s.state.Set("seeded", true)
+	s.state.Unlock()
+
+	s.settle(c)
 
 	s.state.Lock()
 	defer s.state.Unlock()
@@ -140,7 +159,7 @@ func (s *deviceMgrGadgetSuite) TestUpdateGadgetOnCoreNoUpdateNeeded(c *C) {
 	})
 	defer restore()
 
-	chg, t := setupGadgetUpdate(c, s.state)
+	chg, t := s.setupGadgetUpdate(c)
 
 	s.se.Ensure()
 	s.se.Wait()
@@ -166,16 +185,17 @@ func (s *deviceMgrGadgetSuite) TestUpdateGadgetOnCoreRollbackDirCreateFailed(c *
 	})
 	defer restore()
 
-	chg, t := setupGadgetUpdate(c, s.state)
+	chg, t := s.setupGadgetUpdate(c)
 
 	rollbackDir := filepath.Join(dirs.SnapRollbackDir, "foo-gadget_34")
 	err := os.MkdirAll(dirs.SnapRollbackDir, 0000)
 	c.Assert(err, IsNil)
 
-	for i := 0; i < 6; i++ {
-		s.se.Ensure()
-		s.se.Wait()
-	}
+	s.state.Lock()
+	s.state.Set("seeded", true)
+	s.state.Unlock()
+
+	s.settle(c)
 
 	s.state.Lock()
 	defer s.state.Unlock()
@@ -191,12 +211,13 @@ func (s *deviceMgrGadgetSuite) TestUpdateGadgetOnCoreUpdateFailed(c *C) {
 		return errors.New("gadget exploded")
 	})
 	defer restore()
-	chg, t := setupGadgetUpdate(c, s.state)
+	chg, t := s.setupGadgetUpdate(c)
 
-	for i := 0; i < 6; i++ {
-		s.se.Ensure()
-		s.se.Wait()
-	}
+	s.state.Lock()
+	s.state.Set("seeded", true)
+	s.state.Unlock()
+
+	s.settle(c)
 
 	s.state.Lock()
 	defer s.state.Unlock()
@@ -227,6 +248,9 @@ func (s *deviceMgrGadgetSuite) TestUpdateGadgetOnCoreNotDuringFirstboot(c *C) {
 	})
 
 	s.state.Lock()
+	s.state.Set("seeded", true)
+
+	s.setupModelWithGadget(c, "foo-gadget")
 
 	t := s.state.NewTask("update-gadget-assets", "update gadget")
 	t.Set("snap-setup", &snapstate.SnapSetup{
@@ -238,10 +262,7 @@ func (s *deviceMgrGadgetSuite) TestUpdateGadgetOnCoreNotDuringFirstboot(c *C) {
 
 	s.state.Unlock()
 
-	for i := 0; i < 6; i++ {
-		s.se.Ensure()
-		s.se.Wait()
-	}
+	s.settle(c)
 
 	s.state.Lock()
 	defer s.state.Unlock()
@@ -277,6 +298,9 @@ func (s *deviceMgrGadgetSuite) TestUpdateGadgetOnCoreBadGadgetYaml(c *C) {
 	})
 
 	s.state.Lock()
+	s.state.Set("seeded", true)
+
+	s.setupModelWithGadget(c, "foo-gadget")
 
 	snapstate.Set(s.state, "foo-gadget", &snapstate.SnapState{
 		SnapType: "gadget",
@@ -295,18 +319,64 @@ func (s *deviceMgrGadgetSuite) TestUpdateGadgetOnCoreBadGadgetYaml(c *C) {
 
 	s.state.Unlock()
 
-	for i := 0; i < 6; i++ {
-		s.se.Ensure()
-		s.se.Wait()
-	}
+	s.settle(c)
 
 	s.state.Lock()
 	defer s.state.Unlock()
 	c.Assert(chg.IsReady(), Equals, true)
-	c.Check(chg.Err(), ErrorMatches, `(?s).*update gadget \(cannot read candidate gadget snap details: .*\).*`)
+	c.Check(chg.Err(), ErrorMatches, `(?s).*update gadget \(cannot read candidate snap gadget metadata: .*\).*`)
 	c.Check(t.Status(), Equals, state.ErrorStatus)
 	rollbackDir := filepath.Join(dirs.SnapRollbackDir, "foo-gadget")
 	c.Check(osutil.IsDirectory(rollbackDir), Equals, false)
+	c.Check(s.restartRequests, HasLen, 0)
+}
+
+func (s *deviceMgrGadgetSuite) TestUpdateGadgetOnCoreParanoidChecks(c *C) {
+	restore := devicestate.MockGadgetUpdate(func(current, update gadget.GadgetData, path string, policy gadget.UpdatePolicyFunc) error {
+		return errors.New("unexpected call")
+	})
+	defer restore()
+	siCurrent := &snap.SideInfo{
+		RealName: "foo-gadget",
+		Revision: snap.R(33),
+		SnapID:   "foo-id",
+	}
+	si := &snap.SideInfo{
+		RealName: "foo-gadget-unexpected",
+		Revision: snap.R(34),
+		SnapID:   "foo-id",
+	}
+
+	s.state.Lock()
+
+	s.state.Set("seeded", true)
+
+	s.setupModelWithGadget(c, "foo-gadget")
+
+	snapstate.Set(s.state, "foo-gadget", &snapstate.SnapState{
+		SnapType: "gadget",
+		Sequence: []*snap.SideInfo{siCurrent},
+		Current:  siCurrent.Revision,
+		Active:   true,
+	})
+
+	t := s.state.NewTask("update-gadget-assets", "update gadget")
+	t.Set("snap-setup", &snapstate.SnapSetup{
+		SideInfo: si,
+		Type:     snap.TypeGadget,
+	})
+	chg := s.state.NewChange("dummy", "...")
+	chg.AddTask(t)
+
+	s.state.Unlock()
+
+	s.settle(c)
+
+	s.state.Lock()
+	defer s.state.Unlock()
+	c.Assert(chg.IsReady(), Equals, true)
+	c.Assert(chg.Err(), ErrorMatches, `(?s).*\(cannot apply gadget assets update from non-model gadget snap "foo-gadget-unexpected", expected "foo-gadget" snap\)`)
+	c.Check(t.Status(), Equals, state.ErrorStatus)
 	c.Check(s.restartRequests, HasLen, 0)
 }
 
@@ -321,25 +391,15 @@ func (s *deviceMgrGadgetSuite) TestUpdateGadgetOnClassicErrorsOut(c *C) {
 
 	s.state.Lock()
 
+	s.state.Set("seeded", true)
+
 	t := s.state.NewTask("update-gadget-assets", "update gadget")
 	chg := s.state.NewChange("dummy", "...")
 	chg.AddTask(t)
 
 	s.state.Unlock()
 
-	// we cannot use "s.o.Settle()" here because this change has an
-	// error which means that the settle will never converge
-	for i := 0; i < 50; i++ {
-		s.se.Ensure()
-		s.se.Wait()
-
-		s.state.Lock()
-		ready := chg.IsReady()
-		s.state.Unlock()
-		if ready {
-			break
-		}
-	}
+	s.settle(c)
 
 	s.state.Lock()
 	defer s.state.Unlock()
@@ -402,7 +462,7 @@ volumes:
 
 	expectedRollbackDir := filepath.Join(dirs.SnapRollbackDir, "foo-gadget_34")
 	updaterForStructureCalls := 0
-	gadget.MockUpdaterForStructure(func(ps *gadget.LaidOutStructure, rootDir, rollbackDir string) (gadget.Updater, error) {
+	restore := gadget.MockUpdaterForStructure(func(ps *gadget.LaidOutStructure, rootDir, rollbackDir string) (gadget.Updater, error) {
 		updaterForStructureCalls++
 
 		c.Assert(ps.Name, Equals, "foo")
@@ -412,8 +472,12 @@ volumes:
 		c.Assert(osutil.IsDirectory(rollbackDir), Equals, true)
 		return &mockUpdater{}, nil
 	})
+	defer restore()
 
 	s.state.Lock()
+	s.state.Set("seeded", true)
+
+	s.setupModelWithGadget(c, "foo-gadget")
 
 	snapstate.Set(s.state, "foo-gadget", &snapstate.SnapState{
 		SnapType: "gadget",
@@ -432,10 +496,7 @@ volumes:
 
 	s.state.Unlock()
 
-	for i := 0; i < 6; i++ {
-		s.se.Ensure()
-		s.se.Wait()
-	}
+	s.settle(c)
 
 	s.state.Lock()
 	defer s.state.Unlock()
@@ -465,10 +526,17 @@ func (s *deviceMgrGadgetSuite) TestCurrentAndUpdateInfo(c *C) {
 		Type:     snap.TypeGadget,
 	}
 
-	current, update, err := devicestate.GadgetCurrentAndUpdate(s.state, snapsup)
+	model := s.brands.Model("canonical", "pc-model", map[string]interface{}{
+		"architecture": "amd64",
+		"kernel":       "pc-kernel",
+		"gadget":       "foo-gadget",
+		"base":         "core18",
+	})
+	deviceCtx := &snapstatetest.TrivialDeviceContext{DeviceModel: model}
+
+	current, err := devicestate.CurrentGadgetInfo(s.state, deviceCtx)
 	c.Assert(current, IsNil)
-	c.Assert(update, IsNil)
-	c.Assert(err, IsNil)
+	c.Check(err, IsNil)
 
 	snapstate.Set(s.state, "foo-gadget", &snapstate.SnapState{
 		SnapType: "gadget",
@@ -480,38 +548,15 @@ func (s *deviceMgrGadgetSuite) TestCurrentAndUpdateInfo(c *C) {
 	// mock current first, but gadget.yaml is still missing
 	ci := snaptest.MockSnapWithFiles(c, snapYaml, siCurrent, nil)
 
-	current, update, err = devicestate.GadgetCurrentAndUpdate(s.state, snapsup)
+	current, err = devicestate.CurrentGadgetInfo(s.state, deviceCtx)
+
 	c.Assert(current, IsNil)
-	c.Assert(update, IsNil)
 	c.Assert(err, ErrorMatches, "cannot read current gadget snap details: .*/33/meta/gadget.yaml: no such file or directory")
 
 	// drop gadget.yaml for current snap
 	ioutil.WriteFile(filepath.Join(ci.MountDir(), "meta/gadget.yaml"), []byte(gadgetYaml), 0644)
 
-	// update missing snap.yaml
-	current, update, err = devicestate.GadgetCurrentAndUpdate(s.state, snapsup)
-	c.Assert(current, IsNil)
-	c.Assert(update, IsNil)
-	c.Assert(err, ErrorMatches, "cannot read candidate gadget snap details: cannot find installed snap .* .*/34/meta/snap.yaml")
-
-	ui := snaptest.MockSnapWithFiles(c, snapYaml, si, nil)
-
-	current, update, err = devicestate.GadgetCurrentAndUpdate(s.state, snapsup)
-	c.Assert(current, IsNil)
-	c.Assert(update, IsNil)
-	c.Assert(err, ErrorMatches, "cannot read candidate gadget snap details: .*/34/meta/gadget.yaml: no such file or directory")
-
-	var updateGadgetYaml = `
-volumes:
-  pc:
-    bootloader: grub
-    id: 123
-`
-
-	// drop gadget.yaml for update snap
-	ioutil.WriteFile(filepath.Join(ui.MountDir(), "meta/gadget.yaml"), []byte(updateGadgetYaml), 0644)
-
-	current, update, err = devicestate.GadgetCurrentAndUpdate(s.state, snapsup)
+	current, err = devicestate.CurrentGadgetInfo(s.state, deviceCtx)
 	c.Assert(err, IsNil)
 	c.Assert(current, DeepEquals, &gadget.GadgetData{
 		Info: &gadget.Info{
@@ -523,6 +568,30 @@ volumes:
 		},
 		RootDir: ci.MountDir(),
 	})
+
+	// pending update
+	update, err := devicestate.PendingGadgetInfo(snapsup, deviceCtx)
+	c.Assert(update, IsNil)
+	c.Assert(err, ErrorMatches, "cannot read candidate gadget snap details: cannot find installed snap .* .*/34/meta/snap.yaml")
+
+	ui := snaptest.MockSnapWithFiles(c, snapYaml, si, nil)
+
+	update, err = devicestate.PendingGadgetInfo(snapsup, deviceCtx)
+	c.Assert(update, IsNil)
+	c.Assert(err, ErrorMatches, "cannot read candidate snap gadget metadata: .*/34/meta/gadget.yaml: no such file or directory")
+
+	var updateGadgetYaml = `
+volumes:
+  pc:
+    bootloader: grub
+    id: 123
+`
+
+	// drop gadget.yaml for update snap
+	ioutil.WriteFile(filepath.Join(ui.MountDir(), "meta/gadget.yaml"), []byte(updateGadgetYaml), 0644)
+
+	update, err = devicestate.PendingGadgetInfo(snapsup, deviceCtx)
+	c.Assert(err, IsNil)
 	c.Assert(update, DeepEquals, &gadget.GadgetData{
 		Info: &gadget.Info{
 			Volumes: map[string]gadget.Volume{

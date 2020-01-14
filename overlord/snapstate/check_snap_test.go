@@ -22,9 +22,6 @@ package snapstate_test
 import (
 	"errors"
 	"fmt"
-	"io/ioutil"
-	"os"
-	"path/filepath"
 
 	. "gopkg.in/check.v1"
 
@@ -36,7 +33,6 @@ import (
 	"github.com/snapcore/snapd/release"
 	seccomp_compiler "github.com/snapcore/snapd/sandbox/seccomp"
 	"github.com/snapcore/snapd/snap"
-	"github.com/snapcore/snapd/snap/snapdir"
 	"github.com/snapcore/snapd/snap/snaptest"
 	"github.com/snapcore/snapd/testutil"
 
@@ -66,6 +62,10 @@ func (s *checkSnapSuite) SetUpTest(c *C) {
 func (s *checkSnapSuite) TearDownTest(c *C) {
 	s.BaseTest.TearDownTest(c)
 	dirs.SetRootDir("")
+}
+
+func emptyContainer(c *C) snap.Container {
+	return snaptest.MockContainer(c, nil)
 }
 
 func (s *checkSnapSuite) TestCheckSnapErrorOnUnsupportedArchitecture(c *C) {
@@ -101,7 +101,7 @@ var assumesTests = []struct {
 	assumes: "[common-data-dir]",
 }, {
 	assumes: "[f1, f2]",
-	error:   `snap "foo" assumes unsupported features: f1, f2 \(try to refresh the core snap\)`,
+	error:   `snap "foo" assumes unsupported features: f1, f2 \(try to refresh the core or snapd snaps\)`,
 }, {
 	assumes: "[f1, f2]",
 	classic: true,
@@ -202,10 +202,8 @@ version: 1.0`
 
 	var openSnapFile = func(path string, si *snap.SideInfo) (*snap.Info, snap.Container, error) {
 		info := snaptest.MockInfo(c, yaml, si)
-		snapDir := emptyContainer(c)
-		err := ioutil.WriteFile(filepath.Join(snapDir.Path(), "canary"), []byte("canary"), 0644)
-		c.Assert(err, IsNil)
-		return info, snapDir, nil
+		cont := snaptest.MockContainer(c, [][]string{{"canary", "canary"}})
+		return info, cont, nil
 	}
 	r1 := snapstate.MockOpenSnapFile(openSnapFile)
 	defer r1()
@@ -665,6 +663,50 @@ version: 2
 	c.Check(err, ErrorMatches, "cannot replace kernel snap with a different one")
 }
 
+func (s *checkSnapSuite) TestCheckSnapNoStateInfoInternalError(c *C) {
+	reset := release.MockOnClassic(false)
+	defer reset()
+
+	st := state.New(nil)
+	st.Lock()
+	defer st.Unlock()
+
+	si := &snap.SideInfo{RealName: "other-kernel", Revision: snap.R(2), SnapID: "kernel-id"}
+	snaptest.MockSnap(c, `
+name: other-kernel
+type: kernel
+version: 1
+`, si)
+	// we have a state information for snap of type kernel, but it's a
+	// different snap
+	snapstate.Set(st, "other-kernel", &snapstate.SnapState{
+		SnapType: "kernel",
+		Active:   true,
+		Sequence: []*snap.SideInfo{si},
+		Current:  si.Revision,
+	})
+
+	const yaml = `name: kernel
+type: kernel
+version: 2
+`
+
+	info, err := snap.InfoFromSnapYaml([]byte(yaml))
+	info.SnapID = "kernel-id"
+	c.Assert(err, IsNil)
+
+	var openSnapFile = func(path string, si *snap.SideInfo) (*snap.Info, snap.Container, error) {
+		return info, emptyContainer(c), nil
+	}
+	restore := snapstate.MockOpenSnapFile(openSnapFile)
+	defer restore()
+
+	st.Unlock()
+	err = snapstate.CheckSnap(st, "snap-path", "kernel", nil, nil, snapstate.Flags{}, s.deviceCtx)
+	st.Lock()
+	c.Check(err, ErrorMatches, "internal error: no state for kernel snap \"kernel\"")
+}
+
 func (s *checkSnapSuite) TestCheckSnapBasesErrorsIfMissing(c *C) {
 	st := state.New(nil)
 	st.Lock()
@@ -750,17 +792,6 @@ base: some-base
 	err = snapstate.CheckSnap(st, "snap-path", "requires-base", nil, nil, snapstate.Flags{}, nil)
 	st.Lock()
 	c.Check(err, IsNil)
-}
-
-// emptyContainer returns a minimal container that passes
-// ValidateContainer: / and /meta exist and are 0755, and
-// /meta/snap.yaml is a regular world-readable file.
-func emptyContainer(c *C) *snapdir.SnapDir {
-	d := c.MkDir()
-	c.Assert(os.Chmod(d, 0755), IsNil)
-	c.Assert(os.Mkdir(filepath.Join(d, "meta"), 0755), IsNil)
-	c.Assert(ioutil.WriteFile(filepath.Join(d, "meta", "snap.yaml"), nil, 0444), IsNil)
-	return snapdir.New(d)
 }
 
 func (s *checkSnapSuite) TestCheckSnapInstanceName(c *C) {
@@ -1206,7 +1237,7 @@ version: 2
 	c.Check(err, IsNil)
 }
 
-func (s *checkSnapSuite) TestCheckSnapRemodelGadgetDoesNotWorkYet(c *C) {
+func (s *checkSnapSuite) TestCheckSnapRemodelGadget(c *C) {
 	reset := release.MockOnClassic(false)
 	defer reset()
 
@@ -1253,7 +1284,7 @@ version: 2
 	}
 
 	st.Unlock()
-	err = snapstate.CheckSnap(st, "snap-path", "new-kernel", nil, nil, snapstate.Flags{}, deviceCtx)
+	err = snapstate.CheckSnap(st, "snap-path", "new-gadget", nil, nil, snapstate.Flags{}, deviceCtx)
 	st.Lock()
-	c.Check(err, ErrorMatches, "internal error: cannot remodel gadget yet")
+	c.Check(err, IsNil)
 }

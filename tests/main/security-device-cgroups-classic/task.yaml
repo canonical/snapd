@@ -33,7 +33,7 @@ execute: |
 
     # classic snaps don't use 'plugs', so just test the accesses after install
     echo "the classic snap can access the framebuffer"
-    "$SNAP_MOUNT_DIR"/bin/test-classic-cgroup.read-fb 2>&1 | MATCH -v '(Permission denied|Operation not permitted)'
+    "$SNAP_MOUNT_DIR"/bin/test-classic-cgroup.read-fb 2>&1 | not MATCH '(Permission denied|Operation not permitted)'
 
     echo "the classic snap can access other devices"
     test "$($SNAP_MOUNT_DIR/bin/test-classic-cgroup.read-kmsg)"

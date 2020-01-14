@@ -25,8 +25,10 @@ import (
 	"fmt"
 	"io/ioutil"
 	"path/filepath"
+	"reflect"
 
 	. "gopkg.in/check.v1"
+	"gopkg.in/tomb.v2"
 
 	"github.com/snapcore/snapd/asserts"
 	"github.com/snapcore/snapd/asserts/assertstest"
@@ -78,7 +80,6 @@ func (s *deviceMgrRemodelSuite) TestRemodelUnhappy(c *C) {
 		"architecture": "amd64",
 		"kernel":       "pc-kernel",
 		"gadget":       "pc",
-		"base":         "core18",
 	}
 	s.makeModelAssertionInState(c, cur["brand"], cur["model"], map[string]interface{}{
 		"architecture": cur["architecture"],
@@ -97,8 +98,7 @@ func (s *deviceMgrRemodelSuite) TestRemodelUnhappy(c *C) {
 		errStr string
 	}{
 		{map[string]string{"architecture": "pdp-7"}, "cannot remodel to different architectures yet"},
-		{map[string]string{"base": "core20"}, "cannot remodel to different bases yet"},
-		{map[string]string{"gadget": "other-gadget"}, "cannot remodel to different gadgets yet"},
+		{map[string]string{"base": "core20"}, "cannot remodel from core to bases yet"},
 	} {
 		// copy current model unless new model test data is different
 		for k, v := range cur {
@@ -119,7 +119,19 @@ func (s *deviceMgrRemodelSuite) TestRemodelUnhappy(c *C) {
 	}
 }
 
+func (s *deviceMgrRemodelSuite) TestRemodelTasksSwitchGadgetTrack(c *C) {
+	s.testRemodelTasksSwitchTrack(c, "pc", map[string]interface{}{
+		"gadget": "pc=18",
+	})
+}
+
 func (s *deviceMgrRemodelSuite) TestRemodelTasksSwitchKernelTrack(c *C) {
+	s.testRemodelTasksSwitchTrack(c, "pc-kernel", map[string]interface{}{
+		"kernel": "pc-kernel=18",
+	})
+}
+
+func (s *deviceMgrRemodelSuite) testRemodelTasksSwitchTrack(c *C, whatRefreshes string, newModelOverrides map[string]interface{}) {
 	s.state.Lock()
 	defer s.state.Unlock()
 	s.state.Set("seeded", true)
@@ -148,6 +160,8 @@ func (s *deviceMgrRemodelSuite) TestRemodelTasksSwitchKernelTrack(c *C) {
 		c.Check(flags.NoReRefresh, Equals, true)
 		c.Check(deviceCtx, Equals, testDeviceCtx)
 		c.Check(fromChange, Equals, "99")
+		c.Check(name, Equals, whatRefreshes)
+		c.Check(opts.Channel, Equals, "18")
 
 		tDownload := s.state.NewTask("fake-download", fmt.Sprintf("Download %s to track %s", name, opts.Channel))
 		tValidate := s.state.NewTask("validate-snap", fmt.Sprintf("Validate %s", name))
@@ -174,14 +188,18 @@ func (s *deviceMgrRemodelSuite) TestRemodelTasksSwitchKernelTrack(c *C) {
 		Model: "pc-model",
 	})
 
-	new := s.brands.Model("canonical", "pc-model", map[string]interface{}{
+	headers := map[string]interface{}{
 		"architecture":   "amd64",
-		"kernel":         "pc-kernel=18",
+		"kernel":         "pc-kernel",
 		"gadget":         "pc",
 		"base":           "core18",
 		"required-snaps": []interface{}{"new-required-snap-1", "new-required-snap-2"},
 		"revision":       "1",
-	})
+	}
+	for k, v := range newModelOverrides {
+		headers[k] = v
+	}
+	new := s.brands.Model("canonical", "pc-model", headers)
 
 	testDeviceCtx = &snapstatetest.TrivialDeviceContext{Remodeling: true}
 
@@ -192,7 +210,20 @@ func (s *deviceMgrRemodelSuite) TestRemodelTasksSwitchKernelTrack(c *C) {
 	c.Assert(tss, HasLen, 4)
 }
 
+func (s *deviceMgrRemodelSuite) TestRemodelTasksSwitchGadget(c *C) {
+	s.testRemodelSwitchTasks(c, "other-gadget", "18", map[string]interface{}{
+		"gadget": "other-gadget=18",
+	})
+}
+
 func (s *deviceMgrRemodelSuite) TestRemodelTasksSwitchKernel(c *C) {
+	s.testRemodelSwitchTasks(c, "other-kernel", "18", map[string]interface{}{
+		"kernel": "other-kernel=18",
+	})
+}
+
+func (s *deviceMgrRemodelSuite) testRemodelSwitchTasks(c *C, whatsNew, whatNewTrack string, newModelOverrides map[string]interface{}) {
+	c.Check(newModelOverrides, HasLen, 1, Commentf("test expects a single model property to change"))
 	s.state.Lock()
 	defer s.state.Unlock()
 	s.state.Set("seeded", true)
@@ -200,10 +231,13 @@ func (s *deviceMgrRemodelSuite) TestRemodelTasksSwitchKernel(c *C) {
 
 	var testDeviceCtx snapstate.DeviceContext
 
+	var snapstateInstallWithDeviceContextCalled int
 	restore := devicestate.MockSnapstateInstallWithDeviceContext(func(ctx context.Context, st *state.State, name string, opts *snapstate.RevisionOptions, userID int, flags snapstate.Flags, deviceCtx snapstate.DeviceContext, fromChange string) (*state.TaskSet, error) {
-		c.Check(deviceCtx, Equals, testDeviceCtx)
-		c.Check(name, Equals, "other-kernel")
-		c.Check(opts.Channel, Equals, "18")
+		snapstateInstallWithDeviceContextCalled++
+		c.Check(name, Equals, whatsNew)
+		if whatNewTrack != "" {
+			c.Check(opts.Channel, Equals, whatNewTrack)
+		}
 
 		tDownload := s.state.NewTask("fake-download", fmt.Sprintf("Download %s", name))
 		tValidate := s.state.NewTask("validate-snap", fmt.Sprintf("Validate %s", name))
@@ -230,20 +264,26 @@ func (s *deviceMgrRemodelSuite) TestRemodelTasksSwitchKernel(c *C) {
 		Model: "pc-model",
 	})
 
-	new := s.brands.Model("canonical", "pc-model", map[string]interface{}{
+	headers := map[string]interface{}{
 		"architecture": "amd64",
-		"kernel":       "other-kernel=18",
+		"kernel":       "pc-kernel",
 		"gadget":       "pc",
 		"base":         "core18",
 		"revision":     "1",
-	})
+	}
+	for k, v := range newModelOverrides {
+		headers[k] = v
+	}
+	new := s.brands.Model("canonical", "pc-model", headers)
 
 	testDeviceCtx = &snapstatetest.TrivialDeviceContext{Remodeling: true}
 
 	tss, err := devicestate.RemodelTasks(context.Background(), s.state, current, new, testDeviceCtx, "99")
 	c.Assert(err, IsNil)
-	// 1 new kernel plus the remodel task
+	// 1 of switch-kernel/base/gadget plus the remodel task
 	c.Assert(tss, HasLen, 2)
+	// API was hit
+	c.Assert(snapstateInstallWithDeviceContextCalled, Equals, 1)
 }
 
 func (s *deviceMgrRemodelSuite) TestRemodelRequiredSnaps(c *C) {
@@ -856,6 +896,36 @@ func (s *deviceMgrRemodelSuite) TestDeviceCtxNoTask(c *C) {
 	deviceCtx, err := devicestate.DeviceCtx(s.state, nil, nil)
 	c.Assert(err, IsNil)
 	c.Assert(deviceCtx.Model().BrandID(), Equals, "canonical")
+
+	c.Check(deviceCtx.Classic(), Equals, false)
+	c.Check(deviceCtx.Kernel(), Equals, "kernel")
+	c.Check(deviceCtx.Base(), Equals, "")
+	c.Check(deviceCtx.RunMode(), Equals, true)
+}
+
+func (s *deviceMgrRemodelSuite) TestDeviceCtxGroundContext(c *C) {
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	// have a model assertion
+	model := s.brands.Model("canonical", "pc", map[string]interface{}{
+		"gadget":       "pc",
+		"kernel":       "kernel",
+		"architecture": "amd64",
+	})
+	assertstatetest.AddMany(s.state, model)
+	devicestatetest.SetDevice(s.state, &auth.DeviceState{
+		Brand: "canonical",
+		Model: "pc",
+	})
+
+	deviceCtx, err := devicestate.DeviceCtx(s.state, nil, nil)
+	c.Assert(err, IsNil)
+	c.Assert(deviceCtx.Model().BrandID(), Equals, "canonical")
+	groundCtx := deviceCtx.GroundContext()
+	c.Check(groundCtx.ForRemodeling(), Equals, false)
+	c.Check(groundCtx.Model().Model(), Equals, "pc")
+	c.Check(groundCtx.Store, PanicMatches, `retrieved ground context is not intended to drive store operations`)
 }
 
 func (s *deviceMgrRemodelSuite) TestDeviceCtxProvided(c *C) {
@@ -924,7 +994,7 @@ volumes:
 		"gadget":       "new-gadget",
 		"kernel":       "kernel",
 	})
-	remodelCtx := &snapstatetest.TrivialDeviceContext{DeviceModel: newModel, Remodeling: true}
+	remodelCtx := &snapstatetest.TrivialDeviceContext{DeviceModel: newModel, Remodeling: true, OldDeviceModel: oldModel}
 
 	restore := devicestate.MockGadgetIsCompatible(func(current, update *gadget.Info) error {
 		c.Assert(current.Volumes, HasLen, 1)
@@ -973,7 +1043,7 @@ volumes:
 	// when remodeling to completely new gadget snap, there is no current
 	// snap passed to the check callback
 	err = devicestate.CheckGadgetRemodelCompatible(s.state, info, nil, snapf, snapstate.Flags{}, remodelCtx)
-	c.Check(err, ErrorMatches, "cannot identify the current model")
+	c.Check(err, ErrorMatches, "cannot identify the current gadget snap")
 
 	// mock data to obtain current gadget info
 	devicestatetest.SetDevice(s.state, &auth.DeviceState{
@@ -998,4 +1068,427 @@ volumes:
 
 	err = devicestate.CheckGadgetRemodelCompatible(s.state, info, nil, snapf, snapstate.Flags{}, remodelCtx)
 	c.Check(err, IsNil)
+}
+
+var (
+	compatibleTestMockOkGadget = `
+type: gadget
+name: gadget
+volumes:
+  volume:
+    schema: gpt
+    bootloader: grub
+    structure:
+      - name: foo
+        size: 10M
+        type: 00000000-0000-0000-0000-0000deadbeef
+`
+)
+
+func (s *deviceMgrRemodelSuite) testCheckGadgetRemodelCompatibleWithYaml(c *C, currentGadgetYaml, newGadgetYaml string, expErr string) {
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	currentSnapYaml := `
+name: gadget
+type: gadget
+version: 123
+`
+	remodelSnapYaml := `
+name: new-gadget
+type: gadget
+version: 123
+`
+
+	currInfo := snaptest.MockSnapWithFiles(c, currentSnapYaml, &snap.SideInfo{Revision: snap.R(123)}, [][]string{
+		{"meta/gadget.yaml", currentGadgetYaml},
+	})
+	// gadget we're remodeling to is identical
+	info := snaptest.MockSnapWithFiles(c, remodelSnapYaml, &snap.SideInfo{Revision: snap.R(1)}, [][]string{
+		{"meta/gadget.yaml", newGadgetYaml},
+	})
+	snapf, err := snap.Open(info.MountDir())
+	c.Assert(err, IsNil)
+
+	s.setupBrands(c)
+	// model assertion in device context
+	oldModel := fakeMyModel(map[string]interface{}{
+		"architecture": "amd64",
+		"gadget":       "new-gadget",
+		"kernel":       "krnl",
+	})
+	model := fakeMyModel(map[string]interface{}{
+		"architecture": "amd64",
+		"gadget":       "new-gadget",
+		"kernel":       "krnl",
+	})
+	remodelCtx := &snapstatetest.TrivialDeviceContext{DeviceModel: model, Remodeling: true, OldDeviceModel: oldModel}
+
+	err = devicestate.CheckGadgetRemodelCompatible(s.state, info, currInfo, snapf, snapstate.Flags{}, remodelCtx)
+	if expErr == "" {
+		c.Check(err, IsNil)
+	} else {
+		c.Check(err, ErrorMatches, expErr)
+	}
+
+}
+
+func (s *deviceMgrRemodelSuite) TestCheckGadgetRemodelCompatibleWithYamlHappy(c *C) {
+	s.testCheckGadgetRemodelCompatibleWithYaml(c, compatibleTestMockOkGadget, compatibleTestMockOkGadget, "")
+}
+
+func (s *deviceMgrRemodelSuite) TestCheckGadgetRemodelCompatibleWithYamlBad(c *C) {
+	mockBadGadgetYaml := `
+type: gadget
+name: gadget
+volumes:
+  volume:
+    schema: gpt
+    bootloader: grub
+    structure:
+      - name: foo
+        size: 20M
+        type: 00000000-0000-0000-0000-0000deadbeef
+`
+
+	errMatch := `cannot remodel to an incompatible gadget: incompatible layout change: incompatible structure #0 \("foo"\) change: cannot change structure size from 10485760 to 20971520`
+	s.testCheckGadgetRemodelCompatibleWithYaml(c, compatibleTestMockOkGadget, mockBadGadgetYaml, errMatch)
+}
+
+func (s *deviceMgrRemodelSuite) TestRemodelGadgetAssetsUpdate(c *C) {
+	var currentGadgetYaml = `
+volumes:
+  pc:
+    bootloader: grub
+    structure:
+       - name: foo
+         type: 00000000-0000-0000-0000-0000deadcafe
+         filesystem: ext4
+         size: 10M
+         content:
+            - source: foo-content
+              target: /
+       - name: bare-one
+         type: bare
+         size: 1M
+         content:
+            - image: bare.img
+`
+
+	var remodelGadgetYaml = `
+volumes:
+  pc:
+    bootloader: grub
+    structure:
+       - name: foo
+         type: 00000000-0000-0000-0000-0000deadcafe
+         filesystem: ext4
+         size: 10M
+         content:
+            - source: new-foo-content
+              target: /
+       - name: bare-one
+         type: bare
+         size: 1M
+         content:
+            - image: new-bare-content.img
+`
+
+	s.state.Lock()
+	s.state.Set("seeded", true)
+	s.state.Set("refresh-privacy-key", "some-privacy-key")
+
+	nopHandler := func(task *state.Task, _ *tomb.Tomb) error {
+		return nil
+	}
+	s.o.TaskRunner().AddHandler("fake-download", nopHandler, nil)
+	s.o.TaskRunner().AddHandler("validate-snap", nopHandler, nil)
+	s.o.TaskRunner().AddHandler("set-model", nopHandler, nil)
+
+	// set a model assertion we remodel from
+	s.makeModelAssertionInState(c, "canonical", "pc-model", map[string]interface{}{
+		"architecture": "amd64",
+		"kernel":       "pc-kernel",
+		"gadget":       "pc",
+		"base":         "core18",
+	})
+	devicestatetest.SetDevice(s.state, &auth.DeviceState{
+		Brand:  "canonical",
+		Model:  "pc-model",
+		Serial: "serial",
+	})
+
+	// the target model
+	new := s.brands.Model("canonical", "pc-model", map[string]interface{}{
+		"architecture": "amd64",
+		"kernel":       "pc-kernel",
+		"base":         "core18",
+		"revision":     "1",
+		// remodel to new gadget
+		"gadget": "new-gadget",
+	})
+
+	// current gadget
+	siModelGadget := &snap.SideInfo{
+		RealName: "pc",
+		Revision: snap.R(33),
+		SnapID:   "foo-id",
+	}
+	currentGadgetInfo := snaptest.MockSnapWithFiles(c, snapYaml, siModelGadget, [][]string{
+		{"meta/gadget.yaml", currentGadgetYaml},
+	})
+	snapstate.Set(s.state, "pc", &snapstate.SnapState{
+		SnapType: "gadget",
+		Sequence: []*snap.SideInfo{siModelGadget},
+		Current:  siModelGadget.Revision,
+		Active:   true,
+	})
+
+	// new gadget snap
+	siNewModelGadget := &snap.SideInfo{
+		RealName: "new-gadget",
+		Revision: snap.R(34),
+	}
+	newGadgetInfo := snaptest.MockSnapWithFiles(c, snapYaml, siNewModelGadget, [][]string{
+		{"meta/gadget.yaml", remodelGadgetYaml},
+	})
+
+	restore := devicestate.MockSnapstateInstallWithDeviceContext(func(ctx context.Context, st *state.State, name string, opts *snapstate.RevisionOptions, userID int, flags snapstate.Flags, deviceCtx snapstate.DeviceContext, fromChange string) (*state.TaskSet, error) {
+		tDownload := s.state.NewTask("fake-download", fmt.Sprintf("Download %s", name))
+		tValidate := s.state.NewTask("validate-snap", fmt.Sprintf("Validate %s", name))
+		tValidate.WaitFor(tDownload)
+		tGadgetUpdate := s.state.NewTask("update-gadget-assets", fmt.Sprintf("Update gadget %s", name))
+		tGadgetUpdate.Set("snap-setup", &snapstate.SnapSetup{
+			SideInfo: siNewModelGadget,
+			Type:     snap.TypeGadget,
+		})
+		tGadgetUpdate.WaitFor(tValidate)
+		ts := state.NewTaskSet(tDownload, tValidate, tGadgetUpdate)
+		ts.MarkEdge(tValidate, snapstate.DownloadAndChecksDoneEdge)
+		return ts, nil
+	})
+	defer restore()
+	restore = release.MockOnClassic(false)
+	defer restore()
+
+	gadgetUpdateCalled := false
+	restore = devicestate.MockGadgetUpdate(func(current, update gadget.GadgetData, path string, policy gadget.UpdatePolicyFunc) error {
+		gadgetUpdateCalled = true
+		c.Check(policy, NotNil)
+		c.Check(reflect.ValueOf(policy).Pointer(), Equals, reflect.ValueOf(gadget.RemodelUpdatePolicy).Pointer())
+		c.Check(current, DeepEquals, gadget.GadgetData{
+			Info: &gadget.Info{
+				Volumes: map[string]gadget.Volume{
+					"pc": {
+						Bootloader: "grub",
+						Structure: []gadget.VolumeStructure{{
+							Name:       "foo",
+							Type:       "00000000-0000-0000-0000-0000deadcafe",
+							Size:       10 * gadget.SizeMiB,
+							Filesystem: "ext4",
+							Content: []gadget.VolumeContent{
+								{Source: "foo-content", Target: "/"},
+							},
+						}, {
+							Name: "bare-one",
+							Type: "bare",
+							Size: gadget.SizeMiB,
+							Content: []gadget.VolumeContent{
+								{Image: "bare.img"},
+							},
+						}},
+					},
+				},
+			},
+			RootDir: currentGadgetInfo.MountDir(),
+		})
+		c.Check(update, DeepEquals, gadget.GadgetData{
+			Info: &gadget.Info{
+				Volumes: map[string]gadget.Volume{
+					"pc": {
+						Bootloader: "grub",
+						Structure: []gadget.VolumeStructure{{
+							Name:       "foo",
+							Type:       "00000000-0000-0000-0000-0000deadcafe",
+							Size:       10 * gadget.SizeMiB,
+							Filesystem: "ext4",
+							Content: []gadget.VolumeContent{
+								{Source: "new-foo-content", Target: "/"},
+							},
+						}, {
+							Name: "bare-one",
+							Type: "bare",
+							Size: gadget.SizeMiB,
+							Content: []gadget.VolumeContent{
+								{Image: "new-bare-content.img"},
+							},
+						}},
+					},
+				},
+			},
+			RootDir: newGadgetInfo.MountDir(),
+		})
+		return nil
+	})
+	defer restore()
+
+	chg, err := devicestate.Remodel(s.state, new)
+	c.Check(err, IsNil)
+	s.state.Unlock()
+
+	s.settle(c)
+
+	s.state.Lock()
+	defer s.state.Unlock()
+	c.Check(chg.IsReady(), Equals, true)
+	c.Check(chg.Err(), IsNil)
+	c.Check(gadgetUpdateCalled, Equals, true)
+	c.Check(s.restartRequests, DeepEquals, []state.RestartType{state.RestartSystem})
+}
+
+func (s *deviceMgrRemodelSuite) TestRemodelGadgetAssetsParanoidCheck(c *C) {
+	s.state.Lock()
+	s.state.Set("seeded", true)
+	s.state.Set("refresh-privacy-key", "some-privacy-key")
+
+	nopHandler := func(task *state.Task, _ *tomb.Tomb) error {
+		return nil
+	}
+	s.o.TaskRunner().AddHandler("fake-download", nopHandler, nil)
+	s.o.TaskRunner().AddHandler("validate-snap", nopHandler, nil)
+	s.o.TaskRunner().AddHandler("set-model", nopHandler, nil)
+
+	// set a model assertion we remodel from
+	s.makeModelAssertionInState(c, "canonical", "pc-model", map[string]interface{}{
+		"architecture": "amd64",
+		"kernel":       "pc-kernel",
+		"gadget":       "pc",
+		"base":         "core18",
+	})
+	devicestatetest.SetDevice(s.state, &auth.DeviceState{
+		Brand:  "canonical",
+		Model:  "pc-model",
+		Serial: "serial",
+	})
+
+	// the target model
+	new := s.brands.Model("canonical", "pc-model", map[string]interface{}{
+		"architecture": "amd64",
+		"kernel":       "pc-kernel",
+		"base":         "core18",
+		"revision":     "1",
+		// remodel to new gadget
+		"gadget": "new-gadget",
+	})
+
+	// current gadget
+	siModelGadget := &snap.SideInfo{
+		RealName: "pc",
+		Revision: snap.R(33),
+		SnapID:   "foo-id",
+	}
+	snapstate.Set(s.state, "pc", &snapstate.SnapState{
+		SnapType: "gadget",
+		Sequence: []*snap.SideInfo{siModelGadget},
+		Current:  siModelGadget.Revision,
+		Active:   true,
+	})
+
+	// new gadget snap, name does not match the new model
+	siUnexpectedModelGadget := &snap.SideInfo{
+		RealName: "new-gadget-unexpected",
+		Revision: snap.R(34),
+	}
+	restore := devicestate.MockSnapstateInstallWithDeviceContext(func(ctx context.Context, st *state.State, name string, opts *snapstate.RevisionOptions, userID int, flags snapstate.Flags, deviceCtx snapstate.DeviceContext, fromChange string) (*state.TaskSet, error) {
+		tDownload := s.state.NewTask("fake-download", fmt.Sprintf("Download %s", name))
+		tValidate := s.state.NewTask("validate-snap", fmt.Sprintf("Validate %s", name))
+		tValidate.WaitFor(tDownload)
+		tGadgetUpdate := s.state.NewTask("update-gadget-assets", fmt.Sprintf("Update gadget %s", name))
+		tGadgetUpdate.Set("snap-setup", &snapstate.SnapSetup{
+			SideInfo: siUnexpectedModelGadget,
+			Type:     snap.TypeGadget,
+		})
+		tGadgetUpdate.WaitFor(tValidate)
+		ts := state.NewTaskSet(tDownload, tValidate, tGadgetUpdate)
+		ts.MarkEdge(tValidate, snapstate.DownloadAndChecksDoneEdge)
+		return ts, nil
+	})
+	defer restore()
+	restore = release.MockOnClassic(false)
+	defer restore()
+
+	gadgetUpdateCalled := false
+	restore = devicestate.MockGadgetUpdate(func(current, update gadget.GadgetData, path string, policy gadget.UpdatePolicyFunc) error {
+		return errors.New("unexpected call")
+	})
+	defer restore()
+
+	chg, err := devicestate.Remodel(s.state, new)
+	c.Check(err, IsNil)
+	s.state.Unlock()
+
+	s.settle(c)
+
+	s.state.Lock()
+	defer s.state.Unlock()
+	c.Check(chg.IsReady(), Equals, true)
+	c.Assert(chg.Err(), ErrorMatches, `(?s).*\(cannot apply gadget assets update from non-model gadget snap "new-gadget-unexpected", expected "new-gadget" snap\)`)
+	c.Check(gadgetUpdateCalled, Equals, false)
+	c.Check(s.restartRequests, HasLen, 0)
+}
+
+func (s *deviceMgrSuite) TestRemodelSwitchBase(c *C) {
+	s.state.Lock()
+	defer s.state.Unlock()
+	s.state.Set("seeded", true)
+	s.state.Set("refresh-privacy-key", "some-privacy-key")
+
+	var testDeviceCtx snapstate.DeviceContext
+
+	var snapstateInstallWithDeviceContextCalled int
+	restore := devicestate.MockSnapstateInstallWithDeviceContext(func(ctx context.Context, st *state.State, name string, opts *snapstate.RevisionOptions, userID int, flags snapstate.Flags, deviceCtx snapstate.DeviceContext, fromChange string) (*state.TaskSet, error) {
+		snapstateInstallWithDeviceContextCalled++
+		c.Check(name, Equals, "core20")
+
+		tDownload := s.state.NewTask("fake-download", fmt.Sprintf("Download %s", name))
+		tValidate := s.state.NewTask("validate-snap", fmt.Sprintf("Validate %s", name))
+		tValidate.WaitFor(tDownload)
+		tInstall := s.state.NewTask("fake-install", fmt.Sprintf("Install %s", name))
+		tInstall.WaitFor(tValidate)
+		ts := state.NewTaskSet(tDownload, tValidate, tInstall)
+		ts.MarkEdge(tValidate, snapstate.DownloadAndChecksDoneEdge)
+		return ts, nil
+	})
+	defer restore()
+
+	// set a model assertion
+	current := s.brands.Model("canonical", "pc-model", map[string]interface{}{
+		"architecture": "amd64",
+		"kernel":       "pc-kernel",
+		"gadget":       "pc",
+		"base":         "core18",
+	})
+	err := assertstate.Add(s.state, current)
+	c.Assert(err, IsNil)
+	devicestatetest.SetDevice(s.state, &auth.DeviceState{
+		Brand: "canonical",
+		Model: "pc-model",
+	})
+
+	new := s.brands.Model("canonical", "pc-model", map[string]interface{}{
+		"architecture": "amd64",
+		"kernel":       "pc-kernel",
+		"gadget":       "pc",
+		"base":         "core20",
+		"revision":     "1",
+	})
+
+	testDeviceCtx = &snapstatetest.TrivialDeviceContext{Remodeling: true}
+
+	tss, err := devicestate.RemodelTasks(context.Background(), s.state, current, new, testDeviceCtx, "99")
+	c.Assert(err, IsNil)
+	// 1 switch to a new base plus the remodel task
+	c.Assert(tss, HasLen, 2)
+	// API was hit
+	c.Assert(snapstateInstallWithDeviceContextCalled, Equals, 1)
 }

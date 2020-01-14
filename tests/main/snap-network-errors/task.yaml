@@ -1,11 +1,7 @@
 summary: Ensure network errors are handled gracefully
 
-# autopkgtest run only a subset of tests that deals with the integration
-# with the distro
-backends: [-autopkgtest]
-
-# no iptables on core18 yet
-systems: [-ubuntu-core-18-*]
+# no iptables on core18+
+systems: [-ubuntu-core-18-*, -ubuntu-core-2*]
 
 restore: |
     echo "Restoring iptables rules"
