@@ -185,12 +185,18 @@ start_nested_core_vm(){
     # the VM.
     IMAGE="$WORK_DIR/image/ubuntu-core-new.img"
 
+    BIOS=
+    if is_core_20_nested_system; then
+        BIOS="-bios /usr/share/OVMF/OVMF_CODE.ms.fd"
+    fi
+
     cp -f "$WORK_DIR/image/ubuntu-core.img" "$IMAGE"
     systemd_create_and_start_unit "$NESTED_VM" "${QEMU} -m 2048 -nographic \
         -net nic,model=virtio -net user,hostfwd=tcp::$SSH_PORT-:22 \
         -drive file=$IMAGE,cache=none,format=raw \
         -drive file=$WORK_DIR/assertions.disk,cache=none,format=raw \
         -monitor tcp:127.0.0.1:$MON_PORT,server,nowait -usb \
+        $BIOS \
         -machine accel=kvm"
 
     if ! wait_for_ssh; then
