@@ -46,7 +46,7 @@ type Modeenv struct {
 
 var readModeenv = readModeenvImpl
 
-// ReadModeenvImpl attempts to read the file specified by
+// ReadModeenv attempts to read the file specified by
 // "rootdir/dirs.SnapModeenvFile" as a Modeenv.
 func ReadModeenv(rootdir string) (*Modeenv, error) {
 	return readModeenv(rootdir)

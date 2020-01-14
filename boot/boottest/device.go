@@ -26,8 +26,9 @@ import (
 )
 
 type mockDevice struct {
-	str  string
-	uc20 bool
+	bootSnap string
+	mode     string
+	uc20     bool
 }
 
 // MockDevice implements boot.Device. It wraps a string like
@@ -35,29 +36,32 @@ type mockDevice struct {
 // <mode> defaults to "run". It returns <boot-snap-name> for both
 // Base and Kernel, for more control mock a DeviceContext.
 func MockDevice(s string) boot.Device {
-	return &mockDevice{str: s}
+	bootsnap, mode := snapAndMode(s)
+	return &mockDevice{
+		bootSnap: bootsnap,
+		mode:     mode,
+	}
 }
 
 // MockUC20Device implements boot.Device and returns true for HasModeenv.
 func MockUC20Device(s string) boot.Device {
-	return &mockDevice{str: s, uc20: true}
+	m := MockDevice(s).(*mockDevice)
+	m.uc20 = true
+	return m
 }
 
-func (d *mockDevice) snapAndMode() []string {
-	parts := strings.SplitN(string(d.str), "@", 2)
-	if len(parts) == 1 {
-		return append(parts, "run")
+func snapAndMode(str string) (snap, mode string) {
+	parts := strings.SplitN(string(str), "@", 2)
+	if len(parts) == 1 || parts[1] == "" {
+		return parts[0], "run"
 	}
-	if parts[1] == "" {
-		return []string{parts[0], "run"}
-	}
-	return parts
+	return parts[0], parts[1]
 }
 
-func (d *mockDevice) Kernel() string { return d.snapAndMode()[0] }
-func (d *mockDevice) Base() string   { return d.snapAndMode()[0] }
-func (d *mockDevice) Classic() bool  { return d.snapAndMode()[0] == "" }
-func (d *mockDevice) RunMode() bool  { return d.snapAndMode()[1] == "run" }
+func (d *mockDevice) Kernel() string { return d.bootSnap }
+func (d *mockDevice) Base() string   { return d.bootSnap }
+func (d *mockDevice) Classic() bool  { return d.bootSnap == "" }
+func (d *mockDevice) RunMode() bool  { return d.mode == "run" }
 
 // HasModeenv is true when created with uc20 string.
 func (d *mockDevice) HasModeenv() bool {
