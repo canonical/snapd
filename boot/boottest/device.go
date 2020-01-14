@@ -38,7 +38,7 @@ func MockDevice(s string) boot.Device {
 	return &mockDevice{str: s}
 }
 
-// MockUC20Device implements boot.Device and returns true for HasModeenv
+// MockUC20Device implements boot.Device and returns true for HasModeenv.
 func MockUC20Device(s string) boot.Device {
 	return &mockDevice{str: s, uc20: true}
 }
@@ -59,7 +59,7 @@ func (d *mockDevice) Base() string   { return d.snapAndMode()[0] }
 func (d *mockDevice) Classic() bool  { return d.snapAndMode()[0] == "" }
 func (d *mockDevice) RunMode() bool  { return d.snapAndMode()[1] == "run" }
 
-// HasModeenv is true when created with uc20 string
+// HasModeenv is true when created with uc20 string.
 func (d *mockDevice) HasModeenv() bool {
 	return d.uc20
 }

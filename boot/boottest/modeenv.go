@@ -28,9 +28,8 @@ import (
 // ForceModeenv forces ReadModeenv to always return a specific Modeenv for a
 // given root dir, returning a restore function to reset to the old behavior.
 // If rootdir is empty, then all invocations return the specified modeenv
-func ForceModeenv(rootdir string, m *boot.Modeenv) func() {
-	old := boot.ReadModeenv
-	boot.ReadModeenv = func(callerrootdir string) (*boot.Modeenv, error) {
+func ForceModeenv(rootdir string, m *boot.Modeenv) (restore func()) {
+	mock := func(callerrootdir string) (*boot.Modeenv, error) {
 		if rootdir == "" || callerrootdir == rootdir {
 			return m, nil
 		}
@@ -39,7 +38,5 @@ func ForceModeenv(rootdir string, m *boot.Modeenv) func() {
 		return nil, os.ErrNotExist
 	}
 
-	return func() {
-		boot.ReadModeenv = old
-	}
+	return boot.MockReadModeenv(mock)
 }
