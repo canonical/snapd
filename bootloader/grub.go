@@ -49,9 +49,9 @@ type grub struct {
 func newGrub(rootdir string, opts *Options) RecoveryAwareBootloader {
 	g := &grub{rootdir: rootdir}
 	if opts != nil && opts.Recovery {
-		g.basedir = "/EFI/ubuntu"
+		g.basedir = "EFI/ubuntu"
 	} else {
-		g.basedir = "/boot/grub"
+		g.basedir = "boot/grub"
 	}
 	if !osutil.FileExists(g.ConfigFile()) {
 		return nil
@@ -178,6 +178,27 @@ func (g *grub) RemoveKernelAssets(s snap.PlaceInfo) error {
 // ExtractedRunKernelImageBootloader helper methods
 
 func (g *grub) makeKernelEfiSymlink(s snap.PlaceInfo, name string) error {
+	// don't use g.dir() for the symlink destination ("oldname" in go parlance)
+	// because we want a relative symlink target, i.e. we want EFI/ubuntu
+	// always, even if grub is really working from
+	// /run/mnt/ubuntu-boot/EFI/ubuntu, etc.
+	extractedKernel := filepath.Join(
+		g.extractedKernelDir(g.basedir, s),
+		"kernel.efi",
+	)
+
+	// check that the kernel snap has been extracted already so we don't
+	// inadvertently create a dangling symlink here
+	// here we do add rootdir since we're following where the symlink will end
+	// up
+	if !osutil.FileExists(filepath.Join(g.rootdir, extractedKernel)) {
+		return fmt.Errorf(
+			"cannot enable %s at %s: %v",
+			name,
+			extractedKernel,
+			os.ErrNotExist,
+		)
+	}
 	return os.Symlink(
 		// don't use g.dir() because we don't want the rootdir in the symlink
 		// target, we want EFI/ubuntu always, even if grub is really working
@@ -201,16 +222,25 @@ func (g *grub) readKernelSymlink(name string) (snap.PlaceInfo, error) {
 	// read the symlink from <grub-root-dir>/<name> to
 	// <grub-root-dir>/EFI/ubuntu/<snap-name>.snap/<name> and parse the
 	// directory (which is supposed to be the name of the snap)
-	targetKernelEfi, err := os.Readlink(filepath.Join(g.rootdir, "kernel.efi"))
-	if err != nil {
-		return nil, fmt.Errorf("couldn't read kernel.efi symlink: %v", err)
+	l := filepath.Join(g.rootdir, name)
+
+	// check that the symlink is not dangling before continuing
+	if !osutil.FileExists(l) {
+		return nil, fmt.Errorf("cannot read dangling symlink %s", name)
 	}
+
+	targetKernelEfi, err := os.Readlink(l)
+	if err != nil {
+		return nil, fmt.Errorf("couldn't read %s symlink: %v", l, err)
+	}
+
 	kernelSnapFileName := filepath.Base(filepath.Dir(targetKernelEfi))
 	sn, err := snap.ParsePlaceInfoFromSnapFileName(kernelSnapFileName)
 	if err != nil {
 		return nil, fmt.Errorf(
-			"bad kernel snap file path at %q, unable to parse into snap file name: %v",
+			"bad kernel snap file path at %q (from symlink %q), unable to parse into snap file name: %v",
 			kernelSnapFileName,
+			l,
 			err,
 		)
 	}
@@ -258,8 +288,11 @@ func (g *grub) Kernel() (snap.PlaceInfo, error) {
 // false if there is not currently a try-kernel.efi symlink. Note if the symlink
 // exists but does not point to an existing file an error will be returned.
 func (g *grub) TryKernel() (snap.PlaceInfo, bool, error) {
-	// try to read the symlink from <rootdir>/try-kernel.efi
-	if osutil.FileExists(filepath.Join(g.rootdir, "try-kernel.efi")) {
+	// check that the _symlink_ exists, not that it points to something real
+	// we check for whether it is a dangling symlink inside readKernelSymlink,
+	// which returns an error when the symlink is dangling
+	_, err := os.Lstat(filepath.Join(g.rootdir, "try-kernel.efi"))
+	if err == nil {
 		p, err := g.readKernelSymlink("try-kernel.efi")
 		// if we failed to read the symlink, then the try kernel isn't usable,
 		// so return err because the symlink is there
