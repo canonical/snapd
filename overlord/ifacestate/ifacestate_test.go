@@ -1667,6 +1667,64 @@ slots:
 	_ = s.getConnection(c, "consumer", "plug", "producer", "slot")
 }
 
+func (s *interfaceManagerSuite) TestForgetUndo(c *C) {
+	s.mockIfaces(c, &ifacetest.TestInterface{InterfaceName: "test"}, &ifacetest.TestInterface{InterfaceName: "test2"})
+
+	s.mockSnap(c, consumerYaml)
+	s.mockSnap(c, producerYaml)
+
+	// plug3 and slot3 do not exist, so the connection is not in the repository.
+	connState := map[string]interface{}{
+		"consumer:plug producer:slot":   map[string]interface{}{"interface": "test"},
+		"consumer:plug3 producer:slot3": map[string]interface{}{"interface": "test2"},
+	}
+
+	s.state.Lock()
+	s.state.Set("conns", connState)
+	s.state.Unlock()
+
+	// Initialize the manager. This registers both snaps and reloads the connection.
+	mgr := s.manager(c)
+
+	// sanity
+	_ = s.getConnection(c, "consumer", "plug", "producer", "slot")
+
+	// Run the disconnect task and let it finish.
+	s.state.Lock()
+	change := s.state.NewChange("disconnect", "...")
+	ts, err := ifacestate.Forget(s.state, mgr.Repository(), &interfaces.ConnRef{
+		PlugRef: interfaces.PlugRef{Snap: "consumer", Name: "plug3"},
+		SlotRef: interfaces.SlotRef{Snap: "producer", Name: "slot3"}})
+	c.Assert(err, IsNil)
+	// inactive connection, only the disconnect task (no hooks)
+	c.Assert(ts.Tasks(), HasLen, 1)
+	task, err := ts.Edge(ifacestate.DisconnectTaskEdge)
+	c.Assert(err, IsNil)
+	c.Check(task.Kind(), Equals, "disconnect")
+	var forgetFlag bool
+	c.Assert(task.Get("forget", &forgetFlag), IsNil)
+	c.Check(forgetFlag, Equals, true)
+
+	change.AddAll(ts)
+	terr := s.state.NewTask("error-trigger", "provoking total undo")
+	terr.WaitAll(ts)
+	change.AddTask(terr)
+
+	s.state.Unlock()
+	s.settle(c)
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	// Ensure that disconnect task was undone
+	c.Assert(task.Status(), Equals, state.UndoneStatus)
+
+	var conns map[string]interface{}
+	c.Assert(s.state.Get("conns", &conns), IsNil)
+	c.Assert(conns, DeepEquals, connState)
+
+	_ = s.getConnection(c, "consumer", "plug", "producer", "slot")
+}
+
 func (s *interfaceManagerSuite) TestStaleConnectionsIgnoredInReloadConnections(c *C) {
 	s.mockIfaces(c, &ifacetest.TestInterface{InterfaceName: "test"})
 
@@ -1728,6 +1786,109 @@ func (s *interfaceManagerSuite) TestStaleConnectionsRemoved(c *C) {
 	repo := mgr.Repository()
 	ifaces := repo.Interfaces()
 	c.Assert(ifaces.Connections, HasLen, 0)
+}
+
+func (s *interfaceManagerSuite) testForget(c *C, plugSnap, plugName, slotSnap, slotName string) {
+	s.mockIfaces(c, &ifacetest.TestInterface{InterfaceName: "test"}, &ifacetest.TestInterface{InterfaceName: "test2"})
+	s.mockSnap(c, consumerYaml)
+	s.mockSnap(c, producerYaml)
+
+	s.state.Lock()
+	s.state.Set("conns", map[string]interface{}{
+		"consumer:plug producer:slot":   map[string]interface{}{"interface": "test"},
+		"consumer:plug2 producer:slot2": map[string]interface{}{"interface": "test2"},
+	})
+	s.state.Unlock()
+
+	// Initialize the manager. This registers both snaps and reloads the
+	// connections. Only one connection ends up in the repository.
+	mgr := s.manager(c)
+
+	// sanity
+	_ = s.getConnection(c, "consumer", "plug", "producer", "slot")
+
+	// Run the disconnect --forget task and let it finish.
+	s.state.Lock()
+	change := s.state.NewChange("disconnect", "...")
+	ts, err := ifacestate.Forget(s.state, mgr.Repository(), &interfaces.ConnRef{PlugRef: interfaces.PlugRef{Snap: plugSnap, Name: plugName}, SlotRef: interfaces.SlotRef{Snap: slotSnap, Name: slotName}})
+	c.Assert(err, IsNil)
+	task, err := ts.Edge(ifacestate.DisconnectTaskEdge)
+	c.Assert(err, IsNil)
+	c.Check(task.Kind(), Equals, "disconnect")
+	var forgetFlag bool
+	c.Assert(task.Get("forget", &forgetFlag), IsNil)
+	c.Check(forgetFlag, Equals, true)
+
+	c.Assert(err, IsNil)
+	change.AddAll(ts)
+	s.state.Unlock()
+
+	s.settle(c)
+
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	// Ensure that the task succeeded.
+	c.Assert(change.Err(), IsNil)
+	if plugName == "plug" {
+		// active connection, disconnect + hooks expected
+		c.Assert(change.Tasks(), HasLen, 3)
+	} else {
+		// inactive connection, just the disconnect task
+		c.Assert(change.Tasks(), HasLen, 1)
+	}
+
+	c.Check(task.Status(), Equals, state.DoneStatus)
+	c.Check(change.Status(), Equals, state.DoneStatus)
+}
+
+func (s *interfaceManagerSuite) TestForgetInactiveConnection(c *C) {
+	// forget inactive connection, that means it's not in the repository,
+	// only in the state.
+	s.testForget(c, "consumer", "plug2", "producer", "slot2")
+
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	// Ensure that the connection has been removed from the state
+	var conns map[string]interface{}
+	c.Assert(s.state.Get("conns", &conns), IsNil)
+	c.Check(conns, DeepEquals, map[string]interface{}{
+		"consumer:plug producer:slot": map[string]interface{}{"interface": "test"},
+	})
+
+	mgr := s.manager(c)
+	repo := mgr.Repository()
+
+	// and the active connection remains in the repo
+	repoConns, err := repo.Connections("consumer")
+	c.Assert(err, IsNil)
+	c.Assert(repoConns, HasLen, 1)
+	c.Check(repoConns[0].PlugRef.Name, Equals, "plug")
+}
+
+func (s *interfaceManagerSuite) TestForgetActiveConnection(c *C) {
+	// forget active connection, that means it's in the repository,
+	// so it goes through normal disconnect logic and is removed
+	// from the repository.
+	s.testForget(c, "consumer", "plug", "producer", "slot")
+
+	mgr := s.manager(c)
+	// Ensure that the connection has been removed from the repository
+	repo := mgr.Repository()
+	repoConns, err := repo.Connections("consumer")
+	c.Assert(err, IsNil)
+	c.Check(repoConns, HasLen, 0)
+
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	// Ensure that the connection has been removed from the state
+	var conns map[string]interface{}
+	c.Assert(s.state.Get("conns", &conns), IsNil)
+	c.Check(conns, DeepEquals, map[string]interface{}{
+		"consumer:plug2 producer:slot2": map[string]interface{}{"interface": "test2"},
+	})
 }
 
 func (s *interfaceManagerSuite) mockSecBackend(c *C, backend interfaces.SecurityBackend) {
@@ -7172,6 +7333,81 @@ func (s *interfaceManagerSuite) TestConnectionStatesHotplugGone(c *C) {
 				"other-number": int64(9),
 			},
 		}})
+}
+
+func (s *interfaceManagerSuite) TestResolveDisconnectFromConns(c *C) {
+	mgr := s.manager(c)
+
+	st := s.st
+	st.Lock()
+	defer st.Unlock()
+
+	st.Set("conns", map[string]interface{}{"some-snap:plug core:slot": map[string]interface{}{"interface": "foo"}})
+
+	forget := true
+	ref, err := mgr.ResolveDisconnect("some-snap", "plug", "core", "slot", forget)
+	c.Check(err, IsNil)
+	c.Check(ref, DeepEquals, []*interfaces.ConnRef{
+		{PlugRef: interfaces.PlugRef{Snap: "some-snap", Name: "plug"}, SlotRef: interfaces.SlotRef{Snap: "core", Name: "slot"}},
+	})
+
+	ref, err = mgr.ResolveDisconnect("some-snap", "plug", "", "slot", forget)
+	c.Check(err, IsNil)
+	c.Check(ref, DeepEquals, []*interfaces.ConnRef{
+		{PlugRef: interfaces.PlugRef{Snap: "some-snap", Name: "plug"}, SlotRef: interfaces.SlotRef{Snap: "core", Name: "slot"}},
+	})
+
+	ref, err = mgr.ResolveDisconnect("some-snap", "plug", "", "slot", forget)
+	c.Check(err, IsNil)
+	c.Check(ref, DeepEquals, []*interfaces.ConnRef{
+		{PlugRef: interfaces.PlugRef{Snap: "some-snap", Name: "plug"}, SlotRef: interfaces.SlotRef{Snap: "core", Name: "slot"}},
+	})
+
+	_, err = mgr.ResolveDisconnect("", "plug", "", "slot", forget)
+	c.Check(err, ErrorMatches, `cannot forget connection core:plug from core:slot, it was not connected`)
+
+	_, err = mgr.ResolveDisconnect("some-snap", "", "", "slot", forget)
+	c.Check(err, ErrorMatches, `invalid empty plug name`)
+
+	_, err = mgr.ResolveDisconnect("some-snap", "plug", "", "", forget)
+	c.Check(err, ErrorMatches, `invalid empty slot name`)
+
+	_, err = mgr.ResolveDisconnect("other-snap", "plug", "", "slot", forget)
+	c.Check(err, ErrorMatches, `cannot forget connection other-snap:plug from core:slot, it was not connected`)
+}
+
+func (s *interfaceManagerSuite) TestResolveDisconnectWithRepository(c *C) {
+	s.mockIfaces(c, &ifacetest.TestInterface{InterfaceName: "test"})
+	mgr := s.manager(c)
+
+	consumerInfo := s.mockSnap(c, consumerYaml)
+	producerInfo := s.mockSnap(c, producerYaml)
+
+	repo := s.manager(c).Repository()
+	c.Assert(repo.AddSnap(consumerInfo), IsNil)
+	c.Assert(repo.AddSnap(producerInfo), IsNil)
+
+	_, err := repo.Connect(&interfaces.ConnRef{
+		PlugRef: interfaces.PlugRef{Snap: "consumer", Name: "plug"},
+		SlotRef: interfaces.SlotRef{Snap: "producer", Name: "slot"},
+	}, nil, nil, nil, nil, nil)
+
+	c.Assert(err, IsNil)
+
+	st := s.st
+	st.Lock()
+	defer st.Unlock()
+
+	// resolve through interfaces repository because of forget=false
+	forget := false
+	ref, err := mgr.ResolveDisconnect("consumer", "plug", "producer", "slot", forget)
+	c.Check(err, IsNil)
+	c.Check(ref, DeepEquals, []*interfaces.ConnRef{
+		{PlugRef: interfaces.PlugRef{Snap: "consumer", Name: "plug"}, SlotRef: interfaces.SlotRef{Snap: "producer", Name: "slot"}},
+	})
+
+	_, err = mgr.ResolveDisconnect("consumer", "foo", "producer", "slot", forget)
+	c.Check(err, ErrorMatches, `snap "consumer" has no plug named "foo"`)
 }
 
 const someSnapYaml = `name: some-snap

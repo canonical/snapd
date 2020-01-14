@@ -20,6 +20,7 @@
 package ifacestate
 
 import (
+	"fmt"
 	"sync"
 	"time"
 
@@ -284,6 +285,50 @@ func (m *InterfaceManager) ConnectionStates() (connStateByRef map[string]Connect
 	defer m.state.Unlock()
 
 	return ConnectionStates(m.state)
+}
+
+// ResolveDisconnect resolves potentially missing plug or slot names and returns
+// a fully populated connection reference. It resorts to repository's
+// ResolveDisconnect method for normal disconnect, but uses connection from the
+// state if forget flag is true, so it is able to resolve connections for
+// non-existing plugs or slots.
+// The state must be locked by the caller.
+func (m *InterfaceManager) ResolveDisconnect(plugSnapName, plugName, slotSnapName, slotName string, forget bool) ([]*interfaces.ConnRef, error) {
+	if !forget {
+		return m.repo.ResolveDisconnect(plugSnapName, plugName, slotSnapName, slotName)
+	}
+
+	// for convienience, empty plug snap means system snap
+	if plugSnapName == "" {
+		plugSnapName = mapper.SystemSnapName()
+	}
+	if plugName == "" {
+		return nil, fmt.Errorf("invalid empty plug name")
+	}
+	if slotName == "" {
+		return nil, fmt.Errorf("invalid empty slot name")
+	}
+	// for convienience, empty slot snap means system snap
+	if slotSnapName == "" {
+		slotSnapName = mapper.SystemSnapName()
+	}
+
+	conns, err := getConns(m.state)
+	if err != nil {
+		return nil, err
+	}
+
+	ref := &interfaces.ConnRef{
+		PlugRef: interfaces.PlugRef{Snap: plugSnapName, Name: plugName},
+		SlotRef: interfaces.SlotRef{Snap: slotSnapName, Name: slotName},
+	}
+	if _, ok := conns[ref.ID()]; ok {
+		return []*interfaces.ConnRef{ref}, nil
+	}
+
+	// the error mimics the error from repo.ResolveDisconnect(..) when
+	// a concrete (non-existing) connection was given.
+	return nil, fmt.Errorf("cannot forget connection %s:%s from %s:%s, it was not connected", plugSnapName, plugName, slotSnapName, slotName)
 }
 
 // DisableUDevMonitor disables the instantiation of udev monitor, but has no effect

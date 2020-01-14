@@ -195,7 +195,7 @@ func (cs *clientSuite) TestClientConnect(c *check.C) {
 }
 
 func (cs *clientSuite) TestClientDisconnectCallsEndpoint(c *check.C) {
-	cs.cli.Disconnect("producer", "plug", "consumer", "slot")
+	cs.cli.Disconnect("producer", "plug", "consumer", "slot", false)
 	c.Check(cs.req.Method, check.Equals, "POST")
 	c.Check(cs.req.URL.Path, check.Equals, "/v2/interfaces")
 }
@@ -208,7 +208,7 @@ func (cs *clientSuite) TestClientDisconnect(c *check.C) {
 		"result": { },
                 "change": "42"
 	}`
-	id, err := cs.cli.Disconnect("producer", "plug", "consumer", "slot")
+	id, err := cs.cli.Disconnect("producer", "plug", "consumer", "slot", false)
 	c.Assert(err, check.IsNil)
 	c.Check(id, check.Equals, "42")
 	var body map[string]interface{}

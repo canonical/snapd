@@ -1810,21 +1810,28 @@ func changeInterfaces(c *Command, r *http.Request, user *auth.UserState) Respons
 		}
 	case "disconnect":
 		var conns []*interfaces.ConnRef
-		repo := c.d.overlord.InterfaceManager().Repository()
 		summary = fmt.Sprintf("Disconnect %s:%s from %s:%s", a.Plugs[0].Snap, a.Plugs[0].Name, a.Slots[0].Snap, a.Slots[0].Name)
-		conns, err = repo.ResolveDisconnect(a.Plugs[0].Snap, a.Plugs[0].Name, a.Slots[0].Snap, a.Slots[0].Name)
+		conns, err = c.d.overlord.InterfaceManager().ResolveDisconnect(a.Plugs[0].Snap, a.Plugs[0].Name, a.Slots[0].Snap, a.Slots[0].Name, a.Forget)
 		if err == nil {
 			if len(conns) == 0 {
 				return InterfacesUnchanged("nothing to do")
 			}
+			repo := c.d.overlord.InterfaceManager().Repository()
 			for _, connRef := range conns {
 				var ts *state.TaskSet
 				var conn *interfaces.Connection
-				conn, err = repo.Connection(connRef)
-				if err != nil {
-					break
+				if a.Forget {
+					ts, err = ifacestate.Forget(st, repo, connRef)
+				} else {
+					conn, err = repo.Connection(connRef)
+					if err != nil {
+						break
+					}
+					ts, err = ifacestate.Disconnect(st, conn)
+					if err != nil {
+						break
+					}
 				}
-				ts, err = ifacestate.Disconnect(st, conn)
 				if err != nil {
 					break
 				}

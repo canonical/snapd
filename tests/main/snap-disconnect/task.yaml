@@ -9,11 +9,19 @@ prepare: |
     echo "Install a test snap"
     snap pack "$TESTSLIB"/snaps/home-consumer
     snap install --dangerous "$SNAP_FILE"
+    snap install jq
+    echo "Prepare extra test snaps"
+    snap pack test-snap-producer
+    snap pack test-snap-consumer.v1
+    snap pack test-snap-consumer.v2
 
 restore: |
     rm -f ./*.snap
 
 execute: |
+    #shellcheck source=tests/lib/systems.sh
+    . "$TESTSLIB"/systems.sh
+
     DISCONNECTED_PATTERN='-\s+home-consumer:home'
 
     echo "Disconnect everything from given slot"
@@ -43,3 +51,46 @@ execute: |
 
     echo "Disconnecting again using abbreviated form is handled"
     snap disconnect home-consumer:home | MATCH "No connections to disconnect"
+
+    inspect_connection() {
+      CONN="$1"
+      # shellcheck disable=SC2002
+      cat /var/lib/snapd/state.json | jq -r '.data["conns"] | has("'"$CONN"'")'
+    }
+
+    # these checks rely on automatic connection of home on non-core systems
+    if ! is_core_system; then
+      echo "Checking that --forget forgets connection when auto-connected"
+      snap remove --purge "$SNAP_FILE"
+      snap install --dangerous "$SNAP_FILE"
+      snap connections home-consumer | MATCH "home-consumer:home *:home"
+      snap disconnect --forget home-consumer:home :home
+      snap interfaces | grep -Pzqe "$DISCONNECTED_PATTERN"
+      inspect_connection "home-consumer:home core:home"| MATCH "false"
+
+      echo "Checking that --forget forgets the connection when already disconnected"
+      snap remove --purge "$SNAP_FILE"
+      snap install --dangerous "$SNAP_FILE"
+      # home got auto-connected
+      snap connections home-consumer | MATCH "home-consumer:home *:home"
+      snap disconnect home-consumer:home :home
+      # still remembered as automatic connection is now undesired
+      inspect_connection "home-consumer:home core:home" | MATCH "true"
+      snap interfaces | grep -Pzqe "$DISCONNECTED_PATTERN"
+      snap disconnect --forget home-consumer:home :home
+      inspect_connection "home-consumer:home core:home" | MATCH "false"
+    fi
+
+    echo "Checking that a connection for missing plug can be forgotten"
+    snap install --dangerous test-snap-producer_1_all.snap
+    snap install --dangerous test-snap-consumer_1_all.snap
+    snap connect test-snap-consumer:shared-content-plug test-snap-producer:shared-content-slot
+    snap connections test-snap-consumer | MATCH "content\[mylib\] *test-snap-consumer:shared-content-plug *test-snap-producer:shared-content-slot"
+    # refresh to a newer version without content plug
+    snap install --dangerous test-snap-consumer_2_all.snap
+    # this check is broken due to a bug where missing plugs/slots are still listed
+    #snap connections test-snap-consumer | not MATCH "content\[mylib\] *test-snap-consumer:shared-content-plug *test-snap-producer:shared-content-slot"
+    inspect_connection "test-snap-consumer:shared-content-plug test-snap-producer:shared-content-slot" | MATCH "true"
+    snap disconnect --forget test-snap-consumer:shared-content-plug test-snap-producer:shared-content-slot
+    snap connections test-snap-consumer | not MATCH "content\[mylib\] *test-snap-consumer:shared-content-plug *test-snap-producer:shared-content-slot"
+    inspect_connection "test-snap-consumer:shared-content-plug test-snap-producer:shared-content-slot" | MATCH "false"
