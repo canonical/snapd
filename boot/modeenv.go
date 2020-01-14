@@ -44,8 +44,33 @@ type Modeenv struct {
 	read bool
 }
 
+var readModeenv = readModeenvImpl
+
+// ReadModeenv attempts to read the modeenv file at
+// <rootdir>/var/iib/snapd/modeenv.
 func ReadModeenv(rootdir string) (*Modeenv, error) {
-	modeenvPath := filepath.Join(rootdir, dirs.SnapModeenvFile)
+	return readModeenv(rootdir)
+}
+
+// MockReadModeenv replaces the current implementation of ReadModeenv with a
+// mocked one. For use in tests.
+func MockReadModeenv(f func(rootdir string) (*Modeenv, error)) (restore func()) {
+	old := readModeenv
+	readModeenv = f
+	return func() {
+		readModeenv = old
+	}
+}
+
+func modeenvFile(rootdir string) string {
+	if rootdir == "" {
+		rootdir = dirs.GlobalRootDir
+	}
+	return dirs.SnapModeenvFileUnder(rootdir)
+}
+
+func readModeenvImpl(rootdir string) (*Modeenv, error) {
+	modeenvPath := modeenvFile(rootdir)
 	cfg := goconfigparser.New()
 	cfg.AllowNoSectionHeader = true
 	if err := cfg.ReadFile(modeenvPath); err != nil {
@@ -69,8 +94,9 @@ func (m *Modeenv) Unset() bool {
 	return !m.read
 }
 
+// Write outputs the modeenv to the file at <rootdir>/var/lib/snapd/modeenv.
 func (m *Modeenv) Write(rootdir string) error {
-	modeenvPath := filepath.Join(rootdir, dirs.SnapModeenvFile)
+	modeenvPath := modeenvFile(rootdir)
 
 	if err := os.MkdirAll(filepath.Dir(modeenvPath), 0755); err != nil {
 		return err
