@@ -17,10 +17,10 @@ prepare: |
 
 restore: |
     rm -f ./*.snap
-    snap remove --purge jq
-    snap remove --purge home-consumer
-    snap remove --purge test-snap-producer
-    snap remove --purge test-snap-consumer
+    snap remove --purge jq || true
+    snap remove --purge home-consumer || true
+    snap remove --purge test-snap-producer || true
+    snap remove --purge test-snap-consumer || true
 
 execute: |
     #shellcheck source=tests/lib/systems.sh
