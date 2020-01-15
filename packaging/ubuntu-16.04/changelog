@@ -1,8 +1,14 @@
 snapd (2.43.1) xenial; urgency=medium
 
-  * placeholder changelog
+  * New upstream release, LP: #1856159
+    - devicestate: use httputil.ShouldRetryError() in prepareSerialRequest
+    - overlord/standby: fix possible deadlock in standby test
+    - cmd/snap-discard-ns: fix pattern for .info files
+    - overlord,o/snapstate: make sure we never leave config behind
+    - data/selinux: update policy to cover more cases
+    - snap: remove "host" output from `snap version`
 
- -- Michael Vogt <michael.vogt@ubuntu.com>  Tue, 14 Jan 2020 14:38:10 +0100
+ -- Michael Vogt <michael.vogt@ubuntu.com>  Tue, 14 Jan 2020 20:30:07 +0100
 
 snapd (2.43) xenial; urgency=medium
 
