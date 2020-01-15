@@ -30,15 +30,22 @@ import (
 	"github.com/snapcore/snapd/interfaces"
 	"github.com/snapcore/snapd/interfaces/builtin"
 	"github.com/snapcore/snapd/interfaces/ifacetest"
+	"github.com/snapcore/snapd/strutil"
 )
 
 // Tests for GET /v2/connections
 
-func (s *apiSuite) testConnectionsConnected(c *check.C, query string, connsState map[string]interface{}, expected map[string]interface{}) {
+func (s *apiSuite) testConnectionsConnected(c *check.C, query string, connsState map[string]interface{}, repoConnected []string, expected map[string]interface{}) {
 	c.Assert(s.d, check.NotNil, check.Commentf("call s.daemon() first"))
 
 	repo := s.d.overlord.InterfaceManager().Repository()
 	for crefStr, cstate := range connsState {
+		// if repoConnected is defined, then given connection must be on
+		// list, otherwise it's not going to be connected in the repository
+		// to simulate missing plugs/slots.
+		if repoConnected != nil && !strutil.ListContains(repoConnected, crefStr) {
+			continue
+		}
 		cref, err := interfaces.ParseConnRef(crefStr)
 		c.Assert(err, check.IsNil)
 		conn := cstate.(map[string]interface{})
@@ -236,7 +243,7 @@ func (s *apiSuite) TestConnectionsBySnapName(c *check.C) {
 		"consumer:plug producer:slot": map[string]interface{}{
 			"interface": "test",
 		},
-	}, map[string]interface{}{
+	}, nil, map[string]interface{}{
 		"result": map[string]interface{}{
 			"plugs": []interface{}{
 				map[string]interface{}{
@@ -277,6 +284,67 @@ func (s *apiSuite) TestConnectionsBySnapName(c *check.C) {
 		"status-code": 200.0,
 		"type":        "sync",
 	})
+}
+
+func (s *apiSuite) TestConnectionsMissingPlugSlotFilteredOut(c *check.C) {
+	restore := builtin.MockInterface(&ifacetest.TestInterface{InterfaceName: "test"})
+	defer restore()
+
+	s.daemon(c)
+
+	s.mockSnap(c, consumerYaml)
+	s.mockSnap(c, producerYaml)
+
+	for _, missingPlugOrSlot := range []string{"consumer:plug2 producer:slot", "consumer:plug producer:slot2"} {
+		s.testConnectionsConnected(c, "/v2/connections?snap=producer", map[string]interface{}{
+			"consumer:plug producer:slot": map[string]interface{}{
+				"interface": "test",
+			},
+			missingPlugOrSlot: map[string]interface{}{
+				"interface": "test",
+			},
+		}, []string{"consumer:plug producer:slot"}, map[string]interface{}{
+			"result": map[string]interface{}{
+				"plugs": []interface{}{
+					map[string]interface{}{
+						"snap":      "consumer",
+						"plug":      "plug",
+						"interface": "test",
+						"attrs":     map[string]interface{}{"key": "value"},
+						"apps":      []interface{}{"app"},
+						"label":     "label",
+						"connections": []interface{}{
+							map[string]interface{}{"snap": "producer", "slot": "slot"},
+						},
+					},
+				},
+				"slots": []interface{}{
+					map[string]interface{}{
+						"snap":      "producer",
+						"slot":      "slot",
+						"interface": "test",
+						"attrs":     map[string]interface{}{"key": "value"},
+						"apps":      []interface{}{"app"},
+						"label":     "label",
+						"connections": []interface{}{
+							map[string]interface{}{"snap": "consumer", "plug": "plug"},
+						},
+					},
+				},
+				"established": []interface{}{
+					map[string]interface{}{
+						"plug":      map[string]interface{}{"snap": "consumer", "plug": "plug"},
+						"slot":      map[string]interface{}{"snap": "producer", "slot": "slot"},
+						"manual":    true,
+						"interface": "test",
+					},
+				},
+			},
+			"status":      "OK",
+			"status-code": 200.0,
+			"type":        "sync",
+		})
+	}
 }
 
 func (s *apiSuite) TestConnectionsBySnapAlias(c *check.C) {
@@ -355,7 +423,7 @@ func (s *apiSuite) TestConnectionsBySnapAlias(c *check.C) {
 		"consumer:plug core:slot": map[string]interface{}{
 			"interface": "test",
 		},
-	}, map[string]interface{}{
+	}, nil, map[string]interface{}{
 		"result":      expectedConnmected,
 		"status":      "OK",
 		"status-code": 200.0,
@@ -467,7 +535,7 @@ plugs:
 		"consumer:plug producer:slot": map[string]interface{}{
 			"interface": "test",
 		},
-	}, map[string]interface{}{
+	}, nil, map[string]interface{}{
 		"result": map[string]interface{}{
 			"plugs": []interface{}{
 				map[string]interface{}{
@@ -534,7 +602,7 @@ func (s *apiSuite) TestConnectionsDefaultManual(c *check.C) {
 		"consumer:plug producer:slot": map[string]interface{}{
 			"interface": "test",
 		},
-	}, map[string]interface{}{
+	}, nil, map[string]interface{}{
 		"result": map[string]interface{}{
 			"plugs": []interface{}{
 				map[string]interface{}{
@@ -603,7 +671,7 @@ func (s *apiSuite) TestConnectionsDefaultAuto(c *check.C) {
 				"foo-slot-dynamic": "bar-dynamic",
 			},
 		},
-	}, map[string]interface{}{
+	}, nil, map[string]interface{}{
 		"result": map[string]interface{}{
 			"plugs": []interface{}{
 				map[string]interface{}{
@@ -668,7 +736,7 @@ func (s *apiSuite) TestConnectionsDefaultGadget(c *check.C) {
 			"by-gadget": true,
 			"auto":      true,
 		},
-	}, map[string]interface{}{
+	}, nil, map[string]interface{}{
 		"result": map[string]interface{}{
 			"plugs": []interface{}{
 				map[string]interface{}{
@@ -727,7 +795,7 @@ func (s *apiSuite) TestConnectionsAll(c *check.C) {
 			"auto":      true,
 			"undesired": true,
 		},
-	}, map[string]interface{}{
+	}, nil, map[string]interface{}{
 		"result": map[string]interface{}{
 			"established": []interface{}{},
 			"plugs": []interface{}{
@@ -782,7 +850,7 @@ func (s *apiSuite) TestConnectionsOnlyUndesired(c *check.C) {
 			"auto":      true,
 			"undesired": true,
 		},
-	}, map[string]interface{}{
+	}, nil, map[string]interface{}{
 		"result": map[string]interface{}{
 			"established": []interface{}{},
 			"plugs":       []interface{}{},
@@ -808,7 +876,7 @@ func (s *apiSuite) TestConnectionsHotplugGone(c *check.C) {
 			"interface":    "test",
 			"hotplug-gone": true,
 		},
-	}, map[string]interface{}{
+	}, nil, map[string]interface{}{
 		"result": map[string]interface{}{
 			"established": []interface{}{},
 			"plugs":       []interface{}{},
@@ -877,7 +945,7 @@ slots:
 			"by-gadget": true,
 			"auto":      true,
 		},
-	}, map[string]interface{}{
+	}, nil, map[string]interface{}{
 		"result": map[string]interface{}{
 			"plugs": []interface{}{
 				map[string]interface{}{
