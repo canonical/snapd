@@ -65,7 +65,7 @@ func (m *DeviceManager) doSetupRunSystem(t *state.Task, _ *tomb.Tomb) error {
 
 	useEncryption, err := checkEncryption(deviceCtx.Model())
 	if err != nil {
-		return fmt.Errorf("cannot encrypt device: %v", err)
+		return err
 	}
 	if useEncryption {
 		args = append(args,
@@ -115,14 +115,29 @@ func (m *DeviceManager) doSetupRunSystem(t *state.Task, _ *tomb.Tomb) error {
 	return nil
 }
 
-func checkEncryption(model *asserts.Model) (bool, error) {
-	// TODO:UC20: also check if TPM is available, and return an error if the device must be
-	//            encrypted but we don't have TPM support
+// TODO:UC20: set to real TPM availability check function
+var checkTPMAvailability = func() error {
+	return nil
+}
 
-	// Force encryption regardless of grade for developer testing
-	if osutil.FileExists(filepath.Join(dirs.RunMnt, "ubuntu-seed", ".force-encryption")) {
-		return true, nil
+func checkEncryption(model *asserts.Model) (res bool, err error) {
+	secured := model.Grade() == asserts.ModelSecured
+
+	// check if we should disable encryption non-secured devices
+	if osutil.FileExists(filepath.Join(dirs.RunMnt, "ubuntu-seed", ".force-unencrypted")) {
+		if secured {
+			err = fmt.Errorf("cannot bypass encryption in a secured device")
+		}
+		return false, err
 	}
 
-	return model.Grade() == asserts.ModelSecured, nil
+	// encryption is required in secured devices and optional in other grades
+	if err := checkTPMAvailability(); err != nil {
+		if secured {
+			return false, fmt.Errorf("cannot encrypt secured device: %v", err)
+		}
+		return false, nil
+	}
+
+	return true, nil
 }
