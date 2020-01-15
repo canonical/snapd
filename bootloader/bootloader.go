@@ -46,7 +46,7 @@ type Options struct {
 	// UC16/18 do not have a recovery partition.
 	Recovery bool
 
-	// ExtractedRunKernelImage is whether to force kernel asset extraction
+	// ExtractedRunKernelImage is whether to force kernel asset extraction.
 	ExtractedRunKernelImage bool
 }
 
@@ -70,7 +70,7 @@ type Bootloader interface {
 	// is found ok is false.
 	InstallBootConfig(gadgetDir string, opts *Options) (ok bool, err error)
 
-	// ExtractKernelAssets extracts kernel assets from the given kernel snap
+	// ExtractKernelAssets extracts kernel assets from the given kernel snap.
 	ExtractKernelAssets(s snap.PlaceInfo, snapf snap.Container) error
 
 	// RemoveKernelAssets removes the assets for the given kernel snap.
