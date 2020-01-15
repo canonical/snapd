@@ -126,6 +126,7 @@ func StartServices(apps []*snap.AppInfo, disabledSvcs []string, enableBeforeStar
 			continue
 		}
 
+		// sockets and timers are enabled and started separately (and unconditionally) further down.
 		if len(app.Sockets) == 0 && app.Timer == nil {
 			svcName := app.ServiceName()
 			if !strutil.ListContains(disabledSvcs, app.Name) {
@@ -180,7 +181,6 @@ func StartServices(apps []*snap.AppInfo, disabledSvcs []string, enableBeforeStar
 			timerService := filepath.Base(app.Timer.File())
 			// enable the timer
 			if err = sysd.Enable(timerService); err != nil {
-				logger.Noticef("timer service: %s", err)
 				return err
 			}
 
