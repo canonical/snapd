@@ -311,11 +311,11 @@ func (s *deviceMgrInstallModeSuite) TestInstallSignedWithTPM(c *C) {
 }
 
 func (s *deviceMgrInstallModeSuite) TestInstallSignedBypassEncryption(c *C) {
-	s.doRunChangeTestWithEncryption(c, "signed", false, true, false, "")
+	s.doRunChangeTestWithEncryption(c, "signed", false, true, false, "(?s).*cannot bypass encryption in a secured or signed device.*")
 }
 
 func (s *deviceMgrInstallModeSuite) TestInstallSignedWithTPMBypassEncryption(c *C) {
-	s.doRunChangeTestWithEncryption(c, "signed", true, true, false, "")
+	s.doRunChangeTestWithEncryption(c, "signed", true, true, false, "(?s).*cannot bypass encryption in a secured or signed device.*")
 }
 
 func (s *deviceMgrInstallModeSuite) TestInstallSecured(c *C) {
@@ -327,9 +327,9 @@ func (s *deviceMgrInstallModeSuite) TestInstallSecuredWithTPM(c *C) {
 }
 
 func (s *deviceMgrInstallModeSuite) TestInstallSecuredBypassEncryption(c *C) {
-	s.doRunChangeTestWithEncryption(c, "secured", false, true, false, "(?s).*cannot bypass encryption in a secured device.*")
+	s.doRunChangeTestWithEncryption(c, "secured", false, true, false, "(?s).*cannot bypass encryption in a secured or signed device.*")
 }
 
 func (s *deviceMgrInstallModeSuite) TestInstallSecuredWithTPMBypassEncryption(c *C) {
-	s.doRunChangeTestWithEncryption(c, "secured", true, true, false, "(?s).*cannot bypass encryption in a secured device.*")
+	s.doRunChangeTestWithEncryption(c, "secured", true, true, false, "(?s).*cannot bypass encryption in a secured or signed device.*")
 }
