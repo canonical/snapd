@@ -315,8 +315,8 @@ func (s *grubTestSuite) makeKernelAssetSnapAndSymlink(c *C, snapFileName, symlin
 
 	// make a kernel.efi symlink to the kernel.efi above
 	err := os.Symlink(
-		filepath.Join("EFI/ubuntu/", snapFileName, "kernel.efi"),
-		filepath.Join(s.rootdir, symlinkName),
+		filepath.Join(snapFileName, "kernel.efi"),
+		filepath.Join(s.grubRecoveryDir(), symlinkName),
 	)
 	c.Assert(err, IsNil)
 
@@ -352,14 +352,14 @@ func (s *grubTestSuite) TestGrubExtractedRunKernelImageTryKernelMethod(c *C) {
 	// appropriately
 	kernelSnapExtractedAssetsDir := filepath.Join(s.grubRecoveryDir(), "bad_snap_rev_name")
 	badKernelSnapPath := filepath.Join(kernelSnapExtractedAssetsDir, "kernel.efi")
-	tryKernelSymlink := filepath.Join(s.rootdir, "try-kernel.efi")
+	tryKernelSymlink := filepath.Join(s.grubRecoveryDir(), "try-kernel.efi")
 	err = os.MkdirAll(kernelSnapExtractedAssetsDir, 0755)
 	c.Assert(err, IsNil)
 
 	err = ioutil.WriteFile(badKernelSnapPath, nil, 0644)
 	c.Assert(err, IsNil)
 
-	err = os.Symlink("EFI/ubuntu/bad_snap_rev_name/kernel.efi", tryKernelSymlink)
+	err = os.Symlink("bad_snap_rev_name/kernel.efi", tryKernelSymlink)
 	c.Assert(err, IsNil)
 
 	_, exists, err = eg.TryKernel()
@@ -398,7 +398,7 @@ func (s *grubTestSuite) TestGrubExtractedRunKernelImageEnableKernelMethod(c *C) 
 	nonExistSnap, err := snap.ParsePlaceInfoFromSnapFileName("pc-kernel_12.snap")
 	c.Assert(err, IsNil)
 	err = eg.EnableKernel(nonExistSnap)
-	c.Assert(err, ErrorMatches, "cannot enable kernel.efi at EFI/ubuntu/pc-kernel_12.snap/kernel.efi: file does not exist")
+	c.Assert(err, ErrorMatches, "cannot enable kernel.efi at pc-kernel_12.snap/kernel.efi: file does not exist")
 
 	kernel := s.makeKernelAssetSnap(c, "pc-kernel_1.snap")
 
@@ -407,10 +407,10 @@ func (s *grubTestSuite) TestGrubExtractedRunKernelImageEnableKernelMethod(c *C) 
 	c.Assert(err, IsNil)
 
 	// ensure that the symlink was put where we expect it
-	asset, err := os.Readlink(filepath.Join(s.rootdir, "kernel.efi"))
+	asset, err := os.Readlink(filepath.Join(s.grubRecoveryDir(), "kernel.efi"))
 	c.Assert(err, IsNil)
 
-	c.Assert(asset, DeepEquals, filepath.Join("EFI/ubuntu", "pc-kernel_1.snap", "kernel.efi"))
+	c.Assert(asset, DeepEquals, filepath.Join("pc-kernel_1.snap", "kernel.efi"))
 }
 
 func (s *grubTestSuite) TestGrubExtractedRunKernelImageEnableTryKernelMethod(c *C) {
@@ -426,10 +426,10 @@ func (s *grubTestSuite) TestGrubExtractedRunKernelImageEnableTryKernelMethod(c *
 	c.Assert(err, IsNil)
 
 	// ensure that the symlink was put where we expect it
-	asset, err := os.Readlink(filepath.Join(s.rootdir, "try-kernel.efi"))
+	asset, err := os.Readlink(filepath.Join(s.grubRecoveryDir(), "try-kernel.efi"))
 	c.Assert(err, IsNil)
 
-	c.Assert(asset, DeepEquals, filepath.Join("EFI/ubuntu", "pc-kernel_1.snap", "kernel.efi"))
+	c.Assert(asset, DeepEquals, filepath.Join("pc-kernel_1.snap", "kernel.efi"))
 }
 
 func (s *grubTestSuite) TestGrubExtractedRunKernelImageDisableTryKernelMethod(c *C) {

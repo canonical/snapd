@@ -179,11 +179,18 @@ func (g *grub) RemoveKernelAssets(s snap.PlaceInfo) error {
 
 func (g *grub) makeKernelEfiSymlink(s snap.PlaceInfo, name string) error {
 	// don't use g.dir() for the symlink destination ("oldname" in go parlance)
-	// because we want a relative symlink target, i.e. we want EFI/ubuntu
+	// because we want a relative symlink target, i.e. we want a symlink like:
+	//
+	// kernel.efi -> pc-kernel_1.snap/kernel.efi
+	//
 	// always, even if grub is really working from
-	// /run/mnt/ubuntu-boot/EFI/ubuntu, etc.
+	// /run/mnt/ubuntu-boot/EFI/ubuntu or at runtime from /boot/grub where the
+	// symlink is like:
+	//
+	// /boot/grub/kernel.efi -> /boot/grub/pc-kernel_1.snap/kernel.efi
+	//
 	extractedKernel := filepath.Join(
-		g.extractedKernelDir(g.basedir, s),
+		filepath.Base(s.MountFile()),
 		"kernel.efi",
 	)
 
@@ -191,7 +198,7 @@ func (g *grub) makeKernelEfiSymlink(s snap.PlaceInfo, name string) error {
 	// inadvertently create a dangling symlink here
 	// here we do add rootdir since we're following where the symlink will end
 	// up
-	if !osutil.FileExists(filepath.Join(g.rootdir, extractedKernel)) {
+	if !osutil.FileExists(filepath.Join(g.dir(), extractedKernel)) {
 		return fmt.Errorf(
 			"cannot enable %s at %s: %v",
 			name,
@@ -200,18 +207,16 @@ func (g *grub) makeKernelEfiSymlink(s snap.PlaceInfo, name string) error {
 		)
 	}
 	return os.Symlink(
-		// don't use g.dir() because we don't want the rootdir in the symlink
-		// target, we want EFI/ubuntu always, even if grub is really working
-		// from /run/mnt/ubuntu-boot/EFI/ubuntu, etc.
-		filepath.Join(g.extractedKernelDir(g.basedir, s), "kernel.efi"),
-		filepath.Join(g.rootdir, name),
+		extractedKernel,
+		// use g.dir() for where we are creating the symlink
+		filepath.Join(g.dir(), name),
 	)
 }
 
 func (g *grub) unlinkKernelEfiSymlink(name string) error {
-	symlink := filepath.Join(g.rootdir, name)
+	symlink := filepath.Join(g.dir(), name)
 	if osutil.FileExists(symlink) {
-		return osutil.UnlinkMany(g.rootdir, []string{name})
+		return osutil.UnlinkMany(g.dir(), []string{name})
 	}
 
 	// return more helpful error if the symlink doesn't exist
@@ -219,19 +224,19 @@ func (g *grub) unlinkKernelEfiSymlink(name string) error {
 }
 
 func (g *grub) readKernelSymlink(name string) (snap.PlaceInfo, error) {
-	// read the symlink from <grub-root-dir>/<name> to
-	// <grub-root-dir>/EFI/ubuntu/<snap-name>.snap/<name> and parse the
-	// directory (which is supposed to be the name of the snap)
-	l := filepath.Join(g.rootdir, name)
+	// read the symlink from <grub-dir>/<name> to
+	// <grub-dir>/<snap-file-name>/<name> and parse the
+	// directory (which is supposed to be the name of the snap) into the snap
+	link := filepath.Join(g.dir(), name)
 
 	// check that the symlink is not dangling before continuing
-	if !osutil.FileExists(l) {
+	if !osutil.FileExists(link) {
 		return nil, fmt.Errorf("cannot read dangling symlink %s", name)
 	}
 
-	targetKernelEfi, err := os.Readlink(l)
+	targetKernelEfi, err := os.Readlink(link)
 	if err != nil {
-		return nil, fmt.Errorf("couldn't read %s symlink: %v", l, err)
+		return nil, fmt.Errorf("couldn't read %s symlink: %v", link, err)
 	}
 
 	kernelSnapFileName := filepath.Base(filepath.Dir(targetKernelEfi))
@@ -240,7 +245,7 @@ func (g *grub) readKernelSymlink(name string) (snap.PlaceInfo, error) {
 		return nil, fmt.Errorf(
 			"bad kernel snap file path at %q (from symlink %q), unable to parse into snap file name: %v",
 			kernelSnapFileName,
-			l,
+			link,
 			err,
 		)
 	}
@@ -291,7 +296,7 @@ func (g *grub) TryKernel() (snap.PlaceInfo, bool, error) {
 	// check that the _symlink_ exists, not that it points to something real
 	// we check for whether it is a dangling symlink inside readKernelSymlink,
 	// which returns an error when the symlink is dangling
-	_, err := os.Lstat(filepath.Join(g.rootdir, "try-kernel.efi"))
+	_, err := os.Lstat(filepath.Join(g.dir(), "try-kernel.efi"))
 	if err == nil {
 		p, err := g.readKernelSymlink("try-kernel.efi")
 		// if we failed to read the symlink, then the try kernel isn't usable,
