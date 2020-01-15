@@ -1,0 +1,27 @@
+type: system-user
+authority-id: BhgbYoDtThegqVkEU7oiZP8GQwCoUIxz
+brand-id: BhgbYoDtThegqVkEU7oiZP8GQwCoUIxz
+email: snappy-dev@lists.launchpad.net
+models:
+  - pc
+  - pc-i386
+  - pi2
+name: user1
+password: $6$o5er943Y$cngsJHutSgACVbR65WAnhaUPC9.vENj8locb50hvMdMRMK8cQ3Zbu6WPh5Al2JrnHzpR63osPCwE/IFG/2s6K1
+series:
+  - 16
+since: 2019-05-16T18:06:04+00:00
+until: 2020-05-16T18:06:04+00:00
+username: user1
+sign-key-sha3-384: 0u-IKZyVlTxwiBVOv7oT1FNKdfkKJyOSwbEWJPurlvtaGZxX6VrMHSESnIPeaNMC
+
+AcLBcwQAAQoAHRYhBMWWVcwwFvQaEaz9YITG74Zv2rilBQJc3blKAAoJEITG74Zv2ril1f0P/jT+
+Z7PVRNwWNmp7lUr+QpePQVPS1fL+ELs9gaWg/720PHZrdK3jzb8jVzzsRDuBpprLKfno6fq33PQJ
+f1j2d0IIZs7c7RCG6r451X2ZI+WSLCi1dhSMNuv1ryqUIrvMkTFJZKr4m9NgaxQKTUblEtqa0Ys7
+iUKmvyU+0GXfX//QbeCBKAQQjcobu+fZvBMKSmwE7x5Hj5Yk/dwypE4m5xvd9TzMxfrHSQL9JRZF
+2eWsKmh1uOJvkw9VF0NYGOE2vmJHrWePCBhH+mFHgrjIeIhPrFrRB70/JRaybjhCV9U7EJjmFiza
+hMFScIB1aZZTGbmvEaS0zoLShgVZltAbgnMf9ttV53dFFPIEYvRSD1uZfUwaJjHgWR/w7E8N7/X8
+poNeFOFRb+1ZShGbFC8lbWFv34ipX2pCSF5Pbq9naPeT15eLeXYbC5Wcw41bdfMoDt+OgizbKcwT
+gDaZycSCjywxjNlC91w2eAm94Mx9CkBi4VmL69CBvDAmOCbbiRrup4nz3JCb+7EGZBxSmkJ/RNQE
+IWblNKeoFvnsKw7ia9OC7qXvCM/bZiSEClcXooxnTdb4qBnPVL5oYIoEJX19nF57KqEcjH0fKKDf
+ZWBUc2i8FbeQrVSkogJ8iD58vn6NUTL0ZZ7VB+2yc8IyjuEbpJGWRPzqZCM4PigkapJa+nPR

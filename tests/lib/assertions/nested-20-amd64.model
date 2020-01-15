@@ -2,7 +2,7 @@ type: model
 authority-id: BhgbYoDtThegqVkEU7oiZP8GQwCoUIxz
 series: 16
 brand-id: BhgbYoDtThegqVkEU7oiZP8GQwCoUIxz
-model: ubuntu-core-20-nested-amd64
+model: pc
 architecture: amd64
 base: core20
 grade: dangerous
@@ -27,16 +27,16 @@ snaps:
     id: PMrrV4ml8uWuEUDBT8dSGnKUYbevVhc4
     name: snapd
     type: snapd
-timestamp: 2020-01-10T10:06:04+00:00
+timestamp: 2019-05-16T18:06:04+00:00
 sign-key-sha3-384: 0u-IKZyVlTxwiBVOv7oT1FNKdfkKJyOSwbEWJPurlvtaGZxX6VrMHSESnIPeaNMC
 
-AcLBcwQAAQoAHRYhBMWWVcwwFvQaEaz9YITG74Zv2rilBQJeHJIkAAoJEITG74Zv2ril6VYQAIRC
-H1tBCBQKwQ7Q05UmWsm8nLo2OjWAWscskinlZQQCz307cRnBVtaIaMyhNivoQnqXW4XpSj4w1i+O
-Jm2Q+3NYaempX/SHijBmATTO7OV5YIGLmD/OLuxRnEsLf2tTyPjiLpuCLII4hlWDg/jLcawE/0Cy
-PojDuIkZ9+l1/jeHen+jJLTX8ZXYj7njw/Y4Lv3TLS0OpHFUFLAfTwZAD2GAw/8tr+s6kIRCgZs5
-DuQdCOySVvg38LIIDpTEH1Av1OpGvEoMtc8FL20cfsiSdzXf3pcHQ4mlhJdpyIoJvEaf371M9X11
-zBVqzwXBlUF/wCNTo2xMQim/FFu8ipMzULgoKv/I1/e+3i0y/ariORGCBsozNuMlLeWAtmSLYfk3
-TGrFzYhb0F6nK4HiNKoX8SnCsNf4+1/fWagph0imUPgC8gq9ZlSAe40XzzTZjC2eGM38hwDaOxl+
-Kl2jZfIlJgDiQLWnItHRYkVQ05cTfaGWuwGExFSa7gGDYilYJ+UXn5szbCpZy/ZV2HAvOF3Qn1/Q
-U1T6zVGKs1RWpypFprWaGH4OtnRuKW4VO6QByXBh4VcCjrV0jhncG+E+EqaXeyTKaij+HorvpGda
-RvXZK6vZqNGbyHZvFDURlMHwzRjSycNIb5LuV7M868+Tly9v26XMIyTtkYbvAt2Jv3DIy/tD
+AcLBcwQAAQoAHRYhBMWWVcwwFvQaEaz9YITG74Zv2rilBQJeHiyaAAoJEITG74Zv2rilbnkP/RTV
+jjaZhAyHXMbzo0hOPnSOTCBbcpq4Ot1EboG0+UALVYje9aodZtIUX0S0OvofXy4pOP8f+RsR4cL4
+zA4NQpuLuYEYL+17Grkhh6tWqNrPvVqmP8pYq9l1YvbEHqEPNx5xCpjSwnzOWK83OIED4TwOG/jM
+G21JF9I8U4+Epy5wLxW+bgDtTGm9nFqJCxfORq4UhzlUdWswqk4hLaTk7Vl96MRZ494ABJ+e5OP5
+cR84aJchidglXeDe1EXkpK1wym4mIz3pGoScxy8q7Y0uJHQfKkr8vE3z0JLr08wUQdFPoDegRmJF
+XzG8mc919/bARN6k+hLQ50OcvBXY53kVfNTf442xtlVHnZ7CYnfOMsPx3ilag6IlbnX//vUtUP7I
+j9qq+GVOUmsmYRnFOm6Yj1DwtMZMzLoUlEirRc6XGONFero3EytRTOUtNw5eKvX0nIjTlYHjdn78
+uQhp2LGq2xL3pXuVNvU9+3Rrn+UR1+1aQcyPn0tMFBvj42XVeTu/m5+ZVkUWFUWlRsw5v7Ummtlp
+Z0MaiS3cKSYnWk3gz2opiPt0I+lep6MZ8x4ci4DPpijIuInjtQU9aFu3THWkku/489TgYKbOE8KW
+80xjofq9sm1swjllYzWctBGLMGF34XJRiUVyoOk8pxxQmgglRd6c3rWo8Duso6IYrk0734uW

@@ -39,10 +39,16 @@ prepare_ssh(){
 }
 
 create_assertions_disk(){
+    ASSERTION="$TESTSLIB/assertions/auto-import.assert"
+    #TODO:UC20: Remove once the canonical model is used for uc20
+    if is_core_20_nested_system; then
+        ASSERTION="$TESTSLIB/assertions/auto-import-nested.assert"
+    fi
+    cp -f "$ASSERTION" "$WORK_DIR/auto-import.assert"
     mkdir -p "$WORK_DIR"
     dd if=/dev/null of="$WORK_DIR/assertions.disk" bs=1M seek=1
     mkfs.ext4 -F "$WORK_DIR/assertions.disk"
-    debugfs -w -R "write $TESTSLIB/assertions/auto-import.assert auto-import.assert" "$WORK_DIR/assertions.disk"
+    debugfs -w -R "write $WORK_DIR/auto-import.assert auto-import.assert" "$WORK_DIR/assertions.disk"
 }
 
 get_qemu_for_nested_vm(){
@@ -91,6 +97,13 @@ is_classic_nested_system(){
     return 1
 }
 
+is_focal_system(){
+    if lsb_release -a | grep focal; then
+        return 0
+    fi
+    return 1
+}
+
 is_core_20_nested_system(){
     if [ "$SPREAD_SYSTEM" = ubuntu-20.04-64 ]; then
         return 0
@@ -98,8 +111,22 @@ is_core_20_nested_system(){
     return 1
 }
 
+is_bionic_system(){
+    if lsb_release -a | grep bionic; then
+        return 0
+    fi
+    return 1
+}
+
 is_core_18_nested_system(){
     if [ "$SPREAD_SYSTEM" = ubuntu-18.04-64 ]; then
+        return 0
+    fi
+    return 1
+}
+
+is_xenial_system(){
+    if lsb_release -a | grep xenial; then
         return 0
     fi
     return 1
@@ -184,20 +211,25 @@ start_nested_core_vm(){
     # snapshot feature, we copy the original image and use that copy to start
     # the VM.
     IMAGE="$WORK_DIR/image/ubuntu-core-new.img"
-
     BIOS=
-    if is_core_20_nested_system; then
-        BIOS="-bios /usr/share/OVMF/OVMF_CODE.ms.fd"
+    MEM="2048"
+    if is_core_20_nested_system; then        
+        MEM="4096"
+        if is_focal_system; then
+            BIOS="-bios /usr/share/OVMF/OVMF_CODE.ms.fd"
+        elif is_bionic_system; then
+            BIOS="-bios /usr/share/OVMF/OVMF_CODE.fd"
+        fi
     fi
 
     cp -f "$WORK_DIR/image/ubuntu-core.img" "$IMAGE"
-    systemd_create_and_start_unit "$NESTED_VM" "${QEMU} -m 2048 -nographic \
+    systemd_create_and_start_unit "$NESTED_VM" "${QEMU} -m $MEM -nographic \
         -net nic,model=virtio -net user,hostfwd=tcp::$SSH_PORT-:22 \
         -drive file=$IMAGE,cache=none,format=raw \
         -drive file=$WORK_DIR/assertions.disk,cache=none,format=raw \
         -monitor tcp:127.0.0.1:$MON_PORT,server,nowait -usb \
         $BIOS \
-        -machine accel=kvm"
+        -snapshot -machine accel=kvm"
 
     if ! wait_for_ssh; then
         systemctl restart nested-vm
@@ -250,7 +282,7 @@ start_nested_classic_vm(){
     IMAGE=$(ls $WORK_DIR/image/*.img)
     QEMU=$(get_qemu_for_nested_vm)
 
-    systemd_create_and_start_unit "$NESTED_VM" "${QEMU} -m 2048 -nographic \
+    systemd_create_and_start_unit "$NESTED_VM" "${QEMU} -m 2048 -nographic  \
         -net nic,model=virtio -net user,hostfwd=tcp::$SSH_PORT-:22 \
         -drive file=$IMAGE,if=virtio \
         -drive file=$WORK_DIR/seed.img,if=virtio \

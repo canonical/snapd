@@ -3,11 +3,11 @@
     "authority-id": "BhgbYoDtThegqVkEU7oiZP8GQwCoUIxz",
     "series": "16",
     "brand-id": "BhgbYoDtThegqVkEU7oiZP8GQwCoUIxz",
-    "model": "ubuntu-core-20-nested-amd64",
+    "model": "pc",
     "architecture": "amd64",
     "base": "core20",
     "grade": "dangerous",
-    "timestamp": "2020-01-10T10:06:04+00:00",
+    "timestamp": "2019-05-16T18:06:04+00:00",
     "snaps": [
         {"default-channel": "20/edge", "id": "UqFziVZDHLSyO3TqSWgNBoAdHbLI4dAH", "name": "pc", "type": "gadget"},
         {"default-channel": "latest/edge", "id": "DLqre5XGLbDqg9jPtiAhRRjDuPVa5X1q", "name": "core20", "type": "base"},
