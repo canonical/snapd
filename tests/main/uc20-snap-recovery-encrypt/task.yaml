@@ -1,7 +1,9 @@
 summary: Integration tests for the snap-bootstrap binary
 
-# one system is enough, its a very specialized test for now
-systems: [ubuntu-19.10-64]
+# testing on 19.10/20.04 is enough, its a very specialized test
+# TODO:UC20: remove 19.10-64 system once ubuntu-20.04-64 becomes available
+#            inside spread
+systems: [ubuntu-19.10-64, ubuntu-20.04-64]
 
 debug: |
     cat /proc/partitions
@@ -17,10 +19,13 @@ restore: |
     if [ -f loop.txt ]; then
         losetup -d "$(cat loop.txt)"
     fi
+    apt remove -y cryptsetup
 
 prepare: |
     echo "Create a fake block device image"
     truncate --size=6GB fake.img
+
+    apt install -y cryptsetup
 
     echo "Setup the image as a block device"
     # without -P this test will not work, then /dev/loop1p? will be missing
@@ -38,7 +43,7 @@ prepare: |
 execute: |
     LOOP="$(cat loop.txt)"
     echo "Run the snap-bootstrap tool"
-    /usr/lib/snapd/snap-bootstrap create-partitions --encrypt --key-file keyfile ./gadget-dir "$LOOP"
+    /usr/lib/snapd/snap-bootstrap create-partitions --encrypt  --mount --key-file keyfile ./gadget-dir "$LOOP"
 
     echo "Check that the key file was created"
     test "$(stat --printf="%s" ./keyfile)" = 32
