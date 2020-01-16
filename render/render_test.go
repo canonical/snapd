@@ -79,15 +79,80 @@ func (s *renderSuite) TestComposeHiragana(c *C) {
 	c.Check(s.StdoutText(), Equals, "ひ\n")
 }
 
-func (s *renderSuite) TestComposeOverwriteDoubleWidth(c *C) {
+// Overwrite 'a' and 'b' with hiragana 'HI' syllable.
+func (s *renderSuite) TestComposeOverwriteTwoCellslignedEven(c *C) {
 	render.ComposeStripes(s.stdout, []render.Stripe{
 		{X: 0, Y: 0, ScanLine: "0123456789"},
 		{X: 0, Y: 1, ScanLine: "abcdefghij"},
-		// Overwrite 'b' and 'c' above with hiragana 'HI' syllable.
+		{X: 0, Y: 1, ScanLine: "ひ"},
+	})
+	c.Check(s.StdoutText(), Equals, ""+
+		"0123456789\n"+
+		"ひcdefghij\n"+
+		"")
+}
+
+// Overwrite 'b' and 'c' with hiragana 'HI' syllable.
+func (s *renderSuite) TestComposeOverwriteTwoCellsAlignedOdd(c *C) {
+	render.ComposeStripes(s.stdout, []render.Stripe{
+		{X: 0, Y: 0, ScanLine: "0123456789"},
+		{X: 0, Y: 1, ScanLine: "abcdefghij"},
 		{X: 1, Y: 1, ScanLine: "ひ"},
 	})
 	c.Check(s.StdoutText(), Equals, ""+
 		"0123456789\n"+
 		"aひdefghij\n"+
+		"")
+}
+
+// Overwrite the first half of hiragana 'HI' syllable with 'i'.
+func (s *renderSuite) TestComposeOverwriteFirstHalfAlignedEven(c *C) {
+	render.ComposeStripes(s.stdout, []render.Stripe{
+		{X: 0, Y: 0, ScanLine: "0123456789"},
+		{X: 0, Y: 1, ScanLine: "あいうえお"},
+		{X: 2, Y: 1, ScanLine: "i"},
+	})
+	c.Check(s.StdoutText(), Equals, ""+
+		"0123456789\n"+
+		"あi うえお\n"+
+		"")
+}
+
+// Overwrite the first half of hiragana 'I' syllable with 'i'.
+func (s *renderSuite) TestComposeOverwriteFirstHalfMisalignedOdd(c *C) {
+	render.ComposeStripes(s.stdout, []render.Stripe{
+		{X: 0, Y: 0, ScanLine: "0123456789"},
+		{X: 0, Y: 1, ScanLine: "aあいうえb"},
+		{X: 3, Y: 1, ScanLine: "i"},
+	})
+	c.Check(s.StdoutText(), Equals, ""+
+		"0123456789\n"+
+		"aあi うえb\n"+
+		"")
+}
+
+// Overwrite the second half of hiragana 'I' syllable with 'i'.
+func (s *renderSuite) TestComposeOverwriteSecondHalfMisalignedEven(c *C) {
+	render.ComposeStripes(s.stdout, []render.Stripe{
+		{X: 0, Y: 0, ScanLine: "0123456789"},
+		{X: 0, Y: 1, ScanLine: "aあいうえb"},
+		{X: 4, Y: 1, ScanLine: "i"},
+	})
+	c.Check(s.StdoutText(), Equals, ""+
+		"0123456789\n"+
+		"aあ iうえb\n"+
+		"")
+}
+
+// Overwrite the second half of hiragana 'I' syllable with 'i'.
+func (s *renderSuite) TestComposeOverwriteSecondHalfAlignedOdd(c *C) {
+	render.ComposeStripes(s.stdout, []render.Stripe{
+		{X: 0, Y: 0, ScanLine: "0123456789"},
+		{X: 0, Y: 1, ScanLine: "あいうえお"},
+		{X: 3, Y: 1, ScanLine: "i"},
+	})
+	c.Check(s.StdoutText(), Equals, ""+
+		"0123456789\n"+
+		"あ iうえお\n"+
 		"")
 }

@@ -121,23 +121,34 @@ func composeStripes(f *os.File, stripes []Stripe) {
 		}
 	}
 
-	// Using a one-line buffer render each each line, consuming stripes in
-	// order. This bounds the complexity of the render algorithm to O(N) +
-	// O(Nlog(N)).
+	// The rendering algorithm advances along the Y axis and renders all
+	// stripes that intersect it, compositing overlapping stripes in the order
+	// they are painted.
+	//
+	// Rendering is performed using a line buffer. The buffer is a array of
+	// rune slices. This is necessary for two separate reasons:
+	//
+	// 1) In principle each cell can contain a single character but encoding of
+	// that character may require multiple runes. It might involve using
+	// surrogate runes. It might involve (eventually) supporting terminal
+	// control sequences that need to be emitted or altered for each cell.
+	//
+	// 2) Due to the existence of double-width characters we need to pair each
+	// double-width character with an empty cell. Empty cells are encoded as an
+	// empty slice of runes.
 	lineBuffer := make([][]rune, maxX)
 	for i := range lineBuffer {
 		lineBuffer[i] = make([]rune, 1)
 	}
+	// Line buffer is rendered, rune by rune, into a utf8 buffer that is also
+	// shared across the entire render process.
+	utf8Buffer := make([]byte, 16)
 	sIdx := 0 // index to the current stripe we are considering.
 	sEnd := len(stripes)
 	for y := 0; y <= maxY; y += 1 {
-		// Reset the line buffer.
+		// Reset the line buffer. Each cell is resent to render a single space.
 		for i := 0; i < maxX; i++ {
-			if len(lineBuffer[i]) == 0 {
-				lineBuffer[i] = append(lineBuffer[i], ' ')
-			} else {
-				lineBuffer[i][0] = ' '
-			}
+			lineBuffer[i] = append(lineBuffer[i][:0], ' ')
 		}
 		// Advance to the first stripe for the line we want to render.
 		for ; sIdx < sEnd; sIdx++ {
@@ -145,46 +156,68 @@ func composeStripes(f *os.File, stripes []Stripe) {
 				break
 			}
 		}
+		localMaxX := 0
 		// Composite all stripes for current Y index.
-		for ; sIdx < sEnd; sIdx++ {
-			if stripes[sIdx].Y != y {
-				break
-			}
+		for ; sIdx < sEnd && stripes[sIdx].Y == y; sIdx++ {
 			x := stripes[sIdx].X
+			// Walk over the runes of the stripe we are rendering.
 			for _, r := range stripes[sIdx].ScanLine {
 				switch heuristic.RuneWidth(r) {
 				case 0:
-					lineBuffer[x] = lineBuffer[x][:0]
+					// Writing a zero-width rune does nothing at all (no operation takes place).
 				case 1:
-					if len(lineBuffer[x]) == 0 {
-						lineBuffer[x] = append(lineBuffer[x], r)
-					} else {
-						lineBuffer[x][0] = r
+					// Writing a single-width rune stores it into the current
+					// cell. The cell may be empty or may contain a rune that
+					// gets overwritten. If the overwritten rune is double
+					// width then automatically put a space in the next cell to
+					// preserve the correct width.
+					switch cell := lineBuffer[x]; len(cell) {
+					case 0:
+						lineBuffer[x] = append(cell, r)
+					case 1:
+						if heuristic.RuneWidth(cell[0]) == 2 && x+1 < maxX {
+							lineBuffer[x+1] = append(lineBuffer[x+1][:0], ' ')
+						}
+						cell[0] = r
+					}
+					// Writing a single-width rune may require us to erase a
+					// double-width rune at a previous cell.
+					if x > 0 {
+						if prevCell := lineBuffer[x-1]; len(prevCell) > 0 && heuristic.RuneWidth(prevCell[0]) == 2 {
+							lineBuffer[x-1] = append(prevCell[:0], ' ')
+						}
 					}
 					x++
 				case 2:
-					if len(lineBuffer[x]) == 0 {
-						lineBuffer[x] = append(lineBuffer[x], r)
-					} else {
-						lineBuffer[x][0] = r
+					// Writing a single-width rune stores it into the current cell. The cell may be
+					// empty or may contain a rune that can be overwritten.
+					switch cell := lineBuffer[x]; len(cell) {
+					case 0:
+						lineBuffer[x] = append(cell, r)
+					case 1:
+						cell[0] = r
 					}
-					lineBuffer[x+1] = lineBuffer[x+1][:0]
+					// Writing a double-width rune always writes an empty spot
+					// at a next cell. This automatically erases any
+					// single-width rune that may have been stored there.
+					if x+1 < maxX {
+						if nextCell := lineBuffer[x+1]; len(nextCell) > 0 {
+							lineBuffer[x+1] = nextCell[:0]
+						}
+					}
 					x += 2
 				}
 			}
-		}
-
-		// Strip trailing white-space to avoid printing a big rectangle.
-		var right int
-		for right = maxX - 1; right >= 0; right-- {
-			if rb := lineBuffer[right]; len(rb) > 0 && rb[0] != ' ' {
-				break
+			if x > localMaxX {
+				localMaxX = x
 			}
 		}
-		utf8Buffer := make([]byte, 16)
-		for i := 0; i <= right; i++ {
-			if runes := lineBuffer[i]; len(runes) > 0 {
-				n := utf8.EncodeRune(utf8Buffer, runes[0])
+
+		// Scan the line buffer and print each cell that we wrote to.
+		// All runes are encoded into UTF-8 and written to stream.
+		for i := 0; i < localMaxX; i++ {
+			for _, r := range lineBuffer[i] {
+				n := utf8.EncodeRune(utf8Buffer, r)
 				f.Write(utf8Buffer[:n])
 			}
 		}
