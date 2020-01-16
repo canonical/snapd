@@ -50,7 +50,7 @@ type autoRefreshStore struct {
 	err error
 }
 
-func (r *autoRefreshStore) SnapAction(ctx context.Context, currentSnaps []*store.CurrentSnap, actions []*store.SnapAction, user *auth.UserState, opts *store.RefreshOptions) ([]*snap.Info, error) {
+func (r *autoRefreshStore) SnapAction(ctx context.Context, currentSnaps []*store.CurrentSnap, actions []*store.SnapAction, user *auth.UserState, opts *store.RefreshOptions) ([]store.SnapActionResult, error) {
 	if !opts.IsAutoRefresh {
 		panic("AutoRefresh snap action did not set IsAutoRefresh flag")
 	}
