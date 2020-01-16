@@ -19,9 +19,13 @@
 package partition_test
 
 import (
+	"os"
+	"path/filepath"
+
 	. "gopkg.in/check.v1"
 
 	"github.com/snapcore/snapd/cmd/snap-bootstrap/partition"
+	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/gadget"
 	"github.com/snapcore/snapd/testutil"
 )
@@ -30,7 +34,6 @@ type encryptSuite struct {
 	testutil.BaseTest
 
 	mockCryptsetup *testutil.MockCmd
-	tempDir        string
 }
 
 var _ = Suite(&encryptSuite{})
@@ -48,7 +51,8 @@ var mockDeviceStructure = partition.DeviceStructure{
 }
 
 func (s *encryptSuite) SetUpTest(c *C) {
-	s.tempDir = c.MkDir()
+	dirs.SetRootDir(c.MkDir())
+	c.Assert(os.MkdirAll(dirs.SnapRunDir, 0755), IsNil)
 }
 
 func (s *encryptSuite) TestEncryptHappy(c *C) {
@@ -91,4 +95,26 @@ func (s *encryptSuite) TestEncryptOpenError(c *C) {
 	key := partition.EncryptionKey{}
 	_, err := partition.NewEncryptedDevice(&mockDeviceStructure, key, "some-label")
 	c.Assert(err, ErrorMatches, "cannot open encrypted device on /dev/node1:.*")
+}
+
+func (s *encryptSuite) TestEncryptAddKey(c *C) {
+	s.mockCryptsetup = testutil.MockCommand(c, "cryptsetup", "")
+	s.AddCleanup(s.mockCryptsetup.Restore)
+
+	key := partition.EncryptionKey{}
+	dev, err := partition.NewEncryptedDevice(&mockDeviceStructure, key, "some-label")
+	c.Assert(err, IsNil)
+
+	rkey := partition.RecoveryKey{}
+	err = dev.AddRecoveryKey(key, rkey)
+	c.Assert(err, IsNil)
+
+	c.Assert(s.mockCryptsetup.Calls(), DeepEquals, [][]string{
+		{"cryptsetup", "-q", "luksFormat", "--type", "luks2", "--key-file", "-", "--pbkdf", "argon2i", "--iter-time", "1", "/dev/node1"},
+		{"cryptsetup", "open", "--key-file", "-", "/dev/node1", "some-label"},
+		{"cryptsetup", "luksAddKey", "/dev/node1", "-q", "--key-file", "-", "--key-slot", "1", filepath.Join(dirs.SnapRunDir, "tmp-rkey")},
+	})
+
+	err = dev.Close()
+	c.Assert(err, IsNil)
 }

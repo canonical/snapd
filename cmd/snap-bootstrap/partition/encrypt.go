@@ -23,8 +23,12 @@ import (
 	"crypto/rand"
 	"fmt"
 	"io/ioutil"
+	"os"
 	"os/exec"
+	"path/filepath"
+	"syscall"
 
+	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/osutil"
 )
 
@@ -32,12 +36,12 @@ var (
 	tempFile = ioutil.TempFile
 )
 
-// Our key is 32 bytes long
 const (
-	keySize = 32
+	encryptionKeySize = 32
+	recoveryKeySize   = 16
 )
 
-type EncryptionKey [keySize]byte
+type EncryptionKey [encryptionKeySize]byte
 
 func NewEncryptionKey() (EncryptionKey, error) {
 	var key EncryptionKey
@@ -51,6 +55,28 @@ func NewEncryptionKey() (EncryptionKey, error) {
 func (key EncryptionKey) Store(filename string) error {
 	// TODO:UC20: provision the TPM, generate and store the lockout authorization,
 	//            and seal the key. Currently we're just storing the unprocessed data.
+	if err := ioutil.WriteFile(filename, key[:], 0600); err != nil {
+		return fmt.Errorf("cannot store key file: %v", err)
+	}
+
+	return nil
+}
+
+type RecoveryKey [recoveryKeySize]byte
+
+func NewRecoveryKey() (RecoveryKey, error) {
+	var key RecoveryKey
+	// rand.Read() is protected against short reads
+	_, err := rand.Read(key[:])
+	// On return, n == len(b) if and only if err == nil
+	return key, err
+}
+
+// Store writes the recovery key in the location specified by filename.
+func (key RecoveryKey) Store(filename string) error {
+	if err := os.MkdirAll(filepath.Dir(filename), 0755); err != nil {
+		return fmt.Errorf("cannot store key file: %v", err)
+	}
 	if err := ioutil.WriteFile(filename, key[:], 0600); err != nil {
 		return fmt.Errorf("cannot store key file: %v", err)
 	}
@@ -88,6 +114,10 @@ func NewEncryptedDevice(part *DeviceStructure, key EncryptionKey, name string) (
 	return dev, nil
 }
 
+func (dev *EncryptedDevice) AddRecoveryKey(key EncryptionKey, rkey RecoveryKey) error {
+	return cryptsetupAddKey(key, rkey, dev.parent.Node)
+}
+
 func (dev *EncryptedDevice) Close() error {
 	return cryptsetupClose(dev.name)
 }
@@ -103,9 +133,9 @@ func cryptsetupFormat(key EncryptionKey, label, node string) error {
 		"luksFormat",
 		// use LUKS2
 		"--type", "luks2",
-		// key file read from stdin
+		// read key from stdin
 		"--key-file", "-",
-		// user Argon2 for PBKDF
+		// use Argon2i for PBKDF
 		"--pbkdf", "argon2i", "--iter-time", "1",
 		// set LUKS2 label
 		"--label", label,
@@ -133,5 +163,63 @@ func cryptsetupClose(name string) error {
 	if output, err := exec.Command("cryptsetup", "close", name).CombinedOutput(); err != nil {
 		return osutil.OutputErr(output, err)
 	}
+	return nil
+}
+
+func cryptsetupAddKey(key EncryptionKey, rkey RecoveryKey, node string) error {
+	// create a named pipe to pass the recovery key
+	fpath := filepath.Join(dirs.SnapRunDir, "tmp-rkey")
+	if err := syscall.Mkfifo(fpath, 0600); err != nil {
+		return fmt.Errorf("cannot create named pipe: %v", err)
+	}
+	defer os.RemoveAll(fpath)
+
+	// add a new key to slot 1 reading the passphrase from the named pipe
+	args := []string{
+		// add a new key
+		"luksAddKey",
+		// the encrypted device
+		node,
+		// batch processing, no password verification
+		"-q",
+		// read existing key from stdin
+		"--key-file", "-",
+		// store it in keyslot 1
+		"--key-slot", "1",
+		// the named pipe
+		fpath,
+	}
+
+	cmd := exec.Command("cryptsetup", args...)
+	cmd.Stdin = bytes.NewReader(key[:])
+	cmd.Stdout = os.Stdout
+	cmd.Stderr = os.Stderr
+	if err := cmd.Start(); err != nil {
+		return err
+	}
+
+	// open the named pipe and write the recovery key
+	file, err := os.OpenFile(fpath, os.O_WRONLY, 0600)
+	if err != nil {
+		return fmt.Errorf("cannot open recovery key pipe: %v", err)
+	}
+	n, err := file.Write(rkey[:])
+	if n != recoveryKeySize {
+		file.Close()
+		return fmt.Errorf("cannot write recovery key: short write (%d bytes written)", n)
+	}
+	if err != nil {
+		cmd.Process.Kill()
+		file.Close()
+		return fmt.Errorf("cannot write recovery key: %v", err)
+	}
+	if err := file.Close(); err != nil {
+		cmd.Process.Kill()
+		return fmt.Errorf("cannot close recovery key pipe: %v", err)
+	}
+	if err := cmd.Wait(); err != nil {
+		return fmt.Errorf("cannot add recovery key: %v", err)
+	}
+
 	return nil
 }
