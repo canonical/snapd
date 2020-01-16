@@ -72,7 +72,7 @@ func (m *DeviceManager) doSetupRunSystem(t *state.Task, _ *tomb.Tomb) error {
 			// enable data encryption
 			"--encrypt",
 			// location to store the sealed keyfile
-			"--keyfile", filepath.Join(dirs.RunMnt, "ubuntu-boot", "keyfile"),
+			"--key-file", filepath.Join(dirs.RunMnt, "ubuntu-boot", "keyfile"),
 		)
 	}
 	args = append(args, gadgetDir)
