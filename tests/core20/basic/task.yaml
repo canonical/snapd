@@ -13,9 +13,10 @@ execute: |
     snap changes | MATCH "Done.*Initialize system state"
 
     echo "Check that a simple shell snap"
-    # TODO:UC20: add test-snapd-sh-core20
-    snap install test-snapd-sh-core18
-    test-snapd-sh-core18.sh -c 'echo hello' | MATCH hello
+    #shellcheck source=tests/lib/snaps.sh
+    . "$TESTSLIB/snaps.sh"
+    install_local test-snapd-sh-core20
+    test-snapd-sh-core20.sh -c 'echo hello' | MATCH hello
 
     if python3 -m json.tool < /var/lib/snapd/system-key | grep '"build-id": ""'; then
         echo "The build-id of snapd must not be empty."
@@ -23,4 +24,4 @@ execute: |
     fi
 
     echo "Ensure passwd/group is available for snaps"
-    test-snapd-sh-core18.sh -c 'cat /var/lib/extrausers/passwd' | MATCH test
+    test-snapd-sh-core20.sh -c 'cat /var/lib/extrausers/passwd' | MATCH test
