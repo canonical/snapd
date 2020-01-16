@@ -929,6 +929,7 @@ func (s *Store) newRequest(ctx context.Context, reqOptions *requestOptions, user
 	req.Header.Set(hdrSnapDeviceArchitecture[reqOptions.APILevel], s.architecture)
 	req.Header.Set(hdrSnapDeviceSeries[reqOptions.APILevel], s.series)
 	req.Header.Set(hdrSnapClassic[reqOptions.APILevel], strconv.FormatBool(release.OnClassic))
+	req.Header.Set("Snap-Device-Capabilities", "default-tracks")
 	if cua := ClientUserAgent(ctx); cua != "" {
 		req.Header.Set("Snap-Client-User-Agent", cua)
 	}
@@ -2101,6 +2102,7 @@ type snapActionResult struct {
 	Name             string    `json:"name,omitempty"`
 	Snap             storeSnap `json:"snap"`
 	EffectiveChannel string    `json:"effective-channel,omitempty"`
+	RedirectChannel  string    `json:"redirect-channel,omitempty"`
 	Error            struct {
 		Code    string `json:"code"`
 		Message string `json:"message"`
@@ -2196,8 +2198,11 @@ func genInstanceKey(curSnap *CurrentSnap, salt string) (string, error) {
 	return fmt.Sprintf("%s:%s", curSnap.SnapID, enc), nil
 }
 
+// SnapActionResult encapsulates the non-error result of a single
+// action of the SnapAction call.
 type SnapActionResult struct {
 	*snap.Info
+	RedirectChannel string
 }
 
 func (s *Store) snapAction(ctx context.Context, currentSnaps []*CurrentSnap, actions []*SnapAction, user *auth.UserState, opts *RefreshOptions) ([]SnapActionResult, error) {
@@ -2427,7 +2432,7 @@ func (s *Store) snapAction(ctx context.Context, currentSnaps []*CurrentSnap, act
 		_, instanceKey := snap.SplitInstanceName(instanceName)
 		snapInfo.InstanceKey = instanceKey
 
-		sars = append(sars, SnapActionResult{snapInfo})
+		sars = append(sars, SnapActionResult{Info: snapInfo, RedirectChannel: res.RedirectChannel})
 	}
 
 	for _, errObj := range results.ErrorList {

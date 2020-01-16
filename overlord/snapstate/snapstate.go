@@ -737,10 +737,11 @@ func InstallWithDeviceContext(ctx context.Context, st *state.State, name string,
 		return nil, fmt.Errorf("invalid instance name: %v", err)
 	}
 
-	info, err := installInfo(ctx, st, name, opts, userID, deviceCtx)
+	sar, err := installInfo(ctx, st, name, opts, userID, deviceCtx)
 	if err != nil {
 		return nil, err
 	}
+	info := sar.Info
 
 	if flags.RequireTypeBase && info.GetType() != snap.TypeBase && info.GetType() != snap.TypeOS {
 		return nil, fmt.Errorf("unexpected snap type %q, instead of 'base'", info.GetType())
@@ -771,6 +772,10 @@ func InstallWithDeviceContext(ctx context.Context, st *state.State, name string,
 			Website: info.Website,
 		},
 		CohortKey: opts.CohortKey,
+	}
+
+	if sar.RedirectChannel != "" {
+		snapsup.Channel = sar.RedirectChannel
 	}
 
 	return doInstall(st, &snapst, snapsup, 0, fromChange, nil)
@@ -823,8 +828,13 @@ func InstallMany(st *state.State, names []string, userID int) ([]string, []*stat
 			return nil, nil, err
 		}
 
+		channel := "stable"
+		if sar.RedirectChannel != "" {
+			channel = sar.RedirectChannel
+		}
+
 		snapsup := &SnapSetup{
-			Channel:      "stable",
+			Channel:      channel,
 			Base:         info.Base,
 			Prereq:       defaultContentPlugProviders(st, info),
 			UserID:       userID,
