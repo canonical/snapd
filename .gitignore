@@ -81,3 +81,6 @@ cmd/test-driver
 
 # Snap files
 *.snap
+
+# Image files
+*.img
