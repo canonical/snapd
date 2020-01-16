@@ -1338,6 +1338,7 @@ type DownloadOptions struct {
 	RateLimit           int64
 	IsAutoRefresh       bool
 	LeavePartialOnError bool
+	Resume              int64
 }
 
 // Download downloads the snap addressed by download info and returns its
@@ -1469,6 +1470,9 @@ func downloadReqOpts(storeURL *url.URL, cdnHeader string, opts *DownloadOptions)
 	}
 	if opts != nil && opts.IsAutoRefresh {
 		reqOptions.ExtraHeaders["Snap-Refresh-Reason"] = "scheduled"
+	}
+	if opts != nil && opts.Resume > 0 {
+		reqOptions.ExtraHeaders["Range"] = fmt.Sprintf("bytes=%d-", opts.Resume)
 	}
 
 	return &reqOptions
@@ -1606,13 +1610,23 @@ func downloadImpl(ctx context.Context, name, sha3_384, downloadURL string, user 
 }
 
 // DownloadStream will copy the snap from the request to the io.Reader
-func (s *Store) DownloadStream(ctx context.Context, name string, downloadInfo *snap.DownloadInfo, user *auth.UserState) (io.ReadCloser, error) {
+func (s *Store) DownloadStream(ctx context.Context, name string, downloadInfo *snap.DownloadInfo, user *auth.UserState, dlOpts *DownloadOptions) (io.ReadCloser, error) {
+	if dlOpts == nil {
+		dlOpts = &DownloadOptions{}
+	}
 	if path := s.cacher.GetPath(downloadInfo.Sha3_384); path != "" {
 		logger.Debugf("Cache hit for SHA3_384 …%.5s.", downloadInfo.Sha3_384)
 		file, err := os.OpenFile(path, os.O_RDONLY, 0600)
 		if err != nil {
 			return nil, err
 		}
+
+		if dlOpts.Resume > 0 {
+			if _, err := file.Seek(dlOpts.Resume, 0); err != nil {
+				return nil, err
+			}
+		}
+
 		return file, nil
 	}
 
@@ -1636,7 +1650,7 @@ func (s *Store) DownloadStream(ctx context.Context, name string, downloadInfo *s
 		return nil, err
 	}
 
-	resp, err := doDownloadReq(ctx, storeURL, cdnHeader, s, user)
+	resp, err := doDownloadReq(ctx, storeURL, cdnHeader, dlOpts, s, user)
 	if err != nil {
 		return nil, err
 	}
@@ -1645,8 +1659,8 @@ func (s *Store) DownloadStream(ctx context.Context, name string, downloadInfo *s
 
 var doDownloadReq = doDownloadReqImpl
 
-func doDownloadReqImpl(ctx context.Context, storeURL *url.URL, cdnHeader string, s *Store, user *auth.UserState) (*http.Response, error) {
-	reqOptions := downloadReqOpts(storeURL, cdnHeader, nil)
+func doDownloadReqImpl(ctx context.Context, storeURL *url.URL, cdnHeader string, opts *DownloadOptions, s *Store, user *auth.UserState) (*http.Response, error) {
+	reqOptions := downloadReqOpts(storeURL, cdnHeader, opts)
 	return s.doRequest(ctx, httputil.NewHTTPClient(&httputil.ClientOptions{Proxy: s.proxy}), reqOptions, user)
 }
 

@@ -104,6 +104,17 @@ var storeSnaps = map[string]*snap.Info{
 			Sha3_384:        "sha3sha3sha3",
 		},
 	},
+	"foo-resume": {
+		SideInfo: snap.SideInfo{
+			RealName: "foo-resume",
+			Revision: snap.R(1),
+		},
+		DownloadInfo: snap.DownloadInfo{
+			Size:            int64(len(snapContent)),
+			AnonDownloadURL: "http://localhost/foo-resume",
+			Sha3_384:        "sha3sha3sha3",
+		},
+	},
 	"download-error-trigger-snap": {
 		DownloadInfo: snap.DownloadInfo{
 			Size:            100,
@@ -134,9 +145,12 @@ func (s *snapDownloadSuite) SnapAction(ctx context.Context, currentSnaps []*stor
 	return []store.SnapActionResult{{Info: info}}, nil
 }
 
-func (s *snapDownloadSuite) DownloadStream(ctx context.Context, name string, downloadInfo *snap.DownloadInfo, user *auth.UserState) (io.ReadCloser, error) {
+func (s *snapDownloadSuite) DownloadStream(ctx context.Context, name string, downloadInfo *snap.DownloadInfo, user *auth.UserState, dlOpts *store.DownloadOptions) (io.ReadCloser, error) {
 	if name == "download-error-trigger-snap" {
 		return nil, fmt.Errorf("error triggered by download-error-trigger-snap")
+	}
+	if name == "foo-resume" && dlOpts.Resume != 77 {
+		panic("foo-resume should set dlOpts.Resume to 77")
 	}
 	if _, ok := storeSnaps[name]; ok {
 		return ioutil.NopCloser(bytes.NewReader([]byte(snapContent))), nil
@@ -220,6 +234,12 @@ func (s *snapDownloadSuite) TestStreamOneSnap(c *check.C) {
 		{
 			snapName: "rev7-bar",
 			dataJSON: `{"snap-name": "rev7-bar", "revision":"7"}`,
+			status:   200,
+			err:      "",
+		},
+		{
+			snapName: "foo-resume",
+			dataJSON: `{"snap-name": "foo-resume", "resume":77}`,
 			status:   200,
 			err:      "",
 		},

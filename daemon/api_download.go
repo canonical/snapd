@@ -39,6 +39,7 @@ var snapDownloadCmd = &Command{
 // SnapDownloadAction is used to request a snap download
 type snapDownloadAction struct {
 	SnapName string `json:"snap-name,omitempty"`
+	Resume   int64  `json:"resume,omitempty"`
 	snapRevisionOptions
 }
 
@@ -86,7 +87,8 @@ func streamOneSnap(c *Command, action snapDownloadAction, user *auth.UserState) 
 	info := sars[0].Info
 
 	downloadInfo := info.DownloadInfo
-	r, err := getStore(c).DownloadStream(context.TODO(), action.SnapName, &downloadInfo, user)
+	dlOpts := &store.DownloadOptions{Resume: action.Resume}
+	r, err := getStore(c).DownloadStream(context.TODO(), action.SnapName, &downloadInfo, user, dlOpts)
 	if err != nil {
 		return InternalError(err.Error())
 	}

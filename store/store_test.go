@@ -454,7 +454,7 @@ func (s *storeTestSuite) expectedAuthorization(c *C, user *auth.UserState) strin
 
 func (s *storeTestSuite) TestDownloadStreamOK(c *C) {
 	expectedContent := []byte("I was downloaded")
-	restore := store.MockDoDownloadReq(func(ctx context.Context, url *url.URL, cdnHeader string, s *store.Store, user *auth.UserState) (*http.Response, error) {
+	restore := store.MockDoDownloadReq(func(ctx context.Context, url *url.URL, cdnHeader string, opts *store.DownloadOptions, s *store.Store, user *auth.UserState) (*http.Response, error) {
 		c.Check(url.String(), Equals, "http://anon-url")
 		r := &http.Response{
 			Body: ioutil.NopCloser(bytes.NewReader(expectedContent)),
@@ -469,10 +469,38 @@ func (s *storeTestSuite) TestDownloadStreamOK(c *C) {
 	snap.DownloadURL = "AUTH-URL"
 	snap.Size = int64(len(expectedContent))
 
-	stream, err := s.store.DownloadStream(context.TODO(), "foo", &snap.DownloadInfo, nil)
+	stream, err := s.store.DownloadStream(context.TODO(), "foo", &snap.DownloadInfo, nil, nil)
 	c.Assert(err, IsNil)
 
 	buf := new(bytes.Buffer)
+	buf.ReadFrom(stream)
+	c.Check(buf.String(), Equals, string(expectedContent))
+}
+
+func (s *storeTestSuite) TestDownloadStreamResumeOk(c *C) {
+	expectedContent := []byte("I was downloaded")
+	restore := store.MockDoDownloadReq(func(ctx context.Context, url *url.URL, cdnHeader string, opts *store.DownloadOptions, s *store.Store, user *auth.UserState) (*http.Response, error) {
+		c.Check(url.String(), Equals, "http://anon-url")
+		r := &http.Response{
+			Body: ioutil.NopCloser(bytes.NewReader(expectedContent[opts.Resume:])),
+		}
+		return r, nil
+	})
+	defer restore()
+
+	snap := &snap.Info{}
+	snap.RealName = "foo"
+	snap.AnonDownloadURL = "http://anon-url"
+	snap.DownloadURL = "AUTH-URL"
+	snap.Size = int64(len(expectedContent))
+
+	resumePoint := int64(5)
+	dlOpts := &store.DownloadOptions{Resume: resumePoint}
+
+	stream, err := s.store.DownloadStream(context.TODO(), "foo", &snap.DownloadInfo, nil, dlOpts)
+	c.Assert(err, IsNil)
+
+	buf := bytes.NewBuffer(expectedContent[:resumePoint])
 	buf.ReadFrom(stream)
 	c.Check(buf.String(), Equals, string(expectedContent))
 }
