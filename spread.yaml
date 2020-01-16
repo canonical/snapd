@@ -66,8 +66,6 @@ backends:
                 workers: 8
             - ubuntu-18.04-64:
                 workers: 8
-            - ubuntu-19.04-64:
-                workers: 6
             - ubuntu-19.10-64:
                 workers: 6
             - ubuntu-core-16-64:
@@ -101,6 +99,8 @@ backends:
                 manual: true
             - opensuse-15.1-64:
                 workers: 6
+            - opensuse-tumbleweed-64:
+                workers: 6
             - arch-linux-64:
                 workers: 6
 
@@ -117,9 +117,9 @@ backends:
             - centos-7-64:
                 workers: 6
                 image: centos-7-64
-            # zypper either segfaults or hangs installing snapd build dependencies
-            - opensuse-tumbleweed-64:
+            - ubuntu-20.04-64:
                 workers: 6
+
 
     google-sru:
         type: google

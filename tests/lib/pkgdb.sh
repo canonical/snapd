@@ -639,6 +639,13 @@ pkg_dependencies_ubuntu_classic(){
                 packagekit
                 "
             ;;
+        ubuntu-20.04-64)
+            echo "
+                evolution-data-server
+                gccgo-9
+                packagekit
+                "
+            ;;
         ubuntu-*)
             echo "
                 squashfs-tools
