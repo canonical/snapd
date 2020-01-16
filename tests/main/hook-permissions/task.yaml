@@ -11,7 +11,11 @@ systems: [-fedora-*, -opensuse-*, -arch-*, -amazon-*, -centos-*]
 
 restore: |
     rm -f ./enumerate.txt
-    snap remove --purge test-snap
+    snap remove --purge test-snap || true
+    . "$TESTSLIB/systems.sh"
+    if is_core_system; then
+      snap remove --purge upower || true
+    fi
 
 prepare: |
     # shellcheck source=tests/lib/systems.sh
