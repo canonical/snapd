@@ -24,10 +24,10 @@ class XkcdRequestHandler(SimpleHTTPRequestHandler):
 
     def do_GET(self):
         if self.path.startswith("/xkcd/"):
-            url = self.XKCD_URL + self.path[len("/xkcd/"):]
+            url = self.XKCD_URL + self.path[len("/xkcd/") :]
             return self._mini_proxy(url)
         elif self.path.startswith("/img/xkcd/"):
-            url = self.XKCD_IMG_URL + self.path[len("/img/xkcd/"):]
+            url = self.XKCD_IMG_URL + self.path[len("/img/xkcd/") :]
             return self._mini_proxy(url)
         else:
             return super(XkcdRequestHandler, self).do_GET()
@@ -42,5 +42,5 @@ if __name__ == "__main__":
     else:
         port = 80
 
-    httpd = HTTPServer(('', port), XkcdRequestHandler)
+    httpd = HTTPServer(("", port), XkcdRequestHandler)
     httpd.serve_forever()
