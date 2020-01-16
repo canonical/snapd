@@ -12,6 +12,7 @@ systems: [-fedora-*, -opensuse-*, -arch-*, -amazon-*, -centos-*]
 restore: |
     rm -f ./enumerate.txt
     snap remove --purge test-snap || true
+    # shellcheck source=tests/lib/systems.sh
     . "$TESTSLIB/systems.sh"
     if is_core_system; then
       snap remove --purge upower || true
@@ -27,18 +28,17 @@ prepare: |
     snap install --dangerous test-snap_1.0_all.snap
 
 execute: |
-    # trigger upowerd to have the service started as AppArmor would deny to
-    # start it in response to a dbus call from inside a snap (because the
-    # service is not started yet and AppArmor doesn't know what confinement
-    # the service would be started under, so it denies the startup).
-    # The dbus-send output starts with a variable header, tail filters it out.
-    dbus-send --print-reply --system --dest=org.freedesktop.UPower /org/freedesktop/UPower org.freedesktop.UPower.EnumerateDevices | tail --lines="+2" > enumerate.txt
+    # shellcheck source=tests/lib/systems.sh
+    . "$TESTSLIB/systems.sh"
+    if ! is_core_system; then
+      # trigger upowerd to have the service started as AppArmor would deny to
+      # start it in response to a dbus call from inside a snap (because the
+      # service is not started yet and AppArmor doesn't know what confinement
+      # the service would be started under, so it denies the startup).
+      dbus-send --print-reply --system --dest=org.freedesktop.UPower /org/freedesktop/UPower org.freedesktop.UPower.EnumerateDevices > /dev/null 2>&1
+    fi
 
     # simulate refresh; the post-refresh hook does same dbus query
     snap install --dangerous test-snap_1.0_all.snap
 
-    # we should have same enumeration result
-    diff -w /var/snap/test-snap/common/enumerate.txt ./enumerate.txt
-
-    # sanity, make sure we got something meaningful
     MATCH "array \[" < /var/snap/test-snap/common/enumerate.txt
