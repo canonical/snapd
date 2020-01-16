@@ -74,6 +74,71 @@ var (
 // generateMountsMode* is called multiple times from initramfs until it
 // no longer generates more mount points and just returns an empty output.
 func generateMountsModeInstall(recoverySystem string) error {
+	var buf bytes.Buffer
+	if err := generateMountsCommonInstallRecover(recoverySystem, &buf); err != nil {
+		return err
+	}
+	if buf.Len() > 0 {
+		io.Copy(stdout, &buf)
+		return nil
+	}
+
+	// n+1: final step: write $(ubuntu_data)/var/lib/snapd/modeenv - this
+	//      is the tmpfs we just created above
+	modeEnv := &boot.Modeenv{
+		Mode:           "install",
+		RecoverySystem: recoverySystem,
+	}
+	if err := modeEnv.Write(filepath.Join(runMnt, "ubuntu-data", "system-data")); err != nil {
+		return err
+	}
+
+	// n+2: done, no output, no error indicates to initramfs we are done
+	//      with mounting stuff
+	return nil
+}
+
+func generateMountsModeRecover(recoverySystem string) error {
+	var buf bytes.Buffer
+	if err := generateMountsCommonInstallRecover(recoverySystem, &buf); err != nil {
+		return err
+	}
+	if buf.Len() > 0 {
+		io.Copy(stdout, &buf)
+		return nil
+	}
+
+	// n+1: mount ubuntu-data for recovery
+	recoverDataDir := filepath.Join(runMnt, "recover-ubuntu-data")
+	isRecoverDataMounted, err := osutilIsMounted(recoverDataDir)
+	if err != nil {
+		return err
+	}
+	if !isRecoverDataMounted {
+		// TODO:UC20: does the encrypted ubuntu-data need a differnt
+		//            label? can we find it this way?
+		// TODO:UC20: deal with the case that we have no ubuntu-data
+		//            (e.g. it is toally destroyed). fail gracefully?
+		fmt.Fprintf(stdout, "/dev/disk/by-label/ubuntu-data %s\n", recoverDataDir)
+		return nil
+	}
+
+	// n+2: final step: write $(ubuntu_data)/var/lib/snapd/modeenv - this
+	//      is the tmpfs we just created above
+	modeEnv := &boot.Modeenv{
+		Mode:           "recover",
+		RecoverySystem: recoverySystem,
+	}
+	if err := modeEnv.Write(filepath.Join(runMnt, "ubuntu-data", "system-data")); err != nil {
+		return err
+	}
+
+	// n+3: done, no output, no error indicates to initramfs we are done
+	//      with mounting stuff
+	return nil
+}
+
+func generateMountsCommonInstallRecover(recoverySystem string, w io.Writer) error {
 	seedDir := filepath.Join(runMnt, "ubuntu-seed")
 
 	// 1. always ensure seed partition is mounted
@@ -82,7 +147,7 @@ func generateMountsModeInstall(recoverySystem string) error {
 		return err
 	}
 	if !isMounted {
-		fmt.Fprintf(stdout, "/dev/disk/by-label/ubuntu-seed %s\n", seedDir)
+		fmt.Fprintf(w, "/dev/disk/by-label/ubuntu-seed %s\n", seedDir)
 		return nil
 	}
 
@@ -129,16 +194,16 @@ func generateMountsModeInstall(recoverySystem string) error {
 			switch info.GetType() {
 			case snap.TypeBase:
 				if !isBaseMounted {
-					fmt.Fprintf(stdout, "%s %s\n", essentialSnap.Path, filepath.Join(runMnt, "base"))
+					fmt.Fprintf(w, "%s %s\n", essentialSnap.Path, filepath.Join(runMnt, "base"))
 				}
 			case snap.TypeKernel:
 				if !isKernelMounted {
 					// XXX: we need to cross-check the kernel path with snapd_recovery_kernel used by grub
-					fmt.Fprintf(stdout, "%s %s\n", essentialSnap.Path, filepath.Join(runMnt, "kernel"))
+					fmt.Fprintf(w, "%s %s\n", essentialSnap.Path, filepath.Join(runMnt, "kernel"))
 				}
 			case snap.TypeSnapd:
 				if !isSnapdMounted {
-					fmt.Fprintf(stdout, "%s %s\n", essentialSnap.Path, filepath.Join(runMnt, "snapd"))
+					fmt.Fprintf(w, "%s %s\n", essentialSnap.Path, filepath.Join(runMnt, "snapd"))
 				}
 			}
 		}
@@ -151,27 +216,11 @@ func generateMountsModeInstall(recoverySystem string) error {
 	}
 	if !isMounted {
 		// XXX: is there a better way?
-		fmt.Fprintf(stdout, "--type=tmpfs tmpfs /run/mnt/ubuntu-data\n")
+		fmt.Fprintf(w, "--type=tmpfs tmpfs /run/mnt/ubuntu-data\n")
 		return nil
 	}
 
-	// 4. final step: write $(ubuntu_data)/var/lib/snapd/modeenv - this
-	//    is the tmpfs we just created above
-	modeEnv := &boot.Modeenv{
-		Mode:           "install",
-		RecoverySystem: recoverySystem,
-	}
-	if err := modeEnv.Write(filepath.Join(runMnt, "ubuntu-data", "system-data")); err != nil {
-		return err
-	}
-
-	// 5. done, no output, no error indicates to initramfs we are done
-	//    with mounting stuff
 	return nil
-}
-
-func generateMountsModeRecover(recoverySystem string) error {
-	return fmt.Errorf("recover mode mount generation not implemented yet")
 }
 
 func generateMountsModeRun() error {
