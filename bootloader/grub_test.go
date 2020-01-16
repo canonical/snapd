@@ -224,6 +224,10 @@ func (s *grubTestSuite) TestExtractKernelForceWorks(c *C) {
 	c.Check(exists, Equals, false)
 }
 
+func (s *grubTestSuite) grubDir() string {
+	return filepath.Join(s.bootdir, "grub")
+}
+
 func (s *grubTestSuite) grubRecoveryDir() string {
 	return filepath.Join(s.rootdir, "EFI/ubuntu")
 }
@@ -300,7 +304,7 @@ func (s *grubTestSuite) makeKernelAssetSnap(c *C, snapFileName string) snap.Plac
 	c.Assert(err, IsNil)
 
 	// make a kernel.efi snap as it would be by ExtractKernelAssets()
-	kernelSnapExtractedAssetsDir := filepath.Join(s.grubRecoveryDir(), snapFileName)
+	kernelSnapExtractedAssetsDir := filepath.Join(s.grubDir(), snapFileName)
 	err = os.MkdirAll(kernelSnapExtractedAssetsDir, 0755)
 	c.Assert(err, IsNil)
 
@@ -316,16 +320,16 @@ func (s *grubTestSuite) makeKernelAssetSnapAndSymlink(c *C, snapFileName, symlin
 	// make a kernel.efi symlink to the kernel.efi above
 	err := os.Symlink(
 		filepath.Join(snapFileName, "kernel.efi"),
-		filepath.Join(s.grubRecoveryDir(), symlinkName),
+		filepath.Join(s.grubDir(), symlinkName),
 	)
 	c.Assert(err, IsNil)
 
 	return kernelSnap
 }
 
-func (s *grubTestSuite) TestGrubExtractedRunKernelImageKernelMethod(c *C) {
-	s.makeFakeGrubRecoveryEnv(c)
-	g := bootloader.NewGrub(s.rootdir, &bootloader.Options{Recovery: true})
+func (s *grubTestSuite) TestGrubExtractedRunKernelImageKernel(c *C) {
+	s.makeFakeGrubEnv(c)
+	g := bootloader.NewGrub(s.rootdir, nil)
 	eg, ok := g.(bootloader.ExtractedRunKernelImageBootloader)
 	c.Assert(ok, Equals, true)
 
@@ -337,9 +341,9 @@ func (s *grubTestSuite) TestGrubExtractedRunKernelImageKernelMethod(c *C) {
 	c.Assert(sn, DeepEquals, kernel)
 }
 
-func (s *grubTestSuite) TestGrubExtractedRunKernelImageTryKernelMethod(c *C) {
-	s.makeFakeGrubRecoveryEnv(c)
-	g := bootloader.NewGrub(s.rootdir, &bootloader.Options{Recovery: true})
+func (s *grubTestSuite) TestGrubExtractedRunKernelImageTryKernel(c *C) {
+	s.makeFakeGrubEnv(c)
+	g := bootloader.NewGrub(s.rootdir, nil)
 	eg, ok := g.(bootloader.ExtractedRunKernelImageBootloader)
 	c.Assert(ok, Equals, true)
 
@@ -350,9 +354,9 @@ func (s *grubTestSuite) TestGrubExtractedRunKernelImageTryKernelMethod(c *C) {
 
 	// when a bad kernel snap name is in the extracted path, it will complain
 	// appropriately
-	kernelSnapExtractedAssetsDir := filepath.Join(s.grubRecoveryDir(), "bad_snap_rev_name")
+	kernelSnapExtractedAssetsDir := filepath.Join(s.grubDir(), "bad_snap_rev_name")
 	badKernelSnapPath := filepath.Join(kernelSnapExtractedAssetsDir, "kernel.efi")
-	tryKernelSymlink := filepath.Join(s.grubRecoveryDir(), "try-kernel.efi")
+	tryKernelSymlink := filepath.Join(s.grubDir(), "try-kernel.efi")
 	err = os.MkdirAll(kernelSnapExtractedAssetsDir, 0755)
 	c.Assert(err, IsNil)
 
@@ -380,16 +384,16 @@ func (s *grubTestSuite) TestGrubExtractedRunKernelImageTryKernelMethod(c *C) {
 	c.Assert(sn, DeepEquals, tryKernel)
 
 	// if the destination of the symlink is removed, we get an error
-	err = os.Remove(filepath.Join(s.grubRecoveryDir(), "pc-kernel_2.snap", "kernel.efi"))
+	err = os.Remove(filepath.Join(s.grubDir(), "pc-kernel_2.snap", "kernel.efi"))
 	c.Assert(err, IsNil)
 	_, exists, err = eg.TryKernel()
 	c.Assert(exists, Equals, false)
 	c.Assert(err, ErrorMatches, "cannot read dangling symlink try-kernel.efi")
 }
 
-func (s *grubTestSuite) TestGrubExtractedRunKernelImageEnableKernelMethod(c *C) {
-	s.makeFakeGrubRecoveryEnv(c)
-	g := bootloader.NewGrub(s.rootdir, &bootloader.Options{Recovery: true})
+func (s *grubTestSuite) TestGrubExtractedRunKernelImageEnableKernel(c *C) {
+	s.makeFakeGrubEnv(c)
+	g := bootloader.NewGrub(s.rootdir, nil)
 	eg, ok := g.(bootloader.ExtractedRunKernelImageBootloader)
 	c.Assert(ok, Equals, true)
 
@@ -407,15 +411,15 @@ func (s *grubTestSuite) TestGrubExtractedRunKernelImageEnableKernelMethod(c *C) 
 	c.Assert(err, IsNil)
 
 	// ensure that the symlink was put where we expect it
-	asset, err := os.Readlink(filepath.Join(s.grubRecoveryDir(), "kernel.efi"))
+	asset, err := os.Readlink(filepath.Join(s.grubDir(), "kernel.efi"))
 	c.Assert(err, IsNil)
 
 	c.Assert(asset, DeepEquals, filepath.Join("pc-kernel_1.snap", "kernel.efi"))
 }
 
-func (s *grubTestSuite) TestGrubExtractedRunKernelImageEnableTryKernelMethod(c *C) {
-	s.makeFakeGrubRecoveryEnv(c)
-	g := bootloader.NewGrub(s.rootdir, &bootloader.Options{Recovery: true})
+func (s *grubTestSuite) TestGrubExtractedRunKernelImageEnableTryKernel(c *C) {
+	s.makeFakeGrubEnv(c)
+	g := bootloader.NewGrub(s.rootdir, nil)
 	eg, ok := g.(bootloader.ExtractedRunKernelImageBootloader)
 	c.Assert(ok, Equals, true)
 
@@ -426,15 +430,15 @@ func (s *grubTestSuite) TestGrubExtractedRunKernelImageEnableTryKernelMethod(c *
 	c.Assert(err, IsNil)
 
 	// ensure that the symlink was put where we expect it
-	asset, err := os.Readlink(filepath.Join(s.grubRecoveryDir(), "try-kernel.efi"))
+	asset, err := os.Readlink(filepath.Join(s.grubDir(), "try-kernel.efi"))
 	c.Assert(err, IsNil)
 
 	c.Assert(asset, DeepEquals, filepath.Join("pc-kernel_1.snap", "kernel.efi"))
 }
 
-func (s *grubTestSuite) TestGrubExtractedRunKernelImageDisableTryKernelMethod(c *C) {
-	s.makeFakeGrubRecoveryEnv(c)
-	g := bootloader.NewGrub(s.rootdir, &bootloader.Options{Recovery: true})
+func (s *grubTestSuite) TestGrubExtractedRunKernelImageDisableTryKernel(c *C) {
+	s.makeFakeGrubEnv(c)
+	g := bootloader.NewGrub(s.rootdir, nil)
 	eg, ok := g.(bootloader.ExtractedRunKernelImageBootloader)
 	c.Assert(ok, Equals, true)
 
