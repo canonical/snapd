@@ -1790,11 +1790,6 @@ func (m *SnapManager) stopSnapServices(t *state.Task, _ *tomb.Tomb) error {
 	)
 	Set(st, snapsup.InstanceName(), snapst)
 
-	err = SetTaskSnapSetup(t, snapsup)
-	if err != nil {
-		return err
-	}
-
 	return nil
 }
 
