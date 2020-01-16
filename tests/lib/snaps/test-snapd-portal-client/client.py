@@ -7,8 +7,8 @@ import dbus
 import dbus.mainloop.glib
 from gi.repository import GLib
 
-class Client:
 
+class Client:
     def __init__(self, bus, main_loop):
         self._bus = bus
         self._main_loop = main_loop
@@ -20,10 +20,13 @@ class Client:
             signal_name="Response",
             dbus_interface="org.freedesktop.portal.Request",
             bus_name="org.freedesktop.portal.Desktop",
-            path_keyword="object_path")
-        self._portal = self._bus.get_object("org.freedesktop.portal.Desktop",
-                                            "/org/freedesktop/portal/desktop",
-                                            introspect=False)
+            path_keyword="object_path",
+        )
+        self._portal = self._bus.get_object(
+            "org.freedesktop.portal.Desktop",
+            "/org/freedesktop/portal/desktop",
+            introspect=False,
+        )
 
     def _response_cb(self, response, results, object_path):
         if object_path == self._request_path:
@@ -40,10 +43,10 @@ class Client:
         return command(*args)
 
     def cmd_open_file(self):
-        iface = dbus.Interface(
-            self._portal, "org.freedesktop.portal.FileChooser")
+        iface = dbus.Interface(self._portal, "org.freedesktop.portal.FileChooser")
         self._request_path = iface.OpenFile(
-            "", "test open file", dbus.Dictionary(signature="sv"))
+            "", "test open file", dbus.Dictionary(signature="sv")
+        )
         self._main_loop.run()
         if self._response == 0:
             for uri in self._results["uris"]:
@@ -60,10 +63,10 @@ class Client:
             return 1
 
     def cmd_save_file(self, content):
-        iface = dbus.Interface(
-            self._portal, "org.freedesktop.portal.FileChooser")
+        iface = dbus.Interface(self._portal, "org.freedesktop.portal.FileChooser")
         self._request_path = iface.SaveFile(
-            "", "test save file", dbus.Dictionary(signature="sv"))
+            "", "test save file", dbus.Dictionary(signature="sv")
+        )
         self._main_loop.run()
         if self._response == 0:
             uris = self._results["uris"]
@@ -81,10 +84,8 @@ class Client:
             return 1
 
     def cmd_open_uri(self, uri):
-        iface = dbus.Interface(
-            self._portal, "org.freedesktop.portal.OpenURI")
-        self._request_path = iface.OpenURI(
-            "", uri, dbus.Dictionary(signature="sv"))
+        iface = dbus.Interface(self._portal, "org.freedesktop.portal.OpenURI")
+        self._request_path = iface.OpenURI("", uri, dbus.Dictionary(signature="sv"))
         self._main_loop.run()
         if self._response == 0:
             pass
@@ -97,11 +98,11 @@ class Client:
             return 1
 
     def cmd_launch_file(self, filename):
-        iface = dbus.Interface(
-            self._portal, "org.freedesktop.portal.OpenURI")
-        with open(filename, 'rb') as fp:
+        iface = dbus.Interface(self._portal, "org.freedesktop.portal.OpenURI")
+        with open(filename, "rb") as fp:
             self._request_path = iface.OpenFile(
-                "", dbus.types.UnixFd(fp), dbus.Dictionary(signature="sv"))
+                "", dbus.types.UnixFd(fp), dbus.Dictionary(signature="sv")
+            )
         self._main_loop.run()
         if self._response == 0:
             pass
@@ -114,10 +115,8 @@ class Client:
             return 1
 
     def cmd_screenshot(self):
-        iface = dbus.Interface(
-            self._portal, "org.freedesktop.portal.Screenshot")
-        self._request_path = iface.Screenshot(
-            "", dbus.Dictionary(signature="sv"))
+        iface = dbus.Interface(self._portal, "org.freedesktop.portal.Screenshot")
+        self._request_path = iface.Screenshot("", dbus.Dictionary(signature="sv"))
         self._main_loop.run()
         if self._response == 0:
             uri = self._results["uri"]
@@ -143,5 +142,5 @@ def main(argv):
     return client.run(argv[1:])
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     sys.exit(main(sys.argv))
