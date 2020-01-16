@@ -1042,9 +1042,9 @@ func writeSeqFile(name string, snapst *SnapState) error {
 	return osutil.AtomicWriteFile(p, b, 0644, 0)
 }
 
-// missingDisabledServices returns a list of services that were disabled
-// that are currently missing from the specific snap info (i.e. they were
-// renamed in this snap info), as well as a list of disabled services that are
+// missingDisabledServices returns a list of services that are present in
+// this snap info and should be disabled as well as a list of disabled
+// services that are currently missing (i.e. they were renamed).
 // present in this snap info.
 // the first arg is the disabled services when the snap was last active
 func missingDisabledServices(svcs []string, info *snap.Info) ([]string, []string, error) {
@@ -1068,7 +1068,7 @@ func missingDisabledServices(svcs []string, info *snap.Info) ([]string, []string
 	sort.Strings(missingSvcs)
 	sort.Strings(foundSvcs)
 
-	return missingSvcs, foundSvcs, nil
+	return foundSvcs, missingSvcs, nil
 }
 
 func (m *SnapManager) doLinkSnap(t *state.Task, _ *tomb.Tomb) (err error) {
@@ -1644,7 +1644,7 @@ func (m *SnapManager) startSnapServices(t *state.Task, _ *tomb.Tomb) error {
 	// as well as the services which are not present in this revision, but were
 	// present and disabled in a previous one and as such should be kept inside
 	// snapst for persistent storage
-	svcsToSave, svcsToDisable, err := missingDisabledServices(snapst.LastActiveDisabledServices, currentInfo)
+	svcsToDisable, svcsToSave, err := missingDisabledServices(snapst.LastActiveDisabledServices, currentInfo)
 	if err != nil {
 		return err
 	}
