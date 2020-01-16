@@ -207,9 +207,10 @@ func composeStripes(f *os.File, stripes []Stripe) {
 					}
 					x += 2
 				}
-			}
-			if x > localMaxX {
-				localMaxX = x
+				// As long as we're not printing spaces, keep track of localMaxX
+				if r != ' ' && x > localMaxX {
+					localMaxX = x
+				}
 			}
 		}
 
