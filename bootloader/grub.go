@@ -178,26 +178,16 @@ func (g *grub) RemoveKernelAssets(s snap.PlaceInfo) error {
 // ExtractedRunKernelImageBootloader helper methods
 
 func (g *grub) makeKernelEfiSymlink(s snap.PlaceInfo, name string) error {
-	// don't use g.dir() for the symlink destination ("oldname" in go parlance)
-	// because we want a relative symlink target, i.e. we want a symlink like:
-	//
-	// kernel.efi -> pc-kernel_1.snap/kernel.efi
-	//
-	// always, even if grub is really working from
-	// /run/mnt/ubuntu-boot/EFI/ubuntu or at runtime from /boot/grub where the
-	// symlink is like:
-	//
-	// /boot/grub/kernel.efi -> /boot/grub/pc-kernel_1.snap/kernel.efi
-	//
+	// use a relative symlink destination so that it resolves properly, if grub
+	// is located at /run/mnt/ubuntu-boot or /boot/grub, etc.
 	extractedKernel := filepath.Join(
 		filepath.Base(s.MountFile()),
 		"kernel.efi",
 	)
 
 	// check that the kernel snap has been extracted already so we don't
-	// inadvertently create a dangling symlink here
-	// here we do add rootdir since we're following where the symlink will end
-	// up
+	// inadvertently create a dangling symlink
+	// expand the relative symlink from g.dir()
 	if !osutil.FileExists(filepath.Join(g.dir(), extractedKernel)) {
 		return fmt.Errorf(
 			"cannot enable %s at %s: %v",
@@ -206,17 +196,23 @@ func (g *grub) makeKernelEfiSymlink(s snap.PlaceInfo, name string) error {
 			os.ErrNotExist,
 		)
 	}
+
 	return os.Symlink(
 		extractedKernel,
-		// use g.dir() for where we are creating the symlink
 		filepath.Join(g.dir(), name),
 	)
 }
 
+// unlinkKernelEfiSymlink will remove the specified symlink if it exists. Note
+// that if the symlink is "dangling", it will still remove the symlink without
+// returning an error. This is useful for example to disable a try-kernel that
+// was incorrectly created.
 func (g *grub) unlinkKernelEfiSymlink(name string) error {
 	symlink := filepath.Join(g.dir(), name)
-	if osutil.FileExists(symlink) {
-		return osutil.UnlinkMany(g.dir(), []string{name})
+	// check that the symlink exists
+	if _, err := os.Lstat(symlink); err == nil {
+		// symlink exists, remove it unconditionally
+		return os.Remove(symlink)
 	}
 
 	// return more helpful error if the symlink doesn't exist
