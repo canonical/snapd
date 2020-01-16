@@ -32,9 +32,9 @@ execute: |
     test "$(cat memory-kb.txt)" -lt 50000
   fi
 restore: |
-  snap remove test-snapd-app
-  snap remove test-snapd-gnome-3-28-1804
-  snap remove test-snapd-gtk-common-themes
+  snap remove --purge test-snapd-app
+  snap remove --purge test-snapd-gnome-3-28-1804
+  snap remove --purge test-snapd-gtk-common-themes
 
   rm -f test-snapd-app_1_all.snap
   rm -f test-snapd-gnome-3-28-1804_1_all.snap

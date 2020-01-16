@@ -62,6 +62,7 @@ var mockDeviceStructureSystemSeed = partition.DeviceStructure{
 			Size:       1258291200,
 			Type:       "EF,C12A7328-F81F-11D2-BA4B-00A0C93EC93B",
 			Role:       "system-seed",
+			Label:      "ubuntu-seed",
 			Filesystem: "vfat",
 			Content: []gadget.VolumeContent{
 				{

@@ -78,33 +78,6 @@ func (s *bootSetSuite) SetUpTest(c *C) {
 	s.forceBootloader(s.bootloader)
 }
 
-func (s *bootSetSuite) TestNameAndRevnoFromSnapValid(c *C) {
-	info, err := boot.NameAndRevnoFromSnap("foo_2.snap")
-	c.Assert(err, IsNil)
-	c.Assert(info.Name, Equals, "foo")
-	c.Assert(info.Revision, Equals, snap.R(2))
-}
-
-func (s *bootSetSuite) TestNameAndRevnoFromSnapInvalidFormat(c *C) {
-	_, err := boot.NameAndRevnoFromSnap("invalid")
-	c.Assert(err, ErrorMatches, `input "invalid" has invalid format \(not enough '_'\)`)
-	_, err = boot.NameAndRevnoFromSnap("invalid_xxx.snap")
-	c.Assert(err, ErrorMatches, `invalid snap revision: "xxx"`)
-}
-
-func BenchmarkNameAndRevno(b *testing.B) {
-	for n := 0; n < b.N; n++ {
-		for _, sn := range []string{
-			"core_21.snap",
-			"kernel_41.snap",
-			"some-long-kernel-name-kernel_82.snap",
-			"what-is-this-core_111.snap",
-		} {
-			boot.NameAndRevnoFromSnap(sn)
-		}
-	}
-}
-
 func (s *bootSetSuite) TestInUseClassic(c *C) {
 	classicDev := boottest.MockDevice("")
 
@@ -194,13 +167,13 @@ func (s *bootSetSuite) TestCurrentBootNameAndRevision(c *C) {
 
 	current, err := boot.GetCurrentBoot(snap.TypeOS, coreDev)
 	c.Check(err, IsNil)
-	c.Check(current.Name, Equals, "core")
-	c.Check(current.Revision, Equals, snap.R(2))
+	c.Check(current.SnapName(), Equals, "core")
+	c.Check(current.SnapRevision(), Equals, snap.R(2))
 
 	current, err = boot.GetCurrentBoot(snap.TypeKernel, coreDev)
 	c.Check(err, IsNil)
-	c.Check(current.Name, Equals, "canonical-pc-linux")
-	c.Check(current.Revision, Equals, snap.R(2))
+	c.Check(current.SnapName(), Equals, "canonical-pc-linux")
+	c.Check(current.SnapRevision(), Equals, snap.R(2))
 
 	s.bootloader.BootVars["snap_mode"] = "trying"
 	_, err = boot.GetCurrentBoot(snap.TypeKernel, coreDev)
@@ -226,8 +199,8 @@ func (s *bootSetSuite) TestCurrentBootNameAndRevisionUnhappy(c *C) {
 	s.bootloader.BootVars["snap_kernel"] = "kernel_41.snap"
 	current, err := boot.GetCurrentBoot(snap.TypeKernel, coreDev)
 	c.Check(err, IsNil)
-	c.Check(current.Name, Equals, "kernel")
-	c.Check(current.Revision, Equals, snap.R(41))
+	c.Check(current.SnapName(), Equals, "kernel")
+	c.Check(current.SnapRevision(), Equals, snap.R(41))
 
 	// make GetVars fail
 	s.bootloader.GetErr = errors.New("zap")
@@ -272,7 +245,7 @@ func (s *bootSetSuite) TestParticipantBaseWithModel(c *C) {
 
 	type tableT struct {
 		with  *snap.Info
-		model boottest.MockDevice
+		model string
 		nop   bool
 	}
 
@@ -318,10 +291,11 @@ func (s *bootSetSuite) TestParticipantBaseWithModel(c *C) {
 	}
 
 	for i, t := range table {
-		bp := boot.Participant(t.with, t.with.GetType(), t.model)
+		dev := boottest.MockDevice(t.model)
+		bp := boot.Participant(t.with, t.with.GetType(), dev)
 		c.Check(bp.IsTrivial(), Equals, t.nop, Commentf("%d", i))
 		if !t.nop {
-			c.Check(bp, DeepEquals, boot.NewCoreBootParticipant(t.with, t.with.GetType(), t.model))
+			c.Check(bp, DeepEquals, boot.NewCoreBootParticipant(t.with, t.with.GetType(), dev))
 		}
 	}
 }
@@ -332,7 +306,7 @@ func (s *bootSetSuite) TestKernelWithModel(c *C) {
 	expected := boot.NewCoreKernel(info)
 
 	type tableT struct {
-		model boottest.MockDevice
+		model string
 		nop   bool
 		krn   boot.BootKernel
 	}
@@ -358,7 +332,8 @@ func (s *bootSetSuite) TestKernelWithModel(c *C) {
 	}
 
 	for _, t := range table {
-		krn := boot.Kernel(info, snap.TypeKernel, t.model)
+		dev := boottest.MockDevice(t.model)
+		krn := boot.Kernel(info, snap.TypeKernel, dev)
 		c.Check(krn.IsTrivial(), Equals, t.nop)
 		c.Check(krn, DeepEquals, t.krn)
 	}
@@ -409,5 +384,26 @@ func (s *bootSetSuite) TestMarkBootSuccessfulKKernelUpdate(c *C) {
 		"snap_core": "os1",
 		// updated
 		"snap_kernel": "k2",
+	})
+}
+func (s *bootSetSuite) TestMarkBootSuccessfulBaseUpdate(c *C) {
+	coreDev := boottest.MockDevice("some-snap")
+
+	s.bootloader.BootVars["snap_mode"] = "trying"
+	s.bootloader.BootVars["snap_core"] = "os1"
+	s.bootloader.BootVars["snap_kernel"] = "k1"
+	s.bootloader.BootVars["snap_try_core"] = "os2"
+	s.bootloader.BootVars["snap_try_kernel"] = ""
+	err := boot.MarkBootSuccessful(coreDev)
+	c.Assert(err, IsNil)
+	c.Assert(s.bootloader.BootVars, DeepEquals, map[string]string{
+		// cleared
+		"snap_mode":     "",
+		"snap_try_core": "",
+		// unchanged
+		"snap_kernel":     "k1",
+		"snap_try_kernel": "",
+		// updated
+		"snap_core": "os2",
 	})
 }

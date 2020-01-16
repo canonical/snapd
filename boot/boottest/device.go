@@ -21,26 +21,49 @@ package boottest
 
 import (
 	"strings"
+
+	"github.com/snapcore/snapd/boot"
 )
+
+type mockDevice struct {
+	bootSnap string
+	mode     string
+	uc20     bool
+}
 
 // MockDevice implements boot.Device. It wraps a string like
 // <boot-snap-name>[@<mode>], no <boot-snap-name> means classic, no
 // <mode> defaults to "run". It returns <boot-snap-name> for both
 // Base and Kernel, for more control mock a DeviceContext.
-type MockDevice string
-
-func (d MockDevice) snapAndMode() []string {
-	parts := strings.SplitN(string(d), "@", 2)
-	if len(parts) == 1 {
-		return append(parts, "run")
+func MockDevice(s string) boot.Device {
+	bootsnap, mode := snapAndMode(s)
+	return &mockDevice{
+		bootSnap: bootsnap,
+		mode:     mode,
 	}
-	if parts[1] == "" {
-		return []string{parts[0], "run"}
-	}
-	return parts
 }
 
-func (d MockDevice) Kernel() string { return d.snapAndMode()[0] }
-func (d MockDevice) Base() string   { return d.snapAndMode()[0] }
-func (d MockDevice) Classic() bool  { return d.snapAndMode()[0] == "" }
-func (d MockDevice) RunMode() bool  { return d.snapAndMode()[1] == "run" }
+// MockUC20Device implements boot.Device and returns true for HasModeenv.
+func MockUC20Device(s string) boot.Device {
+	m := MockDevice(s).(*mockDevice)
+	m.uc20 = true
+	return m
+}
+
+func snapAndMode(str string) (snap, mode string) {
+	parts := strings.SplitN(string(str), "@", 2)
+	if len(parts) == 1 || parts[1] == "" {
+		return parts[0], "run"
+	}
+	return parts[0], parts[1]
+}
+
+func (d *mockDevice) Kernel() string { return d.bootSnap }
+func (d *mockDevice) Base() string   { return d.bootSnap }
+func (d *mockDevice) Classic() bool  { return d.bootSnap == "" }
+func (d *mockDevice) RunMode() bool  { return d.mode == "run" }
+
+// HasModeenv is true when created with uc20 string.
+func (d *mockDevice) HasModeenv() bool {
+	return d.uc20
+}

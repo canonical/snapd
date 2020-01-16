@@ -32,7 +32,7 @@ execute: |
         snap list|MATCH 'test-snapd-private +2\.0.*private'
 
         echo "After removing it"
-        snap remove test-snapd-private
+        snap remove --purge test-snapd-private
 
         echo "Install it together with a public snap"
         snap install test-snapd-private test-snapd-public
