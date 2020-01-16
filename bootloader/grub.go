@@ -48,7 +48,7 @@ type grub struct {
 // newGrub create a new Grub bootloader object
 func newGrub(rootdir string, opts *Options) RecoveryAwareBootloader {
 	g := &grub{rootdir: rootdir}
-	if opts != nil && opts.Recovery {
+	if opts != nil && (opts.Recovery || opts.NoSlashBoot) {
 		g.basedir = "EFI/ubuntu"
 	} else {
 		g.basedir = "boot/grub"

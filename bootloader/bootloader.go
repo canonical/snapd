@@ -46,6 +46,10 @@ type Options struct {
 	// UC16/18 do not have a recovery partition.
 	Recovery bool
 
+	// NoSlashBoot indicates to use the run mode bootloader but
+	// under the native layout and not the /boot mount.
+	NoSlashBoot bool
+
 	// ExtractedRunKernelImage is whether to force kernel asset extraction.
 	ExtractedRunKernelImage bool
 }

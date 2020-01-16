@@ -455,3 +455,97 @@ func (s *grubTestSuite) TestGrubExtractedRunKernelImageDisableTryKernel(c *C) {
 	// ensure that the symlink is no longer there
 	c.Assert(filepath.Join(s.rootdir, "try-kernel.efi"), testutil.FileAbsent)
 }
+
+func (s *grubTestSuite) TestKernelExtractionRunImageKernel(c *C) {
+	s.makeFakeGrubEnv(c)
+
+	g := bootloader.NewGrub(s.rootdir, &bootloader.Options{ExtractedRunKernelImage: true})
+	c.Assert(g, NotNil)
+
+	files := [][]string{
+		{"kernel.efi", "I'm a kernel"},
+		{"another-kernel-file", "another kernel file"},
+		{"meta/kernel.yaml", "version: 4.2"},
+	}
+	si := &snap.SideInfo{
+		RealName: "ubuntu-kernel",
+		Revision: snap.R(42),
+	}
+	fn := snaptest.MakeTestSnapWithFiles(c, packageKernel, files)
+	snapf, err := snap.Open(fn)
+	c.Assert(err, IsNil)
+
+	info, err := snap.ReadInfoFromSnapFile(snapf, si)
+	c.Assert(err, IsNil)
+
+	err = g.ExtractKernelAssets(info, snapf)
+	c.Assert(err, IsNil)
+
+	// kernel is extracted
+	kernefi := filepath.Join(s.bootdir, "grub", "ubuntu-kernel_42.snap", "kernel.efi")
+	c.Assert(kernefi, testutil.FilePresent)
+	// other file is not extracted
+	other := filepath.Join(s.bootdir, "grub", "ubuntu-kernel_42.snap", "another-kernel-file")
+	c.Assert(other, testutil.FileAbsent)
+
+	// ensure that removal of assets also works
+	err = g.RemoveKernelAssets(info)
+	c.Assert(err, IsNil)
+	exists, _, err := osutil.DirExists(filepath.Dir(kernefi))
+	c.Assert(err, IsNil)
+	c.Check(exists, Equals, false)
+}
+
+func (s *grubTestSuite) TestKernelExtractionRunImageKernelNoSlashBoot(c *C) {
+	// this is ubuntu-boot but during install we use the native EFI/ubuntu
+	// layout, same as Recovery, without the /boot mount
+	s.makeFakeGrubRecoveryEnv(c)
+
+	g := bootloader.NewGrub(s.rootdir, &bootloader.Options{ExtractedRunKernelImage: true, NoSlashBoot: true})
+	c.Assert(g, NotNil)
+
+	files := [][]string{
+		{"kernel.efi", "I'm a kernel"},
+		{"another-kernel-file", "another kernel file"},
+		{"meta/kernel.yaml", "version: 4.2"},
+	}
+	si := &snap.SideInfo{
+		RealName: "ubuntu-kernel",
+		Revision: snap.R(42),
+	}
+	fn := snaptest.MakeTestSnapWithFiles(c, packageKernel, files)
+	snapf, err := snap.Open(fn)
+	c.Assert(err, IsNil)
+
+	info, err := snap.ReadInfoFromSnapFile(snapf, si)
+	c.Assert(err, IsNil)
+
+	err = g.ExtractKernelAssets(info, snapf)
+	c.Assert(err, IsNil)
+
+	// kernel is extracted
+	kernefi := filepath.Join(s.rootdir, "EFI/ubuntu", "ubuntu-kernel_42.snap", "kernel.efi")
+	c.Assert(kernefi, testutil.FilePresent)
+	// other file is not extracted
+	other := filepath.Join(s.rootdir, "EFI/ubuntu", "ubuntu-kernel_42.snap", "another-kernel-file")
+	c.Assert(other, testutil.FileAbsent)
+
+	// enable the Kernel we extracted
+	eg, ok := g.(bootloader.ExtractedRunKernelImageBootloader)
+	c.Assert(ok, Equals, true)
+	err = eg.EnableKernel(info)
+	c.Assert(err, IsNil)
+
+	// ensure that the symlink was put where we expect it
+	asset, err := os.Readlink(filepath.Join(s.rootdir, "EFI/ubuntu", "kernel.efi"))
+	c.Assert(err, IsNil)
+
+	c.Assert(asset, DeepEquals, filepath.Join("ubuntu-kernel_42.snap", "kernel.efi"))
+
+	// ensure that removal of assets also works
+	err = g.RemoveKernelAssets(info)
+	c.Assert(err, IsNil)
+	exists, _, err := osutil.DirExists(filepath.Dir(kernefi))
+	c.Assert(err, IsNil)
+	c.Check(exists, Equals, false)
+}
