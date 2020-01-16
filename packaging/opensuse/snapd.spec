@@ -124,6 +124,7 @@ BuildRequires:  gcc-32bit
 BuildRequires:  libapparmor-devel
 BuildRequires:  apparmor-rpm-macros
 %endif
+BuildRequires:  fakeroot
 
 PreReq:         permissions
 
