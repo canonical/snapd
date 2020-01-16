@@ -303,49 +303,49 @@ func (s *apiSuite) TestConnectionsMissingPlugSlotFilteredOut(c *check.C) {
 			missingPlugOrSlot: map[string]interface{}{
 				"interface": "test",
 			},
-		}, 
-		[]string{"consumer:plug producer:slot"}, 
-		map[string]interface{}{
-			"result": map[string]interface{}{
-				"plugs": []interface{}{
-					map[string]interface{}{
-						"snap":      "consumer",
-						"plug":      "plug",
-						"interface": "test",
-						"attrs":     map[string]interface{}{"key": "value"},
-						"apps":      []interface{}{"app"},
-						"label":     "label",
-						"connections": []interface{}{
-							map[string]interface{}{"snap": "producer", "slot": "slot"},
+		},
+			[]string{"consumer:plug producer:slot"},
+			map[string]interface{}{
+				"result": map[string]interface{}{
+					"plugs": []interface{}{
+						map[string]interface{}{
+							"snap":      "consumer",
+							"plug":      "plug",
+							"interface": "test",
+							"attrs":     map[string]interface{}{"key": "value"},
+							"apps":      []interface{}{"app"},
+							"label":     "label",
+							"connections": []interface{}{
+								map[string]interface{}{"snap": "producer", "slot": "slot"},
+							},
+						},
+					},
+					"slots": []interface{}{
+						map[string]interface{}{
+							"snap":      "producer",
+							"slot":      "slot",
+							"interface": "test",
+							"attrs":     map[string]interface{}{"key": "value"},
+							"apps":      []interface{}{"app"},
+							"label":     "label",
+							"connections": []interface{}{
+								map[string]interface{}{"snap": "consumer", "plug": "plug"},
+							},
+						},
+					},
+					"established": []interface{}{
+						map[string]interface{}{
+							"plug":      map[string]interface{}{"snap": "consumer", "plug": "plug"},
+							"slot":      map[string]interface{}{"snap": "producer", "slot": "slot"},
+							"manual":    true,
+							"interface": "test",
 						},
 					},
 				},
-				"slots": []interface{}{
-					map[string]interface{}{
-						"snap":      "producer",
-						"slot":      "slot",
-						"interface": "test",
-						"attrs":     map[string]interface{}{"key": "value"},
-						"apps":      []interface{}{"app"},
-						"label":     "label",
-						"connections": []interface{}{
-							map[string]interface{}{"snap": "consumer", "plug": "plug"},
-						},
-					},
-				},
-				"established": []interface{}{
-					map[string]interface{}{
-						"plug":      map[string]interface{}{"snap": "consumer", "plug": "plug"},
-						"slot":      map[string]interface{}{"snap": "producer", "slot": "slot"},
-						"manual":    true,
-						"interface": "test",
-					},
-				},
-			},
-			"status":      "OK",
-			"status-code": 200.0,
-			"type":        "sync",
-		})
+				"status":      "OK",
+				"status-code": 200.0,
+				"type":        "sync",
+			})
 	}
 }
 
