@@ -41,7 +41,7 @@ execute: |
 
     echo "Start a \"sleep\" process in the background"
     #shellcheck disable=SC2016
-    test-snapd-sh -c 'touch $SNAP_DATA/1.stamp && exec sleep 3m' &
+    test-snapd-sh.sh -c 'touch $SNAP_DATA/1.stamp && exec sleep 3m' &
     pid1=$!
     trap 'killall sleep || true' EXIT
     echo "Ensure that snap-confine has finished its task and that the snap process"
@@ -49,10 +49,10 @@ execute: |
     retry-tool -n 30 --wait 0.1 test -e /var/snap/test-snapd-sh/current/1.stamp
 
     echo "During startup snap-confine has asked systemd to move the process to a"
-    echo "new transient scope. The scope name is \"snap.\$random.test-snapd-sh.test-snapd-sh\"."
+    echo "new transient scope. The scope name is \"snap.\$random.test-snapd-sh.sh\"."
     echo "Let's verify that."
     pid1_tracking_cg_path="$(grep -E "^$base_cg_id:" < "/proc/$pid1/cgroup" | cut -d : -f 3)"
-    echo "$pid1_tracking_cg_path" | MATCH '.*/snap\.[0-9a-f-]+\.test-snapd-sh\.test-snapd-sh\.scope'
+    echo "$pid1_tracking_cg_path" | MATCH '.*/snap\.[0-9a-f-]+\.test-snapd-sh\.sh\.scope'
 
     echo "Sanity check, cgroup associated with the scope exists."
     test -d "${base_cg_path}${pid1_tracking_cg_path}"
@@ -62,11 +62,11 @@ execute: |
 
     echo "Start a second process so that we can check each scope is independent."
     #shellcheck disable=SC2016
-    test-snapd-sh -c 'touch $SNAP_DATA/2.stamp && exec sleep 2m' &
+    test-snapd-sh.sh -c 'touch $SNAP_DATA/2.stamp && exec sleep 2m' &
     pid2=$!
     retry-tool -n 30 --wait 0.1 test -e /var/snap/test-snapd-sh/current/2.stamp
     pid2_tracking_cg_path="$(grep -E "^$base_cg_id:" < "/proc/$pid2/cgroup" | cut -d : -f 3)"
-    echo "$pid2_tracking_cg_path" | MATCH '.*/snap\.[0-9a-f-]+\.test-snapd-sh\.test-snapd-sh\.scope'
+    echo "$pid2_tracking_cg_path" | MATCH '.*/snap\.[0-9a-f-]+\.test-snapd-sh\.sh\.scope'
     MATCH "$pid2" < "${base_cg_path}${pid2_tracking_cg_path}/cgroup.procs"
 
     echo "Each invocation uses a new transient scope and thus a new cgroup path."
@@ -84,7 +84,7 @@ execute: |
 
     echo "If a snap command forks a child process it is also tracked."
     #shellcheck disable=SC2016
-    test-snapd-sh -c 'touch $SNAP_DATA/3.stamp && sleep 1m' &
+    test-snapd-sh.sh -c 'touch $SNAP_DATA/3.stamp && sleep 1m' &
     pid3=$!
     retry-tool -n 30 --wait 0.1 test -e /var/snap/test-snapd-sh/current/3.stamp
     pid3_tracking_cg_path="$(grep -E "^$base_cg_id:" < "/proc/$pid3/cgroup" | cut -d : -f 3)"
