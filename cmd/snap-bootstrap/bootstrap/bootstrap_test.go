@@ -109,7 +109,7 @@ var mockDeviceLayout = partition.DeviceLayout{
 	ID:         "anything",
 	Device:     "/dev/node",
 	Schema:     "gpt",
-	Size:       0x500000,
+	Size:       2 * gadget.SizeGiB,
 	SectorSize: 512,
 }
 
@@ -141,6 +141,14 @@ func (s *bootstrapSuite) TestLayoutCompatibility(c *C) {
 	// extra structure (should fail)
 	err = bootstrap.EnsureLayoutCompatibility(gadgetLayout, &deviceLayoutWithExtras)
 	c.Assert(err, ErrorMatches, `cannot find disk partition /dev/node3.* in gadget`)
+
+	// layout is not compatible if the device is too small
+	smallDeviceLayout := mockDeviceLayout
+	smallDeviceLayout.Size = 100 * gadget.SizeMiB
+	// sanity check
+	c.Check(gadgetLayoutWithExtras.Size > smallDeviceLayout.Size, Equals, true)
+	err = bootstrap.EnsureLayoutCompatibility(gadgetLayoutWithExtras, &smallDeviceLayout)
+	c.Assert(err, ErrorMatches, `device /dev/node \(100MiB\) is too small to fit the requested layout \(1\.17GiB\)`)
 }
 
 func (s *bootstrapSuite) TestSchemaCompatibility(c *C) {
@@ -286,4 +294,19 @@ func (s *bootstrapSuite) TestDeviceFromRoleErrorNoRole(c *C) {
 
 	_, err := bootstrap.DeviceFromRole(lv, gadget.SystemSeed)
 	c.Assert(err, ErrorMatches, "cannot find role system-seed in gadget")
+}
+
+func (s *bootstrapSuite) TestFormatSize(c *C) {
+	for _, tc := range []struct {
+		size gadget.Size
+		exp  string
+	}{
+		{123 * gadget.SizeKiB, "123KiB"},
+		{512 * gadget.SizeKiB, "512KiB"},
+		{578 * gadget.SizeMiB, "578MiB"},
+		{1*gadget.SizeGiB + 123*gadget.SizeMiB, "1.12GiB"},
+		{1024 * gadget.SizeGiB, "1TiB"},
+	} {
+		c.Check(bootstrap.BytesIEC(tc.size).String(), Equals, tc.exp)
+	}
 }
