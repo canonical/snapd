@@ -115,7 +115,7 @@ func generateMountsModeRecover(recoverySystem string) error {
 		return err
 	}
 	if !isRecoverDataMounted {
-		// TODO:UC20: does the encrypted ubuntu-data need a differnt
+		// TODO:UC20: does the encrypted ubuntu-data need a different
 		//            label? can we find it this way?
 		// TODO:UC20: deal with the case that we have no ubuntu-data
 		//            (e.g. it is toally destroyed). fail gracefully?
