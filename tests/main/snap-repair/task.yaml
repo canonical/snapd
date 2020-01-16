@@ -1,6 +1,8 @@
 summary: Ensure that snap-repair is available
 
-systems: [-fedora-*, -opensuse-*, -arch-*, -amazon-*, -centos-*, -debian-sid-*]
+# TODO:UC20: snap-repair fishes in /var/lib/snapd/seed/assertions for the model
+#            assertion - this no longer works on UC20
+systems: [-fedora-*, -opensuse-*, -arch-*, -amazon-*, -centos-*, -debian-sid-*, -ubuntu-core-20-*]
 
 execute: |
     #shellcheck source=tests/lib/dirs.sh

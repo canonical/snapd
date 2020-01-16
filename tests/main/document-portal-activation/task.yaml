@@ -28,7 +28,7 @@ prepare: |
     #shellcheck source=tests/lib/snaps.sh
     . "$TESTSLIB"/snaps.sh
     install_local test-snapd-desktop
-    install_local test-snapd-tools
+    install_local test-snapd-sh
     rm -f /usr/share/dbus-1/services/fake-document-portal.service
     mkdir -p "$XDG_RUNTIME_DIR"
     rm -rf "${XDG_RUNTIME_DIR:?}/*" "${XDG_RUNTIME_DIR:?}/.[!.]*"
@@ -100,6 +100,6 @@ execute: |
 
     echo "Snaps not using the desktop interface will not try to contact the document portal"
     : > doc-portal.log
-    test-snapd-tools.success 2>stderr.log
+    test-snapd-sh.sh -c 'true' 2>stderr.log
     check_stderr stderr.log
     [ "$(wc -c < doc-portal.log)" -eq 0 ]

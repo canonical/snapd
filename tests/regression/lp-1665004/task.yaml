@@ -9,11 +9,11 @@ details: |
 prepare: |
     #shellcheck source=tests/lib/snaps.sh
     . "$TESTSLIB/snaps.sh"
-    install_local test-snapd-tools
+    install_local test-snapd-sh
     if [ -d /var/lib/snapd/hostfs ]; then
         rmdir /var/lib/snapd/hostfs;
     fi
 
 execute: |
-    test-snapd-tools.cmd true
+    test-snapd-sh.sh -c 'true'
     [ "$(stat -c '%g' /var/lib/snapd/hostfs)" -eq 0 ]

@@ -22,7 +22,7 @@ prepare: |
     fi
 
     # Launch a xenial container.
-    lxc launch ubuntu:xenial xenial
+    lxc launch --quiet ubuntu:xenial xenial
 
     # Set the proxy inside the container.
     if [ -n "${http_proxy:-}" ]; then
@@ -35,7 +35,7 @@ prepare: |
     # Install snapd we've built inside the container.
     lxc exec xenial -- apt autoremove --purge -y snapd ubuntu-core-launcher
     lxc exec xenial -- mkdir -p "$GOHOME"
-    lxc file push "$GOHOME"/snapd_*.deb "xenial/$GOHOME/"
+    lxc file push --quiet "$GOHOME"/snapd_*.deb "xenial/$GOHOME/"
     lxc exec xenial -- apt install -y "$GOHOME"/snapd_*.deb
 
     # Wait until snapd inside container is ready.
@@ -46,7 +46,7 @@ prepare: |
 
     # Make a directory outside of home, specifically in /var/lib for "logs"
     lxc exec xenial -- mkdir /var/lib/test
-    lxc file push hello.py xenial/var/lib/test/hello.py
+    lxc file push --quiet hello.py xenial/var/lib/test/hello.py
 
     # Copy our python script there.
     lxc exec xenial -- chown ubuntu.ubuntu /var/lib/test
@@ -56,7 +56,7 @@ restore: |
     lxc stop xenial --force || true
     lxc delete --force xenial || true
 
-    snap remove lxd
+    snap remove --purge lxd
     lxd-tool undo-lxd-mount-changes
 
 execute: |

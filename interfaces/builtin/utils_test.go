@@ -119,7 +119,6 @@ func (s *utilsSuite) TestLabelExpr(c *C) {
 }
 
 func (s *utilsSuite) TestPlugLabelExpr(c *C) {
-
 	connectedPlug, _ := MockConnectedPlug(c, yaml, nil, "network")
 	label := builtin.PlugAppLabelExpr(connectedPlug)
 	c.Check(label, Equals, `"snap.test-snap.{hook.install,hook.post-refresh}"`)

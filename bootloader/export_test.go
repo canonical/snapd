@@ -22,6 +22,7 @@ package bootloader
 import (
 	"io/ioutil"
 	"os"
+	"path/filepath"
 
 	. "gopkg.in/check.v1"
 
@@ -58,15 +59,14 @@ func MockUbootFiles(c *C, rootdir string) {
 	c.Assert(err, IsNil)
 }
 
-func NewGrub(rootdir string) Bootloader {
-	return newGrub(rootdir)
+func NewGrub(rootdir string, opts *Options) RecoveryAwareBootloader {
+	return newGrub(rootdir, opts)
 }
 
 func MockGrubFiles(c *C, rootdir string) {
-	g := &grub{rootdir: rootdir}
-	err := os.MkdirAll(g.dir(), 0755)
+	err := os.MkdirAll(filepath.Join(rootdir, "/boot/grub"), 0755)
 	c.Assert(err, IsNil)
-	err = ioutil.WriteFile(g.ConfigFile(), nil, 0644)
+	err = ioutil.WriteFile(filepath.Join(rootdir, "/boot/grub/grub.cfg"), nil, 0644)
 	c.Assert(err, IsNil)
 }
 

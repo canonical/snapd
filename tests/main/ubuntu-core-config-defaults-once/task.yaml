@@ -12,6 +12,7 @@ prepare: |
         echo "This test needs test keys to be trusted"
         exit
     fi
+
     #shellcheck source=tests/lib/systemd.sh
     . "$TESTSLIB"/systemd.sh
 
@@ -141,3 +142,8 @@ execute: |
         snap get system "service.$service.disable" | MATCH false
     done
     test ! -e /etc/ssh/sshd_not_to_be_run
+
+    # Unmask rsyslog service on core18
+    if is_core18_system; then
+        systemctl unmask rsyslog
+    fi

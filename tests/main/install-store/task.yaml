@@ -17,7 +17,7 @@ execute: |
     for channel in edge beta candidate stable
     do
         snap install --unicode=never "$SNAP_NAME" --channel=$channel | grep -Pzq "$expected"
-        snap remove "$SNAP_NAME"
+        snap remove --purge "$SNAP_NAME"
     done
 
     echo "Install non-devmode snap with devmode option"

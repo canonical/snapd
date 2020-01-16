@@ -8,4 +8,4 @@ restore: |
 
 execute: |
     ( cd /tmp && snap try test-snapd-sh )
-    test-snapd-sh -c /bin/true
+    test-snapd-sh.sh -c /bin/true

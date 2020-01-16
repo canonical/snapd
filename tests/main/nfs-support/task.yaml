@@ -111,7 +111,7 @@ execute: |
     ensure_normal_perms() {
         if [ "$(snap debug confinement)" = strict ]; then
             test ! -e /var/lib/snapd/apparmor/snap-confine/nfs-support
-            MATCH -v 'network inet,' < /var/lib/snapd/apparmor/profiles/snap.test-snapd-sh.with-home-plug
+            not MATCH 'network inet,' < /var/lib/snapd/apparmor/profiles/snap.test-snapd-sh.with-home-plug
         fi
     }
 
