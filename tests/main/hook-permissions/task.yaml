@@ -39,3 +39,6 @@ execute: |
 
     # we should have same enumeration result
     diff -w /var/snap/test-snap/common/enumerate.txt ./enumerate.txt
+
+    # sanity, make sure we got something meaningful
+    MATCH "array \[" < /var/snap/test-snap/common/enumerate.txt
