@@ -49,11 +49,12 @@ func (s *vboxSuite) TestPackingTypical(c *C) {
 	// Move to (10, 10) to see how position of the box is reflected in the items.
 	vbox.Move(render.Point{X: 10, Y: 10})
 	vbox.Pack(80)
+	// Nested widgets use relative positioning and are unaffected by the position of the box.
 	c.Check(vbox.Position(), Equals, render.Point{X: 10, Y: 10})
 	c.Check(vbox.Items[0].Size(), Equals, render.Size{Width: 3, Height: 1})
 	c.Check(vbox.Items[1].Size(), Equals, render.Size{Width: 3, Height: 1})
-	c.Check(vbox.Items[0].Position(), Equals, render.Point{X: 10, Y: 10})
-	c.Check(vbox.Items[1].Position(), Equals, render.Point{X: 10, Y: 11})
+	c.Check(vbox.Items[0].Position(), Equals, render.Point{X: 0, Y: 0})
+	c.Check(vbox.Items[1].Position(), Equals, render.Point{X: 0, Y: 1})
 	c.Check(vbox.Size(), Equals, render.Size{Width: 3, Height: 2})
 }
 

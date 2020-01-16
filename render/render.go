@@ -72,7 +72,9 @@ type Widget interface {
 	// print to a stream or display on a terminal.
 	Render() []Stripe
 
-	// Position returns the coordinate of the top-left corner of the widget.
+	// Position returns the coordinate of the top-left corner of the widget
+	// relative to the parent, if any. Relative positioning allows a widget to
+	// be re-positioned without affecting its children.
 	Position() Point
 	// Move re-positions the widget without changing its size.
 	Move(to Point)

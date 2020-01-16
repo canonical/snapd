@@ -38,7 +38,7 @@ func (pad *Padding) Pack(widthAvailable int) {
 	extraHeight := pad.Top + pad.Bottom
 	size := render.Size{Width: extraWidth, Height: extraHeight}
 	if pad.Body != nil {
-		pad.Body.Move(render.Point{X: pad.rect.topLeft.X + pad.Left, Y: pad.rect.topLeft.Y + pad.Top})
+		pad.Body.Move(render.Point{X: pad.Left, Y: pad.Top})
 		pad.Body.Pack(widthAvailable - extraWidth)
 		bodySize := pad.Body.Size()
 		size.Width += bodySize.Width
@@ -59,8 +59,13 @@ func (pad *Padding) Resize(size render.Size) {
 }
 
 func (pad *Padding) Render() []render.Stripe {
+	var stripes []render.Stripe
 	if pad.Body != nil {
-		return pad.Body.Render()
+		stripes = append(stripes, pad.Body.Render()...)
 	}
-	return nil
+	for i := range stripes {
+		stripes[i].X += pad.rect.topLeft.X
+		stripes[i].Y += pad.rect.topLeft.Y
+	}
+	return stripes
 }

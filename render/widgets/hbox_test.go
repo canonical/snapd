@@ -51,10 +51,11 @@ func (s *hboxSuite) TestPackingTypical(c *C) {
 	hbox.Move(render.Point{X: 10, Y: 10})
 	hbox.Pack(80)
 	c.Check(hbox.Position(), Equals, render.Point{X: 10, Y: 10})
+	// Nested widgets use relative positioning and are unaffected by the position of the box.
 	c.Check(hbox.Items[0].Size(), Equals, render.Size{Width: 3, Height: 1})
 	c.Check(hbox.Items[1].Size(), Equals, render.Size{Width: 2, Height: 1})
-	c.Check(hbox.Items[0].Position(), Equals, render.Point{X: 10, Y: 10})
-	c.Check(hbox.Items[1].Position(), Equals, render.Point{X: 14, Y: 10})
+	c.Check(hbox.Items[0].Position(), Equals, render.Point{X: 0, Y: 0})
+	c.Check(hbox.Items[1].Position(), Equals, render.Point{X: 4, Y: 0})
 	c.Check(hbox.Size(), Equals, render.Size{Width: 3 + 2 + /* spacing */ 1, Height: 1})
 }
 

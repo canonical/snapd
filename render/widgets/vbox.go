@@ -43,15 +43,13 @@ type VBox struct {
 // Spacing is inserted between consecutive items. For typical text applications
 // spacing should be set to zero to have line-by-line output.
 func (vbox *VBox) Pack(widthAvailable int) {
-	x := vbox.rect.topLeft.X
-	y := vbox.rect.topLeft.Y
 	maxWidth := 0
 	heightSoFar := 0
 	for i, item := range vbox.Items {
 		if i > 0 {
 			heightSoFar += vbox.Spacing
 		}
-		item.Move(render.Point{X: x, Y: y + heightSoFar})
+		item.Move(render.Point{X: 0, Y: heightSoFar})
 		item.Pack(widthAvailable)
 		if w := item.Size().Width; w > maxWidth {
 			maxWidth = w
@@ -68,6 +66,10 @@ func (vbox *VBox) Render() []render.Stripe {
 	var stripes []render.Stripe
 	for _, item := range vbox.Items {
 		stripes = append(stripes, item.Render()...)
+	}
+	for i := range stripes {
+		stripes[i].X += vbox.rect.topLeft.X
+		stripes[i].Y += vbox.rect.topLeft.Y
 	}
 	return stripes
 }

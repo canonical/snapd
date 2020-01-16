@@ -43,15 +43,13 @@ type HBox struct {
 // Spacing is inserted between consecutive items. For typical text applications
 // spacing should be set to one to have one column of space between elements.
 func (hbox *HBox) Pack(widthAvailable int) {
-	x := hbox.rect.topLeft.X
-	y := hbox.rect.topLeft.Y
 	widthSoFar := 0
 	maxHeight := 0
 	for i, item := range hbox.Items {
 		if i > 0 {
 			widthSoFar += hbox.Spacing
 		}
-		item.Move(render.Point{X: x + widthSoFar, Y: y})
+		item.Move(render.Point{X: widthSoFar, Y: 0})
 		item.Pack(widthAvailable - widthSoFar)
 		widthSoFar += item.Size().Width
 		if h := item.Size().Height; h > maxHeight {
@@ -68,6 +66,10 @@ func (hbox *HBox) Render() []render.Stripe {
 	var stripes []render.Stripe
 	for _, item := range hbox.Items {
 		stripes = append(stripes, item.Render()...)
+	}
+	for i := range stripes {
+		stripes[i].X += hbox.rect.topLeft.X
+		stripes[i].Y += hbox.rect.topLeft.Y
 	}
 	return stripes
 }
