@@ -47,6 +47,22 @@ func MockJournalStdoutPath(path string) func() {
 	}
 }
 
+func MockOsutilIsMounted(f func(path string) (bool, error)) func() {
+	old := osutilIsMounted
+	osutilIsMounted = f
+	return func() {
+		osutilIsMounted = old
+	}
+}
+
+func MockSquashFsType(f func() (string, []string, error)) func() {
+	old := squashfsFsType
+	squashfsFsType = f
+	return func() {
+		squashfsFsType = old
+	}
+}
+
 func (e *Error) SetExitCode(i int) {
 	e.exitCode = i
 }

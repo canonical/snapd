@@ -18,7 +18,7 @@ prepare: |
 
 restore: |
     # make sure this snap is removed in case it was installed
-    snap remove test-snapd-daemon-user || true
+    snap remove --purge test-snapd-daemon-user || true
 
     # snapd will create this for us, but we'll remove it for consistency in
     # test runs
@@ -33,7 +33,7 @@ execute: |
     # expect a seccomp denial with 'chown' operation
     echo "Running 'chown' without any system-usernames"
     touch "$P1"
-    snap run test-snapd-sh -c "chown daemon:daemon $P1" 2>&1 | MATCH 'Operation not permitted'
+    snap run test-snapd-sh.sh -c "chown daemon:daemon $P1" 2>&1 | MATCH 'Operation not permitted'
 
     # We want this test to run on all systems since the end goal is for all
     # systems that have a new enough libseccomp (>= 2.4.0) and golang-seccomp
@@ -42,7 +42,7 @@ execute: |
     # check for support in an existing snap's seccomp profile header, then go
     # from there.
     supported="no"
-    header=$(head -2 /var/lib/snapd/seccomp/bpf/snap.test-snapd-sh.test-snapd-sh.src | grep -A1 'snap-seccomp version information' | tail -1)
+    header=$(head -2 /var/lib/snapd/seccomp/bpf/snap.test-snapd-sh.sh.src | grep -A1 'snap-seccomp version information' | tail -1)
     echo "snap-seccomp version information is '$header'"
     if [ -n "$header" ]; then
         features=$(echo "$header" | cut -d ' ' -f 5)

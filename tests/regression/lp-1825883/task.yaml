@@ -7,8 +7,8 @@ prepare: |
     snap pack test-snapd-content.v1
     snap pack test-snapd-content.v2
 restore: |
-    snap remove test-snapd-app
-    snap remove test-snapd-content
+    snap remove --purge test-snapd-app
+    snap remove --purge test-snapd-content
     rm -f test-snapd-content-app_1_all.snap test-snapd-content-{1,2}_all.snap
 execute: |
     snap install --dangerous test-snapd-app_1_all.snap
@@ -21,7 +21,7 @@ execute: |
     #shellcheck disable=SC2016
     test-snapd-app.sh -c 'cat $SNAP/things/*/thing' | MATCH THING-B
     #shellcheck disable=SC2016
-    test-snapd-app.sh -c 'cat $SNAP/things/*/thing' | MATCH -v THING-C
+    test-snapd-app.sh -c 'cat $SNAP/things/*/thing' | not MATCH THING-C
 
     # Install the 2nd version of the content snap, it should also provide THING-C
     snap install --dangerous test-snapd-content_2_all.snap

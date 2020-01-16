@@ -89,7 +89,7 @@ func optedIntoSnapdSnap(st *state.State) (bool, error) {
 	return experimentalAllowSnapd, nil
 }
 
-func doInstall(st *state.State, snapst *SnapState, snapsup *SnapSetup, flags int, fromChange string) (*state.TaskSet, error) {
+func doInstall(st *state.State, snapst *SnapState, snapsup *SnapSetup, flags int, fromChange string, inUseCheck func(snap.Type) (boot.InUseFunc, error)) (*state.TaskSet, error) {
 	// NB: we should strive not to need or propagate deviceCtx
 	// here, the resulting effects/changes were not pleasant at
 	// one point
@@ -104,6 +104,11 @@ func doInstall(st *state.State, snapst *SnapState, snapsup *SnapSetup, flags int
 	}
 	if snapst.IsInstalled() && !snapst.Active {
 		return nil, fmt.Errorf("cannot update disabled snap %q", snapsup.InstanceName())
+	}
+	if snapst.IsInstalled() && !snapsup.Flags.Revert {
+		if inUseCheck == nil {
+			return nil, fmt.Errorf("internal error: doInstall: inUseCheck not provided for refresh")
+		}
 	}
 
 	if snapsup.Flags.Classic {
@@ -319,9 +324,18 @@ func doInstall(st *state.State, snapst *SnapState, snapsup *SnapSetup, flags int
 		}
 
 		// normal garbage collect
+		var inUse boot.InUseFunc
 		for i := 0; i <= currentIndex-retain; i++ {
+			if inUse == nil {
+				var err error
+				inUse, err = inUseCheck(snapsup.Type)
+				if err != nil {
+					return nil, err
+				}
+			}
+
 			si := seq[i]
-			if boot.InUse(snapsup.InstanceName(), si.Revision) {
+			if inUse(snapsup.InstanceName(), si.Revision) {
 				continue
 			}
 			ts := removeInactiveRevision(st, snapsup.InstanceName(), si.SnapID, si.Revision)
@@ -429,27 +443,26 @@ func WaitRestart(task *state.Task, snapsup *SnapSetup) (err error) {
 		return fmt.Errorf("there was a snapd rollback across the restart")
 	}
 
-	// If not on classic check there was no rollback. A reboot
-	// can be triggered by:
+	deviceCtx, err := DeviceCtx(task.State(), task, nil)
+	if err != nil {
+		return err
+	}
+
+	// Check if there was a rollback. A reboot can be triggered by:
 	// - core (old core16 world, system-reboot)
 	// - bootable base snap (new core18 world, system-reboot)
 	// - kernel
 	//
+	// On classic and in ephemeral run modes (like install, recover)
+	// there can never be a rollback so we can skip the check there.
+	//
 	// TODO: Detect "snapd" snap daemon-restarts here that
 	//       fallback into the old version (once we have
 	//       better snapd rollback support in core18).
-	if !release.OnClassic {
-		// TODO: double check that we really rebooted
-		// otherwise this could be just a spurious restart
-		// of snapd
-
-		model, err := ModelFromTask(task)
-		if err != nil {
-			return err
-		}
-
+	if deviceCtx.RunMode() && !release.OnClassic {
 		// get the name of the name relevant for booting
 		// based on the given type
+		model := deviceCtx.Model()
 		var bootName string
 		switch snapsup.Type {
 		case snap.TypeKernel:
@@ -472,14 +485,14 @@ func WaitRestart(task *state.Task, snapsup *SnapSetup) (err error) {
 		// actually booted. The bootloader may revert on a failed
 		// boot from a bad os/base/kernel to a good one and in this
 		// case we need to catch this and error accordingly
-		current, err := boot.GetCurrentBoot(snapsup.Type)
+		current, err := boot.GetCurrentBoot(snapsup.Type, deviceCtx)
 		if err == boot.ErrBootNameAndRevisionNotReady {
 			return &state.Retry{After: 5 * time.Second}
 		}
 		if err != nil {
 			return err
 		}
-		if snapsup.InstanceName() != current.Name || snapsup.SideInfo.Revision != current.Revision {
+		if snapsup.InstanceName() != current.SnapName() || snapsup.SideInfo.Revision != current.SnapRevision() {
 			// TODO: make sure this revision gets ignored for
 			//       automatic refreshes
 			return fmt.Errorf("cannot finish %s installation, there was a rollback across reboot", snapsup.InstanceName())
@@ -611,7 +624,7 @@ func InstallPath(st *state.State, si *snap.SideInfo, path, instanceName, channel
 		}
 	}
 
-	channel, err = resolveChannel(st, instanceName, channel, deviceCtx)
+	channel, err = resolveChannel(st, instanceName, snapst.TrackingChannel, channel, deviceCtx)
 	if err != nil {
 		return nil, nil, err
 	}
@@ -668,7 +681,7 @@ func InstallPath(st *state.State, si *snap.SideInfo, path, instanceName, channel
 		InstanceKey: info.InstanceKey,
 	}
 
-	ts, err := doInstall(st, &snapst, snapsup, instFlags, "")
+	ts, err := doInstall(st, &snapst, snapsup, instFlags, "", inUseFor(deviceCtx))
 	return ts, info, err
 }
 
@@ -724,10 +737,11 @@ func InstallWithDeviceContext(ctx context.Context, st *state.State, name string,
 		return nil, fmt.Errorf("invalid instance name: %v", err)
 	}
 
-	info, err := installInfo(ctx, st, name, opts, userID, deviceCtx)
+	sar, err := installInfo(ctx, st, name, opts, userID, deviceCtx)
 	if err != nil {
 		return nil, err
 	}
+	info := sar.Info
 
 	if flags.RequireTypeBase && info.GetType() != snap.TypeBase && info.GetType() != snap.TypeOS {
 		return nil, fmt.Errorf("unexpected snap type %q, instead of 'base'", info.GetType())
@@ -760,7 +774,11 @@ func InstallWithDeviceContext(ctx context.Context, st *state.State, name string,
 		CohortKey: opts.CohortKey,
 	}
 
-	return doInstall(st, &snapst, snapsup, 0, fromChange)
+	if sar.RedirectChannel != "" {
+		snapsup.Channel = sar.RedirectChannel
+	}
+
+	return doInstall(st, &snapst, snapsup, 0, fromChange, nil)
 }
 
 // InstallMany installs everything from the given list of names.
@@ -801,7 +819,8 @@ func InstallMany(st *state.State, names []string, userID int) ([]string, []*stat
 	}
 
 	tasksets := make([]*state.TaskSet, 0, len(installs))
-	for _, info := range installs {
+	for _, sar := range installs {
+		info := sar.Info
 		var snapst SnapState
 		var flags Flags
 
@@ -809,8 +828,13 @@ func InstallMany(st *state.State, names []string, userID int) ([]string, []*stat
 			return nil, nil, err
 		}
 
+		channel := "stable"
+		if sar.RedirectChannel != "" {
+			channel = sar.RedirectChannel
+		}
+
 		snapsup := &SnapSetup{
-			Channel:      "stable",
+			Channel:      channel,
 			Base:         info.Base,
 			Prereq:       defaultContentPlugProviders(st, info),
 			UserID:       userID,
@@ -822,7 +846,7 @@ func InstallMany(st *state.State, names []string, userID int) ([]string, []*stat
 			InstanceKey:  info.InstanceKey,
 		}
 
-		ts, err := doInstall(st, &snapst, snapsup, 0, "")
+		ts, err := doInstall(st, &snapst, snapsup, 0, "", inUseFor(deviceCtx))
 		if err != nil {
 			return nil, nil, err
 		}
@@ -1020,7 +1044,7 @@ func doUpdate(ctx context.Context, st *state.State, names []string, updates []*s
 			},
 		}
 
-		ts, err := doInstall(st, snapst, snapsup, 0, fromChange)
+		ts, err := doInstall(st, snapst, snapsup, 0, fromChange, inUseFor(deviceCtx))
 		if err != nil {
 			if refreshAll {
 				// doing "refresh all", just skip this snap
@@ -1203,8 +1227,7 @@ func autoAliasesUpdate(st *state.State, names []string, updates []*snap.Info) (c
 // resolveChannel returns the effective channel to use, based on the requested
 // channel and constrains set by device model, or an error if switching to
 // requested channel is forbidden.
-func resolveChannel(st *state.State, snapName, newChannel string, deviceCtx DeviceContext) (effectiveChannel string, err error) {
-	// nothing to do
+func resolveChannel(st *state.State, snapName, oldChannel, newChannel string, deviceCtx DeviceContext) (effectiveChannel string, err error) {
 	if newChannel == "" {
 		return "", nil
 	}
@@ -1222,7 +1245,7 @@ func resolveChannel(st *state.State, snapName, newChannel string, deviceCtx Devi
 
 	if pinnedTrack == "" {
 		// no pinned track
-		return newChannel, nil
+		return channel.Resolve(oldChannel, newChannel)
 	}
 
 	// channel name is valid and consist of risk level or
@@ -1328,7 +1351,7 @@ func Switch(st *state.State, name string, opts *RevisionOptions) (*state.TaskSet
 		return nil, err
 	}
 
-	opts.Channel, err = resolveChannel(st, name, opts.Channel, deviceCtx)
+	opts.Channel, err = resolveChannel(st, name, snapst.TrackingChannel, opts.Channel, deviceCtx)
 	if err != nil {
 		return nil, err
 	}
@@ -1404,7 +1427,7 @@ func UpdateWithDeviceContext(st *state.State, name string, opts *RevisionOptions
 		return nil, err
 	}
 
-	opts.Channel, err = resolveChannel(st, name, opts.Channel, deviceCtx)
+	opts.Channel, err = resolveChannel(st, name, snapst.TrackingChannel, opts.Channel, deviceCtx)
 	if err != nil {
 		return nil, err
 	}
@@ -1740,16 +1763,13 @@ func canDisable(si *snap.Info) bool {
 }
 
 // canRemove verifies that a snap can be removed.
-//
-// TODO: canRemove should also return the reason why the snap cannot
-//       be removed to the user
 func canRemove(st *state.State, si *snap.Info, snapst *SnapState, removeAll bool, deviceCtx DeviceContext) error {
 	rev := snap.Revision{}
 	if !removeAll {
 		rev = si.Revision
 	}
 
-	return PolicyFor(si.GetType(), deviceCtx.Model()).CanRemove(st, snapst, rev)
+	return PolicyFor(si.GetType(), deviceCtx.Model()).CanRemove(st, snapst, rev, deviceCtx)
 }
 
 // RemoveFlags are used to pass additional flags to the Remove operation.
@@ -2017,7 +2037,7 @@ func RevertToRevision(st *state.State, name string, rev snap.Revision, flags Fla
 		PlugsOnly:   len(info.Slots) == 0,
 		InstanceKey: snapst.InstanceKey,
 	}
-	return doInstall(st, &snapst, snapsup, 0, "")
+	return doInstall(st, &snapst, snapsup, 0, "", nil)
 }
 
 // TransitionCore transitions from an old core snap name to a new core
@@ -2058,7 +2078,7 @@ func TransitionCore(st *state.State, oldName, newName string) ([]*state.TaskSet,
 			DownloadInfo: &newInfo.DownloadInfo,
 			SideInfo:     &newInfo.SideInfo,
 			Type:         newInfo.GetType(),
-		}, 0, "")
+		}, 0, "", nil)
 		if err != nil {
 			return nil, err
 		}
@@ -2310,6 +2330,23 @@ func infoForDeviceSnap(st *state.State, deviceCtx DeviceContext, which string, w
 // GadgetInfo finds the gadget snap's info for the given device context.
 func GadgetInfo(st *state.State, deviceCtx DeviceContext) (*snap.Info, error) {
 	return infoForDeviceSnap(st, deviceCtx, "gadget", (*asserts.Model).Gadget)
+}
+
+// KernelInfo finds the kernel snap's info for the given device context.
+func KernelInfo(st *state.State, deviceCtx DeviceContext) (*snap.Info, error) {
+	return infoForDeviceSnap(st, deviceCtx, "kernel", (*asserts.Model).Kernel)
+}
+
+// BootBaseInfo finds the boot base snap's info for the given device context.
+func BootBaseInfo(st *state.State, deviceCtx DeviceContext) (*snap.Info, error) {
+	baseName := func(mod *asserts.Model) string {
+		base := mod.Base()
+		if base == "" {
+			return "core"
+		}
+		return base
+	}
+	return infoForDeviceSnap(st, deviceCtx, "boot base", baseName)
 }
 
 // TODO: reintroduce a KernelInfo(state.State, DeviceContext) if needed

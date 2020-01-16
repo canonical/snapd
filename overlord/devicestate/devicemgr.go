@@ -483,8 +483,14 @@ func (m *DeviceManager) ensureBootOk() error {
 	}
 
 	if !m.bootOkRan {
-		if err := boot.MarkBootSuccessful(); err != nil {
+		deviceCtx, err := DeviceCtx(m.state, nil, nil)
+		if err != nil && err != state.ErrNoState {
 			return err
+		}
+		if err == nil {
+			if err := boot.MarkBootSuccessful(deviceCtx); err != nil {
+				return err
+			}
 		}
 		m.bootOkRan = true
 	}
