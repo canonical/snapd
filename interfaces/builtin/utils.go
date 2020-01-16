@@ -105,8 +105,12 @@ func implicitSystemConnectedSlot(slot *interfaces.ConnectedSlot) bool {
 	return false
 }
 
-// determine if the given slot attribute path matches the regex
-func verifySlotPathAttribute(slotRef *interfaces.SlotRef, attrs interfaces.Attrer, reg *regexp.Regexp, errStr string) (string, error) {
+// determine if the given slot attribute path matches the regex.
+// invalidErrFmt provides a fmt.Errorf format to create an error in
+// the case the path does not matches, it should allow to include
+// slotRef and be something like: "slot %q path attribute must be a
+// valid <path kind>".
+func verifySlotPathAttribute(slotRef *interfaces.SlotRef, attrs interfaces.Attrer, reg *regexp.Regexp, invalidErrFmt string) (string, error) {
 	var path string
 	if err := attrs.Attr("path", &path); err != nil || path == "" {
 		return "", fmt.Errorf("slot %q must have a path attribute", slotRef)
@@ -116,7 +120,7 @@ func verifySlotPathAttribute(slotRef *interfaces.SlotRef, attrs interfaces.Attre
 		return "", fmt.Errorf(`cannot use slot %q path %q: try %q"`, slotRef, path, cleanPath)
 	}
 	if !reg.MatchString(cleanPath) {
-		return "", fmt.Errorf("slot %q path attribute %s", slotRef, errStr)
+		return "", fmt.Errorf(invalidErrFmt, slotRef)
 	}
 	return cleanPath, nil
 }

@@ -115,14 +115,16 @@ const vdPat = `vd[a-z]([1-9]|[1-5][0-9]|6[0-3])`
 
 var rawVolumePartitionPattern = regexp.MustCompile(fmt.Sprintf("^/dev/(%s|%s|%s|%s|%s|%s)$", hdPat, sdPat, i2oPat, mmcPat, nvmePat, vdPat))
 
+const invalidPathErrFmt = "slot %q path attribute must be a valid device node"
+
 // Check validity of the defined slot
 func (iface *rawVolumeInterface) BeforePrepareSlot(slot *snap.SlotInfo) error {
-	_, err := verifySlotPathAttribute(&interfaces.SlotRef{Snap: slot.Snap.InstanceName(), Name: slot.Name}, slot, rawVolumePartitionPattern, "must be a valid device node")
+	_, err := verifySlotPathAttribute(&interfaces.SlotRef{Snap: slot.Snap.InstanceName(), Name: slot.Name}, slot, rawVolumePartitionPattern, invalidPathErrFmt)
 	return err
 }
 
 func (iface *rawVolumeInterface) AppArmorConnectedPlug(spec *apparmor.Specification, plug *interfaces.ConnectedPlug, slot *interfaces.ConnectedSlot) error {
-	cleanedPath, err := verifySlotPathAttribute(slot.Ref(), slot, rawVolumePartitionPattern, "must be a valid device node")
+	cleanedPath, err := verifySlotPathAttribute(slot.Ref(), slot, rawVolumePartitionPattern, invalidPathErrFmt)
 	if err != nil {
 		return nil
 	}
@@ -133,7 +135,7 @@ func (iface *rawVolumeInterface) AppArmorConnectedPlug(spec *apparmor.Specificat
 }
 
 func (iface *rawVolumeInterface) UDevConnectedPlug(spec *udev.Specification, plug *interfaces.ConnectedPlug, slot *interfaces.ConnectedSlot) error {
-	cleanedPath, err := verifySlotPathAttribute(slot.Ref(), slot, rawVolumePartitionPattern, "must be a valid device node")
+	cleanedPath, err := verifySlotPathAttribute(slot.Ref(), slot, rawVolumePartitionPattern, invalidPathErrFmt)
 	if err != nil {
 		return nil
 	}
