@@ -5,7 +5,9 @@ details: |
     a reboot is triggered and the command would exit after the first phase of the installation
     reporting "snapd is about to reboot the system"
 
-systems: [ubuntu-core-*]
+# the test is only meaningful on core devices
+# TODO:UC20: enable for UC20
+systems: [ubuntu-core-1*]
 
 execute: |
     #shellcheck source=tests/lib/journalctl.sh

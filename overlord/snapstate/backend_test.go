@@ -39,6 +39,7 @@ import (
 	"github.com/snapcore/snapd/snap"
 	"github.com/snapcore/snapd/store"
 	"github.com/snapcore/snapd/store/storetest"
+	"github.com/snapcore/snapd/strutil"
 	"github.com/snapcore/snapd/timings"
 )
 
@@ -382,7 +383,7 @@ func (f *fakeStore) lookupRefresh(cand refreshCand) (*snap.Info, error) {
 	return nil, store.ErrNoUpdateAvailable
 }
 
-func (f *fakeStore) SnapAction(ctx context.Context, currentSnaps []*store.CurrentSnap, actions []*store.SnapAction, user *auth.UserState, opts *store.RefreshOptions) ([]*snap.Info, error) {
+func (f *fakeStore) SnapAction(ctx context.Context, currentSnaps []*store.CurrentSnap, actions []*store.SnapAction, user *auth.UserState, opts *store.RefreshOptions) ([]store.SnapActionResult, error) {
 	if ctx == nil {
 		panic("context required")
 	}
@@ -433,7 +434,7 @@ func (f *fakeStore) SnapAction(ctx context.Context, currentSnaps []*store.Curren
 
 	refreshErrors := make(map[string]error)
 	installErrors := make(map[string]error)
-	var res []*snap.Info
+	var res []store.SnapActionResult
 	for _, a := range sorted {
 		if a.Action != "install" && a.Action != "refresh" {
 			panic("not supported")
@@ -466,7 +467,11 @@ func (f *fakeStore) SnapAction(ctx context.Context, currentSnaps []*store.Curren
 				info.Channel = ""
 			}
 			info.InstanceKey = instanceKey
-			res = append(res, info)
+			sar := store.SnapActionResult{Info: info}
+			if strings.HasSuffix(snapName, "-with-default-track") && strutil.ListContains([]string{"stable", "candidate", "beta", "edge"}, a.Channel) {
+				sar.RedirectChannel = "2.0/" + a.Channel
+			}
+			res = append(res, sar)
 			continue
 		}
 
@@ -518,7 +523,7 @@ func (f *fakeStore) SnapAction(ctx context.Context, currentSnaps []*store.Curren
 			info.Channel = ""
 		}
 		info.InstanceKey = instanceKey
-		res = append(res, info)
+		res = append(res, store.SnapActionResult{Info: info})
 	}
 
 	if len(refreshErrors)+len(installErrors) > 0 || len(res) == 0 {
@@ -604,8 +609,9 @@ type fakeSnappyBackend struct {
 
 	linkSnapWaitCh      chan int
 	linkSnapWaitTrigger string
+	linkSnapFailTrigger string
+	linkSnapMaybeReboot bool
 
-	linkSnapFailTrigger     string
 	copySnapDataFailTrigger string
 	emptyContainer          snap.Container
 
@@ -801,7 +807,7 @@ func (f *fakeSnappyBackend) CopySnapData(newInfo, oldInfo *snap.Info, p progress
 	return nil
 }
 
-func (f *fakeSnappyBackend) LinkSnap(info *snap.Info, dev boot.Device, disabledSvcs []string, tm timings.Measurer) error {
+func (f *fakeSnappyBackend) LinkSnap(info *snap.Info, dev boot.Device, disabledSvcs []string, tm timings.Measurer) (rebootRequired bool, err error) {
 	if info.MountDir() == f.linkSnapWaitTrigger {
 		f.linkSnapWaitCh <- 1
 		<-f.linkSnapWaitCh
@@ -820,11 +826,17 @@ func (f *fakeSnappyBackend) LinkSnap(info *snap.Info, dev boot.Device, disabledS
 	if info.MountDir() == f.linkSnapFailTrigger {
 		op.op = "link-snap.failed"
 		f.ops = append(f.ops, op)
-		return errors.New("fail")
+		return false, errors.New("fail")
 	}
 
 	f.appendOp(&op)
-	return nil
+
+	reboot := false
+	if f.linkSnapMaybeReboot {
+		reboot = info.InstanceName() == dev.Base()
+	}
+
+	return reboot, nil
 }
 
 func svcSnapMountDir(svcs []*snap.AppInfo) string {

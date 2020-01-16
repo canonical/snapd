@@ -166,6 +166,9 @@ func (s *initramfsMountsSuite) TestInitramfsMountsInstallModeStep2(c *C) {
 			c.Check(path, Equals, filepath.Join(s.runMnt, "kernel"))
 			return false, nil
 		case 4:
+			c.Check(path, Equals, filepath.Join(s.runMnt, "snapd"))
+			return false, nil
+		case 5:
 			c.Check(path, Equals, filepath.Join(s.runMnt, "ubuntu-data"))
 			return false, nil
 		}
@@ -175,8 +178,9 @@ func (s *initramfsMountsSuite) TestInitramfsMountsInstallModeStep2(c *C) {
 
 	_, err := main.Parser.ParseArgs([]string{"initramfs-mounts"})
 	c.Assert(err, IsNil)
-	c.Assert(n, Equals, 4)
-	c.Check(s.Stdout.String(), Equals, fmt.Sprintf(`%[1]s/snaps/pc-kernel_1.snap %[2]s/kernel
+	c.Assert(n, Equals, 5)
+	c.Check(s.Stdout.String(), Equals, fmt.Sprintf(`%[1]s/snaps/snapd_1.snap %[2]s/snapd
+%[1]s/snaps/pc-kernel_1.snap %[2]s/kernel
 %[1]s/snaps/core20_1.snap %[2]s/base
 --type=tmpfs tmpfs /run/mnt/ubuntu-data
 `, s.seedDir, s.runMnt))
@@ -199,6 +203,9 @@ func (s *initramfsMountsSuite) TestInitramfsMountsInstallModeStep4(c *C) {
 			c.Check(path, Equals, filepath.Join(s.runMnt, "kernel"))
 			return true, nil
 		case 4:
+			c.Check(path, Equals, filepath.Join(s.runMnt, "snapd"))
+			return true, nil
+		case 5:
 			c.Check(path, Equals, filepath.Join(s.runMnt, "ubuntu-data"))
 			return true, nil
 		}
@@ -208,7 +215,7 @@ func (s *initramfsMountsSuite) TestInitramfsMountsInstallModeStep4(c *C) {
 
 	_, err := main.Parser.ParseArgs([]string{"initramfs-mounts"})
 	c.Assert(err, IsNil)
-	c.Assert(n, Equals, 4)
+	c.Assert(n, Equals, 5)
 	c.Check(s.Stdout.String(), Equals, "")
 	modeEnv := filepath.Join(s.runMnt, "/ubuntu-data/system-data/var/lib/snapd/modeenv")
 	c.Check(modeEnv, testutil.FileEquals, `mode=install

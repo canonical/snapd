@@ -95,6 +95,12 @@ func (dc groundDeviceContext) RunMode() bool {
 	return dc.operatingMode == "run"
 }
 
+// HasModeenv is true if the grade is set
+// TODO:UC20: will classic devices with uc20 models have a modeenv? I think so?
+func (dc groundDeviceContext) HasModeenv() bool {
+	return dc.model.Grade() != asserts.ModelGradeUnset
+}
+
 // sanity
 var _ snapstate.DeviceContext = &groundDeviceContext{}
 

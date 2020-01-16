@@ -14,4 +14,4 @@ execute: |
     echo "We can ensure that /usr/src is mounted"
     /snap/bin/snapd-hacker-toolbelt.busybox cat /proc/self/mounts | grep ' /usr/src '
 restore: |
-    snap remove snapd-hacker-toolbelt
+    snap remove --purge snapd-hacker-toolbelt

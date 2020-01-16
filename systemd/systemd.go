@@ -480,8 +480,8 @@ func (s *systemd) IsEnabled(serviceName string) (bool, error) {
 	}
 	// "systemctl is-enabled <name>" prints `disabled\n` to stderr and returns exit code 1
 	// for disabled services
-	sysdErr, ok := err.(*Error)
-	if ok && sysdErr.exitCode == 1 && strings.TrimSpace(string(sysdErr.msg)) == "disabled" {
+	sysdErr, ok := err.(systemctlError)
+	if ok && sysdErr.ExitCode() == 1 && strings.TrimSpace(string(sysdErr.Msg())) == "disabled" {
 		return false, nil
 	}
 	return false, err
@@ -570,11 +570,25 @@ func (s *systemd) Restart(serviceName string, timeout time.Duration) error {
 	return s.Start(serviceName)
 }
 
+type systemctlError interface {
+	Msg() []byte
+	ExitCode() int
+	Error() string
+}
+
 // Error is returned if the systemd action failed
 type Error struct {
 	cmd      []string
 	msg      []byte
 	exitCode int
+}
+
+func (e *Error) Msg() []byte {
+	return e.msg
+}
+
+func (e *Error) ExitCode() int {
+	return e.exitCode
 }
 
 func (e *Error) Error() string {

@@ -13,4 +13,4 @@ execute: |
     umount $SNAP_MOUNT_DIR/test-snapd-tools/x1
 
     # ensure removal still works
-    snap remove test-snapd-tools
+    snap remove --purge test-snapd-tools

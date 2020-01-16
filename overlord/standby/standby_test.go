@@ -120,14 +120,16 @@ func (f opine) CanStandby() bool {
 
 func (s *standbySuite) TestStartChecks(c *C) {
 	n := 0
+	// opinions
 	ch1 := make(chan bool, 1)
+	// sync with request restart
 	ch2 := make(chan struct{})
 
 	defer standby.MockStandbyWait(time.Millisecond)()
 	defer standby.MockStateRequestRestart(func(_ *state.State, t state.RestartType) {
 		c.Check(t, Equals, state.RestartSocket)
 		n++
-		<-ch2
+		ch2 <- struct{}{}
 	})()
 
 	m := standby.New(s.state)
@@ -143,10 +145,13 @@ func (s *standbySuite) TestStartChecks(c *C) {
 	c.Check(n, Equals, 0)
 
 	ch1 <- true
-	ch2 <- struct{}{}
+	<-ch2
 	c.Check(n, Equals, 1)
+	// no more opinions
+	close(ch1)
 
 	m.Stop()
+	close(ch2)
 }
 
 func (s *standbySuite) TestStopWaits(c *C) {

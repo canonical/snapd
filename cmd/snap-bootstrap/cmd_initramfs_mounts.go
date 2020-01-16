@@ -95,7 +95,11 @@ func generateMountsModeInstall(recoverySystem string) error {
 	if err != nil {
 		return err
 	}
-	if !isBaseMounted || !isKernelMounted {
+	isSnapdMounted, err := osutilIsMounted(filepath.Join(runMnt, "snapd"))
+	if err != nil {
+		return err
+	}
+	if !isBaseMounted || !isKernelMounted || !isSnapdMounted {
 		// load the recovery system  and generate mounts for kernel/base
 		systemSeed, err := seed.Open(seedDir, recoverySystem)
 		if err != nil {
@@ -131,6 +135,10 @@ func generateMountsModeInstall(recoverySystem string) error {
 				if !isKernelMounted {
 					// XXX: we need to cross-check the kernel path with snapd_recovery_kernel used by grub
 					fmt.Fprintf(stdout, "%s %s\n", essentialSnap.Path, filepath.Join(runMnt, "kernel"))
+				}
+			case snap.TypeSnapd:
+				if !isSnapdMounted {
+					fmt.Fprintf(stdout, "%s %s\n", essentialSnap.Path, filepath.Join(runMnt, "snapd"))
 				}
 			}
 		}

@@ -65,10 +65,7 @@ execute: |
     ls ./mnt/EFI/ubuntu/grub.cfg
     umount ./mnt
 
-    # XXX: workaround for device consistency errors
-    udevadm info --query=property "${LOOP}p2" | grep ID_FS_TYPE ||:
-    blockdev --rereadpt "$LOOP"
-    udevadm settle
+    # debug message to see if the udev database is correctly updated
     udevadm info --query=property "${LOOP}p2" | grep ID_FS_TYPE ||:
 
     echo "now add a partition"

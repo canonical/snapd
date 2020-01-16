@@ -83,38 +83,37 @@ func deployNonFSContent(part DeviceStructure, gadgetRoot string) error {
 	return raw.Write(f)
 }
 
-func DeployContent(created []DeviceStructure, gadgetRoot string) error {
-	for _, part := range created {
-		switch {
-		case !part.IsPartition():
-			return fmt.Errorf("cannot deploy non-partitions yet")
-		case !part.HasFilesystem():
-			if err := deployNonFSContent(part, gadgetRoot); err != nil {
-				return err
-			}
-		case part.HasFilesystem():
-			if err := deployFilesystemContent(part, gadgetRoot); err != nil {
-				return err
-			}
+func DeployContent(part DeviceStructure, gadgetRoot string) error {
+	switch {
+	case !part.IsPartition():
+		return fmt.Errorf("cannot deploy non-partitions yet")
+	case !part.HasFilesystem():
+		if err := deployNonFSContent(part, gadgetRoot); err != nil {
+			return err
+		}
+	case part.HasFilesystem():
+		if err := deployFilesystemContent(part, gadgetRoot); err != nil {
+			return err
 		}
 	}
 
 	return nil
 }
 
-func MountFilesystems(created []DeviceStructure, baseMntPoint string) error {
-	for _, part := range created {
-		if part.Label == "" || !part.HasFilesystem() {
-			continue
-		}
+func MountFilesystem(part DeviceStructure, baseMntPoint string) error {
+	if !part.HasFilesystem() {
+		return fmt.Errorf("cannot mount a partition with no filesystem")
+	}
+	if part.Label == "" {
+		return fmt.Errorf("cannot mount a filesystem with no label")
+	}
 
-		mountpoint := filepath.Join(baseMntPoint, part.Label)
-		if err := os.MkdirAll(mountpoint, 0755); err != nil {
-			return fmt.Errorf("cannot create mountpoint: %v", err)
-		}
-		if err := sysMount(part.Node, mountpoint, part.Filesystem, 0, ""); err != nil {
-			return fmt.Errorf("cannot mount filesystem %q at %q: %v", part.Node, mountpoint, err)
-		}
+	mountpoint := filepath.Join(baseMntPoint, part.Label)
+	if err := os.MkdirAll(mountpoint, 0755); err != nil {
+		return fmt.Errorf("cannot create mountpoint: %v", err)
+	}
+	if err := sysMount(part.Node, mountpoint, part.Filesystem, 0, ""); err != nil {
+		return fmt.Errorf("cannot mount filesystem %q at %q: %v", part.Node, mountpoint, err)
 	}
 
 	return nil
