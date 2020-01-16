@@ -660,11 +660,13 @@ do_check_diff() {
 }
 
 get_diff_types() {
-    echo "pkgs units snaps mounts loops"
+    # TODO: check service units using 'inits' as type
+    echo "pkgs snaps mounts loops"
 }
 
 get_log_types() {
-    echo "systemd pkgs units snaps mounts loops"
+    # TODO: check service units using 'inits' as type
+    echo "systemd pkgs snaps mounts loops"
 }
 
 do_checks() {
