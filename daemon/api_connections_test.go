@@ -303,7 +303,9 @@ func (s *apiSuite) TestConnectionsMissingPlugSlotFilteredOut(c *check.C) {
 			missingPlugOrSlot: map[string]interface{}{
 				"interface": "test",
 			},
-		}, []string{"consumer:plug producer:slot"}, map[string]interface{}{
+		}, 
+		[]string{"consumer:plug producer:slot"}, 
+		map[string]interface{}{
 			"result": map[string]interface{}{
 				"plugs": []interface{}{
 					map[string]interface{}{
