@@ -6,8 +6,8 @@ import dbus.service
 
 from dbus.mainloop.glib import DBusGMainLoop
 
-INTERFACE = 'com.ubuntu.connectivity1.NetworkingStatus'
-PATH = '/com/ubuntu/connectivity1/NetworkingStatus'
+INTERFACE = "com.ubuntu.connectivity1.NetworkingStatus"
+PATH = "/com/ubuntu/connectivity1/NetworkingStatus"
 
 DBusGMainLoop(set_as_default=True)
 

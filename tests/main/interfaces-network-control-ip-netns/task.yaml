@@ -25,7 +25,7 @@ execute: |
     echo "Network namespace deleted from global is removed from snap"
     ip netns delete canary
     test ! -e /run/netns/canary
-    snapd-hacker-toolbelt.busybox sh -c '/bin/ip netns list' | MATCH -v canary
+    snapd-hacker-toolbelt.busybox sh -c '/bin/ip netns list' | not MATCH canary
 
     echo "Network namespace created from global exists in snap"
     ip netns add canary
@@ -37,7 +37,7 @@ execute: |
     test ! -e /run/netns/canary
 
 restore: |
-    snap remove snapd-hacker-toolbelt
+    snap remove --purge snapd-hacker-toolbelt
     # If this doesn't work maybe it is because the test didn't execute correctly
     snapd-hacker-toolbelt.busybox sh -c '/bin/ip netns delete canary' 2>/dev/null || true
     ip netns delete canary 2>/dev/null || true

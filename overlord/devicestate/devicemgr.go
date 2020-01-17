@@ -258,7 +258,10 @@ func setClassicFallbackModel(st *state.State, device *auth.DeviceState) error {
 	return nil
 }
 
-func (m *DeviceManager) operatingMode() string {
+func (m *DeviceManager) OperatingMode() string {
+	if m.modeEnv.Mode == "" {
+		return "run"
+	}
 	return m.modeEnv.Mode
 }
 
@@ -266,8 +269,9 @@ func (m *DeviceManager) ensureOperational() error {
 	m.state.Lock()
 	defer m.state.Unlock()
 
-	if m.operatingMode() == "install" {
-		// avoid doing registration in install mode
+	if m.OperatingMode() != "run" {
+		// avoid doing registration in ephemeral mode
+		// note: this also stop auto-refreshes indirectly
 		return nil
 	}
 
@@ -430,7 +434,7 @@ func (m *DeviceManager) ensureSeeded() error {
 	}
 
 	var opts *populateStateFromSeedOptions
-	if m.operatingMode() != "" {
+	if !m.modeEnv.Unset() {
 		opts = &populateStateFromSeedOptions{
 			Label: m.modeEnv.RecoverySystem,
 			Mode:  m.modeEnv.Mode,
@@ -473,9 +477,20 @@ func (m *DeviceManager) ensureBootOk() error {
 		return nil
 	}
 
+	// boot-ok/update-boot-revision is only relevant in run-mode
+	if m.OperatingMode() != "run" {
+		return nil
+	}
+
 	if !m.bootOkRan {
-		if err := boot.MarkBootSuccessful(); err != nil {
+		deviceCtx, err := DeviceCtx(m.state, nil, nil)
+		if err != nil && err != state.ErrNoState {
 			return err
+		}
+		if err == nil {
+			if err := boot.MarkBootSuccessful(deviceCtx); err != nil {
+				return err
+			}
 		}
 		m.bootOkRan = true
 	}
@@ -502,7 +517,7 @@ func (m *DeviceManager) ensureInstalled() error {
 		return nil
 	}
 
-	if m.operatingMode() != "install" {
+	if m.OperatingMode() != "install" {
 		return nil
 	}
 

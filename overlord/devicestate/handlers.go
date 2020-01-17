@@ -31,6 +31,10 @@ func (m *DeviceManager) doMarkSeeded(t *state.Task, _ *tomb.Tomb) error {
 	st.Lock()
 	defer st.Unlock()
 
+	// TODO:UC20: update "modeenv" and remove "recovery_system" from
+	// it because this information is only needed for the initial
+	// seeding.
+
 	st.Set("seed-time", time.Now())
 	st.Set("seeded", true)
 	// make sure we setup a fallback model/consider the next phase

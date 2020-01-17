@@ -14,7 +14,7 @@ restore: |
   (
       cd ../../lib/snaps/test-snapd-complexion || exit 1
       mv test-snapd-complexion.bash-completer.orig test-snapd-complexion.bash-completer
-      snap remove test-snapd-complexion
+      snap remove --purge test-snapd-complexion
   )
 
 execute: |

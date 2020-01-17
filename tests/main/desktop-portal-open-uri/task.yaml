@@ -6,9 +6,7 @@ description: |
 
 # Only enable the test on systems we know portals to function on.
 # Expand as needed.
-systems:
-  - ubuntu-18.04-*
-  - ubuntu-19.04-*
+systems: [ubuntu-18.04-*, ubuntu-19.10-*]
 
 environment:
     BROWSER_HISTORY: /tmp/browser-history.txt

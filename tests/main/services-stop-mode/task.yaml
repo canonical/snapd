@@ -10,7 +10,7 @@ backends: [-autopkgtest]
 
 restore: |
     # remove to ensure all services are stopped
-    snap remove test-snapd-service || true
+    snap remove --purge test-snapd-service || true
 
 debug: |
     stop_modes="sighup sighup-all sigusr1 sigusr1-all sigusr2 sigusr2-all"
@@ -61,7 +61,7 @@ execute: |
     test "$(cat new-main.pid)" != "$(cat old-main.pid)"
 
     echo "Once the snap is removed, all services are stopped"
-    snap remove test-snapd-service
+    snap remove --purge test-snapd-service
     for s in $stop_modes; do
         get_journalctl_log | MATCH "stop ${s}"
     done

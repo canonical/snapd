@@ -30,7 +30,7 @@ execute: |
   # of the base snap, as seen by the processes of the application snap. This
   # ensures that all processes in a given snap see a consistent view of the
   # filesystem.
-  snap remove test-snapd-core-migration
+  snap remove --purge test-snapd-core-migration
   snap install --dangerous test-snapd-core-migration_1_all.snap
   test-snapd-core-migration.sh -c "exec sleep 1h" &
   pid=$!
@@ -55,6 +55,6 @@ execute: |
 restore: |
 
   if snap list test-snapd-core-migration; then
-    snap remove test-snapd-core-migration
+    snap remove --purge test-snapd-core-migration
   fi
   rm -f test-snapd-core-migration_{1,2}_all.snap
