@@ -50,10 +50,11 @@ type commonInterface struct {
 	baseDeclarationPlugs string
 	baseDeclarationSlots string
 
-	connectedPlugAppArmor  string
-	connectedPlugSecComp   string
-	connectedPlugUDev      []string
-	rejectAutoConnectPairs bool
+	connectedPlugAppArmor     string
+	connectedPlugAppArmorDeny string
+	connectedPlugSecComp      string
+	connectedPlugUDev         []string
+	rejectAutoConnectPairs    bool
 
 	connectedPlugKModModules []string
 	connectedSlotKModModules []string
@@ -94,6 +95,9 @@ func (iface *commonInterface) AppArmorConnectedPlug(spec *apparmor.Specification
 	}
 	if iface.connectedPlugAppArmor != "" {
 		spec.AddSnippet(iface.connectedPlugAppArmor)
+	}
+	if iface.connectedPlugAppArmorDeny != "" {
+		spec.AddDenySnippet(iface.connectedPlugAppArmor)
 	}
 	return nil
 }
