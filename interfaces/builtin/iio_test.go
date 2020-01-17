@@ -36,8 +36,10 @@ type IioInterfaceSuite struct {
 	iface interfaces.Interface
 
 	// OS Snap
-	testSlot1     *interfaces.ConnectedSlot
-	testSlot1Info *snap.SlotInfo
+	testSlot1           *interfaces.ConnectedSlot
+	testSlot1Info       *snap.SlotInfo
+	testSlotCleaned     *interfaces.ConnectedSlot
+	testSlotCleanedInfo *snap.SlotInfo
 
 	// Gadget Snap
 	testUDev1                 *interfaces.ConnectedSlot
@@ -84,8 +86,12 @@ slots:
   test-port-1:
     interface: iio
     path: /dev/iio:device0
+  test-port-unclean:
+    interface: iio
+    path: ///dev/iio:device1
 `, nil)
 	s.testSlot1Info = osSnapInfo.Slots["test-port-1"]
+	s.testSlotCleanedInfo = osSnapInfo.Slots["test-port-unclean"]
 
 	// Mock for Gadget Snap
 	gadgetSnapInfo := snaptest.MockInfo(c, `
@@ -171,6 +177,12 @@ apps:
 
 func (s *IioInterfaceSuite) TestName(c *C) {
 	c.Assert(s.iface.Name(), Equals, "iio")
+}
+
+func (s *IioInterfaceSuite) TestSanitizeCoreSnapSlot(c *C) {
+	c.Assert(interfaces.BeforePrepareSlot(s.iface, s.testSlot1Info), IsNil)
+	// Verify historically filepath.Clean()d paths are still valid
+	c.Assert(interfaces.BeforePrepareSlot(s.iface, s.testSlotCleanedInfo), IsNil)
 }
 
 func (s *IioInterfaceSuite) TestSanitizeBadGadgetSnapSlot(c *C) {
