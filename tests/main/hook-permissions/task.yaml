@@ -13,15 +13,6 @@ prepare: |
     if is_core_system; then
         snap install upower
     fi
-    if [[ "$SPREAD_SYSTEM" == arch-* ]]; then
-      pacman -S --noconfirm upower
-    fi
-    if [[ "$SPREAD_SYSTEM" == opensuse-* ]]; then
-      zypper install -y upower
-    fi
-    if [[ "$SPREAD_SYSTEM" == fedora-* || "$SPREAD_SYSTEM" == amazon-* || "$SPREAD_SYSTEM" == centos-* ]]; then
-      yum install -y upower
-    fi
     #shellcheck source=tests/lib/snaps.sh
     . "$TESTSLIB"/snaps.sh
     install_local test-snap

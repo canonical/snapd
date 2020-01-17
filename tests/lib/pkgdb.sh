@@ -701,6 +701,7 @@ pkg_dependencies_fedora(){
         redhat-lsb-core
         rpm-build
         udisks2
+        upower
         xdg-user-dirs
         xdg-utils
         strace
@@ -730,6 +731,7 @@ pkg_dependencies_amazon(){
         xdg-user-dirs
         xdg-utils
         udisks2
+        upower
         "
 }
 
@@ -753,6 +755,7 @@ pkg_dependencies_opensuse(){
         netcat-openbsd
         osc
         udisks2
+        upower
         uuidd
         xdg-user-dirs
         xdg-utils
@@ -789,6 +792,7 @@ pkg_dependencies_arch(){
     shellcheck
     strace
     udisks2
+    upower
     xdg-user-dirs
     xdg-utils
     xfsprogs
