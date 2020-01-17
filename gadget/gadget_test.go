@@ -1957,11 +1957,16 @@ func (s *gadgetSizeTestSuite) TestIECString(c *C) {
 		size gadget.Size
 		exp  string
 	}{
-		{123 * gadget.SizeKiB, "123KiB"},
-		{512 * gadget.SizeKiB, "512KiB"},
-		{578 * gadget.SizeMiB, "578MiB"},
-		{1*gadget.SizeGiB + 123*gadget.SizeMiB, "1.12GiB"},
-		{1024 * gadget.SizeGiB, "1TiB"},
+		{512, "512 B"},
+		{1000, "1000 B"},
+		{1030, "1.01 KiB"},
+		{gadget.SizeKiB + 512, "1.50 KiB"},
+		{123 * gadget.SizeKiB, "123 KiB"},
+		{512 * gadget.SizeKiB, "512 KiB"},
+		{578 * gadget.SizeMiB, "578 MiB"},
+		{1*gadget.SizeGiB + 123*gadget.SizeMiB, "1.12 GiB"},
+		{1024 * gadget.SizeGiB, "1 TiB"},
+		{2 * 1024 * 1024 * 1024 * gadget.SizeGiB, "2048 PiB"},
 	} {
 		c.Check(tc.size.IECString(), Equals, tc.exp)
 	}
