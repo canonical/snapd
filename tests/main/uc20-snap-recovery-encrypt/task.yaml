@@ -12,6 +12,8 @@ restore: |
     if [[ -d ./mnt ]]; then
         umount ./mnt || true
     fi
+    umount /dev/mapper/ubuntu-data || true
+    umount /dev/mapper/test-udata || true
 
     cryptsetup close /dev/mapper/ubuntu-data || true
     cryptsetup close /dev/mapper/test-udata || true
