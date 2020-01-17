@@ -77,14 +77,6 @@ var defaultTemplate = `
   /etc/python3.[0-9]/**                                r,
   /usr/include/python3.[0-9]*/pyconfig.h               r,
 
-  # explicitly deny noisy denials to read-only filesystems (see LP: #1496895
-  # for details)
-  deny /usr/lib/python3*/{,**/}__pycache__/ w,
-  deny /usr/lib/python3*/{,**/}__pycache__/**.pyc.[0-9]* w,
-  # bind mount used here (see 'parallel installs', above)
-  deny @{INSTALL_DIR}/{@{SNAP_NAME},@{SNAP_INSTANCE_NAME}}/**/__pycache__/             w,
-  deny @{INSTALL_DIR}/{@{SNAP_NAME},@{SNAP_INSTANCE_NAME}}/**/__pycache__/*.pyc.[0-9]* w,
-
   # for perl apps/services
   #include <abstractions/perl>
   /usr/bin/perl{,5*} ixr,
@@ -503,11 +495,6 @@ var defaultTemplate = `
   capability sys_chroot,
   /{,usr/}sbin/chroot ixr,
 
-  # Lttng tracing is very noisy and should not be allowed by confined apps. Can
-  # safely deny for the normal case (LP: #1260491). If/when an lttng-trace
-  # interface is needed, we can rework this.
-  deny /{dev,run,var/run}/shm/lttng-ust-* rw,
-
   # Allow read-access on /home/ for navigating to other parts of the
   # filesystem. While this allows enumerating users, this is already allowed
   # via /etc/passwd and getent.
@@ -523,6 +510,21 @@ var defaultTemplate = `
 
 ###SNIPPETS###
 }
+`
+
+var defaultDenySnippets = `
+  # explicitly deny noisy denials to read-only filesystems (see LP: #1496895
+  # for details)
+  deny /usr/lib/python3*/{,**/}__pycache__/ w,
+  deny /usr/lib/python3*/{,**/}__pycache__/**.pyc.[0-9]* w,
+  # bind mount used here (see 'parallel installs', above)
+  deny @{INSTALL_DIR}/{@{SNAP_NAME},@{SNAP_INSTANCE_NAME}}/**/__pycache__/             w,
+  deny @{INSTALL_DIR}/{@{SNAP_NAME},@{SNAP_INSTANCE_NAME}}/**/__pycache__/*.pyc.[0-9]* w,
+
+  # Lttng tracing is very noisy and should not be allowed by confined apps. Can
+  # safely deny for the normal case (LP: #1260491). If/when an lttng-trace
+  # interface is needed, we can rework this.
+  deny /{dev,run,var/run}/shm/lttng-ust-* rw,
 `
 
 // Template for privilege drop and chown operations. The specific setuid,

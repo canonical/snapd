@@ -566,12 +566,30 @@ func (b *Backend) deriveContent(spec *Specification, snapInfo *snap.Info, opts i
 	// Add profile for each app.
 	for _, appInfo := range snapInfo.Apps {
 		securityTag := appInfo.SecurityTag()
-		addContent(securityTag, snapInfo, appInfo.Name, opts, spec.SnippetForTag(securityTag), content, spec)
+		addContent(
+			securityTag,
+			snapInfo,
+			appInfo.Name,
+			opts,
+			spec.SnippetForTag(securityTag),
+			spec.DenySnippetForTag(securityTag),
+			content,
+			spec,
+		)
 	}
 	// Add profile for each hook.
 	for _, hookInfo := range snapInfo.Hooks {
 		securityTag := hookInfo.SecurityTag()
-		addContent(securityTag, snapInfo, "hook."+hookInfo.Name, opts, spec.SnippetForTag(securityTag), content, spec)
+		addContent(
+			securityTag,
+			snapInfo,
+			"hook."+hookInfo.Name,
+			opts,
+			spec.SnippetForTag(securityTag),
+			spec.DenySnippetForTag(securityTag),
+			content,
+			spec,
+		)
 	}
 	// Add profile for snap-update-ns if we have any apps or hooks.
 	// If we have neither then we don't have any need to create an executing environment.
@@ -629,7 +647,7 @@ func downgradeConfinement() bool {
 	return true
 }
 
-func addContent(securityTag string, snapInfo *snap.Info, cmdName string, opts interfaces.ConfinementOptions, snippetForTag string, content map[string]osutil.FileState, spec *Specification) {
+func addContent(securityTag string, snapInfo *snap.Info, cmdName string, opts interfaces.ConfinementOptions, snippetForTag string, denySnippetForTag string, content map[string]osutil.FileState, spec *Specification) {
 	// Normally we use a specific apparmor template for all snap programs.
 	policy := defaultTemplate
 	ignoreSnippets := false
@@ -688,10 +706,23 @@ func addContent(securityTag string, snapInfo *snap.Info, cmdName string, opts in
 				// ignoring all apparmor snippets as they may conflict with the
 				// super-broad template we are starting with.
 			} else {
+				// Add the default deny rules to the policy only if we are under
+				// strict confinement, meaning either we are in jail mode, or we are
+				// not in devmode and also not in classic confinement.
+				// running under devmode or classic confinement. Deny rules in the apparmor policy
+				// make it difficult to debug devmode snaps and also aren't put
+				// logged as ALLOW when the profile is put into complain mode, so if
+				// we are in devmode omit these snippets.
+				// Do this first so that the snippet at least always contains the
+				// same deny rules in the default policy
+				if opts.JailMode || (!opts.DevMode && !opts.Classic) {
+					tagSnippets = defaultDenySnippets
+				}
+
 				// Check if NFS is mounted at or under $HOME. Because NFS is not
 				// transparent to apparmor we must alter the profile to counter that and
 				// allow access to SNAP_USER_* files.
-				tagSnippets = snippetForTag
+				tagSnippets += snippetForTag
 				if nfs, _ := isHomeUsingNFS(); nfs {
 					tagSnippets += nfsSnippet
 				}
@@ -703,11 +734,18 @@ func addContent(securityTag string, snapInfo *snap.Info, cmdName string, opts in
 			}
 
 			if !ignoreSnippets {
+				// If we are not under devmode, add the deny rule snippet for
+				// this tag
+				if !opts.DevMode {
+					tagSnippets += denySnippetForTag
+				}
+
 				// For policy with snippets that request
 				// suppression of 'ptrace (trace)' denials, add
 				// the suppression rule unless another
-				// interface said it uses them.
-				if spec.SuppressPtraceTrace() && !spec.UsesPtraceTrace() {
+				// interface said it uses them OR unless we are in devmode,
+				// where it is undesirable to have any deny rules
+				if !opts.DevMode && (spec.SuppressPtraceTrace() && !spec.UsesPtraceTrace()) {
 					tagSnippets += ptraceTraceDenySnippet
 				}
 

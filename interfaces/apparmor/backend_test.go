@@ -1910,7 +1910,7 @@ func (s *backendSuite) TestPtraceTraceRule(c *C) {
 			suppress: true,
 			expected: false,
 		},
-		// devmode, only suppress if suppress == true and uses == false
+		// devmode, never suppress because deny rules aren't devmode friendly
 		{
 			opts:     interfaces.ConfinementOptions{DevMode: true},
 			uses:     false,
@@ -1921,7 +1921,7 @@ func (s *backendSuite) TestPtraceTraceRule(c *C) {
 			opts:     interfaces.ConfinementOptions{DevMode: true},
 			uses:     false,
 			suppress: true,
-			expected: true,
+			expected: false,
 		},
 		{
 			opts:     interfaces.ConfinementOptions{DevMode: true},
