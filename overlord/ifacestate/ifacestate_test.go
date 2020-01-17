@@ -5678,7 +5678,7 @@ func (s *interfaceManagerSuite) TestAutoConnectGadgetSeededNoop(c *C) {
 	s.state.Lock()
 	defer s.state.Unlock()
 
-	// seeded but remodeling
+	// seeded and not remodeling
 	s.state.Set("seeded", true)
 
 	chg := s.state.NewChange("setting-up", "...")
