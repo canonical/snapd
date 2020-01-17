@@ -1,5 +1,8 @@
 summary: Check that snap model works
 
+# TODO:UC20: enable for UC20 once the real model is used
+systems: [-ubuntu-core-2*]
+
 execute: |
   knownCmdAssertion=$(snap known model)
   modelCmdAssertion=$(snap model --assertion)

@@ -110,7 +110,7 @@ execute: |
     network-control-consumer.cmd ip link set veth1 netns test-ns
 
     ip link list | MATCH "veth0"
-    ip link list | MATCH -v "veth1"
+    ip link list | not MATCH "veth1"
 
     echo "And a command can be executed in the context of the namespace"
     network-control-consumer.cmd ip netns exec test-ns ip link list | MATCH "veth1"

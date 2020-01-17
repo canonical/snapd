@@ -632,10 +632,17 @@ pkg_dependencies_ubuntu_classic(){
                 packagekit
                 "
             ;;
-        ubuntu-19.04-64|ubuntu-19.10-64)
+        ubuntu-19.10-64)
             echo "
                 evolution-data-server
                 fwupd
+                packagekit
+                "
+            ;;
+        ubuntu-20.04-64)
+            echo "
+                evolution-data-server
+                gccgo-9
                 packagekit
                 "
             ;;

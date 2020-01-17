@@ -19,5 +19,5 @@ execute: |
     echo "And see that the SNAP_USER_DATA directory was created"
     test -d $HOME/snap/snapd-hacker-toolbelt
 restore: |
-    snap remove snapd-hacker-toolbelt
+    snap remove --purge snapd-hacker-toolbelt
     rm -rf "$HOME/snap/snapd-hacker-toolbelt/"

@@ -1,6 +1,8 @@
 summary: Check that auto-refresh is retried after a permanent network error
 
-systems: [-ubuntu-14.04-*]
+# TODO:UC20: enable once we have a real model assertion, currently fails with:
+#   v2/snaps/refresh -> "cannot set device session: no device serial yet"
+systems: [-ubuntu-core-20-*, -ubuntu-14.04-*]
 
 prepare: |
     snap install --devmode jq

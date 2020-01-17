@@ -607,7 +607,8 @@ static bool __attribute__((used))
 }
 
 void sc_populate_mount_ns(struct sc_apparmor *apparmor, int snap_update_ns_fd,
-			  const sc_invocation * inv)
+			  const sc_invocation * inv, const gid_t real_gid,
+			  const gid_t saved_gid)
 {
 	// Classify the current distribution, as claimed by /etc/os-release.
 	sc_distro distro = sc_classify_distro();
@@ -671,8 +672,20 @@ void sc_populate_mount_ns(struct sc_apparmor *apparmor, int snap_update_ns_fd,
 	}
 
 	// set up private mounts
+	if (getegid() != 0 && saved_gid == 0) {
+		// Temporarily raise egid so we can create, chmod and chown
+		// the mount without causing a noisy fsetid capability denial
+		if (setegid(0) != 0) {
+			die("cannot set effective group id to root");
+		}
+	}
 	// TODO: rename this and fold it into bootstrap
 	setup_private_mount(inv->snap_instance);
+	if (geteuid() == 0 && real_gid != 0) {
+		if (setegid(real_gid) != 0) {
+			die("cannot set effective group id to %d", real_gid);
+		}
+	}
 
 	// set up private /dev/pts
 	// TODO: fold this into bootstrap

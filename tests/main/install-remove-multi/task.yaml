@@ -8,8 +8,8 @@ execute: |
 
     echo "Remove of multiple snaps works"
     snap remove test-snapd-sh test-snapd-control-consumer
-    snap list | MATCH -v test-snapd-sh
-    snap list | MATCH -v test-snapd-control-consumer
+    not snap list test-snapd-sh
+    not snap list test-snapd-control-consumer
 
     #shellcheck source=tests/lib/snaps.sh
     . "$TESTSLIB/snaps.sh"

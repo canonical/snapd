@@ -6,8 +6,8 @@ import dbus.service
 
 from dbus.mainloop.glib import DBusGMainLoop
 
-INTERFACE = 'com.ubuntu.location.Service'
-PATH = '/com/ubuntu/location/Service'
+INTERFACE = "com.ubuntu.location.Service"
+PATH = "/com/ubuntu/location/Service"
 
 DBusGMainLoop(set_as_default=True)
 
@@ -20,7 +20,7 @@ class DBusProvider(dbus.service.Object):
 
     @dbus.service.method(dbus_interface=INTERFACE, out_signature="s")
     def AddProvider(self):
-        return 'location-provider-added'
+        return "location-provider-added"
 
 
 if __name__ == "__main__":

@@ -12,7 +12,7 @@ execute: |
     fi
 
     echo "Ensure there is no core16 installed"
-    snap remove core16
+    snap remove --purge core16
 
     echo "Double check that no earlier test left garbage around"
     if [ -e /snap/core16/current ] || [ -L /snap/core16/current ]; then

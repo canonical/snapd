@@ -71,27 +71,9 @@ var (
 	osutilIsMounted = osutil.IsMounted
 )
 
-// XXX: make this more flexible if there are multiple seeds on disk, i.e.
-// read kernel commandline in this case (bootenv is off limits because
-// it's not measured).
-func findRecoverySystem(seedDir string) (systemLabel string, err error) {
-	l, err := filepath.Glob(filepath.Join(seedDir, "systems/*"))
-	if err != nil {
-		return "", err
-	}
-	if len(l) == 0 {
-		return "", fmt.Errorf("cannot find a recovery system")
-	}
-	if len(l) > 1 {
-		return "", fmt.Errorf("cannot use multiple recovery systems yet")
-	}
-	systemLabel = filepath.Base(l[0])
-	return systemLabel, nil
-}
-
 // generateMountsMode* is called multiple times from initramfs until it
 // no longer generates more mount points and just returns an empty output.
-func generateMountsModeInstall() error {
+func generateMountsModeInstall(recoverySystem string) error {
 	seedDir := filepath.Join(runMnt, "ubuntu-seed")
 
 	// 1. always ensure seed partition is mounted
@@ -103,20 +85,23 @@ func generateMountsModeInstall() error {
 		fmt.Fprintf(stdout, "/dev/disk/by-label/ubuntu-seed %s\n", seedDir)
 		return nil
 	}
-	// XXX: how do we select a different recover system from the cmdline?
 
 	// 2. (auto) select recovery system for now
-	isMounted, err = osutilIsMounted(filepath.Join(runMnt, "base"))
+	isBaseMounted, err := osutilIsMounted(filepath.Join(runMnt, "base"))
 	if err != nil {
 		return err
 	}
-	if !isMounted {
+	isKernelMounted, err := osutilIsMounted(filepath.Join(runMnt, "kernel"))
+	if err != nil {
+		return err
+	}
+	isSnapdMounted, err := osutilIsMounted(filepath.Join(runMnt, "snapd"))
+	if err != nil {
+		return err
+	}
+	if !isBaseMounted || !isKernelMounted || !isSnapdMounted {
 		// load the recovery system  and generate mounts for kernel/base
-		systemLabel, err := findRecoverySystem(seedDir)
-		if err != nil {
-			return err
-		}
-		systemSeed, err := seed.Open(seedDir, systemLabel)
+		systemSeed, err := seed.Open(seedDir, recoverySystem)
 		if err != nil {
 			return err
 		}
@@ -143,13 +128,20 @@ func generateMountsModeInstall() error {
 			}
 			switch info.GetType() {
 			case snap.TypeBase:
-				fmt.Fprintf(stdout, "%s %s\n", essentialSnap.Path, filepath.Join(runMnt, "base"))
+				if !isBaseMounted {
+					fmt.Fprintf(stdout, "%s %s\n", essentialSnap.Path, filepath.Join(runMnt, "base"))
+				}
 			case snap.TypeKernel:
-				fmt.Fprintf(stdout, "%s %s\n", essentialSnap.Path, filepath.Join(runMnt, "kernel"))
+				if !isKernelMounted {
+					// XXX: we need to cross-check the kernel path with snapd_recovery_kernel used by grub
+					fmt.Fprintf(stdout, "%s %s\n", essentialSnap.Path, filepath.Join(runMnt, "kernel"))
+				}
+			case snap.TypeSnapd:
+				if !isSnapdMounted {
+					fmt.Fprintf(stdout, "%s %s\n", essentialSnap.Path, filepath.Join(runMnt, "snapd"))
+				}
 			}
 		}
-
-		return nil
 	}
 
 	// 3. mount "ubuntu-data" on a tmpfs
@@ -165,13 +157,9 @@ func generateMountsModeInstall() error {
 
 	// 4. final step: write $(ubuntu_data)/var/lib/snapd/modeenv - this
 	//    is the tmpfs we just created above
-	systemLabel, err := findRecoverySystem(seedDir)
-	if err != nil {
-		return err
-	}
 	modeEnv := &boot.Modeenv{
 		Mode:           "install",
-		RecoverySystem: systemLabel,
+		RecoverySystem: recoverySystem,
 	}
 	if err := modeEnv.Write(filepath.Join(runMnt, "ubuntu-data", "system-data")); err != nil {
 		return err
@@ -182,7 +170,7 @@ func generateMountsModeInstall() error {
 	return nil
 }
 
-func generateMountsModeRecover() error {
+func generateMountsModeRecover(recoverySystem string) error {
 	return fmt.Errorf("recover mode mount generation not implemented yet")
 }
 
@@ -191,83 +179,100 @@ func generateMountsModeRun() error {
 	bootDir := filepath.Join(runMnt, "ubuntu-boot")
 	dataDir := filepath.Join(runMnt, "ubuntu-data")
 
-	// 1. always ensure basic partitions are mounted
-	for _, d := range []string{seedDir, bootDir, dataDir} {
+	// 1.1 always ensure basic partitions are mounted
+	for _, d := range []string{seedDir, bootDir} {
 		isMounted, err := osutilIsMounted(d)
 		if err != nil {
 			return err
 		}
 		if !isMounted {
 			fmt.Fprintf(stdout, "/dev/disk/by-label/%s %s\n", filepath.Base(d), d)
-			return nil
 		}
 	}
-	// 2. read modeenv
+
+	// XXX possibly will need to unseal key, and unlock LUKS here before proceeding to mount data
+
+	// 1.2 mount Data, and exit, as it needs to be mounted for us to do step 2
+	isDataMounted, err := osutilIsMounted(dataDir)
+	if err != nil {
+		return err
+	}
+	if !isDataMounted {
+		fmt.Fprintf(stdout, "/dev/disk/by-label/%s %s\n", filepath.Base(dataDir), dataDir)
+		return nil
+	}
+	// 2.1 read modeenv
 	modeEnv, err := boot.ReadModeenv(filepath.Join(dataDir, "system-data"))
 	if err != nil {
 		return err
 	}
-	// 3. mount base
-	isMounted, err := osutilIsMounted(filepath.Join(runMnt, "base"))
+	// 2.2 mount base & kernel
+	isBaseMounted, err := osutilIsMounted(filepath.Join(runMnt, "base"))
 	if err != nil {
 		return err
 	}
-	if !isMounted {
+	if !isBaseMounted {
 		base := filepath.Join(dataDir, "system-data", dirs.SnapBlobDir, modeEnv.Base)
 		fmt.Fprintf(stdout, "%s %s\n", base, filepath.Join(runMnt, "base"))
-		return nil
 	}
-	// 4. mount kernel
-	isMounted, err = osutilIsMounted(filepath.Join(runMnt, "kernel"))
+	isKernelMounted, err := osutilIsMounted(filepath.Join(runMnt, "kernel"))
 	if err != nil {
 		return err
 	}
-	if !isMounted {
+	if !isKernelMounted {
+		// XXX: do we need to cross-check the booted/running kernel vs the snap?
 		kernel := filepath.Join(dataDir, "system-data", dirs.SnapBlobDir, modeEnv.Kernel)
 		fmt.Fprintf(stdout, "%s %s\n", kernel, filepath.Join(runMnt, "kernel"))
-		return nil
 	}
-
+	// 3.1 There is no step 3 =)
 	return nil
 }
 
 var validModes = []string{"install", "recover", "run"}
 
-func whichMode(content []byte) (string, error) {
-	scanner := bufio.NewScanner(bytes.NewBuffer(content))
+func whichModeAndRecoverSystem(cmdline []byte) (mode string, sysLabel string, err error) {
+	scanner := bufio.NewScanner(bytes.NewBuffer(cmdline))
 	scanner.Split(bufio.ScanWords)
 	for scanner.Scan() {
 		if strings.HasPrefix(scanner.Text(), "snapd_recovery_mode=") {
-			mode := strings.SplitN(scanner.Text(), "=", 2)[1]
+			mode = strings.SplitN(scanner.Text(), "=", 2)[1]
 			if mode == "" {
 				mode = "install"
 			}
 			if !strutil.ListContains(validModes, mode) {
-				return "", fmt.Errorf("cannot use unknown mode %q", mode)
+				return "", "", fmt.Errorf("cannot use unknown mode %q", mode)
 			}
-			return mode, nil
+			if mode == "run" {
+				return "run", "", nil
+			}
+		}
+		if strings.HasPrefix(scanner.Text(), "snapd_recovery_system=") {
+			sysLabel = strings.SplitN(scanner.Text(), "=", 2)[1]
+		}
+		if mode != "" && sysLabel != "" {
+			return mode, sysLabel, nil
 		}
 	}
 	if err := scanner.Err(); err != nil {
-		return "", err
+		return "", "", err
 	}
-	return "", fmt.Errorf("cannot detect if in run,install,recover mode")
+	return "", "", fmt.Errorf("cannot detect mode nor recovery system to use")
 }
 
 func generateInitramfsMounts() error {
-	content, err := ioutil.ReadFile(procCmdline)
+	cmdline, err := ioutil.ReadFile(procCmdline)
 	if err != nil {
 		return err
 	}
-	mode, err := whichMode(content)
+	mode, recoverySystem, err := whichModeAndRecoverSystem(cmdline)
 	if err != nil {
 		return err
 	}
 	switch mode {
 	case "recover":
-		return generateMountsModeRecover()
+		return generateMountsModeRecover(recoverySystem)
 	case "install":
-		return generateMountsModeInstall()
+		return generateMountsModeInstall(recoverySystem)
 	case "run":
 		return generateMountsModeRun()
 	}

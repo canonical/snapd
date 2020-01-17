@@ -135,7 +135,11 @@ func remodelCtx(st *state.State, oldModel, newModel *asserts.Model) (remodelCont
 	switch kind := ClassifyRemodel(oldModel, newModel); kind {
 	case UpdateRemodel:
 		// simple context for the simple case
-		remodCtx = &updateRemodelContext{baseRemodelContext{newModel, oldModel}}
+		groundCtx := groundDeviceContext{
+			model:         newModel,
+			operatingMode: devMgr.OperatingMode(),
+		}
+		remodCtx = &updateRemodelContext{baseRemodelContext{groundCtx, oldModel}}
 	case StoreSwitchRemodel:
 		remodCtx = newNewStoreRemodelContext(st, devMgr, newModel, oldModel)
 	case ReregRemodel:
@@ -202,32 +206,36 @@ func remodelCtxFromTask(t *state.Task) (remodelContext, error) {
 }
 
 type baseRemodelContext struct {
-	newModel, oldModel *asserts.Model
+	groundDeviceContext
+	oldModel *asserts.Model
 }
 
-func (rc baseRemodelContext) ForRemodeling() bool {
+func (rc *baseRemodelContext) ForRemodeling() bool {
 	return true
 }
 
-func (rc baseRemodelContext) Model() *asserts.Model {
-	return rc.newModel
+func (rc *baseRemodelContext) GroundContext() snapstate.DeviceContext {
+	return &groundDeviceContext{
+		model:         rc.oldModel,
+		operatingMode: rc.operatingMode,
+	}
 }
 
-func (rc baseRemodelContext) OldModel() *asserts.Model {
-	return rc.oldModel
-}
-
-func (rc baseRemodelContext) initialDevice(*auth.DeviceState) error {
+func (rc *baseRemodelContext) initialDevice(*auth.DeviceState) error {
 	// do nothing
 	return nil
 }
 
-func (rc baseRemodelContext) cacheViaChange(chg *state.Change, remodCtx remodelContext) {
+func (rc *baseRemodelContext) cacheViaChange(chg *state.Change, remodCtx remodelContext) {
 	chg.State().Cache(remodelCtxKey{chg.ID()}, remodCtx)
 }
 
-func (rc baseRemodelContext) init(chg *state.Change) {
-	chg.Set("new-model", string(asserts.Encode(rc.newModel)))
+func (rc *baseRemodelContext) init(chg *state.Change) {
+	chg.Set("new-model", string(asserts.Encode(rc.model)))
+}
+
+func (rc *baseRemodelContext) OperatingMode() string {
+	return rc.operatingMode
 }
 
 // updateRemodelContext: model assertion revision-only update remodel
@@ -277,7 +285,11 @@ type newStoreRemodelContext struct {
 
 func newNewStoreRemodelContext(st *state.State, devMgr *DeviceManager, newModel, oldModel *asserts.Model) *newStoreRemodelContext {
 	rc := &newStoreRemodelContext{}
-	rc.baseRemodelContext = baseRemodelContext{newModel, oldModel}
+	groundCtx := groundDeviceContext{
+		model:         newModel,
+		operatingMode: devMgr.OperatingMode(),
+	}
+	rc.baseRemodelContext = baseRemodelContext{groundCtx, oldModel}
 	rc.st = st
 	rc.deviceMgr = devMgr
 	rc.store = devMgr.newStore(rc.deviceBackend())
@@ -367,7 +379,7 @@ func (b remodelDeviceBackend) SetDevice(device *auth.DeviceState) error {
 }
 
 func (b remodelDeviceBackend) Model() (*asserts.Model, error) {
-	return b.newModel, nil
+	return b.model, nil
 }
 
 func (b remodelDeviceBackend) Serial() (*asserts.Serial, error) {
@@ -411,8 +423,8 @@ func (rc *reregRemodelContext) initialDevice(device *auth.DeviceState) error {
 
 	// starting almost from scratch with only device-key
 	rc.deviceState = &auth.DeviceState{
-		Brand: rc.newModel.BrandID(),
-		Model: rc.newModel.Model(),
+		Brand: rc.model.BrandID(),
+		Model: rc.model.Model(),
 		KeyID: device.KeyID,
 	}
 	return nil
@@ -443,7 +455,7 @@ func (rc *reregRemodelContext) SerialRequestExtraHeaders() map[string]interface{
 }
 
 func (rc *reregRemodelContext) SerialRequestAncillaryAssertions() []asserts.Assertion {
-	return []asserts.Assertion{rc.newModel, rc.origSerial}
+	return []asserts.Assertion{rc.model, rc.origSerial}
 }
 
 func (rc *reregRemodelContext) FinishRegistration(serial *asserts.Serial) error {

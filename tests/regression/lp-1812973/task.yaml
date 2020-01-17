@@ -8,7 +8,7 @@ prepare: |
     snap install --dangerous ./test-snapd-lp-1812973_1_all.snap
 restore: |
     make clean
-    snap remove test-snapd-lp-1812973
+    snap remove --purge test-snapd-lp-1812973
     rm -f ./test-snapd-lp-1812973_1_all.snap
     rm -f ./test-snapd-lp-1812973/usr/bin/lp-1812973
 execute: |
