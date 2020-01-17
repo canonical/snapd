@@ -409,6 +409,8 @@ func (s *Info) Description() string {
 	return s.OriginalDescription
 }
 
+// GetType returns the type of the snap, including additional snap ID check
+// for the legacy snapd snap definitions.
 func (s *Info) GetType() Type {
 	if s.SnapType == TypeApp && IsSnapd(s.SnapID) {
 		return TypeSnapd
@@ -779,7 +781,7 @@ func (st StopModeType) KillAll() bool {
 }
 
 // KillSignal returns the signal that should be used to kill the process
-// (or an empty string if no signal is needed)
+// (or an empty string if no signal is needed).
 func (st StopModeType) KillSignal() string {
 	if st.Validate() != nil || st == "" {
 		return ""
@@ -787,6 +789,7 @@ func (st StopModeType) KillSignal() string {
 	return strings.ToUpper(strings.TrimSuffix(string(st), "-all"))
 }
 
+// Validate ensures that the StopModeType has an valid value.
 func (st StopModeType) Validate() error {
 	switch st {
 	case "", "sigterm", "sigterm-all", "sighup", "sighup-all", "sigusr1", "sigusr1-all", "sigusr2", "sigusr2-all":
@@ -1280,7 +1283,7 @@ func SortServices(apps []*AppInfo) (sorted []*AppInfo, err error) {
 
 	// Kahn:
 	// see https://dl.acm.org/citation.cfm?doid=368996.369025
-	//     https://en.wikipedia.org/wiki/Topological_sorting#Kahn's_algorithm
+	//     https://en.wikipedia.org/wiki/Topological_sorting%23Kahn%27s_algorithm
 	//
 	// Apps without predecessors are 'top' nodes. On each iteration, take
 	// the next 'top' node, and decrease the predecessor count of each

@@ -929,6 +929,7 @@ func (s *Store) newRequest(ctx context.Context, reqOptions *requestOptions, user
 	req.Header.Set(hdrSnapDeviceArchitecture[reqOptions.APILevel], s.architecture)
 	req.Header.Set(hdrSnapDeviceSeries[reqOptions.APILevel], s.series)
 	req.Header.Set(hdrSnapClassic[reqOptions.APILevel], strconv.FormatBool(release.OnClassic))
+	req.Header.Set("Snap-Device-Capabilities", "default-tracks")
 	if cua := ClientUserAgent(ctx); cua != "" {
 		req.Header.Set("Snap-Client-User-Agent", cua)
 	}
@@ -2101,6 +2102,7 @@ type snapActionResult struct {
 	Name             string    `json:"name,omitempty"`
 	Snap             storeSnap `json:"snap"`
 	EffectiveChannel string    `json:"effective-channel,omitempty"`
+	RedirectChannel  string    `json:"redirect-channel,omitempty"`
 	Error            struct {
 		Code    string `json:"code"`
 		Message string `json:"message"`
@@ -2131,7 +2133,7 @@ var snapActionFields = jsonutil.StructFields((*storeSnap)(nil))
 // current installed snaps in currentSnaps. If the request was overall
 // successul (200) but there were reported errors it will return both
 // the snap infos and an SnapActionError.
-func (s *Store) SnapAction(ctx context.Context, currentSnaps []*CurrentSnap, actions []*SnapAction, user *auth.UserState, opts *RefreshOptions) ([]*snap.Info, error) {
+func (s *Store) SnapAction(ctx context.Context, currentSnaps []*CurrentSnap, actions []*SnapAction, user *auth.UserState, opts *RefreshOptions) ([]SnapActionResult, error) {
 	if opts == nil {
 		opts = &RefreshOptions{}
 	}
@@ -2143,7 +2145,7 @@ func (s *Store) SnapAction(ctx context.Context, currentSnaps []*CurrentSnap, act
 
 	authRefreshes := 0
 	for {
-		snaps, err := s.snapAction(ctx, currentSnaps, actions, user, opts)
+		sars, err := s.snapAction(ctx, currentSnaps, actions, user, opts)
 
 		if saErr, ok := err.(*SnapActionError); ok && authRefreshes < 2 && len(saErr.Other) > 0 {
 			// do we need to try to refresh auths?, 2 tries
@@ -2171,7 +2173,7 @@ func (s *Store) SnapAction(ctx context.Context, currentSnaps []*CurrentSnap, act
 			}
 		}
 
-		return snaps, err
+		return sars, err
 	}
 }
 
@@ -2196,7 +2198,14 @@ func genInstanceKey(curSnap *CurrentSnap, salt string) (string, error) {
 	return fmt.Sprintf("%s:%s", curSnap.SnapID, enc), nil
 }
 
-func (s *Store) snapAction(ctx context.Context, currentSnaps []*CurrentSnap, actions []*SnapAction, user *auth.UserState, opts *RefreshOptions) ([]*snap.Info, error) {
+// SnapActionResult encapsulates the non-error result of a single
+// action of the SnapAction call.
+type SnapActionResult struct {
+	*snap.Info
+	RedirectChannel string
+}
+
+func (s *Store) snapAction(ctx context.Context, currentSnaps []*CurrentSnap, actions []*SnapAction, user *auth.UserState, opts *RefreshOptions) ([]SnapActionResult, error) {
 
 	// TODO: the store already requires instance-key but doesn't
 	// yet support repeating in context or sending actions for the
@@ -2358,7 +2367,7 @@ func (s *Store) snapAction(ctx context.Context, currentSnaps []*CurrentSnap, act
 	downloadErrors := make(map[string]error)
 	var otherErrors []error
 
-	var snaps []*snap.Info
+	var sars []SnapActionResult
 	for _, res := range results.Results {
 		if res.Result == "error" {
 			if a := installs[res.InstanceKey]; a != nil {
@@ -2423,7 +2432,7 @@ func (s *Store) snapAction(ctx context.Context, currentSnaps []*CurrentSnap, act
 		_, instanceKey := snap.SplitInstanceName(instanceName)
 		snapInfo.InstanceKey = instanceKey
 
-		snaps = append(snaps, snapInfo)
+		sars = append(sars, SnapActionResult{Info: snapInfo, RedirectChannel: res.RedirectChannel})
 	}
 
 	for _, errObj := range results.ErrorList {
@@ -2441,7 +2450,7 @@ func (s *Store) snapAction(ctx context.Context, currentSnaps []*CurrentSnap, act
 		if len(downloadErrors) == 0 {
 			downloadErrors = nil
 		}
-		return snaps, &SnapActionError{
+		return sars, &SnapActionError{
 			NoResults: len(results.Results) == 0,
 			Refresh:   refreshErrors,
 			Install:   installErrors,
@@ -2450,7 +2459,7 @@ func (s *Store) snapAction(ctx context.Context, currentSnaps []*CurrentSnap, act
 		}
 	}
 
-	return snaps, nil
+	return sars, nil
 }
 
 // abbreviated info structs just for the download info

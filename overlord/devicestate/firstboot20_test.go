@@ -211,4 +211,9 @@ func (s *firstBoot20Suite) TestPopulateFromSeedCore20Happy(c *C) {
 	err = state.Get("seed-time", &seedTime)
 	c.Assert(err, IsNil)
 	c.Check(seedTime.IsZero(), Equals, false)
+
+	// check that the default device ctx has a Modeenv
+	dev, err := devicestate.DeviceCtx(s.overlord.State(), nil, nil)
+	c.Assert(err, IsNil)
+	c.Assert(dev.HasModeenv(), Equals, true)
 }
