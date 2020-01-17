@@ -82,6 +82,10 @@ profile systemd_run (attach_disconnected,mediate_deleted) {
   # socket, and while the child profile omits 'capability sys_ptrace', skip
   # for now since it isn't strictly required.
   ptrace read peer=unconfined,
+  # NOTE: we don't put this deny rule inside the deny snippets because this 
+  # apparmor snippet is not for the snap, it is for a profile which is 
+  # transitioned to, and that profile is never put in complain mode like we do
+  # with the snap in devmode, so don't remove that from here
   deny ptrace trace peer=unconfined,
   /run/systemd/private rw,
 
@@ -112,10 +116,8 @@ capability sys_ptrace,
 ptrace (trace) peer=snap.@{SNAP_INSTANCE_NAME}.*,
 
 # Allow ptracing other processes (as part of ps-style process lookups). Note,
-# the peer needs a corresponding tracedby rule. As a special case, disallow
-# ptracing unconfined.
+# the peer needs a corresponding tracedby rule.
 ptrace (trace),
-deny ptrace (trace) peer=unconfined,
 
 @{PROC}/[0-9]*/attr/ r,
 @{PROC}/[0-9]*/fdinfo/ r,
@@ -139,8 +141,14 @@ mount options=(rw, rshared) -> /var/snap/@{SNAP_INSTANCE_NAME}/common/{,**},
 
 /{,usr/}bin/mount ixr,
 /{,usr/}bin/umount ixr,
-deny /run/mount/utab rw,
 umount /var/snap/@{SNAP_INSTANCE_NAME}/common/**,
+`
+
+const kubernetesSupportConnectedPlugAppArmorKubeletDeny = `
+# As a special case, disallow kubelet ptracing unconfined processes.
+deny ptrace (trace) peer=unconfined,
+
+deny /run/mount/utab rw,
 `
 
 const kubernetesSupportConnectedPlugAppArmorKubeletSystemdRun = `
@@ -148,6 +156,10 @@ const kubernetesSupportConnectedPlugAppArmorKubeletSystemdRun = `
   capability sys_admin,
   /{,usr/}bin/mount ixr,
   mount fstype="tmpfs" tmpfs -> /var/snap/@{SNAP_INSTANCE_NAME}/common/**,
+  # NOTE: we don't put this deny rule inside the deny snippets because this 
+  # apparmor snippet is not for the snap, it is for a profile which is 
+  # transitioned to, and that profile is never put in complain mode like we do
+  # with the snap in devmode, so don't remove that from here
   deny /run/mount/utab rw,
 
   # For mounting volume subPaths
@@ -212,6 +224,7 @@ func k8sFlavor(plug *interfaces.ConnectedPlug) string {
 }
 
 func (iface *kubernetesSupportInterface) AppArmorConnectedPlug(spec *apparmor.Specification, plug *interfaces.ConnectedPlug, slot *interfaces.ConnectedSlot) error {
+	denySnippet := ""
 	snippet := kubernetesSupportConnectedPlugAppArmorCommon
 	systemd_run_extra := ""
 
@@ -219,6 +232,7 @@ func (iface *kubernetesSupportInterface) AppArmorConnectedPlug(spec *apparmor.Sp
 	case "kubelet":
 		systemd_run_extra = kubernetesSupportConnectedPlugAppArmorKubeletSystemdRun
 		snippet += kubernetesSupportConnectedPlugAppArmorKubelet
+		denySnippet += kubernetesSupportConnectedPlugAppArmorKubeletDeny
 		spec.SetUsesPtraceTrace()
 	case "kubeproxy":
 		snippet += kubernetesSupportConnectedPlugAppArmorKubeproxy
@@ -231,6 +245,7 @@ func (iface *kubernetesSupportInterface) AppArmorConnectedPlug(spec *apparmor.Sp
 
 	old := "###KUBERNETES_SUPPORT_SYSTEMD_RUN###"
 	spec.AddSnippet(strings.Replace(snippet, old, systemd_run_extra, -1))
+	spec.AddDenySnippet(denySnippet)
 	return nil
 }
 
