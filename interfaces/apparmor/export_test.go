@@ -71,14 +71,20 @@ func MockProfilesPath(t *testutil.BaseTest, profiles string) {
 	})
 }
 
-// MockTemplate replaces apprmor template.
+// MockTemplate replaces apparmor template.
 //
 // NOTE: The real apparmor template is long. For testing it is convenient for
 // replace it with a shorter snippet.
 func MockTemplate(fakeTemplate string) (restore func()) {
 	orig := defaultTemplate
+	origDeny := defaultDenySnippets
 	defaultTemplate = fakeTemplate
-	return func() { defaultTemplate = orig }
+	// TODO: add mock function which also can mock the default deny snippets
+	defaultDenySnippets = ""
+	return func() {
+		defaultTemplate = orig
+		defaultDenySnippets = origDeny
+	}
 }
 
 // MockClassicTemplate replaces the classic apprmor template.
