@@ -449,11 +449,24 @@ func (s *grubTestSuite) TestGrubExtractedRunKernelImageDisableTryKernel(c *C) {
 
 	// make the symlink and check that the symlink is missing afterwards
 	s.makeKernelAssetSnapAndSymlink(c, "pc-kernel_1.snap", "try-kernel.efi")
+	// make sure symlink is there
+	c.Assert(filepath.Join(s.grubDir(), "try-kernel.efi"), testutil.FilePresent)
+
 	err = eg.DisableTryKernel()
 	c.Assert(err, IsNil)
 
 	// ensure that the symlink is no longer there
-	c.Assert(filepath.Join(s.rootdir, "try-kernel.efi"), testutil.FileAbsent)
+	c.Assert(filepath.Join(s.grubDir(), "try-kernel.efi"), testutil.FileAbsent)
+	c.Assert(filepath.Join(s.grubDir(), "pc-kernel_1.snap/kernel.efi"), testutil.FilePresent)
+
+	// try again but make sure that the directory cannot be written to
+	s.makeKernelAssetSnapAndSymlink(c, "pc-kernel_1.snap", "try-kernel.efi")
+	err = os.Chmod(s.grubDir(), 000)
+	c.Assert(err, IsNil)
+	defer os.Chmod(s.grubDir(), 0755)
+
+	err = eg.DisableTryKernel()
+	c.Assert(err, ErrorMatches, "remove .*/grub/try-kernel.efi: permission denied")
 }
 
 func (s *grubTestSuite) TestKernelExtractionRunImageKernel(c *C) {

@@ -209,10 +209,9 @@ func (g *grub) makeKernelEfiSymlink(s snap.PlaceInfo, name string) error {
 // was incorrectly created.
 func (g *grub) unlinkKernelEfiSymlink(name string) error {
 	symlink := filepath.Join(g.dir(), name)
-	// check that the symlink exists
-	if _, err := os.Lstat(symlink); err == nil {
-		// symlink exists, remove it unconditionally
-		return os.Remove(symlink)
+	err := os.Remove(symlink)
+	if err != nil && !os.IsNotExist(err) {
+		return err
 	}
 	return nil
 }
