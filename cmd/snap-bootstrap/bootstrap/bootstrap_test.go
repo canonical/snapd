@@ -148,7 +148,7 @@ func (s *bootstrapSuite) TestLayoutCompatibility(c *C) {
 	// sanity check
 	c.Check(gadgetLayoutWithExtras.Size > smallDeviceLayout.Size, Equals, true)
 	err = bootstrap.EnsureLayoutCompatibility(gadgetLayoutWithExtras, &smallDeviceLayout)
-	c.Assert(err, ErrorMatches, `device /dev/node \(100MiB\) is too small to fit the requested layout \(1\.17GiB\)`)
+	c.Assert(err, ErrorMatches, `device /dev/node \(100 MiB\) is too small to fit the requested layout \(1\.17 GiB\)`)
 }
 
 func (s *bootstrapSuite) TestSchemaCompatibility(c *C) {
