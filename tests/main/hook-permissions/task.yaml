@@ -7,25 +7,24 @@ details: |
     Ensure that post-refresh hook has permissions to query upower-observe slot
     and enumerate upower devices.
 
-systems: [-fedora-*, -opensuse-*, -arch-*, -amazon-*, -centos-*]
-
-restore: |
-    rm -f ./enumerate.txt
-    snap remove --purge test-snap || true
-    # shellcheck source=tests/lib/systems.sh
-    . "$TESTSLIB/systems.sh"
-    if is_core_system; then
-      snap remove --purge upower || true
-    fi
-
 prepare: |
     # shellcheck source=tests/lib/systems.sh
     . "$TESTSLIB/systems.sh"
     if is_core_system; then
         snap install upower
     fi
-    snap pack test-snap
-    snap install --dangerous test-snap_1.0_all.snap
+    if [[ "$SPREAD_SYSTEM" == arch-* ]]; then
+      pacman -S --noconfirm upower
+    fi
+    if [[ "$SPREAD_SYSTEM" == opensuse-* ]]; then
+      zypper install -y upower
+    fi
+    if [[ "$SPREAD_SYSTEM" == fedora-* || "$SPREAD_SYSTEM" == amazon-* || "$SPREAD_SYSTEM" == centos-* ]]; then
+      yum install -y upower
+    fi
+    #shellcheck source=tests/lib/snaps.sh
+    . "$TESTSLIB"/snaps.sh
+    install_local test-snap
 
 execute: |
     # shellcheck source=tests/lib/systems.sh
@@ -38,7 +37,7 @@ execute: |
       dbus-send --print-reply --system --dest=org.freedesktop.UPower /org/freedesktop/UPower org.freedesktop.UPower.EnumerateDevices > /dev/null 2>&1
     fi
 
-    # simulate refresh; the post-refresh hook does same dbus query
-    snap install --dangerous test-snap_1.0_all.snap
+    # simulate refresh; the post-refresh hook does the dbus query
+    snap install --dangerous test-snap/test-snap_1.0_all.snap
 
     MATCH "array \[" < /var/snap/test-snap/common/enumerate.txt
