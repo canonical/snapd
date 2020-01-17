@@ -27,6 +27,8 @@ prepare: |
 
 restore: |
     systemctl stop "user@${TEST_UID}.service"
+    # this guards against removing .. but also ..foo OTOH those are highly
+    # unlikely to occur
     rm -rf "${USER_RUNTIME_DIR:?}"/* "${USER_RUNTIME_DIR:?}"/.[!.]*
     if [ -f agent-was-enabled ]; then
         systemctl --user --global disable snapd.session-agent.socket
