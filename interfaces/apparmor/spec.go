@@ -40,6 +40,11 @@ type Specification struct {
 	// for snap application and hook processes. The security tag encodes the identity
 	// of the application or hook.
 	snippets map[string][]string
+
+	// denySnippets is the same as snippets, but is meant for specifically deny
+	// apparmor rules, to only be included when running with full confinement
+	denySnippets map[string][]string
+
 	// updateNS describe parts of apparmor policy for snap-update-ns executing
 	// on behalf of a given snap.
 	updateNS strutil.OrderedSet
@@ -87,6 +92,20 @@ func (spec *Specification) AddSnippet(snippet string) {
 	for _, tag := range spec.securityTags {
 		spec.snippets[tag] = append(spec.snippets[tag], snippet)
 		sort.Strings(spec.snippets[tag])
+	}
+}
+
+// AddDenySnippet adds a new apparmor snippet to all applications and hooks using the interface.
+func (spec *Specification) AddDenySnippet(snippet string) {
+	if len(spec.securityTags) == 0 {
+		return
+	}
+	if spec.denySnippets == nil {
+		spec.denySnippets = make(map[string][]string)
+	}
+	for _, tag := range spec.securityTags {
+		spec.denySnippets[tag] = append(spec.denySnippets[tag], snippet)
+		sort.Strings(spec.denySnippets[tag])
 	}
 }
 
@@ -342,6 +361,13 @@ func (spec *Specification) Snippets() map[string][]string {
 // returned for non-existing security tag.
 func (spec *Specification) SnippetForTag(tag string) string {
 	return strings.Join(spec.snippets[tag], "\n")
+}
+
+// DenySnippetForTag returns a combined snippet for the given security tag with
+// individual snippets of deny policies joined with te newline character. Empty
+// string is returned for non-existing security tag.
+func (spec *Specification) DenySnippetForTag(tag string) string {
+	return strings.Join(spec.denySnippets[tag], "\n")
 }
 
 // SecurityTags returns a list of security tags which have a snippet.
