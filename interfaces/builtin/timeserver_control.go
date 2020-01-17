@@ -78,7 +78,9 @@ dbus (receive)
 # D-Bus method for controlling network time synchronization via
 # timedatectl's set-ntp command.
 /usr/bin/timedatectl{,.real} ixr,
+`
 
+const timeserverControlConnectedPlugAppArmorDeny = `
 # Silence this noisy denial. systemd utilities look at /proc/1/environ to see
 # if running in a container, but they will fallback gracefully. No other
 # interfaces allow this denial, so no problems with silencing it for now. Note
@@ -89,11 +91,12 @@ deny @{PROC}/1/environ r,
 
 func init() {
 	registerIface(&commonInterface{
-		name:                  "timeserver-control",
-		summary:               timeserverControlSummary,
-		implicitOnCore:        true,
-		implicitOnClassic:     true,
-		baseDeclarationSlots:  timeserverControlBaseDeclarationSlots,
-		connectedPlugAppArmor: timeserverControlConnectedPlugAppArmor,
+		name:                      "timeserver-control",
+		summary:                   timeserverControlSummary,
+		implicitOnCore:            true,
+		implicitOnClassic:         true,
+		baseDeclarationSlots:      timeserverControlBaseDeclarationSlots,
+		connectedPlugAppArmor:     timeserverControlConnectedPlugAppArmor,
+		connectedPlugAppArmorDeny: timeserverControlConnectedPlugAppArmorDeny,
 	})
 }

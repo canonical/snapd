@@ -198,7 +198,9 @@ dbus (receive, send)
     interface=org.freedesktop.DBus.Properties
     path=/org/freedesktop/portal/{desktop,documents}{,/**}
     peer=(label=unconfined),
+`
 
+const desktopConnectedPlugAppArmorDeny = `
 # These accesses are noisy and applications can't do anything with the found
 # icon files, so explicitly deny to silence the denials
 deny /var/lib/snapd/desktop/icons/ r,
@@ -233,6 +235,7 @@ func (iface *desktopInterface) fontconfigDirs() []string {
 
 func (iface *desktopInterface) AppArmorConnectedPlug(spec *apparmor.Specification, plug *interfaces.ConnectedPlug, slot *interfaces.ConnectedSlot) error {
 	spec.AddSnippet(desktopConnectedPlugAppArmor)
+	spec.AddDenySnippet(desktopConnectedPlugAppArmorDeny)
 
 	// Allow mounting document portal
 	emit := spec.AddUpdateNSf

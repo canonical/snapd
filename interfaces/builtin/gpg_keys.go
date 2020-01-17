@@ -38,9 +38,6 @@ const gpgKeysConnectedPlugAppArmor = `
 /usr/share/gnupg/options.skel r,
 
 owner @{HOME}/.gnupg/{,**} r,
-# gpg sometimes updates the trustdb to decide whether or not to update the
-# trustdb. For now, silence the denial since no other policy references this
-deny @{HOME}/.gnupg/trustdb.gpg w,
 
 # 'wk' is required for gpg encrypt and sign unless --no-random-seed-file is
 # used. Ideally we would not allow this access, but denying it causes gpg to
@@ -51,13 +48,20 @@ deny @{HOME}/.gnupg/trustdb.gpg w,
 owner @{HOME}/.gnupg/random_seed wk,
 `
 
+const gpgKeysConnectedPlugAppArmorDeny = `
+# gpg sometimes updates the trustdb to decide whether or not to update the
+# trustdb. For now, silence the denial since no other policy references this
+deny @{HOME}/.gnupg/trustdb.gpg w,
+`
+
 func init() {
 	registerIface(&commonInterface{
-		name:                  "gpg-keys",
-		summary:               gpgKeysSummary,
-		implicitOnCore:        true,
-		implicitOnClassic:     true,
-		baseDeclarationSlots:  gpgKeysBaseDeclarationSlots,
-		connectedPlugAppArmor: gpgKeysConnectedPlugAppArmor,
+		name:                      "gpg-keys",
+		summary:                   gpgKeysSummary,
+		implicitOnCore:            true,
+		implicitOnClassic:         true,
+		baseDeclarationSlots:      gpgKeysBaseDeclarationSlots,
+		connectedPlugAppArmor:     gpgKeysConnectedPlugAppArmor,
+		connectedPlugAppArmorDeny: gpgKeysConnectedPlugAppArmorDeny,
 	})
 }

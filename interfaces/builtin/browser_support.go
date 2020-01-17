@@ -84,6 +84,14 @@ owner /{dev,run}/shm/.io.nwjs.* mrw,
 /etc/opt/chrome/{,**} r,
 /etc/chromium/{,**} r,
 
+# This is an information leak but disallowing it leads to developer confusion
+# when using the chromium content api file chooser due to a (harmless) glib
+# warning and the noisy AppArmor denial.
+owner @{PROC}/@{pid}/mounts r,
+owner @{PROC}/@{pid}/mountinfo r,
+`
+
+const browserSupportConnectedPlugAppArmorDeny = `
 # Chrome/Chromium should be adjusted to not use gconf. It is only used with
 # legacy systems that don't have snapd
 deny dbus (send)
@@ -93,12 +101,6 @@ deny dbus (send)
 # webbrowser-app/webapp-container tries to read this file to determine if it is
 # confined or not, so explicitly deny to avoid noise in the logs.
 deny @{PROC}/@{pid}/attr/current r,
-
-# This is an information leak but disallowing it leads to developer confusion
-# when using the chromium content api file chooser due to a (harmless) glib
-# warning and the noisy AppArmor denial.
-owner @{PROC}/@{pid}/mounts r,
-owner @{PROC}/@{pid}/mountinfo r,
 
 # Since snapd still uses SECCOMP_RET_KILL, we have added a workaround rule to
 # allow mknod on character devices since chromium unconditionally performs
@@ -174,12 +176,6 @@ owner @{PROC}/@{pid}/fd/[0-9]* w,
 # https://chromium.googlesource.com/chromium/src.git/+/84618eee98fdf7548905e883e63e4f693800fcfa
 /sys/devices/virtual/dmi/id/product_name r,
 /sys/devices/virtual/dmi/id/sys_vendor r,
-
-# Chromium content api tries to read these. It is an information disclosure
-# since these contain the names of snaps. Chromium operates fine without the
-# access so just block it.
-deny /sys/devices/virtual/block/loop[0-9]*/loop/backing_file r,
-deny /sys/devices/virtual/block/dm-[0-9]*/dm/name r,
 
 # networking
 /run/udev/data/n[0-9]* r,
@@ -257,6 +253,14 @@ owner /{dev,run}/shm/shmfd-* mrw,
 # other snaps and the system, so it is limited to snaps that specify:
 # allow-sandbox: true.
 owner @{PROC}/@{pid}/clear_refs w,
+`
+
+const browserSupportConnectedPlugAppArmorWithSandboxDeny = `
+# Chromium content api tries to read these. It is an information disclosure
+# since these contain the names of snaps. Chromium operates fine without the
+# access so just block it.
+deny /sys/devices/virtual/block/loop[0-9]*/loop/backing_file r,
+deny /sys/devices/virtual/block/dm-[0-9]*/dm/name r,
 `
 
 const browserSupportConnectedPlugSecComp = `
@@ -350,8 +354,10 @@ func (iface *browserSupportInterface) AppArmorConnectedPlug(spec *apparmor.Speci
 	var allowSandbox bool
 	_ = plug.Attr("allow-sandbox", &allowSandbox)
 	spec.AddSnippet(browserSupportConnectedPlugAppArmor)
+	spec.AddDenySnippet(browserSupportConnectedPlugAppArmorDeny)
 	if allowSandbox {
 		spec.AddSnippet(browserSupportConnectedPlugAppArmorWithSandbox)
+		spec.AddDenySnippet(browserSupportConnectedPlugAppArmorWithSandboxDeny)
 	} else {
 		spec.SetSuppressPtraceTrace()
 	}

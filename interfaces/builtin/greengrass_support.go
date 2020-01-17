@@ -155,9 +155,6 @@ pivot_root
 @{PROC}/sys/fs/protected_fifos r,
 @{PROC}/sys/fs/protected_regular r,
 
-# mount tries to access this, but it doesn't really need it
-deny /run/mount/utab rw,
-
 # these accesses are needed in order to mount a squashfs file for the rootfs
 # note that these accesses allow reading other snaps and thus grants device control
 /dev/loop-control rw,
@@ -330,6 +327,11 @@ owner /state/server/{,**} rw,
 #include <abstractions/ssl_certs>
 `
 
+const greengrassSupportConnectedPlugAppArmorDeny = `
+# mount tries to access this, but it doesn't really need it
+deny /run/mount/utab rw,
+`
+
 const greengrassSupportConnectedPlugSeccomp = `
 # Description: can manage greengrass 'things' and their sandboxes. This
 # policy is intentionally not restrictive and is here to help guard against
@@ -378,6 +380,8 @@ func (iface *greengrassSupportInterface) AppArmorConnectedPlug(spec *apparmor.Sp
 	} else {
 		spec.AddSnippet(greengrassSupportConnectedPlugAppArmor + greengrassSupportConnectedPlugAppArmorCore)
 	}
+	spec.AddDenySnippet(greengrassSupportConnectedPlugAppArmorDeny)
+
 	// greengrass needs to use ptrace
 	spec.SetUsesPtraceTrace()
 

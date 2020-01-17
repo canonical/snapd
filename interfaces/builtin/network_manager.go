@@ -265,7 +265,9 @@ dbus (receive, send)
     path=/org/freedesktop
     interface=org.freedesktop.DBus.ObjectManager
     peer=(label=###PLUG_SECURITY_TAGS###),
+`
 
+const networkManagerConnectedSlotAppArmorDeny = `
 # Explicitly deny ptrace to silence noisy denials. These denials happen when NM
 # tries to access /proc/<peer_pid>/stat.  What apparmor prevents is showing
 # internal process addresses that live in that file, but that has no adverse
@@ -512,6 +514,8 @@ func (iface *networkManagerInterface) AppArmorConnectedSlot(spec *apparmor.Speci
 	new := plugAppLabelExpr(plug)
 	snippet := strings.Replace(networkManagerConnectedSlotAppArmor, old, new, -1)
 	spec.AddSnippet(snippet)
+	denySnippet := strings.Replace(networkManagerConnectedSlotAppArmorDeny, old, new, -1)
+	spec.AddDenySnippet(denySnippet)
 	if !release.OnClassic {
 		// See https://bugs.launchpad.net/snapd/+bug/1849291 for details.
 		snippet := strings.Replace(networkManagerConnectedSlotIntrospectionSnippet, old, new, -1)

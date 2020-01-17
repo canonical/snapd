@@ -80,7 +80,9 @@ dbus (receive)
 # D-Bus method for setting the timezone via timedatectl's set-timezone
 # command.
 /usr/bin/timedatectl{,.real} ixr,
+`
 
+const timezoneControlConnectedPlugAppArmorDeny = `
 # Silence this noisy denial. systemd utilities look at /proc/1/environ to see
 # if running in a container, but they will fallback gracefully. No other
 # interfaces allow this denial, so no problems with silencing it for now. Note
@@ -91,11 +93,12 @@ deny @{PROC}/1/environ r,
 
 func init() {
 	registerIface(&commonInterface{
-		name:                  "timezone-control",
-		summary:               timezoneControlSummary,
-		implicitOnCore:        true,
-		implicitOnClassic:     true,
-		baseDeclarationSlots:  timezoneControlBaseDeclarationSlots,
-		connectedPlugAppArmor: timezoneControlConnectedPlugAppArmor,
+		name:                      "timezone-control",
+		summary:                   timezoneControlSummary,
+		implicitOnCore:            true,
+		implicitOnClassic:         true,
+		baseDeclarationSlots:      timezoneControlBaseDeclarationSlots,
+		connectedPlugAppArmor:     timezoneControlConnectedPlugAppArmor,
+		connectedPlugAppArmorDeny: timezoneControlConnectedPlugAppArmorDeny,
 	})
 }

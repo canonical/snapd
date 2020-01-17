@@ -44,6 +44,9 @@ owner @{HOME}/.gnupg/pubring.kbx r,
 owner @{HOME}/.gnupg/trustedkeys.gpg r,
 
 owner @{HOME}/.gnupg/trustdb.gpg r,
+`
+
+const gpgPublicKeysConnectedPlugAppArmorDeny = `
 # gpg sometimes updates the trustdb to decide whether or not to update the
 # trustdb. For now, silence the denial since no other policy references this
 deny @{HOME}/.gnupg/trustdb.gpg w,
@@ -51,11 +54,12 @@ deny @{HOME}/.gnupg/trustdb.gpg w,
 
 func init() {
 	registerIface(&commonInterface{
-		name:                  "gpg-public-keys",
-		summary:               gpgPublicKeysSummary,
-		implicitOnCore:        true,
-		implicitOnClassic:     true,
-		baseDeclarationSlots:  gpgPublicKeysBaseDeclarationSlots,
-		connectedPlugAppArmor: gpgPublicKeysConnectedPlugAppArmor,
+		name:                      "gpg-public-keys",
+		summary:                   gpgPublicKeysSummary,
+		implicitOnCore:            true,
+		implicitOnClassic:         true,
+		baseDeclarationSlots:      gpgPublicKeysBaseDeclarationSlots,
+		connectedPlugAppArmor:     gpgPublicKeysConnectedPlugAppArmor,
+		connectedPlugAppArmorDeny: gpgPublicKeysConnectedPlugAppArmorDeny,
 	})
 }

@@ -76,12 +76,6 @@ mount fstype=fuse.* options=(rw,nosuid,nodev) ** -> /var/snap/{@{SNAP_NAME},@{SN
 mount fstype=fuse.* options=(ro,nosuid,nodev) ** -> /var/snap/{@{SNAP_NAME},@{SNAP_INSTANCE_NAME}}/common/{,**/},
 mount fstype=fuse.* options=(rw,nosuid,nodev) ** -> /var/snap/{@{SNAP_NAME},@{SNAP_INSTANCE_NAME}}/common/{,**/},
 
-# Explicitly deny reads to /etc/fuse.conf. We do this to ensure that
-# the safe defaults of fuse are used (which are enforced by our mount
-# rules) and not system-specific options from /etc/fuse.conf that
-# may conflict with our mount rules.
-deny /etc/fuse.conf r,
-
 # Allow read access to the fuse filesystem
 /sys/fs/fuse/ r,
 /sys/fs/fuse/** r,
@@ -91,17 +85,26 @@ deny /etc/fuse.conf r,
 #/{,usr/}bin/fusermount ixr,
 `
 
+const fuseSupportConnectedPlugAppArmorDeny = `
+# Explicitly deny reads to /etc/fuse.conf. We do this to ensure that
+# the safe defaults of fuse are used (which are enforced by our mount
+# rules) and not system-specific options from /etc/fuse.conf that
+# may conflict with our mount rules.
+deny /etc/fuse.conf r,
+`
+
 var fuseSupportConnectedPlugUDev = []string{`KERNEL=="fuse"`}
 
 func init() {
 	registerIface(&commonInterface{
-		name:                  "fuse-support",
-		summary:               fuseSupportSummary,
-		implicitOnCore:        true,
-		implicitOnClassic:     !(release.ReleaseInfo.ID == "ubuntu" && release.ReleaseInfo.VersionID == "14.04"),
-		baseDeclarationSlots:  fuseSupportBaseDeclarationSlots,
-		connectedPlugAppArmor: fuseSupportConnectedPlugAppArmor,
-		connectedPlugSecComp:  fuseSupportConnectedPlugSecComp,
-		connectedPlugUDev:     fuseSupportConnectedPlugUDev,
+		name:                      "fuse-support",
+		summary:                   fuseSupportSummary,
+		implicitOnCore:            true,
+		implicitOnClassic:         !(release.ReleaseInfo.ID == "ubuntu" && release.ReleaseInfo.VersionID == "14.04"),
+		baseDeclarationSlots:      fuseSupportBaseDeclarationSlots,
+		connectedPlugAppArmor:     fuseSupportConnectedPlugAppArmor,
+		connectedPlugAppArmorDeny: fuseSupportConnectedPlugAppArmorDeny,
+		connectedPlugSecComp:      fuseSupportConnectedPlugSecComp,
+		connectedPlugUDev:         fuseSupportConnectedPlugUDev,
 	})
 }
