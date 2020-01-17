@@ -275,8 +275,6 @@ func (m *DeviceManager) ensureOperational() error {
 		return nil
 	}
 
-	perfTimings := timings.New(map[string]string{"ensure": "become-operational"})
-
 	device, err := m.device()
 	if err != nil {
 		return err
@@ -286,6 +284,8 @@ func (m *DeviceManager) ensureOperational() error {
 		// serial is set, we are all set
 		return nil
 	}
+
+	perfTimings := timings.New(map[string]string{"ensure": "become-operational"})
 
 	// conditions to trigger device registration
 	//
@@ -418,8 +418,6 @@ func (m *DeviceManager) ensureSeeded() error {
 	m.state.Lock()
 	defer m.state.Unlock()
 
-	perfTimings := timings.New(map[string]string{"ensure": "seed"})
-
 	var seeded bool
 	err := m.state.Get("seeded", &seeded)
 	if err != nil && err != state.ErrNoState {
@@ -428,6 +426,8 @@ func (m *DeviceManager) ensureSeeded() error {
 	if seeded {
 		return nil
 	}
+
+	perfTimings := timings.New(map[string]string{"ensure": "seed"})
 
 	if m.changeInFlight("seed") {
 		return nil
