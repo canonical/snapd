@@ -1625,6 +1625,7 @@ func (s *storeTestSuite) TestDoRequestSetsExtraHeaders(c *C) {
 		c.Check(r.Header.Get("X-Foo-Header"), Equals, `Bar`)
 		c.Check(r.Header.Get("Content-Type"), Equals, `application/bson`)
 		c.Check(r.Header.Get("Accept"), Equals, `application/hal+bson`)
+		c.Check(r.Header.Get("Snap-Device-Capabilities"), Equals, "default-tracks")
 		io.WriteString(w, "response-data")
 	}))
 	c.Assert(mockServer, NotNil)
@@ -2266,7 +2267,7 @@ func (s *storeTestSuite) TestInfoAndChannels(c *C) {
 			Revision:    snap.R(27),
 			Version:     "6.3",
 			Confinement: snap.StrictConfinement,
-			Channel:     "stable",
+			Channel:     "latest/stable",
 			Size:        20480,
 			Epoch:       snap.E("0"),
 			ReleasedAt:  time.Date(2019, 1, 1, 10, 11, 12, 123456789, time.UTC),
@@ -2275,7 +2276,7 @@ func (s *storeTestSuite) TestInfoAndChannels(c *C) {
 			Revision:    snap.R(27),
 			Version:     "6.3",
 			Confinement: snap.StrictConfinement,
-			Channel:     "candidate",
+			Channel:     "latest/candidate",
 			Size:        20480,
 			Epoch:       snap.E("0"),
 			ReleasedAt:  time.Date(2019, 1, 2, 10, 11, 12, 123456789, time.UTC),
@@ -2284,7 +2285,7 @@ func (s *storeTestSuite) TestInfoAndChannels(c *C) {
 			Revision:    snap.R(27),
 			Version:     "6.3",
 			Confinement: snap.StrictConfinement,
-			Channel:     "beta",
+			Channel:     "latest/beta",
 			Size:        20480,
 			Epoch:       snap.E("0"),
 			ReleasedAt:  time.Date(2019, 1, 3, 10, 11, 12, 123456789, time.UTC),
@@ -2293,7 +2294,7 @@ func (s *storeTestSuite) TestInfoAndChannels(c *C) {
 			Revision:    snap.R(28),
 			Version:     "6.3",
 			Confinement: snap.StrictConfinement,
-			Channel:     "edge",
+			Channel:     "latest/edge",
 			Size:        20480,
 			Epoch:       snap.E("0"),
 			ReleasedAt:  time.Date(2019, 1, 4, 10, 11, 12, 123456789, time.UTC),
@@ -2341,8 +2342,8 @@ func (s *storeTestSuite) TestInfoMoreChannels(c *C) {
 	result, err := sto.SnapInfo(s.ctx, store.SnapSpec{Name: "eh"}, nil)
 	c.Assert(err, IsNil)
 	expected := map[string]*snap.ChannelSnapInfo{
-		"latest/stable":  {Channel: "stable", ReleasedAt: time.Date(2018, 12, 17, 9, 17, 16, 288554000, time.UTC)},
-		"latest/edge":    {Channel: "edge", ReleasedAt: time.Date(2018, 11, 6, 0, 46, 3, 348730000, time.UTC)},
+		"latest/stable":  {Channel: "latest/stable", ReleasedAt: time.Date(2018, 12, 17, 9, 17, 16, 288554000, time.UTC)},
+		"latest/edge":    {Channel: "latest/edge", ReleasedAt: time.Date(2018, 11, 6, 0, 46, 3, 348730000, time.UTC)},
 		"1.6/stable":     {Channel: "1.6/stable", ReleasedAt: time.Date(2017, 5, 17, 21, 18, 42, 224979000, time.UTC)},
 		"1.7/stable":     {Channel: "1.7/stable", ReleasedAt: time.Date(2017, 6, 2, 1, 16, 52, 640258000, time.UTC)},
 		"1.8/stable":     {Channel: "1.8/stable", ReleasedAt: time.Date(2018, 2, 7, 23, 8, 59, 152984000, time.UTC)},
@@ -5540,18 +5541,24 @@ func (s *storeTestSuite) TestSnapActionOptions(c *C) {
 }
 
 func (s *storeTestSuite) TestSnapActionInstall(c *C) {
-	s.testSnapActionGet("install", "", c)
+	s.testSnapActionGet("install", "", "", c)
 }
 func (s *storeTestSuite) TestSnapActionInstallWithCohort(c *C) {
-	s.testSnapActionGet("install", "what", c)
+	s.testSnapActionGet("install", "what", "", c)
 }
 func (s *storeTestSuite) TestSnapActionDownload(c *C) {
-	s.testSnapActionGet("download", "", c)
+	s.testSnapActionGet("download", "", "", c)
 }
 func (s *storeTestSuite) TestSnapActionDownloadWithCohort(c *C) {
-	s.testSnapActionGet("download", "here", c)
+	s.testSnapActionGet("download", "here", "", c)
 }
-func (s *storeTestSuite) testSnapActionGet(action, cohort string, c *C) {
+func (s *storeTestSuite) TestSnapActionInstallRedirect(c *C) {
+	s.testSnapActionGet("install", "", "2.0/candidate", c)
+}
+func (s *storeTestSuite) TestSnapActionDownloadRedirect(c *C) {
+	s.testSnapActionGet("download", "", "2.0/candidate", c)
+}
+func (s *storeTestSuite) testSnapActionGet(action, cohort, redirectChannel string, c *C) {
 	// action here is one of install or download
 	restore := release.MockOnClassic(false)
 	defer restore()
@@ -5602,6 +5609,7 @@ func (s *storeTestSuite) testSnapActionGet(action, cohort string, c *C) {
      "snap-id": "buPKUD3TKqCOgLEjjHx5kSiCpIs5cMuQ",
      "name": "hello-world",
      "effective-channel": "candidate",
+     "redirect-channel": "%s",
      "snap": {
        "snap-id": "buPKUD3TKqCOgLEjjHx5kSiCpIs5cMuQ",
        "name": "hello-world",
@@ -5614,7 +5622,7 @@ func (s *storeTestSuite) testSnapActionGet(action, cohort string, c *C) {
        }
      }
   }]
-}`, action)
+}`, action, redirectChannel)
 	}))
 
 	c.Assert(mockServer, NotNil)
@@ -5646,6 +5654,7 @@ func (s *storeTestSuite) testSnapActionGet(action, cohort string, c *C) {
 	c.Assert(results[0].Deltas, HasLen, 0)
 	// effective-channel
 	c.Assert(results[0].Channel, Equals, "candidate")
+	c.Assert(results[0].RedirectChannel, Equals, redirectChannel)
 }
 
 func (s *storeTestSuite) TestSnapActionInstallAmend(c *C) {

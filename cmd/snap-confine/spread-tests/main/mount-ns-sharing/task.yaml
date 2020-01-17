@@ -17,4 +17,4 @@ execute: |
         [ "$inner_mnt_ns" = "$(snapd-hacker-toolbelt.busybox readlink /proc/self/ns/mnt)" ]
     done
 restore: |
-    snap remove snapd-hacker-toolbelt
+    snap remove --purge snapd-hacker-toolbelt

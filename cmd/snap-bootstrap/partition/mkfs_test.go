@@ -31,15 +31,21 @@ type mkfsSuite struct {
 
 	mockMkfsVfat *testutil.MockCmd
 	mockMkfsExt4 *testutil.MockCmd
+	mockUdevadm  *testutil.MockCmd
 }
 
 var _ = Suite(&mkfsSuite{})
 
 func (s *mkfsSuite) SetUpTest(c *C) {
+	// some commads use fakeroot, mock one that just calls the other script
+	cmdFakeroot := testutil.MockCommand(c, "fakeroot", `exec "$@"`)
+	s.AddCleanup(cmdFakeroot.Restore)
 	s.mockMkfsVfat = testutil.MockCommand(c, "mkfs.vfat", "")
 	s.AddCleanup(s.mockMkfsVfat.Restore)
 	s.mockMkfsExt4 = testutil.MockCommand(c, "mkfs.ext4", "")
 	s.AddCleanup(s.mockMkfsExt4.Restore)
+	s.mockUdevadm = testutil.MockCommand(c, "udevadm", "")
+	s.AddCleanup(s.mockUdevadm.Restore)
 }
 
 func (s *mkfsSuite) TestMkfsUnhappy(c *C) {
@@ -61,15 +67,16 @@ func (s *mkfsSuite) TestMkfsExt4(c *C) {
 	c.Assert(s.mockMkfsExt4.Calls(), HasLen, 1)
 }
 
-func (s *mkfsSuite) TestMakefilesystemsNothing(c *C) {
-	created := []partition.DeviceStructure{}
-	err := partition.MakeFilesystems(created)
-	c.Assert(err, IsNil)
+func (s *mkfsSuite) TestMakefilesystemNothing(c *C) {
+	part := partition.DeviceStructure{}
+	err := partition.MakeFilesystem(part)
+	c.Assert(err, ErrorMatches, "cannot use incomplete device ")
 	c.Assert(s.mockMkfsExt4.Calls(), HasLen, 0)
 	c.Assert(s.mockMkfsVfat.Calls(), HasLen, 0)
+	c.Assert(s.mockUdevadm.Calls(), HasLen, 0)
 }
 
-func (s *mkfsSuite) TestMakefilesystems(c *C) {
+func (s *mkfsSuite) TestMakefilesystem(c *C) {
 	created := []partition.DeviceStructure{
 		{
 			Node: "/dev/node2",
@@ -117,13 +124,24 @@ func (s *mkfsSuite) TestMakefilesystems(c *C) {
 			},
 		},
 	}
-	err := partition.MakeFilesystems(created)
-	c.Assert(err, IsNil)
-	c.Assert(s.mockMkfsExt4.Calls(), HasLen, 2)
+
+	// single fat partition is created first, then 2 ext4 partitions
+	for n, part := range created {
+		err := partition.MakeFilesystem(part)
+		c.Assert(err, IsNil)
+		c.Assert(s.mockMkfsVfat.Calls(), HasLen, 1)
+		c.Assert(s.mockMkfsExt4.Calls(), HasLen, n)
+	}
+
 	// ensure ordering is correct
 	calls := s.mockMkfsExt4.Calls()[0]
 	c.Assert(calls[len(calls)-1:], DeepEquals, []string{"/dev/node3"})
 	calls = s.mockMkfsExt4.Calls()[1]
 	c.Assert(calls[len(calls)-1:], DeepEquals, []string{"/dev/node4"})
 	c.Assert(s.mockMkfsVfat.Calls(), HasLen, 1)
+	c.Assert(s.mockUdevadm.Calls(), DeepEquals, [][]string{
+		{"udevadm", "trigger", "--settle", "/dev/node2"},
+		{"udevadm", "trigger", "--settle", "/dev/node3"},
+		{"udevadm", "trigger", "--settle", "/dev/node4"},
+	})
 }

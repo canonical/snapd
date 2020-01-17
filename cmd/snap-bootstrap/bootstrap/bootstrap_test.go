@@ -56,7 +56,7 @@ func (s *bootstrapSuite) SetUpTest(c *C) {
 }
 
 func (s *bootstrapSuite) TestBootstrapRunError(c *C) {
-	err := bootstrap.Run("", "", nil)
+	err := bootstrap.Run("", "", bootstrap.Options{})
 	c.Assert(err, ErrorMatches, "cannot use empty gadget root directory")
 }
 
@@ -140,7 +140,7 @@ func (s *bootstrapSuite) TestLayoutCompatibility(c *C) {
 	)
 	// extra structure (should fail)
 	err = bootstrap.EnsureLayoutCompatibility(gadgetLayout, &deviceLayoutWithExtras)
-	c.Assert(err, ErrorMatches, `cannot find disk partition "extra".* in gadget`)
+	c.Assert(err, ErrorMatches, `cannot find disk partition /dev/node3.* in gadget`)
 }
 
 func (s *bootstrapSuite) TestSchemaCompatibility(c *C) {

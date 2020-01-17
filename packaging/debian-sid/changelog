@@ -1,3 +1,30 @@
+snapd (2.43.1-1) unstable; urgency=medium
+
+  * New upstream release, LP: #1856159
+    - devicestate: use httputil.ShouldRetryError() in prepareSerialRequest
+    - overlord/standby: fix possible deadlock in standby test
+    - cmd/snap-discard-ns: fix pattern for .info files
+    - overlord,o/snapstate: make sure we never leave config behind
+    - data/selinux: update policy to cover more cases
+    - snap: remove "host" output from `snap version`
+
+ -- Michael Vogt <michael.vogt@ubuntu.com>  Tue, 14 Jan 2020 20:30:07 +0100
+
+snapd (2.43-1) unstable; urgency=medium
+
+  * New upstream release
+
+ -- Michael Vogt <michael.vogt@ubuntu.com>  Thu, 09 Jan 2020 17:16:12 +0100
+
+snapd (2.42.5-1) unstable; urgency=medium
+
+  * New upstream release, LP: #1853244
+    - snap-confine: revert, with comment, explicit unix deny for nested
+      lxd
+    - Disable mount-ns test on 16.04. It is too flaky currently.
+
+ -- Michael Vogt <michael.vogt@ubuntu.com>  Fri, 06 Dec 2019 14:10:56 +0100
+
 snapd (2.42.4-1) unstable; urgency=medium
 
   * New upstream release, LP: #1853244

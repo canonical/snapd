@@ -62,6 +62,10 @@ const (
 	// conserveCPU tells apparmor_parser to spare up to two CPUs on multi-core systems to
 	// reduce load when processing many profiles at once.
 	conserveCPU aaParserFlags = 1 << iota
+
+	// skipKernelLoad tells apparmor_parser not to load profiles into the kernel. The use
+	// case of this is when in pre-seeding mode.
+	skipKernelLoad aaParserFlags = 1 << iota
 )
 
 var runtimeNumCPU = runtime.NumCPU
@@ -98,6 +102,11 @@ func loadProfiles(fnames []string, cacheDir string, flags aaParserFlags) error {
 			args = append(args, jobArg)
 		}
 	}
+
+	if flags&skipKernelLoad != 0 {
+		args = append(args, "--skip-kernel-load")
+	}
+
 	if flags&skipReadCache != 0 {
 		args = append(args, "--skip-read-cache")
 	}

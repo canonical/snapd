@@ -13,7 +13,7 @@ execute: |
     snap try basic
 
     echo "Remove the snap and snap try again"
-    snap remove basic
+    snap remove --purge basic
 
     snap try basic
 
@@ -29,4 +29,4 @@ execute: |
         exit 1
     fi
 
-    snap remove basic
+    snap remove --purge basic

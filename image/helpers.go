@@ -52,7 +52,7 @@ import (
 
 // A Store can find metadata on snaps, download snaps and fetch assertions.
 type Store interface {
-	SnapAction(context.Context, []*store.CurrentSnap, []*store.SnapAction, *auth.UserState, *store.RefreshOptions) ([]*snap.Info, error)
+	SnapAction(context.Context, []*store.CurrentSnap, []*store.SnapAction, *auth.UserState, *store.RefreshOptions) ([]store.SnapActionResult, error)
 	Download(ctx context.Context, name, targetFn string, downloadInfo *snap.DownloadInfo, pbar progress.Meter, user *auth.UserState, dlOpts *store.DownloadOptions) error
 
 	Assertion(assertType *asserts.AssertionType, primaryKey []string, user *auth.UserState) (asserts.Assertion, error)
@@ -292,12 +292,12 @@ func (tsto *ToolingStore) DownloadSnap(name string, opts DownloadOptions) (targe
 		Channel:      opts.Channel,
 	}}
 
-	snaps, err := sto.SnapAction(context.TODO(), nil, actions, tsto.user, nil)
+	sars, err := sto.SnapAction(context.TODO(), nil, actions, tsto.user, nil)
 	if err != nil {
 		// err will be 'cannot download snap "foo": <reasons>'
 		return "", nil, err
 	}
-	snap := snaps[0]
+	snap := sars[0].Info
 
 	if opts.TargetPathFunc == nil {
 		baseName := opts.Basename

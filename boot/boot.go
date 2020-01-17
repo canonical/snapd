@@ -22,14 +22,7 @@ package boot
 import (
 	"errors"
 	"fmt"
-	"os"
-	"path/filepath"
-	"strings"
 
-	"github.com/snapcore/snapd/asserts"
-	"github.com/snapcore/snapd/bootloader"
-	"github.com/snapcore/snapd/dirs"
-	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/snap"
 )
 
@@ -37,11 +30,10 @@ import (
 type BootParticipant interface {
 	// SetNextBoot will schedule the snap to be used in the next boot. For
 	// base snaps it is up to the caller to select the right bootable base
-	// (from the model assertion).
-	SetNextBoot() error
-	// ChangeRequiresReboot returns whether a reboot is required to switch
-	// to the snap.
-	ChangeRequiresReboot() bool
+	// (from the model assertion). It is a noop for not relevant snaps.
+	// Otherwise it returns whether a reboot is required.
+	SetNextBoot() (rebootRequired bool, err error)
+
 	// Is this a trivial implementation of the interface?
 	IsTrivial() bool
 }
@@ -61,8 +53,7 @@ type BootKernel interface {
 
 type trivial struct{}
 
-func (trivial) SetNextBoot() error                       { return nil }
-func (trivial) ChangeRequiresReboot() bool               { return false }
+func (trivial) SetNextBoot() (bool, error)               { return false, nil }
 func (trivial) IsTrivial() bool                          { return true }
 func (trivial) RemoveKernelAssets() error                { return nil }
 func (trivial) ExtractKernelAssets(snap.Container) error { return nil }
@@ -73,12 +64,17 @@ var _ BootParticipant = trivial{}
 // ensure trivial is a Kernel
 var _ BootKernel = trivial{}
 
-// Model carries information about the model that is relevant to boot.
-// Note *asserts.Model implements this, and that's the expected use case.
-type Model interface {
+// Device carries information about the device model and mode that is
+// relevant to boot. Note snapstate.DeviceContext implements this, and that's
+// the expected use case.
+type Device interface {
+	RunMode() bool
+	Classic() bool
+
 	Kernel() string
 	Base() string
-	Classic() bool
+
+	HasModeenv() bool
 }
 
 // Participant figures out what the BootParticipant is for the given
@@ -88,9 +84,14 @@ type Model interface {
 //
 // Currently, on classic, nothing is a boot participant (returned will
 // always be NOP).
-func Participant(s snap.PlaceInfo, t snap.Type, model Model, onClassic bool) BootParticipant {
-	if applicable(s, t, model, onClassic) {
-		return &coreBootParticipant{s: s, t: t}
+func Participant(s snap.PlaceInfo, t snap.Type, dev Device) BootParticipant {
+	if applicable(s, t, dev) {
+		bs, err := bootStateFor(t, dev)
+		if err != nil {
+			// all internal errors at this point
+			panic(err)
+		}
+		return &coreBootParticipant{s: s, bs: bs}
 	}
 	return trivial{}
 }
@@ -98,139 +99,170 @@ func Participant(s snap.PlaceInfo, t snap.Type, model Model, onClassic bool) Boo
 // Kernel checks that the given arguments refer to a kernel snap
 // that participates in the boot process, and returns the associated
 // BootKernel, or a trivial implementation otherwise.
-func Kernel(s snap.PlaceInfo, t snap.Type, model Model, onClassic bool) BootKernel {
-	if t == snap.TypeKernel && applicable(s, t, model, onClassic) {
+func Kernel(s snap.PlaceInfo, t snap.Type, dev Device) BootKernel {
+	if t == snap.TypeKernel && applicable(s, t, dev) {
 		return &coreKernel{s: s}
 	}
 	return trivial{}
 }
 
-func applicable(s snap.PlaceInfo, t snap.Type, model Model, onClassic bool) bool {
-	if onClassic {
+func applicable(s snap.PlaceInfo, t snap.Type, dev Device) bool {
+	if dev.Classic() {
 		return false
 	}
+	// In ephemeral modes we never need to care about updating the boot
+	// config. This will be done via boot.MakeBootable().
+	if !dev.RunMode() {
+		return false
+	}
+
 	if t != snap.TypeOS && t != snap.TypeKernel && t != snap.TypeBase {
 		// note we don't currently have anything useful to do with gadgets
 		return false
 	}
 
-	if model != nil {
-		switch t {
-		case snap.TypeKernel:
-			if s.InstanceName() != model.Kernel() {
-				// a remodel might leave you in this state
-				return false
-			}
-		case snap.TypeBase, snap.TypeOS:
-			base := model.Base()
-			if base == "" {
-				base = "core"
-			}
-			if s.InstanceName() != base {
-				return false
-			}
+	switch t {
+	case snap.TypeKernel:
+		if s.InstanceName() != dev.Kernel() {
+			// a remodel might leave you in this state
+			return false
+		}
+	case snap.TypeBase, snap.TypeOS:
+		base := dev.Base()
+		if base == "" {
+			base = "core"
+		}
+		if s.InstanceName() != base {
+			return false
 		}
 	}
 
 	return true
 }
 
-// InUse checks if the given name/revision is used in the
-// boot environment
-func InUse(name string, rev snap.Revision) bool {
-	bootloader, err := bootloader.Find("", nil)
+// bootState exposes the boot state for a type of boot snap.
+type bootState interface {
+	// revisions retrieves the revisions of the current snap and
+	// the try snap (only the latter might not be set), and
+	// whether the snap is in "trying" state.
+	revisions() (snap, trySnap snap.PlaceInfo, trying bool, err error)
+
+	// setNext lazily implements setting the next boot target for
+	// the type's boot snap. actually committing the update
+	// is done via the returned bootStateUpdate's commit.
+	setNext(s snap.PlaceInfo) (rebootRequired bool, u bootStateUpdate, err error)
+
+	// markSuccessful lazily implements marking the boot
+	// successful for the type's boot snap. The actual committing
+	// of the update is done via bootStateUpdate's commit, that
+	// way different markSuccessful can be folded together.
+	markSuccessful(bootStateUpdate) (bootStateUpdate, error)
+}
+
+// bootStateFor finds the right bootState implementation of the given
+// snap type and Device, if applicable.
+func bootStateFor(typ snap.Type, dev Device) (s bootState, err error) {
+	if !dev.RunMode() {
+		return nil, fmt.Errorf("internal error: no boot state handling for ephemeral modes")
+	}
+	switch typ {
+	case snap.TypeOS, snap.TypeBase:
+		return newBootState16(snap.TypeBase), nil
+	case snap.TypeKernel:
+		return newBootState16(snap.TypeKernel), nil
+	default:
+		return nil, fmt.Errorf("internal error: no boot state handling for snap type %q", typ)
+	}
+}
+
+// InUseFunc is a function to check if the snap is in use or not.
+type InUseFunc func(name string, rev snap.Revision) bool
+
+func fixedInUse(inUse bool) InUseFunc {
+	return func(string, snap.Revision) bool {
+		return inUse
+	}
+}
+
+// InUse returns a checker for whether a given name/revision is used in the
+// boot environment for snaps of the relevant snap type.
+func InUse(typ snap.Type, dev Device) (InUseFunc, error) {
+	if dev.Classic() {
+		// no boot state on classic
+		return fixedInUse(false), nil
+	}
+	if !dev.RunMode() {
+		// ephemeral mode, block manipulations for now
+		return fixedInUse(true), nil
+	}
+	switch typ {
+	case snap.TypeKernel, snap.TypeBase, snap.TypeOS:
+		break
+	default:
+		return fixedInUse(false), nil
+	}
+	cands := make([]snap.PlaceInfo, 0, 2)
+	s, err := bootStateFor(typ, dev)
 	if err != nil {
-		logger.Noticef("cannot get boot settings: %s", err)
-		return false
+		return nil, err
+	}
+	cand, tryCand, _, err := s.revisions()
+	if err != nil {
+		return nil, err
+	}
+	cands = append(cands, cand)
+	if tryCand != nil {
+		cands = append(cands, tryCand)
 	}
 
-	bootVars, err := bootloader.GetBootVars("snap_kernel", "snap_try_kernel", "snap_core", "snap_try_core")
-	if err != nil {
-		logger.Noticef("cannot get boot vars: %s", err)
-		return false
-	}
-
-	snapFile := filepath.Base(snap.MountFile(name, rev))
-	for _, bootVar := range bootVars {
-		if bootVar == snapFile {
-			return true
+	return func(name string, rev snap.Revision) bool {
+		for _, cand := range cands {
+			if cand.SnapName() == name && cand.SnapRevision() == rev {
+				return true
+			}
 		}
-	}
-
-	return false
+		return false
+	}, nil
 }
 
 var (
+	// ErrBootNameAndRevisionNotReady is returned when the boot revision is not
+	// established yet.
 	ErrBootNameAndRevisionNotReady = errors.New("boot revision not yet established")
 )
-
-type NameAndRevision struct {
-	Name     string
-	Revision snap.Revision
-}
 
 // GetCurrentBoot returns the currently set name and revision for boot for the given
 // type of snap, which can be snap.TypeBase (or snap.TypeOS), or snap.TypeKernel.
 // Returns ErrBootNameAndRevisionNotReady if the values are temporarily not established.
-func GetCurrentBoot(t snap.Type) (*NameAndRevision, error) {
-	var bootVar, errName string
-	switch t {
-	case snap.TypeKernel:
-		bootVar = "snap_kernel"
-		errName = "kernel"
-	case snap.TypeOS, snap.TypeBase:
-		bootVar = "snap_core"
-		errName = "base"
-	default:
-		return nil, fmt.Errorf("internal error: cannot find boot revision for snap type %q", t)
-	}
-
-	bloader, err := bootloader.Find("", nil)
-	if err != nil {
-		return nil, fmt.Errorf("cannot get boot settings: %s", err)
-	}
-
-	m, err := bloader.GetBootVars(bootVar, "snap_mode")
-	if err != nil {
-		return nil, fmt.Errorf("cannot get boot variables: %s", err)
-	}
-
-	if m["snap_mode"] == "trying" {
-		return nil, ErrBootNameAndRevisionNotReady
-	}
-
-	nameAndRevno, err := nameAndRevnoFromSnap(m[bootVar])
-	if err != nil {
-		return nil, fmt.Errorf("cannot get name and revision of boot %s: %v", errName, err)
-	}
-
-	return nameAndRevno, nil
-}
-
-// nameAndRevnoFromSnap grabs the snap name and revision from the
-// value of a boot variable. E.g., foo_2.snap -> name "foo", revno 2
-func nameAndRevnoFromSnap(sn string) (*NameAndRevision, error) {
-	if sn == "" {
-		return nil, fmt.Errorf("boot variable unset")
-	}
-	idx := strings.IndexByte(sn, '_')
-	if idx < 1 {
-		return nil, fmt.Errorf("input %q has invalid format (not enough '_')", sn)
-	}
-	name := sn[:idx]
-	revnoNSuffix := sn[idx+1:]
-	rev, err := snap.ParseRevision(strings.TrimSuffix(revnoNSuffix, ".snap"))
+func GetCurrentBoot(t snap.Type, dev Device) (snap.PlaceInfo, error) {
+	s, err := bootStateFor(t, dev)
 	if err != nil {
 		return nil, err
 	}
-	return &NameAndRevision{Name: name, Revision: rev}, nil
+
+	snap, _, trying, err := s.revisions()
+	if err != nil {
+		return nil, err
+	}
+
+	if trying {
+		return nil, ErrBootNameAndRevisionNotReady
+	}
+
+	return snap, nil
+}
+
+// bootStateUpdate carries the state for an on-going boot state update.
+// At the end it can be used to commit it.
+type bootStateUpdate interface {
+	commit() error
 }
 
 // MarkBootSuccessful marks the current boot as successful. This means
 // that snappy will consider this combination of kernel/os a valid
 // target for rollback.
 //
-// The states that a boot goes through are the following:
+// The states that a boot goes through for UC16/18 are the following:
 // - By default snap_mode is "" in which case the bootloader loads
 //   two squashfs'es denoted by variables snap_core and snap_kernel.
 // - On a refresh of core/kernel snapd will set snap_mode=try and
@@ -246,119 +278,25 @@ func nameAndRevnoFromSnap(sn string) (*NameAndRevision, error) {
 //   means snapd did not start successfully. In this case the bootloader
 //   will set snap_mode="" and the system will boot with the known good
 //   values from snap_{core,kernel}
-func MarkBootSuccessful() error {
-	bl, err := bootloader.Find("", nil)
-	if err != nil {
-		return fmt.Errorf("cannot mark boot successful: %s", err)
-	}
-	m, err := bl.GetBootVars("snap_mode", "snap_try_core", "snap_try_kernel")
-	if err != nil {
-		return err
-	}
+func MarkBootSuccessful(dev Device) error {
+	const errPrefix = "cannot mark boot successful: %s"
 
-	// snap_mode goes from "" -> "try" -> "trying" -> ""
-	// so if we are not in "trying" mode, nothing to do here
-	if m["snap_mode"] != "trying" {
-		return nil
-	}
-
-	// update the boot vars
-	for _, k := range []string{"kernel", "core"} {
-		tryBootVar := fmt.Sprintf("snap_try_%s", k)
-		bootVar := fmt.Sprintf("snap_%s", k)
-		// update the boot vars
-		if m[tryBootVar] != "" {
-			m[bootVar] = m[tryBootVar]
-			m[tryBootVar] = ""
-		}
-	}
-	m["snap_mode"] = ""
-
-	return bl.SetBootVars(m)
-}
-
-// BootableSet represents the boot snaps of a system to be made bootable.
-type BootableSet struct {
-	Base       *snap.Info
-	BasePath   string
-	Kernel     *snap.Info
-	KernelPath string
-
-	UnpackedGadgetDir string
-}
-
-// MakeBootable sets up the image filesystem with the given rootdir
-// such that it can be booted. This entails:
-//  - installing the bootloader configuration from the gadget
-//  - creating symlinks for boot snaps from seed to the runtime blob dir
-//  - setting boot env vars pointing to the revisions of the boot snaps to use
-//  - extracting kernel assets as needed by the bootloader
-func MakeBootable(model *asserts.Model, rootdir string, bootWith *BootableSet) error {
-	opts := &bootloader.Options{PrepareImageTime: true}
-
-	// install the bootloader configuration from the gadget
-	if err := bootloader.InstallBootConfig(bootWith.UnpackedGadgetDir, rootdir, opts); err != nil {
-		return err
-	}
-
-	// setup symlinks for kernel and boot base from the blob directory
-	// to the seed snaps
-
-	snapBlobDir := dirs.SnapBlobDirUnder(rootdir)
-	if err := os.MkdirAll(snapBlobDir, 0755); err != nil {
-		return err
-	}
-
-	for _, fn := range []string{bootWith.BasePath, bootWith.KernelPath} {
-		dst := filepath.Join(snapBlobDir, filepath.Base(fn))
-		// construct a relative symlink from the blob dir
-		// to the seed snap file
-		relSymlink, err := filepath.Rel(snapBlobDir, fn)
+	var u bootStateUpdate
+	for _, t := range []snap.Type{snap.TypeBase, snap.TypeKernel} {
+		s, err := bootStateFor(t, dev)
 		if err != nil {
-			return fmt.Errorf("cannot build symlink for boot snap: %v", err)
-		}
-		if err := os.Symlink(relSymlink, dst); err != nil {
 			return err
 		}
+		u, err = s.markSuccessful(u)
+		if err != nil {
+			return fmt.Errorf(errPrefix, err)
+		}
 	}
 
-	// Set bootvars for kernel/core snaps so the system boots and
-	// does the first-time initialization. There is also no
-	// mounted kernel/core/base snap, but just the blobs.
-	bl, err := bootloader.Find(rootdir, opts)
-	if err != nil {
-		return fmt.Errorf("cannot set kernel/core boot variables: %s", err)
+	if u != nil {
+		if err := u.commit(); err != nil {
+			return fmt.Errorf(errPrefix, err)
+		}
 	}
-
-	m := map[string]string{
-		"snap_mode":       "",
-		"snap_try_core":   "",
-		"snap_try_kernel": "",
-	}
-	if model.DisplayName() != "" {
-		m["snap_menuentry"] = model.DisplayName()
-	}
-
-	setBoot := func(name, fn string) {
-		m[name] = filepath.Base(fn)
-	}
-	// base
-	setBoot("snap_core", bootWith.BasePath)
-
-	// kernel
-	kernelf, err := snap.Open(bootWith.KernelPath)
-	if err != nil {
-		return err
-	}
-	if err := bl.ExtractKernelAssets(bootWith.Kernel, kernelf); err != nil {
-		return err
-	}
-	setBoot("snap_kernel", bootWith.KernelPath)
-
-	if err := bl.SetBootVars(m); err != nil {
-		return err
-	}
-
 	return nil
-
 }

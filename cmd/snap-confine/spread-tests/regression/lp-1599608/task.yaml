@@ -50,7 +50,7 @@ execute: |
 restore: |
     exit 0
     echo "Remove hello-world"
-    snap remove hello-world
+    snap remove --purge hello-world
     systemctl stop snapd.service snapd.socket
     echo "Unmount the modified core snap"
     # all of this ls madness can go away when we have remote environment

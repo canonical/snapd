@@ -71,9 +71,8 @@ func (l *lk) dir() string {
 	// at runtime environment is written directly into dedicated partition
 	if l.inRuntimeMode {
 		return filepath.Join(l.rootdir, "/dev/disk/by-partlabel/")
-	} else {
-		return filepath.Join(l.rootdir, "/boot/lk/")
 	}
+	return filepath.Join(l.rootdir, "/boot/lk/")
 }
 
 func (l *lk) InstallBootConfig(gadgetDir string, opts *Options) (bool, error) {
@@ -91,9 +90,8 @@ func (l *lk) envFile() string {
 	if l.inRuntimeMode {
 		// TO-DO: this should be eventually fetched from gadget.yaml
 		return filepath.Join(l.dir(), "snapbootsel")
-	} else {
-		return filepath.Join(l.dir(), "snapbootsel.bin")
 	}
+	return filepath.Join(l.dir(), "snapbootsel.bin")
 }
 
 func (l *lk) GetBootVars(names ...string) (map[string]string, error) {

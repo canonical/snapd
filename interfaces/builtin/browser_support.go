@@ -167,6 +167,14 @@ owner @{PROC}/@{pid}/fd/[0-9]* w,
 /sys/devices/**/vendor r,
 /sys/devices/system/node/node[0-9]*/meminfo r,
 
+# Allow getting the manufacturer and model of the
+# computer where Chrome/chromium is currently running.
+# This is going to be used by the upcoming Hardware Platform
+# extension API.
+# https://chromium.googlesource.com/chromium/src.git/+/84618eee98fdf7548905e883e63e4f693800fcfa
+/sys/devices/virtual/dmi/id/product_name r,
+/sys/devices/virtual/dmi/id/sys_vendor r,
+
 # Chromium content api tries to read these. It is an information disclosure
 # since these contain the names of snaps. Chromium operates fine without the
 # access so just block it.

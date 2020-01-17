@@ -18,7 +18,7 @@ execute: |
     snap aliases|MATCH "test-snapd-auto-aliases.wellknown2 +test_snapd_wellknown2 +-"
 
     echo "Removing the snap should remove the aliases"
-    snap remove test-snapd-auto-aliases
+    snap remove --purge test-snapd-auto-aliases
     test ! -e "$SNAP_MOUNT_DIR/bin/test_snapd_wellknown1"
     test ! -e "$SNAP_MOUNT_DIR/bin/test_snapd_wellknown2"
     snap aliases | not MATCH "test-snapd-auto-aliases.wellknown1 +test_snapd_wellknown1"

@@ -49,7 +49,7 @@ execute: |
     wait_for_service snap.go-example-webserver.webserver.service
 
     echo "Install a test snap"
-    snap install test-snapd-tools
+    snap install test-snapd-sh
     
     echo "upgrade to current snapd"
     apt install -y "$GOHOME"/snapd*.deb
@@ -77,4 +77,4 @@ execute: |
     test ! -f /etc/apparmor.d/usr.lib.snapd.snap-confine
 
     echo "Smoke test, this should fail if profiles were wrong"
-    test-snapd-tools.echo hello | MATCH hello
+    test-snapd-sh.sh -c 'echo hello' | MATCH hello
