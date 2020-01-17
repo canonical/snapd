@@ -19,7 +19,7 @@ NOSNAP="${APPNAME#snap_}"
 [ "$NOSNAP" != "$APPNAME" ] || { echo "malformed appname $APPNAME" >&2; exit 1; }
 
 # FIXME: this will break for instances that are called "hook" :(
-# Handle hooks first, the the nosnap part looks like this:
+# Handle hooks first, the nosnap part looks like this:
 # - "$snap_hook_$hookname"
 # - "$snap_$instance_hook_$hookname
 # we need to make sure we change this to:
