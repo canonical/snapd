@@ -1947,3 +1947,22 @@ volumes:
 	err = gadget.IsCompatible(gi, giNew)
 	c.Check(err, IsNil)
 }
+
+type gadgetSizeTestSuite struct{}
+
+var _ = Suite(&gadgetSizeTestSuite{})
+
+func (s *gadgetSizeTestSuite) TestIECString(c *C) {
+	for _, tc := range []struct {
+		size gadget.Size
+		exp  string
+	}{
+		{123 * gadget.SizeKiB, "123KiB"},
+		{512 * gadget.SizeKiB, "512KiB"},
+		{578 * gadget.SizeMiB, "578MiB"},
+		{1*gadget.SizeGiB + 123*gadget.SizeMiB, "1.12GiB"},
+		{1024 * gadget.SizeGiB, "1TiB"},
+	} {
+		c.Check(tc.size.IECString(), Equals, tc.exp)
+	}
+}

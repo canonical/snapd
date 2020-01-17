@@ -23,6 +23,7 @@ import (
 	"errors"
 	"fmt"
 	"io/ioutil"
+	"math"
 	"os"
 	"path/filepath"
 	"regexp"
@@ -864,6 +865,26 @@ func (s *Size) String() string {
 		return "unspecified"
 	}
 	return fmt.Sprintf("%d", *s)
+}
+
+// IECString formats the size using multiples from IEC units (i.e. kibibytes,
+// mebibytes), that is as multiples of 1024. Printed values are truncated to 2
+// decimal points.
+func (s *Size) IECString() string {
+	var maxFloat float64 = 999.5
+	var r float64 = float64(*s)
+	var prefix rune
+	for _, prefix = range "KMGTPEZY" {
+		r /= 1024
+		if r < maxFloat {
+			break
+		}
+	}
+	precision := 0
+	if math.Floor(r) != r {
+		precision = 2
+	}
+	return fmt.Sprintf("%.*f%ciB", precision, r, prefix)
 }
 
 // RelativeOffset describes an offset where structure data is written at.
