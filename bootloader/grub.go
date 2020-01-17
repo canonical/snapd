@@ -214,9 +214,7 @@ func (g *grub) unlinkKernelEfiSymlink(name string) error {
 		// symlink exists, remove it unconditionally
 		return os.Remove(symlink)
 	}
-
-	// return more helpful error if the symlink doesn't exist
-	return fmt.Errorf("cannot disable kernel, symlink %s missing", symlink)
+	return nil
 }
 
 func (g *grub) readKernelSymlink(name string) (snap.PlaceInfo, error) {
@@ -232,16 +230,15 @@ func (g *grub) readKernelSymlink(name string) (snap.PlaceInfo, error) {
 
 	targetKernelEfi, err := os.Readlink(link)
 	if err != nil {
-		return nil, fmt.Errorf("couldn't read %s symlink: %v", link, err)
+		return nil, fmt.Errorf("cannot read %s symlink: %v", link, err)
 	}
 
 	kernelSnapFileName := filepath.Base(filepath.Dir(targetKernelEfi))
 	sn, err := snap.ParsePlaceInfoFromSnapFileName(kernelSnapFileName)
 	if err != nil {
 		return nil, fmt.Errorf(
-			"bad kernel snap file path at %q (from symlink %q), unable to parse into snap file name: %v",
+			"cannot parse kernel snap file name from symlink target %q: %v",
 			kernelSnapFileName,
-			link,
 			err,
 		)
 	}
@@ -250,9 +247,9 @@ func (g *grub) readKernelSymlink(name string) (snap.PlaceInfo, error) {
 
 // actual ExtractedRunKernelImageBootloader methods
 
-// EnableKernel will install a kernel.efi symlink on the bootloader pointing
-// to the referenced kernel snap. EnableKernel() will fail if the referenced
-// kernel snap does not exist.
+// EnableKernel will install a kernel.efi symlink in the bootloader partition,
+// pointing to the referenced kernel snap. EnableKernel() will fail if the
+// referenced kernel snap does not exist.
 func (g *grub) EnableKernel(s snap.PlaceInfo) error {
 	// add symlink from ubuntuBootPartition/kernel.efi to
 	// <ubuntu-boot>/EFI/ubuntu/<snap-name>.snap/kernel.efi
@@ -261,9 +258,9 @@ func (g *grub) EnableKernel(s snap.PlaceInfo) error {
 	return g.makeKernelEfiSymlink(s, "kernel.efi")
 }
 
-// EnableTryKernel will install a try-kernel.efi symlink on the bootloader
-// pointing towards the referenced kernel snap. EnableTryKernel() will fail if
-// the referenced kernel snap does not exist.
+// EnableTryKernel will install a try-kernel.efi symlink in the bootloader
+// partition, pointing towards the referenced kernel snap. EnableTryKernel()
+// will fail if the referenced kernel snap does not exist.
 func (g *grub) EnableTryKernel(s snap.PlaceInfo) error {
 	// add symlink from ubuntuBootPartition/kernel.efi to
 	// <ubuntu-boot>/EFI/ubuntu/<snap-name>.snap/kernel.efi
@@ -279,8 +276,8 @@ func (g *grub) DisableTryKernel() error {
 	return g.unlinkKernelEfiSymlink("try-kernel.efi")
 }
 
-// Kernel will return the kernel snap currently installed on the bootloader at
-// the kernel.efi symlink.
+// Kernel will return the kernel snap currently installed in the bootloader
+// partition, pointed to by the kernel.efi symlink.
 func (g *grub) Kernel() (snap.PlaceInfo, error) {
 	return g.readKernelSymlink("kernel.efi")
 }

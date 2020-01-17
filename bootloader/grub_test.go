@@ -367,7 +367,7 @@ func (s *grubTestSuite) TestGrubExtractedRunKernelImageTryKernel(c *C) {
 	c.Assert(err, IsNil)
 
 	_, exists, err = eg.TryKernel()
-	c.Assert(err, ErrorMatches, "bad kernel snap file path at \"bad_snap_rev_name\".*")
+	c.Assert(err, ErrorMatches, "cannot parse kernel snap file name from symlink target \"bad_snap_rev_name\": .*")
 	c.Assert(exists, Equals, false)
 
 	// remove the bad symlink
@@ -442,10 +442,10 @@ func (s *grubTestSuite) TestGrubExtractedRunKernelImageDisableTryKernel(c *C) {
 	eg, ok := g.(bootloader.ExtractedRunKernelImageBootloader)
 	c.Assert(ok, Equals, true)
 
-	// trying to disable when the try-kernel.efi symlink is missing produces an
-	// error
+	// trying to disable when the try-kernel.efi symlink is missing does not
+	// raise any errors
 	err := eg.DisableTryKernel()
-	c.Assert(err, ErrorMatches, "cannot disable kernel, symlink .* missing")
+	c.Assert(err, IsNil)
 
 	// make the symlink and check that the symlink is missing afterwards
 	s.makeKernelAssetSnapAndSymlink(c, "pc-kernel_1.snap", "try-kernel.efi")
