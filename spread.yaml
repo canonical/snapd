@@ -427,6 +427,8 @@ exclude:
     - "*.o"
     - "*.a"
     - ./vendor
+    - "*.snap"
+    - "*.img"
 
 debug-each: |
     if [ "$SPREAD_DEBUG_EACH" = 1 ]; then
