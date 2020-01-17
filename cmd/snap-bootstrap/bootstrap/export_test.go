@@ -22,5 +22,3 @@ var (
 	EnsureLayoutCompatibility = ensureLayoutCompatibility
 	DeviceFromRole            = deviceFromRole
 )
-
-type BytesIEC = bytesIEC

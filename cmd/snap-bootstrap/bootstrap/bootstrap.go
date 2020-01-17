@@ -20,7 +20,6 @@ package bootstrap
 
 import (
 	"fmt"
-	"math"
 
 	"github.com/snapcore/snapd/cmd/snap-bootstrap/partition"
 	"github.com/snapcore/snapd/dirs"
@@ -143,28 +142,6 @@ func Run(gadgetRoot, device string, options Options) error {
 	return nil
 }
 
-// bytesIEC is a heleper type that implements the Stringer() interface and
-// formats the size using multiples from IEC units (i.e. kibibytes, mibibytes).
-// Printed values are truncated to 2 decimal points.
-type bytesIEC gadget.Size
-
-func (b bytesIEC) String() string {
-	var maxFloat float64 = 999.5
-	var r float64 = float64(b)
-	var prefix rune
-	for _, prefix = range "KMGTPEZY" {
-		r /= 1024
-		if r < maxFloat {
-			break
-		}
-	}
-	precision := 0
-	if math.Floor(r) != r {
-		precision = 2
-	}
-	return fmt.Sprintf("%.*f%ciB", precision, r, prefix)
-}
-
 func ensureLayoutCompatibility(gadgetLayout *gadget.LaidOutVolume, diskLayout *partition.DeviceLayout) error {
 	eq := func(ds partition.DeviceStructure, gs gadget.LaidOutStructure) bool {
 		dv := ds.VolumeStructure
@@ -182,7 +159,7 @@ func ensureLayoutCompatibility(gadgetLayout *gadget.LaidOutVolume, diskLayout *p
 
 	if gadgetLayout.Size > diskLayout.Size {
 		return fmt.Errorf("device %v (%s) is too small to fit the requested layout (%s)", diskLayout.Device,
-			bytesIEC(diskLayout.Size), bytesIEC(gadgetLayout.Size))
+			diskLayout.Size.IECString(), gadgetLayout.Size.IECString())
 	}
 
 	// Check if top level properties match
