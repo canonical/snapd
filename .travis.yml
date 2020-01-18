@@ -1,4 +1,5 @@
 language: go
+go_import_path: github.com/snapcore/snapd
 git:
   quiet: true
 matrix:
@@ -61,7 +62,7 @@ matrix:
       script:
         - ./run-checks --spread-ubuntu-lts
     - stage: integration
-      name: Ubuntu 18.10, 19.04
+      name: Ubuntu 18.10, 19.04, 19.10
       dist: xenial
       addons:
         apt:
@@ -73,7 +74,7 @@ matrix:
       script:
         - ./run-checks --spread-ubuntu-next
     - stage: integration
-      name: Ubuntu Core 16, Core 18
+      name: Ubuntu Core 16, Core 18, Core 20
       dist: xenial
       addons:
         apt:

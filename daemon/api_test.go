@@ -150,7 +150,7 @@ func (s *apiBaseSuite) Find(ctx context.Context, search *store.Search, user *aut
 	return s.rsnaps, s.err
 }
 
-func (s *apiBaseSuite) SnapAction(ctx context.Context, currentSnaps []*store.CurrentSnap, actions []*store.SnapAction, user *auth.UserState, opts *store.RefreshOptions) ([]*snap.Info, error) {
+func (s *apiBaseSuite) SnapAction(ctx context.Context, currentSnaps []*store.CurrentSnap, actions []*store.SnapAction, user *auth.UserState, opts *store.RefreshOptions) ([]store.SnapActionResult, error) {
 	s.pokeStateLock()
 
 	if ctx == nil {
@@ -160,7 +160,11 @@ func (s *apiBaseSuite) SnapAction(ctx context.Context, currentSnaps []*store.Cur
 	s.actions = actions
 	s.user = user
 
-	return s.rsnaps, s.err
+	sars := make([]store.SnapActionResult, len(s.rsnaps))
+	for i, rsnap := range s.rsnaps {
+		sars[i] = store.SnapActionResult{Info: rsnap}
+	}
+	return sars, s.err
 }
 
 func (s *apiBaseSuite) SuggestedCurrency() string {
@@ -2460,8 +2464,8 @@ func (s *apiSuite) testPostSnap(c *check.C, withChannel bool) {
 
 	snapInstructionDispTable["install"] = func(inst *snapInstruction, _ *state.State) (string, []*state.TaskSet, error) {
 		if withChannel {
-			// channel in -> it was parsed
-			c.Check(inst.Channel, check.Equals, "xyzzy/stable")
+			// channel in -> channel out
+			c.Check(inst.Channel, check.Equals, "xyzzy")
 		} else {
 			// no channel in -> no channel out
 			c.Check(inst.Channel, check.Equals, "")

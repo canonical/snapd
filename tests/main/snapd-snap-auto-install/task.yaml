@@ -23,4 +23,4 @@ execute: |
     snap list | MATCH ^test-snapd-sh
 
 restore: |
-    snap remove test-snapd-sh-core18
+    snap remove --purge test-snapd-sh-core18

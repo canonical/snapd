@@ -22,8 +22,8 @@ restore: |
     rm -f "$PRODUCER_DATA/disconnect-slot-producer-done"
     rm -f "$CONSUMER_DATA/unprepare-plug-consumer-done"
     rm -f "$PRODUCER_DATA/unprepare-slot-producer-done"
-    snap remove basic-iface-hooks-consumer
-    snap remove basic-iface-hooks-producer
+    snap remove --purge basic-iface-hooks-consumer
+    snap remove --purge basic-iface-hooks-producer
 
 execute: |
     #shellcheck source=tests/lib/snaps.sh
@@ -96,7 +96,7 @@ execute: |
     # disconnect hooks should be executed on snap removal
     snap set basic-iface-hooks-consumer fail=none
     snap connect basic-iface-hooks-consumer:consumer basic-iface-hooks-producer:producer
-    snap remove basic-iface-hooks-consumer
+    snap remove --purge basic-iface-hooks-consumer
     [ -f "$PRODUCER_DATA/disconnect-slot-producer-done" ]
     snap change --last=remove | MATCH "Run hook disconnect-slot-producer of snap \"basic-iface-hooks-producer"
     snap change --last=remove | MATCH "Run hook disconnect-plug-consumer of snap \"basic-iface-hooks-consumer"

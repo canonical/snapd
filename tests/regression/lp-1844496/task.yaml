@@ -10,6 +10,6 @@ execute: |
     snap install --dangerous test-snapd-layout_1_all.snap
     test "$(test-snapd-layout.sh -c 'cat /usr/lib/x86_64-linux-gnu/wpe-webkit-1.0/canary')" = content
 restore: |
-    snap remove test-snapd-layout
+    snap remove --purge test-snapd-layout
     rm -f test-snapd-layout_1_all.snap
     snap unset core experimental.robust-mount-namespace-updates

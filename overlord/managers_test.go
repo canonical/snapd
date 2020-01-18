@@ -350,7 +350,7 @@ type mgrsSuite struct {
 	baseMgrsSuite
 }
 
-var settleTimeout = 15 * time.Second
+var settleTimeout = 45 * time.Second
 
 func makeTestSnapWithFiles(c *C, snapYamlContent string, files [][]string) string {
 	info, err := snap.InfoFromSnapYaml([]byte(snapYamlContent))
@@ -1659,6 +1659,7 @@ func (s *mgrsSuite) TestInstallCoreSnapUpdatesBootloaderEnvAndSplitsAcrossRestar
 	bloader := bootloadertest.Mock("mock", c.MkDir())
 	bootloader.Force(bloader)
 	defer bootloader.Force(nil)
+	bloader.SetBootBase("core_99.snap")
 
 	restore := release.MockOnClassic(false)
 	defer restore()
@@ -1707,6 +1708,7 @@ type: os
 
 	// this is already set
 	c.Assert(bloader.BootVars, DeepEquals, map[string]string{
+		"snap_core":     "core_99.snap",
 		"snap_try_core": "core_x1.snap",
 		"snap_mode":     "try",
 	})
@@ -4367,8 +4369,7 @@ func (ms *kernelSuite) TestRemodelSwitchToDifferentKernel(c *C) {
 	c.Assert(err, IsNil)
 
 	st.Unlock()
-	// regular settleTimeout is not enough on arm builds :/
-	err = ms.o.Settle(4 * settleTimeout)
+	err = ms.o.Settle(settleTimeout)
 	st.Lock()
 	c.Assert(err, IsNil)
 	c.Assert(chg.Err(), IsNil)
@@ -4399,8 +4400,7 @@ func (ms *kernelSuite) TestRemodelSwitchToDifferentKernel(c *C) {
 
 	// continue
 	st.Unlock()
-	// regular settleTimeout is not enough on arm builds :/
-	err = ms.o.Settle(4 * settleTimeout)
+	err = ms.o.Settle(settleTimeout)
 	st.Lock()
 	c.Assert(err, IsNil)
 
@@ -4460,8 +4460,7 @@ func (ms *kernelSuite) TestRemodelSwitchToDifferentKernelUndo(c *C) {
 	c.Assert(err, IsNil)
 
 	st.Unlock()
-	// regular settleTimeout is not enough on arm builds :/
-	err = ms.o.Settle(4 * settleTimeout)
+	err = ms.o.Settle(settleTimeout)
 	st.Lock()
 	c.Assert(err, IsNil)
 	c.Assert(chg.Err(), IsNil)
@@ -4476,8 +4475,7 @@ func (ms *kernelSuite) TestRemodelSwitchToDifferentKernelUndo(c *C) {
 
 	// continue
 	st.Unlock()
-	// regular settleTimeout is not enough on arm builds :/
-	err = ms.o.Settle(4 * settleTimeout)
+	err = ms.o.Settle(settleTimeout)
 	st.Lock()
 	c.Assert(err, IsNil)
 
@@ -4518,8 +4516,7 @@ func (ms *kernelSuite) TestRemodelSwitchToDifferentKernelUndoOnRollback(c *C) {
 	c.Assert(err, IsNil)
 
 	st.Unlock()
-	// regular settleTimeout is not enough on arm builds :/
-	err = ms.o.Settle(4 * settleTimeout)
+	err = ms.o.Settle(settleTimeout)
 	st.Lock()
 	c.Assert(err, IsNil)
 	c.Assert(chg.Err(), IsNil)
@@ -4534,8 +4531,7 @@ func (ms *kernelSuite) TestRemodelSwitchToDifferentKernelUndoOnRollback(c *C) {
 
 	// continue
 	st.Unlock()
-	// regular settleTimeout is not enough on arm builds :/
-	err = ms.o.Settle(4 * settleTimeout)
+	err = ms.o.Settle(settleTimeout)
 	st.Lock()
 	c.Assert(err, IsNil)
 

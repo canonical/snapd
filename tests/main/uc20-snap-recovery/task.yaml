@@ -65,10 +65,7 @@ execute: |
     ls ./mnt/EFI/ubuntu/grub.cfg
     umount ./mnt
 
-    # XXX: workaround for device consistency errors
-    udevadm info --query=property "${LOOP}p2" | grep ID_FS_TYPE ||:
-    blockdev --rereadpt "$LOOP"
-    udevadm settle
+    # debug message to see if the udev database is correctly updated
     udevadm info --query=property "${LOOP}p2" | grep ID_FS_TYPE ||:
 
     echo "now add a partition"
@@ -100,12 +97,14 @@ execute: |
     mount | MATCH /run/mnt/other-ext4
     df -T "${LOOP}p3" | MATCH ext4
     file -s "${LOOP}p3" | MATCH 'volume name "other-ext4"'
-
+    umount /run/mnt/other-ext4
 
     mount | MATCH /run/mnt/ubuntu-boot
     df -T "${LOOP}p4" | MATCH ext4
     file -s "${LOOP}p4" | MATCH 'volume name "ubuntu-boot"'
+    umount /run/mnt/ubuntu-boot
 
     mount | MATCH /run/mnt/ubuntu-data
     df -T "${LOOP}p5" | MATCH ext4
     file -s "${LOOP}p5" | MATCH 'volume name "ubuntu-data"'
+    umount /run/mnt/ubuntu-data

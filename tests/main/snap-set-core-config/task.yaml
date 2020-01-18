@@ -1,10 +1,15 @@
 summary: Ensure "snap set core" works
 
 # the test is only meaningful on core devices
-systems: [ubuntu-core-*]
+# TODO:UC20: enable for UC20
+systems: [ubuntu-core-1*]
 
 prepare: |
-    if systemctl -l | MATCH -v rsyslog.service; then
+    rc=0
+    systemctl status rsyslog.service || rc=$?
+    if [ $rc = 4 ]; then
+        # systemctl(1) exit code 4: no such unit
+
         #shellcheck source=tests/lib/systemd.sh
         . "$TESTSLIB"/systemd.sh
 

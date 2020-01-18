@@ -31,7 +31,9 @@ import (
 	"github.com/snapcore/snapd/testutil"
 )
 
-const mockSfdiskScriptBiosAndRecovery = `echo '{
+const mockSfdiskScriptBiosAndRecovery = `
+>&2 echo "Some warning from sfdisk"
+echo '{
    "partitiontable": {
       "label": "gpt",
       "id": "9151F25B-CDF0-48F1-9EDE-68CBD616E2CA",

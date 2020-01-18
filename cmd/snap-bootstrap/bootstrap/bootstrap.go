@@ -1,7 +1,7 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
 
 /*
- * Copyright (C) 2019 Canonical Ltd
+ * Copyright (C) 2019-2020 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -26,10 +26,17 @@ import (
 	"github.com/snapcore/snapd/gadget"
 )
 
+const (
+	ubuntuDataLabel = "ubuntu-data"
+)
+
 type Options struct {
 	// Also mount the filesystems after creation
 	Mount bool
-	// will contain encryption later
+	// Encrypt the data partition
+	Encrypt bool
+	// KeyFile is the location where the encryption key is written to
+	KeyFile string
 }
 
 func deviceFromRole(lv *gadget.LaidOutVolume, role string) (device string, err error) {
@@ -47,7 +54,11 @@ func deviceFromRole(lv *gadget.LaidOutVolume, role string) (device string, err e
 	return "", fmt.Errorf("cannot find role %s in gadget", role)
 }
 
-func Run(gadgetRoot, device string, options *Options) error {
+func Run(gadgetRoot, device string, options Options) error {
+	if options.Encrypt && options.KeyFile == "" {
+		return fmt.Errorf("key file must be specified when encrypting")
+	}
+
 	if gadgetRoot == "" {
 		return fmt.Errorf("cannot use empty gadget root directory")
 	}
@@ -73,6 +84,9 @@ func Run(gadgetRoot, device string, options *Options) error {
 		return fmt.Errorf("cannot read %v partitions: %v", device, err)
 	}
 
+	// TODO:UC20: if there are partitions on disk that were added during
+	//            a failed install attempt, remove them before proceeding.
+
 	// check if the current partition table is compatible with the gadget
 	if err := ensureLayoutCompatibility(lv, diskLayout); err != nil {
 		return fmt.Errorf("gadget and %v partition table not compatible: %v", device, err)
@@ -83,16 +97,44 @@ func Run(gadgetRoot, device string, options *Options) error {
 		return fmt.Errorf("cannot create the partitions: %v", err)
 	}
 
-	if err := partition.MakeFilesystems(created); err != nil {
-		return err
+	// generate key externally so multiple encrypted partitions can use the same key
+	var key partition.EncryptionKey
+	if options.Encrypt {
+		key, err = partition.NewEncryptionKey()
+		if err != nil {
+			return fmt.Errorf("cannot create encryption key: %v", err)
+		}
 	}
 
-	if err := partition.DeployContent(created, gadgetRoot); err != nil {
-		return err
+	for _, part := range created {
+		if options.Encrypt && part.Role == gadget.SystemData {
+			dataPart, err := partition.NewEncryptedDevice(&part, key, ubuntuDataLabel)
+			if err != nil {
+				return err
+			}
+			// update the encrypted device node
+			part.Node = dataPart.Node
+		}
+
+		if err := partition.MakeFilesystem(part); err != nil {
+			return err
+		}
+
+		if err := partition.DeployContent(part, gadgetRoot); err != nil {
+			return err
+		}
+
+		if options.Mount && part.Label != "" && part.HasFilesystem() {
+			if err := partition.MountFilesystem(part, dirs.RunMnt); err != nil {
+				return err
+			}
+		}
 	}
 
-	if options.Mount {
-		if err := partition.MountFilesystems(created, dirs.RunMnt); err != nil {
+	// store the encryption key as the last part of the process to reduce the
+	// possiblity of exiting with an error after the TPM provisioning
+	if options.Encrypt {
+		if err := key.Store(options.KeyFile); err != nil {
 			return err
 		}
 	}
@@ -126,7 +168,7 @@ func ensureLayoutCompatibility(gadgetLayout *gadget.LaidOutVolume, diskLayout *p
 	// Check if all existing device partitions are also in gadget
 	for _, ds := range diskLayout.Structure {
 		if !contains(gadgetLayout.LaidOutStructure, ds) {
-			return fmt.Errorf("cannot find disk partition %q (starting at %d) in gadget", ds.VolumeStructure.Label, ds.StartOffset)
+			return fmt.Errorf("cannot find disk partition %s (starting at %d) in gadget", ds.Node, ds.StartOffset)
 		}
 	}
 

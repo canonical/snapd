@@ -19,9 +19,9 @@ execute: |
     not snap install --dangerous test-snapd-epoch_2_all.snap 2>install.err
     tr -s "\n " "  "  < install.err  | MATCH "$rx"
 
-    snap remove test-snapd-epoch
+    snap remove --purge test-snapd-epoch
     snap install --dangerous test-snapd-epoch_2_all.snap
     not snap install --dangerous test-snapd-epoch_1_all.snap 2>install1.err
     tr -s "\n " "  "  < install1.err  | MATCH "$rx"
 
-    snap remove test-snapd-epoch
+    snap remove --purge test-snapd-epoch
