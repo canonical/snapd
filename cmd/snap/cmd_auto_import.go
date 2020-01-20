@@ -259,6 +259,26 @@ func (x *cmdAutoImport) autoAddUsers() error {
 	return cmd.Execute(nil)
 }
 
+var procCmdline = "/proc/cmdline"
+
+// inInstallmode returns true if it's UC20 system in install mode
+func inInstallMode() bool {
+	f, err := os.Open(procCmdline)
+	if err != nil {
+		return false
+	}
+	defer f.Close()
+
+	scanner := bufio.NewScanner(f)
+	scanner.Split(bufio.ScanWords)
+	for scanner.Scan() {
+		if scanner.Text() == "snapd_recovery_mode=install" {
+			return true
+		}
+	}
+	return false
+}
+
 func (x *cmdAutoImport) Execute(args []string) error {
 	if len(args) > 0 {
 		return ErrExtraArgs
@@ -266,6 +286,11 @@ func (x *cmdAutoImport) Execute(args []string) error {
 
 	if release.OnClassic && !x.ForceClassic {
 		fmt.Fprintf(Stderr, "auto-import is disabled on classic\n")
+		return nil
+	}
+	// TODO:UC20: workaround for LP: #1860231
+	if inInstallMode() {
+		fmt.Fprintf(Stderr, "auto-import is disabled in install-mode\n")
 		return nil
 	}
 
