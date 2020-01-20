@@ -79,12 +79,10 @@ static void test_sc_is_beneath(void)
 	// Essential difference from sc_startswith
 	g_assert_true(sc_is_beneath("/foo/bar", "/foo"));
 	g_assert_false(sc_is_beneath("/foo/bar", "/foo2"));
-	g_assert_true(sc_is_beneath("foo/bar", "foo"));
 	// True cases
 	g_assert_true(sc_is_beneath("/foo", "/foo"));
 	g_assert_true(sc_is_beneath("", ""));
 	g_assert_true(sc_is_beneath("/foo", "/"));
-	g_assert_true(sc_is_beneath("/foo", ""));
 	// False cases
 	g_assert_false(sc_is_beneath("/foo", "/bar"));
 	g_assert_false(sc_is_beneath("/foo", "/foo/bar"));
