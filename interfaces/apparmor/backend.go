@@ -672,10 +672,10 @@ func addContent(securityTag string, snapInfo *snap.Info, cmdName string, opts in
 			features, _ := parserFeatures()
 			for _, f := range features {
 				if f == "unsafe" {
-					return fmt.Sprintf("change_profile unsafe /**,")
+					return "change_profile unsafe /**,"
 				}
 			}
-			return fmt.Sprintf("change_profile,")
+			return "change_profile,"
 		case "###SNIPPETS###":
 			var tagSnippets string
 			if opts.Classic && opts.JailMode {
