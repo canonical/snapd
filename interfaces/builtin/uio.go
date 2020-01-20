@@ -100,7 +100,7 @@ func (iface *uioInterface) UDevConnectedPlug(spec *udev.Specification, plug *int
 	if err != nil {
 		return nil
 	}
-	spec.TagDevice(fmt.Sprintf(`KERNEL=="%s"`, strings.TrimPrefix(path, "/dev/")))
+	spec.TagDevice(fmt.Sprintf(`SUBSYSTEM=="uio", KERNEL=="%s"`, strings.TrimPrefix(path, "/dev/")))
 	return nil
 }
 

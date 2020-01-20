@@ -85,7 +85,7 @@ func (s *uioInterfaceSuite) TestUDevSpec(c *C) {
 	c.Assert(spec.AddConnectedPlug(s.iface, s.plug, s.slotGadget), IsNil)
 	c.Assert(spec.Snippets(), HasLen, 2)
 	c.Assert(spec.Snippets(), testutil.Contains, `# uio
-KERNEL=="uio0", TAG+="snap_consumer_app"`)
+SUBSYSTEM=="uio", KERNEL=="uio0", TAG+="snap_consumer_app"`)
 	c.Assert(spec.Snippets(), testutil.Contains, `TAG=="snap_consumer_app", RUN+="/usr/lib/snapd/snap-device-helper $env{ACTION} snap_consumer_app $devpath $major:$minor"`)
 }
 
