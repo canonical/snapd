@@ -146,6 +146,15 @@
 1:1 /system-data/var/log /var/lib/snapd/hostfs/var/log rw,relatime master:13 - ext4 /dev/sda3 rw,data=ordered
 1:1 /system-data/var/snap /var/lib/snapd/hostfs/var/snap rw,relatime master:13 - ext4 /dev/sda3 rw,data=ordered
 1:1 /system-data/var/tmp /var/lib/snapd/hostfs/var/tmp rw,relatime master:13 - ext4 /dev/sda3 rw,data=ordered
+1:1 / /var/lib/snapd/hostfs/writable rw,relatime master:13 - ext4 /dev/sda3 rw,data=ordered
+0:2 / /var/lib/snapd/hostfs/writable/system-data/snap/core/1 ro,nodev,relatime master:38 - squashfs /dev/loop2 ro
+0:0 / /var/lib/snapd/hostfs/writable/system-data/snap/core18/1 ro,nodev,relatime master:39 - squashfs /dev/loop0 ro
+0:1 / /var/lib/snapd/hostfs/writable/system-data/snap/pc-kernel/1 ro,nodev,relatime master:40 - squashfs /dev/loop1 ro
+0:3 / /var/lib/snapd/hostfs/writable/system-data/snap/pc/1 ro,nodev,relatime master:41 - squashfs /dev/loop3 ro
+0:4 / /var/lib/snapd/hostfs/writable/system-data/snap/snapd/1 ro,nodev,relatime master:42 - squashfs /dev/loop4 ro
+0:5 / /var/lib/snapd/hostfs/writable/system-data/snap/test-snapd-mountinfo-core16/1 ro,nodev,relatime master:43 - squashfs /dev/loop5 ro
+0:6 / /var/lib/snapd/hostfs/writable/system-data/snap/test-snapd-mountinfo-core18/1 ro,nodev,relatime master:44 - squashfs /dev/loop6 ro
+0:7 / /var/lib/snapd/hostfs/writable/system-data/snap/test-snapd-rsync-core18/1 ro,nodev,relatime master:45 - squashfs /dev/loop7 ro
 1:1 /system-data/var/log /var/log rw,relatime master:13 - ext4 /dev/sda3 rw,data=ordered
 1:1 /system-data/var/snap /var/snap rw,relatime master:13 - ext4 /dev/sda3 rw,data=ordered
 1:1 /system-data/var/tmp /var/tmp rw,relatime master:13 - ext4 /dev/sda3 rw,data=ordered
