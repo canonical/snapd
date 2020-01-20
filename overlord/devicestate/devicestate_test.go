@@ -33,6 +33,7 @@ import (
 	"github.com/snapcore/snapd/asserts"
 	"github.com/snapcore/snapd/asserts/assertstest"
 	"github.com/snapcore/snapd/asserts/sysdb"
+	"github.com/snapcore/snapd/boot"
 	"github.com/snapcore/snapd/bootloader"
 	"github.com/snapcore/snapd/bootloader/bootloadertest"
 	"github.com/snapcore/snapd/dirs"
@@ -260,7 +261,7 @@ func (s *deviceMgrSuite) TearDownTest(c *C) {
 	s.deviceMgrBaseSuite.TearDownTest(c)
 }
 
-func (s *deviceMgrSuite) TestDeviceManagerEnsureSeedYamlAlreadySeeded(c *C) {
+func (s *deviceMgrSuite) TestDeviceManagerEnsureSeededAlreadySeeded(c *C) {
 	s.state.Lock()
 	s.state.Set("seeded", true)
 	s.state.Unlock()
@@ -272,12 +273,12 @@ func (s *deviceMgrSuite) TestDeviceManagerEnsureSeedYamlAlreadySeeded(c *C) {
 	})
 	defer restore()
 
-	err := devicestate.EnsureSeedYaml(s.mgr)
+	err := devicestate.EnsureSeeded(s.mgr)
 	c.Assert(err, IsNil)
 	c.Assert(called, Equals, false)
 }
 
-func (s *deviceMgrSuite) TestDeviceManagerEnsureSeedYamlChangeInFlight(c *C) {
+func (s *deviceMgrSuite) TestDeviceManagerEnsureSeededChangeInFlight(c *C) {
 	s.state.Lock()
 	chg := s.state.NewChange("seed", "just for testing")
 	chg.AddTask(s.state.NewTask("test-task", "the change needs a task"))
@@ -290,12 +291,12 @@ func (s *deviceMgrSuite) TestDeviceManagerEnsureSeedYamlChangeInFlight(c *C) {
 	})
 	defer restore()
 
-	err := devicestate.EnsureSeedYaml(s.mgr)
+	err := devicestate.EnsureSeeded(s.mgr)
 	c.Assert(err, IsNil)
 	c.Assert(called, Equals, false)
 }
 
-func (s *deviceMgrSuite) TestDeviceManagerEnsureSeedYamlAlsoOnClassic(c *C) {
+func (s *deviceMgrSuite) TestDeviceManagerEnsureSeededAlsoOnClassic(c *C) {
 	release.OnClassic = true
 
 	called := false
@@ -305,20 +306,21 @@ func (s *deviceMgrSuite) TestDeviceManagerEnsureSeedYamlAlsoOnClassic(c *C) {
 	})
 	defer restore()
 
-	err := devicestate.EnsureSeedYaml(s.mgr)
+	err := devicestate.EnsureSeeded(s.mgr)
 	c.Assert(err, IsNil)
 	c.Assert(called, Equals, true)
 }
 
-func (s *deviceMgrSuite) TestDeviceManagerEnsureSeedYamlHappy(c *C) {
-	restore := devicestate.MockPopulateStateFromSeed(func(*state.State, *devicestate.PopulateStateFromSeedOptions, timings.Measurer) (ts []*state.TaskSet, err error) {
+func (s *deviceMgrSuite) TestDeviceManagerEnsureSeededHappy(c *C) {
+	restore := devicestate.MockPopulateStateFromSeed(func(st *state.State, opts *devicestate.PopulateStateFromSeedOptions, tm timings.Measurer) (ts []*state.TaskSet, err error) {
+		c.Assert(opts, IsNil)
 		t := s.state.NewTask("test-task", "a random task")
 		ts = append(ts, state.NewTaskSet(t))
 		return ts, nil
 	})
 	defer restore()
 
-	err := devicestate.EnsureSeedYaml(s.mgr)
+	err := devicestate.EnsureSeeded(s.mgr)
 	c.Assert(err, IsNil)
 
 	s.state.Lock()
@@ -328,13 +330,85 @@ func (s *deviceMgrSuite) TestDeviceManagerEnsureSeedYamlHappy(c *C) {
 }
 
 func (s *deviceMgrSuite) TestDeviceManagerEnsureBootOkSkippedOnClassic(c *C) {
+	s.bootloader.GetErr = fmt.Errorf("should not be called")
 	release.OnClassic = true
 
 	err := devicestate.EnsureBootOk(s.mgr)
 	c.Assert(err, IsNil)
 }
 
+func (s *deviceMgrSuite) TestDeviceManagerEnsureBootOkSkippedOnNonRunModes(c *C) {
+	s.bootloader.GetErr = fmt.Errorf("should not be called")
+	devicestate.SetOperatingMode(s.mgr, "install")
+
+	err := devicestate.EnsureBootOk(s.mgr)
+	c.Assert(err, IsNil)
+}
+
+func (s *deviceMgrSuite) TestDeviceManagerEnsureSeededHappyWithModeenv(c *C) {
+	n := 0
+	restore := devicestate.MockPopulateStateFromSeed(func(st *state.State, opts *devicestate.PopulateStateFromSeedOptions, tm timings.Measurer) (ts []*state.TaskSet, err error) {
+		c.Assert(opts, NotNil)
+		c.Check(opts.Label, Equals, "20191127")
+		c.Check(opts.Mode, Equals, "install")
+
+		t := s.state.NewTask("test-task", "a random task")
+		ts = append(ts, state.NewTaskSet(t))
+
+		n++
+		return ts, nil
+	})
+	defer restore()
+
+	// mock the modeenv file
+	m := boot.Modeenv{
+		Mode:           "install",
+		RecoverySystem: "20191127",
+	}
+	err := m.Write("")
+	c.Assert(err, IsNil)
+
+	// re-create manager so that modeenv file is-read
+	s.mgr, err = devicestate.Manager(s.state, s.hookMgr, s.o.TaskRunner(), s.newStore)
+	c.Assert(err, IsNil)
+
+	err = devicestate.EnsureSeeded(s.mgr)
+	c.Assert(err, IsNil)
+
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	c.Check(s.state.Changes(), HasLen, 1)
+	c.Check(n, Equals, 1)
+}
+
+func (s *deviceMgrBaseSuite) makeModelAssertionInState(c *C, brandID, model string, extras map[string]interface{}) *asserts.Model {
+	modelAs := s.brands.Model(brandID, model, extras)
+
+	s.setupBrands(c)
+	assertstatetest.AddMany(s.state, modelAs)
+	return modelAs
+}
+
+func (s *deviceMgrBaseSuite) setPCModelInState(c *C) {
+	s.state.Lock()
+	defer s.state.Unlock()
+	s.makeModelAssertionInState(c, "canonical", "pc", map[string]interface{}{
+		"architecture": "amd64",
+		"kernel":       "pc-kernel",
+		"gadget":       "pc",
+	})
+
+	devicestatetest.SetDevice(s.state, &auth.DeviceState{
+		Brand:  "canonical",
+		Model:  "pc",
+		Serial: "serialserialserial",
+	})
+}
+
 func (s *deviceMgrSuite) TestDeviceManagerEnsureBootOkBootloaderHappy(c *C) {
+	s.setPCModelInState(c)
+
 	s.bootloader.SetBootVars(map[string]string{
 		"snap_mode":     "trying",
 		"snap_try_core": "core_1.snap",
@@ -361,6 +435,8 @@ func (s *deviceMgrSuite) TestDeviceManagerEnsureBootOkBootloaderHappy(c *C) {
 }
 
 func (s *deviceMgrSuite) TestDeviceManagerEnsureBootOkUpdateBootRevisionsHappy(c *C) {
+	s.setPCModelInState(c)
+
 	// simulate that we have a new core_2, tried to boot it but that failed
 	s.bootloader.SetBootVars(map[string]string{
 		"snap_mode":     "",
@@ -398,6 +474,8 @@ func (s *deviceMgrSuite) TestDeviceManagerEnsureBootOkUpdateBootRevisionsHappy(c
 }
 
 func (s *deviceMgrSuite) TestDeviceManagerEnsureBootOkNotRunAgain(c *C) {
+	s.setPCModelInState(c)
+
 	s.bootloader.SetBootVars(map[string]string{
 		"snap_mode":     "trying",
 		"snap_try_core": "core_1.snap",
@@ -411,6 +489,8 @@ func (s *deviceMgrSuite) TestDeviceManagerEnsureBootOkNotRunAgain(c *C) {
 }
 
 func (s *deviceMgrSuite) TestDeviceManagerEnsureBootOkError(c *C) {
+	s.setPCModelInState(c)
+
 	s.state.Lock()
 	// seeded
 	s.state.Set("seeded", true)
@@ -427,7 +507,7 @@ func (s *deviceMgrSuite) TestDeviceManagerEnsureBootOkError(c *C) {
 	devicestate.SetBootOkRan(s.mgr, false)
 
 	err := s.mgr.Ensure()
-	c.Assert(err, ErrorMatches, "devicemgr: bootloader err")
+	c.Assert(err, ErrorMatches, "devicemgr: cannot mark boot successful: bootloader err")
 }
 
 func (s *deviceMgrBaseSuite) setupBrands(c *C) {
@@ -588,6 +668,36 @@ func (s *deviceMgrSuite) TestCheckGadgetOnClassicGadgetNotSpecified(c *C) {
 	c.Check(err, ErrorMatches, `cannot install gadget snap on classic if not requested by the model`)
 }
 
+func (s *deviceMgrSuite) TestCheckGadgetValid(c *C) {
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	// model assertion in device context
+	model := fakeMyModel(map[string]interface{}{
+		"architecture": "amd64",
+		"gadget":       "gadget",
+		"kernel":       "krnl",
+	})
+	deviceCtx := &snapstatetest.TrivialDeviceContext{DeviceModel: model}
+
+	gadgetInfo := snaptest.MockInfo(c, "{type: gadget, name: gadget, version: 0}", nil)
+
+	// valid gadget.yaml
+	cont := snaptest.MockContainer(c, [][]string{
+		{"meta/gadget.yaml", gadgetYaml},
+	})
+	err := devicestate.CheckGadgetValid(s.state, gadgetInfo, nil, cont, snapstate.Flags{}, deviceCtx)
+	c.Check(err, IsNil)
+
+	// invalid gadget.yaml
+	cont = snaptest.MockContainer(c, [][]string{
+		{"meta/gadget.yaml", `defaults:`},
+	})
+	err = devicestate.CheckGadgetValid(s.state, gadgetInfo, nil, cont, snapstate.Flags{}, deviceCtx)
+	c.Check(err, ErrorMatches, `bootloader not declared in any volume`)
+
+}
+
 func (s *deviceMgrSuite) TestCheckKernel(c *C) {
 	s.state.Lock()
 	defer s.state.Unlock()
@@ -647,13 +757,6 @@ func (s *deviceMgrSuite) TestCheckKernel(c *C) {
 	otherKrnlInfo.InstanceKey = "foo"
 	err = devicestate.CheckGadgetOrKernel(s.state, otherKrnlInfo, nil, nil, snapstate.Flags{}, deviceCtx)
 	c.Check(err, ErrorMatches, `cannot install "krnl_foo", parallel installation of kernel or gadget snaps is not supported`)
-}
-
-func (s *deviceMgrBaseSuite) makeModelAssertionInState(c *C, brandID, model string, extras map[string]interface{}) {
-	modelAs := s.brands.Model(brandID, model, extras)
-
-	s.setupBrands(c)
-	assertstatetest.AddMany(s.state, modelAs)
 }
 
 func makeSerialAssertionInState(c *C, brands *assertstest.SigningAccounts, st *state.State, brandID, model, serialN string) *asserts.Serial {
@@ -1012,4 +1115,24 @@ func (s *deviceMgrSuite) TestDevicemgrCanStandby(c *C) {
 
 	st.Set("seeded", true)
 	c.Check(mgr.CanStandby(), Equals, true)
+}
+
+func (s *deviceMgrSuite) TestDeviceManagerReadsModeenv(c *C) {
+	modeEnv := &boot.Modeenv{Mode: "install"}
+	err := modeEnv.Write("")
+	c.Assert(err, IsNil)
+
+	runner := s.o.TaskRunner()
+	mgr, err := devicestate.Manager(s.state, s.hookMgr, runner, s.newStore)
+	c.Assert(err, IsNil)
+	c.Assert(mgr, NotNil)
+	c.Assert(mgr.OperatingMode(), Equals, "install")
+}
+
+func (s *deviceMgrSuite) TestDeviceManagerEmptyOperatingModeRun(c *C) {
+	// set empty operating mode
+	devicestate.SetOperatingMode(s.mgr, "")
+
+	// empty is returned as "run"
+	c.Check(s.mgr.OperatingMode(), Equals, "run")
 }

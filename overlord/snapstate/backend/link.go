@@ -24,11 +24,9 @@ import (
 	"os"
 	"path/filepath"
 
-	"github.com/snapcore/snapd/asserts"
 	"github.com/snapcore/snapd/boot"
 	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/progress"
-	"github.com/snapcore/snapd/release"
 	"github.com/snapcore/snapd/snap"
 	"github.com/snapcore/snapd/timings"
 	"github.com/snapcore/snapd/wrappers"
@@ -79,17 +77,17 @@ func hasFontConfigCache(info *snap.Info) bool {
 }
 
 // LinkSnap makes the snap available by generating wrappers and setting the current symlinks.
-func (b Backend) LinkSnap(info *snap.Info, model *asserts.Model, tm timings.Measurer) (e error) {
+func (b Backend) LinkSnap(info *snap.Info, dev boot.Device, prevDisabledSvcs []string, tm timings.Measurer) (rebootRequired bool, e error) {
 	if info.Revision.Unset() {
-		return fmt.Errorf("cannot link snap %q with unset revision", info.InstanceName())
+		return false, fmt.Errorf("cannot link snap %q with unset revision", info.InstanceName())
 	}
 
 	var err error
 	timings.Run(tm, "generate-wrappers", fmt.Sprintf("generate wrappers for snap %s", info.InstanceName()), func(timings.Measurer) {
-		err = generateWrappers(info)
+		err = generateWrappers(info, prevDisabledSvcs)
 	})
 	if err != nil {
-		return err
+		return false, err
 	}
 	defer func() {
 		if e == nil {
@@ -104,7 +102,7 @@ func (b Backend) LinkSnap(info *snap.Info, model *asserts.Model, tm timings.Meas
 	// 'snapd' snaps
 	// for non-core snaps, fontconfig cache needs to be updated before the
 	// snap applications are runnable
-	if release.OnClassic && !hasFontConfigCache(info) {
+	if dev.Classic() && !hasFontConfigCache(info) {
 		timings.Run(tm, "update-fc-cache", "update font config caches", func(timings.Measurer) {
 			// XXX: does this need cleaning up? (afaict no)
 			if err := updateFontconfigCaches(); err != nil {
@@ -113,26 +111,28 @@ func (b Backend) LinkSnap(info *snap.Info, model *asserts.Model, tm timings.Meas
 		})
 	}
 
-	if err := boot.Participant(info, info.GetType(), model, release.OnClassic).SetNextBoot(); err != nil {
-		return err
+	reboot, err := boot.Participant(info, info.GetType(), dev).SetNextBoot()
+	if err != nil {
+		return false, err
 	}
 
 	if err := updateCurrentSymlinks(info); err != nil {
-		return err
+		return false, err
 	}
 	// if anything below here could return error, you need to
 	// somehow clean up whatever updateCurrentSymlinks did
 
 	// for core snap, fontconfig cache can be updated after the snap has
 	// been made available
-	if release.OnClassic && hasFontConfigCache(info) {
+	if dev.Classic() && hasFontConfigCache(info) {
 		timings.Run(tm, "update-fc-cache", "update font config caches", func(timings.Measurer) {
 			if err := updateFontconfigCaches(); err != nil {
 				logger.Noticef("cannot update fontconfig cache: %v", err)
 			}
 		})
 	}
-	return nil
+
+	return reboot, nil
 }
 
 func (b Backend) StartServices(apps []*snap.AppInfo, meter progress.Meter, tm timings.Measurer) error {
@@ -143,7 +143,8 @@ func (b Backend) StopServices(apps []*snap.AppInfo, reason snap.ServiceStopReaso
 	return wrappers.StopServices(apps, reason, meter, tm)
 }
 
-func generateWrappers(s *snap.Info) (err error) {
+func generateWrappers(s *snap.Info, disabledSvcs []string) error {
+	var err error
 	var cleanupFuncs []func(*snap.Info) error
 	defer func() {
 		if err != nil {
@@ -160,7 +161,7 @@ func generateWrappers(s *snap.Info) (err error) {
 	cleanupFuncs = append(cleanupFuncs, wrappers.RemoveSnapBinaries)
 
 	// add the daemons from the snap.yaml
-	if err = wrappers.AddSnapServices(s, nil, progress.Null); err != nil {
+	if err = wrappers.AddSnapServices(s, disabledSvcs, progress.Null); err != nil {
 		return err
 	}
 	cleanupFuncs = append(cleanupFuncs, func(s *snap.Info) error {
@@ -216,6 +217,12 @@ func (b Backend) UnlinkSnap(info *snap.Info, meter progress.Meter) error {
 
 	// FIXME: aggregate errors instead
 	return firstErr(err1, err2)
+}
+
+// ServicesEnableState returns the current enabled/disabled states of a snap's
+// services, primarily for committing before snap removal/disable/revert.
+func (b Backend) ServicesEnableState(info *snap.Info, meter progress.Meter) (map[string]bool, error) {
+	return wrappers.ServicesEnableState(info, meter)
 }
 
 func removeCurrentSymlinks(info snap.PlaceInfo) error {

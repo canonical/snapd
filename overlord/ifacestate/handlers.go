@@ -94,6 +94,10 @@ func (m *InterfaceManager) doSetupProfiles(task *state.Task, tomb *tomb.Tomb) er
 		return err
 	}
 
+	if len(snapInfo.BadInterfaces) > 0 {
+		task.State().Warnf("%s", snap.BadInterfacesSummary(snapInfo))
+	}
+
 	// We no longer do/need core-phase-2, see
 	//   https://github.com/snapcore/snapd/pull/5301
 	// This code is just here to deal with old state that may still
@@ -696,25 +700,6 @@ var contentLinkRetryTimeout = 30 * time.Second
 // timeout for retrying hotplug-related tasks
 var hotplugRetryTimeout = 300 * time.Millisecond
 
-// defaultContentProviders returns a dict of the default-providers for the
-// content plugs for the given instanceName
-func (m *InterfaceManager) defaultContentProviders(instanceName string) map[string]bool {
-	plugs := m.repo.Plugs(instanceName)
-	defaultProviders := make(map[string]bool, len(plugs))
-	for _, plug := range plugs {
-		if plug.Interface == "content" {
-			var s string
-			if err := plug.Attr("content", &s); err == nil && s != "" {
-				var dprovider string
-				if err := plug.Attr("default-provider", &dprovider); err == nil && dprovider != "" {
-					defaultProviders[dprovider] = true
-				}
-			}
-		}
-	}
-	return defaultProviders
-}
-
 func obsoleteCorePhase2SetupProfiles(kind string, task *state.Task) (bool, error) {
 	if kind != "setup-profiles" {
 		return false, nil
@@ -917,13 +902,21 @@ func waitChainSearch(startT, searchT *state.Task) bool {
 // The "delayed-setup-profiles" flag is set on the connect tasks to
 // indicate that doConnect handler should not set security backends up
 // because this will be done later by the setup-profiles task.
-func batchConnectTasks(st *state.State, snapsup *snapstate.SnapSetup, conns map[string]*interfaces.ConnRef, autoconnect bool) (*state.TaskSet, error) {
+func batchConnectTasks(st *state.State, snapsup *snapstate.SnapSetup, conns map[string]*interfaces.ConnRef, connOpts map[string]*connectOpts) (*state.TaskSet, error) {
 	setupProfiles := st.NewTask("setup-profiles", fmt.Sprintf(i18n.G("Setup snap %q (%s) security profiles for auto-connections"), snapsup.InstanceName(), snapsup.Revision()))
 	setupProfiles.Set("snap-setup", snapsup)
 
 	ts := state.NewTaskSet()
-	for _, conn := range conns {
-		connectTs, err := connect(st, conn.PlugRef.Snap, conn.PlugRef.Name, conn.SlotRef.Snap, conn.SlotRef.Name, connectOpts{AutoConnect: autoconnect, DelayedSetupProfiles: true})
+	for connID, conn := range conns {
+		var opts connectOpts
+		if providedOpts := connOpts[connID]; providedOpts != nil {
+			opts = *providedOpts
+		} else {
+			// default
+			opts.AutoConnect = true
+		}
+		opts.DelayedSetupProfiles = true
+		connectTs, err := connect(st, conn.PlugRef.Snap, conn.PlugRef.Name, conn.SlotRef.Snap, conn.SlotRef.Name, opts)
 		if err != nil {
 			return nil, fmt.Errorf("internal error: auto-connect of %q failed: %s", conn, err)
 		}
@@ -995,10 +988,18 @@ func (m *InterfaceManager) doAutoConnect(task *state.Task, _ *tomb.Tomb) error {
 		return err
 	}
 
+	gadgectConnect := newGadgetConnect(st, task, m.repo, snapName, deviceCtx)
+
 	// wait for auto-install, started by prerequisites code, for
 	// the default-providers of content ifaces so we can
-	// auto-connect to them
-	defaultProviders := m.defaultContentProviders(snapName)
+	// auto-connect to them; snapstate prerequisites does a bit
+	// more filtering than this so defaultProviders here can
+	// contain some more snaps; should not be an issue in practice
+	// given the check below checks for same chain and we don't
+	// forcefully wait for defaultProviders; we just retry for
+	// things in the intersection between defaultProviders here and
+	// snaps with not ready link-snap|setup-profiles tasks
+	defaultProviders := snap.DefaultContentProviders(m.repo.Plugs(snapName))
 	for _, chg := range st.Changes() {
 		if chg.Status().Ready() {
 			continue
@@ -1014,7 +1015,8 @@ func (m *InterfaceManager) doAutoConnect(task *state.Task, _ *tomb.Tomb) error {
 				// Only retry if the task that installs the
 				// content provider is not waiting for us
 				// (or this will just hang forever).
-				if defaultProviders[snapsup.InstanceName()] && !inSameChangeWaitChain(task, t) {
+				_, ok := defaultProviders[snapsup.InstanceName()]
+				if ok && !inSameChangeWaitChain(task, t) {
 					return &state.Retry{After: contentLinkRetryTimeout}
 				}
 			}
@@ -1024,6 +1026,7 @@ func (m *InterfaceManager) doAutoConnect(task *state.Task, _ *tomb.Tomb) error {
 	plugs := m.repo.Plugs(snapName)
 	slots := m.repo.Slots(snapName)
 	newconns := make(map[string]*interfaces.ConnRef, len(plugs)+len(slots))
+	var connOpts map[string]*connectOpts
 
 	conflictError := func(retry *state.Retry, err error) error {
 		if retry != nil {
@@ -1031,6 +1034,20 @@ func (m *InterfaceManager) doAutoConnect(task *state.Task, _ *tomb.Tomb) error {
 			return retry // will retry
 		}
 		return fmt.Errorf("auto-connect conflict check failed: %v", err)
+	}
+
+	// Consider gadget connections, we want to remember them in
+	// any case with "by-gadget" set, so they should be processed
+	// before the auto-connection ones.
+	if err := gadgectConnect.addGadgetConnections(newconns, conns, conflictError); err != nil {
+		return err
+	}
+	if len(newconns) > 0 {
+		connOpts = make(map[string]*connectOpts, len(newconns))
+		byGadgetOpts := &connectOpts{AutoConnect: true, ByGadget: true}
+		for key := range newconns {
+			connOpts[key] = byGadgetOpts
+		}
 	}
 
 	// Auto-connect all the plugs
@@ -1055,8 +1072,7 @@ func (m *InterfaceManager) doAutoConnect(task *state.Task, _ *tomb.Tomb) error {
 		}
 	}
 
-	autoconnect := true
-	autots, err := batchConnectTasks(st, snapsup, newconns, autoconnect)
+	autots, err := batchConnectTasks(st, snapsup, newconns, connOpts)
 	if err != nil {
 		return err
 	}
@@ -1202,88 +1218,6 @@ func (m *InterfaceManager) undoTransitionUbuntuCore(t *state.Task, _ *tomb.Tomb)
 	}
 
 	return m.transitionConnectionsCoreMigration(st, newName, oldName)
-}
-
-// doGadgetConnect creates task(s) to follow the interface connection instructions from the gadget.
-func (m *InterfaceManager) doGadgetConnect(task *state.Task, _ *tomb.Tomb) error {
-	st := task.State()
-	st.Lock()
-	defer st.Unlock()
-
-	deviceCtx, err := snapstate.DeviceCtx(st, task, nil)
-	if err != nil {
-		return err
-	}
-
-	conns, err := getConns(st)
-	if err != nil {
-		return err
-	}
-
-	gconns, err := snapstate.GadgetConnections(st, deviceCtx)
-	if err != nil {
-		return err
-	}
-
-	gconnts := state.NewTaskSet()
-	var newconns []*interfaces.ConnRef
-
-	// consider the gadget connect instructions
-	for _, gconn := range gconns {
-		plugSnapName, err := resolveSnapIDToName(st, gconn.Plug.SnapID)
-		if err != nil {
-			return err
-		}
-		plug := m.repo.Plug(plugSnapName, gconn.Plug.Plug)
-		if plug == nil {
-			task.Logf("gadget connect: ignoring missing plug %s:%s", gconn.Plug.SnapID, gconn.Plug.Plug)
-			continue
-		}
-
-		slotSnapName, err := resolveSnapIDToName(st, gconn.Slot.SnapID)
-		if err != nil {
-			return err
-		}
-		slot := m.repo.Slot(slotSnapName, gconn.Slot.Slot)
-		if slot == nil {
-			task.Logf("gadget connect: ignoring missing slot %s:%s", gconn.Slot.SnapID, gconn.Slot.Slot)
-			continue
-		}
-
-		connRef := interfaces.NewConnRef(plug, slot)
-		key := connRef.ID()
-		if _, ok := conns[key]; ok {
-			// Gadget connection already exist (or has Undesired flag set) so don't clobber it.
-			continue
-		}
-
-		if err := checkAutoconnectConflicts(st, task, plug.Snap.InstanceName(), slot.Snap.InstanceName()); err != nil {
-			if retry, ok := err.(*state.Retry); ok {
-				task.Logf("gadget connect will be retried: %s", retry.Reason)
-				return err // will retry
-			}
-			return fmt.Errorf("gadget connect conflict check failed: %s", err)
-		}
-		newconns = append(newconns, connRef)
-	}
-
-	// Create connect tasks and interface hooks
-	for _, conn := range newconns {
-		ts, err := connect(st, conn.PlugRef.Snap, conn.PlugRef.Name, conn.SlotRef.Snap, conn.SlotRef.Name, connectOpts{AutoConnect: true, ByGadget: true})
-		if err != nil {
-			return fmt.Errorf("internal error: connect of %q failed: %s", conn, err)
-		}
-		gconnts.AddAll(ts)
-	}
-
-	if len(gconnts.Tasks()) > 0 {
-		snapstate.InjectTasks(task, gconnts)
-
-		st.EnsureBefore(0)
-	}
-
-	task.SetStatus(state.DoneStatus)
-	return nil
 }
 
 // doHotplugConnect creates task(s) to (re)create old connections or auto-connect viable slots in response to hotplug "add" event.

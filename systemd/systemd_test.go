@@ -832,9 +832,24 @@ func (s *SystemdTestSuite) TestGlobalUserMode(c *C) {
 	c.Check(func() { sysd.IsActive("foo") }, Panics, "cannot call is-active with GlobalUserMode")
 }
 
+const unitTemplate = `
+[Unit]
+Description=Mount unit for foo, revision 42
+Before=snapd.service
+
+[Mount]
+What=%s
+Where=/snap/snapname/123
+Type=%s
+Options=%s
+LazyUnmount=yes
+
+[Install]
+WantedBy=multi-user.target
+`
+
 func (s *SystemdTestSuite) TestPreseedModeAddMountUnit(c *C) {
-	rootDir := dirs.GlobalRootDir
-	sysd := NewEmulationMode(rootDir, nil)
+	sysd := NewEmulationMode()
 
 	restore := squashfs.MockNeedsFuse(false)
 	defer restore()
@@ -855,21 +870,43 @@ func (s *SystemdTestSuite) TestPreseedModeAddMountUnit(c *C) {
 	c.Check(mockMountCmd.Calls()[0], DeepEquals, []string{"mount", "-t", "squashfs", mockSnapPath, "/snap/snapname/123", "-o", "nodev,ro,x-gdu.hide"})
 	// unit was enabled with a symlink
 	c.Check(osutil.IsSymlink(filepath.Join(dirs.SnapServicesDir, "multi-user.target.wants", mountUnitName)), Equals, true)
-	c.Check(filepath.Join(dirs.SnapServicesDir, mountUnitName), testutil.FileEquals, fmt.Sprintf(`
-[Unit]
-Description=Mount unit for foo, revision 42
-Before=snapd.service
+	c.Check(filepath.Join(dirs.SnapServicesDir, mountUnitName), testutil.FileEquals, fmt.Sprintf(unitTemplate[1:], mockSnapPath, "squashfs", "nodev,ro,x-gdu.hide"))
+}
 
-[Mount]
-What=%s
-Where=/snap/snapname/123
-Type=squashfs
-Options=nodev,ro,x-gdu.hide
-LazyUnmount=yes
+func (s *SystemdTestSuite) TestPreseedModeAddMountUnitWithFuse(c *C) {
+	sysd := NewEmulationMode()
 
-[Install]
-WantedBy=multi-user.target
-`[1:], mockSnapPath))
+	restore := MockSquashFsType(func() (string, []string, error) { return "fuse.squashfuse", []string{"a,b,c"}, nil })
+	defer restore()
+
+	mockMountCmd := testutil.MockCommand(c, "mount", "")
+	defer mockMountCmd.Restore()
+
+	mockSnapPath := filepath.Join(c.MkDir(), "/var/lib/snappy/snaps/foo_1.0.snap")
+	makeMockFile(c, mockSnapPath)
+
+	mountUnitName, err := sysd.AddMountUnitFile("foo", "42", mockSnapPath, "/snap/snapname/123", "squashfs")
+	c.Assert(err, IsNil)
+	defer os.Remove(mountUnitName)
+
+	c.Check(mockMountCmd.Calls()[0], DeepEquals, []string{"mount", "-t", "fuse.squashfuse", mockSnapPath, "/snap/snapname/123", "-o", "nodev,a,b,c"})
+	c.Check(filepath.Join(dirs.SnapServicesDir, mountUnitName), testutil.FileEquals, fmt.Sprintf(unitTemplate[1:], mockSnapPath, "fuse.squashfuse", "nodev,a,b,c"))
+}
+
+func (s *SystemdTestSuite) TestPreseedModeMountError(c *C) {
+	sysd := NewEmulationMode()
+
+	restore := squashfs.MockNeedsFuse(false)
+	defer restore()
+
+	mockMountCmd := testutil.MockCommand(c, "mount", `echo "some failure"; exit 1`)
+	defer mockMountCmd.Restore()
+
+	mockSnapPath := filepath.Join(c.MkDir(), "/var/lib/snappy/snaps/foo_1.0.snap")
+	makeMockFile(c, mockSnapPath)
+
+	_, err := sysd.AddMountUnitFile("foo", "42", mockSnapPath, "/snap/snapname/123", "squashfs")
+	c.Assert(err, ErrorMatches, `cannot mount .*/var/lib/snappy/snaps/foo_1.0.snap \(squashfs\) at /snap/snapname/123 in preseed mode: exit status 1; some failure\n`)
 }
 
 func (s *SystemdTestSuite) TestPreseedModeRemoveMountUnit(c *C) {
@@ -884,7 +921,7 @@ func (s *SystemdTestSuite) TestPreseedModeRemoveMountUnit(c *C) {
 	mockUmountCmd := testutil.MockCommand(c, "umount", "")
 	defer mockUmountCmd.Restore()
 
-	sysd := NewEmulationMode(dirs.GlobalRootDir, nil)
+	sysd := NewEmulationMode()
 
 	mountUnit := makeMockMountUnit(c, mountDir)
 	symlinkPath := filepath.Join(dirs.SnapServicesDir, "multi-user.target.wants", filepath.Base(mountUnit))
@@ -913,7 +950,7 @@ func (s *SystemdTestSuite) TestPreseedModeRemoveMountUnitUnmounted(c *C) {
 	mockUmountCmd := testutil.MockCommand(c, "umount", "")
 	defer mockUmountCmd.Restore()
 
-	sysd := NewEmulationMode(dirs.GlobalRootDir, nil)
+	sysd := NewEmulationMode()
 	mountUnit := makeMockMountUnit(c, mountDir)
 	symlinkPath := filepath.Join(dirs.SnapServicesDir, "multi-user.target.wants", filepath.Base(mountUnit))
 	c.Assert(os.Symlink(mountUnit, symlinkPath), IsNil)
@@ -928,4 +965,16 @@ func (s *SystemdTestSuite) TestPreseedModeRemoveMountUnitUnmounted(c *C) {
 	c.Check(s.argses, HasLen, 0)
 	// umount was not called
 	c.Check(mockUmountCmd.Calls(), HasLen, 0)
+}
+
+func (s *SystemdTestSuite) TestPreseedModeBindmountNotSupported(c *C) {
+	sysd := NewEmulationMode()
+
+	restore := squashfs.MockNeedsFuse(false)
+	defer restore()
+
+	mockSnapPath := c.MkDir()
+
+	_, err := sysd.AddMountUnitFile("foo", "42", mockSnapPath, "/snap/snapname/123", "")
+	c.Assert(err, ErrorMatches, `bind-mounted directory is not supported in emulation mode`)
 }

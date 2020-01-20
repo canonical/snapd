@@ -12,5 +12,5 @@ details: |
     detection code.
 execute: ./task.sh
 restore: |
-    snap remove test-snapd-app
+    snap remove --purge test-snapd-app
     rm -f test-snapd-app_1_all.snap

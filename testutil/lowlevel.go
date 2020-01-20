@@ -28,6 +28,7 @@ import (
 
 	"gopkg.in/check.v1"
 
+	"github.com/snapcore/snapd/osutil/mount"
 	"github.com/snapcore/snapd/osutil/sys"
 )
 
@@ -109,41 +110,9 @@ func formatOpenFlags(flags int) string {
 // Not all flags are handled. Unknown flags cause a panic.
 // Please expand the set of recognized flags as tests require.
 func formatMountFlags(flags int) string {
-	var fl []string
-	if flags&syscall.MS_REMOUNT == syscall.MS_REMOUNT {
-		flags ^= syscall.MS_REMOUNT
-		fl = append(fl, "MS_REMOUNT")
-	}
-	if flags&syscall.MS_BIND == syscall.MS_BIND {
-		flags ^= syscall.MS_BIND
-		fl = append(fl, "MS_BIND")
-	}
-	if flags&syscall.MS_REC == syscall.MS_REC {
-		flags ^= syscall.MS_REC
-		fl = append(fl, "MS_REC")
-	}
-	if flags&syscall.MS_RDONLY == syscall.MS_RDONLY {
-		flags ^= syscall.MS_RDONLY
-		fl = append(fl, "MS_RDONLY")
-	}
-	if flags&syscall.MS_SHARED == syscall.MS_SHARED {
-		flags ^= syscall.MS_SHARED
-		fl = append(fl, "MS_SHARED")
-	}
-	if flags&syscall.MS_SLAVE == syscall.MS_SLAVE {
-		flags ^= syscall.MS_SLAVE
-		fl = append(fl, "MS_SLAVE")
-	}
-	if flags&syscall.MS_PRIVATE == syscall.MS_PRIVATE {
-		flags ^= syscall.MS_PRIVATE
-		fl = append(fl, "MS_PRIVATE")
-	}
-	if flags&syscall.MS_UNBINDABLE == syscall.MS_UNBINDABLE {
-		flags ^= syscall.MS_UNBINDABLE
-		fl = append(fl, "MS_UNBINDABLE")
-	}
-	if flags != 0 {
-		panic(fmt.Errorf("unrecognized mount flags %d", flags))
+	fl, unknown := mount.MountFlagsToOpts(flags)
+	if unknown != 0 {
+		panic(fmt.Errorf("unrecognized mount flags %d", unknown))
 	}
 	if len(fl) == 0 {
 		return "0"
@@ -156,17 +125,9 @@ func formatMountFlags(flags int) string {
 // Not all flags are handled. Unknown flags cause a panic.
 // Please expand the set of recognized flags as tests require.
 func formatUnmountFlags(flags int) string {
-	var fl []string
-	if flags&umountNoFollow == umountNoFollow {
-		flags ^= umountNoFollow
-		fl = append(fl, "UMOUNT_NOFOLLOW")
-	}
-	if flags&syscall.MNT_DETACH == syscall.MNT_DETACH {
-		flags ^= syscall.MNT_DETACH
-		fl = append(fl, "MNT_DETACH")
-	}
-	if flags != 0 {
-		panic(fmt.Errorf("unrecognized unmount flags %d", flags))
+	fl, unknown := mount.UnmountFlagsToOpts(flags)
+	if unknown != 0 {
+		panic(fmt.Errorf("unrecognized unmount flags %d", unknown))
 	}
 	if len(fl) == 0 {
 		return "0"

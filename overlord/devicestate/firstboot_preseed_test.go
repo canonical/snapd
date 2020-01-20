@@ -33,7 +33,7 @@ import (
 	"github.com/snapcore/snapd/overlord/state"
 	"github.com/snapcore/snapd/release"
 	"github.com/snapcore/snapd/seed/seedtest"
-	"github.com/snapcore/snapd/systemd"
+	//"github.com/snapcore/snapd/systemd"
 	"github.com/snapcore/snapd/testutil"
 )
 
@@ -45,18 +45,22 @@ type firstbootPreseed16Suite struct {
 var _ = Suite(&firstbootPreseed16Suite{})
 
 func checkPreseedTasks(c *C, tsAll []*state.TaskSet) {
-	// the tasks of the last taskset must be gadget-connect, mark-preseeded, mark-seeded
+	// the tasks of the last taskset must be mark-preseeded, mark-seeded
 	lastTasks := tsAll[len(tsAll)-1].Tasks()
-	c.Check(lastTasks, HasLen, 3)
-	gadgetConnectTask := lastTasks[0]
-	preseedTask := lastTasks[1]
-	markSeededTask := lastTasks[2]
-	c.Check(gadgetConnectTask.Kind(), Equals, "gadget-connect")
+	c.Check(lastTasks, HasLen, 2)
+	preseedTask := lastTasks[0]
+	markSeededTask := lastTasks[1]
 	c.Check(preseedTask.Kind(), Equals, "mark-preseeded")
 	c.Check(markSeededTask.Kind(), Equals, "mark-seeded")
 
-	// mark-seeded waits for mark-preseeded and gadget-connect
-	c.Check(markSeededTask.WaitTasks(), DeepEquals, []*state.Task{gadgetConnectTask, preseedTask})
+	// mark-seeded waits for mark-preseeded
+	var waitsForPreseeded bool
+	for _, wt := range markSeededTask.WaitTasks() {
+		if wt.Kind() == "mark-preseeded" {
+			waitsForPreseeded = true
+		}
+	}
+	c.Check(waitsForPreseeded, Equals, true)
 }
 
 func checkPressedTaskStates(c *C, st *state.State) {
@@ -70,7 +74,6 @@ func checkPressedTaskStates(c *C, st *state.State) {
 		"copy-snap-data":       true,
 		"set-auto-aliases":     true,
 		"setup-aliases":        true,
-		"gadget-connect":       true,
 		"auto-connect":         true,
 	}
 	doTasks := map[string]bool{
@@ -78,10 +81,12 @@ func checkPressedTaskStates(c *C, st *state.State) {
 		"mark-seeded":         true,
 		"start-snap-services": true,
 	}
+	seenDone := make(map[string]bool)
 	for _, t := range st.Tasks() {
 		switch {
 		case doneTasks[t.Kind()]:
 			c.Check(t.Status(), Equals, state.DoneStatus, Commentf("task: %s", t.Kind()))
+			seenDone[t.Kind()] = true
 		case t.Kind() == "mark-preseeded":
 			c.Check(t.Status(), Equals, state.DoingStatus, Commentf("task: %s", t.Kind()))
 		case doTasks[t.Kind()]:
@@ -90,6 +95,9 @@ func checkPressedTaskStates(c *C, st *state.State) {
 			c.Fatalf("unhandled task kind %s", t.Kind())
 		}
 	}
+	// sanity: check that doneTasks is not declaring more tasks than
+	// actually expected.
+	c.Check(doneTasks, DeepEquals, seenDone)
 }
 
 func markPreseededInWaitChain(t *state.Task) bool {
@@ -177,7 +185,7 @@ func (s *firstbootPreseed16Suite) TestPreseedHappy(c *C) {
 	mockUmountCmd := testutil.MockCommand(c, "umount", "")
 	defer mockUmountCmd.Restore()
 
-	systemd.MockOsSymlink(func(string, string) error { return nil })
+	//systemd.MockOsSymlink(func(string, string) error { return nil })
 
 	bloader := bootloadertest.Mock("mock", c.MkDir())
 	bootloader.Force(bloader)

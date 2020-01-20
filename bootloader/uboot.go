@@ -56,6 +56,12 @@ func (u *uboot) dir() string {
 	return filepath.Join(u.rootdir, "/boot/uboot")
 }
 
+func (u *uboot) InstallBootConfig(gadgetDir string, opts *Options) (bool, error) {
+	gadgetFile := filepath.Join(gadgetDir, u.Name()+".conf")
+	systemFile := u.ConfigFile()
+	return genericInstallBootConfig(gadgetFile, systemFile)
+}
+
 func (u *uboot) ConfigFile() string {
 	return u.envFile()
 }
@@ -103,7 +109,9 @@ func (u *uboot) GetBootVars(names ...string) (map[string]string, error) {
 }
 
 func (u *uboot) ExtractKernelAssets(s snap.PlaceInfo, snapf snap.Container) error {
-	return extractKernelAssetsToBootDir(u.dir(), s, snapf)
+	dstDir := filepath.Join(u.dir(), filepath.Base(s.MountFile()))
+	assets := []string{"kernel.img", "initrd.img", "dtbs/*"}
+	return extractKernelAssetsToBootDir(dstDir, s, snapf, assets)
 }
 
 func (u *uboot) RemoveKernelAssets(s snap.PlaceInfo) error {

@@ -402,10 +402,10 @@ func (s *interfaceManagerSuite) TestBatchConnectTasks(c *C) {
 
 	snapsup := &snapstate.SnapSetup{SideInfo: &snap.SideInfo{RealName: "snap"}}
 	conns := make(map[string]*interfaces.ConnRef)
+	connOpts := make(map[string]*ifacestate.ConnectOpts)
 
 	// no connections
-	autoconnect := true
-	ts, err := ifacestate.BatchConnectTasks(s.state, snapsup, conns, autoconnect)
+	ts, err := ifacestate.BatchConnectTasks(s.state, snapsup, conns, connOpts)
 	c.Assert(err, IsNil)
 	c.Check(ts.Tasks(), HasLen, 0)
 
@@ -414,8 +414,10 @@ func (s *interfaceManagerSuite) TestBatchConnectTasks(c *C) {
 	cref2 := interfaces.ConnRef{PlugRef: interfaces.PlugRef{Snap: "consumer2", Name: "plug"}, SlotRef: interfaces.SlotRef{Snap: "producer", Name: "slot"}}
 	conns[cref1.ID()] = &cref1
 	conns[cref2.ID()] = &cref2
+	// connOpts for cref1 will default to AutoConnect: true
+	connOpts[cref2.ID()] = &ifacestate.ConnectOpts{AutoConnect: true, ByGadget: true}
 
-	ts, err = ifacestate.BatchConnectTasks(s.state, snapsup, conns, autoconnect)
+	ts, err = ifacestate.BatchConnectTasks(s.state, snapsup, conns, connOpts)
 	c.Assert(err, IsNil)
 	c.Check(ts.Tasks(), HasLen, 9)
 
@@ -427,13 +429,23 @@ func (s *interfaceManagerSuite) TestBatchConnectTasks(c *C) {
 	c.Assert(wt, HasLen, 2)
 	for i := 0; i < 2; i++ {
 		c.Check(wt[i].Kind(), Equals, "connect")
-
 		// sanity, check flags on "connect" tasks
 		var flag bool
 		c.Assert(wt[i].Get("delayed-setup-profiles", &flag), IsNil)
 		c.Check(flag, Equals, true)
 		c.Assert(wt[i].Get("auto", &flag), IsNil)
 		c.Check(flag, Equals, true)
+		// ... sanity by-gadget flag
+		var plugRef interfaces.PlugRef
+		c.Check(wt[i].Get("plug", &plugRef), IsNil)
+		err := wt[i].Get("by-gadget", &flag)
+		if plugRef.Snap == "consumer2" {
+			c.Assert(err, IsNil)
+			c.Check(flag, Equals, true)
+		} else {
+			c.Assert(err, Equals, state.ErrNoState)
+		}
+
 	}
 
 	// connect-slot-slot hooks wait for "setup-profiles"
@@ -2092,6 +2104,44 @@ func (s *interfaceManagerSuite) TestDoSetupSnapSecurityHonorsUndesiredFlag(c *C)
 	c.Assert(plug, Not(IsNil))
 	ifaces := repo.Interfaces()
 	c.Assert(ifaces.Connections, HasLen, 0)
+}
+
+func (s *interfaceManagerSuite) TestBadInterfacesWarning(c *C) {
+	restoreSanitize := snap.MockSanitizePlugsSlots(func(inf *snap.Info) {
+		inf.BadInterfaces["plug-name"] = "reason-for-bad"
+	})
+	defer restoreSanitize()
+
+	s.MockModel(c, nil)
+
+	_ = s.manager(c)
+
+	// sampleSnapYaml is valid but that's irrelevant for the test as we are
+	// injecting the desired behavior via mocked SanitizePlugsSlots above.
+	snapInfo := s.mockSnap(c, sampleSnapYaml)
+
+	// Run the setup-snap-security task and let it finish.
+	change := s.addSetupSnapSecurityChange(c, &snapstate.SnapSetup{
+		SideInfo: &snap.SideInfo{
+			RealName: snapInfo.SnapName(),
+			Revision: snapInfo.Revision,
+		},
+	})
+	s.settle(c)
+
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	c.Assert(change.Status(), Equals, state.DoneStatus)
+
+	warns := s.state.AllWarnings()
+	c.Assert(warns, HasLen, 1)
+	c.Check(warns[0].String(), Matches, `snap "snap" has bad plugs or slots: plug-name \(reason-for-bad\)`)
+
+	// sanity, bad interfaces are logged in the task log.
+	task := change.Tasks()[0]
+	c.Assert(task.Kind(), Equals, "setup-profiles")
+	c.Check(strings.Join(task.Log(), ""), Matches, `.* snap "snap" has bad plugs or slots: plug-name \(reason-for-bad\)`)
 }
 
 // The auto-connect task will auto-connect plugs with viable candidates.
@@ -5447,8 +5497,19 @@ func (s *interfaceManagerSuite) TestDisconnectInterfacesRetrySetupProfiles(c *C)
 	s.testDisconnectInterfacesRetry(c, "setup-profiles")
 }
 
-func (s *interfaceManagerSuite) setupGadgetConnect(c *C) {
+func (s *interfaceManagerSuite) setupAutoConnectGadget(c *C) {
 	s.mockIfaces(c, &ifacetest.TestInterface{InterfaceName: "test"})
+
+	r := assertstest.MockBuiltinBaseDeclaration([]byte(`
+type: base-declaration
+authority-id: canonical
+series: 16
+slots:
+  test:
+    deny-auto-connection: true
+`))
+	s.AddCleanup(r)
+
 	s.MockSnapDecl(c, "consumer", "publisher1", nil)
 	s.mockSnap(c, consumerYaml)
 	s.MockSnapDecl(c, "producer", "publisher2", nil)
@@ -5472,38 +5533,21 @@ volumes:
 	c.Assert(err, IsNil)
 
 	s.MockModel(c, nil)
-}
-
-func (s *interfaceManagerSuite) TestGadgetConnect(c *C) {
-	r1 := release.MockOnClassic(false)
-	defer r1()
-
-	s.setupGadgetConnect(c)
-	s.manager(c)
 
 	s.state.Lock()
 	defer s.state.Unlock()
+	s.state.Set("seeded", nil)
+}
 
-	chg := s.state.NewChange("setting-up", "...")
-	t := s.state.NewTask("gadget-connect", "gadget connections")
-	chg.AddTask(t)
-
-	s.state.Unlock()
-	s.se.Ensure()
-	s.se.Wait()
-	s.state.Lock()
-
-	c.Assert(chg.Err(), IsNil)
-	tasks := chg.Tasks()
-	c.Assert(tasks, HasLen, 6)
-
+func checkAutoConnectGadgetTasks(c *C, tasks []*state.Task) {
 	gotConnect := false
 	for _, t := range tasks {
 		switch t.Kind() {
 		default:
 			c.Fatalf("unexpected task kind: %s", t.Kind())
-		case "gadget-connect":
+		case "auto-connect":
 		case "run-hook":
+		case "setup-profiles":
 		case "connect":
 			gotConnect = true
 			var autoConnect, byGadget bool
@@ -5530,11 +5574,137 @@ func (s *interfaceManagerSuite) TestGadgetConnect(c *C) {
 	c.Assert(gotConnect, Equals, true)
 }
 
-func (s *interfaceManagerSuite) TestGadgetConnectAlreadyConnected(c *C) {
+func (s *interfaceManagerSuite) TestAutoConnectGadget(c *C) {
 	r1 := release.MockOnClassic(false)
 	defer r1()
 
-	s.setupGadgetConnect(c)
+	s.setupAutoConnectGadget(c)
+	s.manager(c)
+
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	chg := s.state.NewChange("setting-up", "...")
+	t := s.state.NewTask("auto-connect", "gadget connections")
+	t.Set("snap-setup", &snapstate.SnapSetup{
+		SideInfo: &snap.SideInfo{
+			RealName: "consumer"},
+	})
+	chg.AddTask(t)
+
+	s.state.Unlock()
+	s.se.Ensure()
+	s.se.Wait()
+	s.state.Lock()
+
+	c.Assert(chg.Err(), IsNil)
+	tasks := chg.Tasks()
+	c.Assert(tasks, HasLen, 7)
+	checkAutoConnectGadgetTasks(c, tasks)
+}
+
+func (s *interfaceManagerSuite) TestAutoConnectGadgetProducer(c *C) {
+	r1 := release.MockOnClassic(false)
+	defer r1()
+
+	s.setupAutoConnectGadget(c)
+	s.manager(c)
+
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	chg := s.state.NewChange("setting-up", "...")
+	t := s.state.NewTask("auto-connect", "gadget connections")
+	t.Set("snap-setup", &snapstate.SnapSetup{
+		SideInfo: &snap.SideInfo{
+			RealName: "producer"},
+	})
+	chg.AddTask(t)
+
+	s.state.Unlock()
+	s.se.Ensure()
+	s.se.Wait()
+	s.state.Lock()
+
+	c.Assert(chg.Err(), IsNil)
+	tasks := chg.Tasks()
+	c.Assert(tasks, HasLen, 7)
+	checkAutoConnectGadgetTasks(c, tasks)
+}
+
+func (s *interfaceManagerSuite) TestAutoConnectGadgetRemodeling(c *C) {
+	r1 := release.MockOnClassic(false)
+	defer r1()
+
+	s.setupAutoConnectGadget(c)
+	s.manager(c)
+
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	// seeded but remodeling
+	s.state.Set("seeded", true)
+	remodCtx := s.TrivialDeviceContext(c, nil)
+	remodCtx.Remodeling = true
+	r2 := snapstatetest.MockDeviceContext(remodCtx)
+	defer r2()
+
+	chg := s.state.NewChange("setting-up", "...")
+	t := s.state.NewTask("auto-connect", "gadget connections")
+	t.Set("snap-setup", &snapstate.SnapSetup{
+		SideInfo: &snap.SideInfo{
+			RealName: "consumer"},
+	})
+	chg.AddTask(t)
+
+	s.state.Unlock()
+	s.se.Ensure()
+	s.se.Wait()
+	s.state.Lock()
+
+	c.Assert(chg.Err(), IsNil)
+	tasks := chg.Tasks()
+	c.Assert(tasks, HasLen, 7)
+	checkAutoConnectGadgetTasks(c, tasks)
+}
+
+func (s *interfaceManagerSuite) TestAutoConnectGadgetSeededNoop(c *C) {
+	r1 := release.MockOnClassic(false)
+	defer r1()
+
+	s.setupAutoConnectGadget(c)
+	s.manager(c)
+
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	// seeded and not remodeling
+	s.state.Set("seeded", true)
+
+	chg := s.state.NewChange("setting-up", "...")
+	t := s.state.NewTask("auto-connect", "gadget connections")
+	t.Set("snap-setup", &snapstate.SnapSetup{
+		SideInfo: &snap.SideInfo{
+			RealName: "consumer"},
+	})
+	chg.AddTask(t)
+
+	s.state.Unlock()
+	s.se.Ensure()
+	s.se.Wait()
+	s.state.Lock()
+
+	c.Assert(chg.Err(), IsNil)
+	tasks := chg.Tasks()
+	// nothing happens, no tasks added
+	c.Assert(tasks, HasLen, 1)
+}
+
+func (s *interfaceManagerSuite) TestAutoConnectGadgetAlreadyConnected(c *C) {
+	r1 := release.MockOnClassic(false)
+	defer r1()
+
+	s.setupAutoConnectGadget(c)
 	s.manager(c)
 
 	s.state.Lock()
@@ -5547,7 +5717,11 @@ func (s *interfaceManagerSuite) TestGadgetConnectAlreadyConnected(c *C) {
 	})
 
 	chg := s.state.NewChange("setting-up", "...")
-	t := s.state.NewTask("gadget-connect", "gadget connections")
+	t := s.state.NewTask("auto-connect", "gadget connections")
+	t.Set("snap-setup", &snapstate.SnapSetup{
+		SideInfo: &snap.SideInfo{
+			RealName: "producer"},
+	})
 	chg.AddTask(t)
 
 	s.state.Unlock()
@@ -5561,11 +5735,11 @@ func (s *interfaceManagerSuite) TestGadgetConnectAlreadyConnected(c *C) {
 	c.Assert(tasks, HasLen, 1)
 }
 
-func (s *interfaceManagerSuite) TestGadgetConnectConflictRetry(c *C) {
+func (s *interfaceManagerSuite) TestAutoConnectGadgetConflictRetry(c *C) {
 	r1 := release.MockOnClassic(false)
 	defer r1()
 
-	s.setupGadgetConnect(c)
+	s.setupAutoConnectGadget(c)
 	s.manager(c)
 
 	s.state.Lock()
@@ -5580,7 +5754,11 @@ func (s *interfaceManagerSuite) TestGadgetConnectConflictRetry(c *C) {
 	otherChg.AddTask(t)
 
 	chg := s.state.NewChange("setting-up", "...")
-	t = s.state.NewTask("gadget-connect", "gadget connections")
+	t = s.state.NewTask("auto-connect", "gadget connections")
+	t.Set("snap-setup", &snapstate.SnapSetup{
+		SideInfo: &snap.SideInfo{
+			RealName: "consumer"},
+	})
 	chg.AddTask(t)
 
 	s.state.Unlock()
@@ -5594,10 +5772,20 @@ func (s *interfaceManagerSuite) TestGadgetConnectConflictRetry(c *C) {
 	c.Assert(tasks, HasLen, 1)
 
 	c.Check(t.Status(), Equals, state.DoingStatus)
-	c.Check(t.Log()[0], Matches, `.*gadget connect will be retried: conflicting snap producer with task "link-snap"`)
+	c.Check(t.Log()[0], Matches, `.*Waiting for conflicting change in progress: conflicting snap producer.*`)
 }
 
-func (s *interfaceManagerSuite) TestGadgetConnectSkipUnknown(c *C) {
+func (s *interfaceManagerSuite) TestAutoConnectGadgetSkipUnknown(c *C) {
+	r := assertstest.MockBuiltinBaseDeclaration([]byte(`
+type: base-declaration
+authority-id: canonical
+series: 16
+slots:
+  test:
+    deny-auto-connection: true
+`))
+	defer r()
+
 	r1 := release.MockOnClassic(false)
 	defer r1()
 
@@ -5634,7 +5822,11 @@ volumes:
 	defer s.state.Unlock()
 
 	chg := s.state.NewChange("setting-up", "...")
-	t := s.state.NewTask("gadget-connect", "gadget connections")
+	t := s.state.NewTask("auto-connect", "gadget connections")
+	t.Set("snap-setup", &snapstate.SnapSetup{
+		SideInfo: &snap.SideInfo{
+			RealName: "producer"},
+	})
 	chg.AddTask(t)
 
 	s.state.Unlock()
@@ -5652,7 +5844,7 @@ volumes:
 	c.Check(logs[1], Matches, `.* ignoring missing plug unknownididididididididididididi:plug`)
 }
 
-func (s *interfaceManagerSuite) TestGadgetConnectHappyPolicyChecks(c *C) {
+func (s *interfaceManagerSuite) TestAutoConnectGadgetHappyPolicyChecks(c *C) {
 	// network-control does not auto-connect so this test also
 	// checks that the right policy checker (for "*-connection"
 	// rules) is used for gadget connections
@@ -5692,7 +5884,11 @@ volumes:
 	defer s.state.Unlock()
 
 	chg := s.state.NewChange("setting-up", "...")
-	t := s.state.NewTask("gadget-connect", "gadget connections")
+	t := s.state.NewTask("auto-connect", "gadget connections")
+	t.Set("snap-setup", &snapstate.SnapSetup{
+		SideInfo: &snap.SideInfo{
+			RealName: "foo", Revision: snap.R(1)},
+	})
 	chg.AddTask(t)
 
 	s.state.Unlock()
@@ -5702,9 +5898,10 @@ volumes:
 
 	c.Assert(chg.Err(), IsNil)
 	tasks := chg.Tasks()
-	c.Assert(tasks, HasLen, 2)
-	c.Assert(tasks[0].Kind(), Equals, "gadget-connect")
+	c.Assert(tasks, HasLen, 3)
+	c.Assert(tasks[0].Kind(), Equals, "auto-connect")
 	c.Assert(tasks[1].Kind(), Equals, "connect")
+	c.Assert(tasks[2].Kind(), Equals, "setup-profiles")
 
 	s.state.Unlock()
 	s.settle(c)

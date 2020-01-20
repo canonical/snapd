@@ -419,19 +419,15 @@ func checkSeedOrder(c *C, tsAll []*state.TaskSet, snaps ...string) {
 }
 
 func checkSeedTasks(c *C, tsAll []*state.TaskSet) {
-	// the tasks of the last taskset must be gadget-connect, mark-seeded
+	// the last taskset is just mark-seeded
 	lastTasks := tsAll[len(tsAll)-1].Tasks()
-	c.Check(lastTasks, HasLen, 2)
-	gadgetConnectTask := lastTasks[0]
-	markSeededTask := lastTasks[1]
-	c.Check(gadgetConnectTask.Kind(), Equals, "gadget-connect")
+	c.Check(lastTasks, HasLen, 1)
+	markSeededTask := lastTasks[0]
 	c.Check(markSeededTask.Kind(), Equals, "mark-seeded")
-	// and the gadget-connect must wait for the other tasks
+	// and mark-seeded must wait for the other tasks
 	prevTasks := tsAll[len(tsAll)-2].Tasks()
 	otherTask := prevTasks[len(prevTasks)-1]
-	c.Check(gadgetConnectTask.WaitTasks(), testutil.Contains, otherTask)
-	// add the mark-seeded waits for gadget-connects
-	c.Check(markSeededTask.WaitTasks(), DeepEquals, []*state.Task{gadgetConnectTask})
+	c.Check(markSeededTask.WaitTasks(), testutil.Contains, otherTask)
 }
 
 func (s *firstBoot16BaseTest) makeSeedChange(c *C, st *state.State, opts *devicestate.PopulateStateFromSeedOptions, devAcct *asserts.Account,
@@ -612,6 +608,11 @@ func (s *firstBoot16Suite) TestPopulateFromSeedMissingBootloader(c *C) {
 	c.Assert(err, IsNil)
 	o.AddManager(ifacemgr)
 	c.Assert(o.StartUp(), IsNil)
+
+	hookMgr, err := hookstate.Manager(st, o.TaskRunner())
+	c.Assert(err, IsNil)
+	_, err = devicestate.Manager(st, hookMgr, o.TaskRunner(), nil)
+	c.Assert(err, IsNil)
 
 	st.Lock()
 	assertstate.ReplaceDB(st, db.(*asserts.Database))

@@ -47,6 +47,8 @@ func (d *deviceSuite) SetUpTest(c *C) {
 	c.Assert(err, IsNil)
 	err = os.MkdirAll(filepath.Join(d.dir, "/dev/disk/by-partlabel"), 0755)
 	c.Assert(err, IsNil)
+	err = os.MkdirAll(filepath.Join(d.dir, "/dev/mapper"), 0755)
+	c.Assert(err, IsNil)
 	err = ioutil.WriteFile(filepath.Join(d.dir, "/dev/fakedevice"), []byte(""), 0644)
 	c.Assert(err, IsNil)
 }
@@ -55,7 +57,7 @@ func (d *deviceSuite) TearDownTest(c *C) {
 	dirs.SetRootDir("/")
 }
 
-func (d *deviceSuite) setUpWritableFallback(c *C, mountInfo string) {
+func (d *deviceSuite) setupMockSysfs(c *C) {
 	// setup everything for 'writable'
 	err := ioutil.WriteFile(filepath.Join(d.dir, "/dev/fakedevice0p1"), []byte(""), 0644)
 	c.Assert(err, IsNil)
@@ -67,6 +69,21 @@ func (d *deviceSuite) setUpWritableFallback(c *C, mountInfo string) {
 	// and fake /sys/block structure
 	err = os.MkdirAll(filepath.Join(d.dir, "/sys/block/fakedevice0/fakedevice0p1"), 0755)
 	c.Assert(err, IsNil)
+}
+
+func (d *deviceSuite) setupMockSysfsForDevMapper(c *C) {
+	// setup a mock /dev/mapper environment (incomplete we have no "happy"
+	// test
+	err := os.Symlink("../dm-0", filepath.Join(d.dir, "/dev/mapper/nvme0n1p6_crypt"))
+	c.Assert(err, IsNil)
+	err = ioutil.WriteFile(filepath.Join(d.dir, "/dev/dm-0"), nil, 0644)
+	c.Assert(err, IsNil)
+	err = os.MkdirAll(filepath.Join(d.dir, "/sys/block/dm-0"), 0755)
+	c.Assert(err, IsNil)
+}
+
+func (d *deviceSuite) setUpWritableFallback(c *C, mountInfo string) {
+	d.setupMockSysfs(c)
 
 	mockProcSelfFilesystem(c, d.dir, mountInfo)
 }
@@ -632,4 +649,19 @@ func (d *deviceSuite) TestDeviceFindMountPointChecksFilesystem(c *C) {
 	})
 	c.Check(err, ErrorMatches, "mount point not found")
 	c.Check(found, Equals, "")
+}
+
+func (d *deviceSuite) TestParentDiskFromPartition(c *C) {
+	d.setupMockSysfs(c)
+
+	disk, err := gadget.ParentDiskFromPartition("/dev/fakedevice0p1")
+	c.Assert(err, IsNil)
+	c.Check(disk, Matches, ".*/dev/fakedevice0")
+}
+
+func (d *deviceSuite) TestParentDiskFromPartitionError(c *C) {
+	d.setupMockSysfsForDevMapper(c)
+
+	_, err := gadget.ParentDiskFromPartition("/dev/mapper/nvme0n1p6_crypt")
+	c.Assert(err, ErrorMatches, `unexpected number of matches \(0\) for /sys/block/\*/nvme0n1p6_crypt`)
 }

@@ -62,6 +62,5 @@ func init() {
 		baseDeclarationPlugs:  lxdSupportBaseDeclarationPlugs,
 		connectedPlugAppArmor: lxdSupportConnectedPlugAppArmor,
 		connectedPlugSecComp:  lxdSupportConnectedPlugSecComp,
-		reservedForOS:         true,
 	})
 }

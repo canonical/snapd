@@ -62,6 +62,7 @@ var mockDeviceStructureSystemSeed = partition.DeviceStructure{
 			Size:       1258291200,
 			Type:       "EF,C12A7328-F81F-11D2-BA4B-00A0C93EC93B",
 			Role:       "system-seed",
+			Label:      "ubuntu-seed",
 			Filesystem: "vfat",
 			Content: []gadget.VolumeContent{
 				{
@@ -83,6 +84,7 @@ var mockDeviceStructureWritable = partition.DeviceStructure{
 			Size:       1258291200,
 			Type:       "83,0FC63DAF-8483-4772-8E79-3D69D8477DE4",
 			Role:       "system-data",
+			Label:      "ubuntu-data",
 			Filesystem: "ext4",
 		},
 		StartOffset: 1260388352,

@@ -5,6 +5,7 @@ cmd/version_generated.go
 cmd/VERSION
 *~
 *.swp
+.vscode/
 vendor/*/
 .spread-reuse*.yaml
 po/snappy.pot
@@ -77,3 +78,9 @@ cmd/test-driver
 # Mypy
 .mypy
 .mypy_cache
+
+# Snap files
+*.snap
+
+# Image files
+*.img

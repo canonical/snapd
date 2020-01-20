@@ -1,7 +1,7 @@
 summary: Integration tests for the snap-bootstrap binary
 
 # one system is enough, its a very specialized test for now
-systems: [ubuntu-18.04-64]
+systems: [ubuntu-19.10-64]
 
 debug: |
     cat /proc/partitions
@@ -32,7 +32,7 @@ prepare: |
 execute: |
     LOOP="$(cat loop.txt)"
     echo "Run the snap-bootstrap tool"
-    /usr/lib/snapd/snap-bootstrap ./gadget-dir "$LOOP"
+    /usr/lib/snapd/snap-bootstrap create-partitions ./gadget-dir "$LOOP"
 
     echo "And check that the partitions are created"
     sfdisk -l "$LOOP" | MATCH '1M\s+BIOS boot'
@@ -53,6 +53,10 @@ execute: |
     # and verify that its the same
     cmp bios-boot.img ./gadget-dir/pc-core.img
 
+    echo "Check that the filesystem was not auto-mounted"
+    mount
+    mount | not MATCH /run/mnt/system-boot
+
     echo "Check that the filesystem content was deployed"
     mkdir -p ./mnt
     mount "${LOOP}p2" ./mnt
@@ -61,20 +65,46 @@ execute: |
     ls ./mnt/EFI/ubuntu/grub.cfg
     umount ./mnt
 
+    # debug message to see if the udev database is correctly updated
+    udevadm info --query=property "${LOOP}p2" | grep ID_FS_TYPE ||:
+
     echo "now add a partition"
     cat >> gadget-dir/meta/gadget.yaml <<EOF
           - name: Other ext4
             type: 83,0FC63DAF-8483-4772-8E79-3D69D8477DE4
             filesystem: ext4
             filesystem-label: other-ext4
-            size: 500M
+            size: 110M
+          - name: Boot partition
+            type: 83,0FC63DAF-8483-4772-8E79-3D69D8477DE4
+            role: system-boot
+            filesystem: ext4
+            size: 120M
+          - name: Data partition
+            type: 83,0FC63DAF-8483-4772-8E79-3D69D8477DE4
+            role: system-data
+            filesystem: ext4
+            size: 130M
     EOF
-    /usr/lib/snapd/snap-bootstrap ./gadget-dir "$LOOP"
-    sfdisk -l "$LOOP" | MATCH '500M\s* Linux filesystem'
+    /usr/lib/snapd/snap-bootstrap create-partitions --mount ./gadget-dir "$LOOP"
+    sfdisk -l "$LOOP" | MATCH '110M\s* Linux filesystem'
+    sfdisk -l "$LOOP" | MATCH '120M\s* Linux filesystem'
+    sfdisk -l "$LOOP" | MATCH '130M\s* Linux filesystem'
 
-    echo "check that the filesystems are created"
-    mkdir -p ./mnt
-    mount "${LOOP}p3" ./mnt
+    echo "check that the filesystems are created and mounted"
+    mount
+
+    mount | MATCH /run/mnt/other-ext4
     df -T "${LOOP}p3" | MATCH ext4
-    umount ./mnt
     file -s "${LOOP}p3" | MATCH 'volume name "other-ext4"'
+    umount /run/mnt/other-ext4
+
+    mount | MATCH /run/mnt/ubuntu-boot
+    df -T "${LOOP}p4" | MATCH ext4
+    file -s "${LOOP}p4" | MATCH 'volume name "ubuntu-boot"'
+    umount /run/mnt/ubuntu-boot
+
+    mount | MATCH /run/mnt/ubuntu-data
+    df -T "${LOOP}p5" | MATCH ext4
+    file -s "${LOOP}p5" | MATCH 'volume name "ubuntu-data"'
+    umount /run/mnt/ubuntu-data

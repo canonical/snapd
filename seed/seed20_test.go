@@ -32,7 +32,9 @@ import (
 	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/seed"
 	"github.com/snapcore/snapd/seed/seedtest"
+	"github.com/snapcore/snapd/seed/seedwriter"
 	"github.com/snapcore/snapd/snap"
+	"github.com/snapcore/snapd/snap/snaptest"
 	"github.com/snapcore/snapd/testutil"
 	"github.com/snapcore/snapd/timings"
 )
@@ -99,7 +101,7 @@ func (s *seed20Suite) TestLoadMetaCore20Minimal(c *C) {
 	s.makeSnap(c, "pc-kernel=20", "")
 	s.makeSnap(c, "pc=20", "")
 
-	sysLabel := "20101018"
+	sysLabel := "20191018"
 	s.MakeSeed(c, sysLabel, "my-brand", "my-model", map[string]interface{}{
 		"display-name": "my model",
 		"architecture": "amd64",
@@ -117,7 +119,7 @@ func (s *seed20Suite) TestLoadMetaCore20Minimal(c *C) {
 				"type":            "gadget",
 				"default-channel": "20",
 			}},
-	})
+	}, nil)
 
 	seed20, err := seed.Open(s.SeedDir, sysLabel)
 	c.Assert(err, IsNil)
@@ -189,7 +191,7 @@ func (s *seed20Suite) makeCore20MinimalSeed(c *C, sysLabel string) string {
 				"type":            "gadget",
 				"default-channel": "20",
 			}},
-	})
+	}, nil)
 
 	return filepath.Join(s.SeedDir, "systems", sysLabel)
 }
@@ -535,7 +537,7 @@ func (s *seed20Suite) TestLoadMetaCore20(c *C) {
 
 	s.AssertedSnapInfo("required20").Contact = "author@example.com"
 
-	sysLabel := "20101018"
+	sysLabel := "20191018"
 	s.MakeSeed(c, sysLabel, "my-brand", "my-model", map[string]interface{}{
 		"display-name": "my model",
 		"architecture": "amd64",
@@ -557,6 +559,840 @@ func (s *seed20Suite) TestLoadMetaCore20(c *C) {
 				"name": "required20",
 				"id":   s.AssertedSnapID("required20"),
 			}},
+	}, nil)
+
+	seed20, err := seed.Open(s.SeedDir, sysLabel)
+	c.Assert(err, IsNil)
+
+	err = seed20.LoadAssertions(s.db, s.commitTo)
+	c.Assert(err, IsNil)
+
+	err = seed20.LoadMeta(s.perfTimings)
+	c.Assert(err, IsNil)
+
+	c.Check(seed20.UsesSnapdSnap(), Equals, true)
+
+	essSnaps := seed20.EssentialSnaps()
+	c.Check(essSnaps, HasLen, 4)
+
+	c.Check(essSnaps, DeepEquals, []*seed.Snap{
+		{
+			Path:      s.expectedPath("snapd"),
+			SideInfo:  &s.AssertedSnapInfo("snapd").SideInfo,
+			Essential: true,
+			Required:  true,
+			Channel:   "latest/stable",
+		}, {
+			Path:      s.expectedPath("pc-kernel"),
+			SideInfo:  &s.AssertedSnapInfo("pc-kernel").SideInfo,
+			Essential: true,
+			Required:  true,
+			Channel:   "20",
+		}, {
+			Path:      s.expectedPath("core20"),
+			SideInfo:  &s.AssertedSnapInfo("core20").SideInfo,
+			Essential: true,
+			Required:  true,
+			Channel:   "latest/stable",
+		}, {
+			Path:      s.expectedPath("pc"),
+			SideInfo:  &s.AssertedSnapInfo("pc").SideInfo,
+			Essential: true,
+			Required:  true,
+			Channel:   "20",
+		},
+	})
+
+	runSnaps, err := seed20.ModeSnaps("run")
+	c.Assert(err, IsNil)
+	c.Check(runSnaps, HasLen, 1)
+	c.Check(runSnaps, DeepEquals, []*seed.Snap{
+		{
+			Path:     s.expectedPath("required20"),
+			SideInfo: &s.AssertedSnapInfo("required20").SideInfo,
+			Required: true,
+			Channel:  "latest/stable",
+		},
+	})
+
+	// required20 has default modes: ["run"]
+	installSnaps, err := seed20.ModeSnaps("install")
+	c.Assert(err, IsNil)
+	c.Check(installSnaps, HasLen, 0)
+}
+
+func (s *seed20Suite) makeLocalSnap(c *C, yamlKey string) (fname string) {
+	return snaptest.MakeTestSnapWithFiles(c, snapYaml[yamlKey], nil)
+}
+
+func (s *seed20Suite) TestLoadMetaCore20LocalSnaps(c *C) {
+	s.makeSnap(c, "snapd", "")
+	s.makeSnap(c, "core20", "")
+	s.makeSnap(c, "pc-kernel=20", "")
+	s.makeSnap(c, "pc=20", "")
+	requiredFn := s.makeLocalSnap(c, "required20")
+
+	sysLabel := "20191030"
+	s.MakeSeed(c, sysLabel, "my-brand", "my-model", map[string]interface{}{
+		"display-name": "my model",
+		"architecture": "amd64",
+		"base":         "core20",
+		"grade":        "dangerous",
+		"snaps": []interface{}{
+			map[string]interface{}{
+				"name":            "pc-kernel",
+				"id":              s.AssertedSnapID("pc-kernel"),
+				"type":            "kernel",
+				"default-channel": "20",
+			},
+			map[string]interface{}{
+				"name":            "pc",
+				"id":              s.AssertedSnapID("pc"),
+				"type":            "gadget",
+				"default-channel": "20",
+			},
+			map[string]interface{}{
+				"name": "required20",
+				"id":   s.AssertedSnapID("required20"),
+			}},
+	}, []*seedwriter.OptionsSnap{
+		{Path: requiredFn},
+	})
+
+	seed20, err := seed.Open(s.SeedDir, sysLabel)
+	c.Assert(err, IsNil)
+
+	err = seed20.LoadAssertions(s.db, s.commitTo)
+	c.Assert(err, IsNil)
+
+	err = seed20.LoadMeta(s.perfTimings)
+	c.Assert(err, IsNil)
+
+	c.Check(seed20.UsesSnapdSnap(), Equals, true)
+
+	essSnaps := seed20.EssentialSnaps()
+	c.Check(essSnaps, HasLen, 4)
+
+	c.Check(essSnaps, DeepEquals, []*seed.Snap{
+		{
+			Path:      s.expectedPath("snapd"),
+			SideInfo:  &s.AssertedSnapInfo("snapd").SideInfo,
+			Essential: true,
+			Required:  true,
+			Channel:   "latest/stable",
+		}, {
+			Path:      s.expectedPath("pc-kernel"),
+			SideInfo:  &s.AssertedSnapInfo("pc-kernel").SideInfo,
+			Essential: true,
+			Required:  true,
+			Channel:   "20",
+		}, {
+			Path:      s.expectedPath("core20"),
+			SideInfo:  &s.AssertedSnapInfo("core20").SideInfo,
+			Essential: true,
+			Required:  true,
+			Channel:   "latest/stable",
+		}, {
+			Path:      s.expectedPath("pc"),
+			SideInfo:  &s.AssertedSnapInfo("pc").SideInfo,
+			Essential: true,
+			Required:  true,
+			Channel:   "20",
+		},
+	})
+
+	runSnaps, err := seed20.ModeSnaps("run")
+	c.Assert(err, IsNil)
+	c.Check(runSnaps, HasLen, 1)
+
+	c.Check(runSnaps, DeepEquals, []*seed.Snap{
+		{
+			Path:     filepath.Join(s.SeedDir, "systems", sysLabel, "snaps", "required20_1.0.snap"),
+			SideInfo: &snap.SideInfo{RealName: "required20"},
+			Required: true,
+		},
+	})
+}
+
+func (s *seed20Suite) TestLoadMetaCore20ChannelOverride(c *C) {
+	s.makeSnap(c, "snapd", "")
+	s.makeSnap(c, "core20", "")
+	s.makeSnap(c, "pc-kernel=20", "")
+	s.makeSnap(c, "pc=20", "")
+	s.makeSnap(c, "required20", "developerid")
+
+	s.AssertedSnapInfo("required20").Contact = "author@example.com"
+
+	sysLabel := "20191018"
+	s.MakeSeed(c, sysLabel, "my-brand", "my-model", map[string]interface{}{
+		"display-name": "my model",
+		"architecture": "amd64",
+		"base":         "core20",
+		"grade":        "dangerous",
+		"snaps": []interface{}{
+			map[string]interface{}{
+				"name":            "pc-kernel",
+				"id":              s.AssertedSnapID("pc-kernel"),
+				"type":            "kernel",
+				"default-channel": "20",
+			},
+			map[string]interface{}{
+				"name":            "pc",
+				"id":              s.AssertedSnapID("pc"),
+				"type":            "gadget",
+				"default-channel": "20",
+			},
+			map[string]interface{}{
+				"name": "required20",
+				"id":   s.AssertedSnapID("required20"),
+			}},
+	}, []*seedwriter.OptionsSnap{
+		{Name: "pc", Channel: "20experimental/edge"},
+	})
+
+	seed20, err := seed.Open(s.SeedDir, sysLabel)
+	c.Assert(err, IsNil)
+
+	err = seed20.LoadAssertions(s.db, s.commitTo)
+	c.Assert(err, IsNil)
+
+	err = seed20.LoadMeta(s.perfTimings)
+	c.Assert(err, IsNil)
+
+	c.Check(seed20.UsesSnapdSnap(), Equals, true)
+
+	essSnaps := seed20.EssentialSnaps()
+	c.Check(essSnaps, HasLen, 4)
+
+	c.Check(essSnaps, DeepEquals, []*seed.Snap{
+		{
+			Path:      s.expectedPath("snapd"),
+			SideInfo:  &s.AssertedSnapInfo("snapd").SideInfo,
+			Essential: true,
+			Required:  true,
+			Channel:   "latest/stable",
+		}, {
+			Path:      s.expectedPath("pc-kernel"),
+			SideInfo:  &s.AssertedSnapInfo("pc-kernel").SideInfo,
+			Essential: true,
+			Required:  true,
+			Channel:   "20",
+		}, {
+			Path:      s.expectedPath("core20"),
+			SideInfo:  &s.AssertedSnapInfo("core20").SideInfo,
+			Essential: true,
+			Required:  true,
+			Channel:   "latest/stable",
+		}, {
+			Path:      s.expectedPath("pc"),
+			SideInfo:  &s.AssertedSnapInfo("pc").SideInfo,
+			Essential: true,
+			Required:  true,
+			Channel:   "20experimental/edge",
+		},
+	})
+
+	runSnaps, err := seed20.ModeSnaps("run")
+	c.Assert(err, IsNil)
+	c.Check(runSnaps, HasLen, 1)
+	c.Check(runSnaps, DeepEquals, []*seed.Snap{
+		{
+			Path:     s.expectedPath("required20"),
+			SideInfo: &s.AssertedSnapInfo("required20").SideInfo,
+			Required: true,
+			Channel:  "latest/stable",
+		},
+	})
+}
+
+func (s *seed20Suite) TestLoadMetaCore20ChannelOverrideSnapd(c *C) {
+	s.makeSnap(c, "snapd", "")
+	s.makeSnap(c, "core20", "")
+	s.makeSnap(c, "pc-kernel=20", "")
+	s.makeSnap(c, "pc=20", "")
+	s.makeSnap(c, "required20", "developerid")
+
+	s.AssertedSnapInfo("required20").Contact = "author@example.com"
+
+	sysLabel := "20191121"
+	s.MakeSeed(c, sysLabel, "my-brand", "my-model", map[string]interface{}{
+		"display-name": "my model",
+		"architecture": "amd64",
+		"base":         "core20",
+		"grade":        "dangerous",
+		"snaps": []interface{}{
+			map[string]interface{}{
+				"name":            "pc-kernel",
+				"id":              s.AssertedSnapID("pc-kernel"),
+				"type":            "kernel",
+				"default-channel": "20",
+			},
+			map[string]interface{}{
+				"name":            "pc",
+				"id":              s.AssertedSnapID("pc"),
+				"type":            "gadget",
+				"default-channel": "20",
+			},
+			map[string]interface{}{
+				"name": "required20",
+				"id":   s.AssertedSnapID("required20"),
+			}},
+	}, []*seedwriter.OptionsSnap{
+		{Name: "snapd", Channel: "20experimental/edge"},
+	})
+
+	seed20, err := seed.Open(s.SeedDir, sysLabel)
+	c.Assert(err, IsNil)
+
+	err = seed20.LoadAssertions(s.db, s.commitTo)
+	c.Assert(err, IsNil)
+
+	err = seed20.LoadMeta(s.perfTimings)
+	c.Assert(err, IsNil)
+
+	c.Check(seed20.UsesSnapdSnap(), Equals, true)
+
+	essSnaps := seed20.EssentialSnaps()
+	c.Check(essSnaps, HasLen, 4)
+
+	c.Check(essSnaps, DeepEquals, []*seed.Snap{
+		{
+			Path:      s.expectedPath("snapd"),
+			SideInfo:  &s.AssertedSnapInfo("snapd").SideInfo,
+			Essential: true,
+			Required:  true,
+			Channel:   "20experimental/edge",
+		}, {
+			Path:      s.expectedPath("pc-kernel"),
+			SideInfo:  &s.AssertedSnapInfo("pc-kernel").SideInfo,
+			Essential: true,
+			Required:  true,
+			Channel:   "20",
+		}, {
+			Path:      s.expectedPath("core20"),
+			SideInfo:  &s.AssertedSnapInfo("core20").SideInfo,
+			Essential: true,
+			Required:  true,
+			Channel:   "latest/stable",
+		}, {
+			Path:      s.expectedPath("pc"),
+			SideInfo:  &s.AssertedSnapInfo("pc").SideInfo,
+			Essential: true,
+			Required:  true,
+			Channel:   "20",
+		},
+	})
+
+	runSnaps, err := seed20.ModeSnaps("run")
+	c.Assert(err, IsNil)
+	c.Check(runSnaps, HasLen, 1)
+	c.Check(runSnaps, DeepEquals, []*seed.Snap{
+		{
+			Path:     s.expectedPath("required20"),
+			SideInfo: &s.AssertedSnapInfo("required20").SideInfo,
+			Required: true,
+			Channel:  "latest/stable",
+		},
+	})
+}
+
+func (s *seed20Suite) TestLoadMetaCore20LocalSnapd(c *C) {
+	snapdFn := s.makeLocalSnap(c, "snapd")
+	s.makeSnap(c, "core20", "")
+	s.makeSnap(c, "pc-kernel=20", "")
+	s.makeSnap(c, "pc=20", "")
+
+	sysLabel := "20191121"
+	s.MakeSeed(c, sysLabel, "my-brand", "my-model", map[string]interface{}{
+		"display-name": "my model",
+		"architecture": "amd64",
+		"base":         "core20",
+		"grade":        "dangerous",
+		"snaps": []interface{}{
+			map[string]interface{}{
+				"name":            "pc-kernel",
+				"id":              s.AssertedSnapID("pc-kernel"),
+				"type":            "kernel",
+				"default-channel": "20",
+			},
+			map[string]interface{}{
+				"name":            "pc",
+				"id":              s.AssertedSnapID("pc"),
+				"type":            "gadget",
+				"default-channel": "20",
+			}},
+	}, []*seedwriter.OptionsSnap{
+		{Path: snapdFn},
+	})
+
+	seed20, err := seed.Open(s.SeedDir, sysLabel)
+	c.Assert(err, IsNil)
+
+	err = seed20.LoadAssertions(s.db, s.commitTo)
+	c.Assert(err, IsNil)
+
+	err = seed20.LoadMeta(s.perfTimings)
+	c.Assert(err, IsNil)
+
+	c.Check(seed20.UsesSnapdSnap(), Equals, true)
+
+	essSnaps := seed20.EssentialSnaps()
+	c.Check(essSnaps, HasLen, 4)
+
+	c.Check(essSnaps, DeepEquals, []*seed.Snap{
+		{
+			Path:      filepath.Join(s.SeedDir, "systems", sysLabel, "snaps", "snapd_1.0.snap"),
+			SideInfo:  &snap.SideInfo{RealName: "snapd"},
+			Essential: true,
+			Required:  true,
+		}, {
+			Path:      s.expectedPath("pc-kernel"),
+			SideInfo:  &s.AssertedSnapInfo("pc-kernel").SideInfo,
+			Essential: true,
+			Required:  true,
+			Channel:   "20",
+		}, {
+			Path:      s.expectedPath("core20"),
+			SideInfo:  &s.AssertedSnapInfo("core20").SideInfo,
+			Essential: true,
+			Required:  true,
+			Channel:   "latest/stable",
+		}, {
+			Path:      s.expectedPath("pc"),
+			SideInfo:  &s.AssertedSnapInfo("pc").SideInfo,
+			Essential: true,
+			Required:  true,
+			Channel:   "20",
+		},
+	})
+
+	runSnaps, err := seed20.ModeSnaps("run")
+	c.Assert(err, IsNil)
+	c.Check(runSnaps, HasLen, 0)
+}
+
+func (s *seed20Suite) TestLoadMetaCore20ModelOverrideSnapd(c *C) {
+	s.makeSnap(c, "snapd", "")
+	s.makeSnap(c, "core20", "")
+	s.makeSnap(c, "pc-kernel=20", "")
+	s.makeSnap(c, "pc=20", "")
+
+	sysLabel := "20191121"
+	s.MakeSeed(c, sysLabel, "my-brand", "my-model", map[string]interface{}{
+		"display-name": "my model",
+		"architecture": "amd64",
+		"base":         "core20",
+		"grade":        "dangerous",
+		"snaps": []interface{}{
+			map[string]interface{}{
+				"name":            "snapd",
+				"type":            "snapd",
+				"default-channel": "latest/edge",
+			},
+			map[string]interface{}{
+				"name":            "pc-kernel",
+				"id":              s.AssertedSnapID("pc-kernel"),
+				"type":            "kernel",
+				"default-channel": "20",
+			},
+			map[string]interface{}{
+				"name":            "pc",
+				"id":              s.AssertedSnapID("pc"),
+				"type":            "gadget",
+				"default-channel": "20",
+			}},
+	}, nil)
+
+	seed20, err := seed.Open(s.SeedDir, sysLabel)
+	c.Assert(err, IsNil)
+
+	err = seed20.LoadAssertions(s.db, s.commitTo)
+	c.Assert(err, IsNil)
+
+	err = seed20.LoadMeta(s.perfTimings)
+	c.Assert(err, IsNil)
+
+	c.Check(seed20.UsesSnapdSnap(), Equals, true)
+
+	essSnaps := seed20.EssentialSnaps()
+	c.Check(essSnaps, HasLen, 4)
+
+	c.Check(essSnaps, DeepEquals, []*seed.Snap{
+		{
+			Path:      s.expectedPath("snapd"),
+			SideInfo:  &s.AssertedSnapInfo("snapd").SideInfo,
+			Essential: true,
+			Required:  true,
+			Channel:   "latest/edge",
+		}, {
+			Path:      s.expectedPath("pc-kernel"),
+			SideInfo:  &s.AssertedSnapInfo("pc-kernel").SideInfo,
+			Essential: true,
+			Required:  true,
+			Channel:   "20",
+		}, {
+			Path:      s.expectedPath("core20"),
+			SideInfo:  &s.AssertedSnapInfo("core20").SideInfo,
+			Essential: true,
+			Required:  true,
+			Channel:   "latest/stable",
+		}, {
+			Path:      s.expectedPath("pc"),
+			SideInfo:  &s.AssertedSnapInfo("pc").SideInfo,
+			Essential: true,
+			Required:  true,
+			Channel:   "20",
+		},
+	})
+
+	runSnaps, err := seed20.ModeSnaps("run")
+	c.Assert(err, IsNil)
+	c.Check(runSnaps, HasLen, 0)
+}
+
+func (s *seed20Suite) TestLoadMetaCore20OptionalSnaps(c *C) {
+	s.makeSnap(c, "snapd", "")
+	s.makeSnap(c, "core20", "")
+	s.makeSnap(c, "pc-kernel=20", "")
+	s.makeSnap(c, "pc=20", "")
+	s.makeSnap(c, "optional20-a", "developerid")
+	s.makeSnap(c, "optional20-b", "developerid")
+
+	sysLabel := "20191122"
+	s.MakeSeed(c, sysLabel, "my-brand", "my-model", map[string]interface{}{
+		"display-name": "my model",
+		"architecture": "amd64",
+		"base":         "core20",
+		"grade":        "signed",
+		"snaps": []interface{}{
+			map[string]interface{}{
+				"name":            "pc-kernel",
+				"id":              s.AssertedSnapID("pc-kernel"),
+				"type":            "kernel",
+				"default-channel": "20",
+			},
+			map[string]interface{}{
+				"name":            "pc",
+				"id":              s.AssertedSnapID("pc"),
+				"type":            "gadget",
+				"default-channel": "20",
+			},
+			map[string]interface{}{
+				"name":     "optional20-a",
+				"id":       s.AssertedSnapID("optional20-a"),
+				"presence": "optional",
+			},
+			map[string]interface{}{
+				"name":     "optional20-b",
+				"id":       s.AssertedSnapID("optional20-b"),
+				"presence": "optional",
+			}},
+	}, []*seedwriter.OptionsSnap{
+		{Name: "optional20-b"},
+	})
+
+	seed20, err := seed.Open(s.SeedDir, sysLabel)
+	c.Assert(err, IsNil)
+
+	err = seed20.LoadAssertions(s.db, s.commitTo)
+	c.Assert(err, IsNil)
+
+	err = seed20.LoadMeta(s.perfTimings)
+	c.Assert(err, IsNil)
+
+	c.Check(seed20.UsesSnapdSnap(), Equals, true)
+
+	essSnaps := seed20.EssentialSnaps()
+	c.Check(essSnaps, HasLen, 4)
+
+	c.Check(essSnaps, DeepEquals, []*seed.Snap{
+		{
+			Path:      s.expectedPath("snapd"),
+			SideInfo:  &s.AssertedSnapInfo("snapd").SideInfo,
+			Essential: true,
+			Required:  true,
+			Channel:   "latest/stable",
+		}, {
+			Path:      s.expectedPath("pc-kernel"),
+			SideInfo:  &s.AssertedSnapInfo("pc-kernel").SideInfo,
+			Essential: true,
+			Required:  true,
+			Channel:   "20",
+		}, {
+			Path:      s.expectedPath("core20"),
+			SideInfo:  &s.AssertedSnapInfo("core20").SideInfo,
+			Essential: true,
+			Required:  true,
+			Channel:   "latest/stable",
+		}, {
+			Path:      s.expectedPath("pc"),
+			SideInfo:  &s.AssertedSnapInfo("pc").SideInfo,
+			Essential: true,
+			Required:  true,
+			Channel:   "20",
+		},
+	})
+
+	runSnaps, err := seed20.ModeSnaps("run")
+	c.Assert(err, IsNil)
+	c.Check(runSnaps, HasLen, 1)
+	c.Check(runSnaps, DeepEquals, []*seed.Snap{
+		{
+			Path:     s.expectedPath("optional20-b"),
+			SideInfo: &s.AssertedSnapInfo("optional20-b").SideInfo,
+			Required: false,
+			Channel:  "latest/stable",
+		},
+	})
+}
+
+func (s *seed20Suite) TestLoadMetaCore20OptionalSnapsLocal(c *C) {
+	s.makeSnap(c, "snapd", "")
+	s.makeSnap(c, "core20", "")
+	s.makeSnap(c, "pc-kernel=20", "")
+	s.makeSnap(c, "pc=20", "")
+	s.makeSnap(c, "optional20-a", "developerid")
+	optional20bFn := s.makeLocalSnap(c, "optional20-b")
+
+	sysLabel := "20191122"
+	s.MakeSeed(c, sysLabel, "my-brand", "my-model", map[string]interface{}{
+		"display-name": "my model",
+		"architecture": "amd64",
+		"base":         "core20",
+		"grade":        "dangerous",
+		"snaps": []interface{}{
+			map[string]interface{}{
+				"name":            "pc-kernel",
+				"id":              s.AssertedSnapID("pc-kernel"),
+				"type":            "kernel",
+				"default-channel": "20",
+			},
+			map[string]interface{}{
+				"name":            "pc",
+				"id":              s.AssertedSnapID("pc"),
+				"type":            "gadget",
+				"default-channel": "20",
+			},
+			map[string]interface{}{
+				"name":     "optional20-a",
+				"id":       s.AssertedSnapID("optional20-a"),
+				"presence": "optional",
+			},
+			map[string]interface{}{
+				"name":     "optional20-b",
+				"id":       s.AssertedSnapID("optional20-b"),
+				"presence": "optional",
+			}},
+	}, []*seedwriter.OptionsSnap{
+		{Path: optional20bFn},
+	})
+
+	seed20, err := seed.Open(s.SeedDir, sysLabel)
+	c.Assert(err, IsNil)
+
+	err = seed20.LoadAssertions(s.db, s.commitTo)
+	c.Assert(err, IsNil)
+
+	err = seed20.LoadMeta(s.perfTimings)
+	c.Assert(err, IsNil)
+
+	c.Check(seed20.UsesSnapdSnap(), Equals, true)
+
+	essSnaps := seed20.EssentialSnaps()
+	c.Check(essSnaps, HasLen, 4)
+
+	c.Check(essSnaps, DeepEquals, []*seed.Snap{
+		{
+			Path:      s.expectedPath("snapd"),
+			SideInfo:  &s.AssertedSnapInfo("snapd").SideInfo,
+			Essential: true,
+			Required:  true,
+			Channel:   "latest/stable",
+		}, {
+			Path:      s.expectedPath("pc-kernel"),
+			SideInfo:  &s.AssertedSnapInfo("pc-kernel").SideInfo,
+			Essential: true,
+			Required:  true,
+			Channel:   "20",
+		}, {
+			Path:      s.expectedPath("core20"),
+			SideInfo:  &s.AssertedSnapInfo("core20").SideInfo,
+			Essential: true,
+			Required:  true,
+			Channel:   "latest/stable",
+		}, {
+			Path:      s.expectedPath("pc"),
+			SideInfo:  &s.AssertedSnapInfo("pc").SideInfo,
+			Essential: true,
+			Required:  true,
+			Channel:   "20",
+		},
+	})
+
+	runSnaps, err := seed20.ModeSnaps("run")
+	c.Assert(err, IsNil)
+	c.Check(runSnaps, HasLen, 1)
+	c.Check(runSnaps, DeepEquals, []*seed.Snap{
+		{
+			Path:     filepath.Join(s.SeedDir, "systems", sysLabel, "snaps", "optional20-b_1.0.snap"),
+			SideInfo: &snap.SideInfo{RealName: "optional20-b"},
+
+			Required: false,
+		},
+	})
+}
+
+func (s *seed20Suite) TestLoadMetaCore20ExtraSnaps(c *C) {
+	s.makeSnap(c, "snapd", "")
+	s.makeSnap(c, "core20", "")
+	s.makeSnap(c, "pc-kernel=20", "")
+	s.makeSnap(c, "pc=20", "")
+	s.makeSnap(c, "core18", "")
+	s.makeSnap(c, "cont-producer", "developerid")
+	contConsumerFn := s.makeLocalSnap(c, "cont-consumer")
+
+	sysLabel := "20191122"
+	s.MakeSeed(c, sysLabel, "my-brand", "my-model", map[string]interface{}{
+		"display-name": "my model",
+		"architecture": "amd64",
+		"base":         "core20",
+		"grade":        "dangerous",
+		"snaps": []interface{}{
+			map[string]interface{}{
+				"name":            "pc-kernel",
+				"id":              s.AssertedSnapID("pc-kernel"),
+				"type":            "kernel",
+				"default-channel": "20",
+			},
+			map[string]interface{}{
+				"name":            "pc",
+				"id":              s.AssertedSnapID("pc"),
+				"type":            "gadget",
+				"default-channel": "20",
+			}},
+	}, []*seedwriter.OptionsSnap{
+		{Name: "cont-producer", Channel: "edge"},
+		{Name: "core18"},
+		{Path: contConsumerFn},
+	})
+
+	seed20, err := seed.Open(s.SeedDir, sysLabel)
+	c.Assert(err, IsNil)
+
+	err = seed20.LoadAssertions(s.db, s.commitTo)
+	c.Assert(err, IsNil)
+
+	err = seed20.LoadMeta(s.perfTimings)
+	c.Assert(err, IsNil)
+
+	c.Check(seed20.UsesSnapdSnap(), Equals, true)
+
+	essSnaps := seed20.EssentialSnaps()
+	c.Check(essSnaps, HasLen, 4)
+
+	c.Check(essSnaps, DeepEquals, []*seed.Snap{
+		{
+			Path:      s.expectedPath("snapd"),
+			SideInfo:  &s.AssertedSnapInfo("snapd").SideInfo,
+			Essential: true,
+			Required:  true,
+			Channel:   "latest/stable",
+		}, {
+			Path:      s.expectedPath("pc-kernel"),
+			SideInfo:  &s.AssertedSnapInfo("pc-kernel").SideInfo,
+			Essential: true,
+			Required:  true,
+			Channel:   "20",
+		}, {
+			Path:      s.expectedPath("core20"),
+			SideInfo:  &s.AssertedSnapInfo("core20").SideInfo,
+			Essential: true,
+			Required:  true,
+			Channel:   "latest/stable",
+		}, {
+			Path:      s.expectedPath("pc"),
+			SideInfo:  &s.AssertedSnapInfo("pc").SideInfo,
+			Essential: true,
+			Required:  true,
+			Channel:   "20",
+		},
+	})
+
+	sysSnapsDir := filepath.Join(s.SeedDir, "systems", sysLabel, "snaps")
+
+	runSnaps, err := seed20.ModeSnaps("run")
+	c.Assert(err, IsNil)
+	c.Check(runSnaps, HasLen, 3)
+	c.Check(runSnaps, DeepEquals, []*seed.Snap{
+		{
+			Path:     filepath.Join(sysSnapsDir, "cont-producer_1.snap"),
+			SideInfo: &s.AssertedSnapInfo("cont-producer").SideInfo,
+			Channel:  "latest/edge",
+		},
+		{
+			Path:     filepath.Join(sysSnapsDir, "core18_1.snap"),
+			SideInfo: &s.AssertedSnapInfo("core18").SideInfo,
+			Channel:  "latest/stable",
+		},
+		{
+			Path:     filepath.Join(sysSnapsDir, "cont-consumer_1.0.snap"),
+			SideInfo: &snap.SideInfo{RealName: "cont-consumer"},
+		},
+	})
+
+	recoverSnaps, err := seed20.ModeSnaps("recover")
+	c.Assert(err, IsNil)
+	c.Check(recoverSnaps, HasLen, 0)
+}
+
+func (s *seed20Suite) TestLoadMetaCore20NotRunSnaps(c *C) {
+	s.makeSnap(c, "snapd", "")
+	s.makeSnap(c, "core20", "")
+	s.makeSnap(c, "pc-kernel=20", "")
+	s.makeSnap(c, "pc=20", "")
+	s.makeSnap(c, "required20", "developerid")
+	s.makeSnap(c, "optional20-a", "developerid")
+	s.makeSnap(c, "optional20-b", "developerid")
+
+	sysLabel := "20191122"
+	s.MakeSeed(c, sysLabel, "my-brand", "my-model", map[string]interface{}{
+		"display-name": "my model",
+		"architecture": "amd64",
+		"base":         "core20",
+		"grade":        "signed",
+		"snaps": []interface{}{
+			map[string]interface{}{
+				"name":            "pc-kernel",
+				"id":              s.AssertedSnapID("pc-kernel"),
+				"type":            "kernel",
+				"default-channel": "20",
+			},
+			map[string]interface{}{
+				"name":            "pc",
+				"id":              s.AssertedSnapID("pc"),
+				"type":            "gadget",
+				"default-channel": "20",
+			},
+			map[string]interface{}{
+				"name":  "required20",
+				"id":    s.AssertedSnapID("required20"),
+				"modes": []interface{}{"run", "ephemeral"},
+			},
+			map[string]interface{}{
+				"name":     "optional20-a",
+				"id":       s.AssertedSnapID("optional20-a"),
+				"presence": "optional",
+				"modes":    []interface{}{"ephemeral"},
+			},
+			map[string]interface{}{
+				"name":     "optional20-b",
+				"id":       s.AssertedSnapID("optional20-b"),
+				"presence": "optional",
+				"modes":    []interface{}{"install"},
+			}},
+	}, []*seedwriter.OptionsSnap{
+		{Name: "optional20-a"},
+		{Name: "optional20-b"},
 	})
 
 	seed20, err := seed.Open(s.SeedDir, sysLabel)
@@ -609,6 +1445,135 @@ func (s *seed20Suite) TestLoadMetaCore20(c *C) {
 			Path:     s.expectedPath("required20"),
 			SideInfo: &s.AssertedSnapInfo("required20").SideInfo,
 			Required: true,
+			Channel:  "latest/stable",
+		},
+	})
+
+	installSnaps, err := seed20.ModeSnaps("install")
+	c.Assert(err, IsNil)
+	c.Check(installSnaps, HasLen, 3)
+	c.Check(installSnaps, DeepEquals, []*seed.Snap{
+		{
+			Path:     s.expectedPath("required20"),
+			SideInfo: &s.AssertedSnapInfo("required20").SideInfo,
+			Required: true,
+			Channel:  "latest/stable",
+		},
+		{
+			Path:     s.expectedPath("optional20-a"),
+			SideInfo: &s.AssertedSnapInfo("optional20-a").SideInfo,
+			Required: false,
+			Channel:  "latest/stable",
+		},
+		{
+			Path:     s.expectedPath("optional20-b"),
+			SideInfo: &s.AssertedSnapInfo("optional20-b").SideInfo,
+			Required: false,
+			Channel:  "latest/stable",
+		},
+	})
+
+	recoverSnaps, err := seed20.ModeSnaps("recover")
+	c.Assert(err, IsNil)
+	c.Check(recoverSnaps, HasLen, 2)
+	c.Check(recoverSnaps, DeepEquals, []*seed.Snap{
+		{
+			Path:     s.expectedPath("required20"),
+			SideInfo: &s.AssertedSnapInfo("required20").SideInfo,
+			Required: true,
+			Channel:  "latest/stable",
+		},
+		{
+			Path:     s.expectedPath("optional20-a"),
+			SideInfo: &s.AssertedSnapInfo("optional20-a").SideInfo,
+			Required: false,
+			Channel:  "latest/stable",
+		},
+	})
+}
+
+func (s *seed20Suite) TestLoadMetaCore20LocalAssertedSnaps(c *C) {
+	s.makeSnap(c, "snapd", "")
+	s.makeSnap(c, "core20", "")
+	s.makeSnap(c, "pc-kernel=20", "")
+	s.makeSnap(c, "pc=20", "")
+	s.makeSnap(c, "required20", "developerid")
+
+	sysLabel := "20191209"
+	s.MakeSeed(c, sysLabel, "my-brand", "my-model", map[string]interface{}{
+		"display-name": "my model",
+		"architecture": "amd64",
+		"base":         "core20",
+		"grade":        "dangerous",
+		"snaps": []interface{}{
+			map[string]interface{}{
+				"name":            "pc-kernel",
+				"id":              s.AssertedSnapID("pc-kernel"),
+				"type":            "kernel",
+				"default-channel": "20",
+			},
+			map[string]interface{}{
+				"name":            "pc",
+				"id":              s.AssertedSnapID("pc"),
+				"type":            "gadget",
+				"default-channel": "20",
+			}},
+	}, []*seedwriter.OptionsSnap{
+		{Path: s.AssertedSnap("pc"), Channel: "edge"},
+		{Path: s.AssertedSnap("required20")},
+	})
+
+	seed20, err := seed.Open(s.SeedDir, sysLabel)
+	c.Assert(err, IsNil)
+
+	err = seed20.LoadAssertions(s.db, s.commitTo)
+	c.Assert(err, IsNil)
+
+	err = seed20.LoadMeta(s.perfTimings)
+	c.Assert(err, IsNil)
+
+	c.Check(seed20.UsesSnapdSnap(), Equals, true)
+
+	essSnaps := seed20.EssentialSnaps()
+	c.Check(essSnaps, HasLen, 4)
+
+	c.Check(essSnaps, DeepEquals, []*seed.Snap{
+		{
+			Path:      s.expectedPath("snapd"),
+			SideInfo:  &s.AssertedSnapInfo("snapd").SideInfo,
+			Essential: true,
+			Required:  true,
+			Channel:   "latest/stable",
+		}, {
+			Path:      s.expectedPath("pc-kernel"),
+			SideInfo:  &s.AssertedSnapInfo("pc-kernel").SideInfo,
+			Essential: true,
+			Required:  true,
+			Channel:   "20",
+		}, {
+			Path:      s.expectedPath("core20"),
+			SideInfo:  &s.AssertedSnapInfo("core20").SideInfo,
+			Essential: true,
+			Required:  true,
+			Channel:   "latest/stable",
+		}, {
+			Path:      s.expectedPath("pc"),
+			SideInfo:  &s.AssertedSnapInfo("pc").SideInfo,
+			Essential: true,
+			Required:  true,
+			Channel:   "20/edge",
+		},
+	})
+
+	sysSnapsDir := filepath.Join(s.SeedDir, "systems", sysLabel, "snaps")
+
+	runSnaps, err := seed20.ModeSnaps("run")
+	c.Assert(err, IsNil)
+	c.Check(runSnaps, HasLen, 1)
+	c.Check(runSnaps, DeepEquals, []*seed.Snap{
+		{
+			Path:     filepath.Join(sysSnapsDir, "required20_1.snap"),
+			SideInfo: &s.AssertedSnapInfo("required20").SideInfo,
 			Channel:  "latest/stable",
 		},
 	})

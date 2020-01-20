@@ -51,6 +51,5 @@ func init() {
 		baseDeclarationSlots:  canBusBaseDeclarationSlots,
 		connectedPlugAppArmor: canBusConnectedPlugAppArmor,
 		connectedPlugSecComp:  canBusConnectedPlugSecComp,
-		reservedForOS:         true,
 	})
 }

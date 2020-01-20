@@ -56,6 +56,12 @@ func (a *androidboot) dir() string {
 	return filepath.Join(a.rootdir, "/boot/androidboot")
 }
 
+func (a *androidboot) InstallBootConfig(gadgetDir string, opts *Options) (bool, error) {
+	gadgetFile := filepath.Join(gadgetDir, a.Name()+".conf")
+	systemFile := a.ConfigFile()
+	return genericInstallBootConfig(gadgetFile, systemFile)
+}
+
 func (a *androidboot) ConfigFile() string {
 	return filepath.Join(a.dir(), "androidboot.env")
 }

@@ -21,6 +21,7 @@ package devicestate
 
 import (
 	"fmt"
+	"os"
 	"regexp"
 	"strings"
 	"time"
@@ -45,6 +46,8 @@ import (
 // DeviceManager is responsible for managing the device identity and device
 // policies.
 type DeviceManager struct {
+	modeEnv boot.Modeenv
+
 	state      *state.State
 	keypairMgr asserts.KeypairManager
 
@@ -55,6 +58,8 @@ type DeviceManager struct {
 	bootRevisionsUpdated bool
 
 	ensureSeedInConfigRan bool
+
+	ensureInstalledRan bool
 
 	lastBecomeOperationalAttempt time.Time
 	becomeOperationalBackoff     time.Duration
@@ -82,6 +87,14 @@ func Manager(s *state.State, hookManager *hookstate.HookManager, runner *state.T
 		preseed:    release.PreseedMode(),
 	}
 
+	modeEnv, err := boot.ReadModeenv("")
+	if err != nil && !os.IsNotExist(err) {
+		return nil, err
+	}
+	if modeEnv != nil {
+		m.modeEnv = *modeEnv
+	}
+
 	s.Lock()
 	s.Cache(deviceMgrKey{}, m)
 	s.Unlock()
@@ -96,6 +109,7 @@ func Manager(s *state.State, hookManager *hookstate.HookManager, runner *state.T
 	runner.AddHandler("request-serial", m.doRequestSerial, nil)
 	runner.AddHandler("mark-preseeded", m.doMarkPreseeded, nil)
 	runner.AddHandler("mark-seeded", m.doMarkSeeded, nil)
+	runner.AddHandler("setup-run-system", m.doSetupRunSystem, nil)
 	runner.AddHandler("prepare-remodeling", m.doPrepareRemodeling, nil)
 	runner.AddCleanup("prepare-remodeling", m.cleanupRemodel)
 	// this *must* always run last and finalizes a remodel
@@ -248,11 +262,22 @@ func setClassicFallbackModel(st *state.State, device *auth.DeviceState) error {
 	return nil
 }
 
+func (m *DeviceManager) OperatingMode() string {
+	if m.modeEnv.Mode == "" {
+		return "run"
+	}
+	return m.modeEnv.Mode
+}
+
 func (m *DeviceManager) ensureOperational() error {
 	m.state.Lock()
 	defer m.state.Unlock()
 
-	perfTimings := timings.New(map[string]string{"ensure": "become-operational"})
+	if m.OperatingMode() != "run" {
+		// avoid doing registration in ephemeral mode
+		// note: this also stop auto-refreshes indirectly
+		return nil
+	}
 
 	device, err := m.device()
 	if err != nil {
@@ -263,6 +288,8 @@ func (m *DeviceManager) ensureOperational() error {
 		// serial is set, we are all set
 		return nil
 	}
+
+	perfTimings := timings.New(map[string]string{"ensure": "become-operational"})
 
 	// conditions to trigger device registration
 	//
@@ -389,13 +416,11 @@ func (m *DeviceManager) ensureOperational() error {
 
 var populateStateFromSeed = populateStateFromSeedImpl
 
-// ensureSnaps makes sure that the snaps from seed.yaml get installed
+// ensureSeeded makes sure that the snaps from seed.yaml get installed
 // with the matching assertions
-func (m *DeviceManager) ensureSeedYaml() error {
+func (m *DeviceManager) ensureSeeded() error {
 	m.state.Lock()
 	defer m.state.Unlock()
-
-	perfTimings := timings.New(map[string]string{"ensure": "seed"})
 
 	var seeded bool
 	err := m.state.Get("seeded", &seeded)
@@ -406,18 +431,25 @@ func (m *DeviceManager) ensureSeedYaml() error {
 		return nil
 	}
 
+	perfTimings := timings.New(map[string]string{"ensure": "seed"})
+
 	if m.changeInFlight("seed") {
 		return nil
 	}
 
-	// TODO: Core 20: how do we establish whether this is a Core 20
-	// system, how do we receive mode here and also how to pick a label?
+	var opts *populateStateFromSeedOptions
+	if !m.modeEnv.Unset() {
+		opts = &populateStateFromSeedOptions{
+			Label: m.modeEnv.RecoverySystem,
+			Mode:  m.modeEnv.Mode,
+		}
+	}
+	if m.preseed {
+		opts = &populateStateFromSeedOptions{Preseed: true}
+	}
+
 	var tsAll []*state.TaskSet
 	timings.Run(perfTimings, "state-from-seed", "populate state from seed", func(tm timings.Measurer) {
-		var opts *populateStateFromSeedOptions
-		if m.preseed {
-			opts = &populateStateFromSeedOptions{Preseed: true}
-		}
 		tsAll, err = populateStateFromSeed(m.state, opts, tm)
 	})
 	if err != nil {
@@ -453,9 +485,20 @@ func (m *DeviceManager) ensureBootOk() error {
 		return nil
 	}
 
+	// boot-ok/update-boot-revision is only relevant in run-mode
+	if m.OperatingMode() != "run" {
+		return nil
+	}
+
 	if !m.bootOkRan {
-		if err := boot.MarkBootSuccessful(); err != nil {
+		deviceCtx, err := DeviceCtx(m.state, nil, nil)
+		if err != nil && err != state.ErrNoState {
 			return err
+		}
+		if err == nil {
+			if err := boot.MarkBootSuccessful(deviceCtx); err != nil {
+				return err
+			}
 		}
 		m.bootOkRan = true
 	}
@@ -466,6 +509,47 @@ func (m *DeviceManager) ensureBootOk() error {
 		}
 		m.bootRevisionsUpdated = true
 	}
+
+	return nil
+}
+
+func (m *DeviceManager) ensureInstalled() error {
+	m.state.Lock()
+	defer m.state.Unlock()
+
+	if release.OnClassic {
+		return nil
+	}
+
+	if m.ensureInstalledRan {
+		return nil
+	}
+
+	if m.OperatingMode() != "install" {
+		return nil
+	}
+
+	var seeded bool
+	err := m.state.Get("seeded", &seeded)
+	if err != nil {
+		return err
+	}
+	if !seeded {
+		return nil
+	}
+
+	if m.changeInFlight("install-system") {
+		return nil
+	}
+
+	m.ensureInstalledRan = true
+
+	tasks := []*state.Task{}
+	setupRunSystem := m.state.NewTask("setup-run-system", i18n.G("Setup system for run mode"))
+	tasks = append(tasks, setupRunSystem)
+
+	chg := m.state.NewChange("install-system", i18n.G("Install the system"))
+	chg.AddAll(state.NewTaskSet(tasks...))
 
 	return nil
 }
@@ -534,7 +618,7 @@ func (e *ensureError) Error() string {
 func (m *DeviceManager) Ensure() error {
 	var errs []error
 
-	if err := m.ensureSeedYaml(); err != nil {
+	if err := m.ensureSeeded(); err != nil {
 		errs = append(errs, err)
 	}
 
@@ -550,6 +634,10 @@ func (m *DeviceManager) Ensure() error {
 		if err := m.ensureSeedInConfig(); err != nil {
 			errs = append(errs, err)
 		}
+	}
+
+	if err := m.ensureInstalled(); err != nil {
+		errs = append(errs, err)
 	}
 
 	if len(errs) > 0 {

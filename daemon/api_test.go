@@ -150,7 +150,7 @@ func (s *apiBaseSuite) Find(ctx context.Context, search *store.Search, user *aut
 	return s.rsnaps, s.err
 }
 
-func (s *apiBaseSuite) SnapAction(ctx context.Context, currentSnaps []*store.CurrentSnap, actions []*store.SnapAction, user *auth.UserState, opts *store.RefreshOptions) ([]*snap.Info, error) {
+func (s *apiBaseSuite) SnapAction(ctx context.Context, currentSnaps []*store.CurrentSnap, actions []*store.SnapAction, user *auth.UserState, opts *store.RefreshOptions) ([]store.SnapActionResult, error) {
 	s.pokeStateLock()
 
 	if ctx == nil {
@@ -160,7 +160,11 @@ func (s *apiBaseSuite) SnapAction(ctx context.Context, currentSnaps []*store.Cur
 	s.actions = actions
 	s.user = user
 
-	return s.rsnaps, s.err
+	sars := make([]store.SnapActionResult, len(s.rsnaps))
+	for i, rsnap := range s.rsnaps {
+		sars[i] = store.SnapActionResult{Info: rsnap}
+	}
+	return sars, s.err
 }
 
 func (s *apiBaseSuite) SuggestedCurrency() string {
@@ -228,7 +232,14 @@ func (s *apiBaseSuite) TearDownSuite(c *check.C) {
 func (s *apiBaseSuite) systemctl(args ...string) (buf []byte, err error) {
 	s.sysctlArgses = append(s.sysctlArgses, args)
 
-	if args[0] != "show" && args[0] != "start" && args[0] != "stop" && args[0] != "restart" {
+	if len(args) > 2 && args[0] == "--root" && args[2] == "is-enabled" {
+		// drop the first 2 args which are "--root some-dir"
+		args = args[2:]
+	}
+
+	switch args[0] {
+	case "show", "start", "stop", "restart", "is-enabled":
+	default:
 		panic(fmt.Sprintf("unexpected systemctl call: %v", args))
 	}
 
@@ -790,12 +801,11 @@ UnitFileState=enabled
 					},
 				},
 			},
-			Broken:      "",
-			Contact:     "",
-			License:     "GPL-3.0",
-			CommonIDs:   []string{"org.foo.cmd"},
-			Screenshots: []snap.ScreenshotInfo{{Note: snap.ScreenshotsDeprecationNotice}},
-			CohortKey:   "some-long-cohort-key",
+			Broken:    "",
+			Contact:   "",
+			License:   "GPL-3.0",
+			CommonIDs: []string{"org.foo.cmd"},
+			CohortKey: "some-long-cohort-key",
 		},
 		Meta: meta,
 	}
@@ -949,7 +959,6 @@ func (s *apiSuite) TestMapLocalFields(c *check.C) {
 		CommonIDs:        []string{"foo", "bar"},
 		MountedFrom:      filepath.Join(dirs.SnapBlobDir, "some-snap_instance_7.snap"),
 		Media:            media,
-		Screenshots:      []snap.ScreenshotInfo{{Note: snap.ScreenshotsDeprecationNotice}},
 		Apps: []client.AppInfo{
 			{Snap: "some-snap_instance", Name: "bar"},
 			{Snap: "some-snap_instance", Name: "foo"},
@@ -1780,7 +1789,6 @@ func (s *apiSuite) TestFind(c *check.C) {
 	c.Assert(snaps, check.HasLen, 1)
 	c.Assert(snaps[0]["name"], check.Equals, "store")
 	c.Check(snaps[0]["prices"], check.IsNil)
-	c.Check(snaps[0]["screenshots"], check.DeepEquals, []interface{}{map[string]interface{}{"note": snap.ScreenshotsDeprecationNotice}})
 	c.Check(snaps[0]["channels"], check.IsNil)
 
 	c.Check(rsp.SuggestedCurrency, check.Equals, "EUR")
@@ -2202,11 +2210,6 @@ func (s *apiSuite) TestFindScreenshotted(c *check.C) {
 	c.Assert(snaps, check.HasLen, 1)
 
 	c.Check(snaps[0]["name"], check.Equals, "test-screenshot")
-	c.Check(snaps[0]["screenshots"], check.DeepEquals, []interface{}{
-		map[string]interface{}{
-			"note": snap.ScreenshotsDeprecationNotice,
-		},
-	})
 	c.Check(snaps[0]["media"], check.DeepEquals, []interface{}{
 		map[string]interface{}{
 			"type":   "screenshot",
@@ -2461,8 +2464,8 @@ func (s *apiSuite) testPostSnap(c *check.C, withChannel bool) {
 
 	snapInstructionDispTable["install"] = func(inst *snapInstruction, _ *state.State) (string, []*state.TaskSet, error) {
 		if withChannel {
-			// channel in -> it was parsed
-			c.Check(inst.Channel, check.Equals, "xyzzy/stable")
+			// channel in -> channel out
+			c.Check(inst.Channel, check.Equals, "xyzzy")
 		} else {
 			// no channel in -> no channel out
 			c.Check(inst.Channel, check.Equals, "")
@@ -6577,6 +6580,32 @@ func (s *apiSuite) TestSnapctlForbiddenError(c *check.C) {
 	c.Assert(err, check.IsNil)
 	rsp := runSnapctl(snapctlCmd, req, nil).(*resp)
 	c.Assert(rsp.Status, check.Equals, 403)
+}
+
+func (s *apiSuite) TestSnapctlUnsuccesfulError(c *check.C) {
+	_ = s.daemon(c)
+
+	runSnapctlUcrednetGet = func(string) (int32, uint32, string, error) {
+		return 100, 9999, dirs.SnapSocket, nil
+	}
+	defer func() { runSnapctlUcrednetGet = ucrednetGet }()
+
+	ctlcmdRun = func(ctx *hookstate.Context, arg []string, uid uint32) ([]byte, []byte, error) {
+		return nil, nil, &ctlcmd.UnsuccessfulError{ExitCode: 123}
+	}
+	defer func() { ctlcmdRun = ctlcmd.Run }()
+
+	buf := bytes.NewBufferString(fmt.Sprintf(`{"context-id": "some-context", "args": [%q, %q]}`, "is-connected", "plug"))
+	req, err := http.NewRequest("POST", "/v2/snapctl", buf)
+	c.Assert(err, check.IsNil)
+	rsp := runSnapctl(snapctlCmd, req, nil).(*resp)
+	c.Check(rsp.Status, check.Equals, 200)
+	c.Check(rsp.Result.(*errorResult).Kind, check.Equals, errorKindUnsuccessful)
+	c.Check(rsp.Result.(*errorResult).Value, check.DeepEquals, map[string]interface{}{
+		"stdout":    "",
+		"stderr":    "",
+		"exit-code": 123,
+	})
 }
 
 type appSuite struct {

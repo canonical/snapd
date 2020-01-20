@@ -35,6 +35,25 @@ var (
 	ErrBootloader = errors.New("cannot determine bootloader")
 )
 
+// Options carries bootloader options.
+type Options struct {
+	// PrepareImageTime indicates whether the booloader is being
+	// used at prepare-image time, that means not on a runtime
+	// system.
+	PrepareImageTime bool
+
+	// Recovery indicates to use the recovery bootloader. Note that
+	// UC16/18 do not have a recovery partition.
+	Recovery bool
+
+	// NoSlashBoot indicates to use the run mode bootloader but
+	// under the native layout and not the /boot mount.
+	NoSlashBoot bool
+
+	// ExtractedRunKernelImage is whether to force kernel asset extraction.
+	ExtractedRunKernelImage bool
+}
+
 // Bootloader provides an interface to interact with the system
 // bootloader
 type Bootloader interface {
@@ -50,7 +69,12 @@ type Bootloader interface {
 	// ConfigFile returns the name of the config file
 	ConfigFile() string
 
-	// ExtractKernelAssets extracts kernel assets from the given kernel snap
+	// InstallBootConfig will try to install the boot config in the
+	// given gadgetDir to rootdir. If no boot config for this bootloader
+	// is found ok is false.
+	InstallBootConfig(gadgetDir string, opts *Options) (ok bool, err error)
+
+	// ExtractKernelAssets extracts kernel assets from the given kernel snap.
 	ExtractKernelAssets(s snap.PlaceInfo, snapf snap.Container) error
 
 	// RemoveKernelAssets removes the assets for the given kernel snap.
@@ -62,23 +86,39 @@ type installableBootloader interface {
 	setRootDir(string)
 }
 
+type RecoveryAwareBootloader interface {
+	Bootloader
+	SetRecoverySystemEnv(recoverySystemDir string, values map[string]string) error
+}
+
+type ExtractedRunKernelImageBootloader interface {
+	Bootloader
+	EnableKernel(snap.PlaceInfo) error        // makes the symlink
+	EnableTryKernel(snap.PlaceInfo) error     // makes the symlink
+	Kernel() (snap.PlaceInfo, error)          // gives the symlink
+	TryKernel() (snap.PlaceInfo, bool, error) // gives the symlink (if exists)
+	DisableTryKernel() error                  // removes the symlink
+}
+
+func genericInstallBootConfig(gadgetFile, systemFile string) (bool, error) {
+	if !osutil.FileExists(gadgetFile) {
+		return false, nil
+	}
+	if err := os.MkdirAll(filepath.Dir(systemFile), 0755); err != nil {
+		return true, err
+	}
+	return true, osutil.CopyFile(gadgetFile, systemFile, osutil.CopyFlagOverwrite)
+}
+
 // InstallBootConfig installs the bootloader config from the gadget
 // snap dir into the right place.
-func InstallBootConfig(gadgetDir, rootDir string) error {
+func InstallBootConfig(gadgetDir, rootDir string, opts *Options) error {
 	for _, bl := range []installableBootloader{&grub{}, &uboot{}, &androidboot{}, &lk{}} {
-		// the bootloader config file has to be root of the gadget snap
-		gadgetFile := filepath.Join(gadgetDir, bl.Name()+".conf")
-		if !osutil.FileExists(gadgetFile) {
-			continue
-		}
-
 		bl.setRootDir(rootDir)
-
-		systemFile := bl.ConfigFile()
-		if err := os.MkdirAll(filepath.Dir(systemFile), 0755); err != nil {
+		ok, err := bl.InstallBootConfig(gadgetDir, opts)
+		if ok {
 			return err
 		}
-		return osutil.CopyFile(gadgetFile, systemFile, osutil.CopyFlagOverwrite)
 	}
 
 	return fmt.Errorf("cannot find boot config in %q", gadgetDir)
@@ -89,16 +129,12 @@ var (
 	forcedError      error
 )
 
-// Options carries bootloader options.
-type Options struct {
-	// PrepareImageTime indicates whether the booloader is being
-	// used at prepare-image time, that means not on a runtime
-	// system.
-	PrepareImageTime bool
-}
-
 // Find returns the bootloader for the system
 // or an error if no bootloader is found.
+//
+// The rootdir option is useful for image creation operations. It
+// can also be used to find the recovery bootloader, e.g. on uc20:
+//   bootloader.Find("/run/mnt/ubuntu-seed")
 func Find(rootdir string, opts *Options) (Bootloader, error) {
 	if forcedBootloader != nil || forcedError != nil {
 		return forcedBootloader, forcedError
@@ -117,7 +153,7 @@ func Find(rootdir string, opts *Options) (Bootloader, error) {
 	}
 
 	// no, try grub
-	if grub := newGrub(rootdir); grub != nil {
+	if grub := newGrub(rootdir, opts); grub != nil {
 		return grub, nil
 	}
 
@@ -135,24 +171,22 @@ func Find(rootdir string, opts *Options) (Bootloader, error) {
 	return nil, ErrBootloader
 }
 
-// Force can be used to force setting a booloader to that Find will not use the
-// usual lookup process; use nil to reset to normal lookup.
+// Force can be used to force Find to always find the specified bootloader; use
+// nil to reset to normal lookup.
 func Force(booloader Bootloader) {
 	forcedBootloader = booloader
 	forcedError = nil
 }
 
-// Force can be used to force Find to return an error; use nil to
+// ForceError can be used to force Find to return an error; use nil to
 // reset to normal lookup.
 func ForceError(err error) {
 	forcedBootloader = nil
 	forcedError = err
 }
 
-func extractKernelAssetsToBootDir(bootDir string, s snap.PlaceInfo, snapf snap.Container) error {
+func extractKernelAssetsToBootDir(dstDir string, s snap.PlaceInfo, snapf snap.Container, assets []string) error {
 	// now do the kernel specific bits
-	blobName := filepath.Base(s.MountFile())
-	dstDir := filepath.Join(bootDir, blobName)
 	if err := os.MkdirAll(dstDir, 0755); err != nil {
 		return err
 	}
@@ -162,7 +196,7 @@ func extractKernelAssetsToBootDir(bootDir string, s snap.PlaceInfo, snapf snap.C
 	}
 	defer dir.Close()
 
-	for _, src := range []string{"kernel.img", "initrd.img"} {
+	for _, src := range assets {
 		if err := snapf.Unpack(src, dstDir); err != nil {
 			return err
 		}
@@ -170,11 +204,7 @@ func extractKernelAssetsToBootDir(bootDir string, s snap.PlaceInfo, snapf snap.C
 			return err
 		}
 	}
-	if err := snapf.Unpack("dtbs/*", dstDir); err != nil {
-		return err
-	}
-
-	return dir.Sync()
+	return nil
 }
 
 func removeKernelAssetsFromBootDir(bootDir string, s snap.PlaceInfo) error {

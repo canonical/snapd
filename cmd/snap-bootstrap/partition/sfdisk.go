@@ -30,7 +30,11 @@ import (
 	"github.com/snapcore/snapd/osutil"
 )
 
-var (
+const (
+	ubuntuBootLabel = "ubuntu-boot"
+	ubuntuSeedLabel = "ubuntu-seed"
+	ubuntuDataLabel = "ubuntu-data"
+
 	sectorSize gadget.Size = 512
 )
 
@@ -59,11 +63,13 @@ type sfdiskPartition struct {
 }
 
 type DeviceLayout struct {
-	Structure      []DeviceStructure
-	ID             string
-	Device         string
-	Schema         string
-	Size           gadget.Size
+	Structure []DeviceStructure
+	ID        string
+	Device    string
+	Schema    string
+	// size in bytes
+	Size gadget.Size
+	// sector size in bytes
 	SectorSize     gadget.Size
 	partitionTable *sfdiskPartitionTable
 }
@@ -77,7 +83,7 @@ type DeviceStructure struct {
 // NewDeviceLayout obtains the partitioning and filesystem information from the
 // block device.
 func DeviceLayoutFromDisk(device string) (*DeviceLayout, error) {
-	output, err := exec.Command("sfdisk", "--json", "-d", device).CombinedOutput()
+	output, err := exec.Command("sfdisk", "--json", "-d", device).Output()
 	if err != nil {
 		return nil, osutil.OutputErr(output, err)
 	}
@@ -96,23 +102,68 @@ func DeviceLayoutFromDisk(device string) (*DeviceLayout, error) {
 	return dl, nil
 }
 
+var (
+	ensureNodesExist = ensureNodesExistImpl
+)
+
 // CreateMissing creates the partitions listed in the positioned volume pv
 // that are missing from the existing device layout.
 func (dl *DeviceLayout) CreateMissing(pv *gadget.LaidOutVolume) ([]DeviceStructure, error) {
 	buf, created := buildPartitionList(dl.partitionTable, pv)
+	if len(created) == 0 {
+		return created, nil
+	}
 
-	// Write the partition table, note that sfdisk will re-read the
-	// partition table by itself: see disk-utils/sfdisk.c:write_changes()
-	cmd := exec.Command("sfdisk", dl.Device)
+	// Write the partition table. By default sfdisk will try to re-read the
+	// partition table with the BLKRRPART ioctl but will fail because the
+	// kernel side rescan removes and adds partitions and we have partitions
+	// mounted (so it fails on removal). Use --no-reread to skip this attempt.
+	cmd := exec.Command("sfdisk", "--append", "--no-reread", dl.Device)
 	cmd.Stdin = buf
 	if output, err := cmd.CombinedOutput(); err != nil {
 		return created, osutil.OutputErr(output, err)
 	}
 
-	// Add an extra delay to prevent reads to take place immediately
-	time.Sleep(250 * time.Millisecond)
+	// Re-read the partition table using the BLKPG ioctl, which doesn't
+	// remove existing partitions only appends new partitions with the right
+	// size and offset. As long as we provide consistent partitioning from
+	// userspace we're safe. At this point we also trigger udev to create
+	// the new partition device nodes.
+	output, err := exec.Command("partx", "-u", dl.Device).CombinedOutput()
+	if err != nil {
+		return nil, osutil.OutputErr(output, err)
+	}
+
+	// Make sure the devices for the partitions we created are available
+	if err := ensureNodesExist(created, 5*time.Second); err != nil {
+		return nil, fmt.Errorf("partition not available: %v", err)
+	}
 
 	return created, nil
+}
+
+// ensureNodeExists makes sure the device nodes for all device structures are
+// available and notified to udev, within a specified amount of time.
+func ensureNodesExistImpl(ds []DeviceStructure, timeout time.Duration) error {
+	t0 := time.Now()
+	for _, part := range ds {
+		found := false
+		for time.Since(t0) < timeout {
+			if osutil.FileExists(part.Node) {
+				found = true
+				break
+			}
+			time.Sleep(100 * time.Millisecond)
+		}
+		if found {
+			if err := udevTrigger(part.Node); err != nil {
+				return err
+			}
+		} else {
+			return fmt.Errorf("device %s not available", part.Node)
+		}
+	}
+	return nil
 }
 
 // deviceLayoutFromDump takes an sfdisk dump format and returns the partitioning
@@ -162,7 +213,7 @@ func deviceLayoutFromDump(dump *sfdiskDeviceDump) (*DeviceLayout, error) {
 		ID:             ptable.ID,
 		Device:         ptable.Device,
 		Schema:         ptable.Label,
-		Size:           gadget.Size(ptable.LastLBA),
+		Size:           gadget.Size(ptable.LastLBA) * sectorSize,
 		SectorSize:     sectorSize,
 		partitionTable: &ptable,
 	}
@@ -185,25 +236,14 @@ func deviceName(name string, index int) string {
 // format. Return a partitioning description suitable for sfdisk input
 // and a list of the partitions to be created
 func buildPartitionList(ptable *sfdiskPartitionTable, pv *gadget.LaidOutVolume) (sfdiskInput *bytes.Buffer, toBeCreated []DeviceStructure) {
-	buf := &bytes.Buffer{}
-
-	// Write partition data in sfdisk dump format
-	fmt.Fprintf(buf, "label: %s\nlabel-id: %s\ndevice: %s\nunit: %s\nfirst-lba: %d\nlast-lba: %d\n\n",
-		ptable.Label, ptable.ID, ptable.Device, ptable.Unit, ptable.FirstLBA, ptable.LastLBA)
-
 	// Keep track what partitions we already have on disk
 	seen := map[uint64]bool{}
 	for _, p := range ptable.Partitions {
-		fmt.Fprintf(buf, "%s : start=%12d, size=%12d, type=%s, uuid=%s", p.Node, p.Start,
-			p.Size, p.Type, p.UUID)
-		if p.Name != "" {
-			fmt.Fprintf(buf, ", name=%q", p.Name)
-		}
-		fmt.Fprintf(buf, "\n")
 		seen[p.Start] = true
 	}
 
-	// Add missing partitions
+	// Write new partition data in named-fields format
+	buf := &bytes.Buffer{}
 	for _, p := range pv.LaidOutStructure {
 		s := p.VolumeStructure
 		// Skip partitions that are already in the volume
@@ -222,11 +262,32 @@ func buildPartitionList(ptable *sfdiskPartitionTable, pv *gadget.LaidOutVolume) 
 		fmt.Fprintf(buf, "%s : start=%12d, size=%12d, type=%s, name=%q\n", node, p.StartOffset/sectorSize,
 			s.Size/sectorSize, partitionType(ptable.Label, p.Type), s.Name)
 
-		// Are roles unique so we can use it to map nodes? Should we use labels instead?
+		// TODO:UC20: also add an attribute to mark partitions created at install
+		//            time so they can be removed case the installation fails.
+
+		// Set expected labels based on role
+		switch s.Role {
+		case gadget.SystemBoot:
+			s.Label = ubuntuBootLabel
+		case gadget.SystemSeed:
+			s.Label = ubuntuSeedLabel
+		case gadget.SystemData:
+			s.Label = ubuntuDataLabel
+		}
+
 		toBeCreated = append(toBeCreated, DeviceStructure{p, node})
 	}
 
 	return buf, toBeCreated
+}
+
+// udevTrigger triggers udev for the specified device and waits until
+// all events in the udev queue are handled.
+func udevTrigger(device string) error {
+	if output, err := exec.Command("udevadm", "trigger", "--settle", device).CombinedOutput(); err != nil {
+		return osutil.OutputErr(output, err)
+	}
+	return nil
 }
 
 func partitionType(label, ptype string) string {

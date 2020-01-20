@@ -87,7 +87,10 @@ func (iface *serialPortInterface) BeforePrepareSlot(slot *snap.SlotInfo) error {
 		return fmt.Errorf("serial-port slot must have a path attribute")
 	}
 
-	// Clean the path before further checks
+	// XXX: this interface feeds the cleaned path into the regex and is
+	// left unchanged here for historical reasons. New interfaces (eg,
+	// like raw-volume) should instead use verifySlotPathAttribute() which
+	// performs additional verification.
 	path = filepath.Clean(path)
 
 	if iface.hasUsbAttrs(slot) {
@@ -156,7 +159,7 @@ func (iface *serialPortInterface) AppArmorConnectedPlug(spec *apparmor.Specifica
 		// This apparmor rule is an approximation of serialDeviceNodePattern
 		// (AARE is different than regex, so we must approximate).
 		// UDev tagging and device cgroups will restrict down to the specific device
-		spec.AddSnippet("/dev/tty[A-Z]*[0-9] rw,")
+		spec.AddSnippet("/dev/tty[A-Z]*[0-9] rwk,")
 		return nil
 	}
 
@@ -166,7 +169,7 @@ func (iface *serialPortInterface) AppArmorConnectedPlug(spec *apparmor.Specifica
 		return nil
 	}
 	cleanedPath := filepath.Clean(path)
-	spec.AddSnippet(fmt.Sprintf("%s rw,", cleanedPath))
+	spec.AddSnippet(fmt.Sprintf("%s rwk,", cleanedPath))
 	return nil
 }
 
