@@ -73,7 +73,7 @@ func (iface *uioInterface) path(slotRef *interfaces.SlotRef, attrs interfaces.At
 }
 
 func (iface *uioInterface) BeforePrepareSlot(slot *snap.SlotInfo) error {
-	_, err := iface.path(&interfaces.SlotRef{Snap: slot.Snap.InstanceName(), Name: slot.Name}, slot)
+	_, err := verifySlotPathAttribute(&interfaces.SlotRef{Snap: slot.Snap.InstanceName(), Name: slot.Name}, slot, uioPattern, "must be a valid device node")
 	return err
 }
 
