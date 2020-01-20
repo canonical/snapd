@@ -22,7 +22,6 @@ package builtin
 import (
 	"crypto/sha256"
 	"fmt"
-	"path/filepath"
 	"regexp"
 	"strings"
 
@@ -61,19 +60,11 @@ func (iface *uioInterface) StaticInfo() interfaces.StaticInfo {
 var uioPattern = regexp.MustCompile(`^/dev/uio[0-9]+$`)
 
 func (iface *uioInterface) path(slotRef *interfaces.SlotRef, attrs interfaces.Attrer) (string, error) {
-	var path string
-	if err := attrs.Attr("path", &path); err != nil || path == "" {
-		return "", fmt.Errorf("slot %q must have a path attribute", slotRef)
-	}
-	path = filepath.Clean(path)
-	if !uioPattern.MatchString(path) {
-		return "", fmt.Errorf("%q is not a valid UIO device", path)
-	}
-	return path, nil
+	return verifySlotPathAttribute(slotRef, attrs, uioPattern, invalidDeviceNodeSlotPathErrFmt)
 }
 
 func (iface *uioInterface) BeforePrepareSlot(slot *snap.SlotInfo) error {
-	_, err := verifySlotPathAttribute(&interfaces.SlotRef{Snap: slot.Snap.InstanceName(), Name: slot.Name}, slot, uioPattern, "must be a valid device node")
+	_, err := verifySlotPathAttribute(&interfaces.SlotRef{Snap: slot.Snap.InstanceName(), Name: slot.Name}, slot, uioPattern, invalidDeviceNodeSlotPathErrFmt)
 	return err
 }
 
