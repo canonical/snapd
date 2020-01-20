@@ -78,6 +78,15 @@ func (s *uioInterfaceSuite) TestName(c *C) {
 
 func (s *uioInterfaceSuite) TestSanitizeSlot(c *C) {
 	c.Assert(interfaces.BeforePrepareSlot(s.iface, s.slotGadgetInfo), IsNil)
+	brokenSlot := snaptest.MockInfo(c, `
+name: broken-gadget
+version: 1
+type: gadget
+slots:
+  uio:
+    path: /dev/foo
+`, nil).Slots["uio"]
+	c.Assert(interfaces.BeforePrepareSlot(s.iface, brokenSlot), ErrorMatches, `slot "broken-gadget:uio" path attribute must be a valid device node`)
 }
 
 func (s *uioInterfaceSuite) TestUDevSpec(c *C) {
