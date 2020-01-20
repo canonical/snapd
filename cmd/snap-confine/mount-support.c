@@ -50,8 +50,6 @@
 
 #define MAX_BUF 1000
 
-static void sc_detach_views_of_writable(void);
-
 // TODO: simplify this, after all it is just a tmpfs
 // TODO: fold this into bootstrap
 static void setup_private_mount(const char *snap_name)
@@ -511,48 +509,6 @@ static void sc_bootstrap_mount_namespace(const struct sc_mount_config *config)
 	// mount table and software inspecting the mount table may become confused.
 	sc_must_snprintf(src, sizeof src, "%s/proc", SC_HOSTFS_DIR);
 	sc_do_umount(src, UMOUNT_NOFOLLOW | MNT_DETACH);
-	// Detach the both views of /writable: the one from hostfs and the one
-	// directly visible in /writable. Interfaces don't grant access to this
-	// directory and it has a large duplicated view of many mount points.
-	// Note that this is only applicable to ubuntu-core systems.
-	if (config->distro != SC_DISTRO_CLASSIC) {
-		sc_detach_views_of_writable();
-	}
-}
-
-static void sc_detach_views_of_writable(void)
-{
-	const char *writable_dir = "/writable";
-	const char *hostfs_writable_dir = "/var/lib/snapd/hostfs/writable";
-	sc_mountinfo *sm SC_CLEANUP(sc_cleanup_mountinfo) = NULL;
-	// We use a crude loop to avoid the problem of ordering the mount
-	// points correctly from mostly nested to least nested. This way we
-	// just unmount the first viable candidate we see and start over. This
-	// guarantees that we either didn't want to unmount anything and
-	// finished or we unmounted at least one thing before trying the
-	// sequence again.
-	for (bool should_unmount = false, needs_scan = true; needs_scan;
-	     needs_scan = should_unmount) {
-		sm = sc_parse_mountinfo(NULL);
-		if (sm == NULL) {
-			die("cannot parse /proc/self/mountinfo");
-		}
-		for (sc_mountinfo_entry * entry = sc_first_mountinfo_entry(sm);
-		     entry != NULL; entry = sc_next_mountinfo_entry(entry)) {
-			const char *mount_dir = entry->mount_dir;
-			should_unmount = sc_is_beneath(mount_dir, writable_dir)
-			    || sc_is_beneath(mount_dir, hostfs_writable_dir);
-			if (should_unmount) {
-				sc_do_mount("none", mount_dir, NULL,
-					    MS_REC | MS_PRIVATE, NULL);
-				sc_do_umount(mount_dir,
-					     UMOUNT_NOFOLLOW | MNT_DETACH);
-				break;
-			}
-		}
-		// Clean up explicitly on each iteration.
-		sc_cleanup_mountinfo(&sm);
-	}
 }
 
 /**

@@ -74,25 +74,6 @@ static void test_sc_startswith(void)
 	g_assert_false(sc_startswith("ba", "bar"));
 }
 
-static void test_sc_is_beneath(void)
-{
-	// Essential difference from sc_startswith
-	g_assert_true(sc_is_beneath("/foo/bar", "/foo"));
-	g_assert_false(sc_is_beneath("/foo/bar", "/foo2"));
-	// True cases
-	g_assert_true(sc_is_beneath("/foo", "/foo"));
-	g_assert_true(sc_is_beneath("", ""));
-	g_assert_true(sc_is_beneath("/foo", "/"));
-	// False cases
-	g_assert_false(sc_is_beneath("/foo", "/bar"));
-	g_assert_false(sc_is_beneath("/foo", "/foo/bar"));
-	// NULL is just perpetually false.
-	g_assert_false(sc_is_beneath(NULL, ""));
-	g_assert_false(sc_is_beneath("", NULL));
-	g_assert_false(sc_is_beneath(NULL, NULL));
-
-}
-
 static void test_sc_must_snprintf(void)
 {
 	char buf[5] = { 0 };
@@ -835,7 +816,6 @@ static void __attribute__((constructor)) init(void)
 	g_test_add_func("/string-utils/sc_streq", test_sc_streq);
 	g_test_add_func("/string-utils/sc_endswith", test_sc_endswith);
 	g_test_add_func("/string-utils/sc_startswith", test_sc_startswith);
-	g_test_add_func("/string-utils/sc_is_beneath", test_sc_is_beneath);
 	g_test_add_func("/string-utils/sc_must_snprintf",
 			test_sc_must_snprintf);
 	g_test_add_func("/string-utils/sc_must_snprintf/fail",
