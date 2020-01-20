@@ -1630,6 +1630,91 @@ version: @VERSION@
 	c.Check(info.Revision, Equals, snap.R(50))
 }
 
+func (s *mgrsSuite) TestReRefreshAndSwitchChannel(c *C) {
+	s.prereqSnapAssertions(c)
+
+	snapYamlContent := `name: foo
+version: @VERSION@
+apps:
+ app1:
+  command: bin/app1
+ app2:
+  command: bin/app2
+`
+
+	ver := "1.0"
+	revno := "42"
+	snapPath, _ := s.makeStoreTestSnap(c, strings.Replace(snapYamlContent, "@VERSION@", ver, -1), revno)
+	s.serveSnap(snapPath, revno)
+
+	mockServer := s.mockStore(c)
+	defer mockServer.Close()
+
+	st := s.o.State()
+	st.Lock()
+	defer st.Unlock()
+
+	ts, err := snapstate.Install(context.TODO(), st, "foo", &snapstate.RevisionOptions{Channel: "stable"}, 0, snapstate.Flags{})
+	c.Assert(err, IsNil)
+	chg := st.NewChange("install-snap", "...")
+	chg.AddAll(ts)
+
+	st.Unlock()
+	err = s.o.Settle(settleTimeout)
+	st.Lock()
+	c.Assert(err, IsNil)
+
+	c.Assert(chg.Status(), Equals, state.DoneStatus, Commentf("install-snap change failed with: %v", chg.Err()))
+
+	s.prereqSnapAssertions(c, map[string]interface{}{
+		"snap-name": "foo",
+		"aliases": []interface{}{
+			map[string]interface{}{"name": "app2", "target": "app2"},
+		},
+		"revision": "1",
+	})
+
+	// refresh declarations
+	err = assertstate.RefreshSnapDeclarations(st, 0)
+	c.Assert(err, IsNil)
+
+	var snapst snapstate.SnapState
+	err = snapstate.Get(st, "foo", &snapst)
+	c.Assert(err, IsNil)
+	c.Assert(snapst.TrackingChannel, Equals, "latest/stable")
+	info, err := snapst.CurrentInfo()
+	c.Assert(err, IsNil)
+	c.Check(info.Revision, Equals, snap.R(42))
+
+	// try refresh, since there is no new revision no actual snap refresh is
+	// done, but due to earlier change in snap declaration, auto aliases are
+	// changed
+	tss, err := snapstate.Update(st, "foo", &snapstate.RevisionOptions{Channel: "stable"}, 0, snapstate.Flags{})
+	c.Assert(err, IsNil)
+	c.Assert(tss, NotNil)
+	chg = st.NewChange("upgrade-snaps", "...")
+	chg.AddAll(tss)
+
+	tasks := tss.Tasks()
+	for _, t := range tasks {
+		c.Logf("kind: %v", t.Kind())
+	}
+
+	st.Unlock()
+	// XXX: this panics in rerefresh handler
+	err = s.o.Settle(settleTimeout)
+	st.Lock()
+	c.Assert(err, IsNil)
+
+	c.Assert(chg.Err(), IsNil)
+	c.Assert(chg.Status(), Equals, state.DoneStatus, Commentf("upgrade-snap change failed with: %v", chg.Err()))
+
+	info, err = snapstate.CurrentInfo(st, "foo")
+	c.Assert(err, IsNil)
+
+	c.Check(info.Revision, Equals, snap.R(42))
+}
+
 // core & kernel
 
 var modelDefaults = map[string]interface{}{
