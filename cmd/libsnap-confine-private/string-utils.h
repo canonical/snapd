@@ -37,6 +37,15 @@ bool sc_endswith(const char *str, const char *suffix);
 bool sc_startswith(const char *str, const char *prefix);
 
 /**
+ * sc_is_beneath checks if a path is beneath a specified directory.
+ *
+ * Unlike sc_startswith, this function understands the notion of directories
+ * and the path separator. It considers /foo to be parent of /foo/bar but not a
+ * parent of /foo2.
+ **/
+bool sc_is_beneath(const char *path, const char *parent_dir);
+
+/**
  * Allocate and return a copy of a string.
 **/
 char *sc_strdup(const char *str);
