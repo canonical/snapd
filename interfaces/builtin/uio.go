@@ -33,6 +33,7 @@ import (
 	"github.com/snapcore/snapd/snap"
 )
 
+// https://www.kernel.org/doc/html/latest/driver-api/uio-howto.html
 const uioSummary = `allows access to specific uio device`
 
 const uioBaseDeclarationSlots = `
