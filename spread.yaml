@@ -149,6 +149,14 @@ backends:
             - ubuntu-18.04-64:
                 image: ubuntu-1804-64-virt-enabled
                 workers: 1
+            - ubuntu-19.10-64:
+                # FIXME: use 19.10 image
+                image: ubuntu-1804-64-virt-enabled
+                workers: 1
+            - ubuntu-20.04-64:
+                # FIXME: use 20.04 image
+                image: ubuntu-1804-64-virt-enabled
+                workers: 1
 
     qemu:
         # TODO:UC20: uc20 needs 2G or grub will not loopback the kernel snap
@@ -815,6 +823,42 @@ suites:
             "$TESTSLIB"/prepare-restore.sh --restore-suite-each
         restore: |
             "$TESTSLIB"/prepare-restore.sh --restore-suite
+
+    tests/nested/classic-preseed/:
+        summary: Tests for nested images with pre-seeding
+        backends: [google-nested]
+        systems: [ubuntu-19.10-64, ubuntu-20.04-64]
+        environment:
+            NESTED_TYPE: "classic"
+            # Channel used to create the nested vm
+            CORE_CHANNEL: '$(HOST: echo "${SPREAD_CORE_CHANNEL:-stable}")'
+            # Channel used to refresh when testing refresh and revert
+            CORE_REFRESH_CHANNEL: '$(HOST: echo "${SPREAD_CORE_REFRESH_CHANNEL:-edge}")'
+            # Channel used to update the core/snapd snaps on some tests
+            NEW_CORE_CHANNEL: '$(HOST: echo "${SPREAD_NEW_CORE_CHANNEL:-edge}")'
+        manual: true
+        prepare: |
+            "$TESTSLIB"/prepare-restore.sh --prepare-suite
+            #shellcheck source=tests/lib/pkgdb.sh
+            . "$TESTSLIB"/pkgdb.sh
+            distro_update_package_db
+            distro_install_package snapd qemu genisoimage sshpass qemu-kvm cloud-image-utils ubuntu-image
+        prepare-each: |
+            #shellcheck source=tests/lib/nested.sh
+            . "$TESTSLIB/nested.sh"
+            create_nested_classic_vm
+        restore-each: |
+            #shellcheck source=tests/lib/nested.sh
+            . "$TESTSLIB/nested.sh"
+            destroy_nested_vm
+        restore: |
+            #shellcheck source=tests/lib/nested.sh
+            . "$TESTSLIB/nested.sh"
+            cleanup_nested_env
+
+            #shellcheck source=tests/lib/pkgdb.sh
+            . "$TESTSLIB"/pkgdb.sh
+            distro_purge_package qemu genisoimage sshpass qemu-kvm cloud-image-utils ubuntu-image
 
     tests/nested/classic/:
         summary: Tests for nested images

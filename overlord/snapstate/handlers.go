@@ -1313,7 +1313,9 @@ func (m *SnapManager) doLinkSnap(t *state.Task, _ *tomb.Tomb) (err error) {
 
 	// if we just installed a core snap, request a restart
 	// so that we switch executing its snapd
-	maybeRestart(t, newInfo, reboot, deviceCtx)
+	if !m.preseed {
+		maybeRestart(t, newInfo, reboot, deviceCtx)
+	}
 
 	return nil
 }

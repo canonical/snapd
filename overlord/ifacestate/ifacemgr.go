@@ -30,6 +30,7 @@ import (
 	"github.com/snapcore/snapd/overlord/ifacestate/ifacerepo"
 	"github.com/snapcore/snapd/overlord/ifacestate/udevmonitor"
 	"github.com/snapcore/snapd/overlord/state"
+	"github.com/snapcore/snapd/release"
 	"github.com/snapcore/snapd/snap"
 	"github.com/snapcore/snapd/timings"
 )
@@ -59,6 +60,8 @@ type InterfaceManager struct {
 	// extras
 	extraInterfaces []interfaces.Interface
 	extraBackends   []interfaces.SecurityBackend
+
+	preseed bool
 }
 
 // Manager returns a new InterfaceManager.
@@ -81,6 +84,7 @@ func Manager(s *state.State, hookManager *hookstate.HookManager, runner *state.T
 		// extras
 		extraInterfaces: extraInterfaces,
 		extraBackends:   extraBackends,
+		preseed:         release.PreseedMode(),
 	}
 
 	taskKinds := map[string]bool{}
@@ -178,6 +182,11 @@ func (m *InterfaceManager) StartUp() error {
 
 // Ensure implements StateManager.Ensure.
 func (m *InterfaceManager) Ensure() error {
+	// do not worry about udev monitor in preseeding mode
+	if m.preseed {
+		return nil
+	}
+
 	if m.udevMonitorDisabled {
 		return nil
 	}

@@ -57,6 +57,12 @@ get_image_url_for_nested_vm(){
     ubuntu-18.04-64)
         echo "https://cloud-images.ubuntu.com/bionic/current/bionic-server-cloudimg-amd64.img"
         ;;
+    ubuntu-19.10-64)
+        echo "https://cloud-images.ubuntu.com/eoan/current/eoan-server-cloudimg-amd64.img"
+        ;;
+    ubuntu-20.04-64)
+        echo "https://cloud-images.ubuntu.com/focal/current/focal-server-cloudimg-amd64.img"
+        ;;
     *)
         echo "unsupported system"
         exit 1
@@ -224,6 +230,11 @@ create_nested_classic_vm(){
         create_seed_image
         cloud-localds -H "$(hostname)" "$WORK_DIR/seed.img" "$WORK_DIR/seed"
     fi
+}
+
+get_nested_classic_image_path() {
+    IMAGE=$(ls $WORK_DIR/image/*.img)
+    echo "$IMAGE"
 }
 
 start_nested_classic_vm(){

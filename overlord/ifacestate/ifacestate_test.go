@@ -7613,3 +7613,33 @@ func (s *interfaceManagerSuite) TestDoSetupSnapSecurityAutoConnectsDeclBasedAnyS
 
 	s.testDoSetupSnapSecurityAutoConnectsDeclBasedAnySlotsPerPlug(c, check)
 }
+
+func (s *interfaceManagerSuite) TestPreseedAutoConnectErrorWithHooks(c *C) {
+	restore := release.MockPreseedMode(func() bool { return true })
+	defer restore()
+
+	s.MockModel(c, nil)
+	s.mockIfaces(c, &ifacetest.TestInterface{InterfaceName: "test"}, &ifacetest.TestInterface{InterfaceName: "test2"})
+
+	snapInfo := s.mockSnap(c, consumerYaml)
+	s.mockSnap(c, producerYaml)
+
+	// Initialize the manager. This registers the OS snap.
+	_ = s.manager(c)
+
+	// Run the setup-snap-security task and let it finish.
+	change := s.addSetupSnapSecurityChange(c, &snapstate.SnapSetup{
+		SideInfo: &snap.SideInfo{
+			RealName: snapInfo.SnapName(),
+			Revision: snapInfo.Revision,
+		},
+	})
+	s.settle(c)
+
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	// Ensure that the task succeeded.
+	c.Check(change.Status(), Equals, state.ErrorStatus)
+	c.Check(change.Err(), ErrorMatches, `cannot perform the following tasks:\n.*interface hooks are not yet supported in preseed mode.*`)
+}
