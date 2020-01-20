@@ -81,7 +81,7 @@ func (iface *uioInterface) AppArmorConnectedPlug(spec *apparmor.Specification, p
 	if err != nil {
 		return nil
 	}
-	spec.AddSnippet(fmt.Sprintf("%s rwm,", path))
+	spec.AddSnippet(fmt.Sprintf("%s rw,", path))
 	// Assuming sysfs_base is /sys/class/uio/uio[0-9]+ where the leaf directory
 	// name matches /dev/uio[0-9]+ device name, the following files exists or
 	// may exist:

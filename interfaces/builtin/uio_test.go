@@ -94,7 +94,7 @@ func (s *uioInterfaceSuite) TestAppArmorSpec(c *C) {
 	c.Assert(spec.AddConnectedPlug(s.iface, s.plug, s.slotGadget), IsNil)
 	c.Assert(spec.SecurityTags(), DeepEquals, []string{"snap.consumer.app"})
 	c.Assert(spec.SnippetForTag("snap.consumer.app"), Equals, ""+
-		"/dev/uio0 rwm,\n"+
+		"/dev/uio0 rw,\n"+
 		"/sys/devices/platform/**/uio/uio0/** rw,")
 }
 
