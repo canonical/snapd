@@ -34,19 +34,32 @@
 #include "../libsnap-confine-private/utils.h"
 #include "udev-support.h"
 
+__attribute__((format(printf, 2, 3)))
+static void sc_dprintf(int fd, const char *format, ...);
+
+static void sc_dprintf(int fd, const char *format, ...)
+{
+	va_list ap;
+	va_start(ap, format);
+	if (vdprintf(fd, format, ap) == -1) {
+		die("cannot write to fd %d", fd);
+	}
+	va_end(ap);
+}
+
 /* Allow access to common devices. */
 static void sc_udev_allow_common(int devices_allow_fd)
 {
 	/* The devices we add here have static number allocation.
 	 * https://www.kernel.org/doc/html/v4.11/admin-guide/devices.html */
-	dprintf(devices_allow_fd, "c 1:3 rwm");	// /dev/null
-	dprintf(devices_allow_fd, "c 1:5 rwm");	// /dev/zero
-	dprintf(devices_allow_fd, "c 1:7 rwm");	// /dev/full
-	dprintf(devices_allow_fd, "c 1:8 rwm");	// /dev/random
-	dprintf(devices_allow_fd, "c 1:9 rwm");	// /dev/urandom
-	dprintf(devices_allow_fd, "c 5:0 rwm");	// /dev/tty
-	dprintf(devices_allow_fd, "c 5:1 rwm");	// /dev/console
-	dprintf(devices_allow_fd, "c 5:2 rwm");	// /dev/ptmx
+	sc_dprintf(devices_allow_fd, "c 1:3 rwm");	// /dev/null
+	sc_dprintf(devices_allow_fd, "c 1:5 rwm");	// /dev/zero
+	sc_dprintf(devices_allow_fd, "c 1:7 rwm");	// /dev/full
+	sc_dprintf(devices_allow_fd, "c 1:8 rwm");	// /dev/random
+	sc_dprintf(devices_allow_fd, "c 1:9 rwm");	// /dev/urandom
+	sc_dprintf(devices_allow_fd, "c 5:0 rwm");	// /dev/tty
+	sc_dprintf(devices_allow_fd, "c 5:1 rwm");	// /dev/console
+	sc_dprintf(devices_allow_fd, "c 5:2 rwm");	// /dev/ptmx
 }
 
 /** Allow access to current and future PTY slaves.
@@ -60,7 +73,7 @@ static void sc_udev_allow_common(int devices_allow_fd)
 static void sc_udev_allow_pty_slaves(int devices_allow_fd)
 {
 	for (unsigned pty_major = 136; pty_major <= 143; pty_major++) {
-		dprintf(devices_allow_fd, "c %u:* rwm", pty_major);
+		sc_dprintf(devices_allow_fd, "c %u:* rwm", pty_major);
 	}
 }
 
@@ -92,21 +105,21 @@ static void sc_udev_allow_nvidia(int devices_allow_fd)
 		if (stat(nv_path, &sbuf) < 0) {
 			break;
 		}
-		dprintf(devices_allow_fd, "c %u:%u rwm", major(sbuf.st_rdev),
-			minor(sbuf.st_rdev));
+		sc_dprintf(devices_allow_fd, "c %u:%u rwm", major(sbuf.st_rdev),
+			   minor(sbuf.st_rdev));
 	}
 
 	if (stat("/dev/nvidiactl", &sbuf) == 0) {
-		dprintf(devices_allow_fd, "c %u:%u rwm", major(sbuf.st_rdev),
-			minor(sbuf.st_rdev));
+		sc_dprintf(devices_allow_fd, "c %u:%u rwm", major(sbuf.st_rdev),
+			   minor(sbuf.st_rdev));
 	}
 	if (stat("/dev/nvidia-uvm", &sbuf) == 0) {
-		dprintf(devices_allow_fd, "c %u:%u rwm", major(sbuf.st_rdev),
-			minor(sbuf.st_rdev));
+		sc_dprintf(devices_allow_fd, "c %u:%u rwm", major(sbuf.st_rdev),
+			   minor(sbuf.st_rdev));
 	}
 	if (stat("/dev/nvidia-modeset", &sbuf) == 0) {
-		dprintf(devices_allow_fd, "c %u:%u rwm", major(sbuf.st_rdev),
-			minor(sbuf.st_rdev));
+		sc_dprintf(devices_allow_fd, "c %u:%u rwm", major(sbuf.st_rdev),
+			   minor(sbuf.st_rdev));
 	}
 }
 
@@ -121,8 +134,8 @@ static void sc_udev_allow_uhid(int devices_allow_fd)
 	struct stat sbuf;
 
 	if (stat("/dev/uhid", &sbuf) == 0) {
-		dprintf(devices_allow_fd, "c %u:%u rwm", major(sbuf.st_rdev),
-			minor(sbuf.st_rdev));
+		sc_dprintf(devices_allow_fd, "c %u:%u rwm", major(sbuf.st_rdev),
+			   minor(sbuf.st_rdev));
 	}
 }
 
@@ -149,8 +162,8 @@ static void sc_udev_allow_assigned(int devices_allow_fd, struct udev *udev,
 		}
 		dev_t devnum = udev_device_get_devnum(device);
 		char type_c = strstr(path, "/block/") != NULL ? 'b' : 'c';
-		dprintf(devices_allow_fd, "%c %u:%u rwm", type_c, major(devnum),
-			minor(devnum));
+		sc_dprintf(devices_allow_fd, "%c %u:%u rwm", type_c,
+			   major(devnum), minor(devnum));
 
 		udev_device_unref(device);
 	}
@@ -166,7 +179,7 @@ static void sc_udev_setup_acls(int devices_allow_fd, int devices_deny_fd,
 	 * in previous launcher invocations, then add the static and assigned
 	 * devices. This ensures that at application launch the cgroup only has
 	 * what is currently assigned. */
-	dprintf(devices_deny_fd, "a");
+	sc_dprintf(devices_deny_fd, "a");
 
 	/* Allow access to various devices. */
 	sc_udev_allow_common(devices_allow_fd);
@@ -366,7 +379,7 @@ void sc_setup_device_cgroup(const char *security_tag)
 			   udev, assigned);
 
 	/* Move ourselves to the device cgroup */
-	dprintf(fds.cgroup_procs_fd, "%i", getpid());
+	sc_dprintf(fds.cgroup_procs_fd, "%i", getpid());
 	debug("associated snap application process with device cgroup %s",
 	      security_tag);
 }
