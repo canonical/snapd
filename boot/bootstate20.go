@@ -93,12 +93,12 @@ func (s20 *bootState20Kernel) revisions() (theSnap, theTrySnap snap.PlaceInfo, t
 	// get the kernel for this bootloader
 	bootSnap, err = ebl.Kernel()
 	if err != nil {
-		return nil, nil, false, fmt.Errorf("cannot locate kernel snap with bootloader %s: %v", ebl.Name(), err)
+		return nil, nil, false, fmt.Errorf("cannot identify kernel snap with bootloader %s: %v", ebl.Name(), err)
 	}
 
 	tryKernel, tryKernelExists, err := ebl.TryKernel()
 	if err != nil {
-		return nil, nil, false, fmt.Errorf("cannot locate try kernel snap with bootloader %s: %v", ebl.Name(), err)
+		return nil, nil, false, fmt.Errorf("cannot identify try kernel snap with bootloader %s: %v", ebl.Name(), err)
 	}
 
 	if tryKernelExists {
@@ -110,7 +110,7 @@ func (s20 *bootState20Kernel) revisions() (theSnap, theTrySnap snap.PlaceInfo, t
 		return nil, nil, false, fmt.Errorf("cannot read boot variables with bootloader %s: %v", ebl.Name(), err)
 	}
 
-	trying = (m["kernel_status"] == "trying")
+	trying = m["kernel_status"] == "trying"
 
 	return bootSnap, tryBootSnap, trying, nil
 }
@@ -123,7 +123,7 @@ func (s20 *bootState20Kernel) markSuccessful(update bootStateUpdate) (bootStateU
 		return nil, err
 	}
 
-	// kernel_status goes from "" -> "try" -> "trying" -> ""
+	// kernel_status goes from "" -> "try" -> "trying" (set by the boot script) -> ""
 	// so if we are not in "trying" mode, nothing to do here
 	if u20.env["kernel_status"] != "trying" {
 		return u20, nil
@@ -251,11 +251,9 @@ func (u20 *bootStateUpdate20) commit() error {
 	// 1. Add try-kernel symlink
 	// 2. Update kernel_status to "try"
 	//
-	// This is because if we get rebooted in between 1 and 2, kernel_status is
-	// still "trying", so the bootloader will interpret this to mean the boot
-	// failed and the bootloader should revert back to the "known good" kernel
-	// at the kernel symlink. Since all we did was add a try-kernel symlink,
-	// this won't break booting from the old kernel symlink.
+	// This is because if we get rebooted in between 1 and 2, kernel_status
+	// is still unset and boot scripts proceeds to boot with the old kernel,
+	// effectively ignoring the try-kernel symlink.
 	// If we did it in the opposite order however, we would set kernel_status to
 	// "try" and then get rebooted before we could create the try-kernel
 	// symlink, so the bootloader would try to boot from the non-existent
@@ -271,20 +269,20 @@ func (u20 *bootStateUpdate20) commit() error {
 	//
 	// If we got rebooted after step 1, then the bootloader is booting the wrong
 	// kernel, but is at least booting a known good kernel and snapd in
-	// user-space would be able to figure out the inconsistency
+	// user-space would be able to figure out the inconsistency.
 	// If we got rebooted after step 2, the bootloader would boot from the new
 	// try-kernel which is okay and all that's left is for snapd to cleanup the
-	// left-over try-kernel symlink
+	// left-over try-kernel symlink.
 	// If instead we had moved the kernel symlink first to point to the new try
 	// kernel, and got rebooted before the kernel_status was updated, we would
 	// have kernel_status="trying" which would cause the bootloader to think
 	// the boot failed, and revert to booting using the kernel symlink, but that
 	// now points to the new kernel we were trying and we did not successfully
-	// boot from that kernel to know we should trust it
+	// boot from that kernel to know we should trust it.
 	// The try-kernel symlink removal should happen last because it will not
 	// affect anything, except that if it was removed before updating
 	// kernel_status to "", the bootloader will think that the try kernel failed
-	// to boot and fall back to booting the old kernel which is safe
+	// to boot and fall back to booting the old kernel which is safe.
 
 	// enable snaps that need to be enabled
 	// * step 1 for about to try an update
