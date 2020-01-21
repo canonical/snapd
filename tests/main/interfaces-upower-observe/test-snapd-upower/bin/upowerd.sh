@@ -16,8 +16,9 @@
 
 DEBUG=false
 
-if [ -e $SNAP_DATA/config ]; then
-	. $SNAP_DATA/config
+if [ -e "$SNAP_DATA/config" ]; then
+	# shellcheck source=/dev/null
+	. "$SNAP_DATA/config"
 fi
 
 UPOWER_OPTS=
@@ -25,12 +26,12 @@ if [ $DEBUG = true ]; then
 	UPOWER_OPTS="-v"
 fi
 
-mkdir -p $SNAP_COMMON/history
+mkdir -p "$SNAP_COMMON/history"
 
-if [ ! -e $SNAP_DATA/UPower.conf ]; then
-	cp $SNAP/etc/UPower/UPower.conf $SNAP_DATA
+if [ ! -e "$SNAP_DATA/UPower.conf" ]; then
+	cp "$SNAP/etc/UPower/UPower.conf" "$SNAP_DATA"
 fi
 
 export UPOWER_CONF_FILE_NAME=$SNAP_DATA/UPower.conf
 
-exec $SNAP/usr/libexec/upowerd $UPOWER_OPTS
+exec "$SNAP/usr/libexec/upowerd" $UPOWER_OPTS
