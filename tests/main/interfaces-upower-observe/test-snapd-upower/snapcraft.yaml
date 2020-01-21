@@ -64,7 +64,14 @@ parts:
       - umockdev
       - xsltproc
       - upower
-
+    stage-packages:
+      - libusb-1.0-0-dev
+      - libgudev-1.0-0
+      - libicu55
+      - libimobiledevice6
+      - libplist3
+      - libusbmuxd4
+      - libxml2
     stage:
       # FIXME: Drop when we have the upower-control interface in place
       # - -etc/dbus-1
