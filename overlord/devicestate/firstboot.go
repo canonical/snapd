@@ -91,9 +91,8 @@ func populateStateFromSeedImpl(st *state.State, opts *populateStateFromSeedOptio
 	}
 
 	// ack all initial assertions
-	var model *asserts.Model
 	timings.Run(tm, "import-assertions", "import assertions from seed", func(nested timings.Measurer) {
-		model, err = importAssertionsFromSeed(st, deviceSeed)
+		_, err = importAssertionsFromSeed(st, deviceSeed)
 	})
 	if err == errNothingToDo {
 		return trivialSeeding(st, markSeeded), nil
@@ -199,14 +198,6 @@ func populateStateFromSeedImpl(st *state.State, opts *populateStateFromSeedOptio
 
 	ts := tsAll[len(tsAll)-1]
 	endTs := state.NewTaskSet()
-	if model.Gadget() != "" {
-		// we have a gadget that could have interface
-		// connection instructions
-		gadgetConnect := st.NewTask("gadget-connect", "Connect plugs and slots as instructed by the gadget")
-		gadgetConnect.WaitAll(ts)
-		endTs.AddTask(gadgetConnect)
-		ts = endTs
-	}
 	markSeeded.WaitAll(ts)
 	endTs.AddTask(markSeeded)
 	tsAll = append(tsAll, endTs)
