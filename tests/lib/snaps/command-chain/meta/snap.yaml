@@ -7,6 +7,10 @@ apps:
   hello:
     command: hello
     command-chain: [chain1, chain2]
+  run:
+    command: run
+    command-chain: [chain1, chain2]
+    daemon: simple
 
 hooks:
   configure:
