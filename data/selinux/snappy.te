@@ -341,8 +341,11 @@ can_exec(snappy_t, snappy_snap_t)
 # fontconfig cache setup
 miscfiles_manage_fonts_cache(snappy_t)
 files_var_filetrans(snappy_t, fonts_cache_t, dir, "fontconfig")
-# fontconfig cache is in /usr/lib/fontconfig/cache, but its labeling is
-# incorrect, see https://bugzilla.redhat.com/show_bug.cgi?id=1659905
+# fontconfig cache is in /usr/lib/fontconfig/cache, which should be labeled as
+# fonts_cache_t, but it may be incorrectly labeled as lib_t, see
+# https://bugzilla.redhat.com/show_bug.cgi?id=1659905 and a corresponding bug
+# for RHEL7 https://bugzilla.redhat.com/show_bug.cgi?id=1792349 (marked as
+# WONTFIX, so carry the workaround for as long as we support EPEL7)
 libs_manage_lib_dirs(snappy_t)
 libs_manage_lib_files(snappy_t)
 fs_getattr_xattr_fs(snappy_t)
@@ -371,6 +374,12 @@ allow snappy_t var_t:sock_file unlink;
 allow snappy_t unconfined_t:dir search;
 allow snappy_t unconfined_t:file { open read };
 
+# snapd executes cp when copying snap data between revisions
+allow snappy_t self:process { setfscreate };
+allow snappy_t self:capability { fsetid chown };
+# snappy_t running as system_u attempts to change the user identity of copied
+# files, which typically have unconfined_u
+domain_obj_id_change_exemption(snappy_t)
 # snapd executes runuser to take snapshots of user's snap data
 allow snappy_t self:capability { setuid setgid };
 allow snappy_t self:process setsched;
@@ -389,6 +398,19 @@ role system_r types snappy_mount_t;
 
 admin_pattern(snappy_mount_t, snappy_var_run_t)
 files_pid_filetrans(snappy_mount_t, snappy_var_run_t, {file dir})
+
+# layouts are built using tmpfs
+# any tmp_t files or directories get snappy_tmp_t
+files_tmp_filetrans(snappy_mount_t, snappy_tmp_t, { file dir })
+userdom_user_tmp_filetrans(snappy_mount_t, snappy_tmp_t, { file dir})
+allow snappy_mount_t snappy_tmp_t:dir { mounton };
+allow snappy_mount_t snappy_tmp_t:file { mounton };
+admin_pattern(snappy_mount_t, snappy_tmp_t)
+# FIXME: investigate further why transition from user_tmp_t to snappy_tmp_t may
+# not happen when snap-confine is executed by unconfined_t, should we still end
+# up with user_tmp_t allow acting on it
+allow snappy_mount_t user_tmp_t:dir { mounton rmdir };
+userdom_delete_user_tmp_files(snappy_mount_t)
 
 # Allow snap-{update,discard}-ns to manage mounts
 gen_require(`
@@ -419,6 +441,28 @@ fs_getattr_xattr_fs(snappy_mount_t)
 # snap-discard-ns pokes, reads and unmounts the mount ns captured at <snap>.mnt
 fs_read_nsfs_files(snappy_mount_t)
 fs_unmount_nsfs(snappy_mount_t)
+fs_unmount_tmpfs(snappy_mount_t)
+
+# due to mounting /usr/libexec/snapd
+allow snappy_mount_t bin_t:dir mounton;
+# setting up fonts for the desktop interface
+gen_require(`
+  type fonts_t, fonts_cache_t;
+')
+
+allow snappy_mount_t fonts_cache_t:dir mounton;
+allow snappy_mount_t fonts_t:dir mounton;
+# fontconfig cache is in /usr/lib/fontconfig/cache, which should be labeled as
+# fonts_cache_t, but it may be incorrectly labeled as lib_t, see
+# https://bugzilla.redhat.com/show_bug.cgi?id=1659905 and a corresponding bug
+# for RHEL7 https://bugzilla.redhat.com/show_bug.cgi?id=1792349 (marked as
+# WONTFIX, so carry the workaround for as long as we support EPEL7)
+allow snappy_mount_t lib_t:dir mounton;
+
+# mount and unmount on top of snaps
+allow snappy_mount_t snappy_snap_t:dir mounton;
+allow snappy_mount_t snappy_snap_t:file mounton;
+allow snappy_mount_t snappy_snap_t:filesystem unmount;
 
 # freezer
 fs_manage_cgroup_dirs(snappy_mount_t)
@@ -505,6 +549,14 @@ gen_require(`
   type var_log_t;
   type lib_t;
 ')
+
+admin_pattern(snappy_confine_t, snappy_tmp_t)
+# any tmp files or directories get snappy_tmp_t
+files_tmp_filetrans(snappy_confine_t, snappy_tmp_t, { file dir })
+userdom_user_tmp_filetrans(snappy_confine_t, snappy_tmp_t, { file dir})
+
+allow snappy_confine_t snappy_tmp_t:dir mounton;
+
 allow snappy_confine_t admin_home_t:dir mounton;
 allow snappy_confine_t bin_t:dir mounton;
 allow snappy_confine_t cert_t:dir { getattr mounton };

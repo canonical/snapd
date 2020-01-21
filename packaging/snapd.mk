@@ -146,6 +146,12 @@ install::
 install::
 	rm -f $(DESTDIR)$(bindir)/ubuntu-core-launcher
 
+# Do not ship snap-preseed. It is currently only useful on ubuntu and tailored
+# for preseeding of ubuntu cloud images due to certain assumptions about
+# runtime environment of the host and of the preseeded image.
+install::
+	rm -f $(DESTDIR)$(bindir)/snap-preseed
+
 ifeq ($(with_core_bits),0)
 # Remove systemd units that are only used on core devices.
 install::

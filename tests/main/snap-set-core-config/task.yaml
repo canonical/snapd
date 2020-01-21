@@ -1,22 +1,24 @@
 summary: Ensure "snap set core" works
 
 # the test is only meaningful on core devices
-systems: [ubuntu-core-*]
+# TODO:UC20: enable for UC20
+systems: [ubuntu-core-1*]
 
 prepare: |
-    if systemctl -l | MATCH rsyslog.service; then
-        echo "rsyslog service exists on the system"
-        exit 0
+    rc=0
+    systemctl status rsyslog.service || rc=$?
+    if [ $rc = 4 ]; then
+        # systemctl(1) exit code 4: no such unit
+
+        #shellcheck source=tests/lib/systemd.sh
+        . "$TESTSLIB"/systemd.sh
+
+        # start fake rsyslog service
+        systemd_create_and_start_unit rsyslog "/bin/sleep 2h"
+
+        # create a flag to indicate the ryslog service is fake
+        touch rsyslog.fake
     fi
-
-    #shellcheck source=tests/lib/systemd.sh
-    . "$TESTSLIB"/systemd.sh
-
-    # start fake rsyslog service
-    systemd_create_and_start_unit rsyslog "/bin/sleep 2h"
-
-    # create a flag to indicate the ryslog service is fake
-    touch rsyslog.fake
 
 restore: |
     if [ -f rsyslog.fake ]; then

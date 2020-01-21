@@ -95,7 +95,7 @@ execute: |
     snap changes | MATCH "Refresh model assertion from revision 0 to 2"
 
     echo "and we cannot remove the new required snap"
-    not snap remove "$SNAP"
+    not snap remove --purge "$SNAP"
 
     echo "And we can remodel again this time test-snapd-tools is no longer required"
     snap remodel developer1-pc-revno3.model
@@ -104,7 +104,7 @@ execute: |
     echo "and $SNAP is still available"
     snap list "$SNAP"
     echo "and we can clean it up here because it is no longer required"
-    snap remove "$SNAP"
+    snap remove --purge "$SNAP"
 
     echo "and test that the remodel shows up in 'snap changes'"
 

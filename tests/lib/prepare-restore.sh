@@ -363,6 +363,11 @@ prepare_project() {
         ubuntu-*)
             # Ubuntu is the only system where snapd is preinstalled
             distro_purge_package snapd
+            # XXX: the original package's purge may have left socket units behind
+            find /etc/systemd/system -name "snap.*.socket" | while read -r f; do
+                systemctl stop "$(basename "$f")" || true
+                rm -f "$f"
+            done
             ;;
         *)
             # snapd state directory must not exist when the package is not

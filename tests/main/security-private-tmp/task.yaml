@@ -10,14 +10,14 @@ prepare: |
     echo "Given a basic snap is installed"
     #shellcheck source=tests/lib/snaps.sh
     . "$TESTSLIB"/snaps.sh
-    install_local test-snapd-tools
+    install_local test-snapd-sh
 
     echo "And another basic snap is installed"
     mkdir -p "$SNAP_INSTALL_DIR"
-    cp -ra "$TESTSLIB"/snaps/test-snapd-tools/* "$SNAP_INSTALL_DIR"
-    sed -i 's/test-snapd-tools/not-test-snapd-tools/g' "$SNAP_INSTALL_DIR/meta/snap.yaml"
+    cp -ra "$TESTSLIB"/snaps/test-snapd-sh/* "$SNAP_INSTALL_DIR"
+    sed -i 's/test-snapd-sh/not-test-snapd-sh/g' "$SNAP_INSTALL_DIR/meta/snap.yaml"
     snap pack "$SNAP_INSTALL_DIR"
-    snap install --dangerous not-test-snapd-tools_1.0_all.snap
+    snap install --dangerous not-test-snapd-sh_1.0_all.snap
 
 restore: |
     rm -rf "$SNAP_INSTALL_DIR" /tmp/foo
@@ -31,20 +31,20 @@ execute: |
 
     if [ -e "$LIBEXECDIR/snapd/snap-discard-ns" ]; then
         echo "Then that file is accessible from other calls of commands from the same snap"
-        if ! test-snapd-tools.cmd stat /tmp/foo 2>same-stat.error; then
+        if ! test-snapd-sh.sh -c 'stat /tmp/foo' 2>same-stat.error; then
             echo "Expected the file to be present"
             exit 1
         fi
     else
         echo "Then that file is not accessible from other calls of commands from the same snap"
-        if test-snapd-tools.cmd stat /tmp/foo 2>same-stat.error; then
+        if test-snapd-sh.sh -c 'stat /tmp/foo' 2>same-stat.error; then
             echo "Expected the file to be absent"
             exit 1
         fi
     fi
 
     echo "And that file is not accessible by other snaps"
-    if not-test-snapd-tools.cmd stat /tmp/foo 2>other-stat.error; then
+    if not-test-snapd-sh.sh -c 'stat /tmp/foo' 2>other-stat.error; then
         echo "Expected error not present"
         exit 1
     fi

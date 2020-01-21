@@ -5,7 +5,7 @@ The extra output from snap run --explain is not suitable for parsing.
 Invoked as "snap run"
 Inferred application details:
   snap name: test-snapd-sh
-  app name: test-snapd-sh
+  app name: sh
   confinement: strict
   base: core (implicit)
 Will exec through the following tools:
@@ -16,7 +16,7 @@ Creating user data directories:
   - ~/snap/test-snapd-sh/common
 Creating symbolic link "x1" -> "/root/snap/test-snapd-sh/current"
 Executing snap-confine /snap/core/@CORE_REV@/usr/lib/snapd/snap-confine
-  with arguments: snap.test-snapd-sh.test-snapd-sh /usr/lib/snapd/snap-exec test-snapd-sh -c /bin/true
+  with arguments: snap.test-snapd-sh.sh /usr/lib/snapd/snap-exec test-snapd-sh.sh -c /bin/true
   with environment additions:
     HOME: /root/snap/test-snapd-sh/x1
     SNAP: /snap/test-snapd-sh/x1
@@ -44,7 +44,6 @@ Execution environment:
   - Apparmor profile: snap-update-ns.test-snapd-sh
       source: /var/lib/snapd/apparmor/profiles/snap-update-ns.test-snapd-sh
       binary: (loaded into the kernel, cached by the platform)
-  - Apparmor not compiled into snap-confine
 
 << snap-update-ns (mount namespace) >>
 
@@ -58,13 +57,12 @@ Configuring mount namespace according to mount profile
 << ... snap-confine >>
 
 Sandbox overview:
-  - Apparmor profile: snap.test-snapd-sh.test-snapd-sh
-      source: /var/lib/snapd/apparmor/profiles/snap.test-snapd-sh.test-snapd-sh
+  - Apparmor profile: snap.test-snapd-sh.sh
+      source: /var/lib/snapd/apparmor/profiles/snap.test-snapd-sh.sh
       binary: (loaded into the kernel, cached by the platform)
-  - Apparmor not compiled into snap-confine
-  - Applied seccomp profile: snap.test-snapd-sh.test-snapd-sh
-      source: /var/lib/snapd/seccomp/bpf/snap.test-snapd-sh.test-snapd-sh.src
-      binary: /var/lib/snapd/seccomp/bpf/snap.test-snapd-sh.test-snapd-sh.bin (built with snap-seccomp)
+  - Applied seccomp profile: snap.test-snapd-sh.sh
+      source: /var/lib/snapd/seccomp/bpf/snap.test-snapd-sh.sh.src
+      binary: /var/lib/snapd/seccomp/bpf/snap.test-snapd-sh.sh.bin (built with snap-seccomp)
   - Applied seccomp profile: global profile for all snaps
       binary: /var/lib/snapd/seccomp/bpf/global.bin
 
@@ -75,5 +73,5 @@ Executing /usr/lib/snapd/snap-exec
 Executing command: /snap/test-snapd-sh/x1/bin/sh
   with arguments: -c /bin/true
 
-<< test-snapd-sh.test-snapd-sh (snap app) >>
+<< test-snapd-sh.sh (snap app) >>
 

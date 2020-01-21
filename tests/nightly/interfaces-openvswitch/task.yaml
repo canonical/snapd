@@ -65,11 +65,11 @@ execute: |
 
     echo "And the snap is able to delete a port"
     test-snapd-openvswitch-consumer.ovs-vsctl del-port br0 tap1
-    ovs-vsctl list-ports br0 | MATCH -v tap1
+    ovs-vsctl list-ports br0 | not MATCH tap1
 
     echo "And the snap is able to delete a bridge"
     test-snapd-openvswitch-consumer.ovs-vsctl del-br br0
-    ovs-vsctl list-br | MATCH -v br0
+    ovs-vsctl list-br | not MATCH br0
 
     if [ "$(snap debug confinement)" = partial ] ; then
         exit 0

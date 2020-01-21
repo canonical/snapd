@@ -1,8 +1,8 @@
 summary: Ensure the snapd snap transition works
 
-# ubuntu-core-18 already has the snapd snap
+# ubuntu-core-18+ already has the snapd snap
 # FIXME: ubuntu-core-16 needs special code for the transition
-systems: [-ubuntu-core-18-*, -ubuntu-core-16-*]
+systems: [-ubuntu-core-18-*, -ubuntu-core-2*, -ubuntu-core-16-*]
 
 execute: |
     echo "Ensure no snapd snap is installed"

@@ -27,6 +27,7 @@ import (
 	"sync"
 
 	"github.com/snapcore/snapd/asserts"
+	"github.com/snapcore/snapd/gadget"
 	"github.com/snapcore/snapd/i18n"
 	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/netutil"
@@ -202,11 +203,28 @@ func checkGadgetOrKernel(st *state.State, snapInfo, curInfo *snap.Info, _ snap.C
 	return nil
 }
 
+func checkGadgetValid(st *state.State, snapInfo, _ *snap.Info, snapf snap.Container, flags snapstate.Flags, deviceCtx snapstate.DeviceContext) error {
+	if snapInfo.GetType() != snap.TypeGadget {
+		// not a gadget, nothing to do
+		return nil
+	}
+	if deviceCtx.ForRemodeling() {
+		// in this case the gadget is checked by
+		// checkGadgetRemodelCompatible
+		return nil
+	}
+
+	// do basic validity checks on the gadget against its model constraints
+	_, err := gadget.ReadInfoFromSnapFile(snapf, deviceCtx.Model())
+	return err
+}
+
 var once sync.Once
 
 func delayedCrossMgrInit() {
 	once.Do(func() {
 		snapstate.AddCheckSnapCallback(checkGadgetOrKernel)
+		snapstate.AddCheckSnapCallback(checkGadgetValid)
 		snapstate.AddCheckSnapCallback(checkGadgetRemodelCompatible)
 	})
 	snapstate.CanAutoRefresh = canAutoRefresh
@@ -482,7 +500,6 @@ func remodelTasks(ctx context.Context, st *state.State, current, new *asserts.Mo
 //
 // TODO:
 // - Check estimated disk size delta
-// - Reapply gadget connections as needed
 // - Check all relevant snaps exist in new store
 //   (need to check that even unchanged snaps are accessible)
 // - Make sure this works with Core 20 as well, in the Core 20 case
@@ -503,6 +520,15 @@ func Remodel(st *state.State, new *asserts.Model) (*state.Change, error) {
 	}
 	if current.Series() != new.Series() {
 		return nil, fmt.Errorf("cannot remodel to different series yet")
+	}
+
+	// TODO:UC20: support remodel, also ensure we never remodel to a lower
+	// grade
+	if current.Grade() != asserts.ModelGradeUnset {
+		return nil, fmt.Errorf("cannot remodel Ubuntu Core 20 models yet")
+	}
+	if new.Grade() != asserts.ModelGradeUnset {
+		return nil, fmt.Errorf("cannot remodel to Ubuntu Core 20 models yet")
 	}
 
 	// TODO: we need dedicated assertion language to permit for

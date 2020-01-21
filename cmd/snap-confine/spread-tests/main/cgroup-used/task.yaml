@@ -28,7 +28,7 @@ execute: |
     snapd-hacker-toolbelt.busybox echo "Hello World" | grep Hello
     if ! grep 'c 1:11 rwm' /sys/fs/cgroup/devices/snap.snapd-hacker-toolbelt.busybox/devices.list ; then exit 1; fi
 restore: |
-    snap remove snapd-hacker-toolbelt
+    snap remove --purge snapd-hacker-toolbelt
     rm -f /etc/udev/rules.d/70-spread-test.rules
     udevadm control --reload-rules
     udevadm settle

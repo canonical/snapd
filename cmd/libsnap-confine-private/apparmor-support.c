@@ -125,8 +125,9 @@ sc_maybe_aa_change_onexec(struct sc_apparmor *apparmor, const char *profile)
 			die("cannot change profile for the next exec call");
 		}
 	}
-#endif				// ifdef HAVE_APPARMOR
+#else
 	sc_explain("  - Apparmor not compiled into snap-confine\n");
+#endif				// ifdef HAVE_APPARMOR
 }
 
 void

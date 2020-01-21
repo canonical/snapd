@@ -12,7 +12,7 @@ prepare: |
     rm /root/snap/test-snapd-sh/current
   fi
 execute: |
-  snap run --explain test-snapd-sh -c /bin/true > output
+  snap run --explain test-snapd-sh.sh -c /bin/true > output
   diff -u output expected
 restore: |
   rm -f output

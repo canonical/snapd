@@ -102,7 +102,7 @@ execute: |
         wait_change_done "Refresh model assertion from revision 0 to 2"
         snap debug model|MATCH "revision: 2"
         echo "and we cannot remove the base snap"
-        not snap remove "$NEW_BASE"
+        not snap remove --purge "$NEW_BASE"
         # TODO: test when keeping the old base, test removing the old base
         #       (not possible here as the pc gadget uses core18 as its base)
         echo "And we can remodel again and remove the new base"
@@ -116,7 +116,7 @@ execute: |
         wait_change_done "Refresh model assertion from revision 2 to 3"
         snap debug model|MATCH "revision: 3"
         echo "cleanup"
-        snap remove "$NEW_BASE"
+        snap remove --purge "$NEW_BASE"
         snap refresh --channel="$BASE_CHANNEL" "$OLD_BASE"
         REBOOT
     fi

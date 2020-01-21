@@ -91,10 +91,14 @@ func isHttp2ProtocolError(err error) bool {
 	return false
 }
 
-func ShouldRetryError(attempt *retry.Attempt, err error) bool {
+func ShouldRetryAttempt(attempt *retry.Attempt, err error) bool {
 	if !attempt.More() {
 		return false
 	}
+	return ShouldRetryError(err)
+}
+
+func ShouldRetryError(err error) bool {
 	if urlErr, ok := err.(*url.Error); ok {
 		err = urlErr.Err
 	}
@@ -225,7 +229,7 @@ func RetryRequest(endpoint string, doRequest func() (*http.Response, error), rea
 
 		resp, err = doRequest()
 		if err != nil {
-			if ShouldRetryError(attempt, err) {
+			if ShouldRetryAttempt(attempt, err) {
 				continue
 			}
 
@@ -242,7 +246,7 @@ func RetryRequest(endpoint string, doRequest func() (*http.Response, error), rea
 			err := readResponseBody(resp)
 			resp.Body.Close()
 			if err != nil {
-				if ShouldRetryError(attempt, err) {
+				if ShouldRetryAttempt(attempt, err) {
 					continue
 				} else {
 					maybeLogRetrySummary(startTime, endpoint, attempt, resp, err)

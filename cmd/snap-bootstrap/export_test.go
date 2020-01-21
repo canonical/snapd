@@ -29,7 +29,7 @@ var (
 	Parser = parser
 )
 
-func MockBootstrapRun(f func(string, string, *bootstrap.Options) error) (restore func()) {
+func MockBootstrapRun(f func(string, string, bootstrap.Options) error) (restore func()) {
 	oldBootstrapRun := bootstrapRun
 	bootstrapRun = f
 	return func() {
