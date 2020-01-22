@@ -19,10 +19,6 @@
 
 package snap
 
-import (
-	"github.com/snapcore/snapd/sandbox/cgroup"
-)
-
 var (
 	ValidateSocketName           = validateSocketName
 	ValidateDescription          = validateDescription
@@ -49,10 +45,10 @@ func MockAppArmorLabelForPid(f func(pid int) (string, error)) (restore func()) {
 	}
 }
 
-func MockProcGroup(f func(pid int, match cgroup.GroupMatcher) (string, error)) (restore func()) {
-	old := cgroupProcGroup
-	cgroupProcGroup = f
+func MockCgroupSnapNameFromPid(f func(pid int) (string, error)) (restore func()) {
+	old := cgroupSnapNameFromPid
+	cgroupSnapNameFromPid = f
 	return func() {
-		cgroupProcGroup = old
+		cgroupSnapNameFromPid = old
 	}
 }

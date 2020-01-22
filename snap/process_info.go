@@ -77,24 +77,13 @@ func decodeAppArmorLabel(label string) (ProcessInfo, error) {
 	return ProcessInfo{}, fmt.Errorf("unknown snap related security label %q", label)
 }
 
-var cgroupProcGroup = cgroup.ProcGroup
+var cgroupSnapNameFromPid = cgroup.SnapNameFromPid
 
 func NameFromPid(pid int) (ProcessInfo, error) {
-	if cgroup.IsUnified() {
-		// not supported
-		return ProcessInfo{}, fmt.Errorf("not supported")
-	}
-
-	group, err := cgroupProcGroup(pid, cgroup.MatchV1Controller("freezer"))
+	snapName, err := cgroupSnapNameFromPid(pid)
 	if err != nil {
-		return ProcessInfo{}, fmt.Errorf("cannot determine cgroup path of pid %v: %v", pid, err)
+		return ProcessInfo{}, err
 	}
-
-	if !strings.HasPrefix(group, "/snap.") {
-		return ProcessInfo{}, fmt.Errorf("cannot find a snap for pid %v", pid)
-	}
-
-	snapName := strings.SplitN(filepath.Base(group), ".", 2)[1]
 
 	// If the process is confined by AppArmor, we can determine
 	// more information about it.  We trust the label if it looks

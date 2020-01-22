@@ -28,7 +28,6 @@ import (
 	. "gopkg.in/check.v1"
 
 	"github.com/snapcore/snapd/dirs"
-	"github.com/snapcore/snapd/sandbox/cgroup"
 	"github.com/snapcore/snapd/snap"
 )
 
@@ -95,11 +94,9 @@ func (s *processInfoSuite) TestDecodeAppArmorLabelUnrecognisedSnapLabel(c *C) {
 }
 
 func (s *processInfoSuite) TestNameFromPidHappy(c *C) {
-	restore := snap.MockProcGroup(func(pid int, matcher cgroup.GroupMatcher) (string, error) {
+	restore := snap.MockCgroupSnapNameFromPid(func(pid int) (string, error) {
 		c.Assert(pid, Equals, 333)
-		c.Assert(matcher, NotNil)
-		c.Assert(matcher.String(), Equals, `controller "freezer"`)
-		return "/snap.hello-world", nil
+		return "hello-world", nil
 	})
 	defer restore()
 	restore = snap.MockAppArmorLabelForPid(func(pid int) (string, error) {
@@ -115,11 +112,9 @@ func (s *processInfoSuite) TestNameFromPidHappy(c *C) {
 }
 
 func (s *processInfoSuite) TestNameFromPidNoAppArmor(c *C) {
-	restore := snap.MockProcGroup(func(pid int, matcher cgroup.GroupMatcher) (string, error) {
+	restore := snap.MockCgroupSnapNameFromPid(func(pid int) (string, error) {
 		c.Assert(pid, Equals, 333)
-		c.Assert(matcher, NotNil)
-		c.Assert(matcher.String(), Equals, `controller "freezer"`)
-		return "/snap.hello-world", nil
+		return "hello-world", nil
 	})
 	defer restore()
 	restore = snap.MockAppArmorLabelForPid(func(pid int) (string, error) {
@@ -135,10 +130,8 @@ func (s *processInfoSuite) TestNameFromPidNoAppArmor(c *C) {
 }
 
 func (s *processInfoSuite) TestNameFromPidUnhappy(c *C) {
-	restore := snap.MockProcGroup(func(pid int, matcher cgroup.GroupMatcher) (string, error) {
+	restore := snap.MockCgroupSnapNameFromPid(func(pid int) (string, error) {
 		c.Assert(pid, Equals, 333)
-		c.Assert(matcher, NotNil)
-		c.Assert(matcher.String(), Equals, `controller "freezer"`)
 		return "", errors.New("nada")
 	})
 	defer restore()
@@ -148,6 +141,6 @@ func (s *processInfoSuite) TestNameFromPidUnhappy(c *C) {
 	})
 	defer restore()
 	info, err := snap.NameFromPid(333)
-	c.Assert(err, ErrorMatches, "cannot determine cgroup path of pid 333: nada")
+	c.Assert(err, ErrorMatches, "nada")
 	c.Check(info, DeepEquals, snap.ProcessInfo{})
 }
