@@ -60,20 +60,13 @@ execute: |
     cryptsetup isLuks "${LOOP}p4"
 
     # we used "lsblk --fs" here but it was unreliable
-    mkdir -p ./mnt
-    mount "${LOOP}p2" ./mnt
     df -T "${LOOP}p2" | MATCH vfat
-    umount ./mnt
     file -s "${LOOP}p2" | MATCH 'label: "ubuntu-seed"'
 
-    mount "${LOOP}p3" ./mnt
     df -T "${LOOP}p3" | MATCH ext4
-    umount ./mnt
     file -s "${LOOP}p3" | MATCH 'volume name "ubuntu-boot"'
 
-    mount /dev/mapper/ubuntu-data ./mnt
     df -T /dev/mapper/ubuntu-data | MATCH ext4
-    umount ./mnt
     POSIXLY_CORRECT=1 file -s /dev/mapper/ubuntu-data | MATCH 'volume name "ubuntu-data"'
 
     echo "Check that the non-fs content was deployed"
@@ -86,21 +79,21 @@ execute: |
     cmp bios-boot.img ./gadget-dir/pc-core.img
 
     echo "Check that the filesystem content was deployed"
-    mkdir -p ./mnt
-    mount "${LOOP}p2" ./mnt
-    ls ./mnt/EFI/boot/grubx64.efi
-    ls ./mnt/EFI/boot/bootx64.efi
-    ls ./mnt/EFI/ubuntu/grub.cfg
-    umount ./mnt
+    ls /run/mnt/ubuntu-seed/EFI/boot/grubx64.efi
+    ls /run/mnt/ubuntu-seed/EFI/boot/bootx64.efi
+    ls /run/mnt/ubuntu-seed/EFI/ubuntu/grub.cfg
 
-    mount "${LOOP}p3" ./mnt
-    ls ./mnt/EFI/boot/grubx64.efi
-    ls ./mnt/EFI/boot/bootx64.efi
-    ls ./mnt/EFI/ubuntu/grub.cfg
-    umount ./mnt
+    ls /run/mnt/ubuntu-boot/EFI/boot/grubx64.efi
+    ls /run/mnt/ubuntu-boot/EFI/boot/bootx64.efi
+    ls /run/mnt/ubuntu-boot/EFI/ubuntu/grub.cfg
+
+    umount /run/mnt/ubuntu-seed
+    umount /run/mnt/ubuntu-boot
+    umount /run/mnt/ubuntu-data
+    cryptsetup close /dev/mapper/ubuntu-data
 
     echo "ensure that we can open the encrypted device using the key"
-    cryptsetup close /dev/mapper/ubuntu-data
+    mkdir -p ./mnt
     cryptsetup open --key-file keyfile "${LOOP}p4" test-udata
     mount /dev/mapper/test-udata ./mnt
     umount ./mnt
