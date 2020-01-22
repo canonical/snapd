@@ -9,7 +9,7 @@ apps:
     command-chain: [chain1, chain2]
   run:
     command: run
-    command-chain: [chain1, chain2]
+    command-chain: [chain3, chain4]
     daemon: simple
 
 hooks:
