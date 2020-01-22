@@ -33,6 +33,7 @@ import (
 
 	"github.com/jessevdk/go-flags"
 
+	"github.com/snapcore/snapd/boot"
 	"github.com/snapcore/snapd/client"
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/i18n"
@@ -263,20 +264,11 @@ var procCmdline = "/proc/cmdline"
 
 // inInstallmode returns true if it's UC20 system in install mode
 func inInstallMode() bool {
-	f, err := os.Open(procCmdline)
+	mode, _, err := boot.ModeAndSystemFromKernelCommandLine()
 	if err != nil {
 		return false
 	}
-	defer f.Close()
-
-	scanner := bufio.NewScanner(f)
-	scanner.Split(bufio.ScanWords)
-	for scanner.Scan() {
-		if scanner.Text() == "snapd_recovery_mode=install" {
-			return true
-		}
-	}
-	return false
+	return mode == "install"
 }
 
 func (x *cmdAutoImport) Execute(args []string) error {
