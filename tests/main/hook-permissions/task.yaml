@@ -11,7 +11,7 @@ prepare: |
     # shellcheck source=tests/lib/systems.sh
     . "$TESTSLIB/systems.sh"
     if is_core_system; then
-        snap install upower
+        snap install test-snapd-upower --edge
     fi
     #shellcheck source=tests/lib/snaps.sh
     . "$TESTSLIB"/snaps.sh
