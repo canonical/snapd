@@ -300,3 +300,23 @@ func (s *SnapSuite) TestAutoImportIntoSpoolUnhappyTooBig(c *C) {
 	_, err = snap.Parser(snap.Client()).ParseArgs([]string{"auto-import"})
 	c.Assert(err, ErrorMatches, "cannot queue .*, file size too big: 656384")
 }
+
+func (s *SnapSuite) TestAutoImportUnhappyInInstallMode(c *C) {
+	restore := release.MockOnClassic(false)
+	defer restore()
+
+	_, restoreLogger := logger.MockLogger()
+	defer restoreLogger()
+
+	mockProcCmdlinePath := filepath.Join(c.MkDir(), "cmdline")
+	err := ioutil.WriteFile(mockProcCmdlinePath, []byte("foo=bar snapd_recovery_mode=install"), 0644)
+	c.Assert(err, IsNil)
+
+	restore = snap.MockProcCmdline(mockProcCmdlinePath)
+	defer restore()
+
+	_, err = snap.Parser(snap.Client()).ParseArgs([]string{"auto-import"})
+	c.Assert(err, IsNil)
+	c.Check(s.Stdout(), Equals, "")
+	c.Check(s.Stderr(), Equals, "auto-import is disabled in install-mode\n")
+}
