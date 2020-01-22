@@ -7118,7 +7118,9 @@ func (s *snapmgrTestSuite) TestUpdateManyAutoAliasesScenarios(c *C) {
 
 		updates, tts, err := snapstate.UpdateMany(context.Background(), s.state, scenario.names, s.user.ID, nil)
 		c.Check(err, IsNil)
-		verifyLastTasksetIsReRefresh(c, tts)
+		if scenario.update {
+			verifyLastTasksetIsReRefresh(c, tts)
+		}
 
 		_, dropped, err := snapstate.AutoAliasesDelta(s.state, []string{"some-snap", "other-snap"})
 		c.Assert(err, IsNil)
@@ -7188,7 +7190,11 @@ func (s *snapmgrTestSuite) TestUpdateManyAutoAliasesScenarios(c *C) {
 				c.Check(aliasTask.WaitTasks(), HasLen, 0)
 			}
 		}
-		c.Assert(j, Equals, len(tts)-1, Commentf("%#v", scenario))
+		l := len(tts)
+		if scenario.update {
+			l--
+		}
+		c.Assert(j, Equals, l, Commentf("%#v", scenario))
 
 		// check reported updated names
 		c.Check(len(updates) > 0, Equals, true)
@@ -7273,8 +7279,10 @@ func (s *snapmgrTestSuite) TestUpdateOneAutoAliasesScenarios(c *C) {
 
 		tasks := ts.Tasks()
 		// make sure the last task from Update is the rerefresh
-		c.Assert(tasks[len(tasks)-1].Kind(), Equals, "check-rerefresh")
-		tasks = tasks[:len(tasks)-1] // and now forget about it
+		if scenario.update {
+			c.Check(tasks[len(tasks)-1].Kind(), Equals, "check-rerefresh")
+			tasks = tasks[:len(tasks)-1] // and now forget about it
+		}
 
 		var expectedPruned map[string]map[string]bool
 		var pruneTasks []*state.Task
