@@ -70,6 +70,10 @@ execute: |
     # my-nesting-ubuntu nesting container
 
     . /etc/os-release
+    # TODO:2004: remove version check once the image for ubuntu 20.04 is published
+    if [ "$VERSION_ID" == 20.04 ]; then
+        VERSION_ID=19.10
+    fi
     lxd.lxc launch --quiet "ubuntu:${VERSION_ID}" my-ubuntu
     lxd.lxc launch --quiet "ubuntu:${VERSION_ID}" my-nesting-ubuntu -c security.nesting=true
 
@@ -111,7 +115,7 @@ execute: |
     echo "And as root"
     lxd.lxc exec my-ubuntu -- test-snapd-sh.sh -c 'echo from-the-inside' | MATCH from-the-inside
     echo "We can also remove snaps successfully"
-    lxd.lxc exec my-ubuntu -- snap remove test-snapd-sh
+    lxd.lxc exec my-ubuntu -- snap remove --purge test-snapd-sh
 
     # Ensure that we can run snapd as a snap inside a nested container
 

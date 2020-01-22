@@ -1,4 +1,5 @@
 language: go
+go_import_path: github.com/snapcore/snapd
 git:
   quiet: true
 matrix:
@@ -49,7 +50,7 @@ matrix:
         - git fetch --unshallow
         - ./tests/lib/cla_check.py
     - stage: integration
-      name: Ubuntu 14.04, 16.04, 18.04, 18.10, 19.04, Core 16, Core 18
+      name: Ubuntu 14.04, 16.04, 18.04, 18.10, 19.10, Core 16, Core 18, Core 20
       dist: xenial
       addons:
         apt:

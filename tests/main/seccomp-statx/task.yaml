@@ -8,7 +8,7 @@ details: |
 # This test will only pass on Ubuntu 18.10 and on other systems with seccomp
 # 2.3.3 or newer. Eventually with some tricks we should be able to support all
 # systems but for the purpose of snapd 2.36 this is the best we can do.
-systems: [ubuntu-19.04-*]
+systems: [ubuntu-19.10-*, ubuntu-20.04-*]
 
 prepare: |
     #shellcheck source=tests/lib/snaps.sh

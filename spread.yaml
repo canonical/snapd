@@ -66,8 +66,6 @@ backends:
                 workers: 8
             - ubuntu-18.04-64:
                 workers: 8
-            - ubuntu-19.04-64:
-                workers: 6
             - ubuntu-19.10-64:
                 workers: 6
             - ubuntu-core-16-64:
@@ -78,8 +76,7 @@ backends:
                 workers: 6
             - ubuntu-core-20-64:
                 image: ubuntu-1804-64-uefi-enabled
-                #TODO:UC20: enable more workers once we have more tests
-                workers: 1
+                workers: 6
                 storage: 20G
 
             - debian-9-64:
@@ -102,6 +99,8 @@ backends:
                 manual: true
             - opensuse-15.1-64:
                 workers: 6
+            - opensuse-tumbleweed-64:
+                workers: 6
             - arch-linux-64:
                 workers: 6
 
@@ -118,9 +117,9 @@ backends:
             - centos-7-64:
                 workers: 6
                 image: centos-7-64
-            # zypper either segfaults or hangs installing snapd build dependencies
-            - opensuse-tumbleweed-64:
+            - ubuntu-20.04-64:
                 workers: 6
+
 
     google-sru:
         type: google
@@ -343,7 +342,7 @@ backends:
             - ubuntu-19.04-arm64:
                 username: ubuntu
                 password: ubuntu
-            # Eccentric Eel (not final name!)
+            # Eoan
             - ubuntu-19.10-amd64:
                 username: ubuntu
                 password: ubuntu
@@ -362,7 +361,7 @@ backends:
             - ubuntu-19.10-arm64:
                 username: ubuntu
                 password: ubuntu
-            # Flaming Falcon (not final name!)
+            # Focal
             - ubuntu-20.04-amd64:
                 username: ubuntu
                 password: ubuntu
@@ -428,6 +427,8 @@ exclude:
     - "*.o"
     - "*.a"
     - ./vendor
+    - "*.snap"
+    - "*.img"
 
 debug-each: |
     if [ "$SPREAD_DEBUG_EACH" = 1 ]; then
@@ -649,8 +650,6 @@ suites:
     # All other tests run now and will heavily modify the system.
     tests/main/:
         summary: Full-system tests for snapd
-        # TODO:UC20: enable for uc20
-        systems: [-ubuntu-core-20-*]
         prepare: |
             "$TESTSLIB"/prepare-restore.sh --prepare-suite
         prepare-each: |

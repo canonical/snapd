@@ -32,6 +32,7 @@ import (
 
 const (
 	ubuntuBootLabel = "ubuntu-boot"
+	ubuntuSeedLabel = "ubuntu-seed"
 	ubuntuDataLabel = "ubuntu-data"
 
 	sectorSize gadget.Size = 512
@@ -62,11 +63,13 @@ type sfdiskPartition struct {
 }
 
 type DeviceLayout struct {
-	Structure      []DeviceStructure
-	ID             string
-	Device         string
-	Schema         string
-	Size           gadget.Size
+	Structure []DeviceStructure
+	ID        string
+	Device    string
+	Schema    string
+	// size in bytes
+	Size gadget.Size
+	// sector size in bytes
 	SectorSize     gadget.Size
 	partitionTable *sfdiskPartitionTable
 }
@@ -210,7 +213,7 @@ func deviceLayoutFromDump(dump *sfdiskDeviceDump) (*DeviceLayout, error) {
 		ID:             ptable.ID,
 		Device:         ptable.Device,
 		Schema:         ptable.Label,
-		Size:           gadget.Size(ptable.LastLBA),
+		Size:           gadget.Size(ptable.LastLBA) * sectorSize,
 		SectorSize:     sectorSize,
 		partitionTable: &ptable,
 	}
@@ -259,10 +262,15 @@ func buildPartitionList(ptable *sfdiskPartitionTable, pv *gadget.LaidOutVolume) 
 		fmt.Fprintf(buf, "%s : start=%12d, size=%12d, type=%s, name=%q\n", node, p.StartOffset/sectorSize,
 			s.Size/sectorSize, partitionType(ptable.Label, p.Type), s.Name)
 
+		// TODO:UC20: also add an attribute to mark partitions created at install
+		//            time so they can be removed case the installation fails.
+
 		// Set expected labels based on role
 		switch s.Role {
 		case gadget.SystemBoot:
 			s.Label = ubuntuBootLabel
+		case gadget.SystemSeed:
+			s.Label = ubuntuSeedLabel
 		case gadget.SystemData:
 			s.Label = ubuntuDataLabel
 		}

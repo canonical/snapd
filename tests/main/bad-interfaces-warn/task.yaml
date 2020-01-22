@@ -4,7 +4,7 @@ prepare: |
   snap pack test-snap
 
 restore: |
-  snap remove test-snap
+  snap remove --purge test-snap
 
 execute: |
   echo "Installing a snap with invalid interfaces issues a warning"

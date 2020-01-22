@@ -70,7 +70,7 @@ execute: |
     AUTO_REFRESH_ID=$(change_id "Auto-refresh.*test-snapd-public.*" Done)
 
     echo "Try the same with expired creds"
-    snap remove test-snapd-private test-snapd-public
+    snap remove --purge test-snapd-private test-snapd-public
     snap install test-snapd-private test-snapd-public
 
     echo "Clear the snap cache"
