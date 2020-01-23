@@ -86,7 +86,7 @@ func (c *containsChecker) Check(params []interface{}, names []string) (result bo
 	var container interface{} = params[0]
 	var elem interface{} = params[1]
 	if commonEquals(container, elem, &result, &error) {
-		return
+		return result, error
 	}
 	// Do the actual test using ==
 	switch containerV := reflect.ValueOf(container); containerV.Kind() {
@@ -116,7 +116,7 @@ type deepContainsChecker struct {
 }
 
 // DeepContains is a Checker that looks for a elem in a container using
-// DeepEqual.  The elem can be any object. The container can be an array, slice
+// DeepEqual. The elem can be any object. The container can be an array, slice
 // or string.
 var DeepContains check.Checker = &deepContainsChecker{
 	&check.CheckerInfo{Name: "DeepContains", Params: []string{"container", "elem"}},
@@ -126,7 +126,7 @@ func (c *deepContainsChecker) Check(params []interface{}, names []string) (resul
 	var container interface{} = params[0]
 	var elem interface{} = params[1]
 	if commonEquals(container, elem, &result, &error) {
-		return
+		return result, error
 	}
 	// Do the actual test using reflect.DeepEqual
 	switch containerV := reflect.ValueOf(container); containerV.Kind() {
