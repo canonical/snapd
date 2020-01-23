@@ -66,6 +66,10 @@ func (dc *TrivialDeviceContext) Base() string {
 	return dc.DeviceModel.Base()
 }
 
+func (dc *TrivialDeviceContext) HasModeenv() bool {
+	return dc.Model().Grade() != asserts.ModelGradeUnset
+}
+
 func (dc *TrivialDeviceContext) RunMode() bool {
 	return dc.OperatingMode() == "run"
 }

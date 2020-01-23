@@ -220,11 +220,9 @@ func makeBootable20RunMode(model *asserts.Model, rootdir string, bootWith *Boota
 
 	// get the ubuntu-boot bootloader
 	opts := &bootloader.Options{
-		// TODO:UC20: we use "recovery: true" here because on
-		// the partition the file layout of ubuntu-boot looks
-		// the same as ubuntu-seed.
-		// TODO:UC20: need a better name than recovery
-		Recovery: true,
+		// At this point the run mode bootloader is under the native
+		// layout, no /boot mount.
+		NoSlashBoot: true,
 	}
 	bl, err := bootloader.Find(filepath.Join(runMnt, "ubuntu-boot"), opts)
 	if err != nil {

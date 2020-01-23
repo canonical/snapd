@@ -364,7 +364,7 @@ func Parser(cli *client.Client) *flags.Parser {
 	if err != nil {
 		logger.Panicf("cannot add command %q: %v", "internal", err)
 	}
-	// Add all the sub-commands of the debug command
+	// Add all the sub-commands of the routine command
 	registerCommands(cli, parser, routineCommand, routineCommands, func(ci *cmdInfo) {
 		checkUnique(ci, "routine ")
 	})

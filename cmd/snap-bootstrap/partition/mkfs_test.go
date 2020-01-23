@@ -37,6 +37,9 @@ type mkfsSuite struct {
 var _ = Suite(&mkfsSuite{})
 
 func (s *mkfsSuite) SetUpTest(c *C) {
+	// some commads use fakeroot, mock one that just calls the other script
+	cmdFakeroot := testutil.MockCommand(c, "fakeroot", `exec "$@"`)
+	s.AddCleanup(cmdFakeroot.Restore)
 	s.mockMkfsVfat = testutil.MockCommand(c, "mkfs.vfat", "")
 	s.AddCleanup(s.mockMkfsVfat.Restore)
 	s.mockMkfsExt4 = testutil.MockCommand(c, "mkfs.ext4", "")
