@@ -101,7 +101,7 @@ func Participant(s snap.PlaceInfo, t snap.Type, dev Device) BootParticipant {
 // BootKernel, or a trivial implementation otherwise.
 func Kernel(s snap.PlaceInfo, t snap.Type, dev Device) BootKernel {
 	if t == snap.TypeKernel && applicable(s, t, dev) {
-		return &coreKernel{s: s}
+		return &coreKernel{s: s, dev: dev}
 	}
 	return trivial{}
 }
