@@ -6,6 +6,11 @@ systems: [-debian-sid-*]
 # Start before anything else as it takes a long time.
 priority: 1000
 
+environment:
+    # skip nakedret errors until
+    # https://github.com/alexkohler/nakedret/issues/11 is resolved
+    SKIP_NAKEDRET: 1
+
 restore: |
     rm -rf /tmp/static-unit-tests
 
@@ -23,6 +28,10 @@ execute: |
         # in later releases; skip gofmt checks on systems where go is known to
         # be newer and produce incompatible formatting
         skip='SKIP_GOFMT=1'
+    fi
+
+    if [[ -n "${SKIP_NAKEDRET:-}" ]]; then
+        skip="${skip:-} SKIP_NAKEDRET=1"
     fi
 
     su -l -c "cd /tmp/static-unit-tests/src/github.com/snapcore/snapd && \
