@@ -62,3 +62,31 @@ func Readlinkat(dirfd int, path string, buf []byte) (n int, err error) {
 	}
 	return n, nil
 }
+
+// Renameat2 is a direct pass-through to the renameat2() system call.
+func Renameat2(oldfd int, old string, newfd int, new string, flags int) (err error) {
+	oldPathPtr, err := syscall.BytePtrFromString(old)
+	if err != nil {
+		return err
+	}
+
+	newPathPtr, err := syscall.BytePtrFromString(new)
+	if err != nil {
+		return err
+	}
+
+	_, _, errno := syscall.Syscall6(
+		SYS_RENAMEAT2,
+		uintptr(oldfd),
+		uintptr(unsafe.Pointer(oldPathPtr)),
+		uintptr(newfd),
+		uintptr(unsafe.Pointer(newPathPtr)),
+		uintptr(flags),
+		0,
+	)
+	if errno != 0 {
+		return errno
+	}
+
+	return nil
+}

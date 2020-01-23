@@ -20,6 +20,7 @@
 package osutil_test
 
 import (
+	"io/ioutil"
 	"os"
 	"path/filepath"
 	"syscall"
@@ -27,6 +28,7 @@ import (
 	. "gopkg.in/check.v1"
 
 	"github.com/snapcore/snapd/osutil"
+	"github.com/snapcore/snapd/testutil"
 )
 
 type sysSuite struct{}
@@ -69,4 +71,28 @@ func (s *sysSuite) TestSymlinkatAndReadlinkat(c *C) {
 	c.Assert(err, IsNil)
 	c.Assert(n, Equals, len("target"))
 	c.Assert(buf[:n], DeepEquals, []byte{'t', 'a', 'r', 'g', 'e', 't'})
+}
+
+func (s *sysSuite) TestRenameat2(c *C) {
+	// Create and open a temporary directory.
+	d := c.MkDir()
+	fd, err := syscall.Open(d, syscall.O_DIRECTORY, 0)
+	c.Assert(err, IsNil)
+	defer syscall.Close(fd)
+
+	// Create 2 files with some content
+	file1 := filepath.Join(d, "file1")
+	file2 := filepath.Join(d, "file2")
+	err = ioutil.WriteFile(file1, []byte("file1"), 0755)
+	c.Assert(err, IsNil)
+	err = ioutil.WriteFile(file2, []byte("file2"), 0755)
+	c.Assert(err, IsNil)
+
+	// rename the files, switching them with each other
+	err = osutil.Renameat2(fd, "file1", fd, "file2", osutil.RENAME_EXCHANGE)
+	c.Assert(err, IsNil)
+
+	// check that the files have swapped contents
+	c.Assert(file1, testutil.FileMatches, "file2")
+	c.Assert(file2, testutil.FileMatches, "file1")
 }
