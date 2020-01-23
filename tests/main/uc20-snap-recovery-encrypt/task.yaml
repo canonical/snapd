@@ -1,7 +1,9 @@
 summary: Integration tests for the snap-bootstrap binary
 
-# one system is enough, its a very specialized test for now
-systems: [ubuntu-19.10-64]
+# testing on 19.10/20.04 is enough, its a very specialized test
+# TODO:UC20: remove 19.10-64 system once ubuntu-20.04-64 becomes available
+#            inside spread
+systems: [ubuntu-19.10-64, ubuntu-20.04-64]
 
 debug: |
     cat /proc/partitions
@@ -10,6 +12,8 @@ restore: |
     if [[ -d ./mnt ]]; then
         umount ./mnt || true
     fi
+    umount /dev/mapper/ubuntu-data || true
+    umount /dev/mapper/test-udata || true
 
     cryptsetup close /dev/mapper/ubuntu-data || true
     cryptsetup close /dev/mapper/test-udata || true
@@ -17,10 +21,13 @@ restore: |
     if [ -f loop.txt ]; then
         losetup -d "$(cat loop.txt)"
     fi
+    apt remove -y cryptsetup
 
 prepare: |
     echo "Create a fake block device image"
     truncate --size=6GB fake.img
+
+    apt install -y cryptsetup
 
     echo "Setup the image as a block device"
     # without -P this test will not work, then /dev/loop1p? will be missing
@@ -38,7 +45,7 @@ prepare: |
 execute: |
     LOOP="$(cat loop.txt)"
     echo "Run the snap-bootstrap tool"
-    /usr/lib/snapd/snap-bootstrap create-partitions --encrypt --key-file keyfile ./gadget-dir "$LOOP"
+    /usr/lib/snapd/snap-bootstrap create-partitions --encrypt  --mount --key-file keyfile ./gadget-dir "$LOOP"
 
     echo "Check that the key file was created"
     test "$(stat --printf="%s" ./keyfile)" = 32
@@ -53,20 +60,13 @@ execute: |
     cryptsetup isLuks "${LOOP}p4"
 
     # we used "lsblk --fs" here but it was unreliable
-    mkdir -p ./mnt
-    mount "${LOOP}p2" ./mnt
     df -T "${LOOP}p2" | MATCH vfat
-    umount ./mnt
     file -s "${LOOP}p2" | MATCH 'label: "ubuntu-seed"'
 
-    mount "${LOOP}p3" ./mnt
     df -T "${LOOP}p3" | MATCH ext4
-    umount ./mnt
     file -s "${LOOP}p3" | MATCH 'volume name "ubuntu-boot"'
 
-    mount /dev/mapper/ubuntu-data ./mnt
     df -T /dev/mapper/ubuntu-data | MATCH ext4
-    umount ./mnt
     POSIXLY_CORRECT=1 file -s /dev/mapper/ubuntu-data | MATCH 'volume name "ubuntu-data"'
 
     echo "Check that the non-fs content was deployed"
@@ -79,21 +79,21 @@ execute: |
     cmp bios-boot.img ./gadget-dir/pc-core.img
 
     echo "Check that the filesystem content was deployed"
-    mkdir -p ./mnt
-    mount "${LOOP}p2" ./mnt
-    ls ./mnt/EFI/boot/grubx64.efi
-    ls ./mnt/EFI/boot/bootx64.efi
-    ls ./mnt/EFI/ubuntu/grub.cfg
-    umount ./mnt
+    ls /run/mnt/ubuntu-seed/EFI/boot/grubx64.efi
+    ls /run/mnt/ubuntu-seed/EFI/boot/bootx64.efi
+    ls /run/mnt/ubuntu-seed/EFI/ubuntu/grub.cfg
 
-    mount "${LOOP}p3" ./mnt
-    ls ./mnt/EFI/boot/grubx64.efi
-    ls ./mnt/EFI/boot/bootx64.efi
-    ls ./mnt/EFI/ubuntu/grub.cfg
-    umount ./mnt
+    ls /run/mnt/ubuntu-boot/EFI/boot/grubx64.efi
+    ls /run/mnt/ubuntu-boot/EFI/boot/bootx64.efi
+    ls /run/mnt/ubuntu-boot/EFI/ubuntu/grub.cfg
+
+    umount /run/mnt/ubuntu-seed
+    umount /run/mnt/ubuntu-boot
+    umount /run/mnt/ubuntu-data
+    cryptsetup close /dev/mapper/ubuntu-data
 
     echo "ensure that we can open the encrypted device using the key"
-    cryptsetup close /dev/mapper/ubuntu-data
+    mkdir -p ./mnt
     cryptsetup open --key-file keyfile "${LOOP}p4" test-udata
     mount /dev/mapper/test-udata ./mnt
     umount ./mnt

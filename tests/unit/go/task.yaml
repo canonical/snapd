@@ -25,6 +25,10 @@ execute: |
         skip='SKIP_GOFMT=1'
     fi
 
+    if [[ -n "${SKIP_NAKEDRET:-}" ]]; then
+        skip="${skip:-} SKIP_NAKEDRET=1"
+    fi
+
     su -l -c "cd /tmp/static-unit-tests/src/github.com/snapcore/snapd && \
         PATH=$PATH GOPATH=/tmp/static-unit-tests \
         ${skip:-} \
