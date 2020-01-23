@@ -26,6 +26,7 @@ import (
 	"io/ioutil"
 	"strings"
 
+	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/strutil"
 )
 
@@ -36,7 +37,7 @@ var (
 	validModes = []string{"install", "recover", "run"}
 )
 
-func whichModeAndRecoverSystem(cmdline []byte) (mode string, sysLabel string, err error) {
+func whichModeAndRecoverySystem(cmdline []byte) (mode string, sysLabel string, err error) {
 	scanner := bufio.NewScanner(bytes.NewBuffer(cmdline))
 	scanner.Split(bufio.ScanWords)
 
@@ -76,15 +77,15 @@ func whichModeAndRecoverSystem(cmdline []byte) (mode string, sysLabel string, er
 	return mode, sysLabel, nil
 }
 
-// ModeAndSystemFromKernelCommandLine returns the current run mode and
+// ModeAndRecoverySystemFromKernelCommandLine returns the current run mode and
 // optionally the recovery system label as passed in the kernel command line by
 // the bootloader
-func ModeAndSystemFromKernelCommandLine() (mode, sysLabel string, err error) {
+func ModeAndRecoverySystemFromKernelCommandLine() (mode, sysLabel string, err error) {
 	cmdline, err := ioutil.ReadFile(procCmdline)
 	if err != nil {
 		return "", "", err
 	}
-	return whichModeAndRecoverSystem(cmdline)
+	return whichModeAndRecoverySystem(cmdline)
 }
 
 // MockProcCmdline overrides the path to /proc/cmdline. For use in tests.

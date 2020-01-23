@@ -264,7 +264,7 @@ var procCmdline = "/proc/cmdline"
 
 // inInstallmode returns true if it's UC20 system in install mode
 func inInstallMode() bool {
-	mode, _, err := boot.ModeAndSystemFromKernelCommandLine()
+	mode, _, err := boot.ModeAndRecoverySystemFromKernelCommandLine()
 	if err != nil {
 		return false
 	}

@@ -221,7 +221,7 @@ func generateMountsModeRun() error {
 }
 
 func generateInitramfsMounts() error {
-	mode, recoverySystem, err := boot.ModeAndSystemFromKernelCommandLine()
+	mode, recoverySystem, err := boot.ModeAndRecoverySystemFromKernelCommandLine()
 	if err != nil {
 		return err
 	}

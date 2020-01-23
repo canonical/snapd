@@ -93,7 +93,7 @@ func (s *kernelCommandLineSuite) TestModeAndLabel(c *C) {
 		c.Logf("tc: %q", tc)
 		s.mockProcCmdlineContent(c, tc.cmd)
 
-		mode, label, err := boot.ModeAndSystemFromKernelCommandLine()
+		mode, label, err := boot.ModeAndRecoverySystemFromKernelCommandLine()
 		if tc.err == "" {
 			c.Assert(err, IsNil)
 			c.Check(mode, Equals, tc.mode)
