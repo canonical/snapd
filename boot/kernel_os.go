@@ -53,7 +53,8 @@ func (bp *coreBootParticipant) SetNextBoot() (rebootRequired bool, err error) {
 }
 
 type coreKernel struct {
-	s snap.PlaceInfo
+	s   snap.PlaceInfo
+	dev Device
 }
 
 // ensure coreKernel is a Kernel
@@ -63,7 +64,12 @@ func (*coreKernel) IsTrivial() bool { return false }
 
 func (k *coreKernel) RemoveKernelAssets() error {
 	// XXX: shouldn't we check the snap type?
-	bootloader, err := bootloader.Find("", nil)
+	opts := &bootloader.Options{}
+	if k.dev.HasModeenv() {
+		// we are in uc20 mode, so find an extractable kernel
+		opts.ExtractedRunKernelImage = true
+	}
+	bootloader, err := bootloader.Find("", opts)
 	if err != nil {
 		return fmt.Errorf("cannot remove kernel assets: %s", err)
 	}
@@ -73,11 +79,15 @@ func (k *coreKernel) RemoveKernelAssets() error {
 }
 
 func (k *coreKernel) ExtractKernelAssets(snapf snap.Container) error {
-	bootloader, err := bootloader.Find("", nil)
+	opts := &bootloader.Options{}
+	if k.dev.HasModeenv() {
+		// we are in uc20 mode, so find an extractable kernel
+		opts.ExtractedRunKernelImage = true
+	}
+	bootloader, err := bootloader.Find("", opts)
 	if err != nil {
 		return fmt.Errorf("cannot extract kernel assets: %s", err)
 	}
-
 	// ask bootloader to extract the kernel assets if needed
 	return bootloader.ExtractKernelAssets(k.s, snapf)
 }

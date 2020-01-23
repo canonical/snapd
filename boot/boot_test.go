@@ -338,7 +338,6 @@ func (s *bootSetSuite) TestParticipantBaseWithModel(c *C) {
 func (s *bootSetSuite) TestKernelWithModel(c *C) {
 	info := &snap.Info{}
 	info.RealName = "kernel"
-	expected := boot.NewCoreKernel(info)
 
 	type tableT struct {
 		model string
@@ -354,7 +353,7 @@ func (s *bootSetSuite) TestKernelWithModel(c *C) {
 		}, {
 			model: "kernel",
 			nop:   false,
-			krn:   expected,
+			krn:   boot.NewCoreKernel(info, boottest.MockDevice("kernel")),
 		}, {
 			model: "",
 			nop:   true,
