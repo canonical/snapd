@@ -37,6 +37,7 @@ import (
 	"github.com/snapcore/snapd/overlord/storecontext"
 	"github.com/snapcore/snapd/release"
 	"github.com/snapcore/snapd/snap"
+	"github.com/snapcore/snapd/snap/snaptest"
 	"github.com/snapcore/snapd/testutil"
 )
 
@@ -447,12 +448,20 @@ func (s *preseedBaseSuite) SetUpTest(c *C, preseed bool) {
 	st.Lock()
 	defer st.Unlock()
 
-	siCore := &snap.SideInfo{RealName: "core", Revision: snap.R(3), SnapID: "core-id"}
-	snapstate.Set(st, "core", &snapstate.SnapState{
+	si := &snap.SideInfo{RealName: "test-snap", Revision: snap.R(3), SnapID: "test-snap-id"}
+	snaptest.MockSnap(c, `name: test-snap
+version: 1.0
+apps:
+ srv:
+  command: bin/service
+  daemon: simple
+`, si)
+
+	snapstate.Set(st, "test-snap", &snapstate.SnapState{
 		Active:   true,
-		Sequence: []*snap.SideInfo{siCore},
-		Current:  siCore.Revision,
-		SnapType: "os",
+		Sequence: []*snap.SideInfo{si},
+		Current:  si.Revision,
+		SnapType: "app",
 	})
 }
 
@@ -495,7 +504,7 @@ func (s *preseedModeSuite) TestDoMarkPreseeded(c *C) {
 
 	// core snap was "manually" unmounted
 	c.Check(s.cmdUmount.Calls(), DeepEquals, [][]string{
-		{"umount", "-d", "-l", filepath.Join(dirs.GlobalRootDir, "/snap/core/3")},
+		{"umount", "-d", "-l", filepath.Join(dirs.GlobalRootDir, "/snap/test-snap/3")},
 	})
 
 	// and snapd stop was requested
