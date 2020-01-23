@@ -28,7 +28,8 @@ import (
 
 	"github.com/snapcore/snapd/client"
 	"github.com/snapcore/snapd/i18n"
-	"github.com/snapcore/snapd/snap"
+	"github.com/snapcore/snapd/sandbox/apparmor"
+	"github.com/snapcore/snapd/sandbox/cgroup"
 )
 
 type cmdRoutinePortalInfo struct {
@@ -68,27 +69,30 @@ DesktopFile={{.DesktopFile}}
 HasNetwork={{.HasNetwork}}
 `
 
-var snapNameFromPid = snap.NameFromPid
+var (
+	cgroupSnapNameFromPid   = cgroup.SnapNameFromPid
+	apparmorSnapNameFromPid = apparmor.SnapNameFromPid
+)
 
 func (x *cmdRoutinePortalInfo) Execute(args []string) error {
 	if len(args) > 0 {
 		return ErrExtraArgs
 	}
 
-	procInfo, err := snapNameFromPid(x.PortalInfoOptions.Pid)
+	snapName, err := cgroupSnapNameFromPid(x.PortalInfoOptions.Pid)
 	if err != nil {
 		return err
 	}
-	snap, _, err := x.client.Snap(procInfo.InstanceName)
+	snap, _, err := x.client.Snap(snapName)
 	if err != nil {
-		return fmt.Errorf("cannot retrieve info for snap %q: %v", procInfo.InstanceName, err)
+		return fmt.Errorf("cannot retrieve info for snap %q: %v", snapName, err)
 	}
 
-	// If we were able to identify the application for the pid, use that.
+	// Try to identify the application name from AppArmor
 	var app *client.AppInfo
-	if procInfo.AppName != "" {
+	if snapName, appName, _, err := apparmorSnapNameFromPid(x.PortalInfoOptions.Pid); err == nil && snapName == snap.Name && appName != "" {
 		for i := range snap.Apps {
-			if snap.Apps[i].Name == procInfo.AppName {
+			if snap.Apps[i].Name == appName {
 				app = &snap.Apps[i]
 				break
 			}

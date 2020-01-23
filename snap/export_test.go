@@ -33,19 +33,3 @@ func (info *Info) ForceRenamePlug(oldName, newName string) {
 func NewScopedTracker() *scopedTracker {
 	return new(scopedTracker)
 }
-
-func MockApparmorSnapNameFromPid(f func(pid int) (string, string, string, error)) (restore func()) {
-	old := apparmorSnapNameFromPid
-	apparmorSnapNameFromPid = f
-	return func() {
-		apparmorSnapNameFromPid = old
-	}
-}
-
-func MockCgroupSnapNameFromPid(f func(pid int) (string, error)) (restore func()) {
-	old := cgroupSnapNameFromPid
-	cgroupSnapNameFromPid = f
-	return func() {
-		cgroupSnapNameFromPid = old
-	}
-}

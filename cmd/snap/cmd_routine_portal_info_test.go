@@ -20,6 +20,7 @@
 package main_test
 
 import (
+	"errors"
 	"fmt"
 	"net/http"
 	"net/url"
@@ -28,7 +29,6 @@ import (
 
 	"github.com/snapcore/snapd/client"
 	snap "github.com/snapcore/snapd/cmd/snap"
-	snapdsnap "github.com/snapcore/snapd/snap"
 )
 
 // only used for /v2/snaps/hello
@@ -82,14 +82,16 @@ const mockInfoJSONWithApps = `
 `
 
 func (s *SnapSuite) TestPortalInfo(c *C) {
-	snap.MockSnapNameFromPid(func(pid int) (snapdsnap.ProcessInfo, error) {
+	restore := snap.MockCgroupSnapNameFromPid(func(pid int) (string, error) {
 		c.Check(pid, Equals, 42)
-		return snapdsnap.ProcessInfo{
-			InstanceName: "hello",
-			AppName:      "universe",
-			HookName:     "",
-		}, nil
+		return "hello", nil
 	})
+	defer restore()
+	restore = snap.MockApparmorSnapNameFromPid(func(pid int) (string, string, string, error) {
+		c.Check(pid, Equals, 42)
+		return "hello", "universe", "", nil
+	})
+	defer restore()
 	n := 0
 	s.RedirectClientToTestServer(func(w http.ResponseWriter, r *http.Request) {
 		switch n {
@@ -140,16 +142,16 @@ HasNetwork=true
 }
 
 func (s *SnapSuite) TestPortalInfoNoAppInfo(c *C) {
-	snap.MockSnapNameFromPid(func(pid int) (snapdsnap.ProcessInfo, error) {
+	restore := snap.MockCgroupSnapNameFromPid(func(pid int) (string, error) {
 		c.Check(pid, Equals, 42)
-		// On systems without AppArmor support, we can't
-		// distinguish different apps within the snap.
-		return snapdsnap.ProcessInfo{
-			InstanceName: "hello",
-			AppName:      "",
-			HookName:     "",
-		}, nil
+		return "hello", nil
 	})
+	defer restore()
+	restore = snap.MockApparmorSnapNameFromPid(func(pid int) (string, string, string, error) {
+		c.Check(pid, Equals, 42)
+		return "", "", "", errors.New("no apparmor")
+	})
+	defer restore()
 	n := 0
 	s.RedirectClientToTestServer(func(w http.ResponseWriter, r *http.Request) {
 		switch n {

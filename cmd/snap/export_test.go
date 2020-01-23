@@ -29,7 +29,6 @@ import (
 	"github.com/snapcore/snapd/client"
 	"github.com/snapcore/snapd/image"
 	"github.com/snapcore/snapd/sandbox/selinux"
-	"github.com/snapcore/snapd/snap"
 	"github.com/snapcore/snapd/store"
 )
 
@@ -325,10 +324,18 @@ func MockSignalNotify(newSignalNotify func(sig ...os.Signal) (chan os.Signal, fu
 
 type ServiceName = serviceName
 
-func MockSnapNameFromPid(newSnapNameFromPid func(pid int) (snap.ProcessInfo, error)) (restore func()) {
-	old := snapNameFromPid
-	snapNameFromPid = newSnapNameFromPid
+func MockApparmorSnapNameFromPid(f func(pid int) (string, string, string, error)) (restore func()) {
+	old := apparmorSnapNameFromPid
+	apparmorSnapNameFromPid = f
 	return func() {
-		snapNameFromPid = old
+		apparmorSnapNameFromPid = old
+	}
+}
+
+func MockCgroupSnapNameFromPid(f func(pid int) (string, error)) (restore func()) {
+	old := cgroupSnapNameFromPid
+	cgroupSnapNameFromPid = f
+	return func() {
+		cgroupSnapNameFromPid = old
 	}
 }
