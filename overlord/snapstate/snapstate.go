@@ -941,7 +941,7 @@ func updateManyFiltered(ctx context.Context, st *state.State, names []string, us
 
 	}
 
-	updated, tasksets, err :=  doUpdate(ctx, st, names, updates, params, userID, flags, deviceCtx, fromChange)
+	updated, tasksets, err := doUpdate(ctx, st, names, updates, params, userID, flags, deviceCtx, fromChange)
 	if err != nil {
 		return nil, nil, err
 	}
