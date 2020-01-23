@@ -14,7 +14,9 @@ matrix:
         - ./get-deps.sh
       script:
         - set -e
-        - ./run-checks --static
+        # skip nakedret errors until
+        # https://github.com/alexkohler/nakedret/issues/11 is resolved
+        - SKIP_NAKEDRET=1 ./run-checks --static
         - ./run-checks --short-unit
     - stage: quick
       go: "1.10.x"

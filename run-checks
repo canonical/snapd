@@ -235,7 +235,11 @@ if [ "$STATIC" = 1 ]; then
     got=$(go list ./... | grep -v '/osutil/udev/' | grep -v '/vendor/' | xargs nakedret 2>&1)
     if [ -n "$got" ]; then
         echo "$got"
-        exit 1
+        if [ -z "${SKIP_NAKEDRET:-}" ]; then
+            exit 1
+        else
+            echo "Ignoring nakedret errors as requested"
+        fi
     fi
 
     echo Checking all interfaces have minimal spread test
