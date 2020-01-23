@@ -54,7 +54,7 @@ func (m *DeviceManager) doMarkPreseeded(t *state.Task, _ *tomb.Tomb) error {
 		}
 
 		// do not mark this task done as this makes it racy against taskrunner tear down (the next task
-		// could start). Let this task finish after snapd restart when prebake mode is off.
+		// could start). Let this task finish after snapd restart when preseed mode is off.
 		st.RequestRestart(state.StopSnapd)
 
 		return &state.Retry{Reason: "mark-preseeded will be marked done when snapd is executed in normal mode"}

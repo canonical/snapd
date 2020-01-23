@@ -22,10 +22,12 @@ package devicestate_test
 import (
 	"context"
 	"fmt"
+	"path/filepath"
 
 	. "gopkg.in/check.v1"
 
 	"github.com/snapcore/snapd/asserts"
+	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/overlord/assertstate"
 	"github.com/snapcore/snapd/overlord/auth"
 	"github.com/snapcore/snapd/overlord/devicestate"
@@ -33,7 +35,9 @@ import (
 	"github.com/snapcore/snapd/overlord/snapstate"
 	"github.com/snapcore/snapd/overlord/state"
 	"github.com/snapcore/snapd/overlord/storecontext"
+	"github.com/snapcore/snapd/release"
 	"github.com/snapcore/snapd/snap"
+	"github.com/snapcore/snapd/testutil"
 )
 
 // TODO: should we move this into a new handlers suite?
@@ -423,4 +427,112 @@ func (s *deviceMgrSuite) TestDoPrepareRemodeling(c *C) {
 
 	_, ok = devicestate.CachedRemodelCtx(chg)
 	c.Check(ok, Equals, false)
+}
+
+type preseedBaseSuite struct {
+	deviceMgrBaseSuite
+	restorePreseedMode func()
+	cmdUmount          *testutil.MockCmd
+}
+
+func (s *preseedBaseSuite) SetUpTest(c *C, preseed bool) {
+	s.restorePreseedMode = release.MockPreseedMode(func() bool { return preseed })
+	// preseed mode helper needs to be mocked before setting up
+	// deviceMgrBaseSuite due to device Manager init.
+	s.deviceMgrBaseSuite.SetUpTest(c)
+
+	s.cmdUmount = testutil.MockCommand(c, "umount", "")
+
+	st := s.state
+	st.Lock()
+	defer st.Unlock()
+
+	siCore := &snap.SideInfo{RealName: "core", Revision: snap.R(3), SnapID: "core-id"}
+	snapstate.Set(st, "core", &snapstate.SnapState{
+		Active:   true,
+		Sequence: []*snap.SideInfo{siCore},
+		Current:  siCore.Revision,
+		SnapType: "os",
+	})
+}
+
+func (s *preseedBaseSuite) TearDownTest(c *C) {
+	s.deviceMgrBaseSuite.TearDownTest(c)
+	s.cmdUmount.Restore()
+}
+
+type preseedModeSuite struct {
+	preseedBaseSuite
+}
+
+var _ = Suite(&preseedModeSuite{})
+
+func (s *preseedModeSuite) SetUpTest(c *C) {
+	s.preseedBaseSuite.SetUpTest(c, true)
+}
+
+func (s *preseedModeSuite) TearDownTest(c *C) {
+	s.preseedBaseSuite.TearDownTest(c)
+}
+
+func (s *preseedModeSuite) TestDoMarkPreseeded(c *C) {
+	st := s.state
+	st.Lock()
+	defer st.Unlock()
+
+	chg := st.NewChange("firstboot seeding", "...")
+	t := st.NewTask("mark-preseeded", "...")
+	chg.AddTask(t)
+
+	st.Unlock()
+	s.se.Ensure()
+	s.se.Wait()
+	st.Lock()
+
+	// mark-preseeded task is left in Doing, meaning it will be re-executed
+	// after restart in normal (not preseeding) mode.
+	c.Check(t.Status(), Equals, state.DoingStatus)
+
+	// core snap was "manually" unmounted
+	c.Check(s.cmdUmount.Calls(), DeepEquals, [][]string{
+		{"umount", "-d", "-l", filepath.Join(dirs.GlobalRootDir, "/snap/core/3")},
+	})
+
+	// and snapd stop was requested
+	c.Check(s.restartRequests, DeepEquals, []state.RestartType{state.StopSnapd})
+}
+
+type preseedDoneSuite struct {
+	preseedBaseSuite
+}
+
+var _ = Suite(&preseedDoneSuite{})
+
+func (s *preseedDoneSuite) SetUpTest(c *C) {
+	s.preseedBaseSuite.SetUpTest(c, false)
+}
+
+func (s *preseedDoneSuite) TearDownTest(c *C) {
+	s.preseedBaseSuite.TearDownTest(c)
+}
+
+func (s *preseedDoneSuite) TestDoMarkPreseededAfterFirstboot(c *C) {
+	st := s.state
+	st.Lock()
+	defer st.Unlock()
+
+	chg := st.NewChange("firstboot seeding", "...")
+	t := st.NewTask("mark-preseeded", "...")
+	chg.AddTask(t)
+	t.SetStatus(state.DoingStatus)
+
+	st.Unlock()
+	s.se.Ensure()
+	s.se.Wait()
+	st.Lock()
+
+	// no umount calls expected, just transitioned to Done status.
+	c.Check(chg.Status(), Equals, state.DoneStatus)
+	c.Check(s.cmdUmount.Calls(), HasLen, 0)
+	c.Check(s.restartRequests, HasLen, 0)
 }
