@@ -342,7 +342,7 @@ backends:
             - ubuntu-19.04-arm64:
                 username: ubuntu
                 password: ubuntu
-            # Eccentric Eel (not final name!)
+            # Eoan
             - ubuntu-19.10-amd64:
                 username: ubuntu
                 password: ubuntu
@@ -361,7 +361,7 @@ backends:
             - ubuntu-19.10-arm64:
                 username: ubuntu
                 password: ubuntu
-            # Flaming Falcon (not final name!)
+            # Focal
             - ubuntu-20.04-amd64:
                 username: ubuntu
                 password: ubuntu
