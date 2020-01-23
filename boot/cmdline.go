@@ -71,7 +71,8 @@ func whichModeAndRecoverySystem(cmdline []byte) (mode string, sysLabel string, e
 	case mode == "install" && sysLabel == "":
 		return "", "", fmt.Errorf("cannot specify install mode without system label")
 	case mode == "run" && sysLabel != "":
-		// XXX: should we silently ignore the label?
+		// XXX: should we silently ignore the label? at least log for now
+		logger.Noticef(`ignoring recovery system label %q in "run" mode`, sysLabel)
 		sysLabel = ""
 	}
 	return mode, sysLabel, nil
