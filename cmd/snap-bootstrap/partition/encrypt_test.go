@@ -19,6 +19,8 @@
 package partition_test
 
 import (
+	"fmt"
+	"io/ioutil"
 	"os"
 	"path/filepath"
 
@@ -98,7 +100,7 @@ func (s *encryptSuite) TestEncryptOpenError(c *C) {
 }
 
 func (s *encryptSuite) TestEncryptAddKey(c *C) {
-	s.mockCryptsetup = testutil.MockCommand(c, "cryptsetup", "")
+	s.mockCryptsetup = testutil.MockCommand(c, "cryptsetup", fmt.Sprintf(`[ "$1" == "luksAddKey" ] && cat %s/tmp-rkey || exit 0`, dirs.SnapRunDir))
 	s.AddCleanup(s.mockCryptsetup.Restore)
 
 	key := partition.EncryptionKey{}
@@ -117,4 +119,13 @@ func (s *encryptSuite) TestEncryptAddKey(c *C) {
 
 	err = dev.Close()
 	c.Assert(err, IsNil)
+}
+
+func (s *encryptSuite) TestRecoveryKeyStore(c *C) {
+	rkey := partition.RecoveryKey{0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 255}
+	err := rkey.Store("test-key")
+	c.Assert(err, IsNil)
+	data, err := ioutil.ReadFile("test-key")
+	c.Assert(err, IsNil)
+	c.Assert(string(data), Equals, "00256 00770 01284 01798 02312 02826 03340 65294")
 }

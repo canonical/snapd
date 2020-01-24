@@ -102,13 +102,19 @@ execute: |
     cryptsetup open --key-file keyfile "${LOOP}p4" test-udata
     mount /dev/mapper/test-udata ./mnt
     echo "Check that the recovery key was stored"
-    test "$(stat --printf="%s" ./mnt/system-data/recovery-key)" = 16
+    test "$(stat --printf="%s" ./mnt/system-data/recovery-key)" = 47
     cp ./mnt/system-data/recovery-key .
     umount ./mnt
     cryptsetup close /dev/mapper/test-udata
 
     echo "Ensure that we can open the encrypted device using the recovery key"
-    cryptsetup open --key-file recovery-key "${LOOP}p4" test-recovery
+    0>recovery-key.bin
+    # The recovery key is used as 8 groups of 5 base-10 digits, with each
+    # 5 digits being converted to a 2-byte number to make a 16-byte key.
+    for i in $(cat recovery-key); do
+        printf "\x$(printf "%02x" $(($i % 256)))\x$(printf "%02x" $(($i / 256)))" >>recovery-key.bin
+    done
+    cryptsetup open --key-file recovery-key.bin "${LOOP}p4" test-recovery
     mount /dev/mapper/test-recovery ./mnt
     umount ./mnt
     cryptsetup close /dev/mapper/test-recovery

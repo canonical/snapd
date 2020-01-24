@@ -146,12 +146,12 @@ func Run(gadgetRoot, device string, options Options) error {
 	if options.Encrypt {
 		if options.RecoveryKeyFile != "" {
 			if err := rkey.Store(options.RecoveryKeyFile); err != nil {
-				return err
+				return fmt.Errorf("cannot store recovery key: %v", err)
 			}
 		}
 
 		if err := key.Store(options.KeyFile); err != nil {
-			return err
+			return fmt.Errorf("cannot store encryption key: %v", err)
 		}
 	}
 
