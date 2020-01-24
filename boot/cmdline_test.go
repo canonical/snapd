@@ -62,15 +62,15 @@ func (s *kernelCommandLineSuite) TestModeAndLabel(c *C) {
 		err   string
 	}{{
 		cmd:   "snapd_recovery_mode= snapd_recovery_system=this-is-a-label other-option=foo",
-		mode:  "install",
+		mode:  boot.ModeInstall,
 		label: "this-is-a-label",
 	}, {
 		cmd:   "snapd_recovery_system=label foo=bar foobaz=\\0\\0123 snapd_recovery_mode=install",
 		label: "label",
-		mode:  "install",
+		mode:  boot.ModeInstall,
 	}, {
 		cmd:  "snapd_recovery_mode=run snapd_recovery_system=1234",
-		mode: "run",
+		mode: boot.ModeRun,
 	}, {
 		cmd: "option=1 other-option=\0123 none",
 		err: "cannot detect mode nor recovery system to use",

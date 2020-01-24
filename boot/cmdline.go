@@ -30,11 +30,22 @@ import (
 	"github.com/snapcore/snapd/strutil"
 )
 
+const (
+	// ModeRun indicates the regular operating mode of the device
+	ModeRun = "run"
+	// ModeInstall is a mode in which a new system is installed on the
+	// device
+	ModeInstall = "install"
+	// ModeRecover is a mode in which the device boots into the recovery
+	// system
+	ModeRecover = "recover"
+)
+
 var (
 	// the kernel commandline - can be overridden in tests
 	procCmdline = "/proc/cmdline"
 
-	validModes = []string{"install", "recover", "run"}
+	validModes = []string{ModeInstall, ModeRecover, ModeRun}
 )
 
 func whichModeAndRecoverySystem(cmdline []byte) (mode string, sysLabel string, err error) {
@@ -49,7 +60,7 @@ func whichModeAndRecoverySystem(cmdline []byte) (mode string, sysLabel string, e
 			}
 			mode = strings.SplitN(w, "=", 2)[1]
 			if mode == "" {
-				mode = "install"
+				mode = ModeInstall
 			}
 			if !strutil.ListContains(validModes, mode) {
 				return "", "", fmt.Errorf("cannot use unknown mode %q", mode)
@@ -68,9 +79,9 @@ func whichModeAndRecoverySystem(cmdline []byte) (mode string, sysLabel string, e
 	switch {
 	case mode == "" && sysLabel == "":
 		return "", "", fmt.Errorf("cannot detect mode nor recovery system to use")
-	case mode == "install" && sysLabel == "":
+	case mode == ModeInstall && sysLabel == "":
 		return "", "", fmt.Errorf("cannot specify install mode without system label")
-	case mode == "run" && sysLabel != "":
+	case mode == ModeRun && sysLabel != "":
 		// XXX: should we silently ignore the label? at least log for now
 		logger.Noticef(`ignoring recovery system label %q in "run" mode`, sysLabel)
 		sysLabel = ""
