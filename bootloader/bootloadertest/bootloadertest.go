@@ -49,7 +49,6 @@ type MockBootloader struct {
 
 	runKernelImageEnableKernelCalls     []snap.PlaceInfo
 	runKernelImageEnableTryKernelCalls  []snap.PlaceInfo
-	runKernelImageDisableKernelCalls    []snap.PlaceInfo
 	runKernelImageDisableTryKernelCalls []snap.PlaceInfo
 	runKernelImageEnabledKernel         snap.PlaceInfo
 	runKernelImageEnabledTryKernel      snap.PlaceInfo

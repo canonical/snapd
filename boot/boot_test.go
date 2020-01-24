@@ -210,9 +210,6 @@ func (s *bootSetSuite) TestCurrentBoot20NameAndRevision(c *C) {
 	s.bootloader.BootVars["kernel_status"] = "trying"
 	_, err = boot.GetCurrentBoot(snap.TypeKernel, coreDev)
 	c.Check(err, Equals, boot.ErrBootNameAndRevisionNotReady)
-
-	// TODO:UC20: when base_status is parsed from modeenv in bootStateBase20 and
-	// trying works for revisions(), also check that here
 }
 
 func (s *bootSetSuite) TestCurrentBootNameAndRevisionUnhappy(c *C) {
