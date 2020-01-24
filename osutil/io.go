@@ -226,3 +226,64 @@ func AtomicWriteChown(filename string, reader io.Reader, perm os.FileMode, flags
 
 	return aw.Commit()
 }
+
+// AtomicRename attempts to rename a path from oldName to newName atomically.
+func AtomicRename(oldName, newName string) error {
+	var oldDir, newDir *os.File
+
+	if !snapdUnsafeIO {
+		oldDirPath := filepath.Dir(oldName)
+		newDirPath := filepath.Dir(newName)
+
+		o, err := os.Open(oldDirPath)
+		if err != nil {
+			return err
+		}
+		oldDir = o
+		defer o.Close()
+
+		if oldDir != newDir {
+			n, err := os.Open(newDirPath)
+			if err != nil {
+				return err
+			}
+			newDir = n
+			defer n.Close()
+		}
+	}
+
+	err := os.Rename(oldName, newName)
+	if err != nil {
+		return err
+	}
+
+	if !snapdUnsafeIO {
+		var err1, err2 error
+		err1 = oldDir.Sync()
+		if newDir != nil {
+			err2 = newDir.Sync()
+		}
+		if err1 != nil {
+			return err1
+		}
+		return err2
+	}
+	return nil
+}
+
+// AtomicSymlink attempts to atomically create a symlink at linkPath, pointing
+// to a given target. The process creates a temporary symlink object pointing to
+// the target, and then proceeds to rename it atomically, replacing the
+// linkPath.
+func AtomicSymlink(target, linkPath string) error {
+
+	tmp := linkPath + "." + strutil.MakeRandomString(12) + "~"
+	defer os.Remove(tmp)
+
+	err := os.Symlink(target, tmp)
+	if err != nil {
+		return err
+	}
+
+	return AtomicRename(tmp, linkPath)
+}

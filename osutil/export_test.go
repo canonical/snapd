@@ -107,6 +107,11 @@ func SetUnsafeIO(b bool) func() {
 	}
 }
 
+func GetUnsafeIO() bool {
+	// a getter so that tests do not attempt to modify that directly
+	return snapdUnsafeIO
+}
+
 func MockOsReadlink(f func(string) (string, error)) func() {
 	realOsReadlink := osReadlink
 	osReadlink = f
