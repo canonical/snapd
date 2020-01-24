@@ -63,9 +63,6 @@ const (
 
 const (
 	DownloadAndChecksDoneEdge = state.TaskSetEdge("download-and-checks-done")
-	PrerequisitesEdge         = state.TaskSetEdge("prerequisites-edge")
-	SetupAliasesEdge          = state.TaskSetEdge("setup-aliases-edge")
-	InstallHookEdge           = state.TaskSetEdge("install-hook-edge")
 	BeginEdge                 = state.TaskSetEdge("begin")
 	BeforeHooksEdge           = state.TaskSetEdge("before-hooks")
 	HooksEdge                 = state.TaskSetEdge("hooks")
@@ -368,13 +365,13 @@ func doInstall(st *state.State, snapst *SnapState, snapsup *SnapSetup, flags int
 		}
 
 		if flags&skipConfigure != 0 {
-			installSet.MarkEdge(prereq, PrerequisitesEdge)
-			installSet.MarkEdge(installHook, InstallHookEdge)
-			installSet.MarkEdge(setupAliases, SetupAliasesEdge)
+			installSet.MarkEdge(prereq, BeginEdge)
+			installSet.MarkEdge(setupAliases, BeforeHooksEdge)
+			installSet.MarkEdge(installHook, HooksEdge)
 		} else {
-			ts.MarkEdge(prereq, PrerequisitesEdge)
-			ts.MarkEdge(installHook, InstallHookEdge)
-			ts.MarkEdge(setupAliases, SetupAliasesEdge)
+			ts.MarkEdge(prereq, BeginEdge)
+			ts.MarkEdge(setupAliases, BeforeHooksEdge)
+			ts.MarkEdge(installHook, HooksEdge)
 		}
 	}
 

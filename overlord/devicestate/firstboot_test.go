@@ -1766,3 +1766,56 @@ snaps:
 	c.Assert(err, IsNil)
 	c.Check(seedTime.IsZero(), Equals, false)
 }
+
+func (s *firstBoot16Suite) TestCriticalTaskEdgesForPreseed(c *C) {
+	st := s.overlord.State()
+	st.Lock()
+	defer st.Unlock()
+
+	t1 := st.NewTask("task1", "")
+	t2 := st.NewTask("task2", "")
+	t3 := st.NewTask("task2", "")
+
+	ts := state.NewTaskSet(t1, t2, t3)
+	ts.MarkEdge(t1, snapstate.BeginEdge)
+	ts.MarkEdge(t2, snapstate.BeforeHooksEdge)
+	ts.MarkEdge(t3, snapstate.HooksEdge)
+
+	beginEdge, beforeHooksEdge, hooksEdge, err := devicestate.CriticalTaskEdges(ts)
+	c.Assert(err, IsNil)
+	c.Assert(beginEdge, NotNil)
+	c.Assert(beforeHooksEdge, NotNil)
+	c.Assert(hooksEdge, NotNil)
+
+	c.Check(beginEdge.Kind(), Equals, "task1")
+	c.Check(beforeHooksEdge.Kind(), Equals, "task2")
+	c.Check(hooksEdge.Kind(), Equals, "task2")
+}
+
+func (s *firstBoot16Suite) TestCriticalTaskEdgesForPreseedMissing(c *C) {
+	st := s.overlord.State()
+	st.Lock()
+	defer st.Unlock()
+
+	t1 := st.NewTask("task1", "")
+	t2 := st.NewTask("task2", "")
+	t3 := st.NewTask("task2", "")
+
+	ts := state.NewTaskSet(t1, t2, t3)
+	ts.MarkEdge(t1, snapstate.BeginEdge)
+
+	_, _, _, err := devicestate.CriticalTaskEdges(ts)
+	c.Assert(err, NotNil)
+
+	ts = state.NewTaskSet(t1, t2, t3)
+	ts.MarkEdge(t1, snapstate.BeginEdge)
+	ts.MarkEdge(t2, snapstate.BeforeHooksEdge)
+	_, _, _, err = devicestate.CriticalTaskEdges(ts)
+	c.Assert(err, NotNil)
+
+	ts = state.NewTaskSet(t1, t2, t3)
+	ts.MarkEdge(t1, snapstate.BeginEdge)
+	ts.MarkEdge(t3, snapstate.HooksEdge)
+	_, _, _, err = devicestate.CriticalTaskEdges(ts)
+	c.Assert(err, NotNil)
+}

@@ -53,22 +53,22 @@ func installSeedSnap(st *state.State, sn *seed.Snap, flags snapstate.Flags) (*st
 	return snapstate.InstallPath(st, sn.SideInfo, sn.Path, "", sn.Channel, flags)
 }
 
-func criticalTaskEdges(ts *state.TaskSet) (prereqEdge, aliasesEdge, hooksEdge *state.Task, err error) {
-	// we expect all three edges, or none (the latter is the case with config tasks).
-	prereqEdge, err = ts.Edge(snapstate.PrerequisitesEdge)
+func criticalTaskEdges(ts *state.TaskSet) (beginEdge, beforeHooksEdge, hooksEdge *state.Task, err error) {
+	// we expect all three edges, or none (the latter is the case with config tasksets).
+	beginEdge, err = ts.Edge(snapstate.BeginEdge)
 	if err != nil {
 		return nil, nil, nil, nil
 	}
-	aliasesEdge, err = ts.Edge(snapstate.SetupAliasesEdge)
+	beforeHooksEdge, err = ts.Edge(snapstate.BeforeHooksEdge)
 	if err != nil {
 		return nil, nil, nil, err
 	}
-	hooksEdge, err = ts.Edge(snapstate.InstallHookEdge)
+	hooksEdge, err = ts.Edge(snapstate.HooksEdge)
 	if err != nil {
 		return nil, nil, nil, err
 	}
 
-	return prereqEdge, aliasesEdge, hooksEdge, nil
+	return beginEdge, beforeHooksEdge, hooksEdge, nil
 }
 
 func trivialSeeding(st *state.State, markSeeded *state.Task) []*state.TaskSet {
@@ -131,6 +131,9 @@ func populateStateFromSeedImpl(st *state.State, opts *populateStateFromSeedOptio
 
 	err = deviceSeed.LoadMeta(tm)
 	if release.OnClassic && err == seed.ErrNoMeta {
+		if preseed {
+			return nil, fmt.Errorf("no snaps to preseed")
+		}
 		// on classic it is ok to not seed any snaps
 		return trivialSeeding(st, markSeeded), nil
 	}
@@ -150,27 +153,28 @@ func populateStateFromSeedImpl(st *state.State, opts *populateStateFromSeedOptio
 	tsAll := []*state.TaskSet{}
 	configTss := []*state.TaskSet{}
 
-	var lastPrereqTask, lastAliasesTask *state.Task
+	var lastBeforeHooksTask *state.Task
 	var chainTs func(all []*state.TaskSet, ts *state.TaskSet) []*state.TaskSet
 
 	chainTsPreseeding := func(all []*state.TaskSet, ts *state.TaskSet) []*state.TaskSet {
 		n := len(all)
 		// mark-preseeded task needs to be inserted between preliminary setup and hook tasks
-		prereqTask, aliasesTask, hookTask, err := criticalTaskEdges(ts)
+		beginTask, beforeHooksTask, hooksTask, err := criticalTaskEdges(ts)
 		if err != nil {
 			// XXX: internal error?
 			panic(err)
 		}
-		if prereqTask != nil {
+		// we either have all edges or none
+		if beginTask != nil {
 			// hooks must wait for mark-preseeded
-			hookTask.WaitFor(preseedDone)
-			if lastAliasesTask != nil {
-				prereqTask.WaitFor(lastAliasesTask)
+			hooksTask.WaitFor(preseedDone)
+			if lastBeforeHooksTask != nil {
+				beginTask.WaitFor(lastBeforeHooksTask)
 			}
-			preseedDone.WaitFor(aliasesTask)
-			lastPrereqTask = prereqTask
-			lastAliasesTask = aliasesTask
+			preseedDone.WaitFor(beforeHooksTask)
+			lastBeforeHooksTask = beforeHooksTask
 		} else {
+			// no edges: it is a configure snap taskset for core/gadget/kernel
 			if n != 0 {
 				ts.WaitAll(all[n-1])
 			}
