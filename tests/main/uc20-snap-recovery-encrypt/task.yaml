@@ -111,7 +111,9 @@ execute: |
     0>recovery-key.bin
     # The recovery key is used as 8 groups of 5 base-10 digits, with each
     # 5 digits being converted to a 2-byte number to make a 16-byte key.
+    shopt -s extglob
     for i in $(cat recovery-key); do
+        i=${i##+(0)}
         printf "\x$(printf "%02x" $(($i % 256)))\x$(printf "%02x" $(($i / 256)))" >>recovery-key.bin
     done
     cryptsetup open --key-file recovery-key.bin "${LOOP}p4" test-recovery
