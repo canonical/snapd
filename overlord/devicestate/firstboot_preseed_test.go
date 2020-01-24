@@ -33,7 +33,6 @@ import (
 	"github.com/snapcore/snapd/overlord/state"
 	"github.com/snapcore/snapd/release"
 	"github.com/snapcore/snapd/seed/seedtest"
-	//"github.com/snapcore/snapd/systemd"
 	"github.com/snapcore/snapd/testutil"
 )
 
@@ -50,7 +49,7 @@ func checkPreseedTasks(c *C, tsAll []*state.TaskSet) {
 	c.Check(lastTasks, HasLen, 2)
 	preseedTask := lastTasks[0]
 	markSeededTask := lastTasks[1]
-	c.Check(preseedTask.Kind(), Equals, "mark-preseeded")
+	c.Assert(preseedTask.Kind(), Equals, "mark-preseeded")
 	c.Check(markSeededTask.Kind(), Equals, "mark-seeded")
 
 	// mark-seeded waits for mark-preseeded
@@ -83,10 +82,12 @@ func checkPressedTaskStates(c *C, st *state.State) {
 	}
 	seenDone := make(map[string]bool)
 	for _, t := range st.Tasks() {
+		if t.Status() == state.DoneStatus {
+			seenDone[t.Kind()] = true
+		}
 		switch {
 		case doneTasks[t.Kind()]:
 			c.Check(t.Status(), Equals, state.DoneStatus, Commentf("task: %s", t.Kind()))
-			seenDone[t.Kind()] = true
 		case t.Kind() == "mark-preseeded":
 			c.Check(t.Status(), Equals, state.DoingStatus, Commentf("task: %s", t.Kind()))
 		case doTasks[t.Kind()]:
@@ -122,11 +123,13 @@ func checkPreseedOrder(c *C, tsAll []*state.TaskSet, snaps ...string) {
 		for _, t := range ts.Tasks() {
 			switch t.Kind() {
 			case "run-hook":
+				// ensure that hooks are run after mark-preseeded
 				c.Check(markPreseededInWaitChain(t), Equals, true)
 			case "mark-seeded":
 				// nothing waits for mark-seeded
 				c.Check(t.HaltTasks(), HasLen, 0)
 				markSeeded++
+				c.Check(markPreseededInWaitChain(t), Equals, true)
 			case "mark-preseeded":
 				for _, wt := range t.WaitTasks() {
 					if wt.Kind() == "setup-aliases" {
@@ -142,6 +145,8 @@ func checkPreseedOrder(c *C, tsAll []*state.TaskSet, snaps ...string) {
 	c.Check(markPreseeded, Equals, 1)
 	c.Check(markPreseededWaitingForAliases, Equals, len(snaps))
 
+	// check that prerequisites tasks for all snaps are present and
+	// are chained properly.
 	for i, ts := range tsAll {
 		task0 := ts.Tasks()[0]
 		waitTasks := task0.WaitTasks()
@@ -184,8 +189,6 @@ func (s *firstbootPreseed16Suite) TestPreseedHappy(c *C) {
 
 	mockUmountCmd := testutil.MockCommand(c, "umount", "")
 	defer mockUmountCmd.Restore()
-
-	//systemd.MockOsSymlink(func(string, string) error { return nil })
 
 	bloader := bootloadertest.Mock("mock", c.MkDir())
 	bootloader.Force(bloader)
