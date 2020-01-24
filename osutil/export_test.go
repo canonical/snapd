@@ -197,3 +197,5 @@ func MockFindGid(mock func(name string) (uint64, error)) (restore func()) {
 	findGid = mock
 	return func() { findGid = old }
 }
+
+const MaxSymlinkTries = maxSymlinkTries

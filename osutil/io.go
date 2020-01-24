@@ -271,19 +271,32 @@ func AtomicRename(oldName, newName string) error {
 	return nil
 }
 
+const maxSymlinkTries = 10
+
 // AtomicSymlink attempts to atomically create a symlink at linkPath, pointing
 // to a given target. The process creates a temporary symlink object pointing to
 // the target, and then proceeds to rename it atomically, replacing the
 // linkPath.
 func AtomicSymlink(target, linkPath string) error {
+	var tries = 0
+	var tmp string
+	var haveTmp bool
 
-	tmp := linkPath + "." + strutil.MakeRandomString(12) + "~"
-	defer os.Remove(tmp)
-
-	err := os.Symlink(target, tmp)
-	if err != nil {
-		return err
+	for ; tries < maxSymlinkTries && !haveTmp; tries++ {
+		tmp = linkPath + "." + strutil.MakeRandomString(12) + "~"
+		err := os.Symlink(target, tmp)
+		if err != nil {
+			if os.IsExist(err) {
+				continue
+			}
+			return err
+		}
+		haveTmp = true
 	}
+	if !haveTmp {
+		return errors.New("cannot create a temporary symlink")
+	}
+	defer os.Remove(tmp)
 
 	return AtomicRename(tmp, linkPath)
 }
