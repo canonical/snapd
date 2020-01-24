@@ -30,6 +30,7 @@ import (
 	"strings"
 
 	"github.com/snapcore/snapd/boot"
+	"github.com/snapcore/snapd/bootloader"
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/seed"
@@ -206,7 +207,7 @@ func generateMountsModeRun() error {
 	if err != nil {
 		return err
 	}
-	// 2.2 mount base & kernel
+	// 2.2 mount base
 	isBaseMounted, err := osutilIsMounted(filepath.Join(runMnt, "base"))
 	if err != nil {
 		return err
@@ -215,14 +216,60 @@ func generateMountsModeRun() error {
 		base := filepath.Join(dataDir, "system-data", dirs.SnapBlobDir, modeEnv.Base)
 		fmt.Fprintf(stdout, "%s %s\n", base, filepath.Join(runMnt, "base"))
 	}
+
+	// 2.3 mount kernel
 	isKernelMounted, err := osutilIsMounted(filepath.Join(runMnt, "kernel"))
 	if err != nil {
 		return err
 	}
 	if !isKernelMounted {
-		// XXX: do we need to cross-check the booted/running kernel vs the snap?
-		kernel := filepath.Join(dataDir, "system-data", dirs.SnapBlobDir, modeEnv.Kernel)
-		fmt.Fprintf(stdout, "%s %s\n", kernel, filepath.Join(runMnt, "kernel"))
+		// find ubuntu-boot bootloader to get the kernel_status and kernel.efi
+		// status so we can determine the right kernel snap to have mounted
+
+		// TODO:UC20: should all this logic move to boot package? feels awfully
+		// similar to the logic in revisions() for bootState20
+
+		// At this point the run mode bootloader is under the native
+		// layout, no /boot mount.
+		opts := &bootloader.Options{NoSlashBoot: true}
+		bl, err := bootloader.Find(bootDir, opts)
+		if err != nil {
+			return fmt.Errorf("internal error: cannot find run system bootloader: %v", err)
+		}
+
+		// make sure it supports extracted run kernel images, as we have to find the
+		// extracted run kernel image
+		ebl, ok := bl.(bootloader.ExtractedRunKernelImageBootloader)
+		if !ok {
+			return fmt.Errorf("cannot use %s bootloader: does not support extracted run kernel images", bl.Name())
+		}
+
+		// get the primary extracted run kernel
+		kernel, err := ebl.Kernel()
+		if err != nil {
+			// we don't have a fallback kernel!
+			return fmt.Errorf("no fallback kernel snap: %v", err)
+		}
+
+		// get kernel_status
+		m, err := ebl.GetBootVars("kernel_status")
+		if err != nil {
+			return fmt.Errorf("cannot get kernel_status from bootloader %s", ebl.Name())
+		}
+
+		if m["kernel_status"] == "trying" {
+			// check for the try kernel
+			tryKernel, tryKernelExists, err := ebl.TryKernel()
+			// TODO:UC20: can we log somewhere if err != nil here?
+			if tryKernelExists && err == nil {
+				kernel = tryKernel
+			}
+			// if we didn't have a try kernel, but we do have kernel_status ==
+			// trying we just fallback to using the normal kernel
+		}
+
+		kernelPath := filepath.Join(dataDir, "system-data", dirs.SnapBlobDir, filepath.Base(kernel.MountFile()))
+		fmt.Fprintf(stdout, "%s %s\n", kernelPath, filepath.Join(runMnt, "kernel"))
 	}
 	// 3.1 There is no step 3 =)
 	return nil
