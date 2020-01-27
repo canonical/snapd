@@ -233,14 +233,14 @@ func postUsers(c *Command, r *http.Request, user *auth.UserState) Response {
 	case "create":
 		return createUser(c, postData.postUserCreateData)
 	case "remove":
-		return removeUser(c, postData.Username)
+		return removeUser(c, postData.Username, postData.postUserDeleteData)
 	case "":
 		return BadRequest("missing user action")
 	}
 	return BadRequest("unsupported user action %q", postData.Action)
 }
 
-func removeUser(c *Command, username string) Response {
+func removeUser(c *Command, username string, opts postUserDeleteData) Response {
 	return NotImplemented("not implemented")
 }
 
@@ -442,6 +442,7 @@ type postUserData struct {
 	Action   string `json:"action"`
 	Username string `json:"username"`
 	postUserCreateData
+	postUserDeleteData
 }
 
 type postUserCreateData struct {
@@ -450,6 +451,8 @@ type postUserCreateData struct {
 	Known        bool   `json:"known"`
 	ForceManaged bool   `json:"force-managed"`
 }
+
+type postUserDeleteData struct{}
 
 var userLookup = user.Lookup
 

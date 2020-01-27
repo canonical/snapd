@@ -168,9 +168,7 @@ func (s *userSuite) testCreateUser(c *check.C, oldWay bool) {
 func (s *userSuite) TestNoUserAdminCreateUser(c *check.C) { s.testNoUserAdmin(c, "/v2/create-user") }
 func (s *userSuite) TestNoUserAdminPostUser(c *check.C)   { s.testNoUserAdmin(c, "/v2/users") }
 func (s *userSuite) testNoUserAdmin(c *check.C, endpoint string) {
-	oldHas := hasUserAdmin
 	hasUserAdmin = false
-	defer func() { hasUserAdmin = oldHas }()
 
 	buf := bytes.NewBufferString("{}")
 	req, err := http.NewRequest("POST", endpoint, buf)
