@@ -266,7 +266,6 @@ func AtomicRename(oldName, newName string) error {
 				}
 			}
 		}
-
 	}
 
 	if err := os.Rename(oldName, newName); err != nil {
