@@ -102,14 +102,20 @@ func Run(gadgetRoot, device string, options Options) error {
 	// generate keys externally so multiple encrypted partitions can use the same key
 	var key partition.EncryptionKey
 	var rkey partition.RecoveryKey
+
+	useRecoveryKey := options.RecoveryKeyFile != ""
+
 	if options.Encrypt {
 		key, err = partition.NewEncryptionKey()
 		if err != nil {
 			return fmt.Errorf("cannot create encryption key: %v", err)
 		}
-		rkey, err = partition.NewRecoveryKey()
-		if err != nil {
-			return fmt.Errorf("cannot create encryption key: %v", err)
+
+		if useRecoveryKey {
+			rkey, err = partition.NewRecoveryKey()
+			if err != nil {
+				return fmt.Errorf("cannot create recovery key: %v", err)
+			}
 		}
 	}
 
@@ -119,8 +125,10 @@ func Run(gadgetRoot, device string, options Options) error {
 			if err != nil {
 				return err
 			}
-			if err := dataPart.AddRecoveryKey(key, rkey); err != nil {
-				return err
+			if useRecoveryKey {
+				if err := dataPart.AddRecoveryKey(key, rkey); err != nil {
+					return err
+				}
 			}
 			// update the encrypted device node
 			part.Node = dataPart.Node
@@ -144,7 +152,7 @@ func Run(gadgetRoot, device string, options Options) error {
 	// store the encryption key as the last part of the process to reduce the
 	// possiblity of exiting with an error after the TPM provisioning
 	if options.Encrypt {
-		if options.RecoveryKeyFile != "" {
+		if useRecoveryKey {
 			if err := rkey.Store(options.RecoveryKeyFile); err != nil {
 				return fmt.Errorf("cannot store recovery key: %v", err)
 			}
