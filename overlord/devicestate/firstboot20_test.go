@@ -118,7 +118,7 @@ volumes:
 }
 
 func (s *firstBoot20Suite) TestPopulateFromSeedCore20Happy(c *C) {
-	r := boottest.ForceModeenv(dirs.GlobalRootDir, &boot.Modeenv{
+	r := boottest.ForceModeenv("", &boot.Modeenv{
 		Mode:           "run",
 		RecoverySystem: "20191018",
 		Kernel:         "pc-kernel_1.snap",
@@ -144,8 +144,10 @@ func (s *firstBoot20Suite) TestPopulateFromSeedCore20Happy(c *C) {
 	bloader := bootloadertest.Mock("mock", c.MkDir())
 	bootloader.Force(bloader)
 	defer bootloader.Force(nil)
-	bloader.SetBootKernel("pc-kernel_1.snap")
-	bloader.SetBootBase("core20_1.snap")
+
+	// since we are in runmode, MakeBootable will already have run from install
+	// mode, and extracted the kernel assets for the kernel snap into the
+	// bootloader, so set the current kernel there
 	kernel, err := snap.ParsePlaceInfoFromSnapFileName("pc-kernel_1.snap")
 	c.Assert(err, IsNil)
 	r = bloader.SetRunKernelImageEnabledKernel(kernel)
@@ -240,4 +242,20 @@ func (s *firstBoot20Suite) TestPopulateFromSeedCore20Happy(c *C) {
 	dev, err := devicestate.DeviceCtx(s.overlord.State(), nil, nil)
 	c.Assert(err, IsNil)
 	c.Assert(dev.HasModeenv(), Equals, true)
+
+	// check that we marked the boot successful with bootstate20 methods, namely
+	// that we called SetNext, which since it was called on the kernel we
+	// already booted from, we should only have checked what the current kernel
+	// is
+
+	// the 2 calls here are 1 from GetCurrentBoot() and 1 from SetNext()
+	_, numKernelCalls := bloader.GetRunKernelImageFunctionSnapCalls("Kernel")
+	c.Assert(numKernelCalls, Equals, 2)
+
+	actual, _ := bloader.GetRunKernelImageFunctionSnapCalls("EnableKernel")
+	c.Assert(actual, HasLen, 0)
+	actual, _ = bloader.GetRunKernelImageFunctionSnapCalls("DisableTryKernel")
+	c.Assert(actual, HasLen, 0)
+	actual, _ = bloader.GetRunKernelImageFunctionSnapCalls("EnableTryKernel")
+	c.Assert(actual, HasLen, 0)
 }

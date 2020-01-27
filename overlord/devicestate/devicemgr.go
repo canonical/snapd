@@ -74,7 +74,6 @@ func Manager(s *state.State, hookManager *hookstate.HookManager, runner *state.T
 	keypairMgr, err := asserts.OpenFSKeypairManager(dirs.SnapDeviceDir)
 	if err != nil {
 		return nil, err
-
 	}
 
 	m := &DeviceManager{
