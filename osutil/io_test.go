@@ -235,20 +235,157 @@ func (ts *AtomicWriteTestSuite) TestAtomicFileCancel(c *C) {
 	c.Check(osutil.FileExists(fn), Equals, false)
 }
 
-// SafeIoAtomicWriteTestSuite runs all AtomicWrite with safe
+type AtomicSymlinkTestSuite struct{}
+
+var _ = Suite(&AtomicSymlinkTestSuite{})
+
+func (ts *AtomicSymlinkTestSuite) TestAtomicSymlink(c *C) {
+	mustReadSymlink := func(p, exp string) {
+		target, err := os.Readlink(p)
+		c.Assert(err, IsNil)
+		c.Check(exp, Equals, target)
+	}
+
+	d := c.MkDir()
+	err := osutil.AtomicSymlink("target", filepath.Join(d, "bar"))
+	c.Assert(err, IsNil)
+	mustReadSymlink(filepath.Join(d, "bar"), "target")
+
+	// no nested directory
+	nested := filepath.Join(d, "nested")
+	err = osutil.AtomicSymlink("target", filepath.Join(nested, "bar"))
+	c.Assert(err, ErrorMatches, `symlink target /.*/nested/bar\..*~: no such file or directory`)
+
+	// create a dir without write permission
+	err = os.MkdirAll(nested, 0644)
+	c.Assert(err, IsNil)
+
+	// no permission to write in dir
+	err = osutil.AtomicSymlink("target", filepath.Join(nested, "bar"))
+	c.Assert(err, ErrorMatches, `symlink target /.*/nested/bar\..*~: permission denied`)
+
+	err = os.Chmod(nested, 0755)
+	c.Assert(err, IsNil)
+
+	err = osutil.AtomicSymlink("target", filepath.Join(nested, "bar"))
+	c.Assert(err, IsNil)
+	mustReadSymlink(filepath.Join(nested, "bar"), "target")
+
+	// symlink gets replaced
+	err = osutil.AtomicSymlink("new-target", filepath.Join(nested, "bar"))
+	c.Assert(err, IsNil)
+	mustReadSymlink(filepath.Join(nested, "bar"), "new-target")
+
+	// don't care about symlink target
+	err = osutil.AtomicSymlink("/this/is/some/funny/path", filepath.Join(nested, "bar"))
+	c.Assert(err, IsNil)
+	mustReadSymlink(filepath.Join(nested, "bar"), "/this/is/some/funny/path")
+
+}
+
+func (ts *AtomicSymlinkTestSuite) createCollisionSequence(c *C, baseName string, many int) {
+	for i := 0; i < many; i++ {
+		expectedRandomness := strutil.MakeRandomString(12) + "~"
+		// ensure we always get the same result
+		err := ioutil.WriteFile(baseName+"."+expectedRandomness, []byte(""), 0644)
+		c.Assert(err, IsNil)
+	}
+}
+
+func (ts *AtomicSymlinkTestSuite) TestAtomicSymlinkCollisionError(c *C) {
+	tmpdir := c.MkDir()
+	// ensure we always get the same result
+	rand.Seed(1)
+	p := filepath.Join(tmpdir, "foo")
+	ts.createCollisionSequence(c, p, osutil.MaxSymlinkTries)
+	// restart random number sequence
+	rand.Seed(1)
+
+	err := osutil.AtomicSymlink("target", p)
+	c.Assert(err, ErrorMatches, "cannot create a temporary symlink")
+}
+
+func (ts *AtomicSymlinkTestSuite) TestAtomicSymlinkCollisionHappy(c *C) {
+	tmpdir := c.MkDir()
+	// ensure we always get the same result
+	rand.Seed(1)
+	p := filepath.Join(tmpdir, "foo")
+	ts.createCollisionSequence(c, p, osutil.MaxSymlinkTries/2)
+	// restart random number sequence
+	rand.Seed(1)
+
+	err := osutil.AtomicSymlink("target", p)
+	c.Assert(err, IsNil)
+}
+
+type AtomicRenameTestSuite struct{}
+
+var _ = Suite(&AtomicRenameTestSuite{})
+
+func (ts *AtomicRenameTestSuite) TestAtomicRename(c *C) {
+	d := c.MkDir()
+
+	err := ioutil.WriteFile(filepath.Join(d, "foo"), []byte("foobar"), 0644)
+	c.Assert(err, IsNil)
+
+	err = osutil.AtomicRename(filepath.Join(d, "foo"), filepath.Join(d, "bar"))
+	c.Assert(err, IsNil)
+	c.Check(filepath.Join(d, "bar"), testutil.FileEquals, "foobar")
+
+	// no nested directory
+	nested := filepath.Join(d, "nested")
+	err = osutil.AtomicRename(filepath.Join(d, "bar"), filepath.Join(nested, "bar"))
+	if !osutil.GetUnsafeIO() {
+		// with safe IO first op is to open the source and target directories
+		c.Assert(err, ErrorMatches, "open /.*/nested: no such file or directory")
+	} else {
+		c.Assert(err, ErrorMatches, "rename /.*/bar /.*/nested/bar: no such file or directory")
+	}
+
+	// create a dir without write permission
+	err = os.MkdirAll(nested, 0644)
+	c.Assert(err, IsNil)
+
+	// no permission to write in dir
+	err = osutil.AtomicRename(filepath.Join(d, "bar"), filepath.Join(nested, "bar"))
+	c.Assert(err, ErrorMatches, "rename /.*/bar /.*/nested/bar: permission denied")
+
+	err = os.Chmod(nested, 0755)
+	c.Assert(err, IsNil)
+
+	// all good now
+	err = osutil.AtomicRename(filepath.Join(d, "bar"), filepath.Join(nested, "bar"))
+	c.Assert(err, IsNil)
+
+	err = ioutil.WriteFile(filepath.Join(nested, "new-bar"), []byte("barbar"), 0644)
+	c.Assert(err, IsNil)
+
+	// target is overwritten
+	err = osutil.AtomicRename(filepath.Join(nested, "new-bar"), filepath.Join(nested, "bar"))
+	c.Assert(err, IsNil)
+	c.Check(filepath.Join(nested, "bar"), testutil.FileEquals, "barbar")
+
+	// no source
+	err = osutil.AtomicRename(filepath.Join(d, "does-not-exist"), filepath.Join(nested, "bar"))
+	c.Assert(err, ErrorMatches, "rename /.*/does-not-exist /.*/nested/bar: no such file or directory")
+}
+
+// SafeIoAtomicTestSuite runs all Atomic* tests with safe
 // io enabled
-type SafeIoAtomicWriteTestSuite struct {
+type SafeIoAtomicTestSuite struct {
 	AtomicWriteTestSuite
+	AtomicSymlinkTestSuite
+	AtomicRenameTestSuite
 
 	restoreUnsafeIO func()
 }
 
-var _ = Suite(&SafeIoAtomicWriteTestSuite{})
+var _ = Suite(&SafeIoAtomicTestSuite{})
 
-func (s *SafeIoAtomicWriteTestSuite) SetUpSuite(c *C) {
+func (s *SafeIoAtomicTestSuite) SetUpSuite(c *C) {
 	s.restoreUnsafeIO = osutil.SetUnsafeIO(false)
 }
 
-func (s *SafeIoAtomicWriteTestSuite) TearDownSuite(c *C) {
+func (s *SafeIoAtomicTestSuite) TearDownSuite(c *C) {
 	s.restoreUnsafeIO()
 }
