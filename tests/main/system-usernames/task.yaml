@@ -1,5 +1,5 @@
 summary: ensure seccomp rules for snap_daemon user work correctly
-# This test is failing on core20:
+# TODO:UC20: This test is failing on core20:
 #
 # 2020-01-25 23:33:09 Error restoring google:ubuntu-core-20-64:tests/main/system-usernames :
 # -----
