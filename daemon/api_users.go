@@ -52,6 +52,7 @@ var (
 		POST: logoutUser,
 	}
 
+	// backwards compat; to-be-deprecated
 	createUserCmd = &Command{
 		Path:     "/v2/create-user",
 		POST:     postCreateUser,
@@ -61,6 +62,7 @@ var (
 	usersCmd = &Command{
 		Path:     "/v2/users",
 		GET:      getUsers,
+		POST:     postUsers,
 		RootOnly: true,
 	}
 )
@@ -208,14 +210,54 @@ func logoutUser(c *Command, r *http.Request, user *auth.UserState) Response {
 	return SyncResponse(nil, nil)
 }
 
+// this might need to become a function, if having user admin becomes a config option
+var hasUserAdmin = !release.OnClassic
+
+const noUserAdmin = "system user administration via snapd is not allowed on this system"
+
+func postUsers(c *Command, r *http.Request, user *auth.UserState) Response {
+	if !hasUserAdmin {
+		return MethodNotAllowed(noUserAdmin, r.Method)
+	}
+
+	var postData postUserData
+
+	decoder := json.NewDecoder(r.Body)
+	if err := decoder.Decode(&postData); err != nil {
+		return BadRequest("cannot decode user action data from request body: %v", err)
+	}
+	if decoder.More() {
+		return BadRequest("spurious content after user action")
+	}
+	switch postData.Action {
+	case "create":
+		return createUser(c, postData.postUserCreateData)
+	case "remove":
+		return removeUser(c, postData.Username, postData.postUserDeleteData)
+	case "":
+		return BadRequest("missing user action")
+	}
+	return BadRequest("unsupported user action %q", postData.Action)
+}
+
+func removeUser(c *Command, username string, opts postUserDeleteData) Response {
+	return NotImplemented("not implemented")
+}
+
 func postCreateUser(c *Command, r *http.Request, user *auth.UserState) Response {
+	if !hasUserAdmin {
+		return Forbidden(noUserAdmin)
+	}
 	var createData postUserCreateData
 
 	decoder := json.NewDecoder(r.Body)
 	if err := decoder.Decode(&createData); err != nil {
 		return BadRequest("cannot decode create-user data from request body: %v", err)
 	}
+	return createUser(c, createData)
+}
 
+func createUser(c *Command, createData postUserCreateData) Response {
 	// verify request
 	st := c.d.overlord.State()
 	st.Lock()
@@ -396,12 +438,21 @@ func getUserDetailsFromAssertion(st *state.State, modelAs *asserts.Model, email 
 	return su.Username(), opts, nil
 }
 
+type postUserData struct {
+	Action   string `json:"action"`
+	Username string `json:"username"`
+	postUserCreateData
+	postUserDeleteData
+}
+
 type postUserCreateData struct {
 	Email        string `json:"email"`
 	Sudoer       bool   `json:"sudoer"`
 	Known        bool   `json:"known"`
 	ForceManaged bool   `json:"force-managed"`
 }
+
+type postUserDeleteData struct{}
 
 var userLookup = user.Lookup
 
