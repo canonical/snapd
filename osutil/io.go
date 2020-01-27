@@ -278,25 +278,16 @@ const maxSymlinkTries = 10
 // the target, and then proceeds to rename it atomically, replacing the
 // linkPath.
 func AtomicSymlink(target, linkPath string) error {
-	var tries = 0
-	var tmp string
-	var haveTmp bool
-
-	for ; tries < maxSymlinkTries && !haveTmp; tries++ {
-		tmp = linkPath + "." + strutil.MakeRandomString(12) + "~"
-		err := os.Symlink(target, tmp)
-		if err != nil {
+	for tries := 0; tries < maxSymlinkTries; tries++ {
+		tmp := linkPath + "." + strutil.MakeRandomString(12) + "~"
+		if err := os.Symlink(target, tmp); err != nil {
 			if os.IsExist(err) {
 				continue
 			}
 			return err
 		}
-		haveTmp = true
+		defer os.Remove(tmp)
+		return AtomicRename(tmp, linkPath)
 	}
-	if !haveTmp {
-		return errors.New("cannot create a temporary symlink")
-	}
-	defer os.Remove(tmp)
-
-	return AtomicRename(tmp, linkPath)
+	return errors.New("cannot create a temporary symlink")
 }
