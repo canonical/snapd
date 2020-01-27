@@ -503,13 +503,10 @@ func (s *bootSetSuite) TestMarkBootSuccessful20KernelUpdate(c *C) {
 	c.Assert(err, IsNil)
 
 	// check the bootloader variables
-	expected := map[string]string{
-		// cleared
-		"kernel_status": "",
-	}
+	expected := map[string]string{"kernel_status": ""}
 	c.Assert(s.bootloader.BootVars, DeepEquals, expected)
 
-	// check that MarkBootSuccessful enabled a kernel
+	// check that MarkBootSuccessful enabled the kernel
 	actual, _ := s.bootloader.GetRunKernelImageFunctionSnapCalls("EnableKernel")
 	c.Assert(actual, DeepEquals, []snap.PlaceInfo{kernel2})
 
@@ -521,4 +518,11 @@ func (s *bootSetSuite) TestMarkBootSuccessful20KernelUpdate(c *C) {
 	err = boot.MarkBootSuccessful(coreDev)
 	c.Assert(err, IsNil)
 	c.Assert(s.bootloader.BootVars, DeepEquals, expected)
+
+	// we shouldn't have enabled any more kernels than before
+	actual, _ = s.bootloader.GetRunKernelImageFunctionSnapCalls("EnableKernel")
+	c.Assert(actual, DeepEquals, []snap.PlaceInfo{kernel2})
+
+	_, nDisableTryCalls = s.bootloader.GetRunKernelImageFunctionSnapCalls("DisableTryKernel")
+	c.Assert(nDisableTryCalls, Equals, 1)
 }
