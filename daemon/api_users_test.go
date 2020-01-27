@@ -217,12 +217,12 @@ func (s *userSuite) TestPostUserNoAction(c *check.C) {
 }
 
 func (s *userSuite) TestPostUserBadAction(c *check.C) {
-	buf := bytes.NewBufferString(`{"action":"potatos"}`)
+	buf := bytes.NewBufferString(`{"action":"patatas"}`)
 	req, err := http.NewRequest("POST", "/v2/users", buf)
 	c.Assert(err, check.IsNil)
 
 	rsp := postUsers(usersCmd, req, nil).(*resp)
-	c.Check(rsp, check.DeepEquals, BadRequest(`unsupported user action "potatos"`))
+	c.Check(rsp, check.DeepEquals, BadRequest(`unsupported user action "patatas"`))
 }
 
 func (s *userSuite) TestPostUserActionRemoveNotImplemented(c *check.C) {
