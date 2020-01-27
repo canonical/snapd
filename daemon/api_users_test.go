@@ -50,6 +50,7 @@ type userSuite struct {
 
 	mockUserHome   string
 	restoreClassic func()
+	oldUserAdmin   bool
 }
 
 func (s *userSuite) SetUpTest(c *check.C) {
@@ -60,6 +61,8 @@ func (s *userSuite) SetUpTest(c *check.C) {
 	s.daemon(c)
 	s.mockUserHome = c.MkDir()
 	userLookup = mkUserLookup(s.mockUserHome)
+	s.oldUserAdmin = hasUserAdmin
+	hasUserAdmin = true
 }
 
 func (s *userSuite) TearDownTest(c *check.C) {
@@ -69,6 +72,7 @@ func (s *userSuite) TearDownTest(c *check.C) {
 	osutilAddUser = osutil.AddUser
 
 	s.restoreClassic()
+	hasUserAdmin = s.oldUserAdmin
 }
 
 func mkUserLookup(userHomeDir string) func(string) (*user.User, error) {
@@ -97,6 +101,14 @@ func (s *userSuite) TestPostCreateUserNoSSHKeys(c *check.C) {
 }
 
 func (s *userSuite) TestPostCreateUser(c *check.C) {
+	s.testCreateUser(c, true)
+}
+
+func (s *userSuite) TestPostUserCreate(c *check.C) {
+	s.testCreateUser(c, false)
+}
+
+func (s *userSuite) testCreateUser(c *check.C, oldWay bool) {
 	expectedUsername := "karl"
 	s.userInfoExpectedEmail = "popper@lse.ac.uk"
 	s.userInfoResult = &store.User{
@@ -112,11 +124,20 @@ func (s *userSuite) TestPostCreateUser(c *check.C) {
 		return nil
 	}
 
-	buf := bytes.NewBufferString(fmt.Sprintf(`{"email": "%s"}`, s.userInfoExpectedEmail))
-	req, err := http.NewRequest("POST", "/v2/create-user", buf)
-	c.Assert(err, check.IsNil)
+	var rsp *resp
+	if oldWay {
+		buf := bytes.NewBufferString(fmt.Sprintf(`{"email": "%s"}`, s.userInfoExpectedEmail))
+		req, err := http.NewRequest("POST", "/v2/create-user", buf)
+		c.Assert(err, check.IsNil)
 
-	rsp := postCreateUser(createUserCmd, req, nil).(*resp)
+		rsp = postCreateUser(createUserCmd, req, nil).(*resp)
+	} else {
+		buf := bytes.NewBufferString(fmt.Sprintf(`{"action":"create","email": "%s"}`, s.userInfoExpectedEmail))
+		req, err := http.NewRequest("POST", "/v2/users", buf)
+		c.Assert(err, check.IsNil)
+
+		rsp = postUsers(usersCmd, req, nil).(*resp)
+	}
 
 	expected := &userResponseData{
 		Username: expectedUsername,
@@ -142,6 +163,75 @@ func (s *userSuite) TestPostCreateUser(c *check.C) {
 	c.Check(outfile, testutil.FileEquals,
 		fmt.Sprintf(`{"id":%d,"username":"%s","email":"%s","macaroon":"%s"}`,
 			1, expectedUsername, s.userInfoExpectedEmail, user.Macaroon))
+}
+
+func (s *userSuite) TestNoUserAdminCreateUser(c *check.C) { s.testNoUserAdmin(c, "/v2/create-user") }
+func (s *userSuite) TestNoUserAdminPostUser(c *check.C)   { s.testNoUserAdmin(c, "/v2/users") }
+func (s *userSuite) testNoUserAdmin(c *check.C, endpoint string) {
+	oldHas := hasUserAdmin
+	hasUserAdmin = false
+	defer func() { hasUserAdmin = oldHas }()
+
+	buf := bytes.NewBufferString("{}")
+	req, err := http.NewRequest("POST", endpoint, buf)
+	c.Assert(err, check.IsNil)
+
+	switch endpoint {
+	case "/v2/users":
+		rsp := postUsers(usersCmd, req, nil).(*resp)
+		c.Check(rsp, check.DeepEquals, MethodNotAllowed(noUserAdmin, "POST"))
+	case "/v2/create-user":
+		rsp := postCreateUser(createUserCmd, req, nil).(*resp)
+		c.Check(rsp, check.DeepEquals, Forbidden(noUserAdmin))
+	default:
+		c.Fatalf("unknown endpoint %q", endpoint)
+	}
+}
+
+func (s *userSuite) TestPostUserBadBody(c *check.C) {
+	buf := bytes.NewBufferString(`42`)
+	req, err := http.NewRequest("POST", "/v2/users", buf)
+	c.Assert(err, check.IsNil)
+
+	rsp := postUsers(usersCmd, req, nil).(*resp)
+	c.Check(rsp.Type, check.Equals, ResponseTypeError)
+	c.Check(rsp.Result.(*errorResult).Message, check.Matches, "cannot decode user action data from request body: .*")
+}
+
+func (s *userSuite) TestPostUserBadAfterBody(c *check.C) {
+	buf := bytes.NewBufferString(`{}42`)
+	req, err := http.NewRequest("POST", "/v2/users", buf)
+	c.Assert(err, check.IsNil)
+
+	rsp := postUsers(usersCmd, req, nil).(*resp)
+	c.Check(rsp, check.DeepEquals, BadRequest("spurious content after user action"))
+}
+
+func (s *userSuite) TestPostUserNoAction(c *check.C) {
+	buf := bytes.NewBufferString("{}")
+	req, err := http.NewRequest("POST", "/v2/users", buf)
+	c.Assert(err, check.IsNil)
+
+	rsp := postUsers(usersCmd, req, nil).(*resp)
+	c.Check(rsp, check.DeepEquals, BadRequest("missing user action"))
+}
+
+func (s *userSuite) TestPostUserBadAction(c *check.C) {
+	buf := bytes.NewBufferString(`{"action":"potatos"}`)
+	req, err := http.NewRequest("POST", "/v2/users", buf)
+	c.Assert(err, check.IsNil)
+
+	rsp := postUsers(usersCmd, req, nil).(*resp)
+	c.Check(rsp, check.DeepEquals, BadRequest(`unsupported user action "potatos"`))
+}
+
+func (s *userSuite) TestPostUserActionRemoveNotImplemented(c *check.C) {
+	buf := bytes.NewBufferString(`{"action":"remove"}`)
+	req, err := http.NewRequest("POST", "/v2/users", buf)
+	c.Assert(err, check.IsNil)
+
+	rsp := postUsers(usersCmd, req, nil).(*resp)
+	c.Check(rsp, check.DeepEquals, NotImplemented("not implemented"))
 }
 
 func (s *userSuite) setupSigner(accountID string, signerPrivKey asserts.PrivateKey) *assertstest.SigningDB {
