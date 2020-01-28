@@ -74,7 +74,7 @@ func init() {
 			// TRANSLATORS: This should not start with a lowercase letter.
 			"filename": i18n.G("Output to this filename"),
 			// TRANSLATORS: This should not start with a lowercase letter.
-			"compression": i18n.G("Compresson to use"),
+			"compression": i18n.G("Compression to use"),
 		}, nil)
 	cmd.extra = func(cmd *flags.Command) {
 		// TRANSLATORS: this describes the default filename for a snap, e.g. core_16-2.35.2_amd64.snap
