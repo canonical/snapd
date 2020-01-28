@@ -22,3 +22,5 @@ var (
 	EnsureLayoutCompatibility = ensureLayoutCompatibility
 	DeviceFromRole            = deviceFromRole
 )
+
+type TPMSupport = tpmSupport
