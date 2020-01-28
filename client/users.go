@@ -47,9 +47,17 @@ type CreateUserOptions struct {
 	ForceManaged bool   `json:"force-managed,omitempty"`
 }
 
+// RemoveUserOptions holds options for removing a local system user.
+//
+// Username indicates which user to remove.
+type RemoveUserOptions struct {
+	Username string `json:"username,omitempty"`
+}
+
 type userAction struct {
 	Action string `json:"action"`
 	*CreateUserOptions
+	*RemoveUserOptions
 }
 
 func (client *Client) doUserAction(act *userAction) ([]*CreateUserResult, error) {
@@ -108,6 +116,15 @@ func (client *Client) CreateUsers(options []*CreateUserOptions) ([]*CreateUserRe
 		return results, fmt.Errorf("while creating users:%s", buf.Bytes())
 	}
 	return results, nil
+}
+
+// RemoveUser removes a local system user.
+func (client *Client) RemoveUser(options *RemoveUserOptions) error {
+	if options == nil || options.Username == "" {
+		return fmt.Errorf("cannot remove a user without providing a username")
+	}
+	_, err := client.doUserAction(&userAction{Action: "remove", RemoveUserOptions: options})
+	return err
 }
 
 // Users returns the local users.

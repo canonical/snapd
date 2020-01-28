@@ -27,6 +27,42 @@ import (
 	"github.com/snapcore/snapd/client"
 )
 
+func (cs *clientSuite) TestClientRemoveUser(c *C) {
+	err := cs.cli.RemoveUser(&client.RemoveUserOptions{})
+	c.Assert(err, ErrorMatches, "cannot remove a user without providing a username")
+
+	cs.rsp = `{
+		"type": "sync",
+		"result": null
+	}`
+	err = cs.cli.RemoveUser(&client.RemoveUserOptions{Username: "one-user"})
+	c.Assert(cs.req.Method, Equals, "POST")
+	c.Assert(cs.req.URL.Path, Equals, "/v2/users")
+	c.Assert(err, IsNil)
+
+	body, err := ioutil.ReadAll(cs.req.Body)
+	c.Assert(err, IsNil)
+	c.Assert(string(body), Equals, `{"action":"remove","username":"one-user"}`)
+}
+
+func (cs *clientSuite) TestClientRemoveUserError(c *C) {
+	err := cs.cli.RemoveUser(&client.RemoveUserOptions{})
+	c.Assert(err, ErrorMatches, "cannot remove a user without providing a username")
+
+	cs.rsp = `{
+		"type": "error",
+		"result": {"message": "no can do"}
+	}`
+	err = cs.cli.RemoveUser(&client.RemoveUserOptions{Username: "one-user"})
+	c.Assert(cs.req.Method, Equals, "POST")
+	c.Assert(cs.req.URL.Path, Equals, "/v2/users")
+	c.Assert(err, ErrorMatches, "no can do")
+
+	body, err := ioutil.ReadAll(cs.req.Body)
+	c.Assert(err, IsNil)
+	c.Assert(string(body), Equals, `{"action":"remove","username":"one-user"}`)
+}
+
 func (cs *clientSuite) TestClientCreateUser(c *C) {
 	_, err := cs.cli.CreateUser(&client.CreateUserOptions{})
 	c.Assert(err, ErrorMatches, "cannot create a user without providing an email")
