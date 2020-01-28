@@ -178,6 +178,7 @@ func RemoveUserByName(st *state.State, username string) error {
 	return removeUser(st, func(u *UserState) bool { return u.Username == username })
 }
 
+// removeUser removes the first user matching given predicate.
 func removeUser(st *state.State, p func(*UserState) bool) error {
 	var authStateData AuthState
 
