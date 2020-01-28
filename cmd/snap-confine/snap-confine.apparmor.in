@@ -251,6 +251,10 @@
     umount /var/lib/snapd/hostfs/proc/,
     mount options=(rw rslave) -> /var/lib/snapd/hostfs/,
 
+    # Hide /writable from view of snaps.
+    mount options=(rprivate) -> /{,var/lib/snapd/hostfs/}writable/,
+    umount /{,var/lib/snapd/hostfs/}writable/,
+
     # set up user mount namespace
     mount options=(rslave) -> /,
 

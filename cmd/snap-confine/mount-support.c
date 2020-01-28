@@ -50,6 +50,8 @@
 
 #define MAX_BUF 1000
 
+static void sc_detach_views_of_writable(sc_distro distro, bool normal_mode);
+
 // TODO: simplify this, after all it is just a tmpfs
 // TODO: fold this into bootstrap
 static void setup_private_mount(const char *snap_name)
@@ -509,6 +511,43 @@ static void sc_bootstrap_mount_namespace(const struct sc_mount_config *config)
 	// mount table and software inspecting the mount table may become confused.
 	sc_must_snprintf(src, sizeof src, "%s/proc", SC_HOSTFS_DIR);
 	sc_do_umount(src, UMOUNT_NOFOLLOW | MNT_DETACH);
+	// Detach both views of /writable: the one from hostfs and the one directly
+	// visible in /writable. Interfaces don't grant access to this directory
+	// and it has a large duplicated view of many mount points.  Note that this
+	// is only applicable to ubuntu-core systems.
+	sc_detach_views_of_writable(config->distro, config->normal_mode);
+}
+
+static void sc_detach_views_of_writable(sc_distro distro, bool normal_mode)
+{
+	// Note that prior to detaching either mount point we switch the
+	// propagation to private to both limit the change to just this view and to
+	// prevent otherwise occurring event propagation from self-conflicting and
+	// returning EBUSY. A similar approach is used by snap-update-ns and is
+	// documented in umount(2).
+	const char *writable_dir = "/writable";
+	const char *hostfs_writable_dir = "/var/lib/snapd/hostfs/writable";
+
+	// Writable only exists on ubuntu-core.
+	if (distro == SC_DISTRO_CLASSIC) {
+		return;
+	}
+	// On all core distributions we see /var/lib/snapd/hostfs/writable that
+	// exposes writable, with a structure specific to ubuntu-core.
+	debug("detaching %s", hostfs_writable_dir);
+	sc_do_mount("none", hostfs_writable_dir, NULL,
+		    MS_REC | MS_PRIVATE, NULL);
+	sc_do_umount(hostfs_writable_dir, UMOUNT_NOFOLLOW | MNT_DETACH);
+
+	// On ubuntu-core 16, when the executed snap uses core as base we also see
+	// the /writable that we directly inherited from the initial mount
+	// namespace.
+	if (distro == SC_DISTRO_CORE16 && !normal_mode) {
+		debug("detaching %s", writable_dir);
+		sc_do_mount("none", writable_dir, NULL, MS_REC | MS_PRIVATE,
+			    NULL);
+		sc_do_umount(writable_dir, UMOUNT_NOFOLLOW | MNT_DETACH);
+	}
 }
 
 /**
