@@ -35,6 +35,7 @@ import (
 var (
 	StreamsEqualChunked  = streamsEqualChunked
 	FilesAreEqualChunked = filesAreEqualChunked
+	SudoersFile          = sudoersFile
 )
 
 func MockUserLookup(mock func(name string) (*user.User, error)) func() {
