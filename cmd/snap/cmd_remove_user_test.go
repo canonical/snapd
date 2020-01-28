@@ -34,17 +34,19 @@ func makeRemoveUserChecker(c *check.C, n *int, username string) func(w http.Resp
 		switch *n {
 		case 0:
 			c.Check(r.Method, check.Equals, "POST")
-			c.Check(r.URL.Path, check.Equals, "/v2/remove-user")
+			c.Check(r.URL.Path, check.Equals, "/v2/users")
 			var gotBody map[string]interface{}
 			dec := json.NewDecoder(r.Body)
 			err := dec.Decode(&gotBody)
 			c.Assert(err, check.IsNil)
 
-			wantBody := make(map[string]interface{})
-			wantBody["username"] = "karl"
+			wantBody := map[string]interface{}{
+				"username": "karl",
+				"action":   "remove",
+			}
 			c.Check(gotBody, check.DeepEquals, wantBody)
 
-			fmt.Fprintln(w, `{"type": "sync", "result": {}}`)
+			fmt.Fprintln(w, `{"type": "sync", "result": null}`)
 		default:
 			c.Fatalf("got too many requests (now on %d)", *n+1)
 		}
