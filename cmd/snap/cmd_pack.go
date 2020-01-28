@@ -36,6 +36,7 @@ import (
 type packCmd struct {
 	CheckSkeleton bool   `long:"check-skeleton"`
 	Filename      string `long:"filename"`
+	Compression   string `long:"compression" hidden:"yes"`
 	Positional    struct {
 		SnapDir   string `positional-arg-name:"<snap-dir>"`
 		TargetDir string `positional-arg-name:"<target-dir>"`
@@ -72,6 +73,8 @@ func init() {
 			"check-skeleton": i18n.G("Validate snap-dir metadata only"),
 			// TRANSLATORS: This should not start with a lowercase letter.
 			"filename": i18n.G("Output to this filename"),
+			// TRANSLATORS: This should not start with a lowercase letter.
+			"compression": i18n.G("Compresson to use"),
 		}, nil)
 	cmd.extra = func(cmd *flags.Command) {
 		// TRANSLATORS: this describes the default filename for a snap, e.g. core_16-2.35.2_amd64.snap
@@ -103,7 +106,11 @@ func (x *packCmd) Execute([]string) error {
 		return err
 	}
 
-	snapPath, err := pack.Snap(x.Positional.SnapDir, x.Positional.TargetDir, x.Filename)
+	snapPath, err := pack.Snap(x.Positional.SnapDir, &pack.Options{
+		TargetDir:   x.Positional.TargetDir,
+		SnapName:    x.Filename,
+		Compression: x.Compression,
+	})
 	if err != nil {
 		// TRANSLATORS: the %q is the snap-dir (the first positional
 		// argument to the command); the %v is an error
