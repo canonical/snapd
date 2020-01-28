@@ -707,6 +707,7 @@ func (s *SquashfsTestSuite) TestBuildBadSource(c *C) {
 func (s *SquashfsTestSuite) TestBuildWithCompressionHappy(c *C) {
 	buildDir := c.MkDir()
 	err := os.MkdirAll(filepath.Join(buildDir, "/random/dir"), 0755)
+	c.Assert(err, IsNil)
 
 	defaultComp := "xz"
 	for _, comp := range []string{"", "xz", "gzip", "lzo"} {
@@ -730,6 +731,7 @@ func (s *SquashfsTestSuite) TestBuildWithCompressionHappy(c *C) {
 func (s *SquashfsTestSuite) TestBuildWithCompressionUnhappy(c *C) {
 	buildDir := c.MkDir()
 	err := os.MkdirAll(filepath.Join(buildDir, "/random/dir"), 0755)
+	c.Assert(err, IsNil)
 
 	snap := squashfs.New(filepath.Join(c.MkDir(), "foo.snap"))
 	err = snap.Build(buildDir, &squashfs.BuildOpts{
