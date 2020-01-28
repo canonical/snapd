@@ -89,8 +89,8 @@ func whichModeAndRecoverySystem(cmdline []byte) (mode string, sysLabel string, e
 	return mode, sysLabel, nil
 }
 
-// ModeAndRecoverySystemFromKernelCommandLine returns the current run mode and
-// the recovery system label as passed in the kernel command line by the
+// ModeAndRecoverySystemFromKernelCommandLine returns the current operating mode
+// and the recovery system label as passed in the kernel command line by the
 // bootloader.
 func ModeAndRecoverySystemFromKernelCommandLine() (mode, sysLabel string, err error) {
 	cmdline, err := ioutil.ReadFile(procCmdline)
