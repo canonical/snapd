@@ -22,6 +22,8 @@ package configcore
 import (
 	"fmt"
 	"os"
+	"regexp"
+	"strings"
 
 	"github.com/snapcore/snapd/overlord/configstate/config"
 	"github.com/snapcore/snapd/release"
@@ -30,6 +32,8 @@ import (
 var (
 	Stdout = os.Stdout
 	Stderr = os.Stderr
+
+	validCertName = regexp.MustCompile(`^core.certs.[a-zA-Z0-9]+$`).MatchString
 )
 
 // coreCfg returns the configuration value for the core snap.
@@ -65,7 +69,12 @@ func validateBoolFlag(tr config.Conf, flag string) error {
 func Run(tr config.Conf) error {
 	// check if the changes
 	for _, k := range tr.Changes() {
-		if !supportedConfigurations[k] {
+		switch {
+		case strings.HasPrefix(k, "core.certs."):
+			if !validCertName(k) {
+				return fmt.Errorf("cannot set %q: name must be alphanumerical", k)
+			}
+		case !supportedConfigurations[k]:
 			return fmt.Errorf("cannot set %q: unsupported system option", k)
 		}
 	}
@@ -91,6 +100,9 @@ func Run(tr config.Conf) error {
 	if err := validateAutomaticSnapshotsExpiration(tr); err != nil {
 		return err
 	}
+	if err := validateCertSettings(tr); err != nil {
+		return err
+	}
 	// FIXME: ensure the user cannot set "core seed.loaded"
 
 	// capture cloud information
@@ -103,13 +115,17 @@ func Run(tr config.Conf) error {
 		return err
 	}
 
+	// certs are ok on clasic too
+	if err := handleCertConfiguration(tr); err != nil {
+		return err
+	}
+
 	// see if it makes sense to run at all
 	if release.OnClassic {
 		// nothing to do
 		return nil
 	}
-	// TODO: consider allowing some of these on classic too?
-	// consider erroring on core-only options on classic?
+	// TODO:  consider erroring on core-only options on classic?
 
 	// handle the various core config options:
 	// service.*.disable
