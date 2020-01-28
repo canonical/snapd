@@ -374,6 +374,33 @@ func (as *authSuite) TestRemove(c *C) {
 	c.Assert(err, Equals, auth.ErrInvalidUser)
 }
 
+func (as *authSuite) TestRemoveByName(c *C) {
+	as.state.Lock()
+	user, err := auth.NewUser(as.state, "username", "email@test.com", "macaroon", []string{"discharge"})
+	as.state.Unlock()
+	c.Check(err, IsNil)
+
+	as.state.Lock()
+	_, err = auth.User(as.state, user.ID)
+	as.state.Unlock()
+	c.Check(err, IsNil)
+
+	as.state.Lock()
+	err = auth.RemoveUserByName(as.state, user.Username)
+	as.state.Unlock()
+	c.Assert(err, IsNil)
+
+	as.state.Lock()
+	_, err = auth.User(as.state, user.ID)
+	as.state.Unlock()
+	c.Check(err, Equals, auth.ErrInvalidUser)
+
+	as.state.Lock()
+	err = auth.RemoveUser(as.state, user.ID)
+	as.state.Unlock()
+	c.Assert(err, Equals, auth.ErrInvalidUser)
+}
+
 func (as *authSuite) TestUsers(c *C) {
 	as.state.Lock()
 	user1, err1 := auth.NewUser(as.state, "user1", "email1@test.com", "macaroon", []string{"discharge"})
