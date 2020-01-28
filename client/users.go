@@ -47,22 +47,33 @@ type CreateUserOptions struct {
 	ForceManaged bool   `json:"force-managed,omitempty"`
 }
 
+type userAction struct {
+	Action string `json:"action"`
+	*CreateUserOptions
+}
+
+func (client *Client) doUserAction(act *userAction) ([]*CreateUserResult, error) {
+	data, err := json.Marshal(act)
+	if err != nil {
+		return nil, err
+	}
+
+	var result []*CreateUserResult
+	_, err = client.doSync("POST", "/v2/users", nil, nil, bytes.NewReader(data), &result)
+	return result, err
+}
+
 // CreateUser creates a local system user. See CreateUserOptions for details.
 func (client *Client) CreateUser(options *CreateUserOptions) (*CreateUserResult, error) {
 	if options.Email == "" {
 		return nil, fmt.Errorf("cannot create a user without providing an email")
 	}
 
-	var result CreateUserResult
-	data, err := json.Marshal(options)
+	result, err := client.doUserAction(&userAction{Action: "create", CreateUserOptions: options})
 	if err != nil {
-		return nil, err
-	}
-
-	if _, err := client.doSync("POST", "/v2/create-user", nil, nil, bytes.NewReader(data), &result); err != nil {
 		return nil, fmt.Errorf("while creating user: %v", err)
 	}
-	return &result, nil
+	return result[0], nil
 }
 
 // CreateUsers creates multiple local system users. See CreateUserOptions for details.
@@ -77,32 +88,17 @@ func (client *Client) CreateUsers(options []*CreateUserOptions) ([]*CreateUserRe
 
 	var results []*CreateUserResult
 	var errs []error
-
 	for _, opts := range options {
-		data, err := json.Marshal(opts)
+		result, err := client.doUserAction(&userAction{Action: "create", CreateUserOptions: opts})
 		if err != nil {
-			return nil, err
-		}
-
-		if opts.Email == "" {
-			var result []*CreateUserResult
-			if _, err := client.doSync("POST", "/v2/create-user", nil, nil, bytes.NewReader(data), &result); err != nil {
-				errs = append(errs, err)
-			} else {
-				results = append(results, result...)
-			}
+			errs = append(errs, err)
 		} else {
-			var result *CreateUserResult
-			if _, err := client.doSync("POST", "/v2/create-user", nil, nil, bytes.NewReader(data), &result); err != nil {
-				errs = append(errs, err)
-			} else {
-				results = append(results, result)
-			}
+			results = append(results, result...)
 		}
 	}
 
 	if len(errs) == 1 {
-		return results, errs[0]
+		return results, fmt.Errorf("while creating user: %v", errs[0])
 	}
 	if len(errs) > 1 {
 		var buf bytes.Buffer

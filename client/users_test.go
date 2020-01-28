@@ -33,19 +33,19 @@ func (cs *clientSuite) TestClientCreateUser(c *C) {
 
 	cs.rsp = `{
 		"type": "sync",
-		"result": {
+		"result": [{
                         "username": "karl",
                         "ssh-keys": ["one", "two"]
-		}
+		}]
 	}`
 	rsp, err := cs.cli.CreateUser(&client.CreateUserOptions{Email: "one@email.com", Sudoer: true, Known: true})
 	c.Assert(cs.req.Method, Equals, "POST")
-	c.Assert(cs.req.URL.Path, Equals, "/v2/create-user")
+	c.Assert(cs.req.URL.Path, Equals, "/v2/users")
 	c.Assert(err, IsNil)
 
 	body, err := ioutil.ReadAll(cs.req.Body)
 	c.Assert(err, IsNil)
-	c.Assert(string(body), Equals, `{"email":"one@email.com","sudoer":true,"known":true}`)
+	c.Assert(string(body), Equals, `{"action":"create","email":"one@email.com","sudoer":true,"known":true}`)
 
 	c.Assert(rsp, DeepEquals, &client.CreateUserResult{
 		Username: "karl",
@@ -70,11 +70,11 @@ var createUsersTests = []struct {
 		Known: true,
 	}},
 	bodies: []string{
-		`{"email":"one@example.com","sudoer":true}`,
-		`{"known":true}`,
+		`{"action":"create","email":"one@example.com","sudoer":true}`,
+		`{"action":"create","known":true}`,
 	},
 	responses: []string{
-		`{"type": "sync", "result": {"username": "one", "ssh-keys":["a", "b"]}}`,
+		`{"type": "sync", "result": [{"username": "one", "ssh-keys":["a", "b"]}]}`,
 		`{"type": "sync", "result": [{"username": "two"}, {"username": "three"}]}`,
 	},
 	results: []*client.CreateUserResult{{
@@ -100,7 +100,7 @@ func (cs *clientSuite) TestClientCreateUsers(c *C) {
 		var bodies []string
 		for _, req := range cs.reqs {
 			c.Assert(req.Method, Equals, "POST")
-			c.Assert(req.URL.Path, Equals, "/v2/create-user")
+			c.Assert(req.URL.Path, Equals, "/v2/users")
 			data, err := ioutil.ReadAll(req.Body)
 			c.Assert(err, IsNil)
 			bodies = append(bodies, string(data))
