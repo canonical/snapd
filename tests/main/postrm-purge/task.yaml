@@ -1,32 +1,44 @@
-summary: Check that postrm purge works
+summary: Check that package remove and purge removes everything related to snaps
 
 systems: [-ubuntu-core-*]
 
-execute: |
+restore: |
+    #shellcheck source=tests/lib/pkgdb.sh
+    . "$TESTSLIB/pkgdb.sh"
+    if [ -e pkg-removed ]; then
+        distro_install_build_snapd
+        rm pkg-removed
+    fi
+
+prepare: |
     echo "When some snaps are installed"
     #shellcheck source=tests/lib/snaps.sh
     . "$TESTSLIB"/snaps.sh
     install_local test-snapd-tools
+    # services shall be stopped, even when using stop-command
+    install_local test-snapd-service
+    # socket units shall be cleaned up
+    install_local socket-activation
+    # as well as timers
+    install_local test-snapd-timer-service
+    # regular snaps and aliases too
     snap install test-snapd-control-consumer
     snap install test-snapd-auto-aliases
 
+debug: |
+    systemctl --no-legend --full | grep -E 'snap\..*\.(service|timer|socket)'
+
+execute: |
+    systemctl --no-legend --full | MATCH 'snap\..*\.(service|timer|socket)'
+
+    #shellcheck source=tests/lib/pkgdb.sh
+    . "$TESTSLIB"/pkgdb.sh
+
+    distro_purge_package snapd
+    touch pkg-removed
+
     #shellcheck source=tests/lib/dirs.sh
     . "$TESTSLIB"/dirs.sh
-
-    # purge is performed while/after removing the package
-    systemctl stop snapd.service snapd.socket
-
-    # Ubuntu/Debian packaging has not been migrated to cross-distro snap-mgmt
-    # tool
-    if [[ "$SPREAD_SYSTEM" = ubuntu-* || "$SPREAD_SYSTEM" = debian-* ]]; then
-        # only available on trusty
-        if [ -x "${SPREAD_PATH}/debian/snapd.prerm" ]; then
-            sh -x "${SPREAD_PATH}/debian/snapd.prerm"
-        fi
-        sh -x "${SPREAD_PATH}/debian/snapd.postrm" purge
-    else
-        ${LIBEXECDIR}/snapd/snap-mgmt --purge
-    fi
 
     echo "Nothing is left"
     for d in $SNAP_MOUNT_DIR /var/snap; do
@@ -36,3 +48,14 @@ execute: |
             exit 1
         fi
     done
+
+    if [[ "$SPREAD_SYSTEM" != ubuntu-14.04-* ]]; then
+        # ubuntu-14.04: systemctl does not list not-found & failed units properly
+
+        # test-snapd-service-refuses-to-stop gets forcefully killed by systemd,
+        # account for that
+        systemctl --full --no-legend | MATCH "snap.test-snapd-service.test-snapd-service-refuses-to-stop.service +not-found +failed"
+        systemctl reset-failed snap.test-snapd-service.test-snapd-service-refuses-to-stop.service
+    fi
+
+    systemctl --no-legend --full | not MATCH "snap\..*\.(service|timer|socket)"

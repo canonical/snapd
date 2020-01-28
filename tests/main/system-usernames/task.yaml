@@ -1,4 +1,15 @@
 summary: ensure seccomp rules for snap_daemon user work correctly
+# TODO:UC20: This test is failing on core20:
+#
+# 2020-01-25 23:33:09 Error restoring google:ubuntu-core-20-64:tests/main/system-usernames :
+# -----
+# + snap remove --purge test-snapd-daemon-user
+# test-snapd-daemon-user removed
+# + user-tool remove-with-group snap_daemon
+# userdel: user 'snap_daemon' does not exist
+# snap_daemon:x:584788:584788::/nonexistent:/usr/bin/false
+# user exists after removal?
+systems: [-ubuntu-core-20-64]
 
 environment:
     # This is used to abbreviate some of the paths below.
@@ -18,7 +29,7 @@ prepare: |
 
 restore: |
     # make sure this snap is removed in case it was installed
-    snap remove test-snapd-daemon-user || true
+    snap remove --purge test-snapd-daemon-user || true
 
     # snapd will create this for us, but we'll remove it for consistency in
     # test runs

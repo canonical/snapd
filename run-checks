@@ -245,6 +245,24 @@ if [ "$STATIC" = 1 ]; then
     echo Checking all interfaces have minimal spread test
     missing_interface_spread_test
 
+    echo Checking for incorrect multiline strings in spread tests
+    badmultiline=$(find tests -name 'task.yaml' -print0 -o -name 'spread.yaml' -print0 | \
+                       xargs -0 grep -R -n -E '(restore*|prepare*|execute|debug):\s*$' || true)
+    if [ -n "$badmultiline" ]; then
+        echo "Incorrect multiline strings at the following locations:"
+        echo "$badmultiline"
+        exit 1
+    fi
+
+    echo "Checking for potentially incorrect use of MATCH -v"
+    badMATCH=$(find tests -name 'task.yaml' -print0 -o -name 'spread.yaml' -print0 | \
+                       xargs -0 grep -R -n -E 'MATCH +-v' || true)
+    if [ -n "$badMATCH" ]; then
+        echo "Potentially incorrect use of MATCH -v at the following locations:"
+        echo "$badMATCH"
+        exit 1
+    fi
+
     # FIXME: re-add staticcheck with a matching version for the used go-version
 fi
 

@@ -26,5 +26,4 @@ execute: |
 
     mv test-snapd-sh/meta/snap.yaml.moved test-snapd-sh/meta/snap.yaml
     snap list # should still just work
-    snap list test-snapd-sh | MATCH -v broken
-
+    snap list test-snapd-sh | not MATCH broken

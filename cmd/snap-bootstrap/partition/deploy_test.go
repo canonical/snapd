@@ -26,6 +26,7 @@ import (
 	. "gopkg.in/check.v1"
 
 	"github.com/snapcore/snapd/cmd/snap-bootstrap/partition"
+	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/gadget"
 	"github.com/snapcore/snapd/testutil"
 )
@@ -45,6 +46,10 @@ type deploySuite struct {
 var _ = Suite(&deploySuite{})
 
 func (s *deploySuite) SetUpTest(c *C) {
+	s.mockMountErr = nil
+	s.mockMountCalls = nil
+	s.mockUnmountCalls = nil
+
 	s.gadgetRoot = c.MkDir()
 	err := makeMockGadget(s.gadgetRoot, gadgetContent)
 	c.Assert(err, IsNil)
@@ -70,12 +75,12 @@ func (s *deploySuite) TestDeployMountedContentErr(c *C) {
 	s.mockMountErr = fmt.Errorf("boom")
 
 	node2MountPoint := filepath.Join(s.mockMountPoint, "2")
-	err := partition.DeployContent([]partition.DeviceStructure{mockDeviceStructureSystemSeed}, s.gadgetRoot)
-	c.Assert(err, ErrorMatches, fmt.Sprintf(`cannot mount filesystem "/dev/node2" to %q: boom`, node2MountPoint))
+	err := partition.DeployContent(mockDeviceStructureSystemSeed, s.gadgetRoot)
+	c.Assert(err, ErrorMatches, fmt.Sprintf(`cannot mount filesystem "/dev/node2" at %q: boom`, node2MountPoint))
 }
 
 func (s *deploySuite) TestDeployMountedContent(c *C) {
-	err := partition.DeployContent([]partition.DeviceStructure{mockDeviceStructureSystemSeed}, s.gadgetRoot)
+	err := partition.DeployContent(mockDeviceStructureSystemSeed, s.gadgetRoot)
 	c.Assert(err, IsNil)
 
 	node2MountPoint := filepath.Join(s.mockMountPoint, "2")
@@ -106,11 +111,42 @@ func (s *deploySuite) TestDeployRawContent(c *C) {
 		},
 	}
 
-	err = partition.DeployContent([]partition.DeviceStructure{m}, s.gadgetRoot)
+	err = partition.DeployContent(m, s.gadgetRoot)
 	c.Assert(err, IsNil)
 
 	content, err := ioutil.ReadFile(m.Node)
 	c.Assert(err, IsNil)
 	// note the 2 zero byte start offset
 	c.Check(string(content), Equals, "\x00\x00pc-core.img content")
+}
+
+func (s *deploySuite) TestMountFilesystem(c *C) {
+	dirs.SetRootDir(c.MkDir())
+	defer dirs.SetRootDir("")
+
+	// mounting will only happen for devices with a label
+	mockDeviceStructureBiosBoot.Label = "bios-boot"
+	defer func() { mockDeviceStructureBiosBoot.Label = "" }()
+
+	err := partition.MountFilesystem(mockDeviceStructureBiosBoot, dirs.RunMnt)
+	c.Assert(err, ErrorMatches, "cannot mount a partition with no filesystem")
+
+	// mount a filesystem...
+	err = partition.MountFilesystem(mockDeviceStructureSystemSeed, dirs.RunMnt)
+	c.Assert(err, IsNil)
+
+	// ...and check if it was mounted at the right mount point
+	node2MountPoint := filepath.Join(dirs.RunMnt, "ubuntu-seed")
+	c.Check(s.mockMountCalls, HasLen, 1)
+	c.Check(s.mockMountCalls, DeepEquals, []struct{ source, target, fstype string }{
+		{"/dev/node2", node2MountPoint, "vfat"},
+	})
+
+	// now try to mount a filesystem with no label
+	mockDeviceStructureSystemSeed.Label = ""
+	defer func() { mockDeviceStructureSystemSeed.Label = "ubuntu-seed" }()
+
+	err = partition.MountFilesystem(mockDeviceStructureSystemSeed, dirs.RunMnt)
+	c.Assert(err, ErrorMatches, "cannot mount a filesystem with no label")
+
 }

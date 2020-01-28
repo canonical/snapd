@@ -31,7 +31,9 @@ import (
 	"github.com/snapcore/snapd/testutil"
 )
 
-const mockSfdiskScriptBiosAndRecovery = `echo '{
+const mockSfdiskScriptBiosAndRecovery = `
+>&2 echo "Some warning from sfdisk"
+echo '{
    "partitiontable": {
       "label": "gpt",
       "id": "9151F25B-CDF0-48F1-9EDE-68CBD616E2CA",
@@ -132,6 +134,8 @@ exit 0`)
 	c.Assert(err, IsNil)
 	c.Assert(dl.ID, Equals, "9151F25B-CDF0-48F1-9EDE-68CBD616E2CA")
 	c.Assert(dl.Device, Equals, "/dev/node")
+	c.Assert(dl.SectorSize, Equals, gadget.Size(512))
+	c.Assert(dl.Size, Equals, gadget.Size(8388574*512))
 	c.Assert(len(dl.Structure), Equals, 2)
 
 	c.Assert(dl.Structure, DeepEquals, []partition.DeviceStructure{
@@ -260,15 +264,7 @@ func (s *partitionTestSuite) TestBuildPartitionList(c *C) {
 	c.Assert(err, IsNil)
 
 	sfdiskInput, created := partition.BuildPartitionList(ptable, pv)
-	c.Assert(sfdiskInput.String(), Equals, `label: gpt
-label-id: 9151F25B-CDF0-48F1-9EDE-68CBD616E2CA
-device: /dev/node
-unit: sectors
-first-lba: 34
-last-lba: 8388574
-
-/dev/node1 : start=        2048, size=        2048, type=21686148-6449-6E6F-744E-656564454649, uuid=2E59D969-52AB-430B-88AC-F83873519F6F, name="BIOS Boot"
-/dev/node2 : start=        4096, size=     2457600, type=C12A7328-F81F-11D2-BA4B-00A0C93EC93B, name="Recovery"
+	c.Assert(sfdiskInput.String(), Equals, `/dev/node2 : start=        4096, size=     2457600, type=C12A7328-F81F-11D2-BA4B-00A0C93EC93B, name="Recovery"
 /dev/node3 : start=     2461696, size=     2457600, type=0FC63DAF-8483-4772-8E79-3D69D8477DE4, name="Writable"
 `)
 	c.Assert(created, DeepEquals, []partition.DeviceStructure{mockDeviceStructureSystemSeed, mockDeviceStructureWritable})
@@ -307,9 +303,10 @@ func (s *partitionTestSuite) TestCreatePartitions(c *C) {
 	// Check partition table read and write
 	c.Assert(cmdSfdisk.Calls(), DeepEquals, [][]string{
 		{"sfdisk", "--json", "-d", "/dev/node"},
-		{"sfdisk", "--no-reread", "/dev/node"},
+		{"sfdisk", "--append", "--no-reread", "/dev/node"},
 	})
 
+	// Check partition table update
 	c.Assert(cmdPartx.Calls(), DeepEquals, [][]string{
 		{"partx", "-u", "/dev/node"},
 	})
@@ -355,15 +352,24 @@ func (s *partitionTestSuite) TestFilesystemInfoError(c *C) {
 }
 
 func (s *partitionTestSuite) TestEnsureNodesExist(c *C) {
+	cmdUdevadm := testutil.MockCommand(c, "udevadm", "")
+	defer cmdUdevadm.Restore()
+
 	node := filepath.Join(c.MkDir(), "node")
 	err := ioutil.WriteFile(node, nil, 0644)
 	c.Assert(err, IsNil)
 	ds := []partition.DeviceStructure{{Node: node}}
 	err = partition.EnsureNodesExist(ds, 10*time.Millisecond)
 	c.Assert(err, IsNil)
+	c.Assert(cmdUdevadm.Calls(), DeepEquals, [][]string{
+		{"udevadm", "trigger", "--settle", node},
+	})
 }
 
 func (s *partitionTestSuite) TestEnsureNodesExistTimeout(c *C) {
+	cmdUdevadm := testutil.MockCommand(c, "udevadm", "")
+	defer cmdUdevadm.Restore()
+
 	node := filepath.Join(c.MkDir(), "node")
 	ds := []partition.DeviceStructure{{Node: node}}
 	t := time.Now()
@@ -371,4 +377,5 @@ func (s *partitionTestSuite) TestEnsureNodesExistTimeout(c *C) {
 	err := partition.EnsureNodesExist(ds, timeout)
 	c.Assert(err, ErrorMatches, fmt.Sprintf("device %s not available", node))
 	c.Assert(time.Since(t) >= timeout, Equals, true)
+	c.Assert(cmdUdevadm.Calls(), HasLen, 0)
 }

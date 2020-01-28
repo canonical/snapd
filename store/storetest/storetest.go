@@ -53,7 +53,7 @@ func (Store) Find(context.Context, *store.Search, *auth.UserState) ([]*snap.Info
 	panic("Store.Find not expected")
 }
 
-func (Store) SnapAction(context.Context, []*store.CurrentSnap, []*store.SnapAction, *auth.UserState, *store.RefreshOptions) ([]*snap.Info, error) {
+func (Store) SnapAction(context.Context, []*store.CurrentSnap, []*store.SnapAction, *auth.UserState, *store.RefreshOptions) ([]store.SnapActionResult, error) {
 	panic("Store.SnapAction not expected")
 }
 

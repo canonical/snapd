@@ -69,4 +69,4 @@ execute: |
 
 
     execute_remote "sudo snap refresh"
-    execute_remote "sudo cat /var/log/syslog" | MATCH -v "hsearch_r failed for.* No such process"
+    execute_remote "sudo cat /var/log/syslog" | not MATCH "hsearch_r failed for.* No such process"

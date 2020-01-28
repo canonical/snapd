@@ -1406,3 +1406,74 @@ func (u *updateTestSuite) TestUpdaterMultiVolumesDoesNotError(c *C) {
 	c.Assert(err, IsNil)
 	c.Assert(strings.Count(logbuf.String(), "WARNING: gadget assests cannot be updated yet when multiple volumes are used"), Equals, 2)
 }
+
+func (u *updateTestSuite) TestUpdateApplyNoChangedContentInAll(c *C) {
+	oldData, newData, rollbackDir := updateDataSet(c)
+	// first structure is updated
+	oldData.Info.Volumes["foo"].Structure[0].Update.Edition = 0
+	newData.Info.Volumes["foo"].Structure[0].Update.Edition = 1
+	// so is the second structure
+	oldData.Info.Volumes["foo"].Structure[1].Update.Edition = 1
+	newData.Info.Volumes["foo"].Structure[1].Update.Edition = 2
+
+	expectedStructs := []string{"first", "second"}
+	updateCalls := 0
+	restore := gadget.MockUpdaterForStructure(func(ps *gadget.LaidOutStructure, psRootDir, psRollbackDir string) (gadget.Updater, error) {
+		mu := &mockUpdater{
+			updateCb: func() error {
+				c.Assert(expectedStructs, testutil.Contains, ps.Name)
+				updateCalls++
+				return gadget.ErrNoUpdate
+			},
+			rollbackCb: func() error {
+				c.Fatalf("unexpected rollback call for structure: %v", ps)
+				return errors.New("not called")
+			},
+		}
+		return mu, nil
+	})
+	defer restore()
+
+	// go go go
+	err := gadget.Update(oldData, newData, rollbackDir, nil)
+	c.Assert(err, Equals, gadget.ErrNoUpdate)
+	// update called for 2 structures
+	c.Assert(updateCalls, Equals, 2)
+}
+
+func (u *updateTestSuite) TestUpdateApplyNoChangedContentInSome(c *C) {
+	oldData, newData, rollbackDir := updateDataSet(c)
+	// first structure is updated
+	oldData.Info.Volumes["foo"].Structure[0].Update.Edition = 0
+	newData.Info.Volumes["foo"].Structure[0].Update.Edition = 1
+	// so is the second structure
+	oldData.Info.Volumes["foo"].Structure[1].Update.Edition = 1
+	newData.Info.Volumes["foo"].Structure[1].Update.Edition = 2
+
+	expectedStructs := []string{"first", "second"}
+	updateCalls := 0
+	restore := gadget.MockUpdaterForStructure(func(ps *gadget.LaidOutStructure, psRootDir, psRollbackDir string) (gadget.Updater, error) {
+		mu := &mockUpdater{
+			updateCb: func() error {
+				c.Assert(expectedStructs, testutil.Contains, ps.Name)
+				updateCalls++
+				if ps.Name == "first" {
+					return gadget.ErrNoUpdate
+				}
+				return nil
+			},
+			rollbackCb: func() error {
+				c.Fatalf("unexpected rollback call for structure: %v", ps)
+				return errors.New("not called")
+			},
+		}
+		return mu, nil
+	})
+	defer restore()
+
+	// go go go
+	err := gadget.Update(oldData, newData, rollbackDir, nil)
+	c.Assert(err, IsNil)
+	// update called for 2 structures
+	c.Assert(updateCalls, Equals, 2)
+}
