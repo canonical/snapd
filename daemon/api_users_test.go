@@ -130,23 +130,26 @@ func (s *userSuite) testCreateUser(c *check.C, oldWay bool) {
 	}
 
 	var rsp *resp
+	var expected interface{}
+	expectedItem := userResponseData{
+		Username: expectedUsername,
+		SSHKeys:  []string{"ssh1", "ssh2"},
+	}
+
 	if oldWay {
 		buf := bytes.NewBufferString(fmt.Sprintf(`{"email": "%s"}`, s.userInfoExpectedEmail))
 		req, err := http.NewRequest("POST", "/v2/create-user", buf)
 		c.Assert(err, check.IsNil)
 
 		rsp = postCreateUser(createUserCmd, req, nil).(*resp)
+		expected = &expectedItem
 	} else {
 		buf := bytes.NewBufferString(fmt.Sprintf(`{"action":"create","email": "%s"}`, s.userInfoExpectedEmail))
 		req, err := http.NewRequest("POST", "/v2/users", buf)
 		c.Assert(err, check.IsNil)
 
 		rsp = postUsers(usersCmd, req, nil).(*resp)
-	}
-
-	expected := &userResponseData{
-		Username: expectedUsername,
-		SSHKeys:  []string{"ssh1", "ssh2"},
+		expected = []userResponseData{expectedItem}
 	}
 
 	c.Check(rsp.Type, check.Equals, ResponseTypeSync)
@@ -291,7 +294,7 @@ func (s *userSuite) TestPostUserActionRemoveNoUserInState(c *check.C) {
 
 	rsp := postUsers(usersCmd, req, nil).(*resp)
 	c.Check(rsp.Status, check.Equals, 200)
-	c.Check(rsp.Result, check.Equals, true)
+	c.Check(rsp.Result, check.IsNil)
 	c.Check(called, check.Equals, 1)
 }
 

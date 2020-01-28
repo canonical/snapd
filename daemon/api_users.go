@@ -263,7 +263,8 @@ func removeUser(c *Command, username string, opts postUserDeleteData) Response {
 		return InternalError(err.Error())
 	}
 
-	return SyncResponse(true, nil)
+	// returns nil so it's still arguably a []userResponseData
+	return SyncResponse(nil, nil)
 }
 
 func postCreateUser(c *Command, r *http.Request, user *auth.UserState) Response {
@@ -276,7 +277,20 @@ func postCreateUser(c *Command, r *http.Request, user *auth.UserState) Response 
 	if err := decoder.Decode(&createData); err != nil {
 		return BadRequest("cannot decode create-user data from request body: %v", err)
 	}
-	return createUser(c, createData)
+
+	rsp := createUser(c, createData)
+	// backwards compatibility hack
+	if createData.Email == "" && createData.Known {
+		// ok as per old API
+		return rsp
+	}
+	if rsp, ok := rsp.(*resp); ok && rsp.Type == ResponseTypeSync {
+		// Result should be a []userResponseData with a single item
+		if res, ok := rsp.Result.([]userResponseData); ok && len(res) == 1 {
+			return SyncResponse(&res[0], rsp.Meta)
+		}
+	}
+	return rsp
 }
 
 func createUser(c *Command, createData postUserCreateData) Response {
@@ -342,10 +356,10 @@ func createUser(c *Command, createData postUserCreateData) Response {
 		return InternalError("%s", err)
 	}
 
-	return SyncResponse(&userResponseData{
+	return SyncResponse([]userResponseData{{
 		Username: username,
 		SSHKeys:  opts.SSHKeys,
-	}, nil)
+	}}, nil)
 }
 
 func getUserDetailsFromStore(theStore snapstate.StoreService, email string) (string, *osutil.AddUserOptions, error) {
