@@ -16,9 +16,53 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  *
  */
+
 package bootstrap
+
+import (
+	"github.com/snapcore/secboot"
+)
 
 var (
 	EnsureLayoutCompatibility = ensureLayoutCompatibility
 	DeviceFromRole            = deviceFromRole
+	KernelCmdlines            = kernelCmdlines
 )
+
+type TPMSupport = tpmSupport
+
+func MockProvisionTPM(f func(tpm *secboot.TPMConnection, mode secboot.ProvisionMode,
+	newLockoutAuth []byte) error) (restore func()) {
+	old := provisionTPM
+	provisionTPM = f
+	return func() {
+		provisionTPM = old
+	}
+}
+
+func MockAddEFISecureBootPolicyProfile(f func(profile *secboot.PCRProtectionProfile,
+	params *secboot.EFISecureBootPolicyProfileParams) error) (restore func()) {
+	old := addEFISecureBootPolicyProfile
+	addEFISecureBootPolicyProfile = f
+	return func() {
+		addEFISecureBootPolicyProfile = old
+	}
+}
+
+func MockAddSystemdEFIStubProfile(f func(profile *secboot.PCRProtectionProfile,
+	params *secboot.SystemdEFIStubProfileParams) error) (restore func()) {
+	old := addSystemdEFIStubProfile
+	addSystemdEFIStubProfile = f
+	return func() {
+		addSystemdEFIStubProfile = old
+	}
+}
+
+func MockSealKeyToTPM(f func(tpm *secboot.TPMConnection, key []byte, keyPath, policyUpdatePath string,
+	params *secboot.KeyCreationParams) error) (restore func()) {
+	old := sealKeyToTPM
+	sealKeyToTPM = f
+	return func() {
+		sealKeyToTPM = old
+	}
+}
