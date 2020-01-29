@@ -31,6 +31,12 @@
 			"revisionTime": "2019-07-01T20:26:33Z"
 		},
 		{
+			"checksumSHA1": "Q2fk2rjypvQOYxSMD59/h9Et5OM=",
+			"path": "github.com/gvalkov/golang-evdev",
+			"revision": "287e62b94bcb850ab42e711bd74b2875da83af2c",
+			"revisionTime": "2019-11-14T12:45:02Z"
+		},
+		{
 			"checksumSHA1": "GcYF2BhpiQkshVVXxHPS/Oq491c=",
 			"path": "github.com/jessevdk/go-flags",
 			"revision": "7309ec74f752d05ce2c62b8fd5755c4a2e3913cb",

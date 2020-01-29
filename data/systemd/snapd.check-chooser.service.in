@@ -1,0 +1,14 @@
+[Unit]
+Description=Check if the chooser menu should be invoked
+Before=snapd.service
+# don't run on classic or uc16/uc18
+ConditionKernelCommandLine=snapd_recovery_mode
+Documentation=man:snap(1)
+
+[Service]
+Type=oneshot
+ExecStart=@libexecdir@/snapd/snap-bootstrap check-chooser
+RemainAfterExit=true
+
+[Install]
+WantedBy=multi-user.target
