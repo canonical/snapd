@@ -65,8 +65,14 @@ func (s *userSuite) SetUpTest(c *check.C) {
 	hasUserAdmin = true
 
 	// make sure we don't call these by accident
-	osutilAddUser = nil
-	osutilDelUser = nil
+	osutilAddUser = func(name string, opts *osutil.AddUserOptions) error {
+		c.Fatalf("unexpected add user %q call", name)
+		return fmt.Errorf("unexpected add user %q call", name)
+	}
+	osutilDelUser = func(name string, opts *osutil.DelUserOptions) error {
+		c.Fatalf("unexpected del user %q call", name)
+		return fmt.Errorf("unexpected del user %q call", name)
+	}
 }
 
 func (s *userSuite) TearDownTest(c *check.C) {
