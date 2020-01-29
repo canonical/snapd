@@ -280,7 +280,7 @@ func postCreateUser(c *Command, r *http.Request, user *auth.UserState) Response 
 
 	// this is /v2/create-user, meaning we want the
 	// backwards-compatible wackiness
-	createData.compat = true
+	createData.singleUserResultCompat = true
 
 	return createUser(c, createData)
 }
@@ -353,7 +353,7 @@ func createUser(c *Command, createData postUserCreateData) Response {
 		SSHKeys:  opts.SSHKeys,
 	}
 
-	if createData.compat {
+	if createData.singleUserResultCompat {
 		// return a single userResponseData in this case
 		return SyncResponse(&result, nil)
 	} else {
@@ -486,9 +486,9 @@ type postUserCreateData struct {
 	Known        bool   `json:"known"`
 	ForceManaged bool   `json:"force-managed"`
 
-	// not from JSON: this indicates whether to preserve backwards
-	// compatibility, which results in more clunky return values
-	compat bool
+	// indicates whether to preserve backwards compatibility,
+	// which results in more clunky return values; not from JSON.
+	singleUserResultCompat bool
 }
 
 type postUserDeleteData struct{}
