@@ -48,25 +48,27 @@ import (
 )
 
 type linkSuiteCommon struct {
-	be backend.Backend
+	testutil.BaseTest
 
-	systemctlRestorer func()
+	be backend.Backend
 
 	perfTimings *timings.Timings
 }
 
 func (s *linkSuiteCommon) SetUpTest(c *C) {
+	s.BaseTest.SetUpTest(c)
 	dirs.SetRootDir(c.MkDir())
 
 	s.perfTimings = timings.New(nil)
-	s.systemctlRestorer = systemd.MockSystemctl(func(cmd ...string) ([]byte, error) {
+	restore := systemd.MockSystemctl(func(cmd ...string) ([]byte, error) {
 		return []byte("ActiveState=inactive\n"), nil
 	})
+	s.AddCleanup(restore)
 }
 
 func (s *linkSuiteCommon) TearDownTest(c *C) {
 	dirs.SetRootDir("")
-	s.systemctlRestorer()
+	s.BaseTest.TearDownTest(c)
 }
 
 type linkSuite struct {
@@ -373,6 +375,9 @@ apps:
    command: svc
    daemon: simple
 `
+	cmd := testutil.MockCommand(c, "update-desktop-database", "")
+	s.AddCleanup(cmd.Restore)
+
 	s.info = snaptest.MockSnap(c, yaml, &snap.SideInfo{Revision: snap.R(11)})
 
 	guiDir := filepath.Join(s.info.MountDir(), "meta", "gui")
@@ -384,11 +389,6 @@ Icon=${SNAP}/bin.png
 Exec=bin
 `), 0644), IsNil)
 
-	r := systemd.MockSystemctl(func(...string) ([]byte, error) {
-		return nil, nil
-	})
-	defer r()
-
 	// sanity checks
 	for _, d := range []string{dirs.SnapBinariesDir, dirs.SnapDesktopFilesDir, dirs.SnapServicesDir} {
 		os.MkdirAll(d, 0755)
@@ -399,14 +399,14 @@ Exec=bin
 }
 
 func (s *linkCleanupSuite) testLinkCleanupDirOnFail(c *C, dir string) {
-	c.Assert(os.Chmod(dir, 0), IsNil)
+	c.Assert(os.Chmod(dir, 0555), IsNil)
 	defer os.Chmod(dir, 0755)
 
 	_, err := s.be.LinkSnap(s.info, mockDev, nil, s.perfTimings)
 	c.Assert(err, NotNil)
 	_, isPathError := err.(*os.PathError)
 	_, isLinkError := err.(*os.LinkError)
-	c.Assert(isPathError || isLinkError, Equals, true, Commentf("%T", err))
+	c.Assert(isPathError || isLinkError, Equals, true, Commentf("%#v", err))
 
 	for _, d := range []string{dirs.SnapBinariesDir, dirs.SnapDesktopFilesDir, dirs.SnapServicesDir} {
 		l, err := filepath.Glob(filepath.Join(d, "*"))
@@ -453,10 +453,10 @@ func (s *linkCleanupSuite) TestLinkCleansUpDataDirAndSymlinksOnSymlinkFail(c *C)
 	// sanity check
 	c.Assert(s.info.DataDir(), testutil.FileAbsent)
 
-	// the mountdir symlink is currently the last thing in
-	// LinkSnap that can make it fail
+	// the mountdir symlink is currently the last thing in LinkSnap that can
+	// make it fail, creating a symlink requires write permissions
 	d := filepath.Dir(s.info.MountDir())
-	c.Assert(os.Chmod(d, 0), IsNil)
+	c.Assert(os.Chmod(d, 0555), IsNil)
 	defer os.Chmod(d, 0755)
 
 	_, err := s.be.LinkSnap(s.info, mockDev, nil, s.perfTimings)
