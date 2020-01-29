@@ -87,7 +87,7 @@ static void sc_udev_allow_pty_slaves(int devices_allow_fd)
  * Device major and minor numbers are described in (though nvidia-uvm currently
  * isn't listed):
  *
- * https://github.com/torvalds/linux/blob/master/Documentation/admin-guide/devices.txt
+ * https://www.kernel.org/doc/Documentation/admin-guide/devices.txt
  **/
 static void sc_udev_allow_nvidia(int devices_allow_fd)
 {
