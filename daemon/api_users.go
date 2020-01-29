@@ -278,19 +278,11 @@ func postCreateUser(c *Command, r *http.Request, user *auth.UserState) Response 
 		return BadRequest("cannot decode create-user data from request body: %v", err)
 	}
 
-	rsp := createUser(c, createData)
-	// backwards compatibility hack
-	if createData.Email == "" && createData.Known {
-		// ok as per old API
-		return rsp
-	}
-	if rsp, ok := rsp.(*resp); ok && rsp.Type == ResponseTypeSync {
-		// Result should be a []userResponseData with a single item
-		if res, ok := rsp.Result.([]userResponseData); ok && len(res) == 1 {
-			return SyncResponse(&res[0], rsp.Meta)
-		}
-	}
-	return rsp
+	// this is /v2/create-user, meaning we want the
+	// backwards-compatible wackiness
+	createData.compat = true
+
+	return createUser(c, createData)
 }
 
 func createUser(c *Command, createData postUserCreateData) Response {
@@ -356,10 +348,17 @@ func createUser(c *Command, createData postUserCreateData) Response {
 		return InternalError("%s", err)
 	}
 
-	return SyncResponse([]userResponseData{{
+	result := userResponseData{
 		Username: username,
 		SSHKeys:  opts.SSHKeys,
-	}}, nil)
+	}
+
+	if createData.compat {
+		// return a single userResponseData in this case
+		return SyncResponse(&result, nil)
+	} else {
+		return SyncResponse([]userResponseData{result}, nil)
+	}
 }
 
 func getUserDetailsFromStore(theStore snapstate.StoreService, email string) (string, *osutil.AddUserOptions, error) {
@@ -486,6 +485,10 @@ type postUserCreateData struct {
 	Sudoer       bool   `json:"sudoer"`
 	Known        bool   `json:"known"`
 	ForceManaged bool   `json:"force-managed"`
+
+	// not from JSON: this indicates whether to preserve backwards
+	// compatibility, which results in more clunky return values
+	compat bool
 }
 
 type postUserDeleteData struct{}
