@@ -77,7 +77,7 @@ type managerBackend interface {
 	ClearTrashedData(oldSnap *snap.Info)
 
 	// remove related
-	UnlinkSnap(info *snap.Info, firstInstallUndo bool, meter progress.Meter) error
+	UnlinkSnap(info *snap.Info, isFirstInstall bool, meter progress.Meter) error
 	RemoveSnapFiles(s snap.PlaceInfo, typ snap.Type, installRecord *backend.InstallRecord, dev boot.Device, meter progress.Meter) error
 	RemoveSnapDir(s snap.PlaceInfo, hasOtherInstances bool) error
 	RemoveSnapData(info *snap.Info) error

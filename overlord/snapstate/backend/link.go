@@ -251,9 +251,9 @@ func removeGeneratedSnapdWrappers(s *snap.Info, firstInstall bool, meter progres
 // UnlinkSnap makes the snap unavailable to the system removing wrappers and
 // symlinks. The firstInstallUndo is true when undoing the first installation of
 // the snap.
-func (b Backend) UnlinkSnap(info *snap.Info, firstInstallUndo bool, meter progress.Meter) error {
+func (b Backend) UnlinkSnap(info *snap.Info, isFirstInstall bool, meter progress.Meter) error {
 	// remove generated services, binaries etc
-	err1 := removeGeneratedWrappers(info, firstInstallUndo, meter)
+	err1 := removeGeneratedWrappers(info, isFirstInstall, meter)
 
 	// and finally remove current symlinks
 	err2 := removeCurrentSymlinks(info)
