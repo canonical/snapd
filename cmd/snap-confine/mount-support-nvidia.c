@@ -376,7 +376,7 @@ static void sc_probe_nvidia_driver(sc_nv_version * version)
 	if (nread > 0 && version->raw[nread - 1] == '\n') {
 		version->raw[nread - 1] = '\0';
 	}
-	if (sscanf(version->raw, "%d.", &version->major) < 0) {
+	if (sscanf(version->raw, "%d.", &version->major) != 1) {
 		die("cannot parse major version from nvidia driver version string");
 	}
 }
