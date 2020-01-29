@@ -67,7 +67,10 @@ var (
 	}
 )
 
-var osutilAddUser = osutil.AddUser
+var (
+	osutilAddUser = osutil.AddUser
+	osutilDelUser = osutil.DelUser
+)
 
 // userResponseData contains the data releated to user creation/login/query
 type userResponseData struct {
@@ -241,7 +244,26 @@ func postUsers(c *Command, r *http.Request, user *auth.UserState) Response {
 }
 
 func removeUser(c *Command, username string, opts postUserDeleteData) Response {
-	return NotImplemented("not implemented")
+	// catch silly errors
+	if username == "" {
+		return BadRequest("need a username to remove")
+	}
+	// first remove the system user
+	if err := osutilDelUser(username, &osutil.DelUserOptions{ExtraUsers: !release.OnClassic}); err != nil {
+		return InternalError(err.Error())
+	}
+
+	// then the UserState
+	st := c.d.overlord.State()
+	st.Lock()
+	err := auth.RemoveUserByName(st, username)
+	st.Unlock()
+	// ErrInvalidUser means "not found" in this case
+	if err != nil && err != auth.ErrInvalidUser {
+		return InternalError(err.Error())
+	}
+
+	return SyncResponse(true, nil)
 }
 
 func postCreateUser(c *Command, r *http.Request, user *auth.UserState) Response {
