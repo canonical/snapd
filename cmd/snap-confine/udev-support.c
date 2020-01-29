@@ -77,7 +77,7 @@ static void sc_udev_allow_pty_slaves(int devices_allow_fd)
 	}
 }
 
-/** Allow access to NVidia devices.
+/** Allow access to Nvidia devices.
  *
  * Nvidia modules are proprietary and therefore aren't in sysfs and can't be
  * udev tagged. For now, just add existing nvidia devices to the cgroup
