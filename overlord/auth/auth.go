@@ -170,6 +170,16 @@ var ErrInvalidUser = errors.New("invalid user")
 
 // RemoveUser removes a user from the state given its ID
 func RemoveUser(st *state.State, userID int) error {
+	return removeUser(st, func(u *UserState) bool { return u.ID == userID })
+}
+
+// RemoveUserByName removes a user from the state given its username
+func RemoveUserByName(st *state.State, username string) error {
+	return removeUser(st, func(u *UserState) bool { return u.Username == username })
+}
+
+// removeUser removes the first user matching given predicate.
+func removeUser(st *state.State, p func(*UserState) bool) error {
 	var authStateData AuthState
 
 	err := st.Get("auth", &authStateData)
@@ -181,7 +191,7 @@ func RemoveUser(st *state.State, userID int) error {
 	}
 
 	for i := range authStateData.Users {
-		if authStateData.Users[i].ID == userID {
+		if p(&authStateData.Users[i]) {
 			// delete without preserving order
 			n := len(authStateData.Users) - 1
 			authStateData.Users[i] = authStateData.Users[n]

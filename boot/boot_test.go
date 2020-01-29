@@ -245,7 +245,7 @@ func (s *bootSetSuite) TestParticipantBaseWithModel(c *C) {
 
 	type tableT struct {
 		with  *snap.Info
-		model boottest.MockDevice
+		model string
 		nop   bool
 	}
 
@@ -291,10 +291,11 @@ func (s *bootSetSuite) TestParticipantBaseWithModel(c *C) {
 	}
 
 	for i, t := range table {
-		bp := boot.Participant(t.with, t.with.GetType(), t.model)
+		dev := boottest.MockDevice(t.model)
+		bp := boot.Participant(t.with, t.with.GetType(), dev)
 		c.Check(bp.IsTrivial(), Equals, t.nop, Commentf("%d", i))
 		if !t.nop {
-			c.Check(bp, DeepEquals, boot.NewCoreBootParticipant(t.with, t.with.GetType(), t.model))
+			c.Check(bp, DeepEquals, boot.NewCoreBootParticipant(t.with, t.with.GetType(), dev))
 		}
 	}
 }
@@ -305,7 +306,7 @@ func (s *bootSetSuite) TestKernelWithModel(c *C) {
 	expected := boot.NewCoreKernel(info)
 
 	type tableT struct {
-		model boottest.MockDevice
+		model string
 		nop   bool
 		krn   boot.BootKernel
 	}
@@ -331,7 +332,8 @@ func (s *bootSetSuite) TestKernelWithModel(c *C) {
 	}
 
 	for _, t := range table {
-		krn := boot.Kernel(info, snap.TypeKernel, t.model)
+		dev := boottest.MockDevice(t.model)
+		krn := boot.Kernel(info, snap.TypeKernel, dev)
 		c.Check(krn.IsTrivial(), Equals, t.nop)
 		c.Check(krn, DeepEquals, t.krn)
 	}
@@ -382,5 +384,26 @@ func (s *bootSetSuite) TestMarkBootSuccessfulKKernelUpdate(c *C) {
 		"snap_core": "os1",
 		// updated
 		"snap_kernel": "k2",
+	})
+}
+func (s *bootSetSuite) TestMarkBootSuccessfulBaseUpdate(c *C) {
+	coreDev := boottest.MockDevice("some-snap")
+
+	s.bootloader.BootVars["snap_mode"] = "trying"
+	s.bootloader.BootVars["snap_core"] = "os1"
+	s.bootloader.BootVars["snap_kernel"] = "k1"
+	s.bootloader.BootVars["snap_try_core"] = "os2"
+	s.bootloader.BootVars["snap_try_kernel"] = ""
+	err := boot.MarkBootSuccessful(coreDev)
+	c.Assert(err, IsNil)
+	c.Assert(s.bootloader.BootVars, DeepEquals, map[string]string{
+		// cleared
+		"snap_mode":     "",
+		"snap_try_core": "",
+		// unchanged
+		"snap_kernel":     "k1",
+		"snap_try_kernel": "",
+		// updated
+		"snap_core": "os2",
 	})
 }

@@ -455,6 +455,150 @@ type connState struct {
 	HotplugKey  snap.HotplugKey `json:"hotplug-key,omitempty"`
 }
 
+type gadgetConnect struct {
+	st   *state.State
+	task *state.Task
+	repo *interfaces.Repository
+
+	instanceName string
+
+	deviceCtx snapstate.DeviceContext
+}
+
+func newGadgetConnect(s *state.State, task *state.Task, repo *interfaces.Repository, instanceName string, deviceCtx snapstate.DeviceContext) *gadgetConnect {
+	return &gadgetConnect{
+		st:           s,
+		task:         task,
+		repo:         repo,
+		instanceName: instanceName,
+		deviceCtx:    deviceCtx,
+	}
+}
+
+// addGadgetConnections adds to newconns any applicable connections
+// from the gadget connections stanza.
+// conflictError is called to handle checkAutoconnectConflicts errors.
+func (gc *gadgetConnect) addGadgetConnections(newconns map[string]*interfaces.ConnRef, conns map[string]*connState, conflictError func(*state.Retry, error) error) error {
+	var seeded bool
+	err := gc.st.Get("seeded", &seeded)
+	if err != nil && err != state.ErrNoState {
+		return err
+	}
+	// we apply gadget connections only during seeding or a remodeling
+	if seeded && !gc.deviceCtx.ForRemodeling() {
+		return nil
+	}
+
+	task := gc.task
+	snapName := gc.instanceName
+
+	var snapst snapstate.SnapState
+	if err := snapstate.Get(gc.st, snapName, &snapst); err != nil {
+		return err
+	}
+
+	snapInfo, err := snapst.CurrentInfo()
+	if err != nil {
+		return err
+	}
+	snapID := snapInfo.SnapID
+	if snapID == "" {
+		// not a snap-id identifiable snap, skip
+		return nil
+	}
+
+	gconns, err := snapstate.GadgetConnections(gc.st, gc.deviceCtx)
+	if err != nil {
+		if err == state.ErrNoState {
+			// no gadget yet, nothing to do
+			return nil
+		}
+		return err
+	}
+
+	// consider the gadget connect instructions
+	for _, gconn := range gconns {
+		var plugSnapName, slotSnapName string
+		if gconn.Plug.SnapID == snapID {
+			plugSnapName = snapName
+		}
+		if gconn.Slot.SnapID == snapID {
+			slotSnapName = snapName
+		}
+
+		if plugSnapName == "" && slotSnapName == "" {
+			// no match, nothing to do
+			continue
+		}
+
+		if plugSnapName == "" {
+			var err error
+			plugSnapName, err = resolveSnapIDToName(gc.st, gconn.Plug.SnapID)
+			if err != nil {
+				return err
+			}
+		}
+		plug := gc.repo.Plug(plugSnapName, gconn.Plug.Plug)
+		if plug == nil {
+			task.Logf("gadget connections: ignoring missing plug %s:%s", gconn.Plug.SnapID, gconn.Plug.Plug)
+			continue
+		}
+
+		if slotSnapName == "" {
+			var err error
+			slotSnapName, err = resolveSnapIDToName(gc.st, gconn.Slot.SnapID)
+			if err != nil {
+				return err
+			}
+		}
+		slot := gc.repo.Slot(slotSnapName, gconn.Slot.Slot)
+		if slot == nil {
+			task.Logf("gadget connections: ignoring missing slot %s:%s", gconn.Slot.SnapID, gconn.Slot.Slot)
+			continue
+		}
+
+		if err := addNewConnection(gc.st, task, newconns, conns, plug, slot, conflictError); err != nil {
+			return err
+		}
+	}
+
+	return nil
+}
+
+func addNewConnection(st *state.State, task *state.Task, newconns map[string]*interfaces.ConnRef, conns map[string]*connState, plug *snap.PlugInfo, slot *snap.SlotInfo, conflictError func(*state.Retry, error) error) error {
+	connRef := interfaces.NewConnRef(plug, slot)
+	key := connRef.ID()
+	if _, ok := conns[key]; ok {
+		// Suggested connection already exist (or has
+		// Undesired flag set) so don't clobber it.
+		// NOTE: we don't log anything here as this is
+		// a normal and common condition.
+		return nil
+	}
+	if _, ok := newconns[key]; ok {
+		return nil
+	}
+
+	if task.Kind() == "auto-connect" {
+		ignore, err := findSymmetricAutoconnectTask(st, plug.Snap.InstanceName(), slot.Snap.InstanceName(), task)
+		if err != nil {
+			return err
+		}
+
+		if ignore {
+			return nil
+		}
+	}
+
+	if err := checkAutoconnectConflicts(st, task, plug.Snap.InstanceName(), slot.Snap.InstanceName()); err != nil {
+		retry, _ := err.(*state.Retry)
+		return conflictError(retry, err)
+	}
+
+	newconns[key] = connRef
+	return nil
+}
+
 type autoConnectChecker struct {
 	st   *state.State
 	task *state.Task
@@ -624,35 +768,9 @@ func (c *autoConnectChecker) addAutoConnections(newconns map[string]*interfaces.
 		}
 
 		for _, slot := range applicable {
-			connRef := interfaces.NewConnRef(plug, slot)
-			key := connRef.ID()
-			if _, ok := conns[key]; ok {
-				// Suggested connection already exist (or has
-				// Undesired flag set) so don't clobber it.
-				// NOTE: we don't log anything here as this is
-				// a normal and common condition.
-				continue
+			if err := addNewConnection(c.st, c.task, newconns, conns, plug, slot, conflictError); err != nil {
+				return err
 			}
-			if _, ok := newconns[key]; ok {
-				continue
-			}
-
-			if c.task.Kind() == "auto-connect" {
-				ignore, err := findSymmetricAutoconnectTask(c.st, plug.Snap.InstanceName(), slot.Snap.InstanceName(), c.task)
-				if err != nil {
-					return err
-				}
-
-				if ignore {
-					continue
-				}
-			}
-
-			if err := checkAutoconnectConflicts(c.st, c.task, plug.Snap.InstanceName(), slot.Snap.InstanceName()); err != nil {
-				retry, _ := err.(*state.Retry)
-				return conflictError(retry, err)
-			}
-			newconns[key] = connRef
 		}
 	}
 

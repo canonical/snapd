@@ -500,7 +500,6 @@ func remodelTasks(ctx context.Context, st *state.State, current, new *asserts.Mo
 //
 // TODO:
 // - Check estimated disk size delta
-// - Reapply gadget connections as needed
 // - Check all relevant snaps exist in new store
 //   (need to check that even unchanged snaps are accessible)
 // - Make sure this works with Core 20 as well, in the Core 20 case
@@ -521,6 +520,15 @@ func Remodel(st *state.State, new *asserts.Model) (*state.Change, error) {
 	}
 	if current.Series() != new.Series() {
 		return nil, fmt.Errorf("cannot remodel to different series yet")
+	}
+
+	// TODO:UC20: support remodel, also ensure we never remodel to a lower
+	// grade
+	if current.Grade() != asserts.ModelGradeUnset {
+		return nil, fmt.Errorf("cannot remodel Ubuntu Core 20 models yet")
+	}
+	if new.Grade() != asserts.ModelGradeUnset {
+		return nil, fmt.Errorf("cannot remodel to Ubuntu Core 20 models yet")
 	}
 
 	// TODO: we need dedicated assertion language to permit for

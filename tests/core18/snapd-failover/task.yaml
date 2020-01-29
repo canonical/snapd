@@ -3,6 +3,8 @@ summary: Check that snapd failure handling works
 debug: |
     # dump failure data
     journalctl -u snapd.failure.service
+    journalctl -u snapd.socket || true
+    ls -l /snap/snapd/
 
 restore: |
     # Stop snapd.failure.service in case it is active
@@ -14,6 +16,9 @@ execute: |
     echo "Testing failover handling of the snapd snap"
     current=$(readlink /snap/snapd/current)
     SNAPD_SNAP=$(ls /var/lib/snapd/snaps/snapd_"$current".snap)
+
+    # for debugging
+    snap list --all
 
     echo "Verify that a random signal does not trigger the failure handling"
     echo "and snapd is just restarted"

@@ -157,6 +157,11 @@ func ensureLayoutCompatibility(gadgetLayout *gadget.LaidOutVolume, diskLayout *p
 		return false
 	}
 
+	if gadgetLayout.Size > diskLayout.Size {
+		return fmt.Errorf("device %v (%s) is too small to fit the requested layout (%s)", diskLayout.Device,
+			diskLayout.Size.IECString(), gadgetLayout.Size.IECString())
+	}
+
 	// Check if top level properties match
 	if !isCompatibleSchema(gadgetLayout.Volume.Schema, diskLayout.Schema) {
 		return fmt.Errorf("disk partitioning schema %q doesn't match gadget schema %q", diskLayout.Schema, gadgetLayout.Volume.Schema)
