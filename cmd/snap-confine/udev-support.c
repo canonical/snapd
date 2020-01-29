@@ -79,7 +79,7 @@ static void sc_udev_allow_pty_slaves(int devices_allow_fd)
 
 /** Allow access to NVidia devices.
  *
- * NVidia modules are proprietary and therefore aren't in sysfs and can't be
+ * Nvidia modules are proprietary and therefore aren't in sysfs and can't be
  * udev tagged. For now, just add existing nvidia devices to the cgroup
  * unconditionally (AppArmor will still mediate the access).  We'll want to
  * rethink this if snapd needs to mediate access to other proprietary devices.
