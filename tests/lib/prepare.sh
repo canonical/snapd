@@ -432,6 +432,122 @@ EOF
     rm -rf "$UNPACK_DIR"
 }
 
+
+uc20_build_initramfs_kernel_snap() {
+    # first create a debootstrap'd focal chroot 
+    CHROOT_DIR=$1/focal-chroot
+    debootstrap --variant=minbase focal "$CHROOT_DIR"
+
+    # first fix the sources.list, for some reason the minimal one doesn't have
+    # all the sources we need
+    cat << EOF > "$CHROOT_DIR/etc/apt/sources.list"
+deb http://archive.ubuntu.com/ubuntu focal main restricted universe multiverse
+deb http://archive.ubuntu.com/ubuntu focal-updates main restricted universe multiverse
+deb http://archive.ubuntu.com/ubuntu focal-backports main restricted universe multiverse
+deb http://security.ubuntu.com/ubuntu focal-security main restricted universe multiverse
+EOF
+
+    # mount proc and sys on the chroot otherwise installing packages like dmraid
+    # and other initramfs related things fail in weird ways
+	mount --bind /proc "$CHROOT_DIR/proc"
+	mount --bind /sys "$CHROOT_DIR/sys"
+
+    # update packages
+    chroot "$CHROOT_DIR" apt update -y -qq
+    chroot "$CHROOT_DIR" apt upgrade -y -qq
+
+    # install our snapd into the focal chroot
+    cp "$GOHOME"/snapd_*.deb "$CHROOT_DIR"
+    # careful with the quoting here
+    chroot "$CHROOT_DIR" bash -c 'apt install -y -qq /snapd*.deb'
+
+    # all of the below needs to be run from inside the chroot, so just put it 
+    # into a script in the chroot to make it easier to run
+    # TLDR this script will create a kernel snap using the makefile from the 
+    # canonical-kernel-snaps git repo, w/o snapcraft - the snapcraft.yaml for 
+    # the kernel snap currently just uses this makefile, so this is equivalent
+    cat << "EOF2" > "$CHROOT_DIR/make-kernel-snap.sh"
+#!/bin/bash -ex
+
+# install packages
+# * linux-image-generic is for the linux kernel
+# * build-essential and git are for building the kernel snap
+# * debootstrap and lsb-release are also used by the kernel snap build
+apt update -qq
+apt upgrade -y -qq
+apt install -y -qq linux-image-generic build-essential git debootstrap lsb-release
+
+# get the version of the linux image package we have installed
+# the nasty sed expr at the end is to change the 3rd "." in the package version number
+# into a "-" as that's what the kernel makefile expects for some reason I don't
+# understand, i.e. 11.22.33.44.55 -> 11.22.33-44.55
+SNAPCRAFT_PROJECT_VERSION=$(apt list --installed linux-image-generic 2>/dev/null | grep -Po 'linux-image-generic/focal,now \K[^ ]+' | sed -e 's/^\([[:digit:]]\+\.[[:digit:]]\+\.[[:digit:]]\+\)\./\1-/g')
+export SNAPCRAFT_PROJECT_VERSION
+
+# get kernel snap makefile from kernel-snaps-uc20 git repo
+if [ ! -d kernel-snaps-uc20 ]; then
+    # TODO:UC20: should we pin this to a specific commit? currently this will 
+    # follow master...
+    git clone https://git.launchpad.net/~canonical-kernel-snaps/+git/kernel-snaps-uc20
+fi
+cd kernel-snaps-uc20
+
+rm -rf pc-kernel
+mkdir -p pc-kernel/meta
+
+# create the snap.yaml for the kernel snap
+cat << EOF > pc-kernel/meta/snap.yaml
+name: pc-kernel
+version: $SNAPCRAFT_PROJECT_VERSION-snapd-tests
+summary: generic linux kernel
+description: The generic Ubuntu kernel package as a snap
+type: kernel
+architectures:
+- amd64
+confinement: strict
+grade: stable
+EOF
+
+# make the kernel snap assets - note this will create an initramfs, but that one
+# will be wrong as it will contain snap-bootstrap from the ubuntu-core-initramfs
+# package, not ours
+# TODO:UC20: when should we stop using focal-proposed here?
+make KERNEL=linux-pc-image PROPOSED=true MIRROR=archive.ubuntu.com/ubuntu
+
+# get the kernel version from inside the chroot that the kernel Makefile creates
+# to pass to ubuntu-core-initramfs
+KERNEL_VERSION=$(chroot chroot apt-cache depends linux-image-generic | grep -Po "Depends: linux-image-\K.*")
+
+# install our snap-bootstrap into the ubuntu-core-initramfs files and 
+# re-generate the initrd and subsequent initramfs
+cp /usr/lib/snapd/snap-bootstrap chroot/lib/ubuntu-core-initramfs/main/usr/lib/snapd/snap-bootstrap
+chroot chroot ubuntu-core-initramfs create-initrd --kernelver "$KERNEL_VERSION"
+chroot chroot ubuntu-core-initramfs create-efi --kernelver "$KERNEL_VERSION"
+
+# make "the-tool" be "the-verbose-tool"
+sed -i -e 's/set -e/set -ex/' chroot/lib/ubuntu-core-initramfs/main/usr/lib/the-tool
+
+# install the kernel snap files to pc-kernel - this just copies files from 
+# /boot/... so it will pick up the changes we made above
+# TODO:UC20: when should we stop using focal-proposed here?
+make KERNEL=linux-pc-image PROPOSED=true MIRROR=archive.ubuntu.com/ubuntu install DESTDIR="$(pwd)/pc-kernel"
+
+# pack the kernel snap
+snap pack pc-kernel
+
+mv pc-kernel*.snap /pc-kernel_snapd-tests.snap
+EOF2
+
+    chmod +x "$CHROOT_DIR/make-kernel-snap.sh"
+
+    # build the snap
+    chroot "$CHROOT_DIR" /make-kernel-snap.sh
+    
+    # copy the built snap into the specified target directory
+    cp "$CHROOT_DIR/pc-kernel_snapd-tests.snap" "$2"
+}
+
+
 setup_core_for_testing_by_modify_writable() {
     UNPACK_DIR="$1"
 
@@ -533,6 +649,11 @@ EOF
 setup_reflash_magic() {
     # install the stuff we need
     distro_install_package kpartx busybox-static
+    # for core20 we need debootstrap to build the initramfs in the kernel snap
+    if is_core20_system; then
+        distro_install_package debootstrap
+    fi
+
     distro_install_local_package "$GOHOME"/snapd_*.deb
     distro_clean_package_cache
 
@@ -616,16 +737,23 @@ EOF
 
     EXTRA_FUNDAMENTAL=
     IMAGE_CHANNEL=edge
-    if [ "$KERNEL_CHANNEL" = "$GADGET_CHANNEL" ]; then
-        IMAGE_CHANNEL="$KERNEL_CHANNEL"
-    else
-        # download pc-kernel snap for the specified channel and set
-        # ubuntu-image channel to that of the gadget, so that we don't
-        # need to download it
-        snap download --channel="$KERNEL_CHANNEL" pc-kernel
-
+    if is_core20_system; then
+        # build the initramfs with our snapd assets into the kernel snap
+        uc20_build_initramfs_kernel_snap "$IMAGE_HOME" "$PWD"
         EXTRA_FUNDAMENTAL="--extra-snaps $PWD/pc-kernel_*.snap"
         IMAGE_CHANNEL="$GADGET_CHANNEL"
+    else 
+        if [ "$KERNEL_CHANNEL" = "$GADGET_CHANNEL" ]; then
+            IMAGE_CHANNEL="$KERNEL_CHANNEL"
+        else
+            # download pc-kernel snap for the specified channel and set
+            # ubuntu-image channel to that of the gadget, so that we don't
+            # need to download it
+            snap download --channel="$KERNEL_CHANNEL" pc-kernel
+
+            EXTRA_FUNDAMENTAL="--extra-snaps $PWD/pc-kernel_*.snap"
+            IMAGE_CHANNEL="$GADGET_CHANNEL"
+        fi
     fi
 
     # 'snap pack' creates snaps 0644, and ubuntu-image just copies those in
