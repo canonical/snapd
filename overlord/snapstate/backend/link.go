@@ -21,20 +21,29 @@ package backend
 
 import (
 	"fmt"
+	"io"
 	"os"
 	"path/filepath"
 
 	"github.com/snapcore/snapd/boot"
 	"github.com/snapcore/snapd/logger"
-	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/progress"
 	"github.com/snapcore/snapd/snap"
 	"github.com/snapcore/snapd/timings"
 	"github.com/snapcore/snapd/wrappers"
 )
 
-func isSnapFirstInstall(info *snap.Info) bool {
-	return osutil.IsSymlink(filepath.Join(info.MountDir(), "..", "current"))
+func isSnapFirstInstall(info *snap.Info) (bool, error) {
+	d, err := os.Open(filepath.Join(info.MountDir(), ".."))
+	if err != nil {
+		return false, err
+	}
+	entries, err := d.Readdirnames(2)
+	if err != nil && err != io.EOF {
+		return false, err
+	}
+
+	return len(entries) == 1 && entries[0] == info.Revision.String(), nil
 }
 
 func updateCurrentSymlinks(info *snap.Info) (e error) {
@@ -87,8 +96,10 @@ func (b Backend) LinkSnap(info *snap.Info, dev boot.Device, prevDisabledSvcs []s
 		return false, fmt.Errorf("cannot link snap %q with unset revision", info.InstanceName())
 	}
 
-	isFirstInstall := isSnapFirstInstall(info)
-	var err error
+	isFirstInstall, err := isSnapFirstInstall(info)
+	if err != nil {
+		return false, fmt.Errorf("cannot list existing snap revisions: %v", err)
+	}
 	timings.Run(tm, "generate-wrappers", fmt.Sprintf("generate wrappers for snap %s", info.InstanceName()), func(timings.Measurer) {
 		err = generateWrappers(info, prevDisabledSvcs)
 	})
