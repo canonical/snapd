@@ -1341,8 +1341,8 @@ func (s *servicesTestSuite) TestAddRemoveSnapServiceWithSnapd(c *C) {
 	info := makeMockSnapdSnap(c)
 
 	err := wrappers.AddSnapServices(info, nil, progress.Null)
-	c.Assert(err, ErrorMatches, "internal error: cannot add services of snapd snap")
+	c.Check(err, ErrorMatches, "internal error: adding explicit services for snapd snap is unexpected")
 
 	err = wrappers.RemoveSnapServices(info, progress.Null)
-	c.Assert(err, ErrorMatches, "internal error: cannot remove services of snapd snap")
+	c.Check(err, ErrorMatches, "internal error: removing explicit services for snapd snap is unexpected")
 }
