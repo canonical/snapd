@@ -178,6 +178,7 @@ func (s *coreBootSetSuite) TestSetNextBoot20ForKernel(c *C) {
 	c.Assert(err, IsNil)
 
 	bs := boot.NewCoreBootParticipant(kernel2, snap.TypeKernel, coreDev)
+	c.Assert(bs.IsTrivial(), Equals, false)
 	reboot, err := bs.SetNextBoot()
 	c.Assert(err, IsNil)
 
@@ -237,6 +238,7 @@ func (s *coreBootSetSuite) TestSetNextBoot20ForKernelForTheSameKernel(c *C) {
 	defer r()
 
 	bs := boot.NewCoreBootParticipant(kernel1, snap.TypeKernel, coreDev)
+	c.Assert(bs.IsTrivial(), Equals, false)
 	reboot, err := bs.SetNextBoot()
 	c.Assert(err, IsNil)
 
@@ -305,6 +307,7 @@ func (s *coreBootSetSuite) TestSetNextBoot20ForKernelForTheSameKernelTryMode(c *
 	s.bootloader.SetBootVars(bootVars)
 
 	bs := boot.NewCoreBootParticipant(kernel1, snap.TypeKernel, coreDev)
+	c.Assert(bs.IsTrivial(), Equals, false)
 	reboot, err := bs.SetNextBoot()
 	c.Assert(err, IsNil)
 
