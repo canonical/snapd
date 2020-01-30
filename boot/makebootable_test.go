@@ -343,7 +343,7 @@ version: 5.0
 	c.Check(mockBootGrubenv, testutil.FileMatches, `(?m)^kernel_status=$`)
 
 	// check that we have the extracted kernel in the right places, both in the
-	// old uc16/uc18 location and the new ubuntu-boot partition root
+	// old uc16/uc18 location and the new ubuntu-boot partition grub dir
 	extractedKernel := filepath.Join(mockBootGrubDir, "pc-kernel_5.snap", "kernel.efi")
 	c.Check(extractedKernel, testutil.FilePresent)
 
