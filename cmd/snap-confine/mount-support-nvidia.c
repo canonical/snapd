@@ -348,7 +348,7 @@ typedef struct {
 	// Driver version format is MAJOR.MINOR[.MICRO] but we only care about the
 	// major version and the full version string. The micro component has been
 	// seen with relevant leading zeros (e.g. "440.48.02").
-	char raw[sizeof("1234.5678.90AB\n")];
+	char raw[128]; // The size was picked as "big enough" for version strings.
 } sc_nv_version;
 
 static void sc_probe_nvidia_driver(sc_nv_version * version)
