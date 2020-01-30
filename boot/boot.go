@@ -99,8 +99,8 @@ func Participant(s snap.PlaceInfo, t snap.Type, dev Device) BootParticipant {
 
 // bootloaderOptionsForDeviceKernel returns a set of bootloader options that
 // enable correct kernel extraction and removal for given device
-func bootloaderOptionsForDeviceKernel(dev Device) bootloader.Options {
-	return bootloader.Options{
+func bootloaderOptionsForDeviceKernel(dev Device) *bootloader.Options {
+	return &bootloader.Options{
 		// unified extractable kernel if in uc20 mode
 		ExtractedRunKernelImage: dev.HasModeenv(),
 	}
