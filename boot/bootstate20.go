@@ -33,16 +33,16 @@ func (s20 *bootState20Base) revisions() (theSnap, theTrySnap snap.PlaceInfo, try
 	// TODO:UC20: implement support for trying with base_status and try_base
 	modeenv, err := ReadModeenv(dirs.GlobalRootDir)
 	if err != nil {
-		return nil, nil, false, fmt.Errorf("cannot get snap revision: unable to read modeenv: %v", err)
+		return nil, nil, false, fmt.Errorf("cannot get boot base revision: unable to read modeenv: %v", err)
 	}
 
 	if modeenv.Base == "" {
-		return nil, nil, false, fmt.Errorf("cannot get snap revision: modeenv base boot variable is empty")
+		return nil, nil, false, fmt.Errorf("cannot get boot base revision: modeenv base variable is empty")
 	}
 
 	sn, err := snap.ParsePlaceInfoFromSnapFileName(modeenv.Base)
 	if err != nil {
-		return nil, nil, false, fmt.Errorf("cannot get snap revision: modeenv base boot variable is invalid: %v", err)
+		return nil, nil, false, fmt.Errorf("cannot get boot base revision: modeenv base variable is invalid: %v", err)
 	}
 
 	return sn, nil, false, nil
@@ -67,7 +67,7 @@ func newBootState20(typ snap.Type) bootState {
 	case snap.TypeBase:
 		return &bootState20Base{}
 	default:
-		panic("unsupported snap type update")
+		panic(fmt.Sprintf("cannot make a bootState for snap type %q", typ))
 	}
 }
 
@@ -205,7 +205,7 @@ func newBootStateUpdate20(u bootStateUpdate, typ snap.Type) (*bootStateUpdate20,
 	if u != nil {
 		u20, ok := u.(*bootStateUpdate20)
 		if !ok {
-			return nil, fmt.Errorf("internal error: threading unexpected boot state update with 20: %T", u)
+			return nil, fmt.Errorf("internal error: threading unexpected boot state update on UC20: %T", u)
 		}
 		return u20, nil
 	}
@@ -295,7 +295,7 @@ func (u20 *bootStateUpdate20) commit() error {
 				return err
 			}
 		default:
-			panic("base update not ready yet sorry :-(")
+			return fmt.Errorf("boot base update not implemented yet")
 		}
 	}
 

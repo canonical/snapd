@@ -164,7 +164,7 @@ func (s *coreBootSetSuite) TestSetNextBootForKernel(c *C) {
 }
 
 func (s *coreBootSetSuite) TestSetNextBoot20ForKernel(c *C) {
-	coreDev := boottest.MockUC20Device("core")
+	coreDev := boottest.MockUC20Device("pc-kernel")
 	c.Assert(coreDev.HasModeenv(), Equals, true)
 
 	// setup current kernel
@@ -227,7 +227,7 @@ func (s *coreBootSetSuite) TestSetNextBootForKernelForTheSameKernel(c *C) {
 }
 
 func (s *coreBootSetSuite) TestSetNextBoot20ForKernelForTheSameKernel(c *C) {
-	coreDev := boottest.MockUC20Device("core")
+	coreDev := boottest.MockUC20Device("pc-kernel")
 	c.Assert(coreDev.HasModeenv(), Equals, true)
 
 	// setup current kernel
@@ -291,7 +291,7 @@ func (s *coreBootSetSuite) TestSetNextBootForKernelForTheSameKernelTryMode(c *C)
 }
 
 func (s *coreBootSetSuite) TestSetNextBoot20ForKernelForTheSameKernelTryMode(c *C) {
-	coreDev := boottest.MockUC20Device("core")
+	coreDev := boottest.MockUC20Device("pc-kernel")
 	c.Assert(coreDev.HasModeenv(), Equals, true)
 
 	// setup current kernel

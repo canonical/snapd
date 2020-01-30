@@ -99,7 +99,7 @@ func newBootStateUpdate16(u bootStateUpdate, names ...string) (*bootStateUpdate1
 	if u != nil {
 		u16, ok := u.(*bootStateUpdate16)
 		if !ok {
-			return nil, fmt.Errorf("internal error: threading unexpected boot state update with 16: %T", u)
+			return nil, fmt.Errorf("internal error: threading unexpected boot state update on UC16/18: %T", u)
 		}
 		return u16, nil
 	}
