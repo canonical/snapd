@@ -314,19 +314,33 @@ func (u20 *bootStateUpdate20) commit() error {
 		return err
 	}
 
+	if u20.snapToTry != nil {
+		// this should be impossible, only likely to happen if somehow setNext() and
+		// markSuccessful() calls were threaded together which shouldn't happen
+		if u20.snapTried != nil {
+			return fmt.Errorf("internal error: cannot try a new snap and be trying an old snap")
+		}
+
+		// otherwise snapToTry was non-nil, which means we were about to try an
+		// update, so we are done now
+		return nil
+	}
+
 	// move kernel symlink
 	// * step 2 for successful boot after an update
 	// * NOP for about to try an update
-	if u20.env["kernel_status"] == "trying" && u20.snapTried != nil {
+	if u20.env["kernel_status"] == "trying" {
 		// we did try a kernel, move the symlink
 		err := u20.ebl.EnableKernel(u20.snapTried)
 		if err != nil {
 			return err
 		}
+	}
 
-		// remove try kernel symlink
-		// * step 3 for successful boot after an update
-		// * NOP for about to try an update
+	// remove try kernel symlink
+	// * step 3 for successful boot after an update
+	// * NOP for about to try an update
+	if u20.env["kernel_status"] != "" {
 		err = u20.ebl.DisableTryKernel()
 		if err != nil {
 			return err
