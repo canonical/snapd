@@ -393,6 +393,13 @@ func (s *bootSetSuite) TestCoreKernel20(c *C) {
 
 	// make sure that the bootloader was told to extract some assets
 	c.Assert(s.bootloader.ExtractKernelAssetsCalls, DeepEquals, []snap.PlaceInfo{kernel})
+
+	// now remove the kernel assets and ensure that we get those calls
+	err = bootKern.RemoveKernelAssets()
+	c.Assert(err, IsNil)
+
+	// make sure that the bootloader was told to extract some assets
+	c.Assert(s.bootloader.RemoveKernelAssetsCalls, DeepEquals, []snap.PlaceInfo{kernel})
 }
 
 func (s *bootSetSuite) TestCoreParticipant20SetNextSameKernelSnap(c *C) {
