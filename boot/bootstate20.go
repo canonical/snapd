@@ -260,9 +260,9 @@ func (u20 *bootStateUpdate20) commit() error {
 	// try-kernel symlink and become broken.
 
 	// However, if we have successfully just booted from a try-kernel and are
-	// marking it successful (this implies that snap_kernel=="trying"), we need
-	// to do the following order (since we have the added complexity of moving
-	// the kernel symlink):
+	// marking it successful (this implies that snap_kernel=="trying" as set by
+	// the boot script), we need to do the following order (since we have the
+	// added complexity of moving the kernel symlink):
 	// 1. Update kernel_status to ""
 	// 2. Move kernel symlink to point to the new try kernel
 	// 3. Remove try-kernel symlink
