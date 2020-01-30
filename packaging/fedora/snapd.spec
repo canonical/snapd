@@ -92,7 +92,7 @@
 %endif
 
 Name:           snapd
-Version:        2.43.1
+Version:        2.43.2
 Release:        0%{?dist}
 Summary:        A transactional software package manager
 License:        GPLv3
@@ -874,6 +874,14 @@ fi
 
 
 %changelog
+* Tue Jan 28 2020 Michael Vogt <mvo@ubuntu.com>
+ - cmd/snap-confine: Revert #7421 (unmount /writable from snap view)
+ - overlord/snapstate: fix for re-refresh bug
+ - tests, run-checks, many: fix nakedret issues
+ - data/selinux: workaround incorrect fonts cache labeling on RHEL7
+ - tests: use test-snapd-upower instead of upower
+ - overlord: increase overall settle timeout for slow arm boards
+
 * Tue Jan 14 2020 Michael Vogt <mvo@ubuntu.com>
 - New upstream release 2.43.1
  - devicestate: use httputil.ShouldRetryError() in prepareSerialRequest

@@ -246,41 +246,58 @@ func (ts *AtomicSymlinkTestSuite) TestAtomicSymlink(c *C) {
 		c.Check(exp, Equals, target)
 	}
 
+	checkLeftoverFiles := func(sym string, exp []string) {
+		res, err := filepath.Glob(sym + "*")
+		c.Assert(err, IsNil)
+		if len(exp) != 0 {
+			c.Assert(res, DeepEquals, exp)
+		} else {
+			c.Assert(res, HasLen, 0)
+		}
+	}
+
 	d := c.MkDir()
-	err := osutil.AtomicSymlink("target", filepath.Join(d, "bar"))
+	barSymlink := filepath.Join(d, "bar")
+	err := osutil.AtomicSymlink("target", barSymlink)
 	c.Assert(err, IsNil)
-	mustReadSymlink(filepath.Join(d, "bar"), "target")
+	mustReadSymlink(barSymlink, "target")
+	checkLeftoverFiles(barSymlink, []string{barSymlink})
 
 	// no nested directory
 	nested := filepath.Join(d, "nested")
-	err = osutil.AtomicSymlink("target", filepath.Join(nested, "bar"))
+	nestedBarSymlink := filepath.Join(nested, "bar")
+	err = osutil.AtomicSymlink("target", nestedBarSymlink)
 	c.Assert(err, ErrorMatches, `symlink target /.*/nested/bar\..*~: no such file or directory`)
+	checkLeftoverFiles(nestedBarSymlink, nil)
 
 	// create a dir without write permission
 	err = os.MkdirAll(nested, 0644)
 	c.Assert(err, IsNil)
 
 	// no permission to write in dir
-	err = osutil.AtomicSymlink("target", filepath.Join(nested, "bar"))
+	err = osutil.AtomicSymlink("target", nestedBarSymlink)
 	c.Assert(err, ErrorMatches, `symlink target /.*/nested/bar\..*~: permission denied`)
+	checkLeftoverFiles(nestedBarSymlink, nil)
 
 	err = os.Chmod(nested, 0755)
 	c.Assert(err, IsNil)
 
-	err = osutil.AtomicSymlink("target", filepath.Join(nested, "bar"))
+	err = osutil.AtomicSymlink("target", nestedBarSymlink)
 	c.Assert(err, IsNil)
-	mustReadSymlink(filepath.Join(nested, "bar"), "target")
+	mustReadSymlink(nestedBarSymlink, "target")
+	checkLeftoverFiles(nestedBarSymlink, []string{nestedBarSymlink})
 
 	// symlink gets replaced
-	err = osutil.AtomicSymlink("new-target", filepath.Join(nested, "bar"))
+	err = osutil.AtomicSymlink("new-target", nestedBarSymlink)
 	c.Assert(err, IsNil)
-	mustReadSymlink(filepath.Join(nested, "bar"), "new-target")
+	mustReadSymlink(nestedBarSymlink, "new-target")
+	checkLeftoverFiles(nestedBarSymlink, []string{nestedBarSymlink})
 
 	// don't care about symlink target
-	err = osutil.AtomicSymlink("/this/is/some/funny/path", filepath.Join(nested, "bar"))
+	err = osutil.AtomicSymlink("/this/is/some/funny/path", nestedBarSymlink)
 	c.Assert(err, IsNil)
-	mustReadSymlink(filepath.Join(nested, "bar"), "/this/is/some/funny/path")
-
+	mustReadSymlink(nestedBarSymlink, "/this/is/some/funny/path")
+	checkLeftoverFiles(nestedBarSymlink, []string{nestedBarSymlink})
 }
 
 func (ts *AtomicSymlinkTestSuite) createCollisionSequence(c *C, baseName string, many int) {

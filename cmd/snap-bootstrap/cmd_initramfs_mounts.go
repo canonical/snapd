@@ -20,14 +20,10 @@
 package main
 
 import (
-	"bufio"
-	"bytes"
 	"fmt"
 	"io"
-	"io/ioutil"
 	"os"
 	"path/filepath"
-	"strings"
 
 	"github.com/snapcore/snapd/boot"
 	"github.com/snapcore/snapd/bootloader"
@@ -35,7 +31,6 @@ import (
 	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/seed"
 	"github.com/snapcore/snapd/snap"
-	"github.com/snapcore/snapd/strutil"
 	"github.com/snapcore/snapd/timings"
 )
 
@@ -59,9 +54,6 @@ func (c *cmdInitramfsMounts) Execute(args []string) error {
 }
 
 var (
-	// the kernel commandline - can be overridden in tests
-	procCmdline = "/proc/cmdline"
-
 	// Stdout - can be overridden in tests
 	stdout io.Writer = os.Stdout
 )
@@ -275,43 +267,8 @@ func generateMountsModeRun() error {
 	return nil
 }
 
-var validModes = []string{"install", "recover", "run"}
-
-func whichModeAndRecoverSystem(cmdline []byte) (mode string, sysLabel string, err error) {
-	scanner := bufio.NewScanner(bytes.NewBuffer(cmdline))
-	scanner.Split(bufio.ScanWords)
-	for scanner.Scan() {
-		if strings.HasPrefix(scanner.Text(), "snapd_recovery_mode=") {
-			mode = strings.SplitN(scanner.Text(), "=", 2)[1]
-			if mode == "" {
-				mode = "install"
-			}
-			if !strutil.ListContains(validModes, mode) {
-				return "", "", fmt.Errorf("cannot use unknown mode %q", mode)
-			}
-			if mode == "run" {
-				return "run", "", nil
-			}
-		}
-		if strings.HasPrefix(scanner.Text(), "snapd_recovery_system=") {
-			sysLabel = strings.SplitN(scanner.Text(), "=", 2)[1]
-		}
-		if mode != "" && sysLabel != "" {
-			return mode, sysLabel, nil
-		}
-	}
-	if err := scanner.Err(); err != nil {
-		return "", "", err
-	}
-	return "", "", fmt.Errorf("cannot detect mode nor recovery system to use")
-}
-
 func generateInitramfsMounts() error {
-	cmdline, err := ioutil.ReadFile(procCmdline)
-	if err != nil {
-		return err
-	}
-	mode, recoverySystem, err := whichModeAndRecoverSystem(cmdline)
+	mode, recoverySystem, err := boot.ModeAndRecoverySystemFromKernelCommandLine()
 	if err != nil {
 		return err
 	}
