@@ -867,7 +867,10 @@ func (m *SnapManager) doUnlinkCurrentSnap(t *state.Task, _ *tomb.Tomb) error {
 	snapst.Active = false
 
 	// do the final unlink
-	err = m.backend.UnlinkSnap(oldInfo, false, NewTaskProgressAdapterLocked(t))
+	linkCtx := backend.LinkContext{
+		FirstInstall: false,
+	}
+	err = m.backend.UnlinkSnap(oldInfo, linkCtx, NewTaskProgressAdapterLocked(t))
 	if err != nil {
 		return err
 	}
@@ -910,7 +913,10 @@ func (m *SnapManager) undoUnlinkCurrentSnap(t *state.Task, _ *tomb.Tomb) error {
 	}
 
 	snapst.Active = true
-	reboot, err := m.backend.LinkSnap(oldInfo, deviceCtx, svcsToDisable, perfTimings)
+	linkCtx := backend.LinkContext{
+		PrevDisabledServices: svcsToDisable,
+	}
+	reboot, err := m.backend.LinkSnap(oldInfo, deviceCtx, linkCtx, perfTimings)
 	if err != nil {
 		return err
 	}
@@ -1195,7 +1201,11 @@ func (m *SnapManager) doLinkSnap(t *state.Task, _ *tomb.Tomb) (err error) {
 		return err
 	}
 
-	reboot, err := m.backend.LinkSnap(newInfo, deviceCtx, svcsToDisable, perfTimings)
+	linkCtx := backend.LinkContext{
+		FirstInstall:         oldCurrent.Unset(),
+		PrevDisabledServices: svcsToDisable,
+	}
+	reboot, err := m.backend.LinkSnap(newInfo, deviceCtx, linkCtx, perfTimings)
 	// defer a cleanup helper which will unlink the snap if anything fails after
 	// this point
 	defer func() {
@@ -1205,8 +1215,7 @@ func (m *SnapManager) doLinkSnap(t *state.Task, _ *tomb.Tomb) (err error) {
 		// err is not nil, we need to try and unlink the snap to cleanup after
 		// ourselves
 		var unlinkErr error
-		isFirstInstall := oldCurrent.Unset()
-		unlinkErr = m.backend.UnlinkSnap(newInfo, isFirstInstall, pb)
+		unlinkErr = m.backend.UnlinkSnap(newInfo, linkCtx, pb)
 		if unlinkErr != nil {
 			t.Errorf("cannot cleanup failed attempt at making snap %q available to the system: %v", snapsup.InstanceName(), unlinkErr)
 		}
@@ -1594,8 +1603,10 @@ func (m *SnapManager) undoLinkSnap(t *state.Task, _ *tomb.Tomb) error {
 	}
 
 	pb := NewTaskProgressAdapterLocked(t)
-	isFirstInstall := oldCurrent.Unset()
-	err = m.backend.UnlinkSnap(newInfo, isFirstInstall, pb)
+	linkCtx := backend.LinkContext{
+		FirstInstall: oldCurrent.Unset(),
+	}
+	err = m.backend.UnlinkSnap(newInfo, linkCtx, pb)
 	if err != nil {
 		return err
 	}
@@ -1813,7 +1824,10 @@ func (m *SnapManager) doUnlinkSnap(t *state.Task, _ *tomb.Tomb) error {
 	}
 
 	// do the final unlink
-	err = m.backend.UnlinkSnap(info, false, NewTaskProgressAdapterLocked(t))
+	linkCtx := backend.LinkContext{
+		FirstInstall: false,
+	}
+	err = m.backend.UnlinkSnap(info, linkCtx, NewTaskProgressAdapterLocked(t))
 	if err != nil {
 		return err
 	}

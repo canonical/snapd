@@ -808,7 +808,7 @@ func (f *fakeSnappyBackend) CopySnapData(newInfo, oldInfo *snap.Info, p progress
 	return nil
 }
 
-func (f *fakeSnappyBackend) LinkSnap(info *snap.Info, dev boot.Device, disabledSvcs []string, tm timings.Measurer) (rebootRequired bool, err error) {
+func (f *fakeSnappyBackend) LinkSnap(info *snap.Info, dev boot.Device, linkCtx backend.LinkContext, tm timings.Measurer) (rebootRequired bool, err error) {
 	if info.MountDir() == f.linkSnapWaitTrigger {
 		f.linkSnapWaitCh <- 1
 		<-f.linkSnapWaitCh
@@ -820,8 +820,8 @@ func (f *fakeSnappyBackend) LinkSnap(info *snap.Info, dev boot.Device, disabledS
 	}
 
 	// only add the services to the op if there's something to add
-	if len(disabledSvcs) != 0 {
-		op.disabledServices = disabledSvcs
+	if len(linkCtx.PrevDisabledServices) != 0 {
+		op.disabledServices = linkCtx.PrevDisabledServices
 	}
 
 	if info.MountDir() == f.linkSnapFailTrigger {
@@ -914,13 +914,13 @@ func (f *fakeSnappyBackend) UndoCopySnapData(newInfo *snap.Info, oldInfo *snap.I
 	return nil
 }
 
-func (f *fakeSnappyBackend) UnlinkSnap(info *snap.Info, firstInstallUndo bool, meter progress.Meter) error {
+func (f *fakeSnappyBackend) UnlinkSnap(info *snap.Info, linkCtx backend.LinkContext, meter progress.Meter) error {
 	meter.Notify("unlink")
 	f.appendOp(&fakeOp{
 		op:   "unlink-snap",
 		path: info.MountDir(),
 
-		unlinkFirstInstallUndo: firstInstallUndo,
+		unlinkFirstInstallUndo: linkCtx.FirstInstall,
 	})
 	return nil
 }

@@ -21,7 +21,6 @@ package backend
 
 import (
 	"fmt"
-	"io"
 	"os"
 	"path/filepath"
 
@@ -33,17 +32,15 @@ import (
 	"github.com/snapcore/snapd/wrappers"
 )
 
-func isSnapFirstInstall(info *snap.Info) (bool, error) {
-	d, err := os.Open(filepath.Join(info.MountDir(), ".."))
-	if err != nil {
-		return false, err
-	}
-	entries, err := d.Readdirnames(2)
-	if err != nil && err != io.EOF {
-		return false, err
-	}
-
-	return len(entries) == 1 && entries[0] == info.Revision.String(), nil
+// LinkContext carries additional information about the current or the previous
+// state of the snap
+type LinkContext struct {
+	// FirstInstall indicates whether this is the first time given snap is
+	// installed
+	FirstInstall bool
+	// PrevDisabledServices is a list snap services that were manually
+	// disable in the previous revisions of this snap
+	PrevDisabledServices []string
 }
 
 func updateCurrentSymlinks(info *snap.Info) (e error) {
@@ -91,17 +88,14 @@ func hasFontConfigCache(info *snap.Info) bool {
 }
 
 // LinkSnap makes the snap available by generating wrappers and setting the current symlinks.
-func (b Backend) LinkSnap(info *snap.Info, dev boot.Device, prevDisabledSvcs []string, tm timings.Measurer) (rebootRequired bool, e error) {
+func (b Backend) LinkSnap(info *snap.Info, dev boot.Device, linkCtx LinkContext, tm timings.Measurer) (rebootRequired bool, e error) {
 	if info.Revision.Unset() {
 		return false, fmt.Errorf("cannot link snap %q with unset revision", info.InstanceName())
 	}
 
-	isFirstInstall, err := isSnapFirstInstall(info)
-	if err != nil {
-		return false, fmt.Errorf("cannot list existing snap revisions: %v", err)
-	}
+	var err error
 	timings.Run(tm, "generate-wrappers", fmt.Sprintf("generate wrappers for snap %s", info.InstanceName()), func(timings.Measurer) {
-		err = generateWrappers(info, prevDisabledSvcs)
+		err = generateWrappers(info, linkCtx.PrevDisabledServices)
 	})
 	if err != nil {
 		return false, err
@@ -111,7 +105,7 @@ func (b Backend) LinkSnap(info *snap.Info, dev boot.Device, prevDisabledSvcs []s
 			return
 		}
 		timings.Run(tm, "remove-wrappers", fmt.Sprintf("remove wrappers of snap %s", info.InstanceName()), func(timings.Measurer) {
-			removeGeneratedWrappers(info, isFirstInstall, progress.Null)
+			removeGeneratedWrappers(info, linkCtx.FirstInstall, progress.Null)
 		})
 	}()
 
@@ -251,9 +245,9 @@ func removeGeneratedSnapdWrappers(s *snap.Info, firstInstall bool, meter progres
 // UnlinkSnap makes the snap unavailable to the system removing wrappers and
 // symlinks. The firstInstallUndo is true when undoing the first installation of
 // the snap.
-func (b Backend) UnlinkSnap(info *snap.Info, isFirstInstall bool, meter progress.Meter) error {
+func (b Backend) UnlinkSnap(info *snap.Info, linkCtx LinkContext, meter progress.Meter) error {
 	// remove generated services, binaries etc
-	err1 := removeGeneratedWrappers(info, isFirstInstall, meter)
+	err1 := removeGeneratedWrappers(info, linkCtx.FirstInstall, meter)
 
 	// and finally remove current symlinks
 	err2 := removeCurrentSymlinks(info)
