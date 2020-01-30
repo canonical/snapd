@@ -63,13 +63,13 @@ func (s *coreBootSetSuite) SetUpTest(c *C) {
 
 func (s *coreBootSetSuite) TestExtractKernelAssetsError(c *C) {
 	bootloader.ForceError(errors.New("brkn"))
-	err := boot.NewCoreKernel(&snap.Info{}).ExtractKernelAssets(nil)
+	err := boot.NewCoreKernel(&snap.Info{}, boottest.MockDevice("")).ExtractKernelAssets(nil)
 	c.Check(err, ErrorMatches, `cannot extract kernel assets: brkn`)
 }
 
 func (s *coreBootSetSuite) TestRemoveKernelAssetsError(c *C) {
 	bootloader.ForceError(errors.New("brkn"))
-	err := boot.NewCoreKernel(&snap.Info{}).RemoveKernelAssets()
+	err := boot.NewCoreKernel(&snap.Info{}, boottest.MockDevice("")).RemoveKernelAssets()
 	c.Check(err, ErrorMatches, `cannot remove kernel assets: brkn`)
 }
 
@@ -265,7 +265,7 @@ func (s *ubootBootSetSuite) TestExtractKernelAssetsAndRemoveOnUboot(c *C) {
 	info, err := snap.ReadInfoFromSnapFile(snapf, si)
 	c.Assert(err, IsNil)
 
-	bp := boot.NewCoreKernel(info)
+	bp := boot.NewCoreKernel(info, boottest.MockDevice(""))
 	err = bp.ExtractKernelAssets(snapf)
 	c.Assert(err, IsNil)
 
@@ -347,7 +347,7 @@ func (s *grubBootSetSuite) TestExtractKernelAssetsNoUnpacksKernelForGrub(c *C) {
 	info, err := snap.ReadInfoFromSnapFile(snapf, si)
 	c.Assert(err, IsNil)
 
-	bp := boot.NewCoreKernel(info)
+	bp := boot.NewCoreKernel(info, boottest.MockDevice(""))
 	err = bp.ExtractKernelAssets(snapf)
 	c.Assert(err, IsNil)
 
@@ -378,7 +378,7 @@ func (s *grubBootSetSuite) TestExtractKernelForceWorks(c *C) {
 	info, err := snap.ReadInfoFromSnapFile(snapf, si)
 	c.Assert(err, IsNil)
 
-	bp := boot.NewCoreKernel(info)
+	bp := boot.NewCoreKernel(info, boottest.MockDevice(""))
 	err = bp.ExtractKernelAssets(snapf)
 	c.Assert(err, IsNil)
 

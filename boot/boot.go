@@ -23,6 +23,7 @@ import (
 	"errors"
 	"fmt"
 
+	"github.com/snapcore/snapd/bootloader"
 	"github.com/snapcore/snapd/snap"
 )
 
@@ -96,12 +97,21 @@ func Participant(s snap.PlaceInfo, t snap.Type, dev Device) BootParticipant {
 	return trivial{}
 }
 
+// bootloaderOptionsForDeviceKernel returns a set of bootloader options that
+// enable correct kernel extraction and removal for given device
+func bootloaderOptionsForDeviceKernel(dev Device) *bootloader.Options {
+	return &bootloader.Options{
+		// unified extractable kernel if in uc20 mode
+		ExtractedRunKernelImage: dev.HasModeenv(),
+	}
+}
+
 // Kernel checks that the given arguments refer to a kernel snap
 // that participates in the boot process, and returns the associated
 // BootKernel, or a trivial implementation otherwise.
 func Kernel(s snap.PlaceInfo, t snap.Type, dev Device) BootKernel {
 	if t == snap.TypeKernel && applicable(s, t, dev) {
-		return &coreKernel{s: s}
+		return &coreKernel{s: s, bopts: bootloaderOptionsForDeviceKernel(dev)}
 	}
 	return trivial{}
 }
