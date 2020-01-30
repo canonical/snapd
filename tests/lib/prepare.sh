@@ -390,7 +390,7 @@ if [ -e /root/spread-setup-done ]; then
 fi
 
 # extract data from previous stage
-(cd / && tar xvf /run/mnt/ubuntu-seed/run-mode-overlay-data.tar.gz)
+(cd / && tar xf /run/mnt/ubuntu-seed/run-mode-overlay-data.tar.gz)
 
 # user db - it's complicated
 for f in group gshadow passwd shadow; do
