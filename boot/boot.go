@@ -175,11 +175,15 @@ func bootStateFor(typ snap.Type, dev Device) (s bootState, err error) {
 	if !dev.RunMode() {
 		return nil, fmt.Errorf("internal error: no boot state handling for ephemeral modes")
 	}
+	newBootState := newBootState16
+	if dev.HasModeenv() {
+		newBootState = newBootState20
+	}
 	switch typ {
 	case snap.TypeOS, snap.TypeBase:
-		return newBootState16(snap.TypeBase), nil
+		return newBootState(snap.TypeBase), nil
 	case snap.TypeKernel:
-		return newBootState16(snap.TypeKernel), nil
+		return newBootState(snap.TypeKernel), nil
 	default:
 		return nil, fmt.Errorf("internal error: no boot state handling for snap type %q", typ)
 	}
