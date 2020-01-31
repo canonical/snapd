@@ -211,7 +211,6 @@ func makeBootable20RunMode(model *asserts.Model, rootdir string, bootWith *Boota
 		Mode:           "run",
 		RecoverySystem: filepath.Base(bootWith.RecoverySystemDir),
 		Base:           filepath.Base(bootWith.BasePath),
-		Kernel:         filepath.Base(bootWith.KernelPath),
 	}
 	if err := modeenv.Write(filepath.Join(runMnt, "ubuntu-data", "system-data")); err != nil {
 		return fmt.Errorf("cannot write modeenv: %v", err)
