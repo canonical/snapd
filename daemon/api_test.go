@@ -7438,7 +7438,7 @@ func (s *apiSuite) TestErrToResponse(c *check.C) {
 	}}
 	saOe := &store.SnapActionError{Other: []error{e}}
 	// this one can't happen (but fun to test):
-	saXe := &store.SnapActionError{Refresh: map[string]error{"foo": s1e}}
+	saXe := &store.SnapActionError{Refresh: map[string]error{"foo": sa1e}}
 
 	makeErrorRsp := func(kind errorKind, err error, value interface{}) Response {
 		return SyncResponse(&resp{
