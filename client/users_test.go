@@ -101,6 +101,7 @@ var createUsersTests = []struct {
 	error     string
 }{{
 	// nothing in -> nothing out
+	options: nil,
 }, {
 	options: []*client.CreateUserOptions{nil},
 	error:   "cannot create user from store details without an email to query for",
