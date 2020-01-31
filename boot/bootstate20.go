@@ -67,7 +67,7 @@ func newBootState20(typ snap.Type) bootState {
 	case snap.TypeBase:
 		return &bootState20Base{}
 	default:
-		panic(fmt.Sprintf("cannot make a bootState for snap type %q", typ))
+		panic(fmt.Sprintf("cannot make a bootState20 for snap type %q", typ))
 	}
 }
 

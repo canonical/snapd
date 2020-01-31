@@ -32,7 +32,7 @@ type bootState16 struct {
 	errName   string
 }
 
-func newBootState16(typ snap.Type) *bootState16 {
+func newBootState16(typ snap.Type) bootState {
 	var varSuffix, errName string
 	switch typ {
 	case snap.TypeKernel:
