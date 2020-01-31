@@ -1002,7 +1002,6 @@ func (s *apiSuite) TestRootCmd(c *check.C) {
 	// check it only does GET
 	c.Check(rootCmd.PUT, check.IsNil)
 	c.Check(rootCmd.POST, check.IsNil)
-	c.Check(rootCmd.DELETE, check.IsNil)
 	c.Assert(rootCmd.GET, check.NotNil)
 
 	rec := httptest.NewRecorder()
@@ -1029,7 +1028,6 @@ func (s *apiSuite) TestSysInfo(c *check.C) {
 	// check it only does GET
 	c.Check(sysInfoCmd.PUT, check.IsNil)
 	c.Check(sysInfoCmd.POST, check.IsNil)
-	c.Check(sysInfoCmd.DELETE, check.IsNil)
 	c.Assert(sysInfoCmd.GET, check.NotNil)
 
 	rec := httptest.NewRecorder()
