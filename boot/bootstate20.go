@@ -238,8 +238,7 @@ func (u20 *bootStateUpdate20) commit() error {
 	}
 
 	// make a copy of the env map, because we specifically need to check
-	// later on what the original value of kernel_status was that we entered in
-	// with was
+	// later on the original value of kernel_status that we entered in with
 	envCopy := make(map[string]string, len(u20.env))
 	for k, v := range u20.env {
 		envCopy[k] = v
