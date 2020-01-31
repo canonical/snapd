@@ -46,7 +46,9 @@ func (cs *clientSuite) TestClientRemoveUser(c *C) {
 }
 
 func (cs *clientSuite) TestClientRemoveUserError(c *C) {
-	err := cs.cli.RemoveUser(&client.RemoveUserOptions{})
+	err := cs.cli.RemoveUser(nil)
+	c.Assert(err, ErrorMatches, "cannot remove a user without providing a username")
+	err = cs.cli.RemoveUser(&client.RemoveUserOptions{})
 	c.Assert(err, ErrorMatches, "cannot remove a user without providing a username")
 
 	cs.rsp = `{
@@ -64,7 +66,9 @@ func (cs *clientSuite) TestClientRemoveUserError(c *C) {
 }
 
 func (cs *clientSuite) TestClientCreateUser(c *C) {
-	_, err := cs.cli.CreateUser(&client.CreateUserOptions{})
+	_, err := cs.cli.CreateUser(nil)
+	c.Assert(err, ErrorMatches, "cannot create a user without providing an email")
+	_, err = cs.cli.CreateUser(&client.CreateUserOptions{})
 	c.Assert(err, ErrorMatches, "cannot create a user without providing an email")
 
 	cs.rsp = `{
@@ -96,6 +100,11 @@ var createUsersTests = []struct {
 	results   []*client.CreateUserResult
 	error     string
 }{{
+	// nothing in -> nothing out
+}, {
+	options: []*client.CreateUserOptions{nil},
+	error:   "cannot create user from store details without an email to query for",
+}, {
 	options: []*client.CreateUserOptions{{}},
 	error:   "cannot create user from store details without an email to query for",
 }, {

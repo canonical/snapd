@@ -48,9 +48,8 @@ type CreateUserOptions struct {
 }
 
 // RemoveUserOptions holds options for removing a local system user.
-//
-// Username indicates which user to remove.
 type RemoveUserOptions struct {
+	// Username indicates which user to remove.
 	Username string `json:"username,omitempty"`
 }
 
@@ -73,7 +72,7 @@ func (client *Client) doUserAction(act *userAction) ([]*CreateUserResult, error)
 
 // CreateUser creates a local system user. See CreateUserOptions for details.
 func (client *Client) CreateUser(options *CreateUserOptions) (*CreateUserResult, error) {
-	if options.Email == "" {
+	if options == nil || options.Email == "" {
 		return nil, fmt.Errorf("cannot create a user without providing an email")
 	}
 
@@ -89,7 +88,7 @@ func (client *Client) CreateUser(options *CreateUserOptions) (*CreateUserResult,
 // Results may be provided even if there are errors.
 func (client *Client) CreateUsers(options []*CreateUserOptions) ([]*CreateUserResult, error) {
 	for _, opts := range options {
-		if opts.Email == "" && !opts.Known {
+		if opts == nil || opts.Email == "" && !opts.Known {
 			return nil, fmt.Errorf("cannot create user from store details without an email to query for")
 		}
 	}
@@ -106,7 +105,7 @@ func (client *Client) CreateUsers(options []*CreateUserOptions) ([]*CreateUserRe
 	}
 
 	if len(errs) == 1 {
-		return results, fmt.Errorf("while creating user: %v", errs[0])
+		return results, errs[0]
 	}
 	if len(errs) > 1 {
 		var buf bytes.Buffer
