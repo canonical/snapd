@@ -177,7 +177,7 @@ func bootStateFor(typ snap.Type, dev Device) (s bootState, err error) {
 	}
 	newBootState := newBootState16
 	if dev.HasModeenv() {
-		newBootState = newBootState20
+		newBootState = newBootState20Generic
 	}
 	switch typ {
 	case snap.TypeOS, snap.TypeBase:

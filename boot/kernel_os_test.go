@@ -303,7 +303,8 @@ func (s *coreBootSetSuite) TestSetNextBoot20ForKernelForTheSameKernelTryMode(c *
 	defer r()
 
 	bootVars := map[string]string{
-		"kernel_status": "try"}
+		"kernel_status": "try",
+	}
 	s.bootloader.SetBootVars(bootVars)
 
 	bs := boot.NewCoreBootParticipant(kernel1, snap.TypeKernel, coreDev)

@@ -21,6 +21,7 @@ package boot_test
 
 import (
 	"errors"
+	"os"
 	"path/filepath"
 	"testing"
 
@@ -475,6 +476,78 @@ func (s *bootSetSuite) TestCoreParticipant20SetNextNewKernelSnap(c *C) {
 	c.Assert(actual, DeepEquals, []snap.PlaceInfo{kernel2})
 }
 
+func (s *bootSetSuite) TestCoreParticipant20SetNextSameBaseSnap(c *C) {
+	coreDev := boottest.MockUC20Device("core20")
+	c.Assert(coreDev.HasModeenv(), Equals, true)
+
+	// make a new base snap
+	base, err := snap.ParsePlaceInfoFromSnapFileName("core20_1.snap")
+	c.Assert(err, IsNil)
+
+	// default state
+	m := &boot.Modeenv{
+		Base:       "core20_1.snap",
+		BaseStatus: "",
+	}
+	err = m.Write("")
+	c.Assert(err, IsNil)
+	defer os.Remove(dirs.SnapModeenvFileUnder(dirs.GlobalRootDir))
+
+	// get the boot base participant from our base snap
+	bootBase := boot.Participant(base, snap.TypeBase, coreDev)
+	// make sure it's not a trivial boot participant
+	c.Assert(bootBase.IsTrivial(), Equals, false)
+
+	// make the base used on next boot
+	rebootRequired, err := bootBase.SetNextBoot()
+	c.Assert(err, IsNil)
+
+	// we don't need to reboot because it's the same base snap
+	c.Assert(rebootRequired, Equals, false)
+
+	// make sure the modeenv wasn't changed
+	m2, err := boot.ReadModeenv("")
+	c.Assert(err, IsNil)
+	c.Assert(m2.Base, Equals, m.Base)
+	c.Assert(m2.BaseStatus, Equals, "")
+	c.Assert(m2.TryBase, Equals, "")
+}
+
+func (s *bootSetSuite) TestCoreParticipant20SetNextNewBaseSnap(c *C) {
+	coreDev := boottest.MockUC20Device("core20")
+	c.Assert(coreDev.HasModeenv(), Equals, true)
+
+	// make a new base snap to update to
+	base2, err := snap.ParsePlaceInfoFromSnapFileName("core20_2.snap")
+	c.Assert(err, IsNil)
+
+	// default state
+	m := &boot.Modeenv{
+		Base:       "core20_1.snap",
+		BaseStatus: "",
+	}
+	err = m.Write("")
+	c.Assert(err, IsNil)
+	defer os.Remove(dirs.SnapModeenvFileUnder(dirs.GlobalRootDir))
+
+	// get the boot base participant from our new base snap
+	bootBase := boot.Participant(base2, snap.TypeBase, coreDev)
+	// make sure it's not a trivial boot participant
+	c.Assert(bootBase.IsTrivial(), Equals, false)
+
+	// make the base used on next boot
+	rebootRequired, err := bootBase.SetNextBoot()
+	c.Assert(err, IsNil)
+	c.Assert(rebootRequired, Equals, true)
+
+	// make sure the modeenv was updated
+	m2, err := boot.ReadModeenv("")
+	c.Assert(err, IsNil)
+	c.Assert(m2.Base, Equals, m.Base)
+	c.Assert(m2.BaseStatus, Equals, "try")
+	c.Assert(m2.TryBase, Equals, "core20_2.snap")
+}
+
 func (s *bootSetSuite) TestMarkBootSuccessfulAllSnap(c *C) {
 	coreDev := boottest.MockDevice("some-snap")
 
@@ -502,11 +575,18 @@ func (s *bootSetSuite) TestMarkBootSuccessfulAllSnap(c *C) {
 }
 
 func (s *bootSetSuite) TestMarkBootSuccessful20AllSnap(c *C) {
-	// TODO:UC20: also check the modeenv was updated properly with the new
-	// base_status and try_base unset, and base set to something
-
 	coreDev := boottest.MockUC20Device("some-snap")
 	c.Assert(coreDev.HasModeenv(), Equals, true)
+
+	// we were trying a base snap
+	m := &boot.Modeenv{
+		Base:       "core20_1.snap",
+		TryBase:    "core20_2.snap",
+		BaseStatus: "trying",
+	}
+	err := m.Write("")
+	c.Assert(err, IsNil)
+	defer os.Remove(dirs.SnapModeenvFileUnder(dirs.GlobalRootDir))
 
 	// set the current try kernel
 	kernel2, err := snap.ParsePlaceInfoFromSnapFileName("pc-kernel_2.snap")
@@ -533,6 +613,13 @@ func (s *bootSetSuite) TestMarkBootSuccessful20AllSnap(c *C) {
 	// and that we disabled a try kernel
 	_, nDisableTryCalls := s.bootloader.GetRunKernelImageFunctionSnapCalls("DisableTryKernel")
 	c.Assert(nDisableTryCalls, Equals, 1)
+
+	// also check that the modeenv was updated
+	m2, err := boot.ReadModeenv("")
+	c.Assert(err, IsNil)
+	c.Assert(m2.Base, Equals, "core20_2.snap")
+	c.Assert(m2.TryBase, Equals, "")
+	c.Assert(m2.BaseStatus, Equals, "")
 
 	// do it again, verify its still valid
 	err = boot.MarkBootSuccessful(coreDev)
@@ -561,6 +648,7 @@ func (s *bootSetSuite) TestMarkBootSuccessfulKernelUpdate(c *C) {
 		"snap_kernel": "k2",
 	})
 }
+
 func (s *bootSetSuite) TestMarkBootSuccessfulBaseUpdate(c *C) {
 	coreDev := boottest.MockDevice("some-snap")
 
@@ -584,6 +672,12 @@ func (s *bootSetSuite) TestMarkBootSuccessfulBaseUpdate(c *C) {
 }
 
 func (s *bootSetSuite) TestMarkBootSuccessful20KernelUpdate(c *C) {
+	r := boottest.ForceModeenv(dirs.GlobalRootDir, &boot.Modeenv{
+		Mode:           "run",
+		RecoverySystem: "20191018",
+		Base:           "core20_1.snap",
+	})
+	defer r()
 
 	coreDev := boottest.MockUC20Device("some-snap")
 	c.Assert(coreDev.HasModeenv(), Equals, true)
@@ -594,7 +688,7 @@ func (s *bootSetSuite) TestMarkBootSuccessful20KernelUpdate(c *C) {
 	// set the current Kernel
 	kernel1, err := snap.ParsePlaceInfoFromSnapFileName("pc-kernel_1.snap")
 	c.Assert(err, IsNil)
-	r := s.bootloader.SetRunKernelImageEnabledKernel(kernel1)
+	r = s.bootloader.SetRunKernelImageEnabledKernel(kernel1)
 	defer r()
 
 	// set the current try kernel
@@ -630,4 +724,41 @@ func (s *bootSetSuite) TestMarkBootSuccessful20KernelUpdate(c *C) {
 
 	_, nDisableTryCalls = s.bootloader.GetRunKernelImageFunctionSnapCalls("DisableTryKernel")
 	c.Assert(nDisableTryCalls, Equals, 1)
+}
+
+func (s *bootSetSuite) TestMarkBootSuccessful20BaseUpdate(c *C) {
+	// we were trying a base snap
+	m := &boot.Modeenv{
+		Base:       "core20_1.snap",
+		TryBase:    "core20_2.snap",
+		BaseStatus: "trying",
+	}
+	err := m.Write("")
+	c.Assert(err, IsNil)
+	defer os.Remove(dirs.SnapModeenvFileUnder(dirs.GlobalRootDir))
+
+	coreDev := boottest.MockUC20Device("some-snap")
+	c.Assert(coreDev.HasModeenv(), Equals, true)
+
+	// mark successful
+	err = boot.MarkBootSuccessful(coreDev)
+	c.Assert(err, IsNil)
+
+	// check the modeenv
+	m2, err := boot.ReadModeenv("")
+	c.Assert(err, IsNil)
+	c.Assert(m2.Base, Equals, "core20_2.snap")
+	c.Assert(m2.TryBase, Equals, "")
+	c.Assert(m2.BaseStatus, Equals, "")
+
+	// do it again, verify its still valid
+	err = boot.MarkBootSuccessful(coreDev)
+	c.Assert(err, IsNil)
+
+	// check the modeenv again
+	m3, err := boot.ReadModeenv("")
+	c.Assert(err, IsNil)
+	c.Assert(m3.Base, Equals, "core20_2.snap")
+	c.Assert(m3.TryBase, Equals, "")
+	c.Assert(m3.BaseStatus, Equals, "")
 }
