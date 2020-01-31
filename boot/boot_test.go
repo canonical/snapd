@@ -398,7 +398,7 @@ func (s *bootSetSuite) TestCoreKernel20(c *C) {
 	err = bootKern.RemoveKernelAssets()
 	c.Assert(err, IsNil)
 
-	// make sure that the bootloader was told to extract some assets
+	// make sure that the bootloader was told to remove assets
 	c.Assert(s.bootloader.RemoveKernelAssetsCalls, DeepEquals, []snap.PlaceInfo{kernel})
 }
 
@@ -417,11 +417,10 @@ func (s *bootSetSuite) TestCoreParticipant20SetNextSameKernelSnap(c *C) {
 
 	// get the boot kernel participant from our kernel snap
 	bootKern := boot.Participant(kernel, snap.TypeKernel, coreDev)
-	// can't use FitsTypeOf with coreKernel here, cause that causes an import
-	// loop as boottest imports boot and coreKernel is unexported
+	// make sure it's not a trivial boot participant
 	c.Assert(bootKern.IsTrivial(), Equals, false)
 
-	// extract the kernel assets from the coreKernel
+	// make the kernel used on next boot
 	rebootRequired, err := bootKern.SetNextBoot()
 	c.Assert(err, IsNil)
 	c.Assert(rebootRequired, Equals, false)
@@ -432,6 +431,10 @@ func (s *bootSetSuite) TestCoreParticipant20SetNextSameKernelSnap(c *C) {
 
 	// ensure that kernel_status is still empty
 	c.Assert(s.bootloader.BootVars["kernel_status"], Equals, "")
+
+	// there was no attempt to enable a kernel
+	_, enableKernelCalls := s.bootloader.GetRunKernelImageFunctionSnapCalls("EnableTryKernel")
+	c.Assert(enableKernelCalls, Equals, 0)
 }
 
 func (s *bootSetSuite) TestCoreParticipant20SetNextNewKernelSnap(c *C) {
@@ -453,11 +456,10 @@ func (s *bootSetSuite) TestCoreParticipant20SetNextNewKernelSnap(c *C) {
 
 	// get the boot kernel participant from our new kernel snap
 	bootKern := boot.Participant(kernel2, snap.TypeKernel, coreDev)
-	// can't use FitsTypeOf with coreKernel here, cause that causes an import
-	// loop as boottest imports boot and coreKernel is unexported
+	// make sure it's not a trivial boot participant
 	c.Assert(bootKern.IsTrivial(), Equals, false)
 
-	// extract the kernel assets from the coreKernel
+	// make the kernel used on next boot
 	rebootRequired, err := bootKern.SetNextBoot()
 	c.Assert(err, IsNil)
 	c.Assert(rebootRequired, Equals, true)
