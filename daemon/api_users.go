@@ -499,8 +499,10 @@ type postUserCreateData struct {
 	Known        bool   `json:"known"`
 	ForceManaged bool   `json:"force-managed"`
 
-	// indicates whether to preserve backwards compatibility,
-	// which results in more clunky return values; not from JSON.
+	// singleUserResultCompat indicates whether to preserve
+	// backwards compatibility, which results in more clunky
+	// return values (userResponseData OR [userResponseData] vs now
+	// uniform [userResponseData]); internal, not from JSON.
 	singleUserResultCompat bool
 }
 
