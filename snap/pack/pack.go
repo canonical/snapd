@@ -181,7 +181,14 @@ func excludesFile() (filename string, err error) {
 }
 
 type Options struct {
-	TargetDir, SnapName, Compression string
+	// TargetDir is the direction where the snap file will be placed, or empty
+	// to use the current directory
+	TargetDir string
+	// SnapName is the name of the snap file, or empty to use the default name
+	// which is <snapname>_<version>_<architecture>.snap
+	SnapName
+	// Compression method to use
+	Compression string
 }
 
 // Snap the given sourceDirectory and return the generated
