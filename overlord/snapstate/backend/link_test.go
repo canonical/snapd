@@ -153,8 +153,6 @@ func (s *linkSuite) TestLinkDoUndoCurrentSymlink(c *C) {
 	const yaml = `name: hello
 version: 1.0
 `
-	const contents = ""
-
 	info := snaptest.MockSnap(c, yaml, &snap.SideInfo{Revision: snap.R(11)})
 
 	reboot, err := s.be.LinkSnap(info, mockDev, backend.LinkContext{}, s.perfTimings)
@@ -216,8 +214,6 @@ apps:
    command: svc
    daemon: simple
 `
-	const contents = ""
-
 	info := snaptest.MockSnap(c, yaml, &snap.SideInfo{Revision: snap.R(11)})
 
 	_, err := s.be.LinkSnap(info, mockDev, backend.LinkContext{}, s.perfTimings)
@@ -258,8 +254,6 @@ apps:
    command: svc
    daemon: simple
 `
-	const contents = ""
-
 	info := snaptest.MockSnap(c, yaml, &snap.SideInfo{Revision: snap.R(11)})
 
 	_, err := s.be.LinkSnap(info, mockDev, backend.LinkContext{}, s.perfTimings)
