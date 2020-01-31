@@ -143,7 +143,7 @@ func generateMountsModeInstall(recoverySystem string) error {
 		return err
 	}
 	if !isMounted {
-		// XXX: is there a better way?
+		// TODO:UC20: is there a better way?
 		fmt.Fprintf(stdout, "--type=tmpfs tmpfs /run/mnt/ubuntu-data\n")
 		return nil
 	}
