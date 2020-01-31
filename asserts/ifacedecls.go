@@ -328,7 +328,6 @@ func (ac *AttributeConstraints) feature(flabel string) bool {
 // compileAttributeConstraints checks and compiles a mapping or list
 // from the assertion format into AttributeConstraints.
 func compileAttributeConstraints(constraints interface{}) (*AttributeConstraints, error) {
-
 	matcher, err := compileAttrMatcher(compileContext{}, constraints)
 	if err != nil {
 		return nil, err
@@ -509,6 +508,7 @@ type nameMatcher interface {
 }
 
 var (
+	// validates special name constraints like $INTERFACE
 	validSpecialNameConstraint = regexp.MustCompile("^\\$[A-Z][A-Z0-9_]*$")
 )
 
@@ -554,12 +554,12 @@ func (matcher specialNameMatcher) match(name string, special map[string]string) 
 }
 
 // NameConstraints implements a set of constraints on the names of slots or plugs.
+// See https://forum.snapcraft.io/t/plug-slot-rules-plug-names-slot-names-constraints/12439
 type NameConstraints struct {
 	matchers []nameMatcher
 }
 
 func compileNameConstraints(whichName string, constraints interface{}) (*NameConstraints, error) {
-
 	l, ok := constraints.([]interface{})
 	if !ok {
 		return nil, fmt.Errorf("%s constraints must be a list of regexps and special $ values", whichName)
@@ -571,7 +571,6 @@ func compileNameConstraints(whichName string, constraints interface{}) (*NameCon
 			return nil, err
 		}
 		matchers = append(matchers, matcher)
-
 	}
 	return &NameConstraints{matchers: matchers}, nil
 }
