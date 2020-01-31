@@ -7431,6 +7431,15 @@ func (s *apiSuite) TestErrToResponse(c *check.C) {
 
 	e := errors.New("other error")
 
+	sa1e := &store.SnapActionError{Refresh: map[string]error{"foo": store.ErrSnapNotFound}}
+	sa2e := &store.SnapActionError{Refresh: map[string]error{
+		"foo": store.ErrSnapNotFound,
+		"bar": store.ErrSnapNotFound,
+	}}
+	saOe := &store.SnapActionError{Other: []error{e}}
+	// this one can't happen (but fun to test):
+	saXe := &store.SnapActionError{Refresh: map[string]error{"foo": s1e}}
+
 	makeErrorRsp := func(kind errorKind, err error, value interface{}) Response {
 		return SyncResponse(&resp{
 			Type:   ResponseTypeError,
@@ -7457,6 +7466,13 @@ func (s *apiSuite) TestErrToResponse(c *check.C) {
 		{netoe, BadRequest("ERR: %v", netoe)},
 		{nettmpe, BadRequest("ERR: %v", nettmpe)},
 		{e, BadRequest("ERR: %v", e)},
+
+		// action error unwrapping:
+		{sa1e, SnapNotFound("foo", store.ErrSnapNotFound)},
+		{saXe, SnapNotFound("foo", store.ErrSnapNotFound)},
+		// action errors, unwrapped:
+		{sa2e, BadRequest(`ERR: cannot refresh: snap not found: "bar", "foo"`)},
+		{saOe, BadRequest("ERR: cannot refresh, install, or download: other error")},
 	}
 
 	for _, t := range tests {
