@@ -502,6 +502,9 @@ func (s *nameConstraintsSuite) TestCompileErrors(c *C) {
 
 	_, err = asserts.CompileNameConstraints("slot-names", []interface{}{"$12"})
 	c.Check(err, ErrorMatches, `slot-names constraint entry special value "\$12" is invalid`)
+
+	_, err = asserts.CompileNameConstraints("plug-names", []interface{}{"a b"})
+	c.Check(err, ErrorMatches, `plug-names constraint entry regexp contains unexpected spaces`)
 }
 
 func (s *nameConstraintsSuite) TestCheck(c *C) {

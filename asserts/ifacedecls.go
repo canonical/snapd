@@ -26,6 +26,7 @@ import (
 	"regexp"
 	"strconv"
 	"strings"
+	"unicode"
 )
 
 // AttrMatchContext has contextual helpers for evaluating attribute constraints.
@@ -522,6 +523,9 @@ func compileNameMatcher(whichName string, v interface{}) (nameMatcher, error) {
 			return nil, fmt.Errorf("%s constraint entry special value %q is invalid", whichName, s)
 		}
 		return specialNameMatcher{special: s}, nil
+	}
+	if strings.IndexFunc(s, unicode.IsSpace) != -1 {
+		return nil, fmt.Errorf("%s constraint entry regexp contains unexpected spaces", whichName)
 	}
 	rx, err := regexp.Compile("^(" + s + ")$")
 	if err != nil {
