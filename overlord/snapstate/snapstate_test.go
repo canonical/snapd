@@ -507,7 +507,10 @@ func verifyUpdateTasks(c *C, opts, discards int, ts *state.TaskSet, st *state.St
 func verifyLastTasksetIsReRefresh(c *C, tts []*state.TaskSet) {
 	ts := tts[len(tts)-1]
 	c.Assert(ts.Tasks(), HasLen, 1)
-	c.Check(ts.Tasks()[0].Kind(), Equals, "check-rerefresh")
+	reRefresh := ts.Tasks()[0]
+	c.Check(reRefresh.Kind(), Equals, "check-rerefresh")
+	// nothing should wait on it
+	c.Check(reRefresh.NumHaltTasks(), Equals, 0)
 }
 
 func verifyRemoveTasks(c *C, ts *state.TaskSet) {
@@ -7280,7 +7283,10 @@ func (s *snapmgrTestSuite) TestUpdateOneAutoAliasesScenarios(c *C) {
 		tasks := ts.Tasks()
 		// make sure the last task from Update is the rerefresh
 		if scenario.update {
-			c.Check(tasks[len(tasks)-1].Kind(), Equals, "check-rerefresh")
+			reRefresh := tasks[len(tasks)-1]
+			c.Check(reRefresh.Kind(), Equals, "check-rerefresh")
+			// nothing should wait on it
+			c.Check(reRefresh.NumHaltTasks(), Equals, 0)
 			tasks = tasks[:len(tasks)-1] // and now forget about it
 		}
 
