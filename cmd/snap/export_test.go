@@ -322,12 +322,4 @@ func MockSignalNotify(newSignalNotify func(sig ...os.Signal) (chan os.Signal, fu
 	}
 }
 
-func MockProcCmdline(newPath string) (restore func()) {
-	old := procCmdline
-	procCmdline = newPath
-	return func() {
-		procCmdline = old
-	}
-}
-
 type ServiceName = serviceName

@@ -172,7 +172,7 @@ func checkPreseedOrder(c *C, tsAll []*state.TaskSet, snaps ...string) {
 func (s *firstbootPreseed16Suite) SetUpTest(c *C) {
 	s.TestingSeed16 = &seedtest.TestingSeed16{}
 
-	s.setupBaseTest(c, &s.TestingSeed16.SeedSnaps, false)
+	s.setupBaseTest(c, &s.TestingSeed16.SeedSnaps)
 
 	s.SeedDir = dirs.SnapSeedDir
 
@@ -196,11 +196,11 @@ func (s *firstbootPreseed16Suite) TestPreseedHappy(c *C) {
 	bloader.SetBootKernel("pc-kernel_1.snap")
 	bloader.SetBootBase("core_1.snap")
 
-	o := s.createOverlord(c)
-	st := o.State()
+	s.startOverlord(c)
+	st := s.overlord.State()
 	opts := &devicestate.PopulateStateFromSeedOptions{Preseed: true}
 	chg := s.makeSeedChange(c, st, opts, s.devAcct, checkPreseedTasks, checkPreseedOrder)
-	err := o.Settle(settleTimeout)
+	err := s.overlord.Settle(settleTimeout)
 
 	st.Lock()
 	defer st.Unlock()

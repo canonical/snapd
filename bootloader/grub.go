@@ -180,27 +180,28 @@ func (g *grub) RemoveKernelAssets(s snap.PlaceInfo) error {
 func (g *grub) makeKernelEfiSymlink(s snap.PlaceInfo, name string) error {
 	// use a relative symlink destination so that it resolves properly, if grub
 	// is located at /run/mnt/ubuntu-boot or /boot/grub, etc.
-	extractedKernel := filepath.Join(
+	target := filepath.Join(
 		filepath.Base(s.MountFile()),
 		"kernel.efi",
 	)
 
+	// the location of the destination symlink as an absolute filepath
+	source := filepath.Join(g.dir(), name)
+
 	// check that the kernel snap has been extracted already so we don't
 	// inadvertently create a dangling symlink
 	// expand the relative symlink from g.dir()
-	if !osutil.FileExists(filepath.Join(g.dir(), extractedKernel)) {
+	if !osutil.FileExists(filepath.Join(g.dir(), target)) {
 		return fmt.Errorf(
 			"cannot enable %s at %s: %v",
 			name,
-			extractedKernel,
+			target,
 			os.ErrNotExist,
 		)
 	}
 
-	return os.Symlink(
-		extractedKernel,
-		filepath.Join(g.dir(), name),
-	)
+	// the symlink doesn't exist so just create it
+	return osutil.AtomicSymlink(target, source)
 }
 
 // unlinkKernelEfiSymlink will remove the specified symlink if it exists. Note
