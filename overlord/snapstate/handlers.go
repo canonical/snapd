@@ -1621,8 +1621,8 @@ func (m *SnapManager) undoLinkSnap(t *state.Task, _ *tomb.Tomb) error {
 		if err != nil {
 			return err
 		}
-		const noReboot = false
-		maybeRestart(t, newInfo, noReboot, deviceCtx)
+		const rebootRequired = false
+		maybeRestart(t, newInfo, rebootRequired, deviceCtx)
 	}
 
 	// mark as inactive
