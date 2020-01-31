@@ -199,17 +199,54 @@ func generateMountsModeRun() error {
 	if err != nil {
 		return err
 	}
-	// 2.2 mount base
+
+	// 2.2.1 check base status and try base if we are updating the base snap
+	baseSnapPath := ""
+	switch modeEnv.BaseStatus {
+	case "try":
+		// then we are trying a base snap update and there should be a try_base
+		// set in the modeenv too
+		if modeEnv.TryBase != "" {
+			// check that the TryBase exists in ubuntu-data
+			tryBaseSnapPath := filepath.Join(dataDir, "system-data", dirs.SnapBlobDir, modeEnv.TryBase)
+			if osutil.FileExists(tryBaseSnapPath) {
+				// set the TryBase and mount it
+				// TODO:UC20: should we write the modeenv _first_ here then
+				// output to the initramfs to create this mount for maximum
+				// reboot resiliency?
+				modeEnv.BaseStatus = "trying"
+				baseSnapPath = tryBaseSnapPath
+			} else {
+				return fmt.Errorf("try base snap %q does not exist", modeEnv.TryBase)
+			}
+		} else {
+			// TODO:UC20: should we log a message here about missing the
+			// try_base?
+			return fmt.Errorf("base status is try but no try base is set")
+		}
+	case "trying":
+		// failed try base boot, trigger a rollback to use the base instead of
+		// the try_base
+		fallthrough
+	case "":
+		// try to mount the normal base snap
+		baseSnapPath = filepath.Join(dataDir, "system-data", dirs.SnapBlobDir, modeEnv.Base)
+	default:
+		// TODO:UC20: what is a sensible thing to do here? return an error?
+		// trigger a rollback to the old base?
+		return fmt.Errorf("invalid modeenv setting of %q for base_status", modeEnv.BaseStatus)
+	}
+
+	// 2.2.2 mount base
 	isBaseMounted, err := osutilIsMounted(filepath.Join(runMnt, "base"))
 	if err != nil {
 		return err
 	}
 	if !isBaseMounted {
-		base := filepath.Join(dataDir, "system-data", dirs.SnapBlobDir, modeEnv.Base)
-		fmt.Fprintf(stdout, "%s %s\n", base, filepath.Join(runMnt, "base"))
+		fmt.Fprintf(stdout, "%s %s\n", baseSnapPath, filepath.Join(runMnt, "base"))
 	}
 
-	// 2.3 mount kernel
+	// 2.3.1 check if the kernel is mounted
 	isKernelMounted, err := osutilIsMounted(filepath.Join(runMnt, "kernel"))
 	if err != nil {
 		return err
@@ -263,8 +300,8 @@ func generateMountsModeRun() error {
 		kernelPath := filepath.Join(dataDir, "system-data", dirs.SnapBlobDir, filepath.Base(kernel.MountFile()))
 		fmt.Fprintf(stdout, "%s %s\n", kernelPath, filepath.Join(runMnt, "kernel"))
 	}
-	// 3.1 There is no step 3 =)
-	return nil
+	// 3.1 Write the modeenv out again
+	return modeEnv.Write(filepath.Join(dataDir, "system-data"))
 }
 
 func generateInitramfsMounts() error {
