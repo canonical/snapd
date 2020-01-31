@@ -244,19 +244,32 @@ func postUsers(c *Command, r *http.Request, user *auth.UserState) Response {
 }
 
 func removeUser(c *Command, username string, opts postUserDeleteData) Response {
+	// TODO: allow to remove user entries by email as well
+
 	// catch silly errors
 	if username == "" {
 		return BadRequest("need a username to remove")
 	}
+	// check the user is known to snapd
+	st := c.d.overlord.State()
+	st.Lock()
+	_, err := auth.UserByUsername(st, username)
+	st.Unlock()
+	if err == auth.ErrInvalidUser {
+		return BadRequest("user %q is not known", username)
+	}
+	if err != nil {
+		return InternalError(err.Error())
+	}
+
 	// first remove the system user
 	if err := osutilDelUser(username, &osutil.DelUserOptions{ExtraUsers: !release.OnClassic}); err != nil {
 		return InternalError(err.Error())
 	}
 
 	// then the UserState
-	st := c.d.overlord.State()
 	st.Lock()
-	err := auth.RemoveUserByName(st, username)
+	err = auth.RemoveUserByUsername(st, username)
 	st.Unlock()
 	// ErrInvalidUser means "not found" in this case
 	if err != nil && err != auth.ErrInvalidUser {

@@ -291,6 +291,24 @@ func (as *authSuite) TestUser(c *C) {
 	c.Check(user.HasStoreAuth(), Equals, true)
 }
 
+func (as *authSuite) TestUserByUsername(c *C) {
+	as.state.Lock()
+	user, err := auth.NewUser(as.state, "username", "email@test.com", "macaroon", []string{"discharge"})
+	as.state.Unlock()
+	c.Check(err, IsNil)
+
+	as.state.Lock()
+	userFromState, err := auth.UserByUsername(as.state, "username")
+	as.state.Unlock()
+	c.Check(err, IsNil)
+	c.Check(userFromState, DeepEquals, user)
+
+	as.state.Lock()
+	_, err = auth.UserByUsername(as.state, "otherusername")
+	as.state.Unlock()
+	c.Check(err, Equals, auth.ErrInvalidUser)
+}
+
 func (as *authSuite) TestUserHasStoreAuth(c *C) {
 	var user0 *auth.UserState
 	// nil user
@@ -374,7 +392,7 @@ func (as *authSuite) TestRemove(c *C) {
 	c.Assert(err, Equals, auth.ErrInvalidUser)
 }
 
-func (as *authSuite) TestRemoveByName(c *C) {
+func (as *authSuite) TestRemoveByUsername(c *C) {
 	as.state.Lock()
 	user, err := auth.NewUser(as.state, "username", "email@test.com", "macaroon", []string{"discharge"})
 	as.state.Unlock()
@@ -386,7 +404,7 @@ func (as *authSuite) TestRemoveByName(c *C) {
 	c.Check(err, IsNil)
 
 	as.state.Lock()
-	err = auth.RemoveUserByName(as.state, user.Username)
+	err = auth.RemoveUserByUsername(as.state, user.Username)
 	as.state.Unlock()
 	c.Assert(err, IsNil)
 

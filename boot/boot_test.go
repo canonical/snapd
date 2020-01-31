@@ -32,6 +32,7 @@ import (
 	"github.com/snapcore/snapd/bootloader/bootloadertest"
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/snap"
+	"github.com/snapcore/snapd/snap/snaptest"
 	"github.com/snapcore/snapd/testutil"
 )
 
@@ -303,7 +304,6 @@ func (s *bootSetSuite) TestParticipantBaseWithModel(c *C) {
 func (s *bootSetSuite) TestKernelWithModel(c *C) {
 	info := &snap.Info{}
 	info.RealName = "kernel"
-	expected := boot.NewCoreKernel(info)
 
 	type tableT struct {
 		model string
@@ -319,7 +319,7 @@ func (s *bootSetSuite) TestKernelWithModel(c *C) {
 		}, {
 			model: "kernel",
 			nop:   false,
-			krn:   expected,
+			krn:   boot.NewCoreKernel(info, boottest.MockDevice("kernel")),
 		}, {
 			model: "",
 			nop:   true,
@@ -337,6 +337,30 @@ func (s *bootSetSuite) TestKernelWithModel(c *C) {
 		c.Check(krn.IsTrivial(), Equals, t.nop)
 		c.Check(krn, DeepEquals, t.krn)
 	}
+}
+
+func (s *bootSetSuite) TestCoreKernel20(c *C) {
+	coreDev := boottest.MockUC20Device("pc-kernel")
+	c.Assert(coreDev.HasModeenv(), Equals, true)
+
+	kernel, err := snap.ParsePlaceInfoFromSnapFileName("pc-kernel_2.snap")
+	c.Assert(err, IsNil)
+
+	// get the boot kernel from our kernel snap
+	bootKern := boot.Kernel(kernel, snap.TypeKernel, coreDev)
+	// can't use FitsTypeOf with coreKernel here, cause that causes an import
+	// loop as boottest imports boot and coreKernel is unexported
+	c.Assert(bootKern.IsTrivial(), Equals, false)
+
+	// extract the kernel assets from the coreKernel
+	// the container here doesn't really matter since it's just being passed
+	// to the mock bootloader method anyways
+	kernelContainer := snaptest.MockContainer(c, nil)
+	err = bootKern.ExtractKernelAssets(kernelContainer)
+	c.Assert(err, IsNil)
+
+	// make sure that the bootloader was told to extract some assets
+	c.Assert(s.bootloader.ExtractKernelAssetsCalls, DeepEquals, []snap.PlaceInfo{kernel})
 }
 
 func (s *bootSetSuite) TestMarkBootSuccessfulAllSnap(c *C) {

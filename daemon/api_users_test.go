@@ -247,6 +247,12 @@ func (s *userSuite) TestPostUserActionRemoveNoUsername(c *check.C) {
 }
 
 func (s *userSuite) TestPostUserActionRemoveDelUserErr(c *check.C) {
+	st := s.d.overlord.State()
+	st.Lock()
+	_, err := auth.NewUser(st, "some-user", "email@test.com", "macaroon", []string{"discharge"})
+	st.Unlock()
+	c.Check(err, check.IsNil)
+
 	called := 0
 	osutilDelUser = func(username string, opts *osutil.DelUserOptions) error {
 		called++
@@ -283,7 +289,7 @@ func (s *userSuite) TestPostUserActionRemoveStateErr(c *check.C) {
 	rsp := postUsers(usersCmd, req, nil).(*resp)
 	c.Check(rsp.Status, check.Equals, 500)
 	c.Check(rsp.Result.(*errorResult).Message, check.Matches, `internal error: could not unmarshal state entry "auth": .*`)
-	c.Check(called, check.Equals, 1)
+	c.Check(called, check.Equals, 0)
 }
 
 func (s *userSuite) TestPostUserActionRemoveNoUserInState(c *check.C) {
@@ -299,9 +305,8 @@ func (s *userSuite) TestPostUserActionRemoveNoUserInState(c *check.C) {
 	c.Assert(err, check.IsNil)
 
 	rsp := postUsers(usersCmd, req, nil).(*resp)
-	c.Check(rsp.Status, check.Equals, 200)
-	c.Check(rsp.Result, check.IsNil)
-	c.Check(called, check.Equals, 1)
+	c.Check(rsp, check.DeepEquals, BadRequest(`user "some-user" is not known`))
+	c.Check(called, check.Equals, 0)
 }
 
 func (s *userSuite) TestPostUserActionRemove(c *check.C) {
@@ -311,8 +316,20 @@ func (s *userSuite) TestPostUserActionRemove(c *check.C) {
 	st.Unlock()
 	c.Check(err, check.IsNil)
 
-	// everything that happens when the user is not in state still happens
-	s.TestPostUserActionRemoveNoUserInState(c)
+	called := 0
+	osutilDelUser = func(username string, opts *osutil.DelUserOptions) error {
+		called++
+		c.Check(username, check.Equals, "some-user")
+		return nil
+	}
+
+	buf := bytes.NewBufferString(`{"action":"remove","username":"some-user"}`)
+	req, err := http.NewRequest("POST", "/v2/users", buf)
+	c.Assert(err, check.IsNil)
+	rsp := postUsers(usersCmd, req, nil).(*resp)
+	c.Check(rsp.Status, check.Equals, 200)
+	c.Check(rsp.Result, check.IsNil)
+	c.Check(called, check.Equals, 1)
 
 	// and the user is removed from state
 	st.Lock()

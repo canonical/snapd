@@ -331,7 +331,7 @@ func SetRootDir(rootdir string) {
 	}
 
 	XdgRuntimeDirBase = filepath.Join(rootdir, "/run/user")
-	XdgRuntimeDirGlob = filepath.Join(rootdir, XdgRuntimeDirBase, "*/")
+	XdgRuntimeDirGlob = filepath.Join(XdgRuntimeDirBase, "*/")
 
 	CompletionHelperInCore = filepath.Join(CoreLibExecDir, "etelpmoc.sh")
 	CompletersDir = filepath.Join(rootdir, "/usr/share/bash-completion/completions/")
