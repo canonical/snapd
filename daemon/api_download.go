@@ -25,8 +25,12 @@ import (
 	"errors"
 	"net/http"
 	"path/filepath"
+	"regexp"
+	"strconv"
 
+	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/overlord/auth"
+	"github.com/snapcore/snapd/snap"
 	"github.com/snapcore/snapd/store"
 )
 
@@ -36,17 +40,36 @@ var snapDownloadCmd = &Command{
 	POST:     postSnapDownload,
 }
 
+var validRangeRegexp = regexp.MustCompile(`^\s*bytes=(\d+)-\s*`)
+
 // SnapDownloadAction is used to request a snap download
 type snapDownloadAction struct {
-	SnapName string `json:"snap-name,omitempty"`
+	SnapName string `json:"snap-name"`
 	snapRevisionOptions
+	ResumeStamp    string `json:"resume-stamp"`
+	resumePosition int64
+	NoBody         bool `json:"no-body"`
 }
 
-var errDownloadNameRequired = errors.New("download operation requires one snap name")
+var (
+	errDownloadNameRequired  = errors.New("download operation requires one snap name")
+	errDownloadNoBodyResume  = errors.New("cannot request no body when resuming")
+	errDownloadResumeNoStamp = errors.New("cannot resume without a stamp")
+	errDownloadBadResume     = errors.New("resume position cannot be negative")
+)
 
 func (action *snapDownloadAction) validate() error {
 	if action.SnapName == "" {
 		return errDownloadNameRequired
+	}
+	if action.NoBody && (action.resumePosition > 0 || action.ResumeStamp != "") {
+		return errDownloadNoBodyResume
+	}
+	if action.resumePosition > 0 && action.ResumeStamp == "" {
+		return errDownloadResumeNoStamp
+	}
+	if action.resumePosition < 0 {
+		return errDownloadBadResume
 	}
 	return action.snapRevisionOptions.validate()
 }
@@ -60,6 +83,17 @@ func postSnapDownload(c *Command, r *http.Request, user *auth.UserState) Respons
 	if decoder.More() {
 		return BadRequest("extra content found after download operation")
 	}
+	if rangestr := r.Header.Get("Range"); rangestr != "" {
+		// "An origin server MUST ignore a Range header field
+		//  that contains a range unit it does not understand."
+		subs := validRangeRegexp.FindStringSubmatch(rangestr)
+		if len(subs) == 2 {
+			n, err := strconv.ParseInt(subs[1], 10, 64)
+			if err == nil {
+				action.resumePosition = n
+			}
+		}
+	}
 
 	if err := action.validate(); err != nil {
 		return BadRequest(err.Error())
@@ -69,32 +103,53 @@ func postSnapDownload(c *Command, r *http.Request, user *auth.UserState) Respons
 }
 
 func streamOneSnap(c *Command, action snapDownloadAction, user *auth.UserState) Response {
-	actions := []*store.SnapAction{{
-		Action:       "download",
-		InstanceName: action.SnapName,
-		Revision:     action.Revision,
-		CohortKey:    action.CohortKey,
-		Channel:      action.Channel,
-	}}
-	sars, err := getStore(c).SnapAction(context.TODO(), nil, actions, user, nil)
-	if err != nil {
-		return errToResponse(err, []string{action.SnapName}, InternalError, "cannot download snap: %v")
+	theStore := getStore(c)
+	var info *snap.Info
+	if true {
+		// XXX: once we're HMAC'ing, we only do this bit on the first pass
+		actions := []*store.SnapAction{{
+			Action:       "download",
+			InstanceName: action.SnapName,
+			Revision:     action.Revision,
+			CohortKey:    action.CohortKey,
+			Channel:      action.Channel,
+		}}
+		sars, err := theStore.SnapAction(context.TODO(), nil, actions, user, nil)
+		if err != nil {
+			return errToResponse(err, []string{action.SnapName}, InternalError, "cannot download snap: %v")
+		}
+		if len(sars) != 1 {
+			return InternalError("internal error: unexpected number %v of results for a single download", len(sars))
+		}
+		info = sars[0].Info
 	}
-	if len(sars) != 1 {
-		return InternalError("internal error: unexpected number %v of results for a single download", len(sars))
-	}
-	info := sars[0].Info
-
 	downloadInfo := info.DownloadInfo
-	r, err := getStore(c).DownloadStream(context.TODO(), action.SnapName, &downloadInfo, user)
-	if err != nil {
-		return InternalError(err.Error())
+
+	// XXX: this bit goes away once we HMAC
+	if action.ResumeStamp != "" && downloadInfo.Sha3_384 != action.ResumeStamp {
+		return BadRequest("snap to download has different hash")
 	}
 
-	return fileStream{
+	rsp := fileStream{
 		SnapName: action.SnapName,
 		Filename: filepath.Base(info.MountFile()),
 		Info:     downloadInfo,
-		stream:   r,
+		resume:   action.resumePosition,
 	}
+	if !action.NoBody {
+		r, s, err := theStore.DownloadStream(context.TODO(), action.SnapName, &downloadInfo, action.resumePosition, user)
+		if err != nil {
+			return InternalError(err.Error())
+		}
+		rsp.stream = r
+		if s != 206 {
+			// AFAICT this happens with the CDN every time
+			// but this might be transient
+			// (in any case it's valid as per the RFC)
+			logger.Debugf("store refused our range request")
+			rsp.resume = 0
+		}
+	}
+
+	return rsp
 }

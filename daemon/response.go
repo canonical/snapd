@@ -256,6 +256,7 @@ type fileStream struct {
 	Filename string
 	Info     snap.DownloadInfo
 	stream   io.ReadCloser
+	resume   int64
 }
 
 // ServeHTTP from the Response interface
@@ -265,9 +266,21 @@ func (s fileStream) ServeHTTP(w http.ResponseWriter, _ *http.Request) {
 	snapname := fmt.Sprintf("attachment; filename=%s", s.Filename)
 	hdr.Set("Content-Disposition", snapname)
 
-	size := fmt.Sprintf("%d", s.Info.Size)
-	hdr.Set("Content-Length", size)
 	hdr.Set("Snap-Sha3-384", s.Info.Sha3_384)
+	// can't set Content-Length when stream is nil as it breaks http clients
+	// setting it also when there is a stream, for consistency
+	hdr.Set("Snap-Length", strconv.FormatInt(s.Info.Size, 10))
+
+	if s.stream == nil {
+		// nothing to actually stream
+		return
+	}
+	hdr.Set("Content-Length", strconv.FormatInt(s.Info.Size-s.resume, 10))
+
+	if s.resume > 0 {
+		hdr.Set("Content-Range", fmt.Sprintf("bytes %d-%d/%d", s.resume, s.Info.Size-1, s.Info.Size))
+		w.WriteHeader(206)
+	}
 
 	defer s.stream.Close()
 	bytesCopied, err := io.Copy(w, s.stream)
@@ -275,7 +288,7 @@ func (s fileStream) ServeHTTP(w http.ResponseWriter, _ *http.Request) {
 		logger.Noticef("cannot copy snap %s (%#v) to the stream: %v", s.SnapName, s.Info, err)
 		http.Error(w, err.Error(), 500)
 	}
-	if bytesCopied != s.Info.Size {
+	if bytesCopied != s.Info.Size-s.resume {
 		logger.Noticef("cannot copy snap %s (%#v) to the stream: bytes copied=%d, expected=%d", s.SnapName, s.Info, bytesCopied, s.Info.Size)
 		http.Error(w, io.EOF.Error(), 502)
 	}

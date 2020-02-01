@@ -1606,19 +1606,27 @@ func downloadImpl(ctx context.Context, name, sha3_384, downloadURL string, user 
 }
 
 // DownloadStream will copy the snap from the request to the io.Reader
-func (s *Store) DownloadStream(ctx context.Context, name string, downloadInfo *snap.DownloadInfo, user *auth.UserState) (io.ReadCloser, error) {
+func (s *Store) DownloadStream(ctx context.Context, name string, downloadInfo *snap.DownloadInfo, resume int64, user *auth.UserState) (io.ReadCloser, int, error) {
+	// XXX: coverage of this is rather poor
 	if path := s.cacher.GetPath(downloadInfo.Sha3_384); path != "" {
 		logger.Debugf("Cache hit for SHA3_384 …%.5s.", downloadInfo.Sha3_384)
 		file, err := os.OpenFile(path, os.O_RDONLY, 0600)
 		if err != nil {
-			return nil, err
+			return nil, 0, err
 		}
-		return file, nil
+		if resume == 0 {
+			return file, 200, nil
+		}
+		_, err = file.Seek(resume, os.SEEK_SET)
+		if err != nil {
+			return nil, 0, err
+		}
+		return file, 206, nil
 	}
 
 	authAvail, err := s.authAvailable(user)
 	if err != nil {
-		return nil, err
+		return nil, 0, err
 	}
 
 	downloadURL := downloadInfo.AnonDownloadURL
@@ -1628,25 +1636,28 @@ func (s *Store) DownloadStream(ctx context.Context, name string, downloadInfo *s
 
 	storeURL, err := url.Parse(downloadURL)
 	if err != nil {
-		return nil, err
+		return nil, 0, err
 	}
 
 	cdnHeader, err := s.cdnHeader()
 	if err != nil {
-		return nil, err
+		return nil, 0, err
 	}
 
-	resp, err := doDownloadReq(ctx, storeURL, cdnHeader, s, user)
+	resp, err := doDownloadReq(ctx, storeURL, cdnHeader, resume, s, user)
 	if err != nil {
-		return nil, err
+		return nil, 0, err
 	}
-	return resp.Body, nil
+	return resp.Body, resp.StatusCode, nil
 }
 
 var doDownloadReq = doDownloadReqImpl
 
-func doDownloadReqImpl(ctx context.Context, storeURL *url.URL, cdnHeader string, s *Store, user *auth.UserState) (*http.Response, error) {
+func doDownloadReqImpl(ctx context.Context, storeURL *url.URL, cdnHeader string, resume int64, s *Store, user *auth.UserState) (*http.Response, error) {
 	reqOptions := downloadReqOpts(storeURL, cdnHeader, nil)
+	if resume > 0 {
+		reqOptions.ExtraHeaders["Range"] = fmt.Sprintf("bytes=%d-", resume)
+	}
 	return s.doRequest(ctx, httputil.NewHTTPClient(&httputil.ClientOptions{Proxy: s.proxy}), reqOptions, user)
 }
 
