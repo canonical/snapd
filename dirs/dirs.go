@@ -84,6 +84,7 @@ var (
 	SnapAuxStoreInfoDir string
 
 	SnapBinariesDir     string
+	SnapManpagesDir     string
 	SnapServicesDir     string
 	SnapUserServicesDir string
 	SnapSystemdConfDir  string
@@ -298,6 +299,7 @@ func SetRootDir(rootdir string) {
 	SnapRollbackDir = filepath.Join(rootdir, snappyDir, "rollback")
 
 	SnapBinariesDir = filepath.Join(SnapMountDir, "bin")
+	SnapManpagesDir = filepath.Join(SnapMountDir, "man")
 	SnapServicesDir = filepath.Join(rootdir, "/etc/systemd/system")
 	SnapUserServicesDir = filepath.Join(rootdir, "/etc/systemd/user")
 	SnapSystemdConfDir = filepath.Join(rootdir, "/etc/systemd/system.conf.d")

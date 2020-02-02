@@ -160,6 +160,11 @@ func generateWrappers(s *snap.Info, disabledSvcs []string) error {
 	}
 	cleanupFuncs = append(cleanupFuncs, wrappers.RemoveSnapBinaries)
 
+	if err = wrappers.AddSnapManpages(s); err != nil {
+		return err
+	}
+	cleanupFuncs = append(cleanupFuncs, wrappers.RemoveSnapManpages)
+
 	// add the daemons from the snap.yaml
 	if err = wrappers.AddSnapServices(s, disabledSvcs, progress.Null); err != nil {
 		return err
@@ -204,7 +209,12 @@ func removeGeneratedWrappers(s *snap.Info, meter progress.Meter) error {
 		logger.Noticef("Cannot remove desktop icons for %q: %v", s.InstanceName(), err4)
 	}
 
-	return firstErr(err1, err2, err3, err4)
+	err5 := wrappers.RemoveSnapManpages(s)
+	if err5 != nil {
+		logger.Noticef("Cannot remove manpages for %q: %v", s.InstanceName(), err5)
+	}
+
+	return firstErr(err1, err2, err3, err4, err5)
 }
 
 // UnlinkSnap makes the snap unavailable to the system removing wrappers and symlinks.

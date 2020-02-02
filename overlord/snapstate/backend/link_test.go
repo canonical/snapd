@@ -125,6 +125,10 @@ apps:
 `
 	info := snaptest.MockSnap(c, yaml, &snap.SideInfo{Revision: snap.R(11)})
 
+	manDir := filepath.Join(info.MountDir(), "meta", "man", "man1")
+	c.Assert(os.MkdirAll(manDir, 0755), IsNil)
+	c.Assert(ioutil.WriteFile(filepath.Join(manDir, "hello.1"), []byte("hi"), 0644), IsNil)
+
 	_, err := s.be.LinkSnap(info, mockDev, nil, s.perfTimings)
 	c.Assert(err, IsNil)
 
@@ -132,6 +136,9 @@ apps:
 	c.Assert(err, IsNil)
 	c.Assert(l, HasLen, 1)
 	l, err = filepath.Glob(filepath.Join(dirs.SnapServicesDir, "*.service"))
+	c.Assert(err, IsNil)
+	c.Assert(l, HasLen, 1)
+	l, err = filepath.Glob(filepath.Join(dirs.SnapManpagesDir, "*"))
 	c.Assert(err, IsNil)
 	c.Assert(l, HasLen, 1)
 
@@ -143,6 +150,9 @@ apps:
 	c.Assert(err, IsNil)
 	c.Assert(l, HasLen, 0)
 	l, err = filepath.Glob(filepath.Join(dirs.SnapServicesDir, "*.service"))
+	c.Assert(err, IsNil)
+	c.Assert(l, HasLen, 0)
+	l, err = filepath.Glob(filepath.Join(dirs.SnapManpagesDir, "*"))
 	c.Assert(err, IsNil)
 	c.Assert(l, HasLen, 0)
 }
@@ -217,6 +227,19 @@ apps:
 	const contents = ""
 
 	info := snaptest.MockSnap(c, yaml, &snap.SideInfo{Revision: snap.R(11)})
+
+	guiDir := filepath.Join(info.MountDir(), "meta", "gui")
+	c.Assert(os.MkdirAll(guiDir, 0755), IsNil)
+	c.Assert(ioutil.WriteFile(filepath.Join(guiDir, "bin.desktop"), []byte(`
+[Desktop Entry]
+Name=bin
+Icon=${SNAP}/bin.png
+Exec=bin
+`), 0644), IsNil)
+
+	manDir := filepath.Join(info.MountDir(), "meta", "man", "man1")
+	c.Assert(os.MkdirAll(manDir, 0755), IsNil)
+	c.Assert(ioutil.WriteFile(filepath.Join(manDir, "hello.1"), []byte("hi"), 0644), IsNil)
 
 	_, err := s.be.LinkSnap(info, mockDev, nil, s.perfTimings)
 	c.Assert(err, IsNil)
@@ -423,13 +446,17 @@ Icon=${SNAP}/bin.png
 Exec=bin
 `), 0644), IsNil)
 
+	manDir := filepath.Join(s.info.MountDir(), "meta", "man", "man1")
+	c.Assert(os.MkdirAll(manDir, 0755), IsNil)
+	c.Assert(ioutil.WriteFile(filepath.Join(manDir, "hello.1"), []byte("hi"), 0644), IsNil)
+
 	r := systemd.MockSystemctl(func(...string) ([]byte, error) {
 		return nil, nil
 	})
 	defer r()
 
 	// sanity checks
-	for _, d := range []string{dirs.SnapBinariesDir, dirs.SnapDesktopFilesDir, dirs.SnapServicesDir} {
+	for _, d := range []string{dirs.SnapBinariesDir, dirs.SnapDesktopFilesDir, dirs.SnapServicesDir, dirs.SnapManpagesDir} {
 		os.MkdirAll(d, 0755)
 		l, err := filepath.Glob(filepath.Join(d, "*"))
 		c.Assert(err, IsNil, Commentf(d))
@@ -447,7 +474,7 @@ func (s *linkCleanupSuite) testLinkCleanupDirOnFail(c *C, dir string) {
 	_, isLinkError := err.(*os.LinkError)
 	c.Assert(isPathError || isLinkError, Equals, true, Commentf("%T", err))
 
-	for _, d := range []string{dirs.SnapBinariesDir, dirs.SnapDesktopFilesDir, dirs.SnapServicesDir} {
+	for _, d := range []string{dirs.SnapBinariesDir, dirs.SnapDesktopFilesDir, dirs.SnapServicesDir, dirs.SnapManpagesDir} {
 		l, err := filepath.Glob(filepath.Join(d, "*"))
 		c.Check(err, IsNil, Commentf(d))
 		c.Check(l, HasLen, 0, Commentf(d))
@@ -462,6 +489,10 @@ func (s *linkCleanupSuite) TestLinkCleanupOnBinariesFail(c *C) {
 	// this one is the trivial case _as the code stands today_,
 	// but nothing guarantees that ordering.
 	s.testLinkCleanupDirOnFail(c, dirs.SnapBinariesDir)
+}
+
+func (s *linkCleanupSuite) TestLinkCleanupOnManpagesFail(c *C) {
+	s.testLinkCleanupDirOnFail(c, dirs.SnapManpagesDir)
 }
 
 func (s *linkCleanupSuite) TestLinkCleanupOnServicesFail(c *C) {
@@ -526,6 +557,7 @@ func (s *linkCleanupSuite) TestLinkRunsUpdateFontconfigCachesClassic(c *C) {
 			c.Assert(updateFontconfigCaches, Equals, 0)
 		}
 		c.Assert(os.Remove(current), IsNil)
+		c.Assert(s.be.UnlinkSnap(s.info, nil), IsNil)
 	}
 }
 
