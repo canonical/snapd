@@ -110,6 +110,10 @@ backends:
                 workers: 6
                 storage: preserve-size
 
+            - centos-8-64:
+                workers: 4
+                image: centos-8-64
+
     google-unstable:
         type: google
         key: '$(HOST: echo "$SPREAD_GOOGLE_KEY")'
