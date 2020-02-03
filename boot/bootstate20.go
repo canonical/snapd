@@ -54,13 +54,16 @@ func newBootState20(typ snap.Type) bootState {
 // kernel snap methods
 //
 
-// bootState20Kernel is stand-alone and implements the bootState,
-// bootStateUpdate, and bootSnap interfaces
+// bootState20Kernel implements the bootState and bootStateUpdate interfaces for
+// kernel snaps on UC20. It is used for setNext() and markSuccessful() - though
+// note that for markSuccessful() a different bootStateUpdate implementation is
+// returned, see bootState20MarkSuccessful
 type bootState20Kernel struct {
 	// the bootloader to manipulate kernel assets
 	ebl bootloader.ExtractedRunKernelImageBootloader
 
-	// the kernel_status variable, initialized by setupBootloader()
+	// the kernel_status variable currently in the bootloader, initialized by
+	// setupBootloader()
 	kernelStatus string
 
 	// the kernel snap that was tried for markSuccessful()
@@ -218,8 +221,10 @@ func (ks20 *bootState20Kernel) commit() error {
 // base snap methods
 //
 
-// bootState20Base is meant to be embedded in the bootStateSetNext and
-// bootStateMarkSuccessful structs, handling reading/initializing the modeenv.
+// bootState20Kernel implements the bootState and bootStateUpdate interfaces for
+// base snaps on UC20. It is used for setNext() and markSuccessful() - though
+// note that for markSuccessful() a different bootStateUpdate implementation is
+// returned, see bootState20MarkSuccessful
 type bootState20Base struct {
 	// the modeenv for the base snap, initialized with loadModeenv()
 	modeenv *Modeenv
