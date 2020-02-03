@@ -29,11 +29,14 @@ import (
 	"github.com/snapcore/snapd/asserts"
 	"github.com/snapcore/snapd/boot"
 	"github.com/snapcore/snapd/dirs"
+	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/overlord/snapstate"
 	"github.com/snapcore/snapd/overlord/state"
 	"github.com/snapcore/snapd/timings"
 )
+
+const SealedKeyFile = "keyfile.sealed"
 
 var bootMakeBootable = boot.MakeBootable
 
@@ -56,6 +59,12 @@ func (m *DeviceManager) doSetupRunSystem(t *state.Task, _ *tomb.Tomb) error {
 	}
 	gadgetDir := gadgetInfo.MountDir()
 
+	kernelInfo, err := snapstate.KernelInfo(st, deviceCtx)
+	if err != nil {
+		return fmt.Errorf("cannot get kernel info: %v", err)
+	}
+	kernelDir := kernelInfo.MountDir()
+
 	args := []string{
 		// create partitions missing from the device
 		"create-partitions",
@@ -68,26 +77,34 @@ func (m *DeviceManager) doSetupRunSystem(t *state.Task, _ *tomb.Tomb) error {
 		return err
 	}
 	if useEncryption {
+		ubuntuBootDir := filepath.Join(dirs.RunMnt, "ubuntu-boot")
+		ubuntuDataDir := filepath.Join(dirs.RunMnt, "ubuntu-data", "system-data")
+
+		// TODO:UC20: set final file names
 		args = append(args,
 			// enable data encryption
 			"--encrypt",
 			// location to store the sealed keyfile
-			"--key-file", filepath.Join(dirs.RunMnt, "ubuntu-boot", "keyfile"),
+			"--key-file", filepath.Join(ubuntuBootDir, SealedKeyFile),
+			// location to store the recovery keyfile
+			"--recovery-key-file", filepath.Join(ubuntuDataDir, "recovery.txt"),
+			// location to store the lockout authorization data
+			"--lockout-auth-file", filepath.Join(ubuntuDataDir, "lockout-auth"),
+			// location to store the authorization policy update data
+			"--auth-update-file", filepath.Join(ubuntuDataDir, "auth-update"),
+			// path to the kernel to install
+			"--kernel-path", filepath.Join(kernelDir, "kernel.efi"),
 		)
 	}
 	args = append(args, gadgetDir)
 
 	// run the create partition code
+	logger.Noticef("create and deploy partitions")
 	st.Unlock()
 	output, err := exec.Command(filepath.Join(dirs.DistroLibExecDir, "snap-bootstrap"), args...).CombinedOutput()
 	st.Lock()
 	if err != nil {
 		return fmt.Errorf("cannot create partitions: %v", osutil.OutputErr(output, err))
-	}
-
-	kernelInfo, err := snapstate.KernelInfo(st, deviceCtx)
-	if err != nil {
-		return fmt.Errorf("cannot get gadget info: %v", err)
 	}
 
 	bootBaseInfo, err := snapstate.BootBaseInfo(st, deviceCtx)
@@ -104,12 +121,14 @@ func (m *DeviceManager) doSetupRunSystem(t *state.Task, _ *tomb.Tomb) error {
 		RecoverySystemDir: recoverySystemDir,
 	}
 
+	logger.Noticef("make system bootable")
 	rootdir := dirs.GlobalRootDir
 	if err := bootMakeBootable(deviceCtx.Model(), rootdir, bootWith); err != nil {
 		return fmt.Errorf("cannot make run system bootable: %v", err)
 	}
 
 	// request a restart as the last action after a successful install
+	logger.Noticef("request system restart")
 	st.RequestRestart(state.RestartSystem)
 
 	return nil
