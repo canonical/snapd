@@ -22,6 +22,7 @@ package randutil_test
 import (
 	"math/rand"
 	"testing"
+	"time"
 
 	. "gopkg.in/check.v1"
 
@@ -43,4 +44,15 @@ func (s *randutilSuite) TestMakeRandomString(c *C) {
 
 	s2 := randutil.MakeRandomString(5)
 	c.Assert(s2, Equals, "4PQyl")
+}
+
+func (s *randutilSuite) TestRandomDuration(c *C) {
+	// for our tests
+	rand.Seed(1)
+
+	d1 := randutil.RandomDuration(time.Hour)
+	c.Assert(d1, Equals, time.Duration(1991947779410))
+
+	d2 := randutil.RandomDuration(4 * time.Hour)
+	c.Assert(d2, Equals, time.Duration(4423082153551))
 }

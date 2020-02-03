@@ -28,6 +28,7 @@ import (
 	"math"
 	"math/big"
 	"math/rand"
+	"time"
 )
 
 func init() {
@@ -61,3 +62,8 @@ var (
 	Intn   = rand.Intn
 	Int63n = rand.Int63n
 )
+
+// RandomDuration returns a random duration up to the given length.
+func RandomDuration(d time.Duration) time.Duration {
+	return time.Duration(Int63n(int64(d)))
+}
