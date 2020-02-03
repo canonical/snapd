@@ -1,0 +1,29 @@
+summary: Test netutil/netlink.go
+
+# no go on ubuntu-core
+systems: [-ubuntu-core-*]
+
+environment:
+    # an empty $topsrcdir/tests/go.mod seems to break importing or building go
+    # packages referenced by their import paths while under the tests directory,
+    # need to disable go modules supportfor this test
+    GO111MODULE: off
+
+prepare: |
+    go build -o monitor-default-gw ./monitor.go
+
+restore: |
+    systemctl stop monitor-default-gw
+
+execute: |
+    systemd-run --unit=monitor-default-gw $(pwd)/monitor-default-gw
+
+    echo "do some route manipulation"
+    ifconfig lo:1 192.168.2.2
+    route add default gw 192.168.2.1
+    route del default
+    ifconfig lo:1 down
+
+    echo "Check that both add/remove got captured"
+    retry-tool journalctl -u monitor-default-gw|MATCH "default gw added 192.168.2.1"
+    retry-tool journalctl -u monitor-default-gw|MATCH "default gw removed 192.168.2.1"
