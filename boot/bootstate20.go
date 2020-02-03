@@ -39,7 +39,7 @@ type bootSnap interface {
 	setStatus(string)
 }
 
-func newBootState20Generic(typ snap.Type) bootState {
+func newBootState20(typ snap.Type) bootState {
 	switch typ {
 	case snap.TypeBase:
 		return &bootState20Base{}
