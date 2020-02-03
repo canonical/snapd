@@ -141,7 +141,7 @@ func (s *deviceMgrInstallModeSuite) makeMockInstalledPcGadget(c *C, grade string
 	return mockModel
 }
 
-func (s *deviceMgrInstallModeSuite) doRunChangeTestWithEncryption(c *C, grade string, tpm, bypass bool, res bool, e string) {
+func (s *deviceMgrInstallModeSuite) doRunChangeTestWithEncryption(c *C, grade string, tpm, bypass, res bool, e string) {
 	restore := release.MockOnClassic(false)
 	defer restore()
 
@@ -311,11 +311,7 @@ func (s *deviceMgrInstallModeSuite) TestInstallSignedWithTPM(c *C) {
 }
 
 func (s *deviceMgrInstallModeSuite) TestInstallSignedBypassEncryption(c *C) {
-	s.doRunChangeTestWithEncryption(c, "signed", false, true, false, "(?s).*cannot bypass encryption in a secured or signed device.*")
-}
-
-func (s *deviceMgrInstallModeSuite) TestInstallSignedWithTPMBypassEncryption(c *C) {
-	s.doRunChangeTestWithEncryption(c, "signed", true, true, false, "(?s).*cannot bypass encryption in a secured or signed device.*")
+	s.doRunChangeTestWithEncryption(c, "signed", false, true, false, "")
 }
 
 func (s *deviceMgrInstallModeSuite) TestInstallSecured(c *C) {
@@ -327,9 +323,5 @@ func (s *deviceMgrInstallModeSuite) TestInstallSecuredWithTPM(c *C) {
 }
 
 func (s *deviceMgrInstallModeSuite) TestInstallSecuredBypassEncryption(c *C) {
-	s.doRunChangeTestWithEncryption(c, "secured", false, true, false, "(?s).*cannot bypass encryption in a secured or signed device.*")
-}
-
-func (s *deviceMgrInstallModeSuite) TestInstallSecuredWithTPMBypassEncryption(c *C) {
-	s.doRunChangeTestWithEncryption(c, "secured", true, true, false, "(?s).*cannot bypass encryption in a secured or signed device.*")
+	s.doRunChangeTestWithEncryption(c, "secured", false, true, false, "(?s).*cannot encrypt secured device: TPM not available.*")
 }

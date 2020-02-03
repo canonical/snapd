@@ -122,14 +122,12 @@ var checkTPMAvailability = func() error {
 
 func checkEncryption(model *asserts.Model) (res bool, err error) {
 	secured := model.Grade() == asserts.ModelSecured
-	signed := model.Grade() == asserts.ModelSigned
+	dangerous := model.Grade() == asserts.ModelDangerous
 
 	// check if we should disable encryption non-secured devices
-	if osutil.FileExists(filepath.Join(dirs.RunMnt, "ubuntu-seed", ".force-unencrypted")) {
-		if secured || signed {
-			err = fmt.Errorf("cannot bypass encryption in a secured or signed device")
-		}
-		return false, err
+	// TODO:UC20: this is not the final mechanism to bypass encryption
+	if dangerous && osutil.FileExists(filepath.Join(dirs.RunMnt, "ubuntu-seed", ".force-unencrypted")) {
+		return false, nil
 	}
 
 	// encryption is required in secured devices and optional in other grades
