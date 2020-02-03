@@ -46,9 +46,7 @@ func newBootState20(typ snap.Type) bootState {
 	case snap.TypeKernel:
 		return &bootState20Kernel{}
 	default:
-		// TODO:UC20: this should be handled by bootStateFor, but is there a
-		// better thing to do here?
-		return nil
+		panic(fmt.Sprintf("cannot make a bootState20 for snap type %q", typ))
 	}
 }
 
