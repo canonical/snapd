@@ -46,7 +46,6 @@ type ErrAlreadyConnected struct {
 
 const (
 	ConnectTaskEdge       = state.TaskSetEdge("connect-task")
-	DisconnectTaskEdge    = state.TaskSetEdge("disconnect-task")
 	AfterConnectHooksEdge = state.TaskSetEdge("after-connect-hooks")
 )
 
@@ -330,32 +329,18 @@ func Forget(st *state.State, repo *interfaces.Repository, connRef *interfaces.Co
 		return nil, err
 	}
 
-	var disconnectTask *state.Task
-	var ts *state.TaskSet
-	conn, err := repo.Connection(connRef)
-	if err == nil {
-		opts := disconnectOpts{}
-		ts, err = disconnectTasks(st, conn, opts)
-		if err != nil {
-			return nil, err
-		}
-		disconnectTask, err = ts.Edge(DisconnectTaskEdge)
-		if err != nil {
-			return nil, err
-		}
-	} else {
-		// connection is not active (and possibly either the plug or slot
-		// doesn't exist); disconnect tasks don't need hooks as we simply
-		// want to remove connection from state.
-		summary := fmt.Sprintf(i18n.G("Disconnect %s:%s from %s:%s"),
-			connRef.PlugRef.Snap, connRef.PlugRef.Name, connRef.SlotRef.Snap, connRef.SlotRef.Name)
-		disconnectTask = st.NewTask("disconnect", summary)
-		disconnectTask.Set("slot", connRef.SlotRef)
-		disconnectTask.Set("plug", connRef.PlugRef)
-		ts = state.NewTaskSet(disconnectTask)
-		ts.MarkEdge(disconnectTask, DisconnectTaskEdge)
+	if conn, err := repo.Connection(connRef); err == nil {
+		// connection exists - run regular set of disconnect tasks with forget
+		// flag.
+		opts := disconnectOpts{Forget: true}
+		ts, err := disconnectTasks(st, conn, opts)
+		return ts, err
 	}
-	disconnectTask.Set("forget", true)
+
+	// connection is not active (and possibly either the plug or slot
+	// doesn't exist); disconnect tasks don't need hooks as we simply
+	// want to remove connection from state.
+	ts := forgetTasks(st, connRef)
 	return ts, nil
 }
 
@@ -363,6 +348,18 @@ type disconnectOpts struct {
 	AutoDisconnect bool
 	ByHotplug      bool
 	Forget         bool
+}
+
+// forgetTasks creates a set of tasks for forgetting an inactive connection
+func forgetTasks(st *state.State, connRef *interfaces.ConnRef) *state.TaskSet {
+	summary := fmt.Sprintf(i18n.G("Forget connection %s:%s from %s:%s"),
+		connRef.PlugRef.Snap, connRef.PlugRef.Name,
+		connRef.SlotRef.Snap, connRef.SlotRef.Name)
+	disconnectTask := st.NewTask("disconnect", summary)
+	disconnectTask.Set("slot", connRef.SlotRef)
+	disconnectTask.Set("plug", connRef.PlugRef)
+	disconnectTask.Set("forget", true)
+	return state.NewTaskSet(disconnectTask)
 }
 
 // disconnectTasks creates a set of tasks for disconnect, including hooks, but does not do any conflict checking.
@@ -468,7 +465,6 @@ func disconnectTasks(st *state.State, conn *interfaces.Connection, flags disconn
 	}
 
 	addTask(disconnectTask)
-	ts.MarkEdge(disconnectTask, DisconnectTaskEdge)
 	return ts, nil
 }
 

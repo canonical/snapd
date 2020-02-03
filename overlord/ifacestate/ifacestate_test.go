@@ -1698,8 +1698,7 @@ func (s *interfaceManagerSuite) TestForgetUndo(c *C) {
 	c.Assert(err, IsNil)
 	// inactive connection, only the disconnect task (no hooks)
 	c.Assert(ts.Tasks(), HasLen, 1)
-	task, err := ts.Edge(ifacestate.DisconnectTaskEdge)
-	c.Assert(err, IsNil)
+	task := ts.Tasks()[0]
 	c.Check(task.Kind(), Equals, "disconnect")
 	var forgetFlag bool
 	c.Assert(task.Get("forget", &forgetFlag), IsNil)
@@ -1812,11 +1811,18 @@ func (s *interfaceManagerSuite) testForget(c *C, plugSnap, plugName, slotSnap, s
 	change := s.state.NewChange("disconnect", "...")
 	ts, err := ifacestate.Forget(s.state, mgr.Repository(), &interfaces.ConnRef{PlugRef: interfaces.PlugRef{Snap: plugSnap, Name: plugName}, SlotRef: interfaces.SlotRef{Snap: slotSnap, Name: slotName}})
 	c.Assert(err, IsNil)
-	task, err := ts.Edge(ifacestate.DisconnectTaskEdge)
-	c.Assert(err, IsNil)
-	c.Check(task.Kind(), Equals, "disconnect")
+
+	// check disconnect task
+	var disconnectTask *state.Task
+	for _, t := range ts.Tasks() {
+		if t.Kind() == "disconnect" {
+			disconnectTask = t
+			break
+		}
+	}
+	c.Assert(disconnectTask, NotNil)
 	var forgetFlag bool
-	c.Assert(task.Get("forget", &forgetFlag), IsNil)
+	c.Assert(disconnectTask.Get("forget", &forgetFlag), IsNil)
 	c.Check(forgetFlag, Equals, true)
 
 	c.Assert(err, IsNil)
@@ -1838,7 +1844,6 @@ func (s *interfaceManagerSuite) testForget(c *C, plugSnap, plugName, slotSnap, s
 		c.Assert(change.Tasks(), HasLen, 1)
 	}
 
-	c.Check(task.Status(), Equals, state.DoneStatus)
 	c.Check(change.Status(), Equals, state.DoneStatus)
 }
 
