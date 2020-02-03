@@ -71,7 +71,7 @@ type firstBootBaseTest struct {
 	perfTimings timings.Measurer
 }
 
-func (t *firstBootBaseTest) setupBaseTest(c *C, s *seedtest.SeedSnaps, createOverlord bool) {
+func (t *firstBootBaseTest) setupBaseTest(c *C, s *seedtest.SeedSnaps) {
 	t.BaseTest.SetUpTest(c)
 
 	tempdir := c.MkDir()
@@ -103,18 +103,16 @@ func (t *firstBootBaseTest) setupBaseTest(c *C, s *seedtest.SeedSnaps, createOve
 	t.AddCleanup(sysdb.InjectTrusted([]asserts.Assertion{s.StoreSigning.TrustedKey}))
 	t.AddCleanup(ifacestate.MockSecurityBackends(nil))
 
-	t.overlord = nil
-	if createOverlord {
-		_ = t.createOverlord(c)
-	}
-
 	t.perfTimings = timings.New(nil)
 }
 
-func (t *firstBootBaseTest) createOverlord(c *C) *overlord.Overlord {
-	if t.overlord != nil {
-		c.Fatalf("tried to re-create overlord")
-	}
+// startOverlord will setup and create a new overlord, note that it will not
+// stop any pre-existing overlord and it will be overwritten, for more fine
+// control create your own overlord
+// also note that as long as you don't run overlord.Loop() this is safe to call
+// multiple times to clear overlord state, if you call Loop() call Stop() on
+// your own before calling this again
+func (t *firstBootBaseTest) startOverlord(c *C) {
 	ovld, err := overlord.New(nil)
 	c.Assert(err, IsNil)
 	ovld.InterfaceManager().DisableUDevMonitor()
@@ -124,8 +122,6 @@ func (t *firstBootBaseTest) createOverlord(c *C) *overlord.Overlord {
 	// don't actually try to talk to the store on snapstate.Ensure
 	// needs doing after the call to devicestate.Manager (which happens in overlord.New)
 	snapstate.CanAutoRefresh = nil
-
-	return t.overlord
 }
 
 type firstBoot16BaseTest struct {
@@ -144,12 +140,18 @@ var _ = Suite(&firstBoot16Suite{})
 func (s *firstBoot16Suite) SetUpTest(c *C) {
 	s.TestingSeed16 = &seedtest.TestingSeed16{}
 
-	s.setupBaseTest(c, &s.TestingSeed16.SeedSnaps, true)
+	s.setupBaseTest(c, &s.TestingSeed16.SeedSnaps)
+
+	s.startOverlord(c)
 
 	s.SeedDir = dirs.SnapSeedDir
 
 	err := os.MkdirAll(filepath.Join(dirs.SnapSeedDir, "assertions"), 0755)
 	c.Assert(err, IsNil)
+
+	// mock the snap mapper as core here to make sure that other tests don't
+	// set it inadvertently to the snapd mapper and break the 16 tests
+	s.AddCleanup(ifacestate.MockSnapMapper(&ifacestate.CoreCoreSystemMapper{}))
 }
 
 func checkTrivialSeeding(c *C, tsAll []*state.TaskSet) {

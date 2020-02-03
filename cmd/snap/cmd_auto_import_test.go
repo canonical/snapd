@@ -28,6 +28,7 @@ import (
 
 	. "gopkg.in/check.v1"
 
+	"github.com/snapcore/snapd/boot"
 	snap "github.com/snapcore/snapd/cmd/snap"
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/logger"
@@ -309,10 +310,10 @@ func (s *SnapSuite) TestAutoImportUnhappyInInstallMode(c *C) {
 	defer restoreLogger()
 
 	mockProcCmdlinePath := filepath.Join(c.MkDir(), "cmdline")
-	err := ioutil.WriteFile(mockProcCmdlinePath, []byte("foo=bar snapd_recovery_mode=install"), 0644)
+	err := ioutil.WriteFile(mockProcCmdlinePath, []byte("foo=bar snapd_recovery_mode=install snapd_recovery_system=20191118"), 0644)
 	c.Assert(err, IsNil)
 
-	restore = snap.MockProcCmdline(mockProcCmdlinePath)
+	restore = boot.MockProcCmdline(mockProcCmdlinePath)
 	defer restore()
 
 	_, err = snap.Parser(snap.Client()).ParseArgs([]string{"auto-import"})

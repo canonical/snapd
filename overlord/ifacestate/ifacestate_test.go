@@ -7614,6 +7614,85 @@ func (s *interfaceManagerSuite) TestDoSetupSnapSecurityAutoConnectsDeclBasedAnyS
 	s.testDoSetupSnapSecurityAutoConnectsDeclBasedAnySlotsPerPlug(c, check)
 }
 
+func (s *interfaceManagerSuite) TestDoSetupSnapSecurityAutoConnectsDeclBasedSlotNames(c *C) {
+	s.MockModel(c, nil)
+
+	restore := assertstest.MockBuiltinBaseDeclaration([]byte(`
+type: base-declaration
+authority-id: canonical
+series: 16
+plugs:
+  test:
+    allow-auto-connection: false
+`))
+	defer restore()
+	s.mockIfaces(c, &ifacetest.TestInterface{InterfaceName: "test"})
+
+	s.MockSnapDecl(c, "gadget", "one-publisher", nil)
+
+	const gadgetYaml = `
+name: gadget
+type: gadget
+version: 1
+slots:
+  test1:
+    interface: test
+  test2:
+    interface: test
+`
+	s.mockSnap(c, gadgetYaml)
+
+	mgr := s.manager(c)
+
+	s.MockSnapDecl(c, "consumer", "one-publisher", map[string]interface{}{
+		"format": "4",
+		"plugs": map[string]interface{}{
+			"test": map[string]interface{}{
+				"allow-auto-connection": map[string]interface{}{
+					"slot-names": []interface{}{
+						"test1",
+					},
+				},
+			},
+		}})
+
+	const consumerYaml = `
+name: consumer
+version: 1
+plugs:
+  test:
+`
+	snapInfo := s.mockSnap(c, consumerYaml)
+
+	// Run the setup-snap-security task and let it finish.
+	change := s.addSetupSnapSecurityChange(c, &snapstate.SnapSetup{
+		SideInfo: &snap.SideInfo{
+			RealName: snapInfo.SnapName(),
+			SnapID:   snapInfo.SnapID,
+			Revision: snapInfo.Revision,
+		},
+	})
+	s.settle(c)
+
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	// Ensure that the task succeeded.
+	c.Assert(change.Status(), Equals, state.DoneStatus)
+
+	var conns map[string]interface{}
+	_ = s.state.Get("conns", &conns)
+
+	repo := mgr.Repository()
+	plug := repo.Plug("consumer", "test")
+	c.Assert(plug, Not(IsNil))
+
+	c.Check(conns, DeepEquals, map[string]interface{}{
+		"consumer:test gadget:test1": map[string]interface{}{"auto": true, "interface": "test"},
+	})
+	c.Check(repo.Interfaces().Connections, HasLen, 1)
+}
+
 func (s *interfaceManagerSuite) TestPreseedAutoConnectErrorWithHooks(c *C) {
 	restore := release.MockPreseedMode(func() bool { return true })
 	defer restore()
