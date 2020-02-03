@@ -29,16 +29,6 @@ import (
 	"github.com/snapcore/snapd/snap"
 )
 
-// bootSnap is an interface that is used to make the generic methods, setNext()
-// and markSuccessful() easier to implement
-type bootSnap interface {
-	bootState
-
-	status() (string, error)
-	setTrySnap(snap.PlaceInfo)
-	setStatus(string)
-}
-
 func newBootState20(typ snap.Type) bootState {
 	switch typ {
 	case snap.TypeBase:
@@ -65,6 +55,9 @@ type bootState20Kernel struct {
 	// the kernel_status variable currently in the bootloader, initialized by
 	// setupBootloader()
 	kernelStatus string
+
+	// the kernel_status value to be written in commit()
+	commitKernelStatus string
 
 	// the kernel snap that was tried for markSuccessful()
 	triedKernelSnap snap.PlaceInfo
@@ -100,23 +93,6 @@ func (ks20 *bootState20Kernel) loadBootloader() error {
 	ks20.kernelStatus = m["kernel_status"]
 
 	return nil
-}
-
-func (ks20 *bootState20Kernel) status() (string, error) {
-	err := ks20.loadBootloader()
-	if err != nil {
-		return "", err
-	}
-
-	return ks20.kernelStatus, nil
-}
-
-func (ks20 *bootState20Kernel) setTrySnap(sn snap.PlaceInfo) {
-	ks20.tryKernelSnap = sn
-}
-
-func (ks20 *bootState20Kernel) setStatus(status string) {
-	ks20.kernelStatus = status
 }
 
 func (ks20 *bootState20Kernel) revisions() (snap.PlaceInfo, snap.PlaceInfo, bool, error) {
@@ -158,18 +134,29 @@ func (ks20 *bootState20Kernel) setNext(next snap.PlaceInfo) (bool, bootStateUpda
 		return false, nil, err
 	}
 
-	r, err := genericSetNext(ks20, next)
+	r, setTry, status, err := genericSetNext(ks20, ks20.kernelStatus, next)
 	if err != nil {
 		return false, nil, err
 	}
+
+	if setTry {
+		ks20.tryKernelSnap = next
+	}
+	ks20.commitKernelStatus = status
 
 	return r, ks20, nil
 }
 
 func (ks20 *bootState20Kernel) markSuccessful(update bootStateUpdate) (bootStateUpdate, error) {
+	err := ks20.loadBootloader()
+	if err != nil {
+		return nil, err
+	}
+
 	// call the generic method with to do most of the legwork
 	u, sn, err := genericMarkSuccessful(
 		ks20,
+		ks20.kernelStatus,
 		update,
 	)
 	if err != nil {
@@ -209,12 +196,18 @@ func (ks20 *bootState20Kernel) commit() error {
 		}
 	}
 
-	m := map[string]string{
-		"kernel_status": ks20.kernelStatus,
+	// only if the new kernel status is different from what we read should we
+	// run SetBootVars()
+	if ks20.commitKernelStatus != ks20.kernelStatus {
+		m := map[string]string{
+			"kernel_status": ks20.commitKernelStatus,
+		}
+
+		// set the boot variables
+		return ks20.ebl.SetBootVars(m)
 	}
 
-	// set the boot variables
-	return ks20.ebl.SetBootVars(m)
+	return nil
 }
 
 //
@@ -248,23 +241,6 @@ func (bs20 *bootState20Base) loadModeenv() error {
 	bs20.modeenv = modeenv
 
 	return nil
-}
-
-func (bs20 *bootState20Base) status() (string, error) {
-	err := bs20.loadModeenv()
-	if err != nil {
-		return "", err
-	}
-
-	return bs20.modeenv.BaseStatus, nil
-}
-
-func (bs20 *bootState20Base) setTrySnap(sn snap.PlaceInfo) {
-	bs20.tryBaseSnap = sn
-}
-
-func (bs20 *bootState20Base) setStatus(status string) {
-	bs20.modeenv.BaseStatus = status
 }
 
 // revisions returns the current boot snap and optional try boot snap for the
@@ -311,17 +287,25 @@ func (bs20 *bootState20Base) setNext(next snap.PlaceInfo) (bool, bootStateUpdate
 		return false, nil, err
 	}
 
-	r, err := genericSetNext(bs20, next)
+	r, setTry, status, err := genericSetNext(bs20, bs20.modeenv.BaseStatus, next)
 	if err != nil {
 		return false, nil, err
 	}
+	if setTry {
+		bs20.tryBaseSnap = next
+	}
+	bs20.modeenv.BaseStatus = status
 
 	return r, bs20, nil
 }
 
 func (bs20 *bootState20Base) markSuccessful(update bootStateUpdate) (bootStateUpdate, error) {
+	err := bs20.loadModeenv()
+	if err != nil {
+		return nil, err
+	}
 	// call the generic method with to do most of the legwork
-	u, sn, err := genericMarkSuccessful(bs20, update)
+	u, sn, err := genericMarkSuccessful(bs20, bs20.modeenv.BaseStatus, update)
 	if err != nil {
 		return nil, err
 	}
@@ -384,7 +368,7 @@ func threadBootState20MarkSuccessful(bsmark *bootState20MarkSuccessful) (*bootSt
 // genericMarkSuccessful sets the necessary boot variables, etc. to mark the
 // given boot snap as successful and a valid rollback target. If err is nil,
 // then the first return value is guaranteed to always be non-nil.
-func genericMarkSuccessful(b bootSnap, update bootStateUpdate) (*bootState20MarkSuccessful, snap.PlaceInfo, error) {
+func genericMarkSuccessful(b bootState, status string, update bootStateUpdate) (*bootState20MarkSuccessful, snap.PlaceInfo, error) {
 	// either combine the provided bootStateUpdate with a new one for this type
 	// or create a new one for this type
 	var bsmark *bootState20MarkSuccessful
@@ -405,10 +389,6 @@ func genericMarkSuccessful(b bootSnap, update bootStateUpdate) (*bootState20Mark
 	// kernel_status and base_status go from "" -> "try" (set by snapd), to
 	// "try" -> "trying" (set by the boot script)
 	// so if we are not in "trying" mode, nothing to do here
-	status, err := b.status()
-	if err != nil {
-		return nil, nil, err
-	}
 	if status != "trying" {
 		return bsmark, nil, nil
 	}
@@ -478,6 +458,21 @@ func (bsmark *bootState20MarkSuccessful) commit() error {
 		if err != nil {
 			return err
 		}
+	} else {
+		// triedKernelSnap is not true, but we still might need to clean up
+		// kernel_status, so check if what we are to commit is different from
+		// what we read
+		if bsmark.commitKernelStatus != bsmark.kernelStatus {
+			m := map[string]string{
+				"kernel_status": bsmark.commitKernelStatus,
+			}
+
+			// set the boot variables
+			err := bsmark.ebl.SetBootVars(m)
+			if err != nil {
+				return err
+			}
+		}
 	}
 
 	// base snap next
@@ -506,16 +501,17 @@ func (bsmark *bootState20MarkSuccessful) commit() error {
 // genericSetNext implements the generic logic for setting up a snap to be tried
 // for boot and works for both kernel and base snaps (though not
 // simultaneously).
-func genericSetNext(b bootSnap, next snap.PlaceInfo) (rebootRequired bool, err error) {
+func genericSetNext(b bootState, currentStatus string, next snap.PlaceInfo) (rebootRequired bool, setAsTrySnap bool, setStatus string, err error) {
 	// get the current snap
 	current, _, _, err := b.revisions()
 	if err != nil {
-		return false, err
+		return false, false, "", err
 	}
 
 	// by default we will set the status as "try" to prepare for an update,
 	// which also by default will require a reboot
 	status := "try"
+	setAsTrySnap = false
 	rebootRequired = true
 
 	// check if the next snap is really the same as the current snap, in which
@@ -525,25 +521,17 @@ func genericSetNext(b bootSnap, next snap.PlaceInfo) (rebootRequired bool, err e
 		// and switched to the good core/kernel again, make
 		// sure to clean the kernel_status here. This also
 		// mitigates https://forum.snapcraft.io/t/5253
-		currentStatus, err := b.status()
-		if err != nil {
-			return false, err
-		}
 		if currentStatus == "" {
 			// already clean
-			return false, nil
+			return false, false, "", nil
 		}
 
 		// clean
 		status = ""
 		rebootRequired = false
 	} else {
-		// save the snap for commit() to enable
-		b.setTrySnap(next)
+		setAsTrySnap = true
 	}
 
-	// set the status to be saved in commit()
-	b.setStatus(status)
-
-	return rebootRequired, nil
+	return rebootRequired, setAsTrySnap, status, nil
 }
