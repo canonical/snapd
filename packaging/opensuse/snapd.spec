@@ -338,6 +338,7 @@ fi
 %config %{_sysconfdir}/permissions.d/snapd
 %config %{_sysconfdir}/permissions.d/snapd.paranoid
 %config %{_sysconfdir}/profile.d/snapd.sh
+%config %{_sysconfdir}/sudoers.d/99-snapd.conf
 
 # Directories
 %dir %attr(0111,root,root) %{_sharedstatedir}/snapd/void
