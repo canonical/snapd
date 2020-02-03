@@ -141,5 +141,8 @@ func (x *cmdRoutinePortalInfo) Execute(args []string) error {
 		DesktopFile: desktopFile,
 		HasNetwork:  hasNetwork,
 	}
-	return t.Execute(Stdout, data)
+	if err := t.Execute(Stdout, data); err != nil {
+		return fmt.Errorf("cannot render output template: %s", err)
+	}
+	return nil
 }

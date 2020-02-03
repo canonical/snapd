@@ -51,6 +51,17 @@ func (s *cgroupSuite) TestSnapNameFromPidUnhappy(c *C) {
 	c.Check(name, Equals, "")
 }
 
+func (s *cgroupSuite) TestSnapNameFromPidEmptyName(c *C) {
+	err := os.MkdirAll(filepath.Join(s.rootDir, "proc/333"), 0755)
+	c.Assert(err, IsNil)
+	err = ioutil.WriteFile(filepath.Join(s.rootDir, "proc/333/cgroup"), []byte("1:freezer:/snap./\n"), 0755)
+	c.Assert(err, IsNil)
+
+	name, err := cgroup.SnapNameFromPid(333)
+	c.Assert(err, ErrorMatches, "snap name in cgroup path is empty")
+	c.Check(name, Equals, "")
+}
+
 func (s *cgroupSuite) TestSnapNameFromPidCgroupV2(c *C) {
 	restore := cgroup.MockVersion(cgroup.V2, nil)
 	defer restore()

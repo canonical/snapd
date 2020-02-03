@@ -42,5 +42,9 @@ func SnapNameFromPid(pid int) (string, error) {
 
 	snapName := strings.SplitN(filepath.Base(group), ".", 2)[1]
 
+	if snapName == "" {
+		return "", fmt.Errorf("snap name in cgroup path is empty")
+	}
+
 	return snapName, nil
 }
