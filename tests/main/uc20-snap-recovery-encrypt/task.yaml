@@ -52,6 +52,8 @@ execute: |
     not cryptsetup isLuks "${LOOP}p3"
     cryptsetup isLuks "${LOOP}p4"
 
+    cryptsetup luksDump "${LOOP}p4" | MATCH 'Label:\s*ubuntu-data-enc'
+
     # we used "lsblk --fs" here but it was unreliable
     mkdir -p ./mnt
     mount "${LOOP}p2" ./mnt
