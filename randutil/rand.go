@@ -42,13 +42,13 @@ func init() {
 
 const letters = "BCDFGHJKLMNPQRSTVWXYbcdfghjklmnpqrstvwxy0123456789"
 
-// MakeRandomString returns a random string of length length
+// RandomString returns a random string of length length.
 //
 // The vowels are omitted to avoid that words are created by pure
 // chance. Numbers are included.
 //
-// Not cryptographically safe.
-func MakeRandomString(length int) string {
+// Not cryptographically secure.
+func RandomString(length int) string {
 	out := ""
 	for i := 0; i < length; i++ {
 		out += string(letters[rand.Intn(len(letters))])

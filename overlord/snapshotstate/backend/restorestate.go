@@ -56,7 +56,7 @@ func (rs *RestoreState) Cleanup() {
 }
 
 func restoreStateFilename(fn string) string {
-	return fmt.Sprintf("%s.~%s~", fn, randutil.MakeRandomString(9))
+	return fmt.Sprintf("%s.~%s~", fn, randutil.RandomString(9))
 }
 
 var restoreStateRx = regexp.MustCompile(`\.~[a-zA-Z0-9]{9}~$`)

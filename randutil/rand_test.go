@@ -35,14 +35,14 @@ type randutilSuite struct{}
 
 var _ = Suite(&randutilSuite{})
 
-func (s *randutilSuite) TestMakeRandomString(c *C) {
+func (s *randutilSuite) TestRandomString(c *C) {
 	// for our tests
 	rand.Seed(1)
 
-	s1 := randutil.MakeRandomString(10)
+	s1 := randutil.RandomString(10)
 	c.Assert(s1, Equals, "pw7MpXh0JB")
 
-	s2 := randutil.MakeRandomString(5)
+	s2 := randutil.RandomString(5)
 	c.Assert(s2, Equals, "4PQyl")
 }
 

@@ -155,7 +155,7 @@ func (ts *AtomicWriteTestSuite) TestAtomicWriteFileNoOverwriteTmpExisting(c *C) 
 	tmpdir := c.MkDir()
 	// ensure we always get the same result
 	rand.Seed(1)
-	expectedRandomness := randutil.MakeRandomString(12) + "~"
+	expectedRandomness := randutil.RandomString(12) + "~"
 	// ensure we always get the same result
 	rand.Seed(1)
 
@@ -302,7 +302,7 @@ func (ts *AtomicSymlinkTestSuite) TestAtomicSymlink(c *C) {
 
 func (ts *AtomicSymlinkTestSuite) createCollisionSequence(c *C, baseName string, many int) {
 	for i := 0; i < many; i++ {
-		expectedRandomness := randutil.MakeRandomString(12) + "~"
+		expectedRandomness := randutil.RandomString(12) + "~"
 		// ensure we always get the same result
 		err := ioutil.WriteFile(baseName+"."+expectedRandomness, []byte(""), 0644)
 		c.Assert(err, IsNil)

@@ -167,7 +167,7 @@ func NewAccount(db SignerDB, username string, otherHeaders map[string]interface{
 	}
 	otherHeaders["username"] = username
 	if otherHeaders["account-id"] == nil {
-		otherHeaders["account-id"] = randutil.MakeRandomString(32)
+		otherHeaders["account-id"] = randutil.RandomString(32)
 	}
 	if otherHeaders["display-name"] == nil {
 		otherHeaders["display-name"] = strings.ToTitle(username[:1]) + username[1:]

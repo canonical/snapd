@@ -65,7 +65,7 @@ type CommandDB interface {
 func Create() (CommandDB, error) {
 	var err error
 	t := &writer{
-		fn: dirs.SnapCommandsDB + "." + randutil.MakeRandomString(12) + "~",
+		fn: dirs.SnapCommandsDB + "." + randutil.RandomString(12) + "~",
 	}
 
 	t.db, err = bolt.Open(t.fn, 0644, &bolt.Options{Timeout: 1 * time.Second})
