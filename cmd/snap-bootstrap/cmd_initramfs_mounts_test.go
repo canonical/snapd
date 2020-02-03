@@ -331,7 +331,7 @@ func (s *initramfsMountsSuite) TestInitramfsMountsRunModeBaseSnapUpgradeHappy(c 
 			return false, nil
 		case 5:
 			c.Check(path, Equals, filepath.Join(s.runMnt, "kernel"))
-			return false, nil
+			return true, nil
 		}
 		return false, fmt.Errorf("unexpected number of calls: %v", n)
 	})
@@ -353,22 +353,68 @@ func (s *initramfsMountsSuite) TestInitramfsMountsRunModeBaseSnapUpgradeHappy(c 
 	c.Assert(err, IsNil)
 	defer os.Remove(tryBaseSnap)
 
-	// mock a bootloader
-	bloader := bootloadertest.Mock("mock", c.MkDir())
-	bootloader.Force(bloader)
-	defer bootloader.Force(nil)
-
-	// set the current kernel
-	kernel, err := snap.ParsePlaceInfoFromSnapFileName("pc-kernel_1.snap")
-	c.Assert(err, IsNil)
-	r := bloader.SetRunKernelImageEnabledKernel(kernel)
-	defer r()
-
 	_, err = main.Parser.ParseArgs([]string{"initramfs-mounts"})
 	c.Assert(err, IsNil)
 	c.Assert(n, Equals, 5)
 	c.Check(s.Stdout.String(), Equals, fmt.Sprintf(`%[1]s/ubuntu-data/system-data/var/lib/snapd/snaps/core20_124.snap %[1]s/base
-%[1]s/ubuntu-data/system-data/var/lib/snapd/snaps/pc-kernel_1.snap %[1]s/kernel
+`, s.runMnt))
+
+	// check that the modeenv was re-written
+	newModeenv, err := boot.ReadModeenv(filepath.Join(s.runMnt, "ubuntu-data", "system-data"))
+	c.Assert(err, IsNil)
+	c.Assert(newModeenv.BaseStatus, DeepEquals, "trying")
+	c.Assert(newModeenv.TryBase, DeepEquals, modeEnv.TryBase)
+	c.Assert(newModeenv.Base, DeepEquals, modeEnv.Base)
+}
+
+func (s *initramfsMountsSuite) TestInitramfsMountsRunModeBaseSnapUpgradeFailsHappy(c *C) {
+	n := 0
+	s.mockProcCmdlineContent(c, "snapd_recovery_mode=run")
+
+	restore := main.MockOsutilIsMounted(func(path string) (bool, error) {
+		n++
+		switch n {
+		case 1:
+			c.Check(path, Equals, filepath.Join(s.runMnt, "ubuntu-seed"))
+			return true, nil
+		case 2:
+			c.Check(path, Equals, filepath.Join(s.runMnt, "ubuntu-boot"))
+			return true, nil
+		case 3:
+			c.Check(path, Equals, filepath.Join(s.runMnt, "ubuntu-data"))
+			return true, nil
+		case 4:
+			c.Check(path, Equals, filepath.Join(s.runMnt, "base"))
+			return false, nil
+		case 5:
+			c.Check(path, Equals, filepath.Join(s.runMnt, "kernel"))
+			return true, nil
+		}
+		return false, fmt.Errorf("unexpected number of calls: %v", n)
+	})
+	defer restore()
+
+	// write modeenv as if we failed to boot and were rebooted because the
+	// base snap was broken
+	modeEnv := &boot.Modeenv{
+		Base:       "core20_123.snap",
+		TryBase:    "core20_124.snap",
+		BaseStatus: "trying",
+	}
+	err := modeEnv.Write(filepath.Join(s.runMnt, "ubuntu-data", "system-data"))
+	c.Assert(err, IsNil)
+
+	tryBaseSnap := filepath.Join(s.runMnt, "ubuntu-data", "system-data", dirs.SnapBlobDir, "core20_124.snap")
+	err = os.MkdirAll(filepath.Dir(tryBaseSnap), 0755)
+	c.Assert(err, IsNil)
+	err = ioutil.WriteFile(tryBaseSnap, []byte{0}, 0644)
+	c.Assert(err, IsNil)
+	defer os.Remove(tryBaseSnap)
+
+	_, err = main.Parser.ParseArgs([]string{"initramfs-mounts"})
+	c.Assert(err, IsNil)
+	c.Assert(n, Equals, 5)
+	c.Check(s.Stdout.String(), Equals, fmt.Sprintf(`%[1]s/ubuntu-data/system-data/var/lib/snapd/snaps/core20_123.snap %[1]s/base
 `, s.runMnt))
 
 	// check that the modeenv was re-written
@@ -397,7 +443,7 @@ func (s *initramfsMountsSuite) TestInitramfsMountsRunModeKernelSnapUpgradeHappy(
 			return true, nil
 		case 4:
 			c.Check(path, Equals, filepath.Join(s.runMnt, "base"))
-			return false, nil
+			return true, nil
 		case 5:
 			c.Check(path, Equals, filepath.Join(s.runMnt, "kernel"))
 			return false, nil
@@ -442,7 +488,6 @@ func (s *initramfsMountsSuite) TestInitramfsMountsRunModeKernelSnapUpgradeHappy(
 	_, err = main.Parser.ParseArgs([]string{"initramfs-mounts"})
 	c.Assert(err, IsNil)
 	c.Assert(n, Equals, 5)
-	c.Check(s.Stdout.String(), Equals, fmt.Sprintf(`%[1]s/ubuntu-data/system-data/var/lib/snapd/snaps/core20_123.snap %[1]s/base
-%[1]s/ubuntu-data/system-data/var/lib/snapd/snaps/pc-kernel_2.snap %[1]s/kernel
+	c.Check(s.Stdout.String(), Equals, fmt.Sprintf(`%[1]s/ubuntu-data/system-data/var/lib/snapd/snaps/pc-kernel_2.snap %[1]s/kernel
 `, s.runMnt))
 }
