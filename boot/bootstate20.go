@@ -64,6 +64,10 @@ type bootState20Kernel struct {
 
 	// the kernel snap to try for setNext()
 	tryKernelSnap snap.PlaceInfo
+
+	// a flag for revisions() to inform markSuccessful() to clean up status var
+	// if it is inconsistent with what's on disk/extracted
+	markSuccessCleanStatus bool
 }
 
 func (ks20 *bootState20Kernel) loadBootloader() error {
@@ -122,8 +126,18 @@ func (ks20 *bootState20Kernel) revisions() (snap.PlaceInfo, snap.PlaceInfo, bool
 	if err != nil {
 		return nil, nil, false, fmt.Errorf("cannot read boot variables with bootloader %s: %v", ks20.ebl.Name(), err)
 	}
+	kernelStatus := m["kernel_status"]
 
-	trying = (m["kernel_status"] == "trying")
+	trying = (kernelStatus == "trying")
+
+	if kernelStatus != "" && tryBootSn == nil {
+		// we don't have a try kernel snap, but kernel_status is "", so we
+		// should tell markSuccessful to clean that up
+		// note we don't set kernelStatus, since revisions() could be used with
+		// setNext() and this would mess that up
+		logger.Noticef("kernel_status is %q, but there is no try kernel snap on bootloader %s, resetting to \"\"", kernelStatus, ks20.ebl.Name())
+		ks20.markSuccessCleanStatus = true
+	}
 
 	return bootSn, tryBootSn, trying, nil
 }
@@ -161,6 +175,12 @@ func (ks20 *bootState20Kernel) markSuccessful(update bootStateUpdate) (bootState
 	)
 	if err != nil {
 		return nil, err
+	}
+
+	// if we were told to clean up status, then do that
+	if ks20.markSuccessCleanStatus {
+
+		ks20.commitKernelStatus = ""
 	}
 
 	// u should always be non-nil if err is nil
