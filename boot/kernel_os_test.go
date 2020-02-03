@@ -63,13 +63,13 @@ func (s *coreBootSetSuite) SetUpTest(c *C) {
 
 func (s *coreBootSetSuite) TestExtractKernelAssetsError(c *C) {
 	bootloader.ForceError(errors.New("brkn"))
-	err := boot.NewCoreKernel(&snap.Info{}).ExtractKernelAssets(nil)
+	err := boot.NewCoreKernel(&snap.Info{}, boottest.MockDevice("")).ExtractKernelAssets(nil)
 	c.Check(err, ErrorMatches, `cannot extract kernel assets: brkn`)
 }
 
 func (s *coreBootSetSuite) TestRemoveKernelAssetsError(c *C) {
 	bootloader.ForceError(errors.New("brkn"))
-	err := boot.NewCoreKernel(&snap.Info{}).RemoveKernelAssets()
+	err := boot.NewCoreKernel(&snap.Info{}, boottest.MockDevice("")).RemoveKernelAssets()
 	c.Check(err, ErrorMatches, `cannot remove kernel assets: brkn`)
 }
 
@@ -163,6 +163,47 @@ func (s *coreBootSetSuite) TestSetNextBootForKernel(c *C) {
 	c.Check(reboot, Equals, false)
 }
 
+func (s *coreBootSetSuite) TestSetNextBoot20ForKernel(c *C) {
+	coreDev := boottest.MockUC20Device("pc-kernel")
+	c.Assert(coreDev.HasModeenv(), Equals, true)
+
+	// setup current kernel
+	kernel1, err := snap.ParsePlaceInfoFromSnapFileName("pc-kernel_1.snap")
+	c.Assert(err, IsNil)
+	r := s.bootloader.SetRunKernelImageEnabledKernel(kernel1)
+	defer r()
+
+	// create new kernel rev, set that as the next boot
+	kernel2, err := snap.ParsePlaceInfoFromSnapFileName("pc-kernel_2.snap")
+	c.Assert(err, IsNil)
+
+	bs := boot.NewCoreBootParticipant(kernel2, snap.TypeKernel, coreDev)
+	c.Assert(bs.IsTrivial(), Equals, false)
+	reboot, err := bs.SetNextBoot()
+	c.Assert(err, IsNil)
+
+	// check that kernel_status is now try
+	v, err := s.bootloader.GetBootVars("kernel_status")
+	c.Assert(err, IsNil)
+	c.Assert(v, DeepEquals, map[string]string{
+		"kernel_status": "try",
+	})
+
+	c.Check(reboot, Equals, true)
+
+	// check that SetNextBoot enabled kernel2 as a TryKernel
+	actual, _ := s.bootloader.GetRunKernelImageFunctionSnapCalls("EnableTryKernel")
+	c.Assert(actual, DeepEquals, []snap.PlaceInfo{kernel2})
+
+	// also didn't move any try kernels to trusted kernels
+	actual, _ = s.bootloader.GetRunKernelImageFunctionSnapCalls("EnableKernel")
+	c.Assert(actual, DeepEquals, []snap.PlaceInfo(nil))
+
+	// check that SetNextBoot asked the bootloader for a kernel
+	_, nKernelCalls := s.bootloader.GetRunKernelImageFunctionSnapCalls("Kernel")
+	c.Assert(nKernelCalls, Equals, 1)
+}
+
 func (s *coreBootSetSuite) TestSetNextBootForKernelForTheSameKernel(c *C) {
 	coreDev := boottest.MockDevice("krnl")
 
@@ -184,6 +225,43 @@ func (s *coreBootSetSuite) TestSetNextBootForKernelForTheSameKernel(c *C) {
 	})
 
 	c.Check(reboot, Equals, false)
+}
+
+func (s *coreBootSetSuite) TestSetNextBoot20ForKernelForTheSameKernel(c *C) {
+	coreDev := boottest.MockUC20Device("pc-kernel")
+	c.Assert(coreDev.HasModeenv(), Equals, true)
+
+	// setup current kernel
+	kernel1, err := snap.ParsePlaceInfoFromSnapFileName("pc-kernel_1.snap")
+	c.Assert(err, IsNil)
+	r := s.bootloader.SetRunKernelImageEnabledKernel(kernel1)
+	defer r()
+
+	bs := boot.NewCoreBootParticipant(kernel1, snap.TypeKernel, coreDev)
+	c.Assert(bs.IsTrivial(), Equals, false)
+	reboot, err := bs.SetNextBoot()
+	c.Assert(err, IsNil)
+
+	// check that kernel_status is cleared
+	v, err := s.bootloader.GetBootVars("kernel_status")
+	c.Assert(err, IsNil)
+	c.Assert(v, DeepEquals, map[string]string{
+		"kernel_status": "",
+	})
+
+	c.Check(reboot, Equals, false)
+
+	// check that SetNextBoot didn't try to enable any try kernels
+	actual, _ := s.bootloader.GetRunKernelImageFunctionSnapCalls("EnableTryKernel")
+	c.Assert(actual, HasLen, 0)
+
+	// also didn't move any try kernels to trusted kernels
+	actual, _ = s.bootloader.GetRunKernelImageFunctionSnapCalls("EnableKernel")
+	c.Assert(actual, HasLen, 0)
+
+	// check that SetNextBoot asked the bootloader for a kernel
+	_, nKernelCalls := s.bootloader.GetRunKernelImageFunctionSnapCalls("Kernel")
+	c.Assert(nKernelCalls, Equals, 1)
 }
 
 func (s *coreBootSetSuite) TestSetNextBootForKernelForTheSameKernelTryMode(c *C) {
@@ -212,6 +290,47 @@ func (s *coreBootSetSuite) TestSetNextBootForKernelForTheSameKernelTryMode(c *C)
 	})
 
 	c.Check(reboot, Equals, false)
+}
+
+func (s *coreBootSetSuite) TestSetNextBoot20ForKernelForTheSameKernelTryMode(c *C) {
+	coreDev := boottest.MockUC20Device("pc-kernel")
+	c.Assert(coreDev.HasModeenv(), Equals, true)
+
+	// setup current kernel
+	kernel1, err := snap.ParsePlaceInfoFromSnapFileName("pc-kernel_1.snap")
+	c.Assert(err, IsNil)
+	r := s.bootloader.SetRunKernelImageEnabledKernel(kernel1)
+	defer r()
+
+	bootVars := map[string]string{
+		"kernel_status": "try"}
+	s.bootloader.SetBootVars(bootVars)
+
+	bs := boot.NewCoreBootParticipant(kernel1, snap.TypeKernel, coreDev)
+	c.Assert(bs.IsTrivial(), Equals, false)
+	reboot, err := bs.SetNextBoot()
+	c.Assert(err, IsNil)
+
+	// check that kernel_status is cleared
+	v, err := s.bootloader.GetBootVars("kernel_status")
+	c.Assert(err, IsNil)
+	c.Assert(v, DeepEquals, map[string]string{
+		"kernel_status": "",
+	})
+
+	c.Check(reboot, Equals, false)
+
+	// check that SetNextBoot didn't try to enable any try kernels
+	actual, _ := s.bootloader.GetRunKernelImageFunctionSnapCalls("EnableTryKernel")
+	c.Assert(actual, HasLen, 0)
+
+	// also didn't move any try kernels to trusted kernels
+	actual, _ = s.bootloader.GetRunKernelImageFunctionSnapCalls("EnableKernel")
+	c.Assert(actual, HasLen, 0)
+
+	// check that SetNextBoot asked the bootloader for a kernel
+	_, nKernelCalls := s.bootloader.GetRunKernelImageFunctionSnapCalls("Kernel")
+	c.Assert(nKernelCalls, Equals, 1)
 }
 
 // ubootBootSetSuite tests the uboot specific code in the bootloader handling
@@ -265,7 +384,7 @@ func (s *ubootBootSetSuite) TestExtractKernelAssetsAndRemoveOnUboot(c *C) {
 	info, err := snap.ReadInfoFromSnapFile(snapf, si)
 	c.Assert(err, IsNil)
 
-	bp := boot.NewCoreKernel(info)
+	bp := boot.NewCoreKernel(info, boottest.MockDevice(""))
 	err = bp.ExtractKernelAssets(snapf)
 	c.Assert(err, IsNil)
 
@@ -347,7 +466,7 @@ func (s *grubBootSetSuite) TestExtractKernelAssetsNoUnpacksKernelForGrub(c *C) {
 	info, err := snap.ReadInfoFromSnapFile(snapf, si)
 	c.Assert(err, IsNil)
 
-	bp := boot.NewCoreKernel(info)
+	bp := boot.NewCoreKernel(info, boottest.MockDevice(""))
 	err = bp.ExtractKernelAssets(snapf)
 	c.Assert(err, IsNil)
 
@@ -378,7 +497,7 @@ func (s *grubBootSetSuite) TestExtractKernelForceWorks(c *C) {
 	info, err := snap.ReadInfoFromSnapFile(snapf, si)
 	c.Assert(err, IsNil)
 
-	bp := boot.NewCoreKernel(info)
+	bp := boot.NewCoreKernel(info, boottest.MockDevice(""))
 	err = bp.ExtractKernelAssets(snapf)
 	c.Assert(err, IsNil)
 

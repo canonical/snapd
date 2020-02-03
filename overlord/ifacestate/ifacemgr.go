@@ -96,7 +96,6 @@ func Manager(s *state.State, hookManager *hookstate.HookManager, runner *state.T
 	addHandler("remove-profiles", m.doRemoveProfiles, m.doSetupProfiles)
 	addHandler("discard-conns", m.doDiscardConns, m.undoDiscardConns)
 	addHandler("auto-connect", m.doAutoConnect, m.undoAutoConnect)
-	addHandler("gadget-connect", m.doGadgetConnect, nil)
 	addHandler("auto-disconnect", m.doAutoDisconnect, nil)
 	addHandler("hotplug-add-slot", m.doHotplugAddSlot, nil)
 	addHandler("hotplug-connect", m.doHotplugConnect, nil)
@@ -255,6 +254,9 @@ type ConnectionState struct {
 }
 
 // ConnectionStates return the state of connections stored in the state.
+// Note that this includes inactive connections (i.e. referring to non-
+// existing plug/slots), so this map must be cross-referenced with current
+// snap info if needed.
 // The state must be locked by the caller.
 func ConnectionStates(st *state.State) (connStateByRef map[string]ConnectionState, err error) {
 	states, err := getConns(st)
