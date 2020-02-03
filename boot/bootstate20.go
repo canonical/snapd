@@ -72,7 +72,7 @@ type bootState20Kernel struct {
 	tryKernelSnap snap.PlaceInfo
 }
 
-func (ks20 *bootState20Kernel) setupBootloader() error {
+func (ks20 *bootState20Kernel) loadBootloader() error {
 	// don't setup multiple times
 	if ks20.ebl != nil {
 		return nil
@@ -102,7 +102,7 @@ func (ks20 *bootState20Kernel) setupBootloader() error {
 }
 
 func (ks20 *bootState20Kernel) status() (string, error) {
-	err := ks20.setupBootloader()
+	err := ks20.loadBootloader()
 	if err != nil {
 		return "", err
 	}
@@ -121,7 +121,7 @@ func (ks20 *bootState20Kernel) setStatus(status string) {
 func (ks20 *bootState20Kernel) revisions() (snap.PlaceInfo, snap.PlaceInfo, bool, error) {
 	var bootSn, tryBootSn snap.PlaceInfo
 	var trying bool
-	err := ks20.setupBootloader()
+	err := ks20.loadBootloader()
 	if err != nil {
 		return nil, nil, false, err
 	}
@@ -152,7 +152,7 @@ func (ks20 *bootState20Kernel) revisions() (snap.PlaceInfo, snap.PlaceInfo, bool
 }
 
 func (ks20 *bootState20Kernel) setNext(next snap.PlaceInfo) (bool, bootStateUpdate, error) {
-	err := ks20.setupBootloader()
+	err := ks20.loadBootloader()
 	if err != nil {
 		return false, nil, err
 	}
@@ -223,7 +223,7 @@ func (ks20 *bootState20Kernel) commit() error {
 // bootState20Base is meant to be embedded in the bootStateSetNext and
 // bootStateMarkSuccessful structs, handling reading/initializing the modeenv.
 type bootState20Base struct {
-	// the modeenv for the base snap, initialized with setupModeenv()
+	// the modeenv for the base snap, initialized with loadModeenv()
 	modeenv *Modeenv
 
 	// the base snap that was tried for markSuccessful()
@@ -233,7 +233,7 @@ type bootState20Base struct {
 	tryBaseSnap snap.PlaceInfo
 }
 
-func (bs20 *bootState20Base) setupModeenv() error {
+func (bs20 *bootState20Base) loadModeenv() error {
 	// don't read modeenv multiple times
 	if bs20.modeenv != nil {
 		return nil
@@ -248,7 +248,7 @@ func (bs20 *bootState20Base) setupModeenv() error {
 }
 
 func (bs20 *bootState20Base) status() (string, error) {
-	err := bs20.setupModeenv()
+	err := bs20.loadModeenv()
 	if err != nil {
 		return "", err
 	}
@@ -270,7 +270,7 @@ func (bs20 *bootState20Base) revisions() (snap.PlaceInfo, snap.PlaceInfo, bool, 
 	var bootSn, tryBootSn snap.PlaceInfo
 	var trying bool
 	bs := &bootState20Base{}
-	err := bs.setupModeenv()
+	err := bs.loadModeenv()
 	if err != nil {
 		return nil, nil, false, err
 	}
@@ -303,7 +303,7 @@ func (bs20 *bootState20Base) revisions() (snap.PlaceInfo, snap.PlaceInfo, bool, 
 }
 
 func (bs20 *bootState20Base) setNext(next snap.PlaceInfo) (bool, bootStateUpdate, error) {
-	err := bs20.setupModeenv()
+	err := bs20.loadModeenv()
 	if err != nil {
 		return false, nil, err
 	}
@@ -365,12 +365,12 @@ func threadBootState20MarkSuccessful(bsmark *bootState20MarkSuccessful) (*bootSt
 		bsmark = &bootState20MarkSuccessful{}
 	}
 
-	// initialize both types
-	err := bsmark.setupBootloader()
+	// initialize both types in case we need to mark both
+	err := bsmark.loadBootloader()
 	if err != nil {
 		return nil, err
 	}
-	err = bsmark.setupModeenv()
+	err = bsmark.loadModeenv()
 	if err != nil {
 		return nil, err
 	}
