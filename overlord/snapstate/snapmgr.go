@@ -42,7 +42,6 @@ import (
 	"github.com/snapcore/snapd/snap"
 	"github.com/snapcore/snapd/snap/channel"
 	"github.com/snapcore/snapd/store"
-	"github.com/snapcore/snapd/strutil"
 )
 
 var (
@@ -493,7 +492,7 @@ func genRefreshRequestSalt(st *state.State) error {
 		return nil
 	}
 
-	refreshPrivacyKey = strutil.MakeRandomString(16)
+	refreshPrivacyKey = randutil.MakeRandomString(16)
 	st.Set("refresh-privacy-key", refreshPrivacyKey)
 
 	return nil

@@ -28,7 +28,7 @@ import (
 
 	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/osutil/sys"
-	"github.com/snapcore/snapd/strutil"
+	"github.com/snapcore/snapd/randutil"
 	"github.com/snapcore/snapd/testutil"
 
 	. "gopkg.in/check.v1"
@@ -155,7 +155,7 @@ func (ts *AtomicWriteTestSuite) TestAtomicWriteFileNoOverwriteTmpExisting(c *C) 
 	tmpdir := c.MkDir()
 	// ensure we always get the same result
 	rand.Seed(1)
-	expectedRandomness := strutil.MakeRandomString(12) + "~"
+	expectedRandomness := randutil.MakeRandomString(12) + "~"
 	// ensure we always get the same result
 	rand.Seed(1)
 
@@ -302,7 +302,7 @@ func (ts *AtomicSymlinkTestSuite) TestAtomicSymlink(c *C) {
 
 func (ts *AtomicSymlinkTestSuite) createCollisionSequence(c *C, baseName string, many int) {
 	for i := 0; i < many; i++ {
-		expectedRandomness := strutil.MakeRandomString(12) + "~"
+		expectedRandomness := randutil.MakeRandomString(12) + "~"
 		// ensure we always get the same result
 		err := ioutil.WriteFile(baseName+"."+expectedRandomness, []byte(""), 0644)
 		c.Assert(err, IsNil)

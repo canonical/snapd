@@ -35,7 +35,7 @@ import (
 	"golang.org/x/crypto/openpgp/packet"
 
 	"github.com/snapcore/snapd/asserts"
-	"github.com/snapcore/snapd/strutil"
+	"github.com/snapcore/snapd/randutil"
 )
 
 // GenerateKey generates a private/public key pair of the given bits. It panics on error.
@@ -167,7 +167,7 @@ func NewAccount(db SignerDB, username string, otherHeaders map[string]interface{
 	}
 	otherHeaders["username"] = username
 	if otherHeaders["account-id"] == nil {
-		otherHeaders["account-id"] = strutil.MakeRandomString(32)
+		otherHeaders["account-id"] = randutil.MakeRandomString(32)
 	}
 	if otherHeaders["display-name"] == nil {
 		otherHeaders["display-name"] = strings.ToTitle(username[:1]) + username[1:]

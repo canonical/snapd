@@ -29,7 +29,7 @@ import (
 
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/osutil"
-	"github.com/snapcore/snapd/strutil"
+	"github.com/snapcore/snapd/randutil"
 )
 
 var (
@@ -65,7 +65,7 @@ type CommandDB interface {
 func Create() (CommandDB, error) {
 	var err error
 	t := &writer{
-		fn: dirs.SnapCommandsDB + "." + strutil.MakeRandomString(12) + "~",
+		fn: dirs.SnapCommandsDB + "." + randutil.MakeRandomString(12) + "~",
 	}
 
 	t.db, err = bolt.Open(t.fn, 0644, &bolt.Options{Timeout: 1 * time.Second})
