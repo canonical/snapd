@@ -420,6 +420,8 @@ func (s *bootSetSuite) TestCoreParticipant20SetNextSameKernelSnap(c *C) {
 	// make sure it's not a trivial boot participant
 	c.Assert(bootKern.IsTrivial(), Equals, false)
 
+	nSetBootVarCalls := s.bootloader.SetBootVarsCalls
+
 	// make the kernel used on next boot
 	rebootRequired, err := bootKern.SetNextBoot()
 	c.Assert(err, IsNil)
@@ -435,6 +437,10 @@ func (s *bootSetSuite) TestCoreParticipant20SetNextSameKernelSnap(c *C) {
 	// there was no attempt to enable a kernel
 	_, enableKernelCalls := s.bootloader.GetRunKernelImageFunctionSnapCalls("EnableTryKernel")
 	c.Assert(enableKernelCalls, Equals, 0)
+
+	// finally we didn't call SetBootVars on the bootloader because nothing
+	// changed
+	c.Assert(nSetBootVarCalls, Equals, s.bootloader.SetBootVarsCalls)
 }
 
 func (s *bootSetSuite) TestCoreParticipant20SetNextNewKernelSnap(c *C) {
