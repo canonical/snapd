@@ -242,6 +242,11 @@ type bootState20Base struct {
 	// the modeenv for the base snap, initialized with loadModeenv()
 	modeenv *Modeenv
 
+	// the base_status to be written to the modeenv, stored separately to
+	// eliminate unnecessary writes to the modeenv when it's already in the
+	// state we want it in
+	commitBaseStatus string
+
 	// the base snap that was tried for markSuccessful()
 	triedBaseSnap snap.PlaceInfo
 
@@ -314,7 +319,7 @@ func (bs20 *bootState20Base) setNext(next snap.PlaceInfo) (bool, bootStateUpdate
 	if setTry {
 		bs20.tryBaseSnap = next
 	}
-	bs20.modeenv.BaseStatus = status
+	bs20.commitBaseStatus = status
 
 	return r, bs20, nil
 }
@@ -335,6 +340,8 @@ func (bs20 *bootState20Base) markSuccessful(update bootStateUpdate) (bootStateUp
 	return u, nil
 }
 
+// commit for bootState20Base is meant only to be used with setNext(), for
+// markSuccessful(), use bootState20MarkSuccessful.
 func (bs20 *bootState20Base) commit() error {
 	// the ordering here is less important than the kernel commit(), since the
 	// only operation that has side-effects is writing the modeenv at the end,
@@ -343,11 +350,25 @@ func (bs20 *bootState20Base) commit() error {
 
 	// the TryBase is the snap we are trying - note this could be nil if we
 	// are calling setNext on the same snap that is current
+	changed := false
 	if bs20.tryBaseSnap != nil {
-		bs20.modeenv.TryBase = filepath.Base(bs20.tryBaseSnap.MountFile())
+		tryBase := filepath.Base(bs20.tryBaseSnap.MountFile())
+		if tryBase != bs20.modeenv.TryBase {
+			bs20.modeenv.TryBase = tryBase
+			changed = true
+		}
 	}
 
-	return bs20.modeenv.Write("")
+	if bs20.commitBaseStatus != bs20.modeenv.BaseStatus {
+		bs20.modeenv.BaseStatus = bs20.commitBaseStatus
+		changed = true
+	}
+
+	// only write the modeenv if we actually changed it
+	if changed {
+		return bs20.modeenv.Write("")
+	}
+	return nil
 }
 
 //
@@ -502,16 +523,29 @@ func (bsmark *bootState20MarkSuccessful) commit() error {
 		// atomic file writing operation, so it's not a concern if we get
 		// rebooted during this snippet like it is with the kernel snap above
 
+		changed := false
+
 		// clear the status
-		bsmark.modeenv.BaseStatus = ""
+		if bsmark.modeenv.BaseStatus != "" {
+			changed = true
+			bsmark.modeenv.BaseStatus = ""
+		}
 		// set the new base as the tried base snap
-		bsmark.modeenv.Base = filepath.Base(bsmark.triedBaseSnap.MountFile())
+		tryBase := filepath.Base(bsmark.triedBaseSnap.MountFile())
+		if bsmark.modeenv.Base != tryBase {
+			bsmark.modeenv.Base = tryBase
+			changed = true
+		}
+
 		// clear the TryBase
-		bsmark.modeenv.TryBase = ""
+		if bsmark.modeenv.TryBase != "" {
+			bsmark.modeenv.TryBase = ""
+			changed = true
+		}
+
 		// write the modeenv
-		err := bsmark.modeenv.Write("")
-		if err != nil {
-			return err
+		if changed {
+			return bsmark.modeenv.Write("")
 		}
 	}
 
