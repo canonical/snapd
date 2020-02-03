@@ -20,6 +20,7 @@ package bootstrap
 
 import (
 	"fmt"
+	"path/filepath"
 
 	"github.com/snapcore/snapd/cmd/snap-bootstrap/partition"
 	"github.com/snapcore/snapd/dirs"
@@ -39,6 +40,12 @@ type Options struct {
 	KeyFile string
 	// RecoveryKeyFile is the location where the recovery key is written to
 	RecoveryKeyFile string
+	// LockoutAuthFile is the location where the lockout authorization is written to
+	LockoutAuthFile string
+	// AuthUpdateFile is the location where the authorization policy update data is written to
+	AuthUpdateFile string
+	// KernelPath is the path to the kernel to seal the keyfile to
+	KernelPath string
 }
 
 func deviceFromRole(lv *gadget.LaidOutVolume, role string) (device string, err error) {
@@ -158,7 +165,39 @@ func Run(gadgetRoot, device string, options Options) error {
 			}
 		}
 
-		if err := key.Store(options.KeyFile); err != nil {
+		tpm, err := NewTPMSupport()
+		if err != nil {
+			return fmt.Errorf("cannot initialize TPM: %v", err)
+		}
+
+		if options.LockoutAuthFile != "" {
+			if err := tpm.StoreLockoutAuth(options.LockoutAuthFile); err != nil {
+				return fmt.Errorf("cannot store lockout authorization: %v", err)
+			}
+		}
+
+		ubuntuBootPath := filepath.Join(dirs.RunMnt, "ubuntu-boot")
+		shim := filepath.Join(ubuntuBootPath, "/EFI/boot/bootx64.efi")
+		grub := filepath.Join(ubuntuBootPath, "/EFI/boot/grubx64.efi")
+
+		if err := tpm.SetShimFiles(shim); err != nil {
+			return err
+		}
+		if err := tpm.SetBootloaderFiles(grub); err != nil {
+			return err
+		}
+		if options.KernelPath != "" {
+			if err := tpm.SetKernelFiles(options.KernelPath); err != nil {
+				return err
+			}
+		}
+
+		// Provision the TPM as late as possible
+		if err := tpm.Provision(); err != nil {
+			return fmt.Errorf("cannot provision the TPM: %v", err)
+		}
+
+		if err := tpm.Seal(key[:], options.KeyFile, options.AuthUpdateFile); err != nil {
 			return fmt.Errorf("cannot store encryption key: %v", err)
 		}
 	}
