@@ -1,0 +1,63 @@
+summary: verify that user environment settings are added
+
+description: |
+    User environment variables are added via /etc/profile.d/snapd.sh (bash/sh
+    specific) or via /lib/environment.d/ helpers. Make sure that at least one of
+    the mechanisms works and XDG_DATA_DIRS and PATH are updated accordingly
+    inside the user session, no matter the shell they use.
+
+# environment generators were introduced in systemd 233, anything before that
+# will not work
+systems:
+   # no user sessions managed by systemd
+   - -ubuntu-14.04-*
+   # too old systemd, before user@.service template was introduced
+   - -amazon-linux-*
+   - -centos-7-*
+   - -debian-9-*
+   # too old systemd, before environment generators were introduced
+   - -ubuntu-16.04-*
+   # cannot install zsh
+   - -ubuntu-core-*
+
+environment:
+    TEST_ZSH_USER: test-zsh
+
+prepare: |
+    #shellcheck source=tests/lib/pkgdb.sh
+    . "$TESTSLIB/pkgdb.sh"
+    distro_install_package zsh
+
+    echo "create a user with a different shell"
+    useradd --create-home --user-group -s /bin/zsh "$TEST_ZSH_USER"
+
+    for uid in $(id -u test) $(id -u "$TEST_ZSH_USER"); do
+        mkdir -p "/run/user/$uid"
+        chown -R "$uid:$uid" "/run/user/$uid"
+        systemctl start "user@$uid.service"
+    done
+
+restore: |
+    #shellcheck source=tests/lib/pkgdb.sh
+    . "$TESTSLIB/pkgdb.sh"
+    distro_purge_package zsh
+
+    userdel -f -r "$TEST_ZSH_USER"
+
+    rm -f test-env test-zsh-env
+
+    for uid in $(uid -u test) $(uid -u "$TEST_ZSH_USER"); do
+        systemctl stop "user@$uid.service"
+    done
+
+execute: |
+    #shellcheck source=tests/lib/dirs.sh
+    . "$TESTSLIB/dirs.sh"
+
+    for user in test "$TEST_ZSH_USER"; do
+        uid=$(id -u "$user")
+        # dump the environment set up by the user session manager
+        su -l "$user" -c "XDG_RUNTIME_DIR=/run/user/$uid systemctl --user show-environment" > "${user}-env"
+        MATCH 'XDG_DATA_DIRS=.*[:]?/var/lib/snapd/desktop[:]?.*' < "${user}-env"
+        MATCH "PATH=.*[:]?${SNAP_MOUNT_DIR}/bin[:]?.*" < "${user}-env"
+    done
