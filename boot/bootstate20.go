@@ -70,8 +70,6 @@ type bootState20Kernel struct {
 
 	// the kernel snap to try for setNext()
 	tryKernelSnap snap.PlaceInfo
-
-	bootState20generic
 }
 
 func (ks20 *bootState20Kernel) setupBootloader() error {
@@ -159,7 +157,7 @@ func (ks20 *bootState20Kernel) setNext(next snap.PlaceInfo) (bool, bootStateUpda
 		return false, nil, err
 	}
 
-	r, err := ks20.bootState20generic.setNext(ks20, next)
+	r, err := genericSetNext(ks20, next)
 	if err != nil {
 		return false, nil, err
 	}
@@ -169,7 +167,7 @@ func (ks20 *bootState20Kernel) setNext(next snap.PlaceInfo) (bool, bootStateUpda
 
 func (ks20 *bootState20Kernel) markSuccessful(update bootStateUpdate) (bootStateUpdate, error) {
 	// call the generic method with to do most of the legwork
-	u, sn, err := ks20.bootState20generic.markSuccessful(
+	u, sn, err := genericMarkSuccessful(
 		ks20,
 		update,
 	)
@@ -233,8 +231,6 @@ type bootState20Base struct {
 
 	// the base snap to try for setNext()
 	tryBaseSnap snap.PlaceInfo
-
-	bootState20generic
 }
 
 func (bs20 *bootState20Base) setupModeenv() error {
@@ -267,8 +263,6 @@ func (bs20 *bootState20Base) setTrySnap(sn snap.PlaceInfo) {
 func (bs20 *bootState20Base) setStatus(status string) {
 	bs20.modeenv.BaseStatus = status
 }
-
-type bootState20generic struct{}
 
 // revisions returns the current boot snap and optional try boot snap for the
 // type specified in bsgeneric.
@@ -314,7 +308,7 @@ func (bs20 *bootState20Base) setNext(next snap.PlaceInfo) (bool, bootStateUpdate
 		return false, nil, err
 	}
 
-	r, err := bs20.bootState20generic.setNext(bs20, next)
+	r, err := genericSetNext(bs20, next)
 	if err != nil {
 		return false, nil, err
 	}
@@ -324,7 +318,7 @@ func (bs20 *bootState20Base) setNext(next snap.PlaceInfo) (bool, bootStateUpdate
 
 func (bs20 *bootState20Base) markSuccessful(update bootStateUpdate) (bootStateUpdate, error) {
 	// call the generic method with to do most of the legwork
-	u, sn, err := bs20.bootState20generic.markSuccessful(bs20, update)
+	u, sn, err := genericMarkSuccessful(bs20, update)
 	if err != nil {
 		return nil, err
 	}
@@ -335,10 +329,10 @@ func (bs20 *bootState20Base) markSuccessful(update bootStateUpdate) (bootStateUp
 }
 
 func (bs20 *bootState20Base) commit() error {
-	// the ordering here is less important, since the only operation that
-	// has side-effects is writing the modeenv at the end, and that uses an
-	// atomic file writing operation, so it's not a concern if we get
-	// rebooted during this snippet like it is with the kernel snap above
+	// the ordering here is less important than the kernel commit(), since the
+	// only operation that has side-effects is writing the modeenv at the end,
+	// and that uses an atomic file writing operation, so it's not a concern if
+	// we get rebooted during this snippet like it is with the kernel snap above
 
 	// the TryBase is the snap we are trying - note this could be nil if we
 	// are calling setNext on the same snap that is current
@@ -354,7 +348,8 @@ func (bs20 *bootState20Base) commit() error {
 //
 
 // bootState20MarkSuccessful is like bootState20Base and
-// bootState20Kernel, but is the combination of both of those things
+// bootState20Kernel, but is the combination of both of those things so we can
+// mark both snaps successful in one go
 type bootState20MarkSuccessful struct {
 	// base snap
 	bootState20Base
@@ -383,10 +378,10 @@ func threadBootState20MarkSuccessful(bsmark *bootState20MarkSuccessful) (*bootSt
 	return bsmark, nil
 }
 
-// markSuccessful sets the necessary boot variables, etc. to mark the boot snap
-// type in bsgeneric as successful and a valid rollback target. If err is nil,
+// genericMarkSuccessful sets the necessary boot variables, etc. to mark the
+// given boot snap as successful and a valid rollback target. If err is nil,
 // then the first return value is guaranteed to always be non-nil.
-func (bsgeneric *bootState20generic) markSuccessful(b bootSnap, update bootStateUpdate) (*bootState20MarkSuccessful, snap.PlaceInfo, error) {
+func genericMarkSuccessful(b bootSnap, update bootStateUpdate) (*bootState20MarkSuccessful, snap.PlaceInfo, error) {
 	// either combine the provided bootStateUpdate with a new one for this type
 	// or create a new one for this type
 	var bsmark *bootState20MarkSuccessful
@@ -505,10 +500,10 @@ func (bsmark *bootState20MarkSuccessful) commit() error {
 	return nil
 }
 
-// setNext on bootState20generic is good for both kernel and base snap upgrades.
-// it only needs the type of snap to be initialized in bootState20generic.typ
-// it _cannot_ be threaded with multiple snap types
-func (bsgeneric *bootState20generic) setNext(b bootSnap, next snap.PlaceInfo) (rebootRequired bool, err error) {
+// genericSetNext implements the generic logic for setting up a snap to be tried
+// for boot and works for both kernel and base snaps (though not
+// simultaneously).
+func genericSetNext(b bootSnap, next snap.PlaceInfo) (rebootRequired bool, err error) {
 	// get the current snap
 	current, _, _, err := b.revisions()
 	if err != nil {
