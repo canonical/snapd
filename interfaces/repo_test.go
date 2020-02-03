@@ -1395,6 +1395,8 @@ func (s *RepositorySuite) TestDisconnectFailsWithoutPlug(c *C) {
 	c.Assert(s.testRepo.AddSlot(s.slot), IsNil)
 	err := s.testRepo.Disconnect(s.plug.Snap.InstanceName(), s.plug.Name, s.slot.Snap.InstanceName(), s.slot.Name)
 	c.Assert(err, ErrorMatches, `snap "consumer" has no plug named "plug"`)
+	_, ok := err.(*ErrNoPlugOrSlot)
+	c.Check(ok, Equals, true)
 }
 
 // Disconnect fails if slot doesn't exist
@@ -1402,6 +1404,8 @@ func (s *RepositorySuite) TestDisconnectFailsWithutSlot(c *C) {
 	c.Assert(s.testRepo.AddPlug(s.plug), IsNil)
 	err := s.testRepo.Disconnect(s.plug.Snap.InstanceName(), s.plug.Name, s.slot.Snap.InstanceName(), s.slot.Name)
 	c.Assert(err, ErrorMatches, `snap "producer" has no slot named "slot"`)
+	_, ok := err.(*ErrNoPlugOrSlot)
+	c.Check(ok, Equals, true)
 }
 
 // Disconnect fails if there's no connection to disconnect
@@ -1410,6 +1414,8 @@ func (s *RepositorySuite) TestDisconnectFailsWhenNotConnected(c *C) {
 	c.Assert(s.testRepo.AddSlot(s.slot), IsNil)
 	err := s.testRepo.Disconnect(s.plug.Snap.InstanceName(), s.plug.Name, s.slot.Snap.InstanceName(), s.slot.Name)
 	c.Assert(err, ErrorMatches, `cannot disconnect consumer:plug from producer:slot, it is not connected`)
+	_, ok := err.(*ErrNotConnected)
+	c.Check(ok, Equals, true)
 }
 
 // Disconnect works when plug and slot exist and are connected
