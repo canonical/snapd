@@ -193,6 +193,21 @@ if [ "$STATIC" = 1 ]; then
         exit 1
     fi
 
+    echo 'Check for direct usages of math/rand'
+    got=""
+    for dir in $(go list -f '{{.Dir}}' ./... | grep -v '/vendor/' ); do
+        s="$(grep -nP --exclude '*_test.go' --exclude 'randutil/*.go' math/rand "$dir"/*.go || true)"
+        if [ -n "$s" ]; then
+            got="$s\\n$got"
+        fi
+    done
+
+    if [ -n "$got" ]; then
+        echo 'Direct usages of math/rand, we prefer randutil:'
+        echo "$got"
+        exit 1
+    fi
+
     if command -v shellcheck >/dev/null; then
         echo Checking shell scripts...
         ( git ls-files -z 2>/dev/null ||
