@@ -25,7 +25,8 @@ import (
 	"fmt"
 )
 
-// CryptoTokenBytes returns a crypthographically random token byte sequence.
+// CryptoTokenBytes returns a crypthographically secure token of
+// nbytes random bytes.
 func CryptoTokenBytes(nbytes int) ([]byte, error) {
 	b := make([]byte, nbytes)
 	_, err := cryptorand.Read(b)
@@ -35,7 +36,8 @@ func CryptoTokenBytes(nbytes int) ([]byte, error) {
 	return b, nil
 }
 
-// CryptoToken returns a crypthographically random token string.
+// CryptoToken returns a crypthographically secure token string
+// encoding nbytes random bytes.
 // The result is URL-safe.
 func CryptoToken(nbytes int) (string, error) {
 	b, err := CryptoTokenBytes(nbytes)
