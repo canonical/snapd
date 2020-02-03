@@ -305,12 +305,12 @@ func (m *InterfaceManager) ResolveDisconnect(plugSnapName, plugName, slotSnapNam
 	if plugName == "" {
 		return nil, fmt.Errorf("invalid empty plug name")
 	}
-	if slotName == "" {
-		return nil, fmt.Errorf("invalid empty slot name")
-	}
 	// for convienience, empty slot snap means system snap
 	if slotSnapName == "" {
 		slotSnapName = mapper.SystemSnapName()
+	}
+	if slotName == "" {
+		return nil, fmt.Errorf("invalid empty slot name")
 	}
 
 	conns, err := getConns(m.state)
