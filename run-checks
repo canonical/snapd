@@ -196,6 +196,7 @@ if [ "$STATIC" = 1 ]; then
     echo 'Check for direct usages of math/rand'
     got=""
     for dir in $(go list -f '{{.Dir}}' ./... | grep -v '/vendor/' ); do
+        # shellcheck disable=SC2063
         s="$(grep -nP --exclude '*_test.go' --exclude 'randutil/*.go' math/rand "$dir"/*.go || true)"
         if [ -n "$s" ]; then
             got="$s\\n$got"
