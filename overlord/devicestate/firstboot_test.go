@@ -489,8 +489,7 @@ snaps:
 	st.Lock()
 	defer st.Unlock()
 
-	perfTimings := timings.New(nil)
-	tsAll, err := devicestate.PopulateStateFromSeedImpl(st, opts, perfTimings)
+	tsAll, err := devicestate.PopulateStateFromSeedImpl(st, opts, s.perfTimings)
 	c.Assert(err, IsNil)
 
 	checkOrder(c, tsAll, "core", "pc-kernel", "pc", "foo", "local")
