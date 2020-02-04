@@ -1,7 +1,7 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
 
 /*
- * Copyright (C) 2015-2018 Canonical Ltd
+ * Copyright (C) 2015-2020 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -86,6 +86,17 @@ func (s *clientSuite) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	s.handler.ServeHTTP(w, r)
 }
 
+func (s *clientSuite) TestBadJsonResponse(c *C) {
+	s.handler = http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(200)
+		w.Write([]byte(`{"type":`))
+	})
+	si, err := s.cli.SessionInfo(context.Background())
+	c.Check(si, DeepEquals, map[int]client.SessionInfo{})
+	c.Check(err, ErrorMatches, `cannot decode "{\\"type\\":": unexpected EOF`)
+}
+
 func (s *clientSuite) TestSessionInfo(c *C) {
 	s.handler = http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
@@ -118,6 +129,7 @@ func (s *clientSuite) TestSessionInfoError(c *C) {
 	})
 	si, err := s.cli.SessionInfo(context.Background())
 	c.Check(si, DeepEquals, map[int]client.SessionInfo{})
+	c.Check(err, ErrorMatches, "something bad happened")
 	c.Check(err, DeepEquals, &client.Error{
 		Kind:    "",
 		Message: "something bad happened",
@@ -150,6 +162,7 @@ func (s *clientSuite) TestServicesDaemonReloadError(c *C) {
 }`))
 	})
 	err := s.cli.ServicesDaemonReload(context.Background())
+	c.Check(err, ErrorMatches, "something bad happened")
 	c.Check(err, DeepEquals, &client.Error{
 		Kind:    "",
 		Message: "something bad happened",
