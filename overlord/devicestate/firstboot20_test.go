@@ -165,7 +165,7 @@ func (s *firstBoot20Suite) TestPopulateFromSeedCore20Happy(c *C) {
 	tsAll, err := devicestate.PopulateStateFromSeedImpl(st, &opts, s.perfTimings)
 	c.Assert(err, IsNil)
 
-	checkSeedOrder(c, tsAll, "snapd", "pc-kernel", "core20", "pc")
+	checkOrder(c, tsAll, "snapd", "pc-kernel", "core20", "pc")
 
 	// now run the change and check the result
 	// use the expected kind otherwise settle with start another one
