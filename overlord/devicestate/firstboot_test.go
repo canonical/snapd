@@ -125,9 +125,15 @@ func (t *firstBootBaseTest) startOverlord(c *C) {
 }
 
 type firstBoot16BaseTest struct {
+	*firstBootBaseTest
 	// TestingSeed16 helps populating seeds (it provides
 	// MakeAssertedSnap, WriteAssertions etc.) for tests.
 	*seedtest.TestingSeed16
+}
+
+func (t *firstBoot16BaseTest) setup16BaseTest(c *C, bt *firstBootBaseTest) {
+	t.firstBootBaseTest = bt
+	t.setupBaseTest(c, &t.TestingSeed16.SeedSnaps)
 }
 
 type firstBoot16Suite struct {
@@ -139,8 +145,7 @@ var _ = Suite(&firstBoot16Suite{})
 
 func (s *firstBoot16Suite) SetUpTest(c *C) {
 	s.TestingSeed16 = &seedtest.TestingSeed16{}
-
-	s.setupBaseTest(c, &s.TestingSeed16.SeedSnaps)
+	s.setup16BaseTest(c, &s.firstBootBaseTest)
 
 	s.startOverlord(c)
 
@@ -397,7 +402,7 @@ type: gadget`
 	return coreFname, kernelFname, gadgetFname
 }
 
-func checkSeedOrder(c *C, tsAll []*state.TaskSet, snaps ...string) {
+func checkOrder(c *C, tsAll []*state.TaskSet, snaps ...string) {
 	matched := 0
 	var prevTask *state.Task
 	for i, ts := range tsAll {
@@ -432,12 +437,12 @@ func checkSeedTasks(c *C, tsAll []*state.TaskSet) {
 	c.Check(markSeededTask.WaitTasks(), testutil.Contains, otherTask)
 }
 
-func (s *firstBoot16BaseTest) makeSeedChange(c *C, st *state.State, opts *devicestate.PopulateStateFromSeedOptions, devAcct *asserts.Account,
+func (s *firstBoot16BaseTest) makeSeedChange(c *C, st *state.State, opts *devicestate.PopulateStateFromSeedOptions,
 	checkTasks func(c *C, tsAll []*state.TaskSet), checkOrder func(c *C, tsAll []*state.TaskSet, snaps ...string)) *state.Change {
 
 	coreFname, kernelFname, gadgetFname := s.makeCoreSnaps(c, "")
 
-	s.WriteAssertions("developer.account", devAcct)
+	s.WriteAssertions("developer.account", s.devAcct)
 
 	// put a firstboot snap into the SnapBlobDir
 	snapYaml := `name: foo
@@ -515,7 +520,7 @@ func (s *firstBoot16Suite) TestPopulateFromSeedHappy(c *C) {
 	bloader.SetBootBase("core_1.snap")
 
 	st := s.overlord.State()
-	chg := s.makeSeedChange(c, st, nil, s.devAcct, checkSeedTasks, checkSeedOrder)
+	chg := s.makeSeedChange(c, st, nil, checkSeedTasks, checkOrder)
 	err := s.overlord.Settle(settleTimeout)
 	c.Assert(err, IsNil)
 
@@ -622,7 +627,7 @@ func (s *firstBoot16Suite) TestPopulateFromSeedMissingBootloader(c *C) {
 
 	o.AddManager(o.TaskRunner())
 
-	chg := s.makeSeedChange(c, st, nil, s.devAcct, checkSeedTasks, checkSeedOrder)
+	chg := s.makeSeedChange(c, st, nil, checkSeedTasks, checkOrder)
 
 	se := o.StateEngine()
 	// we cannot use Settle because the Change will not become Clean
@@ -1253,7 +1258,7 @@ snaps:
 	tsAll, err := devicestate.PopulateStateFromSeedImpl(st, nil, s.perfTimings)
 	c.Assert(err, IsNil)
 
-	checkSeedOrder(c, tsAll, "snapd", "pc-kernel", "core18", "pc")
+	checkOrder(c, tsAll, "snapd", "pc-kernel", "core18", "pc")
 
 	// now run the change and check the result
 	// use the expected kind otherwise settle with start another one
@@ -1375,7 +1380,7 @@ snaps:
 	tsAll, err := devicestate.PopulateStateFromSeedImpl(st, nil, s.perfTimings)
 	c.Assert(err, IsNil)
 
-	checkSeedOrder(c, tsAll, "snapd", "pc-kernel", "core18", "pc", "other-base", "snap-req-other-base")
+	checkOrder(c, tsAll, "snapd", "pc-kernel", "core18", "pc", "other-base", "snap-req-other-base")
 }
 
 func (s *firstBoot16Suite) TestFirstbootGadgetBaseModelBaseMismatch(c *C) {
@@ -1594,7 +1599,7 @@ snaps:
 	tsAll, err := devicestate.PopulateStateFromSeedImpl(st, nil, s.perfTimings)
 	c.Assert(err, IsNil)
 
-	checkSeedOrder(c, tsAll, "snapd", "core18", "foo")
+	checkOrder(c, tsAll, "snapd", "core18", "foo")
 
 	// now run the change and check the result
 	// use the expected kind otherwise settle with start another one
@@ -1706,7 +1711,7 @@ snaps:
 	tsAll, err := devicestate.PopulateStateFromSeedImpl(st, nil, s.perfTimings)
 	c.Assert(err, IsNil)
 
-	checkSeedOrder(c, tsAll, "snapd", "core18", "pc", "foo")
+	checkOrder(c, tsAll, "snapd", "core18", "pc", "foo")
 
 	// now run the change and check the result
 	// use the expected kind otherwise settle with start another one

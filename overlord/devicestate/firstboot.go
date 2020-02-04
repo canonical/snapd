@@ -182,7 +182,7 @@ func populateStateFromSeedImpl(st *state.State, opts *populateStateFromSeedOptio
 		return append(all, ts)
 	}
 
-	chainTsNormalSeeding := func(all []*state.TaskSet, ts *state.TaskSet) []*state.TaskSet {
+	chainTsFullSeeding := func(all []*state.TaskSet, ts *state.TaskSet) []*state.TaskSet {
 		n := len(all)
 		if n != 0 {
 			ts.WaitAll(all[n-1])
@@ -193,7 +193,7 @@ func populateStateFromSeedImpl(st *state.State, opts *populateStateFromSeedOptio
 	if preseed {
 		chainTs = chainTsPreseeding
 	} else {
-		chainTs = chainTsNormalSeeding
+		chainTs = chainTsFullSeeding
 	}
 
 	chainSorted := func(infos []*snap.Info, infoToTs map[*snap.Info]*state.TaskSet) {

@@ -171,8 +171,7 @@ func checkPreseedOrder(c *C, tsAll []*state.TaskSet, snaps ...string) {
 
 func (s *firstbootPreseed16Suite) SetUpTest(c *C) {
 	s.TestingSeed16 = &seedtest.TestingSeed16{}
-
-	s.setupBaseTest(c, &s.TestingSeed16.SeedSnaps)
+	s.setup16BaseTest(c, &s.firstBootBaseTest)
 
 	s.SeedDir = dirs.SnapSeedDir
 
@@ -199,7 +198,7 @@ func (s *firstbootPreseed16Suite) TestPreseedHappy(c *C) {
 	s.startOverlord(c)
 	st := s.overlord.State()
 	opts := &devicestate.PopulateStateFromSeedOptions{Preseed: true}
-	chg := s.makeSeedChange(c, st, opts, s.devAcct, checkPreseedTasks, checkPreseedOrder)
+	chg := s.makeSeedChange(c, st, opts, checkPreseedTasks, checkPreseedOrder)
 	err := s.overlord.Settle(settleTimeout)
 
 	st.Lock()

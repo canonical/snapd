@@ -242,6 +242,7 @@ func AddSnapServices(s *snap.Info, disabledSvcs []string, inter interacter) (err
 		}
 	}()
 
+	// TODO: remove once services get enabled on start and not when created.
 	preseedMode := release.PreseedMode
 
 	for _, app := range s.Apps {
