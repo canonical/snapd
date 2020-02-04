@@ -28,7 +28,7 @@ import (
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/overlord/state"
-	"github.com/snapcore/snapd/strutil"
+	"github.com/snapcore/snapd/randutil"
 )
 
 func cookies(st *state.State) (map[string]string, error) {
@@ -74,7 +74,10 @@ func (m *SnapManager) SyncCookies(st *state.State) error {
 	// make sure every snap has a cookie, generate one if necessary
 	for snap := range instanceNames {
 		if _, ok := snapsWithCookies[snap]; !ok {
-			cookie := makeCookie()
+			cookie, err := makeCookie()
+			if err != nil {
+				return err
+			}
 			snapCookies[cookie] = snap
 			changed = true
 		}
@@ -145,12 +148,15 @@ func (m *SnapManager) removeSnapCookie(st *state.State, instanceName string) err
 	return nil
 }
 
-func makeCookie() string {
-	return strutil.MakeRandomString(44)
+func makeCookie() (string, error) {
+	return randutil.CryptoToken(42)
 }
 
 func createCookieFile(instanceName string) (cookieID string, err error) {
-	cookieID = makeCookie()
+	cookieID, err = makeCookie()
+	if err != nil {
+		return "", err
+	}
 	path := filepath.Join(dirs.SnapCookieDir, fmt.Sprintf("snap.%s", instanceName))
 	err = osutil.AtomicWriteFile(path, []byte(cookieID), 0600, 0)
 	if err != nil {
