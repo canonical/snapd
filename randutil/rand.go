@@ -57,7 +57,7 @@ func RandomString(length int) string {
 	return out
 }
 
-// Rexported from math/rand for streamlining.
+// Re-exported from math/rand for streamlining.
 var (
 	Intn   = rand.Intn
 	Int63n = rand.Int63n
