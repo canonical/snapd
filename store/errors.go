@@ -137,6 +137,42 @@ type SnapActionError struct {
 	Other []error
 }
 
+// SingleOpError returns the single operation, snap name, and error if
+// e represents a single error of a single operation on a single snap
+// (i.e. if e.Other is empty, and e.Refresh, e.Install and e.Download
+// have a single error in total).
+// In any other case, the error returned will be nil.
+func (e SnapActionError) SingleOpError() (op, name string, err error) {
+	if len(e.Other) > 0 {
+		return "", "", nil
+	}
+
+	nRefresh := len(e.Refresh)
+	nInstall := len(e.Install)
+	nDownload := len(e.Download)
+	if nRefresh+nInstall+nDownload != 1 {
+		return "", "", nil
+	}
+
+	var errs map[string]error
+	switch {
+	case nRefresh > 0:
+		op = "refresh"
+		errs = e.Refresh
+	case nInstall > 0:
+		op = "install"
+		errs = e.Install
+	case nDownload > 0:
+		op = "download"
+		errs = e.Download
+	}
+	for name, err = range errs {
+		return op, name, err
+	}
+	// can't happen
+	return "", "", nil
+}
+
 func (e SnapActionError) Error() string {
 	nRefresh := len(e.Refresh)
 	nInstall := len(e.Install)
@@ -152,22 +188,8 @@ func (e SnapActionError) Error() string {
 		}
 	case 1:
 		if nOther == 0 {
-			var op string
-			var errs map[string]error
-			switch {
-			case nRefresh > 0:
-				op = "refresh"
-				errs = e.Refresh
-			case nInstall > 0:
-				op = "install"
-				errs = e.Install
-			case nDownload > 0:
-				op = "download"
-				errs = e.Download
-			}
-			for name, e := range errs {
-				return fmt.Sprintf("cannot %s snap %q: %v", op, name, e)
-			}
+			op, name, err := e.SingleOpError()
+			return fmt.Sprintf("cannot %s snap %q: %v", op, name, err)
 		} else {
 			return fmt.Sprintf("cannot refresh, install, or download: %v", e.Other[0])
 		}

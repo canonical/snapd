@@ -48,8 +48,9 @@ var (
 	}
 
 	logoutCmd = &Command{
-		Path: "/v2/logout",
-		POST: logoutUser,
+		Path:     "/v2/logout",
+		POST:     logoutUser,
+		PolkitOK: "io.snapcraft.snapd.login",
 	}
 
 	// backwards compat; to-be-deprecated

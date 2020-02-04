@@ -47,22 +47,40 @@ type CreateUserOptions struct {
 	ForceManaged bool   `json:"force-managed,omitempty"`
 }
 
-// CreateUser creates a local system user. See CreateUserOptions for details.
-func (client *Client) CreateUser(options *CreateUserOptions) (*CreateUserResult, error) {
-	if options.Email == "" {
-		return nil, fmt.Errorf("cannot create a user without providing an email")
-	}
+// RemoveUserOptions holds options for removing a local system user.
+type RemoveUserOptions struct {
+	// Username indicates which user to remove.
+	Username string `json:"username,omitempty"`
+}
 
-	var result CreateUserResult
-	data, err := json.Marshal(options)
+type userAction struct {
+	Action string `json:"action"`
+	*CreateUserOptions
+	*RemoveUserOptions
+}
+
+func (client *Client) doUserAction(act *userAction) ([]*CreateUserResult, error) {
+	data, err := json.Marshal(act)
 	if err != nil {
 		return nil, err
 	}
 
-	if _, err := client.doSync("POST", "/v2/create-user", nil, nil, bytes.NewReader(data), &result); err != nil {
+	var result []*CreateUserResult
+	_, err = client.doSync("POST", "/v2/users", nil, nil, bytes.NewReader(data), &result)
+	return result, err
+}
+
+// CreateUser creates a local system user. See CreateUserOptions for details.
+func (client *Client) CreateUser(options *CreateUserOptions) (*CreateUserResult, error) {
+	if options == nil || options.Email == "" {
+		return nil, fmt.Errorf("cannot create a user without providing an email")
+	}
+
+	result, err := client.doUserAction(&userAction{Action: "create", CreateUserOptions: options})
+	if err != nil {
 		return nil, fmt.Errorf("while creating user: %v", err)
 	}
-	return &result, nil
+	return result[0], nil
 }
 
 // CreateUsers creates multiple local system users. See CreateUserOptions for details.
@@ -70,34 +88,19 @@ func (client *Client) CreateUser(options *CreateUserOptions) (*CreateUserResult,
 // Results may be provided even if there are errors.
 func (client *Client) CreateUsers(options []*CreateUserOptions) ([]*CreateUserResult, error) {
 	for _, opts := range options {
-		if opts.Email == "" && !opts.Known {
+		if opts == nil || (opts.Email == "" && !opts.Known) {
 			return nil, fmt.Errorf("cannot create user from store details without an email to query for")
 		}
 	}
 
 	var results []*CreateUserResult
 	var errs []error
-
 	for _, opts := range options {
-		data, err := json.Marshal(opts)
+		result, err := client.doUserAction(&userAction{Action: "create", CreateUserOptions: opts})
 		if err != nil {
-			return nil, err
-		}
-
-		if opts.Email == "" {
-			var result []*CreateUserResult
-			if _, err := client.doSync("POST", "/v2/create-user", nil, nil, bytes.NewReader(data), &result); err != nil {
-				errs = append(errs, err)
-			} else {
-				results = append(results, result...)
-			}
+			errs = append(errs, err)
 		} else {
-			var result *CreateUserResult
-			if _, err := client.doSync("POST", "/v2/create-user", nil, nil, bytes.NewReader(data), &result); err != nil {
-				errs = append(errs, err)
-			} else {
-				results = append(results, result)
-			}
+			results = append(results, result...)
 		}
 	}
 
@@ -112,6 +115,15 @@ func (client *Client) CreateUsers(options []*CreateUserOptions) ([]*CreateUserRe
 		return results, fmt.Errorf("while creating users:%s", buf.Bytes())
 	}
 	return results, nil
+}
+
+// RemoveUser removes a local system user.
+func (client *Client) RemoveUser(options *RemoveUserOptions) error {
+	if options == nil || options.Username == "" {
+		return fmt.Errorf("cannot remove a user without providing a username")
+	}
+	_, err := client.doUserAction(&userAction{Action: "remove", RemoveUserOptions: options})
+	return err
 }
 
 // Users returns the local users.

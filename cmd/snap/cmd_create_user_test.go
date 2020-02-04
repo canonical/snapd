@@ -35,13 +35,15 @@ func makeCreateUserChecker(c *check.C, n *int, email string, sudoer, known bool)
 		switch *n {
 		case 0:
 			c.Check(r.Method, check.Equals, "POST")
-			c.Check(r.URL.Path, check.Equals, "/v2/create-user")
+			c.Check(r.URL.Path, check.Equals, "/v2/users")
 			var gotBody map[string]interface{}
 			dec := json.NewDecoder(r.Body)
 			err := dec.Decode(&gotBody)
 			c.Assert(err, check.IsNil)
 
-			wantBody := make(map[string]interface{})
+			wantBody := map[string]interface{}{
+				"action": "create",
+			}
 			if email != "" {
 				wantBody["email"] = "one@email.com"
 			}
@@ -56,7 +58,7 @@ func makeCreateUserChecker(c *check.C, n *int, email string, sudoer, known bool)
 			if email == "" {
 				fmt.Fprintln(w, `{"type": "sync", "result": [{"username": "karl", "ssh-keys": ["a","b"]}]}`)
 			} else {
-				fmt.Fprintln(w, `{"type": "sync", "result": {"username": "karl", "ssh-keys": ["a","b"]}}`)
+				fmt.Fprintln(w, `{"type": "sync", "result": [{"username": "karl", "ssh-keys": ["a","b"]}]}`)
 			}
 		default:
 			c.Fatalf("got too many requests (now on %d)", *n+1)
