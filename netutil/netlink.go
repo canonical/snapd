@@ -33,8 +33,30 @@ const (
 	RTM_DELROUTE = 25
 )
 
+// openNetlinkFd is used in tests to mock a netlink socket
+var openNetlinkFd = openNetlinkFdImpl
+
+func openNetlinkFdImpl() (fd int, err error) {
+	fd, err = syscall.Socket(syscall.AF_NETLINK, syscall.SOCK_RAW, syscall.NETLINK_ROUTE)
+	if err != nil {
+		return -1, err
+	}
+	addr := &syscall.SockaddrNetlink{
+		Family: syscall.AF_NETLINK,
+		Groups: RTMGRP_IPV4_ROUTE | RTMGRP_IPV6_ROUTE,
+	}
+	if err := syscall.Bind(fd, addr); err != nil {
+		return -1, err
+	}
+	return fd, nil
+}
+
+// RoutesMonitor monitors the network information and provides callbacks
+// when a default gateway is added or removed
 type RoutesMonitor struct {
 	netlinkFd int
+
+	netlinkErrors chan error
 
 	defaultGwAdded   func(string)
 	defaultGwRemoved func(string)
@@ -42,6 +64,10 @@ type RoutesMonitor struct {
 
 func NewRoutesMonitor(defaultGwAdded, defaultGwRemoved func(string)) *RoutesMonitor {
 	m := &RoutesMonitor{
+		netlinkFd: -1,
+
+		netlinkErrors: make(chan error),
+
 		defaultGwAdded:   defaultGwAdded,
 		defaultGwRemoved: defaultGwRemoved,
 	}
@@ -49,15 +75,8 @@ func NewRoutesMonitor(defaultGwAdded, defaultGwRemoved func(string)) *RoutesMoni
 }
 
 func (m *RoutesMonitor) Connect() error {
-	fd, err := syscall.Socket(syscall.AF_NETLINK, syscall.SOCK_RAW, syscall.NETLINK_ROUTE)
+	fd, err := openNetlinkFd()
 	if err != nil {
-		return err
-	}
-	addr := &syscall.SockaddrNetlink{
-		Family: syscall.AF_NETLINK,
-		Groups: RTMGRP_IPV4_ROUTE | RTMGRP_IPV6_ROUTE,
-	}
-	if err := syscall.Bind(fd, addr); err != nil {
 		return err
 	}
 	m.netlinkFd = fd
@@ -67,7 +86,7 @@ func (m *RoutesMonitor) Connect() error {
 
 func (m *RoutesMonitor) Disconnect() {
 	syscall.Close(m.netlinkFd)
-	m.netlinkFd = 0
+	m.netlinkFd = -1
 }
 
 func isDefaultGw(mm *syscall.NetlinkMessage) (bool, net.IP) {
@@ -77,6 +96,8 @@ func isDefaultGw(mm *syscall.NetlinkMessage) (bool, net.IP) {
 		return false, nil
 	}
 	for _, nra := range nras {
+		// XXX: we could also check for Type:RTA_TABLE and
+		//      Value:RT_TABLE_MAIN
 		switch nra.Attr.Type {
 		case syscall.RTA_GATEWAY:
 			return true, net.IP(nra.Value)
@@ -87,11 +108,13 @@ func isDefaultGw(mm *syscall.NetlinkMessage) (bool, net.IP) {
 
 func (m *RoutesMonitor) run() {
 	buf := make([]byte, syscall.Getpagesize())
+
 	for {
 		n, _, err := syscall.Recvfrom(m.netlinkFd, buf, 0)
 		if err != nil {
-			// XXX: log error?
-			continue
+			m.netlinkErrors <- err
+			close(m.netlinkErrors)
+			return
 		}
 		if n < syscall.NLMSG_HDRLEN {
 			// XXX: log error?
