@@ -83,7 +83,8 @@ func Manager(s *state.State, hookManager *hookstate.HookManager, runner *state.T
 		keypairMgr: keypairMgr,
 		newStore:   newStore,
 		reg:        make(chan struct{}),
-		preseed:    release.PreseedMode(),
+		// TODO: handle here via devicestate, similar to DeviceContext.
+		preseed: release.PreseedMode(),
 	}
 
 	modeEnv, err := boot.ReadModeenv("")
@@ -633,10 +634,10 @@ func (m *DeviceManager) Ensure() error {
 		if err := m.ensureSeedInConfig(); err != nil {
 			errs = append(errs, err)
 		}
-	}
 
-	if err := m.ensureInstalled(); err != nil {
-		errs = append(errs, err)
+		if err := m.ensureInstalled(); err != nil {
+			errs = append(errs, err)
+		}
 	}
 
 	if len(errs) > 0 {
