@@ -183,7 +183,8 @@ func generateMountsModeRun() error {
 		}
 	}
 
-	// XXX possibly will need to unseal key, and unlock LUKS here before proceeding to mount data
+	// TODO:UC20: possibly will need to unseal key, and unlock LUKS here before
+	//            proceeding to mount data
 
 	// 1.2 mount Data, and exit, as it needs to be mounted for us to do step 2
 	isDataMounted, err := osutilIsMounted(dataDir)
