@@ -10,8 +10,8 @@ environment:
   IMAGE_MOUNTPOINT: /mnt/cloudimg
 
 prepare: |
-  apt install -y qemu-utils kpartx
-
+  # the get_image_url_for_nested_vm is a convienient helper that returns
+  # a cloud image url matching current $SPREAD_SYSTEM.
   #shellcheck source=tests/lib/nested.sh
   . "$TESTSLIB/nested.sh"
   wget $(get_image_url_for_nested_vm) -O cloudimg.img

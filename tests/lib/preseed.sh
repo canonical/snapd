@@ -8,7 +8,7 @@ mount_ubuntu_image() {
     local IMAGE_MOUNTPOINT=$2
 
     if ! lsmod | grep nbd; then
-        sudo modprobe nbd
+        modprobe nbd
     fi
 
     qemu-nbd -c /dev/nbd0 "$CLOUD_IMAGE"

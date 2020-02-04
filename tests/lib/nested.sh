@@ -233,8 +233,7 @@ create_nested_classic_vm(){
 }
 
 get_nested_classic_image_path() {
-    IMAGE=$(ls $WORK_DIR/image/*.img)
-    echo "$IMAGE"
+    ls $WORK_DIR/image/*.img
 }
 
 start_nested_classic_vm(){

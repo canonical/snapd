@@ -11,7 +11,6 @@ environment:
   IMAGE_MOUNTPOINT: /mnt/cloudimg
 
 prepare: |
-  apt install -y qemu-utils kpartx
   mkdir -p "$IMAGE_MOUNTPOINT"
 
   #shellcheck source=tests/lib/nested.sh
@@ -52,11 +51,13 @@ execute: |
   execute_remote "sudo snap wait system seed.loaded"
   execute_remote "snap changes" | MATCH "Done .+ Initialize system state"
 
+  echo "Checking that the system-key after first boot is the same as that from preseeding"
+  # note, this doesn't actually test the functionality, but acts as a canary:
+  # the test is run against a vm image with ubuntu release matching that from spread host;
+  # system-key check can fail if the nested vm image differs too much from the spread host system,
+  # e.g. when the list of apparmor features differs due to significant kernel update.
   execute_remote "cat /var/lib/snapd/system-key" > system-key.real
-  # XXX: this currently fails because we're running it on 18.04 gc system and
-  # kernel aa features differ one the booted 19.10/20.04 image;
-  # uncomment this once proper systems are in place.
-  #diff -u -w system-key.real system-key.preseeded
+  diff -u -w system-key.real system-key.preseeded
 
   echo "Checking that lxd snap is operational"
   execute_remote "snap list" | not MATCH "broken"

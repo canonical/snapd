@@ -636,14 +636,18 @@ pkg_dependencies_ubuntu_classic(){
             echo "
                 evolution-data-server
                 fwupd
+                kpartx
                 packagekit
+                qemu-utils
                 "
             ;;
         ubuntu-20.04-64)
             echo "
                 evolution-data-server
                 gccgo-9
+                kpartx
                 packagekit
+                qemu-utils
                 "
             ;;
         ubuntu-*)
