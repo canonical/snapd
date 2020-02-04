@@ -430,7 +430,7 @@ func genericMarkSuccessful(b bootState, status string, update bootStateUpdate) (
 	// kernel_status and base_status go from "" -> "try" (set by snapd), to
 	// "try" -> "trying" (set by the boot script)
 	// so if we are not in "trying" mode, nothing to do here
-	if status != "trying" {
+	if status != TryingStatus {
 		return bsmark, nil, nil
 	}
 
@@ -483,7 +483,7 @@ func (bsmark *bootState20MarkSuccessful) commit() error {
 		// to boot and fall back to booting the old kernel which is safe.
 
 		// clear the kernel_status boot var first
-		err := bsmark.ebl.SetBootVars(map[string]string{"kernel_status": ""})
+		err := bsmark.ebl.SetBootVars(map[string]string{"kernel_status": DefaultStatus})
 		if err != nil {
 			return err
 		}
@@ -526,9 +526,9 @@ func (bsmark *bootState20MarkSuccessful) commit() error {
 		changed := false
 
 		// clear the status
-		if bsmark.modeenv.BaseStatus != "" {
+		if bsmark.modeenv.BaseStatus != DefaultStatus {
 			changed = true
-			bsmark.modeenv.BaseStatus = ""
+			bsmark.modeenv.BaseStatus = DefaultStatus
 		}
 		// set the new base as the tried base snap
 		tryBase := filepath.Base(bsmark.triedBaseSnap.MountFile())
