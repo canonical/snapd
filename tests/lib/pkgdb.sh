@@ -698,7 +698,6 @@ pkg_dependencies_fedora(){
         jq
         iptables-services
         man
-        mock
         net-tools
         nfs-utils
         PackageKit
@@ -728,7 +727,6 @@ pkg_dependencies_amazon(){
         jq
         iptables-services
         man
-        mock
         nc
         net-tools
         nfs-utils
