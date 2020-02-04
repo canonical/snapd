@@ -47,10 +47,10 @@ func newBootState16(typ snap.Type) bootState {
 	return &bootState16{varSuffix: varSuffix, errName: errName}
 }
 
-func (s16 *bootState16) revisions() (s, tryS snap.PlaceInfo, trying bool, err error) {
+func (s16 *bootState16) revisions() (s, tryS snap.PlaceInfo, status string, err error) {
 	bloader, err := bootloader.Find("", nil)
 	if err != nil {
-		return nil, nil, false, fmt.Errorf("cannot get boot settings: %s", err)
+		return nil, nil, "", fmt.Errorf("cannot get boot settings: %s", err)
 	}
 
 	snapVar := "snap_" + s16.varSuffix
@@ -60,7 +60,7 @@ func (s16 *bootState16) revisions() (s, tryS snap.PlaceInfo, trying bool, err er
 
 	m, err := bloader.GetBootVars(vars...)
 	if err != nil {
-		return nil, nil, false, fmt.Errorf("cannot get boot variables: %s", err)
+		return nil, nil, "", fmt.Errorf("cannot get boot variables: %s", err)
 	}
 
 	for _, vName := range vars {
@@ -73,20 +73,20 @@ func (s16 *bootState16) revisions() (s, tryS snap.PlaceInfo, trying bool, err er
 		}
 
 		if vName == "snap_mode" {
-			trying = v == "trying"
+			status = v
 		} else {
 			if v == "" {
-				return nil, nil, false, fmt.Errorf("cannot get name and revision of %s (%s): boot variable unset", s16.errName, vName)
+				return nil, nil, "", fmt.Errorf("cannot get name and revision of %s (%s): boot variable unset", s16.errName, vName)
 			}
 			snap, err := snap.ParsePlaceInfoFromSnapFileName(v)
 			if err != nil {
-				return nil, nil, false, fmt.Errorf("cannot get name and revision of %s (%s): %v", s16.errName, vName, err)
+				return nil, nil, "", fmt.Errorf("cannot get name and revision of %s (%s): %v", s16.errName, vName, err)
 			}
 			snaps[vName] = snap
 		}
 	}
 
-	return snaps[snapVar], snaps[trySnapVar], trying, nil
+	return snaps[snapVar], snaps[trySnapVar], status, nil
 }
 
 type bootStateUpdate16 struct {
