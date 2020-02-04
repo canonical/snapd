@@ -76,7 +76,8 @@ var featureNames = map[SnapdFeature]string{
 
 // featuresEnabledWhenUnset contains a set of features that are enabled when not explicitly configured.
 var featuresEnabledWhenUnset = map[SnapdFeature]bool{
-	Layouts: true,
+	Layouts:                     true,
+	RobustMountNamespaceUpdates: true,
 }
 
 // featuresExported contains a set of features that are exported outside of snapd.
