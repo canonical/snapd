@@ -574,11 +574,11 @@ prepare: |
                 apt-get update >& "$tf" || ( cat "$tf"; exit 1 )
                 apt-get install -y xdelta3 curl eatmydata >& "$tf" || ( cat "$tf"; exit 1 )
                 ;;
-            fedora-*)
-                dnf install --refresh -y xdelta curl &> "$tf" || (cat "$tf"; exit 1)
-                ;;
-            amazon-*|centos-*)
+            amazon-*|centos-7-*)
                 yum install -y xdelta curl &> "$tf" || (cat "$tf"; exit 1)
+                ;;
+            fedora-*|centos-*)
+                dnf install --refresh -y xdelta curl &> "$tf" || (cat "$tf"; exit 1)
                 ;;
             opensuse-*)
                 zypper -q --gpg-auto-import-keys refresh
