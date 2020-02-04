@@ -66,7 +66,7 @@ type bootState20Kernel struct {
 	tryKernelSnap snap.PlaceInfo
 }
 
-func (ks20 *bootState20Kernel) loadBootloader() error {
+func (ks20 *bootState20Kernel) loadBootenv() error {
 	// don't setup multiple times
 	if ks20.ebl != nil {
 		return nil
@@ -97,7 +97,7 @@ func (ks20 *bootState20Kernel) loadBootloader() error {
 
 func (ks20 *bootState20Kernel) revisions() (snap.PlaceInfo, snap.PlaceInfo, string, error) {
 	var bootSn, tryBootSn snap.PlaceInfo
-	err := ks20.loadBootloader()
+	err := ks20.loadBootenv()
 	if err != nil {
 		return nil, nil, "", err
 	}
@@ -117,12 +117,7 @@ func (ks20 *bootState20Kernel) revisions() (snap.PlaceInfo, snap.PlaceInfo, stri
 		tryBootSn = tryKernel
 	}
 
-	m, err := ks20.ebl.GetBootVars("kernel_status")
-	if err != nil {
-		return nil, nil, "", fmt.Errorf("cannot read boot variables with bootloader %s: %v", ks20.ebl.Name(), err)
-	}
-
-	return bootSn, tryBootSn, m["kernel_status"], nil
+	return bootSn, tryBootSn, ks20.kernelStatus, nil
 }
 
 func (ks20 *bootState20Kernel) setNext(next snap.PlaceInfo) (bool, bootStateUpdate, error) {
@@ -151,7 +146,7 @@ func (ks20 *bootState20Kernel) markSuccessful(update bootStateUpdate) (bootState
 	// if we were told to clean up status, then do that
 	if shouldClean {
 		logger.Noticef("kernel_status is %q, but there is no try kernel snap on bootloader %s, resetting to %q", ks20.kernelStatus, ks20.ebl.Name(), DefaultStatus)
-		ks20.commitKernelStatus = ""
+		ks20.commitKernelStatus = DefaultStatus
 	}
 
 	// u should always be non-nil if err is nil
@@ -377,7 +372,7 @@ func threadBootState20MarkSuccessful(bsmark *bootState20MarkSuccessful) (*bootSt
 	}
 
 	// initialize both types in case we need to mark both
-	err := bsmark.loadBootloader()
+	err := bsmark.loadBootenv()
 	if err != nil {
 		return nil, err
 	}
