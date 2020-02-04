@@ -34,6 +34,11 @@ const (
 	policyRevokeHandle = 0x01800001
 )
 
+var (
+	provisionTPM = fdeutil.ProvisionTPM
+	sealKeyToTPM = fdeutil.SealKeyToTPM
+)
+
 type TPMConnectionError string
 
 func (s TPMConnectionError) Error() string {
@@ -109,7 +114,7 @@ func setOSComponents(c *[]string, pathList []string) error {
 
 // Provision tries to clear and provision the TPM.
 func (t *tpmSupport) Provision() error {
-	if err := fdeutil.ProvisionTPM(t.tconn, fdeutil.ProvisionModeFull, t.lockoutAuth, nil); err != nil {
+	if err := provisionTPM(t.tconn, fdeutil.ProvisionModeFull, t.lockoutAuth, nil); err != nil {
 		return fmt.Errorf("cannot provision TPM: %v", err)
 	}
 
@@ -158,7 +163,7 @@ func (t *tpmSupport) Seal(key []byte, keyDest, privDest string) error {
 		OwnerAuth:              t.ownerAuth,
 	}
 
-	if err := fdeutil.SealKeyToTPM(t.tconn, keyDest, privDest, &createParams, policyParams, key); err != nil {
+	if err := sealKeyToTPM(t.tconn, keyDest, privDest, &createParams, policyParams, key); err != nil {
 		return fmt.Errorf("cannot seal data: %v", err)
 	}
 	return nil

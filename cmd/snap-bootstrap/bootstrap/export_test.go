@@ -18,9 +18,30 @@
  */
 package bootstrap
 
+import (
+	"github.com/chrisccoulson/ubuntu-core-fde-utils"
+)
+
 var (
 	EnsureLayoutCompatibility = ensureLayoutCompatibility
 	DeviceFromRole            = deviceFromRole
 )
 
 type TPMSupport = tpmSupport
+
+func MockProvisionTPM(f func(tpm *fdeutil.TPMConnection, mode fdeutil.ProvisionMode, newLockoutAuth []byte,
+	auths *fdeutil.ProvisionAuths) error) (restore func()) {
+	old := provisionTPM
+	provisionTPM = f
+	return func() {
+		provisionTPM = old
+	}
+}
+func MockSealKeyToTPM(f func(tpm *fdeutil.TPMConnection, keyDest, privateDest string,
+	create *fdeutil.CreationParams, policy *fdeutil.PolicyParams, key []byte) error) (restore func()) {
+	old := sealKeyToTPM
+	sealKeyToTPM = f
+	return func() {
+		sealKeyToTPM = old
+	}
+}
