@@ -170,6 +170,16 @@ var ErrInvalidUser = errors.New("invalid user")
 
 // RemoveUser removes a user from the state given its ID
 func RemoveUser(st *state.State, userID int) error {
+	return removeUser(st, func(u *UserState) bool { return u.ID == userID })
+}
+
+// RemoveUserByUsername removes a user from the state given its username
+func RemoveUserByUsername(st *state.State, username string) error {
+	return removeUser(st, func(u *UserState) bool { return u.Username == username })
+}
+
+// removeUser removes the first user matching given predicate.
+func removeUser(st *state.State, p func(*UserState) bool) error {
 	var authStateData AuthState
 
 	err := st.Get("auth", &authStateData)
@@ -181,7 +191,7 @@ func RemoveUser(st *state.State, userID int) error {
 	}
 
 	for i := range authStateData.Users {
-		if authStateData.Users[i].ID == userID {
+		if p(&authStateData.Users[i]) {
 			// delete without preserving order
 			n := len(authStateData.Users) - 1
 			authStateData.Users[i] = authStateData.Users[n]
@@ -213,8 +223,18 @@ func Users(st *state.State) ([]*UserState, error) {
 	return users, nil
 }
 
-// User returns a user from the state given its ID
+// User returns a user from the state given its ID.
 func User(st *state.State, id int) (*UserState, error) {
+	return findUser(st, func(u *UserState) bool { return u.ID == id })
+}
+
+// UserByUsername returns a user from the state given its username.
+func UserByUsername(st *state.State, username string) (*UserState, error) {
+	return findUser(st, func(u *UserState) bool { return u.Username == username })
+}
+
+// findUser finds the first user matching given predicate.
+func findUser(st *state.State, p func(*UserState) bool) (*UserState, error) {
 	var authStateData AuthState
 
 	err := st.Get("auth", &authStateData)
@@ -225,9 +245,10 @@ func User(st *state.State, id int) (*UserState, error) {
 		return nil, err
 	}
 
-	for _, user := range authStateData.Users {
-		if user.ID == id {
-			return &user, nil
+	for i := range authStateData.Users {
+		u := &authStateData.Users[i]
+		if p(u) {
+			return u, nil
 		}
 	}
 	return nil, ErrInvalidUser

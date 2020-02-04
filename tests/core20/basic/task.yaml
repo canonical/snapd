@@ -25,3 +25,7 @@ execute: |
 
     echo "Ensure passwd/group is available for snaps"
     test-snapd-sh-core20.sh -c 'cat /var/lib/extrausers/passwd' | MATCH test
+
+    # TODO:UC20: also check for /boot/grub/kernel.efi symlink once it's there
+    echo "Check that we have an extracted kernel"
+    test -e /boot/grub/pc-kernel*/kernel.efi

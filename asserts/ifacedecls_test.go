@@ -35,6 +35,7 @@ import (
 
 var (
 	_ = Suite(&attrConstraintsSuite{})
+	_ = Suite(&nameConstraintsSuite{})
 	_ = Suite(&plugSlotRulesSuite{})
 )
 
@@ -484,6 +485,51 @@ func (s *attrConstraintsSuite) TestNeverMatchAttributeConstraints(c *C) {
 	c.Check(asserts.NeverMatchAttributes.Check(nil, nil), NotNil)
 }
 
+type nameConstraintsSuite struct{}
+
+func (s *nameConstraintsSuite) TestCompileErrors(c *C) {
+	_, err := asserts.CompileNameConstraints("slot-names", "true")
+	c.Check(err, ErrorMatches, `slot-names constraints must be a list of regexps and special \$ values`)
+
+	_, err = asserts.CompileNameConstraints("slot-names", []interface{}{map[string]interface{}{"foo": "bar"}})
+	c.Check(err, ErrorMatches, `slot-names constraint entry must be a regexp or special \$ value`)
+
+	_, err = asserts.CompileNameConstraints("plug-names", []interface{}{"["})
+	c.Check(err, ErrorMatches, `cannot compile plug-names constraint entry "\[":.*`)
+
+	_, err = asserts.CompileNameConstraints("plug-names", []interface{}{"$"})
+	c.Check(err, ErrorMatches, `plug-names constraint entry special value "\$" is invalid`)
+
+	_, err = asserts.CompileNameConstraints("slot-names", []interface{}{"$12"})
+	c.Check(err, ErrorMatches, `slot-names constraint entry special value "\$12" is invalid`)
+
+	_, err = asserts.CompileNameConstraints("plug-names", []interface{}{"a b"})
+	c.Check(err, ErrorMatches, `plug-names constraint entry regexp contains unexpected spaces`)
+}
+
+func (s *nameConstraintsSuite) TestCheck(c *C) {
+	nc, err := asserts.CompileNameConstraints("slot-names", []interface{}{"foo[0-9]", "bar"})
+	c.Assert(err, IsNil)
+
+	for _, matching := range []string{"foo0", "foo1", "bar"} {
+		c.Check(nc.Check("slot name", matching, nil), IsNil)
+	}
+
+	for _, notMatching := range []string{"baz", "fooo", "foo12"} {
+		c.Check(nc.Check("slot name", notMatching, nil), ErrorMatches, fmt.Sprintf(`slot name %q does not match constraints`, notMatching))
+	}
+
+}
+
+func (s *nameConstraintsSuite) TestCheckSpecial(c *C) {
+	nc, err := asserts.CompileNameConstraints("slot-names", []interface{}{"$INTERFACE"})
+	c.Assert(err, IsNil)
+
+	c.Check(nc.Check("slot name", "foo", nil), ErrorMatches, `slot name "foo" does not match constraints`)
+	c.Check(nc.Check("slot name", "foo", map[string]string{"$INTERFACE": "foo"}), IsNil)
+	c.Check(nc.Check("slot name", "bar", map[string]string{"$INTERFACE": "foo"}), ErrorMatches, `slot name "bar" does not match constraints`)
+}
+
 type plugSlotRulesSuite struct{}
 
 func checkAttrs(c *C, attrs *asserts.AttributeConstraints, witness, expected string) {
@@ -866,6 +912,52 @@ func (s *plugSlotRulesSuite) TestCompilePlugRuleInstallationConstraintsDeviceSco
 	}
 }
 
+func (s *plugSlotRulesSuite) TestCompilePlugRuleInstallationConstraintsPlugNames(c *C) {
+	m, err := asserts.ParseHeaders([]byte(`iface:
+  allow-installation: true`))
+	c.Assert(err, IsNil)
+
+	rule, err := asserts.CompilePlugRule("iface", m["iface"].(map[string]interface{}))
+	c.Assert(err, IsNil)
+
+	c.Check(rule.AllowInstallation[0].PlugNames, IsNil)
+
+	tests := []struct {
+		rule        string
+		matching    []string
+		notMatching []string
+	}{
+		{`iface:
+  allow-installation:
+    plug-names:
+      - foo`, []string{"foo"}, []string{"bar"}},
+		{`iface:
+  allow-installation:
+    plug-names:
+      - foo
+      - bar`, []string{"foo", "bar"}, []string{"baz"}},
+		{`iface:
+  allow-installation:
+    plug-names:
+      - foo[0-9]
+      - bar`, []string{"foo0", "foo1", "bar"}, []string{"baz", "fooo", "foo12"}},
+	}
+	for _, t := range tests {
+		m, err = asserts.ParseHeaders([]byte(t.rule))
+		c.Assert(err, IsNil)
+
+		rule, err = asserts.CompilePlugRule("iface", m["iface"].(map[string]interface{}))
+		c.Assert(err, IsNil)
+
+		for _, matching := range t.matching {
+			c.Check(rule.AllowInstallation[0].PlugNames.Check("plug name", matching, nil), IsNil)
+		}
+		for _, notMatching := range t.notMatching {
+			c.Check(rule.AllowInstallation[0].PlugNames.Check("plug name", notMatching, nil), NotNil)
+		}
+	}
+}
+
 func (s *plugSlotRulesSuite) TestCompilePlugRuleConnectionConstraintsIDConstraints(c *C) {
 	rule, err := asserts.CompilePlugRule("iface", map[string]interface{}{
 		"allow-connection": map[string]interface{}{
@@ -983,6 +1075,66 @@ func (s *plugSlotRulesSuite) TestCompilePlugRuleConnectionConstraintsDeviceScope
 		c.Assert(err, IsNil)
 
 		c.Check(rule.AllowConnection[0].DeviceScope, DeepEquals, &t.expected)
+	}
+}
+
+func (s *plugSlotRulesSuite) TestCompilePlugRuleConnectionConstraintsPlugNamesSlotNames(c *C) {
+	m, err := asserts.ParseHeaders([]byte(`iface:
+  allow-connection: true`))
+	c.Assert(err, IsNil)
+
+	rule, err := asserts.CompilePlugRule("iface", m["iface"].(map[string]interface{}))
+	c.Assert(err, IsNil)
+
+	c.Check(rule.AllowConnection[0].PlugNames, IsNil)
+	c.Check(rule.AllowConnection[0].SlotNames, IsNil)
+
+	tests := []struct {
+		rule        string
+		matching    []string
+		notMatching []string
+	}{
+		{`iface:
+  allow-connection:
+    plug-names:
+      - Pfoo
+    slot-names:
+      - Sfoo`, []string{"foo"}, []string{"bar"}},
+		{`iface:
+  allow-connection:
+    plug-names:
+      - Pfoo
+      - Pbar
+    slot-names:
+      - Sfoo
+      - Sbar`, []string{"foo", "bar"}, []string{"baz"}},
+		{`iface:
+  allow-connection:
+    plug-names:
+      - Pfoo[0-9]
+      - Pbar
+    slot-names:
+      - Sfoo[0-9]
+      - Sbar`, []string{"foo0", "foo1", "bar"}, []string{"baz", "fooo", "foo12"}},
+	}
+	for _, t := range tests {
+		m, err = asserts.ParseHeaders([]byte(t.rule))
+		c.Assert(err, IsNil)
+
+		rule, err = asserts.CompilePlugRule("iface", m["iface"].(map[string]interface{}))
+		c.Assert(err, IsNil)
+
+		for _, matching := range t.matching {
+			c.Check(rule.AllowConnection[0].PlugNames.Check("plug name", "P"+matching, nil), IsNil)
+
+			c.Check(rule.AllowConnection[0].SlotNames.Check("slot name", "S"+matching, nil), IsNil)
+		}
+
+		for _, notMatching := range t.notMatching {
+			c.Check(rule.AllowConnection[0].SlotNames.Check("plug name", "P"+notMatching, nil), NotNil)
+
+			c.Check(rule.AllowConnection[0].SlotNames.Check("slot name", "S"+notMatching, nil), NotNil)
+		}
 	}
 }
 
@@ -1126,19 +1278,19 @@ func (s *plugSlotRulesSuite) TestCompilePlugRuleErrors(c *C) {
 		{`iface:
   allow-connection:
     slot-snap-ids:
-      - foo`, `allow-connection in plug rule for interface "iface" must specify at least one of plug-attributes, slot-attributes, slot-snap-type, slot-publisher-id, slot-snap-id, slots-per-plug, plugs-per-slot, on-classic, on-store, on-brand, on-model`},
+      - foo`, `allow-connection in plug rule for interface "iface" must specify at least one of plug-names, slot-names, plug-attributes, slot-attributes, slot-snap-type, slot-publisher-id, slot-snap-id, slots-per-plug, plugs-per-slot, on-classic, on-store, on-brand, on-model`},
 		{`iface:
   deny-connection:
     slot-snap-ids:
-      - foo`, `deny-connection in plug rule for interface "iface" must specify at least one of plug-attributes, slot-attributes, slot-snap-type, slot-publisher-id, slot-snap-id, slots-per-plug, plugs-per-slot, on-classic, on-store, on-brand, on-model`},
+      - foo`, `deny-connection in plug rule for interface "iface" must specify at least one of plug-names, slot-names, plug-attributes, slot-attributes, slot-snap-type, slot-publisher-id, slot-snap-id, slots-per-plug, plugs-per-slot, on-classic, on-store, on-brand, on-model`},
 		{`iface:
   allow-auto-connection:
     slot-snap-ids:
-      - foo`, `allow-auto-connection in plug rule for interface "iface" must specify at least one of plug-attributes, slot-attributes, slot-snap-type, slot-publisher-id, slot-snap-id, slots-per-plug, plugs-per-slot, on-classic, on-store, on-brand, on-model`},
+      - foo`, `allow-auto-connection in plug rule for interface "iface" must specify at least one of plug-names, slot-names, plug-attributes, slot-attributes, slot-snap-type, slot-publisher-id, slot-snap-id, slots-per-plug, plugs-per-slot, on-classic, on-store, on-brand, on-model`},
 		{`iface:
   deny-auto-connection:
     slot-snap-ids:
-      - foo`, `deny-auto-connection in plug rule for interface "iface" must specify at least one of plug-attributes, slot-attributes, slot-snap-type, slot-publisher-id, slot-snap-id, slots-per-plug, plugs-per-slot, on-classic, on-store, on-brand, on-model`},
+      - foo`, `deny-auto-connection in plug rule for interface "iface" must specify at least one of plug-names, slot-names, plug-attributes, slot-attributes, slot-snap-type, slot-publisher-id, slot-snap-id, slots-per-plug, plugs-per-slot, on-classic, on-store, on-brand, on-model`},
 		{`iface:
   allow-connect: true`, `plug rule for interface "iface" must specify at least one of allow-installation, deny-installation, allow-connection, deny-connection, allow-auto-connection, deny-auto-connection`},
 		{`iface:
@@ -1187,6 +1339,12 @@ func (s *plugSlotRulesSuite) TestCompilePlugRuleErrors(c *C) {
   allow-auto-connection:
     slots-per-plug:
       what: 1`, `slots-per-plug in allow-auto-connection in plug rule for interface "iface" must be an integer >=1 or \*`},
+		{`iface:
+  allow-auto-connection:
+    plug-names: true`, `plug-names constraints must be a list of regexps and special \$ values`},
+		{`iface:
+  allow-auto-connection:
+    slot-names: true`, `slot-names constraints must be a list of regexps and special \$ values`},
 	}
 
 	for _, t := range tests {
@@ -1208,26 +1366,26 @@ var (
 
 func (s *plugSlotRulesSuite) TestPlugRuleFeatures(c *C) {
 	combos := []struct {
-		subrule         string
-		attrConstraints []string
+		subrule             string
+		constraintsPrefixes []string
 	}{
-		{"allow-installation", []string{"plug-attributes"}},
-		{"deny-installation", []string{"plug-attributes"}},
-		{"allow-connection", []string{"plug-attributes", "slot-attributes"}},
-		{"deny-connection", []string{"plug-attributes", "slot-attributes"}},
-		{"allow-auto-connection", []string{"plug-attributes", "slot-attributes"}},
-		{"deny-auto-connection", []string{"plug-attributes", "slot-attributes"}},
+		{"allow-installation", []string{"plug-"}},
+		{"deny-installation", []string{"plug-"}},
+		{"allow-connection", []string{"plug-", "slot-"}},
+		{"deny-connection", []string{"plug-", "slot-"}},
+		{"allow-auto-connection", []string{"plug-", "slot-"}},
+		{"deny-auto-connection", []string{"plug-", "slot-"}},
 	}
 
 	for _, combo := range combos {
-		for _, attrConstr := range combo.attrConstraints {
+		for _, attrConstrPrefix := range combo.constraintsPrefixes {
 			attrConstraintMap := map[string]interface{}{
 				"a":     "ATTR",
 				"other": []interface{}{"x", "y"},
 			}
 			ruleMap := map[string]interface{}{
 				combo.subrule: map[string]interface{}{
-					attrConstr: attrConstraintMap,
+					attrConstrPrefix + "attributes": attrConstraintMap,
 				},
 			}
 
@@ -1236,6 +1394,7 @@ func (s *plugSlotRulesSuite) TestPlugRuleFeatures(c *C) {
 			c.Check(asserts.RuleFeature(rule, "dollar-attr-constraints"), Equals, false, Commentf("%v", ruleMap))
 
 			c.Check(asserts.RuleFeature(rule, "device-scope-constraints"), Equals, false, Commentf("%v", ruleMap))
+			c.Check(asserts.RuleFeature(rule, "name-constraints"), Equals, false, Commentf("%v", ruleMap))
 
 			attrConstraintMap["a"] = "$MISSING"
 			rule, err = asserts.CompilePlugRule("iface", ruleMap)
@@ -1249,6 +1408,7 @@ func (s *plugSlotRulesSuite) TestPlugRuleFeatures(c *C) {
 			c.Check(asserts.RuleFeature(rule, "dollar-attr-constraints"), Equals, true, Commentf("%v", ruleMap))
 
 			c.Check(asserts.RuleFeature(rule, "device-scope-constraints"), Equals, false, Commentf("%v", ruleMap))
+			c.Check(asserts.RuleFeature(rule, "name-constraints"), Equals, false, Commentf("%v", ruleMap))
 
 		}
 
@@ -1262,6 +1422,18 @@ func (s *plugSlotRulesSuite) TestPlugRuleFeatures(c *C) {
 			rule, err := asserts.CompilePlugRule("iface", ruleMap)
 			c.Assert(err, IsNil)
 			c.Check(asserts.RuleFeature(rule, "device-scope-constraints"), Equals, true, Commentf("%v", ruleMap))
+		}
+
+		for _, nameConstrPrefix := range combo.constraintsPrefixes {
+			ruleMap := map[string]interface{}{
+				combo.subrule: map[string]interface{}{
+					nameConstrPrefix + "names": []interface{}{"foo"},
+				},
+			}
+
+			rule, err := asserts.CompilePlugRule("iface", ruleMap)
+			c.Assert(err, IsNil)
+			c.Check(asserts.RuleFeature(rule, "name-constraints"), Equals, true, Commentf("%v", ruleMap))
 		}
 	}
 }
@@ -1578,6 +1750,52 @@ func (s *plugSlotRulesSuite) TestCompileSlotRuleInstallationConstraintsDeviceSco
 	}
 }
 
+func (s *plugSlotRulesSuite) TestCompileSlotRuleInstallationConstraintsSlotNames(c *C) {
+	m, err := asserts.ParseHeaders([]byte(`iface:
+  allow-installation: true`))
+	c.Assert(err, IsNil)
+
+	rule, err := asserts.CompileSlotRule("iface", m["iface"].(map[string]interface{}))
+	c.Assert(err, IsNil)
+
+	c.Check(rule.AllowInstallation[0].SlotNames, IsNil)
+
+	tests := []struct {
+		rule        string
+		matching    []string
+		notMatching []string
+	}{
+		{`iface:
+  allow-installation:
+    slot-names:
+      - foo`, []string{"foo"}, []string{"bar"}},
+		{`iface:
+  allow-installation:
+    slot-names:
+      - foo
+      - bar`, []string{"foo", "bar"}, []string{"baz"}},
+		{`iface:
+  allow-installation:
+    slot-names:
+      - foo[0-9]
+      - bar`, []string{"foo0", "foo1", "bar"}, []string{"baz", "fooo", "foo12"}},
+	}
+	for _, t := range tests {
+		m, err = asserts.ParseHeaders([]byte(t.rule))
+		c.Assert(err, IsNil)
+
+		rule, err = asserts.CompileSlotRule("iface", m["iface"].(map[string]interface{}))
+		c.Assert(err, IsNil)
+
+		for _, matching := range t.matching {
+			c.Check(rule.AllowInstallation[0].SlotNames.Check("slot name", matching, nil), IsNil)
+		}
+		for _, notMatching := range t.notMatching {
+			c.Check(rule.AllowInstallation[0].SlotNames.Check("slot name", notMatching, nil), NotNil)
+		}
+	}
+}
+
 func (s *plugSlotRulesSuite) TestCompileSlotRuleConnectionConstraintsIDConstraints(c *C) {
 	rule, err := asserts.CompileSlotRule("iface", map[string]interface{}{
 		"allow-connection": map[string]interface{}{
@@ -1694,6 +1912,66 @@ func (s *plugSlotRulesSuite) TestCompileSlotRuleConnectionConstraintsDeviceScope
 		c.Assert(err, IsNil)
 
 		c.Check(rule.AllowConnection[0].DeviceScope, DeepEquals, &t.expected)
+	}
+}
+
+func (s *plugSlotRulesSuite) TestCompileSlotRuleConnectionConstraintsPlugNamesSlotNames(c *C) {
+	m, err := asserts.ParseHeaders([]byte(`iface:
+  allow-connection: true`))
+	c.Assert(err, IsNil)
+
+	rule, err := asserts.CompileSlotRule("iface", m["iface"].(map[string]interface{}))
+	c.Assert(err, IsNil)
+
+	c.Check(rule.AllowConnection[0].PlugNames, IsNil)
+	c.Check(rule.AllowConnection[0].SlotNames, IsNil)
+
+	tests := []struct {
+		rule        string
+		matching    []string
+		notMatching []string
+	}{
+		{`iface:
+  allow-connection:
+    plug-names:
+      - Pfoo
+    slot-names:
+      - Sfoo`, []string{"foo"}, []string{"bar"}},
+		{`iface:
+  allow-connection:
+    plug-names:
+      - Pfoo
+      - Pbar
+    slot-names:
+      - Sfoo
+      - Sbar`, []string{"foo", "bar"}, []string{"baz"}},
+		{`iface:
+  allow-connection:
+    plug-names:
+      - Pfoo[0-9]
+      - Pbar
+    slot-names:
+      - Sfoo[0-9]
+      - Sbar`, []string{"foo0", "foo1", "bar"}, []string{"baz", "fooo", "foo12"}},
+	}
+	for _, t := range tests {
+		m, err = asserts.ParseHeaders([]byte(t.rule))
+		c.Assert(err, IsNil)
+
+		rule, err = asserts.CompileSlotRule("iface", m["iface"].(map[string]interface{}))
+		c.Assert(err, IsNil)
+
+		for _, matching := range t.matching {
+			c.Check(rule.AllowConnection[0].PlugNames.Check("plug name", "P"+matching, nil), IsNil)
+
+			c.Check(rule.AllowConnection[0].SlotNames.Check("slot name", "S"+matching, nil), IsNil)
+		}
+
+		for _, notMatching := range t.notMatching {
+			c.Check(rule.AllowConnection[0].SlotNames.Check("plug name", "P"+notMatching, nil), NotNil)
+
+			c.Check(rule.AllowConnection[0].SlotNames.Check("slot name", "S"+notMatching, nil), NotNil)
+		}
 	}
 }
 
@@ -1831,19 +2109,19 @@ func (s *plugSlotRulesSuite) TestCompileSlotRuleErrors(c *C) {
 		{`iface:
   allow-connection:
     plug-snap-ids:
-      - foo`, `allow-connection in slot rule for interface "iface" must specify at least one of plug-attributes, slot-attributes, plug-snap-type, plug-publisher-id, plug-snap-id, slots-per-plug, plugs-per-slot, on-classic, on-store, on-brand, on-model`},
+      - foo`, `allow-connection in slot rule for interface "iface" must specify at least one of plug-names, slot-names, plug-attributes, slot-attributes, plug-snap-type, plug-publisher-id, plug-snap-id, slots-per-plug, plugs-per-slot, on-classic, on-store, on-brand, on-model`},
 		{`iface:
   deny-connection:
     plug-snap-ids:
-      - foo`, `deny-connection in slot rule for interface "iface" must specify at least one of plug-attributes, slot-attributes, plug-snap-type, plug-publisher-id, plug-snap-id, slots-per-plug, plugs-per-slot, on-classic, on-store, on-brand, on-model`},
+      - foo`, `deny-connection in slot rule for interface "iface" must specify at least one of plug-names, slot-names, plug-attributes, slot-attributes, plug-snap-type, plug-publisher-id, plug-snap-id, slots-per-plug, plugs-per-slot, on-classic, on-store, on-brand, on-model`},
 		{`iface:
   allow-auto-connection:
     plug-snap-ids:
-      - foo`, `allow-auto-connection in slot rule for interface "iface" must specify at least one of plug-attributes, slot-attributes, plug-snap-type, plug-publisher-id, plug-snap-id, slots-per-plug, plugs-per-slot, on-classic, on-store, on-brand, on-model`},
+      - foo`, `allow-auto-connection in slot rule for interface "iface" must specify at least one of plug-names, slot-names, plug-attributes, slot-attributes, plug-snap-type, plug-publisher-id, plug-snap-id, slots-per-plug, plugs-per-slot, on-classic, on-store, on-brand, on-model`},
 		{`iface:
   deny-auto-connection:
     plug-snap-ids:
-      - foo`, `deny-auto-connection in slot rule for interface "iface" must specify at least one of plug-attributes, slot-attributes, plug-snap-type, plug-publisher-id, plug-snap-id, slots-per-plug, plugs-per-slot, on-classic, on-store, on-brand, on-model`},
+      - foo`, `deny-auto-connection in slot rule for interface "iface" must specify at least one of plug-names, slot-names, plug-attributes, slot-attributes, plug-snap-type, plug-publisher-id, plug-snap-id, slots-per-plug, plugs-per-slot, on-classic, on-store, on-brand, on-model`},
 		{`iface:
   allow-connect: true`, `slot rule for interface "iface" must specify at least one of allow-installation, deny-installation, allow-connection, deny-connection, allow-auto-connection, deny-auto-connection`},
 		{`iface:
@@ -1892,6 +2170,12 @@ func (s *plugSlotRulesSuite) TestCompileSlotRuleErrors(c *C) {
   allow-auto-connection:
     slots-per-plug:
       what: 1`, `slots-per-plug in allow-auto-connection in slot rule for interface "iface" must be an integer >=1 or \*`},
+		{`iface:
+  allow-auto-connection:
+    plug-names: true`, `plug-names constraints must be a list of regexps and special \$ values`},
+		{`iface:
+  allow-auto-connection:
+    slot-names: true`, `slot-names constraints must be a list of regexps and special \$ values`},
 	}
 
 	for _, t := range tests {
@@ -1904,25 +2188,25 @@ func (s *plugSlotRulesSuite) TestCompileSlotRuleErrors(c *C) {
 
 func (s *plugSlotRulesSuite) TestSlotRuleFeatures(c *C) {
 	combos := []struct {
-		subrule         string
-		attrConstraints []string
+		subrule             string
+		constraintsPrefixes []string
 	}{
-		{"allow-installation", []string{"slot-attributes"}},
-		{"deny-installation", []string{"slot-attributes"}},
-		{"allow-connection", []string{"plug-attributes", "slot-attributes"}},
-		{"deny-connection", []string{"plug-attributes", "slot-attributes"}},
-		{"allow-auto-connection", []string{"plug-attributes", "slot-attributes"}},
-		{"deny-auto-connection", []string{"plug-attributes", "slot-attributes"}},
+		{"allow-installation", []string{"slot-"}},
+		{"deny-installation", []string{"slot-"}},
+		{"allow-connection", []string{"plug-", "slot-"}},
+		{"deny-connection", []string{"plug-", "slot-"}},
+		{"allow-auto-connection", []string{"plug-", "slot-"}},
+		{"deny-auto-connection", []string{"plug-", "slot-"}},
 	}
 
 	for _, combo := range combos {
-		for _, attrConstr := range combo.attrConstraints {
+		for _, attrConstrPrefix := range combo.constraintsPrefixes {
 			attrConstraintMap := map[string]interface{}{
 				"a": "ATTR",
 			}
 			ruleMap := map[string]interface{}{
 				combo.subrule: map[string]interface{}{
-					attrConstr: attrConstraintMap,
+					attrConstrPrefix + "attributes": attrConstraintMap,
 				},
 			}
 
@@ -1951,6 +2235,19 @@ func (s *plugSlotRulesSuite) TestSlotRuleFeatures(c *C) {
 			c.Assert(err, IsNil)
 			c.Check(asserts.RuleFeature(rule, "device-scope-constraints"), Equals, true, Commentf("%v", ruleMap))
 		}
+
+		for _, nameConstrPrefix := range combo.constraintsPrefixes {
+			ruleMap := map[string]interface{}{
+				combo.subrule: map[string]interface{}{
+					nameConstrPrefix + "names": []interface{}{"foo"},
+				},
+			}
+
+			rule, err := asserts.CompileSlotRule("iface", ruleMap)
+			c.Assert(err, IsNil)
+			c.Check(asserts.RuleFeature(rule, "name-constraints"), Equals, true, Commentf("%v", ruleMap))
+		}
+
 	}
 }
 
