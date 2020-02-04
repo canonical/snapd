@@ -248,29 +248,28 @@ func (bs20 *bootState20Base) loadModeenv() error {
 // type specified in bsgeneric.
 func (bs20 *bootState20Base) revisions() (snap.PlaceInfo, snap.PlaceInfo, string, error) {
 	var bootSn, tryBootSn snap.PlaceInfo
-	bs := &bootState20Base{}
-	err := bs.loadModeenv()
+	err := bs20.loadModeenv()
 	if err != nil {
 		return nil, nil, "", err
 	}
 
-	if bs.modeenv.Base == "" {
+	if bs20.modeenv.Base == "" {
 		return nil, nil, "", fmt.Errorf("cannot get snap revision: modeenv base boot variable is empty")
 	}
 
-	bootSn, err = snap.ParsePlaceInfoFromSnapFileName(bs.modeenv.Base)
+	bootSn, err = snap.ParsePlaceInfoFromSnapFileName(bs20.modeenv.Base)
 	if err != nil {
 		return nil, nil, "", fmt.Errorf("cannot get snap revision: modeenv base boot variable is invalid: %v", err)
 	}
 
-	if bs.modeenv.BaseStatus == TryingStatus && bs.modeenv.TryBase != "" {
-		tryBootSn, err = snap.ParsePlaceInfoFromSnapFileName(bs.modeenv.TryBase)
+	if bs20.modeenv.BaseStatus == TryingStatus && bs20.modeenv.TryBase != "" {
+		tryBootSn, err = snap.ParsePlaceInfoFromSnapFileName(bs20.modeenv.TryBase)
 		if err != nil {
 			return nil, nil, "", fmt.Errorf("cannot get snap revision: modeenv try base boot variable is invalid: %v", err)
 		}
 	}
 
-	return bootSn, tryBootSn, bs.modeenv.BaseStatus, nil
+	return bootSn, tryBootSn, bs20.modeenv.BaseStatus, nil
 }
 
 func (bs20 *bootState20Base) setNext(next snap.PlaceInfo) (bool, bootStateUpdate, error) {
