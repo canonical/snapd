@@ -41,21 +41,32 @@ func (m *DeviceManager) doMarkPreseeded(t *state.Task, _ *tomb.Tomb) error {
 	}
 
 	if m.preseed {
-		// unmount all snaps
-		for _, snapSt := range snaps {
-			inf, err := snapSt.CurrentInfo()
-			if err != nil {
-				return err
-			}
-			logger.Debugf("unmounting snap %s at %s", inf.InstanceName(), inf.MountDir())
-			if _, err := exec.Command("umount", "-d", "-l", inf.MountDir()).CombinedOutput(); err != nil {
-				return err
-			}
+		var preseeded bool
+		// the "preseeded" flag on this task is set to allow skipping the logic
+		// below in case this handler is retried in preseeding mode due to an
+		// EnsureBefore(0) done somewhere else.
+		if err := t.Get("preseeded", &preseeded); err != nil && err != state.ErrNoState {
+			return err
 		}
+		if !preseeded {
+			preseeded = true
+			t.Set("preseeded", preseeded)
+			// unmount all snaps
+			for _, snapSt := range snaps {
+				inf, err := snapSt.CurrentInfo()
+				if err != nil {
+					return err
+				}
+				logger.Debugf("unmounting snap %s at %s", inf.InstanceName(), inf.MountDir())
+				if _, err := exec.Command("umount", "-d", "-l", inf.MountDir()).CombinedOutput(); err != nil {
+					return err
+				}
+			}
 
-		// do not mark this task done as this makes it racy against taskrunner tear down (the next task
-		// could start). Let this task finish after snapd restart when preseed mode is off.
-		st.RequestRestart(state.StopSnapd)
+			// do not mark this task done as this makes it racy against taskrunner tear down (the next task
+			// could start). Let this task finish after snapd restart when preseed mode is off.
+			st.RequestRestart(state.StopSnapd)
+		}
 
 		return &state.Retry{Reason: "mark-preseeded will be marked done when snapd is executed in normal mode"}
 	}

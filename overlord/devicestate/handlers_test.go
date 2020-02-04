@@ -502,6 +502,16 @@ func (s *preseedModeSuite) TestDoMarkPreseeded(c *C) {
 	// after restart in normal (not preseeding) mode.
 	c.Check(t.Status(), Equals, state.DoingStatus)
 
+	var preseeded bool
+	c.Check(t.Get("preseeded", &preseeded), IsNil)
+	c.Check(preseeded, Equals, true)
+
+	// re-trying mark-preseeded task has no effect
+	st.Unlock()
+	s.se.Ensure()
+	s.se.Wait()
+	st.Lock()
+
 	// core snap was "manually" unmounted
 	c.Check(s.cmdUmount.Calls(), DeepEquals, [][]string{
 		{"umount", "-d", "-l", filepath.Join(dirs.GlobalRootDir, "/snap/test-snap/3")},
