@@ -101,7 +101,7 @@ func (s *coreBootSetSuite) TestSetNextBootForCore(c *C) {
 	c.Assert(err, IsNil)
 	c.Assert(v, DeepEquals, map[string]string{
 		"snap_try_core": "core_100.snap",
-		"snap_mode":     "try",
+		"snap_mode":     boot.TryStatus,
 	})
 
 	c.Check(reboot, Equals, true)
@@ -123,7 +123,7 @@ func (s *coreBootSetSuite) TestSetNextBootWithBaseForCore(c *C) {
 	c.Assert(err, IsNil)
 	c.Assert(v, DeepEquals, map[string]string{
 		"snap_try_core": "core18_1818.snap",
-		"snap_mode":     "try",
+		"snap_mode":     boot.TryStatus,
 	})
 
 	c.Check(reboot, Equals, true)
@@ -145,7 +145,7 @@ func (s *coreBootSetSuite) TestSetNextBootForKernel(c *C) {
 	c.Assert(err, IsNil)
 	c.Assert(v, DeepEquals, map[string]string{
 		"snap_try_kernel": "krnl_42.snap",
-		"snap_mode":       "try",
+		"snap_mode":       boot.TryStatus,
 	})
 
 	bootVars := map[string]string{
@@ -186,7 +186,7 @@ func (s *coreBootSetSuite) TestSetNextBoot20ForKernel(c *C) {
 	v, err := s.bootloader.GetBootVars("kernel_status")
 	c.Assert(err, IsNil)
 	c.Assert(v, DeepEquals, map[string]string{
-		"kernel_status": "try",
+		"kernel_status": boot.TryStatus,
 	})
 
 	c.Check(reboot, Equals, true)
@@ -246,7 +246,7 @@ func (s *coreBootSetSuite) TestSetNextBoot20ForKernelForTheSameKernel(c *C) {
 	v, err := s.bootloader.GetBootVars("kernel_status")
 	c.Assert(err, IsNil)
 	c.Assert(v, DeepEquals, map[string]string{
-		"kernel_status": "",
+		"kernel_status": boot.DefaultStatus,
 	})
 
 	c.Check(reboot, Equals, false)
@@ -275,7 +275,7 @@ func (s *coreBootSetSuite) TestSetNextBootForKernelForTheSameKernelTryMode(c *C)
 	bootVars := map[string]string{
 		"snap_kernel":     "krnl_40.snap",
 		"snap_try_kernel": "krnl_99.snap",
-		"snap_mode":       "try"}
+		"snap_mode":       boot.TryStatus}
 	s.bootloader.SetBootVars(bootVars)
 
 	reboot, err := boot.NewCoreBootParticipant(info, snap.TypeKernel, coreDev).SetNextBoot()
@@ -286,7 +286,7 @@ func (s *coreBootSetSuite) TestSetNextBootForKernelForTheSameKernelTryMode(c *C)
 	c.Assert(v, DeepEquals, map[string]string{
 		"snap_kernel":     "krnl_40.snap",
 		"snap_try_kernel": "",
-		"snap_mode":       "",
+		"snap_mode":       boot.DefaultStatus,
 	})
 
 	c.Check(reboot, Equals, false)
@@ -303,7 +303,7 @@ func (s *coreBootSetSuite) TestSetNextBoot20ForKernelForTheSameKernelTryMode(c *
 	defer r()
 
 	bootVars := map[string]string{
-		"kernel_status": "try",
+		"kernel_status": boot.TryStatus,
 	}
 	s.bootloader.SetBootVars(bootVars)
 
@@ -316,7 +316,7 @@ func (s *coreBootSetSuite) TestSetNextBoot20ForKernelForTheSameKernelTryMode(c *
 	v, err := s.bootloader.GetBootVars("kernel_status")
 	c.Assert(err, IsNil)
 	c.Assert(v, DeepEquals, map[string]string{
-		"kernel_status": "",
+		"kernel_status": boot.DefaultStatus,
 	})
 
 	c.Check(reboot, Equals, false)
