@@ -1,5 +1,16 @@
 summary: Test refreshing snapd and running new units
 
+restore: |
+    # Remove all inactive revisions of snapd.
+    current=$(readlink /snap/snapd/current)
+    for revno_path in /snap/snapd/*; do
+        revno=$(basename "$revno_path")
+        if [ "$revno" == current ] || [ "$revno" == "$current" ]; then
+            continue
+        fi
+        snap remove snapd --revision="$revno"
+    done
+
 execute: |
     echo "Testing refresh/revert of snapd"
     current=$(readlink /snap/snapd/current)

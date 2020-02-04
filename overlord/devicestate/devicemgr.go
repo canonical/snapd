@@ -74,7 +74,6 @@ func Manager(s *state.State, hookManager *hookstate.HookManager, runner *state.T
 	keypairMgr, err := asserts.OpenFSKeypairManager(dirs.SnapDeviceDir)
 	if err != nil {
 		return nil, err
-
 	}
 
 	m := &DeviceManager{
@@ -258,7 +257,7 @@ func setClassicFallbackModel(st *state.State, device *auth.DeviceState) error {
 	return nil
 }
 
-func (m *DeviceManager) operatingMode() string {
+func (m *DeviceManager) OperatingMode() string {
 	if m.modeEnv.Mode == "" {
 		return "run"
 	}
@@ -269,12 +268,11 @@ func (m *DeviceManager) ensureOperational() error {
 	m.state.Lock()
 	defer m.state.Unlock()
 
-	if m.operatingMode() != "run" {
+	if m.OperatingMode() != "run" {
 		// avoid doing registration in ephemeral mode
+		// note: this also stop auto-refreshes indirectly
 		return nil
 	}
-
-	perfTimings := timings.New(map[string]string{"ensure": "become-operational"})
 
 	device, err := m.device()
 	if err != nil {
@@ -285,6 +283,8 @@ func (m *DeviceManager) ensureOperational() error {
 		// serial is set, we are all set
 		return nil
 	}
+
+	perfTimings := timings.New(map[string]string{"ensure": "become-operational"})
 
 	// conditions to trigger device registration
 	//
@@ -417,8 +417,6 @@ func (m *DeviceManager) ensureSeeded() error {
 	m.state.Lock()
 	defer m.state.Unlock()
 
-	perfTimings := timings.New(map[string]string{"ensure": "seed"})
-
 	var seeded bool
 	err := m.state.Get("seeded", &seeded)
 	if err != nil && err != state.ErrNoState {
@@ -427,6 +425,8 @@ func (m *DeviceManager) ensureSeeded() error {
 	if seeded {
 		return nil
 	}
+
+	perfTimings := timings.New(map[string]string{"ensure": "seed"})
 
 	if m.changeInFlight("seed") {
 		return nil
@@ -476,14 +476,20 @@ func (m *DeviceManager) ensureBootOk() error {
 		return nil
 	}
 
-	// book-ok/update-boot-revision is only relevant in run-mode
-	if m.operatingMode() != "run" {
+	// boot-ok/update-boot-revision is only relevant in run-mode
+	if m.OperatingMode() != "run" {
 		return nil
 	}
 
 	if !m.bootOkRan {
-		if err := boot.MarkBootSuccessful(); err != nil {
+		deviceCtx, err := DeviceCtx(m.state, nil, nil)
+		if err != nil && err != state.ErrNoState {
 			return err
+		}
+		if err == nil {
+			if err := boot.MarkBootSuccessful(deviceCtx); err != nil {
+				return err
+			}
 		}
 		m.bootOkRan = true
 	}
@@ -510,8 +516,7 @@ func (m *DeviceManager) ensureInstalled() error {
 		return nil
 	}
 
-	// Note: thisalso stop auto-refreshes indirectly
-	if m.operatingMode() != "install" {
+	if m.OperatingMode() != "install" {
 		return nil
 	}
 

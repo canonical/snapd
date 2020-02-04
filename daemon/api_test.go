@@ -150,7 +150,7 @@ func (s *apiBaseSuite) Find(ctx context.Context, search *store.Search, user *aut
 	return s.rsnaps, s.err
 }
 
-func (s *apiBaseSuite) SnapAction(ctx context.Context, currentSnaps []*store.CurrentSnap, actions []*store.SnapAction, user *auth.UserState, opts *store.RefreshOptions) ([]*snap.Info, error) {
+func (s *apiBaseSuite) SnapAction(ctx context.Context, currentSnaps []*store.CurrentSnap, actions []*store.SnapAction, user *auth.UserState, opts *store.RefreshOptions) ([]store.SnapActionResult, error) {
 	s.pokeStateLock()
 
 	if ctx == nil {
@@ -160,7 +160,11 @@ func (s *apiBaseSuite) SnapAction(ctx context.Context, currentSnaps []*store.Cur
 	s.actions = actions
 	s.user = user
 
-	return s.rsnaps, s.err
+	sars := make([]store.SnapActionResult, len(s.rsnaps))
+	for i, rsnap := range s.rsnaps {
+		sars[i] = store.SnapActionResult{Info: rsnap}
+	}
+	return sars, s.err
 }
 
 func (s *apiBaseSuite) SuggestedCurrency() string {
@@ -797,12 +801,11 @@ UnitFileState=enabled
 					},
 				},
 			},
-			Broken:      "",
-			Contact:     "",
-			License:     "GPL-3.0",
-			CommonIDs:   []string{"org.foo.cmd"},
-			Screenshots: []snap.ScreenshotInfo{{Note: snap.ScreenshotsDeprecationNotice}},
-			CohortKey:   "some-long-cohort-key",
+			Broken:    "",
+			Contact:   "",
+			License:   "GPL-3.0",
+			CommonIDs: []string{"org.foo.cmd"},
+			CohortKey: "some-long-cohort-key",
 		},
 		Meta: meta,
 	}
@@ -956,7 +959,6 @@ func (s *apiSuite) TestMapLocalFields(c *check.C) {
 		CommonIDs:        []string{"foo", "bar"},
 		MountedFrom:      filepath.Join(dirs.SnapBlobDir, "some-snap_instance_7.snap"),
 		Media:            media,
-		Screenshots:      []snap.ScreenshotInfo{{Note: snap.ScreenshotsDeprecationNotice}},
 		Apps: []client.AppInfo{
 			{Snap: "some-snap_instance", Name: "bar"},
 			{Snap: "some-snap_instance", Name: "foo"},
@@ -1000,7 +1002,6 @@ func (s *apiSuite) TestRootCmd(c *check.C) {
 	// check it only does GET
 	c.Check(rootCmd.PUT, check.IsNil)
 	c.Check(rootCmd.POST, check.IsNil)
-	c.Check(rootCmd.DELETE, check.IsNil)
 	c.Assert(rootCmd.GET, check.NotNil)
 
 	rec := httptest.NewRecorder()
@@ -1027,7 +1028,6 @@ func (s *apiSuite) TestSysInfo(c *check.C) {
 	// check it only does GET
 	c.Check(sysInfoCmd.PUT, check.IsNil)
 	c.Check(sysInfoCmd.POST, check.IsNil)
-	c.Check(sysInfoCmd.DELETE, check.IsNil)
 	c.Assert(sysInfoCmd.GET, check.NotNil)
 
 	rec := httptest.NewRecorder()
@@ -1787,7 +1787,6 @@ func (s *apiSuite) TestFind(c *check.C) {
 	c.Assert(snaps, check.HasLen, 1)
 	c.Assert(snaps[0]["name"], check.Equals, "store")
 	c.Check(snaps[0]["prices"], check.IsNil)
-	c.Check(snaps[0]["screenshots"], check.DeepEquals, []interface{}{map[string]interface{}{"note": snap.ScreenshotsDeprecationNotice}})
 	c.Check(snaps[0]["channels"], check.IsNil)
 
 	c.Check(rsp.SuggestedCurrency, check.Equals, "EUR")
@@ -2209,11 +2208,6 @@ func (s *apiSuite) TestFindScreenshotted(c *check.C) {
 	c.Assert(snaps, check.HasLen, 1)
 
 	c.Check(snaps[0]["name"], check.Equals, "test-screenshot")
-	c.Check(snaps[0]["screenshots"], check.DeepEquals, []interface{}{
-		map[string]interface{}{
-			"note": snap.ScreenshotsDeprecationNotice,
-		},
-	})
 	c.Check(snaps[0]["media"], check.DeepEquals, []interface{}{
 		map[string]interface{}{
 			"type":   "screenshot",
@@ -2468,8 +2462,8 @@ func (s *apiSuite) testPostSnap(c *check.C, withChannel bool) {
 
 	snapInstructionDispTable["install"] = func(inst *snapInstruction, _ *state.State) (string, []*state.TaskSet, error) {
 		if withChannel {
-			// channel in -> it was parsed
-			c.Check(inst.Channel, check.Equals, "xyzzy/stable")
+			// channel in -> channel out
+			c.Check(inst.Channel, check.Equals, "xyzzy")
 		} else {
 			// no channel in -> no channel out
 			c.Check(inst.Channel, check.Equals, "")
@@ -7435,6 +7429,15 @@ func (s *apiSuite) TestErrToResponse(c *check.C) {
 
 	e := errors.New("other error")
 
+	sa1e := &store.SnapActionError{Refresh: map[string]error{"foo": store.ErrSnapNotFound}}
+	sa2e := &store.SnapActionError{Refresh: map[string]error{
+		"foo": store.ErrSnapNotFound,
+		"bar": store.ErrSnapNotFound,
+	}}
+	saOe := &store.SnapActionError{Other: []error{e}}
+	// this one can't happen (but fun to test):
+	saXe := &store.SnapActionError{Refresh: map[string]error{"foo": sa1e}}
+
 	makeErrorRsp := func(kind errorKind, err error, value interface{}) Response {
 		return SyncResponse(&resp{
 			Type:   ResponseTypeError,
@@ -7461,6 +7464,13 @@ func (s *apiSuite) TestErrToResponse(c *check.C) {
 		{netoe, BadRequest("ERR: %v", netoe)},
 		{nettmpe, BadRequest("ERR: %v", nettmpe)},
 		{e, BadRequest("ERR: %v", e)},
+
+		// action error unwrapping:
+		{sa1e, SnapNotFound("foo", store.ErrSnapNotFound)},
+		{saXe, SnapNotFound("foo", store.ErrSnapNotFound)},
+		// action errors, unwrapped:
+		{sa2e, BadRequest(`ERR: cannot refresh: snap not found: "bar", "foo"`)},
+		{saOe, BadRequest("ERR: cannot refresh, install, or download: other error")},
 	}
 
 	for _, t := range tests {

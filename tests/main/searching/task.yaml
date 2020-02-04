@@ -54,7 +54,7 @@ execute: |
         # actual output:
         # Name           Version  Publisher  Notes  Summary
         # mjpg-streamer  2.0      ogra       -      UVC webcam streaming tool
-        snap find --section=photo-and-video vlc 2>&1 | MATCH -v vlc
+        snap find --section=photo-and-video vlc 2>&1 | not MATCH vlc
     fi
 
     # LP: 1740605

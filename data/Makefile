@@ -5,3 +5,4 @@ all install clean:
 	$(MAKE) -C dbus $@
 	$(MAKE) -C env $@
 	$(MAKE) -C desktop $@
+	$(MAKE) -C sudo $@

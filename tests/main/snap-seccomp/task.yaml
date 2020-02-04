@@ -135,7 +135,7 @@ execute: |
         test-snapd-hello-multi-arch.hello-i386
 
         echo "Ensure secondary arch works in @complain mode too"
-        snap remove test-snapd-hello-multi-arch
+        snap remove --purge test-snapd-hello-multi-arch
         snap install --devmode --edge test-snapd-hello-multi-arch
         test-snapd-hello-multi-arch.hello-i386
     fi

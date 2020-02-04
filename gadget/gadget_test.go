@@ -31,8 +31,11 @@ import (
 	. "gopkg.in/check.v1"
 	"gopkg.in/yaml.v2"
 
+	"github.com/snapcore/snapd/asserts"
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/gadget"
+	"github.com/snapcore/snapd/snap"
+	"github.com/snapcore/snapd/snap/snaptest"
 )
 
 type gadgetYamlTestSuite struct {
@@ -301,18 +304,34 @@ func (s *gadgetYamlTestSuite) TearDownTest(c *C) {
 	dirs.SetRootDir("/")
 }
 
+type modelConstraints struct {
+	classic    bool
+	systemSeed bool
+}
+
+func (m *modelConstraints) Classic() bool {
+	return m.classic
+}
+
+func (m *modelConstraints) Grade() asserts.ModelGrade {
+	if m.systemSeed {
+		return asserts.ModelSigned
+	}
+	return asserts.ModelGradeUnset
+}
+
 func (s *gadgetYamlTestSuite) TestReadGadgetYamlMissing(c *C) {
 	// if constraints are nil, we allow a missing yaml
 	_, err := gadget.ReadInfo("bogus-path", nil)
 	c.Assert(err, IsNil)
 
-	_, err = gadget.ReadInfo("bogus-path", &gadget.ModelConstraints{})
+	_, err = gadget.ReadInfo("bogus-path", &modelConstraints{})
 	c.Assert(err, ErrorMatches, ".*meta/gadget.yaml: no such file or directory")
 }
 
 func (s *gadgetYamlTestSuite) TestReadGadgetYamlOnClassicOptional(c *C) {
 	// no meta/gadget.yaml
-	gi, err := gadget.ReadInfo(s.dir, &gadget.ModelConstraints{Classic: true})
+	gi, err := gadget.ReadInfo(s.dir, &modelConstraints{classic: true})
 	c.Assert(err, IsNil)
 	c.Check(gi, NotNil)
 }
@@ -321,7 +340,7 @@ func (s *gadgetYamlTestSuite) TestReadGadgetYamlOnClassicEmptyIsValid(c *C) {
 	err := ioutil.WriteFile(s.gadgetYamlPath, nil, 0644)
 	c.Assert(err, IsNil)
 
-	ginfo, err := gadget.ReadInfo(s.dir, &gadget.ModelConstraints{Classic: true})
+	ginfo, err := gadget.ReadInfo(s.dir, &modelConstraints{classic: true})
 	c.Assert(err, IsNil)
 	c.Assert(ginfo, DeepEquals, &gadget.Info{})
 }
@@ -330,7 +349,7 @@ func (s *gadgetYamlTestSuite) TestReadGadgetYamlOnClassicOnylDefaultsIsValid(c *
 	err := ioutil.WriteFile(s.gadgetYamlPath, mockClassicGadgetYaml, 0644)
 	c.Assert(err, IsNil)
 
-	ginfo, err := gadget.ReadInfo(s.dir, &gadget.ModelConstraints{Classic: true})
+	ginfo, err := gadget.ReadInfo(s.dir, &modelConstraints{classic: true})
 	c.Assert(err, IsNil)
 	c.Assert(ginfo, DeepEquals, &gadget.Info{
 		Defaults: map[string]map[string]interface{}{
@@ -346,7 +365,7 @@ func (s *gadgetYamlTestSuite) TestReadGadgetDefaultsMultiline(c *C) {
 	err := ioutil.WriteFile(s.gadgetYamlPath, mockClassicGadgetMultilineDefaultsYaml, 0644)
 	c.Assert(err, IsNil)
 
-	ginfo, err := gadget.ReadInfo(s.dir, &gadget.ModelConstraints{Classic: true})
+	ginfo, err := gadget.ReadInfo(s.dir, &modelConstraints{classic: true})
 	c.Assert(err, IsNil)
 	c.Assert(ginfo, DeepEquals, &gadget.Info{
 		Defaults: map[string]map[string]interface{}{
@@ -490,7 +509,7 @@ volumes:
 	err := ioutil.WriteFile(s.gadgetYamlPath, mockGadgetYamlBroken, 0644)
 	c.Assert(err, IsNil)
 
-	_, err = gadget.ReadInfo(s.dir, &gadget.ModelConstraints{Classic: false})
+	_, err = gadget.ReadInfo(s.dir, &modelConstraints{classic: false})
 	c.Assert(err, ErrorMatches, "bootloader not declared in any volume")
 }
 
@@ -498,7 +517,7 @@ func (s *gadgetYamlTestSuite) TestReadGadgetYamlMissingBootloader(c *C) {
 	err := ioutil.WriteFile(s.gadgetYamlPath, nil, 0644)
 	c.Assert(err, IsNil)
 
-	_, err = gadget.ReadInfo(s.dir, &gadget.ModelConstraints{Classic: false})
+	_, err = gadget.ReadInfo(s.dir, &modelConstraints{classic: false})
 	c.Assert(err, ErrorMatches, "bootloader not declared in any volume")
 }
 
@@ -670,10 +689,10 @@ func (s *gadgetYamlTestSuite) TestUnmarshalGadgetRelativeOffset(c *C) {
 	}
 }
 
-var classicModelConstraints = []*gadget.ModelConstraints{
+var classicModelConstraints = []gadget.Model{
 	nil,
-	{Classic: false, SystemSeed: false},
-	{Classic: true, SystemSeed: false},
+	&modelConstraints{classic: false, systemSeed: false},
+	&modelConstraints{classic: true, systemSeed: false},
 }
 
 func (s *gadgetYamlTestSuite) TestReadGadgetYamlPCHappy(c *C) {
@@ -988,9 +1007,9 @@ func (s *gadgetYamlTestSuite) TestValidateVolumeDuplicateFsLabel(c *C) {
 		{true, "writable", `filesystem label "writable" is not unique`},
 		{true, "ubuntu-data", `filesystem label "ubuntu-data" is not unique`},
 	} {
-		for _, constraints := range []*gadget.ModelConstraints{
-			{Classic: false, SystemSeed: x.systemSeed},
-			{Classic: true, SystemSeed: x.systemSeed},
+		for _, constraints := range []*modelConstraints{
+			{classic: false, systemSeed: x.systemSeed},
+			{classic: true, systemSeed: x.systemSeed},
 		} {
 			err = gadget.ValidateVolume("name", &gadget.Volume{
 				Structure: []gadget.VolumeStructure{{
@@ -1562,9 +1581,9 @@ volumes:
 		err := ioutil.WriteFile(s.gadgetYamlPath, b.Bytes(), 0644)
 		c.Assert(err, IsNil)
 
-		constraints := &gadget.ModelConstraints{
-			Classic:    false,
-			SystemSeed: tc.systemSeed,
+		constraints := &modelConstraints{
+			classic:    false,
+			systemSeed: tc.systemSeed,
 		}
 
 		_, err = gadget.ReadInfo(s.dir, constraints)
@@ -1578,8 +1597,8 @@ volumes:
 	// test error with no volumes
 	err := ioutil.WriteFile(s.gadgetYamlPath, []byte(bloader), 0644)
 	c.Assert(err, IsNil)
-	constraints := &gadget.ModelConstraints{
-		SystemSeed: true,
+	constraints := &modelConstraints{
+		systemSeed: true,
 	}
 	_, err = gadget.ReadInfo(s.dir, constraints)
 	c.Assert(err, ErrorMatches, ".*: model requires system-seed partition, but no system-seed or system-data partition found")
@@ -1589,8 +1608,8 @@ func (s *gadgetYamlTestSuite) TestGadgetReadInfoVsFromMeta(c *C) {
 	err := ioutil.WriteFile(s.gadgetYamlPath, gadgetYamlPC, 0644)
 	c.Assert(err, IsNil)
 
-	constraints := &gadget.ModelConstraints{
-		Classic: false,
+	constraints := &modelConstraints{
+		classic: false,
 	}
 
 	giRead, err := gadget.ReadInfo(s.dir, constraints)
@@ -1603,11 +1622,11 @@ func (s *gadgetYamlTestSuite) TestGadgetReadInfoVsFromMeta(c *C) {
 }
 
 var (
-	classicConstraints = &gadget.ModelConstraints{
-		Classic: true,
+	classicConstraints = &modelConstraints{
+		classic: true,
 	}
-	coreConstraints = &gadget.ModelConstraints{
-		Classic: false,
+	coreConstraints = &modelConstraints{
+		classic: false,
 	}
 )
 
@@ -1682,6 +1701,48 @@ size: 1M`
 		c.Check(tc.s.HasFilesystem(), Equals, tc.hasFs)
 		c.Check(tc.s.IsPartition(), Equals, tc.isPartition)
 	}
+}
+
+var mockSnapYaml = `name: pc
+type: gadget
+version: 1.0
+`
+
+func (s *gadgetYamlTestSuite) TestReadGadgetYamlFromSnapFileMissing(c *C) {
+	snapPath := snaptest.MakeTestSnapWithFiles(c, string(mockSnapYaml), nil)
+	snapf, err := snap.Open(snapPath)
+	c.Assert(err, IsNil)
+
+	// if constraints are nil, we allow a missing gadget.yaml
+	_, err = gadget.ReadInfoFromSnapFile(snapf, nil)
+	c.Assert(err, IsNil)
+
+	_, err = gadget.ReadInfoFromSnapFile(snapf, &modelConstraints{})
+	c.Assert(err, ErrorMatches, ".*meta/gadget.yaml: no such file or directory")
+}
+
+var minimalMockGadgetYaml = `
+volumes:
+ pc:
+  bootloader: grub
+`
+
+func (s *gadgetYamlTestSuite) TestReadGadgetYamlFromSnapFileValid(c *C) {
+	snapPath := snaptest.MakeTestSnapWithFiles(c, mockSnapYaml, [][]string{
+		{"meta/gadget.yaml", string(minimalMockGadgetYaml)},
+	})
+	snapf, err := snap.Open(snapPath)
+	c.Assert(err, IsNil)
+
+	ginfo, err := gadget.ReadInfoFromSnapFile(snapf, nil)
+	c.Assert(err, IsNil)
+	c.Assert(ginfo, DeepEquals, &gadget.Info{
+		Volumes: map[string]gadget.Volume{
+			"pc": {
+				Bootloader: "grub",
+			},
+		},
+	})
 }
 
 type gadgetCompatibilityTestSuite struct{}
@@ -1885,4 +1946,28 @@ volumes:
 	c.Assert(err, IsNil)
 	err = gadget.IsCompatible(gi, giNew)
 	c.Check(err, IsNil)
+}
+
+type gadgetSizeTestSuite struct{}
+
+var _ = Suite(&gadgetSizeTestSuite{})
+
+func (s *gadgetSizeTestSuite) TestIECString(c *C) {
+	for _, tc := range []struct {
+		size gadget.Size
+		exp  string
+	}{
+		{512, "512 B"},
+		{1000, "1000 B"},
+		{1030, "1.01 KiB"},
+		{gadget.SizeKiB + 512, "1.50 KiB"},
+		{123 * gadget.SizeKiB, "123 KiB"},
+		{512 * gadget.SizeKiB, "512 KiB"},
+		{578 * gadget.SizeMiB, "578 MiB"},
+		{1*gadget.SizeGiB + 123*gadget.SizeMiB, "1.12 GiB"},
+		{1024 * gadget.SizeGiB, "1 TiB"},
+		{2 * 1024 * 1024 * 1024 * gadget.SizeGiB, "2048 PiB"},
+	} {
+		c.Check(tc.size.IECString(), Equals, tc.exp)
+	}
 }

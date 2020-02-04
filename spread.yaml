@@ -47,7 +47,7 @@ environment:
     PPA_VALIDATION_NAME: '$(HOST: echo "${SPREAD_PPA_VALIDATION_NAME:-}")'
     PRE_CACHE_SNAPS: test-snapd-tools test-snapd-sh jq
     # always skip removing the rsync snap
-    SKIP_REMOVE_SNAPS: '$(HOST: echo "${SPREAD_SKIP_REMOVE_SNAPS:-}") test-snapd-rsync test-snapd-rsync-core18'
+    SKIP_REMOVE_SNAPS: '$(HOST: echo "${SPREAD_SKIP_REMOVE_SNAPS:-}") test-snapd-rsync test-snapd-rsync-core18 test-snapd-rsync-core20'
     # Use the installed snapd and reset the systems without removing snapd
     REUSE_SNAPD: "$(HOST: echo \"${SPREAD_REUSE_SNAPD:-0}\")"
     PROFILE_SNAPS: "$(HOST: echo \"${SPREAD_PROFILE_SNAPS:-0}\")"
@@ -66,9 +66,9 @@ backends:
                 workers: 8
             - ubuntu-18.04-64:
                 workers: 8
-            - ubuntu-19.04-64:
-                workers: 6
             - ubuntu-19.10-64:
+                workers: 6
+            - ubuntu-20.04-64:
                 workers: 6
             - ubuntu-core-16-64:
                 image: ubuntu-16.04-64
@@ -76,6 +76,10 @@ backends:
             - ubuntu-core-18-64:
                 image: ubuntu-16.04-64
                 workers: 6
+            - ubuntu-core-20-64:
+                image: ubuntu-1804-64-uefi-enabled
+                workers: 6
+                storage: 20G
 
             - debian-9-64:
                 workers: 6
@@ -97,6 +101,8 @@ backends:
                 manual: true
             - opensuse-15.1-64:
                 workers: 6
+            - opensuse-tumbleweed-64:
+                workers: 6
             - arch-linux-64:
                 workers: 6
 
@@ -113,9 +119,7 @@ backends:
             - centos-7-64:
                 workers: 6
                 image: centos-7-64
-            # zypper either segfaults or hangs installing snapd build dependencies
-            - opensuse-tumbleweed-64:
-                workers: 6
+
 
     google-sru:
         type: google
@@ -147,6 +151,8 @@ backends:
                 workers: 1
 
     qemu:
+        # TODO:UC20: uc20 needs 2G or grub will not loopback the kernel snap
+        memory: 2G
         systems:
             - ubuntu-14.04-32:
                 username: ubuntu
@@ -168,6 +174,11 @@ backends:
                 image: ubuntu-16.04-64
                 username: ubuntu
                 password: ubuntu
+            - ubuntu-core-20-64:
+                image: ubuntu-18.04-64
+                username: ubuntu
+                password: ubuntu
+                flags: [virtio]
             - ubuntu-17.10-64:
                 username: ubuntu
                 password: ubuntu
@@ -331,7 +342,7 @@ backends:
             - ubuntu-19.04-arm64:
                 username: ubuntu
                 password: ubuntu
-            # Eccentric Eel (not final name!)
+            # Eoan
             - ubuntu-19.10-amd64:
                 username: ubuntu
                 password: ubuntu
@@ -350,7 +361,7 @@ backends:
             - ubuntu-19.10-arm64:
                 username: ubuntu
                 password: ubuntu
-            # Flaming Falcon (not final name!)
+            # Focal
             - ubuntu-20.04-amd64:
                 username: ubuntu
                 password: ubuntu
@@ -416,6 +427,8 @@ exclude:
     - "*.o"
     - "*.a"
     - ./vendor
+    - "*.snap"
+    - "*.img"
 
 debug-each: |
     if [ "$SPREAD_DEBUG_EACH" = 1 ]; then
@@ -511,9 +524,6 @@ prepare: |
         #
         # https://forum.snapcraft.io/t/issues-with-the-fedora-mirror-network/3489/
         sed -i -s -E -e 's@^#?baseurl=http://download.fedoraproject.org/@baseurl=http://dl.fedoraproject.org/@g' -e 's@^metalink=@#metalink@g' /etc/yum.repos.d/fedora*.repo
-
-        # TODO: disable once golang-x-xerrors is available in F30
-        dnf copr enable bboozzoo/snapd-devel-deps -y
 
         dnf --refresh -y makecache
 
@@ -656,6 +666,17 @@ suites:
     tests/core18/:
         summary: Subset of core18 specific tests
         systems: [ubuntu-core-18-*]
+        prepare: |
+            "$TESTSLIB"/prepare-restore.sh --prepare-suite
+        prepare-each: |
+            "$TESTSLIB"/prepare-restore.sh --prepare-suite-each
+        restore-each: |
+            "$TESTSLIB"/prepare-restore.sh --restore-suite-each
+        restore: |
+            "$TESTSLIB"/prepare-restore.sh --restore-suite
+    tests/core20/:
+        summary: Subset of core20 specific tests
+        systems: [ubuntu-core-20-*]
         prepare: |
             "$TESTSLIB"/prepare-restore.sh --prepare-suite
         prepare-each: |

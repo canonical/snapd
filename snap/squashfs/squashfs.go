@@ -180,8 +180,8 @@ func (s *Snap) ReadFile(filePath string) (content []byte, err error) {
 	defer os.RemoveAll(tmpdir)
 
 	unpackDir := filepath.Join(tmpdir, "unpack")
-	if err := exec.Command("unsquashfs", "-n", "-i", "-d", unpackDir, s.path, filePath).Run(); err != nil {
-		return nil, err
+	if output, err := exec.Command("unsquashfs", "-n", "-i", "-d", unpackDir, s.path, filePath).CombinedOutput(); err != nil {
+		return nil, fmt.Errorf("cannot run unsquashfs: %v", osutil.OutputErr(output, err))
 	}
 
 	return ioutil.ReadFile(filepath.Join(unpackDir, filePath))

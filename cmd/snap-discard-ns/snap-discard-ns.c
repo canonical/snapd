@@ -117,7 +117,7 @@ int main(int argc, char** argv) {
     sc_must_snprintf(usr_fstab_pattern, sizeof usr_fstab_pattern, "snap\\.%s\\.*\\.user-fstab", snap_instance_name);
     sc_must_snprintf(sys_mnt_pattern, sizeof sys_mnt_pattern, "%s\\.mnt", snap_instance_name);
     sc_must_snprintf(usr_mnt_pattern, sizeof usr_mnt_pattern, "%s\\.*\\.mnt", snap_instance_name);
-    sc_must_snprintf(sys_info_pattern, sizeof sys_info_pattern, "%s\\.*\\.info", snap_instance_name);
+    sc_must_snprintf(sys_info_pattern, sizeof sys_info_pattern, "snap\\.%s\\.info", snap_instance_name);
 
     DIR* ns_dir = fdopendir(ns_dir_fd);
     if (ns_dir == NULL) {

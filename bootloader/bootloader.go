@@ -45,6 +45,13 @@ type Options struct {
 	// Recovery indicates to use the recovery bootloader. Note that
 	// UC16/18 do not have a recovery partition.
 	Recovery bool
+
+	// NoSlashBoot indicates to use the run mode bootloader but
+	// under the native layout and not the /boot mount.
+	NoSlashBoot bool
+
+	// ExtractedRunKernelImage is whether to force kernel asset extraction.
+	ExtractedRunKernelImage bool
 }
 
 // Bootloader provides an interface to interact with the system
@@ -67,7 +74,7 @@ type Bootloader interface {
 	// is found ok is false.
 	InstallBootConfig(gadgetDir string, opts *Options) (ok bool, err error)
 
-	// ExtractKernelAssets extracts kernel assets from the given kernel snap
+	// ExtractKernelAssets extracts kernel assets from the given kernel snap.
 	ExtractKernelAssets(s snap.PlaceInfo, snapf snap.Container) error
 
 	// RemoveKernelAssets removes the assets for the given kernel snap.
@@ -82,6 +89,15 @@ type installableBootloader interface {
 type RecoveryAwareBootloader interface {
 	Bootloader
 	SetRecoverySystemEnv(recoverySystemDir string, values map[string]string) error
+}
+
+type ExtractedRunKernelImageBootloader interface {
+	Bootloader
+	EnableKernel(snap.PlaceInfo) error        // makes the symlink
+	EnableTryKernel(snap.PlaceInfo) error     // makes the symlink
+	Kernel() (snap.PlaceInfo, error)          // gives the symlink
+	TryKernel() (snap.PlaceInfo, bool, error) // gives the symlink (if exists)
+	DisableTryKernel() error                  // removes the symlink
 }
 
 func genericInstallBootConfig(gadgetFile, systemFile string) (bool, error) {
@@ -155,24 +171,22 @@ func Find(rootdir string, opts *Options) (Bootloader, error) {
 	return nil, ErrBootloader
 }
 
-// Force can be used to force setting a booloader to that Find will not use the
-// usual lookup process; use nil to reset to normal lookup.
+// Force can be used to force Find to always find the specified bootloader; use
+// nil to reset to normal lookup.
 func Force(booloader Bootloader) {
 	forcedBootloader = booloader
 	forcedError = nil
 }
 
-// Force can be used to force Find to return an error; use nil to
+// ForceError can be used to force Find to return an error; use nil to
 // reset to normal lookup.
 func ForceError(err error) {
 	forcedBootloader = nil
 	forcedError = err
 }
 
-func extractKernelAssetsToBootDir(bootDir string, s snap.PlaceInfo, snapf snap.Container) error {
+func extractKernelAssetsToBootDir(dstDir string, s snap.PlaceInfo, snapf snap.Container, assets []string) error {
 	// now do the kernel specific bits
-	blobName := filepath.Base(s.MountFile())
-	dstDir := filepath.Join(bootDir, blobName)
 	if err := os.MkdirAll(dstDir, 0755); err != nil {
 		return err
 	}
@@ -182,7 +196,7 @@ func extractKernelAssetsToBootDir(bootDir string, s snap.PlaceInfo, snapf snap.C
 	}
 	defer dir.Close()
 
-	for _, src := range []string{"kernel.img", "initrd.img"} {
+	for _, src := range assets {
 		if err := snapf.Unpack(src, dstDir); err != nil {
 			return err
 		}
@@ -190,11 +204,7 @@ func extractKernelAssetsToBootDir(bootDir string, s snap.PlaceInfo, snapf snap.C
 			return err
 		}
 	}
-	if err := snapf.Unpack("dtbs/*", dstDir); err != nil {
-		return err
-	}
-
-	return dir.Sync()
+	return nil
 }
 
 func removeKernelAssetsFromBootDir(bootDir string, s snap.PlaceInfo) error {

@@ -40,6 +40,8 @@ type HidrawInterfaceSuite struct {
 	testSlot1Info        *snap.SlotInfo
 	testSlot2            *interfaces.ConnectedSlot
 	testSlot2Info        *snap.SlotInfo
+	testSlotCleaned      *interfaces.ConnectedSlot
+	testSlotCleanedInfo  *snap.SlotInfo
 	missingPathSlot      *interfaces.ConnectedSlot
 	missingPathSlotInfo  *snap.SlotInfo
 	badPathSlot1         *interfaces.ConnectedSlot
@@ -88,6 +90,9 @@ slots:
     test-port-2:
         interface: hidraw
         path: /dev/hidraw987
+    test-port-unclean:
+        interface: hidraw
+        path: /dev/./././hidraw876
     missing-path: hidraw
     bad-path-1:
         interface: hidraw
@@ -104,6 +109,8 @@ slots:
 	s.testSlot1 = interfaces.NewConnectedSlot(s.testSlot1Info, nil, nil)
 	s.testSlot2Info = osSnapInfo.Slots["test-port-2"]
 	s.testSlot2 = interfaces.NewConnectedSlot(s.testSlot2Info, nil, nil)
+	s.testSlotCleanedInfo = osSnapInfo.Slots["test-port-unclean"]
+	s.testSlotCleaned = interfaces.NewConnectedSlot(s.testSlotCleanedInfo, nil, nil)
 	s.missingPathSlotInfo = osSnapInfo.Slots["missing-path"]
 	s.missingPathSlot = interfaces.NewConnectedSlot(s.missingPathSlotInfo, nil, nil)
 	s.badPathSlot1Info = osSnapInfo.Slots["bad-path-1"]
@@ -195,6 +202,8 @@ func (s *HidrawInterfaceSuite) TestSanitizeCoreSnapSlots(c *C) {
 	for _, slot := range []*snap.SlotInfo{s.testSlot1Info, s.testSlot2Info} {
 		c.Assert(interfaces.BeforePrepareSlot(s.iface, slot), IsNil)
 	}
+	// Verify historically filepath.Clean()d paths are still valid
+	c.Assert(interfaces.BeforePrepareSlot(s.iface, s.testSlotCleanedInfo), IsNil)
 }
 
 func (s *HidrawInterfaceSuite) TestSanitizeBadCoreSnapSlots(c *C) {

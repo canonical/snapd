@@ -1625,6 +1625,7 @@ func (s *storeTestSuite) TestDoRequestSetsExtraHeaders(c *C) {
 		c.Check(r.Header.Get("X-Foo-Header"), Equals, `Bar`)
 		c.Check(r.Header.Get("Content-Type"), Equals, `application/bson`)
 		c.Check(r.Header.Get("Accept"), Equals, `application/hal+bson`)
+		c.Check(r.Header.Get("Snap-Device-Capabilities"), Equals, "default-tracks")
 		io.WriteString(w, "response-data")
 	}))
 	c.Assert(mockServer, NotNil)
@@ -2266,7 +2267,7 @@ func (s *storeTestSuite) TestInfoAndChannels(c *C) {
 			Revision:    snap.R(27),
 			Version:     "6.3",
 			Confinement: snap.StrictConfinement,
-			Channel:     "stable",
+			Channel:     "latest/stable",
 			Size:        20480,
 			Epoch:       snap.E("0"),
 			ReleasedAt:  time.Date(2019, 1, 1, 10, 11, 12, 123456789, time.UTC),
@@ -2275,7 +2276,7 @@ func (s *storeTestSuite) TestInfoAndChannels(c *C) {
 			Revision:    snap.R(27),
 			Version:     "6.3",
 			Confinement: snap.StrictConfinement,
-			Channel:     "candidate",
+			Channel:     "latest/candidate",
 			Size:        20480,
 			Epoch:       snap.E("0"),
 			ReleasedAt:  time.Date(2019, 1, 2, 10, 11, 12, 123456789, time.UTC),
@@ -2284,7 +2285,7 @@ func (s *storeTestSuite) TestInfoAndChannels(c *C) {
 			Revision:    snap.R(27),
 			Version:     "6.3",
 			Confinement: snap.StrictConfinement,
-			Channel:     "beta",
+			Channel:     "latest/beta",
 			Size:        20480,
 			Epoch:       snap.E("0"),
 			ReleasedAt:  time.Date(2019, 1, 3, 10, 11, 12, 123456789, time.UTC),
@@ -2293,7 +2294,7 @@ func (s *storeTestSuite) TestInfoAndChannels(c *C) {
 			Revision:    snap.R(28),
 			Version:     "6.3",
 			Confinement: snap.StrictConfinement,
-			Channel:     "edge",
+			Channel:     "latest/edge",
 			Size:        20480,
 			Epoch:       snap.E("0"),
 			ReleasedAt:  time.Date(2019, 1, 4, 10, 11, 12, 123456789, time.UTC),
@@ -2341,8 +2342,8 @@ func (s *storeTestSuite) TestInfoMoreChannels(c *C) {
 	result, err := sto.SnapInfo(s.ctx, store.SnapSpec{Name: "eh"}, nil)
 	c.Assert(err, IsNil)
 	expected := map[string]*snap.ChannelSnapInfo{
-		"latest/stable":  {Channel: "stable", ReleasedAt: time.Date(2018, 12, 17, 9, 17, 16, 288554000, time.UTC)},
-		"latest/edge":    {Channel: "edge", ReleasedAt: time.Date(2018, 11, 6, 0, 46, 3, 348730000, time.UTC)},
+		"latest/stable":  {Channel: "latest/stable", ReleasedAt: time.Date(2018, 12, 17, 9, 17, 16, 288554000, time.UTC)},
+		"latest/edge":    {Channel: "latest/edge", ReleasedAt: time.Date(2018, 11, 6, 0, 46, 3, 348730000, time.UTC)},
 		"1.6/stable":     {Channel: "1.6/stable", ReleasedAt: time.Date(2017, 5, 17, 21, 18, 42, 224979000, time.UTC)},
 		"1.7/stable":     {Channel: "1.7/stable", ReleasedAt: time.Date(2017, 6, 2, 1, 16, 52, 640258000, time.UTC)},
 		"1.8/stable":     {Channel: "1.8/stable", ReleasedAt: time.Date(2018, 2, 7, 23, 8, 59, 152984000, time.UTC)},
@@ -5540,18 +5541,24 @@ func (s *storeTestSuite) TestSnapActionOptions(c *C) {
 }
 
 func (s *storeTestSuite) TestSnapActionInstall(c *C) {
-	s.testSnapActionGet("install", "", c)
+	s.testSnapActionGet("install", "", "", c)
 }
 func (s *storeTestSuite) TestSnapActionInstallWithCohort(c *C) {
-	s.testSnapActionGet("install", "what", c)
+	s.testSnapActionGet("install", "what", "", c)
 }
 func (s *storeTestSuite) TestSnapActionDownload(c *C) {
-	s.testSnapActionGet("download", "", c)
+	s.testSnapActionGet("download", "", "", c)
 }
 func (s *storeTestSuite) TestSnapActionDownloadWithCohort(c *C) {
-	s.testSnapActionGet("download", "here", c)
+	s.testSnapActionGet("download", "here", "", c)
 }
-func (s *storeTestSuite) testSnapActionGet(action, cohort string, c *C) {
+func (s *storeTestSuite) TestSnapActionInstallRedirect(c *C) {
+	s.testSnapActionGet("install", "", "2.0/candidate", c)
+}
+func (s *storeTestSuite) TestSnapActionDownloadRedirect(c *C) {
+	s.testSnapActionGet("download", "", "2.0/candidate", c)
+}
+func (s *storeTestSuite) testSnapActionGet(action, cohort, redirectChannel string, c *C) {
 	// action here is one of install or download
 	restore := release.MockOnClassic(false)
 	defer restore()
@@ -5602,6 +5609,7 @@ func (s *storeTestSuite) testSnapActionGet(action, cohort string, c *C) {
      "snap-id": "buPKUD3TKqCOgLEjjHx5kSiCpIs5cMuQ",
      "name": "hello-world",
      "effective-channel": "candidate",
+     "redirect-channel": "%s",
      "snap": {
        "snap-id": "buPKUD3TKqCOgLEjjHx5kSiCpIs5cMuQ",
        "name": "hello-world",
@@ -5614,7 +5622,7 @@ func (s *storeTestSuite) testSnapActionGet(action, cohort string, c *C) {
        }
      }
   }]
-}`, action)
+}`, action, redirectChannel)
 	}))
 
 	c.Assert(mockServer, NotNil)
@@ -5646,6 +5654,7 @@ func (s *storeTestSuite) testSnapActionGet(action, cohort string, c *C) {
 	c.Assert(results[0].Deltas, HasLen, 0)
 	// effective-channel
 	c.Assert(results[0].Channel, Equals, "candidate")
+	c.Assert(results[0].RedirectChannel, Equals, redirectChannel)
 }
 
 func (s *storeTestSuite) TestSnapActionInstallAmend(c *C) {
@@ -6315,6 +6324,11 @@ func (s *storeTestSuite) TestSnapActionErrorError(c *C) {
 	}}
 	c.Check(e.Error(), Equals, `cannot refresh snap "foo": sad refresh`)
 
+	op, name, err := e.SingleOpError()
+	c.Check(op, Equals, "refresh")
+	c.Check(name, Equals, "foo")
+	c.Check(err, ErrorMatches, "sad refresh")
+
 	e = &store.SnapActionError{Refresh: map[string]error{
 		"foo": fmt.Errorf("sad refresh 1"),
 		"bar": fmt.Errorf("sad refresh 2"),
@@ -6324,10 +6338,20 @@ func (s *storeTestSuite) TestSnapActionErrorError(c *C) {
 	c.Check(errMsg, testutil.Contains, "\nsad refresh 1: \"foo\"")
 	c.Check(errMsg, testutil.Contains, "\nsad refresh 2: \"bar\"")
 
+	op, name, err = e.SingleOpError()
+	c.Check(op, Equals, "")
+	c.Check(name, Equals, "")
+	c.Check(err, IsNil)
+
 	e = &store.SnapActionError{Install: map[string]error{
 		"foo": fmt.Errorf("sad install"),
 	}}
 	c.Check(e.Error(), Equals, `cannot install snap "foo": sad install`)
+
+	op, name, err = e.SingleOpError()
+	c.Check(op, Equals, "install")
+	c.Check(name, Equals, "foo")
+	c.Check(err, ErrorMatches, "sad install")
 
 	e = &store.SnapActionError{Install: map[string]error{
 		"foo": fmt.Errorf("sad install 1"),
@@ -6338,10 +6362,20 @@ func (s *storeTestSuite) TestSnapActionErrorError(c *C) {
 	c.Check(errMsg, testutil.Contains, "\nsad install 1: \"foo\"")
 	c.Check(errMsg, testutil.Contains, "\nsad install 2: \"bar\"")
 
+	op, name, err = e.SingleOpError()
+	c.Check(op, Equals, "")
+	c.Check(name, Equals, "")
+	c.Check(err, IsNil)
+
 	e = &store.SnapActionError{Download: map[string]error{
 		"foo": fmt.Errorf("sad download"),
 	}}
 	c.Check(e.Error(), Equals, `cannot download snap "foo": sad download`)
+
+	op, name, err = e.SingleOpError()
+	c.Check(op, Equals, "download")
+	c.Check(name, Equals, "foo")
+	c.Check(err, ErrorMatches, "sad download")
 
 	e = &store.SnapActionError{Download: map[string]error{
 		"foo": fmt.Errorf("sad download 1"),
@@ -6351,6 +6385,11 @@ func (s *storeTestSuite) TestSnapActionErrorError(c *C) {
 	c.Check(strings.HasPrefix(errMsg, "cannot download:\n"), Equals, true)
 	c.Check(errMsg, testutil.Contains, "\nsad download 1: \"foo\"")
 	c.Check(errMsg, testutil.Contains, "\nsad download 2: \"bar\"")
+
+	op, name, err = e.SingleOpError()
+	c.Check(op, Equals, "")
+	c.Check(name, Equals, "")
+	c.Check(err, IsNil)
 
 	e = &store.SnapActionError{Refresh: map[string]error{
 		"foo": fmt.Errorf("sad refresh 1"),
@@ -6362,6 +6401,11 @@ func (s *storeTestSuite) TestSnapActionErrorError(c *C) {
 sad refresh 1: "foo"
 sad install 2: "bar"`)
 
+	op, name, err = e.SingleOpError()
+	c.Check(op, Equals, "")
+	c.Check(name, Equals, "")
+	c.Check(err, IsNil)
+
 	e = &store.SnapActionError{Refresh: map[string]error{
 		"foo": fmt.Errorf("sad refresh 1"),
 	},
@@ -6372,6 +6416,11 @@ sad install 2: "bar"`)
 sad refresh 1: "foo"
 sad download 2: "bar"`)
 
+	op, name, err = e.SingleOpError()
+	c.Check(op, Equals, "")
+	c.Check(name, Equals, "")
+	c.Check(err, IsNil)
+
 	e = &store.SnapActionError{Install: map[string]error{
 		"foo": fmt.Errorf("sad install 1"),
 	},
@@ -6381,6 +6430,11 @@ sad download 2: "bar"`)
 	c.Check(e.Error(), Equals, `cannot install or download:
 sad install 1: "foo"
 sad download 2: "bar"`)
+
+	op, name, err = e.SingleOpError()
+	c.Check(op, Equals, "")
+	c.Check(name, Equals, "")
+	c.Check(err, IsNil)
 
 	e = &store.SnapActionError{Refresh: map[string]error{
 		"foo": fmt.Errorf("sad refresh 1"),
@@ -6396,11 +6450,21 @@ sad refresh 1: "foo"
 sad install 2: "bar"
 sad download 3: "baz"`)
 
+	op, name, err = e.SingleOpError()
+	c.Check(op, Equals, "")
+	c.Check(name, Equals, "")
+	c.Check(err, IsNil)
+
 	e = &store.SnapActionError{
 		NoResults: true,
 		Other:     []error{fmt.Errorf("other error")},
 	}
 	c.Check(e.Error(), Equals, `cannot refresh, install, or download: other error`)
+
+	op, name, err = e.SingleOpError()
+	c.Check(op, Equals, "")
+	c.Check(name, Equals, "")
+	c.Check(err, IsNil)
 
 	e = &store.SnapActionError{
 		Other: []error{fmt.Errorf("other error 1"), fmt.Errorf("other error 2")},
@@ -6408,6 +6472,11 @@ sad download 3: "baz"`)
 	c.Check(e.Error(), Equals, `cannot refresh, install, or download:
 other error 1
 other error 2`)
+
+	op, name, err = e.SingleOpError()
+	c.Check(op, Equals, "")
+	c.Check(name, Equals, "")
+	c.Check(err, IsNil)
 
 	e = &store.SnapActionError{
 		Install: map[string]error{
@@ -6420,10 +6489,20 @@ sad install: "bar"
 other error 1
 other error 2`)
 
+	op, name, err = e.SingleOpError()
+	c.Check(op, Equals, "")
+	c.Check(name, Equals, "")
+	c.Check(err, IsNil)
+
 	e = &store.SnapActionError{
 		NoResults: true,
 	}
 	c.Check(e.Error(), Equals, "no install/refresh information results from the store")
+
+	op, name, err = e.SingleOpError()
+	c.Check(op, Equals, "")
+	c.Check(name, Equals, "")
+	c.Check(err, IsNil)
 }
 
 func (s *storeTestSuite) TestSnapActionRefreshesBothAuths(c *C) {

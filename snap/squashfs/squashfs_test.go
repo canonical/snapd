@@ -220,6 +220,15 @@ func (s *SquashfsTestSuite) TestReadFile(c *C) {
 	c.Assert(string(content), Equals, "name: foo")
 }
 
+func (s *SquashfsTestSuite) TestReadFileFail(c *C) {
+	mockUnsquashfs := testutil.MockCommand(c, "unsquashfs", `echo boom; exit 1`)
+	defer mockUnsquashfs.Restore()
+
+	snap := makeSnap(c, "name: foo", "")
+	_, err := snap.ReadFile("meta/snap.yaml")
+	c.Assert(err, ErrorMatches, "cannot run unsquashfs: boom")
+}
+
 func (s *SquashfsTestSuite) TestListDir(c *C) {
 	snap := makeSnap(c, "name: foo", "")
 
