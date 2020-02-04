@@ -699,6 +699,7 @@ pkg_dependencies_fedora(){
         iptables-services
         man
         net-tools
+        nmap-ncat
         nfs-utils
         PackageKit
         python3-yaml
