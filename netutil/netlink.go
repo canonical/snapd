@@ -80,11 +80,10 @@ func (m *RoutesMonitor) Connect() error {
 		return err
 	}
 	m.netlinkFd = fd
-	go m.run()
 	return nil
 }
 
-func (m *RoutesMonitor) Disconnect() {
+func (m *RoutesMonitor) Stop() {
 	syscall.Close(m.netlinkFd)
 	m.netlinkFd = -1
 }
@@ -106,13 +105,20 @@ func isDefaultGw(mm *syscall.NetlinkMessage) (bool, net.IP) {
 	return false, nil
 }
 
+func (m *RoutesMonitor) Run() {
+	go m.run()
+}
+
 func (m *RoutesMonitor) run() {
 	buf := make([]byte, syscall.Getpagesize())
 
 	for {
-		n, _, err := syscall.Recvfrom(m.netlinkFd, buf, 0)
+		n, err := syscall.Read(m.netlinkFd, buf)
 		if err != nil {
-			m.netlinkErrors <- err
+			// fd got closed
+			if err != syscall.EBADF {
+				m.netlinkErrors <- err
+			}
 			close(m.netlinkErrors)
 			return
 		}

@@ -31,6 +31,8 @@ import (
 
 type Interface interface {
 	Connect() error
+	// XXX: unexport disconnect and merge with Stop() to be inline with
+	//      what netutil/netlink.go does
 	Disconnect() error
 	Run() error
 	Stop() error

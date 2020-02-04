@@ -26,3 +26,7 @@ func MockOpenNetlinkFd(f func() (fd int, err error)) (restore func()) {
 		openNetlinkFd = old
 	}
 }
+
+func GetRoutesMonitorNetlinkErrorsChannel(m *RoutesMonitor) chan error {
+	return m.netlinkErrors
+}
