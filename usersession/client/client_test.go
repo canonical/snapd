@@ -137,6 +137,20 @@ func (s *clientSuite) TestSessionInfoError(c *C) {
 	})
 }
 
+func (s *clientSuite) TestSessionInfoWrongResultType(c *C) {
+	s.handler = http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(200)
+		w.Write([]byte(`{
+  "type": "sync",
+  "result": ["a", "list"]
+}`))
+	})
+	si, err := s.cli.SessionInfo(context.Background())
+	c.Check(si, DeepEquals, map[int]client.SessionInfo{})
+	c.Check(err, ErrorMatches, `json: cannot unmarshal array into Go value of type client.SessionInfo`)
+}
+
 func (s *clientSuite) TestServicesDaemonReload(c *C) {
 	s.handler = http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
