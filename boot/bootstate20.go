@@ -126,17 +126,12 @@ func (ks20 *bootState20Kernel) revisions() (snap.PlaceInfo, snap.PlaceInfo, stri
 }
 
 func (ks20 *bootState20Kernel) setNext(next snap.PlaceInfo) (bool, bootStateUpdate, error) {
-	err := ks20.loadBootloader()
-	if err != nil {
-		return false, nil, err
-	}
-
-	rebootRequired := false
-	nextStatus, err := genericSetNext(ks20, ks20.kernelStatus, next)
+	nextStatus, err := genericSetNext(ks20, next)
 	if err != nil {
 		return false, nil, err
 	}
 	// if we are setting a snap as a try snap, then we need to reboot
+	rebootRequired := false
 	if nextStatus == TryStatus {
 		ks20.tryKernelSnap = next
 		rebootRequired = true
@@ -273,17 +268,12 @@ func (bs20 *bootState20Base) revisions() (snap.PlaceInfo, snap.PlaceInfo, string
 }
 
 func (bs20 *bootState20Base) setNext(next snap.PlaceInfo) (bool, bootStateUpdate, error) {
-	err := bs20.loadModeenv()
-	if err != nil {
-		return false, nil, err
-	}
-
-	rebootRequired := false
-	nextStatus, err := genericSetNext(bs20, bs20.modeenv.BaseStatus, next)
+	nextStatus, err := genericSetNext(bs20, next)
 	if err != nil {
 		return false, nil, err
 	}
 	// if we are setting a snap as a try snap, then we need to reboot
+	rebootRequired := false
 	if nextStatus == TryStatus {
 		bs20.tryBaseSnap = next
 		rebootRequired = true
@@ -348,7 +338,7 @@ func (bs20 *bootState20Base) commit() error {
 // genericSetNext implements the generic logic for setting up a snap to be tried
 // for boot and works for both kernel and base snaps (though not
 // simultaneously).
-func genericSetNext(b bootState, currentStatus string, next snap.PlaceInfo) (setStatus string, err error) {
+func genericSetNext(b bootState, next snap.PlaceInfo) (setStatus string, err error) {
 	// get the current snap
 	current, _, _, err := b.revisions()
 	if err != nil {
