@@ -434,6 +434,12 @@ EOF
 
 
 uc20_build_initramfs_kernel_snap() {
+    # carries ubuntu-core-initframfs
+    add-apt-repository ppa:snappy-dev/image -y
+    # XXX: package is built for 20.04 only
+    # apt install ubuntu-core-initramfs -y
+    apt install liblz4-tool -y
+
     local TARGET="$1"
     # kernel snap is huge, unpacking to current dir
     unsquashfs -d repacked-kernel pc-kernel_*.snap
@@ -445,36 +451,52 @@ uc20_build_initramfs_kernel_snap() {
     # assumptions: initrd is compressed with LZ4, cpio block size 512, microcode
     # at the beginning of initrd image
     (
-        apt install liblz4-tool -y
-
         cd repacked-kernel
+        kver=$(ls "config"-* | grep -Po 'config-\K.*')
+
         objcopy -j .initrd -O binary kernel.efi initrd
         # find out the size of the microcode bit
         # this may be flaky, we're assuming 512 block size
         blocks=$(cpio -t < initrd 2>&1 >/dev/null| tail -1 | cut -f1 -d' ')
 
+        mkdir skeleton
+        cp -ar /snap/test-snapd-ubuntu-core-initramfs/current/usr/lib/ubuntu-core-initramfs/* skeleton/
+        # replace the main bits
+        rm -rf skeleton/main/*
+
         # this works on 20.04 but not on 18.04
         # $ unmkinitramfs initrd unpacked-initrd
         # on 18.04 perform each step manually
-        mkdir unpacked-initrd
         (
-            cd unpacked-initrd
+            cd skeleton/main
             # extract to current dir
-            dd if=../initrd skip="$blocks" | unlz4 | cpio -iv
+            dd if=../../initrd skip="$blocks" | unlz4 | cpio -iv
         )
-        # replace snap-boostrap
-        cp -a "$SNAPD_UNPACK_DIR/usr/lib/snapd/snap-bootstrap" unpacked-initrd/usr/lib/snapd/snap-bootstrap
-        # see mkinitramfs for reference
-        compress="lz4 -l -9"
-        (cd "unpacked-initrd/" && \
-             find . | LC_ALL=C sort | cpio --quiet -R 0:0 -o -H newc | $compress ) > repacked-initrd-main
-        # extract the early part
-        dd if=initrd bs=512 count="$blocks" > repacked-initrd
-        cat repacked-initrd-main >> repacked-initrd
-        objcopy --update-section .initrd="repacked-initrd" kernel.efi
-        # clean up
-        rm -f repacked-initrd repacked-initrd-main initrd
-        rm -rf unpacked-initrd
+        # replace snap-bootstrap
+        cp -a "$SNAPD_UNPACK_DIR/usr/lib/snapd/snap-bootstrap" skeleton/main/usr/lib/snapd/snap-bootstrap
+
+        # creates an initrd image named repacked-initrd-$kver
+        ubuntu-core-initramfs create-initrd \
+                              --kernelver "$kver" \
+                              --kerneldir "$PWD/modules" \
+                              --firmwaredir "$PWD/firmware" \
+                              --skeleton "$PWD/skeleton" \
+                              --output repacked-initrd
+
+        # copy out the kernel image for create-efi command
+        objcopy -j .linux -O binary kernel.efi "vmlinuz-$kver"
+
+        # assumes all files are named <name>-$kver
+        ubuntu-core-initramfs create-efi \
+                              --kernelver "$kver" \
+                              --initrd repacked-initrd \
+                              --kernel vmlinuz \
+                              --output repacked-kernel.efi
+        # XXX: needed?
+        chmod +x kernel.efi
+
+        mv "repacked-kernel.efi-$kver" kernel.efi
+        rm -rf skeleton initrd repacked-initrd-* vmlinuz-*
     )
 
      snap pack repacked-kernel "$TARGET"
