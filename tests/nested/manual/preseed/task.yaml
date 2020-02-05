@@ -15,7 +15,7 @@ prepare: |
 
   #shellcheck source=tests/lib/nested.sh
   . "$TESTSLIB/nested.sh"
-
+  create_nested_classic_vm
   CLOUD_IMAGE=$(get_nested_classic_image_path)
 
   #shellcheck source=tests/lib/preseed.sh
@@ -25,6 +25,10 @@ prepare: |
   setup_preseeding "$IMAGE_MOUNTPOINT"
 
 restore: |
+  #shellcheck source=tests/lib/nested.sh
+  . "$TESTSLIB/nested.sh"
+  destroy_nested_vm
+
   # any of the restore commands can fail depending on where execute part stopped,
   # account for that with ||true.
   umount_ubuntu_image "$IMAGE_MOUNTPOINT" || true

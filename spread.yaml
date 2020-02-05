@@ -822,8 +822,8 @@ suites:
         restore: |
             "$TESTSLIB"/prepare-restore.sh --restore-suite
 
-    tests/nested/classic-preseed/:
-        summary: Tests for nested images with pre-seeding
+    tests/nested/manual/:
+        summary: Tests for nested images controlled manually from the tests
         backends: [google-nested]
         systems: [ubuntu-19.10-64, ubuntu-20.04-64]
         environment:
@@ -841,14 +841,7 @@ suites:
             . "$TESTSLIB"/pkgdb.sh
             distro_update_package_db
             distro_install_package snapd qemu qemu-utils kpartx genisoimage sshpass qemu-kvm cloud-image-utils ubuntu-image
-        prepare-each: |
-            #shellcheck source=tests/lib/nested.sh
-            . "$TESTSLIB/nested.sh"
-            create_nested_classic_vm
-        restore-each: |
-            #shellcheck source=tests/lib/nested.sh
-            . "$TESTSLIB/nested.sh"
-            destroy_nested_vm
+
         restore: |
             #shellcheck source=tests/lib/nested.sh
             . "$TESTSLIB/nested.sh"
