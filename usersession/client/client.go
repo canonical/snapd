@@ -111,7 +111,9 @@ func (client *Client) doMany(ctx context.Context, method, urlpath string, query 
 			uidStr := filepath.Base(filepath.Dir(socket))
 			uid, err := strconv.Atoi(uidStr)
 			if err != nil {
-				logger.Noticef("Socket %q does not appear to be in a valid XDG_RUNTIME_DIR", socket)
+				// Ignore directories that do not
+				// appear to be valid XDG runtime dirs
+				// (i.e. /run/user/NNNN).
 				return
 			}
 			u := url.URL{
