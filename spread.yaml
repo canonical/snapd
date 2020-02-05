@@ -66,9 +66,9 @@ backends:
                 workers: 8
             - ubuntu-18.04-64:
                 workers: 8
-            - ubuntu-19.04-64:
-                workers: 6
             - ubuntu-19.10-64:
+                workers: 6
+            - ubuntu-20.04-64:
                 workers: 6
             - ubuntu-core-16-64:
                 image: ubuntu-16.04-64
@@ -101,6 +101,8 @@ backends:
                 manual: true
             - opensuse-15.1-64:
                 workers: 6
+            - opensuse-tumbleweed-64:
+                workers: 6
             - arch-linux-64:
                 workers: 6
 
@@ -117,9 +119,7 @@ backends:
             - centos-7-64:
                 workers: 6
                 image: centos-7-64
-            # zypper either segfaults or hangs installing snapd build dependencies
-            - opensuse-tumbleweed-64:
-                workers: 6
+
 
     google-sru:
         type: google
@@ -342,7 +342,7 @@ backends:
             - ubuntu-19.04-arm64:
                 username: ubuntu
                 password: ubuntu
-            # Eccentric Eel (not final name!)
+            # Eoan
             - ubuntu-19.10-amd64:
                 username: ubuntu
                 password: ubuntu
@@ -361,7 +361,7 @@ backends:
             - ubuntu-19.10-arm64:
                 username: ubuntu
                 password: ubuntu
-            # Flaming Falcon (not final name!)
+            # Focal
             - ubuntu-20.04-amd64:
                 username: ubuntu
                 password: ubuntu
@@ -427,6 +427,8 @@ exclude:
     - "*.o"
     - "*.a"
     - ./vendor
+    - "*.snap"
+    - "*.img"
 
 debug-each: |
     if [ "$SPREAD_DEBUG_EACH" = 1 ]; then

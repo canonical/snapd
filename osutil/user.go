@@ -165,6 +165,11 @@ func EnsureUserGroup(name string, id uint32, extraUsers bool) error {
 	return nil
 }
 
+func sudoersFile(name string) string {
+	// Must escape "." as files containing it are ignored in sudoers.d.
+	return filepath.Join(sudoersDotD, "create-user-"+strings.Replace(name, ".", "%2E", -1))
+}
+
 // AddUser uses the Debian/Ubuntu/derivative 'adduser' command for creating
 // regular login users on Ubuntu Core. 'adduser' is not portable cross-distro
 // but is convenient for creating regular login users.
@@ -194,9 +199,7 @@ func AddUser(name string, opts *AddUserOptions) error {
 	}
 
 	if opts.Sudoer {
-		// Must escape "." as files containing it are ignored in sudoers.d.
-		sudoersFile := filepath.Join(sudoersDotD, "create-user-"+strings.Replace(name, ".", "%2E", -1))
-		if err := AtomicWriteFile(sudoersFile, []byte(fmt.Sprintf(sudoersTemplate, name)), 0400, 0); err != nil {
+		if err := AtomicWriteFile(sudoersFile(name), []byte(fmt.Sprintf(sudoersTemplate, name)), 0400, 0); err != nil {
 			return fmt.Errorf("cannot create file under sudoers.d: %s", err)
 		}
 	}
@@ -245,6 +248,35 @@ func AddUser(name string, opts *AddUserOptions) error {
 	authKeysContent := strings.Join(opts.SSHKeys, "\n")
 	if err := AtomicWriteFileChown(authKeys, []byte(authKeysContent), 0600, 0, uid, gid); err != nil {
 		return fmt.Errorf("cannot write %s: %s", authKeys, err)
+	}
+
+	return nil
+}
+
+type DelUserOptions struct {
+	ExtraUsers bool
+}
+
+// DelUser removes a "regular login user" from the system, including their
+// home. Unlike AddUser, it does this by calling userdel(8) directly
+// (deluser doesn't support extrausers).
+// Additionally this will remove the user from sudoers if found.
+func DelUser(name string, opts *DelUserOptions) error {
+	if opts == nil {
+		opts = new(DelUserOptions)
+	}
+	cmdStr := []string{"--remove"}
+	if opts.ExtraUsers {
+		cmdStr = append(cmdStr, "--extrausers")
+	}
+	cmdStr = append(cmdStr, name)
+
+	if output, err := exec.Command("userdel", cmdStr...).CombinedOutput(); err != nil {
+		return fmt.Errorf("cannot delete user %q: %v", name, OutputErr(output, err))
+	}
+
+	if err := os.Remove(sudoersFile(name)); err != nil && !os.IsNotExist(err) {
+		return fmt.Errorf("cannot remove sudoers file for user %q: %v", name, err)
 	}
 
 	return nil

@@ -1002,7 +1002,6 @@ func (s *apiSuite) TestRootCmd(c *check.C) {
 	// check it only does GET
 	c.Check(rootCmd.PUT, check.IsNil)
 	c.Check(rootCmd.POST, check.IsNil)
-	c.Check(rootCmd.DELETE, check.IsNil)
 	c.Assert(rootCmd.GET, check.NotNil)
 
 	rec := httptest.NewRecorder()
@@ -1029,7 +1028,6 @@ func (s *apiSuite) TestSysInfo(c *check.C) {
 	// check it only does GET
 	c.Check(sysInfoCmd.PUT, check.IsNil)
 	c.Check(sysInfoCmd.POST, check.IsNil)
-	c.Check(sysInfoCmd.DELETE, check.IsNil)
 	c.Assert(sysInfoCmd.GET, check.NotNil)
 
 	rec := httptest.NewRecorder()
@@ -7431,6 +7429,15 @@ func (s *apiSuite) TestErrToResponse(c *check.C) {
 
 	e := errors.New("other error")
 
+	sa1e := &store.SnapActionError{Refresh: map[string]error{"foo": store.ErrSnapNotFound}}
+	sa2e := &store.SnapActionError{Refresh: map[string]error{
+		"foo": store.ErrSnapNotFound,
+		"bar": store.ErrSnapNotFound,
+	}}
+	saOe := &store.SnapActionError{Other: []error{e}}
+	// this one can't happen (but fun to test):
+	saXe := &store.SnapActionError{Refresh: map[string]error{"foo": sa1e}}
+
 	makeErrorRsp := func(kind errorKind, err error, value interface{}) Response {
 		return SyncResponse(&resp{
 			Type:   ResponseTypeError,
@@ -7457,6 +7464,13 @@ func (s *apiSuite) TestErrToResponse(c *check.C) {
 		{netoe, BadRequest("ERR: %v", netoe)},
 		{nettmpe, BadRequest("ERR: %v", nettmpe)},
 		{e, BadRequest("ERR: %v", e)},
+
+		// action error unwrapping:
+		{sa1e, SnapNotFound("foo", store.ErrSnapNotFound)},
+		{saXe, SnapNotFound("foo", store.ErrSnapNotFound)},
+		// action errors, unwrapped:
+		{sa2e, BadRequest(`ERR: cannot refresh: snap not found: "bar", "foo"`)},
+		{saOe, BadRequest("ERR: cannot refresh, install, or download: other error")},
 	}
 
 	for _, t := range tests {

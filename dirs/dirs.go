@@ -240,7 +240,7 @@ func SetRootDir(rootdir string) {
 	GlobalRootDir = rootdir
 
 	isInsideBase, _ := isInsideBaseSnap()
-	if !isInsideBase && release.DistroLike("fedora", "arch", "archlinux", "manjaro", "antergos") {
+	if !isInsideBase && release.DistroLike("fedora", "arch", "archlinux", "manjaro", "manjaro-arm", "antergos") {
 		SnapMountDir = filepath.Join(rootdir, "/var/lib/snapd/snap")
 	} else {
 		SnapMountDir = filepath.Join(rootdir, defaultSnapMountDir)
@@ -331,7 +331,7 @@ func SetRootDir(rootdir string) {
 	}
 
 	XdgRuntimeDirBase = filepath.Join(rootdir, "/run/user")
-	XdgRuntimeDirGlob = filepath.Join(rootdir, XdgRuntimeDirBase, "*/")
+	XdgRuntimeDirGlob = filepath.Join(XdgRuntimeDirBase, "*/")
 
 	CompletionHelperInCore = filepath.Join(CoreLibExecDir, "etelpmoc.sh")
 	CompletersDir = filepath.Join(rootdir, "/usr/share/bash-completion/completions/")

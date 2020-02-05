@@ -105,7 +105,7 @@ dbus (receive)
     bus=session
     path=/org/freedesktop/Notifications
     interface=org.freedesktop.Notifications
-    member={ActionInvoked,NotificationClosed}
+    member={ActionInvoked,NotificationClosed,NotificationReplied}
     peer=(label=unconfined),
 
 # DesktopAppInfo Launched
