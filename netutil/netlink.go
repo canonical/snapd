@@ -20,6 +20,7 @@
 package netutil
 
 import (
+	"fmt"
 	"net"
 	"syscall"
 )
@@ -57,6 +58,7 @@ type RoutesMonitor struct {
 	netlinkFd int
 
 	netlinkErrors chan error
+	netlinkQuitCh chan struct{}
 
 	defaultGwAdded   func(string)
 	defaultGwRemoved func(string)
@@ -75,6 +77,10 @@ func NewRoutesMonitor(defaultGwAdded, defaultGwRemoved func(string)) *RoutesMoni
 }
 
 func (m *RoutesMonitor) Connect() error {
+	if m.netlinkFd != -1 {
+		return fmt.Errorf("cannot connect: already connected")
+	}
+
 	fd, err := openNetlinkFd()
 	if err != nil {
 		return err
@@ -84,8 +90,7 @@ func (m *RoutesMonitor) Connect() error {
 }
 
 func (m *RoutesMonitor) Stop() {
-	syscall.Close(m.netlinkFd)
-	m.netlinkFd = -1
+	close(m.netlinkQuitCh)
 }
 
 func isDefaultGw(mm *syscall.NetlinkMessage) (bool, net.IP) {
@@ -105,47 +110,63 @@ func isDefaultGw(mm *syscall.NetlinkMessage) (bool, net.IP) {
 	return false, nil
 }
 
-func (m *RoutesMonitor) Run() {
-	go m.run()
+func (m *RoutesMonitor) Run() error {
+	return m.monitor()
 }
 
-func (m *RoutesMonitor) run() {
-	buf := make([]byte, syscall.Getpagesize())
-
-	for {
-		n, err := syscall.Read(m.netlinkFd, buf)
-		if err != nil {
-			// fd got closed
-			if err != syscall.EBADF {
-				m.netlinkErrors <- err
-			}
-			close(m.netlinkErrors)
-			return
-		}
-		if n < syscall.NLMSG_HDRLEN {
-			// XXX: log error?
-			continue
-		}
-		rawMsg := buf[:n]
-		msgs, err := syscall.ParseNetlinkMessage(rawMsg)
-		if err != nil {
-			// XXX: log error?
-			continue
-		}
-		for _, mm := range msgs {
-			switch mm.Header.Type {
-			case RTM_NEWROUTE:
-				isDefaultGw, gw := isDefaultGw(&mm)
-				if isDefaultGw && m.defaultGwAdded != nil {
-					m.defaultGwAdded(gw.String())
-				}
-			case RTM_DELROUTE:
-				isDefaultGw, gw := isDefaultGw(&mm)
-				if isDefaultGw && m.defaultGwRemoved != nil {
-					m.defaultGwRemoved(gw.String())
-				}
-
-			}
-		}
+func (m *RoutesMonitor) monitor() error {
+	if m.netlinkFd == -1 {
+		return fmt.Errorf("cannot monitor: not connected")
 	}
+
+	m.netlinkQuitCh = make(chan struct{})
+	go func() {
+		buf := make([]byte, syscall.Getpagesize())
+		for {
+			select {
+			case <-m.netlinkQuitCh:
+				syscall.Close(m.netlinkFd)
+				m.netlinkFd = -1
+				close(m.netlinkErrors)
+				return
+			default:
+				// This read will block so the
+				// netlinkQuitCh may take a bit until
+				// it is processed. Not an issue in
+				// pratcise
+				n, err := syscall.Read(m.netlinkFd, buf)
+				if err != nil {
+					m.netlinkErrors <- err
+					close(m.netlinkErrors)
+					return
+				}
+				if n < syscall.NLMSG_HDRLEN {
+					// XXX: log error?
+					continue
+				}
+				rawMsg := buf[:n]
+				msgs, err := syscall.ParseNetlinkMessage(rawMsg)
+				if err != nil {
+					// XXX: log error?
+					continue
+				}
+				for _, mm := range msgs {
+					switch mm.Header.Type {
+					case RTM_NEWROUTE:
+						isDefaultGw, gw := isDefaultGw(&mm)
+						if isDefaultGw && m.defaultGwAdded != nil {
+							m.defaultGwAdded(gw.String())
+						}
+					case RTM_DELROUTE:
+						isDefaultGw, gw := isDefaultGw(&mm)
+						if isDefaultGw && m.defaultGwRemoved != nil {
+							m.defaultGwRemoved(gw.String())
+						}
+
+					}
+				}
+			}
+		}
+	}()
+	return nil
 }

@@ -20,9 +20,9 @@
 package netutil_test
 
 import (
-	"log"
 	"net"
 	"os"
+	"syscall"
 	"testing"
 
 	. "gopkg.in/check.v1"
@@ -112,100 +112,107 @@ var netlinkCaptureRaw = [][]byte{
 	},
 }
 
+const mockNetlinkSocketPath = "mock-netlink.socket"
+
 type netlinkSuite struct {
 	testutil.BaseTest
+
+	gwChangedCh      chan struct{}
+	defaultGwAdded   []string
+	defaultGwRemoved []string
+
+	mockNetlinkListener net.Listener
 }
 
 var _ = Suite(&netlinkSuite{})
 
-const mockNetlinkSocketPath = "mock-netlink.socket"
-
 func mockNetlinkSocketOpener() (int, error) {
-	addr, err := net.ResolveUnixAddr("unix", mockNetlinkSocketPath)
+	fd, err := syscall.Socket(syscall.AF_UNIX, syscall.SOCK_STREAM, 0)
 	if err != nil {
 		return -1, err
 	}
-	conn, err := net.DialUnix("unix", nil, addr)
-	if err != nil {
-		return -1, err
-	}
-	f, err := conn.File()
-	if err != nil {
-		return -1, err
-	}
-	mockNetlinkSocketFd := f.Fd()
-	return int(mockNetlinkSocketFd), nil
+	err = syscall.Connect(fd, &syscall.SockaddrUnix{Name: mockNetlinkSocketPath})
+	return fd, err
 }
 
-func (ns *netlinkSuite) mockNetlinkSocket(c *C, ready chan struct{}, data [][]byte) {
-	os.Remove(mockNetlinkSocketPath)
-	l, err := net.Listen("unix", mockNetlinkSocketPath)
-	if err != nil {
-		log.Fatal(err)
-	}
-	ns.AddCleanup(func() { l.Close() })
-	close(ready)
-
-	conn, err := l.Accept()
+func (ns *netlinkSuite) mockNetlinkSocket(c *C, dataCh chan []byte) {
+	conn, err := ns.mockNetlinkListener.Accept()
 	c.Assert(err, IsNil)
-	for _, b := range data {
+	ns.AddCleanup(func() { conn.Close() })
+
+	for {
+		b, ok := <-dataCh
+		if !ok {
+			return
+		}
 		conn.Write(b)
 	}
-	ns.AddCleanup(func() { conn.Close() })
 }
 
-func (ns *netlinkSuite) TestRoutesMonitorNoData(c *C) {
-	ready := make(chan struct{})
-	go ns.mockNetlinkSocket(c, ready, nil)
-	<-ready
+func (ns *netlinkSuite) SetUpTest(c *C) {
+	ns.BaseTest.SetUpTest(c)
 
+	ns.defaultGwAdded = nil
+	ns.defaultGwRemoved = nil
 	restore := netutil.MockOpenNetlinkFd(mockNetlinkSocketOpener)
-	defer restore()
+	ns.AddCleanup(restore)
+	ns.gwChangedCh = make(chan struct{})
 
-	defaultGwAdded := func(s string) {
-		c.Fatalf("unexpected call")
-	}
-	defaultGwRemoved := func(s string) {
-		c.Fatalf("unexpected call")
-	}
-	m := netutil.NewRoutesMonitor(defaultGwAdded, defaultGwRemoved)
-	err := m.Connect()
+	os.Remove(mockNetlinkSocketPath)
+	l, err := net.Listen("unix", mockNetlinkSocketPath)
 	c.Assert(err, IsNil)
-	m.Run()
-	m.Stop()
+	ns.AddCleanup(func() { l.Close() })
+	ns.mockNetlinkListener = l
+}
 
-	// stop does not generate an error
-	errCh := netutil.GetRoutesMonitorNetlinkErrorsChannel(m)
-	err = <-errCh
-	c.Assert(err, IsNil)
+func (ns *netlinkSuite) added(s string) {
+	ns.defaultGwAdded = append(ns.defaultGwAdded, s)
+	ns.gwChangedCh <- struct{}{}
+}
+func (ns *netlinkSuite) removed(s string) {
+	ns.defaultGwRemoved = append(ns.defaultGwRemoved, s)
+	ns.gwChangedCh <- struct{}{}
 }
 
 func (ns *netlinkSuite) TestRoutesMonitorSmoke(c *C) {
-	ready := make(chan struct{})
-	go ns.mockNetlinkSocket(c, ready, netlinkCaptureRaw)
-	<-ready
+	dataCh := make(chan []byte)
+	go ns.mockNetlinkSocket(c, dataCh)
 
-	restore := netutil.MockOpenNetlinkFd(mockNetlinkSocketOpener)
-	defer restore()
-
-	ch := make(chan struct{})
-	var added, removed []string
-	defaultGwAdded := func(s string) {
-		added = append(added, s)
-		ch <- struct{}{}
-	}
-	defaultGwRemoved := func(s string) {
-		removed = append(removed, s)
-		ch <- struct{}{}
-	}
-	m := netutil.NewRoutesMonitor(defaultGwAdded, defaultGwRemoved)
+	m := netutil.NewRoutesMonitor(ns.added, ns.removed)
 	err := m.Connect()
 	c.Assert(err, IsNil)
 	m.Run()
 	ns.AddCleanup(m.Stop)
 
-	<-ch
-	c.Assert(added, DeepEquals, []string{"192.168.2.1"})
-	<-ch
-	c.Assert(removed, DeepEquals, []string{"192.168.2.1"})
+	for _, b := range netlinkCaptureRaw {
+		dataCh <- b
+	}
+
+	<-ns.gwChangedCh
+	c.Assert(ns.defaultGwAdded, DeepEquals, []string{"192.168.2.1"})
+	<-ns.gwChangedCh
+	c.Assert(ns.defaultGwRemoved, DeepEquals, []string{"192.168.2.1"})
+}
+
+func (ns *netlinkSuite) TestRoutesMonitorCanStop(c *C) {
+	dataCh := make(chan []byte)
+	go ns.mockNetlinkSocket(c, dataCh)
+
+	m := netutil.NewRoutesMonitor(ns.added, ns.removed)
+	err := m.Connect()
+	c.Assert(err, IsNil)
+	m.Run()
+
+	// ensure we got some data from the interface first
+	dataCh <- []byte{0x01}
+	// ask it nicely to stop
+	m.Stop()
+	// we need to send data again or syscall.Read() in monitor() may block
+	// forever
+	dataCh <- []byte{0x01}
+
+	// stop does not generate an error
+	errCh := netutil.GetRoutesMonitorNetlinkErrorsChannel(m)
+	err = <-errCh
+	c.Assert(err, IsNil)
 }

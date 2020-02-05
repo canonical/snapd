@@ -39,7 +39,8 @@ func main() {
 	if err := m.Connect(); err != nil {
 		log.Fatal(err)
 	}
-	defer m.Disconnect()
+	m.Run()
+	defer m.Stop()
 
 	// wait forever
 	select {}
