@@ -1701,7 +1701,6 @@ func (s *interfaceManagerSuite) TestForgetUndo(c *C) {
 	// sanity
 	_ = s.getConnection(c, "consumer", "plug", "producer", "slot")
 
-	// Run the disconnect task and let it finish.
 	s.state.Lock()
 	change := s.state.NewChange("disconnect", "...")
 	ts, err := ifacestate.Forget(s.state, mgr.Repository(), &interfaces.ConnRef{
@@ -1721,6 +1720,7 @@ func (s *interfaceManagerSuite) TestForgetUndo(c *C) {
 	terr.WaitAll(ts)
 	change.AddTask(terr)
 
+	// Run the disconnect task and let it finish.
 	s.state.Unlock()
 	s.settle(c)
 	s.state.Lock()
@@ -1821,7 +1821,10 @@ func (s *interfaceManagerSuite) testForget(c *C, plugSnap, plugName, slotSnap, s
 	// Run the disconnect --forget task and let it finish.
 	s.state.Lock()
 	change := s.state.NewChange("disconnect", "...")
-	ts, err := ifacestate.Forget(s.state, mgr.Repository(), &interfaces.ConnRef{PlugRef: interfaces.PlugRef{Snap: plugSnap, Name: plugName}, SlotRef: interfaces.SlotRef{Snap: slotSnap, Name: slotName}})
+	ts, err := ifacestate.Forget(s.state, mgr.Repository(),
+		&interfaces.ConnRef{
+			PlugRef: interfaces.PlugRef{Snap: plugSnap, Name: plugName},
+			SlotRef: interfaces.SlotRef{Snap: slotSnap, Name: slotName}})
 	c.Assert(err, IsNil)
 
 	// check disconnect task
@@ -7511,8 +7514,9 @@ func (s *interfaceManagerSuite) TestResolveDisconnectFromConns(c *C) {
 	forget := true
 	ref, err := mgr.ResolveDisconnect("some-snap", "plug", "core", "slot", forget)
 	c.Check(err, IsNil)
-	c.Check(ref, DeepEquals, []*interfaces.ConnRef{
-		{PlugRef: interfaces.PlugRef{Snap: "some-snap", Name: "plug"}, SlotRef: interfaces.SlotRef{Snap: "core", Name: "slot"}},
+	c.Check(ref, DeepEquals, []*interfaces.ConnRef{{
+		PlugRef: interfaces.PlugRef{Snap: "some-snap", Name: "plug"},
+		SlotRef: interfaces.SlotRef{Snap: "core", Name: "slot"}},
 	})
 
 	ref, err = mgr.ResolveDisconnect("some-snap", "plug", "", "slot", forget)

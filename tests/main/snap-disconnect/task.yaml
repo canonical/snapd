@@ -92,8 +92,7 @@ execute: |
     snap connections test-snap-consumer | MATCH "content\[mylib\] *test-snap-consumer:shared-content-plug *test-snap-producer:shared-content-slot"
     # refresh to a newer version without content plug
     snap install --dangerous test-snap-consumer_2_all.snap
-    # this check is broken due to a bug where missing plugs/slots are still listed
-    #snap connections test-snap-consumer | not MATCH "content\[mylib\] *test-snap-consumer:shared-content-plug *test-snap-producer:shared-content-slot"
+    snap connections test-snap-consumer | not MATCH "content\[mylib\] *test-snap-consumer:shared-content-plug *test-snap-producer:shared-content-slot"
     inspect_connection "test-snap-consumer:shared-content-plug test-snap-producer:shared-content-slot" | MATCH "true"
     snap disconnect --forget test-snap-consumer:shared-content-plug test-snap-producer:shared-content-slot
     snap connections test-snap-consumer | not MATCH "content\[mylib\] *test-snap-consumer:shared-content-plug *test-snap-producer:shared-content-slot"
