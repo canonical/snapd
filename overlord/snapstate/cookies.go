@@ -149,7 +149,7 @@ func (m *SnapManager) removeSnapCookie(st *state.State, instanceName string) err
 }
 
 func makeCookie() (string, error) {
-	return randutil.CryptoToken(42)
+	return randutil.CryptoToken(39)
 }
 
 func createCookieFile(instanceName string) (cookieID string, err error) {

@@ -71,7 +71,7 @@ func checkCookie(c *C, st *state.State, snapName string) {
 	c.Assert(fmt.Sprintf("%s/snap.%s", dirs.SnapCookieDir, snapName), testutil.FileEquals, cookieID)
 	cookieBytes, err := base64.RawURLEncoding.DecodeString(cookieID)
 	c.Assert(err, IsNil)
-	c.Assert(cookieBytes, HasLen, 42)
+	c.Assert(cookieBytes, HasLen, 39)
 }
 
 func (s *cookiesSuite) TestSyncCookies(c *C) {
