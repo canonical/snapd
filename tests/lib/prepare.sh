@@ -705,13 +705,15 @@ EOF
     # mount fresh image and add all our SPREAD_PROJECT data
     kpartx -avs "$IMAGE_HOME/$IMAGE"
     # FIXME: hardcoded mapper location, parse from kpartx
+    devloop=$(losetup --list --noheadings | grep "$IMAGE_HOME/$IMAGE" | awk '{print $1}')
+    dev=$(basename "$devloop")
     if is_core18_system; then
-        mount /dev/mapper/loop3p3 /mnt
+        mount "/dev/mapper/${dev}p3" /mnt
     elif is_core20_system; then
         # (ab)use ubuntu-seed
-        mount /dev/mapper/loop3p2 /mnt
+        mount "/dev/mapper/${dev}p2" /mnt
     else
-        mount /dev/mapper/loop2p3 /mnt
+        mount "/dev/mapper/${dev}p3" /mnt
     fi
     mkdir -p /mnt/user-data/
     # copy over everything from gopath to user-data, exclude:
