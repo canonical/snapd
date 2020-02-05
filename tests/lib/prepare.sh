@@ -436,9 +436,7 @@ EOF
 uc20_build_initramfs_kernel_snap() {
     # carries ubuntu-core-initframfs
     add-apt-repository ppa:snappy-dev/image -y
-    # XXX: package is built for 20.04 only
-    # apt install ubuntu-core-initramfs -y
-    apt install liblz4-tool -y
+    apt install ubuntu-core-initramfs -y
 
     local TARGET="$1"
     # kernel snap is huge, unpacking to current dir
@@ -452,36 +450,41 @@ uc20_build_initramfs_kernel_snap() {
     # at the beginning of initrd image
     (
         cd repacked-kernel
+        #shellcheck disable=SC2010
         kver=$(ls "config"-* | grep -Po 'config-\K.*')
 
         objcopy -j .initrd -O binary kernel.efi initrd
+
+        # this works on 20.04 but not on 18.04
+        unmkinitramfs initrd unpacked-initrd
+
+        # replace snap-bootstrap
+        cp -a "$SNAPD_UNPACK_DIR/usr/lib/snapd/snap-bootstrap" unpacked-initrd/main/usr/lib/snapd/snap-bootstrap
+
+        # creates an initrd image named repacked-initrd-$kver
+        # XXX: this currently doesn't do the right thing:
+        #
+        # mkdir skeleton
+        # cp -ar /usr/lib/ubuntu-core-initramfs/* skeleton/
+        # # replace the main bits
+        # rm -rf skeleton/main/*
+        # ubuntu-core-initramfs create-initrd \
+        #                       --kernelver "$kver" \
+        #                       --kerneldir "$PWD/modules" \
+        #                       --firmwaredir "$PWD/firmware" \
+        #                       --skeleton "$PWD/skeleton" \
+        #                       --output repacked-initrd
+
+        # so we have to do repacking manually
         # find out the size of the microcode bit
         # this may be flaky, we're assuming 512 block size
         blocks=$(cpio -t < initrd 2>&1 >/dev/null| tail -1 | cut -f1 -d' ')
+        compress="lz4 -l -9"
+        (cd "unpacked-initrd/main" && \
+             find . | LC_ALL=C sort | cpio --quiet -R 0:0 -o -H newc | $compress ) > repacked-initrd-main
 
-        mkdir skeleton
-        cp -ar /snap/test-snapd-ubuntu-core-initramfs/current/usr/lib/ubuntu-core-initramfs/* skeleton/
-        # replace the main bits
-        rm -rf skeleton/main/*
-
-        # this works on 20.04 but not on 18.04
-        # $ unmkinitramfs initrd unpacked-initrd
-        # on 18.04 perform each step manually
-        (
-            cd skeleton/main
-            # extract to current dir
-            dd if=../../initrd skip="$blocks" | unlz4 | cpio -iv
-        )
-        # replace snap-bootstrap
-        cp -a "$SNAPD_UNPACK_DIR/usr/lib/snapd/snap-bootstrap" skeleton/main/usr/lib/snapd/snap-bootstrap
-
-        # creates an initrd image named repacked-initrd-$kver
-        ubuntu-core-initramfs create-initrd \
-                              --kernelver "$kver" \
-                              --kerneldir "$PWD/modules" \
-                              --firmwaredir "$PWD/firmware" \
-                              --skeleton "$PWD/skeleton" \
-                              --output repacked-initrd
+        dd if=initrd bs=512 count="$blocks" > "repacked-initrd-$kver"
+        cat repacked-initrd-main >> "repacked-initrd-$kver"
 
         # copy out the kernel image for create-efi command
         objcopy -j .linux -O binary kernel.efi "vmlinuz-$kver"
@@ -496,10 +499,10 @@ uc20_build_initramfs_kernel_snap() {
         chmod +x kernel.efi
 
         mv "repacked-kernel.efi-$kver" kernel.efi
-        rm -rf skeleton initrd repacked-initrd-* vmlinuz-*
+        rm -rf unpacked-initrd skeleton initrd repacked-initrd-* vmlinuz-*
     )
 
-     snap pack repacked-kernel "$TARGET"
+    snap pack repacked-kernel "$TARGET"
 }
 
 
