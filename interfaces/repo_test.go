@@ -1395,7 +1395,7 @@ func (s *RepositorySuite) TestDisconnectFailsWithoutPlug(c *C) {
 	c.Assert(s.testRepo.AddSlot(s.slot), IsNil)
 	err := s.testRepo.Disconnect(s.plug.Snap.InstanceName(), s.plug.Name, s.slot.Snap.InstanceName(), s.slot.Name)
 	c.Assert(err, ErrorMatches, `snap "consumer" has no plug named "plug"`)
-	_, ok := err.(*ErrNoPlugOrSlot)
+	_, ok := err.(*NoPlugOrSlotError)
 	c.Check(ok, Equals, true)
 }
 
@@ -1404,7 +1404,7 @@ func (s *RepositorySuite) TestDisconnectFailsWithutSlot(c *C) {
 	c.Assert(s.testRepo.AddPlug(s.plug), IsNil)
 	err := s.testRepo.Disconnect(s.plug.Snap.InstanceName(), s.plug.Name, s.slot.Snap.InstanceName(), s.slot.Name)
 	c.Assert(err, ErrorMatches, `snap "producer" has no slot named "slot"`)
-	_, ok := err.(*ErrNoPlugOrSlot)
+	_, ok := err.(*NoPlugOrSlotError)
 	c.Check(ok, Equals, true)
 }
 
@@ -1414,7 +1414,7 @@ func (s *RepositorySuite) TestDisconnectFailsWhenNotConnected(c *C) {
 	c.Assert(s.testRepo.AddSlot(s.slot), IsNil)
 	err := s.testRepo.Disconnect(s.plug.Snap.InstanceName(), s.plug.Name, s.slot.Snap.InstanceName(), s.slot.Name)
 	c.Assert(err, ErrorMatches, `cannot disconnect consumer:plug from producer:slot, it is not connected`)
-	_, ok := err.(*ErrNotConnected)
+	_, ok := err.(*NotConnectedError)
 	c.Check(ok, Equals, true)
 }
 

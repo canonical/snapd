@@ -569,8 +569,8 @@ func (m *InterfaceManager) doDisconnect(task *state.Task, _ *tomb.Tomb) error {
 
 	err = m.repo.Disconnect(plugRef.Snap, plugRef.Name, slotRef.Snap, slotRef.Name)
 	if err != nil {
-		_, notConnected := err.(*interfaces.ErrNotConnected)
-		_, noPlugOrSlot := err.(*interfaces.ErrNoPlugOrSlot)
+		_, notConnected := err.(*interfaces.NotConnectedError)
+		_, noPlugOrSlot := err.(*interfaces.NoPlugOrSlotError)
 		// not connected, just forget it.
 		if forget && (notConnected || noPlugOrSlot) {
 			delete(conns, cref.ID())

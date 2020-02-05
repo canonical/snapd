@@ -679,24 +679,24 @@ func (r *Repository) Connect(ref *ConnRef, plugStaticAttrs, plugDynamicAttrs, sl
 	return conn, nil
 }
 
-// ErrNotConnected is returned by Disconnect() if the requested connection does
+// NotConnectedError is returned by Disconnect() if the requested connection does
 // not exist.
-type ErrNotConnected struct {
-	Message string
+type NotConnectedError struct {
+	message string
 }
 
-func (e *ErrNotConnected) Error() string {
-	return e.Message
+func (e *NotConnectedError) Error() string {
+	return e.message
 }
 
-// ErrNoPlugOrSlot is returned by Disconnect() if either the plug or slot does
+// NoPlugOrSlotError is returned by Disconnect() if either the plug or slot does
 // no exist.
-type ErrNoPlugOrSlot struct {
-	Message string
+type NoPlugOrSlotError struct {
+	message string
 }
 
-func (e *ErrNoPlugOrSlot) Error() string {
-	return e.Message
+func (e *NoPlugOrSlotError) Error() string {
+	return e.message
 }
 
 // Disconnect disconnects the named plug from the slot of the given snap.
@@ -725,21 +725,21 @@ func (r *Repository) Disconnect(plugSnapName, plugName, slotSnapName, slotName s
 	// Ensure that such plug exists
 	plug := r.plugs[plugSnapName][plugName]
 	if plug == nil {
-		return &ErrNoPlugOrSlot{
-			Message: fmt.Sprintf("snap %q has no plug named %q",
+		return &NoPlugOrSlotError{
+			message: fmt.Sprintf("snap %q has no plug named %q",
 				plugSnapName, plugName)}
 	}
 	// Ensure that such slot exists
 	slot := r.slots[slotSnapName][slotName]
 	if slot == nil {
-		return &ErrNoPlugOrSlot{
-			Message: fmt.Sprintf("snap %q has no slot named %q",
+		return &NoPlugOrSlotError{
+			message: fmt.Sprintf("snap %q has no slot named %q",
 				slotSnapName, slotName)}
 	}
 	// Ensure that slot and plug are connected
 	if r.slotPlugs[slot][plug] == nil {
-		return &ErrNotConnected{
-			Message: fmt.Sprintf("cannot disconnect %s:%s from %s:%s, it is not connected",
+		return &NotConnectedError{
+			message: fmt.Sprintf("cannot disconnect %s:%s from %s:%s, it is not connected",
 				plugSnapName, plugName, slotSnapName, slotName)}
 	}
 	r.disconnect(plug, slot)
