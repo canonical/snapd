@@ -7,10 +7,35 @@
 			"revision": ""
 		},
 		{
+			"checksumSHA1": "VqAvxeJE9hORJ6vYCC1dFGboZlw=",
+			"path": "github.com/chrisccoulson/go-tpm2",
+			"revision": "698c7fec6160afc27f9839fa4984429bbe1ebbcf",
+			"revisionTime": "2019-12-02T18:42:20Z"
+		},
+		{
+			"checksumSHA1": "emUttBmQY/296swpuBVtuCZ5Ft8=",
+			"path": "github.com/chrisccoulson/tcglog-parser",
+			"revision": "e2b76df64e8b7dbe1215e063702b30e901781808",
+			"revisionTime": "2019-10-18T19:34:49Z"
+		},
+		{
+			"checksumSHA1": "kW0NbebKAs7b8XRTaVrofYOSu3Q=",
+			"path": "github.com/chrisccoulson/ubuntu-core-fde-utils",
+			"revision": "b36e36f824b0b4a167c01ff4b7ed0eedc33b0a63",
+			"revisionTime": "2020-01-30T13:38:46Z"
+		},
+		{
 			"checksumSHA1": "zg16zjZTQ9R89+UOLmEZxHgxDtM=",
 			"path": "github.com/coreos/go-systemd/activation",
 			"revision": "39ca1b05acc7ad1220e09f133283b8859a8b71ab",
 			"revisionTime": "2018-05-11T13:34:05Z"
+		},
+		{
+			"checksumSHA1": "wHGa5uteRxMMSHJLQZtcBpIIUcw=",
+			"origin": "github.com/chrisccoulson/pkcs7",
+			"path": "github.com/fullsailor/pkcs7",
+			"revision": "9d98ea9f9bc8b4feee8f0d7c5ef8179f85f0e237",
+			"revisionTime": "2019-09-06T18:49:57Z"
 		},
 		{
 			"checksumSHA1": "qwK75TRXmR/k8CiegYaeqaCDek4=",
@@ -163,6 +188,12 @@
 			"path": "golang.org/x/net/context",
 			"revision": "c81e7f25cb61200d8bf0ae971a0bac8cb638d5bc",
 			"revisionTime": "2017-06-28T23:42:41Z"
+		},
+		{
+			"checksumSHA1": "ElyYFL/fVxkuxNDxTxPyni4A0qo=",
+			"path": "golang.org/x/sys/unix",
+			"revision": "dd2ff4accc098aceecb86b36eaa7829b2a17b1c9",
+			"revisionTime": "2018-03-01T08:23:35Z"
 		},
 		{
 			"checksumSHA1": "fqi5wrtLirDRLeXBetveI1nLg5M=",
