@@ -205,10 +205,12 @@ version: 5.0
 	baseInSeed := filepath.Join(seedSnapsDirs, filepath.Base(baseInfo.MountFile()))
 	err = os.Rename(baseFn, baseInSeed)
 	c.Assert(err, IsNil)
-	kernelFn, kernelInfo := s.makeSnap(c, "pc-kernel", `name: pc-kernel
+	kernelFn, kernelInfo := s.makeSnapWithFiles(c, "pc-kernel", `name: pc-kernel
 type: kernel
 version: 5.0
-`, snap.R(5))
+`, snap.R(5), [][]string{
+		{"kernel.efi", "I'm a kernel.efi"},
+	})
 	kernelInSeed := filepath.Join(seedSnapsDirs, filepath.Base(kernelInfo.MountFile()))
 	err = os.Rename(kernelFn, kernelInSeed)
 	c.Assert(err, IsNil)
@@ -281,7 +283,8 @@ func (s *makeBootableSuite) TestMakeBootable20RunMode(c *C) {
 	c.Assert(err, IsNil)
 
 	// grub on ubuntu-boot
-	mockBootGrubDir := filepath.Join(runMnt, "ubuntu-boot", "EFI", "ubuntu")
+	ubuntuBootPartition := filepath.Join(runMnt, "ubuntu-boot")
+	mockBootGrubDir := filepath.Join(ubuntuBootPartition, "EFI", "ubuntu")
 	mockBootGrubCfg := filepath.Join(mockBootGrubDir, "grub.cfg")
 	err = os.MkdirAll(filepath.Dir(mockBootGrubCfg), 0755)
 	c.Assert(err, IsNil)
@@ -295,10 +298,14 @@ version: 5.0
 	baseInSeed := filepath.Join(seedSnapsDirs, filepath.Base(baseInfo.MountFile()))
 	err = os.Rename(baseFn, baseInSeed)
 	c.Assert(err, IsNil)
-	kernelFn, kernelInfo := s.makeSnap(c, "pc-kernel", `name: pc-kernel
+	kernelFn, kernelInfo := s.makeSnapWithFiles(c, "pc-kernel", `name: pc-kernel
 type: kernel
 version: 5.0
-`, snap.R(5))
+`, snap.R(5),
+		[][]string{
+			{"kernel.efi", "I'm a kernel.efi"},
+		},
+	)
 	kernelInSeed := filepath.Join(seedSnapsDirs, filepath.Base(kernelInfo.MountFile()))
 	err = os.Rename(kernelFn, kernelInSeed)
 	c.Assert(err, IsNil)
@@ -328,8 +335,21 @@ version: 5.0
 	// using the UC16 bootmode
 	mockBootGrubenv := filepath.Join(mockBootGrubDir, "grubenv")
 	c.Check(mockBootGrubenv, testutil.FilePresent)
-	c.Check(mockBootGrubenv, testutil.FileContains, "snap_kernel=pc-kernel_5.snap")
-	c.Check(mockBootGrubenv, testutil.FileContains, "snap_core=core20_3.snap")
+
+	// ensure that kernel_status is empty, we specifically want this to be set
+	// to the empty string
+	// use (?m) to match multi-line file in the regex here, because the file is
+	// a grubenv with padding #### blocks
+	c.Check(mockBootGrubenv, testutil.FileMatches, `(?m)^kernel_status=$`)
+
+	// check that we have the extracted kernel in the right places, both in the
+	// old uc16/uc18 location and the new ubuntu-boot partition grub dir
+	extractedKernel := filepath.Join(mockBootGrubDir, "pc-kernel_5.snap", "kernel.efi")
+	c.Check(extractedKernel, testutil.FilePresent)
+
+	// the new uc20 location
+	extractedKernelSymlink := filepath.Join(mockBootGrubDir, "kernel.efi")
+	c.Check(extractedKernelSymlink, testutil.FilePresent)
 
 	// ensure modeenv looks correct
 	ubuntuDataModeEnvPath := filepath.Join(rootdir, "/run/mnt/ubuntu-data/system-data/var/lib/snapd/modeenv")
