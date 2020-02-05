@@ -438,46 +438,6 @@ uc20_build_initramfs_kernel_snap() {
     # kernel snap is huge, unpacking to current dir
     unsquashfs -d repacked-kernel pc-kernel_*.snap
 
-    local SNAPD_UNPACK_DIR="/tmp/snapd-unpack"
-    dpkg-deb -x "$SPREAD_PATH"/../snapd_*.deb "$SNAPD_UNPACK_DIR"
-
-    # repack initrd magic, beware
-    # assumptions: initrd is compressed with LZ4, cpio block size 512, microcode
-    # at the beginning of initrd image
-    (
-        apt install liblz4-tool -y
-
-        cd repacked-kernel
-        objcopy -j .initrd -O binary kernel.efi initrd
-        # find out the size of the microcode bit
-        # this may be flaky, we're assuming 512 block size
-        blocks=$(cpio -t < initrd 2>&1 >/dev/null| tail -1 | cut -f1 -d' ')
-
-        # this works on 20.04 but not on 18.04
-        # $ unmkinitramfs initrd unpacked-initrd
-        # on 18.04 perform each step manually
-        mkdir unpacked-initrd
-        (
-            cd unpacked-initrd
-            # extract to current dir
-            dd if=../initrd skip="$blocks" | unlz4 | cpio -iv
-        )
-        # replace snap-boostrap
-        cp -a "$SNAPD_UNPACK_DIR/usr/lib/snapd/snap-bootstrap" unpacked-initrd/usr/lib/snapd/snap-bootstrap
-        # see mkinitramfs for reference
-        compress="lz4 -l -9"
-        (cd "unpacked-initrd/" && \
-             find . | LC_ALL=C sort | cpio --quiet -R 0:0 -o -H newc | $compress ) > repacked-initrd-main
-        # extract the early part
-        dd if=initrd bs=512 count="$blocks" > repacked-initrd
-        cat repacked-initrd-main >> repacked-initrd
-        objcopy --update-section .initrd="repacked-initrd" kernel.efi
-        # clean up
-        rm -f repacked-initrd repacked-initrd-main initrd
-        rm -rf unpacked-initrd
-    )
-
-     snap pack repacked-kernel "$TARGET"
 }
 
 
@@ -582,13 +542,16 @@ EOF
 setup_reflash_magic() {
     # install the stuff we need
     distro_install_package kpartx busybox-static
-    # for core20 we need debootstrap to build the initramfs in the kernel snap
-    if is_core20_system; then
-        distro_install_package debootstrap
-    fi
-
     distro_install_local_package "$GOHOME"/snapd_*.deb
     distro_clean_package_cache
+
+    if is_core20_system; then
+        # install the ubuntu-core-initramfs snap that we will use to repack the
+        # kernel snap
+        snap install --edge test-snapd-ubuntu-core-initramfs
+        # TODO:UC20: remove this snippet when we have a store auto-connection
+        snap connect test-snapd-ubuntu-core-initramfs:hardware-observe
+    fi
 
     # need to be seeded to proceed with snap install
     snap wait system seed.loaded
@@ -683,12 +646,30 @@ EOF
     fi
 
     if is_core20_system; then
-        snap download --channel="20/$KERNEL_CHANNEL" pc-kernel
+        snap download --basename=pc-kernel --channel="20/$KERNEL_CHANNEL" pc-kernel
         # make sure we have the snap
-        test -e pc-kernel_*.snap
+        test -e pc-kernel.snap
+
+        # copy our snap-bootstrap into the ubuntu-core-initramfs dir where the
+        # initrd will be built from
+        UC_INITRAMFS_DIR=/var/snap/test-snapd-ubuntu-core-initramfs/current/usr/lib/ubuntu-core-initramfs/main
+        cp /usr/lib/snapd/snap-bootstrap "$UC_INITRAMFS_DIR/usr/lib/snapd/snap-bootstrap"
+        
+        # modify the-tool to verify that our version is used when booting - this
+        # is verified in the tests/core20/basic spread test
+        sed -i -e 's/set -e/set -ex/' $UC_INITRAMFS_DIR/usr/lib/the-tool
+        echo "" >> $UC_INITRAMFS_DIR/usr/lib/the-tool
+        echo "test -d /run/mnt/ubuntu-data/system-data && touch /run/mnt/ubuntu-data/system-data/the-tool-ran" >> \
+            $UC_INITRAMFS_DIR/usr/lib/the-tool
+
+        # rebuild the kernel snap with our snap-bootstrap
+        test-snapd-ubuntu-core-initramfs.repack-kernel-snap pc-kernel.snap
+
+        # make sure we have the repacked snap
+        test -e pc-kernel-repacked.snap
+
         # build the initramfs with our snapd assets into the kernel snap
-        uc20_build_initramfs_kernel_snap "$IMAGE_HOME"
-        EXTRA_FUNDAMENTAL="--extra-snaps $IMAGE_HOME/pc-kernel_*.snap"
+        EXTRA_FUNDAMENTAL="--extra-snaps $PWD/pc-kernel-repacked.snap"
     fi
 
     # 'snap pack' creates snaps 0644, and ubuntu-image just copies those in
