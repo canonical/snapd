@@ -82,7 +82,7 @@ func (iface *uioInterface) AppArmorConnectedPlug(spec *apparmor.Specification, p
 	//  - $sysfs_base/portio/port[0-9]+/{name,start,size,porttype}
 	// The expression below matches them all as they all may be required for
 	// userspace drivers to operate.
-	spec.AddSnippet(fmt.Sprintf("/sys/devices/platform/**/uio/%s/** rw,", strings.TrimPrefix(path, "/dev/")))
+	spec.AddSnippet(fmt.Sprintf("/sys/devices/platform/**/uio/%s/** r,", strings.TrimPrefix(path, "/dev/")))
 	return nil
 }
 
