@@ -611,7 +611,7 @@ save_snaps() {
 save_mounts() {
     file=$1
     # autofs is skipped due to some attributes change for systemd-1
-    mount -l | grep '/snap' | sort > "$file"
+    mount -l | grep '/snap' | grep -v \(deleted\) | sort > "$file"
 }
 
 save_units() {
