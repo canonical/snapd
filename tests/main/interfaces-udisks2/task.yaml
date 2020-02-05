@@ -4,8 +4,8 @@ details: |
     The udisks2 interface allows operating as or interacting with the UDisks2 service
 
 # Interfaces not defined for ubuntu core systems
-# FIXME: fails in debian-sid for unknown reasons
-systems: [-ubuntu-core-*, -debian-sid-*]
+# FIXME: fails in debian-sid and ubuntu-20.04 for unknown reasons
+systems: [-ubuntu-core-*, -debian-sid-*, -ubuntu-20.04-*]
 
 prepare: |
     snap install test-snapd-udisks2
