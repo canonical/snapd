@@ -1,6 +1,10 @@
 name: snapd-snap
 
-on: [push]
+on: 
+  push: 
+    tags:
+      - "2.[4-9]+**"
+      - "v2.[4-9]+**"
 
 jobs:
   my-job:
