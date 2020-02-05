@@ -24,6 +24,7 @@ import (
 	"os/exec"
 	"path/filepath"
 
+	"github.com/chrisccoulson/ubuntu-core-fde-utils"
 	"gopkg.in/tomb.v2"
 
 	"github.com/snapcore/snapd/asserts"
@@ -134,9 +135,17 @@ func (m *DeviceManager) doSetupRunSystem(t *state.Task, _ *tomb.Tomb) error {
 	return nil
 }
 
-// TODO:UC20: set to real TPM availability check function
 var checkTPMAvailability = func() error {
-	return nil
+	logger.Noticef("checking TPM device availability...")
+	// TODO:UC20: verify if gadget contains a TPM endorsement key certificate, and
+	//            establish a secure connection to verify the device authenticity
+	tconn, err := fdeutil.ConnectToDefaultTPM()
+	if err != nil {
+		logger.Noticef("connection to TPM device failed: %v", err)
+		return err
+	}
+	logger.Noticef("TPM device detected")
+	return tconn.Close()
 }
 
 func checkEncryption(model *asserts.Model) (res bool, err error) {
