@@ -116,6 +116,13 @@ func (client *Client) doMany(ctx context.Context, method, urlpath string, query 
 				// (i.e. /run/user/NNNN).
 				return
 			}
+			response := response{uid: uid}
+			defer func() {
+				mu.Lock()
+				defer mu.Unlock()
+				responses = append(responses, &response)
+			}()
+
 			u := url.URL{
 				Scheme:   "http",
 				Host:     uidStr,
@@ -124,7 +131,7 @@ func (client *Client) doMany(ctx context.Context, method, urlpath string, query 
 			}
 			req, err := http.NewRequest(method, u.String(), bytes.NewBuffer(body))
 			if err != nil {
-				logger.Noticef("Failed to create HTTP request: %v", err)
+				response.err = err
 				return
 			}
 			req = req.WithContext(ctx)
@@ -132,19 +139,14 @@ func (client *Client) doMany(ctx context.Context, method, urlpath string, query 
 				req.Header.Set(key, value)
 			}
 			httpResp, err := client.doer.Do(req)
-			response := response{
-				uid: uid,
-				err: err,
+			if err != nil {
+				response.err = err
+				return
 			}
-			if err == nil {
-				defer httpResp.Body.Close()
-				response.statusCode = httpResp.StatusCode
-				response.err = decodeInto(httpResp.Body, &response)
-				response.checkError()
-			}
-			mu.Lock()
-			defer mu.Unlock()
-			responses = append(responses, &response)
+			defer httpResp.Body.Close()
+			response.statusCode = httpResp.StatusCode
+			response.err = decodeInto(httpResp.Body, &response)
+			response.checkError()
 		}(socket)
 	}
 	wg.Wait()
