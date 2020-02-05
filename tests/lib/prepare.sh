@@ -664,8 +664,9 @@ EOF
 
         # rebuild the kernel snap with our snap-bootstrap 
         # TODO:UC20: support building this outside of $HOME, the test-snapd-ubuntu-core-initramfs snap needs to be updated
+        oldpwd=$PWD
         pushd "$HOME"
-        test-snapd-ubuntu-core-initramfs.repack-kernel-snap pc-kernel.snap
+        test-snapd-ubuntu-core-initramfs.repack-kernel-snap "$oldpwd/pc-kernel.snap"
         popd
         cp "$HOME/pc-kernel-repacked.snap" "$PWD/pc-kernel-repacked.snap"
 
