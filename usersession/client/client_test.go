@@ -235,6 +235,59 @@ func (s *clientSuite) TestServicesStartFailure(c *C) {
 	c.Check(failure1.Error, Equals, "failed to start")
 }
 
+func (s *clientSuite) TestServicesStartBadErrors(c *C) {
+	errorValue := "null"
+	s.handler = http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(500)
+		w.Write([]byte(fmt.Sprintf(`{
+  "type": "error",
+  "result": {
+    "kind": "service-control",
+    "message": "failed to stop services",
+    "value": %s
+  }
+}`, errorValue)))
+	})
+
+	// Error value is not a map
+	errorValue = "[]"
+	startFailures, stopFailures, err := s.cli.ServicesStart(context.Background(), []string{"service1.service"})
+	c.Check(err, ErrorMatches, "failed to stop services")
+	c.Check(startFailures, HasLen, 0)
+	c.Check(stopFailures, HasLen, 0)
+
+	// Error value is a map, but missing start-errors/stop-errors keys
+	errorValue = "{}"
+	startFailures, stopFailures, err = s.cli.ServicesStart(context.Background(), []string{"service1.service"})
+	c.Check(err, IsNil)
+	c.Check(startFailures, HasLen, 0)
+	c.Check(stopFailures, HasLen, 0)
+
+	// start-errors/stop-errors are not maps
+	errorValue = `{
+  "start-errors": [],
+  "stop-errors": 42
+}`
+	startFailures, stopFailures, err = s.cli.ServicesStart(context.Background(), []string{"service1.service"})
+	c.Check(err, IsNil)
+	c.Check(startFailures, HasLen, 0)
+	c.Check(stopFailures, HasLen, 0)
+
+	// start-error/stop-error values are not strings
+	errorValue = `{
+  "start-errors": {
+    "service1.service": 42
+  },
+  "stop-errors": {
+    "service1.service": {}
+  }
+}`
+	c.Check(err, IsNil)
+	c.Check(startFailures, HasLen, 0)
+	c.Check(stopFailures, HasLen, 0)
+}
+
 func (s *clientSuite) TestServicesStop(c *C) {
 	s.handler = http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
