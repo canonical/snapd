@@ -349,24 +349,18 @@ func doInstall(st *state.State, snapst *SnapState, snapsup *SnapSetup, flags int
 
 	installSet := state.NewTaskSet(tasks...)
 	installSet.WaitAll(ts)
-	ts.AddAll(installSet)
+	installSet.MarkEdge(prereq, BeginEdge)
+	installSet.MarkEdge(setupAliases, BeforeHooksEdge)
+	if installHook != nil {
+		installSet.MarkEdge(installHook, HooksEdge)
+	}
+	ts.AddAllWithEdges(installSet)
 	if checkAsserts != nil {
 		ts.MarkEdge(checkAsserts, DownloadAndChecksDoneEdge)
 	}
 
 	if flags&skipConfigure != 0 {
-		installSet.MarkEdge(prereq, BeginEdge)
-		installSet.MarkEdge(setupAliases, BeforeHooksEdge)
-		if installHook != nil {
-			installSet.MarkEdge(installHook, HooksEdge)
-		}
 		return installSet, nil
-	}
-
-	ts.MarkEdge(prereq, BeginEdge)
-	ts.MarkEdge(setupAliases, BeforeHooksEdge)
-	if installHook != nil {
-		ts.MarkEdge(installHook, HooksEdge)
 	}
 
 	// we do not support configuration for bases or the "snapd" snap yet
