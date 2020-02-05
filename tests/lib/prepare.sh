@@ -549,8 +549,6 @@ setup_reflash_magic() {
         # install the ubuntu-core-initramfs snap that we will use to repack the
         # kernel snap
         snap install --edge test-snapd-ubuntu-core-initramfs
-        # TODO:UC20: remove this snippet when we have a store auto-connection
-        snap connect test-snapd-ubuntu-core-initramfs:hardware-observe
     fi
 
     # need to be seeded to proceed with snap install
