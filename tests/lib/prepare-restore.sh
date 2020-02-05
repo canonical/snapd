@@ -622,7 +622,7 @@ save_units() {
 save_loops() {
     file=$1
     # not consider core which appears in different loop device with (deleted)
-    losetup -l | awk '{if(NR>1)print}' | awk '!/\/var\/lib\/snapd\/snaps\/core_/' | sort > "$file"
+    losetup -O BACK-FILE | grep -v \(deleted\) | sort > "$file"
 }
 
 do_check_systemd_status() {
