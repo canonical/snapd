@@ -46,10 +46,15 @@ $ snap disconnect <snap>:<slot or plug>
 Disconnects everything from the provided plug or slot.
 The snap name may be omitted for the core snap.
 
+When an automatic connection is manually disconnected, its disconnected state
+is retained after a snap refresh. The --forget flag can be added to the
+disconnect command to reset this behaviour, and consequently re-enable
+an automatic reconnection after a snap refresh.
+
 [disconnect command options]
       --no-wait          Do not wait for the operation to finish but just print
                          the change id.
-      --forget           Forget any internal data about the given connection.
+      --forget           Forget remembered state about the given connection.
 `
 	s.testSubCommandHelp(c, "disconnect", msg)
 }

@@ -39,8 +39,6 @@ type cmdDisconnect struct {
 
 var shortDisconnectHelp = i18n.G("Disconnect a plug from a slot")
 
-// XXX we might give hint about --forget here once old connections
-// are made discoverable for the user.
 var longDisconnectHelp = i18n.G(`
 The disconnect command disconnects a plug from a slot.
 It may be called in the following ways:
@@ -53,12 +51,17 @@ $ snap disconnect <snap>:<slot or plug>
 
 Disconnects everything from the provided plug or slot.
 The snap name may be omitted for the core snap.
+
+When an automatic connection is manually disconnected, its disconnected state
+is retained after a snap refresh. The --forget flag can be added to the
+disconnect command to reset this behaviour, and consequently re-enable
+an automatic reconnection after a snap refresh.
 `)
 
 func init() {
 	addCommand("disconnect", shortDisconnectHelp, longDisconnectHelp, func() flags.Commander {
 		return &cmdDisconnect{}
-	}, waitDescs.also(map[string]string{"forget": "Forget any internal data about the given connection."}), []argDesc{
+	}, waitDescs.also(map[string]string{"forget": "Forget remembered state about the given connection."}), []argDesc{
 		// TRANSLATORS: This needs to begin with < and end with >
 		{name: i18n.G("<snap>:<plug>")},
 		// TRANSLATORS: This needs to begin with < and end with >
