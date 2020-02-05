@@ -27,6 +27,7 @@ import (
 	"os"
 	"path/filepath"
 	"testing"
+	"time"
 
 	. "gopkg.in/check.v1"
 
@@ -95,6 +96,40 @@ func (s *clientSuite) TestBadJsonResponse(c *C) {
 	si, err := s.cli.SessionInfo(context.Background())
 	c.Check(si, DeepEquals, map[int]client.SessionInfo{})
 	c.Check(err, ErrorMatches, `cannot decode "{\\"type\\":": unexpected EOF`)
+}
+
+func (s *clientSuite) TestAgentTimeout(c *C) {
+	s.handler = http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		// Delay one of the agents from responding, but don't
+		// stick around if the client disconnects.
+		if r.Host == "1000" {
+			select {
+			case <-r.Context().Done():
+				return
+			case <-time.After(5 * time.Second):
+				c.Fatal("Request context was not cancelled")
+			}
+		}
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(200)
+		w.Write([]byte(`{
+  "type": "sync",
+  "result": {
+    "version": "42"
+  }
+}`))
+	})
+
+	ctx, cancel := context.WithTimeout(context.Background(), 20*time.Millisecond)
+	defer cancel()
+	si, err := s.cli.SessionInfo(ctx)
+
+	// An error is reported, and we receive information about the
+	// agent that replied on time.
+	c.Assert(err, ErrorMatches, `Get http://1000/v1/session-info: context deadline exceeded`)
+	c.Check(si, DeepEquals, map[int]client.SessionInfo{
+		42: {Version: "42"},
+	})
 }
 
 func (s *clientSuite) TestSessionInfo(c *C) {
