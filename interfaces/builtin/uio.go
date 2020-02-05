@@ -20,14 +20,12 @@
 package builtin
 
 import (
-	"crypto/sha256"
 	"fmt"
 	"regexp"
 	"strings"
 
 	"github.com/snapcore/snapd/interfaces"
 	"github.com/snapcore/snapd/interfaces/apparmor"
-	"github.com/snapcore/snapd/interfaces/hotplug"
 	"github.com/snapcore/snapd/interfaces/udev"
 	"github.com/snapcore/snapd/snap"
 )
@@ -98,47 +96,6 @@ func (iface *uioInterface) UDevConnectedPlug(spec *udev.Specification, plug *int
 func (iface *uioInterface) AutoConnect(*snap.PlugInfo, *snap.SlotInfo) bool {
 	// Allow what is allowed in the declarations
 	return true
-}
-
-func (iface *uioInterface) HotplugDeviceDetected(di *hotplug.HotplugDeviceInfo) (*hotplug.ProposedSlot, error) {
-	if di.Subsystem() != "uio" {
-		return nil, nil
-	}
-	slot := hotplug.ProposedSlot{
-		Name: strings.TrimPrefix(di.DeviceName(), "/dev/"),
-		Attrs: map[string]interface{}{
-			"path": di.DeviceName(),
-		},
-	}
-	return &slot, nil
-}
-
-func (iface *uioInterface) HotplugKey(di *hotplug.HotplugDeviceInfo) (snap.HotplugKey, error) {
-	// We are interested in the part after "/sys/devices/platform/" but before
-	// the following "/uio/uioN/". Parts will be as follows:
-	// ["", "sys", "devices", "platform", "the-thing-we-want", "uio", "more-things", ...]
-	parts := strings.Split(di.DevicePath(), "/")
-	if len(parts) < 5 {
-		return "", fmt.Errorf("unexpected device path for UIO device: %q", di.DevicePath())
-	}
-	key := sha256.New()
-	key.Write([]byte("scheme"))
-	key.Write([]byte{0})
-	key.Write([]byte("0"))
-	key.Write([]byte{0})
-	key.Write([]byte("platform"))
-	key.Write([]byte{0})
-	key.Write([]byte(parts[4]))
-	key.Write([]byte{0})
-	return snap.HotplugKey(fmt.Sprintf("%x", key.Sum(nil))), nil
-}
-
-func (iface *uioInterface) HandledByGadget(di *hotplug.HotplugDeviceInfo, slot *snap.SlotInfo) bool {
-	var path string
-	if err := slot.Attr("path", &path); err != nil {
-		return false
-	}
-	return di.DeviceName() == path
 }
 
 func init() {

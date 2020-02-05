@@ -25,7 +25,6 @@ import (
 	"github.com/snapcore/snapd/interfaces"
 	"github.com/snapcore/snapd/interfaces/apparmor"
 	"github.com/snapcore/snapd/interfaces/builtin"
-	"github.com/snapcore/snapd/interfaces/hotplug"
 	"github.com/snapcore/snapd/interfaces/udev"
 	"github.com/snapcore/snapd/snap"
 	"github.com/snapcore/snapd/snap/snaptest"
@@ -117,54 +116,6 @@ func (s *uioInterfaceSuite) TestStaticInfo(c *C) {
 
 func (s *uioInterfaceSuite) TestAutoConnect(c *C) {
 	c.Check(s.iface.AutoConnect(nil, nil), Equals, true)
-}
-
-func (s *uioInterfaceSuite) TestHotplugDeviceDetected(c *C) {
-	hotplugIface := s.iface.(hotplug.Definer)
-
-	// Events from the "uio" subsystem define new uio slots.
-	di, err := hotplug.NewHotplugDeviceInfo(map[string]string{"DEVPATH": "/devices/platform/stuff/uio/uio0", "DEVNAME": "/dev/uio0", "ACTION": "add", "SUBSYSTEM": "uio"})
-	c.Assert(err, IsNil)
-	proposedSlot, err := hotplugIface.HotplugDeviceDetected(di)
-	c.Assert(err, IsNil)
-	c.Assert(proposedSlot, DeepEquals, &hotplug.ProposedSlot{
-		Name:  "uio0",
-		Attrs: map[string]interface{}{"path": "/dev/uio0"}})
-
-	// Events from other subsystems do not.
-	di, err = hotplug.NewHotplugDeviceInfo(map[string]string{"DEVPATH": "/devices/platform/stuff/foo/foo0", "DEVNAME": "/dev/foo0", "ACTION": "add", "SUBSYSTEM": "foo"})
-	c.Assert(err, IsNil)
-	proposedSlot, err = hotplugIface.HotplugDeviceDetected(di)
-	c.Assert(err, IsNil)
-	c.Assert(proposedSlot, IsNil)
-}
-
-func (s *uioInterfaceSuite) TestHotplugKey(c *C) {
-	keyHandlerIface := s.iface.(hotplug.HotplugKeyHandler)
-
-	di, err := hotplug.NewHotplugDeviceInfo(map[string]string{"DEVPATH": "/devices/platform/stuff/uio/uio0", "DEVNAME": "/dev/uio0", "ACTION": "add", "SUBSYSTEM": "uio"})
-	c.Assert(err, IsNil)
-	key, err := keyHandlerIface.HotplugKey(di)
-	c.Assert(err, IsNil)
-	c.Assert(key, DeepEquals, snap.HotplugKey("31b4fa38ba0c084343b59ae3c7de5b00bc9fca90c9a816f8110800700dafd4a7"))
-
-	di, err = hotplug.NewHotplugDeviceInfo(map[string]string{"DEVPATH": "/devices/platform/", "DEVNAME": "/dev/uio0", "ACTION": "add", "SUBSYSTEM": "uio"})
-	c.Assert(err, IsNil)
-	_, err = keyHandlerIface.HotplugKey(di)
-	c.Assert(err, ErrorMatches, `unexpected device path for UIO device: ".+"`)
-}
-
-func (s *uioInterfaceSuite) TestHotplugHandledByGadget(c *C) {
-	byGadgetPred := s.iface.(hotplug.HandledByGadgetPredicate)
-	// Gadget defines uio-0 that corresponds to /dev/uio0 so this hotplug device is handled by gadget.
-	di, err := hotplug.NewHotplugDeviceInfo(map[string]string{"DEVPATH": "/devices/platform/stuff/uio/uio0", "DEVNAME": "/dev/uio0", "ACTION": "add", "SUBSYSTEM": "uio"})
-	c.Assert(err, IsNil)
-	c.Assert(byGadgetPred.HandledByGadget(di, s.slotGadgetInfo), Equals, true)
-
-	// This hotplug event is not handled by the gadget.
-	di, err = hotplug.NewHotplugDeviceInfo(map[string]string{"DEVPATH": "/devices/platform/stuff/uio/uio1", "DEVNAME": "/dev/uio1", "ACTION": "add", "SUBSYSTEM": "uio"})
-	c.Assert(err, IsNil)
-	c.Assert(byGadgetPred.HandledByGadget(di, s.slotGadgetInfo), Equals, false)
 }
 
 func (s *uioInterfaceSuite) TestInterfaces(c *C) {
