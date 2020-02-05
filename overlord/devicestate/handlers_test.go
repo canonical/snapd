@@ -522,7 +522,7 @@ func (s *preseedModeSuite) TestDoMarkPreseeded(c *C) {
 	})
 
 	// and snapd stop was requested
-	c.Check(s.restartRequests, DeepEquals, []state.RestartType{state.StopSnapd})
+	c.Check(s.restartRequests, DeepEquals, []state.RestartType{state.StopDaemon})
 }
 
 func (s *preseedModeSuite) TestEnsureSeededPreseedFlag(c *C) {

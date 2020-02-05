@@ -22,7 +22,6 @@ package wrappers
 import (
 	"bytes"
 	"fmt"
-	"math/rand"
 	"os"
 	"path/filepath"
 	"strconv"
@@ -34,6 +33,7 @@ import (
 	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/osutil/sys"
+	"github.com/snapcore/snapd/randutil"
 	"github.com/snapcore/snapd/release"
 	"github.com/snapcore/snapd/snap"
 	"github.com/snapcore/snapd/strutil"
@@ -908,7 +908,7 @@ func generateOnCalendarSchedules(schedule []*timeutil.Schedule) []string {
 						// directly one after another
 						length -= 5 * time.Minute
 					}
-					when = when.Add(time.Duration(rand.Int63n(int64(length))))
+					when = when.Add(randutil.RandomDuration(length))
 				}
 				if when.Hour == 24 {
 					// 24:00 for us means the other end of

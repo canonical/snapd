@@ -54,6 +54,7 @@ func (m *DeviceManager) doMarkPreseeded(t *state.Task, _ *tomb.Tomb) error {
 			preseeded = true
 			t.Set("preseeded", preseeded)
 			// unmount all snaps
+			// TODO: move to snapstate.UnmountAllSnaps.
 			for _, snapSt := range snaps {
 				inf, err := snapSt.CurrentInfo()
 				if err != nil {
@@ -67,7 +68,7 @@ func (m *DeviceManager) doMarkPreseeded(t *state.Task, _ *tomb.Tomb) error {
 
 			// do not mark this task done as this makes it racy against taskrunner tear down (the next task
 			// could start). Let this task finish after snapd restart when preseed mode is off.
-			st.RequestRestart(state.StopSnapd)
+			st.RequestRestart(state.StopDaemon)
 		}
 
 		return &state.Retry{Reason: "mark-preseeded will be marked done when snapd is executed in normal mode"}

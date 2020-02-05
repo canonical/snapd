@@ -62,7 +62,7 @@ func checkPreseedTasks(c *C, tsAll []*state.TaskSet) {
 	c.Check(waitsForPreseeded, Equals, true)
 }
 
-func checkPressedTaskStates(c *C, st *state.State) {
+func checkPresseedTaskStates(c *C, st *state.State) {
 	doneTasks := map[string]bool{
 		"prerequisites":        true,
 		"prepare-snap":         true,
@@ -147,12 +147,14 @@ func checkPreseedOrder(c *C, tsAll []*state.TaskSet, snaps ...string) {
 
 	// check that prerequisites tasks for all snaps are present and
 	// are chained properly.
+	var prevTask *state.Task
 	for i, ts := range tsAll {
 		task0 := ts.Tasks()[0]
 		waitTasks := task0.WaitTasks()
 		if task0.Kind() != "prerequisites" {
 			continue
 		}
+
 		snapsup, err := snapstate.TaskSnapSetup(task0)
 		c.Assert(err, IsNil, Commentf("%#v", task0))
 		c.Check(snapsup.InstanceName(), Equals, snaps[matched])
@@ -161,9 +163,20 @@ func checkPreseedOrder(c *C, tsAll []*state.TaskSet, snaps ...string) {
 			c.Check(waitTasks, HasLen, 0)
 		} else {
 			c.Assert(waitTasks, HasLen, 1)
-			// prerequisites task waits for setup-aliases of previous snap
-			c.Check(waitTasks[0].Kind(), Equals, "setup-aliases")
+			c.Check(waitTasks[0], Equals, prevTask)
 		}
+
+		// find setup-aliases task in current taskset; its position
+		// is not fixed due to e.g. optional update-gadget-assets task.
+		var aliasesTask *state.Task
+		for _, t := range ts.Tasks() {
+			if t.Kind() == "setup-aliases" {
+				aliasesTask = t
+				break
+			}
+		}
+		c.Assert(aliasesTask, NotNil)
+		prevTask = aliasesTask
 	}
 
 	c.Check(matched, Equals, len(snaps))
@@ -207,5 +220,5 @@ func (s *firstbootPreseed16Suite) TestPreseedHappy(c *C) {
 	c.Assert(err, IsNil)
 	c.Assert(chg.Err(), IsNil)
 
-	checkPressedTaskStates(c, st)
+	checkPresseedTaskStates(c, st)
 }

@@ -24,7 +24,6 @@ import (
 	"errors"
 	"fmt"
 	"io"
-	"math/rand"
 	"os"
 	"strings"
 	"time"
@@ -38,15 +37,15 @@ import (
 	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/overlord/snapstate/backend"
 	"github.com/snapcore/snapd/overlord/state"
+	"github.com/snapcore/snapd/randutil"
 	"github.com/snapcore/snapd/release"
 	"github.com/snapcore/snapd/snap"
 	"github.com/snapcore/snapd/snap/channel"
 	"github.com/snapcore/snapd/store"
-	"github.com/snapcore/snapd/strutil"
 )
 
 var (
-	snapdTransitionDelayWithRandomess = 3*time.Hour + time.Duration(rand.Int63n(int64(4*time.Hour)))
+	snapdTransitionDelayWithRandomess = 3*time.Hour + randutil.RandomDuration(4*time.Hour)
 )
 
 // overridden in the tests
@@ -501,7 +500,7 @@ func genRefreshRequestSalt(st *state.State) error {
 		return nil
 	}
 
-	refreshPrivacyKey = strutil.MakeRandomString(16)
+	refreshPrivacyKey = randutil.RandomString(16)
 	st.Set("refresh-privacy-key", refreshPrivacyKey)
 
 	return nil
