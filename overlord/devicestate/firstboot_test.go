@@ -102,7 +102,15 @@ func (t *firstBootBaseTest) setupBaseTest(c *C, s *seedtest.SeedSnaps) {
 
 	t.AddCleanup(sysdb.InjectTrusted([]asserts.Assertion{s.StoreSigning.TrustedKey}))
 	t.AddCleanup(ifacestate.MockSecurityBackends(nil))
+}
 
+// startOverlord will setup and create a new overlord, note that it will not
+// stop any pre-existing overlord and it will be overwritten, for more fine
+// control create your own overlord
+// also note that as long as you don't run overlord.Loop() this is safe to call
+// multiple times to clear overlord state, if you call Loop() call Stop() on
+// your own before calling this again
+func (t *firstBootBaseTest) startOverlord(c *C) {
 	ovld, err := overlord.New(nil)
 	c.Assert(err, IsNil)
 	ovld.InterfaceManager().DisableUDevMonitor()
@@ -131,10 +139,16 @@ func (s *firstBoot16Suite) SetUpTest(c *C) {
 
 	s.setupBaseTest(c, &s.TestingSeed16.SeedSnaps)
 
+	s.startOverlord(c)
+
 	s.SeedDir = dirs.SnapSeedDir
 
 	err := os.MkdirAll(filepath.Join(dirs.SnapSeedDir, "assertions"), 0755)
 	c.Assert(err, IsNil)
+
+	// mock the snap mapper as core here to make sure that other tests don't
+	// set it inadvertently to the snapd mapper and break the 16 tests
+	s.AddCleanup(ifacestate.MockSnapMapper(&ifacestate.CoreCoreSystemMapper{}))
 }
 
 func checkTrivialSeeding(c *C, tsAll []*state.TaskSet) {
