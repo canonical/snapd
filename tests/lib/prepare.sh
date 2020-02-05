@@ -662,8 +662,12 @@ EOF
         echo "test -d /run/mnt/ubuntu-data/system-data && touch /run/mnt/ubuntu-data/system-data/the-tool-ran" >> \
             $UC_INITRAMFS_DIR/usr/lib/the-tool
 
-        # rebuild the kernel snap with our snap-bootstrap
+        # rebuild the kernel snap with our snap-bootstrap 
+        # TODO:UC20: support building this outside of $HOME, the test-snapd-ubuntu-core-initramfs snap needs to be updated
+        pushd "$HOME"
         test-snapd-ubuntu-core-initramfs.repack-kernel-snap pc-kernel.snap
+        popd
+        cp "$HOME/pc-kernel-repacked.snap" "$PWD/pc-kernel-repacked.snap"
 
         # make sure we have the repacked snap
         test -e pc-kernel-repacked.snap
