@@ -26,6 +26,12 @@ execute: |
     #shellcheck source=tests/lib/systems.sh
     . "$TESTSLIB"/systems.sh
 
+    inspect_connection() {
+      CONN="$1"
+      # shellcheck disable=SC2002
+      cat /var/lib/snapd/state.json | jq -r '.data["conns"] | has("'"$CONN"'")'
+    }
+
     DISCONNECTED_PATTERN='-\s+home-consumer:home'
 
     echo "Disconnect everything from given slot"
@@ -37,6 +43,12 @@ execute: |
     snap connect home-consumer:home core:home
     snap disconnect :home
     snap interfaces | grep -Pzqe "$DISCONNECTED_PATTERN"
+
+    echo "Disconnect everything from given slot (abbreviated) with --forget"
+    snap connect home-consumer:home core:home
+    snap disconnect --forget :home
+    snap interfaces | grep -Pzqe "$DISCONNECTED_PATTERN"
+    inspect_connection "home-consumer:home core:home" | MATCH "false"
 
     echo "Disconnect everything from given plug"
     snap connect home-consumer:home core:home
@@ -56,11 +68,6 @@ execute: |
     echo "Disconnecting again using abbreviated form is handled"
     snap disconnect home-consumer:home | MATCH "No connections to disconnect"
 
-    inspect_connection() {
-      CONN="$1"
-      # shellcheck disable=SC2002
-      cat /var/lib/snapd/state.json | jq -r '.data["conns"] | has("'"$CONN"'")'
-    }
 
     # these checks rely on automatic connection of home on non-core systems
     if ! is_core_system; then
