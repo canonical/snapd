@@ -1,6 +1,6 @@
 summary: Ensure create-user functionality
 
-# FIXME: core20
+# TODO:UC20: enable for uc20
 systems: [ubuntu-core-1*]
 
 environment:
