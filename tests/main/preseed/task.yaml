@@ -14,7 +14,7 @@ prepare: |
   # a cloud image url matching current $SPREAD_SYSTEM.
   #shellcheck source=tests/lib/nested.sh
   . "$TESTSLIB/nested.sh"
-  wget $(get_image_url_for_nested_vm) -O cloudimg.img
+  wget "$(get_image_url_for_nested_vm)" -O cloudimg.img
   
   #shellcheck source=tests/lib/preseed.sh
   . "$TESTSLIB/preseed.sh"
