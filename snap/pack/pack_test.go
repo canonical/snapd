@@ -115,7 +115,7 @@ printf "hello world"
 func (s *packSuite) TestPackNoManifestFails(c *C) {
 	sourceDir := makeExampleSnapSourceDir(c, "{name: hello, version: 0}")
 	c.Assert(os.Remove(filepath.Join(sourceDir, "meta", "snap.yaml")), IsNil)
-	_, err := pack.Snap(sourceDir, nil)
+	_, err := pack.Snap(sourceDir, pack.Defaults)
 	c.Assert(err, ErrorMatches, `.*/meta/snap\.yaml: no such file or directory`)
 }
 
@@ -127,7 +127,7 @@ apps:
   command: bin/hello-world
 `)
 	c.Assert(os.Remove(filepath.Join(sourceDir, "bin", "hello-world")), IsNil)
-	_, err := pack.Snap(sourceDir, nil)
+	_, err := pack.Snap(sourceDir, pack.Defaults)
 	c.Assert(err, Equals, snap.ErrMissingPaths)
 }
 

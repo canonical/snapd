@@ -186,10 +186,12 @@ type Options struct {
 	TargetDir string
 	// SnapName is the name of the snap file, or empty to use the default name
 	// which is <snapname>_<version>_<architecture>.snap
-	SnapName
+	SnapName string
 	// Compression method to use
 	Compression string
 }
+
+var Defaults *Options = nil
 
 // Snap the given sourceDirectory and return the generated
 // snap file
