@@ -390,7 +390,7 @@ if [ -e /root/spread-setup-done ]; then
 fi
 
 # extract data from previous stage
-(cd / && tar xvf /run/mnt/ubuntu-seed/run-mode-overlay-data.tar.gz)
+(cd / && tar xf /run/mnt/ubuntu-seed/run-mode-overlay-data.tar.gz)
 
 # user db - it's complicated
 for f in group gshadow passwd shadow; do
@@ -431,6 +431,118 @@ EOF
     snap pack "$UNPACK_DIR" "$TARGET"
     rm -rf "$UNPACK_DIR"
 }
+
+
+uc20_build_initramfs_kernel_snap() {
+    # carries ubuntu-core-initframfs
+    add-apt-repository ppa:snappy-dev/image -y
+    apt install ubuntu-core-initramfs -y
+
+    local ORIG_SNAP="$1"
+    local TARGET="$2"
+    
+    # kernel snap is huge, unpacking to current dir
+    unsquashfs -d repacked-kernel "$ORIG_SNAP"
+
+    # repack initrd magic, beware
+    # assumptions: initrd is compressed with LZ4, cpio block size 512, microcode
+    # at the beginning of initrd image
+    (
+        cd repacked-kernel
+        #shellcheck disable=SC2010
+        kver=$(ls "config"-* | grep -Po 'config-\K.*')
+
+        # XXX: ideally we should use unpack the initrd, replace snap-boostrap and
+        # repack it using ubuntu-core-initramfs --skeleton=..., this does not
+        # work and the rebuilt kernel.efi panics unable to start init, but we
+        # still need the unpacked initrd to get the right kernel modules
+        objcopy -j .initrd -O binary kernel.efi initrd
+        # this works on 20.04 but not on 18.04
+        unmkinitramfs initrd unpacked-initrd
+        # XXX: this does not produce the same result as using distro's
+        # /usr/lib/ubuntu-core-initramfs skeleton
+        skeletondir=/usr/lib/ubuntu-core-initramfs/
+        cp -ar "$skeletondir" skeleton
+        # replace the main bits
+        rm -rf skeleton/main
+        cp -ar unpacked-initrd/main skeleton/
+
+        # all the skeleton edits go to the distro directory
+        cp -a /usr/lib/snapd/snap-bootstrap "$skeletondir/main/usr/lib/snapd/snap-bootstrap"
+        # modify the-tool to verify that our version is used when booting - this
+        # is verified in the tests/core20/basic spread test
+        sed -i -e 's/set -e/set -ex/' "$skeletondir/main/usr/lib/the-tool"
+        echo "" >> "$skeletondir/main/usr/lib/the-tool"
+        echo "if test -d /run/mnt/ubuntu-data/system-data; then touch /run/mnt/ubuntu-data/system-data/the-tool-ran; fi" >> \
+            "$skeletondir/main/usr/lib/the-tool"
+
+        # XXX: need to be careful to build an initrd using the right kernel
+        # modules from the unpacked initrd, rather than the host which may be
+        # running a different kernel
+        (
+            # accommodate assumptions about paths
+            cd skeleton/main
+            ubuntu-core-initramfs create-initrd \
+                                  --kernelver "$kver" \
+                                  --kerneldir "lib/modules" \
+                                  --output ../../repacked-initrd
+        )
+
+        # copy out the kernel image for create-efi command
+        objcopy -j .linux -O binary kernel.efi "vmlinuz-$kver"
+
+        # assumes all files are named <name>-$kver
+        ubuntu-core-initramfs create-efi \
+                              --kernelver "$kver" \
+                              --initrd repacked-initrd \
+                              --kernel vmlinuz \
+                              --output repacked-kernel.efi
+
+        mv "repacked-kernel.efi-$kver" kernel.efi
+
+        # XXX: needed?
+        chmod +x kernel.efi
+
+        rm -rf unpacked-initrd skeleton initrd repacked-initrd-* vmlinuz-*
+    )
+
+    (
+        # XXX: drop ~450MB+ of firmware which should not be needed in under qemu
+        # or the cloud system
+        cd repacked-kernel
+        rm -rf firmware/*
+
+        # the code below drops the modules that are not loaded on the
+        # current host, this should work for most cases, since the image will be
+        # running on the same host
+        # TODO:UC20: enable when ready
+        exit 0
+
+        # drop unnecessary modules
+        awk '{print $1}' <  /proc/modules  | sort > /tmp/mods
+        #shellcheck disable=SC2044
+        for m in $(find modules/ -name '*.ko'); do
+            noko=$(basename "$m"); noko="${noko%.ko}"
+            if echo "$noko" | grep -f /tmp/mods -q ; then
+                echo "keeping $m - $noko"
+            else
+                rm -f "$m"
+            fi
+        done
+
+        #shellcheck disable=SC2010
+        kver=$(ls "config"-* | grep -Po 'config-\K.*')
+
+        # depmod assumes that /lib/modules/$kver is under basepath
+        mkdir -p fake/lib
+        ln -s "$PWD/modules" fake/lib/modules
+        depmod -b "$PWD/fake" -A -v "$kver"
+        rm -rf fake
+    )
+
+    snap pack repacked-kernel "$TARGET"
+}
+
 
 setup_core_for_testing_by_modify_writable() {
     UNPACK_DIR="$1"
@@ -526,13 +638,16 @@ EOF
 
     (cd /tmp ; unsquashfs -no-progress -v  /var/lib/snapd/snaps/"$core_name"_*.snap etc/systemd/system)
     cp -avr /tmp/squashfs-root/etc/systemd/system /mnt/system-data/etc/systemd/
-    umount /mnt
-    kpartx -d  "$IMAGE_HOME/$IMAGE"
 }
 
 setup_reflash_magic() {
     # install the stuff we need
     distro_install_package kpartx busybox-static
+    # for core20 we need debootstrap to build the initramfs in the kernel snap
+    if is_core20_system; then
+        distro_install_package debootstrap
+    fi
+
     distro_install_local_package "$GOHOME"/snapd_*.deb
     distro_clean_package_cache
 
@@ -626,6 +741,15 @@ EOF
 
         EXTRA_FUNDAMENTAL="--extra-snaps $PWD/pc-kernel_*.snap"
         IMAGE_CHANNEL="$GADGET_CHANNEL"
+    fi
+
+    if is_core20_system; then
+        snap download --basename=pc-kernel --channel="20/$KERNEL_CHANNEL" pc-kernel
+        # make sure we have the snap
+        test -e pc-kernel.snap
+        # build the initramfs with our snapd assets into the kernel snap
+        uc20_build_initramfs_kernel_snap "$PWD/pc-kernel.snap" "$IMAGE_HOME"
+        EXTRA_FUNDAMENTAL="--extra-snaps $IMAGE_HOME/pc-kernel_*.snap"
     fi
 
     # 'snap pack' creates snaps 0644, and ubuntu-image just copies those in
@@ -722,6 +846,10 @@ EOF
         setup_core_for_testing_by_modify_writable "$UNPACK_DIR"
     fi
 
+    # unmount the partition we just modified and delete the image's loop devices
+    umount /mnt
+    kpartx -d "$IMAGE_HOME/$IMAGE"
+
     # the reflash magic
     # FIXME: ideally in initrd, but this is good enough for now
     cat > "$IMAGE_HOME/reflash.sh" << EOF
@@ -742,19 +870,23 @@ fi
 EOF
     chmod +x "$IMAGE_HOME/reflash.sh"
 
+    DEVPREFIX=""
+    if is_core20_system; then
+        DEVPREFIX="/boot"
+    fi
     # extract ROOT from /proc/cmdline
     ROOT=$(sed -e 's/^.*root=//' -e 's/ .*$//' /proc/cmdline)
     cat >/boot/grub/grub.cfg <<EOF
 set default=0
 set timeout=2
 menuentry 'flash-all-snaps' {
-linux /vmlinuz root=$ROOT ro init=$IMAGE_HOME/reflash.sh console=ttyS0
-initrd /initrd.img
+linux $DEVPREFIX/vmlinuz root=$ROOT ro init=$IMAGE_HOME/reflash.sh console=ttyS0
+initrd $DEVPREFIX/initrd.img
 }
 EOF
 }
 
-# prepare_ubuntu_core will prepare ubuntu-core 16 and 18
+# prepare_ubuntu_core will prepare ubuntu-core 16+
 prepare_ubuntu_core() {
     # we are still a "classic" image, prepare the surgery
     if [ -e /var/lib/dpkg/status ]; then
