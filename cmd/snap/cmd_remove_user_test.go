@@ -41,7 +41,7 @@ func makeRemoveUserChecker(c *check.C, n *int, username string) func(w http.Resp
 			c.Assert(err, check.IsNil)
 
 			wantBody := map[string]interface{}{
-				"username": "karl",
+				"username": username,
 				"action":   "remove",
 			}
 			c.Check(gotBody, check.DeepEquals, wantBody)
