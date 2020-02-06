@@ -496,6 +496,40 @@ uc20_build_initramfs_kernel_snap() {
         rm -rf unpacked-initrd skeleton initrd repacked-initrd-* vmlinuz-*
     )
 
+    (
+        # XXX: drop ~450MB+ of firmware which should not be needed in under qemu
+        # or the cloud system
+        cd repacked-kernel
+        rm -rf firmware/*
+
+        # XXX: the code below drops the modules that are not loaded on the
+        # current host, this should work for most cases, since the image will be
+        # running on the same host
+        # enable when ready
+        exit 0
+
+        # drop unnecessary modules
+        awk '{print $1}' <  /proc/modules  | sort > /tmp/mods
+        #shellcheck disable=SC2044
+        for m in $(find modules/ -name '*.ko'); do
+            noko=$(basename "$m"); noko="${noko%.ko}"
+            if echo "$noko" | grep -f /tmp/mods -q ; then
+                echo "keeping $m - $noko"
+            else
+                rm -f "$m"
+            fi
+        done
+
+        #shellcheck disable=SC2010
+        kver=$(ls "config"-* | grep -Po 'config-\K.*')
+
+        # depmod assumes that /lib/modules/$kver is under basepath
+        mkdir -p fake/lib
+        ln -s "$PWD/modules" fake/lib/modules
+        depmod -b "$PWD/fake" -A -v "$kver"
+        rm -rf fake
+    )
+
     snap pack repacked-kernel "$TARGET"
 }
 
