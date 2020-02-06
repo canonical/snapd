@@ -118,12 +118,14 @@ func (client *Client) CreateUsers(options []*CreateUserOptions) ([]*CreateUserRe
 }
 
 // RemoveUser removes a local system user.
-func (client *Client) RemoveUser(options *RemoveUserOptions) error {
+func (client *Client) RemoveUser(options *RemoveUserOptions) (removed []string, err error) {
 	if options == nil || options.Username == "" {
-		return fmt.Errorf("cannot remove a user without providing a username")
+		return nil, fmt.Errorf("cannot remove a user without providing a username")
 	}
-	_, err := client.doUserAction(&userAction{Action: "remove", RemoveUserOptions: options})
-	return err
+	if _, err := client.doUserAction(&userAction{Action: "remove", RemoveUserOptions: options}); err != nil {
+		return nil, err
+	}
+	return []string{options.Username}, nil
 }
 
 // Users returns the local users.

@@ -28,17 +28,19 @@ import (
 )
 
 func (cs *clientSuite) TestClientRemoveUser(c *C) {
-	err := cs.cli.RemoveUser(&client.RemoveUserOptions{})
+	removed, err := cs.cli.RemoveUser(&client.RemoveUserOptions{})
 	c.Assert(err, ErrorMatches, "cannot remove a user without providing a username")
+	c.Assert(removed, IsNil)
 
 	cs.rsp = `{
 		"type": "sync",
 		"result": null
 	}`
-	err = cs.cli.RemoveUser(&client.RemoveUserOptions{Username: "one-user"})
+	removed, err = cs.cli.RemoveUser(&client.RemoveUserOptions{Username: "one-user"})
 	c.Assert(cs.req.Method, Equals, "POST")
 	c.Assert(cs.req.URL.Path, Equals, "/v2/users")
 	c.Assert(err, IsNil)
+	c.Assert(removed, DeepEquals, []string{"one-user"})
 
 	body, err := ioutil.ReadAll(cs.req.Body)
 	c.Assert(err, IsNil)
@@ -46,19 +48,22 @@ func (cs *clientSuite) TestClientRemoveUser(c *C) {
 }
 
 func (cs *clientSuite) TestClientRemoveUserError(c *C) {
-	err := cs.cli.RemoveUser(nil)
+	removed, err := cs.cli.RemoveUser(nil)
 	c.Assert(err, ErrorMatches, "cannot remove a user without providing a username")
-	err = cs.cli.RemoveUser(&client.RemoveUserOptions{})
+	c.Assert(removed, IsNil)
+	removed, err = cs.cli.RemoveUser(&client.RemoveUserOptions{})
 	c.Assert(err, ErrorMatches, "cannot remove a user without providing a username")
+	c.Assert(removed, IsNil)
 
 	cs.rsp = `{
 		"type": "error",
 		"result": {"message": "no can do"}
 	}`
-	err = cs.cli.RemoveUser(&client.RemoveUserOptions{Username: "one-user"})
+	removed, err = cs.cli.RemoveUser(&client.RemoveUserOptions{Username: "one-user"})
 	c.Assert(cs.req.Method, Equals, "POST")
 	c.Assert(cs.req.URL.Path, Equals, "/v2/users")
 	c.Assert(err, ErrorMatches, "no can do")
+	c.Assert(removed, IsNil)
 
 	body, err := ioutil.ReadAll(cs.req.Body)
 	c.Assert(err, IsNil)
