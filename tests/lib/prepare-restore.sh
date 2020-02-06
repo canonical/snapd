@@ -588,13 +588,13 @@ save_pkgs() {
             cat /dev/null > "$file"
             ;;
         ubuntu-*|debian-*)
-            dpkg -l > "$file"
+            dpkg -l | sort > "$file"
             ;;
         fedora-*|opensuse-*|amazon-*|centos-*)
-            rpm -qa > "$file"
+            rpm -qa | sort > "$file"
             ;;
         arch-*)
-            pacman -Qe > "$file"
+            pacman -Qe | sort > "$file"
             ;;
         *)
             echo "ERROR: No build instructions available for system $SPREAD_SYSTEM"
@@ -611,7 +611,7 @@ save_snaps() {
 save_mounts() {
     file=$1
     # autofs is skipped due to some attributes change for systemd-1
-    mount -l | grep '/snap' | grep -v \(deleted\) | sort > "$file"
+    mount -t squashfs | grep -v \(deleted\) | sort > "$file"
 }
 
 save_units() {

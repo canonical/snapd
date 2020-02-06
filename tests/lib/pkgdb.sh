@@ -581,6 +581,7 @@ pkg_dependencies_ubuntu_classic(){
         cups
         dbus-x11
         fontconfig
+        gcc-multilib
         gnome-keyring
         graphviz
         jq
