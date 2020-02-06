@@ -459,24 +459,30 @@ uc20_build_initramfs_kernel_snap() {
         # work and the rebuilt kernel.efi panics unable to start init, the
         # commented out code below does that:
 
-        # objcopy -j .initrd -O binary kernel.efi initrd
-        # # this works on 20.04 but not on 18.04
-        # unmkinitramfs initrd unpacked-initrd
-        # cp -ar /usr/lib/ubuntu-core-initramfs skeleton
-        # # replace the main bits
-        # rm -rf skeleton/main
-        # cp -ar unpacked-initrd/main skeleton/
-        # cp -a "$SNAPD_UNPACK_DIR/usr/lib/snapd/snap-bootstrap" unpacked-initrd/main/usr/lib/snapd/snap-bootstrap
+        objcopy -j .initrd -O binary kernel.efi initrd
+        # this works on 20.04 but not on 18.04
+        unmkinitramfs initrd unpacked-initrd
+        cp -ar /usr/lib/ubuntu-core-initramfs skeleton
+        # replace the main bits
+        rm -rf skeleton/main
+        cp -ar unpacked-initrd/main skeleton/
+        cp -a "$SNAPD_UNPACK_DIR/usr/lib/snapd/snap-bootstrap" unpacked-initrd/main/usr/lib/snapd/snap-bootstrap
 
         # replace snap-bootstrap in the 'distro' skeleton
         cp -a "$SNAPD_UNPACK_DIR/usr/lib/snapd/snap-bootstrap" \
            /usr/lib/ubuntu-core-initramfs/main/usr/lib/snapd/snap-bootstrap
 
-        ubuntu-core-initramfs create-initrd \
-                              --kernelver "$kver" \
-                              --kerneldir "$PWD/modules" \
-                              --firmwaredir "$PWD/firmware" \
-                              --output repacked-initrd
+        # XXX: need to be careful to build an initrd using the right kernel
+        # modules from the unpacked initrd, rather than the host which may be
+        # running a different kernel
+        (
+            # accommodate assumptions about paths
+            cd skeleton/main
+            ubuntu-core-initramfs create-initrd \
+                                  --kernelver "$kver" \
+                                  --kerneldir "lib/modules" \
+                                  --output ../../repacked-initrd
+        )
 
         # copy out the kernel image for create-efi command
         objcopy -j .linux -O binary kernel.efi "vmlinuz-$kver"
