@@ -5961,21 +5961,16 @@ func (s *interfaceManagerSuite) TestSnapstateOpConflictWithDisconnect(c *C) {
 }
 
 type udevMonitorMock struct {
-	ConnectError, RunError                             error
-	ConnectCalls, RunCalls, StopCalls, DisconnectCalls int
-	AddDevice                                          udevmonitor.DeviceAddedFunc
-	RemoveDevice                                       udevmonitor.DeviceRemovedFunc
-	EnumerationDone                                    udevmonitor.EnumerationDoneFunc
+	ConnectError, RunError            error
+	ConnectCalls, RunCalls, StopCalls int
+	AddDevice                         udevmonitor.DeviceAddedFunc
+	RemoveDevice                      udevmonitor.DeviceRemovedFunc
+	EnumerationDone                   udevmonitor.EnumerationDoneFunc
 }
 
 func (u *udevMonitorMock) Connect() error {
 	u.ConnectCalls++
 	return u.ConnectError
-}
-
-func (u *udevMonitorMock) Disconnect() error {
-	u.DisconnectCalls++
-	return nil
 }
 
 func (u *udevMonitorMock) Run() error {
@@ -6066,7 +6061,6 @@ func (s *interfaceManagerSuite) TestUDevMonitorInitErrors(c *C) {
 	c.Assert(u.ConnectCalls, Equals, 2)
 	c.Assert(u.RunCalls, Equals, 1)
 	c.Assert(u.StopCalls, Equals, 0)
-	c.Assert(u.DisconnectCalls, Equals, 1)
 
 	u.RunError = nil
 	c.Assert(s.se.Ensure(), IsNil)
