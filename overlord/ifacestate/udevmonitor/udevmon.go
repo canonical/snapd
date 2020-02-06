@@ -21,6 +21,7 @@ package udevmonitor
 
 import (
 	"fmt"
+	"time"
 
 	"gopkg.in/tomb.v2"
 
@@ -31,7 +32,6 @@ import (
 
 type Interface interface {
 	Connect() error
-	Disconnect() error
 	Run() error
 	Stop() error
 }
@@ -48,7 +48,7 @@ type Monitor struct {
 	enumerationDone func()
 	netlinkConn     *netlink.UEventConn
 	// channels used by netlink connection and monitor
-	monitorStop   chan struct{}
+	monitorStop   func(stopTimeout time.Duration) bool
 	netlinkErrors chan error
 	netlinkEvents chan netlink.UEvent
 
@@ -104,10 +104,11 @@ func (m *Monitor) Connect() error {
 	return nil
 }
 
-func (m *Monitor) Disconnect() error {
-	select {
-	case m.monitorStop <- struct{}{}:
-	default:
+func (m *Monitor) disconnect() error {
+	if m.monitorStop != nil {
+		if ok := m.monitorStop(5 * time.Second); !ok {
+			logger.Noticef("udev monitor stopping timed out")
+		}
 	}
 	return m.netlinkConn.Close()
 }
@@ -119,6 +120,7 @@ func (m *Monitor) Run() error {
 	// Gather devices from udevadm info output (enumeration on startup).
 	devices, parseErrors, err := hotplug.EnumerateExistingDevices()
 	if err != nil {
+		m.disconnect()
 		return fmt.Errorf("cannot enumerate existing devices: %s", err)
 	}
 	m.tomb.Go(func() error {
@@ -147,7 +149,7 @@ func (m *Monitor) Run() error {
 			case ev := <-m.netlinkEvents:
 				m.udevEvent(&ev)
 			case <-m.tomb.Dying():
-				return m.Disconnect()
+				return m.disconnect()
 			}
 		}
 	})

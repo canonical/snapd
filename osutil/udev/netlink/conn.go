@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"os"
 	"syscall"
+	"time"
 )
 
 type Mode int
@@ -100,21 +101,48 @@ func (c *UEventConn) ReadUEvent() (*UEvent, error) {
 // Monitor run in background a worker to read netlink msg in loop and notify
 // when msg receive inside a queue using channel.
 // To be notified with only relevant message, use Matcher.
-func (c *UEventConn) Monitor(queue chan UEvent, errors chan error, matcher Matcher) chan struct{} {
-	quit := make(chan struct{}, 1)
-
+func (c *UEventConn) Monitor(queue chan UEvent, errors chan error, matcher Matcher) (stop func(stopTimeout time.Duration) (ok bool)) {
 	if matcher != nil {
 		if err := matcher.Compile(); err != nil {
 			errors <- fmt.Errorf("Wrong matcher, err: %v", err)
-			quit <- struct{}{}
-			return quit
+			return func(time.Duration) bool {
+				return true
+			}
 		}
+	}
+
+	quitting := make(chan struct{})
+	quit := make(chan struct{})
+
+	readableOrStop, stop1, err := RawSockStopper(c.Fd)
+	if err != nil {
+		errors <- fmt.Errorf("Internal error: %v", err)
+		return func(time.Duration) bool {
+			return true
+		}
+	}
+
+	stop = func(stopTimeout time.Duration) bool {
+		close(quitting)
+		stop1()
+		select {
+		case <-quit:
+			return true
+		case <-time.After(stopTimeout):
+		}
+		return false
 	}
 
 	go func() {
 		for {
+			_, err := readableOrStop()
+			if err != nil {
+				errors <- fmt.Errorf("Internal error: %v", err)
+				return
+			}
 			select {
-			case <-quit:
+			case <-quitting:
+				close(quit)
 				return
 			default:
 				uevent, err := c.ReadUEvent()
@@ -133,5 +161,5 @@ func (c *UEventConn) Monitor(queue chan UEvent, errors chan error, matcher Match
 			}
 		}
 	}()
-	return quit
+	return stop
 }
