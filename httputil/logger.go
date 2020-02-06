@@ -90,8 +90,6 @@ func checkRedirect(req *http.Request, via []*http.Request) error {
 	if len(via) > 10 {
 		return errors.New("stopped after 10 redirects")
 	}
-	// fixed in go 1.8
-	fixupHeadersForRedirect(req, via)
 
 	return nil
 }

@@ -63,10 +63,10 @@ func (s *SnapSuite) TestAutoImportAssertsHappy(c *C) {
 			n++
 		case 1:
 			c.Check(r.Method, Equals, "POST")
-			c.Check(r.URL.Path, Equals, "/v2/create-user")
+			c.Check(r.URL.Path, Equals, "/v2/users")
 			postData, err := ioutil.ReadAll(r.Body)
 			c.Assert(err, IsNil)
-			c.Check(string(postData), Equals, `{"sudoer":true,"known":true}`)
+			c.Check(string(postData), Equals, `{"action":"create","sudoer":true,"known":true}`)
 
 			fmt.Fprintln(w, `{"type": "sync", "result": [{"username": "foo"}]}`)
 			n++
@@ -240,10 +240,10 @@ func (s *SnapSuite) TestAutoImportFromSpoolHappy(c *C) {
 			n++
 		case 1:
 			c.Check(r.Method, Equals, "POST")
-			c.Check(r.URL.Path, Equals, "/v2/create-user")
+			c.Check(r.URL.Path, Equals, "/v2/users")
 			postData, err := ioutil.ReadAll(r.Body)
 			c.Assert(err, IsNil)
-			c.Check(string(postData), Equals, `{"sudoer":true,"known":true}`)
+			c.Check(string(postData), Equals, `{"action":"create","sudoer":true,"known":true}`)
 
 			fmt.Fprintln(w, `{"type": "sync", "result": [{"username": "foo"}]}`)
 			n++
