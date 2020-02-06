@@ -138,7 +138,7 @@ func mockNetlinkSocketOpener() (int, error) {
 func (ns *netlinkSuite) mockNetlinkSocket(c *C, dataCh chan []byte) {
 	conn, err := ns.mockNetlinkListener.Accept()
 	c.Assert(err, IsNil)
-	ns.AddCleanup(func() { conn.Close() })
+	defer conn.Close()
 
 	for {
 		b, ok := <-dataCh
@@ -187,6 +187,7 @@ func (ns *netlinkSuite) TestRoutesMonitorSmoke(c *C) {
 	for _, b := range netlinkCaptureRaw {
 		dataCh <- b
 	}
+	close(dataCh)
 
 	<-ns.gwChangedCh
 	c.Assert(ns.defaultGwAdded, DeepEquals, []string{"192.168.2.1"})
@@ -203,16 +204,15 @@ func (ns *netlinkSuite) TestRoutesMonitorCanStop(c *C) {
 	c.Assert(err, IsNil)
 	m.Run()
 
-	// ensure we got some data from the interface first
+	// we got some data from the interface first
 	dataCh <- []byte{0x01}
 	// ask it nicely to stop
 	m.Stop()
-	// we need to send data again or syscall.Read() in monitor() may block
-	// forever
-	dataCh <- []byte{0x01}
 
 	// stop does not generate an error
 	errCh := netutil.GetRoutesMonitorNetlinkErrorsChannel(m)
 	err = <-errCh
 	c.Assert(err, IsNil)
+
+	close(dataCh)
 }

@@ -23,6 +23,12 @@ import (
 	"fmt"
 	"net"
 	"syscall"
+	"time"
+
+	"gopkg.in/tomb.v2"
+
+	"github.com/snapcore/snapd/logger"
+	unetlink "github.com/snapcore/snapd/osutil/udev/netlink"
 )
 
 const (
@@ -57,8 +63,13 @@ func openNetlinkFdImpl() (fd int, err error) {
 type RoutesMonitor struct {
 	netlinkFd int
 
+	tomb tomb.Tomb
+
 	netlinkErrors chan error
 	netlinkQuitCh chan struct{}
+
+	stop           func()
+	readableOrStop func() (bool, error)
 
 	defaultGwAdded   func(string)
 	defaultGwRemoved func(string)
@@ -68,7 +79,7 @@ func NewRoutesMonitor(defaultGwAdded, defaultGwRemoved func(string)) *RoutesMoni
 	m := &RoutesMonitor{
 		netlinkFd: -1,
 
-		netlinkErrors: make(chan error),
+		netlinkErrors: make(chan error, 1),
 
 		defaultGwAdded:   defaultGwAdded,
 		defaultGwRemoved: defaultGwRemoved,
@@ -91,6 +102,14 @@ func (m *RoutesMonitor) Connect() error {
 
 func (m *RoutesMonitor) Stop() {
 	close(m.netlinkQuitCh)
+	m.stop()
+	select {
+	case <-m.tomb.Dead():
+	case <-time.After(5 * time.Second):
+		logger.Noticef("RoutesMonitor stopping timed out")
+		return
+	}
+	m.tomb.Wait()
 }
 
 func isDefaultGw(mm *syscall.NetlinkMessage) (bool, net.IP) {
@@ -114,15 +133,35 @@ func (m *RoutesMonitor) Run() error {
 	if m.netlinkFd == -1 {
 		return fmt.Errorf("cannot monitor: not connected")
 	}
-	m.netlinkQuitCh = make(chan struct{})
 
-	go m.monitor()
+	m.netlinkQuitCh = make(chan struct{})
+	// TODO: with go 1.11+ it should be possible to just switch to setting
+	// fd to non-blocking and then wrapping the socket via os.NewFile and
+	// use Closeq to force a read to stop.
+	// c.f. https://github.com/golang/go/commit/ea5825b0b64e1a017a76eac0ad734e11ff557c8e
+	readableOrStop, stop, err := unetlink.RawSockStopper(m.netlinkFd)
+	if err != nil {
+		return fmt.Errorf("internal error: cannot setup stopper: %v", err)
+	}
+	m.stop = stop
+	m.readableOrStop = readableOrStop
+
+	m.tomb.Go(func() error {
+		m.monitor()
+		return nil
+	})
 	return nil
 }
 
 func (m *RoutesMonitor) monitor() {
 	buf := make([]byte, syscall.Getpagesize())
 	for {
+		_, err := m.readableOrStop()
+		if err != nil {
+			logger.Noticef("internal error: RoutesMonitor: %v", err)
+			return
+		}
+
 		select {
 		case <-m.netlinkQuitCh:
 			syscall.Close(m.netlinkFd)
