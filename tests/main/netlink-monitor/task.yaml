@@ -23,10 +23,11 @@ execute: |
     systemd-run --unit=monitor-default-gw "$(pwd)"/monitor-default-gw
 
     echo "Do route manipulation"
-    ip addr add 192.168.2.2/24 dev lo:1
+    ip link add veth99 type veth
+    ip addr add 192.168.2.2/24 dev veth99
     ip route add default via 192.168.2.2
     ip route del default via 192.168.2.2
-    ip addr del 192.168.2.2/24 dev lo:1
+    ip addr del 192.168.2.2/24 dev veth99
 
     echo "Check that both add/remove got captured"
     retry-tool -n 10 sh -c 'journalctl -u monitor-default-gw|MATCH "default gw added 192.168.2.2"'
