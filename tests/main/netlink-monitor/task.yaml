@@ -16,14 +16,18 @@ restore: |
     systemctl stop monitor-default-gw
 
 execute: |
-    systemd-run --unit=monitor-default-gw $(pwd)/monitor-default-gw
+    if ! command -v systemd-run; then
+        # SKIP: no systemd-run
+        exit 0
+    fi
+    systemd-run --unit=monitor-default-gw "$(pwd)"/monitor-default-gw
 
-    echo "do some route manipulation"
-    ifconfig lo:1 192.168.2.2
-    route add default gw 192.168.2.1
-    route del default
-    ifconfig lo:1 down
+    echo "Do route manipulation"
+    ip addr add 192.168.2.2/24 dev lo:1
+    ip route add default via 192.168.2.2
+    ip route del default via 192.168.2.2
+    ip addr del 192.168.2.2/24 dev lo:1
 
     echo "Check that both add/remove got captured"
-    retry-tool journalctl -u monitor-default-gw|MATCH "default gw added 192.168.2.1"
-    retry-tool journalctl -u monitor-default-gw|MATCH "default gw removed 192.168.2.1"
+    retry-tool -n 10 sh -c 'journalctl -u monitor-default-gw|MATCH "default gw added 192.168.2.2"'
+    retry-tool -n 10 sh -c 'journalctl -u monitor-default-gw|MATCH "default gw removed 192.168.2.2"'
