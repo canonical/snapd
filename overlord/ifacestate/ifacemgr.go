@@ -354,7 +354,7 @@ func (m *InterfaceManager) ResolveDisconnect(plugSnapName, plugName, slotSnapNam
 				plugSnapName, plugName, slotSnapName, slotName)
 		}
 		return []*interfaces.ConnRef{
-			&interfaces.ConnRef{
+			{
 				PlugRef: interfaces.PlugRef{Snap: plugSnapName, Name: plugName},
 				SlotRef: interfaces.SlotRef{Snap: slotSnapName, Name: slotName},
 			}}, nil
