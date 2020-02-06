@@ -511,10 +511,10 @@ uc20_build_initramfs_kernel_snap() {
         cd repacked-kernel
         rm -rf firmware/*
 
-        # XXX: the code below drops the modules that are not loaded on the
+        # the code below drops the modules that are not loaded on the
         # current host, this should work for most cases, since the image will be
         # running on the same host
-        # enable when ready
+        # TODO:UC20: enable when ready
         exit 0
 
         # drop unnecessary modules
