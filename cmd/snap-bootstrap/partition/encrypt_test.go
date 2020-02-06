@@ -112,9 +112,17 @@ func (s *encryptSuite) TestEncryptAddKey(c *C) {
 	c.Assert(err, IsNil)
 
 	c.Assert(s.mockCryptsetup.Calls(), DeepEquals, [][]string{
-		{"cryptsetup", "-q", "luksFormat", "--type", "luks2", "--key-file", "-", "--pbkdf", "argon2i", "--iter-time", "1", "/dev/node1"},
-		{"cryptsetup", "open", "--key-file", "-", "/dev/node1", "some-label"},
-		{"cryptsetup", "luksAddKey", "/dev/node1", "-q", "--key-file", "-", "--key-slot", "1", filepath.Join(dirs.SnapRunDir, "tmp-rkey")},
+		{
+			"cryptsetup", "-q", "luksFormat", "--type", "luks2", "--key-file", "-",
+			"--pbkdf", "argon2i", "--iter-time", "1", "--label", "some-label-enc", "/dev/node1",
+		},
+		{
+			"cryptsetup", "open", "--key-file", "-", "/dev/node1", "some-label",
+		},
+		{
+			"cryptsetup", "luksAddKey", "/dev/node1", "-q", "--key-file", "-",
+			"--key-slot", "1", filepath.Join(dirs.SnapRunDir, "tmp-rkey"),
+		},
 	})
 
 	err = dev.Close()
