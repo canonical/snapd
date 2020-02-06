@@ -496,7 +496,7 @@ func (d *Daemon) HandleRestart(t state.RestartType) {
 		d.mu.Lock()
 		defer d.mu.Unlock()
 		d.restartSocket = true
-	case state.StopSnapd:
+	case state.StopDaemon:
 		logger.Noticef("stopping snapd as requested")
 	default:
 		logger.Noticef("internal error: restart handler called with unknown restart type: %v", t)
