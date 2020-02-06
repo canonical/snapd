@@ -11,34 +11,23 @@ prepare: |
 
     # Install the corresponding package that brings the special user account.
     # Specialize the code as required for a particular user.
-    case "$SPECIAL_USER_NAME" in
-        jenkins)
-            # Jenkins depends on java but not in the Debian sense.
-            apt-get install -y default-jre-headless
-            wget -q -O - https://pkg.jenkins.io/debian/jenkins.io.key | apt-key add -
-            echo 'deb http://pkg.jenkins.io/debian-stable binary/' > /etc/apt/sources.list.d/jenkins.list
-            apt-get update
-            apt-get install -y jenkins
-            apt install jenkins
-            ;;
-        postgres)
-            apt install -y postgresql
-            ;;
-    esac
+    if [ "$SPECIAL_USER_NAME" == jenkins ]; then
+        # Jenkins depends on java but not in the Debian sense.
+        apt-get install -y default-jre-headless
+        wget -q -O - https://pkg.jenkins.io/debian/jenkins.io.key | apt-key add -
+        echo 'deb http://pkg.jenkins.io/debian-stable binary/' > /etc/apt/sources.list.d/jenkins.list
+        apt-get update
+        apt-get install -y jenkins
+        apt install jenkins
+    fi
 restore: |
-    snap remove --purge test-snapd-sh
     # Remove the package we installed above.
-    case "$SPECIAL_USER_NAME" in
-        jenkins)
-            apt autoremove --purge -y jenkins default-jre-headless
-            rm -f /etc/apt/sources.list.d/jenkins.list
-            apt-get update
-            # TODO: remove the apt key added above, but how?
-            ;;
-        postgres)
-            apt autoremove --purge -y postgresql
-            ;;
-    esac
+    if [ "$SPECIAL_USER_NAME" == jenkins ]; then
+        apt autoremove --purge -y jenkins default-jre-headless
+        rm -f /etc/apt/sources.list.d/jenkins.list
+        apt-get update
+        # TODO: remove the apt key added above, but how?
+    fi
 execute: |
     #shellcheck disable=SC2016
     su -c sh -c 'echo $HOME' "$SPECIAL_USER_NAME" | MATCH "/var/lib/$SPECIAL_USER_NAME"

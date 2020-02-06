@@ -615,6 +615,7 @@ pkg_dependencies_ubuntu_classic(){
             ;;
         ubuntu-16.04-64)
             echo "
+                default-jre-headless
                 evolution-data-server
                 fwupd
                 gccgo-6
@@ -622,6 +623,7 @@ pkg_dependencies_ubuntu_classic(){
                 kpartx
                 libvirt-bin
                 packagekit
+                postgresql
                 qemu
                 x11-utils
                 xvfb
@@ -638,6 +640,7 @@ pkg_dependencies_ubuntu_classic(){
             ;;
         ubuntu-19.10-64)
             echo "
+                cryptsetup
                 evolution-data-server
                 fwupd
                 packagekit
@@ -645,6 +648,7 @@ pkg_dependencies_ubuntu_classic(){
             ;;
         ubuntu-20.04-64)
             echo "
+                cryptsetup
                 evolution-data-server
                 gccgo-9
                 packagekit

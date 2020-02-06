@@ -51,6 +51,8 @@ environment:
     # Use the installed snapd and reset the systems without removing snapd
     REUSE_SNAPD: "$(HOST: echo \"${SPREAD_REUSE_SNAPD:-0}\")"
     PROFILE_SNAPS: "$(HOST: echo \"${SPREAD_PROFILE_SNAPS:-0}\")"
+    # Check that each test preserve the project invariants
+    CHECK_INVARIANTS: "$(HOST: echo \"${SPREAD_CHECK_INVARIANTS:-1}\")"
 
 backends:
     google:

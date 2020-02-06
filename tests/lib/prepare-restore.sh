@@ -570,7 +570,9 @@ restore_suite_each() {
     # Reset failing orphan services before checks
     systemctl reset-failed
 
-    do_checks
+    if [ "$CHECK_INVARIANTS" = 1 ]; then
+        do_checks
+    fi
 }
 
 get_logs_file() {
@@ -674,7 +676,7 @@ do_checks() {
     logs_file=$(get_logs_file)
     diff_types=$(get_diff_types)
     
-    do_check_systemd_status "$logs_file" "systemd"     
+    do_check_systemd_status "$logs_file" "systemd"
     for diff_type in $diff_types; do
         do_check_diff "$logs_file" "$diff_type"
     done
@@ -793,8 +795,12 @@ restore_project() {
     # Delete the snapd state used to accelerate prepare/restore code in certain suites.
     delete_snapd_state
 
-    local errors_found 
-    errors_found=$(review_execution_checks)
+    # Check if all the test invariants have been maintained 
+    local errors_found
+    errors_found=0
+    if [ "$CHECK_INVARIANTS" = 1 ]; then
+        errors_found=$(review_execution_checks)
+    fi
 
     # Remove all of the code we pushed and any build results. This removes
     # stale files and we cannot do incremental builds anyway so there's little
