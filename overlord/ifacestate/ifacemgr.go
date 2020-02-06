@@ -289,48 +289,133 @@ func (m *InterfaceManager) ConnectionStates() (connStateByRef map[string]Connect
 	return ConnectionStates(m.state)
 }
 
-// ResolveDisconnect resolves potentially missing plug or slot names and returns
-// a fully populated connection reference. It resorts to repository's
-// ResolveDisconnect method for normal disconnect, but uses connection from the
-// state if forget flag is true, so it is able to resolve connections for
-// non-existing plugs or slots.
-// The state must be locked by the caller.
+// ResolveDisconnect resolves potentially missing plug or slot names and
+// returns a list of fully populated connection references that can be
+// disconnected.
+//
+// It can be used in two different ways:
+// 1: snap disconnect <snap>:<plug> <snap>:<slot>
+// 2: snap disconnect <snap>:<plug or slot>
+//
+// In the first case the referenced plug and slot must be connected.  In the
+// second case any matching connection are returned but it is not an error if
+// there are no connections.
+//
+// In both cases the snap name can be omitted to implicitly refer to the core
+// snap. If there's no core snap it is simply assumed to be called "core" to
+// provide consistent error messages.
 func (m *InterfaceManager) ResolveDisconnect(plugSnapName, plugName, slotSnapName, slotName string, forget bool) ([]*interfaces.ConnRef, error) {
-	if !forget {
-		return m.repo.ResolveDisconnect(plugSnapName, plugName, slotSnapName, slotName)
+	var connected func(plugSn, plug, slotSn, slot string) (bool, error)
+	var connectedPlugOrSlot func(snapName, plugOrSlotName string) ([]*interfaces.ConnRef, error)
+
+	if forget {
+		conns, err := getConns(m.state)
+		if err != nil {
+			return nil, err
+		}
+		connected = func(plugSn, plug, slotSn, slot string) (bool, error) {
+			cref := interfaces.ConnRef{
+				PlugRef: interfaces.PlugRef{Snap: plugSn, Name: plug},
+				SlotRef: interfaces.SlotRef{Snap: slotSn, Name: slot},
+			}
+			_, ok := conns[cref.ID()]
+			return ok, nil
+		}
+
+		connectedPlugOrSlot = func(snapName, plugOrSlotName string) ([]*interfaces.ConnRef, error) {
+			var refs []*interfaces.ConnRef
+			for connID := range conns {
+				cref, err := interfaces.ParseConnRef(connID)
+				if err != nil {
+					return nil, err
+				}
+				if cref.PlugRef.Snap == snapName && cref.PlugRef.Name == plugOrSlotName {
+					refs = append(refs, cref)
+				}
+				if cref.SlotRef.Snap == snapName && cref.SlotRef.Name == plugOrSlotName {
+					refs = append(refs, cref)
+				}
+			}
+			return refs, nil
+		}
+	} else {
+		connected = func(plugSn, plug, slotSn, slot string) (bool, error) {
+			_, err := m.repo.Connection(&interfaces.ConnRef{
+				PlugRef: interfaces.PlugRef{Snap: plugSn, Name: plug},
+				SlotRef: interfaces.SlotRef{Snap: slotSn, Name: slot},
+			})
+			if _, notConnected := err.(*interfaces.NotConnectedError); notConnected {
+				return false, nil
+			}
+			if err != nil {
+				return false, err
+			}
+			return true, nil
+		}
+
+		connectedPlugOrSlot = func(snapName, plugOrSlotName string) ([]*interfaces.ConnRef, error) {
+			return m.repo.Connected(snapName, plugOrSlotName)
+		}
 	}
 
-	// for convienience, empty plug snap means system snap
-	if plugSnapName == "" {
-		plugSnapName = mapper.SystemSnapName()
-	}
-	if plugName == "" {
-		return nil, fmt.Errorf("invalid empty plug name")
-	}
-	// for convienience, empty slot snap means system snap
-	if slotSnapName == "" {
-		slotSnapName = mapper.SystemSnapName()
-	}
-	if slotName == "" {
-		return nil, fmt.Errorf("invalid empty slot name")
+	coreSnapName, _ := m.repo.GuessSystemSnapName()
+	if coreSnapName == "" {
+		// This is not strictly speaking true BUT when there's no core snap the
+		// produced error messages are consistent to when the is a core snap
+		// and it has the modern form.
+		coreSnapName = "core"
 	}
 
-	conns, err := getConns(m.state)
-	if err != nil {
-		return nil, err
+	// There are two allowed forms (see snap disconnect --help)
+	switch {
+	// 1: <snap>:<plug> <snap>:<slot>
+	// Return exactly one plug/slot or an error if it doesn't exist.
+	case plugName != "" && slotName != "":
+		// The snap name can be omitted to implicitly refer to the core snap.
+		if plugSnapName == "" {
+			plugSnapName = coreSnapName
+		}
+		// The snap name can be omitted to implicitly refer to the core snap.
+		if slotSnapName == "" {
+			slotSnapName = coreSnapName
+		}
+		// Ensure that slot and plug are connected
+		isConnected, err := connected(plugSnapName, plugName, slotSnapName, slotName)
+		if err != nil {
+			return nil, err
+		}
+		if !isConnected {
+			if forget {
+				return nil, fmt.Errorf("cannot forget connection %s:%s from %s:%s, it was not connected",
+					plugSnapName, plugName, slotSnapName, slotName)
+			}
+			return nil, fmt.Errorf("cannot disconnect %s:%s from %s:%s, it is not connected",
+				plugSnapName, plugName, slotSnapName, slotName)
+		}
+		return []*interfaces.ConnRef{
+			&interfaces.ConnRef{
+				PlugRef: interfaces.PlugRef{Snap: plugSnapName, Name: plugName},
+				SlotRef: interfaces.SlotRef{Snap: slotSnapName, Name: slotName},
+			}}, nil
+	// 2: <snap>:<plug or slot> (through 1st pair)
+	// Return a list of connections involving specified plug or slot.
+	case plugName != "" && slotName == "" && slotSnapName == "":
+		// The snap name can be omitted to implicitly refer to the core snap.
+		if plugSnapName == "" {
+			plugSnapName = coreSnapName
+		}
+		return connectedPlugOrSlot(plugSnapName, plugName)
+	// 2: <snap>:<plug or slot> (through 2nd pair)
+	// Return a list of connections involving specified plug or slot.
+	case plugSnapName == "" && plugName == "" && slotName != "":
+		// The snap name can be omitted to implicitly refer to the core snap.
+		if slotSnapName == "" {
+			slotSnapName = coreSnapName
+		}
+		return connectedPlugOrSlot(slotSnapName, slotName)
+	default:
+		return nil, fmt.Errorf("allowed forms are <snap>:<plug> <snap>:<slot> or <snap>:<plug or slot>")
 	}
-
-	ref := &interfaces.ConnRef{
-		PlugRef: interfaces.PlugRef{Snap: plugSnapName, Name: plugName},
-		SlotRef: interfaces.SlotRef{Snap: slotSnapName, Name: slotName},
-	}
-	if _, ok := conns[ref.ID()]; ok {
-		return []*interfaces.ConnRef{ref}, nil
-	}
-
-	// the error mimics the error from repo.ResolveDisconnect(..) when
-	// a concrete (non-existing) connection was given.
-	return nil, fmt.Errorf("cannot forget connection %s:%s from %s:%s, it was not connected", plugSnapName, plugName, slotSnapName, slotName)
 }
 
 // DisableUDevMonitor disables the instantiation of udev monitor, but has no effect
