@@ -57,12 +57,14 @@ func (iface *uioInterface) StaticInfo() interfaces.StaticInfo {
 
 var uioPattern = regexp.MustCompile(`^/dev/uio[0-9]+$`)
 
+const invalidUioDeviceNodeSlotPathErrFmt = "slot %q path attribute must be a valid UIO device node"
+
 func (iface *uioInterface) path(slotRef *interfaces.SlotRef, attrs interfaces.Attrer) (string, error) {
-	return verifySlotPathAttribute(slotRef, attrs, uioPattern, invalidDeviceNodeSlotPathErrFmt)
+	return verifySlotPathAttribute(slotRef, attrs, uioPattern, invalidUioDeviceNodeSlotPathErrFmt)
 }
 
 func (iface *uioInterface) BeforePrepareSlot(slot *snap.SlotInfo) error {
-	_, err := verifySlotPathAttribute(&interfaces.SlotRef{Snap: slot.Snap.InstanceName(), Name: slot.Name}, slot, uioPattern, invalidDeviceNodeSlotPathErrFmt)
+	_, err := verifySlotPathAttribute(&interfaces.SlotRef{Snap: slot.Snap.InstanceName(), Name: slot.Name}, slot, uioPattern, invalidUioDeviceNodeSlotPathErrFmt)
 	return err
 }
 

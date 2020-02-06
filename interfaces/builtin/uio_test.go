@@ -85,7 +85,7 @@ slots:
   uio:
     path: /dev/foo
 `, nil).Slots["uio"]
-	c.Assert(interfaces.BeforePrepareSlot(s.iface, brokenSlot), ErrorMatches, `slot "broken-gadget:uio" path attribute must be a valid device node`)
+	c.Assert(interfaces.BeforePrepareSlot(s.iface, brokenSlot), ErrorMatches, `slot "broken-gadget:uio" path attribute must be a valid UIO device node`)
 }
 
 func (s *uioInterfaceSuite) TestUDevSpec(c *C) {
