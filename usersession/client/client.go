@@ -34,7 +34,6 @@ import (
 	"sync"
 
 	"github.com/snapcore/snapd/dirs"
-	"github.com/snapcore/snapd/logger"
 )
 
 // dialSessionAgent connects to a user's session agent
@@ -202,12 +201,16 @@ type ServiceFailure struct {
 	Error   string
 }
 
-func decodeServiceErrors(uid int, errorValue map[string]interface{}, kind string) []ServiceFailure {
+func decodeServiceErrors(uid int, errorValue map[string]interface{}, kind string) ([]ServiceFailure, error) {
+	if errorValue[kind] == nil {
+		return nil, nil
+	}
 	errors, ok := errorValue[kind].(map[string]interface{})
 	if !ok {
-		return nil
+		return nil, fmt.Errorf("cannot decode %s failures: expected a map, got %T", kind, errorValue[kind])
 	}
 	var failures []ServiceFailure
+	var err error
 	for service, reason := range errors {
 		if reasonString, ok := reason.(string); ok {
 			failures = append(failures, ServiceFailure{
@@ -215,11 +218,11 @@ func decodeServiceErrors(uid int, errorValue map[string]interface{}, kind string
 				Service: service,
 				Error:   reasonString,
 			})
-		} else {
-			logger.Noticef("Could not decode %s failure for %q: expected string, but got %T", kind, service, reason)
+		} else if err == nil {
+			err = fmt.Errorf("cannot decode %s failure for %q: expected string, but got %T", kind, service, reason)
 		}
 	}
-	return failures
+	return failures, err
 }
 
 func (client *Client) serviceControlCall(ctx context.Context, action string, services []string) (startFailures, stopFailures []ServiceFailure, err error) {
@@ -241,9 +244,13 @@ func (client *Client) serviceControlCall(ctx context.Context, action string, ser
 		}
 		if agentErr, ok := resp.err.(*Error); ok && agentErr.Kind == "service-control" {
 			if errorValue, ok := agentErr.Value.(map[string]interface{}); ok {
-				startFailures = append(startFailures, decodeServiceErrors(resp.uid, errorValue, "start-errors")...)
-				stopFailures = append(stopFailures, decodeServiceErrors(resp.uid, errorValue, "stop-errors")...)
-				continue
+				failures, err1 := decodeServiceErrors(resp.uid, errorValue, "start-errors")
+				startFailures = append(startFailures, failures...)
+				failures, err2 := decodeServiceErrors(resp.uid, errorValue, "stop-errors")
+				stopFailures = append(stopFailures, failures...)
+				if err1 == nil && err2 == nil {
+					continue
+				}
 			}
 		}
 		if resp.err != nil && err == nil {

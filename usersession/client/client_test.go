@@ -261,19 +261,67 @@ func (s *clientSuite) TestServicesStartFailure(c *C) {
 	if failure0.Uid == 1000 {
 		failure0, failure1 = failure1, failure0
 	}
-	c.Check(failure0.Uid, Equals, 42)
-	c.Check(failure0.Service, Equals, "service2.service")
-	c.Check(failure0.Error, Equals, "failed to start")
+	c.Check(failure0, DeepEquals, client.ServiceFailure{
+		Uid:     42,
+		Service: "service2.service",
+		Error:   "failed to start",
+	})
+	c.Check(failure1, DeepEquals, client.ServiceFailure{
+		Uid:     1000,
+		Service: "service2.service",
+		Error:   "failed to start",
+	})
+}
 
-	c.Check(failure1.Uid, Equals, 1000)
-	c.Check(failure1.Service, Equals, "service2.service")
-	c.Check(failure1.Error, Equals, "failed to start")
+func (s *clientSuite) TestServicesStartOneAgentFailure(c *C) {
+	s.handler = http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+
+		// Only produce failure from one agent
+		if r.Host != "42" {
+			w.WriteHeader(200)
+			w.Write([]byte(`{"type": "sync","result": null}`))
+			return
+		}
+
+		w.WriteHeader(500)
+		w.Write([]byte(`{
+  "type": "error",
+  "result": {
+    "kind": "service-control",
+    "message": "failed to start services",
+    "value": {
+      "start-errors": {
+        "service2.service": "failed to start"
+      }
+    }
+  }
+}`))
+	})
+	startFailures, stopFailures, err := s.cli.ServicesStart(context.Background(), []string{"service1.service", "service2.service"})
+	c.Assert(err, IsNil)
+	c.Check(startFailures, DeepEquals, []client.ServiceFailure{
+		{
+			Uid:     42,
+			Service: "service2.service",
+			Error:   "failed to start",
+		},
+	})
+	c.Check(stopFailures, HasLen, 0)
 }
 
 func (s *clientSuite) TestServicesStartBadErrors(c *C) {
 	errorValue := "null"
 	s.handler = http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
+
+		// Only produce failure from one agent
+		if r.Host != "42" {
+			w.WriteHeader(200)
+			w.Write([]byte(`{"type": "sync","result": null}`))
+			return
+		}
+
 		w.WriteHeader(500)
 		w.Write([]byte(fmt.Sprintf(`{
   "type": "error",
@@ -305,7 +353,7 @@ func (s *clientSuite) TestServicesStartBadErrors(c *C) {
   "stop-errors": 42
 }`
 	startFailures, stopFailures, err = s.cli.ServicesStart(context.Background(), []string{"service1.service"})
-	c.Check(err, IsNil)
+	c.Check(err, ErrorMatches, "failed to stop services")
 	c.Check(startFailures, HasLen, 0)
 	c.Check(stopFailures, HasLen, 0)
 
@@ -318,8 +366,29 @@ func (s *clientSuite) TestServicesStartBadErrors(c *C) {
     "service1.service": {}
   }
 }`
-	c.Check(err, IsNil)
+	startFailures, stopFailures, err = s.cli.ServicesStart(context.Background(), []string{"service1.service"})
+	c.Check(err, ErrorMatches, "failed to stop services")
 	c.Check(startFailures, HasLen, 0)
+	c.Check(stopFailures, HasLen, 0)
+
+	// When some valid service failures are mixed in with bad
+	// ones, report the valid failure along with the error
+	// message.
+	errorValue = `{
+  "start-errors": {
+    "service1.service": "failure one",
+    "service2.service": 42
+  }
+}`
+	startFailures, stopFailures, err = s.cli.ServicesStart(context.Background(), []string{"service1.service"})
+	c.Check(err, ErrorMatches, "failed to stop services")
+	c.Check(startFailures, DeepEquals, []client.ServiceFailure{
+		{
+			Uid:     42,
+			Service: "service1.service",
+			Error:   "failure one",
+		},
+	})
 	c.Check(stopFailures, HasLen, 0)
 }
 
@@ -362,11 +431,14 @@ func (s *clientSuite) TestServicesStopFailure(c *C) {
 	if failure0.Uid == 1000 {
 		failure0, failure1 = failure1, failure0
 	}
-	c.Check(failure0.Uid, Equals, 42)
-	c.Check(failure0.Service, Equals, "service2.service")
-	c.Check(failure0.Error, Equals, "failed to stop")
-
-	c.Check(failure1.Uid, Equals, 1000)
-	c.Check(failure1.Service, Equals, "service2.service")
-	c.Check(failure1.Error, Equals, "failed to stop")
+	c.Check(failure0, DeepEquals, client.ServiceFailure{
+		Uid:     42,
+		Service: "service2.service",
+		Error:   "failed to stop",
+	})
+	c.Check(failure1, DeepEquals, client.ServiceFailure{
+		Uid:     1000,
+		Service: "service2.service",
+		Error:   "failed to stop",
+	})
 }
