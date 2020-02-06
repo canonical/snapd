@@ -415,6 +415,9 @@ func (s *Snap) Build(sourceDir string, opts *BuildOpts) error {
 	// default to xz
 	compression := opts.Compression
 	if compression == "" {
+		// TODO: support other compression options, xz is very
+		// slow for certain apps, see
+		// https://forum.snapcraft.io/t/squashfs-performance-effect-on-snap-startup-time/13920
 		compression = "xz"
 	}
 	cmd, err := cmdutilCommandFromSystemSnap("/usr/bin/mksquashfs")
