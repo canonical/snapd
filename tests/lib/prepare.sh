@@ -637,8 +637,6 @@ EOF
 
     (cd /tmp ; unsquashfs -no-progress -v  /var/lib/snapd/snaps/"$core_name"_*.snap etc/systemd/system)
     cp -avr /tmp/squashfs-root/etc/systemd/system /mnt/system-data/etc/systemd/
-    umount /mnt
-    kpartx -d  "$IMAGE_HOME/$IMAGE"
 }
 
 setup_reflash_magic() {
@@ -842,7 +840,9 @@ EOF
         setup_core_for_testing_by_modify_writable "$UNPACK_DIR"
     fi
 
+    # unmount the partition we just modified and delete the image's loop devices
     umount /mnt
+    kpartx -d "$IMAGE_HOME/$IMAGE"
 
     # the reflash magic
     # FIXME: ideally in initrd, but this is good enough for now
