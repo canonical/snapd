@@ -21,13 +21,11 @@ package partition
 import (
 	"bytes"
 	"crypto/rand"
-	"encoding/binary"
 	"fmt"
 	"io/ioutil"
 	"os"
 	"os/exec"
 	"path/filepath"
-	"strings"
 	"syscall"
 
 	"github.com/snapcore/snapd/dirs"
@@ -79,25 +77,7 @@ func (key RecoveryKey) Store(filename string) error {
 	if err := os.MkdirAll(filepath.Dir(filename), 0755); err != nil {
 		return err
 	}
-
-	groups := make([]string, 8)
-
-	// The recovery key is used as 8 groups of 5 base-10 digits, with each
-	// 5 digits being converted to a 2-byte number to make a 16-byte key.
-	r := bytes.NewReader(key[:])
-	for i := 0; i < 8; i++ {
-		var val uint16
-		if err := binary.Read(r, binary.LittleEndian, &val); err != nil {
-			return err
-		}
-		groups[i] = fmt.Sprintf("%05d", val)
-	}
-
-	if err := ioutil.WriteFile(filename, []byte(strings.Join(groups, " ")), 0600); err != nil {
-		return err
-	}
-
-	return nil
+	return ioutil.WriteFile(filename, key[:], 0600)
 }
 
 // EncryptedDevice represents a LUKS-backed encrypted block device.
