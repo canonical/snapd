@@ -438,10 +438,11 @@ uc20_build_initramfs_kernel_snap() {
     add-apt-repository ppa:snappy-dev/image -y
     apt install ubuntu-core-initramfs -y
 
-    local TARGET="$1"
+    local ORIG_SNAP="$1"
+    local TARGET="$2"
+    
     # kernel snap is huge, unpacking to current dir
-    unsquashfs -d repacked-kernel pc-kernel_*.snap
-
+    unsquashfs -d repacked-kernel "$ORIG_SNAP"
 
     # repack initrd magic, beware
     # assumptions: initrd is compressed with LZ4, cpio block size 512, microcode
@@ -743,11 +744,11 @@ EOF
     fi
 
     if is_core20_system; then
-        snap download --channel="20/$KERNEL_CHANNEL" pc-kernel
+        snap download --basename=pc-kernel --channel="20/$KERNEL_CHANNEL" pc-kernel
         # make sure we have the snap
-        test -e pc-kernel_*.snap
+        test -e pc-kernel.snap
         # build the initramfs with our snapd assets into the kernel snap
-        uc20_build_initramfs_kernel_snap "$IMAGE_HOME"
+        uc20_build_initramfs_kernel_snap "$PWD/pc-kernel.snap" "$IMAGE_HOME"
         EXTRA_FUNDAMENTAL="--extra-snaps $IMAGE_HOME/pc-kernel_*.snap"
     fi
 
