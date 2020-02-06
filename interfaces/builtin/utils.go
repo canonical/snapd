@@ -22,6 +22,8 @@ package builtin
 import (
 	"bytes"
 	"fmt"
+	"path/filepath"
+	"regexp"
 	"sort"
 
 	"github.com/snapcore/snapd/interfaces"
@@ -101,4 +103,24 @@ func implicitSystemConnectedSlot(slot *interfaces.ConnectedSlot) bool {
 		return true
 	}
 	return false
+}
+
+// determine if the given slot attribute path matches the regex.
+// invalidErrFmt provides a fmt.Errorf format to create an error in
+// the case the path does not matches, it should allow to include
+// slotRef and be something like: "slot %q path attribute must be a
+// valid <path kind>".
+func verifySlotPathAttribute(slotRef *interfaces.SlotRef, attrs interfaces.Attrer, reg *regexp.Regexp, invalidErrFmt string) (string, error) {
+	var path string
+	if err := attrs.Attr("path", &path); err != nil || path == "" {
+		return "", fmt.Errorf("slot %q must have a path attribute", slotRef)
+	}
+	cleanPath := filepath.Clean(path)
+	if cleanPath != path {
+		return "", fmt.Errorf(`cannot use slot %q path %q: try %q"`, slotRef, path, cleanPath)
+	}
+	if !reg.MatchString(cleanPath) {
+		return "", fmt.Errorf(invalidErrFmt, slotRef)
+	}
+	return cleanPath, nil
 }
