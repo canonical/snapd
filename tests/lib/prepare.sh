@@ -833,6 +833,8 @@ EOF
         setup_core_for_testing_by_modify_writable "$UNPACK_DIR"
     fi
 
+    umount /mnt
+
     # the reflash magic
     # FIXME: ideally in initrd, but this is good enough for now
     cat > "$IMAGE_HOME/reflash.sh" << EOF
