@@ -336,6 +336,7 @@ func (s *downloadSuite) TestActualDownloadResume(c *C) {
 	n := 0
 	mockServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		n++
+		w.WriteHeader(206)
 		io.WriteString(w, "data")
 	}))
 	c.Assert(mockServer, NotNil)
@@ -351,6 +352,36 @@ func (s *downloadSuite) TestActualDownloadResume(c *C) {
 	c.Check(err, IsNil)
 	c.Check(buf.String(), Equals, "some data")
 	c.Check(n, Equals, 1)
+}
+
+func (s *downloadSuite) TestActualDownloadServerNoResumeHandeled(c *C) {
+	n := 0
+	mockServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		n++
+
+		switch n {
+		case 1:
+			c.Check(r.Header["Range"], HasLen, 1)
+		case 2:
+			c.Check(r.Header["Range"], IsNil)
+		}
+		// server does not do partial content and sends full data instead
+		w.WriteHeader(200)
+		io.WriteString(w, "some data")
+	}))
+	c.Assert(mockServer, NotNil)
+	defer mockServer.Close()
+
+	theStore := store.New(&store.Config{}, nil)
+	buf := NewSillyBufferString("some ")
+	// calc the expected hash
+	h := crypto.SHA3_384.New()
+	h.Write([]byte("some data"))
+	sha3 := fmt.Sprintf("%x", h.Sum(nil))
+	err := store.Download(context.TODO(), "foo", sha3, mockServer.URL, nil, theStore, buf, int64(len("some ")), nil, nil)
+	c.Check(err, IsNil)
+	c.Check(buf.String(), Equals, "some data")
+	c.Check(n, Equals, 2)
 }
 
 func (s *downloadSuite) TestUseDeltas(c *C) {

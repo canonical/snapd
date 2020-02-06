@@ -572,6 +572,9 @@ func (s *storeTestSuite) TestDownloadEOFHandlesResumeHashCorrectly(c *C) {
 			mockServer.CloseClientConnections()
 			return
 		}
+		if len(r.Header["Range"]) > 0 {
+			w.WriteHeader(206)
+		}
 		w.Write(buf[len(buf)-5:])
 	}))
 

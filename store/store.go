@@ -1534,7 +1534,13 @@ func downloadImpl(ctx context.Context, name, sha3_384, downloadURL string, user 
 			}
 			break
 		}
-
+		if resume > 0 && resp.StatusCode != 206 {
+			logger.Debugf("server does not support resume")
+			resp.Body.Close()
+			w.Seek(0, os.SEEK_SET)
+			resume = 0
+			continue
+		}
 		if httputil.ShouldRetryHttpResponse(attempt, resp) {
 			resp.Body.Close()
 			continue
