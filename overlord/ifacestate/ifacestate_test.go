@@ -7592,14 +7592,17 @@ func (s *interfaceManagerSuite) TestResolveDisconnectFromConns(c *C) {
 		{PlugRef: interfaces.PlugRef{Snap: "some-snap", Name: "plug"}, SlotRef: interfaces.SlotRef{Snap: "core", Name: "slot"}},
 	})
 
+	_, err = mgr.ResolveDisconnect("some-snap", "plug", "", "", forget)
+	c.Check(err, IsNil)
+	c.Check(ref, DeepEquals, []*interfaces.ConnRef{
+		{PlugRef: interfaces.PlugRef{Snap: "some-snap", Name: "plug"}, SlotRef: interfaces.SlotRef{Snap: "core", Name: "slot"}},
+	})
+
 	_, err = mgr.ResolveDisconnect("", "plug", "", "slot", forget)
 	c.Check(err, ErrorMatches, `cannot forget connection core:plug from core:slot, it was not connected`)
 
 	_, err = mgr.ResolveDisconnect("some-snap", "", "", "slot", forget)
-	c.Check(err, ErrorMatches, `invalid empty plug name`)
-
-	_, err = mgr.ResolveDisconnect("some-snap", "plug", "", "", forget)
-	c.Check(err, ErrorMatches, `invalid empty slot name`)
+	c.Check(err, ErrorMatches, `allowed forms are <snap>:<plug> <snap>:<slot> or <snap>:<plug or slot>`)
 
 	_, err = mgr.ResolveDisconnect("other-snap", "plug", "", "slot", forget)
 	c.Check(err, ErrorMatches, `cannot forget connection other-snap:plug from core:slot, it was not connected`)
@@ -8068,7 +8071,8 @@ func (s *interfaceManagerSuite) TestResolveDisconnectMatrixNoSnaps(c *C) {
 	for i, scenario := range scenarios {
 		c.Logf("checking scenario %d: %q", i, scenario)
 		connRefList, err := mgr.ResolveDisconnect(
-			scenario.plugSnapName, scenario.plugName, scenario.slotSnapName, scenario.slotName)
+			scenario.plugSnapName, scenario.plugName, scenario.slotSnapName,
+			scenario.slotName, false)
 		c.Check(err, ErrorMatches, scenario.errMsg)
 		c.Check(connRefList, HasLen, 0)
 	}
@@ -8144,7 +8148,8 @@ func (s *interfaceManagerSuite) TestResolveDisconnectMatrixJustSnapdSnap(c *C) {
 	for i, scenario := range scenarios {
 		c.Logf("checking scenario %d: %q", i, scenario)
 		connRefList, err := mgr.ResolveDisconnect(
-			scenario.plugSnapName, scenario.plugName, scenario.slotSnapName, scenario.slotName)
+			scenario.plugSnapName, scenario.plugName, scenario.slotSnapName,
+			scenario.slotName, false)
 		c.Check(err, ErrorMatches, scenario.errMsg)
 		c.Check(connRefList, HasLen, 0)
 	}
@@ -8220,7 +8225,8 @@ func (s *interfaceManagerSuite) TestResolveDisconnectMatrixJustCoreSnap(c *C) {
 	for i, scenario := range scenarios {
 		c.Logf("checking scenario %d: %q", i, scenario)
 		connRefList, err := mgr.ResolveDisconnect(
-			scenario.plugSnapName, scenario.plugName, scenario.slotSnapName, scenario.slotName)
+			scenario.plugSnapName, scenario.plugName, scenario.slotSnapName,
+			scenario.slotName, false)
 		c.Check(err, ErrorMatches, scenario.errMsg)
 		c.Check(connRefList, HasLen, 0)
 	}
@@ -8300,7 +8306,8 @@ func (s *interfaceManagerSuite) TestResolveDisconnectMatrixDisconnectedSnaps(c *
 	for i, scenario := range scenarios {
 		c.Logf("checking scenario %d: %q", i, scenario)
 		connRefList, err := mgr.ResolveDisconnect(
-			scenario.plugSnapName, scenario.plugName, scenario.slotSnapName, scenario.slotName)
+			scenario.plugSnapName, scenario.plugName, scenario.slotSnapName,
+			scenario.slotName, false)
 		if scenario.errMsg != "" {
 			c.Check(err, ErrorMatches, scenario.errMsg)
 		} else {
@@ -8389,7 +8396,8 @@ func (s *interfaceManagerSuite) TestResolveDisconnectMatrixTypical(c *C) {
 	for i, scenario := range scenarios {
 		c.Logf("checking scenario %d: %q", i, scenario)
 		connRefList, err := mgr.ResolveDisconnect(
-			scenario.plugSnapName, scenario.plugName, scenario.slotSnapName, scenario.slotName)
+			scenario.plugSnapName, scenario.plugName, scenario.slotSnapName,
+			scenario.slotName, false)
 		if scenario.errMsg != "" {
 			c.Check(err, ErrorMatches, scenario.errMsg)
 			c.Check(connRefList, HasLen, 0)
