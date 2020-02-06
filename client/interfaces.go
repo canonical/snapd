@@ -86,6 +86,11 @@ type InterfaceOptions struct {
 	Connected bool
 }
 
+// DisconnectOptions represents extra options for disconnect op
+type DisconnectOptions struct {
+	Forget bool
+}
+
 func (client *Client) Interfaces(opts *InterfaceOptions) ([]*Interface, error) {
 	query := url.Values{}
 	if opts != nil && len(opts.Names) > 0 {
@@ -134,10 +139,10 @@ func (client *Client) Connect(plugSnapName, plugName, slotSnapName, slotName str
 }
 
 // Disconnect breaks the connection between a plug and a slot.
-func (client *Client) Disconnect(plugSnapName, plugName, slotSnapName, slotName string, forget bool) (changeID string, err error) {
+func (client *Client) Disconnect(plugSnapName, plugName, slotSnapName, slotName string, opts *DisconnectOptions) (changeID string, err error) {
 	return client.performInterfaceAction(&InterfaceAction{
 		Action: "disconnect",
-		Forget: forget,
+		Forget: opts != nil && opts.Forget,
 		Plugs:  []Plug{{Snap: plugSnapName, Name: plugName}},
 		Slots:  []Slot{{Snap: slotSnapName, Name: slotName}},
 	})

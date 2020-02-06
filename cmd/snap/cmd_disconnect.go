@@ -87,7 +87,8 @@ func (x *cmdDisconnect) Execute(args []string) error {
 		return fmt.Errorf("please provide the plug or slot name to disconnect from snap %q", use.Snap)
 	}
 
-	id, err := x.client.Disconnect(offer.Snap, offer.Name, use.Snap, use.Name, x.Forget)
+	opts := &client.DisconnectOptions{Forget: x.Forget}
+	id, err := x.client.Disconnect(offer.Snap, offer.Name, use.Snap, use.Name, opts)
 	if err != nil {
 		if client.IsInterfacesUnchangedError(err) {
 			fmt.Fprintf(Stdout, i18n.G("No connections to disconnect"))
