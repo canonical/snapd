@@ -442,8 +442,6 @@ uc20_build_initramfs_kernel_snap() {
     # kernel snap is huge, unpacking to current dir
     unsquashfs -d repacked-kernel pc-kernel_*.snap
 
-    local SNAPD_UNPACK_DIR="/tmp/snapd-unpack"
-    dpkg-deb -x "$SPREAD_PATH"/../snapd_*.deb "$SNAPD_UNPACK_DIR"
 
     # repack initrd magic, beware
     # assumptions: initrd is compressed with LZ4, cpio block size 512, microcode
@@ -462,14 +460,14 @@ uc20_build_initramfs_kernel_snap() {
         unmkinitramfs initrd unpacked-initrd
         # XXX: this does not produce the same result as using distro's
         # /usr/lib/ubuntu-core-initramfs skeleton
-        cp -ar /usr/lib/ubuntu-core-initramfs skeleton
+        skeletondir=/usr/lib/ubuntu-core-initramfs/
+        cp -ar "$skeletondir" skeleton
         # replace the main bits
         rm -rf skeleton/main
         cp -ar unpacked-initrd/main skeleton/
 
         # all the skeleton edits go to the distro directory
-        skeletondir=/usr/lib/ubuntu-core-initramfs/
-        cp -a "$SNAPD_UNPACK_DIR/usr/lib/snapd/snap-bootstrap" "$skeletondir/main/usr/lib/snapd/snap-bootstrap"
+        cp -a /usr/lib/snapd/snap-bootstrap "$skeletondir/main/usr/lib/snapd/snap-bootstrap"
         # modify the-tool to verify that our version is used when booting - this
         # is verified in the tests/core20/basic spread test
         sed -i -e 's/set -e/set -ex/' "$skeletondir/main/usr/lib/the-tool"
