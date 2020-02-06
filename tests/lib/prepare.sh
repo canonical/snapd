@@ -453,24 +453,29 @@ uc20_build_initramfs_kernel_snap() {
         #shellcheck disable=SC2010
         kver=$(ls "config"-* | grep -Po 'config-\K.*')
 
-
-        # XXX: ideally we should use unpack the initrd, replace snap-bootrap and
+        # XXX: ideally we should use unpack the initrd, replace snap-boostrap and
         # repack it using ubuntu-core-initramfs --skeleton=..., this does not
-        # work and the rebuilt kernel.efi panics unable to start init, the
-        # commented out code below does that:
-
+        # work and the rebuilt kernel.efi panics unable to start init, but we
+        # still need the unpacked initrd to get the right kernel modules
         objcopy -j .initrd -O binary kernel.efi initrd
         # this works on 20.04 but not on 18.04
         unmkinitramfs initrd unpacked-initrd
+        # XXX: this does not produce the same result as using distro's
+        # /usr/lib/ubuntu-core-initramfs skeleton
         cp -ar /usr/lib/ubuntu-core-initramfs skeleton
         # replace the main bits
         rm -rf skeleton/main
         cp -ar unpacked-initrd/main skeleton/
-        cp -a "$SNAPD_UNPACK_DIR/usr/lib/snapd/snap-bootstrap" unpacked-initrd/main/usr/lib/snapd/snap-bootstrap
 
-        # replace snap-bootstrap in the 'distro' skeleton
-        cp -a "$SNAPD_UNPACK_DIR/usr/lib/snapd/snap-bootstrap" \
-           /usr/lib/ubuntu-core-initramfs/main/usr/lib/snapd/snap-bootstrap
+        # all the skeleton edits go to the distro directory
+        skeletondir=/usr/lib/ubuntu-core-initramfs/
+        cp -a "$SNAPD_UNPACK_DIR/usr/lib/snapd/snap-bootstrap" "$skeletondir/main/usr/lib/snapd/snap-bootstrap"
+        # modify the-tool to verify that our version is used when booting - this
+        # is verified in the tests/core20/basic spread test
+        sed -i -e 's/set -e/set -ex/' "$skeletondir/main/usr/lib/the-tool"
+        echo "" >> "$skeletondir/main/usr/lib/the-tool"
+        echo "if test -d /run/mnt/ubuntu-data/system-data; then touch /run/mnt/ubuntu-data/system-data/the-tool-ran; fi" >> \
+            "$skeletondir/main/usr/lib/the-tool"
 
         # XXX: need to be careful to build an initrd using the right kernel
         # modules from the unpacked initrd, rather than the host which may be
