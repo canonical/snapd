@@ -880,7 +880,7 @@ initrd $DEVPREFIX/initrd.img
 EOF
 }
 
-# prepare_ubuntu_core will prepare ubuntu-core 16 and 18
+# prepare_ubuntu_core will prepare ubuntu-core 16+
 prepare_ubuntu_core() {
     # we are still a "classic" image, prepare the surgery
     if [ -e /var/lib/dpkg/status ]; then
