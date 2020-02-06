@@ -819,14 +819,18 @@ fi
 EOF
     chmod +x "$IMAGE_HOME/reflash.sh"
 
+    DEVPREFIX=""
+    if is_core20_system; then
+        DEVPREFIX="/boot"
+    fi
     # extract ROOT from /proc/cmdline
     ROOT=$(sed -e 's/^.*root=//' -e 's/ .*$//' /proc/cmdline)
     cat >/boot/grub/grub.cfg <<EOF
 set default=0
 set timeout=2
 menuentry 'flash-all-snaps' {
-linux /vmlinuz root=$ROOT ro init=$IMAGE_HOME/reflash.sh console=ttyS0
-initrd /initrd.img
+linux $DEVPREFIX/vmlinuz root=$ROOT ro init=$IMAGE_HOME/reflash.sh console=ttyS0
+initrd $DEVPREFIX/initrd.img
 }
 EOF
 }
