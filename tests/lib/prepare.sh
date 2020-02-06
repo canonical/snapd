@@ -655,14 +655,19 @@ EOF
 
     # mount fresh image and add all our SPREAD_PROJECT data
     kpartx -avs "$IMAGE_HOME/$IMAGE"
-    # FIXME: hardcoded mapper location, parse from kpartx
+    # losetup --list --noheadings returns:
+    # /dev/loop1   0 0  1  1 /var/lib/snapd/snaps/ohmygiraffe_3.snap                0     512
+    # /dev/loop57  0 0  1  1 /var/lib/snapd/snaps/http_25.snap                      0     512
+    # /dev/loop19  0 0  1  1 /var/lib/snapd/snaps/test-snapd-netplan-apply_75.snap  0     512
+    devloop=$(losetup --list --noheadings | grep "$IMAGE_HOME/$IMAGE" | awk '{print $1}')
+    dev=$(basename "$devloop")
     if is_core18_system; then
-        mount /dev/mapper/loop3p3 /mnt
+        mount "/dev/mapper/${dev}p3" /mnt
     elif is_core20_system; then
         # (ab)use ubuntu-seed
-        mount /dev/mapper/loop3p2 /mnt
+        mount "/dev/mapper/${dev}p2" /mnt
     else
-        mount /dev/mapper/loop2p3 /mnt
+        mount "/dev/mapper/${dev}p3" /mnt
     fi
     mkdir -p /mnt/user-data/
     # copy over everything from gopath to user-data, exclude:

@@ -1,7 +1,5 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
 
-// +build go1.7
-
 /*
  * Copyright (C) 2017 Canonical Ltd
  *
