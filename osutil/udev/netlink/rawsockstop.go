@@ -2,6 +2,7 @@ package netlink
 
 import (
 	"fmt"
+	"math/bits"
 	"os"
 	"syscall"
 )
@@ -11,7 +12,7 @@ import (
 // fd is readable or stop was called.
 // TODO: with go 1.11+ it should be possible to just switch to setting
 // fd to non-blocking and then wrapping the socket via os.NewFile and
-// use Closeq to force a read to stop.
+// use Close to force a read to stop.
 // c.f. https://github.com/golang/go/commit/ea5825b0b64e1a017a76eac0ad734e11ff557c8e
 func RawSockStopper(fd int) (readableOrStop func() (bool, error), stop func(), err error) {
 	stopR, stopW, err := os.Pipe()
@@ -39,13 +40,15 @@ func stopperSelectReadable(fd, stopFd int) (bool, error) {
 	if maxFd >= 1024 {
 		return false, fmt.Errorf("fd too high for syscall.Select")
 	}
-	fdIdx := fd / 64
-	fdBits := int64(1 << (uint(fd) % 64))
+	fdIdx := fd / bits.UintSize
+	fdShift := uint(fd) % bits.UintSize
+	stopFdIdx := stopFd / bits.UintSize
+	stopFdShift := uint(stopFd) % bits.UintSize
 	readable := false
 	for {
 		var r syscall.FdSet
-		r.Bits[fdIdx] = fdBits
-		r.Bits[stopFd/64] |= 1 << (uint(stopFd) % 64)
+		r.Bits[fdIdx] = 1 << fdShift
+		r.Bits[stopFdIdx] |= 1 << stopFdShift
 		_, err := syscall.Select(maxFd+1, &r, nil, nil, stopperSelectTimeout)
 		if err == syscall.EINTR {
 			continue
@@ -53,7 +56,7 @@ func stopperSelectReadable(fd, stopFd int) (bool, error) {
 		if err != nil {
 			return false, err
 		}
-		readable = (r.Bits[fdIdx] & fdBits) != 0
+		readable = (r.Bits[fdIdx] & (1 << fdShift)) != 0
 		break
 	}
 	return readable, nil
