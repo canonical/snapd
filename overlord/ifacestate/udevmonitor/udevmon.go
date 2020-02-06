@@ -97,7 +97,6 @@ func (m *Monitor) Connect() error {
 		Rules: []netlink.RuleDefinition{
 			{Env: map[string]string{"SUBSYSTEM": "net"}},
 			{Env: map[string]string{"SUBSYSTEM": "tty"}},
-			{Env: map[string]string{"SUBSYSTEM": "uio"}},
 			{Env: map[string]string{"SUBSYSTEM": "usb"}},
 		}}
 
