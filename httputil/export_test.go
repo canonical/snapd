@@ -20,9 +20,10 @@
 package httputil
 
 var (
-	GetFlags              = (*LoggedTransport).getFlags
-	StripUnsafeRunes      = stripUnsafeRunes
-	SanitizeKernelVersion = sanitizeKernelVersion
+	GetFlags                = (*LoggedTransport).getFlags
+	StripUnsafeRunes        = stripUnsafeRunes
+	SanitizeKernelVersion   = sanitizeKernelVersion
+	AddLocalSslCertificates = addLocalSslCertificates
 )
 
 func MockUserAgent(mock string) (restore func()) {

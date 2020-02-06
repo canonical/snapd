@@ -20,6 +20,7 @@
 package httputil_test
 
 import (
+	"bytes"
 	"crypto/rand"
 	"crypto/rsa"
 	"crypto/tls"
@@ -100,28 +101,10 @@ func (s *clientSuite) TestClientProxySetsUserAgent(c *check.C) {
 	c.Assert(called, check.Equals, true)
 }
 
-func (s *clientSuite) TestClientExtraSSLCertInvalidCertWarns(c *check.C) {
-	logbuf, restore := logger.MockLogger()
-	defer restore()
-
-	tmpdir := c.MkDir()
-	dirs.SetRootDir(tmpdir)
-	err := os.MkdirAll(dirs.SnapdExtraSslCertsDir, 0755)
-	c.Assert(err, check.IsNil)
-
-	err = ioutil.WriteFile(filepath.Join(dirs.SnapdExtraSslCertsDir, "garbage.pem"), []byte("garbage"), 0644)
-	c.Assert(err, check.IsNil)
-
-	cli := httputil.NewHTTPClient(nil)
-	c.Assert(cli, check.NotNil)
-	c.Assert(logbuf.String(), check.Matches, "(?m).* cannot add local ssl certificates: cannot append extra ssl certificate: .*/var/lib/snapd/ssl/snapd-only/garbage.pem")
-}
+var privKey, _ = rsa.GenerateKey(rand.Reader, 768)
 
 // see crypto/tls/generate_cert.go
 func generateTestCert(c *check.C, certpath, keypath string) {
-	priv, err := rsa.GenerateKey(rand.Reader, 768)
-	c.Assert(err, check.IsNil)
-
 	template := x509.Certificate{
 		SerialNumber: big.NewInt(123456789),
 		Subject: pkix.Name{
@@ -134,7 +117,7 @@ func generateTestCert(c *check.C, certpath, keypath string) {
 		IsCA:        true,
 		KeyUsage:    x509.KeyUsageKeyEncipherment | x509.KeyUsageDigitalSignature | x509.KeyUsageCertSign,
 	}
-	derBytes, err := x509.CreateCertificate(rand.Reader, &template, &template, &priv.PublicKey, priv)
+	derBytes, err := x509.CreateCertificate(rand.Reader, &template, &template, &privKey.PublicKey, privKey)
 	c.Assert(err, check.IsNil)
 
 	certOut, err := os.Create(certpath)
@@ -147,7 +130,7 @@ func generateTestCert(c *check.C, certpath, keypath string) {
 	if keypath != "" {
 		keyOut, err := os.Create(keypath)
 		c.Assert(err, check.IsNil)
-		privBytes, err := x509.MarshalPKCS8PrivateKey(priv)
+		privBytes, err := x509.MarshalPKCS8PrivateKey(privKey)
 		c.Assert(err, check.IsNil)
 		err = pem.Encode(keyOut, &pem.Block{Type: "PRIVATE KEY", Bytes: privBytes})
 		c.Assert(err, check.IsNil)
@@ -156,63 +139,77 @@ func generateTestCert(c *check.C, certpath, keypath string) {
 	}
 }
 
-func (s *clientSuite) TestClientExtraSSLCertLoaded(c *check.C) {
-	logbuf, restore := logger.MockLogger()
-	defer restore()
+type tlsSuite struct {
+	testutil.BaseTest
 
-	tmpdir := c.MkDir()
-	dirs.SetRootDir(tmpdir)
+	tmpdir            string
+	certpath, keypath string
+	logbuf            *bytes.Buffer
+
+	srv *httptest.Server
+}
+
+var _ = check.Suite(&tlsSuite{})
+
+func (s *tlsSuite) SetUpTest(c *check.C) {
+	s.BaseTest.SetUpTest(c)
+
+	s.tmpdir = c.MkDir()
+	dirs.SetRootDir(s.tmpdir)
 	err := os.MkdirAll(dirs.SnapdExtraSslCertsDir, 0755)
 	c.Assert(err, check.IsNil)
 
-	certpath := filepath.Join(dirs.SnapdExtraSslCertsDir, "good.pem")
-	generateTestCert(c, certpath, "")
+	s.certpath = filepath.Join(dirs.SnapdExtraSslCertsDir, "good.pem")
+	s.keypath = filepath.Join(c.MkDir(), "key.pem")
+	generateTestCert(c, s.certpath, s.keypath)
+
+	// create a server that uses our certs
+	s.srv = httptest.NewUnstartedServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		io.WriteString(w, `all good`)
+	}))
+	cert, err := tls.LoadX509KeyPair(s.certpath, s.keypath)
+	c.Assert(err, check.IsNil)
+	s.srv.TLS = &tls.Config{Certificates: []tls.Certificate{cert}}
+	s.srv.StartTLS()
+	s.AddCleanup(s.srv.Close)
+
+	logbuf, restore := logger.MockLogger()
+	s.logbuf = logbuf
+	s.AddCleanup(restore)
+}
+
+func (s *tlsSuite) TestClientNoExtraSSLRefuses(c *check.C) {
+	// clear rootdir, no extra certs now
+	dirs.SetRootDir(c.MkDir())
 
 	// create a client, it should pick up our test cert
 	cli := httputil.NewHTTPClient(nil)
 	c.Assert(cli, check.NotNil)
-	c.Assert(logbuf.String(), check.Equals, "")
+	c.Assert(s.logbuf.String(), check.Equals, "")
 
-	// check that our cert got added to the transport cert pool
-	systemCerts, err := x509.SystemCertPool()
-	c.Assert(err, check.IsNil)
-	// peel the onion
-	lg := cli.Transport.(*httputil.LoggedTransport)
-	tr := lg.Transport.(*http.Transport)
-	transportCerts := tr.TLSClientConfig.RootCAs.Subjects()
-	c.Assert(len(transportCerts), check.Equals, len(systemCerts.Subjects())+1)
-	// XXX: should we properly decode the cert?
-	c.Assert(string(transportCerts[len(transportCerts)-1]), testutil.Contains, "Snapd testers")
+	_, err := cli.Get(s.srv.URL)
+	c.Assert(err, check.ErrorMatches, ".* certificate signed by unknown authority")
 }
 
-func (s *clientSuite) TestClientExtraSSLCertIntegration(c *check.C) {
-	logbuf, restore := logger.MockLogger()
-	defer restore()
-
-	tmpdir := c.MkDir()
-	dirs.SetRootDir(tmpdir)
-	err := os.MkdirAll(dirs.SnapdExtraSslCertsDir, 0755)
+func (s *tlsSuite) TestClientExtraSSLCertInvalidCertWarnsAndRefuses(c *check.C) {
+	err := ioutil.WriteFile(filepath.Join(dirs.SnapdExtraSslCertsDir, "garbage.pem"), []byte("garbage"), 0644)
 	c.Assert(err, check.IsNil)
 
-	certpath := filepath.Join(dirs.SnapdExtraSslCertsDir, "good.pem")
-	keypath := filepath.Join(c.MkDir(), "key.pem")
-	generateTestCert(c, certpath, keypath)
+	cli := httputil.NewHTTPClient(nil)
+	c.Assert(cli, check.NotNil)
 
-	// create a server that uses our certs
-	srv := httptest.NewUnstartedServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		io.WriteString(w, `all good`)
-	}))
-	cert, err := tls.LoadX509KeyPair(certpath, keypath)
-	c.Assert(err, check.IsNil)
-	srv.TLS = &tls.Config{Certificates: []tls.Certificate{cert}}
-	srv.StartTLS()
-	defer srv.Close()
+	_, err = cli.Get(s.srv.URL)
+	c.Assert(err, check.ErrorMatches, ".* certificate signed by unknown authority")
 
+	c.Assert(s.logbuf.String(), check.Matches, "(?m).* cannot add local ssl certificates: cannot append extra ssl certificate: .*/var/lib/snapd/ssl/snapd-only/garbage.pem")
+}
+
+func (s *tlsSuite) TestClientExtraSSLCertIntegration(c *check.C) {
 	// create a client that will load our cert
 	cli := httputil.NewHTTPClient(nil)
 	c.Assert(cli, check.NotNil)
-	c.Assert(logbuf.String(), check.Equals, "")
-	res, err := cli.Get(srv.URL)
+	c.Assert(s.logbuf.String(), check.Equals, "")
+	res, err := cli.Get(s.srv.URL)
 	c.Assert(err, check.IsNil)
 	c.Assert(res.StatusCode, check.Equals, 200)
 }

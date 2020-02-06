@@ -24,6 +24,7 @@ import (
 	"crypto/x509"
 	"fmt"
 	"io/ioutil"
+	"net"
 	"net/http"
 	"net/url"
 	"path/filepath"
@@ -69,6 +70,26 @@ func addLocalSslCertificates(conf *tls.Config) (allCAs *x509.CertPool, err error
 	return allCAs, nil
 }
 
+type dialTLS struct {
+	conf *tls.Config
+}
+
+func (d *dialTLS) dialTLS(network, addr string) (net.Conn, error) {
+	if d.conf == nil {
+		// c.f. go source: crypto/tls/common.go
+		var emptyConfig tls.Config
+		d.conf = &emptyConfig
+	}
+	certs, err := addLocalSslCertificates(d.conf)
+	if err != nil {
+		logger.Noticef("cannot add local ssl certificates: %v", err)
+	}
+	if certs != nil {
+		d.conf.RootCAs = certs
+	}
+	return tls.Dial(network, addr, d.conf)
+}
+
 // NewHTTPCLient returns a new http.Client with a LoggedTransport, a
 // Timeout and preservation of range requests across redirects
 func NewHTTPClient(opts *ClientOptions) *http.Client {
@@ -77,25 +98,11 @@ func NewHTTPClient(opts *ClientOptions) *http.Client {
 	}
 
 	transport := newDefaultTransport()
-	transport.TLSClientConfig = opts.TLSConfig
+	transport.DialTLS = (&dialTLS{opts.TLSConfig}).dialTLS
 	if opts.Proxy != nil {
 		transport.Proxy = opts.Proxy
 	}
 	transport.ProxyConnectHeader = http.Header{"User-Agent": []string{UserAgent()}}
-
-	// add extra certs
-	certs, err := addLocalSslCertificates(transport.TLSClientConfig)
-	if err != nil {
-		logger.Noticef("cannot add local ssl certificates: %v", err)
-	}
-	if certs != nil {
-		if transport.TLSClientConfig == nil {
-			// c.f. go source: crypto/tls/common.go
-			var emptyConfig tls.Config
-			transport.TLSClientConfig = &emptyConfig
-		}
-		transport.TLSClientConfig.RootCAs = certs
-	}
 
 	return &http.Client{
 		Transport: &LoggedTransport{
