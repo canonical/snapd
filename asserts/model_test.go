@@ -361,7 +361,9 @@ func (mods *modelSuite) TestDecodeSystemUserAuthorityIsOptional(c *C) {
 	a, err = asserts.Decode([]byte(encoded))
 	c.Assert(err, IsNil)
 	model = a.(*asserts.Model)
-	c.Check(model.SystemUserAuthority(), DeepEquals, []string{"foo", "bar"})
+	// the brand is always added implicitly, it can always sign
+	// a new revision of the model anyway
+	c.Check(model.SystemUserAuthority(), DeepEquals, []string{"brand-id1", "foo", "bar"})
 }
 
 func (mods *modelSuite) TestDecodeKernelTrack(c *C) {

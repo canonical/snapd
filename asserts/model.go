@@ -477,7 +477,9 @@ func (mod *Model) AllSnaps() []*ModelSnap {
 	return mod.allSnaps
 }
 
-// SystemUserAuthority returns the authority ids that are accepted as signers of system-user assertions for this model. Empty list means any.
+// SystemUserAuthority returns the authority ids that are accepted as
+// signers of system-user assertions for this model. Empty list means
+// any, otherwise it always includes the brand of the model.
 func (mod *Model) SystemUserAuthority() []string {
 	return mod.sysUserAuthority
 }
@@ -523,10 +525,11 @@ func checkAuthorityMatchesBrand(a Assertion) error {
 }
 
 func checkOptionalSystemUserAuthority(headers map[string]interface{}, brandID string) ([]string, error) {
+	ids := []string{brandID}
 	const name = "system-user-authority"
 	v, ok := headers[name]
 	if !ok {
-		return []string{brandID}, nil
+		return ids, nil
 	}
 	switch x := v.(type) {
 	case string:
@@ -536,6 +539,9 @@ func checkOptionalSystemUserAuthority(headers map[string]interface{}, brandID st
 	case []interface{}:
 		lst, err := checkStringListMatches(headers, name, validAccountID)
 		if err == nil {
+			if !strutil.ListContains(lst, brandID) {
+				lst = append(ids, lst...)
+			}
 			return lst, nil
 		}
 	}
