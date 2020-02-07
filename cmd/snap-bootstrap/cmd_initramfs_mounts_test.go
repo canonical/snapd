@@ -591,20 +591,6 @@ func (s *initramfsMountsSuite) TestInitramfsMountsRunModeKernelSnapUpgradeHappy(
 	})
 	defer restore()
 
-	// write modeenv
-	modeEnv := &boot.Modeenv{
-		Base: "core20_123.snap",
-	}
-	err := modeEnv.Write(filepath.Join(s.runMnt, "ubuntu-data", "system-data"))
-	c.Assert(err, IsNil)
-
-	tryBaseSnap := filepath.Join(s.runMnt, "ubuntu-data", "system-data", dirs.SnapBlobDir, "core20_124.snap")
-	err = os.MkdirAll(filepath.Dir(tryBaseSnap), 0755)
-	c.Assert(err, IsNil)
-	err = ioutil.WriteFile(tryBaseSnap, []byte{0}, 0644)
-	c.Assert(err, IsNil)
-	defer os.Remove(tryBaseSnap)
-
 	// mock a bootloader
 	bloader := bootloadertest.Mock("mock", c.MkDir())
 	bootloader.Force(bloader)
