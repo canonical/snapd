@@ -877,6 +877,8 @@ func (s *RepositorySuite) TestResolveConnectEmptyPlugName(c *C) {
 func (s *RepositorySuite) TestResolveNoSuchPlug(c *C) {
 	conn, err := s.testRepo.ResolveConnect("consumer", "plug", "consumer", "slot")
 	c.Check(err, ErrorMatches, `snap "consumer" has no plug named "plug"`)
+	e, _ := err.(*NoPlugOrSlotError)
+	c.Check(e, NotNil)
 	c.Check(conn, IsNil)
 }
 
@@ -901,6 +903,8 @@ func (s *RepositorySuite) TestResolveNoSuchSlot(c *C) {
 	c.Assert(s.testRepo.AddPlug(s.plug), IsNil)
 	conn, err := s.testRepo.ResolveConnect("consumer", "plug", "producer", "slot")
 	c.Check(err, ErrorMatches, `snap "producer" has no slot named "slot"`)
+	e, _ := err.(*NoPlugOrSlotError)
+	c.Check(e, NotNil)
 	c.Check(conn, IsNil)
 }
 
@@ -930,6 +934,8 @@ func (s *RepositorySuite) TestConnectFailsWhenPlugDoesNotExist(c *C) {
 	connRef := NewConnRef(s.plug, s.slot)
 	_, err = s.testRepo.Connect(connRef, nil, nil, nil, nil, nil)
 	c.Assert(err, ErrorMatches, `cannot connect plug "plug" from snap "consumer": no such plug`)
+	e, _ := err.(*NoPlugOrSlotError)
+	c.Check(e, NotNil)
 }
 
 func (s *RepositorySuite) TestConnectFailsWhenSlotDoesNotExist(c *C) {
@@ -939,6 +945,8 @@ func (s *RepositorySuite) TestConnectFailsWhenSlotDoesNotExist(c *C) {
 	connRef := NewConnRef(s.plug, s.slot)
 	_, err = s.testRepo.Connect(connRef, nil, nil, nil, nil, nil)
 	c.Assert(err, ErrorMatches, `cannot connect slot "slot" from snap "producer": no such slot`)
+	e, _ := err.(*NoPlugOrSlotError)
+	c.Check(e, NotNil)
 }
 
 func (s *RepositorySuite) TestConnectSucceedsWhenIdenticalConnectExists(c *C) {
@@ -1014,8 +1022,8 @@ func (s *RepositorySuite) TestDisconnectFailsWithoutPlug(c *C) {
 	c.Assert(s.testRepo.AddSlot(s.slot), IsNil)
 	err := s.testRepo.Disconnect(s.plug.Snap.InstanceName(), s.plug.Name, s.slot.Snap.InstanceName(), s.slot.Name)
 	c.Assert(err, ErrorMatches, `snap "consumer" has no plug named "plug"`)
-	_, ok := err.(*NoPlugOrSlotError)
-	c.Check(ok, Equals, true)
+	e, _ := err.(*NoPlugOrSlotError)
+	c.Check(e, NotNil)
 }
 
 // Disconnect fails if slot doesn't exist
@@ -1023,8 +1031,8 @@ func (s *RepositorySuite) TestDisconnectFailsWithutSlot(c *C) {
 	c.Assert(s.testRepo.AddPlug(s.plug), IsNil)
 	err := s.testRepo.Disconnect(s.plug.Snap.InstanceName(), s.plug.Name, s.slot.Snap.InstanceName(), s.slot.Name)
 	c.Assert(err, ErrorMatches, `snap "producer" has no slot named "slot"`)
-	_, ok := err.(*NoPlugOrSlotError)
-	c.Check(ok, Equals, true)
+	e, _ := err.(*NoPlugOrSlotError)
+	c.Check(e, NotNil)
 }
 
 // Disconnect fails if there's no connection to disconnect
@@ -1033,8 +1041,8 @@ func (s *RepositorySuite) TestDisconnectFailsWhenNotConnected(c *C) {
 	c.Assert(s.testRepo.AddSlot(s.slot), IsNil)
 	err := s.testRepo.Disconnect(s.plug.Snap.InstanceName(), s.plug.Name, s.slot.Snap.InstanceName(), s.slot.Name)
 	c.Assert(err, ErrorMatches, `cannot disconnect consumer:plug from producer:slot, it is not connected`)
-	_, ok := err.(*NotConnectedError)
-	c.Check(ok, Equals, true)
+	e, _ := err.(*NotConnectedError)
+	c.Check(e, NotNil)
 }
 
 // Disconnect works when plug and slot exist and are connected
@@ -1072,7 +1080,11 @@ func (s *RepositorySuite) TestConnectedFailsWithoutPlugOrSlot(c *C) {
 	_, err1 := s.testRepo.Connected(s.plug.Snap.InstanceName(), s.plug.Name)
 	_, err2 := s.testRepo.Connected(s.slot.Snap.InstanceName(), s.slot.Name)
 	c.Check(err1, ErrorMatches, `snap "consumer" has no plug or slot named "plug"`)
+	e, _ := err1.(*NoPlugOrSlotError)
+	c.Check(e, NotNil)
 	c.Check(err2, ErrorMatches, `snap "producer" has no plug or slot named "slot"`)
+	e, _ = err1.(*NoPlugOrSlotError)
+	c.Check(e, NotNil)
 }
 
 // Connected finds connections when asked from plug or from slot side
@@ -2086,9 +2098,13 @@ func (s *RepositorySuite) TestConnection(c *C) {
 
 	conn, err = s.testRepo.Connection(&ConnRef{PlugRef: PlugRef{Snap: "a", Name: "b"}, SlotRef: SlotRef{Snap: "producer", Name: "slot"}})
 	c.Assert(err, ErrorMatches, `snap "a" has no plug named "b"`)
+	e, _ := err.(*NoPlugOrSlotError)
+	c.Check(e, NotNil)
 
 	conn, err = s.testRepo.Connection(&ConnRef{PlugRef: PlugRef{Snap: "consumer", Name: "plug"}, SlotRef: SlotRef{Snap: "a", Name: "b"}})
 	c.Assert(err, ErrorMatches, `snap "a" has no slot named "b"`)
+	e, _ = err.(*NoPlugOrSlotError)
+	c.Check(e, NotNil)
 }
 
 func (s *RepositorySuite) TestConnectWithStaticAttrs(c *C) {

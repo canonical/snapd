@@ -779,6 +779,13 @@ func (ts *timeutilSuite) TestScheduleNext(c *C) {
 			last:     "2019-09-29 9:00",
 			// next one on 2019-09-30 9:00
 			next: "24h-24h",
+		}, {
+			// most trivial case
+			schedule: "21:00-22:00",
+			now:      "2019-09-29 8:00",
+			last:     "2019-09-28 21:05",
+			// next one on 2019-09-29 at 21:00
+			next: "13h-13h",
 		},
 	} {
 		c.Logf("trying %+v", t)

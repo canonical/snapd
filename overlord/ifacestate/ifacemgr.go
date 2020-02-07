@@ -358,7 +358,7 @@ func (m *InterfaceManager) ResolveDisconnect(plugSnapName, plugName, slotSnapNam
 		}
 	}
 
-	coreSnapName, _ := m.repo.GuessSystemSnapName()
+	coreSnapName := SystemSnapName()
 	if coreSnapName == "" {
 		// This is not strictly speaking true BUT when there's no core snap the
 		// produced error messages are consistent to when the is a core snap
@@ -393,7 +393,7 @@ func (m *InterfaceManager) ResolveDisconnect(plugSnapName, plugName, slotSnapNam
 				plugSnapName, plugName, slotSnapName, slotName)
 		}
 		return []*interfaces.ConnRef{
-			&interfaces.ConnRef{
+			{
 				PlugRef: interfaces.PlugRef{Snap: plugSnapName, Name: plugName},
 				SlotRef: interfaces.SlotRef{Snap: slotSnapName, Name: slotName},
 			}}, nil
