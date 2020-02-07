@@ -506,12 +506,6 @@ func (s *preseedModeSuite) TestDoMarkPreseeded(c *C) {
 	c.Check(t.Get("preseeded", &preseeded), IsNil)
 	c.Check(preseeded, Equals, true)
 
-	// re-trying mark-preseeded task has no effect
-	st.Unlock()
-	s.se.Ensure()
-	s.se.Wait()
-	st.Lock()
-
 	// core snap was "manually" unmounted
 	c.Check(s.cmdUmount.Calls(), DeepEquals, [][]string{
 		{"umount", "-d", "-l", filepath.Join(dirs.GlobalRootDir, "/snap/test-snap/3")},
@@ -519,6 +513,17 @@ func (s *preseedModeSuite) TestDoMarkPreseeded(c *C) {
 
 	// and snapd stop was requested
 	c.Check(s.restartRequests, DeepEquals, []state.RestartType{state.StopDaemon})
+
+	s.cmdUmount.ForgetCalls()
+
+	// re-trying mark-preseeded task has no effect
+	st.Unlock()
+	s.se.Ensure()
+	s.se.Wait()
+	st.Lock()
+
+	c.Check(s.cmdUmount.Calls(), HasLen, 0)
+	c.Check(t.Status(), Equals, state.DoingStatus)
 }
 
 type preseedDoneSuite struct {
