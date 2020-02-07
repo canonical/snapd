@@ -107,9 +107,9 @@ func populateStateFromSeedImpl(st *state.State, opts *populateStateFromSeedOptio
 		return nil, fmt.Errorf("cannot populate state: already seeded")
 	}
 
-	var preseedDone *state.Task
+	var preseedDoneTask *state.Task
 	if preseed {
-		preseedDone = st.NewTask("mark-preseeded", i18n.G("Mark system pre-seeded"))
+		preseedDoneTask = st.NewTask("mark-preseeded", i18n.G("Mark system pre-seeded"))
 	}
 	markSeeded := st.NewTask("mark-seeded", i18n.G("Mark system seeded"))
 
@@ -157,7 +157,6 @@ func populateStateFromSeedImpl(st *state.State, opts *populateStateFromSeedOptio
 	var chainTs func(all []*state.TaskSet, ts *state.TaskSet) []*state.TaskSet
 
 	chainTsPreseeding := func(all []*state.TaskSet, ts *state.TaskSet) []*state.TaskSet {
-		n := len(all)
 		// mark-preseeded task needs to be inserted between preliminary setup and hook tasks
 		beginTask, beforeHooksTask, hooksTask, err := criticalTaskEdges(ts)
 		if err != nil {
@@ -167,13 +166,14 @@ func populateStateFromSeedImpl(st *state.State, opts *populateStateFromSeedOptio
 		// we either have all edges or none
 		if beginTask != nil {
 			// hooks must wait for mark-preseeded
-			hooksTask.WaitFor(preseedDone)
+			hooksTask.WaitFor(preseedDoneTask)
 			if lastBeforeHooksTask != nil {
 				beginTask.WaitFor(lastBeforeHooksTask)
 			}
-			preseedDone.WaitFor(beforeHooksTask)
+			preseedDoneTask.WaitFor(beforeHooksTask)
 			lastBeforeHooksTask = beforeHooksTask
 		} else {
+			n := len(all)
 			// no edges: it is a configure snap taskset for core/gadget/kernel
 			if n != 0 {
 				ts.WaitAll(all[n-1])
@@ -233,7 +233,7 @@ func populateStateFromSeedImpl(st *state.State, opts *populateStateFromSeedOptio
 	// installing them so that defaults are availabble from gadget
 	if len(configTss) > 0 {
 		if preseed {
-			configTss[0].WaitFor(preseedDone)
+			configTss[0].WaitFor(preseedDoneTask)
 		}
 		configTss[0].WaitAll(tsAll[len(tsAll)-1])
 		tsAll = append(tsAll, configTss...)
@@ -271,8 +271,8 @@ func populateStateFromSeedImpl(st *state.State, opts *populateStateFromSeedOptio
 	endTs := state.NewTaskSet()
 
 	if preseed {
-		endTs.AddTask(preseedDone)
-		markSeeded.WaitFor(preseedDone)
+		endTs.AddTask(preseedDoneTask)
+		markSeeded.WaitFor(preseedDoneTask)
 	}
 
 	markSeeded.WaitAll(ts)

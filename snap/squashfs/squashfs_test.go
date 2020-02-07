@@ -98,7 +98,7 @@ func makeSnapInDir(c *C, dir, manifest, data string) *squashfs.Snap {
 	tmp := makeSnapContents(c, manifest, data)
 	// build it
 	snap := squashfs.New(filepath.Join(dir, "foo.snap"))
-	err := snap.Build(tmp, snapType)
+	err := snap.Build(tmp, &squashfs.BuildOpts{SnapType: snapType})
 	c.Assert(err, IsNil)
 
 	return snap
@@ -381,7 +381,7 @@ func (s *SquashfsTestSuite) TestBuild(c *C) {
 	c.Assert(err, IsNil)
 
 	snap := squashfs.New(filepath.Join(c.MkDir(), "foo.snap"))
-	err = snap.Build(buildDir, "app")
+	err = snap.Build(buildDir, &squashfs.BuildOpts{SnapType: "app"})
 	c.Assert(err, IsNil)
 
 	// unsquashfs writes a funny header like:
@@ -422,7 +422,10 @@ data.bin
 	c.Assert(err, IsNil)
 
 	snap := squashfs.New(filepath.Join(c.MkDir(), "foo.snap"))
-	err = snap.Build(buildDir, "app", excludesFilename)
+	err = snap.Build(buildDir, &squashfs.BuildOpts{
+		SnapType:     "app",
+		ExcludeFiles: []string{excludesFilename},
+	})
 	c.Assert(err, IsNil)
 
 	outputWithHeader, err := exec.Command("unsquashfs", "-n", "-l", snap.Path()).Output()
@@ -447,7 +450,10 @@ func (s *SquashfsTestSuite) TestBuildSupportsMultipleExcludesWithOnlyOneWildcard
 
 	snapPath := filepath.Join(c.MkDir(), "foo.snap")
 	snap := squashfs.New(snapPath)
-	err := snap.Build(c.MkDir(), "core", "exclude1", "exclude2", "exclude3")
+	err := snap.Build(c.MkDir(), &squashfs.BuildOpts{
+		SnapType:     "core",
+		ExcludeFiles: []string{"exclude1", "exclude2", "exclude3"},
+	})
 	c.Assert(err, IsNil)
 	calls := mksq.Calls()
 	c.Assert(calls, HasLen, 1)
@@ -472,7 +478,7 @@ func (s *SquashfsTestSuite) TestBuildUsesMksquashfsFromCoreIfAvailable(c *C) {
 	buildDir := c.MkDir()
 
 	snap := squashfs.New(filepath.Join(c.MkDir(), "foo.snap"))
-	err := snap.Build(buildDir, "app")
+	err := snap.Build(buildDir, nil)
 	c.Assert(err, IsNil)
 	c.Check(usedFromCore, Equals, true)
 	c.Check(mksq.Calls(), HasLen, 0)
@@ -491,7 +497,7 @@ func (s *SquashfsTestSuite) TestBuildUsesMksquashfsFromClassicIfCoreUnavailable(
 	buildDir := c.MkDir()
 
 	snap := squashfs.New(filepath.Join(c.MkDir(), "foo.snap"))
-	err := snap.Build(buildDir, "app")
+	err := snap.Build(buildDir, nil)
 	c.Assert(err, IsNil)
 	c.Check(triedFromCore, Equals, true)
 	c.Check(mksq.Calls(), HasLen, 1)
@@ -510,7 +516,7 @@ func (s *SquashfsTestSuite) TestBuildFailsIfNoMksquashfs(c *C) {
 	buildDir := c.MkDir()
 
 	snap := squashfs.New(filepath.Join(c.MkDir(), "foo.snap"))
-	err := snap.Build(buildDir, "app")
+	err := snap.Build(buildDir, nil)
 	c.Assert(err, ErrorMatches, "mksquashfs call failed:.*")
 	c.Check(triedFromCore, Equals, true)
 	c.Check(mksq.Calls(), HasLen, 1)
@@ -547,7 +553,7 @@ func (s *SquashfsTestSuite) TestBuildVariesArgsByType(c *C) {
 		mksq.ForgetCalls()
 		comm := Commentf("type: %s", t.snapType)
 
-		c.Check(snap.Build(buildDir, t.snapType), IsNil, comm)
+		c.Check(snap.Build(buildDir, &squashfs.BuildOpts{SnapType: t.snapType}), IsNil, comm)
 		c.Assert(mksq.Calls(), HasLen, 1, comm)
 		c.Assert(mksq.Calls()[0], HasLen, len(t.args)+1)
 		c.Check(mksq.Calls()[0][0], Equals, "mksquashfs", comm)
@@ -565,7 +571,7 @@ exit 1
 	data := "mock kernel snap"
 	dir := makeSnapContents(c, "", data)
 	snap := squashfs.New("foo.snap")
-	c.Check(snap.Build(dir, "kernel"), ErrorMatches, `mksquashfs call failed: Yeah, nah.`)
+	c.Check(snap.Build(dir, &squashfs.BuildOpts{SnapType: "kernel"}), ErrorMatches, `mksquashfs call failed: Yeah, nah.`)
 }
 
 func (s *SquashfsTestSuite) TestUnsquashfsStderrWriter(c *C) {
@@ -628,7 +634,7 @@ func (s *SquashfsTestSuite) TestBuildDate(c *C) {
 	// make a snap using this directory
 	filename := filepath.Join(c.MkDir(), "foo.snap")
 	snap := squashfs.New(filename)
-	c.Assert(snap.Build(d, "app"), IsNil)
+	c.Assert(snap.Build(d, nil), IsNil)
 	// and see it's BuildDate is _now_, not _then_.
 	c.Check(squashfs.BuildDate(filename), Equals, snap.BuildDate())
 	c.Check(math.Abs(now.Sub(snap.BuildDate()).Seconds()) <= 61, Equals, true, Commentf("Unexpected build date %s", snap.BuildDate()))
@@ -660,7 +666,7 @@ func (s *SquashfsTestSuite) TestBuildChecksReadDifferentFiles(c *C) {
 
 	filename := filepath.Join(c.MkDir(), "foo.snap")
 	snap := squashfs.New(filename)
-	err = snap.Build(d, "app")
+	err = snap.Build(d, nil)
 	c.Assert(err, ErrorMatches, `(?s)cannot access the following locations in the snap source directory:
 - ro-(file|dir) \(owner [0-9]+:[0-9]+ mode 000\)
 - ro-(file|dir) \(owner [0-9]+:[0-9]+ mode 000\)
@@ -685,7 +691,7 @@ func (s *SquashfsTestSuite) TestBuildChecksReadErrorLimit(c *C) {
 	}
 	filename := filepath.Join(c.MkDir(), "foo.snap")
 	snap := squashfs.New(filename)
-	err := snap.Build(d, "app")
+	err := snap.Build(d, nil)
 	c.Assert(err, ErrorMatches, `(?s)cannot access the following locations in the snap source directory:
 (- [0-9]+ \(owner [0-9]+:[0-9]+ mode 000.*\).){10}- too many errors, listing first 10 entries
 `)
@@ -694,6 +700,42 @@ func (s *SquashfsTestSuite) TestBuildChecksReadErrorLimit(c *C) {
 func (s *SquashfsTestSuite) TestBuildBadSource(c *C) {
 	filename := filepath.Join(c.MkDir(), "foo.snap")
 	snap := squashfs.New(filename)
-	err := snap.Build("does-not-exist", "app")
+	err := snap.Build("does-not-exist", nil)
 	c.Assert(err, ErrorMatches, ".*does-not-exist/: no such file or directory")
+}
+
+func (s *SquashfsTestSuite) TestBuildWithCompressionHappy(c *C) {
+	buildDir := c.MkDir()
+	err := os.MkdirAll(filepath.Join(buildDir, "/random/dir"), 0755)
+	c.Assert(err, IsNil)
+
+	defaultComp := "xz"
+	for _, comp := range []string{"", "xz", "gzip", "lzo"} {
+		snap := squashfs.New(filepath.Join(c.MkDir(), "foo.snap"))
+		err = snap.Build(buildDir, &squashfs.BuildOpts{
+			Compression: comp,
+		})
+		c.Assert(err, IsNil)
+
+		// check compression
+		outputWithHeader, err := exec.Command("unsquashfs", "-n", "-s", snap.Path()).CombinedOutput()
+		c.Assert(err, IsNil)
+		// ensure default is xz
+		if comp == "" {
+			comp = defaultComp
+		}
+		c.Assert(string(outputWithHeader), Matches, fmt.Sprintf(`(?ms).*Compression %s$`, comp))
+	}
+}
+
+func (s *SquashfsTestSuite) TestBuildWithCompressionUnhappy(c *C) {
+	buildDir := c.MkDir()
+	err := os.MkdirAll(filepath.Join(buildDir, "/random/dir"), 0755)
+	c.Assert(err, IsNil)
+
+	snap := squashfs.New(filepath.Join(c.MkDir(), "foo.snap"))
+	err = snap.Build(buildDir, &squashfs.BuildOpts{
+		Compression: "silly",
+	})
+	c.Assert(err, ErrorMatches, "(?m)^mksquashfs call failed: ")
 }

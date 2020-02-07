@@ -29,6 +29,7 @@ import (
 	"github.com/snapcore/snapd/bootloader/bootloadertest"
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/overlord/devicestate"
+	"github.com/snapcore/snapd/overlord/hookstate"
 	"github.com/snapcore/snapd/overlord/snapstate"
 	"github.com/snapcore/snapd/overlord/state"
 	"github.com/snapcore/snapd/release"
@@ -44,7 +45,7 @@ type firstbootPreseed16Suite struct {
 var _ = Suite(&firstbootPreseed16Suite{})
 
 func checkPreseedTasks(c *C, tsAll []*state.TaskSet) {
-	// the tasks of the last taskset must be mark-preseeded, mark-seeded
+	// the tasks of the last taskset must be mark-preseeded, mark-seeded, in that order
 	lastTasks := tsAll[len(tsAll)-1].Tasks()
 	c.Check(lastTasks, HasLen, 2)
 	preseedTask := lastTasks[0]
@@ -62,7 +63,7 @@ func checkPreseedTasks(c *C, tsAll []*state.TaskSet) {
 	c.Check(waitsForPreseeded, Equals, true)
 }
 
-func checkPresseedTaskStates(c *C, st *state.State) {
+func checkPreseedTaskStates(c *C, st *state.State) {
 	doneTasks := map[string]bool{
 		"prerequisites":        true,
 		"prepare-snap":         true,
@@ -151,7 +152,21 @@ func checkPreseedOrder(c *C, tsAll []*state.TaskSet, snaps ...string) {
 	for i, ts := range tsAll {
 		task0 := ts.Tasks()[0]
 		waitTasks := task0.WaitTasks()
+		// all tasksets start with prerequisites task, except for
+		// tasksets with just the configure hook of special snaps,
+		// or last taskset.
 		if task0.Kind() != "prerequisites" {
+			if i == len(tsAll)-1 {
+				c.Check(task0.Kind(), Equals, "mark-preseeded")
+				c.Check(ts.Tasks()[1].Kind(), Equals, "mark-seeded")
+				c.Check(ts.Tasks(), HasLen, 2)
+			} else {
+				c.Check(task0.Kind(), Equals, "run-hook")
+				var hsup hookstate.HookSetup
+				c.Assert(task0.Get("hook-setup", &hsup), IsNil)
+				c.Check(hsup.Hook, Equals, "configure")
+				c.Check(ts.Tasks(), HasLen, 1)
+			}
 			continue
 		}
 
@@ -220,5 +235,5 @@ func (s *firstbootPreseed16Suite) TestPreseedHappy(c *C) {
 	c.Assert(err, IsNil)
 	c.Assert(chg.Err(), IsNil)
 
-	checkPresseedTaskStates(c, st)
+	checkPreseedTaskStates(c, st)
 }

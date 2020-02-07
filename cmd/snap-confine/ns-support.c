@@ -453,16 +453,15 @@ static int sc_inspect_and_maybe_discard_stale_ns(int mnt_fd,
 			value = SC_DISCARD_SHOULD;
 			value_str = "should";
 
-			// The namespace is stale so also check if we must discard it due to the
-			// base snap changing. If the base snap changed, we must discard since even
-			// though currently running processes from this snap will continue to see
-			// the old base, we want new processes to use the new base. See LP:
-			// #1819875 for details.
-			if (is_base_transition(inv)) {
-				// The base snap has changed. We must discard ...
-				value = SC_DISCARD_MUST;
-				value_str = "must";
-			}
+		}
+		// If the base snap changed, we must discard the mount namespace and
+		// start over to allow the newly started process to see the requested
+		// base snap. Due to the TODO above always perform explicit transition
+		// check to protect against LP:#1819875 and LP:#1861901
+		if (is_base_transition(inv)) {
+			// The base snap has changed. We must discard ...
+			value = SC_DISCARD_MUST;
+			value_str = "must";
 		}
 		// Send this back to the parent: 3 - force discard 2 - prefer discard, 1 - keep.
 		// Note that we cannot just use 0 and 1 because of the semantics of eventfd(2).

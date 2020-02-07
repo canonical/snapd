@@ -77,7 +77,7 @@ backends:
                 image: ubuntu-16.04-64
                 workers: 6
             - ubuntu-core-20-64:
-                image: ubuntu-1804-64-uefi-enabled
+                image: ubuntu-2004-64-virt-uefi-enabled
                 workers: 6
                 storage: 20G
 
