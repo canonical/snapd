@@ -46,6 +46,7 @@ func (mods *modelSuite) SetUpSuite(c *C) {
 const (
 	reqSnaps     = "required-snaps:\n  - foo\n  - bar\n"
 	sysUserAuths = "system-user-authority: *\n"
+	serialAuths  = "serial-authority:\n  - generic\n"
 )
 
 const (
@@ -60,6 +61,7 @@ const (
 		"base: core18\n" +
 		"kernel: baz-linux\n" +
 		"store: brand-store\n" +
+		serialAuths +
 		sysUserAuths +
 		reqSnaps +
 		"TSLINE" +
@@ -201,6 +203,7 @@ func (mods *modelSuite) TestDecodeOK(c *C) {
 	// essential snaps excluded
 	c.Check(model.RequiredNoEssentialSnaps(), DeepEquals, reqSnaps[3:])
 	c.Check(model.SystemUserAuthority(), HasLen, 0)
+	c.Check(model.SerialAuthority(), DeepEquals, []string{"brand-id1", "generic"})
 }
 
 func (mods *modelSuite) TestDecodeStoreIsOptional(c *C) {
@@ -348,6 +351,23 @@ func (mods modelSuite) TestDecodeValidSnapNames(c *C) {
 	}
 }
 
+func (mods *modelSuite) TestDecodeSerialAuthorityIsOptional(c *C) {
+	withTimestamp := strings.Replace(modelExample, "TSLINE", mods.tsLine, 1)
+	encoded := strings.Replace(withTimestamp, serialAuths, "", 1)
+	a, err := asserts.Decode([]byte(encoded))
+	c.Assert(err, IsNil)
+	model := a.(*asserts.Model)
+	// the default is just to accept the brand itself
+	c.Check(model.SerialAuthority(), DeepEquals, []string{"brand-id1"})
+
+	encoded = strings.Replace(withTimestamp, serialAuths, "serial-authority:\n  - foo\n  - bar\n", 1)
+	a, err = asserts.Decode([]byte(encoded))
+	c.Assert(err, IsNil)
+	model = a.(*asserts.Model)
+	// the brand is always added implicitly
+	c.Check(model.SerialAuthority(), DeepEquals, []string{"brand-id1", "foo", "bar"})
+}
+
 func (mods *modelSuite) TestDecodeSystemUserAuthorityIsOptional(c *C) {
 	withTimestamp := strings.Replace(modelExample, "TSLINE", mods.tsLine, 1)
 	encoded := strings.Replace(withTimestamp, sysUserAuths, "", 1)
@@ -440,6 +460,8 @@ func (mods *modelSuite) TestDecodeInvalid(c *C) {
 		{mods.tsLine, "timestamp: 12:30\n", `"timestamp" header is not a RFC3339 date: .*`},
 		{reqSnaps, "required-snaps: foo\n", `"required-snaps" header must be a list of strings`},
 		{reqSnaps, "required-snaps:\n  -\n    - nested\n", `"required-snaps" header must be a list of strings`},
+		{serialAuths, "serial-authority:\n  a: 1\n", `"serial-authority" header must be a list of account ids`},
+		{serialAuths, "serial-authority:\n  - 5_6\n", `"serial-authority" header must be a list of account ids`},
 		{sysUserAuths, "system-user-authority:\n  a: 1\n", `"system-user-authority" header must be '\*' or a list of account ids`},
 		{sysUserAuths, "system-user-authority:\n  - 5_6\n", `"system-user-authority" header must be '\*' or a list of account ids`},
 		{reqSnaps, "grade: dangerous\n", `cannot specify a grade for model without the extended snaps header`},
@@ -664,6 +686,7 @@ func (mods *modelSuite) TestCore20DecodeOK(c *C) {
 	// essential snaps excluded
 	c.Check(model.RequiredNoEssentialSnaps(), DeepEquals, reqSnaps[3:])
 	c.Check(model.SystemUserAuthority(), HasLen, 0)
+	c.Check(model.SerialAuthority(), DeepEquals, []string{"brand-id1"})
 }
 
 func (mods *modelSuite) TestCore20ExplictBootBase(c *C) {

@@ -357,6 +357,7 @@ type Model struct {
 	requiredWithEssentialSnaps []naming.SnapRef
 	numEssentialSnaps          int
 
+	serialAuthority  []string
 	sysUserAuthority []string
 	timestamp        time.Time
 }
@@ -477,6 +478,13 @@ func (mod *Model) AllSnaps() []*ModelSnap {
 	return mod.allSnaps
 }
 
+// SerialAuthority returns the authority ids that are accepted as
+// signers for serial assertions for this model. It always includes the
+// brand of the model.
+func (mod *Model) SerialAuthority() []string {
+	return mod.serialAuthority
+}
+
 // SystemUserAuthority returns the authority ids that are accepted as
 // signers of system-user assertions for this model. Empty list means
 // any, otherwise it always includes the brand of the model.
@@ -522,6 +530,23 @@ func checkAuthorityMatchesBrand(a Assertion) error {
 		return fmt.Errorf("authority-id and brand-id must match, %s assertions are expected to be signed by the brand: %q != %q", typeName, authorityID, brand)
 	}
 	return nil
+}
+
+func checkOptionalSerialAuthority(headers map[string]interface{}, brandID string) ([]string, error) {
+	ids := []string{brandID}
+	const name = "serial-authority"
+	_, ok := headers[name]
+	if !ok {
+		return ids, nil
+	}
+	lst, err := checkStringListMatches(headers, name, validAccountID)
+	if err == nil {
+		if !strutil.ListContains(lst, brandID) {
+			lst = append(ids, lst...)
+		}
+		return lst, nil
+	}
+	return nil, fmt.Errorf("%q header must be a list of account ids", name)
 }
 
 func checkOptionalSystemUserAuthority(headers map[string]interface{}, brandID string) ([]string, error) {
@@ -699,7 +724,14 @@ func assembleModel(assert assertionBase) (Assertion, error) {
 		}
 	}
 
-	sysUserAuthority, err := checkOptionalSystemUserAuthority(assert.headers, assert.HeaderString("brand-id"))
+	brandID := assert.HeaderString("brand-id")
+
+	serialAuthority, err := checkOptionalSerialAuthority(assert.headers, brandID)
+	if err != nil {
+		return nil, err
+	}
+
+	sysUserAuthority, err := checkOptionalSystemUserAuthority(assert.headers, brandID)
 	if err != nil {
 		return nil, err
 	}
@@ -729,6 +761,7 @@ func assembleModel(assert assertionBase) (Assertion, error) {
 		allSnaps:                   allSnaps,
 		requiredWithEssentialSnaps: requiredWithEssentialSnaps,
 		numEssentialSnaps:          numEssentialSnaps,
+		serialAuthority:            serialAuthority,
 		sysUserAuthority:           sysUserAuthority,
 		timestamp:                  timestamp,
 	}, nil
