@@ -69,7 +69,7 @@ func (x *cmdRemoveUser) Execute(args []string) error {
 	if len(removed) != 1 {
 		return fmt.Errorf("internal error: RemoveUser returned unexpected number of removed users: %v", removed)
 	}
-	fmt.Fprintf(Stdout, i18n.G("removed user %q\n"), removed[0])
+	fmt.Fprintf(Stdout, i18n.G("removed user %q\n"), removed[0].Username)
 
 	return nil
 }

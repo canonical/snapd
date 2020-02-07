@@ -64,6 +64,16 @@ type UserState struct {
 	StoreDischarges []string `json:"store-discharges,omitempty"`
 }
 
+// idOnly returns a *UserState with only the identification information
+// from u.
+func (u *UserState) idOnly() *UserState {
+	return &UserState{
+		ID:       u.ID,
+		Username: u.Username,
+		Email:    u.Email,
+	}
+}
+
 // HasStoreAuth returns true if the user has store authorization.
 func (u *UserState) HasStoreAuth() bool {
 	if u == nil {
@@ -168,41 +178,43 @@ func NewUser(st *state.State, username, email, macaroon string, discharges []str
 
 var ErrInvalidUser = errors.New("invalid user")
 
-// RemoveUser removes a user from the state given its ID
-func RemoveUser(st *state.State, userID int) error {
+// RemoveUser removes a user from the state given its ID.
+func RemoveUser(st *state.State, userID int) (removed *UserState, err error) {
 	return removeUser(st, func(u *UserState) bool { return u.ID == userID })
 }
 
-// RemoveUserByUsername removes a user from the state given its username
-func RemoveUserByUsername(st *state.State, username string) error {
+// RemoveUserByUsername removes a user from the state given its username. Returns a *UserState with the identification information for them.
+func RemoveUserByUsername(st *state.State, username string) (removed *UserState, err error) {
 	return removeUser(st, func(u *UserState) bool { return u.Username == username })
 }
 
 // removeUser removes the first user matching given predicate.
-func removeUser(st *state.State, p func(*UserState) bool) error {
+func removeUser(st *state.State, p func(*UserState) bool) (*UserState, error) {
 	var authStateData AuthState
 
 	err := st.Get("auth", &authStateData)
 	if err == state.ErrNoState {
-		return ErrInvalidUser
+		return nil, ErrInvalidUser
 	}
 	if err != nil {
-		return err
+		return nil, err
 	}
 
 	for i := range authStateData.Users {
-		if p(&authStateData.Users[i]) {
+		u := &authStateData.Users[i]
+		if p(u) {
+			removed := u.idOnly()
 			// delete without preserving order
 			n := len(authStateData.Users) - 1
 			authStateData.Users[i] = authStateData.Users[n]
 			authStateData.Users[n] = UserState{}
 			authStateData.Users = authStateData.Users[:n]
 			st.Set("auth", authStateData)
-			return nil
+			return removed, nil
 		}
 	}
 
-	return ErrInvalidUser
+	return nil, ErrInvalidUser
 }
 
 func Users(st *state.State) ([]*UserState, error) {

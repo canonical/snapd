@@ -46,7 +46,13 @@ func makeRemoveUserChecker(c *check.C, n *int, username string) func(w http.Resp
 			}
 			c.Check(gotBody, check.DeepEquals, wantBody)
 
-			fmt.Fprintln(w, `{"type": "sync", "result": null}`)
+			fmt.Fprintf(w, `{
+  "type": "sync",
+  "result": {
+    "removed": [{"username": %q}]
+  }
+}
+`, username)
 		default:
 			c.Fatalf("got too many requests (now on %d)", *n+1)
 		}

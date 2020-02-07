@@ -34,13 +34,17 @@ func (cs *clientSuite) TestClientRemoveUser(c *C) {
 
 	cs.rsp = `{
 		"type": "sync",
-		"result": null
+		"result": {
+                   "removed": [{"id": 11, "username": "one-user", "email": "user@test.com"}]
+                }
 	}`
 	removed, err = cs.cli.RemoveUser(&client.RemoveUserOptions{Username: "one-user"})
 	c.Assert(cs.req.Method, Equals, "POST")
 	c.Assert(cs.req.URL.Path, Equals, "/v2/users")
 	c.Assert(err, IsNil)
-	c.Assert(removed, DeepEquals, []string{"one-user"})
+	c.Assert(removed, DeepEquals, []*client.User{
+		{ID: 11, Username: "one-user", Email: "user@test.com"},
+	})
 
 	body, err := ioutil.ReadAll(cs.req.Body)
 	c.Assert(err, IsNil)
