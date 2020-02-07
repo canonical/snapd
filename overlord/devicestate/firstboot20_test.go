@@ -121,7 +121,6 @@ func (s *firstBoot20Suite) TestPopulateFromSeedCore20Happy(c *C) {
 	r := boottest.ForceModeenv("", &boot.Modeenv{
 		Mode:           "run",
 		RecoverySystem: "20191018",
-		Kernel:         "pc-kernel_1.snap",
 		Base:           "core20_1.snap",
 	})
 	defer r()
