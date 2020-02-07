@@ -71,7 +71,7 @@ HasNetwork={{.HasNetwork}}
 
 var (
 	cgroupSnapNameFromPid   = cgroup.SnapNameFromPid
-	apparmorSnapNameFromPid = apparmor.SnapNameFromPid
+	apparmorSnapNameFromPid = apparmor.SnapAppFromPid
 )
 
 func (x *cmdRoutinePortalInfo) Execute(args []string) error {

@@ -27,7 +27,7 @@ import (
 	"strings"
 )
 
-func LabelFromPid(pid int) (string, error) {
+func labelFromPid(pid int) (string, error) {
 	procFile := filepath.Join(rootPath, fmt.Sprintf("proc/%v/attr/current", pid))
 	contents, err := ioutil.ReadFile(procFile)
 	if os.IsNotExist(err) {
@@ -59,8 +59,8 @@ func decodeLabel(label string) (snap, app, hook string, err error) {
 	return "", "", "", fmt.Errorf("unknown snap related security label %q", label)
 }
 
-func SnapNameFromPid(pid int) (snap, app, hook string, err error) {
-	label, err := LabelFromPid(pid)
+func SnapAppFromPid(pid int) (snap, app, hook string, err error) {
+	label, err := labelFromPid(pid)
 	if err != nil {
 		return "", "", "", err
 	}

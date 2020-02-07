@@ -44,7 +44,8 @@ var (
 	PreferredKernelFeatures = preferredKernelFeatures
 	PreferredParserFeatures = preferredParserFeatures
 
-	DecodeLabel = decodeLabel
+	DecodeLabel  = decodeLabel
+	LabelFromPid = labelFromPid
 )
 
 func FreshAppArmorAssessment() {
