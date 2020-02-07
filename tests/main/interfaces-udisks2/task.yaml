@@ -42,7 +42,7 @@ execute: |
     device="$(losetup -j "$FS_PATH" | cut -d: -f1)"
 
     # We retry because there is a race with the device becoming
-    # registered by udisks2. The issue can be easy reproduced in ubuntu-20.04
+    # registered by udisks2. The issue can be easily reproduced on ubuntu-20.04
     retry-tool -n 3 --wait 1 sh -c "test-snapd-udisks2.udisksctl mount -b \"$device\" -t ext4 | MATCH 'Mounted /dev/'"
     test-snapd-udisks2.udisksctl unmount -b "$device" | MATCH "Unmounted /dev/"
 
