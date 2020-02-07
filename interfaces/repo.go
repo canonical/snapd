@@ -680,7 +680,7 @@ func (r *Repository) Connected(snapName, plugOrSlotName string) ([]*ConnRef, err
 
 func (r *Repository) connected(snapName, plugOrSlotName string) ([]*ConnRef, error) {
 	if snapName == "" {
-		snapName, _ = r.GuessSystemSnapName()
+		snapName, _ = r.guessSystemSnapName()
 		if snapName == "" {
 			return nil, fmt.Errorf("internal error: cannot obtain core snap name while computing connections")
 		}
@@ -717,7 +717,7 @@ func (r *Repository) ConnectionsForHotplugKey(ifaceName string, hotplugKey snap.
 	r.m.Lock()
 	defer r.m.Unlock()
 
-	snapName, err := r.GuessSystemSnapName()
+	snapName, err := r.guessSystemSnapName()
 	if err != nil {
 		return nil, err
 	}
@@ -740,7 +740,7 @@ func (r *Repository) SlotForHotplugKey(ifaceName string, hotplugKey snap.Hotplug
 	r.m.Lock()
 	defer r.m.Unlock()
 
-	snapName, err := r.GuessSystemSnapName()
+	snapName, err := r.guessSystemSnapName()
 	if err != nil {
 		return nil, err
 	}
@@ -759,7 +759,7 @@ func (r *Repository) UpdateHotplugSlotAttrs(ifaceName string, hotplugKey snap.Ho
 	r.m.Lock()
 	defer r.m.Unlock()
 
-	snapName, err := r.GuessSystemSnapName()
+	snapName, err := r.guessSystemSnapName()
 	if err != nil {
 		return nil, err
 	}
@@ -783,7 +783,7 @@ func (r *Repository) Connections(snapName string) ([]*ConnRef, error) {
 	defer r.m.Unlock()
 
 	if snapName == "" {
-		snapName, _ = r.GuessSystemSnapName()
+		snapName, _ = r.guessSystemSnapName()
 		if snapName == "" {
 			return nil, fmt.Errorf("internal error: cannot obtain core snap name while computing connections")
 		}
@@ -810,8 +810,8 @@ func (r *Repository) Connections(snapName string) ([]*ConnRef, error) {
 	return conns, nil
 }
 
-// coreSnapName returns the name of the core snap if one exists
-func (r *Repository) GuessSystemSnapName() (string, error) {
+// guessSystemSnapName returns the name of the system snap if one exists
+func (r *Repository) guessSystemSnapName() (string, error) {
 	switch {
 	case r.slots["snapd"] != nil:
 		return "snapd", nil

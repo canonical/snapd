@@ -323,7 +323,7 @@ func (m *InterfaceManager) ResolveDisconnect(plugSnapName, plugName, slotSnapNam
 		return m.repo.Connected(snapName, plugOrSlotName)
 	}
 
-	coreSnapName, _ := m.repo.GuessSystemSnapName()
+	coreSnapName := SystemSnapName()
 	if coreSnapName == "" {
 		// This is not strictly speaking true BUT when there's no core snap the
 		// produced error messages are consistent to when the is a core snap

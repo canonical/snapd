@@ -7832,6 +7832,9 @@ func (s *interfaceManagerSuite) TestResolveDisconnectMatrixNoSnaps(c *C) {
 // All the ways to resolve a 'snap disconnect' between two snaps.
 // The actual snaps are not installed though but a snapd snap is.
 func (s *interfaceManagerSuite) TestResolveDisconnectMatrixJustSnapdSnap(c *C) {
+	restore := ifacestate.MockSnapMapper(&ifacestate.CoreSnapdSystemMapper{})
+	defer restore()
+
 	// Mock the interface that will be used by the test
 	s.mockIfaces(c, &ifacetest.TestInterface{InterfaceName: "interface"})
 	mgr := s.manager(c)
@@ -7908,6 +7911,9 @@ func (s *interfaceManagerSuite) TestResolveDisconnectMatrixJustSnapdSnap(c *C) {
 // All the ways to resolve a 'snap disconnect' between two snaps.
 // The actual snaps are not installed though but a core snap is.
 func (s *interfaceManagerSuite) TestResolveDisconnectMatrixJustCoreSnap(c *C) {
+	restore := ifacestate.MockSnapMapper(&ifacestate.CoreCoreSystemMapper{})
+	defer restore()
+
 	// Mock the interface that will be used by the test
 	s.mockIfaces(c, &ifacetest.TestInterface{InterfaceName: "interface"})
 	mgr := s.manager(c)
@@ -7985,6 +7991,9 @@ func (s *interfaceManagerSuite) TestResolveDisconnectMatrixJustCoreSnap(c *C) {
 // The actual snaps as well as the core snap are installed.
 // The snaps are not connected.
 func (s *interfaceManagerSuite) TestResolveDisconnectMatrixDisconnectedSnaps(c *C) {
+	restore := ifacestate.MockSnapMapper(&ifacestate.CoreCoreSystemMapper{})
+	defer restore()
+
 	// Mock the interface that will be used by the test
 	s.mockIfaces(c, &ifacetest.TestInterface{InterfaceName: "interface"})
 	mgr := s.manager(c)
@@ -8069,6 +8078,9 @@ func (s *interfaceManagerSuite) TestResolveDisconnectMatrixDisconnectedSnaps(c *
 // The actual snaps as well as the core snap are installed.
 // The snaps are connected.
 func (s *interfaceManagerSuite) TestResolveDisconnectMatrixTypical(c *C) {
+	restore := ifacestate.MockSnapMapper(&ifacestate.CoreCoreSystemMapper{})
+	defer restore()
+
 	// Mock the interface that will be used by the test
 	s.mockIfaces(c, &ifacetest.TestInterface{InterfaceName: "interface"})
 	mgr := s.manager(c)
