@@ -58,17 +58,6 @@ func init() {
 	}})
 }
 
-const portalInfoTemplate = `[Snap Info]
-InstanceName={{.Snap.Name}}
-{{- if .App}}
-AppName={{.App.Name}}
-{{- end}}
-{{- if .DesktopFile}}
-DesktopFile={{.DesktopFile}}
-{{- end}}
-HasNetwork={{.HasNetwork}}
-`
-
 var (
 	cgroupSnapNameFromPid   = cgroup.SnapNameFromPid
 	apparmorSnapNameFromPid = apparmor.SnapAppFromPid
@@ -114,6 +103,8 @@ func (x *cmdRoutinePortalInfo) Execute(args []string) error {
 	}
 
 	// Determine whether the snap has access to the network
+	// TODO: use direct API for asking about interface being connected if
+	// that becomes available
 	connections, err := x.client.Connections(&client.ConnectionOptions{
 		Snap:      snap.Name,
 		Interface: "network",
@@ -121,6 +112,9 @@ func (x *cmdRoutinePortalInfo) Execute(args []string) error {
 	if err != nil {
 		return fmt.Errorf("cannot get connections for snap %q: %v", snap.Name, err)
 	}
+	// XXX: on non-AppArmor systems, or systems where there is only a
+	// partial AppArmor support, the snap may still be able to access the
+	// network despite the 'network' interface being disconnected
 	var hasNetwork bool
 	for _, conn := range connections.Established {
 		if conn.Plug.Snap == snap.Name && conn.Interface == "network" {
@@ -129,6 +123,16 @@ func (x *cmdRoutinePortalInfo) Execute(args []string) error {
 		}
 	}
 
+	const portalInfoTemplate = `[Snap Info]
+InstanceName={{.Snap.Name}}
+{{- if .App}}
+AppName={{.App.Name}}
+{{- end}}
+{{- if .DesktopFile}}
+DesktopFile={{.DesktopFile}}
+{{- end}}
+HasNetwork={{.HasNetwork}}
+`
 	t := template.Must(template.New("portal-info").Parse(portalInfoTemplate))
 	data := struct {
 		Snap        *client.Snap
