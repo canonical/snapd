@@ -58,6 +58,43 @@ type deviceMgrSerialSuite struct {
 
 var _ = Suite(&deviceMgrSerialSuite{})
 
+func (s *deviceMgrSerialSuite) signSerial(c *C, bhv *devicestatetest.DeviceServiceBehavior, headers map[string]interface{}, body []byte) (serial asserts.Assertion, ancillary []asserts.Assertion, err error) {
+	brandID := headers["brand-id"].(string)
+	model := headers["model"].(string)
+	keyID := ""
+
+	var signing assertstest.SignerDB = s.storeSigning
+
+	switch model {
+	case "pc", "pc2":
+	case "classic-alt-store":
+		c.Check(brandID, Equals, "canonical")
+	case "generic-classic":
+		c.Check(brandID, Equals, "generic")
+		headers["authority-id"] = "generic"
+		keyID = s.storeSigning.GenericKey.PublicKeyID()
+	case "rereg-model":
+		headers["authority-id"] = "rereg-brand"
+		signing = s.brands.Signing("rereg-brand")
+	default:
+		c.Fatalf("unknown model: %s", model)
+	}
+	a, err := signing.Sign(asserts.SerialType, headers, body, keyID)
+	return a, s.ancillary, err
+}
+
+func (s *deviceMgrSerialSuite) mockServer(c *C, reqID string, bhv *devicestatetest.DeviceServiceBehavior) *httptest.Server {
+	if bhv == nil {
+		bhv = &devicestatetest.DeviceServiceBehavior{}
+	}
+
+	bhv.ReqID = reqID
+	bhv.SignSerial = s.signSerial
+	bhv.ExpectedCapabilities = "serial-stream"
+
+	return devicestatetest.MockDeviceService(c, bhv)
+}
+
 func (s *deviceMgrSerialSuite) findBecomeOperationalChange(skipIDs ...string) *state.Change {
 	for _, chg := range s.state.Changes() {
 		if chg.Kind() == "become-operational" && !strutil.ListContains(skipIDs, chg.ID()) {
