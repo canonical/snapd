@@ -9,20 +9,26 @@ import (
 
 // RawSockStopper returns a pair of functions to manage stopping code
 // reading from a raw socket, readableOrStop blocks until
-// fd is readable or stop was called.
+// fd is readable or stop was called. To work properly it sets fd
+// to non-blocking mode.
 // TODO: with go 1.11+ it should be possible to just switch to setting
 // fd to non-blocking and then wrapping the socket via os.NewFile and
 // use Close to force a read to stop.
 // c.f. https://github.com/golang/go/commit/ea5825b0b64e1a017a76eac0ad734e11ff557c8e
 func RawSockStopper(fd int) (readableOrStop func() (bool, error), stop func(), err error) {
+	if err := syscall.SetNonblock(fd, true); err != nil {
+		return nil, nil, err
+	}
+
 	stopR, stopW, err := os.Pipe()
 	if err != nil {
 		return nil, nil, err
 	}
-	stopFd := int(stopR.Fd())
 
+	// both stopR and stopW must be kept alive otherwise the corresponding
+	// file descriptors will get closed
 	readableOrStop = func() (bool, error) {
-		return stopperSelectReadable(fd, stopFd)
+		return stopperSelectReadable(fd, int(stopR.Fd()))
 	}
 	stop = func() {
 		stopW.Write([]byte{0})

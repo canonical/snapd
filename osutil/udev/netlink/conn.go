@@ -121,6 +121,7 @@ func (c *UEventConn) Monitor(queue chan UEvent, errors chan error, matcher Match
 			return true
 		}
 	}
+	// c.Fd is set to non-blocking at this point
 
 	stop = func(stopTimeout time.Duration) bool {
 		close(quitting)
@@ -134,6 +135,7 @@ func (c *UEventConn) Monitor(queue chan UEvent, errors chan error, matcher Match
 	}
 
 	go func() {
+	EventReading:
 		for {
 			_, err := readableOrStop()
 			if err != nil {
@@ -146,6 +148,14 @@ func (c *UEventConn) Monitor(queue chan UEvent, errors chan error, matcher Match
 				return
 			default:
 				uevent, err := c.ReadUEvent()
+				// underlying file descriptor is
+				// non-blocking here, be paranoid if
+				// for some reason we get here after
+				// readableOrStop but the read would
+				// block anyway
+				if err == syscall.EAGAIN || err == syscall.EWOULDBLOCK {
+					continue EventReading
+				}
 				if err != nil {
 					errors <- fmt.Errorf("Unable to parse uevent, err: %v", err)
 					continue
