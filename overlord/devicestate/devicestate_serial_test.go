@@ -20,6 +20,7 @@
 package devicestate_test
 
 import (
+	"fmt"
 	"net"
 	"net/http"
 	"net/http/httptest"
@@ -77,7 +78,7 @@ func (s *deviceMgrSerialSuite) signSerial(c *C, bhv *devicestatetest.DeviceServi
 		headers["authority-id"] = "rereg-brand"
 		signing = s.brands.Signing("rereg-brand")
 	default:
-		c.Fatalf("unknown model: %s", model)
+		return nil, nil, fmt.Errorf("unknown model: %s", model)
 	}
 	a, err := signing.Sign(asserts.SerialType, headers, body, keyID)
 	return a, s.ancillary, err

@@ -174,7 +174,11 @@ func MockDeviceService(c *C, bhv *DeviceServiceBehavior) *httptest.Server {
 				"device-key-sha3-384": serialReq.SignKeyID(),
 				"timestamp":           time.Now().Format(time.RFC3339),
 			}, serialReq.Body())
-			c.Assert(err, IsNil)
+			c.Check(err, IsNil)
+			if err != nil {
+				w.WriteHeader(500)
+				return
+			}
 			w.Header().Set("Content-Type", asserts.MediaType)
 			w.WriteHeader(200)
 			if reqID == ReqIDSerialWithBadModel {
