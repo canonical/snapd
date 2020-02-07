@@ -130,7 +130,7 @@ func (client *Client) doMany(ctx context.Context, method, urlpath string, query 
 			}
 			req, err := http.NewRequest(method, u.String(), bytes.NewBuffer(body))
 			if err != nil {
-				response.err = err
+				response.err = fmt.Errorf("internal error: %v", err)
 				return
 			}
 			req = req.WithContext(ctx)
