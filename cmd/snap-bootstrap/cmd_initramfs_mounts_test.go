@@ -310,6 +310,114 @@ func (s *initramfsMountsSuite) TestInitramfsMountsRunModeStep2(c *C) {
 `, s.runMnt))
 }
 
+func (s *initramfsMountsSuite) TestInitramfsMountsRunModeBaseSnapUpgradeFailsHappy(c *C) {
+	n := 0
+	s.mockProcCmdlineContent(c, "snapd_recovery_mode=run")
+
+	restore := main.MockOsutilIsMounted(func(path string) (bool, error) {
+		n++
+		switch n {
+		case 1:
+			c.Check(path, Equals, filepath.Join(s.runMnt, "ubuntu-seed"))
+			return true, nil
+		case 2:
+			c.Check(path, Equals, filepath.Join(s.runMnt, "ubuntu-boot"))
+			return true, nil
+		case 3:
+			c.Check(path, Equals, filepath.Join(s.runMnt, "ubuntu-data"))
+			return true, nil
+		case 4:
+			c.Check(path, Equals, filepath.Join(s.runMnt, "base"))
+			return false, nil
+		case 5:
+			c.Check(path, Equals, filepath.Join(s.runMnt, "kernel"))
+			return true, nil
+		}
+		return false, fmt.Errorf("unexpected number of calls: %v", n)
+	})
+	defer restore()
+
+	// write modeenv as if we failed to boot and were rebooted because the
+	// base snap was broken
+	modeEnv := &boot.Modeenv{
+		Base:       "core20_123.snap",
+		TryBase:    "core20_124.snap",
+		BaseStatus: boot.TryingStatus,
+	}
+	err := modeEnv.Write(filepath.Join(s.runMnt, "ubuntu-data", "system-data"))
+	c.Assert(err, IsNil)
+
+	tryBaseSnap := filepath.Join(s.runMnt, "ubuntu-data", "system-data", dirs.SnapBlobDir, "core20_124.snap")
+	err = os.MkdirAll(filepath.Dir(tryBaseSnap), 0755)
+	c.Assert(err, IsNil)
+	err = ioutil.WriteFile(tryBaseSnap, []byte{0}, 0644)
+	c.Assert(err, IsNil)
+	defer os.Remove(tryBaseSnap)
+
+	_, err = main.Parser.ParseArgs([]string{"initramfs-mounts"})
+	c.Assert(err, IsNil)
+	c.Assert(n, Equals, 5)
+	c.Check(s.Stdout.String(), Equals, fmt.Sprintf(`%[1]s/ubuntu-data/system-data/var/lib/snapd/snaps/core20_123.snap %[1]s/base
+`, s.runMnt))
+
+	// check that the modeenv was re-written
+	newModeenv, err := boot.ReadModeenv(filepath.Join(s.runMnt, "ubuntu-data", "system-data"))
+	c.Assert(err, IsNil)
+	// BaseStatus was re-set to default
+	c.Assert(newModeenv.BaseStatus, DeepEquals, boot.DefaultStatus)
+	c.Assert(newModeenv.TryBase, DeepEquals, modeEnv.TryBase)
+	c.Assert(newModeenv.Base, DeepEquals, modeEnv.Base)
+}
+
+func (s *initramfsMountsSuite) TestInitramfsMountsRunModeModeenvTryBaseEmptyHappy(c *C) {
+	n := 0
+	s.mockProcCmdlineContent(c, "snapd_recovery_mode=run")
+
+	restore := main.MockOsutilIsMounted(func(path string) (bool, error) {
+		n++
+		switch n {
+		case 1:
+			c.Check(path, Equals, filepath.Join(s.runMnt, "ubuntu-seed"))
+			return true, nil
+		case 2:
+			c.Check(path, Equals, filepath.Join(s.runMnt, "ubuntu-boot"))
+			return true, nil
+		case 3:
+			c.Check(path, Equals, filepath.Join(s.runMnt, "ubuntu-data"))
+			return true, nil
+		case 4:
+			c.Check(path, Equals, filepath.Join(s.runMnt, "base"))
+			return false, nil
+		case 5:
+			c.Check(path, Equals, filepath.Join(s.runMnt, "kernel"))
+			return true, nil
+		}
+		return false, fmt.Errorf("unexpected number of calls: %v", n)
+	})
+	defer restore()
+
+	// write a modeenv with no try_base so we fall back to using base
+	modeEnv := &boot.Modeenv{
+		Base:       "core20_123.snap",
+		BaseStatus: boot.TryStatus,
+	}
+	err := modeEnv.Write(filepath.Join(s.runMnt, "ubuntu-data", "system-data"))
+	c.Assert(err, IsNil)
+
+	_, err = main.Parser.ParseArgs([]string{"initramfs-mounts"})
+	c.Assert(err, IsNil)
+	c.Assert(n, Equals, 5)
+	c.Check(s.Stdout.String(), Equals, fmt.Sprintf(`%[1]s/ubuntu-data/system-data/var/lib/snapd/snaps/core20_123.snap %[1]s/base
+`, s.runMnt))
+
+	// check that the modeenv is the same
+	newModeenv, err := boot.ReadModeenv(filepath.Join(s.runMnt, "ubuntu-data", "system-data"))
+	c.Assert(err, IsNil)
+	c.Assert(newModeenv.BaseStatus, DeepEquals, modeEnv.BaseStatus)
+	c.Assert(newModeenv.TryBase, DeepEquals, modeEnv.TryBase)
+	c.Assert(newModeenv.Base, DeepEquals, modeEnv.Base)
+}
+
 func (s *initramfsMountsSuite) TestInitramfsMountsRunModeBaseSnapUpgradeHappy(c *C) {
 	n := 0
 	s.mockProcCmdlineContent(c, "snapd_recovery_mode=run")
@@ -367,7 +475,7 @@ func (s *initramfsMountsSuite) TestInitramfsMountsRunModeBaseSnapUpgradeHappy(c 
 	c.Assert(newModeenv.Base, DeepEquals, modeEnv.Base)
 }
 
-func (s *initramfsMountsSuite) TestInitramfsMountsRunModeBaseSnapUpgradeFailsHappy(c *C) {
+func (s *initramfsMountsSuite) TestInitramfsMountsRunModeModeenvBaseEmptyUnhappy(c *C) {
 	n := 0
 	s.mockProcCmdlineContent(c, "snapd_recovery_mode=run")
 
@@ -394,22 +502,53 @@ func (s *initramfsMountsSuite) TestInitramfsMountsRunModeBaseSnapUpgradeFailsHap
 	})
 	defer restore()
 
-	// write modeenv as if we failed to boot and were rebooted because the
-	// base snap was broken
-	modeEnv := &boot.Modeenv{
-		Base:       "core20_123.snap",
-		TryBase:    "core20_124.snap",
-		BaseStatus: boot.TryingStatus,
-	}
+	// write an empty modeenv
+	modeEnv := &boot.Modeenv{}
 	err := modeEnv.Write(filepath.Join(s.runMnt, "ubuntu-data", "system-data"))
 	c.Assert(err, IsNil)
 
-	tryBaseSnap := filepath.Join(s.runMnt, "ubuntu-data", "system-data", dirs.SnapBlobDir, "core20_124.snap")
-	err = os.MkdirAll(filepath.Dir(tryBaseSnap), 0755)
+	_, err = main.Parser.ParseArgs([]string{"initramfs-mounts"})
+	c.Assert(err, ErrorMatches, "modeenv corrupt: missing base setting")
+	c.Assert(n, Equals, 4)
+	c.Check(s.Stdout.String(), Equals, "")
+}
+
+func (s *initramfsMountsSuite) TestInitramfsMountsRunModeModeenvTryBaseNotExistsHappy(c *C) {
+	n := 0
+	s.mockProcCmdlineContent(c, "snapd_recovery_mode=run")
+
+	restore := main.MockOsutilIsMounted(func(path string) (bool, error) {
+		n++
+		switch n {
+		case 1:
+			c.Check(path, Equals, filepath.Join(s.runMnt, "ubuntu-seed"))
+			return true, nil
+		case 2:
+			c.Check(path, Equals, filepath.Join(s.runMnt, "ubuntu-boot"))
+			return true, nil
+		case 3:
+			c.Check(path, Equals, filepath.Join(s.runMnt, "ubuntu-data"))
+			return true, nil
+		case 4:
+			c.Check(path, Equals, filepath.Join(s.runMnt, "base"))
+			return false, nil
+		case 5:
+			c.Check(path, Equals, filepath.Join(s.runMnt, "kernel"))
+			return true, nil
+		}
+		return false, fmt.Errorf("unexpected number of calls: %v", n)
+	})
+	defer restore()
+
+	// write a modeenv with try_base not existing on disk so we fall back to
+	// using the normal base
+	modeEnv := &boot.Modeenv{
+		Base:       "core20_123.snap",
+		TryBase:    "core20_124.snap",
+		BaseStatus: boot.TryStatus,
+	}
+	err := modeEnv.Write(filepath.Join(s.runMnt, "ubuntu-data", "system-data"))
 	c.Assert(err, IsNil)
-	err = ioutil.WriteFile(tryBaseSnap, []byte{0}, 0644)
-	c.Assert(err, IsNil)
-	defer os.Remove(tryBaseSnap)
 
 	_, err = main.Parser.ParseArgs([]string{"initramfs-mounts"})
 	c.Assert(err, IsNil)
@@ -417,10 +556,10 @@ func (s *initramfsMountsSuite) TestInitramfsMountsRunModeBaseSnapUpgradeFailsHap
 	c.Check(s.Stdout.String(), Equals, fmt.Sprintf(`%[1]s/ubuntu-data/system-data/var/lib/snapd/snaps/core20_123.snap %[1]s/base
 `, s.runMnt))
 
-	// check that the modeenv was re-written
+	// check that the modeenv is the same
 	newModeenv, err := boot.ReadModeenv(filepath.Join(s.runMnt, "ubuntu-data", "system-data"))
 	c.Assert(err, IsNil)
-	c.Assert(newModeenv.BaseStatus, DeepEquals, boot.TryingStatus)
+	c.Assert(newModeenv.BaseStatus, DeepEquals, modeEnv.BaseStatus)
 	c.Assert(newModeenv.TryBase, DeepEquals, modeEnv.TryBase)
 	c.Assert(newModeenv.Base, DeepEquals, modeEnv.Base)
 }
