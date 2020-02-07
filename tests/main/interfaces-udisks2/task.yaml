@@ -4,8 +4,8 @@ details: |
     The udisks2 interface allows operating as or interacting with the UDisks2 service
 
 # Interfaces not defined for ubuntu core systems
-# FIXME: fails in debian-sid and ubuntu-20.04 for unknown reasons
-systems: [-ubuntu-core-*, -debian-sid-*, -ubuntu-20.04-*]
+# FIXME: fails in debian-sid for unknown reasons
+systems: [-ubuntu-core-*, -debian-sid-*]
 
 prepare: |
     snap install test-snapd-udisks2
@@ -41,7 +41,9 @@ execute: |
 
     device="$(losetup -j "$FS_PATH" | cut -d: -f1)"
 
-    test-snapd-udisks2.udisksctl mount -b "$device" -t ext4 | MATCH "Mounted /dev/"
+    # We retry because there is a race with the device becoming
+    # registered by udisks2. The issue can be easy reproduced in ubuntu-20.04
+    retry-tool -n 3 --wait 1 test-snapd-udisks2.udisksctl mount -b "$device" -t ext4 | MATCH "Mounted /dev/"
     test-snapd-udisks2.udisksctl unmount -b "$device" | MATCH "Unmounted /dev/"
 
     if [ "$(snap debug confinement)" = partial ] ; then
