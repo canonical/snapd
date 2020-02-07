@@ -202,6 +202,8 @@ func generateMountsModeRun() error {
 		return err
 	}
 	if !isBaseMounted {
+		// TODO:UC20: refactor this logic into the boot package instead
+
 		// 2.2.1 read modeenv
 		modeEnv, err := boot.ReadModeenv(filepath.Join(dataDir, "system-data"))
 		if err != nil {
