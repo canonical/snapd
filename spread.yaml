@@ -68,6 +68,8 @@ backends:
                 workers: 8
             - ubuntu-19.10-64:
                 workers: 6
+            - ubuntu-20.04-64:
+                workers: 6
             - ubuntu-core-16-64:
                 image: ubuntu-16.04-64
                 workers: 6
@@ -75,7 +77,7 @@ backends:
                 image: ubuntu-16.04-64
                 workers: 6
             - ubuntu-core-20-64:
-                image: ubuntu-1804-64-uefi-enabled
+                image: ubuntu-2004-64-virt-uefi-enabled
                 workers: 6
                 storage: 20G
 
@@ -117,8 +119,6 @@ backends:
             - centos-7-64:
                 workers: 6
                 image: centos-7-64
-            - ubuntu-20.04-64:
-                workers: 6
 
 
     google-sru:

@@ -58,12 +58,8 @@ func snapAndMode(str string) (snap, mode string) {
 	return parts[0], parts[1]
 }
 
-func (d *mockDevice) Kernel() string { return d.bootSnap }
-func (d *mockDevice) Base() string   { return d.bootSnap }
-func (d *mockDevice) Classic() bool  { return d.bootSnap == "" }
-func (d *mockDevice) RunMode() bool  { return d.mode == "run" }
-
-// HasModeenv is true when created with uc20 string.
-func (d *mockDevice) HasModeenv() bool {
-	return d.uc20
-}
+func (d *mockDevice) Kernel() string   { return d.bootSnap }
+func (d *mockDevice) Base() string     { return d.bootSnap }
+func (d *mockDevice) Classic() bool    { return d.bootSnap == "" }
+func (d *mockDevice) RunMode() bool    { return d.mode == "run" }
+func (d *mockDevice) HasModeenv() bool { return d.uc20 }

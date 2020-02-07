@@ -13,6 +13,10 @@ prepare: |
         echo "This test needs test keys to be trusted"
         exit
     fi
+
+    # Save the revision of the pc-kernel snap.
+    readlink /snap/pc-kernel/current > original-revision.txt
+
     #shellcheck source=tests/lib/systemd.sh
     . "$TESTSLIB"/systemd.sh
     systemctl stop snapd.service snapd.socket
@@ -33,6 +37,18 @@ restore: |
         echo "This test needs test keys to be trusted"
         exit
     fi
+
+    # Wait for the final refresh to complete.
+    snap watch --last=refresh
+
+    # Remove all the revisions of pc-kernel that should not be there.
+    for revno_path in /snap/pc-kernel/*; do
+        revno="$(basename "$revno_path")"
+        if [ "$revno" == current ] || [ "$revno" == "$(cat original-revision.txt)" ]; then
+            continue;
+        fi
+        snap remove pc-kernel --revision="$revno"
+    done
 
     #shellcheck source=tests/lib/systemd.sh
     . "$TESTSLIB"/systemd.sh
