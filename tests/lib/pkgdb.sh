@@ -593,6 +593,7 @@ pkg_dependencies_ubuntu_classic(){
         weston
         xdg-user-dirs
         xdg-utils
+        zsh
         "
 
     case "$SPREAD_SYSTEM" in
@@ -712,6 +713,7 @@ pkg_dependencies_fedora(){
         xdg-user-dirs
         xdg-utils
         strace
+        zsh
         "
 }
 
@@ -739,6 +741,7 @@ pkg_dependencies_amazon(){
         xdg-utils
         udisks2
         upower
+        zsh
         "
 }
 
@@ -766,6 +769,7 @@ pkg_dependencies_opensuse(){
         uuidd
         xdg-user-dirs
         xdg-utils
+        zsh
         "
 }
 
@@ -804,6 +808,7 @@ pkg_dependencies_arch(){
     xdg-utils
     xfsprogs
     apparmor
+    zsh
     "
 }
 
