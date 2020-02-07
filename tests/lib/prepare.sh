@@ -811,7 +811,7 @@ EOF
           --exclude /gopath/.cache/ \
           --exclude /gopath/bin/govendor \
           --exclude /gopath/pkg/ \
-          --include core \
+          --include core/ \
           /home/gopath /mnt/user-data/
     elif is_core20_system; then
         # prepare passwd for run-mode-overlay-data
