@@ -44,7 +44,7 @@ type firstbootPreseed16Suite struct {
 var _ = Suite(&firstbootPreseed16Suite{})
 
 func checkPreseedTasks(c *C, tsAll []*state.TaskSet) {
-	// the tasks of the last taskset must be mark-preseeded, mark-seeded
+	// the tasks of the last taskset must be mark-preseeded, mark-seeded, in that order
 	lastTasks := tsAll[len(tsAll)-1].Tasks()
 	c.Check(lastTasks, HasLen, 2)
 	preseedTask := lastTasks[0]
@@ -62,7 +62,7 @@ func checkPreseedTasks(c *C, tsAll []*state.TaskSet) {
 	c.Check(waitsForPreseeded, Equals, true)
 }
 
-func checkPresseedTaskStates(c *C, st *state.State) {
+func checkPreseedTaskStates(c *C, st *state.State) {
 	doneTasks := map[string]bool{
 		"prerequisites":        true,
 		"prepare-snap":         true,
@@ -220,5 +220,5 @@ func (s *firstbootPreseed16Suite) TestPreseedHappy(c *C) {
 	c.Assert(err, IsNil)
 	c.Assert(chg.Err(), IsNil)
 
-	checkPresseedTaskStates(c, st)
+	checkPreseedTaskStates(c, st)
 }
