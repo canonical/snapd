@@ -29,6 +29,7 @@ import (
 	"github.com/snapcore/snapd/bootloader/bootloadertest"
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/overlord/devicestate"
+	"github.com/snapcore/snapd/overlord/hookstate"
 	"github.com/snapcore/snapd/overlord/snapstate"
 	"github.com/snapcore/snapd/overlord/state"
 	"github.com/snapcore/snapd/release"
@@ -151,7 +152,21 @@ func checkPreseedOrder(c *C, tsAll []*state.TaskSet, snaps ...string) {
 	for i, ts := range tsAll {
 		task0 := ts.Tasks()[0]
 		waitTasks := task0.WaitTasks()
+		// all tasksets start with prerequisites task, except for
+		// tasksets with just the configure hook of special snaps,
+		// or last taskset.
 		if task0.Kind() != "prerequisites" {
+			if i == len(tsAll)-1 {
+				c.Check(task0.Kind(), Equals, "mark-preseeded")
+				c.Check(ts.Tasks()[1].Kind(), Equals, "mark-seeded")
+				c.Check(ts.Tasks(), HasLen, 2)
+			} else {
+				c.Check(task0.Kind(), Equals, "run-hook")
+				var hsup hookstate.HookSetup
+				c.Assert(task0.Get("hook-setup", &hsup), IsNil)
+				c.Check(hsup.Hook, Equals, "configure")
+				c.Check(ts.Tasks(), HasLen, 1)
+			}
 			continue
 		}
 
