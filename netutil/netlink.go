@@ -169,11 +169,10 @@ func (m *RoutesMonitor) monitor() {
 			close(m.netlinkErrors)
 			return
 		default:
-			// This read will block so the netlinkQuitCh
-			// may take a bit until it is processed. Not
-			// an issue in practice because eventually
-			// there will be data or the app terminates.
 			n, err := syscall.Read(m.netlinkFd, buf)
+			if errno, ok := err.(syscall.Errno); ok && errno.Temporary() {
+				continue
+			}
 			if err != nil {
 				m.netlinkErrors <- err
 				close(m.netlinkErrors)
