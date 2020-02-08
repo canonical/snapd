@@ -153,7 +153,7 @@ func (c *UEventConn) Monitor(queue chan UEvent, errors chan error, matcher Match
 				// for some reason we get here after
 				// readableOrStop but the read would
 				// block anyway
-				if err == syscall.EAGAIN || err == syscall.EWOULDBLOCK {
+				if errno, ok := err.(syscall.Errno); ok && errno.Temporary() {
 					continue EventReading
 				}
 				if err != nil {

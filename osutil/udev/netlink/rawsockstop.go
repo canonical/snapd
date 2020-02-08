@@ -56,7 +56,7 @@ func stopperSelectReadable(fd, stopFd int) (bool, error) {
 		r.Bits[fdIdx] = 1 << fdShift
 		r.Bits[stopFdIdx] |= 1 << stopFdShift
 		_, err := syscall.Select(maxFd+1, &r, nil, nil, stopperSelectTimeout)
-		if err == syscall.EINTR {
+		if errno, ok := err.(syscall.Errno); ok && errno.Temporary() {
 			continue
 		}
 		if err != nil {
