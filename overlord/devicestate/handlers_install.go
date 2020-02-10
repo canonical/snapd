@@ -120,6 +120,8 @@ var checkTPMAvailability = func() error {
 	return nil
 }
 
+// checkEncryption verifies whether encryption should be used based on the
+// model grade and the availability of a TPM device.
 func checkEncryption(model *asserts.Model) (res bool, err error) {
 	secured := model.Grade() == asserts.ModelSecured
 	dangerous := model.Grade() == asserts.ModelDangerous
