@@ -103,6 +103,3 @@ execute: |
 
     # debug message to see if the udev database is correctly updated
     udevadm info --query=property "${LOOP}p2" | grep ID_FS_TYPE ||:
-
-    # XXX: can't add more partitions after an encrypted partition is created
-    # (gadget compatibility tests fail)
