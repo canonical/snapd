@@ -202,9 +202,9 @@ void setup_devices_cgroup(const char *security_tag, struct snappy_udev *udev_s)
 	sc_must_snprintf(cgroup_dir, sizeof(cgroup_dir),
 			 "/sys/fs/cgroup/devices/%s/", security_tag);
 	sc_identity old = sc_set_effective_identity(sc_root_group_identity());
-
 	if (mkdir(cgroup_dir, 0755) < 0 && errno != EEXIST)
 		die("cannot create cgroup hierarchy %s", cgroup_dir);
+	(void)sc_set_effective_identity(old);
 
 	// move ourselves into it
 	char cgroup_file[PATH_MAX] = { 0 };
@@ -305,5 +305,4 @@ void setup_devices_cgroup(const char *security_tag, struct snappy_udev *udev_s)
 		run_snappy_app_dev_add(udev_s, path);
 		udev_s->assigned = udev_list_entry_get_next(udev_s->assigned);
 	}
-	(void)sc_set_effective_identity(old);
 }
