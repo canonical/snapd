@@ -731,7 +731,6 @@ static void enter_non_classic_execution_environment(sc_invocation * inv,
 	// This simplifies testing if any processes belonging to a given snap are
 	// still alive as well as to properly account for each application and
 	// service.
-	// Temporarily raise egid so we can chown the freezer cgroup under LXD.
 	if (!sc_cgroup_is_v2()) {
 		sc_cgroup_freezer_join(inv->snap_instance, getpid());
 	}
