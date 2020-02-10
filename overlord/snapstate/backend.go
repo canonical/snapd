@@ -47,7 +47,7 @@ type StoreService interface {
 	WriteCatalogs(ctx context.Context, names io.Writer, adder store.SnapAdder) error
 
 	Download(context.Context, string, string, *snap.DownloadInfo, progress.Meter, *auth.UserState, *store.DownloadOptions) error
-	DownloadStream(context.Context, string, *snap.DownloadInfo, *auth.UserState) (io.ReadCloser, error)
+	DownloadStream(context.Context, string, *snap.DownloadInfo, int64, *auth.UserState) (io.ReadCloser, int, error)
 
 	Assertion(assertType *asserts.AssertionType, primaryKey []string, user *auth.UserState) (asserts.Assertion, error)
 
