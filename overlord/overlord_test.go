@@ -618,7 +618,7 @@ func (ovs *overlordSuite) TestEnsureLoopPruneRunsMultipleTimes(c *C) {
 	c.Assert(err, IsNil)
 }
 
-func (ovs *overlordSuite) testEnsureLoopPruneAfterSeeding(c *C, seeded bool, spawnTime, readyTime, currentTime time.Time) *state.State {
+func (ovs *overlordSuite) testEnsureLoopPruneAfterSeeding(c *C, seeded bool) *state.State {
 	restoreIntv := overlord.MockPruneInterval(100*time.Millisecond, 1000*time.Millisecond, 1*time.Hour)
 	defer restoreIntv()
 
@@ -631,6 +631,11 @@ func (ovs *overlordSuite) testEnsureLoopPruneAfterSeeding(c *C, seeded bool, spa
 
 	st := o.State()
 	st.Lock()
+
+	// spawn time one month ago
+	spawnTime := time.Now().AddDate(0, -1, 0)
+	readyTime := time.Now().Add(-30 * time.Minute)
+	currentTime := time.Now()
 
 	restoreTimeNow := state.MockTime(spawnTime)
 	defer restoreTimeNow()
@@ -662,7 +667,7 @@ func (ovs *overlordSuite) testEnsureLoopPruneAfterSeeding(c *C, seeded bool, spa
 	// start the loop that runs the prune ticker
 	o.Loop()
 
-	time.Sleep(1500 * time.Millisecond)
+	time.Sleep(1000 * time.Millisecond)
 
 	c.Assert(o.Stop(), IsNil)
 
@@ -670,39 +675,19 @@ func (ovs *overlordSuite) testEnsureLoopPruneAfterSeeding(c *C, seeded bool, spa
 }
 
 func (ovs *overlordSuite) TestEnsureLoopPruneBeforeSeedingBlocked(c *C) {
-	// seeded is false, so the times below don't really matter in this case
 	seeded := false
-	// spawn time is one moth ago
-	spawnTime := time.Now().AddDate(0, -1, 0)
-	readyTime := time.Now().Add(-30 * time.Minute)
-	currentTime := time.Now()
-	st := ovs.testEnsureLoopPruneAfterSeeding(c, seeded, spawnTime, readyTime, currentTime)
+	st := ovs.testEnsureLoopPruneAfterSeeding(c, seeded)
 	st.Lock()
-	c.Check(st.Changes(), HasLen, 2)
-	st.Unlock()
-}
-
-func (ovs *overlordSuite) TestEnsureLoopPruneAfterSeedingBlocked(c *C) {
-	seeded := true
-	// spawn time is one moth ago
-	spawnTime := time.Now().AddDate(0, -1, 0)
-	readyTime := time.Now().Add(-30 * time.Minute)
-	currentTime := time.Now()
-	st := ovs.testEnsureLoopPruneAfterSeeding(c, seeded, spawnTime, readyTime, currentTime)
-	st.Lock()
-	// ready time is only 30 minutes ago, so nothing got pruned
+	// nothing got pruned
 	c.Check(st.Changes(), HasLen, 2)
 	st.Unlock()
 }
 
 func (ovs *overlordSuite) TestEnsureLoopPruneAfterSeedingUnblocked(c *C) {
 	seeded := true
-	// spawn time is one moth ago
-	spawnTime := time.Now().AddDate(0, -1, 0)
-	readyTime := time.Now().Add(-2 * time.Hour)
-	st := ovs.testEnsureLoopPruneAfterSeeding(c, seeded, spawnTime, readyTime, time.Now())
+	st := ovs.testEnsureLoopPruneAfterSeeding(c, seeded)
 	st.Lock()
-	// ready time is 2h ago, so changes got pruned
+	// all changes pruned
 	c.Check(st.Changes(), HasLen, 0)
 	st.Unlock()
 }

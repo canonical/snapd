@@ -146,26 +146,13 @@ func (m *DeviceManager) CanStandby() bool {
 	return seeded
 }
 
-var canPruneDelay = 1 * time.Hour
-
 func (m *DeviceManager) CanPrune() bool {
+	// XXX: this is the same as CanStandby above.
 	var seeded bool
-	if err := m.state.Get("seeded", &seeded); err != nil || !seeded {
+	if err := m.state.Get("seeded", &seeded); err != nil {
 		return false
 	}
-
-	// we are seeded. check if "seed" change is still
-	// in state and at least canPruneDelay passed since it has became ready.
-	for _, chg := range m.state.Changes() {
-		// block pruning for 1h from seeding
-		if chg.IsReady() && chg.Kind() == "seed" {
-			return time.Now().After(chg.ReadyTime().Add(canPruneDelay))
-		}
-	}
-
-	// seed change not found, so it was pruned already, don't
-	// prevent pruning anymore.
-	return true
+	return seeded
 }
 
 func (m *DeviceManager) confirmRegistered() error {

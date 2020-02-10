@@ -450,7 +450,7 @@ func (s *State) tasksIn(tids []string) []*Task {
 //
 //  * it removes expired warnings.
 func (s *State) Prune(pruneWait, abortWait time.Duration, maxReadyChanges int) {
-	now := timeNow()
+	now := time.Now()
 	pruneLimit := now.Add(-pruneWait)
 	abortLimit := now.Add(-abortWait)
 
