@@ -1,7 +1,10 @@
 summary: Test netutil/netlink.go
 
-# no go on ubuntu-core
-systems: [-ubuntu-core-*]
+# ubuntu-core: no go-compiler
+# ubuntu-16.04-32, debian-9-64:
+#   doing "ip link add e8 type veth" gives "RTNETLINK answers: File exists"
+#   error
+systems: [-ubuntu-core-*, -ubuntu-16.04-32, -debian-9-64]
 
 environment:
     # an empty $topsrcdir/tests/go.mod seems to break importing or building go
@@ -13,7 +16,7 @@ prepare: |
     go build -o monitor-default-gw ./monitor.go
 
 restore: |
-    systemctl stop monitor-default-gw
+    systemctl stop monitor-default-gw || true
 
 execute: |
     if ! command -v systemd-run; then
@@ -23,11 +26,13 @@ execute: |
     systemd-run --unit=monitor-default-gw "$(pwd)"/monitor-default-gw
 
     echo "Do route manipulation"
-    ip link add veth99 type veth
-    ip addr add 192.168.2.2/24 dev veth99
-    ip route add default via 192.168.2.2
-    ip route del default via 192.168.2.2
-    ip addr del 192.168.2.2/24 dev veth99
+    ip link add veth28 type veth
+    ip link set veth28 up
+    ip addr add 192.168.2.2/24 dev veth28
+    ip route add default via 192.168.2.1 metric 1000
+    ip route del default via 192.168.2.1
+    ip addr del 192.168.2.2/24 dev veth28
+    ip link del veth28
 
     echo "Check that both add/remove got captured"
     retry-tool -n 10 sh -c 'journalctl -u monitor-default-gw|MATCH "default gw added 192.168.2.2"'
