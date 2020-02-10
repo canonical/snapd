@@ -430,8 +430,13 @@ int main(int argc, char **argv)
 	// of the calling user (by using real user and group identifiers). This
 	// allows the creation of directories inside ~/ on NFS with root_squash
 	// attribute.
-	sc_set_effective_identity((sc_identity) {.uid = real_uid,.gid = real_gid }
-	);
+	sc_identity real_user_identity = {
+		.uid = real_uid,
+		.gid = real_gid,
+		.change_uid = 1,
+		.change_gid = 1,
+	};
+	sc_set_effective_identity(real_user_identity);
 	setup_user_data();
 #if 0
 	setup_user_xdg_runtime_dir();

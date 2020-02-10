@@ -142,12 +142,14 @@ void write_string_to_file(const char *filepath, const char *buf)
 
 sc_identity sc_set_effective_identity(sc_identity identity)
 {
-	debug("set_effective_identity uid:%d, gid:%d", identity.uid,
-	      identity.gid);
-	sc_identity old = {.uid = (uid_t) (-1),.gid = (gid_t) (-1) };
+	debug("set_effective_identity uid:%d (change: %s), gid:%d (change: %s)",
+	      identity.uid, identity.change_uid ? "yes" : "no",
+	      identity.gid, identity.change_gid ? "yes" : "no");
+	sc_identity old = {.change_gid = 0,.change_uid = 0 };
 
-	if (identity.gid != (gid_t) (-1)) {
+	if (identity.change_gid) {
 		old.gid = getegid();
+		old.change_gid = 1;
 		if (setegid(identity.gid) < 0) {
 			die("cannot set effective group to %d", identity.gid);
 		}
@@ -156,8 +158,9 @@ sc_identity sc_set_effective_identity(sc_identity identity)
 			    old.gid, identity.gid);
 		}
 	}
-	if (identity.uid != (uid_t) (-1)) {
+	if (identity.change_uid) {
 		old.uid = geteuid();
+		old.change_uid = 1;
 		if (seteuid(identity.uid) < 0) {
 			die("cannot set effective user to %d", identity.uid);
 		}

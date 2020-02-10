@@ -49,11 +49,23 @@ bool sc_is_reexec_enabled(void);
 typedef struct sc_identity {
 	uid_t uid;
 	gid_t gid;
+	unsigned change_uid:1;
+	unsigned change_gid:1;
 } sc_identity;
 
+/**
+ * Identity of the root group.
+ *
+ * The return value is suitable for passing to sc_set_effective_identity. It
+ * causes the effective group to change to the root group. No change is made to
+ * effective user identity.
+ **/
 static inline sc_identity sc_root_group_identity(void)
 {
-	sc_identity id = {.uid = -1,.gid = 0 };
+	sc_identity id = {
+		.gid = 0,
+		.change_gid = 1
+	};
 	return id;
 }
 
@@ -64,8 +76,8 @@ static inline sc_identity sc_root_group_identity(void)
  * current values are returned as another identity that can be restored via
  * another call to sc_set_effective_identity.
  *
- * If -1 is used as either user or group ID then the respective change is not
- * made and the returned old identity will also use -1 as that value.
+ * The fields change_uid and change_gid control if user and group ID is changed.
+ * The returned old identity has identical values of both use flags.
 **/
 sc_identity sc_set_effective_identity(sc_identity identity);
 
