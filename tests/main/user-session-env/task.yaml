@@ -40,7 +40,7 @@ restore: |
 
     rm -f test-profile-env test-profile-zsh-env test-session-env test-zsh-session-env
 
-    if [[ -e has-sessions ]]; then
+    if [ -e has-sessions ]; then
         for uid in $(uid -u test) $(uid -u "$TEST_ZSH_USER"); do
             systemctl stop "user@$uid.service"
         done
@@ -52,7 +52,7 @@ execute: |
     . "$TESTSLIB/dirs.sh"
 
     for user in test "$TEST_ZSH_USER"; do
-        if [[ -e ./has-sessions ]]; then
+        if [ -e ./has-sessions ]; then
             uid=$(id -u "$user")
             # dump the environment set up by the user session manager
             su -l "$user" -c "XDG_RUNTIME_DIR=/run/user/$uid systemctl --user show-environment" > "${user}-session-env"
@@ -61,7 +61,7 @@ execute: |
     done
 
     for user in test "$TEST_ZSH_USER"; do
-        if [[ -e ./has-sessions ]]; then
+        if [ -e ./has-sessions ]; then
             MATCH 'XDG_DATA_DIRS=.*[:]?/var/lib/snapd/desktop[:]?.*' < "${user}-session-env"
             MATCH "PATH=.*[:]?${SNAP_MOUNT_DIR}/bin[:]?.*" < "${user}-session-env"
         fi
