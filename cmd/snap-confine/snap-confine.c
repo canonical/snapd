@@ -732,11 +732,9 @@ static void enter_non_classic_execution_environment(sc_invocation * inv,
 	// still alive as well as to properly account for each application and
 	// service.
 	// Temporarily raise egid so we can chown the freezer cgroup under LXD.
-	sc_identity old = sc_set_effective_identity(sc_root_group_identity());
 	if (!sc_cgroup_is_v2()) {
 		sc_cgroup_freezer_join(inv->snap_instance, getpid());
 	}
-	(void)sc_set_effective_identity(old);
 
 	maybe_join_tracking_cgroup(inv, real_gid, saved_gid);
 
