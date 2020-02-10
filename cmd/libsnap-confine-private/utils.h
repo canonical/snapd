@@ -42,9 +42,8 @@ bool sc_is_reexec_enabled(void);
 /**
  * sc_identity describes the user performing certain operation.
  *
- * UID and GID may represent actual user and group accounts. Either value may
- * also be set to -1 to indicate that a specific identity change should not
- * be performed.
+ * UID and GID represent user and group accounts numbers and are controlled by
+ * change_uid and change_gid flags.
 **/
 typedef struct sc_identity {
 	uid_t uid;
