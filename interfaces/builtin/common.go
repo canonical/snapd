@@ -26,8 +26,10 @@ import (
 	"github.com/snapcore/snapd/interfaces"
 	"github.com/snapcore/snapd/interfaces/apparmor"
 	"github.com/snapcore/snapd/interfaces/kmod"
+	"github.com/snapcore/snapd/interfaces/mount"
 	"github.com/snapcore/snapd/interfaces/seccomp"
 	"github.com/snapcore/snapd/interfaces/udev"
+	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/snap"
 )
 
@@ -54,6 +56,9 @@ type commonInterface struct {
 	connectedPlugSecComp   string
 	connectedPlugUDev      []string
 	rejectAutoConnectPairs bool
+
+	connectedPlugUpdateNSAppArmor string
+	connectedPlugMount            []osutil.MountEntry
 
 	connectedPlugKModModules []string
 	connectedSlotKModModules []string
@@ -92,8 +97,11 @@ func (iface *commonInterface) AppArmorConnectedPlug(spec *apparmor.Specification
 	if iface.suppressHomeIx {
 		spec.SetSuppressHomeIx()
 	}
-	if iface.connectedPlugAppArmor != "" {
-		spec.AddSnippet(iface.connectedPlugAppArmor)
+	if snippet := iface.connectedPlugAppArmor; snippet != "" {
+		spec.AddSnippet(snippet)
+	}
+	if snippet := iface.connectedPlugUpdateNSAppArmor; snippet != "" {
+		spec.AddUpdateNS(snippet)
 	}
 	return nil
 }
@@ -119,6 +127,15 @@ func (iface *commonInterface) KModConnectedPlug(spec *kmod.Specification, plug *
 func (iface *commonInterface) KModConnectedSlot(spec *kmod.Specification, plug *interfaces.ConnectedPlug, slot *interfaces.ConnectedSlot) error {
 	for _, m := range iface.connectedSlotKModModules {
 		if err := spec.AddModule(m); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+func (iface *commonInterface) MountConnectedPlug(spec *mount.Specification, plug *interfaces.ConnectedPlug, slot *interfaces.ConnectedSlot) error {
+	for _, entry := range iface.connectedPlugMount {
+		if err := spec.AddMountEntry(entry); err != nil {
 			return err
 		}
 	}

@@ -3,4 +3,4 @@
 command="$1"
 shift
 
-"$command" "$@"
+exec "$command" "$@"

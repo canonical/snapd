@@ -52,12 +52,12 @@ func (s *systemSuite) TestAssumptions(c *C) {
 	// Non-instances can access /tmp, /var/snap and /snap/$SNAP_NAME
 	upCtx := update.NewSystemProfileUpdateContext("foo", false)
 	as := upCtx.Assumptions()
-	c.Check(as.UnrestrictedPaths(), DeepEquals, []string{"/tmp", "/var/snap", "/snap/foo"})
+	c.Check(as.UnrestrictedPaths(), DeepEquals, []string{"/tmp", "/var/snap", "/snap/foo", "/var/lib/snapd/hostfs/var"})
 
 	// Instances can, in addition, access /snap/$SNAP_INSTANCE_NAME
 	upCtx = update.NewSystemProfileUpdateContext("foo_instance", false)
 	as = upCtx.Assumptions()
-	c.Check(as.UnrestrictedPaths(), DeepEquals, []string{"/tmp", "/var/snap", "/snap/foo_instance", "/snap/foo"})
+	c.Check(as.UnrestrictedPaths(), DeepEquals, []string{"/tmp", "/var/snap", "/snap/foo_instance", "/var/lib/snapd/hostfs/var", "/snap/foo"})
 }
 
 func (s *systemSuite) TestLoadDesiredProfile(c *C) {

@@ -66,9 +66,13 @@ func (upCtx *SystemProfileUpdateContext) Assumptions() *Assumptions {
 	//
 	// /snap/$SNAP_INSTANCE_NAME and /snap/$SNAP_NAME are added to allow
 	// remapping for parallel installs only when the snap has an instance key
+	//
+	// /var/lib/snapd/hostfs/var is there to allow the content interface to
+	// bridge to arbitrary sub-directories of /var from the host, even if they
+	// don't exist (they are created on the host in such case).
 	as := &Assumptions{}
 	instanceName := upCtx.InstanceName()
-	as.AddUnrestrictedPaths("/tmp", "/var/snap", "/snap/"+instanceName)
+	as.AddUnrestrictedPaths("/tmp", "/var/snap", "/snap/"+instanceName, "/var/lib/snapd/hostfs/var")
 	if snapName := snap.InstanceSnap(instanceName); snapName != instanceName {
 		as.AddUnrestrictedPaths("/snap/" + snapName)
 	}

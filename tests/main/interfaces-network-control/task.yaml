@@ -58,6 +58,11 @@ execute: |
     echo "When the plug is connected"
     snap connect network-control-consumer:network-control
 
+    echo "Then the snap can access /var/lib/dhcp/ on the host"
+    network-control-consumer.cmd touch /var/lib/dhcp/foo
+    test -e /var/lib/dhcp/foo
+    rm -f /var/lib/dhcp/foo
+
     echo "Then the snap command can query network status information"
     network-control-consumer.cmd ss -lnt | MATCH "LISTEN.*:$PORT"
 

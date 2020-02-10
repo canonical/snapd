@@ -25,8 +25,10 @@ import (
 	"github.com/snapcore/snapd/interfaces"
 	"github.com/snapcore/snapd/interfaces/apparmor"
 	"github.com/snapcore/snapd/interfaces/builtin"
+	"github.com/snapcore/snapd/interfaces/mount"
 	"github.com/snapcore/snapd/interfaces/seccomp"
 	"github.com/snapcore/snapd/interfaces/udev"
+	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/snap"
 	"github.com/snapcore/snapd/testutil"
 )
@@ -79,6 +81,18 @@ func (s *NetworkControlInterfaceSuite) TestAppArmorSpec(c *C) {
 	c.Assert(spec.AddConnectedPlug(s.iface, s.plug, s.slot), IsNil)
 	c.Assert(spec.SecurityTags(), DeepEquals, []string{"snap.consumer.app"})
 	c.Assert(spec.SnippetForTag("snap.consumer.app"), testutil.Contains, "/run/netns/* rw,\n")
+	c.Assert(spec.UpdateNS(), DeepEquals, []string{`
+/var/ r,
+/var/lib/ r,
+/var/lib/snapd/ r,
+/var/lib/snapd/hostfs/ r,
+/var/lib/snapd/hostfs/var/ r,
+/var/lib/snapd/hostfs/var/lib/ r,
+/var/lib/snapd/hostfs/var/lib/dhcp/ rw, # create on the host, if needed.
+/var/lib/dhcp/ r,
+mount options=(rw bind) /var/lib/snapd/hostfs/var/lib/dhcp/ -> /var/lib/dhcp/,
+umount /var/lib/dhcp/,
+`})
 }
 
 func (s *NetworkControlInterfaceSuite) TestSecCompSpec(c *C) {
@@ -95,6 +109,17 @@ func (s *NetworkControlInterfaceSuite) TestUDevSpec(c *C) {
 	c.Assert(spec.Snippets(), testutil.Contains, `# network-control
 KERNEL=="tun", TAG+="snap_consumer_app"`)
 	c.Assert(spec.Snippets(), testutil.Contains, `TAG=="snap_consumer_app", RUN+="/usr/lib/snapd/snap-device-helper $env{ACTION} snap_consumer_app $devpath $major:$minor"`)
+}
+
+func (s *NetworkControlInterfaceSuite) TestMountSpec(c *C) {
+	spec := &mount.Specification{}
+	c.Assert(spec.AddConnectedPlug(s.iface, s.plug, s.slot), IsNil)
+	c.Assert(spec.MountEntries(), HasLen, 1)
+	c.Assert(spec.MountEntries(), DeepEquals, []osutil.MountEntry{{
+		Name:    "/var/lib/snapd/hostfs/var/lib/dhcp",
+		Dir:     "/var/lib/dhcp",
+		Options: []string{"rw", "bind"},
+	}})
 }
 
 func (s *NetworkControlInterfaceSuite) TestStaticInfo(c *C) {

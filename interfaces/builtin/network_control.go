@@ -19,6 +19,10 @@
 
 package builtin
 
+import (
+	"github.com/snapcore/snapd/osutil"
+)
+
 const networkControlSummary = `allows configuring networking and network namespaces`
 
 const networkControlBaseDeclarationSlots = `
@@ -280,6 +284,25 @@ var networkControlConnectedPlugUDev = []string{
 	`KERNEL=="tun"`,
 }
 
+var networkControlConnectedPlugMount = []osutil.MountEntry{{
+	Name:    "/var/lib/snapd/hostfs/var/lib/dhcp",
+	Dir:     "/var/lib/dhcp",
+	Options: []string{"rw", "bind"},
+}}
+
+var networkControlConnectedPlugUpdateNSAppArmor = `
+/var/ r,
+/var/lib/ r,
+/var/lib/snapd/ r,
+/var/lib/snapd/hostfs/ r,
+/var/lib/snapd/hostfs/var/ r,
+/var/lib/snapd/hostfs/var/lib/ r,
+/var/lib/snapd/hostfs/var/lib/dhcp/ rw, # create on the host, if needed.
+/var/lib/dhcp/ r,
+mount options=(rw bind) /var/lib/snapd/hostfs/var/lib/dhcp/ -> /var/lib/dhcp/,
+umount /var/lib/dhcp/,
+`
+
 func init() {
 	registerIface(&commonInterface{
 		name:                  "network-control",
@@ -290,7 +313,11 @@ func init() {
 		connectedPlugAppArmor: networkControlConnectedPlugAppArmor,
 		connectedPlugSecComp:  networkControlConnectedPlugSecComp,
 		connectedPlugUDev:     networkControlConnectedPlugUDev,
-		suppressPtraceTrace:   true,
+
+		connectedPlugMount:            networkControlConnectedPlugMount,
+		connectedPlugUpdateNSAppArmor: networkControlConnectedPlugUpdateNSAppArmor,
+
+		suppressPtraceTrace: true,
 	})
 
 }

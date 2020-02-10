@@ -1,0 +1,14 @@
+summary: /var/lib/dhcp is shared with host
+prepare: |
+    snap pack test-snapd-app
+    snap install --dangerous ./test-snapd-app_1_all.snap
+    snap connect test-snapd-app:network-control
+restore: |
+    rm -f /var/lib/dhcp/.canary
+    snap remove test-snapd-app
+    rm -f test-snapd-app_1_all.snap
+execute: |
+    # The directory may not exist on the host but running the snap will create it.
+    test-snapd-app.sh -c 'test -d /var/lib/dhcp'
+    touch /var/lib/dhcp/.canary
+    test-snapd-app.sh -c 'test -f /var/lib/dhcp/.canary'
