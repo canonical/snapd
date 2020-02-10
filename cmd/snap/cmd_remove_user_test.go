@@ -29,7 +29,28 @@ import (
 	snap "github.com/snapcore/snapd/cmd/snap"
 )
 
-func makeRemoveUserChecker(c *check.C, n *int, username string) func(w http.ResponseWriter, r *http.Request) {
+var removeUserJsonFmtReplyHappy = `{
+  "type": "sync",
+  "result": {
+    "removed": [{"username": %q}]
+  }
+}`
+
+var removeUserJsonReplyTooMany = `{
+  "type": "sync",
+  "result": {
+    "removed": [{"username": "too"}, {"username": "many"}]
+  }
+}`
+
+var removeUserJsonReplyTooFew = `{
+  "type": "sync",
+  "result": {
+    "removed": []
+  }
+}`
+
+func makeRemoveUserChecker(c *check.C, n *int, username string, fmtJsonReply string) func(w http.ResponseWriter, r *http.Request) {
 	f := func(w http.ResponseWriter, r *http.Request) {
 		switch *n {
 		case 0:
@@ -46,13 +67,7 @@ func makeRemoveUserChecker(c *check.C, n *int, username string) func(w http.Resp
 			}
 			c.Check(gotBody, check.DeepEquals, wantBody)
 
-			fmt.Fprintf(w, `{
-  "type": "sync",
-  "result": {
-    "removed": [{"username": %q}]
-  }
-}
-`, username)
+			fmt.Fprint(w, fmtJsonReply)
 		default:
 			c.Fatalf("got too many requests (now on %d)", *n+1)
 		}
@@ -64,12 +79,31 @@ func makeRemoveUserChecker(c *check.C, n *int, username string) func(w http.Resp
 
 func (s *SnapSuite) TestRemoveUser(c *check.C) {
 	n := 0
-	s.RedirectClientToTestServer(makeRemoveUserChecker(c, &n, "karl"))
+	username := "karl"
+	s.RedirectClientToTestServer(makeRemoveUserChecker(c, &n, username, fmt.Sprintf(removeUserJsonFmtReplyHappy, username)))
 
 	rest, err := snap.Parser(snap.Client()).ParseArgs([]string{"remove-user", "karl"})
 	c.Assert(err, check.IsNil)
 	c.Check(rest, check.DeepEquals, []string{})
 	c.Check(n, check.Equals, 1)
-	c.Assert(s.Stdout(), check.Equals, `removed user "karl"`+"\n")
+	c.Assert(s.Stdout(), check.Equals, fmt.Sprintf("removed user %q\n", username))
 	c.Assert(s.Stderr(), check.Equals, "")
+}
+
+func (s *SnapSuite) TestRemoveUserUnhappyTooMany(c *check.C) {
+	n := 0
+	s.RedirectClientToTestServer(makeRemoveUserChecker(c, &n, "karl", removeUserJsonReplyTooMany))
+
+	_, err := snap.Parser(snap.Client()).ParseArgs([]string{"remove-user", "karl"})
+	c.Assert(err, check.ErrorMatches, `internal error: RemoveUser returned unexpected number of removed users: 2`)
+	c.Check(n, check.Equals, 1)
+}
+
+func (s *SnapSuite) TestRemoveUserUnhappyTooFew(c *check.C) {
+	n := 0
+	s.RedirectClientToTestServer(makeRemoveUserChecker(c, &n, "karl", removeUserJsonReplyTooFew))
+
+	_, err := snap.Parser(snap.Client()).ParseArgs([]string{"remove-user", "karl"})
+	c.Assert(err, check.ErrorMatches, `internal error: RemoveUser returned unexpected number of removed users: 0`)
+	c.Check(n, check.Equals, 1)
 }
