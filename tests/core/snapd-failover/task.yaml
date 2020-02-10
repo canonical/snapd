@@ -2,7 +2,9 @@ summary: Check that snapd failure handling works
 
 # TODO:UC20: enable for UC20, currently snapd.failure.service does not work on
 #            UC20, it currently isn't activated for some reason
-systems: [-ubuntu-core-20-*]
+# UC16 still uses the core snap rather than the snapd snap, so disable this test
+# for UC16
+systems: [-ubuntu-core-20-*, -ubuntu-core-16-*]
 
 debug: |
     # dump failure data
