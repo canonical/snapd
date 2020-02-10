@@ -1,12 +1,13 @@
 summary: Ensure that the pulseaudio interface works
 
 # Classic Ubuntu is sufficient to test the feature
-systems: [ ubuntu-1*-*64, ubuntu-2*-*64 ]
+systems: [ubuntu-1*-*64, ubuntu-2*-*64]
 
 kill-timeout: 3m
 
 environment:
     PLAY_FILE: "/snap/test-snapd-pulseaudio/current/usr/share/sounds/alsa/Noise.wav"
+    PA_TEST_LOG: /home/test/pulseaudio.log
 
 prepare: |
     #shellcheck source=tests/lib/pkgdb.sh
@@ -53,14 +54,38 @@ restore: |
     rm -f /home/test/pulse-test.pa
     rm -f /run/user/12345/pulse/native
 
+debug: |
+    for l in first second; do
+        if [ -f $PA_TEST_LOG.$l ]; then
+            cat $PA_TEST_LOG.$l
+        fi
+        rm -f $PA_TEST_LOG.$l
+    done
+
 execute: |
     as_user() {
         su -l -c "HOME=/home/test XDG_RUNTIME_DIR=/run/user/12345 $*" test
     }
-    # we need -p so that XDG_RUNTIME_DIR is honored, but that preserves HOME,
-    # so specify it too since pulseaudio fails to start otherwise
-    echo "Start pulseaudio"
-    as_user "pulseaudio --exit-idle-time=300 -n -F /home/test/pulse-test.pa --log-level=4 --verbose" &
+
+    echo "Start pulseaudio first time, logging output to the first log"
+    as_user "pulseaudio -vvvv --exit-idle-time=300 -n -F /home/test/pulse-test.pa --log-level=4 --verbose 2>&1 | tee $PA_TEST_LOG.first >/dev/null" &
+    papid=$!
+
+    # restart pulseaudio because sometimes it's not able to bind to the required
+    # socket, but still is running as a server that clients will try to connect
+    # to, but will fail with "Connection refused"
+    echo "Kill pulseaudio to restart it"
+    as_user "pulseaudio --kill" test &
+
+    # try to manually kill the pulseaudio daemon
+    kill -9 "$papid"
+
+    echo "wait for the pulseaudio daemon to die"
+    retry-tool -n 10 bash -c "test ! -e /proc/$papid" 
+
+    # now try again
+    echo "Start pulseaudio for real, logging output to the second log"
+    as_user "pulseaudio -vvvv --exit-idle-time=300 -n -F /home/test/pulse-test.pa --log-level=4 --verbose 2>&1 | tee $PA_TEST_LOG.second >/dev/null" &
 
     echo "Then wait for the socket to show up"
     retry-tool -n 10 test -S /run/user/12345/pulse/native
