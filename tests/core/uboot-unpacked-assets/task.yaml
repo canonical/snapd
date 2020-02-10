@@ -1,5 +1,6 @@
 summary: Ensure we have unpacked kernel.img/initrd.img on uboot systems
 
+# TODO:UC20: enable for uc18/uc20 arm when that is ready
 systems: [ubuntu-core-16-arm-*]
 
 environment:

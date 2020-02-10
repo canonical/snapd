@@ -1,5 +1,6 @@
 summary: Ensure that the writable paths on the image are correct
 
+# TODO:UC20: enable for uc20
 systems: [ubuntu-core-1*]
 
 execute: |

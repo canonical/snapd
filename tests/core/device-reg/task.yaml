@@ -2,6 +2,7 @@ summary: |
     Ensure after device initialisation registration worked and
     we have a serial and can acquire a session macaroon
 
+# TODO:UC20: enable for UC20
 systems: [ubuntu-core-1*]
 
 execute: |

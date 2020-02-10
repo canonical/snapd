@@ -1,8 +1,9 @@
 summary: |
-   Test that device initialisation and registration can be customized
-   with the prepare-device gadget hook and this can set request headers,
-   a proposed serial and the body of the serial assertion
+    Test that device initialisation and registration can be customized
+    with the prepare-device gadget hook and this can set request headers,
+    a proposed serial and the body of the serial assertion
 
+# TODO:UC20: enable for UC20
 systems: [ubuntu-core-1*-64]
 
 prepare: |

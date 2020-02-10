@@ -1,5 +1,6 @@
 summary: Ensure that snap create-user works in ubuntu-core
 
+# TODO:UC20: enable for UC20
 systems: [ubuntu-core-1*]
 
 restore: |

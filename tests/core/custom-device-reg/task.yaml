@@ -1,7 +1,8 @@
 summary: |
-   Test that device initialisation and registration can be customized
-   with the prepare-device gadget hook
+    Test that device initialisation and registration can be customized
+    with the prepare-device gadget hook
 
+# TODO:UC20: enable for UC20
 systems: [ubuntu-core-1*-64]
 
 prepare: |

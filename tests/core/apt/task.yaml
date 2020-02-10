@@ -1,5 +1,7 @@
 summary: Ensure that the apt output on UC16 is correct
 
+# TODO:UC20: test that apt-get doesn't exist on UC18 / UC20 in this tests and
+#            re-enable
 systems: [ubuntu-core-16-*]
 
 execute: |

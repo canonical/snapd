@@ -1,5 +1,6 @@
 summary: check that os-release is correct
 
+# TODO:UC20: enable with DISTRIB_RELEASE=20
 systems: [ubuntu-core-1*]
 
 execute: |

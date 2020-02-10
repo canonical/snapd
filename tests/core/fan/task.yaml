@@ -1,6 +1,7 @@
 summary: Test ubuntu-fan
 
 # Ubuntu fan not available on ubuntu-core-18
+# TODO:UC20: enable for UC20???
 systems: [ubuntu-core-16-*]
 
 prepare: |

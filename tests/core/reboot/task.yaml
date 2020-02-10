@@ -1,5 +1,6 @@
 summary: Ensure that service and apparmor profiles work after a reboot
 
+# TODO:UC20: enable for UC20 
 systems: [ubuntu-core-1*]
 
 # Start early as it takes a long time.

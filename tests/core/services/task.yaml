@@ -1,5 +1,6 @@
 summary: Ensure all services on Core are active
 
+# TODO:UC20: enable for UC20
 systems: [ubuntu-core-1*]
 
 execute: |

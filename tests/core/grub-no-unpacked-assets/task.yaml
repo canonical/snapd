@@ -1,5 +1,6 @@
 summary: Ensure we have no unpacked kernel.img/initrd.img on grub systems
 
+# TODO:UC20: enable for UC20 on ubuntu-seed grub?
 systems: [ubuntu-core-1*-64]
 
 environment:
