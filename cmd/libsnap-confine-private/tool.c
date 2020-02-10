@@ -145,7 +145,11 @@ void sc_call_snap_discard_ns(int snap_discard_ns_fd, const char *snap_name)
 	/* SNAPD_DEBUG=x is replaced by sc_call_snapd_tool_with_apparmor with
 	 * either SNAPD_DEBUG=0 or SNAPD_DEBUG=1, see that function for details. */
 	char *envp[] = { "SNAPD_DEBUG=x", NULL };
+	/* Switch the group to root so that directories and locks created by
+	 * snap-discard-ns are owned by the root group. */
+	sc_identity old = sc_set_effective_identity(sc_root_group_identity());
 	sc_call_snapd_tool(snap_discard_ns_fd, "snap-discard-ns", argv, envp);
+	(void)sc_set_effective_identity(old);
 }
 
 static int sc_open_snapd_tool(const char *tool_name)

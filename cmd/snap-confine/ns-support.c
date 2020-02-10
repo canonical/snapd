@@ -520,9 +520,7 @@ static int sc_inspect_and_maybe_discard_stale_ns(int mnt_fd,
 		    ("preserved mount namespace is stale and base snap has changed, discarding");
 		break;
 	}
-	sc_identity old = sc_set_effective_identity(sc_root_group_identity());
 	sc_call_snap_discard_ns(snap_discard_ns_fd, inv->snap_instance);
-	(void)sc_set_effective_identity(old);
 	return EAGAIN;
 }
 
