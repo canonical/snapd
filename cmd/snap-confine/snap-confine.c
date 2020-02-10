@@ -770,12 +770,9 @@ static void enter_non_classic_execution_environment(sc_invocation * inv,
 static void maybe_join_tracking_cgroup(const sc_invocation * inv,
 				       gid_t real_gid, gid_t saved_gid)
 {
-	/* Temporarily raise egid so we can chown the cgroup under LXD. */
-	sc_identity old = sc_set_effective_identity(sc_root_group_identity());
 	if (!sc_cgroup_is_v2()) {
 		if (sc_feature_enabled(SC_FEATURE_REFRESH_APP_AWARENESS)) {
 			sc_cgroup_pids_join(inv->security_tag, getpid());
 		}
 	}
-	(void)sc_set_effective_identity(old);
 }
