@@ -403,7 +403,9 @@ func (o *Overlord) Loop() {
 			case <-o.pruneTicker.C:
 				st := o.State()
 				st.Lock()
-				st.Prune(pruneWait, abortWait, pruneMaxChanges)
+				if o.deviceMgr == nil || o.deviceMgr.CanPrune() {
+					st.Prune(pruneWait, abortWait, pruneMaxChanges)
+				}
 				st.Unlock()
 			}
 		}
