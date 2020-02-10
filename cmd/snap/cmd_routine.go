@@ -1,7 +1,7 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
 
 /*
- * Copyright (C) 2018 Canonical Ltd
+ * Copyright (C) 2019 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -19,37 +19,17 @@
 
 package main
 
-//go:generate mkauthors.sh
-
 import (
-	"fmt"
-	"math/rand"
-
-	"github.com/jessevdk/go-flags"
+	"github.com/snapcore/snapd/i18n"
 )
 
-type cmdBlame struct{}
+type cmdRoutine struct{}
 
-var authors []string
+var shortRoutineHelp = i18n.G("Run routine commands")
+var longRoutineHelp = i18n.G(`
+The routine command contains a selection of additional sub-commands.
 
-func init() {
-	cmd := addCommand("blame",
-		"(hidden)",
-		"",
-		func() flags.Commander {
-			return &cmdBlame{}
-		}, nil, nil)
-	cmd.hidden = true
-}
-
-func (x *cmdBlame) Execute(args []string) error {
-	if len(args) > 0 {
-		return ErrExtraArgs
-	}
-	if len(authors) == 0 {
-		return nil
-	}
-
-	fmt.Fprintf(Stdout, "It's all %s's fault.\n", authors[rand.Intn(len(authors))])
-	return nil
-}
+Routine commands are not intended to be directly invoked by the user.
+Instead, they are intended to be called by other programs and produce
+machine readable output.
+`)

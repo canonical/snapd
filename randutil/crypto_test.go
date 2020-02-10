@@ -1,7 +1,7 @@
-// +build go1.8
+// -*- Mode: Go; indent-tabs-mode: t -*-
 
 /*
- * Copyright (C) 2017 Canonical Ltd
+ * Copyright (C) 2020 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -17,12 +17,31 @@
  *
  */
 
-package httputil
+package randutil_test
 
 import (
-	"net/http"
+	"encoding/base64"
+
+	. "gopkg.in/check.v1"
+
+	"github.com/snapcore/snapd/randutil"
 )
 
-func fixupHeadersForRedirect(req *http.Request, via []*http.Request) {
-	// no longer needed from 1.8
+type cryptoRandutilSuite struct{}
+
+var _ = Suite(&cryptoRandutilSuite{})
+
+func (s *cryptoRandutilSuite) TestCryptoTokenBytes(c *C) {
+	x, err := randutil.CryptoTokenBytes(5)
+	c.Assert(err, IsNil)
+	c.Check(x, HasLen, 5)
+}
+
+func (s *cryptoRandutilSuite) TestCryptoToken(c *C) {
+	x, err := randutil.CryptoToken(5)
+	c.Assert(err, IsNil)
+
+	b, err := base64.RawURLEncoding.DecodeString(x)
+	c.Assert(err, IsNil)
+	c.Check(b, HasLen, 5)
 }

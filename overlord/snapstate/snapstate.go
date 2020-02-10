@@ -349,25 +349,19 @@ func doInstall(st *state.State, snapst *SnapState, snapsup *SnapSetup, flags int
 
 	installSet := state.NewTaskSet(tasks...)
 	installSet.WaitAll(ts)
-	ts.AddAll(installSet)
+	installSet.MarkEdge(prereq, BeginEdge)
+	installSet.MarkEdge(setupAliases, BeforeHooksEdge)
+	if installHook != nil {
+		installSet.MarkEdge(installHook, HooksEdge)
+	}
+	ts.AddAllWithEdges(installSet)
 	if checkAsserts != nil {
 		ts.MarkEdge(checkAsserts, DownloadAndChecksDoneEdge)
 	}
 
 	if flags&skipConfigure != 0 {
-		if installHook != nil {
-			installSet.MarkEdge(installHook, HooksEdge)
-		}
-		installSet.MarkEdge(prereq, BeginEdge)
-		installSet.MarkEdge(setupAliases, BeforeHooksEdge)
 		return installSet, nil
 	}
-
-	if installHook != nil {
-		ts.MarkEdge(installHook, HooksEdge)
-	}
-	ts.MarkEdge(prereq, BeginEdge)
-	ts.MarkEdge(setupAliases, BeforeHooksEdge)
 
 	// we do not support configuration for bases or the "snapd" snap yet
 	if snapsup.Type != snap.TypeBase && snapsup.Type != snap.TypeSnapd {
@@ -941,7 +935,12 @@ func updateManyFiltered(ctx context.Context, st *state.State, names []string, us
 
 	}
 
-	return doUpdate(ctx, st, names, updates, params, userID, flags, deviceCtx, fromChange)
+	updated, tasksets, err := doUpdate(ctx, st, names, updates, params, userID, flags, deviceCtx, fromChange)
+	if err != nil {
+		return nil, nil, err
+	}
+	tasksets = finalizeUpdate(st, tasksets, len(updates) > 0, updated, userID, flags)
+	return updated, tasksets, nil
 }
 
 func doUpdate(ctx context.Context, st *state.State, names []string, updates []*snap.Info, params func(*snap.Info) (*RevisionOptions, Flags, *SnapState), userID int, globalFlags *Flags, deviceCtx DeviceContext, fromChange string) ([]string, []*state.TaskSet, error) {
@@ -1091,7 +1090,11 @@ func doUpdate(ctx context.Context, st *state.State, names []string, updates []*s
 		updated = append(updated, name)
 	}
 
-	if len(updated) > 0 && !globalFlags.NoReRefresh {
+	return updated, tasksets, nil
+}
+
+func finalizeUpdate(st *state.State, tasksets []*state.TaskSet, hasUpdates bool, updated []string, userID int, globalFlags *Flags) []*state.TaskSet {
+	if hasUpdates && !globalFlags.NoReRefresh {
 		// re-refresh will check the lanes to decide what to
 		// _actually_ re-refresh, but it'll be a subset of updated
 		// (and equal to updated if nothing goes wrong)
@@ -1102,8 +1105,7 @@ func doUpdate(ctx context.Context, st *state.State, names []string, updates []*s
 		})
 		tasksets = append(tasksets, state.NewTaskSet(rerefresh))
 	}
-
-	return updated, tasksets, nil
+	return tasksets
 }
 
 func applyAutoAliasesDelta(st *state.State, delta map[string][]string, op string, refreshAll bool, fromChange string, linkTs func(instanceName string, ts *state.TaskSet)) (*state.TaskSet, error) {
@@ -1480,9 +1482,6 @@ func UpdateWithDeviceContext(st *state.State, name string, opts *RevisionOptions
 	switchCohortKey := snapst.CohortKey != opts.CohortKey
 	toggleIgnoreValidation := snapst.IgnoreValidation != flags.IgnoreValidation
 	if infoErr == store.ErrNoUpdateAvailable && (switchChannel || switchCohortKey || toggleIgnoreValidation) {
-		// NOTE: if we are in here, len(updates) == 0
-		//       (so we're free to add tasks because there's no rerefresh)
-
 		if err := checkChangeConflictIgnoringOneChange(st, name, nil, fromChange); err != nil {
 			return nil, err
 		}
@@ -1530,6 +1529,9 @@ func UpdateWithDeviceContext(st *state.State, name string, opts *RevisionOptions
 		// really nothing to do, return the original no-update-available error
 		return nil, infoErr
 	}
+
+	tts = finalizeUpdate(st, tts, len(updates) > 0, []string{name}, userID, &flags)
+
 	flat := state.NewTaskSet()
 	for _, ts := range tts {
 		// The tasksets we get from "doUpdate" contain important

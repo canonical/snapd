@@ -21,7 +21,6 @@ package builtin
 
 import (
 	"fmt"
-	"path/filepath"
 	"regexp"
 	"strings"
 
@@ -116,30 +115,16 @@ const vdPat = `vd[a-z]([1-9]|[1-5][0-9]|6[0-3])`
 
 var rawVolumePartitionPattern = regexp.MustCompile(fmt.Sprintf("^/dev/(%s|%s|%s|%s|%s|%s)$", hdPat, sdPat, i2oPat, mmcPat, nvmePat, vdPat))
 
-func (iface *rawVolumeInterface) path(slotRef *interfaces.SlotRef, attrs interfaces.Attrer) (string, error) {
-	var path string
-	if err := attrs.Attr("path", &path); err != nil || path == "" {
-		return "", fmt.Errorf("slot %q must have a path attribute", slotRef)
-	}
-	cleanPath := filepath.Clean(path)
-	if cleanPath != path {
-		return "", fmt.Errorf(`cannot use slot %q path %q: try %q"`, slotRef, path, cleanPath)
-	}
-	if !rawVolumePartitionPattern.MatchString(path) {
-		return "", fmt.Errorf("slot %q path attribute must be a valid device node", slotRef)
-	}
-
-	return path, nil
-}
+const invalidDeviceNodeSlotPathErrFmt = "slot %q path attribute must be a valid device node"
 
 // Check validity of the defined slot
 func (iface *rawVolumeInterface) BeforePrepareSlot(slot *snap.SlotInfo) error {
-	_, err := iface.path(&interfaces.SlotRef{Snap: slot.Snap.InstanceName(), Name: slot.Name}, slot)
+	_, err := verifySlotPathAttribute(&interfaces.SlotRef{Snap: slot.Snap.InstanceName(), Name: slot.Name}, slot, rawVolumePartitionPattern, invalidDeviceNodeSlotPathErrFmt)
 	return err
 }
 
 func (iface *rawVolumeInterface) AppArmorConnectedPlug(spec *apparmor.Specification, plug *interfaces.ConnectedPlug, slot *interfaces.ConnectedSlot) error {
-	cleanedPath, err := iface.path(slot.Ref(), slot)
+	cleanedPath, err := verifySlotPathAttribute(slot.Ref(), slot, rawVolumePartitionPattern, invalidDeviceNodeSlotPathErrFmt)
 	if err != nil {
 		return nil
 	}
@@ -150,7 +135,7 @@ func (iface *rawVolumeInterface) AppArmorConnectedPlug(spec *apparmor.Specificat
 }
 
 func (iface *rawVolumeInterface) UDevConnectedPlug(spec *udev.Specification, plug *interfaces.ConnectedPlug, slot *interfaces.ConnectedSlot) error {
-	cleanedPath, err := iface.path(slot.Ref(), slot)
+	cleanedPath, err := verifySlotPathAttribute(slot.Ref(), slot, rawVolumePartitionPattern, invalidDeviceNodeSlotPathErrFmt)
 	if err != nil {
 		return nil
 	}

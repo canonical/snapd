@@ -84,6 +84,10 @@ func (iface *iioInterface) BeforePrepareSlot(slot *snap.SlotInfo) error {
 		return fmt.Errorf("%s slot must have a path attribute", iface.Name())
 	}
 
+	// XXX: this interface feeds the cleaned path into the regex and is
+	// left unchanged here for historical reasons. New interfaces (eg,
+	// like raw-volume) should instead use verifySlotPathAttribute() which
+	// performs additional verification.
 	path = filepath.Clean(path)
 
 	if !iioControlDeviceNodePattern.MatchString(path) {
