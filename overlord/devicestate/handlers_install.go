@@ -71,8 +71,8 @@ func (m *DeviceManager) doSetupRunSystem(t *state.Task, _ *tomb.Tomb) error {
 		args = append(args,
 			// enable data encryption
 			"--encrypt",
-			// location to store the sealed keyfile
-			"--key-file", filepath.Join(dirs.RunMnt, "ubuntu-boot", "keyfile"),
+			// location to store the keyfile
+			"--key-file", filepath.Join(dirs.RunMnt, "ubuntu-boot", "keyfile.unsealed"),
 		)
 	}
 	args = append(args, gadgetDir)

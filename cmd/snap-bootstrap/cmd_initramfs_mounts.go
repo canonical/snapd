@@ -23,6 +23,7 @@ import (
 	"fmt"
 	"io"
 	"os"
+	"os/exec"
 	"path/filepath"
 
 	"github.com/snapcore/snapd/boot"
@@ -184,6 +185,18 @@ func generateMountsModeRun() error {
 	}
 
 	// XXX possibly will need to unseal key, and unlock LUKS here before proceeding to mount data
+
+	// TODO:UC20: temporary code to open the encrypted partition with an unsealed key
+	//            fix after the recovery key PR lands to use the sealed key
+	keyfile := filepath.Join(bootDir, "keyfile.unsealed")
+	if osutil.FileExists(keyfile) {
+		cmd := exec.Command("/usr/lib/systemd/systemd-cryptsetup", "attach", "ubuntu-data", "/dev/disk/by-label/ubuntu-data-enc", keyfile)
+		cmd.Env = os.Environ()
+		cmd.Env = append(cmd.Env, "SYSTEMD_LOG_TARGET=console")
+		if output, err := cmd.CombinedOutput(); err != nil {
+			return osutil.OutputErr(output, err)
+		}
+	}
 
 	// 1.2 mount Data, and exit, as it needs to be mounted for us to do step 2
 	isDataMounted, err := osutilIsMounted(dataDir)
