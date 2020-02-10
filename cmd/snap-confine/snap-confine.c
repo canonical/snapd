@@ -426,10 +426,9 @@ int main(int argc, char **argv)
 							real_uid,
 							real_gid, saved_gid);
 	}
-	// Ensure that the user data path exists. When creating it use the identity
-	// of the calling user (by using real user and group identifiers). This
-	// allows the creation of directories inside ~/ on NFS with root_squash
-	// attribute.
+	// Temporarily drop privileges back to the calling user until we can
+	// permanently drop (which we can't do just yet due to seccomp, see
+	// below).
 	sc_identity real_user_identity = {
 		.uid = real_uid,
 		.gid = real_gid,
@@ -437,6 +436,10 @@ int main(int argc, char **argv)
 		.change_gid = 1,
 	};
 	sc_set_effective_identity(real_user_identity);
+	// Ensure that the user data path exists. When creating it use the identity
+	// of the calling user (by using real user and group identifiers). This
+	// allows the creation of directories inside ~/ on NFS with root_squash
+	// attribute.
 	setup_user_data();
 #if 0
 	setup_user_xdg_runtime_dir();
