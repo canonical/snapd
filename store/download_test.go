@@ -362,8 +362,8 @@ func (s *downloadSuite) TestActualDownloadServerNoResumeHandeled(c *C) {
 		switch n {
 		case 1:
 			c.Check(r.Header["Range"], HasLen, 1)
-		case 2:
-			c.Check(r.Header["Range"], IsNil)
+		default:
+			c.Fatal("only one request expected")
 		}
 		// server does not do partial content and sends full data instead
 		w.WriteHeader(200)
@@ -381,7 +381,7 @@ func (s *downloadSuite) TestActualDownloadServerNoResumeHandeled(c *C) {
 	err := store.Download(context.TODO(), "foo", sha3, mockServer.URL, nil, theStore, buf, int64(len("some ")), nil, nil)
 	c.Check(err, IsNil)
 	c.Check(buf.String(), Equals, "some data")
-	c.Check(n, Equals, 2)
+	c.Check(n, Equals, 1)
 }
 
 func (s *downloadSuite) TestUseDeltas(c *C) {
