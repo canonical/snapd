@@ -97,9 +97,11 @@ static void setup_private_mount(const char *snap_name)
 	if (base_dir_fd < 0) {
 		die("cannot open base directory %s", base_dir);
 	}
+	// TODO: This is probably not required anymore.
 	if (fchmod(base_dir_fd, 0700) < 0) {
 		die("cannot chmod base directory %s to 0700", base_dir);
 	}
+	// TODO: This is probably not required anymore.
 	if (fchown(base_dir_fd, 0, 0) < 0) {
 		die("cannot chown base directory %s to root.root", base_dir);
 	}
@@ -114,10 +116,12 @@ static void setup_private_mount(const char *snap_name)
 	if (tmp_dir_fd < 0) {
 		die("cannot open private tmp directory %s/tmp", base_dir);
 	}
+	// TODO: this is probably not required anymore.
 	if (fchmod(tmp_dir_fd, 01777) < 0) {
 		die("cannot chmod private tmp directory %s/tmp to 01777",
 		    base_dir);
 	}
+	// TODO: this is probably not required anymore.
 	if (fchown(tmp_dir_fd, 0, 0) < 0) {
 		die("cannot chown private tmp directory %s/tmp to root.root",
 		    base_dir);
