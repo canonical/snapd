@@ -209,8 +209,8 @@ func ProcGroup(pid int, matcher GroupMatcher) (string, error) {
 	return "", fmt.Errorf("cannot find %s cgroup path for pid %v", matcher, pid)
 }
 
-// PidsInFile returns the list of process ID in a given file.
-func PidsInFile(fname string) ([]int, error) {
+// pidsInFile returns the list of process ID in a given file.
+func pidsInFile(fname string) ([]int, error) {
 	file, err := os.Open(fname)
 	if os.IsNotExist(err) {
 		return nil, nil
@@ -319,7 +319,7 @@ func PidsOfSnap(snapInstanceName string) (map[string][]int, error) {
 		if !strings.HasPrefix(securityTag, securityTagPrefix) {
 			return nil
 		}
-		pids, err := PidsInFile(path)
+		pids, err := pidsInFile(path)
 		if err != nil {
 			return err
 		}
