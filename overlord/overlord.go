@@ -403,6 +403,8 @@ func (o *Overlord) Loop() {
 			case <-o.pruneTicker.C:
 				st := o.State()
 				st.Lock()
+				// account for deviceMgr == nil as it's not always present in
+				// tests.
 				if o.deviceMgr == nil || o.deviceMgr.CanPrune() {
 					st.Prune(pruneWait, abortWait, pruneMaxChanges)
 				}
