@@ -94,12 +94,14 @@ static int get_lock_directory(void)
 {
 	// Create (if required) and open the lock directory.
 	debug("creating lock directory %s (if missing)", sc_lock_dir);
+	sc_identity old = sc_set_effective_identity(sc_root_group_identity());
 	if (sc_nonfatal_mkpath(sc_lock_dir, 0755) < 0) {
 		die("cannot create lock directory %s", sc_lock_dir);
 	}
 	debug("opening lock directory %s", sc_lock_dir);
 	int dir_fd =
 	    open(sc_lock_dir, O_DIRECTORY | O_PATH | O_CLOEXEC | O_NOFOLLOW);
+	(void)sc_set_effective_identity(old);
 	if (dir_fd < 0) {
 		die("cannot open lock directory");
 	}
@@ -125,19 +127,19 @@ static int open_lock(const char *scope, uid_t uid)
 	int dir_fd SC_CLEANUP(sc_cleanup_close) = -1;
 	char lock_fname[PATH_MAX] = { 0 };
 	int lock_fd;
-	sc_identity old = sc_set_effective_identity(sc_root_group_identity());
 
 	dir_fd = get_lock_directory();
 	get_lock_name(lock_fname, sizeof lock_fname, scope, uid);
 
 	// Open the lock file and acquire an exclusive lock.
 	debug("opening lock file: %s/%s", sc_lock_dir, lock_fname);
+	sc_identity old = sc_set_effective_identity(sc_root_group_identity());
 	lock_fd = openat(dir_fd, lock_fname,
 			 O_CREAT | O_RDWR | O_CLOEXEC | O_NOFOLLOW, 0600);
+	(void)sc_set_effective_identity(old);
 	if (lock_fd < 0) {
 		die("cannot open lock file: %s/%s", sc_lock_dir, lock_fname);
 	}
-	(void)sc_set_effective_identity(old);
 	return lock_fd;
 }
 
