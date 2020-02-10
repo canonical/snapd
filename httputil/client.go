@@ -103,7 +103,8 @@ func NewHTTPClient(opts *ClientOptions) *http.Client {
 	transport := newDefaultTransport()
 	// remember the original ClientOptions.TLSConfig when making
 	// tls connection.
-	transport.DialTLS = (&dialTLS{opts.TLSConfig}).dialTLS
+	transport.TLSClientConfig = opts.TLSConfig
+	transport.DialTLS = (&dialTLS{transport.TLSClientConfig}).dialTLS
 	if opts.Proxy != nil {
 		transport.Proxy = opts.Proxy
 	}
