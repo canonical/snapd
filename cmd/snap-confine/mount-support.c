@@ -625,6 +625,7 @@ void sc_populate_mount_ns(struct sc_apparmor *apparmor, int snap_update_ns_fd,
 			{"/sys"},	// fundamental filesystem
 			{"/tmp"},	// to get writable tmp
 			{"/var/snap"},	// to get access to global snap data
+			{"/var/lib/dhcp",.is_optional = true}, // to support network-control interface
 			{"/var/lib/snapd"},	// to get access to snapd state and seccomp profiles
 			{"/var/tmp"},	// to get access to the other temporary directory
 			{"/run"},	// to get /run with sockets and what not
