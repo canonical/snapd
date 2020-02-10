@@ -683,7 +683,6 @@ void sc_populate_mount_ns(struct sc_apparmor *apparmor, int snap_update_ns_fd,
 		sc_bootstrap_mount_namespace(&legacy_config);
 	}
 
-	sc_identity old = sc_set_effective_identity(sc_root_group_identity());
 	// TODO: rename this and fold it into bootstrap
 	setup_private_mount(inv->snap_instance);
 	// set up private /dev/pts
@@ -692,7 +691,6 @@ void sc_populate_mount_ns(struct sc_apparmor *apparmor, int snap_update_ns_fd,
 
 	// setup the security backend bind mounts
 	sc_call_snap_update_ns(snap_update_ns_fd, inv->snap_instance, apparmor);
-	(void)sc_set_effective_identity(old);
 }
 
 static bool is_mounted_with_shared_option(const char *dir)
