@@ -51,7 +51,7 @@ func addLocalSslCertificates(conf *tls.Config) (allCAs *x509.CertPool, err error
 		}
 	}
 	if allCAs == nil {
-		return nil, fmt.Errorf("cannot use empty certificates pool")
+		return nil, fmt.Errorf("cannot use empty certificate pool")
 	}
 	extraCertFiles, err := filepath.Glob(filepath.Join(dirs.SnapdExtraSslCertsDir, "*.pem"))
 	if err != nil {
@@ -70,10 +70,13 @@ func addLocalSslCertificates(conf *tls.Config) (allCAs *x509.CertPool, err error
 	return allCAs, nil
 }
 
+// dialTLS holds a tls.Config that is used by the dialTLS.dialTLS()
+// function.
 type dialTLS struct {
 	conf *tls.Config
 }
 
+// dialTLS will use it's tls.Config and use that to do a tls connection.
 func (d *dialTLS) dialTLS(network, addr string) (net.Conn, error) {
 	if d.conf == nil {
 		// c.f. go source: crypto/tls/common.go
@@ -98,6 +101,8 @@ func NewHTTPClient(opts *ClientOptions) *http.Client {
 	}
 
 	transport := newDefaultTransport()
+	// remember the original ClientOptions.TLSConfig when making
+	// tls connection.
 	transport.DialTLS = (&dialTLS{opts.TLSConfig}).dialTLS
 	if opts.Proxy != nil {
 		transport.Proxy = opts.Proxy
