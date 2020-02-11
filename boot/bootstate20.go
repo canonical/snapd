@@ -361,7 +361,17 @@ type bootState20MarkSuccessful struct {
 // threadBootState20MarkSuccessful is a helper method that will either create a
 // new bootState20MarkSuccessful for the given type, or it will add to the
 // provided bootStateUpdate
-func threadBootState20MarkSuccessful(bsmark *bootState20MarkSuccessful) (*bootState20MarkSuccessful, error) {
+func threadBootState20MarkSuccessful(update bootStateUpdate) (*bootState20MarkSuccessful, error) {
+	var bsmark *bootState20MarkSuccessful
+
+	// try to extract bsmark out of update
+	var ok bool
+	if update != nil {
+		if bsmark, ok = update.(*bootState20MarkSuccessful); !ok {
+			return nil, fmt.Errorf("internal error, cannot thread %T with update for UC20", update)
+		}
+	}
+
 	if bsmark == nil {
 		bsmark = &bootState20MarkSuccessful{}
 	}
@@ -383,17 +393,8 @@ func threadBootState20MarkSuccessful(bsmark *bootState20MarkSuccessful) (*bootSt
 // given boot snap as successful and a valid rollback target. If err is nil,
 // then the first return value is guaranteed to always be non-nil.
 func genericMarkSuccessful(b bootState, update bootStateUpdate) (bsmark *bootState20MarkSuccessful, trySnap snap.PlaceInfo, err error) {
-	// either combine the provided bootStateUpdate with a new one for this type
-	// or create a new one for this type
-	var ok bool
-	if update != nil {
-		if bsmark, ok = update.(*bootState20MarkSuccessful); !ok {
-			return nil, nil, fmt.Errorf("internal error, cannot thread %T with update for UC20", update)
-		}
-	}
-
 	// create a new object or combine the existing one with this type
-	bsmark, err = threadBootState20MarkSuccessful(bsmark)
+	bsmark, err = threadBootState20MarkSuccessful(update)
 	if err != nil {
 		return nil, nil, err
 	}
