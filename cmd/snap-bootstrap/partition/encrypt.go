@@ -171,6 +171,8 @@ func cryptsetupAddKey(key EncryptionKey, rkey RecoveryKey, node string) error {
 	defer os.RemoveAll(fpath)
 
 	// add a new key to slot 1 reading the passphrase from the named pipe
+	// (explicitly choose keyslot 1 to ensure we have a predictable slot
+	// number in case we decide to kill all other slots later)
 	args := []string{
 		// add a new key
 		"luksAddKey",
