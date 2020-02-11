@@ -64,9 +64,9 @@ type UserState struct {
 	StoreDischarges []string `json:"store-discharges,omitempty"`
 }
 
-// idOnly returns a *UserState with only the identification information
-// from u.
-func (u *UserState) idOnly() *UserState {
+// identificationOnly returns a *UserState with only the
+// identification information from u.
+func (u *UserState) identificationOnly() *UserState {
 	return &UserState{
 		ID:       u.ID,
 		Username: u.Username,
@@ -203,7 +203,7 @@ func removeUser(st *state.State, p func(*UserState) bool) (*UserState, error) {
 	for i := range authStateData.Users {
 		u := &authStateData.Users[i]
 		if p(u) {
-			removed := u.idOnly()
+			removed := u.identificationOnly()
 			// delete without preserving order
 			n := len(authStateData.Users) - 1
 			authStateData.Users[i] = authStateData.Users[n]
