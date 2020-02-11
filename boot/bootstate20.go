@@ -95,9 +95,9 @@ func (ks20 *bootState20Kernel) loadBootenv() error {
 	return nil
 }
 
-func (ks20 *bootState20Kernel) revisions() (snap.PlaceInfo, snap.PlaceInfo, string, error) {
+func (ks20 *bootState20Kernel) revisions() (curSnap, trySnap snap.PlaceInfo, tryingStatus string, err error) {
 	var bootSn, tryBootSn snap.PlaceInfo
-	err := ks20.loadBootenv()
+	err = ks20.loadBootenv()
 	if err != nil {
 		return nil, nil, "", err
 	}
@@ -120,13 +120,13 @@ func (ks20 *bootState20Kernel) revisions() (snap.PlaceInfo, snap.PlaceInfo, stri
 	return bootSn, tryBootSn, ks20.kernelStatus, nil
 }
 
-func (ks20 *bootState20Kernel) setNext(next snap.PlaceInfo) (bool, bootStateUpdate, error) {
+func (ks20 *bootState20Kernel) setNext(next snap.PlaceInfo) (rebootRequired bool, u bootStateUpdate, err error) {
 	nextStatus, err := genericSetNext(ks20, next)
 	if err != nil {
 		return false, nil, err
 	}
 	// if we are setting a snap as a try snap, then we need to reboot
-	rebootRequired := false
+	rebootRequired = false
 	if nextStatus == TryStatus {
 		ks20.tryKernelSnap = next
 		rebootRequired = true
@@ -236,9 +236,9 @@ func (bs20 *bootState20Base) loadModeenv() error {
 
 // revisions returns the current boot snap and optional try boot snap for the
 // type specified in bsgeneric.
-func (bs20 *bootState20Base) revisions() (snap.PlaceInfo, snap.PlaceInfo, string, error) {
+func (bs20 *bootState20Base) revisions() (curSnap, trySnap snap.PlaceInfo, tryingStatus string, err error) {
 	var bootSn, tryBootSn snap.PlaceInfo
-	err := bs20.loadModeenv()
+	err = bs20.loadModeenv()
 	if err != nil {
 		return nil, nil, "", err
 	}
@@ -262,13 +262,13 @@ func (bs20 *bootState20Base) revisions() (snap.PlaceInfo, snap.PlaceInfo, string
 	return bootSn, tryBootSn, bs20.modeenv.BaseStatus, nil
 }
 
-func (bs20 *bootState20Base) setNext(next snap.PlaceInfo) (bool, bootStateUpdate, error) {
+func (bs20 *bootState20Base) setNext(next snap.PlaceInfo) (rebootRequired bool, u bootStateUpdate, err error) {
 	nextStatus, err := genericSetNext(bs20, next)
 	if err != nil {
 		return false, nil, err
 	}
 	// if we are setting a snap as a try snap, then we need to reboot
-	rebootRequired := false
+	rebootRequired = false
 	if nextStatus == TryStatus {
 		bs20.tryBaseSnap = next
 		rebootRequired = true
@@ -387,12 +387,10 @@ func threadBootState20MarkSuccessful(bsmark *bootState20MarkSuccessful) (*bootSt
 // genericMarkSuccessful sets the necessary boot variables, etc. to mark the
 // given boot snap as successful and a valid rollback target. If err is nil,
 // then the first return value is guaranteed to always be non-nil.
-func genericMarkSuccessful(b bootState, update bootStateUpdate) (*bootState20MarkSuccessful, snap.PlaceInfo, bool, error) {
+func genericMarkSuccessful(b bootState, update bootStateUpdate) (bsmark *bootState20MarkSuccessful, trySnap snap.PlaceInfo, shouldClean bool, err error) {
 	// either combine the provided bootStateUpdate with a new one for this type
 	// or create a new one for this type
-	var bsmark *bootState20MarkSuccessful
-	var err error
-	var ok, shouldClean bool
+	var ok bool
 	if update != nil {
 		if bsmark, ok = update.(*bootState20MarkSuccessful); !ok {
 			return nil, nil, false, fmt.Errorf("internal error, cannot thread %T with update for UC20", update)
