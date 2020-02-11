@@ -669,20 +669,9 @@ suites:
                 systemctl status snapd.socket || true
                 journalctl -e
             fi
-    tests/core18/:
-        summary: Subset of core18 specific tests
-        systems: [ubuntu-core-18-*]
-        prepare: |
-            "$TESTSLIB"/prepare-restore.sh --prepare-suite
-        prepare-each: |
-            "$TESTSLIB"/prepare-restore.sh --prepare-suite-each
-        restore-each: |
-            "$TESTSLIB"/prepare-restore.sh --restore-suite-each
-        restore: |
-            "$TESTSLIB"/prepare-restore.sh --restore-suite
-    tests/core20/:
-        summary: Subset of core20 specific tests
-        systems: [ubuntu-core-20-*]
+    tests/core/:
+        summary: Subset of Ubuntu Core specific tests
+        systems: [ubuntu-core-*]
         prepare: |
             "$TESTSLIB"/prepare-restore.sh --prepare-suite
         prepare-each: |

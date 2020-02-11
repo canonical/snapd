@@ -139,7 +139,7 @@ func (s16 *bootState16) markSuccessful(update bootStateUpdate) (bootStateUpdate,
 
 	// snap_mode goes from "" -> "try" -> "trying" -> ""
 	// so if we are not in "trying" mode, nothing to do here
-	if env["snap_mode"] != "trying" {
+	if env["snap_mode"] != TryingStatus {
 		return u16, nil
 	}
 
@@ -150,7 +150,7 @@ func (s16 *bootState16) markSuccessful(update bootStateUpdate) (bootStateUpdate,
 		toCommit[bootVar] = env[tryBootVar]
 		toCommit[tryBootVar] = ""
 	}
-	toCommit["snap_mode"] = ""
+	toCommit["snap_mode"] = DefaultStatus
 
 	return u16, nil
 }
@@ -169,19 +169,19 @@ func (s16 *bootState16) setNext(s snap.PlaceInfo) (rebootRequired bool, u bootSt
 	env := u16.env
 	toCommit := u16.toCommit
 
-	snapMode := "try"
+	snapMode := TryStatus
 	rebootRequired = true
 	if env[goodBootVar] == nextBoot {
 		// If we were in anything but default ("") mode before
 		// and switched to the good core/kernel again, make
 		// sure to clean the snap_mode here. This also
 		// mitigates https://forum.snapcraft.io/t/5253
-		if env["snap_mode"] == "" {
+		if env["snap_mode"] == DefaultStatus {
 			// already clean
 			return false, nil, nil
 		}
 		// clean
-		snapMode = ""
+		snapMode = DefaultStatus
 		nextBoot = ""
 		rebootRequired = false
 	}
