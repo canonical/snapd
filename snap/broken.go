@@ -62,9 +62,21 @@ func GuessAppsForBroken(info *Info) map[string]*AppInfo {
 	for _, m := range matches {
 		appname := strings.Split(m, ".")[2]
 		out[appname] = &AppInfo{
-			Snap:   info,
-			Name:   appname,
-			Daemon: "simple",
+			Snap:       info,
+			Name:       appname,
+			Daemon:     "simple",
+			DaemonMode: SystemDaemon,
+		}
+	}
+	// guess the user services next
+	matches, _ = filepath.Glob(filepath.Join(dirs.SnapUserServicesDir, fmt.Sprintf("snap.%s.*.service", name)))
+	for _, m := range matches {
+		appname := strings.Split(m, ".")[2]
+		out[appname] = &AppInfo{
+			Snap:       info,
+			Name:       appname,
+			Daemon:     "simple",
+			DaemonMode: UserDaemon,
 		}
 	}
 
