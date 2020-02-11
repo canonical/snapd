@@ -53,6 +53,9 @@ restore: |
     fi
     rm -f /home/test/pulse-test.pa
     rm -f /run/user/12345/pulse/native
+    for l in first second; do
+        rm -f $PA_TEST_LOG.$l
+    done
 
 debug: |
     for l in first second; do
@@ -68,14 +71,14 @@ execute: |
     }
 
     echo "Start pulseaudio first time, logging output to the first log"
-    as_user "pulseaudio -vvvv --exit-idle-time=300 -n -F /home/test/pulse-test.pa --log-level=4 --verbose 2>&1 | tee $PA_TEST_LOG.first >/dev/null" &
+    as_user "pulseaudio --exit-idle-time=300 -n -F /home/test/pulse-test.pa --log-level=4 --verbose 2>&1 | tee $PA_TEST_LOG.first >/dev/null" &
     papid=$!
 
     # restart pulseaudio because sometimes it's not able to bind to the required
     # socket, but still is running as a server that clients will try to connect
     # to, but will fail with "Connection refused"
     echo "Kill pulseaudio to restart it"
-    as_user "pulseaudio --kill" test &
+    as_user "pulseaudio --kill" || true
 
     # try to manually kill the pulseaudio daemon
     kill -9 "$papid"
@@ -85,7 +88,7 @@ execute: |
 
     # now try again
     echo "Start pulseaudio for real, logging output to the second log"
-    as_user "pulseaudio -vvvv --exit-idle-time=300 -n -F /home/test/pulse-test.pa --log-level=4 --verbose 2>&1 | tee $PA_TEST_LOG.second >/dev/null" &
+    as_user "pulseaudio --exit-idle-time=300 -n -F /home/test/pulse-test.pa --log-level=4 --verbose 2>&1 | tee $PA_TEST_LOG.second >/dev/null" &
 
     echo "Then wait for the socket to show up"
     retry-tool -n 10 test -S /run/user/12345/pulse/native
