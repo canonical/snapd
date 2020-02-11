@@ -341,7 +341,7 @@ func (s *initramfsMountsSuite) TestInitramfsMountsRunModeBaseSnapUpgradeHappy(c 
 	modeEnv := &boot.Modeenv{
 		Base:       "core20_123.snap",
 		TryBase:    "core20_124.snap",
-		BaseStatus: "try",
+		BaseStatus: boot.TryStatus,
 	}
 	err := modeEnv.Write(filepath.Join(s.runMnt, "ubuntu-data", "system-data"))
 	c.Assert(err, IsNil)
@@ -362,7 +362,7 @@ func (s *initramfsMountsSuite) TestInitramfsMountsRunModeBaseSnapUpgradeHappy(c 
 	// check that the modeenv was re-written
 	newModeenv, err := boot.ReadModeenv(filepath.Join(s.runMnt, "ubuntu-data", "system-data"))
 	c.Assert(err, IsNil)
-	c.Assert(newModeenv.BaseStatus, DeepEquals, "trying")
+	c.Assert(newModeenv.BaseStatus, DeepEquals, boot.TryingStatus)
 	c.Assert(newModeenv.TryBase, DeepEquals, modeEnv.TryBase)
 	c.Assert(newModeenv.Base, DeepEquals, modeEnv.Base)
 }
@@ -399,7 +399,7 @@ func (s *initramfsMountsSuite) TestInitramfsMountsRunModeBaseSnapUpgradeFailsHap
 	modeEnv := &boot.Modeenv{
 		Base:       "core20_123.snap",
 		TryBase:    "core20_124.snap",
-		BaseStatus: "trying",
+		BaseStatus: boot.TryingStatus,
 	}
 	err := modeEnv.Write(filepath.Join(s.runMnt, "ubuntu-data", "system-data"))
 	c.Assert(err, IsNil)
@@ -421,7 +421,7 @@ func (s *initramfsMountsSuite) TestInitramfsMountsRunModeBaseSnapUpgradeFailsHap
 	newModeenv, err := boot.ReadModeenv(filepath.Join(s.runMnt, "ubuntu-data", "system-data"))
 	c.Assert(err, IsNil)
 	// BaseStatus was re-set to empty
-	c.Assert(newModeenv.BaseStatus, DeepEquals, "")
+	c.Assert(newModeenv.BaseStatus, DeepEquals, boot.DefaultStatus)
 	c.Assert(newModeenv.TryBase, DeepEquals, modeEnv.TryBase)
 	c.Assert(newModeenv.Base, DeepEquals, modeEnv.Base)
 }
@@ -456,7 +456,7 @@ func (s *initramfsMountsSuite) TestInitramfsMountsRunModeModeenvTryBaseEmptyHapp
 	// write a modeenv with no try_base so we fall back to using base
 	modeEnv := &boot.Modeenv{
 		Base:       "core20_123.snap",
-		BaseStatus: "try",
+		BaseStatus: boot.TryStatus,
 	}
 	err := modeEnv.Write(filepath.Join(s.runMnt, "ubuntu-data", "system-data"))
 	c.Assert(err, IsNil)
@@ -540,11 +540,12 @@ func (s *initramfsMountsSuite) TestInitramfsMountsRunModeModeenvTryBaseNotExists
 	})
 	defer restore()
 
-	// write a modeenv with no try_base so we fall back to using base
+	// write a modeenv with try_base not existing on disk so we fall back to
+	// using the normal base
 	modeEnv := &boot.Modeenv{
 		Base:       "core20_123.snap",
 		TryBase:    "core20_124.snap",
-		BaseStatus: "try",
+		BaseStatus: boot.TryStatus,
 	}
 	err := modeEnv.Write(filepath.Join(s.runMnt, "ubuntu-data", "system-data"))
 	c.Assert(err, IsNil)
@@ -609,7 +610,7 @@ func (s *initramfsMountsSuite) TestInitramfsMountsRunModeKernelSnapUpgradeHappy(
 	bootloader.Force(bloader)
 	defer bootloader.Force(nil)
 
-	bloader.BootVars["kernel_status"] = "trying"
+	bloader.BootVars["kernel_status"] = boot.TryingStatus
 
 	// set the current kernel
 	kernel, err := snap.ParsePlaceInfoFromSnapFileName("pc-kernel_1.snap")
