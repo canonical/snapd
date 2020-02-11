@@ -130,8 +130,7 @@ func generateTestCert(c *check.C, certpath, keypath string) {
 	if keypath != "" {
 		keyOut, err := os.Create(keypath)
 		c.Assert(err, check.IsNil)
-		privBytes, err := x509.MarshalPKCS8PrivateKey(privKey)
-		c.Assert(err, check.IsNil)
+		privBytes := x509.MarshalPKCS1PrivateKey(privKey)
 		err = pem.Encode(keyOut, &pem.Block{Type: "PRIVATE KEY", Bytes: privBytes})
 		c.Assert(err, check.IsNil)
 		err = keyOut.Close()
