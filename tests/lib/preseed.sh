@@ -45,6 +45,9 @@ setup_preseeding() {
     CORE_IMAGE=$(find "$IMAGE_MOUNTPOINT/var/lib/snapd/seed/snaps/" -name "core_*.snap")
     unsquashfs "$CORE_IMAGE"
     cp /usr/lib/snapd/snapd squashfs-root/usr/lib/snapd/snapd
+    # XXX to satisfy version check; this will go away once preseeding
+    # is available in 2.44
+    echo "VERSION=2.44.0" > squashfs-root/usr/lib/snapd/info
     rm "$CORE_IMAGE"
     #shellcheck source=tests/lib/snaps.sh
     . "$TESTSLIB"/snaps.sh

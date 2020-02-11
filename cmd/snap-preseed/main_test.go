@@ -21,6 +21,7 @@ package main_test
 
 import (
 	"fmt"
+	"io/ioutil"
 	"os"
 	"path/filepath"
 
@@ -154,6 +155,9 @@ func (s *startPreseedSuite) TestRunPreseedHappy(c *C) {
 `)
 	defer mockTargetSnapd.Restore()
 
+	infoFile := filepath.Join(filepath.Join(targetSnapdRoot, dirs.CoreLibExecDir, "info"))
+	c.Assert(ioutil.WriteFile(infoFile, []byte("VERSION=2.44.0"), 0644), IsNil)
+
 	parser := testParser(c)
 	c.Check(main.Run(parser, []string{tmpDir}), IsNil)
 
@@ -252,4 +256,37 @@ func (s *startPreseedSuite) TestSystemSnapFromSeedErrors(c *C) {
 	fakeSeed.LoadAssertionsErr = fmt.Errorf("load assertions failed")
 	_, err = main.SystemSnapFromSeed(tmpDir)
 	c.Assert(err, ErrorMatches, "load assertions failed")
+}
+
+func (s *startPreseedSuite) TestRunPreseedUnsupportedVersion(c *C) {
+	tmpDir := c.MkDir()
+	dirs.SetRootDir(tmpDir)
+	mockChrootDirs(c, tmpDir)
+
+	restoreOsGuid := main.MockOsGetuid(func() int { return 0 })
+	defer restoreOsGuid()
+
+	restoreSyscallChroot := main.MockSyscallChroot(func(path string) error { return nil })
+	defer restoreSyscallChroot()
+
+	mockMountCmd := testutil.MockCommand(c, "mount", "")
+	defer mockMountCmd.Restore()
+
+	targetSnapdRoot := filepath.Join(tmpDir, "target-core-mounted-here")
+	restoreMountPath := main.MockSnapdMountPath(targetSnapdRoot)
+	defer restoreMountPath()
+
+	restoreSystemSnapFromSeed := main.MockSystemSnapFromSeed(func(string) (string, error) { return "/a/core.snap", nil })
+	defer restoreSystemSnapFromSeed()
+
+	c.Assert(os.MkdirAll(filepath.Join(targetSnapdRoot, "usr/lib/snapd/"), 0755), IsNil)
+	mockTargetSnapd := testutil.MockCommand(c, filepath.Join(targetSnapdRoot, "usr/lib/snapd/snapd"), "")
+	defer mockTargetSnapd.Restore()
+
+	infoFile := filepath.Join(filepath.Join(targetSnapdRoot, dirs.CoreLibExecDir, "info"))
+	c.Assert(ioutil.WriteFile(infoFile, []byte("VERSION=2.43.0"), 0644), IsNil)
+
+	parser := testParser(c)
+	c.Check(main.Run(parser, []string{tmpDir}), ErrorMatches,
+		`snapd 2.43.0 from the target system does not support preseeding, the minimum required version is 2.44.0`)
 }
