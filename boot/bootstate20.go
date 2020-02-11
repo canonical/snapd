@@ -25,7 +25,6 @@ import (
 
 	"github.com/snapcore/snapd/bootloader"
 	"github.com/snapcore/snapd/dirs"
-	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/snap"
 )
 
@@ -92,6 +91,9 @@ func (ks20 *bootState20Kernel) loadBootenv() error {
 
 	ks20.kernelStatus = m["kernel_status"]
 
+	// the default commit status is the same as the kernel status was before
+	ks20.commitKernelStatus = ks20.kernelStatus
+
 	return nil
 }
 
@@ -137,16 +139,10 @@ func (ks20 *bootState20Kernel) setNext(next snap.PlaceInfo) (rebootRequired bool
 }
 
 func (ks20 *bootState20Kernel) markSuccessful(update bootStateUpdate) (bootStateUpdate, error) {
-	// call the generic method with to do most of the legwork
-	u, sn, shouldClean, err := genericMarkSuccessful(ks20, update)
+	// call the generic method with this object to do most of the legwork
+	u, sn, err := genericMarkSuccessful(ks20, update)
 	if err != nil {
 		return nil, err
-	}
-
-	// if we were told to clean up status, then do that
-	if shouldClean {
-		logger.Noticef("kernel_status is %q, but there is no try kernel snap on bootloader %s, resetting to %q", ks20.kernelStatus, ks20.ebl.Name(), DefaultStatus)
-		ks20.commitKernelStatus = DefaultStatus
 	}
 
 	// u should always be non-nil if err is nil
@@ -231,6 +227,10 @@ func (bs20 *bootState20Base) loadModeenv() error {
 	}
 	bs20.modeenv = modeenv
 
+	// default commit status is the current status
+	fmt.Println("read base status", bs20.modeenv.BaseStatus)
+	bs20.commitBaseStatus = bs20.modeenv.BaseStatus
+
 	return nil
 }
 
@@ -279,15 +279,10 @@ func (bs20 *bootState20Base) setNext(next snap.PlaceInfo) (rebootRequired bool, 
 }
 
 func (bs20 *bootState20Base) markSuccessful(update bootStateUpdate) (bootStateUpdate, error) {
-	// call the generic method with to do most of the legwork
-	u, sn, shouldClean, err := genericMarkSuccessful(bs20, update)
+	// call the generic method with this object to do most of the legwork
+	u, sn, err := genericMarkSuccessful(bs20, update)
 	if err != nil {
 		return nil, err
-	}
-
-	if shouldClean {
-		logger.Noticef("base_status is %q, but there is no try base snap, resetting to %q", bs20.modeenv.BaseStatus, DefaultStatus)
-		bs20.commitBaseStatus = DefaultStatus
 	}
 
 	// u should always be non-nil if err is nil
@@ -387,88 +382,96 @@ func threadBootState20MarkSuccessful(bsmark *bootState20MarkSuccessful) (*bootSt
 // genericMarkSuccessful sets the necessary boot variables, etc. to mark the
 // given boot snap as successful and a valid rollback target. If err is nil,
 // then the first return value is guaranteed to always be non-nil.
-func genericMarkSuccessful(b bootState, update bootStateUpdate) (bsmark *bootState20MarkSuccessful, trySnap snap.PlaceInfo, shouldClean bool, err error) {
+func genericMarkSuccessful(b bootState, update bootStateUpdate) (bsmark *bootState20MarkSuccessful, trySnap snap.PlaceInfo, err error) {
 	// either combine the provided bootStateUpdate with a new one for this type
 	// or create a new one for this type
 	var ok bool
 	if update != nil {
 		if bsmark, ok = update.(*bootState20MarkSuccessful); !ok {
-			return nil, nil, false, fmt.Errorf("internal error, cannot thread %T with update for UC20", update)
+			return nil, nil, fmt.Errorf("internal error, cannot thread %T with update for UC20", update)
 		}
 	}
 
 	// create a new object or combine the existing one with this type
 	bsmark, err = threadBootState20MarkSuccessful(bsmark)
 	if err != nil {
-		return nil, nil, false, err
+		return nil, nil, err
 	}
 
 	// get the try snap and the current status
 	_, trySnap, status, err := b.revisions()
 	if err != nil {
-		return nil, nil, false, err
+		return nil, nil, err
 	}
 
 	// kernel_status and base_status go from "" -> "try" (set by snapd), to
 	// "try" -> "trying" (set by the boot script)
 	// so if we are not in "trying" mode, nothing to do here
 	if status != TryingStatus {
-		return bsmark, nil, false, nil
+		return bsmark, nil, nil
 	}
 
-	// check if there is not a try snap, we could be in "trying" but not have a
-	// try snap - this is an externally triggered situation, but we should clean
-	// it up regardless
-	if trySnap == nil {
-		// we should clean up the status since there's not a snap there
-		shouldClean = true
-	}
-
-	return bsmark, trySnap, shouldClean, nil
+	return bsmark, trySnap, nil
 }
 
 // commit will persistently write out the boot variables, etc. needed to mark
 // the snaps saved in bsmark as successful boot targets/combinations.
+// note that this makes the assumption that markSuccessful() has been called for
+// both the base and kernel snaps here, if that assumption is not true anymore,
+// this could end up auto-cleaning status variables for something it shouldn't
+// be.
 func (bsmark *bootState20MarkSuccessful) commit() error {
+	fmt.Println("bsmark commit() called")
 	// kernel snap first, slightly higher priority
-	if bsmark.triedKernelSnap != nil {
-		// the ordering here is very important for boot reliability!
 
-		// If we have successfully just booted from a try-kernel and are
-		// marking it successful (this implies that snap_kernel=="trying" as set
-		// by the boot script), we need to do the following in order (since we
-		// have the added complexity of moving the kernel symlink):
-		// 1. Update kernel_status to ""
-		// 2. Move kernel symlink to point to the new try kernel
-		// 3. Remove try-kernel symlink
-		//
-		// If we got rebooted after step 1, then the bootloader is booting the wrong
-		// kernel, but is at least booting a known good kernel and snapd in
-		// user-space would be able to figure out the inconsistency.
-		// If we got rebooted after step 2, the bootloader would boot from the new
-		// try-kernel which is okay because we were in the middle of committing
-		// that new kernel as good and all that's left is for snapd to cleanup
-		// the left-over try-kernel symlink.
-		//
-		// If instead we had moved the kernel symlink first to point to the new try
-		// kernel, and got rebooted before the kernel_status was updated, we would
-		// have kernel_status="trying" which would cause the bootloader to think
-		// the boot failed, and revert to booting using the kernel symlink, but that
-		// now points to the new kernel we were trying and we did not successfully
-		// boot from that kernel to know we should trust it.
-		// The try-kernel symlink removal should happen last because it will not
-		// affect anything, except that if it was removed before updating
-		// kernel_status to "", the bootloader will think that the try kernel failed
-		// to boot and fall back to booting the old kernel which is safe.
+	// the ordering here is very important for boot reliability!
 
-		// clear the kernel_status boot var first
-		err := bsmark.ebl.SetBootVars(map[string]string{"kernel_status": DefaultStatus})
+	// If we have successfully just booted from a try-kernel and are
+	// marking it successful (this implies that snap_kernel=="trying" as set
+	// by the boot script), we need to do the following in order (since we
+	// have the added complexity of moving the kernel symlink):
+	// 1. Update kernel_status to ""
+	// 2. Move kernel symlink to point to the new try kernel
+	// 3. Remove try-kernel symlink
+	//
+	// If we got rebooted after step 1, then the bootloader is booting the wrong
+	// kernel, but is at least booting a known good kernel and snapd in
+	// user-space would be able to figure out the inconsistency.
+	// If we got rebooted after step 2, the bootloader would boot from the new
+	// try-kernel which is okay because we were in the middle of committing
+	// that new kernel as good and all that's left is for snapd to cleanup
+	// the left-over try-kernel symlink.
+	//
+	// If instead we had moved the kernel symlink first to point to the new try
+	// kernel, and got rebooted before the kernel_status was updated, we would
+	// have kernel_status="trying" which would cause the bootloader to think
+	// the boot failed, and revert to booting using the kernel symlink, but that
+	// now points to the new kernel we were trying and we did not successfully
+	// boot from that kernel to know we should trust it.
+	// The try-kernel symlink removal should happen last because it will not
+	// affect anything, except that if it was removed before updating
+	// kernel_status to "", the bootloader will think that the try kernel failed
+	// to boot and fall back to booting the old kernel which is safe.
+
+	// always set the kernel_status to default "" when marking successful, but
+	// only call SetBootVars if needed
+	// this has the useful side-effect of cleaning up if we happen to have
+	// kernel_status = "trying" but don't have a try-kernel set
+	if bsmark.commitKernelStatus != DefaultStatus {
+		m := map[string]string{
+			"kernel_status": DefaultStatus,
+		}
+
+		// set the boot variables
+		err := bsmark.ebl.SetBootVars(m)
 		if err != nil {
 			return err
 		}
+	}
 
+	if bsmark.triedKernelSnap != nil {
 		// enable the kernel we tried
-		err = bsmark.ebl.EnableKernel(bsmark.triedKernelSnap)
+		err := bsmark.ebl.EnableKernel(bsmark.triedKernelSnap)
 		if err != nil {
 			return err
 		}
@@ -478,54 +481,42 @@ func (bsmark *bootState20MarkSuccessful) commit() error {
 		if err != nil {
 			return err
 		}
-	} else {
-		// triedKernelSnap is not true, but we still might need to clean up
-		// kernel_status, so check if what we are to commit is different from
-		// what we read
-		if bsmark.commitKernelStatus != bsmark.kernelStatus {
-			m := map[string]string{
-				"kernel_status": bsmark.commitKernelStatus,
-			}
-
-			// set the boot variables
-			err := bsmark.ebl.SetBootVars(m)
-			if err != nil {
-				return err
-			}
-		}
 	}
 
 	// base snap next
+	// the ordering here is less important, since the only operation that
+	// has side-effects is writing the modeenv at the end, and that uses an
+	// atomic file writing operation, so it's not a concern if we get
+	// rebooted during this snippet like it is with the kernel snap above
+
+	baseChanged := false
+
+	// always clear the base_status when marking successful, this has the useful
+	// side-effect of cleaning up if we have base_status=trying but no try_base
+	// set
+	if bsmark.modeenv.BaseStatus != DefaultStatus {
+		baseChanged = true
+		bsmark.modeenv.BaseStatus = DefaultStatus
+	}
+
 	if bsmark.triedBaseSnap != nil {
-		// the ordering here is less important, since the only operation that
-		// has side-effects is writing the modeenv at the end, and that uses an
-		// atomic file writing operation, so it's not a concern if we get
-		// rebooted during this snippet like it is with the kernel snap above
-
-		changed := false
-
-		// clear the status
-		if bsmark.modeenv.BaseStatus != DefaultStatus {
-			changed = true
-			bsmark.modeenv.BaseStatus = DefaultStatus
-		}
 		// set the new base as the tried base snap
 		tryBase := filepath.Base(bsmark.triedBaseSnap.MountFile())
 		if bsmark.modeenv.Base != tryBase {
 			bsmark.modeenv.Base = tryBase
-			changed = true
+			baseChanged = true
 		}
 
 		// clear the TryBase
 		if bsmark.modeenv.TryBase != "" {
 			bsmark.modeenv.TryBase = ""
-			changed = true
+			baseChanged = true
 		}
+	}
 
-		// write the modeenv
-		if changed {
-			return bsmark.modeenv.Write("")
-		}
+	// write the modeenv
+	if baseChanged {
+		return bsmark.modeenv.Write("")
 	}
 
 	return nil

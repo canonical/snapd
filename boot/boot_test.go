@@ -531,6 +531,42 @@ func (s *bootSetSuite) TestMarkBootSuccessful20KernelStatusTryingNoKernelSnapCle
 	c.Assert(nDisableTryCalls, Equals, 0)
 }
 
+func (s *bootSetSuite) TestMarkBootSuccessful20BaseStatusTryingNoBaseSnapCleansUp(c *C) {
+	m := &boot.Modeenv{
+		Mode:           "run",
+		RecoverySystem: "20191018",
+		Base:           "core20_1.snap",
+		BaseStatus:     boot.TryingStatus,
+	}
+	err := m.Write("")
+	c.Assert(err, IsNil)
+	defer os.Remove(dirs.SnapModeenvFileUnder(dirs.GlobalRootDir))
+
+	coreDev := boottest.MockUC20Device("core20")
+	c.Assert(coreDev.HasModeenv(), Equals, true)
+
+	// mark successful
+	err = boot.MarkBootSuccessful(coreDev)
+	c.Assert(err, IsNil)
+
+	// check that the modeenv base_status was re-written to default
+	m2, err := boot.ReadModeenv("")
+	c.Assert(err, IsNil)
+	c.Assert(m2.BaseStatus, Equals, boot.DefaultStatus)
+	c.Assert(m2.Base, Equals, m.Base)
+	c.Assert(m2.TryBase, Equals, m.TryBase)
+
+	// do it again, verify it's still okay
+	err = boot.MarkBootSuccessful(coreDev)
+	c.Assert(err, IsNil)
+
+	m3, err := boot.ReadModeenv("")
+	c.Assert(err, IsNil)
+	c.Assert(m3.BaseStatus, Equals, boot.DefaultStatus)
+	c.Assert(m3.Base, Equals, m.Base)
+	c.Assert(m3.TryBase, Equals, m.TryBase)
+}
+
 func (s *bootSetSuite) TestCoreParticipant20SetNextSameBaseSnap(c *C) {
 	coreDev := boottest.MockUC20Device("core20")
 	c.Assert(coreDev.HasModeenv(), Equals, true)
