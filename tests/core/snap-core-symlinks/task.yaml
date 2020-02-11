@@ -1,5 +1,7 @@
 summary: Check that the seed symlinks work
 
+# TODO:UC20: update for symlinks from ubuntu-data/var/lib/snapd/snaps to
+#            ubuntu-seed and enable for UC20
 systems: [ubuntu-core-1*]
 
 execute: |

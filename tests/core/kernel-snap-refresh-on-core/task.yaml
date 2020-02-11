@@ -1,5 +1,6 @@
 summary: Check that the kernel snap can be refreshed on a core device
 
+# TODO:UC20 enable for UC20/UC18
 systems: [ubuntu-core-16-64]
 
 details: |
@@ -33,7 +34,7 @@ execute: |
     . "$TESTSLIB"/boot.sh
     if [ "$SPREAD_REBOOT" = 0 ]; then
         # ensure we have a good starting place
-    
+
         # sanity
         test-snapd-sh.sh -c 'echo hello' | MATCH hello
 

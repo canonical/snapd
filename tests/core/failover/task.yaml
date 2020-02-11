@@ -10,6 +10,7 @@ details: |
     reboots, one for trying the upgrade and another for rolling back) the installed
     fundamental snap is the good one and the boot environment variables are correctly set.
 
+# TODO:UC20: enable for UC18/UC20 ?
 systems: [ubuntu-core-16-*]
 
 # Start early as it takes a long time.

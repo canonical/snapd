@@ -1,6 +1,7 @@
 summary: |
-   Test remodel
+    Test remodel
 
+# TODO:UC20: enable for UC20
 systems: [ubuntu-core-1*-64]
 
 prepare: |
@@ -78,7 +79,7 @@ execute: |
 
     # sanity check
     not snap list "$SNAP"
-    
+
     echo "Wait for first boot to be done"
     while ! snap changes | grep -q "Done.*Initialize system state"; do sleep 1; done
     echo "We have the right model assertion"

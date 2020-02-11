@@ -1,10 +1,11 @@
 summary: Ensure that snap create-user works in ubuntu-core
+# FIXME: combine this test with tests/core/create-user-2?
 
 # TODO:UC20: enable for UC20
 systems: [ubuntu-core-1*]
 
 restore: |
-    # meh, deluser has no --extrausers support
+    # FIXME: use deluser here now that it supports --extrausers
     sed -i '/^mvo/d' /var/lib/extrausers/passwd
     sed -i '/^mvo/d' /var/lib/extrausers/shadow
     sed -i '/^mvo/d' /var/lib/extrausers/group

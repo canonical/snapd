@@ -10,6 +10,7 @@ details: |
     a reboot the systemd service tries to regenerate the gpio device node if it does not
     find it.
 
+# TODO:UC20: enable for UC20
 systems: [ubuntu-core-1*-64]
 
 prepare: |
