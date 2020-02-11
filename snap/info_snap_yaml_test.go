@@ -1509,7 +1509,7 @@ apps:
 	c.Assert(err, IsNil)
 
 	// If daemon-mode is unset, default to system mode
-	c.Check(info.Apps["svc"].ServiceMode(), Equals, snap.SystemDaemon)
+	c.Check(info.Apps["svc"].DaemonMode, Equals, snap.SystemDaemon)
 }
 
 func (s *YamlSuite) TestDaemonListenStreamAsInteger(c *C) {

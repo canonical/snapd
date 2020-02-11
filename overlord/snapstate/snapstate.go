@@ -566,7 +566,7 @@ func validateFeatureFlags(st *state.State, info *snap.Info) error {
 
 	var hasUserService bool
 	for _, app := range info.Apps {
-		if app.IsService() && app.ServiceMode() == snap.UserDaemon {
+		if app.IsService() && app.DaemonMode == snap.UserDaemon {
 			hasUserService = true
 			break
 		}

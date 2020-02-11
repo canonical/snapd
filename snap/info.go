@@ -975,7 +975,7 @@ func (app *AppInfo) ServiceName() string {
 }
 
 func (app *AppInfo) serviceDir() string {
-	switch app.ServiceMode() {
+	switch app.DaemonMode {
 	case SystemDaemon:
 		return dirs.SnapServicesDir
 	case UserDaemon:
@@ -1003,14 +1003,6 @@ func (app *AppInfo) Env() []string {
 // IsService returns whether app represents a daemon/service.
 func (app *AppInfo) IsService() bool {
 	return app.Daemon != ""
-}
-
-// ServiceMode returns the systemd instance mode for this service
-func (app *AppInfo) ServiceMode() DaemonMode {
-	if app.DaemonMode == UserDaemon {
-		return UserDaemon
-	}
-	return SystemDaemon
 }
 
 // SecurityTag returns the hook-specific security tag.

@@ -377,6 +377,10 @@ func setAppsFromSnapYaml(y snapYaml, snap *Info, strk *scopedTracker) error {
 		if len(yApp.Sockets) > 0 {
 			app.Sockets = make(map[string]*SocketInfo, len(yApp.Sockets))
 		}
+		// Daemons default to being system daemons
+		if app.Daemon != "" && app.DaemonMode == "" {
+			app.DaemonMode = SystemDaemon
+		}
 
 		snap.Apps[appName] = app
 		for _, alias := range app.LegacyAliases {

@@ -50,8 +50,10 @@ func createSampleApp() *AppInfo {
 				Revision: R(20),
 			},
 		},
-		Name:  "foo",
-		Plugs: map[string]*PlugInfo{"network-bind": {}},
+		Name:       "foo",
+		Daemon:     "simple",
+		DaemonMode: SystemDaemon,
+		Plugs:      map[string]*PlugInfo{"network-bind": {}},
 		Sockets: map[string]*SocketInfo{
 			"sock": socket,
 		},
@@ -318,8 +320,6 @@ func (s *ValidateSuite) TestValidateAppSocketsInvalidListenStreamAddress(c *C) {
 
 func (s *ValidateSuite) TestValidateAppSocketsInvalidListenStreamPort(c *C) {
 	app := createSampleApp()
-	app.Daemon = "simple"
-	app.DaemonMode = SystemDaemon
 	invalidPorts := []string{
 		"0",
 		"66536",
@@ -340,7 +340,6 @@ func (s *ValidateSuite) TestValidateAppSocketsInvalidListenStreamPort(c *C) {
 
 func (s *ValidateSuite) TestValidateAppUserSocketsValidListenStreamAddresses(c *C) {
 	app := createSampleApp()
-	app.Daemon = "simple"
 	app.DaemonMode = UserDaemon
 	validListenAddresses := []string{
 		// socket paths using variables as prefix
@@ -368,7 +367,6 @@ func (s *ValidateSuite) TestValidateAppUserSocketsValidListenStreamAddresses(c *
 
 func (s *ValidateSuite) TestValidateAppUserSocketsInvalidListenStreamPath(c *C) {
 	app := createSampleApp()
-	app.Daemon = "simple"
 	app.DaemonMode = UserDaemon
 	invalidListenAddresses := []string{
 		// socket paths out of the snap dirs
@@ -424,10 +422,14 @@ func (s *ValidateSuite) TestAppDaemonValue(c *C) {
 		// bad
 		{"invalid-thing", false},
 	} {
+		var daemonMode DaemonMode
+		if t.daemon != "" {
+			daemonMode = SystemDaemon
+		}
 		if t.ok {
-			c.Check(ValidateApp(&AppInfo{Name: "foo", Daemon: t.daemon}), IsNil)
+			c.Check(ValidateApp(&AppInfo{Name: "foo", Daemon: t.daemon, DaemonMode: daemonMode}), IsNil)
 		} else {
-			c.Check(ValidateApp(&AppInfo{Name: "foo", Daemon: t.daemon}), ErrorMatches, fmt.Sprintf(`"daemon" field contains invalid value %q`, t.daemon))
+			c.Check(ValidateApp(&AppInfo{Name: "foo", Daemon: t.daemon, DaemonMode: daemonMode}), ErrorMatches, fmt.Sprintf(`"daemon" field contains invalid value %q`, t.daemon))
 		}
 	}
 }
@@ -440,21 +442,24 @@ func (s *ValidateSuite) TestAppDaemonModeValue(c *C) {
 	}{
 		// good
 		{"", "", true},
-		{"simple", "", true},
 		{"simple", SystemDaemon, true},
 		{"simple", UserDaemon, true},
 		// bad
+		{"simple", "", false},
 		{"", SystemDaemon, false},
 		{"", UserDaemon, false},
 		{"simple", "invalid-mode", false},
 	} {
 		app := &AppInfo{Name: "foo", Daemon: t.daemon, DaemonMode: t.daemonMode}
+		err := ValidateApp(app)
 		if t.ok {
-			c.Check(ValidateApp(app), IsNil)
+			c.Check(err, IsNil)
 		} else if t.daemon == "" {
-			c.Check(ValidateApp(app), ErrorMatches, `"daemon-mode" should only be set for daemons`)
+			c.Check(err, ErrorMatches, `"daemon-mode" should only be set for daemons`)
+		} else if t.daemonMode == "" {
+			c.Check(err, ErrorMatches, `"daemon-mode" should be set for daemons`)
 		} else {
-			c.Check(ValidateApp(app), ErrorMatches, fmt.Sprintf(`"daemon-mode" field contains invalid value %q`, t.daemonMode))
+			c.Check(err, ErrorMatches, fmt.Sprintf(`"daemon-mode" field contains invalid value %q`, t.daemonMode))
 		}
 	}
 }
@@ -503,10 +508,11 @@ func (s *ValidateSuite) TestAppRefreshMode(c *C) {
 		// bad
 		{"invalid-thing", false},
 	} {
+		err := ValidateApp(&AppInfo{Name: "foo", Daemon: "simple", DaemonMode: SystemDaemon, RefreshMode: t.refreshMode})
 		if t.ok {
-			c.Check(ValidateApp(&AppInfo{Name: "foo", Daemon: "simple", DaemonMode: SystemDaemon, RefreshMode: t.refreshMode}), IsNil)
+			c.Check(err, IsNil)
 		} else {
-			c.Check(ValidateApp(&AppInfo{Name: "foo", Daemon: "simple", RefreshMode: t.refreshMode}), ErrorMatches, fmt.Sprintf(`"refresh-mode" field contains invalid value %q`, t.refreshMode))
+			c.Check(err, ErrorMatches, fmt.Sprintf(`"refresh-mode" field contains invalid value %q`, t.refreshMode))
 		}
 	}
 

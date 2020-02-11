@@ -201,7 +201,7 @@ func validateSocketAddrPath(socket *SocketInfo, fieldName string, path string) e
 		return fmt.Errorf("invalid %q: %q should be written as %q", fieldName, path, clean)
 	}
 
-	switch socket.App.ServiceMode() {
+	switch socket.App.DaemonMode {
 	case SystemDaemon:
 		if !(strings.HasPrefix(path, "$SNAP_DATA/") || strings.HasPrefix(path, "$SNAP_COMMON/") || strings.HasPrefix(path, "$XDG_RUNTIME_DIR/")) {
 			return fmt.Errorf(
@@ -524,7 +524,7 @@ func validateAppOrderNames(app *AppInfo, dependencies []string) error {
 			return fmt.Errorf("before/after references a non-service application %q", dep)
 		}
 
-		if app.ServiceMode() != other.ServiceMode() {
+		if app.DaemonMode != other.DaemonMode {
 			return fmt.Errorf("before/after references service with different daemon-mode %q", dep)
 		}
 	}
@@ -618,7 +618,9 @@ func ValidateApp(app *AppInfo) error {
 
 	switch app.DaemonMode {
 	case "":
-		// valid
+		if app.Daemon != "" {
+			return fmt.Errorf(`"daemon-mode" should be set for daemons`)
+		}
 	case SystemDaemon, UserDaemon:
 		if app.Daemon == "" {
 			return fmt.Errorf(`"daemon-mode" should only be set for daemons`)

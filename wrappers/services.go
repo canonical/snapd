@@ -117,7 +117,7 @@ func StartServices(apps []*snap.AppInfo, inter interacter, tm timings.Measurer) 
 		}
 
 		var sysd systemd.Systemd
-		switch app.ServiceMode() {
+		switch app.DaemonMode {
 		case snap.SystemDaemon:
 			sysd = systemSysd
 		case snap.UserDaemon:
@@ -128,7 +128,7 @@ func StartServices(apps []*snap.AppInfo, inter interacter, tm timings.Measurer) 
 			if err == nil {
 				return
 			}
-			if app.ServiceMode() == snap.SystemDaemon {
+			if app.DaemonMode == snap.SystemDaemon {
 				if e := stopService(sysd, app, inter); e != nil {
 					inter.Notify(fmt.Sprintf("While trying to stop previously started service %q: %v", app.ServiceName(), e))
 				}
@@ -147,7 +147,7 @@ func StartServices(apps []*snap.AppInfo, inter interacter, tm timings.Measurer) 
 			}
 		}(app)
 
-		if len(app.Sockets) == 0 && app.Timer == nil && app.ServiceMode() == snap.SystemDaemon {
+		if len(app.Sockets) == 0 && app.Timer == nil && app.DaemonMode == snap.SystemDaemon {
 			// check if the service is disabled, if so don't start it up
 			// this could happen for example if the service was disabled in
 			// the install hook by snapctl or if the service was disabled in
@@ -169,7 +169,7 @@ func StartServices(apps []*snap.AppInfo, inter interacter, tm timings.Measurer) 
 				return err
 			}
 
-			if app.ServiceMode() == snap.SystemDaemon {
+			if app.DaemonMode == snap.SystemDaemon {
 				timings.Run(tm, "start-socket-service", fmt.Sprintf("start socket service %q", socketService), func(nested timings.Measurer) {
 					err = sysd.Start(socketService)
 				})
@@ -186,7 +186,7 @@ func StartServices(apps []*snap.AppInfo, inter interacter, tm timings.Measurer) 
 				return err
 			}
 
-			if app.ServiceMode() == snap.SystemDaemon {
+			if app.DaemonMode == snap.SystemDaemon {
 				timings.Run(tm, "start-timer-service", fmt.Sprintf("start timer service %q", timerService), func(nested timings.Measurer) {
 					err = sysd.Start(timerService)
 				})
@@ -316,7 +316,7 @@ func AddSnapServices(s *snap.Info, disabledSvcs []string, inter interacter) (err
 		}
 
 		svcName := app.ServiceName()
-		switch app.ServiceMode() {
+		switch app.DaemonMode {
 		case snap.SystemDaemon:
 			if strutil.ListContains(disabledSvcs, app.Name) {
 				// service is disabled, nothing to do
@@ -360,7 +360,7 @@ func StopServices(apps []*snap.AppInfo, reason snap.ServiceStopReason, inter int
 			continue
 		}
 		// We can't stop services that run under a user mode systemd
-		if app.ServiceMode() == snap.UserDaemon {
+		if app.DaemonMode == snap.UserDaemon {
 			continue
 		}
 		// Skip stop on refresh when refresh mode is set to something
@@ -431,7 +431,7 @@ func RemoveSnapServices(s *snap.Info, inter interacter) error {
 		nservices++
 
 		var sysd systemd.Systemd
-		switch app.ServiceMode() {
+		switch app.DaemonMode {
 		case snap.SystemDaemon:
 			sysd = systemSysd
 		case snap.UserDaemon:
@@ -617,7 +617,7 @@ WantedBy={{.ServicesTarget}}
 		// systemd runs as PID 1 so %h will not work.
 		Home: "/root",
 	}
-	switch appInfo.ServiceMode() {
+	switch appInfo.DaemonMode {
 	case snap.SystemDaemon:
 		wrapperData.ServicesTarget = systemd.ServicesTarget
 		wrapperData.PrerequisiteTarget = systemd.PrerequisiteTarget
@@ -682,7 +682,7 @@ WantedBy={{.SocketsTarget}}
 		SocketInfo:      socket,
 		ListenStream:    listenStream,
 	}
-	switch appInfo.ServiceMode() {
+	switch appInfo.DaemonMode {
 	case snap.SystemDaemon:
 		wrapperData.MountUnit = filepath.Base(systemd.MountUnitPath(appInfo.Snap.MountDir()))
 	case snap.UserDaemon:
@@ -714,7 +714,7 @@ func generateSnapSocketFiles(app *snap.AppInfo) (*map[string][]byte, error) {
 func renderListenStream(socket *snap.SocketInfo) string {
 	s := socket.App.Snap
 	listenStream := socket.ListenStream
-	switch socket.App.ServiceMode() {
+	switch socket.App.DaemonMode {
 	case snap.SystemDaemon:
 		listenStream = strings.Replace(listenStream, "$SNAP_DATA", s.DataDir(), -1)
 		// TODO: when we support User/Group in the generated
@@ -775,7 +775,7 @@ WantedBy={{.TimersTarget}}
 		TimerName:       app.Name,
 		Schedules:       schedules,
 	}
-	switch app.ServiceMode() {
+	switch app.DaemonMode {
 	case snap.SystemDaemon:
 		wrapperData.MountUnit = filepath.Base(systemd.MountUnitPath(app.Snap.MountDir()))
 	case snap.UserDaemon:
