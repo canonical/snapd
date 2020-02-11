@@ -168,7 +168,7 @@ type bootState interface {
 	// revisions retrieves the revisions of the current snap and
 	// the try snap (only the latter might not be set), and
 	// the status of the trying snap.
-	revisions() (snap, trySnap snap.PlaceInfo, tryingStatus string, err error)
+	revisions() (curSnap, trySnap snap.PlaceInfo, tryingStatus string, err error)
 
 	// setNext lazily implements setting the next boot target for
 	// the type's boot snap. actually committing the update
