@@ -195,21 +195,18 @@ func generateMountsModeRun() error {
 		fmt.Fprintf(stdout, "/dev/disk/by-label/%s %s\n", filepath.Base(dataDir), dataDir)
 		return nil
 	}
+	// 2.1 read modeenv
+	modeEnv, err := boot.ReadModeenv(filepath.Join(dataDir, "system-data"))
+	if err != nil {
+		return err
+	}
 
-	// 2.1 check if base is mounted
+	// 2.2.1 check if base is mounted
 	isBaseMounted, err := osutilIsMounted(filepath.Join(runMnt, "base"))
 	if err != nil {
 		return err
 	}
 	if !isBaseMounted {
-		// TODO:UC20: refactor this logic into the boot package instead
-
-		// 2.2.1 read modeenv
-		modeEnv, err := boot.ReadModeenv(filepath.Join(dataDir, "system-data"))
-		if err != nil {
-			return err
-		}
-
 		// 2.2.2 use modeenv base_status and try_base to see  if we are trying
 		// an update to the base snap
 		base := modeEnv.Base
@@ -239,15 +236,8 @@ func generateMountsModeRun() error {
 			modeEnv.BaseStatus = ""
 		}
 
-		// output base snap to mount
 		baseSnapPath := filepath.Join(dataDir, "system-data", dirs.SnapBlobDir, base)
 		fmt.Fprintf(stdout, "%s %s\n", baseSnapPath, filepath.Join(runMnt, "base"))
-
-		// 2.2.3 write the modeenv out again
-		err = modeEnv.Write(filepath.Join(dataDir, "system-data"))
-		if err != nil {
-			return err
-		}
 	}
 
 	// 2.3.1 check if the kernel is mounted
@@ -305,7 +295,7 @@ func generateMountsModeRun() error {
 		fmt.Fprintf(stdout, "%s %s\n", kernelPath, filepath.Join(runMnt, "kernel"))
 	}
 	// 3.1 Write the modeenv out again
-	return nil
+	return modeEnv.Write(filepath.Join(dataDir, "system-data"))
 }
 
 func generateInitramfsMounts() error {
