@@ -1,7 +1,8 @@
 summary: Test httputil/retry.go ShouldRetryError(err)/NoNetwork(err)
 
 # ubuntu-core: no go-compiler
-systems: [-ubuntu-core-*]
+# ubuntu-14.04: no nsenter
+systems: [-ubuntu-core-*, -ubuntu-14.04-*]
 
 environment:
     # an empty $topsrcdir/tests/go.mod seems to break importing or building go
@@ -16,15 +17,27 @@ restore: |
     ip netns delete testns || true
     umount /run/netns || true
 
+debug: |
+   cat output.txt || true
+   cat stderr || true
+
 execute: |
     echo "Add totally unconnected network namespace"
     ip netns add testns
-    SNAPD_DEBUG=1 nsenter --net=/var/run/netns/testns ./detect-retry http://www.ubuntu.com > output.txt
-    #MATCH "ShouldRetryError: false" < output.txt
+    SNAPD_DEBUG=1 nsenter --net=/var/run/netns/testns ./detect-retry http://www.ubuntu.com > output.txt 2>stderr
+    # XXX: ShouldRetryError is slightly misbehaving, if we know we don't have
+    #      a network connection we should not retry. However we keep it as
+    #      it is for now to be sure we don't add regressions.
+    MATCH "ShouldRetryError: true" < output.txt
     MATCH "NoNetwork: true" < output.txt
+    # be paranoid and look at the low-level go error as well
+    MATCH "(Temporary failure in name resolution|network is unreachable)" < stderr
 
     echo "Now without DNS resolver"
     UBUNTU_IP="$(getent hosts www.ubuntu.com|awk '{print $1 }' | head -n1)"
-    SNAPD_DEBUG=1 nsenter --net=/var/run/netns/testns ./detect-retry "http://$UBUNTU_IP" > output.txt
-    #MATCH "ShouldRetryError: false" < output.txt
+    SNAPD_DEBUG=1 nsenter --net=/var/run/netns/testns ./detect-retry "http://$UBUNTU_IP" > output.txt 2>stderr
+    # XXX: ShouldRetryError is slightly misbehaving, see comment above
+    MATCH "ShouldRetryError: true" < output.txt
     MATCH "NoNetwork: true" < output.txt
+    # be paranoid and look at the low-level go error as well
+    MATCH "network is unreachable" < stderr
