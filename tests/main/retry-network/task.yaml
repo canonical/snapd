@@ -1,0 +1,30 @@
+summary: Test httputil/retry.go ShouldRetryError(err)/NoNetwork(err)
+
+# ubuntu-core: no go-compiler
+systems: [-ubuntu-core-*]
+
+environment:
+    # an empty $topsrcdir/tests/go.mod seems to break importing or building go
+    # packages referenced by their import paths while under the tests directory,
+    # need to disable go modules supportfor this test
+    GO111MODULE: off
+
+prepare: |
+    go build -o detect-retry ./detect-retry.go
+
+restore: |
+    ip netns delete testns || true
+    umount /run/netns || true
+
+execute: |
+    echo "Add totally unconnected network namespace"
+    ip netns add testns
+    SNAPD_DEBUG=1 nsenter --net=/var/run/netns/testns ./detect-retry http://www.ubuntu.com > output.txt
+    #MATCH "ShouldRetryError: false" < output.txt
+    MATCH "NoNetwork: true" < output.txt
+
+    echo "Now without DNS resolver"
+    UBUNTU_IP="$(getent hosts www.ubuntu.com|awk '{print $1 }' | head -n1)"
+    SNAPD_DEBUG=1 nsenter --net=/var/run/netns/testns ./detect-retry "http://$UBUNTU_IP" > output.txt
+    #MATCH "ShouldRetryError: false" < output.txt
+    MATCH "NoNetwork: true" < output.txt

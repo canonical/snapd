@@ -335,6 +335,11 @@ func prepareSerialRequest(t *state.Task, regCtx registrationContext, privKey ass
 			// host, error out and do full retries
 			return "", fmt.Errorf("cannot retrieve request-id for making a request for a serial: %v", err)
 		}
+		if httputil.NoNetwork(err) {
+			noNetwrokRetryIntervall := 30 * time.Second
+			return "", &state.Retry{After: noNetwrokRetryIntervall}
+		}
+
 		return "", retryErr(t, nTentatives, "cannot retrieve request-id for making a request for a serial: %v", err)
 	}
 	defer resp.Body.Close()

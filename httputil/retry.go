@@ -99,6 +99,11 @@ func ShouldRetryAttempt(attempt *retry.Attempt, err error) bool {
 }
 
 func ShouldRetryError(err error) bool {
+	if err == nil {
+		return false
+	}
+	logger.Debugf("ShouldRetryError: %v %T", err, err)
+
 	if urlErr, ok := err.(*url.Error); ok {
 		err = urlErr.Err
 	}
@@ -174,7 +179,18 @@ func ShouldRetryError(err error) bool {
 	return false
 }
 
+// NoNetwork returns true if the error indicates that there is no network
+// connection available, i.e. network unreachable or down or DNS unavailable.
+func NoNetwork(err error) bool {
+	logger.Debugf("NoNetwork: %v %T", err, err)
+
+	return isNetworkDown(err) || isDnsUnavailable(err)
+}
+
 func isNetworkDown(err error) bool {
+	if err == nil {
+		return false
+	}
 	urlErr, ok := err.(*url.Error)
 	if !ok {
 		return false
@@ -199,6 +215,10 @@ func isNetworkDown(err error) bool {
 }
 
 func isDnsUnavailable(err error) bool {
+	if err == nil {
+		return false
+	}
+
 	urlErr, ok := err.(*url.Error)
 	if !ok {
 		return false
