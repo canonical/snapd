@@ -115,7 +115,7 @@ printf "hello world"
 func (s *packSuite) TestPackNoManifestFails(c *C) {
 	sourceDir := makeExampleSnapSourceDir(c, "{name: hello, version: 0}")
 	c.Assert(os.Remove(filepath.Join(sourceDir, "meta", "snap.yaml")), IsNil)
-	_, err := pack.Snap(sourceDir, "", "")
+	_, err := pack.Snap(sourceDir, pack.Defaults)
 	c.Assert(err, ErrorMatches, `.*/meta/snap\.yaml: no such file or directory`)
 }
 
@@ -127,7 +127,7 @@ apps:
   command: bin/hello-world
 `)
 	c.Assert(os.Remove(filepath.Join(sourceDir, "bin", "hello-world")), IsNil)
-	_, err := pack.Snap(sourceDir, "", "")
+	_, err := pack.Snap(sourceDir, pack.Defaults)
 	c.Assert(err, Equals, snap.ErrMissingPaths)
 }
 
@@ -157,7 +157,7 @@ func (s *packSuite) TestPackExcludesBackups(c *C) {
 	target := c.MkDir()
 	// add a backup file
 	c.Assert(ioutil.WriteFile(filepath.Join(sourceDir, "foo~"), []byte("hi"), 0755), IsNil)
-	snapfile, err := pack.Snap(sourceDir, c.MkDir(), "")
+	snapfile, err := pack.Snap(sourceDir, &pack.Options{TargetDir: c.MkDir()})
 	c.Assert(err, IsNil)
 	c.Assert(squashfs.New(snapfile).Unpack("*", target), IsNil)
 
@@ -175,7 +175,7 @@ func (s *packSuite) TestPackExcludesTopLevelDEBIAN(c *C) {
 	c.Assert(os.MkdirAll(filepath.Join(sourceDir, "DEBIAN", "foo"), 0755), IsNil)
 	// and a non-toplevel DEBIAN
 	c.Assert(os.MkdirAll(filepath.Join(sourceDir, "bar", "DEBIAN", "baz"), 0755), IsNil)
-	snapfile, err := pack.Snap(sourceDir, c.MkDir(), "")
+	snapfile, err := pack.Snap(sourceDir, &pack.Options{TargetDir: c.MkDir()})
 	c.Assert(err, IsNil)
 	c.Assert(squashfs.New(snapfile).Unpack("*", target), IsNil)
 	cmd := exec.Command("diff", "-qr", sourceDir, target)
@@ -193,7 +193,7 @@ func (s *packSuite) TestPackExcludesWholeDirs(c *C) {
 	// add a file inside a skipped dir
 	c.Assert(os.Mkdir(filepath.Join(sourceDir, ".bzr"), 0755), IsNil)
 	c.Assert(ioutil.WriteFile(filepath.Join(sourceDir, ".bzr", "foo"), []byte("hi"), 0755), IsNil)
-	snapfile, err := pack.Snap(sourceDir, c.MkDir(), "")
+	snapfile, err := pack.Snap(sourceDir, &pack.Options{TargetDir: c.MkDir()})
 	c.Assert(err, IsNil)
 	c.Assert(squashfs.New(snapfile).Unpack("*", target), IsNil)
 	out, _ := exec.Command("find", sourceDir).Output()
@@ -244,7 +244,10 @@ integration:
 
 	for i, t := range table {
 		comm := Commentf("%d", i)
-		resultSnap, err := pack.Snap(sourceDir, t.outputDir, t.filename)
+		resultSnap, err := pack.Snap(sourceDir, &pack.Options{
+			TargetDir: t.outputDir,
+			SnapName:  t.filename,
+		})
 		c.Assert(err, IsNil, comm)
 
 		// check that there is result
@@ -299,19 +302,54 @@ volumes:
 	absSnapFile := filepath.Join(c.MkDir(), "foo.snap")
 
 	// gadget validation fails during layout
-	_, err = pack.Snap(sourceDir, outputDir, absSnapFile)
+	_, err = pack.Snap(sourceDir, &pack.Options{
+		TargetDir: outputDir,
+		SnapName:  absSnapFile,
+	})
 	c.Assert(err, ErrorMatches, `invalid layout of volume "bad": cannot lay out structure #1 \("bare-struct"\): content "bare.img": stat .*/bare.img: no such file or directory`)
 
 	err = ioutil.WriteFile(filepath.Join(sourceDir, "bare.img"), []byte("foo"), 0644)
 	c.Assert(err, IsNil)
 
 	// gadget validation fails during content presence checks
-	_, err = pack.Snap(sourceDir, outputDir, absSnapFile)
+	_, err = pack.Snap(sourceDir, &pack.Options{
+		TargetDir: outputDir,
+		SnapName:  absSnapFile,
+	})
 	c.Assert(err, ErrorMatches, `invalid volume "bad": structure #0 \("fs-struct"\), content source:foo/: source path does not exist`)
 
 	err = os.Mkdir(filepath.Join(sourceDir, "foo"), 0644)
 	c.Assert(err, IsNil)
 	// all good now
-	_, err = pack.Snap(sourceDir, outputDir, absSnapFile)
+	_, err = pack.Snap(sourceDir, &pack.Options{
+		TargetDir: outputDir,
+		SnapName:  absSnapFile,
+	})
 	c.Assert(err, IsNil)
+}
+
+func (s *packSuite) TestPackWithCompressionHappy(c *C) {
+	sourceDir := makeExampleSnapSourceDir(c, "{name: hello, version: 0}")
+
+	for _, comp := range []string{"", "xz"} {
+		snapfile, err := pack.Snap(sourceDir, &pack.Options{
+			TargetDir:   c.MkDir(),
+			Compression: comp,
+		})
+		c.Assert(err, IsNil)
+		c.Assert(snapfile, testutil.FilePresent)
+	}
+}
+
+func (s *packSuite) TestPackWithCompressionUnhappy(c *C) {
+	sourceDir := makeExampleSnapSourceDir(c, "{name: hello, version: 0}")
+
+	for _, comp := range []string{"gzip", "lzo", "zstd", "silly"} {
+		snapfile, err := pack.Snap(sourceDir, &pack.Options{
+			TargetDir:   c.MkDir(),
+			Compression: comp,
+		})
+		c.Assert(err, ErrorMatches, fmt.Sprintf("cannot use compression %q", comp))
+		c.Assert(snapfile, Equals, "")
+	}
 }

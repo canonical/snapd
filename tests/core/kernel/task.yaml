@@ -1,5 +1,9 @@
 summary: Ensure that we have the right kernel
 
+# TODO:UC20: add 5.X series kernel for UC20
+# TODO: add 4.4 series kernel check for UC16
+systems: [ubuntu-core-18-*]
+
 execute: |
     echo "Check kernel version"
     uname -r | MATCH "^4.15"
