@@ -1,4 +1,4 @@
-summary: Test snapd install on a UC16 system
+summary: Test the failover scenario of the snapd snap installation on a UC16 system
 
 # snapd snap is already installed by default on uc18+
 systems: [ubuntu-core-16-*]
