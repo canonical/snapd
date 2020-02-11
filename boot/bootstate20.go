@@ -122,6 +122,18 @@ func (ks20 *bootState20Kernel) revisions() (curSnap, trySnap snap.PlaceInfo, try
 	return bootSn, tryBootSn, ks20.kernelStatus, nil
 }
 
+func (ks20 *bootState20Kernel) markSuccessful(update bootStateUpdate) (bootStateUpdate, error) {
+	// call the generic method with this object to do most of the legwork
+	u, sn, err := genericMarkSuccessful(ks20, update)
+	if err != nil {
+		return nil, err
+	}
+
+	// u should always be non-nil if err is nil
+	u.triedKernelSnap = sn
+	return u, nil
+}
+
 func (ks20 *bootState20Kernel) setNext(next snap.PlaceInfo) (rebootRequired bool, u bootStateUpdate, err error) {
 	nextStatus, err := genericSetNext(ks20, next)
 	if err != nil {
@@ -135,19 +147,9 @@ func (ks20 *bootState20Kernel) setNext(next snap.PlaceInfo) (rebootRequired bool
 	}
 	ks20.commitKernelStatus = nextStatus
 
+	// any state changes done so far are consumed in to commit()
+
 	return rebootRequired, ks20, nil
-}
-
-func (ks20 *bootState20Kernel) markSuccessful(update bootStateUpdate) (bootStateUpdate, error) {
-	// call the generic method with this object to do most of the legwork
-	u, sn, err := genericMarkSuccessful(ks20, update)
-	if err != nil {
-		return nil, err
-	}
-
-	// u should always be non-nil if err is nil
-	u.triedKernelSnap = sn
-	return u, nil
 }
 
 // commit for bootState20Kernel is meant only to be used with setNext(), for
@@ -262,6 +264,18 @@ func (bs20 *bootState20Base) revisions() (curSnap, trySnap snap.PlaceInfo, tryin
 	return bootSn, tryBootSn, bs20.modeenv.BaseStatus, nil
 }
 
+func (bs20 *bootState20Base) markSuccessful(update bootStateUpdate) (bootStateUpdate, error) {
+	// call the generic method with this object to do most of the legwork
+	u, sn, err := genericMarkSuccessful(bs20, update)
+	if err != nil {
+		return nil, err
+	}
+
+	// u should always be non-nil if err is nil
+	u.triedBaseSnap = sn
+	return u, nil
+}
+
 func (bs20 *bootState20Base) setNext(next snap.PlaceInfo) (rebootRequired bool, u bootStateUpdate, err error) {
 	nextStatus, err := genericSetNext(bs20, next)
 	if err != nil {
@@ -275,19 +289,9 @@ func (bs20 *bootState20Base) setNext(next snap.PlaceInfo) (rebootRequired bool, 
 	}
 	bs20.commitBaseStatus = nextStatus
 
+	// any state changes done so far are consumed in to commit()
+
 	return rebootRequired, bs20, nil
-}
-
-func (bs20 *bootState20Base) markSuccessful(update bootStateUpdate) (bootStateUpdate, error) {
-	// call the generic method with this object to do most of the legwork
-	u, sn, err := genericMarkSuccessful(bs20, update)
-	if err != nil {
-		return nil, err
-	}
-
-	// u should always be non-nil if err is nil
-	u.triedBaseSnap = sn
-	return u, nil
 }
 
 // commit for bootState20Base is meant only to be used with setNext(), for
