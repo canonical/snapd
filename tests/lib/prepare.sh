@@ -466,7 +466,7 @@ uc20_build_initramfs_kernel_snap() {
         skeletondir=$PWD/skeleton
         cp -a /usr/lib/snapd/snap-bootstrap "$skeletondir/main/usr/lib/snapd/snap-bootstrap"
         # modify the-tool to verify that our version is used when booting - this
-        # is verified in the tests/core20/basic spread test
+        # is verified in the tests/core/basic20 spread test
         sed -i -e 's/set -e/set -ex/' "$skeletondir/main/usr/lib/the-tool"
         echo "" >> "$skeletondir/main/usr/lib/the-tool"
         echo "if test -d /run/mnt/ubuntu-data/system-data; then touch /run/mnt/ubuntu-data/system-data/the-tool-ran; fi" >> \
@@ -798,12 +798,18 @@ EOF
     # - golang archive files and built packages dir
     # - govendor .cache directory and the binary,
     if is_core16_system || is_core18_system; then
+        # we need to include "core" here because -C option says to ignore 
+        # files the way CVS(?!) does, so it ignores files named "core" which
+        # are core dumps, but we have a test suite named "core", so including 
+        # this here will ensure that portion of the git tree is included in the
+        # image
         rsync -a -C \
           --exclude '*.a' \
           --exclude '*.deb' \
           --exclude /gopath/.cache/ \
           --exclude /gopath/bin/govendor \
           --exclude /gopath/pkg/ \
+          --include core/ \
           /home/gopath /mnt/user-data/
     elif is_core20_system; then
         # prepare passwd for run-mode-overlay-data
