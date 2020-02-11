@@ -31,8 +31,8 @@ func NewCoreBootParticipant(s snap.PlaceInfo, t snap.Type, dev Device) *coreBoot
 	return &coreBootParticipant{s: s, bs: bs}
 }
 
-func NewCoreKernel(s snap.PlaceInfo) *coreKernel {
-	return &coreKernel{s}
+func NewCoreKernel(s snap.PlaceInfo, d Device) *coreKernel {
+	return &coreKernel{s, bootloaderOptionsForDeviceKernel(d)}
 }
 
 type Trivial = trivial

@@ -1,4 +1,4 @@
-summary: Ensure that the apt output on ubuntu-core is correct
+summary: Ensure that the apt output on UC16 is correct
 
 systems: [ubuntu-core-16-*]
 

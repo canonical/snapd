@@ -1,7 +1,7 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
 
 /*
- * Copyright (C) 2018 Canonical Ltd
+ * Copyright (C) 2020 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -17,39 +17,31 @@
  *
  */
 
-package main
-
-//go:generate mkauthors.sh
+package randutil_test
 
 import (
-	"fmt"
-	"math/rand"
+	"encoding/base64"
 
-	"github.com/jessevdk/go-flags"
+	. "gopkg.in/check.v1"
+
+	"github.com/snapcore/snapd/randutil"
 )
 
-type cmdBlame struct{}
+type cryptoRandutilSuite struct{}
 
-var authors []string
+var _ = Suite(&cryptoRandutilSuite{})
 
-func init() {
-	cmd := addCommand("blame",
-		"(hidden)",
-		"",
-		func() flags.Commander {
-			return &cmdBlame{}
-		}, nil, nil)
-	cmd.hidden = true
+func (s *cryptoRandutilSuite) TestCryptoTokenBytes(c *C) {
+	x, err := randutil.CryptoTokenBytes(5)
+	c.Assert(err, IsNil)
+	c.Check(x, HasLen, 5)
 }
 
-func (x *cmdBlame) Execute(args []string) error {
-	if len(args) > 0 {
-		return ErrExtraArgs
-	}
-	if len(authors) == 0 {
-		return nil
-	}
+func (s *cryptoRandutilSuite) TestCryptoToken(c *C) {
+	x, err := randutil.CryptoToken(5)
+	c.Assert(err, IsNil)
 
-	fmt.Fprintf(Stdout, "It's all %s's fault.\n", authors[rand.Intn(len(authors))])
-	return nil
+	b, err := base64.RawURLEncoding.DecodeString(x)
+	c.Assert(err, IsNil)
+	c.Check(b, HasLen, 5)
 }

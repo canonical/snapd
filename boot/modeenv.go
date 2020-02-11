@@ -37,8 +37,11 @@ type Modeenv struct {
 	Mode           string
 	RecoverySystem string
 	Base           string
-	// XXX: we may need to revisit setting the kernel in modeenv
-	Kernel string
+	TryBase        string
+	BaseStatus     string
+	// TODO:UC20: instead of setting what the kernel is from the modeenv, we
+	//            should have a list of "valid" kernel snaps that could have
+	//            booted
 
 	// read is set to true when a modenv was read successfully
 	read bool
@@ -76,15 +79,18 @@ func readModeenvImpl(rootdir string) (*Modeenv, error) {
 	if err := cfg.ReadFile(modeenvPath); err != nil {
 		return nil, err
 	}
+	// TODO:UC20: should we check these errors and try to do something?
 	recoverySystem, _ := cfg.Get("", "recovery_system")
 	mode, _ := cfg.Get("", "mode")
 	base, _ := cfg.Get("", "base")
-	kernel, _ := cfg.Get("", "kernel")
+	baseStatus, _ := cfg.Get("", "base_status")
+	tryBase, _ := cfg.Get("", "try_base")
 	return &Modeenv{
 		Mode:           mode,
 		RecoverySystem: recoverySystem,
 		Base:           base,
-		Kernel:         kernel,
+		TryBase:        tryBase,
+		BaseStatus:     baseStatus,
 		read:           true,
 	}, nil
 }
@@ -111,9 +117,13 @@ func (m *Modeenv) Write(rootdir string) error {
 	if m.Base != "" {
 		fmt.Fprintf(buf, "base=%s\n", m.Base)
 	}
-	if m.Kernel != "" {
-		fmt.Fprintf(buf, "kernel=%s\n", m.Kernel)
+	if m.TryBase != "" {
+		fmt.Fprintf(buf, "try_base=%s\n", m.TryBase)
 	}
+	if m.BaseStatus != "" {
+		fmt.Fprintf(buf, "base_status=%s\n", m.BaseStatus)
+	}
+
 	if err := osutil.AtomicWriteFile(modeenvPath, buf.Bytes(), 0644, 0); err != nil {
 		return err
 	}

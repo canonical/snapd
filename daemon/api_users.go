@@ -48,8 +48,9 @@ var (
 	}
 
 	logoutCmd = &Command{
-		Path: "/v2/logout",
-		POST: logoutUser,
+		Path:     "/v2/logout",
+		POST:     logoutUser,
+		PolkitOK: "io.snapcraft.snapd.login",
 	}
 
 	// backwards compat; to-be-deprecated
@@ -67,7 +68,10 @@ var (
 	}
 )
 
-var osutilAddUser = osutil.AddUser
+var (
+	osutilAddUser = osutil.AddUser
+	osutilDelUser = osutil.DelUser
+)
 
 // userResponseData contains the data releated to user creation/login/query
 type userResponseData struct {
@@ -241,7 +245,40 @@ func postUsers(c *Command, r *http.Request, user *auth.UserState) Response {
 }
 
 func removeUser(c *Command, username string, opts postUserDeleteData) Response {
-	return NotImplemented("not implemented")
+	// TODO: allow to remove user entries by email as well
+
+	// catch silly errors
+	if username == "" {
+		return BadRequest("need a username to remove")
+	}
+	// check the user is known to snapd
+	st := c.d.overlord.State()
+	st.Lock()
+	_, err := auth.UserByUsername(st, username)
+	st.Unlock()
+	if err == auth.ErrInvalidUser {
+		return BadRequest("user %q is not known", username)
+	}
+	if err != nil {
+		return InternalError(err.Error())
+	}
+
+	// first remove the system user
+	if err := osutilDelUser(username, &osutil.DelUserOptions{ExtraUsers: !release.OnClassic}); err != nil {
+		return InternalError(err.Error())
+	}
+
+	// then the UserState
+	st.Lock()
+	err = auth.RemoveUserByUsername(st, username)
+	st.Unlock()
+	// ErrInvalidUser means "not found" in this case
+	if err != nil && err != auth.ErrInvalidUser {
+		return InternalError(err.Error())
+	}
+
+	// returns nil so it's still arguably a []userResponseData
+	return SyncResponse(nil, nil)
 }
 
 func postCreateUser(c *Command, r *http.Request, user *auth.UserState) Response {
@@ -254,6 +291,11 @@ func postCreateUser(c *Command, r *http.Request, user *auth.UserState) Response 
 	if err := decoder.Decode(&createData); err != nil {
 		return BadRequest("cannot decode create-user data from request body: %v", err)
 	}
+
+	// this is /v2/create-user, meaning we want the
+	// backwards-compatible wackiness
+	createData.singleUserResultCompat = true
+
 	return createUser(c, createData)
 }
 
@@ -320,10 +362,17 @@ func createUser(c *Command, createData postUserCreateData) Response {
 		return InternalError("%s", err)
 	}
 
-	return SyncResponse(&userResponseData{
+	result := userResponseData{
 		Username: username,
 		SSHKeys:  opts.SSHKeys,
-	}, nil)
+	}
+
+	if createData.singleUserResultCompat {
+		// return a single userResponseData in this case
+		return SyncResponse(&result, nil)
+	} else {
+		return SyncResponse([]userResponseData{result}, nil)
+	}
 }
 
 func getUserDetailsFromStore(theStore snapstate.StoreService, email string) (string, *osutil.AddUserOptions, error) {
@@ -450,6 +499,12 @@ type postUserCreateData struct {
 	Sudoer       bool   `json:"sudoer"`
 	Known        bool   `json:"known"`
 	ForceManaged bool   `json:"force-managed"`
+
+	// singleUserResultCompat indicates whether to preserve
+	// backwards compatibility, which results in more clunky
+	// return values (userResponseData OR [userResponseData] vs now
+	// uniform [userResponseData]); internal, not from JSON.
+	singleUserResultCompat bool
 }
 
 type postUserDeleteData struct{}

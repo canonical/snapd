@@ -1,10 +1,12 @@
-summary: Check basic core20 system functionality
+summary: Check basic core18 system functionality
+
+systems: [ubuntu-core-18-*]
 
 execute: |
     echo "Check that the system snaps are there"
-    snap list core20
-    snap list snapd
-    if snap list core; then
+    snap list | MATCH core18
+    snap list | MATCH snapd
+    if snap list | grep '^core +'; then
         echo "The old core snap is installed but should not"
         exit 1
     fi
@@ -13,7 +15,6 @@ execute: |
     snap changes | MATCH "Done.*Initialize system state"
 
     echo "Check that a simple shell snap"
-    # TODO:UC20: add test-snapd-sh-core20
     snap install test-snapd-sh-core18
     test-snapd-sh-core18.sh -c 'echo hello' | MATCH hello
 

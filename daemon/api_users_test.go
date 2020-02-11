@@ -63,6 +63,16 @@ func (s *userSuite) SetUpTest(c *check.C) {
 	userLookup = mkUserLookup(s.mockUserHome)
 	s.oldUserAdmin = hasUserAdmin
 	hasUserAdmin = true
+
+	// make sure we don't call these by accident
+	osutilAddUser = func(name string, opts *osutil.AddUserOptions) error {
+		c.Fatalf("unexpected add user %q call", name)
+		return fmt.Errorf("unexpected add user %q call", name)
+	}
+	osutilDelUser = func(name string, opts *osutil.DelUserOptions) error {
+		c.Fatalf("unexpected del user %q call", name)
+		return fmt.Errorf("unexpected del user %q call", name)
+	}
 }
 
 func (s *userSuite) TearDownTest(c *check.C) {
@@ -70,6 +80,7 @@ func (s *userSuite) TearDownTest(c *check.C) {
 
 	userLookup = user.Lookup
 	osutilAddUser = osutil.AddUser
+	osutilDelUser = osutil.DelUser
 
 	s.restoreClassic()
 	hasUserAdmin = s.oldUserAdmin
@@ -125,23 +136,26 @@ func (s *userSuite) testCreateUser(c *check.C, oldWay bool) {
 	}
 
 	var rsp *resp
+	var expected interface{}
+	expectedItem := userResponseData{
+		Username: expectedUsername,
+		SSHKeys:  []string{"ssh1", "ssh2"},
+	}
+
 	if oldWay {
 		buf := bytes.NewBufferString(fmt.Sprintf(`{"email": "%s"}`, s.userInfoExpectedEmail))
 		req, err := http.NewRequest("POST", "/v2/create-user", buf)
 		c.Assert(err, check.IsNil)
 
 		rsp = postCreateUser(createUserCmd, req, nil).(*resp)
+		expected = &expectedItem
 	} else {
 		buf := bytes.NewBufferString(fmt.Sprintf(`{"action":"create","email": "%s"}`, s.userInfoExpectedEmail))
 		req, err := http.NewRequest("POST", "/v2/users", buf)
 		c.Assert(err, check.IsNil)
 
 		rsp = postUsers(usersCmd, req, nil).(*resp)
-	}
-
-	expected := &userResponseData{
-		Username: expectedUsername,
-		SSHKeys:  []string{"ssh1", "ssh2"},
+		expected = []userResponseData{expectedItem}
 	}
 
 	c.Check(rsp.Type, check.Equals, ResponseTypeSync)
@@ -223,13 +237,105 @@ func (s *userSuite) TestPostUserBadAction(c *check.C) {
 	c.Check(rsp, check.DeepEquals, BadRequest(`unsupported user action "patatas"`))
 }
 
-func (s *userSuite) TestPostUserActionRemoveNotImplemented(c *check.C) {
+func (s *userSuite) TestPostUserActionRemoveNoUsername(c *check.C) {
 	buf := bytes.NewBufferString(`{"action":"remove"}`)
 	req, err := http.NewRequest("POST", "/v2/users", buf)
 	c.Assert(err, check.IsNil)
 
 	rsp := postUsers(usersCmd, req, nil).(*resp)
-	c.Check(rsp, check.DeepEquals, NotImplemented("not implemented"))
+	c.Check(rsp, check.DeepEquals, BadRequest("need a username to remove"))
+}
+
+func (s *userSuite) TestPostUserActionRemoveDelUserErr(c *check.C) {
+	st := s.d.overlord.State()
+	st.Lock()
+	_, err := auth.NewUser(st, "some-user", "email@test.com", "macaroon", []string{"discharge"})
+	st.Unlock()
+	c.Check(err, check.IsNil)
+
+	called := 0
+	osutilDelUser = func(username string, opts *osutil.DelUserOptions) error {
+		called++
+		c.Check(username, check.Equals, "some-user")
+		return fmt.Errorf("wat")
+	}
+
+	buf := bytes.NewBufferString(`{"action":"remove","username":"some-user"}`)
+	req, err := http.NewRequest("POST", "/v2/users", buf)
+	c.Assert(err, check.IsNil)
+
+	rsp := postUsers(usersCmd, req, nil).(*resp)
+	c.Check(rsp.Status, check.Equals, 500)
+	c.Check(rsp.Result.(*errorResult).Message, check.Equals, "wat")
+	c.Check(called, check.Equals, 1)
+}
+
+func (s *userSuite) TestPostUserActionRemoveStateErr(c *check.C) {
+	st := s.d.overlord.State()
+	st.Lock()
+	st.Set("auth", 42) // breaks auth
+	st.Unlock()
+	called := 0
+	osutilDelUser = func(username string, opts *osutil.DelUserOptions) error {
+		called++
+		c.Check(username, check.Equals, "some-user")
+		return nil
+	}
+
+	buf := bytes.NewBufferString(`{"action":"remove","username":"some-user"}`)
+	req, err := http.NewRequest("POST", "/v2/users", buf)
+	c.Assert(err, check.IsNil)
+
+	rsp := postUsers(usersCmd, req, nil).(*resp)
+	c.Check(rsp.Status, check.Equals, 500)
+	c.Check(rsp.Result.(*errorResult).Message, check.Matches, `internal error: could not unmarshal state entry "auth": .*`)
+	c.Check(called, check.Equals, 0)
+}
+
+func (s *userSuite) TestPostUserActionRemoveNoUserInState(c *check.C) {
+	called := 0
+	osutilDelUser = func(username string, opts *osutil.DelUserOptions) error {
+		called++
+		c.Check(username, check.Equals, "some-user")
+		return nil
+	}
+
+	buf := bytes.NewBufferString(`{"action":"remove","username":"some-user"}`)
+	req, err := http.NewRequest("POST", "/v2/users", buf)
+	c.Assert(err, check.IsNil)
+
+	rsp := postUsers(usersCmd, req, nil).(*resp)
+	c.Check(rsp, check.DeepEquals, BadRequest(`user "some-user" is not known`))
+	c.Check(called, check.Equals, 0)
+}
+
+func (s *userSuite) TestPostUserActionRemove(c *check.C) {
+	st := s.d.overlord.State()
+	st.Lock()
+	user, err := auth.NewUser(st, "some-user", "email@test.com", "macaroon", []string{"discharge"})
+	st.Unlock()
+	c.Check(err, check.IsNil)
+
+	called := 0
+	osutilDelUser = func(username string, opts *osutil.DelUserOptions) error {
+		called++
+		c.Check(username, check.Equals, "some-user")
+		return nil
+	}
+
+	buf := bytes.NewBufferString(`{"action":"remove","username":"some-user"}`)
+	req, err := http.NewRequest("POST", "/v2/users", buf)
+	c.Assert(err, check.IsNil)
+	rsp := postUsers(usersCmd, req, nil).(*resp)
+	c.Check(rsp.Status, check.Equals, 200)
+	c.Check(rsp.Result, check.IsNil)
+	c.Check(called, check.Equals, 1)
+
+	// and the user is removed from state
+	st.Lock()
+	_, err = auth.User(st, user.ID)
+	st.Unlock()
+	c.Check(err, check.Equals, auth.ErrInvalidUser)
 }
 
 func (s *userSuite) setupSigner(accountID string, signerPrivKey asserts.PrivateKey) *assertstest.SigningDB {
