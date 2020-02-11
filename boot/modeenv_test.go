@@ -100,6 +100,8 @@ func (s *modeenvSuite) TestReadModeWithBase(c *C) {
 	s.makeMockModeenvFile(c, `mode=recovery
 recovery_system=20191126
 base=core20_123.snap
+try_base=core20_124.snap
+base_status=try
 `)
 
 	modeenv, err := boot.ReadModeenv(s.tmpdir)
@@ -107,6 +109,8 @@ base=core20_123.snap
 	c.Check(modeenv.Mode, Equals, "recovery")
 	c.Check(modeenv.RecoverySystem, Equals, "20191126")
 	c.Check(modeenv.Base, Equals, "core20_123.snap")
+	c.Check(modeenv.TryBase, Equals, "core20_124.snap")
+	c.Check(modeenv.BaseStatus, Equals, "try")
 }
 
 func (s *modeenvSuite) TestWriteNonExisting(c *C) {
@@ -138,6 +142,8 @@ func (s *modeenvSuite) TestWriteNonExistingFull(c *C) {
 		Mode:           "run",
 		RecoverySystem: "20191128",
 		Base:           "core20_321.snap",
+		TryBase:        "core20_322.snap",
+		BaseStatus:     "try",
 	}
 	err := modeenv.Write(s.tmpdir)
 	c.Assert(err, IsNil)
@@ -145,5 +151,7 @@ func (s *modeenvSuite) TestWriteNonExistingFull(c *C) {
 	c.Assert(s.mockModeenvPath, testutil.FileEquals, `mode=run
 recovery_system=20191128
 base=core20_321.snap
+try_base=core20_322.snap
+base_status=try
 `)
 }
