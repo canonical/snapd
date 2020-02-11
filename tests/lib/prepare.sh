@@ -452,25 +452,21 @@ uc20_build_initramfs_kernel_snap() {
         #shellcheck disable=SC2010
         kver=$(ls "config"-* | grep -Po 'config-\K.*')
 
-        # XXX: ideally we should use unpack the initrd, replace snap-boostrap and
-        # repack it using ubuntu-core-initramfs --skeleton=..., this does not
+        # XXX: ideally we should unpack the initrd, replace snap-boostrap and
+        # repack it using ubuntu-core-initramfs --skeleton=<unpacked> this does not
         # work and the rebuilt kernel.efi panics unable to start init, but we
         # still need the unpacked initrd to get the right kernel modules
         objcopy -j .initrd -O binary kernel.efi initrd
         # this works on 20.04 but not on 18.04
         unmkinitramfs initrd unpacked-initrd
-        # XXX: this does not produce the same result as using distro's
-        # /usr/lib/ubuntu-core-initramfs skeleton
-        skeletondir=/usr/lib/ubuntu-core-initramfs/
-        cp -ar "$skeletondir" skeleton
-        # replace the main bits
-        rm -rf skeleton/main
-        cp -ar unpacked-initrd/main skeleton/
 
-        # all the skeleton edits go to the distro directory
+        # use distro skeleton
+        cp -ar /usr/lib/ubuntu-core-initramfs skeleton
+        # all the skeleton edits go to a local copy of distro directory
+        skeletondir=$PWD/skeleton
         cp -a /usr/lib/snapd/snap-bootstrap "$skeletondir/main/usr/lib/snapd/snap-bootstrap"
         # modify the-tool to verify that our version is used when booting - this
-        # is verified in the tests/core20/basic spread test
+        # is verified in the tests/core/basic20 spread test
         sed -i -e 's/set -e/set -ex/' "$skeletondir/main/usr/lib/the-tool"
         echo "" >> "$skeletondir/main/usr/lib/the-tool"
         echo "if test -d /run/mnt/ubuntu-data/system-data; then touch /run/mnt/ubuntu-data/system-data/the-tool-ran; fi" >> \
@@ -480,10 +476,12 @@ uc20_build_initramfs_kernel_snap() {
         # modules from the unpacked initrd, rather than the host which may be
         # running a different kernel
         (
-            # accommodate assumptions about paths
-            cd skeleton/main
+            # accommodate assumptions about tree layout, use the unpacked initrd
+            # to pick up the right modules
+            cd unpacked-initrd/main
             ubuntu-core-initramfs create-initrd \
                                   --kernelver "$kver" \
+                                  --skeleton "$skeletondir" \
                                   --kerneldir "lib/modules" \
                                   --output ../../repacked-initrd
         )
@@ -800,12 +798,18 @@ EOF
     # - golang archive files and built packages dir
     # - govendor .cache directory and the binary,
     if is_core16_system || is_core18_system; then
+        # we need to include "core" here because -C option says to ignore 
+        # files the way CVS(?!) does, so it ignores files named "core" which
+        # are core dumps, but we have a test suite named "core", so including 
+        # this here will ensure that portion of the git tree is included in the
+        # image
         rsync -a -C \
           --exclude '*.a' \
           --exclude '*.deb' \
           --exclude /gopath/.cache/ \
           --exclude /gopath/bin/govendor \
           --exclude /gopath/pkg/ \
+          --include core/ \
           /home/gopath /mnt/user-data/
     elif is_core20_system; then
         # prepare passwd for run-mode-overlay-data
