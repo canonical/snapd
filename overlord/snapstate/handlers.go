@@ -915,6 +915,7 @@ func (m *SnapManager) undoUnlinkCurrentSnap(t *state.Task, _ *tomb.Tomb) error {
 	snapst.Active = true
 	linkCtx := backend.LinkContext{
 		PrevDisabledServices: svcsToDisable,
+		FirstInstall:         false,
 	}
 	reboot, err := m.backend.LinkSnap(oldInfo, deviceCtx, linkCtx, perfTimings)
 	if err != nil {

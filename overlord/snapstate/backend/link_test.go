@@ -576,16 +576,22 @@ func (s *linkCleanupSuite) testLinkCleanupFailedSnapdSnapOnCorePastWrappers(c *C
 	c.Check(filepath.Join(dirs.SnapServicesDir, "usr-lib-snapd.mount"), checker)
 }
 
-func (s *linkCleanupSuite) TestLinkCleanupFailedSnapdSnapOnCorePastWrappers(c *C) {
-	// test failure mode when snapd units were correctly written and
-	// corresponding services were started,
+func (s *linkCleanupSuite) TestLinkCleanupFailedSnapdSnapFirstInstallOnCore(c *C) {
+	// test failure mode when snapd is first installed, its units were
+	// correctly written and corresponding services were started, but
+	// current symlink failed
 	restore := release.MockOnClassic(false)
 	defer restore()
+	s.testLinkCleanupFailedSnapdSnapOnCorePastWrappers(c, true)
+}
 
-	for _, isFirstInstall := range []bool{false, true} {
-		c.Logf("first install scenario: %v", isFirstInstall)
-		s.testLinkCleanupFailedSnapdSnapOnCorePastWrappers(c, isFirstInstall)
-	}
+func (s *linkCleanupSuite) TestLinkCleanupFailedSnapdSnapNonFirstInstallOnCore(c *C) {
+	// test failure mode when a new revision of snapd is installed, its was
+	// units were correctly written and corresponding services were started,
+	// but current symlink failed
+	restore := release.MockOnClassic(false)
+	defer restore()
+	s.testLinkCleanupFailedSnapdSnapOnCorePastWrappers(c, false)
 }
 
 type snapdOnCoreUnlinkSuite struct {
