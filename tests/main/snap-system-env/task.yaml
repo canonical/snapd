@@ -3,6 +3,12 @@ summary: Ensure systemd environment generator works
 # systemd environment generators are only supported on 17.10+
 systems: [ubuntu-18.04-*, ubuntu-19*, ubuntu-2*]
 
+restore: |
+    # For whatever reason this test failed with gdm session running and keeping
+    # /run/user/124 mounted, with systemd and dbus-daemon running.
+    loginctl kill-user gdm || true
+    umount "/run/user/$(id -u gdm)" || true
+
 execute: |
     # integration test to ensure it works on the real system
 
