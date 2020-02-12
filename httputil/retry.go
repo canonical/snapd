@@ -102,7 +102,7 @@ func ShouldRetryAttempt(attempt *retry.Attempt, err error) bool {
 // the remote side returns a connection reset and it's sensible to rety
 // after a short time.
 //
-// XXX: Note that currently also NoNetwork(err) errors are repoarted
+// XXX: Note that currently also NoNetwork(err) errors are reported
 // with true here.
 func ShouldRetryError(err error) bool {
 	if err == nil {

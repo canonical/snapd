@@ -7,7 +7,7 @@ systems: [-ubuntu-core-*, -ubuntu-14.04-*]
 environment:
     # an empty $topsrcdir/tests/go.mod seems to break importing or building go
     # packages referenced by their import paths while under the tests directory,
-    # need to disable go modules supportfor this test
+    # need to disable go modules support for this test
     GO111MODULE: off
 
 prepare: |
