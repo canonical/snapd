@@ -604,6 +604,14 @@ func errToResponse(err error, snaps []string, fallback func(format string, v ...
 			} else {
 				handled = false
 			}
+		case *store.SnapActionError:
+			// we only handle a few specific cases
+			_, _, e := err.SingleOpError()
+			if e != nil {
+				// 👉😎👉
+				return errToResponse(e, snaps, fallback, format)
+			}
+			handled = false
 		default:
 			handled = false
 		}

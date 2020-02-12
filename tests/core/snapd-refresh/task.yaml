@@ -1,5 +1,9 @@
 summary: Test refreshing snapd and running new units
 
+# UC16 still uses the core snap rather than the snapd snap, so disable this test
+# for UC16
+systems: [-ubuntu-core-16-*]
+
 restore: |
     # Remove all inactive revisions of snapd.
     current=$(readlink /snap/snapd/current)

@@ -476,7 +476,7 @@ func (s *storeTestSuite) TestDownloadStreamOK(c *C) {
 
 	stream, status, err := s.store.DownloadStream(context.TODO(), "foo", &snap.DownloadInfo, 0, nil)
 	c.Assert(err, IsNil)
-	c.Check(status, Equals, 200)
+	c.Assert(status, Equals, 200)
 
 	buf := new(bytes.Buffer)
 	buf.ReadFrom(stream)
@@ -512,7 +512,7 @@ func (s *storeTestSuite) TestDownloadStreamCachedOK(c *C) {
 	snap.Sha3_384 = "sha3_384-of-foo"
 
 	stream, status, err := s.store.DownloadStream(context.TODO(), "foo", &snap.DownloadInfo, 0, nil)
-	c.Assert(err, IsNil)
+	c.Check(err, IsNil)
 	c.Check(status, Equals, 200)
 
 	buf := new(bytes.Buffer)
@@ -6375,6 +6375,11 @@ func (s *storeTestSuite) TestSnapActionErrorError(c *C) {
 	}}
 	c.Check(e.Error(), Equals, `cannot refresh snap "foo": sad refresh`)
 
+	op, name, err := e.SingleOpError()
+	c.Check(op, Equals, "refresh")
+	c.Check(name, Equals, "foo")
+	c.Check(err, ErrorMatches, "sad refresh")
+
 	e = &store.SnapActionError{Refresh: map[string]error{
 		"foo": fmt.Errorf("sad refresh 1"),
 		"bar": fmt.Errorf("sad refresh 2"),
@@ -6384,10 +6389,20 @@ func (s *storeTestSuite) TestSnapActionErrorError(c *C) {
 	c.Check(errMsg, testutil.Contains, "\nsad refresh 1: \"foo\"")
 	c.Check(errMsg, testutil.Contains, "\nsad refresh 2: \"bar\"")
 
+	op, name, err = e.SingleOpError()
+	c.Check(op, Equals, "")
+	c.Check(name, Equals, "")
+	c.Check(err, IsNil)
+
 	e = &store.SnapActionError{Install: map[string]error{
 		"foo": fmt.Errorf("sad install"),
 	}}
 	c.Check(e.Error(), Equals, `cannot install snap "foo": sad install`)
+
+	op, name, err = e.SingleOpError()
+	c.Check(op, Equals, "install")
+	c.Check(name, Equals, "foo")
+	c.Check(err, ErrorMatches, "sad install")
 
 	e = &store.SnapActionError{Install: map[string]error{
 		"foo": fmt.Errorf("sad install 1"),
@@ -6398,10 +6413,20 @@ func (s *storeTestSuite) TestSnapActionErrorError(c *C) {
 	c.Check(errMsg, testutil.Contains, "\nsad install 1: \"foo\"")
 	c.Check(errMsg, testutil.Contains, "\nsad install 2: \"bar\"")
 
+	op, name, err = e.SingleOpError()
+	c.Check(op, Equals, "")
+	c.Check(name, Equals, "")
+	c.Check(err, IsNil)
+
 	e = &store.SnapActionError{Download: map[string]error{
 		"foo": fmt.Errorf("sad download"),
 	}}
 	c.Check(e.Error(), Equals, `cannot download snap "foo": sad download`)
+
+	op, name, err = e.SingleOpError()
+	c.Check(op, Equals, "download")
+	c.Check(name, Equals, "foo")
+	c.Check(err, ErrorMatches, "sad download")
 
 	e = &store.SnapActionError{Download: map[string]error{
 		"foo": fmt.Errorf("sad download 1"),
@@ -6411,6 +6436,11 @@ func (s *storeTestSuite) TestSnapActionErrorError(c *C) {
 	c.Check(strings.HasPrefix(errMsg, "cannot download:\n"), Equals, true)
 	c.Check(errMsg, testutil.Contains, "\nsad download 1: \"foo\"")
 	c.Check(errMsg, testutil.Contains, "\nsad download 2: \"bar\"")
+
+	op, name, err = e.SingleOpError()
+	c.Check(op, Equals, "")
+	c.Check(name, Equals, "")
+	c.Check(err, IsNil)
 
 	e = &store.SnapActionError{Refresh: map[string]error{
 		"foo": fmt.Errorf("sad refresh 1"),
@@ -6422,6 +6452,11 @@ func (s *storeTestSuite) TestSnapActionErrorError(c *C) {
 sad refresh 1: "foo"
 sad install 2: "bar"`)
 
+	op, name, err = e.SingleOpError()
+	c.Check(op, Equals, "")
+	c.Check(name, Equals, "")
+	c.Check(err, IsNil)
+
 	e = &store.SnapActionError{Refresh: map[string]error{
 		"foo": fmt.Errorf("sad refresh 1"),
 	},
@@ -6432,6 +6467,11 @@ sad install 2: "bar"`)
 sad refresh 1: "foo"
 sad download 2: "bar"`)
 
+	op, name, err = e.SingleOpError()
+	c.Check(op, Equals, "")
+	c.Check(name, Equals, "")
+	c.Check(err, IsNil)
+
 	e = &store.SnapActionError{Install: map[string]error{
 		"foo": fmt.Errorf("sad install 1"),
 	},
@@ -6441,6 +6481,11 @@ sad download 2: "bar"`)
 	c.Check(e.Error(), Equals, `cannot install or download:
 sad install 1: "foo"
 sad download 2: "bar"`)
+
+	op, name, err = e.SingleOpError()
+	c.Check(op, Equals, "")
+	c.Check(name, Equals, "")
+	c.Check(err, IsNil)
 
 	e = &store.SnapActionError{Refresh: map[string]error{
 		"foo": fmt.Errorf("sad refresh 1"),
@@ -6456,11 +6501,21 @@ sad refresh 1: "foo"
 sad install 2: "bar"
 sad download 3: "baz"`)
 
+	op, name, err = e.SingleOpError()
+	c.Check(op, Equals, "")
+	c.Check(name, Equals, "")
+	c.Check(err, IsNil)
+
 	e = &store.SnapActionError{
 		NoResults: true,
 		Other:     []error{fmt.Errorf("other error")},
 	}
 	c.Check(e.Error(), Equals, `cannot refresh, install, or download: other error`)
+
+	op, name, err = e.SingleOpError()
+	c.Check(op, Equals, "")
+	c.Check(name, Equals, "")
+	c.Check(err, IsNil)
 
 	e = &store.SnapActionError{
 		Other: []error{fmt.Errorf("other error 1"), fmt.Errorf("other error 2")},
@@ -6468,6 +6523,11 @@ sad download 3: "baz"`)
 	c.Check(e.Error(), Equals, `cannot refresh, install, or download:
 other error 1
 other error 2`)
+
+	op, name, err = e.SingleOpError()
+	c.Check(op, Equals, "")
+	c.Check(name, Equals, "")
+	c.Check(err, IsNil)
 
 	e = &store.SnapActionError{
 		Install: map[string]error{
@@ -6480,10 +6540,20 @@ sad install: "bar"
 other error 1
 other error 2`)
 
+	op, name, err = e.SingleOpError()
+	c.Check(op, Equals, "")
+	c.Check(name, Equals, "")
+	c.Check(err, IsNil)
+
 	e = &store.SnapActionError{
 		NoResults: true,
 	}
 	c.Check(e.Error(), Equals, "no install/refresh information results from the store")
+
+	op, name, err = e.SingleOpError()
+	c.Check(op, Equals, "")
+	c.Check(name, Equals, "")
+	c.Check(err, IsNil)
 }
 
 func (s *storeTestSuite) TestSnapActionRefreshesBothAuths(c *C) {
