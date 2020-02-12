@@ -348,7 +348,12 @@ if [ -n "$SPREAD" ]; then
             spread "google:[^u]...:tests/..."
             ;;
         unstable)
-            spread "google-unstable:"
+            # check if we have any systems first
+            if spread -list "google-unstable:" 2>&1 | grep -q -E 'no systems specified for backend'; then
+                echo "No unstable systems to run the tests on"
+            else
+                spread "google-unstable:"
+            fi
             ;;
         *)
             echo "Spread parameter $SPREAD not supported"
