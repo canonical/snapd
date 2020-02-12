@@ -39,6 +39,8 @@ prepare: |
     .endif
     EOF
     chown test:test /home/test/pulse-test.pa
+    # make sure there are no running pulseaudio processes owned by the test user
+    pkill -9 --uid 12345 pulseaudio || true
     # make sure there is no socket
     rm -f /run/user/12345/pulse/native
 
@@ -53,42 +55,22 @@ restore: |
     fi
     rm -f /home/test/pulse-test.pa
     rm -f /run/user/12345/pulse/native
-    for l in first second; do
-        rm -f $PA_TEST_LOG.$l
-    done
+    rm -f $PA_TEST_LOG
 
 debug: |
-    for l in first second; do
-        if [ -f $PA_TEST_LOG.$l ]; then
-            cat $PA_TEST_LOG.$l
-        fi
-        rm -f $PA_TEST_LOG.$l
-    done
+    if [ -f $PA_TEST_LOG ]; then
+        cat $PA_TEST_LOG
+    fi
 
 execute: |
     as_user() {
         su -l -c "HOME=/home/test XDG_RUNTIME_DIR=/run/user/12345 $*" test
     }
 
-    echo "Start pulseaudio first time, logging output to the first log"
-    as_user "pulseaudio --exit-idle-time=300 -n -F /home/test/pulse-test.pa --log-level=4 --verbose 2>&1 | tee $PA_TEST_LOG.first >/dev/null" &
+
+    echo "Start pulseaudio"
+    as_user "pulseaudio --exit-idle-time=300 -n -F /home/test/pulse-test.pa --log-level=4 --verbose 2>&1 | tee $PA_TEST_LOG >/dev/null" &
     papid=$!
-
-    # restart pulseaudio because sometimes it's not able to bind to the required
-    # socket, but still is running as a server that clients will try to connect
-    # to, but will fail with "Connection refused"
-    echo "Kill pulseaudio to restart it"
-    as_user "pulseaudio --kill" || true
-
-    # try to manually kill the pulseaudio daemon
-    kill -9 "$papid"
-
-    echo "wait for the pulseaudio daemon to die"
-    retry-tool -n 10 bash -c "test ! -e /proc/$papid" 
-
-    # now try again
-    echo "Start pulseaudio for real, logging output to the second log"
-    as_user "pulseaudio --exit-idle-time=300 -n -F /home/test/pulse-test.pa --log-level=4 --verbose 2>&1 | tee $PA_TEST_LOG.second >/dev/null" &
 
     echo "Then wait for the socket to show up"
     retry-tool -n 10 test -S /run/user/12345/pulse/native
@@ -97,10 +79,10 @@ execute: |
     retry-tool -n 10 su -l -c "HOME=/home/test XDG_RUNTIME_DIR=/run/user/12345 pulseaudio --check" test
 
     echo "The unconfined user can play audio"
-    as_user "/usr/bin/paplay $PLAY_FILE"
+    as_user "PULSE_LOG=4 /usr/bin/paplay $PLAY_FILE"
 
     echo "The unconfined user can record audio"
-    as_user "/snap/test-snapd-pulseaudio/current/bin/parec-simple"
+    as_user "PULSE_LOG=4 /snap/test-snapd-pulseaudio/current/bin/parec-simple"
 
     echo "The interface is disconnected by default"
     snap connections test-snapd-pulseaudio | MATCH "pulseaudio +test-snapd-pulseaudio:pulseaudio +- +-"
@@ -132,3 +114,4 @@ execute: |
 
     # make sure it's killed otherwise spread ssh pty is kept busy
     as_user "pulseaudio --kill" || true
+    kill -9 "$papid" || true
