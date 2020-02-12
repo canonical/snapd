@@ -31,7 +31,7 @@ stop_user_session() {
 }
 
 purge_user_session_data() {
-    if [ -n "$USER_RUNTIME_DIR" ] && [ -d "${USER_RUNTIME_DIR}" ]; then
+    if [ -n "$USER_RUNTIME_DIR" ] && [ -d "$USER_RUNTIME_DIR" ]; then
         umount --lazy "${USER_RUNTIME_DIR}/doc" || :
         rm -rf "${USER_RUNTIME_DIR:?}"/* "${USER_RUNTIME_DIR:?}"/.[!.]*
     fi
