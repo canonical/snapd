@@ -32,7 +32,6 @@ Interfaces=org.freedesktop.impl.portal.FileChooser;org.freedesktop.impl.portal.S
 UseIn=spread
 EOF
 
-    # Make sure the test user's XDG_RUNTIME_DIR exists
     start_user_session
     as_user systemctl --user set-environment XDG_CURRENT_DESKTOP=spread
 }
