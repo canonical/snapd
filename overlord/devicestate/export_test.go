@@ -174,6 +174,8 @@ var (
 	GadgetUpdateBlocked = gadgetUpdateBlocked
 	CurrentGadgetInfo   = currentGadgetInfo
 	PendingGadgetInfo   = pendingGadgetInfo
+
+	CriticalTaskEdges = criticalTaskEdges
 )
 
 func MockGadgetUpdate(mock func(current, update gadget.GadgetData, path string, policy gadget.UpdatePolicyFunc) error) (restore func()) {
