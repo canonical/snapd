@@ -7693,7 +7693,7 @@ plugs:
 	c.Check(repo.Interfaces().Connections, HasLen, 1)
 }
 
-func (s *interfaceManagerSuite) TestPreseedAutoConnectErrorWithHooks(c *C) {
+func (s *interfaceManagerSuite) TestPreseedAutoConnectErrorWithInterfaceHooks(c *C) {
 	restore := release.MockPreseedMode(func() bool { return true })
 	defer restore()
 
