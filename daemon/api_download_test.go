@@ -134,12 +134,12 @@ func (s *snapDownloadSuite) SnapAction(ctx context.Context, currentSnaps []*stor
 	return []store.SnapActionResult{{Info: info}}, nil
 }
 
-func (s *snapDownloadSuite) DownloadStream(ctx context.Context, name string, downloadInfo *snap.DownloadInfo, user *auth.UserState) (io.ReadCloser, error) {
+func (s *snapDownloadSuite) DownloadStream(ctx context.Context, name string, downloadInfo *snap.DownloadInfo, resume int64, user *auth.UserState) (io.ReadCloser, int, error) {
 	if name == "download-error-trigger-snap" {
-		return nil, fmt.Errorf("error triggered by download-error-trigger-snap")
+		return nil, 0, fmt.Errorf("error triggered by download-error-trigger-snap")
 	}
 	if _, ok := storeSnaps[name]; ok {
-		return ioutil.NopCloser(bytes.NewReader([]byte(snapContent))), nil
+		return ioutil.NopCloser(bytes.NewReader([]byte(snapContent))), 200, nil
 	}
 	panic(fmt.Sprintf("internal error: trying to download %s but not in storeSnaps", name))
 }
