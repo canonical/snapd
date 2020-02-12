@@ -37,8 +37,6 @@ import (
 	"github.com/snapcore/snapd/timings"
 )
 
-const SealedKeyFile = "keyfile.sealed"
-
 var bootMakeBootable = boot.MakeBootable
 
 func (m *DeviceManager) doSetupRunSystem(t *state.Task, _ *tomb.Tomb) error {
@@ -86,7 +84,7 @@ func (m *DeviceManager) doSetupRunSystem(t *state.Task, _ *tomb.Tomb) error {
 			// enable data encryption
 			"--encrypt",
 			// location to store the sealed keyfile
-			"--key-file", filepath.Join(ubuntuBootDir, SealedKeyFile),
+			"--key-file", filepath.Join(ubuntuBootDir, "ubuntu-data.keyfile.sealed"),
 			// location to store the recovery keyfile
 			"--recovery-key-file", filepath.Join(ubuntuDataDir, "recovery.txt"),
 			// location to store the lockout authorization data

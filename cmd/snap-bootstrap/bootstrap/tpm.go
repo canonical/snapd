@@ -32,6 +32,8 @@ const (
 	// Handles are in the block reserved for owner objects (0x01800000 - 0x01bfffff)
 	pinHandle          = 0x01800000
 	policyRevokeHandle = 0x01800001
+
+	runCmdline = "console=ttyS0 console=tty1 panic=-1 systemd.gpt_auto=0 snapd_recovery_mode=run"
 )
 
 var (
@@ -134,7 +136,9 @@ func (t *tpmSupport) Close() error {
 // authorization policy is written to a file at the path specified by privDest.
 // This file must live inside an encrypted volume protected by this key.
 func (t *tpmSupport) Seal(key []byte, keyDest, privDest string) error {
-	policyParams := &fdeutil.PolicyParams{}
+	policyParams := &fdeutil.PolicyParams{
+		KernelCommandlines: []string{runCmdline},
+	}
 	for _, shim := range t.shimFiles {
 		s := &fdeutil.OSComponent{
 			LoadType: fdeutil.FirmwareLoad,

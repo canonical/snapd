@@ -23,6 +23,8 @@ import (
 	"os"
 
 	"github.com/jessevdk/go-flags"
+
+	"github.com/snapcore/snapd/logger"
 )
 
 var (
@@ -49,6 +51,7 @@ func run(args []string) error {
 		return fmt.Errorf("please run as root")
 	}
 
+	logger.SimpleSetup()
 	return parseArgs(args)
 }
 

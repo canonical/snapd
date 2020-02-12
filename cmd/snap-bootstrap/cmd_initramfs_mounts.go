@@ -183,22 +183,28 @@ func generateMountsModeRun() error {
 		}
 	}
 
-	// XXX possibly will need to unseal key, and unlock LUKS here before proceeding to mount data
-
 	// 1.2 mount Data, and exit, as it needs to be mounted for us to do step 2
 	isDataMounted, err := osutilIsMounted(dataDir)
 	if err != nil {
 		return err
 	}
 	if !isDataMounted {
-		fmt.Fprintf(stdout, "/dev/disk/by-label/%s %s\n", filepath.Base(dataDir), dataDir)
+		name := filepath.Base(dataDir)
+		device := filepath.Join("/dev/disk/by-label", name)
+		if err := unlockIfEncrypted(device, name); err != nil {
+			return err
+		}
+
+		fmt.Fprintf(stdout, "%s %s\n", device, dataDir)
 		return nil
 	}
+
 	// 2.1 read modeenv
 	modeEnv, err := boot.ReadModeenv(filepath.Join(dataDir, "system-data"))
 	if err != nil {
 		return err
 	}
+
 	// 2.2 mount base
 	isBaseMounted, err := osutilIsMounted(filepath.Join(runMnt, "base"))
 	if err != nil {
@@ -282,4 +288,15 @@ func generateInitramfsMounts() error {
 	}
 	// this should never be reached
 	return fmt.Errorf("internal error: mode in generateInitramfsMounts not handled")
+}
+
+func unlockIfEncrypted(device, name string) error {
+	encdev := device + "-enc"
+	if osutil.FileExists(encdev) {
+		sealedKeyPath := filepath.Join(dirs.RunMnt, "ubuntu-boot", name+".keyfile.sealed")
+		if err := unlockEncryptedPartition(name, encdev, sealedKeyPath, ""); err != nil {
+			return fmt.Errorf("cannot unlock %s: %v", name, err)
+		}
+	}
+	return nil
 }
