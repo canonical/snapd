@@ -1,11 +1,7 @@
 #!/usr/bin/python3
 
 import argparse
-import base64
-import json
-import os
 import re
-import sys
 import urllib.request
 
 from html.parser import HTMLParser
@@ -75,7 +71,7 @@ def main():
         print("module: short description")
         print("E.g.:")
         print("daemon: fix frobinator bug")
-        sys.exit(1)
+        raise SystemExit(1)
 
 
 if __name__ == "__main__":

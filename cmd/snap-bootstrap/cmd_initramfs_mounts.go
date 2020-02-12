@@ -144,7 +144,7 @@ func generateMountsModeInstall(recoverySystem string) error {
 		return err
 	}
 	if !isMounted {
-		// XXX: is there a better way?
+		// TODO:UC20: is there a better way?
 		fmt.Fprintf(stdout, "--type=tmpfs tmpfs /run/mnt/ubuntu-data\n")
 		return nil
 	}
@@ -184,7 +184,8 @@ func generateMountsModeRun() error {
 		}
 	}
 
-	// XXX possibly will need to unseal key, and unlock LUKS here before proceeding to mount data
+	// TODO:UC20: possibly will need to unseal key, and unlock LUKS here before
+	//            proceeding to mount data
 
 	// TODO:UC20: temporary code to open the encrypted partition with an unsealed key
 	//            fix after the recovery key PR lands to use the sealed key
@@ -212,17 +213,47 @@ func generateMountsModeRun() error {
 	if err != nil {
 		return err
 	}
-	// 2.2 mount base
+
+	// 2.2.1 check if base is mounted
 	isBaseMounted, err := osutilIsMounted(filepath.Join(runMnt, "base"))
 	if err != nil {
 		return err
 	}
 	if !isBaseMounted {
-		base := filepath.Join(dataDir, "system-data", dirs.SnapBlobDir, modeEnv.Base)
-		fmt.Fprintf(stdout, "%s %s\n", base, filepath.Join(runMnt, "base"))
+		// 2.2.2 use modeenv base_status and try_base to see  if we are trying
+		// an update to the base snap
+		base := modeEnv.Base
+		if base == "" {
+			// we have no fallback base!
+			return fmt.Errorf("modeenv corrupt: missing base setting")
+		}
+		if modeEnv.BaseStatus == "try" {
+			// then we are trying a base snap update and there should be a
+			// try_base set in the modeenv too
+			if modeEnv.TryBase != "" {
+				// check that the TryBase exists in ubuntu-data
+				tryBaseSnapPath := filepath.Join(dataDir, "system-data", dirs.SnapBlobDir, modeEnv.TryBase)
+				if osutil.FileExists(tryBaseSnapPath) {
+					// set the TryBase and have the initramfs mount this base
+					// snap
+					modeEnv.BaseStatus = "trying"
+					base = modeEnv.TryBase
+				}
+				// TODO:UC20: log a message somewhere if try base snap does not
+				//            exist?
+			}
+			// TODO:UC20: log a message if try_base is unset here?
+		} else if modeEnv.BaseStatus == "trying" {
+			// snapd failed to start with the base snap update, so we need to
+			// fallback to the old base snap and clear base_status
+			modeEnv.BaseStatus = ""
+		}
+
+		baseSnapPath := filepath.Join(dataDir, "system-data", dirs.SnapBlobDir, base)
+		fmt.Fprintf(stdout, "%s %s\n", baseSnapPath, filepath.Join(runMnt, "base"))
 	}
 
-	// 2.3 mount kernel
+	// 2.3.1 check if the kernel is mounted
 	isKernelMounted, err := osutilIsMounted(filepath.Join(runMnt, "kernel"))
 	if err != nil {
 		return err
@@ -276,8 +307,8 @@ func generateMountsModeRun() error {
 		kernelPath := filepath.Join(dataDir, "system-data", dirs.SnapBlobDir, filepath.Base(kernel.MountFile()))
 		fmt.Fprintf(stdout, "%s %s\n", kernelPath, filepath.Join(runMnt, "kernel"))
 	}
-	// 3.1 There is no step 3 =)
-	return nil
+	// 3.1 Write the modeenv out again
+	return modeEnv.Write(filepath.Join(dataDir, "system-data"))
 }
 
 func generateInitramfsMounts() error {

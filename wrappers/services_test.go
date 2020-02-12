@@ -34,6 +34,7 @@ import (
 	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/progress"
+	"github.com/snapcore/snapd/release"
 	"github.com/snapcore/snapd/snap"
 	"github.com/snapcore/snapd/snap/snaptest"
 	"github.com/snapcore/snapd/strutil"
@@ -454,6 +455,27 @@ func (s *servicesTestSuite) TestAddSnapServicesWithDisabledServicesMissing(c *C)
 		{"systemctl", "--root", s.tempdir, "enable", "snap.hello-snap.svc1.service"},
 		{"systemctl", "daemon-reload"},
 	})
+}
+
+func (s *servicesTestSuite) TestAddSnapServicesWithPreseed(c *C) {
+	restore := release.MockPreseedMode(func() bool { return true })
+	defer restore()
+
+	info := snaptest.MockSnap(c, packageHello, &snap.SideInfo{Revision: snap.R(12)})
+
+	s.systemctlRestorer()
+	r := testutil.MockCommand(c, "systemctl", "exit 1")
+	defer r.Restore()
+
+	err := wrappers.AddSnapServices(info, nil, progress.Null)
+	c.Assert(err, IsNil)
+
+	// file was created
+	svcFiles, _ := filepath.Glob(filepath.Join(dirs.SnapServicesDir, "snap.*.service"))
+	c.Check(svcFiles, HasLen, 1)
+
+	// but systemctl was not called
+	c.Assert(r.Calls(), HasLen, 0)
 }
 
 func (s *servicesTestSuite) TestStopServicesWithSockets(c *C) {
@@ -1335,4 +1357,14 @@ func (s *servicesTestSuite) TestServiceRestartDelay(c *C) {
 	content, err = ioutil.ReadFile(filepath.Join(s.tempdir, "/etc/systemd/system/snap.hello-snap.svc3.service"))
 	c.Assert(err, IsNil)
 	c.Check(strings.Contains(string(content), "RestartSec="), Equals, false)
+}
+
+func (s *servicesTestSuite) TestAddRemoveSnapServiceWithSnapd(c *C) {
+	info := makeMockSnapdSnap(c)
+
+	err := wrappers.AddSnapServices(info, nil, progress.Null)
+	c.Check(err, ErrorMatches, "internal error: adding explicit services for snapd snap is unexpected")
+
+	err = wrappers.RemoveSnapServices(info, progress.Null)
+	c.Check(err, ErrorMatches, "internal error: removing explicit services for snapd snap is unexpected")
 }

@@ -83,6 +83,8 @@ const (
 	// RestartSocket will restart the daemon so that it goes into
 	// socket activation mode.
 	RestartSocket
+	// Stop just stops the daemon (used with image pre-seeding)
+	StopDaemon
 )
 
 // State represents an evolving system state that persists across restarts.
