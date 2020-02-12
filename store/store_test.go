@@ -454,10 +454,15 @@ func (s *storeTestSuite) expectedAuthorization(c *C, user *auth.UserState) strin
 
 func (s *storeTestSuite) TestDownloadStreamOK(c *C) {
 	expectedContent := []byte("I was downloaded")
-	restore := store.MockDoDownloadReq(func(ctx context.Context, url *url.URL, cdnHeader string, s *store.Store, user *auth.UserState) (*http.Response, error) {
+	restore := store.MockDoDownloadReq(func(ctx context.Context, url *url.URL, cdnHeader string, resume int64, s *store.Store, user *auth.UserState) (*http.Response, error) {
 		c.Check(url.String(), Equals, "http://anon-url")
 		r := &http.Response{
-			Body: ioutil.NopCloser(bytes.NewReader(expectedContent)),
+			Body: ioutil.NopCloser(bytes.NewReader(expectedContent[resume:])),
+		}
+		if resume > 0 {
+			r.StatusCode = 206
+		} else {
+			r.StatusCode = 200
 		}
 		return r, nil
 	})
@@ -469,12 +474,58 @@ func (s *storeTestSuite) TestDownloadStreamOK(c *C) {
 	snap.DownloadURL = "AUTH-URL"
 	snap.Size = int64(len(expectedContent))
 
-	stream, err := s.store.DownloadStream(context.TODO(), "foo", &snap.DownloadInfo, nil)
+	stream, status, err := s.store.DownloadStream(context.TODO(), "foo", &snap.DownloadInfo, 0, nil)
 	c.Assert(err, IsNil)
+	c.Assert(status, Equals, 200)
 
 	buf := new(bytes.Buffer)
 	buf.ReadFrom(stream)
 	c.Check(buf.String(), Equals, string(expectedContent))
+
+	stream, status, err = s.store.DownloadStream(context.TODO(), "foo", &snap.DownloadInfo, 2, nil)
+	c.Assert(err, IsNil)
+	c.Check(status, Equals, 206)
+
+	buf = new(bytes.Buffer)
+	buf.ReadFrom(stream)
+	c.Check(buf.String(), Equals, string(expectedContent[2:]))
+}
+
+func (s *storeTestSuite) TestDownloadStreamCachedOK(c *C) {
+	expectedContent := []byte("I was NOT downloaded")
+	defer store.MockDoDownloadReq(func(context.Context, *url.URL, string, int64, *store.Store, *auth.UserState) (*http.Response, error) {
+		c.Fatalf("should not be here")
+		return nil, nil
+	})()
+
+	c.Assert(os.MkdirAll(dirs.SnapDownloadCacheDir, 0700), IsNil)
+	c.Assert(ioutil.WriteFile(filepath.Join(dirs.SnapDownloadCacheDir, "sha3_384-of-foo"), expectedContent, 0600), IsNil)
+
+	cache := store.NewCacheManager(dirs.SnapDownloadCacheDir, 1)
+	defer s.store.MockCacher(cache)()
+
+	snap := &snap.Info{}
+	snap.RealName = "foo"
+	snap.AnonDownloadURL = "http://anon-url"
+	snap.DownloadURL = "AUTH-URL"
+	snap.Size = int64(len(expectedContent))
+	snap.Sha3_384 = "sha3_384-of-foo"
+
+	stream, status, err := s.store.DownloadStream(context.TODO(), "foo", &snap.DownloadInfo, 0, nil)
+	c.Check(err, IsNil)
+	c.Check(status, Equals, 200)
+
+	buf := new(bytes.Buffer)
+	buf.ReadFrom(stream)
+	c.Check(buf.String(), Equals, string(expectedContent))
+
+	stream, status, err = s.store.DownloadStream(context.TODO(), "foo", &snap.DownloadInfo, 2, nil)
+	c.Assert(err, IsNil)
+	c.Check(status, Equals, 206)
+
+	buf = new(bytes.Buffer)
+	buf.ReadFrom(stream)
+	c.Check(buf.String(), Equals, string(expectedContent[2:]))
 }
 
 func (s *storeTestSuite) TestDownloadOK(c *C) {
@@ -571,6 +622,9 @@ func (s *storeTestSuite) TestDownloadEOFHandlesResumeHashCorrectly(c *C) {
 			w.Write(buf[0 : len(buf)-5])
 			mockServer.CloseClientConnections()
 			return
+		}
+		if len(r.Header["Range"]) > 0 {
+			w.WriteHeader(206)
 		}
 		w.Write(buf[len(buf)-5:])
 	}))
@@ -671,6 +725,43 @@ func (s *storeTestSuite) TestResumeOfCompletedRetriedOnHashFailure(c *C) {
 	c.Assert(err, IsNil)
 
 	c.Assert(targetFn, testutil.FileEquals, buf)
+
+	c.Assert(s.logbuf.String(), Matches, "(?s).*sha3-384 mismatch.*")
+}
+
+func (s *storeTestSuite) TestResumeOfTooMuchDataWorks(c *C) {
+	var mockServer *httptest.Server
+
+	// our mock download content
+	snapContent := "snap-content"
+	// the partial file has too much data
+	tooMuchLocalData := "way-way-way-too-much-snap-content"
+
+	h := crypto.SHA3_384.New()
+	io.Copy(h, bytes.NewBufferString(snapContent))
+
+	n := 0
+	mockServer = httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		n++
+		w.Write([]byte(snapContent))
+	}))
+	c.Assert(mockServer, NotNil)
+	defer mockServer.Close()
+
+	snap := &snap.Info{}
+	snap.RealName = "foo"
+	snap.AnonDownloadURL = mockServer.URL
+	snap.DownloadURL = "AUTH-URL"
+	snap.Sha3_384 = fmt.Sprintf("%x", h.Sum(nil))
+	snap.Size = int64(len(snapContent))
+
+	targetFn := filepath.Join(c.MkDir(), "foo_1.0_all.snap")
+	c.Assert(ioutil.WriteFile(targetFn+".partial", []byte(tooMuchLocalData), 0644), IsNil)
+	err := s.store.Download(s.ctx, "foo", targetFn, &snap.DownloadInfo, nil, nil, nil)
+	c.Assert(err, IsNil)
+	c.Assert(n, Equals, 1)
+
+	c.Assert(targetFn, testutil.FileEquals, snapContent)
 
 	c.Assert(s.logbuf.String(), Matches, "(?s).*sha3-384 mismatch.*")
 }
