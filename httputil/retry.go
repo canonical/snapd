@@ -99,7 +99,7 @@ func ShouldRetryAttempt(attempt *retry.Attempt, err error) bool {
 }
 
 // ShouldRetryError returns true for transient network errors like when
-// the remote side returns a connection reset and it's sensible to rety
+// the remote side returns a connection reset and it's sensible to retry
 // after a short time.
 //
 // XXX: Note that currently also NoNetwork(err) errors are reported
