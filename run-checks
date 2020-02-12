@@ -349,7 +349,7 @@ if [ -n "$SPREAD" ]; then
             ;;
         unstable)
             # check if we have any systems first
-            if spread -list "google-unstable:" 2>&1 | grep -q -E 'no systems specified for backend'; then
+            if spread -list "google-unstable:" 2>&1 | grep -q -E 'nothing matches'; then
                 echo "No unstable systems to run the tests on"
             else
                 spread "google-unstable:"
