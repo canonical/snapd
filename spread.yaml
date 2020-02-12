@@ -844,7 +844,7 @@ suites:
             #shellcheck source=tests/lib/pkgdb.sh
             . "$TESTSLIB"/pkgdb.sh
             distro_update_package_db
-            distro_install_package snapd qemu qemu-utils kpartx genisoimage sshpass qemu-kvm cloud-image-utils ubuntu-image
+            distro_install_package snapd qemu qemu-utils genisoimage sshpass qemu-kvm cloud-image-utils ubuntu-image
 
         restore: |
             #shellcheck source=tests/lib/nested.sh

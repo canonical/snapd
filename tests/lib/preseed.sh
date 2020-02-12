@@ -12,8 +12,8 @@ mount_ubuntu_image() {
     fi
 
     qemu-nbd -c /dev/nbd0 "$CLOUD_IMAGE"
-    kpartx -av /dev/nbd0
-    mount /dev/mapper/nbd0p1 "$IMAGE_MOUNTPOINT"
+    # nbd0p1 may take a short while to become available
+    retry-tool -n 5 --wait 1 mount /dev/nbd0p1 "$IMAGE_MOUNTPOINT"
     mount -t proc /proc "$IMAGE_MOUNTPOINT/proc"
     mount -t sysfs sysfs "$IMAGE_MOUNTPOINT/sys"
     mount -t devtmpfs udev "$IMAGE_MOUNTPOINT/dev"
@@ -28,7 +28,7 @@ umount_ubuntu_image() {
     done
     umount "$IMAGE_MOUNTPOINT"
     rmdir "$IMAGE_MOUNTPOINT"
-    kpartx -dv /dev/nbd0
+
     # qemu-nbd -d may sporadically fail when removing the device,
     # reporting it's still in use.
     retry-tool -n 5 --wait 1 qemu-nbd -d /dev/nbd0
