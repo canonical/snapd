@@ -343,9 +343,8 @@ func prepareSerialRequest(t *state.Task, regCtx registrationContext, privKey ass
 			// and it replies with something we need to retry
 			// we will not because nTentatives is way over the
 			// limit.
-			nTentatives--
 			st.Lock()
-			t.Set("pre-poll-tentatives", nTentatives)
+			t.Set("pre-poll-tentatives", 0)
 			st.Unlock()
 			// Retry quickly if there is no network
 			// (yet). This ensures that we try to get a serial
