@@ -114,12 +114,16 @@ backends:
                 workers: 6
                 image: centos-7-64
 
-    google-unstable:
-        type: google
-        key: '$(HOST: echo "$SPREAD_GOOGLE_KEY")'
-        location: computeengine/us-east1-b
-        halt-timeout: 2h
-        systems:
+    # TODO: spread is really unhappy when it sees a backend without any systems,
+    # so this block is intentially kept commented out, until we need to add
+    # systems to it
+    #
+    # google-unstable:
+    #     type: google
+    #     key: '$(HOST: echo "$SPREAD_GOOGLE_KEY")'
+    #     location: computeengine/us-east1-b
+    #     halt-timeout: 2h
+    #     systems:
 
     google-tpm:
         type: google
