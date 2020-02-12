@@ -126,7 +126,7 @@ func (s *imageSuite) TearDownTest(c *C) {
 }
 
 // interface for the store
-func (s *imageSuite) SnapAction(_ context.Context, _ []*store.CurrentSnap, actions []*store.SnapAction, _ *auth.UserState, _ *store.RefreshOptions) ([]*snap.Info, error) {
+func (s *imageSuite) SnapAction(_ context.Context, _ []*store.CurrentSnap, actions []*store.SnapAction, _ *auth.UserState, _ *store.RefreshOptions) ([]store.SnapActionResult, error) {
 	if len(actions) != 1 {
 		return nil, fmt.Errorf("expected 1 action, got %d", len(actions))
 	}
@@ -144,7 +144,7 @@ func (s *imageSuite) SnapAction(_ context.Context, _ []*store.CurrentSnap, actio
 	if info := s.AssertedSnapInfo(actions[0].InstanceName); info != nil {
 		info1 := *info
 		info1.Channel = actions[0].Channel
-		return []*snap.Info{&info1}, nil
+		return []store.SnapActionResult{{Info: &info1}}, nil
 	}
 	return nil, fmt.Errorf("no %q in the fake store", actions[0].InstanceName)
 }

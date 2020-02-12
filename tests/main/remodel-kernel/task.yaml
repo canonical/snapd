@@ -13,6 +13,10 @@ prepare: |
         echo "This test needs test keys to be trusted"
         exit
     fi
+
+    # Save the revision of the pc-kernel snap.
+    readlink /snap/pc-kernel/current > original-revision.txt
+
     #shellcheck source=tests/lib/systemd.sh
     . "$TESTSLIB"/systemd.sh
     systemctl stop snapd.service snapd.socket
@@ -33,6 +37,18 @@ restore: |
         echo "This test needs test keys to be trusted"
         exit
     fi
+
+    # Wait for the final refresh to complete.
+    snap watch --last=refresh
+
+    # Remove all the revisions of pc-kernel that should not be there.
+    for revno_path in /snap/pc-kernel/*; do
+        revno="$(basename "$revno_path")"
+        if [ "$revno" == current ] || [ "$revno" == "$(cat original-revision.txt)" ]; then
+            continue;
+        fi
+        snap remove pc-kernel --revision="$revno"
+    done
 
     #shellcheck source=tests/lib/systemd.sh
     . "$TESTSLIB"/systemd.sh
@@ -118,11 +134,11 @@ execute: |
         snap debug model|MATCH "revision: 2"
 
         echo "and we cannot remove the kernel snap"
-        not snap remove "$NEW_KERNEL"
+        not snap remove --purge "$NEW_KERNEL"
 
         # TODO: test when keeping the old kernel
         echo "but we can remove the old kernel"
-        snap remove "$OLD_KERNEL"
+        snap remove --purge "$OLD_KERNEL"
 
         echo "And we can remodel again and remove the new kernel"
         snap remodel "$TESTSLIB"/assertions/developer1-pc-revno3.model
@@ -137,7 +153,7 @@ execute: |
         wait_change_done "Refresh model assertion from revision 2 to 3"
         snap debug model|MATCH "revision: 3"
         echo "cleanup"
-        snap remove "$NEW_KERNEL"
+        snap remove --purge "$NEW_KERNEL"
 
         echo "Ensure we are back to the original kernel channel and kernel"
         snap refresh --channel="$KERNEL_CHANNEL" "$OLD_KERNEL"

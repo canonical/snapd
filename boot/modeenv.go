@@ -37,32 +37,72 @@ type Modeenv struct {
 	Mode           string
 	RecoverySystem string
 	Base           string
+	TryBase        string
+	BaseStatus     string
+	// TODO:UC20: instead of setting what the kernel is from the modeenv, we
+	//            should have a list of "valid" kernel snaps that could have
+	//            booted
 
-	// XXX: we may need to revisit setting the kernel in modeenv
-	Kernel string
+	// read is set to true when a modenv was read successfully
+	read bool
 }
 
+var readModeenv = readModeenvImpl
+
+// ReadModeenv attempts to read the modeenv file at
+// <rootdir>/var/iib/snapd/modeenv.
 func ReadModeenv(rootdir string) (*Modeenv, error) {
-	modeenvPath := filepath.Join(rootdir, dirs.SnapModeenvFile)
+	return readModeenv(rootdir)
+}
+
+// MockReadModeenv replaces the current implementation of ReadModeenv with a
+// mocked one. For use in tests.
+func MockReadModeenv(f func(rootdir string) (*Modeenv, error)) (restore func()) {
+	old := readModeenv
+	readModeenv = f
+	return func() {
+		readModeenv = old
+	}
+}
+
+func modeenvFile(rootdir string) string {
+	if rootdir == "" {
+		rootdir = dirs.GlobalRootDir
+	}
+	return dirs.SnapModeenvFileUnder(rootdir)
+}
+
+func readModeenvImpl(rootdir string) (*Modeenv, error) {
+	modeenvPath := modeenvFile(rootdir)
 	cfg := goconfigparser.New()
 	cfg.AllowNoSectionHeader = true
 	if err := cfg.ReadFile(modeenvPath); err != nil {
 		return nil, err
 	}
+	// TODO:UC20: should we check these errors and try to do something?
 	recoverySystem, _ := cfg.Get("", "recovery_system")
 	mode, _ := cfg.Get("", "mode")
 	base, _ := cfg.Get("", "base")
-	kernel, _ := cfg.Get("", "kernel")
+	baseStatus, _ := cfg.Get("", "base_status")
+	tryBase, _ := cfg.Get("", "try_base")
 	return &Modeenv{
 		Mode:           mode,
 		RecoverySystem: recoverySystem,
 		Base:           base,
-		Kernel:         kernel,
+		TryBase:        tryBase,
+		BaseStatus:     baseStatus,
+		read:           true,
 	}, nil
 }
 
+// Unset returns true if no modeenv file was read (yet)
+func (m *Modeenv) Unset() bool {
+	return !m.read
+}
+
+// Write outputs the modeenv to the file at <rootdir>/var/lib/snapd/modeenv.
 func (m *Modeenv) Write(rootdir string) error {
-	modeenvPath := filepath.Join(rootdir, dirs.SnapModeenvFile)
+	modeenvPath := modeenvFile(rootdir)
 
 	if err := os.MkdirAll(filepath.Dir(modeenvPath), 0755); err != nil {
 		return err
@@ -77,9 +117,13 @@ func (m *Modeenv) Write(rootdir string) error {
 	if m.Base != "" {
 		fmt.Fprintf(buf, "base=%s\n", m.Base)
 	}
-	if m.Kernel != "" {
-		fmt.Fprintf(buf, "kernel=%s\n", m.Kernel)
+	if m.TryBase != "" {
+		fmt.Fprintf(buf, "try_base=%s\n", m.TryBase)
 	}
+	if m.BaseStatus != "" {
+		fmt.Fprintf(buf, "base_status=%s\n", m.BaseStatus)
+	}
+
 	if err := osutil.AtomicWriteFile(modeenvPath, buf.Bytes(), 0644, 0); err != nil {
 		return err
 	}

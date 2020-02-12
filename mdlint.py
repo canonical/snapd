@@ -9,6 +9,7 @@
 import sys
 import codecs
 
+
 def lint_li(fname, text):
     """Ensure that the list-items are multiplies of 4"""
     is_clean = True

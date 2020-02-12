@@ -10,7 +10,7 @@ from typing import Iterable
 
 
 def if_open(dev: str) -> int:
-    TUNSETIFF = 0x400454ca
+    TUNSETIFF = 0x400454CA
     TUNSETOWNER = TUNSETIFF + 2
     IFF_TUN = 0x0001
     IFF_TAP = 0x0002
@@ -22,9 +22,9 @@ def if_open(dev: str) -> int:
         raise SystemExit(e)
 
     if_flags = None
-    if dev.startswith('tun'):
+    if dev.startswith("tun"):
         if_flags = IFF_TUN | IFF_NO_PI
-    elif dev.startswith('tap'):
+    elif dev.startswith("tap"):
         if_flags = IFF_TAP | IFF_NO_PI
 
     fcntl.ioctl(fd, TUNSETIFF, struct.pack("16sH", str.encode(dev), if_flags))
@@ -40,7 +40,7 @@ def device_exists(dev: str) -> bool:
 
 
 def valid_device_name(dev: str) -> None:
-    if not re.search(r'^t(ap|un)[0-9]+$', dev):
+    if not re.search(r"^t(ap|un)[0-9]+$", dev):
         raise ValueError("device should be of form tun0-tun255 or tap0-tap255")
 
     if_num = int(dev[3:])

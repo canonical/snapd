@@ -31,7 +31,7 @@ execute: |
             echo "Incorrect permissions of file $COOKIE_FILE"
             exit 1
         fi
-        wc -c "$COOKIE_FILE" | MATCH 44
+        test "$(stat -c %s "$COOKIE_FILE")" -ge 44
 
         check_single_cookie "$1"
     }
@@ -93,7 +93,7 @@ execute: |
     check_cookie "$SNAP"
 
     echo "Verify that snap cookie is removed on snap removal"
-    snap remove "$SNAP"
+    snap remove --purge "$SNAP"
     if test -f "$COOKIE_FILE" ; then
         echo "Cookie file $COOKIE_FILE still exists"
         exit 1

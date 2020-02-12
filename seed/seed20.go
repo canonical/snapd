@@ -62,7 +62,8 @@ type seed20 struct {
 
 	auxInfos map[string]*internal.AuxInfo20
 
-	snaps             []*Snap
+	snaps []*Snap
+	// modes holds a matching applicable modes set for each snap in snaps
 	modes             [][]string
 	essentialSnapsNum int
 }

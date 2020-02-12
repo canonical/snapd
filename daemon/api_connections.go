@@ -134,6 +134,18 @@ func collectConnections(ifaceMgr *ifacestate.InterfaceManager, filter collectFil
 		if err != nil {
 			return nil, err
 		}
+
+		// plug or slot not in the repository, e.g. cref is referring to an
+		// inactive revision of the snap; this can happen when the new revision
+		// doesn't have given plug/slot anymore (but the connection state is
+		// kept in case of revert).
+		// XXX: if we decide to show such connections with special tags, then
+		// this needs to be tweaked together with collectFilter definition and
+		// connectionJSON output.
+		if repo.Plug(cref.PlugRef.Snap, cref.PlugRef.Name) == nil || repo.Slot(cref.SlotRef.Snap, cref.SlotRef.Name) == nil {
+			continue
+		}
+
 		if !filter.plugOrConnectedSlotMatches(&cref.PlugRef, nil) && !filter.slotOrConnectedPlugMatches(&cref.SlotRef, nil) {
 			continue
 		}

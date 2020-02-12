@@ -24,15 +24,24 @@ import (
 	"os"
 	"path/filepath"
 
-	"github.com/snapcore/snapd/asserts"
 	"github.com/snapcore/snapd/boot"
 	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/progress"
-	"github.com/snapcore/snapd/release"
 	"github.com/snapcore/snapd/snap"
 	"github.com/snapcore/snapd/timings"
 	"github.com/snapcore/snapd/wrappers"
 )
+
+// LinkContext carries additional information about the current or the previous
+// state of the snap
+type LinkContext struct {
+	// FirstInstall indicates whether this is the first time given snap is
+	// installed
+	FirstInstall bool
+	// PrevDisabledServices is a list snap services that were manually
+	// disable in the previous revisions of this snap
+	PrevDisabledServices []string
+}
 
 func updateCurrentSymlinks(info *snap.Info) (e error) {
 	mountDir := info.MountDir()
@@ -79,24 +88,24 @@ func hasFontConfigCache(info *snap.Info) bool {
 }
 
 // LinkSnap makes the snap available by generating wrappers and setting the current symlinks.
-func (b Backend) LinkSnap(info *snap.Info, model *asserts.Model, prevDisabledSvcs []string, tm timings.Measurer) (e error) {
+func (b Backend) LinkSnap(info *snap.Info, dev boot.Device, linkCtx LinkContext, tm timings.Measurer) (rebootRequired bool, e error) {
 	if info.Revision.Unset() {
-		return fmt.Errorf("cannot link snap %q with unset revision", info.InstanceName())
+		return false, fmt.Errorf("cannot link snap %q with unset revision", info.InstanceName())
 	}
 
 	var err error
 	timings.Run(tm, "generate-wrappers", fmt.Sprintf("generate wrappers for snap %s", info.InstanceName()), func(timings.Measurer) {
-		err = generateWrappers(info, prevDisabledSvcs)
+		err = generateWrappers(info, linkCtx.PrevDisabledServices)
 	})
 	if err != nil {
-		return err
+		return false, err
 	}
 	defer func() {
 		if e == nil {
 			return
 		}
 		timings.Run(tm, "remove-wrappers", fmt.Sprintf("remove wrappers of snap %s", info.InstanceName()), func(timings.Measurer) {
-			removeGeneratedWrappers(info, progress.Null)
+			removeGeneratedWrappers(info, linkCtx.FirstInstall, progress.Null)
 		})
 	}()
 
@@ -104,7 +113,7 @@ func (b Backend) LinkSnap(info *snap.Info, model *asserts.Model, prevDisabledSvc
 	// 'snapd' snaps
 	// for non-core snaps, fontconfig cache needs to be updated before the
 	// snap applications are runnable
-	if release.OnClassic && !hasFontConfigCache(info) {
+	if dev.Classic() && !hasFontConfigCache(info) {
 		timings.Run(tm, "update-fc-cache", "update font config caches", func(timings.Measurer) {
 			// XXX: does this need cleaning up? (afaict no)
 			if err := updateFontconfigCaches(); err != nil {
@@ -113,26 +122,28 @@ func (b Backend) LinkSnap(info *snap.Info, model *asserts.Model, prevDisabledSvc
 		})
 	}
 
-	if err := boot.Participant(info, info.GetType(), model, release.OnClassic).SetNextBoot(); err != nil {
-		return err
+	reboot, err := boot.Participant(info, info.GetType(), dev).SetNextBoot()
+	if err != nil {
+		return false, err
 	}
 
 	if err := updateCurrentSymlinks(info); err != nil {
-		return err
+		return false, err
 	}
 	// if anything below here could return error, you need to
 	// somehow clean up whatever updateCurrentSymlinks did
 
 	// for core snap, fontconfig cache can be updated after the snap has
 	// been made available
-	if release.OnClassic && hasFontConfigCache(info) {
+	if dev.Classic() && hasFontConfigCache(info) {
 		timings.Run(tm, "update-fc-cache", "update font config caches", func(timings.Measurer) {
 			if err := updateFontconfigCaches(); err != nil {
 				logger.Noticef("cannot update fontconfig cache: %v", err)
 			}
 		})
 	}
-	return nil
+
+	return reboot, nil
 }
 
 func (b Backend) StartServices(apps []*snap.AppInfo, meter progress.Meter, tm timings.Measurer) error {
@@ -153,6 +164,11 @@ func generateWrappers(s *snap.Info, disabledSvcs []string) error {
 			}
 		}
 	}()
+
+	if s.GetType() == snap.TypeSnapd {
+		// snapd services are handled separately
+		return generateSnapdWrappers(s)
+	}
 
 	// add the CLI apps from the snap.yaml
 	if err = wrappers.AddSnapBinaries(s); err != nil {
@@ -183,7 +199,11 @@ func generateWrappers(s *snap.Info, disabledSvcs []string) error {
 	return nil
 }
 
-func removeGeneratedWrappers(s *snap.Info, meter progress.Meter) error {
+func removeGeneratedWrappers(s *snap.Info, firstInstallUndo bool, meter progress.Meter) error {
+	if s.GetType() == snap.TypeSnapd {
+		return removeGeneratedSnapdWrappers(s, firstInstallUndo, progress.Null)
+	}
+
 	err1 := wrappers.RemoveSnapBinaries(s)
 	if err1 != nil {
 		logger.Noticef("Cannot remove binaries for %q: %v", s.InstanceName(), err1)
@@ -207,10 +227,27 @@ func removeGeneratedWrappers(s *snap.Info, meter progress.Meter) error {
 	return firstErr(err1, err2, err3, err4)
 }
 
-// UnlinkSnap makes the snap unavailable to the system removing wrappers and symlinks.
-func (b Backend) UnlinkSnap(info *snap.Info, meter progress.Meter) error {
+func generateSnapdWrappers(s *snap.Info) error {
+	// snapd services are handled separately via an explicit helper
+	return wrappers.AddSnapdSnapServices(s, progress.Null)
+}
+
+func removeGeneratedSnapdWrappers(s *snap.Info, firstInstall bool, meter progress.Meter) error {
+	if !firstInstall {
+		// snapd service units are only removed during first
+		// installation of the snapd snap, in other scenarios they are
+		// overwritten
+		return nil
+	}
+	return wrappers.RemoveSnapdSnapServicesOnCore(s, meter)
+}
+
+// UnlinkSnap makes the snap unavailable to the system removing wrappers and
+// symlinks. The firstInstallUndo is true when undoing the first installation of
+// the snap.
+func (b Backend) UnlinkSnap(info *snap.Info, linkCtx LinkContext, meter progress.Meter) error {
 	// remove generated services, binaries etc
-	err1 := removeGeneratedWrappers(info, meter)
+	err1 := removeGeneratedWrappers(info, linkCtx.FirstInstall, meter)
 
 	// and finally remove current symlinks
 	err2 := removeCurrentSymlinks(info)

@@ -180,8 +180,8 @@ func (s *Snap) ReadFile(filePath string) (content []byte, err error) {
 	defer os.RemoveAll(tmpdir)
 
 	unpackDir := filepath.Join(tmpdir, "unpack")
-	if err := exec.Command("unsquashfs", "-n", "-i", "-d", unpackDir, s.path, filePath).Run(); err != nil {
-		return nil, err
+	if output, err := exec.Command("unsquashfs", "-n", "-i", "-d", unpackDir, s.path, filePath).CombinedOutput(); err != nil {
+		return nil, fmt.Errorf("cannot run unsquashfs: %v", osutil.OutputErr(output, err))
 	}
 
 	return ioutil.ReadFile(filepath.Join(unpackDir, filePath))
@@ -393,8 +393,17 @@ func verifyContentAccessibleForBuild(sourceDir string) error {
 	return errPaths.asErr()
 }
 
+type BuildOpts struct {
+	SnapType     string
+	Compression  string
+	ExcludeFiles []string
+}
+
 // Build builds the snap.
-func (s *Snap) Build(sourceDir, snapType string, excludeFiles ...string) error {
+func (s *Snap) Build(sourceDir string, opts *BuildOpts) error {
+	if opts == nil {
+		opts = &BuildOpts{}
+	}
 	if err := verifyContentAccessibleForBuild(sourceDir); err != nil {
 		return err
 	}
@@ -403,6 +412,14 @@ func (s *Snap) Build(sourceDir, snapType string, excludeFiles ...string) error {
 	if err != nil {
 		return err
 	}
+	// default to xz
+	compression := opts.Compression
+	if compression == "" {
+		// TODO: support other compression options, xz is very
+		// slow for certain apps, see
+		// https://forum.snapcraft.io/t/squashfs-performance-effect-on-snap-startup-time/13920
+		compression = "xz"
+	}
 	cmd, err := cmdutilCommandFromSystemSnap("/usr/bin/mksquashfs")
 	if err != nil {
 		cmd = exec.Command("mksquashfs")
@@ -410,16 +427,17 @@ func (s *Snap) Build(sourceDir, snapType string, excludeFiles ...string) error {
 	cmd.Args = append(cmd.Args,
 		".", fullSnapPath,
 		"-noappend",
-		"-comp", "xz",
+		"-comp", compression,
 		"-no-fragments",
 		"-no-progress",
 	)
-	if len(excludeFiles) > 0 {
+	if len(opts.ExcludeFiles) > 0 {
 		cmd.Args = append(cmd.Args, "-wildcards")
-		for _, excludeFile := range excludeFiles {
+		for _, excludeFile := range opts.ExcludeFiles {
 			cmd.Args = append(cmd.Args, "-ef", excludeFile)
 		}
 	}
+	snapType := opts.SnapType
 	if snapType != "os" && snapType != "core" && snapType != "base" {
 		cmd.Args = append(cmd.Args, "-all-root", "-no-xattrs")
 	}

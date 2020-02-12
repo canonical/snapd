@@ -24,7 +24,7 @@
     /{,usr/}lib{,32,64,x32}/{,@{multiarch}/}libncursesw{,-[0-9]*}.so* mr,
     /{,usr/}lib{,32,64,x32}/{,@{multiarch}/}libresolv{,-[0-9]*}.so* mr,
     /{,usr/}lib{,32,64,x32}/{,@{multiarch}/}libselinux.so* mr,
-    /{,usr/}lib{,32,64,x32}/{,@{multiarch}/}libpcre.so* mr,
+    /{,usr/}lib{,32,64,x32}/{,@{multiarch}/}libpcre{,2}{,-[0-9]*}.so* mr,
     /{,usr/}lib{,32,64,x32}/{,@{multiarch}/}libmount.so* mr,
     /{,usr/}lib{,32,64,x32}/{,@{multiarch}/}libblkid.so* mr,
     /{,usr/}lib{,32,64,x32}/{,@{multiarch}/}libuuid.so* mr,
@@ -250,6 +250,10 @@
     umount /var/lib/snapd/hostfs/dev/,
     umount /var/lib/snapd/hostfs/proc/,
     mount options=(rw rslave) -> /var/lib/snapd/hostfs/,
+
+    # Hide /writable from view of snaps.
+    mount options=(rprivate) -> /{,var/lib/snapd/hostfs/}writable/,
+    umount /{,var/lib/snapd/hostfs/}writable/,
 
     # set up user mount namespace
     mount options=(rslave) -> /,

@@ -10,7 +10,7 @@ restore: |
     rm -f stderr.log
     rm -f stdout.log
     # requied! in autopkgtest no suite restore is run at all
-    snap remove test-snapd-sh
+    snap remove --purge test-snapd-sh
 
 execute: |
     #shellcheck source=tests/lib/systems.sh

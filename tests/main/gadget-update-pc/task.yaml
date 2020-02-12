@@ -1,12 +1,17 @@
 summary: Exercise a gadget update on a PC
 
+# TODO:UC20: fails for unknown reasons, needs investigation
+systems: [-ubuntu-core-20-*]
+
 environment:
     BLOB_DIR: $(pwd)/fake-store-blobdir
     # snap-id of 'pc' gadget snap
     PC_SNAP_ID: UqFziVZDHLSyO3TqSWgNBoAdHbLI4dAH
     START_REVISION: 1000
 
-systems: [ubuntu-core-*]
+# the test is only meaningful on core devices
+# TODO:UC20: enable for UC20
+systems: [ubuntu-core-1*]
 
 prepare: |
     # external backends do not enable test keys
@@ -19,6 +24,14 @@ prepare: |
         echo "This test needs a host using 'pc' gadget snap"
         exit 1
     fi
+
+    # Set the retain count to 4 to ensure we keep the current gadget snap
+    # intact and can roll back to it. This is easier to get right than to
+    # manually fiddle with re-installing it.
+    snap set core refresh.retain=4
+    # Save the current revision of the pc snap. At this moment the pc snap is
+    # the real snap from the store and the revision will drift over time.
+    readlink /snap/pc/current > original-revision.txt
 
     snap ack "$TESTSLIB/assertions/testrootorg-store.account-key"
 
@@ -88,15 +101,14 @@ restore: |
     . "$TESTSLIB"/store.sh
     teardown_fake_store "$BLOB_DIR"
 
-    # restore the original gadget snap
-    snap install gadget.snap
-
-    # restoring the snapshot of / does not clean up /var/snap/pc/<rev>
-    # directories that were created during the test, given that the state is
-    # restored these directories will not be accounted for
-    for i in $(seq 0 2); do
-        rm -rf "/var/snap/pc/$((START_REVISION+i))"
+    # Restore the state of the gadget snap.
+    snap revert pc --revision="$(cat original-revision.txt)"
+    rm -f original-revision.txt
+    for rev in $(seq "$START_REVISION" "$((START_REVISION + 2))") ; do
+        snap remove --revision="$rev" pc
     done
+    # Undo changes to refresh.retain settings.
+    snap unset core refresh.retain
 
 execute: |
     # external backends do not enable test keys

@@ -57,7 +57,7 @@ execute: |
         touch module_present
         rmmod "$MODULE"
     fi
-    lsmod | MATCH -v "$MODULE"
+    lsmod | not MATCH "$MODULE"
     test-snapd-kernel-module-consumer.insmod "$MODULE_PATH"
 
     echo "And the snap is able to read /sys/module"
@@ -72,7 +72,7 @@ execute: |
 
     echo "And the snap is able to remove a module"
     test-snapd-kernel-module-consumer.rmmod "$MODULE"
-    lsmod | MATCH -v "$MODULE"
+    lsmod | not MATCH "$MODULE"
 
     if [ "$(snap debug confinement)" = partial ] ; then
         exit 0
@@ -97,7 +97,7 @@ execute: |
 
     echo "And the snap is not able to remove a module"
     # first we need to insert the module
-    lsmod | MATCH -v "$MODULE"
+    lsmod | not MATCH "$MODULE"
     insmod "$MODULE_PATH"
     lsmod | MATCH "$MODULE"
     if test-snapd-kernel-module-consumer.rmmod "$MODULE" 2> remove.error; then

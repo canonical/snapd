@@ -25,6 +25,7 @@ import (
 	"time"
 
 	"github.com/snapcore/snapd/asserts"
+	"github.com/snapcore/snapd/boot"
 	"github.com/snapcore/snapd/gadget"
 	"github.com/snapcore/snapd/httputil"
 	"github.com/snapcore/snapd/overlord/snapstate"
@@ -88,11 +89,8 @@ func SetLastBecomeOperationalAttempt(m *DeviceManager, t time.Time) {
 func SetOperatingMode(m *DeviceManager, mode string) {
 	m.modeEnv.Mode = mode
 }
-
-// XXX: will become properly exported but we probably want to make
-//      mode a type and not a string before we do that
-func OperatingMode(m *DeviceManager) string {
-	return m.operatingMode()
+func SetRecoverySystem(m *DeviceManager, d string) {
+	m.modeEnv.RecoverySystem = d
 }
 
 func MockRepeatRequestSerial(label string) (restore func()) {
@@ -161,6 +159,7 @@ func RemodelDeviceBackend(remodCtx remodelContext) storecontext.DeviceBackend {
 var (
 	ImportAssertionsFromSeed     = importAssertionsFromSeed
 	CheckGadgetOrKernel          = checkGadgetOrKernel
+	CheckGadgetValid             = checkGadgetValid
 	CheckGadgetRemodelCompatible = checkGadgetRemodelCompatible
 	CanAutoRefresh               = canAutoRefresh
 	NewEnoughProxy               = newEnoughProxy
@@ -177,6 +176,8 @@ var (
 	GadgetUpdateBlocked = gadgetUpdateBlocked
 	CurrentGadgetInfo   = currentGadgetInfo
 	PendingGadgetInfo   = pendingGadgetInfo
+
+	CriticalTaskEdges = criticalTaskEdges
 )
 
 func MockGadgetUpdate(mock func(current, update gadget.GadgetData, path string, policy gadget.UpdatePolicyFunc) error) (restore func()) {
@@ -192,6 +193,14 @@ func MockGadgetIsCompatible(mock func(current, update *gadget.Info) error) (rest
 	gadgetIsCompatible = mock
 	return func() {
 		gadgetIsCompatible = old
+	}
+}
+
+func MockBootMakeBootable(f func(model *asserts.Model, rootdir string, bootWith *boot.BootableSet) error) (restore func()) {
+	old := bootMakeBootable
+	bootMakeBootable = f
+	return func() {
+		bootMakeBootable = old
 	}
 }
 

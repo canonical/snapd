@@ -1,0 +1,106 @@
+summary: Integration tests for the snap-bootstrap binary
+
+# testing on 19.10/20.04 is enough, its a very specialized test
+# TODO:UC20: remove 19.10-64 system once ubuntu-20.04-64 becomes available
+#            inside spread
+systems: [ubuntu-19.10-64, ubuntu-20.04-64]
+
+debug: |
+    cat /proc/partitions
+
+restore: |
+    if [[ -d ./mnt ]]; then
+        umount ./mnt || true
+    fi
+    umount /dev/mapper/ubuntu-data || true
+    umount /dev/mapper/test-udata || true
+
+    cryptsetup close /dev/mapper/ubuntu-data || true
+    cryptsetup close /dev/mapper/test-udata || true
+
+    if [ -f loop.txt ]; then
+        losetup -d "$(cat loop.txt)"
+    fi
+    apt remove -y cryptsetup
+
+prepare: |
+    echo "Create a fake block device image"
+    truncate --size=6GB fake.img
+
+    apt install -y cryptsetup
+
+    echo "Setup the image as a block device"
+    # without -P this test will not work, then /dev/loop1p? will be missing
+    losetup -fP fake.img
+    losetup -a |grep fake.img|cut -f1 -d: > loop.txt
+    LOOP="$(cat loop.txt)"
+
+    echo "Create an empty partition header"
+    echo "label: gpt" | sfdisk "$LOOP"
+
+    echo "Get the UC20 gadget"
+    snap download --channel=20/edge pc
+    unsquashfs -d gadget-dir pc_*.snap
+
+execute: |
+    LOOP="$(cat loop.txt)"
+    echo "Run the snap-bootstrap tool"
+    /usr/lib/snapd/snap-bootstrap create-partitions --encrypt  --mount --key-file keyfile ./gadget-dir "$LOOP"
+
+    echo "Check that the key file was created"
+    test "$(stat --printf="%s" ./keyfile)" = 32
+
+    echo "Check that the partitions are created"
+    sfdisk -l "$LOOP" | MATCH '1M\s+BIOS boot'
+    sfdisk -l "$LOOP" | MATCH '1\.2G\s+EFI System'
+
+    not cryptsetup isLuks "${LOOP}p1"
+    not cryptsetup isLuks "${LOOP}p2"
+    not cryptsetup isLuks "${LOOP}p3"
+    cryptsetup isLuks "${LOOP}p4"
+
+    # we used "lsblk --fs" here but it was unreliable
+    df -T "${LOOP}p2" | MATCH vfat
+    file -s "${LOOP}p2" | MATCH 'label: "ubuntu-seed"'
+
+    df -T "${LOOP}p3" | MATCH ext4
+    file -s "${LOOP}p3" | MATCH 'volume name "ubuntu-boot"'
+
+    df -T /dev/mapper/ubuntu-data | MATCH ext4
+    POSIXLY_CORRECT=1 file -s /dev/mapper/ubuntu-data | MATCH 'volume name "ubuntu-data"'
+
+    echo "Check that the non-fs content was deployed"
+    dd if="${LOOP}p1" of=bios-boot.img
+    # the bios-boot.img is 1Mb
+    test "$(stat --printf="%s" ./bios-boot.img)" = 1048576
+    # we truncate it to the size of pc-core.img
+    truncate --size="$(stat --printf="%s" ./gadget-dir/pc-core.img)" bios-boot.img
+    # and verify that its the same
+    cmp bios-boot.img ./gadget-dir/pc-core.img
+
+    echo "Check that the filesystem content was deployed"
+    ls /run/mnt/ubuntu-seed/EFI/boot/grubx64.efi
+    ls /run/mnt/ubuntu-seed/EFI/boot/bootx64.efi
+    ls /run/mnt/ubuntu-seed/EFI/ubuntu/grub.cfg
+
+    ls /run/mnt/ubuntu-boot/EFI/boot/grubx64.efi
+    ls /run/mnt/ubuntu-boot/EFI/boot/bootx64.efi
+    ls /run/mnt/ubuntu-boot/EFI/ubuntu/grub.cfg
+
+    umount /run/mnt/ubuntu-seed
+    umount /run/mnt/ubuntu-boot
+    umount /run/mnt/ubuntu-data
+    cryptsetup close /dev/mapper/ubuntu-data
+
+    echo "ensure that we can open the encrypted device using the key"
+    mkdir -p ./mnt
+    cryptsetup open --key-file keyfile "${LOOP}p4" test-udata
+    mount /dev/mapper/test-udata ./mnt
+    umount ./mnt
+    cryptsetup close /dev/mapper/test-udata
+
+    # debug message to see if the udev database is correctly updated
+    udevadm info --query=property "${LOOP}p2" | grep ID_FS_TYPE ||:
+
+    # XXX: can't add more partitions after an encrypted partition is created
+    # (gadget compatibility tests fail)

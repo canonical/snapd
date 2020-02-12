@@ -19,17 +19,74 @@
 package devicestate
 
 import (
+	"fmt"
+	"os/exec"
 	"time"
 
 	"gopkg.in/tomb.v2"
 
+	"github.com/snapcore/snapd/logger"
+	"github.com/snapcore/snapd/overlord/snapstate"
 	"github.com/snapcore/snapd/overlord/state"
 )
+
+func (m *DeviceManager) doMarkPreseeded(t *state.Task, _ *tomb.Tomb) error {
+	st := t.State()
+	st.Lock()
+	defer st.Unlock()
+
+	snaps, err := snapstate.All(st)
+	if err != nil {
+		return err
+	}
+
+	if m.preseed {
+		var preseeded bool
+		// the "preseeded" flag on this task is set to allow skipping the logic
+		// below in case this handler is retried in preseeding mode due to an
+		// EnsureBefore(0) done somewhere else.
+		if err := t.Get("preseeded", &preseeded); err != nil && err != state.ErrNoState {
+			return err
+		}
+		if !preseeded {
+			preseeded = true
+			t.Set("preseeded", preseeded)
+			// unmount all snaps
+			// TODO: move to snapstate.UnmountAllSnaps.
+			for _, snapSt := range snaps {
+				inf, err := snapSt.CurrentInfo()
+				if err != nil {
+					return err
+				}
+				logger.Debugf("unmounting snap %s at %s", inf.InstanceName(), inf.MountDir())
+				if _, err := exec.Command("umount", "-d", "-l", inf.MountDir()).CombinedOutput(); err != nil {
+					return err
+				}
+			}
+
+			// do not mark this task done as this makes it racy against taskrunner tear down (the next task
+			// could start). Let this task finish after snapd restart when preseed mode is off.
+			st.RequestRestart(state.StopDaemon)
+		}
+
+		return &state.Retry{Reason: "mark-preseeded will be marked done when snapd is executed in normal mode"}
+	}
+
+	// normal snapd run after snapd restart (not in pre-bake mode anymore)
+	return nil
+}
 
 func (m *DeviceManager) doMarkSeeded(t *state.Task, _ *tomb.Tomb) error {
 	st := t.State()
 	st.Lock()
 	defer st.Unlock()
+
+	if m.preseed {
+		return fmt.Errorf("internal error: mark-seeded task not expected in pre-seeding mode")
+	}
+	// TODO:UC20: update "modeenv" and remove "recovery_system" from
+	// it because this information is only needed for the initial
+	// seeding.
 
 	st.Set("seed-time", time.Now())
 	st.Set("seeded", true)

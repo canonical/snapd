@@ -58,6 +58,9 @@ ensure_jq() {
     if is_core18_system; then
         snap install --devmode jq-core18
         snap alias jq-core18.jq jq
+    elif is_core20_system; then
+        snap install --devmode --edge jq-core20
+        snap alias jq-core20.jq jq
     else
         snap install --devmode jq
     fi
@@ -78,7 +81,7 @@ disable_refreshes() {
     snap refresh --time --abs-time | MATCH "last: 2[0-9]{3}"
 
     echo "Ensure jq is gone"
-    snap remove jq jq-core18
+    snap remove --purge jq jq-core18 jq-core20
 }
 
 setup_systemd_snapd_overrides() {
@@ -333,7 +336,7 @@ repack_snapd_snap_with_deb_content() {
 
     local UNPACK_DIR="/tmp/snapd-unpack"
     unsquashfs -no-progress -d "$UNPACK_DIR" snapd_*.snap
-    # clean snap apparmor.d to ensure the put the right snap-confine apparmor
+    # clean snap apparmor.d to ensure we put the right snap-confine apparmor
     # file in place. Its called usr.lib.snapd.snap-confine on 14.04 but
     # usr.lib.snapd.snap-confine.real everywhere else
     rm -f "$UNPACK_DIR"/etc/apparmor.d/*
@@ -344,149 +347,203 @@ repack_snapd_snap_with_deb_content() {
     rm -rf "$UNPACK_DIR"
 }
 
-setup_reflash_magic() {
-    # install the stuff we need
-    distro_install_package kpartx busybox-static
-    distro_install_local_package "$GOHOME"/snapd_*.deb
-    distro_clean_package_cache
+repack_snapd_snap_with_deb_content_and_run_mode_firstboot_tweaks() {
+    local TARGET="$1"
 
-    # need to be seeded to proceed with snap install
-    snap wait system seed.loaded
+    local UNPACK_DIR="/tmp/snapd-unpack"
+    unsquashfs -no-progress -d "$UNPACK_DIR" snapd_*.snap
 
-    # we cannot use "names.sh" here because no snaps are installed yet
-    core_name="core"
-    if is_core18_system; then
-        snap download "--channel=${SNAPD_CHANNEL}" snapd
-        core_name="core18"
-    fi
-    snap install "--channel=${CORE_CHANNEL}" "$core_name"
+    # clean snap apparmor.d to ensure we put the right snap-confine apparmor
+    # file in place. Its called usr.lib.snapd.snap-confine on 14.04 but
+    # usr.lib.snapd.snap-confine.real everywhere else
+    rm -f "$UNPACK_DIR"/etc/apparmor.d/*
 
-    # install ubuntu-image
-    snap install --classic --edge ubuntu-image
+    dpkg-deb -x "$SPREAD_PATH"/../snapd_*.deb "$UNPACK_DIR"
+    cp /usr/lib/snapd/info "$UNPACK_DIR"/usr/lib/
 
-    # needs to be under /home because ubuntu-device-flash
-    # uses snap-confine and that will hide parts of the hostfs
-    IMAGE_HOME=/home/image
-    mkdir -p "$IMAGE_HOME"
+    # now install a unit that setups enough so that we can connect
+    cat > "$UNPACK_DIR"/lib/systemd/system/snapd.spread-tests-run-mode-tweaks.service <<'EOF'
+[Unit]
+Description=Tweaks to run mode for spread tests
+Before=snapd.service
+Documentation=man:snap(1)
 
-    # ensure that ubuntu-image is using our test-build of snapd with the
-    # test keys and not the bundled version of usr/bin/snap from the snap.
-    # Note that we can not put it into /usr/bin as '/usr' is different
-    # when the snap uses confinement.
-    cp /usr/bin/snap "$IMAGE_HOME"
-    export UBUNTU_IMAGE_SNAP_CMD="$IMAGE_HOME/snap"
+[Service]
+Type=oneshot
+ExecStart=/usr/lib/snapd/snapd.spread-tests-run-mode-tweaks.sh
+RemainAfterExit=true
 
-    if is_core18_system; then
-        repack_snapd_snap_with_deb_content "$IMAGE_HOME"
-
-        # FIXME: fetch directly once its in the assertion service
-        cp "$TESTSLIB/assertions/ubuntu-core-18-amd64.model" "$IMAGE_HOME/pc.model"
-        IMAGE=core18-amd64.img
-    else
-        # modify the core snap so that the current root-pw works there
-        # for spread to do the first login
-        UNPACK_DIR="/tmp/core-snap"
-        unsquashfs -no-progress -d "$UNPACK_DIR" /var/lib/snapd/snaps/core_*.snap
-
-        # FIXME: install would be better but we don't have dpkg on
-        #        the image
-        # unpack our freshly build snapd into the new snapd snap
-        dpkg-deb -x "$SPREAD_PATH"/../snapd_*.deb "$UNPACK_DIR"
-        # Debian packages don't carry permissions correctly and we use
-        # post-inst hooks to fix that on classic systems. Here, as a special
-        # case, fix the void directory we just unpacked.
-        chmod 111 "$UNPACK_DIR/var/lib/snapd/void"
-        # ensure any new timer units are available
-        cp -a /etc/systemd/system/timers.target.wants/*.timer "$UNPACK_DIR/etc/systemd/system/timers.target.wants"
-
-        # add gpio and iio slots
-        cat >> "$UNPACK_DIR/meta/snap.yaml" <<-EOF
-slots:
-    gpio-pin:
-        interface: gpio
-        number: 100
-        direction: out
-    iio0:
-        interface: iio
-        path: /dev/iio:device0
+[Install]
+WantedBy=multi-user.target
 EOF
+    # XXX: this duplicates a lot of setup_test_user_by_modify_writable()
+    cat > "$UNPACK_DIR"/usr/lib/snapd/snapd.spread-tests-run-mode-tweaks.sh <<'EOF'
+#!/bin/sh
+set -e
+# ensure we don't enable ssh in install mode or spread will get confused
+if ! grep 'snapd_recovery_mode=run' /proc/cmdline; then
+    echo "not in run mode - script not running"
+    exit 0
+fi
+if [ -e /root/spread-setup-done ]; then
+    exit 0
+fi
 
-        # build new core snap for the image
-        snap pack "$UNPACK_DIR" "$IMAGE_HOME"
+# extract data from previous stage
+(cd / && tar xf /run/mnt/ubuntu-seed/run-mode-overlay-data.tar.gz)
 
-        # FIXME: fetch directly once its in the assertion service
-        cp "$TESTSLIB/assertions/pc-${REMOTE_STORE}.model" "$IMAGE_HOME/pc.model"
+# user db - it's complicated
+for f in group gshadow passwd shadow; do
+    # now bind mount read-only those passwd files on boot
+    cat >/etc/systemd/system/etc-"$f".mount <<EOF2
+[Unit]
+Description=Mount root/test-etc/$f over system etc/$f
+Before=ssh.service
 
-        # FIXME: how to test store updated of ubuntu-core with sideloaded snap?
-        IMAGE=all-snap-amd64.img
-    fi
+[Mount]
+What=/root/test-etc/$f
+Where=/etc/$f
+Type=none
+Options=bind,ro
 
-    EXTRA_FUNDAMENTAL=
-    IMAGE_CHANNEL=edge
-    if [ "$KERNEL_CHANNEL" = "$GADGET_CHANNEL" ]; then
-        IMAGE_CHANNEL="$KERNEL_CHANNEL"
-    else
-        # download pc-kernel snap for the specified channel and set
-        # ubuntu-image channel to that of the gadget, so that we don't
-        # need to download it
-        snap download --channel="$KERNEL_CHANNEL" pc-kernel
+[Install]
+WantedBy=multi-user.target
+EOF2
+    systemctl enable etc-"$f".mount
+    systemctl start etc-"$f".mount
+done
 
-        EXTRA_FUNDAMENTAL="--extra-snaps $PWD/pc-kernel_*.snap"
-        IMAGE_CHANNEL="$GADGET_CHANNEL"
-    fi
+mkdir -p /home/test
+chown 12345:12345 /home/test
+mkdir -p /home/ubuntu
+chown 1000:1000 /home/ubuntu
+mkdir -p /etc/sudoers.d/
+echo 'test ALL=(ALL) NOPASSWD:ALL' >> /etc/sudoers.d/99-test-user
+echo 'ubuntu ALL=(ALL) NOPASSWD:ALL' >> /etc/sudoers.d/99-ubuntu-user
+sed -i 's/\#\?\(PermitRootLogin\|PasswordAuthentication\)\>.*/\1 yes/' /etc/ssh/sshd_config
+echo "MaxAuthTries 120" >> /etc/ssh/sshd_config
+grep '^PermitRootLogin yes' /etc/ssh/sshd_config
+systemctl reload ssh
 
-    # 'snap pack' creates snaps 0644, and ubuntu-image just copies those in
-    # maybe we should fix one or both of those, but for now this'll do
-    chmod 0600 "$IMAGE_HOME"/*.snap
+touch /root/spread-setup-done
+EOF
+    chmod 0755 "$UNPACK_DIR"/usr/lib/snapd/snapd.spread-tests-run-mode-tweaks.sh
+    snap pack "$UNPACK_DIR" "$TARGET"
+    rm -rf "$UNPACK_DIR"
+}
 
-    # on core18 we need to use the modified snapd snap and on core16
-    # it is the modified core that contains our freshly build snapd
-    if is_core18_system; then
-        extra_snap=("$IMAGE_HOME"/snapd_*.snap)
-    else
-        extra_snap=("$IMAGE_HOME"/core_*.snap)
-    fi
 
-    # extra_snap should contain only ONE snap
-    if [ "${#extra_snap[@]}" -ne 1 ]; then
-        echo "unexpected number of globbed snaps: ${extra_snap[*]}"
-        exit 1
-    fi
+uc20_build_initramfs_kernel_snap() {
+    # carries ubuntu-core-initframfs
+    add-apt-repository ppa:snappy-dev/image -y
+    apt install ubuntu-core-initramfs -y
 
-    /snap/bin/ubuntu-image -w "$IMAGE_HOME" "$IMAGE_HOME/pc.model" \
-                           --channel "$IMAGE_CHANNEL" \
-                           "$EXTRA_FUNDAMENTAL" \
-                           --extra-snaps "${extra_snap[0]}" \
-                           --output "$IMAGE_HOME/$IMAGE"
-    rm -f ./pc-kernel_*.{snap,assert} ./pc_*.{snap,assert} ./snapd_*.{snap,assert}
+    local ORIG_SNAP="$1"
+    local TARGET="$2"
+    
+    # kernel snap is huge, unpacking to current dir
+    unsquashfs -d repacked-kernel "$ORIG_SNAP"
 
-    # mount fresh image and add all our SPREAD_PROJECT data
-    kpartx -avs "$IMAGE_HOME/$IMAGE"
-    # FIXME: hardcoded mapper location, parse from kpartx
-    if is_core18_system; then
-        mount /dev/mapper/loop3p3 /mnt
-    else
-        mount /dev/mapper/loop2p3 /mnt
-    fi
-    mkdir -p /mnt/user-data/
-    # copy over everything from gopath to user-data, exclude:
-    # - VCS files
-    # - built debs
-    # - golang archive files and built packages dir
-    # - govendor .cache directory and the binary,
-    rsync -a -C \
-          --exclude '*.a' \
-          --exclude '*.deb' \
-          --exclude /gopath/.cache/ \
-          --exclude /gopath/bin/govendor \
-          --exclude /gopath/pkg/ \
-          /home/gopath /mnt/user-data/
+    # repack initrd magic, beware
+    # assumptions: initrd is compressed with LZ4, cpio block size 512, microcode
+    # at the beginning of initrd image
+    (
+        cd repacked-kernel
+        #shellcheck disable=SC2010
+        kver=$(ls "config"-* | grep -Po 'config-\K.*')
 
-    # now modify the image
-    if is_core18_system; then
-        UNPACK_DIR="/tmp/core18-snap"
-        unsquashfs -no-progress -d "$UNPACK_DIR" /var/lib/snapd/snaps/core18_*.snap
-    fi
+        # XXX: ideally we should unpack the initrd, replace snap-boostrap and
+        # repack it using ubuntu-core-initramfs --skeleton=<unpacked> this does not
+        # work and the rebuilt kernel.efi panics unable to start init, but we
+        # still need the unpacked initrd to get the right kernel modules
+        objcopy -j .initrd -O binary kernel.efi initrd
+        # this works on 20.04 but not on 18.04
+        unmkinitramfs initrd unpacked-initrd
+
+        # use distro skeleton
+        cp -ar /usr/lib/ubuntu-core-initramfs skeleton
+        # all the skeleton edits go to a local copy of distro directory
+        skeletondir=$PWD/skeleton
+        cp -a /usr/lib/snapd/snap-bootstrap "$skeletondir/main/usr/lib/snapd/snap-bootstrap"
+        # modify the-tool to verify that our version is used when booting - this
+        # is verified in the tests/core/basic20 spread test
+        sed -i -e 's/set -e/set -ex/' "$skeletondir/main/usr/lib/the-tool"
+        echo "" >> "$skeletondir/main/usr/lib/the-tool"
+        echo "if test -d /run/mnt/ubuntu-data/system-data; then touch /run/mnt/ubuntu-data/system-data/the-tool-ran; fi" >> \
+            "$skeletondir/main/usr/lib/the-tool"
+
+        # XXX: need to be careful to build an initrd using the right kernel
+        # modules from the unpacked initrd, rather than the host which may be
+        # running a different kernel
+        (
+            # accommodate assumptions about tree layout, use the unpacked initrd
+            # to pick up the right modules
+            cd unpacked-initrd/main
+            ubuntu-core-initramfs create-initrd \
+                                  --kernelver "$kver" \
+                                  --skeleton "$skeletondir" \
+                                  --kerneldir "lib/modules" \
+                                  --output ../../repacked-initrd
+        )
+
+        # copy out the kernel image for create-efi command
+        objcopy -j .linux -O binary kernel.efi "vmlinuz-$kver"
+
+        # assumes all files are named <name>-$kver
+        ubuntu-core-initramfs create-efi \
+                              --kernelver "$kver" \
+                              --initrd repacked-initrd \
+                              --kernel vmlinuz \
+                              --output repacked-kernel.efi
+
+        mv "repacked-kernel.efi-$kver" kernel.efi
+
+        # XXX: needed?
+        chmod +x kernel.efi
+
+        rm -rf unpacked-initrd skeleton initrd repacked-initrd-* vmlinuz-*
+    )
+
+    (
+        # XXX: drop ~450MB+ of firmware which should not be needed in under qemu
+        # or the cloud system
+        cd repacked-kernel
+        rm -rf firmware/*
+
+        # the code below drops the modules that are not loaded on the
+        # current host, this should work for most cases, since the image will be
+        # running on the same host
+        # TODO:UC20: enable when ready
+        exit 0
+
+        # drop unnecessary modules
+        awk '{print $1}' <  /proc/modules  | sort > /tmp/mods
+        #shellcheck disable=SC2044
+        for m in $(find modules/ -name '*.ko'); do
+            noko=$(basename "$m"); noko="${noko%.ko}"
+            if echo "$noko" | grep -f /tmp/mods -q ; then
+                echo "keeping $m - $noko"
+            else
+                rm -f "$m"
+            fi
+        done
+
+        #shellcheck disable=SC2010
+        kver=$(ls "config"-* | grep -Po 'config-\K.*')
+
+        # depmod assumes that /lib/modules/$kver is under basepath
+        mkdir -p fake/lib
+        ln -s "$PWD/modules" fake/lib/modules
+        depmod -b "$PWD/fake" -A -v "$kver"
+        rm -rf fake
+    )
+
+    snap pack repacked-kernel "$TARGET"
+}
+
+
+setup_core_for_testing_by_modify_writable() {
+    UNPACK_DIR="$1"
 
     # create test user and ubuntu user inside the writable partition
     # so that we can use a stock core in tests
@@ -579,8 +636,223 @@ EOF
 
     (cd /tmp ; unsquashfs -no-progress -v  /var/lib/snapd/snaps/"$core_name"_*.snap etc/systemd/system)
     cp -avr /tmp/squashfs-root/etc/systemd/system /mnt/system-data/etc/systemd/
+}
+
+setup_reflash_magic() {
+    # install the stuff we need
+    distro_install_package kpartx busybox-static
+    # for core20 we need debootstrap to build the initramfs in the kernel snap
+    if is_core20_system; then
+        distro_install_package debootstrap
+    fi
+
+    distro_install_local_package "$GOHOME"/snapd_*.deb
+    distro_clean_package_cache
+
+    # need to be seeded to proceed with snap install
+    snap wait system seed.loaded
+
+    # we cannot use "names.sh" here because no snaps are installed yet
+    core_name="core"
+    if is_core18_system; then
+        snap download "--channel=${SNAPD_CHANNEL}" snapd
+        core_name="core18"
+    elif is_core20_system; then
+        snap download "--channel=${SNAPD_CHANNEL}" snapd
+        core_name="core20"
+    fi
+    snap install "--channel=${CORE_CHANNEL}" "$core_name"
+
+    # install ubuntu-image
+    snap install --classic --edge ubuntu-image
+
+    # needs to be under /home because ubuntu-device-flash
+    # uses snap-confine and that will hide parts of the hostfs
+    IMAGE_HOME=/home/image
+    mkdir -p "$IMAGE_HOME"
+
+    # ensure that ubuntu-image is using our test-build of snapd with the
+    # test keys and not the bundled version of usr/bin/snap from the snap.
+    # Note that we can not put it into /usr/bin as '/usr' is different
+    # when the snap uses confinement.
+    cp /usr/bin/snap "$IMAGE_HOME"
+    export UBUNTU_IMAGE_SNAP_CMD="$IMAGE_HOME/snap"
+
+    if is_core18_system; then
+        repack_snapd_snap_with_deb_content "$IMAGE_HOME"
+        # FIXME: fetch directly once its in the assertion service
+        cp "$TESTSLIB/assertions/ubuntu-core-18-amd64.model" "$IMAGE_HOME/pc.model"
+        IMAGE=core18-amd64.img
+    elif is_core20_system; then
+        repack_snapd_snap_with_deb_content_and_run_mode_firstboot_tweaks "$IMAGE_HOME"
+        # TODO:UC20: use canonical model instead of "mvo" one
+        cp "$TESTSLIB/assertions/ubuntu-core-20-amd64.model" "$IMAGE_HOME/pc.model"
+        IMAGE=core20-amd64.img
+    else
+        # modify the core snap so that the current root-pw works there
+        # for spread to do the first login
+        UNPACK_DIR="/tmp/core-snap"
+        unsquashfs -no-progress -d "$UNPACK_DIR" /var/lib/snapd/snaps/core_*.snap
+
+        # FIXME: install would be better but we don't have dpkg on
+        #        the image
+        # unpack our freshly build snapd into the new snapd snap
+        dpkg-deb -x "$SPREAD_PATH"/../snapd_*.deb "$UNPACK_DIR"
+        # Debian packages don't carry permissions correctly and we use
+        # post-inst hooks to fix that on classic systems. Here, as a special
+        # case, fix the void directory we just unpacked.
+        chmod 111 "$UNPACK_DIR/var/lib/snapd/void"
+        # ensure any new timer units are available
+        cp -a /etc/systemd/system/timers.target.wants/*.timer "$UNPACK_DIR/etc/systemd/system/timers.target.wants"
+
+        # add gpio and iio slots
+        cat >> "$UNPACK_DIR/meta/snap.yaml" <<-EOF
+slots:
+    gpio-pin:
+        interface: gpio
+        number: 100
+        direction: out
+    iio0:
+        interface: iio
+        path: /dev/iio:device0
+EOF
+
+        # build new core snap for the image
+        snap pack "$UNPACK_DIR" "$IMAGE_HOME"
+
+        # FIXME: fetch directly once its in the assertion service
+        cp "$TESTSLIB/assertions/pc-${REMOTE_STORE}.model" "$IMAGE_HOME/pc.model"
+
+        # FIXME: how to test store updated of ubuntu-core with sideloaded snap?
+        IMAGE=all-snap-amd64.img
+    fi
+
+    EXTRA_FUNDAMENTAL=
+    IMAGE_CHANNEL=edge
+    if [ "$KERNEL_CHANNEL" = "$GADGET_CHANNEL" ]; then
+        IMAGE_CHANNEL="$KERNEL_CHANNEL"
+    else
+        # download pc-kernel snap for the specified channel and set
+        # ubuntu-image channel to that of the gadget, so that we don't
+        # need to download it
+        snap download --channel="$KERNEL_CHANNEL" pc-kernel
+
+        EXTRA_FUNDAMENTAL="--extra-snaps $PWD/pc-kernel_*.snap"
+        IMAGE_CHANNEL="$GADGET_CHANNEL"
+    fi
+
+    if is_core20_system; then
+        snap download --basename=pc-kernel --channel="20/$KERNEL_CHANNEL" pc-kernel
+        # make sure we have the snap
+        test -e pc-kernel.snap
+        # build the initramfs with our snapd assets into the kernel snap
+        uc20_build_initramfs_kernel_snap "$PWD/pc-kernel.snap" "$IMAGE_HOME"
+        EXTRA_FUNDAMENTAL="--extra-snaps $IMAGE_HOME/pc-kernel_*.snap"
+    fi
+
+    # 'snap pack' creates snaps 0644, and ubuntu-image just copies those in
+    # maybe we should fix one or both of those, but for now this'll do
+    chmod 0600 "$IMAGE_HOME"/*.snap
+
+    # on core18 we need to use the modified snapd snap and on core16
+    # it is the modified core that contains our freshly build snapd
+    if is_core18_system || is_core20_system; then
+        extra_snap=("$IMAGE_HOME"/snapd_*.snap)
+    else
+        extra_snap=("$IMAGE_HOME"/core_*.snap)
+    fi
+
+    # extra_snap should contain only ONE snap
+    if [ "${#extra_snap[@]}" -ne 1 ]; then
+        echo "unexpected number of globbed snaps: ${extra_snap[*]}"
+        exit 1
+    fi
+
+    /snap/bin/ubuntu-image -w "$IMAGE_HOME" "$IMAGE_HOME/pc.model" \
+                           --channel "$IMAGE_CHANNEL" \
+                           "$EXTRA_FUNDAMENTAL" \
+                           --extra-snaps "${extra_snap[0]}" \
+                           --output "$IMAGE_HOME/$IMAGE"
+    rm -f ./pc-kernel_*.{snap,assert} ./pc_*.{snap,assert} ./snapd_*.{snap,assert}
+
+    # mount fresh image and add all our SPREAD_PROJECT data
+    kpartx -avs "$IMAGE_HOME/$IMAGE"
+    # losetup --list --noheadings returns:
+    # /dev/loop1   0 0  1  1 /var/lib/snapd/snaps/ohmygiraffe_3.snap                0     512
+    # /dev/loop57  0 0  1  1 /var/lib/snapd/snaps/http_25.snap                      0     512
+    # /dev/loop19  0 0  1  1 /var/lib/snapd/snaps/test-snapd-netplan-apply_75.snap  0     512
+    devloop=$(losetup --list --noheadings | grep "$IMAGE_HOME/$IMAGE" | awk '{print $1}')
+    dev=$(basename "$devloop")
+    if is_core18_system; then
+        mount "/dev/mapper/${dev}p3" /mnt
+    elif is_core20_system; then
+        # (ab)use ubuntu-seed
+        mount "/dev/mapper/${dev}p2" /mnt
+    else
+        mount "/dev/mapper/${dev}p3" /mnt
+    fi
+    mkdir -p /mnt/user-data/
+    # copy over everything from gopath to user-data, exclude:
+    # - VCS files
+    # - built debs
+    # - golang archive files and built packages dir
+    # - govendor .cache directory and the binary,
+    if is_core16_system || is_core18_system; then
+        # we need to include "core" here because -C option says to ignore 
+        # files the way CVS(?!) does, so it ignores files named "core" which
+        # are core dumps, but we have a test suite named "core", so including 
+        # this here will ensure that portion of the git tree is included in the
+        # image
+        rsync -a -C \
+          --exclude '*.a' \
+          --exclude '*.deb' \
+          --exclude /gopath/.cache/ \
+          --exclude /gopath/bin/govendor \
+          --exclude /gopath/pkg/ \
+          --include core/ \
+          /home/gopath /mnt/user-data/
+    elif is_core20_system; then
+        # prepare passwd for run-mode-overlay-data
+        mkdir -p /root/test-etc
+        mkdir -p /var/lib/extrausers
+        touch /var/lib/extrausers/sub{uid,gid}
+        for f in group gshadow passwd shadow; do
+            grep -v "^root:" /etc/"$f" > /root/test-etc/"$f"
+            grep "^root:" /etc/"$f" >> /root/test-etc/"$f"
+            chgrp --reference /etc/"$f" /root/test-etc/"$f"
+            # create /var/lib/extrausers/$f
+            # append ubuntu, test user for the testing
+            grep "^test:" /etc/"$f" >> /var/lib/extrausers/"$f"
+            grep "^ubuntu:" /etc/"$f" >> /var/lib/extrausers/"$f"
+            # check test was copied
+            MATCH "^test:" </var/lib/extrausers/"$f"
+            MATCH "^ubuntu:" </var/lib/extrausers/"$f"
+        done
+        tar -c -z \
+          --exclude '*.a' \
+          --exclude '*.deb' \
+          --exclude /gopath/.cache/ \
+          --exclude /gopath/bin/govendor \
+          --exclude /gopath/pkg/ \
+          -f /mnt/run-mode-overlay-data.tar.gz \
+          /home/gopath /root/test-etc /var/lib/extrausers
+    fi
+
+    # now modify the image writable partition
+    if is_core18_system; then
+        UNPACK_DIR="/tmp/core18-snap"
+        unsquashfs -no-progress -d "$UNPACK_DIR" /var/lib/snapd/snaps/core18_*.snap
+    fi
+    # modifying "writable" is only possible on uc16/uc18
+    if is_core16_system || is_core18_system; then
+        # modify the writable partition of "core" so that we have the
+        # test user
+        setup_core_for_testing_by_modify_writable "$UNPACK_DIR"
+    fi
+
+    # unmount the partition we just modified and delete the image's loop devices
     umount /mnt
-    kpartx -d  "$IMAGE_HOME/$IMAGE"
+    kpartx -d "$IMAGE_HOME/$IMAGE"
 
     # the reflash magic
     # FIXME: ideally in initrd, but this is good enough for now
@@ -591,26 +863,34 @@ cp /bin/busybox /tmp
 cp $IMAGE_HOME/$IMAGE /tmp
 sync
 # blow away everything
-/tmp/busybox dd if=/tmp/$IMAGE of=/dev/sda bs=4M
+OF=/dev/sda
+if [ -e /dev/vda ]; then
+    OF=/dev/vda
+fi
+/tmp/busybox dd if=/tmp/$IMAGE of=\$OF bs=4M
 # and reboot
 /tmp/busybox sync
 /tmp/busybox echo b > /proc/sysrq-trigger
 EOF
     chmod +x "$IMAGE_HOME/reflash.sh"
 
+    DEVPREFIX=""
+    if is_core20_system; then
+        DEVPREFIX="/boot"
+    fi
     # extract ROOT from /proc/cmdline
     ROOT=$(sed -e 's/^.*root=//' -e 's/ .*$//' /proc/cmdline)
     cat >/boot/grub/grub.cfg <<EOF
 set default=0
 set timeout=2
 menuentry 'flash-all-snaps' {
-linux /vmlinuz root=$ROOT ro init=$IMAGE_HOME/reflash.sh console=ttyS0
-initrd /initrd.img
+linux $DEVPREFIX/vmlinuz root=$ROOT ro init=$IMAGE_HOME/reflash.sh console=ttyS0
+initrd $DEVPREFIX/initrd.img
 }
 EOF
 }
 
-# prepare_ubuntu_core will prepare ubuntu-core 16 and 18
+# prepare_ubuntu_core will prepare ubuntu-core 16+
 prepare_ubuntu_core() {
     # we are still a "classic" image, prepare the surgery
     if [ -e /var/lib/dpkg/status ]; then
@@ -669,6 +949,8 @@ prepare_ubuntu_core() {
         rsync_snap="test-snapd-rsync"
         if is_core18_system; then
             rsync_snap="test-snapd-rsync-core18"
+        elif is_core20_system; then
+            rsync_snap="test-snapd-rsync-core20"
         fi
         snap install --devmode "$rsync_snap"
         snap alias "$rsync_snap".rsync rsync

@@ -2,7 +2,10 @@ summary: |
    Test that config defaults specified in the gadget are picked up
    for first boot snaps
 
-systems: [ubuntu-core-*]
+# the test is only meaningful on core devices
+# TODO:UC20: enable for UC20, it assumes /var/lib/snapd/seed/assertions/model
+#            which we don't have currently
+systems: [ubuntu-core-1*]
 
 environment:
     SERVICE/rsyslog: rsyslog
