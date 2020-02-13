@@ -68,9 +68,9 @@ endif
 DEB_HOST_MULTIARCH ?= $(shell dpkg-architecture -qDEB_HOST_MULTIARCH)
 
 BUILT_USING_PACKAGES=
-
-export DEB_BUILD_MAINT_OPTIONS = hardening=+pie
-include /usr/share/dpkg/buildflags.mk
+# export DEB_BUILD_MAINT_OPTIONS = hardening=+all
+# DPKG_EXPORT_BUILDFLAGS = 1
+# include /usr/share/dpkg/buildflags.mk
 
 # Currently, we enable confinement for Ubuntu only, not for derivatives,
 # because derivatives may have different kernels that don't support all the
