@@ -167,8 +167,8 @@ func applicable(s snap.PlaceInfo, t snap.Type, dev Device) bool {
 type bootState interface {
 	// revisions retrieves the revisions of the current snap and
 	// the try snap (only the latter might not be set), and
-	// whether the snap is in "trying" state.
-	revisions() (snap, trySnap snap.PlaceInfo, trying bool, err error)
+	// the status of the trying snap.
+	revisions() (curSnap, trySnap snap.PlaceInfo, tryingStatus string, err error)
 
 	// setNext lazily implements setting the next boot target for
 	// the type's boot snap. actually committing the update
@@ -267,12 +267,12 @@ func GetCurrentBoot(t snap.Type, dev Device) (snap.PlaceInfo, error) {
 		return nil, err
 	}
 
-	snap, _, trying, err := s.revisions()
+	snap, _, status, err := s.revisions()
 	if err != nil {
 		return nil, err
 	}
 
-	if trying {
+	if status == TryingStatus {
 		return nil, ErrBootNameAndRevisionNotReady
 	}
 
