@@ -3,8 +3,8 @@ name: snapd-snap
 on: 
   push: 
     tags:
-      - "2.[4-9]+**"
-      - "v2.[4-9]+**"
+      - "[0-9]+**"
+      - "v[0-9]+**"
 
 jobs:
   my-job:
@@ -12,7 +12,15 @@ jobs:
 
     steps:
       - uses: actions/checkout@v2
-      - uses: jhenstridge/snapcraft-build-action@v1
+
+      - uses: frabert/replace-string-action@v1.1
+        id: git-tag
+        with:
+          pattern: 'refs/tags/'
+          string: ${{ github.ref }}
+          replace-with: ''
+
+      - uses: sd-hd/snapcraft-build-action@v1
         id: snapcraft
 
       - name: Create Release
@@ -33,5 +41,5 @@ jobs:
         with:
           upload_url: ${{ steps.create_release.outputs.upload_url }} # This pulls from the CREATE RELEASE step above, referencing it's ID to get its outputs object, which include a `upload_url`. See this blog post for more info: https://jasonet.co/posts/new-features-of-github-actions/#passing-data-to-future-steps 
           asset_path: ./${{ steps.snapcraft.outputs.snap }}
-          asset_name: termite-snap-${{ github.ref }}
+          asset_name: ${{ github.workflow }}-${{ steps.git-tag.outputs.replaced }}
           asset_content_type: application/zip
