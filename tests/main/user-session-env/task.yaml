@@ -14,17 +14,17 @@ systems:
 
 environment:
     TEST_ZSH_USER: test-zsh
-    NO_USER_SESSION_SYSTEMS: ubuntu-14.04 amazon-linux centos-7 debian-9 ubuntu-16.04
 
 prepare: |
+    #shellcheck source=tests/lib/user.sh
+    . "$TESTSLIB/user.sh"
+
     echo "create a user with a different shell"
     useradd --create-home --user-group -s /bin/zsh "$TEST_ZSH_USER"
 
-    for sys in $NO_USER_SESSION_SYSTEMS; do
-        if echo "$SPREAD_SYSTEM" | grep "${sys}-"; then
-            exit 0
-        fi
-    done
+    if ! has_user_session_support; then
+        exit 0
+    fi
 
     touch ./has-sessions
 
@@ -41,7 +41,7 @@ restore: |
     rm -f test-profile-env test-profile-zsh-env test-session-env test-zsh-session-env
 
     if [ -e has-sessions ]; then
-        for uid in $(uid -u test) $(uid -u "$TEST_ZSH_USER"); do
+        for uid in $(id -u test) $(id -u "$TEST_ZSH_USER"); do
             systemctl stop "user@$uid.service"
         done
     fi
@@ -50,18 +50,22 @@ restore: |
 execute: |
     #shellcheck source=tests/lib/dirs.sh
     . "$TESTSLIB/dirs.sh"
+    #shellcheck source=tests/lib/user.sh
+    . "$TESTSLIB/user.sh"
 
     for user in test "$TEST_ZSH_USER"; do
         if [ -e ./has-sessions ]; then
             uid=$(id -u "$user")
             # dump the environment set up by the user session manager
-            su -l "$user" -c "XDG_RUNTIME_DIR=/run/user/$uid systemctl --user show-environment" > "${user}-session-env"
+            as_given_user "$user" "XDG_RUNTIME_DIR=/run/user/$uid systemctl --user show-environment" > "${user}-session-env"
         fi
-        su -l "$user" -c "env" > "${user}-profile-env"
+        as_given_user "$user" "env" > "${user}-profile-env"
     done
 
     for user in test "$TEST_ZSH_USER"; do
-        if [ -e ./has-sessions ]; then
+        # even though there's user session support, systemd may be too old and
+        # not support user-environment-generators
+        if [ -e ./has-sessions ] && [ -d /usr/lib/systemd/user-environment-generators ]; then
             MATCH 'XDG_DATA_DIRS=.*[:]?/var/lib/snapd/desktop[:]?.*' < "${user}-session-env"
             MATCH "PATH=.*[:]?${SNAP_MOUNT_DIR}/bin[:]?.*" < "${user}-session-env"
         fi
