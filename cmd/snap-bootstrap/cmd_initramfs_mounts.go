@@ -246,6 +246,22 @@ func generateMountsModeRun() error {
 		return err
 	}
 	if !isKernelMounted {
+		// make a map to easily check if a kernel snap is valid or not using the
+		// modeenv CurrentKernels
+		// CurrentKernels should always be either length 1 or length 2
+		var validKernel, validTryKernel string
+		switch len(modeEnv.CurrentKernels) {
+		case 2:
+			validTryKernel = modeEnv.CurrentKernels[1]
+			fallthrough
+		case 1:
+			validKernel = modeEnv.CurrentKernels[0]
+		default:
+			// if we have more kernels in CurrentKernels we have a corrupted
+			// kernel modeenv!
+			return fmt.Errorf("cannot use modeenv: current_kernels is corrupted")
+		}
+
 		// find ubuntu-boot bootloader to get the kernel_status and kernel.efi
 		// status so we can determine the right kernel snap to have mounted
 
@@ -274,6 +290,12 @@ func generateMountsModeRun() error {
 			return fmt.Errorf("no fallback kernel snap: %v", err)
 		}
 
+		kernelFile := kernel.Filename()
+		if kernelFile != validKernel {
+			// we don't trust the fallback kernel!
+			return fmt.Errorf("fallback kernel.efi snap %q is not trusted in the modeenv (should be %q)", kernelFile, validKernel)
+		}
+
 		// get kernel_status
 		m, err := ebl.GetBootVars("kernel_status")
 		if err != nil {
@@ -284,14 +306,30 @@ func generateMountsModeRun() error {
 			// check for the try kernel
 			tryKernel, tryKernelExists, err := ebl.TryKernel()
 			// TODO:UC20: can we log somewhere if err != nil here?
-			if tryKernelExists && err == nil {
-				kernel = tryKernel
+			if err == nil {
+				// TODO:UC20: can we log somewhere if this kernel snap isn't trusted
+				//            as the try kernel snap?
+				tryKernelFile := tryKernel.Filename()
+				if tryKernelExists && tryKernelFile == validTryKernel {
+					kernelFile = tryKernelFile
+				}
 			}
+
 			// if we didn't have a try kernel, but we do have kernel_status ==
 			// trying we just fallback to using the normal kernel
+			// same goes for try kernel being untrusted - we will fallback to
+			// the normal kernel snap
+
+			// TODO:UC20: use the signing key from the try-kernel.efi to also
+			// verify which kernel snap we booted from, as an attacker could
+			// have left the kernel asset state as-is, but manually booted the
+			// kernel.efi, so we want to know that the kernel we booted is the
+			// same as the try-kernel.efi, otherwise we could load incompatible
+			// modules from the kernel.efi revision snap rather than the
+			// try-kernel.efi revision snap.
 		}
 
-		kernelPath := filepath.Join(dataDir, "system-data", dirs.SnapBlobDir, kernel.Filename())
+		kernelPath := filepath.Join(dataDir, "system-data", dirs.SnapBlobDir, kernelFile)
 		fmt.Fprintf(stdout, "%s %s\n", kernelPath, filepath.Join(runMnt, "kernel"))
 	}
 	// 3.1 Write the modeenv out again
