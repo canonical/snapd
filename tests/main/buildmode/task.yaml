@@ -21,5 +21,6 @@ execute: |
         objdump -f /usr/lib/snapd/"$p" | MATCH "$needle"
     done
 
-    # C binaries are always built in PIE mode
-    objdump -f /usr/lib/snapd/snap-confine | MATCH 'DYNAMIC'
+    # C binaries are always built in non-PIE mode because we do not enable
+    # hardening
+    objdump -f /usr/lib/snapd/snap-confine | not MATCH 'DYNAMIC'
