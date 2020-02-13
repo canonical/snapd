@@ -1147,11 +1147,11 @@ func (s *deviceMgrSuite) TestOperationalTimeFromSeedTime(c *C) {
 
 	operationalTime, err := s.mgr.OperationalTime()
 	c.Assert(err, IsNil)
-	c.Check(operationalTime, Equals, seedTime)
+	c.Check(operationalTime.Equal(seedTime), Equals, true)
 
 	var op time.Time
 	st.Get("operational-time", &op)
-	c.Check(op, Equals, operationalTime)
+	c.Check(op.Equal(operationalTime), Equals, true)
 }
 
 func (s *deviceMgrSuite) TestOperationalTimeAlreadySet(c *C) {
@@ -1164,7 +1164,7 @@ func (s *deviceMgrSuite) TestOperationalTimeAlreadySet(c *C) {
 
 	operationalTime, err := s.mgr.OperationalTime()
 	c.Assert(err, IsNil)
-	c.Check(operationalTime, Equals, op)
+	c.Check(operationalTime.Equal(op), Equals, true)
 }
 
 func (s *deviceMgrSuite) TestOperationalTimeNoSeedTime(c *C) {
@@ -1172,12 +1172,19 @@ func (s *deviceMgrSuite) TestOperationalTimeNoSeedTime(c *C) {
 	st.Lock()
 	defer st.Unlock()
 
-	now := time.Now()
+	now := time.Now().Add(-1 * time.Second)
 	devicestate.MockTimeNow(func() time.Time {
 		return now
 	})
 
 	operationalTime, err := s.mgr.OperationalTime()
 	c.Assert(err, IsNil)
-	c.Check(operationalTime, Equals, now)
+	c.Check(operationalTime.Equal(now), Equals, true)
+
+	// repeated call returns already set time
+	prev := now
+	now = time.Now().Add(-10 * time.Hour)
+	operationalTime, err = s.mgr.OperationalTime()
+	c.Assert(err, IsNil)
+	c.Check(operationalTime.Equal(prev), Equals, true)
 }
