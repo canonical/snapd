@@ -1358,3 +1358,13 @@ func (s *servicesTestSuite) TestServiceRestartDelay(c *C) {
 	c.Assert(err, IsNil)
 	c.Check(strings.Contains(string(content), "RestartSec="), Equals, false)
 }
+
+func (s *servicesTestSuite) TestAddRemoveSnapServiceWithSnapd(c *C) {
+	info := makeMockSnapdSnap(c)
+
+	err := wrappers.AddSnapServices(info, nil, progress.Null)
+	c.Check(err, ErrorMatches, "internal error: adding explicit services for snapd snap is unexpected")
+
+	err = wrappers.RemoveSnapServices(info, progress.Null)
+	c.Check(err, ErrorMatches, "internal error: removing explicit services for snapd snap is unexpected")
+}

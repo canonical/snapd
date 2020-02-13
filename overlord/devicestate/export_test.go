@@ -21,11 +21,13 @@ package devicestate
 
 import (
 	"context"
+	"net/http"
 	"time"
 
 	"github.com/snapcore/snapd/asserts"
 	"github.com/snapcore/snapd/boot"
 	"github.com/snapcore/snapd/gadget"
+	"github.com/snapcore/snapd/httputil"
 	"github.com/snapcore/snapd/overlord/snapstate"
 	"github.com/snapcore/snapd/overlord/state"
 	"github.com/snapcore/snapd/overlord/storecontext"
@@ -199,5 +201,13 @@ func MockBootMakeBootable(f func(model *asserts.Model, rootdir string, bootWith 
 	bootMakeBootable = f
 	return func() {
 		bootMakeBootable = old
+	}
+}
+
+func MockHttputilNewHTTPClient(f func(opts *httputil.ClientOptions) *http.Client) (restore func()) {
+	old := httputilNewHTTPClient
+	httputilNewHTTPClient = f
+	return func() {
+		httputilNewHTTPClient = old
 	}
 }
