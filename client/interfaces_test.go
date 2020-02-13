@@ -208,7 +208,8 @@ func (cs *clientSuite) TestClientDisconnect(c *check.C) {
 		"result": { },
                 "change": "42"
 	}`
-	id, err := cs.cli.Disconnect("producer", "plug", "consumer", "slot", nil)
+	opts := &client.DisconnectOptions{Forget: false}
+	id, err := cs.cli.Disconnect("producer", "plug", "consumer", "slot", opts)
 	c.Assert(err, check.IsNil)
 	c.Check(id, check.Equals, "42")
 	var body map[string]interface{}
