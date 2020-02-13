@@ -65,6 +65,8 @@ type DeviceManager struct {
 	becomeOperationalBackoff     time.Duration
 	registered                   bool
 	reg                          chan struct{}
+
+	preseed bool
 }
 
 // Manager returns a new device manager.
@@ -74,7 +76,6 @@ func Manager(s *state.State, hookManager *hookstate.HookManager, runner *state.T
 	keypairMgr, err := asserts.OpenFSKeypairManager(dirs.SnapDeviceDir)
 	if err != nil {
 		return nil, err
-
 	}
 
 	m := &DeviceManager{
@@ -82,6 +83,8 @@ func Manager(s *state.State, hookManager *hookstate.HookManager, runner *state.T
 		keypairMgr: keypairMgr,
 		newStore:   newStore,
 		reg:        make(chan struct{}),
+		// TODO: handle here via devicestate, similar to DeviceContext.
+		preseed: release.PreseedMode(),
 	}
 
 	modeEnv, err := boot.ReadModeenv("")
@@ -104,6 +107,7 @@ func Manager(s *state.State, hookManager *hookstate.HookManager, runner *state.T
 
 	runner.AddHandler("generate-device-key", m.doGenerateDeviceKey, nil)
 	runner.AddHandler("request-serial", m.doRequestSerial, nil)
+	runner.AddHandler("mark-preseeded", m.doMarkPreseeded, nil)
 	runner.AddHandler("mark-seeded", m.doMarkSeeded, nil)
 	runner.AddHandler("setup-run-system", m.doSetupRunSystem, nil)
 	runner.AddHandler("prepare-remodeling", m.doPrepareRemodeling, nil)
@@ -440,6 +444,10 @@ func (m *DeviceManager) ensureSeeded() error {
 			Mode:  m.modeEnv.Mode,
 		}
 	}
+	if m.preseed {
+		opts = &populateStateFromSeedOptions{Preseed: true}
+	}
+
 	var tsAll []*state.TaskSet
 	timings.Run(perfTimings, "state-from-seed", "populate state from seed", func(tm timings.Measurer) {
 		tsAll, err = populateStateFromSeed(m.state, opts, tm)
@@ -613,20 +621,23 @@ func (m *DeviceManager) Ensure() error {
 	if err := m.ensureSeeded(); err != nil {
 		errs = append(errs, err)
 	}
-	if err := m.ensureOperational(); err != nil {
-		errs = append(errs, err)
-	}
 
-	if err := m.ensureBootOk(); err != nil {
-		errs = append(errs, err)
-	}
+	if !m.preseed {
+		if err := m.ensureOperational(); err != nil {
+			errs = append(errs, err)
+		}
 
-	if err := m.ensureSeedInConfig(); err != nil {
-		errs = append(errs, err)
-	}
+		if err := m.ensureBootOk(); err != nil {
+			errs = append(errs, err)
+		}
 
-	if err := m.ensureInstalled(); err != nil {
-		errs = append(errs, err)
+		if err := m.ensureSeedInConfig(); err != nil {
+			errs = append(errs, err)
+		}
+
+		if err := m.ensureInstalled(); err != nil {
+			errs = append(errs, err)
+		}
 	}
 
 	if len(errs) > 0 {

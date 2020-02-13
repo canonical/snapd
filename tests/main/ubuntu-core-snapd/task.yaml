@@ -1,0 +1,47 @@
+summary: Test snapd install on a UC16 system
+
+# snapd snap is already installed by default on uc18+
+systems: [ubuntu-core-16-*]
+
+execute: |
+    if [ "$SPREAD_REBOOT" = 0 ]; then
+        echo "No snapd snap is installed"
+        not snap list snapd
+
+        echo "Ensure the snapd snap can be installed"
+        snap install snapd
+
+        echo "And it is considered installed"
+        snap list snapd
+
+        echo "And snapd from the snap is run in the CGroup"
+        systemctl status snapd|MATCH "/snap/snapd/[0-9]+/usr/lib/snapd/snapd"
+
+        echo "And after a reboot the snapd snap is still ok"
+        REBOOT
+    elif [ "$SPREAD_REBOOT" = 1 ]; then
+        echo "still installed"
+        snap list snapd
+        echo "and running the right snapd"
+        systemctl status snapd|MATCH "/snap/snapd/[0-9]+/usr/lib/snapd/snapd"
+
+        # RESTORE CODE
+        # we cannot restore in "restore:" because we need a reboot
+        # right now to get a clean state again
+        systemctl stop snapd.service snapd.socket snapd.autoimport.service snapd.snap-repair.service
+        rm -f /etc/systemd/system/usr-lib-snapd.mount
+        rm -f /etc/systemd/system/snapd.{service,timer,socket}
+        rm -f /etc/systemd/system/snapd.*.{service,timer,socket}
+        rm -f /etc/systemd/system/*.wants/snapd.*.{service,timer,socket}
+        systemctl daemon-reload
+        # this will have the "snapd" snap /usr/lib/snapd bind mounted
+        umount --lazy /usr/lib/snapd
+        systemctl start snapd.service snapd.socket
+        systemctl status snapd|MATCH " /usr/lib/snapd/snapd"
+
+        echo "And we reboot to get a clean system again"
+        REBOOT
+    fi
+    snap list
+    # and we can still run the rsync snap after the reboot
+    rsync --help

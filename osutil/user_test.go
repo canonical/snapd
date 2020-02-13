@@ -21,6 +21,7 @@ package osutil_test
 
 import (
 	"fmt"
+	"io/ioutil"
 	"os"
 	"os/user"
 	"path/filepath"
@@ -277,6 +278,82 @@ func (s *createUserSuite) TestIsValidUsername(c *check.C) {
 	} {
 		c.Check(osutil.IsValidUsername(k), check.Equals, v)
 	}
+}
+
+type delUserSuite struct {
+	mockUserDel *testutil.MockCmd
+	opts        *osutil.DelUserOptions
+	sudoersd    string
+	restore     func()
+}
+
+var _ = check.Suite(&delUserSuite{opts: nil})
+var _ = check.Suite(&delUserSuite{opts: &osutil.DelUserOptions{ExtraUsers: true}})
+
+func (s *delUserSuite) SetUpTest(c *check.C) {
+	s.mockUserDel = testutil.MockCommand(c, "userdel", "")
+	s.sudoersd = c.MkDir()
+	s.restore = osutil.MockSudoersDotD(s.sudoersd)
+}
+
+func (s *delUserSuite) TearDownTest(c *check.C) {
+	s.mockUserDel.Restore()
+	s.restore()
+}
+
+func (s *delUserSuite) expectedCmd(u string) []string {
+	if s.opts != nil && s.opts.ExtraUsers {
+		return []string{"userdel", "--remove", "--extrausers", u}
+	}
+	return []string{"userdel", "--remove", u}
+}
+
+func (s *delUserSuite) TestDelUser(c *check.C) {
+	c.Assert(osutil.DelUser("u1", s.opts), check.IsNil)
+	c.Assert(s.mockUserDel.Calls(), check.DeepEquals, [][]string{s.expectedCmd("u1")})
+}
+
+func (s *delUserSuite) TestDelUserRemovesSudoersIfPresent(c *check.C) {
+	f1 := osutil.SudoersFile("u1")
+
+	// only create u1's sudoers file
+	c.Assert(ioutil.WriteFile(f1, nil, 0600), check.IsNil)
+
+	// neither of the delusers fail
+	c.Assert(osutil.DelUser("u1", s.opts), check.IsNil)
+	c.Assert(osutil.DelUser("u2", s.opts), check.IsNil)
+
+	// but u1's sudoers file is no more
+	c.Check(f1, testutil.FileAbsent)
+
+	// sanity check
+	c.Check(s.mockUserDel.Calls(), check.DeepEquals, [][]string{
+		s.expectedCmd("u1"),
+		s.expectedCmd("u2"),
+	})
+}
+
+func (s *delUserSuite) TestDelUserSudoersRemovalFailure(c *check.C) {
+	f1 := osutil.SudoersFile("u1")
+
+	// create a directory that'll mess with the removal
+	c.Assert(os.MkdirAll(filepath.Join(f1, "ook", "ook"), 0700), check.IsNil)
+
+	// delusers fails
+	c.Assert(osutil.DelUser("u1", s.opts), check.ErrorMatches, `cannot remove sudoers file for user "u1": .*`)
+
+	// sanity check
+	c.Check(s.mockUserDel.Calls(), check.DeepEquals, [][]string{
+		s.expectedCmd("u1"),
+	})
+}
+
+func (s *delUserSuite) TestDelUserFails(c *check.C) {
+	mockUserDel := testutil.MockCommand(c, "userdel", "exit 99")
+	defer mockUserDel.Restore()
+
+	c.Assert(osutil.DelUser("u1", s.opts), check.ErrorMatches, `cannot delete user "u1": exit status 99`)
+	c.Check(mockUserDel.Calls(), check.DeepEquals, [][]string{s.expectedCmd("u1")})
 }
 
 type ensureUserSuite struct {

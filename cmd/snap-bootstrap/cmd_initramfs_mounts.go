@@ -20,21 +20,17 @@
 package main
 
 import (
-	"bufio"
-	"bytes"
 	"fmt"
 	"io"
-	"io/ioutil"
 	"os"
 	"path/filepath"
-	"strings"
 
 	"github.com/snapcore/snapd/boot"
+	"github.com/snapcore/snapd/bootloader"
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/seed"
 	"github.com/snapcore/snapd/snap"
-	"github.com/snapcore/snapd/strutil"
 	"github.com/snapcore/snapd/timings"
 )
 
@@ -58,9 +54,6 @@ func (c *cmdInitramfsMounts) Execute(args []string) error {
 }
 
 var (
-	// the kernel commandline - can be overridden in tests
-	procCmdline = "/proc/cmdline"
-
 	// Stdout - can be overridden in tests
 	stdout io.Writer = os.Stdout
 )
@@ -150,7 +143,7 @@ func generateMountsModeInstall(recoverySystem string) error {
 		return err
 	}
 	if !isMounted {
-		// XXX: is there a better way?
+		// TODO:UC20: is there a better way?
 		fmt.Fprintf(stdout, "--type=tmpfs tmpfs /run/mnt/ubuntu-data\n")
 		return nil
 	}
@@ -190,7 +183,8 @@ func generateMountsModeRun() error {
 		}
 	}
 
-	// XXX possibly will need to unseal key, and unlock LUKS here before proceeding to mount data
+	// TODO:UC20: possibly will need to unseal key, and unlock LUKS here before
+	//            proceeding to mount data
 
 	// 1.2 mount Data, and exit, as it needs to be mounted for us to do step 2
 	isDataMounted, err := osutilIsMounted(dataDir)
@@ -206,65 +200,106 @@ func generateMountsModeRun() error {
 	if err != nil {
 		return err
 	}
-	// 2.2 mount base & kernel
+
+	// 2.2.1 check if base is mounted
 	isBaseMounted, err := osutilIsMounted(filepath.Join(runMnt, "base"))
 	if err != nil {
 		return err
 	}
 	if !isBaseMounted {
-		base := filepath.Join(dataDir, "system-data", dirs.SnapBlobDir, modeEnv.Base)
-		fmt.Fprintf(stdout, "%s %s\n", base, filepath.Join(runMnt, "base"))
+		// 2.2.2 use modeenv base_status and try_base to see  if we are trying
+		// an update to the base snap
+		base := modeEnv.Base
+		if base == "" {
+			// we have no fallback base!
+			return fmt.Errorf("modeenv corrupt: missing base setting")
+		}
+		if modeEnv.BaseStatus == "try" {
+			// then we are trying a base snap update and there should be a
+			// try_base set in the modeenv too
+			if modeEnv.TryBase != "" {
+				// check that the TryBase exists in ubuntu-data
+				tryBaseSnapPath := filepath.Join(dataDir, "system-data", dirs.SnapBlobDir, modeEnv.TryBase)
+				if osutil.FileExists(tryBaseSnapPath) {
+					// set the TryBase and have the initramfs mount this base
+					// snap
+					modeEnv.BaseStatus = "trying"
+					base = modeEnv.TryBase
+				}
+				// TODO:UC20: log a message somewhere if try base snap does not
+				//            exist?
+			}
+			// TODO:UC20: log a message if try_base is unset here?
+		} else if modeEnv.BaseStatus == "trying" {
+			// snapd failed to start with the base snap update, so we need to
+			// fallback to the old base snap and clear base_status
+			modeEnv.BaseStatus = ""
+		}
+
+		baseSnapPath := filepath.Join(dataDir, "system-data", dirs.SnapBlobDir, base)
+		fmt.Fprintf(stdout, "%s %s\n", baseSnapPath, filepath.Join(runMnt, "base"))
 	}
+
+	// 2.3.1 check if the kernel is mounted
 	isKernelMounted, err := osutilIsMounted(filepath.Join(runMnt, "kernel"))
 	if err != nil {
 		return err
 	}
 	if !isKernelMounted {
-		// XXX: do we need to cross-check the booted/running kernel vs the snap?
-		kernel := filepath.Join(dataDir, "system-data", dirs.SnapBlobDir, modeEnv.Kernel)
-		fmt.Fprintf(stdout, "%s %s\n", kernel, filepath.Join(runMnt, "kernel"))
-	}
-	// 3.1 There is no step 3 =)
-	return nil
-}
+		// find ubuntu-boot bootloader to get the kernel_status and kernel.efi
+		// status so we can determine the right kernel snap to have mounted
 
-var validModes = []string{"install", "recover", "run"}
+		// TODO:UC20: should all this logic move to boot package? feels awfully
+		// similar to the logic in revisions() for bootState20
 
-func whichModeAndRecoverSystem(cmdline []byte) (mode string, sysLabel string, err error) {
-	scanner := bufio.NewScanner(bytes.NewBuffer(cmdline))
-	scanner.Split(bufio.ScanWords)
-	for scanner.Scan() {
-		if strings.HasPrefix(scanner.Text(), "snapd_recovery_mode=") {
-			mode = strings.SplitN(scanner.Text(), "=", 2)[1]
-			if mode == "" {
-				mode = "install"
-			}
-			if !strutil.ListContains(validModes, mode) {
-				return "", "", fmt.Errorf("cannot use unknown mode %q", mode)
-			}
-			if mode == "run" {
-				return "run", "", nil
-			}
+		// At this point the run mode bootloader is under the native
+		// layout, no /boot mount.
+		opts := &bootloader.Options{NoSlashBoot: true}
+		bl, err := bootloader.Find(bootDir, opts)
+		if err != nil {
+			return fmt.Errorf("internal error: cannot find run system bootloader: %v", err)
 		}
-		if strings.HasPrefix(scanner.Text(), "snapd_recovery_system=") {
-			sysLabel = strings.SplitN(scanner.Text(), "=", 2)[1]
+
+		// make sure it supports extracted run kernel images, as we have to find the
+		// extracted run kernel image
+		ebl, ok := bl.(bootloader.ExtractedRunKernelImageBootloader)
+		if !ok {
+			return fmt.Errorf("cannot use %s bootloader: does not support extracted run kernel images", bl.Name())
 		}
-		if mode != "" && sysLabel != "" {
-			return mode, sysLabel, nil
+
+		// get the primary extracted run kernel
+		kernel, err := ebl.Kernel()
+		if err != nil {
+			// we don't have a fallback kernel!
+			return fmt.Errorf("no fallback kernel snap: %v", err)
 		}
+
+		// get kernel_status
+		m, err := ebl.GetBootVars("kernel_status")
+		if err != nil {
+			return fmt.Errorf("cannot get kernel_status from bootloader %s", ebl.Name())
+		}
+
+		if m["kernel_status"] == "trying" {
+			// check for the try kernel
+			tryKernel, tryKernelExists, err := ebl.TryKernel()
+			// TODO:UC20: can we log somewhere if err != nil here?
+			if tryKernelExists && err == nil {
+				kernel = tryKernel
+			}
+			// if we didn't have a try kernel, but we do have kernel_status ==
+			// trying we just fallback to using the normal kernel
+		}
+
+		kernelPath := filepath.Join(dataDir, "system-data", dirs.SnapBlobDir, filepath.Base(kernel.MountFile()))
+		fmt.Fprintf(stdout, "%s %s\n", kernelPath, filepath.Join(runMnt, "kernel"))
 	}
-	if err := scanner.Err(); err != nil {
-		return "", "", err
-	}
-	return "", "", fmt.Errorf("cannot detect mode nor recovery system to use")
+	// 3.1 Write the modeenv out again
+	return modeEnv.Write(filepath.Join(dataDir, "system-data"))
 }
 
 func generateInitramfsMounts() error {
-	cmdline, err := ioutil.ReadFile(procCmdline)
-	if err != nil {
-		return err
-	}
-	mode, recoverySystem, err := whichModeAndRecoverSystem(cmdline)
+	mode, recoverySystem, err := boot.ModeAndRecoverySystemFromKernelCommandLine()
 	if err != nil {
 		return err
 	}

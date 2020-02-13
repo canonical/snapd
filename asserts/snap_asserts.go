@@ -171,6 +171,9 @@ func snapDeclarationFormatAnalyze(headers map[string]interface{}, body []byte) (
 		if rule.feature(deviceScopeConstraintsFeature) {
 			setFormatNum(3)
 		}
+		if rule.feature(nameConstraintsFeature) {
+			setFormatNum(4)
+		}
 	})
 	if err != nil {
 		return 0, err
@@ -186,6 +189,9 @@ func snapDeclarationFormatAnalyze(headers map[string]interface{}, body []byte) (
 		}
 		if rule.feature(deviceScopeConstraintsFeature) {
 			setFormatNum(3)
+		}
+		if rule.feature(nameConstraintsFeature) {
+			setFormatNum(4)
 		}
 	})
 	if err != nil {

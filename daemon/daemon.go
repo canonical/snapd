@@ -89,10 +89,9 @@ type Command struct {
 	Path       string
 	PathPrefix string
 	//
-	GET    ResponseFunc
-	PUT    ResponseFunc
-	POST   ResponseFunc
-	DELETE ResponseFunc
+	GET  ResponseFunc
+	PUT  ResponseFunc
+	POST ResponseFunc
 	// can guest GET?
 	GuestOK bool
 	// can non-admin GET?
@@ -123,7 +122,7 @@ var polkitCheckAuthorization = polkit.CheckAuthorization
 //
 // - if the user is `root` everything is allowed
 // - if a user is logged in (via `snap login`) and the command doesn't have RootOnly, everything is allowed
-// - POST/PUT/DELETE all require `root`, or just `snap login` if not RootOnly
+// - POST/PUT all require `root`, or just `snap login` if not RootOnly
 //
 // Otherwise for GET requests the following parameters are honored:
 // - GuestOK: anyone can access GET
@@ -252,8 +251,6 @@ func (c *Command) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		rspf = c.PUT
 	case "POST":
 		rspf = c.POST
-	case "DELETE":
-		rspf = c.DELETE
 	}
 
 	if rspf != nil {

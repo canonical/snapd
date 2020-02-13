@@ -413,8 +413,18 @@ func (s *grubTestSuite) TestGrubExtractedRunKernelImageEnableKernel(c *C) {
 	// ensure that the symlink was put where we expect it
 	asset, err := os.Readlink(filepath.Join(s.grubDir(), "kernel.efi"))
 	c.Assert(err, IsNil)
-
 	c.Assert(asset, DeepEquals, filepath.Join("pc-kernel_1.snap", "kernel.efi"))
+
+	// create a new kernel snap and ensure that we can safely enable that one
+	// too
+	kernel2 := s.makeKernelAssetSnap(c, "pc-kernel_2.snap")
+	err = eg.EnableKernel(kernel2)
+	c.Assert(err, IsNil)
+
+	// ensure that the symlink was put where we expect it
+	asset, err = os.Readlink(filepath.Join(s.grubDir(), "kernel.efi"))
+	c.Assert(err, IsNil)
+	c.Assert(asset, DeepEquals, filepath.Join("pc-kernel_2.snap", "kernel.efi"))
 }
 
 func (s *grubTestSuite) TestGrubExtractedRunKernelImageEnableTryKernel(c *C) {

@@ -92,7 +92,7 @@
 %endif
 
 Name:           snapd
-Version:        2.43.1
+Version:        2.43.3
 Release:        0%{?dist}
 Summary:        A transactional software package manager
 License:        GPLv3
@@ -540,6 +540,7 @@ install -d -p %{buildroot}%{_systemd_system_env_generator_dir}
 install -d -p %{buildroot}%{_unitdir}
 install -d -p %{buildroot}%{_sysconfdir}/profile.d
 install -d -p %{buildroot}%{_sysconfdir}/sysconfig
+install -d -p %{buildroot}%{_sysconfdir}/sudoers.d
 install -d -p %{buildroot}%{_sharedstatedir}/snapd/assertions
 install -d -p %{buildroot}%{_sharedstatedir}/snapd/cookie
 install -d -p %{buildroot}%{_sharedstatedir}/snapd/desktop/applications
@@ -724,6 +725,7 @@ popd
 %{_libexecdir}/snapd/etelpmoc.sh
 %{_libexecdir}/snapd/snapd.run-from-snap
 %{_sysconfdir}/profile.d/snapd.sh
+%{_sysconfdir}/sudoers.d/99-snapd.conf
 %{_mandir}/man8/snapd-env-generator.8*
 %{_systemd_system_env_generator_dir}/snapd-env-generator
 %{_unitdir}/snapd.socket
@@ -874,6 +876,26 @@ fi
 
 
 %changelog
+* Wed Feb 12 2020 Michael Vogt <mvo@ubuntu.com>
+- New upstream release 2.43.3
+ - interfaces/opengl: allow datagrams to nvidia-driver
+ - httputil: add NoNetwork(err) helper, spread test and use
+   in serial acquire
+ - interfaces: add uio interface
+ - interfaces/greengrass-support: 'aws-iot-greengrass' snap fails to
+   start due to apparmor deny on mounting of "/proc/latency_stats".
+ - data, packaging: Add sudoers snippet to allow snaps to be run with
+   sudo
+
+* Tue Jan 28 2020 Michael Vogt <mvo@ubuntu.com>
+- New upstream release 2.43.2
+ - cmd/snap-confine: Revert #7421 (unmount /writable from snap view)
+ - overlord/snapstate: fix for re-refresh bug
+ - tests, run-checks, many: fix nakedret issues
+ - data/selinux: workaround incorrect fonts cache labeling on RHEL7
+ - tests: use test-snapd-upower instead of upower
+ - overlord: increase overall settle timeout for slow arm boards
+
 * Tue Jan 14 2020 Michael Vogt <mvo@ubuntu.com>
 - New upstream release 2.43.1
  - devicestate: use httputil.ShouldRetryError() in prepareSerialRequest
