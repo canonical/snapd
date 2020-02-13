@@ -44,6 +44,7 @@ import (
 	"github.com/snapcore/snapd/overlord/patch"
 	"github.com/snapcore/snapd/overlord/snapstate"
 	"github.com/snapcore/snapd/overlord/state"
+	"github.com/snapcore/snapd/release"
 	"github.com/snapcore/snapd/snap"
 	"github.com/snapcore/snapd/store"
 	"github.com/snapcore/snapd/testutil"
@@ -616,6 +617,126 @@ func (ovs *overlordSuite) TestEnsureLoopPruneRunsMultipleTimes(c *C) {
 	// cleanup loop ticker
 	err := o.Stop()
 	c.Assert(err, IsNil)
+}
+
+func (ovs *overlordSuite) TestEnsureLoopPruneDoesntAbort(c *C) {
+	restoreIntv := overlord.MockPruneInterval(100*time.Millisecond, 1000*time.Millisecond, 1*time.Hour)
+	defer restoreIntv()
+
+	o, err := overlord.New(nil)
+	c.Assert(err, IsNil)
+
+	st := o.State()
+	st.Lock()
+
+	// spawn time one month ago
+	spawnTime := time.Now().AddDate(0, -1, 0)
+
+	// start of operation time is 1h ago
+	opTime := time.Now().AddDate(0, 0, -1)
+	st.Set("start-of-operation-time", opTime)
+
+	restoreTimeNow := state.MockTime(spawnTime)
+	defer restoreTimeNow()
+
+	t1 := st.NewTask("bar", "...")
+	chg1 := st.NewChange("other-change", "...")
+	chg1.AddTask(t1)
+	// default is Do, but make it explicit
+	t1.SetStatus(state.DoStatus)
+
+	// sanity
+	c.Check(st.Changes(), HasLen, 1)
+	st.Unlock()
+
+	// start the loop that runs the prune ticker
+	o.Loop()
+	time.Sleep(1000 * time.Millisecond)
+	c.Assert(o.Stop(), IsNil)
+
+	st.Lock()
+	defer st.Unlock()
+	c.Check(st.Changes(), HasLen, 1)
+}
+
+func (ovs *overlordSuite) TestEnsureLoopAbortOld(c *C) {
+	restoreIntv := overlord.MockPruneInterval(100*time.Millisecond, 1000*time.Millisecond, 1*time.Hour)
+	defer restoreIntv()
+
+	o, err := overlord.New(nil)
+	c.Assert(err, IsNil)
+
+	st := o.State()
+	st.Lock()
+
+	// start of operation time is a year ago
+	opTime := time.Now().AddDate(-1, 0, 0)
+	st.Set("start-of-operation-time", opTime)
+
+	// spawn time one month ago
+	spawnTime := time.Now().AddDate(0, -1, 0)
+	restoreTimeNow := state.MockTime(spawnTime)
+	defer restoreTimeNow()
+
+	t1 := st.NewTask("bar", "...")
+	chg1 := st.NewChange("other-change", "...")
+	chg1.AddTask(t1)
+	// default is Do, but make it explicit
+	t1.SetStatus(state.DoStatus)
+
+	// sanity
+	c.Check(st.Changes(), HasLen, 1)
+	st.Unlock()
+
+	// start the loop that runs the prune ticker
+	o.Loop()
+	time.Sleep(1000 * time.Millisecond)
+	c.Assert(o.Stop(), IsNil)
+
+	st.Lock()
+	defer st.Unlock()
+	c.Check(st.Changes(), HasLen, 0)
+}
+
+func (ovs *overlordSuite) TestEnsureLoopNoPruneWhenPreseed(c *C) {
+	restoreIntv := overlord.MockPruneInterval(100*time.Millisecond, 1000*time.Millisecond, 1*time.Hour)
+	defer restoreIntv()
+
+	restore := release.MockPreseedMode(func() bool { return true })
+	defer restore()
+
+	o, err := overlord.New(nil)
+	c.Assert(err, IsNil)
+
+	st := o.State()
+	st.Lock()
+
+	// start of operation time is a year ago
+	opTime := time.Now().AddDate(-1, 0, 0)
+	st.Set("start-of-operation-time", opTime)
+
+	// spawn time one month ago
+	spawnTime := time.Now().AddDate(0, -1, 0)
+	restoreTimeNow := state.MockTime(spawnTime)
+	defer restoreTimeNow()
+
+	t1 := st.NewTask("bar", "...")
+	chg1 := st.NewChange("change", "...")
+	chg1.AddTask(t1)
+	t1.SetStatus(state.DoneStatus)
+
+	// sanity
+	c.Check(st.Changes(), HasLen, 1)
+	st.Unlock()
+
+	// start the loop that runs the prune ticker
+	o.Loop()
+	time.Sleep(1000 * time.Millisecond)
+	c.Assert(o.Stop(), IsNil)
+
+	st.Lock()
+	defer st.Unlock()
+	c.Check(st.Changes(), HasLen, 1)
 }
 
 func (ovs *overlordSuite) TestCheckpoint(c *C) {

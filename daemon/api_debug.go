@@ -321,7 +321,11 @@ func postDebug(c *Command, r *http.Request, user *auth.UserState) Response {
 	case "connectivity":
 		return checkConnectivity(st)
 	case "prune":
-		st.Prune(0, 0, 0)
+		opTime, err := c.d.overlord.DeviceManager().StartOfOperationTime()
+		if err != nil {
+			return BadRequest("cannot get start of operation time: %s", err)
+		}
+		st.Prune(opTime, 0, 0, 0)
 		return SyncResponse(true, nil)
 	default:
 		return BadRequest("unknown debug action: %v", a.Action)

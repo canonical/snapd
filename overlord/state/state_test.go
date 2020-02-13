@@ -707,7 +707,7 @@ func (ss *stateSuite) TestMethodEntrance(c *C) {
 		func() { st.Tasks() },
 		func() { st.Task("foo") },
 		func() { st.MarshalJSON() },
-		func() { st.Prune(time.Hour, time.Hour, 100) },
+		func() { st.Prune(time.Now(), time.Hour, time.Hour, 100) },
 		func() { st.TaskCount() },
 		func() { st.AllWarnings() },
 		func() { st.PendingWarnings() },
@@ -773,7 +773,8 @@ func (ss *stateSuite) TestPrune(c *C) {
 	st.AddWarning("hello", now, never, time.Nanosecond, state.DefaultRepeatAfter)
 	st.Warnf("hello again")
 
-	st.Prune(pruneWait, abortWait, 100)
+	past := time.Now().AddDate(-1, 0, 0)
+	st.Prune(past, pruneWait, abortWait, 100)
 
 	c.Assert(st.Change(chg1.ID()), Equals, chg1)
 	c.Assert(st.Change(chg2.ID()), IsNil)
@@ -814,7 +815,8 @@ func (ss *stateSuite) TestPruneEmptyChange(c *C) {
 	chg := st.NewChange("abort", "...")
 	state.MockChangeTimes(chg, now.Add(-pruneWait), time.Time{})
 
-	st.Prune(pruneWait, abortWait, 100)
+	past := time.Now().AddDate(-1, 0, 0)
+	st.Prune(past, pruneWait, abortWait, 100)
 	c.Assert(st.Change(chg.ID()), IsNil)
 }
 
@@ -849,13 +851,14 @@ func (ss *stateSuite) TestPruneMaxChangesHappy(c *C) {
 
 	// test that nothing is done when we are within pruneWait and
 	// maxReadyChanges
+	past := time.Now().AddDate(-1, 0, 0)
 	maxReadyChanges := 100
-	st.Prune(pruneWait, abortWait, maxReadyChanges)
+	st.Prune(past, pruneWait, abortWait, maxReadyChanges)
 	c.Assert(st.Changes(), HasLen, 15)
 
 	// but with maxReadyChanges we remove the ready ones
 	maxReadyChanges = 5
-	st.Prune(pruneWait, abortWait, maxReadyChanges)
+	st.Prune(past, pruneWait, abortWait, maxReadyChanges)
 	c.Assert(st.Changes(), HasLen, 10)
 	remaining := map[string]bool{}
 	for _, chg := range st.Changes() {
@@ -891,8 +894,9 @@ func (ss *stateSuite) TestPruneMaxChangesSomeNotReady(c *C) {
 	c.Assert(st.Changes(), HasLen, 10)
 
 	// nothing can be pruned
+	past := time.Now().AddDate(-1, 0, 0)
 	maxChanges := 5
-	st.Prune(1*time.Hour, 3*time.Hour, maxChanges)
+	st.Prune(past, 1*time.Hour, 3*time.Hour, maxChanges)
 	c.Assert(st.Changes(), HasLen, 10)
 }
 
@@ -921,8 +925,38 @@ func (ss *stateSuite) TestPruneMaxChangesHonored(c *C) {
 	//
 	// this test we do not purge the freshly ready change
 	maxChanges := 10
-	st.Prune(1*time.Hour, 3*time.Hour, maxChanges)
+	past := time.Now().AddDate(-1, 0, 0)
+	st.Prune(past, 1*time.Hour, 3*time.Hour, maxChanges)
 	c.Assert(st.Changes(), HasLen, 11)
+}
+
+func (ss *stateSuite) TestPruneHonorsStartOperationTime(c *C) {
+	st := state.New(&fakeStateBackend{})
+	st.Lock()
+	defer st.Unlock()
+
+	now := time.Now()
+
+	spawnTime := 10 * 24 * time.Hour
+	pruneWait := 1 * time.Hour
+	abortWait := 3 * time.Hour
+
+	chg := st.NewChange("change", "...")
+	t := st.NewTask("foo", "")
+	chg.AddTask(t)
+	state.MockChangeTimes(chg, now.Add(-spawnTime), time.Time{})
+
+	// start operation time is 10h ago, change not aborted
+	past := time.Now().AddDate(0, 0, -10)
+	st.Prune(past, pruneWait, abortWait, 100)
+	c.Assert(st.Changes(), HasLen, 1)
+	c.Check(chg.Status(), Equals, state.DoStatus)
+
+	// start operation time is 1 month ago, change is aborted
+	past = time.Now().AddDate(0, -1, 0)
+	st.Prune(past, pruneWait, abortWait, 100)
+	c.Assert(st.Changes(), HasLen, 1)
+	c.Check(chg.Status(), Equals, state.HoldStatus)
 }
 
 func (ss *stateSuite) TestRequestRestart(c *C) {
