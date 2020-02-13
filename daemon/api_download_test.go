@@ -111,6 +111,17 @@ var storeSnaps = map[string]*snap.Info{
 			Sha3_384:        "sha3sha3sha3",
 		},
 	},
+	"foo-resume-3": {
+		SideInfo: snap.SideInfo{
+			RealName: "foo-resume-3",
+			Revision: snap.R(1),
+		},
+		DownloadInfo: snap.DownloadInfo{
+			Size:            int64(len(snapContent)),
+			AnonDownloadURL: "http://localhost/foo-resume-3",
+			Sha3_384:        "sha3sha3sha3",
+		},
+	},
 }
 
 func (s *snapDownloadSuite) SnapAction(ctx context.Context, currentSnaps []*store.CurrentSnap, actions []*store.SnapAction, user *auth.UserState, opts *store.RefreshOptions) ([]store.SnapActionResult, error) {
@@ -137,6 +148,9 @@ func (s *snapDownloadSuite) SnapAction(ctx context.Context, currentSnaps []*stor
 func (s *snapDownloadSuite) DownloadStream(ctx context.Context, name string, downloadInfo *snap.DownloadInfo, resume int64, user *auth.UserState) (io.ReadCloser, int, error) {
 	if name == "download-error-trigger-snap" {
 		return nil, 0, fmt.Errorf("error triggered by download-error-trigger-snap")
+	}
+	if name == "foo-resume-3" && resume != 3 {
+		return nil, 0, fmt.Errorf("foo-resume-3 should set resume position to 3 instead of %v", resume)
 	}
 	if _, ok := storeSnaps[name]; ok {
 		status := 200
@@ -193,6 +207,8 @@ func (s *snapDownloadSuite) TestStreamOneSnap(c *check.C) {
 		snapName string
 		dataJSON string
 		status   int
+		resume   int
+		noBody   bool
 		err      string
 	}
 
@@ -227,9 +243,64 @@ func (s *snapDownloadSuite) TestStreamOneSnap(c *check.C) {
 			status:   200,
 			err:      "",
 		},
+		// happy resume
+		{
+			snapName: "foo-resume-3",
+			dataJSON: `{"snap-name": "foo-resume-3", "resume-stamp": "sha3sha3sha3"}`,
+			status:   206,
+			resume:   3,
+			err:      "",
+		},
+		// unhappy resume
+		{
+			snapName: "foo-resume-3",
+			dataJSON: `{"snap-name": "foo-resume-3", "resume-stamp": "different-hash"}`,
+			status:   400,
+			resume:   3,
+			err:      "snap to download has different hash",
+		},
+		{
+			snapName: "foo-resume-3",
+			dataJSON: `{"snap-name": "foo-resume-3", "resume-stamp": ""}`,
+			status:   400,
+			resume:   3,
+			err:      "cannot resume without a stamp",
+		},
+		{
+			snapName: "foo-resume-3",
+			dataJSON: `{"snap-name": "foo-resume-3", "resume-stamp": "sha3sha3sha3"}`,
+			status:   500,
+			resume:   -10,
+			// negative values are ignored and resume is set to 0
+			err: "foo-resume-3 should set resume position to 3 instead of 0",
+		},
+		{
+			snapName: "foo-resume-3",
+			dataJSON: `{"snap-name": "foo-resume-3", "no-body": true}`,
+			status:   400,
+			resume:   3,
+			err:      "cannot request no body when resuming",
+		},
+		{
+			snapName: "foo-resume-3",
+			dataJSON: `{"snap-name": "foo-resume-3", "no-body": true, "resume-stamp": "something"}`,
+			status:   400,
+			err:      "cannot request no body when resuming",
+		},
+		{
+			snapName: "foo-resume-3",
+			dataJSON: `{"snap-name": "foo-resume-3", "no-body": true, "resume-stamp": "something"}`,
+			resume:   3,
+			status:   400,
+			err:      "cannot request no body when resuming",
+		},
 	} {
 		req, err := http.NewRequest("POST", "/v2/download", strings.NewReader(s.dataJSON))
 		c.Assert(err, check.IsNil)
+		if s.resume != 0 {
+			req.Header.Add("Range", fmt.Sprintf("bytes=%d-", s.resume))
+		}
+
 		rsp := daemon.SnapDownloadCmd.POST(daemon.SnapDownloadCmd, req, nil)
 
 		if s.err != "" {
@@ -244,7 +315,7 @@ func (s *snapDownloadSuite) TestStreamOneSnap(c *check.C) {
 			w := httptest.NewRecorder()
 			rsp.(daemon.FileStream).ServeHTTP(w, nil)
 
-			expectedLength := fmt.Sprintf("%d", len(snapContent))
+			expectedLength := fmt.Sprintf("%d", len(snapContent)-s.resume)
 
 			info := storeSnaps[s.snapName]
 			c.Assert(w.Code, check.Equals, s.status)
@@ -252,7 +323,7 @@ func (s *snapDownloadSuite) TestStreamOneSnap(c *check.C) {
 			c.Assert(w.Header().Get("Content-Type"), check.Equals, "application/octet-stream")
 			c.Assert(w.Header().Get("Content-Disposition"), check.Equals, fmt.Sprintf("attachment; filename=%s_%s.snap", s.snapName, info.Revision))
 			c.Assert(w.Header().Get("Snap-Sha3-384"), check.Equals, "sha3sha3sha3", check.Commentf("invalid sha3 for %v", s.snapName))
-			c.Assert(w.Body.String(), check.Equals, "SNAP")
+			c.Assert(w.Body.Bytes(), check.DeepEquals, []byte("SNAP")[s.resume:])
 		}
 	}
 }

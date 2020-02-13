@@ -55,7 +55,6 @@ var (
 	errDownloadNameRequired  = errors.New("download operation requires one snap name")
 	errDownloadNoBodyResume  = errors.New("cannot request no body when resuming")
 	errDownloadResumeNoStamp = errors.New("cannot resume without a stamp")
-	errDownloadBadResume     = errors.New("resume position cannot be negative")
 )
 
 func (action *snapDownloadAction) validate() error {
@@ -67,9 +66,6 @@ func (action *snapDownloadAction) validate() error {
 	}
 	if action.resumePosition > 0 && action.ResumeStamp == "" {
 		return errDownloadResumeNoStamp
-	}
-	if action.resumePosition < 0 {
-		return errDownloadBadResume
 	}
 	return action.snapRevisionOptions.validate()
 }
@@ -94,7 +90,6 @@ func postSnapDownload(c *Command, r *http.Request, user *auth.UserState) Respons
 			}
 		}
 	}
-
 	if err := action.validate(); err != nil {
 		return BadRequest(err.Error())
 	}
