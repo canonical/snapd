@@ -1136,3 +1136,48 @@ func (s *deviceMgrSuite) TestDeviceManagerEmptyOperatingModeRun(c *C) {
 	// empty is returned as "run"
 	c.Check(s.mgr.OperatingMode(), Equals, "run")
 }
+
+func (s *deviceMgrSuite) TestOperationalTimeFromSeedTime(c *C) {
+	st := s.state
+	st.Lock()
+	defer st.Unlock()
+
+	seedTime := time.Now().AddDate(0, -1, 0)
+	st.Set("seed-time", seedTime)
+
+	operationalTime, err := s.mgr.OperationalTime()
+	c.Assert(err, IsNil)
+	c.Check(operationalTime, Equals, seedTime)
+
+	var op time.Time
+	st.Get("operational-time", &op)
+	c.Check(op, Equals, operationalTime)
+}
+
+func (s *deviceMgrSuite) TestOperationalTimeAlreadySet(c *C) {
+	st := s.state
+	st.Lock()
+	defer st.Unlock()
+
+	op := time.Now().AddDate(0, -1, 0)
+	st.Set("operational-time", op)
+
+	operationalTime, err := s.mgr.OperationalTime()
+	c.Assert(err, IsNil)
+	c.Check(operationalTime, Equals, op)
+}
+
+func (s *deviceMgrSuite) TestOperationalTimeNoSeedTime(c *C) {
+	st := s.state
+	st.Lock()
+	defer st.Unlock()
+
+	now := time.Now()
+	devicestate.MockTimeNow(func() time.Time {
+		return now
+	})
+
+	operationalTime, err := s.mgr.OperationalTime()
+	c.Assert(err, IsNil)
+	c.Check(operationalTime, Equals, now)
+}
