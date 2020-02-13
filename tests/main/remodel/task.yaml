@@ -1,7 +1,7 @@
 summary: |
    Test remodel
 
-systems: [ubuntu-core-16-64]
+systems: [ubuntu-core-1*-64]
 
 prepare: |
     if [ "$TRUST_TEST_KEYS" = "false" ]; then
@@ -10,14 +10,25 @@ prepare: |
     fi
     #shellcheck source=tests/lib/systemd.sh
     . "$TESTSLIB"/systemd.sh
+    #shellcheck source=tests/lib/systems.sh
+    . "$TESTSLIB"/systems.sh
+
     systemctl stop snapd.service snapd.socket
     rm -rf /var/lib/snapd/assertions/*
     rm -rf /var/lib/snapd/device
     rm -rf /var/lib/snapd/state.json
     mv /var/lib/snapd/seed/assertions/model model.bak
     cp "$TESTSLIB"/assertions/developer1.account /var/lib/snapd/seed/assertions
-    cp "$TESTSLIB"/assertions/developer1.account-key /var/lib/snapd/seed/assertions
-    cp "$TESTSLIB"/assertions/developer1-pc.model /var/lib/snapd/seed/assertions
+    cp "$TESTSLIB"/assertions/developer1.account-key /var/lib/snapd/seed/assertions    
+    if is_core18_system; then
+        cp "$TESTSLIB"/assertions/developer1-pc-18.model /var/lib/snapd/seed/assertions/developer1-pc.model
+        cp "$TESTSLIB"/assertions/developer1-pc-18-revno2.model developer1-pc-revno2.model
+        cp "$TESTSLIB"/assertions/developer1-pc-18-revno3.model developer1-pc-revno3.model
+    else
+        cp "$TESTSLIB"/assertions/developer1-pc.model /var/lib/snapd/seed/assertions
+        cp "$TESTSLIB"/assertions/developer1-pc-revno2.model .
+        cp "$TESTSLIB"/assertions/developer1-pc-revno3.model .
+    fi
     cp "$TESTSLIB"/assertions/testrootorg-store.account-key /var/lib/snapd/seed/assertions
     # kick first boot again
     systemctl start snapd.service snapd.socket
@@ -27,6 +38,7 @@ restore: |
         echo "This test needs test keys to be trusted"
         exit
     fi
+
     #shellcheck source=tests/lib/systemd.sh
     . "$TESTSLIB"/systemd.sh
     systemctl stop snapd.service snapd.socket
@@ -45,6 +57,14 @@ restore: |
     systemctl start snapd.service snapd.socket
     # wait for first boot to be done
     while ! snap changes | grep -q "Done.*Initialize system state"; do sleep 1; done
+    # extra paranoia because failure to cleanup earlier took us a long time
+    # to find
+    if [ -e /var/snap/test-snapd-tools/current ]; then
+        echo "Leftover test-snapd-tools data dir found, test does not "
+        echo "properly cleanup"
+        echo "see https://github.com/snapcore/snapd/pull/6620"
+        exit 1
+    fi
 
 execute: |
     if [ "$TRUST_TEST_KEYS" = "false" ]; then
@@ -52,8 +72,12 @@ execute: |
         exit
     fi
 
+    #shellcheck source=tests/lib/systems.sh
+    . "$TESTSLIB"/systems.sh
+    SNAP="$(get_snap_for_system test-snapd-tools)"
+
     # sanity check
-    ! snap list test-snapd-tools
+    not snap list "$SNAP"
     
     echo "Wait for first boot to be done"
     while ! snap changes | grep -q "Done.*Initialize system state"; do sleep 1; done
@@ -61,22 +85,30 @@ execute: |
     snap debug model|MATCH "model: my-model"
 
     echo "Now we remodel"
-    snap remodel "$TESTSLIB"/assertions/developer1-pc-revno2.model
+    snap remodel developer1-pc-revno2.model
 
     echo "and we got the new required snap"
-    snap list test-snapd-tools
+    snap list "$SNAP"
 
-    # FIXME: check that this is the active model assertion
     echo "and we got the new model assertion"
     snap debug model|MATCH "revision: 2"
+    snap changes | MATCH "Refresh model assertion from revision 0 to 2"
 
-    # FIXME: this fails (meaning, the remove does not fail)
-    # echo "We can't remove a required snap"
-    # ! snap remove test-snapd-tools
+    echo "and we cannot remove the new required snap"
+    not snap remove --purge "$SNAP"
 
-    # when the above no longer fails, this will fail, so you'll have to
-    # re-remodel to be able to remove the snap (or clean up manually in restore
-    # -- but better to check here for the expected required -> non-required
-    # behaviour):
-    echo "Remove the ex-required snap"
-    snap remove test-snapd-tools
+    echo "And we can remodel again this time test-snapd-tools is no longer required"
+    snap remodel developer1-pc-revno3.model
+    snap debug model|MATCH "revision: 3"
+    snap changes | MATCH "Refresh model assertion from revision 2 to 3"
+    echo "and $SNAP is still available"
+    snap list "$SNAP"
+    echo "and we can clean it up here because it is no longer required"
+    snap remove --purge "$SNAP"
+
+    echo "and test that the remodel shows up in 'snap changes'"
+
+    echo "and check that this remodel has just a single task"
+    snap change --last=remodel > remodel.txt
+    MATCH "Set new model assertion" < remodel.txt
+    [ "$(grep -c today remodel.txt)" -eq 1 ]

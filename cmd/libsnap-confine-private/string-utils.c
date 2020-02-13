@@ -56,6 +56,22 @@ bool sc_endswith(const char *str, const char *suffix)
 	return strncmp(str - xlen + slen, suffix, xlen) == 0;
 }
 
+bool sc_startswith(const char *str, const char *prefix)
+{
+	if (!str || !prefix) {
+		return false;
+	}
+
+	size_t xlen = strlen(prefix);
+	size_t slen = strlen(str);
+
+	if (slen < xlen) {
+		return false;
+	}
+
+	return strncmp(str, prefix, xlen) == 0;
+}
+
 char *sc_strdup(const char *str)
 {
 	size_t len;

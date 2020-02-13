@@ -39,8 +39,8 @@ const pppConnectedPlugAppArmor = `
 /dev/ppp rw,
 /dev/tty[^0-9]* rw,
 /run/lock/*tty[^0-9]* rw,
-/run/ppp* rw,
-/var/run/ppp* rw,
+/run/ppp* rwk,
+/var/run/ppp* rwk,
 /var/log/ppp* rw,
 /bin/run-parts ix,
 @{PROC}/@{pid}/loginuid r,
@@ -70,6 +70,5 @@ func init() {
 		connectedPlugAppArmor:    pppConnectedPlugAppArmor,
 		connectedPlugKModModules: pppConnectedPlugKmod,
 		connectedPlugUDev:        pppConnectedPlugUDev,
-		reservedForOS:            true,
 	})
 }

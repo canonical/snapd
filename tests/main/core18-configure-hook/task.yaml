@@ -30,3 +30,8 @@ execute: |
     fi
 
     test -e /var/snap/test-snapd-with-configure-core18/common/configure-ran
+
+restore: |
+    if snap list test-snapd-with-configure-core18; then
+        snap remove --purge test-snapd-with-configure-core18
+    fi

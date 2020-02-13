@@ -53,6 +53,27 @@ static void test_sc_endswith(void)
 	g_assert_false(sc_endswith("ba", "bar"));
 }
 
+static void test_sc_startswith(void)
+{
+	// NULL doesn't start with anything, nothing starts with NULL
+	g_assert_false(sc_startswith("", NULL));
+	g_assert_false(sc_startswith(NULL, ""));
+	g_assert_false(sc_startswith(NULL, NULL));
+	// Empty string starts with an empty string
+	g_assert_true(sc_startswith("", ""));
+	// Starts-with (matches)
+	g_assert_true(sc_startswith("foobar", "foo"));
+	g_assert_true(sc_startswith("foobar", "fo"));
+	g_assert_true(sc_startswith("foobar", "f"));
+	g_assert_true(sc_startswith("foobar", ""));
+	g_assert_true(sc_startswith("bar", "bar"));
+	// Starts-with (non-matches)
+	g_assert_false(sc_startswith("foobar", "quux"));
+	g_assert_false(sc_startswith("", "bar"));
+	g_assert_false(sc_startswith("b", "bar"));
+	g_assert_false(sc_startswith("ba", "bar"));
+}
+
 static void test_sc_must_snprintf(void)
 {
 	char buf[5] = { 0 };
@@ -794,6 +815,7 @@ static void __attribute__((constructor)) init(void)
 {
 	g_test_add_func("/string-utils/sc_streq", test_sc_streq);
 	g_test_add_func("/string-utils/sc_endswith", test_sc_endswith);
+	g_test_add_func("/string-utils/sc_startswith", test_sc_startswith);
 	g_test_add_func("/string-utils/sc_must_snprintf",
 			test_sc_must_snprintf);
 	g_test_add_func("/string-utils/sc_must_snprintf/fail",

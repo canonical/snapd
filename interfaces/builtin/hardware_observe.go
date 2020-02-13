@@ -96,6 +96,44 @@ network netlink raw,
 @{PROC}/device-tree/{,**} r,
 /sys/kernel/debug/usb/devices r,
 @{PROC}/sys/abi/{,*} r,
+
+# status of hugepages and transparent_hugepage, but not the pages themselves
+/sys/kernel/mm/{hugepages,transparent_hugepage}/{,**} r,
+
+# systemd-detect-virt
+/{,usr/}bin/systemd-detect-virt ixr,
+# VMs
+@{PROC}/cpuinfo r,
+@{PROC}/sysinfo r,  # Linux on z/VM
+@{PROC}/xen/capabilities r,
+/sys/hypervisor/properties/features r,
+/sys/hypervisor/type r,
+
+# containers
+/run/systemd/container r,
+
+# /proc/1/sched in a systemd-nspawn container with '-a' is supposed to show on
+# its first line a pid that != 1 and systemd-detect-virt tries to detect this.
+# This doesn't seem to be the case on (at least) systemd 240 on Ubuntu. This
+# file is somewhat sensitive for arbitrary pids, but is not overly so for pid
+# 1. For containers, systemd won't normally look at this file since it has
+# access to /run/systemd/container and 'container' from the environment, and
+# systemd fails gracefully when it doesn't have access to /proc/1/sched. For
+# VMs, systemd requires access to /proc/1/sched in its detection algorithm.
+# See src/basic/virt.c from systemd sources for details.
+@{PROC}/1/sched r,
+
+# systemd-detect-virt --private-users will look at these and the access is
+# better added to system-observe. Since snaps typically only care about
+# --container and --vm leave these commented out.
+#@{PROC}/@{pid}/uid_map r,
+#@{PROC}/@{pid}/gid_map r,
+#@{PROC}/@{pid}/setgroups r,
+
+# systemd-detect-virt --chroot requires 'ptrace (read)' on unconfined to
+# determine if it is running in a chroot. Like above, this is best granted via
+# system-observe.
+#ptrace (read) peer=unconfined,
 `
 
 const hardwareObserveConnectedPlugSecComp = `
@@ -123,6 +161,5 @@ func init() {
 		baseDeclarationSlots:  hardwareObserveBaseDeclarationSlots,
 		connectedPlugAppArmor: hardwareObserveConnectedPlugAppArmor,
 		connectedPlugSecComp:  hardwareObserveConnectedPlugSecComp,
-		reservedForOS:         true,
 	})
 }

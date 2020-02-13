@@ -28,7 +28,7 @@ prepare: |
     #shellcheck source=tests/lib/snaps.sh
     . "$TESTSLIB"/snaps.sh
     install_local test-snapd-desktop
-    install_local test-snapd-tools
+    install_local test-snapd-sh
     rm -f /usr/share/dbus-1/services/fake-document-portal.service
     mkdir -p "$XDG_RUNTIME_DIR"
     rm -rf "${XDG_RUNTIME_DIR:?}/*" "${XDG_RUNTIME_DIR:?}/.[!.]*"
@@ -41,10 +41,21 @@ restore: |
     rm -rf "${XDG_RUNTIME_DIR:?}/*" "${XDG_RUNTIME_DIR:?}/.[!.]*"
 
 execute: |
+    #shellcheck source=tests/lib/systems.sh
+    . "$TESTSLIB"/systems.sh
+
+    check_stderr() {
+        test -n "$1"
+        if is_cgroupv2; then
+            [ "$(cat "$1")" = "WARNING: cgroup v2 is not fully supported yet, proceeding with partial confinement" ]
+        else
+            [ "$(wc -c < "$1")" -eq 0 ]
+        fi
+    }
     echo "No output on stderr when running without a session bus"
     user_data="$HOME/snap/test-snapd-desktop/current"
     test-snapd-desktop.check-dirs "$user_data" 2>stderr.log
-    [ "$(wc -c < stderr.log)" -eq 0 ]
+    check_stderr stderr.log
 
     echo "Starting session bus"
     eval "$(dbus-launch --sh-syntax)"
@@ -52,7 +63,7 @@ execute: |
 
     echo "No output on stderr when running with a session bus, when xdg-document-portal is not present."
     test-snapd-desktop.check-dirs "$user_data" 2>stderr.log
-    [ "$(wc -c < stderr.log)" -eq 0 ]
+    check_stderr stderr.log
 
     echo "The absence of the document portal service was recorded"
     [ -f "$XDG_RUNTIME_DIR/.portals-unavailable" ]
@@ -68,7 +79,7 @@ execute: |
 
     echo "No attempt is made to activate the document portal due to the previous failure"
     test-snapd-desktop.check-dirs "$user_data"
-    ! MATCH "GetMountPoint called" < doc-portal.log
+    not MATCH "GetMountPoint called" < doc-portal.log
 
     echo "Remove the .portals-unavailable file to force a recheck"
     rm "$XDG_RUNTIME_DIR/.portals-unavailable"
@@ -76,7 +87,7 @@ execute: |
     echo "No output on stderr when running with a session bus and xdg-document-portal is present".
     test-snapd-desktop.check-dirs "$user_data" 2>stderr.log
     MATCH "GetMountPoint called" < doc-portal.log
-    [ "$(wc -c < stderr.log)" -eq 0 ]
+    check_stderr stderr.log
 
     echo "Putting fake document portal into failure mode"
     echo "error" > report-error.txt
@@ -89,6 +100,6 @@ execute: |
 
     echo "Snaps not using the desktop interface will not try to contact the document portal"
     : > doc-portal.log
-    test-snapd-tools.success 2>stderr.log
-    [ "$(wc -c < stderr.log)" -eq 0 ]
+    test-snapd-sh.sh -c 'true' 2>stderr.log
+    check_stderr stderr.log
     [ "$(wc -c < doc-portal.log)" -eq 0 ]

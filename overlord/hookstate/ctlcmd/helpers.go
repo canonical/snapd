@@ -36,6 +36,15 @@ import (
 	"github.com/snapcore/snapd/snap"
 )
 
+var finalTasks map[string]bool
+
+func init() {
+	finalTasks = make(map[string]bool, len(snapstate.FinalTasks))
+	for _, kind := range snapstate.FinalTasks {
+		finalTasks[kind] = true
+	}
+}
+
 func getServiceInfos(st *state.State, snapName string, serviceNames []string) ([]*snap.AppInfo, error) {
 	st.Lock()
 	defer st.Unlock()
@@ -103,7 +112,14 @@ func queueCommand(context *hookstate.Context, tts []*state.TaskSet) error {
 	}
 
 	for _, ts := range tts {
-		ts.WaitAll(state.NewTaskSet(tasks...))
+		for _, t := range tasks {
+			// queue service command after all tasks, except for final tasks which must come after service commands
+			if finalTasks[t.Kind()] {
+				t.WaitAll(ts)
+			} else {
+				ts.WaitFor(t)
+			}
+		}
 		change.AddAll(ts)
 	}
 	// As this can be run from what was originally the last task of a change,
@@ -115,6 +131,7 @@ func queueCommand(context *hookstate.Context, tts []*state.TaskSet) error {
 
 func runServiceCommand(context *hookstate.Context, inst *servicestate.Instruction, serviceNames []string) error {
 	if context == nil {
+		// this message is reused in health.go
 		return fmt.Errorf(i18n.G("cannot %s without a context"), inst.Action)
 	}
 

@@ -23,12 +23,14 @@ import (
 	"fmt"
 	"strings"
 
+	"github.com/jessevdk/go-flags"
+	"golang.org/x/xerrors"
+
 	"github.com/snapcore/snapd/asserts"
+	"github.com/snapcore/snapd/client"
 	"github.com/snapcore/snapd/i18n"
 	"github.com/snapcore/snapd/overlord/auth"
 	"github.com/snapcore/snapd/store"
-
-	"github.com/jessevdk/go-flags"
 )
 
 type cmdKnown struct {
@@ -40,6 +42,7 @@ type cmdKnown struct {
 	} `positional-args:"true" required:"true"`
 
 	Remote bool `long:"remote"`
+	Direct bool `long:"direct"`
 }
 
 var shortKnownHelp = i18n.G("Show known assertions of the provided type")
@@ -52,7 +55,12 @@ shown must also have the specified headers matching the provided values.
 func init() {
 	addCommand("known", shortKnownHelp, longKnownHelp, func() flags.Commander {
 		return &cmdKnown{}
-	}, nil, []argDesc{
+	}, map[string]string{
+		// TRANSLATORS: This should not start with a lowercase letter.
+		"remote": i18n.G("Query the store for the assertion, via snapd if possible"),
+		// TRANSLATORS: This should not start with a lowercase letter.
+		"direct": i18n.G("Query the store for the assertion, without attempting to go via snapd"),
+	}, []argDesc{
 		{
 			// TRANSLATORS: This needs to begin with < and end with >
 			name: i18n.G("<assertion type>"),
@@ -73,7 +81,7 @@ func downloadAssertion(typeName string, headers map[string]string) ([]asserts.As
 	var user *auth.UserState
 
 	// FIXME: set auth context
-	var authContext auth.AuthContext
+	var storeCtx store.DeviceAndAuthContext
 
 	at := asserts.Type(typeName)
 	if at == nil {
@@ -84,7 +92,7 @@ func downloadAssertion(typeName string, headers map[string]string) ([]asserts.As
 		return nil, fmt.Errorf("cannot query remote assertion: %v", err)
 	}
 
-	sto := storeNew(nil, authContext)
+	sto := storeNew(nil, storeCtx)
 	as, err := sto.Assertion(at, primaryKeys, user)
 	if err != nil {
 		return nil, err
@@ -110,10 +118,21 @@ func (x *cmdKnown) Execute(args []string) error {
 
 	var assertions []asserts.Assertion
 	var err error
-	if x.Remote {
+	switch {
+	case x.Remote && !x.Direct:
+		// --remote will query snapd
+		assertions, err = x.client.Known(string(x.KnownOptions.AssertTypeName), headers, &client.KnownOptions{Remote: true})
+		// if snapd is unavailable automatically fallback
+		var connErr client.ConnectionError
+		if xerrors.As(err, &connErr) {
+			assertions, err = downloadAssertion(string(x.KnownOptions.AssertTypeName), headers)
+		}
+	case x.Direct:
+		// --direct implies remote
 		assertions, err = downloadAssertion(string(x.KnownOptions.AssertTypeName), headers)
-	} else {
-		assertions, err = x.client.Known(string(x.KnownOptions.AssertTypeName), headers)
+	default:
+		// default is to look only local
+		assertions, err = x.client.Known(string(x.KnownOptions.AssertTypeName), headers, nil)
 	}
 	if err != nil {
 		return err

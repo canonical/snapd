@@ -69,6 +69,8 @@ execute: |
     . "$TESTSLIB"/boot.sh
     #shellcheck source=tests/lib/journalctl.sh
     . "$TESTSLIB"/journalctl.sh
+    #shellcheck source=tests/lib/snaps.sh
+    . "$TESTSLIB"/snaps.sh
 
     if [ "$TARGET_SNAP" = kernel ]; then
         TARGET_SNAP_NAME=$kernel_name
@@ -87,7 +89,7 @@ execute: |
         eval "${INJECT_FAILURE}"
 
         # repack new target snap
-        snap pack "$BUILD_DIR/unpack" && mv ${TARGET_SNAP_NAME}_*.snap failing.snap
+        mksnap_fast "$BUILD_DIR/unpack" failing.snap
 
         # use journalctl wrapper to grep only the logs collected while the test is running
         if get_journalctl_log | MATCH "Waiting for system reboot"; then
@@ -96,12 +98,21 @@ execute: |
         fi
 
         # install new target snap
-        snap install --dangerous failing.snap
+        snap install --no-wait --dangerous failing.snap
 
         # use journalctl wrapper to grep only the logs collected while the test is running
-        while ! check_journalctl_log "Waiting for system reboot"; do
-            sleep 1
+        # waiting up to 100s to reach waiting for reboot
+        for _ in $(seq 50); do
+            if check_journalctl_log "Waiting for system reboot"; then
+                 break
+            fi
+            sleep 2
         done
+
+        if ! check_journalctl_log "Waiting for system reboot"; then
+            echo "Taking too long to reach waiting for reboot"
+            exit 1
+        fi
 
         # check boot env vars
         readlink /snap/core/current > failBoot

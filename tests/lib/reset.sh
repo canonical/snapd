@@ -7,7 +7,6 @@ set -e -x
 # shellcheck source=tests/lib/state.sh
 . "$TESTSLIB/state.sh"
 
-
 # shellcheck source=tests/lib/systemd.sh
 . "$TESTSLIB/systemd.sh"
 
@@ -18,23 +17,11 @@ reset_classic() {
     # Reload all service units as in some situations the unit might
     # have changed on the disk.
     systemctl daemon-reload
-
-    echo "Ensure the service is active before stopping it"
-    retries=20
-    systemctl status snapd.service snapd.socket || true
-    while systemctl status snapd.service snapd.socket | grep "Active: activating"; do
-        if [ $retries -eq 0 ]; then
-            echo "snapd service or socket not active"
-            exit 1
-        fi
-        retries=$(( retries - 1 ))
-        sleep 1
-    done
-
     systemd_stop_units snapd.service snapd.socket
 
     case "$SPREAD_SYSTEM" in
         ubuntu-*|debian-*)
+            sh -x "${SPREAD_PATH}/debian/snapd.prerm" remove
             sh -x "${SPREAD_PATH}/debian/snapd.postrm" purge
             ;;
         fedora-*|opensuse-*|arch-*|amazon-*|centos-*)
@@ -52,6 +39,9 @@ reset_classic() {
             exit 1
             ;;
     esac
+    # purge has removed units, reload the state now
+    systemctl daemon-reload
+
     # extra purge
     rm -rvf /var/snap "${SNAP_MOUNT_DIR:?}/bin"
     mkdir -p "$SNAP_MOUNT_DIR" /var/snap /var/lib/snapd
@@ -69,6 +59,12 @@ reset_classic() {
             restorecon -F -v -R "$SNAP_MOUNT_DIR" /var/snap /var/lib/snapd
             ;;
     esac
+
+    # systemd retains the failed state of service units, even after they are
+    # removed, we need to reset their 'failed state'
+    systemctl --failed --no-legend --full | awk '/^snap\..*\.service +(error|not-found) +failed/ {print $1}' | while read -r unit; do
+        systemctl reset-failed "$unit" || true
+    done
 
     if [[ "$SPREAD_SYSTEM" == ubuntu-14.04-* ]]; then
         systemctl start snap.mount.service
@@ -108,6 +104,12 @@ reset_classic() {
 
 reset_all_snap() {
     # remove all leftover snaps
+
+    # make sure snapd is running before we attempt to remove snaps, in case a test stopped it
+    if ! systemctl status snapd.service snapd.socket >/dev/null; then
+        systemctl start snapd.service snapd.socket
+    fi
+
     # shellcheck source=tests/lib/names.sh
     . "$TESTSLIB/names.sh"
 
@@ -119,15 +121,23 @@ reset_all_snap() {
             "bin" | "$gadget_name" | "$kernel_name" | "$core_name" | "snapd" |README)
                 ;;
             *)
-                # make sure snapd is running before we attempt to remove snaps, in case a test stopped it
-                if ! systemctl status snapd.service snapd.socket; then
-                    systemctl start snapd.service snapd.socket
-                fi
-                if ! echo "$SKIP_REMOVE_SNAPS" | grep -w "$snap"; then
-                    if snap info "$snap" | grep -E '^type: +(base|core)'; then
-                        remove_bases="$remove_bases $snap"
+                # Check if a snap should be kept, there's a list of those in spread.yaml.
+                keep=0
+                for precious_snap in $SKIP_REMOVE_SNAPS; do
+                    if [ "$snap" = "$precious_snap" ]; then
+                        keep=1
+                        break
+                    fi
+                done
+                if [ "$keep" -eq 0 ]; then
+                    if snap info --verbose "$snap" | grep -E '^type: +(base|core)'; then
+                        if [ -z "$remove_bases" ]; then
+                            remove_bases="$snap"
+                        else
+                            remove_bases="$remove_bases $snap"
+                        fi
                     else
-                        snap remove "$snap"
+                        snap remove --purge "$snap"
                     fi
                 fi
                 ;;
@@ -135,7 +145,15 @@ reset_all_snap() {
     done
     # remove all base/os snaps at the end
     if [ -n "$remove_bases" ]; then
-        snap remove "$remove_bases"
+        for base in $remove_bases; do
+            snap remove --purge "$base"
+            if [ -d "$SNAP_MOUNT_DIR/$base" ]; then
+                echo "Error: removing base $base has unexpected leftover dir $SNAP_MOUNT_DIR/$base"
+                ls -al "$SNAP_MOUNT_DIR"
+                ls -al "$SNAP_MOUNT_DIR/$base"
+                exit 1
+            fi
+        done
     fi
 
     # ensure we have the same state as initially
@@ -154,7 +172,10 @@ reset_all_snap() {
 
 }
 
-if is_core_system; then
+# When the variable REUSE_SNAPD is set to 1, we don't remove and purge snapd.
+# In that case we just cleanup the environment by removing installed snaps as
+# it is done for core systems.
+if is_core_system || [ "$REUSE_SNAPD" = 1 ]; then
     reset_all_snap "$@"
 else
     reset_classic "$@"
@@ -168,7 +189,7 @@ if [ -d /run/snapd/ns ]; then
         umount -l "$mnt" || true
         rm -f "$mnt"
     done
-    find /run/snapd/ns/ \( -name '*.fstab' -o -name '*.user-fstab' \) -delete
+    find /run/snapd/ns/ \( -name '*.fstab' -o -name '*.user-fstab' -o -name '*.info' \) -delete
 fi
 
 if [ "$REMOTE_STORE" = staging ] && [ "$1" = "--store" ]; then

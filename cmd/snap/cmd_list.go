@@ -30,7 +30,6 @@ import (
 
 	"github.com/snapcore/snapd/client"
 	"github.com/snapcore/snapd/i18n"
-	"github.com/snapcore/snapd/strutil"
 )
 
 var shortListHelp = i18n.G("List installed snaps")
@@ -69,38 +68,20 @@ var ErrNoMatchingSnaps = errors.New(i18n.G("no matching snaps installed"))
 
 // snapd will give us  and we want
 // "" (local snap)     "-"
-// risk                risk
-// track               track        (not yet returned by snapd)
-// track/stable        track
+// latest/risk         latest/risk
 // track/risk          track/risk
-// risk/branch         risk/…
 // track/risk/branch   track/risk/…
+// anything else       SISO
 func fmtChannel(ch string) string {
 	if ch == "" {
 		// "" -> "-" (local snap)
 		return "-"
 	}
-	idx := strings.IndexByte(ch, '/')
-	if idx < 0 {
-		// risk -> risk
+	if strings.Count(ch, "/") != 2 {
 		return ch
 	}
-	first, rest := ch[:idx], ch[idx+1:]
-	if rest == "stable" && first != "" {
-		// track/stable -> track
-		return first
-	}
-	if idx2 := strings.IndexByte(rest, '/'); idx2 >= 0 {
-		// track/risk/branch -> track/risk/…
-		return ch[:idx2+idx+2] + "…"
-	}
-	// so it's foo/bar -> either risk/branch, or track/risk.
-	if strutil.ListContains(channelRisks, first) {
-		// risk/branch -> risk/…
-		return first + "/…"
-	}
-	// track/risk -> track/risk
-	return ch
+	idx := strings.LastIndexByte(ch, '/')
+	return ch[:idx+1] + "…"
 }
 
 func (x *cmdList) Execute(args []string) error {

@@ -81,6 +81,12 @@ unix (bind, listen) type=stream addr="@xtables",
 @{PROC}/@{pid}/net/ r,
 @{PROC}/@{pid}/net/** r,
 
+# nft accesses these for routing expressions and device groups
+/etc/iproute2/ r,
+/etc/iproute2/rt_marks r,
+/etc/iproute2/rt_realms r,
+/etc/iproute2/group r,
+
 # sysctl
 /{,usr/}{,s}bin/sysctl ixr,
 @{PROC}/sys/ r,
@@ -170,6 +176,5 @@ func init() {
 		connectedPlugAppArmor:    firewallControlConnectedPlugAppArmor,
 		connectedPlugSecComp:     firewallControlConnectedPlugSecComp,
 		connectedPlugKModModules: firewallControlConnectedPlugKmod,
-		reservedForOS:            true,
 	})
 }

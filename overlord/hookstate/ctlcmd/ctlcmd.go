@@ -79,16 +79,28 @@ type commandInfo struct {
 	shortHelp string
 	longHelp  string
 	generator func() command
+	hidden    bool
 }
 
 var commands = make(map[string]*commandInfo)
 
-func addCommand(name, shortHelp, longHelp string, generator func() command) {
-	commands[name] = &commandInfo{
+func addCommand(name, shortHelp, longHelp string, generator func() command) *commandInfo {
+	cmd := &commandInfo{
 		shortHelp: shortHelp,
 		longHelp:  longHelp,
 		generator: generator,
 	}
+	commands[name] = cmd
+	return cmd
+}
+
+// UnsuccessfulError carries a specific exit code to be returned to the client.
+type UnsuccessfulError struct {
+	ExitCode int
+}
+
+func (e UnsuccessfulError) Error() string {
+	return fmt.Sprintf("unsuccessful with exit code: %d", e.ExitCode)
 }
 
 // ForbiddenCommandError conveys that a command cannot be invoked in some context
@@ -112,7 +124,7 @@ func (f *ForbiddenCommand) Execute(args []string) error {
 
 // Run runs the requested command.
 func Run(context *hookstate.Context, args []string, uid uint32) (stdout, stderr []byte, err error) {
-	parser := flags.NewParser(nil, flags.PassDoubleDash|flags.HelpFlag)
+	parser := flags.NewNamedParser("snapctl", flags.PassDoubleDash|flags.HelpFlag)
 
 	// Create stdout/stderr buffers, and make sure commands use them.
 	var stdoutBuffer bytes.Buffer
@@ -121,7 +133,7 @@ func Run(context *hookstate.Context, args []string, uid uint32) (stdout, stderr 
 		var data interface{}
 		// commands listed here will be allowed for regular users
 		// note: commands still need valid context and snaps can only access own config.
-		if uid == 0 || name == "get" || name == "services" {
+		if uid == 0 || name == "get" || name == "services" || name == "set-health" || name == "is-connected" {
 			cmd := cmdInfo.generator()
 			cmd.setStdout(&stdoutBuffer)
 			cmd.setStderr(&stderrBuffer)
@@ -130,7 +142,8 @@ func Run(context *hookstate.Context, args []string, uid uint32) (stdout, stderr 
 		} else {
 			data = &ForbiddenCommand{Uid: uid, Name: name}
 		}
-		_, err = parser.AddCommand(name, cmdInfo.shortHelp, cmdInfo.longHelp, data)
+		theCmd, err := parser.AddCommand(name, cmdInfo.shortHelp, cmdInfo.longHelp, data)
+		theCmd.Hidden = cmdInfo.hidden
 		if err != nil {
 			logger.Panicf("cannot add command %q: %s", name, err)
 		}

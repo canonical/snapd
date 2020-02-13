@@ -6,7 +6,7 @@ systems: [-ubuntu-core-*, -debian-*]
 
 prepare: |
     echo "Install test snap"
-    snap install test-snapd-tools
+    snap install test-snapd-sh
 
 restore: |
     #shellcheck source=tests/lib/dirs.sh
@@ -21,8 +21,8 @@ execute: |
 
     echo "Simulating broken current symlink for core"
     mv $SNAP_MOUNT_DIR/core/current $SNAP_MOUNT_DIR/core/current.renamed
-    if test-snapd-tools.echo hello 2>snap-confine.stderr; then
-        echo "test-snapd-tools.echo should fail to run, test broken"
+    if test-snapd-sh.sh -c 'echo hello' 2>snap-confine.stderr; then
+        echo "test-snapd-sh.sh should fail to run, test broken"
     fi
     MATCH 'cannot locate base snap core: No such file or directory' < snap-confine.stderr
     mv $SNAP_MOUNT_DIR/core/current.renamed $SNAP_MOUNT_DIR/core/current
@@ -30,24 +30,23 @@ execute: |
     echo "Test nvidia device fix"
     # For https://github.com/snapcore/snapd/pull/4042
     echo "Simulate nvidia device tags"
-    mkdir -p /run/udev/tags/snap_test-snapd-tools_echo
+    mkdir -p /run/udev/tags/snap_test-snapd-sh_sh
     for f in c226:0 +module:nvidia +module:nvidia_modeset; do
-        touch /run/udev/tags/snap_test-snapd-tools_echo/$f
+        touch /run/udev/tags/snap_test-snapd-sh_sh/$f
     done
-    test-snapd-tools.echo hello | MATCH hello
+    test-snapd-sh.sh -c 'echo hello' | MATCH hello
     echo "Non nvidia files are still there"
-    test -f /run/udev/tags/snap_test-snapd-tools_echo/c226:0
+    test -f /run/udev/tags/snap_test-snapd-sh_sh/c226:0
     echo "But nvidia files are gone"
-    ! test -f /run/udev/tags/snap_test-snapd-tools_echo/+module:nvidia
-    ! test -f /run/udev/tags/snap_test-snapd-tools_echo/+module:nvidia_modeset
+    not test -f /run/udev/tags/snap_test-snapd-sh_sh/+module:nvidia
+    not test -f /run/udev/tags/snap_test-snapd-sh_sh/+module:nvidia_modeset
 
     echo "Ensure apparmor profile for snap-confine is parsable"
-    for f in /etc/apparmor.d/usr.lib.snapd.snap-confine*; do
+    while IFS= read -r -d '' file; do
         if command -v apparmor_parser 2>/dev/null; then
-            apparmor_parser -QTK "$f"
+            apparmor_parser -QTK "$file"
         fi
         if command -v aa-enforce 2>/dev/null; then
-            aa-enforce "$f"
+            aa-enforce "$file"
         fi
-    done
-
+    done <   <(find /etc/apparmor.d -maxdepth 1 -name 'usr.lib.snapd.snap-confine*')

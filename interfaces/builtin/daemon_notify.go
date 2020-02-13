@@ -99,6 +99,5 @@ func init() {
 		implicitOnCore:       true,
 		implicitOnClassic:    true,
 		baseDeclarationSlots: daemonNotifyBaseDeclarationSlots,
-		reservedForOS:        true,
 	}})
 }

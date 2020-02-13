@@ -20,12 +20,18 @@
 package devicestate
 
 import (
+	"context"
+	"net/http"
 	"time"
 
 	"github.com/snapcore/snapd/asserts"
+	"github.com/snapcore/snapd/boot"
+	"github.com/snapcore/snapd/gadget"
+	"github.com/snapcore/snapd/httputil"
 	"github.com/snapcore/snapd/overlord/snapstate"
 	"github.com/snapcore/snapd/overlord/state"
-	"github.com/snapcore/snapd/snap"
+	"github.com/snapcore/snapd/overlord/storecontext"
+	"github.com/snapcore/snapd/timings"
 )
 
 func MockKeyLength(n int) (restore func()) {
@@ -80,6 +86,13 @@ func SetLastBecomeOperationalAttempt(m *DeviceManager, t time.Time) {
 	m.lastBecomeOperationalAttempt = t
 }
 
+func SetOperatingMode(m *DeviceManager, mode string) {
+	m.modeEnv.Mode = mode
+}
+func SetRecoverySystem(m *DeviceManager, d string) {
+	m.modeEnv.RecoverySystem = d
+}
+
 func MockRepeatRequestSerial(label string) (restore func()) {
 	old := repeatRequestSerial
 	repeatRequestSerial = label
@@ -88,29 +101,31 @@ func MockRepeatRequestSerial(label string) (restore func()) {
 	}
 }
 
-func MockSnapstateInstall(f func(st *state.State, name, channel string, revision snap.Revision, userID int, flags snapstate.Flags) (*state.TaskSet, error)) (restore func()) {
-	old := snapstateInstall
-	snapstateInstall = f
+func MockSnapstateInstallWithDeviceContext(f func(ctx context.Context, st *state.State, name string, opts *snapstate.RevisionOptions, userID int, flags snapstate.Flags, deviceCtx snapstate.DeviceContext, fromChange string) (*state.TaskSet, error)) (restore func()) {
+	old := snapstateInstallWithDeviceContext
+	snapstateInstallWithDeviceContext = f
 	return func() {
-		snapstateInstall = old
+		snapstateInstallWithDeviceContext = old
 	}
 }
 
-func MockSnapstateUpdate(f func(st *state.State, name, channel string, revision snap.Revision, userID int, flags snapstate.Flags) (*state.TaskSet, error)) (restore func()) {
-	old := snapstateUpdate
-	snapstateUpdate = f
+func MockSnapstateUpdateWithDeviceContext(f func(st *state.State, name string, opts *snapstate.RevisionOptions, userID int, flags snapstate.Flags, deviceCtx snapstate.DeviceContext, fromChange string) (*state.TaskSet, error)) (restore func()) {
+	old := snapstateUpdateWithDeviceContext
+	snapstateUpdateWithDeviceContext = f
 	return func() {
-		snapstateUpdate = old
+		snapstateUpdateWithDeviceContext = old
 	}
 }
 
-func EnsureSeedYaml(m *DeviceManager) error {
-	return m.ensureSeedYaml()
+func EnsureSeeded(m *DeviceManager) error {
+	return m.ensureSeeded()
 }
 
 var PopulateStateFromSeedImpl = populateStateFromSeedImpl
 
-func MockPopulateStateFromSeed(f func(*state.State) ([]*state.TaskSet, error)) (restore func()) {
+type PopulateStateFromSeedOptions = populateStateFromSeedOptions
+
+func MockPopulateStateFromSeed(f func(*state.State, *PopulateStateFromSeedOptions, timings.Measurer) ([]*state.TaskSet, error)) (restore func()) {
 	old := populateStateFromSeed
 	populateStateFromSeed = f
 	return func() {
@@ -126,12 +141,73 @@ func SetBootOkRan(m *DeviceManager, b bool) {
 	m.bootOkRan = b
 }
 
+type (
+	RegistrationContext = registrationContext
+	RemodelContext      = remodelContext
+)
+
+func RegistrationCtx(m *DeviceManager, t *state.Task) (registrationContext, error) {
+	return m.registrationCtx(t)
+}
+
+func RemodelDeviceBackend(remodCtx remodelContext) storecontext.DeviceBackend {
+	return remodCtx.(interface {
+		deviceBackend() storecontext.DeviceBackend
+	}).deviceBackend()
+}
+
 var (
-	ImportAssertionsFromSeed = importAssertionsFromSeed
-	CheckGadgetOrKernel      = checkGadgetOrKernel
-	CanAutoRefresh           = canAutoRefresh
-	NewEnoughProxy           = newEnoughProxy
+	ImportAssertionsFromSeed     = importAssertionsFromSeed
+	CheckGadgetOrKernel          = checkGadgetOrKernel
+	CheckGadgetValid             = checkGadgetValid
+	CheckGadgetRemodelCompatible = checkGadgetRemodelCompatible
+	CanAutoRefresh               = canAutoRefresh
+	NewEnoughProxy               = newEnoughProxy
 
 	IncEnsureOperationalAttempts = incEnsureOperationalAttempts
 	EnsureOperationalAttempts    = ensureOperationalAttempts
+
+	RemodelTasks = remodelTasks
+
+	RemodelCtx        = remodelCtx
+	CleanupRemodelCtx = cleanupRemodelCtx
+	CachedRemodelCtx  = cachedRemodelCtx
+
+	GadgetUpdateBlocked = gadgetUpdateBlocked
+	CurrentGadgetInfo   = currentGadgetInfo
+	PendingGadgetInfo   = pendingGadgetInfo
+
+	CriticalTaskEdges = criticalTaskEdges
 )
+
+func MockGadgetUpdate(mock func(current, update gadget.GadgetData, path string, policy gadget.UpdatePolicyFunc) error) (restore func()) {
+	old := gadgetUpdate
+	gadgetUpdate = mock
+	return func() {
+		gadgetUpdate = old
+	}
+}
+
+func MockGadgetIsCompatible(mock func(current, update *gadget.Info) error) (restore func()) {
+	old := gadgetIsCompatible
+	gadgetIsCompatible = mock
+	return func() {
+		gadgetIsCompatible = old
+	}
+}
+
+func MockBootMakeBootable(f func(model *asserts.Model, rootdir string, bootWith *boot.BootableSet) error) (restore func()) {
+	old := bootMakeBootable
+	bootMakeBootable = f
+	return func() {
+		bootMakeBootable = old
+	}
+}
+
+func MockHttputilNewHTTPClient(f func(opts *httputil.ClientOptions) *http.Client) (restore func()) {
+	old := httputilNewHTTPClient
+	httputilNewHTTPClient = f
+	return func() {
+		httputilNewHTTPClient = old
+	}
+}

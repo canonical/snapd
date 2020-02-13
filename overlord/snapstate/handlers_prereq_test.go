@@ -28,7 +28,9 @@ import (
 	"gopkg.in/tomb.v2"
 
 	"github.com/snapcore/snapd/overlord/snapstate"
+	"github.com/snapcore/snapd/overlord/snapstate/snapstatetest"
 	"github.com/snapcore/snapd/overlord/state"
+	"github.com/snapcore/snapd/release"
 	"github.com/snapcore/snapd/snap"
 	"github.com/snapcore/snapd/store"
 )
@@ -54,12 +56,7 @@ func (s *prereqSuite) SetUpTest(c *C) {
 
 	s.state.Set("seeded", true)
 	s.state.Set("refresh-privacy-key", "privacy-key")
-	snapstate.SetDefaultModel()
-}
-
-func (s *prereqSuite) TearDownTest(c *C) {
-	s.reset()
-	snapstate.Model = nil
+	s.AddCleanup(snapstatetest.MockDeviceModel(DefaultModel()))
 }
 
 func (s *prereqSuite) TestDoPrereqNothingToDo(c *C) {
@@ -93,8 +90,54 @@ func (s *prereqSuite) TestDoPrereqNothingToDo(c *C) {
 	c.Check(t.Status(), Equals, state.DoneStatus)
 }
 
+func (s *prereqSuite) TestDoPrereqWithBaseNone(c *C) {
+	s.state.Lock()
+
+	t := s.state.NewTask("prerequisites", "test")
+	t.Set("snap-setup", &snapstate.SnapSetup{
+		SideInfo: &snap.SideInfo{
+			RealName: "foo",
+			Revision: snap.R(33),
+		},
+		Base:   "none",
+		Prereq: []string{"prereq1"},
+	})
+	chg := s.state.NewChange("dummy", "...")
+	chg.AddTask(t)
+	s.state.Unlock()
+
+	s.se.Ensure()
+	s.se.Wait()
+
+	s.state.Lock()
+	defer s.state.Unlock()
+	c.Check(t.Status(), Equals, state.DoneStatus)
+
+	// check that the do-prereq task added all needed prereqs
+	expectedLinkedSnaps := []string{"prereq1", "snapd"}
+	linkedSnaps := make([]string, 0, len(expectedLinkedSnaps))
+	for _, t := range chg.Tasks() {
+		if t.Kind() == "link-snap" {
+			snapsup, err := snapstate.TaskSnapSetup(t)
+			c.Assert(err, IsNil)
+			linkedSnaps = append(linkedSnaps, snapsup.InstanceName())
+		}
+	}
+	c.Check(linkedSnaps, DeepEquals, expectedLinkedSnaps)
+}
+
 func (s *prereqSuite) TestDoPrereqTalksToStoreAndQueues(c *C) {
 	s.state.Lock()
+
+	snapstate.Set(s.state, "core", &snapstate.SnapState{
+		Active: true,
+		Sequence: []*snap.SideInfo{
+			{RealName: "core", Revision: snap.R(1)},
+		},
+		Current:  snap.R(1),
+		SnapType: "os",
+	})
+
 	t := s.state.NewTask("prerequisites", "test")
 	t.Set("snap-setup", &snapstate.SnapSetup{
 		SideInfo: &snap.SideInfo{
@@ -168,35 +211,41 @@ func (s *prereqSuite) TestDoPrereqTalksToStoreAndQueues(c *C) {
 }
 
 func (s *prereqSuite) TestDoPrereqRetryWhenBaseInFlight(c *C) {
-	restore := snapstate.MockPrerequisitesRetryTimeout(5 * time.Millisecond)
+	restore := snapstate.MockPrerequisitesRetryTimeout(1 * time.Millisecond)
 	defer restore()
+
+	var prereqTask *state.Task
 
 	calls := 0
 	s.runner.AddHandler("link-snap",
 		func(task *state.Task, _ *tomb.Tomb) error {
-			if calls == 0 {
-				// retry again later, this forces ordering of
-				// tasks, so that the prerequisites tasks ends
-				// up waiting for this one
-				calls += 1
+			st := task.State()
+			st.Lock()
+			defer st.Unlock()
+
+			calls += 1
+			if calls == 1 {
+				// retry again later, this forces taskrunner
+				// to pick prequisites task.
 				return &state.Retry{After: 1 * time.Millisecond}
 			}
 
 			// setup everything as if the snap is installed
-			st := task.State()
-			st.Lock()
-			defer st.Unlock()
+
 			snapsup, _ := snapstate.TaskSnapSetup(task)
 			var snapst snapstate.SnapState
 			snapstate.Get(st, snapsup.InstanceName(), &snapst)
 			snapst.Current = snapsup.Revision()
 			snapst.Sequence = append(snapst.Sequence, snapsup.SideInfo)
 			snapstate.Set(st, snapsup.InstanceName(), &snapst)
+
+			// check that prerequisites task is not done yet, it must wait for core.
+			// This check guarantees that prerequisites task found link-snap snap
+			// task in flight, and returned a retry error, resulting in DoingStatus.
+			c.Check(prereqTask.Status(), Equals, state.DoingStatus)
+
 			return nil
-		},
-		func(*state.Task, *tomb.Tomb) error {
-			return nil
-		})
+		}, nil)
 	s.state.Lock()
 	tCore := s.state.NewTask("link-snap", "Pretend core gets installed")
 	tCore.Set("snap-setup", &snapstate.SnapSetup{
@@ -207,15 +256,15 @@ func (s *prereqSuite) TestDoPrereqRetryWhenBaseInFlight(c *C) {
 	})
 
 	// pretend foo gets installed and needs core (which is in progress)
-	t := s.state.NewTask("prerequisites", "foo")
-	t.Set("snap-setup", &snapstate.SnapSetup{
+	prereqTask = s.state.NewTask("prerequisites", "foo")
+	prereqTask.Set("snap-setup", &snapstate.SnapSetup{
 		SideInfo: &snap.SideInfo{
 			RealName: "foo",
 		},
 	})
 
 	chg := s.state.NewChange("dummy", "...")
-	chg.AddTask(t)
+	chg.AddTask(prereqTask)
 	chg.AddTask(tCore)
 
 	// NOTE: tasks are iterated on in undefined order, we have fixed the
@@ -223,34 +272,27 @@ func (s *prereqSuite) TestDoPrereqRetryWhenBaseInFlight(c *C) {
 	// 'prerequisites' task handler observing the state of the world we
 	// want, even if 'link-snap' ran first
 
-	for i := 0; i < 10; i++ {
+	// wait, we will hit prereq-retry-timeout eventually
+	// (this can take a while on very slow machines)
+	for i := 0; i < 500; i++ {
 		time.Sleep(1 * time.Millisecond)
 		s.state.Unlock()
 		s.se.Ensure()
 		s.se.Wait()
 		s.state.Lock()
-		if tCore.Status() == state.DoneStatus {
+		if prereqTask.Status() == state.DoneStatus {
 			break
 		}
 	}
 
-	// check that t is not done yet, it must wait for core
-	c.Check(t.Status(), Equals, state.DoingStatus)
+	// sanity check, exactly two calls to link-snap due to retry error on 1st call
+	c.Check(calls, Equals, 2)
+
 	c.Check(tCore.Status(), Equals, state.DoneStatus)
+	c.Check(prereqTask.Status(), Equals, state.DoneStatus)
 
-	// wait, we will hit prereq-retry-timeout eventually
-	// (this can take a while on very slow machines)
-	for i := 0; i < 50; i++ {
-		time.Sleep(10 * time.Millisecond)
-		s.state.Unlock()
-		s.se.Ensure()
-		s.se.Wait()
-		s.state.Lock()
-		if t.Status() == state.DoneStatus {
-			break
-		}
-	}
-	c.Check(t.Status(), Equals, state.DoneStatus)
+	// sanity
+	c.Check(chg.Status(), Equals, state.DoneStatus)
 }
 
 func (s *prereqSuite) TestDoPrereqChannelEnvvars(c *C) {
@@ -259,6 +301,16 @@ func (s *prereqSuite) TestDoPrereqChannelEnvvars(c *C) {
 	os.Setenv("SNAPD_PREREQS_CHANNEL", "candidate")
 	defer os.Unsetenv("SNAPD_PREREQS_CHANNEL")
 	s.state.Lock()
+
+	snapstate.Set(s.state, "core", &snapstate.SnapState{
+		Active: true,
+		Sequence: []*snap.SideInfo{
+			{RealName: "core", Revision: snap.R(1)},
+		},
+		Current:  snap.R(1),
+		SnapType: "os",
+	})
+
 	t := s.state.NewTask("prerequisites", "test")
 	t.Set("snap-setup", &snapstate.SnapSetup{
 		SideInfo: &snap.SideInfo{
@@ -353,6 +405,8 @@ func (s *prereqSuite) TestDoPrereqNothingToDoForSnapdSnap(c *C) {
 	s.state.Lock()
 	t := s.state.NewTask("prerequisites", "test")
 	t.Set("snap-setup", &snapstate.SnapSetup{
+		// type is normally set from snap info at install time
+		Type: snap.TypeSnapd,
 		SideInfo: &snap.SideInfo{
 			RealName: "snapd",
 			Revision: snap.R(1),
@@ -368,4 +422,212 @@ func (s *prereqSuite) TestDoPrereqNothingToDoForSnapdSnap(c *C) {
 	c.Assert(s.fakeBackend.ops, HasLen, 0)
 	c.Check(t.Status(), Equals, state.DoneStatus)
 	s.state.Unlock()
+}
+
+func (s *prereqSuite) TestDoPrereqCore16wCoreNothingToDo(c *C) {
+	s.state.Lock()
+
+	si1 := &snap.SideInfo{
+		RealName: "core",
+		Revision: snap.R(1),
+	}
+	snapstate.Set(s.state, "core", &snapstate.SnapState{
+		Sequence: []*snap.SideInfo{si1},
+		Current:  si1.Revision,
+	})
+
+	t := s.state.NewTask("prerequisites", "test")
+	t.Set("snap-setup", &snapstate.SnapSetup{
+		SideInfo: &snap.SideInfo{
+			RealName: "foo",
+			Revision: snap.R(33),
+		},
+		Base: "core16",
+	})
+	s.state.NewChange("dummy", "...").AddTask(t)
+	s.state.Unlock()
+
+	s.se.Ensure()
+	s.se.Wait()
+
+	s.state.Lock()
+	defer s.state.Unlock()
+	c.Assert(s.fakeBackend.ops, HasLen, 0)
+	c.Check(t.Status(), Equals, state.DoneStatus)
+}
+
+func (s *prereqSuite) testDoPrereqNoCorePullsInSnaps(c *C, base string) {
+	restore := release.MockOnClassic(true)
+	defer restore()
+
+	s.state.Lock()
+
+	t := s.state.NewTask("prerequisites", "test")
+	t.Set("snap-setup", &snapstate.SnapSetup{
+		SideInfo: &snap.SideInfo{
+			RealName: "foo",
+			Revision: snap.R(33),
+		},
+		Base: base,
+	})
+	s.state.NewChange("dummy", "...").AddTask(t)
+	s.state.Unlock()
+
+	s.se.Ensure()
+	s.se.Wait()
+
+	s.state.Lock()
+	defer s.state.Unlock()
+	c.Assert(s.fakeBackend.ops, DeepEquals, fakeOps{
+		{
+			op: "storesvc-snap-action",
+		},
+		{
+			op: "storesvc-snap-action:action",
+			action: store.SnapAction{
+				Action:       "install",
+				InstanceName: base,
+				Channel:      "stable",
+			},
+			revno: snap.R(11),
+		},
+		{
+			op: "storesvc-snap-action",
+		},
+		{
+			op: "storesvc-snap-action:action",
+			action: store.SnapAction{
+				Action:       "install",
+				InstanceName: "snapd",
+				Channel:      "stable",
+			},
+			revno: snap.R(11),
+		},
+	})
+
+	c.Check(t.Change().Err(), IsNil)
+	c.Check(t.Status(), Equals, state.DoneStatus)
+}
+
+func (s *prereqSuite) TestDoPrereqCore16noCore(c *C) {
+	s.testDoPrereqNoCorePullsInSnaps(c, "core16")
+}
+
+func (s *prereqSuite) TestDoPrereqCore18NoCorePullsInSnapd(c *C) {
+	s.testDoPrereqNoCorePullsInSnaps(c, "core18")
+}
+
+func (s *prereqSuite) TestDoPrereqOtherBaseNoCorePullsInSnapd(c *C) {
+	s.testDoPrereqNoCorePullsInSnaps(c, "some-base")
+}
+
+func (s *prereqSuite) TestDoPrereqBaseIsNotBase(c *C) {
+	s.state.Lock()
+
+	t := s.state.NewTask("prerequisites", "test")
+	t.Set("snap-setup", &snapstate.SnapSetup{
+		SideInfo: &snap.SideInfo{
+			RealName: "foo",
+			Revision: snap.R(33),
+		},
+		Channel: "beta",
+		Base:    "app-snap",
+		Prereq:  []string{"prereq1"},
+	})
+	chg := s.state.NewChange("dummy", "...")
+	chg.AddTask(t)
+	s.state.Unlock()
+
+	s.se.Ensure()
+	s.se.Wait()
+
+	s.state.Lock()
+	defer s.state.Unlock()
+	c.Check(chg.Status(), Equals, state.ErrorStatus)
+	c.Check(chg.Err(), ErrorMatches, `cannot perform the following tasks:\n.*- test \(cannot install snap base "app-snap": unexpected snap type "app", instead of 'base'\)`)
+}
+
+func (s *prereqSuite) TestDoPrereqBaseNoRevision(c *C) {
+	os.Setenv("SNAPD_BASES_CHANNEL", "channel-no-revision")
+	defer os.Unsetenv("SNAPD_BASES_CHANNEL")
+
+	s.state.Lock()
+
+	t := s.state.NewTask("prerequisites", "test")
+	t.Set("snap-setup", &snapstate.SnapSetup{
+		SideInfo: &snap.SideInfo{
+			RealName: "foo",
+			Revision: snap.R(33),
+		},
+		Channel: "beta",
+		Base:    "some-base",
+		Prereq:  []string{"prereq1"},
+	})
+	chg := s.state.NewChange("dummy", "...")
+	chg.AddTask(t)
+	s.state.Unlock()
+
+	s.se.Ensure()
+	s.se.Wait()
+
+	s.state.Lock()
+	defer s.state.Unlock()
+	c.Check(chg.Status(), Equals, state.ErrorStatus)
+	c.Check(chg.Err(), ErrorMatches, `cannot perform the following tasks:\n.*- test \(cannot install snap base "some-base": no snap revision available as specified\)`)
+}
+
+func (s *prereqSuite) TestDoPrereqNoRevision(c *C) {
+	os.Setenv("SNAPD_PREREQS_CHANNEL", "channel-no-revision")
+	defer os.Unsetenv("SNAPD_PREREQS_CHANNEL")
+
+	s.state.Lock()
+
+	t := s.state.NewTask("prerequisites", "test")
+	t.Set("snap-setup", &snapstate.SnapSetup{
+		SideInfo: &snap.SideInfo{
+			RealName: "foo",
+			Revision: snap.R(33),
+		},
+		Channel: "beta",
+		Prereq:  []string{"prereq1"},
+	})
+	chg := s.state.NewChange("dummy", "...")
+	chg.AddTask(t)
+	s.state.Unlock()
+
+	s.se.Ensure()
+	s.se.Wait()
+
+	s.state.Lock()
+	defer s.state.Unlock()
+	c.Check(chg.Status(), Equals, state.ErrorStatus)
+	c.Check(chg.Err(), ErrorMatches, `cannot perform the following tasks:\n.*- test \(cannot install prerequisite "prereq1": no snap revision available as specified\)`)
+}
+
+func (s *prereqSuite) TestDoPrereqSnapdNoRevision(c *C) {
+	os.Setenv("SNAPD_SNAPD_CHANNEL", "channel-no-revision")
+	defer os.Unsetenv("SNAPD_SNAPD_CHANNEL")
+
+	s.state.Lock()
+
+	t := s.state.NewTask("prerequisites", "test")
+	t.Set("snap-setup", &snapstate.SnapSetup{
+		SideInfo: &snap.SideInfo{
+			RealName: "foo",
+			Revision: snap.R(33),
+		},
+		Base:    "core18",
+		Channel: "beta",
+	})
+	chg := s.state.NewChange("dummy", "...")
+	chg.AddTask(t)
+	s.state.Unlock()
+
+	s.se.Ensure()
+	s.se.Wait()
+
+	s.state.Lock()
+	defer s.state.Unlock()
+	c.Check(chg.Status(), Equals, state.ErrorStatus)
+	c.Check(chg.Err(), ErrorMatches, `cannot perform the following tasks:\n.*- test \(cannot install system snap "snapd": no snap revision available as specified\)`)
 }

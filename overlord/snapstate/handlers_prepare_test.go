@@ -27,22 +27,26 @@ import (
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/overlord"
 	"github.com/snapcore/snapd/overlord/snapstate"
+	"github.com/snapcore/snapd/overlord/snapstate/snapstatetest"
 	"github.com/snapcore/snapd/overlord/state"
 	"github.com/snapcore/snapd/snap"
+	"github.com/snapcore/snapd/testutil"
 )
 
 type baseHandlerSuite struct {
+	testutil.BaseTest
+
 	state   *state.State
 	runner  *state.TaskRunner
 	se      *overlord.StateEngine
 	snapmgr *snapstate.SnapManager
 
 	fakeBackend *fakeSnappyBackend
-
-	reset func()
 }
 
 func (s *baseHandlerSuite) setup(c *C, b state.Backend) {
+	s.BaseTest.SetUpTest(c)
+
 	dirs.SetRootDir(c.MkDir())
 
 	s.fakeBackend = &fakeSnappyBackend{}
@@ -56,6 +60,7 @@ func (s *baseHandlerSuite) setup(c *C, b state.Backend) {
 	s.se = overlord.NewStateEngine(s.state)
 	s.se.AddManager(s.snapmgr)
 	s.se.AddManager(s.runner)
+	c.Assert(s.se.StartUp(), IsNil)
 
 	AddForeignTaskHandlers(s.runner, s.fakeBackend)
 
@@ -63,19 +68,15 @@ func (s *baseHandlerSuite) setup(c *C, b state.Backend) {
 
 	reset1 := snapstate.MockSnapReadInfo(s.fakeBackend.ReadInfo)
 	reset2 := snapstate.MockReRefreshRetryTimeout(time.Second / 200)
-	s.reset = func() {
-		dirs.SetRootDir("/")
-		reset1()
-		reset2()
-	}
+
+	s.AddCleanup(func() { dirs.SetRootDir("/") })
+	s.AddCleanup(reset1)
+	s.AddCleanup(reset2)
+	s.AddCleanup(snapstatetest.MockDeviceModel(nil))
 }
 
 func (s *baseHandlerSuite) SetUpTest(c *C) {
 	s.setup(c, nil)
-}
-
-func (s *baseHandlerSuite) TearDownTest(c *C) {
-	s.reset()
 }
 
 type prepareSnapSuite struct {

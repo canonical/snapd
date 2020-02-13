@@ -46,6 +46,7 @@ import (
 	"github.com/snapcore/snapd/arch"
 	"github.com/snapcore/snapd/asserts"
 	"github.com/snapcore/snapd/client"
+	"github.com/snapcore/snapd/cmd/cmdutil"
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/httputil"
 	"github.com/snapcore/snapd/i18n"
@@ -56,6 +57,7 @@ import (
 	"github.com/snapcore/snapd/progress"
 	"github.com/snapcore/snapd/release"
 	"github.com/snapcore/snapd/snap"
+	"github.com/snapcore/snapd/strutil"
 )
 
 // TODO: better/shorter names are probably in order once fewer legacy places are using this
@@ -110,7 +112,7 @@ type Config struct {
 	StoreBaseURL      *url.URL
 	AssertionsBaseURL *url.URL
 
-	// StoreID is the store id used if we can't get one through the AuthContext.
+	// StoreID is the store id used if we can't get one through the DeviceAndAuthContext.
 	StoreID string
 
 	Architecture string
@@ -163,7 +165,8 @@ type Store struct {
 	// reused http client
 	client *http.Client
 
-	authContext auth.AuthContext
+	dauthCtx  DeviceAndAuthContext
+	sessionMu sync.Mutex
 
 	mu                sync.Mutex
 	suggestedCurrency string
@@ -172,7 +175,13 @@ type Store struct {
 	proxy  func(*http.Request) (*url.URL, error)
 }
 
+var ErrTooManyRequests = errors.New("too many requests")
+
 func respToError(resp *http.Response, msg string) error {
+	if resp.StatusCode == 429 {
+		return ErrTooManyRequests
+	}
+
 	tpl := "cannot %s: got unexpected HTTP status code %d via %s to %q"
 	if oops := resp.Header.Get("X-Oops-Id"); oops != "" {
 		tpl += " [%s]"
@@ -322,7 +331,7 @@ type sectionResults struct {
 var defaultSupportedDeltaFormat = "xdelta3"
 
 // New creates a new Store with the given access configuration and for given the store id.
-func New(cfg *Config, authContext auth.AuthContext) *Store {
+func New(cfg *Config, dauthCtx DeviceAndAuthContext) *Store {
 	if cfg == nil {
 		cfg = &defaultConfig
 	}
@@ -339,7 +348,7 @@ func New(cfg *Config, authContext auth.AuthContext) *Store {
 
 	architecture := cfg.Architecture
 	if cfg.Architecture == "" {
-		architecture = arch.UbuntuArchitecture()
+		architecture = arch.DpkgArchitecture()
 	}
 
 	series := cfg.Series
@@ -360,7 +369,7 @@ func New(cfg *Config, authContext auth.AuthContext) *Store {
 		fallbackStoreID: cfg.StoreID,
 		detailFields:    detailFields,
 		infoFields:      infoFields,
-		authContext:     authContext,
+		dauthCtx:        dauthCtx,
 		deltaFormat:     deltaFormat,
 		proxy:           cfg.Proxy,
 
@@ -377,7 +386,7 @@ func New(cfg *Config, authContext auth.AuthContext) *Store {
 
 // API endpoint paths
 const (
-	// see https://wiki.ubuntu.com/AppStore/Interfaces/ClickPackageIndex
+	// see https://dashboard.snapcraft.io/docs/
 	// XXX: Repeating "api/" here is cumbersome, but the next generation
 	// of store APIs will probably drop that prefix (since it now
 	// duplicates the hostname), and we may want to switch to v2 APIs
@@ -392,6 +401,7 @@ const (
 	// v2
 	snapActionEndpPath = "v2/snaps/refresh"
 	snapInfoEndpPath   = "v2/snaps/info"
+	cohortsEndpPath    = "v2/cohorts"
 
 	deviceNonceEndpPath   = "api/v1/snaps/auth/nonces"
 	deviceSessionEndpPath = "api/v1/snaps/auth/sessions"
@@ -409,9 +419,9 @@ func (s *Store) defaultSnapQuery() url.Values {
 
 func (s *Store) baseURL(defaultURL *url.URL) *url.URL {
 	u := defaultURL
-	if s.authContext != nil {
+	if s.dauthCtx != nil {
 		var err error
-		_, u, err = s.authContext.ProxyStoreParams(defaultURL)
+		_, u, err = s.dauthCtx.ProxyStoreParams(defaultURL)
 		if err != nil {
 			logger.Debugf("cannot get proxy store parameters from state: %v", err)
 		}
@@ -467,8 +477,8 @@ func (s *Store) authAvailable(user *auth.UserState) (bool, error) {
 	} else {
 		var device *auth.DeviceState
 		var err error
-		if s.authContext != nil {
-			device, err = s.authContext.Device()
+		if s.dauthCtx != nil {
+			device, err = s.dauthCtx.Device()
 			if err != nil {
 				return false, err
 			}
@@ -532,7 +542,7 @@ func refreshDischarges(httpClient *http.Client, user *auth.UserState) ([]string,
 
 // refreshUser will refresh user discharge macaroon and update state
 func (s *Store) refreshUser(user *auth.UserState) error {
-	if s.authContext == nil {
+	if s.dauthCtx == nil {
 		return fmt.Errorf("user credentials need to be refreshed but update in place only supported in snapd")
 	}
 	newDischarges, err := refreshDischarges(s.client, user)
@@ -540,7 +550,7 @@ func (s *Store) refreshUser(user *auth.UserState) error {
 		return err
 	}
 
-	curUser, err := s.authContext.UpdateUserAuth(user, newDischarges)
+	curUser, err := s.dauthCtx.UpdateUserAuth(user, newDischarges)
 	if err != nil {
 		return err
 	}
@@ -552,8 +562,27 @@ func (s *Store) refreshUser(user *auth.UserState) error {
 
 // refreshDeviceSession will set or refresh the device session in the state
 func (s *Store) refreshDeviceSession(device *auth.DeviceState) error {
-	if s.authContext == nil {
-		return fmt.Errorf("internal error: no authContext")
+	if s.dauthCtx == nil {
+		return fmt.Errorf("internal error: no device and auth context")
+	}
+
+	s.sessionMu.Lock()
+	defer s.sessionMu.Unlock()
+	// check that no other goroutine has already got a new session etc...
+	device1, err := s.dauthCtx.Device()
+	if err != nil {
+		return err
+	}
+	// We can replace device with "device1" here because Device
+	// and UpdateDeviceAuth (and the underlying SetDevice)
+	// require/use the global state lock, so the reading/setting
+	// values have a total order, and device1 cannot come before
+	// device in that order. See also:
+	// https://github.com/snapcore/snapd/pull/6716#discussion_r277025834
+	if *device1 != *device {
+		// nothing to do
+		*device = *device1
+		return nil
 	}
 
 	nonce, err := requestStoreDeviceNonce(s.client, s.endpointURL(deviceNonceEndpPath, nil).String())
@@ -561,7 +590,7 @@ func (s *Store) refreshDeviceSession(device *auth.DeviceState) error {
 		return err
 	}
 
-	devSessReqParams, err := s.authContext.DeviceSessionRequestParams(nonce)
+	devSessReqParams, err := s.dauthCtx.DeviceSessionRequestParams(nonce)
 	if err != nil {
 		return err
 	}
@@ -571,7 +600,7 @@ func (s *Store) refreshDeviceSession(device *auth.DeviceState) error {
 		return err
 	}
 
-	curDevice, err := s.authContext.UpdateDeviceAuth(device, session)
+	curDevice, err := s.dauthCtx.UpdateDeviceAuth(device, session)
 	if err != nil {
 		return err
 	}
@@ -580,17 +609,44 @@ func (s *Store) refreshDeviceSession(device *auth.DeviceState) error {
 	return nil
 }
 
+// EnsureDeviceSession makes sure the store has a device session available.
+// Expects the store to have an AuthContext.
+func (s *Store) EnsureDeviceSession() (*auth.DeviceState, error) {
+	if s.dauthCtx == nil {
+		return nil, fmt.Errorf("internal error: no authContext")
+	}
+
+	device, err := s.dauthCtx.Device()
+	if err != nil {
+		return nil, err
+	}
+
+	if device.SessionMacaroon != "" {
+		return device, nil
+	}
+	if device.Serial == "" {
+		return nil, ErrNoSerial
+	}
+	// we don't have a session yet but have a serial, try
+	// to get a session
+	err = s.refreshDeviceSession(device)
+	if err != nil {
+		return nil, err
+	}
+	return device, err
+}
+
 // authenticateDevice will add the store expected Macaroon X-Device-Authorization header for device
 func authenticateDevice(r *http.Request, device *auth.DeviceState, apiLevel apiLevel) {
-	if device.SessionMacaroon != "" {
+	if device != nil && device.SessionMacaroon != "" {
 		r.Header.Set(hdrSnapDeviceAuthorization[apiLevel], fmt.Sprintf(`Macaroon root="%s"`, device.SessionMacaroon))
 	}
 }
 
 func (s *Store) setStoreID(r *http.Request, apiLevel apiLevel) (customStore bool) {
 	storeID := s.fallbackStoreID
-	if s.authContext != nil {
-		cand, err := s.authContext.StoreID(storeID)
+	if s.dauthCtx != nil {
+		cand, err := s.dauthCtx.StoreID(storeID)
 		if err != nil {
 			logger.Debugf("cannot get store ID from state: %v", err)
 		} else {
@@ -759,7 +815,7 @@ func (s *Store) retryRequestDecodeJSON(ctx context.Context, reqOptions *requestO
 func (s *Store) doRequest(ctx context.Context, client *http.Client, reqOptions *requestOptions, user *auth.UserState) (*http.Response, error) {
 	authRefreshes := 0
 	for {
-		req, err := s.newRequest(reqOptions, user)
+		req, err := s.newRequest(ctx, reqOptions, user)
 		if err != nil {
 			return nil, err
 		}
@@ -820,10 +876,10 @@ func (s *Store) refreshAuth(user *auth.UserState, need authRefreshNeed) error {
 	}
 	if need.device {
 		// refresh device session
-		if s.authContext == nil {
-			return fmt.Errorf("internal error: no authContext")
+		if s.dauthCtx == nil {
+			return fmt.Errorf("internal error: no device and auth context")
 		}
-		device, err := s.authContext.Device()
+		device, err := s.dauthCtx.Device()
 		if err != nil {
 			return err
 		}
@@ -837,7 +893,7 @@ func (s *Store) refreshAuth(user *auth.UserState, need authRefreshNeed) error {
 }
 
 // build a new http.Request with headers for the store
-func (s *Store) newRequest(reqOptions *requestOptions, user *auth.UserState) (*http.Request, error) {
+func (s *Store) newRequest(ctx context.Context, reqOptions *requestOptions, user *auth.UserState) (*http.Request, error) {
 	var body io.Reader
 	if reqOptions.Data != nil {
 		body = bytes.NewBuffer(reqOptions.Data)
@@ -850,24 +906,17 @@ func (s *Store) newRequest(reqOptions *requestOptions, user *auth.UserState) (*h
 
 	customStore := s.setStoreID(req, reqOptions.APILevel)
 
-	if s.authContext != nil && (customStore || reqOptions.DeviceAuthNeed != deviceAuthCustomStoreOnly) {
-		device, err := s.authContext.Device()
-		if err != nil {
+	if s.dauthCtx != nil && (customStore || reqOptions.DeviceAuthNeed != deviceAuthCustomStoreOnly) {
+		device, err := s.EnsureDeviceSession()
+		if err != nil && err != ErrNoSerial {
 			return nil, err
 		}
-		// we don't have a session yet but have a serial, try
-		// to get a session
-		if device.SessionMacaroon == "" && device.Serial != "" {
-			err = s.refreshDeviceSession(device)
-			if err == auth.ErrNoSerial {
-				// missing serial assertion, log and continue without device authentication
-				logger.Debugf("cannot set device session: %v", err)
-			}
-			if err != nil && err != auth.ErrNoSerial {
-				return nil, err
-			}
+		if err == ErrNoSerial {
+			// missing serial assertion, log and continue without device authentication
+			logger.Debugf("cannot set device session: %v", err)
+		} else {
+			authenticateDevice(req, device, reqOptions.APILevel)
 		}
-		authenticateDevice(req, device, reqOptions.APILevel)
 	}
 
 	// only set user authentication if user logged in to the store
@@ -880,6 +929,10 @@ func (s *Store) newRequest(reqOptions *requestOptions, user *auth.UserState) (*h
 	req.Header.Set(hdrSnapDeviceArchitecture[reqOptions.APILevel], s.architecture)
 	req.Header.Set(hdrSnapDeviceSeries[reqOptions.APILevel], s.series)
 	req.Header.Set(hdrSnapClassic[reqOptions.APILevel], strconv.FormatBool(release.OnClassic))
+	req.Header.Set("Snap-Device-Capabilities", "default-tracks")
+	if cua := ClientUserAgent(ctx); cua != "" {
+		req.Header.Set("Snap-Client-User-Agent", cua)
+	}
 	if reqOptions.APILevel == apiV1Endps {
 		req.Header.Set("X-Ubuntu-Wire-Protocol", UbuntuCoreWireProtocol)
 	}
@@ -900,7 +953,7 @@ func (s *Store) cdnHeader() (string, error) {
 		return "none", nil
 	}
 
-	if s.authContext == nil {
+	if s.dauthCtx == nil {
 		return "", nil
 	}
 
@@ -912,7 +965,7 @@ func (s *Store) cdnHeader() (string, error) {
 	// operation fails that way to even get the connection
 	// then we retry without sending this?
 
-	cloudInfo, err := s.authContext.CloudInfo()
+	cloudInfo, err := s.dauthCtx.CloudInfo()
 	if err != nil {
 		return "", err
 	}
@@ -1046,7 +1099,7 @@ type SnapSpec struct {
 }
 
 // SnapInfo returns the snap.Info for the store-hosted snap matching the given spec, or an error.
-func (s *Store) SnapInfo(snapSpec SnapSpec, user *auth.UserState) (*snap.Info, error) {
+func (s *Store) SnapInfo(ctx context.Context, snapSpec SnapSpec, user *auth.UserState) (*snap.Info, error) {
 	query := url.Values{}
 	query.Set("fields", strings.Join(s.infoFields, ","))
 	query.Set("architecture", s.architecture)
@@ -1059,7 +1112,7 @@ func (s *Store) SnapInfo(snapSpec SnapSpec, user *auth.UserState) (*snap.Info, e
 	}
 
 	var remote storeInfo
-	resp, err := s.retryRequestDecodeJSON(context.TODO(), reqOptions, user, &remote, nil)
+	resp, err := s.retryRequestDecodeJSON(ctx, reqOptions, user, &remote, nil)
 	if err != nil {
 		return nil, err
 	}
@@ -1105,7 +1158,7 @@ type Search struct {
 
 // Find finds  (installable) snaps from the store, matching the
 // given Search.
-func (s *Store) Find(search *Search, user *auth.UserState) ([]*snap.Info, error) {
+func (s *Store) Find(ctx context.Context, search *Search, user *auth.UserState) ([]*snap.Info, error) {
 	if search.Private && user == nil {
 		return nil, ErrUnauthenticated
 	}
@@ -1159,7 +1212,7 @@ func (s *Store) Find(search *Search, user *auth.UserState) ([]*snap.Info, error)
 	}
 
 	var searchData searchResults
-	resp, err := s.retryRequestDecodeJSON(context.TODO(), reqOptions, user, &searchData, nil)
+	resp, err := s.retryRequestDecodeJSON(ctx, reqOptions, user, &searchData, nil)
 	if err != nil {
 		return nil, err
 	}
@@ -1262,22 +1315,6 @@ func (s *Store) WriteCatalogs(ctx context.Context, names io.Writer, adder SnapAd
 	return nil
 }
 
-// RefreshCandidate contains information for the store about the currently
-// installed snap so that the store can decide what update we should see
-type RefreshCandidate struct {
-	SnapID   string
-	Revision snap.Revision
-	Block    []snap.Revision
-
-	// the desired channel
-	Channel string
-	// whether validation should be ignored
-	IgnoreValidation bool
-
-	// try to refresh a local snap to a store revision
-	Amend bool
-}
-
 func findRev(needle snap.Revision, haystack []snap.Revision) bool {
 	for _, r := range haystack {
 		if needle == r {
@@ -1298,8 +1335,9 @@ func (e HashError) Error() string {
 }
 
 type DownloadOptions struct {
-	RateLimit     int64
-	IsAutoRefresh bool
+	RateLimit           int64
+	IsAutoRefresh       bool
+	LeavePartialOnError bool
 }
 
 // Download downloads the snap addressed by download info and returns its
@@ -1320,7 +1358,7 @@ func (s *Store) Download(ctx context.Context, name string, targetPath string, do
 		logger.Debugf("Available deltas returned by store: %v", downloadInfo.Deltas)
 
 		if len(downloadInfo.Deltas) == 1 {
-			err := s.downloadAndApplyDelta(name, targetPath, downloadInfo, pbar, user)
+			err := s.downloadAndApplyDelta(name, targetPath, downloadInfo, pbar, user, dlOpts)
 			if err == nil {
 				return nil
 			}
@@ -1339,10 +1377,14 @@ func (s *Store) Download(ctx context.Context, name string, targetPath string, do
 		return err
 	}
 	defer func() {
+		fi, _ := w.Stat()
 		if cerr := w.Close(); cerr != nil && err == nil {
 			err = cerr
 		}
-		if err != nil {
+		if err == nil {
+			return
+		}
+		if dlOpts == nil || !dlOpts.LeavePartialOnError || fi == nil || fi.Size() == 0 {
 			os.Remove(w.Name())
 		}
 	}()
@@ -1419,6 +1461,8 @@ func downloadReqOpts(storeURL *url.URL, cdnHeader string, opts *DownloadOptions)
 		Method:       "GET",
 		URL:          storeURL,
 		ExtraHeaders: map[string]string{},
+		// FIXME: use the new headers? with
+		// APILevel: apiV2Endps,
 	}
 	if cdnHeader != "" {
 		reqOptions.ExtraHeaders["Snap-CDN"] = cdnHeader
@@ -1485,12 +1529,19 @@ func downloadImpl(ctx context.Context, name, sha3_384, downloadURL string, user 
 			return fmt.Errorf("The download has been cancelled: %s", ctx.Err())
 		}
 		if finalErr != nil {
-			if httputil.ShouldRetryError(attempt, finalErr) {
+			if httputil.ShouldRetryAttempt(attempt, finalErr) {
 				continue
 			}
 			break
 		}
-
+		if resume > 0 && resp.StatusCode != 206 {
+			logger.Debugf("server does not support resume")
+			if _, err := w.Seek(0, os.SEEK_SET); err != nil {
+				return err
+			}
+			h = crypto.SHA3_384.New()
+			resume = 0
+		}
 		if httputil.ShouldRetryHttpResponse(attempt, resp) {
 			resp.Body.Close()
 			continue
@@ -1522,7 +1573,7 @@ func downloadImpl(ctx context.Context, name, sha3_384, downloadURL string, user 
 		_, finalErr = io.Copy(mw, limiter)
 		pbar.Finished()
 		if finalErr != nil {
-			if httputil.ShouldRetryError(attempt, finalErr) {
+			if httputil.ShouldRetryAttempt(attempt, finalErr) {
 				// error while downloading should resume
 				var seekerr error
 				resume, seekerr = w.Seek(0, os.SEEK_END)
@@ -1561,8 +1612,63 @@ func downloadImpl(ctx context.Context, name, sha3_384, downloadURL string, user 
 	return finalErr
 }
 
+// DownloadStream will copy the snap from the request to the io.Reader
+func (s *Store) DownloadStream(ctx context.Context, name string, downloadInfo *snap.DownloadInfo, resume int64, user *auth.UserState) (io.ReadCloser, int, error) {
+	if path := s.cacher.GetPath(downloadInfo.Sha3_384); path != "" {
+		logger.Debugf("Cache hit for SHA3_384 …%.5s.", downloadInfo.Sha3_384)
+		file, err := os.OpenFile(path, os.O_RDONLY, 0600)
+		if err != nil {
+			return nil, 0, err
+		}
+		if resume == 0 {
+			return file, 200, nil
+		}
+		_, err = file.Seek(resume, os.SEEK_SET)
+		if err != nil {
+			return nil, 0, err
+		}
+		return file, 206, nil
+	}
+
+	authAvail, err := s.authAvailable(user)
+	if err != nil {
+		return nil, 0, err
+	}
+
+	downloadURL := downloadInfo.AnonDownloadURL
+	if downloadURL == "" || authAvail {
+		downloadURL = downloadInfo.DownloadURL
+	}
+
+	storeURL, err := url.Parse(downloadURL)
+	if err != nil {
+		return nil, 0, err
+	}
+
+	cdnHeader, err := s.cdnHeader()
+	if err != nil {
+		return nil, 0, err
+	}
+
+	resp, err := doDownloadReq(ctx, storeURL, cdnHeader, resume, s, user)
+	if err != nil {
+		return nil, 0, err
+	}
+	return resp.Body, resp.StatusCode, nil
+}
+
+var doDownloadReq = doDownloadReqImpl
+
+func doDownloadReqImpl(ctx context.Context, storeURL *url.URL, cdnHeader string, resume int64, s *Store, user *auth.UserState) (*http.Response, error) {
+	reqOptions := downloadReqOpts(storeURL, cdnHeader, nil)
+	if resume > 0 {
+		reqOptions.ExtraHeaders["Range"] = fmt.Sprintf("bytes=%d-", resume)
+	}
+	return s.doRequest(ctx, httputil.NewHTTPClient(&httputil.ClientOptions{Proxy: s.proxy}), reqOptions, user)
+}
+
 // downloadDelta downloads the delta for the preferred format, returning the path.
-func (s *Store) downloadDelta(deltaName string, downloadInfo *snap.DownloadInfo, w io.ReadWriteSeeker, pbar progress.Meter, user *auth.UserState) error {
+func (s *Store) downloadDelta(deltaName string, downloadInfo *snap.DownloadInfo, w io.ReadWriteSeeker, pbar progress.Meter, user *auth.UserState, dlOpts *DownloadOptions) error {
 
 	if len(downloadInfo.Deltas) != 1 {
 		return errors.New("store returned more than one download delta")
@@ -1584,7 +1690,7 @@ func (s *Store) downloadDelta(deltaName string, downloadInfo *snap.DownloadInfo,
 		url = deltaInfo.DownloadURL
 	}
 
-	return download(context.TODO(), deltaName, deltaInfo.Sha3_384, url, user, s, w, 0, pbar, nil)
+	return download(context.TODO(), deltaName, deltaInfo.Sha3_384, url, user, s, w, 0, pbar, dlOpts)
 }
 
 func getXdelta3Cmd(args ...string) (*exec.Cmd, error) {
@@ -1592,7 +1698,7 @@ func getXdelta3Cmd(args ...string) (*exec.Cmd, error) {
 	case osutil.ExecutableExists("xdelta3"):
 		return exec.Command("xdelta3", args...), nil
 	case osutil.FileExists(filepath.Join(dirs.SnapMountDir, "/core/current/usr/bin/xdelta3")):
-		return osutil.CommandFromCore(dirs.SnapMountDir, "/usr/bin/xdelta3", args...)
+		return cmdutil.CommandFromSystemSnap("/usr/bin/xdelta3", args...)
 	}
 	return nil, fmt.Errorf("cannot find xdelta3 binary in PATH or core snap")
 }
@@ -1649,7 +1755,7 @@ var applyDelta = func(name string, deltaPath string, deltaInfo *snap.DeltaInfo, 
 }
 
 // downloadAndApplyDelta downloads and then applies the delta to the current snap.
-func (s *Store) downloadAndApplyDelta(name, targetPath string, downloadInfo *snap.DownloadInfo, pbar progress.Meter, user *auth.UserState) error {
+func (s *Store) downloadAndApplyDelta(name, targetPath string, downloadInfo *snap.DownloadInfo, pbar progress.Meter, user *auth.UserState, dlOpts *DownloadOptions) error {
 	deltaInfo := &downloadInfo.Deltas[0]
 
 	deltaPath := fmt.Sprintf("%s.%s-%d-to-%d.partial", targetPath, deltaInfo.Format, deltaInfo.FromRevision, deltaInfo.ToRevision)
@@ -1666,7 +1772,7 @@ func (s *Store) downloadAndApplyDelta(name, targetPath string, downloadInfo *sna
 		os.Remove(deltaPath)
 	}()
 
-	err = s.downloadDelta(deltaName, downloadInfo, w, pbar, user)
+	err = s.downloadDelta(deltaName, downloadInfo, w, pbar, user, dlOpts)
 	if err != nil {
 		return err
 	}
@@ -1941,6 +2047,7 @@ type CurrentSnap struct {
 	IgnoreValidation bool
 	Block            []snap.Revision
 	Epoch            snap.Epoch
+	CohortKey        string
 }
 
 type currentSnapV2JSON struct {
@@ -1951,6 +2058,7 @@ type currentSnapV2JSON struct {
 	Epoch            snap.Epoch `json:"epoch"`
 	RefreshedDate    *time.Time `json:"refreshed-date,omitempty"`
 	IgnoreValidation bool       `json:"ignore-validation,omitempty"`
+	CohortKey        string     `json:"cohort-key,omitempty"`
 }
 
 type SnapActionFlags int
@@ -1966,6 +2074,7 @@ type SnapAction struct {
 	SnapID       string
 	Channel      string
 	Revision     snap.Revision
+	CohortKey    string
 	Flags        SnapActionFlags
 	Epoch        snap.Epoch
 }
@@ -1986,6 +2095,7 @@ type snapActionJSON struct {
 	SnapID           string `json:"snap-id,omitempty"`
 	Channel          string `json:"channel,omitempty"`
 	Revision         int    `json:"revision,omitempty"`
+	CohortKey        string `json:"cohort-key,omitempty"`
 	IgnoreValidation *bool  `json:"ignore-validation,omitempty"`
 
 	// NOTE the store needs an epoch (even if null) for the "install" and "download"
@@ -2009,6 +2119,7 @@ type snapActionResult struct {
 	Name             string    `json:"name,omitempty"`
 	Snap             storeSnap `json:"snap"`
 	EffectiveChannel string    `json:"effective-channel,omitempty"`
+	RedirectChannel  string    `json:"redirect-channel,omitempty"`
 	Error            struct {
 		Code    string `json:"code"`
 		Message string `json:"message"`
@@ -2039,7 +2150,7 @@ var snapActionFields = jsonutil.StructFields((*storeSnap)(nil))
 // current installed snaps in currentSnaps. If the request was overall
 // successul (200) but there were reported errors it will return both
 // the snap infos and an SnapActionError.
-func (s *Store) SnapAction(ctx context.Context, currentSnaps []*CurrentSnap, actions []*SnapAction, user *auth.UserState, opts *RefreshOptions) ([]*snap.Info, error) {
+func (s *Store) SnapAction(ctx context.Context, currentSnaps []*CurrentSnap, actions []*SnapAction, user *auth.UserState, opts *RefreshOptions) ([]SnapActionResult, error) {
 	if opts == nil {
 		opts = &RefreshOptions{}
 	}
@@ -2051,7 +2162,7 @@ func (s *Store) SnapAction(ctx context.Context, currentSnaps []*CurrentSnap, act
 
 	authRefreshes := 0
 	for {
-		snaps, err := s.snapAction(ctx, currentSnaps, actions, user, opts)
+		sars, err := s.snapAction(ctx, currentSnaps, actions, user, opts)
 
 		if saErr, ok := err.(*SnapActionError); ok && authRefreshes < 2 && len(saErr.Other) > 0 {
 			// do we need to try to refresh auths?, 2 tries
@@ -2079,7 +2190,7 @@ func (s *Store) SnapAction(ctx context.Context, currentSnaps []*CurrentSnap, act
 			}
 		}
 
-		return snaps, err
+		return sars, err
 	}
 }
 
@@ -2104,7 +2215,14 @@ func genInstanceKey(curSnap *CurrentSnap, salt string) (string, error) {
 	return fmt.Sprintf("%s:%s", curSnap.SnapID, enc), nil
 }
 
-func (s *Store) snapAction(ctx context.Context, currentSnaps []*CurrentSnap, actions []*SnapAction, user *auth.UserState, opts *RefreshOptions) ([]*snap.Info, error) {
+// SnapActionResult encapsulates the non-error result of a single
+// action of the SnapAction call.
+type SnapActionResult struct {
+	*snap.Info
+	RedirectChannel string
+}
+
+func (s *Store) snapAction(ctx context.Context, currentSnaps []*CurrentSnap, actions []*SnapAction, user *auth.UserState, opts *RefreshOptions) ([]SnapActionResult, error) {
 
 	// TODO: the store already requires instance-key but doesn't
 	// yet support repeating in context or sending actions for the
@@ -2144,6 +2262,7 @@ func (s *Store) snapAction(ctx context.Context, currentSnaps []*CurrentSnap, act
 			IgnoreValidation: curSnap.IgnoreValidation,
 			RefreshedDate:    refreshedDate,
 			Epoch:            curSnap.Epoch,
+			CohortKey:        curSnap.CohortKey,
 		}
 	}
 
@@ -2175,6 +2294,7 @@ func (s *Store) snapAction(ctx context.Context, currentSnaps []*CurrentSnap, act
 			SnapID:           a.SnapID,
 			Channel:          a.Channel,
 			Revision:         a.Revision.N,
+			CohortKey:        a.CohortKey,
 			IgnoreValidation: ignoreValidation,
 		}
 		if !a.Revision.Unset() {
@@ -2264,7 +2384,7 @@ func (s *Store) snapAction(ctx context.Context, currentSnaps []*CurrentSnap, act
 	downloadErrors := make(map[string]error)
 	var otherErrors []error
 
-	var snaps []*snap.Info
+	var sars []SnapActionResult
 	for _, res := range results.Results {
 		if res.Result == "error" {
 			if a := installs[res.InstanceKey]; a != nil {
@@ -2329,7 +2449,7 @@ func (s *Store) snapAction(ctx context.Context, currentSnaps []*CurrentSnap, act
 		_, instanceKey := snap.SplitInstanceName(instanceName)
 		snapInfo.InstanceKey = instanceKey
 
-		snaps = append(snaps, snapInfo)
+		sars = append(sars, SnapActionResult{Info: snapInfo, RedirectChannel: res.RedirectChannel})
 	}
 
 	for _, errObj := range results.ErrorList {
@@ -2347,7 +2467,7 @@ func (s *Store) snapAction(ctx context.Context, currentSnaps []*CurrentSnap, act
 		if len(downloadErrors) == 0 {
 			downloadErrors = nil
 		}
-		return snaps, &SnapActionError{
+		return sars, &SnapActionError{
 			NoResults: len(results.Results) == 0,
 			Refresh:   refreshErrors,
 			Install:   installErrors,
@@ -2356,7 +2476,7 @@ func (s *Store) snapAction(ctx context.Context, currentSnaps []*CurrentSnap, act
 		}
 	}
 
-	return snaps, nil
+	return sars, nil
 }
 
 // abbreviated info structs just for the download info
@@ -2452,4 +2572,37 @@ func (s *Store) ConnectivityCheck() (status map[string]bool, err error) {
 	}
 
 	return status, nil
+}
+
+func (s *Store) CreateCohorts(ctx context.Context, snaps []string) (map[string]string, error) {
+	jsonData, err := json.Marshal(map[string][]string{"snaps": snaps})
+	if err != nil {
+		return nil, err
+	}
+
+	u := s.endpointURL(cohortsEndpPath, nil)
+	reqOptions := &requestOptions{
+		Method:   "POST",
+		URL:      u,
+		APILevel: apiV2Endps,
+		Data:     jsonData,
+	}
+
+	var remote struct {
+		CohortKeys map[string]string `json:"cohort-keys"`
+	}
+	resp, err := s.retryRequestDecodeJSON(ctx, reqOptions, nil, &remote, nil)
+	if err != nil {
+		return nil, err
+	}
+	switch resp.StatusCode {
+	case 200:
+		// OK
+	case 404:
+		return nil, ErrSnapNotFound
+	default:
+		return nil, respToError(resp, fmt.Sprintf("create cohorts for %s", strutil.Quoted(snaps)))
+	}
+
+	return remote.CohortKeys, nil
 }

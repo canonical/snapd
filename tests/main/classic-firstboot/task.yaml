@@ -12,6 +12,7 @@ prepare: |
     fi
 
     snap pack "$TESTSLIB/snaps/basic"
+    snap pack "$TESTSLIB/snaps/test-snapd-service"
     snap download "--$CORE_CHANNEL" core
 
     "$TESTSLIB/reset.sh" --keep-stopped
@@ -25,6 +26,9 @@ prepare: |
       - name: basic
         unasserted: true
         file: basic.snap
+      - name: test-snapd-service
+        unasserted: true
+        file: test-snapd-service.snap
     EOF
 
     echo Copy the needed assertions to /var/lib/snapd/
@@ -36,6 +40,7 @@ prepare: |
     echo "Copy the needed snaps to $SEED_DIR/snaps"
     cp ./core_*.snap "$SEED_DIR/snaps/core.snap"
     cp ./basic_1.0_all.snap "$SEED_DIR/snaps/basic.snap"
+    cp ./test-snapd-service_1.0_all.snap "$SEED_DIR/snaps/test-snapd-service.snap"
 
 restore: |
     if [ "$TRUST_TEST_KEYS" = "false" ]; then
@@ -71,10 +76,30 @@ execute: |
     systemctl status snapd.seeded.service
 
     echo "Verifying the imported assertions"
-    if ! snap known model | MATCH "model: my-classic" ; then
+    if ! snap model --verbose | MATCH "model:\s* my-classic" ; then
         echo "Model assertion was not imported on firstboot"
         exit 1
     fi
 
     snap list | MATCH "^basic"
+    snap list | MATCH "^test-snapd-service"
     test -f "$SEED_DIR/snaps/basic.snap"
+    test -f "$SEED_DIR/snaps/test-snapd-service.snap"
+
+    echo "Checking that service restart happened before mark-seeded"
+    # sanity check
+    snap change 1 | MATCH "Mark system seeded"
+    snap change 1 | MATCH "restart of .*test-snapd-service.test-snapd-other-service"
+    snap install jq
+    # extract task ids from state
+    # XXX: snap change output cannot be used for that; ideally we would have some sort of 'snap debug ..' command.
+    MARKSEEDED_WAIT=$(jq -r '.tasks[] | select (.kind == "mark-seeded") | ."wait-tasks"' < /var/lib/snapd/state.json)
+    SERVICECMD_TASK=$(jq -r '.tasks[] | select (.kind == "exec-command") | .id' < /var/lib/snapd/state.json)
+    if test -z "$SERVICECMD_TASK" ; then
+        echo "Could not find exec-command task"
+        exit 1
+    fi
+    if ! echo "$MARKSEEDED_WAIT" | MATCH "$SERVICECMD_TASK" ; then
+        echo "Expected mark-seeded task to wait for exec-command"
+        exit 1
+    fi

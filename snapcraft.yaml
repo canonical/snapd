@@ -14,11 +14,8 @@ version-script: |
 #type: snapd
 grade: stable
 
-parts:
-  snapd:
-    # FIXME: this should probably go upstream
-    plugin: x-builddeb
-    source: .
+passthrough:
+  license: GPL-3.0
 
 # Note that this snap is unusual in that it has no "apps" section.
 #
@@ -30,3 +27,76 @@ parts:
 #
 # See the comments from jdstrand in
 # https://forum.snapcraft.io/t/5547/10
+parts:
+  snapd:
+    # FIXME: this should probably go upstream
+    plugin: x-builddeb
+    source: .
+  # xdelta is used to enable delta downloads (even if the host does not have it)
+  xdelta3:
+    plugin: nil
+    stage-packages:
+      - xdelta3
+    stage:
+      - usr/bin/*
+      - usr/lib/*
+      - lib/*
+  # squashfs-tools are used by `snap pack`
+  squashfs-tools:
+    plugin: nil
+    stage-packages:
+      - squashfs-tools
+    stage:
+      - usr/bin/*
+      - usr/lib/*
+      - lib/*
+  # liblzma5 is part of core but the snapd snap needs to run even without core
+  liblzma5:
+    plugin: nil
+    stage-packages:
+      - liblzma5
+    stage:
+      - lib/*
+  # libc6 is part of core but we need it in the snapd snap for
+  # CommandFromSystemSnap
+  libc6:
+    plugin: nil
+    stage-packages:
+      - libc6
+      - libc-bin
+    stage:
+      - lib/*
+      - usr/lib/*
+      - lib64/*
+      - etc/ld.so.conf
+      - etc/ld.so.conf.d/*
+    override-stage: |
+      snapcraftctl stage
+      # fix symlinks of ld.so to be relative
+      if [ "$(readlink -f lib64/ld-linux-x86-64.so.2)" = "/lib/x86_64-linux-gnu/ld-2.23.so" ]; then
+          ln -f -s ../lib/x86_64-linux-gnu/ld-2.23.so lib64/ld-linux-x86-64.so.2
+      fi
+      if [ "$(readlink -f lib64/ld64.so.2)" = "/lib/powerpc64le-linux-gnu/ld-2.23.so" ]; then
+          ln -f -s ../lib/powerpc64le-linux-gnu/ld-2.23.so lib64/ld64.so.2
+      fi
+  # the version in Ubuntu 16.04 (cache v6)
+  fontconfig-xenial:
+    plugin: nil
+    source: https://github.com/snapcore/fc-cache-static-builder.git
+    build: |
+      ./build-from-security.py xenial
+      mkdir -p $SNAPCRAFT_PART_INSTALL/bin
+      cp -a fc-cache-xenial $SNAPCRAFT_PART_INSTALL/bin/fc-cache-v6
+    stage:
+      - bin/fc-cache-v6
+  # the version in Ubuntu 18.04 (cache v7)
+  fontconfig-bionic:
+    plugin: nil
+    source: https://github.com/snapcore/fc-cache-static-builder.git
+    build: |
+      ./build-from-security.py bionic
+      mkdir -p $SNAPCRAFT_PART_INSTALL/bin
+      cp -a fc-cache-bionic $SNAPCRAFT_PART_INSTALL/bin/fc-cache-v7
+    stage:
+      - bin/fc-cache-v7
+

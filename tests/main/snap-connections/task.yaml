@@ -1,11 +1,21 @@
 summary: Check that "snap connections" works as expected
 
+prepare: |
+    snap pack test-snap.v1
+    snap pack test-snap.v2
+
+restore: |
+    rm -f ./*.snap
+    snap remove test-snap || true
+    snap remove network-consumer || true
+    snap remove test-snapd-daemon-notify || true
+
 execute: |
     # shellcheck source=tests/lib/snaps.sh
     . "$TESTSLIB/snaps.sh"
 
     snap connections > all.out 2>&1
-    test "$(wc -l < all.out)" = "0"
+    initial_connections="$(wc -l < all.out)"
 
     snap install test-snapd-content-slot
     expected='content +- +test-snapd-content-slot:shared-content-slot +-'
@@ -14,9 +24,9 @@ execute: |
 
     snap connections test-snapd-content-slot --all 2>&1 | MATCH 'error: cannot use --all with snap name'
 
-    # test-snapd-content-slot is the only snap installed and it has no connections yet
+    # test-snapd-content-slot has not other connections yet
     snap connections > all.out 2>&1
-    test "$(wc -l < all.out)" = "0"
+    test "$(wc -l < all.out)" = "$initial_connections"
     # but it will show up if we ask for all or disconnected plugs and slots
     snap connections --all | MATCH -- "$expected"
 
@@ -51,8 +61,8 @@ execute: |
     # show connected only
     snap connections > connected.out
     MATCH 'content\[mylib\] +test-snapd-content-plug:shared-content-plug +test-snapd-content-slot:shared-content-slot +-' < connected.out
-    MATCH -v 'network-consumer' < connected.out
-    MATCH -v 'test-snapd-daemon-notify' < connected.out
+    not MATCH 'network-consumer' < connected.out
+    not MATCH 'test-snapd-daemon-notify' < connected.out
 
     # show all
     snap connections --all > all.out
@@ -69,5 +79,20 @@ execute: |
     # make sure that an interface that is not connected shows up too
     MATCH 'opengl +- +:opengl +-' < system.out
 
-    ! snap connections not-found > error.out 2>&1
+    not snap connections not-found > error.out 2>&1
     MATCH 'error: snap "not-found" not found' < error.out
+
+    echo "Check that connection referring to a missing plug is not reported after a refresh to new revision"
+    snap install --dangerous test-snap_1_all.snap
+    snap connect test-snap:log-observe
+    # sanity check, connection exists
+    snap connections test-snap | MATCH "log-observe +test-snap:log-observe +:log-observe +manual"
+
+    # simulate refresh to a new revision that doesn't have log-observe plug
+    snap install --dangerous test-snap_2_all.snap
+    snap connections test-snap | not MATCH "log-observe"
+
+    echo "But after revert it is reported again"
+    snap revert test-snap
+    snap connections test-snap | MATCH "log-observe +test-snap:log-observe +:log-observe +manual"
+

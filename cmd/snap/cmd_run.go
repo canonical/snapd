@@ -44,7 +44,7 @@ import (
 	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/osutil/strace"
-	"github.com/snapcore/snapd/selinux"
+	"github.com/snapcore/snapd/sandbox/selinux"
 	"github.com/snapcore/snapd/snap"
 	"github.com/snapcore/snapd/snap/snapenv"
 	"github.com/snapcore/snapd/strutil/shlex"
@@ -149,7 +149,7 @@ func maybeWaitForSecurityProfileRegeneration(cli *client.Client) error {
 		if _, err := cli.SysInfo(); err == nil {
 			return nil
 		}
-		// sleep a litte bit for good measure
+		// sleep a little bit for good measure
 		time.Sleep(1 * time.Second)
 	}
 
@@ -896,6 +896,11 @@ func (x *cmdRun) runSnapConfine(info *snap.Info, securityTag, snapApp, hook stri
 	cmd := []string{snapConfine}
 	if info.NeedsClassic() {
 		cmd = append(cmd, "--classic")
+	}
+
+	// this should never happen since we validate snaps with "base: none" and do not allow hooks/apps
+	if info.Base == "none" {
+		return fmt.Errorf(`cannot run hooks / applications with base "none"`)
 	}
 	if info.Base != "" {
 		cmd = append(cmd, "--base", info.Base)

@@ -6,6 +6,7 @@
 # snapd.
 
 set -e
+set +x
 
 SNAP_MOUNT_DIR="@SNAP_MOUNT_DIR@"
 
@@ -39,13 +40,15 @@ purge() {
     if [ "$distribution" = "ubuntu-14.04" ]; then
         # snap.mount.service is a trusty thing
         systemctl_stop snap.mount.service
-    else
-        # undo any bind mount to ${SNAP_MOUNT_DIR} that resulted from LP:#1668659
-        # (that bug can't happen in trusty -- and doing this would mess up snap.mount.service there)
-        if grep -q "${SNAP_MOUNT_DIR} ${SNAP_MOUNT_DIR}" /proc/self/mountinfo; then
-            umount -l "${SNAP_MOUNT_DIR}" || true
-        fi
     fi
+
+    # Undo any bind mounts to ${SNAP_MOUNT_DIR} or /var/snap done by parallel
+    # installs or LP:#1668659
+    for mp in "$SNAP_MOUNT_DIR" /var/snap; do
+        if grep -q " $mp $mp" /proc/self/mountinfo; then
+            umount -l "$mp" || true
+        fi
+    done
 
     units=$(systemctl list-unit-files --no-legend --full | grep -vF snap.mount.service || true)
     # *.snap mount points
@@ -103,8 +106,8 @@ purge() {
                 if [ -d /etc/dbus-1/system.d ]; then
                     find /etc/dbus-1/system.d -name "snap.${snap}.*.conf" -execdir rm -f "{}" \;
                 fi
-                # timer files
-                find /etc/systemd/system -name "snap.${snap}.*.timer" | while read -r f; do
+                # timer and socket units
+                find /etc/systemd/system -name "snap.${snap}.*.timer" -o -name "snap.${snap}.*.socket" | while read -r f; do
                     systemctl_stop "$(basename "$f")"
                     rm -f "$f"
                 done
@@ -125,7 +128,7 @@ purge() {
                 rm -f "$mnt"
             done
         fi
-        find /run/snapd/ns/ \( -name '*.fstab' -o -name '*.user-fstab' \) -delete
+        find /run/snapd/ns/ \( -name '*.fstab' -o -name '*.user-fstab' -o -name '*.info' \) -delete
         umount -l /run/snapd/ns/ || true
     fi
 

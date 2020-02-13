@@ -16,7 +16,7 @@ details: |
 # - Debian sid amd64 VM
 # - Debian 9 amd64 VM
 # - TODO: All Fedora systems (for classic-only; unrelated error elsewhere)
-systems: [ubuntu-core-16-64, ubuntu-14.04-32, ubuntu-16.04-64, ubuntu-18.04-64, ubuntu-18.04-32, ubuntu-*-amd64, ubuntu-*-armhf, ubuntu-*-arm64, ubuntu-*-i386, ubuntu-*-ppc64el, debian-*]
+systems: [ubuntu-core-1*-64, ubuntu-14.04-32, ubuntu-16.04-64, ubuntu-18.04-64, ubuntu-18.04-32, ubuntu-*-amd64, ubuntu-*-armhf, ubuntu-*-arm64, ubuntu-*-i386, ubuntu-*-ppc64el, debian-*]
 
 # memory issue inside the adt environment
 backends: [-autopkgtest]
@@ -87,4 +87,4 @@ execute: |
 
 restore: |
     # Remove the snaps to avoid timeout in next test
-    snap remove "$CONSUMER_SNAP"
+    snap remove --purge "$CONSUMER_SNAP"

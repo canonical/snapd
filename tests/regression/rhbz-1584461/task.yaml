@@ -1,0 +1,45 @@
+summary: Verify directories from the base snap are not mounted over symlinks in /etc
+
+description: |
+  The host's /etc is made avaialable inside the snap's mount namespace. During
+  setup, snap-confine attempts to preserve some entries from the base snap to
+  present a uniform environment for the snaps. When the entries in host
+  namespace are symlinks, they are followed when mounting and the mount, with
+  source from the base snap, appears in the host's mount namespace.
+
+# we only know of this happening on Fedora, see https://bugzilla.redhat.com/show_bug.cgi?id=1584461
+systems: [fedora-*]
+
+restore: |
+    if [ "$(readlink /etc/ssl)" == "/etc/ssl-backup" ]; then
+        rm /etc/ssl
+        mv /etc/ssl-backup /etc/ssl
+    fi
+
+    rm -f ./in-snap ./on-host
+
+execute: |
+    # on Fedora, /etc/nsswitch.conf is a symlink to /etc/authselect/nsswitch.conf
+    test -L /etc/nsswitch.conf
+
+    # the following mount entries are visible on a broken system:
+    # /var/lib/snapd/snaps/core_6818.snap on /etc/authselect/nsswitch.conf type squashfs (ro,nodev,relatime,context=system_u:object_r:snappy_snap_t:s0)
+    # /var/lib/snapd/snaps/core_6818.snap on /var/lib/snapd/snap/core/6818/etc/nsswitch.conf type squashfs (ro,nodev,relatime,context=system_u:object_r:snappy_snap_t:s0)
+    # /var/lib/snapd/snaps/core_6818.snap on /var/lib/snapd/snap/core/6818/etc/nsswitch.conf type squashfs (ro,nodev,relatime,context=system_u:object_r:snappy_snap_t:s0)
+    # /var/lib/snapd/snaps/core_6818.snap on /etc/authselect/nsswitch.conf type squashfs (ro,nodev,relatime,context=system_u:object_r:snappy_snap_t:s0)
+    # /var/lib/snapd/snaps/core_6818.snap on /etc/ssl-backup type squashfs (ro,nodev,relatime,context=system_u:object_r:snappy_snap_t:s0)
+
+    # since we cannot look at /etc/nsswitch.conf, make /etc/ssl a symlink
+    mv /etc/ssl /etc/ssl-backup
+    ln -s /etc/ssl-backup /etc/ssl
+
+    find /etc/ssl/ -ls | sort > on-host
+
+    snap install test-snapd-sh
+    test-snapd-sh.sh -c 'echo hello'
+
+    mount | not MATCH /etc/ssl-backup
+
+    test-snapd-sh.sh -c 'find /etc/ssl/ -ls' | sort > in-snap
+    # same thing is visible in and out
+    diff -upw on-host in-snap

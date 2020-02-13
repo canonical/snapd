@@ -96,12 +96,14 @@ func doValidateSnap(t *state.Task, _ *tomb.Tomb) error {
 		return err
 	}
 
-	modelAs, err := snapstate.Model(st)
+	deviceCtx, err := snapstate.DeviceCtx(st, t, nil)
 	if err != nil {
 		return err
 	}
 
-	err = doFetch(st, snapsup.UserID, func(f asserts.Fetcher) error {
+	modelAs := deviceCtx.Model()
+
+	err = doFetch(st, snapsup.UserID, deviceCtx, func(f asserts.Fetcher) error {
 		if err := snapasserts.FetchSnapAssertions(f, sha3_384); err != nil {
 			return err
 		}

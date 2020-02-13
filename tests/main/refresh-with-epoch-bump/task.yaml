@@ -3,11 +3,11 @@ summary: Check that the refresh command works through epoch bumps.
 details: |
     This test installs a snap and then refreshes it to a channel
     that's on an incompatible epoch. The store and snapd should figure
-    this out and go through a revision that can read the curent epoch
+    this out and go through a revision that can read the current epoch
     before re-refreshing to the expected one.
 
 prepare: |
-    snap remove test-snapd-epoch
+    snap remove --purge test-snapd-epoch
     snap install test-snapd-epoch
 
 debug: |

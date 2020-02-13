@@ -172,6 +172,13 @@ func (s *warningSuite) TestOkay(c *check.C) {
 	c.Check(s.Stdout(), check.Equals, "")
 }
 
+func (s *warningSuite) TestOkayBeforeWarnings(c *check.C) {
+	_, err := snap.Parser(snap.Client()).ParseArgs([]string{"okay"})
+	c.Assert(err, check.ErrorMatches, "you must have looked at the warnings before acknowledging them. Try 'snap warnings'.")
+	c.Check(s.Stderr(), check.Equals, "")
+	c.Check(s.Stdout(), check.Equals, "")
+}
+
 func (s *warningSuite) TestListWithWarnings(c *check.C) {
 	var called bool
 	s.RedirectClientToTestServer(func(w http.ResponseWriter, r *http.Request) {

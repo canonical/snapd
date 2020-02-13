@@ -68,13 +68,6 @@ func (s *IntelMEISuite) TestName(c *C) {
 
 func (s *IntelMEISuite) TestSanitizeSlot(c *C) {
 	c.Assert(interfaces.BeforePrepareSlot(s.iface, s.slotInfo), IsNil)
-	slot := &snap.SlotInfo{
-		Snap:      &snap.Info{SuggestedName: "some-snap"},
-		Name:      "intel-mei",
-		Interface: "intel-mei",
-	}
-	c.Assert(interfaces.BeforePrepareSlot(s.iface, slot), ErrorMatches,
-		"intel-mei slots are reserved for the core snap")
 }
 
 func (s *IntelMEISuite) TestSanitizePlug(c *C) {
@@ -85,7 +78,7 @@ func (s *IntelMEISuite) TestAppArmorSpec(c *C) {
 	spec := &apparmor.Specification{}
 	c.Assert(spec.AddConnectedPlug(s.iface, s.plug, s.slot), IsNil)
 	c.Assert(spec.SecurityTags(), DeepEquals, []string{"snap.consumer.app"})
-	c.Assert(spec.SnippetForTag("snap.consumer.app"), testutil.Contains, `/dev/mei[0-9]+ rw,`)
+	c.Assert(spec.SnippetForTag("snap.consumer.app"), testutil.Contains, `/dev/mei[0-9]* rw,`)
 }
 
 func (s *IntelMEISuite) TestUDevSpec(c *C) {

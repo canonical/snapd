@@ -24,7 +24,7 @@ execute: |
     grep -Pq "$expected" /etc/udev/rules.d/70-snap.modem-manager-consumer.rules
 
     echo "When the snap is removed"
-    snap remove modem-manager-consumer
+    snap remove --purge modem-manager-consumer
 
     echo "Then the udev rules files are removed"
-    ! test -f /etc/udev/rules.d/70-snap.modem-manager-consumer.rules
+    not test -f /etc/udev/rules.d/70-snap.modem-manager-consumer.rules

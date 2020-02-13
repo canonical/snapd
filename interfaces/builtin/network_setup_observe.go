@@ -34,6 +34,24 @@ const networkSetupObserveConnectedPlugAppArmor = `
 
 /etc/netplan/{,**} r,
 /etc/network/{,**} r,
+/etc/systemd/network/{,**} r,
+
+/run/systemd/network/{,**} r,
+/run/NetworkManager/conf.d/{,**} r,
+/run/udev/rules.d/ r,
+/run/udev/rules.d/[0-9]*-netplan-* r,
+
+#include <abstractions/dbus-strict>
+
+# Allow use of Netplan Info API, used to get information on available netplan
+# features and version
+dbus (send)
+    bus=system
+    interface=io.netplan.Netplan
+    path=/io/netplan/Netplan
+	member=Info
+	peer=(label=unconfined),
+
 `
 
 func init() {
@@ -44,6 +62,5 @@ func init() {
 		implicitOnClassic:     true,
 		baseDeclarationSlots:  networkSetupObserveBaseDeclarationSlots,
 		connectedPlugAppArmor: networkSetupObserveConnectedPlugAppArmor,
-		reservedForOS:         true,
 	})
 }

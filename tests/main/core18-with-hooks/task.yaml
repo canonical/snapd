@@ -10,3 +10,5 @@ execute: |
 
     journalctl -u test-snapd-snapctl-core18.service
 
+restore: |
+    snap remove --purge test-snapd-snapctl-core18

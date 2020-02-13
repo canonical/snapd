@@ -31,7 +31,6 @@ import (
 	"github.com/snapcore/snapd/interfaces"
 	"github.com/snapcore/snapd/interfaces/policy"
 	"github.com/snapcore/snapd/overlord/assertstate"
-	"github.com/snapcore/snapd/overlord/devicestate"
 	"github.com/snapcore/snapd/overlord/hookstate"
 	"github.com/snapcore/snapd/overlord/snapstate"
 	"github.com/snapcore/snapd/overlord/state"
@@ -44,6 +43,11 @@ var connectRetryTimeout = time.Second * 5
 type ErrAlreadyConnected struct {
 	Connection interfaces.ConnRef
 }
+
+const (
+	ConnectTaskEdge       = state.TaskSetEdge("connect-task")
+	AfterConnectHooksEdge = state.TaskSetEdge("after-connect-hooks")
+)
 
 func (e ErrAlreadyConnected) Error() string {
 	return fmt.Sprintf("already connected: %q", e.Connection.ID())
@@ -78,6 +82,8 @@ func findSymmetricAutoconnectTask(st *state.State, plugSnap, slotSnap string, in
 type connectOpts struct {
 	ByGadget    bool
 	AutoConnect bool
+
+	DelayedSetupProfiles bool
 }
 
 // Connect returns a set of tasks for connecting an interface.
@@ -199,6 +205,9 @@ func connect(st *state.State, plugSnap, plugName, slotSnap, slotName string, fla
 	if flags.ByGadget {
 		connectInterface.Set("by-gadget", true)
 	}
+	if flags.DelayedSetupProfiles {
+		connectInterface.Set("delayed-setup-profiles", true)
+	}
 
 	// Expose a copy of all plug and slot attributes coming from yaml to interface hooks. The hooks will be able
 	// to modify them but all attributes will be checked against assertions after the hooks are run.
@@ -213,6 +222,11 @@ func connect(st *state.State, plugSnap, plugName, slotSnap, slotName string, fla
 	// wait for prepare-plug- anyway, and a simple one-to-one wait dependency makes testing easier.
 	addTask(connectInterface)
 	prev = connectInterface
+
+	if flags.DelayedSetupProfiles {
+		// mark as the last task in connect prepare
+		tasks.MarkEdge(connectInterface, ConnectTaskEdge)
+	}
 
 	connectSlotHookName := fmt.Sprintf("connect-slot-%s", slotName)
 	if slotSnapInfo.Hooks[connectSlotHookName] != nil {
@@ -232,6 +246,9 @@ func connect(st *state.State, plugSnap, plugName, slotSnap, slotName string, fla
 		connectSlotConnection := hookstate.HookTaskWithUndo(st, summary, connectSlotHookSetup, undoConnectSlotHookSetup, initialContext)
 		addTask(connectSlotConnection)
 		prev = connectSlotConnection
+		if flags.DelayedSetupProfiles {
+			tasks.MarkEdge(connectSlotConnection, AfterConnectHooksEdge)
+		}
 	}
 
 	connectPlugHookName := fmt.Sprintf("connect-plug-%s", plugName)
@@ -251,6 +268,13 @@ func connect(st *state.State, plugSnap, plugName, slotSnap, slotName string, fla
 		summary := fmt.Sprintf(i18n.G("Run hook %s of snap %q"), connectPlugHookSetup.Hook, connectPlugHookSetup.Snap)
 		connectPlugConnection := hookstate.HookTaskWithUndo(st, summary, connectPlugHookSetup, undoConnectPlugHookSetup, initialContext)
 		addTask(connectPlugConnection)
+
+		if flags.DelayedSetupProfiles {
+			// only mark AfterConnectHooksEdge if not already set on connect-slot- hook task
+			if edge, _ := tasks.Edge(AfterConnectHooksEdge); edge == nil {
+				tasks.MarkEdge(connectPlugConnection, AfterConnectHooksEdge)
+			}
+		}
 		prev = connectPlugConnection
 	}
 	return tasks, nil
@@ -406,21 +430,13 @@ func disconnectTasks(st *state.State, conn *interfaces.Connection, flags disconn
 }
 
 // CheckInterfaces checks whether plugs and slots of snap are allowed for installation.
-func CheckInterfaces(st *state.State, snapInfo *snap.Info) error {
+func CheckInterfaces(st *state.State, snapInfo *snap.Info, deviceCtx snapstate.DeviceContext) error {
 	// XXX: addImplicitSlots is really a brittle interface
 	if err := addImplicitSlots(st, snapInfo); err != nil {
 		return err
 	}
 
-	if snapInfo.SnapID == "" {
-		// no SnapID means --dangerous was given, so skip interface checks
-		return nil
-	}
-
-	modelAs, err := devicestate.Model(st)
-	if err != nil {
-		return err
-	}
+	modelAs := deviceCtx.Model()
 
 	var storeAs *asserts.Store
 	if modelAs.Store() != "" {
@@ -434,6 +450,17 @@ func CheckInterfaces(st *state.State, snapInfo *snap.Info) error {
 	baseDecl, err := assertstate.BaseDeclaration(st)
 	if err != nil {
 		return fmt.Errorf("internal error: cannot find base declaration: %v", err)
+	}
+
+	if snapInfo.SnapID == "" {
+		// no SnapID means --dangerous was given, perform a minimal check about the compatibility of the snap type and the interface
+		ic := policy.InstallCandidateMinimalCheck{
+			Snap:            snapInfo,
+			BaseDeclaration: baseDecl,
+			Model:           modelAs,
+			Store:           storeAs,
+		}
+		return ic.Check()
 	}
 
 	snapDecl, err := assertstate.SnapDeclaration(st, snapInfo.SnapID)
@@ -458,8 +485,8 @@ func delayedCrossMgrInit() {
 	once.Do(func() {
 		// hook interface checks into snapstate installation logic
 
-		snapstate.AddCheckSnapCallback(func(st *state.State, snapInfo, _ *snap.Info, _ snapstate.Flags) error {
-			return CheckInterfaces(st, snapInfo)
+		snapstate.AddCheckSnapCallback(func(st *state.State, snapInfo, _ *snap.Info, _ snap.Container, _ snapstate.Flags, deviceCtx snapstate.DeviceContext) error {
+			return CheckInterfaces(st, snapInfo, deviceCtx)
 		})
 
 		// hook into conflict checks mechanisms

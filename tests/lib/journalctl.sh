@@ -11,6 +11,7 @@ get_last_journalctl_cursor(){
 }
 
 start_new_journalctl_log(){
+    sync_journalctl_log
     echo "New test starts here - $SPREAD_JOB" | systemd-cat -t snapd-test
     cursor=$(get_last_journalctl_cursor)
     if [ -z "$cursor" ]; then
@@ -36,10 +37,17 @@ check_journalctl_log(){
     expression=$1
     shift
     for _ in $(seq 10); do
+        # forcibly silence this particular bit because it produces GOBS of 
+        # output and we really don't need to see all the output when we are 
+        # checking the output for an expression, as if it is missing we want to 
+        # check the journal once at the end of this loop, likely in the debug 
+        # section
+        set +x
         log=$(get_journalctl_log "$@")
         if echo "$log" | grep -q -E "$expression"; then
             return 0
         fi
+        set -x
         echo "Match for \"$expression\" failed, retrying"
         sleep 1
     done
@@ -51,6 +59,7 @@ get_journalctl_log(){
     if [ -f "$JOURNALCTL_CURSOR_FILE" ]; then
         cursor=$(tail -n1 "$JOURNALCTL_CURSOR_FILE")
     fi
+    sync_journalctl_log
     get_journalctl_log_from_cursor "$cursor" "$@"
 }
 
@@ -62,4 +71,9 @@ get_journalctl_log_from_cursor(){
     else
         journalctl "$@" --cursor "$cursor"
     fi
+}
+
+sync_journalctl_log(){
+    journalctl --flush || true
+    journalctl --sync || true
 }

@@ -26,6 +26,7 @@ import (
 	"os"
 	"path/filepath"
 
+	"github.com/snapcore/snapd/gadget"
 	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/snap"
 	"github.com/snapcore/snapd/snap/snapdir"
@@ -92,8 +93,14 @@ func debArchitecture(info *snap.Info) string {
 }
 
 // CheckSkeleton attempts to validate snap data in source directory
-func CheckSkeleton(sourceDir string) error {
-	_, err := loadAndValidate(sourceDir)
+func CheckSkeleton(w io.Writer, sourceDir string) error {
+	info, err := loadAndValidate(sourceDir)
+	if err == nil {
+		snap.SanitizePlugsSlots(info)
+		if len(info.BadInterfaces) > 0 {
+			fmt.Fprintln(w, snap.BadInterfacesSummary(info))
+		}
+	}
 	return err
 }
 
@@ -115,6 +122,12 @@ func loadAndValidate(sourceDir string) (*snap.Info, error) {
 
 	if err := snap.ValidateContainer(snapdir.New(sourceDir), info, logger.Noticef); err != nil {
 		return nil, err
+	}
+
+	if info.SnapType == snap.TypeGadget {
+		if err := gadget.Validate(sourceDir, nil); err != nil {
+			return nil, err
+		}
 	}
 	return info, nil
 }
@@ -167,10 +180,33 @@ func excludesFile() (filename string, err error) {
 	return filename, err
 }
 
+type Options struct {
+	// TargetDir is the direction where the snap file will be placed, or empty
+	// to use the current directory
+	TargetDir string
+	// SnapName is the name of the snap file, or empty to use the default name
+	// which is <snapname>_<version>_<architecture>.snap
+	SnapName string
+	// Compression method to use
+	Compression string
+}
+
+var Defaults *Options = nil
+
 // Snap the given sourceDirectory and return the generated
 // snap file
-func Snap(sourceDir, targetDir, snapName string) (string, error) {
-	info, err := prepare(sourceDir, targetDir)
+func Snap(sourceDir string, opts *Options) (string, error) {
+	if opts == nil {
+		opts = &Options{}
+	}
+	switch opts.Compression {
+	case "xz", "":
+		// fine
+	default:
+		return "", fmt.Errorf("cannot use compression %q", opts.Compression)
+	}
+
+	info, err := prepare(sourceDir, opts.TargetDir)
 	if err != nil {
 		return "", err
 	}
@@ -181,9 +217,13 @@ func Snap(sourceDir, targetDir, snapName string) (string, error) {
 	}
 	defer os.Remove(excludes)
 
-	snapName = snapPath(info, targetDir, snapName)
+	snapName := snapPath(info, opts.TargetDir, opts.SnapName)
 	d := squashfs.New(snapName)
-	if err = d.Build(sourceDir, string(info.Type), excludes); err != nil {
+	if err = d.Build(sourceDir, &squashfs.BuildOpts{
+		SnapType:     string(info.GetType()),
+		Compression:  opts.Compression,
+		ExcludeFiles: []string{excludes},
+	}); err != nil {
 		return "", err
 	}
 

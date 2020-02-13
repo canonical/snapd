@@ -34,6 +34,11 @@ func NewForTask(task *state.Task) *Timings {
 	return New(tags)
 }
 
+// LinkChange sets the "change-id" tag on the Timings object.
+func (t *Timings) LinkChange(change *state.Change) {
+	t.AddTag("change-id", change.ID())
+}
+
 // Run creates, starts and then stops a nested Span under parent Measurer. The nested
 // Span is passed to the measured function and can used to create further spans.
 func Run(meas Measurer, label, summary string, f func(nestedTiming Measurer)) {

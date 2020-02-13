@@ -73,6 +73,10 @@ _run_snappy_app_dev_add_majmin(struct snappy_udev *udev_s,
 			execle("/usr/lib/snapd/snap-device-helper",
 			       "/usr/lib/snapd/snap-device-helper", "add",
 			       udev_s->tagname, path, buf, NULL, env);
+		else if (access("/usr/libexec/snapd/snap-device-helper", X_OK) == 0)
+			execle("/usr/libexec/snapd/snap-device-helper",
+			       "/usr/libexec/snapd/snap-device-helper", "add",
+			       udev_s->tagname, path, buf, NULL, env);
 		else
 			execle("/lib/udev/snappy-app-dev",
 			       "/lib/udev/snappy-app-dev", "add",
@@ -139,10 +143,10 @@ int snappy_udev_init(const char *security_tag, struct snappy_udev *udev_s)
 	if (udev_s->devices == NULL)
 		die("udev_enumerate_new failed");
 
-	if (udev_enumerate_add_match_tag(udev_s->devices, udev_s->tagname) != 0)
+	if (udev_enumerate_add_match_tag(udev_s->devices, udev_s->tagname) < 0)
 		die("udev_enumerate_add_match_tag");
 
-	if (udev_enumerate_scan_devices(udev_s->devices) != 0)
+	if (udev_enumerate_scan_devices(udev_s->devices) < 0)
 		die("udev_enumerate_scan failed");
 
 	udev_s->assigned = udev_enumerate_get_list_entry(udev_s->devices);
@@ -204,7 +208,7 @@ void setup_devices_cgroup(const char *security_tag, struct snappy_udev *udev_s)
 	// move ourselves into it
 	char cgroup_file[PATH_MAX] = { 0 };
 	sc_must_snprintf(cgroup_file, sizeof(cgroup_file), "%s%s", cgroup_dir,
-			 "tasks");
+			 "cgroup.procs");
 
 	char buf[128] = { 0 };
 	sc_must_snprintf(buf, sizeof(buf), "%i", getpid());

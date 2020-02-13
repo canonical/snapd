@@ -27,16 +27,16 @@ execute: |
     alias2|MATCH "ok command 2"
 
     echo "Attempting to create the same aliases for aliases_foo should conflict"
-    ! snap alias aliases_foo.cmd1 alias1
+    not snap alias aliases_foo.cmd1 alias1
     snap change --last=alias | MATCH 'cannot enable alias "alias1" for "aliases_foo", already enabled for "aliases"'
-    ! snap alias aliases_foo.cmd2 alias2
+    not snap alias aliases_foo.cmd2 alias2
     snap change --last=alias | MATCH 'cannot enable alias "alias2" for "aliases_foo", already enabled for "aliases"'
 
     echo "Check listing"
     snap aliases > aliases.out
     MATCH "aliases.cmd1 +alias1 +manual" < aliases.out
     MATCH "aliases.cmd2 +alias2 +manual" < aliases.out
-    ! MATCH aliases_foo                  < aliases.out
+    not MATCH aliases_foo                  < aliases.out
 
     echo "Disable one alias for aliases snap"
     snap unalias alias2|MATCH ".*- aliases.cmd2 as alias2.*"
@@ -70,11 +70,11 @@ execute: |
     test "$(readlink "$SNAP_MOUNT_DIR"/bin/alias1)" = "aliases.cmd1"
 
     echo "Removing the aliases snap should remove its aliases"
-    snap remove aliases
+    snap remove --purge aliases
     test ! -e "$SNAP_MOUNT_DIR/bin/alias1"
 
     echo "Aliases of aliases_foo remain unchanged"
     test "$(readlink "$SNAP_MOUNT_DIR"/bin/alias2)" = "aliases_foo.cmd2"
 
-    snap remove aliases_foo
+    snap remove --purge aliases_foo
     test ! -e "$SNAP_MOUNT_DIR/bin/alias2"

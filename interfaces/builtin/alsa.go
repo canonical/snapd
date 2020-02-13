@@ -65,6 +65,5 @@ func init() {
 		baseDeclarationSlots:  alsaBaseDeclarationSlots,
 		connectedPlugAppArmor: alsaConnectedPlugAppArmor,
 		connectedPlugUDev:     alsaConnectedPlugUDev,
-		reservedForOS:         true,
 	})
 }

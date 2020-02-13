@@ -1,0 +1,149 @@
+summary: |
+   Test that configuration defaults are only applied once.
+
+# ubuntu-core-16: it is not yet possible to install snapd on core16
+systems: [ubuntu-core-18-*]
+
+environment:
+    GADGET_FILE: gadget-defaults.yaml
+
+prepare: |
+    if [ "$TRUST_TEST_KEYS" = "false" ]; then
+        echo "This test needs test keys to be trusted"
+        exit
+    fi
+
+    #shellcheck source=tests/lib/systemd.sh
+    . "$TESTSLIB"/systemd.sh
+
+    systemctl stop snapd.service snapd.socket
+    rm -rf /var/lib/snapd/assertions/*
+    rm -rf /var/lib/snapd/device
+    rm -rf /var/lib/snapd/state.json
+    unsquashfs -no-progress /var/lib/snapd/snaps/pc_*.snap
+
+    # Update the gadget config file
+    cat "$GADGET_FILE" >> squashfs-root/meta/gadget.yaml
+
+    mksquashfs squashfs-root pc_x1.snap -comp xz -no-fragments -no-progress
+    rm -rf squashfs-root
+    cp pc_x1.snap /var/lib/snapd/seed/snaps/
+    cp /var/lib/snapd/seed/seed.yaml seed.yaml.bak
+    python3 ./manip_seed.py /var/lib/snapd/seed/seed.yaml
+    cp "$TESTSLIB"/assertions/developer1.account /var/lib/snapd/seed/assertions
+    cp "$TESTSLIB"/assertions/developer1.account-key /var/lib/snapd/seed/assertions
+    cp "$TESTSLIB"/assertions/testrootorg-store.account-key /var/lib/snapd/seed/assertions
+
+    # kick first boot again
+    systemctl start snapd.service snapd.socket
+
+restore: |
+    if [ "$TRUST_TEST_KEYS" = "false" ]; then
+        echo "This test needs test keys to be trusted"
+        exit
+    fi
+
+    #shellcheck source=tests/lib/systems.sh
+    . "$TESTSLIB"/systems.sh
+
+    # XXX: this should work once it is possible to install snapd on core
+    SNAP=snapd
+    SERVICES="ssh rsyslog"
+    if is_core18_system; then
+        # a core18 already has a snapd snap, verify whether installation of core
+        # does not break the configuration
+        SNAP=core
+        SERVICES=ssh
+    fi
+
+    echo "Undo the service disable"
+    rm -f /etc/ssh/sshd_not_to_be_run
+    for service in $SERVICES; do
+        systemctl unmask "$service.service" || true
+        systemctl enable "$service.service" || true
+        systemctl start "$service.service" || true
+    done
+
+    #shellcheck source=tests/lib/systemd.sh
+    . "$TESTSLIB"/systemd.sh
+    systemctl stop snapd.service snapd.socket
+    rm -rf /var/lib/snapd/assertions/*
+    rm -rf /var/lib/snapd/device
+    rm -rf /var/lib/snapd/state.json
+
+    if systemctl status snap-pc-x1.mount ; then
+       systemctl stop snap-pc-x1.mount
+       rm -f /etc/systemd/system/snap-pc-x1.mount
+       rm -f /etc/systemd/system/multi-user.target.wants/snap-pc-x1.mount
+       rm -f /var/lib/snapd/snaps/pc_x1.snap
+       systemctl daemon-reload
+    fi
+    rm /var/lib/snapd/seed/snaps/pc_x1.snap
+
+    REVNO="$(readlink /snap/$SNAP/current)"
+    sysp=$(systemd-escape --path "/snap/$SNAP/$REVNO.mount")
+    if systemctl status "$sysp"; then
+       systemctl stop "$sysp"
+       rm -f "/etc/systemd/system/$sysp"
+       rm -f "/etc/systemd/system/multi-user.target.wants/$sysp"
+       rm -f "/var/lib/snapd/snaps/${SNAP}"_*.snap
+       rm -rf "/snap/$SNAP"
+       systemctl daemon-reload
+    fi
+    rm -f "/var/lib/snapd/seed/snaps/${SNAP}"_*.snap
+    rm -f "/var/lib/snapd/seed/assertions/${SNAP}"_*.assert
+
+    cp seed.yaml.bak /var/lib/snapd/seed/seed.yaml
+    rm -f /var/lib/snapd/seed/assertions/developer1.account
+    rm -f /var/lib/snapd/seed/assertions/developer1.account-key
+    rm -f /var/lib/snapd/seed/assertions/testrootorg-store.account-key
+    # kick first boot again
+    systemctl start snapd.service snapd.socket
+    # wait for first boot to be done
+    retry-tool -n 60 --wait 5 sh -c 'snap changes | grep -q "Done.*Initialize system state"'
+
+execute: |
+    #shellcheck source=tests/lib/systems.sh
+    . "$TESTSLIB"/systems.sh
+
+    # XXX: this should work once it is possible to install snapd on core
+    SNAP=snapd
+    SERVICES="ssh rsyslog"
+    if is_core18_system; then
+        # a core18 already has a snapd snap, verify whether installation of core
+        # does not break the configuration
+        SNAP=core
+        SERVICES=ssh
+    fi
+
+    if [ "$TRUST_TEST_KEYS" = "false" ]; then
+        echo "This test needs test keys to be trusted"
+        exit
+    fi
+    echo "Wait for first boot to be done"
+    retry-tool -n 60 --wait 5 sh -c 'snap changes | grep -q "Done.*Initialize system state"'
+
+    echo "The defaults are applied"
+    for service in $SERVICES; do
+        snap get system "service.$service.disable" | MATCH true
+        systemctl status "$service.service" | MATCH '(inactive|masked)'
+    done
+    MATCH "SSH has been disabled by snapd system configuration" < /etc/ssh/sshd_not_to_be_run
+
+    for service in $SERVICES; do
+        snap set system "service.$service.disable"=false
+    done
+
+    # install a snap that could trigger system defaults to be reapplied
+    snap install "$SNAP"
+
+    # services are still not-disabled
+    for service in $SERVICES; do
+        snap get system "service.$service.disable" | MATCH false
+    done
+    test ! -e /etc/ssh/sshd_not_to_be_run
+
+    # Unmask rsyslog service on core18
+    if is_core18_system; then
+        systemctl unmask rsyslog
+    fi

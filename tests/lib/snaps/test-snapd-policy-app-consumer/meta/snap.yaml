@@ -14,6 +14,15 @@ apps:
   alsa:
     command: bin/run
     plugs: [ alsa ]
+  audio-playback:
+    command: bin/run
+    plugs: [ audio-playback ]
+  audio-record:
+    command: bin/run
+    plugs: [ audio-record ]
+  appstream-metadata:
+    command: bin/run
+    plugs: [ appstream-metadata ]
   autopilot-introspection:
     command: bin/run
     plugs: [ autopilot-introspection ]
@@ -128,6 +137,9 @@ apps:
   gpio-memory-control:
     command: bin/run
     plugs: [ gpio-memory-control ]
+  gpio-control:
+    command: bin/run
+    plugs: [ gpio-control ]
   greengrass-support:
     command: bin/run
     plugs: [ greengrass-support ]
@@ -155,6 +167,9 @@ apps:
   io-ports-control:
     command: bin/run
     plugs: [ io-ports-control ]
+  jack1:
+    command: bin/run
+    plugs: [ jack1 ]
   joystick:
     command: bin/run
     plugs: [ joystick ]
@@ -188,6 +203,12 @@ apps:
   log-observe:
     command: bin/run
     plugs: [ log-observe ]
+  login-session-control:
+    command: bin/run
+    plugs: [ login-session-control ]
+  login-session-observe:
+    command: bin/run
+    plugs: [ login-session-observe ]
   lxd:
     command: bin/run
     plugs: [ lxd ]
@@ -266,6 +287,9 @@ apps:
   optical-drive:
     command: bin/run
     plugs: [ optical-drive ]
+  packagekit-control:
+    command: bin/run
+    plugs: [ packagekit-control ]
   password-manager-service:
     command: bin/run
     plugs: [ password-manager-service ]
@@ -287,6 +311,9 @@ apps:
   raw-usb:
     command: bin/run
     plugs: [ raw-usb ]
+  raw-volume:
+    command: bin/run
+    plugs: [ raw-volume ]
   removable-media:
     command: bin/run
     plugs: [ removable-media ]
@@ -317,6 +344,9 @@ apps:
   storage-framework-service:
     command: bin/run
     plugs: [ storage-framework-service ]
+  system-backup:
+    command: bin/run
+    plugs: [ system-backup ]
   system-observe:
     command: bin/run
     plugs: [ system-observe ]
@@ -353,6 +383,9 @@ apps:
   uhid:
     command: bin/run
     plugs: [ uhid ]
+  uio:
+    command: bin/run
+    plugs: [ uio ]
   unity7:
     command: bin/run
     plugs: [ unity7 ]

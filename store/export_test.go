@@ -113,6 +113,14 @@ func MockDownload(f func(ctx context.Context, name, sha3_384, downloadURL string
 	}
 }
 
+func MockDoDownloadReq(f func(ctx context.Context, storeURL *url.URL, cdnHeader string, resume int64, s *Store, user *auth.UserState) (*http.Response, error)) (restore func()) {
+	orig := doDownloadReq
+	doDownloadReq = f
+	return func() {
+		doDownloadReq = orig
+	}
+}
+
 func MockApplyDelta(f func(name string, deltaPath string, deltaInfo *snap.DeltaInfo, targetPath string, targetSha3_384 string) error) (restore func()) {
 	origApplyDelta := applyDelta
 	applyDelta = f
@@ -133,8 +141,8 @@ func (sto *Store) SetDeltaFormat(dfmt string) {
 	sto.deltaFormat = dfmt
 }
 
-func (sto *Store) DownloadDelta(deltaName string, downloadInfo *snap.DownloadInfo, w io.ReadWriteSeeker, pbar progress.Meter, user *auth.UserState) error {
-	return sto.downloadDelta(deltaName, downloadInfo, w, pbar, user)
+func (sto *Store) DownloadDelta(deltaName string, downloadInfo *snap.DownloadInfo, w io.ReadWriteSeeker, pbar progress.Meter, user *auth.UserState, dlOpts *DownloadOptions) error {
+	return sto.downloadDelta(deltaName, downloadInfo, w, pbar, user, dlOpts)
 }
 
 func (sto *Store) DoRequest(ctx context.Context, client *http.Client, reqOptions *requestOptions, user *auth.UserState) (*http.Response, error) {
@@ -151,6 +159,14 @@ func (sto *Store) DetailFields() []string {
 
 func (sto *Store) DecorateOrders(snaps []*snap.Info, user *auth.UserState) error {
 	return sto.decorateOrders(snaps, user)
+}
+
+func (sto *Store) SessionLock() {
+	sto.sessionMu.Lock()
+}
+
+func (sto *Store) SessionUnlock() {
+	sto.sessionMu.Unlock()
 }
 
 func (cfg *Config) SetBaseURL(u *url.URL) error {

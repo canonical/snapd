@@ -26,7 +26,7 @@ include /etc/os-release
 # problem on "apt purge snapd". To ensure this won't happen add the
 # right dependency on 18.04.
 ifeq (${VERSION_ID},"18.04")
-	SUBSTVARS = -Vsnapd:Breaks="apt (<< 1.6.3)"
+	SUBSTVARS = -Vsnapd:Breaks="systemd (<< 237-3ubuntu10.24), apt (<< 1.6.3)"
 endif
 # Same as above for 18.10 just a different version.
 ifeq (${VERSION_ID},"18.10")
@@ -98,7 +98,24 @@ endif
 BUILT_USING=$(shell dpkg-query -f '$${source:Package} (= $${source:Version}), ' -W $(BUILT_USING_PACKAGES))
 
 %:
+ifneq ($(shell dpkg-architecture -qDEB_HOST_ARCH),powerpc)
 	dh $@ --buildsystem=golang --with=golang --fail-missing --with systemd --builddirectory=_build
+else
+	# "powerpc" is not supported unfortunately, do nothing here
+	# See https://github.com/tianon/debian-runc/compare/70957b315f82170dc2ab7085d39c23835c0fa996...xenial for a more elaborate version of this idea.
+	# Note that snapd never really worked on powerpc (we never had a core
+	# snap there) so we don't need to show anything to the user
+	if [ "$@" = "clean" ]; then \
+		rm -rf debian/snapd; \
+	fi; \
+	if [ "$@" = "binary" ] || [ "$@" = "binary-arch" ]; then \
+		install -m755 -d debian/snapd/usr/share/doc/snapd/; \
+		cp debian/README.powerpc debian/snapd/usr/share/doc/snapd/; \
+		dh_installdeb; \
+		dh_gencontrol; \
+		dh_builddeb; \
+	fi;
+endif
 
 override_dh_fixperms:
 	dh_fixperms -Xusr/lib/snapd/snap-confine
@@ -148,33 +165,27 @@ override_dh_auto_build:
 	# this is the main go build
 	SNAPD_VANILLA_GO=$$(which go) PATH="$$(pwd)/packaging/build-tools/:$$PATH" dh_auto_build -- $(BUILDFLAGS) $(TAGS) $(GCCGOFLAGS)
 
-	# (static linking on powerpc with cgo is broken)
-ifneq ($(shell dpkg-architecture -qDEB_HOST_ARCH),powerpc)
 	# Generate static snap-exec, snapctl and snap-update-ns - it somehow includes CGO so
 	# we must force a static build here. We need a static snap-{exec,update-ns}/snapctl
 	# inside the core snap because not all bases will have a libc
-	(cd _build/bin && GOPATH=$$(pwd)/.. CGO_ENABLED=0 go build $(GCCGOFLAGS) $(DH_GOPKG)/cmd/snap-exec)
-	(cd _build/bin && GOPATH=$$(pwd)/.. CGO_ENABLED=0 go build $(GCCGOFLAGS) $(DH_GOPKG)/cmd/snapctl)
-	(cd _build/bin && GOPATH=$$(pwd)/.. go build --ldflags '-extldflags "-static"' $(GCCGOFLAGS) $(DH_GOPKG)/cmd/snap-update-ns)
+	(cd _build/bin && GOPATH=$$(pwd)/.. GOCACHE=/tmp/go-build CGO_ENABLED=0 go build $(GCCGOFLAGS) $(DH_GOPKG)/cmd/snap-exec)
+	(cd _build/bin && GOPATH=$$(pwd)/.. GOCACHE=/tmp/go-build CGO_ENABLED=0 go build $(GCCGOFLAGS) $(DH_GOPKG)/cmd/snapctl)
+	(cd _build/bin && GOPATH=$$(pwd)/.. GOCACHE=/tmp/go-build go build --ldflags '-extldflags "-static"' $(GCCGOFLAGS) $(DH_GOPKG)/cmd/snap-update-ns)
 
 	# ensure we generated a static build
 	$(shell	if ldd _build/bin/snap-exec; then false "need static build"; fi)
 	$(shell	if ldd _build/bin/snap-update-ns; then false "need static build"; fi)
 	$(shell	if ldd _build/bin/snapctl; then false "need static build"; fi)
-endif
 
 	# ensure snap-seccomp is build with a static libseccomp on Ubuntu
 ifeq ($(shell dpkg-vendor --query Vendor),Ubuntu)
-	# (static linking on powerpc with cgo is broken)
- ifneq ($(shell dpkg-architecture -qDEB_HOST_ARCH),powerpc)
 	sed -i "s|#cgo LDFLAGS:|#cgo LDFLAGS: /usr/lib/$(shell dpkg-architecture -qDEB_TARGET_MULTIARCH)/libseccomp.a|" _build/src/$(DH_GOPKG)/cmd/snap-seccomp/main.go
-	(cd _build/bin && GOPATH=$$(pwd)/.. CGO_LDFLAGS_ALLOW="/.*/libseccomp.a" go build $(GCCGOFLAGS) $(DH_GOPKG)/cmd/snap-seccomp)
+	(cd _build/bin && GOPATH=$$(pwd)/..  GOCACHE=/tmp/go-build CGO_LDFLAGS_ALLOW="/.*/libseccomp.a" go build $(GCCGOFLAGS) $(DH_GOPKG)/cmd/snap-seccomp)
 	# ensure that libseccomp is not dynamically linked
 	ldd _build/bin/snap-seccomp
 	test "$$(ldd _build/bin/snap-seccomp | grep libseccomp)" = ""
 	# revert again so that the subsequent tests work
 	sed -i "s|#cgo LDFLAGS: /usr/lib/$(shell dpkg-architecture -qDEB_TARGET_MULTIARCH)/libseccomp.a|#cgo LDFLAGS:|" _build/src/$(DH_GOPKG)/cmd/snap-seccomp/main.go
- endif
 endif
 
 	# Build C bits, sadly manually
@@ -186,16 +197,18 @@ endif
 	$(MAKE) -C data all
 
 	# build squashfuse and rename to snapfuse
-	(cd vendor/github.com/snapcore/squashfuse/src && mkdir -p autom4te.cache && ./autogen.sh --disable-demo && ./configure --disable-demo && make && mv squashfuse snapfuse)
+	(cd vendor/github.com/snapcore/squashfuse/src && mkdir -p autom4te.cache && ./autogen.sh --disable-demo && ./configure --disable-demo && make && mv squashfuse_ll snapfuse)
 
 override_dh_auto_test:
 	dh_auto_test -- $(GCCGOFLAGS)
 # a tested default (production) build should have no test keys
 ifeq (,$(filter nocheck,$(DEB_BUILD_OPTIONS)))
 	# check that only the main trusted account-keys are included
-	[ $$(strings _build/bin/snapd|grep -c -E "public-key-sha3-384: [a-zA-Z0-9_-]{64}") -eq 2 ]
-	strings _build/bin/snapd|grep -c "^public-key-sha3-384: -CvQKAwRQ5h3Ffn10FILJoEZUXOv6km9FwA80-Rcj-f-6jadQ89VRswHNiEB9Lxk$$"
-	strings _build/bin/snapd|grep -c "^public-key-sha3-384: d-JcZF9nD9eBw7bwMnH61x-bklnQOhQud1Is6o_cn2wTj8EYDi9musrIT9z2MdAa$$"
+	for b in _build/bin/snapd _build/bin/snap-bootstrap _build/bin/snap-preseed; do \
+	  [ $$(strings $$b |grep -c -E "public-key-sha3-384: [a-zA-Z0-9_-]{64}") -eq 2 ] && \
+	  strings $$b |grep -c "^public-key-sha3-384: -CvQKAwRQ5h3Ffn10FILJoEZUXOv6km9FwA80-Rcj-f-6jadQ89VRswHNiEB9Lxk$$" && \
+	  strings $$b |grep -c "^public-key-sha3-384: d-JcZF9nD9eBw7bwMnH61x-bklnQOhQud1Is6o_cn2wTj8EYDi9musrIT9z2MdAa$$"; \
+	done;
 	# same for snap-repair
 	[ $$(strings _build/bin/snap-repair|grep -c -E "public-key-sha3-384: [a-zA-Z0-9_-]{64}") -eq 3 ]
 	# common with snapd
@@ -235,12 +248,6 @@ override_dh_install:
 
 	$(MAKE) -C cmd install DESTDIR=$(CURDIR)/debian/tmp
 
-	# We have to disable the systemd generator on bionic because of
-	# the systemd bug LP: 1771858. Enabling it caused bug #1811233
-ifeq (${VERSION_ID},"18.04")
-	chmod -x ${CURDIR}/debian/tmp/usr/lib/systemd/system-environment-generators/snapd-env-generator
-endif
-
 	# Rename the apparmor profile, see dh_apparmor call above for an explanation.
 	mv $(CURDIR)/debian/tmp/etc/apparmor.d/usr.lib.snapd.snap-confine $(CURDIR)/debian/tmp/etc/apparmor.d/usr.lib.snapd.snap-confine.real
 
@@ -248,13 +255,19 @@ endif
 	rm $(CURDIR)/debian/snapd/$(SYSTEMD_UNITS_DESTDIR)/snapd.apparmor.service
 	rm $(CURDIR)/debian/tmp/usr/lib/snapd/snapd-apparmor
 
+	# snap-preseed should not be distributed yet.
+	rm -f ${CURDIR}/debian/tmp/usr/bin/snap-preseed
+
 	dh_install
 
 override_dh_auto_install: snap.8
 	dh_auto_install -O--buildsystem=golang
 
 snap.8:
-	$(CURDIR)/_build/bin/snap help --man > $@
+	# fix reproducible builds as reported by:
+	#   https://tests.reproducible-builds.org/debian/rb-pkg/unstable/amd64/snapd.html
+	# once golang-go-flags is fixed we can remove the "sed" expression
+	$(CURDIR)/_build/bin/snap help --man | sed '1 s/^.*/.TH snap 8 "$(shell date --reference=debian/changelog +"%d %B %Y")"/' > $@
 
 override_dh_auto_clean:
 	dh_auto_clean -O--buildsystem=golang

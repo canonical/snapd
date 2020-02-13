@@ -23,33 +23,16 @@
 #include <sys/stat.h>
 #include <unistd.h>
 
-#include "utils.h"
 #include "cleanup-funcs.h"
+#include "panic.h"
+#include "utils.h"
 
 void die(const char *msg, ...)
 {
-	int saved_errno = errno;
-	va_list va;
-	va_start(va, msg);
-	vfprintf(stderr, msg, va);
-	va_end(va);
-
-	if (errno != 0) {
-		fprintf(stderr, ": %s\n", strerror(saved_errno));
-	} else {
-		fprintf(stderr, "\n");
-	}
-	exit(1);
-}
-
-bool error(const char *msg, ...)
-{
-	va_list va;
-	va_start(va, msg);
-	vfprintf(stderr, msg, va);
-	va_end(va);
-
-	return false;
+	va_list ap;
+	va_start(ap, msg);
+	sc_panicv(msg, ap);
+	va_end(ap);
 }
 
 struct sc_bool_name {

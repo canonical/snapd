@@ -23,15 +23,17 @@ import (
 	"path/filepath"
 
 	"github.com/snapcore/snapd/bootloader/ubootenv"
-	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/osutil"
+	"github.com/snapcore/snapd/snap"
 )
 
-type uboot struct{}
+type uboot struct {
+	rootdir string
+}
 
 // newUboot create a new Uboot bootloader object
-func newUboot() Bootloader {
-	u := &uboot{}
+func newUboot(rootdir string) Bootloader {
+	u := &uboot{rootdir: rootdir}
 	if !osutil.FileExists(u.envFile()) {
 		return nil
 	}
@@ -43,8 +45,21 @@ func (u *uboot) Name() string {
 	return "uboot"
 }
 
-func (u *uboot) Dir() string {
-	return filepath.Join(dirs.GlobalRootDir, "/boot/uboot")
+func (u *uboot) setRootDir(rootdir string) {
+	u.rootdir = rootdir
+}
+
+func (u *uboot) dir() string {
+	if u.rootdir == "" {
+		panic("internal error: unset rootdir")
+	}
+	return filepath.Join(u.rootdir, "/boot/uboot")
+}
+
+func (u *uboot) InstallBootConfig(gadgetDir string, opts *Options) (bool, error) {
+	gadgetFile := filepath.Join(gadgetDir, u.Name()+".conf")
+	systemFile := u.ConfigFile()
+	return genericInstallBootConfig(gadgetFile, systemFile)
 }
 
 func (u *uboot) ConfigFile() string {
@@ -52,7 +67,7 @@ func (u *uboot) ConfigFile() string {
 }
 
 func (u *uboot) envFile() string {
-	return filepath.Join(u.Dir(), "uboot.env")
+	return filepath.Join(u.dir(), "uboot.env")
 }
 
 func (u *uboot) SetBootVars(values map[string]string) error {
@@ -91,4 +106,14 @@ func (u *uboot) GetBootVars(names ...string) (map[string]string, error) {
 	}
 
 	return out, nil
+}
+
+func (u *uboot) ExtractKernelAssets(s snap.PlaceInfo, snapf snap.Container) error {
+	dstDir := filepath.Join(u.dir(), filepath.Base(s.MountFile()))
+	assets := []string{"kernel.img", "initrd.img", "dtbs/*"}
+	return extractKernelAssetsToBootDir(dstDir, s, snapf, assets)
+}
+
+func (u *uboot) RemoveKernelAssets(s snap.PlaceInfo) error {
+	return removeKernelAssetsFromBootDir(u.dir(), s)
 }

@@ -72,17 +72,16 @@ var hidrawUDevSymlinkPattern = regexp.MustCompile("^/dev/hidraw-[a-z0-9]+$")
 
 // BeforePrepareSlot checks validity of the defined slot
 func (iface *hidrawInterface) BeforePrepareSlot(slot *snap.SlotInfo) error {
-	if err := sanitizeSlotReservedForOSOrGadget(iface, slot); err != nil {
-		return err
-	}
-
 	// Check slot has a path attribute identify hidraw device
 	path, ok := slot.Attrs["path"].(string)
 	if !ok || path == "" {
 		return fmt.Errorf("hidraw slots must have a path attribute")
 	}
 
-	// Clean the path before further checks
+	// XXX: this interface feeds the cleaned path into the regex and is
+	// left unchanged here for historical reasons. New interfaces (eg,
+	// like raw-volume) should instead use verifySlotPathAttribute() which
+	// performs additional verification.
 	path = filepath.Clean(path)
 
 	if iface.hasUsbAttrs(slot) {

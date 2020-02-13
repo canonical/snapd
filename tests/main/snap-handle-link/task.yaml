@@ -21,6 +21,10 @@ execute: |
     #shellcheck source=tests/lib/snaps.sh
     . "$TESTSLIB/snaps.sh"
 
+    # Make sure there is a default handler to open a snap package
+    mkdir -p ~/.config
+    xdg-mime default snap-handle-link.desktop x-scheme-handler/snap
+
     echo "URI Handler fails if snap-store is not installed and user refuses to install it"
     mount --bind /bin/false /usr/bin/zenity
     if snap handle-link snap://package 2>errors.log; then

@@ -444,7 +444,7 @@ dbus (receive)
     bus=session
     path=/org/freedesktop/Notifications
     interface=org.freedesktop.Notifications
-    member={ActionInvoked,NotificationClosed}
+    member={ActionInvoked,NotificationClosed,NotificationReplied}
     peer=(label=unconfined),
 
 dbus (send)
@@ -482,6 +482,7 @@ dbus (receive)
 # this leaks the names of snaps with desktop files
 /var/lib/snapd/desktop/applications/ r,
 /var/lib/snapd/desktop/applications/mimeinfo.cache r,
+# Support BAMF_DESKTOP_FILE_HINT by allowing reading our desktop files
 # parallel-installs: when @{SNAP_INSTANCE_NAME} == @{SNAP_NAME},
 # this leaks read access to desktop files of parallel installs of the snap
 /var/lib/snapd/desktop/applications/@{SNAP_INSTANCE_NAME}_*.desktop r,
@@ -659,10 +660,6 @@ func (iface *unity7Interface) AppArmorConnectedPlug(spec *apparmor.Specification
 func (iface *unity7Interface) SecCompConnectedPlug(spec *seccomp.Specification, plug *interfaces.ConnectedPlug, slot *interfaces.ConnectedSlot) error {
 	spec.AddSnippet(unity7ConnectedPlugSeccomp)
 	return nil
-}
-
-func (iface *unity7Interface) BeforePrepareSlot(slot *snap.SlotInfo) error {
-	return sanitizeSlotReservedForOS(iface, slot)
 }
 
 func (iface *unity7Interface) AutoConnect(*snap.PlugInfo, *snap.SlotInfo) bool {

@@ -32,6 +32,7 @@ import (
 
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/osutil/sys"
+	"github.com/snapcore/snapd/snap/naming"
 	"github.com/snapcore/snapd/strutil"
 	"github.com/snapcore/snapd/timeout"
 )
@@ -44,6 +45,9 @@ type PlaceInfo interface {
 
 	// SnapName returns the name of the snap.
 	SnapName() string
+
+	// SnapRevision returns the revision of the snap.
+	SnapRevision() Revision
 
 	// MountDir returns the base directory of the snap.
 	MountDir() string
@@ -83,6 +87,35 @@ type PlaceInfo interface {
 func MinimalPlaceInfo(name string, revision Revision) PlaceInfo {
 	storeName, instanceKey := SplitInstanceName(name)
 	return &Info{SideInfo: SideInfo{RealName: storeName, Revision: revision}, InstanceKey: instanceKey}
+}
+
+// ParsePlaceInfoFromSnapFileName returns a PlaceInfo with just the location
+// information for a snap of file name, failing if the snap file name is invalid
+// This explicitly does not support filenames with instance names in them
+func ParsePlaceInfoFromSnapFileName(sn string) (PlaceInfo, error) {
+	if sn == "" {
+		return nil, fmt.Errorf("empty snap file name")
+	}
+	if strings.Count(sn, "_") > 1 {
+		// too many "_", probably has an instance key in the filename like in
+		// snap-name_key_23.snap
+		return nil, fmt.Errorf("too many '_' in snap file name")
+	}
+	idx := strings.IndexByte(sn, '_')
+	switch {
+	case idx < 0:
+		return nil, fmt.Errorf("snap file name %q has invalid format (missing '_')", sn)
+	case idx == 0:
+		return nil, fmt.Errorf("snap file name %q has invalid format (no snap name before '_')", sn)
+	}
+	// ensure that _ is not the last element
+	name := sn[:idx]
+	revnoNSuffix := sn[idx+1:]
+	rev, err := ParseRevision(strings.TrimSuffix(revnoNSuffix, ".snap"))
+	if err != nil {
+		return nil, fmt.Errorf("cannot parse revision in snap file name %q: %v", sn, err)
+	}
+	return &Info{SideInfo: SideInfo{RealName: name, Revision: rev}}, nil
 }
 
 // BaseDir returns the system level directory of given snap.
@@ -203,7 +236,7 @@ type Info struct {
 	SuggestedName string
 	InstanceKey   string
 	Version       string
-	Type          Type
+	SnapType      Type
 	Architectures []string
 	Assumes       []string
 
@@ -225,9 +258,6 @@ type Info struct {
 	Plugs            map[string]*PlugInfo
 	Slots            map[string]*SlotInfo
 
-	toplevelPlugs []*PlugInfo
-	toplevelSlots []*SlotInfo
-
 	// Plugs or slots with issues (they are not included in Plugs or Slots)
 	BadInterfaces map[string]string // slot or plug => message
 
@@ -245,7 +275,10 @@ type Info struct {
 
 	Publisher StoreAccount
 
-	Media MediaInfos
+	Media   MediaInfos
+	Website string
+
+	StoreURL string
 
 	// The flattended channel map with $track/$risk
 	Channels map[string]*ChannelSnapInfo
@@ -257,6 +290,10 @@ type Info struct {
 
 	// The list of common-ids from all apps of the snap
 	CommonIDs []string
+
+	// List of system users (usernames) this snap may use. The group
+	// of the same name must also exist.
+	SystemUsernames map[string]*SystemUsernameInfo
 }
 
 // StoreAccount holds information about a store account, for example
@@ -336,6 +373,18 @@ func (s *Info) SnapName() string {
 	return s.SuggestedName
 }
 
+// SnapRevision returns the revision of the snap.
+func (s *Info) SnapRevision() Revision {
+	return s.Revision
+}
+
+// ID implements naming.SnapRef.
+func (s *Info) ID() string {
+	return s.SnapID
+}
+
+var _ naming.SnapRef = (*Info)(nil)
+
 // Title returns the blessed title for the snap.
 func (s *Info) Title() string {
 	if s.EditedTitle != "" {
@@ -358,6 +407,15 @@ func (s *Info) Description() string {
 		return s.EditedDescription
 	}
 	return s.OriginalDescription
+}
+
+// GetType returns the type of the snap, including additional snap ID check
+// for the legacy snapd snap definitions.
+func (s *Info) GetType() Type {
+	if s.SnapType == TypeApp && IsSnapd(s.SnapID) {
+		return TypeSnapd
+	}
+	return s.SnapType
 }
 
 // MountDir returns the base directory of the snap where it gets mounted.
@@ -646,6 +704,39 @@ func (slot *SlotInfo) String() string {
 	return fmt.Sprintf("%s:%s", slot.Snap.InstanceName(), slot.Name)
 }
 
+func gatherDefaultContentProvider(providerSnapsToContentTag map[string][]string, plug *PlugInfo) {
+	if plug.Interface == "content" {
+		var dprovider string
+		if err := plug.Attr("default-provider", &dprovider); err == nil && dprovider != "" {
+			// usage can be "snap:slot" but slot
+			// is ignored/unused
+			name := strings.Split(dprovider, ":")[0]
+			var contentTag string
+			plug.Attr("content", &contentTag)
+			tags := providerSnapsToContentTag[name]
+			if tags == nil {
+				tags = []string{contentTag}
+			} else {
+				if !strutil.SortedListContains(tags, contentTag) {
+					tags = append(tags, contentTag)
+					sort.Strings(tags)
+				}
+			}
+			providerSnapsToContentTag[name] = tags
+		}
+	}
+}
+
+// DefaultContentProviders returns the set of default provider snaps
+// requested by the given plugs, mapped to their content tags.
+func DefaultContentProviders(plugs []*PlugInfo) (providerSnapsToContentTag map[string][]string) {
+	providerSnapsToContentTag = make(map[string][]string)
+	for _, plug := range plugs {
+		gatherDefaultContentProvider(providerSnapsToContentTag, plug)
+	}
+	return providerSnapsToContentTag
+}
+
 // SlotInfo provides information about a slot.
 type SlotInfo struct {
 	Snap *Info
@@ -690,7 +781,7 @@ func (st StopModeType) KillAll() bool {
 }
 
 // KillSignal returns the signal that should be used to kill the process
-// (or an empty string if no signal is needed)
+// (or an empty string if no signal is needed).
 func (st StopModeType) KillSignal() string {
 	if st.Validate() != nil || st == "" {
 		return ""
@@ -698,6 +789,7 @@ func (st StopModeType) KillSignal() string {
 	return strings.ToUpper(strings.TrimSuffix(string(st), "-all"))
 }
 
+// Validate ensures that the StopModeType has an valid value.
 func (st StopModeType) Validate() error {
 	switch st {
 	case "", "sigterm", "sigterm-all", "sighup", "sighup-all", "sigusr1", "sigusr1-all", "sigusr2", "sigusr2-all":
@@ -753,7 +845,7 @@ type AppInfo struct {
 
 // ScreenshotInfo provides information about a screenshot.
 type ScreenshotInfo struct {
-	URL    string `json:"url"`
+	URL    string `json:"url,omitempty"`
 	Width  int64  `json:"width,omitempty"`
 	Height int64  `json:"height,omitempty"`
 	Note   string `json:"note,omitempty"`
@@ -767,24 +859,6 @@ type MediaInfo struct {
 }
 
 type MediaInfos []MediaInfo
-
-const ScreenshotsDeprecationNotice = `'screenshots' is deprecated; use 'media' instead. More info at https://forum.snapcraft.io/t/8086`
-
-func (mis MediaInfos) Screenshots() []ScreenshotInfo {
-	shots := make([]ScreenshotInfo, 0, len(mis))
-	for _, mi := range mis {
-		if mi.Type != "screenshot" {
-			continue
-		}
-		shots = append(shots, ScreenshotInfo{
-			URL:    mi.URL,
-			Width:  mi.Width,
-			Height: mi.Height,
-			Note:   ScreenshotsDeprecationNotice,
-		})
-	}
-	return shots
-}
 
 func (mis MediaInfos) IconURL() string {
 	for _, mi := range mis {
@@ -807,6 +881,21 @@ type HookInfo struct {
 	CommandChain []string
 
 	Explicit bool
+}
+
+// SystemUsernameInfo provides information about a system username (ie, a
+// UNIX user and group with the same name). The scope defines visibility of the
+// username wrt the snap and the system. Defined scopes:
+// - shared    static, snapd-managed user/group shared between host and all
+//             snaps
+// - private   static, snapd-managed user/group private to a particular snap
+//             (currently not implemented)
+// - external  dynamic user/group shared between host and all snaps (currently
+//             not implented)
+type SystemUsernameInfo struct {
+	Name  string
+	Scope string
+	Attrs map[string]interface{}
 }
 
 // File returns the path to the *.socket file
@@ -931,8 +1020,8 @@ func envFromMap(envMap *strutil.OrderedMap) []string {
 	return env
 }
 
-func infoFromSnapYamlWithSideInfo(meta []byte, si *SideInfo) (*Info, error) {
-	info, err := InfoFromSnapYaml(meta)
+func infoFromSnapYamlWithSideInfo(meta []byte, si *SideInfo, strk *scopedTracker) (*Info, error) {
+	info, err := infoFromSnapYaml(meta, strk)
 	if err != nil {
 		return nil, err
 	}
@@ -1004,7 +1093,8 @@ func ReadInfo(name string, si *SideInfo) (*Info, error) {
 		return nil, err
 	}
 
-	info, err := infoFromSnapYamlWithSideInfo(meta, si)
+	strk := new(scopedTracker)
+	info, err := infoFromSnapYamlWithSideInfo(meta, si, strk)
 	if err != nil {
 		return nil, &invalidMetaError{Snap: name, Revision: si.Revision, Msg: err.Error()}
 	}
@@ -1017,7 +1107,7 @@ func ReadInfo(name string, si *SideInfo) (*Info, error) {
 		return nil, &invalidMetaError{Snap: name, Revision: si.Revision, Msg: err.Error()}
 	}
 
-	bindImplicitHooks(info)
+	bindImplicitHooks(info, strk)
 
 	mountFile := MountFile(name, si.Revision)
 	st, err := os.Lstat(mountFile)
@@ -1065,7 +1155,8 @@ func ReadInfoFromSnapFile(snapf Container, si *SideInfo) (*Info, error) {
 		return nil, err
 	}
 
-	info, err := infoFromSnapYamlWithSideInfo(meta, si)
+	strk := new(scopedTracker)
+	info, err := infoFromSnapYamlWithSideInfo(meta, si, strk)
 	if err != nil {
 		return nil, err
 	}
@@ -1080,7 +1171,7 @@ func ReadInfoFromSnapFile(snapf Container, si *SideInfo) (*Info, error) {
 		return nil, err
 	}
 
-	bindImplicitHooks(info)
+	bindImplicitHooks(info, strk)
 
 	err = Validate(info)
 	if err != nil {
@@ -1157,7 +1248,7 @@ type ByType []*Info
 func (r ByType) Len() int      { return len(r) }
 func (r ByType) Swap(i, j int) { r[i], r[j] = r[j], r[i] }
 func (r ByType) Less(i, j int) bool {
-	return r[i].Type.SortsBefore(r[j].Type)
+	return r[i].GetType().SortsBefore(r[j].GetType())
 }
 
 func SortServices(apps []*AppInfo) (sorted []*AppInfo, err error) {
@@ -1192,7 +1283,7 @@ func SortServices(apps []*AppInfo) (sorted []*AppInfo, err error) {
 
 	// Kahn:
 	// see https://dl.acm.org/citation.cfm?doid=368996.369025
-	//     https://en.wikipedia.org/wiki/Topological_sorting#Kahn's_algorithm
+	//     https://en.wikipedia.org/wiki/Topological_sorting%23Kahn%27s_algorithm
 	//
 	// Apps without predecessors are 'top' nodes. On each iteration, take
 	// the next 'top' node, and decrease the predecessor count of each

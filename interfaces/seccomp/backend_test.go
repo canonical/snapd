@@ -22,9 +22,13 @@ package seccomp_test
 import (
 	"bytes"
 	"errors"
+	"fmt"
 	"io/ioutil"
 	"os"
 	"path/filepath"
+	"runtime"
+	"sort"
+	"sync"
 
 	. "gopkg.in/check.v1"
 
@@ -34,9 +38,11 @@ import (
 	"github.com/snapcore/snapd/interfaces/ifacetest"
 	"github.com/snapcore/snapd/interfaces/seccomp"
 	"github.com/snapcore/snapd/osutil"
-	"github.com/snapcore/snapd/release"
+	apparmor_sandbox "github.com/snapcore/snapd/sandbox/apparmor"
+	seccomp_sandbox "github.com/snapcore/snapd/sandbox/seccomp"
 	"github.com/snapcore/snapd/snap"
 	"github.com/snapcore/snapd/snap/snaptest"
+	"github.com/snapcore/snapd/strutil"
 	"github.com/snapcore/snapd/testutil"
 	"github.com/snapcore/snapd/timings"
 )
@@ -75,16 +81,14 @@ func (s *backendSuite) SetUpTest(c *C) {
 		return filepath.Join(dirs.DistroLibExecDir, "snapd"), nil
 	})
 	snapSeccompPath := filepath.Join(dirs.DistroLibExecDir, "snap-seccomp")
-	err = os.MkdirAll(filepath.Dir(snapSeccompPath), 0755)
-	c.Assert(err, IsNil)
-	s.snapSeccomp = testutil.MockCommand(c, snapSeccompPath, `
+	s.snapSeccomp = testutil.MockLockedCommand(c, snapSeccompPath, `
 if [ "$1" = "version-info" ]; then
-    echo "abcdef 1.2.3 1234abcd"
+    echo "abcdef 1.2.3 1234abcd -"
 fi`)
 
 	s.Backend.Initialize()
 	s.profileHeader = `# snap-seccomp version information:
-# abcdef 1.2.3 1234abcd
+# abcdef 1.2.3 1234abcd -
 `
 	// make sure initialize called version-info
 	c.Check(s.snapSeccomp.Calls(), DeepEquals, [][]string{
@@ -153,15 +157,13 @@ func (s *backendSuite) TestInstallingSnapWritesProfilesWithReexec(c *C) {
 
 	// ensure we have a mocked snap-seccomp on core
 	snapSeccompOnCorePath := filepath.Join(dirs.SnapMountDir, "core/42/usr/lib/snapd/snap-seccomp")
-	err := os.MkdirAll(filepath.Dir(snapSeccompOnCorePath), 0755)
-	c.Assert(err, IsNil)
-	snapSeccompOnCore := testutil.MockCommand(c, snapSeccompOnCorePath, `if [ "$1" = "version-info" ]; then
-echo "2345cdef 2.3.4 2345cdef"
+	snapSeccompOnCore := testutil.MockLockedCommand(c, snapSeccompOnCorePath, `if [ "$1" = "version-info" ]; then
+echo "2345cdef 2.3.4 2345cdef -"
 fi`)
 	defer snapSeccompOnCore.Restore()
 
 	// rerun initialization
-	err = s.Backend.Initialize()
+	err := s.Backend.Initialize()
 	c.Assert(err, IsNil)
 
 	s.InstallSnap(c, interfaces.ConfinementOptions{}, "", ifacetest.SambaYamlV1, 0)
@@ -179,7 +181,7 @@ fi`)
 	raw, err := ioutil.ReadFile(profile + ".src")
 	c.Assert(err, IsNil)
 	c.Assert(bytes.HasPrefix(raw, []byte(`# snap-seccomp version information:
-# 2345cdef 2.3.4 2345cdef
+# 2345cdef 2.3.4 2345cdef -
 `)), Equals, true)
 }
 
@@ -278,6 +280,7 @@ func (s *backendSuite) TestRealDefaultTemplateIsNormallyUsed(c *C) {
 		"# - create_module, init_module, finit_module, delete_module (kernel modules)\n",
 		"open\n",
 		"getuid\n",
+		"setresuid\n", // this is not random
 	} {
 		c.Assert(string(data), testutil.Contains, line)
 	}
@@ -314,9 +317,9 @@ var combineSnippetsScenarios = []combineSnippetsScenario{{
 }}
 
 func (s *backendSuite) TestCombineSnippets(c *C) {
-	restore := release.MockForcedDevmode(false)
+	restore := apparmor_sandbox.MockLevel(apparmor_sandbox.Full)
 	defer restore()
-	restore = release.MockSecCompActions([]string{"log"})
+	restore = seccomp_sandbox.MockActions([]string{"log"})
 	defer restore()
 	restore = seccomp.MockRequiresSocketcall(func(string) bool { return false })
 	defer restore()
@@ -353,7 +356,7 @@ apps:
 
 // Ensure that combined snippets are sorted
 func (s *backendSuite) TestCombineSnippetsOrdering(c *C) {
-	restore := release.MockForcedDevmode(false)
+	restore := apparmor_sandbox.MockLevel(apparmor_sandbox.Full)
 	defer restore()
 	restore = seccomp.MockRequiresSocketcall(func(string) bool { return false })
 	defer restore()
@@ -382,8 +385,8 @@ func (s *backendSuite) TestCombineSnippetsOrdering(c *C) {
 	c.Check(stat.Mode(), Equals, os.FileMode(0644))
 }
 
-func (s *backendSuite) TestBindIsAddedForForcedDevModeSystems(c *C) {
-	restore := release.MockForcedDevmode(true)
+func (s *backendSuite) TestBindIsAddedForNonFullApparmorSystems(c *C) {
+	restore := apparmor_sandbox.MockLevel(apparmor_sandbox.Partial)
 	defer restore()
 
 	snapInfo := snaptest.MockInfo(c, ifacetest.SambaYamlV1, nil)
@@ -391,7 +394,7 @@ func (s *backendSuite) TestBindIsAddedForForcedDevModeSystems(c *C) {
 	err := s.Backend.Setup(snapInfo, interfaces.ConfinementOptions{}, s.Repo, s.meas)
 	c.Assert(err, IsNil)
 	profile := filepath.Join(dirs.SnapSeccompDir, "snap.samba.smbd")
-	c.Assert(profile+".src", testutil.FileContains, "\nbind\n")
+	c.Assert(profile+".src", testutil.FileContains, "# Add bind() for systems with only Seccomp enabled to workaround\n# LP #1644573\nbind\n")
 }
 
 func (s *backendSuite) TestSocketcallIsAddedWhenRequired(c *C) {
@@ -428,7 +431,7 @@ apps:
   `
 
 func (s *backendSuite) TestSystemKeyRetLogSupported(c *C) {
-	restore := release.MockSecCompActions([]string{"allow", "errno", "kill", "log", "trace", "trap"})
+	restore := seccomp_sandbox.MockActions([]string{"allow", "errno", "kill", "log", "trace", "trap"})
 	defer restore()
 
 	snapInfo := s.InstallSnap(c, interfaces.ConfinementOptions{DevMode: true}, "", ifacetest.SambaYamlV1, 0)
@@ -448,7 +451,7 @@ func (s *backendSuite) TestSystemKeyRetLogSupported(c *C) {
 }
 
 func (s *backendSuite) TestSystemKeyRetLogUnsupported(c *C) {
-	restore := release.MockSecCompActions([]string{"allow", "errno", "kill", "trace", "trap"})
+	restore := seccomp_sandbox.MockActions([]string{"allow", "errno", "kill", "trace", "trap"})
 	defer restore()
 
 	snapInfo := s.InstallSnap(c, interfaces.ConfinementOptions{DevMode: true}, "", ifacetest.SambaYamlV1, 0)
@@ -472,12 +475,24 @@ func (s *backendSuite) TestSandboxFeatures(c *C) {
 	defer restore()
 
 	c.Assert(s.Backend.SandboxFeatures(), DeepEquals, []string{"kernel:foo", "kernel:bar", "bpf-argument-filtering"})
+
+	// change version reported by snap-seccomp
+	snapSeccomp := testutil.MockLockedCommand(c, filepath.Join(dirs.DistroLibExecDir, "snap-seccomp"), `
+if [ "$1" = "version-info" ]; then
+    echo "abcdef 1.2.3 1234abcd bpf-actlog"
+fi`)
+	defer snapSeccomp.Restore()
+
+	// reload cached version info
+	err := s.Backend.Initialize()
+	c.Assert(err, IsNil)
+	c.Assert(s.Backend.SandboxFeatures(), DeepEquals, []string{"kernel:foo", "kernel:bar", "bpf-argument-filtering", "bpf-actlog"})
 }
 
 func (s *backendSuite) TestRequiresSocketcallByNotNeededArch(c *C) {
 	testArchs := []string{"amd64", "armhf", "arm64", "powerpc", "ppc64el", "unknownDefault"}
 	for _, arch := range testArchs {
-		restore := seccomp.MockUbuntuKernelArchitecture(func() string { return arch })
+		restore := seccomp.MockDpkgKernelArchitecture(func() string { return arch })
 		defer restore()
 		c.Assert(seccomp.RequiresSocketcall(""), Equals, false)
 	}
@@ -486,7 +501,7 @@ func (s *backendSuite) TestRequiresSocketcallByNotNeededArch(c *C) {
 func (s *backendSuite) TestRequiresSocketcallForceByArch(c *C) {
 	testArchs := []string{"sparc", "sparc64"}
 	for _, arch := range testArchs {
-		restore := seccomp.MockUbuntuKernelArchitecture(func() string { return arch })
+		restore := seccomp.MockDpkgKernelArchitecture(func() string { return arch })
 		defer restore()
 		c.Assert(seccomp.RequiresSocketcall(""), Equals, true)
 	}
@@ -528,7 +543,7 @@ func (s *backendSuite) TestRequiresSocketcallForcedViaUbuntuRelease(c *C) {
 	for _, t := range tests {
 		restore = seccomp.MockReleaseInfoId(t.distro)
 		defer restore()
-		restore = seccomp.MockUbuntuKernelArchitecture(func() string { return t.arch })
+		restore = seccomp.MockDpkgKernelArchitecture(func() string { return t.arch })
 		defer restore()
 		restore = seccomp.MockReleaseInfoVersionId(t.release)
 		defer restore()
@@ -567,7 +582,7 @@ func (s *backendSuite) TestRequiresSocketcallForcedViaKernelVersion(c *C) {
 	}
 
 	for _, t := range tests {
-		restore := seccomp.MockUbuntuKernelArchitecture(func() string { return t.arch })
+		restore := seccomp.MockDpkgKernelArchitecture(func() string { return t.arch })
 		defer restore()
 		restore = osutil.MockKernelVersion(t.version)
 		defer restore()
@@ -583,7 +598,7 @@ func (s *backendSuite) TestRequiresSocketcallForcedViaBaseSnap(c *C) {
 	// check is reached
 	restore := seccomp.MockReleaseInfoId("other")
 	defer restore()
-	restore = seccomp.MockUbuntuKernelArchitecture(func() string { return "i386" })
+	restore = seccomp.MockDpkgKernelArchitecture(func() string { return "i386" })
 	defer restore()
 	restore = osutil.MockKernelVersion("4.3")
 	defer restore()
@@ -599,7 +614,7 @@ func (s *backendSuite) TestRequiresSocketcallNotForcedViaBaseSnap(c *C) {
 	// check is reached
 	restore := seccomp.MockReleaseInfoId("other")
 	defer restore()
-	restore = seccomp.MockUbuntuKernelArchitecture(func() string { return "i386" })
+	restore = seccomp.MockDpkgKernelArchitecture(func() string { return "i386" })
 	defer restore()
 	restore = osutil.MockKernelVersion("4.3")
 	defer restore()
@@ -611,9 +626,9 @@ func (s *backendSuite) TestRequiresSocketcallNotForcedViaBaseSnap(c *C) {
 }
 
 func (s *backendSuite) TestRebuildsWithVersionInfoWhenNeeded(c *C) {
-	restore := release.MockForcedDevmode(false)
+	restore := apparmor_sandbox.MockLevel(apparmor_sandbox.Full)
 	defer restore()
-	restore = release.MockSecCompActions([]string{"log"})
+	restore = seccomp_sandbox.MockActions([]string{"log"})
 	defer restore()
 	restore = seccomp.MockRequiresSocketcall(func(string) bool { return false })
 	defer restore()
@@ -641,13 +656,13 @@ func (s *backendSuite) TestRebuildsWithVersionInfoWhenNeeded(c *C) {
 	c.Check(s.snapSeccomp.Calls(), HasLen, 1)
 
 	// change version reported by snap-seccomp
-	snapSeccomp := testutil.MockCommand(c, filepath.Join(dirs.DistroLibExecDir, "snap-seccomp"), `
+	snapSeccomp := testutil.MockLockedCommand(c, filepath.Join(dirs.DistroLibExecDir, "snap-seccomp"), `
 if [ "$1" = "version-info" ]; then
-    echo "abcdef 2.3.3 2345abcd"
+    echo "abcdef 2.3.3 2345abcd -"
 fi`)
 	defer snapSeccomp.Restore()
 	updatedProfileHeader := `# snap-seccomp version information:
-# abcdef 2.3.3 2345abcd
+# abcdef 2.3.3 2345abcd -
 `
 	// reload cached version info
 	err = s.Backend.Initialize()
@@ -694,8 +709,8 @@ func (s *backendSuite) TestInitializationDuringBootstrap(c *C) {
 	snapSeccompInMountedPath := filepath.Join(tmpDir, "usr/lib/snapd/snap-seccomp")
 	err := os.MkdirAll(filepath.Dir(snapSeccompInMountedPath), 0755)
 	c.Assert(err, IsNil)
-	snapSeccompInMounted := testutil.MockCommand(c, snapSeccompInMountedPath, `if [ "$1" = "version-info" ]; then
-echo "2345cdef 2.3.4 2345cdef"
+	snapSeccompInMounted := testutil.MockLockedCommand(c, snapSeccompInMountedPath, `if [ "$1" = "version-info" ]; then
+echo "2345cdef 2.3.4 2345cdef -"
 fi`)
 	defer snapSeccompInMounted.Restore()
 
@@ -712,7 +727,7 @@ fi`)
 
 	sb, ok := s.Backend.(*seccomp.Backend)
 	c.Assert(ok, Equals, true)
-	c.Check(sb.VersionInfo(), Equals, "2345cdef 2.3.4 2345cdef")
+	c.Check(sb.VersionInfo(), Equals, seccomp_sandbox.VersionInfo("2345cdef 2.3.4 2345cdef -"))
 }
 
 func (s *backendSuite) TestCompilerInitUnhappy(c *C) {
@@ -723,4 +738,233 @@ func (s *backendSuite) TestCompilerInitUnhappy(c *C) {
 	defer restore()
 	err := s.Backend.Initialize()
 	c.Assert(err, ErrorMatches, "cannot initialize seccomp profile compiler: failed")
+}
+
+func (s *backendSuite) TestSystemUsernamesPolicy(c *C) {
+	snapYaml := `
+name: app
+version: 0.1
+system-usernames:
+  testid: shared
+  testid2: shared
+apps:
+  cmd:
+`
+	snapInfo := snaptest.MockInfo(c, snapYaml, nil)
+	// NOTE: we don't call seccomp.MockTemplate()
+	err := s.Backend.Setup(snapInfo, interfaces.ConfinementOptions{}, s.Repo, s.meas)
+	c.Assert(err, IsNil)
+	// NOTE: we don't call seccomp.MockTemplate()
+	profile := filepath.Join(dirs.SnapSeccompDir, "snap.app.cmd")
+	data, err := ioutil.ReadFile(profile + ".src")
+	c.Assert(err, IsNil)
+	for _, line := range []string{
+		// NOTE: a few randomly picked lines from the real
+		// profile.  Comments and empty lines are avoided as
+		// those can be discarded in the future.
+		"\n# - create_module, init_module, finit_module, delete_module (kernel modules)\n",
+		"\nopen\n",
+		"\ngetuid\n",
+		"\nsetgroups 0 0\n",
+		// and a few randomly picked lines from root syscalls
+		// with extra \n checks to ensure we have the right
+		// "paragraphs" in the generated output
+		"\n\n# allow setresgid to root\n",
+		"\n# allow setresuid to root\n",
+		"\nsetresuid u:root u:root u:root\n",
+		// and a few randomly picked lines from global id syscalls
+		"\n\n# allow setresgid to testid\n",
+		"\n\n# allow setresuid to testid\n",
+		"\nsetresuid -1 u:testid -1\n",
+		// also for the second user
+		"\n\n# allow setresgid to testid2\n",
+		"\n# allow setresuid to testid2\n",
+		"\nsetresuid -1 u:testid2 -1\n",
+	} {
+		c.Assert(string(data), testutil.Contains, line)
+	}
+
+	// make sure the bare syscalls aren't present
+	c.Assert(string(data), Not(testutil.Contains), "setresuid\n")
+}
+
+func (s *backendSuite) TestNoSystemUsernamesPolicy(c *C) {
+	snapYaml := `
+name: app
+version: 0.1
+apps:
+  cmd:
+`
+	snapInfo := snaptest.MockInfo(c, snapYaml, nil)
+	// NOTE: we don't call seccomp.MockTemplate()
+	err := s.Backend.Setup(snapInfo, interfaces.ConfinementOptions{}, s.Repo, s.meas)
+	c.Assert(err, IsNil)
+	// NOTE: we don't call seccomp.MockTemplate()
+	profile := filepath.Join(dirs.SnapSeccompDir, "snap.app.cmd")
+	data, err := ioutil.ReadFile(profile + ".src")
+	c.Assert(err, IsNil)
+	for _, line := range []string{
+		// and a few randomly picked lines from root syscalls
+		"# allow setresgid to root\n",
+		"# allow setresuid to root\n",
+		"setresuid u:root u:root u:root\n",
+		// and a few randomly picked lines from global id syscalls
+		"# allow setresgid to testid\n",
+		"# allow setresuid to testid\n",
+		"setresuid -1 u:testid -1\n",
+	} {
+		c.Assert(string(data), Not(testutil.Contains), line)
+	}
+
+	// make sure the bare syscalls are present
+	c.Assert(string(data), testutil.Contains, "setresuid\n")
+}
+
+func (s *backendSuite) TestCleanupWhenOneFailsParallel(c *C) {
+	restore := apparmor_sandbox.MockLevel(apparmor_sandbox.Full)
+	defer restore()
+	restore = seccomp_sandbox.MockActions([]string{"log"})
+	defer restore()
+	restore = seccomp.MockRequiresSocketcall(func(string) bool { return false })
+	defer restore()
+
+	// NOTE: replace the real template with a shorter variant
+	restore = seccomp.MockTemplate([]byte("\ndefault\n"))
+	defer restore()
+
+	snapSeccomp := testutil.MockLockedCommand(c, filepath.Join(dirs.DistroLibExecDir, "snap-seccomp"),
+		`
+if [ "$1" = "version-info" ]; then
+    echo "2345cdef 2.3.4 2345cdef -"
+elif [ "$1" = "compile" ] && [ "${2//nmbd}" != "$2" ]; then
+    echo "mocked failure"
+    exit 1
+fi
+`)
+	defer snapSeccomp.Restore()
+
+	// rerun initialization
+	err := s.Backend.Initialize()
+	c.Assert(err, IsNil)
+
+	smbdProfile := filepath.Join(dirs.SnapSeccompDir, "snap.samba.smbd")
+	nmbdProfile := filepath.Join(dirs.SnapSeccompDir, "snap.samba.nmbd")
+
+	snapInfo := snaptest.MockInfo(c, ifacetest.SambaYamlV1WithNmbd, nil)
+	err = s.Backend.Setup(snapInfo, interfaces.ConfinementOptions{}, s.Repo, s.meas)
+	c.Assert(err, ErrorMatches, "cannot compile .*nmbd.src: mocked failure")
+	for _, profile := range []string{smbdProfile, nmbdProfile} {
+		c.Check(profile+".bin", testutil.FileAbsent)
+	}
+
+	// 2 compile calls + 1 version-info
+	c.Check(snapSeccomp.Calls(), HasLen, 3)
+	seen := make(map[string]bool, 2)
+	for _, call := range snapSeccomp.Calls() {
+		if len(call) == 2 && call[1] == "version-info" {
+			continue
+		}
+		c.Assert(call, HasLen, 4)
+		seen[call[2]] = true
+	}
+	c.Check(seen, DeepEquals, map[string]bool{
+		nmbdProfile + ".src": true,
+		smbdProfile + ".src": true,
+	})
+
+}
+
+type mockedSyncedCompiler struct {
+	lock     sync.Mutex
+	profiles []string
+}
+
+func (m *mockedSyncedCompiler) Compile(in, out string) error {
+	m.lock.Lock()
+	m.profiles = append(m.profiles, filepath.Base(in))
+	m.lock.Unlock()
+
+	f, err := os.Create(out)
+	if err != nil {
+		return err
+	}
+	defer f.Close()
+	fmt.Fprintf(f, "done %s", filepath.Base(out))
+	return nil
+}
+
+func (m *mockedSyncedCompiler) VersionInfo() (seccomp_sandbox.VersionInfo, error) {
+	return "", nil
+}
+
+func (s *backendSuite) TestParallelCompileHappy(c *C) {
+	cpus := runtime.NumCPU()
+
+	m := mockedSyncedCompiler{}
+	profiles := make([]string, cpus*3)
+	for i := range profiles {
+		profiles[i] = fmt.Sprintf("profile-%03d", i)
+	}
+	err := seccomp.ParallelCompile(&m, profiles)
+	c.Assert(err, IsNil)
+
+	sort.Strings(m.profiles)
+	c.Assert(m.profiles, DeepEquals, profiles)
+
+	for _, p := range profiles {
+		c.Check(filepath.Join(dirs.SnapSeccompDir, p+".bin"), testutil.FileEquals, "done "+p+".bin")
+	}
+}
+
+type mockedSyncedFailingCompiler struct {
+	mockedSyncedCompiler
+	whichFail []string
+}
+
+func (m *mockedSyncedFailingCompiler) Compile(in, out string) error {
+	if b := filepath.Base(out); strutil.ListContains(m.whichFail, b) {
+		return fmt.Errorf("failed %v", b)
+	}
+	return m.mockedSyncedCompiler.Compile(in, out)
+}
+
+func (s *backendSuite) TestParallelCompileError(c *C) {
+	err := os.MkdirAll(dirs.SnapSeccompDir, 0755)
+	c.Assert(err, IsNil)
+	// 15 profiles
+	profiles := make([]string, 15)
+	for i := range profiles {
+		profiles[i] = fmt.Sprintf("profile-%03d", i)
+	}
+	m := mockedSyncedFailingCompiler{
+		// pretend compilation of those 2 fails
+		whichFail: []string{"profile-005.bin", "profile-009.bin"},
+	}
+	err = seccomp.ParallelCompile(&m, profiles)
+	c.Assert(err, ErrorMatches, "cannot compile .*/bpf/profile-00[59]: failed profile-00[59].bin")
+
+	// make sure all compiled profiles were removed
+	d, err := os.Open(dirs.SnapSeccompDir)
+	c.Assert(err, IsNil)
+	names, err := d.Readdirnames(-1)
+	c.Assert(err, IsNil)
+	// only global profile exists
+	c.Assert(names, DeepEquals, []string{"global.bin"})
+}
+
+func (s *backendSuite) TestParallelCompileRemovesFirst(c *C) {
+	err := os.MkdirAll(dirs.SnapSeccompDir, 0755)
+	c.Assert(err, IsNil)
+	err = ioutil.WriteFile(filepath.Join(dirs.SnapSeccompDir, "profile-001.bin"), nil, 0755)
+	c.Assert(err, IsNil)
+
+	// make profiles directory non-accessible
+	err = os.Chmod(dirs.SnapSeccompDir, 0000)
+	c.Assert(err, IsNil)
+
+	defer os.Chmod(dirs.SnapSeccompDir, 0755)
+
+	m := mockedSyncedCompiler{}
+	err = seccomp.ParallelCompile(&m, []string{"profile-001"})
+	c.Assert(err, ErrorMatches, "remove .*/profile-001.bin: permission denied")
 }

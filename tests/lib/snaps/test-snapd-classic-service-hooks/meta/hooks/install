@@ -1,0 +1,3 @@
+#!/bin/sh
+
+echo "$(date): install hook" >> "$SNAP_COMMON/log"

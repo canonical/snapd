@@ -35,7 +35,7 @@ import (
 	"golang.org/x/crypto/openpgp/packet"
 
 	"github.com/snapcore/snapd/asserts"
-	"github.com/snapcore/snapd/strutil"
+	"github.com/snapcore/snapd/randutil"
 )
 
 // GenerateKey generates a private/public key pair of the given bits. It panics on error.
@@ -167,7 +167,7 @@ func NewAccount(db SignerDB, username string, otherHeaders map[string]interface{
 	}
 	otherHeaders["username"] = username
 	if otherHeaders["account-id"] == nil {
-		otherHeaders["account-id"] = strutil.MakeRandomString(32)
+		otherHeaders["account-id"] = randutil.RandomString(32)
 	}
 	if otherHeaders["display-name"] == nil {
 		otherHeaders["display-name"] = strings.ToTitle(username[:1]) + username[1:]
@@ -443,4 +443,168 @@ func MockBuiltinBaseDeclaration(headers []byte) (restore func()) {
 			panic(err)
 		}
 	}
+}
+
+// FakeAssertionWithBody builds a fake assertion with the given body
+// and layered headers. A fake assertion cannot be verified or added
+// to a database or properly encoded. It can still be useful for unit
+// tests but shouldn't be used in integration tests.
+func FakeAssertionWithBody(body []byte, headerLayers ...map[string]interface{}) asserts.Assertion {
+	headers := map[string]interface{}{
+		"sign-key-sha3-384": "Jv8_JiHiIzJVcO9M55pPdqSDWUvuhfDIBJUS-3VW7F_idjix7Ffn5qMxB21ZQuij",
+	}
+	for _, h := range headerLayers {
+		for k, v := range h {
+			headers[k] = v
+		}
+	}
+
+	_, hasTimestamp := headers["timestamp"]
+	_, hasSince := headers["since"]
+	if !(hasTimestamp || hasSince) {
+		headers["timestamp"] = time.Now().Format(time.RFC3339)
+	}
+
+	a, err := asserts.Assemble(headers, body, nil, []byte("AXNpZw=="))
+	if err != nil {
+		panic(fmt.Sprintf("cannot build fake assertion: %v", err))
+	}
+	return a
+}
+
+// FakeAssertion builds a fake assertion with given layered headers
+// and an empty body. A fake assertion cannot be verified or added to
+// a database or properly encoded. It can still be useful for unit
+// tests but shouldn't be used in integration tests.
+func FakeAssertion(headerLayers ...map[string]interface{}) asserts.Assertion {
+	return FakeAssertionWithBody(nil, headerLayers...)
+}
+
+type accuDB interface {
+	Add(asserts.Assertion) error
+}
+
+// AddMany conveniently adds the given assertions to the db.
+// It is idempotent but otherwise panics on error.
+func AddMany(db accuDB, assertions ...asserts.Assertion) {
+	for _, a := range assertions {
+		err := db.Add(a)
+		if _, ok := err.(*asserts.RevisionError); !ok {
+			if err != nil {
+				panic(fmt.Sprintf("cannot add test assertions: %v", err))
+			}
+		}
+	}
+}
+
+// SigningAccounts manages a set of brand or user accounts,
+// with their keys that can sign models etc.
+type SigningAccounts struct {
+	store *StoreStack
+
+	signing map[string]*SigningDB
+
+	accts    map[string]*asserts.Account
+	acctKeys map[string]*asserts.AccountKey
+}
+
+// NewSigningAccounts creates a new SigningAccounts instance.
+func NewSigningAccounts(store *StoreStack) *SigningAccounts {
+	return &SigningAccounts{
+		store:    store,
+		signing:  make(map[string]*SigningDB),
+		accts:    make(map[string]*asserts.Account),
+		acctKeys: make(map[string]*asserts.AccountKey),
+	}
+}
+
+func (sa *SigningAccounts) Register(accountID string, brandPrivKey asserts.PrivateKey, extra map[string]interface{}) *SigningDB {
+	brandSigning := NewSigningDB(accountID, brandPrivKey)
+	sa.signing[accountID] = brandSigning
+
+	acctHeaders := map[string]interface{}{
+		"account-id": accountID,
+	}
+	for k, v := range extra {
+		acctHeaders[k] = v
+	}
+
+	brandAcct := NewAccount(sa.store, accountID, acctHeaders, "")
+	sa.accts[accountID] = brandAcct
+
+	brandPubKey, err := brandSigning.PublicKey("")
+	if err != nil {
+		panic(err)
+	}
+	brandAcctKey := NewAccountKey(sa.store, brandAcct, nil, brandPubKey, "")
+	sa.acctKeys[accountID] = brandAcctKey
+
+	return brandSigning
+}
+
+func (sa *SigningAccounts) Account(accountID string) *asserts.Account {
+	if acct := sa.accts[accountID]; acct != nil {
+		return acct
+	}
+	panic(fmt.Sprintf("unknown test account-id: %s", accountID))
+}
+
+func (sa *SigningAccounts) AccountKey(accountID string) *asserts.AccountKey {
+	if acctKey := sa.acctKeys[accountID]; acctKey != nil {
+		return acctKey
+	}
+	panic(fmt.Sprintf("unknown test account-id: %s", accountID))
+}
+
+func (sa *SigningAccounts) PublicKey(accountID string) asserts.PublicKey {
+	pubKey, err := sa.Signing(accountID).PublicKey("")
+	if err != nil {
+		panic(err)
+	}
+	return pubKey
+}
+
+func (sa *SigningAccounts) Signing(accountID string) *SigningDB {
+	// convenience
+	if accountID == sa.store.RootSigning.AuthorityID {
+		return sa.store.RootSigning
+	}
+	if signer := sa.signing[accountID]; signer != nil {
+		return signer
+	}
+	panic(fmt.Sprintf("unknown test account-id: %s", accountID))
+}
+
+// Model creates a new model for accountID. accountID can also be the account-id of the underlying store stack.
+func (sa *SigningAccounts) Model(accountID, model string, extras ...map[string]interface{}) *asserts.Model {
+	headers := map[string]interface{}{
+		"series":    "16",
+		"brand-id":  accountID,
+		"model":     model,
+		"timestamp": time.Now().Format(time.RFC3339),
+	}
+	for _, extra := range extras {
+		for k, v := range extra {
+			headers[k] = v
+		}
+	}
+
+	signer := sa.Signing(accountID)
+
+	modelAs, err := signer.Sign(asserts.ModelType, headers, nil, "")
+	if err != nil {
+		panic(err)
+	}
+	return modelAs.(*asserts.Model)
+}
+
+// AccountsAndKeys returns the account and account-key for each given
+// accountID in that order.
+func (sa *SigningAccounts) AccountsAndKeys(accountIDs ...string) []asserts.Assertion {
+	res := make([]asserts.Assertion, 0, 2*len(accountIDs))
+	for _, accountID := range accountIDs {
+		res = append(res, sa.Account(accountID))
+		res = append(res, sa.AccountKey(accountID))
+	}
+	return res
 }

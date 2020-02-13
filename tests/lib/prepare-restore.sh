@@ -22,9 +22,6 @@ set -e
 # shellcheck source=tests/lib/random.sh
 . "$TESTSLIB/random.sh"
 
-# shellcheck source=tests/lib/spread-funcs.sh
-. "$TESTSLIB/spread-funcs.sh"
-
 # shellcheck source=tests/lib/journalctl.sh
 . "$TESTSLIB/journalctl.sh"
 
@@ -93,18 +90,14 @@ build_rpm() {
     base_version="$(head -1 debian/changelog | awk -F '[()]' '{print $2}')"
     version="1337.$base_version"
     packaging_path=packaging/$distro-$release
-    archive_name=snapd-$version.tar.gz
-    archive_compression=z
-    extra_tar_args=
     rpm_dir=$(rpm --eval "%_topdir")
-
+    pack_args=
     case "$SPREAD_SYSTEM" in
         fedora-*|amazon-*|centos-*)
-            extra_tar_args="$extra_tar_args --exclude=vendor/*"
             ;;
         opensuse-*)
-            archive_name=snapd_$version.vendor.tar.xz
-            archive_compression=J
+            # use bundled snapd*.vendor.tar.xz archive
+            pack_args=-s
             ;;
         *)
             echo "ERROR: RPM build for system $SPREAD_SYSTEM is not yet supported"
@@ -114,16 +107,10 @@ build_rpm() {
     sed -i -e "s/^Version:.*$/Version: $version/g" "$packaging_path/snapd.spec"
 
     # Create a source tarball for the current snapd sources
-    mkdir -p "/tmp/pkg/snapd-$version"
-    cp -ra -- * "/tmp/pkg/snapd-$version/"
     mkdir -p "$rpm_dir/SOURCES"
-    # shellcheck disable=SC2086
-    (cd /tmp/pkg && tar "-c${archive_compression}f" "$rpm_dir/SOURCES/$archive_name" $extra_tar_args "snapd-$version")
-    if [[ "$SPREAD_SYSTEM" == amazon-linux-2-* || "$SPREAD_SYSTEM" == centos-* ]]; then
-        # need to build the vendor tree
-        (cd /tmp/pkg && tar "-cJf" "$rpm_dir/SOURCES/snapd_${version}.only-vendor.tar.xz" "snapd-$version/vendor")
-    fi
     cp "$packaging_path"/* "$rpm_dir/SOURCES/"
+    # shellcheck disable=SC2086
+    ./packaging/pack-source -v "$version" -o "$rpm_dir/SOURCES" $pack_args
 
     # Cleanup all artifacts from previous builds
     rm -rf "$rpm_dir"/BUILD/*
@@ -222,11 +209,23 @@ install_dependencies_from_published(){
 ###
 
 prepare_project() {
+    if [[ "$SPREAD_SYSTEM" == ubuntu-* ]] && [[ "$SPREAD_SYSTEM" != ubuntu-core-* ]]; then
+        apt-get remove --purge -y lxd lxcfs || true
+        apt-get autoremove --purge -y
+        lxd-tool undo-lxd-mount-changes
+    fi
+
     # Check if running inside a container.
     # The testsuite will not work in such an environment
     if systemd-detect-virt -c; then
         echo "Tests cannot run inside a container"
         exit 1
+    fi
+
+    # no need to modify anything further for autopkgtest
+    # we want to run as pristine as possible
+    if [ "$SPREAD_BACKEND" = autopkgtest ]; then
+        exit 0
     fi
 
     # Set REUSE_PROJECT to reuse the previous prepare when also reusing the server.
@@ -355,13 +354,18 @@ prepare_project() {
         quiet eatmydata apt-get install -y --force-yes apparmor libapparmor1 seccomp libseccomp2 systemd cgroup-lite util-linux
     fi
 
-    # WORKAROUND for older postrm scripts that did not do 
+    # WORKAROUND for older postrm scripts that did not do
     # "rm -rf /var/cache/snapd"
     rm -rf /var/cache/snapd/aux
     case "$SPREAD_SYSTEM" in
         ubuntu-*)
             # Ubuntu is the only system where snapd is preinstalled
             distro_purge_package snapd
+            # XXX: the original package's purge may have left socket units behind
+            find /etc/systemd/system -name "snap.*.socket" | while read -r f; do
+                systemctl stop "$(basename "$f")" || true
+                rm -f "$f"
+            done
             ;;
         *)
             # snapd state directory must not exist when the package is not
@@ -399,7 +403,13 @@ prepare_project() {
         rm -rf "${GOPATH%%:*}/src/github.com/kardianos/govendor"
         go get -u github.com/kardianos/govendor
     fi
-    quiet govendor sync
+    # Retry govendor sync to minimize the number of connection errors during the sync
+    for _ in $(seq 10); do
+        if quiet govendor sync; then
+            break
+        fi
+        sleep 1
+    done
     # govendor runs as root and will leave strange permissions
     chown test.test -R "$SPREAD_PATH"
 
@@ -437,18 +447,14 @@ prepare_project() {
     go get ./tests/lib/fakedevicesvc
     go get ./tests/lib/systemd-escape
 
-    # Disable journald rate limiting
-    mkdir -p /etc/systemd/journald.conf.d
-    # The RateLimitIntervalSec key is not supported on some systemd versions causing
-    # the journal rate limit could be considered as not valid and discarded in concecuence.
-    # RateLimitInterval key is supported in old systemd versions and in new ones as well,
-    # maintaining backward compatibility.
-    cat <<-EOF > /etc/systemd/journald.conf.d/no-rate-limit.conf
-    [Journal]
-    RateLimitInterval=0
-    RateLimitBurst=0
-EOF
-    systemctl restart systemd-journald.service
+    # On core systems, the journal service is configured once the final core system
+    # is created and booted what is done during the first test suite preparation
+    if is_classic_system; then
+        # shellcheck source=tests/lib/prepare.sh
+        . "$TESTSLIB"/prepare.sh
+        disable_journald_rate_limiting
+        disable_journald_start_limiting
+    fi
 }
 
 prepare_project_each() {
@@ -468,6 +474,17 @@ prepare_suite() {
     fi
 }
 
+install_snap_profiler(){
+    echo "install snaps profiler"
+
+    if [ "$PROFILE_SNAPS" = 1 ]; then
+        profiler_snap="$(get_snap_for_system test-snapd-profiler)"
+        rm -f "/var/snap/${profiler_snap}/common/profiler.log"
+        snap install "${profiler_snap}"
+        snap connect "${profiler_snap}":system-observe
+    fi
+}
+
 prepare_suite_each() {
     # back test directory to be restored during the restore
     tar cf "${PWD}.tar" "$PWD"
@@ -481,8 +498,17 @@ prepare_suite_each() {
     echo -n "$SPREAD_JOB " >> "$RUNTIME_STATE_PATH/runs"
     # shellcheck source=tests/lib/reset.sh
     "$TESTSLIB"/reset.sh --reuse-core
-    # Reset systemd journal cursor.
+    # Restart journal log and reset systemd journal cursor.
+    if ! systemctl restart systemd-journald.service; then
+        systemctl status systemd-journald.service || true
+        echo "Failed to restart systemd-journald.service, exiting..."
+        exit 1
+    fi
     start_new_journalctl_log
+
+    echo "Install the snaps profiler snap"
+    install_snap_profiler
+
     # shellcheck source=tests/lib/prepare.sh
     . "$TESTSLIB"/prepare.sh
     if is_classic_system; then
@@ -493,7 +519,7 @@ prepare_suite_each() {
 
     case "$SPREAD_SYSTEM" in
         fedora-*|centos-*|amazon-*)
-            ausearch -m AVC --checkpoint "$RUNTIME_STATE_PATH/audit-stamp" || true
+            ausearch -i -m AVC --checkpoint "$RUNTIME_STATE_PATH/audit-stamp" || true
             ;;
     esac
 }
@@ -507,6 +533,34 @@ restore_suite_each() {
         tar -C/ -xf "${PWD}.tar"
         rm -rf "${PWD}.tar"
     fi
+
+    if [ "$PROFILE_SNAPS" = 1 ]; then
+        echo "Save snaps profiler log"
+        local logs_id logs_dir logs_file
+        logs_dir="$RUNTIME_STATE_PATH/logs"
+        logs_id=$(find "$logs_dir" -maxdepth 1 -name '*.journal.log' | wc -l)
+        logs_file=$(echo "${logs_id}_${SPREAD_JOB}" | tr '/' '_' | tr ':' '__')
+
+        profiler_snap="$(get_snap_for_system test-snapd-profiler)"
+
+        mkdir -p "$logs_dir"
+        if [ -e "/var/snap/${profiler_snap}/common/profiler.log" ]; then
+            cp -f "/var/snap/${profiler_snap}/common/profiler.log" "${logs_dir}/${logs_file}.profiler.log"
+        fi
+        get_journalctl_log > "${logs_dir}/${logs_file}.journal.log"
+    fi
+
+    # On Arch it seems that using sudo / su for working with the test user
+    # spawns the /run/user/12345 tmpfs for XDG_RUNTIME_DIR which asynchronously
+    # cleans up itself sometime after the test but not instantly, leading to
+    # random failures in the mount leak detector. Give it a moment but don't
+    # clean it up ourselves, this should report actual test errors, if any.
+    for i in $(seq 10); do
+        if not mountinfo-tool /run/user/12345 .fs_type=tmpfs; then
+            break
+        fi
+        sleep 1
+    done
 }
 
 restore_suite() {
@@ -564,12 +618,38 @@ restore_project_each() {
         exit 1
     fi
 
+    if getent passwd snap_daemon; then
+        echo "Test left the snap_daemon user behind, this should not happen"
+        exit 1
+    fi
+    if getent group snap_daemon; then
+        echo "Test left the snap_daemon group behind, this should not happen"
+        exit 1
+    fi
+
     # Something is hosing the filesystem so look for signs of that
-    ! grep -F "//deleted /etc" /proc/self/mountinfo
+    not grep -F "//deleted /etc" /proc/self/mountinfo
+
+    if journalctl -u snapd.service | grep -F "signal: terminated"; then
+        exit 1;
+    fi
+
+    case "$SPREAD_SYSTEM" in
+        fedora-*|centos-*)
+            # Make sure that we are not leaving behind incorrectly labeled snap
+            # files on systems supporting SELinux
+            (
+                find /root/snap -printf '%Z\t%H/%P\n' || true
+                find /home -regex '/home/[^/]*/snap\(/.*\)?' -printf '%Z\t%H/%P\n' || true
+            ) | grep -c -v snappy_home_t | MATCH "0"
+
+            find /var/snap -printf '%Z\t%H/%P\n' | grep -c -v snappy_var_t  | MATCH "0"
+            ;;
+    esac
 }
 
 restore_project() {
-    # Delete the snapd state used to accelerate prepare/restore code in certain suites. 
+    # Delete the snapd state used to accelerate prepare/restore code in certain suites.
     delete_snapd_state
 
     # Remove all of the code we pushed and any build results. This removes

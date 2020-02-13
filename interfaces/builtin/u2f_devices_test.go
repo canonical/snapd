@@ -69,12 +69,6 @@ func (s *u2fDevicesInterfaceSuite) TestName(c *C) {
 
 func (s *u2fDevicesInterfaceSuite) TestSanitizeSlot(c *C) {
 	c.Assert(interfaces.BeforePrepareSlot(s.iface, s.slotInfo), IsNil)
-	slot := &snap.SlotInfo{
-		Snap:      &snap.Info{SuggestedName: "some-snap"},
-		Name:      "u2f-devices",
-		Interface: "u2f-devices",
-	}
-	c.Assert(interfaces.BeforePrepareSlot(s.iface, slot), ErrorMatches, "u2f-devices slots are reserved for the core snap")
 }
 
 func (s *u2fDevicesInterfaceSuite) TestSanitizePlug(c *C) {
@@ -92,7 +86,7 @@ func (s *u2fDevicesInterfaceSuite) TestAppArmorSpec(c *C) {
 func (s *u2fDevicesInterfaceSuite) TestUDevSpec(c *C) {
 	spec := &udev.Specification{}
 	c.Assert(spec.AddConnectedPlug(s.iface, s.plug, s.slot), IsNil)
-	c.Assert(spec.Snippets(), HasLen, 14)
+	c.Assert(spec.Snippets(), HasLen, 16)
 	c.Assert(spec.Snippets(), testutil.Contains, `# u2f-devices
 # Yubico YubiKey
 SUBSYSTEM=="hidraw", KERNEL=="hidraw*", ATTRS{idVendor}=="1050", ATTRS{idProduct}=="0113|0114|0115|0116|0120|0200|0402|0403|0406|0407|0410", TAG+="snap_consumer_app"`)

@@ -38,7 +38,7 @@ _complete_snap() {
         fi
     done
 
-    command=${words[1]}
+    command="${words[1]}"
 
     # Only split on newlines
     local IFS=$'\n'
@@ -46,7 +46,15 @@ _complete_snap() {
     # now we pass _just the bit that's being completed_ of the command
     # to snap for it to figure it out. go-flags isn't smart enough to
     # look at COMP_WORDS etc. itself.
-    COMPREPLY=($(GO_FLAGS_COMPLETION=1 snap "$command" "$cur"))
+    if [ "$command" = "debug" ]; then
+        command="${words[2]}"
+        COMPREPLY=($(GO_FLAGS_COMPLETION=1 snap debug "$command" "$cur"))
+    elif [ "$command" = "routine" ]; then
+        command="${words[2]}"
+        COMPREPLY=($(GO_FLAGS_COMPLETION=1 snap routine "$command" "$cur"))
+    else
+        COMPREPLY=($(GO_FLAGS_COMPLETION=1 snap "$command" "$cur"))
+    fi
 
     case $command in
         install|info|sign-build)

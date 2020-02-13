@@ -22,13 +22,18 @@ package main_test
 import (
 	"bytes"
 	"fmt"
+	"io/ioutil"
 	"net/http"
+	"path/filepath"
 	"time"
 
 	"gopkg.in/check.v1"
 
 	"github.com/snapcore/snapd/client"
 	snap "github.com/snapcore/snapd/cmd/snap"
+	snaplib "github.com/snapcore/snapd/snap"
+	"github.com/snapcore/snapd/snap/snaptest"
+	"github.com/snapcore/snapd/snap/squashfs"
 )
 
 var cmdAppInfos = []client.AppInfo{{Name: "app1"}, {Name: "app2"}}
@@ -55,10 +60,17 @@ type infoSuite struct {
 
 var _ = check.Suite(&infoSuite{})
 
+type flushBuffer struct{ bytes.Buffer }
+
+func (*flushBuffer) Flush() error { return nil }
+
 func (s *infoSuite) TestMaybePrintServices(c *check.C) {
+	var buf flushBuffer
+	iw := snap.NewInfoWriter(&buf)
 	for _, infos := range [][]client.AppInfo{svcAppInfos, mixedAppInfos} {
-		var buf bytes.Buffer
-		snap.MaybePrintServices(&buf, "foo", infos, -1)
+		buf.Reset()
+		snap.SetupDiskSnap(iw, "", &client.Snap{Name: "foo", Apps: infos})
+		snap.MaybePrintServices(iw)
 
 		c.Check(buf.String(), check.Equals, `services:
   foo.svc1:	simple, disabled, active
@@ -68,18 +80,23 @@ func (s *infoSuite) TestMaybePrintServices(c *check.C) {
 }
 
 func (s *infoSuite) TestMaybePrintServicesNoServices(c *check.C) {
+	var buf flushBuffer
+	iw := snap.NewInfoWriter(&buf)
 	for _, infos := range [][]client.AppInfo{cmdAppInfos, nil} {
-		var buf bytes.Buffer
-		snap.MaybePrintServices(&buf, "foo", infos, -1)
-
+		buf.Reset()
+		snap.SetupDiskSnap(iw, "", &client.Snap{Name: "foo", Apps: infos})
+		snap.MaybePrintServices(iw)
 		c.Check(buf.String(), check.Equals, "")
 	}
 }
 
 func (s *infoSuite) TestMaybePrintCommands(c *check.C) {
+	var buf flushBuffer
+	iw := snap.NewInfoWriter(&buf)
 	for _, infos := range [][]client.AppInfo{cmdAppInfos, mixedAppInfos} {
-		var buf bytes.Buffer
-		snap.MaybePrintCommands(&buf, "foo", infos, -1)
+		buf.Reset()
+		snap.SetupDiskSnap(iw, "", &client.Snap{Name: "foo", Apps: infos})
+		snap.MaybePrintCommands(iw)
 
 		c.Check(buf.String(), check.Equals, `commands:
   - foo.app1
@@ -89,12 +106,301 @@ func (s *infoSuite) TestMaybePrintCommands(c *check.C) {
 }
 
 func (s *infoSuite) TestMaybePrintCommandsNoCommands(c *check.C) {
+	var buf flushBuffer
+	iw := snap.NewInfoWriter(&buf)
 	for _, infos := range [][]client.AppInfo{svcAppInfos, nil} {
-		var buf bytes.Buffer
-		snap.MaybePrintCommands(&buf, "foo", infos, -1)
+		buf.Reset()
+		snap.SetupDiskSnap(iw, "", &client.Snap{Name: "foo", Apps: infos})
+		snap.MaybePrintCommands(iw)
 
 		c.Check(buf.String(), check.Equals, "")
 	}
+}
+
+func (infoSuite) TestPrintType(c *check.C) {
+	var buf flushBuffer
+	iw := snap.NewInfoWriter(&buf)
+	for from, to := range map[string]string{
+		"":            "",
+		"app":         "",
+		"application": "",
+		"gadget":      "type:\tgadget\n",
+		"core":        "type:\tcore\n",
+		"os":          "type:\tcore\n",
+	} {
+		buf.Reset()
+		snap.SetupDiskSnap(iw, "", &client.Snap{Type: from})
+		snap.MaybePrintType(iw)
+		c.Check(buf.String(), check.Equals, to, check.Commentf("%q", from))
+	}
+}
+
+func (infoSuite) TestPrintSummary(c *check.C) {
+	var buf flushBuffer
+	iw := snap.NewInfoWriter(&buf)
+	for from, to := range map[string]string{
+		"":               `""`,                // empty results in quoted empty
+		"foo":            "foo",               // plain text results in unquoted
+		"two words":      "two words",         // ...even when multi-word
+		"{":              `"{"`,               // but yaml-breaking is quoted
+		"very long text": "very long\n  text", // too-long text gets split (TODO: split with tabbed indent to preserve alignment)
+	} {
+		buf.Reset()
+		snap.SetupDiskSnap(iw, "", &client.Snap{Summary: from})
+		snap.PrintSummary(iw)
+		c.Check(buf.String(), check.Equals, "summary:\t"+to+"\n", check.Commentf("%q", from))
+	}
+}
+
+func (s *infoSuite) TestMaybePrintPublisher(c *check.C) {
+	acct := &snaplib.StoreAccount{
+		Validation:  "verified",
+		Username:    "team-potato",
+		DisplayName: "Team Potato",
+	}
+
+	type T struct {
+		diskSnap, localSnap *client.Snap
+		expected            string
+	}
+
+	var buf flushBuffer
+	iw := snap.NewInfoWriter(&buf)
+	for i, t := range []T{
+		{&client.Snap{}, nil, ""},                 // nothing output for on-disk snap
+		{nil, &client.Snap{}, "publisher:\t--\n"}, // from-snapd snap with no publisher is explicit
+		{nil, &client.Snap{Publisher: acct}, "publisher:\tTeam Potato*\n"},
+	} {
+		buf.Reset()
+		if t.diskSnap == nil {
+			snap.SetupSnap(iw, t.localSnap, nil, nil)
+		} else {
+			snap.SetupDiskSnap(iw, "", t.diskSnap)
+		}
+		snap.MaybePrintPublisher(iw)
+		c.Check(buf.String(), check.Equals, t.expected, check.Commentf("%d", i))
+	}
+}
+
+func (s *infoSuite) TestMaybePrintNotes(c *check.C) {
+	type T struct {
+		localSnap, diskSnap *client.Snap
+		expected            string
+	}
+
+	var buf flushBuffer
+	iw := snap.NewInfoWriter(&buf)
+	for i, t := range []T{
+		{
+			nil,
+			&client.Snap{Private: true, Confinement: "devmode"},
+			"notes:\t\n" +
+				"  private:\ttrue\n" +
+				"  confinement:\tdevmode\n",
+		}, {
+			&client.Snap{Private: true, Confinement: "devmode"},
+			nil,
+			"notes:\t\n" +
+				"  private:\ttrue\n" +
+				"  confinement:\tdevmode\n" +
+				"  devmode:\tfalse\n" +
+				"  jailmode:\ttrue\n" +
+				"  trymode:\tfalse\n" +
+				"  enabled:\tfalse\n" +
+				"  broken:\tfalse\n" +
+				"  ignore-validation:\tfalse\n",
+		}, {
+			&client.Snap{Private: true, Confinement: "devmode", Broken: "ouch"},
+			nil,
+			"notes:\t\n" +
+				"  private:\ttrue\n" +
+				"  confinement:\tdevmode\n" +
+				"  devmode:\tfalse\n" +
+				"  jailmode:\ttrue\n" +
+				"  trymode:\tfalse\n" +
+				"  enabled:\tfalse\n" +
+				"  broken:\ttrue (ouch)\n" +
+				"  ignore-validation:\tfalse\n",
+		},
+	} {
+		buf.Reset()
+		snap.SetVerbose(iw, false)
+		if t.diskSnap == nil {
+			snap.SetupSnap(iw, t.localSnap, nil, nil)
+		} else {
+			snap.SetupDiskSnap(iw, "", t.diskSnap)
+		}
+		snap.MaybePrintNotes(iw)
+		c.Check(buf.String(), check.Equals, "", check.Commentf("%d/false", i))
+
+		buf.Reset()
+		snap.SetVerbose(iw, true)
+		snap.MaybePrintNotes(iw)
+		c.Check(buf.String(), check.Equals, t.expected, check.Commentf("%d/true", i))
+	}
+}
+
+func (s *infoSuite) TestMaybePrintStandaloneVersion(c *check.C) {
+	var buf flushBuffer
+	iw := snap.NewInfoWriter(&buf)
+
+	// no disk snap -> no version
+	snap.MaybePrintStandaloneVersion(iw)
+	c.Check(buf.String(), check.Equals, "")
+
+	for version, expected := range map[string]string{
+		"":    "--",
+		"4.2": "4.2",
+	} {
+		buf.Reset()
+		snap.SetupDiskSnap(iw, "", &client.Snap{Version: version})
+		snap.MaybePrintStandaloneVersion(iw)
+		c.Check(buf.String(), check.Equals, "version:\t"+expected+" -\n", check.Commentf("%q", version))
+
+		buf.Reset()
+		snap.SetupDiskSnap(iw, "", &client.Snap{Version: version, Confinement: "devmode"})
+		snap.MaybePrintStandaloneVersion(iw)
+		c.Check(buf.String(), check.Equals, "version:\t"+expected+" devmode\n", check.Commentf("%q", version))
+	}
+}
+
+func (s *infoSuite) TestMaybePrintBuildDate(c *check.C) {
+	var buf flushBuffer
+	iw := snap.NewInfoWriter(&buf)
+	// some prep
+	dir := c.MkDir()
+	arbfile := filepath.Join(dir, "arb")
+	c.Assert(ioutil.WriteFile(arbfile, nil, 0600), check.IsNil)
+	filename := filepath.Join(c.MkDir(), "foo.snap")
+	diskSnap := squashfs.New(filename)
+	c.Assert(diskSnap.Build(dir, nil), check.IsNil)
+	buildDate := diskSnap.BuildDate().Format(time.Kitchen)
+
+	// no disk snap -> no build date
+	snap.MaybePrintBuildDate(iw)
+	c.Check(buf.String(), check.Equals, "")
+
+	// path is directory -> no build date
+	buf.Reset()
+	snap.SetupDiskSnap(iw, dir, &client.Snap{})
+	snap.MaybePrintBuildDate(iw)
+	c.Check(buf.String(), check.Equals, "")
+
+	// not actually a snap -> no build date
+	buf.Reset()
+	snap.SetupDiskSnap(iw, arbfile, &client.Snap{})
+	snap.MaybePrintBuildDate(iw)
+	c.Check(buf.String(), check.Equals, "")
+
+	// disk snap -> get build date
+	buf.Reset()
+	snap.SetupDiskSnap(iw, filename, &client.Snap{})
+	snap.MaybePrintBuildDate(iw)
+	c.Check(buf.String(), check.Equals, "build-date:\t"+buildDate+"\n")
+}
+
+func (s *infoSuite) TestMaybePrintSum(c *check.C) {
+	var buf flushBuffer
+	// some prep
+	dir := c.MkDir()
+	filename := filepath.Join(c.MkDir(), "foo.snap")
+	diskSnap := squashfs.New(filename)
+	c.Assert(diskSnap.Build(dir, nil), check.IsNil)
+	iw := snap.NewInfoWriter(&buf)
+	snap.SetVerbose(iw, true)
+
+	// no disk snap -> no checksum
+	snap.MaybePrintSum(iw)
+	c.Check(buf.String(), check.Equals, "")
+
+	// path is directory -> no checksum
+	buf.Reset()
+	snap.SetupDiskSnap(iw, dir, &client.Snap{})
+	snap.MaybePrintSum(iw)
+	c.Check(buf.String(), check.Equals, "")
+
+	// disk snap and verbose -> get checksum
+	buf.Reset()
+	snap.SetupDiskSnap(iw, filename, &client.Snap{})
+	snap.MaybePrintSum(iw)
+	c.Check(buf.String(), check.Matches, "sha3-384:\t\\S+\n")
+
+	// disk snap but not verbose -> no checksum
+	buf.Reset()
+	snap.SetVerbose(iw, false)
+	snap.MaybePrintSum(iw)
+	c.Check(buf.String(), check.Equals, "")
+}
+
+func (s *infoSuite) TestMaybePrintContact(c *check.C) {
+	var buf flushBuffer
+	iw := snap.NewInfoWriter(&buf)
+
+	for contact, expected := range map[string]string{
+		"mailto:joe@example.com": "contact:\tjoe@example.com\n",
+		// gofmt 1.9 being silly
+		"foo": "contact:\tfoo\n",
+		"":    "",
+	} {
+		buf.Reset()
+		snap.SetupDiskSnap(iw, "", &client.Snap{Contact: contact})
+		snap.MaybePrintContact(iw)
+		c.Check(buf.String(), check.Equals, expected, check.Commentf("%q", contact))
+	}
+}
+
+func (s *infoSuite) TestMaybePrintBase(c *check.C) {
+	var buf flushBuffer
+	iw := snap.NewInfoWriter(&buf)
+	dSnap := &client.Snap{}
+	snap.SetupDiskSnap(iw, "", dSnap)
+
+	// no verbose -> no base
+	snap.SetVerbose(iw, false)
+	snap.MaybePrintBase(iw)
+	c.Check(buf.String(), check.Equals, "")
+	buf.Reset()
+
+	// no base -> no base :)
+	snap.SetVerbose(iw, true)
+	snap.MaybePrintBase(iw)
+	c.Check(buf.String(), check.Equals, "")
+	buf.Reset()
+
+	// base + verbose -> base
+	dSnap.Base = "xyzzy"
+	snap.MaybePrintBase(iw)
+	c.Check(buf.String(), check.Equals, "base:\txyzzy\n")
+	buf.Reset()
+}
+
+func (s *infoSuite) TestMaybePrintPath(c *check.C) {
+	var buf flushBuffer
+	iw := snap.NewInfoWriter(&buf)
+	dSnap := &client.Snap{}
+
+	// no path -> no path
+	snap.SetupDiskSnap(iw, "", dSnap)
+	snap.MaybePrintPath(iw)
+	c.Check(buf.String(), check.Equals, "")
+	buf.Reset()
+
+	// path -> path (quoted!)
+	snap.SetupDiskSnap(iw, "xyzzy", dSnap)
+	snap.MaybePrintPath(iw)
+	c.Check(buf.String(), check.Equals, "path:\t\"xyzzy\"\n")
+	buf.Reset()
+}
+
+func (s *infoSuite) TestClientSnapFromPath(c *check.C) {
+	// minimal sanity check
+	fn := snaptest.MakeTestSnapWithFiles(c, `
+name: some-snap
+version: 9
+`, nil)
+	dSnap, err := snap.ClientSnapFromPath(fn)
+	c.Assert(err, check.IsNil)
+	c.Check(dSnap.Version, check.Equals, "9")
 }
 
 func (s *infoSuite) TestInfoPricedNarrowTerminal(c *check.C) {
@@ -170,6 +476,7 @@ snap-id: mVyGrEwiqSi5PugCwyH7WgpoQLemtTd6
 	c.Check(s.Stderr(), check.Equals, "")
 }
 
+// only used for results on /v2/find
 const mockInfoJSON = `
 {
   "type": "sync",
@@ -234,6 +541,7 @@ const mockInfoJSONWithChannels = `
       "revision": "1",
       "status": "available",
       "summary": "The GNU Hello snap",
+      "store-url": "https://snapcraft.io/hello",
       "type": "app",
       "version": "2.10",
       "license": "MIT",
@@ -289,6 +597,7 @@ snap-id: mVyGrEwiqSi5PugCwyH7WgpoQLemtTd6
 	c.Check(s.Stderr(), check.Equals, "")
 }
 
+// only used for /v2/snaps/hello
 const mockInfoJSONOtherLicense = `
 {
   "type": "sync",
@@ -305,6 +614,7 @@ const mockInfoJSONOtherLicense = `
          "display-name": "Canonical",
          "validation": "verified"
       },
+      "health": {"revision": "1", "status": "blocked", "message": "please configure the grawflit", "timestamp": "2019-05-13T16:27:01.475851677+01:00"},
       "id": "mVyGrEwiqSi5PugCwyH7WgpoQLemtTd6",
       "install-date": "2006-01-02T22:04:07.123456789Z",
       "installed-size": 1024,
@@ -375,8 +685,14 @@ func (s *infoSuite) TestInfoWithLocalDifferentLicense(c *check.C) {
 	rest, err := snap.Parser(snap.Client()).ParseArgs([]string{"info", "--abs-time", "hello"})
 	c.Assert(err, check.IsNil)
 	c.Assert(rest, check.DeepEquals, []string{})
-	c.Check(s.Stdout(), check.Equals, `name:      hello
-summary:   The GNU Hello snap
+	c.Check(s.Stdout(), check.Equals, `
+name:    hello
+summary: The GNU Hello snap
+health:
+  status:   blocked
+  message:  please configure the grawflit
+  checked:  2019-05-13T16:27:01+01:00
+  revision: 1
 publisher: Canonical*
 license:   BSD-3
 description: |
@@ -385,8 +701,30 @@ description: |
 snap-id:      mVyGrEwiqSi5PugCwyH7WgpoQLemtTd6
 tracking:     beta
 refresh-date: 2006-01-02T22:04:07Z
-installed:    2.10 (1) 1kB disabled
-`)
+installed:    2.10 (1) 1kB disabled,blocked
+`[1:])
+	c.Check(s.Stderr(), check.Equals, "")
+}
+
+func (s *infoSuite) TestInfoNotFound(c *check.C) {
+	n := 0
+	s.RedirectClientToTestServer(func(w http.ResponseWriter, r *http.Request) {
+		switch n % 2 {
+		case 0:
+			c.Check(r.Method, check.Equals, "GET")
+			c.Check(r.URL.Path, check.Equals, "/v2/find")
+		case 1:
+			c.Check(r.Method, check.Equals, "GET")
+			c.Check(r.URL.Path, check.Equals, "/v2/snaps/x")
+		}
+		w.WriteHeader(404)
+		fmt.Fprintln(w, `{"type":"error","status-code":404,"status":"Not Found","result":{"message":"No.","kind":"snap-not-found","value":"x"}}`)
+
+		n++
+	})
+	_, err := snap.Parser(snap.Client()).ParseArgs([]string{"info", "--verbose", "/x"})
+	c.Check(err, check.ErrorMatches, `no snap found for "/x"`)
+	c.Check(s.Stdout(), check.Equals, "")
 	c.Check(s.Stderr(), check.Equals, "")
 }
 
@@ -450,6 +788,7 @@ func (s *infoSuite) TestInfoWithChannelsAndLocal(c *check.C) {
 	c.Check(s.Stdout(), check.Equals, `name:      hello
 summary:   The GNU Hello snap
 publisher: Canonical*
+store-url: https://snapcraft.io/hello
 license:   unset
 description: |
   GNU hello prints a friendly greeting. This is part of the snapcraft tour at
@@ -475,6 +814,7 @@ installed:     2.10                      (100)  1kB disabled
 	c.Check(s.Stdout(), check.Equals, `name:      hello
 summary:   The GNU Hello snap
 publisher: Canonical*
+store-url: https://snapcraft.io/hello
 license:   unset
 description: |
   GNU hello prints a friendly greeting. This is part of the snapcraft tour at
@@ -500,6 +840,7 @@ installed:     2.10            (100)  1kB disabled
 	c.Check(s.Stdout(), check.Equals, `name:      hello
 summary:   The GNU Hello snap
 publisher: Canonical✓
+store-url: https://snapcraft.io/hello
 license:   unset
 description: |
   GNU hello prints a friendly greeting. This is part of the snapcraft tour at
@@ -590,6 +931,108 @@ func (infoSuite) TestDescr(c *check.C) {
 	}
 }
 
+func (infoSuite) TestMaybePrintCohortKey(c *check.C) {
+	type T struct {
+		snap     *client.Snap
+		verbose  bool
+		expected string
+	}
+
+	tests := []T{
+		{snap: nil, verbose: false, expected: ""},
+		{snap: nil, verbose: true, expected: ""},
+		{snap: &client.Snap{}, verbose: false, expected: ""},
+		{snap: &client.Snap{}, verbose: true, expected: ""},
+		{snap: &client.Snap{CohortKey: "some-cohort-key"}, verbose: false, expected: ""},
+		{snap: &client.Snap{CohortKey: "some-cohort-key"}, verbose: true, expected: "cohort:\t…-key\n"},
+	}
+
+	var buf flushBuffer
+	iw := snap.NewInfoWriter(&buf)
+	defer snap.MockIsStdoutTTY(true)()
+
+	for i, t := range tests {
+		buf.Reset()
+		snap.SetupSnap(iw, t.snap, nil, nil)
+		snap.SetVerbose(iw, t.verbose)
+		snap.MaybePrintCohortKey(iw)
+		c.Check(buf.String(), check.Equals, t.expected, check.Commentf("tty:true/%d", i))
+	}
+	// now the same but without a tty -> the last test should no longer ellipt
+	tests[len(tests)-1].expected = "cohort:\tsome-cohort-key\n"
+	snap.MockIsStdoutTTY(false)
+	for i, t := range tests {
+		buf.Reset()
+		snap.SetupSnap(iw, t.snap, nil, nil)
+		snap.SetVerbose(iw, t.verbose)
+		snap.MaybePrintCohortKey(iw)
+		c.Check(buf.String(), check.Equals, t.expected, check.Commentf("tty:false/%d", i))
+	}
+}
+
+func (infoSuite) TestMaybePrintHealth(c *check.C) {
+	type T struct {
+		snap     *client.Snap
+		verbose  bool
+		expected string
+	}
+
+	goodHealth := &client.SnapHealth{Status: "okay"}
+	t0 := time.Date(1970, 1, 1, 10, 24, 0, 0, time.UTC)
+	badHealth := &client.SnapHealth{
+		Status:    "waiting",
+		Message:   "godot should be here any moment now",
+		Code:      "godot-is-a-lie",
+		Revision:  snaplib.R("42"),
+		Timestamp: t0,
+	}
+
+	tests := []T{
+		{snap: nil, verbose: false, expected: ""},
+		{snap: nil, verbose: true, expected: ""},
+		{snap: &client.Snap{}, verbose: false, expected: ""},
+		{snap: &client.Snap{}, verbose: true, expected: `health:
+  status:	unknown
+  message:	health
+    has not been set
+`},
+		{snap: &client.Snap{Health: goodHealth}, verbose: false, expected: ``},
+		{snap: &client.Snap{Health: goodHealth}, verbose: true, expected: `health:
+  status:	okay
+`},
+		{snap: &client.Snap{Health: badHealth}, verbose: false, expected: `health:
+  status:	waiting
+  message:	godot
+    should be here
+    any moment now
+  code:	godot-is-a-lie
+  checked:	10:24AM
+  revision:	42
+`},
+		{snap: &client.Snap{Health: badHealth}, verbose: true, expected: `health:
+  status:	waiting
+  message:	godot
+    should be here
+    any moment now
+  code:	godot-is-a-lie
+  checked:	10:24AM
+  revision:	42
+`},
+	}
+
+	var buf flushBuffer
+	iw := snap.NewInfoWriter(&buf)
+	defer snap.MockIsStdoutTTY(false)()
+
+	for i, t := range tests {
+		buf.Reset()
+		snap.SetupSnap(iw, t.snap, nil, nil)
+		snap.SetVerbose(iw, t.verbose)
+		snap.MaybePrintHealth(iw)
+		c.Check(buf.String(), check.Equals, t.expected, check.Commentf("%d", i))
+	}
+}
+
 func (infoSuite) TestWrapCornerCase(c *check.C) {
 	// this particular corner case isn't currently reachable from
 	// printDescr nor printSummary, but best to have it covered
@@ -602,4 +1045,179 @@ func (infoSuite) TestWrapCornerCase(c *check.C) {
   encoded as multiple bytes.
   All hail EN SPACE.
 `[1:])
+}
+
+func (infoSuite) TestBug1828425(c *check.C) {
+	const s = `This is a description
+                                  that has
+                                  lines
+                                  too deeply
+                                  indented.
+`
+	var buf bytes.Buffer
+	err := snap.PrintDescr(&buf, s, 30)
+	c.Assert(err, check.IsNil)
+	c.Check(buf.String(), check.Equals, `  This is a description
+    that has
+    lines
+    too deeply
+    indented.
+`)
+}
+
+const mockInfoJSONParallelInstance = `
+{
+  "type": "sync",
+  "status-code": 200,
+  "status": "OK",
+  "result": {
+      "channel": "stable",
+      "confinement": "strict",
+      "description": "GNU hello prints a friendly greeting. This is part of the snapcraft tour at https://snapcraft.io/",
+      "developer": "canonical",
+      "publisher": {
+         "id": "canonical",
+         "username": "canonical",
+         "display-name": "Canonical",
+         "validation": "verified"
+      },
+      "id": "mVyGrEwiqSi5PugCwyH7WgpoQLemtTd6",
+      "install-date": "2006-01-02T22:04:07.123456789Z",
+      "installed-size": 1024,
+      "name": "hello_foo",
+      "private": false,
+      "revision": "100",
+      "status": "available",
+      "summary": "The GNU Hello snap",
+      "type": "app",
+      "version": "2.10",
+      "license": "",
+      "tracking-channel": "beta"
+    }
+}
+`
+
+func (s *infoSuite) TestInfoParllelInstance(c *check.C) {
+	n := 0
+	s.RedirectClientToTestServer(func(w http.ResponseWriter, r *http.Request) {
+		switch n {
+		case 0:
+			c.Check(r.Method, check.Equals, "GET")
+			c.Check(r.URL.Path, check.Equals, "/v2/find")
+			q := r.URL.Query()
+			// asks for the instance snap
+			c.Check(q.Get("name"), check.Equals, "hello")
+			fmt.Fprintln(w, mockInfoJSONWithChannels)
+		case 1:
+			c.Check(r.Method, check.Equals, "GET")
+			c.Check(r.URL.Path, check.Equals, "/v2/snaps/hello_foo")
+			fmt.Fprintln(w, mockInfoJSONParallelInstance)
+		default:
+			c.Fatalf("expected to get 2 requests, now on %d (%v)", n+1, r)
+		}
+
+		n++
+	})
+	rest, err := snap.Parser(snap.Client()).ParseArgs([]string{"info", "hello_foo"})
+	c.Assert(err, check.IsNil)
+	c.Assert(rest, check.DeepEquals, []string{})
+	// make sure local and remote info is combined in the output
+	c.Check(s.Stdout(), check.Equals, `name:      hello_foo
+summary:   The GNU Hello snap
+publisher: Canonical*
+store-url: https://snapcraft.io/hello
+license:   unset
+description: |
+  GNU hello prints a friendly greeting. This is part of the snapcraft tour at
+  https://snapcraft.io/
+snap-id:      mVyGrEwiqSi5PugCwyH7WgpoQLemtTd6
+tracking:     beta
+refresh-date: 2006-01-02
+channels:
+  1/stable:    2.10 2018-12-18   (1) 65kB -
+  1/candidate: ^                          
+  1/beta:      ^                          
+  1/edge:      ^                          
+installed:     2.10            (100)  1kB disabled
+`)
+	c.Check(s.Stderr(), check.Equals, "")
+}
+
+const mockInfoJSONWithStoreURL = `
+{
+  "type": "sync",
+  "status-code": 200,
+  "status": "OK",
+  "result": {
+      "channel": "stable",
+      "confinement": "strict",
+      "description": "GNU hello prints a friendly greeting. This is part of the snapcraft tour at https://snapcraft.io/",
+      "developer": "canonical",
+      "publisher": {
+         "id": "canonical",
+         "username": "canonical",
+         "display-name": "Canonical",
+         "validation": "verified"
+      },
+      "id": "mVyGrEwiqSi5PugCwyH7WgpoQLemtTd6",
+      "install-date": "2006-01-02T22:04:07.123456789Z",
+      "installed-size": 1024,
+      "name": "hello",
+      "private": false,
+      "revision": "100",
+      "status": "available",
+      "store-url": "https://snapcraft.io/hello",
+      "summary": "The GNU Hello snap",
+      "type": "app",
+      "version": "2.10",
+      "license": "",
+      "tracking-channel": "beta"
+    }
+}
+`
+
+func (s *infoSuite) TestInfoStoreURL(c *check.C) {
+	n := 0
+	s.RedirectClientToTestServer(func(w http.ResponseWriter, r *http.Request) {
+		switch n {
+		case 0:
+			c.Check(r.Method, check.Equals, "GET")
+			c.Check(r.URL.Path, check.Equals, "/v2/find")
+			q := r.URL.Query()
+			// asks for the instance snap
+			c.Check(q.Get("name"), check.Equals, "hello")
+			fmt.Fprintln(w, mockInfoJSONWithChannels)
+		case 1:
+			c.Check(r.Method, check.Equals, "GET")
+			c.Check(r.URL.Path, check.Equals, "/v2/snaps/hello")
+			fmt.Fprintln(w, mockInfoJSONWithStoreURL)
+		default:
+			c.Fatalf("expected to get 2 requests, now on %d (%v)", n+1, r)
+		}
+
+		n++
+	})
+	rest, err := snap.Parser(snap.Client()).ParseArgs([]string{"info", "hello"})
+	c.Assert(err, check.IsNil)
+	c.Assert(rest, check.DeepEquals, []string{})
+	// make sure local and remote info is combined in the output
+	c.Check(s.Stdout(), check.Equals, `name:      hello
+summary:   The GNU Hello snap
+publisher: Canonical*
+store-url: https://snapcraft.io/hello
+license:   unset
+description: |
+  GNU hello prints a friendly greeting. This is part of the snapcraft tour at
+  https://snapcraft.io/
+snap-id:      mVyGrEwiqSi5PugCwyH7WgpoQLemtTd6
+tracking:     beta
+refresh-date: 2006-01-02
+channels:
+  1/stable:    2.10 2018-12-18   (1) 65kB -
+  1/candidate: ^                          
+  1/beta:      ^                          
+  1/edge:      ^                          
+installed:     2.10            (100)  1kB disabled
+`)
+	c.Check(s.Stderr(), check.Equals, "")
 }

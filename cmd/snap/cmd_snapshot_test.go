@@ -23,18 +23,20 @@ import (
 	"fmt"
 	"net/http"
 	"strings"
+	"time"
 
 	. "gopkg.in/check.v1"
 
 	"github.com/snapcore/snapd/cmd/snap"
+	"github.com/snapcore/snapd/testutil"
 )
 
 var snapshotsTests = []getCmdArgs{{
 	args:  "restore x",
-	error: "invalid argument for set id: expected a non-negative integer argument",
+	error: `invalid argument for snapshot set id: expected a non-negative integer argument \(see 'snap help saved'\)`,
 }, {
 	args:  "saved --id=x",
-	error: "invalid argument for set id: expected a non-negative integer argument",
+	error: `invalid argument for snapshot set id: expected a non-negative integer argument \(see 'snap help saved'\)`,
 }, {
 	args:   "saved --id=3",
 	stdout: "Set  Snap  Age    Version  Rev   Size    Notes\n3    htop  .*  2        1168      1B  auto\n",
@@ -43,10 +45,10 @@ var snapshotsTests = []getCmdArgs{{
 	stdout: "Set  Snap  Age    Version  Rev   Size    Notes\n1    htop  .*  2        1168      1B  -\n",
 }, {
 	args:  "forget x",
-	error: "invalid argument for set id: expected a non-negative integer argument",
+	error: `invalid argument for snapshot set id: expected a non-negative integer argument \(see 'snap help saved'\)`,
 }, {
 	args:  "check-snapshot x",
-	error: "invalid argument for set id: expected a non-negative integer argument",
+	error: `invalid argument for snapshot set id: expected a non-negative integer argument \(see 'snap help saved'\)`,
 }, {
 	args:   "restore 1",
 	stdout: "Restored snapshot #1.\n",
@@ -81,8 +83,8 @@ func (s *SnapSuite) TestSnapSnaphotsTest(c *C) {
 			c.Check(err, ErrorMatches, test.error)
 		} else {
 			c.Check(err, IsNil)
-			c.Check(s.Stderr(), Equals, test.stderr)
-			c.Check(s.Stdout(), Matches, test.stdout)
+			c.Check(s.Stderr(), testutil.EqualsWrapped, test.stderr)
+			c.Check(s.Stdout(), testutil.MatchesWrapped, test.stdout)
 		}
 	}
 }
@@ -92,12 +94,15 @@ func (s *SnapSuite) mockSnapshotsServer(c *C) {
 		switch r.URL.Path {
 		case "/v2/snapshots":
 			if r.Method == "GET" {
+				// simulate a 1-month old snapshot
+				snapshotTime := time.Now().AddDate(0, -1, 0).Format(time.RFC3339)
 				if r.URL.Query().Get("set") == "3" {
-					fmt.Fprintln(w, `{"type":"sync","status-code":200,"status":"OK","result":[{"id":3,"snapshots":[{"set":3,"time":"2019-03-18T16:15:20.48905909Z","snap":"htop","revision":"1168","snap-id":"Z","auto":true,"epoch":{"read":[0],"write":[0]},"summary":"","version":"2","sha3-384":{"archive.tgz":""},"size":1}]}]}`)
+					fmt.Fprintf(w, `{"type":"sync","status-code":200,"status":"OK","result":[{"id":3,"snapshots":[{"set":3,"time":%q,"snap":"htop","revision":"1168","snap-id":"Z","auto":true,"epoch":{"read":[0],"write":[0]},"summary":"","version":"2","sha3-384":{"archive.tgz":""},"size":1}]}]}`, snapshotTime)
 					return
 				}
-				fmt.Fprintln(w, `{"type":"sync","status-code":200,"status":"OK","result":[{"id":1,"snapshots":[{"set":1,"time":"2019-03-18T16:15:20.48905909Z","snap":"htop","revision":"1168","snap-id":"Z","epoch":{"read":[0],"write":[0]},"summary":"","version":"2","sha3-384":{"archive.tgz":""},"size":1}]}]}`)
+				fmt.Fprintf(w, `{"type":"sync","status-code":200,"status":"OK","result":[{"id":1,"snapshots":[{"set":1,"time":%q,"snap":"htop","revision":"1168","snap-id":"Z","epoch":{"read":[0],"write":[0]},"summary":"","version":"2","sha3-384":{"archive.tgz":""},"size":1}]}]}`, snapshotTime)
 			} else {
+				w.WriteHeader(202)
 				fmt.Fprintln(w, `{"type":"async", "status-code": 202, "change": "9"}`)
 			}
 		case "/v2/changes/9":

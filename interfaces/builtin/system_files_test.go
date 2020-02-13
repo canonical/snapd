@@ -57,7 +57,7 @@ apps:
   plugs: [system-files]
 `
 	s.slotInfo = &snap.SlotInfo{
-		Snap:      &snap.Info{SuggestedName: "core", Type: snap.TypeOS},
+		Snap:      &snap.Info{SuggestedName: "core", SnapType: snap.TypeOS},
 		Name:      "system-files",
 		Interface: "system-files",
 	}
@@ -88,13 +88,6 @@ func (s *systemFilesInterfaceSuite) TestConnectedPlugAppArmor(c *C) {
 
 func (s *systemFilesInterfaceSuite) TestSanitizeSlot(c *C) {
 	c.Assert(interfaces.BeforePrepareSlot(s.iface, s.slotInfo), IsNil)
-	slot := &snap.SlotInfo{
-		Snap:      &snap.Info{SuggestedName: "some-snap"},
-		Name:      "system-files",
-		Interface: "system-files",
-	}
-	c.Assert(interfaces.BeforePrepareSlot(s.iface, slot), ErrorMatches,
-		"system-files slots are reserved for the core snap")
 }
 
 func (s *systemFilesInterfaceSuite) TestSanitizePlug(c *C) {
@@ -163,7 +156,7 @@ apps:
   plugs: [system-files]
 `
 	s.slotInfo = &snap.SlotInfo{
-		Snap:      &snap.Info{SuggestedName: "core", Type: snap.TypeOS},
+		Snap:      &snap.Info{SuggestedName: "core", SnapType: snap.TypeOS},
 		Name:      "system-files",
 		Interface: "system-files",
 	}

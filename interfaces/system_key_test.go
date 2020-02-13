@@ -25,14 +25,17 @@ import (
 	"io/ioutil"
 	"os"
 	"path/filepath"
+	"reflect"
+	"strings"
 
 	. "gopkg.in/check.v1"
 
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/interfaces"
 	"github.com/snapcore/snapd/osutil"
-	"github.com/snapcore/snapd/release"
-	seccomp_compiler "github.com/snapcore/snapd/sandbox/seccomp"
+	"github.com/snapcore/snapd/sandbox/apparmor"
+	"github.com/snapcore/snapd/sandbox/cgroup"
+	"github.com/snapcore/snapd/sandbox/seccomp"
 	"github.com/snapcore/snapd/testutil"
 )
 
@@ -42,7 +45,7 @@ type systemKeySuite struct {
 	tmp                    string
 	apparmorFeatures       string
 	buildID                string
-	seccompCompilerVersion string
+	seccompCompilerVersion seccomp.VersionInfo
 }
 
 var _ = Suite(&systemKeySuite{})
@@ -60,17 +63,15 @@ func (s *systemKeySuite) SetUpTest(c *C) {
 	c.Assert(err, IsNil)
 
 	s.apparmorFeatures = filepath.Join(s.tmp, "/sys/kernel/security/apparmor/features")
-	id, err := osutil.MyBuildID()
-	c.Assert(err, IsNil)
-	s.buildID = id
+	s.buildID = "this-is-my-build-id"
 
-	s.seccompCompilerVersion = "123 2.3.3 abcdef123"
+	s.seccompCompilerVersion = seccomp.VersionInfo("123 2.3.3 abcdef123 -")
 	testutil.MockCommand(c, filepath.Join(dirs.DistroLibExecDir, "snap-seccomp"), fmt.Sprintf(`
 if [ "$1" = "version-info" ]; then echo "%s"; exit 0; fi
 exit 1
 `, s.seccompCompilerVersion))
 
-	s.AddCleanup(release.MockSecCompActions([]string{"allow", "errno", "kill", "log", "trace", "trap"}))
+	s.AddCleanup(seccomp.MockActions([]string{"allow", "errno", "kill", "log", "trace", "trap"}))
 }
 
 func (s *systemKeySuite) TearDownTest(c *C) {
@@ -83,31 +84,37 @@ func (s *systemKeySuite) testInterfaceWriteSystemKey(c *C, nfsHome bool) {
 	restore := interfaces.MockIsHomeUsingNFS(func() (bool, error) { return nfsHome, nil })
 	defer restore()
 
+	restore = interfaces.MockReadBuildID(func(p string) (string, error) {
+		c.Assert(p, Equals, filepath.Join(dirs.DistroLibExecDir, "snapd"))
+		return s.buildID, nil
+	})
+	defer restore()
+
+	restore = cgroup.MockVersion(1, nil)
+	defer restore()
+
 	err := interfaces.WriteSystemKey()
 	c.Assert(err, IsNil)
 
 	systemKey, err := ioutil.ReadFile(dirs.SnapSystemKeyFile)
 	c.Assert(err, IsNil)
 
-	kernelFeatures, _ := release.AppArmorKernelFeatures()
+	kernelFeatures, _ := apparmor.KernelFeatures()
 
 	apparmorFeaturesStr, err := json.Marshal(kernelFeatures)
 	c.Assert(err, IsNil)
 
-	apparmorParserMtime, err := json.Marshal(release.AppArmorParserMtime())
+	apparmorParserMtime, err := json.Marshal(apparmor.ParserMtime())
 	c.Assert(err, IsNil)
 
-	parserFeatures, _ := release.AppArmorParserFeatures()
+	parserFeatures, _ := apparmor.ParserFeatures()
 	apparmorParserFeaturesStr, err := json.Marshal(parserFeatures)
 	c.Assert(err, IsNil)
 
-	seccompActionsStr, err := json.Marshal(release.SecCompActions())
+	seccompActionsStr, err := json.Marshal(seccomp.Actions())
 	c.Assert(err, IsNil)
 
-	buildID, err := osutil.ReadBuildID("/proc/self/exe")
-	c.Assert(err, IsNil)
-
-	compiler, err := seccomp_compiler.New(func(name string) (string, error) {
+	compiler, err := seccomp.NewCompiler(func(name string) (string, error) {
 		return filepath.Join(dirs.DistroLibExecDir, "snap-seccomp"), nil
 	})
 	c.Assert(err, IsNil)
@@ -117,7 +124,17 @@ func (s *systemKeySuite) testInterfaceWriteSystemKey(c *C, nfsHome bool) {
 
 	overlayRoot, err := osutil.IsRootWritableOverlay()
 	c.Assert(err, IsNil)
-	c.Check(string(systemKey), Equals, fmt.Sprintf(`{"version":1,"build-id":"%s","apparmor-features":%s,"apparmor-parser-mtime":%s,"apparmor-parser-features":%s,"nfs-home":%v,"overlay-root":%q,"seccomp-features":%s,"seccomp-compiler-version":"%s"}`, buildID, apparmorFeaturesStr, apparmorParserMtime, apparmorParserFeaturesStr, nfsHome, overlayRoot, seccompActionsStr, seccompCompilerVersion))
+	c.Check(string(systemKey), testutil.EqualsWrapped, fmt.Sprintf(`{"version":%d,"build-id":"%s","apparmor-features":%s,"apparmor-parser-mtime":%s,"apparmor-parser-features":%s,"nfs-home":%v,"overlay-root":%q,"seccomp-features":%s,"seccomp-compiler-version":"%s","cgroup-version":"1"}`,
+		interfaces.SystemKeyVersion,
+		s.buildID,
+		apparmorFeaturesStr,
+		apparmorParserMtime,
+		apparmorParserFeaturesStr,
+		nfsHome,
+		overlayRoot,
+		seccompActionsStr,
+		seccompCompilerVersion,
+	))
 }
 
 func (s *systemKeySuite) TestInterfaceWriteSystemKeyNoNFS(c *C) {
@@ -126,6 +143,20 @@ func (s *systemKeySuite) TestInterfaceWriteSystemKeyNoNFS(c *C) {
 
 func (s *systemKeySuite) TestInterfaceWriteSystemKeyWithNFS(c *C) {
 	s.testInterfaceWriteSystemKey(c, true)
+}
+
+func (s *systemKeySuite) TestInterfaceWriteSystemKeyErrorOnBuildID(c *C) {
+	restore := interfaces.MockIsHomeUsingNFS(func() (bool, error) { return false, nil })
+	defer restore()
+
+	restore = interfaces.MockReadBuildID(func(p string) (string, error) {
+		c.Assert(p, Equals, filepath.Join(dirs.DistroLibExecDir, "snapd"))
+		return "", fmt.Errorf("no build ID for you")
+	})
+	defer restore()
+
+	err := interfaces.WriteSystemKey()
+	c.Assert(err, ErrorMatches, "no build ID for you")
 }
 
 func (s *systemKeySuite) TestInterfaceSystemKeyMismatchHappy(c *C) {
@@ -212,26 +243,28 @@ func (s *systemKeySuite) TestInterfaceSystemKeyMismatchVersions(c *C) {
 	c.Assert(err, Equals, interfaces.ErrSystemKeyVersion)
 }
 
-func (s *systemKeySuite) TestInterfaceSystemKeyFindSnapdPathNormal(c *C) {
-	p, err := interfaces.FindSnapdPath()
-	c.Assert(err, IsNil)
-	c.Check(p, Equals, filepath.Join(dirs.DistroLibExecDir, "snapd"))
-}
+func (s *systemKeySuite) TestStaticVersion(c *C) {
+	// this is a static check to ensure we remember to bump the
+	// version when we add fields
+	//
+	// *** IF THIS FAILS, YOU NEED TO BUMP THE VERSION BEFORE "FIXING" THIS ***
+	var sk interfaces.SystemKey
 
-func (s *systemKeySuite) TestInterfaceSystemKeyFindSnapdPathReexec(c *C) {
-	s.AddCleanup(interfaces.MockOsReadlink(func(string) (string, error) {
-		return filepath.Join(dirs.SnapMountDir, "core/111/usr/bin/snap"), nil
-	}))
-	p, err := interfaces.FindSnapdPath()
-	c.Assert(err, IsNil)
-	c.Check(p, Equals, filepath.Join(dirs.SnapMountDir, "/core/111/usr/lib/snapd/snapd"))
-}
+	// XXX: this checks needs to become smarter once we remove or change
+	// existing fields, in which case the version will gets a bump but the
+	// number of fields decreases or remains unchanged
+	c.Check(reflect.ValueOf(sk).NumField(), Equals, interfaces.SystemKeyVersion)
 
-func (s *systemKeySuite) TestInterfaceSystemKeyFindSnapdPathSnapdSnap(c *C) {
-	s.AddCleanup(interfaces.MockOsReadlink(func(string) (string, error) {
-		return filepath.Join(dirs.SnapMountDir, "snapd/22/usr/bin/snap"), nil
-	}))
-	p, err := interfaces.FindSnapdPath()
-	c.Assert(err, IsNil)
-	c.Check(p, Equals, filepath.Join(dirs.SnapMountDir, "/snapd/22/usr/lib/snapd/snapd"))
+	c.Check(fmt.Sprintf("%+v", sk), Equals, "{"+strings.Join([]string{
+		"Version:0",
+		"BuildID:",
+		"AppArmorFeatures:[]",
+		"AppArmorParserMtime:0",
+		"AppArmorParserFeatures:[]",
+		"NFSHome:false",
+		"OverlayRoot:",
+		"SecCompActions:[]",
+		"SeccompCompilerVersion:",
+		"CgroupVersion:",
+	}, " ")+"}")
 }

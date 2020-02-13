@@ -34,12 +34,12 @@ execute: |
     snap list | MATCH '^basic-desktop_longname '
 
     echo "Removing one instance does not remove other instances' data"
-    snap remove basic-desktop_foo
+    snap remove --purge basic-desktop_foo
     test -f /var/lib/snapd/desktop/applications/basic-desktop+longname_echo.desktop
     test -f /var/lib/snapd/desktop/applications/basic-desktop_echo.desktop
 
-    snap remove basic-desktop
+    snap remove --purge basic-desktop
     test -f /var/lib/snapd/desktop/applications/basic-desktop+longname_echo.desktop
 
-restore:
+restore: |
     snap set system experimental.parallel-instances=null

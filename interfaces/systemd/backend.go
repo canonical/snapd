@@ -69,7 +69,7 @@ func (b *Backend) Setup(snapInfo *snap.Info, confinement interfaces.ConfinementO
 	}
 	glob := interfaces.InterfaceServiceName(snapName, "*")
 
-	systemd := sysd.New(dirs.GlobalRootDir, &dummyReporter{})
+	systemd := sysd.New(dirs.GlobalRootDir, sysd.SystemMode, &dummyReporter{})
 	// We need to be carefully here and stop all removed service units before
 	// we remove their files as otherwise systemd is not able to disable/stop
 	// them anymore.
@@ -100,7 +100,7 @@ func (b *Backend) Setup(snapInfo *snap.Info, confinement interfaces.ConfinementO
 
 // Remove disables, stops and removes systemd services of a given snap.
 func (b *Backend) Remove(snapName string) error {
-	systemd := sysd.New(dirs.GlobalRootDir, &dummyReporter{})
+	systemd := sysd.New(dirs.GlobalRootDir, sysd.SystemMode, &dummyReporter{})
 	// Remove all the files matching snap glob
 	glob := interfaces.InterfaceServiceName(snapName, "*")
 	_, removed, errEnsure := osutil.EnsureDirState(dirs.SnapServicesDir, glob, nil)
@@ -133,14 +133,14 @@ func (b *Backend) SandboxFeatures() []string {
 }
 
 // deriveContent computes .service files based on requests made to the specification.
-func deriveContent(spec *Specification, snapInfo *snap.Info) map[string]*osutil.FileState {
+func deriveContent(spec *Specification, snapInfo *snap.Info) map[string]osutil.FileState {
 	services := spec.Services()
 	if len(services) == 0 {
 		return nil
 	}
-	content := make(map[string]*osutil.FileState)
+	content := make(map[string]osutil.FileState)
 	for name, service := range services {
-		content[name] = &osutil.FileState{
+		content[name] = &osutil.MemoryFileState{
 			Content: []byte(service.String()),
 			Mode:    0644,
 		}
@@ -148,7 +148,7 @@ func deriveContent(spec *Specification, snapInfo *snap.Info) map[string]*osutil.
 	return content
 }
 
-func disableRemovedServices(systemd sysd.Systemd, dir, glob string, content map[string]*osutil.FileState) error {
+func disableRemovedServices(systemd sysd.Systemd, dir, glob string, content map[string]osutil.FileState) error {
 	paths, err := filepath.Glob(filepath.Join(dir, glob))
 	if err != nil {
 		return err

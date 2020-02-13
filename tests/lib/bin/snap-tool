@@ -1,0 +1,19 @@
+#!/bin/sh
+
+# shellcheck source=tests/lib/dirs.sh
+. "$TESTSLIB/dirs.sh"
+
+case "${1:-}" in
+	'')
+		echo "usage: snap-tool <tool> [ARGS]"
+		echo
+		echo "The snap-tool program simplifies running internal tools"
+		echo "like snap-discard-ns, which are not on PATH and whose"
+		echo "location varies from one distribution to another"
+		;;
+	*)
+		tool="$1"
+		shift
+		exec "$LIBEXECDIR/snapd/$tool" "$@"
+		;;
+esac

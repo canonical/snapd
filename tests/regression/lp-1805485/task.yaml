@@ -1,15 +1,15 @@
-summary: apparmor backend is not used on openSUSE Leap 42.3
+summary: apparmor backend is used when apparmor tooling is compatible
+
 details: |
-    AppArmor on openSUSE Leap 43.2 is too old to parse the snap-confine
-    apparmor profile.  Because of "relaxed" error handling snapd was enabling
-    apparmor backend even though it resulted in constant problems with setting
-    up security for the core snap. With this bug fixed the old version of
-    apparmor_parser makes snapd disable the relevant security backend. 
-systems: [ubuntu-*, opensuse-*, arch-linux-*]
+    AppArmor on openSUSE Leap 43.2 is too old to parse the snap-confine apparmor
+    profile. Because of "relaxed" error handling snapd was enabling apparmor
+    backend even though it resulted in constant problems with setting up
+    security for the core snap. With this bug fixed the old version of
+    apparmor_parser makes snapd disable the relevant security backend.
+    Make sure that apparmor backend is not disabled on systems where apparmor
+    tooling is recent enough.
+
+systems: [ubuntu-1*, opensuse-*, arch-linux-*]
+
 execute: |
-    if [[ "$SPREAD_SYSTEM" == opensuse-42.3* ]]; then
-        # openSUSE 43.2 has AppArmor parser in version too old to parse snap-confine profile
-        snap debug sandbox-features | MATCH -v "^apparmor:"
-    else
-        snap debug sandbox-features | MATCH "^apparmor:"
-    fi
+    snap debug sandbox-features | MATCH "^apparmor:"

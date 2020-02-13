@@ -12,7 +12,9 @@ details: |
 # boards because the (wifi) network is already managed by netplan
 # there and when n-m gets installed/removed it will hang when
 # trying to deconfigure the wifi network which is already owned.
-systems: [ubuntu-core-16-64, ubuntu-core-16-32]
+# TODO:UC20: Enable test once Network Manager snap properly works
+# on core20 system
+systems: [ubuntu-core-16-64, ubuntu-core-16-32, ubuntu-core-18-64, ubuntu-core-18-32]
 
 prepare: |
     echo "Give a network-manager snap is installed"

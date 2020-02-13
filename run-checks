@@ -16,8 +16,10 @@ else
 fi
 COVERMODE=${COVERMODE:-atomic}
 
-# ensure we use go-1.10 by default
-export PATH=/usr/lib/go-1.10/bin:${PATH}
+if [ -z "${TRAVIS_BUILD_ID:-}" ]; then
+    # when *not* running inside travis, ensure we use go-1.10 by default
+    export PATH=/usr/lib/go-1.10/bin:${PATH}
+fi
 
 # add workaround for https://github.com/golang/go/issues/24449
 if [ "$(uname -m)" = "s390x" ]; then
@@ -60,6 +62,9 @@ case "${1:-all}" in
         ;;
     --spread-no-ubuntu)
         SPREAD=no-ubuntu
+        ;;
+    --spread-unstable)
+        SPREAD=unstable
         ;;
     *)
         echo "Wrong flag ${1}. To run a single suite use --static, --unit, --spread."
@@ -145,10 +150,15 @@ if [ "$STATIC" = 1 ]; then
     echo Checking docs
     ./mdlint.py ./*.md docs/*.md
 
+    if [ -n "${TRAVIS_PULL_REQUEST:-}" ] && [ "${TRAVIS_PULL_REQUEST:-}" != "false" ]; then
+        echo Checking pull request summary
+        ./check-pr-title.py "$TRAVIS_PULL_REQUEST"
+    fi
+
     echo Checking formatting
     fmt=""
     for dir in $(go list -f '{{.Dir}}' ./... | grep -v '/vendor/' ); do
-        s="$(gofmt -s -l "$dir" | grep -v /vendor/ || true)"
+        s="$(${GOFMT:-gofmt} -s -l -d "$dir" | grep -v /vendor/ || true)"
         if [ -n "$s" ]; then
             fmt="$s\\n$fmt"
         fi
@@ -157,7 +167,11 @@ if [ "$STATIC" = 1 ]; then
     if [ -n "$fmt" ]; then
         echo "Formatting wrong in following files:"
         echo "$fmt" | sed -e 's/\\n/\n/g'
-        exit 1
+        if [ -z "${SKIP_GOFMT:-}" ]; then
+            exit 1
+        else
+            echo "Ignoring gofmt errors as requested"
+        fi
     fi
 
     # go vet
@@ -175,6 +189,22 @@ if [ "$STATIC" = 1 ]; then
 
     if [ -n "$got" ]; then
         echo 'Usages of http.Status*, we prefer the numeric values directly:'
+        echo "$got"
+        exit 1
+    fi
+
+    echo 'Check for direct usages of math/rand'
+    got=""
+    for dir in $(go list -f '{{.Dir}}' ./... | grep -v '/vendor/' ); do
+        # shellcheck disable=SC2063
+        s="$(grep -nP --exclude '*_test.go' --exclude 'randutil/*.go' math/rand "$dir"/*.go || true)"
+        if [ -n "$s" ]; then
+            got="$s\\n$got"
+        fi
+    done
+
+    if [ -n "$got" ]; then
+        echo 'Direct usages of math/rand, we prefer randutil:'
         echo "$got"
         exit 1
     fi
@@ -221,11 +251,33 @@ if [ "$STATIC" = 1 ]; then
     got=$(go list ./... | grep -v '/osutil/udev/' | grep -v '/vendor/' | xargs nakedret 2>&1)
     if [ -n "$got" ]; then
         echo "$got"
-        exit 1
+        if [ -z "${SKIP_NAKEDRET:-}" ]; then
+            exit 1
+        else
+            echo "Ignoring nakedret errors as requested"
+        fi
     fi
 
     echo Checking all interfaces have minimal spread test
     missing_interface_spread_test
+
+    echo Checking for incorrect multiline strings in spread tests
+    badmultiline=$(find tests -name 'task.yaml' -print0 -o -name 'spread.yaml' -print0 | \
+                       xargs -0 grep -R -n -E '(restore*|prepare*|execute|debug):\s*$' || true)
+    if [ -n "$badmultiline" ]; then
+        echo "Incorrect multiline strings at the following locations:"
+        echo "$badmultiline"
+        exit 1
+    fi
+
+    echo "Checking for potentially incorrect use of MATCH -v"
+    badMATCH=$(find tests -name 'task.yaml' -print0 -o -name 'spread.yaml' -print0 | \
+                       xargs -0 grep -R -n -E 'MATCH +-v' || true)
+    if [ -n "$badMATCH" ]; then
+        echo "Potentially incorrect use of MATCH -v at the following locations:"
+        echo "$badMATCH"
+        exit 1
+    fi
 
     # FIXME: re-add staticcheck with a matching version for the used go-version
 fi
@@ -240,7 +292,7 @@ if [ "$UNIT" = 1 ]; then
     echo Running tests from "$PWD"
     if [ "$short" = 1 ]; then
             # shellcheck disable=SC2046
-            $goctest -short -v $(go list ./... | grep -v '/vendor/' )
+            GOTRACEBACK=1 $goctest -short -v -timeout 5m $(go list ./... | grep -v '/vendor/' )
     else
         # Prepare the coverage output profile.
         rm -rf .coverage
@@ -249,11 +301,11 @@ if [ "$UNIT" = 1 ]; then
 
         if dpkg --compare-versions "$(go version | awk '$3 ~ /^go[0-9]/ {print substr($3, 3)}')" ge 1.10; then
             # shellcheck disable=SC2046
-            $goctest -v -coverprofile=.coverage/coverage.out -covermode="$COVERMODE" $(go list ./... | grep -v '/vendor/' )
+            GOTRACEBACK=1 $goctest -v -timeout 5m -coverprofile=.coverage/coverage.out -covermode="$COVERMODE" $(go list ./... | grep -v '/vendor/' )
         else
             for pkg in $(go list ./... | grep -v '/vendor/' ); do
-                go test -i "$pkg"
-                $goctest -v -coverprofile=.coverage/profile.out -covermode="$COVERMODE" "$pkg"
+                GOTRACEBACK=1 go test -timeout 5m -i "$pkg"
+                GOTRACEBACK=1 $goctest -v -timeout 5m -coverprofile=.coverage/profile.out -covermode="$COVERMODE" "$pkg"
                 append_coverage .coverage/profile.out
             done
         fi
@@ -262,9 +314,23 @@ if [ "$UNIT" = 1 ]; then
             curl -s https://codecov.io/bash | bash /dev/stdin -f .coverage/coverage.out
         fi
     fi
+
+    # python unit test for mountinfo-tool and version-tool
+    command -v python2 && python2 ./tests/lib/bin/mountinfo-tool --run-unit-tests
+    command -v python3 && python3 ./tests/lib/bin/mountinfo-tool --run-unit-tests
+    command -v python2 && python2 ./tests/lib/bin/version-tool --run-unit-tests
+    command -v python3 && python3 ./tests/lib/bin/version-tool --run-unit-tests
 fi
 
 if [ -n "$SPREAD" ]; then
+    if [ -n "${TRAVIS_PULL_REQUEST:-}" ] && [ "${TRAVIS_PULL_REQUEST:-}" != "false" ]; then
+        echo "Checking whether PR author requested to skip spread"
+        if ./check-pr-skip-spread.py "$TRAVIS_PULL_REQUEST"; then
+            echo "Skipping spread job on request"
+            exit 0
+        fi
+    fi
+
     TMP_SPREAD="$(mktemp -d)"
     addtrap "rm -rf \"$TMP_SPREAD\""
 
@@ -280,6 +346,14 @@ if [ -n "$SPREAD" ]; then
             ;;
         no-ubuntu)
             spread "google:[^u]...:tests/..."
+            ;;
+        unstable)
+            # check if we have any systems first
+            if spread -list "google-unstable:" 2>&1 | grep -q -E 'nothing matches'; then
+                echo "No unstable systems to run the tests on"
+            else
+                spread "google-unstable:"
+            fi
             ;;
         *)
             echo "Spread parameter $SPREAD not supported"

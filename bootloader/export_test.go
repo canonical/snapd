@@ -22,19 +22,81 @@ package bootloader
 import (
 	"io/ioutil"
 	"os"
+	"path/filepath"
 
 	. "gopkg.in/check.v1"
+
+	"github.com/snapcore/snapd/bootloader/lkenv"
+	"github.com/snapcore/snapd/bootloader/ubootenv"
 )
 
 // creates a new Androidboot bootloader object
-func NewAndroidBoot() Bootloader {
-	return newAndroidBoot()
+func NewAndroidBoot(rootdir string) Bootloader {
+	return newAndroidBoot(rootdir)
 }
 
-func MockAndroidBootFile(c *C, mode os.FileMode) {
-	f := &androidboot{}
-	err := os.MkdirAll(f.Dir(), 0755)
+func MockAndroidBootFile(c *C, rootdir string, mode os.FileMode) {
+	f := &androidboot{rootdir: rootdir}
+	err := os.MkdirAll(f.dir(), 0755)
 	c.Assert(err, IsNil)
 	err = ioutil.WriteFile(f.ConfigFile(), nil, mode)
 	c.Assert(err, IsNil)
+}
+
+func NewUboot(rootdir string) Bootloader {
+	return newUboot(rootdir)
+}
+
+func MockUbootFiles(c *C, rootdir string) {
+	u := &uboot{rootdir: rootdir}
+	err := os.MkdirAll(u.dir(), 0755)
+	c.Assert(err, IsNil)
+
+	// ensure that we have a valid uboot.env too
+	env, err := ubootenv.Create(u.envFile(), 4096)
+	c.Assert(err, IsNil)
+	err = env.Save()
+	c.Assert(err, IsNil)
+}
+
+func NewGrub(rootdir string, opts *Options) RecoveryAwareBootloader {
+	return newGrub(rootdir, opts)
+}
+
+func MockGrubFiles(c *C, rootdir string) {
+	err := os.MkdirAll(filepath.Join(rootdir, "/boot/grub"), 0755)
+	c.Assert(err, IsNil)
+	err = ioutil.WriteFile(filepath.Join(rootdir, "/boot/grub/grub.cfg"), nil, 0644)
+	c.Assert(err, IsNil)
+}
+
+func NewLk(rootdir string, opts *Options) Bootloader {
+	if opts == nil {
+		opts = &Options{}
+	}
+	return newLk(rootdir, opts)
+}
+
+func MockLkFiles(c *C, rootdir string, opts *Options) {
+	if opts == nil {
+		opts = &Options{}
+	}
+	l := &lk{rootdir: rootdir, inRuntimeMode: !opts.PrepareImageTime}
+	err := os.MkdirAll(l.dir(), 0755)
+	c.Assert(err, IsNil)
+
+	// first create empty env file
+	buf := make([]byte, 4096)
+	err = ioutil.WriteFile(l.envFile(), buf, 0660)
+	c.Assert(err, IsNil)
+	// now write env in it with correct crc
+	env := lkenv.NewEnv(l.envFile())
+	env.ConfigureBootPartitions("boot_a", "boot_b")
+	err = env.Save()
+	c.Assert(err, IsNil)
+}
+
+func LkRuntimeMode(b Bootloader) bool {
+	lk := b.(*lk)
+	return lk.inRuntimeMode
 }

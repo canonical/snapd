@@ -485,8 +485,12 @@ func NewTaskSet(tasks ...*Task) *TaskSet {
 }
 
 // Edge returns the task marked with the given edge name.
-func (ts TaskSet) Edge(e TaskSetEdge) *Task {
-	return ts.edges[e]
+func (ts TaskSet) Edge(e TaskSetEdge) (*Task, error) {
+	t, ok := ts.edges[e]
+	if !ok {
+		return nil, fmt.Errorf("internal error: missing %q edge in task set", e)
+	}
+	return t, nil
 }
 
 // WaitFor registers a task as a requirement for the tasks in the set
@@ -518,6 +522,9 @@ func (ts *TaskSet) AddTask(task *Task) {
 // MarkEdge marks the given task as a specific edge. Any pre-existing
 // edge mark will be overridden.
 func (ts *TaskSet) MarkEdge(task *Task, edge TaskSetEdge) {
+	if task == nil {
+		panic(fmt.Sprintf("cannot set edge %q with nil task", edge))
+	}
 	if ts.edges == nil {
 		ts.edges = make(map[TaskSetEdge]*Task)
 	}
@@ -529,6 +536,20 @@ func (ts *TaskSet) AddAll(anotherTs *TaskSet) {
 	for _, t := range anotherTs.tasks {
 		ts.AddTask(t)
 	}
+}
+
+// AddAllWithEdges adds all the tasks in the argument set to the target
+// set ts and also adds all TaskSetEdges. Duplicated TaskSetEdges are
+// an error.
+func (ts *TaskSet) AddAllWithEdges(anotherTs *TaskSet) error {
+	ts.AddAll(anotherTs)
+	for edge, t := range anotherTs.edges {
+		if tex, ok := ts.edges[edge]; ok && t != tex {
+			return fmt.Errorf("cannot add taskset: duplicated edge %q", edge)
+		}
+		ts.MarkEdge(t, edge)
+	}
+	return nil
 }
 
 // JoinLane adds all the tasks in the current taskset to the given lane.

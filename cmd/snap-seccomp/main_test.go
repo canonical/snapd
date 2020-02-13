@@ -137,11 +137,18 @@ var seccompSyscallRunnerContent = []byte(`
 #include <stdlib.h>
 #include <sys/syscall.h>
 #include <unistd.h>
+#include <inttypes.h>
 int main(int argc, char** argv)
 {
-    int l[7], syscall_ret, ret = 0;
-    for (int i = 0; i < 7; i++)
-        l[i] = atoi(argv[i + 1]);
+    uint32_t l[7];
+    int syscall_ret, ret = 0;
+    for (int i = 0; i < 7; i++) {
+        errno = 0;
+        l[i] = strtoll(argv[i + 1], NULL, 10);
+	// exit '11' let's us know strtoll failed
+        if (errno != 0)
+            syscall(SYS_exit, 11, 0, 0, 0, 0, 0);
+    }
     // There might be architecture-specific requirements. see "man syscall"
     // for details.
     syscall_ret = syscall(l[0], l[1], l[2], l[3], l[4], l[5], l[6]);
@@ -184,7 +191,7 @@ func (s *snapSeccompSuite) SetUpSuite(c *C) {
 	// Build 32bit runner on amd64 to test non-native syscall handling.
 	// Ideally we would build for ppc64el->powerpc and arm64->armhf but
 	// it seems tricky to find the right gcc-multilib for this.
-	if arch.UbuntuArchitecture() == "amd64" && s.canCheckCompatArch {
+	if arch.DpkgArchitecture() == "amd64" && s.canCheckCompatArch {
 		cmd = exec.Command(cmd.Args[0], cmd.Args[1:]...)
 		cmd.Args = append(cmd.Args, "-m32")
 		for i, k := range cmd.Args {
@@ -267,7 +274,7 @@ restart_syscall
 	// compiler that can produce the required binaries. Currently
 	// we only test amd64 running i386 here.
 	if syscallArch != "native" {
-		syscallNr, err = seccomp.GetSyscallFromNameByArch(syscallName, main.UbuntuArchToScmpArch(syscallArch))
+		syscallNr, err = seccomp.GetSyscallFromNameByArch(syscallName, main.DpkgArchToScmpArch(syscallArch))
 		c.Assert(err, IsNil)
 
 		switch syscallArch {
@@ -303,11 +310,14 @@ restart_syscall
 		for i := range args {
 			// init with random number argument
 			syscallArg := (uint64)(rand.Uint32())
-			// override if the test specifies a specific number
-			if nr, err := strconv.ParseUint(args[i], 10, 64); err == nil {
+			// override if the test specifies a specific number;
+			// this must match main.go:readNumber()
+			if nr, ok := main.SeccompResolver[args[i]]; ok {
 				syscallArg = nr
-			} else if nr, ok := main.SeccompResolver[args[i]]; ok {
+			} else if nr, err := strconv.ParseUint(args[i], 10, 32); err == nil {
 				syscallArg = nr
+			} else if nr, err := strconv.ParseInt(args[i], 10, 32); err == nil {
+				syscallArg = uint64(uint32(nr))
 			}
 			syscallRunnerArgs[i+1] = strconv.FormatUint(syscallArg, 10)
 		}
@@ -454,6 +464,14 @@ func (s *snapSeccompSuite) TestCompile(c *C) {
 		{"fchown - u:root g:root", "fchown;native;-,99,0", Deny},
 		{"chown - u:root g:root", "chown;native;-,0,0", Allow},
 		{"chown - u:root g:root", "chown;native;-,99,0", Deny},
+
+		// u:root -1
+		{"chown - u:root -1", "chown;native;-,0,-1", Allow},
+		{"chown - u:root -1", "chown;native;-,99,-1", Deny},
+		{"chown - -1 u:root", "chown;native;-,-1,0", Allow},
+		{"chown - -1 u:root", "chown;native;-,99,0", Deny},
+		{"chown - -1 -1", "chown;native;-,-1,-1", Allow},
+		{"chown - -1 -1", "chown;native;-,99,-1", Deny},
 	} {
 		s.runBpf(c, t.seccompWhitelist, t.bpfInput, t.expected)
 	}
@@ -521,6 +539,10 @@ func (s *snapSeccompSuite) TestCompileBadInput(c *C) {
 		{"setpriority 1-", `cannot parse line: cannot parse token "1-" .*`},
 		{"setpriority 1\\ 2", `cannot parse line: cannot parse token "1\\\\" .*`},
 		{"setpriority 1\\n2", `cannot parse line: cannot parse token "1\\\\n2" .*`},
+		// 1 bigger than uint32
+		{"chown 0 4294967296", `cannot parse line: cannot parse token "4294967296" .*`},
+		// 1 smaller than int32
+		{"chown - 0 -2147483649", `cannot parse line: cannot parse token "-2147483649" .*`},
 		{"setpriority 999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999", `cannot parse line: cannot parse token "999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999" .*`},
 		{"mbind - - - - - - 7", `cannot parse line: too many arguments specified for syscall 'mbind' in line.*`},
 		{"mbind 1 2 3 4 5 6 7", `cannot parse line: too many arguments specified for syscall 'mbind' in line.*`},
@@ -562,16 +584,16 @@ func (s *snapSeccompSuite) TestCompileBadInput(c *C) {
 		// u:<username>
 		{"setuid :root", `cannot parse line: cannot parse token ":root" .*`},
 		{"setuid u:", `cannot parse line: cannot parse token "u:" \(line "setuid u:"\): "" must be a valid username`},
-		{"setuid u:0", `cannot parse line: cannot parse token "u:0" \(line "setuid u:0"\): "0" must be a valid username`},
+		{"setuid u:!", `cannot parse line: cannot parse token "u:!" \(line "setuid u:!"\): "!" must be a valid username`},
 		{"setuid u:b@d|npu+", `cannot parse line: cannot parse token "u:b@d|npu+" \(line "setuid u:b@d|npu+"\): "b@d|npu+" must be a valid username`},
-		{"setuid u:snap.bad", `cannot parse line: cannot parse token "u:snap.bad" \(line "setuid u:snap.bad"\): "snap.bad" must be a valid username`},
+		{"setuid u:snap|bad", `cannot parse line: cannot parse token "u:snap|bad" \(line "setuid u:snap|bad"\): "snap|bad" must be a valid username`},
 		{"setuid U:root", `cannot parse line: cannot parse token "U:root" .*`},
 		{"setuid u:nonexistent", `cannot parse line: cannot parse token "u:nonexistent" \(line "setuid u:nonexistent"\): user: unknown user nonexistent`},
 		// g:<groupname>
 		{"setgid g:", `cannot parse line: cannot parse token "g:" \(line "setgid g:"\): "" must be a valid group name`},
-		{"setgid g:0", `cannot parse line: cannot parse token "g:0" \(line "setgid g:0"\): "0" must be a valid group name`},
+		{"setgid g:!", `cannot parse line: cannot parse token "g:!" \(line "setgid g:!"\): "!" must be a valid group name`},
 		{"setgid g:b@d|npu+", `cannot parse line: cannot parse token "g:b@d|npu+" \(line "setgid g:b@d|npu+"\): "b@d|npu+" must be a valid group name`},
-		{"setgid g:snap.bad", `cannot parse line: cannot parse token "g:snap.bad" \(line "setgid g:snap.bad"\): "snap.bad" must be a valid group name`},
+		{"setgid g:snap|bad", `cannot parse line: cannot parse token "g:snap|bad" \(line "setgid g:snap|bad"\): "snap|bad" must be a valid group name`},
 		{"setgid G:root", `cannot parse line: cannot parse token "G:root" .*`},
 		{"setgid g:nonexistent", `cannot parse line: cannot parse token "g:nonexistent" \(line "setgid g:nonexistent"\): group: unknown group nonexistent`},
 	} {
@@ -787,6 +809,14 @@ func (s *snapSeccompSuite) TestCompatArchWorks(c *C) {
 		// on amd64 we add compat i386
 		{"amd64", "read", "read;i386", Allow},
 		{"amd64", "read", "read;amd64", Allow},
+		{"amd64", "chown - 0 -1", "chown;i386;-,0,-1", Allow},
+		{"amd64", "chown - 0 -1", "chown;amd64;-,0,-1", Allow},
+		{"amd64", "chown - 0 -1", "chown;i386;-,99,-1", Deny},
+		{"amd64", "chown - 0 -1", "chown;amd64;-,99,-1", Deny},
+		{"amd64", "setresuid -1 -1 -1", "setresuid;i386;-1,-1,-1", Allow},
+		{"amd64", "setresuid -1 -1 -1", "setresuid;amd64;-1,-1,-1", Allow},
+		{"amd64", "setresuid -1 -1 -1", "setresuid;i386;-1,99,-1", Deny},
+		{"amd64", "setresuid -1 -1 -1", "setresuid;amd64;-1,99,-1", Deny},
 	} {
 		// It is tricky to mock the architecture here because
 		// seccomp is always adding the native arch to the seccomp
@@ -795,10 +825,10 @@ func (s *snapSeccompSuite) TestCompatArchWorks(c *C) {
 		// https://github.com/seccomp/libseccomp/issues/86
 		//
 		// This means we can not just
-		//    main.MockArchUbuntuArchitecture(t.arch)
+		//    main.MockArchDpkgArchitecture(t.arch)
 		// here because on endian mismatch the arch will *not* be
 		// added
-		if arch.UbuntuArchitecture() == t.arch {
+		if arch.DpkgArchitecture() == t.arch {
 			s.runBpf(c, t.seccompWhitelist, t.bpfInput, t.expected)
 		}
 	}

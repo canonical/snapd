@@ -78,16 +78,16 @@ var iioControlDeviceNodePattern = regexp.MustCompile("^/dev/iio:device[0-9]+$")
 
 // Check validity of the defined slot
 func (iface *iioInterface) BeforePrepareSlot(slot *snap.SlotInfo) error {
-	if err := sanitizeSlotReservedForOSOrGadget(iface, slot); err != nil {
-		return err
-	}
-
 	// Validate the path
 	path, ok := slot.Attrs["path"].(string)
 	if !ok || path == "" {
 		return fmt.Errorf("%s slot must have a path attribute", iface.Name())
 	}
 
+	// XXX: this interface feeds the cleaned path into the regex and is
+	// left unchanged here for historical reasons. New interfaces (eg,
+	// like raw-volume) should instead use verifySlotPathAttribute() which
+	// performs additional verification.
 	path = filepath.Clean(path)
 
 	if !iioControlDeviceNodePattern.MatchString(path) {

@@ -41,20 +41,28 @@ type Store struct{}
 // ensure we conform
 var _ snapstate.StoreService = Store{}
 
-func (Store) SnapInfo(store.SnapSpec, *auth.UserState) (*snap.Info, error) {
+func (Store) EnsureDeviceSession() (*auth.DeviceState, error) {
+	panic("Store.EnsureDeviceSession not expected")
+}
+
+func (Store) SnapInfo(context.Context, store.SnapSpec, *auth.UserState) (*snap.Info, error) {
 	panic("Store.SnapInfo not expected")
 }
 
-func (Store) Find(*store.Search, *auth.UserState) ([]*snap.Info, error) {
+func (Store) Find(context.Context, *store.Search, *auth.UserState) ([]*snap.Info, error) {
 	panic("Store.Find not expected")
 }
 
-func (Store) SnapAction(context.Context, []*store.CurrentSnap, []*store.SnapAction, *auth.UserState, *store.RefreshOptions) ([]*snap.Info, error) {
+func (Store) SnapAction(context.Context, []*store.CurrentSnap, []*store.SnapAction, *auth.UserState, *store.RefreshOptions) ([]store.SnapActionResult, error) {
 	panic("Store.SnapAction not expected")
 }
 
 func (Store) Download(context.Context, string, string, *snap.DownloadInfo, progress.Meter, *auth.UserState, *store.DownloadOptions) error {
 	panic("Store.Download not expected")
+}
+
+func (Store) DownloadStream(ctx context.Context, name string, downloadInfo *snap.DownloadInfo, resume int64, user *auth.UserState) (io.ReadCloser, int, error) {
+	panic("Store.DownloadStream not expected")
 }
 
 func (Store) SuggestedCurrency() string {
@@ -83,6 +91,10 @@ func (Store) WriteCatalogs(context.Context, io.Writer, store.SnapAdder) error {
 
 func (Store) ConnectivityCheck() (map[string]bool, error) {
 	panic("ConnectivityCheck not expected")
+}
+
+func (Store) CreateCohorts(context.Context, []string) (map[string]string, error) {
+	panic("CreateCohort not expected")
 }
 
 func (Store) LoginUser(username, password, otp string) (string, string, error) {

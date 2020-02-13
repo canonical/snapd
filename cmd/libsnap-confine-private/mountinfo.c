@@ -17,6 +17,7 @@
 #include "mountinfo.h"
 
 #include <errno.h>
+#include <stdbool.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -126,7 +127,7 @@ static void show_buffers(const char *line, int offset,
 	fprintf(stderr, ">%s<\n", line);
 
 	fputc('>', stderr);
-	for (int i = 0; i < strlen(line); ++i) {
+	for (size_t i = 0; i < strlen(line); ++i) {
 		int c = entry->line_buf[i];
 		fputc(c == 0 ? '@' : c == 1 ? '#' : c, stderr);
 	}
@@ -134,34 +135,95 @@ static void show_buffers(const char *line, int offset,
 	fputc('\n', stderr);
 
 	fputc('>', stderr);
-	for (int i = 0; i < strlen(line); ++i)
+	for (size_t i = 0; i < strlen(line); ++i)
 		fputc('=', stderr);
 	fputc('<', stderr);
 	fputc('\n', stderr);
 #endif				// MOUNTINFO_DEBUG
 }
 
-static char *parse_next_string_field(sc_mountinfo_entry * entry,
-				     const char *line, int *offset)
+static bool is_octal_digit(char c)
 {
-	int offset_delta = 0;
-	char *field = &entry->line_buf[0] + *offset;
-	if (line[*offset] == ' ') {
-		// Special case for empty fields which cannot be parsed with %s.
-		*field = '\0';
-		*offset += 1;
-	} else {
-		int nscanned =
-		    sscanf(line + *offset, "%s%n", field, &offset_delta);
-		if (nscanned != 1)
-			return NULL;
-		*offset += offset_delta;
-		if (line[*offset] == ' ') {
-			*offset += 1;
+	return c >= '0' && c <= '7';
+}
+
+static char *parse_next_string_field(sc_mountinfo_entry * entry,
+				     const char *line, size_t *offset)
+{
+	const char *input = &line[*offset];
+	char *output = &entry->line_buf[*offset];
+	size_t input_idx = 0;	// reading index
+	size_t output_idx = 0;	// writing index
+
+	// Scan characters until we run out of memory to scan or we find a
+	// space.  The kernel uses simple octal escape sequences for the
+	// following: space, tab, newline, backwards slash. Everything else is
+	// copied verbatim.
+	for (;;) {
+		int c = input[input_idx];
+		if (c == '\0') {
+			// The string is over before we see anything then
+			// return NULL. This is an indication of end-of-input
+			// to the caller.
+			if (output_idx == 0) {
+				return NULL;
+			}
+			// The scanned line is NUL terminated. This ensures that the
+			// terminator is copied to the output buffer.
+			output[output_idx] = '\0';
+			// NOTE: we must not advance the reading index since we
+			// reached the end of the buffer.
+			break;
+		} else if (c == ' ') {
+			// Fields are space delimited or end-of-string terminated.
+			// Represent either as the end-of-string marker, skip over it,
+			// and stop parsing by terminating the output, then
+			// breaking out of the loop but advancing the reading
+			// index which is needed for subsequent calls.
+			output[output_idx] = '\0';
+			input_idx++;
+			break;
+		} else if (c == '\\') {
+			// Three *more* octal digits required for the escape
+			// sequence.  For reference see mangle_path() in
+			// fs/seq_file.c.  Note that is_octal_digit returns
+			// false on the string terminator character NUL and the
+			// short-circuiting behavior of && makes this check
+			// correct even if '\\' is the last character of the
+			// string.
+			const char *s = &input[input_idx];
+			if (is_octal_digit(s[1]) && is_octal_digit(s[2])
+			    && is_octal_digit(s[3])) {
+				// Unescape the octal value encoded in s[1],
+				// s[2] and s[3]. Because we are working with
+				// byte values there are no issues related to
+				// byte order.
+				output[output_idx++] =
+				    ((s[1] - '0') << 6) |
+				    ((s[2] - '0') << 3) | ((s[3] - '0'));
+				// Advance the reading index by the length of the escape
+				// sequence.
+				input_idx += 4;
+			} else {
+				// Partial escape sequence, copy verbatim and
+				// continue (since we don't use this).
+				output[output_idx++] = c;
+				input_idx++;
+			}
+		} else {
+			// All other characters are simply copied verbatim.
+			output[output_idx++] = c;
+			input_idx++;
 		}
 	}
+	*offset += input_idx;
+#ifdef MOUNTINFO_DEBUG
+	fprintf(stderr,
+		"\nscanned: >%s< (%zd bytes), input idx: %zd, output idx: %zd\n",
+		output, strlen(output), input_idx, output_idx);
+#endif
 	show_buffers(line, *offset, entry);
-	return field;
+	return output;
 }
 
 static sc_mountinfo_entry *sc_parse_mountinfo_entry(const char *line)
@@ -197,14 +259,15 @@ static sc_mountinfo_entry *sc_parse_mountinfo_entry(const char *line)
 	// by show_buffers() below. This is "unaltered" memory.
 	memset(entry->line_buf, 1, strlen(line));
 #endif				// MOUNTINFO_DEBUG
-	int nscanned;
-	int offset_delta, offset = 0;
+	int nscanned, initial_offset = 0;
+	size_t offset = 0;
 	nscanned = sscanf(line, "%d %d %u:%u %n",
 			  &entry->mount_id, &entry->parent_id,
-			  &entry->dev_major, &entry->dev_minor, &offset_delta);
+			  &entry->dev_major, &entry->dev_minor,
+			  &initial_offset);
 	if (nscanned != 4)
 		goto fail;
-	offset += offset_delta;
+	offset += initial_offset;
 
 	show_buffers(line, offset, entry);
 
@@ -241,7 +304,6 @@ static sc_mountinfo_entry *sc_parse_mountinfo_entry(const char *line)
 	if ((entry->super_opts =
 	     parse_next_string_field(entry, line, &offset)) == NULL)
 		goto fail;
-	show_buffers(line, offset, entry);
 	return entry;
  fail:
 	free(entry);

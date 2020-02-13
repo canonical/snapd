@@ -131,6 +131,16 @@ func (s *mountinfoSuite) TestParseMountInfoEntry4(c *C) {
 	c.Assert(err, ErrorMatches, `cannot parse device major:minor number pair: "corrupt"`)
 }
 
+// Check that \r is parsed correctly.
+func (s *mountinfoSuite) TestParseMountInfoEntry5(c *C) {
+	real := "2074 27 0:54 / /tmp/strange\rdir rw,relatime shared:1039 - tmpfs tmpfs rw"
+	canonical := "2074 27 0:54 / /tmp/strange\rdir relatime,rw shared:1039 - tmpfs tmpfs rw"
+	entry, err := osutil.ParseMountInfoEntry(real)
+	c.Assert(err, IsNil)
+	c.Assert(entry.String(), Equals, canonical)
+	c.Assert(entry.MountDir, Equals, "/tmp/strange\rdir")
+}
+
 // Test that empty mountinfo is parsed without errors.
 func (s *mountinfoSuite) TestReadMountInfo1(c *C) {
 	entries, err := osutil.ReadMountInfo(strings.NewReader(""))

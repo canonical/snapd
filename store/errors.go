@@ -26,7 +26,7 @@ import (
 	"sort"
 	"strings"
 
-	"github.com/snapcore/snapd/snap"
+	"github.com/snapcore/snapd/snap/channel"
 	"github.com/snapcore/snapd/strutil"
 )
 
@@ -71,7 +71,7 @@ var (
 type RevisionNotAvailableError struct {
 	Action   string
 	Channel  string
-	Releases []snap.Channel
+	Releases []channel.Channel
 }
 
 func (e *RevisionNotAvailableError) Error() string {
@@ -137,6 +137,42 @@ type SnapActionError struct {
 	Other []error
 }
 
+// SingleOpError returns the single operation, snap name, and error if
+// e represents a single error of a single operation on a single snap
+// (i.e. if e.Other is empty, and e.Refresh, e.Install and e.Download
+// have a single error in total).
+// In any other case, the error returned will be nil.
+func (e SnapActionError) SingleOpError() (op, name string, err error) {
+	if len(e.Other) > 0 {
+		return "", "", nil
+	}
+
+	nRefresh := len(e.Refresh)
+	nInstall := len(e.Install)
+	nDownload := len(e.Download)
+	if nRefresh+nInstall+nDownload != 1 {
+		return "", "", nil
+	}
+
+	var errs map[string]error
+	switch {
+	case nRefresh > 0:
+		op = "refresh"
+		errs = e.Refresh
+	case nInstall > 0:
+		op = "install"
+		errs = e.Install
+	case nDownload > 0:
+		op = "download"
+		errs = e.Download
+	}
+	for name, err = range errs {
+		return op, name, err
+	}
+	// can't happen
+	return "", "", nil
+}
+
 func (e SnapActionError) Error() string {
 	nRefresh := len(e.Refresh)
 	nInstall := len(e.Install)
@@ -152,22 +188,8 @@ func (e SnapActionError) Error() string {
 		}
 	case 1:
 		if nOther == 0 {
-			var op string
-			var errs map[string]error
-			switch {
-			case nRefresh > 0:
-				op = "refresh"
-				errs = e.Refresh
-			case nInstall > 0:
-				op = "install"
-				errs = e.Install
-			case nDownload > 0:
-				op = "download"
-				errs = e.Download
-			}
-			for name, e := range errs {
-				return fmt.Sprintf("cannot %s snap %q: %v", op, name, e)
-			}
+			op, name, err := e.SingleOpError()
+			return fmt.Sprintf("cannot %s snap %q: %v", op, name, err)
 		} else {
 			return fmt.Sprintf("cannot refresh, install, or download: %v", e.Other[0])
 		}
@@ -234,18 +256,18 @@ var (
 	errDeviceAuthorizationNeedsRefresh = errors.New("soft-expired device authorization needs refresh")
 )
 
-func translateSnapActionError(action, channel, code, message string, releases []snapRelease) error {
+func translateSnapActionError(action, snapChannel, code, message string, releases []snapRelease) error {
 	switch code {
 	case "revision-not-found":
 		e := &RevisionNotAvailableError{
 			Action:  action,
-			Channel: channel,
+			Channel: snapChannel,
 		}
 		if len(releases) != 0 {
-			parsedReleases := make([]snap.Channel, len(releases))
+			parsedReleases := make([]channel.Channel, len(releases))
 			for i := 0; i < len(releases); i++ {
 				var err error
-				parsedReleases[i], err = snap.ParseChannel(releases[i].Channel, releases[i].Architecture)
+				parsedReleases[i], err = channel.Parse(releases[i].Channel, releases[i].Architecture)
 				if err != nil {
 					// shouldn't happen, return error without Releases
 					return e

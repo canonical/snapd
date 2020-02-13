@@ -38,10 +38,13 @@ import (
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/osutil/sys"
 	"github.com/snapcore/snapd/overlord"
+	"github.com/snapcore/snapd/overlord/configstate/config"
 	"github.com/snapcore/snapd/overlord/snapshotstate"
 	"github.com/snapcore/snapd/overlord/snapshotstate/backend"
 	"github.com/snapcore/snapd/overlord/snapstate"
+	"github.com/snapcore/snapd/overlord/snapstate/snapstatetest"
 	"github.com/snapcore/snapd/overlord/state"
+	"github.com/snapcore/snapd/release"
 	"github.com/snapcore/snapd/snap"
 	"github.com/snapcore/snapd/snap/snaptest"
 	"github.com/snapcore/snapd/testutil"
@@ -336,8 +339,11 @@ func (snapshotSuite) createConflictingChange(c *check.C) (st *state.State, resto
 		SnapType: "app",
 	})
 
+	r := snapstatetest.UseFallbackDeviceModel()
+	defer r()
+
 	chg := st.NewChange("rm foo", "...")
-	rmTasks, err := snapstate.Remove(st, "foo", snap.R(0))
+	rmTasks, err := snapstate.Remove(st, "foo", snap.R(0), nil)
 	c.Assert(err, check.IsNil)
 	c.Assert(rmTasks, check.NotNil)
 	chg.AddAll(rmTasks)
@@ -1400,12 +1406,74 @@ func (snapshotSuite) TestExpiredSnapshotSets(c *check.C) {
 	c.Assert(err, check.IsNil)
 	expired, err := snapshotstate.ExpiredSnapshotSets(st, tm)
 	c.Assert(err, check.IsNil)
-	sort.Slice(expired, func(i, j int) bool { return expired[i] < expired[j] })
-	c.Check(expired, check.DeepEquals, []uint64{12, 13})
+	c.Check(expired, check.DeepEquals, map[uint64]bool{12: true, 13: true})
 
 	tm, err = time.Parse(time.RFC3339, "2019-03-01T11:24:00Z")
 	c.Assert(err, check.IsNil)
 	expired, err = snapshotstate.ExpiredSnapshotSets(st, tm)
 	c.Assert(err, check.IsNil)
-	c.Check(expired, check.DeepEquals, []uint64{13})
+	c.Check(expired, check.DeepEquals, map[uint64]bool{13: true})
+}
+
+func (snapshotSuite) TestAutomaticSnapshotDisabled(c *check.C) {
+	st := state.New(nil)
+	st.Lock()
+	defer st.Unlock()
+
+	tr := config.NewTransaction(st)
+	tr.Set("core", "snapshots.automatic.retention", "no")
+	tr.Commit()
+
+	_, err := snapshotstate.AutomaticSnapshot(st, "foo")
+	c.Assert(err, check.Equals, snapstate.ErrNothingToDo)
+}
+
+func (snapshotSuite) TestAutomaticSnapshot(c *check.C) {
+	st := state.New(nil)
+	st.Lock()
+	defer st.Unlock()
+
+	tr := config.NewTransaction(st)
+	tr.Set("core", "snapshots.automatic.retention", "24h")
+	tr.Commit()
+
+	ts, err := snapshotstate.AutomaticSnapshot(st, "foo")
+	c.Assert(err, check.IsNil)
+
+	tasks := ts.Tasks()
+	c.Assert(tasks, check.HasLen, 1)
+	c.Check(tasks[0].Kind(), check.Equals, "save-snapshot")
+	c.Check(tasks[0].Summary(), check.Equals, `Save data of snap "foo" in automatic snapshot set #1`)
+	var snapshot map[string]interface{}
+	c.Check(tasks[0].Get("snapshot-setup", &snapshot), check.IsNil)
+	c.Check(snapshot, check.DeepEquals, map[string]interface{}{
+		"set-id":  1.,
+		"snap":    "foo",
+		"current": "unset",
+		"auto":    true,
+	})
+}
+
+func (snapshotSuite) TestAutomaticSnapshotDefaultClassic(c *check.C) {
+	release.MockOnClassic(true)
+
+	st := state.New(nil)
+	st.Lock()
+	defer st.Unlock()
+
+	du, err := snapshotstate.AutomaticSnapshotExpiration(st)
+	c.Assert(err, check.IsNil)
+	c.Assert(du, check.Equals, snapshotstate.DefaultAutomaticSnapshotExpiration)
+}
+
+func (snapshotSuite) TestAutomaticSnapshotDefaultUbuntuCore(c *check.C) {
+	release.MockOnClassic(false)
+
+	st := state.New(nil)
+	st.Lock()
+	defer st.Unlock()
+
+	du, err := snapshotstate.AutomaticSnapshotExpiration(st)
+	c.Assert(err, check.IsNil)
+	c.Assert(du, check.Equals, time.Duration(0))
 }

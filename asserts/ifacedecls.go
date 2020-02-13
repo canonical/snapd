@@ -26,6 +26,7 @@ import (
 	"regexp"
 	"strconv"
 	"strings"
+	"unicode"
 )
 
 // AttrMatchContext has contextual helpers for evaluating attribute constraints.
@@ -39,6 +40,8 @@ const (
 	dollarAttrConstraintsFeature = "dollar-attr-constraints"
 	// feature label for on-store/on-brand/on-model
 	deviceScopeConstraintsFeature = "device-scope-constraints"
+	// feature label for plug-names/slot-names constraints
+	nameConstraintsFeature = "name-constraints"
 )
 
 type attrMatcher interface {
@@ -360,6 +363,81 @@ func (c *AttributeConstraints) Check(attrer Attrer, ctx AttrMatchContext) error 
 	return c.matcher.match("", attrer, ctx)
 }
 
+// SideArityConstraint specifies a constraint for the overall arity of
+// the set of connected slots for a given plug or the set of
+// connected plugs for a given slot.
+// It is used to express parsed slots-per-plug and plugs-per-slot
+// constraints.
+// See https://forum.snapcraft.io/t/plug-slot-declaration-rules-greedy-plugs/12438
+type SideArityConstraint struct {
+	// N can be:
+	// =>1
+	// 0 means default and is used only internally during rule
+	// compilation or on deny- rules where these constraints are
+	// not applicable
+	// -1 represents *, that means any (number of)
+	N int
+}
+
+// Any returns whether this represents the * (any number of) constraint.
+func (ac SideArityConstraint) Any() bool {
+	return ac.N == -1
+}
+
+func compileSideArityConstraint(context *subruleContext, which string, v interface{}) (SideArityConstraint, error) {
+	var a SideArityConstraint
+	if context.installation() || !context.allow() {
+		return a, fmt.Errorf("%s cannot specify a %s constraint, they apply only to allow-*connection", context, which)
+	}
+	x, ok := v.(string)
+	if !ok || len(x) == 0 {
+		return a, fmt.Errorf("%s in %s must be an integer >=1 or *", which, context)
+	}
+	if x == "*" {
+		return SideArityConstraint{N: -1}, nil
+	}
+	n, err := strconv.Atoi(x)
+	if err != nil || n < 1 {
+		return a, fmt.Errorf("%s in %s must be an integer >=1 or *", which, context)
+	}
+	return SideArityConstraint{N: n}, nil
+}
+
+type sideArityConstraintsHolder interface {
+	setSlotsPerPlug(SideArityConstraint)
+	setPlugsPerSlot(SideArityConstraint)
+
+	slotsPerPlug() SideArityConstraint
+	plugsPerSlot() SideArityConstraint
+}
+
+func normalizeSideArityConstraints(context *subruleContext, c sideArityConstraintsHolder) {
+	if !context.allow() {
+		return
+	}
+	any := SideArityConstraint{N: -1}
+	// normalized plugs-per-slot is always *
+	c.setPlugsPerSlot(any)
+	slotsPerPlug := c.slotsPerPlug()
+	if context.autoConnection() {
+		// auto-connection slots-per-plug can be any or 1
+		if !slotsPerPlug.Any() {
+			c.setSlotsPerPlug(SideArityConstraint{N: 1})
+		}
+	} else {
+		// connection slots-per-plug can be only any
+		c.setSlotsPerPlug(any)
+	}
+}
+
+var (
+	sideArityConstraints        = []string{"slots-per-plug", "plugs-per-slot"}
+	sideArityConstraintsSetters = map[string]func(sideArityConstraintsHolder, SideArityConstraint){
+		"slots-per-plug": sideArityConstraintsHolder.setSlotsPerPlug,
+		"plugs-per-slot": sideArityConstraintsHolder.setPlugsPerSlot,
+	}
+)
+
 // OnClassicConstraint specifies a constraint based whether the system is classic and optional specific distros' sets.
 type OnClassicConstraint struct {
 	Classic   bool
@@ -426,6 +504,91 @@ func compileDeviceScopeConstraint(cMap map[string]interface{}, context string) (
 	}, nil
 }
 
+type nameMatcher interface {
+	match(name string, special map[string]string) error
+}
+
+var (
+	// validates special name constraints like $INTERFACE
+	validSpecialNameConstraint = regexp.MustCompile("^\\$[A-Z][A-Z0-9_]*$")
+)
+
+func compileNameMatcher(whichName string, v interface{}) (nameMatcher, error) {
+	s, ok := v.(string)
+	if !ok {
+		return nil, fmt.Errorf("%s constraint entry must be a regexp or special $ value", whichName)
+	}
+	if strings.HasPrefix(s, "$") {
+		if !validSpecialNameConstraint.MatchString(s) {
+			return nil, fmt.Errorf("%s constraint entry special value %q is invalid", whichName, s)
+		}
+		return specialNameMatcher{special: s}, nil
+	}
+	if strings.IndexFunc(s, unicode.IsSpace) != -1 {
+		return nil, fmt.Errorf("%s constraint entry regexp contains unexpected spaces", whichName)
+	}
+	rx, err := regexp.Compile("^(" + s + ")$")
+	if err != nil {
+		return nil, fmt.Errorf("cannot compile %s constraint entry %q: %v", whichName, s, err)
+	}
+	return regexpNameMatcher{rx}, nil
+}
+
+type regexpNameMatcher struct {
+	*regexp.Regexp
+}
+
+func (matcher regexpNameMatcher) match(name string, special map[string]string) error {
+	if !matcher.Regexp.MatchString(name) {
+		return fmt.Errorf("%q does not match %v", name, matcher.Regexp)
+	}
+	return nil
+}
+
+type specialNameMatcher struct {
+	special string
+}
+
+func (matcher specialNameMatcher) match(name string, special map[string]string) error {
+	expected := special[matcher.special]
+	if expected == "" || expected != name {
+		return fmt.Errorf("%q does not match %v", name, matcher.special)
+	}
+	return nil
+}
+
+// NameConstraints implements a set of constraints on the names of slots or plugs.
+// See https://forum.snapcraft.io/t/plug-slot-rules-plug-names-slot-names-constraints/12439
+type NameConstraints struct {
+	matchers []nameMatcher
+}
+
+func compileNameConstraints(whichName string, constraints interface{}) (*NameConstraints, error) {
+	l, ok := constraints.([]interface{})
+	if !ok {
+		return nil, fmt.Errorf("%s constraints must be a list of regexps and special $ values", whichName)
+	}
+	matchers := make([]nameMatcher, 0, len(l))
+	for _, nm := range l {
+		matcher, err := compileNameMatcher(whichName, nm)
+		if err != nil {
+			return nil, err
+		}
+		matchers = append(matchers, matcher)
+	}
+	return &NameConstraints{matchers: matchers}, nil
+}
+
+// Check checks whether name doesn't match the constraints.
+func (nc *NameConstraints) Check(whichName, name string, special map[string]string) error {
+	for _, m := range nc.matchers {
+		if err := m.match(name, special); err == nil {
+			return nil
+		}
+	}
+	return fmt.Errorf("%s %q does not match constraints", whichName, name)
+}
+
 // rules
 
 var (
@@ -444,7 +607,7 @@ var (
 	}
 )
 
-func checkMapOrShortcut(context string, v interface{}) (m map[string]interface{}, invert bool, err error) {
+func checkMapOrShortcut(v interface{}) (m map[string]interface{}, invert bool, err error) {
 	switch x := v.(type) {
 	case map[string]interface{}:
 		return x, false, nil
@@ -460,13 +623,14 @@ func checkMapOrShortcut(context string, v interface{}) (m map[string]interface{}
 }
 
 type constraintsHolder interface {
+	setNameConstraints(field string, cstrs *NameConstraints)
 	setAttributeConstraints(field string, cstrs *AttributeConstraints)
 	setIDConstraints(field string, cstrs []string)
 	setOnClassicConstraint(onClassic *OnClassicConstraint)
 	setDeviceScopeConstraint(deviceScope *DeviceScopeConstraint)
 }
 
-func baseCompileConstraints(context string, cDef constraintsDef, target constraintsHolder, attrConstraints, idConstraints []string) error {
+func baseCompileConstraints(context *subruleContext, cDef constraintsDef, target constraintsHolder, nameConstraints, attrConstraints, idConstraints []string) error {
 	cMap := cDef.cMap
 	if cMap == nil {
 		fixed := AlwaysMatchAttributes // "true"
@@ -479,15 +643,17 @@ func baseCompileConstraints(context string, cDef constraintsDef, target constrai
 		return nil
 	}
 	defaultUsed := 0
-	for _, field := range idConstraints {
-		lst, err := checkStringListInMap(cMap, field, fmt.Sprintf("%s in %s", field, context), validIDConstraints[field])
-		if err != nil {
-			return err
-		}
-		if lst == nil {
+	for _, field := range nameConstraints {
+		v := cMap[field]
+		if v != nil {
+			nc, err := compileNameConstraints(field, v)
+			if err != nil {
+				return err
+			}
+			target.setNameConstraints(field, nc)
+		} else {
 			defaultUsed++
 		}
-		target.setIDConstraints(field, lst)
 	}
 	for _, field := range attrConstraints {
 		cstrs := AlwaysMatchAttributes
@@ -502,6 +668,32 @@ func baseCompileConstraints(context string, cDef constraintsDef, target constrai
 			defaultUsed++
 		}
 		target.setAttributeConstraints(field, cstrs)
+	}
+	for _, field := range idConstraints {
+		lst, err := checkStringListInMap(cMap, field, fmt.Sprintf("%s in %s", field, context), validIDConstraints[field])
+		if err != nil {
+			return err
+		}
+		if lst == nil {
+			defaultUsed++
+		}
+		target.setIDConstraints(field, lst)
+	}
+	for _, field := range sideArityConstraints {
+		v := cMap[field]
+		if v != nil {
+			c, err := compileSideArityConstraint(context, field, v)
+			if err != nil {
+				return err
+			}
+			h, ok := target.(sideArityConstraintsHolder)
+			if !ok {
+				return fmt.Errorf("internal error: side arity constraint compiled for unexpected subrule %T", target)
+			}
+			sideArityConstraintsSetters[field](h, c)
+		} else {
+			defaultUsed++
+		}
 	}
 	onClassic := cMap["on-classic"]
 	if onClassic == nil {
@@ -531,7 +723,7 @@ func baseCompileConstraints(context string, cDef constraintsDef, target constrai
 	if !detectDeviceScopeConstraint(cMap) {
 		defaultUsed++
 	} else {
-		c, err := compileDeviceScopeConstraint(cMap, context)
+		c, err := compileDeviceScopeConstraint(cMap, context.String())
 		if err != nil {
 			return err
 		}
@@ -541,8 +733,8 @@ func baseCompileConstraints(context string, cDef constraintsDef, target constrai
 	// well-formed
 	// +1+1 accounts for defaults for missing on-classic plus missing
 	// on-store/on-brand/on-model
-	if defaultUsed == len(attributeConstraints)+len(idConstraints)+1+1 {
-		return fmt.Errorf("%s must specify at least one of %s, %s, on-classic, on-store, on-brand, on-model", context, strings.Join(attrConstraints, ", "), strings.Join(idConstraints, ", "))
+	if defaultUsed == len(nameConstraints)+len(attributeConstraints)+len(idConstraints)+len(sideArityConstraints)+1+1 {
+		return fmt.Errorf("%s must specify at least one of %s, %s, %s, %s, on-classic, on-store, on-brand, on-model", context, strings.Join(nameConstraints, ", "), strings.Join(attrConstraints, ", "), strings.Join(idConstraints, ", "), strings.Join(sideArityConstraints, ", "))
 	}
 	return nil
 }
@@ -556,10 +748,50 @@ type constraintsDef struct {
 	invert bool
 }
 
-type subruleCompiler func(context string, def constraintsDef) (constraintsHolder, error)
+// subruleContext carries queryable context information about one the
+// {allow,deny}-* subrules that end up compiled as
+// Plug|Slot*Constraints.  The information includes the parent rule,
+// the introductory subrule key ({allow,deny}-*) and which alternative
+// it corresponds to if any.
+// The information is useful for constraints compilation now that we
+// have constraints with different behavior depending on the kind of
+// subrule that hosts them (e.g. slots-per-plug, plugs-per-slot).
+type subruleContext struct {
+	// rule is the parent rule context description
+	rule string
+	// subrule is the subrule key
+	subrule string
+	// alt is which alternative this is (if > 0)
+	alt int
+}
+
+func (c *subruleContext) String() string {
+	subctxt := fmt.Sprintf("%s in %s", c.subrule, c.rule)
+	if c.alt != 0 {
+		subctxt = fmt.Sprintf("alternative %d of %s", c.alt, subctxt)
+	}
+	return subctxt
+}
+
+// allow returns whether the subrule is an allow-* subrule.
+func (c *subruleContext) allow() bool {
+	return strings.HasPrefix(c.subrule, "allow-")
+}
+
+// installation returns whether the subrule is an *-installation subrule.
+func (c *subruleContext) installation() bool {
+	return strings.HasSuffix(c.subrule, "-installation")
+}
+
+// autoConnection returns whether the subrule is an *-auto-connection subrule.
+func (c *subruleContext) autoConnection() bool {
+	return strings.HasSuffix(c.subrule, "-auto-connection")
+}
+
+type subruleCompiler func(context *subruleContext, def constraintsDef) (constraintsHolder, error)
 
 func baseCompileRule(context string, rule interface{}, target rule, subrules []string, compilers map[string]subruleCompiler, defaultOutcome, invertedOutcome map[string]interface{}) error {
-	rMap, invert, err := checkMapOrShortcut(context, rule)
+	rMap, invert, err := checkMapOrShortcut(rule)
 	if err != nil {
 		return fmt.Errorf("%s must be a map or one of the shortcuts 'true' or 'false'", context)
 	}
@@ -592,11 +824,14 @@ func baseCompileRule(context string, rule interface{}, target rule, subrules []s
 		}
 		alts := make([]constraintsHolder, len(lst))
 		for i, alt := range lst {
-			subctxt := fmt.Sprintf("%s in %s", subrule, context)
-			if alternatives {
-				subctxt = fmt.Sprintf("alternative %d of %s", i+1, subctxt)
+			subctxt := &subruleContext{
+				rule:    context,
+				subrule: subrule,
 			}
-			cMap, invert, err := checkMapOrShortcut(subctxt, alt)
+			if alternatives {
+				subctxt.alt = i + 1
+			}
+			cMap, invert, err := checkMapOrShortcut(alt)
 			if err != nil || (cMap == nil && alternatives) {
 				efmt := "%s must be a map"
 				if !alternatives {
@@ -710,6 +945,8 @@ func (r *PlugRule) setConstraints(field string, cstrs []constraintsHolder) {
 type PlugInstallationConstraints struct {
 	PlugSnapTypes []string
 
+	PlugNames *NameConstraints
+
 	PlugAttributes *AttributeConstraints
 
 	OnClassic *OnClassicConstraint
@@ -721,7 +958,19 @@ func (c *PlugInstallationConstraints) feature(flabel string) bool {
 	if flabel == deviceScopeConstraintsFeature {
 		return c.DeviceScope != nil
 	}
+	if flabel == nameConstraintsFeature {
+		return c.PlugNames != nil
+	}
 	return c.PlugAttributes.feature(flabel)
+}
+
+func (c *PlugInstallationConstraints) setNameConstraints(field string, cstrs *NameConstraints) {
+	switch field {
+	case "plug-names":
+		c.PlugNames = cstrs
+	default:
+		panic("unknown PlugInstallationConstraints field " + field)
+	}
 }
 
 func (c *PlugInstallationConstraints) setAttributeConstraints(field string, cstrs *AttributeConstraints) {
@@ -750,9 +999,9 @@ func (c *PlugInstallationConstraints) setDeviceScopeConstraint(deviceScope *Devi
 	c.DeviceScope = deviceScope
 }
 
-func compilePlugInstallationConstraints(context string, cDef constraintsDef) (constraintsHolder, error) {
+func compilePlugInstallationConstraints(context *subruleContext, cDef constraintsDef) (constraintsHolder, error) {
 	plugInstCstrs := &PlugInstallationConstraints{}
-	err := baseCompileConstraints(context, cDef, plugInstCstrs, []string{"plug-attributes"}, []string{"plug-snap-type"})
+	err := baseCompileConstraints(context, cDef, plugInstCstrs, []string{"plug-names"}, []string{"plug-attributes"}, []string{"plug-snap-type"})
 	if err != nil {
 		return nil, err
 	}
@@ -767,8 +1016,16 @@ type PlugConnectionConstraints struct {
 	SlotSnapIDs      []string
 	SlotPublisherIDs []string
 
+	PlugNames *NameConstraints
+	SlotNames *NameConstraints
+
 	PlugAttributes *AttributeConstraints
 	SlotAttributes *AttributeConstraints
+
+	// SlotsPerPlug defaults to 1 for auto-connection, can be * (any)
+	SlotsPerPlug SideArityConstraint
+	// PlugsPerSlot is always * (any) (for now)
+	PlugsPerSlot SideArityConstraint
 
 	OnClassic *OnClassicConstraint
 
@@ -779,7 +1036,21 @@ func (c *PlugConnectionConstraints) feature(flabel string) bool {
 	if flabel == deviceScopeConstraintsFeature {
 		return c.DeviceScope != nil
 	}
+	if flabel == nameConstraintsFeature {
+		return c.PlugNames != nil || c.SlotNames != nil
+	}
 	return c.PlugAttributes.feature(flabel) || c.SlotAttributes.feature(flabel)
+}
+
+func (c *PlugConnectionConstraints) setNameConstraints(field string, cstrs *NameConstraints) {
+	switch field {
+	case "plug-names":
+		c.PlugNames = cstrs
+	case "slot-names":
+		c.SlotNames = cstrs
+	default:
+		panic("unknown PlugConnectionConstraints field " + field)
+	}
 }
 
 func (c *PlugConnectionConstraints) setAttributeConstraints(field string, cstrs *AttributeConstraints) {
@@ -806,6 +1077,22 @@ func (c *PlugConnectionConstraints) setIDConstraints(field string, cstrs []strin
 	}
 }
 
+func (c *PlugConnectionConstraints) setSlotsPerPlug(a SideArityConstraint) {
+	c.SlotsPerPlug = a
+}
+
+func (c *PlugConnectionConstraints) setPlugsPerSlot(a SideArityConstraint) {
+	c.PlugsPerSlot = a
+}
+
+func (c *PlugConnectionConstraints) slotsPerPlug() SideArityConstraint {
+	return c.SlotsPerPlug
+}
+
+func (c *PlugConnectionConstraints) plugsPerSlot() SideArityConstraint {
+	return c.PlugsPerSlot
+}
+
 func (c *PlugConnectionConstraints) setOnClassicConstraint(onClassic *OnClassicConstraint) {
 	c.OnClassic = onClassic
 }
@@ -815,16 +1102,18 @@ func (c *PlugConnectionConstraints) setDeviceScopeConstraint(deviceScope *Device
 }
 
 var (
+	nameConstraints      = []string{"plug-names", "slot-names"}
 	attributeConstraints = []string{"plug-attributes", "slot-attributes"}
 	plugIDConstraints    = []string{"slot-snap-type", "slot-publisher-id", "slot-snap-id"}
 )
 
-func compilePlugConnectionConstraints(context string, cDef constraintsDef) (constraintsHolder, error) {
+func compilePlugConnectionConstraints(context *subruleContext, cDef constraintsDef) (constraintsHolder, error) {
 	plugConnCstrs := &PlugConnectionConstraints{}
-	err := baseCompileConstraints(context, cDef, plugConnCstrs, attributeConstraints, plugIDConstraints)
+	err := baseCompileConstraints(context, cDef, plugConnCstrs, nameConstraints, attributeConstraints, plugIDConstraints)
 	if err != nil {
 		return nil, err
 	}
+	normalizeSideArityConstraints(context, plugConnCstrs)
 	return plugConnCstrs, nil
 }
 
@@ -960,6 +1249,8 @@ func (r *SlotRule) setConstraints(field string, cstrs []constraintsHolder) {
 type SlotInstallationConstraints struct {
 	SlotSnapTypes []string
 
+	SlotNames *NameConstraints
+
 	SlotAttributes *AttributeConstraints
 
 	OnClassic *OnClassicConstraint
@@ -971,7 +1262,19 @@ func (c *SlotInstallationConstraints) feature(flabel string) bool {
 	if flabel == deviceScopeConstraintsFeature {
 		return c.DeviceScope != nil
 	}
+	if flabel == nameConstraintsFeature {
+		return c.SlotNames != nil
+	}
 	return c.SlotAttributes.feature(flabel)
+}
+
+func (c *SlotInstallationConstraints) setNameConstraints(field string, cstrs *NameConstraints) {
+	switch field {
+	case "slot-names":
+		c.SlotNames = cstrs
+	default:
+		panic("unknown SlotInstallationConstraints field " + field)
+	}
 }
 
 func (c *SlotInstallationConstraints) setAttributeConstraints(field string, cstrs *AttributeConstraints) {
@@ -1000,9 +1303,9 @@ func (c *SlotInstallationConstraints) setDeviceScopeConstraint(deviceScope *Devi
 	c.DeviceScope = deviceScope
 }
 
-func compileSlotInstallationConstraints(context string, cDef constraintsDef) (constraintsHolder, error) {
+func compileSlotInstallationConstraints(context *subruleContext, cDef constraintsDef) (constraintsHolder, error) {
 	slotInstCstrs := &SlotInstallationConstraints{}
-	err := baseCompileConstraints(context, cDef, slotInstCstrs, []string{"slot-attributes"}, []string{"slot-snap-type"})
+	err := baseCompileConstraints(context, cDef, slotInstCstrs, []string{"slot-names"}, []string{"slot-attributes"}, []string{"slot-snap-type"})
 	if err != nil {
 		return nil, err
 	}
@@ -1017,8 +1320,16 @@ type SlotConnectionConstraints struct {
 	PlugSnapIDs      []string
 	PlugPublisherIDs []string
 
+	SlotNames *NameConstraints
+	PlugNames *NameConstraints
+
 	SlotAttributes *AttributeConstraints
 	PlugAttributes *AttributeConstraints
+
+	// SlotsPerPlug defaults to 1 for auto-connection, can be * (any)
+	SlotsPerPlug SideArityConstraint
+	// PlugsPerSlot is always * (any) (for now)
+	PlugsPerSlot SideArityConstraint
 
 	OnClassic *OnClassicConstraint
 
@@ -1029,7 +1340,21 @@ func (c *SlotConnectionConstraints) feature(flabel string) bool {
 	if flabel == deviceScopeConstraintsFeature {
 		return c.DeviceScope != nil
 	}
+	if flabel == nameConstraintsFeature {
+		return c.PlugNames != nil || c.SlotNames != nil
+	}
 	return c.PlugAttributes.feature(flabel) || c.SlotAttributes.feature(flabel)
+}
+
+func (c *SlotConnectionConstraints) setNameConstraints(field string, cstrs *NameConstraints) {
+	switch field {
+	case "plug-names":
+		c.PlugNames = cstrs
+	case "slot-names":
+		c.SlotNames = cstrs
+	default:
+		panic("unknown SlotConnectionConstraints field " + field)
+	}
 }
 
 func (c *SlotConnectionConstraints) setAttributeConstraints(field string, cstrs *AttributeConstraints) {
@@ -1060,6 +1385,22 @@ var (
 	slotIDConstraints = []string{"plug-snap-type", "plug-publisher-id", "plug-snap-id"}
 )
 
+func (c *SlotConnectionConstraints) setSlotsPerPlug(a SideArityConstraint) {
+	c.SlotsPerPlug = a
+}
+
+func (c *SlotConnectionConstraints) setPlugsPerSlot(a SideArityConstraint) {
+	c.PlugsPerSlot = a
+}
+
+func (c *SlotConnectionConstraints) slotsPerPlug() SideArityConstraint {
+	return c.SlotsPerPlug
+}
+
+func (c *SlotConnectionConstraints) plugsPerSlot() SideArityConstraint {
+	return c.PlugsPerSlot
+}
+
 func (c *SlotConnectionConstraints) setOnClassicConstraint(onClassic *OnClassicConstraint) {
 	c.OnClassic = onClassic
 }
@@ -1068,12 +1409,13 @@ func (c *SlotConnectionConstraints) setDeviceScopeConstraint(deviceScope *Device
 	c.DeviceScope = deviceScope
 }
 
-func compileSlotConnectionConstraints(context string, cDef constraintsDef) (constraintsHolder, error) {
+func compileSlotConnectionConstraints(context *subruleContext, cDef constraintsDef) (constraintsHolder, error) {
 	slotConnCstrs := &SlotConnectionConstraints{}
-	err := baseCompileConstraints(context, cDef, slotConnCstrs, attributeConstraints, slotIDConstraints)
+	err := baseCompileConstraints(context, cDef, slotConnCstrs, nameConstraints, attributeConstraints, slotIDConstraints)
 	if err != nil {
 		return nil, err
 	}
+	normalizeSideArityConstraints(context, slotConnCstrs)
 	return slotConnCstrs, nil
 }
 

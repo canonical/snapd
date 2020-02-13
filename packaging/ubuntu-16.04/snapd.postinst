@@ -2,6 +2,10 @@
 
 set -e
 
+# "powerpc" is not supported unfortunately, do nothing here# 
+if [ "$DPKG_MAINTSCRIPT_ARCH" = powerpc ]; then
+    exit 0
+fi
 
 case "$1" in
     configure)
@@ -37,12 +41,12 @@ case "$1" in
 
         # In commit 0dce4704a5d (2017-03-28, snapd v2.23.6) we renamed
         # /etc/apparmor.d/usr.lib.snap-confine to usr.lib.snap-confine.real
-        # to fix LP: #1673247 - however some people (upgrades?) still have
+        # to fix LP: #1673247 - however some people (developers?) still have
         # the old usr.lib.snap-confine file. This seems to be loaded instead
         # of the correct usr.lib.snap-confine.real profile. To fix this we
-        # use the rather blunt approach to remove the file forcefully.
-        if test "$(md5sum /etc/apparmor.d/usr.lib.snapd.snap-confine | cut -f1 -d' ' 2>/dev/null)" = "2a38d40fe662f46fedd0aefbe78f23e9"; then
-            rm -f /etc/apparmor.d/usr.lib.snapd.snap-confine
+        # use the rather blunt approach to rename the file forcefully.
+        if test -f /etc/apparmor.d/usr.lib.snapd.snap-confine && test -f /etc/apparmor.d/usr.lib.snapd.snap-confine.real; then
+            mv /etc/apparmor.d/usr.lib.snapd.snap-confine /etc/apparmor.d/usr.lib.snapd.snap-confine.dpkg-bak
         fi
 
         # Ensure that the void directory has correct permissions.

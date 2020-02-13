@@ -38,8 +38,7 @@ import (
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/osutil/squashfs"
-	"github.com/snapcore/snapd/release"
-	"github.com/snapcore/snapd/selinux"
+	"github.com/snapcore/snapd/sandbox/selinux"
 )
 
 var (
@@ -60,6 +59,8 @@ var (
 	// See https://github.com/systemd/systemd/issues/10872 for the
 	// upstream systemd bug
 	daemonReloadLock extMutex
+
+	osutilIsMounted = osutil.IsMounted
 )
 
 // mu is a sync.Mutex that also supports to check if the lock is taken
@@ -202,17 +203,59 @@ type reporter interface {
 }
 
 // New returns a Systemd that uses the given rootDir
-func New(rootDir string, rep reporter) Systemd {
-	return &systemd{rootDir: rootDir, reporter: rep}
+func New(rootDir string, mode InstanceMode, rep reporter) Systemd {
+	return &systemd{rootDir: rootDir, mode: mode, reporter: rep}
 }
+
+// NewEmulationMode returns a Systemd that runs in emulation mode where
+// systemd is not really called, but instead its functions are emulated
+// by other means.
+func NewEmulationMode() Systemd {
+	return &emulation{}
+}
+
+// InstanceMode determines which instance of systemd to control.
+//
+// SystemMode refers to the system instance (i.e. pid 1).  UserMode
+// refers to the the instance launched to manage the user's desktop
+// session.  GlobalUserMode controls configuration respected by all
+// user instances on the system.
+//
+// As GlobalUserMode does not refer to a single instance of systemd,
+// some operations are not supported such as starting and stopping
+// daemons.
+type InstanceMode int
+
+const (
+	SystemMode InstanceMode = iota
+	UserMode
+	GlobalUserMode
+)
 
 type systemd struct {
 	rootDir  string
 	reporter reporter
+	mode     InstanceMode
+}
+
+func (s *systemd) systemctl(args ...string) ([]byte, error) {
+	switch s.mode {
+	case SystemMode:
+	case UserMode:
+		args = append([]string{"--user"}, args...)
+	case GlobalUserMode:
+		args = append([]string{"--user", "--global"}, args...)
+	default:
+		panic("unknown InstanceMode")
+	}
+	return systemctlCmd(args...)
 }
 
 // DaemonReload reloads systemd's configuration.
 func (s *systemd) DaemonReload() error {
+	if s.mode == GlobalUserMode {
+		panic("cannot call daemon-reload with GlobalUserMode")
+	}
 	daemonReloadLock.Lock()
 	defer daemonReloadLock.Unlock()
 
@@ -222,43 +265,49 @@ func (s *systemd) DaemonReload() error {
 func (s *systemd) daemonReloadNoLock() error {
 	daemonReloadLock.Taken("cannot use daemon-reload without lock")
 
-	_, err := systemctlCmd("daemon-reload")
+	_, err := s.systemctl("daemon-reload")
 	return err
 }
 
 // Enable the given service
 func (s *systemd) Enable(serviceName string) error {
-	_, err := systemctlCmd("--root", s.rootDir, "enable", serviceName)
+	_, err := s.systemctl("--root", s.rootDir, "enable", serviceName)
 	return err
 }
 
 // Unmask the given service
 func (s *systemd) Unmask(serviceName string) error {
-	_, err := systemctlCmd("--root", s.rootDir, "unmask", serviceName)
+	_, err := s.systemctl("--root", s.rootDir, "unmask", serviceName)
 	return err
 }
 
 // Disable the given service
 func (s *systemd) Disable(serviceName string) error {
-	_, err := systemctlCmd("--root", s.rootDir, "disable", serviceName)
+	_, err := s.systemctl("--root", s.rootDir, "disable", serviceName)
 	return err
 }
 
 // Mask the given service
 func (s *systemd) Mask(serviceName string) error {
-	_, err := systemctlCmd("--root", s.rootDir, "mask", serviceName)
+	_, err := s.systemctl("--root", s.rootDir, "mask", serviceName)
 	return err
 }
 
 // Start the given service or services
-func (*systemd) Start(serviceNames ...string) error {
-	_, err := systemctlCmd(append([]string{"start"}, serviceNames...)...)
+func (s *systemd) Start(serviceNames ...string) error {
+	if s.mode == GlobalUserMode {
+		panic("cannot call start with GlobalUserMode")
+	}
+	_, err := s.systemctl(append([]string{"start"}, serviceNames...)...)
 	return err
 }
 
 // StartNoBlock starts the given service or services non-blocking
-func (*systemd) StartNoBlock(serviceNames ...string) error {
-	_, err := systemctlCmd(append([]string{"start", "--no-block"}, serviceNames...)...)
+func (s *systemd) StartNoBlock(serviceNames ...string) error {
+	if s.mode == GlobalUserMode {
+		panic("cannot call start with GlobalUserMode")
+	}
+	_, err := s.systemctl(append([]string{"start", "--no-block"}, serviceNames...)...)
 	return err
 }
 
@@ -287,15 +336,13 @@ var unitProperties = map[string][]string{
 	".mount": extendedProperties,
 }
 
-// Status fetches the status of given units. Statuses are returned in the same
-// order as unit names passed in argument.
-func (s *systemd) Status(unitNames ...string) ([]*UnitStatus, error) {
+func (s *systemd) getUnitStatus(properties []string, unitNames []string) ([]*UnitStatus, error) {
 	cmd := make([]string, len(unitNames)+2)
 	cmd[0] = "show"
 	// ask for all properties, regardless of unit type
-	cmd[1] = "--property=" + strings.Join(extendedProperties, ",")
+	cmd[1] = "--property=" + strings.Join(properties, ",")
 	copy(cmd[2:], unitNames)
-	bs, err := systemctlCmd(cmd...)
+	bs, err := s.systemctl(cmd...)
 	if err != nil {
 		return nil, err
 	}
@@ -368,20 +415,73 @@ func (s *systemd) Status(unitNames ...string) ([]*UnitStatus, error) {
 	if len(sts) != len(unitNames) {
 		return nil, fmt.Errorf("cannot get unit status: expected %d results, got %d", len(unitNames), len(sts))
 	}
+	return sts, nil
+}
+
+// Status fetches the status of given units. Statuses are returned in the same
+// order as unit names passed in argument.
+func (s *systemd) Status(unitNames ...string) ([]*UnitStatus, error) {
+	if s.mode == GlobalUserMode {
+		panic("cannot call status with GlobalUserMode")
+	}
+	unitToStatus := make(map[string]*UnitStatus, len(unitNames))
+
+	var limitedUnits []string
+	var extendedUnits []string
+
+	for _, name := range unitNames {
+		if strings.HasSuffix(name, ".timer") || strings.HasSuffix(name, ".socket") {
+			limitedUnits = append(limitedUnits, name)
+		} else {
+			extendedUnits = append(extendedUnits, name)
+		}
+	}
+
+	for _, set := range []struct {
+		units      []string
+		properties []string
+	}{
+		{units: extendedUnits, properties: extendedProperties},
+		{units: limitedUnits, properties: baseProperties},
+	} {
+		if len(set.units) == 0 {
+			continue
+		}
+		sts, err := s.getUnitStatus(set.properties, set.units)
+		if err != nil {
+			return nil, err
+		}
+		for _, status := range sts {
+			unitToStatus[status.UnitName] = status
+		}
+	}
+
+	// unpack to preserve the promised order
+	sts := make([]*UnitStatus, len(unitNames))
+	for idx, name := range unitNames {
+		var ok bool
+		sts[idx], ok = unitToStatus[name]
+		if !ok {
+			return nil, fmt.Errorf("cannot determine status of unit %q", name)
+		}
+	}
 
 	return sts, nil
 }
 
 // IsEnabled checkes whether the given service is enabled
 func (s *systemd) IsEnabled(serviceName string) (bool, error) {
-	_, err := systemctlCmd("--root", s.rootDir, "is-enabled", serviceName)
+	if s.mode == GlobalUserMode {
+		panic("cannot call is-enabled with GlobalUserMode")
+	}
+	_, err := s.systemctl("--root", s.rootDir, "is-enabled", serviceName)
 	if err == nil {
 		return true, nil
 	}
 	// "systemctl is-enabled <name>" prints `disabled\n` to stderr and returns exit code 1
 	// for disabled services
-	sysdErr, ok := err.(*Error)
-	if ok && sysdErr.exitCode == 1 && strings.TrimSpace(string(sysdErr.msg)) == "disabled" {
+	sysdErr, ok := err.(systemctlError)
+	if ok && sysdErr.ExitCode() == 1 && strings.TrimSpace(string(sysdErr.Msg())) == "disabled" {
 		return false, nil
 	}
 	return false, err
@@ -389,7 +489,10 @@ func (s *systemd) IsEnabled(serviceName string) (bool, error) {
 
 // IsActive checkes whether the given service is Active
 func (s *systemd) IsActive(serviceName string) (bool, error) {
-	_, err := systemctlCmd("--root", s.rootDir, "is-active", serviceName)
+	if s.mode == GlobalUserMode {
+		panic("cannot call is-active with GlobalUserMode")
+	}
+	_, err := s.systemctl("--root", s.rootDir, "is-active", serviceName)
 	if err == nil {
 		return true, nil
 	}
@@ -403,7 +506,10 @@ func (s *systemd) IsActive(serviceName string) (bool, error) {
 
 // Stop the given service, and wait until it has stopped.
 func (s *systemd) Stop(serviceName string, timeout time.Duration) error {
-	if _, err := systemctlCmd("stop", serviceName); err != nil {
+	if s.mode == GlobalUserMode {
+		panic("cannot call stop with GlobalUserMode")
+	}
+	if _, err := s.systemctl("stop", serviceName); err != nil {
 		return err
 	}
 
@@ -421,7 +527,7 @@ loop:
 		case <-giveup.C:
 			break loop
 		case <-check.C:
-			bs, err := systemctlCmd("show", "--property=ActiveState", serviceName)
+			bs, err := s.systemctl("show", "--property=ActiveState", serviceName)
 			if err != nil {
 				return err
 			}
@@ -443,19 +549,31 @@ loop:
 
 // Kill all processes of the unit with the given signal
 func (s *systemd) Kill(serviceName, signal, who string) error {
+	if s.mode == GlobalUserMode {
+		panic("cannot call kill with GlobalUserMode")
+	}
 	if who == "" {
 		who = "all"
 	}
-	_, err := systemctlCmd("kill", serviceName, "-s", signal, "--kill-who="+who)
+	_, err := s.systemctl("kill", serviceName, "-s", signal, "--kill-who="+who)
 	return err
 }
 
 // Restart the service, waiting for it to stop before starting it again.
 func (s *systemd) Restart(serviceName string, timeout time.Duration) error {
+	if s.mode == GlobalUserMode {
+		panic("cannot call restart with GlobalUserMode")
+	}
 	if err := s.Stop(serviceName, timeout); err != nil {
 		return err
 	}
 	return s.Start(serviceName)
+}
+
+type systemctlError interface {
+	Msg() []byte
+	ExitCode() int
+	Error() string
 }
 
 // Error is returned if the systemd action failed
@@ -463,6 +581,14 @@ type Error struct {
 	cmd      []string
 	msg      []byte
 	exitCode int
+}
+
+func (e *Error) Msg() []byte {
+	return e.msg
+}
+
+func (e *Error) ExitCode() int {
+	return e.exitCode
 }
 
 func (e *Error) Error() string {
@@ -537,20 +663,19 @@ func MountUnitPath(baseDir string) string {
 	return filepath.Join(dirs.SnapServicesDir, escapedPath+".mount")
 }
 
-// AddMountUnitFile adds/enables/starts a mount unit.
-func (s *systemd) AddMountUnitFile(snapName, revision, what, where, fstype string) (string, error) {
-	daemonReloadLock.Lock()
-	defer daemonReloadLock.Unlock()
+var squashfsFsType = squashfs.FsType
 
-	options := []string{"nodev"}
+func writeMountUnitFile(snapName, revision, what, where, fstype string) (mountUnitName, actualFsType string, options []string, err error) {
+	options = []string{"nodev"}
+	actualFsType = fstype
 	if fstype == "squashfs" {
-		newFsType, newOptions, err := squashfs.FsType()
+		newFsType, newOptions, err := squashfsFsType()
 		if err != nil {
-			return "", err
+			return "", "", nil, err
 		}
 		options = append(options, newOptions...)
-		fstype = newFsType
-		if release.SELinuxLevel() != release.NoSELinux {
+		actualFsType = newFsType
+		if selinux.ProbedLevel() != selinux.Unsupported {
 			if mountCtx := selinux.SnapMountContext(); mountCtx != "" {
 				options = append(options, "context="+mountCtx)
 			}
@@ -558,7 +683,7 @@ func (s *systemd) AddMountUnitFile(snapName, revision, what, where, fstype strin
 	}
 	if osutil.IsDirectory(what) {
 		options = append(options, "bind")
-		fstype = "none"
+		actualFsType = "none"
 	}
 
 	c := fmt.Sprintf(`[Unit]
@@ -570,17 +695,30 @@ What=%s
 Where=%s
 Type=%s
 Options=%s
+LazyUnmount=yes
 
 [Install]
 WantedBy=multi-user.target
-`, snapName, revision, what, where, fstype, strings.Join(options, ","))
+`, snapName, revision, what, where, actualFsType, strings.Join(options, ","))
 
 	mu := MountUnitPath(where)
-	mountUnitName, err := filepath.Base(mu), osutil.AtomicWriteFile(mu, []byte(c), 0644, 0)
+	mountUnitName, err = filepath.Base(mu), osutil.AtomicWriteFile(mu, []byte(c), 0644, 0)
+	if err != nil {
+		return "", "", nil, err
+	}
+
+	return mountUnitName, actualFsType, options, err
+}
+
+// AddMountUnitFile adds/enables/starts a mount unit.
+func (s *systemd) AddMountUnitFile(snapName, revision, what, where, fstype string) (string, error) {
+	daemonReloadLock.Lock()
+	defer daemonReloadLock.Unlock()
+
+	mountUnitName, _, _, err := writeMountUnitFile(snapName, revision, what, where, fstype)
 	if err != nil {
 		return "", err
 	}
-
 	// we need to do a daemon-reload here to ensure that systemd really
 	// knows about this new mount unit file
 	if err := s.daemonReloadNoLock(); err != nil {
@@ -610,7 +748,7 @@ func (s *systemd) RemoveMountUnitFile(mountedDir string) error {
 	// can be unmounted.
 	// note that the long option --lazy is not supported on trusty.
 	// the explicit -d is only needed on trusty.
-	isMounted, err := osutil.IsMounted(mountedDir)
+	isMounted, err := osutilIsMounted(mountedDir)
 	if err != nil {
 		return err
 	}

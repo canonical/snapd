@@ -21,10 +21,14 @@ package client_test
 
 import (
 	"encoding/json"
+	"errors"
 	"fmt"
+	"io/ioutil"
 	"net/url"
+	"os"
 	"time"
 
+	"golang.org/x/xerrors"
 	"gopkg.in/check.v1"
 
 	"github.com/snapcore/snapd/client"
@@ -115,6 +119,10 @@ func (cs *clientSuite) TestClientNoSnaps(c *check.C) {
 }
 
 func (cs *clientSuite) TestClientSnaps(c *check.C) {
+	healthTimestamp, err := time.Parse(time.RFC3339Nano, "2019-05-13T16:27:01.475851677+01:00")
+	c.Assert(err, check.IsNil)
+
+	// TODO: update this JSON as it's ancient
 	cs.rsp = `{
 		"type": "sync",
 		"result": [{
@@ -123,6 +131,11 @@ func (cs *clientSuite) TestClientSnaps(c *check.C) {
 			"summary": "salutation snap",
 			"description": "hello-world",
 			"download-size": 22212,
+                        "health": {
+				"revision": "29",
+				"timestamp": "2019-05-13T16:27:01.475851677+01:00",
+				"status": "okay"
+                        },
 			"icon": "https://myapps.developer.ubuntu.com/site_media/appmedia/2015/03/hello.svg_NZLfWbh.png",
 			"installed-size": -1,
 			"license": "GPL-3.0",
@@ -147,12 +160,17 @@ func (cs *clientSuite) TestClientSnaps(c *check.C) {
 	applications, err := cs.cli.List(nil, nil)
 	c.Check(err, check.IsNil)
 	c.Check(applications, check.DeepEquals, []*client.Snap{{
-		ID:            "funky-snap-id",
-		Title:         "Title",
-		Summary:       "salutation snap",
-		Description:   "hello-world",
-		DownloadSize:  22212,
-		Icon:          "https://myapps.developer.ubuntu.com/site_media/appmedia/2015/03/hello.svg_NZLfWbh.png",
+		ID:           "funky-snap-id",
+		Title:        "Title",
+		Summary:      "salutation snap",
+		Description:  "hello-world",
+		DownloadSize: 22212,
+		Icon:         "https://myapps.developer.ubuntu.com/site_media/appmedia/2015/03/hello.svg_NZLfWbh.png",
+		Health: &client.SnapHealth{
+			Revision:  snap.R(29),
+			Timestamp: healthTimestamp,
+			Status:    "okay",
+		},
 		InstalledSize: -1,
 		License:       "GPL-3.0",
 		Name:          "hello-world",
@@ -204,6 +222,7 @@ const (
 func (cs *clientSuite) TestClientSnap(c *check.C) {
 	// example data obtained via
 	// printf "GET /v2/find?name=test-snapd-tools HTTP/1.0\r\n\r\n" | nc -U -q 1 /run/snapd.socket|grep '{'|python3 -m json.tool
+	// XXX: update / sync with what daemon is actually putting out
 	cs.rsp = `{
 		"type": "sync",
 		"result": {
@@ -242,7 +261,10 @@ func (cs *clientSuite) TestClientSnap(c *check.C) {
                             {"type": "screenshot", "url":"http://example.com/shot1.png", "width":640, "height":480},
                             {"type": "screenshot", "url":"http://example.com/shot2.png"}
                         ],
-                        "common-ids": ["org.funky.snap"]
+                        "cohort-key": "some-long-cohort-key",
+                        "website": "http://example.com/funky",
+                        "common-ids": ["org.funky.snap"],
+                        "store-url": "https://snapcraft.io/chatroom"
 		}
 	}`
 	pkg, _, err := cs.cli.Snap(pkgName)
@@ -285,6 +307,9 @@ func (cs *clientSuite) TestClientSnap(c *check.C) {
 			{Type: "screenshot", URL: "http://example.com/shot2.png"},
 		},
 		CommonIDs: []string{"org.funky.snap"},
+		CohortKey: "some-long-cohort-key",
+		Website:   "http://example.com/funky",
+		StoreURL:  "https://snapcraft.io/chatroom",
 	})
 }
 
@@ -338,4 +363,45 @@ func (cs *clientSuite) TestAppInfoDaemonIsService(c *check.C) {
 	c.Assert(json.Unmarshal([]byte(`{"name": "hello", "daemon": "x"}`), &app), check.IsNil)
 	c.Check(app.Name, check.Equals, "hello")
 	c.Check(app.IsService(), check.Equals, true)
+}
+
+func (cs *clientSuite) TestClientSectionsErrIsWrapped(c *check.C) {
+	cs.err = errors.New("boom")
+	_, err := cs.cli.Sections()
+	var e xerrors.Wrapper
+	c.Assert(err, check.Implements, &e)
+}
+
+func (cs *clientSuite) TestClientFindOneErrIsWrapped(c *check.C) {
+	cs.err = errors.New("boom")
+	_, _, err := cs.cli.FindOne("snap")
+	var e xerrors.Wrapper
+	c.Assert(err, check.Implements, &e)
+}
+
+func (cs *clientSuite) TestClientSnapErrIsWrapped(c *check.C) {
+	// setting cs.err will trigger a "client.ClientError"
+	cs.err = errors.New("boom")
+	_, _, err := cs.cli.Snap("snap")
+	var e xerrors.Wrapper
+	c.Assert(err, check.Implements, &e)
+}
+
+func (cs *clientSuite) TestClientFindFromPathErrIsWrapped(c *check.C) {
+	var e client.AuthorizationError
+
+	// this will trigger a "client.AuthorizationError"
+	err := ioutil.WriteFile(client.TestStoreAuthFilename(os.Getenv("HOME")), []byte("rubbish"), 0644)
+	c.Assert(err, check.IsNil)
+
+	// check that all the functions that use snapsFromPath() get a
+	// wrapped error
+	_, _, err = cs.cli.FindOne("snap")
+	c.Assert(xerrors.As(err, &e), check.Equals, true)
+
+	_, _, err = cs.cli.Find(nil)
+	c.Assert(xerrors.As(err, &e), check.Equals, true)
+
+	_, err = cs.cli.List([]string{"snap"}, nil)
+	c.Assert(xerrors.As(err, &e), check.Equals, true)
 }

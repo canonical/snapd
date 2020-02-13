@@ -1,0 +1,15 @@
+summary: regression test for https://bugs.launchpad.net/snapd/+bug/1844496
+prepare: |
+    snap set core experimental.robust-mount-namespace-updates=true
+    snap pack test-snapd-layout
+    snap install --dangerous test-snapd-layout_1_all.snap
+execute: |
+    test "$(test-snapd-layout.sh -c 'cat /usr/lib/x86_64-linux-gnu/wpe-webkit-1.0/canary')" = content
+    snap install --dangerous test-snapd-layout_1_all.snap
+    test "$(test-snapd-layout.sh -c 'cat /usr/lib/x86_64-linux-gnu/wpe-webkit-1.0/canary')" = content
+    snap install --dangerous test-snapd-layout_1_all.snap
+    test "$(test-snapd-layout.sh -c 'cat /usr/lib/x86_64-linux-gnu/wpe-webkit-1.0/canary')" = content
+restore: |
+    snap remove --purge test-snapd-layout
+    rm -f test-snapd-layout_1_all.snap
+    snap unset core experimental.robust-mount-namespace-updates

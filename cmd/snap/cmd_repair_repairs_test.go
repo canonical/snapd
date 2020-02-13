@@ -20,7 +20,6 @@
 package main_test
 
 import (
-	"os"
 	"path/filepath"
 
 	. "gopkg.in/check.v1"
@@ -32,10 +31,7 @@ import (
 )
 
 func mockSnapRepair(c *C) *testutil.MockCmd {
-	coreLibExecDir := filepath.Join(dirs.GlobalRootDir, dirs.CoreLibExecDir)
-	err := os.MkdirAll(coreLibExecDir, 0755)
-	c.Assert(err, IsNil)
-	return testutil.MockCommand(c, filepath.Join(coreLibExecDir, "snap-repair"), "")
+	return testutil.MockCommand(c, filepath.Join(dirs.GlobalRootDir, dirs.CoreLibExecDir, "snap-repair"), "")
 }
 
 func (s *SnapSuite) TestSnapShowRepair(c *C) {
@@ -50,6 +46,14 @@ func (s *SnapSuite) TestSnapShowRepair(c *C) {
 	c.Check(mockSnapRepair.Calls(), DeepEquals, [][]string{
 		{"snap-repair", "show", "canonical-1"},
 	})
+}
+
+func (s *SnapSuite) TestSnapShowRepairNoArgs(c *C) {
+	restore := release.MockOnClassic(false)
+	defer restore()
+
+	_, err := snap.Parser(snap.Client()).ParseArgs([]string{"repair"})
+	c.Assert(err, ErrorMatches, "no <repair-id> given. Try 'snap repairs' to list all repairs or specify a specific repair id.")
 }
 
 func (s *SnapSuite) TestSnapListRepairs(c *C) {

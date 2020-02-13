@@ -49,14 +49,32 @@ func (s *compilerSuite) TestVersionInfoValidate(c *C) {
 		exp string
 		err string
 	}{
-		// valid
-		{"7ac348ac9c934269214b00d1692dfa50d5d4a157 2.3.3 03e996919907bc7163bc83b95bca0ecab31300f20dfa365ea14047c698340e7c", "7ac348ac9c934269214b00d1692dfa50d5d4a157 2.3.3 03e996919907bc7163bc83b95bca0ecab31300f20dfa365ea14047c698340e7c", ""},
-		{"abcdef 0.0.0 abcd", "abcdef 0.0.0 abcd", ""},
+		// all valid
+		// 20-byte sha1 build ID added by GNU ld
+		{"7ac348ac9c934269214b00d1692dfa50d5d4a157 2.3.3 03e996919907bc7163bc83b95bca0ecab31300f20dfa365ea14047c698340e7c bpf-actlog", "7ac348ac9c934269214b00d1692dfa50d5d4a157 2.3.3 03e996919907bc7163bc83b95bca0ecab31300f20dfa365ea14047c698340e7c bpf-actlog", ""},
+		{"7ac348ac9c934269214b00d1692dfa50d5d4a157 2.3.3 03e996919907bc7163bc83b95bca0ecab31300f20dfa365ea14047c698340e7c foo:bar", "7ac348ac9c934269214b00d1692dfa50d5d4a157 2.3.3 03e996919907bc7163bc83b95bca0ecab31300f20dfa365ea14047c698340e7c foo:bar", ""},
+		{"7ac348ac9c934269214b00d1692dfa50d5d4a157 2.3.3 03e996919907bc7163bc83b95bca0ecab31300f20dfa365ea14047c698340e7c -", "7ac348ac9c934269214b00d1692dfa50d5d4a157 2.3.3 03e996919907bc7163bc83b95bca0ecab31300f20dfa365ea14047c698340e7c -", ""},
+		// 16-byte md5/uuid build ID added by GNU ld
+		{"3817b197e7abe71a952c1245e8bdf8d9 2.3.3 03e996919907bc7163bc83b95bca0ecab31300f20dfa365ea14047c698340e7c -", "3817b197e7abe71a952c1245e8bdf8d9 2.3.3 03e996919907bc7163bc83b95bca0ecab31300f20dfa365ea14047c698340e7c -", ""},
+		// 83-byte Go build ID
+		{"4e444571495f482d30796b5f57307065544e47692f594c61795f384b7a5258362d6a6f4272736e38302f773374475869496e433176527749797a457a4b532f3967324d4f76556f3130323644572d56326e6248 2.3.3 03e996919907bc7163bc83b95bca0ecab31300f20dfa365ea14047c698340e7c -", "4e444571495f482d30796b5f57307065544e47692f594c61795f384b7a5258362d6a6f4272736e38302f773374475869496e433176527749797a457a4b532f3967324d4f76556f3130323644572d56326e6248 2.3.3 03e996919907bc7163bc83b95bca0ecab31300f20dfa365ea14047c698340e7c -", ""},
+		// sanity
+		{"abcdef 0.0.0 abcd bpf-actlog", "abcdef 0.0.0 abcd bpf-actlog", ""},
+		{"abcdef 0.0.0 abcd -", "abcdef 0.0.0 abcd -", ""},
 
 		// invalid all the way down from here
-
-		// this is over the sane length limit
-		{"b27bacf755e589437c08c46f616d8531e6918dca44e575a597d93b538825b853 2.3.3 b27bacf755e589437c08c46f616d8531e6918dca44e575a597d93b538825b853", "", "invalid version-info length: .*"},
+		// this is over/under the sane length limit for the fields
+		{"00000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000001 2.4.1 0000000000000000000000000000000000000000000000000000000000000000 -", "", "invalid format of version-info: .*"},
+		{"0000000000000000000000000000000000000000 123456.0.0 0000000000000000000000000000000000000000000000000000000000000000 -", "", "invalid format of version-info: .*"},
+		{"0000000000000000000000000000000000000000 0.123456.0 0000000000000000000000000000000000000000000000000000000000000000 -", "", "invalid format of version-info: .*"},
+		{"0000000000000000000000000000000000000000 0.0.123456 0000000000000000000000000000000000000000000000000000000000000000 -", "", "invalid format of version-info: .*"},
+		{"0000000000000000000000000000000000000000 2.4.1 00000000000000000000000000000000000000000000000000000000000000001 -", "", "invalid format of version-info: .*"},
+		{"0000000000000000000000000000000000000000 2.4.1 0000000000000000000000000000000000000000000000000000000000000000 012345678901234567890123456789a", "", "invalid format of version-info: .*"},
+		{"0000000000000000000000000000000000000000 .4.1 0000000000000000000000000000000000000000000000000000000000000000 -", "", "invalid format of version-info: .*"},
+		{"0000000000000000000000000000000000000000 2.4 0000000000000000000000000000000000000000000000000000000000000000 -", "", "invalid format of version-info: .*"},
+		{"0000000000000000000000000000000000000000 2.4. 0000000000000000000000000000000000000000000000000000000000000000 -", "", "invalid format of version-info: .*"},
+		{"0000000000000000000000000000000000000000 2..1 0000000000000000000000000000000000000000000000000000000000000000 -", "", "invalid format of version-info: .*"},
+		{"0000000000000000000000000000000000000000 2.4.1 0000000000000000000000000000000000000000000000000000000000000000 ", "", "invalid format of version-info: .*"},
 		// incorrect format
 		{"abcd 0.0.0 fg", "", "invalid format of version-info: .*"},
 		{"ggg 0.0.0 abc", "", "invalid format of version-info: .*"},
@@ -68,16 +86,20 @@ func (s *compilerSuite) TestVersionInfoValidate(c *C) {
 	} {
 		c.Logf("tc: %v", i)
 		cmd := testutil.MockCommand(c, "snap-seccomp", fmt.Sprintf("echo \"%s\"", tc.v))
-		compiler, err := seccomp.New(fromCmd(c, cmd))
+		compiler, err := seccomp.NewCompiler(fromCmd(c, cmd))
 		c.Assert(err, IsNil)
 
 		v, err := compiler.VersionInfo()
 		if tc.err != "" {
 			c.Check(err, ErrorMatches, tc.err)
-			c.Check(v, Equals, "")
+			c.Check(v, Equals, seccomp.VersionInfo(""))
 		} else {
 			c.Check(err, IsNil)
-			c.Check(v, Equals, tc.exp)
+			c.Check(v, Equals, seccomp.VersionInfo(tc.exp))
+			_, err := seccomp.VersionInfo(v).LibseccompVersion()
+			c.Check(err, IsNil)
+			_, err = seccomp.VersionInfo(v).Features()
+			c.Check(err, IsNil)
 		}
 		c.Check(cmd.Calls(), DeepEquals, [][]string{
 			{"snap-seccomp", "version-info"},
@@ -87,13 +109,32 @@ func (s *compilerSuite) TestVersionInfoValidate(c *C) {
 
 }
 
+func (s *compilerSuite) TestCompilerVersionInfo(c *C) {
+	const vi = "7ac348ac9c934269214b00d1692dfa50d5d4a157 2.3.3 03e996919907bc7163bc83b95bca0ecab31300f20dfa365ea14047c698340e7c bpf-actlog"
+	cmd := testutil.MockCommand(c, "snap-seccomp", fmt.Sprintf(`echo "%s"`, vi))
+
+	vi1, err := seccomp.CompilerVersionInfo(fromCmd(c, cmd))
+	c.Check(err, IsNil)
+	c.Check(vi1, Equals, seccomp.VersionInfo(vi))
+}
+
+func (s *compilerSuite) TestEmptyVersionInfo(c *C) {
+	vi := seccomp.VersionInfo("")
+
+	_, err := vi.LibseccompVersion()
+	c.Check(err, ErrorMatches, "empty version-info")
+
+	_, err = vi.Features()
+	c.Check(err, ErrorMatches, "empty version-info")
+}
+
 func (s *compilerSuite) TestVersionInfoUnhappy(c *C) {
 	cmd := testutil.MockCommand(c, "snap-seccomp", `
 if [ "$1" = "version-info" ]; then echo "unknown command version-info"; exit 1; fi
 exit 0
 `)
 	defer cmd.Restore()
-	compiler, err := seccomp.New(fromCmd(c, cmd))
+	compiler, err := seccomp.NewCompiler(fromCmd(c, cmd))
 	c.Assert(err, IsNil)
 
 	_, err = compiler.VersionInfo()
@@ -109,7 +150,7 @@ if [ "$1" = "compile" ]; then exit 0; fi
 exit 1
 `)
 	defer cmd.Restore()
-	compiler, err := seccomp.New(fromCmd(c, cmd))
+	compiler, err := seccomp.NewCompiler(fromCmd(c, cmd))
 	c.Assert(err, IsNil)
 
 	err = compiler.Compile("foo.src", "foo.bin")
@@ -125,7 +166,7 @@ if [ "$1" = "compile" ]; then echo "i will not"; exit 1; fi
 exit 0
 `)
 	defer cmd.Restore()
-	compiler, err := seccomp.New(fromCmd(c, cmd))
+	compiler, err := seccomp.NewCompiler(fromCmd(c, cmd))
 	c.Assert(err, IsNil)
 
 	err = compiler.Compile("foo.src", "foo.bin")
@@ -136,9 +177,98 @@ exit 0
 }
 
 func (s *compilerSuite) TestCompilerNewUnhappy(c *C) {
-	compiler, err := seccomp.New(func(name string) (string, error) { return "", errors.New("failed") })
+	compiler, err := seccomp.NewCompiler(func(name string) (string, error) { return "", errors.New("failed") })
 	c.Assert(err, ErrorMatches, "failed")
 	c.Assert(compiler, IsNil)
 
-	c.Assert(func() { seccomp.New(nil) }, PanicMatches, "lookup tool func not provided")
+	c.Assert(func() { seccomp.NewCompiler(nil) }, PanicMatches, "lookup tool func not provided")
+}
+
+func (s *compilerSuite) TestLibseccompVersion(c *C) {
+	v, err := seccomp.VersionInfo("a 2.4.1 b -").LibseccompVersion()
+	c.Assert(err, IsNil)
+	c.Check(v, Equals, "2.4.1")
+
+	v, err = seccomp.VersionInfo("a phooey b -").LibseccompVersion()
+	c.Assert(err, ErrorMatches, "invalid format of version-info: .*")
+	c.Check(v, Equals, "")
+}
+
+func (s *compilerSuite) TestGetGoSeccompFeatures(c *C) {
+	for _, tc := range []struct {
+		v   string
+		exp string
+		err string
+	}{
+		// valid
+		{"a 2.4.1 b -", "-", ""},
+		{"a 2.4.1 b foo", "foo", ""},
+		{"a 2.4.1 b foo:bar", "foo:bar", ""},
+		// invalid
+		{"a 2.4.1 b b@rf", "", "invalid format of version-info: .*"},
+	} {
+		v, err := seccomp.VersionInfo(tc.v).Features()
+		if err == nil {
+			c.Assert(err, IsNil)
+			c.Check(v, Equals, tc.exp)
+		} else {
+			c.Assert(err, ErrorMatches, "invalid format of version-info: .*")
+			c.Check(v, Equals, tc.exp)
+		}
+	}
+}
+
+func (s *compilerSuite) TestHasFeature(c *C) {
+	for _, tc := range []struct {
+		v   string
+		f   string
+		exp bool
+		err string
+	}{
+		// valid negative
+		{"a 2.4.1 b -", "foo", false, ""},
+		{"a 2.4.1 b foo:bar", "foo:bar", false, ""},
+		// valid affirmative
+		{"a 2.4.1 b foo", "foo", true, ""},
+		{"a 2.4.1 b foo:bar", "foo", true, ""},
+		{"a 2.4.1 b foo:bar", "bar", true, ""},
+		// invalid
+		{"a 1.2.3 b b@rf", "b@rf", false, "invalid format of version-info: .*"},
+	} {
+		v, err := seccomp.VersionInfo(tc.v).HasFeature(tc.f)
+		if err == nil {
+			c.Assert(err, IsNil)
+			c.Check(v, Equals, tc.exp)
+		} else {
+			c.Assert(err, ErrorMatches, "invalid format of version-info: .*")
+			c.Check(v, Equals, tc.exp)
+		}
+	}
+}
+
+func (s *compilerSuite) TestSupportsRobustArgumentFiltering(c *C) {
+	for _, tc := range []struct {
+		v   string
+		err string
+	}{
+		// libseccomp < 2.3.3 and golang-seccomp < 0.9.1
+		{"a 2.3.3 b -", "robust argument filtering requires a snapd built against libseccomp >= 2.4, golang-seccomp >= 0.9.1"},
+		// libseccomp < 2.3.3
+		{"a 2.3.3 b bpf-actlog", "robust argument filtering requires a snapd built against libseccomp >= 2.4"},
+		// golang-seccomp < 0.9.1
+		{"a 2.4.1 b -", "robust argument filtering requires a snapd built against golang-seccomp >= 0.9.1"},
+		{"a 2.4.1 b bpf-other", "robust argument filtering requires a snapd built against golang-seccomp >= 0.9.1"},
+		// libseccomp >= 2.4.1 and golang-seccomp >= 0.9.1
+		{"a 2.4.1 b bpf-actlog", ""},
+		{"a 3.0.0 b bpf-actlog", ""},
+		// invalid
+		{"a 1.2.3 b b@rf", "invalid format of version-info: .*"},
+	} {
+		err := seccomp.VersionInfo(tc.v).SupportsRobustArgumentFiltering()
+		if tc.err == "" {
+			c.Assert(err, IsNil)
+		} else {
+			c.Assert(err, ErrorMatches, tc.err)
+		}
+	}
 }

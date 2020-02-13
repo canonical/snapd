@@ -1,6 +1,9 @@
 summary: Upgrade the core snap and revert a few times
 
-systems: [ubuntu-core-16-*]
+# ARM devices are not supported on ubuntu-core-18 due to fw_printenv/setenv are
+# not provided by the system and as the devices boot with uboot so it is not
+# possible to get any grub information as it is done with non arm devices.
+systems: [ubuntu-core-16-*, ubuntu-core-18-32*, ubuntu-core-18-64*]
 
 # Start early as it takes a long time.
 priority: 100
@@ -18,17 +21,36 @@ restore: |
     if [ -f curChg ] ; then
         snap abort "$(cat curChg)" || true
     fi
+    # Remove the revisions installed during the test.
+    # The x1 revision is the one we use initially.
+    snap remove core --revision=x2
+    snap remove core --revision=x3
 
 prepare: |
-    snap list | awk "/^core / {print(\$3)}" > nextBoot
-    snap install test-snapd-tools
+    #shellcheck source=tests/lib/systems.sh
+    . "$TESTSLIB"/systems.sh
+
+    TARGET_SNAP=core
+    if is_core18_system; then
+        TARGET_SNAP=core18
+    fi
+
+    snap list | awk "/^${TARGET_SNAP} / {print(\$3)}" > nextBoot
+    snap install test-snapd-sh
 
 execute: |
     #shellcheck source=tests/lib/boot.sh
     . "$TESTSLIB"/boot.sh
+    #shellcheck source=tests/lib/systems.sh
+    . "$TESTSLIB"/systems.sh
+
+    TARGET_SNAP=core
+    if is_core18_system; then
+        TARGET_SNAP=core18
+    fi
 
     # FIXME Why it starting with snap_mode=try the first time?
-    # Perhaps because core is installed after seeding? Do we
+    # Perhaps because $TARGET_SNAP is installed after seeding? Do we
     # want that on pristine images?
     if [ "$SPREAD_REBOOT" != 0 ]; then
         echo "Waiting for snapd to clean snap_mode"
@@ -37,12 +59,12 @@ execute: |
         done
 
         echo "Ensure the bootloader is correct after reboot"
-        test "$(bootenv snap_core)" = "core_$(cat nextBoot).snap"
+        test "$(bootenv snap_core)" = "${TARGET_SNAP}_$(cat nextBoot).snap"
         test "$(bootenv snap_try_core)" = ""
         test "$(bootenv snap_mode)" = ""
     fi
 
-    snap list | awk "/^core / {print(\$3)}" > prevBoot
+    snap list | awk "/^${TARGET_SNAP} / {print(\$3)}" > prevBoot
 
     # wait for ongoing change if there is one
     if [ -f curChg ] ; then
@@ -52,10 +74,10 @@ execute: |
 
     case "$SPREAD_REBOOT" in
 
-    0) cmd="snap install --dangerous /var/lib/snapd/snaps/core_$(cat prevBoot).snap" ;;
-    1) cmd="snap revert core" ;;
-    2) cmd="snap install --dangerous /var/lib/snapd/snaps/core_$(cat prevBoot).snap" ;;
-    3) cmd="snap revert core" ;;
+    0) cmd="snap install --dangerous /var/lib/snapd/snaps/${TARGET_SNAP}_$(cat prevBoot).snap" ;;
+    1) cmd="snap revert $TARGET_SNAP" ;;
+    2) cmd="snap install --dangerous /var/lib/snapd/snaps/${TARGET_SNAP}_$(cat prevBoot).snap" ;;
+    3) cmd="snap revert $TARGET_SNAP" ;;
     4) exit 0 ;;
 
     esac
@@ -71,12 +93,12 @@ execute: |
     while ! journalctl -b -u snapd|grep -q "Waiting for system reboot" ; do sleep 1 ; done
 
     echo "Ensure the test snap still runs"
-    test-snapd-tools.echo hello | MATCH hello
+    test-snapd-sh.sh -c 'echo hello' | MATCH hello
 
     echo "Ensure the bootloader is correct before reboot"
-    readlink /snap/core/current > nextBoot
+    readlink "/snap/${TARGET_SNAP}/current" > nextBoot
     test "$(cat prevBoot)" != "$(cat nextBoot)"
-    test "$(bootenv snap_try_core)" = "core_$(cat nextBoot).snap"
+    test "$(bootenv snap_try_core)" = "${TARGET_SNAP}_$(cat nextBoot).snap"
     test "$(bootenv snap_mode)" = "try"
 
     echo "Ensure the device is scheduled for auto-reboot"

@@ -33,6 +33,7 @@ import (
 
 	"github.com/snapcore/snapd/advisor"
 	snap "github.com/snapcore/snapd/cmd/snap"
+	"github.com/snapcore/snapd/dirs"
 )
 
 type sillyFinder struct{}
@@ -96,6 +97,23 @@ func (s *SnapSuite) TestAdviseCommandHappyJSON(c *C) {
 	c.Assert(rest, DeepEquals, []string{})
 	c.Assert(s.Stdout(), Equals, `[{"Snap":"hello","Command":"hello"},{"Snap":"hello-wcm","Command":"hello"}]`+"\n")
 	c.Assert(s.Stderr(), Equals, "")
+}
+
+func (s *SnapSuite) TestAdviseCommandDumpDb(c *C) {
+	dirs.SetRootDir(c.MkDir())
+	c.Assert(os.MkdirAll(dirs.SnapCacheDir, 0755), IsNil)
+	defer dirs.SetRootDir("")
+
+	db, err := advisor.Create()
+	c.Assert(err, IsNil)
+	c.Assert(db.AddSnap("foo", "1.0", "foo summary", []string{"foo", "bar"}), IsNil)
+	c.Assert(db.Commit(), IsNil)
+
+	rest, err := snap.Parser(snap.Client()).ParseArgs([]string{"advise-snap", "--dump-db"})
+	c.Assert(err, IsNil)
+	c.Assert(rest, DeepEquals, []string{})
+	c.Assert(s.Stderr(), Equals, "")
+	c.Assert(s.Stdout(), Matches, `bar foo 1.0\nfoo foo 1.0\n`)
 }
 
 func (s *SnapSuite) TestAdviseCommandMisspellText(c *C) {

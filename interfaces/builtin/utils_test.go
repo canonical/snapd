@@ -32,38 +32,114 @@ import (
 )
 
 type utilsSuite struct {
-	iface      interfaces.Interface
-	slotOS     *snap.SlotInfo
-	slotApp    *snap.SlotInfo
-	slotGadget *snap.SlotInfo
+	iface        interfaces.Interface
+	slotOS       *snap.SlotInfo
+	slotApp      *snap.SlotInfo
+	slotSnapd    *snap.SlotInfo
+	slotGadget   *snap.SlotInfo
+	conSlotOS    *interfaces.ConnectedSlot
+	conSlotSnapd *interfaces.ConnectedSlot
+	conSlotApp   *interfaces.ConnectedSlot
 }
 
 var _ = Suite(&utilsSuite{
-	iface:      &ifacetest.TestInterface{InterfaceName: "iface"},
-	slotOS:     &snap.SlotInfo{Snap: &snap.Info{Type: snap.TypeOS}},
-	slotApp:    &snap.SlotInfo{Snap: &snap.Info{Type: snap.TypeApp}},
-	slotGadget: &snap.SlotInfo{Snap: &snap.Info{Type: snap.TypeGadget}},
+	iface:        &ifacetest.TestInterface{InterfaceName: "iface"},
+	slotOS:       &snap.SlotInfo{Snap: &snap.Info{SnapType: snap.TypeOS}},
+	slotApp:      &snap.SlotInfo{Snap: &snap.Info{SnapType: snap.TypeApp}},
+	slotSnapd:    &snap.SlotInfo{Snap: &snap.Info{SnapType: snap.TypeSnapd, SuggestedName: "snapd"}},
+	slotGadget:   &snap.SlotInfo{Snap: &snap.Info{SnapType: snap.TypeGadget}},
+	conSlotOS:    interfaces.NewConnectedSlot(&snap.SlotInfo{Snap: &snap.Info{SnapType: snap.TypeOS}}, nil, nil),
+	conSlotSnapd: interfaces.NewConnectedSlot(&snap.SlotInfo{Snap: &snap.Info{SnapType: snap.TypeSnapd}}, nil, nil),
+	conSlotApp:   interfaces.NewConnectedSlot(&snap.SlotInfo{Snap: &snap.Info{SnapType: snap.TypeApp}}, nil, nil),
 })
 
-func (s *utilsSuite) TestSanitizeSlotReservedForOS(c *C) {
-	errmsg := "iface slots are reserved for the core snap"
-	c.Assert(builtin.SanitizeSlotReservedForOS(s.iface, s.slotOS), IsNil)
-	c.Assert(builtin.SanitizeSlotReservedForOS(s.iface, s.slotApp), ErrorMatches, errmsg)
-	c.Assert(builtin.SanitizeSlotReservedForOS(s.iface, s.slotGadget), ErrorMatches, errmsg)
+func (s *utilsSuite) TestIsSlotSystemSlot(c *C) {
+	c.Assert(builtin.ImplicitSystemPermanentSlot(s.slotApp), Equals, false)
+	c.Assert(builtin.ImplicitSystemPermanentSlot(s.slotOS), Equals, true)
+	c.Assert(builtin.ImplicitSystemPermanentSlot(s.slotSnapd), Equals, true)
 }
 
-func (s *utilsSuite) TestSanitizeSlotReservedForOSOrGadget(c *C) {
-	errmsg := "iface slots are reserved for the core and gadget snaps"
-	c.Assert(builtin.SanitizeSlotReservedForOSOrGadget(s.iface, s.slotOS), IsNil)
-	c.Assert(builtin.SanitizeSlotReservedForOSOrGadget(s.iface, s.slotApp), ErrorMatches, errmsg)
-	c.Assert(builtin.SanitizeSlotReservedForOSOrGadget(s.iface, s.slotGadget), IsNil)
+func (s *utilsSuite) TestImplicitSystemConnectedSlot(c *C) {
+	c.Assert(builtin.ImplicitSystemConnectedSlot(s.conSlotApp), Equals, false)
+	c.Assert(builtin.ImplicitSystemConnectedSlot(s.conSlotOS), Equals, true)
+	c.Assert(builtin.ImplicitSystemConnectedSlot(s.conSlotSnapd), Equals, true)
 }
 
-func (s *utilsSuite) TestSanitizeSlotReservedForOSOrApp(c *C) {
-	errmsg := "iface slots are reserved for the core and app snaps"
-	c.Assert(builtin.SanitizeSlotReservedForOSOrApp(s.iface, s.slotOS), IsNil)
-	c.Assert(builtin.SanitizeSlotReservedForOSOrApp(s.iface, s.slotApp), IsNil)
-	c.Assert(builtin.SanitizeSlotReservedForOSOrApp(s.iface, s.slotGadget), ErrorMatches, errmsg)
+const yaml = `name: test-snap
+version: 1
+plugs:
+ x11:
+slots:
+ opengl:
+apps:
+ app1:
+  command: bin/test1
+  plugs: [home]
+  slots: [unity8]
+ app2:
+  command: bin/test2
+  plugs: [home]
+hooks:
+ install:
+  plugs: [network,network-manager]
+ post-refresh:
+  plugs: [network,network-manager]
+`
+
+func (s *utilsSuite) TestLabelExpr(c *C) {
+	info := snaptest.MockInfo(c, yaml, nil)
+
+	// all apps and all hooks
+	label := builtin.LabelExpr(info.Apps, info.Hooks, info)
+	c.Check(label, Equals, `"snap.test-snap.*"`)
+
+	// all apps, no hooks
+	label = builtin.LabelExpr(info.Apps, nil, info)
+	c.Check(label, Equals, `"snap.test-snap.{app1,app2}"`)
+
+	// one app, no hooks
+	label = builtin.LabelExpr(map[string]*snap.AppInfo{"app1": info.Apps["app1"]}, nil, info)
+	c.Check(label, Equals, `"snap.test-snap.app1"`)
+
+	// no apps, one hook
+	label = builtin.LabelExpr(nil, map[string]*snap.HookInfo{"install": info.Hooks["install"]}, info)
+	c.Check(label, Equals, `"snap.test-snap.hook.install"`)
+
+	// one app, all hooks
+	label = builtin.LabelExpr(map[string]*snap.AppInfo{"app1": info.Apps["app1"]}, info.Hooks, info)
+	c.Check(label, Equals, `"snap.test-snap.{app1,hook.install,hook.post-refresh}"`)
+
+	// only hooks
+	label = builtin.LabelExpr(nil, info.Hooks, info)
+	c.Check(label, Equals, `"snap.test-snap.{hook.install,hook.post-refresh}"`)
+
+	// nothing
+	label = builtin.LabelExpr(nil, nil, info)
+	c.Check(label, Equals, `"snap.test-snap."`)
+}
+
+func (s *utilsSuite) TestPlugLabelExpr(c *C) {
+	connectedPlug, _ := MockConnectedPlug(c, yaml, nil, "network")
+	label := builtin.PlugAppLabelExpr(connectedPlug)
+	c.Check(label, Equals, `"snap.test-snap.{hook.install,hook.post-refresh}"`)
+
+	connectedPlug, _ = MockConnectedPlug(c, yaml, nil, "home")
+	label = builtin.PlugAppLabelExpr(connectedPlug)
+	c.Check(label, Equals, `"snap.test-snap.{app1,app2}"`)
+
+	connectedPlug, _ = MockConnectedPlug(c, yaml, nil, "x11")
+	label = builtin.PlugAppLabelExpr(connectedPlug)
+	c.Check(label, Equals, `"snap.test-snap.*"`)
+}
+
+func (s *utilsSuite) TestSlotLabelExpr(c *C) {
+	connectedSlot, _ := MockConnectedSlot(c, yaml, nil, "unity8")
+	label := builtin.SlotAppLabelExpr(connectedSlot)
+	c.Check(label, Equals, `"snap.test-snap.app1"`)
+
+	connectedSlot, _ = MockConnectedSlot(c, yaml, nil, "opengl")
+	label = builtin.SlotAppLabelExpr(connectedSlot)
+	c.Check(label, Equals, `"snap.test-snap.*"`)
 }
 
 func MockPlug(c *C, yaml string, si *snap.SideInfo, plugName string) *snap.PlugInfo {

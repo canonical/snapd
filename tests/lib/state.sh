@@ -44,8 +44,11 @@ save_snapd_state() {
 
         # Copy the state preserving the timestamps
         cp -a /var/lib/snapd "$SNAPD_STATE_PATH"/snapd-lib
+        cp -rf /var/cache/snapd "$SNAPD_STATE_PATH"/snapd-cache
         cp -rf "$boot_path" "$SNAPD_STATE_PATH"/boot
         cp -f /etc/systemd/system/snap-*core*.mount "$SNAPD_STATE_PATH"/system-units
+        mkdir -p "$SNAPD_STATE_PATH"/var-snap
+        cp -a /var/snap/* "$SNAPD_STATE_PATH"/var-snap/
     else
         systemctl daemon-reload
         escaped_snap_mount_dir="$(systemd-escape --path "$SNAP_MOUNT_DIR")"
@@ -59,6 +62,7 @@ save_snapd_state() {
         # shellcheck disable=SC2086
         tar cf "$SNAPD_STATE_FILE" \
             /var/lib/snapd \
+            /var/cache/snapd \
             "$SNAP_MOUNT_DIR" \
             /etc/systemd/system/"$escaped_snap_mount_dir"-*core*.mount \
             /etc/systemd/system/multi-user.target.wants/"$escaped_snap_mount_dir"-*core*.mount \
@@ -89,13 +93,17 @@ restore_snapd_state() {
         test -n "$boot_path" || return 1
 
         restore_snapd_lib
+        cp -rf "$SNAPD_STATE_PATH"/snapd-cache/*  /var/cache/snapd
         cp -rf "$SNAPD_STATE_PATH"/boot/* "$boot_path"
         cp -f "$SNAPD_STATE_PATH"/system-units/*  /etc/systemd/system
+        rm -rf /var/snap/*
+        cp -a "$SNAPD_STATE_PATH"/var-snap/* /var/snap/
     else
         # Purge all the systemd service units config
         rm -rf /etc/systemd/system/snapd.service.d
         rm -rf /etc/systemd/system/snapd.socket.d
 
+        # TODO: remove files created by the test
         tar -C/ -xf "$SNAPD_STATE_FILE"
     fi
 
@@ -108,15 +116,16 @@ restore_snapd_state() {
 }
 
 restore_snapd_lib() {
-    # Clean all the state but the snaps and seed dirs. Then make a selective clean for 
+    # Clean all the state but the snaps and seed dirs. Then make a selective clean for
     # snaps and seed dirs leaving the .snap files which then are going to be synchronized.
-    find /var/lib/snapd/* -maxdepth 0 ! \( -name 'snaps' -o -name 'seed' \) -exec rm -rf {} \;
+    find /var/lib/snapd/* -maxdepth 0 ! \( -name 'snaps' -o -name 'seed' -o -name 'cache' \) -exec rm -rf {} \;
 
-    # Copy the whole state but the snaps and seed dirs
-    find "$SNAPD_STATE_PATH"/snapd-lib/* -maxdepth 0 ! \( -name 'snaps' -o -name 'seed' \) -exec cp -rf {} /var/lib/snapd \;
+    # Copy the whole state but the snaps, seed and cache dirs
+    find "$SNAPD_STATE_PATH"/snapd-lib/* -maxdepth 0 ! \( -name 'snaps' -o -name 'seed' -o -name 'cache' \) -exec cp -rf {} /var/lib/snapd \;
 
-    # Synchronize snaps and seed directories. The this is done separately in order to avoid copying 
+    # Synchronize snaps, seed and cache directories. The this is done separately in order to avoid copying
     # the snap files due to it is a heavy task and take most of the time of the restore phase.
     rsync -av --delete "$SNAPD_STATE_PATH"/snapd-lib/snaps /var/lib/snapd
     rsync -av --delete "$SNAPD_STATE_PATH"/snapd-lib/seed /var/lib/snapd
+    rsync -av --delete "$SNAPD_STATE_PATH"/snapd-lib/cache /var/lib/snapd
 }

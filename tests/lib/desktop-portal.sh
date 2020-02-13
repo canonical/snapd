@@ -3,8 +3,8 @@
 #shellcheck source=tests/lib/pkgdb.sh
 . "$TESTSLIB"/pkgdb.sh
 
-TEST_UID="$(id -u test)"
-USER_RUNTIME_DIR="/run/user/${TEST_UID}"
+#shellcheck source=tests/lib/user.sh
+. "$TESTSLIB"/user.sh
 
 setup_portals() {
     # Install xdg-desktop-portal and configure service activation for
@@ -32,17 +32,12 @@ Interfaces=org.freedesktop.impl.portal.FileChooser;org.freedesktop.impl.portal.S
 UseIn=spread
 EOF
 
-    # Make sure the test user's XDG_RUNTIME_DIR exists
-    mkdir -p "$USER_RUNTIME_DIR"
-    chmod u=rwX,go= "$USER_RUNTIME_DIR"
-    chown test:test "$USER_RUNTIME_DIR"
-
-    systemctl start "user@${TEST_UID}.service"
+    start_user_session
     as_user systemctl --user set-environment XDG_CURRENT_DESKTOP=spread
 }
 
 teardown_portals() {
-    systemctl stop "user@${TEST_UID}.service"
+    stop_user_session
 
     rm -f /usr/share/dbus-1/services/org.freedesktop.impl.portal.spread.service
     rm -f /usr/lib/systemd/user/spread-portal-ui.service
@@ -51,16 +46,5 @@ teardown_portals() {
     distro_purge_package xdg-desktop-portal
     distro_auto_remove_packages
 
-    if [ -d "${USER_RUNTIME_DIR}" ]; then 
-        umount --lazy "${USER_RUNTIME_DIR}/doc" || :
-        rm -rf "${USER_RUNTIME_DIR:?}"/* "${USER_RUNTIME_DIR:?}"/.[!.]*
-    fi
-}
-
-DBUS_SESSION_BUS_ADDRESS=
-as_user() {
-    if [ -z "$DBUS_SESSION_BUS_ADDRESS" ]; then
-        eval "$(su -l -c "XDG_RUNTIME_DIR=\"${USER_RUNTIME_DIR}\" systemctl --user show-environment" test | grep ^DBUS_SESSION_BUS_ADDRESS)"
-    fi
-    su -l -c "XDG_RUNTIME_DIR=\"${USER_RUNTIME_DIR}\" DBUS_SESSION_BUS_ADDRESS=\"${DBUS_SESSION_BUS_ADDRESS}\" $*" test
+    purge_user_session_data
 }

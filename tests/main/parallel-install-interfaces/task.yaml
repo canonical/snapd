@@ -25,12 +25,12 @@ restore: |
 execute: |
     echo "The plug can be connected to a matching slot of OS snap without snap:slot argument"
     snap connect home-consumer:home
-    snap interfaces | MATCH ':home .*home-consumer$'
+    snap interfaces -i home | MATCH ':home .*home-consumer'
     snap tasks --last=connect| MATCH "Connect home-consumer:home to (core|snapd):home"
 
     echo "Instance snap plug can be connected as well"
     snap connect home-consumer_foo:home
-    snap interfaces | MATCH ':home .*home-consumer_foo$'
+    snap interfaces -i home | MATCH ':home .*home-consumer_foo'
     snap tasks --last=connect| MATCH "Connect home-consumer_foo:home to (core|snapd):home"
 
     echo "When non-instance snap plug is disconnected"
@@ -38,7 +38,7 @@ execute: |
     snap tasks --last=disconnect| MATCH "Disconnect home-consumer:home from (core|snapd):home"
 
     echo "The instance snap plug remains connected"
-    snap interfaces | MATCH ':home .*home-consumer_foo$'
+    snap interfaces -i home | MATCH ':home .*home-consumer_foo'
 
     snap disconnect home-consumer_foo:home
     snap tasks --last=disconnect| MATCH "Disconnect home-consumer_foo:home from (core|snapd):home"
@@ -57,8 +57,8 @@ execute: |
     snap interfaces | MATCH "$CONTENT_CONNECTED_PATTERN"
 
     # Remove the content snaps so that we can reinstall them the other way around
-    snap remove test-snapd-content-plug_foo
-    snap remove test-snapd-content-slot
+    snap remove --purge test-snapd-content-plug_foo
+    snap remove --purge test-snapd-content-slot
 
     echo "The slot side auto-connects when content snap is installed"
     snap install --edge test-snapd-content-plug_foo
@@ -66,6 +66,6 @@ execute: |
     # snap install --edge test-snapd-content-slot
     snap interfaces | MATCH "$CONTENT_CONNECTED_PATTERN"
     echo "The interface is disconnected when content snap provider is removed"
-    snap remove test-snapd-content-slot
+    snap remove --purge test-snapd-content-slot
 
     snap interfaces | MATCH -- '^-\s+test-snapd-content-plug_foo:shared-content-plug$'

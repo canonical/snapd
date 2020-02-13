@@ -14,6 +14,7 @@ restore: |
     . "$TESTSLIB/pkgdb.sh"
     umount -f /usr/bin/xdg-settings || true
     umount -f /usr/bin/zenity || true
+    rm -f stderr.log
 
 execute: |
     #shellcheck source=tests/lib/pkgdb.sh
@@ -22,6 +23,8 @@ execute: |
     . "$TESTSLIB/dirs.sh"
     #shellcheck source=tests/lib/snaps.sh
     . "$TESTSLIB/snaps.sh"
+    #shellcheck source=tests/lib/systems.sh
+    . "$TESTSLIB"/systems.sh
 
     install_local test-snapd-xdg-settings
 
@@ -69,13 +72,24 @@ execute: |
     touch /usr/bin/zenity
     mount --bind /bin/true /usr/bin/zenity
 
+    if is_cgroupv2 ; then
+        # we are expecting the test to fail on a cgroup v2 system
+        if ensure_xdg_settings_output "http://smoke-test-cgroupv2.com" 2> stderr.log ; then
+            echo "expected failure, but none happened"
+            exit 1
+        fi
+        MATCH 'WARNING: cgroup v2 is not fully supported yet, proceeding with partial confinement' < stderr.log
+        MATCH 'cannot find snap for connection: not supported' < stderr.log
+        exit 0
+    fi
+
     ensure_xdg_settings_output "set" "default-web-browser" "browser.desktop"
 
     # Ensure settings whitelist for settings and values works
     rm /tmp/xdg-settings-output
-    ! $SNAP_MOUNT_DIR/core/current/usr/bin/xdg-settings set random-settting something
+    not $SNAP_MOUNT_DIR/core/current/usr/bin/xdg-settings set random-settting something
     test ! -e /tmp/xdg-settings-output
-    ! $SNAP_MOUNT_DIR/core/current/usr/bin/xdg-settings set default-web-browser inälid
+    not $SNAP_MOUNT_DIR/core/current/usr/bin/xdg-settings set default-web-browser inälid
     test ! -e /tmp/xdg-settings-output
 
 

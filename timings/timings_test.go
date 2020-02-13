@@ -155,6 +155,42 @@ func (s *timingsSuite) TestSave(c *C) {
 			}}})
 }
 
+func (s *timingsSuite) TestSaveNoTimings(c *C) {
+	s.mockDuration(c)
+
+	s.st.Lock()
+	defer s.st.Unlock()
+
+	timing := timings.New(nil)
+	timing.Save(s.st)
+
+	var stateTimings []interface{}
+	c.Assert(s.st.Get("timings", &stateTimings), Equals, state.ErrNoState)
+}
+
+func (s *timingsSuite) TestSaveNoTimingsWithChangeID(c *C) {
+	s.st.Lock()
+	defer s.st.Unlock()
+
+	chg := s.st.NewChange("change", "...")
+	task := s.st.NewTask("kind", "...")
+	task.SetStatus(state.DoingStatus)
+	chg.AddTask(task)
+
+	timing := timings.New(nil)
+	timing.LinkChange(chg)
+	timing.Save(s.st)
+
+	var stateTimings []interface{}
+	c.Assert(s.st.Get("timings", &stateTimings), IsNil)
+	c.Assert(stateTimings, DeepEquals, []interface{}{
+		map[string]interface{}{
+			"tags":       map[string]interface{}{"change-id": chg.ID()},
+			"start-time": "0001-01-01T00:00:00Z",
+			"stop-time":  "0001-01-01T00:00:00Z",
+		}})
+}
+
 func (s *timingsSuite) TestDuration(c *C) {
 	s.st.Lock()
 	defer s.st.Unlock()
@@ -342,4 +378,64 @@ func (s *timingsSuite) TestNewForTask(c *C) {
 					"duration": float64(1000000),
 				},
 			}}})
+}
+
+func (s *timingsSuite) TestGet(c *C) {
+	s.st.Lock()
+	defer s.st.Unlock()
+
+	// three timings, with 2 nested measures
+	for i := 0; i < 3; i++ {
+		timing := timings.New(map[string]string{"foo": fmt.Sprintf("%d", i)})
+		meas := timing.StartSpan(fmt.Sprintf("doing something-%d", i), "...")
+		nested := meas.StartSpan("nested measurement", "...")
+		nested.Stop()
+		meas.Stop()
+		timing.Save(s.st)
+	}
+
+	none, err := timings.Get(s.st, 999, func(tags map[string]string) bool { return false })
+	c.Assert(err, IsNil)
+	c.Check(none, HasLen, 0)
+
+	tm, err := timings.Get(s.st, -1, func(tags map[string]string) bool {
+		return tags["foo"] == "1"
+	})
+	c.Assert(err, IsNil)
+	c.Check(tm, DeepEquals, []*timings.TimingsInfo{
+		{
+			Tags:     map[string]string{"foo": "1"},
+			Duration: 3000000,
+			NestedTimings: []*timings.TimingJSON{
+				{Level: 0, Label: "doing something-1", Summary: "...", Duration: 3000000},
+				{Level: 1, Label: "nested measurement", Summary: "...", Duration: 1000000},
+			},
+		},
+	})
+
+	tmOnlyLevel0, err := timings.Get(s.st, 0, func(tags map[string]string) bool { return true })
+	c.Assert(err, IsNil)
+	c.Check(tmOnlyLevel0, DeepEquals, []*timings.TimingsInfo{
+		{
+			Tags:     map[string]string{"foo": "0"},
+			Duration: 3000000,
+			NestedTimings: []*timings.TimingJSON{
+				{Level: 0, Label: "doing something-0", Summary: "...", Duration: 3000000},
+			},
+		},
+		{
+			Tags:     map[string]string{"foo": "1"},
+			Duration: 3000000,
+			NestedTimings: []*timings.TimingJSON{
+				{Level: 0, Label: "doing something-1", Summary: "...", Duration: 3000000},
+			},
+		},
+		{
+			Tags:     map[string]string{"foo": "2"},
+			Duration: 3000000,
+			NestedTimings: []*timings.TimingJSON{
+				{Level: 0, Label: "doing something-2", Summary: "...", Duration: 3000000},
+			},
+		},
+	})
 }

@@ -37,7 +37,7 @@ execute: |
 
     echo "Check listing again"
     snap aliases|MATCH "aliases.cmd1 +alias1 +manual"
-    ! snap aliases|MATCH "aliases.cmd2 +alias2"
+    snap aliases | not MATCH "aliases.cmd2 +alias2"
 
     echo "Disable all aliases"
     snap unalias aliases|MATCH ".*- aliases.cmd1 as alias1*"
@@ -45,13 +45,13 @@ execute: |
     echo "Alias is gone"
     test ! -e "$SNAP_MOUNT_DIR/bin/alias1"
     alias1 2>&1|MATCH "alias1: command not found"
-    ! snap aliases|MATCH "aliases.cmd1 +alias1"
+    snap aliases | not MATCH "aliases.cmd1 +alias1"
 
     echo "Recreate one"
     snap alias aliases.cmd1 alias1
     alias1|MATCH "ok command 1"
 
     echo "Removing the snap should remove the aliases"
-    snap remove aliases
+    snap remove --purge aliases
     test ! -e "$SNAP_MOUNT_DIR/bin/alias1"
     test ! -e "$SNAP_MOUNT_DIR/bin/alias2"

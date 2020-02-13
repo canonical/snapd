@@ -20,6 +20,8 @@
 package apparmor_test
 
 import (
+	"strings"
+
 	. "gopkg.in/check.v1"
 
 	"github.com/snapcore/snapd/interfaces"
@@ -139,6 +141,11 @@ func (s *specSuite) TestAddUpdateNS(c *C) {
 	s.spec.AddUpdateNS("s-u-n snippet 1")
 	s.spec.AddUpdateNS("s-u-n snippet 2")
 
+	// Check the order of the snippets can be retrieved.
+	idx, ok := s.spec.UpdateNSIndexOf("s-u-n snippet 2")
+	c.Assert(ok, Equals, true)
+	c.Check(idx, Equals, 1)
+
 	// The snippets were recorded correctly and in the right place.
 	c.Assert(s.spec.UpdateNS(), DeepEquals, []string{
 		"s-u-n snippet 1", "s-u-n snippet 2",
@@ -183,6 +190,7 @@ func (s *specSuite) TestApparmorSnippetsFromLayout(c *C) {
 
 	profile0 := `  # Layout /etc/foo.conf: bind-file $SNAP/foo.conf
   mount options=(bind, rw) /snap/vanguard/42/foo.conf -> /etc/foo.conf,
+  mount options=(rprivate) -> /etc/foo.conf,
   umount /etc/foo.conf,
   # Writable mimic /etc
   # .. permissions for traversing the prefix that is assumed to exist
@@ -205,227 +213,155 @@ func (s *specSuite) TestApparmorSnippetsFromLayout(c *C) {
   mount options=(bind, rw) /tmp/.snap/etc/* -> /etc/*,
   # Allow unmounting the auxiliary directory.
   # TODO: use fstype=tmpfs here for more strictness (LP: #1613403)
+  mount options=(rprivate) -> /tmp/.snap/etc/,
   umount /tmp/.snap/etc/,
   # Allow unmounting the destination directory as well as anything
   # inside.  This lets us perform the undo plan in case the writable
   # mimic fails.
+  mount options=(rprivate) -> /etc/,
+  mount options=(rprivate) -> /etc/*,
+  mount options=(rprivate) -> /etc/*/,
   umount /etc/,
   umount /etc/*,
   umount /etc/*/,
   # Writable mimic /snap/vanguard/42
-  # .. permissions for traversing the prefix that is assumed to exist
-  / r,
   /snap/ r,
   /snap/vanguard/ r,
   # .. variant with mimic at /snap/vanguard/42/
-  # Allow reading the mimic directory, it must exist in the first place.
   /snap/vanguard/42/ r,
-  # Allow setting the read-only directory aside via a bind mount.
   /tmp/.snap/snap/vanguard/42/ rw,
   mount options=(rbind, rw) /snap/vanguard/42/ -> /tmp/.snap/snap/vanguard/42/,
-  # Allow mounting tmpfs over the read-only directory.
   mount fstype=tmpfs options=(rw) tmpfs -> /snap/vanguard/42/,
-  # Allow creating empty files and directories for bind mounting things
-  # to reconstruct the now-writable parent directory.
   /tmp/.snap/snap/vanguard/42/*/ rw,
   /snap/vanguard/42/*/ rw,
   mount options=(rbind, rw) /tmp/.snap/snap/vanguard/42/*/ -> /snap/vanguard/42/*/,
   /tmp/.snap/snap/vanguard/42/* rw,
   /snap/vanguard/42/* rw,
   mount options=(bind, rw) /tmp/.snap/snap/vanguard/42/* -> /snap/vanguard/42/*,
-  # Allow unmounting the auxiliary directory.
-  # TODO: use fstype=tmpfs here for more strictness (LP: #1613403)
+  mount options=(rprivate) -> /tmp/.snap/snap/vanguard/42/,
   umount /tmp/.snap/snap/vanguard/42/,
-  # Allow unmounting the destination directory as well as anything
-  # inside.  This lets us perform the undo plan in case the writable
-  # mimic fails.
+  mount options=(rprivate) -> /snap/vanguard/42/,
+  mount options=(rprivate) -> /snap/vanguard/42/*,
+  mount options=(rprivate) -> /snap/vanguard/42/*/,
   umount /snap/vanguard/42/,
   umount /snap/vanguard/42/*,
   umount /snap/vanguard/42/*/,
 `
-	c.Assert(updateNS[0], Equals, profile0)
+	// Find the slice that describes profile0 by looking for the first unique
+	// line of the next profile.
+	start := 0
+	end, _ := s.spec.UpdateNSIndexOf("  # Layout /usr/foo: bind $SNAP/usr/foo\n")
+	c.Assert(strings.Join(updateNS[start:end], ""), Equals, profile0)
 
 	profile1 := `  # Layout /usr/foo: bind $SNAP/usr/foo
   mount options=(rbind, rw) /snap/vanguard/42/usr/foo/ -> /usr/foo/,
+  mount options=(rprivate) -> /usr/foo/,
   umount /usr/foo/,
   # Writable mimic /usr
-  # .. permissions for traversing the prefix that is assumed to exist
-  / r,
   # .. variant with mimic at /usr/
-  # Allow reading the mimic directory, it must exist in the first place.
   /usr/ r,
-  # Allow setting the read-only directory aside via a bind mount.
   /tmp/.snap/usr/ rw,
   mount options=(rbind, rw) /usr/ -> /tmp/.snap/usr/,
-  # Allow mounting tmpfs over the read-only directory.
   mount fstype=tmpfs options=(rw) tmpfs -> /usr/,
-  # Allow creating empty files and directories for bind mounting things
-  # to reconstruct the now-writable parent directory.
   /tmp/.snap/usr/*/ rw,
   /usr/*/ rw,
   mount options=(rbind, rw) /tmp/.snap/usr/*/ -> /usr/*/,
   /tmp/.snap/usr/* rw,
   /usr/* rw,
   mount options=(bind, rw) /tmp/.snap/usr/* -> /usr/*,
-  # Allow unmounting the auxiliary directory.
-  # TODO: use fstype=tmpfs here for more strictness (LP: #1613403)
+  mount options=(rprivate) -> /tmp/.snap/usr/,
   umount /tmp/.snap/usr/,
-  # Allow unmounting the destination directory as well as anything
-  # inside.  This lets us perform the undo plan in case the writable
-  # mimic fails.
+  mount options=(rprivate) -> /usr/,
+  mount options=(rprivate) -> /usr/*,
+  mount options=(rprivate) -> /usr/*/,
   umount /usr/,
   umount /usr/*,
   umount /usr/*/,
   # Writable mimic /snap/vanguard/42/usr
-  # .. permissions for traversing the prefix that is assumed to exist
-  / r,
-  /snap/ r,
-  /snap/vanguard/ r,
-  # .. variant with mimic at /snap/vanguard/42/
-  # Allow reading the mimic directory, it must exist in the first place.
-  /snap/vanguard/42/ r,
-  # Allow setting the read-only directory aside via a bind mount.
-  /tmp/.snap/snap/vanguard/42/ rw,
-  mount options=(rbind, rw) /snap/vanguard/42/ -> /tmp/.snap/snap/vanguard/42/,
-  # Allow mounting tmpfs over the read-only directory.
-  mount fstype=tmpfs options=(rw) tmpfs -> /snap/vanguard/42/,
-  # Allow creating empty files and directories for bind mounting things
-  # to reconstruct the now-writable parent directory.
-  /tmp/.snap/snap/vanguard/42/*/ rw,
-  /snap/vanguard/42/*/ rw,
-  mount options=(rbind, rw) /tmp/.snap/snap/vanguard/42/*/ -> /snap/vanguard/42/*/,
-  /tmp/.snap/snap/vanguard/42/* rw,
-  /snap/vanguard/42/* rw,
-  mount options=(bind, rw) /tmp/.snap/snap/vanguard/42/* -> /snap/vanguard/42/*,
-  # Allow unmounting the auxiliary directory.
-  # TODO: use fstype=tmpfs here for more strictness (LP: #1613403)
-  umount /tmp/.snap/snap/vanguard/42/,
-  # Allow unmounting the destination directory as well as anything
-  # inside.  This lets us perform the undo plan in case the writable
-  # mimic fails.
-  umount /snap/vanguard/42/,
-  umount /snap/vanguard/42/*,
-  umount /snap/vanguard/42/*/,
   # .. variant with mimic at /snap/vanguard/42/usr/
-  # Allow reading the mimic directory, it must exist in the first place.
   /snap/vanguard/42/usr/ r,
-  # Allow setting the read-only directory aside via a bind mount.
   /tmp/.snap/snap/vanguard/42/usr/ rw,
   mount options=(rbind, rw) /snap/vanguard/42/usr/ -> /tmp/.snap/snap/vanguard/42/usr/,
-  # Allow mounting tmpfs over the read-only directory.
   mount fstype=tmpfs options=(rw) tmpfs -> /snap/vanguard/42/usr/,
-  # Allow creating empty files and directories for bind mounting things
-  # to reconstruct the now-writable parent directory.
   /tmp/.snap/snap/vanguard/42/usr/*/ rw,
   /snap/vanguard/42/usr/*/ rw,
   mount options=(rbind, rw) /tmp/.snap/snap/vanguard/42/usr/*/ -> /snap/vanguard/42/usr/*/,
   /tmp/.snap/snap/vanguard/42/usr/* rw,
   /snap/vanguard/42/usr/* rw,
   mount options=(bind, rw) /tmp/.snap/snap/vanguard/42/usr/* -> /snap/vanguard/42/usr/*,
-  # Allow unmounting the auxiliary directory.
-  # TODO: use fstype=tmpfs here for more strictness (LP: #1613403)
+  mount options=(rprivate) -> /tmp/.snap/snap/vanguard/42/usr/,
   umount /tmp/.snap/snap/vanguard/42/usr/,
-  # Allow unmounting the destination directory as well as anything
-  # inside.  This lets us perform the undo plan in case the writable
-  # mimic fails.
+  mount options=(rprivate) -> /snap/vanguard/42/usr/,
+  mount options=(rprivate) -> /snap/vanguard/42/usr/*,
+  mount options=(rprivate) -> /snap/vanguard/42/usr/*/,
   umount /snap/vanguard/42/usr/,
   umount /snap/vanguard/42/usr/*,
   umount /snap/vanguard/42/usr/*/,
 `
-	c.Assert(updateNS[1], Equals, profile1)
+	// Find the slice that describes profile1 by looking for the first unique
+	// line of the next profile.
+	start = end
+	end, _ = s.spec.UpdateNSIndexOf("  # Layout /var/cache/mylink: symlink $SNAP_DATA/link/target\n")
+	c.Assert(strings.Join(updateNS[start:end], ""), Equals, profile1)
 
 	profile2 := `  # Layout /var/cache/mylink: symlink $SNAP_DATA/link/target
   /var/cache/mylink rw,
   # Writable mimic /var/cache
-  # .. permissions for traversing the prefix that is assumed to exist
-  / r,
   # .. variant with mimic at /var/
-  # Allow reading the mimic directory, it must exist in the first place.
   /var/ r,
-  # Allow setting the read-only directory aside via a bind mount.
   /tmp/.snap/var/ rw,
   mount options=(rbind, rw) /var/ -> /tmp/.snap/var/,
-  # Allow mounting tmpfs over the read-only directory.
   mount fstype=tmpfs options=(rw) tmpfs -> /var/,
-  # Allow creating empty files and directories for bind mounting things
-  # to reconstruct the now-writable parent directory.
   /tmp/.snap/var/*/ rw,
   /var/*/ rw,
   mount options=(rbind, rw) /tmp/.snap/var/*/ -> /var/*/,
   /tmp/.snap/var/* rw,
   /var/* rw,
   mount options=(bind, rw) /tmp/.snap/var/* -> /var/*,
-  # Allow unmounting the auxiliary directory.
-  # TODO: use fstype=tmpfs here for more strictness (LP: #1613403)
+  mount options=(rprivate) -> /tmp/.snap/var/,
   umount /tmp/.snap/var/,
-  # Allow unmounting the destination directory as well as anything
-  # inside.  This lets us perform the undo plan in case the writable
-  # mimic fails.
+  mount options=(rprivate) -> /var/,
+  mount options=(rprivate) -> /var/*,
+  mount options=(rprivate) -> /var/*/,
   umount /var/,
   umount /var/*,
   umount /var/*/,
   # .. variant with mimic at /var/cache/
-  # Allow reading the mimic directory, it must exist in the first place.
   /var/cache/ r,
-  # Allow setting the read-only directory aside via a bind mount.
   /tmp/.snap/var/cache/ rw,
   mount options=(rbind, rw) /var/cache/ -> /tmp/.snap/var/cache/,
-  # Allow mounting tmpfs over the read-only directory.
   mount fstype=tmpfs options=(rw) tmpfs -> /var/cache/,
-  # Allow creating empty files and directories for bind mounting things
-  # to reconstruct the now-writable parent directory.
   /tmp/.snap/var/cache/*/ rw,
   /var/cache/*/ rw,
   mount options=(rbind, rw) /tmp/.snap/var/cache/*/ -> /var/cache/*/,
   /tmp/.snap/var/cache/* rw,
   /var/cache/* rw,
   mount options=(bind, rw) /tmp/.snap/var/cache/* -> /var/cache/*,
-  # Allow unmounting the auxiliary directory.
-  # TODO: use fstype=tmpfs here for more strictness (LP: #1613403)
+  mount options=(rprivate) -> /tmp/.snap/var/cache/,
   umount /tmp/.snap/var/cache/,
-  # Allow unmounting the destination directory as well as anything
-  # inside.  This lets us perform the undo plan in case the writable
-  # mimic fails.
+  mount options=(rprivate) -> /var/cache/,
+  mount options=(rprivate) -> /var/cache/*,
+  mount options=(rprivate) -> /var/cache/*/,
   umount /var/cache/,
   umount /var/cache/*,
   umount /var/cache/*/,
 `
-	c.Assert(updateNS[2], Equals, profile2)
+	// Find the slice that describes profile2 by looking for the first unique
+	// line of the next profile.
+	start = end
+	end, _ = s.spec.UpdateNSIndexOf("  # Layout /var/tmp: type tmpfs, mode: 01777\n")
+	c.Assert(strings.Join(updateNS[start:end], ""), Equals, profile2)
 
 	profile3 := `  # Layout /var/tmp: type tmpfs, mode: 01777
   mount fstype=tmpfs tmpfs -> /var/tmp/,
+  mount options=(rprivate) -> /var/tmp/,
   umount /var/tmp/,
   # Writable mimic /var
-  # .. permissions for traversing the prefix that is assumed to exist
-  / r,
-  # .. variant with mimic at /var/
-  # Allow reading the mimic directory, it must exist in the first place.
-  /var/ r,
-  # Allow setting the read-only directory aside via a bind mount.
-  /tmp/.snap/var/ rw,
-  mount options=(rbind, rw) /var/ -> /tmp/.snap/var/,
-  # Allow mounting tmpfs over the read-only directory.
-  mount fstype=tmpfs options=(rw) tmpfs -> /var/,
-  # Allow creating empty files and directories for bind mounting things
-  # to reconstruct the now-writable parent directory.
-  /tmp/.snap/var/*/ rw,
-  /var/*/ rw,
-  mount options=(rbind, rw) /tmp/.snap/var/*/ -> /var/*/,
-  /tmp/.snap/var/* rw,
-  /var/* rw,
-  mount options=(bind, rw) /tmp/.snap/var/* -> /var/*,
-  # Allow unmounting the auxiliary directory.
-  # TODO: use fstype=tmpfs here for more strictness (LP: #1613403)
-  umount /tmp/.snap/var/,
-  # Allow unmounting the destination directory as well as anything
-  # inside.  This lets us perform the undo plan in case the writable
-  # mimic fails.
-  umount /var/,
-  umount /var/*,
-  umount /var/*/,
 `
-	c.Assert(updateNS[3], Equals, profile3)
-	c.Assert(updateNS, DeepEquals, []string{profile0, profile1, profile2, profile3})
+	// Find the slice that describes profile2 by looking till the end of the list.
+	start = end
+	c.Assert(strings.Join(updateNS[start:], ""), Equals, profile3)
+	c.Assert(strings.Join(updateNS, ""), DeepEquals, strings.Join([]string{profile0, profile1, profile2, profile3}, ""))
 }
 
 const snapTrivial = `

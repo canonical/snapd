@@ -26,6 +26,11 @@ import (
 	"github.com/snapcore/snapd/overlord/state"
 )
 
+// FinalTasks are task kinds for final tasks in a change which means no further
+// change work should be performed afterward, usually these are tasks that
+// commit a full system transition.
+var FinalTasks = []string{"mark-seeded", "set-model"}
+
 // ChangeConflictError represents an error because of snap conflicts between changes.
 type ChangeConflictError struct {
 	Snap       string
@@ -103,6 +108,15 @@ func CheckChangeConflictMany(st *state.State, instanceNames []string, ignoreChan
 		}
 		if chg.Kind() == "transition-ubuntu-core" {
 			return &ChangeConflictError{Message: "ubuntu-core to core transition in progress, no other changes allowed until this is done", ChangeKind: "transition-ubuntu-core"}
+		}
+		if chg.Kind() == "transition-to-snapd-snap" {
+			return &ChangeConflictError{Message: "transition to snapd snap in progress, no other changes allowed until this is done", ChangeKind: "transition-to-snapd-snap"}
+		}
+		if chg.Kind() == "remodel" {
+			if ignoreChangeID != "" && chg.ID() == ignoreChangeID {
+				continue
+			}
+			return &ChangeConflictError{Message: "remodeling in progress, no other changes allowed until this is done", ChangeKind: "remodel"}
 		}
 	}
 

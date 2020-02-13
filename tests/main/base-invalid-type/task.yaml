@@ -1,0 +1,11 @@
+summary: Check that installing a snap requiring a base fails if base has invalid type
+
+prepare: |
+    snap pack "$TESTSLIB/snaps/test-snapd-invalid-base"
+
+execute: |
+    #shellcheck source=tests/lib/snaps.sh
+    . "$TESTSLIB"/snaps.sh
+
+    echo "Install a snap with test-snapd-tools"
+    snap install --dangerous test-snapd-invalid-base_1.0_all.snap 2>&1 | MATCH "Ensure prerequisites for \"test-snapd-invalid-base\" are available \(cannot install snap base \"test-snapd-tools\": unexpected snap type \"app\", instead of 'base'\)"

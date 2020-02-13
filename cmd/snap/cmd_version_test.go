@@ -30,7 +30,7 @@ import (
 
 func (s *SnapSuite) TestVersionCommandOnClassic(c *C) {
 	s.RedirectClientToTestServer(func(w http.ResponseWriter, r *http.Request) {
-		fmt.Fprintln(w, `{"type":"sync","status-code":200,"status":"OK","result":{"on-classic":true,"os-release":{"id":"ubuntu","version-id":"12.34"},"series":"56","version":"7.89"}}`)
+		fmt.Fprintln(w, `{"type":"sync","status-code":200,"status":"OK","result":{"on-classic":true,"os-release":{"id":"ubuntu","version-id":"12.34"},"series":"56","version":"7.89","architecture":"ia64"}}`)
 	})
 	restore := mockArgs("snap", "version")
 	defer restore()
@@ -45,7 +45,7 @@ func (s *SnapSuite) TestVersionCommandOnClassic(c *C) {
 
 func (s *SnapSuite) TestVersionCommandOnAllSnap(c *C) {
 	s.RedirectClientToTestServer(func(w http.ResponseWriter, r *http.Request) {
-		fmt.Fprintln(w, `{"type":"sync","status-code":200,"status":"OK","result":{"os-release":{"id":"ubuntu","version-id":"12.34"},"series":"56","version":"7.89"}}`)
+		fmt.Fprintln(w, `{"type":"sync","status-code":200,"status":"OK","result":{"os-release":{"id":"ubuntu","version-id":"12.34"},"series":"56","version":"7.89","architecture":"powerpc","virtualization":"qemu"}}`)
 	})
 	restore := mockArgs("snap", "--version")
 	defer restore()

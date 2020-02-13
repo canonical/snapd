@@ -126,7 +126,8 @@ func ReadMountInfo(reader io.Reader) ([]*MountInfoEntry, error) {
 func ParseMountInfoEntry(s string) (*MountInfoEntry, error) {
 	var e MountInfoEntry
 	var err error
-	fields := strings.Fields(s)
+	fields := strings.FieldsFunc(s, func(r rune) bool { return r == ' ' })
+
 	// The format is variable-length, but at least 10 fields are mandatory.
 	// The (7) below is a list of optional field which is terminated with (8).
 	// 36 35 98:0 /mnt1 /mnt2 rw,noatime master:1 - ext3 /dev/root rw,errors=continue

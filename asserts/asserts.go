@@ -37,6 +37,17 @@ const (
 	noAuthority typeFlags = iota + 1
 )
 
+// MetaHeaders is a list of headers in assertions which are about the assertion
+// itself.
+var MetaHeaders = [...]string{
+	"type",
+	"format",
+	"authority-id",
+	"revision",
+	"body-length",
+	"sign-key-sha3-384",
+}
+
 // AssertionType describes a known assertion type with its name and metadata.
 type AssertionType struct {
 	// Name of the type.
@@ -125,7 +136,8 @@ func init() {
 	// 1: plugs and slots
 	// 2: support for $SLOT()/$PLUG()/$MISSING
 	// 3: support for on-store/on-brand/on-model device scope constraints
-	maxSupportedFormat[SnapDeclarationType.Name] = 3
+	// 4: support for plug-names/slot-names constraints
+	maxSupportedFormat[SnapDeclarationType.Name] = 4
 }
 
 func MockMaxSupportedFormat(assertType *AssertionType, maxFormat int) (restore func()) {

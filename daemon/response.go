@@ -188,6 +188,10 @@ const (
 
 	errorKindDaemonRestart = errorKind("daemon-restart")
 	errorKindSystemRestart = errorKind("system-restart")
+
+	errorKindAssertionNotFound = errorKind("assertion-not-found")
+
+	errorKindUnsuccessful = errorKind("unsuccessful")
 )
 
 type errorValue interface{}
@@ -246,11 +250,42 @@ func makeErrorResponder(status int) errorResponder {
 	}
 }
 
-// A FileResponse 's ServeHTTP method serves the file
-type FileResponse string
+// A FileStream ServeHTTP method streams the snap
+type fileStream struct {
+	SnapName string
+	Filename string
+	Info     snap.DownloadInfo
+	stream   io.ReadCloser
+}
 
 // ServeHTTP from the Response interface
-func (f FileResponse) ServeHTTP(w http.ResponseWriter, r *http.Request) {
+func (s fileStream) ServeHTTP(w http.ResponseWriter, _ *http.Request) {
+	hdr := w.Header()
+	hdr.Set("Content-Type", "application/octet-stream")
+	snapname := fmt.Sprintf("attachment; filename=%s", s.Filename)
+	hdr.Set("Content-Disposition", snapname)
+
+	size := fmt.Sprintf("%d", s.Info.Size)
+	hdr.Set("Content-Length", size)
+	hdr.Set("Snap-Sha3-384", s.Info.Sha3_384)
+
+	defer s.stream.Close()
+	bytesCopied, err := io.Copy(w, s.stream)
+	if err != nil {
+		logger.Noticef("cannot copy snap %s (%#v) to the stream: %v", s.SnapName, s.Info, err)
+		http.Error(w, err.Error(), 500)
+	}
+	if bytesCopied != s.Info.Size {
+		logger.Noticef("cannot copy snap %s (%#v) to the stream: bytes copied=%d, expected=%d", s.SnapName, s.Info, bytesCopied, s.Info.Size)
+		http.Error(w, io.EOF.Error(), 502)
+	}
+}
+
+// A fileResponse 's ServeHTTP method serves the file
+type fileResponse string
+
+// ServeHTTP from the Response interface
+func (f fileResponse) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	filename := fmt.Sprintf("attachment; filename=%s", filepath.Base(string(f)))
 	w.Header().Add("Content-Disposition", filename)
 	http.ServeFile(w, r, string(f))
@@ -389,7 +424,7 @@ func SnapRevisionNotAvailable(snapName string, rnaErr *store.RevisionNotAvailabl
 	kind := errorKindSnapRevisionNotAvailable
 	msg := rnaErr.Error()
 	if len(rnaErr.Releases) != 0 && rnaErr.Channel != "" {
-		thisArch := arch.UbuntuArchitecture()
+		thisArch := arch.DpkgArchitecture()
 		values := map[string]interface{}{
 			"snap-name":    snapName,
 			"action":       rnaErr.Action,
@@ -556,6 +591,14 @@ func errToResponse(err error, snaps []string, fallback func(format string, v ...
 			} else {
 				handled = false
 			}
+		case *store.SnapActionError:
+			// we only handle a few specific cases
+			_, _, e := err.SingleOpError()
+			if e != nil {
+				// 👉😎👉
+				return errToResponse(e, snaps, fallback, format)
+			}
+			handled = false
 		default:
 			handled = false
 		}

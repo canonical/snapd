@@ -37,11 +37,21 @@ prepare: |
 restore: |
     rm -rf squashfs-root
     rm -f core-customized.snap
+    #shellcheck source=tests/lib/dirs.sh
+    . "$TESTSLIB"/dirs.sh
+    # Remove the locale revision of core, if we installed one.
+    if [ "$(readlink "$SNAP_MOUNT_DIR/core/current")" = x1 ]; then
+        snap revert core
+        snap remove --revision=x1 core
+    fi
 
 execute: |
+    #shellcheck source=tests/lib/systems.sh
+    . "$TESTSLIB"/systems.sh
+
     # Start a "sleep" process in the background
     #shellcheck disable=SC2016
-    test-snapd-sh -c 'touch $SNAP_DATA/stamp && exec sleep 1h' &
+    test-snapd-sh.sh -c 'touch $SNAP_DATA/stamp && exec sleep 1h' &
     pid=$!
 
     # Ensure that snap-confine has finished its task and that the snap process
@@ -55,14 +65,26 @@ execute: |
     snap install --dangerous ./core-customized.snap
     snap list | MATCH customized
 
+    if is_cgroupv2 ; then
+        # stale mount namespace is always discarded with cgroupv2, because we
+        # cannot currently determine whether there are processes using it
+        test-snapd-sh.sh -c "test -e /customized"
+
+        # Kill our helper process.
+        kill -9 "$pid"
+        wait -n || true
+
+        exit 0
+    fi
+
     # Now we are in a situation where the core snap is stale but our sleeper
     # application is still alive so we cannot use it.
-    test-snapd-sh -c "test ! -e /customized"
+    test-snapd-sh.sh -c "test ! -e /customized"
 
     # Kill our helper process.
-    kill "$pid" || true
+    kill -9 "$pid"
     wait -n || true
 
     # Now when the process terminates, we no longer need to hold back.
     # The next process will use a fresh mount namespace.
-    test-snapd-sh -c "test -e /customized"
+    test-snapd-sh.sh -c "test -e /customized"

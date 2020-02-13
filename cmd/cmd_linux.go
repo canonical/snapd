@@ -20,14 +20,13 @@
 package cmd
 
 import (
-	"bytes"
-	"io/ioutil"
 	"log"
 	"os"
 	"path/filepath"
 	"strings"
 	"syscall"
 
+	"github.com/snapcore/snapd/cmd/cmdutil"
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/osutil"
@@ -73,34 +72,18 @@ func distroSupportsReExec() bool {
 	return true
 }
 
-// coreSupportsReExec returns true if the given core snap should be used as re-exec target.
+// coreSupportsReExec returns true if the given core/snapd snap should be used as re-exec target.
 //
 // Ensure we do not use older version of snapd, look for info file and ignore
 // version of core that do not yet have it.
-func coreSupportsReExec(corePath string) bool {
-	fullInfo := filepath.Join(corePath, filepath.Join(dirs.CoreLibExecDir, "info"))
-	content, err := ioutil.ReadFile(fullInfo)
+func coreSupportsReExec(coreOrSnapdPath string) bool {
+	infoPath := filepath.Join(coreOrSnapdPath, filepath.Join(dirs.CoreLibExecDir, "info"))
+	ver, err := cmdutil.SnapdVersionFromInfoFile(infoPath)
 	if err != nil {
-		if !os.IsNotExist(err) {
-			logger.Noticef("cannot open snapd info file %q: %s", fullInfo, err)
-		}
+		logger.Noticef("%v", err)
 		return false
 	}
 
-	if !bytes.HasPrefix(content, []byte("VERSION=")) {
-		idx := bytes.Index(content, []byte("\nVERSION="))
-		if idx < 0 {
-			logger.Noticef("cannot find snapd version information in %q", content)
-			return false
-		}
-		content = content[idx+1:]
-	}
-	content = content[8:]
-	idx := bytes.IndexByte(content, '\n')
-	if idx > -1 {
-		content = content[:idx]
-	}
-	ver := string(content)
 	// > 0 means our Version is bigger than the version of snapd in core
 	res, err := strutil.VersionCompare(Version, ver)
 	if err != nil {
@@ -108,12 +91,14 @@ func coreSupportsReExec(corePath string) bool {
 		return false
 	}
 	if res > 0 {
-		logger.Debugf("core snap (at %q) is older (%q) than distribution package (%q)", corePath, ver, Version)
+		logger.Debugf("snap (at %q) is older (%q) than distribution package (%q)", coreOrSnapdPath, ver, Version)
 		return false
 	}
 	return true
 }
 
+// TODO: move to cmd/cmdutil/
+//
 // InternalToolPath returns the path of an internal snapd tool. The tool
 // *must* be located inside the same tree as the current binary.
 //
@@ -143,6 +128,14 @@ func InternalToolPath(tool string) (string, error) {
 			// /usr/, but does not start with one
 			prefix := exe[:idx]
 			return filepath.Join(prefix, "/usr/lib/snapd", tool), nil
+		}
+		if idx == -1 {
+			// or perhaps some other random location, make sure the tool
+			// exists there and is an executable
+			maybeTool := filepath.Join(filepath.Dir(exe), tool)
+			if osutil.IsExecutable(maybeTool) {
+				return maybeTool, nil
+			}
 		}
 	}
 
@@ -196,10 +189,10 @@ func ExecInSnapdOrCoreSnap() {
 	}
 
 	// Is this executable in the core snap too?
-	corePath := snapdSnap
+	coreOrSnapdPath := snapdSnap
 	full := filepath.Join(snapdSnap, exe)
 	if !osutil.FileExists(full) {
-		corePath = coreSnap
+		coreOrSnapdPath = coreSnap
 		full = filepath.Join(coreSnap, exe)
 		if !osutil.FileExists(full) {
 			return
@@ -207,7 +200,7 @@ func ExecInSnapdOrCoreSnap() {
 	}
 
 	// If the core snap doesn't support re-exec or run-from-core then don't do it.
-	if !coreSupportsReExec(corePath) {
+	if !coreSupportsReExec(coreOrSnapdPath) {
 		return
 	}
 

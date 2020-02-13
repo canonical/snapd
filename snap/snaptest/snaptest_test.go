@@ -198,3 +198,47 @@ hooks:
 	c.Assert(err, ErrorMatches, `cannot rename slot "old" to "new": no such slot`)
 
 }
+
+func (s *snapTestSuite) TestMockSnapWithFiles(c *C) {
+	snapInfo := snaptest.MockSnapWithFiles(c, sampleYaml, &snap.SideInfo{Revision: snap.R(42)}, [][]string{
+		{"foo/bar", "bar"},
+		{"bar", "not foo"},
+		{"meta/gadget.yaml", "gadget yaml\nmulti line"},
+	})
+	// Data from YAML is used
+	c.Check(snapInfo.InstanceName(), Equals, "sample")
+	// Data from SideInfo is used
+	c.Check(snapInfo.Revision, Equals, snap.R(42))
+	c.Check(filepath.Join(snapInfo.MountDir(), "bar"), testutil.FileEquals, "not foo")
+	c.Check(filepath.Join(snapInfo.MountDir(), "foo/bar"), testutil.FileEquals, "bar")
+	c.Check(filepath.Join(snapInfo.MountDir(), "meta/gadget.yaml"), testutil.FileEquals, "gadget yaml\nmulti line")
+}
+
+func (s *snapTestSuite) TestMockContainerMinimal(c *C) {
+	cont := snaptest.MockContainer(c, nil)
+	err := snap.ValidateContainer(cont, &snap.Info{}, nil)
+	c.Check(err, IsNil)
+}
+
+func (s *snapTestSuite) TestMockContainer(c *C) {
+	defer snap.MockSanitizePlugsSlots(func(snapInfo *snap.Info) {})()
+
+	const snapYaml = `name: gadget
+type: gadget
+version: 1.0`
+	const gadgetYaml = `defaults:
+`
+	cont := snaptest.MockContainer(c, [][]string{
+		{"meta/snap.yaml", snapYaml},
+		{"meta/gadget.yaml", gadgetYaml},
+	})
+
+	info, err := snap.ReadInfoFromSnapFile(cont, nil)
+	c.Assert(err, IsNil)
+	c.Check(info.SnapName(), Equals, "gadget")
+	err = snap.ValidateContainer(cont, info, nil)
+	c.Assert(err, IsNil)
+	readGadgetYaml, err := cont.ReadFile("meta/gadget.yaml")
+	c.Assert(err, IsNil)
+	c.Check(readGadgetYaml, DeepEquals, []byte(gadgetYaml))
+}

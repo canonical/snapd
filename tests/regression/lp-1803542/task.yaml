@@ -17,7 +17,7 @@ prepare: |
     if findmnt --noheadings /run/snapd/ns >/dev/null; then
         umount /run/snapd/ns
     fi
-    ! findmnt --noheadings /run/snapd/ns
+    not findmnt --noheadings /run/snapd/ns
 debug: |
     cat /proc/self/mountinfo
 execute: |
@@ -48,6 +48,6 @@ execute: |
             ;;
     esac
     # We can run snap-confine and it will do the right thing.
-    test-snapd-sh -c /bin/true
+    test-snapd-sh.sh -c /bin/true
     # verify that no mount tags are set, private propagation does not set any
     test "$(grep '/snapd/ns /run/snapd/ns' < /proc/self/mountinfo | awk '{print $7}')" = -

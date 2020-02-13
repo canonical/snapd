@@ -21,6 +21,7 @@ package client
 
 import (
 	"bytes"
+	"context"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -70,6 +71,9 @@ type Config struct {
 	// DisableKeepAlive indicates whether the connections should not be kept
 	// alive for later reuse
 	DisableKeepAlive bool
+
+	// User-Agent to sent to the snapd daemon
+	UserAgent string
 }
 
 // A Client knows how to talk to the snappy daemon.
@@ -84,6 +88,8 @@ type Client struct {
 
 	warningCount     int
 	warningTimestamp time.Time
+
+	userAgent string
 }
 
 // New returns a new instance of Client
@@ -103,6 +109,7 @@ func New(config *Config) *Client {
 			doer:        &http.Client{Transport: transport},
 			disableAuth: config.DisableAuth,
 			interactive: config.Interactive,
+			userAgent:   config.UserAgent,
 		}
 	}
 
@@ -115,6 +122,7 @@ func New(config *Config) *Client {
 		doer:        &http.Client{Transport: &http.Transport{DisableKeepAlives: config.DisableKeepAlive}},
 		disableAuth: config.DisableAuth,
 		interactive: config.Interactive,
+		userAgent:   config.UserAgent,
 	}
 }
 
@@ -172,10 +180,23 @@ func (e AuthorizationError) Error() string {
 	return fmt.Sprintf("cannot add authorization: %v", e.error)
 }
 
-type ConnectionError struct{ error }
+type ConnectionError struct{ Err error }
 
 func (e ConnectionError) Error() string {
-	return fmt.Sprintf("cannot communicate with server: %v", e.error)
+	var errStr string
+	switch e.Err {
+	case context.DeadlineExceeded:
+		errStr = "timeout exceeded while waiting for response"
+	case context.Canceled:
+		errStr = "request canceled"
+	default:
+		errStr = e.Err.Error()
+	}
+	return fmt.Sprintf("cannot communicate with server: %s", errStr)
+}
+
+func (e ConnectionError) Unwrap() error {
+	return e.Err
 }
 
 // AllowInteractionHeader is the HTTP request header used to indicate
@@ -185,7 +206,7 @@ const AllowInteractionHeader = "X-Allow-Interaction"
 // raw performs a request and returns the resulting http.Response and
 // error you usually only need to call this directly if you expect the
 // response to not be JSON, otherwise you'd call Do(...) instead.
-func (client *Client) raw(method, urlpath string, query url.Values, headers map[string]string, body io.Reader) (*http.Response, error) {
+func (client *Client) raw(ctx context.Context, method, urlpath string, query url.Values, headers map[string]string, body io.Reader) (*http.Response, error) {
 	// fake a url to keep http.Client happy
 	u := client.baseURL
 	u.Path = path.Join(client.baseURL.Path, urlpath)
@@ -193,6 +214,9 @@ func (client *Client) raw(method, urlpath string, query url.Values, headers map[
 	req, err := http.NewRequest(method, u.String(), body)
 	if err != nil {
 		return nil, RequestError{err}
+	}
+	if client.userAgent != "" {
+		req.Header.Set("User-Agent", client.userAgent)
 	}
 
 	for key, value := range headers {
@@ -211,6 +235,10 @@ func (client *Client) raw(method, urlpath string, query url.Values, headers map[
 		req.Header.Set(AllowInteractionHeader, "true")
 	}
 
+	if ctx != nil {
+		req = req.WithContext(ctx)
+	}
+
 	rsp, err := client.doer.Do(req)
 	if err != nil {
 		return nil, ConnectionError{err}
@@ -219,13 +247,36 @@ func (client *Client) raw(method, urlpath string, query url.Values, headers map[
 	return rsp, nil
 }
 
+// rawWithTimeout is like raw(), but sets a timeout for the whole of request and
+// response (including rsp.Body() read) round trip. The caller is responsible
+// for canceling the internal context to release the resources associated with
+// the request by calling the returned cancel function.
+func (client *Client) rawWithTimeout(ctx context.Context, method, urlpath string, query url.Values, headers map[string]string, body io.Reader, timeout time.Duration) (*http.Response, context.CancelFunc, error) {
+	if timeout == 0 {
+		return nil, nil, fmt.Errorf("internal error: timeout not set for rawWithTimeout")
+	}
+
+	ctx, cancel := context.WithTimeout(ctx, timeout)
+	rsp, err := client.raw(ctx, method, urlpath, query, headers, body)
+	if err != nil && ctx.Err() != nil {
+		cancel()
+		return nil, nil, ConnectionError{ctx.Err()}
+	}
+
+	return rsp, cancel, err
+}
+
 var (
-	doRetry   = 250 * time.Millisecond
-	doTimeout = 5 * time.Second
+	doRetry = 250 * time.Millisecond
+	// snapd may need to reach out to the store, where it uses a fixed 10s
+	// timeout for the whole of a single request to complete, requests are
+	// retried for up to 38s in total, make sure that the client timeout is
+	// not shorter than that
+	doTimeout = 50 * time.Second
 )
 
-// MockDoRetry mocks the delays used by the do retry loop.
-func MockDoRetry(retry, timeout time.Duration) (restore func()) {
+// MockDoTimings mocks the delay used by the do retry loop and request timeout.
+func MockDoTimings(retry, timeout time.Duration) (restore func()) {
 	oldRetry := doRetry
 	oldTimeout := doTimeout
 	doRetry = retry
@@ -249,39 +300,56 @@ func (client *Client) Hijack(f func(*http.Request) (*http.Response, error)) {
 	client.doer = hijacked{f}
 }
 
+type doFlags struct {
+	NoTimeout bool
+}
+
 // do performs a request and decodes the resulting json into the given
 // value. It's low-level, for testing/experimenting only; you should
 // usually use a higher level interface that builds on this.
-func (client *Client) do(method, path string, query url.Values, headers map[string]string, body io.Reader, v interface{}) error {
+func (client *Client) do(method, path string, query url.Values, headers map[string]string, body io.Reader, v interface{}, flags doFlags) (statusCode int, err error) {
 	retry := time.NewTicker(doRetry)
 	defer retry.Stop()
-	timeout := time.After(doTimeout)
+	timeout := time.NewTimer(doTimeout)
+	defer timeout.Stop()
+
 	var rsp *http.Response
-	var err error
+	var ctx context.Context = context.Background()
 	for {
-		rsp, err = client.raw(method, path, query, headers, body)
+		if flags.NoTimeout {
+			rsp, err = client.raw(ctx, method, path, query, headers, body)
+		} else {
+			var cancel context.CancelFunc
+			// use the same timeout as for the whole of the retry
+			// loop to error out the whole do() call when a single
+			// request exceeds the deadline
+			rsp, cancel, err = client.rawWithTimeout(ctx, method, path, query, headers, body, doTimeout)
+			if err == nil {
+				defer cancel()
+			}
+		}
 		if err == nil || method != "GET" {
 			break
 		}
 		select {
 		case <-retry.C:
 			continue
-		case <-timeout:
+		case <-timeout.C:
 		}
 		break
 	}
 	if err != nil {
-		return err
+		return 0, err
 	}
 	defer rsp.Body.Close()
 
 	if v != nil {
 		if err := decodeInto(rsp.Body, v); err != nil {
-			return err
+			return rsp.StatusCode, err
 		}
 	}
 
-	return nil
+	return rsp.StatusCode, nil
 }
 
 func decodeInto(reader io.Reader, v interface{}) error {
@@ -303,10 +371,11 @@ func decodeInto(reader io.Reader, v interface{}) error {
 // which produces json.Numbers instead of float64 types for numbers.
 func (client *Client) doSync(method, path string, query url.Values, headers map[string]string, body io.Reader, v interface{}) (*ResultInfo, error) {
 	var rsp response
-	if err := client.do(method, path, query, headers, body, &rsp); err != nil {
+	statusCode, err := client.do(method, path, query, headers, body, &rsp, doFlags{})
+	if err != nil {
 		return nil, err
 	}
-	if err := rsp.err(client); err != nil {
+	if err := rsp.err(client, statusCode); err != nil {
 		return nil, err
 	}
 	if rsp.Type != "sync" {
@@ -326,23 +395,28 @@ func (client *Client) doSync(method, path string, query url.Values, headers map[
 }
 
 func (client *Client) doAsync(method, path string, query url.Values, headers map[string]string, body io.Reader) (changeID string, err error) {
-	_, changeID, err = client.doAsyncFull(method, path, query, headers, body)
+	_, changeID, err = client.doAsyncFull(method, path, query, headers, body, doFlags{})
 	return
 }
 
-func (client *Client) doAsyncFull(method, path string, query url.Values, headers map[string]string, body io.Reader) (result json.RawMessage, changeID string, err error) {
-	var rsp response
+func (client *Client) doAsyncNoTimeout(method, path string, query url.Values, headers map[string]string, body io.Reader) (changeID string, err error) {
+	_, changeID, err = client.doAsyncFull(method, path, query, headers, body, doFlags{NoTimeout: true})
+	return changeID, err
+}
 
-	if err := client.do(method, path, query, headers, body, &rsp); err != nil {
+func (client *Client) doAsyncFull(method, path string, query url.Values, headers map[string]string, body io.Reader, flags doFlags) (result json.RawMessage, changeID string, err error) {
+	var rsp response
+	statusCode, err := client.do(method, path, query, headers, body, &rsp, flags)
+	if err != nil {
 		return nil, "", err
 	}
-	if err := rsp.err(client); err != nil {
+	if err := rsp.err(client, statusCode); err != nil {
 		return nil, "", err
 	}
 	if rsp.Type != "async" {
 		return nil, "", fmt.Errorf("expected async response for %q on %q, got %q", method, path, rsp.Type)
 	}
-	if rsp.StatusCode != 202 {
+	if statusCode != 202 {
 		return nil, "", fmt.Errorf("operation not accepted")
 	}
 	if rsp.Change == "" {
@@ -359,7 +433,9 @@ type ServerVersion struct {
 	OSVersionID string
 	OnClassic   bool
 
-	KernelVersion string
+	KernelVersion  string
+	Architecture   string
+	Virtualization string
 }
 
 func (client *Client) ServerVersion() (*ServerVersion, error) {
@@ -375,18 +451,18 @@ func (client *Client) ServerVersion() (*ServerVersion, error) {
 		OSVersionID: sysInfo.OSRelease.VersionID,
 		OnClassic:   sysInfo.OnClassic,
 
-		KernelVersion: sysInfo.KernelVersion,
+		KernelVersion:  sysInfo.KernelVersion,
+		Architecture:   sysInfo.Architecture,
+		Virtualization: sysInfo.Virtualization,
 	}, nil
 }
 
 // A response produced by the REST API will usually fit in this
 // (exceptions are the icons/ endpoints obvs)
 type response struct {
-	Result     json.RawMessage `json:"result"`
-	Status     string          `json:"status"`
-	StatusCode int             `json:"status-code"`
-	Type       string          `json:"type"`
-	Change     string          `json:"change"`
+	Result json.RawMessage `json:"result"`
+	Type   string          `json:"type"`
+	Change string          `json:"change"`
 
 	WarningCount     int       `json:"warning-count"`
 	WarningTimestamp time.Time `json:"warning-timestamp"`
@@ -448,6 +524,10 @@ const (
 
 	ErrorKindSystemRestart = "system-restart"
 	ErrorKindDaemonRestart = "daemon-restart"
+
+	ErrorKindAssertionNotFound = "assertion-not-found"
+
+	ErrorKindUnsuccessful = "unsuccessful"
 )
 
 // IsRetryable returns true if the given error is an error
@@ -481,6 +561,17 @@ func IsInterfacesUnchangedError(err error) bool {
 	return e.Kind == ErrorKindInterfacesUnchanged
 }
 
+// IsAssertionNotFoundError returns whether the given error means that the
+// assertion wasn't found and thus the device isn't ready/seeded.
+func IsAssertionNotFoundError(err error) bool {
+	e, ok := err.(*Error)
+	if !ok || e == nil {
+		return false
+	}
+
+	return e.Kind == ErrorKindAssertionNotFound
+}
+
 // OSRelease contains information about the system extracted from /etc/os-release.
 type OSRelease struct {
 	ID        string `json:"id"`
@@ -507,14 +598,16 @@ type SysInfo struct {
 	OnClassic bool      `json:"on-classic"`
 	Managed   bool      `json:"managed"`
 
-	KernelVersion string `json:"kernel-version,omitempty"`
+	KernelVersion  string `json:"kernel-version,omitempty"`
+	Architecture   string `json:"architecture,omitempty"`
+	Virtualization string `json:"virtualization,omitempty"`
 
 	Refresh         RefreshInfo         `json:"refresh,omitempty"`
 	Confinement     string              `json:"confinement"`
 	SandboxFeatures map[string][]string `json:"sandbox-features,omitempty"`
 }
 
-func (rsp *response) err(cli *Client) error {
+func (rsp *response) err(cli *Client, statusCode int) error {
 	if cli != nil {
 		maintErr := rsp.Maintenance
 		// avoid setting to (*client.Error)(nil)
@@ -530,9 +623,9 @@ func (rsp *response) err(cli *Client) error {
 	var resultErr Error
 	err := json.Unmarshal(rsp.Result, &resultErr)
 	if err != nil || resultErr.Message == "" {
-		return fmt.Errorf("server error: %q", rsp.Status)
+		return fmt.Errorf("server error: %q", http.StatusText(statusCode))
 	}
-	resultErr.StatusCode = rsp.StatusCode
+	resultErr.StatusCode = statusCode
 
 	return &resultErr
 }
@@ -548,7 +641,7 @@ func parseError(r *http.Response) error {
 		return fmt.Errorf("cannot unmarshal error: %v", err)
 	}
 
-	err := rsp.err(nil)
+	err := rsp.err(nil, r.StatusCode)
 	if err == nil {
 		return fmt.Errorf("server error: %q", r.Status)
 	}
@@ -564,105 +657,6 @@ func (client *Client) SysInfo() (*SysInfo, error) {
 	}
 
 	return &sysInfo, nil
-}
-
-// CreateUserResult holds the result of a user creation.
-type CreateUserResult struct {
-	Username string   `json:"username"`
-	SSHKeys  []string `json:"ssh-keys"`
-}
-
-// CreateUserOptions holds options for creating a local system user.
-//
-// If Known is false, the provided email is used to query the store for
-// username and SSH key details.
-//
-// If Known is true, the user will be created by looking through existing
-// system-user assertions and looking for a matching email. If Email is
-// empty then all such assertions are considered and multiple users may
-// be created.
-type CreateUserOptions struct {
-	Email        string `json:"email,omitempty"`
-	Sudoer       bool   `json:"sudoer,omitempty"`
-	Known        bool   `json:"known,omitempty"`
-	ForceManaged bool   `json:"force-managed,omitempty"`
-}
-
-// CreateUser creates a local system user. See CreateUserOptions for details.
-func (client *Client) CreateUser(options *CreateUserOptions) (*CreateUserResult, error) {
-	if options.Email == "" {
-		return nil, fmt.Errorf("cannot create a user without providing an email")
-	}
-
-	var result CreateUserResult
-	data, err := json.Marshal(options)
-	if err != nil {
-		return nil, err
-	}
-
-	if _, err := client.doSync("POST", "/v2/create-user", nil, nil, bytes.NewReader(data), &result); err != nil {
-		return nil, fmt.Errorf("while creating user: %v", err)
-	}
-	return &result, nil
-}
-
-// CreateUsers creates multiple local system users. See CreateUserOptions for details.
-//
-// Results may be provided even if there are errors.
-func (client *Client) CreateUsers(options []*CreateUserOptions) ([]*CreateUserResult, error) {
-	for _, opts := range options {
-		if opts.Email == "" && !opts.Known {
-			return nil, fmt.Errorf("cannot create user from store details without an email to query for")
-		}
-	}
-
-	var results []*CreateUserResult
-	var errs []error
-
-	for _, opts := range options {
-		data, err := json.Marshal(opts)
-		if err != nil {
-			return nil, err
-		}
-
-		if opts.Email == "" {
-			var result []*CreateUserResult
-			if _, err := client.doSync("POST", "/v2/create-user", nil, nil, bytes.NewReader(data), &result); err != nil {
-				errs = append(errs, err)
-			} else {
-				results = append(results, result...)
-			}
-		} else {
-			var result *CreateUserResult
-			if _, err := client.doSync("POST", "/v2/create-user", nil, nil, bytes.NewReader(data), &result); err != nil {
-				errs = append(errs, err)
-			} else {
-				results = append(results, result)
-			}
-		}
-	}
-
-	if len(errs) == 1 {
-		return results, errs[0]
-	}
-	if len(errs) > 1 {
-		var buf bytes.Buffer
-		for _, err := range errs {
-			fmt.Fprintf(&buf, "\n- %s", err)
-		}
-		return results, fmt.Errorf("while creating users:%s", buf.Bytes())
-	}
-	return results, nil
-}
-
-// Users returns the local users.
-func (client *Client) Users() ([]*User, error) {
-	var result []*User
-
-	if _, err := client.doSync("GET", "/v2/users", nil, nil, nil, &result); err != nil {
-		return nil, fmt.Errorf("while getting users: %v", err)
-	}
-	return result, nil
 }
 
 type debugAction struct {
@@ -685,7 +679,11 @@ func (client *Client) Debug(action string, params interface{}, result interface{
 	return err
 }
 
-func (client *Client) DebugGet(aspect string, result interface{}) error {
-	_, err := client.doSync("GET", "/v2/debug", url.Values{"aspect": []string{aspect}}, nil, nil, &result)
+func (client *Client) DebugGet(aspect string, result interface{}, params map[string]string) error {
+	urlParams := url.Values{"aspect": []string{aspect}}
+	for k, v := range params {
+		urlParams.Set(k, v)
+	}
+	_, err := client.doSync("GET", "/v2/debug", urlParams, nil, nil, &result)
 	return err
 }

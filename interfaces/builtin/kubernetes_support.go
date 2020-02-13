@@ -59,6 +59,7 @@ capability sys_resource,
 @{PROC}/@{pid}/oom_score_adj rw,
 @{PROC}/sys/vm/overcommit_memory rw,
 /sys/kernel/mm/hugepages/{,**} r,
+/sys/kernel/mm/transparent_hugepage/{,**} r,
 
 capability dac_override,
 
@@ -67,17 +68,25 @@ profile systemd_run (attach_disconnected,mediate_deleted) {
   # Common rules for kubernetes use of systemd_run
   #include <abstractions/base>
 
-  /usr/bin/systemd-run r,
+  /{,usr/}bin/systemd-run rm,
   owner @{PROC}/@{pid}/stat r,
   owner @{PROC}/@{pid}/environ r,
   @{PROC}/cmdline r,
+  @{PROC}/sys/kernel/osrelease r,
+  @{PROC}/1/sched r,
 
   # setsockopt()
   capability net_admin,
 
+  # ptrace 'trace' is coarse and not required for using the systemd private
+  # socket, and while the child profile omits 'capability sys_ptrace', skip
+  # for now since it isn't strictly required.
+  ptrace read peer=unconfined,
+  deny ptrace trace peer=unconfined,
   /run/systemd/private rw,
-  /bin/true ixr,
-  ptrace trace peer=unconfined,
+
+  /{,usr/}bin/true ixr,
+  @{INSTALL_DIR}/{@{SNAP_NAME},@{SNAP_INSTANCE_NAME}}/@{SNAP_REVISION}/{,usr/}bin/true ixr,
 ###KUBERNETES_SUPPORT_SYSTEMD_RUN###
 }
 `
@@ -88,13 +97,19 @@ const kubernetesSupportConnectedPlugAppArmorKubelet = `
 # Ideally this would be snap-specific
 /run/dockershim.sock rw,
 
+# Ideally this would be snap-specific (it could if the control plane was a
+# snap), but in deployments where the control plane is not a snap, it will tell
+# flannel to use this path.
+/run/flannel/{,**} rw,
+/run/flannel/** k,
+
 # allow managing pods' cgroups
 /sys/fs/cgroup/*/kubepods/{,**} rw,
 
 # Allow tracing our own processes. Note, this allows seccomp sandbox escape on
 # kernels < 4.8
 capability sys_ptrace,
-ptrace (trace) peer=snap.@{SNAP_NAME}.*,
+ptrace (trace) peer=snap.@{SNAP_INSTANCE_NAME}.*,
 
 # Allow ptracing other processes (as part of ps-style process lookups). Note,
 # the peer needs a corresponding tracedby rule. As a special case, disallow
@@ -119,10 +134,11 @@ deny ptrace (trace) peer=unconfined,
 # kubelet calls out to systemd-run for some mounts, but not all of them and not
 # unmounts...
 capability sys_admin,
-mount /var/snap/@{SNAP_NAME}/common/{,**} -> /var/snap/@{SNAP_NAME}/common/{,**},
-mount options=(rw, rshared) -> /var/snap/@{SNAP_NAME}/common/{,**},
+mount /var/snap/@{SNAP_INSTANCE_NAME}/common/{,**} -> /var/snap/@{SNAP_INSTANCE_NAME}/common/{,**},
+mount options=(rw, rshared) -> /var/snap/@{SNAP_INSTANCE_NAME}/common/{,**},
 
-/bin/umount ixr,
+/{,usr/}bin/mount ixr,
+/{,usr/}bin/umount ixr,
 deny /run/mount/utab rw,
 umount /var/snap/@{SNAP_INSTANCE_NAME}/common/**,
 `
@@ -130,9 +146,20 @@ umount /var/snap/@{SNAP_INSTANCE_NAME}/common/**,
 const kubernetesSupportConnectedPlugAppArmorKubeletSystemdRun = `
   # kubelet mount rules
   capability sys_admin,
-  /bin/mount ixr,
+  /{,usr/}bin/mount ixr,
   mount fstype="tmpfs" tmpfs -> /var/snap/@{SNAP_INSTANCE_NAME}/common/**,
   deny /run/mount/utab rw,
+
+  # For mounting volume subPaths
+  mount /var/snap/@{SNAP_INSTANCE_NAME}/common/{,**} -> /var/snap/@{SNAP_INSTANCE_NAME}/common/{,**},
+  mount options=(rw, remount, bind) -> /var/snap/@{SNAP_INSTANCE_NAME}/common/{,**},
+  umount /var/snap/@{SNAP_INSTANCE_NAME}/common/**,
+  # When mounting a volume subPath, kubelet binds mounts on an open fd (eg,
+  # /proc/.../fd/N) which triggers a ptrace 'trace' denial on the parent
+  # kubelet peer process from this child profile. Note, this child profile
+  # doesn't have 'capability sys_ptrace', so systemd-run is still not able to
+  # ptrace this snap's processes.
+  ptrace (trace) peer=snap.@{SNAP_INSTANCE_NAME}.@{SNAP_COMMAND_NAME},
 `
 
 const kubernetesSupportConnectedPlugSeccompKubelet = `
@@ -178,11 +205,6 @@ type kubernetesSupportInterface struct {
 	commonInterface
 }
 
-func (iface *kubernetesSupportInterface) BeforePrepareSlot(slot *snap.SlotInfo) error {
-	iface.commonInterface.BeforePrepareSlot(slot)
-	return sanitizeSlotReservedForOS(iface, slot)
-}
-
 func k8sFlavor(plug *interfaces.ConnectedPlug) string {
 	var flavor string
 	_ = plug.Attr("flavor", &flavor)
@@ -197,14 +219,14 @@ func (iface *kubernetesSupportInterface) AppArmorConnectedPlug(spec *apparmor.Sp
 	case "kubelet":
 		systemd_run_extra = kubernetesSupportConnectedPlugAppArmorKubeletSystemdRun
 		snippet += kubernetesSupportConnectedPlugAppArmorKubelet
-		spec.UsesPtraceTrace()
+		spec.SetUsesPtraceTrace()
 	case "kubeproxy":
 		snippet += kubernetesSupportConnectedPlugAppArmorKubeproxy
 	default:
 		systemd_run_extra = kubernetesSupportConnectedPlugAppArmorKubeletSystemdRun
 		snippet += kubernetesSupportConnectedPlugAppArmorKubelet
 		snippet += kubernetesSupportConnectedPlugAppArmorKubeproxy
-		spec.UsesPtraceTrace()
+		spec.SetUsesPtraceTrace()
 	}
 
 	old := "###KUBERNETES_SUPPORT_SYSTEMD_RUN###"

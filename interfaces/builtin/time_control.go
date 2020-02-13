@@ -109,6 +109,7 @@ const timeControlConnectedPlugSecComp = `
 # gives full access to the RTC device nodes and relevant parts of sysfs.
 
 settimeofday
+adjtimex
 
 # util-linux built with libaudit tries to write to the audit subsystem. We
 # allow the socket call here to avoid seccomp kill, but omit the AppArmor
@@ -129,6 +130,5 @@ func init() {
 		connectedPlugAppArmor: timeControlConnectedPlugAppArmor,
 		connectedPlugSecComp:  timeControlConnectedPlugSecComp,
 		connectedPlugUDev:     timeControlConnectedPlugUDev,
-		reservedForOS:         true,
 	})
 }

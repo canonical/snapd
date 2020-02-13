@@ -1,7 +1,7 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
 
 /*
- * Copyright (C) 2019 Canonical Ltd
+ * Copyright (C) 2018 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -28,6 +28,8 @@ import (
 type Resp = resp
 type ErrorResult = errorResult
 
+var MinLane = minLane
+
 func NewWithOverlord(o *overlord.Overlord) *Daemon {
 	d := &Daemon{overlord: o}
 	d.addRoutes()
@@ -39,5 +41,13 @@ func MockMuxVars(vars func(*http.Request) map[string]string) (restore func()) {
 	muxVars = vars
 	return func() {
 		muxVars = old
+	}
+}
+
+func MockBuildID(mock string) (restore func()) {
+	old := buildID
+	buildID = mock
+	return func() {
+		buildID = old
 	}
 }

@@ -20,41 +20,41 @@
 package bootloader_test
 
 import (
+	"path/filepath"
+
 	. "gopkg.in/check.v1"
 
 	"github.com/snapcore/snapd/bootloader"
-	"github.com/snapcore/snapd/dirs"
+	"github.com/snapcore/snapd/osutil"
+	"github.com/snapcore/snapd/snap"
+	"github.com/snapcore/snapd/snap/snaptest"
 )
 
 type androidBootTestSuite struct {
+	baseBootenvTestSuite
 }
 
 var _ = Suite(&androidBootTestSuite{})
 
-func (g *androidBootTestSuite) SetUpTest(c *C) {
-	dirs.SetRootDir(c.MkDir())
+func (s *androidBootTestSuite) SetUpTest(c *C) {
+	s.baseBootenvTestSuite.SetUpTest(c)
 
 	// the file needs to exist for androidboot object to be created
-	bootloader.MockAndroidBootFile(c, 0644)
-}
-
-func (g *androidBootTestSuite) TearDownTest(c *C) {
-	dirs.SetRootDir("")
+	bootloader.MockAndroidBootFile(c, s.rootdir, 0644)
 }
 
 func (s *androidBootTestSuite) TestNewAndroidbootNoAndroidbootReturnsNil(c *C) {
-	dirs.GlobalRootDir = "/something/not/there"
-	a := bootloader.NewAndroidBoot()
+	a := bootloader.NewAndroidBoot("/something/not/there")
 	c.Assert(a, IsNil)
 }
 
 func (s *androidBootTestSuite) TestNewAndroidboot(c *C) {
-	a := bootloader.NewAndroidBoot()
+	a := bootloader.NewAndroidBoot(s.rootdir)
 	c.Assert(a, NotNil)
 }
 
 func (s *androidBootTestSuite) TestSetGetBootVar(c *C) {
-	a := bootloader.NewAndroidBoot()
+	a := bootloader.NewAndroidBoot(s.rootdir)
 	bootVars := map[string]string{"snap_mode": "try"}
 	a.SetBootVars(bootVars)
 
@@ -62,4 +62,33 @@ func (s *androidBootTestSuite) TestSetGetBootVar(c *C) {
 	c.Assert(err, IsNil)
 	c.Check(v, HasLen, 1)
 	c.Check(v["snap_mode"], Equals, "try")
+}
+
+func (s *androidBootTestSuite) TestExtractKernelAssetsNoUnpacksKernel(c *C) {
+	a := bootloader.NewAndroidBoot(s.rootdir)
+
+	c.Assert(a, NotNil)
+
+	files := [][]string{
+		{"kernel.img", "I'm a kernel"},
+		{"initrd.img", "...and I'm an initrd"},
+		{"meta/kernel.yaml", "version: 4.2"},
+	}
+	si := &snap.SideInfo{
+		RealName: "ubuntu-kernel",
+		Revision: snap.R(42),
+	}
+	fn := snaptest.MakeTestSnapWithFiles(c, packageKernel, files)
+	snapf, err := snap.Open(fn)
+	c.Assert(err, IsNil)
+
+	info, err := snap.ReadInfoFromSnapFile(snapf, si)
+	c.Assert(err, IsNil)
+
+	err = a.ExtractKernelAssets(info, snapf)
+	c.Assert(err, IsNil)
+
+	// kernel is *not* here
+	kernimg := filepath.Join(s.rootdir, "boot", "androidboot", "ubuntu-kernel_42.snap", "kernel.img")
+	c.Assert(osutil.FileExists(kernimg), Equals, false)
 }

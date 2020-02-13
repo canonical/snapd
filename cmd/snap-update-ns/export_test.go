@@ -23,8 +23,7 @@ import (
 	"os"
 	"syscall"
 
-	. "gopkg.in/check.v1"
-
+	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/osutil/sys"
 )
 
@@ -32,16 +31,10 @@ var (
 	// change
 	ValidateInstanceName = validateInstanceName
 	ProcessArguments     = processArguments
-	// freezer
-	FreezeSnapProcesses = freezeSnapProcesses
-	ThawSnapProcesses   = thawSnapProcesses
+
 	// utils
 	PlanWritableMimic = planWritableMimic
 	ExecWritableMimic = execWritableMimic
-
-	// main
-	ComputeAndSaveSystemChanges = computeAndSaveSystemChanges
-	ApplyUserFstab              = applyUserFstab
 
 	// bootstrap
 	ClearBootstrapError = clearBootstrapError
@@ -56,11 +49,15 @@ var (
 
 	// user
 	DesiredUserProfilePath = desiredUserProfilePath
+	CurrentUserProfilePath = currentUserProfilePath
 
 	// xdg
 	XdgRuntimeDir        = xdgRuntimeDir
 	ExpandPrefixVariable = expandPrefixVariable
 	ExpandXdgRuntimeDir  = expandXdgRuntimeDir
+
+	// update
+	ExecuteMountProfileUpdate = executeMountProfileUpdate
 )
 
 // SystemCalls encapsulates various system interactions performed by this module.
@@ -146,36 +143,19 @@ func MockSystemCalls(sc SystemCalls) (restore func()) {
 	}
 }
 
-func MockFreezerCgroupDir(c *C) (restore func()) {
-	old := freezerCgroupDir
-	freezerCgroupDir = c.MkDir()
-	return func() {
-		freezerCgroupDir = old
-	}
-}
-
-func FreezerCgroupDir() string {
-	return freezerCgroupDir
-}
-
-func MockFreezing(freeze, thaw func(snapName string) error) (restore func()) {
-	oldFreeze := freezeSnapProcesses
-	oldThaw := thawSnapProcesses
-
-	freezeSnapProcesses = freeze
-	thawSnapProcesses = thaw
-
-	return func() {
-		freezeSnapProcesses = oldFreeze
-		thawSnapProcesses = oldThaw
-	}
-}
-
 func MockChangePerform(f func(chg *Change, as *Assumptions) ([]*Change, error)) func() {
 	origChangePerform := changePerform
 	changePerform = f
 	return func() {
 		changePerform = origChangePerform
+	}
+}
+
+func MockNeededChanges(f func(old, new *osutil.MountProfile) []*Change) (restore func()) {
+	origNeededChanges := NeededChanges
+	NeededChanges = f
+	return func() {
+		NeededChanges = origNeededChanges
 	}
 }
 
@@ -207,17 +187,30 @@ func (as *Assumptions) CanWriteToDirectory(dirFd int, dirName string) (bool, err
 	return as.canWriteToDirectory(dirFd, dirName)
 }
 
-func (up *CommonProfileUpdateContext) CurrentProfilePath() string {
-	return up.currentProfilePath
+func (as *Assumptions) UnrestrictedPaths() []string {
+	return as.unrestrictedPaths
 }
 
-func (up *CommonProfileUpdateContext) DesiredProfilePath() string {
-	return up.desiredProfilePath
+func (upCtx *CommonProfileUpdateContext) CurrentProfilePath() string {
+	return upCtx.currentProfilePath
 }
 
-func NewCommonProfileUpdateContext(instanceName string, currentProfilePath, desiredProfilePath string) *CommonProfileUpdateContext {
+func (upCtx *CommonProfileUpdateContext) DesiredProfilePath() string {
+	return upCtx.desiredProfilePath
+}
+
+func (upCtx *CommonProfileUpdateContext) FromSnapConfine() bool {
+	return upCtx.fromSnapConfine
+}
+
+func (upCtx *CommonProfileUpdateContext) SetFromSnapConfine(v bool) {
+	upCtx.fromSnapConfine = v
+}
+
+func NewCommonProfileUpdateContext(instanceName string, fromSnapConfine bool, currentProfilePath, desiredProfilePath string) *CommonProfileUpdateContext {
 	return &CommonProfileUpdateContext{
 		instanceName:       instanceName,
+		fromSnapConfine:    fromSnapConfine,
 		currentProfilePath: currentProfilePath,
 		desiredProfilePath: desiredProfilePath,
 	}

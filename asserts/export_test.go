@@ -180,6 +180,7 @@ func (gkm *GPGKeypairManager) ParametersForGenerate(passphrase string, name stri
 // ifacedecls tests
 var (
 	CompileAttributeConstraints = compileAttributeConstraints
+	CompileNameConstraints      = compileNameConstraints
 	CompilePlugRule             = compilePlugRule
 	CompileSlotRule             = compileSlotRule
 )
@@ -190,4 +191,8 @@ type featureExposer interface {
 
 func RuleFeature(rule featureExposer, flabel string) bool {
 	return rule.feature(flabel)
+}
+
+func (b *Batch) DoPrecheck(db *Database) error {
+	return b.precheck(db)
 }

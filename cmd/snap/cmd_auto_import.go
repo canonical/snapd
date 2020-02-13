@@ -33,6 +33,7 @@ import (
 
 	"github.com/jessevdk/go-flags"
 
+	"github.com/snapcore/snapd/boot"
 	"github.com/snapcore/snapd/client"
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/i18n"
@@ -259,6 +260,17 @@ func (x *cmdAutoImport) autoAddUsers() error {
 	return cmd.Execute(nil)
 }
 
+var procCmdline = "/proc/cmdline"
+
+// inInstallmode returns true if it's UC20 system in install mode
+func inInstallMode() bool {
+	mode, _, err := boot.ModeAndRecoverySystemFromKernelCommandLine()
+	if err != nil {
+		return false
+	}
+	return mode == "install"
+}
+
 func (x *cmdAutoImport) Execute(args []string) error {
 	if len(args) > 0 {
 		return ErrExtraArgs
@@ -266,6 +278,11 @@ func (x *cmdAutoImport) Execute(args []string) error {
 
 	if release.OnClassic && !x.ForceClassic {
 		fmt.Fprintf(Stderr, "auto-import is disabled on classic\n")
+		return nil
+	}
+	// TODO:UC20: workaround for LP: #1860231
+	if inInstallMode() {
+		fmt.Fprintf(Stderr, "auto-import is disabled in install-mode\n")
 		return nil
 	}
 

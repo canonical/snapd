@@ -20,6 +20,8 @@
 package dbus_test
 
 import (
+	"fmt"
+	"io/ioutil"
 	"os"
 	"path/filepath"
 
@@ -30,6 +32,7 @@ import (
 	"github.com/snapcore/snapd/interfaces/dbus"
 	"github.com/snapcore/snapd/interfaces/ifacetest"
 	"github.com/snapcore/snapd/snap"
+	"github.com/snapcore/snapd/snap/snaptest"
 	"github.com/snapcore/snapd/testutil"
 )
 
@@ -277,4 +280,75 @@ func (s *backendSuite) TestAppBoundIfaces(c *C) {
 
 func (s *backendSuite) TestSandboxFeatures(c *C) {
 	c.Assert(s.Backend.SandboxFeatures(), DeepEquals, []string{"mediated-bus-access"})
+}
+
+func makeFakeDbusUserdServiceFiles(c *C, coreOrSnapdSnap *snap.Info) {
+	err := os.MkdirAll(filepath.Join(dirs.GlobalRootDir, "/usr/share/dbus-1/services"), 0755)
+	c.Assert(err, IsNil)
+
+	servicesPath := filepath.Join(coreOrSnapdSnap.MountDir(), "/usr/share/dbus-1/services")
+	err = os.MkdirAll(servicesPath, 0755)
+	c.Assert(err, IsNil)
+
+	for _, fn := range []string{
+		"io.snapcraft.Launcher.service",
+		"io.snapcraft.Settings.service",
+	} {
+		content := fmt.Sprintf("content of %s for snap %s", fn, coreOrSnapdSnap.InstanceName())
+		err = ioutil.WriteFile(filepath.Join(servicesPath, fn), []byte(content), 0644)
+		c.Assert(err, IsNil)
+	}
+}
+
+func (s *backendSuite) testSetupWritesUsedFilesForCoreOrSnapd(c *C, coreOrSnapdYaml string) {
+	coreOrSnapdInfo := snaptest.MockInfo(c, coreOrSnapdYaml, &snap.SideInfo{Revision: snap.R(2)})
+	makeFakeDbusUserdServiceFiles(c, coreOrSnapdInfo)
+
+	err := s.Backend.Setup(coreOrSnapdInfo, interfaces.ConfinementOptions{}, s.Repo, nil)
+	c.Assert(err, IsNil)
+
+	for _, fn := range []string{
+		"io.snapcraft.Launcher.service",
+		"io.snapcraft.Settings.service",
+	} {
+		c.Assert(filepath.Join(dirs.GlobalRootDir, "/usr/share/dbus-1/services/"+fn), testutil.FilePresent)
+	}
+}
+
+var (
+	coreYaml  string = "name: core\nversion: 1\ntype: os"
+	snapdYaml string = "name: snapd\nversion: 1\ntype: snapd"
+)
+
+func (s *backendSuite) TestSetupWritesUsedFilesForCore(c *C) {
+	s.testSetupWritesUsedFilesForCoreOrSnapd(c, coreYaml)
+}
+
+func (s *backendSuite) TestSetupWritesUsedFilesForSnapd(c *C) {
+	s.testSetupWritesUsedFilesForCoreOrSnapd(c, snapdYaml)
+}
+
+func (s *backendSuite) TestSetupWritesUsedFilesBothSnapdAndCoreInstalled(c *C) {
+	err := os.MkdirAll(filepath.Join(dirs.SnapMountDir, "snapd/current"), 0755)
+	c.Assert(err, IsNil)
+
+	coreInfo := snaptest.MockInfo(c, coreYaml, &snap.SideInfo{Revision: snap.R(2)})
+	makeFakeDbusUserdServiceFiles(c, coreInfo)
+	snapdInfo := snaptest.MockInfo(c, snapdYaml, &snap.SideInfo{Revision: snap.R(3)})
+	makeFakeDbusUserdServiceFiles(c, snapdInfo)
+
+	// first setup snapd which writes the files
+	err = s.Backend.Setup(snapdInfo, interfaces.ConfinementOptions{}, s.Repo, nil)
+	c.Assert(err, IsNil)
+
+	// then setup core - if both are installed snapd should win
+	err = s.Backend.Setup(coreInfo, interfaces.ConfinementOptions{}, s.Repo, nil)
+	c.Assert(err, IsNil)
+
+	for _, fn := range []string{
+		"io.snapcraft.Launcher.service",
+		"io.snapcraft.Settings.service",
+	} {
+		c.Assert(filepath.Join(dirs.GlobalRootDir, "/usr/share/dbus-1/services/"+fn), testutil.FileEquals, fmt.Sprintf("content of %s for snap snapd", fn))
+	}
 }

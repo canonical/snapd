@@ -12,6 +12,17 @@ restore: |
     rm -f /var/tmp/myevil.txt
     rm -f ./do-classic ./prevsnapdver.out
 
+    # An older version of snapd might have been missing proper context
+    # transitions for fontconfig cache locations, attempt to restore the context
+    # to avoid breaking tests that run after this one
+    case "$SPREAD_SYSTEM" in
+        fedora-*|centos-*)
+            if [ -d /var/cache/fontconfig ]; then
+                restorecon -RvF /var/cache/fontconfig
+            fi
+            ;;
+    esac
+
 execute: |
     if [ "$REMOTE_STORE" = staging ]; then
         echo "skip upgrade tests while talking to the staging store"
@@ -60,7 +71,7 @@ execute: |
         fi
 
         echo "Install sanity check snaps with it"
-        snap install test-snapd-tools
+        snap install test-snapd-sh
         snap install test-snapd-auto-aliases
 
         do_classic=no
@@ -72,8 +83,8 @@ execute: |
         fi
 
         echo "Sanity check installs"
-        test-snapd-tools.echo Hello | grep Hello
-        test-snapd-tools.env | grep SNAP_NAME=test-snapd-tools
+        test-snapd-sh.sh -c 'echo Hello' | grep Hello
+        test-snapd-sh.sh -c 'env' | grep SNAP_NAME=test-snapd-sh
         test_snapd_wellknown1|MATCH "ok wellknown 1"
         test_snapd_wellknown2|MATCH "ok wellknown 2"
 
@@ -133,9 +144,9 @@ execute: |
 
     echo "Sanity check already installed snaps after upgrade"
     snap list | grep core
-    snap list | grep test-snapd-tools
-    test-snapd-tools.echo Hello | MATCH "Hello"
-    test-snapd-tools.env | MATCH "SNAP_NAME=test-snapd-tools"
+    snap list | grep test-snapd-sh
+    test-snapd-sh.sh -c 'echo Hello' | MATCH "Hello"
+    test-snapd-sh.sh -c 'env' | MATCH "SNAP_NAME=test-snapd-sh"
     if [ "$do_classic" = yes ]; then
         test-snapd-classic-confinement.recurse 5
     fi
@@ -145,7 +156,7 @@ execute: |
     # plumbing for that into the snap command.
     if [ -e /sys/kernel/security/apparmor ]; then
         echo Hello > /var/tmp/myevil.txt
-        if test-snapd-tools.cat /var/tmp/myevil.txt; then
+        if test-snapd-sh.cat /var/tmp/myevil.txt; then
             exit 1
         fi
     fi
@@ -158,6 +169,6 @@ execute: |
 
     echo "Check migrating to types in state"
     coreType=$(jq -r '.data.snaps["core"].type' /var/lib/snapd/state.json)
-    testSnapType=$(jq -r '.data.snaps["test-snapd-tools"].type' /var/lib/snapd/state.json)
+    testSnapType=$(jq -r '.data.snaps["test-snapd-sh"].type' /var/lib/snapd/state.json)
     [ "$coreType" = "os" ]
     [ "$testSnapType" = "app" ]

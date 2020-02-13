@@ -22,6 +22,7 @@ package apparmor
 import (
 	"os"
 
+	"github.com/snapcore/snapd/snap"
 	"github.com/snapcore/snapd/testutil"
 )
 
@@ -32,8 +33,16 @@ var (
 	DowngradeConfinement       = downgradeConfinement
 	LoadProfiles               = loadProfiles
 	UnloadProfiles             = unloadProfiles
-	SetupSnapConfineReexec     = setupSnapConfineReexec
+	MaybeSetNumberOfJobs       = maybeSetNumberOfJobs
 )
+
+func MockRuntimeNumCPU(new func() int) (restore func()) {
+	old := runtimeNumCPU
+	runtimeNumCPU = new
+	return func() {
+		runtimeNumCPU = old
+	}
+}
 
 // MockIsRootWritableOverlay mocks the real implementation of osutil.IsRootWritableOverlay
 func MockIsRootWritableOverlay(new func() (string, error)) (restore func()) {
@@ -98,4 +107,8 @@ func MockParserFeatures(f func() ([]string, error)) (resture func()) {
 	return func() {
 		parserFeatures = old
 	}
+}
+
+func (b *Backend) SetupSnapConfineReexec(info *snap.Info) error {
+	return b.setupSnapConfineReexec(info)
 }

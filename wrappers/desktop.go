@@ -142,6 +142,36 @@ func rewriteExecLine(s *snap.Info, desktopFile, line string) (string, error) {
 	return "", fmt.Errorf("invalid exec command: %q", cmd)
 }
 
+func rewriteIconLine(s *snap.Info, line string) (string, error) {
+	icon := strings.SplitN(line, "=", 2)[1]
+
+	// If there is a path separator, assume the icon is a path name
+	if strings.ContainsRune(icon, filepath.Separator) {
+		if !strings.HasPrefix(icon, "${SNAP}/") {
+			return "", fmt.Errorf("icon path %q is not part of the snap", icon)
+		}
+		if filepath.Clean(icon) != icon {
+			return "", fmt.Errorf("icon path %q is not canonicalized, did you mean %q?", icon, filepath.Clean(icon))
+		}
+		return line, nil
+	}
+
+	// If the icon is prefixed with "snap.${SNAP_NAME}.", rewrite
+	// to the instance name.
+	snapIconPrefix := fmt.Sprintf("snap.%s.", s.SnapName())
+	if strings.HasPrefix(icon, snapIconPrefix) {
+		return fmt.Sprintf("Icon=snap.%s.%s", s.InstanceName(), icon[len(snapIconPrefix):]), nil
+	}
+
+	// If the icon has any other "snap." prefix, treat this as an error.
+	if strings.HasPrefix(icon, "snap.") {
+		return "", fmt.Errorf("invalid icon name: %q, must start with %q", icon, snapIconPrefix)
+	}
+
+	// Allow other icons names through unchanged.
+	return line, nil
+}
+
 func sanitizeDesktopFile(s *snap.Info, desktopFile string, rawcontent []byte) []byte {
 	var newContent bytes.Buffer
 	mountDir := []byte(s.MountDir())
@@ -160,6 +190,16 @@ func sanitizeDesktopFile(s *snap.Info, desktopFile string, rawcontent []byte) []
 			line, err := rewriteExecLine(s, desktopFile, string(bline))
 			if err != nil {
 				// something went wrong, ignore the line
+				continue
+			}
+			bline = []byte(line)
+		}
+
+		// rewrite icon line if it references an icon theme icon
+		if bytes.HasPrefix(bline, []byte("Icon=")) {
+			line, err := rewriteIconLine(s, string(bline))
+			if err != nil {
+				logger.Debugf("ignoring icon in source desktop file %q: %s", filepath.Base(desktopFile), err)
 				continue
 			}
 			bline = []byte(line)

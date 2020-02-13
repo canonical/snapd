@@ -35,7 +35,7 @@ import (
 	"github.com/snapcore/snapd/i18n"
 	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/osutil"
-	"github.com/snapcore/snapd/snap"
+	"github.com/snapcore/snapd/snap/channel"
 	"github.com/snapcore/snapd/strutil"
 )
 
@@ -239,16 +239,17 @@ If you understand and want to proceed repeat the command including --classic.
 	return msg, nil
 }
 
-func snapRevisionNotAvailableMessage(kind, snapName, action, arch, channel string, releases []interface{}) string {
+func snapRevisionNotAvailableMessage(kind, snapName, action, arch, snapChannel string, releases []interface{}) string {
 	// releases contains all available (arch x channel)
 	// as reported by the store through the daemon
-	req, err := snap.ParseChannel(channel, arch)
+	req, err := channel.Parse(snapChannel, arch)
 	if err != nil {
+		// XXX: this is no longer possible (should be caught before hitting the store), unless the state itself has an invalid channel
 		// TRANSLATORS: %q is the invalid request channel, %s is the snap name
-		msg := fmt.Sprintf(i18n.G("requested channel %q is not valid (see 'snap info %s' for valid ones)"), channel, snapName)
+		msg := fmt.Sprintf(i18n.G("requested channel %q is not valid (see 'snap info %s' for valid ones)"), snapChannel, snapName)
 		return msg
 	}
-	avail := make([]*snap.Channel, 0, len(releases))
+	avail := make([]*channel.Channel, 0, len(releases))
 	for _, v := range releases {
 		rel, _ := v.(map[string]interface{})
 		relCh, _ := rel["channel"].(string)
@@ -257,7 +258,7 @@ func snapRevisionNotAvailableMessage(kind, snapName, action, arch, channel strin
 			logger.Debugf("internal error: %q daemon error carries a release with invalid/empty architecture: %v", kind, v)
 			continue
 		}
-		a, err := snap.ParseChannel(relCh, relArch)
+		a, err := channel.Parse(relCh, relArch)
 		if err != nil {
 			logger.Debugf("internal error: %q daemon error carries a release with invalid/empty channel (%v): %v", kind, err, v)
 			continue
@@ -265,7 +266,7 @@ func snapRevisionNotAvailableMessage(kind, snapName, action, arch, channel strin
 		avail = append(avail, &a)
 	}
 
-	matches := map[string][]*snap.Channel{}
+	matches := map[string][]*channel.Channel{}
 	for _, a := range avail {
 		m := req.Match(a)
 		matchRepr := m.String()
@@ -298,7 +299,7 @@ func snapRevisionNotAvailableMessage(kind, snapName, action, arch, channel strin
 	if req.Branch != "" {
 		// there are matching arch+track+risk, give main track info
 		if len(matches["architecture:track:risk"]) != 0 {
-			trackRisk := snap.Channel{Track: req.Track, Risk: req.Risk}
+			trackRisk := channel.Channel{Track: req.Track, Risk: req.Risk}
 			trackRisk = trackRisk.Clean()
 
 			// TRANSLATORS: %q is for the snap name, first %s is the full requested channel
@@ -350,7 +351,7 @@ func snapRevisionNotAvailableMessage(kind, snapName, action, arch, channel strin
 	return msg
 }
 
-func installTable(snapName, action string, avail []*snap.Channel, full bool) string {
+func installTable(snapName, action string, avail []*channel.Channel, full bool) string {
 	b := &bytes.Buffer{}
 	w := tabwriter.NewWriter(b, len("candidate")+2, 1, 2, ' ', 0)
 	first := true
@@ -379,7 +380,7 @@ func installTable(snapName, action string, avail []*snap.Channel, full bool) str
 	return strings.Join(lines, "")
 }
 
-func channelOption(c *snap.Channel) string {
+func channelOption(c *channel.Channel) string {
 	if c.Branch == "" {
 		if c.Track == "" {
 			return fmt.Sprintf("--%s", c.Risk)
@@ -391,7 +392,7 @@ func channelOption(c *snap.Channel) string {
 	return fmt.Sprintf("--channel=%s", c)
 }
 
-func archsForChannels(cs []*snap.Channel) []string {
+func archsForChannels(cs []*channel.Channel) []string {
 	archs := []string{}
 	for _, c := range cs {
 		if !strutil.ListContains(archs, c.Architecture) {

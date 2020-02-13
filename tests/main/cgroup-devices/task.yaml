@@ -1,0 +1,7 @@
+summary: measuring basic properties of device cgroup
+# fedora-31: uses cgroupv2, which we don't support
+systems: [ -fedora-31-*]
+execute: ./task.sh
+restore: |
+    rm -f test-snapd-service_1.0_all.snap
+    snap remove --purge test-snapd-service

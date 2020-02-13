@@ -5,8 +5,7 @@ execute: |
     . "$TESTSLIB/snaps.sh"
 
     echo "When a snap gets installed"
-    install_local test-snapd-tools
+    install_local test-snapd-sh
 
     echo "There is timing data available for it"
     snap debug timings --last=install | MATCH 'Done +[0-9]+'
-

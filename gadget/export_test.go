@@ -19,9 +19,42 @@
 
 package gadget
 
+type ValidationState = validationState
+
 var (
 	ValidateStructureType   = validateStructureType
 	ValidateVolumeStructure = validateVolumeStructure
 	ValidateRole            = validateRole
 	ValidateVolume          = validateVolume
+
+	ResolveVolume      = resolveVolume
+	CanUpdateStructure = canUpdateStructure
+	CanUpdateVolume    = canUpdateVolume
+
+	EncodeLabel = encodeLabel
+
+	WriteFile      = writeFileOrSymlink
+	WriteDirectory = writeDirectory
+
+	RawContentBackupPath = rawContentBackupPath
+
+	UpdaterForStructure = updaterForStructure
+
+	EnsureVolumeConsistency = ensureVolumeConsistency
 )
+
+func MockEvalSymlinks(mock func(path string) (string, error)) (restore func()) {
+	oldEvalSymlinks := evalSymlinks
+	evalSymlinks = mock
+	return func() {
+		evalSymlinks = oldEvalSymlinks
+	}
+}
+
+func MockMkfsHandlers(mock map[string]MkfsFunc) (restore func()) {
+	old := mkfsHandlers
+	mkfsHandlers = mock
+	return func() {
+		mkfsHandlers = old
+	}
+}

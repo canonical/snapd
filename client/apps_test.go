@@ -107,6 +107,11 @@ func testClientLogs(cs *clientSuite, c *check.C) ([]client.Log, error) {
 	ch, err := cs.cli.Logs([]string{"foo", "bar"}, client.LogOptions{N: -1, Follow: false})
 	c.Check(cs.req.URL.Path, check.Equals, "/v2/logs")
 	c.Check(cs.req.Method, check.Equals, "GET")
+
+	// logs cannot have a deadline because of "-f"
+	_, ok := cs.req.Context().Deadline()
+	c.Check(ok, check.Equals, false)
+
 	query := cs.req.URL.Query()
 	c.Check(query, check.HasLen, 2)
 	c.Check(query.Get("names"), check.Equals, "foo,bar")
@@ -213,6 +218,7 @@ func (cs *clientSuite) TestClientLogsNotFound(c *check.C) {
 }
 
 func (cs *clientSuite) TestClientServiceStart(c *check.C) {
+	cs.status = 202
 	cs.rsp = `{"type": "async", "status-code": 202, "change": "24"}`
 
 	type scenario struct {
@@ -274,6 +280,7 @@ func (cs *clientSuite) TestClientServiceStart(c *check.C) {
 }
 
 func (cs *clientSuite) TestClientServiceStop(c *check.C) {
+	cs.status = 202
 	cs.rsp = `{"type": "async", "status-code": 202, "change": "24"}`
 
 	type tT struct {
@@ -335,6 +342,7 @@ func (cs *clientSuite) TestClientServiceStop(c *check.C) {
 }
 
 func (cs *clientSuite) TestClientServiceRestart(c *check.C) {
+	cs.status = 202
 	cs.rsp = `{"type": "async", "status-code": 202, "change": "24"}`
 
 	type tT struct {

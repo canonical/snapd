@@ -25,12 +25,15 @@ import (
 	"io/ioutil"
 	"os"
 	"path/filepath"
+	"strings"
 
 	"gopkg.in/check.v1"
 
 	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/snap"
+	"github.com/snapcore/snapd/snap/channel"
 	"github.com/snapcore/snapd/snap/pack"
+	"github.com/snapcore/snapd/snap/snapdir"
 )
 
 func mockSnap(c *check.C, instanceName, yamlText string, sideInfo *snap.SideInfo) *snap.Info {
@@ -154,6 +157,18 @@ func MockInvalidInfo(c *check.C, yamlText string, sideInfo *snap.SideInfo) *snap
 	return snapInfo
 }
 
+// MockSnapWithFiles does the same as MockSnap, but also populates the snap
+// directory with given content
+//
+// The caller is responsible for mocking root directory with dirs.SetRootDir()
+//and for altering the overlord state if required.
+func MockSnapWithFiles(c *check.C, yamlText string, si *snap.SideInfo, files [][]string) *snap.Info {
+	info := MockSnap(c, yamlText, si)
+
+	PopulateDir(info.MountDir(), files)
+	return info
+}
+
 // PopulateDir populates the directory with files specified as pairs of relative file path and its content. Useful to add extra files to a snap.
 func PopulateDir(dir string, files [][]string) {
 	for _, filenameAndContent := range files {
@@ -169,6 +184,11 @@ func PopulateDir(dir string, files [][]string) {
 			panic(err)
 		}
 	}
+}
+
+func AssertedSnapID(snapName string) string {
+	cleanedName := strings.Replace(snapName, "-", "", -1)
+	return (cleanedName + strings.Repeat("id", 16)[len(cleanedName):])
 }
 
 // MakeTestSnapWithFiles makes a squashfs snap file with the given
@@ -195,7 +215,7 @@ func MakeTestSnapWithFiles(c *check.C, snapYamlContent string, files [][]string)
 
 	err = osutil.ChDir(snapSource, func() error {
 		var err error
-		snapFilePath, err = pack.Snap(snapSource, "", "")
+		snapFilePath, err = pack.Snap(snapSource, nil)
 		return err
 	})
 	if err != nil {
@@ -207,8 +227,8 @@ func MakeTestSnapWithFiles(c *check.C, snapYamlContent string, files [][]string)
 // MustParseChannel parses a string representing a store channel and
 // includes the given architecture, if architecture is "" the system
 // architecture is included. It panics on error.
-func MustParseChannel(s string, architecture string) snap.Channel {
-	c, err := snap.ParseChannel(s, architecture)
+func MustParseChannel(s string, architecture string) channel.Channel {
+	c, err := channel.Parse(s, architecture)
 	if err != nil {
 		panic(err)
 	}
@@ -257,4 +277,16 @@ func RenameSlot(snapInfo *snap.Info, oldName, newName string) error {
 	}
 
 	return nil
+}
+
+// MockContainer returns a mock snap.Container with the given content.
+// If files is empty it still produces a minimal container that passes
+// ValidateContainer: / and /meta exist and are 0755, and
+// /meta/snap.yaml is a regular world-readable file.
+func MockContainer(c *check.C, files [][]string) snap.Container {
+	d := c.MkDir()
+	c.Assert(os.Chmod(d, 0755), check.IsNil)
+	files = append([][]string{{"meta/snap.yaml", ""}}, files...)
+	PopulateDir(d, files)
+	return snapdir.New(d)
 }

@@ -2,51 +2,87 @@ summary: |
    Test that config defaults specified in the gadget are picked up
    for first boot snaps
 
-systems: [ubuntu-core-16-64]
+# the test is only meaningful on core devices
+# TODO:UC20: enable for UC20, it assumes /var/lib/snapd/seed/assertions/model
+#            which we don't have currently
+systems: [ubuntu-core-1*]
+
+environment:
+    SERVICE/rsyslog: rsyslog
+    GADGET_FILE/rsyslog: gadget-rsyslog.yaml
+    SERVICE/ssh_common: ssh
+    GADGET_FILE/ssh_common: gadget-ssh-common.yaml
+    SERVICE/ssh_oneline: ssh
+    GADGET_FILE/ssh_oneline: gadget-ssh-oneline.yaml
 
 prepare: |
     if [ "$TRUST_TEST_KEYS" = "false" ]; then
         echo "This test needs test keys to be trusted"
         exit
     fi
+
     #shellcheck source=tests/lib/systemd.sh
     . "$TESTSLIB"/systemd.sh
+    #shellcheck source=tests/lib/systems.sh
+    . "$TESTSLIB"/systems.sh
+
+    if [ "$SERVICE" = "rsyslog" ] && is_core18_system; then
+        echo "The service to test does not exist in the core18 system, skipping..."
+        touch "${SERVICE}.skip"
+        exit
+    fi
+
+    SUFFIX=
+    MODEL=developer1-pc-w-config.model
+    if is_core18_system; then
+        SUFFIX=-core18
+        MODEL=developer1-pc-18-w-config.model
+    fi
+
     systemctl stop snapd.service snapd.socket
     rm -rf /var/lib/snapd/assertions/*
     rm -rf /var/lib/snapd/device
     rm -rf /var/lib/snapd/state.json
-    snap download --edge test-snapd-with-configure
+    snap download --edge "test-snapd-with-configure${SUFFIX}"
     unsquashfs -no-progress /var/lib/snapd/snaps/pc_*.snap
+
     # fill in defaults
     TEST_SNAP_ID=
     if [ "$SNAPPY_USE_STAGING_STORE" = 1 ]; then
+        # test-snapd-with-configure
         TEST_SNAP_ID=jHxWQxtGqu7tHwiq7F8Ojk5qazcEeslT
-    else
-        TEST_SNAP_ID=aLcJorEJZgJNUGL2GMb3WR9SoVyHUNAd
-    fi
-    cat >> squashfs-root/meta/gadget.yaml <<EOF
 
-    defaults:
-       ${TEST_SNAP_ID}:
-         a: A
-         b: B
-       system:
-         service:
-           rsyslog:
-             disable: true
-    EOF
+        if is_core18_system; then
+            # test-snapd-with-configure-core18
+            TEST_SNAP_ID=jHxWQxtGqu7tHwiq7F8Ojk5qazcEeslT
+        fi
+    else
+        # test-snapd-with-configure
+        TEST_SNAP_ID=aLcJorEJZgJNUGL2GMb3WR9SoVyHUNAd
+
+        if is_core18_system; then
+            # test-snapd-with-configure-core18
+            TEST_SNAP_ID=BzMG26hwO2ccNBzV5BxK4DZgulJ2AXsa
+        fi
+    fi
+
+    # Update the gadget config file
+    cat "$GADGET_FILE" >> squashfs-root/meta/gadget.yaml
+    sed -i -e "s/TEST_SNAP_ID/$TEST_SNAP_ID/" squashfs-root/meta/gadget.yaml
+
     mksquashfs squashfs-root pc_x1.snap -comp xz -no-fragments -no-progress
     rm -rf squashfs-root
     cp pc_x1.snap /var/lib/snapd/seed/snaps/
-    cp test-snapd-with-configure_*.snap /var/lib/snapd/seed/snaps/
+    cp "test-snapd-with-configure${SUFFIX}"_*.snap /var/lib/snapd/seed/snaps/
     mv /var/lib/snapd/seed/assertions/model model.bak
     cp /var/lib/snapd/seed/seed.yaml seed.yaml.bak
-    python3 ./manip_seed.py /var/lib/snapd/seed/seed.yaml test-snapd-with-configure_*.snap
+    python3 ./manip_seed.py /var/lib/snapd/seed/seed.yaml "test-snapd-with-configure${SUFFIX}"_*.snap
     cp "$TESTSLIB"/assertions/developer1.account /var/lib/snapd/seed/assertions
     cp "$TESTSLIB"/assertions/developer1.account-key /var/lib/snapd/seed/assertions
-    cp "$TESTSLIB"/assertions/developer1-pc-w-config.model /var/lib/snapd/seed/assertions
+    cp "$TESTSLIB/assertions/$MODEL" /var/lib/snapd/seed/assertions
     cp "$TESTSLIB"/assertions/testrootorg-store.account-key /var/lib/snapd/seed/assertions
-    cp test-snapd-with-configure_*.assert /var/lib/snapd/seed/assertions
+    cp "test-snapd-with-configure${SUFFIX}"_*.assert /var/lib/snapd/seed/assertions
+
     # kick first boot again
     systemctl start snapd.service snapd.socket
 
@@ -55,10 +91,30 @@ restore: |
         echo "This test needs test keys to be trusted"
         exit
     fi
-    echo "Undo the rsyslog disable"
-    systemctl unmask rsyslog.service || true
-    systemctl enable rsyslog.service || true
-    systemctl start rsyslog.service || true
+
+    if [ -f "${SERVICE}.skip" ]; then
+        echo "The service to test does not exist in the system, skipping..."
+        exit
+    fi
+
+    #shellcheck source=tests/lib/systems.sh
+    . "$TESTSLIB"/systems.sh
+
+    SUFFIX=
+    MODEL=developer1-pc-w-config.model
+    if is_core18_system; then
+        SUFFIX=-core18
+        MODEL=developer1-pc-18-w-config.model
+    fi
+
+    echo "Undo the service disable"
+    if [ "$SERVICE" = ssh ]; then
+        rm -f /etc/ssh/sshd_not_to_be_run
+    else
+        systemctl unmask "$SERVICE.service" || true
+    fi
+    systemctl enable "$SERVICE.service" || true
+    systemctl start "$SERVICE.service" || true
 
     #shellcheck source=tests/lib/systemd.sh
     . "$TESTSLIB"/systemd.sh
@@ -76,22 +132,22 @@ restore: |
     fi
     rm /var/lib/snapd/seed/snaps/pc_x1.snap
 
-    TEST_REVNO=$(awk "/^snap-revision: / {print \$2}" test-snapd-with-configure_*.assert)
-    if systemctl status "snap-test-snapd-with-configure-${TEST_REVNO}.mount" ; then
-       systemctl stop "snap-test-snapd-with-configure-${TEST_REVNO}.mount"
-       rm -f "/etc/systemd/system/snap-test-snapd-with-configure-${TEST_REVNO}.mount"
-       rm -f "/etc/systemd/system/multi-user.target.wants/snap-test-snapd-with-configure-${TEST_REVNO}.mount"
-       rm -f /var/lib/snapd/snaps/test-snapd-with-configure_*.snap
+    TEST_REVNO=$(awk "/^snap-revision: / {print \$2}" "test-snapd-with-configure${SUFFIX}"_*.assert)
+    if systemctl status "$(systemd-escape --path "/snap/test-snapd-with-configure${SUFFIX}/$TEST_REVNO.mount")"; then
+       systemctl stop "$(systemd-escape --path "/snap/test-snapd-with-configure${SUFFIX}/$TEST_REVNO.mount")"
+       rm -f "/etc/systemd/system/snap-test-snapd-with-configure${SUFFIX}-${TEST_REVNO}.mount"
+       rm -f "/etc/systemd/system/multi-user.target.wants/snap-test-snapd-with-configure${SUFFIX}-${TEST_REVNO}.mount"
+       rm -f "/var/lib/snapd/snaps/test-snapd-with-configure${SUFFIX}"_*.snap
        systemctl daemon-reload
     fi
-    rm /var/lib/snapd/seed/snaps/test-snapd-with-configure_*.snap
+    rm "/var/lib/snapd/seed/snaps/test-snapd-with-configure${SUFFIX}"_*.snap
 
     cp seed.yaml.bak /var/lib/snapd/seed/seed.yaml
     rm -f /var/lib/snapd/seed/assertions/developer1.account
     rm -f /var/lib/snapd/seed/assertions/developer1.account-key
-    rm -f /var/lib/snapd/seed/assertions/developer1-pc-w-config.model
+    rm -f "/var/lib/snapd/seed/assertions/$MODEL"
     rm -f /var/lib/snapd/seed/assertions/testrootorg-store.account-key
-    rm -f /var/lib/snapd/seed/assertions/test-snapd-with-configure_*.assert
+    rm -f "/var/lib/snapd/seed/assertions/test-snapd-with-configure${SUFFIX}"_*.assert
     cp model.bak /var/lib/snapd/seed/assertions/model
     # kick first boot again
     systemctl start snapd.service snapd.socket
@@ -99,6 +155,19 @@ restore: |
     while ! snap changes | grep -q "Done.*Initialize system state"; do sleep 1; done
 
 execute: |
+    if [ -f "${SERVICE}.skip" ]; then
+        echo "The service to test does not exist in the system, skipping..."
+        exit
+    fi
+
+    #shellcheck source=tests/lib/systems.sh
+    . "$TESTSLIB"/systems.sh
+
+    SUFFIX=
+    if is_core18_system; then
+        SUFFIX=-core18
+    fi
+
     if [ "$TRUST_TEST_KEYS" = "false" ]; then
         echo "This test needs test keys to be trusted"
         exit
@@ -106,16 +175,23 @@ execute: |
     echo "Wait for first boot to be done"
     while ! snap changes | grep -q "Done.*Initialize system state"; do sleep 1; done
     echo "We have a model assertion"
-    snap known model|MATCH "model: my-model-w-config"
+    snap model --verbose|MATCH "model:\s* my-model-w-config"
 
     echo "The configurable snap was installed"
-    snap list|MATCH "test-snapd-with-configure"
+    snap list|MATCH "test-snapd-with-configure${SUFFIX}"
 
     echo "The configuration defaults from the gadget where applied"
-    snap get test-snapd-with-configure a|MATCH "^A$"
-    snap get test-snapd-with-configure b|MATCH "^B$"
+    snap get "test-snapd-with-configure${SUFFIX}" a|MATCH "^A$"
+    snap get "test-snapd-with-configure${SUFFIX}" b|MATCH "^B$"
 
     echo "The configuration for core is applied"
-    snap get core service.rsyslog.disable|MATCH true
-    echo "And the service is masked"
-    systemctl status rsyslog.service|MATCH masked
+    snap get core "service.$SERVICE.disable" | MATCH true
+
+    if [ "$SERVICE" = ssh ]; then
+        echo "And the ssh service is disabled"
+        MATCH "SSH has been disabled by snapd system configuration" < /etc/ssh/sshd_not_to_be_run
+        systemctl status "$SERVICE.service" | MATCH inactive
+    else
+        echo "And the service is masked"
+        systemctl status "$SERVICE.service" | MATCH masked
+    fi

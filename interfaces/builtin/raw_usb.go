@@ -35,7 +35,7 @@ const rawusbConnectedPlugAppArmor = `
 /dev/bus/usb/[0-9][0-9][0-9]/[0-9][0-9][0-9] rw,
 
 # Allow access to all ttyUSB devices too
-/dev/tty{USB,ACM}[0-9]* rw,
+/dev/tty{USB,ACM}[0-9]* rwk,
 
 # Allow detection of usb devices. Leaks plugged in USB device info
 /sys/bus/usb/devices/ r,
@@ -46,6 +46,14 @@ const rawusbConnectedPlugAppArmor = `
 /run/udev/data/b180:*    r, # various USB block devices
 /run/udev/data/c18[089]:* r, # various USB character devices: USB serial converters, etc.
 /run/udev/data/+usb:* r,
+`
+
+const rawusbConnectedPlugSecComp = `
+# Description: Allow raw access to all connected USB devices.
+# This gives privileged access to the system.
+
+# kernel uevents
+socket AF_NETLINK - NETLINK_KOBJECT_UEVENT
 `
 
 var rawusbConnectedPlugUDev = []string{
@@ -61,7 +69,7 @@ func init() {
 		implicitOnClassic:     true,
 		baseDeclarationSlots:  rawusbBaseDeclarationSlots,
 		connectedPlugAppArmor: rawusbConnectedPlugAppArmor,
+		connectedPlugSecComp:  rawusbConnectedPlugSecComp,
 		connectedPlugUDev:     rawusbConnectedPlugUDev,
-		reservedForOS:         true,
 	})
 }

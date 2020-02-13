@@ -20,6 +20,7 @@
 package pack_test
 
 import (
+	"bytes"
 	"fmt"
 	"io/ioutil"
 	"os"
@@ -36,6 +37,9 @@ import (
 	"github.com/snapcore/snapd/snap/pack"
 	"github.com/snapcore/snapd/snap/squashfs"
 	"github.com/snapcore/snapd/testutil"
+
+	// for SanitizePlugsSlots
+	_ "github.com/snapcore/snapd/interfaces/builtin"
 )
 
 func Test(t *testing.T) { TestingT(t) }
@@ -48,7 +52,6 @@ var _ = Suite(&packSuite{})
 
 func (s *packSuite) SetUpTest(c *C) {
 	s.BaseTest.SetUpTest(c)
-	s.BaseTest.AddCleanup(snap.MockSanitizePlugsSlots(func(snapInfo *snap.Info) {}))
 
 	// chdir into a tempdir
 	pwd, err := os.Getwd()
@@ -112,7 +115,7 @@ printf "hello world"
 func (s *packSuite) TestPackNoManifestFails(c *C) {
 	sourceDir := makeExampleSnapSourceDir(c, "{name: hello, version: 0}")
 	c.Assert(os.Remove(filepath.Join(sourceDir, "meta", "snap.yaml")), IsNil)
-	_, err := pack.Snap(sourceDir, "", "")
+	_, err := pack.Snap(sourceDir, pack.Defaults)
 	c.Assert(err, ErrorMatches, `.*/meta/snap\.yaml: no such file or directory`)
 }
 
@@ -124,20 +127,29 @@ apps:
   command: bin/hello-world
 `)
 	c.Assert(os.Remove(filepath.Join(sourceDir, "bin", "hello-world")), IsNil)
-	_, err := pack.Snap(sourceDir, "", "")
+	_, err := pack.Snap(sourceDir, pack.Defaults)
 	c.Assert(err, Equals, snap.ErrMissingPaths)
 }
 
 func (s *packSuite) TestValidateMissingAppFailsWithErrMissingPaths(c *C) {
+	var buf bytes.Buffer
 	sourceDir := makeExampleSnapSourceDir(c, `name: hello
 version: 0
 apps:
  foo:
   command: bin/hello-world
+  plugs: [potato]
 `)
+	err := pack.CheckSkeleton(&buf, sourceDir)
+	c.Assert(err, IsNil)
+	c.Check(buf.String(), Equals, "snap \"hello\" has bad plugs or slots: potato (unknown interface \"potato\")\n")
+
+	buf.Reset()
 	c.Assert(os.Remove(filepath.Join(sourceDir, "bin", "hello-world")), IsNil)
-	err := pack.CheckSkeleton(sourceDir)
+
+	err = pack.CheckSkeleton(&buf, sourceDir)
 	c.Assert(err, Equals, snap.ErrMissingPaths)
+	c.Check(buf.String(), Equals, "")
 }
 
 func (s *packSuite) TestPackExcludesBackups(c *C) {
@@ -145,7 +157,7 @@ func (s *packSuite) TestPackExcludesBackups(c *C) {
 	target := c.MkDir()
 	// add a backup file
 	c.Assert(ioutil.WriteFile(filepath.Join(sourceDir, "foo~"), []byte("hi"), 0755), IsNil)
-	snapfile, err := pack.Snap(sourceDir, c.MkDir(), "")
+	snapfile, err := pack.Snap(sourceDir, &pack.Options{TargetDir: c.MkDir()})
 	c.Assert(err, IsNil)
 	c.Assert(squashfs.New(snapfile).Unpack("*", target), IsNil)
 
@@ -163,7 +175,7 @@ func (s *packSuite) TestPackExcludesTopLevelDEBIAN(c *C) {
 	c.Assert(os.MkdirAll(filepath.Join(sourceDir, "DEBIAN", "foo"), 0755), IsNil)
 	// and a non-toplevel DEBIAN
 	c.Assert(os.MkdirAll(filepath.Join(sourceDir, "bar", "DEBIAN", "baz"), 0755), IsNil)
-	snapfile, err := pack.Snap(sourceDir, c.MkDir(), "")
+	snapfile, err := pack.Snap(sourceDir, &pack.Options{TargetDir: c.MkDir()})
 	c.Assert(err, IsNil)
 	c.Assert(squashfs.New(snapfile).Unpack("*", target), IsNil)
 	cmd := exec.Command("diff", "-qr", sourceDir, target)
@@ -181,7 +193,7 @@ func (s *packSuite) TestPackExcludesWholeDirs(c *C) {
 	// add a file inside a skipped dir
 	c.Assert(os.Mkdir(filepath.Join(sourceDir, ".bzr"), 0755), IsNil)
 	c.Assert(ioutil.WriteFile(filepath.Join(sourceDir, ".bzr", "foo"), []byte("hi"), 0755), IsNil)
-	snapfile, err := pack.Snap(sourceDir, c.MkDir(), "")
+	snapfile, err := pack.Snap(sourceDir, &pack.Options{TargetDir: c.MkDir()})
 	c.Assert(err, IsNil)
 	c.Assert(squashfs.New(snapfile).Unpack("*", target), IsNil)
 	out, _ := exec.Command("find", sourceDir).Output()
@@ -232,7 +244,10 @@ integration:
 
 	for i, t := range table {
 		comm := Commentf("%d", i)
-		resultSnap, err := pack.Snap(sourceDir, t.outputDir, t.filename)
+		resultSnap, err := pack.Snap(sourceDir, &pack.Options{
+			TargetDir: t.outputDir,
+			SnapName:  t.filename,
+		})
 		c.Assert(err, IsNil, comm)
 
 		// check that there is result
@@ -253,4 +268,88 @@ integration:
 		}
 	}
 
+}
+
+func (s *packSuite) TestPackGadgetValidate(c *C) {
+	sourceDir := makeExampleSnapSourceDir(c, `name: funky-gadget
+version: 1.0.1
+type: gadget
+`)
+
+	var gadgetYamlContent = `
+volumes:
+  bad:
+    bootloader: grub
+    structure:
+      - name: fs-struct
+        type: DA,21686148-6449-6E6F-744E-656564454649
+        size: 1M
+        filesystem: ext4
+        content:
+          - source: foo/
+            target: /
+      - name: bare-struct
+        type: DA,21686148-6449-6E6F-744E-656564454649
+        size: 1M
+        content:
+          - image: bare.img
+
+`
+	err := ioutil.WriteFile(filepath.Join(sourceDir, "meta/gadget.yaml"), []byte(gadgetYamlContent), 0644)
+	c.Assert(err, IsNil)
+
+	outputDir := filepath.Join(c.MkDir(), "output")
+	absSnapFile := filepath.Join(c.MkDir(), "foo.snap")
+
+	// gadget validation fails during layout
+	_, err = pack.Snap(sourceDir, &pack.Options{
+		TargetDir: outputDir,
+		SnapName:  absSnapFile,
+	})
+	c.Assert(err, ErrorMatches, `invalid layout of volume "bad": cannot lay out structure #1 \("bare-struct"\): content "bare.img": stat .*/bare.img: no such file or directory`)
+
+	err = ioutil.WriteFile(filepath.Join(sourceDir, "bare.img"), []byte("foo"), 0644)
+	c.Assert(err, IsNil)
+
+	// gadget validation fails during content presence checks
+	_, err = pack.Snap(sourceDir, &pack.Options{
+		TargetDir: outputDir,
+		SnapName:  absSnapFile,
+	})
+	c.Assert(err, ErrorMatches, `invalid volume "bad": structure #0 \("fs-struct"\), content source:foo/: source path does not exist`)
+
+	err = os.Mkdir(filepath.Join(sourceDir, "foo"), 0644)
+	c.Assert(err, IsNil)
+	// all good now
+	_, err = pack.Snap(sourceDir, &pack.Options{
+		TargetDir: outputDir,
+		SnapName:  absSnapFile,
+	})
+	c.Assert(err, IsNil)
+}
+
+func (s *packSuite) TestPackWithCompressionHappy(c *C) {
+	sourceDir := makeExampleSnapSourceDir(c, "{name: hello, version: 0}")
+
+	for _, comp := range []string{"", "xz"} {
+		snapfile, err := pack.Snap(sourceDir, &pack.Options{
+			TargetDir:   c.MkDir(),
+			Compression: comp,
+		})
+		c.Assert(err, IsNil)
+		c.Assert(snapfile, testutil.FilePresent)
+	}
+}
+
+func (s *packSuite) TestPackWithCompressionUnhappy(c *C) {
+	sourceDir := makeExampleSnapSourceDir(c, "{name: hello, version: 0}")
+
+	for _, comp := range []string{"gzip", "lzo", "zstd", "silly"} {
+		snapfile, err := pack.Snap(sourceDir, &pack.Options{
+			TargetDir:   c.MkDir(),
+			Compression: comp,
+		})
+		c.Assert(err, ErrorMatches, fmt.Sprintf("cannot use compression %q", comp))
+		c.Assert(snapfile, Equals, "")
+	}
 }

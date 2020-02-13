@@ -100,7 +100,7 @@ type SnapOpSuite struct {
 func (s *SnapOpSuite) SetUpTest(c *check.C) {
 	s.BaseSnapSuite.SetUpTest(c)
 
-	restoreClientRetry := client.MockDoRetry(time.Millisecond, 10*time.Millisecond)
+	restoreClientRetry := client.MockDoTimings(time.Millisecond, 100*time.Millisecond)
 	restorePollTime := snap.MockPollTime(time.Millisecond)
 	s.restoreAll = func() {
 		restoreClientRetry()
@@ -191,14 +191,15 @@ func (s *SnapOpSuite) TestInstall(c *check.C) {
 	s.srv.checker = func(r *http.Request) {
 		c.Check(r.URL.Path, check.Equals, "/v2/snaps/foo")
 		c.Check(DecodedRequestBody(c, r), check.DeepEquals, map[string]interface{}{
-			"action":  "install",
-			"channel": "candidate",
+			"action":     "install",
+			"channel":    "candidate",
+			"cohort-key": "what",
 		})
 		s.srv.channel = "candidate"
 	}
 
 	s.RedirectClientToTestServer(s.srv.handle)
-	rest, err := snap.Parser(snap.Client()).ParseArgs([]string{"install", "--channel", "candidate", "foo"})
+	rest, err := snap.Parser(snap.Client()).ParseArgs([]string{"install", "--channel", "candidate", "--cohort", "what", "foo"})
 	c.Assert(err, check.IsNil)
 	c.Assert(rest, check.DeepEquals, []string{})
 	c.Check(s.Stdout(), check.Matches, `(?sm).*foo \(candidate\) 1.0 from Bar installed`)
@@ -234,7 +235,7 @@ func (s *SnapOpSuite) TestInstallFromTrack(c *check.C) {
 		c.Check(r.URL.Path, check.Equals, "/v2/snaps/foo")
 		c.Check(DecodedRequestBody(c, r), check.DeepEquals, map[string]interface{}{
 			"action":  "install",
-			"channel": "3.4/stable",
+			"channel": "3.4",
 		})
 		s.srv.channel = "3.4/stable"
 	}
@@ -450,11 +451,7 @@ func (s *SnapOpSuite) TestInstallSnapRevisionNotAvailableOnChannel(c *check.C) {
 	})
 
 	_, err := snap.Parser(snap.Client()).ParseArgs([]string{"install", "--channel=mytrack", "foo"})
-	c.Assert(err, check.NotNil)
-	c.Check(fmt.Sprintf("\nerror: %v\n", err), check.Equals, `
-error: snap "foo" not available on channel "mytrack/stable" (see 'snap info
-       foo')
-`)
+	c.Check(err, check.ErrorMatches, `snap "foo" not available on channel "mytrack" \(see 'snap info foo'\)`)
 
 	c.Check(s.Stdout(), check.Equals, "")
 	c.Check(s.Stderr(), check.Equals, "")
@@ -661,21 +658,11 @@ error: snap "foo" is not available on this architecture (arm64) but exists on
 
 func (s *SnapOpSuite) TestInstallSnapRevisionNotAvailableInvalidChannel(c *check.C) {
 	s.RedirectClientToTestServer(func(w http.ResponseWriter, r *http.Request) {
-		fmt.Fprintln(w, `{"type": "error", "result": {"message": "no snap revision on specified channel", "value": {
-  "snap-name": "foo",
-  "action": "install",
-  "architecture": "amd64",
-  "channel": "a/b/c/d",
-  "releases": [{"architecture": "amd64", "channel": "stable"}]
-}, "kind": "snap-channel-not-available"}, "status-code": 404}`)
+		c.Fatal("unexpected call to server")
 	})
 
 	_, err := snap.Parser(snap.Client()).ParseArgs([]string{"install", "--channel=a/b/c/d", "foo"})
-	c.Assert(err, check.NotNil)
-	c.Check(fmt.Sprintf("\nerror: %v\n", err), check.Equals, `
-error: requested channel "a/b/c/d" is not valid (see 'snap info foo' for valid
-       ones)
-`)
+	c.Assert(err, check.ErrorMatches, "channel name has too many components: a/b/c/d")
 
 	c.Check(s.Stdout(), check.Equals, "")
 	c.Check(s.Stderr(), check.Equals, "")
@@ -942,7 +929,6 @@ func (s *SnapOpSuite) TestRevertRunthrough(c *check.C) {
 	c.Assert(rest, check.DeepEquals, []string{})
 	// tracking channel is "" in the test server
 	c.Check(s.Stdout(), check.Equals, `foo reverted to 1.0
-Channel  for foo is closed; temporarily forwarding to potato.
 `)
 	c.Check(s.Stderr(), check.Equals, "")
 	// ensure that the fake server api was actually hit
@@ -1178,6 +1164,36 @@ func (s *SnapOpSuite) TestRefreshOneSwitchChannel(c *check.C) {
 	c.Check(s.Stdout(), check.Matches, `(?sm).*foo \(beta\) 1.0 from Bar refreshed`)
 }
 
+func (s *SnapOpSuite) TestRefreshOneSwitchCohort(c *check.C) {
+	s.RedirectClientToTestServer(s.srv.handle)
+	s.srv.checker = func(r *http.Request) {
+		c.Check(r.Method, check.Equals, "POST")
+		c.Check(r.URL.Path, check.Equals, "/v2/snaps/foo")
+		c.Check(DecodedRequestBody(c, r), check.DeepEquals, map[string]interface{}{
+			"action":     "refresh",
+			"cohort-key": "what",
+		})
+	}
+	_, err := snap.Parser(snap.Client()).ParseArgs([]string{"refresh", "--cohort=what", "foo"})
+	c.Assert(err, check.IsNil)
+	c.Check(s.Stdout(), check.Matches, `(?sm).*foo 1.0 from Bar refreshed`)
+}
+
+func (s *SnapOpSuite) TestRefreshOneLeaveCohort(c *check.C) {
+	s.RedirectClientToTestServer(s.srv.handle)
+	s.srv.checker = func(r *http.Request) {
+		c.Check(r.Method, check.Equals, "POST")
+		c.Check(r.URL.Path, check.Equals, "/v2/snaps/foo")
+		c.Check(DecodedRequestBody(c, r), check.DeepEquals, map[string]interface{}{
+			"action":       "refresh",
+			"leave-cohort": true,
+		})
+	}
+	_, err := snap.Parser(snap.Client()).ParseArgs([]string{"refresh", "--leave-cohort", "foo"})
+	c.Assert(err, check.IsNil)
+	c.Check(s.Stdout(), check.Matches, `(?sm).*foo 1.0 from Bar refreshed`)
+}
+
 func (s *SnapOpSuite) TestRefreshOneWithPinnedTrack(c *check.C) {
 	s.RedirectClientToTestServer(s.srv.handle)
 	s.srv.checker = func(r *http.Request) {
@@ -1269,6 +1285,25 @@ func (s *SnapOpSuite) TestRefreshOneRebooting(c *check.C) {
 	c.Check(err, check.IsNil)
 	c.Check(s.Stderr(), check.Equals, "snapd is about to reboot the system\n")
 
+}
+
+func (s *SnapOpSuite) TestRefreshOneChanDeprecated(c *check.C) {
+	var in, out string
+	s.RedirectClientToTestServer(func(w http.ResponseWriter, r *http.Request) {
+		c.Check(DecodedRequestBody(c, r), check.DeepEquals, map[string]interface{}{"action": "refresh", "channel": out})
+		fmt.Fprintln(w, `{"type": "error", "result": {"message": "snap not found", "value": "foo", "kind": "snap-not-found"}, "status-code": 404}`)
+	})
+
+	for in, out = range map[string]string{
+		"/foo":            "foo/stable",
+		"/stable":         "latest/stable",
+		"///foo/stable//": "foo/stable",
+	} {
+		s.stderr.Reset()
+		_, err := snap.Parser(snap.Client()).ParseArgs([]string{"refresh", "--channel=" + in, "one"})
+		c.Assert(err, check.ErrorMatches, "snap \"one\" not found")
+		c.Check(s.Stderr(), testutil.EqualsWrapped, `Warning: Specifying a channel "`+in+`" is relying on undefined behaviour. Interpreting it as "`+out+`" for now, but this will be an error later.`)
+	}
 }
 
 func (s *SnapOpSuite) TestRefreshOneModeErr(c *check.C) {
@@ -1560,6 +1595,26 @@ func (s *SnapOpSuite) TestRemove(c *check.C) {
 	c.Check(s.srv.n, check.Equals, s.srv.total)
 }
 
+func (s *SnapOpSuite) TestRemoveWithPurge(c *check.C) {
+	s.srv.total = 3
+	s.srv.checker = func(r *http.Request) {
+		c.Check(r.URL.Path, check.Equals, "/v2/snaps/foo")
+		c.Check(DecodedRequestBody(c, r), check.DeepEquals, map[string]interface{}{
+			"action": "remove",
+			"purge":  true,
+		})
+	}
+
+	s.RedirectClientToTestServer(s.srv.handle)
+	rest, err := snap.Parser(snap.Client()).ParseArgs([]string{"remove", "--purge", "foo"})
+	c.Assert(err, check.IsNil)
+	c.Assert(rest, check.DeepEquals, []string{})
+	c.Check(s.Stdout(), check.Matches, `(?sm).*foo removed`)
+	c.Check(s.Stderr(), check.Equals, "")
+	// ensure that the fake server api was actually hit
+	c.Check(s.srv.n, check.Equals, s.srv.total)
+}
+
 func (s *SnapOpSuite) TestRemoveRevision(c *check.C) {
 	s.srv.total = 3
 	s.srv.checker = func(r *http.Request) {
@@ -1825,20 +1880,107 @@ func (s *SnapOpSuite) TestWaitServerError(c *check.C) {
 }
 
 func (s *SnapOpSuite) TestSwitchHappy(c *check.C) {
-	s.srv.total = 3
+	s.srv.total = 4
 	s.srv.checker = func(r *http.Request) {
 		c.Check(r.URL.Path, check.Equals, "/v2/snaps/foo")
 		c.Check(DecodedRequestBody(c, r), check.DeepEquals, map[string]interface{}{
 			"action":  "switch",
 			"channel": "beta",
 		})
+		s.srv.trackingChannel = "beta"
 	}
 
 	s.RedirectClientToTestServer(s.srv.handle)
 	rest, err := snap.Parser(snap.Client()).ParseArgs([]string{"switch", "--beta", "foo"})
 	c.Assert(err, check.IsNil)
 	c.Assert(rest, check.DeepEquals, []string{})
-	c.Check(s.Stdout(), check.Matches, `(?sm).*"foo" switched to the "beta" channel`)
+	c.Check(s.Stdout(), check.Equals, `"foo" switched to the "beta" channel
+
+`)
+	c.Check(s.Stderr(), check.Equals, "")
+	// ensure that the fake server api was actually hit
+	c.Check(s.srv.n, check.Equals, s.srv.total)
+}
+
+func (s *SnapOpSuite) TestSwitchHappyCohort(c *check.C) {
+	s.srv.total = 4
+	s.srv.checker = func(r *http.Request) {
+		c.Check(r.URL.Path, check.Equals, "/v2/snaps/foo")
+		c.Check(DecodedRequestBody(c, r), check.DeepEquals, map[string]interface{}{
+			"action":     "switch",
+			"cohort-key": "what",
+		})
+	}
+
+	s.RedirectClientToTestServer(s.srv.handle)
+	rest, err := snap.Parser(snap.Client()).ParseArgs([]string{"switch", "--cohort=what", "foo"})
+	c.Assert(err, check.IsNil)
+	c.Assert(rest, check.DeepEquals, []string{})
+	c.Check(s.Stdout(), check.Matches, `(?sm).*"foo" switched to the "what" cohort`)
+	c.Check(s.Stderr(), check.Equals, "")
+	// ensure that the fake server api was actually hit
+	c.Check(s.srv.n, check.Equals, s.srv.total)
+}
+
+func (s *SnapOpSuite) TestSwitchHappyLeaveCohort(c *check.C) {
+	s.srv.total = 4
+	s.srv.checker = func(r *http.Request) {
+		c.Check(r.URL.Path, check.Equals, "/v2/snaps/foo")
+		c.Check(DecodedRequestBody(c, r), check.DeepEquals, map[string]interface{}{
+			"action":       "switch",
+			"leave-cohort": true,
+		})
+	}
+
+	s.RedirectClientToTestServer(s.srv.handle)
+	rest, err := snap.Parser(snap.Client()).ParseArgs([]string{"switch", "--leave-cohort", "foo"})
+	c.Assert(err, check.IsNil)
+	c.Assert(rest, check.DeepEquals, []string{})
+	c.Check(s.Stdout(), check.Matches, `(?sm).*"foo" left the cohort`)
+	c.Check(s.Stderr(), check.Equals, "")
+	// ensure that the fake server api was actually hit
+	c.Check(s.srv.n, check.Equals, s.srv.total)
+}
+
+func (s *SnapOpSuite) TestSwitchHappyChannelAndCohort(c *check.C) {
+	s.srv.total = 4
+	s.srv.checker = func(r *http.Request) {
+		c.Check(r.URL.Path, check.Equals, "/v2/snaps/foo")
+		c.Check(DecodedRequestBody(c, r), check.DeepEquals, map[string]interface{}{
+			"action":     "switch",
+			"cohort-key": "what",
+			"channel":    "edge",
+		})
+		s.srv.trackingChannel = "edge"
+	}
+
+	s.RedirectClientToTestServer(s.srv.handle)
+	rest, err := snap.Parser(snap.Client()).ParseArgs([]string{"switch", "--cohort=what", "--edge", "foo"})
+	c.Assert(err, check.IsNil)
+	c.Assert(rest, check.DeepEquals, []string{})
+	c.Check(s.Stdout(), check.Matches, `(?sm).*"foo" switched to the "edge" channel and the "what" cohort`)
+	c.Check(s.Stderr(), check.Equals, "")
+	// ensure that the fake server api was actually hit
+	c.Check(s.srv.n, check.Equals, s.srv.total)
+}
+
+func (s *SnapOpSuite) TestSwitchHappyChannelAndLeaveCohort(c *check.C) {
+	s.srv.total = 4
+	s.srv.checker = func(r *http.Request) {
+		c.Check(r.URL.Path, check.Equals, "/v2/snaps/foo")
+		c.Check(DecodedRequestBody(c, r), check.DeepEquals, map[string]interface{}{
+			"action":       "switch",
+			"leave-cohort": true,
+			"channel":      "edge",
+		})
+		s.srv.trackingChannel = "edge"
+	}
+
+	s.RedirectClientToTestServer(s.srv.handle)
+	rest, err := snap.Parser(snap.Client()).ParseArgs([]string{"switch", "--leave-cohort", "--edge", "foo"})
+	c.Assert(err, check.IsNil)
+	c.Assert(rest, check.DeepEquals, []string{})
+	c.Check(s.Stdout(), check.Matches, `(?sm).*"foo" left the cohort, and switched to the "edge" channel`)
 	c.Check(s.Stderr(), check.Equals, "")
 	// ensure that the fake server api was actually hit
 	c.Check(s.srv.n, check.Equals, s.srv.total)
@@ -1851,7 +1993,12 @@ func (s *SnapOpSuite) TestSwitchUnhappy(c *check.C) {
 
 func (s *SnapOpSuite) TestSwitchAlsoUnhappy(c *check.C) {
 	_, err := snap.Parser(snap.Client()).ParseArgs([]string{"switch", "foo"})
-	c.Assert(err, check.ErrorMatches, `missing --channel=<channel-name> parameter`)
+	c.Assert(err, check.ErrorMatches, `nothing to switch.*`)
+}
+
+func (s *SnapOpSuite) TestSwitchMoreUnhappy(c *check.C) {
+	_, err := snap.Parser(snap.Client()).ParseArgs([]string{"switch", "foo", "--cohort=what", "--leave-cohort"})
+	c.Assert(err, check.ErrorMatches, `cannot specify both --cohort and --leave-cohort`)
 }
 
 func (s *SnapOpSuite) TestSnapOpNetworkTimeoutError(c *check.C) {

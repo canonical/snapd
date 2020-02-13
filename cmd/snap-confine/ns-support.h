@@ -53,9 +53,11 @@ void sc_reassociate_with_pid1_mount_ns(void);
  * where namespaces are kept (/run/snapd/ns) is correctly prepared as described
  * above.
  *
+ * Experimental features can be enabled via optional feature flags.
+ *
  * For more details see namespaces(7).
  **/
-void sc_initialize_mount_ns(void);
+void sc_initialize_mount_ns(unsigned int experimental_features);
 
 /**
  * Data required to manage namespaces amongst a group of processes.
@@ -145,5 +147,7 @@ void sc_preserve_populated_per_user_mount_ns(struct sc_mount_ns *group);
  * terminate cleanly.
  **/
 void sc_wait_for_helper(struct sc_mount_ns *group);
+
+void sc_store_ns_info(const sc_invocation * inv);
 
 #endif

@@ -22,77 +22,105 @@ package builtin
 import (
 	"bytes"
 	"fmt"
+	"path/filepath"
+	"regexp"
 	"sort"
 
 	"github.com/snapcore/snapd/interfaces"
+	"github.com/snapcore/snapd/release"
 	"github.com/snapcore/snapd/snap"
 )
 
 // The maximum number of Usb bInterfaceNumber.
 const UsbMaxInterfaces = 32
 
-// AppLabelExpr returns the specification of the apparmor label describing
-// all the apps bound to a given slot. The result has one of three forms,
+// labelExpr returns the specification of the apparmor label describing
+// given apps and hooks. The result has one of three forms,
 // depending on how apps are bound to the slot:
 //
 // - "snap.$snap_instance.$app" if there is exactly one app bound
-// - "snap.$snap_instance.{$app1,...$appN}" if there are some, but not all, apps bound
-// - "snap.$snap_instance.*" if all apps are bound to the slot
-func appLabelExpr(apps map[string]*snap.AppInfo, snap *snap.Info) string {
+// - "snap.$snap_instance.{$app1,...$appN, $hook1...$hookN}" if there are some, but not all, apps/hooks bound
+// - "snap.$snap_instance.*" if all apps/hook are bound to the plug or slot
+func labelExpr(apps map[string]*snap.AppInfo, hooks map[string]*snap.HookInfo, snap *snap.Info) string {
 	var buf bytes.Buffer
+
+	names := make([]string, 0, len(apps)+len(hooks))
+	for appName := range apps {
+		names = append(names, appName)
+	}
+	for hookName := range hooks {
+		names = append(names, fmt.Sprintf("hook.%s", hookName))
+	}
+	sort.Strings(names)
+
 	fmt.Fprintf(&buf, `"snap.%s.`, snap.InstanceName())
-	if len(apps) == 1 {
-		for appName := range apps {
-			buf.WriteString(appName)
-		}
-	} else if len(apps) == len(snap.Apps) {
+	if len(names) == 1 {
+		buf.WriteString(names[0])
+	} else if len(apps) == len(snap.Apps) && len(hooks) == len(snap.Hooks) {
 		buf.WriteByte('*')
-	} else {
-		appNames := make([]string, 0, len(apps))
-		for appName := range apps {
-			appNames = append(appNames, appName)
-		}
-		sort.Strings(appNames)
+	} else if len(names) > 0 {
 		buf.WriteByte('{')
-		for _, appName := range appNames {
-			buf.WriteString(appName)
+		for _, name := range names {
+			buf.WriteString(name)
 			buf.WriteByte(',')
 		}
+		// remove trailing comma
 		buf.Truncate(buf.Len() - 1)
 		buf.WriteByte('}')
-	}
+	} // else: len(names)==0, gives "snap.<name>." that doesn't match anything
 	buf.WriteByte('"')
 	return buf.String()
 }
 
+// XXX: rename as it includes hooks too
 func slotAppLabelExpr(slot *interfaces.ConnectedSlot) string {
-	return appLabelExpr(slot.Apps(), slot.Snap())
+	return labelExpr(slot.Apps(), slot.Hooks(), slot.Snap())
 }
 
+// XXX: rename as it includes hooks too
 func plugAppLabelExpr(plug *interfaces.ConnectedPlug) string {
-	return appLabelExpr(plug.Apps(), plug.Snap())
+	return labelExpr(plug.Apps(), plug.Hooks(), plug.Snap())
 }
 
-// sanitizeSlotReservedForOS checks if slot is of type os.
-func sanitizeSlotReservedForOS(iface interfaces.Interface, slot *snap.SlotInfo) error {
-	if slot.Snap.Type != snap.TypeOS {
-		return fmt.Errorf("%s slots are reserved for the core snap", iface.Name())
+// determine if permanent slot side is provided by the system
+// on classic system some implicit slots can be provided by system or by
+// application snap e.g. avahi (it can be installed as deb or snap)
+// - slot owned by the system (core,snapd snap)  usually requires no action
+// - slot owned by application snap typically requires rules update
+func implicitSystemPermanentSlot(slot *snap.SlotInfo) bool {
+	if release.OnClassic &&
+		(slot.Snap.GetType() == snap.TypeOS || slot.Snap.GetType() == snap.TypeSnapd) {
+		return true
 	}
-	return nil
+	return false
 }
 
-// sanitizeSlotReservedForOSOrGadget checks if the slot is of type os or gadget.
-func sanitizeSlotReservedForOSOrGadget(iface interfaces.Interface, slot *snap.SlotInfo) error {
-	if slot.Snap.Type != snap.TypeOS && slot.Snap.Type != snap.TypeGadget {
-		return fmt.Errorf("%s slots are reserved for the core and gadget snaps", iface.Name())
+// determine if connected slot side is provided by the system
+// as for isPermanentSlotSystemSlot() slot can be owned by app or system
+func implicitSystemConnectedSlot(slot *interfaces.ConnectedSlot) bool {
+	if release.OnClassic &&
+		(slot.Snap().GetType() == snap.TypeOS || slot.Snap().GetType() == snap.TypeSnapd) {
+		return true
 	}
-	return nil
+	return false
 }
 
-// sanitizeSlotReservedForOSOrApp checks if the slot is of type os or app.
-func sanitizeSlotReservedForOSOrApp(iface interfaces.Interface, slot *snap.SlotInfo) error {
-	if slot.Snap.Type != snap.TypeOS && slot.Snap.Type != snap.TypeApp {
-		return fmt.Errorf("%s slots are reserved for the core and app snaps", iface.Name())
+// determine if the given slot attribute path matches the regex.
+// invalidErrFmt provides a fmt.Errorf format to create an error in
+// the case the path does not matches, it should allow to include
+// slotRef and be something like: "slot %q path attribute must be a
+// valid <path kind>".
+func verifySlotPathAttribute(slotRef *interfaces.SlotRef, attrs interfaces.Attrer, reg *regexp.Regexp, invalidErrFmt string) (string, error) {
+	var path string
+	if err := attrs.Attr("path", &path); err != nil || path == "" {
+		return "", fmt.Errorf("slot %q must have a path attribute", slotRef)
 	}
-	return nil
+	cleanPath := filepath.Clean(path)
+	if cleanPath != path {
+		return "", fmt.Errorf(`cannot use slot %q path %q: try %q"`, slotRef, path, cleanPath)
+	}
+	if !reg.MatchString(cleanPath) {
+		return "", fmt.Errorf(invalidErrFmt, slotRef)
+	}
+	return cleanPath, nil
 }

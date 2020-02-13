@@ -429,7 +429,7 @@ func report(errMsg, dupSig string, extra map[string]string) (string, error) {
 	}
 
 	report := map[string]string{
-		"Architecture":       arch.UbuntuArchitecture(),
+		"Architecture":       arch.DpkgArchitecture(),
 		"SnapdVersion":       SnapdVersion,
 		"DistroRelease":      distroRelease(),
 		"HostSnapdBuildID":   hostBuildID,

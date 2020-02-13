@@ -15,7 +15,7 @@ restore: |
 
 execute: |
     echo "Cannot install a private snap without login"
-    ! snap install test-snapd-private
+    not snap install test-snapd-private
 
     echo "Given account store credentials are available"
     # we don't have expect available on ubuntu-core, so the authenticated check need to be skipped on those systems
@@ -32,7 +32,7 @@ execute: |
         snap list|MATCH 'test-snapd-private +2\.0.*private'
 
         echo "After removing it"
-        snap remove test-snapd-private
+        snap remove --purge test-snapd-private
 
         echo "Install it together with a public snap"
         snap install test-snapd-private test-snapd-public

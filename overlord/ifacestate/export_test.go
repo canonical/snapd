@@ -23,6 +23,8 @@ import (
 	"github.com/snapcore/snapd/interfaces"
 	"github.com/snapcore/snapd/overlord/ifacestate/udevmonitor"
 	"github.com/snapcore/snapd/overlord/state"
+	"github.com/snapcore/snapd/snap"
+	"github.com/snapcore/snapd/timings"
 )
 
 var (
@@ -55,7 +57,11 @@ var (
 	AllocHotplugSeq              = allocHotplugSeq
 	AddHotplugSeqWaitTask        = addHotplugSeqWaitTask
 	AddHotplugSlot               = addHotplugSlot
+
+	BatchConnectTasks = batchConnectTasks
 )
+
+type ConnectOpts = connectOpts
 
 func NewConnectOptsWithAutoSet() connectOpts {
 	return connectOpts{AutoConnect: true, ByGadget: false}
@@ -63,6 +69,10 @@ func NewConnectOptsWithAutoSet() connectOpts {
 
 func NewDisconnectOptsWithByHotplugSet() disconnectOpts {
 	return disconnectOpts{ByHotplug: true}
+}
+
+func NewConnectOptsWithDelayProfilesSet() connectOpts {
+	return connectOpts{AutoConnect: true, ByGadget: false, DelayedSetupProfiles: true}
 }
 
 func MockRemoveStaleConnections(f func(st *state.State) error) (restore func()) {
@@ -155,4 +165,8 @@ func MockWriteSystemKey(fn func() error) func() {
 
 func (m *InterfaceManager) TransitionConnectionsCoreMigration(st *state.State, oldName, newName string) error {
 	return m.transitionConnectionsCoreMigration(st, oldName, newName)
+}
+
+func (m *InterfaceManager) SetupSecurityByBackend(task *state.Task, snaps []*snap.Info, opts []interfaces.ConfinementOptions, tm timings.Measurer) error {
+	return m.setupSecurityByBackend(task, snaps, opts, tm)
 }

@@ -99,38 +99,15 @@ func (s *setSuite) TestCommand(c *C) {
 	c.Check(value, Equals, "qux")
 }
 
-func (s *getSuite) TestSetRegularUserForbidden(c *C) {
-	state := state.New(nil)
-	state.Lock()
-
-	task := state.NewTask("test-task", "my test task")
-	setup := &hookstate.HookSetup{Snap: "test-snap", Revision: snap.R(1), Hook: "test-hook"}
-
-	state.Unlock()
-
-	mockHandler := hooktest.NewMockHandler()
-	mockContext, err := hookstate.NewContext(task, task.State(), setup, mockHandler, "")
-	c.Assert(err, IsNil)
-	_, _, err = ctlcmd.Run(mockContext, []string{"set", "test-key1"}, 1000)
-	c.Assert(err, NotNil)
+func (s *setSuite) TestSetRegularUserForbidden(c *C) {
+	_, _, err := ctlcmd.Run(s.mockContext, []string{"set", "test-key1"}, 1000)
 	c.Assert(err, ErrorMatches, `cannot use "set" with uid 1000, try with sudo`)
 	forbidden, _ := err.(*ctlcmd.ForbiddenCommandError)
 	c.Assert(forbidden, NotNil)
 }
 
-func (s *getSuite) TestSetHelpRegularUserAllowed(c *C) {
-	state := state.New(nil)
-	state.Lock()
-
-	task := state.NewTask("test-task", "my test task")
-	setup := &hookstate.HookSetup{Snap: "test-snap", Revision: snap.R(1), Hook: "test-hook"}
-
-	state.Unlock()
-
-	mockHandler := hooktest.NewMockHandler()
-	mockContext, err := hookstate.NewContext(task, task.State(), setup, mockHandler, "")
-	c.Assert(err, IsNil)
-	_, _, err = ctlcmd.Run(mockContext, []string{"set", "-h"}, 1000)
+func (s *setSuite) TestSetHelpRegularUserAllowed(c *C) {
+	_, _, err := ctlcmd.Run(s.mockContext, []string{"set", "-h"}, 1000)
 	c.Assert(err, NotNil)
 	c.Assert(strings.HasPrefix(err.Error(), "Usage:"), Equals, true)
 }
@@ -151,6 +128,58 @@ func (s *setSuite) TestSetConfigOptionWithColon(c *C) {
 	tr := config.NewTransaction(s.mockContext.State())
 	c.Check(tr.Get("test-snap", "device-service.url", &value), IsNil)
 	c.Check(value, Equals, "192.168.0.1:5555")
+}
+
+func (s *setSuite) TestUnsetConfigOptionWithInitialConfiguration(c *C) {
+	// Setup an initial configuration
+	s.mockContext.State().Lock()
+	tr := config.NewTransaction(s.mockContext.State())
+	tr.Set("test-snap", "test-key1", "test-value1")
+	tr.Set("test-snap", "test-key2", "test-value2")
+	tr.Set("test-snap", "test-key3.foo", "foo-value")
+	tr.Set("test-snap", "test-key3.bar", "bar-value")
+	tr.Commit()
+	s.mockContext.State().Unlock()
+
+	stdout, stderr, err := ctlcmd.Run(s.mockContext, []string{"set", "test-key1!", "test-key3.foo!"}, 0)
+	c.Check(err, IsNil)
+	c.Check(string(stdout), Equals, "")
+	c.Check(string(stderr), Equals, "")
+
+	// Notify the context that we're done. This should save the config.
+	s.mockContext.Lock()
+	defer s.mockContext.Unlock()
+	c.Check(s.mockContext.Done(), IsNil)
+
+	// Verify that the global config has been updated.
+	var value string
+	tr = config.NewTransaction(s.mockContext.State())
+	c.Check(tr.Get("test-snap", "test-key2", &value), IsNil)
+	c.Check(value, Equals, "test-value2")
+	c.Check(tr.Get("test-snap", "test-key1", &value), ErrorMatches, `snap "test-snap" has no "test-key1" configuration option`)
+	var value2 interface{}
+	c.Check(tr.Get("test-snap", "test-key3", &value2), IsNil)
+	c.Check(value2, DeepEquals, map[string]interface{}{"bar": "bar-value"})
+}
+
+func (s *setSuite) TestUnsetConfigOptionWithNoInitialConfiguration(c *C) {
+	stdout, stderr, err := ctlcmd.Run(s.mockContext, []string{"set", "test-key.key1=value1", "test-key.key2=value2", "test-key.key1!"}, 0)
+	c.Check(err, IsNil)
+	c.Check(string(stdout), Equals, "")
+	c.Check(string(stderr), Equals, "")
+
+	// Notify the context that we're done. This should save the config.
+	s.mockContext.Lock()
+	defer s.mockContext.Unlock()
+	c.Check(s.mockContext.Done(), IsNil)
+
+	// Verify that the global config has been updated.
+	var value interface{}
+	tr := config.NewTransaction(s.mockContext.State())
+	c.Check(tr.Get("test-snap", "test-key.key2", &value), IsNil)
+	c.Check(value, DeepEquals, "value2")
+	c.Check(tr.Get("test-snap", "test-key.key1", &value), ErrorMatches, `snap "test-snap" has no "test-key.key1" configuration option`)
+	c.Check(value, DeepEquals, "value2")
 }
 
 func (s *setSuite) TestSetNumbers(c *C) {
@@ -300,7 +329,7 @@ func (s *setAttrSuite) TestSetPlugAttributesSupportsDottedSyntax(c *C) {
 
 func (s *setAttrSuite) TestPlugOrSlotEmpty(c *C) {
 	stdout, stderr, err := ctlcmd.Run(s.mockPlugHookContext, []string{"set", ":", "foo=bar"}, 0)
-	c.Check(err.Error(), Equals, "plug or slot name not provided")
+	c.Check(err, ErrorMatches, "plug or slot name not provided")
 	c.Check(string(stdout), Equals, "")
 	c.Check(string(stderr), Equals, "")
 }
@@ -319,8 +348,7 @@ func (s *setAttrSuite) TestSetCommandFailsOutsideOfValidContext(c *C) {
 	c.Assert(err, IsNil)
 
 	stdout, stderr, err := ctlcmd.Run(mockContext, []string{"set", ":aplug", "foo=bar"}, 0)
-	c.Check(err, NotNil)
-	c.Check(err.Error(), Equals, `interface attributes can only be set during the execution of prepare hooks`)
+	c.Check(err, ErrorMatches, `interface attributes can only be set during the execution of prepare hooks`)
 	c.Check(string(stdout), Equals, "")
 	c.Check(string(stderr), Equals, "")
 }

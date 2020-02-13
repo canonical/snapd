@@ -31,16 +31,15 @@ import (
 	"strings"
 	"testing"
 
-	. "gopkg.in/check.v1"
-
+	"github.com/jessevdk/go-flags"
 	"golang.org/x/crypto/ssh/terminal"
+	. "gopkg.in/check.v1"
 
 	"github.com/snapcore/snapd/cmd"
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/interfaces"
 	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/osutil"
-	snapdsnap "github.com/snapcore/snapd/snap"
 	"github.com/snapcore/snapd/testutil"
 
 	snap "github.com/snapcore/snapd/cmd/snap"
@@ -84,8 +83,6 @@ func (s *BaseSnapSuite) SetUpTest(c *C) {
 	snap.ReadPassword = s.readPassword
 	s.AuthFile = filepath.Join(c.MkDir(), "json")
 	os.Setenv(TestAuthFileEnvKey, s.AuthFile)
-
-	s.AddCleanup(snapdsnap.MockSanitizePlugsSlots(func(snapInfo *snapdsnap.Info) {}))
 
 	s.AddCleanup(interfaces.MockSystemKey(`
 {
@@ -370,6 +367,10 @@ func (s *SnapSuite) TestLintDesc(c *C) {
 	}
 	c.Check(fn, PanicMatches, `option on "command" has no name`)
 	log.Reset()
+
+	snap.LintDesc("snap-advise", "from-apt", "snap-advise will run as a hook", "")
+	c.Check(log.String(), HasLen, 0)
+	log.Reset()
 }
 
 func (s *SnapSuite) TestLintArg(c *C) {
@@ -403,4 +404,30 @@ func (s *SnapSuite) TestFixupArg(c *C) {
 	c.Check(snap.FixupArg("<option>"), Equals, "<option>")
 	// Trailing ">s" is fixed to just >.
 	c.Check(snap.FixupArg("<option>s"), Equals, "<option>")
+}
+
+func (s *SnapSuite) TestSetsUserAgent(c *C) {
+	testServerHit := false
+	s.RedirectClientToTestServer(func(w http.ResponseWriter, r *http.Request) {
+		c.Check(r.Header.Get("User-Agent"), Matches, "snapd/.*")
+		testServerHit = true
+
+		fmt.Fprintln(w, `{"type": "error", "result": {"message": "cannot do something"}}`)
+	})
+	restore := mockArgs("snap", "install", "foo")
+	defer restore()
+
+	_ = snap.RunMain()
+	c.Assert(testServerHit, Equals, true)
+}
+
+func (s *SnapSuite) TestCompletionHandlerSkipsHidden(c *C) {
+	snap.MarkForNoCompletion(snap.HiddenCmd("bar yadda yack", false))
+	snap.MarkForNoCompletion(snap.HiddenCmd("bar yack yack yack", true))
+	snap.CompletionHandler([]flags.Completion{
+		{Item: "foo", Description: "foo yadda yadda"},
+		{Item: "bar", Description: "bar yadda yack"},
+		{Item: "baz", Description: "bar yack yack yack"},
+	})
+	c.Check(s.Stdout(), Equals, "foo\nbaz\n")
 }

@@ -1,7 +1,7 @@
 Nvidia on Arch
 ==============
 
-On Arch nvidia support differs depending on the version of the driver user.
+On Arch nvidia support differs depending on the version of the driver used.
 Free drivers should work out of the box without any changes. Proprietary
 drivers were tested on the following driver versions:
 

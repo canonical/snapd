@@ -54,6 +54,9 @@ amazon_name_package() {
             xdelta3)
                 echo "xdelta"
                 ;;
+            openvswitch-switch)
+                echo "openvswitch"
+                ;;
             *)
                 echo "$i"
                 ;;
@@ -238,7 +241,7 @@ distro_install_package() {
         ;;
     esac
 
-    # fix dependency issue where libp11-kit0 needs to be downgraded to 
+    # fix dependency issue where libp11-kit0 needs to be downgraded to
     # install gnome-keyring
     case "$SPREAD_SYSTEM" in
         debian-9-*)
@@ -441,11 +444,22 @@ distro_install_build_snapd(){
         apt install -y --only-upgrade snapd
         mv sources.list.back /etc/apt/sources.list
         apt update
+
         # On trusty we may pull in a new hwe-kernel that is needed to run the
         # snapd tests. We need to reboot to actually run this kernel.
         if [[ "$SPREAD_SYSTEM" = ubuntu-14.04-* ]] && [ "$SPREAD_REBOOT" = 0 ]; then
             REBOOT
         fi
+    elif [ -n "$PPA_VALIDATION_NAME" ]; then
+        apt install -y snapd
+        add-apt-repository -y "$PPA_VALIDATION_NAME"
+        apt update
+        apt install -y --only-upgrade snapd
+        add-apt-repository --remove "$PPA_VALIDATION_NAME"
+        apt update
+
+        # Double check that it really comes from the PPA
+        apt show snapd | grep "APT-Sources: http.*ppa.launchpad.net"
     else
         packages=
         case "$SPREAD_SYSTEM" in
@@ -475,6 +489,15 @@ distro_install_build_snapd(){
 
         case "$SPREAD_SYSTEM" in
             fedora-*|centos-*)
+                # We need to wait until the man db cache is updated before do daemon-reexec
+                # Otherwise the service fails and the system will be degraded during tests executions
+                for i in $(seq 20); do
+                    if ! systemctl is-active run-*.service; then
+                        break
+                    fi
+                    sleep .5
+                done
+
                 # systemd caches SELinux policy data and subsequently attempts
                 # to create sockets with incorrect context, this installation of
                 # socket activated snaps fails, see:
@@ -580,35 +603,47 @@ pkg_dependencies_ubuntu_classic(){
             echo "
                 gccgo-6
                 evolution-data-server
+                fwupd
                 gnome-online-accounts
+                packagekit
                 "
                 pkg_linux_image_extra
             ;;
         ubuntu-16.04-64)
             echo "
                 evolution-data-server
+                fwupd
                 gccgo-6
                 gnome-online-accounts
                 kpartx
                 libvirt-bin
+                packagekit
                 qemu
                 x11-utils
                 xvfb
                 "
                 pkg_linux_image_extra
             ;;
-        ubuntu-17.10-64)
-                pkg_linux_image_extra
-            ;;
         ubuntu-18.04-64)
             echo "
                 gccgo-8
                 evolution-data-server
+                fwupd
+                packagekit
                 "
             ;;
-        ubuntu-18.10-64)
+        ubuntu-19.10-64)
             echo "
                 evolution-data-server
+                fwupd
+                packagekit
+                "
+            ;;
+        ubuntu-20.04-64)
+            echo "
+                evolution-data-server
+                gccgo-9
+                packagekit
                 "
             ;;
         ubuntu-*)
@@ -620,7 +655,9 @@ pkg_dependencies_ubuntu_classic(){
             echo "
                 eatmydata
                 evolution-data-server
+                fwupd
                 net-tools
+                packagekit
                 sbuild
                 "
             ;;
@@ -655,6 +692,7 @@ pkg_dependencies_fedora(){
         evolution-data-server
         expect
         fontconfig
+        fwupd
         git
         golang
         jq
@@ -663,12 +701,14 @@ pkg_dependencies_fedora(){
         mock
         net-tools
         nfs-utils
+        PackageKit
         python3-yaml
         python3-dbus
         python3-gobject
         redhat-lsb-core
         rpm-build
         udisks2
+        upower
         xdg-user-dirs
         xdg-utils
         strace
@@ -681,6 +721,7 @@ pkg_dependencies_amazon(){
         dbus-x11
         expect
         fontconfig
+        fwupd
         git
         golang
         grub2-tools
@@ -691,11 +732,13 @@ pkg_dependencies_amazon(){
         nc
         net-tools
         nfs-utils
+        PackageKit
         system-lsb-core
         rpm-build
         xdg-user-dirs
         xdg-utils
         udisks2
+        upower
         "
 }
 
@@ -707,16 +750,19 @@ pkg_dependencies_opensuse(){
         evolution-data-server
         expect
         fontconfig
+        fwupd
         git
         golang-packaging
         jq
         lsb-release
         man
         nfs-kernel-server
+        PackageKit
         python3-yaml
         netcat-openbsd
         osc
         udisks2
+        upower
         uuidd
         xdg-user-dirs
         xdg-utils
@@ -732,6 +778,7 @@ pkg_dependencies_arch(){
     evolution-data-server
     expect
     fontconfig
+    fwupd
     git
     go
     go-tools
@@ -742,6 +789,7 @@ pkg_dependencies_arch(){
     net-tools
     nfs-utils
     openbsd-netcat
+    packagekit
     python
     python-docutils
     python-dbus
@@ -751,6 +799,7 @@ pkg_dependencies_arch(){
     shellcheck
     strace
     udisks2
+    upower
     xdg-user-dirs
     xdg-utils
     xfsprogs

@@ -1,7 +1,7 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
 
 /*
- * Copyright (C) 2016-2017 Canonical Ltd
+ * Copyright (C) 2016-2019 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -21,53 +21,83 @@ package devicestate
 
 import (
 	"fmt"
+	"os"
 	"regexp"
 	"strings"
 	"time"
 
 	"github.com/snapcore/snapd/asserts"
 	"github.com/snapcore/snapd/asserts/sysdb"
-	"github.com/snapcore/snapd/bootloader"
+	"github.com/snapcore/snapd/boot"
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/i18n"
 	"github.com/snapcore/snapd/overlord/assertstate"
 	"github.com/snapcore/snapd/overlord/auth"
 	"github.com/snapcore/snapd/overlord/configstate/config"
+	"github.com/snapcore/snapd/overlord/devicestate/internal"
 	"github.com/snapcore/snapd/overlord/hookstate"
 	"github.com/snapcore/snapd/overlord/snapstate"
 	"github.com/snapcore/snapd/overlord/state"
+	"github.com/snapcore/snapd/overlord/storecontext"
 	"github.com/snapcore/snapd/release"
-	"github.com/snapcore/snapd/snap"
+	"github.com/snapcore/snapd/timings"
 )
 
 // DeviceManager is responsible for managing the device identity and device
 // policies.
 type DeviceManager struct {
+	modeEnv boot.Modeenv
+
 	state      *state.State
 	keypairMgr asserts.KeypairManager
+
+	// newStore can make new stores for remodeling
+	newStore func(storecontext.DeviceBackend) snapstate.StoreService
 
 	bootOkRan            bool
 	bootRevisionsUpdated bool
 
 	ensureSeedInConfigRan bool
 
+	ensureInstalledRan bool
+
 	lastBecomeOperationalAttempt time.Time
 	becomeOperationalBackoff     time.Duration
 	registered                   bool
 	reg                          chan struct{}
+
+	preseed bool
 }
 
 // Manager returns a new device manager.
-func Manager(s *state.State, hookManager *hookstate.HookManager, runner *state.TaskRunner) (*DeviceManager, error) {
+func Manager(s *state.State, hookManager *hookstate.HookManager, runner *state.TaskRunner, newStore func(storecontext.DeviceBackend) snapstate.StoreService) (*DeviceManager, error) {
 	delayedCrossMgrInit()
 
 	keypairMgr, err := asserts.OpenFSKeypairManager(dirs.SnapDeviceDir)
 	if err != nil {
 		return nil, err
-
 	}
 
-	m := &DeviceManager{state: s, keypairMgr: keypairMgr, reg: make(chan struct{})}
+	m := &DeviceManager{
+		state:      s,
+		keypairMgr: keypairMgr,
+		newStore:   newStore,
+		reg:        make(chan struct{}),
+		// TODO: handle here via devicestate, similar to DeviceContext.
+		preseed: release.PreseedMode(),
+	}
+
+	modeEnv, err := boot.ReadModeenv("")
+	if err != nil && !os.IsNotExist(err) {
+		return nil, err
+	}
+	if modeEnv != nil {
+		m.modeEnv = *modeEnv
+	}
+
+	s.Lock()
+	s.Cache(deviceMgrKey{}, m)
+	s.Unlock()
 
 	if err := m.confirmRegistered(); err != nil {
 		return nil, err
@@ -77,11 +107,35 @@ func Manager(s *state.State, hookManager *hookstate.HookManager, runner *state.T
 
 	runner.AddHandler("generate-device-key", m.doGenerateDeviceKey, nil)
 	runner.AddHandler("request-serial", m.doRequestSerial, nil)
+	runner.AddHandler("mark-preseeded", m.doMarkPreseeded, nil)
 	runner.AddHandler("mark-seeded", m.doMarkSeeded, nil)
+	runner.AddHandler("setup-run-system", m.doSetupRunSystem, nil)
+	runner.AddHandler("prepare-remodeling", m.doPrepareRemodeling, nil)
+	runner.AddCleanup("prepare-remodeling", m.cleanupRemodel)
 	// this *must* always run last and finalizes a remodel
 	runner.AddHandler("set-model", m.doSetModel, nil)
+	runner.AddCleanup("set-model", m.cleanupRemodel)
+	// There is no undo for successful gadget updates. The system is
+	// rebooted during update, if it boots up to the point where snapd runs
+	// we deem the new assets (be it bootloader or firmware) functional. The
+	// deployed boot assets must be backward compatible with reverted kernel
+	// or gadget snaps. There are no further changes to the boot assets,
+	// unless a new gadget update is deployed.
+	runner.AddHandler("update-gadget-assets", m.doUpdateGadgetAssets, nil)
+
+	runner.AddBlocked(gadgetUpdateBlocked)
 
 	return m, nil
+}
+
+type deviceMgrKey struct{}
+
+func deviceMgr(st *state.State) *DeviceManager {
+	mgr := st.Cached(deviceMgrKey{})
+	if mgr == nil {
+		panic("internal error: device manager is not yet associated with state")
+	}
+	return mgr.(*DeviceManager)
 }
 
 func (m *DeviceManager) CanStandby() bool {
@@ -96,7 +150,7 @@ func (m *DeviceManager) confirmRegistered() error {
 	m.state.Lock()
 	defer m.state.Unlock()
 
-	device, err := auth.Device(m.state)
+	device, err := m.device()
 	if err != nil {
 		return err
 	}
@@ -113,6 +167,23 @@ func (m *DeviceManager) markRegistered() {
 	}
 	m.registered = true
 	close(m.reg)
+}
+
+func gadgetUpdateBlocked(cand *state.Task, running []*state.Task) bool {
+	if cand.Kind() == "update-gadget-assets" && len(running) != 0 {
+		// update-gadget-assets must be the only task running
+		return true
+	} else {
+		for _, other := range running {
+			if other.Kind() == "update-gadget-assets" {
+				// no other task can be started when
+				// update-gadget-assets is running
+				return true
+			}
+		}
+	}
+
+	return false
 }
 
 type prepareDeviceHandler struct{}
@@ -185,17 +256,30 @@ func setClassicFallbackModel(st *state.State, device *auth.DeviceState) error {
 	}
 	device.Brand = "generic"
 	device.Model = "generic-classic"
-	if err := auth.SetDevice(st, device); err != nil {
+	if err := internal.SetDevice(st, device); err != nil {
 		return err
 	}
 	return nil
+}
+
+func (m *DeviceManager) OperatingMode() string {
+	if m.modeEnv.Mode == "" {
+		return "run"
+	}
+	return m.modeEnv.Mode
 }
 
 func (m *DeviceManager) ensureOperational() error {
 	m.state.Lock()
 	defer m.state.Unlock()
 
-	device, err := auth.Device(m.state)
+	if m.OperatingMode() != "run" {
+		// avoid doing registration in ephemeral mode
+		// note: this also stop auto-refreshes indirectly
+		return nil
+	}
+
+	device, err := m.device()
 	if err != nil {
 		return err
 	}
@@ -204,6 +288,8 @@ func (m *DeviceManager) ensureOperational() error {
 		// serial is set, we are all set
 		return nil
 	}
+
+	perfTimings := timings.New(map[string]string{"ensure": "become-operational"})
 
 	// conditions to trigger device registration
 	//
@@ -241,7 +327,7 @@ func (m *DeviceManager) ensureOperational() error {
 	}
 
 	var storeID, gadget string
-	model, err := Model(m.state)
+	model, err := m.Model()
 	if err != nil && err != state.ErrNoState {
 		return err
 	}
@@ -265,29 +351,22 @@ func (m *DeviceManager) ensureOperational() error {
 		}
 	}
 
-	var gadgetInfo *snap.Info
 	var hasPrepareDeviceHook bool
 	// if there's a gadget specified wait for it
 	if gadget != "" {
-		var err error
-		gadgetInfo, err = snapstate.GadgetInfo(m.state)
-		if err == state.ErrNoState {
-			// no gadget installed yet, cannot proceed
+		// if have a gadget wait until seeded to proceed
+		if !seeded {
+			// this will be run again, so eventually when the system is
+			// seeded the code below runs
 			return nil
+
 		}
+
+		gadgetInfo, err := snapstate.CurrentInfo(m.state, gadget)
 		if err != nil {
 			return err
 		}
 		hasPrepareDeviceHook = (gadgetInfo.Hooks["prepare-device"] != nil)
-	}
-
-	// When the prepare-device hook is used we need a fully seeded system
-	// to ensure the prepare-device hook has access to the things it
-	// needs
-	if !seeded && hasPrepareDeviceHook {
-		// this will be run again, so eventually when the system is
-		// seeded the code below runs
-		return nil
 	}
 
 	// have some backoff between full retries
@@ -307,7 +386,7 @@ func (m *DeviceManager) ensureOperational() error {
 	if hasPrepareDeviceHook {
 		summary := i18n.G("Run prepare-device hook")
 		hooksup := &hookstate.HookSetup{
-			Snap: gadgetInfo.InstanceName(),
+			Snap: gadget,
 			Hook: "prepare-device",
 		}
 		prepareDevice = hookstate.HookTask(m.state, summary, hooksup, nil)
@@ -329,14 +408,17 @@ func (m *DeviceManager) ensureOperational() error {
 	chg := m.state.NewChange("become-operational", i18n.G("Initialize device"))
 	chg.AddAll(state.NewTaskSet(tasks...))
 
+	perfTimings.AddTag("change-id", chg.ID())
+	perfTimings.Save(m.state)
+
 	return nil
 }
 
 var populateStateFromSeed = populateStateFromSeedImpl
 
-// ensureSnaps makes sure that the snaps from seed.yaml get installed
+// ensureSeeded makes sure that the snaps from seed.yaml get installed
 // with the matching assertions
-func (m *DeviceManager) ensureSeedYaml() error {
+func (m *DeviceManager) ensureSeeded() error {
 	m.state.Lock()
 	defer m.state.Unlock()
 
@@ -349,11 +431,27 @@ func (m *DeviceManager) ensureSeedYaml() error {
 		return nil
 	}
 
+	perfTimings := timings.New(map[string]string{"ensure": "seed"})
+
 	if m.changeInFlight("seed") {
 		return nil
 	}
 
-	tsAll, err := populateStateFromSeed(m.state)
+	var opts *populateStateFromSeedOptions
+	if !m.modeEnv.Unset() {
+		opts = &populateStateFromSeedOptions{
+			Label: m.modeEnv.RecoverySystem,
+			Mode:  m.modeEnv.Mode,
+		}
+	}
+	if m.preseed {
+		opts = &populateStateFromSeedOptions{Preseed: true}
+	}
+
+	var tsAll []*state.TaskSet
+	timings.Run(perfTimings, "state-from-seed", "populate state from seed", func(tm timings.Measurer) {
+		tsAll, err = populateStateFromSeed(m.state, opts, tm)
+	})
 	if err != nil {
 		return err
 	}
@@ -368,7 +466,15 @@ func (m *DeviceManager) ensureSeedYaml() error {
 	}
 	m.state.EnsureBefore(0)
 
+	perfTimings.AddTag("change-id", chg.ID())
+	perfTimings.Save(m.state)
 	return nil
+}
+
+// ResetBootOk is only useful for integration testing
+func (m *DeviceManager) ResetBootOk() {
+	m.bootOkRan = false
+	m.bootRevisionsUpdated = false
 }
 
 func (m *DeviceManager) ensureBootOk() error {
@@ -379,13 +485,20 @@ func (m *DeviceManager) ensureBootOk() error {
 		return nil
 	}
 
+	// boot-ok/update-boot-revision is only relevant in run-mode
+	if m.OperatingMode() != "run" {
+		return nil
+	}
+
 	if !m.bootOkRan {
-		loader, err := bootloader.Find()
-		if err != nil {
-			return fmt.Errorf(i18n.G("cannot mark boot successful: %s"), err)
-		}
-		if err := bootloader.MarkBootSuccessful(loader); err != nil {
+		deviceCtx, err := DeviceCtx(m.state, nil, nil)
+		if err != nil && err != state.ErrNoState {
 			return err
+		}
+		if err == nil {
+			if err := boot.MarkBootSuccessful(deviceCtx); err != nil {
+				return err
+			}
 		}
 		m.bootOkRan = true
 	}
@@ -396,6 +509,47 @@ func (m *DeviceManager) ensureBootOk() error {
 		}
 		m.bootRevisionsUpdated = true
 	}
+
+	return nil
+}
+
+func (m *DeviceManager) ensureInstalled() error {
+	m.state.Lock()
+	defer m.state.Unlock()
+
+	if release.OnClassic {
+		return nil
+	}
+
+	if m.ensureInstalledRan {
+		return nil
+	}
+
+	if m.OperatingMode() != "install" {
+		return nil
+	}
+
+	var seeded bool
+	err := m.state.Get("seeded", &seeded)
+	if err != nil {
+		return err
+	}
+	if !seeded {
+		return nil
+	}
+
+	if m.changeInFlight("install-system") {
+		return nil
+	}
+
+	m.ensureInstalledRan = true
+
+	tasks := []*state.Task{}
+	setupRunSystem := m.state.NewTask("setup-run-system", i18n.G("Setup system for run mode"))
+	tasks = append(tasks, setupRunSystem)
+
+	chg := m.state.NewChange("install-system", i18n.G("Install the system"))
+	chg.AddAll(state.NewTaskSet(tasks...))
 
 	return nil
 }
@@ -464,19 +618,26 @@ func (e *ensureError) Error() string {
 func (m *DeviceManager) Ensure() error {
 	var errs []error
 
-	if err := m.ensureSeedYaml(); err != nil {
-		errs = append(errs, err)
-	}
-	if err := m.ensureOperational(); err != nil {
+	if err := m.ensureSeeded(); err != nil {
 		errs = append(errs, err)
 	}
 
-	if err := m.ensureBootOk(); err != nil {
-		errs = append(errs, err)
-	}
+	if !m.preseed {
+		if err := m.ensureOperational(); err != nil {
+			errs = append(errs, err)
+		}
 
-	if err := m.ensureSeedInConfig(); err != nil {
-		errs = append(errs, err)
+		if err := m.ensureBootOk(); err != nil {
+			errs = append(errs, err)
+		}
+
+		if err := m.ensureSeedInConfig(); err != nil {
+			errs = append(errs, err)
+		}
+
+		if err := m.ensureInstalled(); err != nil {
+			errs = append(errs, err)
+		}
 	}
 
 	if len(errs) > 0 {
@@ -487,7 +648,7 @@ func (m *DeviceManager) Ensure() error {
 }
 
 func (m *DeviceManager) keyPair() (asserts.PrivateKey, error) {
-	device, err := auth.Device(m.state)
+	device, err := m.device()
 	if err != nil {
 		return nil, err
 	}
@@ -503,47 +664,61 @@ func (m *DeviceManager) keyPair() (asserts.PrivateKey, error) {
 	return privKey, nil
 }
 
-// implementing auth.DeviceAssertions
-// sanity check
-var _ auth.DeviceAssertions = (*DeviceManager)(nil)
-
-// Model returns the device model assertion.
-func (m *DeviceManager) Model() (*asserts.Model, error) {
-	m.state.Lock()
-	defer m.state.Unlock()
-
-	return Model(m.state)
-}
-
-// Serial returns the device serial assertion.
-func (m *DeviceManager) Serial() (*asserts.Serial, error) {
-	m.state.Lock()
-	defer m.state.Unlock()
-
-	return Serial(m.state)
-}
-
 // Registered returns a channel that is closed when the device is known to have been registered.
 func (m *DeviceManager) Registered() <-chan struct{} {
 	return m.reg
 }
 
-// DeviceSessionRequestParams produces a device-session-request with the given nonce, together with other required parameters, the device serial and model assertions.
-func (m *DeviceManager) DeviceSessionRequestParams(nonce string) (*auth.DeviceSessionRequestParams, error) {
-	m.state.Lock()
-	defer m.state.Unlock()
+// device returns current device state.
+func (m *DeviceManager) device() (*auth.DeviceState, error) {
+	return internal.Device(m.state)
+}
 
-	model, err := Model(m.state)
-	if err != nil {
-		return nil, err
+// setDevice sets the device details in the state.
+func (m *DeviceManager) setDevice(device *auth.DeviceState) error {
+	return internal.SetDevice(m.state, device)
+}
+
+// Model returns the device model assertion.
+func (m *DeviceManager) Model() (*asserts.Model, error) {
+	return findModel(m.state)
+}
+
+// Serial returns the device serial assertion.
+func (m *DeviceManager) Serial() (*asserts.Serial, error) {
+	return findSerial(m.state, nil)
+}
+
+// implement storecontext.Backend
+
+type storeContextBackend struct {
+	*DeviceManager
+}
+
+func (scb storeContextBackend) Device() (*auth.DeviceState, error) {
+	return scb.DeviceManager.device()
+}
+
+func (scb storeContextBackend) SetDevice(device *auth.DeviceState) error {
+	return scb.DeviceManager.setDevice(device)
+}
+
+func (scb storeContextBackend) ProxyStore() (*asserts.Store, error) {
+	st := scb.DeviceManager.state
+	return proxyStore(st, config.NewTransaction(st))
+}
+
+// SignDeviceSessionRequest produces a signed device-session-request with for given serial assertion and nonce.
+func (scb storeContextBackend) SignDeviceSessionRequest(serial *asserts.Serial, nonce string) (*asserts.DeviceSessionRequest, error) {
+	if serial == nil {
+		// shouldn't happen, but be safe
+		return nil, fmt.Errorf("internal error: cannot sign a session request without a serial")
 	}
 
-	serial, err := Serial(m.state)
-	if err != nil {
-		return nil, err
+	privKey, err := scb.DeviceManager.keyPair()
+	if err == state.ErrNoState {
+		return nil, fmt.Errorf("internal error: inconsistent state with serial but no device key")
 	}
-
-	privKey, err := m.keyPair()
 	if err != nil {
 		return nil, err
 	}
@@ -559,18 +734,9 @@ func (m *DeviceManager) DeviceSessionRequestParams(nonce string) (*auth.DeviceSe
 		return nil, err
 	}
 
-	return &auth.DeviceSessionRequestParams{
-		Request: a.(*asserts.DeviceSessionRequest),
-		Serial:  serial,
-		Model:   model,
-	}, err
-
+	return a.(*asserts.DeviceSessionRequest), nil
 }
 
-// ProxyStore returns the store assertion for the proxy store if one is set.
-func (m *DeviceManager) ProxyStore() (*asserts.Store, error) {
-	m.state.Lock()
-	defer m.state.Unlock()
-
-	return ProxyStore(m.state)
+func (m *DeviceManager) StoreContextBackend() storecontext.Backend {
+	return storeContextBackend{m}
 }

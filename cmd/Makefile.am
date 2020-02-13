@@ -59,21 +59,30 @@ new_format = \
 	 libsnap-confine-private/cgroup-pids-support.h \
 	 libsnap-confine-private/cgroup-support.c \
 	 libsnap-confine-private/cgroup-support.h \
+	 libsnap-confine-private/infofile-test.c \
+	 libsnap-confine-private/infofile.c \
+	 libsnap-confine-private/infofile.h \
+	 libsnap-confine-private/panic-test.h \
+	 libsnap-confine-private/panic.c \
+	 libsnap-confine-private/panic.h \
 	 snap-confine/seccomp-support-ext.c \
 	 snap-confine/seccomp-support-ext.h \
-	 snap-confine/snap-confine-invocation.c \
-	 snap-confine/snap-confine-invocation.h \
 	 snap-confine/selinux-support.c \
 	 snap-confine/selinux-support.h \
+	 snap-confine/snap-confine-invocation-test.c \
+	 snap-confine/snap-confine-invocation.c \
+	 snap-confine/snap-confine-invocation.h \
 	 snap-discard-ns/snap-discard-ns.c
+
+# NOTE: clang-format is using project-wide .clang-format file.
 .PHONY: fmt
 fmt:: $(filter     $(addprefix %,$(new_format)),$(foreach dir,$(subdirs),$(wildcard $(srcdir)/$(dir)/*.[ch])))
-	clang-format -style='{BasedOnStyle: Google, IndentWidth: 4, ColumnLimit: 120}' -i $^
+	clang-format -i $^
 
 fmt:: $(filter-out $(addprefix %,$(new_format)),$(foreach dir,$(subdirs),$(wildcard $(srcdir)/$(dir)/*.[ch])))
 	HOME=$(srcdir) indent $^
 
-# The hack target helps devlopers work on snap-confine on their live system by
+# The hack target helps developers work on snap-confine on their live system by
 # installing a fresh copy of snap confine and the appropriate apparmor profile.
 .PHONY: hack
 hack: snap-confine/snap-confine-debug snap-confine/snap-confine.apparmor snap-update-ns/snap-update-ns snap-seccomp/snap-seccomp snap-discard-ns/snap-discard-ns
@@ -88,9 +97,9 @@ hack: snap-confine/snap-confine-debug snap-confine/snap-confine.apparmor snap-up
 
 # for the hack target also:
 snap-update-ns/snap-update-ns: snap-update-ns/*.go snap-update-ns/*.[ch]
-	cd snap-update-ns && GOPATH=$(or $(GOPATH),$(realpath $(srcdir)/../../../../..)) go build -i -v
+	cd snap-update-ns && GOPATH=$(or $(GOPATH),$(realpath $(srcdir)/../../../../..)) go build -v
 snap-seccomp/snap-seccomp: snap-seccomp/*.go
-	cd snap-seccomp && GOPATH=$(or $(GOPATH),$(realpath $(srcdir)/../../../../..)) go build -i -v
+	cd snap-seccomp && GOPATH=$(or $(GOPATH),$(realpath $(srcdir)/../../../../..)) go build -v
 
 ##
 ## libsnap-confine-private.a
@@ -117,12 +126,15 @@ libsnap_confine_private_a_SOURCES = \
 	libsnap-confine-private/fault-injection.h \
 	libsnap-confine-private/feature.c \
 	libsnap-confine-private/feature.h \
+	libsnap-confine-private/infofile.c \
 	libsnap-confine-private/locking.c \
 	libsnap-confine-private/locking.h \
 	libsnap-confine-private/mount-opt.c \
 	libsnap-confine-private/mount-opt.h \
 	libsnap-confine-private/mountinfo.c \
 	libsnap-confine-private/mountinfo.h \
+	libsnap-confine-private/panic.c \
+	libsnap-confine-private/panic.h \
 	libsnap-confine-private/privs.c \
 	libsnap-confine-private/privs.h \
 	libsnap-confine-private/secure-getenv.c \
@@ -149,9 +161,11 @@ libsnap_confine_private_unit_tests_SOURCES = \
 	libsnap-confine-private/error-test.c \
 	libsnap-confine-private/fault-injection-test.c \
 	libsnap-confine-private/feature-test.c \
+	libsnap-confine-private/infofile-test.c \
 	libsnap-confine-private/locking-test.c \
 	libsnap-confine-private/mount-opt-test.c \
 	libsnap-confine-private/mountinfo-test.c \
+	libsnap-confine-private/panic-test.c \
 	libsnap-confine-private/privs-test.c \
 	libsnap-confine-private/secure-getenv-test.c \
 	libsnap-confine-private/snap-test.c \
@@ -323,8 +337,7 @@ snap_confine_unit_tests_SOURCES = \
 	snap-confine/mount-support-test.c \
 	snap-confine/ns-support-test.c \
 	snap-confine/snap-confine-args-test.c \
-	snap-confine/snap-confine-invocation.c \
-	snap-confine/snap-confine-invocation.h \
+	snap-confine/snap-confine-invocation-test.c \
 	snap-confine/snap-device-helper-test.c
 snap_confine_unit_tests_CFLAGS = $(snap_confine_snap_confine_CFLAGS) $(GLIB_CFLAGS)
 snap_confine_unit_tests_LDADD = $(snap_confine_snap_confine_LDADD) $(GLIB_LIBS)
@@ -345,7 +358,7 @@ if HAVE_RST2MAN
 endif
 
 snap-confine/snap-confine.apparmor: snap-confine/snap-confine.apparmor.in Makefile
-	sed -e 's,[@]LIBEXECDIR[@],$(libexecdir),g' -e 's,[@]SNAP_MOUNT_DIR[@],$(SNAP_MOUNT_DIR),' <$< >$@
+	sed -e 's,[@]LIBEXECDIR[@],$(libexecdir),g' -e 's,[@]SNAP_MOUNT_DIR[@],$(SNAP_MOUNT_DIR),g' <$< >$@
 
 # Install the apparmor profile
 #
@@ -364,13 +377,8 @@ install-data-local::
 	install -d -m 111 $(DESTDIR)/var/lib/snapd/void
 
 install-exec-hook::
-if CAPS_OVER_SETUID
-# Ensure that snap-confine has CAP_SYS_ADMIN capability
-	setcap cap_sys_admin=pe $(DESTDIR)$(libexecdir)/snap-confine
-else
 # Ensure that snap-confine is u+s,g+s (setuid and setgid)
 	chmod 6755 $(DESTDIR)$(libexecdir)/snap-confine
-endif
 
 ##
 ## snap-mgmt

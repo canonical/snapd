@@ -27,6 +27,7 @@ import (
 	"regexp"
 	"sort"
 	"strings"
+	"testing"
 
 	. "gopkg.in/check.v1"
 	"gopkg.in/yaml.v2"
@@ -94,6 +95,7 @@ func (s *infoSuite) TestSideInfoOverrides(c *C) {
 	c.Check(info.Description(), Equals, "fixed desc")
 	c.Check(info.Revision, Equals, snap.R(1))
 	c.Check(info.SnapID, Equals, "snapidsnapidsnapidsnapidsnapidsn")
+	c.Check(info.ID(), Equals, "snapidsnapidsnapidsnapidsnapidsn")
 }
 
 func (s *infoSuite) TestAppInfoSecurityTag(c *C) {
@@ -370,7 +372,7 @@ func makeTestSnap(c *C, snapYaml string) string {
 
 	dest := filepath.Join(tmp, "foo.snap")
 	snap := squashfs.New(dest)
-	err = snap.Build(snapSource, m.Type)
+	err = snap.Build(snapSource, &squashfs.BuildOpts{SnapType: m.Type})
 	c.Assert(err, IsNil)
 
 	return dest
@@ -399,7 +401,7 @@ confinement: devmode`
 	c.Assert(err, IsNil)
 	c.Check(info.InstanceName(), Equals, "foo")
 	c.Check(info.Version, Equals, "1.0")
-	c.Check(info.Type, Equals, snap.TypeApp)
+	c.Check(info.GetType(), Equals, snap.TypeApp)
 	c.Check(info.Revision, Equals, snap.R(0))
 	c.Check(info.Epoch.String(), Equals, "1*")
 	c.Check(info.Confinement, Equals, snap.DevModeConfinement)
@@ -421,7 +423,7 @@ confinement: classic`
 	c.Assert(err, IsNil)
 	c.Check(info.InstanceName(), Equals, "foo")
 	c.Check(info.Version, Equals, "1.0")
-	c.Check(info.Type, Equals, snap.TypeApp)
+	c.Check(info.GetType(), Equals, snap.TypeApp)
 	c.Check(info.Revision, Equals, snap.R(0))
 	c.Check(info.Confinement, Equals, snap.ClassicConfinement)
 	c.Check(info.NeedsDevMode(), Equals, false)
@@ -441,7 +443,7 @@ type: app`
 	c.Assert(err, IsNil)
 	c.Check(info.InstanceName(), Equals, "foo")
 	c.Check(info.Version, Equals, "1.0")
-	c.Check(info.Type, Equals, snap.TypeApp)
+	c.Check(info.GetType(), Equals, snap.TypeApp)
 	c.Check(info.Revision, Equals, snap.R(0))
 	c.Check(info.Epoch.String(), Equals, "0") // Defaults to 0
 	c.Check(info.Confinement, Equals, snap.StrictConfinement)
@@ -464,7 +466,7 @@ type: app`
 	c.Assert(err, IsNil)
 	c.Check(info.InstanceName(), Equals, "baz")
 	c.Check(info.Version, Equals, "1.0")
-	c.Check(info.Type, Equals, snap.TypeApp)
+	c.Check(info.GetType(), Equals, snap.TypeApp)
 	c.Check(info.Revision, Equals, snap.R(42))
 }
 
@@ -773,6 +775,35 @@ hooks:
 	})
 }
 
+func (s *infoSuite) TestReadInfoImplicitHookPlugWhenImplicitlyBoundToApp(c *C) {
+	yaml := `name: foo
+version: 1.0
+plugs:
+  test-plug:
+apps:
+  app:
+`
+	s.checkInstalledSnapAndSnapFile(c, "foo", yaml, "SNAP", []string{"implicit"}, func(c *C, info *snap.Info) {
+		c.Check(info.Hooks, HasLen, 1)
+		verifyImplicitHook(c, info, "implicit", []string{"test-plug"})
+	})
+}
+
+func (s *infoSuite) TestReadInfoImplicitHookPlugWhenExplicitlyBoundToApp(c *C) {
+	yaml := `name: foo
+version: 1.0
+plugs:
+  test-plug:
+apps:
+  app:
+    plugs: [test-plug]
+`
+	s.checkInstalledSnapAndSnapFile(c, "foo", yaml, "SNAP", []string{"implicit"}, func(c *C, info *snap.Info) {
+		c.Check(info.Hooks, HasLen, 1)
+		verifyImplicitHook(c, info, "implicit", nil)
+	})
+}
+
 func (s *infoSuite) TestParallelInstanceReadInfoImplicitAndExplicitHooks(c *C) {
 	yaml := `name: foo
 version: 1.0
@@ -788,7 +819,7 @@ hooks:
 }
 
 func (s *infoSuite) TestReadInfoImplicitHookWithTopLevelPlugSlots(c *C) {
-	yaml := `name: foo
+	yaml1 := `name: snap-1
 version: 1.0
 plugs:
   test-plug:
@@ -799,32 +830,29 @@ hooks:
     plugs: [test-plug,other-plug]
     slots: [test-slot,other-slot]
 `
-
-	yaml2 := `name: foo
-version: 1.0
-plugs:
-  test-plug:
-slots:
-  test-slot:
-`
-	s.checkInstalledSnapAndSnapFile(c, "foo", yaml, "SNAP", []string{"implicit"}, func(c *C, info *snap.Info) {
+	s.checkInstalledSnapAndSnapFile(c, "snap-1", yaml1, "SNAP", []string{"implicit"}, func(c *C, info *snap.Info) {
 		c.Check(info.Hooks, HasLen, 2)
 		implicitHook := info.Hooks["implicit"]
 		c.Assert(implicitHook, NotNil)
 		c.Assert(implicitHook.Explicit, Equals, false)
-		c.Assert(implicitHook.Plugs, HasLen, 1)
-		c.Assert(implicitHook.Slots, HasLen, 1)
+		c.Assert(implicitHook.Plugs, HasLen, 0)
+		c.Assert(implicitHook.Slots, HasLen, 0)
 
 		c.Check(info.Plugs, HasLen, 2)
 		c.Check(info.Slots, HasLen, 2)
 
 		plug := info.Plugs["test-plug"]
 		c.Assert(plug, NotNil)
-		c.Assert(implicitHook.Plugs["test-plug"], DeepEquals, plug)
+		// implicit hook has not gained test-plug because it was already
+		// associated with an app or a hook (here with the hook called
+		// "explicit"). This is consistent with the hook called "implicit"
+		// having been defined in the YAML but devoid of any interface
+		// assignments.
+		c.Assert(implicitHook.Plugs["test-plug"], IsNil)
 
 		slot := info.Slots["test-slot"]
 		c.Assert(slot, NotNil)
-		c.Assert(implicitHook.Slots["test-slot"], DeepEquals, slot)
+		c.Assert(implicitHook.Slots["test-slot"], IsNil)
 
 		explicitHook := info.Hooks["explicit"]
 		c.Assert(explicitHook, NotNil)
@@ -841,7 +869,14 @@ slots:
 		c.Assert(explicitHook.Slots["test-slot"], DeepEquals, slot)
 	})
 
-	s.checkInstalledSnapAndSnapFile(c, "foo", yaml2, "SNAP", []string{"implicit"}, func(c *C, info *snap.Info) {
+	yaml2 := `name: snap-2
+version: 1.0
+plugs:
+  test-plug:
+slots:
+  test-slot:
+`
+	s.checkInstalledSnapAndSnapFile(c, "snap-2", yaml2, "SNAP", []string{"implicit"}, func(c *C, info *snap.Info) {
 		c.Check(info.Hooks, HasLen, 1)
 		implicitHook := info.Hooks["implicit"]
 		c.Assert(implicitHook, NotNil)
@@ -859,6 +894,41 @@ slots:
 		slot := info.Slots["test-slot"]
 		c.Assert(slot, NotNil)
 		c.Assert(implicitHook.Slots["test-slot"], DeepEquals, slot)
+	})
+
+	yaml3 := `name: snap-3
+version: 1.0
+plugs:
+  test-plug:
+slots:
+  test-slot:
+`
+	s.checkInstalledSnapAndSnapFile(c, "snap-3", yaml3, "SNAP", []string{"implicit-1", "implicit-2"}, func(c *C, info *snap.Info) {
+		c.Check(info.Hooks, HasLen, 2)
+		implicit1Hook := info.Hooks["implicit-1"]
+		c.Assert(implicit1Hook, NotNil)
+		c.Assert(implicit1Hook.Explicit, Equals, false)
+		c.Assert(implicit1Hook.Plugs, HasLen, 1)
+		c.Assert(implicit1Hook.Slots, HasLen, 1)
+
+		implicit2Hook := info.Hooks["implicit-2"]
+		c.Assert(implicit2Hook, NotNil)
+		c.Assert(implicit2Hook.Explicit, Equals, false)
+		c.Assert(implicit2Hook.Plugs, HasLen, 1)
+		c.Assert(implicit2Hook.Slots, HasLen, 1)
+
+		c.Check(info.Plugs, HasLen, 1)
+		c.Check(info.Slots, HasLen, 1)
+
+		plug := info.Plugs["test-plug"]
+		c.Assert(plug, NotNil)
+		c.Assert(implicit1Hook.Plugs["test-plug"], DeepEquals, plug)
+		c.Assert(implicit2Hook.Plugs["test-plug"], DeepEquals, plug)
+
+		slot := info.Slots["test-slot"]
+		c.Assert(slot, NotNil)
+		c.Assert(implicit1Hook.Slots["test-slot"], DeepEquals, slot)
+		c.Assert(implicit2Hook.Slots["test-slot"], DeepEquals, slot)
 	})
 
 }
@@ -924,6 +994,11 @@ func verifyExplicitHook(c *C, info *snap.Info, hookName string, plugNames []stri
 
 }
 
+func (s *infoSuite) TestPlaceInfoRevision(c *C) {
+	info := snap.MinimalPlaceInfo("name", snap.R("1"))
+	c.Check(info.SnapRevision(), Equals, snap.R("1"))
+}
+
 func (s *infoSuite) TestMinimalInfoDirAndFileMethods(c *C) {
 	dirs.SetRootDir("")
 	info := snap.MinimalPlaceInfo("name", snap.R("1"))
@@ -980,6 +1055,47 @@ func (s *infoSuite) testInstanceDirAndFileMethods(c *C, info snap.PlaceInfo) {
 	c.Check(info.XdgRuntimeDirs(), Equals, "/run/user/*/snap.name_instance")
 }
 
+func BenchmarkTestParsePlaceInfoFromSnapFileName(b *testing.B) {
+	for n := 0; n < b.N; n++ {
+		for _, sn := range []string{
+			"core_21.snap",
+			"kernel_41.snap",
+			"some-long-kernel-name-kernel_82.snap",
+			"what-is-this-core_111.snap",
+		} {
+			snap.ParsePlaceInfoFromSnapFileName(sn)
+		}
+	}
+}
+
+func (s *infoSuite) TestParsePlaceInfoFromSnapFileName(c *C) {
+	tt := []struct {
+		sn        string
+		name      string
+		rev       string
+		expectErr string
+	}{
+		{sn: "", expectErr: "empty snap file name"},
+		{sn: "name", expectErr: `snap file name "name" has invalid format \(missing '_'\)`},
+		{sn: "name_", expectErr: `cannot parse revision in snap file name "name_": invalid snap revision: ""`},
+		{sn: "name__", expectErr: "too many '_' in snap file name"},
+		{sn: "_name.snap", expectErr: `snap file name \"_name.snap\" has invalid format \(no snap name before '_'\)`},
+		{sn: "name_key.snap", expectErr: `cannot parse revision in snap file name "name_key.snap": invalid snap revision: "key"`},
+		{sn: "name.snap", expectErr: `snap file name "name.snap" has invalid format \(missing '_'\)`},
+		{sn: "name_12.snap", name: "name", rev: "12"},
+		{sn: "name_key_12.snap", expectErr: "too many '_' in snap file name"},
+	}
+	for _, t := range tt {
+		p, err := snap.ParsePlaceInfoFromSnapFileName(t.sn)
+		if t.expectErr != "" {
+			c.Check(err, ErrorMatches, t.expectErr)
+		} else {
+			c.Check(p.SnapName(), Equals, t.name)
+			c.Check(p.SnapRevision(), Equals, snap.R(t.rev))
+		}
+	}
+}
+
 func makeFakeDesktopFile(c *C, name, content string) string {
 	df := filepath.Join(dirs.SnapDesktopFilesDir, name)
 	err := os.MkdirAll(filepath.Dir(df), 0755)
@@ -1003,7 +1119,6 @@ func (s *infoSuite) TestAppDesktopFile(c *C) {
 	c.Check(snapInfo.InstanceName(), Equals, "sample_instance")
 	c.Check(snapInfo.Apps["app"].DesktopFile(), Matches, `.*/var/lib/snapd/desktop/applications/sample_instance_app.desktop`)
 	c.Check(snapInfo.Apps["sample"].DesktopFile(), Matches, `.*/var/lib/snapd/desktop/applications/sample_instance_sample.desktop`)
-
 }
 
 const coreSnapYaml = `name: core
@@ -1311,6 +1426,19 @@ func (s *infoSuite) TestDottedPathPlug(c *C) {
 	c.Assert(ok, Equals, false)
 }
 
+func (s *infoSuite) TestDefaultContentProviders(c *C) {
+	info, err := snap.InfoFromSnapYaml([]byte(yamlNeedDf))
+	c.Assert(err, IsNil)
+
+	plugs := make([]*snap.PlugInfo, 0, len(info.Plugs))
+	for _, plug := range info.Plugs {
+		plugs = append(plugs, plug)
+	}
+
+	dps := snap.DefaultContentProviders(plugs)
+	c.Check(dps, DeepEquals, map[string][]string{"gtk-common-themes": {"gtk-3-themes", "icon-themes"}})
+}
+
 func (s *infoSuite) TestExpandSnapVariables(c *C) {
 	dirs.SetRootDir("")
 	info, err := snap.InfoFromSnapYaml([]byte(`name: foo`))
@@ -1435,6 +1563,19 @@ func (s *infoSuite) TestIsActive(c *C) {
 	c.Check(info2.IsActive(), Equals, false)
 }
 
+func (s *infoSuite) TestGetTypeSnapdBackwardCompatibility(c *C) {
+	restore := snap.MockSnapdSnapID("snapd-id")
+	defer restore()
+
+	const snapdYaml = `
+name: snapd
+type: app
+version: 1
+`
+	snapInfo := snaptest.MockSnap(c, sampleYaml, &snap.SideInfo{Revision: snap.R(1), SnapID: "snapd-id"})
+	c.Check(snapInfo.GetType(), Equals, snap.TypeSnapd)
+}
+
 func (s *infoSuite) TestDirAndFileHelpers(c *C) {
 	dirs.SetRootDir("")
 
@@ -1461,39 +1602,39 @@ func (s *infoSuite) TestDirAndFileHelpers(c *C) {
 
 func (s *infoSuite) TestSortByType(c *C) {
 	infos := []*snap.Info{
-		{SuggestedName: "app1", Type: "app"},
-		{SuggestedName: "os1", Type: "os"},
-		{SuggestedName: "base1", Type: "base"},
-		{SuggestedName: "gadget1", Type: "gadget"},
-		{SuggestedName: "kernel1", Type: "kernel"},
-		{SuggestedName: "app2", Type: "app"},
-		{SuggestedName: "os2", Type: "os"},
-		{SuggestedName: "snapd", Type: "snapd"},
-		{SuggestedName: "base2", Type: "base"},
-		{SuggestedName: "gadget2", Type: "gadget"},
-		{SuggestedName: "kernel2", Type: "kernel"},
+		{SuggestedName: "app1", SnapType: "app"},
+		{SuggestedName: "os1", SnapType: "os"},
+		{SuggestedName: "base1", SnapType: "base"},
+		{SuggestedName: "gadget1", SnapType: "gadget"},
+		{SuggestedName: "kernel1", SnapType: "kernel"},
+		{SuggestedName: "app2", SnapType: "app"},
+		{SuggestedName: "os2", SnapType: "os"},
+		{SuggestedName: "snapd", SnapType: "snapd"},
+		{SuggestedName: "base2", SnapType: "base"},
+		{SuggestedName: "gadget2", SnapType: "gadget"},
+		{SuggestedName: "kernel2", SnapType: "kernel"},
 	}
 	sort.Stable(snap.ByType(infos))
 
 	c.Check(infos, DeepEquals, []*snap.Info{
-		{SuggestedName: "snapd", Type: "snapd"},
-		{SuggestedName: "os1", Type: "os"},
-		{SuggestedName: "os2", Type: "os"},
-		{SuggestedName: "kernel1", Type: "kernel"},
-		{SuggestedName: "kernel2", Type: "kernel"},
-		{SuggestedName: "base1", Type: "base"},
-		{SuggestedName: "base2", Type: "base"},
-		{SuggestedName: "gadget1", Type: "gadget"},
-		{SuggestedName: "gadget2", Type: "gadget"},
-		{SuggestedName: "app1", Type: "app"},
-		{SuggestedName: "app2", Type: "app"},
+		{SuggestedName: "snapd", SnapType: "snapd"},
+		{SuggestedName: "os1", SnapType: "os"},
+		{SuggestedName: "os2", SnapType: "os"},
+		{SuggestedName: "kernel1", SnapType: "kernel"},
+		{SuggestedName: "kernel2", SnapType: "kernel"},
+		{SuggestedName: "base1", SnapType: "base"},
+		{SuggestedName: "base2", SnapType: "base"},
+		{SuggestedName: "gadget1", SnapType: "gadget"},
+		{SuggestedName: "gadget2", SnapType: "gadget"},
+		{SuggestedName: "app1", SnapType: "app"},
+		{SuggestedName: "app2", SnapType: "app"},
 	})
 }
 
 func (s *infoSuite) TestSortByTypeAgain(c *C) {
-	core := &snap.Info{Type: snap.TypeOS}
-	base := &snap.Info{Type: snap.TypeBase}
-	app := &snap.Info{Type: snap.TypeApp}
+	core := &snap.Info{SnapType: snap.TypeOS}
+	base := &snap.Info{SnapType: snap.TypeBase}
+	app := &snap.Info{SnapType: snap.TypeApp}
 	snapd := &snap.Info{}
 	snapd.SideInfo = snap.SideInfo{RealName: "snapd"}
 
@@ -1513,7 +1654,6 @@ func (s *infoSuite) TestSortByTypeAgain(c *C) {
 }
 
 func (s *infoSuite) TestMedia(c *C) {
-	c.Check(snap.MediaInfos{}.Screenshots(), HasLen, 0)
 	c.Check(snap.MediaInfos{}.IconURL(), Equals, "")
 
 	media := snap.MediaInfos{
@@ -1532,17 +1672,6 @@ func (s *infoSuite) TestMedia(c *C) {
 	}
 
 	c.Check(media.IconURL(), Equals, "https://example.com/icon.png")
-	c.Check(media.Screenshots(), DeepEquals, []snap.ScreenshotInfo{
-		{
-			URL:  "https://example.com/shot1.svg",
-			Note: snap.ScreenshotsDeprecationNotice,
-		}, {
-			URL:    "https://example.com/shot2.svg",
-			Width:  42,
-			Height: 17,
-			Note:   snap.ScreenshotsDeprecationNotice,
-		},
-	})
 }
 
 func (s *infoSuite) TestSortApps(c *C) {

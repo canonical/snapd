@@ -29,13 +29,14 @@ execute: |
         exit 0
     fi
 
-    snap install --edge --devmode test-snapd-busybox-static
-    echo "Ensure we can run a statically linked binary from an empty base"
+    # this tests our "bare" base snap
+    snap install --beta --devmode test-snapd-busybox-static
+    echo "Ensure we can run a statically linked binary from the bare base"
     test-snapd-busybox-static.busybox-static echo hello | MATCH hello
 
-    echo "Ensure the test-snapd-base-bare that test-snapd-busybox-static uses got pulled in"
-    snap list | grep test-snapd-base-bare
-    snap info --verbose test-snapd-busybox-static|MATCH "base:[ ]+test-snapd-base-bare"
+    echo "Ensure the bare base that test-snapd-busybox-static uses got pulled in"
+    snap list | MATCH ^bare
+    snap info --verbose test-snapd-busybox-static|MATCH "base:[ ]+bare"
 
     if test-snapd-busybox-static.busybox-static ls /bin/dd; then
         echo "bare should be empty but it is not:"

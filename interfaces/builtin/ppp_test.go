@@ -68,14 +68,6 @@ func (s *PppInterfaceSuite) TestName(c *C) {
 
 func (s *PppInterfaceSuite) TestSanitizeSlot(c *C) {
 	c.Assert(interfaces.BeforePrepareSlot(s.iface, s.slotInfo), IsNil)
-	slot := &snap.SlotInfo{
-		Snap:      &snap.Info{SuggestedName: "some-snap"},
-		Name:      "ppp",
-		Interface: "ppp",
-	}
-
-	c.Assert(interfaces.BeforePrepareSlot(s.iface, slot), ErrorMatches,
-		"ppp slots are reserved for the core snap")
 }
 
 func (s *PppInterfaceSuite) TestSanitizePlug(c *C) {

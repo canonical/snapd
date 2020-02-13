@@ -28,6 +28,8 @@ execute: |
     . "$TESTSLIB/pkgdb.sh"
     #shellcheck source=tests/lib/dirs.sh
     . "$TESTSLIB/dirs.sh"
+    #shellcheck source=tests/lib/systems.sh
+    . "$TESTSLIB"/systems.sh
 
     # this will be later used by userd
     export XDG_DATA_DIRS=/usr/share
@@ -71,6 +73,17 @@ execute: |
         test "$(head -1 /tmp/xdg-open-output)" = "$1"
     }
 
+    if is_cgroupv2 ; then
+        # we are expecting the test to fail on a cgroup v2 system
+        if ensure_xdg_open_output "http://smoke-test-cgroupv2.com" 2> stderr.log ; then
+            echo "expected failure, but none happened"
+            exit 1
+        fi
+        MATCH 'WARNING: cgroup v2 is not fully supported yet, proceeding with partial confinement' < stderr.log
+        MATCH 'cannot find snap for connection: not supported' < stderr.log
+        exit 0
+    fi
+
     # Ensure http, https, mailto, snap and help work
     ensure_xdg_open_output "https://snapcraft.io"
     ensure_xdg_open_output "http://snapcraft.io"
@@ -82,7 +95,7 @@ execute: |
 
     # Ensure other schemes are not passed through
     rm /tmp/xdg-open-output
-    ! test-snapd-desktop.cmd /usr/bin/xdg-open ftp://snapcraft.io
+    not test-snapd-desktop.cmd /usr/bin/xdg-open ftp://snapcraft.io
     test ! -e /tmp/xdg-open-output
-    ! test-snapd-desktop.cmd /usr/bin/xdg-open aabbcc
+    not test-snapd-desktop.cmd /usr/bin/xdg-open aabbcc
     test ! -e /tmp/xdg-open-output

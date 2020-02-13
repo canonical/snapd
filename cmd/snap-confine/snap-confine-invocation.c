@@ -61,6 +61,10 @@ void sc_init_invocation(sc_invocation *inv, const struct sc_args *args, const ch
         die("cannot run with NULL executable");
     }
 
+    /* Instance name length + NULL termination */
+    char snap_name[SNAP_NAME_LEN + 1] = {0};
+    sc_snap_drop_instance_key(snap_instance, snap_name, sizeof snap_name);
+
     /* Invocation helps to pass relevant data to various parts of snap-confine. */
     memset(inv, 0, sizeof *inv);
     inv->base_snap_name = sc_strdup(base_snap_name);
@@ -68,6 +72,7 @@ void sc_init_invocation(sc_invocation *inv, const struct sc_args *args, const ch
     inv->executable = sc_strdup(executable);
     inv->security_tag = sc_strdup(security_tag);
     inv->snap_instance = sc_strdup(snap_instance);
+    inv->snap_name = sc_strdup(snap_name);
     inv->classic_confinement = sc_args_is_classic_confinement(args);
 
     // construct rootfs_dir based on base_snap_name
@@ -84,6 +89,7 @@ void sc_init_invocation(sc_invocation *inv, const struct sc_args *args, const ch
 void sc_cleanup_invocation(sc_invocation *inv) {
     if (inv != NULL) {
         sc_cleanup_string(&inv->snap_instance);
+        sc_cleanup_string(&inv->snap_name);
         sc_cleanup_string(&inv->base_snap_name);
         sc_cleanup_string(&inv->orig_base_snap_name);
         sc_cleanup_string(&inv->security_tag);
@@ -114,6 +120,24 @@ void sc_check_rootfs_dir(sc_invocation *inv) {
             sc_cleanup_string(&inv->rootfs_dir);
             inv->rootfs_dir = sc_strdup(mount_point);
             debug("falling back to ubuntu-core instead of unavailable core snap");
+            return;
+        }
+    }
+
+    if (sc_streq(inv->base_snap_name, "core16")) {
+        char mount_point[PATH_MAX] = {0};
+
+        /* For "core16" we can still use the "core" snap. This is useful
+         * to help people transition to core16 bases without requiring
+         * twice the disk space.
+         */
+        sc_must_snprintf(mount_point, sizeof mount_point, "%s/%s/current", SNAP_MOUNT_DIR, "core");
+        if (access(mount_point, F_OK) == 0) {
+            sc_cleanup_string(&inv->base_snap_name);
+            inv->base_snap_name = sc_strdup("core");
+            sc_cleanup_string(&inv->rootfs_dir);
+            inv->rootfs_dir = sc_strdup(mount_point);
+            debug("falling back to core instead of unavailable core16 snap");
             return;
         }
     }

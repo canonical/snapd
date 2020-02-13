@@ -2,7 +2,7 @@ summary: |
    Test that device initialisation and registration can be customized
    with the prepare-device gadget hook
 
-systems: [ubuntu-core-16-64]
+systems: [ubuntu-core-1*-64]
 
 prepare: |
     if [ "$TRUST_TEST_KEYS" = "false" ]; then
@@ -11,6 +11,9 @@ prepare: |
     fi
     #shellcheck source=tests/lib/systemd.sh
     . "$TESTSLIB"/systemd.sh
+    #shellcheck source=tests/lib/systems.sh
+    . "$TESTSLIB"/systems.sh
+
     systemctl stop snapd.service snapd.socket
     rm -rf /var/lib/snapd/assertions/*
     rm -rf /var/lib/snapd/device
@@ -26,7 +29,11 @@ prepare: |
     python3 ./manip_seed.py /var/lib/snapd/seed/seed.yaml
     cp "$TESTSLIB"/assertions/developer1.account /var/lib/snapd/seed/assertions
     cp "$TESTSLIB"/assertions/developer1.account-key /var/lib/snapd/seed/assertions
-    cp "$TESTSLIB"/assertions/developer1-pc.model /var/lib/snapd/seed/assertions
+    if is_core18_system; then
+        cp "$TESTSLIB"/assertions/developer1-pc-18.model /var/lib/snapd/seed/assertions/developer1-pc.model
+    else
+        cp "$TESTSLIB"/assertions/developer1-pc.model /var/lib/snapd/seed/assertions
+    fi
     cp "$TESTSLIB"/assertions/testrootorg-store.account-key /var/lib/snapd/seed/assertions
     # start fake device svc
     systemd_create_and_start_unit fakedevicesvc "$(command -v fakedevicesvc) localhost:11029"
@@ -40,6 +47,7 @@ restore: |
     fi
     #shellcheck source=tests/lib/systemd.sh
     . "$TESTSLIB"/systemd.sh
+
     systemctl stop snapd.service snapd.socket
     systemd_stop_and_destroy_unit fakedevicesvc
     rm -rf /var/lib/snapd/assertions/*
@@ -73,13 +81,13 @@ execute: |
     echo "Wait for first boot to be done"
     while ! snap changes | grep -q "Done.*Initialize system state"; do sleep 1; done
     echo "We have a model assertion"
-    snap known model|MATCH "model: my-model"
+    snap model --verbose|MATCH "model:\s* my-model"
 
     echo "Wait for device initialisation to be done"
     while ! snap changes | grep -q "Done.*Initialize device"; do sleep 1; done
 
     echo "Check we have a serial"
-    snap known serial|MATCH "authority-id: developer1"
-    snap known serial|MATCH "brand-id: developer1"
-    snap known serial|MATCH "model: my-model"
-    snap known serial|MATCH "serial: 7777"
+    snap model --serial --assertion|MATCH "authority-id: developer1"
+    snap model --serial --assertion|MATCH "brand-id: developer1"
+    snap model --serial --assertion|MATCH "model: my-model"
+    snap model --serial --assertion|MATCH "serial: 7777"

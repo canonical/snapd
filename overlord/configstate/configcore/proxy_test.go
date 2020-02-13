@@ -32,6 +32,7 @@ import (
 	"github.com/snapcore/snapd/asserts/assertstest"
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/overlord/assertstate"
+	"github.com/snapcore/snapd/overlord/assertstate/assertstatetest"
 	"github.com/snapcore/snapd/overlord/configstate/configcore"
 	"github.com/snapcore/snapd/release"
 	"github.com/snapcore/snapd/testutil"
@@ -81,6 +82,20 @@ func (s *proxySuite) makeMockEtcEnvironment(c *C) {
 PATH="/usr/bin"
 `), 0644)
 	c.Assert(err, IsNil)
+}
+
+func (s *proxySuite) TestConfigureProxyUnhappy(c *C) {
+	restore := release.MockOnClassic(false)
+	defer restore()
+
+	dirs.SetRootDir(c.MkDir())
+	err := configcore.Run(&mockConf{
+		state: s.state,
+		conf: map[string]interface{}{
+			"proxy.http": "http://example.com",
+		},
+	})
+	c.Assert(err, ErrorMatches, "open .*/etc/environment: no such file or directory")
 }
 
 func (s *proxySuite) TestConfigureProxy(c *C) {
@@ -146,11 +161,6 @@ func (s *proxySuite) TestConfigureProxyStore(c *C) {
 	c.Check(err, ErrorMatches, `cannot set proxy.store to "foo" without a matching store assertion`)
 
 	operatorAcct := assertstest.NewAccount(s.storeSigning, "foo-operator", nil, "")
-	s.state.Lock()
-	err = assertstate.Add(s.state, operatorAcct)
-	s.state.Unlock()
-	c.Assert(err, IsNil)
-
 	// have a store assertion
 	stoAs, err := s.storeSigning.Sign(asserts.StoreType, map[string]interface{}{
 		"store":       "foo",
@@ -159,10 +169,11 @@ func (s *proxySuite) TestConfigureProxyStore(c *C) {
 		"timestamp":   time.Now().Format(time.RFC3339),
 	}, nil, "")
 	c.Assert(err, IsNil)
-	s.state.Lock()
-	err = assertstate.Add(s.state, stoAs)
-	s.state.Unlock()
-	c.Assert(err, IsNil)
+	func() {
+		s.state.Lock()
+		defer s.state.Unlock()
+		assertstatetest.AddMany(s.state, operatorAcct, stoAs)
+	}()
 
 	err = configcore.Run(conf)
 	c.Check(err, IsNil)
@@ -177,11 +188,6 @@ func (s *proxySuite) TestConfigureProxyStoreNoURL(c *C) {
 	}
 
 	operatorAcct := assertstest.NewAccount(s.storeSigning, "foo-operator", nil, "")
-	s.state.Lock()
-	err := assertstate.Add(s.state, operatorAcct)
-	s.state.Unlock()
-	c.Assert(err, IsNil)
-
 	// have a store assertion but no url
 	stoAs, err := s.storeSigning.Sign(asserts.StoreType, map[string]interface{}{
 		"store":       "foo",
@@ -189,10 +195,11 @@ func (s *proxySuite) TestConfigureProxyStoreNoURL(c *C) {
 		"timestamp":   time.Now().Format(time.RFC3339),
 	}, nil, "")
 	c.Assert(err, IsNil)
-	s.state.Lock()
-	err = assertstate.Add(s.state, stoAs)
-	s.state.Unlock()
-	c.Assert(err, IsNil)
+	func() {
+		s.state.Lock()
+		defer s.state.Unlock()
+		assertstatetest.AddMany(s.state, operatorAcct, stoAs)
+	}()
 
 	err = configcore.Run(conf)
 	c.Check(err, ErrorMatches, `cannot set proxy.store to "foo" with a matching store assertion with url unset`)

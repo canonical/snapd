@@ -52,7 +52,7 @@ apps:
     plugs: [removable-media]
 `, nil)
 	s.slotInfo = &snap.SlotInfo{
-		Snap:      &snap.Info{SuggestedName: "core", Type: snap.TypeOS},
+		Snap:      &snap.Info{SuggestedName: "core", SnapType: snap.TypeOS},
 		Name:      "removable-media",
 		Interface: "removable-media",
 	}
@@ -67,13 +67,6 @@ func (s *RemovableMediaInterfaceSuite) TestName(c *C) {
 
 func (s *RemovableMediaInterfaceSuite) TestSanitizeSlot(c *C) {
 	c.Assert(interfaces.BeforePrepareSlot(s.iface, s.slotInfo), IsNil)
-	slot := &snap.SlotInfo{
-		Snap:      &snap.Info{SuggestedName: "some-snap"},
-		Name:      "removable-media",
-		Interface: "removable-media",
-	}
-	c.Assert(interfaces.BeforePrepareSlot(s.iface, slot), ErrorMatches,
-		"removable-media slots are reserved for the core snap")
 }
 
 func (s *RemovableMediaInterfaceSuite) TestSanitizePlug(c *C) {
@@ -87,7 +80,7 @@ func (s *RemovableMediaInterfaceSuite) TestUsedSecuritySystems(c *C) {
 	c.Assert(err, IsNil)
 	c.Assert(apparmorSpec.SecurityTags(), DeepEquals, []string{"snap.client-snap.other"})
 	c.Check(apparmorSpec.SnippetForTag("snap.client-snap.other"), testutil.Contains, "/{,run/}media/*/ r")
-	c.Check(apparmorSpec.SnippetForTag("snap.client-snap.other"), testutil.Contains, "/mnt/** rwk,")
+	c.Check(apparmorSpec.SnippetForTag("snap.client-snap.other"), testutil.Contains, "/mnt/** rwkl,")
 }
 
 func (s *RemovableMediaInterfaceSuite) TestInterfaces(c *C) {

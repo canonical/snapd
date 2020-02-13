@@ -20,6 +20,7 @@
 package main
 
 import (
+	"os"
 	"os/user"
 	"time"
 
@@ -27,8 +28,7 @@ import (
 
 	"github.com/snapcore/snapd/client"
 	"github.com/snapcore/snapd/image"
-	"github.com/snapcore/snapd/overlord/auth"
-	"github.com/snapcore/snapd/selinux"
+	"github.com/snapcore/snapd/sandbox/selinux"
 	"github.com/snapcore/snapd/store"
 )
 
@@ -39,18 +39,18 @@ var (
 
 	FirstNonOptionIsRun = firstNonOptionIsRun
 
-	CreateUserDataDirs = createUserDataDirs
-	ResolveApp         = resolveApp
-	SnapdHelperPath    = snapdHelperPath
-	MaybePrintServices = maybePrintServices
-	MaybePrintCommands = maybePrintCommands
-	SortByPath         = sortByPath
-	AdviseCommand      = adviseCommand
-	Antialias          = antialias
-	FormatChannel      = fmtChannel
-	PrintDescr         = printDescr
-	WrapFlow           = wrapFlow
-	TrueishJSON        = trueishJSON
+	CreateUserDataDirs  = createUserDataDirs
+	ResolveApp          = resolveApp
+	SnapdHelperPath     = snapdHelperPath
+	SortByPath          = sortByPath
+	AdviseCommand       = adviseCommand
+	Antialias           = antialias
+	FormatChannel       = fmtChannel
+	PrintDescr          = printDescr
+	WrapFlow            = wrapFlow
+	TrueishJSON         = trueishJSON
+	CompletionHandler   = completionHandler
+	MarkForNoCompletion = markForNoCompletion
 
 	CanUnicode           = canUnicode
 	ColorTable           = colorTable
@@ -80,6 +80,55 @@ var (
 	FixupArg = fixupArg
 
 	InterfacesDeprecationNotice = interfacesDeprecationNotice
+
+	SignalNotify = signalNotify
+
+	SortTimingsTasks = sortTimingsTasks
+
+	PrintInstallHint = printInstallHint
+)
+
+func HiddenCmd(descr string, completeHidden bool) *cmdInfo {
+	return &cmdInfo{
+		shortHelp:      descr,
+		hidden:         true,
+		completeHidden: completeHidden,
+	}
+}
+
+type ChangeTimings = changeTimings
+
+func NewInfoWriter(w writeflusher) *infoWriter {
+	return &infoWriter{
+		writeflusher: w,
+		termWidth:    20,
+		esc:          &escapes{dash: "--", tick: "*"},
+		fmtTime:      func(t time.Time) string { return t.Format(time.Kitchen) },
+	}
+}
+
+func SetVerbose(iw *infoWriter, verbose bool) {
+	iw.verbose = verbose
+}
+
+var (
+	ClientSnapFromPath          = clientSnapFromPath
+	SetupDiskSnap               = (*infoWriter).setupDiskSnap
+	SetupSnap                   = (*infoWriter).setupSnap
+	MaybePrintServices          = (*infoWriter).maybePrintServices
+	MaybePrintCommands          = (*infoWriter).maybePrintCommands
+	MaybePrintType              = (*infoWriter).maybePrintType
+	PrintSummary                = (*infoWriter).printSummary
+	MaybePrintPublisher         = (*infoWriter).maybePrintPublisher
+	MaybePrintNotes             = (*infoWriter).maybePrintNotes
+	MaybePrintStandaloneVersion = (*infoWriter).maybePrintStandaloneVersion
+	MaybePrintBuildDate         = (*infoWriter).maybePrintBuildDate
+	MaybePrintContact           = (*infoWriter).maybePrintContact
+	MaybePrintBase              = (*infoWriter).maybePrintBase
+	MaybePrintPath              = (*infoWriter).maybePrintPath
+	MaybePrintSum               = (*infoWriter).maybePrintSum
+	MaybePrintCohortKey         = (*infoWriter).maybePrintCohortKey
+	MaybePrintHealth            = (*infoWriter).maybePrintHealth
 )
 
 func MockPollTime(d time.Duration) (restore func()) {
@@ -114,7 +163,7 @@ func MockUserCurrent(f func() (*user.User, error)) (restore func()) {
 	}
 }
 
-func MockStoreNew(f func(*store.Config, auth.AuthContext) *store.Store) (restore func()) {
+func MockStoreNew(f func(*store.Config, store.DeviceAndAuthContext) *store.Store) (restore func()) {
 	storeNewOrig := storeNew
 	storeNew = f
 	return func() {
@@ -262,6 +311,14 @@ func MockImagePrepare(newImagePrepare func(*image.Options) error) (restore func(
 	imagePrepare = newImagePrepare
 	return func() {
 		imagePrepare = old
+	}
+}
+
+func MockSignalNotify(newSignalNotify func(sig ...os.Signal) (chan os.Signal, func())) (restore func()) {
+	old := signalNotify
+	signalNotify = newSignalNotify
+	return func() {
+		signalNotify = old
 	}
 }
 

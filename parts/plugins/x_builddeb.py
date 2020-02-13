@@ -27,23 +27,26 @@ import snapcraft
 def patch_snapcraft():
     import snapcraft.internal.common
     import snapcraft.internal.sources._local
+
     # very hacky but gets the job done for now, right now
     # SNAPCRAFT_FILES is only used to know what to exclude
     snapcraft.internal.common.SNAPCRAFT_FILES.remove("snap")
+
     def _patched_check(self, target):
         return False
+
     snapcraft.internal.sources._local.Local._check = _patched_check
+
+
 patch_snapcraft()
 
 
-
 class XBuildDeb(snapcraft.BasePlugin):
-
     def build(self):
         super().build()
         self.run(["sudo", "apt-get", "build-dep", "-y", "./"])
         # ensure we have go in our PATH
-        env=os.environ.copy()
+        env = os.environ.copy()
         # ensure build with go-1.10 if available
         if os.path.exists("/usr/lib/go-1.10/bin"):
             env["PATH"] = "/usr/lib/go-1.10/bin:{}".format(env["PATH"])
@@ -53,9 +56,9 @@ class XBuildDeb(snapcraft.BasePlugin):
             # disable running the tests during the build when run as root
             # because quite a few of them will break
             env["DEB_BUILD_OPTIONS"] = "nocheck"
-        # run the real build
-        self.run(["dpkg-buildpackage"], env=env)
+        # run the real build (but just build the binary package, and don't bother compressing it too much)
+        self.run(["dpkg-buildpackage", "-b", "-Zgzip", "-zfast"], env=env)
         # and "install" into the right place
-        snapd_deb = glob.glob("parts/snapd/snapd_*.deb")[0]
+        snapd_deb = glob.glob(os.path.join(self.partdir, "snapd_*.deb"))[0]
         self.run(["dpkg-deb", "-x", os.path.abspath(snapd_deb), self.installdir])
 

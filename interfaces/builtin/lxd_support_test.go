@@ -67,14 +67,6 @@ func (s *LxdSupportInterfaceSuite) TestName(c *C) {
 
 func (s *LxdSupportInterfaceSuite) TestSanitizeSlot(c *C) {
 	c.Assert(interfaces.BeforePrepareSlot(s.iface, s.slotInfo), IsNil)
-	slot := &snap.SlotInfo{
-		Snap:      &snap.Info{SuggestedName: "some-snap"},
-		Name:      "lxd-support",
-		Interface: "lxd-support",
-	}
-
-	c.Assert(interfaces.BeforePrepareSlot(s.iface, slot), ErrorMatches,
-		"lxd-support slots are reserved for the core snap")
 }
 
 func (s *LxdSupportInterfaceSuite) TestSanitizePlug(c *C) {
@@ -85,7 +77,7 @@ func (s *LxdSupportInterfaceSuite) TestAppArmorSpec(c *C) {
 	spec := &apparmor.Specification{}
 	c.Assert(spec.AddConnectedPlug(s.iface, s.plug, s.slot), IsNil)
 	c.Assert(spec.SecurityTags(), DeepEquals, []string{"snap.consumer.app"})
-	c.Assert(spec.SnippetForTag("snap.consumer.app"), testutil.Contains, "/usr/sbin/aa-exec ux,\n")
+	c.Assert(spec.SnippetForTag("snap.consumer.app"), testutil.Contains, "/{,usr/}{,s}bin/aa-exec ux,\n")
 }
 
 func (s *LxdSupportInterfaceSuite) TestSecCompSpec(c *C) {

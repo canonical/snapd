@@ -90,6 +90,10 @@ static void test_verify_security_tag(void)
 	g_assert_true(verify_security_tag("snap.123test.123test", "123test"));
 	g_assert_true(verify_security_tag
 		      ("snap.123test.hook.configure", "123test"));
+
+	// regression test snap.eon-edg-shb-pulseaudio.hook.connect-plug-i2c
+	g_assert_true(verify_security_tag
+		      ("snap.foo.hook.connect-plug-i2c", "foo"));
 }
 
 static void test_sc_is_hook_security_tag(void)
@@ -111,13 +115,13 @@ static void test_sc_is_hook_security_tag(void)
 
 static void test_sc_snap_or_instance_name_validate(gconstpointer data)
 {
-	typedef void (*validate_func_t)(const char *, struct sc_error **);
+	typedef void (*validate_func_t)(const char *, sc_error **);
 
 	validate_func_t validate = (validate_func_t) data;
 	bool is_instance =
 	    (validate == sc_instance_name_validate) ? true : false;
 
-	struct sc_error *err = NULL;
+	sc_error *err = NULL;
 
 	// Smoke test, a valid snap name
 	validate("hello-world", &err);
@@ -267,7 +271,7 @@ static void test_sc_snap_name_validate__respects_error_protocol(void)
 
 static void test_sc_instance_name_validate(void)
 {
-	struct sc_error *err = NULL;
+	sc_error *err = NULL;
 
 	sc_instance_name_validate("hello-world", &err);
 	g_assert_null(err);
@@ -359,7 +363,6 @@ static void test_sc_snap_drop_instance_key_no_dest(void)
 {
 	if (g_test_subprocess()) {
 		sc_snap_drop_instance_key("foo_bar", NULL, 0);
-		g_test_fail();
 		return;
 	}
 	g_test_trap_subprocess(NULL, 0, 0);
@@ -373,7 +376,6 @@ static void test_sc_snap_drop_instance_key_short_dest(void)
 		char dest[10] = { 0 };
 		sc_snap_drop_instance_key("foo-foo-foo-foo-foo_bar", dest,
 					  sizeof dest);
-		g_test_fail();
 		return;
 	}
 	g_test_trap_subprocess(NULL, 0, 0);
@@ -385,7 +387,6 @@ static void test_sc_snap_drop_instance_key_short_dest2(void)
 	if (g_test_subprocess()) {
 		char dest[3] = { 0 };	// "foo" sans the nil byte
 		sc_snap_drop_instance_key("foo", dest, sizeof dest);
-		g_test_fail();
 		return;
 	}
 	g_test_trap_subprocess(NULL, 0, 0);
@@ -397,7 +398,20 @@ static void test_sc_snap_drop_instance_key_no_name(void)
 	if (g_test_subprocess()) {
 		char dest[10] = { 0 };
 		sc_snap_drop_instance_key(NULL, dest, sizeof dest);
-		g_test_fail();
+		return;
+	}
+	g_test_trap_subprocess(NULL, 0, 0);
+	g_test_trap_assert_failed();
+}
+
+static void test_sc_snap_drop_instance_key_short_dest_max(void)
+{
+	if (g_test_subprocess()) {
+		char dest[SNAP_NAME_LEN + 1] = { 0 };
+		/* 40 chars (max valid length), pretend dest is the same length, no space for terminator */
+		sc_snap_drop_instance_key
+		    ("01234567890123456789012345678901234567890", dest,
+		     sizeof dest - 1);
 		return;
 	}
 	g_test_trap_subprocess(NULL, 0, 0);
@@ -406,7 +420,7 @@ static void test_sc_snap_drop_instance_key_no_name(void)
 
 static void test_sc_snap_drop_instance_key_basic(void)
 {
-	char name[41] = { 0xff };
+	char name[SNAP_NAME_LEN + 1] = { 0xff };
 
 	sc_snap_drop_instance_key("foo_bar", name, sizeof name);
 	g_assert_cmpstr(name, ==, "foo");
@@ -426,6 +440,12 @@ static void test_sc_snap_drop_instance_key_basic(void)
 	memset(name, 0xff, sizeof name);
 	sc_snap_drop_instance_key("foo", name, sizeof name);
 	g_assert_cmpstr(name, ==, "foo");
+
+	memset(name, 0xff, sizeof name);
+	/* 40 chars - snap name length */
+	sc_snap_drop_instance_key("0123456789012345678901234567890123456789",
+				  name, sizeof name);
+	g_assert_cmpstr(name, ==, "0123456789012345678901234567890123456789");
 }
 
 static void test_sc_snap_split_instance_name_trailing_nil(void)
@@ -434,7 +454,6 @@ static void test_sc_snap_split_instance_name_trailing_nil(void)
 		char dest[3] = { 0 };
 		// pretend there is no place for trailing \0
 		sc_snap_split_instance_name("_", NULL, 0, dest, 0);
-		g_test_fail();
 		return;
 	}
 	g_test_trap_subprocess(NULL, 0, 0);
@@ -447,7 +466,6 @@ static void test_sc_snap_split_instance_name_short_instance_dest(void)
 		char dest[10] = { 0 };
 		sc_snap_split_instance_name("foo_barbarbarbar", NULL, 0,
 					    dest, sizeof dest);
-		g_test_fail();
 		return;
 	}
 	g_test_trap_subprocess(NULL, 0, 0);
@@ -456,7 +474,7 @@ static void test_sc_snap_split_instance_name_short_instance_dest(void)
 
 static void test_sc_snap_split_instance_name_basic(void)
 {
-	char name[41] = { 0xff };
+	char name[SNAP_NAME_LEN + 1] = { 0xff };
 	char instance[20] = { 0xff };
 
 	sc_snap_split_instance_name("foo_bar", name, sizeof name, instance,
@@ -558,6 +576,8 @@ static void __attribute__((constructor)) init(void)
 			test_sc_snap_drop_instance_key_short_dest);
 	g_test_add_func("/snap/sc_snap_drop_instance_key/short_dest2",
 			test_sc_snap_drop_instance_key_short_dest2);
+	g_test_add_func("/snap/sc_snap_drop_instance_key/short_dest_max",
+			test_sc_snap_drop_instance_key_short_dest_max);
 
 	g_test_add_func("/snap/sc_snap_split_instance_name/basic",
 			test_sc_snap_split_instance_name_basic);
