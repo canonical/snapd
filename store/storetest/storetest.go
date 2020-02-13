@@ -61,7 +61,7 @@ func (Store) Download(context.Context, string, string, *snap.DownloadInfo, progr
 	panic("Store.Download not expected")
 }
 
-func (Store) DownloadStream(ctx context.Context, name string, downloadInfo *snap.DownloadInfo, user *auth.UserState) (io.ReadCloser, error) {
+func (Store) DownloadStream(ctx context.Context, name string, downloadInfo *snap.DownloadInfo, resume int64, user *auth.UserState) (io.ReadCloser, int, error) {
 	panic("Store.DownloadStream not expected")
 }
 

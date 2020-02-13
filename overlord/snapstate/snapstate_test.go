@@ -507,7 +507,10 @@ func verifyUpdateTasks(c *C, opts, discards int, ts *state.TaskSet, st *state.St
 func verifyLastTasksetIsReRefresh(c *C, tts []*state.TaskSet) {
 	ts := tts[len(tts)-1]
 	c.Assert(ts.Tasks(), HasLen, 1)
-	c.Check(ts.Tasks()[0].Kind(), Equals, "check-rerefresh")
+	reRefresh := ts.Tasks()[0]
+	c.Check(reRefresh.Kind(), Equals, "check-rerefresh")
+	// nothing should wait on it
+	c.Check(reRefresh.NumHaltTasks(), Equals, 0)
 }
 
 func verifyRemoveTasks(c *C, ts *state.TaskSet) {
@@ -3295,6 +3298,8 @@ func (s *snapmgrTestSuite) TestInstallUndoRunThroughJustOneSnap(c *C) {
 		{
 			op:   "unlink-snap",
 			path: filepath.Join(dirs.SnapMountDir, "some-snap/11"),
+
+			unlinkFirstInstallUndo: true,
 		},
 		{
 			op:    "setup-profiles:Undoing",
@@ -7118,7 +7123,9 @@ func (s *snapmgrTestSuite) TestUpdateManyAutoAliasesScenarios(c *C) {
 
 		updates, tts, err := snapstate.UpdateMany(context.Background(), s.state, scenario.names, s.user.ID, nil)
 		c.Check(err, IsNil)
-		verifyLastTasksetIsReRefresh(c, tts)
+		if scenario.update {
+			verifyLastTasksetIsReRefresh(c, tts)
+		}
 
 		_, dropped, err := snapstate.AutoAliasesDelta(s.state, []string{"some-snap", "other-snap"})
 		c.Assert(err, IsNil)
@@ -7188,7 +7195,11 @@ func (s *snapmgrTestSuite) TestUpdateManyAutoAliasesScenarios(c *C) {
 				c.Check(aliasTask.WaitTasks(), HasLen, 0)
 			}
 		}
-		c.Assert(j, Equals, len(tts)-1, Commentf("%#v", scenario))
+		l := len(tts)
+		if scenario.update {
+			l--
+		}
+		c.Assert(j, Equals, l, Commentf("%#v", scenario))
 
 		// check reported updated names
 		c.Check(len(updates) > 0, Equals, true)
@@ -7273,8 +7284,13 @@ func (s *snapmgrTestSuite) TestUpdateOneAutoAliasesScenarios(c *C) {
 
 		tasks := ts.Tasks()
 		// make sure the last task from Update is the rerefresh
-		c.Assert(tasks[len(tasks)-1].Kind(), Equals, "check-rerefresh")
-		tasks = tasks[:len(tasks)-1] // and now forget about it
+		if scenario.update {
+			reRefresh := tasks[len(tasks)-1]
+			c.Check(reRefresh.Kind(), Equals, "check-rerefresh")
+			// nothing should wait on it
+			c.Check(reRefresh.NumHaltTasks(), Equals, 0)
+			tasks = tasks[:len(tasks)-1] // and now forget about it
+		}
 
 		var expectedPruned map[string]map[string]bool
 		var pruneTasks []*state.Task
@@ -13986,6 +14002,63 @@ func (s *snapmgrTestSuite) TestEnsureAliasesV2MarkAliasTasksInError(c *C) {
 	c.Check(t.Status(), Equals, state.ErrorStatus)
 }
 
+func (s *snapmgrTestSuite) TestEmptyUpdateWithChannelChangeAndAutoAlias(c *C) {
+	// this reproduces the cause behind lp:1860324,
+	// namely an empty refresh with a channel change on a snap
+	// with changed aliases
+
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	n := 0
+	snapstate.AutoAliases = func(st *state.State, info *snap.Info) (map[string]string, error) {
+		if info.InstanceName() == "alias-snap" {
+			if n > 0 {
+				return map[string]string{
+					"alias1": "cmd1",
+					"alias2": "cmd2",
+				}, nil
+			}
+			n++
+		}
+		return nil, nil
+	}
+
+	snapstate.Set(s.state, "alias-snap", &snapstate.SnapState{
+		TrackingChannel: "latest/stable",
+		Sequence: []*snap.SideInfo{
+			{RealName: "alias-snap", Revision: snap.R(11), SnapID: "alias-snap-id"},
+		},
+		Current: snap.R(11),
+		Active:  true,
+	})
+
+	s.state.Set("aliases", map[string]map[string]string{
+		"alias-snap": {
+			"alias1": "auto",
+		},
+	})
+
+	s.state.Unlock()
+	err := s.snapmgr.Ensure()
+	s.state.Lock()
+	c.Assert(err, IsNil)
+
+	ts, err := snapstate.Update(s.state, "alias-snap", &snapstate.RevisionOptions{Channel: "latest/candidate"}, s.user.ID, snapstate.Flags{})
+	c.Assert(err, IsNil)
+
+	chg := s.state.NewChange("refresh", "refresh snap")
+	chg.AddAll(ts)
+
+	s.state.Unlock()
+	defer s.se.Stop()
+	s.settle(c)
+	s.state.Lock()
+
+	c.Assert(chg.Err(), IsNil)
+	c.Assert(chg.IsReady(), Equals, true)
+}
+
 func (s *snapmgrTestSuite) TestConflictMany(c *C) {
 	s.state.Lock()
 	defer s.state.Unlock()
@@ -15362,18 +15435,18 @@ func (s *snapmgrTestSuite) TestNoConfigureForBasesTask(c *C) {
 	c.Check(hasConfigureTask(ts), Equals, false)
 }
 
-func (s *snapmgrTestSuite) TestNoSnapdSnapOnCoreWithoutBase(c *C) {
+func (s *snapmgrTestSuite) TestSnapdSnapOnCoreWithoutBase(c *C) {
 	s.state.Lock()
 	defer s.state.Unlock()
 	r := release.MockOnClassic(false)
 	defer r()
 
-	// but snapd do not for install
+	// it is now possible to install snapd snap on a system with core
 	_, err := snapstate.Install(context.Background(), s.state, "snapd", &snapstate.RevisionOptions{Channel: "some-channel"}, s.user.ID, snapstate.Flags{})
-	c.Assert(err, ErrorMatches, "cannot install snapd snap on a model without a base snap yet")
+	c.Assert(err, IsNil)
 }
 
-func (s *snapmgrTestSuite) TestNoSnapdSnapOnSystemsWithoutBaseOnUbuntuCore(c *C) {
+func (s *snapmgrTestSuite) TestSnapdSnapOnSystemsWithoutBaseOnUbuntuCore(c *C) {
 	s.state.Lock()
 	defer s.state.Unlock()
 	r := release.MockOnClassic(false)
@@ -15384,9 +15457,9 @@ func (s *snapmgrTestSuite) TestNoSnapdSnapOnSystemsWithoutBaseOnUbuntuCore(c *C)
 	tr.Set("core", "experimental.snapd-snap", true)
 	tr.Commit()
 
-	// but snapd do not for install
+	// it is now possible to install snapd snap on a system with core, experimental option has no effect
 	_, err := snapstate.Install(context.Background(), s.state, "snapd", nil, s.user.ID, snapstate.Flags{})
-	c.Assert(err, ErrorMatches, "cannot install snapd snap on a model without a base snap yet")
+	c.Assert(err, IsNil)
 }
 
 func (s *snapmgrTestSuite) TestNoSnapdSnapOnSystemsWithoutBaseButOption(c *C) {

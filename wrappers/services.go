@@ -22,7 +22,6 @@ package wrappers
 import (
 	"bytes"
 	"fmt"
-	"math/rand"
 	"os"
 	"path/filepath"
 	"strconv"
@@ -34,6 +33,8 @@ import (
 	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/osutil/sys"
+	"github.com/snapcore/snapd/randutil"
+	"github.com/snapcore/snapd/release"
 	"github.com/snapcore/snapd/snap"
 	"github.com/snapcore/snapd/strutil"
 	"github.com/snapcore/snapd/systemd"
@@ -203,7 +204,7 @@ func StartServices(apps []*snap.AppInfo, inter interacter, tm timings.Measurer) 
 // AddSnapServices adds service units for the applications from the snap which are services.
 func AddSnapServices(s *snap.Info, disabledSvcs []string, inter interacter) (err error) {
 	if s.GetType() == snap.TypeSnapd {
-		return writeSnapdServicesOnCore(s, inter)
+		return fmt.Errorf("internal error: adding explicit services for snapd snap is unexpected")
 	}
 
 	// check if any previously disabled services are now no longer services and
@@ -240,6 +241,9 @@ func AddSnapServices(s *snap.Info, disabledSvcs []string, inter interacter) (err
 			}
 		}
 	}()
+
+	// TODO: remove once services get enabled on start and not when created.
+	preseedMode := release.PreseedMode
 
 	for _, app := range s.Apps {
 		if !app.IsService() {
@@ -296,13 +300,15 @@ func AddSnapServices(s *snap.Info, disabledSvcs []string, inter interacter) (err
 			continue
 		}
 
-		if err := sysd.Enable(svcName); err != nil {
-			return err
+		if !preseedMode() {
+			if err := sysd.Enable(svcName); err != nil {
+				return err
+			}
 		}
 		enabled = append(enabled, svcName)
 	}
 
-	if len(written) > 0 {
+	if len(written) > 0 && !preseedMode() {
 		if err := sysd.DaemonReload(); err != nil {
 			return err
 		}
@@ -377,8 +383,13 @@ func ServicesEnableState(s *snap.Info, inter interacter) (map[string]bool, error
 	return snapSvcsState, nil
 }
 
-// RemoveSnapServices disables and removes service units for the applications from the snap which are services.
+// RemoveSnapServices disables and removes service units for the applications
+// from the snap which are services. The optional flag indicates whether
+// services are removed as part of undoing of first install of a given snap.
 func RemoveSnapServices(s *snap.Info, inter interacter) error {
+	if s.GetType() == snap.TypeSnapd {
+		return fmt.Errorf("internal error: removing explicit services for snapd snap is unexpected")
+	}
 	sysd := systemd.New(dirs.GlobalRootDir, systemd.SystemMode, inter)
 	nservices := 0
 
@@ -886,7 +897,7 @@ func generateOnCalendarSchedules(schedule []*timeutil.Schedule) []string {
 						// directly one after another
 						length -= 5 * time.Minute
 					}
-					when = when.Add(time.Duration(rand.Int63n(int64(length))))
+					when = when.Add(randutil.RandomDuration(length))
 				}
 				if when.Hour == 24 {
 					// 24:00 for us means the other end of

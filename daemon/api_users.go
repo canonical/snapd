@@ -48,8 +48,9 @@ var (
 	}
 
 	logoutCmd = &Command{
-		Path: "/v2/logout",
-		POST: logoutUser,
+		Path:     "/v2/logout",
+		POST:     logoutUser,
+		PolkitOK: "io.snapcraft.snapd.login",
 	}
 
 	// backwards compat; to-be-deprecated
@@ -205,7 +206,7 @@ func logoutUser(c *Command, r *http.Request, user *auth.UserState) Response {
 	if user == nil {
 		return BadRequest("not logged in")
 	}
-	err := auth.RemoveUser(state, user.ID)
+	_, err := auth.RemoveUser(state, user.ID)
 	if err != nil {
 		return InternalError(err.Error())
 	}
@@ -269,15 +270,19 @@ func removeUser(c *Command, username string, opts postUserDeleteData) Response {
 
 	// then the UserState
 	st.Lock()
-	err = auth.RemoveUserByUsername(st, username)
+	u, err := auth.RemoveUserByUsername(st, username)
 	st.Unlock()
 	// ErrInvalidUser means "not found" in this case
 	if err != nil && err != auth.ErrInvalidUser {
 		return InternalError(err.Error())
 	}
 
-	// returns nil so it's still arguably a []userResponseData
-	return SyncResponse(nil, nil)
+	result := map[string]interface{}{
+		"removed": []userResponseData{
+			{ID: u.ID, Username: u.Username, Email: u.Email},
+		},
+	}
+	return SyncResponse(result, nil)
 }
 
 func postCreateUser(c *Command, r *http.Request, user *auth.UserState) Response {

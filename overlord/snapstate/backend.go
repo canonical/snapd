@@ -47,7 +47,7 @@ type StoreService interface {
 	WriteCatalogs(ctx context.Context, names io.Writer, adder store.SnapAdder) error
 
 	Download(context.Context, string, string, *snap.DownloadInfo, progress.Meter, *auth.UserState, *store.DownloadOptions) error
-	DownloadStream(context.Context, string, *snap.DownloadInfo, *auth.UserState) (io.ReadCloser, error)
+	DownloadStream(context.Context, string, *snap.DownloadInfo, int64, *auth.UserState) (io.ReadCloser, int, error)
 
 	Assertion(assertType *asserts.AssertionType, primaryKey []string, user *auth.UserState) (asserts.Assertion, error)
 
@@ -65,7 +65,7 @@ type managerBackend interface {
 	// install related
 	SetupSnap(snapFilePath, instanceName string, si *snap.SideInfo, dev boot.Device, meter progress.Meter) (snap.Type, *backend.InstallRecord, error)
 	CopySnapData(newSnap, oldSnap *snap.Info, meter progress.Meter) error
-	LinkSnap(info *snap.Info, dev boot.Device, prevDisabledSvcs []string, tm timings.Measurer) (rebootRequired bool, err error)
+	LinkSnap(info *snap.Info, dev boot.Device, linkCtx backend.LinkContext, tm timings.Measurer) (rebootRequired bool, err error)
 	StartServices(svcs []*snap.AppInfo, meter progress.Meter, tm timings.Measurer) error
 	StopServices(svcs []*snap.AppInfo, reason snap.ServiceStopReason, meter progress.Meter, tm timings.Measurer) error
 	ServicesEnableState(info *snap.Info, meter progress.Meter) (map[string]bool, error)
@@ -77,7 +77,7 @@ type managerBackend interface {
 	ClearTrashedData(oldSnap *snap.Info)
 
 	// remove related
-	UnlinkSnap(info *snap.Info, meter progress.Meter) error
+	UnlinkSnap(info *snap.Info, linkCtx backend.LinkContext, meter progress.Meter) error
 	RemoveSnapFiles(s snap.PlaceInfo, typ snap.Type, installRecord *backend.InstallRecord, dev boot.Device, meter progress.Meter) error
 	RemoveSnapDir(s snap.PlaceInfo, hasOtherInstances bool) error
 	RemoveSnapData(info *snap.Info) error

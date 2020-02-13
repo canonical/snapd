@@ -27,6 +27,19 @@ import (
 	"github.com/snapcore/snapd/snap"
 )
 
+const (
+	// DefaultStatus is the value of a status boot variable when nothing is
+	// being tried
+	DefaultStatus = ""
+	// TryStatus is the value of a status boot variable when something is about
+	// to be tried
+	TryStatus = "try"
+	// TryingStatus is the value of a status boot variable after we have
+	// attempted a boot with a try snap - this status is only set in the early
+	// boot sequence (bootloader, initramfs, etc.)
+	TryingStatus = "trying"
+)
+
 // A BootParticipant handles the boot process details for a snap involved in it.
 type BootParticipant interface {
 	// SetNextBoot will schedule the snap to be used in the next boot. For
