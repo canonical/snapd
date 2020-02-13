@@ -10,9 +10,9 @@ description: |
 
   Start with 'snap list' to see installed snaps.
 adopt-info: snapd
-# the base is only needed here for snapcraft to check the ELF sections of
-# binaries inside the snap, which is an unnecessary check for snapcraft itself
-base: core
+# build-base is needed here for snapcraft to build this snap as with "modern" 
+# snapcraft
+build-base: core
 grade: stable
 license: GPL-3.0
 
