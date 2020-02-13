@@ -1201,5 +1201,5 @@ func (s *deviceMgrSuite) TestStartOfOperationErrorIfPreseed(c *C) {
 	st.Lock()
 	defer st.Unlock()
 	_, err = mgr.StartOfOperationTime()
-	c.Assert(err, ErrorMatches, `internal error: unexpected call to StartOfOperationTime in preseed-mode`)
+	c.Assert(err, ErrorMatches, `internal error: unexpected call to StartOfOperationTime in preseed mode`)
 }
