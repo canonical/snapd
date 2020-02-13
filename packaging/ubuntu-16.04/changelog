@@ -1,3 +1,17 @@
+snapd (2.43.3) xenial; urgency=medium
+
+  * New upstream release, LP: #1856159
+    - interfaces/opengl: allow datagrams to nvidia-driver
+    - httputil: add NoNetwork(err) helper, spread test and use
+      in serial acquire
+    - interfaces: add uio interface
+    - interfaces/greengrass-support: 'aws-iot-greengrass' snap fails to
+      start due to apparmor deny on mounting of "/proc/latency_stats".
+    - data, packaging: Add sudoers snippet to allow snaps to be run with
+      sudo
+
+ -- Michael Vogt <michael.vogt@ubuntu.com>  Wed, 12 Feb 2020 14:59:15 +0100
+
 snapd (2.43.2) xenial; urgency=medium
 
   * New upstream release, LP: #1856159

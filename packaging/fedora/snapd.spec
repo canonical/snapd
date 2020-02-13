@@ -92,7 +92,7 @@
 %endif
 
 Name:           snapd
-Version:        2.43.2
+Version:        2.43.3
 Release:        0%{?dist}
 Summary:        A transactional software package manager
 License:        GPLv3
@@ -876,7 +876,19 @@ fi
 
 
 %changelog
+* Wed Feb 12 2020 Michael Vogt <mvo@ubuntu.com>
+- New upstream release 2.43.3
+ - interfaces/opengl: allow datagrams to nvidia-driver
+ - httputil: add NoNetwork(err) helper, spread test and use
+   in serial acquire
+ - interfaces: add uio interface
+ - interfaces/greengrass-support: 'aws-iot-greengrass' snap fails to
+   start due to apparmor deny on mounting of "/proc/latency_stats".
+ - data, packaging: Add sudoers snippet to allow snaps to be run with
+   sudo
+
 * Tue Jan 28 2020 Michael Vogt <mvo@ubuntu.com>
+- New upstream release 2.43.2
  - cmd/snap-confine: Revert #7421 (unmount /writable from snap view)
  - overlord/snapstate: fix for re-refresh bug
  - tests, run-checks, many: fix nakedret issues
