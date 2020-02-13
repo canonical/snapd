@@ -1,6 +1,7 @@
 package main_test
 
 import (
+	"fmt"
 	"io/ioutil"
 	"os"
 	"path/filepath"
@@ -114,4 +115,28 @@ printf "hello world"
 	matches, err := filepath.Glob(snapDir + "/hello*.snap")
 	c.Assert(err, check.IsNil)
 	c.Assert(matches, check.HasLen, 1)
+}
+
+func (s *SnapSuite) TestPackPacksASnapWithCompressionHappy(c *check.C) {
+	snapDir := makeSnapDirForPack(c, "name: hello\nversion: 1.0")
+
+	for _, comp := range []string{"xz"} {
+		_, err := snaprun.Parser(snaprun.Client()).ParseArgs([]string{"pack", "--compression", comp, snapDir, snapDir})
+		c.Assert(err, check.IsNil)
+
+		matches, err := filepath.Glob(snapDir + "/hello*.snap")
+		c.Assert(err, check.IsNil)
+		c.Assert(matches, check.HasLen, 1)
+		err = os.Remove(matches[0])
+		c.Assert(err, check.IsNil)
+	}
+}
+
+func (s *SnapSuite) TestPackPacksASnapWithCompressionUnhappy(c *check.C) {
+	snapDir := makeSnapDirForPack(c, "name: hello\nversion: 1.0")
+
+	for _, comp := range []string{"gzip", "lzo", "zstd", "silly"} {
+		_, err := snaprun.Parser(snaprun.Client()).ParseArgs([]string{"pack", "--compression", comp, snapDir, snapDir})
+		c.Assert(err, check.ErrorMatches, fmt.Sprintf(`cannot pack "/.*": cannot use compression %q`, comp))
+	}
 }

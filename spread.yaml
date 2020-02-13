@@ -77,7 +77,7 @@ backends:
                 image: ubuntu-16.04-64
                 workers: 6
             - ubuntu-core-20-64:
-                image: ubuntu-1804-64-uefi-enabled
+                image: ubuntu-2004-64-virt-uefi-enabled
                 workers: 6
                 storage: 20G
 
@@ -110,20 +110,39 @@ backends:
                 workers: 6
                 storage: preserve-size
 
+            - centos-7-64:
+                workers: 6
+                image: centos-7-64
             - centos-8-64:
                 workers: 4
                 image: centos-8-64
 
-    google-unstable:
+    # TODO: spread is really unhappy when it sees a backend without any systems,
+    # so this block is intentially kept commented out, until we need to add
+    # systems to it
+    #
+    # google-unstable:
+    #     type: google
+    #     key: '$(HOST: echo "$SPREAD_GOOGLE_KEY")'
+    #     location: computeengine/us-east1-b
+    #     halt-timeout: 2h
+    #     systems:
+
+    google-tpm:
         type: google
         key: '$(HOST: echo "$SPREAD_GOOGLE_KEY")'
         location: computeengine/us-east1-b
         halt-timeout: 2h
         systems:
-            - centos-7-64:
-                workers: 6
-                image: centos-7-64
-
+            - ubuntu-18.04-64:
+                workers: 1
+                image: ubuntu-1804-64-tpm-enabled
+            - ubuntu-19.10-64:
+                workers: 1
+                image: ubuntu-1910-64-tpm-enabled
+            - ubuntu-20.04-64:
+                workers: 1
+                image: ubuntu-2004-64-tpm-enabled
 
     google-sru:
         type: google
@@ -667,20 +686,9 @@ suites:
                 systemctl status snapd.socket || true
                 journalctl -e
             fi
-    tests/core18/:
-        summary: Subset of core18 specific tests
-        systems: [ubuntu-core-18-*]
-        prepare: |
-            "$TESTSLIB"/prepare-restore.sh --prepare-suite
-        prepare-each: |
-            "$TESTSLIB"/prepare-restore.sh --prepare-suite-each
-        restore-each: |
-            "$TESTSLIB"/prepare-restore.sh --restore-suite-each
-        restore: |
-            "$TESTSLIB"/prepare-restore.sh --restore-suite
-    tests/core20/:
-        summary: Subset of core20 specific tests
-        systems: [ubuntu-core-20-*]
+    tests/core/:
+        summary: Subset of Ubuntu Core specific tests
+        systems: [ubuntu-core-*]
         prepare: |
             "$TESTSLIB"/prepare-restore.sh --prepare-suite
         prepare-each: |
