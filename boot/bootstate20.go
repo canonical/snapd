@@ -163,10 +163,17 @@ func (ks20 *bootState20Kernel) markSuccessful(update bootStateUpdate) (bootState
 }
 
 func (ks20 *bootState20Kernel) setNext(next snap.PlaceInfo) (rebootRequired bool, u bootStateUpdate, err error) {
+	// commit() for setNext() also needs to add to the kernels in modeenv
+	err = ks20.kModeenv.loadModeenv()
+	if err != nil {
+		return false, nil, err
+	}
+
 	nextStatus, err := genericSetNext(ks20, next)
 	if err != nil {
 		return false, nil, err
 	}
+
 	// if we are setting a snap as a try snap, then we need to reboot
 	rebootRequired = false
 	if nextStatus == TryStatus {
@@ -187,22 +194,38 @@ func (ks20 *bootState20Kernel) commit() error {
 
 	// If we are about to try an update, and need to add the try-kernel symlink,
 	// we need to do things in this order:
-	// 1. Add try-kernel symlink
-	// 2. Update kernel_status to "try"
+	// 1. Add the kernel snap to the modeenv
+	// 2. Create try-kernel symlink
+	// 3. Update kernel_status to "try"
 	//
-	// This is because if we get rebooted in between 1 and 2, kernel_status
-	// is still unset and boot scripts proceeds to boot with the old kernel,
-	// effectively ignoring the try-kernel symlink.
+	// This is because if we get rebooted in before 3, kernel_status is still
+	// unset and boot scripts proceeds to boot with the old kernel, effectively
+	// ignoring the try-kernel symlink.
 	// If we did it in the opposite order however, we would set kernel_status to
 	// "try" and then get rebooted before we could create the try-kernel
 	// symlink, so the bootloader would try to boot from the non-existent
 	// try-kernel symlink and become broken.
+	//
+	// Adding the kernel snap to the modeenv's list of trusted kernel snaps can
+	// effectively happen any time before we update the kernel_status to "try"
+	// for the same reasoning as for creating the try-kernel symlink. Putting it
+	// first is currently a purely aesthetic choice.
 
-	// add the try-kernel symlink
-	// trySnap could be nil here if we called setNext on the current kernel
-	// snap
+	// add the kernel to the modeenv and add the try-kernel symlink
+	// tryKernelSnap could be nil here if we called setNext on the current
+	// kernel snap
 	if ks20.tryKernelSnap != nil {
-		err := ks20.ebl.EnableTryKernel(ks20.tryKernelSnap)
+		// add the kernel to the modeenv
+		ks20.kModeenv.modeenv.CurrentKernels = append(
+			ks20.kModeenv.modeenv.CurrentKernels,
+			ks20.tryKernelSnap.Filename(),
+		)
+		err := ks20.kModeenv.modeenv.Write("")
+		if err != nil {
+			return err
+		}
+
+		err = ks20.ebl.EnableTryKernel(ks20.tryKernelSnap)
 		if err != nil {
 			return err
 		}
@@ -452,6 +475,10 @@ func genericMarkSuccessful(b bootState, update bootStateUpdate) (bsmark *bootSta
 // this could end up auto-cleaning status variables for something it shouldn't
 // be.
 func (bsmark *bootState20MarkSuccessful) commit() error {
+	// the base and kernel snap updates will modify the modeenv, so we only
+	// issue a single write at the end if something changed
+	modeenvChanged := false
+
 	// kernel snap first, slightly higher priority
 
 	// the ordering here is very important for boot reliability!
@@ -463,6 +490,7 @@ func (bsmark *bootState20MarkSuccessful) commit() error {
 	// 1. Update kernel_status to ""
 	// 2. Move kernel symlink to point to the new try kernel
 	// 3. Remove try-kernel symlink
+	// 4. Remove old kernel from modeenv
 	//
 	// If we got rebooted after step 1, then the bootloader is booting the wrong
 	// kernel, but is at least booting a known good kernel and snapd in
@@ -478,6 +506,13 @@ func (bsmark *bootState20MarkSuccessful) commit() error {
 	// the boot failed, and revert to booting using the kernel symlink, but that
 	// now points to the new kernel we were trying and we did not successfully
 	// boot from that kernel to know we should trust it.
+	//
+	// Removing the old kernel from the modeenv needs to happen after it is
+	// impossible for the bootloader to boot from that kernel, otherwise we
+	// could end up in a state where the bootloader doesn't want to boot the
+	// new kernel, but the initramfs doesn't trust the old kernel and we are
+	// stuck. As such, do this last, after the symlink no longer exists.
+	//
 	// The try-kernel symlink removal should happen last because it will not
 	// affect anything, except that if it was removed before updating
 	// kernel_status to "", the bootloader will think that the try kernel failed
@@ -506,11 +541,15 @@ func (bsmark *bootState20MarkSuccessful) commit() error {
 			return err
 		}
 
-		// finally disable the try kernel symlink
+		// disable the try kernel symlink
 		err = bsmark.ebl.DisableTryKernel()
 		if err != nil {
 			return err
 		}
+
+		// finally set current_kernels to be just this new kernel snap
+		bsmark.modeenv.CurrentKernels = []string{bsmark.triedKernelSnap.Filename()}
+		modeenvChanged = true
 	}
 
 	// base snap next
@@ -519,13 +558,11 @@ func (bsmark *bootState20MarkSuccessful) commit() error {
 	// atomic file writing operation, so it's not a concern if we get
 	// rebooted during this snippet like it is with the kernel snap above
 
-	baseChanged := false
-
 	// always clear the base_status when marking successful, this has the useful
 	// side-effect of cleaning up if we have base_status=trying but no try_base
 	// set
 	if bsmark.modeenv.BaseStatus != DefaultStatus {
-		baseChanged = true
+		modeenvChanged = true
 		bsmark.modeenv.BaseStatus = DefaultStatus
 	}
 
@@ -534,18 +571,18 @@ func (bsmark *bootState20MarkSuccessful) commit() error {
 		tryBase := bsmark.triedBaseSnap.Filename()
 		if bsmark.modeenv.Base != tryBase {
 			bsmark.modeenv.Base = tryBase
-			baseChanged = true
+			modeenvChanged = true
 		}
 
 		// clear the TryBase
 		if bsmark.modeenv.TryBase != "" {
 			bsmark.modeenv.TryBase = ""
-			baseChanged = true
+			modeenvChanged = true
 		}
 	}
 
 	// write the modeenv
-	if baseChanged {
+	if modeenvChanged {
 		return bsmark.modeenv.Write("")
 	}
 
