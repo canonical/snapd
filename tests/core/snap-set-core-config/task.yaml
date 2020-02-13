@@ -4,6 +4,8 @@ summary: Ensure "snap set core" works
 # TODO:UC20: enable for UC20
 systems: [ubuntu-core-1*]
 
+# TODO: use `snap set system` instead of `snap set core`
+
 prepare: |
     rc=0
     systemctl status rsyslog.service || rc=$?
@@ -39,7 +41,7 @@ execute: |
     systemctl status rsyslog.service|MATCH "Active: inactive"
     systemctl status rsyslog.service|MATCH "Loaded: masked"
     snap set core service.rsyslog.disable=false
-    
+
     echo "Check that powerkey handling works"
     snap set core system.power-key-action=reboot
     MATCH HandlePowerKey=reboot < /etc/systemd/logind.conf.d/00-snap-core.conf
@@ -50,7 +52,7 @@ execute: |
         exit 1
     fi
 
-    
+
     echo "Check that pi config handline works"
     if [ -e /boot/uboot/config.txt ]; then
         cp /boot/uboot/config.txt config.txt.save
@@ -88,5 +90,3 @@ execute: |
         cat /etc/environment
         exit 1
     fi
-
-
