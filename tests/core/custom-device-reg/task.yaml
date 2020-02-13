@@ -1,0 +1,94 @@
+summary: |
+    Test that device initialisation and registration can be customized
+    with the prepare-device gadget hook
+
+# TODO:UC20: enable for UC20
+systems: [ubuntu-core-1*-64]
+
+prepare: |
+    if [ "$TRUST_TEST_KEYS" = "false" ]; then
+        echo "This test needs test keys to be trusted"
+        exit
+    fi
+    #shellcheck source=tests/lib/systemd.sh
+    . "$TESTSLIB"/systemd.sh
+    #shellcheck source=tests/lib/systems.sh
+    . "$TESTSLIB"/systems.sh
+
+    systemctl stop snapd.service snapd.socket
+    rm -rf /var/lib/snapd/assertions/*
+    rm -rf /var/lib/snapd/device
+    rm -rf /var/lib/snapd/state.json
+    unsquashfs -no-progress /var/lib/snapd/snaps/pc_*.snap
+    mkdir -p squashfs-root/meta/hooks
+    cp prepare-device squashfs-root/meta/hooks
+    mksquashfs squashfs-root pc_x1.snap -comp xz -no-fragments -no-progress
+    rm -rf squashfs-root
+    cp pc_x1.snap /var/lib/snapd/seed/snaps/
+    mv /var/lib/snapd/seed/assertions/model model.bak
+    cp /var/lib/snapd/seed/seed.yaml seed.yaml.bak
+    python3 ./manip_seed.py /var/lib/snapd/seed/seed.yaml
+    cp "$TESTSLIB"/assertions/developer1.account /var/lib/snapd/seed/assertions
+    cp "$TESTSLIB"/assertions/developer1.account-key /var/lib/snapd/seed/assertions
+    if is_core18_system; then
+        cp "$TESTSLIB"/assertions/developer1-pc-18.model /var/lib/snapd/seed/assertions/developer1-pc.model
+    else
+        cp "$TESTSLIB"/assertions/developer1-pc.model /var/lib/snapd/seed/assertions
+    fi
+    cp "$TESTSLIB"/assertions/testrootorg-store.account-key /var/lib/snapd/seed/assertions
+    # start fake device svc
+    systemd_create_and_start_unit fakedevicesvc "$(command -v fakedevicesvc) localhost:11029"
+    # kick first boot again
+    systemctl start snapd.service snapd.socket
+
+restore: |
+    if [ "$TRUST_TEST_KEYS" = "false" ]; then
+        echo "This test needs test keys to be trusted"
+        exit
+    fi
+    #shellcheck source=tests/lib/systemd.sh
+    . "$TESTSLIB"/systemd.sh
+
+    systemctl stop snapd.service snapd.socket
+    systemd_stop_and_destroy_unit fakedevicesvc
+    rm -rf /var/lib/snapd/assertions/*
+    rm -rf /var/lib/snapd/device
+    rm -rf /var/lib/snapd/state.json
+    if systemctl status snap-pc-x1.mount ; then
+       systemctl stop snap-pc-x1.mount
+       rm -f /etc/systemd/system/snap-pc-x1.mount
+       rm -f /etc/systemd/system/multi-user.target.wants/snap-pc-x1.mount
+       rm -f /var/lib/snapd/snaps/pc_x1.snap
+       systemctl daemon-reload
+    fi
+    rm -f /var/lib/snapd/seed/snaps/pc_x1.snap
+    cp seed.yaml.bak /var/lib/snapd/seed/seed.yaml
+    rm -f /var/lib/snapd/seed/assertions/developer1.account
+    rm -f /var/lib/snapd/seed/assertions/developer1.account-key
+    rm -f /var/lib/snapd/seed/assertions/developer1-pc.model
+    rm -f /var/lib/snapd/seed/assertions/testrootorg-store.account-key
+    cp model.bak /var/lib/snapd/seed/assertions/model
+    rm -f ./*.bak
+    # kick first boot again
+    systemctl start snapd.service snapd.socket
+    # wait for first boot to be done
+    while ! snap changes | grep -q "Done.*Initialize system state"; do sleep 1; done
+
+execute: |
+    if [ "$TRUST_TEST_KEYS" = "false" ]; then
+        echo "This test needs test keys to be trusted"
+        exit
+    fi
+    echo "Wait for first boot to be done"
+    while ! snap changes | grep -q "Done.*Initialize system state"; do sleep 1; done
+    echo "We have a model assertion"
+    snap model --verbose|MATCH "model:\s* my-model"
+
+    echo "Wait for device initialisation to be done"
+    while ! snap changes | grep -q "Done.*Initialize device"; do sleep 1; done
+
+    echo "Check we have a serial"
+    snap model --serial --assertion|MATCH "authority-id: developer1"
+    snap model --serial --assertion|MATCH "brand-id: developer1"
+    snap model --serial --assertion|MATCH "model: my-model"
+    snap model --serial --assertion|MATCH "serial: 7777"
