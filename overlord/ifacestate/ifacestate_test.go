@@ -7583,19 +7583,22 @@ func (s *interfaceManagerSuite) TestResolveDisconnectFromConns(c *C) {
 	ref, err = mgr.ResolveDisconnect("some-snap", "plug", "", "slot", forget)
 	c.Check(err, IsNil)
 	c.Check(ref, DeepEquals, []*interfaces.ConnRef{
-		{PlugRef: interfaces.PlugRef{Snap: "some-snap", Name: "plug"}, SlotRef: interfaces.SlotRef{Snap: "core", Name: "slot"}},
+		{PlugRef: interfaces.PlugRef{Snap: "some-snap", Name: "plug"},
+			SlotRef: interfaces.SlotRef{Snap: "core", Name: "slot"}},
 	})
 
 	ref, err = mgr.ResolveDisconnect("some-snap", "plug", "", "slot", forget)
 	c.Check(err, IsNil)
 	c.Check(ref, DeepEquals, []*interfaces.ConnRef{
-		{PlugRef: interfaces.PlugRef{Snap: "some-snap", Name: "plug"}, SlotRef: interfaces.SlotRef{Snap: "core", Name: "slot"}},
+		{PlugRef: interfaces.PlugRef{Snap: "some-snap", Name: "plug"},
+			SlotRef: interfaces.SlotRef{Snap: "core", Name: "slot"}},
 	})
 
 	_, err = mgr.ResolveDisconnect("some-snap", "plug", "", "", forget)
 	c.Check(err, IsNil)
 	c.Check(ref, DeepEquals, []*interfaces.ConnRef{
-		{PlugRef: interfaces.PlugRef{Snap: "some-snap", Name: "plug"}, SlotRef: interfaces.SlotRef{Snap: "core", Name: "slot"}},
+		{PlugRef: interfaces.PlugRef{Snap: "some-snap", Name: "plug"},
+			SlotRef: interfaces.SlotRef{Snap: "core", Name: "slot"}},
 	})
 
 	_, err = mgr.ResolveDisconnect("", "plug", "", "slot", forget)
