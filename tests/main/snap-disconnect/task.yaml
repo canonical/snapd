@@ -10,21 +10,16 @@ prepare: |
     snap pack "$TESTSLIB"/snaps/home-consumer
     snap install --dangerous "$SNAP_FILE"
     snap install jq
-    echo "Prepare extra test snaps"
-    snap pack test-snap-producer
-    snap pack test-snap-consumer.v1
-    snap pack test-snap-consumer.v2
 
 restore: |
     rm -f ./*.snap
-    snap remove --purge jq || true
-    snap remove --purge home-consumer || true
-    snap remove --purge test-snap-producer || true
-    snap remove --purge test-snap-consumer || true
 
 execute: |
     #shellcheck source=tests/lib/systems.sh
     . "$TESTSLIB"/systems.sh
+
+        #shellcheck source=tests/lib/snaps.sh
+    . "$TESTSLIB/snaps.sh"
 
     inspect_connection() {
       CONN="$1"
@@ -93,12 +88,12 @@ execute: |
     fi
 
     echo "Checking that a connection for missing plug can be forgotten"
-    snap install --dangerous test-snap-producer_1_all.snap
-    snap install --dangerous test-snap-consumer_1_all.snap
+    install_local test-snap-producer
+    install_local test-snap-consumer.v1
     snap connect test-snap-consumer:shared-content-plug test-snap-producer:shared-content-slot
     snap connections test-snap-consumer | MATCH "content\[mylib\] *test-snap-consumer:shared-content-plug *test-snap-producer:shared-content-slot"
     # refresh to a newer version without content plug
-    snap install --dangerous test-snap-consumer_2_all.snap
+    install_local test-snap-consumer.v2
     snap connections test-snap-consumer | not MATCH "content\[mylib\] *test-snap-consumer:shared-content-plug *test-snap-producer:shared-content-slot"
     inspect_connection "test-snap-consumer:shared-content-plug test-snap-producer:shared-content-slot" | MATCH "true"
     snap disconnect --forget test-snap-consumer:shared-content-plug test-snap-producer:shared-content-slot
