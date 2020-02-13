@@ -1,8 +1,6 @@
 summary: Ensure create-user functionality
 
-# FIXME: enable on ubuntu-core-18-* as well once the shadow SRU
-#        https://launchpad.net/ubuntu/+source/shadow/1:4.5-1ubuntu2
-#        is available on -updates
+# TODO:UC20: enable for uc20
 systems: [ubuntu-core-1*]
 
 environment:
@@ -10,10 +8,7 @@ environment:
     USER_NAME: mvo
 
 restore: |
-    # FIXME: use "snap delete-user" once
-    # https://github.com/snapcore/snapd/pull/6679 lands
-    userdel --extrausers -r "$USER_NAME" || true
-    rm -rf "/etc/sudoers.d/create-user-$USER_NAME"
+    snap remove-user "$USER_NAME"
 
 execute: |
     echo "snap create-user -- ensure failure when run as non-root user without sudo"

@@ -1,5 +1,8 @@
 summary: Check that removal of essential snaps does not work
 
+# TODO:UC20: enable for UC20+ with core20 as an unremovable base snap
+systems: [ubuntu-core-18-*]
+
 execute: |
     echo "Ensure snapd cannot be removed"
     if snap remove --purge snapd; then

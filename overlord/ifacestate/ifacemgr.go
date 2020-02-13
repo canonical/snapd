@@ -359,12 +359,6 @@ func (m *InterfaceManager) ResolveDisconnect(plugSnapName, plugName, slotSnapNam
 	}
 
 	coreSnapName := SystemSnapName()
-	if coreSnapName == "" {
-		// This is not strictly speaking true BUT when there's no core snap the
-		// produced error messages are consistent to when the is a core snap
-		// and it has the modern form.
-		coreSnapName = "core"
-	}
 
 	// There are two allowed forms (see snap disconnect --help)
 	switch {

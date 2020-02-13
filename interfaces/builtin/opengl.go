@@ -116,6 +116,10 @@ unix (bind,listen) type=seqpacket addr="@cuda-uvmfd-[0-9a-f]*",
 # For now, allow 'c'haracter devices and 'b'lock devices based on
 # https://www.kernel.org/doc/Documentation/devices.txt
 /run/udev/data/c226:[0-9]* r,  # 226 drm
+
+# From https://bugs.launchpad.net/snapd/+bug/1862832
+/run/nvidia-xdriver-* rw,
+unix (send, receive) type=dgram peer=(addr="@var/run/nvidia-xdriver-*"),
 `
 
 // Some nvidia modules don't use sysfs (therefore they can't be udev tagged) and
