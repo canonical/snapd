@@ -556,12 +556,13 @@ func (m *DeviceManager) ensureInstalled() error {
 
 var timeNow = time.Now
 
-// OperationalTime returns the time when snapd became operational, and sets it
-// in the state when called for the first time. The operational time is
-// seed-time if available, or current time otherwise.
-func (m *DeviceManager) OperationalTime() (time.Time, error) {
+// StartOfOperationTime returns the time when snapd started operating,
+// and sets it in the state when called for the first time.
+// The StartOfOperationTime time is seed-time if available,
+// or current time otherwise.
+func (m *DeviceManager) StartOfOperationTime() (time.Time, error) {
 	var opTime time.Time
-	err := m.state.Get("operational-time", &opTime)
+	err := m.state.Get("start-of-operation-time", &opTime)
 	if err == nil {
 		return opTime, nil
 	}
@@ -569,7 +570,7 @@ func (m *DeviceManager) OperationalTime() (time.Time, error) {
 		return opTime, err
 	}
 
-	// operational-time not set yet
+	// start-of-operation-time not set yet, use seed-time if available
 	var seedTime time.Time
 	err = m.state.Get("seed-time", &seedTime)
 	if err != nil && err != state.ErrNoState {
@@ -580,7 +581,7 @@ func (m *DeviceManager) OperationalTime() (time.Time, error) {
 	} else {
 		opTime = timeNow()
 	}
-	m.state.Set("operational-time", opTime)
+	m.state.Set("start-of-operation-time", opTime)
 	return opTime, nil
 }
 

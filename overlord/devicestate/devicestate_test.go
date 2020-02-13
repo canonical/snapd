@@ -1137,7 +1137,7 @@ func (s *deviceMgrSuite) TestDeviceManagerEmptyOperatingModeRun(c *C) {
 	c.Check(s.mgr.OperatingMode(), Equals, "run")
 }
 
-func (s *deviceMgrSuite) TestOperationalTimeFromSeedTime(c *C) {
+func (s *deviceMgrSuite) TestStartOfOperationTimeFromSeedTime(c *C) {
 	st := s.state
 	st.Lock()
 	defer st.Unlock()
@@ -1145,29 +1145,29 @@ func (s *deviceMgrSuite) TestOperationalTimeFromSeedTime(c *C) {
 	seedTime := time.Now().AddDate(0, -1, 0)
 	st.Set("seed-time", seedTime)
 
-	operationalTime, err := s.mgr.OperationalTime()
+	operationTime, err := s.mgr.StartOfOperationTime()
 	c.Assert(err, IsNil)
-	c.Check(operationalTime.Equal(seedTime), Equals, true)
+	c.Check(operationTime.Equal(seedTime), Equals, true)
 
 	var op time.Time
-	st.Get("operational-time", &op)
-	c.Check(op.Equal(operationalTime), Equals, true)
+	st.Get("start-of-operation-time", &op)
+	c.Check(op.Equal(operationTime), Equals, true)
 }
 
-func (s *deviceMgrSuite) TestOperationalTimeAlreadySet(c *C) {
+func (s *deviceMgrSuite) TestStartOfOperationTimeAlreadySet(c *C) {
 	st := s.state
 	st.Lock()
 	defer st.Unlock()
 
 	op := time.Now().AddDate(0, -1, 0)
-	st.Set("operational-time", op)
+	st.Set("start-of-operation-time", op)
 
-	operationalTime, err := s.mgr.OperationalTime()
+	operationTime, err := s.mgr.StartOfOperationTime()
 	c.Assert(err, IsNil)
-	c.Check(operationalTime.Equal(op), Equals, true)
+	c.Check(operationTime.Equal(op), Equals, true)
 }
 
-func (s *deviceMgrSuite) TestOperationalTimeNoSeedTime(c *C) {
+func (s *deviceMgrSuite) TestStartOfOperationTimeNoSeedTime(c *C) {
 	st := s.state
 	st.Lock()
 	defer st.Unlock()
@@ -1177,14 +1177,14 @@ func (s *deviceMgrSuite) TestOperationalTimeNoSeedTime(c *C) {
 		return now
 	})
 
-	operationalTime, err := s.mgr.OperationalTime()
+	operationTime, err := s.mgr.StartOfOperationTime()
 	c.Assert(err, IsNil)
-	c.Check(operationalTime.Equal(now), Equals, true)
+	c.Check(operationTime.Equal(now), Equals, true)
 
 	// repeated call returns already set time
 	prev := now
 	now = time.Now().Add(-10 * time.Hour)
-	operationalTime, err = s.mgr.OperationalTime()
+	operationTime, err = s.mgr.StartOfOperationTime()
 	c.Assert(err, IsNil)
-	c.Check(operationalTime.Equal(prev), Equals, true)
+	c.Check(operationTime.Equal(prev), Equals, true)
 }
