@@ -230,7 +230,6 @@ func (bs20 *bootState20Base) loadModeenv() error {
 	bs20.modeenv = modeenv
 
 	// default commit status is the current status
-	fmt.Println("read base status", bs20.modeenv.BaseStatus)
 	bs20.commitBaseStatus = bs20.modeenv.BaseStatus
 
 	return nil
@@ -426,7 +425,6 @@ func genericMarkSuccessful(b bootState, update bootStateUpdate) (bsmark *bootSta
 // this could end up auto-cleaning status variables for something it shouldn't
 // be.
 func (bsmark *bootState20MarkSuccessful) commit() error {
-	fmt.Println("bsmark commit() called")
 	// kernel snap first, slightly higher priority
 
 	// the ordering here is very important for boot reliability!
