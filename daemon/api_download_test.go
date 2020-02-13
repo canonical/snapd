@@ -327,3 +327,25 @@ func (s *snapDownloadSuite) TestStreamOneSnap(c *check.C) {
 		}
 	}
 }
+
+func (s *snapDownloadSuite) TestStreamOneSnapNoBody(c *check.C) {
+	dataJSON := `{"snap-name": "bar", "no-body": true}`
+	req, err := http.NewRequest("POST", "/v2/download", strings.NewReader(dataJSON))
+	c.Assert(err, check.IsNil)
+
+	rsp := daemon.SnapDownloadCmd.POST(daemon.SnapDownloadCmd, req, nil)
+
+	c.Assert(rsp, check.FitsTypeOf, daemon.FileStream{})
+	c.Assert(rsp.(daemon.FileStream).SnapName, check.Equals, "bar")
+	c.Assert(rsp.(daemon.FileStream).Info.Size, check.Equals, int64(len(snapContent)))
+
+	w := httptest.NewRecorder()
+	rsp.(daemon.FileStream).ServeHTTP(w, nil)
+	c.Assert(w.Code, check.Equals, 200)
+
+	// we get the relevant headers
+	c.Check(w.Header().Get("Content-Disposition"), check.Equals, "attachment; filename=bar_1.snap")
+	c.Check(w.Header().Get("Snap-Sha3-384"), check.Equals, "sha3sha3sha3")
+	// but no body
+	c.Check(w.Body.Bytes(), check.HasLen, 0)
+}
