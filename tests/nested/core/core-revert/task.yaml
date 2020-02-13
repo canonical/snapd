@@ -34,7 +34,7 @@ execute: |
     execute_remote "sudo mv /etc/netplan/00-snapd-config.yaml /etc/netplan/00-snapd-config.yaml.back"
     execute_remote "sudo sed -i 's/unmanaged-devices+=interface-name:eth*/#unmanaged-devices+=interface-name:eth*/' /var/snap/network-manager/current/conf.d/disable-ethernet.conf"
 
-    execute_remote "snap info core" | MATCH "tracking: +${CORE_CHANNEL}"
+    execute_remote "snap info core" | MATCH "tracking: +latest/${CORE_CHANNEL}"
     execute_remote "sudo snap refresh --${CORE_REFRESH_CHANNEL} core" || true
 
     if ! wait_for_ssh; then

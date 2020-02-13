@@ -25,6 +25,7 @@ import (
 	"net/http/httptest"
 	"net/url"
 	"os"
+	"syscall"
 	"time"
 
 	. "gopkg.in/check.v1"
@@ -643,6 +644,7 @@ func (s *deviceMgrSerialSuite) TestDoRequestSerialMaxTentatives(c *C) {
 	r = devicestate.MockMaxTentatives(2)
 	defer r()
 
+	// this will trigger a reply 501 in the mock server
 	mockServer := s.mockServer(c, devicestatetest.ReqIDFailID501, nil)
 	defer mockServer.Close()
 
@@ -692,6 +694,113 @@ func (s *deviceMgrSerialSuite) TestDoRequestSerialMaxTentatives(c *C) {
 
 	c.Check(chg.Status(), Equals, state.ErrorStatus)
 	c.Check(chg.Err(), ErrorMatches, `(?s).*cannot retrieve request-id for making a request for a serial: unexpected status 501.*`)
+}
+
+type simulateNoNetRoundTripper struct{}
+
+func (s *simulateNoNetRoundTripper) RoundTrip(*http.Request) (*http.Response, error) {
+	return nil, &net.OpError{
+		Op:   "dial",
+		Net:  "tcp",
+		Addr: &net.TCPAddr{IP: net.IPv4(10, 0, 0, 2), Port: 80},
+		Err: &os.SyscallError{
+			Syscall: "connect",
+			Err:     syscall.ENETUNREACH,
+		},
+	}
+}
+
+func (s *deviceMgrSerialSuite) TestDoRequestSerialNoNetwork(c *C) {
+	s.testDoRequestSerialKeepsRetrying(c, &simulateNoNetRoundTripper{})
+}
+
+type simulateNoDNSRoundTripper struct{}
+
+func (s *simulateNoDNSRoundTripper) RoundTrip(*http.Request) (*http.Response, error) {
+	return nil, &net.OpError{
+		Op:  "dial",
+		Net: "tcp",
+		Err: &net.DNSError{
+			Err:         "Temporary failure in name resolution",
+			Name:        "www.ubuntu.com",
+			Server:      "",
+			IsTemporary: true,
+		},
+	}
+}
+
+func (s *deviceMgrSerialSuite) TestDoRequestSerialNoReachableDNS(c *C) {
+	s.testDoRequestSerialKeepsRetrying(c, &simulateNoDNSRoundTripper{})
+}
+
+func (s *deviceMgrSerialSuite) testDoRequestSerialKeepsRetrying(c *C, rt http.RoundTripper) {
+	privKey, _ := assertstest.GenerateKey(testKeyLength)
+
+	// immediate
+	r := devicestate.MockRetryInterval(0)
+	defer r()
+
+	// set a low maxRetry value
+	r = devicestate.MockMaxTentatives(3)
+	defer r()
+
+	mockServer := s.mockServer(c, "REQID-1", nil)
+	defer mockServer.Close()
+
+	restore := devicestate.MockBaseStoreURL(mockServer.URL)
+	defer restore()
+
+	restore = devicestate.MockRepeatRequestSerial("after-add-serial")
+	defer restore()
+
+	restore = devicestate.MockHttputilNewHTTPClient(func(opts *httputil.ClientOptions) *http.Client {
+		return &http.Client{Transport: rt}
+	})
+	defer restore()
+
+	// setup state as done by first-boot/Ensure/doGenerateDeviceKey
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	s.makeModelAssertionInState(c, "canonical", "pc", map[string]interface{}{
+		"architecture": "amd64",
+		"kernel":       "pc-kernel",
+		"gadget":       "pc",
+	})
+
+	devicestatetest.MockGadget(c, s.state, "pc", snap.R(2), nil)
+
+	devicestatetest.SetDevice(s.state, &auth.DeviceState{
+		Brand: "canonical",
+		Model: "pc",
+		KeyID: privKey.PublicKey().ID(),
+	})
+	devicestate.KeypairManager(s.mgr).Put(privKey)
+
+	t := s.state.NewTask("request-serial", "test")
+	chg := s.state.NewChange("become-operational", "...")
+	chg.AddTask(t)
+
+	// avoid full seeding
+	s.seeding()
+
+	// ensure we keep trying even if we are well above maxTentative
+	for i := 0; i < 10; i++ {
+		s.state.Unlock()
+		s.se.Ensure()
+		s.se.Wait()
+		s.state.Lock()
+
+		c.Check(chg.Status(), Equals, state.DoingStatus)
+		c.Check(chg.Err(), IsNil)
+	}
+
+	c.Check(chg.Status(), Equals, state.DoingStatus)
+
+	var nTentatives int
+	err := t.Get("pre-poll-tentatives", &nTentatives)
+	c.Assert(err, IsNil)
+	c.Check(nTentatives, Equals, 0)
 }
 
 func (s *deviceMgrSerialSuite) TestFullDeviceRegistrationPollHappy(c *C) {

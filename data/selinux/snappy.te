@@ -101,8 +101,8 @@ permissive snappy_t;
 # Allow transitions from init_t to snappy for sockets
 # init_named_socket_activation() is not supported by core policy in RHEL7
 gen_require(`
-  type init_t;
-  type var_run_t;
+	type init_t;
+	type var_run_t;
 ')
 filetrans_pattern(init_t, var_run_t, snappy_var_run_t, sock_file, "snapd.socket")
 filetrans_pattern(init_t, var_run_t, snappy_var_run_t, sock_file, "snapd-snap.socket")
@@ -112,7 +112,7 @@ allow init_t snappy_var_lib_t:dir read;
 
 # Allow snapd to read procfs
 gen_require(`
-  type proc_t;
+	type proc_t;
 ')
 allow snappy_t proc_t:file { getattr open read };
 
@@ -122,7 +122,7 @@ dev_search_sysfs(snappy_t)
 
 # This silences a read AVC denial event on the lost+found directory.
 gen_require(`
-  type lost_found_t;
+	type lost_found_t;
 ')
 dontaudit snappy_t lost_found_t:dir read;
 
@@ -142,7 +142,7 @@ sysnet_dns_name_resolve(snappy_t)
 
 # When managed by NetworkManager, DNS config is in its rundata
 gen_require(`
-  type NetworkManager_var_run_t;
+	type NetworkManager_var_run_t;
 ')
 allow snappy_t NetworkManager_var_run_t:dir search;
 
@@ -155,9 +155,9 @@ selinux_get_enforce_mode(snappy_t)
 
 # Allow snapd to manage D-Bus config files for snaps
 optional_policy(`
-  dbus_read_config(snappy_t)
-  allow snappy_t dbusd_etc_t:file { write create rename unlink };
-  allow snappy_t dbusd_etc_t:lnk_file { read };
+	dbus_read_config(snappy_t)
+	allow snappy_t dbusd_etc_t:file { write create rename unlink };
+	allow snappy_t dbusd_etc_t:lnk_file { read };
 ')
 
 # Allow snapd to manage kmod-backend (/etc/modules-load.d/) files
@@ -166,11 +166,11 @@ allow snappy_t etc_t:file unlink;
 
 # Allow snapd to manage udev rules for snaps and trigger events
 optional_policy(`
-  udev_manage_rules_files(snappy_t)
+	udev_manage_rules_files(snappy_t)
 	udev_manage_pid_files(snappy_t)
-  udev_exec(snappy_t)
-  udev_domtrans(snappy_t)
-  udev_create_kobject_uevent_socket(snappy_t)
+	udev_exec(snappy_t)
+	udev_domtrans(snappy_t)
+	udev_create_kobject_uevent_socket(snappy_t)
 ')
 allow snappy_t self:netlink_kobject_uevent_socket { create_socket_perms read };
 
@@ -210,7 +210,7 @@ read_files_pattern(snappy_t, snappy_var_run_t, snappy_var_run_t)
 getattr_files_pattern(snappy_t, snappy_var_run_t, snappy_var_run_t)
 
 gen_require(`
-  type user_tmp_t;
+	type user_tmp_t;
 ')
 allow snappy_t user_tmp_t:dir { read };
 
@@ -219,12 +219,12 @@ userdom_manage_tmp_dirs(snappy_t)
 userdom_manage_tmp_sockets(snappy_t)
 
 gen_require(`
-  type systemd_unit_file_t;
+	type systemd_unit_file_t;
 ')
 allow snappy_t systemd_unit_file_t:dir { rmdir };
 
 gen_require(`
-  type home_root_t;
+	type home_root_t;
 ')
 allow snappy_t home_root_t:dir { read };
 
@@ -253,7 +253,7 @@ files_tmp_filetrans(snappy_t, snappy_tmp_t, { file dir })
 
 # snap command completions, symlinks going back to snap mount directory
 gen_require(`
-  type usr_t;
+	type usr_t;
 ')
 allow snappy_t usr_t:dir { write remove_name add_name };
 allow snappy_t usr_t:lnk_file { create unlink };
@@ -285,7 +285,7 @@ allow snappy_t self:capability2 block_suspend;
 
 # snapd needs to check for ipv6 support
 gen_require(`
-  type node_t;
+	type node_t;
 ')
 allow snappy_t node_t:tcp_socket node_bind;
 
@@ -307,30 +307,30 @@ corenet_sendrecv_dns_client_packets(snappy_t)
 
 # allow communication with polkit over dbus
 optional_policy(`
-  policykit_dbus_chat(snappy_t)
+	policykit_dbus_chat(snappy_t)
 ')
 
 # allow communication with system bus
 optional_policy(`
-  dbus_system_bus_client(snappy_t)
+	dbus_system_bus_client(snappy_t)
 ')
 
 # allow reading sssd files
 optional_policy(`
-  sssd_read_public_files(snappy_t)
-  sssd_stream_connect(snappy_t)
+	sssd_read_public_files(snappy_t)
+	sssd_stream_connect(snappy_t)
 ')
 
 # for sanity checks
 optional_policy(`
-  mount_run(snappy_t, snappy_roles)
+	mount_run(snappy_t, snappy_roles)
 ')
 
 # snapd runs journalctl to fetch logs
 optional_policy(`
-  journalctl_run(snappy_t, snappy_roles)
-  # and kills journalctl once the logs have been fetched
-  allow snappy_t journalctl_t:process sigkill;
+	journalctl_run(snappy_t, snappy_roles)
+	# and kills journalctl once the logs have been fetched
+	allow snappy_t journalctl_t:process sigkill;
 ')
 
 # only pops up in cloud images where cloud-init.target is incorrectly labeled
@@ -414,15 +414,15 @@ userdom_delete_user_tmp_files(snappy_mount_t)
 
 # Allow snap-{update,discard}-ns to manage mounts
 gen_require(`
-  type fs_t;
-  type mount_var_run_t;
+	type fs_t;
+	type mount_var_run_t;
 ')
 allow snappy_mount_t fs_t:filesystem { mount unmount };
 allow snappy_mount_t mount_var_run_t:dir { add_name remove_name write search };
 allow snappy_mount_t mount_var_run_t:file { create getattr setattr open read write rename unlink lock };
 # for discard-ns, because a preserved mount ns is a bind-mounted /proc/<pid>/ns/mnt
 gen_require(`
-  type proc_t;
+	type proc_t;
 ')
 allow snappy_mount_t proc_t:filesystem { getattr unmount };
 
@@ -447,7 +447,7 @@ fs_unmount_tmpfs(snappy_mount_t)
 allow snappy_mount_t bin_t:dir mounton;
 # setting up fonts for the desktop interface
 gen_require(`
-  type fonts_t, fonts_cache_t;
+	type fonts_t, fonts_cache_t;
 ')
 
 allow snappy_mount_t fonts_cache_t:dir mounton;
@@ -473,7 +473,7 @@ fs_read_tmpfs_symlinks(snappy_mount_t)
 
 # because /run/snapd/ns/*.mnt gets a label of the process context
 gen_require(`
-  type unconfined_t;
+	type unconfined_t;
 ')
 allow snappy_mount_t unconfined_t:file { open read getattr };
 allow snappy_mount_t snappy_confine_t:file { open read getattr };
@@ -543,11 +543,11 @@ allow snappy_confine_t unconfined_t:file getattr;
 
 # mount ns setup
 gen_require(`
-  type ptmx_t;
-  type modules_object_t;
-  type ifconfig_var_run_t;
-  type var_log_t;
-  type lib_t;
+	type ptmx_t;
+	type modules_object_t;
+	type ifconfig_var_run_t;
+	type var_log_t;
+	type lib_t;
 ')
 
 admin_pattern(snappy_confine_t, snappy_tmp_t)
@@ -608,7 +608,7 @@ read_files_pattern(snappy_confine_t, snappy_snap_t, snappy_snap_t)
 # and allow transition by snap-confine
 allow snappy_confine_t snappy_unconfined_snap_t:process { noatsecure rlimitinh siginh transition dyntransition };
 gen_require(`
-  type unconfined_service_t;
+	type unconfined_service_t;
 ')
 allow snappy_confine_t unconfined_service_t:process { noatsecure rlimitinh siginh transition dyntransition };
 
@@ -653,8 +653,8 @@ allow snappy_cli_t snappy_var_lib_t:lnk_file { read_lnk_file_perms };
 auth_read_passwd(snappy_cli_t)
 # allow reading sssd files
 optional_policy(`
-  sssd_read_public_files(snappy_cli_t)
-  sssd_stream_connect(snappy_cli_t)
+	sssd_read_public_files(snappy_cli_t)
+	sssd_stream_connect(snappy_cli_t)
 ')
 
 # restorecon, matchpathcon
@@ -705,7 +705,7 @@ domain_entry_file(unconfined_service_t, snappy_snap_t)
 
 # for journald
 gen_require(`
-  type syslogd_t;
+	type syslogd_t;
 ')
 allow syslogd_t snappy_unconfined_snap_t:dir search_dir_perms;
 
@@ -758,7 +758,7 @@ allow init_t snappy_snap_t:filesystem remount;
 # extra policy for mandb_t
 #
 gen_require(`
-  type mandb_t;
+	type mandb_t;
 ')
 # mandb cache update scans whe whole directory tree looking for 'man'
 allow mandb_t snappy_var_lib_t:dir search_dir_perms;
