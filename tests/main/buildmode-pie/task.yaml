@@ -1,0 +1,47 @@
+summary: Test that snapd deb package can be built using pie hardening flags
+
+systems: [ubuntu-1*, ubuntu-2*, debian-*]
+
+environment:
+    FAILING_SYSTEMS: ubuntu-16.04- ubuntu-18.04- debian-
+    DIRTY_SOURCE: /tmp/dirty-snapd
+
+prepare:
+    # /home/gopath/.../snapd
+    cd "$SPREAD_PATH/.."
+    mkdir -p "$DIRTY_SOURCE"
+    chown -R test:test "$DIRTY_SOURCE"
+    cp -av snapd "$DIRTY_SOURCE/"
+
+restore: |
+    rm -rf "$DIRTY_SOURCE"
+
+execute: |
+    cd "$DIRTY_SOURCE/snapd"
+    cat <<'EOF' > debian/testflags.mk
+    export DEB_BUILD_MAINT_OPTIONS = hardening=+pie
+    include /usr/share/dpkg/buildflags.mk
+    EOF
+    sed -e 's|# include /usr/share/dpkg/buildflags.mk|include debian/testflags.mk|' -i debian/rules
+    chown -R test:test "$DIRTY_SOURCE/snapd"
+    if su -l -c "cd $DIRTY_SOURCE/snapd && DEB_BUILD_OPTIONS='nocheck testkeys' dpkg-buildpackage -tc -b -Zgzip" test; then
+        # verify that snap-confine is really PIE
+        objdump -f $DIRTY_SOURCE/snapd/debian/snapd/usr/lib/snapd/snap-confine | MATCH 'DYNAMIC'
+        # make sure that the we did not expect the current system to fail
+        for n in $FAILING_SYSTEMS; do
+           if echo "$SPREAD_SYSTEM" | grep -q "$n" ; then
+               echo "unexpected success on system $SPREAD_SYSTEM"
+               exit 1
+           fi
+        done
+    else
+        # make sure that the we expected the current system to fail
+        for n in $FAILING_SYSTEMS; do
+           if echo "$SPREAD_SYSTEM" | grep -q "$n" ; then
+               echo "failure on $SPREAD_SYSTEM is expected"
+               exit 0
+           fi
+        done
+        echo "unexpected failure on system $SPREAD_SYSTEM"
+        exit 1
+    fi
