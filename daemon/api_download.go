@@ -100,24 +100,23 @@ func postSnapDownload(c *Command, r *http.Request, user *auth.UserState) Respons
 func streamOneSnap(c *Command, action snapDownloadAction, user *auth.UserState) Response {
 	theStore := getStore(c)
 	var info *snap.Info
-	if true {
-		// XXX: once we're HMAC'ing, we only do this bit on the first pass
-		actions := []*store.SnapAction{{
-			Action:       "download",
-			InstanceName: action.SnapName,
-			Revision:     action.Revision,
-			CohortKey:    action.CohortKey,
-			Channel:      action.Channel,
-		}}
-		sars, err := theStore.SnapAction(context.TODO(), nil, actions, user, nil)
-		if err != nil {
-			return errToResponse(err, []string{action.SnapName}, InternalError, "cannot download snap: %v")
-		}
-		if len(sars) != 1 {
-			return InternalError("internal error: unexpected number %v of results for a single download", len(sars))
-		}
-		info = sars[0].Info
+
+	// XXX: once we're HMAC'ing, we only do this bit on the first pass
+	actions := []*store.SnapAction{{
+		Action:       "download",
+		InstanceName: action.SnapName,
+		Revision:     action.Revision,
+		CohortKey:    action.CohortKey,
+		Channel:      action.Channel,
+	}}
+	sars, err := theStore.SnapAction(context.TODO(), nil, actions, user, nil)
+	if err != nil {
+		return errToResponse(err, []string{action.SnapName}, InternalError, "cannot download snap: %v")
 	}
+	if len(sars) != 1 {
+		return InternalError("internal error: unexpected number %v of results for a single download", len(sars))
+	}
+	info = sars[0].Info
 	downloadInfo := info.DownloadInfo
 
 	// XXX: this bit goes away once we HMAC
@@ -138,9 +137,8 @@ func streamOneSnap(c *Command, action snapDownloadAction, user *auth.UserState) 
 		}
 		rsp.stream = r
 		if s != 206 {
-			// AFAICT this happens with the CDN every time
-			// but this might be transient
-			// (in any case it's valid as per the RFC)
+			// store/cdn has no partial content (valid
+			// reply per RFC)
 			logger.Debugf("store refused our range request")
 			rsp.resume = 0
 		}
