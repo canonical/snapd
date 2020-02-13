@@ -21,7 +21,6 @@ package boot_test
 
 import (
 	"errors"
-	"os"
 	"path/filepath"
 	"testing"
 
@@ -420,8 +419,6 @@ func (s *bootSetSuite) TestCoreParticipant20SetNextSameKernelSnap(c *C) {
 	// make sure it's not a trivial boot participant
 	c.Assert(bootKern.IsTrivial(), Equals, false)
 
-	nSetBootVarCalls := s.bootloader.SetBootVarsCalls
-
 	// make the kernel used on next boot
 	rebootRequired, err := bootKern.SetNextBoot()
 	c.Assert(err, IsNil)
@@ -440,7 +437,7 @@ func (s *bootSetSuite) TestCoreParticipant20SetNextSameKernelSnap(c *C) {
 
 	// finally we didn't call SetBootVars on the bootloader because nothing
 	// changed
-	c.Assert(nSetBootVarCalls, Equals, s.bootloader.SetBootVarsCalls)
+	c.Assert(s.bootloader.SetBootVarsCalls, Equals, 0)
 }
 
 func (s *bootSetSuite) TestCoreParticipant20SetNextNewKernelSnap(c *C) {
@@ -540,7 +537,6 @@ func (s *bootSetSuite) TestMarkBootSuccessful20BaseStatusTryingNoBaseSnapCleansU
 	}
 	err := m.Write("")
 	c.Assert(err, IsNil)
-	defer os.Remove(dirs.SnapModeenvFileUnder(dirs.GlobalRootDir))
 
 	coreDev := boottest.MockUC20Device("core20")
 	c.Assert(coreDev.HasModeenv(), Equals, true)
@@ -581,7 +577,6 @@ func (s *bootSetSuite) TestCoreParticipant20SetNextSameBaseSnap(c *C) {
 	}
 	err = m.Write("")
 	c.Assert(err, IsNil)
-	defer os.Remove(dirs.SnapModeenvFileUnder(dirs.GlobalRootDir))
 
 	// get the boot base participant from our base snap
 	bootBase := boot.Participant(base, snap.TypeBase, coreDev)
@@ -617,7 +612,6 @@ func (s *bootSetSuite) TestCoreParticipant20SetNextNewBaseSnap(c *C) {
 	}
 	err = m.Write("")
 	c.Assert(err, IsNil)
-	defer os.Remove(dirs.SnapModeenvFileUnder(dirs.GlobalRootDir))
 
 	// get the boot base participant from our new base snap
 	bootBase := boot.Participant(base2, snap.TypeBase, coreDev)
@@ -675,7 +669,6 @@ func (s *bootSetSuite) TestMarkBootSuccessful20AllSnap(c *C) {
 	}
 	err := m.Write("")
 	c.Assert(err, IsNil)
-	defer os.Remove(dirs.SnapModeenvFileUnder(dirs.GlobalRootDir))
 
 	// set the current kernel
 	kernel1, err := snap.ParsePlaceInfoFromSnapFileName("pc-kernel_1.snap")
@@ -835,7 +828,6 @@ func (s *bootSetSuite) TestMarkBootSuccessful20BaseUpdate(c *C) {
 	}
 	err := m.Write("")
 	c.Assert(err, IsNil)
-	defer os.Remove(dirs.SnapModeenvFileUnder(dirs.GlobalRootDir))
 
 	coreDev := boottest.MockUC20Device("some-snap")
 	c.Assert(coreDev.HasModeenv(), Equals, true)
