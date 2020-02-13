@@ -1188,3 +1188,18 @@ func (s *deviceMgrSuite) TestStartOfOperationTimeNoSeedTime(c *C) {
 	c.Assert(err, IsNil)
 	c.Check(operationTime.Equal(prev), Equals, true)
 }
+
+func (s *deviceMgrSuite) TestStartOfOperationErrorIfPreseed(c *C) {
+	restore := release.MockPreseedMode(func() bool { return true })
+	defer restore()
+
+	st := s.state
+
+	mgr, err := devicestate.Manager(s.state, s.hookMgr, s.o.TaskRunner(), s.newStore)
+	c.Assert(err, IsNil)
+
+	st.Lock()
+	defer st.Unlock()
+	_, err = mgr.StartOfOperationTime()
+	c.Assert(err, ErrorMatches, `internal error: unexpected call to StartOfOperationTime in preseed-mode`)
+}

@@ -562,6 +562,9 @@ var timeNow = time.Now
 // or current time otherwise.
 func (m *DeviceManager) StartOfOperationTime() (time.Time, error) {
 	var opTime time.Time
+	if m.preseed {
+		return opTime, fmt.Errorf("internal error: unexpected call to StartOfOperationTime in preseed-mode")
+	}
 	err := m.state.Get("start-of-operation-time", &opTime)
 	if err == nil {
 		return opTime, nil
