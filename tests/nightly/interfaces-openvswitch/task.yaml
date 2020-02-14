@@ -2,7 +2,7 @@ summary: Ensure that the openvswitch interface works.
 
 # Openvswitch getting stuck during installation sporadically on ubuntu-14.04-64
 # Openvswitch service not available on the following systems
-systems: [-ubuntu-core-*, -opensuse-*, -amazon-*, -arch-linux-*, -ubuntu-14.04-64]
+systems: [-ubuntu-core-*, -opensuse-*, -amazon-*, -arch-linux-*, -centos-*, -ubuntu-14.04-64]
 
 details: |
     The openvswitch interface allows to task to the openvswitch socket (rw mode).
