@@ -46,23 +46,27 @@ var validRangeRegexp = regexp.MustCompile(`^\s*bytes=(\d+)-\s*`)
 type snapDownloadAction struct {
 	SnapName string `json:"snap-name"`
 	snapRevisionOptions
+
+	// HeaderPeek if set requests a peek at the header without the
+	// body being returned.
+	HeaderPeek bool `json:"header-peek"`
+
 	ResumeStamp    string `json:"resume-stamp"`
 	resumePosition int64
-	NoBody         bool `json:"no-body"`
 }
 
 var (
-	errDownloadNameRequired  = errors.New("download operation requires one snap name")
-	errDownloadNoBodyResume  = errors.New("cannot request no body when resuming")
-	errDownloadResumeNoStamp = errors.New("cannot resume without a stamp")
+	errDownloadNameRequired     = errors.New("download operation requires one snap name")
+	errDownloadHeaderPeekResume = errors.New("cannot request header-only peek when resuming")
+	errDownloadResumeNoStamp    = errors.New("cannot resume without a stamp")
 )
 
 func (action *snapDownloadAction) validate() error {
 	if action.SnapName == "" {
 		return errDownloadNameRequired
 	}
-	if action.NoBody && (action.resumePosition > 0 || action.ResumeStamp != "") {
-		return errDownloadNoBodyResume
+	if action.HeaderPeek && (action.resumePosition > 0 || action.ResumeStamp != "") {
+		return errDownloadHeaderPeekResume
 	}
 	if action.resumePosition > 0 && action.ResumeStamp == "" {
 		return errDownloadResumeNoStamp
@@ -125,7 +129,7 @@ func streamOneSnap(c *Command, action snapDownloadAction, user *auth.UserState) 
 	}
 
 	rsp := newSnapStream(action.SnapName, info, action.resumePosition)
-	if !action.NoBody {
+	if !action.HeaderPeek {
 		r, s, err := theStore.DownloadStream(context.TODO(), action.SnapName, &downloadInfo, action.resumePosition, user)
 		if err != nil {
 			return InternalError(err.Error())

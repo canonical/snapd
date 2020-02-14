@@ -276,23 +276,23 @@ func (s *snapDownloadSuite) TestStreamOneSnap(c *check.C) {
 		},
 		{
 			snapName: "foo-resume-3",
-			dataJSON: `{"snap-name": "foo-resume-3", "no-body": true}`,
+			dataJSON: `{"snap-name": "foo-resume-3", "header-peek": true}`,
 			status:   400,
 			resume:   3,
-			err:      "cannot request no body when resuming",
+			err:      "cannot request header-only peek when resuming",
 		},
 		{
 			snapName: "foo-resume-3",
-			dataJSON: `{"snap-name": "foo-resume-3", "no-body": true, "resume-stamp": "something"}`,
+			dataJSON: `{"snap-name": "foo-resume-3", "header-peek": true, "resume-stamp": "something"}`,
 			status:   400,
-			err:      "cannot request no body when resuming",
+			err:      "cannot request header-only peek when resuming",
 		},
 		{
 			snapName: "foo-resume-3",
-			dataJSON: `{"snap-name": "foo-resume-3", "no-body": true, "resume-stamp": "something"}`,
+			dataJSON: `{"snap-name": "foo-resume-3", "header-peek": true, "resume-stamp": "something"}`,
 			resume:   3,
 			status:   400,
-			err:      "cannot request no body when resuming",
+			err:      "cannot request header-only peek when resuming",
 		},
 	} {
 		req, err := http.NewRequest("POST", "/v2/download", strings.NewReader(s.dataJSON))
@@ -329,8 +329,8 @@ func (s *snapDownloadSuite) TestStreamOneSnap(c *check.C) {
 	}
 }
 
-func (s *snapDownloadSuite) TestStreamOneSnapNoBody(c *check.C) {
-	dataJSON := `{"snap-name": "bar", "no-body": true}`
+func (s *snapDownloadSuite) TestStreamOneSnapHeaderOnlyPeek(c *check.C) {
+	dataJSON := `{"snap-name": "bar", "header-peek": true}`
 	req, err := http.NewRequest("POST", "/v2/download", strings.NewReader(dataJSON))
 	c.Assert(err, check.IsNil)
 
