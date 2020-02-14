@@ -20,6 +20,8 @@
 package bootloader
 
 import (
+	"fmt"
+	"os"
 	"path/filepath"
 
 	"github.com/snapcore/snapd/bootloader/ubootenv"
@@ -32,7 +34,7 @@ type uboot struct {
 }
 
 // newUboot create a new Uboot bootloader object
-func newUboot(rootdir string) Bootloader {
+func newUboot(rootdir string) RecoveryAwareBootloader {
 	u := &uboot{rootdir: rootdir}
 	if !osutil.FileExists(u.envFile()) {
 		return nil
@@ -60,6 +62,28 @@ func (u *uboot) InstallBootConfig(gadgetDir string, opts *Options) (bool, error)
 	gadgetFile := filepath.Join(gadgetDir, u.Name()+".conf")
 	systemFile := u.ConfigFile()
 	return genericInstallBootConfig(gadgetFile, systemFile)
+}
+
+func (u *uboot) SetRecoverySystemEnv(recoverySystemDir string, values map[string]string) error {
+	if recoverySystemDir == "" {
+		return fmt.Errorf("internal error: recoverySystemDir unset")
+	}
+	recoverySystemUbootEnv := filepath.Join(u.rootdir, recoverySystemDir, "uboot.env")
+	if err := os.MkdirAll(filepath.Dir(recoverySystemUbootEnv), 0755); err != nil {
+		return err
+	}
+	// XXX: Hardcoded size. We only store the
+	// snapd_recovery_kernel line here so this size is more than
+	// enough
+	uenvSize := 8192
+	uenv, err := ubootenv.Create(recoverySystemUbootEnv, uenvSize)
+	if err != nil {
+		return err
+	}
+	for k, v := range values {
+		uenv.Set(k, v)
+	}
+	return uenv.Save()
 }
 
 func (u *uboot) ConfigFile() string {
