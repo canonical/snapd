@@ -124,12 +124,7 @@ func streamOneSnap(c *Command, action snapDownloadAction, user *auth.UserState) 
 		return BadRequest("snap to download has different hash")
 	}
 
-	rsp := fileStream{
-		SnapName: action.SnapName,
-		Filename: filepath.Base(info.MountFile()),
-		Info:     downloadInfo,
-		resume:   action.resumePosition,
-	}
+	rsp := newSnapStream(action.SnapName, info, action.resumePosition)
 	if !action.NoBody {
 		r, s, err := theStore.DownloadStream(context.TODO(), action.SnapName, &downloadInfo, action.resumePosition, user)
 		if err != nil {
@@ -145,4 +140,13 @@ func streamOneSnap(c *Command, action snapDownloadAction, user *auth.UserState) 
 	}
 
 	return rsp
+}
+
+func newSnapStream(snapName string, info *snap.Info, resumePos int64) *snapStream {
+	return &snapStream{
+		SnapName: snapName,
+		Filename: filepath.Base(info.MountFile()),
+		Info:     info.DownloadInfo,
+		resume:   resumePos,
+	}
 }

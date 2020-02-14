@@ -25,5 +25,5 @@ var (
 )
 
 type (
-	FileStream = fileStream
+	SnapStream = snapStream
 )

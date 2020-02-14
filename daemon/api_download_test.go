@@ -308,12 +308,13 @@ func (s *snapDownloadSuite) TestStreamOneSnap(c *check.C) {
 			result := rsp.(*daemon.Resp).Result
 			c.Check(result.(*daemon.ErrorResult).Message, check.Matches, s.err, check.Commentf("unexpected result for %v", s.dataJSON))
 		} else {
-			c.Assert(rsp, check.FitsTypeOf, daemon.FileStream{}, check.Commentf("unexpected result for %v", s.dataJSON))
-			c.Assert(rsp.(daemon.FileStream).SnapName, check.Equals, s.snapName, check.Commentf("invalid result %v for %v", rsp, s.dataJSON))
-			c.Assert(rsp.(daemon.FileStream).Info.Size, check.Equals, int64(len(snapContent)))
+			c.Assert(rsp, check.FitsTypeOf, &daemon.SnapStream{}, check.Commentf("unexpected result for %v", s.dataJSON))
+			ss := rsp.(*daemon.SnapStream)
+			c.Assert(ss.SnapName, check.Equals, s.snapName, check.Commentf("invalid result %v for %v", rsp, s.dataJSON))
+			c.Assert(ss.Info.Size, check.Equals, int64(len(snapContent)))
 
 			w := httptest.NewRecorder()
-			rsp.(daemon.FileStream).ServeHTTP(w, nil)
+			ss.ServeHTTP(w, nil)
 
 			expectedLength := fmt.Sprintf("%d", len(snapContent)-s.resume)
 
@@ -335,12 +336,13 @@ func (s *snapDownloadSuite) TestStreamOneSnapNoBody(c *check.C) {
 
 	rsp := daemon.SnapDownloadCmd.POST(daemon.SnapDownloadCmd, req, nil)
 
-	c.Assert(rsp, check.FitsTypeOf, daemon.FileStream{})
-	c.Assert(rsp.(daemon.FileStream).SnapName, check.Equals, "bar")
-	c.Assert(rsp.(daemon.FileStream).Info.Size, check.Equals, int64(len(snapContent)))
+	c.Assert(rsp, check.FitsTypeOf, &daemon.SnapStream{})
+	ss := rsp.(*daemon.SnapStream)
+	c.Assert(ss.SnapName, check.Equals, "bar")
+	c.Assert(ss.Info.Size, check.Equals, int64(len(snapContent)))
 
 	w := httptest.NewRecorder()
-	rsp.(daemon.FileStream).ServeHTTP(w, nil)
+	ss.ServeHTTP(w, nil)
 	c.Assert(w.Code, check.Equals, 200)
 
 	// we get the relevant headers
