@@ -49,6 +49,10 @@ type PlaceInfo interface {
 	// SnapRevision returns the revision of the snap.
 	SnapRevision() Revision
 
+	// Filename returns the name of the snap with the revision
+	// number, as used on the filesystem.
+	Filename() string
+
 	// MountDir returns the base directory of the snap.
 	MountDir() string
 
@@ -371,6 +375,13 @@ func (s *Info) SnapName() string {
 		return s.RealName
 	}
 	return s.SuggestedName
+}
+
+// Filename returns the name of the snap with the revision number,
+// as used on the filesystem. This is the equivalent of
+// filepath.Base(s.MountFile()).
+func (s *Info) Filename() string {
+	return filepath.Base(s.MountFile())
 }
 
 // SnapRevision returns the revision of the snap.
