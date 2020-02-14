@@ -21,6 +21,7 @@ package devicestate_test
 
 import (
 	"fmt"
+	"io/ioutil"
 	"os"
 	"path/filepath"
 
@@ -340,4 +341,63 @@ func (s *deviceMgrInstallModeSuite) TestInstallSecuredWithTPM(c *C) {
 func (s *deviceMgrInstallModeSuite) TestInstallSecuredBypassEncryption(c *C) {
 	err := s.doRunChangeTestWithEncryption(c, "secured", encTestCase{tpm: false, bypass: true, encrypt: false})
 	c.Assert(err, ErrorMatches, "(?s).*cannot encrypt secured device: TPM not available.*")
+}
+
+func (s *deviceMgrInstallModeSuite) testInstallModeSupportsCloudInit(c *C, modelGrade string) {
+	restore := release.MockOnClassic(false)
+	defer restore()
+
+	mockSnapBootstrapCmd := testutil.MockCommand(c, filepath.Join(dirs.DistroLibExecDir, "snap-bootstrap"), "")
+	defer mockSnapBootstrapCmd.Restore()
+
+	s.state.Lock()
+	mockModel := s.makeMockInstalledPcGadget(c, modelGrade)
+	s.state.Unlock()
+	c.Check(mockModel.Grade(), Equals, asserts.ModelGrade(modelGrade))
+
+	restore = devicestate.MockBootMakeBootable(func(model *asserts.Model, rootdir string, bootWith *boot.BootableSet) error {
+		return nil
+	})
+	defer restore()
+
+	// pretend we have a cloud-init config on the seed partition
+	cloudCfg := filepath.Join(dirs.RunMnt, "ubuntu-seed/cloud.cfg.d")
+	err := os.MkdirAll(cloudCfg, 0755)
+	c.Assert(err, IsNil)
+	for _, mockCfg := range []string{"foo.cfg", "bar.cfg"} {
+		err = ioutil.WriteFile(filepath.Join(cloudCfg, mockCfg), []byte(fmt.Sprintf("%s config", mockCfg)), 0644)
+		c.Assert(err, IsNil)
+	}
+	devicestate.SetOperatingMode(s.mgr, "install")
+	devicestate.SetRecoverySystem(s.mgr, "20191218")
+
+	s.settle(c)
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	// the install-system change is created
+	installSystem := s.findInstallSystem()
+	c.Assert(installSystem, NotNil)
+
+	// and was run successfully
+	c.Check(installSystem.Err(), IsNil)
+	c.Check(installSystem.Status(), Equals, state.DoneStatus)
+}
+
+func (s *deviceMgrInstallModeSuite) TestInstallModeSupportsCloudInitInDangerous(c *C) {
+	s.testInstallModeSupportsCloudInit(c, "dangerous")
+
+	// and did copy the cloud-init files
+	ubuntuDataCloudCfg := filepath.Join(dirs.RunMnt, "ubuntu-data/system-data/etc/cloud/cloud.cfg.d/")
+	c.Check(filepath.Join(ubuntuDataCloudCfg, "foo.cfg"), testutil.FileEquals, "foo.cfg config")
+	c.Check(filepath.Join(ubuntuDataCloudCfg, "bar.cfg"), testutil.FileEquals, "bar.cfg config")
+}
+
+func (s *deviceMgrInstallModeSuite) TestInstallModeNoCloudInitForSigned(c *C) {
+	s.testInstallModeSupportsCloudInit(c, "signed")
+
+	// and did copy the cloud-init files
+	ubuntuDataCloudCfg := filepath.Join(dirs.RunMnt, "ubuntu-data/system-data/etc/cloud/cloud.cfg.d/")
+	c.Check(filepath.Join(ubuntuDataCloudCfg, "foo.cfg"), testutil.FileAbsent)
+	c.Check(filepath.Join(ubuntuDataCloudCfg, "bar.cfg"), testutil.FileAbsent)
 }

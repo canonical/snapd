@@ -21,6 +21,7 @@ package devicestate
 
 import (
 	"fmt"
+	"os"
 	"os/exec"
 	"path/filepath"
 
@@ -109,6 +110,24 @@ func (m *DeviceManager) doSetupRunSystem(t *state.Task, _ *tomb.Tomb) error {
 	rootdir := dirs.GlobalRootDir
 	if err := bootMakeBootable(deviceCtx.Model(), rootdir, bootWith); err != nil {
 		return fmt.Errorf("cannot make run system bootable: %v", err)
+	}
+
+	// support dropping cloud-init for grade: dangerous
+	cloudCfg := filepath.Join(dirs.RunMnt, "ubuntu-seed/cloud.cfg.d")
+	if osutil.IsDirectory(cloudCfg) && deviceCtx.Model().Grade() == asserts.ModelDangerous {
+		ubuntuDataCloudCfgDir := filepath.Join(dirs.RunMnt, "ubuntu-data/system-data/etc/cloud/cloud.cfg.d/")
+		if err := os.MkdirAll(ubuntuDataCloudCfgDir, 0755); err != nil {
+			return fmt.Errorf("cannot make cloud config dir: %v", err)
+		}
+		ccl, err := filepath.Glob(filepath.Join(cloudCfg, "*.cfg"))
+		if err != nil {
+			return err
+		}
+		for _, cc := range ccl {
+			if err := osutil.CopyFile(cc, filepath.Join(ubuntuDataCloudCfgDir, filepath.Base(cc)), 0); err != nil {
+				return err
+			}
+		}
 	}
 
 	// request a restart as the last action after a successful install
