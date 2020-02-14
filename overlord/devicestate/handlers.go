@@ -56,12 +56,12 @@ func (m *DeviceManager) doMarkPreseeded(t *state.Task, _ *tomb.Tomb) error {
 			// unmount all snaps
 			// TODO: move to snapstate.UnmountAllSnaps.
 			for _, snapSt := range snaps {
-				inf, err := snapSt.CurrentInfo()
+				info, err := snapSt.CurrentInfo()
 				if err != nil {
 					return err
 				}
-				logger.Debugf("unmounting snap %s at %s", inf.InstanceName(), inf.MountDir())
-				if _, err := exec.Command("umount", "-d", "-l", inf.MountDir()).CombinedOutput(); err != nil {
+				logger.Debugf("unmounting snap %s at %s", info.InstanceName(), info.MountDir())
+				if _, err := exec.Command("umount", "-d", "-l", info.MountDir()).CombinedOutput(); err != nil {
 					return err
 				}
 			}
@@ -79,11 +79,11 @@ func (m *DeviceManager) doMarkPreseeded(t *state.Task, _ *tomb.Tomb) error {
 	// enable all services generated as part of preseeding, but not enabled
 	// XXX: this should go away once the problem of install & services is fixed.
 	for _, snapSt := range snaps {
-		inf, err := snapSt.CurrentInfo()
+		info, err := snapSt.CurrentInfo()
 		if err != nil {
 			return err
 		}
-		if err := wrappers.EnableSnapServices(inf, progress.Null); err != nil {
+		if err := wrappers.EnableSnapServices(info, progress.Null); err != nil {
 			return err
 		}
 	}
