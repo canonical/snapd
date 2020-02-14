@@ -28,6 +28,11 @@
     /{,usr/}lib{,32,64,x32}/{,@{multiarch}/}libmount.so* mr,
     /{,usr/}lib{,32,64,x32}/{,@{multiarch}/}libblkid.so* mr,
     /{,usr/}lib{,32,64,x32}/{,@{multiarch}/}libuuid.so* mr,
+    /{,usr/}lib{,32,64,x32}/{,@{multiarch}/}libnss_files-[0-9]*.so* mr,
+    /{,usr/}lib{,32,64,x32}/{,@{multiarch}/}libnss_mymachines.[0-9]*.so* mr,
+    /{,usr/}lib{,32,64,x32}/{,@{multiarch}/}libnss_systemd.[0-9]*.so* mr,
+    /etc/nsswitch.conf r,
+    /etc/passwd r,
     # normal libs in order
     /{,usr/}lib{,32,64,x32}/{,@{multiarch}/}libapparmor.so* mr,
     /{,usr/}lib{,32,64,x32}/{,@{multiarch}/}libcgmanager.so* mr,
