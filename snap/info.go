@@ -37,7 +37,8 @@ import (
 	"github.com/snapcore/snapd/timeout"
 )
 
-// PlaceInfo offers all the information about where a snap and its data are located and exposed in the filesystem.
+// PlaceInfo offers all the information about where a snap and its data are
+// located and exposed in the filesystem.
 type PlaceInfo interface {
 	// InstanceName returns the name of the snap decorated with instance
 	// key, if any.
@@ -49,10 +50,15 @@ type PlaceInfo interface {
 	// SnapRevision returns the revision of the snap.
 	SnapRevision() Revision
 
+	// Filename returns the name of the snap with the revision
+	// number, as used on the filesystem.
+	Filename() string
+
 	// MountDir returns the base directory of the snap.
 	MountDir() string
 
-	// MountFile returns the path where the snap file that is mounted is installed.
+	// MountFile returns the path where the snap file that is mounted is
+	// installed.
 	MountFile() string
 
 	// HooksDir returns the directory containing the snap's hooks.
@@ -64,26 +70,32 @@ type PlaceInfo interface {
 	// UserDataDir returns the per user data directory of the snap.
 	UserDataDir(home string) string
 
-	// CommonDataDir returns the data directory common across revisions of the snap.
+	// CommonDataDir returns the data directory common across revisions of the
+	// snap.
 	CommonDataDir() string
 
-	// UserCommonDataDir returns the per user data directory common across revisions of the snap.
+	// UserCommonDataDir returns the per user data directory common across
+	// revisions of the snap.
 	UserCommonDataDir(home string) string
 
 	// UserXdgRuntimeDir returns the per user XDG_RUNTIME_DIR directory
 	UserXdgRuntimeDir(userID sys.UserID) string
 
-	// DataHomeDir returns the a glob that matches all per user data directories of a snap.
+	// DataHomeDir returns the a glob that matches all per user data directories
+	// of a snap.
 	DataHomeDir() string
 
-	// CommonDataHomeDir returns a glob that matches all per user data directories common across revisions of the snap.
+	// CommonDataHomeDir returns a glob that matches all per user data
+	// directories common across revisions of the snap.
 	CommonDataHomeDir() string
 
-	// XdgRuntimeDirs returns a glob that matches all XDG_RUNTIME_DIR directories for all users of the snap.
+	// XdgRuntimeDirs returns a glob that matches all XDG_RUNTIME_DIR
+	// directories for all users of the snap.
 	XdgRuntimeDirs() string
 }
 
-// MinimalPlaceInfo returns a PlaceInfo with just the location information for a snap of the given name and revision.
+// MinimalPlaceInfo returns a PlaceInfo with just the location information for a
+// snap of the given name and revision.
 func MinimalPlaceInfo(name string, revision Revision) PlaceInfo {
 	storeName, instanceKey := SplitInstanceName(name)
 	return &Info{SideInfo: SideInfo{RealName: storeName, Revision: revision}, InstanceKey: instanceKey}
@@ -123,7 +135,8 @@ func BaseDir(name string) string {
 	return filepath.Join(dirs.SnapMountDir, name)
 }
 
-// MountDir returns the base directory where it gets mounted of the snap with the given name and revision.
+// MountDir returns the base directory where it gets mounted of the snap with
+// the given name and revision.
 func MountDir(name string, revision Revision) string {
 	return filepath.Join(BaseDir(name), revision.String())
 }
@@ -164,7 +177,8 @@ func BaseDataDir(name string) string {
 	return filepath.Join(dirs.SnapDataDir, name)
 }
 
-// DataDir returns the data directory for given snap name and revision. The name can be
+// DataDir returns the data directory for given snap name and revision. The name
+// can be
 // either a snap name or snap instance name.
 func DataDir(name string, revision Revision) string {
 	return filepath.Join(BaseDataDir(name), revision.String())
@@ -261,13 +275,15 @@ type Info struct {
 	// Plugs or slots with issues (they are not included in Plugs or Slots)
 	BadInterfaces map[string]string // slot or plug => message
 
-	// The information in all the remaining fields is not sourced from the snap blob itself.
+	// The information in all the remaining fields is not sourced from the snap
+	// blob itself.
 	SideInfo
 
 	// Broken marks whether the snap is broken and the reason.
 	Broken string
 
-	// The information in these fields is ephemeral, available only from the store.
+	// The information in these fields is ephemeral, available only from the
+	// store.
 	DownloadInfo
 
 	Prices  map[string]float64
@@ -291,13 +307,13 @@ type Info struct {
 	// The list of common-ids from all apps of the snap
 	CommonIDs []string
 
-	// List of system users (usernames) this snap may use. The group
-	// of the same name must also exist.
+	// List of system users (usernames) this snap may use. The group of the same
+	// name must also exist.
 	SystemUsernames map[string]*SystemUsernameInfo
 }
 
-// StoreAccount holds information about a store account, for example
-// of snap publisher.
+// StoreAccount holds information about a store account, for example of snap
+// publisher.
 type StoreAccount struct {
 	ID          string `json:"id"`
 	Username    string `json:"username"`
@@ -373,6 +389,13 @@ func (s *Info) SnapName() string {
 	return s.SuggestedName
 }
 
+// Filename returns the name of the snap with the revision number,
+// as used on the filesystem. This is the equivalent of
+// filepath.Base(s.MountFile()).
+func (s *Info) Filename() string {
+	return filepath.Base(s.MountFile())
+}
+
 // SnapRevision returns the revision of the snap.
 func (s *Info) SnapRevision() Revision {
 	return s.Revision
@@ -443,7 +466,8 @@ func (s *Info) UserDataDir(home string) string {
 	return UserDataDir(home, s.InstanceName(), s.Revision)
 }
 
-// UserCommonDataDir returns the user-specific data directory common across revision of the snap.
+// UserCommonDataDir returns the user-specific data directory common across
+// revision of the snap.
 func (s *Info) UserCommonDataDir(home string) string {
 	return UserCommonDataDir(home, s.InstanceName())
 }
@@ -458,17 +482,20 @@ func (s *Info) DataHomeDir() string {
 	return filepath.Join(dirs.SnapDataHomeGlob, s.InstanceName(), s.Revision.String())
 }
 
-// CommonDataHomeDir returns the per user data directory common across revisions of the snap.
+// CommonDataHomeDir returns the per user data directory common across revisions
+// of the snap.
 func (s *Info) CommonDataHomeDir() string {
 	return filepath.Join(dirs.SnapDataHomeGlob, s.InstanceName(), "common")
 }
 
-// UserXdgRuntimeDir returns the XDG_RUNTIME_DIR directory of the snap for a particular user.
+// UserXdgRuntimeDir returns the XDG_RUNTIME_DIR directory of the snap for a
+// particular user.
 func (s *Info) UserXdgRuntimeDir(euid sys.UserID) string {
 	return UserXdgRuntimeDir(euid, s.InstanceName())
 }
 
-// XdgRuntimeDirs returns the XDG_RUNTIME_DIR directories for all users of the snap.
+// XdgRuntimeDirs returns the XDG_RUNTIME_DIR directories for all users of the
+// snap.
 func (s *Info) XdgRuntimeDirs() string {
 	return filepath.Join(dirs.XdgRuntimeDirGlob, fmt.Sprintf("snap.%s", s.InstanceName()))
 }
@@ -502,10 +529,10 @@ func (s *Info) ExpandSnapVariables(path string) string {
 	return os.Expand(path, func(v string) string {
 		switch v {
 		case "SNAP":
-			// NOTE: We use dirs.CoreSnapMountDir here as the path used will be always
-			// inside the mount namespace snap-confine creates and there we will
-			// always have a /snap directory available regardless if the system
-			// we're running on supports this or not.
+			// NOTE: We use dirs.CoreSnapMountDir here as the path used will be
+			// always inside the mount namespace snap-confine creates and there
+			// we will always have a /snap directory available regardless if the
+			// system we're running on supports this or not.
 			return filepath.Join(dirs.CoreSnapMountDir, s.SnapName(), s.Revision.String())
 		case "SNAP_DATA":
 			return DataDir(s.SnapName(), s.Revision)
@@ -920,7 +947,8 @@ func (app *AppInfo) SecurityTag() string {
 	return AppSecurityTag(app.Snap.InstanceName(), app.Name)
 }
 
-// DesktopFile returns the path to the installed optional desktop file for the application.
+// DesktopFile returns the path to the installed optional desktop file for the
+// application.
 func (app *AppInfo) DesktopFile() string {
 	return filepath.Join(dirs.SnapDesktopFilesDir, fmt.Sprintf("%s_%s.desktop", app.Snap.InstanceName(), app.Name))
 }
@@ -945,7 +973,8 @@ func (app *AppInfo) launcherCommand(command string) string {
 	return fmt.Sprintf("/usr/bin/snap run%s %s.%s", command, app.Snap.InstanceName(), app.Name)
 }
 
-// LauncherCommand returns the launcher command line to use when invoking the app binary.
+// LauncherCommand returns the launcher command line to use when invoking the
+// app binary.
 func (app *AppInfo) LauncherCommand() string {
 	if app.Timer != nil {
 		return app.launcherCommand(fmt.Sprintf("--timer=%q", app.Timer.Timer))
@@ -953,17 +982,20 @@ func (app *AppInfo) LauncherCommand() string {
 	return app.launcherCommand("")
 }
 
-// LauncherStopCommand returns the launcher command line to use when invoking the app stop command binary.
+// LauncherStopCommand returns the launcher command line to use when invoking
+// the app stop command binary.
 func (app *AppInfo) LauncherStopCommand() string {
 	return app.launcherCommand("--command=stop")
 }
 
-// LauncherReloadCommand returns the launcher command line to use when invoking the app stop command binary.
+// LauncherReloadCommand returns the launcher command line to use when invoking
+// the app stop command binary.
 func (app *AppInfo) LauncherReloadCommand() string {
 	return app.launcherCommand("--command=reload")
 }
 
-// LauncherPostStopCommand returns the launcher command line to use when invoking the app post-stop command binary.
+// LauncherPostStopCommand returns the launcher command line to use when
+// invoking the app post-stop command binary.
 func (app *AppInfo) LauncherPostStopCommand() string {
 	return app.launcherCommand("--command=post-stop")
 }
@@ -1033,7 +1065,8 @@ func infoFromSnapYamlWithSideInfo(meta []byte, si *SideInfo, strk *scopedTracker
 	return info, nil
 }
 
-// BrokenSnapError describes an error that refers to a snap that warrants the "broken" note.
+// BrokenSnapError describes an error that refers to a snap that warrants the
+// "broken" note.
 type BrokenSnapError interface {
 	error
 	Broken() string
@@ -1042,8 +1075,8 @@ type BrokenSnapError interface {
 type NotFoundError struct {
 	Snap     string
 	Revision Revision
-	// Path encodes the path that triggered the not-found error.
-	// It may refer to a file inside the snap or to the snap file itself.
+	// Path encodes the path that triggered the not-found error. It may refer to
+	// a file inside the snap or to the snap file itself.
 	Path string
 }
 
@@ -1082,7 +1115,8 @@ var SanitizePlugsSlots = func(snapInfo *Info) {
 	panic("SanitizePlugsSlots function not set")
 }
 
-// ReadInfo reads the snap information for the installed snap with the given name and given side-info.
+// ReadInfo reads the snap information for the installed snap with the given
+// name and given side-info.
 func ReadInfo(name string, si *SideInfo) (*Info, error) {
 	snapYamlFn := filepath.Join(MountDir(name, si.Revision), "meta", "snap.yaml")
 	meta, err := ioutil.ReadFile(snapYamlFn)
@@ -1131,7 +1165,8 @@ func ReadInfo(name string, si *SideInfo) (*Info, error) {
 	return info, nil
 }
 
-// ReadCurrentInfo reads the snap information from the installed snap in 'current' revision
+// ReadCurrentInfo reads the snap information from the installed snap in
+// 'current' revision
 func ReadCurrentInfo(snapName string) (*Info, error) {
 	curFn := filepath.Join(dirs.SnapMountDir, snapName, "current")
 	realFn, err := os.Readlink(curFn)
@@ -1147,8 +1182,8 @@ func ReadCurrentInfo(snapName string) (*Info, error) {
 	return ReadInfo(snapName, &SideInfo{Revision: revision})
 }
 
-// ReadInfoFromSnapFile reads the snap information from the given Container
-// and completes it with the given side-info if this is not nil.
+// ReadInfoFromSnapFile reads the snap information from the given Container and
+// completes it with the given side-info if this is not nil.
 func ReadInfoFromSnapFile(snapf Container, si *SideInfo) (*Info, error) {
 	meta, err := snapf.ReadFile("meta/snap.yaml")
 	if err != nil {
@@ -1183,8 +1218,8 @@ func ReadInfoFromSnapFile(snapf Container, si *SideInfo) (*Info, error) {
 
 // InstallDate returns the "install date" of the snap.
 //
-// If the snap is not active, it'll return a zero time; otherwise
-// it'll return the modtime of the "current" symlink.
+// If the snap is not active, it'll return a zero time; otherwise it'll return
+// the modtime of the "current" symlink.
 func InstallDate(name string) time.Time {
 	cur := filepath.Join(dirs.SnapMountDir, name, "current")
 	if st, err := os.Lstat(cur); err == nil {
@@ -1193,9 +1228,8 @@ func InstallDate(name string) time.Time {
 	return time.Time{}
 }
 
-// SplitSnapApp will split a string of the form `snap.app` into
-// the `snap` and the `app` part. It also deals with the special
-// case of snapName == appName.
+// SplitSnapApp will split a string of the form `snap.app` into the `snap` and
+// the `app` part. It also deals with the special case of snapName == appName.
 func SplitSnapApp(snapApp string) (snap, app string) {
 	l := strings.SplitN(snapApp, ".", 2)
 	if len(l) < 2 {
@@ -1204,9 +1238,8 @@ func SplitSnapApp(snapApp string) (snap, app string) {
 	return l[0], l[1]
 }
 
-// JoinSnapApp produces a full application wrapper name from the
-// `snap` and the `app` part. It also deals with the special
-// case of snapName == appName.
+// JoinSnapApp produces a full application wrapper name from the `snap` and the
+// `app` part. It also deals with the special case of snapName == appName.
 func JoinSnapApp(snap, app string) string {
 	storeName, instanceKey := SplitInstanceName(snap)
 	if storeName == app {
@@ -1251,6 +1284,8 @@ func (r ByType) Less(i, j int) bool {
 	return r[i].GetType().SortsBefore(r[j].GetType())
 }
 
+// SortServices sorts the apps based on their Before and After specs, such that
+// starting the services in the returned ordering will satisfy all specs.
 func SortServices(apps []*AppInfo) (sorted []*AppInfo, err error) {
 	nameToApp := make(map[string]*AppInfo, len(apps))
 	for _, app := range apps {

@@ -302,7 +302,7 @@ func (tsto *ToolingStore) DownloadSnap(name string, opts DownloadOptions) (targe
 	if opts.TargetPathFunc == nil {
 		baseName := opts.Basename
 		if baseName == "" {
-			baseName = filepath.Base(snap.MountFile())
+			baseName = snap.Filename()
 		} else {
 			baseName += ".snap"
 		}
