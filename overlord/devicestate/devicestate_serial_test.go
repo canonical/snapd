@@ -1544,7 +1544,11 @@ func (s *deviceMgrSerialSuite) TestInitialRegistrationContext(c *C) {
 
 	c.Check(regCtx.GadgetForSerialRequestConfig(), Equals, "pc-gadget")
 	c.Check(regCtx.SerialRequestExtraHeaders(), HasLen, 0)
-	c.Check(regCtx.SerialRequestAncillaryAssertions(), HasLen, 0)
+	ancillary := regCtx.SerialRequestAncillaryAssertions()
+	c.Check(ancillary, HasLen, 1)
+	reqMod, ok := ancillary[0].(*asserts.Model)
+	c.Assert(ok, Equals, true)
+	c.Check(reqMod, DeepEquals, model)
 
 }
 

@@ -194,7 +194,7 @@ type registrationContext interface {
 type initialRegistrationContext struct {
 	deviceMgr *DeviceManager
 
-	gadget string
+	model *asserts.Model
 }
 
 func (rc *initialRegistrationContext) ForRemodeling() bool {
@@ -206,7 +206,7 @@ func (rc *initialRegistrationContext) Device() (*auth.DeviceState, error) {
 }
 
 func (rc *initialRegistrationContext) GadgetForSerialRequestConfig() string {
-	return rc.gadget
+	return rc.model.Gadget()
 }
 
 func (rc *initialRegistrationContext) SerialRequestExtraHeaders() map[string]interface{} {
@@ -214,7 +214,7 @@ func (rc *initialRegistrationContext) SerialRequestExtraHeaders() map[string]int
 }
 
 func (rc *initialRegistrationContext) SerialRequestAncillaryAssertions() []asserts.Assertion {
-	return nil
+	return []asserts.Assertion{rc.model}
 }
 
 func (rc *initialRegistrationContext) FinishRegistration(serial *asserts.Serial) error {
@@ -252,7 +252,7 @@ func (m *DeviceManager) registrationCtx(t *state.Task) (registrationContext, err
 
 	return &initialRegistrationContext{
 		deviceMgr: m,
-		gadget:    model.Gadget(),
+		model:     model,
 	}, nil
 }
 

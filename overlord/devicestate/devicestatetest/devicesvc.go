@@ -163,7 +163,11 @@ func MockDeviceService(c *C, bhv *DeviceServiceBehavior) *httptest.Server {
 				c.Check(origSerial.DeviceKey(), DeepEquals, serialReq.DeviceKey())
 				// TODO: more checks once we have Original* accessors
 			} else {
-				c.Check(extra, HasLen, 0)
+				c.Check(extra, HasLen, 1)
+				mod, ok := extra[0].(*asserts.Model)
+				c.Assert(ok, Equals, true)
+				c.Check(mod.BrandID(), Equals, brandID)
+				c.Check(mod.Model(), Equals, model)
 			}
 			serial, ancillary, err := bhv.SignSerial(c, bhv, map[string]interface{}{
 				"authority-id":        "canonical",
