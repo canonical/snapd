@@ -176,3 +176,32 @@ func (s *ubootTestSuite) TestExtractKernelAssetsAndRemove(c *C) {
 
 	c.Check(osutil.FileExists(kernelAssetsDir), Equals, false)
 }
+
+func (s *ubootTestSuite) TestUbootSetRecoverySystemEnv(c *C) {
+	bootloader.MockUbootFiles(c, s.rootdir)
+	u := bootloader.NewUboot(s.rootdir)
+
+	// check that we can set a recovery system specific bootenv
+	bvars := map[string]string{
+		"snapd_recovery_kernel": "/snaps/pi-kernel_1.snap",
+		"other_options":         "are-supported",
+	}
+	err := u.SetRecoverySystemEnv("/systems/20191209", bvars)
+	c.Assert(err, IsNil)
+	recoverySystemUbootenv := filepath.Join(s.rootdir, "/systems/20191209/uboot.env")
+	c.Assert(recoverySystemUbootenv, testutil.FilePresent)
+
+	// and it goes into the right file
+	uenv, err := ubootenv.Open(recoverySystemUbootenv)
+	c.Assert(err, IsNil)
+	c.Check(uenv.Get("snapd_recovery_kernel"), Equals, "/snaps/pi-kernel_1.snap")
+	c.Check(uenv.Get("other_options"), Equals, "are-supported")
+
+	// and not the main uboot file
+	m, err := u.GetBootVars("snapd_recovery_kernel", "other_options")
+	c.Assert(err, IsNil)
+	c.Check(m, DeepEquals, map[string]string{
+		"snapd_recovery_kernel": "",
+		"other_options":         "",
+	})
+}
