@@ -79,6 +79,9 @@ type Overlord struct {
 	ensureNext  time.Time
 	ensureRun   int32
 	pruneTicker *time.Ticker
+
+	operationalTime time.Time
+
 	// restarts
 	restartBehavior RestartBehavior
 	// managers
@@ -307,6 +310,19 @@ func (o *Overlord) StartUp() error {
 	}
 	o.startedUp = true
 
+	// account for deviceMgr == nil as it's not always present in
+	// the tests.
+	if o.deviceMgr != nil && !release.PreseedMode() {
+		var err error
+		st := o.State()
+		st.Lock()
+		o.operationalTime, err = o.deviceMgr.StartOfOperationTime()
+		st.Unlock()
+		if err != nil {
+			return fmt.Errorf("cannot get operational time: %s", err)
+		}
+	}
+
 	// slow down for tests
 	if s := os.Getenv("SNAPD_SLOW_STARTUP"); s != "" {
 		if d, err := time.ParseDuration(s); err == nil {
@@ -410,17 +426,7 @@ func (o *Overlord) Loop() {
 				}
 				st := o.State()
 				st.Lock()
-				var operationalTime time.Time
-				// account for deviceMgr == nil as it's not always present in
-				// the tests.
-				if o.deviceMgr != nil {
-					var err error
-					operationalTime, err = o.deviceMgr.StartOfOperationTime()
-					if err != nil {
-						logger.Noticef("cannot get operational time: %s", err)
-					}
-				}
-				st.Prune(operationalTime, pruneWait, abortWait, pruneMaxChanges)
+				st.Prune(o.operationalTime, pruneWait, abortWait, pruneMaxChanges)
 				st.Unlock()
 			}
 		}
