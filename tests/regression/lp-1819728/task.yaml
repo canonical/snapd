@@ -6,7 +6,10 @@ description: |
 
 # TODO: enable on ubuntu-16.04-64, ubuntu-18.04-64 once the SRU
 #       for systemd is in the "-updates" pocket.
-systems: [ubuntu-core-16-64, ubuntu-core-18-64]
+# TODO:UC20: enable this for UC20?
+systems:
+    - ubuntu-core-16-64
+    - ubuntu-core-18-64
 
 kill-timeout: 5m
 

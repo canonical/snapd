@@ -86,9 +86,15 @@ func streamOneSnap(c *Command, action snapDownloadAction, user *auth.UserState) 
 	info := sars[0].Info
 
 	downloadInfo := info.DownloadInfo
-	r, err := getStore(c).DownloadStream(context.TODO(), action.SnapName, &downloadInfo, user)
+	resume := int64(0)
+	r, status, err := getStore(c).DownloadStream(context.TODO(), action.SnapName, &downloadInfo, resume, user)
 	if err != nil {
 		return InternalError(err.Error())
+	}
+	// XXX: check for 206 as well here once we set resume to something other
+	// than "0"
+	if status != 200 {
+		return InternalError("internal error: unexpected status code from DownloadStream: %v", status)
 	}
 
 	return fileStream{

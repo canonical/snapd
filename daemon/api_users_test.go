@@ -328,7 +328,12 @@ func (s *userSuite) TestPostUserActionRemove(c *check.C) {
 	c.Assert(err, check.IsNil)
 	rsp := postUsers(usersCmd, req, nil).(*resp)
 	c.Check(rsp.Status, check.Equals, 200)
-	c.Check(rsp.Result, check.IsNil)
+	expected := []userResponseData{
+		{ID: user.ID, Username: user.Username, Email: user.Email},
+	}
+	c.Check(rsp.Result, check.DeepEquals, map[string]interface{}{
+		"removed": expected,
+	})
 	c.Check(called, check.Equals, 1)
 
 	// and the user is removed from state

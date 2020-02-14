@@ -176,9 +176,46 @@ type interfaceManagerSuite struct {
 	secBackend     *ifacetest.TestSecurityBackend
 	mockSnapCmd    *testutil.MockCmd
 	log            *bytes.Buffer
+	coreSnap       *snap.Info
+	snapdSnap      *snap.Info
+	plug           *snap.PlugInfo
+	plugSelf       *snap.PlugInfo
+	slot           *snap.SlotInfo
 }
 
 var _ = Suite(&interfaceManagerSuite{})
+
+const consumerYaml4 = `
+name: consumer
+version: 0
+apps:
+    app:
+hooks:
+    configure:
+plugs:
+    plug:
+        interface: interface
+        label: label
+        attr: value
+`
+
+const producerYaml4 = `
+name: producer
+version: 0
+apps:
+    app:
+hooks:
+    configure:
+slots:
+    slot:
+        interface: interface
+        label: label
+        attr: value
+plugs:
+    self:
+        interface: interface
+        label: label
+`
 
 func (s *interfaceManagerSuite) SetUpTest(c *C) {
 	s.BaseTest.SetUpTest(c)
@@ -215,6 +252,30 @@ func (s *interfaceManagerSuite) SetUpTest(c *C) {
 	s.BaseTest.AddCleanup(ifacestate.MockConnectRetryTimeout(0))
 	restore = seccomp_compiler.MockCompilerVersionInfo("abcdef 1.2.3 1234abcd -")
 	s.BaseTest.AddCleanup(restore)
+
+	// NOTE: The core snap has a slot so that it shows up in the
+	// repository. The repository doesn't record snaps unless they
+	// have at least one interface.
+	s.coreSnap = snaptest.MockInfo(c, `
+name: core
+version: 0
+type: os
+slots:
+    slot:
+        interface: interface
+`, nil)
+	s.snapdSnap = snaptest.MockInfo(c, `
+name: snapd
+version: 0
+type: app
+slots:
+    slot:
+        interface: interface
+`, nil)
+	consumer := snaptest.MockInfo(c, consumerYaml4, nil)
+	s.plug = consumer.Plugs["plug"]
+	producer := snaptest.MockInfo(c, producerYaml4, nil)
+	s.slot = producer.Slots["slot"]
 }
 
 func (s *interfaceManagerSuite) TearDownTest(c *C) {
@@ -7721,4 +7782,417 @@ func (s *interfaceManagerSuite) TestPreseedAutoConnectErrorWithInterfaceHooks(c 
 	// Ensure that the task succeeded.
 	c.Check(change.Status(), Equals, state.ErrorStatus)
 	c.Check(change.Err(), ErrorMatches, `cannot perform the following tasks:\n.*interface hooks are not yet supported in preseed mode.*`)
+}
+
+// Tests for ResolveDisconnect()
+
+// All the ways to resolve a 'snap disconnect' between two snaps.
+// The actual snaps are not installed though.
+func (s *interfaceManagerSuite) TestResolveDisconnectMatrixNoSnaps(c *C) {
+	// Mock the interface that will be used by the test
+	s.mockIfaces(c, &ifacetest.TestInterface{InterfaceName: "interface"})
+	mgr := s.manager(c)
+	scenarios := []struct {
+		plugSnapName, plugName, slotSnapName, slotName string
+		errMsg                                         string
+	}{
+		// Case 0 (INVALID)
+		// Nothing is provided
+		{"", "", "", "", "allowed forms are .*"},
+		// Case 1 (FAILURE)
+		// Disconnect anything connected to a specific plug or slot.
+		// The snap name is implicit and refers to the core snap.
+		{"", "", "", "slot", `snap "core" has no plug or slot named "slot"`},
+		// Case 2 (INVALID)
+		// The slot name is not provided.
+		{"", "", "producer", "", "allowed forms are .*"},
+		// Case 3 (FAILURE)
+		// Disconnect anything connected to a specific plug or slot
+		{"", "", "producer", "slot", `snap "producer" has no plug or slot named "slot"`},
+		// Case 4 (FAILURE)
+		// Disconnect everything from a specific plug or slot.
+		// The plug side implicit refers to the core snap.
+		{"", "plug", "", "", `snap "core" has no plug or slot named "plug"`},
+		// Case 5 (FAILURE)
+		// Disconnect a specific connection.
+		// The plug and slot side implicit refers to the core snap.
+		{"", "plug", "", "slot", `snap "core" has no plug named "plug"`},
+		// Case 6 (INVALID)
+		// Slot name is not provided.
+		{"", "plug", "producer", "", "allowed forms are .*"},
+		// Case 7 (FAILURE)
+		// Disconnect a specific connection.
+		// The plug side implicit refers to the core snap.
+		{"", "plug", "producer", "slot", `snap "core" has no plug named "plug"`},
+		// Case 8 (INVALID)
+		// Plug name is not provided.
+		{"consumer", "", "", "", "allowed forms are .*"},
+		// Case 9 (INVALID)
+		// Plug name is not provided.
+		{"consumer", "", "", "slot", "allowed forms are .*"},
+		// Case 10 (INVALID)
+		// Plug name is not provided.
+		{"consumer", "", "producer", "", "allowed forms are .*"},
+		// Case 11 (INVALID)
+		// Plug name is not provided.
+		{"consumer", "", "producer", "slot", "allowed forms are .*"},
+		// Case 12 (FAILURE)
+		// Disconnect anything connected to a specific plug
+		{"consumer", "plug", "", "", `snap "consumer" has no plug or slot named "plug"`},
+		// Case 13 (FAILURE)
+		// Disconnect a specific connection.
+		// The snap name is implicit and refers to the core snap.
+		{"consumer", "plug", "", "slot", `snap "consumer" has no plug named "plug"`},
+		// Case 14 (INVALID)
+		// The slot name was not provided.
+		{"consumer", "plug", "producer", "", "allowed forms are .*"},
+		// Case 15 (FAILURE)
+		// Disconnect a specific connection.
+		{"consumer", "plug", "producer", "slot", `snap "consumer" has no plug named "plug"`},
+	}
+	for i, scenario := range scenarios {
+		c.Logf("checking scenario %d: %q", i, scenario)
+		connRefList, err := mgr.ResolveDisconnect(
+			scenario.plugSnapName, scenario.plugName, scenario.slotSnapName, scenario.slotName)
+		c.Check(err, ErrorMatches, scenario.errMsg)
+		c.Check(connRefList, HasLen, 0)
+	}
+}
+
+// All the ways to resolve a 'snap disconnect' between two snaps.
+// The actual snaps are not installed though but a snapd snap is.
+func (s *interfaceManagerSuite) TestResolveDisconnectMatrixJustSnapdSnap(c *C) {
+	restore := ifacestate.MockSnapMapper(&ifacestate.CoreSnapdSystemMapper{})
+	defer restore()
+
+	// Mock the interface that will be used by the test
+	s.mockIfaces(c, &ifacetest.TestInterface{InterfaceName: "interface"})
+	mgr := s.manager(c)
+	repo := mgr.Repository()
+	// Rename the "slot" from the snapd snap so that it is not picked up below.
+	c.Assert(snaptest.RenameSlot(s.snapdSnap, "slot", "unused"), IsNil)
+	c.Assert(repo.AddSnap(s.snapdSnap), IsNil)
+	scenarios := []struct {
+		plugSnapName, plugName, slotSnapName, slotName string
+		errMsg                                         string
+	}{
+		// Case 0 (INVALID)
+		// Nothing is provided
+		{"", "", "", "", "allowed forms are .*"},
+		// Case 1 (FAILURE)
+		// Disconnect anything connected to a specific plug or slot.
+		// The snap name is implicit and refers to the snapd snap.
+		{"", "", "", "slot", `snap "snapd" has no plug or slot named "slot"`},
+		// Case 2 (INVALID)
+		// The slot name is not provided.
+		{"", "", "producer", "", "allowed forms are .*"},
+		// Case 3 (FAILURE)
+		// Disconnect anything connected to a specific plug or slot
+		{"", "", "producer", "slot", `snap "producer" has no plug or slot named "slot"`},
+		// Case 4 (FAILURE)
+		// Disconnect anything connected to a specific plug or slot
+		{"", "plug", "", "", `snap "snapd" has no plug or slot named "plug"`},
+		// Case 5 (FAILURE)
+		// Disconnect a specific connection.
+		// The plug and slot side implicit refers to the snapd snap.
+		{"", "plug", "", "slot", `snap "snapd" has no plug named "plug"`},
+		// Case 6 (INVALID)
+		// Slot name is not provided.
+		{"", "plug", "producer", "", "allowed forms are .*"},
+		// Case 7 (FAILURE)
+		// Disconnect a specific connection.
+		// The plug side implicit refers to the snapd snap.
+		{"", "plug", "producer", "slot", `snap "snapd" has no plug named "plug"`},
+		// Case 8 (INVALID)
+		// Plug name is not provided.
+		{"consumer", "", "", "", "allowed forms are .*"},
+		// Case 9 (INVALID)
+		// Plug name is not provided.
+		{"consumer", "", "", "slot", "allowed forms are .*"},
+		// Case 10 (INVALID)
+		// Plug name is not provided.
+		{"consumer", "", "producer", "", "allowed forms are .*"},
+		// Case 11 (INVALID)
+		// Plug name is not provided.
+		{"consumer", "", "producer", "slot", "allowed forms are .*"},
+		// Case 12 (FAILURE)
+		// Disconnect anything connected to a specific plug or slot.
+		{"consumer", "plug", "", "", `snap "consumer" has no plug or slot named "plug"`},
+		// Case 13 (FAILURE)
+		// Disconnect a specific connection.
+		// The snap name is implicit and refers to the snapd snap.
+		{"consumer", "plug", "", "slot", `snap "consumer" has no plug named "plug"`},
+		// Case 14 (INVALID)
+		// The slot name was not provided.
+		{"consumer", "plug", "producer", "", "allowed forms are .*"},
+		// Case 15 (FAILURE)
+		// Disconnect a specific connection.
+		{"consumer", "plug", "producer", "slot", `snap "consumer" has no plug named "plug"`},
+	}
+	for i, scenario := range scenarios {
+		c.Logf("checking scenario %d: %q", i, scenario)
+		connRefList, err := mgr.ResolveDisconnect(
+			scenario.plugSnapName, scenario.plugName, scenario.slotSnapName, scenario.slotName)
+		c.Check(err, ErrorMatches, scenario.errMsg)
+		c.Check(connRefList, HasLen, 0)
+	}
+}
+
+// All the ways to resolve a 'snap disconnect' between two snaps.
+// The actual snaps are not installed though but a core snap is.
+func (s *interfaceManagerSuite) TestResolveDisconnectMatrixJustCoreSnap(c *C) {
+	restore := ifacestate.MockSnapMapper(&ifacestate.CoreCoreSystemMapper{})
+	defer restore()
+
+	// Mock the interface that will be used by the test
+	s.mockIfaces(c, &ifacetest.TestInterface{InterfaceName: "interface"})
+	mgr := s.manager(c)
+	repo := mgr.Repository()
+	// Rename the "slot" from the core snap so that it is not picked up below.
+	c.Assert(snaptest.RenameSlot(s.coreSnap, "slot", "unused"), IsNil)
+	c.Assert(repo.AddSnap(s.coreSnap), IsNil)
+	scenarios := []struct {
+		plugSnapName, plugName, slotSnapName, slotName string
+		errMsg                                         string
+	}{
+		// Case 0 (INVALID)
+		// Nothing is provided
+		{"", "", "", "", "allowed forms are .*"},
+		// Case 1 (FAILURE)
+		// Disconnect anything connected to a specific plug or slot.
+		// The snap name is implicit and refers to the core snap.
+		{"", "", "", "slot", `snap "core" has no plug or slot named "slot"`},
+		// Case 2 (INVALID)
+		// The slot name is not provided.
+		{"", "", "producer", "", "allowed forms are .*"},
+		// Case 3 (FAILURE)
+		// Disconnect anything connected to a specific plug or slot
+		{"", "", "producer", "slot", `snap "producer" has no plug or slot named "slot"`},
+		// Case 4 (FAILURE)
+		// Disconnect anything connected to a specific plug or slot
+		{"", "plug", "", "", `snap "core" has no plug or slot named "plug"`},
+		// Case 5 (FAILURE)
+		// Disconnect a specific connection.
+		// The plug and slot side implicit refers to the core snap.
+		{"", "plug", "", "slot", `snap "core" has no plug named "plug"`},
+		// Case 6 (INVALID)
+		// Slot name is not provided.
+		{"", "plug", "producer", "", "allowed forms are .*"},
+		// Case 7 (FAILURE)
+		// Disconnect a specific connection.
+		// The plug side implicit refers to the core snap.
+		{"", "plug", "producer", "slot", `snap "core" has no plug named "plug"`},
+		// Case 8 (INVALID)
+		// Plug name is not provided.
+		{"consumer", "", "", "", "allowed forms are .*"},
+		// Case 9 (INVALID)
+		// Plug name is not provided.
+		{"consumer", "", "", "slot", "allowed forms are .*"},
+		// Case 10 (INVALID)
+		// Plug name is not provided.
+		{"consumer", "", "producer", "", "allowed forms are .*"},
+		// Case 11 (INVALID)
+		// Plug name is not provided.
+		{"consumer", "", "producer", "slot", "allowed forms are .*"},
+		// Case 12 (FAILURE)
+		// Disconnect anything connected to a specific plug or slot.
+		{"consumer", "plug", "", "", `snap "consumer" has no plug or slot named "plug"`},
+		// Case 13 (FAILURE)
+		// Disconnect a specific connection.
+		// The snap name is implicit and refers to the core snap.
+		{"consumer", "plug", "", "slot", `snap "consumer" has no plug named "plug"`},
+		// Case 14 (INVALID)
+		// The slot name was not provided.
+		{"consumer", "plug", "producer", "", "allowed forms are .*"},
+		// Case 15 (FAILURE)
+		// Disconnect a specific connection.
+		{"consumer", "plug", "producer", "slot", `snap "consumer" has no plug named "plug"`},
+	}
+	for i, scenario := range scenarios {
+		c.Logf("checking scenario %d: %q", i, scenario)
+		connRefList, err := mgr.ResolveDisconnect(
+			scenario.plugSnapName, scenario.plugName, scenario.slotSnapName, scenario.slotName)
+		c.Check(err, ErrorMatches, scenario.errMsg)
+		c.Check(connRefList, HasLen, 0)
+	}
+}
+
+// All the ways to resolve a 'snap disconnect' between two snaps.
+// The actual snaps as well as the core snap are installed.
+// The snaps are not connected.
+func (s *interfaceManagerSuite) TestResolveDisconnectMatrixDisconnectedSnaps(c *C) {
+	restore := ifacestate.MockSnapMapper(&ifacestate.CoreCoreSystemMapper{})
+	defer restore()
+
+	// Mock the interface that will be used by the test
+	s.mockIfaces(c, &ifacetest.TestInterface{InterfaceName: "interface"})
+	mgr := s.manager(c)
+	repo := mgr.Repository()
+	// Rename the "slot" from the core snap so that it is not picked up below.
+	c.Assert(snaptest.RenameSlot(s.coreSnap, "slot", "unused"), IsNil)
+	c.Assert(repo.AddSnap(s.coreSnap), IsNil)
+	c.Assert(repo.AddPlug(s.plug), IsNil)
+	c.Assert(repo.AddSlot(s.slot), IsNil)
+	scenarios := []struct {
+		plugSnapName, plugName, slotSnapName, slotName string
+		errMsg                                         string
+	}{
+		// Case 0 (INVALID)
+		// Nothing is provided
+		{"", "", "", "", "allowed forms are .*"},
+		// Case 1 (FAILURE)
+		// Disconnect anything connected to a specific plug or slot.
+		// The snap name is implicit and refers to the core snap.
+		{"", "", "", "slot", `snap "core" has no plug or slot named "slot"`},
+		// Case 2 (INVALID)
+		// The slot name is not provided.
+		{"", "", "producer", "", "allowed forms are .*"},
+		// Case 3 (SUCCESS)
+		// Disconnect anything connected to a specific plug or slot
+		{"", "", "producer", "slot", ""},
+		// Case 4 (FAILURE)
+		// Disconnect anything connected to a specific plug or slot.
+		// The plug side implicit refers to the core snap.
+		{"", "plug", "", "", `snap "core" has no plug or slot named "plug"`},
+		// Case 5 (FAILURE)
+		// Disconnect a specific connection.
+		// The plug and slot side implicit refers to the core snap.
+		{"", "plug", "", "slot", `snap "core" has no plug named "plug"`},
+		// Case 6 (INVALID)
+		// Slot name is not provided.
+		{"", "plug", "producer", "", "allowed forms are .*"},
+		// Case 7 (FAILURE)
+		// Disconnect a specific connection.
+		// The plug side implicit refers to the core snap.
+		{"", "plug", "producer", "slot", `snap "core" has no plug named "plug"`},
+		// Case 8 (INVALID)
+		// Plug name is not provided.
+		{"consumer", "", "", "", "allowed forms are .*"},
+		// Case 9 (INVALID)
+		// Plug name is not provided.
+		{"consumer", "", "", "slot", "allowed forms are .*"},
+		// Case 10 (INVALID)
+		// Plug name is not provided.
+		{"consumer", "", "producer", "", "allowed forms are .*"},
+		// Case 11 (INVALID)
+		// Plug name is not provided.
+		{"consumer", "", "producer", "slot", "allowed forms are .*"},
+		// Case 12 (SUCCESS)
+		// Disconnect anything connected to a specific plug or slot.
+		{"consumer", "plug", "", "", ""},
+		// Case 13 (FAILURE)
+		// Disconnect a specific connection.
+		// The snap name is implicit and refers to the core snap.
+		{"consumer", "plug", "", "slot", `snap "core" has no slot named "slot"`},
+		// Case 14 (INVALID)
+		// The slot name was not provided.
+		{"consumer", "plug", "producer", "", "allowed forms are .*"},
+		// Case 15 (FAILURE)
+		// Disconnect a specific connection (but it is not connected).
+		{"consumer", "plug", "producer", "slot", `cannot disconnect consumer:plug from producer:slot, it is not connected`},
+	}
+	for i, scenario := range scenarios {
+		c.Logf("checking scenario %d: %q", i, scenario)
+		connRefList, err := mgr.ResolveDisconnect(
+			scenario.plugSnapName, scenario.plugName, scenario.slotSnapName, scenario.slotName)
+		if scenario.errMsg != "" {
+			c.Check(err, ErrorMatches, scenario.errMsg)
+		} else {
+			c.Check(err, IsNil)
+		}
+		c.Check(connRefList, HasLen, 0)
+	}
+}
+
+// All the ways to resolve a 'snap disconnect' between two snaps.
+// The actual snaps as well as the core snap are installed.
+// The snaps are connected.
+func (s *interfaceManagerSuite) TestResolveDisconnectMatrixTypical(c *C) {
+	restore := ifacestate.MockSnapMapper(&ifacestate.CoreCoreSystemMapper{})
+	defer restore()
+
+	// Mock the interface that will be used by the test
+	s.mockIfaces(c, &ifacetest.TestInterface{InterfaceName: "interface"})
+	mgr := s.manager(c)
+	repo := mgr.Repository()
+
+	// Rename the "slot" from the core snap so that it is not picked up below.
+	c.Assert(snaptest.RenameSlot(s.coreSnap, "slot", "unused"), IsNil)
+	c.Assert(repo.AddSnap(s.coreSnap), IsNil)
+	c.Assert(repo.AddPlug(s.plug), IsNil)
+	c.Assert(repo.AddSlot(s.slot), IsNil)
+	connRef := interfaces.NewConnRef(s.plug, s.slot)
+	_, err := repo.Connect(connRef, nil, nil, nil, nil, nil)
+	c.Assert(err, IsNil)
+
+	scenarios := []struct {
+		plugSnapName, plugName, slotSnapName, slotName string
+		errMsg                                         string
+	}{
+		// Case 0 (INVALID)
+		// Nothing is provided
+		{"", "", "", "", "allowed forms are .*"},
+		// Case 1 (FAILURE)
+		// Disconnect anything connected to a specific plug or slot.
+		// The snap name is implicit and refers to the core snap.
+		{"", "", "", "slot", `snap "core" has no plug or slot named "slot"`},
+		// Case 2 (INVALID)
+		// The slot name is not provided.
+		{"", "", "producer", "", "allowed forms are .*"},
+		// Case 3 (SUCCESS)
+		// Disconnect anything connected to a specific plug or slot
+		{"", "", "producer", "slot", ""},
+		// Case 4 (FAILURE)
+		// Disconnect anything connected to a specific plug or slot.
+		// The plug side implicit refers to the core snap.
+		{"", "plug", "", "", `snap "core" has no plug or slot named "plug"`},
+		// Case 5 (FAILURE)
+		// Disconnect a specific connection.
+		// The plug and slot side implicit refers to the core snap.
+		{"", "plug", "", "slot", `snap "core" has no plug named "plug"`},
+		// Case 6 (INVALID)
+		// Slot name is not provided.
+		{"", "plug", "producer", "", "allowed forms are .*"},
+		// Case 7 (FAILURE)
+		// Disconnect a specific connection.
+		// The plug side implicit refers to the core snap.
+		{"", "plug", "producer", "slot", `snap "core" has no plug named "plug"`},
+		// Case 8 (INVALID)
+		// Plug name is not provided.
+		{"consumer", "", "", "", "allowed forms are .*"},
+		// Case 9 (INVALID)
+		// Plug name is not provided.
+		{"consumer", "", "", "slot", "allowed forms are .*"},
+		// Case 10 (INVALID)
+		// Plug name is not provided.
+		{"consumer", "", "producer", "", "allowed forms are .*"},
+		// Case 11 (INVALID)
+		// Plug name is not provided.
+		{"consumer", "", "producer", "slot", "allowed forms are .*"},
+		// Case 12 (SUCCESS)
+		// Disconnect anything connected to a specific plug or slot.
+		{"consumer", "plug", "", "", ""},
+		// Case 13 (FAILURE)
+		// Disconnect a specific connection.
+		// The snap name is implicit and refers to the core snap.
+		{"consumer", "plug", "", "slot", `snap "core" has no slot named "slot"`},
+		// Case 14 (INVALID)
+		// The slot name was not provided.
+		{"consumer", "plug", "producer", "", "allowed forms are .*"},
+		// Case 15 (SUCCESS)
+		// Disconnect a specific connection.
+		{"consumer", "plug", "producer", "slot", ""},
+	}
+	for i, scenario := range scenarios {
+		c.Logf("checking scenario %d: %q", i, scenario)
+		connRefList, err := mgr.ResolveDisconnect(
+			scenario.plugSnapName, scenario.plugName, scenario.slotSnapName, scenario.slotName)
+		if scenario.errMsg != "" {
+			c.Check(err, ErrorMatches, scenario.errMsg)
+			c.Check(connRefList, HasLen, 0)
+		} else {
+			c.Check(err, IsNil)
+			c.Check(connRefList, DeepEquals, []*interfaces.ConnRef{connRef})
+		}
+	}
 }

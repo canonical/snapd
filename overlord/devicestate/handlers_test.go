@@ -512,7 +512,7 @@ func (s *preseedModeSuite) TestDoMarkPreseeded(c *C) {
 
 	// core snap was "manually" unmounted
 	c.Check(s.cmdUmount.Calls(), DeepEquals, [][]string{
-		{"umount", "-d", "-l", filepath.Join(dirs.GlobalRootDir, "/snap/test-snap/3")},
+		{"umount", "-d", "-l", filepath.Join(dirs.SnapMountDir, "test-snap/3")},
 	})
 
 	// and snapd stop was requested
