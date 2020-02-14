@@ -254,7 +254,8 @@ func makeErrorResponder(status int) errorResponder {
 type snapStream struct {
 	SnapName string
 	Filename string
-	Info     snap.DownloadInfo
+	Info     *snap.DownloadInfo
+	Token    string
 	stream   io.ReadCloser
 	resume   int64
 }
@@ -270,6 +271,9 @@ func (s *snapStream) ServeHTTP(w http.ResponseWriter, _ *http.Request) {
 	// can't set Content-Length when stream is nil as it breaks http clients
 	// setting it also when there is a stream, for consistency
 	hdr.Set("Snap-Length", strconv.FormatInt(s.Info.Size, 10))
+	if s.Token != "" {
+		hdr.Set("Snap-Download-Token", s.Token)
+	}
 
 	if s.stream == nil {
 		// nothing to actually stream

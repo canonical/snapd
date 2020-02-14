@@ -21,8 +21,12 @@ package daemon
 
 import (
 	"context"
+	"crypto/hmac"
+	"crypto/sha256"
+	"encoding/base64"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"net/http"
 	"path/filepath"
 	"regexp"
@@ -30,6 +34,8 @@ import (
 
 	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/overlord/auth"
+	"github.com/snapcore/snapd/overlord/state"
+	"github.com/snapcore/snapd/randutil"
 	"github.com/snapcore/snapd/snap"
 	"github.com/snapcore/snapd/store"
 )
@@ -51,25 +57,25 @@ type snapDownloadAction struct {
 	// body being returned.
 	HeaderPeek bool `json:"header-peek"`
 
-	ResumeStamp    string `json:"resume-stamp"`
+	ResumeToken    string `json:"resume-token"`
 	resumePosition int64
 }
 
 var (
 	errDownloadNameRequired     = errors.New("download operation requires one snap name")
 	errDownloadHeaderPeekResume = errors.New("cannot request header-only peek when resuming")
-	errDownloadResumeNoStamp    = errors.New("cannot resume without a stamp")
+	errDownloadResumeNoToken    = errors.New("cannot resume without a token")
 )
 
 func (action *snapDownloadAction) validate() error {
 	if action.SnapName == "" {
 		return errDownloadNameRequired
 	}
-	if action.HeaderPeek && (action.resumePosition > 0 || action.ResumeStamp != "") {
+	if action.HeaderPeek && (action.resumePosition > 0 || action.ResumeToken != "") {
 		return errDownloadHeaderPeekResume
 	}
-	if action.resumePosition > 0 && action.ResumeStamp == "" {
-		return errDownloadResumeNoStamp
+	if action.resumePosition > 0 && action.ResumeToken == "" {
+		return errDownloadResumeNoToken
 	}
 	return action.snapRevisionOptions.validate()
 }
@@ -102,55 +108,154 @@ func postSnapDownload(c *Command, r *http.Request, user *auth.UserState) Respons
 }
 
 func streamOneSnap(c *Command, action snapDownloadAction, user *auth.UserState) Response {
-	theStore := getStore(c)
-	var info *snap.Info
-
-	// XXX: once we're HMAC'ing, we only do this bit on the first pass
-	actions := []*store.SnapAction{{
-		Action:       "download",
-		InstanceName: action.SnapName,
-		Revision:     action.Revision,
-		CohortKey:    action.CohortKey,
-		Channel:      action.Channel,
-	}}
-	sars, err := theStore.SnapAction(context.TODO(), nil, actions, user, nil)
+	secret, err := downloadTokensSecret(c)
 	if err != nil {
-		return errToResponse(err, []string{action.SnapName}, InternalError, "cannot download snap: %v")
+		return InternalError(err.Error())
 	}
-	if len(sars) != 1 {
-		return InternalError("internal error: unexpected number %v of results for a single download", len(sars))
-	}
-	info = sars[0].Info
-	downloadInfo := info.DownloadInfo
+	theStore := getStore(c)
 
-	// XXX: this bit goes away once we HMAC
-	if action.ResumeStamp != "" && downloadInfo.Sha3_384 != action.ResumeStamp {
-		return BadRequest("snap to download has different hash")
-	}
+	var ss *snapStream
+	if action.ResumeToken == "" {
+		var info *snap.Info
+		actions := []*store.SnapAction{{
+			Action:       "download",
+			InstanceName: action.SnapName,
+			Revision:     action.Revision,
+			CohortKey:    action.CohortKey,
+			Channel:      action.Channel,
+		}}
+		sars, err := theStore.SnapAction(context.TODO(), nil, actions, user, nil)
+		if err != nil {
+			return errToResponse(err, []string{action.SnapName}, InternalError, "cannot download snap: %v")
+		}
+		if len(sars) != 1 {
+			return InternalError("internal error: unexpected number %v of results for a single download", len(sars))
+		}
+		info = sars[0].Info
 
-	rsp := newSnapStream(action.SnapName, info, action.resumePosition)
-	if !action.HeaderPeek {
-		r, s, err := theStore.DownloadStream(context.TODO(), action.SnapName, &downloadInfo, action.resumePosition, user)
+		ss, err = newSnapStream(action.SnapName, info, secret)
 		if err != nil {
 			return InternalError(err.Error())
 		}
-		rsp.stream = r
+	} else {
+		var err error
+		ss, err = newResumingSnapStream(action.SnapName, action.ResumeToken, secret)
+		if err != nil {
+			return BadRequest(err.Error())
+		}
+		ss.resume = action.resumePosition
+	}
+
+	if !action.HeaderPeek {
+		r, s, err := theStore.DownloadStream(context.TODO(), action.SnapName, ss.Info, action.resumePosition, user)
+		if err != nil {
+			return InternalError(err.Error())
+		}
+		ss.stream = r
 		if s != 206 {
 			// store/cdn has no partial content (valid
 			// reply per RFC)
 			logger.Debugf("store refused our range request")
-			rsp.resume = 0
+			ss.resume = 0
 		}
 	}
 
-	return rsp
+	return ss
 }
 
-func newSnapStream(snapName string, info *snap.Info, resumePos int64) *snapStream {
+func newSnapStream(snapName string, info *snap.Info, secret []byte) (*snapStream, error) {
+	dlInfo := &info.DownloadInfo
+	fname := filepath.Base(info.MountFile())
+	tokenJSON := downloadTokenJSON{
+		SnapName: snapName,
+		Filename: fname,
+		Info:     dlInfo,
+	}
+	tokStr, err := sealDownloadToken(&tokenJSON, secret)
+	if err != nil {
+		return nil, err
+	}
 	return &snapStream{
 		SnapName: snapName,
-		Filename: filepath.Base(info.MountFile()),
-		Info:     info.DownloadInfo,
-		resume:   resumePos,
+		Filename: fname,
+		Info:     dlInfo,
+		Token:    tokStr,
+	}, nil
+}
+
+func newResumingSnapStream(snapName string, tokStr string, secret []byte) (*snapStream, error) {
+	d, err := unsealDownloadToken(tokStr, secret)
+	if err != nil {
+		return nil, err
 	}
+	if d.SnapName != snapName {
+		return nil, fmt.Errorf("resume snap name does not match original snap name")
+	}
+	return &snapStream{
+		SnapName: snapName,
+		Filename: d.Filename,
+		Info:     d.Info,
+	}, nil
+}
+
+type downloadTokenJSON struct {
+	SnapName string             `json:"snap-name"`
+	Filename string             `json:"filename"`
+	Info     *snap.DownloadInfo `json:"dl-info"`
+}
+
+func sealDownloadToken(d *downloadTokenJSON, secret []byte) (string, error) {
+	b, err := json.Marshal(d)
+	if err != nil {
+		return "", err
+	}
+	mac := hmac.New(sha256.New, secret)
+	mac.Write(b)
+	tok := mac.Sum(b)
+	return base64.RawURLEncoding.EncodeToString(tok), nil
+}
+
+var errInvalidDownloadToken = errors.New("download token is invalid")
+
+func unsealDownloadToken(tokStr string, secret []byte) (*downloadTokenJSON, error) {
+	tok, err := base64.RawURLEncoding.DecodeString(tokStr)
+	if err != nil {
+		return nil, errInvalidDownloadToken
+	}
+	sz := len(tok)
+	if sz < sha256.Size {
+		return nil, errInvalidDownloadToken
+	}
+	h := tok[sz-sha256.Size:]
+	b := tok[:sz-sha256.Size]
+	mac := hmac.New(sha256.New, secret)
+	mac.Write(b)
+	if !hmac.Equal(h, mac.Sum(nil)) {
+		return nil, errInvalidDownloadToken
+	}
+	var d downloadTokenJSON
+	if err := json.Unmarshal(b, &d); err != nil {
+		return nil, err
+	}
+	return &d, nil
+}
+
+func downloadTokensSecret(c *Command) (secret []byte, err error) {
+	st := c.d.overlord.State()
+	st.Lock()
+	defer st.Unlock()
+	const k = "api-download-tokens-secret"
+	err = st.Get(k, &secret)
+	if err == nil {
+		return secret, nil
+	}
+	if err != nil && err != state.ErrNoState {
+		return nil, err
+	}
+	secret, err = randutil.CryptoTokenBytes(32)
+	if err != nil {
+		return nil, err
+	}
+	st.Set(k, secret)
+	return secret, nil
 }

@@ -22,6 +22,7 @@ package daemon_test
 import (
 	"bytes"
 	"context"
+	"encoding/base64"
 	"fmt"
 	"io"
 	"io/ioutil"
@@ -212,6 +213,17 @@ func (s *snapDownloadSuite) TestStreamOneSnap(c *check.C) {
 		err      string
 	}
 
+	sec, err := daemon.DownloadTokensSecret(daemon.SnapDownloadCmd)
+	c.Assert(err, check.IsNil)
+
+	fooResume3SS, err := daemon.NewSnapStream("foo-resume-3", storeSnaps["foo-resume-3"], sec)
+	c.Assert(err, check.IsNil)
+	tok, err := base64.RawURLEncoding.DecodeString(fooResume3SS.Token)
+	c.Assert(err, check.IsNil)
+	c.Assert(bytes.HasPrefix(tok, []byte(`{"snap-name":"foo-resume-3","filename":"foo-resume-3_1.snap","dl-info":{"`)), check.Equals, true)
+
+	brokenHashToken := base64.RawURLEncoding.EncodeToString(append(tok[:len(tok)-1], tok[len(tok)-1]-1))
+
 	for _, s := range []scenario{
 		{
 			snapName: "doom",
@@ -246,7 +258,7 @@ func (s *snapDownloadSuite) TestStreamOneSnap(c *check.C) {
 		// happy resume
 		{
 			snapName: "foo-resume-3",
-			dataJSON: `{"snap-name": "foo-resume-3", "resume-stamp": "sha3sha3sha3"}`,
+			dataJSON: fmt.Sprintf(`{"snap-name": "foo-resume-3", "resume-token": %q}`, fooResume3SS.Token),
 			status:   206,
 			resume:   3,
 			err:      "",
@@ -254,21 +266,43 @@ func (s *snapDownloadSuite) TestStreamOneSnap(c *check.C) {
 		// unhappy resume
 		{
 			snapName: "foo-resume-3",
-			dataJSON: `{"snap-name": "foo-resume-3", "resume-stamp": "different-hash"}`,
+			dataJSON: fmt.Sprintf(`{"snap-name": "foo-resume-other", "resume-token": %q}`, fooResume3SS.Token),
 			status:   400,
 			resume:   3,
-			err:      "snap to download has different hash",
+			err:      "resume snap name does not match original snap name",
 		},
+		{
+			snapName: "foo-resume-3",
+			dataJSON: `{"snap-name": "foo-resume-3", "resume-token": "invalid token"}`, // not base64
+			status:   400,
+			resume:   3,
+			err:      "download token is invalid",
+		},
+		{
+			snapName: "foo-resume-3",
+			dataJSON: `{"snap-name": "foo-resume-3", "resume-token": "e30"}`, // too short token content
+			status:   400,
+			resume:   3,
+			err:      "download token is invalid",
+		},
+		{
+			snapName: "foo-resume-3",
+			dataJSON: fmt.Sprintf(`{"snap-name": "foo-resume-3", "resume-token": %q}`, brokenHashToken), // token with broken hash
+			status:   400,
+			resume:   3,
+			err:      "download token is invalid",
+		},
+
 		{
 			snapName: "foo-resume-3",
 			dataJSON: `{"snap-name": "foo-resume-3", "resume-stamp": ""}`,
 			status:   400,
 			resume:   3,
-			err:      "cannot resume without a stamp",
+			err:      "cannot resume without a token",
 		},
 		{
 			snapName: "foo-resume-3",
-			dataJSON: `{"snap-name": "foo-resume-3", "resume-stamp": "sha3sha3sha3"}`,
+			dataJSON: fmt.Sprintf(`{"snap-name": "foo-resume-3", "resume-stamp": %q}`, fooResume3SS.Token),
 			status:   500,
 			resume:   -10,
 			// negative values are ignored and resume is set to 0
@@ -283,13 +317,13 @@ func (s *snapDownloadSuite) TestStreamOneSnap(c *check.C) {
 		},
 		{
 			snapName: "foo-resume-3",
-			dataJSON: `{"snap-name": "foo-resume-3", "header-peek": true, "resume-stamp": "something"}`,
+			dataJSON: `{"snap-name": "foo-resume-3", "header-peek": true, "resume-token": "something"}`,
 			status:   400,
 			err:      "cannot request header-only peek when resuming",
 		},
 		{
 			snapName: "foo-resume-3",
-			dataJSON: `{"snap-name": "foo-resume-3", "header-peek": true, "resume-stamp": "something"}`,
+			dataJSON: `{"snap-name": "foo-resume-3", "header-peek": true, "resume-token": "something"}`,
 			resume:   3,
 			status:   400,
 			err:      "cannot request header-only peek when resuming",
@@ -325,6 +359,10 @@ func (s *snapDownloadSuite) TestStreamOneSnap(c *check.C) {
 			c.Assert(w.Header().Get("Content-Disposition"), check.Equals, fmt.Sprintf("attachment; filename=%s_%s.snap", s.snapName, info.Revision))
 			c.Assert(w.Header().Get("Snap-Sha3-384"), check.Equals, "sha3sha3sha3", check.Commentf("invalid sha3 for %v", s.snapName))
 			c.Assert(w.Body.Bytes(), check.DeepEquals, []byte("SNAP")[s.resume:])
+			c.Assert(w.Header().Get("Snap-Download-Token"), check.Equals, ss.Token)
+			if s.status == 206 {
+				c.Assert(ss.Token, check.Equals, "")
+			}
 		}
 	}
 }
