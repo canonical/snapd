@@ -1243,10 +1243,14 @@ apps:
 
 	app := info.Apps["app1"]
 	socket := app.Sockets["sock1"]
+	c.Check(socket.FileName(), Equals, "snap.pans.app1.sock1.socket")
+	c.Check(socket.FilePath(), Equals, dirs.GlobalRootDir+"/etc/systemd/system/snap.pans.app1.sock1.socket")
 	c.Check(socket.File(), Equals, dirs.GlobalRootDir+"/etc/systemd/system/snap.pans.app1.sock1.socket")
 
 	// snap with instance key
 	info.InstanceKey = "instance"
+	c.Check(socket.FileName(), Equals, "snap.pans_instance.app1.sock1.socket")
+	c.Check(socket.FilePath(), Equals, dirs.GlobalRootDir+"/etc/systemd/system/snap.pans_instance.app1.sock1.socket")
 	c.Check(socket.File(), Equals, dirs.GlobalRootDir+"/etc/systemd/system/snap.pans_instance.app1.sock1.socket")
 }
 
@@ -1261,12 +1265,16 @@ apps:
 	c.Assert(err, IsNil)
 
 	app := info.Apps["app1"]
-	timerFile := app.Timer.File()
-	c.Check(timerFile, Equals, dirs.GlobalRootDir+"/etc/systemd/system/snap.pans.app1.timer")
-	c.Check(strings.TrimSuffix(app.ServiceFile(), ".service")+".timer", Equals, timerFile)
+	c.Check(app.Timer.FileName(), Equals, "snap.pans.app1.timer")
+	c.Check(app.Timer.FilePath(), Equals, dirs.GlobalRootDir+"/etc/systemd/system/snap.pans.app1.timer")
+	c.Check(app.Timer.File(), Equals, dirs.GlobalRootDir+"/etc/systemd/system/snap.pans.app1.timer")
+
+	c.Check(strings.TrimSuffix(app.ServiceFile(), ".service")+".timer", Equals, app.Timer.File())
 
 	// snap with instance key
 	info.InstanceKey = "instance"
+	c.Check(app.Timer.FileName(), Equals, "snap.pans_instance.app1.timer")
+	c.Check(app.Timer.FilePath(), Equals, dirs.GlobalRootDir+"/etc/systemd/system/snap.pans_instance.app1.timer")
 	c.Check(app.Timer.File(), Equals, dirs.GlobalRootDir+"/etc/systemd/system/snap.pans_instance.app1.timer")
 }
 

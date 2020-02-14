@@ -926,14 +926,32 @@ type SystemUsernameInfo struct {
 	Attrs map[string]interface{}
 }
 
-// File returns the path to the *.socket file
+// Deprecated
 func (socket *SocketInfo) File() string {
-	return filepath.Join(dirs.SnapServicesDir, socket.App.SecurityTag()+"."+socket.Name+".socket")
+	return socket.FilePath()
+}
+
+// File returns the path to the *.socket file
+func (socket *SocketInfo) FilePath() string {
+	return filepath.Join(dirs.SnapServicesDir, socket.FileName())
+}
+
+func (socket *SocketInfo) FileName() string {
+	return socket.App.SecurityTag()+"."+socket.Name+".socket"
+}
+
+// Deprecated
+func (timer *TimerInfo) File() string {
+	return timer.FilePath()
 }
 
 // File returns the path to the *.timer file
-func (timer *TimerInfo) File() string {
-	return filepath.Join(dirs.SnapServicesDir, timer.App.SecurityTag()+".timer")
+func (timer *TimerInfo) FilePath() string {
+	return filepath.Join(dirs.SnapServicesDir, timer.FileName())
+}
+
+func (timer *TimerInfo) FileName() string {
+	return timer.App.SecurityTag()+".timer"
 }
 
 func (app *AppInfo) String() string {
