@@ -71,13 +71,28 @@ func findKeyboard(devices []*evdev.InputDevice) *evdev.InputDevice {
 }
 
 func waitForKey(dev *evdev.InputDevice, keyCode uint16, ch chan error) {
+	const triggerHeldCount = 20
+
+	heldCount := uint(0)
+
 	for {
 		ies, err := dev.Read()
 		if err != nil {
 			ch <- err
 		}
 		for _, ie := range ies {
-			if ie.Type == evdev.EV_KEY && ie.Code == keyCode {
+			if ie.Type != evdev.EV_KEY || ie.Code != keyCode {
+				continue
+			}
+			kev := evdev.NewKeyEvent(&ie)
+			switch kev.State {
+			case evdev.KeyHold, evdev.KeyDown:
+				heldCount++
+			case evdev.KeyUp:
+				heldCount = 0
+			}
+			fmt.Printf("held: %v\n", heldCount)
+			if heldCount >= triggerHeldCount {
 				close(ch)
 			}
 		}
@@ -109,6 +124,7 @@ func checkChooserTriggerKey() error {
 		return err
 	case <-time.After(5 * time.Second):
 		fmt.Printf("- no key detected\n")
+		return fmt.Errorf("interrupt key not detected")
 	}
 
 	return nil
