@@ -160,11 +160,11 @@ func (tr *tree16) mkFixedDirs() error {
 }
 
 func (tr *tree16) snapPath(sn *SeedSnap) (string, error) {
-	return filepath.Join(tr.snapsDirPath, filepath.Base(sn.Info.MountFile())), nil
+	return filepath.Join(tr.snapsDirPath, sn.Info.Filename()), nil
 }
 
 func (tr *tree16) localSnapPath(sn *SeedSnap) (string, error) {
-	return filepath.Join(tr.snapsDirPath, filepath.Base(sn.Info.MountFile())), nil
+	return filepath.Join(tr.snapsDirPath, sn.Info.Filename()), nil
 }
 
 func (tr *tree16) writeAssertions(db asserts.RODatabase, modelRefs []*asserts.Ref, snapsFromModel []*SeedSnap, extraSnaps []*SeedSnap) error {
