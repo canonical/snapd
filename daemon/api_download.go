@@ -46,7 +46,7 @@ var snapDownloadCmd = &Command{
 	POST:     postSnapDownload,
 }
 
-var validRangeRegexp = regexp.MustCompile(`^\s*bytes=(\d+)-\s*`)
+var validRangeRegexp = regexp.MustCompile(`^\s*bytes=(\d+)-\s*$`)
 
 // SnapDownloadAction is used to request a snap download
 type snapDownloadAction struct {

@@ -361,6 +361,7 @@ func (s *snapDownloadSuite) TestStreamOneSnap(c *check.C) {
 			c.Assert(w.Body.Bytes(), check.DeepEquals, []byte("SNAP")[s.resume:])
 			c.Assert(w.Header().Get("Snap-Download-Token"), check.Equals, ss.Token)
 			if s.status == 206 {
+				c.Assert(w.Header().Get("Content-Range"), check.Equals, fmt.Sprintf("bytes %d-%d/%d", s.resume, len(snapContent)-1, len(snapContent)))
 				c.Assert(ss.Token, check.Equals, "")
 			}
 		}
@@ -388,4 +389,34 @@ func (s *snapDownloadSuite) TestStreamOneSnapHeaderOnlyPeek(c *check.C) {
 	c.Check(w.Header().Get("Snap-Sha3-384"), check.Equals, "sha3sha3sha3")
 	// but no body
 	c.Check(w.Body.Bytes(), check.HasLen, 0)
+}
+
+func (s *snapDownloadSuite) TestStreamRangeHeaderErrors(c *check.C) {
+	dataJSON := `{"snap-name":"bar"}`
+
+	for _, s := range []string{
+		// missing "-" at the end
+		"bytes=123",
+		// missing "bytes="
+		"123-",
+		// real range, not supported
+		"bytes=1-2",
+		// almost
+		"bytes=1--",
+	} {
+		req, err := http.NewRequest("POST", "/v2/download", strings.NewReader(dataJSON))
+		c.Assert(err, check.IsNil)
+		// missng "-" at the end
+		req.Header.Add("Range", s)
+
+		rsp := daemon.SnapDownloadCmd.POST(daemon.SnapDownloadCmd, req, nil)
+		if dr, ok := rsp.(*daemon.Resp); ok {
+			c.Fatalf("unexpected daemon result (test broken): %v", dr.Result)
+		}
+		w := httptest.NewRecorder()
+		ss := rsp.(*daemon.SnapStream)
+		ss.ServeHTTP(w, nil)
+		// range header is invalid and ignored
+		c.Assert(w.Code, check.Equals, 200)
+	}
 }
