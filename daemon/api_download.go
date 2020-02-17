@@ -31,6 +31,7 @@ import (
 	"path/filepath"
 	"regexp"
 	"strconv"
+	"time"
 
 	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/overlord/auth"
@@ -195,6 +196,7 @@ func newResumingSnapStream(snapName string, tokStr string, secret []byte) (*snap
 		SnapName: snapName,
 		Filename: d.Filename,
 		Info:     d.Info,
+		Token:    tokStr,
 	}, nil
 }
 
@@ -258,5 +260,6 @@ func downloadTokensSecret(c *Command) (secret []byte, err error) {
 		return nil, err
 	}
 	st.Set(k, secret)
+	st.Set(k+"-time", time.Now().UTC())
 	return secret, nil
 }

@@ -362,7 +362,7 @@ func (s *snapDownloadSuite) TestStreamOneSnap(c *check.C) {
 			c.Assert(w.Header().Get("Snap-Download-Token"), check.Equals, ss.Token)
 			if s.status == 206 {
 				c.Assert(w.Header().Get("Content-Range"), check.Equals, fmt.Sprintf("bytes %d-%d/%d", s.resume, len(snapContent)-1, len(snapContent)))
-				c.Assert(ss.Token, check.Equals, "")
+				c.Assert(ss.Token, check.Not(check.HasLen), 0)
 			}
 		}
 	}
