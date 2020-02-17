@@ -281,8 +281,10 @@ func securityTagFromCgroupPath(path string) (securityTag string) {
 
 // PidsOfSnap returns the association of security tags to PIDs.
 //
-// NOTE: This function returns non-empty result only if refresh-app-awareness
-// is enabled.
+// NOTE: This function returns reliable result only if refresh-app-awareness
+// feature was enabled since all process related to the given snap was started.
+// If the feature is was never enabled then only service process are correclty
+// accounted for.
 //
 // The return value is a snapshot of the pids of a given snap, grouped by
 // security tag. The result may be immediately stale as processes fork and
