@@ -23,6 +23,7 @@ import (
 	"os"
 
 	"github.com/snapcore/snapd/boot"
+	"github.com/snapcore/snapd/dirs"
 )
 
 // ForceModeenv forces ReadModeenv to always return a specific Modeenv for a
@@ -30,7 +31,7 @@ import (
 // If rootdir is empty, then all invocations return the specified modeenv
 func ForceModeenv(rootdir string, m *boot.Modeenv) (restore func()) {
 	mock := func(callerrootdir string) (*boot.Modeenv, error) {
-		if rootdir == "" || callerrootdir == rootdir {
+		if rootdir == "" || rootdir == dirs.GlobalRootDir || callerrootdir == rootdir {
 			return m, nil
 		}
 

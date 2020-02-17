@@ -23,7 +23,6 @@ import (
 	"fmt"
 
 	"github.com/snapcore/snapd/bootloader"
-	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/snap"
 )
 
@@ -51,7 +50,7 @@ func (bsm *bootState20Modeenv) loadModeenv() error {
 	if bsm.modeenv != nil {
 		return nil
 	}
-	modeenv, err := ReadModeenv(dirs.GlobalRootDir)
+	modeenv, err := ReadModeenv("")
 	if err != nil {
 		return fmt.Errorf("cannot get snap revision: unable to read modeenv: %v", err)
 	}
@@ -273,7 +272,7 @@ func (bs20 *bootState20Base) loadModeenv() error {
 	if bs20.modeenv != nil {
 		return nil
 	}
-	modeenv, err := ReadModeenv(dirs.GlobalRootDir)
+	modeenv, err := ReadModeenv("")
 	if err != nil {
 		return fmt.Errorf("cannot get snap revision: unable to read modeenv: %v", err)
 	}
