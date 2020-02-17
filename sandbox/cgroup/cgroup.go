@@ -318,8 +318,15 @@ func PidsOfSnap(snapInstanceName string) (map[string][]int, error) {
 			return nil
 		}
 		if filepath.Base(path) != "cgroup.procs" {
+			// We are looking for "cgroup.procs" files. Those contain the set
+			// of processes that momentairly inhabit a cgroup.
 			return nil
 		}
+		// Now that we are confident that the file we're looking at is
+		// interesting, extract the security tag from the cgroup path and check
+		// if the security tag belongs to the snap we are interested in. Since
+		// not all cgroups are related to snaps it is not an error if the
+		// cgroup path does not denote a snap.
 		cgroupPath := filepath.Dir(path)
 		securityTag := securityTagFromCgroupPath(cgroupPath)
 		if securityTag == "" {
