@@ -451,9 +451,13 @@ func (cs *clientSuite) TestClientOpDownload(c *check.C) {
 
 	cs.rsp = `lots-of-foo-data`
 
-	dlInfo, rc, err := cs.cli.Download("foo", &client.SnapOptions{
-		Revision: "2",
-		Channel:  "edge",
+	dlInfo, rc, err := cs.cli.Download("foo", &client.DownloadOptions{
+		SnapOptions: client.SnapOptions{
+			Revision: "2",
+			Channel:  "edge",
+		},
+		HeaderPeek:  true,
+		ResumeToken: "some-token",
 	})
 	c.Check(err, check.IsNil)
 	c.Check(dlInfo, check.DeepEquals, &client.DownloadInfo{
@@ -472,6 +476,8 @@ func (cs *clientSuite) TestClientOpDownload(c *check.C) {
 	c.Check(jsonBody.SnapName, check.DeepEquals, "foo")
 	c.Check(jsonBody.Revision, check.Equals, "2")
 	c.Check(jsonBody.Channel, check.Equals, "edge")
+	c.Check(jsonBody.HeaderPeek, check.Equals, true)
+	c.Check(jsonBody.ResumeToken, check.Equals, "some-token")
 
 	// ensure we can read the response
 	content, err := ioutil.ReadAll(rc)
