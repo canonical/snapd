@@ -66,7 +66,7 @@ execute: |
   MATCH "Done .+ setup-aliases +Setup snap \"lxd\" aliases" < tasks.log
 
   echo "Checking that there were no other 'Done' tasks when preseeding"
-  [ $(grep " Done " tasks.log | wc -l) = "23" ]
+  [ "$(grep -c ' Done ' tasks.log)" = "23" ]
 
   # mark-preseeded task is where snap-preseed stopped, therefore it's in Doing.
   MATCH "Doing .+ mark-preseeded +Mark system pre-seeded" < tasks.log
