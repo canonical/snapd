@@ -124,6 +124,9 @@ owner @{HOME}/.config/ibus/bus/* r,
 unix (connect, receive, send)
     type=stream
     peer=(addr="@/tmp/ibus/dbus-*"),
+unix (connect, receive, send)
+    type=stream
+    peer=(addr="@/home/*/.cache/ibus/dbus-*"),
 
 
 # mozc
