@@ -623,6 +623,9 @@ func (s *storeTestSuite) TestDownloadEOFHandlesResumeHashCorrectly(c *C) {
 			mockServer.CloseClientConnections()
 			return
 		}
+		if len(r.Header["Range"]) > 0 {
+			w.WriteHeader(206)
+		}
 		w.Write(buf[len(buf)-5:])
 	}))
 
@@ -722,6 +725,43 @@ func (s *storeTestSuite) TestResumeOfCompletedRetriedOnHashFailure(c *C) {
 	c.Assert(err, IsNil)
 
 	c.Assert(targetFn, testutil.FileEquals, buf)
+
+	c.Assert(s.logbuf.String(), Matches, "(?s).*sha3-384 mismatch.*")
+}
+
+func (s *storeTestSuite) TestResumeOfTooMuchDataWorks(c *C) {
+	var mockServer *httptest.Server
+
+	// our mock download content
+	snapContent := "snap-content"
+	// the partial file has too much data
+	tooMuchLocalData := "way-way-way-too-much-snap-content"
+
+	h := crypto.SHA3_384.New()
+	io.Copy(h, bytes.NewBufferString(snapContent))
+
+	n := 0
+	mockServer = httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		n++
+		w.Write([]byte(snapContent))
+	}))
+	c.Assert(mockServer, NotNil)
+	defer mockServer.Close()
+
+	snap := &snap.Info{}
+	snap.RealName = "foo"
+	snap.AnonDownloadURL = mockServer.URL
+	snap.DownloadURL = "AUTH-URL"
+	snap.Sha3_384 = fmt.Sprintf("%x", h.Sum(nil))
+	snap.Size = int64(len(snapContent))
+
+	targetFn := filepath.Join(c.MkDir(), "foo_1.0_all.snap")
+	c.Assert(ioutil.WriteFile(targetFn+".partial", []byte(tooMuchLocalData), 0644), IsNil)
+	err := s.store.Download(s.ctx, "foo", targetFn, &snap.DownloadInfo, nil, nil, nil)
+	c.Assert(err, IsNil)
+	c.Assert(n, Equals, 1)
+
+	c.Assert(targetFn, testutil.FileEquals, snapContent)
 
 	c.Assert(s.logbuf.String(), Matches, "(?s).*sha3-384 mismatch.*")
 }

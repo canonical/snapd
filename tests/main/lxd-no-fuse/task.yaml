@@ -25,8 +25,15 @@ execute: |
 
     # The snapd package we build as part of the tests will only run on the
     # distro we build on. So we need to launch the right ubuntu version.
-    . /etc/os-release
-    lxd.lxc launch --quiet "ubuntu:${VERSION_ID}" my-ubuntu
+    (
+        . /etc/os-release
+        lxd.lxc launch --quiet "ubuntu:${VERSION_ID:-}" my-ubuntu
+    )
+    if [ "$(uname -m)" = x86_64 ] && lxd.lxc info my-ubuntu | grep "Architecture: i686"; then
+        echo "LXD spawned 32bit userspace container on a 64bit host, WAT?"
+        snap info lxd
+        exit 1
+    fi
 
     echo "Remove fuse to trigger the fuse sanity check"
     lxd.lxc exec my-ubuntu -- apt autoremove -y fuse
