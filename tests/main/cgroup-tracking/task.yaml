@@ -20,7 +20,10 @@ execute: |
     # TODO: add a variant that uses a service
 
     # This test varies between Ubuntu 16.04, Ubuntu 18.04 and Fedora 31.
-    # This combination exercises each of the three cases below.
+    # This combination exercises each of the three cases below, namely:
+    # - pure cgroup v2 system, like Fedora 31
+    # - hybrid cgroup system, like Ubuntu 18.04
+    # - pure cgroup v1 system, like Ubuntu 16.04
     echo "Find the path and id of the cgroup snapd uses for tracking."
     if grep -q -F "0::" < /proc/self/cgroup; then
         # Hybrid or pure v2 mode available.
