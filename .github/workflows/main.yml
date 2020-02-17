@@ -1,0 +1,45 @@
+name: snapd-snap
+
+on:
+  push:
+    tags:
+      - "[0-9]+**"
+      - "v[0-9]+**"
+
+jobs:
+  my-job:
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v2
+
+      - uses: frabert/replace-string-action@v1.1
+        id: git-tag
+        with:
+          pattern: 'refs/tags/'
+          string: ${{ github.ref }}
+          replace-with: ''
+
+      - uses: jhenstridge/snapcraft-build-action@v1
+        id: snapcraft
+
+      - name: Create Release
+        id: create_release
+        uses: actions/create-release@v1.0.0
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }} # TODO: FIXME: check if this already exist
+        with:
+          tag_name: ${{ github.ref }}
+          release_name: Release ${{ github.ref }}
+          draft: false
+          prerelease: false
+      - name: Upload Release Asset
+        id: upload-release-asset
+        uses: actions/upload-release-asset@v1.0.1
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          upload_url: ${{ steps.create_release.outputs.upload_url }} # This pulls from the CREATE RELEASE step above, referencing it's ID to get its outputs object, which include a `upload_url`. See this blog post for more info: https://jasonet.co/posts/new-features-of-github-actions/#passing-data-to-future-steps
+          asset_path: ./${{ steps.snapcraft.outputs.snap }}
+          asset_name: ${{ github.workflow }}-${{ steps.git-tag.outputs.replaced }}
+          asset_content_type: application/zip
