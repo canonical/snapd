@@ -61,6 +61,12 @@
 			"revisionTime": "2018-05-06T08:24:08Z"
 		},
 		{
+			"checksumSHA1": "FD/DYSVnNxWYPr14Ch+BIHfv8pw=",
+			"path": "github.com/mattn/go-runewidth",
+			"revision": "588506649b41f3e5b80a725a9bea447106b4f0d3",
+			"revisionTime": "2020-01-25T15:52:03Z"
+		},
+		{
 			"checksumSHA1": "bzUdFxQ29mPK0lwgFVcF0GFN74Q=",
 			"path": "github.com/mvo5/goconfigparser",
 			"revision": "26426272dda20cc76aa1fa44286dc743d2972fe8",
@@ -71,6 +77,12 @@
 			"path": "github.com/mvo5/libseccomp-golang",
 			"revision": "f4de83b52afb3c19190eb65cc92429feaaf0e8b6",
 			"revisionTime": "2018-03-08T15:25:21Z"
+		},
+		{
+			"checksumSHA1": "o/cX0SWULJGaeCOnGeF6qPfE4cM=",
+			"path": "github.com/nsf/termbox-go",
+			"revision": "4d2b513ad8bee47a9a5a65b0dee0182049a31916",
+			"revisionTime": "2020-02-04T03:14:03Z"
 		},
 		{
 			"checksumSHA1": "XEtWdIrRbRSFBR9q+SOATOuy7vM=",
