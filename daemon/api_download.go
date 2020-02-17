@@ -211,6 +211,7 @@ func sealDownloadToken(d *downloadTokenJSON, secret []byte) (string, error) {
 	}
 	mac := hmac.New(sha256.New, secret)
 	mac.Write(b)
+	// append the HMAC hash to b to build the full raw token tok
 	tok := mac.Sum(b)
 	return base64.RawURLEncoding.EncodeToString(tok), nil
 }
