@@ -111,7 +111,7 @@ var (
 	SystemLocalFontsDir       string
 	SystemFontconfigCacheDirs []string
 
-	CgroupDir        string
+	cgroupDir        string
 	FreezerCgroupDir string
 
 	SnapshotsDir string
@@ -365,8 +365,8 @@ func SetRootDir(rootdir string) {
 		SystemFontconfigCacheDirs = append(SystemFontconfigCacheDirs, filepath.Join(rootdir, "/usr/lib/fontconfig/cache"))
 	}
 
-	CgroupDir = filepath.Join(rootdir, "/sys/fs/cgroup/")
-	FreezerCgroupDir = filepath.Join(CgroupDir, "freezer/")
+	cgroupDir = filepath.Join(rootdir, "/sys/fs/cgroup/")
+	FreezerCgroupDir = filepath.Join(cgroupDir, "freezer/")
 	SnapshotsDir = filepath.Join(rootdir, snappyDir, "snapshots")
 
 	ErrtrackerDbDir = filepath.Join(rootdir, snappyDir, "errtracker.db")
