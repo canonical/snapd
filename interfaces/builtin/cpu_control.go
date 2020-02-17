@@ -37,8 +37,7 @@ const cpuControlConnectedPlugAppArmor = `
 /sys/devices/system/cpu/smt/control w,
 
 # https://www.kernel.org/doc/html/latest/admin-guide/pm/cpufreq.html#policy-interface-in-sysfs
-/sys/devices/system/cpu/cpufreq/* r,
-/sys/devices/system/cpu/cpufreq/policy*/* r,
+/sys/devices/system/cpu/cpufreq/{,**} r,
 /sys/devices/system/cpu/cpufreq/policy*/energy_performance_preference w,
 /sys/devices/system/cpu/cpufreq/policy*/scaling_governor w,
 /sys/devices/system/cpu/cpufreq/policy*/scaling_max_freq w,
@@ -47,7 +46,7 @@ const cpuControlConnectedPlugAppArmor = `
 /sys/devices/system/cpu/cpufreq/boost w,
 
 # https://www.kernel.org/doc/html/latest/admin-guide/pm/intel_pstate.html#user-space-interface-in-sysfs
-/sys/devices/system/cpu/intel_pstate/* r,
+/sys/devices/system/cpu/intel_pstate/{,*} r,
 /sys/devices/system/cpu/intel_pstate/hwp_dynamic_boost w,
 /sys/devices/system/cpu/intel_pstate/max_perf_pct w,
 /sys/devices/system/cpu/intel_pstate/min_perf_pct w,
