@@ -147,12 +147,12 @@ func streamOneSnap(c *Command, action snapDownloadAction, user *auth.UserState) 
 	}
 
 	if !action.HeaderPeek {
-		r, s, err := theStore.DownloadStream(context.TODO(), action.SnapName, ss.Info, action.resumePosition, user)
+		stream, status, err := theStore.DownloadStream(context.TODO(), action.SnapName, ss.Info, action.resumePosition, user)
 		if err != nil {
 			return InternalError(err.Error())
 		}
-		ss.stream = r
-		if s != 206 {
+		ss.stream = stream
+		if status != 206 {
 			// store/cdn has no partial content (valid
 			// reply per RFC)
 			logger.Debugf("store refused our range request")
