@@ -1074,10 +1074,17 @@ var createTransientScope = func(securityTag string) error {
 	)
 	var job dbus.ObjectPath
 	if err := call.Store(&job); err != nil {
-		if dbusErr, ok := err.(dbus.Error); ok && dbusErr.Name == "org.freedesktop.DBus.Error.UnknownMethod" {
-			// The DBus API is not supported on this system. This can happen on
-			// very old versions of Systemd, for instance on Ubuntu 14.04.
-			return nil
+		if dbusErr, ok := err.(dbus.Error); ok {
+			switch dbusErr.Name {
+			case "org.freedesktop.DBus.Error.UnknownMethod":
+				// The DBus API is not supported on this system. This can happen on
+				// very old versions of Systemd, for instance on Ubuntu 14.04.
+				return nil
+			case "org.freedesktop.systemd1.UnitExists":
+				// Starting a scope with a name that already exists is an
+				// error. Normally this should never happen.
+				return fmt.Errorf("cannot create transient scope: scope %q clashed: %s", unitName, err)
+			}
 		}
 		return fmt.Errorf("cannot create transient scope: %s", err)
 	}
