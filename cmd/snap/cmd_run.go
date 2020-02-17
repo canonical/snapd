@@ -1019,9 +1019,13 @@ var createTransientScope = func(securityTag string) error {
 		return err
 	}
 
-	// The property and auxUnit types are not documented but can be traced from
-	// systemd source code. Systemd defines the signature of StartTransientUnit
-	// as "ssa(sv)a(sa(sv))". The signature can be decomposed as follows:
+	// The property and auxUnit types are not well documented but can be traced
+	// from systemd source code. Systemd defines the signature of
+	// StartTransientUnit as "ssa(sv)a(sa(sv))". The signature can be
+	// decomposed as follows:
+	//
+	// Partial documentation, at the time of this writing, is available at
+	// https://www.freedesktop.org/wiki/Software/systemd/dbus/
 	//
 	// unitName string // name of the unit to start
 	// jobMode string  // corresponds to --job-mode= (see systemctl(1) manual page)
