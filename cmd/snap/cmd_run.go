@@ -948,6 +948,29 @@ func (x *cmdRun) runSnapConfine(info *snap.Info, securityTag, snapApp, hook stri
 	// Systemd automatically places services under a unique cgroup encoding the
 	// security tag, for apps and hooks we need to create a transient scope
 	// with similar purpose.
+	//
+	// The way this happens is as follows:
+	//
+	// 1) Services are implemented using systemd service units. Starting an
+	// unit automatically places it in a cgroup named after the service unit
+	// name. Snapd controls the name of the service units thus, indirectly, of
+	// the cgroup name.
+	//
+	// 2) Non-services are started inside systemd transient scopes. Scopes are
+	// a systemd unit type that is defined programmatically and is meant for
+	// groups of processes started and stopped by _arbitrary process_, that is,
+	// not systemd, through fork. This model fits snap applications very well.
+	//
+	// Services are placed under system.slice (for system services) or
+	// user.slice (for user services). Non-service applications and hooks are
+	// placed in a hierarchy representing the invoking user, typically inside a
+	// particular session.
+	//
+	// This arrangement allows for proper accounting and control of resources
+	// used by snap application processes of each type.
+	//
+	// For more information about systemd cgroups, including unit types, see:
+	// https://www.freedesktop.org/wiki/Software/systemd/ControlGroupInterface/
 	if app := info.Apps[snapApp]; app == nil || !app.IsService() {
 		logger.Debugf("creating transient scope %s", securityTag)
 		if err := createTransientScope(securityTag); err != nil {
