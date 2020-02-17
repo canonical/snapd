@@ -969,6 +969,10 @@ func (x *cmdRun) runSnapConfine(info *snap.Info, securityTag, snapApp, hook stri
 }
 
 func randomUUID() (string, error) {
+	// The source of the bytes generated here is the same as that of
+	// /dev/urandom. In essence, this doens't block but is not crypto-strong.
+	// Our goal here is to avoid clashing UUIDs that are needed for all of the
+	// non-service commands that are started with the help of this UUID.
 	uuidBytes, err := ioutil.ReadFile("/proc/sys/kernel/random/uuid")
 	return strings.TrimSpace(string(uuidBytes)), err
 }
