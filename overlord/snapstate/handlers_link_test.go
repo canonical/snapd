@@ -1271,6 +1271,10 @@ func (s *linkSnapSuite) setMockKernelRemodelCtx(c *C, oldKernel, newKernel strin
 }
 
 func (s *linkSnapSuite) TestMaybeUndoRemodelBootChangesUnrelatedAppDoesNothing(c *C) {
+	runner := state.NewTaskRunner(s.state)
+	mgr, err := snapstate.Manager(s.state, runner)
+	c.Assert(err, IsNil)
+
 	s.state.Lock()
 	defer s.state.Unlock()
 
@@ -1283,12 +1287,16 @@ func (s *linkSnapSuite) TestMaybeUndoRemodelBootChangesUnrelatedAppDoesNothing(c
 		},
 	})
 
-	err := snapstate.MaybeUndoRemodelBootChanges(t)
+	err = mgr.MaybeUndoRemodelBootChanges(t)
 	c.Assert(err, IsNil)
 	c.Check(s.stateBackend.restartRequested, HasLen, 0)
 }
 
 func (s *linkSnapSuite) TestMaybeUndoRemodelBootChangesSameKernel(c *C) {
+	runner := state.NewTaskRunner(s.state)
+	mgr, err := snapstate.Manager(s.state, runner)
+	c.Assert(err, IsNil)
+
 	s.state.Lock()
 	defer s.state.Unlock()
 
@@ -1302,12 +1310,16 @@ func (s *linkSnapSuite) TestMaybeUndoRemodelBootChangesSameKernel(c *C) {
 		Type: "kernel",
 	})
 
-	err := snapstate.MaybeUndoRemodelBootChanges(t)
+	err = mgr.MaybeUndoRemodelBootChanges(t)
 	c.Assert(err, IsNil)
 	c.Check(s.stateBackend.restartRequested, HasLen, 0)
 }
 
 func (s *linkSnapSuite) TestMaybeUndoRemodelBootChangesNeedsUndo(c *C) {
+	runner := state.NewTaskRunner(s.state)
+	mgr, err := snapstate.Manager(s.state, runner)
+	c.Assert(err, IsNil)
+
 	s.state.Lock()
 	defer s.state.Unlock()
 
@@ -1321,7 +1333,7 @@ func (s *linkSnapSuite) TestMaybeUndoRemodelBootChangesNeedsUndo(c *C) {
 	defer restore()
 
 	// we need to init the boot-id
-	err := s.state.VerifyReboot("some-boot-id")
+	err = s.state.VerifyReboot("some-boot-id")
 	c.Assert(err, IsNil)
 
 	// we pretend we do a remodel from kernel -> new-kernel
@@ -1360,7 +1372,7 @@ func (s *linkSnapSuite) TestMaybeUndoRemodelBootChangesNeedsUndo(c *C) {
 	})
 
 	// now we simulate that the new kernel is getting undone
-	err = snapstate.MaybeUndoRemodelBootChanges(t)
+	err = mgr.MaybeUndoRemodelBootChanges(t)
 	c.Assert(err, IsNil)
 
 	// that will schedule a boot into the previous kernel
