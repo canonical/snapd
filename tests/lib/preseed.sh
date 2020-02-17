@@ -3,6 +3,8 @@
 # mount ubuntu cloud image through qemu-nbd and mount
 # critical virtual filesystems (such as proc) under
 # the root of mounted image.
+# XXX: cannot be used in prepare: section of the tests
+# as the test gets stuck around qemu-nbd on 20.04.
 mount_ubuntu_image() {
     local CLOUD_IMAGE=$1
     local IMAGE_MOUNTPOINT=$2
