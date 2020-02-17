@@ -307,8 +307,15 @@ func PidsOfSnap(snapInstanceName string) (map[string][]int, error) {
 	// PIDs that belong to the cgroup and bin them into a bucket associated
 	// with the security tag.
 	walkFunc := func(path string, fileInfo os.FileInfo, err error) error {
-		if err != nil || fileInfo.IsDir() {
+		if err != nil {
+			// See the documentation of path/filepath.Walk. The error we get is
+			// the error that was encountere while walking. We just surface
+			// that error quickly.
 			return err
+		}
+		if fileInfo.IsDir() {
+			// We don't care about directories.
+			return nil
 		}
 		if filepath.Base(path) != "cgroup.procs" {
 			return nil
