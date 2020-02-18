@@ -1155,6 +1155,10 @@ func (s *startOfOperationTimeSuite) SetUpTest(c *C) {
 	s.mgr = nil
 }
 
+func (s *startOfOperationTimeSuite) TearDownTest(c *C) {
+	dirs.SetRootDir("")
+}
+
 func (s *startOfOperationTimeSuite) manager(c *C) *devicestate.DeviceManager {
 	if s.mgr == nil {
 		hookMgr, err := hookstate.Manager(s.state, s.runner)
