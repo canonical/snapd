@@ -1,12 +1,10 @@
 name: snapcraft-snap
 
-runs-on: ubuntu-16.04
-
 on: 
   push: 
     tags:
-      - "[0-9]+**"
-      - "v[0-9]+**"
+      - "3.9.[0-9]+**"
+      - "v3.9.[0-9]+**"
 
 jobs:
   build_and_release:
@@ -35,6 +33,12 @@ jobs:
         id: snapcraft
         if: env.action_enabled == 1
 
+      - uses: diddlesnaps/snapcraft-review-tools-action@v1
+        with:
+          snap: ${{ steps.snapcraft.outputs.snap }}
+          isClassic: 'true'
+        if: env.action_enabled == 1 && env.publish_on_snapcraft == 1
+
       - name: Create Release
         id: create_release
         uses: actions/create-release@v1.0.0
@@ -46,7 +50,6 @@ jobs:
           draft: false
           prerelease: false
         if: env.action_enabled == 1 && env.publish_on_github == 1
-
 
       - name: Upload Release Asset to github
         id: upload-release-asset 
