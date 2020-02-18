@@ -642,7 +642,7 @@ func (ovs *overlordSuite) TestOverlordStartUpSetsStartOfOperation(c *C) {
 	c.Assert(st.Get("start-of-operation-time", &opTime), IsNil)
 }
 
-func (ovs *overlordSuite) TestEnsureLoopPruneDoesntAbortBeforeStartOfOperation(c *C) {
+func (ovs *overlordSuite) TestEnsureLoopPruneDoesntAbortShortlyAfterStartOfOperation(c *C) {
 	restoreIntv := overlord.MockPruneInterval(100*time.Millisecond, 1000*time.Millisecond, 1*time.Hour)
 	defer restoreIntv()
 
@@ -660,8 +660,8 @@ func (ovs *overlordSuite) TestEnsureLoopPruneDoesntAbortBeforeStartOfOperation(c
 	st := o.State()
 	st.Lock()
 
-	// start of operation time is 1h ago
-	opTime := time.Now().AddDate(0, 0, -1)
+	// start of operation time is 50min ago, this is less then abort limit
+	opTime := time.Now().Add(-50 * time.Minute)
 	st.Set("start-of-operation-time", opTime)
 
 	// spawn time one month ago
@@ -682,7 +682,7 @@ func (ovs *overlordSuite) TestEnsureLoopPruneDoesntAbortBeforeStartOfOperation(c
 
 	// start the loop that runs the prune ticker
 	o.Loop()
-	time.Sleep(100 * time.Millisecond)
+	time.Sleep(500 * time.Millisecond)
 	c.Assert(o.Stop(), IsNil)
 
 	st.Lock()
@@ -732,7 +732,7 @@ func (ovs *overlordSuite) TestEnsureLoopPruneAbortsOld(c *C) {
 
 	// start the loop that runs the prune ticker
 	o.Loop()
-	time.Sleep(100 * time.Millisecond)
+	time.Sleep(500 * time.Millisecond)
 	c.Assert(o.Stop(), IsNil)
 
 	st.Lock()
@@ -783,7 +783,7 @@ func (ovs *overlordSuite) TestEnsureLoopNoPruneWhenPreseed(c *C) {
 	st.Unlock()
 	// start the loop that runs the prune ticker
 	o.Loop()
-	time.Sleep(100 * time.Millisecond)
+	time.Sleep(500 * time.Millisecond)
 	c.Assert(o.Stop(), IsNil)
 
 	st.Lock()
