@@ -61,6 +61,8 @@ type SnapManager struct {
 	catalogRefresh *catalogRefresh
 
 	lastUbuntuCoreTransitionAttempt time.Time
+
+	preseed bool
 }
 
 // SnapSetup holds the necessary snap details to perform most snap manager tasks.
@@ -389,12 +391,18 @@ func Store(st *state.State, deviceCtx DeviceContext) StoreService {
 
 // Manager returns a new snap manager.
 func Manager(st *state.State, runner *state.TaskRunner) (*SnapManager, error) {
+	preseed := release.PreseedMode()
 	m := &SnapManager{
 		state:          st,
-		backend:        backend.Backend{},
 		autoRefresh:    newAutoRefresh(st),
 		refreshHints:   newRefreshHints(st),
 		catalogRefresh: newCatalogRefresh(st),
+		preseed:        preseed,
+	}
+	if preseed {
+		m.backend = backend.NewForPreseedMode()
+	} else {
+		m.backend = backend.Backend{}
 	}
 
 	if err := os.MkdirAll(dirs.SnapCookieDir, 0700); err != nil {
@@ -823,6 +831,10 @@ func (m *SnapManager) localInstallCleanup() error {
 
 // Ensure implements StateManager.Ensure.
 func (m *SnapManager) Ensure() error {
+	if m.preseed {
+		return nil
+	}
+
 	// do not exit right away on error
 	errs := []error{
 		m.atSeed(),
