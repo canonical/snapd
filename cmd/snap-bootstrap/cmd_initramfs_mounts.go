@@ -201,6 +201,8 @@ func generateMountsModeRun() error {
 		return err
 	}
 
+	modeenvChanged := false
+
 	// 2.2.1 check if base is mounted
 	isBaseMounted, err := osutilIsMounted(filepath.Join(runMnt, "base"))
 	if err != nil {
@@ -225,6 +227,7 @@ func generateMountsModeRun() error {
 					// snap
 					modeEnv.BaseStatus = "trying"
 					base = modeEnv.TryBase
+					modeenvChanged = true
 				}
 				// TODO:UC20: log a message somewhere if try base snap does not
 				//            exist?
@@ -234,6 +237,7 @@ func generateMountsModeRun() error {
 			// snapd failed to start with the base snap update, so we need to
 			// fallback to the old base snap and clear base_status
 			modeEnv.BaseStatus = ""
+			modeenvChanged = true
 		}
 
 		baseSnapPath := filepath.Join(dataDir, "system-data", dirs.SnapBlobDir, base)
@@ -295,7 +299,10 @@ func generateMountsModeRun() error {
 		fmt.Fprintf(stdout, "%s %s\n", kernelPath, filepath.Join(runMnt, "kernel"))
 	}
 	// 3.1 Write the modeenv out again
-	return modeEnv.Write(filepath.Join(dataDir, "system-data"))
+	if modeenvChanged {
+		return modeEnv.Write(filepath.Join(dataDir, "system-data"))
+	}
+	return nil
 }
 
 func generateInitramfsMounts() error {
