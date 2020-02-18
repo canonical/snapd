@@ -92,7 +92,7 @@ func (s *seed20Suite) makeSnap(c *C, yamlKey, publisher string) {
 }
 
 func (s *seed20Suite) expectedPath(snapName string) string {
-	return filepath.Join(s.SeedDir, "snaps", filepath.Base(s.AssertedSnapInfo(snapName).MountFile()))
+	return filepath.Join(s.SeedDir, "snaps", s.AssertedSnapInfo(snapName).Filename())
 }
 
 func (s *seed20Suite) TestLoadMetaCore20Minimal(c *C) {

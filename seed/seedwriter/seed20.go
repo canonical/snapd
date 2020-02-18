@@ -173,7 +173,7 @@ func (tr *tree20) snapPath(sn *SeedSnap) (string, error) {
 			return "", err
 		}
 	}
-	return filepath.Join(snapsDir, filepath.Base(sn.Info.MountFile())), nil
+	return filepath.Join(snapsDir, sn.Info.Filename()), nil
 }
 
 func (tr *tree20) localSnapPath(sn *SeedSnap) (string, error) {

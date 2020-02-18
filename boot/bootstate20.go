@@ -21,7 +21,6 @@ package boot
 
 import (
 	"fmt"
-	"path/filepath"
 
 	"github.com/snapcore/snapd/bootloader"
 	"github.com/snapcore/snapd/dirs"
@@ -305,7 +304,7 @@ func (bs20 *bootState20Base) commit() error {
 	// are calling setNext on the same snap that is current
 	changed := false
 	if bs20.tryBaseSnap != nil {
-		tryBase := filepath.Base(bs20.tryBaseSnap.MountFile())
+		tryBase := bs20.tryBaseSnap.Filename()
 		if tryBase != bs20.modeenv.TryBase {
 			bs20.modeenv.TryBase = tryBase
 			changed = true
@@ -504,7 +503,7 @@ func (bsmark *bootState20MarkSuccessful) commit() error {
 
 	if bsmark.triedBaseSnap != nil {
 		// set the new base as the tried base snap
-		tryBase := filepath.Base(bsmark.triedBaseSnap.MountFile())
+		tryBase := bsmark.triedBaseSnap.Filename()
 		if bsmark.modeenv.Base != tryBase {
 			bsmark.modeenv.Base = tryBase
 			baseChanged = true
