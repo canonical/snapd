@@ -80,7 +80,7 @@ type Overlord struct {
 	ensureRun   int32
 	pruneTicker *time.Ticker
 
-	operationalTime time.Time
+	startOfOperationTime time.Time
 
 	// restarts
 	restartBehavior RestartBehavior
@@ -316,10 +316,10 @@ func (o *Overlord) StartUp() error {
 		var err error
 		st := o.State()
 		st.Lock()
-		o.operationalTime, err = o.deviceMgr.StartOfOperationTime()
+		o.startOfOperationTime, err = o.deviceMgr.StartOfOperationTime()
 		st.Unlock()
 		if err != nil {
-			return fmt.Errorf("cannot get operational time: %s", err)
+			return fmt.Errorf("cannot get start of operation time: %s", err)
 		}
 	}
 
@@ -426,7 +426,7 @@ func (o *Overlord) Loop() {
 				}
 				st := o.State()
 				st.Lock()
-				st.Prune(o.operationalTime, pruneWait, abortWait, pruneMaxChanges)
+				st.Prune(o.startOfOperationTime, pruneWait, abortWait, pruneMaxChanges)
 				st.Unlock()
 			}
 		}
