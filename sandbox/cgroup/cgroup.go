@@ -319,7 +319,7 @@ func PidsOfSnap(snapInstanceName string) (map[string][]int, error) {
 		}
 		if filepath.Base(path) != "cgroup.procs" {
 			// We are looking for "cgroup.procs" files. Those contain the set
-			// of processes that momentairly inhabit a cgroup.
+			// of processes that momentarily inhabit a cgroup.
 			return nil
 		}
 		// Now that we are confident that the file we're looking at is
