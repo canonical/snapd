@@ -6,7 +6,7 @@ environment:
     FAILING_SYSTEMS: ubuntu-16.04- ubuntu-18.04- debian-
     DIRTY_SOURCE: /tmp/dirty-snapd
 
-prepare:
+prepare: |
     # /home/gopath/.../snapd
     cd "$SPREAD_PATH/.."
     mkdir -p "$DIRTY_SOURCE"
