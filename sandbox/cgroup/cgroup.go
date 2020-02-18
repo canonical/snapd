@@ -309,7 +309,7 @@ func PidsOfSnap(snapInstanceName string) (map[string][]int, error) {
 	walkFunc := func(path string, fileInfo os.FileInfo, err error) error {
 		if err != nil {
 			// See the documentation of path/filepath.Walk. The error we get is
-			// the error that was encountere while walking. We just surface
+			// the error that was encountered while walking. We just surface
 			// that error quickly.
 			return err
 		}
